@@ -17,10 +17,10 @@
 #define _TD_WAL_INT_H_
 
 #include "compare.h"
-#include "tchecksum.h"
-#include "wal.h"
-
 #include "taoserror.h"
+#include "tchecksum.h"
+#include "tcoding.h"
+#include "wal.h"
 
 #ifdef __cplusplus
 extern "C" {
@@ -39,6 +39,19 @@ typedef struct WalIdxEntry {
   int64_t ver;
   int64_t offset;
 } SWalIdxEntry;
+
+static inline int tSerializeWalIdxEntry(void** buf, SWalIdxEntry* pIdxEntry) {
+  int tlen;
+  tlen += taosEncodeFixedI64(buf, pIdxEntry->ver);
+  tlen += taosEncodeFixedI64(buf, pIdxEntry->offset);
+  return 0;
+}
+
+static inline void* tDeserializeWalIdxEntry(void* buf, SWalIdxEntry* pIdxEntry) {
+  buf = taosDecodeFixedI64(buf, &pIdxEntry->ver);
+  buf = taosDecodeFixedI64(buf, &pIdxEntry->offset);
+  return buf;
+}
 
 static inline int32_t compareWalFileInfo(const void* pLeft, const void* pRight) {
   SWalFileInfo* pInfoLeft = (SWalFileInfo*)pLeft;
@@ -130,12 +143,12 @@ int   walMetaDeserialize(SWal* pWal, const char* bytes);
 // meta section end
 
 // seek section
-int walChangeFile(SWal* pWal, int64_t ver);
-int walChangeFileToLast(SWal* pWal);
+int walChangeWrite(SWal* pWal, int64_t ver);
+int walSetWrite(SWal* pWal);
 // seek section end
 
 int64_t walGetSeq();
-int     walSeekVer(SWal* pWal, int64_t ver);
+int     walSeekWriteVer(SWal* pWal, int64_t ver);
 int     walRoll(SWal* pWal);
 
 #ifdef __cplusplus
