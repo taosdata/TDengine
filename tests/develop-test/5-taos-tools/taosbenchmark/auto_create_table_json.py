@@ -29,11 +29,13 @@ class TDTestCase:
         tdSql.init(conn.cursor(), logSql)
 
     def run(self):
-        cmd = "taosBenchmark"
+        cmd = "taosBenchmark -f ./5-taos-tools/taosbenchmark/json/taosc_auto_create_table.json"
         tdLog.info("%s" % cmd)
         os.system("%s" % cmd)
-        tdSql.query("select count(*) from test.meters")
-        tdSql.checkData(0, 0, 4)
+        tdSql.query("select count(tbname) from db.stb")
+        tdSql.checkData(0, 0, 8)
+        tdSql.query("select count(*) from db.stb")
+        tdSql.checkData(0, 0, 160)
 
     def stop(self):
         tdSql.close()
