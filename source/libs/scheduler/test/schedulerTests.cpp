@@ -217,7 +217,7 @@ void *schtSendRsp(void *param) {
   return NULL;
 }
 
-void *pInsertJob = NULL;
+struct SSchJob *pInsertJob = NULL;
 
 
 }
@@ -228,7 +228,7 @@ TEST(queryTest, normalCase) {
   char *dbname = "1.db1";
   char *tablename = "table1";
   SVgroupInfo vgInfo = {0};
-  void *pJob = NULL;
+  SSchJob *pJob = NULL;
   SQueryDag dag = {0};
 
   schtInitLogFile();

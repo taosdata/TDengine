@@ -77,13 +77,13 @@ int32_t qCreateExecTask(void* tsdb, int32_t vgId, SSubplan* pSubplan, qTaskInfo_
     goto _error;
   }
 
-  SDataSinkMgtCfg cfg = {.maxDataBlockNum = 1000};
+  SDataSinkMgtCfg cfg = {.maxDataBlockNum = 1000, .maxDataBlockNumPerQuery = 100};
   code = dsDataSinkMgtInit(&cfg);
   if (code != TSDB_CODE_SUCCESS) {
     goto _error;
   }
 
-  code = dsCreateDataSinker(pSubplan->pDataSink, (*pTask)->dsHandle);
+  code = dsCreateDataSinker(pSubplan->pDataSink, &(*pTask)->dsHandle);
 
   _error:
   // if failed to add ref for all tables in this query, abort current query
@@ -178,7 +178,7 @@ int32_t qExecTask(qTaskInfo_t tinfo, DataSinkHandle* handle) {
   publishOperatorProfEvent(pTaskInfo->pRoot, QUERY_PROF_BEFORE_OPERATOR_EXEC);
   int64_t st = 0;
 
-  handle = &pTaskInfo->dsHandle;
+  *handle = pTaskInfo->dsHandle;
 
   while(1) {
     st = taosGetTimestampUs();
@@ -188,6 +188,7 @@ int32_t qExecTask(qTaskInfo_t tinfo, DataSinkHandle* handle) {
     publishOperatorProfEvent(pTaskInfo->pRoot, QUERY_PROF_AFTER_OPERATOR_EXEC);
 
     if (pRes == NULL) { // no results generated yet, abort
+      dsEndPut(pTaskInfo->dsHandle, pTaskInfo->cost.elapsedTime);
       return pTaskInfo->code;
     }
 

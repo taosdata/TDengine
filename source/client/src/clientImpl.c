@@ -547,6 +547,13 @@ void* doFetchRow(SRequestObj* pRequest) {
     if (pRequest->type == TDMT_VND_QUERY) {
       pRequest->type = TDMT_VND_FETCH;
       scheduleFetchRows(pRequest->body.pQueryJob, (void **)&pRequest->body.resInfo.pData);
+      
+      pResultInfo->current = 0;
+      if (pResultInfo->numOfRows <= pResultInfo->current) {
+        return NULL;
+      }
+
+      goto _return;
     } else if (pRequest->type == TDMT_MND_SHOW) {
       pRequest->type = TDMT_MND_SHOW_RETRIEVE;
     } else if (pRequest->type == TDMT_VND_SHOW_TABLES) {
@@ -589,6 +596,8 @@ void* doFetchRow(SRequestObj* pRequest) {
       return NULL;
     }
   }
+
+_return:
 
   for(int32_t i = 0; i < pResultInfo->numOfCols; ++i) {
     pResultInfo->row[i] = pResultInfo->pCol[i] + pResultInfo->fields[i].bytes * pResultInfo->current;

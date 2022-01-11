@@ -617,6 +617,8 @@ int32_t qwInitFetchRsp(int32_t length, SRetrieveTableRsp **rsp) {
 
   memset(pRsp, 0, sizeof(SRetrieveTableRsp));
 
+  *rsp = pRsp;
+
   return TSDB_CODE_SUCCESS;
 }
 
@@ -866,7 +868,61 @@ int32_t qwCheckTaskCancelDrop( SQWorkerMgmt *mgmt, uint64_t sId, uint64_t queryI
   return TSDB_CODE_SUCCESS;
 }
 
-int32_t qwHandleFetch(SQWorkerTaskHandlesCache *handles, SQWorkerMgmt *mgmt, uint64_t sId, uint64_t queryId, uint64_t taskId, SRpcMsg *pMsg) {
+
+int32_t qwQueryPostProcess(SQWorkerMgmt *mgmt, uint64_t sId, uint64_t qId, uint64_t tId, int8_t status, int32_t errCode) {
+  SQWSchStatus *sch = NULL;
+  SQWTaskStatus *task = NULL;
+  int32_t code = 0;
+  int8_t newStatus = JOB_TASK_STATUS_CANCELLED;
+
+  code = qwAcquireScheduler(QW_READ, mgmt, sId, &sch, QW_NOT_EXIST_ADD);
+  if (code) {
+    qError("sId:%"PRIx64" not in cache", sId);
+    QW_ERR_RET(code);
+  }
+
+  code = qwAcquireTask(QW_READ, sch, qId, tId, &task);
+  if (code) {
+    qwReleaseScheduler(QW_READ, mgmt);
+    
+    if (JOB_TASK_STATUS_PARTIAL_SUCCEED == status || JOB_TASK_STATUS_SUCCEED == status) {
+      qError("sId:%"PRIx64" queryId:%"PRIx64" taskId:%"PRIx64" not in cache", sId, qId, tId);
+      QW_ERR_RET(code);
+    }
+
+    QW_ERR_RET(qwAddTask(mgmt, sId, qId, tId, status, QW_EXIST_ACQUIRE, &sch, &task));
+  }
+
+  if (task->cancel) {
+    QW_LOCK(QW_WRITE, &task->lock);
+    qwUpdateTaskInfo(task, QW_TASK_INFO_STATUS, &newStatus);
+    QW_UNLOCK(QW_WRITE, &task->lock);
+  }
+
+  if (task->drop) {
+    qwReleaseTask(QW_READ, sch);
+    qwReleaseScheduler(QW_READ, mgmt);
+    
+    qwDropTask(mgmt, sId, qId, tId);
+
+    return TSDB_CODE_SUCCESS;
+  }
+
+  if (!(task->cancel || task->drop)) {
+    QW_LOCK(QW_WRITE, &task->lock);
+    qwUpdateTaskInfo(task, QW_TASK_INFO_STATUS, &status);
+    task->code = errCode;
+    QW_UNLOCK(QW_WRITE, &task->lock);
+  }
+  
+  qwReleaseTask(QW_READ, sch);
+  qwReleaseScheduler(QW_READ, mgmt);
+
+  return TSDB_CODE_SUCCESS;
+}
+
+
+int32_t qwHandleFetch(SQWorkerMgmt *mgmt, uint64_t sId, uint64_t queryId, uint64_t taskId, SRpcMsg *pMsg) {
   SQWSchStatus *sch = NULL;
   SQWTaskStatus *task = NULL;
   int32_t code = 0;
@@ -876,6 +932,9 @@ int32_t qwHandleFetch(SQWorkerTaskHandlesCache *handles, SQWorkerMgmt *mgmt, uin
   int32_t dataLength = 0;
   SRetrieveTableRsp *rsp = NULL;
   bool queryEnd = false;
+  SQWorkerTaskHandlesCache *handles = NULL;
+
+  QW_ERR_JRET(qwAcquireTaskHandles(QW_READ, mgmt, queryId, taskId, &handles));
 
   QW_ERR_JRET(qwAcquireScheduler(QW_READ, mgmt, sId, &sch, QW_NOT_EXIST_RET_ERR));
   QW_ERR_JRET(qwAcquireTask(QW_READ, sch, queryId, taskId, &task));
@@ -955,59 +1014,11 @@ _return:
     qwBuildAndSendFetchRsp(pMsg, rsp, dataLength, code);
   }
 
-  QW_RET(code);
-}
-
-int32_t qwQueryPostProcess(SQWorkerMgmt *mgmt, uint64_t sId, uint64_t qId, uint64_t tId, int8_t status, int32_t errCode) {
-  SQWSchStatus *sch = NULL;
-  SQWTaskStatus *task = NULL;
-  int32_t code = 0;
-  int8_t newStatus = JOB_TASK_STATUS_CANCELLED;
-
-  code = qwAcquireScheduler(QW_READ, mgmt, sId, &sch, QW_NOT_EXIST_ADD);
-  if (code) {
-    qError("sId:%"PRIx64" not in cache", sId);
-    QW_ERR_RET(code);
-  }
-
-  code = qwAcquireTask(QW_READ, sch, qId, tId, &task);
-  if (code) {
-    qwReleaseScheduler(QW_READ, mgmt);
-    
-    if (JOB_TASK_STATUS_PARTIAL_SUCCEED == status || JOB_TASK_STATUS_SUCCEED == status) {
-      qError("sId:%"PRIx64" queryId:%"PRIx64" taskId:%"PRIx64" not in cache", sId, qId, tId);
-      QW_ERR_RET(code);
-    }
-
-    QW_ERR_RET(qwAddTask(mgmt, sId, qId, tId, status, QW_EXIST_ACQUIRE, &sch, &task));
-  }
-
-  if (task->cancel) {
-    QW_LOCK(QW_WRITE, &task->lock);
-    qwUpdateTaskInfo(task, QW_TASK_INFO_STATUS, &newStatus);
-    QW_UNLOCK(QW_WRITE, &task->lock);
-  }
-
-  if (task->drop) {
-    qwReleaseTask(QW_READ, sch);
-    qwReleaseScheduler(QW_READ, mgmt);
-    
-    qwDropTask(mgmt, sId, qId, tId);
-
-    return TSDB_CODE_SUCCESS;
-  }
-
-  if (!(task->cancel || task->drop)) {
-    QW_LOCK(QW_WRITE, &task->lock);
-    qwUpdateTaskInfo(task, QW_TASK_INFO_STATUS, &status);
-    task->code = errCode;
-    QW_UNLOCK(QW_WRITE, &task->lock);
+  if (handles) {
+    qwReleaseTaskResCache(QW_READ, mgmt);
   }
   
-  qwReleaseTask(QW_READ, sch);
-  qwReleaseScheduler(QW_READ, mgmt);
-
-  return TSDB_CODE_SUCCESS;
+  QW_RET(code);
 }
 
 int32_t qWorkerInit(SQWorkerCfg *cfg, void **qWorkerMgmt) {
@@ -1081,6 +1092,7 @@ int32_t qWorkerProcessQueryMsg(void *node, void *qWorkerMgmt, SRpcMsg *pMsg) {
   qTaskInfo_t pTaskInfo = NULL;
   code = qCreateExecTask(node, 0, (struct SSubplan *)plan, &pTaskInfo);
   if (code) {
+    qError("qCreateExecTask failed, code:%x", code);
     QW_ERR_JRET(code);
   } else {
     QW_ERR_JRET(qwAddTask(qWorkerMgmt, msg->sId, msg->queryId, msg->taskId, JOB_TASK_STATUS_EXECUTING, QW_EXIST_RET_ERR, NULL, NULL));
@@ -1094,6 +1106,7 @@ int32_t qWorkerProcessQueryMsg(void *node, void *qWorkerMgmt, SRpcMsg *pMsg) {
   code = qExecTask(pTaskInfo, &sinkHandle);
 
   if (code) {
+    qError("qExecTask failed, code:%x", code);  
     QW_ERR_JRET(code);
   } else {
     QW_ERR_JRET(qwAddTaskHandlesToCache(qWorkerMgmt, msg->queryId, msg->taskId, pTaskInfo, sinkHandle));
@@ -1225,17 +1238,10 @@ int32_t qWorkerProcessFetchMsg(void *node, void *qWorkerMgmt, SRpcMsg *pMsg) {
   QW_ERR_RET(qwUpdateSchLastAccess(qWorkerMgmt, msg->sId));
 
   void *data = NULL;
-  SQWorkerTaskHandlesCache *handles = NULL;
   int32_t code = 0;
   
-  QW_ERR_RET(qwAcquireTaskHandles(QW_READ, qWorkerMgmt, msg->queryId, msg->taskId, &handles));
+  QW_ERR_RET(qwHandleFetch(qWorkerMgmt, msg->sId, msg->queryId, msg->taskId, pMsg));
 
-  QW_ERR_JRET(qwHandleFetch(handles, qWorkerMgmt, msg->sId, msg->queryId, msg->taskId, pMsg));
-
-_return:
-
-  qwReleaseTaskResCache(QW_READ, qWorkerMgmt);
-  
   QW_RET(code);
 }
 

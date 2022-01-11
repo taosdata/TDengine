@@ -22,6 +22,7 @@ extern "C" {
 
 #include "os.h"
 #include "thash.h"
+#include "executor.h"
 
 #define DS_BUF_LOW   1
 #define DS_BUF_FULL  2

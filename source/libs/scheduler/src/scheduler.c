@@ -68,7 +68,7 @@ int32_t schValidateTaskReceivedMsgType(SSchJob *pJob, SSchTask *pTask, int32_t m
         SCH_ERR_RET(TSDB_CODE_SCH_STATUS_ERROR);
       }
       
-      if (SCH_GET_TASK_STATUS(pTask) != JOB_TASK_STATUS_EXECUTING) {
+      if (SCH_GET_TASK_STATUS(pTask) != JOB_TASK_STATUS_EXECUTING && SCH_GET_TASK_STATUS(pTask) != JOB_TASK_STATUS_PARTIAL_SUCCEED) {
         SCH_TASK_ELOG("rsp msg conflicted with task status, status:%d, rspType:%d", SCH_GET_TASK_STATUS(pTask), msgType);
         SCH_ERR_RET(TSDB_CODE_SCH_STATUS_ERROR);
       }
@@ -497,6 +497,33 @@ int32_t schMoveTaskToFailList(SSchJob *pJob, SSchTask *pTask, bool *moved) {
   return TSDB_CODE_SUCCESS;
 }
 
+
+int32_t schMoveTaskToExecList(SSchJob *pJob, SSchTask *pTask, bool *moved) {
+  if (0 != taosHashRemove(pJob->succTasks, &pTask->taskId, sizeof(pTask->taskId))) {
+    SCH_TASK_WLOG("remove task from succTask list failed, may not exist, status:%d", SCH_GET_TASK_STATUS(pTask));
+  }
+
+  int32_t code = taosHashPut(pJob->execTasks, &pTask->taskId, sizeof(pTask->taskId), &pTask, POINTER_BYTES);
+  if (0 != code) {
+    if (HASH_NODE_EXIST(code)) {
+      *moved = true;
+      
+      SCH_TASK_ELOG("task already in execTask list, status:%d", SCH_GET_TASK_STATUS(pTask));
+      SCH_ERR_RET(TSDB_CODE_SCH_STATUS_ERROR);
+    }
+  
+    SCH_TASK_ELOG("taosHashPut task to execTask list failed, errno:%d", errno);
+    SCH_ERR_RET(TSDB_CODE_QRY_OUT_OF_MEMORY);
+  }
+
+  *moved = true;
+
+  SCH_TASK_DLOG("task moved to execTask list, numOfTasks:%d", taosHashGetSize(pJob->execTasks));
+  
+  return TSDB_CODE_SUCCESS;
+}
+
+
 int32_t schTaskCheckAndSetRetry(SSchJob *job, SSchTask *task, int32_t errCode, bool *needRetry) {
   // TODO set retry or not based on task type/errCode/retry times/job status/available eps...
   // TODO if needRetry, set task retry info
@@ -657,7 +684,7 @@ int32_t schProcessOnTaskSuccess(SSchJob *pJob, SSchTask *pTask) {
     SCH_ERR_RET(code);
   }
 
-  SCH_SET_TASK_STATUS(pTask, JOB_TASK_STATUS_SUCCEED);
+  SCH_SET_TASK_STATUS(pTask, JOB_TASK_STATUS_PARTIAL_SUCCEED);
 
   SCH_ERR_JRET(schRecordTaskSucceedNode(pTask));
   
@@ -689,6 +716,11 @@ int32_t schProcessOnTaskSuccess(SSchJob *pJob, SSchTask *pTask) {
     }
 
     pJob->fetchTask = pTask;
+
+    code = schMoveTaskToExecList(pJob, pTask, &moved);
+    if (code && moved) {
+      SCH_ERR_RET(code);
+    }
     
     SCH_ERR_RET(schProcessOnJobPartialSuccess(pJob));
 
@@ -836,7 +868,10 @@ int32_t schHandleCallback(void* param, const SDataBuf* pMsg, int32_t msgType, in
   atomic_add_fetch_32(&pJob->ref, 1);
 
   int32_t s = taosHashGetSize(pJob->execTasks);
-  assert(s != 0);
+  if (s <= 0) {
+    qError("QID:%"PRIx64",TID:%"PRIx64" no task in execTask list", pParam->queryId, pParam->taskId);
+    SCH_ERR_JRET(TSDB_CODE_SCH_INTERNAL_ERROR);
+  }
 
   SSchTask **task = taosHashGet(pJob->execTasks, &pParam->taskId, sizeof(pParam->taskId));
   if (NULL == task || NULL == (*task)) {
@@ -1383,6 +1418,7 @@ int32_t scheduleFetchRows(SSchJob *pJob, void** pData) {
 
   if (status == JOB_TASK_STATUS_FAILED) {
     code = atomic_load_32(&pJob->errCode);
+    SCH_ERR_JRET(code);
   }
   
   if (pJob->res && ((SRetrieveTableRsp *)pJob->res)->completed) {
