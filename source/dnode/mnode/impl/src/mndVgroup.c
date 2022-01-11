@@ -273,15 +273,10 @@ static bool mndBuildDnodesArrayFp(SMnode *pMnode, void *pObj, void *p1, void *p2
   SDnodeObj *pDnode = pObj;
   SArray    *pArray = p1;
 
-  pDnode->numOfVnodes = mndGetVnodesNum(pMnode, pDnode->id);
-
   int64_t curMs = taosGetTimestampMs();
   bool    online = mndIsDnodeOnline(pMnode, pDnode, curMs);
-  if (online && pDnode->numOfSupportVnodes > 0) {
-    taosArrayPush(pArray, pDnode);
-  }
-
-  bool isMnode = mndIsMnode(pMnode, pDnode->id);
+  bool    isMnode = mndIsMnode(pMnode, pDnode->id);
+  pDnode->numOfVnodes = mndGetVnodesNum(pMnode, pDnode->id);
 
   mDebug("dnode:%d, vnodes:%d supportVnodes:%d isMnode:%d online:%d", pDnode->id, pDnode->numOfVnodes,
          pDnode->numOfSupportVnodes, isMnode, online);
@@ -290,6 +285,9 @@ static bool mndBuildDnodesArrayFp(SMnode *pMnode, void *pObj, void *p1, void *p2
     pDnode->numOfVnodes++;
   }
 
+  if (online && pDnode->numOfSupportVnodes > 0) {
+    taosArrayPush(pArray, pDnode);
+  }
   return true;
 }
 
@@ -311,7 +309,7 @@ static SArray *mndBuildDnodesArray(SMnode *pMnode) {
 static int32_t mndCompareDnodeVnodes(SDnodeObj *pDnode1, SDnodeObj *pDnode2) {
   float d1Score = (float)pDnode1->numOfVnodes / pDnode1->numOfSupportVnodes;
   float d2Score = (float)pDnode2->numOfVnodes / pDnode2->numOfSupportVnodes;
-  return d1Score > d2Score ? 1 : 0;
+  return d1Score >= d2Score ? 1 : 0;
 }
 
 static int32_t mndGetAvailableDnode(SMnode *pMnode, SVgObj *pVgroup, SArray *pArray) {

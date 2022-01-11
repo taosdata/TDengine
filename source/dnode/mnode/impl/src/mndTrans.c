@@ -809,7 +809,7 @@ static bool mndTransPerformUndoLogStage(SMnode *pMnode, STrans *pTrans) {
     mDebug("trans:%d, stage from undoLog to rollback", pTrans->id);
     continueExec = true;
   } else {
-    mDebug("trans:%d, stage keep on undoLog since %s", pTrans->id, terrstr());
+    mError("trans:%d, stage keep on undoLog since %s", pTrans->id, terrstr());
     continueExec = false;
   }
 
@@ -825,7 +825,7 @@ static bool mndTransPerformUndoActionStage(SMnode *pMnode, STrans *pTrans) {
     mDebug("trans:%d, stage from undoAction to undoLog", pTrans->id);
     continueExec = true;
   } else if (code == TSDB_CODE_MND_ACTION_IN_PROGRESS) {
-    mDebug("trans:%d, stage keep on undoAction since %s", pTrans->id, tstrerror(code));
+    mError("trans:%d, stage keep on undoAction since %s", pTrans->id, tstrerror(code));
     continueExec = false;
   } else {
     pTrans->failedTimes++;
