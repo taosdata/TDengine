@@ -73,9 +73,9 @@ void dsEndPut(DataSinkHandle handle);
 /**
  * Get the length of the data returned by the next call to dsGetDataBlock.
  * @param handle
- * @return data length
+ * @param pLen data length
  */
-int32_t dsGetDataLength(DataSinkHandle handle, int32_t* pStatus);
+void dsGetDataLength(DataSinkHandle handle, int32_t* pLen, int32_t* pStatus);
 
 /**
  * Get data, the caller needs to allocate data memory.
