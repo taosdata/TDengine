@@ -56,7 +56,7 @@ void qDestroyQueryDag(struct SQueryDag* pDag) {
   tfree(pDag);
 }
 
-int32_t qCreateQueryDag(const struct SQueryNode* pNode, struct SQueryDag** pDag, SSchema** pSchema, uint32_t* numOfResCols, uint64_t requestId) {
+int32_t qCreateQueryDag(const struct SQueryNode* pNode, struct SQueryDag** pDag, uint64_t requestId) {
   SQueryPlanNode* pLogicPlan;
   int32_t code = createQueryPlan(pNode, &pLogicPlan);
   if (TSDB_CODE_SUCCESS != code) {
@@ -68,15 +68,6 @@ int32_t qCreateQueryDag(const struct SQueryNode* pNode, struct SQueryDag** pDag,
     char* str = NULL;
     queryPlanToString(pLogicPlan, &str);
     printf("%s\n", str);
-  }
-
-  int32_t numOfOutput = pLogicPlan->numOfExpr;
-  *pSchema = calloc(numOfOutput, sizeof(SSchema));
-  *numOfResCols = numOfOutput;
-
-  for(int32_t i = 0; i < numOfOutput; ++i) {
-    SExprInfo* pExprInfo = taosArrayGetP(pLogicPlan->pExpr, i);
-    memcpy(&(*pSchema)[i], pExprInfo->pExpr->pSchema, sizeof(SSchema));
   }
 
   code = optimizeQueryPlan(pLogicPlan);

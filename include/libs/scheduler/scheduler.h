@@ -20,8 +20,10 @@
 extern "C" {
 #endif
 
-#include "planner.h"
 #include "catalog.h"
+#include "planner.h"
+
+struct SSchJob;
 
 typedef struct SSchedulerCfg {
   uint32_t maxJobNum;
@@ -65,7 +67,7 @@ int32_t schedulerInit(SSchedulerCfg *cfg);
  * @param nodeList  Qnode/Vnode address list, element is SQueryNodeAddr
  * @return
  */
-int32_t scheduleExecJob(void *transport, SArray *nodeList, SQueryDag* pDag, void** pJob, SQueryResult *pRes);
+int32_t scheduleExecJob(void *transport, SArray *nodeList, SQueryDag* pDag, struct SSchJob** pJob, SQueryResult *pRes);
 
 /**
  * Process the query job, generated according to the query physical plan.
@@ -73,7 +75,7 @@ int32_t scheduleExecJob(void *transport, SArray *nodeList, SQueryDag* pDag, void
  * @param nodeList  Qnode/Vnode address list, element is SQueryNodeAddr
  * @return
  */
-int32_t scheduleAsyncExecJob(void *transport, SArray *nodeList, SQueryDag* pDag, void** pJob);
+int32_t scheduleAsyncExecJob(void *transport, SArray *nodeList, SQueryDag* pDag, struct SSchJob** pJob);
 
 /**
  * Fetch query result from the remote query executor
@@ -81,7 +83,7 @@ int32_t scheduleAsyncExecJob(void *transport, SArray *nodeList, SQueryDag* pDag,
  * @param data
  * @return
  */
-int32_t scheduleFetchRows(void *pJob, void **data);
+int32_t scheduleFetchRows(struct SSchJob *pJob, void **data);
 
 
 /**

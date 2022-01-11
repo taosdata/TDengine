@@ -773,8 +773,6 @@ int32_t schHandleResponseMsg(SSchJob *pJob, SSchTask *pTask, int32_t msgType, ch
         
         break;
       }
-      break;
-    }
     case TDMT_VND_RES_READY_RSP: {
         SResReadyRsp *rsp = (SResReadyRsp *)msg;
         
@@ -1198,7 +1196,7 @@ void schDropJobAllTasks(SSchJob *pJob) {
   schDropTaskInHashList(pJob, pJob->failTasks);
 }
 
-int32_t schExecJobImpl(void *transport, SArray *nodeList, SQueryDag* pDag, void** job, bool syncSchedule) {
+int32_t schExecJobImpl(void *transport, SArray *nodeList, SQueryDag* pDag, struct SSchJob** job, bool syncSchedule) {
   if (nodeList && taosArrayGetSize(nodeList) <= 0) {
     qInfo("QID:%"PRIx64" input nodeList is empty", pDag->queryId);
   }
@@ -1311,7 +1309,7 @@ int32_t schedulerInit(SSchedulerCfg *cfg) {
   return TSDB_CODE_SUCCESS;
 }
 
-int32_t scheduleExecJob(void *transport, SArray *nodeList, SQueryDag* pDag, void** pJob, SQueryResult *pRes) {
+int32_t scheduleExecJob(void *transport, SArray *nodeList, SQueryDag* pDag, struct SSchJob** pJob, SQueryResult *pRes) {
   if (NULL == transport || NULL == pDag || NULL == pDag->pSubplans || NULL == pJob || NULL == pRes) {
     SCH_ERR_RET(TSDB_CODE_QRY_INVALID_INPUT);
   }
@@ -1328,7 +1326,7 @@ int32_t scheduleExecJob(void *transport, SArray *nodeList, SQueryDag* pDag, void
   return TSDB_CODE_SUCCESS;
 }
 
-int32_t scheduleAsyncExecJob(void *transport, SArray *nodeList, SQueryDag* pDag, void** pJob) {
+int32_t scheduleAsyncExecJob(void *transport, SArray *nodeList, SQueryDag* pDag, struct SSchJob** pJob) {
   if (NULL == transport || NULL == pDag || NULL == pDag->pSubplans || NULL == pJob) {
     SCH_ERR_RET(TSDB_CODE_QRY_INVALID_INPUT);
   }
@@ -1343,12 +1341,10 @@ int32_t scheduleAsyncExecJob(void *transport, SArray *nodeList, SQueryDag* pDag,
 }
 
 
-int32_t scheduleFetchRows(void *job, void **data) {
-  if (NULL == job || NULL == data) {
+int32_t scheduleFetchRows(SSchJob *pJob, void** pData) {
+  if (NULL == pJob || NULL == pData) {
     SCH_ERR_RET(TSDB_CODE_QRY_INVALID_INPUT);
   }
-
-  SSchJob *pJob = job;
   int32_t code = 0;
 
   int8_t status = SCH_GET_JOB_STATUS(pJob);

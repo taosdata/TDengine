@@ -1,6 +1,10 @@
 
+#include "../../libs/scheduler/inc/schedulerInt.h"
 #include "clientInt.h"
 #include "clientLog.h"
+#include "parser.h"
+#include "planner.h"
+#include "scheduler.h"
 #include "tdef.h"
 #include "tep.h"
 #include "tglobal.h"
@@ -8,9 +12,6 @@
 #include "tnote.h"
 #include "tpagedfile.h"
 #include "tref.h"
-#include "parser.h"
-#include "planner.h"
-#include "scheduler.h"
 
 #define CHECK_CODE_GOTO(expr, lable) \
   do {                               \
@@ -57,6 +58,7 @@ static char* getClusterKey(const char* user, const char* auth, const char* ip, i
 }
 
 static STscObj* taosConnectImpl(const char *ip, const char *user, const char *auth, const char *db, uint16_t port, __taos_async_fn_t fp, void *param, SAppInstInfo* pAppInfo);
+static void  setResSchemaInfo(SReqResultInfo* pResInfo, const SDataBlockSchema* pDataBlockSchema);
 
 TAOS *taos_connect_internal(const char *ip, const char *user, const char *pass, const char *auth, const char *db, uint16_t port) {
   if (taos_init() != TSDB_CODE_SUCCESS) {
@@ -198,36 +200,48 @@ int32_t execDdlQuery(SRequestObj* pRequest, SQueryNode* pQuery) {
 int32_t getPlan(SRequestObj* pRequest, SQueryNode* pQueryNode, SQueryDag** pDag) {
   pRequest->type = pQueryNode->type;
 
-  SSchema *pSchema = NULL;
   SReqResultInfo* pResInfo = &pRequest->body.resInfo;
-
-  int32_t code = qCreateQueryDag(pQueryNode, pDag, &pSchema, &pResInfo->numOfCols, pRequest->requestId);
+  int32_t code = qCreateQueryDag(pQueryNode, pDag, pRequest->requestId);
   if (code != 0) {
     return code;
   }
 
   if (pQueryNode->type == TSDB_SQL_SELECT) {
-    pResInfo->fields = calloc(1, sizeof(TAOS_FIELD));
-    for (int32_t i = 0; i < pResInfo->numOfCols; ++i) {
-      pResInfo->fields[i].bytes = pSchema[i].bytes;
-      pResInfo->fields[i].type = pSchema[i].type;
-      tstrncpy(pResInfo->fields[i].name, pSchema[i].name, tListLen(pResInfo->fields[i].name));
-    }
+    SArray* pa = taosArrayGetP((*pDag)->pSubplans, 0);
+
+    SSubplan* pPlan = taosArrayGetP(pa, 0);
+    SDataBlockSchema* pDataBlockSchema = &(pPlan->pDataSink->schema);
+    setResSchemaInfo(pResInfo, pDataBlockSchema);
+    pRequest->type = TDMT_VND_QUERY;
   }
 
   return code;
 }
 
-int32_t scheduleQuery(SRequestObj* pRequest, SQueryDag* pDag, void** pJob) {
+void setResSchemaInfo(SReqResultInfo* pResInfo, const SDataBlockSchema* pDataBlockSchema) {
+  assert(pDataBlockSchema != NULL && pDataBlockSchema->numOfCols > 0);
+
+  pResInfo->numOfCols = pDataBlockSchema->numOfCols;
+  pResInfo->fields = calloc(pDataBlockSchema->numOfCols, sizeof(pDataBlockSchema->pSchema[0]));
+
+  for (int32_t i = 0; i < pResInfo->numOfCols; ++i) {
+    SSchema* pSchema = &pDataBlockSchema->pSchema[i];
+    pResInfo->fields[i].bytes = pSchema->bytes;
+    pResInfo->fields[i].type  = pSchema->type;
+    tstrncpy(pResInfo->fields[i].name, pSchema[i].name, tListLen(pResInfo->fields[i].name));
+  }
+}
+
+int32_t scheduleQuery(SRequestObj* pRequest, SQueryDag* pDag) {
   if (TSDB_SQL_INSERT == pRequest->type || TSDB_SQL_CREATE_TABLE == pRequest->type) {
     SQueryResult res = {.code = 0, .numOfRows = 0, .msgSize = ERROR_MSG_BUF_DEFAULT_SIZE, .msg = pRequest->msgBuf};
 
-    int32_t code = scheduleExecJob(pRequest->pTscObj->pTransporter, NULL, pDag, pJob, &res);
+    int32_t code = scheduleExecJob(pRequest->pTscObj->pTransporter, NULL, pDag, &pRequest->body.pQueryJob, &res);
     if (code != TSDB_CODE_SUCCESS) {
       // handle error and retry
     } else {
-      if (*pJob != NULL) {
-        scheduleFreeJob(*pJob);
+      if (pRequest->body.pQueryJob != NULL) {
+        scheduleFreeJob(pRequest->body.pQueryJob);
       }
     }
 
@@ -235,7 +249,7 @@ int32_t scheduleQuery(SRequestObj* pRequest, SQueryDag* pDag, void** pJob) {
     return res.code;
   }
 
-  return scheduleAsyncExecJob(pRequest->pTscObj->pTransporter, NULL /*todo appInfo.xxx*/, pDag, pJob);
+  return scheduleAsyncExecJob(pRequest->pTscObj->pTransporter, NULL, pDag, &pRequest->body.pQueryJob);
 }
 
 TAOS_RES *tmq_create_topic(TAOS* taos, const char* name, const char* sql, int sqlLen) {
@@ -312,7 +326,6 @@ TAOS_RES *taos_query_l(TAOS *taos, const char *sql, int sqlLen) {
   SRequestObj *pRequest = NULL;
   SQueryNode  *pQuery   = NULL;
   SQueryDag   *pDag     = NULL;
-  void        *pJob     = NULL;
 
   terrno = TSDB_CODE_SUCCESS;
   CHECK_CODE_GOTO(buildRequest(pTscObj, sql, sqlLen, &pRequest), _return);
@@ -322,9 +335,8 @@ TAOS_RES *taos_query_l(TAOS *taos, const char *sql, int sqlLen) {
     CHECK_CODE_GOTO(execDdlQuery(pRequest, pQuery), _return);
   } else {
     CHECK_CODE_GOTO(getPlan(pRequest, pQuery, &pDag), _return);
-    CHECK_CODE_GOTO(scheduleQuery(pRequest, pDag, &pJob), _return);
+    CHECK_CODE_GOTO(scheduleQuery(pRequest, pDag), _return);
     pRequest->code = terrno;
-    return pRequest;
   }
 
 _return:
@@ -333,6 +345,7 @@ _return:
   if (NULL != pRequest && TSDB_CODE_SUCCESS != terrno) {
     pRequest->code = terrno;
   }
+
   return pRequest;
 }
 
@@ -531,7 +544,10 @@ void* doFetchRow(SRequestObj* pRequest) {
   SReqResultInfo* pResultInfo = &pRequest->body.resInfo;
 
   if (pResultInfo->pData == NULL || pResultInfo->current >= pResultInfo->numOfRows) {
-    if (pRequest->type == TDMT_MND_SHOW) {
+    if (pRequest->type == TDMT_VND_QUERY) {
+      pRequest->type = TDMT_VND_FETCH;
+      scheduleFetchRows(pRequest->body.pQueryJob, &pRequest->body.resInfo.pData);
+    } else if (pRequest->type == TDMT_MND_SHOW) {
       pRequest->type = TDMT_MND_SHOW_RETRIEVE;
     } else if (pRequest->type == TDMT_VND_SHOW_TABLES) {
       pRequest->type = TDMT_VND_SHOW_TABLES_FETCH;

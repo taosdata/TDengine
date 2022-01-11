@@ -65,7 +65,7 @@ protected:
     SSchema *schema = NULL;
     uint32_t numOfOutput = 0;
 
-    code = qCreateQueryDag(query, &dag, &schema, &numOfOutput, requestId);
+    code = qCreateQueryDag(query, &dag, requestId);
     dag_.reset(dag);
     return code;
   }

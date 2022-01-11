@@ -89,7 +89,7 @@ static bool copySchema(SDataBlockSchema* dst, const SDataBlockSchema* src) {
 
 static bool toDataBlockSchema(SQueryPlanNode* pPlanNode, SDataBlockSchema* dataBlockSchema) {
   dataBlockSchema->numOfCols = pPlanNode->numOfExpr;
-  dataBlockSchema->pSchema = malloc(sizeof(SSlotSchema) * pPlanNode->numOfCols);
+  dataBlockSchema->pSchema = malloc(sizeof(SSlotSchema) * pPlanNode->numOfExpr);
   if (NULL == dataBlockSchema->pSchema) {
     return false;
   }
@@ -306,8 +306,6 @@ static SPhyNode* createPhyNode(SPlanContext* pCxt, SQueryPlanNode* pPlanNode) {
     case QNODE_TABLESCAN:
       node = createTableScanNode(pCxt, pPlanNode);
       break;
-    case QNODE_PROJECT:
-//      node = create
     case QNODE_MODIFY:
       // Insert is not an operator in a physical plan.
       break;
