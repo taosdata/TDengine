@@ -37,7 +37,7 @@ static int32_t parseTelnetMetric(TAOS_SML_DATA_POINT *pSml, const char **index, 
   const char *cur = *index;
   uint16_t len = 0;
 
-  pSml->stableName = tcalloc(TSDB_TABLE_NAME_LEN + TS_ESCAPE_CHAR_SIZE, 1);
+  pSml->stableName = tcalloc(TSDB_TABLE_NAME_LEN + TS_BACKQUOTE_CHAR_SIZE, 1);
   if (pSml->stableName == NULL) {
       return TSDB_CODE_TSC_OUT_OF_MEMORY;
   }
@@ -125,7 +125,7 @@ static int32_t parseTelnetTimeStamp(TAOS_SML_KV **pTS, int *num_kvs, const char 
   }
   tfree(value);
 
-  (*pTS)->key = tcalloc(sizeof(key) + TS_ESCAPE_CHAR_SIZE, 1);
+  (*pTS)->key = tcalloc(sizeof(key) + TS_BACKQUOTE_CHAR_SIZE, 1);
   memcpy((*pTS)->key, key, sizeof(key));
   addEscapeCharToString((*pTS)->key, (int32_t)strlen(key));
 
@@ -196,7 +196,7 @@ static int32_t parseTelnetMetricValue(TAOS_SML_KV **pKVs, int *num_kvs, const ch
   }
   tfree(value);
 
-  pVal->key = tcalloc(sizeof(key) + TS_ESCAPE_CHAR_SIZE, 1);
+  pVal->key = tcalloc(sizeof(key) + TS_BACKQUOTE_CHAR_SIZE, 1);
   memcpy(pVal->key, key, sizeof(key));
   addEscapeCharToString(pVal->key, (int32_t)strlen(pVal->key));
   *num_kvs += 1;
@@ -240,7 +240,7 @@ static int32_t parseTelnetTagKey(TAOS_SML_KV *pKV, const char **index, SHashObj 
     return TSDB_CODE_TSC_DUP_TAG_NAMES;
   }
 
-  pKV->key = tcalloc(len + TS_ESCAPE_CHAR_SIZE + 1, 1);
+  pKV->key = tcalloc(len + TS_BACKQUOTE_CHAR_SIZE + 1, 1);
   memcpy(pKV->key, key, len + 1);
   addEscapeCharToString(pKV->key, len);
   //tscDebug("OTD:0x%"PRIx64" Key:%s|len:%d", info->id, pKV->key, len);
@@ -307,7 +307,7 @@ static int32_t parseTelnetTagKvs(TAOS_SML_KV **pKVs, int *num_kvs,
   pkv = *pKVs;
 
   size_t childTableNameLen = strlen(tsSmlChildTableName);
-  char childTbName[TSDB_TABLE_NAME_LEN + TS_ESCAPE_CHAR_SIZE] = {0};
+  char childTbName[TSDB_TABLE_NAME_LEN + TS_BACKQUOTE_CHAR_SIZE] = {0};
   if (childTableNameLen != 0) {
     memcpy(childTbName, tsSmlChildTableName, childTableNameLen);
     addEscapeCharToString(childTbName, (int32_t)(childTableNameLen));
@@ -324,7 +324,7 @@ static int32_t parseTelnetTagKvs(TAOS_SML_KV **pKVs, int *num_kvs,
       return ret;
     }
     if (childTableNameLen != 0 && strcasecmp(pkv->key, childTbName) == 0) {
-      *childTableName = tcalloc(pkv->length + TS_ESCAPE_CHAR_SIZE + 1, 1);
+      *childTableName = tcalloc(pkv->length + TS_BACKQUOTE_CHAR_SIZE + 1, 1);
       memcpy(*childTableName, pkv->value, pkv->length);
       (*childTableName)[pkv->length] = '\0';
       addEscapeCharToString(*childTableName, pkv->length);
@@ -500,7 +500,7 @@ static int32_t parseMetricFromJSON(cJSON *root, TAOS_SML_DATA_POINT* pSml, SSmlL
       return TSDB_CODE_TSC_INVALID_TABLE_ID_LENGTH;
   }
 
-  pSml->stableName = tcalloc(stableLen + TS_ESCAPE_CHAR_SIZE + 1, sizeof(char));
+  pSml->stableName = tcalloc(stableLen + TS_BACKQUOTE_CHAR_SIZE + 1, sizeof(char));
   if (pSml->stableName == NULL){
     return TSDB_CODE_TSC_OUT_OF_MEMORY;
   }
@@ -879,7 +879,7 @@ static int32_t parseMetricValueFromJSON(cJSON *root, TAOS_SML_KV **pKVs, int *nu
     return ret;
   }
 
-  pVal->key = tcalloc(sizeof(key) + TS_ESCAPE_CHAR_SIZE, 1);
+  pVal->key = tcalloc(sizeof(key) + TS_BACKQUOTE_CHAR_SIZE, 1);
   memcpy(pVal->key, key, sizeof(key));
   addEscapeCharToString(pVal->key, (int32_t)strlen(pVal->key));
 
@@ -910,7 +910,7 @@ static int32_t parseTagsFromJSON(cJSON *root, TAOS_SML_KV **pKVs, int *num_kvs, 
         return TSDB_CODE_TSC_INVALID_JSON;
       }
       size_t idLen = strlen(id->valuestring);
-      *childTableName = tcalloc(idLen + TS_ESCAPE_CHAR_SIZE + 1, sizeof(char));
+      *childTableName = tcalloc(idLen + TS_BACKQUOTE_CHAR_SIZE + 1, sizeof(char));
       memcpy(*childTableName, id->valuestring, idLen);
       addEscapeCharToString(*childTableName, (int32_t)idLen);
 
@@ -948,7 +948,7 @@ static int32_t parseTagsFromJSON(cJSON *root, TAOS_SML_KV **pKVs, int *num_kvs, 
       tscError("OTD:0x%"PRIx64" Tag key cannot exceeds %d characters in JSON", info->id, TSDB_COL_NAME_LEN - 1);
       return TSDB_CODE_TSC_INVALID_COLUMN_LENGTH;
     }
-    pkv->key = tcalloc(keyLen + TS_ESCAPE_CHAR_SIZE + 1, sizeof(char));
+    pkv->key = tcalloc(keyLen + TS_BACKQUOTE_CHAR_SIZE + 1, sizeof(char));
     strncpy(pkv->key, tag->string, keyLen);
     addEscapeCharToString(pkv->key, (int32_t)keyLen);
     //value

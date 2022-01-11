@@ -20,7 +20,7 @@
 #include "tscParseLine.h"
 
 typedef struct  {
-  char sTableName[TSDB_TABLE_NAME_LEN + TS_ESCAPE_CHAR_SIZE];
+  char sTableName[TSDB_TABLE_NAME_LEN + TS_BACKQUOTE_CHAR_SIZE];
   SHashObj* tagHash;
   SHashObj* fieldHash;
   SArray* tags; //SArray<SSchema>
@@ -68,13 +68,13 @@ typedef enum {
 } ESchemaAction;
 
 typedef struct {
-  char sTableName[TSDB_TABLE_NAME_LEN + TS_ESCAPE_CHAR_SIZE];
+  char sTableName[TSDB_TABLE_NAME_LEN + TS_BACKQUOTE_CHAR_SIZE];
   SArray* tags; //SArray<SSchema>
   SArray* fields; //SArray<SSchema>
 } SCreateSTableActionInfo;
 
 typedef struct {
-  char sTableName[TSDB_TABLE_NAME_LEN + TS_ESCAPE_CHAR_SIZE];
+  char sTableName[TSDB_TABLE_NAME_LEN + TS_BACKQUOTE_CHAR_SIZE];
   SSchema* field;
 } SAlterSTableActionInfo;
 
@@ -161,14 +161,14 @@ static int32_t getSmlMd5ChildTableName(TAOS_SML_DATA_POINT* point, char* tableNa
   }
 
   SStringBuilder sb; memset(&sb, 0, sizeof(sb));
-  char sTableName[TSDB_TABLE_NAME_LEN + TS_ESCAPE_CHAR_SIZE] = {0};
+  char sTableName[TSDB_TABLE_NAME_LEN + TS_BACKQUOTE_CHAR_SIZE] = {0};
   strncpy(sTableName, point->stableName, strlen(point->stableName));
   //strtolower(sTableName, point->stableName);
   taosStringBuilderAppendString(&sb, sTableName);
   for (int j = 0; j < point->tagNum; ++j) {
     taosStringBuilderAppendChar(&sb, ',');
     TAOS_SML_KV* tagKv = point->tags + j;
-    char tagName[TSDB_COL_NAME_LEN + TS_ESCAPE_CHAR_SIZE] = {0};
+    char tagName[TSDB_COL_NAME_LEN + TS_BACKQUOTE_CHAR_SIZE] = {0};
     strncpy(tagName, tagKv->key, strlen(tagKv->key));
     //strtolower(tagName, tagKv->key);
     taosStringBuilderAppendString(&sb, tagName);
@@ -192,8 +192,8 @@ static int32_t getSmlMd5ChildTableName(TAOS_SML_DATA_POINT* point, char* tableNa
 
 static int32_t buildSmlChildTableName(TAOS_SML_DATA_POINT* point, SSmlLinesInfo* info) {
   tscDebug("SML:0x%"PRIx64" taos_sml_insert build child table name", info->id);
-  char childTableName[TSDB_TABLE_NAME_LEN + TS_ESCAPE_CHAR_SIZE];
-  int32_t tableNameLen = TSDB_TABLE_NAME_LEN + TS_ESCAPE_CHAR_SIZE;
+  char childTableName[TSDB_TABLE_NAME_LEN + TS_BACKQUOTE_CHAR_SIZE];
+  int32_t tableNameLen = TSDB_TABLE_NAME_LEN + TS_BACKQUOTE_CHAR_SIZE;
   getSmlMd5ChildTableName(point, childTableName, &tableNameLen, info);
   point->childTableName = calloc(1, tableNameLen+1);
   strncpy(point->childTableName, childTableName, tableNameLen);
@@ -251,15 +251,15 @@ static int32_t buildDataPointSchemas(TAOS_SML_DATA_POINT* points, int numPoint, 
       size_t nameLen = strlen(tsSmlTagNullName);
       strncpy(tagNullName, tsSmlTagNullName, nameLen);
       addEscapeCharToString(tagNullName, (int32_t)nameLen);
-      size_t* pTagNullIdx = taosHashGet(pStableSchema->tagHash, tagNullName, nameLen + TS_ESCAPE_CHAR_SIZE);
+      size_t* pTagNullIdx = taosHashGet(pStableSchema->tagHash, tagNullName, nameLen + TS_BACKQUOTE_CHAR_SIZE);
       if (!pTagNullIdx) {
         SSchema tagNull = {0};
         tagNull.type  = TSDB_DATA_TYPE_NCHAR;
         tagNull.bytes = TSDB_NCHAR_SIZE + VARSTR_HEADER_SIZE;
-        strncpy(tagNull.name, tagNullName, nameLen + TS_ESCAPE_CHAR_SIZE);
+        strncpy(tagNull.name, tagNullName, nameLen + TS_BACKQUOTE_CHAR_SIZE);
         taosArrayPush(pStableSchema->tags, &tagNull);
         size_t tagNullIdx = taosArrayGetSize(pStableSchema->tags) - 1;
-        taosHashPut(pStableSchema->tagHash, tagNull.name, nameLen + TS_ESCAPE_CHAR_SIZE, &tagNullIdx, sizeof(tagNullIdx));
+        taosHashPut(pStableSchema->tagHash, tagNull.name, nameLen + TS_BACKQUOTE_CHAR_SIZE, &tagNullIdx, sizeof(tagNullIdx));
       }
     }
 
@@ -295,7 +295,7 @@ static int32_t buildDataPointSchemas(TAOS_SML_DATA_POINT* points, int numPoint, 
 
 static int32_t generateSchemaAction(SSchema* pointColField, SHashObj* dbAttrHash, SArray* dbAttrArray, bool isTag, char sTableName[],
                                        SSchemaAction* action, bool* actionNeeded, SSmlLinesInfo* info) {
-  char fieldName[TSDB_COL_NAME_LEN + TS_ESCAPE_CHAR_SIZE] = {0};
+  char fieldName[TSDB_COL_NAME_LEN + TS_BACKQUOTE_CHAR_SIZE] = {0};
   strcpy(fieldName, pointColField->name);
 
   size_t* pDbIndex = taosHashGet(dbAttrHash, fieldName, strlen(fieldName));
@@ -315,7 +315,7 @@ static int32_t generateSchemaAction(SSchema* pointColField, SHashObj* dbAttrHash
         action->action = SCHEMA_ACTION_CHANGE_COLUMN_SIZE;
       }
       memset(&action->alterSTable, 0,  sizeof(SAlterSTableActionInfo));
-      memcpy(action->alterSTable.sTableName, sTableName, TSDB_TABLE_NAME_LEN + TS_ESCAPE_CHAR_SIZE);
+      memcpy(action->alterSTable.sTableName, sTableName, TSDB_TABLE_NAME_LEN + TS_BACKQUOTE_CHAR_SIZE);
       action->alterSTable.field = pointColField;
       *actionNeeded = true;
     }
@@ -326,7 +326,7 @@ static int32_t generateSchemaAction(SSchema* pointColField, SHashObj* dbAttrHash
       action->action = SCHEMA_ACTION_ADD_COLUMN;
     }
     memset(&action->alterSTable, 0, sizeof(SAlterSTableActionInfo));
-    memcpy(action->alterSTable.sTableName, sTableName, TSDB_TABLE_NAME_LEN + TS_ESCAPE_CHAR_SIZE);
+    memcpy(action->alterSTable.sTableName, sTableName, TSDB_TABLE_NAME_LEN + TS_BACKQUOTE_CHAR_SIZE);
     action->alterSTable.field = pointColField;
     *actionNeeded = true;
   }
@@ -572,7 +572,7 @@ static int32_t getSuperTableMetaFromLocalCache(TAOS* taos, char* tableName, STab
   pSql->fp = NULL;
 
   registerSqlObj(pSql);
-  char tableNameBuf[TSDB_TABLE_NAME_LEN + TS_ESCAPE_CHAR_SIZE] = {0};
+  char tableNameBuf[TSDB_TABLE_NAME_LEN + TS_BACKQUOTE_CHAR_SIZE] = {0};
   memcpy(tableNameBuf, tableName, strlen(tableName));
   SStrToken tableToken = {.z = tableNameBuf, .n = (uint32_t)strlen(tableName), .type = TK_ID};
   tGetToken(tableNameBuf, &tableToken.type);
@@ -689,7 +689,7 @@ static int32_t modifyDBSchemas(TAOS* taos, SArray* stableSchemas, SSmlLinesInfo*
       SSchemaAction schemaAction = {0};
       schemaAction.action = SCHEMA_ACTION_CREATE_STABLE;
       memset(&schemaAction.createSTable, 0, sizeof(SCreateSTableActionInfo));
-      memcpy(schemaAction.createSTable.sTableName, pointSchema->sTableName, TSDB_TABLE_NAME_LEN + TS_ESCAPE_CHAR_SIZE);
+      memcpy(schemaAction.createSTable.sTableName, pointSchema->sTableName, TSDB_TABLE_NAME_LEN + TS_BACKQUOTE_CHAR_SIZE);
       schemaAction.createSTable.tags = pointSchema->tags;
       schemaAction.createSTable.fields = pointSchema->fields;
       applySchemaAction(taos, &schemaAction, info);
@@ -726,7 +726,7 @@ static int32_t modifyDBSchemas(TAOS* taos, SArray* stableSchemas, SSmlLinesInfo*
 
       SSchema* pointColTs = taosArrayGet(pointSchema->fields, 0);
       SSchema* dbColTs = taosArrayGet(dbSchema.fields, 0);
-      memcpy(pointColTs->name, dbColTs->name, TSDB_COL_NAME_LEN + TS_ESCAPE_CHAR_SIZE);
+      memcpy(pointColTs->name, dbColTs->name, TSDB_COL_NAME_LEN + TS_BACKQUOTE_CHAR_SIZE);
 
       for (int j = 1; j < pointFieldSize; ++j) {
         SSchema* pointCol = taosArrayGet(pointSchema->fields, j);
@@ -1398,7 +1398,7 @@ char* addEscapeCharToString(char *str, int32_t len) {
     return NULL;
   }
   memmove(str + 1, str, len);
-  str[0] = str[len + 1] = TS_ESCAPE_CHAR;
+  str[0] = str[len + 1] = TS_BACKQUOTE_CHAR;
   str[len + 2] = '\0';
   return str;
 }
@@ -2129,7 +2129,7 @@ static int32_t parseSmlKey(TAOS_SML_KV *pKV, const char **index, SHashObj *pHash
     return TSDB_CODE_TSC_LINE_SYNTAX_ERROR;
   }
 
-  pKV->key = calloc(len + TS_ESCAPE_CHAR_SIZE + 1, 1);
+  pKV->key = calloc(len + TS_BACKQUOTE_CHAR_SIZE + 1, 1);
   memcpy(pKV->key, key, len + 1);
   addEscapeCharToString(pKV->key, len);
   tscDebug("SML:0x%"PRIx64" Key:%s|len:%d", info->id, pKV->key, len);
@@ -2227,7 +2227,7 @@ static int32_t parseSmlMeasurement(TAOS_SML_DATA_POINT *pSml, const char **index
   const char *cur = *index;
   int16_t len = 0;
 
-  pSml->stableName = calloc(TSDB_TABLE_NAME_LEN + TS_ESCAPE_CHAR_SIZE, 1);
+  pSml->stableName = calloc(TSDB_TABLE_NAME_LEN + TS_BACKQUOTE_CHAR_SIZE, 1);
   if (pSml->stableName == NULL){
       return TSDB_CODE_TSC_OUT_OF_MEMORY;
   }
@@ -2313,7 +2313,7 @@ static int32_t parseSmlKvPairs(TAOS_SML_KV **pKVs, int *num_kvs,
   }
 
   size_t childTableNameLen = strlen(tsSmlChildTableName);
-  char childTableName[TSDB_TABLE_NAME_LEN + TS_ESCAPE_CHAR_SIZE] = {0};
+  char childTableName[TSDB_TABLE_NAME_LEN + TS_BACKQUOTE_CHAR_SIZE] = {0};
   if (childTableNameLen != 0) {
     memcpy(childTableName, tsSmlChildTableName, childTableNameLen);
     addEscapeCharToString(childTableName, (int32_t)(childTableNameLen));
@@ -2332,7 +2332,7 @@ static int32_t parseSmlKvPairs(TAOS_SML_KV **pKVs, int *num_kvs,
     }
 
     if (!isField && childTableNameLen != 0 && strcasecmp(pkv->key, childTableName) == 0)  {
-      smlData->childTableName = malloc(pkv->length + TS_ESCAPE_CHAR_SIZE + 1);
+      smlData->childTableName = malloc(pkv->length + TS_BACKQUOTE_CHAR_SIZE + 1);
       memcpy(smlData->childTableName, pkv->value, pkv->length);
       addEscapeCharToString(smlData->childTableName, (int32_t)pkv->length);
       free(pkv->key);
