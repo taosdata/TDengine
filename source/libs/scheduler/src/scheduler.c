@@ -1453,20 +1453,4 @@ void scheduleFreeJob(void *job) {
 
   taosHashCleanup(pJob->execTasks);
   taosHashCleanup(pJob->failTasks);
-  taosHashCleanup(pJob->succTasks);
-  
-  taosArrayDestroy(pJob->levels);
-
-  tfree(pJob->res);
-  
-  tfree(pJob);
-}
-
-void schedulerDestroy(void) {
-  if (schMgmt.jobs) {
-    taosHashCleanup(schMgmt.jobs); //TODO
-    schMgmt.jobs = NULL;
-  }
-}
-
-
+  taosHashCleanup(pJob->suc
