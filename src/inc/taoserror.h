@@ -292,6 +292,7 @@ int32_t* taosGetErrno();
 #define TSDB_CODE_QRY_INCONSISTAN               TAOS_DEF_ERROR_CODE(0, 0x070C)  //"File inconsistency in replica")
 #define TSDB_CODE_QRY_SYS_ERROR                 TAOS_DEF_ERROR_CODE(0, 0x070D)  //"System error")
 #define TSDB_CODE_QRY_INVALID_TIME_CONDITION    TAOS_DEF_ERROR_CODE(0, 0x070E)  //"invalid time condition")
+#define TSDB_CODE_QRY_INVALID_SCHEMA_VERSION    TAOS_DEF_ERROR_CODE(0, 0x0710)  //"invalid schema version")
 
 // grant
 #define TSDB_CODE_GRANT_EXPIRED                 TAOS_DEF_ERROR_CODE(0, 0x0800)  //"License expired"

@@ -418,7 +418,8 @@ void tscProcessMsgFromServer(SRpcMsg *rpcMsg, SRpcEpSet *pEpSet) {
   // single table query error need to be handled here.
   if ((cmd == TSDB_SQL_SELECT || cmd == TSDB_SQL_UPDATE_TAGS_VAL) &&
       (((rpcMsg->code == TSDB_CODE_TDB_INVALID_TABLE_ID || rpcMsg->code == TSDB_CODE_VND_INVALID_VGROUP_ID)) ||
-       rpcMsg->code == TSDB_CODE_RPC_NETWORK_UNAVAIL || rpcMsg->code == TSDB_CODE_APP_NOT_READY)) {
+       (rpcMsg->code == TSDB_CODE_QRY_INVALID_SCHEMA_VERSION) ||
+       rpcMsg->code == TSDB_CODE_RPC_NETWORK_UNAVAIL || rpcMsg->code == TSDB_CODE_APP_NOT_READY )) {
 
     // 1. super table subquery
     // 2. nest queries are all not updated the tablemeta and retry parse the sql after cleanup local tablemeta/vgroup id buffer
@@ -508,18 +509,6 @@ void tscProcessMsgFromServer(SRpcMsg *rpcMsg, SRpcEpSet *pEpSet) {
 
   if (pRes->code == TSDB_CODE_SUCCESS && pCmd->command < TSDB_SQL_MAX && tscProcessMsgRsp[pCmd->command]) {
     rpcMsg->code = (*tscProcessMsgRsp[pCmd->command])(pSql);
-    if (rpcMsg->code == TSDB_CODE_TSC_INVALID_SCHEMA_VERSION) {
-      pSql->res.code = rpcMsg->code;
-      tscWarn("0x%" PRIx64 " it shall renew table meta, code:%s, retry:%d", pSql->self, tstrerror(rpcMsg->code), pSql->retry);
-
-      ++pSql->retry;
-      if (pSql->retry > pSql->maxRetry) {
-        tscError("0x%" PRIx64 " max retry %d reached, give up", pSql->self, pSql->maxRetry);
-      } else {
-        pSql->retryReason = rpcMsg->code;
-        rpcMsg->code = tscRenewTableMeta(pSql);
-      }
-    }
   }
 
   bool shouldFree = tscShouldBeFreed(pSql);
@@ -976,6 +965,8 @@ int tscBuildQueryMsg(SSqlObj *pSql, SSqlInfo *pInfo) {
   pQueryMsg->queryType      = htonl(pQueryInfo->type);
   pQueryMsg->prevResultLen  = htonl(pQueryInfo->bufLen);
 
+  pQueryMsg->schemaVersion  = htons(pTableMeta->sversion);
+  pQueryMsg->tagVersion     = htons(pTableMeta->tversion);
   // set column list ids
   size_t numOfCols = taosArrayGetSize(pQueryInfo->colList);
   char *pMsg = (char *)(pQueryMsg->tableCols) + numOfCols * sizeof(SColumnInfo);
@@ -2704,26 +2695,6 @@ int tscProcessQueryRsp(SSqlObj *pSql) {
   pRes->data = NULL;
 
   tscResetForNextRetrieve(pRes);
-
-  int32_t sVersion = -1;
-  int32_t tVersion = -1;
-  if (pQueryAttr->extend == 1) {
-    STLV* tlv = (STLV*)(pRes->pRsp + sizeof(SQueryTableRsp));
-    while (tlv->type != TLV_TYPE_END_MARK) {
-      switch (ntohs(tlv->type)) {
-        case TLV_TYPE_META_VERSION:
-          sVersion = ntohl(*(int32_t*)tlv->value);
-          tVersion = ntohl(*(int32_t*)(tlv->value + sizeof(int32_t)));
-          break;
-      }
-      tlv = (STLV*) ((char*)tlv + sizeof(STLV) + ntohl(tlv->len));
-    }
-  }
-  STableMetaInfo* tableMetaInfo = tscGetTableMetaInfoFromCmd(&pSql->cmd, 0);
-  if (tableMetaInfo->pTableMeta->sversion < sVersion ||
-      tableMetaInfo->pTableMeta->tversion < tVersion) {
-    return TSDB_CODE_TSC_INVALID_SCHEMA_VERSION;
-  }
 
   tscDebug("0x%"PRIx64" query rsp received, qId:0x%"PRIx64, pSql->self, pRes->qId);
 

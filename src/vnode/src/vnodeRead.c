@@ -239,29 +239,12 @@ static int32_t vnodeProcessQueryMsg(SVnodeObj *pVnode, SVReadMsg *pRead) {
   if (contLen != 0) {
     qinfo_t pQInfo = NULL;
     uint64_t qId = genQueryId();
-    int32_t schemaVersion = -1;
-    int32_t tagVersion = -1;
-    code = qCreateQueryInfo(pVnode->tsdb, pVnode->vgId, pQueryTableMsg, &pQInfo, qId, &schemaVersion, &tagVersion);
+    code = qCreateQueryInfo(pVnode->tsdb, pVnode->vgId, pQueryTableMsg, &pQInfo, qId);
 
     size_t rspLen = sizeof(SQueryTableRsp);
-    rspLen += (sizeof(STLV) + sizeof(int32_t) + sizeof(int32_t));
-    rspLen += sizeof(STLV);
     SQueryTableRsp *pRsp = (SQueryTableRsp *)rpcMallocCont(rspLen);
     pRsp->code = code;
     pRsp->qId  = 0;
-
-    pRsp->extend = 1;
-    STLV* tlv = (STLV*)((char*)(pRsp) + sizeof(SQueryTableRsp));
-    tlv->type = htons(TLV_TYPE_META_VERSION);
-    tlv->len = htonl(sizeof(int32_t) + sizeof(int32_t));
-    int32_t sVersion = htonl(schemaVersion);
-    int32_t tVersion = htonl(tagVersion);
-    memcpy(tlv->value, &sVersion, sizeof(int32_t));
-    memcpy(tlv->value + sizeof(int32_t), &tVersion, sizeof(int32_t));
-
-    STLV* tlvEnd = (STLV*)((char*)tlv + sizeof(STLV) + ntohl(tlv->len));
-    tlvEnd->type = htons(TLV_TYPE_END_MARK);
-    tlvEnd->len = 0;
 
     pRet->len = rspLen;
     pRet->rsp = pRsp;
