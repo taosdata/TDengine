@@ -964,6 +964,13 @@ int32_t qwHandleFetch(SQWorkerMgmt *mgmt, uint64_t sId, uint64_t queryId, uint64
       qError("dsGetDataBlock failed, code:%x", code);
       QW_ERR_JRET(code);
     }
+
+    rsp->useconds = htobe64(output.useconds);
+    rsp->completed = 0;
+    rsp->precision = output.precision;
+    rsp->compressed = output.compressed;
+    rsp->compLen = htonl(dataLength);
+    rsp->numOfRows = htonl(output.numOfRows);
     
     if (DS_BUF_EMPTY == output.bufStatus && output.queryEnd) {
       rsp->completed = 1;
