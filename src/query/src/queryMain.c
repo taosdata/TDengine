@@ -422,7 +422,7 @@ int32_t qDumpRetrieveResult(qinfo_t qinfo, SRetrieveTableRsp **pRsp, int32_t *co
 
   RESET_NUM_OF_RESULTS(&(pQInfo->runtimeEnv));
   pQInfo->lastRetrieveTs = taosGetTimestampMs();
-  
+
   if ((*pRsp)->compressed && compLen != 0) {
     int32_t numOfCols = pQueryAttr->pExpr2 ? pQueryAttr->numOfExpr2 : pQueryAttr->numOfOutput;
     int32_t origSize  = pQueryAttr->resultRowSize * s;
