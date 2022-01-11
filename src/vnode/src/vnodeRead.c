@@ -241,12 +241,11 @@ static int32_t vnodeProcessQueryMsg(SVnodeObj *pVnode, SVReadMsg *pRead) {
     uint64_t qId = genQueryId();
     code = qCreateQueryInfo(pVnode->tsdb, pVnode->vgId, pQueryTableMsg, &pQInfo, qId);
 
-    size_t rspLen = sizeof(SQueryTableRsp);
-    SQueryTableRsp *pRsp = (SQueryTableRsp *)rpcMallocCont(rspLen);
+    SQueryTableRsp *pRsp = (SQueryTableRsp *)rpcMallocCont(sizeof(SQueryTableRsp));
     pRsp->code = code;
     pRsp->qId  = 0;
 
-    pRet->len = rspLen;
+    pRet->len = sizeof(SQueryTableRsp);
     pRet->rsp = pRsp;
     int32_t vgId = pVnode->vgId;
 
