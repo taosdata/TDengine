@@ -58,7 +58,6 @@ typedef struct SSchLevel {
   SArray  *subTasks;  // Element is SQueryTask
 } SSchLevel;
 
-
 typedef struct SSchTask {
   uint64_t             taskId;         // task id
   SSchLevel           *level;          // level

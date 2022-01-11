@@ -606,8 +606,8 @@ int32_t schProcessRspMsg(SSchJob *job, SSchTask *task, int32_t msgType, char *ms
     case TDMT_VND_QUERY_RSP: {
       SQueryTableRsp *rsp = (SQueryTableRsp *)msg;
 
-      if (rsp->code != TSDB_CODE_SUCCESS || NULL == msg) {
-        SCH_ERR_JRET(schProcessOnTaskFailure(job, task, rsp->code));
+      if (rspCode != TSDB_CODE_SUCCESS || rsp->code != TSDB_CODE_SUCCESS || NULL == msg) {
+        SCH_ERR_JRET(schProcessOnTaskFailure(job, task, rspCode));
       } else {
         code = schBuildAndSendMsg(job, task, TDMT_VND_RES_READY);
         if (code) {
@@ -986,7 +986,7 @@ void schDropJobAllTasks(SSchJob *job) {
   }  
 }
 
-int32_t schExecJobImpl(void *transport, SArray *nodeList, SQueryDag* pDag, void** job, bool syncSchedule) {
+int32_t schExecJobImpl(void *transport, SArray *nodeList, SQueryDag* pDag, struct SSchJob** job, bool syncSchedule) {
   if (nodeList && taosArrayGetSize(nodeList) <= 0) {
     qInfo("QID:%"PRIx64" input nodeList is empty", pDag->queryId);
   }
@@ -1092,7 +1092,7 @@ int32_t schedulerInit(SSchedulerCfg *cfg) {
   return TSDB_CODE_SUCCESS;
 }
 
-int32_t scheduleExecJob(void *transport, SArray *nodeList, SQueryDag* pDag, void** pJob, SQueryResult *pRes) {
+int32_t scheduleExecJob(void *transport, SArray *nodeList, SQueryDag* pDag, struct SSchJob** pJob, SQueryResult *pRes) {
   if (NULL == transport || NULL == pDag || NULL == pDag->pSubplans || NULL == pJob || NULL == pRes) {
     SCH_ERR_RET(TSDB_CODE_QRY_INVALID_INPUT);
   }
@@ -1107,7 +1107,7 @@ int32_t scheduleExecJob(void *transport, SArray *nodeList, SQueryDag* pDag, void
   return TSDB_CODE_SUCCESS;
 }
 
-int32_t scheduleAsyncExecJob(void *transport, SArray *nodeList, SQueryDag* pDag, void** pJob) {
+int32_t scheduleAsyncExecJob(void *transport, SArray *nodeList, SQueryDag* pDag, struct SSchJob** pJob) {
   if (NULL == transport || NULL == pDag || NULL == pDag->pSubplans || NULL == pJob) {
     SCH_ERR_RET(TSDB_CODE_QRY_INVALID_INPUT);
   }
@@ -1116,53 +1116,51 @@ int32_t scheduleAsyncExecJob(void *transport, SArray *nodeList, SQueryDag* pDag,
 }
 
 
-int32_t scheduleFetchRows(void *pJob, void **data) {
-  if (NULL == pJob || NULL == data) {
+int32_t scheduleFetchRows(SSchJob *pJob, void** pData) {
+  if (NULL == pJob || NULL == pData) {
     SCH_ERR_RET(TSDB_CODE_QRY_INVALID_INPUT);
   }
 
-  SSchJob *job = pJob;
   int32_t code = 0;
-
-  if (!SCH_JOB_NEED_FETCH(&job->attr)) {
+  if (!SCH_JOB_NEED_FETCH(&pJob->attr)) {
     qError("no need to fetch data");
     SCH_ERR_RET(TSDB_CODE_QRY_APP_ERROR);
   }
 
-  if (job->status == JOB_TASK_STATUS_FAILED) {
-    job->res = NULL;
-    SCH_RET(atomic_load_32(&job->errCode));
+  if (pJob->status == JOB_TASK_STATUS_FAILED) {
+      pJob->res = NULL;
+    SCH_RET(atomic_load_32(&pJob->errCode));
   }
 
-  if (job->status == JOB_TASK_STATUS_SUCCEED) {
-    job->res = NULL;
+  if (pJob->status == JOB_TASK_STATUS_SUCCEED) {
+    pJob->res = NULL;
     return TSDB_CODE_SUCCESS;
   }
 
-  if (atomic_val_compare_exchange_32(&job->userFetch, 0, 1) != 0) {
+  if (atomic_val_compare_exchange_32(&pJob->userFetch, 0, 1) != 0) {
     qError("prior fetching not finished");
     SCH_ERR_RET(TSDB_CODE_QRY_APP_ERROR);
   }
 
-  if (job->status == JOB_TASK_STATUS_PARTIAL_SUCCEED) {
-    SCH_ERR_JRET(schFetchFromRemote(job));
+  if (pJob->status == JOB_TASK_STATUS_PARTIAL_SUCCEED) {
+    SCH_ERR_JRET(schFetchFromRemote(pJob));
   }
 
-  tsem_wait(&job->rspSem);
+  tsem_wait(&pJob->rspSem);
 
-  if (job->status == JOB_TASK_STATUS_FAILED) {
-    code = atomic_load_32(&job->errCode);
+  if (pJob->status == JOB_TASK_STATUS_FAILED) {
+    code = atomic_load_32(&pJob->errCode);
   }
   
-  if (job->res && ((SRetrieveTableRsp *)job->res)->completed) {
-    job->status = JOB_TASK_STATUS_SUCCEED;
+  if (pJob->res && ((SRetrieveTableRsp *)pJob->res)->completed) {
+      pJob->status = JOB_TASK_STATUS_SUCCEED;
   }
 
-  *data = job->res;
-  job->res = NULL;
+  *pData = pJob->res;
+  pJob->res = NULL;
 
 _return:
-  atomic_val_compare_exchange_32(&job->userFetch, 1, 0);
+  atomic_val_compare_exchange_32(&pJob->userFetch, 1, 0);
 
   SCH_RET(code);
 }

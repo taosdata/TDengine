@@ -568,7 +568,7 @@ TEST(testCase, projection_query_tables) {
   TAOS_RES* pRes = taos_query(pConn, "use abc1");
 
 //  pRes = taos_query(pConn, "create table m1 (ts timestamp,  k int) tags(a int)");
-//  taos_free_result(pRes);
+  taos_free_result(pRes);
 //
 //  pRes = taos_query(pConn, "create table tu using m1 tags(1)");
 //  taos_free_result(pRes);
