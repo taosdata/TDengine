@@ -13,11 +13,12 @@
  * along with this program. If not, see <http://www.gnu.org/licenses/>.
  */
 
+#include <dataSinkMgt.h>
+#include "exception.h"
 #include "os.h"
 #include "tcache.h"
 #include "tglobal.h"
 #include "tmsg.h"
-#include "exception.h"
 
 #include "thash.h"
 #include "executorimpl.h"
@@ -66,152 +67,24 @@ void freeParam(STaskParam *param) {
   tfree(param->prevResult);
 }
 
-// todo parse json to get the operator tree.
+int32_t qCreateExecTask(void* tsdb, int32_t vgId, SSubplan* pSubplan, qTaskInfo_t* pTaskInfo) {
+  assert(tsdb != NULL && pSubplan != NULL);
 
-int32_t qCreateTask(void* tsdb, int32_t vgId, void* pQueryMsg, qTaskInfo_t* pTaskInfo, uint64_t taskId) {
-  assert(pQueryMsg != NULL && tsdb != NULL);
-
-  int32_t code = TSDB_CODE_SUCCESS;
-#if 0
-  STaskParam param = {0};
-  code = convertQueryMsg(pQueryMsg, &param);
+  int32_t code = doCreateExecTaskInfo(pSubplan, (SExecTaskInfo**) pTaskInfo, tsdb);
   if (code != TSDB_CODE_SUCCESS) {
-    goto _over;
+    goto _error;
   }
 
-  if (pQueryMsg->numOfTables <= 0) {
-    qError("Invalid number of tables to query, numOfTables:%d", pQueryMsg->numOfTables);
-    code = TSDB_CODE_QRY_INVALID_MSG;
-    goto _over;
-  }
-
-  if (param.pTableIdList == NULL || taosArrayGetSize(param.pTableIdList) == 0) {
-    qError("qmsg:%p, SQueryTableReq wrong format", pQueryMsg);
-    code = TSDB_CODE_QRY_INVALID_MSG;
-    goto _over;
-  }
-
-  SQueriedTableInfo info = { .numOfTags = pQueryMsg->numOfTags, .numOfCols = pQueryMsg->numOfCols, .colList = pQueryMsg->tableCols};
-  if ((code = createQueryFunc(&info, pQueryMsg->numOfOutput, &param.pExprs, param.pExpr, param.pTagColumnInfo,
-                              pQueryMsg->queryType, pQueryMsg, param.pUdfInfo)) != TSDB_CODE_SUCCESS) {
-    goto _over;
-  }
-
-  if (param.pSecExpr != NULL) {
-    if ((code = createIndirectQueryFuncExprFromMsg(pQueryMsg, pQueryMsg->secondStageOutput, &param.pSecExprs, param.pSecExpr, param.pExprs, param.pUdfInfo)) != TSDB_CODE_SUCCESS) {
-      goto _over;
-    }
-  }
-
-  if (param.colCond != NULL) {
-    if ((code = createQueryFilter(param.colCond, pQueryMsg->colCondLen, &param.pFilters)) != TSDB_CODE_SUCCESS) {
-      goto _over;
-    }
-  }
-
-  param.pGroupbyExpr = createGroupbyExprFromMsg(pQueryMsg, param.pGroupColIndex, &code);
-  if ((param.pGroupbyExpr == NULL && pQueryMsg->numOfGroupCols != 0) || code != TSDB_CODE_SUCCESS) {
-    goto _over;
-  }
-
-  bool isSTableQuery = false;
-  STableGroupInfo tableGroupInfo = {0};
-  int64_t st = taosGetTimestampUs();
-
-  if (TSDB_QUERY_HAS_TYPE(pQueryMsg->queryType, TSDB_QUERY_TYPE_TABLE_QUERY)) {
-    STableIdInfo *id = taosArrayGet(param.pTableIdList, 0);
-
-    qDebug("qmsg:%p query normal table, uid:%"PRId64", tid:%d", pQueryMsg, id->uid, id->tid);
-    if ((code = tsdbGetOneTableGroup(tsdb, id->uid, pQueryMsg->window.skey, &tableGroupInfo)) != TSDB_CODE_SUCCESS) {
-      goto _over;
-    }
-  } else if (TSDB_QUERY_HAS_TYPE(pQueryMsg->queryType, TSDB_QUERY_TYPE_MULTITABLE_QUERY|TSDB_QUERY_TYPE_STABLE_QUERY)) {
-    isSTableQuery = true;
-
-    // also note there's possibility that only one table in the super table
-    if (!TSDB_QUERY_HAS_TYPE(pQueryMsg->queryType, TSDB_QUERY_TYPE_MULTITABLE_QUERY)) {
-      STableIdInfo *id = taosArrayGet(param.pTableIdList, 0);
-
-      // group by normal column, do not pass the group by condition to tsdb to group table into different group
-      int32_t numOfGroupByCols = pQueryMsg->numOfGroupCols;
-      if (pQueryMsg->numOfGroupCols == 1 && !TSDB_COL_IS_TAG(param.pGroupColIndex->flag)) {
-        numOfGroupByCols = 0;
-      }
-
-      qDebug("qmsg:%p query stable, uid:%"PRIu64", tid:%d", pQueryMsg, id->uid, id->tid);
-      code = tsdbQuerySTableByTagCond(tsdb, id->uid, pQueryMsg->window.skey, param.tagCond, pQueryMsg->tagCondLen,
-                                      pQueryMsg->tagNameRelType, param.tbnameCond, &tableGroupInfo, param.pGroupColIndex, numOfGroupByCols);
-
-      if (code != TSDB_CODE_SUCCESS) {
-        qError("qmsg:%p failed to query stable, reason: %s", pQueryMsg, tstrerror(code));
-        goto _over;
-      }
-    } else {
-      code = tsdbGetTableGroupFromIdList(tsdb, param.pTableIdList, &tableGroupInfo);
-      if (code != TSDB_CODE_SUCCESS) {
-        goto _over;
-      }
-
-      qDebug("qmsg:%p query on %u tables in one group from client", pQueryMsg, tableGroupInfo.numOfTables);
-    }
-
-    int64_t el = taosGetTimestampUs() - st;
-    qDebug("qmsg:%p tag filter completed, numOfTables:%u, elapsed time:%"PRId64"us", pQueryMsg, tableGroupInfo.numOfTables, el);
-  } else {
-    assert(0);
-  }
-
-  code = checkForQueryBuf(tableGroupInfo.numOfTables);
-  if (code != TSDB_CODE_SUCCESS) {  // not enough query buffer, abort
-    goto _over;
-  }
-
-  assert(pQueryMsg->stableQuery == isSTableQuery);
-  (*pTaskInfo) = createQInfoImpl(pQueryMsg, param.pGroupbyExpr, param.pExprs, param.pSecExprs, &tableGroupInfo,
-                              param.pTagColumnInfo, param.pFilters, vgId, param.sql, qId, param.pUdfInfo);
-
-  param.sql    = NULL;
-  param.pExprs = NULL;
-  param.pSecExprs = NULL;
-  param.pGroupbyExpr = NULL;
-  param.pTagColumnInfo = NULL;
-  param.pFilters = NULL;
-
-  if ((*pTaskInfo) == NULL) {
-    code = TSDB_CODE_QRY_OUT_OF_MEMORY;
-    goto _over;
-  }
-  param.pUdfInfo = NULL;
-
-  code = initQInfo(&pQueryMsg->tsBuf, tsdb, NULL, *pTaskInfo, &param, (char*)pQueryMsg, pQueryMsg->prevResultLen, NULL);
-
-  _over:
-  if (param.pGroupbyExpr != NULL) {
-    taosArrayDestroy(param.pGroupbyExpr->columnInfo);
-  }
-
-  tfree(param.colCond);
-  
-  destroyUdfInfo(param.pUdfInfo);
-
-  taosArrayDestroy(param.pTableIdList);
-  param.pTableIdList = NULL;
-
-  freeParam(&param);
-
-  for (int32_t i = 0; i < pQueryMsg->numOfCols; i++) {
-    SColumnInfo* column = pQueryMsg->tableCols + i;
-    freeColumnFilterInfo(column->flist.filterInfo, column->flist.numOfFilters);
-  }
-
-  filterFreeInfo(param.pFilters);
-
-  //pTaskInfo already freed in initQInfo, but *pTaskInfo may not pointer to null;
+  SDataSinkMgtCfg cfg = {.maxDataBlockNum = 1000};
+  code = dsDataSinkMgtInit(&cfg);
   if (code != TSDB_CODE_SUCCESS) {
-    *pTaskInfo = NULL;
+    goto _error;
   }
-#endif
 
+  DataSinkHandle pHandle = NULL;
+  code = dsCreateDataSinker(pSubplan->pDataSink, &pHandle);
+
+  _error:
   // if failed to add ref for all tables in this query, abort current query
   return code;
 }
@@ -250,7 +123,7 @@ int waitMoment(SQInfo* pQInfo){
       while(used_ms < ms) {
         taosMsleep(1000);
         used_ms += 1000;
-        if(isQueryKilled(pQInfo)){
+        if(isTaskKilled(pQInfo)){
           printf("test check query is canceled, sleep break.%s\n", pQInfo->sql);
           break;
         }
@@ -261,68 +134,64 @@ int waitMoment(SQInfo* pQInfo){
 }
 #endif
 
-bool qExecTask(qTaskInfo_t qinfo, uint64_t *qId) {
-  SQInfo *pQInfo = (SQInfo *)qinfo;
-  assert(pQInfo && pQInfo->signature == pQInfo);
+bool qExecTask(qTaskInfo_t tinfo, SSDataBlock** pRes) {
+  SExecTaskInfo *pTaskInfo = (SExecTaskInfo *) tinfo;
   int64_t threadId = taosGetSelfPthreadId();
 
   int64_t curOwner = 0;
-  if ((curOwner = atomic_val_compare_exchange_64(&pQInfo->owner, 0, threadId)) != 0) {
-    qError("QInfo:0x%"PRIx64"-%p qhandle is now executed by thread:%p", pQInfo->qId, pQInfo, (void*) curOwner);
-    pQInfo->code = TSDB_CODE_QRY_IN_EXEC;
+  if ((curOwner = atomic_val_compare_exchange_64(&pTaskInfo->owner, 0, threadId)) != 0) {
+    qError("QInfo:0x%"PRIx64"-%p qhandle is now executed by thread:%p", GET_TASKID(pTaskInfo), pTaskInfo, (void*) curOwner);
+    pTaskInfo->code = TSDB_CODE_QRY_IN_EXEC;
     return false;
   }
 
-  *qId = pQInfo->qId;
-  if(pQInfo->startExecTs == 0)
-    pQInfo->startExecTs = taosGetTimestampMs();
-
-  if (isQueryKilled(pQInfo)) {
-    qDebug("QInfo:0x%"PRIx64" it is already killed, abort", pQInfo->qId);
-    return doBuildResCheck(pQInfo);
+  if(pTaskInfo->cost.start == 0) {
+    pTaskInfo->cost.start = taosGetTimestampMs();
   }
 
-  STaskRuntimeEnv* pRuntimeEnv = &pQInfo->runtimeEnv;
-  if (pRuntimeEnv->tableqinfoGroupInfo.numOfTables == 0) {
-    qDebug("QInfo:0x%"PRIx64" no table exists for query, abort", pQInfo->qId);
-//    setTaskStatus(pRuntimeEnv, QUERY_COMPLETED);
-    return doBuildResCheck(pQInfo);
+  if (isTaskKilled(pTaskInfo)) {
+    qDebug("QInfo:0x%"PRIx64" it is already killed, abort", GET_TASKID(pTaskInfo));
+//    return doBuildResCheck(pTaskInfo);
   }
+
+//  STaskRuntimeEnv* pRuntimeEnv = &pTaskInfo->runtimeEnv;
+//  if (pTaskInfo->tableqinfoGroupInfo.numOfTables == 0) {
+//    qDebug("QInfo:0x%"PRIx64" no table exists for query, abort", GET_TASKID(pTaskInfo));
+//    setTaskStatus(pTaskInfo, TASK_COMPLETED);
+//    return doBuildResCheck(pTaskInfo);
+//  }
 
   // error occurs, record the error code and return to client
-  int32_t ret = setjmp(pQInfo->runtimeEnv.env);
+  int32_t ret = setjmp(pTaskInfo->env);
   if (ret != TSDB_CODE_SUCCESS) {
-    publishQueryAbortEvent(pQInfo, ret);
-    pQInfo->code = ret;
-    qDebug("QInfo:0x%"PRIx64" query abort due to error/cancel occurs, code:%s", pQInfo->qId, tstrerror(pQInfo->code));
-    return doBuildResCheck(pQInfo);
+    publishQueryAbortEvent(pTaskInfo, ret);
+    pTaskInfo->code = ret;
+    qDebug("QInfo:0x%"PRIx64" query abort due to error/cancel occurs, code:%s", GET_TASKID(pTaskInfo), tstrerror(pTaskInfo->code));
+//    return doBuildResCheck(pTaskInfo);
   }
 
-  qDebug("QInfo:0x%"PRIx64" query task is launched", pQInfo->qId);
+  qDebug("QInfo:0x%"PRIx64" query task is launched", GET_TASKID(pTaskInfo));
 
   bool newgroup = false;
-  publishOperatorProfEvent(pRuntimeEnv->proot, QUERY_PROF_BEFORE_OPERATOR_EXEC);
+  publishOperatorProfEvent(pTaskInfo->pRoot, QUERY_PROF_BEFORE_OPERATOR_EXEC);
 
   int64_t st = taosGetTimestampUs();
-  pRuntimeEnv->outputBuf = pRuntimeEnv->proot->exec(pRuntimeEnv->proot, &newgroup);
-  pQInfo->summary.elapsedTime += (taosGetTimestampUs() - st);
-#ifdef TEST_IMPL
-  waitMoment(pQInfo);
-#endif
-  publishOperatorProfEvent(pRuntimeEnv->proot, QUERY_PROF_AFTER_OPERATOR_EXEC);
-  pRuntimeEnv->resultInfo.total += GET_NUM_OF_RESULTS(pRuntimeEnv);
+  *pRes = pTaskInfo->pRoot->exec(pTaskInfo->pRoot, &newgroup);
+  // todo put the result into sink node.
 
-  if (isQueryKilled(pQInfo)) {
-    qDebug("QInfo:0x%"PRIx64" query is killed", pQInfo->qId);
-  } else if (GET_NUM_OF_RESULTS(pRuntimeEnv) == 0) {
-    qDebug("QInfo:0x%"PRIx64" over, %u tables queried, total %"PRId64" rows returned", pQInfo->qId, pRuntimeEnv->tableqinfoGroupInfo.numOfTables,
-           pRuntimeEnv->resultInfo.total);
+  pTaskInfo->cost.elapsedTime += (taosGetTimestampUs() - st);
+  publishOperatorProfEvent(pTaskInfo->pRoot, QUERY_PROF_AFTER_OPERATOR_EXEC);
+
+  if (isTaskKilled(pTaskInfo)) {
+    qDebug("QInfo:0x%"PRIx64" query is killed", GET_TASKID(pTaskInfo));
+//  } else if (GET_NUM_OF_RESULTS(pRuntimeEnv) == 0) {
+//    qDebug("QInfo:0x%"PRIx64" over, %u tables queried, total %"PRId64" rows returned", pTaskInfo->qId, pRuntimeEnv->tableqinfoGroupInfo.numOfTables,
+//           pRuntimeEnv->resultInfo.total);
   } else {
-    qDebug("QInfo:0x%"PRIx64" query paused, %d rows returned, total:%" PRId64 " rows", pQInfo->qId,
-        GET_NUM_OF_RESULTS(pRuntimeEnv), pRuntimeEnv->resultInfo.total);
+//    qDebug("QInfo:0x%"PRIx64" query paused, %d rows returned, total:%" PRId64 " rows", pTaskInfo->qId,
+//        GET_NUM_OF_RESULTS(pRuntimeEnv), pRuntimeEnv->resultInfo.total);
   }
-
-  return doBuildResCheck(pQInfo);
+//  return doBuildResCheck(pTaskInfo);
 }
 
 int32_t qRetrieveQueryResultInfo(qTaskInfo_t qinfo, bool* buildRes, void* pRspContext) {
@@ -398,13 +267,13 @@ int32_t qKillTask(qTaskInfo_t qinfo) {
 }
 
 int32_t qIsTaskCompleted(qTaskInfo_t qinfo) {
-  SQInfo *pQInfo = (SQInfo *)qinfo;
+  SExecTaskInfo *pTaskInfo = (SExecTaskInfo *)qinfo;
 
-  if (pQInfo == NULL || !isValidQInfo(pQInfo)) {
+  if (pTaskInfo == NULL /*|| !isValidQInfo(pTaskInfo)*/) {
     return TSDB_CODE_QRY_INVALID_QHANDLE;
   }
 
-  return isQueryKilled(pQInfo) || Q_STATUS_EQUAL(pQInfo->runtimeEnv.status, QUERY_OVER);
+  return isTaskKilled(pTaskInfo) || Q_STATUS_EQUAL(pTaskInfo->status, TASK_OVER);
 }
 
 void qDestroyTask(qTaskInfo_t qHandle) {

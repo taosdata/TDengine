@@ -23,7 +23,7 @@ int vnodeQueryOpen(SVnode *pVnode) { return qWorkerInit(NULL, &pVnode->pQuery); 
 
 int vnodeProcessQueryReq(SVnode *pVnode, SRpcMsg *pMsg, SRpcMsg **pRsp) {
   vTrace("query message is processed");
-  return qWorkerProcessQueryMsg(pVnode, pVnode->pQuery, pMsg);
+  return qWorkerProcessQueryMsg(pVnode->pTsdb, pVnode->pQuery, pMsg);
 }
 
 int vnodeProcessFetchReq(SVnode *pVnode, SRpcMsg *pMsg, SRpcMsg **pRsp) {

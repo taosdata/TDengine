@@ -154,9 +154,13 @@ static bool fromRawArrayWithAlloc(const cJSON* json, const char* name, FFromJson
   return fromItem(jArray, func, *array, itemSize, *size);
 }
 
-static bool fromRawArray(const cJSON* json, const char* name, FFromJson func, void* array, int32_t itemSize, int32_t* size) {
+static bool fromRawArray(const cJSON* json, const char* name, FFromJson func, void** array, int32_t itemSize, int32_t* size) {
   const cJSON* jArray = getArray(json, name, size);
-  return fromItem(jArray, func, array, itemSize, *size);
+  if (*array == NULL) {
+    *array = calloc(*size, itemSize);
+  }
+
+  return fromItem(jArray, func, *array, itemSize, *size);
 }
 
 static char* getString(const cJSON* json, const char* name) {
@@ -218,7 +222,8 @@ static bool dataBlockSchemaFromJson(const cJSON* json, void* obj) {
   SDataBlockSchema* schema = (SDataBlockSchema*)obj;
   schema->resultRowSize = getNumber(json, jkDataBlockSchemaResultRowSize);
   schema->precision = getNumber(json, jkDataBlockSchemaPrecision);
-  return fromRawArray(json, jkDataBlockSchemaSlotSchema, schemaFromJson, schema->pSchema, sizeof(SSlotSchema), &schema->numOfCols);
+
+  return fromRawArray(json, jkDataBlockSchemaSlotSchema, schemaFromJson, (void**) &(schema->pSchema), sizeof(SSlotSchema), &schema->numOfCols);
 }
 
 static const char* jkColumnFilterInfoLowerRelOptr = "LowerRelOptr";
@@ -920,6 +925,8 @@ int32_t subPlanToString(const SSubplan* subplan, char** str, int32_t* len) {
   }
 
   *str = cJSON_Print(json);
+
+  printf("%s\n", *str);
   *len = strlen(*str) + 1;
   return TSDB_CODE_SUCCESS;
 }

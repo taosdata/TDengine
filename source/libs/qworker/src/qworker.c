@@ -1,9 +1,11 @@
 #include "qworker.h"
-#include "tname.h"
+#include <common.h>
+#include "executor.h"
 #include "planner.h"
 #include "query.h"
 #include "qworkerInt.h"
 #include "tmsg.h"
+#include "tname.h"
 
 int32_t qwValidateStatus(int8_t oriStatus, int8_t newStatus) {
   int32_t code = 0;
@@ -89,12 +91,13 @@ int32_t qwUpdateTaskInfo(SQWTaskStatus *task, int8_t type, void *data) {
   return TSDB_CODE_SUCCESS;
 }
 
-int32_t qwAddTaskResCache(SQWorkerMgmt *mgmt, uint64_t qId, uint64_t tId, void *data) {
+int32_t qwAddTaskAndSinkToCache(SQWorkerMgmt *mgmt, uint64_t qId, uint64_t tId, qTaskInfo_t taskHandle, DataSinkHandle sinkHandle) {
   char id[sizeof(qId) + sizeof(tId)] = {0};
   QW_SET_QTID(id, qId, tId);
 
   SQWorkerResCache resCache = {0};
-  resCache.data = data;
+  resCache.taskHandle = taskHandle;
+  resCache.sinkHandle = sinkHandle;
 
   QW_LOCK(QW_WRITE, &mgmt->resLock);
   if (0 != taosHashPut(mgmt->resHash, id, sizeof(id), &resCache, sizeof(SQWorkerResCache))) {
@@ -1011,7 +1014,7 @@ int32_t qWorkerProcessQueryMsg(void *node, void *qWorkerMgmt, SRpcMsg *pMsg) {
   bool queryDone = false;
   bool queryRsped = false;
   bool needStop = false;
-  SSubplan *plan = NULL;
+  struct SSubplan *plan = NULL;
 
   QW_ERR_JRET(qwCheckTaskCancelDrop(qWorkerMgmt, msg->sId, msg->queryId, msg->taskId, &needStop));
   if (needStop) {
@@ -1025,10 +1028,8 @@ int32_t qWorkerProcessQueryMsg(void *node, void *qWorkerMgmt, SRpcMsg *pMsg) {
     QW_ERR_JRET(code);
   }
 
-  //TODO call executer to init subquery
-  code = 0; // return error directly
-  //TODO call executer to init subquery
-  
+  qTaskInfo_t pTaskInfo = NULL;
+  code = qCreateExecTask(node, 0, (struct SSubplan *)plan, &pTaskInfo);
   if (code) {
     QW_ERR_JRET(code);
   } else {
@@ -1039,22 +1040,19 @@ int32_t qWorkerProcessQueryMsg(void *node, void *qWorkerMgmt, SRpcMsg *pMsg) {
 
   queryRsped = true;
  
-  //TODO call executer to execute subquery
-  code = 0; 
-  void *data = NULL;
+  SSDataBlock* pRes = NULL;
+  code = qExecTask(pTaskInfo, &pRes);
+
   queryDone = false;
-  //TODO call executer to execute subquery
 
   if (code) {
     QW_ERR_JRET(code);
   } else {
-    QW_ERR_JRET(qwAddTaskResCache(qWorkerMgmt, msg->queryId, msg->taskId, data));
-
+    QW_ERR_JRET(qwAddTaskAndSinkToCache(qWorkerMgmt, msg->queryId, msg->taskId, pTaskInfo, NULL));
     QW_ERR_JRET(qwUpdateTaskStatus(qWorkerMgmt, msg->sId, msg->queryId, msg->taskId, JOB_TASK_STATUS_PARTIAL_SUCCEED));
   } 
 
 _return:
-
   if (queryRsped) {
     code = qwCheckAndSendReadyRsp(qWorkerMgmt, msg->sId, msg->queryId, msg->taskId, pMsg, code);
   } else {

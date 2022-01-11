@@ -269,7 +269,6 @@ int32_t schRecordTaskExecNode(SSchJob *pJob, SSchTask *pTask, SQueryNodeAddr *ad
 
 int32_t schValidateAndBuildJob(SQueryDag *pDag, SSchJob *pJob) {
   int32_t code = 0;
-
   pJob->queryId = pDag->queryId;
   
   if (pDag->numOfSubplans <= 0) {
@@ -367,7 +366,6 @@ int32_t schValidateAndBuildJob(SQueryDag *pDag, SSchJob *pJob) {
   SCH_ERR_JRET(schBuildTaskRalation(pJob, planToTask));
 
 _return:
-
   if (planToTask) {
     taosHashCleanup(planToTask);
   }
@@ -762,6 +760,8 @@ int32_t schHandleResponseMsg(SSchJob *pJob, SSchTask *pTask, int32_t msgType, ch
 
         break;
       }
+      break;
+    }
     case TDMT_VND_QUERY_RSP: {
         SQueryTableRsp *rsp = (SQueryTableRsp *)msg;
         
@@ -773,6 +773,8 @@ int32_t schHandleResponseMsg(SSchJob *pJob, SSchTask *pTask, int32_t msgType, ch
         
         break;
       }
+      break;
+    }
     case TDMT_VND_RES_READY_RSP: {
         SResReadyRsp *rsp = (SResReadyRsp *)msg;
         
@@ -784,6 +786,8 @@ int32_t schHandleResponseMsg(SSchJob *pJob, SSchTask *pTask, int32_t msgType, ch
         
         break;
       }
+      break;
+    }
     case TDMT_VND_FETCH_RSP: {
         SRetrieveTableRsp *rsp = (SRetrieveTableRsp *)msg;
 
@@ -1325,7 +1329,7 @@ int32_t scheduleExecJob(void *transport, SArray *nodeList, SQueryDag* pDag, void
 }
 
 int32_t scheduleAsyncExecJob(void *transport, SArray *nodeList, SQueryDag* pDag, void** pJob) {
-  if (NULL == transport || /*NULL == nodeList || */NULL == pDag || NULL == pDag->pSubplans || NULL == pJob) {
+  if (NULL == transport || NULL == pDag || NULL == pDag->pSubplans || NULL == pJob) {
     SCH_ERR_RET(TSDB_CODE_QRY_INVALID_INPUT);
   }
 
@@ -1485,8 +1489,4 @@ void scheduleFreeJob(void *job) {
   
   void schedulerDestroy(void) {
     if (schMgmt.jobs) {
-      taosHashCleanup(schMgmt.jobs); //TODO
-      schMgmt.jobs = NULL;
-    }
-  }
-
+      taosHashCleanup(sch

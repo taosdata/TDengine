@@ -67,15 +67,16 @@ typedef struct SQWTaskStatus {
   bool     drop;
 } SQWTaskStatus;
 
-typedef struct SQWorkerResCache {
-  SRWLatch lock;
-  void *data;
-} SQWorkerResCache;
+typedef struct SQWorkerTaskHandleCache {
+  SRWLatch        lock;
+  qTaskInfo_t     taskHandle;
+  DataSinkHandle  sinkHandle;
+} SQWorkerTaskHandleCache;
 
 typedef struct SQWSchStatus {
   int32_t   lastAccessTs; // timestamp in second
   SRWLatch  tasksLock;
-  SHashObj *tasksHash;   // key:queryId+taskId, value: SQWorkerTaskStatus
+  SHashObj *tasksHash;   // key:queryId+taskId, value: SQWTaskStatus
 } SQWSchStatus;
 
 // Qnode/Vnode level task management
@@ -83,7 +84,7 @@ typedef struct SQWorkerMgmt {
   SQWorkerCfg cfg;
   SRWLatch  schLock;
   SRWLatch  resLock;
-  SHashObj *schHash;    //key: schedulerId, value: SQWorkerSchStatus
+  SHashObj *schHash;    //key: schedulerId, value: SQWSchStatus
   SHashObj *resHash;       //key: queryId+taskId, value: SQWorkerResCache
 } SQWorkerMgmt;
 
