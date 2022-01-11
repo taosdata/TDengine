@@ -71,6 +71,7 @@ extern int32_t wDebugFlag;
 #define WAL_MAX_SIZE (TSDB_MAX_WAL_SIZE + sizeof(SWalHead))
 #define WAL_PATH_LEN (TSDB_FILENAME_LEN + 12)
 #define WAL_FILE_LEN (WAL_PATH_LEN + 32)
+#define WAL_MAGIC 0xFAFBFCFDULL
 
 #define WAL_CUR_FAILED 1
 
@@ -98,6 +99,7 @@ typedef struct {
 } SWalCfg;
 
 typedef struct {
+  uint64_t     magic;
   uint32_t     cksumHead;
   uint32_t     cksumBody;
   SWalReadHead head;

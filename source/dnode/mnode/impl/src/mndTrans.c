@@ -809,7 +809,7 @@ static bool mndTransPerformUndoLogStage(SMnode *pMnode, STrans *pTrans) {
     mDebug("trans:%d, stage from undoLog to rollback", pTrans->id);
     continueExec = true;
   } else {
-    mDebug("trans:%d, stage keep on undoLog since %s", pTrans->id, terrstr());
+    mError("trans:%d, stage keep on undoLog since %s", pTrans->id, terrstr());
     continueExec = false;
   }
 

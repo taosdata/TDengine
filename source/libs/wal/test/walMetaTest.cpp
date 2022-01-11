@@ -107,6 +107,43 @@ class WalKeepEnv : public ::testing::Test {
   const char* pathName = "/tmp/wal_test";
 };
 
+class WalRetentionEnv : public ::testing::Test {
+ protected:
+  static void SetUpTestCase() {
+    int code = walInit();
+    ASSERT(code == 0);
+  }
+
+  static void TearDownTestCase() { walCleanUp(); }
+
+  void walResetEnv() {
+    TearDown();
+    taosRemoveDir(pathName);
+    SetUp();
+  }
+
+  void SetUp() override {
+    SWalCfg cfg;
+    cfg.rollPeriod = -1,
+    cfg.segSize = -1,
+    cfg.retentionPeriod = -1,
+    cfg.retentionSize = 0,
+    cfg.rollPeriod = 0,
+    cfg.vgId = 0,
+    cfg.level = TAOS_WAL_FSYNC;
+    pWal = walOpen(pathName, &cfg);
+    ASSERT(pWal != NULL);
+  }
+
+  void TearDown() override {
+    walClose(pWal);
+    pWal = NULL;
+  }
+
+  SWal*       pWal = NULL;
+  const char* pathName = "/tmp/wal_test";
+};
+
 TEST_F(WalCleanEnv, createNew) {
   walRollFileInfo(pWal);
   ASSERT(pWal->fileInfoSet != NULL);
@@ -282,4 +319,87 @@ TEST_F(WalKeepEnv, readHandleRead) {
       EXPECT_EQ(newStr[j], pRead->pHead->head.body[j]);
     }
   }
+}
+
+TEST_F(WalRetentionEnv, repairMeta1) {
+  walResetEnv();
+  int code;
+  
+  int i;
+  for (i = 0; i < 100; i++) {
+    char newStr[100];
+    sprintf(newStr, "%s-%d", ranStr, i);
+    int len = strlen(newStr);
+    code = walWrite(pWal, i, 0, newStr, len);
+    ASSERT_EQ(code, 0);
+  }
+
+  TearDown();
+
+  //getchar();
+  char buf[100];
+  sprintf(buf, "%s/meta-ver%d", pathName, 0);
+  remove(buf);
+  sprintf(buf, "%s/meta-ver%d", pathName, 1);
+  remove(buf);
+  SetUp();
+  //getchar();
+
+  ASSERT_EQ(pWal->vers.lastVer, 99);
+
+  SWalReadHandle* pRead = walOpenReadHandle(pWal);
+  ASSERT(pRead != NULL);
+
+  for (int i = 0; i < 1000; i++) {
+    int ver = rand() % 100;
+    code = walReadWithHandle(pRead, ver);
+    ASSERT_EQ(code, 0);
+
+    // printf("rrbody: \n");
+    // for(int i = 0; i < pRead->pHead->head.len; i++) {
+    // printf("%d ", pRead->pHead->head.body[i]);
+    //}
+    // printf("\n");
+
+    ASSERT_EQ(pRead->pHead->head.version, ver);
+    ASSERT_EQ(pRead->curVersion, ver + 1);
+    char newStr[100];
+    sprintf(newStr, "%s-%d", ranStr, ver);
+    int len = strlen(newStr);
+    ASSERT_EQ(pRead->pHead->head.len, len);
+    for (int j = 0; j < len; j++) {
+      EXPECT_EQ(newStr[j], pRead->pHead->head.body[j]);
+    }
+  }
+
+  for (i = 100; i < 200; i++) {
+    char newStr[100];
+    sprintf(newStr, "%s-%d", ranStr, i);
+    int len = strlen(newStr);
+    code = walWrite(pWal, i, 0, newStr, len);
+    ASSERT_EQ(code, 0);
+  }
+
+  for (int i = 0; i < 1000; i++) {
+    int ver = rand() % 200;
+    code = walReadWithHandle(pRead, ver);
+    ASSERT_EQ(code, 0);
+
+    // printf("rrbody: \n");
+    // for(int i = 0; i < pRead->pHead->head.len; i++) {
+    // printf("%d ", pRead->pHead->head.body[i]);
+    //}
+    // printf("\n");
+
+    ASSERT_EQ(pRead->pHead->head.version, ver);
+    ASSERT_EQ(pRead->curVersion, ver + 1);
+    char newStr[100];
+    sprintf(newStr, "%s-%d", ranStr, ver);
+    int len = strlen(newStr);
+    ASSERT_EQ(pRead->pHead->head.len, len);
+    for (int j = 0; j < len; j++) {
+      EXPECT_EQ(newStr[j], pRead->pHead->head.body[j]);
+    }
+  }
+
 }

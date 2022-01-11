@@ -13,28 +13,17 @@
 
 class MndTestDb : public ::testing::Test {
  protected:
-  static void SetUpTestSuite() {
-    test.Init("/tmp/mnode_test_db", 9030);
-    const char* fqdn = "localhost";
-    const char* firstEp = "localhost:9030";
+  static void SetUpTestSuite() { test.Init("/tmp/mnode_test_db", 9030); }
+  static void TearDownTestSuite() { test.Cleanup(); }
 
-    server2.Start("/tmp/mnode_test_db2", fqdn, 9031, firstEp);
-  }
-  static void TearDownTestSuite() {
-    server2.Stop();
-    test.Cleanup();
-  }
-
-  static Testbase   test;
-  static TestServer server2;
+  static Testbase test;
 
  public:
   void SetUp() override {}
   void TearDown() override {}
 };
 
-Testbase   MndTestDb::test;
-TestServer MndTestDb::server2;
+Testbase MndTestDb::test;
 
 TEST_F(MndTestDb, 01_ShowDb) {
   test.SendShowMetaReq(TSDB_MGMT_TABLE_DB, "");

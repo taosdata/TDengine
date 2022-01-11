@@ -204,7 +204,7 @@ static int32_t mndStbActionUpdate(SSdb *pSdb, SStbObj *pOldStb, SStbObj *pNewStb
 SStbObj *mndAcquireStb(SMnode *pMnode, char *stbName) {
   SSdb    *pSdb = pMnode->pSdb;
   SStbObj *pStb = sdbAcquire(pSdb, SDB_STB, stbName);
-  if (pStb == NULL) {
+  if (pStb == NULL && terrno == TSDB_CODE_SDB_OBJ_NOT_THERE) {
     terrno = TSDB_CODE_MND_STB_NOT_EXIST;
   }
   return pStb;
@@ -513,9 +513,11 @@ static int32_t mndProcesSMCreateStbReq(SMnodeMsg *pMsg) {
       return 0;
     } else {
       terrno = TSDB_CODE_MND_STB_ALREADY_EXIST;
-      mError("db:%s, failed to create since %s", pCreate->name, terrstr());
+      mError("stb:%s, failed to create since %s", pCreate->name, terrstr());
       return -1;
     }
+  } else if (terrno != TSDB_CODE_MND_STB_NOT_EXIST) {
+    mError("stb:%s, failed to create since %s", pCreate->name, terrstr());
   }
 
   // topic should have different name with stb

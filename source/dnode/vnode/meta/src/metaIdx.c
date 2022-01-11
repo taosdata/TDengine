@@ -49,9 +49,7 @@ int metaOpenIdx(SMeta *pMeta) {
 
 #ifdef USE_INVERTED_INDEX
   SIndexOpts opts;
-  if (indexOpen(&opts, pMeta->path, &pMeta->pIdx->pIdx) != 0) {
-    return -1;
-  }
+  if (indexOpen(&opts, pMeta->path, &pMeta->pIdx->pIdx) != 0) { return -1; }
 
 #endif
   return 0;
@@ -67,16 +65,14 @@ void metaCloseIdx(SMeta *pMeta) { /* TODO */
 
 #ifdef USE_INVERTED_INDEX
   SIndexOpts opts;
-  if (indexClose(pMeta->pIdx->pIdx) != 0) {
-    return -1;
-  }
+  if (indexClose(pMeta->pIdx->pIdx) != 0) { return -1; }
 
 #endif
 }
 
 int metaSaveTableToIdx(SMeta *pMeta, const STbCfg *pTbCfg) {
 #ifdef USE_INVERTED_INDEX
-  if (pTbCfgs - type == META_CHILD_TABLE) {
+  if (pTbCfgs->type == META_CHILD_TABLE) {
     char    buf[8] = {0};
     int16_t colId = (kvRowColIdx(pTbCfg->ctbCfg.pTag))[0].colId;
     sprintf(buf, "%d", colId);  // colname

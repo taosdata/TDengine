@@ -463,7 +463,7 @@ static int32_t mndProcessCreateDbReq(SMnodeMsg *pReq) {
   pCreate->commitTime = htonl(pCreate->commitTime);
   pCreate->fsyncPeriod = htonl(pCreate->fsyncPeriod);
 
-  mDebug("db:%s, start to create", pCreate->db);
+  mDebug("db:%s, start to create, vgroups:%d", pCreate->db, pCreate->numOfVgroups);
 
   SDbObj *pDb = mndAcquireDb(pMnode, pCreate->db);
   if (pDb != NULL) {
@@ -476,6 +476,9 @@ static int32_t mndProcessCreateDbReq(SMnodeMsg *pReq) {
       mError("db:%s, failed to create since %s", pCreate->db, terrstr());
       return -1;
     }
+  } else if (terrno != TSDB_CODE_MND_DB_NOT_EXIST) {
+    mError("db:%s, failed to create since %s", pCreate->db, terrstr());
+    return -1;
   }
 
   SUserObj *pOperUser = mndAcquireUser(pMnode, pReq->user);
