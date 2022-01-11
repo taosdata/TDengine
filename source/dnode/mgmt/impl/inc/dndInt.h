@@ -94,6 +94,7 @@ typedef struct {
   pthread_t   *threadId;
   SRWLatch     latch;
   SDnodeWorker mgmtWorker;
+  SDnodeWorker statusWorker;
 } SDnodeMgmt;
 
 typedef struct {
