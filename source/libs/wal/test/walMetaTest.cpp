@@ -340,7 +340,10 @@ TEST_F(WalRetentionEnv, repairMeta1) {
   char buf[100];
   sprintf(buf, "%s/meta-ver%d", pathName, 0);
   remove(buf);
+  sprintf(buf, "%s/meta-ver%d", pathName, 1);
+  remove(buf);
   SetUp();
+  //getchar();
 
   ASSERT_EQ(pWal->vers.lastVer, 99);
 

@@ -106,6 +106,7 @@ SWal *walOpen(const char *path, SWalCfg *pCfg) {
   // init write buffer
   memset(&pWal->writeHead, 0, sizeof(SWalHead));
   pWal->writeHead.head.headVer = WAL_HEAD_VER;
+  pWal->writeHead.magic = WAL_MAGIC;
 
   if (pthread_mutex_init(&pWal->mutex, NULL) < 0) {
     taosArrayDestroy(pWal->fileInfoSet);

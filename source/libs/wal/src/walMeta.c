@@ -13,7 +13,6 @@
  * along with this program. If not, see <http://www.gnu.org/licenses/>.
  */
 
-#define _DEFAULT_SOURCE
 #include "cJSON.h"
 #include "os.h"
 #include "taoserror.h"
@@ -33,6 +32,24 @@ static inline int walBuildMetaName(SWal* pWal, int metaVer, char* buf) {
   return sprintf(buf, "%s/meta-ver%d", pWal->path, metaVer);
 }
 
+void* tmemmem(char* haystack, int hlen, char* needle, int nlen) {
+  char* limit;
+
+  if (nlen == 0 || hlen < nlen) {
+    return false;
+  }
+
+  limit = haystack + hlen - nlen + 1;
+  while ((haystack = (char*)memchr(
+              haystack, needle[0], limit - haystack)) != NULL) {
+    if (memcmp(haystack, needle, nlen) == 0) {
+      return haystack;
+    }
+    haystack++;
+  }
+  return NULL;
+}
+
 static inline int64_t walScanLogGetLastVer(SWal* pWal) {
   ASSERT(pWal->fileInfoSet != NULL);
   int sz = taosArrayGetSize(pWal->fileInfoSet);
@@ -47,7 +64,7 @@ static inline int64_t walScanLogGetLastVer(SWal* pWal) {
 
   struct stat statbuf;
   stat(fnameStr, &statbuf);
-  int readSize = MIN(WAL_MAX_SIZE, statbuf.st_size);
+  int readSize = MIN(WAL_MAX_SIZE + 2, statbuf.st_size);
 
   FileFd fd = taosOpenFileRead(fnameStr);
   if (fd < 0) {
@@ -64,6 +81,7 @@ static inline int64_t walScanLogGetLastVer(SWal* pWal) {
     return -1;
   }
 
+  taosLSeekFile(fd, -readSize, SEEK_END);
   if (readSize != taosReadFile(fd, buf, readSize)) {
     free(buf);
     taosCloseFile(fd);
@@ -71,21 +89,25 @@ static inline int64_t walScanLogGetLastVer(SWal* pWal) {
     return -1;
   }
   
-  char* found = strstr(buf, (const char*)&magic);
-  if (found == NULL) {
-    ASSERT(false);
-    // file has to be deleted
-    free(buf);
-    taosCloseFile(fd);
-    terrno = TSDB_CODE_WAL_FILE_CORRUPTED;
-    return -1;
-  }
-  char *another;
-  while((another = strstr(found + 1, (const char*)&magic)) != NULL) {
+  char* haystack = buf;
+  char* found = NULL;
+  char *candidate = NULL;
+  while((candidate = tmemmem(haystack, readSize - (haystack - buf), (char*)&magic, sizeof(uint64_t))) != NULL) {
     // read and validate
-    SWalHead *logContent = (SWalHead*)another;
+    SWalHead *logContent = (SWalHead*)candidate;
     if (walValidHeadCksum(logContent) == 0 && walValidBodyCksum(logContent) == 0) {
-      found = another;
+      found = candidate;
+    }
+    haystack = candidate + 1;
+  }
+  if (found == buf) {
+    SWalHead *logContent = (SWalHead*)found;
+    if (walValidHeadCksum(logContent) != 0 || walValidBodyCksum(logContent) != 0) {
+      // file has to be deleted
+      free(buf);
+      taosCloseFile(fd);
+      terrno = TSDB_CODE_WAL_FILE_CORRUPTED;
+      return -1;
     }
   }
   taosCloseFile(fd);
