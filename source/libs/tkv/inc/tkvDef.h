@@ -29,6 +29,12 @@ typedef int32_t pgid_t;
 // framd_id_t
 typedef int32_t frame_id_t;
 
+// pgsize_t
+typedef int32_t pgsize_t;
+#define TKV_MIN_PGSIZE 512
+#define TKV_MAX_PGSIZE 16384
+#define TKV_IS_PGSIZE_VLD(s) (((s) >= TKV_MIN_PGSIZE) && (TKV_MAX_PGSIZE <= TKV_MAX_PGSIZE))
+
 #ifdef __cplusplus
 }
 #endif
