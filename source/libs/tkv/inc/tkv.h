@@ -16,14 +16,21 @@
 #ifndef _TD_TKV_H_
 #define _TD_TKV_H_
 
+#include "os.h"
+
 #ifdef __cplusplus
 extern "C" {
 #endif
 
+// Forward declaration
+typedef struct TDB     TDB;
+typedef struct TDB_ENV TDB_ENV;
+
 // SKey
-typedef struct SKey {
-  void *bdata;
-} SKey, SValue;
+typedef struct {
+  void *   bdata;
+  uint32_t size;
+} TDB_KEY, TDB_VALUE;
 
 #ifdef __cplusplus
 }
