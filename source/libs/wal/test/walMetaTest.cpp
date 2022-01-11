@@ -340,7 +340,10 @@ TEST_F(WalRetentionEnv, repairMeta1) {
   char buf[100];
   sprintf(buf, "%s/meta-ver%d", pathName, 0);
   remove(buf);
+  sprintf(buf, "%s/meta-ver%d", pathName, 1);
+  remove(buf);
   SetUp();
+  //getchar();
 
   ASSERT_EQ(pWal->vers.lastVer, 99);
 
@@ -375,6 +378,28 @@ TEST_F(WalRetentionEnv, repairMeta1) {
     int len = strlen(newStr);
     code = walWrite(pWal, i, 0, newStr, len);
     ASSERT_EQ(code, 0);
+  }
+
+  for (int i = 0; i < 1000; i++) {
+    int ver = rand() % 200;
+    code = walReadWithHandle(pRead, ver);
+    ASSERT_EQ(code, 0);
+
+    // printf("rrbody: \n");
+    // for(int i = 0; i < pRead->pHead->head.len; i++) {
+    // printf("%d ", pRead->pHead->head.body[i]);
+    //}
+    // printf("\n");
+
+    ASSERT_EQ(pRead->pHead->head.version, ver);
+    ASSERT_EQ(pRead->curVersion, ver + 1);
+    char newStr[100];
+    sprintf(newStr, "%s-%d", ranStr, ver);
+    int len = strlen(newStr);
+    ASSERT_EQ(pRead->pHead->head.len, len);
+    for (int j = 0; j < len; j++) {
+      EXPECT_EQ(newStr[j], pRead->pHead->head.body[j]);
+    }
   }
 
 }
