@@ -42,6 +42,8 @@ typedef struct SDataDispatchHandle {
   STaosQueue* pDataBlocks;
   SDataDispatchBuf nextOutput;
   int32_t status;
+  bool queryEnd;
+  int64_t useconds;
   pthread_mutex_t mutex;
 } SDataDispatchHandle;
 
@@ -124,7 +126,9 @@ static bool allocBuf(SDataDispatchHandle* pDispatcher, const SInputData* pInput,
 
 static int32_t updateStatus(SDataDispatchHandle* pDispatcher) {
   pthread_mutex_lock(&pDispatcher->mutex);
-  int32_t status = taosQueueSize(pDispatcher->pDataBlocks) < pDispatcher->pManager->cfg.maxDataBlockNumPerQuery ? DS_CAPACITY_ENOUGH : DS_DATA_FULL;
+  int32_t blockNums = taosQueueSize(pDispatcher->pDataBlocks);
+  int32_t status = (0 == blockNums ? DS_BUF_EMPTY :
+      (blockNums < pDispatcher->pManager->cfg.maxDataBlockNumPerQuery ? DS_BUF_LOW : DS_BUF_FULL));
   pDispatcher->status = status;
   pthread_mutex_unlock(&pDispatcher->mutex);
   return status;
@@ -137,7 +141,7 @@ static int32_t getStatus(SDataDispatchHandle* pDispatcher) {
   return status;
 }
 
-static int32_t putDataBlock(SDataSinkHandle* pHandle, const SInputData* pInput, int32_t* pStatus) {
+static int32_t putDataBlock(SDataSinkHandle* pHandle, const SInputData* pInput, bool* pContinue) {
   SDataDispatchHandle* pDispatcher = (SDataDispatchHandle*)pHandle;
   SDataDispatchBuf* pBuf = taosAllocateQitem(sizeof(SDataDispatchBuf));
   if (NULL == pBuf || !allocBuf(pDispatcher, pInput, pBuf)) {
@@ -145,38 +149,46 @@ static int32_t putDataBlock(SDataSinkHandle* pHandle, const SInputData* pInput, 
   }
   toDataCacheEntry(pDispatcher, pInput, pBuf);
   taosWriteQitem(pDispatcher->pDataBlocks, pBuf);
-  *pStatus = updateStatus(pDispatcher);
+  *pContinue = (DS_BUF_LOW == updateStatus(pDispatcher) ? true : false);
   return TSDB_CODE_SUCCESS;
 }
 
-static void endPut(struct SDataSinkHandle* pHandle) {
+static void endPut(struct SDataSinkHandle* pHandle, int64_t useconds) {
   SDataDispatchHandle* pDispatcher = (SDataDispatchHandle*)pHandle;
   pthread_mutex_lock(&pDispatcher->mutex);
-  pDispatcher->status = DS_QUERY_END;
+  pDispatcher->queryEnd = true;
+  pDispatcher->useconds = useconds;
   pthread_mutex_unlock(&pDispatcher->mutex);
 }
 
-static int32_t getDataLength(SDataSinkHandle* pHandle, int32_t* pStatus) {
+static void getDataLength(SDataSinkHandle* pHandle, int32_t* pLen, bool* pQueryEnd) {
   SDataDispatchHandle* pDispatcher = (SDataDispatchHandle*)pHandle;
   if (taosQueueEmpty(pDispatcher->pDataBlocks)) {
-    *pStatus = getStatus(pDispatcher) ? DS_QUERY_END : DS_IN_PROCESS;
-    return 0;
+    *pQueryEnd = pDispatcher->queryEnd;
+    *pLen = 0;
+    return;
   }
   SDataDispatchBuf* pBuf = NULL;
   taosReadQitem(pDispatcher->pDataBlocks, (void**)&pBuf);
   memcpy(&pDispatcher->nextOutput, pBuf, sizeof(SDataDispatchBuf));
   taosFreeQitem(pBuf);
-  return ((SDataCacheEntry*)(pDispatcher->nextOutput.pData))->dataLen;
+  *pLen = ((SDataCacheEntry*)(pDispatcher->nextOutput.pData))->dataLen;
 }
 
-static int32_t getDataBlock(SDataSinkHandle* pHandle, SOutPutData* pOutput, int32_t* pStatus) {
+static int32_t getDataBlock(SDataSinkHandle* pHandle, SOutputData* pOutput) {
   SDataDispatchHandle* pDispatcher = (SDataDispatchHandle*)pHandle;
   SDataCacheEntry* pEntry = (SDataCacheEntry*)(pDispatcher->nextOutput.pData);
   memcpy(pOutput->pData, pEntry->data, pEntry->dataLen);
   pOutput->numOfRows = pEntry->numOfRows;
   pOutput->compressed = pEntry->compressed;
   tfree(pDispatcher->nextOutput.pData);  // todo persistent
-  *pStatus = updateStatus(pDispatcher);
+  pOutput->bufStatus = updateStatus(pDispatcher);
+  pthread_mutex_lock(&pDispatcher->mutex);
+  pOutput->queryEnd = pDispatcher->queryEnd;
+  pOutput->needSchedule = false;
+  pOutput->useconds = pDispatcher->useconds;
+  pOutput->precision = pDispatcher->schema.precision;
+  pthread_mutex_unlock(&pDispatcher->mutex);
   return TSDB_CODE_SUCCESS;
 }
 
@@ -205,7 +217,8 @@ int32_t createDataDispatcher(SDataSinkManager* pManager, const SDataSink* pDataS
   dispatcher->sink.fDestroy = destroyDataSinker;
   dispatcher->pManager = pManager;
   dispatcher->schema = pDataSink->schema;
-  dispatcher->status = DS_CAPACITY_ENOUGH;
+  dispatcher->status = DS_BUF_EMPTY;
+  dispatcher->queryEnd = false;
   dispatcher->pDataBlocks = taosOpenQueue();
   pthread_mutex_init(&dispatcher->mutex, NULL);
   if (NULL == dispatcher->pDataBlocks) {
