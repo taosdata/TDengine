@@ -546,7 +546,7 @@ void* doFetchRow(SRequestObj* pRequest) {
   if (pResultInfo->pData == NULL || pResultInfo->current >= pResultInfo->numOfRows) {
     if (pRequest->type == TDMT_VND_QUERY) {
       pRequest->type = TDMT_VND_FETCH;
-      scheduleFetchRows(pRequest->body.pQueryJob, &pRequest->body.resInfo.pData);
+      scheduleFetchRows(pRequest->body.pQueryJob, (void **)&pRequest->body.resInfo.pData);
     } else if (pRequest->type == TDMT_MND_SHOW) {
       pRequest->type = TDMT_MND_SHOW_RETRIEVE;
     } else if (pRequest->type == TDMT_VND_SHOW_TABLES) {

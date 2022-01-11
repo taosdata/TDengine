@@ -191,9 +191,9 @@ int32_t qExecTask(qTaskInfo_t tinfo, DataSinkHandle* handle) {
       return pTaskInfo->code;
     }
 
-    int32_t    status = 0;
+    bool  qcontinue = false;
     SInputData inputData = {.pData = pRes, .pTableRetrieveTsMap = NULL};
-    pTaskInfo->code = dsPutDataBlock(pTaskInfo->dsHandle, &inputData, &status);
+    pTaskInfo->code = dsPutDataBlock(pTaskInfo->dsHandle, &inputData, &qcontinue);
 
     if (isTaskKilled(pTaskInfo)) {
       qDebug("QInfo:0x%" PRIx64 " task is killed", GET_TASKID(pTaskInfo));
@@ -202,7 +202,7 @@ int32_t qExecTask(qTaskInfo_t tinfo, DataSinkHandle* handle) {
       //           pRuntimeEnv->resultInfo.total);
     }
 
-    if (status == DS_DATA_FULL) {
+    if (!qcontinue) {
           qDebug("QInfo:0x%"PRIx64" query paused, %d rows returned, total:%" PRId64 " rows, in sinkNode:%d", GET_TASKID(pTaskInfo),
               0, 0L, 0);
       return pTaskInfo->code;

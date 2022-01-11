@@ -509,6 +509,27 @@ int32_t schTaskCheckAndSetRetry(SSchJob *job, SSchTask *task, int32_t errCode, b
 }
 
 
+
+// Note: no more error processing, handled in function internal
+int32_t schProcessOnJobFailure(SSchJob *pJob, int32_t errCode) {
+  // if already FAILED, no more processing
+  SCH_ERR_RET(schCheckAndUpdateJobStatus(pJob, JOB_TASK_STATUS_FAILED));
+  
+  if (errCode) {
+    atomic_store_32(&pJob->errCode, errCode);
+  }
+
+  if (atomic_load_8(&pJob->userFetch) || ((!SCH_JOB_NEED_FETCH(&pJob->attr)) && pJob->attr.syncSchedule)) {
+    tsem_post(&pJob->rspSem);
+  }
+
+  SCH_ERR_RET(atomic_load_32(&pJob->errCode));
+
+  assert(0);
+}
+
+
+
 // Note: no more error processing, handled in function internal
 int32_t schFetchFromRemote(SSchJob *pJob) {
   int32_t code = 0;
@@ -537,25 +558,6 @@ _return:
   schProcessOnJobFailure(pJob, code);
 
   return code;
-}
-
-
-// Note: no more error processing, handled in function internal
-int32_t schProcessOnJobFailure(SSchJob *pJob, int32_t errCode) {
-  // if already FAILED, no more processing
-  SCH_ERR_RET(schCheckAndUpdateJobStatus(pJob, JOB_TASK_STATUS_FAILED));
-  
-  if (errCode) {
-    atomic_store_32(&pJob->errCode, errCode);
-  }
-
-  if (atomic_load_8(&pJob->userFetch) || ((!SCH_JOB_NEED_FETCH(&pJob->attr)) && pJob->attr.syncSchedule)) {
-    tsem_post(&pJob->rspSem);
-  }
-
-  SCH_ERR_RET(atomic_load_32(&pJob->errCode));
-
-  assert(0);
 }
 
 
@@ -760,8 +762,6 @@ int32_t schHandleResponseMsg(SSchJob *pJob, SSchTask *pTask, int32_t msgType, ch
 
         break;
       }
-      break;
-    }
     case TDMT_VND_QUERY_RSP: {
         SQueryTableRsp *rsp = (SQueryTableRsp *)msg;
         
@@ -784,8 +784,6 @@ int32_t schHandleResponseMsg(SSchJob *pJob, SSchTask *pTask, int32_t msgType, ch
         
         break;
       }
-      break;
-    }
     case TDMT_VND_FETCH_RSP: {
         SRetrieveTableRsp *rsp = (SRetrieveTableRsp *)msg;
 
@@ -1316,7 +1314,7 @@ int32_t scheduleExecJob(void *transport, SArray *nodeList, SQueryDag* pDag, stru
 
   SSchJob *job = NULL;
 
-  SCH_ERR_RET(schExecJobImpl(transport, nodeList, pDag, (void **)&job, true));
+  SCH_ERR_RET(schExecJobImpl(transport, nodeList, pDag, &job, true));
 
   *pJob = job;
 
@@ -1333,7 +1331,7 @@ int32_t scheduleAsyncExecJob(void *transport, SArray *nodeList, SQueryDag* pDag,
 
   SSchJob *job = NULL;
 
-  SCH_ERR_RET(schExecJobImpl(transport, nodeList, pDag, (void **)&job, false));
+  SCH_ERR_RET(schExecJobImpl(transport, nodeList, pDag, &job, false));
 
   *pJob = job;
 
@@ -1368,11 +1366,11 @@ int32_t scheduleFetchRows(SSchJob *pJob, void** pData) {
   }
 
   if (status == JOB_TASK_STATUS_FAILED) {
-    *data = atomic_load_ptr(&pJob->res);
+    *pData = atomic_load_ptr(&pJob->res);
     atomic_store_ptr(&pJob->res, NULL);
     SCH_ERR_JRET(atomic_load_32(&pJob->errCode));
   } else if (status == JOB_TASK_STATUS_SUCCEED) {
-    *data = atomic_load_ptr(&pJob->res);
+    *pData = atomic_load_ptr(&pJob->res);
     atomic_store_ptr(&pJob->res, NULL);
     goto _return;
   } else if (status == JOB_TASK_STATUS_PARTIAL_SUCCEED) {
@@ -1392,9 +1390,9 @@ int32_t scheduleFetchRows(SSchJob *pJob, void** pData) {
   }
 
   while (true) {
-    *data = atomic_load_ptr(&pJob->res);
+    *pData = atomic_load_ptr(&pJob->res);
     
-    if (*data != atomic_val_compare_exchange_ptr(&pJob->res, *data, NULL)) {
+    if (*pData != atomic_val_compare_exchange_ptr(&pJob->res, *pData, NULL)) {
       continue;
     }
 
@@ -1472,17 +1470,21 @@ void scheduleFreeJob(void *job) {
     taosArrayDestroy(pLevel->subTasks);
   }
   
-    taosHashCleanup(pJob->execTasks);
-    taosHashCleanup(pJob->failTasks);
-    taosHashCleanup(pJob->succTasks);
-    
-    taosArrayDestroy(pJob->levels);
+  taosHashCleanup(pJob->execTasks);
+  taosHashCleanup(pJob->failTasks);
+  taosHashCleanup(pJob->succTasks);
   
-    tfree(pJob->res);
-    
-    tfree(pJob);
+  taosArrayDestroy(pJob->levels);
+
+  tfree(pJob->res);
+  
+  tfree(pJob);
+}
+  
+void schedulerDestroy(void) {
+  if (schMgmt.jobs) {
+    taosHashCleanup(schMgmt.jobs); //TODO
+    schMgmt.jobs = NULL;
   }
-  
-  void schedulerDestroy(void) {
-    if (schMgmt.jobs) {
-      taosHashCleanup(sch
+}
+

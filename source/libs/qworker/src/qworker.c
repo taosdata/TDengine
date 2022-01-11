@@ -6,6 +6,7 @@
 #include "qworkerInt.h"
 #include "tmsg.h"
 #include "tname.h"
+#include "dataSinkMgt.h"
 
 int32_t qwValidateStatus(int8_t oriStatus, int8_t newStatus) {
   int32_t code = 0;
@@ -891,14 +892,10 @@ int32_t qwHandleFetch(SQWorkerTaskHandlesCache *handles, SQWorkerMgmt *mgmt, uin
     QW_ERR_JRET(TSDB_CODE_QRY_APP_ERROR);
   }
 
-  code = dsGetDataLength(handles->sinkHandle, &dataLength, &queryEnd);
-  if (TSDB_CODE_SUCCESS != code) {
-    qError("dsGetDataLength failed, code:%x", code);
-    QW_ERR_JRET(code);
-  }
+  dsGetDataLength(handles->sinkHandle, &dataLength, &queryEnd);
   
   if (dataLength > 0) {
-    SOutPutData output = {0};
+    SOutputData output = {0};
     QW_ERR_JRET(qwInitFetchRsp(dataLength, &rsp));
     
     output.pData = rsp->data;
