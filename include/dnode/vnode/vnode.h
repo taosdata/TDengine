@@ -66,15 +66,26 @@ typedef struct SVnodeCfg {
   SWalCfg walCfg;
 } SVnodeCfg;
 
+typedef struct SDnode SDnode;
+typedef void (*PutReqToVQueryQFp)(SDnode *pDnode, struct SRpcMsg *pReq);
+typedef struct {
+  int32_t           sver;
+  SDnode           *pDnode;
+  char             *timezone;
+  char             *locale;
+  char             *charset;
+  PutReqToVQueryQFp putReqToVQueryQFp;
+  uint16_t          nthreads;  // number of commit threads. 0 for no threads and a schedule queue should be given (TODO)
+} SVnodeOpt;
+
 /* ------------------------ SVnode ------------------------ */
 /**
  * @brief Initialize the vnode module
  *
- * @param nthreads number of commit threads. 0 for no threads and
- *        a schedule queue should be given (TODO)
+ * @param pOption Option of the vnode mnodule
  * @return int 0 for success and -1 for failure
  */
-int vnodeInit(uint16_t nthreads);
+int vnodeInit(const SVnodeOpt *pOption);
 
 /**
  * @brief clear a vnode

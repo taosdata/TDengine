@@ -22,8 +22,8 @@
 #include "dndTransport.h"
 #include "dndVnodes.h"
 #include "sync.h"
-#include "wal.h"
 #include "tfs.h"
+#include "wal.h"
 
 EStat dndGetStat(SDnode *pDnode) { return pDnode->stat; }
 
@@ -153,6 +153,8 @@ static void dndCleanupEnv(SDnode *pDnode) {
   taosStopCacheRefreshWorker();
 }
 
+static void dndPutMsgToVQueryQ(SDnode *pDnode, SRpcMsg *pRpcMsg) { dndProcessVnodeQueryMsg(pDnode, pRpcMsg, NULL); }
+
 SDnode *dndInit(SDnodeOpt *pOption) {
   taosIgnSIGPIPE();
   taosBlockSIGPIPE();
@@ -196,7 +198,16 @@ SDnode *dndInit(SDnodeOpt *pOption) {
     return NULL;
   }
 
-  if (vnodeInit(pDnode->opt.numOfCommitThreads) != 0) {
+  SVnodeOpt vnodeOpt = {
+      .sver = pDnode->opt.sver,
+      .pDnode = pDnode,
+      .timezone = pDnode->opt.timezone,
+      .locale = pDnode->opt.locale,
+      .charset = pDnode->opt.charset,
+      .putReqToVQueryQFp = dndPutMsgToVQueryQ,
+      .nthreads = pDnode->opt.numOfCommitThreads,
+  };
+  if (vnodeInit(&vnodeOpt) != 0) {
     dError("failed to init vnode env");
     dndCleanup(pDnode);
     return NULL;
