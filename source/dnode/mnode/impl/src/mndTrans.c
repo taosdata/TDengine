@@ -825,7 +825,7 @@ static bool mndTransPerformUndoActionStage(SMnode *pMnode, STrans *pTrans) {
     mDebug("trans:%d, stage from undoAction to undoLog", pTrans->id);
     continueExec = true;
   } else if (code == TSDB_CODE_MND_ACTION_IN_PROGRESS) {
-    mError("trans:%d, stage keep on undoAction since %s", pTrans->id, tstrerror(code));
+    mDebug("trans:%d, stage keep on undoAction since %s", pTrans->id, tstrerror(code));
     continueExec = false;
   } else {
     pTrans->failedTimes++;
