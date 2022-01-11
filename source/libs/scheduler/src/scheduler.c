@@ -697,12 +697,7 @@ int32_t schProcessOnTaskSuccess(SSchJob *pJob, SSchTask *pTask) {
     atomic_add_fetch_32(&par->childReady, 1);
 
     SCH_LOCK(SCH_WRITE, &par->lock);
-    code = qSetSubplanExecutionNode(par->plan, pTask->plan->id.templateId, &pTask->succeedAddr);
-    if (code) {
-      SCH_UNLOCK(SCH_WRITE, &par->lock);
-      SCH_TASK_ELOG("qSetSubplanExecutionNode failed, code:%x, templateId:%"PRIx64, code, pTask->plan->id.templateId);
-      SCH_ERR_JRET(code);
-    }
+    qSetSubplanExecutionNode(par->plan, pTask->plan->id.templateId, &pTask->succeedAddr);
     SCH_UNLOCK(SCH_WRITE, &par->lock);
     
     if (SCH_TASK_READY_TO_LUNCH(par)) {
@@ -1450,7 +1445,22 @@ void scheduleFreeJob(void *job) {
 
     taosArrayDestroy(pLevel->subTasks);
   }
+  
+    taosHashCleanup(pJob->execTasks);
+    taosHashCleanup(pJob->failTasks);
+    taosHashCleanup(pJob->succTasks);
+    
+    taosArrayDestroy(pJob->levels);
+  
+    tfree(pJob->res);
+    
+    tfree(pJob);
+  }
+  
+  void schedulerDestroy(void) {
+    if (schMgmt.jobs) {
+      taosHashCleanup(schMgmt.jobs); //TODO
+      schMgmt.jobs = NULL;
+    }
+  }
 
-  taosHashCleanup(pJob->execTasks);
-  taosHashCleanup(pJob->failTasks);
-  taosHashCleanup(pJob->suc
