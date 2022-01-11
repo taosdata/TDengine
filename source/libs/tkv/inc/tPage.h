@@ -13,15 +13,29 @@
  * along with this program. If not, see <http://www.gnu.org/licenses/>.
  */
 
-#ifndef _TD_TVK_ROCKSDB_H_
-#define _TD_TVK_ROCKSDB_H_
+#ifndef _TD_TKV_PAGE_H_
+#define _TD_TKV_PAGE_H_
+
+#include "os.h"
 
 #ifdef __cplusplus
 extern "C" {
 #endif
 
+typedef struct {
+  uint16_t dbver;
+  uint16_t pgsize;
+  uint32_t cksm;
+} SPgHdr;
+
+typedef struct {
+  SPgHdr   chdr;
+  uint16_t used;     // number of used slots
+  uint16_t loffset;  // the offset of the starting location of the last slot used
+} SSlottedPgHdr;
+
 #ifdef __cplusplus
 }
 #endif
 
-#endif /*_TD_TVK_ROCKSDB_H_*/
+#endif /*_TD_TKV_PAGE_H_*/

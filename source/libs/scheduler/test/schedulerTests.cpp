@@ -186,7 +186,7 @@ void *schtSendRsp(void *param) {
   while (pIter) {
     SSchTask *task = *(SSchTask **)pIter;
 
-    SShellSubmitRspMsg rsp = {0};
+    SShellSubmitRsp rsp = {0};
     rsp.affectedRows = 10;
     schHandleResponseMsg(job, task, TDMT_VND_SUBMIT, (char *)&rsp, sizeof(rsp), 0);
     

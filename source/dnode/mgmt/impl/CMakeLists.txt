@@ -11,6 +11,7 @@ target_link_libraries(
     PUBLIC wal
     PUBLIC sync
     PUBLIC taos
+    PUBLIC tfs
 )
 target_include_directories(
     dnode

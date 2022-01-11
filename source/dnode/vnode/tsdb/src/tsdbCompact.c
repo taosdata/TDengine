@@ -12,6 +12,7 @@
  * You should have received a copy of the GNU Affero General Public License
  * along with this program. If not, see <http://www.gnu.org/licenses/>.
  */
+#if 0
 #include "tsdbint.h"
 
 typedef struct {
@@ -527,4 +528,6 @@ static int tsdbCompactMeta(STsdbRepo *pRepo) {
 
     return 0;
 }
+
+#endif
 

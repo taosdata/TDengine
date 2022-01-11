@@ -1001,14 +1001,14 @@ int32_t schBuildAndSendMsg(SSchJob *pJob, SSchTask *pTask, SQueryNodeAddr *addr,
       break;
     }    
     case TDMT_VND_RES_READY: {
-      msgSize = sizeof(SResReadyMsg);
+      msgSize = sizeof(SResReadyReq);
       msg = calloc(1, msgSize);
       if (NULL == msg) {
         SCH_TASK_ELOG("calloc %d failed", msgSize);
         SCH_ERR_RET(TSDB_CODE_QRY_OUT_OF_MEMORY);
       }
 
-      SResReadyMsg *pMsg = msg;
+      SResReadyReq *pMsg = msg;
       
       pMsg->header.vgId = htonl(addr->nodeId);  
       
@@ -1018,14 +1018,14 @@ int32_t schBuildAndSendMsg(SSchJob *pJob, SSchTask *pTask, SQueryNodeAddr *addr,
       break;
     }
     case TDMT_VND_FETCH: {
-      msgSize = sizeof(SResFetchMsg);
+      msgSize = sizeof(SResFetchReq);
       msg = calloc(1, msgSize);
       if (NULL == msg) {
         SCH_TASK_ELOG("calloc %d failed", msgSize);
         SCH_ERR_RET(TSDB_CODE_QRY_OUT_OF_MEMORY);
       }
     
-      SResFetchMsg *pMsg = msg;
+      SResFetchReq *pMsg = msg;
       
       pMsg->header.vgId = htonl(addr->nodeId);  
       
@@ -1035,14 +1035,14 @@ int32_t schBuildAndSendMsg(SSchJob *pJob, SSchTask *pTask, SQueryNodeAddr *addr,
       break;
     }
     case TDMT_VND_DROP_TASK:{
-      msgSize = sizeof(STaskDropMsg);
+      msgSize = sizeof(STaskDropReq);
       msg = calloc(1, msgSize);
       if (NULL == msg) {
         SCH_TASK_ELOG("calloc %d failed", msgSize);
         SCH_ERR_RET(TSDB_CODE_QRY_OUT_OF_MEMORY);
       }
     
-      STaskDropMsg *pMsg = msg;
+      STaskDropReq *pMsg = msg;
       
       pMsg->header.vgId = htonl(addr->nodeId);   
       

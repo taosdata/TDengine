@@ -26,14 +26,10 @@ extern "C" {
 #define TD_MOD_UNINITIALIZED 0
 #define TD_MOD_INITIALIZED 1
 
-#define TD_MOD_UNCLEARD 0
-#define TD_MOD_CLEARD 1
-
 typedef int8_t td_mode_flag_t;
 
 #define TD_CHECK_AND_SET_MODE_INIT(FLAG) atomic_val_compare_exchange_8((FLAG), TD_MOD_UNINITIALIZED, TD_MOD_INITIALIZED)
-
-#define TD_CHECK_AND_SET_MOD_CLEAR(FLAG) atomic_val_compare_exchange_8((FLAG), TD_MOD_UNCLEARD, TD_MOD_CLEARD)
+#define TD_CHECK_AND_SET_MOD_CLEAR(FLAG) atomic_val_compare_exchange_8((FLAG), TD_MOD_INITIALIZED, TD_MOD_UNINITIALIZED)
 
 #define TD_IS_NULL(PTR) ((PTR) == NULL)
 

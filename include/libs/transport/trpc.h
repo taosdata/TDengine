@@ -101,11 +101,11 @@ typedef struct SMsgSendInfo {
   SDataBuf  msgInfo;
 } SMsgSendInfo;
 
-typedef struct SQueryNodeAddr{
-  int32_t    nodeId; //vgId or qnodeId
-  int8_t     inUse;
-  int8_t     numOfEps;
-  SEpAddrMsg epAddr[TSDB_MAX_REPLICA];
+typedef struct SQueryNodeAddr {
+  int32_t nodeId;  // vgId or qnodeId
+  int8_t  inUse;
+  int8_t  numOfEps;
+  SEpAddr epAddr[TSDB_MAX_REPLICA];
 } SQueryNodeAddr;
 
 bool tIsValidSchema(struct SSchema* pSchema, int32_t numOfCols, int32_t numOfTags);

@@ -22,9 +22,9 @@
 extern "C" {
 #endif
 
-// SVDropTableReq
-// int   vnodeBuildDropTableReq(void **buf, const SVDropTableReq *pReq);
-// void *vnodeParseDropTableReq(void *buf, SVDropTableReq *pReq);
+// SVDropTbReq
+// int   vnodeBuildDropTableReq(void **buf, const SVDropTbReq *pReq);
+// void *vnodeParseDropTableReq(void *buf, SVDropTbReq *pReq);
 
 #ifdef __cplusplus
 }

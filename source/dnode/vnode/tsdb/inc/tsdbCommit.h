@@ -39,6 +39,18 @@ static FORCE_INLINE int TSDB_KEY_FID(TSKEY key, int32_t days, int8_t precision) 
   }
 }
 
+static FORCE_INLINE int tsdbGetFidLevel(int fid, SRtn *pRtn) {
+  if (fid >= pRtn->maxFid) {
+    return 0;
+  } else if (fid >= pRtn->midFid) {
+    return 1;
+  } else if (fid >= pRtn->minFid) {
+    return 2;
+  } else {
+    return -1;
+  }
+}
+
 #if 0
 #define TSDB_DEFAULT_BLOCK_ROWS(maxRows) ((maxRows)*4 / 5)
 
@@ -52,17 +64,6 @@ int tsdbWriteBlockImpl(STsdbRepo *pRepo, STable *pTable, SDFile *pDFile, SDataCo
                        bool isLast, bool isSuper, void **ppBuf, void **ppCBuf);
 int   tsdbApplyRtn(STsdbRepo *pRepo);
 
-static FORCE_INLINE int tsdbGetFidLevel(int fid, SRtn *pRtn) {
-  if (fid >= pRtn->maxFid) {
-    return 0;
-  } else if (fid >= pRtn->midFid) {
-    return 1;
-  } else if (fid >= pRtn->minFid) {
-    return 2;
-  } else {
-    return -1;
-  }
-}
 #endif
 
 #endif /* _TD_TSDB_COMMIT_H_ */
