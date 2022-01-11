@@ -1038,9 +1038,9 @@ int32_t qWorkerProcessQueryMsg(void *node, void *qWorkerMgmt, SRpcMsg *pMsg) {
   QW_ERR_JRET(qwBuildAndSendQueryRsp(pMsg, TSDB_CODE_SUCCESS));
 
   queryRsped = true;
- 
-  SSDataBlock* pRes = NULL;
-  code = qExecTask(pTaskInfo, &pRes);
+
+  DataSinkHandle handle = NULL;
+  code = qExecTask(pTaskInfo, &handle);
 
   queryDone = false;
   //TODO call executer to execute subquery
@@ -1048,7 +1048,7 @@ int32_t qWorkerProcessQueryMsg(void *node, void *qWorkerMgmt, SRpcMsg *pMsg) {
   if (code) {
     QW_ERR_JRET(code);
   } else {
-    QW_ERR_JRET(qwAddTaskResCache(qWorkerMgmt, msg->queryId, msg->taskId, pRes));
+//    QW_ERR_JRET(qwAddTaskResCache(qWorkerMgmt, msg->queryId, msg->taskId, pRes));
     QW_ERR_JRET(qwUpdateTaskStatus(qWorkerMgmt, msg->sId, msg->queryId, msg->taskId, JOB_TASK_STATUS_PARTIAL_SUCCEED));
   } 
 

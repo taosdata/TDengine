@@ -13,6 +13,7 @@
  * along with this program. If not, see <http://www.gnu.org/licenses/>.
  */
 
+#include "tarray.h"
 #include "dataSinkMgt.h"
 #include "dataSinkInt.h"
 #include "planner.h"

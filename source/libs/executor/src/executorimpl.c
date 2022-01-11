@@ -7181,6 +7181,7 @@ static SExecTaskInfo* createExecTaskInfo(uint64_t queryId) {
 
   pthread_mutex_init(&pTaskInfo->lock, NULL);
   pTaskInfo->cost.created = taosGetTimestampMs();
+  pTaskInfo->id.queryId = queryId;
   return pTaskInfo;
 }
 

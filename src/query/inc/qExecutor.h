@@ -284,7 +284,7 @@ typedef struct SQueryRuntimeEnv {
   uint32_t              status;           // query status
   void*                 qinfo;
   uint8_t               scanFlag;         // denotes reversed scan of data or not
-  void*                 pQueryHandle;
+  void*                 pTsdbReadHandle;
 
   int32_t               prevGroupId;      // previous executed group id
   bool                  enableGroupData;
@@ -418,7 +418,7 @@ typedef struct SQueryParam {
 } SQueryParam;
 
 typedef struct STableScanInfo {
-  void           *pQueryHandle;
+  void           *pTsdbReadHandle;
   int32_t         numOfBlocks;
   int32_t         numOfSkipped;
   int32_t         numOfBlockStatis;

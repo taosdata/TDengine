@@ -20,14 +20,16 @@
 #include "ttszip.h"
 #include "tvariant.h"
 
-#include "thash.h"
+#include "dataSinkMgt.h"
 #include "executil.h"
+#include "planner.h"
 #include "taosdef.h"
 #include "tarray.h"
 #include "tfilter.h"
+#include "thash.h"
 #include "tlockfree.h"
 #include "tpagedfile.h"
-#include "planner.h"
+#include "executor.h"
 
 struct SColumnFilterElem;
 
@@ -256,6 +258,7 @@ typedef struct SExecTaskInfo {
 //  void*            rspContext;  // response context
   char           *sql;         // query sql string
   jmp_buf         env;         //
+  DataSinkHandle  dsHandle;
   struct SOperatorInfo  *pRoot;
 } SExecTaskInfo;
 
