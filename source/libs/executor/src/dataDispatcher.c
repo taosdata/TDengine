@@ -109,10 +109,14 @@ static void toDataCacheEntry(const SDataDispatchHandle* pHandle, const SInputDat
   SDataCacheEntry* pEntry = (SDataCacheEntry*)pBuf->pData;
   pEntry->compressed = (int8_t)needCompress(pInput->pData, &(pHandle->schema));
   pEntry->numOfRows = pInput->pData->info.rows;
+  pEntry->dataLen = 0;
 
   pBuf->useSize = DATA_META_LENGTH(pInput->pTableRetrieveTsMap);
   copyData(pInput, &pHandle->schema, pEntry->data, pEntry->compressed, &pEntry->dataLen);
-  pBuf->useSize += (pEntry->compressed ? pEntry->dataLen : pHandle->schema.resultRowSize * pInput->pData->info.rows);
+  if (0 == pEntry->compressed) {
+    pEntry->dataLen = pHandle->schema.resultRowSize * pInput->pData->info.rows;
+  }
+  pBuf->useSize += pEntry->dataLen;
   // todo completed
 }
 
@@ -213,6 +217,7 @@ int32_t createDataDispatcher(SDataSinkManager* pManager, const SDataSink* pDataS
     return TSDB_CODE_QRY_OUT_OF_MEMORY;
   }
   dispatcher->sink.fPut = putDataBlock;
+  dispatcher->sink.fEndPut = endPut;
   dispatcher->sink.fGetLen = getDataLength;
   dispatcher->sink.fGetData = getDataBlock;
   dispatcher->sink.fDestroy = destroyDataSinker;

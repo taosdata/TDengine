@@ -22,6 +22,7 @@ extern "C" {
 
 #include "os.h"
 #include "thash.h"
+#include "executor.h"
 
 #define DS_BUF_LOW   1
 #define DS_BUF_FULL  2
@@ -31,13 +32,11 @@ struct SDataSink;
 struct SSDataBlock;
 
 typedef struct SDataSinkMgtCfg {
-  uint32_t maxDataBlockNum;
+  uint32_t maxDataBlockNum;           // todo: this should be numOfRows?
   uint32_t maxDataBlockNumPerQuery;
 } SDataSinkMgtCfg;
 
 int32_t dsDataSinkMgtInit(SDataSinkMgtCfg *cfg);
-
-typedef void* DataSinkHandle;
 
 typedef struct SInputData {
   const struct SSDataBlock* pData;

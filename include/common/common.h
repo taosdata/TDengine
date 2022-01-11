@@ -62,6 +62,12 @@ typedef struct SConstantItem {
   SVariant    value;
 } SConstantItem;
 
+typedef struct {
+  uint32_t  numOfTables;
+  SArray   *pGroupList;
+  SHashObj *map;  // speedup acquire the tableQueryInfo by table uid
+} STableGroupInfo;
+
 typedef struct SSDataBlock {
   SColumnDataAgg *pBlockAgg;
   SArray         *pDataBlock;    // SArray<SColumnInfoData>
