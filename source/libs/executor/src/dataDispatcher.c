@@ -19,6 +19,7 @@
 #include "tcompression.h"
 #include "tglobal.h"
 #include "tqueue.h"
+#include "executorimpl.h"
 
 #define DATA_META_LENGTH(tables) (sizeof(int32_t) + sizeof(STableIdInfo) * taosHashGetSize(tables) + sizeof(SRetrieveTableRsp))
 

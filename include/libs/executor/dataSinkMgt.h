@@ -21,7 +21,7 @@ extern "C" {
 #endif
 
 #include "os.h"
-#include "executorimpl.h"
+#include "thash.h"
 
 #define DS_BUF_LOW   1
 #define DS_BUF_FULL  2
@@ -40,7 +40,7 @@ int32_t dsDataSinkMgtInit(SDataSinkMgtCfg *cfg);
 typedef void* DataSinkHandle;
 
 typedef struct SInputData {
-  const SSDataBlock* pData;
+  const struct SSDataBlock* pData;
   SHashObj* pTableRetrieveTsMap;
 } SInputData;
 
