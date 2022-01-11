@@ -67,8 +67,7 @@ void freeParam(SQueryParam *param) {
   tfree(param->prevResult);
 }
 
-int32_t qCreateQueryInfo(void* tsdb, int32_t vgId, SQueryTableMsg* pQueryMsg, qinfo_t* pQInfo, uint64_t qId,
-                         int32_t* schemaVersion, int32_t* tagVersion) {
+int32_t qCreateQueryInfo(void* tsdb, int32_t vgId, SQueryTableMsg* pQueryMsg, qinfo_t* pQInfo, uint64_t qId) {
   assert(pQueryMsg != NULL && tsdb != NULL);
 
   int32_t code = TSDB_CODE_SUCCESS;
@@ -163,6 +162,13 @@ int32_t qCreateQueryInfo(void* tsdb, int32_t vgId, SQueryTableMsg* pQueryMsg, qi
     assert(0);
   }
 
+  int16_t queryTagVersion = ntohs(pQueryMsg->tagVersion);
+  int16_t querySchemaVersion = ntohs(pQueryMsg->schemaVersion);
+  if (queryTagVersion < tableGroupInfo.tVersion || querySchemaVersion < tableGroupInfo.sVersion) {
+    code = TSDB_CODE_QRY_INVALID_SCHEMA_VERSION;
+    goto _over;
+  }
+
   code = checkForQueryBuf(tableGroupInfo.numOfTables);
   if (code != TSDB_CODE_SUCCESS) {  // not enough query buffer, abort
     goto _over;
@@ -187,8 +193,6 @@ int32_t qCreateQueryInfo(void* tsdb, int32_t vgId, SQueryTableMsg* pQueryMsg, qi
 
   code = initQInfo(&pQueryMsg->tsBuf, tsdb, NULL, *pQInfo, &param, (char*)pQueryMsg, pQueryMsg->prevResultLen, NULL);
 
-  *schemaVersion = tableGroupInfo.sVersion;
-  *tagVersion = tableGroupInfo.tVersion;
   _over:
   if (param.pGroupbyExpr != NULL) {
     taosArrayDestroy(&(param.pGroupbyExpr->columnInfo));

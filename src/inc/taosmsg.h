@@ -523,6 +523,8 @@ typedef struct {
   int32_t     udfNum;           // number of udf function
   int32_t     udfContentOffset;
   int32_t     udfContentLen;
+  int16_t     schemaVersion;
+  int16_t     tagVersion;
   SColumnInfo tableCols[];
 } SQueryTableMsg;
 
