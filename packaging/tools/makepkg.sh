@@ -135,6 +135,15 @@ if [ -n "${taostools_bin_files}" ]; then
     else
         echo -e "install-taostools.sh not found"
     fi
+    
+    if [ -f ${top_dir}/src/kit/taos-tools/packaging/tools/uninstall-taostools.sh ]; then
+        cp ${top_dir}/src/kit/taos-tools/packaging/tools/uninstall-taostools.sh \
+            ${taostools_install_dir}/ > /dev/null \
+            && chmod a+x ${taostools_install_dir}/uninstall-taostools.sh \
+            || echo -e "failed to copy uninstall-taostools.sh"
+    else
+        echo -e "uninstall-taostools.sh not found"
+    fi
 
     if [ -f ${build_dir}/lib/libavro.so.23.0.0 ]; then
         mkdir -p ${taostools_install_dir}/avro/{lib,lib/pkgconfig} || echo -e "failed to create ${taostools_install_dir}/avro"
