@@ -23,11 +23,9 @@ extern "C" {
 #include "os.h"
 #include "executorimpl.h"
 
-#define DS_CAPACITY_ENOUGH 1
-#define DS_DATA_FULL       2
-#define DS_NEED_SCHEDULE   3
-#define DS_QUERY_END       4
-#define DS_IN_PROCESS      5
+#define DS_BUF_LOW   1
+#define DS_BUF_FULL  2
+#define DS_BUF_EMPTY 3
 
 struct SDataSink;
 struct SSDataBlock;
@@ -46,11 +44,16 @@ typedef struct SInputData {
   SHashObj* pTableRetrieveTsMap;
 } SInputData;
 
-typedef struct SOutPutData {
+typedef struct SOutputData {
   int32_t numOfRows;
   int8_t  compressed;
   char*   pData;
-} SOutPutData;
+  bool    queryEnd;
+  bool    needSchedule;
+  int32_t bufStatus;
+  int64_t useconds;
+  int8_t  precision;
+} SOutputData;
 
 /**
  * Create a subplan's datasinker handle for all later operations. 
@@ -66,16 +69,16 @@ int32_t dsCreateDataSinker(const struct SDataSink *pDataSink, DataSinkHandle* pH
  * @param pRes
  * @return error code
  */
-int32_t dsPutDataBlock(DataSinkHandle handle, const SInputData* pInput, int32_t* pStatus);
+int32_t dsPutDataBlock(DataSinkHandle handle, const SInputData* pInput, bool* pContinue);
 
-void dsEndPut(DataSinkHandle handle);
+void dsEndPut(DataSinkHandle handle, int64_t useconds);
 
 /**
  * Get the length of the data returned by the next call to dsGetDataBlock.
  * @param handle
  * @param pLen data length
  */
-void dsGetDataLength(DataSinkHandle handle, int32_t* pLen, int32_t* pStatus);
+void dsGetDataLength(DataSinkHandle handle, int32_t* pLen, bool* pQueryEnd);
 
 /**
  * Get data, the caller needs to allocate data memory.
@@ -84,7 +87,7 @@ void dsGetDataLength(DataSinkHandle handle, int32_t* pLen, int32_t* pStatus);
  * @param pStatus output
  * @return error code
  */
-int32_t dsGetDataBlock(DataSinkHandle handle, SOutPutData* pOutput, int32_t* pStatus);
+int32_t dsGetDataBlock(DataSinkHandle handle, SOutputData* pOutput);
 
 /**
  * After dsGetStatus returns DS_NEED_SCHEDULE, the caller need to put this into the work queue.

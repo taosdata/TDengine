@@ -31,24 +31,24 @@ int32_t dsCreateDataSinker(const struct SDataSink *pDataSink, DataSinkHandle* pH
   return TSDB_CODE_FAILED;
 }
 
-int32_t dsPutDataBlock(DataSinkHandle handle, const SInputData* pInput, int32_t* pStatus) {
+int32_t dsPutDataBlock(DataSinkHandle handle, const SInputData* pInput, bool* pContinue) {
   SDataSinkHandle* pHandleImpl = (SDataSinkHandle*)handle;
-  return pHandleImpl->fPut(pHandleImpl, pInput, pStatus);
+  return pHandleImpl->fPut(pHandleImpl, pInput, pContinue);
 }
 
-void dsEndPut(DataSinkHandle handle) {
+void dsEndPut(DataSinkHandle handle, int64_t useconds) {
   SDataSinkHandle* pHandleImpl = (SDataSinkHandle*)handle;
-  return pHandleImpl->fEndPut(pHandleImpl);
+  return pHandleImpl->fEndPut(pHandleImpl, useconds);
 }
 
-void dsGetDataLength(DataSinkHandle handle, int32_t* pLen, int32_t* pStatus) {
+void dsGetDataLength(DataSinkHandle handle, int32_t* pLen, bool* pQueryEnd) {
   SDataSinkHandle* pHandleImpl = (SDataSinkHandle*)handle;
-  *pLen = pHandleImpl->fGetLen(pHandleImpl, pStatus);
+  pHandleImpl->fGetLen(pHandleImpl, pLen, pQueryEnd);
 }
 
-int32_t dsGetDataBlock(DataSinkHandle handle, SOutPutData* pOutput, int32_t* pStatus) {
+int32_t dsGetDataBlock(DataSinkHandle handle, SOutputData* pOutput) {
   SDataSinkHandle* pHandleImpl = (SDataSinkHandle*)handle;
-  return pHandleImpl->fGetData(pHandleImpl, pOutput, pStatus);
+  return pHandleImpl->fGetData(pHandleImpl, pOutput);
 }
 
 void dsScheduleProcess(void* ahandle, void* pItem) {
