@@ -12,6 +12,7 @@
 # -*- coding: utf-8 -*-
 import os
 import subprocess
+import time
 
 from util.log import *
 from util.cases import *
@@ -111,13 +112,13 @@ class TDTestCase:
         if (int(sleepTimes) != 3):
             tdLog.exit("expected sleep times 3, actual %d" % int(sleepTimes))
 
-        cmd = "taosBenchmark -S 17 -n 3 -t 1 -y"
+        cmd = "taosBenchmark -S 17 -n 3 -t 1 -y -x"
         tdLog.info("%s" % cmd)
         os.system("%s" % cmd)
         tdSql.query("select last(ts) from test.meters")
         tdSql.checkData(0, 0 , "2017-07-14 10:40:00.034")
 
-        cmd = "taosBenchmark -N -t 11 -n 11 -y -x"
+        cmd = "taosBenchmark -N -I taosc -t 11 -n 11 -y -x -E"
         tdLog.info("%s" % cmd)
         os.system("%s" % cmd)
         tdSql.execute("use test")
@@ -125,7 +126,7 @@ class TDTestCase:
         tdSql.checkRows(0)
         tdSql.query("show tables")
         tdSql.checkRows(11)
-        tdSql.query("select count(*) from d10")
+        tdSql.query("select count(*) from `d10`")
         tdSql.checkData(0, 0, 11)
 
         cmd = "taosBenchmark -N -I rest -t 11 -n 11 -y -x"
@@ -153,6 +154,135 @@ class TDTestCase:
         cmd = "taosBenchmark -N -I sml -y"
         tdLog.info("%s" % cmd)
         assert(os.system("%s" % cmd) !=0 )
+
+        cmd = "taosBenchmark -n 1 -t 1 -y -b bool"
+        tdLog.info("%s" % cmd)
+        os.system("%s" % cmd)
+        tdSql.execute("reset query cache")
+        tdSql.query("describe test.meters")
+        tdSql.checkData(1, 1, "BOOL")
+
+        cmd = "taosBenchmark -n 1 -t 1 -y -b tinyint"
+        tdLog.info("%s" % cmd)
+        os.system("%s" % cmd)
+        tdSql.execute("reset query cache")
+        tdSql.query("describe test.meters")
+        tdSql.checkData(1, 1, "TINYINT")
+
+        cmd = "taosBenchmark -n 1 -t 1 -y -b utinyint"
+        tdLog.info("%s" % cmd)
+        os.system("%s" % cmd)
+        tdSql.execute("reset query cache")
+        tdSql.query("describe test.meters")
+        tdSql.checkData(1, 1, "TINYINT UNSIGNED")
+
+        cmd = "taosBenchmark -n 1 -t 1 -y -b smallint"
+        tdLog.info("%s" % cmd)
+        os.system("%s" % cmd)
+        tdSql.execute("reset query cache")
+        tdSql.query("describe test.meters")
+        tdSql.checkData(1, 1, "SMALLINT")
+
+        cmd = "taosBenchmark -n 1 -t 1 -y -b usmallint"
+        tdLog.info("%s" % cmd)
+        os.system("%s" % cmd)
+        tdSql.execute("reset query cache")
+        tdSql.query("describe test.meters")
+        tdSql.checkData(1, 1, "SMALLINT UNSIGNED")
+
+        cmd = "taosBenchmark -n 1 -t 1 -y -b int"
+        tdLog.info("%s" % cmd)
+        os.system("%s" % cmd)
+        tdSql.execute("reset query cache")
+        tdSql.query("describe test.meters")
+        tdSql.checkData(1, 1, "INT")
+
+        cmd = "taosBenchmark -n 1 -t 1 -y -b uint"
+        tdLog.info("%s" % cmd)
+        os.system("%s" % cmd)
+        tdSql.execute("reset query cache")
+        tdSql.query("describe test.meters")
+        tdSql.checkData(1, 1, "INT UNSIGNED")
+
+        cmd = "taosBenchmark -n 1 -t 1 -y -b bigint"
+        tdLog.info("%s" % cmd)
+        os.system("%s" % cmd)
+        tdSql.execute("reset query cache")
+        tdSql.query("describe test.meters")
+        tdSql.checkData(1, 1, "BIGINT")
+
+        cmd = "taosBenchmark -n 1 -t 1 -y -b ubigint"
+        tdLog.info("%s" % cmd)
+        os.system("%s" % cmd)
+        tdSql.execute("reset query cache")
+        tdSql.query("describe test.meters")
+        tdSql.checkData(1, 1, "BIGINT UNSIGNED")
+
+        cmd = "taosBenchmark -n 1 -t 1 -y -b timestamp"
+        tdLog.info("%s" % cmd)
+        os.system("%s" % cmd)
+        tdSql.execute("reset query cache")
+        tdSql.query("describe test.meters")
+        tdSql.checkData(1, 1, "TIMESTAMP")
+
+        cmd = "taosBenchmark -n 1 -t 1 -y -b float"
+        tdLog.info("%s" % cmd)
+        os.system("%s" % cmd)
+        tdSql.execute("reset query cache")
+        tdSql.query("describe test.meters")
+        tdSql.checkData(1, 1, "FLOAT")
+
+        cmd = "taosBenchmark -n 1 -t 1 -y -b double"
+        tdLog.info("%s" % cmd)
+        os.system("%s" % cmd)
+        tdSql.execute("reset query cache")
+        tdSql.query("describe test.meters")
+        tdSql.checkData(1, 1, "DOUBLE")
+
+        cmd = "taosBenchmark -n 1 -t 1 -y -b nchar"
+        tdLog.info("%s" % cmd)
+        os.system("%s" % cmd)
+        tdSql.execute("reset query cache")
+        tdSql.query("describe test.meters")
+        tdSql.checkData(1, 1, "NCHAR")
+
+        cmd = "taosBenchmark -n 1 -t 1 -y -b nchar\(7\)"
+        tdLog.info("%s" % cmd)
+        os.system("%s" % cmd)
+        tdSql.execute("reset query cache")
+        tdSql.query("describe test.meters")
+        tdSql.checkData(1, 1, "NCHAR")
+
+        cmd = "taosBenchmark -n 1 -t 1 -y -b binary"
+        tdLog.info("%s" % cmd)
+        os.system("%s" % cmd)
+        tdSql.execute("reset query cache")
+        tdSql.query("describe test.meters")
+        tdSql.checkData(1, 1, "BINARY")
+
+        cmd = "taosBenchmark -n 1 -t 1 -y -b binary\(7\)"
+        tdLog.info("%s" % cmd)
+        os.system("%s" % cmd)
+        tdSql.execute("reset query cache")
+        tdSql.query("describe test.meters")
+        tdSql.checkData(1, 1, "BINARY")
+
+        cmd = "taosBenchmark -n 1 -t 1 -y -A json\(7\)"
+        tdLog.info("%s" % cmd)
+        os.system("%s" % cmd)
+        tdSql.execute("reset query cache")
+        tdSql.query("describe test.meters")
+        tdSql.checkData(4, 1, "JSON")
+
+        cmd = "taosBenchmark -n 1 -t 1 -y -b int,x"
+        tdLog.info("%s" % cmd)
+        assert(os.system("%s" % cmd) != 0)
+
+        cmd = "taosBenchmark -n 1 -t 1 -y -A int,json"
+        tdLog.info("%s" % cmd)
+        assert(os.system("%s" % cmd) != 0)
+
+
 
 
     def stop(self):
