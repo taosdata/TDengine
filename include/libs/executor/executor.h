@@ -21,24 +21,30 @@ extern "C" {
 #endif
 
 typedef void* qTaskInfo_t;
+typedef void* DataSinkHandle;
+struct SSubplan;
+
+
+ /**
+  * Create the exec task object according to task json
+  * @param tsdb
+  * @param vgId
+  * @param pTaskInfoMsg
+  * @param pTaskInfo
+  * @param qId
+  * @return
+  */
+int32_t qCreateExecTask(void* tsdb, int32_t vgId, struct SSubplan* pPlan, qTaskInfo_t* pTaskInfo);
 
 /**
- * create the qinfo object according to QueryTableMsg
- * @param tsdb
- * @param pQueryTableMsg
- * @param pTaskInfo
- * @return
- */
-int32_t qCreateTask(void* tsdb, int32_t vgId, void* pQueryTableMsg, qTaskInfo_t* pTaskInfo, uint64_t qId);
-
-/**
- * the main query execution function, including query on both table and multiple tables,
+ * The main task execution function, including query on both table and multiple tables,
  * which are decided according to the tag or table name query conditions
  *
- * @param qinfo
+ * @param tinfo
+ * @param handle
  * @return
  */
-bool qExecTask(qTaskInfo_t qinfo, uint64_t *qId);
+int32_t qExecTask(qTaskInfo_t tinfo, DataSinkHandle* handle);
 
 /**
  * Retrieve the produced results information, if current query is not paused or completed,
@@ -60,7 +66,7 @@ int32_t qRetrieveQueryResultInfo(qTaskInfo_t qinfo, bool* buildRes, void* pRspCo
  * @param contLen payload length
  * @return
  */
-int32_t qDumpRetrieveResult(qTaskInfo_t qinfo, SRetrieveTableRsp** pRsp, int32_t* contLen, bool* continueExec);
+//int32_t qDumpRetrieveResult(qTaskInfo_t qinfo, SRetrieveTableRsp** pRsp, int32_t* contLen, bool* continueExec);
 
 /**
  * return the transporter context (RPC)
@@ -81,7 +87,7 @@ int32_t qKillTask(qTaskInfo_t qinfo);
  * @param qinfo
  * @return
  */
-int32_t qIsQueryCompleted(qTaskInfo_t qinfo);
+int32_t qIsTaskCompleted(qTaskInfo_t qinfo);
 
 /**
  * destroy query info structure
@@ -113,7 +119,7 @@ int32_t qGetQualifiedTableIdList(void* pTableList, const char* tagCond, int32_t 
  * @param numOfIndex
  * @return
  */
-int32_t qCreateTableGroupByGroupExpr(SArray* pTableIdList, TSKEY skey, STableGroupInfo groupInfo, SColIndex* groupByIndex, int32_t numOfIndex);
+//int32_t qCreateTableGroupByGroupExpr(SArray* pTableIdList, TSKEY skey, STableGroupInfo groupInfo, SColIndex* groupByIndex, int32_t numOfIndex);
 
 /**
  * Update the table id list of a given query.

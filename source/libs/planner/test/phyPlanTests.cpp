@@ -62,6 +62,9 @@ protected:
     }
     SQueryDag* dag = nullptr;
     uint64_t requestId = 20;
+    SSchema *schema = NULL;
+    uint32_t numOfOutput = 0;
+
     code = qCreateQueryDag(query, &dag, requestId);
     dag_.reset(dag);
     return code;

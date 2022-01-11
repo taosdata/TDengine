@@ -2326,8 +2326,8 @@ _clean:
 static void doFreeQueryHandle(SQueryRuntimeEnv* pRuntimeEnv) {
   SQueryAttr* pQueryAttr = pRuntimeEnv->pQueryAttr;
 
-  tsdbCleanupQueryHandle(pRuntimeEnv->pQueryHandle);
-  pRuntimeEnv->pQueryHandle = NULL;
+  tsdbCleanupQueryHandle(pRuntimeEnv->pTsdbReadHandle);
+  pRuntimeEnv->pTsdbReadHandle = NULL;
 
   SMemRef* pMemRef = &pQueryAttr->memRef;
   assert(pMemRef->ref == 0 && pMemRef->snapshot.imem == NULL && pMemRef->snapshot.mem == NULL);
@@ -3148,10 +3148,10 @@ int32_t loadDataBlockOnDemand(SQueryRuntimeEnv* pRuntimeEnv, STableScanInfo* pTa
   } else if ((*status) == BLK_DATA_STATIS_NEEDED) {
     // this function never returns error?
     pCost->loadBlockStatis += 1;
-    tsdbRetrieveDataBlockStatisInfo(pTableScanInfo->pQueryHandle, &pBlock->pBlockStatis);
+    tsdbRetrieveDataBlockStatisInfo(pTableScanInfo->pTsdbReadHandle, &pBlock->pBlockStatis);
 
     if (pBlock->pBlockStatis == NULL) {  // data block statistics does not exist, load data block
-      pBlock->pDataBlock = tsdbRetrieveDataBlock(pTableScanInfo->pQueryHandle, NULL);
+      pBlock->pDataBlock = tsdbRetrieveDataBlock(pTableScanInfo->pTsdbReadHandle, NULL);
       pCost->totalCheckedRows += pBlock->info.rows;
     }
   } else {
@@ -3159,7 +3159,7 @@ int32_t loadDataBlockOnDemand(SQueryRuntimeEnv* pRuntimeEnv, STableScanInfo* pTa
 
     // load the data block statistics to perform further filter
     pCost->loadBlockStatis += 1;
-    tsdbRetrieveDataBlockStatisInfo(pTableScanInfo->pQueryHandle, &pBlock->pBlockStatis);
+    tsdbRetrieveDataBlockStatisInfo(pTableScanInfo->pTsdbReadHandle, &pBlock->pBlockStatis);
 
     if (pQueryAttr->topBotQuery && pBlock->pBlockStatis != NULL) {
       { // set previous window
@@ -3205,7 +3205,7 @@ int32_t loadDataBlockOnDemand(SQueryRuntimeEnv* pRuntimeEnv, STableScanInfo* pTa
 
     pCost->totalCheckedRows += pBlockInfo->rows;
     pCost->loadBlocks += 1;
-    pBlock->pDataBlock = tsdbRetrieveDataBlock(pTableScanInfo->pQueryHandle, NULL);
+    pBlock->pDataBlock = tsdbRetrieveDataBlock(pTableScanInfo->pTsdbReadHandle, NULL);
     if (pBlock->pDataBlock == NULL) {
       return terrno;
     }
@@ -4494,7 +4494,7 @@ void queryCostStatis(SQInfo *pQInfo) {
 //
 //  assert(pQueryAttr->pos >= 0 && pQueryAttr->pos <= pBlockInfo->rows - 1);
 //
-//  SArray *         pDataBlock = tsdbRetrieveDataBlock(pRuntimeEnv->pQueryHandle, NULL);
+//  SArray *         pDataBlock = tsdbRetrieveDataBlock(pRuntimeEnv->pTsdbReadHandle, NULL);
 //  SColumnInfoData *pColInfoData = taosArrayGet(pDataBlock, 0);
 //
 //  // update the pQueryAttr->limit.offset value, and pQueryAttr->pos value
@@ -4521,15 +4521,15 @@ void queryCostStatis(SQInfo *pQInfo) {
 //  int32_t step = GET_FORWARD_DIRECTION_FACTOR(pQueryAttr->order.order);
 //
 //  STableQueryInfo* pTableQueryInfo = pRuntimeEnv->current;
-//  TsdbQueryHandleT pQueryHandle = pRuntimeEnv->pQueryHandle;
+//  TsdbQueryHandleT pTsdbReadHandle = pRuntimeEnv->pTsdbReadHandle;
 //
 //  SDataBlockInfo blockInfo = SDATA_BLOCK_INITIALIZER;
-//  while (tsdbNextDataBlock(pQueryHandle)) {
+//  while (tsdbNextDataBlock(pTsdbReadHandle)) {
 //    if (isQueryKilled(pRuntimeEnv->qinfo)) {
 //      longjmp(pRuntimeEnv->env, TSDB_CODE_TSC_QUERY_CANCELLED);
 //    }
 //
-//    tsdbRetrieveDataBlockInfo(pQueryHandle, &blockInfo);
+//    tsdbRetrieveDataBlockInfo(pTsdbReadHandle, &blockInfo);
 //
 //    if (pQueryAttr->limit.offset > blockInfo.rows) {
 //      pQueryAttr->limit.offset -= blockInfo.rows;
@@ -4562,7 +4562,7 @@ void queryCostStatis(SQInfo *pQInfo) {
 //
 //    // load the data block and check data remaining in current data block
 //    // TODO optimize performance
-//    SArray *         pDataBlock = tsdbRetrieveDataBlock(pRuntimeEnv->pQueryHandle, NULL);
+//    SArray *         pDataBlock = tsdbRetrieveDataBlock(pRuntimeEnv->pTsdbReadHandle, NULL);
 //    SColumnInfoData *pColInfoData = taosArrayGet(pDataBlock, 0);
 //
 //    tw = *win;
@@ -4627,8 +4627,8 @@ void queryCostStatis(SQInfo *pQInfo) {
 //  STableQueryInfo *pTableQueryInfo = pRuntimeEnv->current;
 //
 //  SDataBlockInfo blockInfo = SDATA_BLOCK_INITIALIZER;
-//  while (tsdbNextDataBlock(pRuntimeEnv->pQueryHandle)) {
-//    tsdbRetrieveDataBlockInfo(pRuntimeEnv->pQueryHandle, &blockInfo);
+//  while (tsdbNextDataBlock(pRuntimeEnv->pTsdbReadHandle)) {
+//    tsdbRetrieveDataBlockInfo(pRuntimeEnv->pTsdbReadHandle, &blockInfo);
 //
 //    if (QUERY_IS_ASC_QUERY(pQueryAttr)) {
 //      if (pWindowResInfo->prevSKey == TSKEY_INITIAL_VAL) {
@@ -4674,7 +4674,7 @@ void queryCostStatis(SQInfo *pQInfo) {
 //       */
 //      if ((tw.skey <= blockInfo.window.ekey && ascQuery) || (tw.ekey >= blockInfo.window.skey && !ascQuery)) {
 //
-//        SArray *pDataBlock = tsdbRetrieveDataBlock(pRuntimeEnv->pQueryHandle, NULL);
+//        SArray *pDataBlock = tsdbRetrieveDataBlock(pRuntimeEnv->pTsdbReadHandle, NULL);
 //        SColumnInfoData *pColInfoData = taosArrayGet(pDataBlock, 0);
 //
 //        if ((win.ekey > blockInfo.window.ekey && ascQuery) || (win.ekey < blockInfo.window.skey && !ascQuery)) {
@@ -4748,7 +4748,7 @@ static int32_t setupQueryHandle(void* tsdb, SQueryRuntimeEnv* pRuntimeEnv, int64
 
   terrno = TSDB_CODE_SUCCESS;
   if (isFirstLastRowQuery(pQueryAttr)) {
-    pRuntimeEnv->pQueryHandle = tsdbQueryLastRow(tsdb, &cond, &pQueryAttr->tableGroupInfo, qId, &pQueryAttr->memRef);
+    pRuntimeEnv->pTsdbReadHandle = tsdbQueryLastRow(tsdb, &cond, &pQueryAttr->tableGroupInfo, qId, &pQueryAttr->memRef);
 
     // update the query time window
     pQueryAttr->window = cond.twindow;
@@ -4769,11 +4769,11 @@ static int32_t setupQueryHandle(void* tsdb, SQueryRuntimeEnv* pRuntimeEnv, int64
       }
     }
   } else if (isCachedLastQuery(pQueryAttr)) {
-    pRuntimeEnv->pQueryHandle = tsdbQueryCacheLast(tsdb, &cond, &pQueryAttr->tableGroupInfo, qId, &pQueryAttr->memRef);
+    pRuntimeEnv->pTsdbReadHandle = tsdbQueryCacheLast(tsdb, &cond, &pQueryAttr->tableGroupInfo, qId, &pQueryAttr->memRef);
   } else if (pQueryAttr->pointInterpQuery) {
-    pRuntimeEnv->pQueryHandle = tsdbQueryRowsInExternalWindow(tsdb, &cond, &pQueryAttr->tableGroupInfo, qId, &pQueryAttr->memRef);
+    pRuntimeEnv->pTsdbReadHandle = tsdbQueryRowsInExternalWindow(tsdb, &cond, &pQueryAttr->tableGroupInfo, qId, &pQueryAttr->memRef);
   } else {
-    pRuntimeEnv->pQueryHandle = tsdbQueryTables(tsdb, &cond, &pQueryAttr->tableGroupInfo, qId, &pQueryAttr->memRef);
+    pRuntimeEnv->pTsdbReadHandle = tsdbQueryTables(tsdb, &cond, &pQueryAttr->tableGroupInfo, qId, &pQueryAttr->memRef);
   }
 
   return terrno;
@@ -4831,19 +4831,19 @@ int32_t doInitQInfo(SQInfo* pQInfo, STSBuf* pTsBuf, void* tsdb, void* sourceOptr
 
   switch(tbScanner) {
     case OP_TableBlockInfoScan: {
-      pRuntimeEnv->proot = createTableBlockInfoScanOperator(pRuntimeEnv->pQueryHandle, pRuntimeEnv);
+      pRuntimeEnv->proot = createTableBlockInfoScanOperator(pRuntimeEnv->pTsdbReadHandle, pRuntimeEnv);
       break;
     }
     case OP_TableSeqScan: {
-      pRuntimeEnv->proot = createTableSeqScanOperator(pRuntimeEnv->pQueryHandle, pRuntimeEnv);
+      pRuntimeEnv->proot = createTableSeqScanOperator(pRuntimeEnv->pTsdbReadHandle, pRuntimeEnv);
       break;
     }
     case OP_DataBlocksOptScan: {
-      pRuntimeEnv->proot = createDataBlocksOptScanInfo(pRuntimeEnv->pQueryHandle, pRuntimeEnv, getNumOfScanTimes(pQueryAttr), pQueryAttr->needReverseScan? 1:0);
+      pRuntimeEnv->proot = createDataBlocksOptScanInfo(pRuntimeEnv->pTsdbReadHandle, pRuntimeEnv, getNumOfScanTimes(pQueryAttr), pQueryAttr->needReverseScan? 1:0);
       break;
     }
     case OP_TableScan: {
-      pRuntimeEnv->proot = createTableScanOperator(pRuntimeEnv->pQueryHandle, pRuntimeEnv, getNumOfScanTimes(pQueryAttr));
+      pRuntimeEnv->proot = createTableScanOperator(pRuntimeEnv->pTsdbReadHandle, pRuntimeEnv, getNumOfScanTimes(pQueryAttr));
       break;
     }
     default: { // do nothing
@@ -4974,13 +4974,13 @@ static SSDataBlock* doTableScanImpl(void* param, bool* newgroup) {
 
   *newgroup = false;
 
-  while (tsdbNextDataBlock(pTableScanInfo->pQueryHandle)) {
+  while (tsdbNextDataBlock(pTableScanInfo->pTsdbReadHandle)) {
     if (isQueryKilled(pOperator->pRuntimeEnv->qinfo)) {
       longjmp(pOperator->pRuntimeEnv->env, TSDB_CODE_TSC_QUERY_CANCELLED);
     }
 
     pTableScanInfo->numOfBlocks += 1;
-    tsdbRetrieveDataBlockInfo(pTableScanInfo->pQueryHandle, &pBlock->info);
+    tsdbRetrieveDataBlockInfo(pTableScanInfo->pTsdbReadHandle, &pBlock->info);
 
     // todo opt
     if (pTableGroupInfo->numOfTables > 1 || (pRuntimeEnv->current == NULL && pTableGroupInfo->numOfTables == 1)) {
@@ -5037,7 +5037,7 @@ static SSDataBlock* doTableScan(void* param, bool *newgroup) {
     }
 
     if (++pTableScanInfo->current >= pTableScanInfo->times) {
-      if (pTableScanInfo->reverseTimes <= 0 || isTsdbCacheLastRow(pTableScanInfo->pQueryHandle)) {
+      if (pTableScanInfo->reverseTimes <= 0 || isTsdbCacheLastRow(pTableScanInfo->pTsdbReadHandle)) {
         return NULL;
       } else {
         break;
@@ -5046,7 +5046,7 @@ static SSDataBlock* doTableScan(void* param, bool *newgroup) {
 
     // do prepare for the next round table scan operation
     STsdbQueryCond cond = createTsdbQueryCond(pQueryAttr, &pQueryAttr->window);
-    tsdbResetQueryHandle(pTableScanInfo->pQueryHandle, &cond);
+    tsdbResetQueryHandle(pTableScanInfo->pTsdbReadHandle, &cond);
 
     setQueryStatus(pRuntimeEnv, QUERY_NOT_COMPLETED);
     pRuntimeEnv->scanFlag = REPEAT_SCAN;
@@ -5069,7 +5069,7 @@ static SSDataBlock* doTableScan(void* param, bool *newgroup) {
     setupEnvForReverseScan(pRuntimeEnv, pTableScanInfo->pResultRowInfo, pTableScanInfo->pCtx, pTableScanInfo->numOfOutput);
 
     STsdbQueryCond cond = createTsdbQueryCond(pQueryAttr, &pQueryAttr->window);
-    tsdbResetQueryHandle(pTableScanInfo->pQueryHandle, &cond);
+    tsdbResetQueryHandle(pTableScanInfo->pTsdbReadHandle, &cond);
 
     qDebug("QInfo:0x%"PRIx64" start to reverse scan data blocks due to query func required, qrange:%" PRId64 "-%" PRId64,
            GET_QID(pRuntimeEnv), cond.twindow.skey, cond.twindow.ekey);
@@ -5112,8 +5112,8 @@ static SSDataBlock* doBlockInfoScan(void* param, bool* newgroup) {
   tableBlockDist.maxRows = INT_MIN;
   tableBlockDist.minRows = INT_MAX;
 
-  tsdbGetFileBlocksDistInfo(pTableScanInfo->pQueryHandle, &tableBlockDist);
-  tableBlockDist.numOfRowsInMemTable = (int32_t) tsdbGetNumOfRowsInMemTable(pTableScanInfo->pQueryHandle);
+  tsdbGetFileBlocksDistInfo(pTableScanInfo->pTsdbReadHandle, &tableBlockDist);
+  tableBlockDist.numOfRowsInMemTable = (int32_t) tsdbGetNumOfRowsInMemTable(pTableScanInfo->pTsdbReadHandle);
 
   SSDataBlock* pBlock = &pTableScanInfo->block;
   pBlock->info.rows   = 1;
@@ -5142,7 +5142,7 @@ SOperatorInfo* createTableScanOperator(void* pTsdbQueryHandle, SQueryRuntimeEnv*
   assert(repeatTime > 0);
 
   STableScanInfo* pInfo = calloc(1, sizeof(STableScanInfo));
-  pInfo->pQueryHandle   = pTsdbQueryHandle;
+  pInfo->pTsdbReadHandle   = pTsdbQueryHandle;
   pInfo->times          = repeatTime;
   pInfo->reverseTimes   = 0;
   pInfo->order          = pRuntimeEnv->pQueryAttr->order.order;
@@ -5165,7 +5165,7 @@ SOperatorInfo* createTableScanOperator(void* pTsdbQueryHandle, SQueryRuntimeEnv*
 SOperatorInfo* createTableSeqScanOperator(void* pTsdbQueryHandle, SQueryRuntimeEnv* pRuntimeEnv) {
   STableScanInfo* pInfo = calloc(1, sizeof(STableScanInfo));
 
-  pInfo->pQueryHandle     = pTsdbQueryHandle;
+  pInfo->pTsdbReadHandle     = pTsdbQueryHandle;
   pInfo->times            = 1;
   pInfo->reverseTimes     = 0;
   pInfo->order            = pRuntimeEnv->pQueryAttr->order.order;
@@ -5189,7 +5189,7 @@ SOperatorInfo* createTableSeqScanOperator(void* pTsdbQueryHandle, SQueryRuntimeE
 SOperatorInfo* createTableBlockInfoScanOperator(void* pTsdbQueryHandle, SQueryRuntimeEnv* pRuntimeEnv) {
   STableScanInfo* pInfo = calloc(1, sizeof(STableScanInfo));
 
-  pInfo->pQueryHandle     = pTsdbQueryHandle;
+  pInfo->pTsdbReadHandle     = pTsdbQueryHandle;
   pInfo->block.pDataBlock = taosArrayInit(1, sizeof(SColumnInfoData));
 
   SColumnInfoData infoData = {{0}};
@@ -5271,7 +5271,7 @@ SOperatorInfo* createDataBlocksOptScanInfo(void* pTsdbQueryHandle, SQueryRuntime
   assert(repeatTime > 0);
 
   STableScanInfo* pInfo = calloc(1, sizeof(STableScanInfo));
-  pInfo->pQueryHandle   = pTsdbQueryHandle;
+  pInfo->pTsdbReadHandle   = pTsdbQueryHandle;
   pInfo->times          = repeatTime;
   pInfo->reverseTimes   = reverseTime;
   pInfo->current        = 0;

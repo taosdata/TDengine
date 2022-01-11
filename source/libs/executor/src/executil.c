@@ -547,7 +547,7 @@ static UNUSED_FUNC int32_t mergeIntoGroupResultImpl(STaskRuntimeEnv *pRuntimeEnv
   pTableQueryInfoList = malloc(POINTER_BYTES * size);
 
   if (pTableQueryInfoList == NULL || posList == NULL || pGroupResInfo->pRows == NULL || pGroupResInfo->pRows == NULL) {
-//    qError("QInfo:%"PRIu64" failed alloc memory", GET_QID(pRuntimeEnv));
+//    qError("QInfo:%"PRIu64" failed alloc memory", GET_TASKID(pRuntimeEnv));
     code = TSDB_CODE_QRY_OUT_OF_MEMORY;
     goto _end;
   }
@@ -619,7 +619,7 @@ static UNUSED_FUNC int32_t mergeIntoGroupResultImpl(STaskRuntimeEnv *pRuntimeEnv
 
   int64_t endt = taosGetTimestampMs();
 
-//  qDebug("QInfo:%"PRIx64" result merge completed for group:%d, elapsed time:%" PRId64 " ms", GET_QID(pRuntimeEnv),
+//  qDebug("QInfo:%"PRIx64" result merge completed for group:%d, elapsed time:%" PRId64 " ms", GET_TASKID(pRuntimeEnv),
 //         pGroupResInfo->currentGroup, endt - startt);
 
   _end:
@@ -641,13 +641,13 @@ int32_t mergeIntoGroupResult(SGroupResInfo* pGroupResInfo, STaskRuntimeEnv* pRun
       break;
     }
 
-//    qDebug("QInfo:%"PRIu64" no result in group %d, continue", GET_QID(pRuntimeEnv), pGroupResInfo->currentGroup);
+//    qDebug("QInfo:%"PRIu64" no result in group %d, continue", GET_TASKID(pRuntimeEnv), pGroupResInfo->currentGroup);
     cleanupGroupResInfo(pGroupResInfo);
     incNextGroup(pGroupResInfo);
   }
 
 //  int64_t elapsedTime = taosGetTimestampUs() - st;
-//  qDebug("QInfo:%"PRIu64" merge res data into group, index:%d, total group:%d, elapsed time:%" PRId64 "us", GET_QID(pRuntimeEnv),
+//  qDebug("QInfo:%"PRIu64" merge res data into group, index:%d, total group:%d, elapsed time:%" PRId64 "us", GET_TASKID(pRuntimeEnv),
 //         pGroupResInfo->currentGroup, pGroupResInfo->totalGroup, elapsedTime);
 
   return TSDB_CODE_SUCCESS;

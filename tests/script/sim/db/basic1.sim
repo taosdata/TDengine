@@ -85,7 +85,6 @@ if $data02 != 2 then
   return -1
 endi
 
-return
 system sh/exec.sh -n dnode1 -s stop -x SIGKILL
 system sh/exec.sh -n dnode1 -s start
 

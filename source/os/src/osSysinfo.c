@@ -1087,7 +1087,7 @@ int32_t taosGetSystemUUID(char *uid, int32_t uidlen) {
     return 0;
   }
 
-  return -1;
+  return 0;
 }
 
 char *taosGetCmdlineByPID(int pid) {
