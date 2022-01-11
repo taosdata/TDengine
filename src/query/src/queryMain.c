@@ -165,6 +165,9 @@ int32_t qCreateQueryInfo(void* tsdb, int32_t vgId, SQueryTableMsg* pQueryMsg, qi
   int16_t queryTagVersion = param.tagVersion;
   int16_t querySchemaVersion = param.schemaVersion;
   if (queryTagVersion < tableGroupInfo.tVersion || querySchemaVersion < tableGroupInfo.sVersion) {
+    qInfo("qmsg:%p invalid schema version. client meta sversion/tversion %d/%d, table sversion/tversion %d/%d", pQueryMsg,
+          querySchemaVersion, queryTagVersion, tableGroupInfo.sVersion, tableGroupInfo.tVersion);
+    tsdbDestroyTableGroup(&tableGroupInfo);
     code = TSDB_CODE_QRY_INVALID_SCHEMA_VERSION;
     goto _over;
   }
