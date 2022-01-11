@@ -130,7 +130,7 @@ int32_t processShowRsp(void* param, const SDataBuf* pMsg, int32_t code) {
   SShowRsp* pShow = (SShowRsp *)pMsg->pData;
   pShow->showId   = htobe64(pShow->showId);
 
-  STableMetaMsg *pMetaMsg = &(pShow->tableMeta);
+  STableMetaRsp *pMetaMsg = &(pShow->tableMeta);
   pMetaMsg->numOfColumns = htonl(pMetaMsg->numOfColumns);
 
   SSchema* pSchema = pMetaMsg->pSchema;

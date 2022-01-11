@@ -17,6 +17,7 @@
 #define _TD_TSDB_DEF_H_
 
 #include "mallocator.h"
+#include "meta.h"
 #include "tcompression.h"
 #include "tglobal.h"
 #include "thash.h"
@@ -47,12 +48,17 @@ struct STsdb {
   STsdbMemTable *       imem;
   SRtn                  rtn;
   SMemAllocatorFactory *pmaf;
-  STsdbFS               fs;
+  STsdbFS *             fs;
+  SMeta *               pMeta;
 };
 
-#define REPO_ID(r) 0
+#define REPO_ID(r) ((r)->vgId)
 #define REPO_CFG(r) (&(r)->config)
-#define REPO_FS(r) (&(r)->fs)
+#define REPO_FS(r) (r)->fs
+
+static FORCE_INLINE STSchema *tsdbGetTableSchemaImpl(STable *pTable, bool lock, bool copy, int32_t version) {
+  return pTable->pSchema;
+}
 
 #ifdef __cplusplus
 }

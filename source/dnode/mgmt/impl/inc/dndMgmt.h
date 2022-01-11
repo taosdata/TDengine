@@ -21,8 +21,9 @@ extern "C" {
 #endif
 #include "dndInt.h"
 
-int32_t dndInitDnode(SDnode *pDnode);
-void    dndCleanupDnode(SDnode *pDnode);
+int32_t dndInitMgmt(SDnode *pDnode);
+void    dndStopMgmt(SDnode *pDnode);
+void    dndCleanupMgmt(SDnode *pDnode);
 
 int32_t dndGetDnodeId(SDnode *pDnode);
 int64_t dndGetClusterId(SDnode *pDnode);

@@ -12,6 +12,8 @@
  * You should have received a copy of the GNU Affero General Public License
  * along with this program. If not, see <http://www.gnu.org/licenses/>.
  */
+#if 0
+
 #ifndef _TD_TSDB_COMPACT_H_
 #define _TD_TSDB_COMPACT_H_
 
@@ -19,14 +21,12 @@
 extern "C" {
 #endif
 
-#if 0
-
 void *tsdbCompactImpl(STsdbRepo *pRepo);
-
-#endif
 
 #ifdef __cplusplus
 }
 #endif
 
 #endif /* _TD_TSDB_COMPACT_H_ */
+
+#endif

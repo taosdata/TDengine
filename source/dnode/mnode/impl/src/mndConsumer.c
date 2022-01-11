@@ -39,7 +39,7 @@ static int32_t  mndProcessCreateConsumerMsg(SMnodeMsg *pMsg);
 static int32_t  mndProcessDropConsumerMsg(SMnodeMsg *pMsg);
 static int32_t  mndProcessDropConsumerInRsp(SMnodeMsg *pMsg);
 static int32_t  mndProcessConsumerMetaMsg(SMnodeMsg *pMsg);
-static int32_t  mndGetConsumerMeta(SMnodeMsg *pMsg, SShowObj *pShow, STableMetaMsg *pMeta);
+static int32_t  mndGetConsumerMeta(SMnodeMsg *pMsg, SShowObj *pShow, STableMetaRsp *pMeta);
 static int32_t  mndRetrieveConsumer(SMnodeMsg *pMsg, SShowObj *pShow, char *data, int32_t rows);
 static void     mndCancelGetNextConsumer(SMnode *pMnode, void *pIter);
 
@@ -395,7 +395,7 @@ static int32_t mndProcessSubscribeInternalRsp(SMnodeMsg *pMsg) { return 0; }
 
 static int32_t mndProcessConsumerMetaMsg(SMnodeMsg *pMsg) {
   SMnode        *pMnode = pMsg->pMnode;
-  STableInfoMsg *pInfo = pMsg->rpcMsg.pCont;
+  STableInfoReq *pInfo = pMsg->rpcMsg.pCont;
 
   mDebug("consumer:%s, start to retrieve meta", pInfo->tableFname);
 
@@ -417,9 +417,9 @@ static int32_t mndProcessConsumerMetaMsg(SMnodeMsg *pMsg) {
 
   taosRLockLatch(&pConsumer->lock);
   int32_t totalCols = pConsumer->numOfColumns + pConsumer->numOfTags;
-  int32_t contLen = sizeof(STableMetaMsg) + totalCols * sizeof(SSchema);
+  int32_t contLen = sizeof(STableMetaRsp) + totalCols * sizeof(SSchema);
 
-  STableMetaMsg *pMeta = rpcMallocCont(contLen);
+  STableMetaRsp *pMeta = rpcMallocCont(contLen);
   if (pMeta == NULL) {
     taosRUnLockLatch(&pConsumer->lock);
     mndReleaseDb(pMnode, pDb);
@@ -483,7 +483,7 @@ static int32_t mndGetNumOfConsumers(SMnode *pMnode, char *dbName, int32_t *pNumO
   return 0;
 }
 
-static int32_t mndGetConsumerMeta(SMnodeMsg *pMsg, SShowObj *pShow, STableMetaMsg *pMeta) {
+static int32_t mndGetConsumerMeta(SMnodeMsg *pMsg, SShowObj *pShow, STableMetaRsp *pMeta) {
   SMnode *pMnode = pMsg->pMnode;
   SSdb   *pSdb = pMnode->pSdb;
 
