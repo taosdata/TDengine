@@ -88,7 +88,7 @@ function buildInsertSql(tableName, stable = '', dataArr, tagArr = [], numOfColum
  */
 const TDengineTypeCode = {
     'null': 0,
-    'boolean': 1,
+    'bool': 1,
     'tinyint': 2,
     'smallint': 3,
     'int': 4,
@@ -110,7 +110,7 @@ const TDengineTypeCode = {
  */
 const TDengineTypeBytes = {
     'null': 0,
-    'boolean': 1,
+    'bool': 1,
     'tinyint': 1,
     'smallint': 2,
     'int': 4,
@@ -136,16 +136,16 @@ function getFieldArr(arr) {
         let bracetPosi = arr[i + 1].indexOf('(');
         let type = '';
         let size = -1;
-        console.log(arr[i + 1]);
+       
         if (bracetPosi == -1) {
             type = TDengineTypeCode[arr[i + 1]];
             size = TDengineTypeBytes[arr[i + 1]];
-        } else {
+        }else{
             type = TDengineTypeCode[arr[i + 1].slice(0, bracetPosi)];
             size = Number(arr[i + 1].slice(bracetPosi + 1, arr[i + 1].indexOf(')')));
         }
         let fieldObj = {
-            name: arr[i],
+            name: arr[i].toLowerCase(),
             type: type,
             bytes: size
         }
@@ -154,5 +154,24 @@ function getFieldArr(arr) {
     }
     return feild;
 }
-
-module.exports = { getFeildsFromDll, buildInsertSql, getFieldArr };
+/**
+ * Conbine arrays of data info and tag info together, and return a new array. This array construction is simmilar with query result
+ * from the tdengine by taos shell.This method only can be used by a subtable.
+ * @param {*} dataArr An array holds  columns' data  that will be insert into the db.
+ * @param {*} tagArr An array holds tags' data that is belong to a sub table.
+ * @param {*} numOfcolumn 
+ * @returns return the an array of column data and tag data.
+ */
+function getResData(dataArr, tagArr, numOfcolumn) {
+    let resData = [];    
+    dataArr.forEach((item, index) => {
+        resData.push(item);
+        if ((index + 1) % numOfcolumn == 0) {
+            tagArr.forEach((element) => {
+                resData.push(element);
+            }) ;
+        } 
+    });
+    return resData;
+}
+module.exports = { getFeildsFromDll, buildInsertSql, getFieldArr, getResData };

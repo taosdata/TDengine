@@ -34,6 +34,6 @@
     "ref-struct-napi": "^1.1.1"
   },
   "devDependencies": {
-    "jest": "^27.4.6"
+    "jest": "^27.4.7"
   }
 }
