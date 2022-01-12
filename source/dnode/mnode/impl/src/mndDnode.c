@@ -53,10 +53,10 @@ static int32_t mndProcessConfigDnodeReq(SMnodeMsg *pReq);
 static int32_t mndProcessConfigDnodeRsp(SMnodeMsg *pRsp);
 static int32_t mndProcessStatusReq(SMnodeMsg *pReq);
 
-static int32_t mndGetConfigMeta(SMnodeMsg *pReq, SShowObj *pShow, STableMetaMsg *pMeta);
+static int32_t mndGetConfigMeta(SMnodeMsg *pReq, SShowObj *pShow, STableMetaRsp *pMeta);
 static int32_t mndRetrieveConfigs(SMnodeMsg *pReq, SShowObj *pShow, char *data, int32_t rows);
 static void    mndCancelGetNextConfig(SMnode *pMnode, void *pIter);
-static int32_t mndGetDnodeMeta(SMnodeMsg *pReq, SShowObj *pShow, STableMetaMsg *pMeta);
+static int32_t mndGetDnodeMeta(SMnodeMsg *pReq, SShowObj *pShow, STableMetaRsp *pMeta);
 static int32_t mndRetrieveDnodes(SMnodeMsg *pReq, SShowObj *pShow, char *data, int32_t rows);
 static void    mndCancelGetNextDnode(SMnode *pMnode, void *pIter);
 
@@ -582,7 +582,7 @@ static int32_t mndProcessConfigDnodeRsp(SMnodeMsg *pRsp) {
   mInfo("app:%p config rsp from dnode", pRsp->rpcMsg.ahandle);
 }
 
-static int32_t mndGetConfigMeta(SMnodeMsg *pReq, SShowObj *pShow, STableMetaMsg *pMeta) {
+static int32_t mndGetConfigMeta(SMnodeMsg *pReq, SShowObj *pShow, STableMetaRsp *pMeta) {
   int32_t  cols = 0;
   SSchema *pSchema = pMeta->pSchema;
 
@@ -656,7 +656,7 @@ static int32_t mndRetrieveConfigs(SMnodeMsg *pReq, SShowObj *pShow, char *data, 
 
 static void mndCancelGetNextConfig(SMnode *pMnode, void *pIter) {}
 
-static int32_t mndGetDnodeMeta(SMnodeMsg *pReq, SShowObj *pShow, STableMetaMsg *pMeta) {
+static int32_t mndGetDnodeMeta(SMnodeMsg *pReq, SShowObj *pShow, STableMetaRsp *pMeta) {
   SMnode *pMnode = pReq->pMnode;
   SSdb   *pSdb = pMnode->pSdb;
 

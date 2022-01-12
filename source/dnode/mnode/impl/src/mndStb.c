@@ -32,14 +32,14 @@ static SSdbRow *mndStbActionDecode(SSdbRaw *pRaw);
 static int32_t  mndStbActionInsert(SSdb *pSdb, SStbObj *pStb);
 static int32_t  mndStbActionDelete(SSdb *pSdb, SStbObj *pStb);
 static int32_t  mndStbActionUpdate(SSdb *pSdb, SStbObj *pOldStb, SStbObj *pNewStb);
-static int32_t  mndProcessCreateStbMsg(SMnodeMsg *pMsg);
-static int32_t  mndProcessAlterStbMsg(SMnodeMsg *pMsg);
-static int32_t  mndProcessDropStbMsg(SMnodeMsg *pMsg);
+static int32_t  mndProcesSMCreateStbReq(SMnodeMsg *pMsg);
+static int32_t  mndProcesSMAlterStbReq(SMnodeMsg *pMsg);
+static int32_t  mndProcesSMDropStbReq(SMnodeMsg *pMsg);
 static int32_t  mndProcessCreateStbInRsp(SMnodeMsg *pMsg);
 static int32_t  mndProcessAlterStbInRsp(SMnodeMsg *pMsg);
 static int32_t  mndProcessDropStbInRsp(SMnodeMsg *pMsg);
 static int32_t  mndProcessStbMetaMsg(SMnodeMsg *pMsg);
-static int32_t  mndGetStbMeta(SMnodeMsg *pMsg, SShowObj *pShow, STableMetaMsg *pMeta);
+static int32_t  mndGetStbMeta(SMnodeMsg *pMsg, SShowObj *pShow, STableMetaRsp *pMeta);
 static int32_t  mndRetrieveStb(SMnodeMsg *pMsg, SShowObj *pShow, char *data, int32_t rows);
 static void     mndCancelGetNextStb(SMnode *pMnode, void *pIter);
 
@@ -52,9 +52,9 @@ int32_t mndInitStb(SMnode *pMnode) {
                      .updateFp = (SdbUpdateFp)mndStbActionUpdate,
                      .deleteFp = (SdbDeleteFp)mndStbActionDelete};
 
-  mndSetMsgHandle(pMnode, TDMT_MND_CREATE_STB, mndProcessCreateStbMsg);
-  mndSetMsgHandle(pMnode, TDMT_MND_ALTER_STB, mndProcessAlterStbMsg);
-  mndSetMsgHandle(pMnode, TDMT_MND_DROP_STB, mndProcessDropStbMsg);
+  mndSetMsgHandle(pMnode, TDMT_MND_CREATE_STB, mndProcesSMCreateStbReq);
+  mndSetMsgHandle(pMnode, TDMT_MND_ALTER_STB, mndProcesSMAlterStbReq);
+  mndSetMsgHandle(pMnode, TDMT_MND_DROP_STB, mndProcesSMDropStbReq);
   mndSetMsgHandle(pMnode, TDMT_VND_CREATE_STB_RSP, mndProcessCreateStbInRsp);
   mndSetMsgHandle(pMnode, TDMT_VND_ALTER_STB_RSP, mndProcessAlterStbInRsp);
   mndSetMsgHandle(pMnode, TDMT_VND_DROP_STB_RSP, mndProcessDropStbInRsp);
@@ -204,7 +204,7 @@ static int32_t mndStbActionUpdate(SSdb *pSdb, SStbObj *pOldStb, SStbObj *pNewStb
 SStbObj *mndAcquireStb(SMnode *pMnode, char *stbName) {
   SSdb    *pSdb = pMnode->pSdb;
   SStbObj *pStb = sdbAcquire(pSdb, SDB_STB, stbName);
-  if (pStb == NULL) {
+  if (pStb == NULL && terrno == TSDB_CODE_SDB_OBJ_NOT_THERE) {
     terrno = TSDB_CODE_MND_STB_NOT_EXIST;
   }
   return pStb;
@@ -264,10 +264,10 @@ static void *mndBuildCreateStbMsg(SMnode *pMnode, SVgObj *pVgroup, SStbObj *pStb
   return buf;
 }
 
-static SVDropStbReq *mndBuildDropStbMsg(SMnode *pMnode, SVgObj *pVgroup, SStbObj *pStb) {
-  int32_t contLen = sizeof(SVDropStbReq);
+static SVDropTbReq *mndBuildDropStbMsg(SMnode *pMnode, SVgObj *pVgroup, SStbObj *pStb) {
+  int32_t contLen = sizeof(SVDropTbReq);
 
-  SVDropStbReq *pDrop = calloc(1, contLen);
+  SVDropTbReq *pDrop = calloc(1, contLen);
   if (pDrop == NULL) {
     terrno = TSDB_CODE_OUT_OF_MEMORY;
     return NULL;
@@ -276,12 +276,12 @@ static SVDropStbReq *mndBuildDropStbMsg(SMnode *pMnode, SVgObj *pVgroup, SStbObj
   pDrop->head.contLen = htonl(contLen);
   pDrop->head.vgId = htonl(pVgroup->vgId);
   memcpy(pDrop->name, pStb->name, TSDB_TABLE_FNAME_LEN);
-  pDrop->suid = htobe64(pStb->uid);
+  // pDrop->suid = htobe64(pStb->uid);
 
   return pDrop;
 }
 
-static int32_t mndCheckCreateStbMsg(SCreateStbMsg *pCreate) {
+static int32_t mndCheckCreateStbMsg(SMCreateStbReq *pCreate) {
   pCreate->numOfColumns = htonl(pCreate->numOfColumns);
   pCreate->numOfTags = htonl(pCreate->numOfTags);
   int32_t totalCols = pCreate->numOfColumns + pCreate->numOfTags;
@@ -398,7 +398,7 @@ static int32_t mndSetCreateStbUndoActions(SMnode *pMnode, STrans *pTrans, SDbObj
     if (pIter == NULL) break;
     if (pVgroup->dbUid != pDb->uid) continue;
 
-    SVDropStbReq *pMsg = mndBuildDropStbMsg(pMnode, pVgroup, pStb);
+    SVDropTbReq *pMsg = mndBuildDropStbMsg(pMnode, pVgroup, pStb);
     if (pMsg == NULL) {
       sdbCancelFetch(pSdb, pIter);
       sdbRelease(pSdb, pVgroup);
@@ -409,7 +409,7 @@ static int32_t mndSetCreateStbUndoActions(SMnode *pMnode, STrans *pTrans, SDbObj
     STransAction action = {0};
     action.epSet = mndGetVgroupEpset(pMnode, pVgroup);
     action.pCont = pMsg;
-    action.contLen = sizeof(SVDropStbReq);
+    action.contLen = sizeof(SVDropTbReq);
     action.msgType = TDMT_VND_DROP_STB;
     if (mndTransAppendUndoAction(pTrans, &action) != 0) {
       free(pMsg);
@@ -423,7 +423,7 @@ static int32_t mndSetCreateStbUndoActions(SMnode *pMnode, STrans *pTrans, SDbObj
   return 0;
 }
 
-static int32_t mndCreateStb(SMnode *pMnode, SMnodeMsg *pMsg, SCreateStbMsg *pCreate, SDbObj *pDb) {
+static int32_t mndCreateStb(SMnode *pMnode, SMnodeMsg *pMsg, SMCreateStbReq *pCreate, SDbObj *pDb) {
   SStbObj stbObj = {0};
   tstrncpy(stbObj.name, pCreate->name, TSDB_TABLE_FNAME_LEN);
   tstrncpy(stbObj.db, pDb->name, TSDB_DB_FNAME_LEN);
@@ -494,9 +494,9 @@ CREATE_STB_OVER:
   return code;
 }
 
-static int32_t mndProcessCreateStbMsg(SMnodeMsg *pMsg) {
+static int32_t mndProcesSMCreateStbReq(SMnodeMsg *pMsg) {
   SMnode        *pMnode = pMsg->pMnode;
-  SCreateStbMsg *pCreate = pMsg->rpcMsg.pCont;
+  SMCreateStbReq *pCreate = pMsg->rpcMsg.pCont;
 
   mDebug("stb:%s, start to create", pCreate->name);
 
@@ -513,9 +513,11 @@ static int32_t mndProcessCreateStbMsg(SMnodeMsg *pMsg) {
       return 0;
     } else {
       terrno = TSDB_CODE_MND_STB_ALREADY_EXIST;
-      mError("db:%s, failed to create since %s", pCreate->name, terrstr());
+      mError("stb:%s, failed to create since %s", pCreate->name, terrstr());
       return -1;
     }
+  } else if (terrno != TSDB_CODE_MND_STB_NOT_EXIST) {
+    mError("stb:%s, failed to create since %s", pCreate->name, terrstr());
   }
 
   // topic should have different name with stb
@@ -551,7 +553,7 @@ static int32_t mndProcessCreateStbInRsp(SMnodeMsg *pMsg) {
   return 0;
 }
 
-static int32_t mndCheckAlterStbMsg(SAlterStbMsg *pAlter) {
+static int32_t mndCheckAlterStbMsg(SMAlterStbReq *pAlter) {
   SSchema *pSchema = &pAlter->schema;
   pSchema->colId = htonl(pSchema->colId);
   pSchema->bytes = htonl(pSchema->bytes);
@@ -578,9 +580,9 @@ static int32_t mndCheckAlterStbMsg(SAlterStbMsg *pAlter) {
 
 static int32_t mndUpdateStb(SMnode *pMnode, SMnodeMsg *pMsg, SStbObj *pOldStb, SStbObj *pNewStb) { return 0; }
 
-static int32_t mndProcessAlterStbMsg(SMnodeMsg *pMsg) {
+static int32_t mndProcesSMAlterStbReq(SMnodeMsg *pMsg) {
   SMnode       *pMnode = pMsg->pMnode;
-  SAlterStbMsg *pAlter = pMsg->rpcMsg.pCont;
+  SMAlterStbReq *pAlter = pMsg->rpcMsg.pCont;
 
   mDebug("stb:%s, start to alter", pAlter->name);
 
@@ -692,9 +694,9 @@ DROP_STB_OVER:
   return 0;
 }
 
-static int32_t mndProcessDropStbMsg(SMnodeMsg *pMsg) {
+static int32_t mndProcesSMDropStbReq(SMnodeMsg *pMsg) {
   SMnode      *pMnode = pMsg->pMnode;
-  SDropStbMsg *pDrop = pMsg->rpcMsg.pCont;
+  SMDropStbReq *pDrop = pMsg->rpcMsg.pCont;
 
   mDebug("stb:%s, start to drop", pDrop->name);
 
@@ -729,7 +731,7 @@ static int32_t mndProcessDropStbInRsp(SMnodeMsg *pMsg) {
 
 static int32_t mndProcessStbMetaMsg(SMnodeMsg *pMsg) {
   SMnode        *pMnode = pMsg->pMnode;
-  STableInfoMsg *pInfo = pMsg->rpcMsg.pCont;
+  STableInfoReq *pInfo = pMsg->rpcMsg.pCont;
 
   mDebug("stb:%s, start to retrieve meta", pInfo->tableFname);
 
@@ -750,9 +752,9 @@ static int32_t mndProcessStbMetaMsg(SMnodeMsg *pMsg) {
 
   taosRLockLatch(&pStb->lock);
   int32_t totalCols = pStb->numOfColumns + pStb->numOfTags;
-  int32_t contLen = sizeof(STableMetaMsg) + totalCols * sizeof(SSchema);
+  int32_t contLen = sizeof(STableMetaRsp) + totalCols * sizeof(SSchema);
 
-  STableMetaMsg *pMeta = rpcMallocCont(contLen);
+  STableMetaRsp *pMeta = rpcMallocCont(contLen);
   if (pMeta == NULL) {
     taosRUnLockLatch(&pStb->lock);
     mndReleaseDb(pMnode, pDb);
@@ -818,7 +820,7 @@ static int32_t mndGetNumOfStbs(SMnode *pMnode, char *dbName, int32_t *pNumOfStbs
   return 0;
 }
 
-static int32_t mndGetStbMeta(SMnodeMsg *pMsg, SShowObj *pShow, STableMetaMsg *pMeta) {
+static int32_t mndGetStbMeta(SMnodeMsg *pMsg, SShowObj *pShow, STableMetaRsp *pMeta) {
   SMnode *pMnode = pMsg->pMnode;
   SSdb   *pSdb = pMnode->pSdb;
 

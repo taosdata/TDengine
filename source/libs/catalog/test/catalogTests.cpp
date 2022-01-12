@@ -68,7 +68,7 @@ char *ctgTestSTablename = "stable1";
 
 
 void sendCreateDbMsg(void *shandle, SEpSet *pEpSet) {
-  SCreateDbMsg* pReq = (SCreateDbMsg*)rpcMallocCont(sizeof(SCreateDbMsg));
+  SCreateDbReq* pReq = (SCreateDbReq*)rpcMallocCont(sizeof(SCreateDbReq));
   strcpy(pReq->db, "1.db1");
   pReq->numOfVgroups = htonl(2);
   pReq->cacheBlockSize = htonl(16);
@@ -92,7 +92,7 @@ void sendCreateDbMsg(void *shandle, SEpSet *pEpSet) {
   
   SRpcMsg rpcMsg = {0};
   rpcMsg.pCont = pReq;
-  rpcMsg.contLen = sizeof(SCreateDbMsg);
+  rpcMsg.contLen = sizeof(SCreateDbReq);
   rpcMsg.msgType = TDMT_MND_CREATE_DB;
 
   SRpcMsg rpcRsp = {0};
@@ -200,7 +200,7 @@ void ctgTestBuildDBVgroup(SDBVgroupInfo *dbVgroup) {
     vgInfo.numOfEps = i % TSDB_MAX_REPLICA + 1;
     vgInfo.inUse = i % vgInfo.numOfEps;
     for (int32_t n = 0; n < vgInfo.numOfEps; ++n) {
-      SEpAddrMsg *addr = &vgInfo.epAddr[n];
+      SEpAddr *addr = &vgInfo.epAddr[n];
       strcpy(addr->fqdn, "a0");
       addr->port = htons(n + 22);
     }
@@ -234,7 +234,7 @@ void ctgTestPrepareDbVgroups(void *shandle, SEpSet *pEpSet, SRpcMsg *pMsg, SRpcM
     vg->numOfEps = i % TSDB_MAX_REPLICA + 1;
     vg->inUse = i % vg->numOfEps;
     for (int32_t n = 0; n < vg->numOfEps; ++n) {
-      SEpAddrMsg *addr = &vg->epAddr[n];
+      SEpAddr *addr = &vg->epAddr[n];
       strcpy(addr->fqdn, "a0");
       addr->port = htons(n + 22);
     }
@@ -249,12 +249,12 @@ void ctgTestPrepareDbVgroups(void *shandle, SEpSet *pEpSet, SRpcMsg *pMsg, SRpcM
 
 
 void ctgTestPrepareTableMeta(void *shandle, SEpSet *pEpSet, SRpcMsg *pMsg, SRpcMsg *pRsp) {
-  STableMetaMsg *rspMsg = NULL; //todo
+  STableMetaRsp *rspMsg = NULL; //todo
 
   pRsp->code =0;
-  pRsp->contLen = sizeof(STableMetaMsg) + (ctgTestColNum + ctgTestTagNum) * sizeof(SSchema);
+  pRsp->contLen = sizeof(STableMetaRsp) + (ctgTestColNum + ctgTestTagNum) * sizeof(SSchema);
   pRsp->pCont = calloc(1, pRsp->contLen);
-  rspMsg = (STableMetaMsg *)pRsp->pCont;
+  rspMsg = (STableMetaRsp *)pRsp->pCont;
   sprintf(rspMsg->tbFname, "%s.%s", ctgTestDbname, ctgTestTablename);
   rspMsg->numOfTags = 0;
   rspMsg->numOfColumns = htonl(ctgTestColNum);
@@ -285,12 +285,12 @@ void ctgTestPrepareTableMeta(void *shandle, SEpSet *pEpSet, SRpcMsg *pMsg, SRpcM
 
 
 void ctgTestPrepareCTableMeta(void *shandle, SEpSet *pEpSet, SRpcMsg *pMsg, SRpcMsg *pRsp) {
-  STableMetaMsg *rspMsg = NULL; //todo
+  STableMetaRsp *rspMsg = NULL; //todo
 
   pRsp->code =0;
-  pRsp->contLen = sizeof(STableMetaMsg) + (ctgTestColNum + ctgTestTagNum) * sizeof(SSchema);
+  pRsp->contLen = sizeof(STableMetaRsp) + (ctgTestColNum + ctgTestTagNum) * sizeof(SSchema);
   pRsp->pCont = calloc(1, pRsp->contLen);
-  rspMsg = (STableMetaMsg *)pRsp->pCont;
+  rspMsg = (STableMetaRsp *)pRsp->pCont;
   sprintf(rspMsg->tbFname, "%s.%s", ctgTestDbname, ctgTestCTablename);
   sprintf(rspMsg->stbFname, "%s.%s", ctgTestDbname, ctgTestSTablename);
   rspMsg->numOfTags = htonl(ctgTestTagNum);
@@ -329,12 +329,12 @@ void ctgTestPrepareCTableMeta(void *shandle, SEpSet *pEpSet, SRpcMsg *pMsg, SRpc
 
 
 void ctgTestPrepareSTableMeta(void *shandle, SEpSet *pEpSet, SRpcMsg *pMsg, SRpcMsg *pRsp) {
-  STableMetaMsg *rspMsg = NULL; //todo
+  STableMetaRsp *rspMsg = NULL; //todo
 
   pRsp->code =0;
-  pRsp->contLen = sizeof(STableMetaMsg) + (ctgTestColNum + ctgTestTagNum) * sizeof(SSchema);
+  pRsp->contLen = sizeof(STableMetaRsp) + (ctgTestColNum + ctgTestTagNum) * sizeof(SSchema);
   pRsp->pCont = calloc(1, pRsp->contLen);
-  rspMsg = (STableMetaMsg *)pRsp->pCont;
+  rspMsg = (STableMetaRsp *)pRsp->pCont;
   sprintf(rspMsg->tbFname, "%s.%s", ctgTestDbname, ctgTestSTablename);
   sprintf(rspMsg->stbFname, "%s.%s", ctgTestDbname, ctgTestSTablename);
   rspMsg->numOfTags = htonl(ctgTestTagNum);
@@ -372,13 +372,13 @@ void ctgTestPrepareSTableMeta(void *shandle, SEpSet *pEpSet, SRpcMsg *pMsg, SRpc
 }
 
 void ctgTestPrepareMultiSTableMeta(void *shandle, SEpSet *pEpSet, SRpcMsg *pMsg, SRpcMsg *pRsp) {
-  STableMetaMsg *rspMsg = NULL; //todo
+  STableMetaRsp *rspMsg = NULL; //todo
   static int32_t idx = 1;
 
   pRsp->code =0;
-  pRsp->contLen = sizeof(STableMetaMsg) + (ctgTestColNum + ctgTestTagNum) * sizeof(SSchema);
+  pRsp->contLen = sizeof(STableMetaRsp) + (ctgTestColNum + ctgTestTagNum) * sizeof(SSchema);
   pRsp->pCont = calloc(1, pRsp->contLen);
-  rspMsg = (STableMetaMsg *)pRsp->pCont;
+  rspMsg = (STableMetaRsp *)pRsp->pCont;
   sprintf(rspMsg->tbFname, "%s.%s_%d", ctgTestDbname, ctgTestSTablename, idx);
   sprintf(rspMsg->stbFname, "%s.%s_%d", ctgTestDbname, ctgTestSTablename, idx);
   rspMsg->numOfTags = htonl(ctgTestTagNum);
@@ -1322,3 +1322,4 @@ int main(int argc, char** argv) {
 
 
 
+                    

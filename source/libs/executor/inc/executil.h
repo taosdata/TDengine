@@ -38,7 +38,7 @@
 #define GET_RES_WINDOW_KEY_LEN(_l) ((_l) + sizeof(uint64_t))
 #define GET_RES_EXT_WINDOW_KEY_LEN(_l) ((_l) + sizeof(uint64_t) + POINTER_BYTES)
 
-#define GET_QID(_r)  (((SQInfo*)((_r)->qinfo))->qId)
+#define GET_TASKID(_t)  (((SExecTaskInfo*)(_t))->id.queryId)
 
 #define curTimeWindowIndex(_winres)        ((_winres)->curIndex)
 
@@ -157,6 +157,6 @@ int32_t getNumOfTotalRes(SGroupResInfo* pGroupResInfo);
 
 int32_t mergeIntoGroupResult(SGroupResInfo* pGroupResInfo, struct STaskRuntimeEnv *pRuntimeEnv, int32_t* offset);
 
-int32_t initUdfInfo(struct SUdfInfo* pUdfInfo);
+//int32_t initUdfInfo(struct SUdfInfo* pUdfInfo);
 
 #endif  // TDENGINE_QUERYUTIL_H

@@ -36,7 +36,23 @@
 
 namespace {
 
-extern "C" int32_t schProcessRspMsg(SSchJob *job, SSchTask *task, int32_t msgType, char *msg, int32_t msgSize, int32_t rspCode);
+extern "C" int32_t schHandleResponseMsg(SSchJob *job, SSchTask *task, int32_t msgType, char *msg, int32_t msgSize, int32_t rspCode);
+
+void schtInitLogFile() {
+  const char    *defaultLogFileNamePrefix = "taoslog";
+  const int32_t  maxLogFileNum = 10;
+
+  tsAsyncLog = 0;
+  qDebugFlag = 159;
+
+  char temp[128] = {0};
+  sprintf(temp, "%s/%s", tsLogDir, defaultLogFileNamePrefix);
+  if (taosInitLog(temp, tsNumOfLogLines, maxLogFileNum) < 0) {
+    printf("failed to open log file in directory:%s\n", tsLogDir);
+  }
+
+}
+
 
 void schtBuildQueryDag(SQueryDag *dag) {
   uint64_t qId = 0x0000000000000001;
@@ -44,45 +60,50 @@ void schtBuildQueryDag(SQueryDag *dag) {
   dag->queryId = qId;
   dag->numOfSubplans = 2;
   dag->pSubplans = taosArrayInit(dag->numOfSubplans, POINTER_BYTES);
-  SArray *scan = taosArrayInit(1, sizeof(SSubplan));
-  SArray *merge = taosArrayInit(1, sizeof(SSubplan));
+  SArray *scan = taosArrayInit(1, POINTER_BYTES);
+  SArray *merge = taosArrayInit(1, POINTER_BYTES);
   
-  SSubplan scanPlan = {0};
-  SSubplan mergePlan = {0};
+  SSubplan *scanPlan = (SSubplan *)calloc(1, sizeof(SSubplan));
+  SSubplan *mergePlan = (SSubplan *)calloc(1, sizeof(SSubplan));
 
-  scanPlan.id.queryId = qId;
-  scanPlan.id.templateId = 0x0000000000000002;
-  scanPlan.id.subplanId = 0x0000000000000003;
-  scanPlan.type = QUERY_TYPE_SCAN;
-  scanPlan.execNode.numOfEps = 1;
-  scanPlan.execNode.nodeId = 1;
-  scanPlan.execNode.inUse = 0;
-  scanPlan.execNode.epAddr[0].port = 6030;
-  strcpy(scanPlan.execNode.epAddr[0].fqdn, "ep0");
-  scanPlan.pChildren = NULL;
-  scanPlan.level = 1;
-  scanPlan.pParents = taosArrayInit(1, POINTER_BYTES);
-  scanPlan.pNode = (SPhyNode*)calloc(1, sizeof(SPhyNode));
+  scanPlan->id.queryId = qId;
+  scanPlan->id.templateId = 0x0000000000000002;
+  scanPlan->id.subplanId = 0x0000000000000003;
+  scanPlan->type = QUERY_TYPE_SCAN;
+  scanPlan->execNode.numOfEps = 1;
+  scanPlan->execNode.nodeId = 1;
+  scanPlan->execNode.inUse = 0;
+  scanPlan->execNode.epAddr[0].port = 6030;
+  strcpy(scanPlan->execNode.epAddr[0].fqdn, "ep0");
+  scanPlan->pChildren = NULL;
+  scanPlan->level = 1;
+  scanPlan->pParents = taosArrayInit(1, POINTER_BYTES);
+  scanPlan->pNode = (SPhyNode*)calloc(1, sizeof(SPhyNode));
 
-  mergePlan.id.queryId = qId;
-  mergePlan.id.templateId = 0x4444444444;
-  mergePlan.id.subplanId = 0x5555555555;
-  mergePlan.type = QUERY_TYPE_MERGE;
-  mergePlan.level = 0;
-  mergePlan.execNode.numOfEps = 0;
-  mergePlan.pChildren = taosArrayInit(1, POINTER_BYTES);
-  mergePlan.pParents = NULL;
-  mergePlan.pNode = (SPhyNode*)calloc(1, sizeof(SPhyNode));
+  mergePlan->id.queryId = qId;
+  mergePlan->id.templateId = 0x4444444444;
+  mergePlan->id.subplanId = 0x5555555555;
+  mergePlan->type = QUERY_TYPE_MERGE;
+  mergePlan->level = 0;
+  mergePlan->execNode.numOfEps = 0;
+  mergePlan->pChildren = taosArrayInit(1, POINTER_BYTES);
+  mergePlan->pParents = NULL;
+  mergePlan->pNode = (SPhyNode*)calloc(1, sizeof(SPhyNode));
 
   SSubplan *mergePointer = (SSubplan *)taosArrayPush(merge, &mergePlan);
   SSubplan *scanPointer = (SSubplan *)taosArrayPush(scan, &scanPlan);
 
-  taosArrayPush(mergePointer->pChildren, &scanPointer);
-  taosArrayPush(scanPointer->pParents, &mergePointer);
+  taosArrayPush(mergePlan->pChildren, &scanPlan);
+  taosArrayPush(scanPlan->pParents, &mergePlan);
 
   taosArrayPush(dag->pSubplans, &merge);  
   taosArrayPush(dag->pSubplans, &scan);
 }
+
+void schtFreeQueryDag(SQueryDag *dag) {
+
+}
+
 
 void schtBuildInsertDag(SQueryDag *dag) {
   uint64_t qId = 0x0000000000000002;
@@ -138,8 +159,8 @@ int32_t schtPlanToString(const SSubplan *subplan, char** str, int32_t* len) {
   return 0;
 }
 
-int32_t schtExecNode(SSubplan* subplan, uint64_t templateId, SQueryNodeAddr* ep) {
-  return 0;
+void schtExecNode(SSubplan* subplan, uint64_t templateId, SQueryNodeAddr* ep) {
+  
 }
 
 
@@ -186,9 +207,9 @@ void *schtSendRsp(void *param) {
   while (pIter) {
     SSchTask *task = *(SSchTask **)pIter;
 
-    SShellSubmitRspMsg rsp = {0};
+    SShellSubmitRsp rsp = {0};
     rsp.affectedRows = 10;
-    schProcessRspMsg(job, task, TDMT_VND_SUBMIT, (char *)&rsp, sizeof(rsp), 0);
+    schHandleResponseMsg(job, task, TDMT_VND_SUBMIT, (char *)&rsp, sizeof(rsp), 0);
     
     pIter = taosHashIterate(job->execTasks, pIter);
   }    
@@ -196,7 +217,7 @@ void *schtSendRsp(void *param) {
   return NULL;
 }
 
-void *pInsertJob = NULL;
+struct SSchJob *pInsertJob = NULL;
 
 
 }
@@ -207,8 +228,11 @@ TEST(queryTest, normalCase) {
   char *dbname = "1.db1";
   char *tablename = "table1";
   SVgroupInfo vgInfo = {0};
-  void *pJob = NULL;
+  SSchJob *pJob = NULL;
   SQueryDag dag = {0};
+
+  schtInitLogFile();
+
   SArray *qnodeList = taosArrayInit(1, sizeof(SEpAddr));
 
   SEpAddr qnodeAddr = {0};
@@ -233,7 +257,7 @@ TEST(queryTest, normalCase) {
     SSchTask *task = *(SSchTask **)pIter;
 
     SQueryTableRsp rsp = {0};
-    code = schProcessRspMsg(job, task, TDMT_VND_QUERY, (char *)&rsp, sizeof(rsp), 0);
+    code = schHandleResponseMsg(job, task, TDMT_VND_QUERY, (char *)&rsp, sizeof(rsp), 0);
     
     ASSERT_EQ(code, 0);
     pIter = taosHashIterate(job->execTasks, pIter);
@@ -244,7 +268,7 @@ TEST(queryTest, normalCase) {
     SSchTask *task = *(SSchTask **)pIter;
 
     SResReadyRsp rsp = {0};
-    code = schProcessRspMsg(job, task, TDMT_VND_RES_READY, (char *)&rsp, sizeof(rsp), 0);
+    code = schHandleResponseMsg(job, task, TDMT_VND_RES_READY, (char *)&rsp, sizeof(rsp), 0);
     
     ASSERT_EQ(code, 0);
     pIter = taosHashIterate(job->execTasks, pIter);
@@ -255,7 +279,7 @@ TEST(queryTest, normalCase) {
     SSchTask *task = *(SSchTask **)pIter;
 
     SQueryTableRsp rsp = {0};
-    code = schProcessRspMsg(job, task, TDMT_VND_QUERY, (char *)&rsp, sizeof(rsp), 0);
+    code = schHandleResponseMsg(job, task, TDMT_VND_QUERY, (char *)&rsp, sizeof(rsp), 0);
     
     ASSERT_EQ(code, 0);
     pIter = taosHashIterate(job->execTasks, pIter);
@@ -266,7 +290,7 @@ TEST(queryTest, normalCase) {
     SSchTask *task = *(SSchTask **)pIter;
 
     SResReadyRsp rsp = {0};
-    code = schProcessRspMsg(job, task, TDMT_VND_RES_READY, (char *)&rsp, sizeof(rsp), 0);
+    code = schHandleResponseMsg(job, task, TDMT_VND_RES_READY, (char *)&rsp, sizeof(rsp), 0);
     ASSERT_EQ(code, 0);
     
     pIter = taosHashIterate(job->execTasks, pIter);
@@ -275,7 +299,7 @@ TEST(queryTest, normalCase) {
   SRetrieveTableRsp rsp = {0};
   rsp.completed = 1;
   rsp.numOfRows = 10;
-  code = schProcessRspMsg(job, NULL, TDMT_VND_FETCH, (char *)&rsp, sizeof(rsp), 0);
+  code = schHandleResponseMsg(job, NULL, TDMT_VND_FETCH, (char *)&rsp, sizeof(rsp), 0);
     
   ASSERT_EQ(code, 0);
 
@@ -295,6 +319,8 @@ TEST(queryTest, normalCase) {
   ASSERT_EQ(data, (void*)NULL);
 
   scheduleFreeJob(pJob);
+
+  schtFreeQueryDag(&dag);
 }
 
 
@@ -308,6 +334,9 @@ TEST(insertTest, normalCase) {
   SVgroupInfo vgInfo = {0};
   SQueryDag dag = {0};
   uint64_t numOfRows = 0;
+
+  schtInitLogFile();
+  
   SArray *qnodeList = taosArrayInit(1, sizeof(SEpAddr));
 
   SEpAddr qnodeAddr = {0};
@@ -336,7 +365,11 @@ TEST(insertTest, normalCase) {
   scheduleFreeJob(pInsertJob);
 }
 
+TEST(multiThread, forceFree) {
 
+  schtInitLogFile();
+
+}
 
 
 int main(int argc, char** argv) {

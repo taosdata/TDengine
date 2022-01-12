@@ -113,12 +113,12 @@ void *readyThread(void *param) {
   uint32_t n = 0;  
   void *mockPointer = (void *)0x1;    
   void *mgmt = param;
-  SResReadyMsg readyMsg = {0};
+  SResReadyReq readyMsg = {0};
   readyMsg.sId = htobe64(1);
   readyMsg.queryId = htobe64(1);
   readyMsg.taskId = htobe64(1);
   readyRpc.pCont = &readyMsg;
-  readyRpc.contLen = sizeof(SResReadyMsg);
+  readyRpc.contLen = sizeof(SResReadyReq);
 
   while (!testStop) {
     code = qWorkerProcessReadyMsg(mockPointer, mgmt, &readyRpc);
@@ -137,12 +137,12 @@ void *fetchThread(void *param) {
   uint32_t n = 0;  
   void *mockPointer = (void *)0x1;    
   void *mgmt = param;
-  SResFetchMsg fetchMsg = {0};
+  SResFetchReq fetchMsg = {0};
   fetchMsg.sId = htobe64(1);
   fetchMsg.queryId = htobe64(1);
   fetchMsg.taskId = htobe64(1);
   fetchRpc.pCont = &fetchMsg;
-  fetchRpc.contLen = sizeof(SResFetchMsg);
+  fetchRpc.contLen = sizeof(SResFetchReq);
 
   while (!testStop) {
     code = qWorkerProcessFetchMsg(mockPointer, mgmt, &fetchRpc);
@@ -161,12 +161,12 @@ void *dropThread(void *param) {
   uint32_t n = 0;  
   void *mockPointer = (void *)0x1;    
   void *mgmt = param;
-  STaskDropMsg dropMsg = {0};  
+  STaskDropReq dropMsg = {0};  
   dropMsg.sId = htobe64(1);
   dropMsg.queryId = htobe64(1);
   dropMsg.taskId = htobe64(1);
   dropRpc.pCont = &dropMsg;
-  dropRpc.contLen = sizeof(STaskDropMsg);
+  dropRpc.contLen = sizeof(STaskDropReq);
 
   while (!testStop) {
     code = qWorkerProcessDropMsg(mockPointer, mgmt, &dropRpc);
@@ -185,10 +185,10 @@ void *statusThread(void *param) {
   uint32_t n = 0;  
   void *mockPointer = (void *)0x1;    
   void *mgmt = param;
-  SSchTasksStatusMsg statusMsg = {0};
+  SSchTasksStatusReq statusMsg = {0};
   statusMsg.sId = htobe64(1);
   statusRpc.pCont = &statusMsg;
-  statusRpc.contLen = sizeof(SSchTasksStatusMsg);
+  statusRpc.contLen = sizeof(SSchTasksStatusReq);
   statusRpc.msgType = TDMT_VND_TASKS_STATUS;
 
   while (!testStop) {
@@ -228,31 +228,31 @@ TEST(seqTest, normalCase) {
   queryRpc.pCont = queryMsg;
   queryRpc.contLen = sizeof(SSubQueryMsg) + 100;
 
-  SResReadyMsg readyMsg = {0};
+  SResReadyReq readyMsg = {0};
   readyMsg.sId = htobe64(1);
   readyMsg.queryId = htobe64(1);
   readyMsg.taskId = htobe64(1);
   readyRpc.pCont = &readyMsg;
-  readyRpc.contLen = sizeof(SResReadyMsg);
+  readyRpc.contLen = sizeof(SResReadyReq);
 
-  SResFetchMsg fetchMsg = {0};
+  SResFetchReq fetchMsg = {0};
   fetchMsg.sId = htobe64(1);
   fetchMsg.queryId = htobe64(1);
   fetchMsg.taskId = htobe64(1);
   fetchRpc.pCont = &fetchMsg;
-  fetchRpc.contLen = sizeof(SResFetchMsg);
+  fetchRpc.contLen = sizeof(SResFetchReq);
 
-  STaskDropMsg dropMsg = {0};  
+  STaskDropReq dropMsg = {0};  
   dropMsg.sId = htobe64(1);
   dropMsg.queryId = htobe64(1);
   dropMsg.taskId = htobe64(1);
   dropRpc.pCont = &dropMsg;
-  dropRpc.contLen = sizeof(STaskDropMsg);
+  dropRpc.contLen = sizeof(STaskDropReq);
 
-  SSchTasksStatusMsg statusMsg = {0};
+  SSchTasksStatusReq statusMsg = {0};
   statusMsg.sId = htobe64(1);
   statusRpc.pCont = &statusMsg;
-  statusRpc.contLen = sizeof(SSchTasksStatusMsg);
+  statusRpc.contLen = sizeof(SSchTasksStatusReq);
   statusRpc.msgType = TDMT_VND_TASKS_STATUS;
   
   stubSetStringToPlan();
@@ -312,17 +312,17 @@ TEST(seqTest, cancelFirst) {
   queryRpc.pCont = queryMsg;
   queryRpc.contLen = sizeof(SSubQueryMsg) + 100;
 
-  STaskDropMsg dropMsg = {0};  
+  STaskDropReq dropMsg = {0};  
   dropMsg.sId = htobe64(1);
   dropMsg.queryId = htobe64(1);
   dropMsg.taskId = htobe64(1);
   dropRpc.pCont = &dropMsg;
-  dropRpc.contLen = sizeof(STaskDropMsg);
+  dropRpc.contLen = sizeof(STaskDropReq);
 
-  SSchTasksStatusMsg statusMsg = {0};
+  SSchTasksStatusReq statusMsg = {0};
   statusMsg.sId = htobe64(1);
   statusRpc.pCont = &statusMsg;
-  statusRpc.contLen = sizeof(SSchTasksStatusMsg);
+  statusRpc.contLen = sizeof(SSchTasksStatusReq);
   statusRpc.msgType = TDMT_VND_TASKS_STATUS;
 
   stubSetStringToPlan();
@@ -370,31 +370,31 @@ TEST(seqTest, randCase) {
   queryRpc.pCont = queryMsg;
   queryRpc.contLen = sizeof(SSubQueryMsg) + 100;
 
-  SResReadyMsg readyMsg = {0};
+  SResReadyReq readyMsg = {0};
   readyMsg.sId = htobe64(1);
   readyMsg.queryId = htobe64(1);
   readyMsg.taskId = htobe64(1);
   readyRpc.pCont = &readyMsg;
-  readyRpc.contLen = sizeof(SResReadyMsg);
+  readyRpc.contLen = sizeof(SResReadyReq);
 
-  SResFetchMsg fetchMsg = {0};
+  SResFetchReq fetchMsg = {0};
   fetchMsg.sId = htobe64(1);
   fetchMsg.queryId = htobe64(1);
   fetchMsg.taskId = htobe64(1);
   fetchRpc.pCont = &fetchMsg;
-  fetchRpc.contLen = sizeof(SResFetchMsg);
+  fetchRpc.contLen = sizeof(SResFetchReq);
 
-  STaskDropMsg dropMsg = {0};  
+  STaskDropReq dropMsg = {0};  
   dropMsg.sId = htobe64(1);
   dropMsg.queryId = htobe64(1);
   dropMsg.taskId = htobe64(1);
   dropRpc.pCont = &dropMsg;
-  dropRpc.contLen = sizeof(STaskDropMsg);
+  dropRpc.contLen = sizeof(STaskDropReq);
 
-  SSchTasksStatusMsg statusMsg = {0};
+  SSchTasksStatusReq statusMsg = {0};
   statusMsg.sId = htobe64(1);
   statusRpc.pCont = &statusMsg;
-  statusRpc.contLen = sizeof(SSchTasksStatusMsg);
+  statusRpc.contLen = sizeof(SSchTasksStatusReq);
   statusRpc.msgType = TDMT_VND_TASKS_STATUS;
   
   stubSetStringToPlan();

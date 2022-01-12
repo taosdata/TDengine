@@ -147,21 +147,22 @@ TFileReader* tfileReaderCreate(WriterCtx* ctx) {
   reader->ctx = ctx;
 
   if (0 != tfileReaderVerify(reader)) {
-    tfileReaderDestroy(reader);
     indexError("invalid tfile, suid: %" PRIu64 ", colName: %s", reader->header.suid, reader->header.colName);
+    tfileReaderDestroy(reader);
     return NULL;
   }
   // T_REF_INC(reader);
   if (0 != tfileReaderLoadHeader(reader)) {
-    tfileReaderDestroy(reader);
     indexError("failed to load index header, suid: %" PRIu64 ", colName: %s", reader->header.suid,
                reader->header.colName);
+    tfileReaderDestroy(reader);
     return NULL;
   }
 
   if (0 != tfileReaderLoadFst(reader)) {
+    indexError("failed to load index fst, suid: %" PRIu64 ", colName: %s, errno: %d", reader->header.suid,
+               reader->header.colName, errno);
     tfileReaderDestroy(reader);
-    indexError("failed to load index fst, suid: %" PRIu64 ", colName: %s", reader->header.suid, reader->header.colName);
     return NULL;
   }
 
@@ -303,6 +304,8 @@ int tfileWriterPut(TFileWriter* tw, void* data, bool order) {
     } else {
       // indexInfo("success to write data: %s, offset: %d len: %d", v->colVal, v->offset,
       //          (int)taosArrayGetSize(v->tableId));
+
+      // indexInfo("tfile write data size: %d", tw->ctx->size(tw->ctx));
     }
   }
   fstBuilderFinish(tw->fb);
@@ -485,7 +488,9 @@ static void tfileSerialTableIdsToBuf(char* buf, SArray* ids) {
 static int tfileWriteFstOffset(TFileWriter* tw, int32_t offset) {
   int32_t fstOffset = offset + sizeof(tw->header.fstOffset);
   tw->header.fstOffset = fstOffset;
+
   if (sizeof(fstOffset) != tw->ctx->write(tw->ctx, (char*)&fstOffset, sizeof(fstOffset))) { return -1; }
+  indexInfo("tfile write fst offset: %d", tw->ctx->size(tw->ctx));
   tw->offset += sizeof(fstOffset);
   return 0;
 }
@@ -495,8 +500,11 @@ static int tfileWriteHeader(TFileWriter* writer) {
   TFileHeader* header = &writer->header;
   memcpy(buf, (char*)header, sizeof(buf));
 
+  indexInfo("tfile pre write header size: %d", writer->ctx->size(writer->ctx));
   int nwrite = writer->ctx->write(writer->ctx, buf, sizeof(buf));
   if (sizeof(buf) != nwrite) { return -1; }
+
+  indexInfo("tfile after write header size: %d", writer->ctx->size(writer->ctx));
   writer->offset = nwrite;
   return 0;
 }
@@ -521,6 +529,8 @@ static int tfileWriteFooter(TFileWriter* write) {
   void* pBuf = (void*)buf;
   taosEncodeFixedU64((void**)(void*)&pBuf, tfileMagicNumber);
   int nwrite = write->ctx->write(write->ctx, buf, strlen(buf));
+
+  indexInfo("tfile write footer size: %d", write->ctx->size(write->ctx));
   assert(nwrite == sizeof(tfileMagicNumber));
   return nwrite;
 }

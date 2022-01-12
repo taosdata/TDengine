@@ -88,16 +88,20 @@ static bool copySchema(SDataBlockSchema* dst, const SDataBlockSchema* src) {
 }
 
 static bool toDataBlockSchema(SQueryPlanNode* pPlanNode, SDataBlockSchema* dataBlockSchema) {
-  dataBlockSchema->numOfCols = pPlanNode->numOfCols;
-  dataBlockSchema->pSchema = malloc(sizeof(SSlotSchema) * pPlanNode->numOfCols);
+  dataBlockSchema->numOfCols = pPlanNode->numOfExpr;
+  dataBlockSchema->pSchema = malloc(sizeof(SSlotSchema) * pPlanNode->numOfExpr);
   if (NULL == dataBlockSchema->pSchema) {
     return false;
   }
-  memcpy(dataBlockSchema->pSchema, pPlanNode->pSchema, sizeof(SSlotSchema) * pPlanNode->numOfCols);
+
   dataBlockSchema->resultRowSize = 0;
-  for (int32_t i = 0; i < dataBlockSchema->numOfCols; ++i) {
+  for (int32_t i = 0; i < pPlanNode->numOfExpr; ++i) {
+    SExprInfo* pExprInfo = taosArrayGetP(pPlanNode->pExpr, i);
+    memcpy(&dataBlockSchema->pSchema[i], &pExprInfo->base.resSchema, sizeof(SSlotSchema));
+
     dataBlockSchema->resultRowSize += dataBlockSchema->pSchema[i].bytes;
   }
+
   return true;
 }
 
@@ -284,7 +288,6 @@ static SPhyNode* createSingleTableScanNode(SQueryPlanNode* pPlanNode, SQueryTabl
   return createUserTableScanNode(pPlanNode, pTable, OP_TableScan);
 }
 
-
 static SPhyNode* createTableScanNode(SPlanContext* pCxt, SQueryPlanNode* pPlanNode) {
   SQueryTableInfo* pTable = (SQueryTableInfo*)pPlanNode->pExtInfo;
     
@@ -303,8 +306,6 @@ static SPhyNode* createPhyNode(SPlanContext* pCxt, SQueryPlanNode* pPlanNode) {
     case QNODE_TABLESCAN:
       node = createTableScanNode(pCxt, pPlanNode);
       break;
-    case QNODE_PROJECT:
-//      node = create
     case QNODE_MODIFY:
       // Insert is not an operator in a physical plan.
       break;

@@ -94,6 +94,7 @@ typedef struct {
   pthread_t   *threadId;
   SRWLatch     latch;
   SDnodeWorker mgmtWorker;
+  SDnodeWorker statusWorker;
 } SDnodeMgmt;
 
 typedef struct {
@@ -167,7 +168,7 @@ typedef struct SDnode {
   SBnodeMgmt  bmgmt;
   SVnodesMgmt vmgmt;
   STransMgmt  tmgmt;
-  SStartupMsg startup;
+  SStartupReq startup;
 } SDnode;
 
 EStat dndGetStat(SDnode *pDnode);
@@ -175,7 +176,7 @@ void  dndSetStat(SDnode *pDnode, EStat stat);
 char *dndStatStr(EStat stat);
 
 void dndReportStartup(SDnode *pDnode, char *pName, char *pDesc);
-void dndGetStartup(SDnode *pDnode, SStartupMsg *pStartup);
+void dndGetStartup(SDnode *pDnode, SStartupReq *pStartup);
 
 #ifdef __cplusplus
 }

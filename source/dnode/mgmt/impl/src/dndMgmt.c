@@ -473,12 +473,12 @@ static int32_t dndProcessConfigDnodeReq(SDnode *pDnode, SRpcMsg *pReq) {
 void dndProcessStartupReq(SDnode *pDnode, SRpcMsg *pReq) {
   dDebug("startup req is received");
 
-  SStartupMsg *pStartup = rpcMallocCont(sizeof(SStartupMsg));
+  SStartupReq *pStartup = rpcMallocCont(sizeof(SStartupReq));
   dndGetStartup(pDnode, pStartup);
 
   dDebug("startup req is sent, step:%s desc:%s finished:%d", pStartup->name, pStartup->desc, pStartup->finished);
 
-  SRpcMsg rpcRsp = {.handle = pReq->handle, .pCont = pStartup, .contLen = sizeof(SStartupMsg)};
+  SRpcMsg rpcRsp = {.handle = pReq->handle, .pCont = pStartup, .contLen = sizeof(SStartupReq)};
   rpcSendResponse(&rpcRsp);
 }
 
@@ -536,6 +536,11 @@ int32_t dndInitMgmt(SDnode *pDnode) {
     return -1;
   }
 
+  if (dndInitWorker(pDnode, &pMgmt->statusWorker, DND_WORKER_SINGLE, "dnode-status", 1, 1, dndProcessMgmtQueue) != 0) {
+    dError("failed to start dnode mgmt worker since %s", terrstr());
+    return -1;
+  }
+
   pMgmt->threadId = taosCreateThread(dnodeThreadRoutine, pDnode);
   if (pMgmt->threadId == NULL) {
     dError("failed to init dnode thread");
@@ -550,6 +555,7 @@ int32_t dndInitMgmt(SDnode *pDnode) {
 void dndStopMgmt(SDnode *pDnode) {
   SDnodeMgmt *pMgmt = &pDnode->dmgmt;
   dndCleanupWorker(&pMgmt->mgmtWorker);
+  dndCleanupWorker(&pMgmt->statusWorker);
 
   if (pMgmt->threadId != NULL) {
     taosDestoryThread(pMgmt->threadId);
@@ -587,7 +593,12 @@ void dndProcessMgmtMsg(SDnode *pDnode, SRpcMsg *pMsg, SEpSet *pEpSet) {
     dndUpdateMnodeEpSet(pDnode, pEpSet);
   }
 
-  if (dndWriteMsgToWorker(&pMgmt->mgmtWorker, pMsg, sizeof(SRpcMsg)) != 0) {
+  SDnodeWorker *pWorker = &pMgmt->mgmtWorker;
+  if (pMsg->msgType == TDMT_MND_STATUS_RSP) {
+    pWorker = &pMgmt->statusWorker;
+  }
+
+  if (dndWriteMsgToWorker(pWorker, pMsg, sizeof(SRpcMsg)) != 0) {
     if (pMsg->msgType & 1u) {
       SRpcMsg rsp = {.handle = pMsg->handle, .code = TSDB_CODE_OUT_OF_MEMORY};
       rpcSendResponse(&rsp);

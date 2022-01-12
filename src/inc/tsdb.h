@@ -274,7 +274,7 @@ TsdbQueryHandleT tsdbQueryLastRow(STsdbRepo *tsdb, STsdbQueryCond *pCond, STable
 
 TsdbQueryHandleT tsdbQueryCacheLast(STsdbRepo *tsdb, STsdbQueryCond *pCond, STableGroupInfo *groupList, uint64_t qId, SMemRef* pMemRef);
 
-bool isTsdbCacheLastRow(TsdbQueryHandleT* pQueryHandle);
+bool isTsdbCacheLastRow(TsdbQueryHandleT* pTsdbReadHandle);
 
 
 /**
@@ -308,19 +308,19 @@ int64_t tsdbGetNumOfRowsInMemTable(TsdbQueryHandleT* pHandle);
 /**
  * move to next block if exists 
  *
- * @param pQueryHandle
+ * @param pTsdbReadHandle
  * @return
  */
-bool tsdbNextDataBlock(TsdbQueryHandleT pQueryHandle);
+bool tsdbNextDataBlock(TsdbQueryHandleT pTsdbReadHandle);
 
 /**
  * Get current data block information
  *
- * @param pQueryHandle
+ * @param pTsdbReadHandle
  * @param pBlockInfo
  * @return
  */
-void tsdbRetrieveDataBlockInfo(TsdbQueryHandleT *pQueryHandle, SDataBlockInfo *pBlockInfo);
+void tsdbRetrieveDataBlockInfo(TsdbQueryHandleT *pTsdbReadHandle, SDataBlockInfo *pBlockInfo);
 
 /**
  *
@@ -332,7 +332,7 @@ void tsdbRetrieveDataBlockInfo(TsdbQueryHandleT *pQueryHandle, SDataBlockInfo *p
  * @pBlockStatis the pre-calculated value for current data blocks. if the block is a cache block, always return 0
  * @return
  */
-int32_t tsdbRetrieveDataBlockStatisInfo(TsdbQueryHandleT *pQueryHandle, SDataStatis **pBlockStatis);
+int32_t tsdbRetrieveDataBlockStatisInfo(TsdbQueryHandleT *pTsdbReadHandle, SDataStatis **pBlockStatis);
 
 /**
  *
@@ -340,11 +340,11 @@ int32_t tsdbRetrieveDataBlockStatisInfo(TsdbQueryHandleT *pQueryHandle, SDataSta
  * the returned data block must be satisfied with the time window condition in any cases,
  * which means the SData data block is not actually the completed disk data blocks.
  *
- * @param pQueryHandle      query handle
+ * @param pTsdbReadHandle      query handle
  * @param pColumnIdList     required data columns id list
  * @return
  */
-SArray *tsdbRetrieveDataBlock(TsdbQueryHandleT *pQueryHandle, SArray *pColumnIdList);
+SArray *tsdbRetrieveDataBlock(TsdbQueryHandleT *pTsdbReadHandle, SArray *pColumnIdList);
 
 /**
  * Get the qualified table id for a super table according to the tag query expression.

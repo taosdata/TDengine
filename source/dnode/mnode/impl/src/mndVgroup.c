@@ -27,19 +27,19 @@
 static SSdbRow *mndVgroupActionDecode(SSdbRaw *pRaw);
 static int32_t  mndVgroupActionInsert(SSdb *pSdb, SVgObj *pVgroup);
 static int32_t  mndVgroupActionDelete(SSdb *pSdb, SVgObj *pVgroup);
-static int32_t  mndVgroupActionUpdate(SSdb *pSdb, SVgObj *pOldVgroup, SVgObj *pNewVgroup);
+static int32_t  mndVgroupActionUpdate(SSdb *pSdb, SVgObj *pOld, SVgObj *pNew);
 
-static int32_t mndProcessCreateVnodeRsp(SMnodeMsg *pMsg);
-static int32_t mndProcessAlterVnodeRsp(SMnodeMsg *pMsg);
-static int32_t mndProcessDropVnodeRsp(SMnodeMsg *pMsg);
-static int32_t mndProcessSyncVnodeRsp(SMnodeMsg *pMsg);
-static int32_t mndProcessCompactVnodeRsp(SMnodeMsg *pMsg);
+static int32_t mndProcessCreateVnodeRsp(SMnodeMsg *pRsp);
+static int32_t mndProcessAlterVnodeRsp(SMnodeMsg *pRsp);
+static int32_t mndProcessDropVnodeRsp(SMnodeMsg *pRsp);
+static int32_t mndProcessSyncVnodeRsp(SMnodeMsg *pRsp);
+static int32_t mndProcessCompactVnodeRsp(SMnodeMsg *pRsp);
 
-static int32_t mndGetVgroupMeta(SMnodeMsg *pMsg, SShowObj *pShow, STableMetaMsg *pMeta);
-static int32_t mndRetrieveVgroups(SMnodeMsg *pMsg, SShowObj *pShow, char *data, int32_t rows);
+static int32_t mndGetVgroupMeta(SMnodeMsg *pReq, SShowObj *pShow, STableMetaRsp *pMeta);
+static int32_t mndRetrieveVgroups(SMnodeMsg *pReq, SShowObj *pShow, char *data, int32_t rows);
 static void    mndCancelGetNextVgroup(SMnode *pMnode, void *pIter);
-static int32_t mndGetVnodeMeta(SMnodeMsg *pMsg, SShowObj *pShow, STableMetaMsg *pMeta);
-static int32_t mndRetrieveVnodes(SMnodeMsg *pMsg, SShowObj *pShow, char *data, int32_t rows);
+static int32_t mndGetVnodeMeta(SMnodeMsg *pReq, SShowObj *pShow, STableMetaRsp *pMeta);
+static int32_t mndRetrieveVnodes(SMnodeMsg *pReq, SShowObj *pShow, char *data, int32_t rows);
 static void    mndCancelGetNextVnode(SMnode *pMnode, void *pIter);
 
 int32_t mndInitVgroup(SMnode *pMnode) {
@@ -164,14 +164,14 @@ static int32_t mndVgroupActionDelete(SSdb *pSdb, SVgObj *pVgroup) {
   return 0;
 }
 
-static int32_t mndVgroupActionUpdate(SSdb *pSdb, SVgObj *pOldVgroup, SVgObj *pNewVgroup) {
-  mTrace("vgId:%d, perform update action, old row:%p new row:%p", pOldVgroup->vgId, pOldVgroup, pNewVgroup);
-  pOldVgroup->updateTime = pNewVgroup->updateTime;
-  pOldVgroup->version = pNewVgroup->version;
-  pOldVgroup->hashBegin = pNewVgroup->hashBegin;
-  pOldVgroup->hashEnd = pNewVgroup->hashEnd;
-  pOldVgroup->replica = pNewVgroup->replica;
-  memcpy(pOldVgroup->vnodeGid, pNewVgroup->vnodeGid, TSDB_MAX_REPLICA * sizeof(SVnodeGid));
+static int32_t mndVgroupActionUpdate(SSdb *pSdb, SVgObj *pOld, SVgObj *pNew) {
+  mTrace("vgId:%d, perform update action, old row:%p new row:%p", pOld->vgId, pOld, pNew);
+  pOld->updateTime = pNew->updateTime;
+  pOld->version = pNew->version;
+  pOld->hashBegin = pNew->hashBegin;
+  pOld->hashEnd = pNew->hashEnd;
+  pOld->replica = pNew->replica;
+  memcpy(pOld->vnodeGid, pNew->vnodeGid, TSDB_MAX_REPLICA * sizeof(SVnodeGid));
   return 0;
 }
 
@@ -273,15 +273,10 @@ static bool mndBuildDnodesArrayFp(SMnode *pMnode, void *pObj, void *p1, void *p2
   SDnodeObj *pDnode = pObj;
   SArray    *pArray = p1;
 
-  pDnode->numOfVnodes = mndGetVnodesNum(pMnode, pDnode->id);
-
   int64_t curMs = taosGetTimestampMs();
   bool    online = mndIsDnodeOnline(pMnode, pDnode, curMs);
-  if (online && pDnode->numOfSupportVnodes > 0) {
-    taosArrayPush(pArray, pDnode);
-  }
-
-  bool isMnode = mndIsMnode(pMnode, pDnode->id);
+  bool    isMnode = mndIsMnode(pMnode, pDnode->id);
+  pDnode->numOfVnodes = mndGetVnodesNum(pMnode, pDnode->id);
 
   mDebug("dnode:%d, vnodes:%d supportVnodes:%d isMnode:%d online:%d", pDnode->id, pDnode->numOfVnodes,
          pDnode->numOfSupportVnodes, isMnode, online);
@@ -290,6 +285,9 @@ static bool mndBuildDnodesArrayFp(SMnode *pMnode, void *pObj, void *p1, void *p2
     pDnode->numOfVnodes++;
   }
 
+  if (online && pDnode->numOfSupportVnodes > 0) {
+    taosArrayPush(pArray, pDnode);
+  }
   return true;
 }
 
@@ -311,7 +309,7 @@ static SArray *mndBuildDnodesArray(SMnode *pMnode) {
 static int32_t mndCompareDnodeVnodes(SDnodeObj *pDnode1, SDnodeObj *pDnode2) {
   float d1Score = (float)pDnode1->numOfVnodes / pDnode1->numOfSupportVnodes;
   float d2Score = (float)pDnode2->numOfVnodes / pDnode2->numOfSupportVnodes;
-  return d1Score > d2Score ? 1 : 0;
+  return d1Score >= d2Score ? 1 : 0;
 }
 
 static int32_t mndGetAvailableDnode(SMnode *pMnode, SVgObj *pVgroup, SArray *pArray) {
@@ -320,6 +318,14 @@ static int32_t mndGetAvailableDnode(SMnode *pMnode, SVgObj *pVgroup, SArray *pAr
   void   *pIter = NULL;
 
   taosArraySort(pArray, (__compar_fn_t)mndCompareDnodeVnodes);
+
+  int32_t size = taosArrayGetSize(pArray);
+  if (size < pVgroup->replica) {
+    mError("db:%s, vgId:%d, no enough online dnodes:%d to alloc %d replica", pVgroup->dbName, pVgroup->vgId, size,
+           pVgroup->replica);
+    terrno = TSDB_CODE_MND_NO_ENOUGH_DNODES;
+    return -1;
+  }
 
   for (int32_t v = 0; v < pVgroup->replica; ++v) {
     SVnodeGid *pVgid = &pVgroup->vnodeGid[v];
@@ -427,24 +433,24 @@ SEpSet mndGetVgroupEpset(SMnode *pMnode, SVgObj *pVgroup) {
   return epset;
 }
 
-static int32_t mndProcessCreateVnodeRsp(SMnodeMsg *pMsg) {
-  mndTransProcessRsp(pMsg);
+static int32_t mndProcessCreateVnodeRsp(SMnodeMsg *pRsp) {
+  mndTransProcessRsp(pRsp);
   return 0;
 }
 
-static int32_t mndProcessAlterVnodeRsp(SMnodeMsg *pMsg) {
-  mndTransProcessRsp(pMsg);
+static int32_t mndProcessAlterVnodeRsp(SMnodeMsg *pRsp) {
+  mndTransProcessRsp(pRsp);
   return 0;
 }
 
-static int32_t mndProcessDropVnodeRsp(SMnodeMsg *pMsg) {
-  mndTransProcessRsp(pMsg);
+static int32_t mndProcessDropVnodeRsp(SMnodeMsg *pRsp) {
+  mndTransProcessRsp(pRsp);
   return 0;
 }
 
-static int32_t mndProcessSyncVnodeRsp(SMnodeMsg *pMsg) { return 0; }
+static int32_t mndProcessSyncVnodeRsp(SMnodeMsg *pRsp) { return 0; }
 
-static int32_t mndProcessCompactVnodeRsp(SMnodeMsg *pMsg) { return 0; }
+static int32_t mndProcessCompactVnodeRsp(SMnodeMsg *pRsp) { return 0; }
 
 static bool mndGetVgroupMaxReplicaFp(SMnode *pMnode, void *pObj, void *p1, void *p2, void *p3) {
   SVgObj  *pVgroup = pObj;
@@ -475,8 +481,8 @@ static int32_t mndGetVgroupMaxReplica(SMnode *pMnode, char *dbName, int8_t *pRep
   return 0;
 }
 
-static int32_t mndGetVgroupMeta(SMnodeMsg *pMsg, SShowObj *pShow, STableMetaMsg *pMeta) {
-  SMnode *pMnode = pMsg->pMnode;
+static int32_t mndGetVgroupMeta(SMnodeMsg *pReq, SShowObj *pShow, STableMetaRsp *pMeta) {
+  SMnode *pMnode = pReq->pMnode;
   SSdb   *pSdb = pMnode->pSdb;
 
   if (mndGetVgroupMaxReplica(pMnode, pShow->db, &pShow->replica, &pShow->numOfRows) != 0) {
@@ -526,8 +532,8 @@ static int32_t mndGetVgroupMeta(SMnodeMsg *pMsg, SShowObj *pShow, STableMetaMsg 
   return 0;
 }
 
-static int32_t mndRetrieveVgroups(SMnodeMsg *pMsg, SShowObj *pShow, char *data, int32_t rows) {
-  SMnode *pMnode = pMsg->pMnode;
+static int32_t mndRetrieveVgroups(SMnodeMsg *pReq, SShowObj *pShow, char *data, int32_t rows) {
+  SMnode *pMnode = pReq->pMnode;
   SSdb   *pSdb = pMnode->pSdb;
   int32_t numOfRows = 0;
   SVgObj *pVgroup = NULL;
@@ -593,8 +599,8 @@ int32_t mndGetVnodesNum(SMnode *pMnode, int32_t dnodeId) {
   return numOfVnodes;
 }
 
-static int32_t mndGetVnodeMeta(SMnodeMsg *pMsg, SShowObj *pShow, STableMetaMsg *pMeta) {
-  SMnode *pMnode = pMsg->pMnode;
+static int32_t mndGetVnodeMeta(SMnodeMsg *pReq, SShowObj *pShow, STableMetaRsp *pMeta) {
+  SMnode *pMnode = pReq->pMnode;
   SSdb   *pSdb = pMnode->pSdb;
 
   int32_t  cols = 0;
@@ -633,8 +639,8 @@ static int32_t mndGetVnodeMeta(SMnodeMsg *pMsg, SShowObj *pShow, STableMetaMsg *
   return 0;
 }
 
-static int32_t mndRetrieveVnodes(SMnodeMsg *pMsg, SShowObj *pShow, char *data, int32_t rows) {
-  SMnode *pMnode = pMsg->pMnode;
+static int32_t mndRetrieveVnodes(SMnodeMsg *pReq, SShowObj *pShow, char *data, int32_t rows) {
+  SMnode *pMnode = pReq->pMnode;
   SSdb   *pSdb = pMnode->pSdb;
   int32_t numOfRows = 0;
   SVgObj *pVgroup = NULL;

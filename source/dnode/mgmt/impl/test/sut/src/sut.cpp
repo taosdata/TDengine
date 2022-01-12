@@ -179,6 +179,6 @@ const char* Testbase::GetShowBinary(int32_t len) {
 
 int32_t Testbase::GetShowRows() { return pRetrieveRsp->numOfRows; }
 
-STableMetaMsg* Testbase::GetShowMeta() { return pMeta; }
+STableMetaRsp* Testbase::GetShowMeta() { return pMeta; }
 
 SRetrieveTableRsp* Testbase::GetRetrieveRsp() { return pRetrieveRsp; }

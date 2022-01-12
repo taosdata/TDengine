@@ -2,15 +2,17 @@
 #======================b1-start===============
 
 # ---- user
-./test.sh -f general/user/basic1.sim 
+./test.sh -f sim/user/basic1.sim 
 
 # ---- db
-./test.sh -f general/db/basic1.sim 
+./test.sh -f sim/db/basic1.sim
+./test.sh -f sim/db/basic6.sim
+./test.sh -f sim/db/error1.sim
 
 # ---- table
-./test.sh -f general/table/basic1.sim 
+./test.sh -f sim/table/basic1.sim 
 
 # ---- dnode
-./test.sh -f unique/dnode/basic1.sim
+./test.sh -f sim/dnode/basic1.sim
 
 #======================b1-end===============

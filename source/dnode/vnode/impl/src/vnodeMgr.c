@@ -19,17 +19,18 @@ SVnodeMgr vnodeMgr = {.vnodeInitFlag = TD_MOD_UNINITIALIZED};
 
 static void* loop(void* arg);
 
-int vnodeInit(uint16_t nthreads) {
+int vnodeInit(const SVnodeOpt *pOption) {
   if (TD_CHECK_AND_SET_MODE_INIT(&(vnodeMgr.vnodeInitFlag)) == TD_MOD_INITIALIZED) {
     return 0;
   }
 
   vnodeMgr.stop = false;
+  vnodeMgr.putReqToVQueryQFp = pOption->putReqToVQueryQFp;
 
   // Start commit handers
-  if (nthreads > 0) {
-    vnodeMgr.nthreads = nthreads;
-    vnodeMgr.threads = (pthread_t*)calloc(nthreads, sizeof(pthread_t));
+  if (pOption->nthreads > 0) {
+    vnodeMgr.nthreads = pOption->nthreads;
+    vnodeMgr.threads = (pthread_t*)calloc(pOption->nthreads, sizeof(pthread_t));
     if (vnodeMgr.threads == NULL) {
       return -1;
     }
@@ -38,7 +39,7 @@ int vnodeInit(uint16_t nthreads) {
     pthread_cond_init(&(vnodeMgr.hasTask), NULL);
     TD_DLIST_INIT(&(vnodeMgr.queue));
 
-    for (uint16_t i = 0; i < nthreads; i++) {
+    for (uint16_t i = 0; i < pOption->nthreads; i++) {
       pthread_create(&(vnodeMgr.threads[i]), NULL, loop, NULL);
       pthread_setname_np(vnodeMgr.threads[i], "VND Commit Thread");
     }
@@ -87,6 +88,14 @@ int vnodeScheduleTask(SVnodeTask* pTask) {
   pthread_mutex_unlock(&(vnodeMgr.mutex));
 
   return 0;
+}
+
+int32_t vnodePutReqToVQueryQ(SVnode* pVnode, struct SRpcMsg* pReq) {
+  if (pVnode == NULL || pVnode->pDnode == NULL || vnodeMgr.putReqToVQueryQFp == NULL) {
+    terrno = TSDB_CODE_VND_APP_ERROR;
+    return -1;
+  }
+  return (*vnodeMgr.putReqToVQueryQFp)(pVnode->pDnode, pReq);
 }
 
 /* ------------------------ STATIC METHODS ------------------------ */
