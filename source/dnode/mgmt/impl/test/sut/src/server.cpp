@@ -25,7 +25,6 @@ void* serverLoop(void* param) {
 SDnodeObjCfg TestServer::BuildOption(const char* path, const char* fqdn, uint16_t port, const char* firstEp) {
   SDnodeObjCfg cfg = {0};
   cfg.numOfSupportVnodes = 16;
-  cfg.numOfCommitThreads = 1;
   cfg.statusInterval = 1;
   cfg.numOfThreadsPerCore = 1;
   cfg.ratioOfQueryCores = 1;

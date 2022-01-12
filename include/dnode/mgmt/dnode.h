@@ -29,6 +29,7 @@ typedef struct SDnode SDnode;
 typedef struct {
   int32_t sver;
   int32_t numOfCores;
+  int16_t numOfCommitThreads;
   int8_t  enableTelem;
   char    timezone[TSDB_TIMEZONE_LEN];
   char    locale[TSDB_LOCALE_LEN];
@@ -53,7 +54,6 @@ void dndCleanup();
 
 /* ------------------------ SDnode ----------------------- */
 typedef struct {
-  int16_t  numOfCommitThreads;
   int32_t  numOfSupportVnodes;
   int32_t  statusInterval;
   float    numOfThreadsPerCore;

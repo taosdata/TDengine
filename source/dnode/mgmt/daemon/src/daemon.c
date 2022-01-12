@@ -139,6 +139,7 @@ void dmnWaitSignal() {
 void dnmInitEnvCfg(SDnodeEnvCfg *pCfg) {
   pCfg->sver = 30000000;  // 3.0.0.0
   pCfg->numOfCores = tsNumOfCores;
+  pCfg->numOfCommitThreads = tsNumOfCommitThreads;
   pCfg->enableTelem = 0;
   tstrncpy(pCfg->timezone, tsTimezone, TSDB_TIMEZONE_LEN);
   tstrncpy(pCfg->locale, tsLocale, TSDB_LOCALE_LEN);
@@ -149,7 +150,6 @@ void dnmInitEnvCfg(SDnodeEnvCfg *pCfg) {
 
 void dmnInitObjCfg(SDnodeObjCfg *pCfg) {
   pCfg->numOfSupportVnodes = tsNumOfSupportVnodes;
-  pCfg->numOfCommitThreads = tsNumOfCommitThreads;
   pCfg->statusInterval = tsStatusInterval;
   pCfg->numOfThreadsPerCore = tsNumOfThreadsPerCore;
   pCfg->ratioOfQueryCores = tsRatioOfQueryCores;

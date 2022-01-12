@@ -183,20 +183,6 @@ SDnode *dndCreate(SDnodeObjCfg *pCfg) {
     return NULL;
   }
 
-  SVnodeOpt vnodeOpt = {
-      .sver = pDnode->env.sver,
-      .timezone = pDnode->env.timezone,
-      .locale = pDnode->env.locale,
-      .charset = pDnode->env.charset,
-      .nthreads = pDnode->cfg.numOfCommitThreads,
-      .putReqToVQueryQFp = dndPutReqToVQueryQ,
-  };
-  if (vnodeInit(&vnodeOpt) != 0) {
-    dError("failed to init vnode since %s", terrstr());
-    dndClose(pDnode);
-    return NULL;
-  }
-
   if (dndInitMgmt(pDnode) != 0) {
     dError("failed to init mgmt since %s", terrstr());
     dndClose(pDnode);
@@ -294,6 +280,21 @@ int32_t dndInit(const SDnodeEnvCfg *pCfg) {
     dError("failed to init wal since %s", terrstr());
     dndCleanup();
     return -1;
+  }
+
+  SVnodeOpt vnodeOpt = {
+      .sver = pCfg->sver,
+      .timezone = pCfg->timezone,
+      .locale = pCfg->locale,
+      .charset = pCfg->charset,
+      .nthreads = pCfg->numOfCommitThreads,
+      .putReqToVQueryQFp = dndPutReqToVQueryQ,
+  };
+
+  if (vnodeInit(&vnodeOpt) != 0) {
+    dError("failed to init vnode since %s", terrstr());
+    dndCleanup();
+    return NULL;
   }
 
   memcpy(&dndEnv.cfg, pCfg, sizeof(SDnodeEnvCfg));
