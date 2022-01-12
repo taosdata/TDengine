@@ -13,50 +13,53 @@
  * along with this program. If not, see <http://www.gnu.org/licenses/>.
  */
 
+#include "rpcUdp.h"
 #include "os.h"
-#include "ttimer.h"
-#include "tutil.h"
+#include "rpcHead.h"
+#include "rpcLog.h"
 #include "taosdef.h"
 #include "taoserror.h"
-#include "rpcLog.h"
-#include "rpcUdp.h"
-#include "rpcHead.h"
+#include "ttimer.h"
+#include "tutil.h"
 
+#ifdef USE_UV
+// no support upd currently
+#else
 #define RPC_MAX_UDP_CONNS 256
 #define RPC_MAX_UDP_PKTS 1000
 #define RPC_UDP_BUF_TIME 5  // mseconds
 #define RPC_MAX_UDP_SIZE 65480
 
 typedef struct {
-  int             index;
-  SOCKET          fd;
-  uint16_t        port;       // peer port
-  uint16_t        localPort;  // local port
-  char            label[TSDB_LABEL_LEN];  // copy from udpConnSet;
-  pthread_t       thread;
-  void           *hash;
-  void           *shandle;  // handle passed by upper layer during server initialization
-  void           *pSet;
-  void         *(*processData)(SRecvInfo *pRecv);
-  char           *buffer;  // buffer to receive data
+  int       index;
+  SOCKET    fd;
+  uint16_t  port;                   // peer port
+  uint16_t  localPort;              // local port
+  char      label[TSDB_LABEL_LEN];  // copy from udpConnSet;
+  pthread_t thread;
+  void *    hash;
+  void *    shandle;  // handle passed by upper layer during server initialization
+  void *    pSet;
+  void *(*processData)(SRecvInfo *pRecv);
+  char *buffer;  // buffer to receive data
 } SUdpConn;
 
 typedef struct {
-  int       index;
-  int       server;
-  uint32_t  ip;       // local IP
-  uint16_t  port;     // local Port
-  void     *shandle;  // handle passed by upper layer during server initialization
-  int       threads;
-  char      label[TSDB_LABEL_LEN];
-  void     *(*fp)(SRecvInfo *pPacket);
-  SUdpConn  udpConn[];
+  int      index;
+  int      server;
+  uint32_t ip;       // local IP
+  uint16_t port;     // local Port
+  void *   shandle;  // handle passed by upper layer during server initialization
+  int      threads;
+  char     label[TSDB_LABEL_LEN];
+  void *(*fp)(SRecvInfo *pPacket);
+  SUdpConn udpConn[];
 } SUdpConnSet;
 
 static void *taosRecvUdpData(void *param);
 
 void *taosInitUdpConnection(uint32_t ip, uint16_t port, char *label, int threads, void *fp, void *shandle) {
-  SUdpConn    *pConn;
+  SUdpConn *   pConn;
   SUdpConnSet *pSet;
 
   int size = (int)sizeof(SUdpConnSet) + threads * (int)sizeof(SUdpConn);
@@ -79,7 +82,7 @@ void *taosInitUdpConnection(uint32_t ip, uint16_t port, char *label, int threads
   pthread_attr_init(&thAttr);
   pthread_attr_setdetachstate(&thAttr, PTHREAD_CREATE_JOINABLE);
 
-  int i;
+  int      i;
   uint16_t ownPort;
   for (i = 0; i < threads; ++i) {
     pConn = pSet->udpConn + i;
@@ -97,9 +100,9 @@ void *taosInitUdpConnection(uint32_t ip, uint16_t port, char *label, int threads
     }
 
     struct sockaddr_in sin;
-    unsigned int addrlen = sizeof(sin);
-    if (getsockname(pConn->fd, (struct sockaddr *)&sin, &addrlen) == 0 && 
-        sin.sin_family == AF_INET && addrlen == sizeof(sin)) {
+    unsigned int       addrlen = sizeof(sin);
+    if (getsockname(pConn->fd, (struct sockaddr *)&sin, &addrlen) == 0 && sin.sin_family == AF_INET &&
+        addrlen == sizeof(sin)) {
       pConn->localPort = (uint16_t)ntohs(sin.sin_port);
     }
 
@@ -118,7 +121,7 @@ void *taosInitUdpConnection(uint32_t ip, uint16_t port, char *label, int threads
 
   pthread_attr_destroy(&thAttr);
 
-  if (i != threads) { 
+  if (i != threads) {
     terrno = TAOS_SYSTEM_ERROR(errno);
     taosCleanUpUdpConnection(pSet);
     return NULL;
@@ -130,14 +133,14 @@ void *taosInitUdpConnection(uint32_t ip, uint16_t port, char *label, int threads
 
 void taosStopUdpConnection(void *handle) {
   SUdpConnSet *pSet = (SUdpConnSet *)handle;
-  SUdpConn    *pConn;
+  SUdpConn *   pConn;
 
   if (pSet == NULL) return;
 
   for (int i = 0; i < pSet->threads; ++i) {
     pConn = pSet->udpConn + i;
-    if (pConn->fd >=0) shutdown(pConn->fd, SHUT_RDWR);
-    if (pConn->fd >=0) taosCloseSocket(pConn->fd);
+    if (pConn->fd >= 0) shutdown(pConn->fd, SHUT_RDWR);
+    if (pConn->fd >= 0) taosCloseSocket(pConn->fd);
     pConn->fd = -1;
   }
 
@@ -155,13 +158,13 @@ void taosStopUdpConnection(void *handle) {
 
 void taosCleanUpUdpConnection(void *handle) {
   SUdpConnSet *pSet = (SUdpConnSet *)handle;
-  SUdpConn    *pConn;
+  SUdpConn *   pConn;
 
   if (pSet == NULL) return;
 
   for (int i = 0; i < pSet->threads; ++i) {
     pConn = pSet->udpConn + i;
-    if (pConn->fd >=0) taosCloseSocket(pConn->fd);
+    if (pConn->fd >= 0) taosCloseSocket(pConn->fd);
   }
 
   tDebug("%s UDP is cleaned up", pSet->label);
@@ -182,7 +185,7 @@ void *taosOpenUdpConnection(void *shandle, void *thandle, uint32_t ip, uint16_t 
 }
 
 static void *taosRecvUdpData(void *param) {
-  SUdpConn          *pConn = param;
+  SUdpConn *         pConn = param;
   struct sockaddr_in sourceAdd;
   ssize_t            dataLen;
   unsigned int       addLen;
@@ -218,7 +221,7 @@ static void *taosRecvUdpData(void *param) {
     }
 
     int32_t size = dataLen + tsRpcOverhead;
-    char *tmsg = malloc(size);
+    char *  tmsg = malloc(size);
     if (NULL == tmsg) {
       tError("%s failed to allocate memory, size:%" PRId64, pConn->label, (int64_t)dataLen);
       continue;
@@ -257,4 +260,4 @@ int taosSendUdpData(uint32_t ip, uint16_t port, void *data, int dataLen, void *c
 
   return ret;
 }
-
+#endif
