@@ -81,7 +81,7 @@ void generateLogicplan(const char* sql) {
   ASSERT_EQ(code, 0);
 
   SCatalogReq req = {0};
-  SParseBasicCtx  ctx = {0};
+  SParseContext  ctx = {0};
   int32_t  ret = qParserExtractRequestedMetaInfo(&info1, &req, &ctx, msg, 128);
   ASSERT_EQ(ret, 0);
   ASSERT_EQ(taosArrayGetSize(req.pTableName), 1);
@@ -122,7 +122,7 @@ TEST(testCase, planner_test) {
   ASSERT_EQ(code, 0);
 
   SCatalogReq req = {0};
-  SParseBasicCtx  ctx = {0};
+  SParseContext  ctx = {0};
 
   int32_t  ret = qParserExtractRequestedMetaInfo(&info1, &req, &ctx, msg, 128);
   ASSERT_EQ(ret, 0);

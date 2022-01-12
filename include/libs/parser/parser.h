@@ -23,11 +23,17 @@ extern "C" {
 #include "parsenodes.h"
 
 typedef struct SParseContext {
-  SParseBasicCtx   ctx;
+  uint64_t         requestId;
+  int32_t          acctId;
+  const char      *db;
+  void            *pTransporter;
+  SEpSet           mgmtEpSet;
   const char      *pSql;           // sql string
   size_t           sqlLen;         // length of the sql string
   char            *pMsg;           // extended error message if exists to help identifying the problem in sql statement.
   int32_t          msgLen;         // max length of the msg
+
+  struct SCatalog *pCatalog;
 } SParseContext;
 
 /**

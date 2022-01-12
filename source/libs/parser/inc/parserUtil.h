@@ -81,7 +81,7 @@ int32_t KvRowAppend(const void *value, int32_t len, void *param);
 typedef int32_t (*_row_append_fn_t)(const void *value, int32_t len, void *param);
 int32_t parseValueToken(char** end, SToken* pToken, SSchema* pSchema, int16_t timePrec, char* tmpTokenBuf, _row_append_fn_t func, void* param, SMsgBuf* pMsgBuf);
 
-int32_t createSName(SName* pName, SToken* pTableName, SParseBasicCtx* pParseCtx, SMsgBuf* pMsgBuf);
+int32_t createSName(SName* pName, SToken* pTableName, SParseContext* pParseCtx, SMsgBuf* pMsgBuf);
 
 #ifdef __cplusplus
 }

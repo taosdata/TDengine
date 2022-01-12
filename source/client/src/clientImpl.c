@@ -151,23 +151,26 @@ int32_t parseSql(SRequestObj* pRequest, SQueryNode** pQuery) {
   STscObj* pTscObj = pRequest->pTscObj;
 
   SParseContext cxt = {
-    .ctx = {.requestId = pRequest->requestId, .acctId = pTscObj->acctId, .db = getConnectionDB(pTscObj), .pTransporter = pTscObj->pTransporter},
+    .requestId = pRequest->requestId,
+    .acctId = pTscObj->acctId,
+    .db     = getConnectionDB(pTscObj),
+    .pTransporter = pTscObj->pTransporter,
     .pSql   = pRequest->sqlstr,
     .sqlLen = pRequest->sqlLen,
     .pMsg   = pRequest->msgBuf,
     .msgLen = ERROR_MSG_BUF_DEFAULT_SIZE
   };
 
-  cxt.ctx.mgmtEpSet = getEpSet_s(&pTscObj->pAppInfo->mgmtEp);
-  int32_t code = catalogGetHandle(pTscObj->pAppInfo->clusterId, &cxt.ctx.pCatalog);
+  cxt.mgmtEpSet = getEpSet_s(&pTscObj->pAppInfo->mgmtEp);
+  int32_t code = catalogGetHandle(pTscObj->pAppInfo->clusterId, &cxt.pCatalog);
   if (code != TSDB_CODE_SUCCESS) {
-    tfree(cxt.ctx.db);
+    tfree(cxt.db);
     return code;
   }
 
   code = qParseQuerySql(&cxt, pQuery);
 
-  tfree(cxt.ctx.db);
+  tfree(cxt.db);
   return code;
 }
 
@@ -247,8 +250,9 @@ int32_t scheduleQuery(SRequestObj* pRequest, SQueryDag* pDag) {
       }
     }
 
-    pRequest->affectedRows = res.numOfRows;
-    return res.code;
+    pRequest->body.resInfo.numOfRows = res.numOfRows;
+    pRequest->code = res.code;
+    return pRequest->code;
   }
 
   return scheduleAsyncExecJob(pRequest->pTscObj->pTransporter, NULL, pDag, &pRequest->body.pQueryJob);
