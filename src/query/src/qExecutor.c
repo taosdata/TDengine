@@ -5658,7 +5658,7 @@ SOperatorInfo *createMultiwaySortOperatorInfo(SQueryRuntimeEnv *pRuntimeEnv, SEx
   pInfo->orderColumnList = getResultGroupCheckColumns(pRuntimeEnv->pQueryAttr);
   pInfo->binfo.pRes      = createOutputBuf(pExpr, numOfOutput, numOfRows);
 
-  if (pInfo->binfo.pRes == NULL) {
+  if (pInfo->orderColumnList == NULL || pInfo->binfo.pRes == NULL) {
     goto _clean;
   }
 
@@ -5670,6 +5670,9 @@ SOperatorInfo *createMultiwaySortOperatorInfo(SQueryRuntimeEnv *pRuntimeEnv, SEx
 
     int32_t numOfCols = (pInfo->orderColumnList != NULL)? (int32_t) taosArrayGetSize(pInfo->orderColumnList):0;
     pInfo->prevRow = calloc(1, (POINTER_BYTES * numOfCols + len));
+    if (pInfo->prevRow == NULL) {
+      goto _clean;
+    }
 
     int32_t offset = POINTER_BYTES * numOfCols;
     for(int32_t i = 0; i < numOfCols; ++i) {
@@ -6826,11 +6829,11 @@ SOperatorInfo* createAggregateOperatorInfo(SQueryRuntimeEnv* pRuntimeEnv, SOpera
   pInfo->binfo.pRes = createOutputBuf(pExpr, numOfOutput, numOfRows);
   pInfo->binfo.pCtx = createSQLFunctionCtx(pRuntimeEnv, pExpr, numOfOutput, &pInfo->binfo.rowCellInfoOffset);
 
-  if (pInfo->binfo.pRes == NULL || pInfo->binfo.pCtx == NULL) {
+  initResultRowInfo(&pInfo->binfo.resultRowInfo, 8, TSDB_DATA_TYPE_INT);
+
+  if (pInfo->binfo.pRes == NULL || pInfo->binfo.pCtx == NULL || pInfo->binfo.resultRowInfo.pResult == NULL) {
     goto _clean;
   }
-
-  initResultRowInfo(&pInfo->binfo.resultRowInfo, 8, TSDB_DATA_TYPE_INT);
 
   pInfo->seed = rand();
   setDefaultOutputBuf(pRuntimeEnv, &pInfo->binfo, pInfo->seed, MASTER_SCAN);
@@ -6984,11 +6987,11 @@ SOperatorInfo* createMultiTableAggOperatorInfo(SQueryRuntimeEnv* pRuntimeEnv, SO
   pInfo->binfo.pRes = createOutputBuf(pExpr, numOfOutput, (int32_t) tableGroup);
   pInfo->binfo.pCtx = createSQLFunctionCtx(pRuntimeEnv, pExpr, numOfOutput, &pInfo->binfo.rowCellInfoOffset);
 
-  if (pInfo->binfo.pRes == NULL || pInfo->binfo.pCtx == NULL) {
+  initResultRowInfo(&pInfo->binfo.resultRowInfo, (int32_t)tableGroup, TSDB_DATA_TYPE_INT);
+
+  if (pInfo->binfo.pRes == NULL || pInfo->binfo.pCtx == NULL || pInfo->binfo.resultRowInfo.pResult == NULL) {
     goto _clean;
   }
-
-  initResultRowInfo(&pInfo->binfo.resultRowInfo, (int32_t)tableGroup, TSDB_DATA_TYPE_INT);
 
   SOperatorInfo* pOperator = calloc(1, sizeof(SOperatorInfo));
   if (pOperator == NULL) {
@@ -7030,11 +7033,12 @@ SOperatorInfo* createProjectOperatorInfo(SQueryRuntimeEnv* pRuntimeEnv, SOperato
   pBInfo->pRes  = createOutputBuf(pExpr, numOfOutput, pInfo->bufCapacity);
   pBInfo->pCtx  = createSQLFunctionCtx(pRuntimeEnv, pExpr, numOfOutput, &pBInfo->rowCellInfoOffset);
 
-  if (pInfo->binfo.pRes == NULL || pInfo->binfo.pCtx == NULL) {
+  initResultRowInfo(&pBInfo->resultRowInfo, 8, TSDB_DATA_TYPE_INT);
+
+  if (pInfo->binfo.pRes == NULL || pInfo->binfo.pCtx == NULL || pBInfo->resultRowInfo.pResult == NULL) {
     goto _clean;
   }
 
-  initResultRowInfo(&pBInfo->resultRowInfo, 8, TSDB_DATA_TYPE_INT);
   setDefaultOutputBuf(pRuntimeEnv, pBInfo, pInfo->seed, MASTER_SCAN);
 
   SOperatorInfo* pOperator = calloc(1, sizeof(SOperatorInfo));
@@ -7165,11 +7169,11 @@ SOperatorInfo* createTimeIntervalOperatorInfo(SQueryRuntimeEnv* pRuntimeEnv, SOp
   pInfo->pCtx = createSQLFunctionCtx(pRuntimeEnv, pExpr, numOfOutput, &pInfo->rowCellInfoOffset);
   pInfo->pRes = createOutputBuf(pExpr, numOfOutput, pRuntimeEnv->resultInfo.capacity);
 
-  if (pInfo->pRes == NULL || pInfo->pCtx == NULL) {
+  initResultRowInfo(&pInfo->resultRowInfo, 8, TSDB_DATA_TYPE_INT);
+
+  if (pInfo->pRes == NULL || pInfo->pCtx == NULL || pInfo->resultRowInfo.pResult == NULL) {
     goto _clean;
   }
-
-  initResultRowInfo(&pInfo->resultRowInfo, 8, TSDB_DATA_TYPE_INT);
 
   SOperatorInfo* pOperator = calloc(1, sizeof(SOperatorInfo));
   if (pOperator == NULL) {
@@ -7207,11 +7211,11 @@ SOperatorInfo* createAllTimeIntervalOperatorInfo(SQueryRuntimeEnv* pRuntimeEnv, 
   pInfo->pCtx = createSQLFunctionCtx(pRuntimeEnv, pExpr, numOfOutput, &pInfo->rowCellInfoOffset);
   pInfo->pRes = createOutputBuf(pExpr, numOfOutput, pRuntimeEnv->resultInfo.capacity);
 
-  if (pInfo->pRes == NULL || pInfo->pCtx == NULL) {
+  initResultRowInfo(&pInfo->resultRowInfo, 8, TSDB_DATA_TYPE_INT);
+
+  if (pInfo->pRes == NULL || pInfo->pCtx == NULL || pInfo->resultRowInfo.pResult == NULL) {
     goto _clean;
   }
-
-  initResultRowInfo(&pInfo->resultRowInfo, 8, TSDB_DATA_TYPE_INT);
 
   SOperatorInfo* pOperator = calloc(1, sizeof(SOperatorInfo));
   if (pOperator == NULL) {
@@ -7250,11 +7254,11 @@ SOperatorInfo* createStatewindowOperatorInfo(SQueryRuntimeEnv* pRuntimeEnv, SOpe
   pInfo->binfo.pCtx = createSQLFunctionCtx(pRuntimeEnv, pExpr, numOfOutput, &pInfo->binfo.rowCellInfoOffset);
   pInfo->binfo.pRes = createOutputBuf(pExpr, numOfOutput, pRuntimeEnv->resultInfo.capacity);
 
-  if (pInfo->binfo.pRes == NULL || pInfo->binfo.pCtx == NULL) {
+  initResultRowInfo(&pInfo->binfo.resultRowInfo, 8, TSDB_DATA_TYPE_INT);
+
+  if (pInfo->binfo.pRes == NULL || pInfo->binfo.pCtx == NULL || pInfo->binfo.resultRowInfo.pResult == NULL) {
     goto _clean;
   }
-
-  initResultRowInfo(&pInfo->binfo.resultRowInfo, 8, TSDB_DATA_TYPE_INT);
 
   SOperatorInfo* pOperator = calloc(1, sizeof(SOperatorInfo));
   if (pOperator == NULL) {
@@ -7291,11 +7295,11 @@ SOperatorInfo* createSWindowOperatorInfo(SQueryRuntimeEnv* pRuntimeEnv, SOperato
   pInfo->binfo.pCtx = createSQLFunctionCtx(pRuntimeEnv, pExpr, numOfOutput, &pInfo->binfo.rowCellInfoOffset);
   pInfo->binfo.pRes = createOutputBuf(pExpr, numOfOutput, pRuntimeEnv->resultInfo.capacity);
 
-  if (pInfo->binfo.pRes == NULL || pInfo->binfo.pCtx == NULL) {
+  initResultRowInfo(&pInfo->binfo.resultRowInfo, 8, TSDB_DATA_TYPE_INT);
+
+  if (pInfo->binfo.pRes == NULL || pInfo->binfo.pCtx == NULL || pInfo->binfo.resultRowInfo.pResult == NULL) {
     goto _clean;
   }
-
-  initResultRowInfo(&pInfo->binfo.resultRowInfo, 8, TSDB_DATA_TYPE_INT);
 
   pInfo->prevTs   = INT64_MIN;
   pInfo->reptScan = false;
@@ -7334,11 +7338,11 @@ SOperatorInfo* createMultiTableTimeIntervalOperatorInfo(SQueryRuntimeEnv* pRunti
   pInfo->pCtx = createSQLFunctionCtx(pRuntimeEnv, pExpr, numOfOutput, &pInfo->rowCellInfoOffset);
   pInfo->pRes = createOutputBuf(pExpr, numOfOutput, pRuntimeEnv->resultInfo.capacity);
 
-  if (pInfo->pRes == NULL || pInfo->pCtx == NULL) {
+  initResultRowInfo(&pInfo->resultRowInfo, 8, TSDB_DATA_TYPE_INT);
+
+  if (pInfo->pRes == NULL || pInfo->pCtx == NULL || pInfo->resultRowInfo.pResult == NULL) {
     goto _clean;
   }
-
-  initResultRowInfo(&pInfo->resultRowInfo, 8, TSDB_DATA_TYPE_INT);
 
   SOperatorInfo* pOperator = calloc(1, sizeof(SOperatorInfo));
   if (pOperator == NULL) {
@@ -7376,11 +7380,11 @@ SOperatorInfo* createAllMultiTableTimeIntervalOperatorInfo(SQueryRuntimeEnv* pRu
   pInfo->pCtx = createSQLFunctionCtx(pRuntimeEnv, pExpr, numOfOutput, &pInfo->rowCellInfoOffset);
   pInfo->pRes = createOutputBuf(pExpr, numOfOutput, pRuntimeEnv->resultInfo.capacity);
 
-  if (pInfo->pRes == NULL || pInfo->pCtx == NULL) {
+  initResultRowInfo(&pInfo->resultRowInfo, 8, TSDB_DATA_TYPE_INT);
+
+  if (pInfo->pRes == NULL || pInfo->pCtx == NULL || pInfo->resultRowInfo.pResult == NULL) {
     goto _clean;
   }
-
-  initResultRowInfo(&pInfo->resultRowInfo, 8, TSDB_DATA_TYPE_INT);
 
   SOperatorInfo* pOperator = calloc(1, sizeof(SOperatorInfo));
   if (pOperator == NULL) {
@@ -7427,11 +7431,11 @@ SOperatorInfo* createGroupbyOperatorInfo(SQueryRuntimeEnv* pRuntimeEnv, SOperato
 
   pInfo->binfo.pRes = createOutputBuf(pExpr, numOfOutput, pRuntimeEnv->resultInfo.capacity);
 
-  if (pInfo->binfo.pCtx == NULL || pInfo->binfo.pRes == NULL) {
+  initResultRowInfo(&pInfo->binfo.resultRowInfo, 8, TSDB_DATA_TYPE_INT);
+
+  if (pInfo->binfo.pCtx == NULL || pInfo->binfo.pRes == NULL || pInfo->binfo.resultRowInfo.pResult == NULL) {
     goto _clean;
   }
-
-  initResultRowInfo(&pInfo->binfo.resultRowInfo, 8, TSDB_DATA_TYPE_INT);
 
   SOperatorInfo* pOperator = calloc(1, sizeof(SOperatorInfo));
   if (pOperator == NULL) {
