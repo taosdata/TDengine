@@ -37,6 +37,10 @@ do
       #echo "pkgFile=$OPTARG"
       pkgFile=$(echo $OPTARG)
       ;;
+    b)
+      #echo "branchName=$OPTARG"
+      branchName=$(echo $OPTARG)
+      ;;
     V)
       #echo "verType=$OPTARG"
       verType=$(echo $OPTARG)
@@ -94,8 +98,11 @@ docker login -u tdengine -p ${passWord}  #replace the docker registry username a
 docker push tdengine/tdengine-${dockername}:${version}
 
 # set this version to latest version
-docker tag tdengine/tdengine-${dockername}:${version} tdengine/tdengine-${dockername}:latest
-docker push tdengine/tdengine-${dockername}:latest
+if  [ "$branchName" == "2.4" ] || [ "$branchName" == "develop" ]  ;then
+  docker tag tdengine/tdengine-${dockername}:${version} tdengine/tdengine-${dockername}:latest
+  docker push tdengine/tdengine-${dockername}:latest
+fi
+
 
 
 rm -f ${pkgFile}

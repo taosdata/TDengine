@@ -3,6 +3,7 @@
 
 set -e
 #set -x
+
 scriptDir=$(dirname $(readlink -f $0))
 
 source $scriptDir/sed_power.sh
