@@ -250,8 +250,9 @@ int32_t scheduleQuery(SRequestObj* pRequest, SQueryDag* pDag) {
       }
     }
 
-    pRequest->affectedRows = res.numOfRows;
-    return res.code;
+    pRequest->body.resInfo.numOfRows = res.numOfRows;
+    pRequest->code = res.code;
+    return pRequest->code;
   }
 
   return scheduleAsyncExecJob(pRequest->pTscObj->pTransporter, NULL, pDag, &pRequest->body.pQueryJob);
