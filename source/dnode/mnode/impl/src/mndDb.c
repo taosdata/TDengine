@@ -613,32 +613,14 @@ static int32_t mndSetUpdateDbRedoActions(SMnode *pMnode, STrans *pTrans, SDbObj 
 static int32_t mndUpdateDb(SMnode *pMnode, SMnodeMsg *pReq, SDbObj *pOld, SDbObj *pNew) {
   int32_t code = -1;
   STrans *pTrans = mndTransCreate(pMnode, TRN_POLICY_RETRY, &pReq->rpcMsg);
-  if (pTrans == NULL) {
-    mError("db:%s, failed to update since %s", pOld->name, terrstr());
-    return terrno;
-  }
+  if (pTrans == NULL) goto UPDATE_DB_OVER;
 
   mDebug("trans:%d, used to update db:%s", pTrans->id, pOld->name);
 
-  if (mndSetUpdateDbRedoLogs(pMnode, pTrans, pOld, pNew) != 0) {
-    mError("trans:%d, failed to set redo log since %s", pTrans->id, terrstr());
-    goto UPDATE_DB_OVER;
-  }
-
-  if (mndSetUpdateDbCommitLogs(pMnode, pTrans, pOld, pNew) != 0) {
-    mError("trans:%d, failed to set commit log since %s", pTrans->id, terrstr());
-    goto UPDATE_DB_OVER;
-  }
-
-  if (mndSetUpdateDbRedoActions(pMnode, pTrans, pOld, pNew) != 0) {
-    mError("trans:%d, failed to set redo actions since %s", pTrans->id, terrstr());
-    goto UPDATE_DB_OVER;
-  }
-
-  if (mndTransPrepare(pMnode, pTrans) != 0) {
-    mError("trans:%d, failed to prepare since %s", pTrans->id, terrstr());
-    goto UPDATE_DB_OVER;
-  }
+  if (mndSetUpdateDbRedoLogs(pMnode, pTrans, pOld, pNew) != 0) goto UPDATE_DB_OVER;
+  if (mndSetUpdateDbCommitLogs(pMnode, pTrans, pOld, pNew) != 0) goto UPDATE_DB_OVER;
+  if (mndSetUpdateDbRedoActions(pMnode, pTrans, pOld, pNew) != 0) goto UPDATE_DB_OVER;
+  if (mndTransPrepare(pMnode, pTrans) != 0) goto UPDATE_DB_OVER;
 
   code = 0;
 
