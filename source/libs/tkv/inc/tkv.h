@@ -13,27 +13,27 @@
  * along with this program. If not, see <http://www.gnu.org/licenses/>.
  */
 
-#ifndef _TD_TDISK_MGR_H_
-#define _TD_TDISK_MGR_H_
+#ifndef _TD_TKV_H_
+#define _TD_TKV_H_
+
+#include "os.h"
 
 #ifdef __cplusplus
 extern "C" {
 #endif
 
-#include "os.h"
+// Forward declaration
+typedef struct TDB     TDB;
+typedef struct TDB_ENV TDB_ENV;
 
-#include "tkvDef.h"
-
-typedef struct SDiskMgr SDiskMgr;
-
-int     tdmOpen(SDiskMgr **ppDiskMgr, const char *fname, uint16_t pgsize);
-int     tdmClose(SDiskMgr *pDiskMgr);
-int     tdmReadPage(SDiskMgr *pDiskMgr, pgid_t pgid, void *pData);
-int     tdmWritePage(SDiskMgr *pDiskMgr, pgid_t pgid, const void *pData);
-int32_t tdmAllocPage(SDiskMgr *pDiskMgr);
+// SKey
+typedef struct {
+  void *   bdata;
+  uint32_t size;
+} TDB_KEY, TDB_VALUE;
 
 #ifdef __cplusplus
 }
 #endif
 
-#endif /*_TD_TDISK_MGR_H_*/
+#endif /*_TD_TKV_H_*/
