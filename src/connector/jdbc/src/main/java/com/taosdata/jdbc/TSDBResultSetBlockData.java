@@ -151,6 +151,7 @@ public class TSDBResultSetBlockData {
                 this.colData.set(col, lb);
                 break;
             }
+            case TSDBConstants.TSDB_DATA_TYPE_JSON:
             case TSDBConstants.TSDB_DATA_TYPE_NCHAR: {
                 ByteBuffer buf = ByteBuffer.wrap(value, 0, length);
                 buf.order(ByteOrder.LITTLE_ENDIAN);
@@ -199,6 +200,7 @@ public class TSDBResultSetBlockData {
             }
 
             case TSDBConstants.TSDB_DATA_TYPE_NCHAR:
+            case TSDBConstants.TSDB_DATA_TYPE_JSON:
             case TSDBConstants.TSDB_DATA_TYPE_BINARY: {
                 return Integer.parseInt((String) obj);
             }
@@ -232,6 +234,7 @@ public class TSDBResultSetBlockData {
             }
 
             case TSDBConstants.TSDB_DATA_TYPE_NCHAR:
+            case TSDBConstants.TSDB_DATA_TYPE_JSON:
             case TSDBConstants.TSDB_DATA_TYPE_BINARY: {
                 if ("TRUE".compareToIgnoreCase((String) obj) == 0) {
                     return Boolean.TRUE;
@@ -271,6 +274,7 @@ public class TSDBResultSetBlockData {
             }
 
             case TSDBConstants.TSDB_DATA_TYPE_NCHAR:
+            case TSDBConstants.TSDB_DATA_TYPE_JSON:
             case TSDBConstants.TSDB_DATA_TYPE_BINARY: {
                 return Long.parseLong((String) obj);
             }
@@ -308,6 +312,7 @@ public class TSDBResultSetBlockData {
             }
 
             case TSDBConstants.TSDB_DATA_TYPE_NCHAR:
+            case TSDBConstants.TSDB_DATA_TYPE_JSON:
             case TSDBConstants.TSDB_DATA_TYPE_BINARY: {
                 return Double.parseDouble((String) obj);
             }
@@ -406,6 +411,7 @@ public class TSDBResultSetBlockData {
                 return new String(dest);
             }
 
+            case TSDBConstants.TSDB_DATA_TYPE_JSON:
             case TSDBConstants.TSDB_DATA_TYPE_NCHAR: {
                 ByteBuffer bb = (ByteBuffer) this.colData.get(col);
                 bb.position((fieldSize + BINARY_LENGTH_OFFSET) * this.rowIndex);

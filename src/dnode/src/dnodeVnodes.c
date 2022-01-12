@@ -287,7 +287,7 @@ static void dnodeSendStatusMsg(void *handle, void *tmrId) {
 
   dnodeGetCfg(&pStatus->dnodeId, pStatus->clusterId);
   pStatus->dnodeId          = htonl(dnodeGetDnodeId());
-  pStatus->version          = htonl(tsVersion);
+  pStatus->version          = htonl(tsVersion >> 8);
   pStatus->lastReboot       = htonl(tsRebootTime);
   pStatus->numOfCores       = htons((uint16_t) tsNumOfCores);
   pStatus->diskAvailable    = tsAvailDataDirGB;

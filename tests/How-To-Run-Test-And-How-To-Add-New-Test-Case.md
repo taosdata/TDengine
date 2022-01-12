@@ -8,10 +8,9 @@
 
 3.  mkdir debug; cd debug; cmake ..; make ; sudo make install
 
-4.  pip install ../src/connector/python ; pip3 install
-    ../src/connector/python
+4.  cd ../tests && pip3 install -r requirements.txt
 
-5.  pip install numpy; pip3 install numpy fabric2 psutil pandas(numpy is required only if you need to run querySort.py)  
+
 
 >   Note: Both Python2 and Python3 are currently supported by the Python test
 >   framework. Since Python2 is no longer officially supported by Python Software

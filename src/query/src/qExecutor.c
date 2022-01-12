@@ -1808,11 +1808,17 @@ static bool functionNeedToExecute(SQueryRuntimeEnv *pRuntimeEnv, SQLFunctionCtx 
   }
 
   if (functionId == TSDB_FUNC_FIRST_DST || functionId == TSDB_FUNC_FIRST) {
+    // if param[2] is set value, input data come from client, order is no relation with pQueryAttr->order, so always return true
+    if(pCtx->param[2].nType == TSDB_DATA_TYPE_INT)
+      return true;
     return QUERY_IS_ASC_QUERY(pQueryAttr);
   }
 
   // denote the order type
   if ((functionId == TSDB_FUNC_LAST_DST || functionId == TSDB_FUNC_LAST)) {
+    // if param[2] is set value, input data come from client, order is no relation with pQueryAttr->order , so always return true
+    if(pCtx->param[2].nType == TSDB_DATA_TYPE_INT)
+      return true;
     return pCtx->param[0].i64 == pQueryAttr->order.order;
   }
 
@@ -8264,10 +8270,6 @@ int32_t convertQueryMsg(SQueryTableMsg *pQueryMsg, SQueryParam* param) {
     goto _cleanup;
   }
 
-
-
-/*
-  //MSG EXTEND DEMO
   if (pQueryMsg->extend) {
     pMsg += pQueryMsg->sqlstrLen;
 
@@ -8276,19 +8278,24 @@ int32_t convertQueryMsg(SQueryTableMsg *pQueryMsg, SQueryParam* param) {
       tlv = (STLV *)pMsg;
       tlv->type = ntohs(tlv->type);
       tlv->len = ntohl(tlv->len);
-      if (tlv->len > 0) {
-        *(int16_t *)tlv->value = ntohs(*(int16_t *)tlv->value);
-        qDebug("Got TLV,type:%d,len:%d,value:%d", tlv->type, tlv->len, *(int16_t*)tlv->value);
-        pMsg += sizeof(*tlv) + tlv->len;
-        continue;
+      if (tlv->type == TLV_TYPE_END_MARK) {
+        break;
       }
-
-      break;
+      switch(tlv->type) {
+        case TLV_TYPE_META_VERSION: {
+          assert(tlv->len == 2*sizeof(int16_t));
+          param->schemaVersion = ntohs(*(int16_t*)tlv->value);
+          param->tagVersion = ntohs(*(int16_t*)(tlv->value + sizeof(int16_t)));
+          pMsg += sizeof(*tlv) + tlv->len;
+          break;
+        }
+        default: {
+          pMsg += sizeof(*tlv) + tlv->len;
+          break;
+        }
+      }
     }
   }
-  
-*/
-  
 
   qDebug("qmsg:%p query %d tables, type:%d, qrange:%" PRId64 "-%" PRId64 ", numOfGroupbyTagCols:%d, order:%d, "
          "outputCols:%d, numOfCols:%d, interval:%" PRId64 ", fillType:%d, comptsLen:%d, compNumOfBlocks:%d, limit:%" PRId64 ", offset:%" PRId64,
