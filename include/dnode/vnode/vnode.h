@@ -32,7 +32,7 @@ extern "C" {
 /* ------------------------ TYPES EXPOSED ------------------------ */
 typedef struct SVnode SVnode;
 typedef struct SDnode SDnode;
-typedef void (*PutReqToVQueryQFp)(SDnode *pDnode, struct SRpcMsg *pReq);
+typedef int32_t (*PutReqToVQueryQFp)(SDnode *pDnode, struct SRpcMsg *pReq);
 
 typedef struct SVnodeCfg {
   int32_t vgId;

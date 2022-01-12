@@ -90,10 +90,12 @@ int vnodeScheduleTask(SVnodeTask* pTask) {
   return 0;
 }
 
-void vnodePutReqToVQueryQ(SVnode* pVnode, struct SRpcMsg* pReq) {
-  assert(vnodeMgr.putReqToVQueryQFp);
-  assert(pVnode->pDnode);
-  (*vnodeMgr.putReqToVQueryQFp)(pVnode->pDnode, pReq);
+int32_t vnodePutReqToVQueryQ(SVnode* pVnode, struct SRpcMsg* pReq) {
+  if (pVnode == NULL || pVnode->pDnode == NULL || vnodeMgr.putReqToVQueryQFp == NULL) {
+    terrno = TSDB_CODE_VND_APP_ERROR;
+    return -1;
+  }
+  return (*vnodeMgr.putReqToVQueryQFp)(pVnode->pDnode, pReq);
 }
 
 /* ------------------------ STATIC METHODS ------------------------ */

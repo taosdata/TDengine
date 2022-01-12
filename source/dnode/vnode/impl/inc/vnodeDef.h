@@ -82,7 +82,7 @@ struct SVnode {
 
 int vnodeScheduleTask(SVnodeTask* task);
 
-void vnodePutReqToVQueryQ(SVnode *pVnode, struct SRpcMsg *pReq);
+int32_t vnodePutReqToVQueryQ(SVnode *pVnode, struct SRpcMsg *pReq);
 
 #ifdef __cplusplus
 }
