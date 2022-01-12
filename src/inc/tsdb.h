@@ -229,6 +229,8 @@ typedef struct {
   uint32_t  numOfTables;
   SArray   *pGroupList;
   SHashObj *map;  // speedup acquire the tableQueryInfo by table uid
+  int32_t sVersion;
+  int32_t tVersion;
 } STableGroupInfo;
 
 #define TSDB_BLOCK_DIST_STEP_ROWS 16

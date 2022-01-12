@@ -167,11 +167,11 @@ function install_main_path() {
     ${csudo}mkdir -p ${install_main_dir}
     ${csudo}mkdir -p ${install_main_dir}/cfg
     ${csudo}mkdir -p ${install_main_dir}/bin
-    ${csudo}mkdir -p ${install_main_dir}/connector
+#    ${csudo}mkdir -p ${install_main_dir}/connector
     ${csudo}mkdir -p ${install_main_dir}/driver
     ${csudo}mkdir -p ${install_main_dir}/examples
     ${csudo}mkdir -p ${install_main_dir}/include
-    ${csudo}mkdir -p ${install_main_dir}/init.d
+#    ${csudo}mkdir -p ${install_main_dir}/init.d
     if [ "$verMode" == "cluster" ]; then
         ${csudo}mkdir -p ${nginx_dir}
     fi
@@ -639,14 +639,14 @@ function install_service_on_sysvinit() {
     # Install taosd service
 
     if ((${os_type}==1)); then
-        ${csudo}cp -f ${script_dir}/init.d/taosd.deb ${install_main_dir}/init.d/taosd
+#        ${csudo}cp -f ${script_dir}/init.d/taosd.deb ${install_main_dir}/init.d/taosd
         ${csudo}cp    ${script_dir}/init.d/taosd.deb ${service_config_dir}/taosd && ${csudo}chmod a+x ${service_config_dir}/taosd
-        ${csudo}cp -f ${script_dir}/init.d/tarbitratord.deb ${install_main_dir}/init.d/tarbitratord
+#        ${csudo}cp -f ${script_dir}/init.d/tarbitratord.deb ${install_main_dir}/init.d/tarbitratord
         ${csudo}cp    ${script_dir}/init.d/tarbitratord.deb ${service_config_dir}/tarbitratord && ${csudo}chmod a+x ${service_config_dir}/tarbitratord
     elif ((${os_type}==2)); then
-        ${csudo}cp -f ${script_dir}/init.d/taosd.rpm ${install_main_dir}/init.d/taosd
+#        ${csudo}cp -f ${script_dir}/init.d/taosd.rpm ${install_main_dir}/init.d/taosd
         ${csudo}cp    ${script_dir}/init.d/taosd.rpm ${service_config_dir}/taosd && ${csudo}chmod a+x ${service_config_dir}/taosd
-        ${csudo}cp -f ${script_dir}/init.d/tarbitratord.rpm ${install_main_dir}/init.d/tarbitratord
+#        ${csudo}cp -f ${script_dir}/init.d/tarbitratord.rpm ${install_main_dir}/init.d/tarbitratord
         ${csudo}cp    ${script_dir}/init.d/tarbitratord.rpm ${service_config_dir}/tarbitratord && ${csudo}chmod a+x ${service_config_dir}/tarbitratord
     fi
 
@@ -706,7 +706,7 @@ function install_service_on_systemd() {
         ${csudo}cp ${script_dir}/cfg/taosd.service \
         ${service_config_dir}/ || :
     ${csudo}systemctl daemon-reload
-    
+
     #taosd_service_config="${service_config_dir}/taosd.service"
     #${csudo}bash -c "echo '[Unit]'                             >> ${taosd_service_config}"
     #${csudo}bash -c "echo 'Description=TDengine server service' >> ${taosd_service_config}"
@@ -736,7 +736,7 @@ function install_service_on_systemd() {
         ${csudo}cp ${script_dir}/cfg/tarbitratord.service \
         ${service_config_dir}/ || :
     ${csudo}systemctl daemon-reload
-    
+
     #tarbitratord_service_config="${service_config_dir}/tarbitratord.service"
     #${csudo}bash -c "echo '[Unit]'                                  >> ${tarbitratord_service_config}"
     #${csudo}bash -c "echo 'Description=TDengine arbitrator service' >> ${tarbitratord_service_config}"
@@ -923,15 +923,14 @@ function update_TDengine() {
     install_log
     install_header
     install_lib
-    if [ "$pagMode" != "lite" ]; then
-      install_connector
-    fi
+#    if [ "$pagMode" != "lite" ]; then
+#      install_connector
+#    fi
     install_examples
     if [ -z $1 ]; then
         install_bin
         install_service
         install_taosadapter_service
-        install_config
         install_taosadapter_config
 
         openresty_work=false
@@ -1008,9 +1007,9 @@ function install_TDengine() {
     #install_avro lib
     #install_avro lib64
 
-    if [ "$pagMode" != "lite" ]; then
-      install_connector
-    fi
+#    if [ "$pagMode" != "lite" ]; then
+#      install_connector
+#    fi
     install_examples
 
     if [ -z $1 ]; then # install service and client
@@ -1018,6 +1017,7 @@ function install_TDengine() {
         install_bin
         install_service
         install_taosadapter_service
+        install_taosadapter_config
 
         openresty_work=false
         if [ "$verMode" == "cluster" ]; then

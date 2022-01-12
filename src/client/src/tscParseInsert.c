@@ -481,32 +481,12 @@ int tsParseOneRow(char **str, STableDataBlocks *pDataBlocks, int16_t timePrec, i
 
     // Remove quotation marks
     if (TK_STRING == sToken.type) {
-      // delete escape character: \\, \', \"
-      char delim = sToken.z[0];
-
-      int32_t cnt = 0;
-      int32_t j = 0;
       if (sToken.n >= TSDB_MAX_BYTES_PER_ROW) {
         return tscSQLSyntaxErrMsg(pInsertParam->msg, "too long string", sToken.z);
       }
-
-      for (uint32_t k = 1; k < sToken.n - 1; ++k) {
-        if (sToken.z[k] == '\\' || (sToken.z[k] == delim && sToken.z[k + 1] == delim)) {
-          tmpTokenBuf[j] = sToken.z[k + 1];
-
-          cnt++;
-          j++;
-          k++;
-          continue;
-        }
-
-        tmpTokenBuf[j] = sToken.z[k];
-        j++;
-      }
-
-      tmpTokenBuf[j] = 0;
+      strncpy(tmpTokenBuf, sToken.z, sToken.n);
+      sToken.n = stringProcess(tmpTokenBuf, sToken.n);
       sToken.z = tmpTokenBuf;
-      sToken.n -= 2 + cnt;
     }
 
     bool    isPrimaryKey = (colIndex == PRIMARYKEY_TIMESTAMP_COL_INDEX);
@@ -1057,10 +1037,12 @@ static int32_t tscCheckIfCreateTable(char **sqlstr, SSqlObj *pSql, char** boundC
         break;
       }
 
+      char* tmp = NULL;
       // Remove quotation marks
       if (TK_STRING == sToken.type) {
-        sToken.z++;
-        sToken.n -= 2;
+        tmp = strndup(sToken.z, sToken.n);
+        sToken.n = stringProcess(tmp, sToken.n);
+        sToken.z = tmp;
       }
 
       char tagVal[TSDB_MAX_TAGS_LEN] = {0};
@@ -1068,6 +1050,7 @@ static int32_t tscCheckIfCreateTable(char **sqlstr, SSqlObj *pSql, char** boundC
       if (code != TSDB_CODE_SUCCESS) {
         tdDestroyKVRowBuilder(&kvRowBuilder);
         tscDestroyBoundColumnInfo(&spd);
+        tfree(tmp);
         return code;
       }
 
@@ -1078,18 +1061,18 @@ static int32_t tscCheckIfCreateTable(char **sqlstr, SSqlObj *pSql, char** boundC
         if(sToken.n > TSDB_MAX_JSON_TAGS_LEN/TSDB_NCHAR_SIZE){
           tdDestroyKVRowBuilder(&kvRowBuilder);
           tscDestroyBoundColumnInfo(&spd);
+          tfree(tmp);
           return tscSQLSyntaxErrMsg(pInsertParam->msg, "json tag too long", NULL);
         }
-        char* json = strndup(sToken.z, sToken.n);
-        code = parseJsontoTagData(json, &kvRowBuilder, pInsertParam->msg, pTagSchema[spd.boundedColumns[0]].colId);
+        code = parseJsontoTagData(sToken.z, &kvRowBuilder, pInsertParam->msg, pTagSchema[spd.boundedColumns[0]].colId);
         if (code != TSDB_CODE_SUCCESS) {
           tdDestroyKVRowBuilder(&kvRowBuilder);
           tscDestroyBoundColumnInfo(&spd);
-          tfree(json);
+          tfree(tmp);
           return code;
         }
-        tfree(json);
       }
+      tfree(tmp);
     }
     tscDestroyBoundColumnInfo(&spd);
 
@@ -1246,12 +1229,8 @@ static int32_t parseBoundColumns(SInsertStatementParam *pInsertParam, SParsedDat
     strncpy(tmpTokenBuf, sToken.z, sToken.n);
     sToken.z = tmpTokenBuf;
 
-    if (TK_STRING == sToken.type) {
-      tscDequoteAndTrimToken(&sToken);
-    }
-
-    if (TK_ID == sToken.type) {
-      tscRmEscapeAndTrimToken(&sToken);
+    if (TK_STRING == sToken.type || TK_ID == sToken.type) {
+      sToken.n = stringProcess(sToken.z, sToken.n);
     }
 
     if (sToken.type == TK_RP) {
@@ -1371,7 +1350,7 @@ _clean:
 static int32_t getFileFullPath(SStrToken* pToken, char* output) {
   char path[PATH_MAX] = {0};
   strncpy(path, pToken->z, pToken->n);
-  strdequote(path);
+  stringProcess(path, (int32_t)strlen(path));
 
   wordexp_t full_path;
   if (wordexp(path, &full_path, 0) != 0) {

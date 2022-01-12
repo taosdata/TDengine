@@ -140,8 +140,8 @@ class TDTestCase:
 
         tablenames = ["sub_table1_1","sub_table1_2","sub_table1_3","sub_table2_1","sub_table2_2","sub_table2_3","regular_table_1","regular_table_2","regular_table_3"]
 
-        abnormal_list = ["()","(NULL)","(*)","(abc)","( , )","(NULL,*)","( ,NULL)","(%)","(+)","(*,)","(*, /)","(ts,10)","(ts,*)" "(ts,tbname*10)","(ts,tagname)","(ts,now-2d+3m)","(ts,2d+3m-2s)",
-        "(ts,2d+3m-2s,)","(ts+1d,10s)","(ts+10d,NULL)" ,"(ts,now -1m%1d)","(ts+10d)","(ts+10d,_c0)","(ts+10d,)","(ts,%)","(ts, , )","(ts,abc)","(ts,/)","(ts,*)","(ts,now)","(ts,now+1d)","(ts,_c0)","(ts,1s,100)",
+        abnormal_list = ["()","(NULL)","(*)","(abc)","( , )","(NULL,*)","( ,NULL)","(%)","(+)","(*,)","(*, /)","(ts,10)","(ts,*)" "(ts,tbname*10)","(ts,tagname)","(ts,now-2d+3m)",
+        "(ts,2d+3m-2s,NULL)","(ts+1d,10s)","(ts+10d,NULL)" ,"(ts,now -1m%1d)","(ts+10d)","(ts+10d,_c0)","(ts+10d,)","(ts,%)","(ts, , m)","(ts,abc)","(ts,/)","(ts,*)","(ts,now)","(ts,now+1d)","(ts,_c0)","(ts,1s,100)",
         "(ts,1s,abc)","(ts,1s,_c0)","(ts,1s,*)","(ts,1s,NULL)","(ts,,_c0)","(ts,tbname)","(ts,tbname,ts)","(ts,0,tbname)","('2021-11-18 00:00:10')","('2021-11-18 00:00:10', 1s)",
         "('2021-11-18T00:00:10+0800', '1s')","('2021-11-18T00:00:10Z', '1s')","('2021-11-18T00:00:10+0800', 10000000d,)","('ts', ,2021-11-18T00:00:10+0800, )"]
         
@@ -1597,7 +1597,7 @@ class TDTestCase:
     def run(self):
         tdSql.prepare()
         self.prepare_data()
-        # self.abnormal_common_test()
+        self.abnormal_common_test()
         self.abnormal_use_test()
         self.query_filter()
         self.query_interval()
