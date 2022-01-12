@@ -85,19 +85,19 @@ int tfsInit(SDiskCfg *pDiskCfg, int ndisk) {
                           taosGetDefaultHashFunction(TSDB_DATA_TYPE_BINARY), false, HASH_NO_LOCK);
   if (pfs->map == NULL) {
     terrno = TSDB_CODE_FS_OUT_OF_MEMORY;
-    tfsDestroy();
+    tfsCleanup();
     return -1;
   }
 
   for (int idisk = 0; idisk < ndisk; idisk++) {
     if (tfsMount(pDiskCfg + idisk) < 0) {
-      tfsDestroy();
+      tfsCleanup();
       return -1;
     }
   }
 
   if (tfsCheck() < 0) {
-    tfsDestroy();
+    tfsCleanup();
     return -1;
   }
 
@@ -109,7 +109,7 @@ int tfsInit(SDiskCfg *pDiskCfg, int ndisk) {
   return 0;
 }
 
-void tfsDestroy() {
+void tfsCleanup() {
   taosHashCleanup(pfs->map);
   pfs->map = NULL;
 

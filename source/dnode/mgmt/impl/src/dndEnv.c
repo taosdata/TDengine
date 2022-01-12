@@ -173,18 +173,6 @@ SDnode *dndCreate(SDnodeObjCfg *pCfg) {
     return NULL;
   }
 
-  if (rpcInit() != 0) {
-    dError("failed to init rpc since %s", terrstr());
-    dndClose(pDnode);
-    return NULL;
-  }
-
-  if (walInit() != 0) {
-    dError("failed to init wal since %s", terrstr());
-    dndClose(pDnode);
-    return NULL;
-  }
-
   SDiskCfg dCfg;
   strcpy(dCfg.dir, pDnode->cfg.dataDir);
   dCfg.level = 0;
@@ -277,10 +265,8 @@ void dndClose(SDnode *pDnode) {
   dndCleanupQnode(pDnode);
   dndCleanupVnodes(pDnode);
   dndCleanupMgmt(pDnode);
-  vnodeClear();
-  tfsDestroy();
-  walCleanUp();
-  rpcCleanup();
+  vnodeCleanup();
+  tfsCleanup();
 
   dndCloseImp(pDnode);
   free(pDnode);
@@ -298,6 +284,18 @@ int32_t dndInit(const SDnodeEnvCfg *pCfg) {
   taosBlockSIGPIPE();
   taosResolveCRC();
 
+  if (rpcInit() != 0) {
+    dError("failed to init rpc since %s", terrstr());
+    dndCleanup();
+    return -1;
+  }
+
+  if (walInit() != 0) {
+    dError("failed to init wal since %s", terrstr());
+    dndCleanup();
+    return -1;
+  }
+
   memcpy(&dndEnv.cfg, pCfg, sizeof(SDnodeEnvCfg));
   dInfo("dnode env is initialized");
   return 0;
@@ -308,6 +306,9 @@ void dndCleanup() {
     dError("dnode env is already cleaned up");
     return;
   }
+
+  walCleanUp();
+  rpcCleanup();
 
   taosStopCacheRefreshWorker();
   dInfo("dnode env is cleaned up");
