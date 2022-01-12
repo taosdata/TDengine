@@ -375,7 +375,7 @@ SFillInfo* taosCreateFillInfo(int32_t order, TSKEY skey, int32_t numOfTags, int3
 
   pFillInfo->pData = malloc(POINTER_BYTES * numOfCols);
   if (pFillInfo->pData == NULL) {
-    tfree(pFillInfo->pData);
+    tfree(pFillInfo);
     return NULL;
   }
 
