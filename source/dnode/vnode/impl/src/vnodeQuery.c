@@ -68,6 +68,7 @@ static int vnodeGetTableMeta(SVnode *pVnode, SRpcMsg *pMsg, SRpcMsg **pRsp) {
 
   pTbCfg = metaGetTbInfoByName(pVnode->pMeta, pReq->tableFname, &uid);
   if (pTbCfg == NULL) {
+    code = TSDB_CODE_VND_TB_NOT_EXIST;
     goto _exit;
   }
 

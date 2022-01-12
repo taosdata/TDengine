@@ -44,7 +44,7 @@ typedef struct SParseContext {
  * @param msg      extended error message if exists.
  * @return         error code
  */
-int32_t qParseQuerySql(SParseContext* pContext, SQueryNode** pQuery);
+int32_t qParseQuerySql(SParseContext* pContext, SQueryNode** pQueryNode);
 
 /**
  * Return true if it is a ddl/dcl sql statement

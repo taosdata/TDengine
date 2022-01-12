@@ -713,13 +713,6 @@ static bool initTableMemIterator(STsdbReadHandle* pHandle, STableCheckInfo* pChe
   pCheckInfo->initBuf = true;
   int32_t order = pHandle->order;
 
-  // no data in buffer, abort
-//  if (pHandle->pMemTable->snapshot.mem == NULL && pHandle->pMemTable->snapshot.imem == NULL) {
-//    return false;
-//  }
-//
-//  assert(pCheckInfo->iter == NULL && pCheckInfo->iiter == NULL);
-//
   STbData** pMem = NULL;
   STbData** pIMem = NULL;
 
@@ -787,8 +780,7 @@ static bool initTableMemIterator(STsdbReadHandle* pHandle, STableCheckInfo* pChe
       assert(pCheckInfo->lastKey >= key);
     }
   } else {
-    tsdbDebug("%p uid:%"PRId64", no data in imem, 0x%"PRIx64, pHandle, pCheckInfo->tableId,
-        pHandle->qId);
+    tsdbDebug("%p uid:%"PRId64", no data in imem, 0x%"PRIx64, pHandle, pCheckInfo->tableId, pHandle->qId);
   }
 
   return true;
@@ -2554,9 +2546,6 @@ static bool doHasDataInBuffer(STsdbReadHandle* pTsdbReadHandle) {
     pTsdbReadHandle->activeIndex += 1;
   }
 
-  // no data in memtable or imemtable, decrease the memory reference.
-  // TODO !!
-//  tsdbMayUnTakeMemSnapshot(pTsdbReadHandle);
   return false;
 }
 

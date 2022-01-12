@@ -152,13 +152,13 @@ int32_t parseSql(SRequestObj* pRequest, SQueryNode** pQuery) {
 
   SParseContext cxt = {
     .requestId = pRequest->requestId,
-    .acctId = pTscObj->acctId,
-    .db     = getConnectionDB(pTscObj),
+    .acctId    = pTscObj->acctId,
+    .db        = getConnectionDB(pTscObj),
+    .pSql      = pRequest->sqlstr,
+    .sqlLen    = pRequest->sqlLen,
+    .pMsg      = pRequest->msgBuf,
+    .msgLen    = ERROR_MSG_BUF_DEFAULT_SIZE,
     .pTransporter = pTscObj->pTransporter,
-    .pSql   = pRequest->sqlstr,
-    .sqlLen = pRequest->sqlLen,
-    .pMsg   = pRequest->msgBuf,
-    .msgLen = ERROR_MSG_BUF_DEFAULT_SIZE
   };
 
   cxt.mgmtEpSet = getEpSet_s(&pTscObj->pAppInfo->mgmtEp);
