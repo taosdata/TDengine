@@ -16,6 +16,9 @@
 #ifndef TD_TFSINT_H
 #define TD_TFSINT_H
 
+#include "os.h"
+
+#include "taoserror.h"
 #include "tlog.h"
 #include "tglobal.h"
 #include "tfs.h"

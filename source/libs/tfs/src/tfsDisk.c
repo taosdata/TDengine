@@ -12,14 +12,12 @@
  * You should have received a copy of the GNU Affero General Public License
  * along with this program. If not, see <http://www.gnu.org/licenses/>.
  */
-#include "os.h"
 
-#include "taoserror.h"
+#define _DEFAULT_SOURCE
 #include "tfsint.h"
 
-// PROTECTED ====================================
-SDisk *tfsNewDisk(int level, int id, const char *dir) {
-  SDisk *pDisk = (SDisk *)calloc(1, sizeof(*pDisk));
+SDisk *tfsNewDisk(int32_t level, int32_t id, const char *dir) {
+  SDisk *pDisk = calloc(1, sizeof(SDisk));
   if (pDisk == NULL) {
     terrno = TSDB_CODE_FS_OUT_OF_MEMORY;
     return NULL;
@@ -33,18 +31,21 @@ SDisk *tfsNewDisk(int level, int id, const char *dir) {
 }
 
 SDisk *tfsFreeDisk(SDisk *pDisk) {
-  if (pDisk) {
+  if (pDisk != NULL) {
     free(pDisk);
   }
   return NULL;
 }
 
-int tfsUpdateDiskInfo(SDisk *pDisk) {
-  ASSERT(pDisk != NULL);
+int32_t tfsUpdateDiskInfo(SDisk *pDisk) {
+  if (pDisk == NULL) {
+    terrno = TSDB_CODE_INVALID_PARA;
+    return -1;
+  }
 
   SysDiskSize diskSize = {0};
 
-  int code = taosGetDiskSize(pDisk->dir, &diskSize);
+  int32_t code = taosGetDiskSize(pDisk->dir, &diskSize);
   if (code != 0) {
     fError("failed to update disk information at level %d id %d dir %s since %s", pDisk->level, pDisk->id, pDisk->dir,
            strerror(errno));
