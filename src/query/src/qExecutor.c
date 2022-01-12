@@ -1808,11 +1808,17 @@ static bool functionNeedToExecute(SQueryRuntimeEnv *pRuntimeEnv, SQLFunctionCtx 
   }
 
   if (functionId == TSDB_FUNC_FIRST_DST || functionId == TSDB_FUNC_FIRST) {
+    // if param[2] is set value, input data come from client, order is no relation with pQueryAttr->order, so always return true
+    if(pCtx->param[2].nType == TSDB_DATA_TYPE_INT)
+      return true;
     return QUERY_IS_ASC_QUERY(pQueryAttr);
   }
 
   // denote the order type
   if ((functionId == TSDB_FUNC_LAST_DST || functionId == TSDB_FUNC_LAST)) {
+    // if param[2] is set value, input data come from client, order is no relation with pQueryAttr->order , so always return true
+    if(pCtx->param[2].nType == TSDB_DATA_TYPE_INT)
+      return true;
     return pCtx->param[0].i64 == pQueryAttr->order.order;
   }
 

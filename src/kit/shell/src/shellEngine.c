@@ -81,9 +81,9 @@ extern TAOS *taos_connect_auth(const char *ip, const char *user, const char *aut
 TAOS *shellInit(SShellArguments *_args) {
   printf("\n");
   if (!_args->is_use_passwd) {
-#ifdef TD_WINDOWS
+#ifdef WINDOWS
     strcpy(tsOsName, "Windows");
-#elif defined(TD_DARWIN)
+#elif defined(DARWIN)
     strcpy(tsOsName, "Darwin");
 #endif
     printf(CLIENT_VERSION, tsOsName, taos_get_client_info());
@@ -239,64 +239,27 @@ int32_t shellRunCommand(TAOS* con, char* command) {
     }
   }
 
-  bool esc = false;
-  char quote = 0, *cmd = command, *p = command;
+  char quote = 0, *cmd = command;
   for (char c = *command++; c != 0; c = *command++) {
-    if (esc) {
-      switch (c) {
-        case 'n':
-          c = '\n';
-          break;
-        case 'r':
-          c = '\r';
-          break;
-        case 't':
-          c = '\t';
-          break;
-        case 'G':
-          *p++ = '\\';
-          break;
-        case '\'':
-        case '"':
-        case '`':
-          if (quote) {
-            *p++ = '\\';
-          }
-          break;
-      }
-      *p++ = c;
-      esc = false;
+    if (c == '\\' && (*command == '\'' || *command == '"' || *command == '`')) {
+      command ++;
       continue;
-    }
-
-    if (c == '\\') {
-      if (quote != 0 && (*command == '_' || *command == '%' || *command == '\\')) {
-        //DO nothing 
-      } else {
-        esc = true;
-        continue;
-      }
     }
 
     if (quote == c) {
       quote = 0;
     } else if (quote == 0 && (c == '\'' || c == '"' || c == '`')) {
       quote = c;
-    }
-
-    *p++ = c;
-    if (c == ';' && quote == 0) {
-      c = *p;
-      *p = 0;
+    } else if (c == ';' && quote == 0) {
+      c = *command;
+      *command = 0;
       if (shellRunSingleCommand(con, cmd) < 0) {
         return -1;
       }
-      *p = c;
-      p = cmd;
+      *command = c;
+      cmd = command;
     }
   }
-
-  *p = 0;
   return shellRunSingleCommand(con, cmd);
 }
 
@@ -411,7 +374,14 @@ int regex_match(const char *s, const char *reg, int cflags) {
   } else if (reti == REG_NOMATCH) {
     regfree(&regex);
     return 0;
-  } else {
+  }
+#ifdef DARWIN
+  else if (reti == REG_ILLSEQ){
+    regfree(&regex);
+    return 0;
+  }
+#endif
+  else {
     regerror(reti, &regex, msgbuf, sizeof(msgbuf));
     fprintf(stderr, "Regex match failed: %s\n", msgbuf);
     regfree(&regex);
@@ -609,18 +579,23 @@ static void shellPrintNChar(const char *str, int length, int width) {
     if (bytes <= 0) {
       break;
     }
-    pos += bytes;
-    if (pos > length) {
-      break;
-    }
-
+    int w = 0;
 #ifdef WINDOWS
-    int w = bytes;
+    w = bytes;
 #else
-    int w = wcwidth(wc);
+    if(*(str + pos) == '\t' || *(str + pos) == '\n' || *(str + pos) == '\r'){
+      w = bytes;
+    }else{
+      w = wcwidth(wc);
+    }
 #endif
     if (w <= 0) {
       continue;
+    }
+
+    pos += bytes;
+    if (pos > length) {
+      break;
     }
 
     if (width <= 0) {
