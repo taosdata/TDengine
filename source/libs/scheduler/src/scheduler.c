@@ -50,6 +50,10 @@ void schFreeTask(SSchTask* pTask) {
   if (pTask->parents) {
     taosArrayDestroy(pTask->parents);
   }
+
+  if (pTask->execAddrs) {
+    taosArrayDestroy(pTask->execAddrs);
+  }
 }
 
 

@@ -369,9 +369,9 @@ int32_t createDag(SQueryPlanNode* pQueryNode, struct SCatalog* pCatalog, SQueryD
   TRY(TSDB_MAX_TAG_CONDITIONS) {
     SPlanContext context = {
       .pCatalog = pCatalog,
-      .pDag = validPointer(calloc(1, sizeof(SQueryDag))),
+      .pDag     = validPointer(calloc(1, sizeof(SQueryDag))),
       .pCurrentSubplan = NULL,
-      .nextId = {.queryId = requestId},
+      .nextId   = {.queryId = requestId},
     };
 
     *pDag = context.pDag;
