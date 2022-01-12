@@ -940,8 +940,8 @@ int32_t subPlanToString(const SSubplan* subplan, char** str, int32_t* len) {
   }
 
   *str = cJSON_Print(json);
-
-  printf("%s\n", *str);
+//  printf("====Physical plan:====\n")
+//  printf("%s\n", *str);
   *len = strlen(*str) + 1;
   return TSDB_CODE_SUCCESS;
 }

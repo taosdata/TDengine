@@ -230,7 +230,7 @@ void setResSchemaInfo(SReqResultInfo* pResInfo, const SDataBlockSchema* pDataBlo
     SSchema* pSchema = &pDataBlockSchema->pSchema[i];
     pResInfo->fields[i].bytes = pSchema->bytes;
     pResInfo->fields[i].type  = pSchema->type;
-    tstrncpy(pResInfo->fields[i].name, pSchema[i].name, tListLen(pResInfo->fields[i].name));
+    tstrncpy(pResInfo->fields[i].name, pSchema->name, tListLen(pResInfo->fields[i].name));
   }
 }
 
