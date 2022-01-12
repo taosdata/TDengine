@@ -19,7 +19,7 @@
 #ifdef __cplusplus
 extern "C" {
 #endif
-#include "dndInt.h"
+#include "dndEnv.h"
 
 int32_t dndInitSnode(SDnode *pDnode);
 void    dndCleanupSnode(SDnode *pDnode);

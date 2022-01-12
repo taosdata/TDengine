@@ -13,23 +13,18 @@
  * along with this program. If not, see <http://www.gnu.org/licenses/>.
  */
 
-#ifndef _TD_DND_BNODE_H_
-#define _TD_DND_BNODE_H_
+#ifndef _TD_DND_ENV_H_
+#define _TD_DND_ENV_H_
 
 #ifdef __cplusplus
 extern "C" {
 #endif
+
 #include "dndEnv.h"
 
-int32_t dndInitBnode(SDnode *pDnode);
-void    dndCleanupBnode(SDnode *pDnode);
-
-void    dndProcessBnodeWriteMsg(SDnode *pDnode, SRpcMsg *pMsg, SEpSet *pEpSet);
-int32_t dndProcessCreateBnodeReq(SDnode *pDnode, SRpcMsg *pRpcMsg);
-int32_t dndProcessDropBnodeReq(SDnode *pDnode, SRpcMsg *pRpcMsg);
 
 #ifdef __cplusplus
 }
 #endif
 
-#endif /*_TD_DND_BNODE_H_*/
+#endif /*_TD_DND_ENV_H_*/
