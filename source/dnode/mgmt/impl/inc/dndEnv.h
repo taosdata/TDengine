@@ -20,8 +20,127 @@
 extern "C" {
 #endif
 
-#include "dndEnv.h"
+#include "dndInt.h"
 
+typedef struct {
+  EWorkerType type;
+  const char *name;
+  int32_t     minNum;
+  int32_t     maxNum;
+  void       *queueFp;
+  SDnode     *pDnode;
+  STaosQueue *queue;
+  union {
+    SWorkerPool  pool;
+    SMWorkerPool mpool;
+  };
+} SDnodeWorker;
+
+typedef struct {
+  char *dnode;
+  char *mnode;
+  char *snode;
+  char *bnode;
+  char *vnodes;
+} SDnodeDir;
+
+typedef struct {
+  int32_t      dnodeId;
+  int32_t      dropped;
+  int64_t      clusterId;
+  int64_t      dver;
+  int64_t      rebootTime;
+  int64_t      updateTime;
+  int8_t       statusSent;
+  SEpSet       mnodeEpSet;
+  char        *file;
+  SHashObj    *dnodeHash;
+  SDnodeEps   *dnodeEps;
+  pthread_t   *threadId;
+  SRWLatch     latch;
+  SDnodeWorker mgmtWorker;
+  SDnodeWorker statusWorker;
+} SDnodeMgmt;
+
+typedef struct {
+  int32_t      refCount;
+  int8_t       deployed;
+  int8_t       dropped;
+  SMnode      *pMnode;
+  SRWLatch     latch;
+  SDnodeWorker readWorker;
+  SDnodeWorker writeWorker;
+  SDnodeWorker syncWorker;
+  int8_t       replica;
+  int8_t       selfIndex;
+  SReplica     replicas[TSDB_MAX_REPLICA];
+} SMnodeMgmt;
+
+typedef struct {
+  int32_t      refCount;
+  int8_t       deployed;
+  int8_t       dropped;
+  SQnode      *pQnode;
+  SRWLatch     latch;
+  SDnodeWorker queryWorker;
+  SDnodeWorker fetchWorker;
+} SQnodeMgmt;
+
+typedef struct {
+  int32_t      refCount;
+  int8_t       deployed;
+  int8_t       dropped;
+  SSnode      *pSnode;
+  SRWLatch     latch;
+  SDnodeWorker writeWorker;
+} SSnodeMgmt;
+
+typedef struct {
+  int32_t      refCount;
+  int8_t       deployed;
+  int8_t       dropped;
+  SBnode      *pBnode;
+  SRWLatch     latch;
+  SDnodeWorker writeWorker;
+} SBnodeMgmt;
+
+typedef struct {
+  SHashObj    *hash;
+  int32_t      openVnodes;
+  int32_t      totalVnodes;
+  SRWLatch     latch;
+  SWorkerPool  queryPool;
+  SWorkerPool  fetchPool;
+  SMWorkerPool syncPool;
+  SMWorkerPool writePool;
+} SVnodesMgmt;
+
+typedef struct {
+  void    *serverRpc;
+  void    *clientRpc;
+  DndMsgFp msgFp[TDMT_MAX];
+} STransMgmt;
+
+typedef struct SDnode {
+  EStat        stat;
+  SDnodeObjCfg cfg;
+  SDnodeEnvCfg env;
+  SDnodeDir    dir;
+  FileFd       lockFd;
+  SDnodeMgmt   dmgmt;
+  SMnodeMgmt   mmgmt;
+  SQnodeMgmt   qmgmt;
+  SSnodeMgmt   smgmt;
+  SBnodeMgmt   bmgmt;
+  SVnodesMgmt  vmgmt;
+  STransMgmt   tmgmt;
+  SStartupReq  startup;
+} SDnode;
+
+typedef struct {
+  int8_t       once;
+  SDnodeEnvCfg cfg;
+} SDnodeEnv;
 
 #ifdef __cplusplus
 }

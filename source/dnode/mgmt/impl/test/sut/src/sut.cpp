@@ -43,6 +43,9 @@ void Testbase::InitLog(const char* path) {
 }
 
 void Testbase::Init(const char* path, int16_t port) {
+  SDnodeEnvCfg cfg = {0};
+  dndInit(&cfg);
+
   char fqdn[] = "localhost";
   char firstEp[TSDB_EP_LEN] = {0};
   snprintf(firstEp, TSDB_EP_LEN, "%s:%u", fqdn, port);
@@ -56,6 +59,7 @@ void Testbase::Init(const char* path, int16_t port) {
 void Testbase::Cleanup() {
   server.Stop();
   client.Cleanup();
+  dndCleanup();
 }
 
 void Testbase::Restart() { server.Restart(); }

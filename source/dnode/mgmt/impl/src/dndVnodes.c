@@ -420,7 +420,7 @@ static int32_t dndOpenVnodes(SDnode *pDnode) {
 
   pMgmt->totalVnodes = numOfVnodes;
 
-  int32_t threadNum = pDnode->opt.numOfCores;
+  int32_t threadNum = pDnode->env.numOfCores;
   int32_t vnodesPerThread = numOfVnodes / threadNum + 1;
 
   SVnodeThread *threads = calloc(threadNum, sizeof(SVnodeThread));
@@ -904,11 +904,11 @@ static int32_t dndInitVnodeWorkers(SDnode *pDnode) {
   SVnodesMgmt *pMgmt = &pDnode->vmgmt;
 
   int32_t maxFetchThreads = 4;
-  int32_t minFetchThreads = MIN(maxFetchThreads, pDnode->opt.numOfCores);
-  int32_t minQueryThreads = MAX((int32_t)(pDnode->opt.numOfCores * pDnode->opt.ratioOfQueryCores), 1);
+  int32_t minFetchThreads = MIN(maxFetchThreads, pDnode->env.numOfCores);
+  int32_t minQueryThreads = MAX((int32_t)(pDnode->env.numOfCores * pDnode->cfg.ratioOfQueryCores), 1);
   int32_t maxQueryThreads = minQueryThreads;
-  int32_t maxWriteThreads = MAX(pDnode->opt.numOfCores, 1);
-  int32_t maxSyncThreads = MAX(pDnode->opt.numOfCores / 2, 1);
+  int32_t maxWriteThreads = MAX(pDnode->env.numOfCores, 1);
+  int32_t maxSyncThreads = MAX(pDnode->env.numOfCores / 2, 1);
 
   SWorkerPool *pPool = &pMgmt->queryPool;
   pPool->name = "vnode-query";

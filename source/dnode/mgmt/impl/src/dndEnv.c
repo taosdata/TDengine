@@ -25,6 +25,8 @@
 #include "tfs.h"
 #include "wal.h"
 
+static SDnodeEnv dndEnv = {0};
+
 EStat dndGetStat(SDnode *pDnode) { return pDnode->stat; }
 
 void dndSetStat(SDnode *pDnode, EStat stat) {
@@ -32,7 +34,7 @@ void dndSetStat(SDnode *pDnode, EStat stat) {
   pDnode->stat = stat;
 }
 
-char *dndStatStr(EStat stat) {
+const char *dndStatStr(EStat stat) {
   switch (stat) {
     case DND_STAT_INIT:
       return "init";
@@ -79,25 +81,26 @@ static FileFd dndCheckRunning(char *dataDir) {
   return fd;
 }
 
-static int32_t dndInitEnv(SDnode *pDnode, SDnodeOpt *pOption) {
-  pDnode->lockFd = dndCheckRunning(pOption->dataDir);
+static int32_t dndCreateImp(SDnode *pDnode, SDnodeObjCfg *pCfg) {
+  pDnode->lockFd = dndCheckRunning(pCfg->dataDir);
   if (pDnode->lockFd < 0) {
     return -1;
   }
 
   char path[PATH_MAX + 100];
-  snprintf(path, sizeof(path), "%s%smnode", pOption->dataDir, TD_DIRSEP);
+  snprintf(path, sizeof(path), "%s%smnode", pCfg->dataDir, TD_DIRSEP);
   pDnode->dir.mnode = tstrdup(path);
-  snprintf(path, sizeof(path), "%s%svnode", pOption->dataDir, TD_DIRSEP);
+  snprintf(path, sizeof(path), "%s%svnode", pCfg->dataDir, TD_DIRSEP);
   pDnode->dir.vnodes = tstrdup(path);
-  snprintf(path, sizeof(path), "%s%sdnode", pOption->dataDir, TD_DIRSEP);
+  snprintf(path, sizeof(path), "%s%sdnode", pCfg->dataDir, TD_DIRSEP);
   pDnode->dir.dnode = tstrdup(path);
-  snprintf(path, sizeof(path), "%s%ssnode", pOption->dataDir, TD_DIRSEP);
+  snprintf(path, sizeof(path), "%s%ssnode", pCfg->dataDir, TD_DIRSEP);
   pDnode->dir.snode = tstrdup(path);
-  snprintf(path, sizeof(path), "%s%sbnode", pOption->dataDir, TD_DIRSEP);
+  snprintf(path, sizeof(path), "%s%sbnode", pCfg->dataDir, TD_DIRSEP);
   pDnode->dir.bnode = tstrdup(path);
 
-  if (pDnode->dir.mnode == NULL || pDnode->dir.vnodes == NULL || pDnode->dir.dnode == NULL) {
+  if (pDnode->dir.mnode == NULL || pDnode->dir.vnodes == NULL || pDnode->dir.dnode == NULL ||
+      pDnode->dir.snode == NULL || pDnode->dir.bnode == NULL) {
     dError("failed to malloc dir object");
     terrno = TSDB_CODE_OUT_OF_MEMORY;
     return -1;
@@ -133,11 +136,12 @@ static int32_t dndInitEnv(SDnode *pDnode, SDnodeOpt *pOption) {
     return -1;
   }
 
-  memcpy(&pDnode->opt, pOption, sizeof(SDnodeOpt));
+  memcpy(&pDnode->cfg, pCfg, sizeof(SDnodeObjCfg));
+  memcpy(&pDnode->env, &dndEnv.cfg, sizeof(SDnodeEnvCfg));
   return 0;
 }
 
-static void dndCleanupEnv(SDnode *pDnode) {
+static void dndCloseImp(SDnode *pDnode) {
   tfree(pDnode->dir.mnode);
   tfree(pDnode->dir.vnodes);
   tfree(pDnode->dir.dnode);
@@ -149,126 +153,121 @@ static void dndCleanupEnv(SDnode *pDnode) {
     taosCloseFile(pDnode->lockFd);
     pDnode->lockFd = 0;
   }
-
-  taosStopCacheRefreshWorker();
 }
 
-SDnode *dndInit(SDnodeOpt *pOption) {
-  taosIgnSIGPIPE();
-  taosBlockSIGPIPE();
-  taosResolveCRC();
+SDnode *dndCreate(SDnodeObjCfg *pCfg) {
+  dInfo("start to create dnode object");
 
   SDnode *pDnode = calloc(1, sizeof(SDnode));
   if (pDnode == NULL) {
-    dError("failed to create dnode object");
     terrno = TSDB_CODE_OUT_OF_MEMORY;
+    dError("failed to create dnode object since %s", terrstr());
     return NULL;
   }
 
-  dInfo("start to initialize TDengine");
   dndSetStat(pDnode, DND_STAT_INIT);
 
-  if (dndInitEnv(pDnode, pOption) != 0) {
-    dError("failed to init env");
-    dndCleanup(pDnode);
+  if (dndCreateImp(pDnode, pCfg) != 0) {
+    dError("failed to init dnode dir since %s", terrstr());
+    dndClose(pDnode);
     return NULL;
   }
 
   if (rpcInit() != 0) {
-    dError("failed to init rpc env");
-    dndCleanup(pDnode);
+    dError("failed to init rpc since %s", terrstr());
+    dndClose(pDnode);
     return NULL;
   }
 
   if (walInit() != 0) {
-    dError("failed to init wal env");
-    dndCleanup(pDnode);
+    dError("failed to init wal since %s", terrstr());
+    dndClose(pDnode);
     return NULL;
   }
 
   SDiskCfg dCfg;
-  strcpy(dCfg.dir, pDnode->opt.dataDir);
+  strcpy(dCfg.dir, pDnode->cfg.dataDir);
   dCfg.level = 0;
   dCfg.primary = 1;
   if (tfsInit(&dCfg, 1) != 0) {
-    dError("failed to init tfs env");
-    dndCleanup(pDnode);
+    dError("failed to init tfs since %s", terrstr());
+    dndClose(pDnode);
     return NULL;
   }
 
   SVnodeOpt vnodeOpt = {
-      .sver = pDnode->opt.sver,
-      .timezone = pDnode->opt.timezone,
-      .locale = pDnode->opt.locale,
-      .charset = pDnode->opt.charset,
-      .nthreads = pDnode->opt.numOfCommitThreads,
+      .sver = pDnode->env.sver,
+      .timezone = pDnode->env.timezone,
+      .locale = pDnode->env.locale,
+      .charset = pDnode->env.charset,
+      .nthreads = pDnode->cfg.numOfCommitThreads,
       .putReqToVQueryQFp = dndPutReqToVQueryQ,
   };
   if (vnodeInit(&vnodeOpt) != 0) {
-    dError("failed to init vnode env");
-    dndCleanup(pDnode);
+    dError("failed to init vnode since %s", terrstr());
+    dndClose(pDnode);
     return NULL;
   }
 
   if (dndInitMgmt(pDnode) != 0) {
-    dError("failed to init dnode");
-    dndCleanup(pDnode);
+    dError("failed to init mgmt since %s", terrstr());
+    dndClose(pDnode);
     return NULL;
   }
 
   if (dndInitVnodes(pDnode) != 0) {
-    dError("failed to init vnodes");
-    dndCleanup(pDnode);
+    dError("failed to init vnodes since %s", terrstr());
+    dndClose(pDnode);
     return NULL;
   }
 
   if (dndInitQnode(pDnode) != 0) {
-    dError("failed to init qnode");
-    dndCleanup(pDnode);
+    dError("failed to init qnode since %s", terrstr());
+    dndClose(pDnode);
     return NULL;
   }
 
   if (dndInitSnode(pDnode) != 0) {
-    dError("failed to init snode");
-    dndCleanup(pDnode);
+    dError("failed to init snode since %s", terrstr());
+    dndClose(pDnode);
     return NULL;
   }
 
   if (dndInitBnode(pDnode) != 0) {
-    dError("failed to init bnode");
-    dndCleanup(pDnode);
+    dError("failed to init bnode since %s", terrstr());
+    dndClose(pDnode);
     return NULL;
   }
 
   if (dndInitMnode(pDnode) != 0) {
-    dError("failed to init mnode");
-    dndCleanup(pDnode);
+    dError("failed to init mnode since %s", terrstr());
+    dndClose(pDnode);
     return NULL;
   }
 
   if (dndInitTrans(pDnode) != 0) {
-    dError("failed to init transport");
-    dndCleanup(pDnode);
+    dError("failed to init transport since %s", terrstr());
+    dndClose(pDnode);
     return NULL;
   }
 
   dndSetStat(pDnode, DND_STAT_RUNNING);
   dndSendStatusReq(pDnode);
   dndReportStartup(pDnode, "TDengine", "initialized successfully");
-  dInfo("TDengine is initialized successfully, pDnode:%p", pDnode);
+  dInfo("dnode object is created, data:%p", pDnode);
 
   return pDnode;
 }
 
-void dndCleanup(SDnode *pDnode) {
+void dndClose(SDnode *pDnode) {
   if (pDnode == NULL) return;
 
   if (dndGetStat(pDnode) == DND_STAT_STOPPED) {
-    dError("dnode is shutting down");
+    dError("dnode is shutting down, data:%p", pDnode);
     return;
   }
 
-  dInfo("start to cleanup TDengine");
+  dInfo("start to close dnode, data:%p", pDnode);
   dndSetStat(pDnode, DND_STAT_STOPPED);
   dndCleanupTrans(pDnode);
   dndStopMgmt(pDnode);
@@ -283,7 +282,33 @@ void dndCleanup(SDnode *pDnode) {
   walCleanUp();
   rpcCleanup();
 
-  dndCleanupEnv(pDnode);
+  dndCloseImp(pDnode);
   free(pDnode);
-  dInfo("TDengine is cleaned up successfully");
+  dInfo("dnode object is closed, data:%p", pDnode);
+}
+
+int32_t dndInit(const SDnodeEnvCfg *pCfg) {
+  if (atomic_val_compare_exchange_8(&dndEnv.once, DND_ENV_INIT, DND_ENV_READY) != DND_ENV_INIT) {
+    terrno = TSDB_CODE_REPEAT_INIT;
+    dError("failed to init dnode env since %s", terrstr());
+    return -1;
+  }
+
+  taosIgnSIGPIPE();
+  taosBlockSIGPIPE();
+  taosResolveCRC();
+
+  memcpy(&dndEnv.cfg, pCfg, sizeof(SDnodeEnvCfg));
+  dInfo("dnode env is initialized");
+  return 0;
+}
+
+void dndCleanup() {
+  if (atomic_val_compare_exchange_8(&dndEnv.once, DND_ENV_READY, DND_ENV_CLEANUP) != DND_ENV_READY) {
+    dError("dnode env is already cleaned up");
+    return;
+  }
+
+  taosStopCacheRefreshWorker();
+  dInfo("dnode env is cleaned up");
 }

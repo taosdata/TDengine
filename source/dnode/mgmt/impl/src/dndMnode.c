@@ -247,7 +247,7 @@ static bool dndNeedDeployMnode(SDnode *pDnode) {
     return false;
   }
 
-  if (strcmp(pDnode->opt.localEp, pDnode->opt.firstEp) != 0) {
+  if (strcmp(pDnode->cfg.localEp, pDnode->cfg.firstEp) != 0) {
     return false;
   }
 
@@ -266,15 +266,15 @@ static void dndInitMnodeOption(SDnode *pDnode, SMnodeOpt *pOption) {
   pOption->putReqToMWriteQFp = dndPutMsgToMWriteQ;
   pOption->dnodeId = dndGetDnodeId(pDnode);
   pOption->clusterId = dndGetClusterId(pDnode);
-  pOption->cfg.sver = pDnode->opt.sver;
-  pOption->cfg.enableTelem = pDnode->opt.enableTelem;
-  pOption->cfg.statusInterval = pDnode->opt.statusInterval;
-  pOption->cfg.shellActivityTimer = pDnode->opt.shellActivityTimer;
-  pOption->cfg.timezone = pDnode->opt.timezone;
-  pOption->cfg.charset = pDnode->opt.charset;
-  pOption->cfg.locale = pDnode->opt.locale;
-  pOption->cfg.gitinfo = pDnode->opt.gitinfo;
-  pOption->cfg.buildinfo = pDnode->opt.buildinfo;
+  pOption->cfg.sver = pDnode->env.sver;
+  pOption->cfg.enableTelem = pDnode->env.enableTelem;
+  pOption->cfg.statusInterval = pDnode->cfg.statusInterval;
+  pOption->cfg.shellActivityTimer = pDnode->cfg.shellActivityTimer;
+  pOption->cfg.timezone = pDnode->env.timezone;
+  pOption->cfg.charset = pDnode->env.charset;
+  pOption->cfg.locale = pDnode->env.locale;
+  pOption->cfg.gitinfo = pDnode->env.gitinfo;
+  pOption->cfg.buildinfo = pDnode->env.buildinfo;
 }
 
 static void dndBuildMnodeDeployOption(SDnode *pDnode, SMnodeOpt *pOption) {
@@ -283,8 +283,8 @@ static void dndBuildMnodeDeployOption(SDnode *pDnode, SMnodeOpt *pOption) {
   pOption->selfIndex = 0;
   SReplica *pReplica = &pOption->replicas[0];
   pReplica->id = 1;
-  pReplica->port = pDnode->opt.serverPort;
-  memcpy(pReplica->fqdn, pDnode->opt.localFqdn, TSDB_FQDN_LEN);
+  pReplica->port = pDnode->cfg.serverPort;
+  memcpy(pReplica->fqdn, pDnode->cfg.localFqdn, TSDB_FQDN_LEN);
 
   SMnodeMgmt *pMgmt = &pDnode->mmgmt;
   pMgmt->selfIndex = pOption->selfIndex;
