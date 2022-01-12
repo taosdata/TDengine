@@ -740,7 +740,7 @@ static int32_t mndBuildDropVgroupAction(SMnode *pMnode, STrans *pTrans, SDbObj *
     if (pReq == NULL) return -1;
 
     action.pCont = pReq;
-    action.contLen = sizeof(SCreateVnodeReq);
+    action.contLen = sizeof(SDropVnodeReq);
     action.msgType = TDMT_DND_DROP_VNODE;
     action.acceptableCode = TSDB_CODE_DND_VNODE_NOT_DEPLOYED;
     if (mndTransAppendRedoAction(pTrans, &action) != 0) {

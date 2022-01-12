@@ -31,8 +31,12 @@ extern "C" {
 
 /* ------------------------ TYPES EXPOSED ------------------------ */
 typedef struct SVnode SVnode;
+typedef struct SDnode SDnode;
+typedef int32_t (*PutReqToVQueryQFp)(SDnode *pDnode, struct SRpcMsg *pReq);
+
 typedef struct SVnodeCfg {
   int32_t vgId;
+  SDnode *pDnode;
 
   /** vnode buffer pool options */
   struct {
@@ -66,15 +70,23 @@ typedef struct SVnodeCfg {
   SWalCfg walCfg;
 } SVnodeCfg;
 
+typedef struct {
+  int32_t           sver;
+  char             *timezone;
+  char             *locale;
+  char             *charset;
+  uint16_t          nthreads;  // number of commit threads. 0 for no threads and a schedule queue should be given (TODO)
+  PutReqToVQueryQFp putReqToVQueryQFp;
+} SVnodeOpt;
+
 /* ------------------------ SVnode ------------------------ */
 /**
  * @brief Initialize the vnode module
  *
- * @param nthreads number of commit threads. 0 for no threads and
- *        a schedule queue should be given (TODO)
+ * @param pOption Option of the vnode mnodule
  * @return int 0 for success and -1 for failure
  */
-int vnodeInit(uint16_t nthreads);
+int vnodeInit(const SVnodeOpt *pOption);
 
 /**
  * @brief clear a vnode
@@ -89,7 +101,7 @@ void vnodeClear();
  * @param pVnodeCfg options of the vnode
  * @return SVnode* The vnode object
  */
-SVnode *vnodeOpen(const char *path, const SVnodeCfg *pVnodeCfg, int32_t vid);
+SVnode *vnodeOpen(const char *path, const SVnodeCfg *pVnodeCfg);
 
 /**
  * @brief Close a VNODE
