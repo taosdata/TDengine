@@ -13,13 +13,8 @@
  * along with this program. If not, see <http://www.gnu.org/licenses/>.
  */
 
-#include "os.h"
-
-#include "taosdef.h"
-#include "taoserror.h"
-#include "tfs.h"
-#include "tfsint.h"
-#include "thash.h"
+#define _DEFAULT_SOURCE
+#include "tfsInt.h"
 
 #define TMPNAME_LEN (TSDB_FILENAME_LEN * 2 + 32)
 

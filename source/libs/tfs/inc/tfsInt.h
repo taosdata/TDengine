@@ -18,15 +18,13 @@
 
 #include "os.h"
 
+#include "taosdef.h"
 #include "taoserror.h"
-#include "tlog.h"
-#include "tglobal.h"
-#include "tfs.h"
 #include "tcoding.h"
-
-#ifdef __cplusplus
-extern "C" {
-#endif
+#include "tfs.h"
+#include "tglobal.h"
+#include "thash.h"
+#include "tlog.h"
 
 extern int fsDebugFlag;
 

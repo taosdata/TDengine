@@ -14,7 +14,7 @@
  */
 
 #define _DEFAULT_SOURCE
-#include "tfsint.h"
+#include "tfsInt.h"
 
 SDisk *tfsNewDisk(int32_t level, int32_t id, const char *dir) {
   SDisk *pDisk = calloc(1, sizeof(SDisk));

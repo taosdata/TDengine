@@ -12,11 +12,9 @@
  * You should have received a copy of the GNU Affero General Public License
  * along with this program. If not, see <http://www.gnu.org/licenses/>.
  */
-#include "os.h"
 
-#include "taosdef.h"
-#include "taoserror.h"
-#include "tfsint.h"
+#define _DEFAULT_SOURCE
+#include "tfsInt.h"
 
 #define tfsLockTier(pTier) pthread_spin_lock(&((pTier)->lock))
 #define tfsUnLockTier(pTier) pthread_spin_unlock(&((pTier)->lock))
