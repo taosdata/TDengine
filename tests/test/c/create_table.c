@@ -30,6 +30,7 @@ int32_t createTable = 1;
 int32_t insertData = 0;
 int32_t batchNum = 100;
 int32_t numOfVgroups = 2;
+int32_t showTablesFlag = 0;
 
 typedef struct {
   int64_t   tableBeginIndex;
@@ -45,88 +46,9 @@ typedef struct {
   pthread_t thread;
 } SThreadInfo;
 
-void  parseArgument(int32_t argc, char *argv[]);
-void *threadFunc(void *param);
-void  createDbAndStb();
-
-int32_t main(int32_t argc, char *argv[]) {
-  parseArgument(argc, argv);
-  createDbAndStb();
-
-  pPrint("%d threads are spawned to create %d tables", numOfThreads, numOfThreads);
-
-  pthread_attr_t thattr;
-  pthread_attr_init(&thattr);
-  pthread_attr_setdetachstate(&thattr, PTHREAD_CREATE_JOINABLE);
-  SThreadInfo *pInfo = (SThreadInfo *)calloc(numOfThreads, sizeof(SThreadInfo));
-
-  //int64_t numOfTablesPerThread = numOfTables / numOfThreads;
-  //numOfTables = numOfTablesPerThread * numOfThreads;
-
-
-  if (numOfThreads < 1) {
-    numOfThreads = 1;
-  }
-  
-  int64_t a = numOfTables / numOfThreads;
-  if (a < 1) {
-  	  numOfThreads = numOfTables;
-  	  a = 1;
-  }
-  
-  int64_t b = 0;
-  b = numOfTables % numOfThreads;
-
-  int64_t tableFrom = 0;
-  for (int32_t i = 0; i < numOfThreads; ++i) {
-    pInfo[i].tableBeginIndex = tableFrom;
-    pInfo[i].tableEndIndex = i < b ? tableFrom + a : tableFrom + a - 1;
-    tableFrom = pInfo[i].tableEndIndex + 1;
-    pInfo[i].threadIndex = i;
-	pInfo[i].minDelay = INT64_MAX;
-    strcpy(pInfo[i].dbName, dbName);
-    strcpy(pInfo[i].stbName, stbName);
-    pthread_create(&(pInfo[i].thread), &thattr, threadFunc, (void *)(pInfo + i));
-  }
-
-  taosMsleep(300);
-  for (int32_t i = 0; i < numOfThreads; i++) {
-    pthread_join(pInfo[i].thread, NULL);
-  }
-
-  int64_t maxDelay = 0;
-  int64_t minDelay = INT64_MAX;
-
-  float createTableSpeed = 0;
-  for (int32_t i = 0; i < numOfThreads; ++i) {
-    createTableSpeed += pInfo[i].createTableSpeed;
-
-    if (pInfo[i].maxDelay > maxDelay) maxDelay = pInfo[i].maxDelay;
-    if (pInfo[i].minDelay < minDelay) minDelay = pInfo[i].minDelay;  
-  }
-
-  float insertDataSpeed = 0;
-  for (int32_t i = 0; i < numOfThreads; ++i) {
-    insertDataSpeed += pInfo[i].insertDataSpeed;
-  }
-
-  pPrint("%s total %" PRId64 " tables, %.1f tables/second, threads:%d, maxDelay: %" PRId64 "us, minDelay: %" PRId64 "us %s", 
-           GREEN, 
-           numOfTables, 
-           createTableSpeed, 
-           numOfThreads, 
-           maxDelay, 
-           minDelay,
-           NC);
-
-  if (insertData) {
-      pPrint("%s total %" PRId64 " tables, %.1f rows/second, threads:%d %s", GREEN, numOfTables, insertDataSpeed,
-         numOfThreads, NC);
-  }
-
-  pthread_attr_destroy(&thattr);
-  free(pInfo);
-}
+//void  parseArgument(int32_t argc, char *argv[]);
+//void *threadFunc(void *param);
+//void  createDbAndStb();
 
 void createDbAndStb() {
   pPrint("start to create db and stable");
@@ -187,6 +109,62 @@ void printInsertProgress(SThreadInfo *pInfo, int64_t t) {
   pPrint("thread:%d, %" PRId64 " rows inserted, time:%.2f sec, speed:%.1f rows/second, ", pInfo->threadIndex,
          totalTables, seconds, speed);
 }
+
+static int64_t getResult(TAOS_RES *tres) {
+  TAOS_ROW row = taos_fetch_row(tres);
+  if (row == NULL) {
+    return 0;
+  }
+
+  int         num_fields = taos_num_fields(tres);
+  TAOS_FIELD *fields = taos_fetch_fields(tres);
+  int         precision = taos_result_precision(tres);
+
+  int64_t numOfRows = 0;
+  do {
+    numOfRows++;
+    row = taos_fetch_row(tres);
+  } while (row != NULL);
+
+  return numOfRows;
+}
+
+
+void showTables() {  
+  pPrint("start to show tables");
+  char qstr[32];
+
+  TAOS *con = taos_connect(NULL, "root", "taosdata", NULL, 0);
+  if (con == NULL) {
+    pError("failed to connect to DB, reason:%s", taos_errstr(NULL));
+    exit(1);
+  }
+
+  sprintf(qstr, "use %s", dbName);
+  TAOS_RES *pRes = taos_query(con, qstr);
+  int code = taos_errno(pRes);
+  if (code != 0) {
+    pError("failed to use db, code:%d reason:%s", taos_errno(pRes), taos_errstr(pRes));
+    exit(1);
+  }
+  taos_free_result(pRes);
+
+  sprintf(qstr, "show tables");
+  pRes = taos_query(con, qstr);
+  code = taos_errno(pRes);
+  if (code != 0) {
+    pError("failed to show tables, code:%d reason:%s", taos_errno(pRes), taos_errstr(pRes));
+    exit(0);
+  }
+
+  int64_t totalTableNum = getResult(pRes);
+  taos_free_result(pRes);
+
+  pPrint("%s database: %s, total %" PRId64 " tables %s", GREEN, dbName, totalTableNum, NC);  
+
+  taos_close(con);
+}
+
 
 void *threadFunc(void *param) {
   SThreadInfo *pInfo = (SThreadInfo *)param;
@@ -298,6 +276,8 @@ void printHelp() {
   printf("%s%s%s%d\n", indent, indent, "insertData, default is ", insertData);
   printf("%s%s\n", indent, "-b");
   printf("%s%s%s%d\n", indent, indent, "batchNum, default is ", batchNum);
+  printf("%s%s\n", indent, "-w");
+  printf("%s%s%s%d\n", indent, indent, "showTablesFlag, default is ", showTablesFlag);
 
   exit(EXIT_SUCCESS);
 }
@@ -325,6 +305,8 @@ void parseArgument(int32_t argc, char *argv[]) {
       insertData = atoi(argv[++i]);
     } else if (strcmp(argv[i], "-b") == 0) {
       batchNum = atoi(argv[++i]);
+    } else if (strcmp(argv[i], "-w") == 0) {
+      showTablesFlag = atoi(argv[++i]);
     } else {
     }
   }
@@ -338,6 +320,93 @@ void parseArgument(int32_t argc, char *argv[]) {
   pPrint("%s createTable:%d %s", GREEN, createTable, NC);
   pPrint("%s insertData:%d %s", GREEN, insertData, NC);
   pPrint("%s batchNum:%d %s", GREEN, batchNum, NC);
+  pPrint("%s showTablesFlag:%d %s", GREEN, showTablesFlag, NC);
 
   pPrint("%s start create table performace test %s", GREEN, NC);
 }
+
+int32_t main(int32_t argc, char *argv[]) {
+  parseArgument(argc, argv);
+
+  if (showTablesFlag) {
+      showTables();
+	  return 0;
+  }
+  
+  createDbAndStb();
+
+  pPrint("%d threads are spawned to create %d tables", numOfThreads, numOfThreads);
+
+  pthread_attr_t thattr;
+  pthread_attr_init(&thattr);
+  pthread_attr_setdetachstate(&thattr, PTHREAD_CREATE_JOINABLE);
+  SThreadInfo *pInfo = (SThreadInfo *)calloc(numOfThreads, sizeof(SThreadInfo));
+
+  //int64_t numOfTablesPerThread = numOfTables / numOfThreads;
+  //numOfTables = numOfTablesPerThread * numOfThreads;
+
+
+  if (numOfThreads < 1) {
+    numOfThreads = 1;
+  }
+  
+  int64_t a = numOfTables / numOfThreads;
+  if (a < 1) {
+  	  numOfThreads = numOfTables;
+  	  a = 1;
+  }
+  
+  int64_t b = 0;
+  b = numOfTables % numOfThreads;
+
+  int64_t tableFrom = 0;
+  for (int32_t i = 0; i < numOfThreads; ++i) {
+    pInfo[i].tableBeginIndex = tableFrom;
+    pInfo[i].tableEndIndex = i < b ? tableFrom + a : tableFrom + a - 1;
+    tableFrom = pInfo[i].tableEndIndex + 1;
+    pInfo[i].threadIndex = i;
+	pInfo[i].minDelay = INT64_MAX;
+    strcpy(pInfo[i].dbName, dbName);
+    strcpy(pInfo[i].stbName, stbName);
+    pthread_create(&(pInfo[i].thread), &thattr, threadFunc, (void *)(pInfo + i));
+  }
+
+  taosMsleep(300);
+  for (int32_t i = 0; i < numOfThreads; i++) {
+    pthread_join(pInfo[i].thread, NULL);
+  }
+
+  int64_t maxDelay = 0;
+  int64_t minDelay = INT64_MAX;
+
+  float createTableSpeed = 0;
+  for (int32_t i = 0; i < numOfThreads; ++i) {
+    createTableSpeed += pInfo[i].createTableSpeed;
+
+    if (pInfo[i].maxDelay > maxDelay) maxDelay = pInfo[i].maxDelay;
+    if (pInfo[i].minDelay < minDelay) minDelay = pInfo[i].minDelay;  
+  }
+
+  float insertDataSpeed = 0;
+  for (int32_t i = 0; i < numOfThreads; ++i) {
+    insertDataSpeed += pInfo[i].insertDataSpeed;
+  }
+
+  pPrint("%s total %" PRId64 " tables, %.1f tables/second, threads:%d, maxDelay: %" PRId64 "us, minDelay: %" PRId64 "us %s", 
+           GREEN, 
+           numOfTables, 
+           createTableSpeed, 
+           numOfThreads, 
+           maxDelay, 
+           minDelay,
+           NC);
+
+  if (insertData) {
+      pPrint("%s total %" PRId64 " tables, %.1f rows/second, threads:%d %s", GREEN, numOfTables, insertDataSpeed,
+         numOfThreads, NC);
+  }
+
+  pthread_attr_destroy(&thattr);
+  free(pInfo);
+}
+
