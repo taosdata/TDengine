@@ -22,9 +22,18 @@ extern "C" {
 
 #include "trpc.h"
 
+
+enum {
+  NODE_TYPE_VNODE = 1,
+  NODE_TYPE_QNODE,
+  NODE_TYPE_SNODE,
+};
+
+
+
 typedef struct SQWorkerCfg {
   uint32_t maxSchedulerNum;
-  uint32_t maxResCacheNum;
+  uint32_t maxTaskNum;
   uint32_t maxSchTaskNum;
 } SQWorkerCfg;
 
@@ -39,10 +48,16 @@ typedef struct {
   uint64_t numOfErrors;
 } SQWorkerStat;
 
+typedef int32_t (*putReqToQueryQFp)(void *, struct SRpcMsg *);
 
-int32_t qWorkerInit(SQWorkerCfg *cfg, void **qWorkerMgmt);
+
+int32_t qWorkerInit(int8_t nodeType, int32_t nodeId, SQWorkerCfg *cfg, void **qWorkerMgmt, void *nodeObj, putReqToQueryQFp fp);
 
 int32_t qWorkerProcessQueryMsg(void *node, void *qWorkerMgmt, SRpcMsg *pMsg);
+
+int32_t qWorkerProcessQueryContinueMsg(void *node, void *qWorkerMgmt, SRpcMsg *pMsg);
+
+int32_t qWorkerProcessDataSinkMsg(void *node, void *qWorkerMgmt, SRpcMsg *pMsg);
 
 int32_t qWorkerProcessReadyMsg(void *node, void *qWorkerMgmt, SRpcMsg *pMsg);
 

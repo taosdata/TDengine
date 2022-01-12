@@ -23,7 +23,7 @@ extern "C" {
 #include "tlockfree.h"
 
 #define QWORKER_DEFAULT_SCHEDULER_NUMBER 10000
-#define QWORKER_DEFAULT_RES_CACHE_NUMBER 10000
+#define QWORKER_DEFAULT_TASK_NUMBER 10000
 #define QWORKER_DEFAULT_SCH_TASK_NUMBER 10000
 
 enum {
@@ -57,7 +57,6 @@ enum {
   QW_ADD_ACQUIRE,
 };
 
-
 typedef struct SQWTaskStatus {  
   SRWLatch lock;
   int32_t  code;
@@ -67,12 +66,14 @@ typedef struct SQWTaskStatus {
   bool     drop;
 } SQWTaskStatus;
 
-typedef struct SQWorkerTaskHandlesCache {
+typedef struct SQWTaskCtx {
   SRWLatch        lock;
+  int8_t          sinkScheduled;
+  int8_t          queryScheduled;
   bool            needRsp;
   qTaskInfo_t     taskHandle;
   DataSinkHandle  sinkHandle;
-} SQWorkerTaskHandlesCache;
+} SQWTaskCtx;
 
 typedef struct SQWSchStatus {
   int32_t   lastAccessTs; // timestamp in second
@@ -82,11 +83,15 @@ typedef struct SQWSchStatus {
 
 // Qnode/Vnode level task management
 typedef struct SQWorkerMgmt {
-  SQWorkerCfg cfg;
-  SRWLatch  schLock;
-  SRWLatch  resLock;
-  SHashObj *schHash;    //key: schedulerId, value: SQWSchStatus
-  SHashObj *resHash;       //key: queryId+taskId, value: SQWorkerResCache
+  SQWorkerCfg      cfg;
+  int8_t           nodeType;
+  int32_t          nodeId;
+  SRWLatch         schLock;
+  SRWLatch         ctxLock;
+  SHashObj        *schHash;       //key: schedulerId,    value: SQWSchStatus
+  SHashObj        *ctxHash;       //key: queryId+taskId, value: SQWTaskCtx
+  void            *nodeObj;
+  putReqToQueryQFp putToQueueFp;
 } SQWorkerMgmt;
 
 #define QW_GOT_RES_DATA(data) (true)
@@ -95,40 +100,63 @@ typedef struct SQWorkerMgmt {
 #define QW_TASK_NOT_EXIST(code) (TSDB_CODE_QRY_SCH_NOT_EXIST == (code) || TSDB_CODE_QRY_TASK_NOT_EXIST == (code))
 #define QW_TASK_ALREADY_EXIST(code) (TSDB_CODE_QRY_TASK_ALREADY_EXIST == (code))
 #define QW_TASK_READY_RESP(status) (status == JOB_TASK_STATUS_SUCCEED || status == JOB_TASK_STATUS_FAILED || status == JOB_TASK_STATUS_CANCELLED || status == JOB_TASK_STATUS_PARTIAL_SUCCEED)
-#define QW_SET_QTID(id, qid, tid) do { *(uint64_t *)(id) = (qid); *(uint64_t *)((char *)(id) + sizeof(qid)) = (tid); } while (0)
-#define QW_GET_QTID(id, qid, tid) do { (qid) = *(uint64_t *)(id); (tid) = *(uint64_t *)((char *)(id) + sizeof(qid)); } while (0)
-
+#define QW_SET_QTID(id, qId, tId) do { *(uint64_t *)(id) = (qId); *(uint64_t *)((char *)(id) + sizeof(qId)) = (tId); } while (0)
+#define QW_GET_QTID(id, qId, tId) do { (qId) = *(uint64_t *)(id); (tId) = *(uint64_t *)((char *)(id) + sizeof(qId)); } while (0)
+#define QW_IDS() sId, qId, tId
 
 #define QW_ERR_RET(c) do { int32_t _code = c; if (_code != TSDB_CODE_SUCCESS) { terrno = _code; return _code; } } while (0)
 #define QW_RET(c) do { int32_t _code = c; if (_code != TSDB_CODE_SUCCESS) { terrno = _code; } return _code; } while (0)
-#define QW_ERR_LRET(c,...) do { int32_t _code = c; if (_code != TSDB_CODE_SUCCESS) { qError(__VA_ARGS__); terrno = _code; return _code; } } while (0)
 #define QW_ERR_JRET(c) do { code = c; if (code != TSDB_CODE_SUCCESS) { terrno = code; goto _return; } } while (0)
+
+#define QW_ELOG(param, ...) qError("QW:%p " param, mgmt, __VA_ARGS__)
+#define QW_DLOG(param, ...) qDebug("QW:%p " param, mgmt, __VA_ARGS__)
+
+#define QW_SCH_ELOG(param, ...) qError("QW:%p SID:%"PRIx64 param, mgmt, sId, __VA_ARGS__)
+#define QW_SCH_DLOG(param, ...) qDebug("QW:%p SID:%"PRIx64 param, mgmt, sId, __VA_ARGS__)
+
+#define QW_TASK_ELOG(param, ...) qError("QW:%p SID:%"PRIx64",QID:%"PRIx64",TID:%"PRIx64 param, mgmt, sId, qId, tId, __VA_ARGS__)
+#define QW_TASK_WLOG(param, ...) qWarn("QW:%p SID:%"PRIx64",QID:%"PRIx64",TID:%"PRIx64 param, mgmt, sId, qId, tId, __VA_ARGS__)
+#define QW_TASK_DLOG(param, ...) qDebug("QW:%p SID:%"PRIx64",QID:%"PRIx64",TID:%"PRIx64 param, mgmt, sId, qId, tId, __VA_ARGS__)
+
+
+#define TD_RWLATCH_WRITE_FLAG_COPY 0x40000000
 
 #define QW_LOCK(type, _lock) do {   \
   if (QW_READ == (type)) {          \
-    if ((*(_lock)) < 0) assert(0);    \
-    taosRLockLatch(_lock);          \
-    qDebug("QW RLOCK%p, %s:%d", (_lock), __FILE__, __LINE__); \
+    assert(atomic_load_32((_lock)) >= 0);  \
+    qDebug("QW RLOCK%p:%d, %s:%d B", (_lock), atomic_load_32(_lock), __FILE__, __LINE__); \
+    taosRLockLatch(_lock);           \
+    qDebug("QW RLOCK%p:%d, %s:%d E", (_lock), atomic_load_32(_lock), __FILE__, __LINE__); \
+    assert(atomic_load_32((_lock)) > 0);  \
   } else {                                                \
-    if ((*(_lock)) < 0) assert(0);                          \
+    assert(atomic_load_32((_lock)) >= 0);  \
+    qDebug("QW WLOCK%p:%d, %s:%d B", (_lock), atomic_load_32(_lock), __FILE__, __LINE__);  \
     taosWLockLatch(_lock);                                \
-    qDebug("QW WLOCK%p, %s:%d", (_lock), __FILE__, __LINE__);  \
+    qDebug("QW WLOCK%p:%d, %s:%d E", (_lock), atomic_load_32(_lock), __FILE__, __LINE__);  \
+    assert(atomic_load_32((_lock)) == TD_RWLATCH_WRITE_FLAG_COPY);  \
   }                                                       \
 } while (0)
-
+    
 #define QW_UNLOCK(type, _lock) do {                       \
   if (QW_READ == (type)) {                                \
-    if ((*(_lock)) <= 0) assert(0);                         \
+    assert(atomic_load_32((_lock)) > 0);  \
+    qDebug("QW RULOCK%p:%d, %s:%d B", (_lock), atomic_load_32(_lock), __FILE__, __LINE__); \
     taosRUnLockLatch(_lock);                              \
-    qDebug("QW RULOCK%p, %s:%d", (_lock), __FILE__, __LINE__); \
+    qDebug("QW RULOCK%p:%d, %s:%d E", (_lock), atomic_load_32(_lock), __FILE__, __LINE__); \
+    assert(atomic_load_32((_lock)) >= 0);  \
   } else {                                                \
-    if ((*(_lock)) <= 0) assert(0);                         \
+    assert(atomic_load_32((_lock)) == TD_RWLATCH_WRITE_FLAG_COPY);  \
+    qDebug("QW WULOCK%p:%d, %s:%d B", (_lock), atomic_load_32(_lock), __FILE__, __LINE__); \
     taosWUnLockLatch(_lock);                              \
-    qDebug("QW WULOCK%p, %s:%d", (_lock), __FILE__, __LINE__); \
+    qDebug("QW WULOCK%p:%d, %s:%d E", (_lock), atomic_load_32(_lock), __FILE__, __LINE__); \
+    assert(atomic_load_32((_lock)) >= 0);  \
   }                                                       \
 } while (0)
 
-static int32_t qwAcquireScheduler(int32_t rwType, SQWorkerMgmt *mgmt, uint64_t sId, SQWSchStatus **sch, int32_t nOpt);
+
+
+static int32_t qwAcquireScheduler(int32_t rwType, SQWorkerMgmt *mgmt, uint64_t sId, SQWSchStatus **sch);
+static int32_t qwAddAcquireScheduler(int32_t rwType, SQWorkerMgmt *mgmt, uint64_t sId, SQWSchStatus **sch);
 
 
 #ifdef __cplusplus
