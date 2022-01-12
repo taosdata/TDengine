@@ -46,11 +46,11 @@ libfile="libtaos.so.%{_version}"
 # create install path, and cp file
 mkdir -p %{buildroot}%{homepath}/bin
 mkdir -p %{buildroot}%{homepath}/cfg
-mkdir -p %{buildroot}%{homepath}/connector
+#mkdir -p %{buildroot}%{homepath}/connector
 mkdir -p %{buildroot}%{homepath}/driver
 mkdir -p %{buildroot}%{homepath}/examples
 mkdir -p %{buildroot}%{homepath}/include
-mkdir -p %{buildroot}%{homepath}/init.d
+#mkdir -p %{buildroot}%{homepath}/init.d
 mkdir -p %{buildroot}%{homepath}/script
 
 cp %{_compiledir}/../packaging/cfg/taos.cfg         %{buildroot}%{homepath}/cfg
@@ -60,7 +60,7 @@ fi
 if [ -f %{_compiledir}/test/cfg/taosadapter.service ]; then
     cp %{_compiledir}/test/cfg/taosadapter.service %{buildroot}%{homepath}/cfg
 fi
-cp %{_compiledir}/../packaging/rpm/taosd            %{buildroot}%{homepath}/init.d
+#cp %{_compiledir}/../packaging/rpm/taosd            %{buildroot}%{homepath}/init.d
 cp %{_compiledir}/../packaging/tools/post.sh        %{buildroot}%{homepath}/script
 cp %{_compiledir}/../packaging/tools/preun.sh       %{buildroot}%{homepath}/script
 cp %{_compiledir}/../packaging/tools/startPre.sh    %{buildroot}%{homepath}/bin
@@ -75,10 +75,10 @@ cp %{_compiledir}/build/lib/${libfile}              %{buildroot}%{homepath}/driv
 cp %{_compiledir}/../src/inc/taos.h                 %{buildroot}%{homepath}/include
 cp %{_compiledir}/../src/inc/taosdef.h              %{buildroot}%{homepath}/include
 cp %{_compiledir}/../src/inc/taoserror.h            %{buildroot}%{homepath}/include
-cp -r %{_compiledir}/../src/connector/python        %{buildroot}%{homepath}/connector
-cp -r %{_compiledir}/../src/connector/go            %{buildroot}%{homepath}/connector
-cp -r %{_compiledir}/../src/connector/nodejs        %{buildroot}%{homepath}/connector
-cp %{_compiledir}/build/lib/taos-jdbcdriver*.*      %{buildroot}%{homepath}/connector ||:
+#cp -r %{_compiledir}/../src/connector/python        %{buildroot}%{homepath}/connector
+#cp -r %{_compiledir}/../src/connector/go            %{buildroot}%{homepath}/connector
+#cp -r %{_compiledir}/../src/connector/nodejs        %{buildroot}%{homepath}/connector
+#cp %{_compiledir}/build/lib/taos-jdbcdriver*.*      %{buildroot}%{homepath}/connector ||:
 cp -r %{_compiledir}/../tests/examples/*            %{buildroot}%{homepath}/examples
 
 if [ -f %{_compiledir}/build/bin/jemalloc-config ]; then

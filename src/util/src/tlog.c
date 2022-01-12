@@ -191,7 +191,7 @@ static void *taosThreadToOpenNewFile(void *param) {
 
   umask(0);
 
-  int32_t fd = open(name, O_WRONLY | O_CREAT | O_TRUNC, S_IRWXU | S_IRWXG | S_IRWXO);
+  int32_t fd = open(name, O_WRONLY | O_CREAT | O_TRUNC | O_BINARY, S_IRWXU | S_IRWXG | S_IRWXO);
   if (fd < 0) {
     tsLogObj.openInProgress = 0;
     tsLogObj.lines = tsLogObj.maxLines - 1000;
@@ -252,7 +252,7 @@ void taosResetLog() {
 }
 
 static bool taosCheckFileIsOpen(char *logFileName) {
-  int32_t fd = open(logFileName, O_WRONLY, S_IRWXU | S_IRWXG | S_IRWXO);
+  int32_t fd = open(logFileName, O_WRONLY | O_BINARY, S_IRWXU | S_IRWXG | S_IRWXO);
   if (fd < 0) {
     if (errno == ENOENT) {
       return false;
@@ -340,7 +340,7 @@ static int32_t taosOpenLogFile(char *fn, int32_t maxLines, int32_t maxFileNum) {
   pthread_mutex_init(&tsLogObj.logMutex, NULL);
 
   umask(0);
-  tsLogObj.logHandle->fd = open(fileName, O_WRONLY | O_CREAT, S_IRWXU | S_IRWXG | S_IRWXO);
+  tsLogObj.logHandle->fd = open(fileName, O_WRONLY | O_CREAT | O_BINARY, S_IRWXU | S_IRWXG | S_IRWXO);
 
   if (tsLogObj.logHandle->fd < 0) {
     printf("\nfailed to open log file:%s, reason:%s\n", fileName, strerror(errno));
@@ -373,6 +373,9 @@ void taosPrintLog(const char *flags, int32_t dflag, const char *format, ...) {
   if (tsTotalLogDirGB != 0 && tsAvailLogDirGB < tsMinimalLogDirGB) {
     printf("server disk:%s space remain %.3f GB, total %.1f GB, stop print log.\n", tsLogDir, tsAvailLogDirGB, tsTotalLogDirGB);
     fflush(stdout);
+    return;
+  }
+  if (flags == NULL || format == NULL) {
     return;
   }
 

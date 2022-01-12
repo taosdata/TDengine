@@ -390,6 +390,7 @@ int WCSPatternMatch(const uint32_t *patterStr, const uint32_t *str, size_t size,
   uint32_t c, c1;
   uint32_t matchOne = (uint32_t) L'_';  // "_"
   uint32_t matchAll = (uint32_t) L'%';  // "%"
+  uint32_t escape   = (uint32_t) L'\\';  // "\"
 
   int32_t i = 0;
   int32_t j = 0;
@@ -427,6 +428,8 @@ int WCSPatternMatch(const uint32_t *patterStr, const uint32_t *str, size_t size,
     c1 = str[j++];
 
     if (j <= size) {
+      if (c == escape && patterStr[i] == matchOne && c1 == matchOne) { i++; continue; }
+      if (c == escape && patterStr[i] == matchAll && c1 == matchAll) { i++; continue; }
       if (c == c1 || towlower(c) == towlower(c1) || (c == matchOne && c1 != 0)) {
         continue;
       }
@@ -524,11 +527,11 @@ int32_t compareWStrPatternComp(const void* pLeft, const void* pRight) {
 
   assert(varDataLen(pRight) <= TSDB_MAX_FIELD_LEN * TSDB_NCHAR_SIZE);
 
-  wchar_t *pattern = calloc(varDataLen(pRight) + 1, sizeof(wchar_t));
-  wchar_t *str = calloc(size + 1, sizeof(wchar_t));
+  char *pattern = calloc(varDataLen(pRight) + TSDB_NCHAR_SIZE, 1);
+  char *str = calloc(varDataLen(pLeft) + TSDB_NCHAR_SIZE, 1);
 
   memcpy(pattern, varDataVal(pRight), varDataLen(pRight));
-  memcpy(str, varDataVal(pLeft), size * sizeof(wchar_t));
+  memcpy(str, varDataVal(pLeft), varDataLen(pLeft));
 
   int32_t ret = WCSPatternMatch((uint32_t *)pattern, (uint32_t *)str, size, &pInfo);
 

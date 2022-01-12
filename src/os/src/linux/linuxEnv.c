@@ -72,7 +72,7 @@ char* taosGetCmdlineByPID(int pid) {
   static char cmdline[1024];
   sprintf(cmdline, "/proc/%d/cmdline", pid);
 
-  int fd = open(cmdline, O_RDONLY);
+  int fd = open(cmdline, O_RDONLY | O_BINARY);
   if (fd >= 0) {
     int n = read(fd, cmdline, sizeof(cmdline) - 1);
     if (n < 0) n = 0;

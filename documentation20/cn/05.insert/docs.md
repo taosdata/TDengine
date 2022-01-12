@@ -20,7 +20,7 @@ INSERT INTO d1001 VALUES (1538548685000, 10.3, 219, 0.31) (1538548695000, 12.6, 
 
 详细的SQL INSERT语法规则请见 [TAOS SQL 的数据写入](https://www.taosdata.com/cn/documentation/taos-sql#insert) 章节。
 
-**Tips:** 
+**Tips:**
 
 - 要提高写入效率，需要批量写入。一批写入的记录条数越多，插入效率就越高。但一条记录不能超过16K，一条SQL语句总长度不能超过1M 。
 - TDengine支持多线程同时写入，要进一步提高写入速度，一个客户端需要打开20个以上的线程同时写。但线程数达到一定数量后，无法再提高，甚至还会下降，因为线程频繁切换，带来额外开销。
@@ -56,7 +56,7 @@ tag_set 中的所有的数据自动转化为 nchar 数据类型，并不需要�
 * 对空格、等号（=）、逗号（,）、双引号（"），前面需要使用反斜杠（\）进行转义。（都指的是英文半角符号）
 * 数值类型将通过后缀来区分数据类型：
 
-| **序号** | **后缀** | **映射类型** | **大小(字节)** | 
+| **序号** | **后缀** | **映射类型** | **大小(字节)** |
 | -- | -------  | ---------| ------ |
 | 1  | 无或f64  |  double  |  8     |
 | 2  | f32     |  float    |  4    |
@@ -231,16 +231,16 @@ prometheus产生的数据格式如下：
 ```json
 {
   Timestamp: 1576466279341,
-  Value: 37.000000, 
+  Value: 37.000000,
   apiserver_request_latencies_bucket {
-    component="apiserver", 
-    instance="192.168.99.116:8443", 
-    job="kubernetes-apiservers", 
-    le="125000", 
-    resource="persistentvolumes", 
+    component="apiserver",
+    instance="192.168.99.116:8443",
+    job="kubernetes-apiservers",
+    le="125000",
+    resource="persistentvolumes",
     scope="cluster",
-    verb="LIST", 
-    version="v1" 
+    verb="LIST",
+    version="v1"
   }
 }
 ```
@@ -251,6 +251,7 @@ select * from apiserver_request_latencies_bucket;
 ```
 
 ## <a class="anchor" id="telegraf"></a> Telegraf 直接写入(通过 taosAdapter)
+
 安装 Telegraf 请参考[官方文档](https://portal.influxdata.com/downloads/)。
 
 TDengine 新版本（2.3.0.0+）包含一个 taosAdapter 独立程序，负责接收包括 Telegraf 的多种应用的数据写入。
@@ -276,6 +277,7 @@ sudo systemctl start telegraf
 taosAdapter 相关配置参数请参考 taosadapter --help 命令输出以及相关文档。
 
 ## <a class="anchor" id="collectd"></a> collectd 直接写入(通过 taosAdapter)
+
 安装 collectd，请参考[官方文档](https://collectd.org/download.shtml)。
 
 TDengine 新版本（2.3.0.0+）包含一个 taosAdapter 独立程序，负责接收包括 collectd 的多种应用的数据写入。
@@ -294,6 +296,7 @@ sudo systemctl start collectd
 taosAdapter 相关配置参数请参考 taosadapter --help 命令输出以及相关文档。
 
 ## <a class="anchor" id="statsd"></a> StatsD 直接写入(通过 taosAdapter)
+
 安装 StatsD
 请参考[官方文档](https://github.com/statsd/statsd)。
 
@@ -316,6 +319,30 @@ port: 8125
 
 taosAdapter 相关配置参数请参考 taosadapter --help 命令输出以及相关文档。
 
+icinga2 可以收集监控和性能数据并写入 OpenTSDB，taosAdapter 可以支持接收 icinga2 的数据并写入到 TDengine 中。
+
+## <a class="anchor" id="icinga2"></a> icinga2 直接写入(通过 taosAdapter)
+
+* 参考链接 https://icinga.com/docs/icinga-2/latest/doc/14-features/#opentsdb-writer 使能 opentsdb-writer
+* 使能 taosAdapter 配置项 opentsdb_telnet.enable
+* 修改配置文件 /etc/icinga2/features-enabled/opentsdb.conf
+```
+object OpenTsdbWriter "opentsdb" {
+  host = "host to taosAdapter"
+  port = 6048
+}
+```
+
+taosAdapter 相关配置参数请参考 taosadapter --help 命令输出以及相关文档。
+
+## <a class="anchor" id="tcollector"></a> TCollector 直接写入(通过 taosAdapter)
+
+TCollector 是一个在客户侧收集本地收集器并发送数据到 OpenTSDB 的进程，taosAdaapter 可以支持接收 TCollector 的数据并写入到 TDengine 中。
+
+使能 taosAdapter 配置项 opentsdb_telnet.enable
+修改 TCollector 配置文件，修改 OpenTSDB 宿主机地址为 taosAdapter 被部署的地址，并修改端口号为 taosAdapter 使用的端口（默认6049）。
+
+taosAdapter 相关配置参数请参考 taosadapter --help 命令输出以及相关文档。
 
 ## <a class="anchor" id="taosadapter2-telegraf"></a> 使用 Bailongma 2.0 接入 Telegraf 数据写入
 

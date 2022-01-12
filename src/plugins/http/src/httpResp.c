@@ -156,7 +156,10 @@ void httpSendErrorResp(HttpContext *pContext, int32_t errNo) {
 
   HttpServer *pServer = &tsHttpServer;
   SMonHttpStatus *httpStatus = monGetHttpStatusHashTableEntry(httpCode);
-  pServer->statusCodeErrs[httpStatus->index] += 1;
+  // FIXME(@huolinhe): I don't known why the errors index is overflowed, but fix it by index check
+  if (httpStatus->index < HTTP_STATUS_CODE_NUM) {
+    pServer->statusCodeErrs[httpStatus->index] += 1;
+  }
 
   pContext->error = true;
 
