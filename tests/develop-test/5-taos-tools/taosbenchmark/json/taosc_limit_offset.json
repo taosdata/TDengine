@@ -37,7 +37,7 @@
       "child_table_exists":"yes",
       "childtable_count": 8,
       "childtable_prefix": "stb_",
-      "escape_character": "yes",
+      "escape_character": "no",
       "auto_create_table": "no",
       "batch_create_tbl_num": 10,
       "data_source": "rand",
