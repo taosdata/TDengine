@@ -1861,6 +1861,13 @@ int tscProcessRetrieveGlobalMergeRsp(SSqlObj *pSql) {
 
     tscDebug("0x%"PRIx64" create QInfo 0x%"PRIx64" to execute query processing", pSql->self, pSql->self);
     pQueryInfo->pQInfo = createQInfoFromQueryNode(pQueryInfo, &tableGroupInfo, NULL, NULL, pRes->pMerger, MERGE_STAGE, pSql->self);
+    if (pQueryInfo->pQInfo == NULL) {
+      taosHashCleanup(tableGroupInfo.map);
+      taosArrayDestroy(&group);
+      tscAsyncResultOnError(pSql);
+      pRes->code = TSDB_CODE_QRY_OUT_OF_MEMORY;
+      return pRes->code;
+    }
   }
 
   uint64_t localQueryId = pSql->self;
