@@ -13,18 +13,18 @@
  * along with this program. If not, see <http://www.gnu.org/licenses/>.
  */
 
-#include "tsdbRowMergeBuf.h"
-#include "tdataformat.h"
+// #include "tsdbRowMergeBuf.h"
+// #include "tdataformat.h"
 
-// row1 has higher priority
-SMemRow tsdbMergeTwoRows(SMergeBuf *pBuf, SMemRow row1, SMemRow row2, STSchema *pSchema1, STSchema *pSchema2) {
-  if(row2 == NULL) return row1;
-  if(row1 == NULL) return row2;
-  ASSERT(pSchema1->version == memRowVersion(row1)); 
-  ASSERT(pSchema2->version == memRowVersion(row2));
+// // row1 has higher priority
+// SMemRow tsdbMergeTwoRows(SMergeBuf *pBuf, SMemRow row1, SMemRow row2, STSchema *pSchema1, STSchema *pSchema2) {
+//   if(row2 == NULL) return row1;
+//   if(row1 == NULL) return row2;
+//   ASSERT(pSchema1->version == memRowVersion(row1)); 
+//   ASSERT(pSchema2->version == memRowVersion(row2));
 
-  if(tsdbMergeBufMakeSureRoom(pBuf, pSchema1, pSchema2) < 0) {
-    return NULL;
-  }
-  return mergeTwoMemRows(*pBuf, row1, row2, pSchema1, pSchema2);
-}
+//   if(tsdbMergeBufMakeSureRoom(pBuf, pSchema1, pSchema2) < 0) {
+//     return NULL;
+//   }
+//   return mergeTwoMemRows(*pBuf, row1, row2, pSchema1, pSchema2);
+// }

@@ -19,7 +19,7 @@
 #include "vnode.h"
 
 #include "meta.h"
-#include "sync.h"
+// #include "sync.h"
 #include "tlog.h"
 #include "tq.h"
 #include "tsdb.h"
