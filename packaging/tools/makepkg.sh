@@ -134,6 +134,15 @@ if [ -n "${taostools_bin_files}" ]; then
     echo -e "install-taostools.sh not found"
   fi
 
+  if [ -f ${top_dir}/src/kit/taos-tools/packaging/tools/uninstall-taostools.sh ]; then
+    cp ${top_dir}/src/kit/taos-tools/packaging/tools/uninstall-taostools.sh \
+      ${taostools_install_dir}/ >/dev/null &&
+      chmod a+x ${taostools_install_dir}/uninstall-taostools.sh ||
+      echo -e "failed to copy uninstall-taostools.sh"
+  else
+    echo -e "uninstall-taostools.sh not found"
+  fi
+
   if [ -f ${build_dir}/lib/libavro.so.23.0.0 ]; then
     mkdir -p ${taostools_install_dir}/avro/{lib,lib/pkgconfig} || echo -e "failed to create ${taostools_install_dir}/avro"
     cp ${build_dir}/lib/libavro.* ${taostools_install_dir}/avro/lib
@@ -246,18 +255,18 @@ fi
 mkdir -p ${install_dir}/driver && cp ${lib_files} ${install_dir}/driver && echo "${versionComp}" >${install_dir}/driver/vercomp.txt
 
 # Copy connector
-connector_dir="${code_dir}/connector"
-mkdir -p ${install_dir}/connector
-if [[ "$pagMode" != "lite" ]] && [[ "$cpuType" != "aarch32" ]]; then
-  cp ${build_dir}/lib/*.jar ${install_dir}/connector || :
-  if find ${connector_dir}/go -mindepth 1 -maxdepth 1 | read; then
-    cp -r ${connector_dir}/go ${install_dir}/connector
-  else
-    echo "WARNING: go connector not found, please check if want to use it!"
-  fi
-  cp -r ${connector_dir}/python ${install_dir}/connector
-  cp -r ${connector_dir}/nodejs ${install_dir}/connector
-fi
+#connector_dir="${code_dir}/connector"
+#mkdir -p ${install_dir}/connector
+#if [[ "$pagMode" != "lite" ]] && [[ "$cpuType" != "aarch32" ]]; then
+#  cp ${build_dir}/lib/*.jar ${install_dir}/connector || :
+#  if find ${connector_dir}/go -mindepth 1 -maxdepth 1 | read; then
+#    cp -r ${connector_dir}/go ${install_dir}/connector
+#  else
+#    echo "WARNING: go connector not found, please check if want to use it!"
+#  fi
+#  cp -r ${connector_dir}/python ${install_dir}/connector
+#  cp -r ${connector_dir}/nodejs ${install_dir}/connector
+#fi
 # Copy release note
 # cp ${script_dir}/release_note ${install_dir}
 
