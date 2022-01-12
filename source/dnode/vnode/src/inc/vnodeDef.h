@@ -17,7 +17,7 @@
 #define _TD_VNODE_DEF_H_
 
 #include "mallocator.h"
-#include "sync.h"
+// #include "sync.h"
 #include "tcoding.h"
 #include "tlist.h"
 #include "tlockfree.h"

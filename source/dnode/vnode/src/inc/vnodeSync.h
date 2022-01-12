@@ -16,7 +16,7 @@
 #ifndef _TD_VNODE_SYNC_H_
 #define _TD_VNODE_SYNC_H_
 
-#include "sync.h"
+// #include "sync.h"
 
 #ifdef __cplusplus
 extern "C" {

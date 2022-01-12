@@ -13,7 +13,9 @@
  * along with this program. If not, see <http://www.gnu.org/licenses/>.
  */
 
+#ifdef USE_INVERTED_INDEX
 #include "index.h"
+#endif
 #include "metaDef.h"
 
 struct SMetaIdx {

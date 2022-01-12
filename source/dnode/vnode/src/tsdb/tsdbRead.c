@@ -28,7 +28,7 @@
 
 #include "taosdef.h"
 #include "tlosertree.h"
-#include "tsdbint.h"
+#include "tsdbDef.h"
 #include "tmsg.h"
 
 #define EXTRA_BYTES 2
