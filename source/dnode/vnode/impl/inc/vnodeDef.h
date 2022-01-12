@@ -77,11 +77,12 @@ struct SVnode {
   SVnodeFS*   pFs;
   tsem_t      canCommit;
   SQHandle*   pQuery;
+  SDnode*     pDnode;
 };
 
 int vnodeScheduleTask(SVnodeTask* task);
 
-void vnodePutReqToVQueryQ(struct SRpcMsg *pReq);
+void vnodePutReqToVQueryQ(SVnode *pVnode, struct SRpcMsg *pReq);
 
 #ifdef __cplusplus
 }

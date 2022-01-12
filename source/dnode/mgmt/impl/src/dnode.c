@@ -200,12 +200,11 @@ SDnode *dndInit(SDnodeOpt *pOption) {
 
   SVnodeOpt vnodeOpt = {
       .sver = pDnode->opt.sver,
-      .pDnode = pDnode,
       .timezone = pDnode->opt.timezone,
       .locale = pDnode->opt.locale,
       .charset = pDnode->opt.charset,
-      .putReqToVQueryQFp = dndPutMsgToVQueryQ,
       .nthreads = pDnode->opt.numOfCommitThreads,
+      .putReqToVQueryQFp = dndPutMsgToVQueryQ,
   };
   if (vnodeInit(&vnodeOpt) != 0) {
     dError("failed to init vnode env");

@@ -26,7 +26,6 @@ int vnodeInit(const SVnodeOpt *pOption) {
 
   vnodeMgr.stop = false;
   vnodeMgr.putReqToVQueryQFp = pOption->putReqToVQueryQFp;
-  vnodeMgr.pDnode = pOption->pDnode;
 
   // Start commit handers
   if (pOption->nthreads > 0) {
@@ -91,10 +90,10 @@ int vnodeScheduleTask(SVnodeTask* pTask) {
   return 0;
 }
 
-void vnodePutReqToVQueryQ(struct SRpcMsg* pReq) {
-  if (vnodeMgr.putReqToVQueryQFp) {
-    (*vnodeMgr.putReqToVQueryQFp)(vnodeMgr.pDnode, pReq);
-  }
+void vnodePutReqToVQueryQ(SVnode* pVnode, struct SRpcMsg* pReq) {
+  assert(vnodeMgr.putReqToVQueryQFp);
+  assert(pVnode->pDnode);
+  (*vnodeMgr.putReqToVQueryQFp)(pVnode->pDnode, pReq);
 }
 
 /* ------------------------ STATIC METHODS ------------------------ */
