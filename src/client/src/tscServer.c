@@ -418,7 +418,8 @@ void tscProcessMsgFromServer(SRpcMsg *rpcMsg, SRpcEpSet *pEpSet) {
   // single table query error need to be handled here.
   if ((cmd == TSDB_SQL_SELECT || cmd == TSDB_SQL_UPDATE_TAGS_VAL) &&
       (((rpcMsg->code == TSDB_CODE_TDB_INVALID_TABLE_ID || rpcMsg->code == TSDB_CODE_VND_INVALID_VGROUP_ID)) ||
-       rpcMsg->code == TSDB_CODE_RPC_NETWORK_UNAVAIL || rpcMsg->code == TSDB_CODE_APP_NOT_READY)) {
+       (rpcMsg->code == TSDB_CODE_QRY_INVALID_SCHEMA_VERSION) ||
+       rpcMsg->code == TSDB_CODE_RPC_NETWORK_UNAVAIL || rpcMsg->code == TSDB_CODE_APP_NOT_READY )) {
 
     // 1. super table subquery
     // 2. nest queries are all not updated the tablemeta and retry parse the sql after cleanup local tablemeta/vgroup id buffer
@@ -511,6 +512,7 @@ void tscProcessMsgFromServer(SRpcMsg *rpcMsg, SRpcEpSet *pEpSet) {
   }
 
   bool shouldFree = tscShouldBeFreed(pSql);
+
   if (rpcMsg->code != TSDB_CODE_TSC_ACTION_IN_PROGRESS) {
     if (rpcMsg->code != TSDB_CODE_SUCCESS) {
       pRes->code = rpcMsg->code;
@@ -962,7 +964,7 @@ int tscBuildQueryMsg(SSqlObj *pSql, SSqlInfo *pInfo) {
   pQueryMsg->numOfGroupCols = htons(pQueryInfo->groupbyExpr.numOfGroupCols);
   pQueryMsg->queryType      = htonl(pQueryInfo->type);
   pQueryMsg->prevResultLen  = htonl(pQueryInfo->bufLen);
-
+  
   // set column list ids
   size_t numOfCols = taosArrayGetSize(pQueryInfo->colList);
   char *pMsg = (char *)(pQueryMsg->tableCols) + numOfCols * sizeof(SColumnInfo);
@@ -1148,21 +1150,21 @@ int tscBuildQueryMsg(SSqlObj *pSql, SSqlInfo *pInfo) {
   pMsg += sqlLen;
 
 
-/*
-  //MSG EXTEND DEMO
+
   pQueryMsg->extend = 1;
   
   STLV *tlv = (STLV *)pMsg;
-  tlv->type = htons(TLV_TYPE_DUMMY);
-  tlv->len  = htonl(sizeof(int16_t));
-  *(int16_t *)tlv->value = htons(12345);
+  tlv->type = htons(TLV_TYPE_META_VERSION);
+  tlv->len  = htonl(sizeof(int16_t) * 2);
+  *(int16_t*)tlv->value = htons(pTableMeta->sversion);
+  *(int16_t*)(tlv->value+sizeof(int16_t)) = htons(pTableMeta->tversion);
   pMsg += sizeof(*tlv) + ntohl(tlv->len);
 
   tlv = (STLV *)pMsg;
+  tlv->type = htons(TLV_TYPE_END_MARK);
   tlv->len = 0;
   pMsg += sizeof(*tlv);
 
-*/
 
   int32_t msgLen = (int32_t)(pMsg - pCmd->payload);
 
@@ -2691,7 +2693,9 @@ int tscProcessQueryRsp(SSqlObj *pSql) {
   pRes->data = NULL;
 
   tscResetForNextRetrieve(pRes);
+
   tscDebug("0x%"PRIx64" query rsp received, qId:0x%"PRIx64, pSql->self, pRes->qId);
+
   return 0;
 }
 
@@ -2703,7 +2707,7 @@ static void decompressQueryColData(SSqlObj *pSql, SSqlRes *pRes, SQueryInfo* pQu
   compSizes = (int32_t *)(pData + compLen);
 
   TAOS_FIELD *pField = tscFieldInfoGetField(&pQueryInfo->fieldsInfo, numOfCols - 1);
-  int16_t     offset = tscFieldInfoGetOffset(pQueryInfo, numOfCols - 1);
+  int32_t     offset = tscFieldInfoGetOffset(pQueryInfo, numOfCols - 1);
   char       *outputBuf = tcalloc(pRes->numOfRows, (pField->bytes + offset));
 
   char *p = outputBuf;
@@ -2804,10 +2808,11 @@ int tscProcessRetrieveRspFromNode(SSqlObj *pSql) {
 
   pRes->row = 0;
   tscDebug("0x%"PRIx64" numOfRows:%d, offset:%" PRId64 ", complete:%d, qId:0x%"PRIx64, pSql->self, pRes->numOfRows, pRes->offset,
-      pRes->completed, pRes->qId);
+           pRes->completed, pRes->qId);
 
   return 0;
 }
+
 
 void tscTableMetaCallBack(void *param, TAOS_RES *res, int code);
 
