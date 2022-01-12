@@ -185,7 +185,7 @@ static void dndBuildQnodeOption(SDnode *pDnode, SQnodeOpt *pOption) {
   pOption->sendRedirectRspFp = dndSendRedirectRsp;
   pOption->dnodeId = dndGetDnodeId(pDnode);
   pOption->clusterId = dndGetClusterId(pDnode);
-  pOption->cfg.sver = pDnode->env.sver;
+  pOption->sver = pDnode->env.sver;
 }
 
 static int32_t dndOpenQnode(SDnode *pDnode) {
