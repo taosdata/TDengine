@@ -91,8 +91,10 @@ typedef struct SPhyNode {
 
 typedef struct SScanPhyNode {
   SPhyNode    node;
-  uint64_t    uid;  // unique id of the table
+  uint64_t    uid;           // unique id of the table
   int8_t      tableType;
+  int32_t     order;         // scan order: TSDB_ORDER_ASC|TSDB_ORDER_DESC
+  int32_t     count;         // repeat count
 } SScanPhyNode;
 
 typedef SScanPhyNode SSystemTableScanPhyNode;

@@ -160,11 +160,14 @@ void addExprInfo(SArray* pExprList, int32_t index, SExprInfo* pExprInfo, int32_t
     taosArrayInsert(pExprList, index, &pExprInfo);
   }
 
+#if 0
   if (pExprInfo->pExpr->nodeType == TEXPR_FUNCTION_NODE) {
     printf("add function: %s, level:%d, total:%ld\n", pExprInfo->pExpr->_function.functionName, level, taosArrayGetSize(pExprList));
   } else {
     printf("add operator: %s, level:%d, total:%ld\n", pExprInfo->base.resSchema.name, level, taosArrayGetSize(pExprList));
   }
+#endif
+
 }
 
 void updateExprInfo(SExprInfo* pExprInfo, int16_t functionId, int32_t colId, int16_t srcColumnIndex, int16_t resType, int16_t resSize) {

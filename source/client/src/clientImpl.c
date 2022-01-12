@@ -25,8 +25,9 @@
 static int32_t initEpSetFromCfg(const char *firstEp, const char *secondEp, SCorEpSet *pEpSet);
 static SMsgSendInfo* buildConnectMsg(SRequestObj *pRequest);
 static void destroySendMsgInfo(SMsgSendInfo* pMsgBody);
+static void setQueryResultByRsp(SReqResultInfo* pResultInfo, const SRetrieveTableRsp* pRsp);
 
-static bool stringLengthCheck(const char* str, size_t maxsize) {
+  static bool stringLengthCheck(const char* str, size_t maxsize) {
   if (str == NULL) {
     return false;
   }
@@ -212,6 +213,7 @@ int32_t getPlan(SRequestObj* pRequest, SQueryNode* pQueryNode, SQueryDag** pDag)
     SSubplan* pPlan = taosArrayGetP(pa, 0);
     SDataBlockSchema* pDataBlockSchema = &(pPlan->pDataSink->schema);
     setResSchemaInfo(pResInfo, pDataBlockSchema);
+
     pRequest->type = TDMT_VND_QUERY;
   }
 
@@ -228,7 +230,7 @@ void setResSchemaInfo(SReqResultInfo* pResInfo, const SDataBlockSchema* pDataBlo
     SSchema* pSchema = &pDataBlockSchema->pSchema[i];
     pResInfo->fields[i].bytes = pSchema->bytes;
     pResInfo->fields[i].type  = pSchema->type;
-    tstrncpy(pResInfo->fields[i].name, pSchema[i].name, tListLen(pResInfo->fields[i].name));
+    tstrncpy(pResInfo->fields[i].name, pSchema->name, tListLen(pResInfo->fields[i].name));
   }
 }
 
@@ -545,11 +547,15 @@ void* doFetchRow(SRequestObj* pRequest) {
 
   if (pResultInfo->pData == NULL || pResultInfo->current >= pResultInfo->numOfRows) {
     if (pRequest->type == TDMT_VND_QUERY) {
-      pRequest->type = TDMT_VND_FETCH;
+      // All data has returned to App already, no need to try again
+      if (pResultInfo->completed) {
+        return NULL;
+      }
+
       scheduleFetchRows(pRequest->body.pQueryJob, (void **)&pRequest->body.resInfo.pData);
-      
-      pResultInfo->current = 0;
-      if (pResultInfo->numOfRows <= pResultInfo->current) {
+      setQueryResultByRsp(&pRequest->body.resInfo, (SRetrieveTableRsp*)pRequest->body.resInfo.pData);
+
+      if (pResultInfo->numOfRows == 0) {
         return NULL;
       }
 
@@ -611,11 +617,22 @@ _return:
   return pResultInfo->row;
 }
 
+static void doPrepareResPtr(SReqResultInfo* pResInfo) {
+  if (pResInfo->row == NULL) {
+    pResInfo->row    = calloc(pResInfo->numOfCols, POINTER_BYTES);
+    pResInfo->pCol   = calloc(pResInfo->numOfCols, POINTER_BYTES);
+    pResInfo->length = calloc(pResInfo->numOfCols, sizeof(int32_t));
+  }
+}
+
 void setResultDataPtr(SReqResultInfo* pResultInfo, TAOS_FIELD* pFields, int32_t numOfCols, int32_t numOfRows) {
   assert(numOfCols > 0 && pFields != NULL && pResultInfo != NULL);
   if (numOfRows == 0) {
     return;
   }
+
+  // todo check for the failure of malloc
+  doPrepareResPtr(pResultInfo);
 
   int32_t offset = 0;
   for (int32_t i = 0; i < numOfCols; ++i) {
@@ -642,3 +659,14 @@ void setConnectionDB(STscObj* pTscObj, const char* db) {
   pthread_mutex_unlock(&pTscObj->mutex);
 }
 
+void setQueryResultByRsp(SReqResultInfo* pResultInfo, const SRetrieveTableRsp* pRsp) {
+  assert(pResultInfo != NULL && pRsp != NULL);
+
+  pResultInfo->pRspMsg   = (const char*) pRsp;
+  pResultInfo->pData     = (void*) pRsp->data;
+  pResultInfo->numOfRows = htonl(pRsp->numOfRows);
+  pResultInfo->current   = 0;
+  pResultInfo->completed = (pRsp->completed == 1);
+
+  setResultDataPtr(pResultInfo, pResultInfo->fields, pResultInfo->numOfCols, pResultInfo->numOfRows);
+}
