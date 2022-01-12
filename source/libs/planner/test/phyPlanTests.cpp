@@ -135,9 +135,9 @@ private:
     _sql = sql;
     memset(_msg, 0, _msgMaxLen);
   
-    pCxt->ctx.acctId = 1;
-    pCxt->ctx.db = _db.c_str();
-    pCxt->ctx.requestId = 1;
+    pCxt->acctId = 1;
+    pCxt->db = _db.c_str();
+    pCxt->requestId = 1;
     pCxt->pSql = _sql.c_str();
     pCxt->sqlLen = _sql.length();
     pCxt->pMsg = _msg;
