@@ -14,7 +14,9 @@
  */
 
 #include "rpcTcp.h"
+#ifdef USE_UV
 #include <uv.h>
+#endif
 #include "os.h"
 #include "rpcHead.h"
 #include "rpcLog.h"

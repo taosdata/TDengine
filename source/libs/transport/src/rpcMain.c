@@ -13,7 +13,9 @@
  * along with this program. If not, see <http://www.gnu.org/licenses/>.
  */
 
+#ifdef USE_UV
 #include <uv.h>
+#endif
 #include "lz4.h"
 #include "os.h"
 #include "rpcCache.h"
