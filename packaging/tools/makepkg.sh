@@ -42,12 +42,12 @@ if [ -d ${top_dir}/src/kit/taos-tools/packaging/deb ]; then
   cd ${top_dir}/src/kit/taos-tools/packaging/deb
   [ -z "$taos_tools_ver" ] && taos_tools_ver="0.1.0"
 
-taostools_ver=$(git describe --tags | sed -e 's/ver-//g' | awk -F '-' '{print $1}')
-taostools_install_dir="${release_dir}/${productName}Tools-${taostools_ver}"
+  taostools_ver=$(git describe --tags | sed -e 's/ver-//g' | awk -F '-' '{print $1}')
+  taostools_install_dir="${release_dir}/${clientName}Tools-${taostools_ver}"
 
   cd ${curr_dir}
 else
-  taostools_install_dir="${release_dir}/${productName}Tools-${version}"
+  taostools_install_dir="${release_dir}/${clientName}Tools-${version}"
 fi
 
 # Directories and files
@@ -124,9 +124,6 @@ if [ -n "${taostools_bin_files}" ]; then
   mkdir -p ${taostools_install_dir}/bin &&
     cp ${taostools_bin_files} ${taostools_install_dir}/bin &&
     chmod a+x ${taostools_install_dir}/bin/* || :
-  [ -f ${taostools_install_dir}/bin/taosBenchmark ] &&
-    ln -sf ${taostools_install_dir}/bin/taosBenchmark \
-      ${taostools_install_dir}/bin/taosdemo
 
   if [ -f ${top_dir}/src/kit/taos-tools/packaging/tools/install-taostools.sh ]; then
     cp ${top_dir}/src/kit/taos-tools/packaging/tools/install-taostools.sh \
@@ -135,6 +132,15 @@ if [ -n "${taostools_bin_files}" ]; then
       echo -e "failed to copy install-taostools.sh"
   else
     echo -e "install-taostools.sh not found"
+  fi
+
+  if [ -f ${top_dir}/src/kit/taos-tools/packaging/tools/uninstall-taostools.sh ]; then
+    cp ${top_dir}/src/kit/taos-tools/packaging/tools/uninstall-taostools.sh \
+      ${taostools_install_dir}/ >/dev/null &&
+      chmod a+x ${taostools_install_dir}/uninstall-taostools.sh ||
+      echo -e "failed to copy uninstall-taostools.sh"
+  else
+    echo -e "uninstall-taostools.sh not found"
   fi
 
   if [ -f ${build_dir}/lib/libavro.so.23.0.0 ]; then
@@ -249,18 +255,18 @@ fi
 mkdir -p ${install_dir}/driver && cp ${lib_files} ${install_dir}/driver && echo "${versionComp}" >${install_dir}/driver/vercomp.txt
 
 # Copy connector
-connector_dir="${code_dir}/connector"
-mkdir -p ${install_dir}/connector
-if [[ "$pagMode" != "lite" ]] && [[ "$cpuType" != "aarch32" ]]; then
-  cp ${build_dir}/lib/*.jar ${install_dir}/connector || :
-  if find ${connector_dir}/go -mindepth 1 -maxdepth 1 | read; then
-    cp -r ${connector_dir}/go ${install_dir}/connector
-  else
-    echo "WARNING: go connector not found, please check if want to use it!"
-  fi
-  cp -r ${connector_dir}/python ${install_dir}/connector
-  cp -r ${connector_dir}/nodejs ${install_dir}/connector
-fi
+#connector_dir="${code_dir}/connector"
+#mkdir -p ${install_dir}/connector
+#if [[ "$pagMode" != "lite" ]] && [[ "$cpuType" != "aarch32" ]]; then
+#  cp ${build_dir}/lib/*.jar ${install_dir}/connector || :
+#  if find ${connector_dir}/go -mindepth 1 -maxdepth 1 | read; then
+#    cp -r ${connector_dir}/go ${install_dir}/connector
+#  else
+#    echo "WARNING: go connector not found, please check if want to use it!"
+#  fi
+#  cp -r ${connector_dir}/python ${install_dir}/connector
+#  cp -r ${connector_dir}/nodejs ${install_dir}/connector
+#fi
 # Copy release note
 # cp ${script_dir}/release_note ${install_dir}
 

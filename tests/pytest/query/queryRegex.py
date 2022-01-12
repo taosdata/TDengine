@@ -92,10 +92,10 @@ class TDTestCase:
         tdSql.error('select * from stb_test where c0 nmatch abc')
 
         
-        tdSql.query("select * from stb_1 where c0 match '\\\\'")
+        tdSql.query(r"select * from stb_1 where c0 match '\\\\'")
         tdSql.checkRows(1)
 
-        tdSql.query("select * from stb_1 where c0 nmatch '\\\\'")
+        tdSql.query(r"select * from stb_1 where c0 nmatch '\\\\'")
         tdSql.checkRows(3)
 
         #2021-10-20 for https://jira.taosdata.com:18080/browse/TD-10708
