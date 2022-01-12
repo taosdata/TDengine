@@ -3628,7 +3628,7 @@ int32_t evaluateSqlNode(SSqlNode* pNode, int32_t tsPrecision, SMsgBuf* pMsgBuf) 
   return TSDB_CODE_SUCCESS;
 }
 
-int32_t setTableVgroupList(SParseBasicCtx *pCtx, SName* name, SVgroupsInfo **pVgList) {
+int32_t setTableVgroupList(SParseContext *pCtx, SName* name, SVgroupsInfo **pVgList) {
   SArray* vgroupList = NULL;
   int32_t code = catalogGetTableDistVgroup(pCtx->pCatalog, pCtx->pTransporter, &pCtx->mgmtEpSet, name, &vgroupList);
   if (code != TSDB_CODE_SUCCESS) {
@@ -3655,7 +3655,7 @@ int32_t setTableVgroupList(SParseBasicCtx *pCtx, SName* name, SVgroupsInfo **pVg
   return TSDB_CODE_SUCCESS;
 }
 
-int32_t qParserValidateSqlNode(SParseBasicCtx *pCtx, SSqlInfo* pInfo, SQueryStmtInfo* pQueryInfo, char* msgBuf, int32_t msgBufLen) {
+int32_t qParserValidateSqlNode(SParseContext *pCtx, SSqlInfo* pInfo, SQueryStmtInfo* pQueryInfo, char* msgBuf, int32_t msgBufLen) {
   assert(pCtx != NULL && pInfo != NULL);
   int32_t code = 0;
 

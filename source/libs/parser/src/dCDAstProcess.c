@@ -18,7 +18,7 @@ static bool has(SArray* pFieldList, int32_t startIndex, const char* name) {
   return false;
 }
 
-static int32_t setShowInfo(SShowInfo* pShowInfo, SParseBasicCtx* pCtx, void** output, int32_t* outputLen,
+static int32_t setShowInfo(SShowInfo* pShowInfo, SParseContext* pCtx, void** output, int32_t* outputLen,
                            SEpSet* pEpSet, void** pExtension, SMsgBuf* pMsgBuf) {
   const char* msg1 = "invalid name";
   const char* msg2 = "wildcard string should be less than %d characters";
@@ -396,7 +396,7 @@ static void destroyCreateTbReqBatch(SVgroupTablesBatch* pTbBatch) {
   taosArrayDestroy(pTbBatch->req.pArray);
 }
 
-static int32_t doCheckAndBuildCreateCTableReq(SCreateTableSql* pCreateTable, SParseBasicCtx* pCtx, SMsgBuf* pMsgBuf, SArray** pBufArray) {
+static int32_t doCheckAndBuildCreateCTableReq(SCreateTableSql* pCreateTable, SParseContext* pCtx, SMsgBuf* pMsgBuf, SArray** pBufArray) {
   const char* msg1 = "invalid table name";
   const char* msg2 = "tags number not matched";
   const char* msg3 = "tag value too long";
@@ -634,7 +634,7 @@ static int32_t doBuildSingleTableBatchReq(SName* pTableName, SArray* pColumns, S
   return TSDB_CODE_SUCCESS;
 }
 
-int32_t doCheckAndBuildCreateTableReq(SCreateTableSql* pCreateTable, SParseBasicCtx* pCtx, SMsgBuf* pMsgBuf, char** pOutput, int32_t* len) {
+int32_t doCheckAndBuildCreateTableReq(SCreateTableSql* pCreateTable, SParseContext* pCtx, SMsgBuf* pMsgBuf, char** pOutput, int32_t* len) {
   SArray* pBufArray = NULL;
   int32_t code = 0;
 
@@ -703,7 +703,7 @@ SArray* doSerializeVgroupCreateTableInfo(SHashObj* pVgroupHashmap) {
   return pBufArray;
 }
 
-SDclStmtInfo* qParserValidateDclSqlNode(SSqlInfo* pInfo, SParseBasicCtx* pCtx, char* msgBuf, int32_t msgBufLen) {
+SDclStmtInfo* qParserValidateDclSqlNode(SSqlInfo* pInfo, SParseContext* pCtx, char* msgBuf, int32_t msgBufLen) {
   int32_t code = 0;
 
   SDclStmtInfo* pDcl = calloc(1, sizeof(SDclStmtInfo));
@@ -961,7 +961,7 @@ SDclStmtInfo* qParserValidateDclSqlNode(SSqlInfo* pInfo, SParseBasicCtx* pCtx, c
     return NULL;
 }
 
-SVnodeModifOpStmtInfo* qParserValidateCreateTbSqlNode(SSqlInfo* pInfo, SParseBasicCtx* pCtx, char* msgBuf, int32_t msgBufLen) {
+SVnodeModifOpStmtInfo* qParserValidateCreateTbSqlNode(SSqlInfo* pInfo, SParseContext* pCtx, char* msgBuf, int32_t msgBufLen) {
   SCreateTableSql* pCreateTable = pInfo->pCreateTableInfo;
   assert(pCreateTable->type == TSDB_SQL_CREATE_TABLE);
 
