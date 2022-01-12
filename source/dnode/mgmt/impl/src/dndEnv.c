@@ -251,7 +251,6 @@ void dndClose(SDnode *pDnode) {
   dndCleanupQnode(pDnode);
   dndCleanupVnodes(pDnode);
   dndCleanupMgmt(pDnode);
-  vnodeCleanup();
   tfsCleanup();
 
   dndCloseImp(pDnode);
@@ -309,6 +308,7 @@ void dndCleanup() {
   }
 
   walCleanUp();
+  vnodeCleanup();
   rpcCleanup();
 
   taosStopCacheRefreshWorker();

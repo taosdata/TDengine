@@ -61,8 +61,6 @@ void vnodeCleanup() {
     return;
   }
 
-  walCleanUp();
-
   // Stop commit handler
   pthread_mutex_lock(&(vnodeMgr.mutex));
   vnodeMgr.stop = true;
