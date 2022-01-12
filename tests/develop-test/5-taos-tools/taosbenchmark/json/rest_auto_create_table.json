@@ -33,7 +33,7 @@
       "update": 0
     },
     "super_tables": [{
-      "name": "stb1",
+      "name": "stb3",
       "child_table_exists":"no",
       "childtable_count": 8,
       "childtable_prefix": "stb_",
@@ -41,7 +41,7 @@
       "auto_create_table": "yes",
       "batch_create_tbl_num": 10,
       "data_source": "rand",
-      "insert_mode": "taosc",
+      "insert_mode": "rest",
       "line_protocol": "line",
       "childtable_limit": 0,
       "childtable_offset": 0,
@@ -58,15 +58,15 @@
       "columns": [{"type": "INT"}, {"type": "BIGINT"}, {"type": "FLOAT"}, {"type": "DOUBLE"}, {"type": "SMALLINT"}, {"type": "TINYINT"}, {"type": "BOOL"}, {"type": "NCHAR","len": 29, "count":1}, {"type": "UINT"}, {"type": "UBIGINT"}, {"type": "UTINYINT"}, {"type": "USMALLINT"}, {"type": "BINARY", "len": 23, "count":1}],
       "tags": [{"type": "TIMESTAMP"},{"type": "INT"}, {"type": "BIGINT"}, {"type": "FLOAT"}, {"type": "DOUBLE"}, {"type": "SMALLINT"}, {"type": "TINYINT"}, {"type": "BOOL"}, {"type": "NCHAR","len": 17, "count":1}, {"type": "UINT"}, {"type": "UBIGINT"}, {"type": "UTINYINT"}, {"type": "USMALLINT"}, {"type": "BINARY", "len": 19, "count":1}]
     },{
-      "name": "stb1-2",
+      "name": "stb3-2",
       "child_table_exists":"no",
       "childtable_count": 8,
-      "childtable_prefix": "stb1-2_",
+      "childtable_prefix": "stb3-2_",
       "escape_character": "yes",
       "auto_create_table": "yes",
       "batch_create_tbl_num": 10,
       "data_source": "rand",
-      "insert_mode": "taosc",
+      "insert_mode": "rest",
       "line_protocol": "line",
       "childtable_limit": 0,
       "childtable_offset": 0,
