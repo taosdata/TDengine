@@ -19,7 +19,7 @@
 SDisk *tfsNewDisk(int32_t level, int32_t id, const char *dir) {
   SDisk *pDisk = calloc(1, sizeof(SDisk));
   if (pDisk == NULL) {
-    terrno = TSDB_CODE_FS_OUT_OF_MEMORY;
+    terrno = TSDB_CODE_OUT_OF_MEMORY;
     return NULL;
   }
 
@@ -34,6 +34,7 @@ SDisk *tfsFreeDisk(SDisk *pDisk) {
   if (pDisk != NULL) {
     free(pDisk);
   }
+
   return NULL;
 }
 
@@ -44,17 +45,15 @@ int32_t tfsUpdateDiskInfo(SDisk *pDisk) {
   }
 
   SysDiskSize diskSize = {0};
-
-  int32_t code = taosGetDiskSize(pDisk->dir, &diskSize);
-  if (code != 0) {
+  if (taosGetDiskSize(pDisk->dir, &diskSize) != 0) {
+    terrno = TAOS_SYSTEM_ERROR(errno);
     fError("failed to update disk information at level %d id %d dir %s since %s", pDisk->level, pDisk->id, pDisk->dir,
            strerror(errno));
-    terrno = TAOS_SYSTEM_ERROR(errno);
+    return -1
   }
 
   pDisk->dmeta.size = diskSize.tsize;
   pDisk->dmeta.used = diskSize.used;
   pDisk->dmeta.free = diskSize.avail;
-
-  return code;
+  return 0;
 }
