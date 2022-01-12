@@ -115,6 +115,8 @@ int32_t qCreateQueryInfo(void* tsdb, int32_t vgId, SQueryTableMsg* pQueryMsg, qi
 
   bool isSTableQuery = false;
   STableGroupInfo tableGroupInfo = {0};
+  tableGroupInfo.sVersion = -1;
+  tableGroupInfo.tVersion = -1;
   int64_t st = taosGetTimestampUs();
 
   if (TSDB_QUERY_HAS_TYPE(pQueryMsg->queryType, TSDB_QUERY_TYPE_TABLE_QUERY)) {
@@ -158,6 +160,16 @@ int32_t qCreateQueryInfo(void* tsdb, int32_t vgId, SQueryTableMsg* pQueryMsg, qi
     qDebug("qmsg:%p tag filter completed, numOfTables:%u, elapsed time:%"PRId64"us", pQueryMsg, tableGroupInfo.numOfTables, el);
   } else {
     assert(0);
+  }
+
+  int16_t queryTagVersion = param.tagVersion;
+  int16_t querySchemaVersion = param.schemaVersion;
+  if (queryTagVersion < tableGroupInfo.tVersion || querySchemaVersion < tableGroupInfo.sVersion) {
+    qInfo("qmsg:%p invalid schema version. client meta sversion/tversion %d/%d, table sversion/tversion %d/%d", pQueryMsg,
+          querySchemaVersion, queryTagVersion, tableGroupInfo.sVersion, tableGroupInfo.tVersion);
+    tsdbDestroyTableGroup(&tableGroupInfo);
+    code = TSDB_CODE_QRY_INVALID_SCHEMA_VERSION;
+    goto _over;
   }
 
   code = checkForQueryBuf(tableGroupInfo.numOfTables);
@@ -425,7 +437,7 @@ int32_t qDumpRetrieveResult(qinfo_t qinfo, SRetrieveTableRsp **pRsp, int32_t *co
     *contLen = *contLen - origSize + compSize;
     *pRsp = (SRetrieveTableRsp *)rpcReallocCont(*pRsp, *contLen);
     qDebug("QInfo:0x%"PRIx64" compress col data, uncompressed size:%d, compressed size:%d, ratio:%.2f",
-        pQInfo->qId, origSize, compSize, (float)origSize / (float)compSize);
+           pQInfo->qId, origSize, compSize, (float)origSize / (float)compSize);
   }
   (*pRsp)->compLen = htonl(compLen);
 
