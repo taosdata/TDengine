@@ -83,8 +83,18 @@ int vnodeApplyWMsg(SVnode *pVnode, SRpcMsg *pMsg, SRpcMsg **pRsp) {
         if (metaCreateTable(pVnode->pMeta, pCreateTbReq) < 0) {
           // TODO: handle error
         }
+        if (pCreateTbReq->type == TD_SUPER_TABLE) {
+          free(pCreateTbReq->stbCfg.pSchema);
+          free(pCreateTbReq->stbCfg.pTagSchema);
+        } else if (pCreateTbReq->type == TD_CHILD_TABLE) {
+          free(pCreateTbReq->ctbCfg.pTag);
+        } else {
+          free(pCreateTbReq->ntbCfg.pSchema);
+        }
       }
-      
+      taosArrayDestroy(vCreateTbBatchReq.pArray);
+      break;
+
     case TDMT_VND_DROP_STB:
     case TDMT_VND_DROP_TABLE:
       // if (metaDropTable(pVnode->pMeta, vReq.dtReq.uid) < 0) {
