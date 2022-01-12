@@ -25,7 +25,7 @@
 static int32_t initEpSetFromCfg(const char *firstEp, const char *secondEp, SCorEpSet *pEpSet);
 static SMsgSendInfo* buildConnectMsg(SRequestObj *pRequest);
 static void destroySendMsgInfo(SMsgSendInfo* pMsgBody);
-static void setQueryResultByRsp(SReqResultInfo* pResultInfo, SRetrieveTableRsp* pRsp);
+static void setQueryResultByRsp(SReqResultInfo* pResultInfo, const SRetrieveTableRsp* pRsp);
 
   static bool stringLengthCheck(const char* str, size_t maxsize) {
   if (str == NULL) {
@@ -547,12 +547,15 @@ void* doFetchRow(SRequestObj* pRequest) {
 
   if (pResultInfo->pData == NULL || pResultInfo->current >= pResultInfo->numOfRows) {
     if (pRequest->type == TDMT_VND_QUERY) {
-      pRequest->type = TDMT_VND_FETCH;
+      // All data has returned to App already, no need to try again
+      if (pResultInfo->completed) {
+        return NULL;
+      }
+
       scheduleFetchRows(pRequest->body.pQueryJob, (void **)&pRequest->body.resInfo.pData);
       setQueryResultByRsp(&pRequest->body.resInfo, (SRetrieveTableRsp*)pRequest->body.resInfo.pData);
 
-      pResultInfo->current = 0;
-      if (pResultInfo->numOfRows <= pResultInfo->current) {
+      if (pResultInfo->numOfRows == 0) {
         return NULL;
       }
 
@@ -656,11 +659,14 @@ void setConnectionDB(STscObj* pTscObj, const char* db) {
   pthread_mutex_unlock(&pTscObj->mutex);
 }
 
-void setQueryResultByRsp(SReqResultInfo* pResultInfo, SRetrieveTableRsp* pRsp) {
-  assert(pRsp != NULL && pResultInfo != NULL);
-  pResultInfo->pRspMsg   = pRsp;
+void setQueryResultByRsp(SReqResultInfo* pResultInfo, const SRetrieveTableRsp* pRsp) {
+  assert(pResultInfo != NULL && pRsp != NULL);
+
+  pResultInfo->pRspMsg   = (const char*) pRsp;
   pResultInfo->pData     = (void*) pRsp->data;
   pResultInfo->numOfRows = htonl(pRsp->numOfRows);
+  pResultInfo->current   = 0;
+  pResultInfo->completed = (pRsp->completed == 1);
 
   setResultDataPtr(pResultInfo, pResultInfo->fields, pResultInfo->numOfCols, pResultInfo->numOfRows);
 }

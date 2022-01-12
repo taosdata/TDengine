@@ -93,13 +93,12 @@ typedef struct SReqResultInfo {
   const char  *pData;
   TAOS_FIELD  *fields;
   uint32_t     numOfCols;
-
   int32_t     *length;
   TAOS_ROW     row;
   char       **pCol;
-
   uint32_t     numOfRows;
   uint32_t     current;
+  bool         completed;
 } SReqResultInfo;
 
 typedef struct SShowReqInfo {
