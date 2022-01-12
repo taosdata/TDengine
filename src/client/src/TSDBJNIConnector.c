@@ -944,7 +944,7 @@ JNIEXPORT jlong JNICALL Java_com_taosdata_jdbc_TSDBJNIConnector_bindColDataImp(
   return JNI_SUCCESS;
 }
 
-JNIEXPORT jint JNICALL Java_com_taosdata_jdbc_TSDBJNIConnector_stmt_add_batch(JNIEnv *env, jobject jobj, jlong stmt,
+JNIEXPORT jint JNICALL Java_com_taosdata_jdbc_TSDBJNIConnector_addBatchImp(JNIEnv *env, jobject jobj, jlong stmt,
                                                                               jlong con) {
   TAOS *tscon = (TAOS *)con;
   if (tscon == NULL) {
@@ -1016,7 +1016,7 @@ JNIEXPORT jint JNICALL Java_com_taosdata_jdbc_TSDBJNIConnector_closeStmt(JNIEnv 
   return JNI_SUCCESS;
 }
 
-JNIEXPORT jstring JNICALL Java_com_taosdata_jdbc_TSDBJNIConnector_stmt_errstr(JNIEnv *env, jobject jobj, jlong stmt,
+JNIEXPORT jstring JNICALL Java_com_taosdata_jdbc_TSDBJNIConnector_stmtErrorMsgImp(JNIEnv *env, jobject jobj, jlong stmt,
                                                                               jlong con) {
   char  errMsg[128];
   TAOS *tscon = (TAOS *)con;
