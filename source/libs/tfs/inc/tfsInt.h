@@ -13,8 +13,8 @@
  * along with this program. If not, see <http://www.gnu.org/licenses/>.
  */
 
-#ifndef TD_TFSINT_H
-#define TD_TFSINT_H
+#ifndef _TD_TFSINT_H_
+#define _TD_TFSINT_H_
 
 #include "os.h"
 
@@ -88,10 +88,10 @@ void    tfsDestroyTier(STier *pTier);
 SDisk  *tfsMountDiskToTier(STier *pTier, SDiskCfg *pCfg);
 void    tfsUpdateTierInfo(STier *pTier, STierMeta *pTierMeta);
 int32_t tfsAllocDiskOnTier(STier *pTier);
-void   tfsPosNextId(STier *pTier);
+void    tfsPosNextId(STier *pTier);
 
 #ifdef __cplusplus
 }
 #endif
 
-#endif
+#endif /*_TD_TFSINT_H_*/
