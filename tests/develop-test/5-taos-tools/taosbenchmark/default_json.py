@@ -29,35 +29,14 @@ class TDTestCase:
         tdSql.init(conn.cursor(), logSql)
 
     def run(self):
-        cmd = "taosBenchmark -F abc -P abc -I abc -T abc -i abc -S abc -B abc -r abc -t abc -n abc -l abc -w abc -w 16385 -R abc -O abc -a abc -n 2 -t 2 -r 1 -y"
+        cmd = "taosBenchmark -f ./5-taos-tools/taosbenchmark/json/default.json"
         tdLog.info("%s" % cmd)
         os.system("%s" % cmd)
-        tdSql.query("select count(*) from test.meters")
-        tdSql.checkData(0, 0, 4)
-
-        cmd = "taosBenchmark non_exist_opt"
-        tdLog.info("%s" % cmd)
-        assert (os.system("%s" % cmd) != 0)
-
-        cmd = "taosBenchmark -f non_exist_file"
-        tdLog.info("%s" % cmd)
-        assert (os.system("%s" % cmd) != 0)
-
-        cmd = "taosBenchmark -h non_exist_host"
-        tdLog.info("%s" % cmd)
-        assert (os.system("%s" % cmd) != 0)
-
-        cmd = "taosBenchmark -p non_exist_pass"
-        tdLog.info("%s" % cmd)
-        assert (os.system("%s" % cmd) != 0)
-
-        cmd = "taosBenchmark -u non_exist_user"
-        tdLog.info("%s" % cmd)
-        assert (os.system("%s" % cmd) != 0)
-
-        cmd = "taosBenchmark -c non_exist_dir -n 1 -t 1 -o non_exist_path -y"
-        tdLog.info("%s" % cmd)
-        assert (os.system("%s" % cmd) == 0)
+        tdSql.execute("reset query cache")
+        tdSql.query("select count(tbname) from db.stb")
+        tdSql.checkData(0, 0, 10)
+        tdSql.query("select count(*) from db.stb")
+        tdSql.checkData(0, 0, 100)
 
     def stop(self):
         tdSql.close()

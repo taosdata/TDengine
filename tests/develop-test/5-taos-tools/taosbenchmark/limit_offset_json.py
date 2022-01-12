@@ -37,6 +37,16 @@ class TDTestCase:
         tdSql.checkData(0, 0, 8)
         tdSql.query("select count(*) from db.stb")
         tdSql.checkRows(0)
+        tdSql.query("describe db.stb")
+        tdSql.checkData(1, 1, "BINARY")
+        tdSql.checkData(2, 1, "NCHAR")
+        tdSql.checkData(3, 1, "BINARY")
+        tdSql.checkData(4, 1, "NCHAR")
+        tdSql.checkData(1, 2, 64)
+        tdSql.checkData(2, 2, 64)
+        tdSql.checkData(3, 2, 64)
+        tdSql.checkData(4, 2, 64)
+
 
         cmd = "taosBenchmark -f ./5-taos-tools/taosbenchmark/json/taosc_limit_offset.json"
         tdLog.info("%s" % cmd)
