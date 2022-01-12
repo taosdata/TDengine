@@ -248,18 +248,18 @@ fi
 mkdir -p ${install_dir}/driver && cp ${lib_files} ${install_dir}/driver && echo "${versionComp}" > ${install_dir}/driver/vercomp.txt
 
 # Copy connector
-connector_dir="${code_dir}/connector"
-mkdir -p ${install_dir}/connector
-if [[ "$pagMode" != "lite" ]] && [[ "$cpuType" != "aarch32" ]]; then
-  cp ${build_dir}/lib/*.jar            ${install_dir}/connector ||:
-  if find ${connector_dir}/go -mindepth 1 -maxdepth 1 | read; then
-    cp -r ${connector_dir}/go ${install_dir}/connector
-  else
-    echo "WARNING: go connector not found, please check if want to use it!"
-  fi
-  cp -r ${connector_dir}/python        ${install_dir}/connector
-  cp -r ${connector_dir}/nodejs        ${install_dir}/connector
-fi
+#connector_dir="${code_dir}/connector"
+#mkdir -p ${install_dir}/connector
+#if [[ "$pagMode" != "lite" ]] && [[ "$cpuType" != "aarch32" ]]; then
+#  cp ${build_dir}/lib/*.jar            ${install_dir}/connector ||:
+#  if find ${connector_dir}/go -mindepth 1 -maxdepth 1 | read; then
+#    cp -r ${connector_dir}/go ${install_dir}/connector
+#  else
+#    echo "WARNING: go connector not found, please check if want to use it!"
+#  fi
+#  cp -r ${connector_dir}/python        ${install_dir}/connector
+#  cp -r ${connector_dir}/nodejs        ${install_dir}/connector
+#fi
 # Copy release note
 # cp ${script_dir}/release_note ${install_dir}
 
