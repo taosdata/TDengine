@@ -32,9 +32,61 @@ class TDTestCase:
         cmd = "taosBenchmark -f ./5-taos-tools/taosbenchmark/json/taosc_auto_create_table.json"
         tdLog.info("%s" % cmd)
         os.system("%s" % cmd)
-        tdSql.query("select count(tbname) from db.stb")
+        tdSql.execute("reset query cache")
+        tdSql.query("select count(tbname) from db.stb1")
         tdSql.checkData(0, 0, 8)
-        tdSql.query("select count(*) from db.stb")
+        tdSql.query("select count(*) from db.stb1")
+        tdSql.checkData(0, 0, 160)
+
+        tdSql.execute("reset query cache")
+        tdSql.query("select count(tbname) from db.`stb1-2`")
+        tdSql.checkData(0, 0, 8)
+        tdSql.query("select count(*) from db.`stb1-2`")
+        tdSql.checkData(0, 0, 160)
+
+        cmd = "taosBenchmark -f ./5-taos-tools/taosbenchmark/json/stmt_auto_create_table.json"
+        tdLog.info("%s" % cmd)
+        os.system("%s" % cmd)
+        tdSql.execute("reset query cache")
+        tdSql.query("select count(tbname) from db.stb2")
+        tdSql.checkData(0, 0, 8)
+        tdSql.query("select count(*) from db.stb2")
+        tdSql.checkData(0, 0, 160)
+
+        tdSql.execute("reset query cache")
+        tdSql.query("select count(tbname) from db.`stb2-2`")
+        tdSql.checkData(0, 0, 8)
+        tdSql.query("select count(*) from db.`stb2-2`")
+        tdSql.checkData(0, 0, 160)
+
+        cmd = "taosBenchmark -f ./5-taos-tools/taosbenchmark/json/rest_auto_create_table.json"
+        tdLog.info("%s" % cmd)
+        os.system("%s" % cmd)
+        tdSql.execute("reset query cache")
+        tdSql.query("select count(tbname) from db.stb3")
+        tdSql.checkData(0, 0, 8)
+        tdSql.query("select count(*) from db.stb3")
+        tdSql.checkData(0, 0, 160)
+
+        tdSql.execute("reset query cache")
+        tdSql.query("select count(tbname) from db.`stb3-2`")
+        tdSql.checkData(0, 0, 8)
+        tdSql.query("select count(*) from db.`stb3-2`")
+        tdSql.checkData(0, 0, 160)
+
+        cmd = "taosBenchmark -f ./5-taos-tools/taosbenchmark/json/sml_auto_create_table.json"
+        tdLog.info("%s" % cmd)
+        os.system("%s" % cmd)
+        tdSql.execute("reset query cache")
+        tdSql.query("select count(tbname) from db.stb4")
+        tdSql.checkData(0, 0, 8)
+        tdSql.query("select count(*) from db.stb4")
+        tdSql.checkData(0, 0, 160)
+
+        tdSql.execute("reset query cache")
+        tdSql.query("select count(tbname) from db.`stb4-2`")
+        tdSql.checkData(0, 0, 8)
+        tdSql.query("select count(*) from db.`stb4-2`")
         tdSql.checkData(0, 0, 160)
 
     def stop(self):
