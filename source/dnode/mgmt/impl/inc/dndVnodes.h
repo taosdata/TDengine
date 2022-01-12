@@ -36,6 +36,8 @@ int32_t dndProcessAuthVnodeReq(SDnode *pDnode, SRpcMsg *pReq);
 int32_t dndProcessSyncVnodeReq(SDnode *pDnode, SRpcMsg *pReq);
 int32_t dndProcessCompactVnodeReq(SDnode *pDnode, SRpcMsg *pReq);
 
+int32_t dndPutReqToVQueryQ(SDnode *pDnode, SRpcMsg *pReq);
+
 #ifdef __cplusplus
 }
 #endif

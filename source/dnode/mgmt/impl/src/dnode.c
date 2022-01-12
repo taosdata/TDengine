@@ -153,8 +153,6 @@ static void dndCleanupEnv(SDnode *pDnode) {
   taosStopCacheRefreshWorker();
 }
 
-static void dndPutMsgToVQueryQ(SDnode *pDnode, SRpcMsg *pRpcMsg) { dndProcessVnodeQueryMsg(pDnode, pRpcMsg, NULL); }
-
 SDnode *dndInit(SDnodeOpt *pOption) {
   taosIgnSIGPIPE();
   taosBlockSIGPIPE();
@@ -204,7 +202,7 @@ SDnode *dndInit(SDnodeOpt *pOption) {
       .locale = pDnode->opt.locale,
       .charset = pDnode->opt.charset,
       .nthreads = pDnode->opt.numOfCommitThreads,
-      .putReqToVQueryQFp = dndPutMsgToVQueryQ,
+      .putReqToVQueryQFp = dndPutReqToVQueryQ,
   };
   if (vnodeInit(&vnodeOpt) != 0) {
     dError("failed to init vnode env");

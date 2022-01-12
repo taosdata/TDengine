@@ -802,7 +802,7 @@ static void dndProcessVnodeSyncQueue(SVnodeObj *pVnode, STaosQall *qall, int32_t
   }
 }
 
-static int32_t dndWriteRpcMsgToVnodeQueue(STaosQueue *pQueue, SRpcMsg *pRpcMsg) {
+static int32_t dndWriteRpcMsgToVnodeQueue(STaosQueue *pQueue, SRpcMsg *pRpcMsg, bool sendRsp) {
   int32_t code = 0;
 
   if (pQueue == NULL) {
@@ -819,13 +819,15 @@ static int32_t dndWriteRpcMsgToVnodeQueue(STaosQueue *pQueue, SRpcMsg *pRpcMsg) 
     }
   }
 
-  if (code != TSDB_CODE_SUCCESS) {
+  if (code != TSDB_CODE_SUCCESS && sendRsp) {
     if (pRpcMsg->msgType & 1u) {
       SRpcMsg rsp = {.handle = pRpcMsg->handle, .code = code};
       rpcSendResponse(&rsp);
     }
     rpcFreeCont(pRpcMsg->pCont);
   }
+
+  return code;
 }
 
 static SVnodeObj *dndAcquireVnodeFromMsg(SDnode *pDnode, SRpcMsg *pMsg) {
@@ -848,7 +850,7 @@ static SVnodeObj *dndAcquireVnodeFromMsg(SDnode *pDnode, SRpcMsg *pMsg) {
 void dndProcessVnodeWriteMsg(SDnode *pDnode, SRpcMsg *pMsg, SEpSet *pEpSet) {
   SVnodeObj *pVnode = dndAcquireVnodeFromMsg(pDnode, pMsg);
   if (pVnode != NULL) {
-    dndWriteRpcMsgToVnodeQueue(pVnode->pWriteQ, pMsg);
+    (void)dndWriteRpcMsgToVnodeQueue(pVnode->pWriteQ, pMsg, true);
     dndReleaseVnode(pDnode, pVnode);
   }
 }
@@ -856,7 +858,7 @@ void dndProcessVnodeWriteMsg(SDnode *pDnode, SRpcMsg *pMsg, SEpSet *pEpSet) {
 void dndProcessVnodeSyncMsg(SDnode *pDnode, SRpcMsg *pMsg, SEpSet *pEpSet) {
   SVnodeObj *pVnode = dndAcquireVnodeFromMsg(pDnode, pMsg);
   if (pVnode != NULL) {
-    dndWriteRpcMsgToVnodeQueue(pVnode->pSyncQ, pMsg);
+    (void)dndWriteRpcMsgToVnodeQueue(pVnode->pSyncQ, pMsg, true);
     dndReleaseVnode(pDnode, pVnode);
   }
 }
@@ -864,7 +866,7 @@ void dndProcessVnodeSyncMsg(SDnode *pDnode, SRpcMsg *pMsg, SEpSet *pEpSet) {
 void dndProcessVnodeQueryMsg(SDnode *pDnode, SRpcMsg *pMsg, SEpSet *pEpSet) {
   SVnodeObj *pVnode = dndAcquireVnodeFromMsg(pDnode, pMsg);
   if (pVnode != NULL) {
-    dndWriteRpcMsgToVnodeQueue(pVnode->pQueryQ, pMsg);
+    (void)dndWriteRpcMsgToVnodeQueue(pVnode->pQueryQ, pMsg, true);
     dndReleaseVnode(pDnode, pVnode);
   }
 }
@@ -872,9 +874,21 @@ void dndProcessVnodeQueryMsg(SDnode *pDnode, SRpcMsg *pMsg, SEpSet *pEpSet) {
 void dndProcessVnodeFetchMsg(SDnode *pDnode, SRpcMsg *pMsg, SEpSet *pEpSet) {
   SVnodeObj *pVnode = dndAcquireVnodeFromMsg(pDnode, pMsg);
   if (pVnode != NULL) {
-    dndWriteRpcMsgToVnodeQueue(pVnode->pFetchQ, pMsg);
+    (void)dndWriteRpcMsgToVnodeQueue(pVnode->pFetchQ, pMsg, true);
     dndReleaseVnode(pDnode, pVnode);
   }
+}
+
+int32_t dndPutReqToVQueryQ(SDnode *pDnode, SRpcMsg *pMsg) {
+  SMsgHead *pHead = pMsg->pCont;
+  // pHead->vgId = htonl(pHead->vgId);
+
+  SVnodeObj *pVnode = dndAcquireVnode(pDnode, pHead->vgId);
+  if (pVnode == NULL) return -1;
+
+  int32_t code = dndWriteRpcMsgToVnodeQueue(pVnode->pFetchQ, pMsg, false);
+  dndReleaseVnode(pDnode, pVnode);
+  return code;
 }
 
 static int32_t dndPutMsgIntoVnodeApplyQueue(SDnode *pDnode, int32_t vgId, SRpcMsg *pMsg) {
