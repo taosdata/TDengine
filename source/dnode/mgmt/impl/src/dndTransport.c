@@ -176,7 +176,7 @@ static int32_t dndInitClient(SDnode *pDnode) {
   rpcInit.cfp = dndProcessResponse;
   rpcInit.sessions = 1024;
   rpcInit.connType = TAOS_CONN_CLIENT;
-  rpcInit.idleTime = pDnode->opt.shellActivityTimer * 1000;
+  rpcInit.idleTime = pDnode->cfg.shellActivityTimer * 1000;
   rpcInit.user = INTERNAL_USER;
   rpcInit.ckey = INTERNAL_CKEY;
   rpcInit.secret = INTERNAL_SECRET;
@@ -325,20 +325,20 @@ static int32_t dndInitServer(SDnode *pDnode) {
   STransMgmt *pMgmt = &pDnode->tmgmt;
   dndInitMsgFp(pMgmt);
 
-  int32_t numOfThreads = (int32_t)((pDnode->opt.numOfCores * pDnode->opt.numOfThreadsPerCore) / 2.0);
+  int32_t numOfThreads = (int32_t)((pDnode->env.numOfCores * pDnode->cfg.numOfThreadsPerCore) / 2.0);
   if (numOfThreads < 1) {
     numOfThreads = 1;
   }
 
   SRpcInit rpcInit;
   memset(&rpcInit, 0, sizeof(rpcInit));
-  rpcInit.localPort = pDnode->opt.serverPort;
+  rpcInit.localPort = pDnode->cfg.serverPort;
   rpcInit.label = "DND-S";
   rpcInit.numOfThreads = numOfThreads;
   rpcInit.cfp = dndProcessRequest;
-  rpcInit.sessions = pDnode->opt.maxShellConns;
+  rpcInit.sessions = pDnode->cfg.maxShellConns;
   rpcInit.connType = TAOS_CONN_SERVER;
-  rpcInit.idleTime = pDnode->opt.shellActivityTimer * 1000;
+  rpcInit.idleTime = pDnode->cfg.shellActivityTimer * 1000;
   rpcInit.afp = dndRetrieveUserAuthInfo;
   rpcInit.parent = pDnode;
 

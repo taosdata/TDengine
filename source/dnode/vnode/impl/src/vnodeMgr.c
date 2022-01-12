@@ -56,12 +56,10 @@ int vnodeInit(const SVnodeOpt *pOption) {
   return 0;
 }
 
-void vnodeClear() {
+void vnodeCleanup() {
   if (TD_CHECK_AND_SET_MOD_CLEAR(&(vnodeMgr.vnodeInitFlag)) == TD_MOD_UNINITIALIZED) {
     return;
   }
-
-  walCleanUp();
 
   // Stop commit handler
   pthread_mutex_lock(&(vnodeMgr.mutex));

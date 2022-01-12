@@ -89,10 +89,10 @@ typedef struct {
 int vnodeInit(const SVnodeOpt *pOption);
 
 /**
- * @brief clear a vnode
+ * @brief Cleanup the vnode module
  *
  */
-void vnodeClear();
+void vnodeCleanup();
 
 /**
  * @brief Open a VNODE.

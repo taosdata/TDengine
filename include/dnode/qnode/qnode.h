@@ -23,9 +23,9 @@ extern "C" {
 /* ------------------------ TYPES EXPOSED ------------------------ */
 typedef struct SDnode SDnode;
 typedef struct SQnode SQnode;
-typedef int32_t (*SendReqToDnodeFp)(SDnode *pDnode, struct SEpSet *epSet, struct SRpcMsg *rpcMsg);
-typedef int32_t (*SendReqToMnodeFp)(SDnode *pDnode, struct SRpcMsg *rpcMsg);
-typedef void (*SendRedirectRspFp)(SDnode *pDnode, struct SRpcMsg *rpcMsg);
+typedef int32_t (*SendReqToDnodeFp)(SDnode *pDnode, struct SEpSet *epSet, struct SRpcMsg *pMsg);
+typedef int32_t (*SendReqToMnodeFp)(SDnode *pDnode, struct SRpcMsg *pMsg);
+typedef void (*SendRedirectRspFp)(SDnode *pDnode, struct SRpcMsg *pMsg);
 
 typedef struct {
   int64_t numOfStartTask;
@@ -39,13 +39,9 @@ typedef struct {
 } SQnodeLoad;
 
 typedef struct {
-  int32_t sver;
-} SQnodeCfg;
-
-typedef struct {
+  int32_t           sver;
   int32_t           dnodeId;
   int64_t           clusterId;
-  SQnodeCfg         cfg;
   SDnode           *pDnode;
   SendReqToDnodeFp  sendReqToDnodeFp;
   SendReqToMnodeFp  sendReqToMnodeFp;

@@ -227,7 +227,7 @@ TEST(vnodeApiTest, vnode_simple_create_table_test) {
 
   // CLOSE THE VNODE
   vnodeClose(pVnode);
-  vnodeClear();
+  vnodeCleanup();
 
   taosArrayDestroy(pMsgArr);
 }
@@ -279,7 +279,7 @@ TEST(vnodeApiTest, vnode_simple_insert_test) {
 
   // Close the vnode
   vnodeClose(pVnode);
-  vnodeClear();
+  vnodeCleanup();
 
   taosArrayDestroy(pMsgArr);
 }

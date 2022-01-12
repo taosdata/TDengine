@@ -179,7 +179,7 @@ static void dndBuildSnodeOption(SDnode *pDnode, SSnodeOpt *pOption) {
   pOption->sendRedirectRspFp = dndSendRedirectRsp;
   pOption->dnodeId = dndGetDnodeId(pDnode);
   pOption->clusterId = dndGetClusterId(pDnode);
-  pOption->cfg.sver = pDnode->opt.sver;
+  pOption->sver = pDnode->env.sver;
 }
 
 static int32_t dndOpenSnode(SDnode *pDnode) {
