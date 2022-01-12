@@ -5395,7 +5395,7 @@ SAggFunctionInfo aAggs[40] = {{
                               "elapsed",
                               TSDB_FUNC_ELAPSED,
                               TSDB_FUNC_ELAPSED,
-                              TSDB_BASE_FUNC_SO,
+                              TSDB_FUNCSTATE_SO | TSDB_FUNCSTATE_STABLE,
                               elapsedSetup,
                               elapsedFunction,
                               elapsedFinalizer,
