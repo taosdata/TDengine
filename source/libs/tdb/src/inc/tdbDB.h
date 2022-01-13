@@ -13,19 +13,28 @@
  * along with this program. If not, see <http://www.gnu.org/licenses/>.
  */
 
-#ifndef _TD_TKV_DB_H_
-#define _TD_TKV_DB_H_
+#ifndef _TD_TDB_DB_H_
+#define _TD_TDB_DB_H_
+
+#include "tdbBtree.h"
+#include "tdbHash.h"
 
 #ifdef __cplusplus
 extern "C" {
 #endif
 
+
 struct TDB {
-  // TODO
+  pgsize_t pageSize;
+  tdb_db_t type;
+  union {
+    TDB_BTREE btree;
+    TDB_HASH  hash;
+  } dbam;  // Different access methods
 };
 
 #ifdef __cplusplus
 }
 #endif
 
-#endif /*_TD_TKV_DB_H_*/
+#endif /*_TD_TDB_DB_H_*/

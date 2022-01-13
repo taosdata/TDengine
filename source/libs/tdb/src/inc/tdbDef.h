@@ -13,21 +13,30 @@
  * along with this program. If not, see <http://www.gnu.org/licenses/>.
  */
 
-#ifndef _TD_VNODE_REQUEST_H_
-#define _TD_VNODE_REQUEST_H_
+#ifndef _TD_TDB_DEF_H_
+#define _TD_TDB_DEF_H_
 
-#include "vnode.h"
+#include "os.h"
 
 #ifdef __cplusplus
 extern "C" {
 #endif
 
-// SVDropTbReq
-// int   vnodeBuildDropTableReq(void **buf, const SVDropTbReq *pReq);
-// void *vnodeParseDropTableReq(void *buf, SVDropTbReq *pReq);
+// pgid_t
+typedef int32_t pgid_t;
+#define TKV_IVLD_PGID ((pgid_t)-1)
+
+// framd_id_t
+typedef int32_t frame_id_t;
+
+// pgsize_t
+typedef int32_t pgsize_t;
+#define TKV_MIN_PGSIZE 512
+#define TKV_MAX_PGSIZE 16384
+#define TKV_IS_PGSIZE_VLD(s) (((s) >= TKV_MIN_PGSIZE) && (TKV_MAX_PGSIZE <= TKV_MAX_PGSIZE))
 
 #ifdef __cplusplus
 }
 #endif
 
-#endif /*_TD_VNODE_REQUEST_H_*/
+#endif /*_TD_TDB_DEF_H_*/

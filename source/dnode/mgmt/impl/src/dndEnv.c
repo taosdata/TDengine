@@ -293,7 +293,7 @@ int32_t dndInit(const SDnodeEnvCfg *pCfg) {
   if (vnodeInit(&vnodeOpt) != 0) {
     dError("failed to init vnode since %s", terrstr());
     dndCleanup();
-    return NULL;
+    return -1;
   }
 
   memcpy(&dndEnv.cfg, pCfg, sizeof(SDnodeEnvCfg));

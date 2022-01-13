@@ -16,17 +16,17 @@
 #include "thash.h"
 #include "tlist.h"
 
-#include "tkvBufPool.h"
-#include "tkvDiskMgr.h"
-#include "tkvPage.h"
+#include "tdbBufPool.h"
+#include "tdbDiskMgr.h"
+#include "tdbPage.h"
 
 struct SFrameIdWrapper {
   TD_SLIST_NODE(SFrameIdWrapper);
   frame_id_t id;
 };
 
-struct STkvBufPool {
-  STkvPage*    pages;
+struct STdbBufPool {
+  STdbPage*    pages;
   STkvDiskMgr* pDiskMgr;
   SHashObj*    pgTb;  // page_id_t --> frame_id_t
   TD_SLIST(SFrameIdWrapper) freeList;
