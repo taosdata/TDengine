@@ -21,7 +21,7 @@
       "days": 10,
       "cache": 16,
       "blocks": 8,
-      "precision": "ms",
+      "precision": "us",
       "keep": 36500,
       "minRows": 100,
       "maxRows": 4096,
