@@ -191,7 +191,7 @@ function install_bin() {
     ${csudo}rm -f ${bin_link_dir}/rmtaos   || :
     ${csudo}rm -f ${bin_link_dir}/tarbitrator  || :
     ${csudo}rm -f ${bin_link_dir}/set_core     || :
-    ${csudo}rm -f ${bin_link_dir}/run_taosd.sh || :
+    ${csudo}rm -f ${bin_link_dir}/run_taosd_and_taosadapter.sh || :
 
     ${csudo}cp -r ${script_dir}/bin/* ${install_main_dir}/bin && ${csudo}chmod 0555 ${install_main_dir}/bin/*
 
@@ -203,7 +203,7 @@ function install_bin() {
     [ -x ${install_main_dir}/bin/taosdump ] && ${csudo}ln -s ${install_main_dir}/bin/taosdump ${bin_link_dir}/taosdump          || :
     [ -x ${install_main_dir}/bin/remove.sh ] && ${csudo}ln -s ${install_main_dir}/bin/remove.sh ${bin_link_dir}/rmtaos          || :
     [ -x ${install_main_dir}/bin/set_core.sh ] && ${csudo}ln -s ${install_main_dir}/bin/set_core.sh ${bin_link_dir}/set_core    || :
-    [ -x ${install_main_dir}/bin/run_taosd.sh ] && ${csudo}ln -s ${install_main_dir}/bin/run_taosd.sh ${bin_link_dir}/run_taosd.sh     || :
+    [ -x ${install_main_dir}/bin/run_taosd_and_taosadapter.sh ] && ${csudo}ln -s ${install_main_dir}/bin/run_taosd_and_taosadapter.sh ${bin_link_dir}/run_taosd_and_taosadapter.sh     || :
     [ -x ${install_main_dir}/bin/tarbitrator ] && ${csudo}ln -s ${install_main_dir}/bin/tarbitrator ${bin_link_dir}/tarbitrator || :
 
     if [ "$verMode" == "cluster" ]; then
