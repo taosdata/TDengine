@@ -353,6 +353,10 @@ SFillInfo* taosCreateFillInfo(int32_t order, TSKEY skey, int32_t numOfTags, int3
   }
 
   SFillInfo* pFillInfo = calloc(1, sizeof(SFillInfo));
+  if (pFillInfo == NULL) {
+    return NULL;
+  }
+
   taosResetFillInfo(pFillInfo, skey);
 
   pFillInfo->order     = order;
@@ -370,6 +374,10 @@ SFillInfo* taosCreateFillInfo(int32_t order, TSKEY skey, int32_t numOfTags, int3
   pFillInfo->interval.slidingUnit  = slidingUnit;
 
   pFillInfo->pData = malloc(POINTER_BYTES * numOfCols);
+  if (pFillInfo->pData == NULL) {
+    tfree(pFillInfo);
+    return NULL;
+  }
 
 //  if (numOfTags > 0) {
     pFillInfo->pTags = calloc(numOfCols, sizeof(SFillTagColInfo));
