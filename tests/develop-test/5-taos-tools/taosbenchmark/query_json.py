@@ -34,6 +34,7 @@ class TDTestCase:
 
     def run(self):
         os.system("rm -f rest_query_specified-0 rest_query_super-0 taosc_query_specified-0 taosc_query_super-0")
+        tdSql.execute("drop database if exists db")
         tdSql.execute("create database if not exists db")
         tdSql.execute("use db")
         tdSql.execute("create table stb (ts timestamp, c0 int)  tags (t0 int)")
