@@ -963,10 +963,12 @@ public class TSDBPreparedStatement extends TSDBStatement implements PreparedStat
     }
 
     private void columnDataClearBatchInternal() {
-        int size = this.colData.size();
-        this.colData.clear();
-        this.colData.addAll(Collections.nCopies(size, null));
-        this.tableName = null;   // clear the table name
+        this.tableName = null;
+        if (this.tableTags != null)
+            this.tableTags.clear();
+        this.tagValueLength = 0;
+        if (this.colData != null)
+            this.colData.clear();
     }
 
 
