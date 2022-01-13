@@ -23,19 +23,14 @@
 extern "C" {
 #endif
 
-typedef enum {
-  TDB_BTREE = 0,
-  TDB_HASH,
-  TDB_HEAP,
-} tdb_db_t;
 
 struct TDB {
   pgsize_t pageSize;
   tdb_db_t type;
   union {
-    STkvBtree btree;
-    STkvhash  hash;
-  } dbimpl;
+    TDB_BTREE btree;
+    TDB_HASH  hash;
+  } dbam;  // Different access methods
 };
 
 #ifdef __cplusplus
