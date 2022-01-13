@@ -530,32 +530,38 @@ static const char* jkScanNodeTableId = "TableId";
 static const char* jkScanNodeTableType = "TableType";
 static const char* jkScanNodeTableOrder = "Order";
 static const char* jkScanNodeTableCount = "Count";
+static const char* jkScanNodeTableRevCount = "Reverse";
 
 static bool scanNodeToJson(const void* obj, cJSON* json) {
-  const SScanPhyNode* scan = (const SScanPhyNode*)obj;
-  bool res = cJSON_AddNumberToObject(json, jkScanNodeTableId, scan->uid);
+  const SScanPhyNode* pNode = (const SScanPhyNode*)obj;
+  bool res = cJSON_AddNumberToObject(json, jkScanNodeTableId, pNode->uid);
 
   if (res) {
-    res = cJSON_AddNumberToObject(json, jkScanNodeTableType, scan->tableType);
+    res = cJSON_AddNumberToObject(json, jkScanNodeTableType, pNode->tableType);
   }
 
   if (res) {
-    res = cJSON_AddNumberToObject(json, jkScanNodeTableOrder, scan->order);
+    res = cJSON_AddNumberToObject(json, jkScanNodeTableOrder, pNode->order);
   }
 
   if (res) {
-    res = cJSON_AddNumberToObject(json, jkScanNodeTableCount, scan->count);
+    res = cJSON_AddNumberToObject(json, jkScanNodeTableCount, pNode->count);
+  }
+
+  if (res) {
+    res = cJSON_AddNumberToObject(json, jkScanNodeTableRevCount, pNode->reverse);
   }
 
   return res;
 }
 
 static bool scanNodeFromJson(const cJSON* json, void* obj) {
-  SScanPhyNode* scan = (SScanPhyNode*)obj;
-  scan->uid = getNumber(json, jkScanNodeTableId);
-  scan->tableType = getNumber(json, jkScanNodeTableType);
-  scan->count = getNumber(json, jkScanNodeTableCount);
-  scan->order = getNumber(json, jkScanNodeTableOrder);
+  SScanPhyNode* pNode = (SScanPhyNode*)obj;
+  pNode->uid       = getNumber(json, jkScanNodeTableId);
+  pNode->tableType = getNumber(json, jkScanNodeTableType);
+  pNode->count     = getNumber(json, jkScanNodeTableCount);
+  pNode->order     = getNumber(json, jkScanNodeTableOrder);
+  pNode->reverse   = getNumber(json, jkScanNodeTableRevCount);
   return true;
 }
 
@@ -910,7 +916,7 @@ static SSubplan* subplanFromJson(const cJSON* json) {
   }
   bool res = fromObject(json, jkSubplanId, subplanIdFromJson, &subplan->id, true);
   if (res) {
-    size_t size = MAX(sizeof(SPhyNode), sizeof(SScanPhyNode));
+    size_t size = MAX(sizeof(SPhyNode), sizeof(STableScanPhyNode));
     res = fromObjectWithAlloc(json, jkSubplanNode, phyNodeFromJson, (void**)&subplan->pNode, size, false);
   }
   if (res) {
@@ -940,8 +946,8 @@ int32_t subPlanToString(const SSubplan* subplan, char** str, int32_t* len) {
   }
 
   *str = cJSON_Print(json);
-//  printf("====Physical plan:====\n")
-//  printf("%s\n", *str);
+  printf("====Physical plan:====\n");
+  printf("%s\n", *str);
   *len = strlen(*str) + 1;
   return TSDB_CODE_SUCCESS;
 }

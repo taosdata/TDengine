@@ -4844,7 +4844,16 @@ static SSDataBlock* doBlockInfoScan(void* param, bool* newgroup) {
 SOperatorInfo* createTableScanOperator(void* pTsdbQueryHandle, int32_t order, int32_t numOfOutput, int32_t repeatTime, SExecTaskInfo* pTaskInfo) {
   assert(repeatTime > 0 && numOfOutput > 0);
 
-  STableScanInfo* pInfo = calloc(1, sizeof(STableScanInfo));
+  STableScanInfo* pInfo    = calloc(1, sizeof(STableScanInfo));
+  SOperatorInfo* pOperator = calloc(1, sizeof(SOperatorInfo));
+
+  if (pInfo == NULL || pOperator == NULL) {
+    tfree(pInfo);
+    tfree(pOperator);
+    terrno = TSDB_CODE_QRY_OUT_OF_MEMORY;
+    return NULL;
+  }
+
   pInfo->pTsdbReadHandle   = pTsdbQueryHandle;
   pInfo->times          = repeatTime;
   pInfo->reverseTimes   = 0;
@@ -4852,7 +4861,6 @@ SOperatorInfo* createTableScanOperator(void* pTsdbQueryHandle, int32_t order, in
   pInfo->current        = 0;
   pInfo->scanFlag       = MAIN_SCAN;
 
-  SOperatorInfo* pOperator = calloc(1, sizeof(SOperatorInfo));
   pOperator->name         = "TableScanOperator";
   pOperator->operatorType = OP_TableScan;
   pOperator->blockingOptr = false;
@@ -4862,6 +4870,39 @@ SOperatorInfo* createTableScanOperator(void* pTsdbQueryHandle, int32_t order, in
   pOperator->pRuntimeEnv  = NULL;
   pOperator->exec         = doTableScan;
   pOperator->pTaskInfo    = pTaskInfo;
+
+  return pOperator;
+}
+
+SOperatorInfo* createDataBlocksOptScanInfo(void* pTsdbQueryHandle, int32_t order, int32_t numOfOutput, int32_t repeatTime, int32_t reverseTime, SExecTaskInfo* pTaskInfo) {
+  assert(repeatTime > 0);
+
+  STableScanInfo* pInfo    = calloc(1, sizeof(STableScanInfo));
+  SOperatorInfo* pOperator = calloc(1, sizeof(SOperatorInfo));
+  if (pInfo == NULL || pOperator == NULL) {
+    tfree(pInfo);
+    tfree(pOperator);
+
+    terrno = TSDB_CODE_QRY_OUT_OF_MEMORY;
+    return NULL;
+  }
+
+  pInfo->pTsdbReadHandle = pTsdbQueryHandle;
+  pInfo->times        = repeatTime;
+  pInfo->reverseTimes = reverseTime;
+  pInfo->order        = order;
+  pInfo->current      = 0;
+  pInfo->scanFlag     = MAIN_SCAN;
+
+  pOperator->name          = "DataBlocksOptimizedScanOperator";
+  pOperator->operatorType  = OP_DataBlocksOptScan;
+  pOperator->blockingOptr  = false;
+  pOperator->status        = OP_IN_EXECUTING;
+  pOperator->info          = pInfo;
+  pOperator->numOfOutput   = numOfOutput;
+  pOperator->pRuntimeEnv   = NULL;
+  pOperator->exec          = doTableScan;
+  pOperator->pTaskInfo     = pTaskInfo;
 
   return pOperator;
 }
@@ -4971,27 +5012,6 @@ void setTableScanFilterOperatorInfo(STableScanInfo* pTableScanInfo, SOperatorInf
   }
 #endif
 
-}
-
-SOperatorInfo* createDataBlocksOptScanInfo(void* pTsdbQueryHandle, STaskRuntimeEnv* pRuntimeEnv, int32_t repeatTime, int32_t reverseTime) {
-  assert(repeatTime > 0);
-
-  STableScanInfo* pInfo = calloc(1, sizeof(STableScanInfo));
-  pInfo->pTsdbReadHandle = pTsdbQueryHandle;
-  pInfo->times        = repeatTime;
-  pInfo->reverseTimes = reverseTime;
-  pInfo->current      = 0;
-  pInfo->order        = pRuntimeEnv->pQueryAttr->order.order;
-
-  SOperatorInfo* pOptr = calloc(1, sizeof(SOperatorInfo));
-  pOptr->name          = "DataBlocksOptimizedScanOperator";
-//  pOptr->operatorType  = OP_DataBlocksOptScan;
-  pOptr->pRuntimeEnv   = pRuntimeEnv;
-  pOptr->blockingOptr  = false;
-  pOptr->info          = pInfo;
-  pOptr->exec          = doTableScan;
-
-  return pOptr;
 }
 
 SArray* getOrderCheckColumns(STaskAttr* pQuery) {
@@ -7187,10 +7207,13 @@ static SExecTaskInfo* createExecTaskInfo(uint64_t queryId) {
 SOperatorInfo* doCreateOperatorTreeNode(SPhyNode* pPhyNode, SExecTaskInfo* pTaskInfo, void* param) {
   if (pPhyNode->pChildren == NULL || taosArrayGetSize(pPhyNode->pChildren) == 0) {
     if (pPhyNode->info.type == OP_TableScan) {
-      SScanPhyNode* pScanPhyNode = (SScanPhyNode*) pPhyNode;
-      size_t numOfCols = taosArrayGetSize(pPhyNode->pTargets);
-      SOperatorInfo* pOperatorInfo = createTableScanOperator(param, pScanPhyNode->order, numOfCols, pScanPhyNode->count, pTaskInfo);
-      pTaskInfo->pRoot = pOperatorInfo;
+      SScanPhyNode*  pScanPhyNode = (SScanPhyNode*)pPhyNode;
+      size_t         numOfCols = taosArrayGetSize(pPhyNode->pTargets);
+      return createTableScanOperator(param, pScanPhyNode->order, numOfCols, pScanPhyNode->count, pTaskInfo);
+    } else if (pPhyNode->info.type == OP_DataBlocksOptScan) {
+      SScanPhyNode*  pScanPhyNode = (SScanPhyNode*)pPhyNode;
+      size_t         numOfCols = taosArrayGetSize(pPhyNode->pTargets);
+      return createDataBlocksOptScanInfo(param, pScanPhyNode->order, numOfCols, pScanPhyNode->count, pScanPhyNode->reverse, pTaskInfo);
     } else {
       assert(0);
     }
@@ -7199,21 +7222,20 @@ SOperatorInfo* doCreateOperatorTreeNode(SPhyNode* pPhyNode, SExecTaskInfo* pTask
 
 int32_t doCreateExecTaskInfo(SSubplan* pPlan, SExecTaskInfo** pTaskInfo, void* readerHandle) {
   STsdbQueryCond cond = {.loadExternalRows = false};
-  cond.twindow.skey = INT64_MIN;
-  cond.twindow.ekey = INT64_MAX;
 
   uint64_t uid = 0;
   SPhyNode* pPhyNode = pPlan->pNode;
-  if (pPhyNode->info.type == OP_TableScan) {
+  if (pPhyNode->info.type == OP_TableScan || pPhyNode->info.type == OP_DataBlocksOptScan) {
 
-    SScanPhyNode* pScanNode = (SScanPhyNode*) pPhyNode;
-    uid            = pScanNode->uid;
-    cond.order     = pScanNode->order;
-    cond.numOfCols = taosArrayGetSize(pScanNode->node.pTargets);
+    STableScanPhyNode* pTableScanNode = (STableScanPhyNode*) pPhyNode;
+    uid            = pTableScanNode->scan.uid;
+    cond.order     = pTableScanNode->scan.order;
+    cond.numOfCols = taosArrayGetSize(pTableScanNode->scan.node.pTargets);
     cond.colList   = calloc(cond.numOfCols, sizeof(SColumnInfo));
+    cond.twindow   = pTableScanNode->window;
 
     for(int32_t i = 0; i < cond.numOfCols; ++i) {
-      SExprInfo* pExprInfo = taosArrayGetP(pScanNode->node.pTargets, i);
+      SExprInfo* pExprInfo = taosArrayGetP(pTableScanNode->scan.node.pTargets, i);
       assert(pExprInfo->pExpr->nodeType == TEXPR_COL_NODE);
 
       SSchema* pSchema = pExprInfo->pExpr->pSchema;
@@ -7235,7 +7257,11 @@ int32_t doCreateExecTaskInfo(SSubplan* pPlan, SExecTaskInfo** pTaskInfo, void* r
   *pTaskInfo = createExecTaskInfo((uint64_t)pPlan->id.queryId);
   tsdbReadHandleT tsdbReadHandle = tsdbQueryTables(readerHandle, &cond, &group, (*pTaskInfo)->id.queryId, NULL);
 
-  doCreateOperatorTreeNode(pPlan->pNode, *pTaskInfo, tsdbReadHandle);
+  (*pTaskInfo)->pRoot = doCreateOperatorTreeNode(pPlan->pNode, *pTaskInfo, tsdbReadHandle);
+  if ((*pTaskInfo)->pRoot == NULL) {
+    return terrno;
+  }
+
   return TSDB_CODE_SUCCESS;
 }
 

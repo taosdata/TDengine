@@ -95,6 +95,7 @@ typedef struct SScanPhyNode {
   int8_t      tableType;
   int32_t     order;         // scan order: TSDB_ORDER_ASC|TSDB_ORDER_DESC
   int32_t     count;         // repeat count
+  int32_t     reverse;       // reverse scan count
 } SScanPhyNode;
 
 typedef SScanPhyNode SSystemTableScanPhyNode;
