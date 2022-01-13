@@ -16,20 +16,22 @@
 #ifndef _TD_TDB_DB_H_
 #define _TD_TDB_DB_H_
 
+#include "tdb.h"
 #include "tdbBtree.h"
 #include "tdbHash.h"
+#include "tdbHeap.h"
 
 #ifdef __cplusplus
 extern "C" {
 #endif
 
-
 struct TDB {
   pgsize_t pageSize;
   tdb_db_t type;
   union {
-    TDB_BTREE btree;
-    TDB_HASH  hash;
+    TDB_BTREE *btree;
+    TDB_HASH * hash;
+    TDB_HEAP * heap;
   } dbam;  // Different access methods
 };
 

@@ -35,28 +35,26 @@ typedef struct SDnode SDnode;
 typedef int32_t (*PutReqToVQueryQFp)(SDnode *pDnode, struct SRpcMsg *pReq);
 
 typedef struct SVnodeCfg {
-  int32_t vgId;
-  SDnode *pDnode;
-  struct {
-    uint64_t wsize;
-    uint64_t ssize;
-    uint64_t lsize;
-    bool isHeapAllocator;
-  };
+  int32_t  vgId;
+  SDnode * pDnode;
+  uint64_t wsize;
+  uint64_t ssize;
+  uint64_t lsize;
+  bool     isHeapAllocator;
   uint32_t ttl;
   uint32_t keep;
-  bool isWeak;
+  bool     isWeak;
   STsdbCfg tsdbCfg;
   SMetaCfg metaCfg;
-  STqCfg tqCfg;
-  SWalCfg walCfg;
+  STqCfg   tqCfg;
+  SWalCfg  walCfg;
 } SVnodeCfg;
 
 typedef struct {
   int32_t           sver;
-  char             *timezone;
-  char             *locale;
-  char             *charset;
+  char *            timezone;
+  char *            locale;
+  char *            charset;
   uint16_t          nthreads;  // number of commit threads. 0 for no threads and a schedule queue should be given (TODO)
   PutReqToVQueryQFp putReqToVQueryQFp;
 } SVnodeOpt;
