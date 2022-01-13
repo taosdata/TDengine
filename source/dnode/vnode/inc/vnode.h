@@ -37,36 +37,18 @@ typedef int32_t (*PutReqToVQueryQFp)(SDnode *pDnode, struct SRpcMsg *pReq);
 typedef struct SVnodeCfg {
   int32_t vgId;
   SDnode *pDnode;
-
-  /** vnode buffer pool options */
   struct {
-    /** write buffer size */
     uint64_t wsize;
     uint64_t ssize;
     uint64_t lsize;
-    /** use heap allocator or arena allocator */
     bool isHeapAllocator;
   };
-
-  /** time to live of tables in this vnode */
   uint32_t ttl;
-
-  /** data to keep in this vnode */
   uint32_t keep;
-
-  /** if TS data is eventually consistency */
   bool isWeak;
-
-  /** TSDB config */
   STsdbCfg tsdbCfg;
-
-  /** META config */
   SMetaCfg metaCfg;
-
-  /** TQ config */
   STqCfg tqCfg;
-
-  /** WAL config */
   SWalCfg walCfg;
 } SVnodeCfg;
 
