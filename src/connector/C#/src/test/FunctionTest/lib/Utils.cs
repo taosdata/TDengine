@@ -8,7 +8,7 @@ namespace Test.UtilsTools
     public class UtilsTools
     {
 
-        static string ip = "u195";//"127.0.0.1";
+        static string ip = "127.0.0.1";
         static string user = "root";
         static string password = "taosdata";
         static string db = "";

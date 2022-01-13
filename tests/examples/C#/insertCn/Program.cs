@@ -26,7 +26,7 @@ namespace insertCn
             Console.WriteLine("=====================stable====================");
             TestStable(conn,stable);
             
-            // UtilsTools.ExecuteUpdate(conn,dropDB);
+            UtilsTools.ExecuteUpdate(conn,dropDB);
             UtilsTools.CloseConnection(conn);
 
         }
@@ -36,13 +36,13 @@ namespace insertCn
            string createSql = $"create table if not exists {stable} (ts timestamp," +
             $"v4 int," +
             $"blob nchar(200)," +
-            $"locate binary(200)," +
-            $"country nchar(200)," +
-            $"city nchar(50)" +
+            $"locate nchar(200)," +
+            $"country binary(200)," +
+            $"city binary(50)" +
             $")tags(" +
             $"id int," +
             $"name nchar(50)," +
-            $"addr binary(200)," +
+            $"addr nchar(200)," +
             $"en_name binary(200));";
 
             String dropTb = "drop table if exists " + stable;
@@ -62,9 +62,9 @@ namespace insertCn
             string selectSql = $"select * from {stable};";
             List<Object> insertData = UtilsTools.CombineColAndTagData(colData,tagData,9);
             
-            // UtilsTools.ExecuteUpdate(conn,dropTb);
-            // UtilsTools.ExecuteUpdate(conn,createSql);
-            // UtilsTools.ExecuteUpdate(conn,insertSql);
+            UtilsTools.ExecuteUpdate(conn,dropTb);
+            UtilsTools.ExecuteUpdate(conn,createSql);
+            UtilsTools.ExecuteUpdate(conn,insertSql);
             IntPtr res = UtilsTools.ExecuteQuery(conn,selectSql);
 
             ResultSet resultSet = new ResultSet(res);
@@ -109,13 +109,13 @@ namespace insertCn
             };
 
             String dropTb = "drop table if exists " + tableName;
-            String createTb = $"create table if not exists {tableName} (ts timestamp,v4 int,blob nchar(200),location binary(200),city binary(100),coutry nchar(200));";
+            String createTb = $"create table if not exists {tableName} (ts timestamp,v4 int,blob nchar(200),location nchar(200),city binary(100),coutry nchar(200));";
             String insertSql = UtilsTools.ConstructInsertSql(tableName, "", colData, null, 9);
             String selectSql = "select * from " + tableName;           
 
-            // UtilsTools.ExecuteUpdate(conn, dropTb);
-            // UtilsTools.ExecuteUpdate(conn, createTb);
-            // UtilsTools.ExecuteUpdate(conn, insertSql);
+            UtilsTools.ExecuteUpdate(conn, dropTb);
+            UtilsTools.ExecuteUpdate(conn, createTb);
+            UtilsTools.ExecuteUpdate(conn, insertSql);
             IntPtr res = UtilsTools.ExecuteQuery(conn, selectSql);
 
             ResultSet resultSet = new ResultSet(res);
