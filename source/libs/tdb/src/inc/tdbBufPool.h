@@ -22,15 +22,15 @@
 extern "C" {
 #endif
 
-typedef struct STkvBufPool STkvBufPool;
+typedef struct STdbBufPool STdbBufPool;
 
-int       tbpOpen(STkvBufPool **ppTkvBufPool);
-int       tbpClose(STkvBufPool *pTkvBufPool);
-STdbPage *tbpNewPage(STkvBufPool *pTkvBufPool);
-int       tbpDelPage(STkvBufPool *pTkvBufPool);
-STdbPage *tbpFetchPage(STkvBufPool *pTkvBufPool, pgid_t pgid);
-int       tbpUnpinPage(STkvBufPool *pTkvBufPool, pgid_t pgid);
-void      tbpFlushPages(STkvBufPool *pTkvBufPool);
+int       tbpOpen(STdbBufPool **ppTkvBufPool);
+int       tbpClose(STdbBufPool *pTkvBufPool);
+STdbPage *tbpNewPage(STdbBufPool *pTkvBufPool);
+int       tbpDelPage(STdbBufPool *pTkvBufPool);
+STdbPage *tbpFetchPage(STdbBufPool *pTkvBufPool, pgid_t pgid);
+int       tbpUnpinPage(STdbBufPool *pTkvBufPool, pgid_t pgid);
+void      tbpFlushPages(STdbBufPool *pTkvBufPool);
 
 #ifdef __cplusplus
 }

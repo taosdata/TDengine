@@ -25,7 +25,7 @@ struct SFrameIdWrapper {
   frame_id_t id;
 };
 
-struct STkvBufPool {
+struct STdbBufPool {
   STdbPage*    pages;
   STkvDiskMgr* pDiskMgr;
   SHashObj*    pgTb;  // page_id_t --> frame_id_t
