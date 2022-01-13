@@ -13,18 +13,21 @@
  * along with this program. If not, see <http://www.gnu.org/licenses/>.
  */
 
-#ifndef _TD_VNODE_READ_H_
-#define _TD_VNODE_READ_H_
+#ifndef _TD_TKV_HAHS_H_
+#define _TD_TKV_HAHS_H_
+
+#include "tkvDef.h"
 
 #ifdef __cplusplus
 extern "C" {
 #endif
-#include "vnodeInt.h"
 
-void vnodeProcessReadMsg(SVnode *pVnode, SVnodeMsg *pMsg);
+typedef struct STkvHash {
+  // TODO
+} STkvHash;
 
 #ifdef __cplusplus
 }
 #endif
 
-#endif /*_TD_VNODE_READ_H_*/
+#endif /*_TD_TKV_HAHS_H_*/

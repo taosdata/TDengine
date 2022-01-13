@@ -13,4 +13,21 @@
  * along with this program. If not, see <http://www.gnu.org/licenses/>.
  */
 
-#include "vnodeDef.h"
+#ifndef _TD_TKV_BTREE_H_
+#define _TD_TKV_BTREE_H_
+
+#include "tkvDef.h"
+
+#ifdef __cplusplus
+extern "C" {
+#endif
+
+typedef struct {
+  pgid_t root;  // root page number
+} STkvBtree;
+
+#ifdef __cplusplus
+}
+#endif
+
+#endif /*_TD_TKV_BTREE_H_*/

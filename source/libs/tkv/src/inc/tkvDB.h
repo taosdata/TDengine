@@ -16,12 +16,26 @@
 #ifndef _TD_TKV_DB_H_
 #define _TD_TKV_DB_H_
 
+#include "tkvBtree.h"
+
 #ifdef __cplusplus
 extern "C" {
 #endif
 
+typedef enum {
+  TDB_BTREE = 0,
+  TDB_HASH,
+  TDB_HEAP,
+} tdb_db_t;
+
 struct TDB {
-  // TODO
+  pgsize_t pageSize;
+
+  tdb_db_t type;  // DB type
+
+  union {
+    STkvBtree btree;
+  } dbimpl;
 };
 
 #ifdef __cplusplus
