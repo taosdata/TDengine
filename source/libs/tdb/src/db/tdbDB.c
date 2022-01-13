@@ -16,19 +16,52 @@
 #include "tdbDB.h"
 #include "tdb.h"
 
-TDB_EXTERN int tdbCreateDB(TDB** dbpp) {
+TDB_EXTERN int tdbCreateDB(TDB** dbpp, tdb_db_t type) {
   TDB* dbp;
+  int  ret;
 
-//   dbp = malloc
+  dbp = calloc(1, sizeof(*dbp));
+  if (dbp == NULL) {
+    return -1;
+  }
+
+  dbp->pageSize = TDB_DEFAULT_PGSIZE;
+  dbp->type = type;
+
+  switch (type) {
+    case TDB_BTREE_T:
+      //   ret = tdbInitBtreeDB(dbp);
+      //   if (ret < 0) goto _err;
+      break;
+    case TDB_HASH_T:
+      //   ret = tdbInitHashDB(dbp);
+      //   if (ret < 0) goto _err;
+      break;
+    case TDB_HEAP_T:
+      //   ret = tdbInitHeapDB(dbp);
+      //   if (ret < 0) goto _err;
+      break;
+    default:
+      break;
+  }
+
+  *dbpp = dbp;
+  return 0;
+
+_err:
+  if (dbp) {
+    free(dbp);
+  }
+  *dbpp = NULL;
   return 0;
 }
 
-int tdbOpenDB(TDB* dbp, tdb_db_t type, uint32_t flags) {
+TDB_EXTERN int tdbOpenDB(TDB* dbp, uint32_t flags) {
   // TODO
   return 0;
 }
 
-int tdbCloseDB(TDB* dbp, uint32_t flags) {
+TDB_EXTERN int tdbCloseDB(TDB* dbp, uint32_t flags) {
   // TODO
   return 0;
 }
