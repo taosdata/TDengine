@@ -27,7 +27,7 @@
       "maxRows": 4096,
       "comp":2,
       "walLevel":1,
-      "cachelast":0,
+      "cachelast":1,
       "quorum":1,
       "fsync":3000,
       "update": 0
@@ -55,8 +55,8 @@
       "sample_file": "./sample.csv",
       "use_sample_ts": "no",
       "tags_file": "",
-      "columns": [{"type":  "BINARY"}, {"type":  "NCHAR"}],
-      "tags": [{"type":  "BINARY"}, {"type": "NCHAR"}]
+      "columns": [{"type": "TIMESTAMP"},{"type": "INT"}, {"type": "BIGINT"}, {"type": "FLOAT"}, {"type": "DOUBLE"}, {"type": "SMALLINT"}, {"type": "TINYINT"}, {"type": "BOOL"}, {"type": "NCHAR"}, {"type": "UINT"}, {"type": "UBIGINT"}, {"type": "UTINYINT"}, {"type": "USMALLINT"}, {"type": "BINARY"}],
+      "tags": [{"type": "TIMESTAMP"},{"type": "INT"}, {"type": "BIGINT"}, {"type": "FLOAT"}, {"type": "DOUBLE"}, {"type": "SMALLINT"}, {"type": "TINYINT"}, {"type": "BOOL"}, {"type": "NCHAR"}, {"type": "UINT"}, {"type": "UBIGINT"}, {"type": "UTINYINT"}, {"type": "USMALLINT"}, {"type": "BINARY"}]
     }]
   }]
 }

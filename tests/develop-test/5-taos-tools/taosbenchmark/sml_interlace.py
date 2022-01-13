@@ -29,33 +29,18 @@ class TDTestCase:
         tdSql.init(conn.cursor(), logSql)
 
     def run(self):
-        cmd = "taosBenchmark -f ./5-taos-tools/taosbenchmark/json/taosc_only_create_table.json"
+        cmd = "taosBenchmark -f ./5-taos-tools/taosbenchmark/json/sml_interlace.json"
         tdLog.info("%s" % cmd)
         os.system("%s" % cmd)
         tdSql.execute("reset query cache")
-        tdSql.query("select count(tbname) from db.stb")
+        tdSql.query("select count(tbname) from db.stb1")
         tdSql.checkData(0, 0, 8)
-        tdSql.query("select count(*) from db.stb")
-        tdSql.checkRows(0)
-        tdSql.query("describe db.stb")
-        tdSql.checkData(9, 1, "NCHAR")
-        tdSql.checkData(14, 1, "BINARY")
-        tdSql.checkData(23, 1, "NCHAR")
-        tdSql.checkData(28, 1, "BINARY")
-        tdSql.checkData(9, 2, 64)
-        tdSql.checkData(14, 2, 64)
-        tdSql.checkData(23, 2, 64)
-        tdSql.checkData(28, 2, 64)
-
-
-        cmd = "taosBenchmark -f ./5-taos-tools/taosbenchmark/json/taosc_limit_offset.json"
-        tdLog.info("%s" % cmd)
-        os.system("%s" % cmd)
-        tdSql.execute("reset query cache")
-        tdSql.query("select count(tbname) from db.stb")
+        tdSql.query("select count(tbname) from db.stb2")
         tdSql.checkData(0, 0, 8)
-        tdSql.query("select count(*) from db.stb")
-        tdSql.checkData(0, 0, 40)
+        tdSql.query("select count(*) from db.stb1")
+        tdSql.checkData(0, 0, 160)
+        tdSql.query("select count(*) from db.stb2")
+        tdSql.checkData(0, 0, 160)
 
     def stop(self):
         tdSql.close()
