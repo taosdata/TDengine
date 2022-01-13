@@ -59,7 +59,6 @@ public class TSDBPreparedStatement extends TSDBStatement implements PreparedStat
             }
         }
         parameters = new Object[parameterCnt];
-
         if (parameterCnt > 1) {
             // the table name is also a parameter, so ignore it.
             this.colData = new ArrayList<>();
@@ -530,8 +529,14 @@ public class TSDBPreparedStatement extends TSDBStatement implements PreparedStat
     }
 
     public void setTableName(String name) throws SQLException {
+
+        if (this.nativeStmtHandle == 0) {
+            TSDBJNIConnector connector = ((TSDBConnection) this.getConnection()).getConnector();
+            this.nativeStmtHandle = connector.prepareStmt(rawSql);
+        }
+
         if (this.tableName != null) {
-            this.columnDataExecuteBatch();
+            this.columnDataAddBatch();
             this.columnDataClearBatchInternal();
         }
         this.tableName = name;
