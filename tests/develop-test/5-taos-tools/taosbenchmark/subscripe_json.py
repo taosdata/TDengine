@@ -36,7 +36,7 @@ class TDTestCase:
         tdSql.execute("insert into stb_0 using stb tags (0) values (now, 0)")
         tdSql.execute("insert into stb_1 using stb tags (1) values (now, 1)")
         tdSql.execute("insert into stb_2 using stb tags (2) values (now, 2)")
-        cmd = "taosBenchmark -f ./5-taos-tools/taosbenchmark/json/subscribe.json"
+        cmd = "taosBenchmark -f ./5-taos-tools/taosbenchmark/json/specified_subscribe.json -g"
         tdLog.info("%s" % cmd)
         os.system("%s" % cmd)
         tdSql.execute("reset query cache")
