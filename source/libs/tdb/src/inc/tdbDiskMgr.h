@@ -13,18 +13,28 @@
  * along with this program. If not, see <http://www.gnu.org/licenses/>.
  */
 
-#ifndef _TD_VNODE_READ_H_
-#define _TD_VNODE_READ_H_
+#ifndef _TD_TDISK_MGR_H_
+#define _TD_TDISK_MGR_H_
 
 #ifdef __cplusplus
 extern "C" {
 #endif
-#include "vnodeInt.h"
 
-void vnodeProcessReadMsg(SVnode *pVnode, SVnodeMsg *pMsg);
+#include "os.h"
+
+#include "tdbDef.h"
+
+typedef struct STkvDiskMgr STkvDiskMgr;
+
+int    tdmOpen(STkvDiskMgr **ppDiskMgr, const char *fname, uint16_t pgsize);
+int    tdmClose(STkvDiskMgr *pDiskMgr);
+int    tdmReadPage(STkvDiskMgr *pDiskMgr, pgid_t pgid, void *pData);
+int    tdmWritePage(STkvDiskMgr *pDiskMgr, pgid_t pgid, const void *pData);
+int    tdmFlush(STkvDiskMgr *pDiskMgr);
+pgid_t tdmAllocPage(STkvDiskMgr *pDiskMgr);
 
 #ifdef __cplusplus
 }
 #endif
 
-#endif /*_TD_VNODE_READ_H_*/
+#endif /*_TD_TDISK_MGR_H_*/

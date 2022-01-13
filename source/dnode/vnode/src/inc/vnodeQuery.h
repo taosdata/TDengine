@@ -19,11 +19,10 @@
 #ifdef __cplusplus
 extern "C" {
 #endif
-#include "vnodeInt.h"
 #include "qworker.h"
+#include "vnode.h"
 
 typedef struct SQWorkerMgmt SQHandle;
-
 
 int vnodeQueryOpen(SVnode *pVnode);
 

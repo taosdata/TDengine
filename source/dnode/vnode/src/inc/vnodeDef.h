@@ -30,12 +30,9 @@
 #include "vnodeBufferPool.h"
 #include "vnodeCfg.h"
 #include "vnodeCommit.h"
-#include "vnodeFS.h"
 #include "vnodeMemAllocator.h"
 #include "vnodeQuery.h"
-#include "vnodeRequest.h"
 #include "vnodeStateMgr.h"
-#include "vnodeSync.h"
 
 #ifdef __cplusplus
 extern "C" {
@@ -73,8 +70,6 @@ struct SVnode {
   STsdb*      pTsdb;
   STQ*        pTq;
   SWal*       pWal;
-  SVnodeSync* pSync;
-  SVnodeFS*   pFs;
   tsem_t      canCommit;
   SQHandle*   pQuery;
   SDnode*     pDnode;
@@ -83,6 +78,16 @@ struct SVnode {
 int vnodeScheduleTask(SVnodeTask* task);
 
 int32_t vnodePutReqToVQueryQ(SVnode *pVnode, struct SRpcMsg *pReq);
+
+// For Log
+extern int32_t vDebugFlag;
+
+#define vFatal(...) do { if (vDebugFlag & DEBUG_FATAL) { taosPrintLog("TDB FATAL ", 255, __VA_ARGS__); }}     while(0)
+#define vError(...) do { if (vDebugFlag & DEBUG_ERROR) { taosPrintLog("TDB ERROR ", 255, __VA_ARGS__); }}     while(0)
+#define vWarn(...)  do { if (vDebugFlag & DEBUG_WARN)  { taosPrintLog("TDB WARN ", 255, __VA_ARGS__); }}      while(0)
+#define vInfo(...)  do { if (vDebugFlag & DEBUG_INFO)  { taosPrintLog("TDB ", 255, __VA_ARGS__); }}           while(0)
+#define vDebug(...) do { if (vDebugFlag & DEBUG_DEBUG) { taosPrintLog("TDB ", tsdbDebugFlag, __VA_ARGS__); }} while(0)
+#define vTrace(...) do { if (vDebugFlag & DEBUG_TRACE) { taosPrintLog("TDB ", tsdbDebugFlag, __VA_ARGS__); }} while(0)
 
 #ifdef __cplusplus
 }

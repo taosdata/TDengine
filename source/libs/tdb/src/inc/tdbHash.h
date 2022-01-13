@@ -13,20 +13,21 @@
  * along with this program. If not, see <http://www.gnu.org/licenses/>.
  */
 
-#ifndef _TD_VNODE_MAF_H_
-#define _TD_VNODE_MAF_H_
+#ifndef _TD_TKV_HAHS_H_
+#define _TD_TKV_HAHS_H_
 
-#include "vnode.h"
+#include "tdbDef.h"
 
 #ifdef __cplusplus
 extern "C" {
 #endif
 
-int  vnodeOpenMAF(SVnode *pVnode);
-void vnodeCloseMAF(SVnode *pVnode);
+typedef struct {
+  // TODO
+} TDB_HASH;
 
 #ifdef __cplusplus
 }
 #endif
 
-#endif /*_TD_VNODE_MAF_H_*/
+#endif /*_TD_TKV_HAHS_H_*/
