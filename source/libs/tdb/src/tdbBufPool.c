@@ -16,9 +16,9 @@
 #include "thash.h"
 #include "tlist.h"
 
-#include "tkvBufPool.h"
-#include "tkvDiskMgr.h"
-#include "tkvPage.h"
+#include "tdbBufPool.h"
+#include "tdbDiskMgr.h"
+#include "tdbPage.h"
 
 struct SFrameIdWrapper {
   TD_SLIST_NODE(SFrameIdWrapper);

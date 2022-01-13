@@ -30,7 +30,6 @@
 #include "vnodeBufferPool.h"
 #include "vnodeCfg.h"
 #include "vnodeCommit.h"
-#include "vnodeFS.h"
 #include "vnodeMemAllocator.h"
 #include "vnodeQuery.h"
 #include "vnodeStateMgr.h"
@@ -71,7 +70,6 @@ struct SVnode {
   STsdb*      pTsdb;
   STQ*        pTq;
   SWal*       pWal;
-  SVnodeFS*   pFs;
   tsem_t      canCommit;
   SQHandle*   pQuery;
   SDnode*     pDnode;
