@@ -131,10 +131,16 @@ class TDTestCase:
         tdSql.checkData(0, 1, r'\%')
 
         # [TD-12815] like wildcard(%, _) are not supported nchar
+        tdSql.execute(r"insert into tt values(1591050708000, 'h\%d')")
         tdSql.execute(r"insert into tt values(1591070708000, 'h%d')")
+        tdSql.execute(r"insert into tt values(1591080808000, 'h\_j')")
         tdSql.execute(r"insert into tt values(1591080708000, 'h_j')")
         tdSql.execute(r"insert into tt values(1591090708000, 'h\\j')")
+        tdSql.query(r"select * from tt where `i\t` like 'h\\\%d'")
+        tdSql.checkRows(1)
         tdSql.query(r"select * from tt where `i\t` like 'h\%d'")
+        tdSql.checkRows(1)
+        tdSql.query(r"select * from tt where `i\t` like 'h\\\_j'")
         tdSql.checkRows(1)
         tdSql.query(r"select * from tt where `i\t` like 'h\_j'")
         tdSql.checkRows(1)
