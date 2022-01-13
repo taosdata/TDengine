@@ -15,3 +15,7 @@ target_link_libraries(
     PUBLIC os
     PUBLIC util
 )
+
+if(${BUILD_TEST})
+    add_subdirectory(test)
+endif(${BUILD_TEST})
