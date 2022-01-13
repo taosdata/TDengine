@@ -2674,6 +2674,7 @@ int32_t addExprAndResultField(SSqlCmd* pCmd, SQueryInfo* pQueryInfo, int32_t col
   const char* msg15 = "parameter is out of range [1, 1000]";
   const char* msg16 = "elapsed duration should be greater than or equal to database precision";
   const char* msg17 = "elapsed/twa should not be used in nested query if inner query has group by clause";
+  const char* msg18 = "the second parameter is not an integer";
 
   switch (functionId) {
     case TSDB_FUNC_COUNT: {
@@ -3156,6 +3157,11 @@ int32_t addExprAndResultField(SSqlCmd* pCmd, SQueryInfo* pQueryInfo, int32_t col
           return invalidOperationMsg(tscGetErrorMsgPayload(pCmd), msg2);
         }
 
+        char* endptr = NULL;
+        strtoll(pParamElem[1].pNode->exprToken.z, &endptr, 10);
+        if ((endptr-pParamElem[1].pNode->exprToken.z != pParamElem[1].pNode->exprToken.n) || errno == ERANGE) {
+          return invalidOperationMsg(tscGetErrorMsgPayload(pCmd), msg18);
+        }
         tVariantDump(pVariant, val, TSDB_DATA_TYPE_BIGINT, true);
 
         int64_t numRowsSelected = GET_INT64_VAL(val);
@@ -5046,20 +5052,10 @@ static int32_t validateMatchExpr(tSqlExpr* pExpr, STableMeta* pTableMeta, int32_
     regex_t regex;
     char    regErrBuf[256] = {0};
 
-    //remove the quote at the begin end of original sql string.
-    uint32_t lenPattern = pRight->exprToken.n - 2;
-    char* pattern = malloc(lenPattern + 1);
-    strncpy(pattern, pRight->exprToken.z+1, lenPattern);
-    pattern[lenPattern] = '\0';
-
-    tfree(pRight->value.pz);
-    pRight->value.pz = pattern;
-    pRight->value.nLen = lenPattern;
-
     int cflags = REG_EXTENDED;
-    if ((errCode = regcomp(&regex, pattern, cflags)) != 0) {
+    if ((errCode = regcomp(&regex, pRight->value.pz, cflags)) != 0) {
       regerror(errCode, &regex, regErrBuf, sizeof(regErrBuf));
-      tscError("Failed to compile regex pattern %s. reason %s", pattern, regErrBuf);
+      tscError("Failed to compile regex pattern %s. reason %s", pRight->value.pz, regErrBuf);
       return invalidOperationMsg(msgBuf, msg3);
     }
     regfree(&regex);
