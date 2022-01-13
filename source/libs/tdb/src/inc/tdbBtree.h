@@ -16,7 +16,7 @@
 #ifndef _TD_TDB_BTREE_H_
 #define _TD_TDB_BTREE_H_
 
-#include "tkvDef.h"
+#include "tdbDef.h"
 
 #ifdef __cplusplus
 extern "C" {

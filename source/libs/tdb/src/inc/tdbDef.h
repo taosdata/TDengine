@@ -24,16 +24,17 @@ extern "C" {
 
 // pgid_t
 typedef int32_t pgid_t;
-#define TKV_IVLD_PGID ((pgid_t)-1)
+#define TDB_IVLD_PGID ((pgid_t)-1)
 
 // framd_id_t
 typedef int32_t frame_id_t;
 
 // pgsize_t
 typedef int32_t pgsize_t;
-#define TKV_MIN_PGSIZE 512
-#define TKV_MAX_PGSIZE 16384
-#define TKV_IS_PGSIZE_VLD(s) (((s) >= TKV_MIN_PGSIZE) && (TKV_MAX_PGSIZE <= TKV_MAX_PGSIZE))
+#define TDB_MIN_PGSIZE 512
+#define TDB_MAX_PGSIZE 16384
+#define TDB_DEFAULT_PGSIZE 4096
+#define TDB_IS_PGSIZE_VLD(s) (((s) >= TKV_MIN_PGSIZE) && (TKV_MAX_PGSIZE <= TKV_MAX_PGSIZE))
 
 #ifdef __cplusplus
 }

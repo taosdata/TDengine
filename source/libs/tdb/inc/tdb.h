@@ -22,10 +22,14 @@
 extern "C" {
 #endif
 
+#define TDB_EXTERN
+#define TDB_PUBLIC
+#define TDB_STATIC static
+
 typedef enum {
-  TDB_BTREE = 0,
-  TDB_HASH,
-  TDB_HEAP,
+  TDB_BTREE_T = 0,
+  TDB_HASH_T,
+  TDB_HEAP_T,
 } tdb_db_t;
 
 // Forward declaration
@@ -39,9 +43,9 @@ typedef struct {
 } TDB_KEY, TDB_VALUE;
 
 // TDB Operations
-int tdbCreateDB(TDB** dbpp);
-int tdbOpenDB(TDB* dbp, tdb_db_t type, uint32_t flags);
-int tdbCloseDB(TDB* dbp, uint32_t flags);
+TDB_EXTERN int tdbCreateDB(TDB** dbpp);
+TDB_EXTERN int tdbOpenDB(TDB* dbp, tdb_db_t type, uint32_t flags);
+TDB_EXTERN int tdbCloseDB(TDB* dbp, uint32_t flags);
 
 #ifdef __cplusplus
 }

@@ -8,7 +8,7 @@ TEST(tdb_api_test, tdb_create_open_close_db_test) {
 
   tdbCreateDB(&dbp);
 
-  tdbOpenDB(dbp, TDB_BTREE, 0);
+  tdbOpenDB(dbp, TDB_BTREE_T, 0);
 
   tdbCloseDB(dbp, 0);
 }

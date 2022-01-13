@@ -13,28 +13,22 @@
  * along with this program. If not, see <http://www.gnu.org/licenses/>.
  */
 
-#ifndef _TD_TDB_DB_H_
-#define _TD_TDB_DB_H_
-
+#include "tdbDB.h"
 #include "tdb.h"
-#include "tdbBtree.h"
-#include "tdbHash.h"
 
-#ifdef __cplusplus
-extern "C" {
-#endif
+TDB_EXTERN int tdbCreateDB(TDB** dbpp) {
+  TDB* dbp;
 
-struct TDB {
-  pgsize_t pageSize;
-  tdb_db_t type;
-  union {
-    TDB_BTREE btree;
-    TDB_HASH  hash;
-  } dbam;  // Different access methods
-};
-
-#ifdef __cplusplus
+//   dbp = malloc
+  return 0;
 }
-#endif
 
-#endif /*_TD_TDB_DB_H_*/
+int tdbOpenDB(TDB* dbp, tdb_db_t type, uint32_t flags) {
+  // TODO
+  return 0;
+}
+
+int tdbCloseDB(TDB* dbp, uint32_t flags) {
+  // TODO
+  return 0;
+}
