@@ -52,6 +52,8 @@ class TDTestCase:
         tdSql.checkData(0, 0, 8)
         tdSql.query("select count(*) from db.stb2")
         tdSql.checkData(0, 0, 160)
+        tdSql.query("show databases")
+        tdSql.checkData(0, 16, "us")
 
         tdSql.execute("reset query cache")
         tdSql.query("select count(tbname) from db.`stb2-2`")
@@ -67,6 +69,8 @@ class TDTestCase:
         tdSql.checkData(0, 0, 8)
         tdSql.query("select count(*) from db.stb3")
         tdSql.checkData(0, 0, 160)
+        tdSql.query("show databases")
+        tdSql.checkData(0, 16, "ns")
 
         tdSql.execute("reset query cache")
         tdSql.query("select count(tbname) from db.`stb3-2`")
