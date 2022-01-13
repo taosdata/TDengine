@@ -22,15 +22,39 @@
 extern "C" {
 #endif
 
-/* ------------------------ TYPES EXPOSED ------------------------ */
+/* ------------------------ TYPES EXPOSED ---------------- */
 typedef struct SDnode SDnode;
 
+/* ------------------------ Environment ------------------ */
 typedef struct {
-  int32_t  sver;
-  int32_t  numOfCores;
+  int32_t sver;
+  int32_t numOfCores;
+  int16_t numOfCommitThreads;
+  int8_t  enableTelem;
+  char    timezone[TSDB_TIMEZONE_LEN];
+  char    locale[TSDB_LOCALE_LEN];
+  char    charset[TSDB_LOCALE_LEN];
+  char    buildinfo[64];
+  char    gitinfo[48];
+} SDnodeEnvCfg;
+
+/**
+ * @brief Initialize the environment
+ *
+ * @param pOption Option of the environment
+ * @return int32_t 0 for success and -1 for failure
+ */
+int32_t dndInit(const SDnodeEnvCfg *pCfg);
+
+/**
+ * @brief clear the environment
+ *
+ */
+void dndCleanup();
+
+/* ------------------------ SDnode ----------------------- */
+typedef struct {
   int32_t  numOfSupportVnodes;
-  int16_t  numOfCommitThreads;
-  int8_t   enableTelem;
   int32_t  statusInterval;
   float    numOfThreadsPerCore;
   float    ratioOfQueryCores;
@@ -41,28 +65,22 @@ typedef struct {
   char     localEp[TSDB_EP_LEN];
   char     localFqdn[TSDB_FQDN_LEN];
   char     firstEp[TSDB_EP_LEN];
-  char     timezone[TSDB_TIMEZONE_LEN];
-  char     locale[TSDB_LOCALE_LEN];
-  char     charset[TSDB_LOCALE_LEN];
-  char     buildinfo[64];
-  char     gitinfo[48];
-} SDnodeOpt;
+} SDnodeObjCfg;
 
-/* ------------------------ SDnode ------------------------ */
 /**
  * @brief Initialize and start the dnode.
  *
- * @param pOption Option of the dnode.
+ * @param pCfg Config of the dnode.
  * @return SDnode* The dnode object.
  */
-SDnode *dndInit(SDnodeOpt *pOption);
+SDnode *dndCreate(SDnodeObjCfg *pCfg);
 
 /**
  * @brief Stop and cleanup the dnode.
  *
  * @param pDnode The dnode object to close.
  */
-void dndCleanup(SDnode *pDnode);
+void dndClose(SDnode *pDnode);
 
 #ifdef __cplusplus
 }

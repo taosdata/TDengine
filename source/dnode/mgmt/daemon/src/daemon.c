@@ -28,11 +28,11 @@ static struct {
   bool printAuth;
   bool printVersion;
   char configDir[PATH_MAX];
-} global = {0};
+} dmn = {0};
 
 void dmnSigintHandle(int signum, void *info, void *ctx) {
   uInfo("singal:%d is received", signum);
-  global.stop = true;
+  dmn.stop = true;
 }
 
 void dmnSetSignalHandle() {
@@ -44,7 +44,7 @@ void dmnSetSignalHandle() {
 }
 
 int dmnParseOption(int argc, char const *argv[]) {
-  tstrncpy(global.configDir, "/etc/taos", PATH_MAX);
+  tstrncpy(dmn.configDir, "/etc/taos", PATH_MAX);
 
   for (int i = 1; i < argc; ++i) {
     if (strcmp(argv[i], "-c") == 0) {
@@ -53,19 +53,19 @@ int dmnParseOption(int argc, char const *argv[]) {
           printf("config file path overflow");
           return -1;
         }
-        tstrncpy(global.configDir, argv[i], PATH_MAX);
+        tstrncpy(dmn.configDir, argv[i], PATH_MAX);
       } else {
         printf("'-c' requires a parameter, default is %s\n", configDir);
         return -1;
       }
     } else if (strcmp(argv[i], "-C") == 0) {
-      global.dumpConfig = true;
+      dmn.dumpConfig = true;
     } else if (strcmp(argv[i], "-k") == 0) {
-      global.generateGrant = true;
+      dmn.generateGrant = true;
     } else if (strcmp(argv[i], "-A") == 0) {
-      global.printAuth = true;
+      dmn.printAuth = true;
     } else if (strcmp(argv[i], "-V") == 0) {
-      global.printVersion = true;
+      dmn.printVersion = true;
     } else {
     }
   }
@@ -92,7 +92,7 @@ void dmnPrintVersion() {
 }
 
 int dmnReadConfig(const char *path) {
-  tstrncpy(configDir, global.configDir, PATH_MAX);
+  tstrncpy(configDir, dmn.configDir, PATH_MAX);
   taosInitGlobalCfg();
   taosReadGlobalLogCfg();
 
@@ -114,12 +114,12 @@ int dmnReadConfig(const char *path) {
   }
 
   if (taosReadCfgFromFile() != 0) {
-    uError("failed to read global config");
+    uError("failed to read config");
     return -1;
   }
 
   if (taosCheckAndPrintCfg() != 0) {
-    uError("failed to check global config");
+    uError("failed to check config");
     return -1;
   }
 
@@ -131,38 +131,50 @@ void dmnDumpConfig() { taosDumpGlobalCfg(); }
 
 void dmnWaitSignal() {
   dmnSetSignalHandle();
-  while (!global.stop) {
+  while (!dmn.stop) {
     taosMsleep(100);
   }
 }
 
-void dmnInitOption(SDnodeOpt *pOption) {
-  pOption->sver = 30000000; //3.0.0.0
-  pOption->numOfCores = tsNumOfCores;
-  pOption->numOfSupportVnodes = tsNumOfSupportVnodes;
-  pOption->numOfCommitThreads = tsNumOfCommitThreads;
-  pOption->statusInterval = tsStatusInterval;
-  pOption->numOfThreadsPerCore = tsNumOfThreadsPerCore;
-  pOption->ratioOfQueryCores = tsRatioOfQueryCores;
-  pOption->maxShellConns = tsMaxShellConns;
-  pOption->shellActivityTimer = tsShellActivityTimer;
-  pOption->serverPort = tsServerPort;
-  tstrncpy(pOption->dataDir, tsDataDir, TSDB_FILENAME_LEN);
-  tstrncpy(pOption->localEp, tsLocalEp, TSDB_EP_LEN);
-  tstrncpy(pOption->localFqdn, tsLocalFqdn, TSDB_FQDN_LEN);
-  tstrncpy(pOption->firstEp, tsFirst, TSDB_EP_LEN);
-  tstrncpy(pOption->timezone, tsTimezone, TSDB_TIMEZONE_LEN);
-  tstrncpy(pOption->locale, tsLocale, TSDB_LOCALE_LEN);
-  tstrncpy(pOption->charset, tsCharset, TSDB_LOCALE_LEN);
-  tstrncpy(pOption->buildinfo, buildinfo, 64);
-  tstrncpy(pOption->gitinfo, gitinfo, 48);
+void dnmInitEnvCfg(SDnodeEnvCfg *pCfg) {
+  pCfg->sver = 30000000;  // 3.0.0.0
+  pCfg->numOfCores = tsNumOfCores;
+  pCfg->numOfCommitThreads = tsNumOfCommitThreads;
+  pCfg->enableTelem = 0;
+  tstrncpy(pCfg->timezone, tsTimezone, TSDB_TIMEZONE_LEN);
+  tstrncpy(pCfg->locale, tsLocale, TSDB_LOCALE_LEN);
+  tstrncpy(pCfg->charset, tsCharset, TSDB_LOCALE_LEN);
+  tstrncpy(pCfg->buildinfo, buildinfo, 64);
+  tstrncpy(pCfg->gitinfo, gitinfo, 48);
+}
+
+void dmnInitObjCfg(SDnodeObjCfg *pCfg) {
+  pCfg->numOfSupportVnodes = tsNumOfSupportVnodes;
+  pCfg->statusInterval = tsStatusInterval;
+  pCfg->numOfThreadsPerCore = tsNumOfThreadsPerCore;
+  pCfg->ratioOfQueryCores = tsRatioOfQueryCores;
+  pCfg->maxShellConns = tsMaxShellConns;
+  pCfg->shellActivityTimer = tsShellActivityTimer;
+  pCfg->serverPort = tsServerPort;
+  tstrncpy(pCfg->dataDir, tsDataDir, TSDB_FILENAME_LEN);
+  tstrncpy(pCfg->localEp, tsLocalEp, TSDB_EP_LEN);
+  tstrncpy(pCfg->localFqdn, tsLocalFqdn, TSDB_FQDN_LEN);
+  tstrncpy(pCfg->firstEp, tsFirst, TSDB_EP_LEN);
 }
 
 int dmnRunDnode() {
-  SDnodeOpt option = {0};
-  dmnInitOption(&option);
+  SDnodeEnvCfg envCfg = {0};
+  SDnodeObjCfg objCfg = {0};
 
-  SDnode *pDnode = dndInit(&option);
+  dnmInitEnvCfg(&envCfg);
+  dmnInitObjCfg(&objCfg);
+
+  if (dndInit(&envCfg) != 0) {
+    uInfo("Failed to start TDengine, please check the log at %s", tsLogDir);
+    return -1;
+  }
+
+  SDnode *pDnode = dndCreate(&objCfg);
   if (pDnode == NULL) {
     uInfo("Failed to start TDengine, please check the log at %s", tsLogDir);
     return -1;
@@ -172,7 +184,8 @@ int dmnRunDnode() {
   dmnWaitSignal();
   uInfo("TDengine is shut down!");
 
-  dndCleanup(pDnode);
+  dndClose(pDnode);
+  dndCleanup();
   taosCloseLog();
   return 0;
 }
@@ -182,21 +195,21 @@ int main(int argc, char const *argv[]) {
     return -1;
   }
 
-  if (global.generateGrant) {
+  if (dmn.generateGrant) {
     dmnGenerateGrant();
     return 0;
   }
 
-  if (global.printVersion) {
+  if (dmn.printVersion) {
     dmnPrintVersion();
     return 0;
   }
 
-  if (dmnReadConfig(global.configDir) != 0) {
+  if (dmnReadConfig(dmn.configDir) != 0) {
     return -1;
   }
 
-  if (global.dumpConfig) {
+  if (dmn.dumpConfig) {
     dmnDumpConfig();
     return 0;
   }

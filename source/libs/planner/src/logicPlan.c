@@ -38,10 +38,10 @@ int32_t optimizeQueryPlan(struct SQueryPlanNode* pQueryNode) {
 }
 
 static int32_t createModificationOpPlan(const SQueryNode* pNode, SQueryPlanNode** pQueryPlan) {
-  SVnodeModifOpStmtInfo* pInsert = (SVnodeModifOpStmtInfo*)pNode;
+  SVnodeModifOpStmtInfo* pModifStmtInfo = (SVnodeModifOpStmtInfo*)pNode;
 
   *pQueryPlan = calloc(1, sizeof(SQueryPlanNode));
-  SArray* blocks = taosArrayInit(taosArrayGetSize(pInsert->pDataBlocks), POINTER_BYTES);
+  SArray* blocks = taosArrayInit(taosArrayGetSize(pModifStmtInfo->pDataBlocks), POINTER_BYTES);
 
   SDataPayloadInfo* pPayload = calloc(1, sizeof(SDataPayloadInfo));
   if (NULL == *pQueryPlan || NULL == blocks || NULL == pPayload) {
@@ -49,7 +49,7 @@ static int32_t createModificationOpPlan(const SQueryNode* pNode, SQueryPlanNode*
   }
 
   (*pQueryPlan)->info.type = QNODE_MODIFY;
-  taosArrayAddAll(blocks, pInsert->pDataBlocks);
+  taosArrayAddAll(blocks, pModifStmtInfo->pDataBlocks);
 
   if (pNode->type == TSDB_SQL_INSERT) {
     pPayload->msgType = TDMT_VND_SUBMIT;

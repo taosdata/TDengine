@@ -136,7 +136,7 @@ static const cJSON* getArray(const cJSON* json, const char* name, int32_t* size)
 
 static bool fromItem(const cJSON* jArray, FFromJson func, void* array, int32_t itemSize, int32_t size) {
   for (int32_t i = 0; i < size; ++i) {
-    if (!func(cJSON_GetArrayItem(jArray, i), (char*)array + itemSize)) {
+    if (!func(cJSON_GetArrayItem(jArray, i), (char*)array + itemSize * i)) {
       return false;
     }
   }
@@ -165,9 +165,7 @@ static bool fromRawArray(const cJSON* json, const char* name, FFromJson func, vo
 
 static char* getString(const cJSON* json, const char* name) {
   char* p = cJSON_GetStringValue(cJSON_GetObjectItem(json, name));
-  char* res = calloc(1, strlen(p) + 1);
-  strcpy(res, p);
-  return res;
+  return strdup(p);
 }
 
 static void copyString(const cJSON* json, const char* name, char* dst) {
@@ -285,7 +283,7 @@ static bool columnInfoToJson(const void* obj, cJSON* jCol) {
 static bool columnInfoFromJson(const cJSON* json, void* obj) {
   SColumnInfo* col = (SColumnInfo*)obj;
   col->colId = getNumber(json, jkColumnInfoColId);
-  col->type = getNumber(json, jkColumnInfoType);
+  col->type  = getNumber(json, jkColumnInfoType);
   col->bytes = getNumber(json, jkColumnInfoBytes);
   int32_t size = 0;
   bool res = fromRawArrayWithAlloc(json, jkColumnInfoFilterList, columnFilterInfoFromJson, (void**)&col->flist.filterInfo, sizeof(SColumnFilterInfo), &size);
@@ -530,13 +528,25 @@ static bool timeWindowFromJson(const cJSON* json, void* obj) {
 
 static const char* jkScanNodeTableId = "TableId";
 static const char* jkScanNodeTableType = "TableType";
+static const char* jkScanNodeTableOrder = "Order";
+static const char* jkScanNodeTableCount = "Count";
 
 static bool scanNodeToJson(const void* obj, cJSON* json) {
   const SScanPhyNode* scan = (const SScanPhyNode*)obj;
   bool res = cJSON_AddNumberToObject(json, jkScanNodeTableId, scan->uid);
+
   if (res) {
     res = cJSON_AddNumberToObject(json, jkScanNodeTableType, scan->tableType);
   }
+
+  if (res) {
+    res = cJSON_AddNumberToObject(json, jkScanNodeTableOrder, scan->order);
+  }
+
+  if (res) {
+    res = cJSON_AddNumberToObject(json, jkScanNodeTableCount, scan->count);
+  }
+
   return res;
 }
 
@@ -544,6 +554,8 @@ static bool scanNodeFromJson(const cJSON* json, void* obj) {
   SScanPhyNode* scan = (SScanPhyNode*)obj;
   scan->uid = getNumber(json, jkScanNodeTableId);
   scan->tableType = getNumber(json, jkScanNodeTableType);
+  scan->count = getNumber(json, jkScanNodeTableCount);
+  scan->order = getNumber(json, jkScanNodeTableOrder);
   return true;
 }
 
@@ -748,9 +760,11 @@ static bool phyNodeToJson(const void* obj, cJSON* jNode) {
 }
 
 static bool phyNodeFromJson(const cJSON* json, void* obj) {
-  SPhyNode* node = (SPhyNode*)obj;
+  SPhyNode* node = (SPhyNode*) obj;
+
   node->info.name = getString(json, jkPnodeName);
   node->info.type = opNameToOpType(node->info.name);
+
   bool res = fromArray(json, jkPnodeTargets, exprInfoFromJson, &node->pTargets, sizeof(SExprInfo));
   if (res) {
     res = fromArray(json, jkPnodeConditions, exprInfoFromJson, &node->pConditions, sizeof(SExprInfo));
@@ -896,7 +910,8 @@ static SSubplan* subplanFromJson(const cJSON* json) {
   }
   bool res = fromObject(json, jkSubplanId, subplanIdFromJson, &subplan->id, true);
   if (res) {
-    res = fromObjectWithAlloc(json, jkSubplanNode, phyNodeFromJson, (void**)&subplan->pNode, sizeof(SPhyNode), false);
+    size_t size = MAX(sizeof(SPhyNode), sizeof(SScanPhyNode));
+    res = fromObjectWithAlloc(json, jkSubplanNode, phyNodeFromJson, (void**)&subplan->pNode, size, false);
   }
   if (res) {
     res = fromObjectWithAlloc(json, jkSubplanDataSink, dataSinkFromJson, (void**)&subplan->pDataSink, sizeof(SDataSink), false);
@@ -925,8 +940,8 @@ int32_t subPlanToString(const SSubplan* subplan, char** str, int32_t* len) {
   }
 
   *str = cJSON_Print(json);
-
-  printf("%s\n", *str);
+//  printf("====Physical plan:====\n")
+//  printf("%s\n", *str);
   *len = strlen(*str) + 1;
   return TSDB_CODE_SUCCESS;
 }

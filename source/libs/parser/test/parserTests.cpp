@@ -77,7 +77,7 @@ void sqlCheck(const char* sql, bool valid) {
   buf.len = 128;
   buf.buf = msg;
 
-  SParseBasicCtx ctx = {0};
+  SParseContext ctx = {0};
   ctx.db = "db1";
   ctx.acctId = 1;
   SSqlNode* pNode = (SSqlNode*)taosArrayGetP(((SArray*)info1.sub.node), 0);
@@ -122,7 +122,7 @@ TEST(testCase, validateAST_test) {
   ASSERT_EQ(code, 0);
 
   SCatalogReq req = {0};
-   SParseBasicCtx ctx = {0};
+   SParseContext ctx = {0};
   ctx.db = "db1";
   ctx.acctId = 1;
   int32_t  ret = qParserExtractRequestedMetaInfo(&info1, &req, &ctx, msg, 128);
@@ -184,7 +184,7 @@ TEST(testCase, function_Test) {
   ASSERT_EQ(code, 0);
 
   SCatalogReq req = {0};
-   SParseBasicCtx ctx = {0};
+   SParseContext ctx = {0};
   ctx.db = "db1";
   ctx.acctId = 1;
   int32_t  ret = qParserExtractRequestedMetaInfo(&info1, &req, &ctx, msg, 128);
@@ -234,7 +234,7 @@ TEST(testCase, function_Test2) {
   ASSERT_EQ(code, 0);
 
   SCatalogReq req = {0};
-   SParseBasicCtx ctx = {0};
+   SParseContext ctx = {0};
   ctx.db = "db1";
   ctx.acctId = 1;
   int32_t  ret = qParserExtractRequestedMetaInfo(&info1, &req, &ctx, msg, 128);
@@ -284,7 +284,7 @@ TEST(testCase, function_Test3) {
   ASSERT_EQ(code, 0);
 
   SCatalogReq req = {0};
-   SParseBasicCtx ctx = {0};
+   SParseContext ctx = {0};
   ctx.db = "db1";
   ctx.acctId = 1;
   int32_t  ret = qParserExtractRequestedMetaInfo(&info1, &req, &ctx, msg, 128);
@@ -333,7 +333,7 @@ TEST(testCase, function_Test4) {
   ASSERT_EQ(code, 0);
 
   SCatalogReq req = {0};
-   SParseBasicCtx ctx = {0};
+   SParseContext ctx = {0};
   ctx.db = "db1";
   ctx.acctId = 1;
   int32_t  ret = qParserExtractRequestedMetaInfo(&info1, &req, &ctx, msg, 128);
@@ -385,7 +385,7 @@ TEST(testCase, function_Test5) {
   ASSERT_EQ(code, 0);
 
   SCatalogReq req = {0};
-   SParseBasicCtx ctx = {0};
+   SParseContext ctx = {0};
   ctx.db = "db1";
   ctx.acctId = 1;
   int32_t  ret = qParserExtractRequestedMetaInfo(&info1, &req, &ctx, msg, 128);
@@ -474,7 +474,7 @@ TEST(testCase, function_Test6) {
   ASSERT_EQ(code, 0);
 
   SCatalogReq req = {0};
-  SParseBasicCtx ctx = {0};
+  SParseContext ctx = {0};
   ctx.db = "db1";
   ctx.acctId = 1;
   int32_t  ret = qParserExtractRequestedMetaInfo(&info1, &req, &ctx, msg, 128);
@@ -556,7 +556,7 @@ TEST(testCase, function_Test6) {
   ASSERT_EQ(code, 0);
 
   SCatalogReq req = {0};
-   SParseBasicCtx ctx = {0};
+   SParseContext ctx = {0};
   ctx.db = "db1";
   ctx.acctId = 1;
   int32_t  ret = qParserExtractRequestedMetaInfo(&info1, &req, &ctx, msg, 128);
@@ -622,7 +622,7 @@ TEST(testCase, function_Test6) {
   ASSERT_EQ(code, 0);
 
   SCatalogReq req = {0};
-   SParseBasicCtx ctx = {0};
+   SParseContext ctx = {0};
   ctx.db = "db1";
   ctx.acctId = 1;
   int32_t  ret = qParserExtractRequestedMetaInfo(&info1, &req, &ctx, msg, 128);
@@ -705,7 +705,7 @@ TEST(testCase, function_Test6) {
   ASSERT_EQ(code, 0);
 
   SCatalogReq req = {0};
-   SParseBasicCtx ctx = {0};
+   SParseContext ctx = {0};
   ctx.db = "db1";
   ctx.acctId = 1;
   int32_t  ret = qParserExtractRequestedMetaInfo(&info1, &req, &ctx, msg, 128);
@@ -756,7 +756,7 @@ TEST(testCase, show_user_Test) {
   SSqlInfo info1 = doGenerateAST(sql1);
   ASSERT_EQ(info1.valid, true);
 
-  SParseBasicCtx ct= {.requestId = 1, .acctId = 1, .db = "abc", .pTransporter = NULL};
+  SParseContext ct= {.requestId = 1, .acctId = 1, .db = "abc", .pTransporter = NULL};
   SDclStmtInfo* output = qParserValidateDclSqlNode(&info1, &ct, msg, buf.len);
   ASSERT_NE(output, nullptr);
 
@@ -776,7 +776,7 @@ TEST(testCase, create_user_Test) {
   ASSERT_EQ(info1.valid, true);
   ASSERT_EQ(isDclSqlStatement(&info1), true);
 
-  SParseBasicCtx ct= {.requestId = 1, .acctId = 1, .db = "abc"};
+  SParseContext ct= {.requestId = 1, .acctId = 1, .db = "abc"};
   SDclStmtInfo* output = qParserValidateDclSqlNode(&info1, &ct, msg, buf.len);
   ASSERT_NE(output, nullptr);
 

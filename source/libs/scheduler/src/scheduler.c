@@ -50,6 +50,10 @@ void schFreeTask(SSchTask* pTask) {
   if (pTask->parents) {
     taosArrayDestroy(pTask->parents);
   }
+
+  if (pTask->execAddrs) {
+    taosArrayDestroy(pTask->execAddrs);
+  }
 }
 
 
@@ -798,7 +802,7 @@ int32_t schHandleResponseMsg(SSchJob *pJob, SSchTask *pTask, int32_t msgType, ch
         SQueryTableRsp *rsp = (SQueryTableRsp *)msg;
         
         if (rspCode != TSDB_CODE_SUCCESS || NULL == msg || rsp->code != TSDB_CODE_SUCCESS) {
-          SCH_ERR_RET(schProcessOnTaskFailure(pJob, pTask, rsp->code));
+          SCH_ERR_RET(schProcessOnTaskFailure(pJob, pTask, rspCode));
         }
         
         SCH_ERR_JRET(schBuildAndSendMsg(pJob, pTask, NULL, TDMT_VND_RES_READY));
@@ -1364,15 +1368,9 @@ int32_t scheduleAsyncExecJob(void *transport, SArray *nodeList, SQueryDag* pDag,
     SCH_ERR_RET(TSDB_CODE_QRY_INVALID_INPUT);
   }
 
-  SSchJob *job = NULL;
-
-  SCH_ERR_RET(schExecJobImpl(transport, nodeList, pDag, &job, false));
-
-  *pJob = job;
-
+  SCH_ERR_RET(schExecJobImpl(transport, nodeList, pDag, pJob, false));
   return TSDB_CODE_SUCCESS;
 }
-
 
 int32_t scheduleFetchRows(SSchJob *pJob, void** pData) {
   if (NULL == pJob || NULL == pData) {

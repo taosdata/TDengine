@@ -1943,7 +1943,7 @@ int32_t KvRowAppend(const void *value, int32_t len, void *param) {
   return TSDB_CODE_SUCCESS;
 }
 
-int32_t createSName(SName* pName, SToken* pTableName, SParseBasicCtx* pParseCtx, SMsgBuf* pMsgBuf) {
+int32_t createSName(SName* pName, SToken* pTableName, SParseContext* pParseCtx, SMsgBuf* pMsgBuf) {
   const char* msg1 = "name too long";
 
   int32_t  code = TSDB_CODE_SUCCESS;

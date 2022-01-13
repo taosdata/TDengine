@@ -29,12 +29,7 @@ extern "C" {
 #endif
 
 typedef struct SSnode {
-  int32_t           dnodeId;
-  int64_t           clusterId;
-  SSnodeCfg         cfg;
-  SendReqToDnodeFp  sendReqToDnodeFp;
-  SendReqToMnodeFp  sendReqToMnodeFp;
-  SendRedirectRspFp sendRedirectRspFp;
+  SSnodeOpt cfg;
 } SSnode;
 
 #ifdef __cplusplus

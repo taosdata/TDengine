@@ -86,7 +86,7 @@ void dndSendRedirectRsp(SDnode *pDnode, SRpcMsg *pReq) {
   dDebug("RPC %p, req:%s is redirected, num:%d use:%d", pReq->handle, TMSG_INFO(msgType), epSet.numOfEps, epSet.inUse);
   for (int32_t i = 0; i < epSet.numOfEps; ++i) {
     dDebug("mnode index:%d %s:%u", i, epSet.fqdn[i], epSet.port[i]);
-    if (strcmp(epSet.fqdn[i], pDnode->opt.localFqdn) == 0 && epSet.port[i] == pDnode->opt.serverPort) {
+    if (strcmp(epSet.fqdn[i], pDnode->cfg.localFqdn) == 0 && epSet.port[i] == pDnode->cfg.serverPort) {
       epSet.inUse = (i + 1) % epSet.numOfEps;
     }
 
@@ -289,8 +289,8 @@ PRASE_DNODE_OVER:
   if (root != NULL) cJSON_Delete(root);
   if (fp != NULL) fclose(fp);
 
-  if (dndIsEpChanged(pDnode, pMgmt->dnodeId, pDnode->opt.localEp)) {
-    dError("localEp %s different with %s and need reconfigured", pDnode->opt.localEp, pMgmt->file);
+  if (dndIsEpChanged(pDnode, pMgmt->dnodeId, pDnode->cfg.localEp)) {
+    dError("localEp %s different with %s and need reconfigured", pDnode->cfg.localEp, pMgmt->file);
     return -1;
   }
 
@@ -298,7 +298,7 @@ PRASE_DNODE_OVER:
     pMgmt->dnodeEps = calloc(1, sizeof(SDnodeEps) + sizeof(SDnodeEp));
     pMgmt->dnodeEps->num = 1;
     pMgmt->dnodeEps->eps[0].isMnode = 1;
-    taosGetFqdnPortFromEp(pDnode->opt.firstEp, pMgmt->dnodeEps->eps[0].fqdn, &pMgmt->dnodeEps->eps[0].port);
+    taosGetFqdnPortFromEp(pDnode->cfg.firstEp, pMgmt->dnodeEps->eps[0].fqdn, &pMgmt->dnodeEps->eps[0].port);
   }
 
   dndResetDnodes(pDnode, pMgmt->dnodeEps);
@@ -362,24 +362,24 @@ void dndSendStatusReq(SDnode *pDnode) {
 
   SDnodeMgmt *pMgmt = &pDnode->dmgmt;
   taosRLockLatch(&pMgmt->latch);
-  pStatus->sver = htonl(pDnode->opt.sver);
+  pStatus->sver = htonl(pDnode->env.sver);
   pStatus->dver = htobe64(pMgmt->dver);
   pStatus->dnodeId = htonl(pMgmt->dnodeId);
   pStatus->clusterId = htobe64(pMgmt->clusterId);
   pStatus->rebootTime = htobe64(pMgmt->rebootTime);
   pStatus->updateTime = htobe64(pMgmt->updateTime);
-  pStatus->numOfCores = htonl(pDnode->opt.numOfCores);
-  pStatus->numOfSupportVnodes = htonl(pDnode->opt.numOfSupportVnodes);
-  tstrncpy(pStatus->dnodeEp, pDnode->opt.localEp, TSDB_EP_LEN);
+  pStatus->numOfCores = htonl(pDnode->env.numOfCores);
+  pStatus->numOfSupportVnodes = htonl(pDnode->cfg.numOfSupportVnodes);
+  tstrncpy(pStatus->dnodeEp, pDnode->cfg.localEp, TSDB_EP_LEN);
 
-  pStatus->clusterCfg.statusInterval = htonl(pDnode->opt.statusInterval);
+  pStatus->clusterCfg.statusInterval = htonl(pDnode->cfg.statusInterval);
   pStatus->clusterCfg.checkTime = 0;
   char timestr[32] = "1970-01-01 00:00:00.00";
   (void)taosParseTime(timestr, &pStatus->clusterCfg.checkTime, (int32_t)strlen(timestr), TSDB_TIME_PRECISION_MILLI, 0);
   pStatus->clusterCfg.checkTime = htonl(pStatus->clusterCfg.checkTime);
-  tstrncpy(pStatus->clusterCfg.timezone, pDnode->opt.timezone, TSDB_TIMEZONE_LEN);
-  tstrncpy(pStatus->clusterCfg.locale, pDnode->opt.locale, TSDB_LOCALE_LEN);
-  tstrncpy(pStatus->clusterCfg.charset, pDnode->opt.charset, TSDB_LOCALE_LEN);
+  tstrncpy(pStatus->clusterCfg.timezone, pDnode->env.timezone, TSDB_TIMEZONE_LEN);
+  tstrncpy(pStatus->clusterCfg.locale, pDnode->env.locale, TSDB_LOCALE_LEN);
+  tstrncpy(pStatus->clusterCfg.charset, pDnode->env.charset, TSDB_LOCALE_LEN);
   taosRUnLockLatch(&pMgmt->latch);
 
   dndGetVnodeLoads(pDnode, &pStatus->vnodeLoads);
@@ -485,7 +485,7 @@ void dndProcessStartupReq(SDnode *pDnode, SRpcMsg *pReq) {
 static void *dnodeThreadRoutine(void *param) {
   SDnode     *pDnode = param;
   SDnodeMgmt *pMgmt = &pDnode->dmgmt;
-  int32_t     ms = pDnode->opt.statusInterval * 1000;
+  int32_t     ms = pDnode->cfg.statusInterval * 1000;
 
   while (true) {
     pthread_testcancel();

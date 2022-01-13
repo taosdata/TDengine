@@ -43,15 +43,6 @@ typedef struct SField {
   int32_t  bytes;
 } SField;
 
-typedef struct SParseBasicCtx {
-  uint64_t         requestId;
-  int32_t          acctId;
-  const char      *db;
-  void            *pTransporter;
-  SEpSet           mgmtEpSet;
-  struct SCatalog *pCatalog;
-} SParseBasicCtx;
-
 typedef struct SFieldInfo {
   int16_t     numOfOutput;   // number of column in result
   SField     *final;
