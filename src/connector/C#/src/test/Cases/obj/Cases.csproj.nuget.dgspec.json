@@ -1,0 +1,116 @@
+{
+  "format": 1,
+  "restore": {
+    "E:\\TDengine2\\src\\connector\\C#\\src\\test\\Cases\\Cases.csproj": {}
+  },
+  "projects": {
+    "E:\\TDengine2\\src\\connector\\C#\\src\\TDengineDriver\\TDengineDriver.csproj": {
+      "version": "1.0.0",
+      "restore": {
+        "projectUniqueName": "E:\\TDengine2\\src\\connector\\C#\\src\\TDengineDriver\\TDengineDriver.csproj",
+        "projectName": "TDengineDriver",
+        "projectPath": "E:\\TDengine2\\src\\connector\\C#\\src\\TDengineDriver\\TDengineDriver.csproj",
+        "packagesPath": "C:\\Users\\xiaolei\\.nuget\\packages\\",
+        "outputPath": "E:\\TDengine2\\src\\connector\\C#\\src\\TDengineDriver\\obj\\",
+        "projectStyle": "PackageReference",
+        "configFilePaths": [
+          "C:\\Users\\xiaolei\\AppData\\Roaming\\NuGet\\NuGet.Config"
+        ],
+        "originalTargetFrameworks": [
+          "net5.0"
+        ],
+        "sources": {
+          "https://api.nuget.org/v3/index.json": {}
+        },
+        "frameworks": {
+          "net5.0": {
+            "targetAlias": "net5.0",
+            "projectReferences": {}
+          }
+        },
+        "warningProperties": {
+          "warnAsError": [
+            "NU1605"
+          ]
+        }
+      },
+      "frameworks": {
+        "net5.0": {
+          "targetAlias": "net5.0",
+          "imports": [
+            "net461",
+            "net462",
+            "net47",
+            "net471",
+            "net472",
+            "net48"
+          ],
+          "assetTargetFallback": true,
+          "warn": true,
+          "frameworkReferences": {
+            "Microsoft.NETCore.App": {
+              "privateAssets": "all"
+            }
+          },
+          "runtimeIdentifierGraphPath": "C:\\Program Files\\dotnet\\sdk\\5.0.402\\RuntimeIdentifierGraph.json"
+        }
+      }
+    },
+    "E:\\TDengine2\\src\\connector\\C#\\src\\test\\Cases\\Cases.csproj": {
+      "version": "1.0.0",
+      "restore": {
+        "projectUniqueName": "E:\\TDengine2\\src\\connector\\C#\\src\\test\\Cases\\Cases.csproj",
+        "projectName": "Cases",
+        "projectPath": "E:\\TDengine2\\src\\connector\\C#\\src\\test\\Cases\\Cases.csproj",
+        "packagesPath": "C:\\Users\\xiaolei\\.nuget\\packages\\",
+        "outputPath": "E:\\TDengine2\\src\\connector\\C#\\src\\test\\Cases\\obj\\",
+        "projectStyle": "PackageReference",
+        "configFilePaths": [
+          "C:\\Users\\xiaolei\\AppData\\Roaming\\NuGet\\NuGet.Config"
+        ],
+        "originalTargetFrameworks": [
+          "net5.0"
+        ],
+        "sources": {
+          "https://api.nuget.org/v3/index.json": {}
+        },
+        "frameworks": {
+          "net5.0": {
+            "targetAlias": "net5.0",
+            "projectReferences": {
+              "E:\\TDengine2\\src\\connector\\C#\\src\\TDengineDriver\\TDengineDriver.csproj": {
+                "projectPath": "E:\\TDengine2\\src\\connector\\C#\\src\\TDengineDriver\\TDengineDriver.csproj"
+              }
+            }
+          }
+        },
+        "warningProperties": {
+          "warnAsError": [
+            "NU1605"
+          ]
+        }
+      },
+      "frameworks": {
+        "net5.0": {
+          "targetAlias": "net5.0",
+          "imports": [
+            "net461",
+            "net462",
+            "net47",
+            "net471",
+            "net472",
+            "net48"
+          ],
+          "assetTargetFallback": true,
+          "warn": true,
+          "frameworkReferences": {
+            "Microsoft.NETCore.App": {
+              "privateAssets": "all"
+            }
+          },
+          "runtimeIdentifierGraphPath": "C:\\Program Files\\dotnet\\sdk\\5.0.402\\RuntimeIdentifierGraph.json"
+        }
+      }
+    }
+  }
+}

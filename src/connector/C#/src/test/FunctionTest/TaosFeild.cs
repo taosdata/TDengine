@@ -13,7 +13,7 @@ namespace Cases
         /// <describe>test taos_fetch_fields(), check the meta data</describe>
         /// <filename>TaosFeild.cs</filename>
         /// <result>pass or failed </result>  
-        [Fact(Skip = "FetchFieldCases.TestFetchFieldJsonTag()")]
+        [Fact(DisplayName = "FetchFieldCases.TestFetchFieldJsonTag()")]
         public void TestFetchFieldJsonTag()
         {
             IntPtr conn = UtilsTools.TDConnection();

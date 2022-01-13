@@ -13,7 +13,7 @@ namespace Cases
         /// <describe>TD-12103 C# connector fetch_row with binary data retrieving error</describe>
         /// <filename>FetchLength.cs</filename>
         /// <result>pass or failed </result>
-        [Fact(Skip = "Skip FetchLengthCase.TestRetrieveBinary()")]
+        [Fact(DisplayName = "Skip FetchLengthCase.TestRetrieveBinary()")]
         public void TestRetrieveBinary()
         {
             IntPtr conn = UtilsTools.TDConnection();
