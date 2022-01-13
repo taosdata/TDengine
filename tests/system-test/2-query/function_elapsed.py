@@ -1538,8 +1538,8 @@ class TDTestCase:
 
         
     def continuous_query(self):
-        tdSql.execute('create table elapsed_t as select elapsed(ts) from sub_table1_1  interval(1m) sliding(30s);')
-        tdSql.execute('create table elapsed_tb as select elapsed(ts) from stable_1  interval(1m) sliding(30s) group by tbname;')
+        tdSql.error('create table elapsed_t as select elapsed(ts) from sub_table1_1  interval(1m) sliding(30s);')
+        tdSql.error('create table elapsed_tb as select elapsed(ts) from stable_1  interval(1m) sliding(30s) group by tbname;')
         tdSql.error('create table elapsed_tc as select elapsed(ts) from stable_1  interval(10s) sliding(5s) interval(1m) sliding(30s) group by tbname;')
     
     def query_precision(self):
