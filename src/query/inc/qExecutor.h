@@ -428,6 +428,8 @@ typedef struct SQueryParam {
   int32_t          tableScanOperator;
   SArray          *pOperator;
   SUdfInfo        *pUdfInfo;
+  int16_t         schemaVersion;
+  int16_t         tagVersion;
 } SQueryParam;
 
 typedef struct SColumnDataParam{

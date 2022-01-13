@@ -448,6 +448,13 @@ uint32_t tGetToken(char* z, uint32_t* tokenId) {
     }
     case '`': {
       for (i = 1; z[i]; i++) {
+//        if(isprint(z[i]) == 0){
+//          break;
+//        }
+//        if (z[i] == '`' && z[i+1] == '`') {
+//          i++;
+//          continue;
+//        }
         if (z[i] == '`') {
           i++;
           *tokenId = TK_ID;

@@ -3970,7 +3970,7 @@ int32_t tsdbQuerySTableByTagCond(STsdbRepo* tsdb, uint64_t uid, TSKEY skey, cons
   //NOTE: not add ref count for super table
   res = taosArrayInit(8, sizeof(STableKeyInfo));
   STSchema* pTagSchema = tsdbGetTableTagSchema(pTable);
-
+  assert(pTagSchema != NULL);
   // no tags and tbname condition, all child tables of this stable are involved
   if (pTagCond == NULL || len == 0) {
     int32_t ret = getAllTableList(pTable, res);
@@ -3981,7 +3981,8 @@ int32_t tsdbQuerySTableByTagCond(STsdbRepo* tsdb, uint64_t uid, TSKEY skey, cons
 
     pGroupInfo->numOfTables = (uint32_t) taosArrayGetSize(res);
     pGroupInfo->pGroupList  = createTableGroup(res, pTagSchema, pColIndex, numOfCols, skey);
-
+    pGroupInfo->sVersion = tsdbGetTableSchema(pTable)->version;
+    pGroupInfo->tVersion = pTagSchema->version;
     tsdbDebug("%p no table name/tag condition, all tables qualified, numOfTables:%u, group:%zu", tsdb,
               pGroupInfo->numOfTables, taosArrayGetSize(pGroupInfo->pGroupList));
 
@@ -4068,6 +4069,11 @@ int32_t tsdbGetOneTableGroup(STsdbRepo* tsdb, uint64_t uid, TSKEY startKey, STab
   taosArrayPush(group, &info);
 
   taosArrayPush(pGroupInfo->pGroupList, &group);
+
+  pGroupInfo->sVersion = tsdbGetTableSchema(pTable)->version;
+  if (tsdbGetTableTagSchema(pTable) != NULL) {
+    pGroupInfo->tVersion = tsdbGetTableTagSchema(pTable)->version;
+  }
   return TSDB_CODE_SUCCESS;
 
   _error:
@@ -4084,6 +4090,8 @@ int32_t tsdbGetTableGroupFromIdList(STsdbRepo* tsdb, SArray* pTableIdList, STabl
   pGroupInfo->pGroupList = taosArrayInit(1, POINTER_BYTES);
   SArray* group = taosArrayInit(1, sizeof(STableKeyInfo));
 
+  int32_t sVersion = -1;
+  int32_t tVersion = -1;
   for(int32_t i = 0; i < size; ++i) {
     STableIdInfo *id = taosArrayGet(pTableIdList, i);
 
@@ -4105,6 +4113,19 @@ int32_t tsdbGetTableGroupFromIdList(STsdbRepo* tsdb, SArray* pTableIdList, STabl
 
     STableKeyInfo info = {.pTable = pTable, .lastKey = id->key};
     taosArrayPush(group, &info);
+
+    if (sVersion == -1) {
+      sVersion = tsdbGetTableSchema(pTable)->version;
+    } else {
+      assert (sVersion == tsdbGetTableSchema(pTable)->version);
+    }
+
+    assert(tsdbGetTableTagSchema(pTable) != NULL);
+    if (tVersion == -1) {
+      tVersion = tsdbGetTableTagSchema(pTable)->version;
+    } else {
+      assert (tVersion == tsdbGetTableTagSchema(pTable)->version);
+    }
   }
 
   if (tsdbUnlockRepoMeta(tsdb) < 0) {
@@ -4118,6 +4139,9 @@ int32_t tsdbGetTableGroupFromIdList(STsdbRepo* tsdb, SArray* pTableIdList, STabl
   } else {
     taosArrayDestroy(&group);
   }
+
+  pGroupInfo->sVersion = sVersion;
+  pGroupInfo->tVersion = tVersion;
 
   return TSDB_CODE_SUCCESS;
 }
