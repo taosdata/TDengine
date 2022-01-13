@@ -70,6 +70,8 @@ int32_t* taosGetErrno();
 #define TSDB_CODE_INVALID_MSG                   TAOS_DEF_ERROR_CODE(0, 0x0108)
 #define TSDB_CODE_MSG_NOT_PROCESSED             TAOS_DEF_ERROR_CODE(0, 0x0109)
 #define TSDB_CODE_INVALID_PARA                  TAOS_DEF_ERROR_CODE(0, 0x010A)
+#define TSDB_CODE_REPEAT_INIT                   TAOS_DEF_ERROR_CODE(0, 0x010B)
+
 #define TSDB_CODE_REF_NO_MEMORY                 TAOS_DEF_ERROR_CODE(0, 0x0110)
 #define TSDB_CODE_REF_FULL                      TAOS_DEF_ERROR_CODE(0, 0x0111)
 #define TSDB_CODE_REF_ID_REMOVED                TAOS_DEF_ERROR_CODE(0, 0x0112)

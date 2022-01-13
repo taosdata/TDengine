@@ -19,7 +19,7 @@
 #ifdef __cplusplus
 extern "C" {
 #endif
-#include "dndInt.h"
+#include "dndEnv.h"
 
 int32_t dndInitVnodes(SDnode *pDnode);
 void    dndCleanupVnodes(SDnode *pDnode);
@@ -35,6 +35,8 @@ int32_t dndProcessDropVnodeReq(SDnode *pDnode, SRpcMsg *pReq);
 int32_t dndProcessAuthVnodeReq(SDnode *pDnode, SRpcMsg *pReq);
 int32_t dndProcessSyncVnodeReq(SDnode *pDnode, SRpcMsg *pReq);
 int32_t dndProcessCompactVnodeReq(SDnode *pDnode, SRpcMsg *pReq);
+
+int32_t dndPutReqToVQueryQ(SDnode *pDnode, SRpcMsg *pReq);
 
 #ifdef __cplusplus
 }

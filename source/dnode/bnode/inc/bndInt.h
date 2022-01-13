@@ -30,12 +30,7 @@ extern "C" {
 #endif
 
 typedef struct SBnode {
-  int32_t           dnodeId;
-  int64_t           clusterId;
-  SBnodeCfg         cfg;
-  SendReqToDnodeFp  sendReqToDnodeFp;
-  SendReqToMnodeFp  sendReqToMnodeFp;
-  SendRedirectRspFp sendRedirectRspFp;
+  SBnodeOpt opt;
 } SBnode;
 
 #ifdef __cplusplus

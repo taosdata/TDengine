@@ -319,6 +319,14 @@ static int32_t mndGetAvailableDnode(SMnode *pMnode, SVgObj *pVgroup, SArray *pAr
 
   taosArraySort(pArray, (__compar_fn_t)mndCompareDnodeVnodes);
 
+  int32_t size = taosArrayGetSize(pArray);
+  if (size < pVgroup->replica) {
+    mError("db:%s, vgId:%d, no enough online dnodes:%d to alloc %d replica", pVgroup->dbName, pVgroup->vgId, size,
+           pVgroup->replica);
+    terrno = TSDB_CODE_MND_NO_ENOUGH_DNODES;
+    return -1;
+  }
+
   for (int32_t v = 0; v < pVgroup->replica; ++v) {
     SVnodeGid *pVgid = &pVgroup->vnodeGid[v];
     SDnodeObj *pDnode = taosArrayGet(pArray, v);

@@ -13,37 +13,40 @@
  * along with this program. If not, see <http://www.gnu.org/licenses/>.
  */
 
+#include "rpcCache.h"
 #include "os.h"
+#include "rpcLog.h"
 #include "taosdef.h"
 #include "tglobal.h"
 #include "tmempool.h"
 #include "ttimer.h"
 #include "tutil.h"
-#include "rpcLog.h"
-#include "rpcCache.h"
 
+#ifdef USE_UV
+
+#else
 typedef struct SConnHash {
   char              fqdn[TSDB_FQDN_LEN];
   uint16_t          port;
   char              connType;
   struct SConnHash *prev;
   struct SConnHash *next;
-  void             *data;
+  void *            data;
   uint64_t          time;
 } SConnHash;
 
 typedef struct {
-  SConnHash     **connHashList;
+  SConnHash **    connHashList;
   mpool_h         connHashMemPool;
   int             maxSessions;
   int             total;
   int *           count;
   int64_t         keepTimer;
   pthread_mutex_t mutex;
-  void          (*cleanFp)(void *);
-  void           *tmrCtrl;
-  void           *pTimer;
-  int64_t        *lockedBy;
+  void (*cleanFp)(void *);
+  void *   tmrCtrl;
+  void *   pTimer;
+  int64_t *lockedBy;
 } SConnCache;
 
 static int  rpcHashConn(void *handle, char *fqdn, uint16_t port, int8_t connType);
@@ -122,7 +125,7 @@ void rpcAddConnIntoCache(void *handle, void *data, char *fqdn, uint16_t port, in
   uint64_t time = taosGetTimestampMs();
 
   pCache = (SConnCache *)handle;
-  assert(pCache); 
+  assert(pCache);
   assert(data);
 
   hash = rpcHashConn(pCache, fqdn, port, connType);
@@ -134,7 +137,7 @@ void rpcAddConnIntoCache(void *handle, void *data, char *fqdn, uint16_t port, in
   pNode->prev = NULL;
   pNode->time = time;
 
-  rpcLockCache(pCache->lockedBy+hash);
+  rpcLockCache(pCache->lockedBy + hash);
 
   pNode->next = pCache->connHashList[hash];
   if (pCache->connHashList[hash] != NULL) (pCache->connHashList[hash])->prev = pNode;
@@ -143,10 +146,11 @@ void rpcAddConnIntoCache(void *handle, void *data, char *fqdn, uint16_t port, in
   pCache->count[hash]++;
   rpcRemoveExpiredNodes(pCache, pNode->next, hash, time);
 
-  rpcUnlockCache(pCache->lockedBy+hash);
+  rpcUnlockCache(pCache->lockedBy + hash);
 
   pCache->total++;
-  // tTrace("%p %s:%hu:%d:%d:%p added into cache, connections:%d", data, fqdn, port, connType, hash, pNode, pCache->count[hash]);
+  // tTrace("%p %s:%hu:%d:%d:%p added into cache, connections:%d", data, fqdn, port, connType, hash, pNode,
+  // pCache->count[hash]);
 
   return;
 }
@@ -158,12 +162,12 @@ void *rpcGetConnFromCache(void *handle, char *fqdn, uint16_t port, int8_t connTy
   void *      pData = NULL;
 
   pCache = (SConnCache *)handle;
-  assert(pCache); 
+  assert(pCache);
 
   uint64_t time = taosGetTimestampMs();
 
   hash = rpcHashConn(pCache, fqdn, port, connType);
-  rpcLockCache(pCache->lockedBy+hash);
+  rpcLockCache(pCache->lockedBy + hash);
 
   pNode = pCache->connHashList[hash];
   while (pNode) {
@@ -197,12 +201,14 @@ void *rpcGetConnFromCache(void *handle, char *fqdn, uint16_t port, int8_t connTy
     pCache->count[hash]--;
   }
 
-  rpcUnlockCache(pCache->lockedBy+hash);
+  rpcUnlockCache(pCache->lockedBy + hash);
 
   if (pData) {
-    //tTrace("%p %s:%hu:%d:%d:%p retrieved from cache, connections:%d", pData, fqdn, port, connType, hash, pNode, pCache->count[hash]);
+    // tTrace("%p %s:%hu:%d:%d:%p retrieved from cache, connections:%d", pData, fqdn, port, connType, hash, pNode,
+    // pCache->count[hash]);
   } else {
-    //tTrace("%s:%hu:%d:%d failed to retrieve conn from cache, connections:%d", fqdn, port, connType, hash, pCache->count[hash]);
+    // tTrace("%s:%hu:%d:%d failed to retrieve conn from cache, connections:%d", fqdn, port, connType, hash,
+    // pCache->count[hash]);
   }
 
   return pData;
@@ -221,10 +227,10 @@ static void rpcCleanConnCache(void *handle, void *tmrId) {
   uint64_t time = taosGetTimestampMs();
 
   for (hash = 0; hash < pCache->maxSessions; ++hash) {
-    rpcLockCache(pCache->lockedBy+hash);
+    rpcLockCache(pCache->lockedBy + hash);
     pNode = pCache->connHashList[hash];
     rpcRemoveExpiredNodes(pCache, pNode, hash, time);
-    rpcUnlockCache(pCache->lockedBy+hash);
+    rpcUnlockCache(pCache->lockedBy + hash);
   }
 
   // tTrace("timer, total connections in cache:%d", pCache->total);
@@ -233,7 +239,7 @@ static void rpcCleanConnCache(void *handle, void *tmrId) {
 }
 
 static void rpcRemoveExpiredNodes(SConnCache *pCache, SConnHash *pNode, int hash, uint64_t time) {
-  if (pNode == NULL || (time < pCache->keepTimer + pNode->time) ) return;
+  if (pNode == NULL || (time < pCache->keepTimer + pNode->time)) return;
 
   SConnHash *pPrev = pNode->prev, *pNext;
 
@@ -242,7 +248,8 @@ static void rpcRemoveExpiredNodes(SConnCache *pCache, SConnHash *pNode, int hash
     pNext = pNode->next;
     pCache->total--;
     pCache->count[hash]--;
-    //tTrace("%p %s:%hu:%d:%d:%p removed from cache, connections:%d", pNode->data, pNode->fqdn, pNode->port, pNode->connType, hash, pNode,
+    // tTrace("%p %s:%hu:%d:%d:%p removed from cache, connections:%d", pNode->data, pNode->fqdn, pNode->port,
+    // pNode->connType, hash, pNode,
     //         pCache->count[hash]);
     taosMemPoolFree(pCache->connHashMemPool, (char *)pNode);
     pNode = pNext;
@@ -257,7 +264,7 @@ static void rpcRemoveExpiredNodes(SConnCache *pCache, SConnHash *pNode, int hash
 static int rpcHashConn(void *handle, char *fqdn, uint16_t port, int8_t connType) {
   SConnCache *pCache = (SConnCache *)handle;
   int         hash = 0;
-  char       *temp = fqdn;
+  char *      temp = fqdn;
 
   while (*temp) {
     hash += *temp;
@@ -288,4 +295,4 @@ static void rpcUnlockCache(int64_t *lockedBy) {
     assert(false);
   }
 }
-
+#endif
