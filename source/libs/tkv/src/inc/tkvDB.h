@@ -17,6 +17,7 @@
 #define _TD_TKV_DB_H_
 
 #include "tkvBtree.h"
+#include "tkvHash.h"
 
 #ifdef __cplusplus
 extern "C" {
@@ -30,11 +31,10 @@ typedef enum {
 
 struct TDB {
   pgsize_t pageSize;
-
-  tdb_db_t type;  // DB type
-
+  tdb_db_t type;
   union {
     STkvBtree btree;
+    STkvhash  hash;
   } dbimpl;
 };
 
