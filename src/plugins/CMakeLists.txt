@@ -26,7 +26,7 @@ ELSE ()
       STRING(SUBSTRING "${taos_version}" 12 -1 taos_version)
       STRING(STRIP "${taos_version}" taos_version)
   ELSE ()
-      STRING(CONCAT taos_version "branch_" "${taos_version}")
+      STRING(CONCAT taos_version "_branch_" "${taos_version}")
       STRING(STRIP "${taos_version}" taos_version)
   ENDIF ()
   EXECUTE_PROCESS(
