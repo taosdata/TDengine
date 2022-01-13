@@ -26,7 +26,8 @@
 		"eamodio.gitlens",
 		"matepek.vscode-catch2-test-adapter",
 		"spmeesseman.vscode-taskexplorer",
-		"cschlosser.doxdocgen"
+		"cschlosser.doxdocgen",
+		"urosvujosevic.explorer-manager"
 	],
 	// Use 'forwardPorts' to make a list of ports inside the container available locally.
 	// "forwardPorts": [],
