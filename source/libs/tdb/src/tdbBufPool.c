@@ -26,7 +26,7 @@ struct SFrameIdWrapper {
 };
 
 struct STkvBufPool {
-  STkvPage*    pages;
+  STdbPage*    pages;
   STkvDiskMgr* pDiskMgr;
   SHashObj*    pgTb;  // page_id_t --> frame_id_t
   TD_SLIST(SFrameIdWrapper) freeList;

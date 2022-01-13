@@ -17,30 +17,24 @@
 #define _TD_TKV_PAGE_H_
 
 #include "os.h"
-#include "tkvDef.h"
+#include "tdbDef.h"
 
 #ifdef __cplusplus
 extern "C" {
 #endif
 
-typedef struct STkvPage {
+typedef struct {
   pgid_t  pgid;
   int32_t pinCount;
   bool    idDirty;
   char*   pData;
-} STkvPage;
+} STdbPage;
 
 typedef struct {
   uint16_t dbver;
   uint16_t pgsize;
   uint32_t cksm;
-} STkvPgHdr;
-
-// typedef struct {
-//   SPgHdr   chdr;
-//   uint16_t used;     // number of used slots
-//   uint16_t loffset;  // the offset of the starting location of the last slot used
-// } SSlottedPgHdr;
+} STdbPgHdr;
 
 #ifdef __cplusplus
 }

@@ -13,30 +13,21 @@
  * along with this program. If not, see <http://www.gnu.org/licenses/>.
  */
 
-#ifndef _TD_TKV_DEF_H_
-#define _TD_TKV_DEF_H_
+#ifndef _TD_TDB_BTREE_H_
+#define _TD_TDB_BTREE_H_
 
-#include "os.h"
+#include "tkvDef.h"
 
 #ifdef __cplusplus
 extern "C" {
 #endif
 
-// pgid_t
-typedef int32_t pgid_t;
-#define TKV_IVLD_PGID ((pgid_t)-1)
-
-// framd_id_t
-typedef int32_t frame_id_t;
-
-// pgsize_t
-typedef int32_t pgsize_t;
-#define TKV_MIN_PGSIZE 512
-#define TKV_MAX_PGSIZE 16384
-#define TKV_IS_PGSIZE_VLD(s) (((s) >= TKV_MIN_PGSIZE) && (TKV_MAX_PGSIZE <= TKV_MAX_PGSIZE))
+typedef struct {
+  pgid_t root;  // root page number
+} TDB_BTREE;
 
 #ifdef __cplusplus
 }
 #endif
 
-#endif /*_TD_TKV_DEF_H_*/
+#endif /*_TD_TDB_BTREE_H_*/

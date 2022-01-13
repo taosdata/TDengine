@@ -13,27 +13,21 @@
  * along with this program. If not, see <http://www.gnu.org/licenses/>.
  */
 
-#ifndef _TD_TKV_BUF_POOL_H_
-#define _TD_TKV_BUF_POOL_H_
+#ifndef _TD_TKV_HAHS_H_
+#define _TD_TKV_HAHS_H_
 
-#include "tkvPage.h"
+#include "tdbDef.h"
 
 #ifdef __cplusplus
 extern "C" {
 #endif
 
-typedef struct STkvBufPool STkvBufPool;
-
-int       tbpOpen(STkvBufPool **ppTkvBufPool);
-int       tbpClose(STkvBufPool *pTkvBufPool);
-STkvPage *tbpNewPage(STkvBufPool *pTkvBufPool);
-int       tbpDelPage(STkvBufPool *pTkvBufPool);
-STkvPage *tbpFetchPage(STkvBufPool *pTkvBufPool, pgid_t pgid);
-int       tbpUnpinPage(STkvBufPool *pTkvBufPool, pgid_t pgid);
-void      tbpFlushPages(STkvBufPool *pTkvBufPool);
+typedef struct {
+  // TODO
+} TDB_HASH;
 
 #ifdef __cplusplus
 }
 #endif
 
-#endif /*_TD_TKV_BUF_POOL_H_*/
+#endif /*_TD_TKV_HAHS_H_*/

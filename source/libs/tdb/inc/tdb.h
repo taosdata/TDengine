@@ -13,8 +13,8 @@
  * along with this program. If not, see <http://www.gnu.org/licenses/>.
  */
 
-#ifndef _TD_TKV_H_
-#define _TD_TKV_H_
+#ifndef _TD_TDB_H_
+#define _TD_TDB_H_
 
 #include "os.h"
 
@@ -28,7 +28,7 @@ typedef struct TDB_ENV TDB_ENV;
 
 // SKey
 typedef struct {
-  void *   bdata;
+  void*    bdata;
   uint32_t size;
 } TDB_KEY, TDB_VALUE;
 
@@ -36,4 +36,4 @@ typedef struct {
 }
 #endif
 
-#endif /*_TD_TKV_H_*/
+#endif /*_TD_TDB_H_*/
