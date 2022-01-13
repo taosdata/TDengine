@@ -27,5 +27,4 @@ cd ./collectd_docker
 #4th arg: tcollector_count
 #5th arg: telegraf_count
 #6th arg: node_exporter port range
-
 #eg: ./run_all.sh 10 10 1 10 50 10000:10020
