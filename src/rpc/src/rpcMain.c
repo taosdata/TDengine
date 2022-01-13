@@ -964,9 +964,13 @@ static SRpcConn *rpcProcessMsgHead(SRpcInfo *pRpc, SRecvInfo *pRecv, SRpcReqCont
   }
 
   // compatibility between old version client and new version server, since 2.4.0.0
-  if (rpcIsReq(pHead->msgType) && htonl(pHead->msgVer) < ((2 << 24) | (4 << 16)) && htonl(pHead->msgVer) >> 16 != tsVersion >> 24) {
-    tDebug("%s sid:%d, invalid client version:%x/%x %s", pRpc->label, sid, htonl(pHead->msgVer), tsVersion, taosMsg[pHead->msgType]);
-    terrno = TSDB_CODE_RPC_INVALID_VERSION; return NULL;
+  if (rpcIsReq(pHead->msgType)){
+    if((htonl(pHead->msgVer) >> 16 != tsVersion >> 24) ||
+        ((htonl(pHead->msgVer) >> 16 == tsVersion >> 24) && htonl(pHead->msgVer) < ((2 << 16) | (4 << 8)))){
+      tError("%s sid:%d, invalid client version:%x/%x %s", pRpc->label, sid, htonl(pHead->msgVer), tsVersion, taosMsg[pHead->msgType]);
+      terrno = TSDB_CODE_RPC_INVALID_VERSION;
+      return NULL;
+    }
   }
 
   pConn = rpcGetConnObj(pRpc, sid, pRecv);
