@@ -56,7 +56,7 @@
             "sample_file": "./sample.csv",
             "tags_file": "",
             "columns": [{"type": "INT"}],
-            "tags": [{"type": "INT", "count":1}]
+            "tags": [{"type": "INT", "count":6}]
         },
         {
             "name": "stb1",
@@ -82,7 +82,7 @@
             "sample_file": "./sample.csv",
             "tags_file": "",
             "columns": [{"type": "UINT"}],
-            "tags": [{"type": "UINT", "count":1}]
+            "tags": [{"type": "UINT", "count":6}]
         },
         {
             "name": "stb2",
@@ -107,8 +107,8 @@
             "sample_format": "csv",
             "sample_file": "./sample.csv",
             "tags_file": "",
-            "columns": [{"type": "TINYINT", "count":1}],
-            "tags": [{"type": "TINYINT", "count":1}]
+            "columns": [{"type": "TINYINT"}],
+            "tags": [{"type": "TINYINT", "count":6}]
         },
         {
             "name": "stb3",
@@ -134,7 +134,7 @@
             "sample_file": "./sample.csv",
             "tags_file": "",
             "columns": [{"type": "BIGINT"}],
-            "tags": [{"type": "BIGINT", "count":1}]
+            "tags": [{"type": "BIGINT", "count":6}]
         },
         {
             "name": "stb4",
@@ -160,7 +160,7 @@
             "sample_file": "./sample.csv",
             "tags_file": "",
             "columns": [{"type": "SMALLINT"}],
-            "tags": [{"type": "SMALLINT", "count":1}]
+            "tags": [{"type": "SMALLINT", "count":6}]
         },
         {
             "name": "stb5",
@@ -186,7 +186,7 @@
             "sample_file": "./sample.csv",
             "tags_file": "",
             "columns": [{"type": "FLOAT"}],
-            "tags": [{"type": "FLOAT", "count":1}]
+            "tags": [{"type": "FLOAT", "count":6}]
         },
         {
             "name": "stb6",
@@ -212,7 +212,7 @@
             "sample_file": "./sample.csv",
             "tags_file": "",
             "columns": [{"type": "DOUBLE"}],
-            "tags": [{"type": "DOUBLE", "count":1}]
+            "tags": [{"type": "DOUBLE", "count":6}]
         },
         {
             "name": "stb7",
@@ -237,8 +237,8 @@
             "sample_format": "csv",
             "sample_file": "./sample.csv",
             "tags_file": "",
-            "columns": [ {"type": "BOOL"}],
-            "tags": [{"type": "BOOL", "count":1}]
+            "columns": [ {"type": "int"}],
+            "tags": [{"type": "int", "count":6}]
         },
         {
             "name": "stb8",
@@ -263,8 +263,8 @@
             "sample_format": "csv",
             "sample_file": "./sample.csv",
             "tags_file": "",
-            "columns": [{"type": "NCHAR","len": 16, "count":1}],
-            "tags": [{"type": "NCHAR", "count":1}]
+            "columns": [{"type": "NCHAR","len": 16}],
+            "tags": [{"type": "NCHAR", "count":6}]
         },
         {
             "name": "stb9",
@@ -289,8 +289,8 @@
             "sample_format": "csv",
             "sample_file": "./sample.csv",
             "tags_file": "",
-            "columns": [{"type": "BINARY", "len": 16, "count":1}],
-            "tags": [{"type": "BINARY", "count":1}]
+            "columns": [{"type": "BINARY", "len": 16}],
+            "tags": [{"type": "BINARY", "count":6}]
         },
         {
             "name": "stb10",
@@ -316,7 +316,7 @@
             "sample_file": "./sample.csv",
             "tags_file": "",
             "columns": [{"type": "UBIGINT"}],
-            "tags": [{"type": "UBIGINT", "count":1}]
+            "tags": [{"type": "UBIGINT", "count":6}]
         },
         {
             "name": "stb11",
@@ -342,7 +342,7 @@
             "sample_file": "./sample.csv",
             "tags_file": "",
             "columns": [{"type": "UTINYINT"}],
-            "tags": [{"type": "UTINYINT", "count":1}]
+            "tags": [{"type": "UTINYINT", "count":6}]
         },
         {
             "name": "stb12",
@@ -368,7 +368,7 @@
             "sample_file": "./sample.csv",
             "tags_file": "",
             "columns": [ {"type": "USMALLINT"}],
-            "tags": [{"type": "USMALLINT", "count":1}]
+            "tags": [{"type": "USMALLINT", "count":6}]
         }]
     }]
 }

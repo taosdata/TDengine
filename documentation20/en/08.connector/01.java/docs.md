@@ -761,17 +761,16 @@ Query OK, 1 row(s) in set (0.000141s)
 you see sample code here: [JDBC example](https://github.com/taosdata/TDengine/tree/develop/tests/examples/JDBC)
 
 ## FAQ
-
+- Why does not addBatch and executeBatch provide a performance benefit for executing "batch writes/updates"?
+  **Cause**:In TDengine's JDBC implementation, SQL statements submitted through the addBatch method are executed in the order in which they are added. This method does not reduce the number of interactions with the server and does not improve performance.
+  **Answer**：1. Concatenate multiple values in an INSERT statement; 2. Use multi-threaded concurrent insertion; 3. Use the parameter-binding to write
+  
 - java.lang.UnsatisfiedLinkError: no taos in java.library.path
-
   **Cause**：The application program cannot find Library function *taos*
-
   **Answer**：Copy `C:\TDengine\driver\taos.dll` to `C:\Windows\System32\` on Windows and make a soft link through `ln -s /usr/local/taos/driver/libtaos.so.x.x.x.x /usr/lib/libtaos.so` on Linux.
 
 - java.lang.UnsatisfiedLinkError: taos.dll Can't load AMD 64 bit on a IA 32-bit platform
-
   **Cause**：Currently TDengine only support 64bit JDK
-
   **Answer**：re-install 64bit JDK.
 
 - For other questions, please refer to [Issues](https://github.com/taosdata/TDengine/issues)
