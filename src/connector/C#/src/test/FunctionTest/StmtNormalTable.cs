@@ -14,7 +14,7 @@ namespace Cases
         /// <describe>Test stmt insert single line of chinese character into normal table by column after column </describe>
         /// <filename>StmtNormalTable.cs</filename>
         /// <result>pass or failed </result>  
-        [Fact(DisplayName = "NormalTableStmtCases.TestBindSingleLineCn()")]
+        [Fact(Skip = "NormalTableStmtCases.TestBindSingleLineCn()")]
         public void TestBindSingleLineCn()
         {
             string tableName = "normal_tablestmt_cases_test_bind_single_line_cn";
@@ -80,7 +80,7 @@ namespace Cases
         /// <describe>Test stmt insert single line of chinese character into normal table by column after column </describe>
         /// <filename>StmtNormalTable.cs</filename>
         /// <result>pass or failed </result> 
-        [Fact(DisplayName = "NormalTableStmtCases.TestBindColumnCn()")]
+        [Fact(Skip = "NormalTableStmtCases.TestBindColumnCn()")]
         public void TestBindColumnCn()
         {
             string tableName = "normal_tablestmt_cases_test_bind_column_cn";
@@ -162,7 +162,7 @@ namespace Cases
         /// <describe>Test stmt insert single line of chinese character into normal table by column after column </describe>
         /// <filename>StmtNormalTable.cs</filename>
         /// <result>pass or failed </result> 
-        [Fact(DisplayName = "NormalTableStmtCases.TestBindMultiLineCn()")]
+        [Fact(Skip = "NormalTableStmtCases.TestBindMultiLineCn()")]
         public void TestBindMultiLineCn()
         {
             string tableName = "normal_tablestmt_cases_test_bind_multi_lines_cn";
@@ -231,7 +231,7 @@ namespace Cases
         /// <describe>Test stmt insert sinle line data into normal table</describe>
         /// <filename>StmtNormalTable.cs</filename>
         /// <result>pass or failed </result>
-        [Fact(DisplayName = "NormalTableStmtCases.TestBindSingleLine")]
+        [Fact(Skip = "NormalTableStmtCases.TestBindSingleLine")]
         public void TestBindSingleLine()
         {
             string tableName = "normal_tablestmt_cases_test_bind_single_line";
@@ -300,7 +300,7 @@ namespace Cases
         /// <describe>Test stmt insert multiple rows of data into normal table</describe>
         /// <filename>StmtNormalTable.cs</filename>
         /// <result>pass or failed </result> 
-        [Fact(DisplayName = "NormalTableStmtCases.TestBindMultiLine()")]
+        [Fact(Skip = "NormalTableStmtCases.TestBindMultiLine()")]
         public void TestBindMultiLine()
         {
             string tableName = "normal_table_stmt_cases_test_bind_multi_lines";
@@ -369,7 +369,7 @@ namespace Cases
         /// <describe>Test stmt insert multiple rows of data into normal table by column after column </describe>
         /// <filename>StmtNormalTable.cs</filename>
         /// <result>pass or failed </result> 
-        [Fact(DisplayName = "NormalTableStmtCases.TestBindColumn()")]
+        [Fact(Skip = "NormalTableStmtCases.TestBindColumn()")]
         public void TestBindColumn()
         {
             string tableName = "normal_tablestmt_cases_test_bind_column_cn";

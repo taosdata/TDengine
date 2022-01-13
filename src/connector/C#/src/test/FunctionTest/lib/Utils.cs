@@ -13,6 +13,7 @@ namespace Test.UtilsTools
         static string password = "taosdata";
         static string db = "";
         static short port = 0;
+        //get a tdengine connection
         public static IntPtr TDConnection()
         {
             TDengine.Options((int)TDengineInitOption.TDDB_OPTION_CONFIGDIR, GetConfigPath());
@@ -24,6 +25,7 @@ namespace Test.UtilsTools
             UtilsTools.ExecuteUpdate(conn, "use csharp");
             return conn;
         }
+        //get taos.cfg file based on different os
         public static string GetConfigPath()
         {
               string configDir = "" ;
@@ -383,6 +385,89 @@ namespace Test.UtilsTools
             return dataRaw;
         }
 
+        // Generate insert sql for the with the coldata and tag data 
+        public static string ConstructInsertSql(string table,string stable,List<Object> colData,List<Object> tagData,int numOfRows)
+        {
+            int numofFileds = colData.Count / numOfRows;
+            StringBuilder insertSql;
+
+            if (stable == "")
+            {
+                insertSql = new StringBuilder($"insert into {table} values(");
+            }
+            else
+            {
+                insertSql = new StringBuilder($"insert into {table} using {stable} tags(");
+
+                for (int j = 0; j < tagData.Count; j++)
+                {
+                    if (tagData[j] is String)
+                    {
+                        insertSql.Append('\'');
+                        insertSql.Append(tagData[j]);
+                        insertSql.Append('\'');
+                    }
+                    else
+                    {
+                        insertSql.Append(tagData[j]);
+                    }
+                    if (j + 1 != tagData.Count)
+                    {
+                        insertSql.Append(',');
+                    }
+                }
+
+                insertSql.Append(")values(");
+            }
+            for (int i = 0; i < colData.Count; i++)
+            {
+
+                if (colData[i] is String)
+                {
+                    insertSql.Append('\'');
+                    insertSql.Append(colData[i]);
+                    insertSql.Append('\'');
+                }
+                else
+                {
+                    insertSql.Append(colData[i]);
+                }
+
+                if ((i + 1) % numofFileds == 0 && (i + 1) != colData.Count)
+                {
+                    insertSql.Append(")(");
+                }
+                else if ((i + 1) == colData.Count)
+                {
+                    insertSql.Append(')');
+                }
+                else
+                {
+                    insertSql.Append(',');
+                }
+            }
+            insertSql.Append(';');
+            //Console.WriteLine(insertSql.ToString());
+
+            return insertSql.ToString();
+        }
+    
+        public static List<object> CombineColAndTagData(List<object> colData,List<object> tagData, int numOfRows)
+        {
+            var list = new List<Object>();
+            for (int i = 0; i < colData.Count; i++)
+            {
+                list.Add(colData[i]);
+                if ((i + 1) % (colData.Count / numOfRows) == 0)
+                {
+                    for (int j = 0; j < tagData.Count; j++)
+                    {
+                        list.Add(tagData[j]);
+                    }
+                }
+            }
+            return list;
+        }
     }
 }
 

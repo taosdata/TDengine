@@ -15,7 +15,7 @@ namespace Cases
         /// <describe>Test stmt insert single line of chinese character into stable by column after column </describe>
         /// <filename>StmtSTable.cs</filename>
         /// <result>pass or failed </result> 
-        [Fact(DisplayName = "StableStmtCases.TestBindSingleLineCn()")]
+        [Fact(Skip = "StableStmtCases.TestBindSingleLineCn()")]
         public void TestBindSingleLineCn()
         {
             string tableName = "stable_stmt_cases_test_bind_single_line_cn";
@@ -99,7 +99,7 @@ namespace Cases
         /// <describe>Test stmt insert single line of chinese character into stable by column after column </describe>
         /// <filename>StmtSTable.cs</filename>
         /// <result>pass or failed </result>
-        [Fact(DisplayName = "StableStmtCases.TestBindColumnCn()")]
+        [Fact(Skip = "StableStmtCases.TestBindColumnCn()")]
         public void TestBindColumnCn()
         {
             string tableName = "stable_stmt_cases_test_bindcolumn_cn";
@@ -199,7 +199,7 @@ namespace Cases
         /// <describe>Test stmt insert single line of chinese character into stable by column after column </describe>
         /// <filename>StmtSTable.cs</filename>
         /// <result>pass or failed </result>
-        [Fact(DisplayName = "StableStmtCases.TestBindMultiLineCn()")]
+        [Fact(Skip = "StableStmtCases.TestBindMultiLineCn()")]
         public void TestBindMultiLineCn()
         {
             string tableName = "stable_stmt_cases_test_bind_multi_line_cn";
@@ -282,7 +282,7 @@ namespace Cases
         /// <describe>Test stmt insert single line into stable by column after column </describe>
         /// <filename>StmtSTable.cs</filename>
         /// <result>pass or failed </result>         
-        [Fact(DisplayName = "StableStmtCases.TestBindMultiLine()")]
+        [Fact(Skip = "StableStmtCases.TestBindMultiLine()")]
         public void TestBindMultiLine()
         {
             string tableName = "stable_stmt_cases_test_bind_multi_line";
@@ -370,7 +370,7 @@ namespace Cases
         /// <describe>Test stmt insert single line of chinese character into stable by column after column </describe>
         /// <filename>StmtSTable.cs</filename>
         /// <result>pass or failed </result> 
-        [Fact(DisplayName = "StableStmtCases.TestBindColumn()")]
+        [Fact(Skip = "StableStmtCases.TestBindColumn()")]
         public void TestBindColumn()
         {
             string tableName = "stable_stmt_cases_test_bindcolumn";
