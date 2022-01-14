@@ -327,6 +327,9 @@ tSqlExpr *tSqlExprCreate(tSqlExpr *pLeft, tSqlExpr *pRight, int32_t optrType) {
      * Otherwise, the time precision is adaptive, determined by the time precision from databases.
      */
     if ((pLeft->tokenId == TK_INTEGER && pRight->tokenId == TK_INTEGER) ||
+        (pLeft->tokenId == TK_BOOL && pRight->tokenId == TK_BOOL) ||
+        (pLeft->tokenId == TK_INTEGER && pRight->tokenId == TK_BOOL) ||
+        (pLeft->tokenId == TK_BOOL && pRight->tokenId == TK_INTEGER) ||
         (pLeft->tokenId == TK_TIMESTAMP && pRight->tokenId == TK_TIMESTAMP)) {
       pExpr->value.nType = TSDB_DATA_TYPE_BIGINT;
       pExpr->tokenId = pLeft->tokenId;
