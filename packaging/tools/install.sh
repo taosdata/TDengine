@@ -162,19 +162,19 @@ function kill_process() {
 }
 
 function install_main_path() {
-  #create install main dir and all sub dir
-  ${csudo}rm -rf ${install_main_dir} || :
-  ${csudo}mkdir -p ${install_main_dir}
-  ${csudo}mkdir -p ${install_main_dir}/cfg
-  ${csudo}mkdir -p ${install_main_dir}/bin
-  ${csudo}mkdir -p ${install_main_dir}/connector
-  ${csudo}mkdir -p ${install_main_dir}/driver
-  ${csudo}mkdir -p ${install_main_dir}/examples
-  ${csudo}mkdir -p ${install_main_dir}/include
-  ${csudo}mkdir -p ${install_main_dir}/init.d
-  if [ "$verMode" == "cluster" ]; then
-    ${csudo}mkdir -p ${nginx_dir}
-  fi
+    #create install main dir and all sub dir
+    ${csudo}rm -rf ${install_main_dir}    || :
+    ${csudo}mkdir -p ${install_main_dir}
+    ${csudo}mkdir -p ${install_main_dir}/cfg
+    ${csudo}mkdir -p ${install_main_dir}/bin
+#    ${csudo}mkdir -p ${install_main_dir}/connector
+    ${csudo}mkdir -p ${install_main_dir}/driver
+    ${csudo}mkdir -p ${install_main_dir}/examples
+    ${csudo}mkdir -p ${install_main_dir}/include
+#    ${csudo}mkdir -p ${install_main_dir}/init.d
+    if [ "$verMode" == "cluster" ]; then
+        ${csudo}mkdir -p ${nginx_dir}
+    fi
 
   if [[ -e ${script_dir}/email ]]; then
     ${csudo}cp ${script_dir}/email ${install_main_dir}/ || :
@@ -616,21 +616,22 @@ function clean_service_on_sysvinit() {
 }
 
 function install_service_on_sysvinit() {
-  clean_service_on_sysvinit
-  sleep 1
+    clean_service_on_sysvinit
+    sleep 1
 
-  if ((${os_type} == 1)); then
-    ${csudo}cp -f ${script_dir}/init.d/${serverName}.deb ${install_main_dir}/init.d/${serverName}
-    ${csudo}cp ${script_dir}/init.d/${serverName}.deb ${service_config_dir}/${serverName} && ${csudo}chmod a+x ${service_config_dir}/${serverName}
-    ${csudo}cp -f ${script_dir}/init.d/tarbitratord.deb ${install_main_dir}/init.d/tarbitratord
-    ${csudo}cp ${script_dir}/init.d/tarbitratord.deb ${service_config_dir}/tarbitratord && ${csudo}chmod a+x ${service_config_dir}/tarbitratord
-  elif ((${os_type} == 2)); then
-    ${csudo}cp -f ${script_dir}/init.d/${serverName}.rpm ${install_main_dir}/init.d/${serverName}
-    ${csudo}cp ${script_dir}/init.d/${serverName}.rpm ${service_config_dir}/${serverName} && ${csudo}chmod a+x ${service_config_dir}/${serverName}
-    ${csudo}cp -f ${script_dir}/init.d/tarbitratord.rpm ${install_main_dir}/init.d/tarbitratord
-    ${csudo}cp ${script_dir}/init.d/tarbitratord.rpm ${service_config_dir}/tarbitratord && ${csudo}chmod a+x ${service_config_dir}/tarbitratord
-  fi
-
+    # Install server service
+    if ((${os_type}==1)); then
+#        ${csudo}cp -f ${script_dir}/init.d/${serverName}.deb ${install_main_dir}/init.d/${serverName}
+        ${csudo}cp    ${script_dir}/init.d/${serverName}.deb ${service_config_dir}/${serverName} && ${csudo}chmod a+x ${service_config_dir}/${serverName}
+#        ${csudo}cp -f ${script_dir}/init.d/tarbitratord.deb ${install_main_dir}/init.d/tarbitratord
+        ${csudo}cp    ${script_dir}/init.d/tarbitratord.deb ${service_config_dir}/tarbitratord && ${csudo}chmod a+x ${service_config_dir}/tarbitratord
+    elif ((${os_type}==2)); then
+#        ${csudo}cp -f ${script_dir}/init.d/${serverName}.rpm ${install_main_dir}/init.d/${serverName}
+        ${csudo}cp    ${script_dir}/init.d/${serverName}.rpm ${service_config_dir}/${serverName} && ${csudo}chmod a+x ${service_config_dir}/${serverName}
+#        ${csudo}cp -f ${script_dir}/init.d/tarbitratord.rpm ${install_main_dir}/init.d/tarbitratord
+        ${csudo}cp    ${script_dir}/init.d/tarbitratord.rpm ${service_config_dir}/tarbitratord && ${csudo}chmod a+x ${service_config_dir}/tarbitratord
+    fi
+    
   if ((${initd_mod} == 1)); then
     ${csudo}chkconfig --add ${serverName} || :
     ${csudo}chkconfig --level 2345 ${serverName} on || :
@@ -678,30 +679,23 @@ function clean_service_on_systemd() {
 function install_service_on_systemd() {
   clean_service_on_systemd
 
-  [ -f ${script_dir}/cfg/${serverName}.service ] &&
-    ${csudo}cp ${script_dir}/cfg/${serverName}.service \
+  [ -f ${script_dir}/cfg/${serverName}.service ] &&\
+      ${csudo}cp ${script_dir}/cfg/${serverName}.service \
       ${service_config_dir}/ || :
   ${csudo}systemctl daemon-reload
 
   ${csudo}systemctl enable ${serverName}
 
-  [ -f ${script_dir}/cfg/tarbitratord.service ] &&
-    ${csudo}cp ${script_dir}/cfg/tarbitratord.service \
+  [ -f ${script_dir}/cfg/tarbitratord.service ] &&\
+      ${csudo}cp ${script_dir}/cfg/tarbitratord.service \
       ${service_config_dir}/ || :
   ${csudo}systemctl daemon-reload
 
-  if [ "$verMode" == "cluster" ]; then
-    [ -f ${script_dir}/cfg/nginxd.service ] &&
-      ${csudo}cp ${script_dir}/cfg/nginxd.service \
-        ${service_config_dir}/ || :
-    ${csudo}systemctl daemon-reload
-
-    if ! ${csudo}systemctl enable nginxd &>/dev/null; then
-      ${csudo}systemctl daemon-reexec
-      ${csudo}systemctl enable nginxd
-    fi
-    ${csudo}systemctl start nginxd
+  if ! ${csudo}systemctl enable nginxd &>/dev/null; then
+    ${csudo}systemctl daemon-reexec
+    ${csudo}systemctl enable nginxd
   fi
+  ${csudo}systemctl start nginxd
 }
 
 function install_taosadapter_service() {
@@ -850,7 +844,7 @@ function update_TDengine() {
         fi
       fi
     fi
-
+    
     #echo
     #echo -e "\033[44;32;1mTDengine is updated successfully!${NC}"
     echo
@@ -911,9 +905,9 @@ function install_TDengine() {
   #install_avro lib
   #install_avro lib64
 
-  if [ "$pagMode" != "lite" ]; then
-    install_connector
-  fi
+#    if [ "$pagMode" != "lite" ]; then
+#      install_connector
+#    fi
   install_examples
 
   if [ -z $1 ]; then # install service and client

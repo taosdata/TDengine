@@ -322,7 +322,7 @@ static int32_t invalidOperationMsg(char* dstBuffer, const char* errMsg) {
 
 static int convertTimestampStrToInt64(tVariant *pVar, int32_t precision) {
   int64_t     time = 0;
-  strdequote(pVar->pz);
+  stringProcess(pVar->pz, pVar->nLen);
 
   char*           seg = strnchr(pVar->pz, '-', pVar->nLen, false);
   if (seg != NULL) {
@@ -359,7 +359,7 @@ static int32_t handlePassword(SSqlCmd* pCmd, SStrToken* pPwd) {
     return invalidOperationMsg(tscGetErrorMsgPayload(pCmd), msg3);
   }
 
-  strdequote(pPwd->z);
+  stringProcess(pPwd->z, pPwd->n);
   pPwd->n = (uint32_t)strtrim(pPwd->z);  // trim space before and after passwords
 
   if (pPwd->n <= 0) {
@@ -477,7 +477,7 @@ int32_t handleUserDefinedFunc(SSqlObj* pSql, struct SSqlInfo* pInfo) {
       if (validateColumnName(createInfo->name.z) != TSDB_CODE_SUCCESS) {
         return  invalidOperationMsg(tscGetErrorMsgPayload(pCmd), msg1);
       }
-      strdequote(createInfo->name.z);
+      stringProcess(createInfo->name.z, createInfo->name.n);
 
       if (strlen(createInfo->name.z) >= TSDB_FUNC_NAME_LEN) {
         return invalidOperationMsg(tscGetErrorMsgPayload(pCmd), msg1);
@@ -485,7 +485,7 @@ int32_t handleUserDefinedFunc(SSqlObj* pSql, struct SSqlInfo* pInfo) {
 
       createInfo->path.z[createInfo->path.n] = 0;
 
-      strdequote(createInfo->path.z);
+      stringProcess(createInfo->path.z, createInfo->path.n);
 
       if (strlen(createInfo->path.z) >= PATH_MAX) {
         return invalidOperationMsg(tscGetErrorMsgPayload(pCmd), msg2);
@@ -543,7 +543,7 @@ int32_t handleUserDefinedFunc(SSqlObj* pSql, struct SSqlInfo* pInfo) {
 
       t0->z[t0->n] = 0;
 
-      strdequote(t0->z);
+      stringProcess(t0->z, t0->n);
 
       if (strlen(t0->z) >= TSDB_FUNC_NAME_LEN) {
         return invalidOperationMsg(tscGetErrorMsgPayload(pCmd), msg1);
@@ -628,7 +628,7 @@ int32_t tscValidateSqlInfo(SSqlObj* pSql, struct SSqlInfo* pInfo) {
         }
       } else if (pInfo->type == TSDB_SQL_DROP_DNODE) {
         if (pzName->type == TK_STRING) {
-          pzName->n = strdequote(pzName->z);
+          pzName->n = stringProcess(pzName->z, pzName->n);
         }
         strncpy(pCmd->payload, pzName->z, pzName->n);
       } else {  // drop user/account
@@ -718,7 +718,7 @@ int32_t tscValidateSqlInfo(SSqlObj* pSql, struct SSqlInfo* pInfo) {
 
       SStrToken* id = taosArrayGet(pInfo->pMiscInfo->a, 0);
       if (id->type == TK_STRING) {
-        id->n = strdequote(id->z);
+        id->n = stringProcess(id->z, id->n);
       }
       break;
     }
@@ -834,7 +834,7 @@ int32_t tscValidateSqlInfo(SSqlObj* pSql, struct SSqlInfo* pInfo) {
       SStrToken* t0 = taosArrayGet(pMiscInfo->a, 0);
       SStrToken* t1 = taosArrayGet(pMiscInfo->a, 1);
 
-      t0->n = strdequote(t0->z);
+      t0->n = stringProcess(t0->z, t0->n);
       strncpy(pCfg->ep, t0->z, t0->n);
 
       if (validateEp(pCfg->ep) != TSDB_CODE_SUCCESS) {
@@ -2674,6 +2674,7 @@ int32_t addExprAndResultField(SSqlCmd* pCmd, SQueryInfo* pQueryInfo, int32_t col
   const char* msg15 = "parameter is out of range [1, 1000]";
   const char* msg16 = "elapsed duration should be greater than or equal to database precision";
   const char* msg17 = "elapsed/twa should not be used in nested query if inner query has group by clause";
+  const char* msg18 = "the second parameter is not an integer";
 
   switch (functionId) {
     case TSDB_FUNC_COUNT: {
@@ -3156,6 +3157,11 @@ int32_t addExprAndResultField(SSqlCmd* pCmd, SQueryInfo* pQueryInfo, int32_t col
           return invalidOperationMsg(tscGetErrorMsgPayload(pCmd), msg2);
         }
 
+        char* endptr = NULL;
+        strtoll(pParamElem[1].pNode->exprToken.z, &endptr, 10);
+        if ((endptr-pParamElem[1].pNode->exprToken.z != pParamElem[1].pNode->exprToken.n) || errno == ERANGE) {
+          return invalidOperationMsg(tscGetErrorMsgPayload(pCmd), msg18);
+        }
         tVariantDump(pVariant, val, TSDB_DATA_TYPE_BIGINT, true);
 
         int64_t numRowsSelected = GET_INT64_VAL(val);
@@ -3435,7 +3441,7 @@ static int16_t doGetColumnIndex(SQueryInfo* pQueryInfo, int32_t index, SStrToken
   pToken->z = tmpTokenBuf;
 
   if (pToken->type == TK_ID) {
-    tscRmEscapeAndTrimToken(pToken);
+    pToken->n = stringProcess(pToken->z, pToken->n);
   }
 
   for (int16_t i = 0; i < numOfCols; ++i) {
@@ -3563,7 +3569,6 @@ int32_t setShowInfo(SSqlObj* pSql, struct SSqlInfo* pInfo) {
   const char* msg3 = "database name too long";
   const char* msg5 = "database name is empty";
   const char* msg6 = "pattern string is empty";
-  const char* msg7 = "pattern is invalid";
 
   /*
    * database prefix in pInfo->pMiscInfo->a[0]
@@ -3596,11 +3601,7 @@ int32_t setShowInfo(SSqlObj* pSql, struct SSqlInfo* pInfo) {
     // show table/stable like 'xxxx', set the like pattern for show tables
     SStrToken* pPattern = &pShowInfo->pattern;
     if (pPattern->type != 0) {
-      if (pPattern->type == TK_ID && pPattern->z[0] == TS_ESCAPE_CHAR) {
-        return invalidOperationMsg(tscGetErrorMsgPayload(pCmd), msg7);
-      }
-      
-      pPattern->n = strdequote(pPattern->z);
+      pPattern->n = stringProcess(pPattern->z, pPattern->n);
 
       if (pPattern->n <= 0) {
         return invalidOperationMsg(tscGetErrorMsgPayload(pCmd), msg6);
@@ -3618,7 +3619,7 @@ int32_t setShowInfo(SSqlObj* pSql, struct SSqlInfo* pInfo) {
     }
 
     if (pShowInfo->prefix.type == TK_STRING) {
-      pShowInfo->prefix.n = strdequote(pShowInfo->prefix.z);
+      pShowInfo->prefix.n = stringProcess(pShowInfo->prefix.z, pShowInfo->prefix.n);
     }
   } 
   return TSDB_CODE_SUCCESS;
@@ -4932,7 +4933,7 @@ static int32_t validateNullExpr(tSqlExpr* pExpr, STableMeta* pTableMeta, int32_t
     }
 
     char *v = strndup(pRight->exprToken.z, pRight->exprToken.n);
-    int32_t len = strRmquote(v, pRight->exprToken.n);
+    int32_t len = stringProcess(v, pRight->exprToken.n);
     if (len > 0) {
       uint32_t type = 0;
       tGetToken(v, &type);
@@ -5046,20 +5047,10 @@ static int32_t validateMatchExpr(tSqlExpr* pExpr, STableMeta* pTableMeta, int32_
     regex_t regex;
     char    regErrBuf[256] = {0};
 
-    //remove the quote at the begin end of original sql string.
-    uint32_t lenPattern = pRight->exprToken.n - 2;
-    char* pattern = malloc(lenPattern + 1);
-    strncpy(pattern, pRight->exprToken.z+1, lenPattern);
-    pattern[lenPattern] = '\0';
-
-    tfree(pRight->value.pz);
-    pRight->value.pz = pattern;
-    pRight->value.nLen = lenPattern;
-
     int cflags = REG_EXTENDED;
-    if ((errCode = regcomp(&regex, pattern, cflags)) != 0) {
+    if ((errCode = regcomp(&regex, pRight->value.pz, cflags)) != 0) {
       regerror(errCode, &regex, regErrBuf, sizeof(regErrBuf));
-      tscError("Failed to compile regex pattern %s. reason %s", pattern, regErrBuf);
+      tscError("Failed to compile regex pattern %s. reason %s", pRight->value.pz, regErrBuf);
       return invalidOperationMsg(msgBuf, msg3);
     }
     regfree(&regex);
@@ -6059,7 +6050,7 @@ int32_t getTimeRange(STimeWindow* win, tSqlExpr* pRight, int32_t optr, int16_t t
   int64_t val = 0;
   bool    parsed = false;
   if (pRight->value.nType == TSDB_DATA_TYPE_BINARY) {
-    pRight->value.nLen = strdequote(pRight->value.pz);
+    pRight->value.nLen = stringProcess(pRight->value.pz, pRight->value.nLen);
 
     char* seg = strnchr(pRight->value.pz, '-', pRight->value.nLen, false);
     if (seg != NULL) {
@@ -7015,7 +7006,7 @@ int32_t setAlterTableInfo(SSqlObj* pSql, struct SSqlInfo* pInfo) {
 
     //handle Escape character backstick
     bool inEscape = false;
-    if (name.z[0] == TS_ESCAPE_CHAR && name.z[name.n - 1] == TS_ESCAPE_CHAR) {
+    if (name.z[0] == TS_BACKQUOTE_CHAR && name.z[name.n - 1] == TS_BACKQUOTE_CHAR) {
       inEscape = true;
       name.type = TK_ID;
     }
@@ -7034,7 +7025,7 @@ int32_t setAlterTableInfo(SSqlObj* pSql, struct SSqlInfo* pInfo) {
     int32_t nameLen = pItem->pVar.nLen;
     if (inEscape) {
       memmove(name1, name1 + 1, nameLen);
-      name1[nameLen - TS_ESCAPE_CHAR_SIZE] = '\0';
+      name1[nameLen - TS_BACKQUOTE_CHAR_SIZE] = '\0';
     }
 
     TAOS_FIELD f = tscCreateField(TSDB_DATA_TYPE_INT, name1, tDataTypes[TSDB_DATA_TYPE_INT].bytes);
@@ -7055,7 +7046,7 @@ int32_t setAlterTableInfo(SSqlObj* pSql, struct SSqlInfo* pInfo) {
 
     //handle Escape character backstick
     bool inEscape = false;
-    if (name.z[0] == TS_ESCAPE_CHAR && name.z[name.n - 1] == TS_ESCAPE_CHAR) {
+    if (name.z[0] == TS_BACKQUOTE_CHAR && name.z[name.n - 1] == TS_BACKQUOTE_CHAR) {
       inEscape = true;
       name.type = TK_ID;
     }
@@ -7096,8 +7087,8 @@ int32_t setAlterTableInfo(SSqlObj* pSql, struct SSqlInfo* pInfo) {
 
     if (inEscape) {
       memmove(name.z, name.z + 1, name.n);
-      name.z[name.n - TS_ESCAPE_CHAR_SIZE] = '\0';
-      name.n -= TS_ESCAPE_CHAR_SIZE;
+      name.z[name.n - TS_BACKQUOTE_CHAR_SIZE] = '\0';
+      name.n -= TS_BACKQUOTE_CHAR_SIZE;
     }
 
     TAOS_FIELD f = tscCreateField(pColSchema->type, name.z, pItem->bytes);
@@ -7115,10 +7106,10 @@ int32_t setAlterTableInfo(SSqlObj* pSql, struct SSqlInfo* pInfo) {
     SColumnIndex columnIndex = COLUMN_INDEX_INITIALIZER;
     SStrToken    name = {.type = TK_STRING, .z = pItem->name, .n = (uint32_t)strlen(pItem->name)};
     //handle Escape character backstick
-    if (name.z[0] == TS_ESCAPE_CHAR && name.z[name.n - 1] == TS_ESCAPE_CHAR) {
+    if (name.z[0] == TS_BACKQUOTE_CHAR && name.z[name.n - 1] == TS_BACKQUOTE_CHAR) {
       memmove(name.z, name.z + 1, name.n);
-      name.z[name.n - TS_ESCAPE_CHAR_SIZE] = '\0';
-      name.n -= TS_ESCAPE_CHAR_SIZE;
+      name.z[name.n - TS_BACKQUOTE_CHAR_SIZE] = '\0';
+      name.n -= TS_BACKQUOTE_CHAR_SIZE;
     }
     if (getColumnIndexByName(&name, pQueryInfo, &columnIndex, tscGetErrorMsgPayload(pCmd)) != TSDB_CODE_SUCCESS) {
       return invalidOperationMsg(pMsg, msg17);
@@ -7315,7 +7306,7 @@ int32_t validateDNodeConfig(SMiscInfo* pOptions) {
     SStrToken* pValToken = taosArrayGet(pOptions->a, 2);
     int32_t vnodeId = 0;
     int32_t dnodeId = 0;
-    strdequote(pValToken->z);
+    stringProcess(pValToken->z, pValToken->n);
     bool parseOk = taosCheckBalanceCfgOptions(pValToken->z, &vnodeId, &dnodeId);
     if (!parseOk) {
       return TSDB_CODE_TSC_INVALID_OPERATION;  // options value is invalid
@@ -7417,7 +7408,7 @@ int32_t validateColumnName(char* name) {
   }
 
   if (token.type == TK_STRING) {
-    strdequote(token.z);
+    token.n = stringProcess(token.z, token.n);
     strntolower(token.z, token.z, token.n);
     token.n = (uint32_t)strtrim(token.z);
 
@@ -7428,7 +7419,7 @@ int32_t validateColumnName(char* name) {
 
     return validateColumnName(token.z);
   } else if (token.type == TK_ID) {
-    strRmquoteEscape(name, token.n);
+    stringProcess(name, token.n);
     return TSDB_CODE_SUCCESS;
   } else {
     if (isNumber(&token)) {
@@ -7579,7 +7570,7 @@ static int32_t setTimePrecision(SSqlCmd* pCmd, SCreateDbMsg* pMsg, SCreateDbInfo
 
   SStrToken* pToken = &pCreateDbInfo->precision;
   if (pToken->n > 0) {
-    pToken->n = strdequote(pToken->z);
+    pToken->n = stringProcess(pToken->z, pToken->n);
 
     if (strncmp(pToken->z, TSDB_TIME_PRECISION_MILLI_STR, pToken->n) == 0 &&
         strlen(TSDB_TIME_PRECISION_MILLI_STR) == pToken->n) {
@@ -8634,12 +8625,8 @@ int32_t doCheckForCreateFromStable(SSqlObj* pSql, SSqlInfo* pInfo) {
         strncpy(tmpTokenBuf, sToken->z, sToken->n);
         sToken->z = tmpTokenBuf;
 
-        if (TK_STRING == sToken->type) {
-          tscDequoteAndTrimToken(sToken);
-        }
-
-        if (TK_ID == sToken->type) {
-          tscRmEscapeAndTrimToken(sToken);
+        if (TK_STRING == sToken->type || TK_ID == sToken->type) {
+          sToken->n = stringProcess(sToken->z, sToken->n);
         }
 
         tVariantListItem* pItem = taosArrayGet(pValList, i);
@@ -9578,8 +9565,6 @@ static int32_t doLoadAllTableMeta(SSqlObj* pSql, SQueryInfo* pQueryInfo, SSqlNod
       return invalidOperationMsg(tscGetErrorMsgPayload(pCmd), msg1);
     }
 
-    tscDequoteAndTrimToken(oriName);
-
     bool dbIncluded = false;
     char      buf[TSDB_TABLE_FNAME_LEN];
     SStrToken sTblToken;
@@ -9601,7 +9586,6 @@ static int32_t doLoadAllTableMeta(SSqlObj* pSql, SQueryInfo* pQueryInfo, SSqlNod
         return invalidOperationMsg(tscGetErrorMsgPayload(pCmd), msg2);
       }
 
-      tscDequoteAndTrimToken(aliasName);
       if (tscValidateName(aliasName, false, NULL) != TSDB_CODE_SUCCESS || aliasName->n >= TSDB_TABLE_NAME_LEN) {
         return invalidOperationMsg(tscGetErrorMsgPayload(pCmd), msg3);
       }
