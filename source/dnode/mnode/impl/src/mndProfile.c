@@ -258,6 +258,7 @@ static int32_t mndSaveQueryStreamList(SConnObj *pConn, SHeartBeatReq *pReq) {
 }
 
 static int32_t mndProcessHeartBeatReq(SMnodeMsg *pReq) {
+#if 0
   SMnode *pMnode = pReq->pMnode;
   char *batchReqStr = pReq->rpcMsg.pCont;
   SClientHbBatchReq batchReq = {0};
@@ -273,8 +274,8 @@ static int32_t mndProcessHeartBeatReq(SMnodeMsg *pReq) {
     }
   }
   return 0;
+#else
 
-#if 0
   SMnode       *pMnode = pReq->pMnode;
   SProfileMgmt *pMgmt = &pMnode->profileMgmt;
 
