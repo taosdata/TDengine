@@ -14,7 +14,6 @@
  */
 
 #include "clientInt.h"
-#include "clientHb.h"
 #include "trpc.h"
 
 static SClientHbMgr clientHbMgr = {0};
