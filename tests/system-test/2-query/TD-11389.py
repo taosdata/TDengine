@@ -63,7 +63,7 @@ class TDTestCase:
         tdSql.execute("create stable st (ts timestamp , id int , value double) tags(hostname binary(10) ,ind int);")
         for i in range(self.num):
             tdSql.execute("insert into sub_%s using st tags('host_%s' , %d) values (%d , %d , %f );"%(str(i),str(i),i*10,self.ts+10000*i,i*2,i+10.00))
-        tdSql.query("select distinct(hostname) from st;")
+        tdSql.query("select distinct(hostname) from testdb.st")
         tdSql.checkRows(10)
 
         binPath = self.getBuildPath() + "/build/bin/"
@@ -76,11 +76,13 @@ class TDTestCase:
         os.system("taos -s ' select distinct(hostname) from testdb.st '")
 
         # this bug will occor at this connect  ,it should get 11 rows ,but return 10 rows ,this error is caused by cache 
+        # tdSql.query("reset query cache")
+        
 
-        for i in range(10):
-            
+        for i in range(5):
+            tdSql.query("select distinct(hostname) from testdb.st")
             tdSql.checkRows(11)     # query 10 times every 10 second , test cache refresh
-            sleep(10)              
+            sleep(3)              
     
 
     def stop(self):
