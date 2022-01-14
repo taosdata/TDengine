@@ -111,6 +111,31 @@ class TDTestCase:
         tdSql.checkRows(1)
         tdSql.checkData(0, 0, 0)
 
+        tdSql.query('select 1.0 = true from tb;')
+        tdSql.checkRows(1)
+        tdSql.checkData(0, 0, 1)
+
+        tdSql.query('select 0.0 = false from tb;')
+        tdSql.checkRows(1)
+        tdSql.checkData(0, 0, 1)
+
+        tdSql.query('select 1.0 = false from tb;')
+        tdSql.checkRows(1)
+        tdSql.checkData(0, 0, 0)
+
+        tdSql.query('select 0.0 = true from tb;')
+        tdSql.checkRows(1)
+        tdSql.checkData(0, 0, 0)
+
+        tdSql.query('select true = 1.001 from tb;')
+        tdSql.checkRows(1)
+        tdSql.checkData(0, 0, 0)
+
+        tdSql.query('select true = 1.0000000001 from tb;') ##DBL_EPSILON is used in floating number comparison
+        tdSql.checkRows(1)
+        tdSql.checkData(0, 0, 1)
+
+
         ##operator: !=
         tdSql.query('select 1 != 1 from tb;')
         tdSql.checkRows(1)
@@ -167,6 +192,30 @@ class TDTestCase:
         tdSql.query('select 0 != true from tb;')
         tdSql.checkRows(1)
         tdSql.checkData(0, 0, 1)
+
+        tdSql.query('select 1.0 != true from tb;')
+        tdSql.checkRows(1)
+        tdSql.checkData(0, 0, 0)
+
+        tdSql.query('select 0.0 != false from tb;')
+        tdSql.checkRows(1)
+        tdSql.checkData(0, 0, 0)
+
+        tdSql.query('select 1.0 != false from tb;')
+        tdSql.checkRows(1)
+        tdSql.checkData(0, 0, 1)
+
+        tdSql.query('select 0.0 != true from tb;')
+        tdSql.checkRows(1)
+        tdSql.checkData(0, 0, 1)
+
+        tdSql.query('select true != 1.001 from tb;')
+        tdSql.checkRows(1)
+        tdSql.checkData(0, 0, 1)
+
+        tdSql.query('select true != 1.0000000001 from tb;') ##DBL_EPSILON is used in floating number comparison
+        tdSql.checkRows(1)
+        tdSql.checkData(0, 0, 0)
 
         ##operator: <>
         tdSql.query('select 1 <> 1 from tb;')
@@ -225,6 +274,30 @@ class TDTestCase:
         tdSql.checkRows(1)
         tdSql.checkData(0, 0, 1)
 
+        tdSql.query('select 1.0 <> true from tb;')
+        tdSql.checkRows(1)
+        tdSql.checkData(0, 0, 0)
+
+        tdSql.query('select 0.0 <> false from tb;')
+        tdSql.checkRows(1)
+        tdSql.checkData(0, 0, 0)
+
+        tdSql.query('select 1.0 <> false from tb;')
+        tdSql.checkRows(1)
+        tdSql.checkData(0, 0, 1)
+
+        tdSql.query('select 0.0 <> true from tb;')
+        tdSql.checkRows(1)
+        tdSql.checkData(0, 0, 1)
+
+        tdSql.query('select true <> 1.001 from tb;')
+        tdSql.checkRows(1)
+        tdSql.checkData(0, 0, 1)
+
+        tdSql.query('select true <> 1.0000000001 from tb;') ##DBL_EPSILON is used in floating number comparison
+        tdSql.checkRows(1)
+        tdSql.checkData(0, 0, 0)
+
         ##operator: <
         tdSql.query('select 1 < 1 from tb;')
         tdSql.checkRows(1)
@@ -279,6 +352,30 @@ class TDTestCase:
         tdSql.checkData(0, 0, 1)
 
         tdSql.query('select true < false from tb;')
+        tdSql.checkRows(1)
+        tdSql.checkData(0, 0, 0)
+
+        tdSql.query('select 1.0 < true from tb;')
+        tdSql.checkRows(1)
+        tdSql.checkData(0, 0, 0)
+
+        tdSql.query('select 0.0 < false from tb;')
+        tdSql.checkRows(1)
+        tdSql.checkData(0, 0, 0)
+
+        tdSql.query('select false < 1.0 from tb;')
+        tdSql.checkRows(1)
+        tdSql.checkData(0, 0, 1)
+
+        tdSql.query('select 0.0 < true from tb;')
+        tdSql.checkRows(1)
+        tdSql.checkData(0, 0, 1)
+
+        tdSql.query('select true < 1.001 from tb;')
+        tdSql.checkRows(1)
+        tdSql.checkData(0, 0, 1)
+
+        tdSql.query('select true < 1.0000000001 from tb;') ##DBL_EPSILON is used in floating number comparison
         tdSql.checkRows(1)
         tdSql.checkData(0, 0, 0)
 
@@ -338,6 +435,30 @@ class TDTestCase:
         tdSql.query('select true > false from tb;')
         tdSql.checkRows(1)
         tdSql.checkData(0, 0, 1)
+
+        tdSql.query('select 1.0 > true from tb;')
+        tdSql.checkRows(1)
+        tdSql.checkData(0, 0, 0)
+
+        tdSql.query('select 0.0 > false from tb;')
+        tdSql.checkRows(1)
+        tdSql.checkData(0, 0, 0)
+
+        tdSql.query('select 1.0 > false from tb;')
+        tdSql.checkRows(1)
+        tdSql.checkData(0, 0, 1)
+
+        tdSql.query('select true > 0.0 from tb;')
+        tdSql.checkRows(1)
+        tdSql.checkData(0, 0, 1)
+
+        tdSql.query('select 1.001 > true from tb;')
+        tdSql.checkRows(1)
+        tdSql.checkData(0, 0, 1)
+
+        tdSql.query('select 1.0000000001 > true from tb;') ##DBL_EPSILON is used in floating number comparison
+        tdSql.checkRows(1)
+        tdSql.checkData(0, 0, 0)
 
         ##operator: <=
         tdSql.query('select 1 <= 2 from tb;')
@@ -408,11 +529,35 @@ class TDTestCase:
         tdSql.checkRows(1)
         tdSql.checkData(0, 0, 0)
 
-        tdSql.query('select true >= true from tb;')
+        tdSql.query('select true <= true from tb;')
         tdSql.checkRows(1)
         tdSql.checkData(0, 0, 1)
 
-        tdSql.query('select false >= false from tb;')
+        tdSql.query('select false <= false from tb;')
+        tdSql.checkRows(1)
+        tdSql.checkData(0, 0, 1)
+
+        tdSql.query('select 1.0 <= true from tb;')
+        tdSql.checkRows(1)
+        tdSql.checkData(0, 0, 1)
+
+        tdSql.query('select 0.0 <= false from tb;')
+        tdSql.checkRows(1)
+        tdSql.checkData(0, 0, 1)
+
+        tdSql.query('select false <= 1.0 from tb;')
+        tdSql.checkRows(1)
+        tdSql.checkData(0, 0, 1)
+
+        tdSql.query('select 0.0 <= true from tb;')
+        tdSql.checkRows(1)
+        tdSql.checkData(0, 0, 1)
+
+        tdSql.query('select true <= 1.001 from tb;')
+        tdSql.checkRows(1)
+        tdSql.checkData(0, 0, 1)
+
+        tdSql.query('select true <= 1.0000000001 from tb;') ##DBL_EPSILON is used in floating number comparison
         tdSql.checkRows(1)
         tdSql.checkData(0, 0, 1)
 
@@ -490,6 +635,30 @@ class TDTestCase:
         tdSql.checkData(0, 0, 1)
 
         tdSql.query('select true >= true from tb;')
+        tdSql.checkRows(1)
+        tdSql.checkData(0, 0, 1)
+
+        tdSql.query('select 1.0 >= true from tb;')
+        tdSql.checkRows(1)
+        tdSql.checkData(0, 0, 1)
+
+        tdSql.query('select 0.0 >= false from tb;')
+        tdSql.checkRows(1)
+        tdSql.checkData(0, 0, 1)
+
+        tdSql.query('select 1.0 >= false from tb;')
+        tdSql.checkRows(1)
+        tdSql.checkData(0, 0, 1)
+
+        tdSql.query('select true >= 0.0 from tb;')
+        tdSql.checkRows(1)
+        tdSql.checkData(0, 0, 1)
+
+        tdSql.query('select 1.001 >= true from tb;')
+        tdSql.checkRows(1)
+        tdSql.checkData(0, 0, 1)
+
+        tdSql.query('select 1.0000000001 >= true from tb;') ##DBL_EPSILON is used in floating number comparison
         tdSql.checkRows(1)
         tdSql.checkData(0, 0, 1)
 
@@ -591,6 +760,22 @@ class TDTestCase:
         tdSql.checkRows(1)
         tdSql.checkData(0, 0, 0)
 
+        tdSql.query('select false between 0.0 and 1.0 from tb;')
+        tdSql.checkRows(1)
+        tdSql.checkData(0, 0, 1)
+
+        tdSql.query('select false between 1.0 and 2.0 from tb;')
+        tdSql.checkRows(1)
+        tdSql.checkData(0, 0, 0)
+
+        tdSql.query('select true between 0.0 and 1.0 from tb;')
+        tdSql.checkRows(1)
+        tdSql.checkData(0, 0, 1)
+
+        tdSql.query('select true between -1.0 and 0.0 from tb;')
+        tdSql.checkRows(1)
+        tdSql.checkData(0, 0, 0)
+
         tdSql.query('select 0 between false and true from tb;')
         tdSql.checkRows(1)
         tdSql.checkData(0, 0, 1)
@@ -604,6 +789,22 @@ class TDTestCase:
         tdSql.checkData(0, 0, 1)
 
         tdSql.query('select 1 between true and 10 from tb;')
+        tdSql.checkRows(1)
+        tdSql.checkData(0, 0, 1)
+
+        tdSql.query('select 0.0 between false and true from tb;')
+        tdSql.checkRows(1)
+        tdSql.checkData(0, 0, 1)
+
+        tdSql.query('select 1.0 between false and true from tb;')
+        tdSql.checkRows(1)
+        tdSql.checkData(0, 0, 1)
+
+        tdSql.query('select 0 between false and 10.0 from tb;')
+        tdSql.checkRows(1)
+        tdSql.checkData(0, 0, 1)
+
+        tdSql.query('select 1 between true and 10.0 from tb;')
         tdSql.checkRows(1)
         tdSql.checkData(0, 0, 1)
 
@@ -641,6 +842,10 @@ class TDTestCase:
         tdSql.checkData(0, 0, 1)
 
         tdSql.query('select true and 10 and false from tb;')
+        tdSql.checkRows(1)
+        tdSql.checkData(0, 0, 0)
+
+        tdSql.query('select true and 10.0 and false from tb;')
         tdSql.checkRows(1)
         tdSql.checkData(0, 0, 0)
 
@@ -693,6 +898,10 @@ class TDTestCase:
         tdSql.checkRows(1)
         tdSql.checkData(0, 0, 1)
 
+        tdSql.query('select true or 10.0 or false from tb;')
+        tdSql.checkRows(1)
+        tdSql.checkData(0, 0, 1)
+
         ##operator: multiple operations
         tdSql.query('select 1 and 1 != 2 and 1 < 2 and 2 between 1 and 3 from tb;')
         tdSql.checkRows(1)
@@ -735,6 +944,14 @@ class TDTestCase:
         tdSql.checkData(0, 0, 1)
 
         tdSql.query('select 1 != 2 and 1 < 2 or 1 >= 2 or 2 between 4 and 5 and false from tb;')
+        tdSql.checkRows(1)
+        tdSql.checkData(0, 0, 1)
+
+        tdSql.query('select 1 != 2 and 1 < 2 or 1 >= 2 or 2 between 4 and 5 and true and 10.1 from tb;')
+        tdSql.checkRows(1)
+        tdSql.checkData(0, 0, 1)
+
+        tdSql.query('select 1 != 2 and 1 < 2 or 1 >= 2 or 2 between 4 and 5 and false or 10.1 from tb;')
         tdSql.checkRows(1)
         tdSql.checkData(0, 0, 1)
 
