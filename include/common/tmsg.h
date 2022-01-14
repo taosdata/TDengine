@@ -155,7 +155,7 @@ typedef struct {
 
 typedef struct {
   SClientHbKey connKey;
-  SHashObj*    info;  // hash<Slv.key, Sklv>
+  SHashObj*    info;  // hash<Skv.key, Skv>
 } SClientHbReq;
 
 typedef struct {
@@ -181,7 +181,10 @@ static FORCE_INLINE uint32_t hbKeyHashFunc(const char* key, uint32_t keyLen) {
 }
 
 int   tSerializeSClientHbReq(void** buf, const SClientHbReq* pReq);
-void* tDeserializeClientHbReq(void* buf, SClientHbReq* pReq);
+void* tDeserializeSClientHbReq(void* buf, SClientHbReq* pReq);
+
+int   tSerializeSClientHbRsp(void** buf, const SClientHbRsp* pRsp);
+void* tDeserializeSClientHbRsp(void* buf, SClientHbRsp* pRsp);
 
 static FORCE_INLINE void  tFreeClientHbReq(void *pReq) {
   SClientHbReq* req = (SClientHbReq*)pReq;
@@ -190,13 +193,16 @@ static FORCE_INLINE void  tFreeClientHbReq(void *pReq) {
 }
 
 int   tSerializeSClientHbBatchReq(void** buf, const SClientHbBatchReq* pReq);
-void* tDeserializeClientHbBatchReq(void* buf, SClientHbBatchReq* pReq);
+void* tDeserializeSClientHbBatchReq(void* buf, SClientHbBatchReq* pReq);
 
 static FORCE_INLINE void tFreeClientHbBatchReq(void* pReq) {
   SClientHbBatchReq *req = (SClientHbBatchReq*)pReq;
   taosArrayDestroyEx(req->reqs, tFreeClientHbReq);
   free(pReq);
 }
+
+int   tSerializeSClientHbBatchRsp(void** buf, const SClientHbBatchRsp* pBatchRsp);
+void* tDeserializeSClientHbBatchRsp(void* buf, SClientHbBatchRsp* pBatchRsp);
 
 static FORCE_INLINE int taosEncodeSKv(void** buf, const SKv* pKv) {
   int tlen = 0;

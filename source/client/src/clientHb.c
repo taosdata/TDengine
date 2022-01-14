@@ -43,17 +43,17 @@ static FORCE_INLINE void hbMgrInitHandle() {
 }
 
 SClientHbBatchReq* hbGatherAllInfo(SAppHbMgr *pAppHbMgr) {
-  SClientHbBatchReq* pReq = malloc(sizeof(SClientHbBatchReq));
-  if (pReq == NULL) {
+  SClientHbBatchReq* pBatchReq = malloc(sizeof(SClientHbBatchReq));
+  if (pBatchReq == NULL) {
     terrno = TSDB_CODE_TSC_OUT_OF_MEMORY;
     return NULL;
   }
   int32_t connKeyCnt = atomic_load_32(&pAppHbMgr->connKeyCnt);
-  pReq->reqs = taosArrayInit(connKeyCnt, sizeof(SClientHbReq));
+  pBatchReq->reqs = taosArrayInit(connKeyCnt, sizeof(SClientHbReq));
 
   void *pIter = taosHashIterate(pAppHbMgr->activeInfo, NULL);
   while (pIter != NULL) {
-    taosArrayPush(pReq->reqs, pIter);
+    taosArrayPush(pBatchReq->reqs, pIter);
     SClientHbReq* pOneReq = pIter;
     taosHashClear(pOneReq->info);
 
@@ -70,7 +70,7 @@ SClientHbBatchReq* hbGatherAllInfo(SAppHbMgr *pAppHbMgr) {
     pIter = taosHashIterate(pAppHbMgr->activeInfo, pIter);
   }
 
-  return pReq;
+  return pBatchReq;
 }
 
 static void* hbThreadFunc(void* param) {

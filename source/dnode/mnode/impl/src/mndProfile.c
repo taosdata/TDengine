@@ -258,24 +258,39 @@ static int32_t mndSaveQueryStreamList(SConnObj *pConn, SHeartBeatReq *pReq) {
 }
 
 static int32_t mndProcessHeartBeatReq(SMnodeMsg *pReq) {
-#if 0
   SMnode *pMnode = pReq->pMnode;
   char *batchReqStr = pReq->rpcMsg.pCont;
   SClientHbBatchReq batchReq = {0};
-  tDeserializeClientHbBatchReq(batchReqStr, &batchReq);
+  tDeserializeSClientHbBatchReq(batchReqStr, &batchReq);
   SArray *pArray = batchReq.reqs;
   int sz = taosArrayGetSize(pArray);
+
+  SClientHbBatchRsp batchRsp = {0};
+  batchRsp.rsps = taosArrayInit(0, sizeof(SClientHbRsp));
+
   for (int i = 0; i < sz; i++) {
-    SClientHbReq* pReq = taosArrayGet(pArray, i);
-    if (pReq->connKey.hbType == HEARTBEAT_TYPE_QUERY) {
+    SClientHbReq* pHbReq = taosArrayGet(pArray, i);
+    if (pHbReq->connKey.hbType == HEARTBEAT_TYPE_QUERY) {
 
-    } else if (pReq->connKey.hbType == HEARTBEAT_TYPE_MQ) {
-
+    } else if (pHbReq->connKey.hbType == HEARTBEAT_TYPE_MQ) {
+      SClientHbRsp rsp = {
+        .status = 0,
+        .connKey = pHbReq->connKey,
+        .bodyLen = 0,
+        .body = NULL
+      };
+      taosArrayPush(batchRsp.rsps, &rsp);
     }
   }
+  int32_t tlen = tSerializeSClientHbBatchRsp(NULL, &batchRsp);
+  void* buf = rpcMallocCont(tlen);
+  void* bufCopy = buf;
+  tSerializeSClientHbBatchRsp(&bufCopy, &batchRsp);
+  pReq->contLen = tlen;
+  pReq->pCont = buf;
   return 0;
-#else
 
+#if 0
   SMnode       *pMnode = pReq->pMnode;
   SProfileMgmt *pMgmt = &pMnode->profileMgmt;
 
