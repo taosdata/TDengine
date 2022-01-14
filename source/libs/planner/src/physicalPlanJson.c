@@ -1057,14 +1057,18 @@ cJSON* qDagToJson(const SQueryDag* pDag) {
   if(pRoot == NULL) {
     return NULL;
   }
-  cJSON_AddNumberToObject(pRoot, "numOfSubplans", pDag->numOfSubplans);
-  cJSON_AddNumberToObject(pRoot, "queryId", pDag->queryId);
+
+  cJSON_AddNumberToObject(pRoot, "Number", pDag->numOfSubplans);
+  cJSON_AddNumberToObject(pRoot, "QueryId", pDag->queryId);
+
   cJSON *pLevels = cJSON_CreateArray();
   if(pLevels == NULL) {
     cJSON_Delete(pRoot);
     return NULL;
   }
-  cJSON_AddItemToObject(pRoot, "pSubplans", pLevels);
+
+  cJSON_AddItemToObject(pRoot, "Subplans", pLevels);
+
   size_t level = taosArrayGetSize(pDag->pSubplans);
   for(size_t i = 0; i < level; i++) {
     const SArray* pSubplans = (const SArray*)taosArrayGetP(pDag->pSubplans, i);
@@ -1074,6 +1078,7 @@ cJSON* qDagToJson(const SQueryDag* pDag) {
       cJSON_Delete(pRoot);
       return NULL;
     }
+
     cJSON_AddItemToArray(pLevels, plansOneLevel);
     for(size_t j = 0; j < num; j++) {
       cJSON* pSubplan = subplanToJson((const SSubplan*)taosArrayGetP(pSubplans, j));
@@ -1081,6 +1086,7 @@ cJSON* qDagToJson(const SQueryDag* pDag) {
         cJSON_Delete(pRoot);
         return NULL;
       }
+
       cJSON_AddItemToArray(plansOneLevel, pSubplan);
     }
   }

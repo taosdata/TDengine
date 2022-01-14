@@ -13,12 +13,12 @@
 #include "tpagedfile.h"
 #include "tref.h"
 
-#define CHECK_CODE_GOTO(expr, lable) \
+#define CHECK_CODE_GOTO(expr, label) \
   do {                               \
     int32_t code = expr;             \
     if (TSDB_CODE_SUCCESS != code) { \
       terrno = code;                 \
-      goto lable;                    \
+      goto label;                    \
     }                                \
   } while (0)
 
@@ -258,36 +258,62 @@ int32_t scheduleQuery(SRequestObj* pRequest, SQueryDag* pDag) {
   return scheduleAsyncExecJob(pRequest->pTscObj->pAppInfo->pTransporter, NULL, pDag, &pRequest->body.pQueryJob);
 }
 
-TAOS_RES *tmq_create_topic(TAOS* taos, const char* name, const char* sql, int sqlLen) {
-  STscObj* pTscObj = (STscObj*)taos;
-  SRequestObj* pRequest = NULL;
-  SQueryNode*  pQuery = NULL;
-  SQueryDag*   pDag = NULL;
-  char *dagStr = NULL;
+TAOS_RES *taos_create_topic(TAOS* taos, const char* topicName, const char* sql, int sqlLen) {
+  STscObj     *pTscObj = (STscObj*)taos;
+  SRequestObj *pRequest = NULL;
+  SQueryNode  *pQueryNode = NULL;
+  char        *pStr = NULL;
 
   terrno = TSDB_CODE_SUCCESS;
+  if (taos == NULL || topicName == NULL || sql == NULL) {
+    tscError("invalid parameters for creating topic, connObj:%p, topic name:%s, sql:%s", taos, topicName, sql);
+    terrno = TSDB_CODE_TSC_INVALID_INPUT;
+    goto _return;
+  }
+
+  if (strlen(topicName) >= TSDB_TOPIC_NAME_LEN) {
+    tscError("topic name too long, max length:%d", TSDB_TOPIC_NAME_LEN - 1);
+    terrno = TSDB_CODE_TSC_INVALID_INPUT;
+    goto _return;
+  }
+
+  if (sqlLen > tsMaxSQLStringLen) {
+    tscError("sql string exceeds max length:%d", tsMaxSQLStringLen);
+    terrno = TSDB_CODE_TSC_EXCEED_SQL_LIMIT;
+    goto _return;
+  }
+
+  tscDebug("start to create topic, %s", topicName);
 
   CHECK_CODE_GOTO(buildRequest(pTscObj, sql, sqlLen, &pRequest), _return);
+  CHECK_CODE_GOTO(parseSql(pRequest, &pQueryNode), _return);
 
-//temporary disabled until planner ready
-#if 0
-  CHECK_CODE_GOTO(parseSql(pRequest, &pQuery), _return);
-  //TODO: check sql valid
+  // todo check for invalid sql statement and return with error code
 
-  CHECK_CODE_GOTO(qCreateQueryDag(pQuery, &pDag), _return);
+  CHECK_CODE_GOTO(qCreateQueryDag(pQueryNode, &pRequest->body.pDag, pRequest->requestId), _return);
 
-  dagStr = qDagToString(pDag);
-  if(dagStr == NULL) {
-    //TODO
+  pStr = qDagToString(pRequest->body.pDag);
+  if(pStr == NULL) {
+    goto _return;
   }
-#endif
+
+  // The topic should be related to a database that the queried table is belonged to.
+  SName name = {0};
+  char dbName[TSDB_DB_FNAME_LEN] = {0};
+  tNameGetFullDbName(&((SQueryStmtInfo*) pQueryNode)->pTableMetaInfo[0]->name, dbName);
+
+  tNameFromString(&name, dbName, T_NAME_ACCT|T_NAME_DB);
+  tNameFromString(&name, topicName, T_NAME_TABLE);
+
+  char topicFname[TSDB_TOPIC_FNAME_LEN] = {0};
+  tNameExtractFullName(&name, topicFname);
 
   SCMCreateTopicReq req = {
-    .name = (char*)name,
-    .igExists = 0,
-    /*.physicalPlan = dagStr,*/
-    .physicalPlan = (char*)sql,
-    .logicalPlan = "",
+    .name         = (char*) topicFname,
+    .igExists     = 0,
+    .physicalPlan = (char*) pStr,
+    .sql          = (char*) sql,
+    .logicalPlan  = "no logic plan",
   };
 
   int tlen = tSerializeSCMCreateTopicReq(NULL, &req);
@@ -295,27 +321,32 @@ TAOS_RES *tmq_create_topic(TAOS* taos, const char* name, const char* sql, int sq
   if(buf == NULL) {
     goto _return;
   }
+
   void* abuf = buf;
   tSerializeSCMCreateTopicReq(&abuf, &req);
   /*printf("formatted: %s\n", dagStr);*/
 
   pRequest->body.requestMsg = (SDataBuf){ .pData = buf, .len = tlen };
+  pRequest->type = TDMT_MND_CREATE_TOPIC;
 
   SMsgSendInfo* body = buildMsgInfoImpl(pRequest);
-  SEpSet* pEpSet = &pTscObj->pAppInfo->mgmtEp.epSet;
+  SEpSet epSet = getEpSet_s(&pTscObj->pAppInfo->mgmtEp);
 
   int64_t transporterId = 0;
-  asyncSendMsgToServer(pTscObj->pAppInfo->pTransporter, pEpSet, &transporterId, body);
+  asyncSendMsgToServer(pTscObj->pAppInfo->pTransporter, &epSet, &transporterId, body);
 
   tsem_wait(&pRequest->body.rspSem);
 
 _return:
-  qDestroyQuery(pQuery);
-  qDestroyQueryDag(pDag); 
-  destroySendMsgInfo(body);
+  qDestroyQuery(pQueryNode);
+  if (body != NULL) {
+    destroySendMsgInfo(body);
+  }
+
   if (pRequest != NULL && terrno != TSDB_CODE_SUCCESS) {
     pRequest->code = terrno;
   }
+
   return pRequest;
 }
 
@@ -330,22 +361,22 @@ TAOS_RES *taos_query_l(TAOS *taos, const char *sql, int sqlLen) {
   nPrintTsc("%s", sql)
 
   SRequestObj *pRequest = NULL;
-  SQueryNode  *pQuery   = NULL;
+  SQueryNode  *pQueryNode = NULL;
 
   terrno = TSDB_CODE_SUCCESS;
   CHECK_CODE_GOTO(buildRequest(pTscObj, sql, sqlLen, &pRequest), _return);
-  CHECK_CODE_GOTO(parseSql(pRequest, &pQuery), _return);
+  CHECK_CODE_GOTO(parseSql(pRequest, &pQueryNode), _return);
 
-  if (qIsDdlQuery(pQuery)) {
-    CHECK_CODE_GOTO(execDdlQuery(pRequest, pQuery), _return);
+  if (qIsDdlQuery(pQueryNode)) {
+    CHECK_CODE_GOTO(execDdlQuery(pRequest, pQueryNode), _return);
   } else {
-    CHECK_CODE_GOTO(getPlan(pRequest, pQuery, &pRequest->body.pDag), _return);
+    CHECK_CODE_GOTO(getPlan(pRequest, pQueryNode, &pRequest->body.pDag), _return);
     CHECK_CODE_GOTO(scheduleQuery(pRequest, pRequest->body.pDag), _return);
     pRequest->code = terrno;
   }
 
 _return:
-  qDestroyQuery(pQuery);
+  qDestroyQuery(pQueryNode);
   if (NULL != pRequest && TSDB_CODE_SUCCESS != terrno) {
     pRequest->code = terrno;
   }
