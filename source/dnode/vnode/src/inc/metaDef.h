@@ -19,7 +19,6 @@
 #include "mallocator.h"
 
 #include "meta.h"
-#include "metaDB.h"
 
 #ifdef __cplusplus
 extern "C" {
@@ -27,6 +26,13 @@ extern "C" {
 
 typedef struct SMetaCache SMetaCache;
 typedef struct SMetaIdx   SMetaIdx;
+typedef struct SMetaDB    SMetaDB;
+
+// SMetaDB
+int  metaOpenDB(SMeta* pMeta);
+void metaCloseDB(SMeta* pMeta);
+int  metaSaveTableToDB(SMeta* pMeta, STbCfg* pTbCfg);
+int  metaRemoveTableFromDb(SMeta* pMeta, tb_uid_t uid);
 
 // SMetaCache
 int  metaOpenCache(SMeta* pMeta);
@@ -35,7 +41,7 @@ void metaCloseCache(SMeta* pMeta);
 // SMetaCfg
 extern const SMetaCfg defaultMetaOptions;
 // int                   metaValidateOptions(const SMetaCfg*);
-void                  metaOptionsCopy(SMetaCfg* pDest, const SMetaCfg* pSrc);
+void metaOptionsCopy(SMetaCfg* pDest, const SMetaCfg* pSrc);
 
 // SMetaIdx
 int  metaOpenIdx(SMeta* pMeta);
@@ -49,12 +55,12 @@ typedef struct STbUidGenerator {
 } STbUidGenerator;
 
 // STableUidGenerator
-int  metaOpenUidGnrt(SMeta *pMeta);
-void metaCloseUidGnrt(SMeta *pMeta);
+int  metaOpenUidGnrt(SMeta* pMeta);
+void metaCloseUidGnrt(SMeta* pMeta);
 
 // tb_uid_t
 #define IVLD_TB_UID 0
-tb_uid_t metaGenerateUid(SMeta *pMeta);
+tb_uid_t metaGenerateUid(SMeta* pMeta);
 
 struct SMeta {
   char*                 path;

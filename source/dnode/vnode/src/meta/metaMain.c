@@ -30,11 +30,11 @@ SMeta *metaOpen(const char *path, const SMetaCfg *pMetaCfg, SMemAllocatorFactory
     pMetaCfg = &defaultMetaOptions;
   }
 
-  // Validate the options
-  if (metaValidateOptions(pMetaCfg) < 0) {
-    // TODO: deal with error
-    return NULL;
-  }
+  // // Validate the options
+  // if (metaValidateOptions(pMetaCfg) < 0) {
+  //   // TODO: deal with error
+  //   return NULL;
+  // }
 
   // Allocate handle
   pMeta = metaNew(path, pMetaCfg, pMAF);
