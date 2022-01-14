@@ -82,8 +82,8 @@ fi
 install_files="${script_dir}/install.sh"
 nginx_dir="${code_dir}/../../enterprise/src/plugins/web"
 
-init_file_deb=${script_dir}/../deb/${serverName}
-init_file_rpm=${script_dir}/../rpm/${serverName}
+init_file_deb=${script_dir}/../deb/taosd
+init_file_rpm=${script_dir}/../rpm/taosd
 init_file_tarbitrator_deb=${script_dir}/../deb/tarbitratord
 init_file_tarbitrator_rpm=${script_dir}/../rpm/tarbitratord
 
@@ -104,9 +104,11 @@ fi
 if [ -f "${cfg_dir}/${serverName}.service" ]; then
     cp ${cfg_dir}/${serverName}.service          ${install_dir}/cfg || :
 fi
+
 if [ -f "${cfg_dir}/tarbitratord.service" ]; then
     cp ${cfg_dir}/tarbitratord.service          ${install_dir}/cfg || :
 fi
+
 if [ -f "${cfg_dir}/nginxd.service" ]; then
     cp ${cfg_dir}/nginxd.service          ${install_dir}/cfg || :
 fi
