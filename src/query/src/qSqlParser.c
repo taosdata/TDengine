@@ -320,7 +320,8 @@ tSqlExpr *tSqlExprCreate(tSqlExpr *pLeft, tSqlExpr *pRight, int32_t optrType) {
 
   if ((pLeft != NULL && pRight != NULL) &&
       (optrType == TK_PLUS || optrType == TK_MINUS || optrType == TK_STAR || optrType == TK_DIVIDE || optrType == TK_REM ||
-       optrType == TK_EQ || optrType == TK_NE || optrType == TK_LT || optrType == TK_GT || optrType == TK_LE || optrType == TK_GE)) {
+       optrType == TK_EQ || optrType == TK_NE || optrType == TK_LT || optrType == TK_GT || optrType == TK_LE || optrType == TK_GE ||
+       optrType == TK_AND || optrType == TK_OR)) {
     /*
      * if a exprToken is noted as the TK_TIMESTAMP, the time precision is microsecond
      * Otherwise, the time precision is adaptive, determined by the time precision from databases.
@@ -384,6 +385,14 @@ tSqlExpr *tSqlExprCreate(tSqlExpr *pLeft, tSqlExpr *pRight, int32_t optrType) {
         }
         case TK_GE: {
           pExpr->value.i64 = (pLeft->value.i64 >= pRight->value.i64) ? 1 : 0;
+          break;
+        }
+        case TK_AND: {
+          pExpr->value.i64 = (pLeft->value.i64 && pRight->value.i64) ? 1 : 0;
+          break;
+        }
+        case TK_OR: {
+          pExpr->value.i64 = (pLeft->value.i64 || pRight->value.i64) ? 1 : 0;
           break;
         }
       }
@@ -481,6 +490,18 @@ tSqlExpr *tSqlExprCreate(tSqlExpr *pLeft, tSqlExpr *pRight, int32_t optrType) {
           } else {
             pExpr->value.i64 = 0;
           }
+          break;
+        }
+        case TK_AND: {
+          pExpr->tokenId = TK_INTEGER;
+          pExpr->value.nType = TSDB_DATA_TYPE_BIGINT;
+          pExpr->value.i64 = (left && right) ? 1 : 0;
+          break;
+        }
+        case TK_OR: {
+          pExpr->tokenId = TK_INTEGER;
+          pExpr->value.nType = TSDB_DATA_TYPE_BIGINT;
+          pExpr->value.i64 = (left && right) ? 1 : 0;
           break;
         }
       }
