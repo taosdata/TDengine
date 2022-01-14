@@ -107,7 +107,7 @@ cmd ::= SHOW dbPrefix(X) TABLES.         {
     setShowOptions(pInfo, TSDB_MGMT_TABLE_TABLE, &X, 0);
 }
 
-cmd ::= SHOW dbPrefix(X) TABLES LIKE ids(Y).         {
+cmd ::= SHOW dbPrefix(X) TABLES LIKE STRING(Y).         {
     setShowOptions(pInfo, TSDB_MGMT_TABLE_TABLE, &X, &Y);
 }
 
@@ -115,7 +115,7 @@ cmd ::= SHOW dbPrefix(X) STABLES.      {
     setShowOptions(pInfo, TSDB_MGMT_TABLE_METRIC, &X, 0);
 }
 
-cmd ::= SHOW dbPrefix(X) STABLES LIKE ids(Y).      {
+cmd ::= SHOW dbPrefix(X) STABLES LIKE STRING(Y).      {
     SStrToken token;
     tSetDbName(&token, &X);
     setShowOptions(pInfo, TSDB_MGMT_TABLE_METRIC, &token, &Y);
