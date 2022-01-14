@@ -5,8 +5,11 @@ for /F "usebackq tokens=*" %%i in (fulltest.bat) do (
     echo Processing %%i
     call %%i ARG1 -w 1 -m %1 > result.txt 2>error.txt
     if errorlevel 1 ( call :colorEcho 0c "failed" &echo. && exit 8 ) else ( call :colorEcho 0a "Success" &echo. ) 
+)
+for /F "usebackq tokens=*" %%i in (fulltest.bat) do (
+    echo Processing %%i
     call %%i ARG1 -w -m localhost > result.txt 2>error.txt
-    if errorlevel 1 ( call :colorEcho 0c "failed" &echo. && exit 8 ) else ( call :colorEcho 0a "Success" &echo. )  
+    if errorlevel 1 ( call :colorEcho 0c "failed" &echo. && exit 8 ) else ( call :colorEcho 0a "Success" &echo. )
 )
 exit
 
@@ -15,3 +18,6 @@ echo off
 <nul set /p ".=%DEL%" > "%~2"
 findstr /v /a:%1 /R "^$" "%~2" nul
 del "%~2" > nul 2>&1i
+
+
+  
