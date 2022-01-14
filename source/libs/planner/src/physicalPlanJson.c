@@ -20,6 +20,19 @@
 typedef bool (*FToJson)(const void* obj, cJSON* json); 
 typedef bool (*FFromJson)(const cJSON* json, void* obj); 
 
+static char* getString(const cJSON* json, const char* name) {
+  char* p = cJSON_GetStringValue(cJSON_GetObjectItem(json, name));
+  return strdup(p);
+}
+
+static void copyString(const cJSON* json, const char* name, char* dst) {
+  strcpy(dst, cJSON_GetStringValue(cJSON_GetObjectItem(json, name)));
+}
+
+static int64_t getNumber(const cJSON* json, const char* name) {
+  return cJSON_GetNumberValue(cJSON_GetObjectItem(json, name));
+}
+
 static bool addObject(cJSON* json, const char* name, FToJson func, const void* obj) {
   if (NULL == obj) {
     return true;
@@ -56,6 +69,39 @@ static bool fromObjectWithAlloc(const cJSON* json, const char* name, FFromJson f
     return !required;
   }
   *obj = calloc(1, size);
+  if (NULL == *obj) {
+    return false;
+  }
+  return func(jObj, *obj);
+}
+
+static const char* jkPnodeType = "Type";
+static int32_t getPnodeTypeSize(cJSON* json) {
+  switch (getNumber(json, jkPnodeType)) {
+    case OP_TableScan:
+    case OP_DataBlocksOptScan:
+    case OP_TableSeqScan:
+      return sizeof(STableScanPhyNode);
+    case OP_TagScan:
+      return sizeof(STagScanPhyNode);
+    case OP_SystemTableScan:
+      return sizeof(SSystemTableScanPhyNode);
+    case OP_Aggregate:
+      return sizeof(SAggPhyNode);
+    case OP_Exchange:
+      return sizeof(SExchangePhyNode);
+    default:
+      break;
+  };
+  return -1;
+}
+
+static bool fromPnode(const cJSON* json, const char* name, FFromJson func, void** obj) {
+  cJSON* jObj = cJSON_GetObjectItem(json, name);
+  if (NULL == jObj) {
+    return true;
+  }
+  *obj = calloc(1, getPnodeTypeSize(jObj));
   if (NULL == *obj) {
     return false;
   }
@@ -154,26 +200,9 @@ static bool fromRawArrayWithAlloc(const cJSON* json, const char* name, FFromJson
   return fromItem(jArray, func, *array, itemSize, *size);
 }
 
-static bool fromRawArray(const cJSON* json, const char* name, FFromJson func, void** array, int32_t itemSize, int32_t* size) {
+static bool fromRawArray(const cJSON* json, const char* name, FFromJson func, void* array, int32_t itemSize, int32_t* size) {
   const cJSON* jArray = getArray(json, name, size);
-  if (*array == NULL) {
-    *array = calloc(*size, itemSize);
-  }
-
-  return fromItem(jArray, func, *array, itemSize, *size);
-}
-
-static char* getString(const cJSON* json, const char* name) {
-  char* p = cJSON_GetStringValue(cJSON_GetObjectItem(json, name));
-  return strdup(p);
-}
-
-static void copyString(const cJSON* json, const char* name, char* dst) {
-  strcpy(dst, cJSON_GetStringValue(cJSON_GetObjectItem(json, name)));
-}
-
-static int64_t getNumber(const cJSON* json, const char* name) {
-  return cJSON_GetNumberValue(cJSON_GetObjectItem(json, name));
+  return fromItem(jArray, func, array, itemSize, *size);
 }
 
 static const char* jkSchemaType = "Type";
@@ -221,7 +250,7 @@ static bool dataBlockSchemaFromJson(const cJSON* json, void* obj) {
   schema->resultRowSize = getNumber(json, jkDataBlockSchemaResultRowSize);
   schema->precision = getNumber(json, jkDataBlockSchemaPrecision);
 
-  return fromRawArray(json, jkDataBlockSchemaSlotSchema, schemaFromJson, (void**) &(schema->pSchema), sizeof(SSlotSchema), &schema->numOfCols);
+  return fromRawArrayWithAlloc(json, jkDataBlockSchemaSlotSchema, schemaFromJson, (void**)&(schema->pSchema), sizeof(SSlotSchema), &schema->numOfCols);
 }
 
 static const char* jkColumnFilterInfoLowerRelOptr = "LowerRelOptr";
@@ -534,19 +563,15 @@ static const char* jkScanNodeTableCount = "Count";
 static bool scanNodeToJson(const void* obj, cJSON* json) {
   const SScanPhyNode* scan = (const SScanPhyNode*)obj;
   bool res = cJSON_AddNumberToObject(json, jkScanNodeTableId, scan->uid);
-
   if (res) {
     res = cJSON_AddNumberToObject(json, jkScanNodeTableType, scan->tableType);
   }
-
   if (res) {
     res = cJSON_AddNumberToObject(json, jkScanNodeTableOrder, scan->order);
   }
-
   if (res) {
     res = cJSON_AddNumberToObject(json, jkScanNodeTableCount, scan->count);
   }
-
   return res;
 }
 
@@ -557,6 +582,66 @@ static bool scanNodeFromJson(const cJSON* json, void* obj) {
   scan->count = getNumber(json, jkScanNodeTableCount);
   scan->order = getNumber(json, jkScanNodeTableOrder);
   return true;
+}
+
+static const char* jkColIndexColId = "ColId";
+static const char* jkColIndexColIndex = "ColIndex";
+static const char* jkColIndexFlag = "Flag";
+static const char* jkColIndexName = "Name";
+
+static bool colIndexToJson(const void* obj, cJSON* json) {
+  const SColIndex* col = (const SColIndex*)obj;
+  bool res = cJSON_AddNumberToObject(json, jkColIndexColId, col->colId);
+  if (res) {
+    res = cJSON_AddNumberToObject(json, jkColIndexColIndex, col->colIndex);
+  }
+  if (res) {
+    res = cJSON_AddNumberToObject(json, jkColIndexFlag, col->flag);
+  }
+  if (res) {
+    res = cJSON_AddStringToObject(json, jkColIndexName, col->name);
+  }
+  return res;
+}
+
+static bool colIndexFromJson(const cJSON* json, void* obj) {
+  SColIndex* col = (SColIndex*)obj;
+  col->colId = getNumber(json, jkColIndexColId);
+  col->colIndex = getNumber(json, jkColIndexColIndex);
+  col->flag = getNumber(json, jkColIndexFlag);
+  copyString(json, jkColIndexName, col->name);
+  return true;
+}
+
+static const char* jkAggNodeAggAlgo = "AggAlgo";
+static const char* jkAggNodeAggSplit = "AggSplit";
+static const char* jkAggNodeExprs = "Exprs";
+static const char* jkAggNodeGroupByList = "GroupByList";
+
+static bool aggNodeToJson(const void* obj, cJSON* json) {
+  const SAggPhyNode* agg = (const SAggPhyNode*)obj;
+  bool res = cJSON_AddNumberToObject(json, jkAggNodeAggAlgo, agg->aggAlgo);
+  if (res) {
+    res = cJSON_AddNumberToObject(json, jkAggNodeAggSplit, agg->aggSplit);
+  }
+  if (res) {
+    res = addArray(json, jkAggNodeExprs, exprInfoToJson, agg->pExprs);
+  }
+  if (res) {
+    res = addArray(json, jkAggNodeGroupByList, colIndexToJson, agg->pGroupByList);
+  }
+  return res;
+}
+
+static bool aggNodeFromJson(const cJSON* json, void* obj) {
+  SAggPhyNode* agg = (SAggPhyNode*)obj;
+  agg->aggAlgo = getNumber(json, jkAggNodeAggAlgo);
+  agg->aggSplit = getNumber(json, jkAggNodeAggSplit);
+  bool res = fromArray(json, jkAggNodeExprs, exprInfoFromJson, &agg->pExprs, sizeof(SExprInfo));
+  if (res) {
+    res = fromArray(json, jkAggNodeGroupByList, colIndexFromJson, &agg->pGroupByList, sizeof(SExprInfo));
+  }
+  return res;
 }
 
 static const char* jkTableScanNodeFlag = "Flag";
@@ -667,10 +752,10 @@ static bool specificPhyNodeToJson(const void* obj, cJSON* json) {
     case OP_SystemTableScan:
       return scanNodeToJson(obj, json);
     case OP_Aggregate:
-      break; // todo
+      return aggNodeToJson(obj, json);
     case OP_Project:
       return true;
-    case OP_Groupby:
+    // case OP_Groupby:
     case OP_Limit:
     case OP_SLimit:
     case OP_TimeWindow:
@@ -708,7 +793,7 @@ static bool specificPhyNodeFromJson(const cJSON* json, void* obj) {
       break; // todo
     case OP_Project:
       return true;
-    case OP_Groupby:
+    // case OP_Groupby:
     case OP_Limit:
     case OP_SLimit:
     case OP_TimeWindow:
@@ -735,12 +820,15 @@ static bool specificPhyNodeFromJson(const cJSON* json, void* obj) {
 static const char* jkPnodeName = "Name";
 static const char* jkPnodeTargets = "Targets";
 static const char* jkPnodeConditions = "Conditions";
-static const char* jkPnodeSchema = "InputSchema";
+static const char* jkPnodeSchema = "TargetSchema";
 static const char* jkPnodeChildren = "Children";
 // The 'pParent' field do not need to be serialized.
 static bool phyNodeToJson(const void* obj, cJSON* jNode) {
   const SPhyNode* phyNode = (const SPhyNode*)obj;
-  bool res = cJSON_AddStringToObject(jNode, jkPnodeName, phyNode->info.name);
+  bool res = cJSON_AddNumberToObject(jNode, jkPnodeType, phyNode->info.type);
+  if (res) {
+    res = cJSON_AddStringToObject(jNode, jkPnodeName, phyNode->info.name);
+  }
   if (res) {
     res = addArray(jNode, jkPnodeTargets, exprInfoToJson, phyNode->pTargets);
   }
@@ -762,8 +850,8 @@ static bool phyNodeToJson(const void* obj, cJSON* jNode) {
 static bool phyNodeFromJson(const cJSON* json, void* obj) {
   SPhyNode* node = (SPhyNode*) obj;
 
-  node->info.name = getString(json, jkPnodeName);
-  node->info.type = opNameToOpType(node->info.name);
+  node->info.type = getNumber(json, jkPnodeType);
+  node->info.name = opTypeToOpName(node->info.type);
 
   bool res = fromArray(json, jkPnodeTargets, exprInfoFromJson, &node->pTargets, sizeof(SExprInfo));
   if (res) {
@@ -910,8 +998,7 @@ static SSubplan* subplanFromJson(const cJSON* json) {
   }
   bool res = fromObject(json, jkSubplanId, subplanIdFromJson, &subplan->id, true);
   if (res) {
-    size_t size = MAX(sizeof(SPhyNode), sizeof(SScanPhyNode));
-    res = fromObjectWithAlloc(json, jkSubplanNode, phyNodeFromJson, (void**)&subplan->pNode, size, false);
+    res = fromPnode(json, jkSubplanNode, phyNodeFromJson, (void**)&subplan->pNode);
   }
   if (res) {
     res = fromObjectWithAlloc(json, jkSubplanDataSink, dataSinkFromJson, (void**)&subplan->pDataSink, sizeof(SDataSink), false);
