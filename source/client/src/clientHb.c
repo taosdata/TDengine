@@ -51,10 +51,14 @@ SClientHbBatchReq* hbGatherAllInfo(SAppHbMgr *pAppHbMgr) {
   int32_t connKeyCnt = atomic_load_32(&pAppHbMgr->connKeyCnt);
   pBatchReq->reqs = taosArrayInit(connKeyCnt, sizeof(SClientHbReq));
 
+  if (pAppHbMgr->activeInfo == NULL) {
+    return NULL;
+  }
+
   void *pIter = taosHashIterate(pAppHbMgr->activeInfo, NULL);
   while (pIter != NULL) {
-    taosArrayPush(pBatchReq->reqs, pIter);
     SClientHbReq* pOneReq = pIter;
+    taosArrayPush(pBatchReq->reqs, pOneReq);
     taosHashClear(pOneReq->info);
 
     pIter = taosHashIterate(pAppHbMgr->activeInfo, pIter);
@@ -84,7 +88,14 @@ static void* hbThreadFunc(void* param) {
     int sz = taosArrayGetSize(clientHbMgr.appHbMgrs);
     for(int i = 0; i < sz; i++) {
       SAppHbMgr* pAppHbMgr = taosArrayGet(clientHbMgr.appHbMgrs, i);
+      int32_t connCnt = atomic_load_32(&pAppHbMgr->connKeyCnt);
+      if (connCnt == 0) {
+        continue;
+      }
       SClientHbBatchReq* pReq = hbGatherAllInfo(pAppHbMgr);
+      if (pReq == NULL) {
+        continue;
+      }
       int tlen = tSerializeSClientHbBatchReq(NULL, pReq);
       void *buf = malloc(tlen);
       if (buf == NULL) {
@@ -146,9 +157,21 @@ SAppHbMgr* appHbMgrInit(SAppInstInfo* pAppInstInfo) {
 
   // init hash info
   pAppHbMgr->activeInfo = taosHashInit(64, hbKeyHashFunc, 1, HASH_ENTRY_LOCK);
+
+  if (pAppHbMgr->activeInfo == NULL) {
+    terrno = TSDB_CODE_OUT_OF_MEMORY;
+    free(pAppHbMgr);
+    return NULL;
+  }
   pAppHbMgr->activeInfo->freeFp = tFreeClientHbReq;
   // init getInfoFunc
   pAppHbMgr->getInfoFuncs = taosHashInit(64, hbKeyHashFunc, 1, HASH_ENTRY_LOCK);
+
+  if (pAppHbMgr->getInfoFuncs == NULL) {
+    terrno = TSDB_CODE_OUT_OF_MEMORY;
+    free(pAppHbMgr);
+    return NULL;
+  }
 
   taosArrayPush(clientHbMgr.appHbMgrs, &pAppHbMgr);
   return pAppHbMgr;

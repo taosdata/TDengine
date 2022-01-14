@@ -96,7 +96,6 @@ TEST_F(MndTestProfile, 03_ConnectMsg_Show) {
 }
 
 TEST_F(MndTestProfile, 04_HeartBeatMsg) {
-
   SClientHbBatchReq batchReq;
   batchReq.reqs = taosArrayInit(0, sizeof(SClientHbReq));
   SClientHbReq req = {0};
@@ -127,6 +126,7 @@ TEST_F(MndTestProfile, 04_HeartBeatMsg) {
   EXPECT_EQ(pRsp->connKey.connId, 123);
   EXPECT_EQ(pRsp->connKey.hbType, HEARTBEAT_TYPE_MQ);
   EXPECT_EQ(pRsp->status, 0);
+
 #if 0
   int32_t contLen = sizeof(SHeartBeatReq);
 
