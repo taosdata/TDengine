@@ -100,6 +100,8 @@ class TDTestCase:
         tdSql.error("select count(*) from st where hostname < tbname")
         tdSql.error("select count(*) from st where ts > 0 and tbname in ('d1', 'd2') and tbname-2")
 
+        tdSql.query("select count(*) from st where id > 10000000000000")
+
     def stop(self):
         tdSql.close()
         tdLog.success("%s successfully executed" % __file__)
