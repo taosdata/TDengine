@@ -404,6 +404,8 @@ tSqlExpr *tSqlExprCreate(tSqlExpr *pLeft, tSqlExpr *pRight, int32_t optrType) {
       tSqlExprDestroy(pRight);
     } else if ((pLeft->tokenId == TK_FLOAT && pRight->tokenId == TK_INTEGER) ||
                (pLeft->tokenId == TK_INTEGER && pRight->tokenId == TK_FLOAT) ||
+               (pLeft->tokenId == TK_BOOL && pRight->tokenId == TK_FLOAT) ||
+               (pLeft->tokenId == TK_FLOAT && pRight->tokenId == TK_BOOL) ||
                (pLeft->tokenId == TK_FLOAT && pRight->tokenId == TK_FLOAT)) {
       pExpr->value.nType = TSDB_DATA_TYPE_DOUBLE;
       pExpr->tokenId  = TK_FLOAT;
