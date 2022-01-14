@@ -481,14 +481,26 @@ static void dumpFieldToFile(FILE* fp, const char* val, TAOS_FIELD* field, int32_
     case TSDB_DATA_TYPE_TINYINT:
       fprintf(fp, "%d", *((int8_t *)val));
       break;
+    case TSDB_DATA_TYPE_UTINYINT:
+      fprintf(fp, "%u", *((uint8_t *)val));
+      break;
     case TSDB_DATA_TYPE_SMALLINT:
       fprintf(fp, "%d", *((int16_t *)val));
+      break;
+    case TSDB_DATA_TYPE_USMALLINT:
+      fprintf(fp, "%u", *((uint16_t *)val));
       break;
     case TSDB_DATA_TYPE_INT:
       fprintf(fp, "%d", *((int32_t *)val));
       break;
+    case TSDB_DATA_TYPE_UINT:
+      fprintf(fp, "%u", *((uint32_t *)val));
+      break;
     case TSDB_DATA_TYPE_BIGINT:
       fprintf(fp, "%" PRId64, *((int64_t *)val));
+      break;
+    case TSDB_DATA_TYPE_UBIGINT:
+      fprintf(fp, "%" PRIu64, *((uint64_t *)val));
       break;
     case TSDB_DATA_TYPE_FLOAT:
       fprintf(fp, "%.5f", GET_FLOAT_VAL(val));
