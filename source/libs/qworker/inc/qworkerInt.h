@@ -27,14 +27,29 @@ extern "C" {
 #define QWORKER_DEFAULT_SCH_TASK_NUMBER 10000
 
 enum {
-  QW_READY_NOT_RECEIVED = 0,
-  QW_READY_RECEIVED,
-  QW_READY_RESPONSED,
+  QW_PHASE_PRE_QUERY = 1,
+  QW_PHASE_POST_QUERY,
+  QW_PHASE_PRE_CQUERY,
+  QW_PHASE_POST_CQUERY,
+  QW_PHASE_PRE_SINK,
+  QW_PHASE_POST_SINK,
+  QW_PHASE_PRE_FETCH,
+  QW_PHASE_POST_FETCH,
 };
 
 enum {
-  QW_TASK_INFO_STATUS = 1,
-  QW_TASK_INFO_READY,
+  QW_EVENT_CANCEL = 1,
+  QW_EVENT_READY,
+  QW_EVENT_FETCH,
+  QW_EVENT_DROP,
+
+  QW_EVENT_MAX,
+};
+
+enum {
+  QW_EVENT_NOT_RECEIVED = 0,
+  QW_EVENT_RECEIVED,
+  QW_EVENT_PROCESSED,
 };
 
 enum {
@@ -57,21 +72,43 @@ enum {
   QW_ADD_ACQUIRE,
 };
 
+typedef struct SQWMsg {
+  void   *node;
+  char   *msg;
+  int32_t msgLen;
+  void   *connection;
+} SQWMsg;
+
+typedef struct SQWPhaseInput {
+  int8_t  status;
+  int32_t code;
+} SQWPhaseInput;
+
+typedef struct SQWPhaseOutput {
+  int32_t rspCode;
+  bool    needStop;
+  bool    needRsp;
+} SQWPhaseOutput;
+
+
 typedef struct SQWTaskStatus {  
-  SRWLatch lock;
   int32_t  code;
   int8_t   status;
-  int8_t   ready; 
-  bool     cancel;
-  bool     drop;
 } SQWTaskStatus;
 
 typedef struct SQWTaskCtx {
   SRWLatch        lock;
-  int8_t          sinkScheduled;
-  int8_t          queryScheduled;
+  int32_t         phase;
   
-  bool            needRsp;
+  int8_t          sinkInQ;
+  int8_t          queryInQ;
+
+  int8_t          events[QW_EVENT_MAX];
+  int8_t          ready; 
+  int8_t          cancel;
+  int8_t          drop;  
+  int8_t          needRsp;
+  
   qTaskInfo_t     taskHandle;
   DataSinkHandle  sinkHandle;
 } SQWTaskCtx;
@@ -95,6 +132,17 @@ typedef struct SQWorkerMgmt {
   putReqToQueryQFp putToQueueFp;
 } SQWorkerMgmt;
 
+#define QW_FPARAMS_DEF SQWorkerMgmt *mgmt, uint64_t sId, uint64_t qId, uint64_t tId
+#define QW_IDS() sId, qId, tId
+#define QW_FPARAMS() mgmt, QW_IDS()
+
+#define QW_IS_EVENT_RECEIVED(ctx, event) ((ctx)->events[event] == QW_EVENT_RECEIVED)
+#define QW_IS_EVENT_PROCESSED(ctx, event) ((ctx)->events[event] == QW_EVENT_PROCESSED)
+#define QW_SET_EVENT_RECEIVED(ctx, event) ((ctx)->events[event] = QW_EVENT_RECEIVED)
+#define QW_SET_EVENT_PROCESSED(ctx, event) ((ctx)->events[event] = QW_EVENT_PROCESSED)
+
+#define QW_IN_EXECUTOR(ctx) ((ctx)->phase == QW_PHASE_PRE_QUERY || (ctx)->phase == QW_PHASE_PRE_CQUERY || (ctx)->phase == QW_PHASE_PRE_FETCH || (ctx)->phase == QW_PHASE_PRE_SINK)
+
 #define QW_GOT_RES_DATA(data) (true)
 #define QW_LOW_RES_DATA(data) (false)
 
@@ -103,7 +151,6 @@ typedef struct SQWorkerMgmt {
 #define QW_TASK_READY(status) (status == JOB_TASK_STATUS_SUCCEED || status == JOB_TASK_STATUS_FAILED || status == JOB_TASK_STATUS_CANCELLED || status == JOB_TASK_STATUS_PARTIAL_SUCCEED)
 #define QW_SET_QTID(id, qId, tId) do { *(uint64_t *)(id) = (qId); *(uint64_t *)((char *)(id) + sizeof(qId)) = (tId); } while (0)
 #define QW_GET_QTID(id, qId, tId) do { (qId) = *(uint64_t *)(id); (tId) = *(uint64_t *)((char *)(id) + sizeof(qId)); } while (0)
-#define QW_IDS() sId, qId, tId
 
 #define QW_ERR_RET(c) do { int32_t _code = c; if (_code != TSDB_CODE_SUCCESS) { terrno = _code; return _code; } } while (0)
 #define QW_RET(c) do { int32_t _code = c; if (_code != TSDB_CODE_SUCCESS) { terrno = _code; } return _code; } while (0)
@@ -159,10 +206,6 @@ typedef struct SQWorkerMgmt {
 } while (0)
 
 
-
-int32_t qwAcquireScheduler(int32_t rwType, SQWorkerMgmt *mgmt, uint64_t sId, SQWSchStatus **sch);
-int32_t qwAcquireAddScheduler(int32_t rwType, SQWorkerMgmt *mgmt, uint64_t sId, SQWSchStatus **sch);
-int32_t qwAcquireTask(SQWorkerMgmt *mgmt, int32_t rwType, SQWSchStatus *sch, uint64_t qId, uint64_t tId, SQWTaskStatus **task);
 
 
 #ifdef __cplusplus
