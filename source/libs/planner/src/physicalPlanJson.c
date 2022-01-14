@@ -559,28 +559,35 @@ static const char* jkScanNodeTableId = "TableId";
 static const char* jkScanNodeTableType = "TableType";
 static const char* jkScanNodeTableOrder = "Order";
 static const char* jkScanNodeTableCount = "Count";
+static const char* jkScanNodeTableRevCount = "Reverse";
 
 static bool scanNodeToJson(const void* obj, cJSON* json) {
-  const SScanPhyNode* scan = (const SScanPhyNode*)obj;
-  bool res = cJSON_AddNumberToObject(json, jkScanNodeTableId, scan->uid);
+  const SScanPhyNode* pNode = (const SScanPhyNode*)obj;
+  bool res = cJSON_AddNumberToObject(json, jkScanNodeTableId, pNode->uid);
+
   if (res) {
-    res = cJSON_AddNumberToObject(json, jkScanNodeTableType, scan->tableType);
+    res = cJSON_AddNumberToObject(json, jkScanNodeTableType, pNode->tableType);
   }
   if (res) {
-    res = cJSON_AddNumberToObject(json, jkScanNodeTableOrder, scan->order);
+    res = cJSON_AddNumberToObject(json, jkScanNodeTableOrder, pNode->order);
   }
   if (res) {
-    res = cJSON_AddNumberToObject(json, jkScanNodeTableCount, scan->count);
+    res = cJSON_AddNumberToObject(json, jkScanNodeTableCount, pNode->count);
+  }
+
+  if (res) {
+    res = cJSON_AddNumberToObject(json, jkScanNodeTableRevCount, pNode->reverse);
   }
   return res;
 }
 
 static bool scanNodeFromJson(const cJSON* json, void* obj) {
-  SScanPhyNode* scan = (SScanPhyNode*)obj;
-  scan->uid = getNumber(json, jkScanNodeTableId);
-  scan->tableType = getNumber(json, jkScanNodeTableType);
-  scan->count = getNumber(json, jkScanNodeTableCount);
-  scan->order = getNumber(json, jkScanNodeTableOrder);
+  SScanPhyNode* pNode = (SScanPhyNode*)obj;
+  pNode->uid       = getNumber(json, jkScanNodeTableId);
+  pNode->tableType = getNumber(json, jkScanNodeTableType);
+  pNode->count     = getNumber(json, jkScanNodeTableCount);
+  pNode->order     = getNumber(json, jkScanNodeTableOrder);
+  pNode->reverse   = getNumber(json, jkScanNodeTableRevCount);
   return true;
 }
 
@@ -996,10 +1003,13 @@ static SSubplan* subplanFromJson(const cJSON* json) {
   if (NULL == subplan) {
     return NULL;
   }
+
   bool res = fromObject(json, jkSubplanId, subplanIdFromJson, &subplan->id, true);
+
   if (res) {
     res = fromPnode(json, jkSubplanNode, phyNodeFromJson, (void**)&subplan->pNode);
   }
+
   if (res) {
     res = fromObjectWithAlloc(json, jkSubplanDataSink, dataSinkFromJson, (void**)&subplan->pDataSink, sizeof(SDataSink), false);
   }
@@ -1027,7 +1037,7 @@ int32_t subPlanToString(const SSubplan* subplan, char** str, int32_t* len) {
   }
 
   *str = cJSON_Print(json);
-//  printf("====Physical plan:====\n")
+//  printf("====Physical plan:====\n");
 //  printf("%s\n", *str);
   *len = strlen(*str) + 1;
   return TSDB_CODE_SUCCESS;
@@ -1047,14 +1057,18 @@ cJSON* qDagToJson(const SQueryDag* pDag) {
   if(pRoot == NULL) {
     return NULL;
   }
-  cJSON_AddNumberToObject(pRoot, "numOfSubplans", pDag->numOfSubplans);
-  cJSON_AddNumberToObject(pRoot, "queryId", pDag->queryId);
+
+  cJSON_AddNumberToObject(pRoot, "Number", pDag->numOfSubplans);
+  cJSON_AddNumberToObject(pRoot, "QueryId", pDag->queryId);
+
   cJSON *pLevels = cJSON_CreateArray();
   if(pLevels == NULL) {
     cJSON_Delete(pRoot);
     return NULL;
   }
-  cJSON_AddItemToObject(pRoot, "pSubplans", pLevels);
+
+  cJSON_AddItemToObject(pRoot, "Subplans", pLevels);
+
   size_t level = taosArrayGetSize(pDag->pSubplans);
   for(size_t i = 0; i < level; i++) {
     const SArray* pSubplans = (const SArray*)taosArrayGetP(pDag->pSubplans, i);
@@ -1064,6 +1078,7 @@ cJSON* qDagToJson(const SQueryDag* pDag) {
       cJSON_Delete(pRoot);
       return NULL;
     }
+
     cJSON_AddItemToArray(pLevels, plansOneLevel);
     for(size_t j = 0; j < num; j++) {
       cJSON* pSubplan = subplanToJson((const SSubplan*)taosArrayGetP(pSubplans, j));
@@ -1071,6 +1086,7 @@ cJSON* qDagToJson(const SQueryDag* pDag) {
         cJSON_Delete(pRoot);
         return NULL;
       }
+
       cJSON_AddItemToArray(plansOneLevel, pSubplan);
     }
   }
