@@ -51,10 +51,6 @@ SClientHbBatchReq* hbGatherAllInfo(SAppHbMgr *pAppHbMgr) {
   int32_t connKeyCnt = atomic_load_32(&pAppHbMgr->connKeyCnt);
   pBatchReq->reqs = taosArrayInit(connKeyCnt, sizeof(SClientHbReq));
 
-  if (pAppHbMgr->activeInfo == NULL) {
-    return NULL;
-  }
-
   void *pIter = taosHashIterate(pAppHbMgr->activeInfo, NULL);
   while (pIter != NULL) {
     SClientHbReq* pOneReq = pIter;
@@ -71,7 +67,7 @@ SClientHbBatchReq* hbGatherAllInfo(SAppHbMgr *pAppHbMgr) {
     taosHashCopyKey(pIter, &connKey);
     getConnInfoFp(connKey, NULL);
 
-    pIter = taosHashIterate(pAppHbMgr->activeInfo, pIter);
+    pIter = taosHashIterate(pAppHbMgr->getInfoFuncs, pIter);
   }
 
   return pBatchReq;
@@ -87,7 +83,8 @@ static void* hbThreadFunc(void* param) {
 
     int sz = taosArrayGetSize(clientHbMgr.appHbMgrs);
     for(int i = 0; i < sz; i++) {
-      SAppHbMgr* pAppHbMgr = taosArrayGet(clientHbMgr.appHbMgrs, i);
+      SAppHbMgr* pAppHbMgr = taosArrayGetP(clientHbMgr.appHbMgrs, i);
+
       int32_t connCnt = atomic_load_32(&pAppHbMgr->connKeyCnt);
       if (connCnt == 0) {
         continue;
@@ -102,20 +99,27 @@ static void* hbThreadFunc(void* param) {
         //TODO: error handling
         break;
       }
-      tSerializeSClientHbBatchReq(buf, pReq);
-      SMsgSendInfo info;
-      info.fp = hbMqAsyncCallBack;
-      info.msgInfo.pData = buf;
-      info.msgInfo.len = tlen;
-      info.msgType = TDMT_MND_HEARTBEAT;
-      info.param = NULL;
-      info.requestId = generateRequestId();
-      info.requestObjRefId = -1;
+      void *bufCopy = buf;
+      tSerializeSClientHbBatchReq(&bufCopy, pReq);
+      SMsgSendInfo *pInfo = malloc(sizeof(SMsgSendInfo));
+      if (pInfo == NULL) {
+        terrno = TSDB_CODE_TSC_OUT_OF_MEMORY;
+        tFreeClientHbBatchReq(pReq);
+        free(buf);
+        break;
+      }
+      pInfo->fp = hbMqAsyncCallBack;
+      pInfo->msgInfo.pData = buf;
+      pInfo->msgInfo.len = tlen;
+      pInfo->msgType = TDMT_MND_HEARTBEAT;
+      pInfo->param = NULL;
+      pInfo->requestId = generateRequestId();
+      pInfo->requestObjRefId = 0;
 
       SAppInstInfo *pAppInstInfo = pAppHbMgr->pAppInstInfo;
       int64_t transporterId = 0;
       SEpSet epSet = getEpSet_s(&pAppInstInfo->mgmtEp);
-      asyncSendMsgToServer(pAppInstInfo->pTransporter, &epSet, &transporterId, &info);
+      asyncSendMsgToServer(pAppInstInfo->pTransporter, &epSet, &transporterId, pInfo);
       tFreeClientHbBatchReq(pReq);
 
       atomic_add_fetch_32(&pAppHbMgr->reportCnt, 1);
@@ -182,7 +186,7 @@ void appHbMgrCleanup(SAppHbMgr* pAppHbMgr) {
 
   int sz = taosArrayGetSize(clientHbMgr.appHbMgrs);
   for (int i = 0; i < sz; i++) {
-    SAppHbMgr* pTarget = taosArrayGet(clientHbMgr.appHbMgrs, i);
+    SAppHbMgr* pTarget = taosArrayGetP(clientHbMgr.appHbMgrs, i);
     if (pAppHbMgr == pTarget) {
       taosHashCleanup(pTarget->activeInfo);
       taosHashCleanup(pTarget->getInfoFuncs);
