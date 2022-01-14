@@ -1669,7 +1669,7 @@ SELECT COUNT(*), FIRST(ts), status FROM temp_tb_1 STATE_WINDOW(status)
 
 ```mysql
 
-SELECT COUNT(*), FIRST(ts) FROM temp_tb_1 SESSION_WINDOW(ts, tol_val)
+SELECT COUNT(*), FIRST(ts) FROM temp_tb_1 SESSION(ts, tol_val)
 ```
 
 这种类型的查询语法如下：
