@@ -381,7 +381,8 @@ static void *dnodeOpenVnodeFunc(void *param) {
              pMgmt->openVnodes, pMgmt->totalVnodes);
     dndReportStartup(pDnode, "open-vnodes", stepDesc);
 
-    SVnode *pImpl = vnodeOpen(pCfg->path, NULL, pCfg->vgId);
+    SVnodeCfg cfg = {.pDnode = pDnode, .vgId = pCfg->vgId};
+    SVnode   *pImpl = vnodeOpen(pCfg->path, &cfg);
     if (pImpl == NULL) {
       dError("vgId:%d, failed to open vnode by thread:%d", pCfg->vgId, pThread->threadIndex);
       pThread->failed++;
@@ -419,7 +420,7 @@ static int32_t dndOpenVnodes(SDnode *pDnode) {
 
   pMgmt->totalVnodes = numOfVnodes;
 
-  int32_t threadNum = pDnode->opt.numOfCores;
+  int32_t threadNum = pDnode->env.numOfCores;
   int32_t vnodesPerThread = numOfVnodes / threadNum + 1;
 
   SVnodeThread *threads = calloc(threadNum, sizeof(SVnodeThread));
@@ -581,7 +582,8 @@ int32_t dndProcessCreateVnodeReq(SDnode *pDnode, SRpcMsg *pReq) {
     return -1;
   }
 
-  SVnode *pImpl = vnodeOpen(wrapperCfg.path, NULL /*pCfg*/, pCreate->vgId);
+  vnodeCfg.pDnode = pDnode;
+  SVnode *pImpl = vnodeOpen(wrapperCfg.path, &vnodeCfg);
   if (pImpl == NULL) {
     dError("vgId:%d, failed to create vnode since %s", pCreate->vgId, terrstr());
     return -1;
@@ -800,7 +802,7 @@ static void dndProcessVnodeSyncQueue(SVnodeObj *pVnode, STaosQall *qall, int32_t
   }
 }
 
-static int32_t dndWriteRpcMsgToVnodeQueue(STaosQueue *pQueue, SRpcMsg *pRpcMsg) {
+static int32_t dndWriteRpcMsgToVnodeQueue(STaosQueue *pQueue, SRpcMsg *pRpcMsg, bool sendRsp) {
   int32_t code = 0;
 
   if (pQueue == NULL) {
@@ -817,13 +819,15 @@ static int32_t dndWriteRpcMsgToVnodeQueue(STaosQueue *pQueue, SRpcMsg *pRpcMsg) 
     }
   }
 
-  if (code != TSDB_CODE_SUCCESS) {
+  if (code != TSDB_CODE_SUCCESS && sendRsp) {
     if (pRpcMsg->msgType & 1u) {
       SRpcMsg rsp = {.handle = pRpcMsg->handle, .code = code};
       rpcSendResponse(&rsp);
     }
     rpcFreeCont(pRpcMsg->pCont);
   }
+
+  return code;
 }
 
 static SVnodeObj *dndAcquireVnodeFromMsg(SDnode *pDnode, SRpcMsg *pMsg) {
@@ -846,7 +850,7 @@ static SVnodeObj *dndAcquireVnodeFromMsg(SDnode *pDnode, SRpcMsg *pMsg) {
 void dndProcessVnodeWriteMsg(SDnode *pDnode, SRpcMsg *pMsg, SEpSet *pEpSet) {
   SVnodeObj *pVnode = dndAcquireVnodeFromMsg(pDnode, pMsg);
   if (pVnode != NULL) {
-    dndWriteRpcMsgToVnodeQueue(pVnode->pWriteQ, pMsg);
+    (void)dndWriteRpcMsgToVnodeQueue(pVnode->pWriteQ, pMsg, true);
     dndReleaseVnode(pDnode, pVnode);
   }
 }
@@ -854,7 +858,7 @@ void dndProcessVnodeWriteMsg(SDnode *pDnode, SRpcMsg *pMsg, SEpSet *pEpSet) {
 void dndProcessVnodeSyncMsg(SDnode *pDnode, SRpcMsg *pMsg, SEpSet *pEpSet) {
   SVnodeObj *pVnode = dndAcquireVnodeFromMsg(pDnode, pMsg);
   if (pVnode != NULL) {
-    dndWriteRpcMsgToVnodeQueue(pVnode->pSyncQ, pMsg);
+    (void)dndWriteRpcMsgToVnodeQueue(pVnode->pSyncQ, pMsg, true);
     dndReleaseVnode(pDnode, pVnode);
   }
 }
@@ -862,7 +866,7 @@ void dndProcessVnodeSyncMsg(SDnode *pDnode, SRpcMsg *pMsg, SEpSet *pEpSet) {
 void dndProcessVnodeQueryMsg(SDnode *pDnode, SRpcMsg *pMsg, SEpSet *pEpSet) {
   SVnodeObj *pVnode = dndAcquireVnodeFromMsg(pDnode, pMsg);
   if (pVnode != NULL) {
-    dndWriteRpcMsgToVnodeQueue(pVnode->pQueryQ, pMsg);
+    (void)dndWriteRpcMsgToVnodeQueue(pVnode->pQueryQ, pMsg, true);
     dndReleaseVnode(pDnode, pVnode);
   }
 }
@@ -870,9 +874,21 @@ void dndProcessVnodeQueryMsg(SDnode *pDnode, SRpcMsg *pMsg, SEpSet *pEpSet) {
 void dndProcessVnodeFetchMsg(SDnode *pDnode, SRpcMsg *pMsg, SEpSet *pEpSet) {
   SVnodeObj *pVnode = dndAcquireVnodeFromMsg(pDnode, pMsg);
   if (pVnode != NULL) {
-    dndWriteRpcMsgToVnodeQueue(pVnode->pFetchQ, pMsg);
+    (void)dndWriteRpcMsgToVnodeQueue(pVnode->pFetchQ, pMsg, true);
     dndReleaseVnode(pDnode, pVnode);
   }
+}
+
+int32_t dndPutReqToVQueryQ(SDnode *pDnode, SRpcMsg *pMsg) {
+  SMsgHead *pHead = pMsg->pCont;
+  // pHead->vgId = htonl(pHead->vgId);
+
+  SVnodeObj *pVnode = dndAcquireVnode(pDnode, pHead->vgId);
+  if (pVnode == NULL) return -1;
+
+  int32_t code = dndWriteRpcMsgToVnodeQueue(pVnode->pFetchQ, pMsg, false);
+  dndReleaseVnode(pDnode, pVnode);
+  return code;
 }
 
 static int32_t dndPutMsgIntoVnodeApplyQueue(SDnode *pDnode, int32_t vgId, SRpcMsg *pMsg) {
@@ -888,11 +904,11 @@ static int32_t dndInitVnodeWorkers(SDnode *pDnode) {
   SVnodesMgmt *pMgmt = &pDnode->vmgmt;
 
   int32_t maxFetchThreads = 4;
-  int32_t minFetchThreads = MIN(maxFetchThreads, pDnode->opt.numOfCores);
-  int32_t minQueryThreads = MAX((int32_t)(pDnode->opt.numOfCores * pDnode->opt.ratioOfQueryCores), 1);
+  int32_t minFetchThreads = MIN(maxFetchThreads, pDnode->env.numOfCores);
+  int32_t minQueryThreads = MAX((int32_t)(pDnode->env.numOfCores * pDnode->cfg.ratioOfQueryCores), 1);
   int32_t maxQueryThreads = minQueryThreads;
-  int32_t maxWriteThreads = MAX(pDnode->opt.numOfCores, 1);
-  int32_t maxSyncThreads = MAX(pDnode->opt.numOfCores / 2, 1);
+  int32_t maxWriteThreads = MAX(pDnode->env.numOfCores, 1);
+  int32_t maxSyncThreads = MAX(pDnode->env.numOfCores / 2, 1);
 
   SWorkerPool *pPool = &pMgmt->queryPool;
   pPool->name = "vnode-query";

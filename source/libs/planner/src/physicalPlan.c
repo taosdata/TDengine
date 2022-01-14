@@ -88,16 +88,20 @@ static bool copySchema(SDataBlockSchema* dst, const SDataBlockSchema* src) {
 }
 
 static bool toDataBlockSchema(SQueryPlanNode* pPlanNode, SDataBlockSchema* dataBlockSchema) {
-  dataBlockSchema->numOfCols = pPlanNode->numOfCols;
-  dataBlockSchema->pSchema = malloc(sizeof(SSlotSchema) * pPlanNode->numOfCols);
+  dataBlockSchema->numOfCols = pPlanNode->numOfExpr;
+  dataBlockSchema->pSchema = malloc(sizeof(SSlotSchema) * pPlanNode->numOfExpr);
   if (NULL == dataBlockSchema->pSchema) {
     return false;
   }
-  memcpy(dataBlockSchema->pSchema, pPlanNode->pSchema, sizeof(SSlotSchema) * pPlanNode->numOfCols);
+
   dataBlockSchema->resultRowSize = 0;
-  for (int32_t i = 0; i < dataBlockSchema->numOfCols; ++i) {
+  for (int32_t i = 0; i < pPlanNode->numOfExpr; ++i) {
+    SExprInfo* pExprInfo = taosArrayGetP(pPlanNode->pExpr, i);
+    memcpy(&dataBlockSchema->pSchema[i], &pExprInfo->base.resSchema, sizeof(SSlotSchema));
+
     dataBlockSchema->resultRowSize += dataBlockSchema->pSchema[i].bytes;
   }
+
   return true;
 }
 
@@ -152,9 +156,14 @@ static SPhyNode* initPhyNode(SQueryPlanNode* pPlanNode, int32_t type, int32_t si
 }
 
 static SPhyNode* initScanNode(SQueryPlanNode* pPlanNode, SQueryTableInfo* pTable, int32_t type, int32_t size) {
-  SScanPhyNode* node = (SScanPhyNode*)initPhyNode(pPlanNode, type, size);
-  node->uid = pTable->pMeta->pTableMeta->uid;
-  node->tableType = pTable->pMeta->pTableMeta->tableType;
+  SScanPhyNode* node = (SScanPhyNode*) initPhyNode(pPlanNode, type, size);
+
+  STableMeta *pTableMeta = pTable->pMeta->pTableMeta;
+  node->uid       = pTableMeta->uid;
+  node->count     = 1;
+  node->order     = TSDB_ORDER_ASC;
+  node->tableType = pTableMeta->tableType;
+
   return (SPhyNode*)node;
 }
 
@@ -172,14 +181,13 @@ static uint8_t getScanFlag(SQueryPlanNode* pPlanNode, SQueryTableInfo* pTable) {
   return MAIN_SCAN;
 }
 
-static SPhyNode* createUserTableScanNode(SQueryPlanNode* pPlanNode, SQueryTableInfo* pTable, int32_t op) {
-  STableScanPhyNode* node = (STableScanPhyNode*)initScanNode(pPlanNode, pTable, op, sizeof(STableScanPhyNode));
-  node->scanFlag = getScanFlag(pPlanNode, pTable);
-  node->window = pTable->window;
+static SPhyNode* createUserTableScanNode(SQueryPlanNode* pPlanNode, SQueryTableInfo* pQueryTableInfo, int32_t op) {
+  STableScanPhyNode* node = (STableScanPhyNode*)initScanNode(pPlanNode, pQueryTableInfo, op, sizeof(STableScanPhyNode));
+  node->scanFlag = getScanFlag(pPlanNode, pQueryTableInfo);
+  node->window = pQueryTableInfo->window;
   // todo tag cond
   return (SPhyNode*)node;
 }
-
 
 static bool isSystemTable(SQueryTableInfo* pTable) {
   // todo
@@ -284,14 +292,31 @@ static SPhyNode* createSingleTableScanNode(SQueryPlanNode* pPlanNode, SQueryTabl
   return createUserTableScanNode(pPlanNode, pTable, OP_TableScan);
 }
 
-
 static SPhyNode* createTableScanNode(SPlanContext* pCxt, SQueryPlanNode* pPlanNode) {
   SQueryTableInfo* pTable = (SQueryTableInfo*)pPlanNode->pExtInfo;
-    
   if (needMultiNodeScan(pTable)) {
     return createExchangeNode(pCxt, pPlanNode, splitSubplanByTable(pCxt, pPlanNode, pTable));
   }
   return createSingleTableScanNode(pPlanNode, pTable, pCxt->pCurrentSubplan);
+}
+
+static SPhyNode* createSingleTableAgg(SPlanContext* pCxt, SQueryPlanNode* pPlanNode) {
+  SAggPhyNode* node = (SAggPhyNode*)initPhyNode(pPlanNode, OP_Aggregate, sizeof(SAggPhyNode));
+  SGroupbyExpr* pGroupBy = (SGroupbyExpr*)pPlanNode->pExtInfo;
+  node->aggAlgo = AGG_ALGO_PLAIN;
+  node->aggSplit = AGG_SPLIT_FINAL;
+  if (NULL != pGroupBy) {
+    node->aggAlgo = AGG_ALGO_HASHED;
+    node->pGroupByList = validPointer(taosArrayDup(pGroupBy->columnInfo));
+  }
+  return (SPhyNode*)node;
+}
+
+static SPhyNode* createAggNode(SPlanContext* pCxt, SQueryPlanNode* pPlanNode) {
+  // if (needMultiNodeAgg(pPlanNode)) {
+
+  // }
+  return createSingleTableAgg(pCxt, pPlanNode);
 }
 
 static SPhyNode* createPhyNode(SPlanContext* pCxt, SQueryPlanNode* pPlanNode) {
@@ -303,8 +328,10 @@ static SPhyNode* createPhyNode(SPlanContext* pCxt, SQueryPlanNode* pPlanNode) {
     case QNODE_TABLESCAN:
       node = createTableScanNode(pCxt, pPlanNode);
       break;
-    case QNODE_PROJECT:
-//      node = create
+    case QNODE_AGGREGATE:
+    case QNODE_GROUPBY:
+      node = createAggNode(pCxt, pPlanNode);
+      break;
     case QNODE_MODIFY:
       // Insert is not an operator in a physical plan.
       break;
@@ -363,9 +390,9 @@ int32_t createDag(SQueryPlanNode* pQueryNode, struct SCatalog* pCatalog, SQueryD
   TRY(TSDB_MAX_TAG_CONDITIONS) {
     SPlanContext context = {
       .pCatalog = pCatalog,
-      .pDag = validPointer(calloc(1, sizeof(SQueryDag))),
+      .pDag     = validPointer(calloc(1, sizeof(SQueryDag))),
       .pCurrentSubplan = NULL,
-      .nextId = {.queryId = requestId},
+      .nextId   = {.queryId = requestId},
     };
 
     *pDag = context.pDag;

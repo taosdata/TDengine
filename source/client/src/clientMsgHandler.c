@@ -157,9 +157,6 @@ int32_t processShowRsp(void* param, const SDataBuf* pMsg, int32_t code) {
 
   pResInfo->fields    = pFields;
   pResInfo->numOfCols = pMetaMsg->numOfColumns;
-  pResInfo->row       = calloc(pResInfo->numOfCols, POINTER_BYTES);
-  pResInfo->pCol      = calloc(pResInfo->numOfCols, POINTER_BYTES);
-  pResInfo->length    = calloc(pResInfo->numOfCols, sizeof(int32_t));
 
   pRequest->body.showInfo.execId = pShow->showId;
 

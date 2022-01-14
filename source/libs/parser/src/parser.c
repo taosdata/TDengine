@@ -45,14 +45,14 @@ int32_t parseQuerySql(SParseContext* pCxt, SQueryNode** pQuery) {
 
   if (!isDqlSqlStatement(&info)) {
     if (info.type == TSDB_SQL_CREATE_TABLE) {
-      SVnodeModifOpStmtInfo * pModifStmtInfo = qParserValidateCreateTbSqlNode(&info, &pCxt->ctx, pCxt->pMsg, pCxt->msgLen);
+      SVnodeModifOpStmtInfo * pModifStmtInfo = qParserValidateCreateTbSqlNode(&info, pCxt, pCxt->pMsg, pCxt->msgLen);
       if (pModifStmtInfo == NULL) {
         return terrno;
       }
 
       *pQuery = (SQueryNode*)pModifStmtInfo;
     } else {
-      SDclStmtInfo* pDcl = qParserValidateDclSqlNode(&info, &pCxt->ctx, pCxt->pMsg, pCxt->msgLen);
+      SDclStmtInfo* pDcl = qParserValidateDclSqlNode(&info, pCxt, pCxt->pMsg, pCxt->msgLen);
       if (pDcl == NULL) {
         return terrno;
       }
@@ -67,9 +67,12 @@ int32_t parseQuerySql(SParseContext* pCxt, SQueryNode** pQuery) {
       return terrno;
     }
 
-    int32_t code = qParserValidateSqlNode(&pCxt->ctx, &info, pQueryInfo, pCxt->pMsg, pCxt->msgLen);
+    int32_t code = qParserValidateSqlNode(pCxt, &info, pQueryInfo, pCxt->pMsg, pCxt->msgLen);
     if (code == TSDB_CODE_SUCCESS) {
       *pQuery = (SQueryNode*)pQueryInfo;
+    } else {
+      terrno = code;
+      return code;
     }
   }
 
@@ -89,7 +92,7 @@ int32_t qParserConvertSql(const char* pStr, size_t length, char** pConvertSql) {
   return 0;
 }
 
-static int32_t getTableNameFromSqlNode(SSqlNode* pSqlNode, SArray* tableNameList, SParseBasicCtx *pCtx, SMsgBuf* pMsgBuf);
+static int32_t getTableNameFromSqlNode(SSqlNode* pSqlNode, SArray* tableNameList, SParseContext *pCtx, SMsgBuf* pMsgBuf);
 
 static int32_t tnameComparFn(const void* p1, const void* p2) {
   SName* pn1 = (SName*)p1;
@@ -113,7 +116,7 @@ static int32_t tnameComparFn(const void* p1, const void* p2) {
   }
 }
 
-static int32_t getTableNameFromSubquery(SSqlNode* pSqlNode, SArray* tableNameList, SParseBasicCtx *pCtx, SMsgBuf* pMsgBuf) {
+static int32_t getTableNameFromSubquery(SSqlNode* pSqlNode, SArray* tableNameList, SParseContext *pCtx, SMsgBuf* pMsgBuf) {
   int32_t numOfSub = (int32_t)taosArrayGetSize(pSqlNode->from->list);
 
   for (int32_t j = 0; j < numOfSub; ++j) {
@@ -136,7 +139,7 @@ static int32_t getTableNameFromSubquery(SSqlNode* pSqlNode, SArray* tableNameLis
   return TSDB_CODE_SUCCESS;
 }
 
-int32_t getTableNameFromSqlNode(SSqlNode* pSqlNode, SArray* tableNameList, SParseBasicCtx *pParseCtx, SMsgBuf* pMsgBuf) {
+int32_t getTableNameFromSqlNode(SSqlNode* pSqlNode, SArray* tableNameList, SParseContext *pParseCtx, SMsgBuf* pMsgBuf) {
   const char* msg1 = "invalid table name";
 
   int32_t numOfTables = (int32_t) taosArrayGetSize(pSqlNode->from->list);
@@ -170,7 +173,7 @@ static void freePtrElem(void* p) {
   tfree(*(char**)p);
 }
 
-int32_t qParserExtractRequestedMetaInfo(const SSqlInfo* pSqlInfo, SCatalogReq* pMetaInfo, SParseBasicCtx *pCtx, char* msg, int32_t msgBufLen) {
+int32_t qParserExtractRequestedMetaInfo(const SSqlInfo* pSqlInfo, SCatalogReq* pMetaInfo, SParseContext *pCtx, char* msg, int32_t msgBufLen) {
   int32_t code  = TSDB_CODE_SUCCESS;
   SMsgBuf msgBuf = {.buf = msg, .len = msgBufLen};
 

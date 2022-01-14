@@ -1,6 +1,10 @@
 
+#include "../../libs/scheduler/inc/schedulerInt.h"
 #include "clientInt.h"
 #include "clientLog.h"
+#include "parser.h"
+#include "planner.h"
+#include "scheduler.h"
 #include "tdef.h"
 #include "tep.h"
 #include "tglobal.h"
@@ -8,9 +12,6 @@
 #include "tnote.h"
 #include "tpagedfile.h"
 #include "tref.h"
-#include "parser.h"
-#include "planner.h"
-#include "scheduler.h"
 
 #define CHECK_CODE_GOTO(expr, lable) \
   do {                               \
@@ -24,8 +25,9 @@
 static int32_t initEpSetFromCfg(const char *firstEp, const char *secondEp, SCorEpSet *pEpSet);
 static SMsgSendInfo* buildConnectMsg(SRequestObj *pRequest);
 static void destroySendMsgInfo(SMsgSendInfo* pMsgBody);
+static void setQueryResultByRsp(SReqResultInfo* pResultInfo, const SRetrieveTableRsp* pRsp);
 
-static bool stringLengthCheck(const char* str, size_t maxsize) {
+  static bool stringLengthCheck(const char* str, size_t maxsize) {
   if (str == NULL) {
     return false;
   }
@@ -57,6 +59,7 @@ static char* getClusterKey(const char* user, const char* auth, const char* ip, i
 }
 
 static STscObj* taosConnectImpl(const char *ip, const char *user, const char *auth, const char *db, uint16_t port, __taos_async_fn_t fp, void *param, SAppInstInfo* pAppInfo);
+static void  setResSchemaInfo(SReqResultInfo* pResInfo, const SDataBlockSchema* pDataBlockSchema);
 
 TAOS *taos_connect_internal(const char *ip, const char *user, const char *pass, const char *auth, const char *db, uint16_t port) {
   if (taos_init() != TSDB_CODE_SUCCESS) {
@@ -149,23 +152,26 @@ int32_t parseSql(SRequestObj* pRequest, SQueryNode** pQuery) {
   STscObj* pTscObj = pRequest->pTscObj;
 
   SParseContext cxt = {
-    .ctx = {.requestId = pRequest->requestId, .acctId = pTscObj->acctId, .db = getConnectionDB(pTscObj), .pTransporter = pTscObj->pTransporter},
+    .requestId = pRequest->requestId,
+    .acctId = pTscObj->acctId,
+    .db     = getConnectionDB(pTscObj),
+    .pTransporter = pTscObj->pTransporter,
     .pSql   = pRequest->sqlstr,
     .sqlLen = pRequest->sqlLen,
     .pMsg   = pRequest->msgBuf,
     .msgLen = ERROR_MSG_BUF_DEFAULT_SIZE
   };
 
-  cxt.ctx.mgmtEpSet = getEpSet_s(&pTscObj->pAppInfo->mgmtEp);
-  int32_t code = catalogGetHandle(pTscObj->pAppInfo->clusterId, &cxt.ctx.pCatalog);
+  cxt.mgmtEpSet = getEpSet_s(&pTscObj->pAppInfo->mgmtEp);
+  int32_t code = catalogGetHandle(pTscObj->pAppInfo->clusterId, &cxt.pCatalog);
   if (code != TSDB_CODE_SUCCESS) {
-    tfree(cxt.ctx.db);
+    tfree(cxt.db);
     return code;
   }
 
   code = qParseQuerySql(&cxt, pQuery);
 
-  tfree(cxt.ctx.db);
+  tfree(cxt.db);
   return code;
 }
 
@@ -198,27 +204,59 @@ int32_t execDdlQuery(SRequestObj* pRequest, SQueryNode* pQuery) {
 
 int32_t getPlan(SRequestObj* pRequest, SQueryNode* pQueryNode, SQueryDag** pDag) {
   pRequest->type = pQueryNode->type;
-  return qCreateQueryDag(pQueryNode, pDag, pRequest->requestId);
+
+  SReqResultInfo* pResInfo = &pRequest->body.resInfo;
+  int32_t code = qCreateQueryDag(pQueryNode, pDag, pRequest->requestId);
+  if (code != 0) {
+    return code;
+  }
+
+  if (pQueryNode->type == TSDB_SQL_SELECT) {
+    SArray* pa = taosArrayGetP((*pDag)->pSubplans, 0);
+
+    SSubplan* pPlan = taosArrayGetP(pa, 0);
+    SDataBlockSchema* pDataBlockSchema = &(pPlan->pDataSink->schema);
+    setResSchemaInfo(pResInfo, pDataBlockSchema);
+
+    pRequest->type = TDMT_VND_QUERY;
+  }
+
+  return code;
 }
 
-int32_t scheduleQuery(SRequestObj* pRequest, SQueryDag* pDag, void** pJob) {
+void setResSchemaInfo(SReqResultInfo* pResInfo, const SDataBlockSchema* pDataBlockSchema) {
+  assert(pDataBlockSchema != NULL && pDataBlockSchema->numOfCols > 0);
+
+  pResInfo->numOfCols = pDataBlockSchema->numOfCols;
+  pResInfo->fields = calloc(pDataBlockSchema->numOfCols, sizeof(pDataBlockSchema->pSchema[0]));
+
+  for (int32_t i = 0; i < pResInfo->numOfCols; ++i) {
+    SSchema* pSchema = &pDataBlockSchema->pSchema[i];
+    pResInfo->fields[i].bytes = pSchema->bytes;
+    pResInfo->fields[i].type  = pSchema->type;
+    tstrncpy(pResInfo->fields[i].name, pSchema->name, tListLen(pResInfo->fields[i].name));
+  }
+}
+
+int32_t scheduleQuery(SRequestObj* pRequest, SQueryDag* pDag) {
   if (TSDB_SQL_INSERT == pRequest->type || TSDB_SQL_CREATE_TABLE == pRequest->type) {
     SQueryResult res = {.code = 0, .numOfRows = 0, .msgSize = ERROR_MSG_BUF_DEFAULT_SIZE, .msg = pRequest->msgBuf};
 
-    int32_t code = scheduleExecJob(pRequest->pTscObj->pTransporter, NULL, pDag, pJob, &res);
+    int32_t code = scheduleExecJob(pRequest->pTscObj->pTransporter, NULL, pDag, &pRequest->body.pQueryJob, &res);
     if (code != TSDB_CODE_SUCCESS) {
       // handle error and retry
     } else {
-      if (*pJob != NULL) {
-        scheduleFreeJob(*pJob);
+      if (pRequest->body.pQueryJob != NULL) {
+        scheduleFreeJob(pRequest->body.pQueryJob);
       }
     }
 
-    pRequest->affectedRows = res.numOfRows;
-    return res.code;
+    pRequest->body.resInfo.numOfRows = res.numOfRows;
+    pRequest->code = res.code;
+    return pRequest->code;
   }
 
-  return scheduleAsyncExecJob(pRequest->pTscObj->pTransporter, NULL /*todo appInfo.xxx*/, pDag, pJob);
+  return scheduleAsyncExecJob(pRequest->pTscObj->pTransporter, NULL, pDag, &pRequest->body.pQueryJob);
 }
 
 typedef struct tmq_t tmq_t;
@@ -409,7 +447,6 @@ TAOS_RES *taos_query_l(TAOS *taos, const char *sql, int sqlLen) {
   SRequestObj *pRequest = NULL;
   SQueryNode  *pQuery   = NULL;
   SQueryDag   *pDag     = NULL;
-  void        *pJob     = NULL;
 
   terrno = TSDB_CODE_SUCCESS;
   CHECK_CODE_GOTO(buildRequest(pTscObj, sql, sqlLen, &pRequest), _return);
@@ -419,9 +456,8 @@ TAOS_RES *taos_query_l(TAOS *taos, const char *sql, int sqlLen) {
     CHECK_CODE_GOTO(execDdlQuery(pRequest, pQuery), _return);
   } else {
     CHECK_CODE_GOTO(getPlan(pRequest, pQuery, &pDag), _return);
-    CHECK_CODE_GOTO(scheduleQuery(pRequest, pDag, &pJob), _return);
+    CHECK_CODE_GOTO(scheduleQuery(pRequest, pDag), _return);
     pRequest->code = terrno;
-    return pRequest;
   }
 
 _return:
@@ -430,6 +466,7 @@ _return:
   if (NULL != pRequest && TSDB_CODE_SUCCESS != terrno) {
     pRequest->code = terrno;
   }
+
   return pRequest;
 }
 
@@ -628,7 +665,21 @@ void* doFetchRow(SRequestObj* pRequest) {
   SReqResultInfo* pResultInfo = &pRequest->body.resInfo;
 
   if (pResultInfo->pData == NULL || pResultInfo->current >= pResultInfo->numOfRows) {
-    if (pRequest->type == TDMT_MND_SHOW) {
+    if (pRequest->type == TDMT_VND_QUERY) {
+      // All data has returned to App already, no need to try again
+      if (pResultInfo->completed) {
+        return NULL;
+      }
+
+      scheduleFetchRows(pRequest->body.pQueryJob, (void **)&pRequest->body.resInfo.pData);
+      setQueryResultByRsp(&pRequest->body.resInfo, (SRetrieveTableRsp*)pRequest->body.resInfo.pData);
+
+      if (pResultInfo->numOfRows == 0) {
+        return NULL;
+      }
+
+      goto _return;
+    } else if (pRequest->type == TDMT_MND_SHOW) {
       pRequest->type = TDMT_MND_SHOW_RETRIEVE;
     } else if (pRequest->type == TDMT_VND_SHOW_TABLES) {
       pRequest->type = TDMT_VND_SHOW_TABLES_FETCH;
@@ -671,6 +722,8 @@ void* doFetchRow(SRequestObj* pRequest) {
     }
   }
 
+_return:
+
   for(int32_t i = 0; i < pResultInfo->numOfCols; ++i) {
     pResultInfo->row[i] = pResultInfo->pCol[i] + pResultInfo->fields[i].bytes * pResultInfo->current;
     if (IS_VAR_DATA_TYPE(pResultInfo->fields[i].type)) {
@@ -683,11 +736,22 @@ void* doFetchRow(SRequestObj* pRequest) {
   return pResultInfo->row;
 }
 
+static void doPrepareResPtr(SReqResultInfo* pResInfo) {
+  if (pResInfo->row == NULL) {
+    pResInfo->row    = calloc(pResInfo->numOfCols, POINTER_BYTES);
+    pResInfo->pCol   = calloc(pResInfo->numOfCols, POINTER_BYTES);
+    pResInfo->length = calloc(pResInfo->numOfCols, sizeof(int32_t));
+  }
+}
+
 void setResultDataPtr(SReqResultInfo* pResultInfo, TAOS_FIELD* pFields, int32_t numOfCols, int32_t numOfRows) {
   assert(numOfCols > 0 && pFields != NULL && pResultInfo != NULL);
   if (numOfRows == 0) {
     return;
   }
+
+  // todo check for the failure of malloc
+  doPrepareResPtr(pResultInfo);
 
   int32_t offset = 0;
   for (int32_t i = 0; i < numOfCols; ++i) {
@@ -714,3 +778,14 @@ void setConnectionDB(STscObj* pTscObj, const char* db) {
   pthread_mutex_unlock(&pTscObj->mutex);
 }
 
+void setQueryResultByRsp(SReqResultInfo* pResultInfo, const SRetrieveTableRsp* pRsp) {
+  assert(pResultInfo != NULL && pRsp != NULL);
+
+  pResultInfo->pRspMsg   = (const char*) pRsp;
+  pResultInfo->pData     = (void*) pRsp->data;
+  pResultInfo->numOfRows = htonl(pRsp->numOfRows);
+  pResultInfo->current   = 0;
+  pResultInfo->completed = (pRsp->completed == 1);
+
+  setResultDataPtr(pResultInfo, pResultInfo->fields, pResultInfo->numOfCols, pResultInfo->numOfRows);
+}

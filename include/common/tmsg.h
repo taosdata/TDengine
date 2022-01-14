@@ -1025,6 +1025,14 @@ typedef struct {
   uint64_t sId;
   uint64_t queryId;
   uint64_t taskId;
+} SSinkDataReq;
+
+
+typedef struct {
+  SMsgHead header;
+  uint64_t sId;
+  uint64_t queryId;
+  uint64_t taskId;
 } SResReadyReq;
 
 typedef struct {

@@ -57,34 +57,33 @@ void qDestroyQueryDag(struct SQueryDag* pDag) {
 }
 
 int32_t qCreateQueryDag(const struct SQueryNode* pNode, struct SQueryDag** pDag, uint64_t requestId) {
-  SQueryPlanNode* logicPlan;
-  int32_t code = createQueryPlan(pNode, &logicPlan);
+  SQueryPlanNode* pLogicPlan;
+  int32_t code = createQueryPlan(pNode, &pLogicPlan);
   if (TSDB_CODE_SUCCESS != code) {
-    destroyQueryPlan(logicPlan);
+    destroyQueryPlan(pLogicPlan);
     return code;
   }
 
-  //
-  if (logicPlan->info.type != QNODE_MODIFY) {
+  if (pLogicPlan->info.type != QNODE_MODIFY) {
 //    char* str = NULL;
-//    queryPlanToString(logicPlan, &str);
+//    queryPlanToString(pLogicPlan, &str);
 //    printf("%s\n", str);
   }
 
-  code = optimizeQueryPlan(logicPlan);
+  code = optimizeQueryPlan(pLogicPlan);
   if (TSDB_CODE_SUCCESS != code) {
-    destroyQueryPlan(logicPlan);
+    destroyQueryPlan(pLogicPlan);
     return code;
   }
 
-  code = createDag(logicPlan, NULL, pDag, requestId);
+  code = createDag(pLogicPlan, NULL, pDag, requestId);
   if (TSDB_CODE_SUCCESS != code) {
-    destroyQueryPlan(logicPlan);
+    destroyQueryPlan(pLogicPlan);
     qDestroyQueryDag(*pDag);
     return code;
   }
 
-  destroyQueryPlan(logicPlan);
+  destroyQueryPlan(pLogicPlan);
   return TSDB_CODE_SUCCESS;
 }
 

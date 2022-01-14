@@ -20,6 +20,11 @@
 extern "C" {
 #endif
 
+#ifdef USE_UV
+
+#else
+
+#endif
 #ifdef __cplusplus
 }
 #endif

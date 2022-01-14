@@ -23,22 +23,18 @@ extern "C" {
 /* ------------------------ TYPES EXPOSED ------------------------ */
 typedef struct SDnode SDnode;
 typedef struct SBnode SBnode;
-typedef int32_t (*SendReqToDnodeFp)(SDnode *pDnode, struct SEpSet *epSet, struct SRpcMsg *rpcMsg);
-typedef int32_t (*SendReqToMnodeFp)(SDnode *pDnode, struct SRpcMsg *rpcMsg);
-typedef void (*SendRedirectRspFp)(SDnode *pDnode, struct SRpcMsg *rpcMsg);
+typedef int32_t (*SendReqToDnodeFp)(SDnode *pDnode, struct SEpSet *epSet, struct SRpcMsg *pMsg);
+typedef int32_t (*SendReqToMnodeFp)(SDnode *pDnode, struct SRpcMsg *pMsg);
+typedef void (*SendRedirectRspFp)(SDnode *pDnode, struct SRpcMsg *pMsg);
 
 typedef struct {
   int64_t numOfErrors;
 } SBnodeLoad;
 
 typedef struct {
-  int32_t sver;
-} SBnodeCfg;
-
-typedef struct {
+  int32_t           sver;
   int32_t           dnodeId;
   int64_t           clusterId;
-  SBnodeCfg         cfg;
   SDnode           *pDnode;
   SendReqToDnodeFp  sendReqToDnodeFp;
   SendReqToMnodeFp  sendReqToMnodeFp;
