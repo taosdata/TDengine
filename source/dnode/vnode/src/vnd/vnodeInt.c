@@ -14,7 +14,8 @@
  */
 
 #define _DEFAULT_SOURCE
-#include "vnodeInt.h"
+#include "vnodeDef.h"
+// #include "vnodeInt.h"
 
 int32_t vnodeAlter(SVnode *pVnode, const SVnodeCfg *pCfg) { return 0; }
 
