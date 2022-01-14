@@ -48,9 +48,8 @@ class TDTestCase:
     def caseDescription(self):
 
         '''
-        case1 <wenzhouwww>: [TD-11389] : 
-            this test case is an test case for cache error , it will let  the cached data obtained by the client that has connected to taosd incorrect，
-            root cause : table schema is changed, tag hostname size is increased through schema-less insertion. The schema cache of client taos is not refreshed.
+        case1 <wenzhouwww>: [TD-12909] : 
+            this test case is for illegal SQL in query ,it will crash taosd.
 
         ''' 
         return 
@@ -66,24 +65,38 @@ class TDTestCase:
         tdSql.query("select distinct(hostname) from testdb.st")
         tdSql.checkRows(10)
 
-        binPath = self.getBuildPath() + "/build/bin/"
-        os.system( "taos -s ' ALTER STABLE testdb.st MODIFY TAG hostname binary(100); '" )
-        os.system("taos -s ' insert into testdb.sub_test using testdb.st tags(\"host_10000000000000000000\" , 100) values (now , 100 , 100.0 ); '")
-        
-    
-        tdLog.info (" ===============The correct result should be 11 rows ,there is error query result ====================")
+        tdSql.query("select count(*) from st where hostname >1")
+        tdSql.query("select count(*) from st where hostname >'1'")
 
-        os.system("taos -s ' select distinct(hostname) from testdb.st '")
+        tdSql.query("select count(*) from st where hostname <=1")
+        tdSql.query("select count(*) from st where hostname <='1'")
 
-        # this bug will occor at this connect  ,it should get 11 rows ,but return 10 rows ,this error is caused by cache 
-        # tdSql.query("reset query cache")
-        
+        tdSql.query("select count(*) from st where hostname !=1")
+        tdSql.query("select count(*) from st where hostname !='1'")
 
-        for i in range(5):
-            tdSql.query("select distinct(hostname) from testdb.st")
-            tdSql.checkRows(11)     # query 10 times every 10 second , test cache refresh
-            sleep(3)              
-    
+        tdSql.query("select count(*) from st where hostname <>1")
+        tdSql.query("select count(*) from st where hostname <>'1'")
+
+        tdSql.query("select count(*) from st where hostname in ('1','2')")
+
+        tdSql.query("select count(*) from st where hostname match '%'")
+        tdSql.query("select count(*) from st where hostname match '%1'")
+
+        tdSql.query("select count(*) from st where hostname between 1 and 2")
+        tdSql.query("select count(*) from st where hostname between 'abc' and 'def'")
+
+        tdSql.error("select count(*) from st where hostname between 1 and 2 or sum(1)")
+        tdSql.execute("select count(*) from st where hostname < max(123)")
+
+        tdSql.execute("select count(*) from st where hostname < max('abc')")
+        tdSql.execute("select count(*) from st where hostname < max(min(123))")
+
+        tdSql.execute("select count(*) from st where hostname < sum('abc')")
+        tdSql.execute("select count(*) from st where hostname < sum(min(123))")
+
+        tdSql.execute("select count(*) from st where hostname < diff('abc')")
+        tdSql.execute("select count(*) from st where hostname < diff(min(123))")
+
 
     def stop(self):
         tdSql.close()

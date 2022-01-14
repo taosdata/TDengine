@@ -58,32 +58,18 @@ class TDTestCase:
    
     def run(self):
         tdSql.prepare()
-        tdSql.execute("create database if not exists testdb keep 36500;")
-        tdSql.execute("use testdb;")
-        tdSql.execute("create stable st (ts timestamp , id int , value double) tags(hostname binary(10) ,ind int);")
-        for i in range(self.num):
-            tdSql.execute("insert into sub_%s using st tags('host_%s' , %d) values (%d , %d , %f );"%(str(i),str(i),i*10,self.ts+10000*i,i*2,i+10.00))
-        tdSql.query("select distinct(hostname) from testdb.st")
-        tdSql.checkRows(10)
+        tdSql.execute("use db")
 
-        binPath = self.getBuildPath() + "/build/bin/"
-        os.system( "taos -s ' ALTER STABLE testdb.st MODIFY TAG hostname binary(100); '" )
-        os.system("taos -s ' insert into testdb.sub_test using testdb.st tags(\"host_10000000000000000000\" , 100) values (now , 100 , 100.0 ); '")
-        
-    
-        tdLog.info (" ===============The correct result should be 11 rows ,there is error query result ====================")
+        functions_list = ["count","avg","twa","irate","sum","stddev","LEASTSQUARES","min","max","first","last","last_row()","top","bottom",
+        "spread","ceil","floor","round"]
+        os.system("taosBenchmark -t 10 -n 5 -y ")
 
-        os.system("taos -s ' select distinct(hostname) from testdb.st '")
+        params_list = ["(,)","(,,)","(current)","(current,,,)*tbname","(*),","(abc,,)"]
+        for func in functions_list:
+            for params in params_list:
+                sql = "select %s%s from test.meters;"%(func,params)
+                tdSql.error(sql)
 
-        # this bug will occor at this connect  ,it should get 11 rows ,but return 10 rows ,this error is caused by cache 
-        # tdSql.query("reset query cache")
-        
-
-        for i in range(5):
-            tdSql.query("select distinct(hostname) from testdb.st")
-            tdSql.checkRows(11)     # query 10 times every 10 second , test cache refresh
-            sleep(3)              
-    
 
     def stop(self):
         tdSql.close()
