@@ -1460,34 +1460,37 @@ void scheduleFreeJob(void *job) {
   }
 
   SSchJob *pJob = job;
+  uint64_t queryId = pJob->queryId;
 
-  if (0 != taosHashRemove(schMgmt.jobs, &pJob->queryId, sizeof(pJob->queryId))) {
-    SCH_JOB_ELOG("taosHashRemove job from list failed, may already freed, pJob:%p", pJob);
-    return;
-  }
-
-  schCheckAndUpdateJobStatus(pJob, JOB_TASK_STATUS_DROPPING);
-
-  SCH_JOB_DLOG("job removed from list, no further ref, ref:%d", atomic_load_32(&pJob->ref));
-
-  while (true) {
-    int32_t ref = atomic_load_32(&pJob->ref);
-    if (0 == ref) {
-      break;
-    } else if (ref > 0) {
-      usleep(1);
-    } else {
-      assert(0);
+  if (SCH_GET_JOB_STATUS(pJob) > 0) {
+    if (0 != taosHashRemove(schMgmt.jobs, &pJob->queryId, sizeof(pJob->queryId))) {
+      SCH_JOB_ELOG("taosHashRemove job from list failed, may already freed, pJob:%p", pJob);
+      return;
     }
+
+    schCheckAndUpdateJobStatus(pJob, JOB_TASK_STATUS_DROPPING);
+
+    SCH_JOB_DLOG("job removed from list, no further ref, ref:%d", atomic_load_32(&pJob->ref));
+
+    while (true) {
+      int32_t ref = atomic_load_32(&pJob->ref);
+      if (0 == ref) {
+        break;
+      } else if (ref > 0) {
+        usleep(1);
+      } else {
+        assert(0);
+      }
+    }
+
+    SCH_JOB_DLOG("job no ref now, status:%d", SCH_GET_JOB_STATUS(pJob));
+
+    if (pJob->status == JOB_TASK_STATUS_EXECUTING) {
+      schCancelJob(pJob);
+    }
+
+    schDropJobAllTasks(pJob);
   }
-
-  SCH_JOB_DLOG("job no ref now, status:%d", SCH_GET_JOB_STATUS(pJob));
-
-  if (pJob->status == JOB_TASK_STATUS_EXECUTING) {
-    schCancelJob(pJob);
-  }
-
-  schDropJobAllTasks(pJob);
 
   pJob->subPlans = NULL; // it is a reference to pDag->pSubplans
   
@@ -1513,6 +1516,8 @@ void scheduleFreeJob(void *job) {
   tfree(pJob->res);
   
   tfree(pJob);
+
+  qDebug("QID:%"PRIx64" job freed", queryId);
 }
   
 void schedulerDestroy(void) {

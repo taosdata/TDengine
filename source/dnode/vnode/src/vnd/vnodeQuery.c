@@ -19,11 +19,22 @@
 static int32_t vnodeGetTableList(SVnode *pVnode, SRpcMsg *pMsg);
 static int     vnodeGetTableMeta(SVnode *pVnode, SRpcMsg *pMsg, SRpcMsg **pRsp);
 
-int vnodeQueryOpen(SVnode *pVnode) { return qWorkerInit(NULL, &pVnode->pQuery); }
+int vnodeQueryOpen(SVnode *pVnode) { return qWorkerInit(NODE_TYPE_VNODE, pVnode->vgId, NULL, &pVnode->pQuery, pVnode, vnodePutReqToVQueryQ); }
 
 int vnodeProcessQueryReq(SVnode *pVnode, SRpcMsg *pMsg, SRpcMsg **pRsp) {
-  vTrace("query message is processed");
-  return qWorkerProcessQueryMsg(pVnode->pTsdb, pVnode->pQuery, pMsg);
+  vTrace("query message is processing");
+
+  switch (pMsg->msgType) {
+    case TDMT_VND_QUERY:
+      return qWorkerProcessQueryMsg(pVnode->pTsdb, pVnode->pQuery, pMsg);
+    case TDMT_VND_QUERY_CONTINUE:
+      return qWorkerProcessQueryContinueMsg(pVnode->pTsdb, pVnode->pQuery, pMsg);
+    case TDMT_VND_SCHEDULE_DATA_SINK:
+      return qWorkerProcessDataSinkMsg(pVnode->pTsdb, pVnode->pQuery, pMsg);
+    default:
+      vError("unknown msg type:%d in query queue", pMsg->msgType);
+      return TSDB_CODE_VND_APP_ERROR;
+  }
 }
 
 int vnodeProcessFetchReq(SVnode *pVnode, SRpcMsg *pMsg, SRpcMsg **pRsp) {
