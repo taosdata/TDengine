@@ -18,6 +18,7 @@
 #include "taosdef.h"
 #include "taosmsg.h"
 #include "tcmdtype.h"
+#include "tcompare.h"
 #include "tstrbuild.h"
 #include "ttoken.h"
 #include "ttokendef.h"
@@ -318,7 +319,8 @@ tSqlExpr *tSqlExprCreate(tSqlExpr *pLeft, tSqlExpr *pRight, int32_t optrType) {
   }
 
   if ((pLeft != NULL && pRight != NULL) &&
-      (optrType == TK_PLUS || optrType == TK_MINUS || optrType == TK_STAR || optrType == TK_DIVIDE || optrType == TK_REM)) {
+      (optrType == TK_PLUS || optrType == TK_MINUS || optrType == TK_STAR || optrType == TK_DIVIDE || optrType == TK_REM ||
+       optrType == TK_EQ || optrType == TK_NE || optrType == TK_LT || optrType == TK_GT || optrType == TK_LE || optrType == TK_GE)) {
     /*
      * if a exprToken is noted as the TK_TIMESTAMP, the time precision is microsecond
      * Otherwise, the time precision is adaptive, determined by the time precision from databases.
@@ -360,6 +362,30 @@ tSqlExpr *tSqlExprCreate(tSqlExpr *pLeft, tSqlExpr *pRight, int32_t optrType) {
           pExpr->value.i64 = pLeft->value.i64 % pRight->value.i64;
           break;
         }
+        case TK_EQ: {
+          pExpr->value.i64 = (pLeft->value.i64 == pRight->value.i64) ? 1 : 0;
+          break;
+        }
+        case TK_NE: {
+          pExpr->value.i64 = (pLeft->value.i64 != pRight->value.i64) ? 1 : 0;
+          break;
+        }
+        case TK_LT: {
+          pExpr->value.i64 = (pLeft->value.i64 < pRight->value.i64) ? 1 : 0;
+          break;
+        }
+        case TK_GT: {
+          pExpr->value.i64 = (pLeft->value.i64 > pRight->value.i64) ? 1 : 0;
+          break;
+        }
+        case TK_LE: {
+          pExpr->value.i64 = (pLeft->value.i64 <= pRight->value.i64) ? 1 : 0;
+          break;
+        }
+        case TK_GE: {
+          pExpr->value.i64 = (pLeft->value.i64 >= pRight->value.i64) ? 1 : 0;
+          break;
+        }
       }
 
       tSqlExprDestroy(pLeft);
@@ -393,6 +419,68 @@ tSqlExpr *tSqlExprCreate(tSqlExpr *pLeft, tSqlExpr *pRight, int32_t optrType) {
         }
         case TK_REM: {
           pExpr->value.dKey = left - ((int64_t)(left / right)) * right;
+          break;
+        }
+        case TK_EQ: {
+          pExpr->tokenId = TK_INTEGER;
+          pExpr->value.nType = TSDB_DATA_TYPE_BIGINT;
+          if (compareDoubleVal(&left, &right) == 0) {
+            pExpr->value.i64 = 1;
+          } else {
+            pExpr->value.i64 = 0;
+          }
+          break;
+        }
+        case TK_NE: {
+          pExpr->tokenId = TK_INTEGER;
+          pExpr->value.nType = TSDB_DATA_TYPE_BIGINT;
+          if (compareDoubleVal(&left, &right) != 0) {
+            pExpr->value.i64 = 1;
+          } else {
+            pExpr->value.i64 = 0;
+          }
+          break;
+        }
+        case TK_LT: {
+          pExpr->tokenId = TK_INTEGER;
+          pExpr->value.nType = TSDB_DATA_TYPE_BIGINT;
+          if (compareDoubleVal(&left, &right) == -1) {
+            pExpr->value.i64 = 1;
+          } else {
+            pExpr->value.i64 = 0;
+          }
+          break;
+        }
+        case TK_GT: {
+          pExpr->tokenId = TK_INTEGER;
+          pExpr->value.nType = TSDB_DATA_TYPE_BIGINT;
+          if (compareDoubleVal(&left, &right) == 1) {
+            pExpr->value.i64 = 1;
+          } else {
+            pExpr->value.i64 = 0;
+          }
+          break;
+        }
+        case TK_LE: {
+          int32_t res = compareDoubleVal(&left, &right);
+          pExpr->tokenId = TK_INTEGER;
+          pExpr->value.nType = TSDB_DATA_TYPE_BIGINT;
+          if (res == 0 || res == -1) {
+            pExpr->value.i64 = 1;
+          } else {
+            pExpr->value.i64 = 0;
+          }
+          break;
+        }
+        case TK_GE: {
+          int32_t res = compareDoubleVal(&left, &right);
+          pExpr->tokenId = TK_INTEGER;
+          pExpr->value.nType = TSDB_DATA_TYPE_BIGINT;
+          if (res == 0 || res == 1) {
+            pExpr->value.i64 = 1;
+          } else {
+            pExpr->value.i64 = 0;
+          }
           break;
         }
       }
