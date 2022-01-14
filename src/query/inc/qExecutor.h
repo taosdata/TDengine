@@ -237,6 +237,7 @@ typedef struct SQueryAttr {
   bool             createFilterOperator; // if filter operator is needed
   bool             multigroupResult; // multigroup result can exist in one SSDataBlock
   bool             needSort;         // need sort rowRes
+  bool             skipOffset;       // can skip offset if true 
   int32_t          interBufSize;     // intermediate buffer sizse
 
   int32_t          havingNum;        // having expr number
@@ -427,6 +428,8 @@ typedef struct SQueryParam {
   int32_t          tableScanOperator;
   SArray          *pOperator;
   SUdfInfo        *pUdfInfo;
+  int16_t         schemaVersion;
+  int16_t         tagVersion;
 } SQueryParam;
 
 typedef struct SColumnDataParam{
@@ -659,7 +662,7 @@ void* doDestroyFilterInfo(SSingleColumnFilterInfo* pFilterInfo, int32_t numOfFil
 void setInputDataBlock(SOperatorInfo* pOperator, SQLFunctionCtx* pCtx, SSDataBlock* pBlock, int32_t order);
 int32_t getNumOfResult(SQueryRuntimeEnv *pRuntimeEnv, SQLFunctionCtx* pCtx, int32_t numOfOutput);
 void finalizeQueryResult(SOperatorInfo* pOperator, SQLFunctionCtx* pCtx, SResultRowInfo* pResultRowInfo, int32_t* rowCellInfoOffset);
-void updateOutputBuf(SOptrBasicInfo* pBInfo, int32_t *bufCapacity, int32_t numOfInputRows);
+void updateOutputBuf(SOptrBasicInfo* pBInfo, int32_t *bufCapacity, int32_t numOfInputRows, SQueryRuntimeEnv* runtimeEnv);
 void clearOutputBuf(SOptrBasicInfo* pBInfo, int32_t *bufCapacity);
 void copyTsColoum(SSDataBlock* pRes, SQLFunctionCtx* pCtx, int32_t numOfOutput);
 

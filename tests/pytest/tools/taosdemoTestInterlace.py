@@ -33,6 +33,7 @@ class TDTestCase:
         else:
             projPath = selfPath[:selfPath.find("tests")]
 
+        buildPath = ""
         for root, dirs, files in os.walk(projPath):
             if ("taosd" in files):
                 rootRealPath = os.path.dirname(os.path.realpath(root))
@@ -49,7 +50,7 @@ class TDTestCase:
         else:
             tdLog.info("taosd found in %s" % buildPath)
         binPath = buildPath + "/build/bin/"
-        taosdemoCmd = "%staosBenchmark -f tools/insert-interlace.json -PP 2>&1 | grep sleep | wc -l" % binPath
+        taosdemoCmd = "%staosBenchmark -f tools/insert-interlace.json -G 2>&1 | grep sleep | wc -l" % binPath
         sleepTimes = subprocess.check_output(
             taosdemoCmd, shell=True).decode("utf-8")
         print("sleep times: %d" % int(sleepTimes))

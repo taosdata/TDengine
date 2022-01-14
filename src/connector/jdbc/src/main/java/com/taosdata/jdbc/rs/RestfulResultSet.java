@@ -1,7 +1,9 @@
 package com.taosdata.jdbc.rs;
 
+import com.alibaba.fastjson.JSON;
 import com.alibaba.fastjson.JSONArray;
 import com.alibaba.fastjson.JSONObject;
+import com.alibaba.fastjson.serializer.SerializerFeature;
 import com.google.common.primitives.Ints;
 import com.google.common.primitives.Longs;
 import com.google.common.primitives.Shorts;
@@ -184,6 +186,11 @@ public class RestfulResultSet extends AbstractResultSet implements ResultSet {
                 return row.getString(colIndex) == null ? null : row.getString(colIndex).getBytes();
             case TSDBConstants.TSDB_DATA_TYPE_NCHAR:
                 return row.getString(colIndex) == null ? null : row.getString(colIndex);
+            case TSDBConstants.TSDB_DATA_TYPE_JSON:
+                //  all json tag or just a json tag value
+                return row.get(colIndex) != null && (row.get(colIndex) instanceof String || row.get(colIndex) instanceof JSONObject)
+                        ? JSON.toJSONString(row.get(colIndex), SerializerFeature.WriteMapNullValue)
+                        : row.get(colIndex);
             default:
                 return row.get(colIndex);
         }

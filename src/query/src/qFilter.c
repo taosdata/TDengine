@@ -3585,6 +3585,10 @@ _return:
 
 
 int32_t filterConverNcharColumns(SFilterInfo* info, int32_t rows, bool *gotNchar) {
+  if (FILTER_EMPTY_RES(info) || FILTER_ALL_RES(info)) {
+    return TSDB_CODE_SUCCESS;
+  }
+  
   for (uint32_t i = 0; i < info->fields[FLD_TYPE_COLUMN].num; ++i) {
     SFilterField* fi = &info->fields[FLD_TYPE_COLUMN].fields[i];
     int32_t type = FILTER_GET_COL_FIELD_TYPE(fi);

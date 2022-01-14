@@ -31,7 +31,7 @@ class TDTestCase:
     def caseDescription(self):
 
         '''
-        case1 <authors>: wenzhouwww[TD-12388] : 
+        case1 <wenzhouwww>: [TD-12388] : 
             this test case is an test case for unit time params about elapsed function. 
 
         ''' 
