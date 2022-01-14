@@ -207,7 +207,7 @@ TAOS_FIELD* tscFieldInfoGetField(SFieldInfo* pFieldInfo, int32_t index);
 
 void tscFieldInfoUpdateOffset(SQueryInfo* pQueryInfo);
 
-int16_t tscFieldInfoGetOffset(SQueryInfo* pQueryInfo, int32_t index);
+int32_t tscFieldInfoGetOffset(SQueryInfo* pQueryInfo, int32_t index);
 void    tscFieldInfoClear(SFieldInfo* pFieldInfo);
 void tscFieldInfoCopy(SFieldInfo* pFieldInfo, const SFieldInfo* pSrc, const SArray* pExprList);
 
