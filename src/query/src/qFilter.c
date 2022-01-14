@@ -927,7 +927,9 @@ int32_t filterAddUnit(SFilterInfo *info, uint8_t optr, SFilterFieldId *left, SFi
     SFilterField *val = FILTER_UNIT_RIGHT_FIELD(info, u);  
     assert(FILTER_GET_FLAG(val->flag, FLD_TYPE_VALUE));
   } else {
-    assert(optr == TSDB_RELATION_ISNULL || optr == TSDB_RELATION_NOTNULL || optr == FILTER_DUMMY_EMPTY_OPTR);
+    if(optr != TSDB_RELATION_ISNULL && optr != TSDB_RELATION_NOTNULL && optr != FILTER_DUMMY_EMPTY_OPTR){
+      return -1;
+    }
   }
   
   SFilterField *col = FILTER_UNIT_LEFT_FIELD(info, u);
@@ -1257,7 +1259,8 @@ int32_t filterAddGroupUnitFromNode(SFilterInfo *info, tExprNode* tree, SArray *g
   } else {
     filterAddFieldFromNode(info, tree->_node.pRight, &right);
     
-    filterAddUnit(info, tree->_node.optr, &left, &right, &uidx);
+    ret = filterAddUnit(info, tree->_node.optr, &left, &right, &uidx);
+    CHK_LRET(ret != TSDB_CODE_SUCCESS, TSDB_CODE_QRY_APP_ERROR, "invalid where condition");
 
     SFilterGroup fgroup = {0};
     filterAddUnitToGroup(&fgroup, uidx);
