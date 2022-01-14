@@ -289,7 +289,7 @@ char     Compressor[32] = "ZSTD_COMPRESSOR";  // ZSTD_COMPRESSOR or GZIP_COMPRES
 #endif
 
 // long query death-lock
-int8_t tsDeadLockKillQuery = 0;
+int8_t tsDeadLockKillQuery = 1;
 
 // default JSON string type
 char tsDefaultJSONStrType[7] = "nchar";

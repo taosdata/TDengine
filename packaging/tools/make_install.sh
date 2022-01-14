@@ -137,17 +137,17 @@ function install_main_path() {
         ${csudo}mkdir -p ${install_main_dir}
         ${csudo}mkdir -p ${install_main_dir}/cfg
         ${csudo}mkdir -p ${install_main_dir}/bin
-        ${csudo}mkdir -p ${install_main_dir}/connector
+#        ${csudo}mkdir -p ${install_main_dir}/connector
         ${csudo}mkdir -p ${install_main_dir}/driver
         ${csudo}mkdir -p ${install_main_dir}/examples
         ${csudo}mkdir -p ${install_main_dir}/include
-        ${csudo}mkdir -p ${install_main_dir}/init.d
+#        ${csudo}mkdir -p ${install_main_dir}/init.d
     else
         ${csudo}rm -rf ${install_main_dir}             || ${csudo}rm -rf ${install_main_2_dir}             || :
         ${csudo}mkdir -p ${install_main_dir}           || ${csudo}mkdir -p ${install_main_2_dir}
         ${csudo}mkdir -p ${install_main_dir}/cfg       || ${csudo}mkdir -p ${install_main_2_dir}/cfg
         ${csudo}mkdir -p ${install_main_dir}/bin       || ${csudo}mkdir -p ${install_main_2_dir}/bin
-        ${csudo}mkdir -p ${install_main_dir}/connector || ${csudo}mkdir -p ${install_main_2_dir}/connector
+#        ${csudo}mkdir -p ${install_main_dir}/connector || ${csudo}mkdir -p ${install_main_2_dir}/connector
         ${csudo}mkdir -p ${install_main_dir}/driver    || ${csudo}mkdir -p ${install_main_2_dir}/driver
         ${csudo}mkdir -p ${install_main_dir}/examples  || ${csudo}mkdir -p ${install_main_2_dir}/examples
         ${csudo}mkdir -p ${install_main_dir}/include   || ${csudo}mkdir -p ${install_main_2_dir}/include
@@ -168,9 +168,15 @@ function install_bin() {
         ${csudo}rm -f ${bin_link_dir}/run_taosd.sh || :
         ${csudo}rm -f ${bin_link_dir}/rmtaos   || :
 
-        ${csudo}cp -r ${binary_dir}/build/bin/* ${install_main_dir}/bin
-        ${csudo}cp -r ${script_dir}/taosd-dump-cfg.gdb   ${install_main_dir}/bin
+        ${csudo}cp -r ${binary_dir}/build/bin/taos ${install_main_dir}/bin || :
+        [ -f ${binary_dir}/build/bin/taosBenchmark ] && ${csudo}cp -r ${binary_dir}/build/bin/taosBenchmark ${install_main_dir}/bin || :
+        [ -f ${install_main_dir}/bin/taosBenchmark ] && ${csudo}ln -sf ${install_main_dir}/bin/taosBenchmark ${install_main_dir}/bin/taosdemo || :
+        [ -f ${binary_dir}/build/bin/taosdump ] && ${csudo}cp -r ${binary_dir}/build/bin/taosdump ${install_main_dir}/bin || :
+        [ -f ${binary_dir}/build/bin/taosadapter ] && ${csudo}cp -r ${binary_dir}/build/bin/taosadapter ${install_main_dir}/bin || :
+        ${csudo}cp -r ${binary_dir}/build/bin/taosd ${install_main_dir}/bin || :
+        ${csudo}cp -r ${binary_dir}/build/bin/tarbitrator ${install_main_dir}/bin || :
 
+        ${csudo}cp -r ${script_dir}/taosd-dump-cfg.gdb   ${install_main_dir}/bin
         ${csudo}cp -r ${script_dir}/remove.sh     ${install_main_dir}/bin
         ${csudo}cp -r ${script_dir}/set_core.sh   ${install_main_dir}/bin
         ${csudo}cp -r ${script_dir}/run_taosd.sh   ${install_main_dir}/bin
@@ -458,10 +464,10 @@ function install_service_on_sysvinit() {
 
     # Install taosd service
     if ((${os_type}==1)); then
-        ${csudo}cp -f ${script_dir}/../deb/taosd ${install_main_dir}/init.d
+#        ${csudo}cp -f ${script_dir}/../deb/taosd ${install_main_dir}/init.d
         ${csudo}cp    ${script_dir}/../deb/taosd ${service_config_dir} && ${csudo}chmod a+x ${service_config_dir}/taosd
     elif ((${os_type}==2)); then
-        ${csudo}cp -f ${script_dir}/../rpm/taosd ${install_main_dir}/init.d
+#        ${csudo}cp -f ${script_dir}/../rpm/taosd ${install_main_dir}/init.d
         ${csudo}cp    ${script_dir}/../rpm/taosd ${service_config_dir} && ${csudo}chmod a+x ${service_config_dir}/taosd
     fi
 
@@ -563,7 +569,7 @@ function update_TDengine() {
     install_log
     install_header
     install_lib
-    install_connector
+#    install_connector
     install_examples
     install_bin
 
@@ -603,7 +609,7 @@ function install_TDengine() {
     install_log
     install_header
     install_lib
-    install_connector
+#    install_connector
     install_examples
     install_bin
 

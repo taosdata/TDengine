@@ -31,7 +31,7 @@ class TDTestCase:
     def caseDescription(self):
 
         '''
-        case1 <authors>: wenzhouwww[TD-11943] : 
+        case1 <wenzhouwww>: [TD-11943] : 
             this test case is an test case for unexpected coredump about taosd ;
             root cause : the pExpr2 of sql select tbname, max(col)+5 from child_table has two functions, col_proj and scalar_expr.
             for function col_proj (tbname column), it is a tag during master scan stage, the input data is not set. 

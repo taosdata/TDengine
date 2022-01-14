@@ -25,9 +25,8 @@ extern "C" {
 #include "tcrc32c.h"
 #include "taosdef.h"
 
-int32_t strdequote(char *src);
-int32_t strRmquote(char *z, int32_t len);
-int32_t strRmquoteEscape(char *z, int32_t len);
+int32_t strDealWithEscape(char *z, int32_t len);
+int32_t stringProcess(char *z, int32_t len);
 size_t  strtrim(char *src);
 char *  tstrstr(char *src, char *dst, bool ignoreInEsc);
 char *  strnchr(char *haystack, char needle, int32_t len, bool skipquote);
@@ -57,6 +56,13 @@ static FORCE_INLINE void taosEncryptPass(uint8_t *inBuf, size_t inLen, char *tar
   MD5Final(&context);
   memcpy(target, context.digest, TSDB_KEY_LEN);
 }
+
+//
+// TSKEY util
+//
+
+// if time area(s1,e1) intersect with time area(s2,e2) then return true else return false
+bool timeIntersect(TSKEY s1, TSKEY e1, TSKEY s2, TSKEY e2);
 
 #ifdef __cplusplus
 }

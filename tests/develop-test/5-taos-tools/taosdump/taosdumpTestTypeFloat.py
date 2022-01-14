@@ -41,6 +41,7 @@ class TDTestCase:
         else:
             projPath = selfPath[:selfPath.find("tests")]
 
+        buildPath = ""
         for root, dirs, files in os.walk(projPath):
             if ("taosdump" in files):
                 rootRealPath = os.path.dirname(os.path.realpath(root))
