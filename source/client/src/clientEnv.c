@@ -199,6 +199,7 @@ static void doDestroyRequest(void* p) {
   tfree(pRequest->pInfo);
 
   doFreeReqResultInfo(&pRequest->body.resInfo);
+  qDestroyQueryDag(pRequest->body.pDag);
 
   deregisterRequest(pRequest);
   tfree(pRequest);

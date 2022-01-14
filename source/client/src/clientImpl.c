@@ -331,7 +331,6 @@ TAOS_RES *taos_query_l(TAOS *taos, const char *sql, int sqlLen) {
 
   SRequestObj *pRequest = NULL;
   SQueryNode  *pQuery   = NULL;
-  SQueryDag   *pDag     = NULL;
 
   terrno = TSDB_CODE_SUCCESS;
   CHECK_CODE_GOTO(buildRequest(pTscObj, sql, sqlLen, &pRequest), _return);
@@ -340,14 +339,13 @@ TAOS_RES *taos_query_l(TAOS *taos, const char *sql, int sqlLen) {
   if (qIsDdlQuery(pQuery)) {
     CHECK_CODE_GOTO(execDdlQuery(pRequest, pQuery), _return);
   } else {
-    CHECK_CODE_GOTO(getPlan(pRequest, pQuery, &pDag), _return);
-    CHECK_CODE_GOTO(scheduleQuery(pRequest, pDag), _return);
+    CHECK_CODE_GOTO(getPlan(pRequest, pQuery, &pRequest->body.pDag), _return);
+    CHECK_CODE_GOTO(scheduleQuery(pRequest, pRequest->body.pDag), _return);
     pRequest->code = terrno;
   }
 
 _return:
   qDestroyQuery(pQuery);
-  qDestroyQueryDag(pDag);
   if (NULL != pRequest && TSDB_CODE_SUCCESS != terrno) {
     pRequest->code = terrno;
   }
