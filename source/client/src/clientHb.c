@@ -13,6 +13,7 @@
  * along with this program. If not, see <http://www.gnu.org/licenses/>.
  */
 
+#include "clientInt.h"
 #include "clientHb.h"
 #include "trpc.h"
 
@@ -21,8 +22,16 @@ static SClientHbMgr clientHbMgr = {0};
 static int32_t hbCreateThread();
 static void    hbStopThread();
 
-static int32_t hbMqHbRspHandle(SClientHbRsp* pReq) {
+static int32_t hbMqHbRspHandle(SClientHbRsp* pRsp) {
   return 0;
+}
+
+static int32_t hbMqAsyncCallBack(void* param, const SDataBuf* pMsg, int32_t code) {
+  if (code != 0) {
+    return -1;
+  }
+  SClientHbRsp* pRsp = (SClientHbRsp*) pMsg->pData;
+  return hbMqHbRspHandle(pRsp);
 }
 
 void hbMgrInitMqHbRspHandle() {
@@ -77,18 +86,31 @@ static void* hbThreadFunc(void* param) {
     for(int i = 0; i < sz; i++) {
       SAppHbMgr* pAppHbMgr = taosArrayGet(clientHbMgr.appHbMgrs, i);
       SClientHbBatchReq* pReq = hbGatherAllInfo(pAppHbMgr);
-      void* reqStr = NULL;
-      int tlen = tSerializeSClientHbBatchReq(&reqStr, pReq);
+      int tlen = tSerializeSClientHbBatchReq(NULL, pReq);
+      void *buf = malloc(tlen);
+      if (buf == NULL) {
+        //TODO: error handling
+        break;
+      }
+      tSerializeSClientHbBatchReq(buf, pReq);
       SMsgSendInfo info;
-      /*info.fp = hbHandleRsp;*/
+      info.fp = hbMqAsyncCallBack;
+      info.msgInfo.pData = buf;
+      info.msgInfo.len = tlen;
+      info.msgType = TDMT_MND_HEARTBEAT;
+      info.param = NULL;
+      info.requestId = generateRequestId();
+      info.requestObjRefId = -1;
 
+      SAppInstInfo *pAppInstInfo = pAppHbMgr->pAppInstInfo;
       int64_t transporterId = 0;
-      asyncSendMsgToServer(pAppHbMgr->transporter, &pAppHbMgr->epSet, &transporterId, &info);
+      SEpSet epSet = getEpSet_s(&pAppInstInfo->mgmtEp);
+      asyncSendMsgToServer(pAppInstInfo->pTransporter, &epSet, &transporterId, &info);
       tFreeClientHbBatchReq(pReq);
 
       atomic_add_fetch_32(&pAppHbMgr->reportCnt, 1);
-      taosMsleep(HEARTBEAT_INTERVAL);
     }
+    taosMsleep(HEARTBEAT_INTERVAL);
   }
   return NULL;
 }
@@ -110,7 +132,8 @@ static void hbStopThread() {
   atomic_store_8(&clientHbMgr.threadStop, 1);
 }
 
-SAppHbMgr* appHbMgrInit(void* transporter, SEpSet epSet) {
+SAppHbMgr* appHbMgrInit(SAppInstInfo* pAppInstInfo) {
+  hbMgrInit();
   SAppHbMgr* pAppHbMgr = malloc(sizeof(SAppHbMgr)); 
   if (pAppHbMgr == NULL) {
     terrno = TSDB_CODE_OUT_OF_MEMORY;
@@ -119,9 +142,8 @@ SAppHbMgr* appHbMgrInit(void* transporter, SEpSet epSet) {
   // init stat
   pAppHbMgr->startTime = taosGetTimestampMs();
 
-  // init connection info
-  pAppHbMgr->transporter = transporter;
-  pAppHbMgr->epSet = epSet;
+  // init app info
+  pAppHbMgr->pAppInstInfo = pAppInstInfo;
 
   // init hash info
   pAppHbMgr->activeInfo = taosHashInit(64, hbKeyHashFunc, 1, HASH_ENTRY_LOCK);
@@ -171,7 +193,6 @@ void hbMgrCleanUp() {
   if (old == 0) return;
 
   taosArrayDestroy(clientHbMgr.appHbMgrs);
-
 }
 
 int hbHandleRsp(SClientHbBatchRsp* hbRsp) {

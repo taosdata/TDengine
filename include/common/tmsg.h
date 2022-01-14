@@ -68,6 +68,14 @@ typedef uint16_t tmsg_t;
 #define TSDB_IE_TYPE_DNODE_EXT 6
 #define TSDB_IE_TYPE_DNODE_STATE 7
 
+typedef enum {
+  HEARTBEAT_TYPE_MQ    = 0,
+  HEARTBEAT_TYPE_QUERY = 1,
+  // types can be added here
+  //
+  HEARTBEAT_TYPE_MAX
+} EHbType;
+
 typedef enum _mgmt_table {
   TSDB_MGMT_TABLE_START,
   TSDB_MGMT_TABLE_ACCT,
@@ -220,6 +228,7 @@ static FORCE_INLINE void* taosDecodeSClientHbKey(void* buf, SClientHbKey* pKey) 
   return buf;
 }
 
+
 typedef struct {
   int32_t vgId;
   char*   dbName;
@@ -356,6 +365,31 @@ static FORCE_INLINE void* taosDecodeSEpSet(void* buf, SEpSet* pEp) {
     buf = taosDecodeFixedU16(buf, &pEp->port[i]);
     buf = taosDecodeStringTo(buf, pEp->fqdn[i]);
   }
+  return buf;
+}
+
+typedef struct SMqHbRsp {
+  int8_t status;    //idle or not
+  int8_t vnodeChanged;
+  int8_t epChanged; // should use new epset
+  int8_t reserved;
+  SEpSet epSet;
+} SMqHbRsp;
+
+static FORCE_INLINE int taosEncodeSMqHbRsp(void** buf, const SMqHbRsp* pRsp) {
+  int tlen = 0;
+  tlen += taosEncodeFixedI8(buf, pRsp->status);
+  tlen += taosEncodeFixedI8(buf, pRsp->vnodeChanged);
+  tlen += taosEncodeFixedI8(buf, pRsp->epChanged);
+  tlen += taosEncodeSEpSet(buf, &pRsp->epSet);
+  return tlen;
+}
+
+static FORCE_INLINE void* taosDecodeSMqHbRsp(void* buf, SMqHbRsp* pRsp) {
+  buf = taosDecodeFixedI8(buf, &pRsp->status);
+  buf = taosDecodeFixedI8(buf, &pRsp->vnodeChanged);
+  buf = taosDecodeFixedI8(buf, &pRsp->epChanged);
+  buf = taosDecodeSEpSet(buf, &pRsp->epSet);
   return buf;
 }
 

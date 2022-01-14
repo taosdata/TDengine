@@ -258,6 +258,23 @@ static int32_t mndSaveQueryStreamList(SConnObj *pConn, SHeartBeatReq *pReq) {
 }
 
 static int32_t mndProcessHeartBeatReq(SMnodeMsg *pReq) {
+  SMnode *pMnode = pReq->pMnode;
+  char *batchReqStr = pReq->rpcMsg.pCont;
+  SClientHbBatchReq batchReq = {0};
+  tDeserializeClientHbBatchReq(batchReqStr, &batchReq);
+  SArray *pArray = batchReq.reqs;
+  int sz = taosArrayGetSize(pArray);
+  for (int i = 0; i < sz; i++) {
+    SClientHbReq* pReq = taosArrayGet(pArray, i);
+    if (pReq->connKey.hbType == HEARTBEAT_TYPE_QUERY) {
+
+    } else if (pReq->connKey.hbType == HEARTBEAT_TYPE_MQ) {
+
+    }
+  }
+  return 0;
+
+#if 0
   SMnode       *pMnode = pReq->pMnode;
   SProfileMgmt *pMgmt = &pMnode->profileMgmt;
 
@@ -327,6 +344,7 @@ static int32_t mndProcessHeartBeatReq(SMnodeMsg *pReq) {
   pReq->contLen = sizeof(SConnectRsp);
   pReq->pCont = pRsp;
   return 0;
+#endif
 }
 
 static int32_t mndProcessKillQueryReq(SMnodeMsg *pReq) {

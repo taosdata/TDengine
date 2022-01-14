@@ -199,8 +199,10 @@ int walCheckAndRepairMeta(SWal* pWal) {
 }
 
 int walCheckAndRepairIdx(SWal* pWal) {
-  // iterate all idx files
-  // check first and last entry of each idx file valid
+  // TODO: iterate all log files
+  // if idx not found, scan log and write idx
+  // if found, check complete by first and last entry of each idx file
+  // if idx incomplete, binary search last valid entry, and then build other part
   return 0;
 }
 
