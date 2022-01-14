@@ -13,8 +13,8 @@
  * along with this program. If not, see <http://www.gnu.org/licenses/>.
  */
 
-#ifndef _TD_TDB_BTREE_H_
-#define _TD_TDB_BTREE_H_
+#ifndef _TD_TDB_HEAP_H_
+#define _TD_TDB_HEAP_H_
 
 #include "tdbDef.h"
 
@@ -23,13 +23,13 @@ extern "C" {
 #endif
 
 typedef struct {
-  pgid_t root;  // root page number
-} TDB_BTREE;
+  // TODO
+} TDB_HEAP;
 
-TDB_PUBLIC int tdbInitBtreeDB(TDB *dbp);
+TDB_PUBLIC int tdbInitHeapDB(TDB *dbp);
 
 #ifdef __cplusplus
 }
 #endif
 
-#endif /*_TD_TDB_BTREE_H_*/
+#endif /*_TD_TDB_HEAP_H_*/

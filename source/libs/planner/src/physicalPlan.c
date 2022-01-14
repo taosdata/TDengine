@@ -295,11 +295,29 @@ static SPhyNode* createSingleTableScanNode(SQueryPlanNode* pPlanNode, SQueryTabl
 
 static SPhyNode* createTableScanNode(SPlanContext* pCxt, SQueryPlanNode* pPlanNode) {
   SQueryTableInfo* pTable = (SQueryTableInfo*)pPlanNode->pExtInfo;
-    
   if (needMultiNodeScan(pTable)) {
     return createExchangeNode(pCxt, pPlanNode, splitSubplanByTable(pCxt, pPlanNode, pTable));
   }
   return createSingleTableScanNode(pPlanNode, pTable, pCxt->pCurrentSubplan);
+}
+
+static SPhyNode* createSingleTableAgg(SPlanContext* pCxt, SQueryPlanNode* pPlanNode) {
+  SAggPhyNode* node = (SAggPhyNode*)initPhyNode(pPlanNode, OP_Aggregate, sizeof(SAggPhyNode));
+  SGroupbyExpr* pGroupBy = (SGroupbyExpr*)pPlanNode->pExtInfo;
+  node->aggAlgo = AGG_ALGO_PLAIN;
+  node->aggSplit = AGG_SPLIT_FINAL;
+  if (NULL != pGroupBy) {
+    node->aggAlgo = AGG_ALGO_HASHED;
+    node->pGroupByList = validPointer(taosArrayDup(pGroupBy->columnInfo));
+  }
+  return (SPhyNode*)node;
+}
+
+static SPhyNode* createAggNode(SPlanContext* pCxt, SQueryPlanNode* pPlanNode) {
+  // if (needMultiNodeAgg(pPlanNode)) {
+
+  // }
+  return createSingleTableAgg(pCxt, pPlanNode);
 }
 
 static SPhyNode* createPhyNode(SPlanContext* pCxt, SQueryPlanNode* pPlanNode) {
@@ -310,6 +328,10 @@ static SPhyNode* createPhyNode(SPlanContext* pCxt, SQueryPlanNode* pPlanNode) {
       break;
     case QNODE_TABLESCAN:
       node = createTableScanNode(pCxt, pPlanNode);
+      break;
+    case QNODE_AGGREGATE:
+    case QNODE_GROUPBY:
+      node = createAggNode(pCxt, pPlanNode);
       break;
     case QNODE_MODIFY:
       // Insert is not an operator in a physical plan.

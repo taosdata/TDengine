@@ -120,6 +120,25 @@ typedef struct SExchangePhyNode {
   SArray     *pSrcEndPoints;  // SEpAddr, scheduler fill by calling qSetSuplanExecutionNode
 } SExchangePhyNode;
 
+typedef enum EAggAlgo {
+	AGG_ALGO_PLAIN = 1, // simple agg across all input rows
+	AGG_ALGO_SORTED,    // grouped agg, input must be sorted
+	AGG_ALGO_HASHED     // grouped agg, use internal hashtable
+} EAggAlgo;
+
+typedef enum EAggSplit {
+	AGG_SPLIT_PRE = 1, // first level agg, maybe don't need calculate the final result
+	AGG_SPLIT_FINAL    // second level agg, must calculate the final result
+} EAggSplit;
+
+typedef struct SAggPhyNode {
+  SPhyNode    node;
+  EAggAlgo    aggAlgo;  // algorithm used by agg operator 
+  EAggSplit   aggSplit; // distributed splitting mode
+  SArray     *pExprs;   // SExprInfo list, these are expression list of group_by_clause and parameter expression of aggregate function
+  SArray     *pGroupByList; // SColIndex list, but these must be column node
+} SAggPhyNode;
+
 typedef struct SSubplanId {
   uint64_t queryId;
   uint64_t templateId;

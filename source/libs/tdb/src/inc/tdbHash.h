@@ -13,8 +13,8 @@
  * along with this program. If not, see <http://www.gnu.org/licenses/>.
  */
 
-#ifndef _TD_TKV_HAHS_H_
-#define _TD_TKV_HAHS_H_
+#ifndef _TD_TDB_HASH_H_
+#define _TD_TDB_HASH_H_
 
 #include "tdbDef.h"
 
@@ -26,8 +26,10 @@ typedef struct {
   // TODO
 } TDB_HASH;
 
+TDB_PUBLIC int tdbInitHashDB(TDB *dbp);
+
 #ifdef __cplusplus
 }
 #endif
 
-#endif /*_TD_TKV_HAHS_H_*/
+#endif /*_TD_TDB_HASH_H_*/
