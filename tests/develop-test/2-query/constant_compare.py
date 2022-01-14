@@ -1127,7 +1127,7 @@ class TDTestCase:
 
         tdSql.error('select 1 != 2 and "abc" or 1 >= 2 or "cde" between 4 and 5 and \'ghi\' or 10.1 from tb;')
         tdSql.error('select 1 != 2 and 1 < 2 or \'abc123\' or 2 between \'abc123\' and 5 and false or "abc123" from tb;')
-        tdSql.query('select \'1234\' or 1 < 2 or \'aace\' and "cde" between 4 and "def" and "ckas" or 10.1 from tb;')
+        tdSql.error('select \'1234\' or 1 < 2 or \'aace\' and "cde" between 4 and "def" and "ckas" or 10.1 from tb;')
 
         tdSql.execute('drop database db')
     def stop(self):
