@@ -135,6 +135,21 @@ class TDTestCase:
         tdSql.checkRows(1)
         tdSql.checkData(0, 0, 1)
 
+        tdSql.error('select "abc" = "def"')
+        tdSql.error('select "abc" = 1')
+        tdSql.error('select 1 = "abc"')
+        tdSql.error('select "abc" = 1.0')
+        tdSql.error('select 1.0 = "abc"')
+        tdSql.error('select "abc" = true')
+        tdSql.error('select false = "abc"')
+        tdSql.error('select \'abc\' = \'def\'')
+        tdSql.error('select \'abc\' = 1')
+        tdSql.error('select 1 = \'abc\'')
+        tdSql.error('select \'abc\' = 1.0')
+        tdSql.error('select 1.0 = \'abc\'')
+        tdSql.error('select \'abc\' = true')
+        tdSql.error('select false = \'abc\'')
+
 
         ##operator: !=
         tdSql.query('select 1 != 1 from tb;')
@@ -217,6 +232,21 @@ class TDTestCase:
         tdSql.checkRows(1)
         tdSql.checkData(0, 0, 0)
 
+        tdSql.error('select "abc" != "def"')
+        tdSql.error('select "abc" != 1')
+        tdSql.error('select 1 != "abc"')
+        tdSql.error('select "abc" != 1.0')
+        tdSql.error('select 1.0 != "abc"')
+        tdSql.error('select "abc" != true')
+        tdSql.error('select false != "abc"')
+        tdSql.error('select \'abc\' != \'def\'')
+        tdSql.error('select \'abc\' != 1')
+        tdSql.error('select 1 != \'abc\'')
+        tdSql.error('select \'abc\' != 1.0')
+        tdSql.error('select 1.0 != \'abc\'')
+        tdSql.error('select \'abc\' != true')
+        tdSql.error('select false != \'abc\'')
+
         ##operator: <>
         tdSql.query('select 1 <> 1 from tb;')
         tdSql.checkRows(1)
@@ -297,6 +327,21 @@ class TDTestCase:
         tdSql.query('select true <> 1.0000000001 from tb;') ##DBL_EPSILON is used in floating number comparison
         tdSql.checkRows(1)
         tdSql.checkData(0, 0, 0)
+
+        tdSql.error('select "abc" <> "def"')
+        tdSql.error('select "abc" <> 1')
+        tdSql.error('select 1 <> "abc"')
+        tdSql.error('select "abc" <> 1.0')
+        tdSql.error('select 1.0 <> "abc"')
+        tdSql.error('select "abc" <> true')
+        tdSql.error('select false <> "abc"')
+        tdSql.error('select \'abc\' <> \'def\'')
+        tdSql.error('select \'abc\' <> 1')
+        tdSql.error('select 1 <> \'abc\'')
+        tdSql.error('select \'abc\' <> 1.0')
+        tdSql.error('select 1.0 <> \'abc\'')
+        tdSql.error('select \'abc\' <> true')
+        tdSql.error('select false <> \'abc\'')
 
         ##operator: <
         tdSql.query('select 1 < 1 from tb;')
@@ -379,6 +424,21 @@ class TDTestCase:
         tdSql.checkRows(1)
         tdSql.checkData(0, 0, 0)
 
+        tdSql.error('select "abc" < "def"')
+        tdSql.error('select "abc" < 1')
+        tdSql.error('select 1 < "abc"')
+        tdSql.error('select "abc" < 1.0')
+        tdSql.error('select 1.0 < "abc"')
+        tdSql.error('select "abc" < true')
+        tdSql.error('select false < "abc"')
+        tdSql.error('select \'abc\' < \'def\'')
+        tdSql.error('select \'abc\' < 1')
+        tdSql.error('select 1 < \'abc\'')
+        tdSql.error('select \'abc\' < 1.0')
+        tdSql.error('select 1.0 < \'abc\'')
+        tdSql.error('select \'abc\' < true')
+        tdSql.error('select false < \'abc\'')
+
         ##operator: >
         tdSql.query('select 1 > 1 from tb;')
         tdSql.checkRows(1)
@@ -459,6 +519,21 @@ class TDTestCase:
         tdSql.query('select 1.0000000001 > true from tb;') ##DBL_EPSILON is used in floating number comparison
         tdSql.checkRows(1)
         tdSql.checkData(0, 0, 0)
+
+        tdSql.error('select "abc" > "def"')
+        tdSql.error('select "abc" > 1')
+        tdSql.error('select 1 > "abc"')
+        tdSql.error('select "abc" > 1.0')
+        tdSql.error('select 1.0 > "abc"')
+        tdSql.error('select "abc" > true')
+        tdSql.error('select false > "abc"')
+        tdSql.error('select \'abc\' > \'def\'')
+        tdSql.error('select \'abc\' > 1')
+        tdSql.error('select 1 > \'abc\'')
+        tdSql.error('select \'abc\' > 1.0')
+        tdSql.error('select 1.0 > \'abc\'')
+        tdSql.error('select \'abc\' > true')
+        tdSql.error('select false > \'abc\'')
 
         ##operator: <=
         tdSql.query('select 1 <= 2 from tb;')
@@ -561,6 +636,21 @@ class TDTestCase:
         tdSql.checkRows(1)
         tdSql.checkData(0, 0, 1)
 
+        tdSql.error('select "abc" <= "def"')
+        tdSql.error('select "abc" <= 1')
+        tdSql.error('select 1 <= "abc"')
+        tdSql.error('select "abc" <= 1.0')
+        tdSql.error('select 1.0 <= "abc"')
+        tdSql.error('select "abc" <= true')
+        tdSql.error('select false <= "abc"')
+        tdSql.error('select \'abc\' <= \'def\'')
+        tdSql.error('select \'abc\' <= 1')
+        tdSql.error('select 1 <= \'abc\'')
+        tdSql.error('select \'abc\' <= 1.0')
+        tdSql.error('select 1.0 <= \'abc\'')
+        tdSql.error('select \'abc\' <= true')
+        tdSql.error('select false <= \'abc\'')
+
         ##operator: >=
         tdSql.query('select 1 >= 2 from tb;')
         tdSql.checkRows(1)
@@ -661,6 +751,21 @@ class TDTestCase:
         tdSql.query('select 1.0000000001 >= true from tb;') ##DBL_EPSILON is used in floating number comparison
         tdSql.checkRows(1)
         tdSql.checkData(0, 0, 1)
+
+        tdSql.error('select "abc" >= "def"')
+        tdSql.error('select "abc" >= 1')
+        tdSql.error('select 1 >= "abc"')
+        tdSql.error('select "abc" >= 1.0')
+        tdSql.error('select 1.0 >= "abc"')
+        tdSql.error('select "abc" >= true')
+        tdSql.error('select false >= "abc"')
+        tdSql.error('select \'abc\' >= \'def\'')
+        tdSql.error('select \'abc\' >= 1')
+        tdSql.error('select 1 >= \'abc\'')
+        tdSql.error('select \'abc\' >= 1.0')
+        tdSql.error('select 1.0 >= \'abc\'')
+        tdSql.error('select \'abc\' >= true')
+        tdSql.error('select false >= \'abc\'')
 
         ##operator: between and
         tdSql.query('select 1 between 2 and 4 from tb;')
@@ -808,6 +913,28 @@ class TDTestCase:
         tdSql.checkRows(1)
         tdSql.checkData(0, 0, 1)
 
+        tdSql.error('select "abc" between "def" and "ghi"')
+        tdSql.error('select "abc" between 1 and 2')
+        tdSql.error('select "abc" between 1.0 and 2.0')
+        tdSql.error('select "abc" between true and false')
+        tdSql.error('select 1 between 1.0 and "cde"')
+        tdSql.error('select 1.0 between true and "cde"')
+        tdSql.error('select true between 1 and "cde"')
+        tdSql.error('select 1 between "abc" and 1.0')
+        tdSql.error('select 1.0 between "abc" and true')
+        tdSql.error('select true between "abc" and 1')
+
+        tdSql.error('select \'abc\' between \'def\' and \'ghi\'')
+        tdSql.error('select \'abc\' between 1 and 2')
+        tdSql.error('select \'abc\' between 1.0 and 2.0')
+        tdSql.error('select \'abc\' between true and false')
+        tdSql.error('select 1 between 1.0 and \'cde\'')
+        tdSql.error('select 1.0 between true and \'cde\'')
+        tdSql.error('select true between 1 and \'cde\'')
+        tdSql.error('select 1 between \'abc\' and 1.0')
+        tdSql.error('select 1.0 between \'abc\' and true')
+        tdSql.error('select true between \'abc\' and 1')
+
         ##operator: and
         tdSql.query('select 10 and 10 from tb;')
         tdSql.checkRows(1)
@@ -861,6 +988,28 @@ class TDTestCase:
         tdSql.checkRows(1)
         tdSql.checkData(0, 0, 0)
 
+        tdSql.error('select "abc" and "def"')
+        tdSql.error('select "abc" and 1')
+        tdSql.error('select 1 and "abc"')
+        tdSql.error('select "abc" and 1.0')
+        tdSql.error('select 1.0 and abc')
+        tdSql.error('select "abc" and true')
+        tdSql.error('select false and "abc"')
+        tdSql.error('select 1 and "abc" and 1.0 and true and false and 0')
+        tdSql.error('select 1 and "abc" and 1.0 and "cde" and false and 0')
+        tdSql.error('select 1 and "abc" and 1.0 and "cde" and false and "fhi"')
+
+        tdSql.error('select \'abc\' and \'def\'')
+        tdSql.error('select \'abc\' and 1')
+        tdSql.error('select 1 and \'abc\'')
+        tdSql.error('select \'abc\' and 1.0')
+        tdSql.error('select 1.0 and abc')
+        tdSql.error('select \'abc\' and true')
+        tdSql.error('select false and \'abc\'')
+        tdSql.error('select 1 and \'abc\' and 1.0 and true and false and 0')
+        tdSql.error('select 1 and \'abc\' and 1.0 and \'cde\' and false and "fhi"')
+
+
         ##operator: or
         tdSql.query('select 10 or 10 from tb;')
         tdSql.checkRows(1)
@@ -901,6 +1050,27 @@ class TDTestCase:
         tdSql.query('select true or 10.0 or false from tb;')
         tdSql.checkRows(1)
         tdSql.checkData(0, 0, 1)
+
+        tdSql.error('select "abc" or "def"')
+        tdSql.error('select "abc" or 1')
+        tdSql.error('select 1 or "abc"')
+        tdSql.error('select "abc" or 1.0')
+        tdSql.error('select 1.0 or abc')
+        tdSql.error('select "abc" or true')
+        tdSql.error('select false or "abc"')
+        tdSql.error('select 1 or "abc" or 1.0 or true or false or 0')
+        tdSql.error('select 1 or "abc" or 1.0 or "cde" or false or 0')
+        tdSql.error('select 1 or "abc" or 1.0 or "cde" or false or "fhi"')
+
+        tdSql.error('select \'abc\' or \'def\'')
+        tdSql.error('select \'abc\' or 1')
+        tdSql.error('select 1 or \'abc\'')
+        tdSql.error('select \'abc\' or 1.0')
+        tdSql.error('select 1.0 or abc')
+        tdSql.error('select \'abc\' or true')
+        tdSql.error('select false or \'abc\'')
+        tdSql.error('select 1 or \'abc\' or 1.0 or true or false or 0')
+        tdSql.error('select 1 or \'abc\' or 1.0 or \'cde\' or false or "fhi"')
 
         ##operator: multiple operations
         tdSql.query('select 1 and 1 != 2 and 1 < 2 and 2 between 1 and 3 from tb;')
@@ -954,6 +1124,10 @@ class TDTestCase:
         tdSql.query('select 1 != 2 and 1 < 2 or 1 >= 2 or 2 between 4 and 5 and false or 10.1 from tb;')
         tdSql.checkRows(1)
         tdSql.checkData(0, 0, 1)
+
+        tdSql.error('select 1 != 2 and "abc" or 1 >= 2 or "cde" between 4 and 5 and \'ghi\' or 10.1 from tb;')
+        tdSql.error('select 1 != 2 and 1 < 2 or \'abc123\' or 2 between \'abc123\' and 5 and false or "abc123" from tb;')
+        tdSql.query('select \'1234\' or 1 < 2 or \'aace\' and "cde" between 4 and "def" and "ckas" or 10.1 from tb;')
 
         tdSql.execute('drop database db')
     def stop(self):
