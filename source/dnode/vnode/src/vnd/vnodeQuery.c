@@ -14,7 +14,7 @@
  */
 
 #include "vnodeQuery.h"
-#include "vnodeDef.h"
+#include "vnd.h"
 
 static int32_t vnodeGetTableList(SVnode *pVnode, SRpcMsg *pMsg);
 static int     vnodeGetTableMeta(SVnode *pVnode, SRpcMsg *pMsg, SRpcMsg **pRsp);

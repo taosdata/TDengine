@@ -13,8 +13,8 @@
  * along with this program. If not, see <http://www.gnu.org/licenses/>.
  */
 
-#ifndef _TD_VNODE_DEF_H_
-#define _TD_VNODE_DEF_H_
+#ifndef _TD_VND_H_
+#define _TD_VND_H_
 
 #include "mallocator.h"
 // #include "sync.h"
@@ -176,4 +176,4 @@ bool            vmaIsFull(SVMemAllocator* pVMA);
 }
 #endif
 
-#endif /*_TD_VNODE_DEF_H_*/
+#endif /*_TD_VND_H_*/
