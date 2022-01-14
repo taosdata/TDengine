@@ -501,7 +501,7 @@ tSqlExpr *tSqlExprCreate(tSqlExpr *pLeft, tSqlExpr *pRight, int32_t optrType) {
         case TK_OR: {
           pExpr->tokenId = TK_INTEGER;
           pExpr->value.nType = TSDB_DATA_TYPE_BIGINT;
-          pExpr->value.i64 = (left && right) ? 1 : 0;
+          pExpr->value.i64 = (left || right) ? 1 : 0;
           break;
         }
       }
