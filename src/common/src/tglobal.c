@@ -1749,7 +1749,6 @@ static void doInitGlobalConfig(void) {
   cfg.ptrLength = 0;
   cfg.unitType = TAOS_CFG_UTYPE_MB;
   taosInitConfigOption(cfg);
-  size_t a = sizeof(float);
 
   // shortcut flag to facilitate debugging
   cfg.option = "shortcutFlag";
