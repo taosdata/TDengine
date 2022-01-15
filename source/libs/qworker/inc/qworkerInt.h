@@ -42,8 +42,7 @@ enum {
   QW_EVENT_READY,
   QW_EVENT_FETCH,
   QW_EVENT_DROP,
-  QW_EVENT_SCH_SINK,
-  QW_EVENT_SCH_QUERY,
+  QW_EVENT_CQUERY,
 
   QW_EVENT_MAX,
 };
@@ -138,10 +137,10 @@ typedef struct SQWorkerMgmt {
 #define QW_IDS() sId, qId, tId
 #define QW_FPARAMS() mgmt, QW_IDS()
 
-#define QW_IS_EVENT_RECEIVED(ctx, event) ((ctx)->events[event] == QW_EVENT_RECEIVED)
-#define QW_IS_EVENT_PROCESSED(ctx, event) ((ctx)->events[event] == QW_EVENT_PROCESSED)
-#define QW_SET_EVENT_RECEIVED(ctx, event) ((ctx)->events[event] = QW_EVENT_RECEIVED)
-#define QW_SET_EVENT_PROCESSED(ctx, event) ((ctx)->events[event] = QW_EVENT_PROCESSED)
+#define QW_IS_EVENT_RECEIVED(ctx, event) (atomic_load_8(&(ctx)->events[event]) == QW_EVENT_RECEIVED)
+#define QW_IS_EVENT_PROCESSED(ctx, event) (atomic_load_8(&(ctx)->events[event]) == QW_EVENT_PROCESSED)
+#define QW_SET_EVENT_RECEIVED(ctx, event) atomic_store_8(&(ctx)->events[event], QW_EVENT_RECEIVED)
+#define QW_SET_EVENT_PROCESSED(ctx, event) atomic_store_8(&(ctx)->events[event], QW_EVENT_PROCESSED)
 
 #define QW_IN_EXECUTOR(ctx) ((ctx)->phase == QW_PHASE_PRE_QUERY || (ctx)->phase == QW_PHASE_PRE_CQUERY || (ctx)->phase == QW_PHASE_PRE_FETCH || (ctx)->phase == QW_PHASE_PRE_SINK)
 

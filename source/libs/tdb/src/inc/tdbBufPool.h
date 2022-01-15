@@ -13,28 +13,27 @@
  * along with this program. If not, see <http://www.gnu.org/licenses/>.
  */
 
-#ifndef _TD_TDISK_MGR_H_
-#define _TD_TDISK_MGR_H_
+#ifndef _TD_TDB_BUF_POOL_H_
+#define _TD_TDB_BUF_POOL_H_
+
+#include "tdbPage.h"
 
 #ifdef __cplusplus
 extern "C" {
 #endif
 
-#include "os.h"
+typedef struct STdbBufPool STdbBufPool;
 
-#include "tkvDef.h"
-
-typedef struct STkvDiskMgr STkvDiskMgr;
-
-int    tdmOpen(STkvDiskMgr **ppDiskMgr, const char *fname, uint16_t pgsize);
-int    tdmClose(STkvDiskMgr *pDiskMgr);
-int    tdmReadPage(STkvDiskMgr *pDiskMgr, pgid_t pgid, void *pData);
-int    tdmWritePage(STkvDiskMgr *pDiskMgr, pgid_t pgid, const void *pData);
-int    tdmFlush(STkvDiskMgr *pDiskMgr);
-pgid_t tdmAllocPage(STkvDiskMgr *pDiskMgr);
+int       tbpOpen(STdbBufPool **ppTkvBufPool);
+int       tbpClose(STdbBufPool *pTkvBufPool);
+STdbPage *tbpNewPage(STdbBufPool *pTkvBufPool);
+int       tbpDelPage(STdbBufPool *pTkvBufPool);
+STdbPage *tbpFetchPage(STdbBufPool *pTkvBufPool, pgid_t pgid);
+int       tbpUnpinPage(STdbBufPool *pTkvBufPool, pgid_t pgid);
+void      tbpFlushPages(STdbBufPool *pTkvBufPool);
 
 #ifdef __cplusplus
 }
 #endif
 
-#endif /*_TD_TDISK_MGR_H_*/
+#endif /*_TD_TDB_BUF_POOL_H_*/

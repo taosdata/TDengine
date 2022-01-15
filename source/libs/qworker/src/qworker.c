@@ -269,7 +269,19 @@ int32_t qwAddTaskCtx(SQWorkerMgmt *mgmt, uint64_t sId, uint64_t qId, uint64_t tI
   QW_RET(qwAddTaskCtxImpl(QW_FPARAMS(), 0, 0, NULL));
 }
 
+int32_t qwGetTaskCtx(SQWorkerMgmt *mgmt, uint64_t sId, uint64_t qId, uint64_t tId, SQWTaskCtx **ctx) {
+  char id[sizeof(qId) + sizeof(tId)] = {0};
+  QW_SET_QTID(id, qId, tId);
+  
+  *ctx = taosHashGet(mgmt->ctxHash, id, sizeof(id));
+  if (NULL == (*ctx)) {
+    QW_TASK_ELOG("ctx not in ctxHash, id:%s", id);
+    QW_ERR_RET(TSDB_CODE_QRY_RES_CACHE_NOT_EXIST);
+  }
 
+  return TSDB_CODE_SUCCESS;
+
+}
 
 int32_t qwAcquireTaskCtx(SQWorkerMgmt *mgmt, uint64_t sId, uint64_t qId, uint64_t tId, int32_t rwType, SQWTaskCtx **ctx) {
   char id[sizeof(qId) + sizeof(tId)] = {0};
@@ -422,8 +434,11 @@ int32_t qwDropTask(SQWorkerMgmt *mgmt, uint64_t sId, uint64_t qId, uint64_t tId,
     QW_ERR_JRET(TSDB_CODE_QRY_DUPLICATTED_OPERATION);
   }
 
-  if (ctx->taskHandle && QW_IN_EXECUTOR(ctx)) {
-    QW_ERR_JRET(qKillTask(ctx->taskHandle));
+  if (QW_IN_EXECUTOR(ctx)) {
+    if (ctx->taskHandle) {
+      QW_ERR_JRET(qKillTask(ctx->taskHandle));
+    }
+    
     QW_ERR_JRET(qwUpdateTaskStatus(QW_FPARAMS(), JOB_TASK_STATUS_DROPPING));
   } else if (ctx->phase > 0) {
     QW_ERR_JRET(qwDropTaskStatus(QW_FPARAMS()));              
@@ -448,44 +463,6 @@ _return:
   }
 
   QW_RET(code);
-}
-
-int32_t qwScheduleDataSink(SQWorkerMgmt *mgmt, uint64_t sId, uint64_t qId, uint64_t tId, SQWTaskCtx *ctx, SRpcMsg *pMsg) {
-  if (atomic_load_8(&handles->sinkScheduled)) {
-    qDebug("data sink already scheduled");
-    return TSDB_CODE_SUCCESS;
-  }
-  
-  SSinkDataReq * req = (SSinkDataReq *)rpcMallocCont(sizeof(SSinkDataReq));
-  if (NULL == req) {
-    qError("rpcMallocCont %d failed", (int32_t)sizeof(SSinkDataReq));
-    QW_ERR_RET(TSDB_CODE_QRY_OUT_OF_MEMORY);
-  }
-
-  req->header.vgId = mgmt->nodeId;
-  req->sId = sId;
-  req->queryId = qId;
-  req->taskId = tId;
-
-  SRpcMsg pNewMsg = {
-    .handle = pMsg->handle,
-    .ahandle = pMsg->ahandle, 
-    .msgType = TDMT_VND_SCHEDULE_DATA_SINK,
-    .pCont   = req,
-    .contLen = sizeof(SSinkDataReq),
-    .code    = 0,
-  };
-
-  int32_t code = (*mgmt->putToQueueFp)(mgmt->nodeObj, &pNewMsg);
-  if (TSDB_CODE_SUCCESS != code) {
-    qError("put data sink schedule msg to queue failed, code:%x", code);
-    rpcFreeCont(req);
-    QW_ERR_RET(code);
-  }
-
-  qDebug("put data sink schedule msg to query queue");
-
-  return TSDB_CODE_SUCCESS;
 }
 
 
@@ -572,10 +549,8 @@ int32_t qwHandleTaskEvent(QW_FPARAMS_DEF, int32_t phase, SQWPhaseInput *input, S
   switch (phase) {
     case QW_PHASE_PRE_QUERY: {
       QW_ERR_JRET(qwAddAcquireTaskCtx(QW_FPARAMS(), QW_READ, &ctx));
-      
-      QW_LOCK(QW_WRITE, &ctx->lock);
-
-      locked = true;
+            
+      ctx->phase = phase;
 
       assert(!QW_IS_EVENT_PROCESSED(ctx, QW_EVENT_CANCEL));
 
@@ -653,6 +628,8 @@ int32_t qwHandleTaskEvent(QW_FPARAMS_DEF, int32_t phase, SQWPhaseInput *input, S
       
       locked = true;        
 
+      ctx->phase = phase;
+
       if (QW_IS_EVENT_PROCESSED(ctx, QW_EVENT_CANCEL)) {
         QW_TASK_WLOG("task already cancelled", NULL);
         output->needStop = true;
@@ -685,6 +662,32 @@ int32_t qwHandleTaskEvent(QW_FPARAMS_DEF, int32_t phase, SQWPhaseInput *input, S
       }
       break;
     }    
+    case QW_PHASE_POST_FETCH: {
+      QW_ERR_JRET(qwAddAcquireTaskCtx(QW_FPARAMS(), QW_READ, &ctx));
+      
+      QW_LOCK(QW_WRITE, &ctx->lock);
+      
+      locked = true;        
+
+      if (QW_IS_EVENT_PROCESSED(ctx, QW_EVENT_CANCEL)) {
+        QW_TASK_WLOG("task already cancelled", NULL);
+        output->needStop = true;
+        output->rspCode = TSDB_CODE_QRY_TASK_CANCELLED;        
+        QW_ERR_JRET(TSDB_CODE_QRY_TASK_CANCELLED);
+      }
+
+      if (QW_IS_EVENT_RECEIVED(ctx, QW_EVENT_DROP)) {
+        QW_TASK_WLOG("task is dropping", NULL);
+        output->needStop = true;
+        output->rspCode = TSDB_CODE_QRY_TASK_DROPPING;
+      } else if (QW_IS_EVENT_RECEIVED(ctx, QW_EVENT_CANCEL)) {
+        QW_TASK_WLOG("task is cancelling", NULL);
+        output->needStop = true;
+        output->rspCode = TSDB_CODE_QRY_TASK_CANCELLING;
+      }
+      break;
+    }    
+
   }
 
 
@@ -783,6 +786,93 @@ _return:
   QW_RET(rspCode);
 }
 
+int32_t qwProcessCQuery(SQWorkerMgmt *mgmt, uint64_t sId, uint64_t qId, uint64_t tId, SQWMsg *qwMsg) {
+  int32_t code = 0;
+  bool queryRsped = false;
+  bool needStop = false;
+  struct SSubplan *plan = NULL;
+  int32_t rspCode = 0;
+  SQWPhaseInput input = {0};
+  SQWPhaseOutput output = {0};
+  SQWTaskCtx *ctx = NULL;
+  void *rsp = NULL;
+  int32_t dataLen = 0;
+
+  QW_ERR_JRET(qwHandleTaskEvent(QW_FPARAMS(), QW_PHASE_PRE_CQUERY, &input, &output));
+
+  needStop = output.needStop;
+  code = output.rspCode;
+  
+  if (needStop) {
+    QW_TASK_DLOG("task need stop", NULL);
+    QW_ERR_JRET(code);
+  }
+
+  QW_ERR_JRET(qwGetTaskCtx(QW_FPARAMS(), &ctx));
+  
+  qTaskInfo_t     taskHandle = ctx->taskHandle;
+  DataSinkHandle  sinkHandle = ctx->sinkHandle;
+
+  code = qExecTask(taskHandle, &sinkHandle);
+  if (code) {
+    QW_TASK_ELOG("qExecTask failed, code:%x", code);
+    QW_ERR_JRET(code);
+  }
+
+  if (QW_IS_EVENT_RECEIVED(ctx, QW_EVENT_FETCH)) {
+    QW_SET_EVENT_PROCESSED(ctx, QW_EVENT_CQUERY);
+    
+    SOutputData sOutput = {0};
+    QW_ERR_JRET(qwGetResFromSink(QW_FPARAMS(), ctx, &dataLen, &rsp, &sOutput));
+    
+    if (NULL == rsp) {
+      QW_SET_EVENT_RECEIVED(ctx, QW_EVENT_FETCH);
+    }
+    
+    // Note: schedule data sink firstly and will schedule query after it's done
+    if (sOutput.scheduleJobNo) {
+      if (sOutput.scheduleJobNo > ctx.sinkId) {
+        QW_TASK_DLOG("sink need schedule, scheduleJobNo:%d", sOutput.scheduleJobNo);    
+    
+        ctx.sinkId = sOutput.scheduleJobNo;
+        QW_ERR_JRET(qwBuildAndSendSchSinkMsg(QW_FPARAMS(), qwMsg->connection));
+      }
+    } else if ((!sOutput.queryEnd) && (DS_BUF_LOW == sOutput.bufStatus || DS_BUF_EMPTY == sOutput.bufStatus)) {    
+      QW_TASK_DLOG("task not end, need to continue, bufStatus:%d", sOutput.bufStatus);
+    
+      if (!QW_IS_EVENT_RECEIVED(ctx, QW_EVENT_CQUERY)) {
+        QW_SET_EVENT_RECEIVED(ctx, QW_EVENT_CQUERY);
+    
+        QW_ERR_JRET(qwUpdateTaskStatus(QW_FPARAMS(), JOB_TASK_STATUS_EXECUTING));      
+        
+        QW_ERR_RET(qwBuildAndSendCQueryMsg(QW_FPARAMS(), qwMsg->connection));
+      }
+    }
+    
+    if (rsp) {
+      qwBuildFetchRsp(rsp, &sOutput, dataLen);
+    }
+
+  }
+
+_return:
+
+  qwHandleTaskEvent(QW_FPARAMS(), QW_PHASE_POST_CQUERY, &input, &output);
+
+  if (QW_IS_EVENT_RECEIVED(ctx, QW_EVENT_FETCH)) {
+    QW_SET_EVENT_PROCESSED(ctx, QW_EVENT_FETCH);
+    
+    if (code) {
+      qwFreeFetchRsp(rsp);
+      rsp = NULL;
+      qwBuildAndSendFetchRsp(qwMsg->connection, rsp, 0, code);
+    } else if (rsp) {
+      qwBuildAndSendFetchRsp(qwMsg->connection, rsp, dataLen, code);
+    }
+  }
+  
+  QW_RET(rspCode);
+}
 
 
 int32_t qwProcessFetch(SQWorkerMgmt *mgmt, uint64_t sId, uint64_t qId, uint64_t tId, SQWMsg *qwMsg) {
@@ -811,24 +901,33 @@ int32_t qwProcessFetch(SQWorkerMgmt *mgmt, uint64_t sId, uint64_t qId, uint64_t 
     QW_ERR_JRET(code);
   }
 
-  QW_ERR_JRET(qwAcquireTaskCtx(QW_FPARAMS(), QW_READ, &ctx));
-
-  QW_LOCK(QW_WRITE, &ctx->lock);
-  
-  locked = true;
-  
+  QW_ERR_JRET(qwGetTaskCtx(QW_FPARAMS(), &ctx));
+ 
   SOutputData sOutput = {0};
   QW_ERR_JRET(qwGetResFromSink(QW_FPARAMS(), ctx, &dataLen, &rsp, &sOutput));
 
+  if (NULL == rsp) {
+    QW_SET_EVENT_RECEIVED(ctx, QW_EVENT_FETCH);
+  }
+
   // Note: schedule data sink firstly and will schedule query after it's done
-  if (sOutput.needSchedule) {
-    QW_TASK_DLOG("sink need schedule, queryEnd:%d", sOutput.queryEnd);    
-    if (sOutput.needSchedule > ctx.sinkId) {
-      QW_ERR_RET(qwScheduleDataSink(ctx, mgmt, sId, qId, tId, pMsg));
+  if (sOutput.scheduleJobNo) {
+    if (sOutput.scheduleJobNo > ctx.sinkId) {
+      QW_TASK_DLOG("sink need schedule, scheduleJobNo:%d", sOutput.scheduleJobNo);    
+
+      ctx.sinkId = sOutput.scheduleJobNo;
+      QW_ERR_JRET(qwBuildAndSendSchSinkMsg(QW_FPARAMS(), qwMsg->connection));
     }
   } else if ((!sOutput.queryEnd) && (DS_BUF_LOW == sOutput.bufStatus || DS_BUF_EMPTY == sOutput.bufStatus)) {    
-    QW_TASK_DLOG("task not end, need to continue, bufStatus:%d", output.bufStatus);
-    QW_ERR_RET(qwScheduleQuery(ctx, mgmt, sId, qId, tId, pMsg));
+    QW_TASK_DLOG("task not end, need to continue, bufStatus:%d", sOutput.bufStatus);
+
+    if (!QW_IS_EVENT_RECEIVED(ctx, QW_EVENT_CQUERY)) {
+      QW_SET_EVENT_RECEIVED(ctx, QW_EVENT_CQUERY);
+
+      QW_ERR_JRET(qwUpdateTaskStatus(QW_FPARAMS(), JOB_TASK_STATUS_EXECUTING));      
+      
+      QW_ERR_RET(qwBuildAndSendCQueryMsg(QW_FPARAMS(), qwMsg->connection));
+    }
   }
 
   if (rsp) {
@@ -837,13 +936,7 @@ int32_t qwProcessFetch(SQWorkerMgmt *mgmt, uint64_t sId, uint64_t qId, uint64_t 
   
 _return:
 
-  if (locked) {
-    QW_UNLOCK(QW_WRITE, &ctx->lock);
-  }
-
-  if (ctx) {
-    qwReleaseTaskCtx(QW_READ, mgmt);
-  }
+  qwHandleTaskEvent(QW_FPARAMS(), QW_PHASE_POST_FETCH, &input, &output);
 
   if (code) {
     qwFreeFetchRsp(rsp);
@@ -852,6 +945,7 @@ _return:
   } else if (rsp) {
     qwBuildAndSendFetchRsp(qwMsg->connection, rsp, dataLen, code);
   }
+
   
   QW_RET(code);
 }
@@ -901,14 +995,14 @@ int32_t qWorkerInit(int8_t nodeType, int32_t nodeId, SQWorkerCfg *cfg, void **qW
     mgmt->cfg.maxSchTaskNum = QWORKER_DEFAULT_SCH_TASK_NUMBER;
   }
 
-  mgmt->schHash = taosHashInit(mgmt->cfg.maxSchedulerNum, taosGetDefaultHashFunction(TSDB_DATA_TYPE_UBIGINT), false, HASH_NO_LOCK);
+  mgmt->schHash = taosHashInit(mgmt->cfg.maxSchedulerNum, taosGetDefaultHashFunction(TSDB_DATA_TYPE_UBIGINT), false, HASH_ENTRY_LOCK);
   if (NULL == mgmt->schHash) {
     tfree(mgmt);
     qError("init %d scheduler hash failed", mgmt->cfg.maxSchedulerNum);
     QW_ERR_RET(TSDB_CODE_QRY_OUT_OF_MEMORY);
   }
 
-  mgmt->ctxHash = taosHashInit(mgmt->cfg.maxTaskNum, taosGetDefaultHashFunction(TSDB_DATA_TYPE_BINARY), false, HASH_NO_LOCK);
+  mgmt->ctxHash = taosHashInit(mgmt->cfg.maxTaskNum, taosGetDefaultHashFunction(TSDB_DATA_TYPE_BINARY), false, HASH_ENTRY_LOCK);
   if (NULL == mgmt->ctxHash) {
     taosHashCleanup(mgmt->schHash);
     mgmt->schHash = NULL;
@@ -1102,49 +1196,5 @@ _return:
 
   QW_RET(code);
 }
-
-
-int32_t qwScheduleQuery(SQWorkerMgmt *mgmt, uint64_t sId, uint64_t qId, uint64_t tId, SQWTaskCtx *handles, SRpcMsg *pMsg) {
-  if (atomic_load_8(&handles->queryScheduled)) {
-    QW_SCH_TASK_ELOG("query already scheduled, queryScheduled:%d", handles->queryScheduled);
-    return TSDB_CODE_SUCCESS;
-  }
-
-  QW_ERR_RET(qwUpdateTaskStatus(QW_FPARAMS(), JOB_TASK_STATUS_EXECUTING));      
-
-  SQueryContinueReq * req = (SQueryContinueReq *)rpcMallocCont(sizeof(SQueryContinueReq));
-  if (NULL == req) {
-    QW_SCH_TASK_ELOG("rpcMallocCont %d failed", (int32_t)sizeof(SQueryContinueReq));
-    QW_ERR_RET(TSDB_CODE_QRY_OUT_OF_MEMORY);
-  }
-
-  req->header.vgId = mgmt->nodeId;
-  req->sId = sId;
-  req->queryId = qId;
-  req->taskId = tId;
-
-  SRpcMsg pNewMsg = {
-    .handle = pMsg->handle,
-    .ahandle = pMsg->ahandle,
-    .msgType = TDMT_VND_QUERY_CONTINUE,
-    .pCont   = req,
-    .contLen = sizeof(SQueryContinueReq),
-    .code    = 0,
-  };
-
-  int32_t code = (*mgmt->putToQueueFp)(mgmt->nodeObj, &pNewMsg);
-  if (TSDB_CODE_SUCCESS != code) {
-    QW_SCH_TASK_ELOG("put query continue msg to queue failed, code:%x", code);
-    rpcFreeCont(req);
-    QW_ERR_RET(code);
-  }
-
-  handles->queryScheduled = true;
-
-  QW_SCH_TASK_DLOG("put query continue msg to query queue, vgId:%d", mgmt->nodeId);
-
-  return TSDB_CODE_SUCCESS;
-}
-
 
 

@@ -41,7 +41,7 @@ int vnodeInit(const SVnodeOpt *pOption) {
 
     for (uint16_t i = 0; i < pOption->nthreads; i++) {
       pthread_create(&(vnodeMgr.threads[i]), NULL, loop, NULL);
-      pthread_setname_np(vnodeMgr.threads[i], "VND Commit Thread");
+      // pthread_setname_np(vnodeMgr.threads[i], "VND Commit Thread");
     }
   } else {
     // TODO: if no commit thread is set, then another mechanism should be

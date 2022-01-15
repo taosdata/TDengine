@@ -226,6 +226,42 @@ int32_t qwBuildAndSendShowFetchRsp(SRpcMsg *pMsg, SVShowTablesFetchReq* pFetchRe
   return TSDB_CODE_SUCCESS;
 }
 
+
+int32_t qwBuildAndSendSchSinkMsg(SQWorkerMgmt *mgmt, uint64_t sId, uint64_t qId, uint64_t tId, void *connection) {
+  SRpcMsg *pMsg = (SRpcMsg *)connection;
+  SSinkDataReq * req = (SSinkDataReq *)rpcMallocCont(sizeof(SSinkDataReq));
+  if (NULL == req) {
+    qError("rpcMallocCont %d failed", (int32_t)sizeof(SSinkDataReq));
+    QW_ERR_RET(TSDB_CODE_QRY_OUT_OF_MEMORY);
+  }
+
+  req->header.vgId = mgmt->nodeId;
+  req->sId = sId;
+  req->queryId = qId;
+  req->taskId = tId;
+
+  SRpcMsg pNewMsg = {
+    .handle = pMsg->handle,
+    .ahandle = pMsg->ahandle, 
+    .msgType = TDMT_VND_SCHEDULE_DATA_SINK,
+    .pCont   = req,
+    .contLen = sizeof(SSinkDataReq),
+    .code    = 0,
+  };
+
+  int32_t code = (*mgmt->putToQueueFp)(mgmt->nodeObj, &pNewMsg);
+  if (TSDB_CODE_SUCCESS != code) {
+    qError("put data sink schedule msg to queue failed, code:%x", code);
+    rpcFreeCont(req);
+    QW_ERR_RET(code);
+  }
+
+  qDebug("put data sink schedule msg to query queue");
+
+  return TSDB_CODE_SUCCESS;
+}
+
+
 int32_t qwSetAndSendReadyRsp(SQWorkerMgmt *mgmt, uint64_t sId, uint64_t qId, uint64_t tId, SRpcMsg *pMsg) {
   SQWSchStatus *sch = NULL;
   SQWTaskStatus *task = NULL;
@@ -268,14 +304,8 @@ _return:
 }
 
 
-int32_t qwScheduleQuery(SQWorkerMgmt *mgmt, uint64_t sId, uint64_t qId, uint64_t tId, SQWTaskCtx *handles, SRpcMsg *pMsg) {
-  if (atomic_load_8(&handles->queryScheduled)) {
-    QW_SCH_TASK_ELOG("query already scheduled, queryScheduled:%d", handles->queryScheduled);
-    return TSDB_CODE_SUCCESS;
-  }
-
-  QW_ERR_RET(qwUpdateTaskStatus(QW_FPARAMS(), JOB_TASK_STATUS_EXECUTING));      
-
+int32_t qwBuildAndSendCQueryMsg(SQWorkerMgmt *mgmt, uint64_t sId, uint64_t qId, uint64_t tId, void *connection) {
+  SRpcMsg *pMsg = (SRpcMsg *)connection;
   SQueryContinueReq * req = (SQueryContinueReq *)rpcMallocCont(sizeof(SQueryContinueReq));
   if (NULL == req) {
     QW_SCH_TASK_ELOG("rpcMallocCont %d failed", (int32_t)sizeof(SQueryContinueReq));
@@ -302,8 +332,6 @@ int32_t qwScheduleQuery(SQWorkerMgmt *mgmt, uint64_t sId, uint64_t qId, uint64_t
     rpcFreeCont(req);
     QW_ERR_RET(code);
   }
-
-  handles->queryScheduled = true;
 
   QW_SCH_TASK_DLOG("put query continue msg to query queue, vgId:%d", mgmt->nodeId);
 
@@ -338,74 +366,31 @@ int32_t qWorkerProcessQueryMsg(void *node, void *qWorkerMgmt, SRpcMsg *pMsg) {
   QW_RET(qwProcessQuery(QW_FPARAMS(), &qwMsg));
 }
 
-int32_t qWorkerProcessQueryContinueMsg(void *node, void *qWorkerMgmt, SRpcMsg *pMsg) {
+int32_t qWorkerProcessCQueryMsg(void *node, void *qWorkerMgmt, SRpcMsg *pMsg) {
   int32_t code = 0;
   int8_t status = 0;
   bool queryDone = false;
-  SQueryContinueReq *req = (SQueryContinueReq *)pMsg->pCont;
+  SQueryContinueReq *msg = (SQueryContinueReq *)pMsg->pCont;
   bool needStop = false;
   SQWTaskCtx *handles = NULL;
 
-  QW_ERR_JRET(qwAcquireTaskCtx(QW_READ, qWorkerMgmt, req->queryId, req->taskId, &handles));
-  QW_LOCK(QW_WRITE, &handles->lock);
+  if (NULL == msg || pMsg->contLen <= sizeof(*msg)) {
+    QW_ELOG("invalid cquery msg, contLen:%d", pMsg->contLen);
+    QW_ERR_JRET(TSDB_CODE_QRY_INVALID_INPUT);
+  }
 
-  qTaskInfo_t     taskHandle = handles->taskHandle;
-  DataSinkHandle  sinkHandle = handles->sinkHandle;
-
-  QW_UNLOCK(QW_WRITE, &handles->lock);
-  qwReleaseTaskResCache(QW_READ, qWorkerMgmt);
+  msg->sId = be64toh(msg->sId);
+  msg->queryId = be64toh(msg->queryId);
+  msg->taskId = be64toh(msg->taskId);
+  msg->contentLen = ntohl(msg->contentLen);
   
-  QW_ERR_JRET(qwCheckAndProcessTaskDrop(qWorkerMgmt, req->sId, req->queryId, req->taskId, &needStop));
-  if (needStop) {
-    qWarn("task need stop");
+  uint64_t sId = msg->sId;
+  uint64_t qId = msg->queryId;
+  uint64_t tId = msg->taskId;
 
-    QW_ERR_JRET(qwAcquireTaskCtx(QW_READ, qWorkerMgmt, req->queryId, req->taskId, &handles));
-    QW_LOCK(QW_WRITE, &handles->lock);
-    if (handles->needRsp) {
-      qwBuildAndSendQueryRsp(pMsg, TSDB_CODE_QRY_TASK_CANCELLED);
-      handles->needRsp = false;
-    }
-    QW_UNLOCK(QW_WRITE, &handles->lock);
-    qwReleaseTaskResCache(QW_READ, qWorkerMgmt);
+  SQWMsg qwMsg = {.node = node, .msg = NULL, .msgLen = 0, .connection = pMsg};
 
-    QW_ERR_RET(TSDB_CODE_QRY_TASK_CANCELLED);
-  }
-
-  DataSinkHandle newHandle = NULL;
-  code = qExecTask(taskHandle, &newHandle);
-  if (code) {
-    qError("qExecTask failed, code:%x", code);  
-    QW_ERR_JRET(code);
-  }
-  
-  if (sinkHandle != newHandle) {
-    qError("data sink mis-match");
-    QW_ERR_JRET(TSDB_CODE_QRY_APP_ERROR);
-  }
-  
-_return:
-
-  QW_ERR_JRET(qwAcquireTaskCtx(QW_READ, qWorkerMgmt, req->queryId, req->taskId, &handles));
-  QW_LOCK(QW_WRITE, &handles->lock);
-
-  if (handles->needRsp) {
-    code = qwBuildAndSendQueryRsp(pMsg, code);
-    handles->needRsp = false;
-  }
-  handles->queryScheduled = false;
-
-  QW_UNLOCK(QW_WRITE, &handles->lock);
-  qwReleaseTaskResCache(QW_READ, qWorkerMgmt);
-
-  if (TSDB_CODE_SUCCESS != code) {
-    status = JOB_TASK_STATUS_FAILED;
-  } else {
-    status = JOB_TASK_STATUS_PARTIAL_SUCCEED;
-  }
-
-  code = qwQueryPostProcess(qWorkerMgmt, req->sId, req->queryId, req->taskId, status, code);
-  
-  QW_RET(code);
+  QW_RET(qwProcessCQuery(QW_FPARAMS(), &qwMsg));
 }
 
 

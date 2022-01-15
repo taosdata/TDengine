@@ -13,8 +13,8 @@
  * along with this program. If not, see <http://www.gnu.org/licenses/>.
  */
 
-#ifndef _TD_TKV_H_
-#define _TD_TKV_H_
+#ifndef _TD_TDB_H_
+#define _TD_TDB_H_
 
 #include "os.h"
 
@@ -22,18 +22,29 @@
 extern "C" {
 #endif
 
+typedef enum {
+  TDB_BTREE = 0,
+  TDB_HASH,
+  TDB_HEAP,
+} tdb_db_t;
+
 // Forward declaration
-typedef struct TDB     TDB;
-typedef struct TDB_ENV TDB_ENV;
+typedef struct TDB        TDB;
+typedef struct TDB_CURSOR TDB_CURSOR;
 
 // SKey
 typedef struct {
-  void *   bdata;
+  void*    bdata;
   uint32_t size;
 } TDB_KEY, TDB_VALUE;
+
+// TDB Operations
+int tdbCreateDB(TDB** dbpp);
+int tdbOpenDB(TDB* dbp, tdb_db_t type, uint32_t flags);
+int tdbCloseDB(TDB* dbp, uint32_t flags);
 
 #ifdef __cplusplus
 }
 #endif
 
-#endif /*_TD_TKV_H_*/
+#endif /*_TD_TDB_H_*/
