@@ -42,6 +42,8 @@ enum {
   QW_EVENT_READY,
   QW_EVENT_FETCH,
   QW_EVENT_DROP,
+  QW_EVENT_SCH_SINK,
+  QW_EVENT_SCH_QUERY,
 
   QW_EVENT_MAX,
 };
@@ -100,7 +102,7 @@ typedef struct SQWTaskCtx {
   SRWLatch        lock;
   int32_t         phase;
   
-  int8_t          sinkInQ;
+  int32_t         sinkId;
   int8_t          queryInQ;
 
   int8_t          events[QW_EVENT_MAX];

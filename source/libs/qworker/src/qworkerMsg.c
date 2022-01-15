@@ -36,7 +36,9 @@ void qwBuildFetchRsp(SRetrieveTableRsp *rsp, SOutputData *input, int32_t len) {
 
 
 void qwFreeFetchRsp(void *msg) {
-  rpcFreeCont(msg);
+  if (msg) {
+    rpcFreeCont(msg);
+  }
 }
 
 int32_t qwBuildAndSendQueryRsp(void *connection, int32_t code) {
@@ -106,7 +108,9 @@ int32_t qwBuildAndSendStatusRsp(SRpcMsg *pMsg, SSchedulerStatusRsp *sStatus) {
   return TSDB_CODE_SUCCESS;
 }
 
-int32_t qwBuildAndSendFetchRsp(SRpcMsg *pMsg, SRetrieveTableRsp *pRsp, int32_t dataLength, int32_t code) {
+int32_t qwBuildAndSendFetchRsp(void *connection, SRetrieveTableRsp *pRsp, int32_t dataLength, int32_t code) {
+  SRpcMsg *pMsg = (SRpcMsg *)connection;
+  
   if (NULL == pRsp) {
     pRsp = (SRetrieveTableRsp *)rpcMallocCont(sizeof(SRetrieveTableRsp));
     memset(pRsp, 0, sizeof(SRetrieveTableRsp));
@@ -263,44 +267,6 @@ _return:
   QW_RET(code);
 }
 
-
-int32_t qwScheduleDataSink(SQWorkerMgmt *mgmt, uint64_t sId, uint64_t qId, uint64_t tId, SQWTaskCtx *handles, SRpcMsg *pMsg) {
-  if (atomic_load_8(&handles->sinkScheduled)) {
-    qDebug("data sink already scheduled");
-    return TSDB_CODE_SUCCESS;
-  }
-  
-  SSinkDataReq * req = (SSinkDataReq *)rpcMallocCont(sizeof(SSinkDataReq));
-  if (NULL == req) {
-    qError("rpcMallocCont %d failed", (int32_t)sizeof(SSinkDataReq));
-    QW_ERR_RET(TSDB_CODE_QRY_OUT_OF_MEMORY);
-  }
-
-  req->header.vgId = mgmt->nodeId;
-  req->sId = sId;
-  req->queryId = queryId;
-  req->taskId = taskId;
-
-  SRpcMsg pNewMsg = {
-    .handle = pMsg->handle,
-    .ahandle = pMsg->ahandle, 
-    .msgType = TDMT_VND_SCHEDULE_DATA_SINK,
-    .pCont   = req,
-    .contLen = sizeof(SSinkDataReq),
-    .code    = 0,
-  };
-
-  int32_t code = (*mgmt->putToQueueFp)(mgmt->nodeObj, &pNewMsg);
-  if (TSDB_CODE_SUCCESS != code) {
-    qError("put data sink schedule msg to queue failed, code:%x", code);
-    rpcFreeCont(req);
-    QW_ERR_RET(code);
-  }
-
-  qDebug("put data sink schedule msg to query queue");
-
-  return TSDB_CODE_SUCCESS;
-}
 
 int32_t qwScheduleQuery(SQWorkerMgmt *mgmt, uint64_t sId, uint64_t qId, uint64_t tId, SQWTaskCtx *handles, SRpcMsg *pMsg) {
   if (atomic_load_8(&handles->queryScheduled)) {
