@@ -1749,6 +1749,7 @@ static void doInitGlobalConfig(void) {
   cfg.ptrLength = 0;
   cfg.unitType = TAOS_CFG_UTYPE_MB;
   taosInitConfigOption(cfg);
+  size_t a = sizeof(float);
 
   // shortcut flag to facilitate debugging
   cfg.option = "shortcutFlag";
@@ -1756,7 +1757,7 @@ static void doInitGlobalConfig(void) {
   cfg.valType = TAOS_CFG_VTYPE_INT32;
   cfg.cfgType = TSDB_CFG_CTYPE_B_CONFIG | TSDB_CFG_CTYPE_B_SHOW | TSDB_CFG_CTYPE_B_CLIENT;
   cfg.minValue = 0;
-  cfg.maxValue = INT32_MAX;
+  cfg.maxValue = (1 << 24);
   cfg.ptrLength = 0;
   cfg.unitType = TAOS_CFG_UTYPE_NONE;
   taosInitConfigOption(cfg);
