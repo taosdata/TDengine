@@ -976,7 +976,7 @@ int32_t qwHandleFetch(SQWorkerMgmt *mgmt, uint64_t sId, uint64_t queryId, uint64
       rsp->completed = 1;
     }
 
-    if (output.needSchedule) {
+    if (output.scheduleJobNo) {
       //TODO
     }
 
