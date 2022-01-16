@@ -8,9 +8,11 @@ IF (TD_MVN_INSTALLED)
   SET(_output "${CMAKE_CURRENT_BINARY_DIR}/${JDBC_CMD_NAME}")
   file(GLOB_RECURSE _depends "${CMAKE_CURRENT_SOURCE_DIR}/src/*")
   ADD_CUSTOM_COMMAND(OUTPUT ${_output}
-    DEPENDS taos taos_static
     DEPENDS ${CMAKE_CURRENT_SOURCE_DIR}/pom.xml
     DEPENDS ${CMAKE_CURRENT_SOURCE_DIR}/deploy-pom.xml
+    DEPENDS ${CMAKE_SOURCE_DIR}/src/client/jni/com_alibaba_datax_plugin_writer_JniConnection.h
+    DEPENDS ${CMAKE_SOURCE_DIR}/src/client/jni/com_taosdata_jdbc_TSDBJNIConnector.h
+    DEPENDS ${CMAKE_SOURCE_DIR}/src/client/jni/jniCommon.h
     DEPENDS ${_depends}
     COMMAND mvn -Dmaven.test.skip=true install -f ${CMAKE_CURRENT_SOURCE_DIR}/pom.xml
     COMMAND ${CMAKE_COMMAND} -E copy ${CMAKE_CURRENT_SOURCE_DIR}/target/taos-jdbcdriver-2.0.37-dist.jar ${LIBRARY_OUTPUT_PATH}
