@@ -107,7 +107,7 @@
             "sample_format": "csv",
             "sample_file": "./sample.csv",
             "tags_file": "",
-            "columns": [{"type": "TINYINT", "count":6}],
+            "columns": [{"type": "TINYINT"}],
             "tags": [{"type": "TINYINT", "count":6}]
         },
         {
@@ -263,7 +263,7 @@
             "sample_format": "csv",
             "sample_file": "./sample.csv",
             "tags_file": "",
-            "columns": [{"type": "NCHAR","len": 16, "count":6}],
+            "columns": [{"type": "NCHAR","len": 16}],
             "tags": [{"type": "NCHAR", "count":6}]
         },
         {
@@ -289,7 +289,7 @@
             "sample_format": "csv",
             "sample_file": "./sample.csv",
             "tags_file": "",
-            "columns": [{"type": "BINARY", "len": 16, "count":6}],
+            "columns": [{"type": "BINARY", "len": 16}],
             "tags": [{"type": "BINARY", "count":6}]
         },
         {

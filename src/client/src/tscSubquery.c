@@ -3902,8 +3902,11 @@ void* createQInfoFromQueryNode(SQueryInfo* pQueryInfo, STableGroupInfo* pTableGr
 
   STsBufInfo bufInfo = {0};
   SQueryParam param = {.pOperator = pa};
-  /*int32_t code = */initQInfo(&bufInfo, NULL, pSourceOperator, pQInfo, &param, NULL, 0, merger);
+  int32_t code = initQInfo(&bufInfo, NULL, pSourceOperator, pQInfo, &param, NULL, 0, merger);
   taosArrayDestroy(&pa);
+  if (code != TSDB_CODE_SUCCESS) {
+    goto _cleanup;
+  }
 
   return pQInfo;
 

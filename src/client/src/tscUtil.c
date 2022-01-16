@@ -2369,7 +2369,7 @@ TAOS_FIELD* tscFieldInfoGetField(SFieldInfo* pFieldInfo, int32_t index) {
   return &((SInternalField*)TARRAY_GET_ELEM(pFieldInfo->internalField, index))->field;
 }
 
-int16_t tscFieldInfoGetOffset(SQueryInfo* pQueryInfo, int32_t index) {
+int32_t tscFieldInfoGetOffset(SQueryInfo* pQueryInfo, int32_t index) {
   SInternalField* pInfo = tscFieldInfoGetInternalField(&pQueryInfo->fieldsInfo, index);
   assert(pInfo != NULL && pInfo->pExpr->pExpr == NULL);
 
@@ -2918,7 +2918,7 @@ void tscColumnListDestroy(SArray* pColumnList) {
  *
  */
 static int32_t validateQuoteToken(SStrToken* pToken, bool escapeEnabled, bool *dbIncluded) {
-  tscDequoteAndTrimToken(pToken);
+  if(pToken->z[0] != TS_BACKQUOTE_CHAR) pToken->n = stringProcess(pToken->z, pToken->n);
 
   int32_t k = tGetToken(pToken->z, &pToken->type);
 
@@ -2932,94 +2932,6 @@ static int32_t validateQuoteToken(SStrToken* pToken, bool escapeEnabled, bool *d
   return TSDB_CODE_SUCCESS;
 }
 
-void tscDequoteAndTrimToken(SStrToken* pToken) {
-  uint32_t first = 0, last = pToken->n;
-
-  // trim leading spaces
-  while (first < last) {
-    char c = pToken->z[first];
-    if (c != ' ' && c != '\t') {
-      break;
-    }
-    first++;
-  }
-
-  // trim ending spaces
-  while (first < last) {
-    char c = pToken->z[last - 1];
-    if (c != ' ' && c != '\t') {
-      break;
-    }
-    last--;
-  }
-
-  // there are still at least two characters
-  if (first < last - 1) {
-    char c = pToken->z[first];
-    // dequote
-    if ((c == '\'' || c == '"') && c == pToken->z[last - 1]) {
-      first++;
-      last--;
-    }
-  }
-
-  // left shift the string and pad spaces
-  for (uint32_t i = 0; i + first < last; i++) {
-    pToken->z[i] = pToken->z[first + i];
-  }
-  for (uint32_t i = last - first; i < pToken->n; i++) {
-    pToken->z[i] = ' ';
-  }
-
-  // adjust token length
-  pToken->n = last - first;
-}
-
-void tscRmEscapeAndTrimToken(SStrToken* pToken) {
-  uint32_t first = 0, last = pToken->n;
-
-  // trim leading spaces
-  while (first < last) {
-    char c = pToken->z[first];
-    if (c != ' ' && c != '\t') {
-      break;
-    }
-    first++;
-  }
-
-  // trim ending spaces
-  while (first < last) {
-    char c = pToken->z[last - 1];
-    if (c != ' ' && c != '\t') {
-      break;
-    }
-    last--;
-  }
-
-  // there are still at least two characters
-  if (first < last - 1) {
-    char c = pToken->z[first];
-    // dequote
-    if ((c == '`') && c == pToken->z[last - 1]) {
-      first++;
-      last--;
-    }
-  }
-
-  // left shift the string and pad spaces
-  for (uint32_t i = 0; i + first < last; i++) {
-    pToken->z[i] = pToken->z[first + i];
-  }
-  for (uint32_t i = last - first; i < pToken->n; i++) {
-    pToken->z[i] = ' ';
-  }
-
-  // adjust token length
-  pToken->n = last - first;
-}
-
-
-
 int32_t tscValidateName(SStrToken* pToken, bool escapeEnabled, bool *dbIncluded) {
   if (pToken == NULL || pToken->z == NULL
      || (pToken->type != TK_STRING && pToken->type != TK_ID)) {
@@ -3027,7 +2939,7 @@ int32_t tscValidateName(SStrToken* pToken, bool escapeEnabled, bool *dbIncluded)
   }
 
   if ((!escapeEnabled) && pToken->type == TK_ID) {
-    if (pToken->z[0] == TS_ESCAPE_CHAR) {
+    if (pToken->z[0] == TS_BACKQUOTE_CHAR) {
       return TSDB_CODE_TSC_INVALID_OPERATION;
     }
   }
@@ -3045,7 +2957,7 @@ int32_t tscValidateName(SStrToken* pToken, bool escapeEnabled, bool *dbIncluded)
 
     if (pToken->type == TK_STRING) {
 
-      tscDequoteAndTrimToken(pToken);
+      if(pToken->z[0] != TS_BACKQUOTE_CHAR) pToken->n = stringProcess(pToken->z, pToken->n);
       // tscStrToLower(pToken->z, pToken->n);
       strntolower(pToken->z, pToken->z, pToken->n);
       //pToken->n = (uint32_t)strtrim(pToken->z);
@@ -3065,7 +2977,7 @@ int32_t tscValidateName(SStrToken* pToken, bool escapeEnabled, bool *dbIncluded)
         return tscValidateName(pToken, escapeEnabled, NULL);
       }
     } else if (pToken->type == TK_ID) {
-      tscRmEscapeAndTrimToken(pToken);
+      if(pToken->z[0] == TS_BACKQUOTE_CHAR) pToken->n = stringProcess(pToken->z, pToken->n);
 
       if (pToken->n == 0) {
         return TSDB_CODE_TSC_INVALID_OPERATION;
@@ -3126,7 +3038,7 @@ int32_t tscValidateName(SStrToken* pToken, bool escapeEnabled, bool *dbIncluded)
     }
 
     if (escapeEnabled && pToken->type == TK_ID) {
-      tscRmEscapeAndTrimToken(pToken);
+      if(pToken->z[0] == TS_BACKQUOTE_CHAR) pToken->n = stringProcess(pToken->z, pToken->n);
     }
 
     // re-build the whole name string

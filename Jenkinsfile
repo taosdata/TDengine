@@ -381,7 +381,7 @@ pipeline {
                   println gitlog
                   if (!(gitlog =~ /\((.*?)\)/)){
                     autoCancelled = true
-                    error('Aborting the build.')
+                    error('Please fill in the scope information correctly.\neg. [TD-xxxx]<fix>(query,insert):xxxxxxxxxxxxxxxxxx ')
                   }
                   temp = (gitlog =~ /\((.*?)\)/)
                   temp = temp[0].remove(1)

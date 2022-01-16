@@ -26,74 +26,81 @@ bool isInteger(double x){
   return (x == truncated);
 }
 
-int32_t strdequote(char *z) {
+int32_t strDealWithEscape(char *z, int32_t len){
   if (z == NULL) {
     return 0;
   }
 
-  int32_t quote = z[0];
-  if (quote != '\'' && quote != '"') {
-    return (int32_t)strlen(z);
-  }
-
-  int32_t i = 1, j = 0;
-
-  while (z[i] != 0) {
-    if (z[i] == quote) {
-      if (z[i + 1] == quote) {
-        z[j++] = (char)quote;
-        i++;
-      } else {
-        z[j++] = 0;
-        return (j - 1);
-      }
-    } else {
-      z[j++] = z[i];
-    }
-
-    i++;
-  }
-
-  return j + 1;  // only one quote, do nothing
-}
-
-// delete escape character: \\, \', \"
-int32_t strRmquote(char *z, int32_t len){
-  char delim = 0;
-  int32_t cnt = 0;
   int32_t j = 0;
-  for (size_t k = 0; k < len; ++k) {
-    if (!delim && (z[k] == '\'' || z[k] == '"')){   // find the start ' or "
-      delim = z[k];
+  for (int32_t i = 0; i < len; i++) {
+    if (z[i] == '\\') {   // deal with escape character
+      if(z[i+1] == 'n'){
+        z[j++] = '\n';
+      }else if(z[i+1] == 'r'){
+        z[j++] = '\r';
+      }else if(z[i+1] == 't'){
+        z[j++] = '\t';
+      }else if(z[i+1] == '\\'){
+        z[j++] = '\\';
+      }else if(z[i+1] == '\''){
+        z[j++] = '\'';
+      }else if(z[i+1] == '"'){
+        z[j++] = '"';
+      }else if(z[i+1] == '%'){
+        z[j++] = z[i];
+        z[j++] = z[i+1];
+      }else if(z[i+1] == '_'){
+        z[j++] = z[i];
+        z[j++] = z[i+1];
+      }else{
+        z[j++] = z[i+1];
+      }
+
+      i++;
+      continue;
     }
 
-    if ((z[k] == '\\' && z[k + 1] == '_') || (z[k] == '\\' && z[k + 1] == '%')) {
-      //match '_' '%' self
-    }else if(z[k] == '\\'){
-      z[j] = z[k + 1];
-      cnt++;
-      j++;
-      k++;
-      continue;
-    }else if(z[k] == delim){
-      continue;
-    }
-    z[j] = z[k];
-    j++;
+    z[j++] = z[i];
   }
   z[j] = 0;
   return j;
 }
 
-int32_t strRmquoteEscape(char *z, int32_t len) {
-  if (len <= 0) return len;
+/*
+ * remove the quotation marks at both ends
+ * "fsd" => fsd
+ * "f""sd" =>f"sd
+ *  'fsd' => fsd
+ * 'f''sd' =>f'sd
+ *  `fsd => fsd
+ * `f``sd` =>f`sd
+ */
+static int32_t strdequote(char *z, int32_t n){
+  if(z == NULL || n < 2) return n;
+  int32_t quote = z[0];
+  z[0] = 0;
+  z[n - 1] = 0;
+  int32_t i = 1, j = 0;
+  while (i < n) {
+    if (i < n - 1 && z[i] == quote && z[i + 1] == quote) { // two consecutive quotation marks keep one
+      z[j++] = (char)quote;
+      i += 2;
+    } else {
+      z[j++] = z[i++];
+    }
+  }
+  z[j - 1] = 0;
+  return j - 1;
+}
 
-  if (z[0] == '\'' || z[0] == '\"') {
-    return strRmquote(z, len);
-  } else if (len > 1 && z[0] == TS_ESCAPE_CHAR && z[len - 1] == TS_ESCAPE_CHAR) {
-    memmove(z, z + 1, len - 2);
-    z[len - 2] = '\0';
-    return len - 2;
+int32_t stringProcess(char *z, int32_t len) {
+  if (z == NULL || len < 2) return len;
+
+  if ((z[0] == '\'' && z[len - 1] == '\'')|| (z[0] == '"' && z[len - 1] == '"')) {
+    int32_t n = strdequote(z, len);
+    return strDealWithEscape(z, n);
+  } else if (z[0] == TS_BACKQUOTE_CHAR && z[len - 1] == TS_BACKQUOTE_CHAR) {
+    return strdequote(z, len);
   }
 
   return len;
@@ -134,7 +141,6 @@ size_t strtrim(char *z) {
   } else if (j != i) {
     z[i] = 0;
   }
-  
   return i;
 }
 
@@ -190,9 +196,9 @@ char *tstrstr(char *src, char *dst, bool ignoreInEsc) {
   bool inEsc = false;
   char escChar = 0;
   char *str = src, *res = NULL;
-  
+
   for (int32_t i = 0; i < len; ++i) {
-    if (src[i] == TS_ESCAPE_CHAR || src[i] == '\'' || src[i] == '\"') {
+    if (src[i] == TS_BACKQUOTE_CHAR || src[i] == '\'' || src[i] == '\"') {
       if (!inEsc) {
         escChar = src[i];
         src[i] = 0;
@@ -209,7 +215,7 @@ char *tstrstr(char *src, char *dst, bool ignoreInEsc) {
 
         str = src + i + 1;
       }
-      
+
       inEsc = !inEsc;
       continue;
     }
@@ -217,8 +223,6 @@ char *tstrstr(char *src, char *dst, bool ignoreInEsc) {
 
   return str ? strstr(str, dst) : NULL;
 }
-
-
 
 char* strtolower(char *dst, const char *src) {
   int esc = 0;

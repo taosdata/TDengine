@@ -45,8 +45,7 @@ class BuildDockerCluser:
             "qdebugFlag":"135",
             "maxSQLLength":"1048576"
         }
-        cmd = "mkdir -p %s" % self.dockerDir
-        self.execCmd(cmd)
+        os.makedirs(self.dockerDir, exist_ok=True) # like "mkdir -p"
 
         cmd = "cp *.yml %s" % self.dockerDir
         self.execCmd(cmd)
@@ -100,8 +99,7 @@ class BuildDockerCluser:
             self.removeFile(self.dockerDir, i, self.dirs[2])
 
     def createDir(self, rootDir, index, dir):
-        cmd = "mkdir -p %s/node%d/%s" % (rootDir, index, dir)
-        self.execCmd(cmd)
+        os.makedirs("%s/node%d/%s" % (rootDir, index, dir), exist_ok=True) # like "mkdir -p"
 
     def createDirs(self):
         for i in range(1, self.numOfNodes + 1):
