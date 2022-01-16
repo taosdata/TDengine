@@ -138,10 +138,10 @@ taos> source <filename>;
 
 ## <a class="anchor" id="demo"></a>Experience TDengine’s Lightning Speed
 
-After starting the TDengine server, you can execute the command `taosdemo` in the Linux terminal.
+After starting the TDengine server, you can execute the command `taosBenchmark` (was named `taosdemo`) in the Linux terminal.
 
 ```bash 
-$ taosdemo
+$ taosBenchmark
 ```
 
 Using this command, a STable named `meters` will be created in the database `test`. There are 10k tables under this STable, named from `t0` to `t9999`. In each table there are 100k rows of records, each row with columns （`f1`, `f2` and `f3`. The timestamp is from "2017-07-14 10:40:00 000" to "2017-07-14 10:41:39 999". Each table also has tags `areaid` and `loc`: `areaid` is set from 1 to 10, `loc` is set to "beijing" or "shanghai".
@@ -180,10 +180,10 @@ taos> select avg(f1), max(f2), min(f3) from test.meters where areaid=10;
 taos> select avg(f1), max(f2), min(f3) from test.t10 interval(10s);
 ```
 
-## <a class="anchor" id="taosdemo"></a> Using taosdemo in detail
+## <a class="anchor" id="taosBenchmark"></a> Using taosBenchmark in detail
 
-you can run command `taosdemo` with many options, like number of tables, rows of records and so on. To know more about these options, you can execute `taosdemo --help` and then take a try using different options.
-Please refer to [How to use taosdemo to test the performance of TDengine](https://www.taosdata.com/en/documentation/getting-started/taosdemo) for detail.
+you can run command `taosBenchmark` with many options, like number of tables, rows of records and so on. To know more about these options, you can execute `taosBenchmark --help` and then take a try using different options.
+Please refer to [How to use taosBenchmark to test the performance of TDengine](https://www.taosdata.com/en/documentation/getting-started/taosBenchmark) for detail.
 
 ## Client and Alarm Module
 
