@@ -180,10 +180,10 @@ taosd -C
 | 62    | http                    |          | **S**    |          | 服务器内部的http服务开关。                                   | 0：关闭http服务， 1：激活http服务。                          | 1                                                            |                                                              |
 | 63    | mqtt                    | YES      | **S**    |          | 服务器内部的mqtt服务开关。                                   | 0：关闭mqtt服务， 1：激活mqtt服务。                          | 0                                                            |                                                              |
 | 64    | monitor                 |          | **S**    |          | 服务器内部的系统监控开关。监控主要负责收集物理节点的负载状况，包括CPU、内存、硬盘、网络带宽、HTTP请求量的监控记录，记录信息存储在`LOG`库中。 | 0：关闭监控服务， 1：激活监控服务。                          | 0                                                            |                                                              |
-| 65    | httpEnableRecordSql     |          | **S**    |          | 内部使用，记录通过RESTFul接口，产生的SQL调用。taosAdapter 配置或有不同，请参考相应文档。                 |                                                              | 0                                                            | 生成的文件（httpnote.0/httpnote.1），与服务端日志所在目录相同。 |
-| 66    | httpMaxThreads          |          | **S**    |          | RESTFul接口的线程数。taosAdapter 配置或有不同，请参考相应文档。                                         |                                                              | 2                                                            |                                                              |
+| 65    | httpEnableRecordSql     |          | **S**    |          | 内部使用，记录通过RESTFul接口，产生的SQL调用。taosAdapter 配置或有不同，请参考相应[文档](https://www.taosdata.com/cn/documentation/tools/adapter)。                 |                                                              | 0                                                            | 生成的文件（httpnote.0/httpnote.1），与服务端日志所在目录相同。 |
+| 66    | httpMaxThreads          |          | **S**    |          | RESTFul接口的线程数。taosAdapter 配置或有不同，请参考相应[文档](https://www.taosdata.com/cn/documentation/tools/adapter)。                                         |                                                              | 2                                                            |                                                              |
 | 67    | telegrafUseFieldNum     | YES      |          |          |                                                              |                                                              |                                                              |                                                              |
-| 68    | restfulRowLimit         |          | **S**    |          | RESTFul接口单次返回的记录条数。taosAdapter 配置或有不同，请参考相应文档。                                |                                                              | 10240                                                        | 最大10,000,000                                               |
+| 68    | restfulRowLimit         |          | **S**    |          | RESTFul接口单次返回的记录条数。taosAdapter 配置或有不同，请参考相应[文档](https://www.taosdata.com/cn/documentation/tools/adapter)。                                |                                                              | 10240                                                        | 最大10,000,000                                               |
 | 69    | numOfLogLines           |          | **SC**   |          | 单个日志文件允许的最大行数。                                 |                                                              | 10,000,000                                                   |                                                              |
 | 70    | asyncLog                |          | **SC**   |          | 日志写入模式                                                 | 0：同步、1：异步                                             | 1                                                            |                                                              |
 | 71    | logKeepDays             |          | **SC**   | 天       | 日志文件的最长保存时间                                         |                                                              | 0                                                            | 大于0时，日志文件会被重命名为taosdlog.xxx，其中xxx为日志文件最后修改的时间戳。       |
@@ -641,8 +641,10 @@ TDengine的所有可执行文件默认存放在 _/usr/local/taos/bin_ 目录下�
 - *taosd*：TDengine服务端可执行文件
 - *taos*：TDengine Shell可执行文件
 - *taosdump*：数据导入导出工具
-- *taosdemo*：TDengine测试工具
+- *taosBenchmark*：TDengine测试工具
 - remove.sh：卸载TDengine的脚本，请谨慎执行，链接到/usr/bin目录下的**rmtaos**命令。会删除TDengine的安装目录/usr/local/taos，但会保留/etc/taos、/var/lib/taos、/var/log/taos。
+
+注意：2.4.0.0 版本之后的 taosBenchmark 和 taosdump 需要安装独立安装包 taosTools。
 
 您可以通过修改系统配置文件taos.cfg来配置不同的数据目录和日志目录。
 
