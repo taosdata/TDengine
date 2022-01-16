@@ -16,6 +16,7 @@
 #ifndef _TD_TRANSPORT_INT_H_
 #define _TD_TRANSPORT_INT_H_
 
+#include "rpcHead.h"
 #ifdef __cplusplus
 extern "C" {
 #endif
