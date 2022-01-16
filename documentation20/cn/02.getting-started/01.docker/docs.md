@@ -61,7 +61,7 @@ c452519b0f9b   tdengine/tdengine   "taosd"   14 minutes ago   Up 14 minutes   ·
 
 ```bash
 $ docker exec -it tdengine /bin/bash
-root@tdengine-server:~/TDengine-server-2.0.20.13#
+root@tdengine-server:~/TDengine-server-2.4.0.4#
 ```
 
 - **docker exec**：通过 docker exec 命令进入容器，如果退出，容器不会停止。
@@ -73,9 +73,9 @@ root@tdengine-server:~/TDengine-server-2.0.20.13#
 进入容器后，执行 taos shell 客户端程序。
 
 ```bash
-root@tdengine-server:~/TDengine-server-2.0.20.13# taos
+root@tdengine-server:~/TDengine-server-2.4.0.4# taos
 
-Welcome to the TDengine shell from Linux, Client Version:2.0.20.13
+Welcome to the TDengine shell from Linux, Client Version:2.4.0.4
 Copyright (c) 2020 by TAOS Data, Inc. All rights reserved.
 
 taos>
@@ -93,7 +93,7 @@ TDengine 终端成功连接服务端，打印出了欢迎消息和版本信息�
 ```
 $ taos
 
-Welcome to the TDengine shell from Linux, Client Version:2.0.22.3
+Welcome to the TDengine shell from Linux, Client Version:2.4.0.4
 Copyright (c) 2020 by TAOS Data, Inc. All rights reserved.
 
 taos>
@@ -123,13 +123,13 @@ TDengine RESTful 接口详情请参考[官方文档](https://www.taosdata.com/cn
 $ docker run -d --name tdengine-taosa -p 6030-6049:6030-6049 -p 6030-6049:6030-6049/udp tdengine/tdengine:2.4.0.4
 ```
 
-使用 docker 运行 TDengine 2.4.0.0 版本镜像（仅 taosAdapter）：
+使用 docker 运行 TDengine 2.4.0.4 版本镜像（仅 taosAdapter）：
 
 ```
 $ docker run -d --name tdengine-taosa -p 6041-6049:6041-6049 -p 6041-6049:6041-6049/udp tdengine/tdengine:2.4.0.4 taosadapter
 ```
 
-使用 docker 运行 TDengine 2.4.0.0 版本镜像（同时运行 taosd 和 taosAdapter）：
+使用 docker 运行 TDengine 2.4.0.4 版本镜像（同时运行 taosd 和 taosAdapter）：
 
 ```
 $ docker run -d --name tdengine-taosa -p 6030-6049:6030-6049 -p 6030-6049:6030-6049/udp tdengine/tdengine:2.4.0.4 run_taosd_and_taosadapter.sh
@@ -359,9 +359,9 @@ column[0]:FLOAT column[1]:INT column[2]:FLOAT
 - **进入命令行。**
 
 ```bash
-$ root@c452519b0f9b:~/TDengine-server-2.0.20.13# taos
+$ root@c452519b0f9b:~/TDengine-server-2.4.0.4# taos
 
-Welcome to the TDengine shell from Linux, Client Version:2.0.20.13
+Welcome to the TDengine shell from Linux, Client Version:2.4.0.4
 Copyright (c) 2020 by TAOS Data, Inc. All rights reserved.
 
 taos>

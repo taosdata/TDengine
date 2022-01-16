@@ -61,7 +61,7 @@ c452519b0f9b   tdengine/tdengine   "taosd"   14 minutes ago   Up 14 minutes   ·
 
 ```bash
 $ docker exec -it tdengine /bin/bash
-root@tdengine-server:~/TDengine-server-2.0.20.13# 
+root@tdengine-server:~/TDengine-server-2.4.0.4# 
 ```
 
 - **docker exec**: Enter the container by `docker exec` command, if exited, the container will not stop.
@@ -73,9 +73,9 @@ root@tdengine-server:~/TDengine-server-2.0.20.13#
 After entering the container, execute the taos shell client program.
 
 ```bash
-root@tdengine-server:~/TDengine-server-2.0.20.13# taos
+root@tdengine-server:~/TDengine-server-2.4.0.4# taos
 
-Welcome to the TDengine shell from Linux, Client Version:2.0.20.13
+Welcome to the TDengine shell from Linux, Client Version:2.4.0.4
 Copyright (c) 2020 by TAOS Data, Inc. All rights reserved.
 
 taos> 
@@ -92,7 +92,7 @@ After starting the TDengine Docker container with the correct port mapped with t
 ```
 $ taos
 
-Welcome to the TDengine shell from Linux, Client Version:2.0.22.3
+Welcome to the TDengine shell from Linux, Client Version:2.4.0.4
 Copyright (c) 2020 by TAOS Data, Inc. All rights reserved.
 
 taos>
@@ -116,10 +116,10 @@ Docker containers of TDegnine version 2.4.0.0 and later include a component name
 
 Note: If taosAdapter is running inside the container, you need to add mapping to other additional ports as needed, please refer to [taosAdapter documentation](https://github.com/taosdata/taosadapter/blob/develop/README.md) for the default port number and modification methods for the specific purpose.
 
-Running TDengine version 2.4.0.0 image with docker.
+Running TDengine version 2.4.0.4 image with docker.
 
 ```
-$ docker run -d --name tdengine-taosa -p 6030-6049:6030-6049 -p 6030-6049:6030-6049/udp tdengine/tdengine:2.4.0.0
+$ docker run -d --name tdengine-taosa -p 6030-6049:6030-6049 -p 6030-6049:6030-6049/udp tdengine/tdengine:2.4.0.4
 ```
 
 Verify that the RESTful interface taosAdapter provides working using the `curl` command.
@@ -224,9 +224,9 @@ It takes about a few minutes to execute this command and ends up inserting a tot
 - **Go to the terminal interface.**
 
 ```bash
-$ root@c452519b0f9b:~/TDengine-server-2.0.20.13# taos
+$ root@c452519b0f9b:~/TDengine-server-2.4.0.4# taos
 
-Welcome to the TDengine shell from Linux, Client Version:2.0.20.13
+Welcome to the TDengine shell from Linux, Client Version:2.4.0.4
 Copyright (c) 2020 by TAOS Data, Inc. All rights reserved.
 
 taos> 
