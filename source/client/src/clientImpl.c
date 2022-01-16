@@ -71,15 +71,15 @@ TAOS *taos_connect_internal(const char *ip, const char *user, const char *pass, 
     return NULL;
   }
 
-  char tmp[TSDB_DB_NAME_LEN] = {0};
+  char localDb[TSDB_DB_NAME_LEN] = {0};
   if (db != NULL) {
     if(!validateDbName(db)) {
       terrno = TSDB_CODE_TSC_INVALID_DB_LENGTH;
       return NULL;
     }
 
-    tstrncpy(tmp, db, sizeof(tmp));
-    strdequote(tmp);
+    tstrncpy(localDb, db, sizeof(localDb));
+    strdequote(localDb);
   }
 
   char secretEncrypt[32] = {0};
@@ -122,7 +122,7 @@ TAOS *taos_connect_internal(const char *ip, const char *user, const char *pass, 
   }
 
   tfree(key);
-  return taosConnectImpl(ip, user, &secretEncrypt[0], db, port, NULL, NULL, *pInst);
+  return taosConnectImpl(ip, user, &secretEncrypt[0], localDb, port, NULL, NULL, *pInst);
 }
 
 int32_t buildRequest(STscObj *pTscObj, const char *sql, int sqlLen, SRequestObj** pRequest) {
