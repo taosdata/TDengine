@@ -4618,9 +4618,7 @@ static void mavg_function(SQLFunctionCtx *pCtx) {
     }
   }
 
-  if (notNullElems <= 0) {
-    assert(pCtx->hasNull);
-  } else {
+ {
     for (int t = 0; t < pCtx->tagInfo.numOfTagCols; ++t) {
       SQLFunctionCtx* tagCtx = pCtx->tagInfo.pTagCtxList[t];
       if (tagCtx->functionId == TSDB_FUNC_TAG_DUMMY) {
@@ -5119,7 +5117,7 @@ SAggFunctionInfo aAggs[40] = {{
                               "twa",
                               TSDB_FUNC_TWA,
                               TSDB_FUNC_TWA,
-                              TSDB_BASE_FUNC_SO | TSDB_FUNCSTATE_NEED_TS,
+                              TSDB_FUNCSTATE_SO | TSDB_FUNCSTATE_STABLE | TSDB_FUNCSTATE_NEED_TS,
                               twa_function_setup,
                               twa_function,
                               twa_function_finalizer,
@@ -5395,7 +5393,7 @@ SAggFunctionInfo aAggs[40] = {{
                               "elapsed",
                               TSDB_FUNC_ELAPSED,
                               TSDB_FUNC_ELAPSED,
-                              TSDB_BASE_FUNC_SO,
+                              TSDB_FUNCSTATE_SO | TSDB_FUNCSTATE_STABLE,
                               elapsedSetup,
                               elapsedFunction,
                               elapsedFinalizer,

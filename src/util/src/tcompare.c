@@ -266,9 +266,10 @@ int patternMatch(const char *patterStr, const char *str, size_t size, const SPat
   int32_t j = 0;
   int32_t o = 0;
   int32_t m = 0;
+  char escape  = '\\';  // "\"
 
   while ((c = patterStr[i++]) != 0) {
-    if (c == pInfo->matchAll) { /* Match "*" */
+    if (c == pInfo->matchAll) {
 
       while ((c = patterStr[i++]) == pInfo->matchAll || c == pInfo->matchOne) {
         if (c == pInfo->matchOne) {
@@ -308,8 +309,24 @@ int patternMatch(const char *patterStr, const char *str, size_t size, const SPat
     ++o; 
     
     if (j <= size) {
-      if (c == '\\' && patterStr[i] == '_' && c1 == '_') { i++; continue; }
-      if (c == '\\' && patterStr[i] == '%' && c1 == '%') { i++; continue; }
+      if (c == escape && patterStr[i] == pInfo->matchOne){
+        if(c1 == pInfo->matchOne){
+          i++;
+          continue;
+        }
+        else{
+          return TSDB_PATTERN_NOMATCH;
+        }
+      }
+      if (c == escape && patterStr[i] == pInfo->matchAll){
+        if(c1 == pInfo->matchAll){
+          i++;
+          continue;
+        }
+        else{
+          return TSDB_PATTERN_NOMATCH;
+        }
+      }
       if (c == c1 || tolower(c) == tolower(c1) || (c == pInfo->matchOne && c1 != 0)) {
         continue;
       }
@@ -428,8 +445,24 @@ int WCSPatternMatch(const uint32_t *patterStr, const uint32_t *str, size_t size,
     c1 = str[j++];
 
     if (j <= size) {
-      if (c == escape && patterStr[i] == matchOne && c1 == matchOne) { i++; continue; }
-      if (c == escape && patterStr[i] == matchAll && c1 == matchAll) { i++; continue; }
+      if (c == escape && patterStr[i] == matchOne){
+        if(c1 == matchOne){
+          i++;
+          continue;
+        }
+        else{
+          return TSDB_PATTERN_NOMATCH;
+        }
+      }
+      if (c == escape && patterStr[i] == matchAll){
+        if(c1 == matchAll){
+          i++;
+          continue;
+        }
+        else{
+          return TSDB_PATTERN_NOMATCH;
+        }
+      }
       if (c == c1 || towlower(c) == towlower(c1) || (c == matchOne && c1 != 0)) {
         continue;
       }

@@ -322,8 +322,8 @@ class ElapsedCase:
         if (self.restart):
             tdSql.execute("drop table elapsed_t")
             tdSql.execute("drop table elapsed_st")
-        tdSql.execute("create table elapsed_t as select elapsed(ts) from t1 interval(1m) sliding(30s)")
-        tdSql.execute("create table elapsed_st as select elapsed(ts) from st1 interval(1m) sliding(30s) group by tbname")
+        tdSql.error("create table elapsed_t as select elapsed(ts) from t1 interval(1m) sliding(30s)")
+        tdSql.error("create table elapsed_st as select elapsed(ts) from st1 interval(1m) sliding(30s) group by tbname")
 
     def selectIllegalTest(self):
         tdSql.execute("use wxy_db")

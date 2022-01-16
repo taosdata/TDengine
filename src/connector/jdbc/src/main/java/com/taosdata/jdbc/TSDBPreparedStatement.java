@@ -40,25 +40,27 @@ public class TSDBPreparedStatement extends TSDBStatement implements PreparedStat
     private String rawSql;
     private Object[] parameters;
     // for parameter binding
-    private long nativeStmtHandle = 0;
+    private long nativeStmtHandle;
     private String tableName;
     private ArrayList<TableTagInfo> tableTags;
     private int tagValueLength;
     private ArrayList<ColumnInfo> colData;
 
-    TSDBPreparedStatement(TSDBConnection connection, String sql) {
+    TSDBPreparedStatement(TSDBConnection connection, String sql) throws SQLException {
         super(connection);
         init(sql);
-
         int parameterCnt = 0;
-        if (sql.contains("?")) {
-            for (int i = 0; i < sql.length(); i++) {
-                if ('?' == sql.charAt(i)) {
-                    parameterCnt++;
-                }
+        if (!sql.contains("?"))
+            return;
+        for (int i = 0; i < sql.length(); i++) {
+            if ('?' == sql.charAt(i)) {
+                parameterCnt++;
             }
         }
         parameters = new Object[parameterCnt];
+        // for parameter-binding
+//        TSDBJNIConnector connector = ((TSDBConnection) this.getConnection()).getConnector();
+//        this.nativeStmtHandle = connector.prepareStmt(rawSql);
 
         if (parameterCnt > 1) {
             // the table name is also a parameter, so ignore it.
@@ -530,8 +532,14 @@ public class TSDBPreparedStatement extends TSDBStatement implements PreparedStat
     }
 
     public void setTableName(String name) throws SQLException {
+
+        if (this.nativeStmtHandle == 0) {
+            TSDBJNIConnector connector = ((TSDBConnection) this.getConnection()).getConnector();
+            this.nativeStmtHandle = connector.prepareStmt(rawSql);
+        }
+
         if (this.tableName != null) {
-            this.columnDataExecuteBatch();
+            this.columnDataAddBatch();
             this.columnDataClearBatchInternal();
         }
         this.tableName = name;
@@ -693,7 +701,6 @@ public class TSDBPreparedStatement extends TSDBStatement implements PreparedStat
         if (rawSql == null) {
             throw TSDBError.createSQLException(TSDBErrorNumbers.ERROR_UNKNOWN, "sql statement not set yet");
         }
-
         // table name is not set yet, abort
         if (this.tableName == null) {
             throw TSDBError.createSQLException(TSDBErrorNumbers.ERROR_UNKNOWN, "table name not set yet");
@@ -703,24 +710,25 @@ public class TSDBPreparedStatement extends TSDBStatement implements PreparedStat
         if (numOfCols == 0) {
             throw TSDBError.createSQLException(TSDBErrorNumbers.ERROR_UNKNOWN, "column data not bind");
         }
+        if (nativeStmtHandle == 0) {
+            throw TSDBError.createSQLException(TSDBErrorNumbers.ERROR_UNKNOWN, "stmt is null");
+        }
 
         TSDBJNIConnector connector = ((TSDBConnection) this.getConnection()).getConnector();
-        this.nativeStmtHandle = connector.prepareStmt(rawSql);
-
         if (this.tableTags == null) {
             connector.setBindTableName(this.nativeStmtHandle, this.tableName);
         } else {
-            int num = this.tableTags.size();
+            int tagSize = this.tableTags.size();
             ByteBuffer tagDataList = ByteBuffer.allocate(this.tagValueLength);
             tagDataList.order(ByteOrder.LITTLE_ENDIAN);
 
-            ByteBuffer typeList = ByteBuffer.allocate(num);
+            ByteBuffer typeList = ByteBuffer.allocate(tagSize);
             typeList.order(ByteOrder.LITTLE_ENDIAN);
 
-            ByteBuffer lengthList = ByteBuffer.allocate(num * Long.BYTES);
+            ByteBuffer lengthList = ByteBuffer.allocate(tagSize * Long.BYTES);
             lengthList.order(ByteOrder.LITTLE_ENDIAN);
 
-            ByteBuffer isNullList = ByteBuffer.allocate(num * Integer.BYTES);
+            ByteBuffer isNullList = ByteBuffer.allocate(tagSize * Integer.BYTES);
             isNullList.order(ByteOrder.LITTLE_ENDIAN);
 
             for (TableTagInfo tag : this.tableTags) {
@@ -744,54 +752,43 @@ public class TSDBPreparedStatement extends TSDBStatement implements PreparedStat
                         lengthList.putLong(Byte.BYTES);
                         break;
                     }
-
                     case TSDBConstants.TSDB_DATA_TYPE_BOOL: {
                         Boolean val = (Boolean) tag.value;
                         tagDataList.put((byte) (val ? 1 : 0));
                         lengthList.putLong(Byte.BYTES);
                         break;
                     }
-
                     case TSDBConstants.TSDB_DATA_TYPE_SMALLINT: {
                         Short val = (Short) tag.value;
                         tagDataList.putShort(val);
                         lengthList.putLong(Short.BYTES);
-
                         break;
                     }
-
                     case TSDBConstants.TSDB_DATA_TYPE_TIMESTAMP:
                     case TSDBConstants.TSDB_DATA_TYPE_BIGINT: {
                         Long val = (Long) tag.value;
                         tagDataList.putLong(val == null ? 0 : val);
                         lengthList.putLong(Long.BYTES);
-
                         break;
                     }
-
                     case TSDBConstants.TSDB_DATA_TYPE_FLOAT: {
                         Float val = (Float) tag.value;
                         tagDataList.putFloat(val == null ? 0 : val);
                         lengthList.putLong(Float.BYTES);
-
                         break;
                     }
-
                     case TSDBConstants.TSDB_DATA_TYPE_DOUBLE: {
                         Double val = (Double) tag.value;
                         tagDataList.putDouble(val == null ? 0 : val);
                         lengthList.putLong(Double.BYTES);
-
                         break;
                     }
-
                     case TSDBConstants.TSDB_DATA_TYPE_NCHAR:
                     case TSDBConstants.TSDB_DATA_TYPE_JSON:
                     case TSDBConstants.TSDB_DATA_TYPE_BINARY: {
                         String charset = TaosGlobalConfig.getCharset();
                         String val = (String) tag.value;
-
-                        byte[] b = null;
+                        byte[] b;
                         try {
                             if (tag.type == TSDBConstants.TSDB_DATA_TYPE_BINARY) {
                                 b = val.getBytes();
@@ -801,12 +798,10 @@ public class TSDBPreparedStatement extends TSDBStatement implements PreparedStat
                         } catch (UnsupportedEncodingException e) {
                             throw new RuntimeException(e.getMessage());
                         }
-
                         tagDataList.put(b);
                         lengthList.putLong(b.length);
                         break;
                     }
-
                     case TSDBConstants.TSDB_DATA_TYPE_UTINYINT:
                     case TSDBConstants.TSDB_DATA_TYPE_USMALLINT:
                     case TSDBConstants.TSDB_DATA_TYPE_UINT:
@@ -814,13 +809,12 @@ public class TSDBPreparedStatement extends TSDBStatement implements PreparedStat
                         throw TSDBError.createSQLException(TSDBErrorNumbers.ERROR_UNKNOWN, "not support data types");
                     }
                 }
-
                 typeList.put((byte) tag.type);
                 isNullList.putInt(tag.isNull ? 1 : 0);
             }
 
-            connector.setBindTableNameAndTags(this.nativeStmtHandle, this.tableName, this.tableTags.size(), tagDataList,
-                    typeList, lengthList, isNullList);
+            connector.setBindTableNameAndTags(this.nativeStmtHandle, this.tableName, this.tableTags.size(),
+                    tagDataList, typeList, lengthList, isNullList);
         }
 
         ColumnInfo colInfo = this.colData.get(0);
@@ -834,7 +828,6 @@ public class TSDBPreparedStatement extends TSDBStatement implements PreparedStat
             if (col1 == null || !col1.isTypeSet()) {
                 throw TSDBError.createSQLException(TSDBErrorNumbers.ERROR_UNKNOWN, "column data not bind");
             }
-
             if (rows != col1.data.size()) {
                 throw TSDBError.createSQLException(TSDBErrorNumbers.ERROR_UNKNOWN, "the rows in column data not identical");
             }
@@ -951,7 +944,6 @@ public class TSDBPreparedStatement extends TSDBStatement implements PreparedStat
                     }
                     break;
                 }
-
                 case TSDBConstants.TSDB_DATA_TYPE_UTINYINT:
                 case TSDBConstants.TSDB_DATA_TYPE_USMALLINT:
                 case TSDBConstants.TSDB_DATA_TYPE_UINT:
@@ -962,6 +954,8 @@ public class TSDBPreparedStatement extends TSDBStatement implements PreparedStat
 
             connector.bindColumnDataArray(this.nativeStmtHandle, colDataList, lengthList, isNullList, col1.type, col1.bytes, rows, i);
         }
+        connector.addBatch(this.nativeStmtHandle);
+        this.columnDataClearBatchInternal();
     }
 
     public void columnDataExecuteBatch() throws SQLException {
@@ -976,12 +970,13 @@ public class TSDBPreparedStatement extends TSDBStatement implements PreparedStat
     }
 
     private void columnDataClearBatchInternal() {
-        int size = this.colData.size();
-        this.colData.clear();
-        this.colData.addAll(Collections.nCopies(size, null));
-        this.tableName = null;   // clear the table name
+        this.tableName = null;
+        if (this.tableTags != null)
+            this.tableTags.clear();
+        tagValueLength = 0;
+        if (this.colData != null)
+            this.colData.clear();
     }
-
 
     public void columnDataCloseBatch() throws SQLException {
         TSDBJNIConnector connector = ((TSDBConnection) this.getConnection()).getConnector();
