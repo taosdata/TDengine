@@ -977,6 +977,7 @@ SVnodeModifOpStmtInfo* qParserValidateCreateTbSqlNode(SSqlInfo* pInfo, SParseCon
   int32_t msgLen = 0;
   int32_t code = doCheckAndBuildCreateTableReq(pCreateTable, pCtx, pMsgBuf, (char**) &pModifSqlStmt, &msgLen);
   if (code != TSDB_CODE_SUCCESS) {
+    terrno = code;
     tfree(pModifSqlStmt);
     return NULL;
   }

@@ -117,6 +117,10 @@ SShowReq* buildShowMsg(SShowInfo* pShowInfo, SParseContext *pCtx, SMsgBuf* pMsgB
         return NULL;
       }
       tNameSetDbName(&n, pCtx->acctId, pShowInfo->prefix.z, pShowInfo->prefix.n);
+    } else if (pCtx->db == NULL || strlen(pCtx->db) == 0) {
+      terrno = buildInvalidOperationMsg(pMsgBuf, "database is not specified");
+      tfree(pShowMsg);
+      return NULL;
     } else {
       tNameSetDbName(&n, pCtx->acctId, pCtx->db, strlen(pCtx->db));
     }
