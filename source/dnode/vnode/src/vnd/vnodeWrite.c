@@ -13,7 +13,7 @@
  * along with this program. If not, see <http://www.gnu.org/licenses/>.
  */
 
-#include "vnodeDef.h"
+#include "vnd.h"
 
 int vnodeProcessNoWalWMsgs(SVnode *pVnode, SRpcMsg *pMsg) {
   switch (pMsg->msgType) {
@@ -84,6 +84,7 @@ int vnodeApplyWMsg(SVnode *pVnode, SRpcMsg *pMsg, SRpcMsg **pRsp) {
           // TODO: handle error
         }
         vTrace("vgId:%d process create table %s", pVnode->vgId, pCreateTbReq->name);
+        free(pCreateTbReq->name);
         if (pCreateTbReq->type == TD_SUPER_TABLE) {
           free(pCreateTbReq->stbCfg.pSchema);
           free(pCreateTbReq->stbCfg.pTagSchema);
