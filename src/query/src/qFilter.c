@@ -1282,7 +1282,7 @@ int32_t filterAddUnitFromUnit(SFilterInfo *dst, SFilterInfo *src, SFilterUnit* u
     void *data = FILTER_UNIT_VAL_DATA(src, u);
     if (IS_VAR_DATA_TYPE(type)) {
       if (FILTER_UNIT_OPTR(u) ==  TSDB_RELATION_IN) {
-        filterAddField(dst, NULL, &data, FLD_TYPE_VALUE, &right, 0, false);
+        filterAddField(dst, NULL, &data, FLD_TYPE_VALUE, &right, sizeof(SHashObj), false);
 
         t = FILTER_GET_FIELD(dst, right);
         
