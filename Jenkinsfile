@@ -375,7 +375,6 @@ pipeline {
               Collections.shuffle sim_mod
               }
             }    
-          }
       }
       stage('Parallel test stage') {
         //only build pr
