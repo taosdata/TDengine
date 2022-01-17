@@ -193,15 +193,15 @@ typedef struct SQWorkerMgmt {
 #define QW_UNLOCK(type, _lock) do {                       \
   if (QW_READ == (type)) {                                \
     assert(atomic_load_32((_lock)) > 0);  \
-    qDebug("QW RULOCK%p:%d, %s:%d B", (_lock), atomic_load_32(_lock), __FILE__, __LINE__); \
+    QW_LOCK_DEBUG("QW RULOCK%p:%d, %s:%d B", (_lock), atomic_load_32(_lock), __FILE__, __LINE__); \
     taosRUnLockLatch(_lock);                              \
-    qDebug("QW RULOCK%p:%d, %s:%d E", (_lock), atomic_load_32(_lock), __FILE__, __LINE__); \
+    QW_LOCK_DEBUG("QW RULOCK%p:%d, %s:%d E", (_lock), atomic_load_32(_lock), __FILE__, __LINE__); \
     assert(atomic_load_32((_lock)) >= 0);  \
   } else {                                                \
     assert(atomic_load_32((_lock)) == TD_RWLATCH_WRITE_FLAG_COPY);  \
-    qDebug("QW WULOCK%p:%d, %s:%d B", (_lock), atomic_load_32(_lock), __FILE__, __LINE__); \
+    QW_LOCK_DEBUG("QW WULOCK%p:%d, %s:%d B", (_lock), atomic_load_32(_lock), __FILE__, __LINE__); \
     taosWUnLockLatch(_lock);                              \
-    qDebug("QW WULOCK%p:%d, %s:%d E", (_lock), atomic_load_32(_lock), __FILE__, __LINE__); \
+    QW_LOCK_DEBUG("QW WULOCK%p:%d, %s:%d E", (_lock), atomic_load_32(_lock), __FILE__, __LINE__); \
     assert(atomic_load_32((_lock)) >= 0);  \
   }                                                       \
 } while (0)
