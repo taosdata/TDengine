@@ -551,7 +551,7 @@ static int tsdbCheckAndDecodeColumnData(SDataCol *pDataCol, void *content, int32
 static int tsdbLoadBlockDataColsImpl(SReadH *pReadh, SBlock *pBlock, SDataCols *pDataCols, int16_t *colIds,
                                      int numOfColIds) {
   ASSERT(pBlock->numOfSubBlocks == 0 || pBlock->numOfSubBlocks == 1);
-  ASSERT(colIds[0] == 0);
+  ASSERT(colIds[0] == PRIMARYKEY_TIMESTAMP_COL_ID);
 
   SDFile *  pDFile = (pBlock->last) ? TSDB_READ_LAST_FILE(pReadh) : TSDB_READ_DATA_FILE(pReadh);
   SBlockCol blockCol = {0};
@@ -588,7 +588,7 @@ static int tsdbLoadBlockDataColsImpl(SReadH *pReadh, SBlock *pBlock, SDataCols *
     if (pDataCol == NULL) continue;
     ASSERT(pDataCol->colId == colId);
 
-    if (colId == 0) {  // load the key row
+    if (colId == PRIMARYKEY_TIMESTAMP_COL_ID) {  // load the key row
       blockCol.colId = colId;
       blockCol.len = pBlock->keyLen;
       blockCol.type = pDataCol->type;
