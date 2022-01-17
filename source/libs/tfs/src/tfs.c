@@ -79,7 +79,7 @@ int32_t tfsInit(SDiskCfg *pDiskCfg, int32_t ndisk) {
   pfs->map = taosHashInit(TSDB_MAX_TIERS * TSDB_MAX_DISKS_PER_TIER * 2,
                           taosGetDefaultHashFunction(TSDB_DATA_TYPE_BINARY), false, HASH_NO_LOCK);
   if (pfs->map == NULL) {
-    terrno = TSDB_CODE_FS_OUT_OF_MEMORY;
+    terrno = TSDB_CODE_OUT_OF_MEMORY;
     tfsCleanup();
     return -1;
   }
@@ -318,6 +318,7 @@ int32_t tfsRmdir(const char *rname) {
   return 0;
 }
 
+#if 0
 int32_t tfsRename(char *orname, char *nrname) {
   char oaname[TMPNAME_LEN] = "\0";
   char naname[TMPNAME_LEN] = "\0";
@@ -336,6 +337,7 @@ int32_t tfsRename(char *orname, char *nrname) {
 
   return 0;
 }
+#endif
 
 struct TDIR {
   SDiskIter iter;
