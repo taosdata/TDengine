@@ -80,11 +80,11 @@ int32_t parseQuerySql(SParseContext* pCxt, SQueryNode** pQuery) {
   return TSDB_CODE_SUCCESS;
 }
 
-int32_t qParseQuerySql(SParseContext* pCxt, SQueryNode** pQuery) {
+int32_t qParseQuerySql(SParseContext* pCxt, SQueryNode** pQueryNode) {
   if (isInsertSql(pCxt->pSql, pCxt->sqlLen)) {
-    return parseInsertSql(pCxt, (SVnodeModifOpStmtInfo**)pQuery);
+    return parseInsertSql(pCxt, (SVnodeModifOpStmtInfo**)pQueryNode);
   } else {
-    return parseQuerySql(pCxt, pQuery);
+    return parseQuerySql(pCxt, pQueryNode);
   }
 }
 

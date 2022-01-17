@@ -1100,6 +1100,7 @@ typedef struct {
 typedef struct {
   int8_t igExists;
   char*  name;
+  char*  sql;
   char*  physicalPlan;
   char*  logicalPlan;
 } SCMCreateTopicReq;
@@ -1108,6 +1109,7 @@ static FORCE_INLINE int tSerializeSCMCreateTopicReq(void** buf, const SCMCreateT
   int tlen = 0;
   tlen += taosEncodeFixedI8(buf, pReq->igExists);
   tlen += taosEncodeString(buf, pReq->name);
+  tlen += taosEncodeString(buf, pReq->sql);
   tlen += taosEncodeString(buf, pReq->physicalPlan);
   tlen += taosEncodeString(buf, pReq->logicalPlan);
   return tlen;
@@ -1116,6 +1118,7 @@ static FORCE_INLINE int tSerializeSCMCreateTopicReq(void** buf, const SCMCreateT
 static FORCE_INLINE void* tDeserializeSCMCreateTopicReq(void* buf, SCMCreateTopicReq* pReq) {
   buf = taosDecodeFixedI8(buf, &(pReq->igExists));
   buf = taosDecodeString(buf, &(pReq->name));
+  buf = taosDecodeString(buf, &(pReq->sql));
   buf = taosDecodeString(buf, &(pReq->physicalPlan));
   buf = taosDecodeString(buf, &(pReq->logicalPlan));
   return buf;
@@ -1238,7 +1241,7 @@ typedef struct {
 } SMVSubscribeRsp;
 
 typedef struct {
-  char    name[TSDB_TOPIC_FNAME_LEN];
+  char    name[TSDB_TOPIC_NAME_LEN];
   int8_t  igExists;
   int32_t execLen;
   void*   executor;

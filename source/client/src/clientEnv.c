@@ -89,13 +89,12 @@ static void tscInitLogFile() {
 
 // todo close the transporter properly
 void closeTransporter(STscObj* pTscObj)  {
-  if (pTscObj == NULL || pTscObj->pTransporter == NULL) {
+  if (pTscObj == NULL || pTscObj->pAppInfo->pTransporter == NULL) {
     return;
   }
 
-  tscDebug("free transporter:%p in connObj: 0x%"PRIx64, pTscObj->pTransporter, pTscObj->id);
-  rpcClose(pTscObj->pTransporter);
-  pTscObj->pTransporter = NULL;
+  tscDebug("free transporter:%p in connObj: 0x%"PRIx64, pTscObj->pAppInfo->pTransporter, pTscObj->id);
+  rpcClose(pTscObj->pAppInfo->pTransporter);
 }
 
 // TODO refactor
@@ -140,10 +139,6 @@ void* createTscObj(const char* user, const char* auth, const char *db, SAppInstI
   }
 
   pObj->pAppInfo = pAppInfo;
-  if (pAppInfo != NULL) {
-    pObj->pTransporter = pAppInfo->pTransporter;
-  }
-
   tstrncpy(pObj->user, user, sizeof(pObj->user));
   memcpy(pObj->pass, auth, TSDB_PASSWORD_LEN);
 
@@ -199,6 +194,7 @@ static void doDestroyRequest(void* p) {
   tfree(pRequest->pInfo);
 
   doFreeReqResultInfo(&pRequest->body.resInfo);
+  qDestroyQueryDag(pRequest->body.pDag);
 
   deregisterRequest(pRequest);
   tfree(pRequest);

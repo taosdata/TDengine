@@ -124,12 +124,13 @@ int32_t parserValidatePassword(SToken* pToken, SMsgBuf* pMsgBuf) {
 }
 
 int32_t parserValidateNameToken(SToken* pToken) {
-  if (pToken == NULL || pToken->z == NULL || pToken->type != TK_ID) {
+  if (pToken == NULL || pToken->z == NULL || pToken->type != TK_ID || pToken->n == 0) {
     return TSDB_CODE_TSC_INVALID_OPERATION;
   }
 
   // it is a token quoted with escape char '`'
   if (pToken->z[0] == TS_ESCAPE_CHAR && pToken->z[pToken->n - 1] == TS_ESCAPE_CHAR) {
+    pToken->n = strdequote(pToken->z);
     return TSDB_CODE_SUCCESS;
   }
 
@@ -1945,17 +1946,30 @@ int32_t KvRowAppend(const void *value, int32_t len, void *param) {
 
 int32_t createSName(SName* pName, SToken* pTableName, SParseContext* pParseCtx, SMsgBuf* pMsgBuf) {
   const char* msg1 = "name too long";
+  const char* msg2 = "invalid database name";
 
   int32_t  code = TSDB_CODE_SUCCESS;
-  char* p  = strnchr(pTableName->z, TS_PATH_DELIMITER[0], pTableName->n, false);
+  char* p  = strnchr(pTableName->z, TS_PATH_DELIMITER[0], pTableName->n, true);
 
   if (p != NULL) { // db has been specified in sql string so we ignore current db path
-    tNameSetAcctId(pName, pParseCtx->acctId);
+    assert(*p == TS_PATH_DELIMITER[0]);
 
-    char name[TSDB_TABLE_FNAME_LEN] = {0};
-    strncpy(name, pTableName->z, pTableName->n);
+    int32_t dbLen = p - pTableName->z;
+    char name[TSDB_DB_FNAME_LEN] = {0};
+    strncpy(name, pTableName->z, dbLen);
+    dbLen = strdequote(name);
 
-    code = tNameFromString(pName, name, T_NAME_DB|T_NAME_TABLE);
+    code = tNameSetDbName(pName, pParseCtx->acctId, name, dbLen);
+    if (code != TSDB_CODE_SUCCESS) {
+      return buildInvalidOperationMsg(pMsgBuf, msg1);
+    }
+
+    int32_t tbLen = pTableName->n - dbLen - 1;
+    char tbname[TSDB_TABLE_FNAME_LEN] = {0};
+    strncpy(tbname, p + 1, tbLen);
+    /*tbLen = */strdequote(tbname);
+
+    code = tNameFromString(pName, tbname, T_NAME_TABLE);
     if (code != 0) {
       return buildInvalidOperationMsg(pMsgBuf, msg1);
     }
@@ -1964,10 +1978,17 @@ int32_t createSName(SName* pName, SToken* pTableName, SParseContext* pParseCtx, 
       return buildInvalidOperationMsg(pMsgBuf, msg1);
     }
 
-    tNameSetDbName(pName, pParseCtx->acctId, pParseCtx->db, strlen(pParseCtx->db));
+    assert(pTableName->n < TSDB_TABLE_FNAME_LEN);
 
     char name[TSDB_TABLE_FNAME_LEN] = {0};
     strncpy(name, pTableName->z, pTableName->n);
+    strdequote(name);
+
+    code = tNameSetDbName(pName, pParseCtx->acctId, pParseCtx->db, strlen(pParseCtx->db));
+    if (code != TSDB_CODE_SUCCESS) {
+      code = buildInvalidOperationMsg(pMsgBuf, msg2);
+      return code;
+    }
 
     code = tNameFromString(pName, name, T_NAME_TABLE);
     if (code != 0) {
