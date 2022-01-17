@@ -186,7 +186,7 @@ def pre_test_noinstall(){
     git clean -dfx
     mkdir debug
     cd debug
-    cmake .. -DBUILD_HTTP=false -DBUILD_TOOLS=false > /dev/null
+    cmake .. -DBUILD_HTTP=false -DBUILD_TOOLS=true > /dev/null
     make
     '''
     return 1
