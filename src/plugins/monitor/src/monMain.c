@@ -1157,7 +1157,9 @@ static uint32_t monBuildVgroupsInfoSql(char *sql, char *dbName) {
           monError("failed to save vgroup_%d info, reason: invalid row %s len, sql:%s", vgId, (char *)row[i], tsMonitor.sql);
           goto DONE;
         }
-        pos += snprintf(sql + pos, strlen(SQL_STR_FMT) + charLen + 1, ", "SQL_STR_FMT, (char *)row[i]);
+        char tmpBuf[10] = {0};
+        memcpy(tmpBuf, row[i], charLen);
+        pos += snprintf(sql + pos, strlen(SQL_STR_FMT) + charLen + 1, ", "SQL_STR_FMT, tmpBuf);
       } else if (strcmp(fields[i].name, "onlines") == 0) {
         pos += snprintf(sql + pos, SQL_LENGTH, ", %d", *(int32_t *)row[i]);
       } else if (v_dnode_str && strcmp(v_dnode_str, "_dnode") == 0) {
