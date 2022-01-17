@@ -181,7 +181,7 @@ do { \
 #define TSDB_COL_NAME_LEN         65
 #define TSDB_MAX_SAVED_SQL_LEN    TSDB_MAX_COLUMNS * 64
 #define TSDB_MAX_SQL_LEN          TSDB_PAYLOAD_SIZE
-#define TSDB_MAX_SQL_SHOW_LEN     512
+#define TSDB_MAX_SQL_SHOW_LEN     1024
 #define TSDB_MAX_ALLOWED_SQL_LEN  (1*1024*1024u)          // sql length should be less than 1mb
 
 #define TSDB_APP_NAME_LEN          TSDB_UNI_LEN

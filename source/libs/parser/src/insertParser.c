@@ -84,11 +84,11 @@ static int32_t buildName(SInsertParseContext* pCxt, SToken* pStname, char* fullD
 
   char* p = strnchr(pStname->z, TS_PATH_DELIMITER[0], pStname->n, false);
   if (NULL != p) { // db.table
-    int32_t n = sprintf(fullDbName, "%d.", pCxt->pComCxt->ctx.acctId);
+    int32_t n = sprintf(fullDbName, "%d.", pCxt->pComCxt->acctId);
     strncpy(fullDbName + n, pStname->z, p - pStname->z);
     strncpy(tableName, p + 1, pStname->n - (p - pStname->z) - 1);
   } else {
-    snprintf(fullDbName, TSDB_DB_FNAME_LEN, "%d.%s", pCxt->pComCxt->ctx.acctId, pCxt->pComCxt->ctx.db);
+    snprintf(fullDbName, TSDB_DB_FNAME_LEN, "%d.%s", pCxt->pComCxt->acctId, pCxt->pComCxt->db);
     strncpy(tableName, pStname->z, pStname->n);
   }
 
@@ -97,11 +97,11 @@ static int32_t buildName(SInsertParseContext* pCxt, SToken* pStname, char* fullD
 
 static int32_t getTableMeta(SInsertParseContext* pCxt, SToken* pTname) {
   SName name = {0};
-  createSName(&name, pTname, &pCxt->pComCxt->ctx, &pCxt->msg);
+  createSName(&name, pTname, pCxt->pComCxt, &pCxt->msg);
 
   char tableName[TSDB_TABLE_FNAME_LEN] = {0};
   tNameExtractFullName(&name, tableName);
-  SParseBasicCtx* pBasicCtx = &pCxt->pComCxt->ctx;
+  SParseContext* pBasicCtx = pCxt->pComCxt;
   CHECK_CODE(catalogGetTableMeta(pBasicCtx->pCatalog, pBasicCtx->pTransporter, &pBasicCtx->mgmtEpSet, &name, &pCxt->pTableMeta));
   SVgroupInfo vg;
   CHECK_CODE(catalogGetTableHashVgroup(pBasicCtx->pCatalog, pBasicCtx->pTransporter, &pBasicCtx->mgmtEpSet, &name, &vg));

@@ -265,7 +265,13 @@ const char *taos_data_type(int type) {
 const char *taos_get_client_info() { return version; }
 
 int taos_affected_rows(TAOS_RES *res) {
-  return ((SRequestObj*)res)->affectedRows;
+  if (res == NULL) {
+    return 0;
+  }
+
+  SRequestObj* pRequest = (SRequestObj*) res;
+  SReqResultInfo* pResInfo = &pRequest->body.resInfo;
+  return pResInfo->numOfRows;
 }
 
 int taos_result_precision(TAOS_RES *res) { return TSDB_TIME_PRECISION_MILLI; }

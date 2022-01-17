@@ -42,6 +42,11 @@ int32_t qwtStringToPlan(const char* str, SSubplan** subplan) {
   return 0;
 }
 
+int32_t qwtPutReqToQueue(void *node, struct SRpcMsg *pMsg) {
+  return 0;
+}
+
+
 void qwtRpcSendResponse(const SRpcMsg *pRsp) {
   if (TDMT_VND_TASKS_STATUS_RSP == pRsp->msgType) {
     SSchedulerStatusRsp *rsp = (SSchedulerStatusRsp *)pRsp->pCont;
@@ -258,7 +263,7 @@ TEST(seqTest, normalCase) {
   stubSetStringToPlan();
   stubSetRpcSendResponse();
   
-  code = qWorkerInit(NULL, &mgmt);
+  code = qWorkerInit(NODE_TYPE_VNODE, 1, NULL, &mgmt, mockPointer, qwtPutReqToQueue);
   ASSERT_EQ(code, 0);
 
   statusMsg.sId = htobe64(1);
@@ -328,7 +333,7 @@ TEST(seqTest, cancelFirst) {
   stubSetStringToPlan();
   stubSetRpcSendResponse();
   
-  code = qWorkerInit(NULL, &mgmt);
+  code = qWorkerInit(NODE_TYPE_VNODE, 1, NULL, &mgmt, mockPointer, qwtPutReqToQueue);
   ASSERT_EQ(code, 0);
 
   statusMsg.sId = htobe64(1);
@@ -402,7 +407,7 @@ TEST(seqTest, randCase) {
 
   srand(time(NULL));
   
-  code = qWorkerInit(NULL, &mgmt);
+  code = qWorkerInit(NODE_TYPE_VNODE, 1, NULL, &mgmt, mockPointer, qwtPutReqToQueue);
   ASSERT_EQ(code, 0);
 
   int32_t t = 0;
@@ -446,7 +451,7 @@ TEST(seqTest, multithreadRand) {
 
   srand(time(NULL));
   
-  code = qWorkerInit(NULL, &mgmt);
+  code = qWorkerInit(NODE_TYPE_VNODE, 1, NULL, &mgmt, mockPointer, qwtPutReqToQueue);
   ASSERT_EQ(code, 0);
 
   pthread_attr_t thattr;

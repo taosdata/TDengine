@@ -178,8 +178,10 @@ int32_t qExecTask(qTaskInfo_t tinfo, DataSinkHandle* handle) {
   publishOperatorProfEvent(pTaskInfo->pRoot, QUERY_PROF_BEFORE_OPERATOR_EXEC);
   int64_t st = 0;
 
-  *handle = pTaskInfo->dsHandle;
-
+  if (handle) {
+    *handle = pTaskInfo->dsHandle;
+  }
+  
   while(1) {
     st = taosGetTimestampUs();
     SSDataBlock* pRes = pTaskInfo->pRoot->exec(pTaskInfo->pRoot, &newgroup);

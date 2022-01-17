@@ -50,6 +50,10 @@ void schFreeTask(SSchTask* pTask) {
   if (pTask->parents) {
     taosArrayDestroy(pTask->parents);
   }
+
+  if (pTask->execAddrs) {
+    taosArrayDestroy(pTask->execAddrs);
+  }
 }
 
 
@@ -798,7 +802,7 @@ int32_t schHandleResponseMsg(SSchJob *pJob, SSchTask *pTask, int32_t msgType, ch
         SQueryTableRsp *rsp = (SQueryTableRsp *)msg;
         
         if (rspCode != TSDB_CODE_SUCCESS || NULL == msg || rsp->code != TSDB_CODE_SUCCESS) {
-          SCH_ERR_RET(schProcessOnTaskFailure(pJob, pTask, rsp->code));
+          SCH_ERR_RET(schProcessOnTaskFailure(pJob, pTask, rspCode));
         }
         
         SCH_ERR_JRET(schBuildAndSendMsg(pJob, pTask, NULL, TDMT_VND_RES_READY));
@@ -1025,6 +1029,7 @@ int32_t schBuildAndSendMsg(SSchJob *pJob, SSchTask *pTask, SQueryNodeAddr *addr,
       msg = pTask->msg;
       break;
     }
+
     case TDMT_VND_QUERY: {
       msgSize = sizeof(SSubQueryMsg) + pTask->msgLen;
       msg = calloc(1, msgSize);
@@ -1043,7 +1048,8 @@ int32_t schBuildAndSendMsg(SSchJob *pJob, SSchTask *pTask, SQueryNodeAddr *addr,
       pMsg->contentLen = htonl(pTask->msgLen);
       memcpy(pMsg->msg, pTask->msg, pTask->msgLen);
       break;
-    }    
+    }
+
     case TDMT_VND_RES_READY: {
       msgSize = sizeof(SResReadyReq);
       msg = calloc(1, msgSize);
@@ -1364,15 +1370,9 @@ int32_t scheduleAsyncExecJob(void *transport, SArray *nodeList, SQueryDag* pDag,
     SCH_ERR_RET(TSDB_CODE_QRY_INVALID_INPUT);
   }
 
-  SSchJob *job = NULL;
-
-  SCH_ERR_RET(schExecJobImpl(transport, nodeList, pDag, &job, false));
-
-  *pJob = job;
-
+  SCH_ERR_RET(schExecJobImpl(transport, nodeList, pDag, pJob, false));
   return TSDB_CODE_SUCCESS;
 }
-
 
 int32_t scheduleFetchRows(SSchJob *pJob, void** pData) {
   if (NULL == pJob || NULL == pData) {
@@ -1462,34 +1462,37 @@ void scheduleFreeJob(void *job) {
   }
 
   SSchJob *pJob = job;
+  uint64_t queryId = pJob->queryId;
 
-  if (0 != taosHashRemove(schMgmt.jobs, &pJob->queryId, sizeof(pJob->queryId))) {
-    SCH_JOB_ELOG("taosHashRemove job from list failed, may already freed, pJob:%p", pJob);
-    return;
-  }
-
-  schCheckAndUpdateJobStatus(pJob, JOB_TASK_STATUS_DROPPING);
-
-  SCH_JOB_DLOG("job removed from list, no further ref, ref:%d", atomic_load_32(&pJob->ref));
-
-  while (true) {
-    int32_t ref = atomic_load_32(&pJob->ref);
-    if (0 == ref) {
-      break;
-    } else if (ref > 0) {
-      usleep(1);
-    } else {
-      assert(0);
+  if (SCH_GET_JOB_STATUS(pJob) > 0) {
+    if (0 != taosHashRemove(schMgmt.jobs, &pJob->queryId, sizeof(pJob->queryId))) {
+      SCH_JOB_ELOG("taosHashRemove job from list failed, may already freed, pJob:%p", pJob);
+      return;
     }
+
+    schCheckAndUpdateJobStatus(pJob, JOB_TASK_STATUS_DROPPING);
+
+    SCH_JOB_DLOG("job removed from list, no further ref, ref:%d", atomic_load_32(&pJob->ref));
+
+    while (true) {
+      int32_t ref = atomic_load_32(&pJob->ref);
+      if (0 == ref) {
+        break;
+      } else if (ref > 0) {
+        usleep(1);
+      } else {
+        assert(0);
+      }
+    }
+
+    SCH_JOB_DLOG("job no ref now, status:%d", SCH_GET_JOB_STATUS(pJob));
+
+    if (pJob->status == JOB_TASK_STATUS_EXECUTING) {
+      schCancelJob(pJob);
+    }
+
+    schDropJobAllTasks(pJob);
   }
-
-  SCH_JOB_DLOG("job no ref now, status:%d", SCH_GET_JOB_STATUS(pJob));
-
-  if (pJob->status == JOB_TASK_STATUS_EXECUTING) {
-    schCancelJob(pJob);
-  }
-
-  schDropJobAllTasks(pJob);
 
   pJob->subPlans = NULL; // it is a reference to pDag->pSubplans
   
@@ -1515,6 +1518,8 @@ void scheduleFreeJob(void *job) {
   tfree(pJob->res);
   
   tfree(pJob);
+
+  qDebug("QID:%"PRIx64" job freed", queryId);
 }
   
 void schedulerDestroy(void) {

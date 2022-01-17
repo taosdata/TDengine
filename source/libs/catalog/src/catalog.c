@@ -285,16 +285,16 @@ int32_t ctgGetTableMetaFromVnode(struct SCatalog* pCatalog, void *pTransporter, 
   char dbFullName[TSDB_DB_FNAME_LEN];
   tNameGetFullDbName(pTableName, dbFullName);
 
-  ctgDebug("try to get table meta from vnode, db:%s, tbName:%s", dbFullName, pTableName->tname);
+  ctgDebug("try to get table meta from vnode, db:%s, tbName:%s", dbFullName, tNameGetTableName(pTableName));
 
-  SBuildTableMetaInput bInput = {.vgId = vgroupInfo->vgId, .dbName = dbFullName, .tableFullName = (char *)pTableName->tname};
+  SBuildTableMetaInput bInput = {.vgId = vgroupInfo->vgId, .dbName = dbFullName, .tableFullName = (char *)tNameGetTableName(pTableName)};
   char *msg = NULL;
   SEpSet *pVnodeEpSet = NULL;
   int32_t msgLen = 0;
 
   int32_t code = queryBuildMsg[TMSG_INDEX(TDMT_VND_TABLE_META)](&bInput, &msg, 0, &msgLen);
   if (code) {
-    ctgError("Build vnode tablemeta msg failed, code:%x, tbName:%s", code, pTableName->tname);
+    ctgError("Build vnode tablemeta msg failed, code:%x, tbName:%s", code, tNameGetTableName(pTableName));
     CTG_ERR_RET(code);
   }
 
@@ -313,21 +313,21 @@ int32_t ctgGetTableMetaFromVnode(struct SCatalog* pCatalog, void *pTransporter, 
   if (TSDB_CODE_SUCCESS != rpcRsp.code) {
     if (CTG_TABLE_NOT_EXIST(rpcRsp.code)) {
       SET_META_TYPE_NONE(output->metaType);
-      ctgDebug("tablemeta not exist in vnode, tbName:%s", pTableName->tname);
+      ctgDebug("tablemeta not exist in vnode, tbName:%s", tNameGetTableName(pTableName));
       return TSDB_CODE_SUCCESS;
     }
   
-    ctgError("error rsp for table meta from vnode, code:%x, tbName:%s", rpcRsp.code, pTableName->tname);
+    ctgError("error rsp for table meta from vnode, code:%x, tbName:%s", rpcRsp.code, tNameGetTableName(pTableName));
     CTG_ERR_RET(rpcRsp.code);
   }
 
   code = queryProcessMsgRsp[TMSG_INDEX(TDMT_VND_TABLE_META)](output, rpcRsp.pCont, rpcRsp.contLen);
   if (code) {
-    ctgError("Process vnode tablemeta rsp failed, code:%x, tbName:%s", code, pTableName->tname);
+    ctgError("Process vnode tablemeta rsp failed, code:%x, tbName:%s", code, tNameGetTableName(pTableName));
     CTG_ERR_RET(code);
   }
 
-  ctgDebug("Got table meta from vnode, db:%s, tbName:%s", dbFullName, pTableName->tname);
+  ctgDebug("Got table meta from vnode, db:%s, tbName:%s", dbFullName, tNameGetTableName(pTableName));
 
   return TSDB_CODE_SUCCESS;
 }
@@ -776,7 +776,7 @@ int32_t ctgRenewTableMetaImpl(struct SCatalog* pCatalog, void *pTransporter, con
   STableMetaOutput *output = &voutput;
 
   if (CTG_IS_STABLE(isSTable)) {
-    ctgDebug("will renew table meta, supposed to be stable, tbName:%s", pTableName->tname);
+    ctgDebug("will renew table meta, supposed to be stable, tbName:%s", tNameGetTableName(pTableName));
 
     // if get from mnode failed, will not try vnode
     CTG_ERR_JRET(ctgGetTableMetaFromMnode(pCatalog, pTransporter, pMgmtEps, pTableName, &moutput));
@@ -787,13 +787,13 @@ int32_t ctgRenewTableMetaImpl(struct SCatalog* pCatalog, void *pTransporter, con
       output = &moutput;
     }
   } else {
-    ctgDebug("will renew table meta, not supposed to be stable, tbName:%s, isStable:%d", pTableName->tname, isSTable);
+    ctgDebug("will renew table meta, not supposed to be stable, tbName:%s, isStable:%d", tNameGetTableName(pTableName), isSTable);
 
     // if get from vnode failed or no table meta, will not try mnode
     CTG_ERR_JRET(ctgGetTableMetaFromVnode(pCatalog, pTransporter, pMgmtEps, pTableName, &vgroupInfo, &voutput));
 
     if (CTG_IS_META_TABLE(voutput.metaType) && TSDB_SUPER_TABLE == voutput.tbMeta->tableType) {
-      ctgDebug("will continue to renew table meta since got stable, tbName:%s, metaType:%d", pTableName->tname, voutput.metaType);
+      ctgDebug("will continue to renew table meta since got stable, tbName:%s, metaType:%d", tNameGetTableName(pTableName), voutput.metaType);
       
       CTG_ERR_JRET(ctgGetTableMetaFromMnodeImpl(pCatalog, pTransporter, pMgmtEps, voutput.tbFname, &moutput));
 
@@ -820,7 +820,7 @@ int32_t ctgRenewTableMetaImpl(struct SCatalog* pCatalog, void *pTransporter, con
   }
 
   if (CTG_IS_META_NONE(output->metaType)) {
-    ctgError("no tablemeta got, tbNmae:%s", pTableName->tname);
+    ctgError("no tablemeta got, tbNmae:%s", tNameGetTableName(pTableName));
     CTG_ERR_JRET(CTG_ERR_CODE_TABLE_NOT_EXIST);
   }
 
@@ -860,7 +860,7 @@ int32_t ctgGetTableMeta(struct SCatalog* pCatalog, void *pRpc, const SEpSet* pMg
   CTG_ERR_RET(ctgGetTableMetaFromCache(pCatalog, pTableName, pTableMeta, &exist));
 
   if (0 == exist) {
-    ctgError("renew tablemeta succeed but get from cache failed, may be deleted, tbName:%s", pTableName->tname);
+    ctgError("renew tablemeta succeed but get from cache failed, may be deleted, tbName:%s", tNameGetTableName(pTableName));
     CTG_ERR_RET(TSDB_CODE_CTG_INTERNAL_ERROR);
   }
   
@@ -1241,7 +1241,7 @@ int32_t catalogGetTableDistVgroup(struct SCatalog* pCatalog, void *pRpc, const S
   } else {
     int32_t vgId = tbMeta->vgId;
     if (NULL == taosHashGetClone(dbVgroup->vgInfo, &vgId, sizeof(vgId), &vgroupInfo)) {
-      ctgError("table's vgId not found in vgroup list, vgId:%d, tbName:%s", vgId, pTableName->tname);
+      ctgError("table's vgId not found in vgroup list, vgId:%d, tbName:%s", vgId, tNameGetTableName(pTableName));
       CTG_ERR_JRET(TSDB_CODE_CTG_INTERNAL_ERROR);    
     }
 
@@ -1252,7 +1252,7 @@ int32_t catalogGetTableDistVgroup(struct SCatalog* pCatalog, void *pRpc, const S
     }
 
     if (NULL == taosArrayPush(vgList, &vgroupInfo)) {
-      ctgError("taosArrayPush vgroupInfo to array failed, vgId:%d, tbName:%s", vgId, pTableName->tname);
+      ctgError("taosArrayPush vgroupInfo to array failed, vgId:%d, tbName:%s", vgId, tNameGetTableName(pTableName));
       CTG_ERR_JRET(TSDB_CODE_CTG_INTERNAL_ERROR);
     }
 

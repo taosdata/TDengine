@@ -85,8 +85,12 @@ SDropUserReq* buildDropUserMsg(SSqlInfo* pInfo, int32_t *msgLen, int64_t id, cha
   return pMsg;
 }
 
-SShowReq* buildShowMsg(SShowInfo* pShowInfo, SParseBasicCtx *pCtx, char* msgBuf, int32_t msgLen) {
+SShowReq* buildShowMsg(SShowInfo* pShowInfo, SParseContext *pCtx, SMsgBuf* pMsgBuf) {
   SShowReq* pShowMsg = calloc(1, sizeof(SShowReq));
+  if (pShowMsg == NULL) {
+    terrno = TSDB_CODE_OUT_OF_MEMORY;
+    return pShowMsg;
+  }
 
   pShowMsg->type = pShowInfo->showType;
   if (pShowInfo->showType != TSDB_MGMT_TABLE_VNODES) {
@@ -105,7 +109,22 @@ SShowReq* buildShowMsg(SShowInfo* pShowInfo, SParseBasicCtx *pCtx, char* msgBuf,
 
   if (pShowInfo->showType == TSDB_MGMT_TABLE_STB || pShowInfo->showType == TSDB_MGMT_TABLE_VGROUP) {
     SName n = {0};
-    tNameSetDbName(&n, pCtx->acctId, pCtx->db, strlen(pCtx->db));
+
+    if (pShowInfo->prefix.n > 0) {
+      if (pShowInfo->prefix.n >= TSDB_DB_FNAME_LEN) {
+        terrno = buildInvalidOperationMsg(pMsgBuf, "prefix name is too long");
+        tfree(pShowMsg);
+        return NULL;
+      }
+      tNameSetDbName(&n, pCtx->acctId, pShowInfo->prefix.z, pShowInfo->prefix.n);
+    } else if (pCtx->db == NULL || strlen(pCtx->db) == 0) {
+      terrno = buildInvalidOperationMsg(pMsgBuf, "database is not specified");
+      tfree(pShowMsg);
+      return NULL;
+    } else {
+      tNameSetDbName(&n, pCtx->acctId, pCtx->db, strlen(pCtx->db));
+    }
+
     tNameGetFullDbName(&n, pShowMsg->db);
   }
 
@@ -210,7 +229,7 @@ int32_t setDbOptions(SCreateDbReq* pCreateDbMsg, const SCreateDbInfo* pCreateDbS
   return TSDB_CODE_SUCCESS;
 }
 
-SCreateDbReq* buildCreateDbMsg(SCreateDbInfo* pCreateDbInfo, SParseBasicCtx *pCtx, SMsgBuf* pMsgBuf) {
+SCreateDbReq* buildCreateDbMsg(SCreateDbInfo* pCreateDbInfo, SParseContext *pCtx, SMsgBuf* pMsgBuf) {
   SCreateDbReq* pCreateMsg = calloc(1, sizeof(SCreateDbReq));
   if (setDbOptions(pCreateMsg, pCreateDbInfo, pMsgBuf) != TSDB_CODE_SUCCESS) {
     tfree(pCreateMsg);
@@ -230,7 +249,7 @@ SCreateDbReq* buildCreateDbMsg(SCreateDbInfo* pCreateDbInfo, SParseBasicCtx *pCt
   return pCreateMsg;
 }
 
-SMCreateStbReq* buildCreateStbMsg(SCreateTableSql* pCreateTableSql, int32_t* len, SParseBasicCtx* pParseCtx, SMsgBuf* pMsgBuf) {
+SMCreateStbReq* buildCreateStbMsg(SCreateTableSql* pCreateTableSql, int32_t* len, SParseContext* pParseCtx, SMsgBuf* pMsgBuf) {
   SSchema* pSchema;
 
   int32_t numOfTags = 0;
@@ -240,6 +259,9 @@ SMCreateStbReq* buildCreateStbMsg(SCreateTableSql* pCreateTableSql, int32_t* len
   }
 
   SMCreateStbReq* pCreateStbMsg = (SMCreateStbReq*)calloc(1, sizeof(SMCreateStbReq) + (numOfCols + numOfTags) * sizeof(SSchema));
+  if (pCreateStbMsg == NULL) {
+    return NULL;
+  }
 
   char* pMsg = NULL;
 #if 0
@@ -315,7 +337,7 @@ SMCreateStbReq* buildCreateStbMsg(SCreateTableSql* pCreateTableSql, int32_t* len
   return pCreateStbMsg;
 }
 
-SMDropStbReq* buildDropStableMsg(SSqlInfo* pInfo, int32_t* len, SParseBasicCtx* pParseCtx, SMsgBuf* pMsgBuf) {
+SMDropStbReq* buildDropStableMsg(SSqlInfo* pInfo, int32_t* len, SParseContext* pParseCtx, SMsgBuf* pMsgBuf) {
   SToken* tableName = taosArrayGet(pInfo->pMiscInfo->a, 0);
 
   SName name = {0};

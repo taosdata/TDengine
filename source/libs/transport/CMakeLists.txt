@@ -13,3 +13,25 @@ target_link_libraries(
     PUBLIC util
     PUBLIC common
 )
+if (${BUILD_WITH_UV}) 
+  target_include_directories(
+    transport    
+    PUBLIC "${CMAKE_SOURCE_DIR}/contrib/libuv/include"
+  )
+
+#LINK_DIRECTORIES("${CMAKE_SOURCE_DIR}/debug/contrib/libuv")
+  target_link_libraries(
+    transport    
+    PUBLIC uv_a
+  )
+  add_definitions(-DUSE_UV) 
+endif(${BUILD_WITH_UV})  
+
+if (${BUILD_TEST})
+  add_subdirectory(test)
+endif(${BUILD_TEST})
+
+
+
+
+  

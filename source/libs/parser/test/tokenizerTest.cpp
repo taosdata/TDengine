@@ -711,7 +711,7 @@ TEST(testCase, extractMeta_test) {
   char msg[128] = {0};
   SCatalogReq req  = {0};
 
-  SParseBasicCtx ctx = {0};
+  SParseContext ctx = {0};
   ctx.db = "db1";
   ctx.acctId = 1;
   int32_t ret = qParserExtractRequestedMetaInfo(&info1, &req, &ctx, msg, 128);

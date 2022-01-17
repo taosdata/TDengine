@@ -65,9 +65,9 @@ int32_t qCreateQueryDag(const struct SQueryNode* pNode, struct SQueryDag** pDag,
   }
 
   if (pLogicPlan->info.type != QNODE_MODIFY) {
-    char* str = NULL;
-    queryPlanToString(pLogicPlan, &str);
-    printf("%s\n", str);
+   char* str = NULL;
+   queryPlanToString(pLogicPlan, &str);
+   printf("%s\n", str);
   }
 
   code = optimizeQueryPlan(pLogicPlan);

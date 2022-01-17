@@ -16,6 +16,8 @@
 #ifndef TDENGINE_RPC_CACHE_H
 #define TDENGINE_RPC_CACHE_H
 
+#include <stdint.h>
+
 #ifdef __cplusplus
 extern "C" {
 #endif
