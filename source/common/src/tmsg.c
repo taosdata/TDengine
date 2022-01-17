@@ -92,7 +92,7 @@ int tSerializeSClientHbReq(void **buf, const SClientHbReq *pReq) {
   int32_t kvNum = taosHashGetSize(pReq->info);
   tlen += taosEncodeFixedI32(buf, kvNum);
   SKv kv;
-  void* pIter = taosHashIterate(pReq->info, pIter);
+  void* pIter = taosHashIterate(pReq->info, NULL);
   while (pIter != NULL) {
     taosHashGetKey(pIter, &kv.key, (size_t *)&kv.keyLen);
     kv.valueLen = taosHashGetDataLen(pIter);

@@ -277,12 +277,15 @@ TEST(testCase, connect_Test) {
 //  ASSERT_EQ(numOfFields, 0);
 //
 //  taos_free_result(pRes);
+//  taos_close(pConn);
+//}
 //
 //  pRes = taos_query(pConn, "create stable if not exists abc1.`123_$^)` (ts timestamp, `abc` int) tags(a int)");
 //  if (taos_errno(pRes) != 0) {
 //    printf("failed to create super table 123_$^), reason:%s\n", taos_errstr(pRes));
 //  }
 //
+//  TAOS_RES* pRes = taos_query(pConn, "use abc1");
 //  taos_free_result(pRes);
 //  pRes = taos_query(pConn, "drop stable `123_$^)`");
 //  if (taos_errno(pRes) != 0) {
