@@ -30,8 +30,7 @@ static void       tsdbFreeRepo(STsdbRepo *pRepo);
 static void       tsdbStartStream(STsdbRepo *pRepo);
 static void       tsdbStopStream(STsdbRepo *pRepo);
 static int        tsdbRestoreLastColumns(STsdbRepo *pRepo, STable *pTable, SReadH *pReadh, bool checkTS);
-static int        tsdbRestoreLastRow(STsdbRepo *pRepo, STable *pTable, SReadH *pReadh, SBlockIdx *pIdx, bool checkTS,
-                                     int32_t order);
+static int        tsdbRestoreLastRow(STsdbRepo *pRepo, STable *pTable, SReadH *pReadh, SBlockIdx *pIdx, int32_t update);
 
 // Function declaration
 int32_t tsdbCreateRepo(int repoid) {
@@ -732,30 +731,36 @@ static int tsdbRestoreLastColumns(STsdbRepo *pRepo, STable *pTable, SReadH *pRea
     TSDB_WLOCK_TABLE(pTable);  // lock when update pTable->lastCols[]
     for (int16_t i = 0; i < numColumns && numColumns > pTable->restoreColumnNum; ++i) {
       STColumn *pCol = schemaColAt(pSchema, i);
+      SDataCol *pLastCol = &pTable->lastCols[i];
+      int       rowOffset = -1;
 
-      if (checkTS) {
-        if (pTable->lastCols[i].bytes != 0) {
-          TSKEY lastKey = tdGetKey(*(TKEY *)(tdGetColDataOfRow(pReadh->pDCols[0]->cols, pBlock->numOfRows - 1)));
-          if ((pTable->lastCols[i].ts > lastKey) ||
-              (pTable->lastCols[i].ts == lastKey && pCfg->update != TD_ROW_DISCARD_UPDATE)) {
-            ++pTable->restoreColumnNum;
-            continue;
-          }
+      if (pLastCol->bytes != 0) {
+        if (!checkTS) {
+          continue;
         }
-      } else if (pTable->lastCols[i].bytes != 0) {
-        continue;
+        // TSDB_ORDER_DESC: mem->imem->fs
+        if (pLastCol->flag == 0) {
+          rowOffset = pBlock->numOfRows - 1;
+        }
       }
 
       // ignore block which has no not-null colId column
       if (loadStatisData && pBlockStatis[i].numOfNull == pBlock->numOfRows) {
-        if (checkTS && pTable->lastCols[i].bytes != 0) {
-          TSKEY firstKey = tdGetKey(*(TKEY *)(tdGetColDataOfRow(pReadh->pDCols[0]->cols, 0)));
-          if ((pTable->lastCols[i].ts > firstKey) ||
-              (pTable->lastCols[i].ts == firstKey && pCfg->update != TD_ROW_DISCARD_UPDATE)) {
-            ++pTable->restoreColumnNum;
-          }
+        if (!checkTS) {
+          continue;
         }
-        continue;
+        if (pLastCol->bytes != 0 && pLastCol->flag == 0) {
+          rowOffset = 0;
+        }
+      }
+
+      if (rowOffset >= 0) {
+        TSKEY tsKey = tdGetKey(*(TKEY *)(tdGetColDataOfRow(pReadh->pDCols[0]->cols, rowOffset)));
+        if ((pLastCol->ts > tsKey) || (pLastCol->ts == tsKey && pCfg->update != TD_ROW_DISCARD_UPDATE)) {
+          pLastCol->flag = 1;
+          ++pTable->restoreColumnNum;
+          continue;
+        }
       }
 
       // OK,let's load row from backward to get not-null column
@@ -766,14 +771,16 @@ static int tsdbRestoreLastColumns(STsdbRepo *pRepo, STable *pTable, SReadH *pRea
           continue;
         }
 
-        int16_t idx = tsdbGetLastColumnsIndexByColId(pTable, pCol->colId);
-        if (idx == -1) {
+        pLastCol = tsdbGetLastDataColsByColId(pTable, pCol->colId);
+        if (!pLastCol) {
           tsdbError("tsdbRestoreLastColumns restore vgId:%d,table:%s cache column %d fail", REPO_ID(pRepo), pTable->name->data, pCol->colId);
           continue;
         }
+        TSKEY rowKey = tdGetKey(*(TKEY *)(tdGetColDataOfRow(pDataCol, rowId)));
+        if (checkTS) {
+        }
         // save not-null column
         uint16_t bytes = IS_VAR_DATA_TYPE(pCol->type) ? varDataTLen(pColData) : pCol->bytes;
-        SDataCol *pLastCol = &(pTable->lastCols[idx]);
         pLastCol->pData = malloc(bytes);
         pLastCol->bytes = bytes;
         pLastCol->colId = pCol->colId;
@@ -781,7 +788,7 @@ static int tsdbRestoreLastColumns(STsdbRepo *pRepo, STable *pTable, SReadH *pRea
 
         // save row ts(in column 0)
         pDataCol = pReadh->pDCols[0]->cols + 0;
-        pLastCol->ts = tdGetKey(*(TKEY *)(tdGetColDataOfRow(pDataCol, rowId)));
+        pLastCol->ts = rowKey;
 
         ++pTable->restoreColumnNum;
 
@@ -803,13 +810,10 @@ out:
   return err;
 }
 
-static int tsdbRestoreLastRow(STsdbRepo *pRepo, STable *pTable, SReadH *pReadh, SBlockIdx *pIdx, bool checkTS,
-                              int32_t order) {
-  if (checkTS && pTable->lastRow) {
-    if ((pTable->lastKey > pIdx->maxKey) ||
-        (pTable->lastKey == pIdx->maxKey && pRepo->config.update == TD_ROW_OVERWRITE_UPDATE)) {
-      return 0;
-    }
+// TSDB_ORDER_ASC: fs->imem->mem, TSDB_ORDER_DESC: mem->imem->fs
+static int tsdbRestoreLastRow(STsdbRepo *pRepo, STable *pTable, SReadH *pReadh, SBlockIdx *pIdx, int32_t update) {
+  if (update == TD_ROW_DISCARD_UPDATE) {
+    return 0;
   }
 
   if (tsdbLoadBlockInfo(pReadh, NULL) < 0) {
@@ -830,7 +834,7 @@ static int tsdbRestoreLastRow(STsdbRepo *pRepo, STable *pTable, SReadH *pReadh, 
     return -1;
   }
   memRowSetType(lastRow, SMEM_ROW_DATA);
-  memRowSetVersion(lastRow, pSchema->version);
+  memRowSetVersion(lastRow, schemaVersion(pSchema));
   tdInitDataRow(memRowDataBody(lastRow), pSchema);
   for (int icol = 0; icol < schemaNCols(pSchema); icol++) {
     STColumn *pCol = schemaColAt(pSchema, icol);
@@ -839,10 +843,8 @@ static int tsdbRestoreLastRow(STsdbRepo *pRepo, STable *pTable, SReadH *pReadh, 
                    pCol->offset);
   }
 
-  // TSKEY lastKey = memRowKey(lastRow);
-
   // during the load data in file, new data would be inserted and last row has been updated
-  updateTableLastRow(pRepo, pTable, lastRow, checkTS, order);
+  updateTableLastRow(pRepo, pTable, lastRow, order);
 
   return 0;
 }
@@ -893,15 +895,20 @@ int tsdbRestoreInfo(STsdbRepo *pRepo) {
 
       TSKEY      lastKey = tsdbGetTableLastKeyImpl(pTable);
       SBlockIdx *pIdx = readh.pBlkIdx;
+
       if (pIdx && lastKey < pIdx->maxKey) {
         pTable->lastKey = pIdx->maxKey;
 
-        if (CACHE_LAST_ROW(pCfg) && tsdbRestoreLastRow(pRepo, pTable, &readh, pIdx, false, TSDB_ORDER_ASC) != 0) {
-          tsdbDestroyReadH(&readh);
-          return -1;
+        if (CACHE_LAST_ROW(pCfg)) {
+          // int32_t iCompare = doCompare(lastKey, pIdx->maxKey, TSDB_DATA_TYPE_BIGINT, sizeof(TSKEY));
+          // int32_t updateType = tsdbGetCacheLastRowUpdateType(iCompare, TSDB_ORDER_ASC, pCfg->update);
+          if (tsdbRestoreLastRow(pRepo, pTable, &readh, pIdx, TD_ROW_OVERWRITE_UPDATE) != 0) {
+            tsdbDestroyReadH(&readh);
+            return -1;
+          }
         }
       }
-      
+
       // restore NULL columns
       if (pIdx && CACHE_LAST_NULL_COLUMN(pCfg) && !pTable->hasRestoreLastColumn) {
         if (tsdbRestoreLastColumns(pRepo, pTable, &readh, false) != 0) {
@@ -1019,6 +1026,15 @@ int32_t tsdbLoadLastCache(STsdbRepo *pRepo, SMemRef *pMemRef, SArray *pArray) {
     uint32_t nCached = 0;
 
     for (size_t t = 0; t < arrSize; ++t) {  // table
+      STable *pTable = *(STable **)taosArrayGet(pArray, t);
+      tsdbTrace("tsdbLoadLastCache for vgId:%d, table:%s", REPO_ID(pRepo), pTable->name->data);
+      // abort immediately if cacheLastConfig changes (N.B. This may lead to transient inconsistence)
+      if (pTable->cacheLastConfigVersion != pRepo->cacheLastConfigVersion) {
+        tsdbInfo("tsdbLoadLastCache for vgId:%d, table:%s abort as config: %" PRId16 "!= %" PRId16, REPO_ID(pRepo),
+                 pTable->name->data, pTable->cacheLastConfigVersion, pRepo->cacheLastConfigVersion);
+        goto out;
+      }
+
       bool cacheLastRow = CACHE_LAST_ROW(pCfg);
       bool cacheLastCols = CACHE_LAST_NULL_COLUMN(pCfg);
 
@@ -1027,9 +1043,6 @@ int32_t tsdbLoadLastCache(STsdbRepo *pRepo, SMemRef *pMemRef, SArray *pArray) {
         tsdbDestroyReadH(&readh);
         return -1;
       }
-
-      STable *pTable = *(STable **)taosArrayGet(pArray, t);
-      tsdbTrace("tsdbLoadLastCache for vgId:%d, table:%s", REPO_ID(pRepo), pTable->name->data);
 
       if (tsdbSetReadTable(&readh, pTable) < 0) {
         tsdbUnLockFS(REPO_FS(pRepo));
@@ -1043,7 +1056,7 @@ int32_t tsdbLoadLastCache(STsdbRepo *pRepo, SMemRef *pMemRef, SArray *pArray) {
       }
 
       if (cacheLastRow && !pTable->hasRestoreLastRow) {
-        if (tsdbRestoreLastRow(pRepo, pTable, &readh, pIdx, true, TSDB_ORDER_DESC)) {
+        if (tsdbRestoreLastRow(pRepo, pTable, &readh, pIdx, 1)) {
           tsdbUnLockFS(REPO_FS(pRepo));
           tsdbDestroyReadH(&readh);
           return -1;
@@ -1079,6 +1092,7 @@ int32_t tsdbLoadLastCache(STsdbRepo *pRepo, SMemRef *pMemRef, SArray *pArray) {
     }
   }
 
+out:
   tsdbUnLockFS(REPO_FS(pRepo));
   tsdbDestroyReadH(&readh);
 

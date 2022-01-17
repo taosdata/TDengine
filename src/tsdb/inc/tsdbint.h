@@ -31,6 +31,7 @@
 #include "taosdef.h"
 #include "taoserror.h"
 #include "tchecksum.h"
+#include "tcompare.h"
 #include "tskiplist.h"
 #include "tdataformat.h"
 #include "tcoding.h"

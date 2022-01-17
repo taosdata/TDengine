@@ -968,59 +968,21 @@ static int tsdbCheckTableSchema(STsdbRepo *pRepo, SSubmitBlk *pBlock, STable *pT
 }
 
 //row1 has higher priority
-static SMemRow tsdbMergeRows(SMemRow row1, SMemRow row2, STable *pTable) {
-  if (row1 == NULL && row2 == NULL) {
-    return NULL;
+static SMemRow tsdbMergeRows(void *dest, SMemRow row1, SMemRow row2, STable *pTable) {
+  if (row1 == NULL) {
+    return row2;
+  } else if (row2 == NULL) {
+    return row1;
   }
   STSchema *pSchema1 = tsdbGetTableSchemaImpl(pTable, false, false, memRowVersion(row1), (int8_t)memRowType(row1));
   STSchema *pSchema2 = tsdbGetTableSchemaImpl(pTable, false, false, memRowVersion(row2), (int8_t)memRowType(row2));
-  return tsdbMergeTwoRows(pTable->lastRow, row1, row2, pSchema1, pSchema2);
+  return mergeTwoMemRows(dest, row1, row2, pSchema1, pSchema2);
 }
 
 // TSDB_ORDER_ASC: fs->imem->mem, TSDB_ORDER_DESC: mem->imem->fs
-int updateTableLastRow(STsdbRepo *pRepo, STable *pTable, SMemRow row, bool checkTS, int32_t order) {
-  STsdbCfg *pCfg = &pRepo->config;
-  TSKEY     lastKey = tsdbGetTableLastKeyImpl(pTable);
-  TSKEY     rowKey = memRowKey(row);
-  int32_t   updateLastRow = TD_ROW_DISCARD_UPDATE;
-
-  if (lastKey < rowKey) {
-    if (CACHE_LAST_ROW(pCfg) || pTable->lastRow != NULL) {
-      updateLastRow = TD_ROW_OVERWRITE_UPDATE;
-    } else {
-      pTable->lastKey = rowKey;
-    }
-  } else if (lastKey == rowKey) {
-    if (CACHE_LAST_ROW(pCfg) || pTable->lastRow != NULL) {
-      if (pTable->lastRow != NULL) {
-        switch (pCfg->update) {
-          case TD_ROW_DISCARD_UPDATE:
-            if (TSDB_ORDER_DESC == order) {
-              updateLastRow = TD_ROW_OVERWRITE_UPDATE;
-            }
-            break;
-          case TD_ROW_OVERWRITE_UPDATE:
-            if (TSDB_ORDER_ASC == order) {
-              updateLastRow = TD_ROW_OVERWRITE_UPDATE;
-            }
-            break;
-          case TD_ROW_PARTIAL_UPDATE:
-            updateLastRow = TD_ROW_PARTIAL_UPDATE;
-            break;
-          default:
-            tsdbError("vgId:%d invalid update %" PRIi8 " to update uid %" PRIu64 " tid %d", REPO_ID(pRepo),
-                      pCfg->update, TABLE_UID(pTable), TABLE_TID(pTable));
-            break;
-        }
-      } else {
-        updateLastRow = TD_ROW_OVERWRITE_UPDATE;
-      }
-    }
-  } else {
-    return 0;
-  }
-
-  if (updateLastRow == TD_ROW_OVERWRITE_UPDATE) {
+int updateTableLastRow(STsdbRepo *pRepo, STable *pTable, SMemRow row, int32_t order, int32_t update) {
+  if (update == TD_ROW_OVERWRITE_UPDATE) {
+    TSKEY   rowKey = memRowKey(row);
     SMemRow nrow = pTable->lastRow;
     if (taosTSizeof(nrow) < memRowTLen(row)) {
       SMemRow orow = nrow;
@@ -1035,6 +997,8 @@ int updateTableLastRow(STsdbRepo *pRepo, STable *pTable, SMemRow row, bool check
       pTable->lastKey = rowKey;
       pTable->lastRow = nrow;
       TSDB_WUNLOCK_TABLE(pTable);
+      // TODO: In the extreme, has risk of double free in disorder cases when caching last and
+      // updating latest info occur simultaneously.
       taosTZfree(orow);
     } else {
       TSDB_WLOCK_TABLE(pTable);
@@ -1042,11 +1006,12 @@ int updateTableLastRow(STsdbRepo *pRepo, STable *pTable, SMemRow row, bool check
       memRowCpy(nrow, row);
       TSDB_WUNLOCK_TABLE(pTable);
     }
-  } else if (updateLastRow == TD_ROW_PARTIAL_UPDATE) {
+  } else if (update == TD_ROW_PARTIAL_UPDATE) {
+
     if (TSDB_ORDER_ASC == order) {
-      tsdbMergeRows(row, pTable->lastRow, pTable);
+      tsdbMergeRows(pTable->lastRow, row, pTable->lastRow, pTable);
     } else {
-      tsdbMergeRows(pTable->lastRow, row, pTable);
+      tsdbMergeRows(pTable->lastRow, pTable->lastRow, row, pTable);
     }
   }
 
@@ -1076,8 +1041,8 @@ static int32_t updateTableLatestColumn(STsdbRepo *pRepo, STable *pTable, SMemRow
   for (int16_t j = 0; j < schemaNCols(pSchema); ++j) {
     STColumn *pTCol = schemaColAt(pSchema, j);
     // ignore not exist colId
-    int16_t idx = tsdbGetLastColumnsIndexByColId(pTable, pTCol->colId);
-    if (idx == -1) {
+    SDataCol *pDataCol = tsdbGetLastDataColsByColId(pTable, pTCol->colId);
+    if (!pDataCol) {
       continue;
     }
 
@@ -1093,7 +1058,7 @@ static int32_t updateTableLatestColumn(STsdbRepo *pRepo, STable *pTable, SMemRow
           TSDB_RUNLOCK_TABLE(pTable);
           return -1;
         }
-        if (pTable->lastCols[idx].bytes == 0 || pTable->lastCols[idx].ts < rowKey) {
+        if (pDataCol->bytes == 0 || pDataCol->ts < rowKey) {
           isContinue = true;
         }
         TSDB_RUNLOCK_TABLE(pTable);
@@ -1106,7 +1071,7 @@ static int32_t updateTableLatestColumn(STsdbRepo *pRepo, STable *pTable, SMemRow
       TSDB_WUNLOCK_TABLE(pTable);
       return -1;
     }
-    SDataCol *pDataCol = &(pTable->lastCols[idx]);
+    // SDataCol *pDataCol = &(pTable->lastCols[idx]);
     if (pDataCol->bytes != 0) {
       if (pDataCol->ts < rowKey) {
         isContinue = true;
@@ -1167,13 +1132,19 @@ int tsdbUpdateTableLatestInfo(STsdbRepo *pRepo, STable *pTable, SMemRow row) {
     TSDB_WUNLOCK_TABLE(pTable);
   }
 
-  updateTableLastRow(pRepo, pTable, row, true, TSDB_ORDER_ASC);
+  TSKEY lastKey = tsdbGetTableLastKeyImpl(pTable);
+  TSKEY rowKey = memRowKey(row);
+  if (lastKey <= rowKey) {
+    if (CACHE_LAST_ROW(pCfg) || pTable->lastRow != NULL) {
+      updateTableLastRow(pRepo, pTable, row, TSDB_ORDER_ASC);
+    } else {
+      pTable->lastKey = rowKey;
+    }
 
-
-  if (CACHE_LAST_NULL_COLUMN(pCfg)) {
-    updateTableLatestColumn(pRepo, pTable, row, true, TSDB_ORDER_ASC);
+    if (CACHE_LAST_NULL_COLUMN(pCfg)) {
+      updateTableLatestColumn(pRepo, pTable, row, true, TSDB_ORDER_ASC);
+    }
   }
-
   return 0;
 }
 

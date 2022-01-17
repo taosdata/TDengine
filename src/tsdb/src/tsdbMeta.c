@@ -598,6 +598,7 @@ void tsdbFreeLastColumns(STable* pTable) {
   }
 
   for (int i = 0; i < pTable->maxColNum; ++i) {
+    pTable->lastCols[i].flag = 0;
     if (pTable->lastCols[i].bytes == 0) {
       continue;
     }
@@ -613,17 +614,23 @@ void tsdbFreeLastColumns(STable* pTable) {
   pTable->hasRestoreLastColumn = false;
 }
 
-int16_t tsdbGetLastColumnsIndexByColId(STable* pTable, int16_t colId) {
-  if (pTable->lastCols == NULL) {
-    return -1;
-  }
-  for (int16_t i = 0; i < pTable->maxColNum; ++i) {
-    if (pTable->lastCols[i].colId == colId) {
-      return i;
-    }
-  }
+static int tsdbCompareSDataCol(const void *arg1, const void *arg2) {
+  int16_t colId1 = *(int16_t *)arg1;
+  int16_t colId2 = ((SDataCol *)arg2)->colId;
 
-  return -1;
+  if (colId1 < colId2) {
+    return -1;
+  } else if (colId1 == colId2) {
+    return 0;
+  }
+  return 1;
+}
+
+SDataCol *tsdbGetLastDataColsByColId(STable *pTable, int16_t colId) {
+  if (pTable->lastCols == NULL) {
+    return NULL;
+  }
+  return bsearch(&colId, pTable->lastCols, pTable->maxColNum, sizeof(SDataCol), tsdbCompareSDataCol);
 }
 
 int tsdbInitColIdCacheWithSchema(STable* pTable, STSchema* pSchema) {
@@ -642,6 +649,7 @@ int tsdbInitColIdCacheWithSchema(STable* pTable, STSchema* pSchema) {
       STColumn *pCol = schemaColAt(pSchema, i);
       SDataCol *pDataCol = &(pTable->lastCols[i]);
       pDataCol->bytes = 0;
+      pDataCol->flag = 0;
       pDataCol->pData = NULL;
       pDataCol->colId = pCol->colId;
     }
@@ -669,7 +677,6 @@ int tsdbUpdateLastColSchema(STable *pTable, STSchema *pNewSchema) {
   int16_t numOfCols = pNewSchema->numOfCols;
   SDataCol *lastCols = (SDataCol*)malloc(numOfCols * sizeof(SDataCol));
   if (lastCols == NULL) {
-    terrno = TSDB_CODE_TDB_OUT_OF_MEMORY;
     return -1;
   }
 
@@ -677,17 +684,17 @@ int tsdbUpdateLastColSchema(STable *pTable, STSchema *pNewSchema) {
 
   for (int16_t i = 0; i < numOfCols; ++i) {
     STColumn *pCol = schemaColAt(pNewSchema, i);
-    int16_t idx = tsdbGetLastColumnsIndexByColId(pTable, pCol->colId);
+    SDataCol *pOldDataCol = tsdbGetLastDataColsByColId(pTable, pCol->colId);
 
     SDataCol* pDataCol = &(lastCols[i]);
-    if (idx != -1) {
+    if (pOldDataCol) {
       // move col data to new last column array
-      SDataCol* pOldDataCol = &(pTable->lastCols[idx]);
       memcpy(pDataCol, pOldDataCol, sizeof(SDataCol));
     } else {
       // init new colid data
       pDataCol->colId = pCol->colId;
       pDataCol->bytes = 0;
+      pDataCol->flag = 0;
       pDataCol->pData = NULL;
     }
   }
@@ -707,11 +714,11 @@ int tsdbUpdateLastColSchema(STable *pTable, STSchema *pNewSchema) {
   // free old schema last column datas
   for (int16_t i = 0; i < oldLastColNum; ++i) {
     SDataCol* pDataCol = &(oldLastCols[i]);
-    if (pDataCol->bytes == 0) {
+    if (!pDataCol->pData) {
       continue;
     }
-    int16_t idx = tsdbGetLastColumnsIndexByColId(pTable, pDataCol->colId);
-    if (idx != -1) {
+
+    if (tsdbGetLastDataColsByColId(pTable, pDataCol->colId)) {
       continue;
     }
 

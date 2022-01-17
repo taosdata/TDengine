@@ -619,9 +619,10 @@ static int32_t lazyLoadCacheLast(STsdbQueryHandle* pQueryHandle) {
   size_t  numOfTables = taosArrayGetSize(pQueryHandle->pTableCheckInfo);
   int32_t code = 0;
   SArray* pTableArray = NULL;
-
+  
   for (size_t i = 0; i < numOfTables; ++i) {
     STableCheckInfo* pCheckInfo = taosArrayGet(pQueryHandle->pTableCheckInfo, i);
+    //TOTEST: if the config version updated for pTable in memory 
     if (pCheckInfo->pTableObj->cacheLastConfigVersion == pRepo->cacheLastConfigVersion) {
       continue;
     }

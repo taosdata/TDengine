@@ -40,8 +40,8 @@ typedef struct STable {
   int16_t        maxColNum;
   int16_t        restoreColumnNum;
   int16_t        cacheLastConfigVersion;
-  bool           hasRestoreLastColumn;
   bool           hasRestoreLastRow;
+  bool           hasRestoreLastColumn;
   int            lastColSVersion;
 
   T_REF_DECLARE()
@@ -87,7 +87,7 @@ void       tsdbUpdateTableSchema(STsdbRepo* pRepo, STable* pTable, STSchema* pSc
 int        tsdbRestoreTable(STsdbRepo* pRepo, void* cont, int contLen);
 void       tsdbOrgMeta(STsdbRepo* pRepo);
 int        tsdbInitColIdCacheWithSchema(STable* pTable, STSchema* pSchema);
-int16_t    tsdbGetLastColumnsIndexByColId(STable* pTable, int16_t colId);
+SDataCol*  tsdbGetLastDataColsByColId(STable* pTable, int16_t colId);
 int        tsdbUpdateLastColSchema(STable *pTable, STSchema *pNewSchema);
 STSchema*  tsdbGetTableLatestSchema(STable *pTable);
 void       tsdbFreeLastColumns(STable* pTable);

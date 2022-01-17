@@ -323,6 +323,7 @@ static FORCE_INLINE void tdCopyColOfRowBySchema(SDataRow dst, STSchema *pDstSche
 // ----------------- Data column structure
 typedef struct SDataCol {
   int8_t          type;       // column type
+  int8_t          flag;       // flag(0: not finish to cache last non-null column, 1: finish to cache last non-null column)
   int16_t         colId;      // column ID
   int             bytes;      // column data bytes defined
   int             offset;     // data offset in a SDataRow (including the header size)

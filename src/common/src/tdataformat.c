@@ -804,6 +804,7 @@ SKVRow tdGetKVRowFromBuilder(SKVRowBuilder *pBuilder) {
   return row;
 }
 
+// row1 has higher priority
 SMemRow mergeTwoMemRows(void *buffer, SMemRow row1, SMemRow row2, STSchema *pSchema1, STSchema *pSchema2) {
 #if 0
   ASSERT(memRowKey(row1) == memRowKey(row2));
@@ -815,6 +816,14 @@ SMemRow mergeTwoMemRows(void *buffer, SMemRow row1, SMemRow row2, STSchema *pSch
   SArray *stashRow = taosArrayInit(pSchema1->numOfCols, sizeof(SColInfo));
   if (stashRow == NULL) {
     return NULL;
+  }
+
+  bool isSwapped = false;
+  if (schemaVersion(pSchema1) < schemaVersion(pSchema2)) {
+    // swap priority to use newer schema version
+    SWAP(pSchema1, pSchema2, STSchema *);
+    SWAP(row1, row2, SMemRow);
+    isSwapped = true;
   }
 
   SMemRow  pRow = buffer;
@@ -834,39 +843,38 @@ SMemRow mergeTwoMemRows(void *buffer, SMemRow row1, SMemRow row2, STSchema *pSch
 
   while (i < nCols1) {
     STColumn *pCol = schemaColAt(pSchema1, i);
-    void *    val1 = tdGetMemRowDataOfColEx(row1, pCol->colId, pCol->type, TD_DATA_ROW_HEAD_SIZE + pCol->offset, &kvIdx1);
-    // if val1 != NULL, use val1;
-    if (val1 != NULL && !isNull(val1, pCol->type)) {
-      tdAppendColVal(dataRow, val1, pCol->type, pCol->offset);
-      kvLen += tdGetColAppendLen(SMEM_ROW_KV, val1, pCol->type);
-      setSColInfo(&colInfo, pCol->colId, pCol->type, val1);
-      taosArrayPush(stashRow, &colInfo);
-      ++i;  // next col
-      continue;
-    }
+    void *val1 = tdGetMemRowDataOfColEx(row1, pCol->colId, pCol->type, TD_DATA_ROW_HEAD_SIZE + pCol->offset, &kvIdx1);
 
-    void *val2 = NULL;
+    void *    val2 = NULL;
+    STColumn *tCol = NULL;
     while (j < nCols2) {
-      STColumn *tCol = schemaColAt(pSchema2, j);
+      tCol = schemaColAt(pSchema2, j);
       if (tCol->colId < pCol->colId) {
         ++j;
         continue;
       }
-      if (tCol->colId == pCol->colId) {
-        val2 = tdGetMemRowDataOfColEx(row2, tCol->colId, tCol->type, TD_DATA_ROW_HEAD_SIZE + tCol->offset, &kvIdx2);
-      } else if (tCol->colId > pCol->colId) {
-        // set NULL
-      }
+      val2 = tdGetMemRowDataOfColEx(row2, tCol->colId, tCol->type, TD_DATA_ROW_HEAD_SIZE + tCol->offset, &kvIdx2);
       break;
     }  // end of while(j<nCols2)
-    if (val2 == NULL) {
-      val2 = (void *)getNullValue(pCol->type);
-    }
-    tdAppendColVal(dataRow, val2, pCol->type, pCol->offset);
-    if (!isNull(val2, pCol->type)) {
+
+    if (tCol && (tCol->colId == pCol->colId) && val2 && !isNull(val2, tCol->type) &&
+        (isSwapped || !val1 || isNull(val1, pCol->type))) {
+      // use tCol
+      tdAppendColVal(dataRow, val2, pCol->type, pCol->offset);
       kvLen += tdGetColAppendLen(SMEM_ROW_KV, val2, pCol->type);
       setSColInfo(&colInfo, pCol->colId, pCol->type, val2);
       taosArrayPush(stashRow, &colInfo);
+    } else {
+      // use pCol
+      if (val1 == NULL) {
+        val1 = (void *)getNullValue(pCol->type);
+      }
+      tdAppendColVal(dataRow, val1, pCol->type, pCol->offset);
+      if (!isNull(val1, pCol->type)) {
+        kvLen += tdGetColAppendLen(SMEM_ROW_KV, val1, pCol->type);
+        setSColInfo(&colInfo, pCol->colId, pCol->type, val1);
+        taosArrayPush(stashRow, &colInfo);
+      }
     }
 
     ++i;  // next col
@@ -879,8 +887,8 @@ SMemRow mergeTwoMemRows(void *buffer, SMemRow row1, SMemRow row2, STSchema *pSch
     memset(buffer, 0, sizeof(dataLen));
     SMemRow tRow = buffer;
     memRowSetType(tRow, SMEM_ROW_KV);
-    SKVRow kvRow = (SKVRow)memRowKvBody(tRow);
-    int16_t nKvNCols = (int16_t) taosArrayGetSize(stashRow);
+    SKVRow  kvRow = (SKVRow)memRowKvBody(tRow);
+    int16_t nKvNCols = (int16_t)taosArrayGetSize(stashRow);
     kvRowSetLen(kvRow, (TDRowLenT)(TD_KV_ROW_HEAD_SIZE + sizeof(SColIdx) * nKvNCols));
     kvRowSetNCols(kvRow, nKvNCols);
     memRowSetKvVersion(tRow, pSchema1->version);

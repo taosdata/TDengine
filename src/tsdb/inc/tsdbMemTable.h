@@ -72,7 +72,30 @@ int   tsdbLoadDataFromCache(STable* pTable, SSkipListIterator* pIter, TSKEY maxK
 void* tsdbCommitData(STsdbRepo* pRepo);
 int   tsdbUpdateTableLatestInfo(STsdbRepo* pRepo, STable* pTable, SMemRow row);
 int   tsdbUpdateTableCache(STsdbRepo* pRepo, STable* pTable, SMemRow row, bool* isContinue);
-int updateTableLastRow(STsdbRepo* pRepo, STable* pTable, SMemRow row, bool checkTS, int32_t order);
+int   updateTableLastRow(STsdbRepo* pRepo, STable* pTable, SMemRow row, int32_t order);
+
+// TSDB_ORDER_ASC: fs->imem->mem, TSDB_ORDER_DESC: mem->imem->fs
+static FORCE_INLINE int32_t tsdbGetCacheLastRowUpdateType(int32_t compare, int32_t order, int32_t update) {
+  switch (compare) {
+    case 0:
+      switch (update) {
+        case TD_ROW_DISCARD_UPDATE:
+          return order == TSDB_ORDER_ASC ? TD_ROW_DISCARD_UPDATE : TD_ROW_OVERWRITE_UPDATE;
+        case TD_ROW_OVERWRITE_UPDATE:
+          return order == TSDB_ORDER_ASC ? TD_ROW_OVERWRITE_UPDATE : TD_ROW_DISCARD_UPDATE;
+        case TD_ROW_PARTIAL_UPDATE:
+          return TD_ROW_PARTIAL_UPDATE;
+        default:
+          break;
+      }
+    case -1:
+      return TD_ROW_OVERWRITE_UPDATE;
+    case 1:
+    default:
+      return TD_ROW_DISCARD_UPDATE;
+  }
+  return TD_ROW_DISCARD_UPDATE;
+}
 
 static FORCE_INLINE SMemRow tsdbNextIterRow(SSkipListIterator* pIter) {
   if (pIter == NULL) return NULL;
