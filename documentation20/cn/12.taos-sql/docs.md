@@ -39,6 +39,10 @@ taos> DESCRIBE meters;
 
 TDengine 缺省的时间戳是毫秒精度，但通过在 CREATE DATABASE 时传递的 PRECISION 参数就可以支持微秒和纳秒。（从 2.1.5.0 版本开始支持纳秒精度）
 
+    ```mysql
+    CREATE DATABASE db_name PRECISION 'ns';
+    ```
+
 在TDengine中，普通表的数据模型中可使用以下 10 种数据类型。 
 
 | #    | **类型**          | **Bytes** | **说明**                                                     |
