@@ -4927,6 +4927,7 @@ static SSDataBlock* doLoadRemoteData(void* param, bool* newgroup) {
 
   SResFetchReq *pMsg = calloc(1, sizeof(SResFetchReq));
   if (NULL == pMsg) {  // todo handle malloc error
+
   }
 
   SEpSet epSet;
@@ -7381,6 +7382,7 @@ int32_t doCreateExecTaskInfo(SSubplan* pPlan, SExecTaskInfo** pTaskInfo, void* r
     cond.numOfCols = taosArrayGetSize(pTableScanNode->scan.node.pTargets);
     cond.colList   = calloc(cond.numOfCols, sizeof(SColumnInfo));
     cond.twindow   = pTableScanNode->window;
+    cond.type      = BLOCK_LOAD_OFFSET_SEQ_ORDER;
 
     for(int32_t i = 0; i < cond.numOfCols; ++i) {
       SExprInfo* pExprInfo = taosArrayGetP(pTableScanNode->scan.node.pTargets, i);
