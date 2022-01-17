@@ -3569,7 +3569,6 @@ int32_t setShowInfo(SSqlObj* pSql, struct SSqlInfo* pInfo) {
   const char* msg3 = "database name too long";
   const char* msg5 = "database name is empty";
   const char* msg6 = "pattern string is empty";
-  const char* msg7 = "pattern is invalid";
 
   /*
    * database prefix in pInfo->pMiscInfo->a[0]
@@ -3602,10 +3601,6 @@ int32_t setShowInfo(SSqlObj* pSql, struct SSqlInfo* pInfo) {
     // show table/stable like 'xxxx', set the like pattern for show tables
     SStrToken* pPattern = &pShowInfo->pattern;
     if (pPattern->type != 0) {
-      if (pPattern->type == TK_ID && pPattern->z[0] == TS_BACKQUOTE_CHAR) {
-        return invalidOperationMsg(tscGetErrorMsgPayload(pCmd), msg7);
-      }
-      
       pPattern->n = stringProcess(pPattern->z, pPattern->n);
 
       if (pPattern->n <= 0) {

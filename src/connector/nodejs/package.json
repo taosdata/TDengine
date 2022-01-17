@@ -7,7 +7,8 @@
     "test": "test"
   },
   "scripts": {
-    "test": "node test/test.js && node test/testMicroseconds.js &&  node test/testNanoseconds.js && node test/testUnsignedType.js && node test/testSchemalessInsert.js && node test/testJsonTag.js"
+    "test": "jest",
+    "catalog": "jest --json"
   },
   "repository": {
     "type": "git",
@@ -31,5 +32,8 @@
     "ref-array-napi": "^1.2.1",
     "ref-napi": "^1.5.2",
     "ref-struct-napi": "^1.1.1"
+  },
+  "devDependencies": {
+    "jest": "^27.4.7"
   }
 }
