@@ -3588,7 +3588,7 @@ int32_t filterConverNcharColumns(SFilterInfo* info, int32_t rows, bool *gotNchar
   if (FILTER_EMPTY_RES(info) || FILTER_ALL_RES(info)) {
     return TSDB_CODE_SUCCESS;
   }
-  
+
   for (uint32_t i = 0; i < info->fields[FLD_TYPE_COLUMN].num; ++i) {
     SFilterField* fi = &info->fields[FLD_TYPE_COLUMN].fields[i];
     int32_t type = FILTER_GET_COL_FIELD_TYPE(fi);
@@ -3602,6 +3602,15 @@ int32_t filterConverNcharColumns(SFilterInfo* info, int32_t rows, bool *gotNchar
         char *src = FILTER_GET_COL_FIELD_DATA(fi, j);
         char *dst = FILTER_GET_COL_FIELD_DATA(&nfi, j);
         int32_t len = 0;
+        char *varSrc = varDataVal(src);
+        size_t k = 0, varSrcLen = varDataLen(src);
+        while (k < varSrcLen && varSrc[k++] == -1) {}
+        if (k == varSrcLen) {
+          /* NULL */
+          varDataLen(dst) = varSrcLen;
+          varDataCopy(dst, src);
+          continue;
+        }
         bool ret = taosMbsToUcs4(varDataVal(src), varDataLen(src), varDataVal(dst), bufSize, &len);
         if(!ret) {
           qError("filterConverNcharColumns taosMbsToUcs4 error");
