@@ -350,7 +350,7 @@ typedef struct SMqTopicObj {
 
 // TODO: add cache and change name to id
 typedef struct SMqConsumerTopic {
-  char   name[TSDB_TOPIC_FNAME_LEN];
+  char   name[TSDB_TOPIC_NAME_LEN];
   SList *vgroups;  // SList<int32_t>
 } SMqConsumerTopic;
 
@@ -409,7 +409,7 @@ typedef struct SMqVGroupHbObj {
 
 #if 0
 typedef struct SCGroupObj {
-  char     name[TSDB_TOPIC_FNAME_LEN];
+  char     name[TSDB_TOPIC_NAME_LEN];
   int64_t  createTime;
   int64_t  updateTime;
   uint64_t uid;

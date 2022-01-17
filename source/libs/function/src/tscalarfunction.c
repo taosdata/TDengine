@@ -2,7 +2,6 @@
 #include "tbinoperator.h"
 #include "tunaryoperator.h"
 
-
 static void assignBasicParaInfo(struct SScalarFuncParam* dst, const struct SScalarFuncParam* src) {
   dst->type = src->type;
   dst->bytes = src->bytes;

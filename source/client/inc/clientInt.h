@@ -118,9 +118,8 @@ typedef struct STscObj {
   uint32_t         connId;
   int32_t          connType;
   uint64_t         id;       // ref ID returned by taosAddRef
-  void            *pTransporter;
   pthread_mutex_t  mutex;     // used to protect the operation on db
-  int32_t          numOfReqs; // number of sqlObj from this tscObj
+  int32_t          numOfReqs; // number of sqlObj bound to this connection
   SAppInstInfo    *pAppInfo;
 } STscObj;
 
@@ -149,12 +148,13 @@ typedef struct SShowReqInfo {
 } SShowReqInfo;
 
 typedef struct SRequestSendRecvBody {
-  tsem_t          rspSem;        // not used now
-  void*           fp;
-  SShowReqInfo    showInfo;      // todo this attribute will be removed after the query framework being completed.
-  struct SSchJob *pQueryJob;     // query job, created according to sql query DAG.
-  SDataBuf        requestMsg;
-  SReqResultInfo  resInfo;
+  tsem_t            rspSem;        // not used now
+  void*             fp;
+  SShowReqInfo      showInfo;      // todo this attribute will be removed after the query framework being completed.
+  SDataBuf          requestMsg;
+  struct SSchJob   *pQueryJob;     // query job, created according to sql query DAG.
+  struct SQueryDag *pDag;          // the query dag, generated according to the sql statement.
+  SReqResultInfo    resInfo;
 } SRequestSendRecvBody;
 
 #define ERROR_MSG_BUF_DEFAULT_SIZE  512

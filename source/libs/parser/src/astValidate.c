@@ -917,6 +917,8 @@ int32_t validateLimitNode(SQueryStmtInfo *pQueryInfo, SSqlNode* pSqlNode, SMsgBu
       return buildInvalidOperationMsg(pMsgBuf, msg1);
     }
   }
+
+  return TSDB_CODE_SUCCESS;
 }
 
 int32_t validateOrderbyNode(SQueryStmtInfo *pQueryInfo, SSqlNode* pSqlNode, SMsgBuf* pMsgBuf) {

@@ -1029,6 +1029,7 @@ int32_t schBuildAndSendMsg(SSchJob *pJob, SSchTask *pTask, SQueryNodeAddr *addr,
       msg = pTask->msg;
       break;
     }
+
     case TDMT_VND_QUERY: {
       msgSize = sizeof(SSubQueryMsg) + pTask->msgLen;
       msg = calloc(1, msgSize);
@@ -1047,7 +1048,8 @@ int32_t schBuildAndSendMsg(SSchJob *pJob, SSchTask *pTask, SQueryNodeAddr *addr,
       pMsg->contentLen = htonl(pTask->msgLen);
       memcpy(pMsg->msg, pTask->msg, pTask->msgLen);
       break;
-    }    
+    }
+
     case TDMT_VND_RES_READY: {
       msgSize = sizeof(SResReadyReq);
       msg = calloc(1, msgSize);
