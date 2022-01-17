@@ -29,6 +29,12 @@ extern "C" {
 #define TAOS_SUCCEEDED(err)                 ((err) >= 0)
 #define TAOS_FAILED(err)                    ((err) < 0)
 
+#ifdef _TD_GO_DLL_
+  #define DLL_EXPORT    __declspec(dllexport)
+#else
+  #define DLL_EXPORT 
+#endif
+
 DLL_EXPORT const char* tstrerror(int32_t err);
 
 DLL_EXPORT int32_t* taosGetErrno();
