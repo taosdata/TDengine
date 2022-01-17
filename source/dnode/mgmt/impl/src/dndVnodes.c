@@ -422,6 +422,9 @@ static int32_t dndOpenVnodes(SDnode *pDnode) {
 
   int32_t threadNum = pDnode->env.numOfCores;
   int32_t vnodesPerThread = numOfVnodes / threadNum + 1;
+#if 1
+  vnodesPerThread = 1;
+#endif
 
   SVnodeThread *threads = calloc(threadNum, sizeof(SVnodeThread));
   for (int32_t t = 0; t < threadNum; ++t) {

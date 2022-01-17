@@ -1332,7 +1332,7 @@ typedef struct {
 typedef struct {
   SMsgHead head;
   char     name[TSDB_TABLE_FNAME_LEN];
-  int8_t   ignoreNotExists;
+  int64_t  suid;
 } SVDropTbReq;
 
 typedef struct {
