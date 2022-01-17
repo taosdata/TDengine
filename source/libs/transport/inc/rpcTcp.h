@@ -21,8 +21,6 @@
 extern "C" {
 #endif
 
-#ifdef USE_UV
-#else
 void *taosInitTcpServer(uint32_t ip, uint16_t port, char *label, int numOfThreads, void *fp, void *shandle);
 void  taosStopTcpServer(void *param);
 void  taosCleanUpTcpServer(void *param);
@@ -34,8 +32,6 @@ void *taosOpenTcpClientConnection(void *shandle, void *thandle, uint32_t ip, uin
 
 void taosCloseTcpConnection(void *chandle);
 int  taosSendTcpData(uint32_t ip, uint16_t port, void *data, int len, void *chandle);
-
-#endif
 
 #ifdef __cplusplus
 }

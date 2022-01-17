@@ -27,4 +27,11 @@ if (${BUILD_WITH_UV})
   add_definitions(-DUSE_UV) 
 endif(${BUILD_WITH_UV})  
 
+if (${BUILD_TEST})
+  add_subdirectory(test)
+endif(${BUILD_TEST})
+
+
+
+
   

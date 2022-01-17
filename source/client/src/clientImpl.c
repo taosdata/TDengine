@@ -117,6 +117,7 @@ TAOS *taos_connect_internal(const char *ip, const char *user, const char *pass, 
     SAppInstInfo* p = calloc(1, sizeof(struct SAppInstInfo));
     p->mgmtEp       = epSet;
     p->pTransporter = openTransporter(user, secretEncrypt, tsNumOfCores);
+    p->pAppHbMgr = appHbMgrInit(p);
     taosHashPut(appInfo.pInstMap, key, strlen(key), &p, POINTER_BYTES);
 
     pInst = &p;
@@ -259,6 +260,101 @@ int32_t scheduleQuery(SRequestObj* pRequest, SQueryDag* pDag) {
   return scheduleAsyncExecJob(pRequest->pTscObj->pAppInfo->pTransporter, NULL, pDag, &pRequest->body.pQueryJob);
 }
 
+typedef struct tmq_t tmq_t;
+
+typedef struct SMqClientTopic {
+  // subscribe info
+  int32_t sqlLen;
+  char*   sql;
+  char*   topicName;
+  int64_t topicId;
+  // statistics
+  int64_t consumeCnt;
+  // offset
+  int64_t committedOffset;
+  int64_t currentOffset;
+  //connection info
+  int32_t vgId;
+  SEpSet  epSet;
+} SMqClientTopic;
+
+typedef struct tmq_resp_err_t {
+  int32_t code;
+} tmq_resp_err_t;
+
+typedef struct tmq_topic_vgroup_list_t {
+  char* topicName;
+  int32_t vgId;
+  int64_t committedOffset;
+} tmq_topic_vgroup_list_t;
+
+typedef void (tmq_commit_cb(tmq_t*, tmq_resp_err_t, tmq_topic_vgroup_list_t*, void* param));
+
+typedef struct tmq_conf_t{
+  char*          clientId;
+  char*          groupId;
+  char*          ip;
+  uint16_t       port;
+  tmq_commit_cb* commit_cb;
+} tmq_conf_t;
+
+struct tmq_t {
+  char           groupId[256];
+  char           clientId[256];
+  STscObj*       pTscObj;
+  tmq_commit_cb* commit_cb;
+  SArray*        clientTopics;  // SArray<SMqClientTopic>
+};
+
+void tmq_conf_set_offset_commit_cb(tmq_conf_t* conf, tmq_commit_cb* cb) {
+  conf->commit_cb = cb;
+}
+
+SArray* tmqGetConnInfo(SClientHbKey connKey, void* param) {
+  tmq_t* pTmq = (void*)param;
+  SArray* pArray = taosArrayInit(0, sizeof(SKv));
+  if (pArray == NULL) {
+    return NULL;
+  }
+  SKv kv = {0};
+  kv.key = malloc(256);
+  if (kv.key == NULL) {
+    taosArrayDestroy(pArray);
+    return NULL;
+  }
+  strcpy(kv.key, "groupId");
+  kv.keyLen = strlen("groupId") + 1;
+  kv.value = malloc(256);
+  if (kv.value == NULL) {
+    free(kv.key);
+    taosArrayDestroy(pArray);
+    return NULL;
+  }
+  strcpy(kv.value, pTmq->groupId);
+  kv.valueLen = strlen(pTmq->groupId) + 1;
+
+  taosArrayPush(pArray, &kv);
+  strcpy(kv.key, "clientUid");
+  kv.keyLen = strlen("clientUid") + 1;
+  *(uint32_t*)kv.value = pTmq->pTscObj->connId;
+  kv.valueLen = sizeof(uint32_t);
+
+  return NULL;
+}
+
+tmq_t* tmqCreateConsumerImpl(TAOS* conn, tmq_conf_t* conf) {
+  tmq_t* pTmq = malloc(sizeof(tmq_t));
+  if (pTmq == NULL) {
+    return NULL;
+  }
+  strcpy(pTmq->groupId, conf->groupId);
+  strcpy(pTmq->clientId, conf->clientId);
+  pTmq->pTscObj = (STscObj*)conn;
+  pTmq->pTscObj->connType = HEARTBEAT_TYPE_MQ;
+
+  return pTmq;
+}
+
 TAOS_RES *taos_create_topic(TAOS* taos, const char* topicName, const char* sql, int sqlLen) {
   STscObj     *pTscObj = (STscObj*)taos;
   SRequestObj *pRequest = NULL;
@@ -350,6 +446,25 @@ _return:
 
   return pRequest;
 }
+
+typedef struct tmq_message_t {
+  int32_t  numOfRows;
+  char*    topicName;
+  TAOS_ROW row[];
+} tmq_message_t;
+
+tmq_message_t* tmq_consume_poll(tmq_t* mq, int64_t blocking_time) {
+  return NULL;
+}
+
+tmq_resp_err_t* tmq_commit(tmq_t* mq, void* callback, int32_t async) {
+  return NULL;
+}
+
+void tmq_message_destroy(tmq_message_t* mq_message) {
+
+}
+
 
 TAOS_RES *taos_query_l(TAOS *taos, const char *sql, int sqlLen) {
   STscObj *pTscObj = (STscObj *)taos;

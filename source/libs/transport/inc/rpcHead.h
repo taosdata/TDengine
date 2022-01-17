@@ -21,10 +21,6 @@
 extern "C" {
 #endif
 
-#ifdef USE_UV
-
-#else
-
 #define RPC_CONN_TCP 2
 
 extern int tsRpcOverhead;
@@ -75,7 +71,6 @@ typedef struct {
 } SRpcDigest;
 
 #pragma pack(pop)
-#endif
 
 #ifdef __cplusplus
 }

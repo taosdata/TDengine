@@ -36,11 +36,31 @@ enum {
   SCH_WRITE,
 };
 
+typedef struct SSchApiStat {
+
+} SSchApiStat;
+
+typedef struct SSchRuntimeStat {
+
+} SSchRuntimeStat;
+
+typedef struct SSchJobStat {
+
+} SSchJobStat;
+
+typedef struct SSchedulerStat {
+  SSchApiStat      api;
+  SSchRuntimeStat  runtime;
+  SSchJobStat      job;
+} SSchedulerStat;
+
+
 typedef struct SSchedulerMgmt {
-  uint64_t      taskId; // sequential taksId
-  uint64_t      sId;    // schedulerId
-  SSchedulerCfg cfg;
-  SHashObj     *jobs;   // key: queryId, value: SQueryJob*
+  uint64_t       taskId; // sequential taksId
+  uint64_t       sId;    // schedulerId
+  SSchedulerCfg  cfg;
+  SHashObj      *jobs;   // key: queryId, value: SQueryJob*
+  SSchedulerStat stat;
 } SSchedulerMgmt;
 
 typedef struct SSchCallbackParam {

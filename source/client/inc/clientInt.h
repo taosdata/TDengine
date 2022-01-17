@@ -31,6 +31,41 @@ extern "C" {
 #include "trpc.h"
 #include "query.h"
 
+#define HEARTBEAT_INTERVAL 1500  // ms
+
+typedef struct SAppInstInfo SAppInstInfo;
+
+typedef int32_t (*FHbRspHandle)(SClientHbRsp* pReq);
+
+typedef struct SAppHbMgr {
+  // statistics
+  int32_t reportCnt;
+  int32_t connKeyCnt;
+  int64_t reportBytes;  // not implemented
+  int64_t startTime;
+  // ctl
+  SRWLatch lock;  // lock is used in serialization
+  // connection
+  SAppInstInfo* pAppInstInfo;
+  // info
+  SHashObj* activeInfo;    // hash<SClientHbKey, SClientHbReq>
+  SHashObj* getInfoFuncs;  // hash<SClientHbKey, FGetConnInfo>
+} SAppHbMgr;
+
+typedef struct SClientHbMgr {
+  int8_t inited;
+  // ctl
+  int8_t          threadStop;
+  pthread_t       thread;
+  pthread_mutex_t lock;       // used when app init and cleanup
+  SArray*         appHbMgrs;  // SArray<SAppHbMgr*> one for each cluster
+  FHbRspHandle    handle[HEARTBEAT_TYPE_MAX];
+} SClientHbMgr;
+
+// TODO: embed param into function
+// return type: SArray<Skv>
+typedef SArray* (*FGetConnInfo)(SClientHbKey connKey, void* param);
+
 typedef struct SQueryExecMetric {
   int64_t      start;    // start timestamp
   int64_t      parsed;   // start to parse
@@ -55,15 +90,15 @@ typedef struct SHeartBeatInfo {
   void  *pTimer;   // timer, used to send request msg to mnode
 } SHeartBeatInfo;
 
-typedef struct SAppInstInfo {
-  int64_t           numOfConns;
-  SCorEpSet         mgmtEp;
-  SInstanceSummary  summary;
+struct SAppInstInfo {
+  int64_t          numOfConns;
+  SCorEpSet        mgmtEp;
+  SInstanceSummary summary;
   SList            *pConnList;  // STscObj linked list
-  int64_t           clusterId;
+  int64_t          clusterId;
   void             *pTransporter;
-  SHeartBeatInfo hb;
-} SAppInstInfo;
+  struct SAppHbMgr *pAppHbMgr;
+};
 
 typedef struct SAppInfo {
   int64_t        startTime;
@@ -81,11 +116,16 @@ typedef struct STscObj {
   char             db[TSDB_DB_FNAME_LEN];
   int32_t          acctId;
   uint32_t         connId;
+  int32_t          connType;
   uint64_t         id;       // ref ID returned by taosAddRef
   pthread_mutex_t  mutex;     // used to protect the operation on db
   int32_t          numOfReqs; // number of sqlObj bound to this connection
   SAppInstInfo    *pAppInfo;
 } STscObj;
+
+typedef struct SMqConsumer {
+  STscObj* pTscObj;
+} SMqConsumer;
 
 typedef struct SReqResultInfo {
   const char  *pRspMsg;
@@ -168,6 +208,26 @@ TAOS *taos_connect_internal(const char *ip, const char *user, const char *pass, 
 void *doFetchRow(SRequestObj* pRequest);
 
 void  setResultDataPtr(SReqResultInfo* pResultInfo, TAOS_FIELD* pFields, int32_t numOfCols, int32_t numOfRows);
+
+// --- heartbeat 
+// global, called by mgmt
+int  hbMgrInit();
+void hbMgrCleanUp();
+int  hbHandleRsp(SClientHbBatchRsp* hbRsp);
+
+// cluster level
+SAppHbMgr* appHbMgrInit(SAppInstInfo* pAppInstInfo);
+void appHbMgrCleanup(SAppHbMgr* pAppHbMgr);
+
+// conn level
+int  hbRegisterConn(SAppHbMgr* pAppHbMgr, SClientHbKey connKey, FGetConnInfo func);
+void hbDeregisterConn(SAppHbMgr* pAppHbMgr, SClientHbKey connKey);
+
+int hbAddConnInfo(SAppHbMgr* pAppHbMgr, SClientHbKey connKey, void* key, void* value, int32_t keyLen, int32_t valueLen);
+
+// --- mq
+void hbMgrInitMqHbRspHandle();
+
 
 #ifdef __cplusplus
 }
