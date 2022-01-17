@@ -324,7 +324,13 @@ int32_t qWorkerProcessQueryMsg(void *node, void *qWorkerMgmt, SRpcMsg *pMsg) {
 
   SQWMsg qwMsg = {.node = node, .msg = msg->msg, .msgLen = msg->contentLen, .connection = pMsg};
 
+  QW_SCH_TASK_DLOG("processQuery start");
+
   QW_RET(qwProcessQuery(QW_FPARAMS(), &qwMsg));
+
+  QW_SCH_TASK_DLOG("processQuery end");
+
+  return TSDB_CODE_SUCCESS;  
 }
 
 int32_t qWorkerProcessCQueryMsg(void *node, void *qWorkerMgmt, SRpcMsg *pMsg) {
@@ -351,7 +357,13 @@ int32_t qWorkerProcessCQueryMsg(void *node, void *qWorkerMgmt, SRpcMsg *pMsg) {
 
   SQWMsg qwMsg = {.node = node, .msg = NULL, .msgLen = 0, .connection = pMsg};
 
-  QW_RET(qwProcessCQuery(QW_FPARAMS(), &qwMsg));
+  QW_SCH_TASK_DLOG("processCQuery start");
+
+  QW_ERR_RET(qwProcessCQuery(QW_FPARAMS(), &qwMsg));
+
+  QW_SCH_TASK_DLOG("processCQuery end");
+
+  return TSDB_CODE_SUCCESS;    
 }
 
 
@@ -394,7 +406,11 @@ int32_t qWorkerProcessReadyMsg(void *node, void *qWorkerMgmt, SRpcMsg *pMsg){
 
   SQWMsg qwMsg = {.node = node, .msg = NULL, .msgLen = 0, .connection = pMsg};
 
+  QW_SCH_TASK_DLOG("processReady start");
+
   QW_ERR_RET(qwProcessReady(qWorkerMgmt, msg->sId, msg->queryId, msg->taskId, &qwMsg));
+
+  QW_SCH_TASK_DLOG("processReady end");
   
   return TSDB_CODE_SUCCESS;
 }
@@ -446,7 +462,13 @@ int32_t qWorkerProcessFetchMsg(void *node, void *qWorkerMgmt, SRpcMsg *pMsg) {
 
   SQWMsg qwMsg = {.node = node, .msg = NULL, .msgLen = 0, .connection = pMsg};
 
-  QW_RET(qwProcessFetch(QW_FPARAMS(), &qwMsg));
+  QW_SCH_TASK_DLOG("processFetch start");
+
+  QW_ERR_RET(qwProcessFetch(QW_FPARAMS(), &qwMsg));
+
+  QW_SCH_TASK_DLOG("processFetch end");
+
+  return TSDB_CODE_SUCCESS;  
 }
 
 int32_t qWorkerProcessCancelMsg(void *node, void *qWorkerMgmt, SRpcMsg *pMsg) {
@@ -498,7 +520,13 @@ int32_t qWorkerProcessDropMsg(void *node, void *qWorkerMgmt, SRpcMsg *pMsg) {
 
   SQWMsg qwMsg = {.node = node, .msg = NULL, .msgLen = 0, .connection = pMsg};
 
-  QW_RET(qwProcessDrop(QW_FPARAMS(), &qwMsg));
+  QW_SCH_TASK_DLOG("processDrop start");
+
+  QW_ERR_RET(qwProcessDrop(QW_FPARAMS(), &qwMsg));
+
+  QW_SCH_TASK_DLOG("processDrop end");
+
+  return TSDB_CODE_SUCCESS;
 }
 
 int32_t qWorkerProcessShowMsg(void *node, void *qWorkerMgmt, SRpcMsg *pMsg) {

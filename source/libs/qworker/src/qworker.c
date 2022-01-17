@@ -9,6 +9,8 @@
 #include "tname.h"
 #include "dataSinkMgt.h"
 
+SQWDebug gQWDebug = {0};
+
 int32_t qwValidateStatus(SQWorkerMgmt *mgmt, uint64_t sId, uint64_t qId, uint64_t tId, int8_t oriStatus, int8_t newStatus) {
   int32_t code = 0;
 
@@ -432,7 +434,7 @@ int32_t qwDropTask(SQWorkerMgmt *mgmt, uint64_t sId, uint64_t qId, uint64_t tId,
     
     QW_ERR_JRET(qwUpdateTaskStatus(QW_FPARAMS(), JOB_TASK_STATUS_DROPPING));
   } else if (ctx->phase > 0) {
-    QW_ERR_JRET(qwDropTaskStatus(QW_FPARAMS()));              
+    QW_ERR_JRET(qwDropTaskStatus(QW_FPARAMS()));
     QW_ERR_JRET(qwDropTaskCtx(QW_FPARAMS()));
 
     locked = false;
@@ -938,6 +940,7 @@ int32_t qwProcessFetch(SQWorkerMgmt *mgmt, uint64_t sId, uint64_t qId, uint64_t 
       QW_TASK_DLOG("sink need schedule, scheduleJobNo:%d", sOutput.scheduleJobNo);    
 
       ctx->sinkId = sOutput.scheduleJobNo;
+      
       QW_ERR_JRET(qwBuildAndSendSchSinkMsg(QW_FPARAMS(), qwMsg->connection));
     }
   } else if ((!sOutput.queryEnd) && (/* DS_BUF_LOW == sOutput.bufStatus || */ DS_BUF_EMPTY == sOutput.bufStatus)) {    

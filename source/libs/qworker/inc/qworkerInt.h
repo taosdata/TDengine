@@ -73,6 +73,10 @@ enum {
   QW_ADD_ACQUIRE,
 };
 
+typedef struct SQWDebug {
+  int32_t lockDebug;
+} SQWDebug;
+
 typedef struct SQWMsg {
   void   *node;
   char   *msg;
@@ -142,9 +146,6 @@ typedef struct SQWorkerMgmt {
 
 #define QW_IN_EXECUTOR(ctx) ((ctx)->phase == QW_PHASE_PRE_QUERY || (ctx)->phase == QW_PHASE_PRE_CQUERY || (ctx)->phase == QW_PHASE_PRE_FETCH || (ctx)->phase == QW_PHASE_PRE_SINK)
 
-#define QW_GOT_RES_DATA(data) (true)
-#define QW_LOW_RES_DATA(data) (false)
-
 #define QW_TASK_NOT_EXIST(code) (TSDB_CODE_QRY_SCH_NOT_EXIST == (code) || TSDB_CODE_QRY_TASK_NOT_EXIST == (code))
 #define QW_TASK_ALREADY_EXIST(code) (TSDB_CODE_QRY_TASK_ALREADY_EXIST == (code))
 #define QW_TASK_READY(status) (status == JOB_TASK_STATUS_SUCCEED || status == JOB_TASK_STATUS_FAILED || status == JOB_TASK_STATUS_CANCELLED || status == JOB_TASK_STATUS_PARTIAL_SUCCEED)
@@ -169,21 +170,22 @@ typedef struct SQWorkerMgmt {
 #define QW_SCH_TASK_WLOG(param, ...) qWarn("QW:%p SID:%"PRIx64",QID:%"PRIx64",TID:%"PRIx64" " param, mgmt, sId, qId, tId, __VA_ARGS__)
 #define QW_SCH_TASK_DLOG(param, ...) qDebug("QW:%p SID:%"PRIx64",QID:%"PRIx64",TID:%"PRIx64" " param, mgmt, sId, qId, tId, __VA_ARGS__)
 
+#define QW_LOCK_DEBUG(...) do { if (gQWDebug.lockDebug) { qDebug(__VA_ARGS__); } } while (0)
 
 #define TD_RWLATCH_WRITE_FLAG_COPY 0x40000000
 
 #define QW_LOCK(type, _lock) do {   \
   if (QW_READ == (type)) {          \
     assert(atomic_load_32((_lock)) >= 0);  \
-    qDebug("QW RLOCK%p:%d, %s:%d B", (_lock), atomic_load_32(_lock), __FILE__, __LINE__); \
+    QW_LOCK_DEBUG("QW RLOCK%p:%d, %s:%d B", (_lock), atomic_load_32(_lock), __FILE__, __LINE__); \
     taosRLockLatch(_lock);           \
-    qDebug("QW RLOCK%p:%d, %s:%d E", (_lock), atomic_load_32(_lock), __FILE__, __LINE__); \
+    QW_LOCK_DEBUG("QW RLOCK%p:%d, %s:%d E", (_lock), atomic_load_32(_lock), __FILE__, __LINE__); \
     assert(atomic_load_32((_lock)) > 0);  \
   } else {                                                \
     assert(atomic_load_32((_lock)) >= 0);  \
-    qDebug("QW WLOCK%p:%d, %s:%d B", (_lock), atomic_load_32(_lock), __FILE__, __LINE__);  \
+    QW_LOCK_DEBUG("QW WLOCK%p:%d, %s:%d B", (_lock), atomic_load_32(_lock), __FILE__, __LINE__);  \
     taosWLockLatch(_lock);                                \
-    qDebug("QW WLOCK%p:%d, %s:%d E", (_lock), atomic_load_32(_lock), __FILE__, __LINE__);  \
+    QW_LOCK_DEBUG("QW WLOCK%p:%d, %s:%d E", (_lock), atomic_load_32(_lock), __FILE__, __LINE__);  \
     assert(atomic_load_32((_lock)) == TD_RWLATCH_WRITE_FLAG_COPY);  \
   }                                                       \
 } while (0)

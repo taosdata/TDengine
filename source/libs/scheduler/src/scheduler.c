@@ -1374,7 +1374,7 @@ int32_t scheduleAsyncExecJob(void *transport, SArray *nodeList, SQueryDag* pDag,
   return TSDB_CODE_SUCCESS;
 }
 
-int32_t schedulerGenerateTaskList(SQueryDag* pDag, SArray **pTasks) {
+int32_t schedulerConvertDagToTaskList(SQueryDag* pDag, SArray **pTasks) {
   if (NULL == pDag || pDag->numOfSubplans <= 0 || taosArrayGetSize(pDag->pSubplans) <= 0) {
     SCH_ERR_RET(TSDB_CODE_QRY_INVALID_INPUT);
   }

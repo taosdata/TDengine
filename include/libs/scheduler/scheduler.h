@@ -106,7 +106,13 @@ void scheduleFreeJob(void *pJob);
 
 void schedulerDestroy(void);
 
-int32_t schedulerGenerateTaskList(SQueryDag* pDag, SArray **pTasks);
+/**
+ * convert dag to task list
+ * @param pDag
+ * @param pTasks SArray**<STaskInfo>
+ * @return
+ */
+int32_t schedulerConvertDagToTaskList(SQueryDag* pDag, SArray **pTasks);
 
 void schedulerFreeTaskList(SArray *taskList);
 
