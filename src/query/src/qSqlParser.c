@@ -632,7 +632,7 @@ tSqlExpr *tSqlExprClone(tSqlExpr *pSrc) {
   tVariantAssign(&pExpr->value, &pSrc->value);
 
   //we don't clone paramList now because clone is only used for between/and
-  pSrc->Expr.paramList = NULL;
+  pExpr->Expr.paramList = NULL;
   return pExpr;
 }
 
