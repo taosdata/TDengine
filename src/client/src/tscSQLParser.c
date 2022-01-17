@@ -4756,9 +4756,6 @@ static int32_t validateSQLExprItem(SSqlCmd* pCmd, tSqlExpr* pExpr,
       return invalidOperationMsg(tscGetErrorMsgPayload(pCmd), msg3);
     }
 
-    if (pExpr->tokenId == TK_STRING) {
-    }
-
     if (pExpr->type == SQL_NODE_VALUE) {
       *type = SQLEXPR_TYPE_VALUE;
     }
