@@ -260,7 +260,6 @@ int32_t scheduleQuery(SRequestObj* pRequest, SQueryDag* pDag) {
   return scheduleAsyncExecJob(pRequest->pTscObj->pAppInfo->pTransporter, NULL, pDag, &pRequest->body.pQueryJob);
 }
 
-<<<<<<<<< Temporary merge branch 1
 typedef struct tmq_t tmq_t;
 
 typedef struct SMqClientTopic {
