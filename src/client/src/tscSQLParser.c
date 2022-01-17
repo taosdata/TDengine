@@ -6663,7 +6663,7 @@ int32_t validateOrderbyNode(SSqlCmd* pCmd, SQueryInfo* pQueryInfo, SSqlNode* pSq
     }
 
     if (tscIsProjectionQuery(pQueryInfo)) {
-      bool found = false; 
+      bool found = false;
       for (int32_t i = 0; i < tscNumOfExprs(pQueryInfo); ++i) {
        SExprInfo* pExpr = tscExprGet(pQueryInfo, i);
        if (pExpr->base.functionId == TSDB_FUNC_PRJ && pExpr->base.colInfo.colId == pSchema[index.columnIndex].colId) {
@@ -6675,10 +6675,10 @@ int32_t validateOrderbyNode(SSqlCmd* pCmd, SQueryInfo* pQueryInfo, SSqlNode* pSq
       if (!found) {
         int32_t numOfCols = (int32_t)tscNumOfFields(pQueryInfo);
         tscAddFuncInSelectClause(pQueryInfo, numOfCols, TSDB_FUNC_PRJ, &index, pSchema, TSDB_COL_NORMAL, getNewResColId(pCmd));
-        
+
         SInternalField* pSupInfo = tscFieldInfoGetInternalField(&pQueryInfo->fieldsInfo, numOfCols);
         pSupInfo->visible = false;
-        
+
         pQueryInfo->type |= TSDB_QUERY_TYPE_PROJECTION_QUERY;
       }
     }
