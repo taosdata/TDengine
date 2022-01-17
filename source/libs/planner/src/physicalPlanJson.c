@@ -30,7 +30,8 @@ static void copyString(const cJSON* json, const char* name, char* dst) {
 }
 
 static int64_t getNumber(const cJSON* json, const char* name) {
-  return cJSON_GetNumberValue(cJSON_GetObjectItem(json, name));
+  double d = cJSON_GetNumberValue(cJSON_GetObjectItem(json, name));
+  return (int64_t) d;
 }
 
 static bool addObject(cJSON* json, const char* name, FToJson func, const void* obj) {
@@ -541,17 +542,27 @@ static const char* jkTimeWindowEndKey = "EndKey";
 
 static bool timeWindowToJson(const void* obj, cJSON* json) {
   const STimeWindow* win = (const STimeWindow*)obj;
-  bool res = cJSON_AddNumberToObject(json, jkTimeWindowStartKey, win->skey);
+
+  char tmp[32] = {0};
+  sprintf(tmp, "%"PRId64, win->skey);
+
+  bool res = cJSON_AddStringToObject(json, jkTimeWindowStartKey, tmp);
   if (res) {
-    res = cJSON_AddNumberToObject(json, jkTimeWindowEndKey, win->ekey);
+    memset(tmp, 0, tListLen(tmp));
+    sprintf(tmp, "%"PRId64, win->ekey);
+    res = cJSON_AddStringToObject(json, jkTimeWindowEndKey, tmp);
   }
   return res;
 }
 
 static bool timeWindowFromJson(const cJSON* json, void* obj) {
   STimeWindow* win = (STimeWindow*)obj;
-  win->skey = getNumber(json, jkTimeWindowStartKey);
-  win->ekey = getNumber(json, jkTimeWindowEndKey);
+
+  char* p = getString(json, jkTimeWindowStartKey);
+  win->skey = strtoll(p, NULL, 10);
+
+  p = getString(json, jkTimeWindowEndKey);
+  win->ekey = strtoll(p, NULL, 10);
   return true;
 }
 

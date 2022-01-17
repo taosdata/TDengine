@@ -1262,7 +1262,8 @@ int32_t qWorkerProcessQueryMsg(void *node, void *qWorkerMgmt, SRpcMsg *pMsg) {
   }
 
   QW_ERR_JRET(qwAddTask(qWorkerMgmt, sId, qId, tId, JOB_TASK_STATUS_EXECUTING));
-  
+  QW_DLOG("query task received, reqId:0x%"PRIx64", physical plan:%s", qId, msg->msg);
+
   code = qStringToSubplan(msg->msg, &plan);
   if (TSDB_CODE_SUCCESS != code) {
     QW_TASK_ELOG("string to subplan failed, code:%d", code);
