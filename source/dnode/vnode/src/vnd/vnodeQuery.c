@@ -14,7 +14,7 @@
  */
 
 #include "vnodeQuery.h"
-#include "vnodeDef.h"
+#include "vnd.h"
 
 static int32_t vnodeGetTableList(SVnode *pVnode, SRpcMsg *pMsg);
 static int     vnodeGetTableMeta(SVnode *pVnode, SRpcMsg *pMsg, SRpcMsg **pRsp);
@@ -79,6 +79,7 @@ static int vnodeGetTableMeta(SVnode *pVnode, SRpcMsg *pMsg, SRpcMsg **pRsp) {
 
   pTbCfg = metaGetTbInfoByName(pVnode->pMeta, pReq->tableFname, &uid);
   if (pTbCfg == NULL) {
+    code = TSDB_CODE_VND_TB_NOT_EXIST;
     goto _exit;
   }
 

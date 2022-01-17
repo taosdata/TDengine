@@ -16,7 +16,7 @@
 #ifndef _TD_TDB_BTREE_H_
 #define _TD_TDB_BTREE_H_
 
-#include "tkvDef.h"
+#include "tdbDef.h"
 
 #ifdef __cplusplus
 extern "C" {
@@ -25,6 +25,8 @@ extern "C" {
 typedef struct {
   pgid_t root;  // root page number
 } TDB_BTREE;
+
+TDB_PUBLIC int tdbInitBtreeDB(TDB *dbp);
 
 #ifdef __cplusplus
 }

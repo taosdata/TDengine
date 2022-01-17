@@ -189,6 +189,7 @@ static SPhyNode* createUserTableScanNode(SQueryPlanNode* pPlanNode, SQueryTableI
   return (SPhyNode*)node;
 }
 
+
 static bool isSystemTable(SQueryTableInfo* pTable) {
   // todo
   return false;
@@ -261,8 +262,8 @@ static void vgroupMsgToEpSet(const SVgroupMsg* vg, SQueryNodeAddr* execNode) {
 }
 
 static uint64_t splitSubplanByTable(SPlanContext* pCxt, SQueryPlanNode* pPlanNode, SQueryTableInfo* pTable) {
-  SVgroupsInfo* vgroupList = pTable->pMeta->vgroupList;
-  for (int32_t i = 0; i < pTable->pMeta->vgroupList->numOfVgroups; ++i) {
+  SVgroupsInfo* pVgroupList = pTable->pMeta->vgroupList;
+  for (int32_t i = 0; i < pVgroupList->numOfVgroups; ++i) {
     STORE_CURRENT_SUBPLAN(pCxt);
     SSubplan* subplan = initSubplan(pCxt, QUERY_TYPE_SCAN);
     subplan->msgType   = TDMT_VND_QUERY;

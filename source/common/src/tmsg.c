@@ -89,7 +89,7 @@ int tSerializeSClientHbReq(void **buf, const SClientHbReq *pReq) {
   int tlen = 0;
   tlen += taosEncodeSClientHbKey(buf, &pReq->connKey);
 
-  int kvNum = taosHashGetSize(pReq->info);
+  int32_t kvNum = taosHashGetSize(pReq->info);
   tlen += taosEncodeFixedI32(buf, kvNum);
   SKv kv;
   void* pIter = taosHashIterate(pReq->info, pIter);
@@ -104,14 +104,15 @@ int tSerializeSClientHbReq(void **buf, const SClientHbReq *pReq) {
   return tlen;
 }
 
-void *tDeserializeClientHbReq(void *buf, SClientHbReq *pReq) {
-  ASSERT(pReq->info != NULL);
+void *tDeserializeSClientHbReq(void *buf, SClientHbReq *pReq) {
   buf = taosDecodeSClientHbKey(buf, &pReq->connKey);
 
   // TODO: error handling
-  int kvNum;
-  taosDecodeFixedI32(buf, &kvNum);
-  pReq->info = taosHashInit(kvNum, taosGetDefaultHashFunction(TSDB_DATA_TYPE_BINARY), true, HASH_NO_LOCK);
+  int32_t kvNum;
+  buf = taosDecodeFixedI32(buf, &kvNum);
+  if (pReq->info == NULL) {
+    pReq->info = taosHashInit(kvNum, taosGetDefaultHashFunction(TSDB_DATA_TYPE_BINARY), true, HASH_NO_LOCK);
+  }
   for(int i = 0; i < kvNum; i++) {
     SKv kv;
     buf = taosDecodeSKv(buf, &kv);
@@ -121,12 +122,69 @@ void *tDeserializeClientHbReq(void *buf, SClientHbReq *pReq) {
   return buf;
 }
 
-int   tSerializeSClientHbBatchReq(void** buf, const SClientHbBatchReq* pReq) {
+int   tSerializeSClientHbRsp(void** buf, const SClientHbRsp* pRsp) {
   int tlen = 0;
+  tlen += taosEncodeSClientHbKey(buf, &pRsp->connKey);
+  tlen += taosEncodeFixedI32(buf, pRsp->status);
+  tlen += taosEncodeFixedI32(buf, pRsp->bodyLen);
+  tlen += taosEncodeBinary(buf, pRsp->body, pRsp->bodyLen);
+  return tlen;
+}
+void* tDeserializeSClientHbRsp(void* buf, SClientHbRsp* pRsp) {
+  buf = taosDecodeSClientHbKey(buf, &pRsp->connKey);
+  buf = taosDecodeFixedI32(buf, &pRsp->status);
+  buf = taosDecodeFixedI32(buf, &pRsp->bodyLen);
+  buf = taosDecodeBinary(buf, &pRsp->body, pRsp->bodyLen);
+  return buf;
+}
+
+int   tSerializeSClientHbBatchReq(void** buf, const SClientHbBatchReq* pBatchReq) {
+  int tlen = 0;
+  tlen += taosEncodeFixedI64(buf, pBatchReq->reqId);
+  int32_t reqNum = taosArrayGetSize(pBatchReq->reqs);
+  tlen += taosEncodeFixedI32(buf, reqNum); 
+  for (int i = 0; i < reqNum; i++) {
+    SClientHbReq* pReq = taosArrayGet(pBatchReq->reqs, i);
+    tlen += tSerializeSClientHbReq(buf, pReq);
+  }
   return tlen;
 }
 
-void* tDeserializeClientHbBatchReq(void* buf, SClientHbBatchReq* pReq) {
+void* tDeserializeSClientHbBatchReq(void* buf, SClientHbBatchReq* pBatchReq) {
+  buf = taosDecodeFixedI64(buf, &pBatchReq->reqId);
+  if (pBatchReq->reqs == NULL) {
+    pBatchReq->reqs = taosArrayInit(0, sizeof(SClientHbReq));
+  }
+  int32_t reqNum;
+  buf = taosDecodeFixedI32(buf, &reqNum);
+  for (int i = 0; i < reqNum; i++) {
+    SClientHbReq req = {0};
+    buf = tDeserializeSClientHbReq(buf, &req);
+    taosArrayPush(pBatchReq->reqs, &req);
+  }
+  return buf;
+}
+
+int   tSerializeSClientHbBatchRsp(void** buf, const SClientHbBatchRsp* pBatchRsp) {
+  int tlen = 0;
+  int32_t sz = taosArrayGetSize(pBatchRsp->rsps);
+  tlen += taosEncodeFixedI32(buf, sz);
+  for (int i = 0; i < sz; i++) {
+    SClientHbRsp* pRsp = taosArrayGet(pBatchRsp->rsps, i);
+    tlen += tSerializeSClientHbRsp(buf, pRsp);
+  }
+  return tlen;
+}
+
+void* tDeserializeSClientHbBatchRsp(void* buf, SClientHbBatchRsp* pBatchRsp) {
+  int32_t sz;
+  buf = taosDecodeFixedI32(buf, &sz);
+  pBatchRsp->rsps = taosArrayInit(sz, sizeof(SClientHbRsp));
+  for (int i = 0; i < sz; i++) {
+    SClientHbRsp rsp = {0};
+    buf = tDeserializeSClientHbRsp(buf, &rsp); 
+    taosArrayPush(pBatchRsp->rsps, &rsp);
+  }
   return buf;
 }
 

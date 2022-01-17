@@ -13,30 +13,23 @@
  * along with this program. If not, see <http://www.gnu.org/licenses/>.
  */
 
-#ifndef _TD_META_UID_H_
-#define _TD_META_UID_H_
+#ifndef _TD_TDB_HEAP_H_
+#define _TD_TDB_HEAP_H_
 
-#include "meta.h"
+#include "tdbDef.h"
 
 #ifdef __cplusplus
 extern "C" {
 #endif
 
-/* ------------------------ APIS EXPOSED ------------------------ */
-typedef struct STbUidGenerator {
-  tb_uid_t nextUid;
-} STbUidGenerator;
+typedef struct {
+  // TODO
+} TDB_HEAP;
 
-// STableUidGenerator
-int  metaOpenUidGnrt(SMeta *pMeta);
-void metaCloseUidGnrt(SMeta *pMeta);
-
-// tb_uid_t
-#define IVLD_TB_UID 0
-tb_uid_t metaGenerateUid(SMeta *pMeta);
+TDB_PUBLIC int tdbInitHeapDB(TDB *dbp);
 
 #ifdef __cplusplus
 }
 #endif
 
-#endif /*_TD_META_UID_H_*/
+#endif /*_TD_TDB_HEAP_H_*/

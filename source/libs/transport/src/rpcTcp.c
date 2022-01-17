@@ -14,9 +14,6 @@
  */
 
 #include "rpcTcp.h"
-#ifdef USE_UV
-#include <uv.h>
-#endif
 #include "os.h"
 #include "rpcHead.h"
 #include "rpcLog.h"
@@ -24,9 +21,6 @@
 #include "taoserror.h"
 #include "tutil.h"
 
-#ifdef USE_UV
-
-#else
 typedef struct SFdObj {
   void *             signature;
   SOCKET             fd;       // TCP socket FD
@@ -413,8 +407,11 @@ void *taosOpenTcpClientConnection(void *shandle, void *thandle, uint32_t ip, uin
     pFdObj->thandle = thandle;
     pFdObj->port = port;
     pFdObj->ip = ip;
-    tDebug("%s %p TCP connection to 0x%x:%hu is created, localPort:%hu FD:%p numOfFds:%d", pThreadObj->label, thandle,
-           ip, port, localPort, pFdObj, pThreadObj->numOfFds);
+
+    char ipport[40] = {0};
+    taosIpPort2String(ip, port, ipport);
+    tDebug("%s %p TCP connection to %s is created, localPort:%hu FD:%p numOfFds:%d", pThreadObj->label, thandle,
+           ipport, localPort, pFdObj, pThreadObj->numOfFds);
   } else {
     tError("%s failed to malloc client FdObj(%s)", pThreadObj->label, strerror(errno));
     taosCloseSocket(fd);
@@ -662,5 +659,3 @@ static void taosFreeFdObj(SFdObj *pFdObj) {
 
   tfree(pFdObj);
 }
-
-#endif

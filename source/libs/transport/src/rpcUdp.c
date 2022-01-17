@@ -22,9 +22,6 @@
 #include "ttimer.h"
 #include "tutil.h"
 
-#ifdef USE_UV
-// no support upd currently
-#else
 #define RPC_MAX_UDP_CONNS 256
 #define RPC_MAX_UDP_PKTS 1000
 #define RPC_UDP_BUF_TIME 5  // mseconds
@@ -260,4 +257,3 @@ int taosSendUdpData(uint32_t ip, uint16_t port, void *data, int dataLen, void *c
 
   return ret;
 }
-#endif
