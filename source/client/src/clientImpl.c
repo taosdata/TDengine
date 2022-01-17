@@ -290,8 +290,8 @@ typedef struct tmq_topic_vgroup_list_t {
 typedef void (tmq_commit_cb(tmq_t*, tmq_resp_err_t, tmq_topic_vgroup_list_t*, void* param));
 
 typedef struct tmq_conf_t{
-  char*          clientId;
-  char*          groupId;
+  char           groupId[256];
+  char           clientId[256];
   char*          ip;
   uint16_t       port;
   tmq_commit_cb* commit_cb;
@@ -321,24 +321,27 @@ SArray* tmqGetConnInfo(SClientHbKey connKey, void* param) {
     taosArrayDestroy(pArray);
     return NULL;
   }
-  strcpy(kv.key, "groupId");
-  kv.keyLen = strlen("groupId") + 1;
-  kv.value = malloc(256);
-  if (kv.value == NULL) {
-    free(kv.key);
-    taosArrayDestroy(pArray);
-    return NULL;
+  strcpy(kv.key, "mq-tmp");
+  kv.keyLen = strlen("mq-tmp") + 1;
+  SMqHbMsg* pMqHb = malloc(sizeof(SMqHbMsg));
+  if (pMqHb == NULL) {
+    return pArray;
   }
-  strcpy(kv.value, pTmq->groupId);
-  kv.valueLen = strlen(pTmq->groupId) + 1;
-
+  pMqHb->consumerId = connKey.connId;
+  SArray* clientTopics = pTmq->clientTopics;
+  int sz = taosArrayGetSize(clientTopics);
+  for (int i = 0; i < sz; i++) {
+    SMqClientTopic* pCTopic = taosArrayGet(clientTopics, i);
+    if (pCTopic->vgId == -1) {
+      pMqHb->status = 1;
+      break;
+    }
+  }
+  kv.value = pMqHb;
+  kv.valueLen = sizeof(SMqHbMsg);
   taosArrayPush(pArray, &kv);
-  strcpy(kv.key, "clientUid");
-  kv.keyLen = strlen("clientUid") + 1;
-  *(uint32_t*)kv.value = pTmq->pTscObj->connId;
-  kv.valueLen = sizeof(uint32_t); 
-  
-  return NULL;
+
+  return pArray;
 }
 
 tmq_t* tmqCreateConsumerImpl(TAOS* conn, tmq_conf_t* conf) {
@@ -354,12 +357,12 @@ tmq_t* tmqCreateConsumerImpl(TAOS* conn, tmq_conf_t* conf) {
   return pTmq;
 }
 
-TAOS_RES *tmq_create_topic(TAOS* taos, const char* name, const char* sql, int sqlLen) {
+TAOS_RES *taos_create_topic(TAOS* taos, const char* topicName, const char* sql, int sqlLen) {
   STscObj* pTscObj = (STscObj*)taos;
   SRequestObj* pRequest = NULL;
-  SQueryNode*  pQuery = NULL;
+  SQueryNode*  pQueryNode = NULL;
   SQueryDag*   pDag = NULL;
-  char *dagStr = NULL;
+  char *pStr = NULL;
 
   terrno = TSDB_CODE_SUCCESS;
   if (taos == NULL || topicName == NULL || sql == NULL) {

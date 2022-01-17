@@ -346,19 +346,23 @@ typedef struct SMqTopicObj {
   char     *logicalPlan;
   char     *physicalPlan;
   SHashObj *cgroups;  // SHashObj<SMqCGroup>
+  SHashObj *consumers;  // SHashObj<SMqConsumerObj>
 } SMqTopicObj;
 
 // TODO: add cache and change name to id
 typedef struct SMqConsumerTopic {
-  char   name[TSDB_TOPIC_NAME_LEN];
-  SList *vgroups;  // SList<int32_t>
+  int32_t epoch;
+  char    name[TSDB_TOPIC_NAME_LEN];
+  //TODO: replace with something with ep
+  SList   *vgroups;  // SList<int32_t>
 } SMqConsumerTopic;
 
 typedef struct SMqConsumerObj {
-  SRWLatch lock;
   int64_t  consumerId;
+  SRWLatch lock;
   char     cgroup[TSDB_CONSUMER_GROUP_LEN];
   SArray  *topics;  // SArray<SMqConsumerTopic>
+  SHashObj *topicHash;
 } SMqConsumerObj;
 
 typedef struct SMqSubConsumerObj {

@@ -15,10 +15,13 @@
 
 #define _DEFAULT_SOURCE
 #include "mndProfile.h"
+#include "mndConsumer.h"
 #include "mndDb.h"
 #include "mndMnode.h"
 #include "mndShow.h"
+#include "mndTopic.h"
 #include "mndUser.h"
+#include "mndVgroup.h"
 
 #define QUERY_ID_SIZE 20
 #define QUERY_OBJ_ID_SIZE 18
@@ -257,6 +260,68 @@ static int32_t mndSaveQueryStreamList(SConnObj *pConn, SHeartBeatReq *pReq) {
   return TSDB_CODE_SUCCESS;
 }
 
+static SClientHbRsp* mndMqHbBuildRsp(SMnode* pMnode, SClientHbReq* pReq) {
+  SClientHbRsp* pRsp = malloc(sizeof(SClientHbRsp));
+  if (pRsp == NULL) {
+    terrno = TSDB_CODE_OUT_OF_MEMORY;
+    return NULL;
+  }
+  pRsp->connKey = pReq->connKey;
+  SMqHbBatchRsp batchRsp;
+  batchRsp.batchRsps = taosArrayInit(0, sizeof(SMqHbRsp));
+  if (batchRsp.batchRsps == NULL) {
+    terrno = TSDB_CODE_OUT_OF_MEMORY;
+    return NULL;
+  }
+  SClientHbKey connKey = pReq->connKey;
+  SHashObj* pObj =  pReq->info;
+  SKv* pKv = taosHashGet(pObj, "mq-tmp", strlen("mq-tmp") + 1);
+  if (pKv == NULL) {
+    free(pRsp);
+    return NULL;
+  }
+  SMqHbMsg mqHb;
+  taosDecodeSMqMsg(pKv->value, &mqHb);
+  /*int64_t clientUid = htonl(pKv->value);*/
+  /*if (mqHb.epoch )*/
+  int sz = taosArrayGetSize(mqHb.pTopics);
+  SMqConsumerObj* pConsumer = mndAcquireConsumer(pMnode, mqHb.consumerId); 
+  for (int i = 0; i < sz; i++) {
+    SMqHbOneTopicBatchRsp innerBatchRsp;
+    innerBatchRsp.rsps = taosArrayInit(sz, sizeof(SMqHbRsp));
+    if (innerBatchRsp.rsps == NULL) {
+      //TODO
+      terrno = TSDB_CODE_OUT_OF_MEMORY;
+      return NULL;
+    }
+    SMqHbTopicInfo* topicInfo = taosArrayGet(mqHb.pTopics, i);
+    SMqConsumerTopic* pConsumerTopic = taosHashGet(pConsumer->topicHash, topicInfo->name, strlen(topicInfo->name)+1);
+    if (pConsumerTopic->epoch != topicInfo->epoch) {
+      //add new vgids into rsp
+      int vgSz = taosArrayGetSize(topicInfo->pVgInfo);
+      for (int j = 0; j < vgSz; j++) {
+        SMqHbRsp innerRsp;
+        SMqHbVgInfo* pVgInfo = taosArrayGet(topicInfo->pVgInfo, i);
+        SVgObj* pVgObj = mndAcquireVgroup(pMnode, pVgInfo->vgId);
+        innerRsp.epSet = mndGetVgroupEpset(pMnode, pVgObj);
+        taosArrayPush(innerBatchRsp.rsps, &innerRsp);
+      }
+    }
+    taosArrayPush(batchRsp.batchRsps, &innerBatchRsp);
+  }
+  int32_t tlen = taosEncodeSMqHbBatchRsp(NULL, &batchRsp);
+  void* buf = malloc(tlen);
+  if (buf == NULL) {
+    //TODO
+    return NULL;
+  }
+  void* abuf = buf;
+  taosEncodeSMqHbBatchRsp(&abuf, &batchRsp);
+  pRsp->body = buf;
+  pRsp->bodyLen = tlen;
+  return pRsp;
+}
+
 static int32_t mndProcessHeartBeatReq(SMnodeMsg *pReq) {
   SMnode *pMnode = pReq->pMnode;
   char *batchReqStr = pReq->rpcMsg.pCont;
@@ -273,19 +338,17 @@ static int32_t mndProcessHeartBeatReq(SMnodeMsg *pReq) {
     if (pHbReq->connKey.hbType == HEARTBEAT_TYPE_QUERY) {
 
     } else if (pHbReq->connKey.hbType == HEARTBEAT_TYPE_MQ) {
-      SClientHbRsp rsp = {
-        .status = 0,
-        .connKey = pHbReq->connKey,
-        .bodyLen = 0,
-        .body = NULL
-      };
-      taosArrayPush(batchRsp.rsps, &rsp);
+      SClientHbRsp *pRsp = mndMqHbBuildRsp(pMnode, pHbReq);
+      if (pRsp != NULL) {
+        taosArrayPush(batchRsp.rsps, pRsp);
+        free(pRsp);
+      }
     }
   }
   int32_t tlen = tSerializeSClientHbBatchRsp(NULL, &batchRsp);
   void* buf = rpcMallocCont(tlen);
-  void* bufCopy = buf;
-  tSerializeSClientHbBatchRsp(&bufCopy, &batchRsp);
+  void* abuf = buf;
+  tSerializeSClientHbBatchRsp(&abuf, &batchRsp);
   pReq->contLen = tlen;
   pReq->pCont = buf;
   return 0;
