@@ -1374,6 +1374,83 @@ int32_t scheduleAsyncExecJob(void *transport, SArray *nodeList, SQueryDag* pDag,
   return TSDB_CODE_SUCCESS;
 }
 
+int32_t schedulerConvertDagToTaskList(SQueryDag* pDag, SArray **pTasks) {
+  if (NULL == pDag || pDag->numOfSubplans <= 0 || taosArrayGetSize(pDag->pSubplans) <= 0) {
+    SCH_ERR_RET(TSDB_CODE_QRY_INVALID_INPUT);
+  }
+
+  int32_t levelNum = taosArrayGetSize(pDag->pSubplans);
+  if (1 != levelNum) {
+    qError("invalid level num: %d", levelNum);
+    SCH_ERR_RET(TSDB_CODE_QRY_INVALID_INPUT);
+  }
+
+  SArray *plans = taosArrayGet(pDag->pSubplans, 0);
+  int32_t taskNum = taosArrayGetSize(plans);
+  if (taskNum <= 0) {
+    qError("invalid task num: %d", taskNum);
+    SCH_ERR_RET(TSDB_CODE_QRY_INVALID_INPUT);
+  }
+
+  SArray *info = taosArrayInit(taskNum, sizeof(STaskInfo));
+  if (NULL == info) {
+    qError("taosArrayInit %d taskInfo failed", taskNum);
+    SCH_ERR_RET(TSDB_CODE_QRY_OUT_OF_MEMORY);
+  }
+
+  STaskInfo tInfo = {0};
+  char *msg = NULL;
+  int32_t msgLen = 0;
+  int32_t code = 0;
+  
+  for (int32_t i = 0; i < taskNum; ++i) {
+    SSubplan *plan = taosArrayGetP(plans, i);
+
+    tInfo.addr = plan->execNode;
+
+    code = qSubPlanToString(plan, &msg, &msgLen);
+    if (TSDB_CODE_SUCCESS != code || NULL == msg || msgLen <= 0) {
+      qError("subplanToString error, code:%x, msg:%p, len:%d", code, msg, msgLen);
+      SCH_ERR_JRET(code);
+    }
+
+    int32_t msgSize = sizeof(SSubQueryMsg) + msgLen;
+    msg = calloc(1, msgSize);
+    if (NULL == msg) {
+      qError("calloc %d failed", msgSize);
+      SCH_ERR_JRET(TSDB_CODE_QRY_OUT_OF_MEMORY);
+    }
+    
+    SSubQueryMsg *pMsg = msg;
+    
+    pMsg->header.vgId = htonl(tInfo.addr.nodeId);
+    
+    pMsg->sId = htobe64(schMgmt.sId);
+    pMsg->queryId = htobe64(plan->id.queryId);
+    pMsg->taskId = htobe64(atomic_add_fetch_64(&schMgmt.taskId, 1));
+    pMsg->contentLen = htonl(msgLen);
+    memcpy(pMsg->msg, msg, msgLen);
+
+    tInfo.msg = pMsg;
+
+    if (NULL == taosArrayPush(info, &tInfo)) {
+      qError("taosArrayPush failed, idx:%d", i);
+      free(msg);
+      SCH_ERR_JRET(TSDB_CODE_QRY_OUT_OF_MEMORY);
+    }
+  }
+
+  *pTasks = info;
+  info = NULL;
+  
+_return:
+
+  schedulerFreeTaskList(info);
+
+  SCH_RET(code);
+}
+
+
 int32_t scheduleFetchRows(SSchJob *pJob, void** pData) {
   if (NULL == pJob || NULL == pData) {
     SCH_ERR_RET(TSDB_CODE_QRY_INVALID_INPUT);
@@ -1520,6 +1597,20 @@ void scheduleFreeJob(void *job) {
   tfree(pJob);
 
   qDebug("QID:%"PRIx64" job freed", queryId);
+}
+
+void schedulerFreeTaskList(SArray *taskList) {
+  if (NULL == taskList) {
+    return;
+  }
+
+  int32_t taskNum = taosArrayGetSize(taskList);
+  for (int32_t i = 0; i < taskNum; ++i) {
+    STaskInfo *info = taosArrayGet(taskList, i);
+    tfree(info->msg);
+  }
+
+  taosArrayDestroy(taskList);
 }
   
 void schedulerDestroy(void) {

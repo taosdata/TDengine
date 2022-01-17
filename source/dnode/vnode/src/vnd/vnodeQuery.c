@@ -28,7 +28,7 @@ int vnodeProcessQueryReq(SVnode *pVnode, SRpcMsg *pMsg, SRpcMsg **pRsp) {
     case TDMT_VND_QUERY:
       return qWorkerProcessQueryMsg(pVnode->pTsdb, pVnode->pQuery, pMsg);
     case TDMT_VND_QUERY_CONTINUE:
-      return qWorkerProcessQueryContinueMsg(pVnode->pTsdb, pVnode->pQuery, pMsg);
+      return qWorkerProcessCQueryMsg(pVnode->pTsdb, pVnode->pQuery, pMsg);
     case TDMT_VND_SCHEDULE_DATA_SINK:
       return qWorkerProcessDataSinkMsg(pVnode->pTsdb, pVnode->pQuery, pMsg);
     default:
