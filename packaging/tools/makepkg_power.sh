@@ -70,7 +70,7 @@ else
   cp ${build_dir}/bin/taosdump      ${install_dir}/bin/powerdump
   cp ${build_dir}/bin/tarbitrator   ${install_dir}/bin
   cp ${script_dir}/set_core.sh      ${install_dir}/bin
-  cp ${script_dir}/run_taosd.sh     ${install_dir}/bin
+  cp ${script_dir}/run_taosd_and_taosadapter.sh     ${install_dir}/bin
   cp ${script_dir}/get_client.sh    ${install_dir}/bin
   cp ${script_dir}/startPre.sh      ${install_dir}/bin
   cp ${script_dir}/taosd-dump-cfg.gdb  ${install_dir}/bin

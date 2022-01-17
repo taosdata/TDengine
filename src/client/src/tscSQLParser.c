@@ -2431,7 +2431,7 @@ int32_t addProjectionExprAndResultField(SSqlCmd* pCmd, SQueryInfo* pQueryInfo, t
     if (pTableMeta->tableType != TSDB_TEMP_TABLE) {
       tscInsertPrimaryTsSourceColumn(pQueryInfo, pTableMeta->id.uid);
     }
-  } else if (tokenId == TK_STRING || tokenId == TK_INTEGER || tokenId == TK_FLOAT) {  // simple column projection query
+  } else if (tokenId == TK_STRING || tokenId == TK_INTEGER || tokenId == TK_FLOAT || tokenId == TK_BOOL) {  // simple column projection query
     SColumnIndex index = COLUMN_INDEX_INITIALIZER;
 
     // user-specified constant value as a new result column
@@ -4661,6 +4661,7 @@ static int32_t validateSQLExprItemArithmeticExpr(SSqlCmd* pCmd, tSqlExpr* pExpr,
   const char* msg2 = "arithmetic expression composed with functions/columns of different types";
   const char* msg3 = "comparison/logical expression involving string operands is not supported";
   const char* msg4 = "comparison/logical expression involving fucntion result is not supported";
+
   int32_t leftHeight = 0;
   int32_t  ret = validateSQLExprItem(pCmd, pExpr->pLeft, pQueryInfo, pList, &leftType, &uidLeft, &leftHeight);
   if (ret != TSDB_CODE_SUCCESS) {
@@ -5678,6 +5679,15 @@ static int32_t validateTagCondExpr(SSqlCmd* pCmd, tExprNode *p) {
     if (!p->_node.pLeft || !p->_node.pRight) {
       break;
     }
+
+    int32_t retVal = TSDB_CODE_SUCCESS;
+    if (p->_node.pLeft && (retVal = validateTagCondExpr(pCmd, p->_node.pLeft)) != TSDB_CODE_SUCCESS) {
+      return retVal;
+    }
+
+    if (p->_node.pRight && (retVal = validateTagCondExpr(pCmd, p->_node.pRight)) != TSDB_CODE_SUCCESS) {
+      return retVal;
+    }
     
     if (IS_ARITHMETIC_OPTR(p->_node.optr)) {
       return invalidOperationMsg(tscGetErrorMsgPayload(pCmd), msg1);
@@ -5713,8 +5723,6 @@ static int32_t validateTagCondExpr(SSqlCmd* pCmd, tExprNode *p) {
     } else if (schemaType == TSDB_DATA_TYPE_FLOAT || schemaType == TSDB_DATA_TYPE_DOUBLE) {
       schemaType = TSDB_DATA_TYPE_DOUBLE;
     }
-    
-    int32_t retVal = TSDB_CODE_SUCCESS;
 
     int32_t bufLen = 0;
     if (IS_NUMERIC_TYPE(vVariant->nType)) {

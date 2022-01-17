@@ -927,7 +927,9 @@ int32_t filterAddUnit(SFilterInfo *info, uint8_t optr, SFilterFieldId *left, SFi
     SFilterField *val = FILTER_UNIT_RIGHT_FIELD(info, u);  
     assert(FILTER_GET_FLAG(val->flag, FLD_TYPE_VALUE));
   } else {
-    assert(optr == TSDB_RELATION_ISNULL || optr == TSDB_RELATION_NOTNULL || optr == FILTER_DUMMY_EMPTY_OPTR);
+    if(optr != TSDB_RELATION_ISNULL && optr != TSDB_RELATION_NOTNULL && optr != FILTER_DUMMY_EMPTY_OPTR){
+      return -1;
+    }
   }
   
   SFilterField *col = FILTER_UNIT_LEFT_FIELD(info, u);
@@ -1257,7 +1259,8 @@ int32_t filterAddGroupUnitFromNode(SFilterInfo *info, tExprNode* tree, SArray *g
   } else {
     filterAddFieldFromNode(info, tree->_node.pRight, &right);
     
-    filterAddUnit(info, tree->_node.optr, &left, &right, &uidx);
+    ret = filterAddUnit(info, tree->_node.optr, &left, &right, &uidx);
+    CHK_LRET(ret != TSDB_CODE_SUCCESS, TSDB_CODE_QRY_APP_ERROR, "invalid where condition");
 
     SFilterGroup fgroup = {0};
     filterAddUnitToGroup(&fgroup, uidx);
@@ -1282,7 +1285,7 @@ int32_t filterAddUnitFromUnit(SFilterInfo *dst, SFilterInfo *src, SFilterUnit* u
     void *data = FILTER_UNIT_VAL_DATA(src, u);
     if (IS_VAR_DATA_TYPE(type)) {
       if (FILTER_UNIT_OPTR(u) ==  TSDB_RELATION_IN) {
-        filterAddField(dst, NULL, &data, FLD_TYPE_VALUE, &right, 0, false);
+        filterAddField(dst, NULL, &data, FLD_TYPE_VALUE, &right, sizeof(SHashObj), false);
 
         t = FILTER_GET_FIELD(dst, right);
         
@@ -1574,7 +1577,9 @@ void filterDumpInfoToString(SFilterInfo *info, const char *msg, int32_t options)
         
         SFilterField *left = FILTER_UNIT_LEFT_FIELD(info, unit);
         SSchema *sch = left->desc;
-        len = sprintf(str, "UNIT[%d] => [%d][%s]  %s  [", i, sch->colId, sch->name, gOptrStr[unit->compare.optr].str);
+        if (unit->compare.optr >= TSDB_RELATION_INVALID && unit->compare.optr <= TSDB_RELATION_CONTAINS){
+          len = sprintf(str, "UNIT[%d] => [%d][%s]  %s  [", i, sch->colId, sch->name, gOptrStr[unit->compare.optr].str);
+        }
 
         if (unit->right.type == FLD_TYPE_VALUE && FILTER_UNIT_OPTR(unit) != TSDB_RELATION_IN) {
           SFilterField *right = FILTER_UNIT_RIGHT_FIELD(info, unit);
@@ -1591,7 +1596,9 @@ void filterDumpInfoToString(SFilterInfo *info, const char *msg, int32_t options)
 
         if (unit->compare.optr2) {
           strcat(str, " && ");
-          sprintf(str + strlen(str), "[%d][%s]  %s  [", sch->colId, sch->name, gOptrStr[unit->compare.optr2].str);
+          if (unit->compare.optr2 >= TSDB_RELATION_INVALID && unit->compare.optr2 <= TSDB_RELATION_CONTAINS){
+            sprintf(str + strlen(str), "[%d][%s]  %s  [", sch->colId, sch->name, gOptrStr[unit->compare.optr2].str);
+          }
           
           if (unit->right2.type == FLD_TYPE_VALUE && FILTER_UNIT_OPTR(unit) != TSDB_RELATION_IN) {
             SFilterField *right = FILTER_UNIT_RIGHT2_FIELD(info, unit);

@@ -86,17 +86,21 @@ class TDTestCase:
         tdSql.query("select count(*) from st where hostname between 'abc' and 'def'")
 
         tdSql.error("select count(*) from st where hostname between 1 and 2 or sum(1)")
-        tdSql.execute("select count(*) from st where hostname < max(123)")
+        tdSql.error("select count(*) from st where hostname < max(123)")
 
-        tdSql.execute("select count(*) from st where hostname < max('abc')")
-        tdSql.execute("select count(*) from st where hostname < max(min(123))")
+        tdSql.error("select count(*) from st where hostname < max('abc')")
+        tdSql.error("select count(*) from st where hostname < max(min(123))")
 
-        tdSql.execute("select count(*) from st where hostname < sum('abc')")
-        tdSql.execute("select count(*) from st where hostname < sum(min(123))")
+        tdSql.error("select count(*) from st where hostname < sum('abc')")
+        tdSql.error("select count(*) from st where hostname < sum(min(123))")
 
-        tdSql.execute("select count(*) from st where hostname < diff('abc')")
-        tdSql.execute("select count(*) from st where hostname < diff(min(123))")
+        tdSql.error("select count(*) from st where hostname < diff('abc')")
+        tdSql.error("select count(*) from st where hostname < diff(min(123))")
 
+        tdSql.error("select count(*) from st where hostname < tbname")
+        tdSql.error("select count(*) from st where ts > 0 and tbname in ('d1', 'd2') and tbname-2")
+
+        tdSql.query("select count(*) from st where id > 10000000000000")
 
     def stop(self):
         tdSql.close()

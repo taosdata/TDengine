@@ -38,11 +38,11 @@ initd_mod=0
 service_mod=2
 if pidof systemd &> /dev/null; then
     service_mod=0
-elif $(which service &> /dev/null); then    
+elif $(which service &> /dev/null); then
     service_mod=1
-    service_config_dir="/etc/init.d" 
+    service_config_dir="/etc/init.d"
     if $(which chkconfig &> /dev/null); then
-         initd_mod=1 
+         initd_mod=1
     elif $(which insserv &> /dev/null); then
         initd_mod=2
     elif $(which update-rc.d &> /dev/null); then
@@ -50,7 +50,7 @@ elif $(which service &> /dev/null); then
     else
         service_mod=2
     fi
-else 
+else
     service_mod=2
 fi
 
@@ -76,7 +76,7 @@ function clean_bin() {
     ${csudo}rm -f ${bin_link_dir}/rmtq      || :
     ${csudo}rm -f ${bin_link_dir}/tarbitrator  || :
     ${csudo}rm -f ${bin_link_dir}/set_core     || :
-    ${csudo}rm -f ${bin_link_dir}/run_taosd.sh || :
+    ${csudo}rm -f ${bin_link_dir}/run_taosd_and_taosadapter.sh || :
 }
 
 function clean_lib() {
@@ -119,61 +119,61 @@ function clean_service_on_systemd() {
     fi
     ${csudo}systemctl disable ${tarbitrator_service_name} &> /dev/null || echo &> /dev/null
     ${csudo}rm -f ${tarbitratord_service_config}
-    
+
     if [ "$verMode" == "cluster" ]; then
-		  nginx_service_config="${service_config_dir}/${nginx_service_name}.service"	
-   	 	if [ -d ${bin_dir}/web ]; then
-   	    if systemctl is-active --quiet ${nginx_service_name}; then
-   	        echo "Nginx for TQ is running, stopping it..."
-   	        ${csudo}systemctl stop ${nginx_service_name} &> /dev/null || echo &> /dev/null
-   	    fi
-   	    ${csudo}systemctl disable ${nginx_service_name} &> /dev/null || echo &> /dev/null
-      
-   	    ${csudo}rm -f ${nginx_service_config}
-   	  fi
-    fi 
+        nginx_service_config="${service_config_dir}/${nginx_service_name}.service"
+        if [ -d ${bin_dir}/web ]; then
+            if systemctl is-active --quiet ${nginx_service_name}; then
+                echo "Nginx for TQ is running, stopping it..."
+                ${csudo}systemctl stop ${nginx_service_name} &> /dev/null || echo &> /dev/null
+            fi
+            ${csudo}systemctl disable ${nginx_service_name} &> /dev/null || echo &> /dev/null
+
+            ${csudo}rm -f ${nginx_service_config}
+        fi
+    fi
 }
 
 function clean_service_on_sysvinit() {
     #restart_config_str="tq:2345:respawn:${service_config_dir}/tqd start"
-    #${csudo}sed -i "\|${restart_config_str}|d" /etc/inittab || :    
-    
+    #${csudo}sed -i "\|${restart_config_str}|d" /etc/inittab || :
+
     if pidof tqd &> /dev/null; then
         echo "TQ tqd is running, stopping it..."
         ${csudo}service tqd stop || :
     fi
-    
+
     if pidof tarbitrator &> /dev/null; then
         echo "TQ tarbitrator is running, stopping it..."
         ${csudo}service tarbitratord stop || :
     fi
-    
-    if ((${initd_mod}==1)); then    
+
+    if ((${initd_mod}==1)); then
       if [ -e ${service_config_dir}/tqd ]; then
         ${csudo}chkconfig --del tqd || :
       fi
-      if [ -e ${service_config_dir}/tarbitratord ]; then 
+      if [ -e ${service_config_dir}/tarbitratord ]; then
         ${csudo}chkconfig --del tarbitratord || :
       fi
-    elif ((${initd_mod}==2)); then   
+    elif ((${initd_mod}==2)); then
       if [ -e ${service_config_dir}/tqd ]; then
         ${csudo}insserv -r tqd || :
       fi
-      if [ -e ${service_config_dir}/tarbitratord ]; then 
+      if [ -e ${service_config_dir}/tarbitratord ]; then
         ${csudo}insserv -r tarbitratord || :
       fi
-    elif ((${initd_mod}==3)); then  
+    elif ((${initd_mod}==3)); then
       if [ -e ${service_config_dir}/tqd ]; then
         ${csudo}update-rc.d -f tqd remove || :
       fi
-      if [ -e ${service_config_dir}/tarbitratord ]; then 
+      if [ -e ${service_config_dir}/tarbitratord ]; then
         ${csudo}update-rc.d -f tarbitratord remove || :
       fi
     fi
-    
+
     ${csudo}rm -f ${service_config_dir}/tqd || :
     ${csudo}rm -f ${service_config_dir}/tarbitratord || :
-   
+
     if $(which init &> /dev/null); then
         ${csudo}init q || :
     fi
@@ -203,7 +203,7 @@ clean_log
 # Remove link configuration file
 clean_config
 # Remove data link directory
-${csudo}rm -rf ${data_link_dir}    || : 
+csudo}rm -rf ${data_link_dir}    || :
 
 ${csudo}rm -rf ${install_main_dir}
 ${csudo}rm -rf ${install_nginxd_dir}
@@ -214,4 +214,4 @@ else
 fi
 
 echo -e "${GREEN}TQ is removed successfully!${NC}"
-echo 
+echo
