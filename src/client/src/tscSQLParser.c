@@ -5666,7 +5666,16 @@ static int32_t validateTagCondExpr(SSqlCmd* pCmd, tExprNode *p) {
     if (!p->_node.pLeft || !p->_node.pRight) {
       break;
     }
-    
+
+    int32_t retVal = TSDB_CODE_SUCCESS;
+    if (p->_node.pLeft && (retVal = validateTagCondExpr(pCmd, p->_node.pLeft)) != TSDB_CODE_SUCCESS) {
+      return retVal;
+    }
+
+    if (p->_node.pRight && (retVal = validateTagCondExpr(pCmd, p->_node.pRight)) != TSDB_CODE_SUCCESS) {
+      return retVal;
+    }
+
     if (IS_ARITHMETIC_OPTR(p->_node.optr)) {
       return invalidOperationMsg(tscGetErrorMsgPayload(pCmd), msg1);
     }
@@ -5702,8 +5711,6 @@ static int32_t validateTagCondExpr(SSqlCmd* pCmd, tExprNode *p) {
       schemaType = TSDB_DATA_TYPE_DOUBLE;
     }
     
-    int32_t retVal = TSDB_CODE_SUCCESS;
-
     int32_t bufLen = 0;
     if (IS_NUMERIC_TYPE(vVariant->nType)) {
       bufLen = 60;  // The maximum length of string that a number is converted to.
