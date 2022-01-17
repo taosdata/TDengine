@@ -79,6 +79,8 @@
 2. 如果网络配置有DNS server，请检查是否正常工作
 3. 如果网络没有配置DNS server，请检查客户端所在机器的hosts文件，查看该FQDN是否配置，并是否有正确的IP地址
 4. 如果网络配置OK，从客户端所在机器，你需要能Ping该连接的FQDN，否则客户端是无法连接服务器的
+5. 如果服务器曾经使用过TDengine，且更改过hostname，建议检查data目录的dnodeEps.json是否符合当前配置的EP，路径默认为/var/lib/taos/dnode。正常情况下，建议更换新的数据目录或者备份后删除以前的数据目录，这样可以避免该问题。
+6. 检查/etc/hosts 和/etc/hostname是否是预配置的FQDN
 
 **7. 虽然语法正确，为什么我还是得到 "Invalid SQL" 错误**
 
