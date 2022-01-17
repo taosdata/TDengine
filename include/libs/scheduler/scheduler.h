@@ -59,6 +59,11 @@ typedef struct SQueryResult {
   char    *msg;
 } SQueryResult;
 
+typedef struct STaskInfo {
+  SQueryNodeAddr addr;
+  SSubQueryMsg  *msg;
+} STaskInfo;
+
 int32_t schedulerInit(SSchedulerCfg *cfg);
 
 /**
@@ -100,6 +105,11 @@ int32_t scheduleFetchRows(struct SSchJob *pJob, void **data);
 void scheduleFreeJob(void *pJob);
 
 void schedulerDestroy(void);
+
+int32_t schedulerGenerateTaskList(SQueryDag* pDag, SArray **pTasks);
+
+void schedulerFreeTaskList(SArray *taskList);
+
 
 #ifdef __cplusplus
 }
