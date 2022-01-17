@@ -3614,7 +3614,7 @@ int32_t filterConverNcharColumns(SFilterInfo* info, int32_t rows, bool *gotNchar
         while (k < varSrcLen && varSrc[k++] == -1) {}
         if (k == varSrcLen) {
           /* NULL */
-          varDataLen(dst) = varSrcLen;
+          varDataLen(dst) = (VarDataLenT) varSrcLen;
           varDataCopy(dst, src);
           continue;
         }
