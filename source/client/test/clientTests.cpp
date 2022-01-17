@@ -49,7 +49,7 @@ int main(int argc, char** argv) {
 TEST(testCase, driverInit_Test) { taos_init(); }
 
 TEST(testCase, connect_Test) {
-  TAOS* pConn = taos_connect("localhost", "root", "taosdata", NULL, 0);
+  TAOS* pConn = taos_connect("localhost", "root", "taosdata", "abc1", 0);
   if (pConn == NULL) {
     printf("failed to connect to server, reason:%s\n", taos_errstr(NULL));
   }
