@@ -190,7 +190,7 @@ function install_bin() {
     ${csudo}cp -r ${script_dir}/taosd-dump-cfg.gdb ${install_main_dir}/bin
     ${csudo}cp -r ${script_dir}/remove.sh ${install_main_dir}/bin
     ${csudo}cp -r ${script_dir}/set_core.sh ${install_main_dir}/bin
-    ${csudo}cp -r ${script_dir}/run_taosd.sh ${install_main_dir}/bin
+    ${csudo}cp -r ${script_dir}/run_taosd_and_taosadapter.sh ${install_main_dir}/bin
     ${csudo}cp -r ${script_dir}/startPre.sh ${install_main_dir}/bin
 
     ${csudo}chmod 0555 ${install_main_dir}/bin/*
