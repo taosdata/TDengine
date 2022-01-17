@@ -186,7 +186,7 @@ TDengine 中时间戳的时区总是由客户端进行处理，而与服务端�
 | TCP | 6030      | 客户端与服务端之间通讯。            | 由配置文件设置 serverPort 决定。 |
 | TCP | 6035      | 多节点集群的节点间通讯。            | 随 serverPort 端口变化。        |
 | TCP | 6040      | 多节点集群的节点间数据同步。        | 随 serverPort 端口变化。         |
-| TCP | 6041      | 客户端与服务端之间的 RESTful 通讯。 | 随 serverPort 端口变化。        |
+| TCP | 6041      | 客户端与服务端之间的 RESTful 通讯。 | 随 serverPort 端口变化。注意 taosAdapter 配置或有不同，请参考相应[文档](https://www.taosdata.com/cn/documentation/tools/adapter)。        |
 | TCP | 6042      | Arbitrator 的服务端口。           | 随 Arbitrator 启动参数设置变化。 |
 | TCP | 6043      | TaosKeeper 监控服务端口。         | 随 TaosKeeper 启动参数设置变化。 |
 | TCP | 6044      | 支持 StatsD 的数据接入端口。       | 随 taosAdapter 启动参数设置变化（2.3.0.1+以上版本）。 |
@@ -197,7 +197,7 @@ TDengine 中时间戳的时区总是由客户端进行处理，而与服务端�
 
 **20. go 语言编写组件编译失败怎样解决？**
 
-新版本 TDengine 2.3.0.0 包含一个使用 go 语言开发的 taosAdapter 组件，取代之前内置的 httpd ，提供包含原  httpd 功能以及支持多种其他软件（Prometheus、Telegraf、collectd、StatsD等）的数据接入功能。
+新版本 TDengine 2.3.0.0 包含一个使用 go 语言开发的 taosAdapter 独立组件，需要单独运行，取代之前 taosd 内置的 httpd ，提供包含原  httpd 功能以及支持多种其他软件（Prometheus、Telegraf、collectd、StatsD等）的数据接入功能。
 使用最新 develop 分支代码编译需要先 `git submodule update --init --recursive` 下载 taosAdapter 仓库代码后再编译。
 
 目前编译方式默认自动编译 taosAdapter。go 语言版本要求 1.14 以上，如果发生 go 编译错误，往往是国内访问 go mod 问题，可以通过设置 go 环境变量来解决：
