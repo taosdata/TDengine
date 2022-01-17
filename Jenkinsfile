@@ -78,7 +78,7 @@ def pre_test(){
     git checkout -qf FETCH_HEAD
     git clean -dfx
     git submodule update --init --recursive
-    cd src/kit/taos-tools
+    cd src/kit/taos-tools/deps/avro
     git clean -dfx
     cd ${WK}
     git reset --hard HEAD~10
@@ -156,7 +156,7 @@ def pre_test_noinstall(){
     git checkout -qf FETCH_HEAD
     git clean -dfx
     git submodule update --init --recursive
-    cd src/kit/taos-tools
+    cd src/kit/taos-tools/deps/avro
     git clean -dfx
     cd ${WK}
     git reset --hard HEAD~10
@@ -231,7 +231,7 @@ def pre_test_mac(){
     git checkout -qf FETCH_HEAD
     git clean -dfx
     git submodule update --init --recursive
-    cd src/kit/taos-tools
+    cd src/kit/taos-tools/deps/avro
     git clean -dfx
     cd ${WK}
     git reset --hard HEAD~10
