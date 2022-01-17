@@ -1658,7 +1658,7 @@ int taos_stmt_prepare(TAOS_STMT* stmt, const char* sql, unsigned long length) {
   pRes->qId = 0;
   pRes->numOfRows = 0;
 
-  strntolower(pSql->sqlstr, sql, sqlLen);
+  strntolower(pSql->sqlstr, sql, (int32_t)sqlLen);
   tscDebugL("0x%"PRIx64" SQL: %s", pSql->self, pSql->sqlstr);
 
   if (tscIsInsertData(pSql->sqlstr)) {
