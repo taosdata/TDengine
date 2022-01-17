@@ -187,13 +187,19 @@ void *threadFunc(void *param) {
     int64_t curMs = 0;
     int64_t beginMs = taosGetTimestampMs();
     pInfo->startMs = beginMs;
-    for (int64_t t = pInfo->tableBeginIndex; t < pInfo->tableEndIndex; ++t) {
-      int64_t batch = (pInfo->tableEndIndex - t);
-      batch = MIN(batch, batchNum);
+	int64_t t = pInfo->tableBeginIndex;
+    for (; t <= pInfo->tableEndIndex;) {
+      //int64_t batch = (pInfo->tableEndIndex - t);
+      //batch = MIN(batch, batchNum);
 
       int32_t len = sprintf(qstr, "create table");
-      for (int32_t i = 0; i < batch; ++i) {
-        len += sprintf(qstr + len, " t%" PRId64 " using %s tags(%" PRId64 ")", t + i, stbName, t + i);
+      for (int32_t i = 0; i < batchNum;) {
+        len += sprintf(qstr + len, " %s_t%" PRId64 " using %s tags(%" PRId64 ")", stbName, t, stbName, t);
+		t++;
+	    i++;
+        if (t > pInfo->tableEndIndex) {
+            break;
+        }		
       }
 
       int64_t startTs = taosGetTimestampUs();
@@ -212,11 +218,11 @@ void *threadFunc(void *param) {
 	  curMs = taosGetTimestampMs();
       if (curMs -  beginMs > 10000) {
 	  	beginMs = curMs;
+		//printf("==== tableBeginIndex: %"PRId64", t: %"PRId64"\n", pInfo->tableBeginIndex, t);
         printCreateProgress(pInfo, t);
       }
-      t += (batch - 1);
     }
-    printCreateProgress(pInfo, pInfo->tableEndIndex);
+    printCreateProgress(pInfo, t);
   }
 
   if (insertData) {

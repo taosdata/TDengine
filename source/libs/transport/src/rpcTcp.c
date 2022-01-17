@@ -14,9 +14,6 @@
  */
 
 #include "rpcTcp.h"
-#ifdef USE_UV
-#include <uv.h>
-#endif
 #include "os.h"
 #include "rpcHead.h"
 #include "rpcLog.h"
@@ -24,9 +21,6 @@
 #include "taoserror.h"
 #include "tutil.h"
 
-#ifdef USE_UV
-
-#else
 typedef struct SFdObj {
   void *             signature;
   SOCKET             fd;       // TCP socket FD
@@ -665,5 +659,3 @@ static void taosFreeFdObj(SFdObj *pFdObj) {
 
   tfree(pFdObj);
 }
-
-#endif

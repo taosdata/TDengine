@@ -79,6 +79,7 @@ void schtBuildQueryDag(SQueryDag *dag) {
   scanPlan->level = 1;
   scanPlan->pParents = taosArrayInit(1, POINTER_BYTES);
   scanPlan->pNode = (SPhyNode*)calloc(1, sizeof(SPhyNode));
+  scanPlan->msgType = TDMT_VND_QUERY;
 
   mergePlan->id.queryId = qId;
   mergePlan->id.templateId = 0x4444444444;
@@ -89,6 +90,7 @@ void schtBuildQueryDag(SQueryDag *dag) {
   mergePlan->pChildren = taosArrayInit(1, POINTER_BYTES);
   mergePlan->pParents = NULL;
   mergePlan->pNode = (SPhyNode*)calloc(1, sizeof(SPhyNode));
+  mergePlan->msgType = TDMT_VND_QUERY;
 
   SSubplan *mergePointer = (SSubplan *)taosArrayPush(merge, &mergePlan);
   SSubplan *scanPointer = (SSubplan *)taosArrayPush(scan, &scanPlan);
@@ -163,6 +165,11 @@ void schtExecNode(SSubplan* subplan, uint64_t templateId, SQueryNodeAddr* ep) {
 
 }
 
+void schtRpcSendRequest(void *shandle, const SEpSet *pEpSet, SRpcMsg *pMsg, int64_t *pRid) {
+
+}
+
+
 
 void schtSetPlanToString() {
   static Stub stub;
@@ -189,6 +196,20 @@ void schtSetExecNode() {
     }
   }
 }
+
+void schtSetRpcSendRequest() {
+  static Stub stub;
+  stub.set(rpcSendRequest, schtRpcSendRequest);
+  {
+    AddrAny any("libtransport.so");
+    std::map<std::string,void*> result;
+    any.get_global_func_addr_dynsym("^rpcSendRequest$", result);
+    for (const auto& f : result) {
+      stub.set(f.second, schtRpcSendRequest);
+    }
+  }
+}
+
 
 void *schtSendRsp(void *param) {
   SSchJob *job = NULL;

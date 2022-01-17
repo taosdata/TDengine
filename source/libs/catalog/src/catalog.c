@@ -20,6 +20,9 @@
 
 SCatalogMgmt ctgMgmt = {0};
 
+SCTGDebug gCTGDebug = {0};
+
+
 int32_t ctgGetDBVgroupFromCache(struct SCatalog* pCatalog, const char *dbName, SDBVgroupInfo **dbInfo, bool *inCache) {
   if (NULL == pCatalog->dbCache.cache) {
     *inCache = false;

@@ -28,11 +28,13 @@ extern "C" {
 struct TDB {
   pgsize_t pageSize;
   tdb_db_t type;
+  char *   fname;
+  char *   dbname;
   union {
     TDB_BTREE *btree;
     TDB_HASH * hash;
     TDB_HEAP * heap;
-  } dbam;  // Different access methods
+  } dbam;  // db access method
 };
 
 #ifdef __cplusplus

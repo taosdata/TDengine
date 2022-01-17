@@ -58,7 +58,7 @@ static char* getClusterKey(const char* user, const char* auth, const char* ip, i
   return strdup(key);
 }
 
-static STscObj* taosConnectImpl(const char *ip, const char *user, const char *auth, const char *db, uint16_t port, __taos_async_fn_t fp, void *param, SAppInstInfo* pAppInfo);
+static STscObj* taosConnectImpl(const char *user, const char *auth, const char *db, uint16_t port, __taos_async_fn_t fp, void *param, SAppInstInfo* pAppInfo);
 static void  setResSchemaInfo(SReqResultInfo* pResInfo, const SDataBlockSchema* pDataBlockSchema);
 
 TAOS *taos_connect_internal(const char *ip, const char *user, const char *pass, const char *auth, const char *db, uint16_t port) {
@@ -71,18 +71,18 @@ TAOS *taos_connect_internal(const char *ip, const char *user, const char *pass, 
     return NULL;
   }
 
-  char tmp[TSDB_DB_NAME_LEN] = {0};
+  char localDb[TSDB_DB_NAME_LEN] = {0};
   if (db != NULL) {
     if(!validateDbName(db)) {
       terrno = TSDB_CODE_TSC_INVALID_DB_LENGTH;
       return NULL;
     }
 
-    tstrncpy(tmp, db, sizeof(tmp));
-    strdequote(tmp);
+    tstrncpy(localDb, db, sizeof(localDb));
+    strdequote(localDb);
   }
 
-  char secretEncrypt[32] = {0};
+  char secretEncrypt[TSDB_PASSWORD_LEN + 1] = {0};
   if (auth == NULL) {
     if (!validatePassword(pass)) {
       terrno = TSDB_CODE_TSC_INVALID_PASS_LENGTH;
@@ -111,6 +111,7 @@ TAOS *taos_connect_internal(const char *ip, const char *user, const char *pass, 
 
   char* key = getClusterKey(user, secretEncrypt, ip, port);
 
+  // TODO: race condition here.
   SAppInstInfo** pInst = taosHashGet(appInfo.pInstMap, key, strlen(key));
   if (pInst == NULL) {
     SAppInstInfo* p = calloc(1, sizeof(struct SAppInstInfo));
@@ -123,7 +124,7 @@ TAOS *taos_connect_internal(const char *ip, const char *user, const char *pass, 
   }
 
   tfree(key);
-  return taosConnectImpl(ip, user, &secretEncrypt[0], db, port, NULL, NULL, *pInst);
+  return taosConnectImpl(user, &secretEncrypt[0], localDb, port, NULL, NULL, *pInst);
 }
 
 int32_t buildRequest(STscObj *pTscObj, const char *sql, int sqlLen, SRequestObj** pRequest) {
@@ -259,6 +260,7 @@ int32_t scheduleQuery(SRequestObj* pRequest, SQueryDag* pDag) {
   return scheduleAsyncExecJob(pRequest->pTscObj->pAppInfo->pTransporter, NULL, pDag, &pRequest->body.pQueryJob);
 }
 
+<<<<<<<<< Temporary merge branch 1
 typedef struct tmq_t tmq_t;
 
 typedef struct SMqClientTopic {
@@ -290,8 +292,8 @@ typedef struct tmq_topic_vgroup_list_t {
 typedef void (tmq_commit_cb(tmq_t*, tmq_resp_err_t, tmq_topic_vgroup_list_t*, void* param));
 
 typedef struct tmq_conf_t{
-  char           groupId[256];
-  char           clientId[256];
+  char*          clientId;
+  char*          groupId;
   char*          ip;
   uint16_t       port;
   tmq_commit_cb* commit_cb;
@@ -358,11 +360,10 @@ tmq_t* tmqCreateConsumerImpl(TAOS* conn, tmq_conf_t* conf) {
 }
 
 TAOS_RES *taos_create_topic(TAOS* taos, const char* topicName, const char* sql, int sqlLen) {
-  STscObj* pTscObj = (STscObj*)taos;
-  SRequestObj* pRequest = NULL;
-  SQueryNode*  pQueryNode = NULL;
-  SQueryDag*   pDag = NULL;
-  char *pStr = NULL;
+  STscObj     *pTscObj = (STscObj*)taos;
+  SRequestObj *pRequest = NULL;
+  SQueryNode  *pQueryNode = NULL;
+  char        *pStr = NULL;
 
   terrno = TSDB_CODE_SUCCESS;
   if (taos == NULL || topicName == NULL || sql == NULL) {
@@ -451,7 +452,7 @@ _return:
 }
 
 typedef struct tmq_message_t {
-  int32_t  numOfRows; 
+  int32_t  numOfRows;
   char*    topicName;
   TAOS_ROW row[];
 } tmq_message_t;
@@ -465,7 +466,7 @@ tmq_resp_err_t* tmq_commit(tmq_t* mq, void* callback, int32_t async) {
 }
 
 void tmq_message_destroy(tmq_message_t* mq_message) {
-  
+
 }
 
 
@@ -539,7 +540,7 @@ int initEpSetFromCfg(const char *firstEp, const char *secondEp, SCorEpSet *pEpSe
   return 0;
 }
 
-STscObj* taosConnectImpl(const char *ip, const char *user, const char *auth, const char *db, uint16_t port, __taos_async_fn_t fp, void *param, SAppInstInfo* pAppInfo) {
+STscObj* taosConnectImpl(const char *user, const char *auth, const char *db, uint16_t port, __taos_async_fn_t fp, void *param, SAppInstInfo* pAppInfo) {
   STscObj *pTscObj = createTscObj(user, auth, db, pAppInfo);
   if (NULL == pTscObj) {
     terrno = TSDB_CODE_TSC_OUT_OF_MEMORY;
@@ -598,7 +599,9 @@ static SMsgSendInfo* buildConnectMsg(SRequestObj *pRequest) {
   STscObj *pObj = pRequest->pTscObj;
 
   char* db = getConnectionDB(pObj);
-  tstrncpy(pConnect->db, db, sizeof(pConnect->db));
+  if (db != NULL) {
+    tstrncpy(pConnect->db, db, sizeof(pConnect->db));
+  }
   tfree(db);
 
   pConnect->pid = htonl(appInfo.pid);
@@ -798,9 +801,12 @@ void setResultDataPtr(SReqResultInfo* pResultInfo, TAOS_FIELD* pFields, int32_t 
 char* getConnectionDB(STscObj* pObj) {
   char *p = NULL;
   pthread_mutex_lock(&pObj->mutex);
-  p = strndup(pObj->db, tListLen(pObj->db));
-  pthread_mutex_unlock(&pObj->mutex);
+  size_t len = strlen(pObj->db);
+  if (len > 0) {
+    p = strndup(pObj->db, tListLen(pObj->db));
+  }
 
+  pthread_mutex_unlock(&pObj->mutex);
   return p;
 }
 

@@ -374,6 +374,12 @@ typedef struct STaskParam {
   struct SUdfInfo        *pUdfInfo;
 } STaskParam;
 
+typedef struct SExchangeInfo {
+  int32_t numOfSources;
+  SEpSet *pEpset;
+  int32_t bytes;   // total load bytes from remote
+} SExchangeInfo;
+
 typedef struct STableScanInfo {
   void           *pTsdbReadHandle;
   int32_t         numOfBlocks;
@@ -393,12 +399,9 @@ typedef struct STableScanInfo {
   SSDataBlock     block;
   int32_t         numOfOutput;
   int64_t         elapsedTime;
-  int32_t         tableIndex;
-
   int32_t         prevGroupId;  // previous table group id
 
   int32_t         scanFlag;     // table scan flag to denote if it is a repeat/reverse/main scan
-  STimeWindow     window;
 } STableScanInfo;
 
 typedef struct STagScanInfo {
@@ -542,8 +545,10 @@ typedef struct SOrderOperatorInfo {
 
 void appendUpstream(SOperatorInfo* p, SOperatorInfo* pUpstream);
 
+SOperatorInfo* createExchangeOperatorInfo(const SVgroupInfo* pVgroups, int32_t numOfSources, int32_t numOfOutput, SExecTaskInfo* pTaskInfo);
+
 SOperatorInfo* createDataBlocksOptScanInfo(void* pTsdbReadHandle, int32_t order, int32_t numOfOutput, int32_t repeatTime, int32_t reverseTime, SExecTaskInfo* pTaskInfo);
-SOperatorInfo* createTableScanOperator(void* pTsdbReadHandle, int32_t order, int32_t numOfOutput, int32_t repeatTime, SExecTaskInfo* pTaskInfo);
+SOperatorInfo* createTableScanOperatorInfo(void* pTsdbReadHandle, int32_t order, int32_t numOfOutput, int32_t repeatTime, SExecTaskInfo* pTaskInfo);
 SOperatorInfo* createTableSeqScanOperator(void* pTsdbReadHandle, STaskRuntimeEnv* pRuntimeEnv);
 
 SOperatorInfo* createAggregateOperatorInfo(SOperatorInfo* downstream, SExprInfo* pExpr, int32_t numOfOutput);

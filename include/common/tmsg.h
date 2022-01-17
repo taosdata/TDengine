@@ -1179,6 +1179,13 @@ typedef struct {
   uint64_t taskId;
 } SSinkDataReq;
 
+typedef struct {
+  SMsgHead header;
+  uint64_t sId;
+  uint64_t queryId;
+  uint64_t taskId;
+} SQueryContinueReq;
+
 
 typedef struct {
   SMsgHead header;
@@ -1471,7 +1478,7 @@ typedef struct {
 typedef struct {
   SMsgHead head;
   char     name[TSDB_TABLE_FNAME_LEN];
-  int8_t   ignoreNotExists;
+  int64_t  suid;
 } SVDropTbReq;
 
 typedef struct {

@@ -356,7 +356,11 @@ int32_t* taosGetErrno();
 #define TSDB_CODE_QRY_TASK_ALREADY_EXIST        TAOS_DEF_ERROR_CODE(0, 0x0712)  //"Task already exist")
 #define TSDB_CODE_QRY_RES_CACHE_NOT_EXIST       TAOS_DEF_ERROR_CODE(0, 0x0713)  //"Task result cache not exist")
 #define TSDB_CODE_QRY_TASK_CANCELLED            TAOS_DEF_ERROR_CODE(0, 0x0714)  //"Task cancelled")
-
+#define TSDB_CODE_QRY_TASK_DROPPED              TAOS_DEF_ERROR_CODE(0, 0x0715)  //"Task dropped")
+#define TSDB_CODE_QRY_TASK_CANCELLING           TAOS_DEF_ERROR_CODE(0, 0x0716)  //"Task cancelling")
+#define TSDB_CODE_QRY_TASK_DROPPING             TAOS_DEF_ERROR_CODE(0, 0x0717)  //"Task dropping")
+#define TSDB_CODE_QRY_DUPLICATTED_OPERATION     TAOS_DEF_ERROR_CODE(0, 0x0718)  //"Duplicatted operation")
+#define TSDB_CODE_QRY_TASK_MSG_ERROR            TAOS_DEF_ERROR_CODE(0, 0x0719)  //"Task message error")
 
 // grant
 #define TSDB_CODE_GRANT_EXPIRED                 TAOS_DEF_ERROR_CODE(0, 0x0800)  //"License expired")

@@ -3564,8 +3564,6 @@ static void setupEnvForReverseScan(STableScanInfo *pTableScanInfo, SQLFunctionCt
 //  }
 
   // reverse order time range
-  SWAP(pTableScanInfo->window.skey, pTableScanInfo->window.ekey, TSKEY);
-
   SET_REVERSE_SCAN_FLAG(pTableScanInfo);
 //  setTaskStatus(pTableScanInfo, QUERY_NOT_COMPLETED);
 
@@ -4913,10 +4911,86 @@ static SSDataBlock* doBlockInfoScan(void* param, bool* newgroup) {
   pOperator->status = OP_EXEC_DONE;
   return pBlock;
 #endif
+}
+
+int32_t loadRemoteDataCallback(void* param, const SDataBuf* pMsg, int32_t code) {
 
 }
 
-SOperatorInfo* createTableScanOperator(void* pTsdbReadHandle, int32_t order, int32_t numOfOutput, int32_t repeatTime, SExecTaskInfo* pTaskInfo) {
+static SSDataBlock* doLoadRemoteData(void* param, bool* newgroup) {
+  SOperatorInfo* pOperator = (SOperatorInfo*) param;
+
+  SExchangeInfo *pExchangeInfo = pOperator->info;
+  SExecTaskInfo *pTaskInfo = pOperator->pTaskInfo;
+
+  *newgroup = false;
+
+  SResFetchReq *pMsg = calloc(1, sizeof(SResFetchReq));
+  if (NULL == pMsg) {  // todo handle malloc error
+
+  }
+
+  SEpSet epSet;
+
+  int64_t sId = -1, queryId = 0, taskId = 1, vgId = 1;
+  pMsg->header.vgId = htonl(vgId);
+
+  pMsg->sId     = htobe64(sId);
+  pMsg->taskId  = htobe64(taskId);
+  pMsg->queryId = htobe64(queryId);
+
+  // send the fetch remote task result reques
+  SMsgSendInfo* pMsgSendInfo = calloc(1, sizeof(SMsgSendInfo));
+  if (NULL == pMsgSendInfo) {
+    qError("QID:%"PRIx64 ",TID:%"PRIx64 " calloc %d failed", queryId, taskId, (int32_t)sizeof(SMsgSendInfo));
+  }
+
+  pMsgSendInfo->param = NULL;
+  pMsgSendInfo->msgInfo.pData = pMsg;
+  pMsgSendInfo->msgInfo.len = sizeof(SResFetchReq);
+  pMsgSendInfo->msgType = TDMT_VND_FETCH;
+  pMsgSendInfo->fp = loadRemoteDataCallback;
+
+  int64_t  transporterId = 0;
+  void* pTransporter = NULL;
+  int32_t code = asyncSendMsgToServer(pTransporter, &epSet, &transporterId, pMsgSendInfo);
+
+  printf("abc\n");
+  getchar();
+
+  // add it into the sink node
+
+}
+
+SOperatorInfo* createExchangeOperatorInfo(const SVgroupInfo* pVgroups, int32_t numOfSources, int32_t numOfOutput, SExecTaskInfo* pTaskInfo) {
+  assert(numOfSources > 0);
+
+  SExchangeInfo* pInfo    = calloc(1, sizeof(SExchangeInfo));
+  SOperatorInfo* pOperator = calloc(1, sizeof(SOperatorInfo));
+
+  if (pInfo == NULL || pOperator == NULL) {
+    tfree(pInfo);
+    tfree(pOperator);
+    terrno = TSDB_CODE_QRY_OUT_OF_MEMORY;
+    return NULL;
+  }
+
+  pInfo->numOfSources = numOfSources;
+
+  pOperator->name         = "ExchangeOperator";
+  pOperator->operatorType = OP_Exchange;
+  pOperator->blockingOptr = false;
+  pOperator->status       = OP_IN_EXECUTING;
+  pOperator->info         = pInfo;
+  pOperator->numOfOutput  = numOfOutput;
+  pOperator->pRuntimeEnv  = NULL;
+  pOperator->exec         = doLoadRemoteData;
+  pOperator->pTaskInfo    = pTaskInfo;
+
+  return pOperator;
+}
+
+SOperatorInfo* createTableScanOperatorInfo(void* pTsdbReadHandle, int32_t order, int32_t numOfOutput, int32_t repeatTime, SExecTaskInfo* pTaskInfo) {
   assert(repeatTime > 0 && numOfOutput > 0);
 
   STableScanInfo* pInfo    = calloc(1, sizeof(STableScanInfo));
@@ -4995,7 +5069,7 @@ SOperatorInfo* createTableSeqScanOperator(void* pTsdbReadHandle, STaskRuntimeEnv
 
   SOperatorInfo* pOperator = calloc(1, sizeof(SOperatorInfo));
   pOperator->name         = "TableSeqScanOperator";
-//  pOperator->operatorType = OP_TableSeqScan;
+  pOperator->operatorType = OP_TableSeqScan;
   pOperator->blockingOptr = false;
   pOperator->status       = OP_IN_EXECUTING;
   pOperator->info         = pInfo;
@@ -7284,7 +7358,7 @@ SOperatorInfo* doCreateOperatorTreeNode(SPhyNode* pPhyNode, SExecTaskInfo* pTask
     if (pPhyNode->info.type == OP_TableScan) {
       SScanPhyNode*  pScanPhyNode = (SScanPhyNode*)pPhyNode;
       size_t         numOfCols = taosArrayGetSize(pPhyNode->pTargets);
-      return createTableScanOperator(param, pScanPhyNode->order, numOfCols, pScanPhyNode->count, pTaskInfo);
+      return createTableScanOperatorInfo(param, pScanPhyNode->order, numOfCols, pScanPhyNode->count, pTaskInfo);
     } else if (pPhyNode->info.type == OP_DataBlocksOptScan) {
       SScanPhyNode*  pScanPhyNode = (SScanPhyNode*)pPhyNode;
       size_t         numOfCols = taosArrayGetSize(pPhyNode->pTargets);
@@ -7308,6 +7382,7 @@ int32_t doCreateExecTaskInfo(SSubplan* pPlan, SExecTaskInfo** pTaskInfo, void* r
     cond.numOfCols = taosArrayGetSize(pTableScanNode->scan.node.pTargets);
     cond.colList   = calloc(cond.numOfCols, sizeof(SColumnInfo));
     cond.twindow   = pTableScanNode->window;
+    cond.type      = BLOCK_LOAD_OFFSET_SEQ_ORDER;
 
     for(int32_t i = 0; i < cond.numOfCols; ++i) {
       SExprInfo* pExprInfo = taosArrayGetP(pTableScanNode->scan.node.pTargets, i);

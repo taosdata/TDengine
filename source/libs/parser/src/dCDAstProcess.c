@@ -109,7 +109,11 @@ static int32_t setShowInfo(SShowInfo* pShowInfo, SParseContext* pCtx, void** out
     }
 
     *pEpSet = pCtx->mgmtEpSet;
-    *output = buildShowMsg(pShowInfo, pCtx, pMsgBuf->buf, pMsgBuf->len);
+    *output = buildShowMsg(pShowInfo, pCtx, pMsgBuf);
+    if (*output == NULL) {
+      return terrno;
+    }
+
     *outputLen = sizeof(SShowReq) /* + htons(pShowMsg->payloadLen)*/;
   }
 
@@ -312,9 +316,9 @@ int32_t doCheckForCreateTable(SCreateTableSql* pCreateTable, SMsgBuf* pMsgBuf) {
   assert(pFieldList != NULL);
 
   // if sql specifies db, use it, otherwise use default db
-  SToken* pzTableName = &(pCreateTable->name);
+  SToken* pNameToken = &(pCreateTable->name);
 
-  if (parserValidateNameToken(pzTableName) != TSDB_CODE_SUCCESS) {
+  if (parserValidateIdToken(pNameToken) != TSDB_CODE_SUCCESS) {
     return buildInvalidOperationMsg(pMsgBuf, msg1);
   }
 
@@ -973,6 +977,7 @@ SVnodeModifOpStmtInfo* qParserValidateCreateTbSqlNode(SSqlInfo* pInfo, SParseCon
   int32_t msgLen = 0;
   int32_t code = doCheckAndBuildCreateTableReq(pCreateTable, pCtx, pMsgBuf, (char**) &pModifSqlStmt, &msgLen);
   if (code != TSDB_CODE_SUCCESS) {
+    terrno = code;
     tfree(pModifSqlStmt);
     return NULL;
   }
