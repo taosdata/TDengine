@@ -361,7 +361,7 @@ pipeline {
   }
   stages {
       stage('pre_build'){
-          agent{label 'catalina'}
+          agent{label 'master'}
           options { skipDefaultCheckout() }
           when {
               changeRequest()
@@ -370,33 +370,9 @@ pipeline {
             script{
               abort_previous()
               abortPreviousBuilds()
-              println env.CHANGE_BRANCH
-              if(env.CHANGE_FORK){
-                scope = ['connector','query','insert','other','tools','taosAdapter']
-              }
-              else{
-                sh'''
-                  cd ${WKC}
-                  git reset --hard HEAD~10
-                  git fetch
-                  git checkout ${CHANGE_BRANCH}
-                  git pull
-                '''
-                dir('/var/lib/jenkins/workspace/TDinternal/community'){
-                  gitlog = sh(script: "git log -1 --pretty=%B ", returnStdout:true)
-                  println gitlog
-                  if (!(gitlog =~ /\((.*?)\)/)){
-                    autoCancelled = true
-                    error('Please fill in the scope information correctly.\neg. [TD-xxxx]<fix>(query,insert):xxxxxxxxxxxxxxxxxx ')
-                  }
-                  temp = (gitlog =~ /\((.*?)\)/)
-                  temp = temp[0].remove(1)
-                  scope = temp.split(",")
-                  scope = ['connector','query','insert','other','tools','taosAdapter']
-                  Collections.shuffle mod
-                  Collections.shuffle sim_mod
-                }
-
+              scope = ['connector','query','insert','other','tools','taosAdapter']
+              Collections.shuffle mod
+              Collections.shuffle sim_mod
               }
             }    
           }
