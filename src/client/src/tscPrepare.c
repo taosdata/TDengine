@@ -1849,18 +1849,7 @@ int taos_stmt_set_tbname_tags(TAOS_STMT* stmt, const char* name, TAOS_BIND* tags
     tscResetSqlCmd(pCmd, false, pSql->self);
     pCmd->insertParam.pTableBlockHashList = hashList;
   }
-
-  int32_t sqlLen = (int32_t)strlen(pStmt->pSql->sqlstr);
-  char* sqlstr = pStmt->pSql->sqlstr;
-  pStmt->pSql->sqlstr = calloc(1, sqlLen + 1);
-  if (pSql->sqlstr == NULL) {
-    tscError("0x%"PRIx64" failed to malloc sql string buffer", pSql->self);
-    free(tname.z);
-    STMT_RET(TSDB_CODE_TSC_OUT_OF_MEMORY);
-  }
-
-  strntolower(pStmt->pSql->sqlstr, sqlstr, sqlLen);
-  free(sqlstr);
+  
 
   code = tsParseSql(pStmt->pSql, true);
   if (code == TSDB_CODE_TSC_ACTION_IN_PROGRESS) {
