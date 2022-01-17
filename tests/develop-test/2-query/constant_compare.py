@@ -1130,6 +1130,7 @@ class TDTestCase:
         tdSql.error('select \'1234\' or 1 < 2 or \'aace\' and "cde" between 4 and "def" and "ckas" or 10.1 from tb;')
 
         tdSql.execute('drop database db')
+
     def stop(self):
         tdSql.close()
         tdLog.success("%s successfully executed" % __file__)
