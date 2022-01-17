@@ -619,7 +619,7 @@ tSqlExpr *tSqlExprClone(tSqlExpr *pSrc) {
   tSqlExpr *pExpr = calloc(1, sizeof(tSqlExpr));
 
   memcpy(pExpr, pSrc, sizeof(*pSrc));
-  
+
   if (pSrc->pLeft) {
     pExpr->pLeft = tSqlExprClone(pSrc->pLeft);
   }
@@ -632,7 +632,7 @@ tSqlExpr *tSqlExprClone(tSqlExpr *pSrc) {
   tVariantAssign(&pExpr->value, &pSrc->value);
 
   //we don't clone paramList now because clone is only used for between/and
-  assert(pSrc->Expr.paramList == NULL);
+  pSrc->Expr.paramList = NULL;
   return pExpr;
 }
 
