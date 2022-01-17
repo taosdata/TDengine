@@ -182,6 +182,12 @@ static void getDataLength(SDataSinkHandle* pHandle, int32_t* pLen, bool* pQueryE
 
 static int32_t getDataBlock(SDataSinkHandle* pHandle, SOutputData* pOutput) {
   SDataDispatchHandle* pDispatcher = (SDataDispatchHandle*)pHandle;
+  if (NULL == pDispatcher->nextOutput.pData) {
+    assert(pDispatcher->queryEnd);
+    pOutput->useconds = pDispatcher->useconds;
+    pOutput->precision = pDispatcher->schema.precision;
+    return TSDB_CODE_SUCCESS;
+  }
   SDataCacheEntry* pEntry = (SDataCacheEntry*)(pDispatcher->nextOutput.pData);
   memcpy(pOutput->pData, pEntry->data, pEntry->dataLen);
   pOutput->numOfRows = pEntry->numOfRows;

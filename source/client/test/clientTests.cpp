@@ -53,6 +53,7 @@ TEST(testCase, connect_Test) {
   if (pConn == NULL) {
     printf("failed to connect to server, reason:%s\n", taos_errstr(NULL));
   }
+  sleep(3);
   taos_close(pConn);
 }
 
@@ -148,27 +149,27 @@ TEST(testCase, connect_Test) {
 //}
 //
 //TEST(testCase, create_db_Test) {
-//  TAOS* pConn = taos_connect("localhost", "root", "taosdata", NULL, 0);
-//  assert(pConn != NULL);
-//
-//  TAOS_RES* pRes = taos_query(pConn, "create database abc1 vgroups 2");
-//  if (taos_errno(pRes) != 0) {
-//    printf("error in create db, reason:%s\n", taos_errstr(pRes));
-//  }
-//
-//  TAOS_FIELD* pFields = taos_fetch_fields(pRes);
-//  ASSERT_TRUE(pFields == NULL);
-//
-//  int32_t numOfFields = taos_num_fields(pRes);
-//  ASSERT_EQ(numOfFields, 0);
-//
-//  taos_free_result(pRes);
-//
-//  pRes = taos_query(pConn, "create database abc1 vgroups 4");
-//  if (taos_errno(pRes) != 0) {
-//    printf("error in create db, reason:%s\n", taos_errstr(pRes));
-//  }
-//  taos_close(pConn);
+  //TAOS* pConn = taos_connect("localhost", "root", "taosdata", NULL, 0);
+  //assert(pConn != NULL);
+
+  //TAOS_RES* pRes = taos_query(pConn, "create database abc1 vgroups 2");
+  //if (taos_errno(pRes) != 0) {
+    //printf("error in create db, reason:%s\n", taos_errstr(pRes));
+  //}
+
+  //TAOS_FIELD* pFields = taos_fetch_fields(pRes);
+  //ASSERT_TRUE(pFields == NULL);
+
+  //int32_t numOfFields = taos_num_fields(pRes);
+  //ASSERT_EQ(numOfFields, 0);
+
+  //taos_free_result(pRes);
+
+  //pRes = taos_query(pConn, "create database abc1 vgroups 4");
+  //if (taos_errno(pRes) != 0) {
+    //printf("error in create db, reason:%s\n", taos_errstr(pRes));
+  //}
+  //taos_close(pConn);
 //}
 //
 //TEST(testCase, create_dnode_Test) {
@@ -293,24 +294,24 @@ TEST(testCase, connect_Test) {
 //  taos_close(pConn);
 //}
 
-TEST(testCase, create_ctable_Test) {
-  TAOS* pConn = taos_connect("localhost", "root", "taosdata", NULL, 0);
-  assert(pConn != NULL);
+//TEST(testCase, create_ctable_Test) {
+  //TAOS* pConn = taos_connect("localhost", "root", "taosdata", NULL, 0);
+  //assert(pConn != NULL);
 
-  TAOS_RES* pRes = taos_query(pConn, "use abc1");
-  if (taos_errno(pRes) != 0) {
-    printf("failed to use db, reason:%s\n", taos_errstr(pRes));
-  }
-  taos_free_result(pRes);
+  //TAOS_RES* pRes = taos_query(pConn, "use abc1");
+  //if (taos_errno(pRes) != 0) {
+    //printf("failed to use db, reason:%s\n", taos_errstr(pRes));
+  //}
+  //taos_free_result(pRes);
 
-  pRes = taos_query(pConn, "create table tm0 using st1 tags(1)");
-  if (taos_errno(pRes) != 0) {
-    printf("failed to create child table tm0, reason:%s\n", taos_errstr(pRes));
-  }
+  //pRes = taos_query(pConn, "create table tm0 using st1 tags(1)");
+  //if (taos_errno(pRes) != 0) {
+    //printf("failed to create child table tm0, reason:%s\n", taos_errstr(pRes));
+  //}
 
-  taos_free_result(pRes);
-  taos_close(pConn);
-}
+  //taos_free_result(pRes);
+  //taos_close(pConn);
+//}
 
 //TEST(testCase, show_stable_Test) {
 //  TAOS* pConn = taos_connect("localhost", "root", "taosdata", NULL, 0);

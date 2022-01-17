@@ -96,6 +96,38 @@ TEST_F(MndTestProfile, 03_ConnectMsg_Show) {
 }
 
 TEST_F(MndTestProfile, 04_HeartBeatMsg) {
+  SClientHbBatchReq batchReq;
+  batchReq.reqs = taosArrayInit(0, sizeof(SClientHbReq));
+  SClientHbReq req = {0};
+  req.connKey = {.connId = 123, .hbType = HEARTBEAT_TYPE_MQ};
+  req.info = taosHashInit(64, hbKeyHashFunc, 1, HASH_ENTRY_LOCK);
+  SKv kv;
+  kv.key = (void*)"abc";
+  kv.keyLen = 4;
+  kv.value = (void*)"bcd";
+  kv.valueLen = 4;
+  taosHashPut(req.info, kv.key, kv.keyLen, kv.value, kv.valueLen);
+  taosArrayPush(batchReq.reqs, &req);
+
+  int32_t tlen = tSerializeSClientHbBatchReq(NULL, &batchReq);
+  
+  void* buf = (SClientHbBatchReq*)rpcMallocCont(tlen);
+  void* bufCopy = buf;
+  tSerializeSClientHbBatchReq(&bufCopy, &batchReq);
+  SRpcMsg* pMsg = test.SendReq(TDMT_MND_HEARTBEAT, buf, tlen);
+  ASSERT_NE(pMsg, nullptr);
+  ASSERT_EQ(pMsg->code, 0);
+  char* pRspChar = (char*)pMsg->pCont;
+  SClientHbBatchRsp rsp = {0};
+  tDeserializeSClientHbBatchRsp(pRspChar, &rsp);
+  int sz = taosArrayGetSize(rsp.rsps);
+  ASSERT_EQ(sz, 1);
+  SClientHbRsp* pRsp = (SClientHbRsp*) taosArrayGet(rsp.rsps, 0);
+  EXPECT_EQ(pRsp->connKey.connId, 123);
+  EXPECT_EQ(pRsp->connKey.hbType, HEARTBEAT_TYPE_MQ);
+  EXPECT_EQ(pRsp->status, 0);
+
+#if 0
   int32_t contLen = sizeof(SHeartBeatReq);
 
   SHeartBeatReq* pReq = (SHeartBeatReq*)rpcMallocCont(contLen);
@@ -129,9 +161,12 @@ TEST_F(MndTestProfile, 04_HeartBeatMsg) {
   EXPECT_EQ(pRsp->epSet.numOfEps, 1);
   EXPECT_EQ(pRsp->epSet.port[0], 9031);
   EXPECT_STREQ(pRsp->epSet.fqdn[0], "localhost");
+#endif
 }
 
 TEST_F(MndTestProfile, 05_KillConnMsg) {
+  // temporary remove since kill will use new heartbeat msg
+#if 0
   {
     int32_t contLen = sizeof(SKillConnReq);
 
@@ -190,6 +225,7 @@ TEST_F(MndTestProfile, 05_KillConnMsg) {
 
     connId = pRsp->connId;
   }
+#endif
 }
 
 TEST_F(MndTestProfile, 06_KillConnMsg_InvalidConn) {
@@ -204,6 +240,8 @@ TEST_F(MndTestProfile, 06_KillConnMsg_InvalidConn) {
 }
 
 TEST_F(MndTestProfile, 07_KillQueryMsg) {
+  // temporary remove since kill will use new heartbeat msg
+#if 0
   {
     int32_t contLen = sizeof(SKillQueryReq);
 
@@ -252,6 +290,7 @@ TEST_F(MndTestProfile, 07_KillQueryMsg) {
     EXPECT_EQ(pRsp->epSet.port[0], 9031);
     EXPECT_STREQ(pRsp->epSet.fqdn[0], "localhost");
   }
+#endif
 }
 
 TEST_F(MndTestProfile, 08_KillQueryMsg_InvalidConn) {

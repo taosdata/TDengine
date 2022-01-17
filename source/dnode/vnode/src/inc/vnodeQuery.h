@@ -22,6 +22,7 @@ extern "C" {
 #include "qworker.h"
 #include "vnode.h"
 
+
 typedef struct SQWorkerMgmt SQHandle;
 
 int vnodeQueryOpen(SVnode *pVnode);

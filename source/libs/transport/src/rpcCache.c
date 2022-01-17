@@ -22,9 +22,6 @@
 #include "ttimer.h"
 #include "tutil.h"
 
-#ifdef USE_UV
-
-#else
 typedef struct SConnHash {
   char              fqdn[TSDB_FQDN_LEN];
   uint16_t          port;
@@ -295,4 +292,3 @@ static void rpcUnlockCache(int64_t *lockedBy) {
     assert(false);
   }
 }
-#endif

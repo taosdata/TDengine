@@ -68,6 +68,14 @@ typedef uint16_t tmsg_t;
 #define TSDB_IE_TYPE_DNODE_EXT 6
 #define TSDB_IE_TYPE_DNODE_STATE 7
 
+typedef enum {
+  HEARTBEAT_TYPE_MQ    = 0,
+  HEARTBEAT_TYPE_QUERY = 1,
+  // types can be added here
+  //
+  HEARTBEAT_TYPE_MAX
+} EHbType;
+
 typedef enum _mgmt_table {
   TSDB_MGMT_TABLE_START,
   TSDB_MGMT_TABLE_ACCT,
@@ -147,7 +155,7 @@ typedef struct {
 
 typedef struct {
   SClientHbKey connKey;
-  SHashObj*    info;  // hash<Slv.key, Sklv>
+  SHashObj*    info;  // hash<Skv.key, Skv>
 } SClientHbReq;
 
 typedef struct {
@@ -173,7 +181,10 @@ static FORCE_INLINE uint32_t hbKeyHashFunc(const char* key, uint32_t keyLen) {
 }
 
 int   tSerializeSClientHbReq(void** buf, const SClientHbReq* pReq);
-void* tDeserializeClientHbReq(void* buf, SClientHbReq* pReq);
+void* tDeserializeSClientHbReq(void* buf, SClientHbReq* pReq);
+
+int   tSerializeSClientHbRsp(void** buf, const SClientHbRsp* pRsp);
+void* tDeserializeSClientHbRsp(void* buf, SClientHbRsp* pRsp);
 
 static FORCE_INLINE void  tFreeClientHbReq(void *pReq) {
   SClientHbReq* req = (SClientHbReq*)pReq;
@@ -182,13 +193,16 @@ static FORCE_INLINE void  tFreeClientHbReq(void *pReq) {
 }
 
 int   tSerializeSClientHbBatchReq(void** buf, const SClientHbBatchReq* pReq);
-void* tDeserializeClientHbBatchReq(void* buf, SClientHbBatchReq* pReq);
+void* tDeserializeSClientHbBatchReq(void* buf, SClientHbBatchReq* pReq);
 
 static FORCE_INLINE void tFreeClientHbBatchReq(void* pReq) {
   SClientHbBatchReq *req = (SClientHbBatchReq*)pReq;
-  taosArrayDestroyEx(req->reqs, tFreeClientHbReq);
+  //taosArrayDestroyEx(req->reqs, tFreeClientHbReq);
   free(pReq);
 }
+
+int   tSerializeSClientHbBatchRsp(void** buf, const SClientHbBatchRsp* pBatchRsp);
+void* tDeserializeSClientHbBatchRsp(void* buf, SClientHbBatchRsp* pBatchRsp);
 
 static FORCE_INLINE int taosEncodeSKv(void** buf, const SKv* pKv) {
   int tlen = 0;
@@ -219,6 +233,7 @@ static FORCE_INLINE void* taosDecodeSClientHbKey(void* buf, SClientHbKey* pKey) 
   buf = taosDecodeFixedI32(buf, &pKey->hbType);
   return buf;
 }
+
 
 typedef struct {
   int32_t vgId;
@@ -356,6 +371,31 @@ static FORCE_INLINE void* taosDecodeSEpSet(void* buf, SEpSet* pEp) {
     buf = taosDecodeFixedU16(buf, &pEp->port[i]);
     buf = taosDecodeStringTo(buf, pEp->fqdn[i]);
   }
+  return buf;
+}
+
+typedef struct SMqHbRsp {
+  int8_t status;    //idle or not
+  int8_t vnodeChanged;
+  int8_t epChanged; // should use new epset
+  int8_t reserved;
+  SEpSet epSet;
+} SMqHbRsp;
+
+static FORCE_INLINE int taosEncodeSMqHbRsp(void** buf, const SMqHbRsp* pRsp) {
+  int tlen = 0;
+  tlen += taosEncodeFixedI8(buf, pRsp->status);
+  tlen += taosEncodeFixedI8(buf, pRsp->vnodeChanged);
+  tlen += taosEncodeFixedI8(buf, pRsp->epChanged);
+  tlen += taosEncodeSEpSet(buf, &pRsp->epSet);
+  return tlen;
+}
+
+static FORCE_INLINE void* taosDecodeSMqHbRsp(void* buf, SMqHbRsp* pRsp) {
+  buf = taosDecodeFixedI8(buf, &pRsp->status);
+  buf = taosDecodeFixedI8(buf, &pRsp->vnodeChanged);
+  buf = taosDecodeFixedI8(buf, &pRsp->epChanged);
+  buf = taosDecodeSEpSet(buf, &pRsp->epSet);
   return buf;
 }
 
@@ -992,6 +1032,13 @@ typedef struct {
   uint64_t queryId;
   uint64_t taskId;
 } SSinkDataReq;
+
+typedef struct {
+  SMsgHead header;
+  uint64_t sId;
+  uint64_t queryId;
+  uint64_t taskId;
+} SQueryContinueReq;
 
 
 typedef struct {
