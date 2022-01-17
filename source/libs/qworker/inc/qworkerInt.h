@@ -81,8 +81,10 @@ typedef struct SQWMsg {
 } SQWMsg;
 
 typedef struct SQWPhaseInput {
-  int8_t  status;
-  int32_t code;
+  int8_t         status;
+  int32_t        code;
+  qTaskInfo_t    taskHandle;
+  DataSinkHandle sinkHandle;
 } SQWPhaseInput;
 
 typedef struct SQWPhaseOutput {
@@ -102,13 +104,9 @@ typedef struct SQWTaskCtx {
   int32_t         phase;
   
   int32_t         sinkId;
-  int8_t          queryInQ;
+  int32_t         readyCode; 
 
   int8_t          events[QW_EVENT_MAX];
-  int8_t          ready; 
-  int8_t          cancel;
-  int8_t          drop;  
-  int8_t          needRsp;
   
   qTaskInfo_t     taskHandle;
   DataSinkHandle  sinkHandle;
