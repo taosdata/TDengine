@@ -6,3 +6,4 @@ python3 ./test.py -f 2-query/constant_compare.py
 python3 ./test.py -f 2-query/ts_2016.py
 python3 ./test.py -f 2-query/escape.py
 python3 ./test.py -f 2-query/function_mavg.py
+python3 ./test.py -f 2-query/func_compare.py
