@@ -64,8 +64,8 @@ function replace_community_tq() {
   # packaging/tools/startPre.sh
   sed -i "s/serverName=\"taosd\"/serverName=\"tqd\"/g" ${top_dir}/packaging/tools/startPre.sh
   sed -i "s/logDir=\"\/var\/log\/taos\"/logDir=\"\/var\/log\/tq\"/g" ${top_dir}/packaging/tools/startPre.sh
-  # packaging/tools/run_taosd.sh
-  sed -i "s/taosd/tqd/g" ${top_dir}/packaging/tools/run_taosd.sh
+  # packaging/tools/run_taosd_and_taosadapter.sh
+  sed -i "s/taosd/tqd/g" ${top_dir}/packaging/tools/run_taosd_and_taosadapter.sh
   # packaging/tools/install.sh
   sed -i "s/clientName=\"taos\"/clientName=\"tq\"/g" ${top_dir}/packaging/tools/install.sh
   sed -i "s/serverName=\"taosd\"/serverName=\"tqd\"/g" ${top_dir}/packaging/tools/install.sh
