@@ -59,6 +59,18 @@ static void clientReadCb(uv_stream_t* cli, ssize_t nread, const uv_buf_t* buf) {
   // impl later
 }
 static void clientConnCb(struct uv_connect_s* req, int status) {
+  SCliConn* pConn = req->data;
+  SCliMsg*  pMsg = pConn->data;
+  SEpSet*   pEpSet = &pMsg->context->epSet;
+
+  char*    fqdn = pEpSet->fqdn[pEpSet->inUse];
+  uint32_t port = pEpSet->port[pEpSet->inUse];
+  if (status != 0) {
+    // call user fp later
+    tError("failed to connect server(%s, %d), errmsg: %s", fqdn, port, uv_strerror(status));
+    return;
+  }
+
   // impl later
 }
 
@@ -83,6 +95,7 @@ static void clientAsyncCb(uv_async_t* handle) {
 
   SCliConn* conn = getConnFromCache(pThrd->cache, fqdn, port);
   if (conn != NULL) {
+    // impl later
   } else {
     SCliConn* conn = malloc(sizeof(SCliConn));
 
