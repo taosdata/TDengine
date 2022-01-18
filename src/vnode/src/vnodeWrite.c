@@ -103,7 +103,7 @@ int32_t vnodeProcessWrite(void *vparam, void *wparam, int32_t qtype, void *rpara
   }
 
   // write into WAL
-  if (!(tsShortcutFlag & TSDB_SHORTCUT_VNODE_WAL_WRITE)) {
+  if (!(tsShortcutFlag & TSDB_SHORTCUT_NR_VNODE_WAL_WRITE)) {
     code = walWrite(pVnode->wal, pHead);
   }
   if (code < 0) {

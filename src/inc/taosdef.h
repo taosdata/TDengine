@@ -417,10 +417,10 @@ do { \
 #define TSDB_DEFAULT_STABLES_HASH_SIZE         100
 #define TSDB_DEFAULT_CTABLES_HASH_SIZE         20000
 
-#define TSDB_SHORTCUT_RPC_SEND_SUBMIT          0x01u
-#define TSDB_SHORTCUT_RPC_RECV_SUBMIT          0x02u
-#define TSDB_SHORTCUT_VNODE_WAL_WRITE          0x04u
-#define TSDB_SHORTCUT_TSDB_COMMIT              0x08u
+#define TSDB_SHORTCUT_RB_RPC_SEND_SUBMIT       0x01u  // RB: return before(global shortcut)
+#define TSDB_SHORTCUT_RA_RPC_RECV_SUBMIT       0x02u  // RA: return after(global shortcut)
+#define TSDB_SHORTCUT_NR_VNODE_WAL_WRITE       0x04u  // NR: no return and go on following actions(local shortcut)
+#define TSDB_SHORTCUT_RB_TSDB_COMMIT           0x08u
 
 #define TSDB_PORT_DNODESHELL                   0
 #define TSDB_PORT_DNODEDNODE                   5

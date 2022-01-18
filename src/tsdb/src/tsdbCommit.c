@@ -98,7 +98,7 @@ void *tsdbCommitData(STsdbRepo *pRepo) {
   }
   tsdbStartCommit(pRepo);
 
-  if (tsShortcutFlag & TSDB_SHORTCUT_TSDB_COMMIT) {
+  if (tsShortcutFlag & TSDB_SHORTCUT_RB_TSDB_COMMIT) {
     tsdbEndCommit(pRepo, terrno);
     return NULL;
   }

@@ -1162,7 +1162,7 @@ static void rpcProcessIncomingMsg(SRpcConn *pConn, SRpcHead *pHead, SRpcReqConte
 
     switch (rpcMsg.msgType) {
       case TSDB_MSG_TYPE_SUBMIT:
-        if (tsShortcutFlag & TSDB_SHORTCUT_RPC_RECV_SUBMIT) {
+        if (tsShortcutFlag & TSDB_SHORTCUT_RA_RPC_RECV_SUBMIT) {
           SRpcMsg rMsg = {.handle = rpcMsg.handle, .pCont = NULL, .contLen = 0};
           rpcSendResponse(&rMsg);
           rpcFreeCont(rpcMsg.pCont);
