@@ -129,7 +129,7 @@ class TDTestCase:
         print("schemaless_insert result {}".format(code))
 
         tdSql.query("describe stb0_3")
-        tdSql.checkData(1, 1, "BINARY")
+        tdSql.checkData(1, 1, "NCHAR")
 
         payload = ['''
         {
@@ -835,7 +835,7 @@ class TDTestCase:
         code = self._conn.schemaless_insert(payload, TDSmlProtocolType.JSON.value, TDSmlTimestampType.NOT_CONFIGURED.value)
         print("schemaless_insert result {}".format(code))
 
-        tdSql.query("describe `stable`")
+        tdSql.query("describe `STABLE`")
         tdSql.checkRows(9)
 
         #tdSql.query("select * from `key`")

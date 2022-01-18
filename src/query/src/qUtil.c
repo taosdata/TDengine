@@ -23,6 +23,8 @@
 #include "tlosertree.h"
 #include "queryLog.h"
 #include "tscompression.h"
+#include "tscUtil.h"
+#include "cJSON.h"
 
 typedef struct SCompSupporter {
   STableQueryInfo **pTableQueryInfo;
@@ -587,4 +589,3 @@ void blockDistInfoFromBinary(const char* data, int32_t len, STableBlockDist* pDi
     tfree(outputBuf);
   }
 }
-

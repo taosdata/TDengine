@@ -45,8 +45,10 @@ if [ "$osType" != "Darwin" ]; then
     strip ${build_dir}/bin/taos
     bin_files="${build_dir}/bin/taos ${script_dir}/remove_client.sh"
   else
-    bin_files="${build_dir}/bin/taos ${build_dir}/bin/taosdump ${build_dir}/bin/taosdemo \
-               ${script_dir}/remove_client.sh ${script_dir}/set_core.sh ${script_dir}/get_client.sh ${script_dir}/taosd-dump-cfg.gdb"
+    bin_files="${script_dir}/remove_client.sh \
+        ${script_dir}/set_core.sh \
+        ${script_dir}/get_client.sh"
+        #${script_dir}/get_client.sh ${script_dir}/taosd-dump-cfg.gdb"
   fi
   lib_files="${build_dir}/lib/libtaos.so.${version}"
 else
@@ -54,7 +56,7 @@ else
   lib_files="${build_dir}/lib/libtaos.${version}.dylib"
 fi
 
-header_files="${code_dir}/inc/taos.h ${code_dir}/inc/taoserror.h"
+header_files="${code_dir}/inc/taos.h ${code_dir}/inc/taosdef.h ${code_dir}/inc/taoserror.h"
 if [ "$verMode" == "cluster" ]; then
   cfg_dir="${top_dir}/../enterprise/packaging/cfg"
 else

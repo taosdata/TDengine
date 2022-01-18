@@ -8360,6 +8360,45 @@ class TDTestCase:
         sql += "where ts >= '%s'  AND ts <= '%s' range('%s' , '%s') EVERY(1s) FILL(NULL);" % (self.ts ,  self.ts + 10000 , self.ts + 150000 ,  self.ts + 200000)  
         datacheck = tdSql.error(sql)
 
+        #  TD-10736  Exception use case  for coredump 
+
+        tdSql.execute("create database db_except;")
+        tdSql.execute("use db_except;")
+        tdSql.execute("create table tb (ts timestamp, c1 int);")
+        tdSql.execute("insert into tb values ('2021-10-01 08:00:00.000' ,1);")
+        tdSql.execute("insert into tb values ('2021-10-01 08:00:01.000' ,2);")
+        tdSql.execute("insert into tb values ('2021-10-01 08:00:02.000' ,3);")
+        tdSql.execute("insert into tb values ('2021-10-01 08:00:03.000' ,4);")
+
+        tdSql.execute("create stable stb (ts timestamp, c1 int) tags (id int);")
+        tdSql.execute("insert into sub_1 using stb tags (1) values ('2021-10-01 08:00:00.000' ,1);")
+        tdSql.execute("insert into sub_1 using stb tags (1) values ('2021-10-01 08:00:01.000' ,2);")
+
+        tdSql.execute("insert into sub_2 using stb tags (1) values ('2021-10-01 08:00:00.000' ,3);")
+        tdSql.execute("insert into sub_2 using stb tags (1) values ('2021-10-01 08:00:01.000' ,4);")
+
+        tdSql.execute("insert into sub_3 using stb tags (1) values ('2021-10-01 08:00:01.000' ,1);")
+        tdSql.execute("insert into sub_3 using stb tags (1) values ('2021-10-01 08:00:02.000' ,2);")
+        tdSql.execute("insert into sub_3 using stb tags (1) values ('2021-10-01 08:00:03.000' ,3);")
+        tdSql.execute("insert into sub_3 using stb tags (1) values ('2021-10-01 08:00:04.000' ,4);")
+
+        tdSql.query("select interp(c1) from tb where ts = '2021-10-01 08:00:00.000' every(1s); ")
+        tdSql.checkData(0,1,1)
+        tdSql.query("select interp(c1) from tb where ts = '2021-10-01 08:00:98.000' every(1s); ")
+        tdSql.checkRows(0)
+
+        tdSql.query("select interp(c1) from sub_1 where ts = '2021-10-01 08:00:00.000' every(1s); ")
+        tdSql.checkData(0,1,1)
+        tdSql.query("select interp(c1) from sub_1 where ts = '2021-10-01 08:00:98.000' every(1s); ")
+        tdSql.checkRows(0)
+
+        tdSql.error("select interp(c1) from stb where ts = '2021-10-01 08:00:00.000' every(1s); ")
+        tdSql.error("select interp(c1) from stb where ts = '2021-10-01 08:00:98.000' every(1s); ")
+        tdSql.query("select interp(c1) from stb where ts = '2021-10-01 08:00:00.000' every(1s) group by tbname; ")
+        tdSql.checkRows(2)
+        tdSql.query("select interp(c1) from stb where ts = '2021-10-01 08:00:98.000' every(1s) group by tbname; ")
+        tdSql.checkRows(0)
+
         # Nested Query + where + range + FILL(NULL) + EVERY( s)(3)
         # sql = "select * from (select %s from stable_1 where ts BETWEEN '%s' AND '%s' range('%s' , '%s') EVERY(1s) FILL(NULL) group by tbname) z1," % (interp_select , self.ts ,  self.ts + 10000 , self.ts - 10000 ,  self.ts + 100000)
         # sql += "(select %s from stable_2 where ts BETWEEN '%s' AND '%s' range('%s' , '%s') EVERY(1s) FILL(NULL) group by tbname) z2 where z1.ts=z2.ts ;"  % (interp_select , self.ts ,  self.ts + 10000 , self.ts - 10000 ,  self.ts + 100000)

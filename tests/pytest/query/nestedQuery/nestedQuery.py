@@ -2220,7 +2220,7 @@ class TDTestCase:
         binPath = buildPath+ "/build/bin/"
 
         # regualr-table
-        os.system("%staosdemo -N -d regular -t 2 -n 1000 -l 4095 -y" % binPath)
+        os.system("%staosBenchmark -N -d regular -t 2 -n 1000 -l 4095 -y" % binPath)
         tdSql.execute("use regular")
         tdSql.query("select * from d0;")
         tdSql.checkCols(4096)
@@ -2281,7 +2281,7 @@ class TDTestCase:
         tdSql.checkRows(1000)
        
         #stable
-        os.system("%staosdemo -d super -t 2 -n 1000 -l 4093 -y" % binPath)
+        os.system("%staosBenchmark -d super -t 2 -n 1000 -l 4093 -y" % binPath)
         tdSql.execute("use super")
         tdSql.query("select * from meters;")
         tdSql.checkCols(4096)

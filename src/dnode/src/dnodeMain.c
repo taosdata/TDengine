@@ -78,18 +78,20 @@ static SStep tsDnodeSteps[] = {
   {"dnode-vmgmt",     dnodeInitVMgmt,      dnodeCleanupVMgmt},
   {"dnode-mread",     dnodeInitMRead,      NULL},
   {"dnode-mwrite",    dnodeInitMWrite,     NULL},
-  {"dnode-mpeer",     dnodeInitMPeer,      NULL},  
+  {"dnode-mpeer",     dnodeInitMPeer,      NULL},
   {"dnode-client",    dnodeInitClient,     dnodeCleanupClient},
   {"dnode-server",    dnodeInitServer,     dnodeCleanupServer},
   {"dnode-vnodes",    dnodeInitVnodes,     dnodeCleanupVnodes},
   {"dnode-modules",   dnodeInitModules,    dnodeCleanupModules},
   {"dnode-mread",     NULL,                dnodeCleanupMRead},
   {"dnode-mwrite",    NULL,                dnodeCleanupMWrite},
-  {"dnode-mpeer",     NULL,                dnodeCleanupMPeer},  
+  {"dnode-mpeer",     NULL,                dnodeCleanupMPeer},
   {"dnode-shell",     dnodeInitShell,      dnodeCleanupShell},
   {"dnode-statustmr", dnodeInitStatusTimer,dnodeCleanupStatusTimer},
   {"dnode-telemetry", dnodeInitTelemetry,  dnodeCleanupTelemetry},
+#ifdef LUA_EMBEDDED
   {"dnode-script",    scriptEnvPoolInit,   scriptEnvPoolCleanup},
+#endif
   {"dnode-grant",     grantInit,           grantCleanUp},
 };
 
@@ -119,7 +121,7 @@ static int dnodeCreateDir(const char *dir) {
   if (mkdir(dir, 0755) != 0 && errno != EEXIST) {
     return -1;
   }
-  
+
   return 0;
 }
 
@@ -168,7 +170,6 @@ int32_t dnodeInitSystem() {
   taosResolveCRC();
   taosInitGlobalCfg();
   taosReadGlobalLogCfg();
-  taosSetCoreDump();
   dnodeInitTmr();
 
   if (dnodeCreateDir(tsLogDir) < 0) {
@@ -188,6 +189,7 @@ int32_t dnodeInitSystem() {
     return -1;
   }
 
+  taosSetCoreDump();
   dInfo("start to initialize TDengine");
 
   taosInitNotes();
@@ -261,8 +263,8 @@ static int32_t dnodeInitStorage() {
   if (tsDiskCfgNum == 1 && dnodeCreateDir(tsDataDir) < 0) {
     dError("failed to create dir: %s, reason: %s", tsDataDir, strerror(errno));
     return -1;
-  } 
-  
+  }
+
   if (tfsInit(tsDiskCfg, tsDiskCfgNum) < 0) {
     dError("failed to init TFS since %s", tstrerror(terrno));
     return -1;
@@ -294,7 +296,7 @@ static int32_t dnodeInitStorage() {
   if (dnodeCreateDir(tsMnodeDir) < 0) {
    dError("failed to create dir: %s, reason: %s", tsMnodeDir, strerror(errno));
    return -1;
-  } 
+  }
 
   if (dnodeCreateDir(tsDnodeDir) < 0) {
    dError("failed to create dir: %s, reason: %s", tsDnodeDir, strerror(errno));

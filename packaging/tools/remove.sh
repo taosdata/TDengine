@@ -27,6 +27,7 @@ install_nginxd_dir="/usr/local/nginxd"
 
 service_config_dir="/etc/systemd/system"
 taos_service_name="taosd"
+taosadapter_service_name="taosadapter"
 tarbitrator_service_name="tarbitratord"
 nginx_service_name="nginxd"
 csudo=""
@@ -78,12 +79,13 @@ function clean_bin() {
     # Remove link
     ${csudo} rm -f ${bin_link_dir}/taos        || :
     ${csudo} rm -f ${bin_link_dir}/taosd       || :
-    ${csudo} rm -f ${bin_link_dir}/taosadapter        || :
+    ${csudo} rm -f ${bin_link_dir}/taosadapter || :
     ${csudo} rm -f ${bin_link_dir}/taosdemo    || :
     ${csudo} rm -f ${bin_link_dir}/taosdump    || :
     ${csudo} rm -f ${bin_link_dir}/rmtaos      || :
     ${csudo} rm -f ${bin_link_dir}/tarbitrator || :
     ${csudo} rm -f ${bin_link_dir}/set_core    || :
+    ${csudo} rm -f ${bin_link_dir}/run_taosd.sh || :
 }
 
 function clean_lib() {
@@ -96,6 +98,7 @@ function clean_lib() {
 function clean_header() {
     # Remove link
     ${csudo} rm -f ${inc_link_dir}/taos.h       || :
+    ${csudo} rm -f ${inc_link_dir}/taosdef.h    || :
     ${csudo} rm -f ${inc_link_dir}/taoserror.h  || :
 }
 
@@ -111,14 +114,20 @@ function clean_log() {
 
 function clean_service_on_systemd() {
     taosd_service_config="${service_config_dir}/${taos_service_name}.service"
-    taosadapter_service_config="${service_config_dir}/taosadapter.service"
     if systemctl is-active --quiet ${taos_service_name}; then
         echo "TDengine taosd is running, stopping it..."
         ${csudo} systemctl stop ${taos_service_name} &> /dev/null || echo &> /dev/null
     fi
     ${csudo} systemctl disable ${taos_service_name} &> /dev/null || echo &> /dev/null
     ${csudo} rm -f ${taosd_service_config}
-    [ -f ${taosadapter_service_config} ] && ${sudo} rm -f ${taosadapter_service_config}
+
+    taosadapter_service_config="${service_config_dir}/taosadapter.service"
+    if systemctl is-active --quiet ${taosadapter_service_name}; then
+        echo "TDengine taosAdapter is running, stopping it..."
+        ${csudo} systemctl stop ${taosadapter_service_name} &> /dev/null || echo &> /dev/null
+    fi
+    ${csudo} systemctl disable ${taosadapter_service_name} &> /dev/null || echo &> /dev/null
+    [ -f ${taosadapter_service_config} ] && ${csudo} rm -f ${taosadapter_service_config}
 
     tarbitratord_service_config="${service_config_dir}/${tarbitrator_service_name}.service"
     if systemctl is-active --quiet ${tarbitrator_service_name}; then

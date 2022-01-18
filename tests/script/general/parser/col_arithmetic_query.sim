@@ -561,19 +561,19 @@ endi
 sql_error select first(c6) - last(c6) *12 / count(*) from $stb group by c3;
 
 sql select first(c6) - last(c6) *12 / count(*) from $stb group by c5;
-if $rows != 10 then
+if $rows != 11 then
   return -1
 endi
 
-if $data00 != 0.000000000 then
+if $data00 != -0.002160000 then
   return -1
 endi
 
-if $data10 != 0.997600000 then
+if $data10 != 0.000000000 then
   return -1
 endi
 
-if $data90 != 8.978400000 then
+if $data90 != 7.980800000 then
   return -1
 endi
 

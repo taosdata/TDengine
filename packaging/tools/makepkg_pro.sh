@@ -32,7 +32,7 @@ else
 fi
 
 lib_files="${build_dir}/lib/libtaos.so.${version}"
-header_files="${code_dir}/inc/taos.h ${code_dir}/inc/taoserror.h"
+header_files="${code_dir}/inc/taos.h ${code_dir}/inc/taosdef.h ${code_dir}/inc/taoserror.h"
 if [ "$verMode" == "cluster" ]; then
   cfg_dir="${top_dir}/../enterprise/packaging/cfg"
 else
@@ -44,7 +44,7 @@ nginx_dir="${code_dir}/../../enterprise/src/plugins/web"
 # make directories.
 mkdir -p ${install_dir}
 mkdir -p ${install_dir}/inc && cp ${header_files} ${install_dir}/inc
-mkdir -p ${install_dir}/cfg && cp ${cfg_dir}/taos.cfg ${install_dir}/cfg/taos.cfg
+mkdir -p ${install_dir}/cfg && cp ${cfg_dir}/taos.cfg ${install_dir}/cfg/prodb.cfg
 mkdir -p ${install_dir}/bin
 
 # bin
@@ -56,6 +56,7 @@ else
   cp ${build_dir}/bin/taosdump      ${install_dir}/bin/prodump
   cp ${build_dir}/bin/tarbitrator   ${install_dir}/bin
   cp ${script_dir}/set_core.sh      ${install_dir}/bin
+  cp ${script_dir}/run_taosd.sh     ${install_dir}/bin
   cp ${script_dir}/get_client.sh    ${install_dir}/bin
   cp ${script_dir}/startPre.sh      ${install_dir}/bin
   cp ${script_dir}/taosd-dump-cfg.gdb  ${install_dir}/bin
@@ -94,12 +95,12 @@ if [ "$verMode" == "cluster" ]; then
     rm -rf ${install_dir}/nginxd/sbin/arm
 fi
 
-sed -i '/dataDir/ {s/taos/ProDB/g}'  ${install_dir}/cfg/taos.cfg
-sed -i '/logDir/  {s/taos/ProDB/g}'  ${install_dir}/cfg/taos.cfg
-sed -i "s/TDengine/ProDB/g"     ${install_dir}/cfg/taos.cfg
-sed -i "s/support@taosdata.com/support@hanatech.com.cn/g"      ${install_dir}/cfg/taos.cfg
-sed -i "s/taos client/prodbc/g"      ${install_dir}/cfg/taos.cfg
-sed -i "s/taosd/prodbs/g"      ${install_dir}/cfg/taos.cfg
+sed -i '/dataDir/ {s/taos/ProDB/g}'  ${install_dir}/cfg/prodb.cfg
+sed -i '/logDir/  {s/taos/ProDB/g}'  ${install_dir}/cfg/prodb.cfg
+sed -i "s/TDengine/ProDB/g"     ${install_dir}/cfg/prodb.cfg
+sed -i "s/support@taosdata.com/support@hanatech.com.cn/g"      ${install_dir}/cfg/prodb.cfg
+sed -i "s/taos client/prodbc/g"      ${install_dir}/cfg/prodb.cfg
+sed -i "s/taosd/prodbs/g"      ${install_dir}/cfg/prodb.cfg
 
 cd ${install_dir}
 tar -zcv -f prodb.tar.gz * --remove-files  || :
@@ -124,49 +125,8 @@ sed -i "/install_connector$/d" ${install_dir}/install_pro.sh
 sed -i "/install_examples$/d" ${install_dir}/install_pro.sh
 chmod a+x ${install_dir}/install_pro.sh
 
-# Copy example code
-#mkdir -p ${install_dir}/examples
-#examples_dir="${top_dir}/tests/examples"
-#cp -r ${examples_dir}/c      ${install_dir}/examples
-#sed -i '/passwd/ {s/taosdata/prodb/g}'  ${install_dir}/examples/c/*.c
-#sed -i '/root/   {s/taosdata/prodb/g}'  ${install_dir}/examples/c/*.c
-#
-#if [[ "$pagMode" != "lite" ]] && [[ "$cpuType" != "aarch32" ]]; then
-#  cp -r ${examples_dir}/JDBC   ${install_dir}/examples
-#  cp -r ${examples_dir}/matlab ${install_dir}/examples
-#  mv ${install_dir}/examples/matlab/TDengineDemo.m ${install_dir}/examples/matlab/ProDBDemo.m
-#  sed -i '/password/ {s/taosdata/prodb/g}'  ${install_dir}/examples/matlab/ProDBDemo.m
-#  cp -r ${examples_dir}/python ${install_dir}/examples
-#  sed -i '/password/ {s/taosdata/prodb/g}'  ${install_dir}/examples/python/read_example.py
-#  cp -r ${examples_dir}/R      ${install_dir}/examples
-#  sed -i '/password/ {s/taosdata/prodb/g}'  ${install_dir}/examples/R/command.txt
-#  cp -r ${examples_dir}/go     ${install_dir}/examples
-#  mv ${install_dir}/examples/go/taosdemo.go ${install_dir}/examples/go/prodemo.go
-#  sed -i '/root/ {s/taosdata/prodb/g}'  ${install_dir}/examples/go/prodemo.go
-#fi
-
 # Copy driver
 mkdir -p ${install_dir}/driver && cp ${lib_files} ${install_dir}/driver && echo "${versionComp}" > ${install_dir}/driver/vercomp.txt
-
-# Copy connector
-#connector_dir="${code_dir}/connector"
-#mkdir -p ${install_dir}/connector
-#if [[ "$pagMode" != "lite" ]] && [[ "$cpuType" != "aarch32" ]]; then
-#  cp ${build_dir}/lib/*.jar      ${install_dir}/connector ||:
-
-#  if find ${connector_dir}/go -mindepth 1 -maxdepth 1 | read; then
-#    cp -r ${connector_dir}/go ${install_dir}/connector
-#  else
-#    echo "WARNING: go connector not found, please check if want to use it!"
-#  fi
-#  cp -r ${connector_dir}/python  ${install_dir}/connector/
-#  mv ${install_dir}/connector/python/taos ${install_dir}/connector/python/prodb
-#  sed -i '/password/ {s/taosdata/prodb/g}'  ${install_dir}/connector/python/prodb/cinterface.py
-
-#  sed -i '/password/ {s/taosdata/prodb/g}'  ${install_dir}/connector/python/prodb/subscription.py
-
-#  sed -i '/self._password/ {s/taosdata/prodb/g}'  ${install_dir}/connector/python/prodb/connection.py
-#fi
 
 cd ${release_dir}
 

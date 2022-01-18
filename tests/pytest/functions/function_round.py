@@ -1294,21 +1294,21 @@ class TDTestCase:
                 double_col double, binary_col binary(8), smallint_col smallint, tinyint_col tinyint, bool_col bool, nchar_col nchar(8), \
                 uint_col int unsigned, ubigint_col bigint unsigned, usmallint_col smallint unsigned,  utinyint_col tinyint unsigned) tags (int_tag int, bigint_tag bigint, \
                     float_tag float, double_tag double, binary_tag binary(8), smallint_tag smallint, tinyint_tag tinyint, bool_tag bool, nchar_tag nchar(8),\
-                        uint_tag int unsigned, ubigint_tag bigint unsigned, usmallint_tag smallint unsigned, utinyint_tag tinyint unsigned)"
+                        uint_tag int unsigned, ubigint_tag bigint unsigned, usmallint_tag smallint unsigned, utinyint_tag tinyint unsigned, timestamp_tag timestamp)"
         )
         tdSql.execute(
             "create stable superb (ts timestamp, timestamp_col timestamp, int_col int, bigint_col bigint, float_col float,\
                 double_col double, binary_col binary(8), smallint_col smallint, tinyint_col tinyint, bool_col bool, nchar_col nchar(8), \
                 uint_col int unsigned, ubigint_col bigint unsigned, usmallint_col smallint unsigned,  utinyint_col tinyint unsigned) tags (int_tag int, bigint_tag bigint, \
                     float_tag float, double_tag double, binary_tag binary(8), smallint_tag smallint, tinyint_tag tinyint, bool_tag bool, nchar_tag nchar(8),\
-                        uint_tag int unsigned, ubigint_tag bigint unsigned, usmallint_tag smallint unsigned, utinyint_tag tinyint unsigned)"
+                        uint_tag int unsigned, ubigint_tag bigint unsigned, usmallint_tag smallint unsigned, utinyint_tag tinyint unsigned, timestamp_tag timestamp)"
         )
         tdSql.execute(
-            "create table t1 using super tags (1, %d, %f, %f, '%s', %d, %d, 1, '%s', %d, %d, %d, %d)"
+            "create table t1 using super tags (1, %d, %f, %f, '%s', %d, %d, 1, '%s', %d, %d, %d, %d, %s)"
             % (self.randomBigint(), self.randomDouble(), self.randomDouble(),
                self.randomNchar(), self.randomSmallint(), self.randomTinyint(),
                self.randomNchar(), self.randomUInt(), self.randomUBigint(),
-               self.randomUSmallint(), self.randomUTinyint()))
+               self.randomUSmallint(), self.randomUTinyint(), 'now'))
         tdSql.execute(
             "insert into t1 values (1629796215891, 1629796215891, %d, %d, %f, %f, '%s', %d, %d, 1, '%s', %d, %d, %d, %d)"
             % (self.randomInt(), self.randomBigint(), self.randomDouble(),
@@ -1338,11 +1338,11 @@ class TDTestCase:
                self.randomUBigint(), self.randomUSmallint(),
                self.randomUTinyint()))
         tdSql.execute(
-            "create table t2 using superb tags (1, %d, %f, %f, '%s', %d, %d, 1, '%s', %d, %d, %d, %d)"
+            "create table t2 using superb tags (1, %d, %f, %f, '%s', %d, %d, 1, '%s', %d, %d, %d, %d, %s)"
             % (self.randomBigint(), self.randomDouble(), self.randomDouble(),
                self.randomNchar(), self.randomSmallint(), self.randomTinyint(),
                self.randomNchar(), self.randomUInt(), self.randomUBigint(),
-               self.randomUSmallint(), self.randomUTinyint()))
+               self.randomUSmallint(), self.randomUTinyint(), 'now'))
         tdSql.execute(
             "insert into t2 values (1629796215891, 1629796215891, %d, %d, %f, %f, '%s', %d, %d, 1, '%s', %d, %d, %d, %d)"
             % (self.randomInt(), self.randomBigint(), self.randomDouble(),
@@ -1371,100 +1371,567 @@ class TDTestCase:
                self.randomTinyint(), self.randomNchar(), self.randomUInt(),
                self.randomUBigint(), self.randomUSmallint(),
                self.randomUTinyint()))
+        
+        shouldPass = ['select round(int_col) from super',
+         'select round(int_col) from t1',
+         'select round(bigint_col) from super',
+         'select round(bigint_col) from t1',
+         'select round(float_col) from super',
+         'select round(float_col) from t1',
+         'select round(double_col) from super',
+         'select round(double_col) from t1',
+         'select round(smallint_col) from super',
+         'select round(smallint_col) from t1',
+         'select round(tinyint_col) from super',
+         'select round(tinyint_col) from t1',
+         'select round(uint_col) from super',
+         'select round(uint_col) from t1',
+         'select round(ubigint_col) from super',
+         'select round(ubigint_col) from t1',
+         'select round(usmallint_col) from super',
+         'select round(usmallint_col) from t1',
+         'select round(utinyint_col) from super',
+         'select round(utinyint_col) from t1',
+         'select round(int_col) - round(int_col) from super',
+         'select round(int_col) - round(int_col) from t1',
+         'select round(bigint_col) - round(bigint_col) from super',
+         'select round(bigint_col) - round(bigint_col) from t1',
+         'select round(float_col) - round(float_col) from super',
+         'select round(float_col) - round(float_col) from t1',
+         'select round(double_col) - round(double_col) from super',
+         'select round(double_col) - round(double_col) from t1',
+         'select round(smallint_col) - round(smallint_col) from super',
+         'select round(smallint_col) - round(smallint_col) from t1',
+         'select round(tinyint_col) - round(tinyint_col) from super',
+         'select round(tinyint_col) - round(tinyint_col) from t1',
+         'select round(uint_col) - round(uint_col) from super',
+         'select round(uint_col) - round(uint_col) from t1',
+         'select round(ubigint_col) - round(ubigint_col) from super',
+         'select round(ubigint_col) - round(ubigint_col) from t1',
+         'select round(usmallint_col) - round(usmallint_col) from super',
+         'select round(usmallint_col) - round(usmallint_col) from t1',
+         'select round(utinyint_col) - round(utinyint_col) from super',
+         'select round(utinyint_col) - round(utinyint_col) from t1',
+         'select round(int_col) / round(int_col) from super',
+         'select round(int_col) / round(int_col) from t1',
+         'select round(bigint_col) / round(bigint_col) from super',
+         'select round(bigint_col) / round(bigint_col) from t1',
+         'select round(float_col) / round(float_col) from super',
+         'select round(float_col) / round(float_col) from t1',
+         'select round(double_col) / round(double_col) from super',
+         'select round(double_col) / round(double_col) from t1',
+         'select round(smallint_col) / round(smallint_col) from super',
+         'select round(smallint_col) / round(smallint_col) from t1',
+         'select round(tinyint_col) / round(tinyint_col) from super',
+         'select round(tinyint_col) / round(tinyint_col) from t1',
+         'select round(uint_col) / round(uint_col) from super',
+         'select round(uint_col) / round(uint_col) from t1',
+         'select round(ubigint_col) / round(ubigint_col) from super',
+         'select round(ubigint_col) / round(ubigint_col) from t1',
+         'select round(usmallint_col) / round(usmallint_col) from super',
+         'select round(usmallint_col) / round(usmallint_col) from t1',
+         'select round(utinyint_col) / round(utinyint_col) from super',
+         'select round(utinyint_col) / round(utinyint_col) from t1',
+         'select round(int_col) * round(int_col) from super',
+         'select round(int_col) * round(int_col) from t1',
+         'select round(bigint_col) * round(bigint_col) from super',
+         'select round(bigint_col) * round(bigint_col) from t1',
+         'select round(float_col) * round(float_col) from super',
+         'select round(float_col) * round(float_col) from t1',
+         'select round(double_col) * round(double_col) from super',
+         'select round(double_col) * round(double_col) from t1',
+         'select round(smallint_col) * round(smallint_col) from super',
+         'select round(smallint_col) * round(smallint_col) from t1',
+         'select round(tinyint_col) * round(tinyint_col) from super',
+         'select round(tinyint_col) * round(tinyint_col) from t1',
+         'select round(uint_col) * round(uint_col) from super',
+         'select round(uint_col) * round(uint_col) from t1',
+         'select round(ubigint_col) * round(ubigint_col) from super',
+         'select round(ubigint_col) * round(ubigint_col) from t1',
+         'select round(usmallint_col) * round(usmallint_col) from super',
+         'select round(usmallint_col) * round(usmallint_col) from t1',
+         'select round(utinyint_col) * round(utinyint_col) from super',
+         'select round(utinyint_col) * round(utinyint_col) from t1',
+         'select round(count(ts)) from super',
+         'select round(count(ts)) from t1',
+         'select round(count(timestamp_col)) from super',
+         'select round(count(timestamp_col)) from t1',
+         'select round(count(int_col)) from super',
+         'select round(count(int_col)) from t1',
+         'select round(count(bigint_col)) from super',
+         'select round(count(bigint_col)) from t1',
+         'select round(count(float_col)) from super',
+         'select round(count(float_col)) from t1',
+         'select round(count(double_col)) from super',
+         'select round(count(double_col)) from t1',
+         'select round(count(binary_col)) from super',
+         'select round(count(binary_col)) from t1',
+         'select round(count(smallint_col)) from super',
+         'select round(count(smallint_col)) from t1',
+         'select round(count(tinyint_col)) from super',
+         'select round(count(tinyint_col)) from t1',
+         'select round(count(bool_col)) from super',
+         'select round(count(bool_col)) from t1',
+         'select round(count(nchar_col)) from super',
+         'select round(count(nchar_col)) from t1',
+         'select round(count(uint_col)) from super',
+         'select round(count(uint_col)) from t1',
+         'select round(count(ubigint_col)) from super',
+         'select round(count(ubigint_col)) from t1',
+         'select round(count(usmallint_col)) from super',
+         'select round(count(usmallint_col)) from t1',
+         'select round(count(utinyint_col)) from super',
+         'select round(count(utinyint_col)) from t1',
+         'select round(count(timestamp_tag)) from super',
+         'select round(count(timestamp_tag)) from t1',
+         'select round(count(int_tag)) from super',
+         'select round(count(int_tag)) from t1',
+         'select round(count(bigint_tag)) from super',
+         'select round(count(bigint_tag)) from t1',
+         'select round(count(float_tag)) from super',
+         'select round(count(float_tag)) from t1',
+         'select round(count(double_tag)) from super',
+         'select round(count(double_tag)) from t1',
+         'select round(count(binary_tag)) from super',
+         'select round(count(binary_tag)) from t1',
+         'select round(count(smallint_tag)) from super',
+         'select round(count(smallint_tag)) from t1',
+         'select round(count(tinyint_tag)) from super',
+         'select round(count(tinyint_tag)) from t1',
+         'select round(count(bool_tag)) from super',
+         'select round(count(bool_tag)) from t1',
+         'select round(count(nchar_tag)) from super',
+         'select round(count(nchar_tag)) from t1',
+         'select round(count(uint_tag)) from super',
+         'select round(count(uint_tag)) from t1',
+         'select round(count(ubigint_tag)) from super',
+         'select round(count(ubigint_tag)) from t1',
+         'select round(count(usmallint_tag)) from super',
+         'select round(count(usmallint_tag)) from t1',
+         'select round(count(utinyint_tag)) from super',
+         'select round(count(utinyint_tag)) from t1',
+         'select round(avg(int_col)) from super',
+         'select round(avg(int_col)) from t1',
+         'select round(avg(bigint_col)) from super',
+         'select round(avg(bigint_col)) from t1',
+         'select round(avg(float_col)) from super',
+         'select round(avg(float_col)) from t1',
+         'select round(avg(double_col)) from super',
+         'select round(avg(double_col)) from t1',
+         'select round(avg(smallint_col)) from super',
+         'select round(avg(smallint_col)) from t1',
+         'select round(avg(tinyint_col)) from super',
+         'select round(avg(tinyint_col)) from t1',
+         'select round(avg(uint_col)) from super',
+         'select round(avg(uint_col)) from t1',
+         'select round(avg(ubigint_col)) from super',
+         'select round(avg(ubigint_col)) from t1',
+         'select round(avg(usmallint_col)) from super',
+         'select round(avg(usmallint_col)) from t1',
+         'select round(avg(utinyint_col)) from super',
+         'select round(avg(utinyint_col)) from t1',
+         'select round(twa(int_col)) from t1',
+         'select round(twa(bigint_col)) from t1',
+         'select round(twa(float_col)) from t1',
+         'select round(twa(double_col)) from t1',
+         'select round(twa(smallint_col)) from t1',
+         'select round(twa(tinyint_col)) from t1',
+         'select round(twa(uint_col)) from t1',
+         'select round(twa(ubigint_col)) from t1',
+         'select round(twa(usmallint_col)) from t1',
+         'select round(twa(utinyint_col)) from t1',
+         'select round(sum(int_col)) from super',
+         'select round(sum(int_col)) from t1',
+         'select round(sum(bigint_col)) from super',
+         'select round(sum(bigint_col)) from t1',
+         'select round(sum(float_col)) from super',
+         'select round(sum(float_col)) from t1',
+         'select round(sum(double_col)) from super',
+         'select round(sum(double_col)) from t1',
+         'select round(sum(smallint_col)) from super',
+         'select round(sum(smallint_col)) from t1',
+         'select round(sum(tinyint_col)) from super',
+         'select round(sum(tinyint_col)) from t1',
+         'select round(sum(uint_col)) from super',
+         'select round(sum(uint_col)) from t1',
+         'select round(sum(ubigint_col)) from super',
+         'select round(sum(ubigint_col)) from t1',
+         'select round(sum(usmallint_col)) from super',
+         'select round(sum(usmallint_col)) from t1',
+         'select round(sum(utinyint_col)) from super',
+         'select round(sum(utinyint_col)) from t1',
+         'select round(stddev(int_col)) from super',
+         'select round(stddev(int_col)) from t1',
+         'select round(stddev(bigint_col)) from super',
+         'select round(stddev(bigint_col)) from t1',
+         'select round(stddev(float_col)) from super',
+         'select round(stddev(float_col)) from t1',
+         'select round(stddev(double_col)) from super',
+         'select round(stddev(double_col)) from t1',
+         'select round(stddev(smallint_col)) from super',
+         'select round(stddev(smallint_col)) from t1',
+         'select round(stddev(tinyint_col)) from super',
+         'select round(stddev(tinyint_col)) from t1',
+         'select round(stddev(uint_col)) from super',
+         'select round(stddev(uint_col)) from t1',
+         'select round(stddev(ubigint_col)) from super',
+         'select round(stddev(ubigint_col)) from t1',
+         'select round(stddev(usmallint_col)) from super',
+         'select round(stddev(usmallint_col)) from t1',
+         'select round(stddev(utinyint_col)) from super',
+         'select round(stddev(utinyint_col)) from t1',
+         'select round(irate(int_col)) from t1',
+         'select round(irate(bigint_col)) from t1',
+         'select round(irate(float_col)) from t1',
+         'select round(irate(double_col)) from t1',
+         'select round(irate(smallint_col)) from t1',
+         'select round(irate(tinyint_col)) from t1',
+         'select round(irate(uint_col)) from t1',
+         'select round(irate(ubigint_col)) from t1',
+         'select round(irate(usmallint_col)) from t1',
+         'select round(irate(utinyint_col)) from t1',
+         'select round(min(int_col)) from super',
+         'select round(min(int_col)) from t1',
+         'select round(min(bigint_col)) from super',
+         'select round(min(bigint_col)) from t1',
+         'select round(min(float_col)) from super',
+         'select round(min(float_col)) from t1',
+         'select round(min(double_col)) from super',
+         'select round(min(double_col)) from t1',
+         'select round(min(smallint_col)) from super',
+         'select round(min(smallint_col)) from t1',
+         'select round(min(tinyint_col)) from super',
+         'select round(min(tinyint_col)) from t1',
+         'select round(min(uint_col)) from super',
+         'select round(min(uint_col)) from t1',
+         'select round(min(ubigint_col)) from super',
+         'select round(min(ubigint_col)) from t1',
+         'select round(min(usmallint_col)) from super',
+         'select round(min(usmallint_col)) from t1',
+         'select round(min(utinyint_col)) from super',
+         'select round(min(utinyint_col)) from t1',
+         'select round(max(int_col)) from super',
+         'select round(max(int_col)) from t1',
+         'select round(max(bigint_col)) from super',
+         'select round(max(bigint_col)) from t1',
+         'select round(max(float_col)) from super',
+         'select round(max(float_col)) from t1',
+         'select round(max(double_col)) from super',
+         'select round(max(double_col)) from t1',
+         'select round(max(smallint_col)) from super',
+         'select round(max(smallint_col)) from t1',
+         'select round(max(tinyint_col)) from super',
+         'select round(max(tinyint_col)) from t1',
+         'select round(max(uint_col)) from super',
+         'select round(max(uint_col)) from t1',
+         'select round(max(ubigint_col)) from super',
+         'select round(max(ubigint_col)) from t1',
+         'select round(max(usmallint_col)) from super',
+         'select round(max(usmallint_col)) from t1',
+         'select round(max(utinyint_col)) from super',
+         'select round(max(utinyint_col)) from t1',
+         'select round(first(int_col)) from super',
+         'select round(first(int_col)) from t1',
+         'select round(first(bigint_col)) from super',
+         'select round(first(bigint_col)) from t1',
+         'select round(first(float_col)) from super',
+         'select round(first(float_col)) from t1',
+         'select round(first(double_col)) from super',
+         'select round(first(double_col)) from t1',
+         'select round(first(smallint_col)) from super',
+         'select round(first(smallint_col)) from t1',
+         'select round(first(tinyint_col)) from super',
+         'select round(first(tinyint_col)) from t1',
+         'select round(first(uint_col)) from super',
+         'select round(first(uint_col)) from t1',
+         'select round(first(ubigint_col)) from super',
+         'select round(first(ubigint_col)) from t1',
+         'select round(first(usmallint_col)) from super',
+         'select round(first(usmallint_col)) from t1',
+         'select round(first(utinyint_col)) from super',
+         'select round(first(utinyint_col)) from t1',
+         'select round(last(int_col)) from super',
+         'select round(last(int_col)) from t1',
+         'select round(last(bigint_col)) from super',
+         'select round(last(bigint_col)) from t1',
+         'select round(last(float_col)) from super',
+         'select round(last(float_col)) from t1',
+         'select round(last(double_col)) from super',
+         'select round(last(double_col)) from t1',
+         'select round(last(smallint_col)) from super',
+         'select round(last(smallint_col)) from t1',
+         'select round(last(tinyint_col)) from super',
+         'select round(last(tinyint_col)) from t1',
+         'select round(last(uint_col)) from super',
+         'select round(last(uint_col)) from t1',
+         'select round(last(ubigint_col)) from super',
+         'select round(last(ubigint_col)) from t1',
+         'select round(last(usmallint_col)) from super',
+         'select round(last(usmallint_col)) from t1',
+         'select round(last(utinyint_col)) from super',
+         'select round(last(utinyint_col)) from t1',
+         'select round(percentile(int_col, 1)) from t1',
+         'select round(percentile(bigint_col, 1)) from t1',
+         'select round(percentile(float_col, 1)) from t1',
+         'select round(percentile(double_col, 1)) from t1',
+         'select round(percentile(smallint_col, 1)) from t1',
+         'select round(percentile(tinyint_col, 1)) from t1',
+         'select round(percentile(uint_col, 1)) from t1',
+         'select round(percentile(ubigint_col, 1)) from t1',
+         'select round(percentile(usmallint_col, 1)) from t1',
+         'select round(percentile(utinyint_col, 1)) from t1',
+         'select round(apercentile(int_col, 1)) from super',
+         'select round(apercentile(int_col, 1)) from t1',
+         'select round(apercentile(bigint_col, 1)) from super',
+         'select round(apercentile(bigint_col, 1)) from t1',
+         'select round(apercentile(float_col, 1)) from super',
+         'select round(apercentile(float_col, 1)) from t1',
+         'select round(apercentile(double_col, 1)) from super',
+         'select round(apercentile(double_col, 1)) from t1',
+         'select round(apercentile(smallint_col, 1)) from super',
+         'select round(apercentile(smallint_col, 1)) from t1',
+         'select round(apercentile(tinyint_col, 1)) from super',
+         'select round(apercentile(tinyint_col, 1)) from t1',
+         'select round(apercentile(uint_col, 1)) from super',
+         'select round(apercentile(uint_col, 1)) from t1',
+         'select round(apercentile(ubigint_col, 1)) from super',
+         'select round(apercentile(ubigint_col, 1)) from t1',
+         'select round(apercentile(usmallint_col, 1)) from super',
+         'select round(apercentile(usmallint_col, 1)) from t1',
+         'select round(apercentile(utinyint_col, 1)) from super',
+         'select round(apercentile(utinyint_col, 1)) from t1',
+         'select round(last_row(int_col)) from super',
+         'select round(last_row(int_col)) from t1',
+         'select round(last_row(bigint_col)) from super',
+         'select round(last_row(bigint_col)) from t1',
+         'select round(last_row(float_col)) from super',
+         'select round(last_row(float_col)) from t1',
+         'select round(last_row(double_col)) from super',
+         'select round(last_row(double_col)) from t1',
+         'select round(last_row(smallint_col)) from super',
+         'select round(last_row(smallint_col)) from t1',
+         'select round(last_row(tinyint_col)) from super',
+         'select round(last_row(tinyint_col)) from t1',
+         'select round(last_row(uint_col)) from super',
+         'select round(last_row(uint_col)) from t1',
+         'select round(last_row(ubigint_col)) from super',
+         'select round(last_row(ubigint_col)) from t1',
+         'select round(last_row(usmallint_col)) from super',
+         'select round(last_row(usmallint_col)) from t1',
+         'select round(last_row(utinyint_col)) from super',
+         'select round(last_row(utinyint_col)) from t1',
+         'select round(interp(int_col)) from t1',
+         'select round(interp(bigint_col)) from t1',
+         'select round(interp(float_col)) from t1',
+         'select round(interp(double_col)) from t1',
+         'select round(interp(smallint_col)) from t1',
+         'select round(interp(tinyint_col)) from t1',
+         'select round(interp(uint_col)) from t1',
+         'select round(interp(ubigint_col)) from t1',
+         'select round(interp(usmallint_col)) from t1',
+         'select round(interp(utinyint_col)) from t1',
+         'select round(spread(ts)) from super',
+         'select round(spread(ts)) from t1',
+         'select round(spread(timestamp_col)) from super',
+         'select round(spread(timestamp_col)) from t1',
+         'select round(spread(int_col)) from super',
+         'select round(spread(int_col)) from t1',
+         'select round(spread(bigint_col)) from super',
+         'select round(spread(bigint_col)) from t1',
+         'select round(spread(float_col)) from super',
+         'select round(spread(float_col)) from t1',
+         'select round(spread(double_col)) from super',
+         'select round(spread(double_col)) from t1',
+         'select round(spread(smallint_col)) from super',
+         'select round(spread(smallint_col)) from t1',
+         'select round(spread(tinyint_col)) from super',
+         'select round(spread(tinyint_col)) from t1',
+         'select round(spread(uint_col)) from super',
+         'select round(spread(uint_col)) from t1',
+         'select round(spread(ubigint_col)) from super',
+         'select round(spread(ubigint_col)) from t1',
+         'select round(spread(usmallint_col)) from super',
+         'select round(spread(usmallint_col)) from t1',
+         'select round(spread(utinyint_col)) from super',
+         'select round(spread(utinyint_col)) from t1',
+         'select round(int_col + int_col) from super',
+         'select round(int_col + int_col) from t1',
+         'select round(bigint_col + bigint_col) from super',
+         'select round(bigint_col + bigint_col) from t1',
+         'select round(float_col + float_col) from super',
+         'select round(float_col + float_col) from t1',
+         'select round(double_col + double_col) from super',
+         'select round(double_col + double_col) from t1',
+         'select round(smallint_col + smallint_col) from super',
+         'select round(smallint_col + smallint_col) from t1',
+         'select round(tinyint_col + tinyint_col) from super',
+         'select round(tinyint_col + tinyint_col) from t1',
+         'select round(uint_col + uint_col) from super',
+         'select round(uint_col + uint_col) from t1',
+         'select round(ubigint_col + ubigint_col) from super',
+         'select round(ubigint_col + ubigint_col) from t1',
+         'select round(usmallint_col + usmallint_col) from super',
+         'select round(usmallint_col + usmallint_col) from t1',
+         'select round(utinyint_col + utinyint_col) from super',
+         'select round(utinyint_col + utinyint_col) from t1',
+         'select round(int_col - int_col) from super',
+         'select round(int_col - int_col) from t1',
+         'select round(bigint_col - bigint_col) from super',
+         'select round(bigint_col - bigint_col) from t1',
+         'select round(float_col - float_col) from super',
+         'select round(float_col - float_col) from t1',
+         'select round(double_col - double_col) from super',
+         'select round(double_col - double_col) from t1',
+         'select round(smallint_col - smallint_col) from super',
+         'select round(smallint_col - smallint_col) from t1',
+         'select round(tinyint_col - tinyint_col) from super',
+         'select round(tinyint_col - tinyint_col) from t1',
+         'select round(uint_col - uint_col) from super',
+         'select round(uint_col - uint_col) from t1',
+         'select round(ubigint_col - ubigint_col) from super',
+         'select round(ubigint_col - ubigint_col) from t1',
+         'select round(usmallint_col - usmallint_col) from super',
+         'select round(usmallint_col - usmallint_col) from t1',
+         'select round(utinyint_col - utinyint_col) from super',
+         'select round(utinyint_col - utinyint_col) from t1',
+         'select round(int_col * int_col) from super',
+         'select round(int_col * int_col) from t1',
+         'select round(bigint_col * bigint_col) from super',
+         'select round(bigint_col * bigint_col) from t1',
+         'select round(float_col * float_col) from super',
+         'select round(float_col * float_col) from t1',
+         'select round(double_col * double_col) from super',
+         'select round(double_col * double_col) from t1',
+         'select round(smallint_col * smallint_col) from super',
+         'select round(smallint_col * smallint_col) from t1',
+         'select round(tinyint_col * tinyint_col) from super',
+         'select round(tinyint_col * tinyint_col) from t1',
+         'select round(uint_col * uint_col) from super',
+         'select round(uint_col * uint_col) from t1',
+         'select round(ubigint_col * ubigint_col) from super',
+         'select round(ubigint_col * ubigint_col) from t1',
+         'select round(usmallint_col * usmallint_col) from super',
+         'select round(usmallint_col * usmallint_col) from t1',
+         'select round(utinyint_col * utinyint_col) from super',
+         'select round(utinyint_col * utinyint_col) from t1',
+         'select round(int_col / int_col) from super',
+         'select round(int_col / int_col) from t1',
+         'select round(bigint_col / bigint_col) from super',
+         'select round(bigint_col / bigint_col) from t1',
+         'select round(float_col / float_col) from super',
+         'select round(float_col / float_col) from t1',
+         'select round(double_col / double_col) from super',
+         'select round(double_col / double_col) from t1',
+         'select round(smallint_col / smallint_col) from super',
+         'select round(smallint_col / smallint_col) from t1',
+         'select round(tinyint_col / tinyint_col) from super',
+         'select round(tinyint_col / tinyint_col) from t1',
+         'select round(uint_col / uint_col) from super',
+         'select round(uint_col / uint_col) from t1',
+         'select round(ubigint_col / ubigint_col) from super',
+         'select round(ubigint_col / ubigint_col) from t1',
+         'select round(usmallint_col / usmallint_col) from super',
+         'select round(usmallint_col / usmallint_col) from t1',
+         'select round(utinyint_col / utinyint_col) from super',
+         'select round(utinyint_col / utinyint_col) from t1',
+         'select int_col, round(int_col), int_col from super',
+         'select int_col, round(int_col), int_col from t1',
+         'select bigint_col, round(bigint_col), bigint_col from super',
+         'select bigint_col, round(bigint_col), bigint_col from t1',
+         'select float_col, round(float_col), float_col from super',
+         'select float_col, round(float_col), float_col from t1',
+         'select double_col, round(double_col), double_col from super',
+         'select double_col, round(double_col), double_col from t1',
+         'select smallint_col, round(smallint_col), smallint_col from super',
+         'select smallint_col, round(smallint_col), smallint_col from t1',
+         'select tinyint_col, round(tinyint_col), tinyint_col from super',
+         'select tinyint_col, round(tinyint_col), tinyint_col from t1',
+         'select uint_col, round(uint_col), uint_col from super',
+         'select uint_col, round(uint_col), uint_col from t1',
+         'select ubigint_col, round(ubigint_col), ubigint_col from super',
+         'select ubigint_col, round(ubigint_col), ubigint_col from t1',
+         'select usmallint_col, round(usmallint_col), usmallint_col from super',
+         'select usmallint_col, round(usmallint_col), usmallint_col from t1',
+         'select utinyint_col, round(utinyint_col), utinyint_col from super',
+         'select utinyint_col, round(utinyint_col), utinyint_col from t1',
+         'select 1, round(int_col), 1 from super',
+         'select 1, round(int_col), 1 from t1',
+         'select 1, round(bigint_col), 1 from super',
+         'select 1, round(bigint_col), 1 from t1',
+         'select 1, round(float_col), 1 from super',
+         'select 1, round(float_col), 1 from t1',
+         'select 1, round(double_col), 1 from super',
+         'select 1, round(double_col), 1 from t1',
+         'select 1, round(smallint_col), 1 from super',
+         'select 1, round(smallint_col), 1 from t1',
+         'select 1, round(tinyint_col), 1 from super',
+         'select 1, round(tinyint_col), 1 from t1',
+         'select 1, round(uint_col), 1 from super',
+         'select 1, round(uint_col), 1 from t1',
+         'select 1, round(ubigint_col), 1 from super',
+         'select 1, round(ubigint_col), 1 from t1',
+         'select 1, round(usmallint_col), 1 from super',
+         'select 1, round(usmallint_col), 1 from t1',
+         'select 1, round(utinyint_col), 1 from super',
+         'select 1, round(utinyint_col), 1 from t1',
+         'select round(int_col) as anyName from super',
+         'select round(int_col) as anyName from t1',
+         'select round(bigint_col) as anyName from super',
+         'select round(bigint_col) as anyName from t1',
+         'select round(float_col) as anyName from super',
+         'select round(float_col) as anyName from t1',
+         'select round(double_col) as anyName from super',
+         'select round(double_col) as anyName from t1',
+         'select round(smallint_col) as anyName from super',
+         'select round(smallint_col) as anyName from t1',
+         'select round(tinyint_col) as anyName from super',
+         'select round(tinyint_col) as anyName from t1',
+         'select round(uint_col) as anyName from super',
+         'select round(uint_col) as anyName from t1',
+         'select round(ubigint_col) as anyName from super',
+         'select round(ubigint_col) as anyName from t1',
+         'select round(usmallint_col) as anyName from super',
+         'select round(usmallint_col) as anyName from t1',
+         'select round(utinyint_col) as anyName from super',
+         'select round(utinyint_col) as anyName from t1']
 
+
+        shouldPass2 = ['select round(super.int_col) from super',
+            'select round(super.int_col) from super, superb where super.ts = superb.ts and super.int_tag = superb.int_tag',
+            'select round(super.bigint_col) from super',
+            'select round(super.bigint_col) from super, superb where super.ts = superb.ts and super.int_tag = superb.int_tag',
+            'select round(super.float_col) from super',
+            'select round(super.float_col) from super, superb where super.ts = superb.ts and super.int_tag = superb.int_tag',
+            'select round(super.double_col) from super',
+            'select round(super.double_col) from super, superb where super.ts = superb.ts and super.int_tag = superb.int_tag',
+            'select round(super.smallint_col) from super',
+            'select round(super.smallint_col) from super, superb where super.ts = superb.ts and super.int_tag = superb.int_tag',
+            'select round(super.tinyint_col) from super',
+            'select round(super.tinyint_col) from super, superb where super.ts = superb.ts and super.int_tag = superb.int_tag',
+            'select round(super.uint_col) from super',
+            'select round(super.uint_col) from super, superb where super.ts = superb.ts and super.int_tag = superb.int_tag',
+            'select round(super.ubigint_col) from super',
+            'select round(super.ubigint_col) from super, superb where super.ts = superb.ts and super.int_tag = superb.int_tag',
+            'select round(super.usmallint_col) from super',
+            'select round(super.usmallint_col) from super, superb where super.ts = superb.ts and super.int_tag = superb.int_tag',
+            'select round(super.utinyint_col) from super',
+            'select round(super.utinyint_col) from super, superb where super.ts = superb.ts and super.int_tag = superb.int_tag',
+            'select round(t1.int_col) from t1',
+            'select round(t1.bigint_col) from t1',
+            'select round(t1.float_col) from t1',
+            'select round(t1.double_col) from t1',
+            'select round(t1.smallint_col) from t1',
+            'select round(t1.tinyint_col) from t1',
+            'select round(t1.uint_col) from t1',
+            'select round(t1.ubigint_col) from t1',
+            'select round(t1.usmallint_col) from t1',
+            'select round(t1.utinyint_col) from t1']
+
+          
         for s in range(len(select_command)):
             for f in range(len(from_command)):
                 sql = "select " + select_command[s] + from_command[f]
-                if (select_command[s] == "round(int_col)"\
-                        or select_command[s] == "round(bigint_col)"\
-                        or select_command[s] == "round(smallint_col)" \
-                        or select_command[s] == "round(float_col)"\
-                        or select_command[s] == "round(double_col)"\
-                        or select_command[s] == "round(tinyint_col)"\
-                        or select_command[s] == "round(uint_col)"\
-                        or select_command[s] == "round(ubigint_col)"\
-                        or select_command[s] == "round(usmallint_col)"\
-                        or select_command[s] == "round(utinyint_col)"\
-                        or select_command[s] == "1, round(int_col), 1"\
-                        or select_command[s] == "1, round(bigint_col), 1"\
-                        or select_command[s] == "1, round(float_col), 1"\
-                        or select_command[s] == "1, round(double_col), 1"\
-                        or select_command[s] == "1, round(smallint_col), 1"\
-                        or select_command[s] == "1, round(tinyint_col), 1"\
-                        or select_command[s] == "1, round(uint_col), 1"\
-                        or select_command[s] == "1, round(ubigint_col), 1"\
-                        or select_command[s] == "1, round(usmallint_col), 1"\
-                        or select_command[s] == "1, round(utinyint_col), 1"\
-                        or select_command[s] == "int_col, round(int_col), int_col"\
-                        or select_command[s] == "bigint_col, round(bigint_col), bigint_col"\
-                        or select_command[s] == "float_col, round(float_col), float_col"\
-                        or select_command[s] == "double_col, round(double_col), double_col"\
-                        or select_command[s] == "smallint_col, round(smallint_col), smallint_col"\
-                        or select_command[s] == "tinyint_col, round(tinyint_col), tinyint_col"\
-                        or select_command[s] == "uint_col, round(uint_col), uint_col"\
-                        or select_command[s] == "ubigint_col, round(ubigint_col), ubigint_col"\
-                        or select_command[s] == "usmallint_col, round(usmallint_col), usmallint_col"\
-                        or select_command[s] == "utinyint_col, round(utinyint_col), utinyint_col"\
-                        or select_command[s] == "round(int_col) as anyName"\
-                        or select_command[s] == "round(bigint_col) as anyName"\
-                        or select_command[s] == "round(float_col) as anyName"\
-                        or select_command[s] == "round(double_col) as anyName"\
-                        or select_command[s] == "round(smallint_col) as anyName"\
-                        or select_command[s] == "round(tinyint_col) as anyName"\
-                        or select_command[s] == "round(uint_col) as anyName"\
-                        or select_command[s] == "round(ubigint_col) as anyName"\
-                        or select_command[s] == "round(usmallint_col) as anyName"\
-                        or select_command[s] == "round(utinyint_col) as anyName"\
-                        or select_command[s] == "round(int_col) + round(int_col)"\
-                        or select_command[s] == "round(bigint_col) + round(bigint_col)"\
-                        or select_command[s] == "round(float_col) + round(float_col)"\
-                        or select_command[s] == "round(double_col) + round(double_col)"\
-                        or select_command[s] == "round(smallint_col) + round(smallint_col)"\
-                        or select_command[s] == "round(tinyint_col) + round(tinyint_col)"\
-                        or select_command[s] == "round(uint_col) + round(uint_col)"\
-                        or select_command[s] == "round(ubigint_col) + round(ubigint_col)"\
-                        or select_command[s] == "round(usmallint_col) + round(usmallint_col)"\
-                        or select_command[s] == "round(utinyint_col) + round(utinyint_col)"\
-                        or select_command[s] == "round(int_col) + round(int_col)"\
-                        or select_command[s] == "round(bigint_col) + round(bigint_col)"\
-                        or select_command[s] == "round(float_col) + round(float_col)"\
-                        or select_command[s] == "round(double_col) + round(double_col)"\
-                        or select_command[s] == "round(smallint_col) + round(smallint_col)"\
-                        or select_command[s] == "round(tinyint_col) + round(tinyint_col)"\
-                        or select_command[s] == "round(uint_col) + round(uint_col)"\
-                        or select_command[s] == "round(ubigint_col) + round(ubigint_col)"\
-                        or select_command[s] == "round(usmallint_col) + round(usmallint_col)"\
-                        or select_command[s] == "round(utinyint_col) + cei(utinyint_col)"\
-                        or select_command[s] == "round(int_col) - round(int_col)"\
-                        or select_command[s] == "round(bigint_col) - round(bigint_col)"\
-                        or select_command[s] == "round(float_col) - round(float_col)"\
-                        or select_command[s] == "round(double_col) - round(double_col)"\
-                        or select_command[s] == "round(smallint_col) - round(smallint_col)"\
-                        or select_command[s] == "round(tinyint_col) - round(tinyint_col)"\
-                        or select_command[s] == "round(uint_col) - round(uint_col)"\
-                        or select_command[s] == "round(ubigint_col) - round(ubigint_col)"\
-                        or select_command[s] == "round(usmallint_col) - round(usmallint_col)"\
-                        or select_command[s] == "round(utinyint_col) - round(utinyint_col)"\
-                        or select_command[s] == "round(int_col) * round(int_col)"\
-                        or select_command[s] == "round(bigint_col) * round(bigint_col)"\
-                        or select_command[s] == "round(float_col) * round(float_col)"\
-                        or select_command[s] == "round(double_col) * round(double_col)"\
-                        or select_command[s] == "round(smallint_col) * round(smallint_col)"\
-                        or select_command[s] == "round(tinyint_col) * round(tinyint_col)"\
-                        or select_command[s] == "round(uint_col) * round(uint_col)"\
-                        or select_command[s] == "round(ubigint_col) * round(ubigint_col)"\
-                        or select_command[s] == "round(usmallint_col) * round(usmallint_col)"\
-                        or select_command[s] == "round(utinyint_col) * round(utinyint_col)"\
-                        or select_command[s] == "round(int_col) / round(int_col)"\
-                        or select_command[s] == "round(bigint_col) / round(bigint_col)"\
-                        or select_command[s] == "round(float_col) / round(float_col)"\
-                        or select_command[s] == "round(double_col) / round(double_col)"\
-                        or select_command[s] == "round(smallint_col) / round(smallint_col)"\
-                        or select_command[s] == "round(tinyint_col) / round(tinyint_col)"\
-                        or select_command[s] == "round(uint_col) / round(uint_col)"\
-                        or select_command[s] == "round(ubigint_col) / round(ubigint_col)"\
-                        or select_command[s] == "round(usmallint_col) / round(usmallint_col)"\
-                        or select_command[s] == "round(utinyint_col) / round(utinyint_col)"):
+                if sql in shouldPass:
                     tdSql.query(sql)
                 else:
                     tdSql.error(sql)
@@ -1475,40 +1942,10 @@ class TDTestCase:
                         sql = "select " + simple_select_command[
                             sim] + advance_from_command[fr] + filter_command[
                                 filter] + fill_command[fill]
-                        if sql == "select round(t1.int_col) from t1"\
-                            or sql == "select round(super.int_col) from super"\
-                                or sql == "select round(t1.bigint_col) from t1"\
-                                    or sql == "select round(super.bigint_col) from super"\
-                                        or sql == "select round(t1.smallint_col) from t1"\
-                                            or sql == "select round(super.smallint_col) from super"\
-                                                or sql == "select round(t1.tinyint_col) from t1"\
-                                                    or sql == "select round(super.tinyint_col) from super"\
-                                                        or sql == "select round(t1.float_col) from t1"\
-                                                            or sql == "select round(super.float_col) from super"\
-                                                                or sql == "select round(t1.double_col) from t1"\
-                                                                    or sql == "select round(super.double_col) from super"\
-                                                                        or sql == "select round(t1.uint_col) from t1"\
-                                                                            or sql == "select round(super.uint_col) from super"\
-                                                                                or sql == "select round(t1.ubigint_col) from t1"\
-                                                                                    or sql == "select round(super.ubigint_col) from super"\
-                                                                                        or sql == "select round(t1.usmallint_col) from t1"\
-                                                                                            or sql == "select round(super.usmallint_col) from super"\
-                                                                                                or sql == "select round(t1.utinyint_col) from t1"\
-                                                                                                    or sql == "select round(super.utinyint_col) from super"\
-                                                                                                        or sql == "select round(super.int_col) from super, superb where super.ts = superb.ts and super.int_tag = superb.int_tag"\
-                                                                                                            or sql == "select round(super.bigint_col) from super, superb where super.ts = superb.ts and super.int_tag = superb.int_tag"\
-                                                                                                                or sql == "select round(super.smallint_col) from super, superb where super.ts = superb.ts and super.int_tag = superb.int_tag"\
-                                                                                                                    or sql == "select round(super.tinyint_col) from super, superb where super.ts = superb.ts and super.int_tag = superb.int_tag"\
-                                                                                                                        or sql == "select round(super.float_col) from super, superb where super.ts = superb.ts and super.int_tag = superb.int_tag"\
-                                                                                                                            or sql == "select round(super.double_col) from super, superb where super.ts = superb.ts and super.int_tag = superb.int_tag"\
-                                                                                                                                or sql == "select round(super.uint_col) from super, superb where super.ts = superb.ts and super.int_tag = superb.int_tag"\
-                                                                                                                                    or sql == "select round(super.ubigint_col) from super, superb where super.ts = superb.ts and super.int_tag = superb.int_tag"\
-                                                                                                                                        or sql == "select round(super.usmallint_col) from super, superb where super.ts = superb.ts and super.int_tag = superb.int_tag"\
-                                                                                                                                            or sql == "select round(super.utinyint_col) from super, superb where super.ts = superb.ts and super.int_tag = superb.int_tag":
+                        if sql in shouldPass2:        
                             tdSql.query(sql)
                         else:
-                            tdSql.error(sql)
-
+                            tdSql.error(sql)                    
     def stop(self):
         tdSql.close()
         tdLog.success("%s successfully executed" % __file__)

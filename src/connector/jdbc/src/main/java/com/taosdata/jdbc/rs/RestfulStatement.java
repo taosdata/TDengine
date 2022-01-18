@@ -65,7 +65,11 @@ public class RestfulStatement extends AbstractStatement {
         boolean result = true;
 
         if (SqlSyntaxValidator.isUseSql(sql)) {
-            HttpClientPoolUtil.execute(getUrl(), sql, this.conn.getToken());
+            String ret = HttpClientPoolUtil.execute(getUrl(), sql, this.conn.getToken());
+            JSONObject resultJson = JSON.parseObject(ret);
+            if (resultJson.getString("status").equals("error")) {
+                throw TSDBError.createSQLException(resultJson.getInteger("code"), "sql: " + sql + ", desc: " + resultJson.getString("desc"));
+            }
             this.database = sql.trim().replace("use", "").trim();
             this.conn.setCatalog(this.database);
             result = false;
@@ -114,7 +118,7 @@ public class RestfulStatement extends AbstractStatement {
         String result = HttpClientPoolUtil.execute(getUrl(), sql, this.conn.getToken());
         JSONObject resultJson = JSON.parseObject(result);
         if (resultJson.getString("status").equals("error")) {
-            throw TSDBError.createSQLException(resultJson.getInteger("code"), resultJson.getString("desc"));
+            throw TSDBError.createSQLException(resultJson.getInteger("code"), "sql: " + sql + ", desc: " + resultJson.getString("desc"));
         }
         this.resultSet = new RestfulResultSet(database, this, resultJson);
         this.affectedRows = -1;
@@ -125,7 +129,7 @@ public class RestfulStatement extends AbstractStatement {
         String result = HttpClientPoolUtil.execute(getUrl(), sql, this.conn.getToken());
         JSONObject jsonObject = JSON.parseObject(result);
         if (jsonObject.getString("status").equals("error")) {
-            throw TSDBError.createSQLException(jsonObject.getInteger("code"), jsonObject.getString("desc"));
+            throw TSDBError.createSQLException(jsonObject.getInteger("code"), "sql: " + sql + ", desc: " + jsonObject.getString("desc"));
         }
         this.resultSet = null;
         this.affectedRows = getAffectedRows(jsonObject);
@@ -133,16 +137,14 @@ public class RestfulStatement extends AbstractStatement {
     }
 
     private int getAffectedRows(JSONObject jsonObject) throws SQLException {
-        // create ... SQLs should return 0 , and Restful result like this:
-        // {"status": "succ", "head": ["affected_rows"], "data": [[0]], "rows": 1}
         JSONArray head = jsonObject.getJSONArray("head");
         if (head.size() != 1 || !"affected_rows".equals(head.getString(0)))
-            throw TSDBError.createSQLException(TSDBErrorNumbers.ERROR_INVALID_VARIABLE);
+            throw TSDBError.createSQLException(TSDBErrorNumbers.ERROR_INVALID_VARIABLE, "invalid variable: [" + head.toJSONString() + "]");
         JSONArray data = jsonObject.getJSONArray("data");
         if (data != null) {
             return data.getJSONArray(0).getInteger(0);
         }
-        throw TSDBError.createSQLException(TSDBErrorNumbers.ERROR_INVALID_VARIABLE);
+        throw TSDBError.createSQLException(TSDBErrorNumbers.ERROR_INVALID_VARIABLE, "invalid variable: [" + jsonObject.toJSONString() + "]");
     }
 
     @Override

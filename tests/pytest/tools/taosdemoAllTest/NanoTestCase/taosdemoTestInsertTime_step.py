@@ -51,7 +51,7 @@ class TDTestCase:
         # insert: create one  or mutiple tables per sql and insert multiple rows per sql
         
         # check the params of taosdemo about time_step is nano
-        os.system("%staosdemo -f tools/taosdemoAllTest/NanoTestCase/taosdemoInsertNanoDB.json -y " % binPath)
+        os.system("%staosBenchmark -f tools/taosdemoAllTest/NanoTestCase/taosdemoInsertNanoDB.json -y " % binPath)
         tdSql.execute("use testdb1")
         tdSql.query("show stables")
         tdSql.checkData(0, 4, 100)
@@ -68,7 +68,7 @@ class TDTestCase:
         tdSql.checkData(0, 0,"2021-07-01 00:00:00.000099000") 
 
         # check the params of taosdemo about time_step is us
-        os.system("%staosdemo -f tools/taosdemoAllTest/NanoTestCase/taosdemoInsertUSDB.json -y " % binPath)
+        os.system("%staosBenchmark -f tools/taosdemoAllTest/NanoTestCase/taosdemoInsertUSDB.json -y " % binPath)
         tdSql.execute("use testdb2")
         tdSql.query("show stables")
         tdSql.checkData(0, 4, 100)
@@ -85,7 +85,7 @@ class TDTestCase:
         tdSql.checkData(0, 0,"2021-07-01 00:00:00.099000") 
 
         # check the params of taosdemo about time_step is ms
-        os.system("%staosdemo -f tools/taosdemoAllTest/NanoTestCase/taosdemoInsertMSDB.json -y " % binPath)
+        os.system("%staosBenchmark -f tools/taosdemoAllTest/NanoTestCase/taosdemoInsertMSDB.json -y " % binPath)
         tdSql.execute("use testdb3")
         tdSql.query("show stables")
         tdSql.checkData(0, 4, 100)

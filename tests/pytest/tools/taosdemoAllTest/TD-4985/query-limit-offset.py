@@ -55,7 +55,7 @@ class TDTestCase:
         # insert: create one  or mutiple tables per sql and insert multiple rows per sql
         # test case for https://jira.taosdata.com:18080/browse/TD-4985
         os.system("rm -rf tools/taosdemoAllTest/TD-4985/query-limit-offset.py.sql")
-        os.system("%staosdemo -f tools/taosdemoAllTest/TD-4985/query-limit-offset.json -y " % binPath)
+        os.system("%staosBenchmark -f tools/taosdemoAllTest/TD-4985/query-limit-offset.json -y " % binPath)
         tdSql.execute("use db")
         tdSql.query("select count (tbname) from stb0")
         tdSql.checkData(0, 0, 10000)

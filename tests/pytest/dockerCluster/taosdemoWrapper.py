@@ -35,11 +35,11 @@ class taosdemoWrapper:
         
     def run(self):
         if self.metadata is None:
-            os.system("taosdemo -h %s -d %s -t %d -T %d -c %s -a %d -b %s -n %d -t %d -O %d -R %d -w %d -x -y" 
+            os.system("%staosBenchmark -h %s -d %s -t %d -T %d -c %s -a %d -b %s -n %d -t %d -O %d -R %d -w %d -x -y" 
             % (self.host, self.database, self.tables, self.threads, self.configDir, self.replica, self.columnType,
             self.rowsPerTable, self.disorderRatio, self.disorderRange, self.charTypeLen))
         else:
-            os.system("taosdemo -f %s" % self.metadata)
+            os.system("%staosBenchmark -f %s" % self.metadata)
 
 
 parser = argparse.ArgumentParser()

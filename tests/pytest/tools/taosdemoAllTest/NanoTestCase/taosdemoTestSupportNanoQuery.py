@@ -1,4 +1,4 @@
-###################################################################
+''###################################################################
 #           Copyright (c) 2016 by TAOS Technologies, Inc.
 #                     All rights reserved.
 #
@@ -49,7 +49,7 @@ class TDTestCase:
         binPath = buildPath+ "/build/bin/"
 
        # query: query test for nanoSecond  with where and max min groupby order 
-        os.system("%staosdemo -f tools/taosdemoAllTest/NanoTestCase/taosdemoTestNanoDatabase.json -y " % binPath)
+        os.system("%staosBenchmark -f tools/taosdemoAllTest/NanoTestCase/taosdemoTestNanoDatabase.json -y " % binPath)
 
         tdSql.execute("use nsdb")
 
@@ -92,10 +92,10 @@ class TDTestCase:
 
          #  query : query above sqls by taosdemo and continuously
 
-        os.system("%staosdemo -f tools/taosdemoAllTest/NanoTestCase/taosdemoTestSupportNanoQuery.json -y " % binPath)
+        os.system("%staosBenchmark -f tools/taosdemoAllTest/NanoTestCase/taosdemoTestSupportNanoQuery.json -y " % binPath)
 
 
-        os.system("%staosdemo -f tools/taosdemoAllTest/NanoTestCase/taosdemoTestNanoDatabasecsv.json  -y " % binPath)
+        os.system("%staosBenchmark -f tools/taosdemoAllTest/NanoTestCase/taosdemoTestNanoDatabasecsv.json  -y " % binPath)
         tdSql.execute("use nsdbcsv")
         tdSql.query("show stables")
         tdSql.checkData(0, 4, 100)
@@ -140,7 +140,7 @@ class TDTestCase:
         tdSql.checkRows(10)
 
         #  query : query above sqls by taosdemo and continuously
-        os.system("%staosdemo -f tools/taosdemoAllTest/NanoTestCase/taosdemoTestSupportNanoQuerycsv.json -y " % binPath)
+        os.system("%staosBenchmark -f tools/taosdemoAllTest/NanoTestCase/taosdemoTestSupportNanoQuerycsv.json -y " % binPath)
 
         os.system("rm -rf ./query_res*.txt*")
         os.system("rm -rf tools/taosdemoAllTest/NanoTestCase/*.py.sql")

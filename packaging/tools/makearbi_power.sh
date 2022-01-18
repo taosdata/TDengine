@@ -34,7 +34,6 @@ fi
 bin_files="${build_dir}/bin/tarbitrator ${script_dir}/remove_arbi_power.sh"
 install_files="${script_dir}/install_arbi_power.sh"
 
-#header_files="${code_dir}/inc/taos.h ${code_dir}/inc/taoserror.h"
 init_file_tarbitrator_deb=${script_dir}/../deb/tarbitratord
 init_file_tarbitrator_rpm=${script_dir}/../rpm/tarbitratord
 
@@ -45,7 +44,7 @@ mkdir -p ${install_dir}/bin && cp ${bin_files} ${install_dir}/bin && chmod a+x $
 mkdir -p ${install_dir}/init.d && cp ${init_file_tarbitrator_deb} ${install_dir}/init.d/tarbitratord.deb || :
 mkdir -p ${install_dir}/init.d && cp ${init_file_tarbitrator_rpm} ${install_dir}/init.d/tarbitratord.rpm || :
 
-cd ${release_dir} 
+cd ${release_dir}
 
 if [ "$verMode" == "cluster" ]; then
   pkg_name=${install_dir}-${osType}-${cpuType}
@@ -58,8 +57,8 @@ fi
 
 if [ "$verType" == "beta" ]; then
   pkg_name=${pkg_name}-${verType}
-elif [ "$verType" == "stable" ]; then 
-  pkg_name=${pkg_name} 
+elif [ "$verType" == "stable" ]; then
+  pkg_name=${pkg_name}
 else
   echo "unknow verType, nor stabel or beta"
   exit 1

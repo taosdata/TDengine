@@ -334,8 +334,9 @@ bool taosReadConfigOption(const char *option, char *value, char *value2, char *v
         if (taosReadDirectoryConfig(cfg, value)) {
            taosReadDataDirCfg(value, value2, value3);
            ret = true;
+        } else {
+           ret = false;  
         }
-        ret = false;
         break;
       default:
         uError("config option:%s, input value:%s, can't be recognized", option, value);
@@ -382,6 +383,12 @@ void taosReadGlobalLogCfg() {
 	#elif (_TD_PRO_ == true)
     printf("configDir:%s not there, use default value: /etc/ProDB", configDir);
     strcpy(configDir, "/etc/ProDB");
+	#elif (_TD_KH_ == true)
+    printf("configDir:%s not there, use default value: /etc/kinghistorian", configDir);
+    strcpy(configDir, "/etc/kinghistorian");
+	#elif (_TD_JH_ == true)
+    printf("configDir:%s not there, use default value: /etc/jh_taos", configDir);
+    strcpy(configDir, "/etc/jh_taos");
     #else
     printf("configDir:%s not there, use default value: /etc/taos", configDir);
     strcpy(configDir, "/etc/taos");

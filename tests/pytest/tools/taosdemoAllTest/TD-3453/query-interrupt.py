@@ -52,13 +52,13 @@ class TDTestCase:
         binPath = buildPath+ "/build/bin/"
 
         # # insert 1000w rows in stb0
-        os.system("%staosdemo -f tools/taosdemoAllTest/TD-3453/query-interrupt.json -y " % binPath)
+        os.system("%staosBenchmark -f tools/taosdemoAllTest/TD-3453/query-interrupt.json -y " % binPath)
         tdSql.execute("use db")
         tdSql.query("select count (tbname) from stb0")
         tdSql.checkData(0, 0,60)
         tdSql.query("select count(*) from stb0")
         tdSql.checkData(0, 0, 6000000) 
-        os.system('%staosdemo -f tools/taosdemoAllTest/TD-3453/queryall.json -y & ' % binPath)
+        os.system('%staosBenchmark -f tools/taosdemoAllTest/TD-3453/queryall.json -y & ' % binPath)
         time.sleep(2)
         query_pid = int(subprocess.getstatusoutput('ps aux|grep "TD-3453/queryall.json" |grep -v "grep"|awk \'{print $2}\'')[1])
         taosd_cpu_load_1 = float(subprocess.getstatusoutput('top -n 1 -b -p $(ps aux|grep "bin/taosd -c"|grep -v "grep" |awk \'{print $2}\')|awk \'END{print}\' |awk \'{print $9}\'')[1])    

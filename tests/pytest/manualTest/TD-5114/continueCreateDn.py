@@ -44,7 +44,7 @@ class TwoClients:
 
         # insert data with c connector 
         for i in range(10):
-            os.system("taosdemo -f manualTest/TD-5114/insertDataDb3Replica2.json -y ")
+            os.system("%staosBenchmark -f manualTest/TD-5114/insertDataDb3Replica2.json -y ")
         # # check data correct 
         tdSql.execute("show databases")
         tdSql.execute("use db3")

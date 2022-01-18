@@ -30,7 +30,7 @@ class TDTestCase:
 
         print("==============step1")
         tdSql.execute(
-            "CREATE TABLE IF NOT EXISTS ampere (ts TIMESTAMP(8),ampere DOUBLE(8)) TAGS (device_name BINARY(50),build_id BINARY(50),project_id BINARY(50),alias BINARY(50))")
+            "CREATE TABLE IF NOT EXISTS ampere (ts TIMESTAMP,ampere DOUBLE) TAGS (device_name BINARY(50),build_id BINARY(50),project_id BINARY(50),alias BINARY(50))")
         tdSql.execute("insert into d1001 using ampere tags('test', '2', '2', '2') VALUES (now, 123)")
         tdSql.execute("ALTER TABLE ampere ADD TAG variable_id BINARY(50)")
 

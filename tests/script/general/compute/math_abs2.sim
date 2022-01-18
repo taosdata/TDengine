@@ -1,0 +1,366 @@
+sleep 100
+sql connect
+sql use db
+
+print execute sql select abs(stb1.c4),abs(stba.c5) from stb1,stba where stb1.t1=stba.t1 and stb1.ts=stba.ts;
+sql select abs(stb1.c4),abs(stba.c5) from stb1,stba where stb1.t1=stba.t1 and stb1.ts=stba.ts;
+if $data00 != @1@ then
+  return -1 
+endi
+if $data01 != @1@ then
+  return -1 
+endi
+if $data10 != NULL then
+  return -1 
+endi
+if $data11 != @2@ then
+  return -1 
+endi
+if $data20 != @2@ then
+  return -1 
+endi
+if $data21 != @3@ then
+  return -1 
+endi
+if $data30 != NULL then
+  return -1 
+endi
+if $data31 != @4@ then
+  return -1 
+endi
+if $data40 != @4@ then
+  return -1 
+endi
+if $data41 != @5@ then
+  return -1 
+endi
+if $data50 != @2147483647@ then
+  return -1 
+endi
+if $data51 != @6@ then
+  return -1 
+endi
+if $data60 != @2147483647@ then
+  return -1 
+endi
+if $data61 != @7@ then
+  return -1 
+endi
+print execute sql select abs(c4) as a from stb1 union all select abs(c5) as a from stba;
+sql select abs(c4) as a from stb1 union all select abs(c5) as a from stba;
+if $data00 != @1@ then
+  return -1 
+endi
+if $data10 != NULL then
+  return -1 
+endi
+if $data20 != @2@ then
+  return -1 
+endi
+if $data30 != NULL then
+  return -1 
+endi
+if $data40 != @4@ then
+  return -1 
+endi
+if $data50 != @2147483647@ then
+  return -1 
+endi
+if $data60 != @2147483647@ then
+  return -1 
+endi
+if $data70 != @1@ then
+  return -1 
+endi
+if $data80 != @2@ then
+  return -1 
+endi
+if $data90 != @2@ then
+  return -1 
+endi
+print execute sql select abs(c2) from stba;
+sql select abs(c2) from stba;
+if $data00 != @1@ then
+  return -1 
+endi
+if $data10 != @2@ then
+  return -1 
+endi
+if $data20 != @3@ then
+  return -1 
+endi
+if $data30 != @4@ then
+  return -1 
+endi
+if $data40 != @5@ then
+  return -1 
+endi
+if $data50 != @6@ then
+  return -1 
+endi
+if $data60 != @7@ then
+  return -1 
+endi
+if $data70 != @8@ then
+  return -1 
+endi
+if $data80 != @9@ then
+  return -1 
+endi
+if $data90 != @0@ then
+  return -1 
+endi
+print execute sql select abs(min(c2)) from tba1;
+sql select abs(min(c2)) from tba1;
+if $data00 != @0@ then
+  return -1 
+endi
+print execute sql select abs(max(c2)) from tba1;
+sql select abs(max(c2)) from tba1;
+if $data00 != @9@ then
+  return -1 
+endi
+print execute sql select abs(count(c2)) from tba1;
+sql select abs(count(c2)) from tba1;
+if $data00 != @30@ then
+  return -1 
+endi
+print execute sql select abs(sum(c2)) from tba1;
+sql select abs(sum(c2)) from tba1;
+if $data00 != @135@ then
+  return -1 
+endi
+print execute sql select abs(avg(c2)) from tba1;
+sql select abs(avg(c2)) from tba1;
+if $data00 != @4.500000000@ then
+  return -1 
+endi
+print execute sql select abs(percentile(c2, 10)) from tba1;
+sql select abs(percentile(c2, 10)) from tba1;
+if $data00 != @0.900000000@ then
+  return -1 
+endi
+print execute sql select abs(apercentile(c2, 10)) from tba1;
+sql select abs(apercentile(c2, 10)) from tba1;
+if $data00 != @0.000000000@ then
+  return -1 
+endi
+print execute sql select abs(stddev(c2)) from tba1;
+sql select abs(stddev(c2)) from tba1;
+if $data00 != @2.872281323@ then
+  return -1 
+endi
+print execute sql select abs(spread(c2)) from tba1;
+sql select abs(spread(c2)) from tba1;
+if $data00 != @9.000000000@ then
+  return -1 
+endi
+print execute sql select abs(twa(c2)) from tba1;
+sql select abs(twa(c2)) from tba1;
+if $data00 != @4.637931034@ then
+  return -1 
+endi
+print execute sql select abs(leastsquares(c2, 1, 1)) from tba1;
+sql_error select abs(leastsquares(c2, 1, 1)) from tba1;
+print execute sql select abs(interp(c2)) from tba1 every(1s)
+sql select abs(interp(c2)) from tba1 every(1s)
+if $data00 != @21-11-11 09:00:00.000@ then
+  return -1 
+endi
+if $data01 != @1@ then
+  return -1 
+endi
+if $data10 != @21-11-11 09:00:01.000@ then
+  return -1 
+endi
+if $data11 != @2@ then
+  return -1 
+endi
+if $data20 != @21-11-11 09:00:02.000@ then
+  return -1 
+endi
+if $data21 != @3@ then
+  return -1 
+endi
+if $data30 != @21-11-11 09:00:03.000@ then
+  return -1 
+endi
+if $data31 != @4@ then
+  return -1 
+endi
+if $data40 != @21-11-11 09:00:04.000@ then
+  return -1 
+endi
+if $data41 != @5@ then
+  return -1 
+endi
+if $data50 != @21-11-11 09:00:05.000@ then
+  return -1 
+endi
+if $data51 != @6@ then
+  return -1 
+endi
+if $data60 != @21-11-11 09:00:06.000@ then
+  return -1 
+endi
+if $data61 != @7@ then
+  return -1 
+endi
+if $data70 != @21-11-11 09:00:07.000@ then
+  return -1 
+endi
+if $data71 != @8@ then
+  return -1 
+endi
+if $data80 != @21-11-11 09:00:08.000@ then
+  return -1 
+endi
+if $data81 != @9@ then
+  return -1 
+endi
+if $data90 != @21-11-11 09:00:09.000@ then
+  return -1 
+endi
+if $data91 != @0@ then
+  return -1 
+endi
+print execute sql select abs(interp(c2)) from stba every(1s) group by tbname;
+sql select abs(interp(c2)) from stba every(1s) group by tbname;
+if $data00 != @21-11-11 09:00:00.000@ then
+  return -1 
+endi
+if $data01 != @1@ then
+  return -1 
+endi
+if $data02 != @tba1@ then
+  return -1 
+endi
+if $data10 != @21-11-11 09:00:01.000@ then
+  return -1 
+endi
+if $data11 != @2@ then
+  return -1 
+endi
+if $data12 != @tba1@ then
+  return -1 
+endi
+if $data20 != @21-11-11 09:00:02.000@ then
+  return -1 
+endi
+if $data21 != @3@ then
+  return -1 
+endi
+if $data22 != @tba1@ then
+  return -1 
+endi
+if $data30 != @21-11-11 09:00:03.000@ then
+  return -1 
+endi
+if $data31 != @4@ then
+  return -1 
+endi
+if $data32 != @tba1@ then
+  return -1 
+endi
+if $data40 != @21-11-11 09:00:04.000@ then
+  return -1 
+endi
+if $data41 != @5@ then
+  return -1 
+endi
+if $data42 != @tba1@ then
+  return -1 
+endi
+if $data50 != @21-11-11 09:00:05.000@ then
+  return -1 
+endi
+if $data51 != @6@ then
+  return -1 
+endi
+if $data52 != @tba1@ then
+  return -1 
+endi
+if $data60 != @21-11-11 09:00:06.000@ then
+  return -1 
+endi
+if $data61 != @7@ then
+  return -1 
+endi
+if $data62 != @tba1@ then
+  return -1 
+endi
+if $data70 != @21-11-11 09:00:07.000@ then
+  return -1 
+endi
+if $data71 != @8@ then
+  return -1 
+endi
+if $data72 != @tba1@ then
+  return -1 
+endi
+if $data80 != @21-11-11 09:00:08.000@ then
+  return -1 
+endi
+if $data81 != @9@ then
+  return -1 
+endi
+if $data82 != @tba1@ then
+  return -1 
+endi
+if $data90 != @21-11-11 09:00:09.000@ then
+  return -1 
+endi
+if $data91 != @0@ then
+  return -1 
+endi
+if $data92 != @tba1@ then
+  return -1 
+endi
+print execute sql select abs(elapsed(ts)) from tba1;
+sql select abs(elapsed(ts)) from tba1;
+if $data00 != @29000.000000000@ then
+  return -1 
+endi
+print execute sql select abs(rate(c2)) from tba1;
+sql select abs(rate(c2)) from tba1;
+if $data00 != @0.896551724@ then
+  return -1 
+endi
+print execute sql select abs(irate(c2)) from tba1;
+sql select abs(irate(c2)) from tba1;
+if $data00 != @0.000000000@ then
+  return -1 
+endi
+print execute sql select abs(first(c2)) from tba1;
+sql select abs(first(c2)) from tba1;
+if $data00 != @1@ then
+  return -1 
+endi
+print execute sql select abs(last(c2)) from tba1;
+sql select abs(last(c2)) from tba1;
+if $data00 != @0@ then
+  return -1 
+endi
+print execute sql select abs(last_row(c2)) from tba1;
+sql select abs(last_row(c2)) from tba1;
+if $data00 != @0@ then
+  return -1 
+endi
+print execute sql select abs(top(c2, 1)) from tba1;
+sql_error select abs(top(c2, 1)) from tba1;
+print execute sql select abs(bottom(c2, 1)) from tba1;
+sql_error select abs(bottom(c2, 1)) from tba1;
+print execute sql select abs(leastsquares(c2, 1, 1)) from tba1;
+sql_error select abs(leastsquares(c2, 1, 1)) from tba1;
+print execute sql select abs(derivative(c2, 1s, 0)) from tba1;
+sql_error select abs(derivative(c2, 1s, 0)) from tba1;
+print execute sql select abs(diff(c2)) from tba1;
+sql_error select abs(diff(c2)) from tba1;
+print execute sql select abs(csum(c2)) from tba1;
+sql_error select abs(csum(c2)) from tba1;
+print execute sql select abs(mavg(c2,2)) from tba1;
+sql_error select abs(mavg(c2,2)) from tba1;
+print execute sql select abs(sample(c2,2)) from tba1;
+sql_error select abs(sample(c2,2)) from tba1;
+print execute sql select abs(_block_dist()) from tba1;
+sql_error select abs(_block_dist()) from tba1;

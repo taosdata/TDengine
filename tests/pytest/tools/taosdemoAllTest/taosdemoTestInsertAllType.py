@@ -49,7 +49,7 @@ class TDTestCase:
         binPath = buildPath+ "/build/bin/"
 
         # insert: create one  or mutiple tables per sql and insert multiple rows per sql
-        os.system("%staosdemo -f tools/taosdemoAllTest/insert-allDataType.json -y " % binPath)
+        os.system("%staosBenchmark -f tools/taosdemoAllTest/insert-allDataType.json -y " % binPath)
         tdSql.execute("use db")
         tdSql.query("select count (tbname) from stb0")
         tdSql.checkData(0, 0, 1000)
@@ -65,7 +65,7 @@ class TDTestCase:
         tdSql.checkData(0, 0, 200000)
 
         # stmt interface   
-        os.system("%staosdemo -f tools/taosdemoAllTest/stmt/insert-allDataType-stmt.json -y " % binPath)
+        os.system("%staosBenchmark -f tools/taosdemoAllTest/stmt/insert-allDataType-stmt.json -y " % binPath)
         tdSql.execute("use db")
         tdSql.query("select count (tbname) from stb0")
         tdSql.checkData(0, 0, 1000)
@@ -81,7 +81,7 @@ class TDTestCase:
         tdSql.checkData(0, 0, 200000)
         
         # taosdemo command line
-        os.system("%staosdemo  -t 1000 -n 100 -T 10 -b INT,TIMESTAMP,BIGINT,FLOAT,DOUBLE,SMALLINT,TINYINT,BOOL,NCHAR,UINT,UBIGINT,UTINYINT,USMALLINT,BINARY  -y " % binPath)
+        os.system("%staosBenchmark  -t 1000 -n 100 -T 10 -b INT,TIMESTAMP,BIGINT,FLOAT,DOUBLE,SMALLINT,TINYINT,BOOL,NCHAR,UINT,UBIGINT,UTINYINT,USMALLINT,BINARY  -y " % binPath)
         tdSql.execute("use test")
         tdSql.query("select count (tbname) from meters")
         tdSql.checkData(0, 0, 1000)

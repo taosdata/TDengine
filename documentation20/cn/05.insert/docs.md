@@ -22,19 +22,19 @@ INSERT INTO d1001 VALUES (1538548685000, 10.3, 219, 0.31) (1538548695000, 12.6, 
 
 **Tips:** 
 
-- 要提高写入效率，需要批量写入。一批写入的记录条数越多，插入效率就越高。但一条记录不能超过16K，一条SQL语句总长度不能超过64K（可通过参数maxSQLLength配置，最大可配置为1M）。
+- 要提高写入效率，需要批量写入。一批写入的记录条数越多，插入效率就越高。但一条记录不能超过16K，一条SQL语句总长度不能超过1M 。
 - TDengine支持多线程同时写入，要进一步提高写入速度，一个客户端需要打开20个以上的线程同时写。但线程数达到一定数量后，无法再提高，甚至还会下降，因为线程频繁切换，带来额外开销。
 - 对同一张表，如果新插入记录的时间戳已经存在，默认情形下（UPDATE=0）新记录将被直接抛弃，也就是说，在一张表里，时间戳必须是唯一的。如果应用自动生成记录，很有可能生成的时间戳是一样的，这样，成功插入的记录条数会小于应用插入的记录条数。如果在创建数据库时使用了 UPDATE 1 选项，插入相同时间戳的新记录将覆盖原有记录。
 - 写入的数据的时间戳必须大于当前时间减去配置参数keep的时间。如果keep配置为3650天，那么无法写入比3650天还早的数据。写入数据的时间戳也不能大于当前时间加配置参数days。如果days为2，那么无法写入比当前时间还晚2天的数据。
 
 ## <a class="anchor" id="schemaless"></a>无模式（Schemaless）写入
 **前言**
-<br/>在物联网应用中，常会采集比较多的数据项，用于实现智能控制、业务分析、设备监控等。由于应用逻辑的版本升级，或者设备自身的硬件调整等原因，数据采集项就有可能比较频繁地出现变动。为了在这种情况下方便地完成数据记录工作，TDengine 从 2.2.0.0 版本开始，提供调用 Schemaless 写入方式，可以免于预先创建超级表/子表的步骤，随着数据写入写入接口能够自动创建与数据对应的存储结构。并且在必要时，Schemaless 将自动增加必要的数据列，保证用户写入的数据可以被正确存储。
+<br/>在物联网应用中，常会采集比较多的数据项，用于实现智能控制、业务分析、设备监控等。由于应用逻辑的版本升级，或者设备自身的硬件调整等原因，数据采集项就有可能比较频繁地出现变动。为了在这种情况下方便地完成数据记录工作，TDengine 从 2.2.0.0 版本开始，提供调用 Schemaless 写入方式，可以免于预先创建超级表/子表的步骤，随着数据写入接口能够自动创建与数据对应的存储结构。并且在必要时，Schemaless 将自动增加必要的数据列，保证用户写入的数据可以被正确存储。
 <br/>目前，TDengine 的 C/C++ Connector 提供支持 Schemaless 的操作接口，详情请参见 [Schemaless 方式写入接口](https://www.taosdata.com/cn/documentation/connector#schemaless)章节。这里对 Schemaless 的数据表达格式进行了描述。
 <br/>无模式写入方式建立的超级表及其对应的子表与通过 SQL 直接建立的超级表和子表完全没有区别，您也可以通过 SQL 语句直接向其中写入数据。需要注意的是，通过无模式写入方式建立的表，其表名是基于标签值按照固定的映射规则生成，所以无法明确地进行表意，缺乏可读性。
 
 **无模式写入行协议**
-<br/>TDengine 的无模式写入的行协议兼容 InfluxDB 的 行协议（Line Protocol）、OpenTSDB 的 telnet 行协议、OpenTSDB 的 Json 格式协议。但是使用这三种协议的时候，需要在 API 中指定输入内容使用解析协议的标准。
+<br/>TDengine 的无模式写入的行协议兼容 InfluxDB 的 行协议（Line Protocol）、OpenTSDB 的 telnet 行协议、OpenTSDB 的 JSON 格式协议。但是使用这三种协议的时候，需要在 API 中指定输入内容使用解析协议的标准。
 
 对于InfluxDB、OpenTSDB的标准写入协议请参考各自的文档。下面首先以 InfluxDB 的行协议为基础，介绍 TDengine 扩展的协议内容，允许用户采用更加精细的方式控制（超级表）模式。
 
@@ -74,21 +74,19 @@ st,t1=3,t2=4,t3=t3 c1=3i64,c3="passit",c2=false,c4=4f64 1626006833639000000
 ### 无模式写入的主要处理逻辑
 
 无模式写入按照如下原则来处理行数据：
-1. 当 tag_set 中有 ID 字段时，该字段的值将作为子表的表名。
-2. 没有 ID 字段时，将使用如下规则来生成子表名：
-首先将measurement 的名称和标签的 key 和 value 组合成为如下的字符串
+<br/>1. 将使用如下规则来生成子表名：首先将measurement 的名称和标签的 key 和 value 组合成为如下的字符串
 ```json
 "measurement,tag_key1=tag_value1,tag_key2=tag_value2"
 ```
 需要注意的是，这里的tag_key1, tag_key2并不是用户输入的标签的原始顺序，而是使用了标签名称按照字符串升序排列后的结果。所以，tag_key1 并不是在行协议中输入的第一个标签。
 排列完成以后计算该字符串的 MD5 散列值 "md5_val"。然后将计算的结果与字符串组合生成表名：“t_md5_val”。其中的 “t_” 是固定的前缀，每个通过该映射关系自动生成的表都具有该前缀。
-<br/>3. 如果解析行协议获得的超级表不存在，则会创建这个超级表。
-<br/>4. 如果解析行协议获得子表不存在，则 Schemaless 会按照步骤 1 或 2 确定的子表名来创建子表。
-<br/>5. 如果数据行中指定的标签列或普通列不存在，则在超级表中增加对应的标签列或普通列（只增不减）。
-<br/>6. 如果超级表中存在一些标签列或普通列未在一个数据行中被指定取值，那么这些列的值在这一行中会被置为 NULL。
-<br/>7. 对 BINARY 或 NCHAR 列，如果数据行中所提供值的长度超出了列类型的限制，自动增加该列允许存储的字符长度上限（只增不减），以保证数据的完整保存。
-<br/>8. 如果指定的数据子表已经存在，而且本次指定的标签列取值跟已保存的值不一样，那么最新的数据行中的值会覆盖旧的标签列取值。
-<br/>9. 整个处理过程中遇到的错误会中断写入过程，并返回错误代码。
+<br/>2. 如果解析行协议获得的超级表不存在，则会创建这个超级表。
+<br/>3. 如果解析行协议获得子表不存在，则 Schemaless 会按照步骤 1 或 2 确定的子表名来创建子表。
+<br/>4. 如果数据行中指定的标签列或普通列不存在，则在超级表中增加对应的标签列或普通列（只增不减）。
+<br/>5. 如果超级表中存在一些标签列或普通列未在一个数据行中被指定取值，那么这些列的值在这一行中会被置为 NULL。
+<br/>6. 对 BINARY 或 NCHAR 列，如果数据行中所提供值的长度超出了列类型的限制，自动增加该列允许存储的字符长度上限（只增不减），以保证数据的完整保存。
+<br/>7. 如果指定的数据子表已经存在，而且本次指定的标签列取值跟已保存的值不一样，那么最新的数据行中的值会覆盖旧的标签列取值。
+<br/>8. 整个处理过程中遇到的错误会中断写入过程，并返回错误代码。
 
 **备注：**
 <br/>无模式所有的处理逻辑，仍会遵循 TDengine 对数据结构的底层限制，例如每行数据的总长度不能超过 16k 字节。这方面的具体限制约束请参见 [TAOS SQL 边界限制](https://www.taosdata.com/cn/documentation/taos-sql#limitation) 章节。
@@ -99,8 +97,8 @@ st,t1=3,t2=4,t3=t3 c1=3i64,c3="passit",c2=false,c4=4f64 1626006833639000000
 | **序号** | **值**        | **说明** |
 | ---- | ------------------- | ------------ |
 | 1    | SML_LINE_PROTOCOL           |    InfluxDB行协议（Line Protocol)   |
-| 2    | SML_TELNET_PROTOCOL              |    OpenTSDB文本行协议   |
-| 3    | SML_JSON_PROTOCOL              |    Json协议格式   |
+| 2    | SML_TELNET_PROTOCOL              |    OpenTSDB 文本行协议   |
+| 3    | SML_JSON_PROTOCOL              |    JSON 协议格式   |
 
 <br/>在 SML_LINE_PROTOCOL 解析模式下，需要用户指定输入的时间戳的时间分辨率。可用的时间分辨率如下表所示：<br/>
 
@@ -115,6 +113,17 @@ st,t1=3,t2=4,t3=t3 c1=3i64,c3="passit",c2=false,c4=4f64 1626006833639000000
 | 7    | TSDB_SML_TIMESTAMP_NANO_SECONDS       |   纳秒        |
 
 在 SML_TELNET_PROTOCOL 和 SML_JSON_PROTOCOL 模式下，根据时间戳的长度来确定时间精度（与 OpenTSDB 标准操作方式相同），此时会忽略用户指定的时间分辨率。
+
+**数据模式映射规则**
+<br/>本节将说明行协议的数据如何映射成为具有模式的数据。每个行协议中数据  measurement 映射为 超级表名称。tag_set 中的 标签名称为 数据模式中的标签名，field_set 中的名称为列名称。以如下数据为例，说明映射规则：
+
+```json
+st,t1=3,t2=4,t3=t3 c1=3i64,c3="passit",c2=false,c4=4f64 1626006833639000000
+```
+该行数据映射生成一个超级表： st， 其包含了 3 个类型为 nchar 的标签，分别是：t1, t2, t3。五个数据列，分别是ts（timestamp），c1 (bigint），c3(binary)，c2 (bool),  c4 (bigint）。映射成为如下 SQL 语句：
+```json
+create stable st (_ts timestamp, c1 bigint, c2 bool, c3 binary(6), c4 bigint) tags(t1 nchar(1), t2 nchar(1), t3 nchar(2))
+```
 
 **数据模式变更处理**
 <br/>本节将说明不同行数据写入情况下，对于数据模式的影响。
@@ -145,7 +154,7 @@ st,t1=3,t2=4,t3=t3 c1=3i64,c6="passit"   1626006833640000000
 <br/>如果是无模式写入过程中的数据本身错误，应用会得到 TSDB_CODE_TSC_LINE_SYNTAX_ERROR 错误信息，该错误信息表明错误发生在写入文本中。其他的错误码与原系统一致，可以通过 taos_errstr 获取具体的错误原因。
 
 **后续升级计划**
-<br/>当前版本只提供了 C 版本的 API，后续将提供 其他高级语言的 API，例如 Java/Go/Python/C# 等。此外，在TDengine v2.3及后续版本中，您还可以通过 Taos Adapter 采用 REST 的方式直接写入无模式数据。
+<br/>当前版本只提供了 C 版本的 API，后续将提供 其他高级语言的 API，例如 Java/Go/Python/C# 等。此外，在TDengine v2.3及后续版本中，您还可以通过 taosAdapter 采用 REST 的方式直接写入无模式数据。
 
 
 ## <a class="anchor" id="prometheus"></a>Prometheus 直接写入
@@ -241,10 +250,10 @@ use prometheus;
 select * from apiserver_request_latencies_bucket;
 ```
 
-## <a class="anchor" id="telegraf"></a> Telegraf 直接写入(通过 taosadapter)
+## <a class="anchor" id="telegraf"></a> Telegraf 直接写入(通过 taosAdapter)
 安装 Telegraf 请参考[官方文档](https://portal.influxdata.com/downloads/)。
 
-TDengine 新版本（2.3.0.0+）包含一个 taosadapter 独立程序，负责接收包括 Telegraf 的多种应用的数据写入。
+TDengine 新版本（2.3.0.0+）包含一个 taosAdapter 独立程序，负责接收包括 Telegraf 的多种应用的数据写入。
 
 配置方法，在 /etc/telegraf/telegraf.conf 增加如下文字，其中 database name 请填写希望在 TDengine 保存 Telegraf 数据的数据库名，TDengine server/cluster host、username和 password 填写 TDengine 实际值：
 ```
@@ -264,14 +273,14 @@ sudo systemctl start telegraf
 ```
 即可在 TDengine 中查询 metrics 数据库中 Telegraf 写入的数据。
 
-taosadapter 相关配置参数请参考 taosadapter --help 命令输出以及相关文档。
+taosAdapter 相关配置参数请参考 taosadapter --help 命令输出以及相关文档。
 
-## <a class="anchor" id="collectd"></a> collectd 直接写入(通过 taosadapter)
+## <a class="anchor" id="collectd"></a> collectd 直接写入(通过 taosAdapter)
 安装 collectd，请参考[官方文档](https://collectd.org/download.shtml)。
 
-TDengine 新版本（2.3.0.0+）包含一个 taosadapter 独立程序，负责接收包括 collectd 的多种应用的数据写入。
+TDengine 新版本（2.3.0.0+）包含一个 taosAdapter 独立程序，负责接收包括 collectd 的多种应用的数据写入。
 
-在 /etc/collectd/collectd.conf 文件中增加如下内容，其中 host 和 port 请填写 TDengine 和 taosadapter 配置的实际值：
+在 /etc/collectd/collectd.conf 文件中增加如下内容，其中 host 和 port 请填写 TDengine 和 taosAdapter 配置的实际值：
 ```
 LoadPlugin network
 <Plugin network>
@@ -282,15 +291,15 @@ LoadPlugin network
 ```
 sudo systemctl start collectd
 ```
-taosadapter 相关配置参数请参考 taosadapter --help 命令输出以及相关文档。
+taosAdapter 相关配置参数请参考 taosadapter --help 命令输出以及相关文档。
 
-## <a class="anchor" id="statsd"></a> StatsD 直接写入(通过 taosadapter)
+## <a class="anchor" id="statsd"></a> StatsD 直接写入(通过 taosAdapter)
 安装 StatsD
 请参考[官方文档](https://github.com/statsd/statsd)。
 
-TDengine 新版本（2.3.0.0+）包含一个 taosadapter 独立程序，负责接收包括 StatsD 的多种应用的数据写入。
+TDengine 新版本（2.3.0.0+）包含一个 taosAdapter 独立程序，负责接收包括 StatsD 的多种应用的数据写入。
 
-在 config.js 文件中增加如下内容后启动 StatsD，其中 host 和 port 请填写 TDengine 和 taosadapter 配置的实际值：
+在 config.js 文件中增加如下内容后启动 StatsD，其中 host 和 port 请填写 TDengine 和 taosAdapter 配置的实际值：
 ```
 backends 部分添加 "./backends/repeater"
 repeater 部分添加 { host:'<TDengine server/cluster host>', port: <port for StatsD>}
@@ -305,123 +314,14 @@ port: 8125
 }
 ```
 
-taosadapter 相关配置参数请参考 taosadapter --help 命令输出以及相关文档。
+taosAdapter 相关配置参数请参考 taosadapter --help 命令输出以及相关文档。
 
 
 ## <a class="anchor" id="taosadapter2-telegraf"></a> 使用 Bailongma 2.0 接入 Telegraf 数据写入
 
-*注意：TDengine 新版本（2.3.0.0+）提供新版本 Bailongma ，命名为 taosadapter ，提供更简便的 Telegraf 数据写入以及其他更强大的功能，Bailongma v2 即之前版本将逐步不再维护。
+**注意：**
+TDengine 新版本（2.3.0.0+）提供新版本 Bailongma ，命名为 taosAdapter ，提供更简便的 Telegraf 数据写入以及其他更强大的功能，Bailongma v2 及之前版本将逐步不再维护。
 
-[Telegraf](https://www.influxdata.com/time-series-platform/telegraf/)是一流行的IT运维数据采集开源工具，TDengine提供一个小工具[Bailongma](https://github.com/taosdata/Bailongma)，只需在Telegraf做简单配置，无需任何代码，就可将Telegraf采集的数据直接写入TDengine，并按规则在TDengine自动创建库和相关表项。博文[用Docker容器快速搭建一个Devops监控Demo](https://www.taosdata.com/blog/2020/02/03/1189.html)即是采用bailongma将Prometheus和Telegraf的数据写入TDengine中的示例，可以参考。
-
-### 从源代码编译 blm_telegraf
-
-用户需要从github下载[Bailongma](https://github.com/taosdata/Bailongma)的源码，使用Golang语言编译器编译生成可执行文件。在开始编译前，需要准备好以下条件：
-
-- Linux操作系统的服务器
-- 安装好Golang，1.10版本以上
-- 对应的TDengine版本。因为用到了TDengine的客户端动态链接库，因此需要安装好和服务端相同版本的TDengine程序；比如服务端版本是TDengine 2.0.0, 则在Bailongma所在的Linux服务器（可以与TDengine在同一台服务器，或者不同服务器）
-
-Bailongma项目中有一个文件夹blm_telegraf，存放了Telegraf的写入API程序。编译过程如下：
-
-```bash
-cd blm_telegraf
-go build
-```
-
-一切正常的情况下，就会在对应的目录下生成一个blm_telegraf的可执行程序。
-
-### 安装 Telegraf
-
-目前TDengine支持Telegraf 1.7.4以上的版本。用户可以根据当前的操作系统，到Telegraf官网下载安装包，并执行安装。下载地址如下：https://portal.influxdata.com/downloads 。
-
-### 配置 Telegraf
-
-修改Telegraf配置文件/etc/telegraf/telegraf.conf中与TDengine有关的配置项。 
-
-在output plugins部分，增加[[outputs.http]]配置项：
-
-- url：Bailongma API服务提供的URL，参考下面的启动示例章节
-- data_format："json"
-- json_timestamp_units："1ms"
-
-在agent部分：
-
-- hostname: 区分不同采集设备的机器名称，需确保其唯一性。
-- metric_batch_size: 100，允许Telegraf每批次写入记录最大数量，增大其数量可以降低Telegraf的请求发送频率。
-
-关于如何使用Telegraf采集数据以及更多有关使用Telegraf的信息，请参考Telegraf官方的[文档](https://docs.influxdata.com/telegraf/v1.11/)。
-
-### 启动 blm_telegraf 程序
-
-blm_telegraf程序有以下选项，在启动blm_telegraf程序时可以通过设定这些选项来设定blm_telegraf的配置。
-
-```bash
---host
-TDengine服务端的IP地址，缺省值为空。
-
---batch-size
-blm_telegraf会将收到的telegraf的数据拼装成TDengine的写入请求，这个参数控制一次发给TDengine的写入请求中携带的数据条数。
-
---dbname
-设置在TDengine中创建的数据库名称，blm_telegraf会自动在TDengine中创建一个以dbname为名称的数据库，缺省值是prometheus。
-
---dbuser
-设置访问TDengine的用户名，缺省值是'root'。
-
---dbpassword
-设置访问TDengine的密码，缺省值是'taosdata'。
-
---port
-blm_telegraf对telegraf提供服务的端口号。
-```
-
-### 启动示例
-
-通过以下命令启动一个blm_telegraf的API服务：
-```bash
-./blm_telegraf -host 127.0.0.1 -port 8089
-```
-
-假设blm_telegraf所在服务器的IP地址为"10.1.2.3"，则在telegraf的配置文件中, 在output plugins部分，增加[[outputs.http]]配置项：
-
-```yaml
-url = "http://10.1.2.3:8089/telegraf"
-```
-
-### 查询 telegraf 写入数据
-
-telegraf产生的数据格式如下：
-```json
-{
-  "fields": {
-    "usage_guest": 0, 
-    "usage_guest_nice": 0,
-    "usage_idle": 89.7897897897898, 
-    "usage_iowait": 0,
-    "usage_irq": 0,
-    "usage_nice": 0,
-    "usage_softirq": 0,
-    "usage_steal": 0,
-    "usage_system": 5.405405405405405, 
-    "usage_user": 4.804804804804805
-  },
-  
-  "name": "cpu", 
-  "tags": {
-    "cpu": "cpu2",
-    "host": "bogon" 
-  },
-  "timestamp": 1576464360 
-}
-```
-
-其中，name字段为telegraf采集的时序数据的名称，tags字段为该时序数据的标签。blm_telegraf会以时序数据的名称在TDengine中自动创建一个超级表，并将tags字段中的标签转换成TDengine的tag值，timestamp作为时间戳，fields字段中的值作为该时序数据的值。因此在TDengine的客户端中，可以通过以下指令查到这个数据是否成功写入。
-
-```mysql
-use telegraf;
-select * from cpu;
-```
 
 ## <a class="anchor" id="emq"></a>EMQ Broker 直接写入
 

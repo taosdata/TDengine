@@ -279,6 +279,7 @@ bool qTableQuery(qinfo_t qinfo, uint64_t *qId) {
 
   if (isQueryKilled(pQInfo)) {
     qDebug("QInfo:0x%"PRIx64" it is already killed, abort", pQInfo->qId);
+    pQInfo->runtimeEnv.outputBuf = NULL;
     return doBuildResCheck(pQInfo);
   }
 

@@ -50,7 +50,7 @@ class TDTestCase:
             tdLog.info("taosdemo found in %s" % buildPath)
         binPath = buildPath + "/build/bin/"
 
-        os.system("%staosdemo -d test002 -y -t %d -n %d -b INT,nchar\\(8\\),binary\\(16\\),binary,nchar -w 8" %
+        os.system("%staosBenchmark -d test002 -y -t %d -n %d -b INT,nchar\\(8\\),binary\\(16\\),binary,nchar -w 8" %
                   (binPath, self.numberOfTables, self.numberOfRecords))
         
         tdSql.execute('use test002')
@@ -68,7 +68,7 @@ class TDTestCase:
         tdSql.error('insert into d1 values(now,100,"abcd","abcd"')
         tdSql.error('insert into d1 values(now,100,100,100)')
 
-        os.system("%staosdemo -d test002 -y -t %d -n %d --data-type INT,nchar\\(8\\),binary\\(16\\),binary,nchar -w 8" %
+        os.system("%staosBenchmark -d test002 -y -t %d -n %d --data-type INT,nchar\\(8\\),binary\\(16\\),binary,nchar -w 8" %
                   (binPath, self.numberOfTables, self.numberOfRecords))
 
         tdSql.execute('use test002')
@@ -76,7 +76,7 @@ class TDTestCase:
         tdSql.checkData(0, 0, self.numberOfTables * self.numberOfRecords)
 
 
-        os.system("%staosdemo -d test002 -y -t %d -n %d -bINT,nchar\\(8\\),binary\\(16\\),binary,nchar -w 8" %
+        os.system("%staosBenchmark -d test002 -y -t %d -n %d -bINT,nchar\\(8\\),binary\\(16\\),binary,nchar -w 8" %
                   (binPath, self.numberOfTables, self.numberOfRecords))
 
         tdSql.execute('use test002')

@@ -25,7 +25,7 @@ public class TimestampPrecisonInNanoRestTest {
     private static final String date4 = format.format(new Date(timestamp1 + 10L));
     private static final String date2 = date1 + "123455";
     private static final String date3 = date4 + "123456";
-    
+
 
     private static Connection conn;
 
@@ -43,7 +43,7 @@ public class TimestampPrecisonInNanoRestTest {
         stmt.execute("drop database if exists " + ns_timestamp_db);
         stmt.execute("create database if not exists " + ns_timestamp_db + " precision 'ns'");
         stmt.execute("create table " + ns_timestamp_db + ".weather(ts timestamp, ts2 timestamp, f1 int)");
-        stmt.executeUpdate("insert into " + ns_timestamp_db + ".weather(ts, ts2, f1) values(\"" + date3 + "\", \"" + date3 +  "\", 128)");
+        stmt.executeUpdate("insert into " + ns_timestamp_db + ".weather(ts, ts2, f1) values(\"" + date3 + "\", \"" + date3 + "\", 128)");
         stmt.executeUpdate("insert into " + ns_timestamp_db + ".weather(ts, ts2, f1) values(" + timestamp2 + "," + timestamp2 + ", 127)");
         stmt.close();
     }
@@ -54,7 +54,7 @@ public class TimestampPrecisonInNanoRestTest {
         stmt.execute("drop database if exists " + ns_timestamp_db);
         stmt.execute("create database if not exists " + ns_timestamp_db + " precision 'ns'");
         stmt.execute("create table " + ns_timestamp_db + ".weather(ts timestamp, ts2 timestamp, f1 int)");
-        stmt.executeUpdate("insert into " + ns_timestamp_db + ".weather(ts, ts2, f1) values(\"" + date3 + "\", \"" + date3 +  "\", 128)");
+        stmt.executeUpdate("insert into " + ns_timestamp_db + ".weather(ts, ts2, f1) values(\"" + date3 + "\", \"" + date3 + "\", 128)");
         stmt.executeUpdate("insert into " + ns_timestamp_db + ".weather(ts, ts2, f1) values(" + timestamp2 + "," + timestamp2 + ", 127)");
         stmt.close();
     }
@@ -105,7 +105,7 @@ public class TimestampPrecisonInNanoRestTest {
     @Test
     public void canImportTimestampAndQueryByEqualToInDateTypeInBothFirstAndSecondCol() {
         try (Statement stmt = conn.createStatement()) {
-            stmt.executeUpdate("import into " + ns_timestamp_db + ".weather(ts, ts2, f1) values(\"" + date1 + "123123\", \"" + date1 +  "123123\", 127)");
+            stmt.executeUpdate("import into " + ns_timestamp_db + ".weather(ts, ts2, f1) values(\"" + date1 + "123123\", \"" + date1 + "123123\", 127)");
             ResultSet rs = stmt.executeQuery("select count(*) from " + ns_timestamp_db + ".weather where ts = '" + date1 + "123123'");
             checkCount(1l, rs);
             rs = stmt.executeQuery("select ts from " + ns_timestamp_db + ".weather where ts = '" + date1 + "123123'");
@@ -139,7 +139,7 @@ public class TimestampPrecisonInNanoRestTest {
     public void canImportTimestampAndQueryByEqualToInNumberTypeInBothFirstAndSecondCol() {
         try (Statement stmt = conn.createStatement()) {
             long timestamp4 = timestamp1 * 1000_000 + 123123;
-            stmt.executeUpdate("import into " + ns_timestamp_db + ".weather(ts, ts2, f1) values(" + timestamp4 + ", " + timestamp4 +  ", 127)");
+            stmt.executeUpdate("import into " + ns_timestamp_db + ".weather(ts, ts2, f1) values(" + timestamp4 + ", " + timestamp4 + ", 127)");
             ResultSet rs = stmt.executeQuery("select count(*) from " + ns_timestamp_db + ".weather where ts = '" + timestamp4 + "'");
             checkCount(1l, rs);
             rs = stmt.executeQuery("select ts from " + ns_timestamp_db + ".weather where ts = '" + timestamp4 + "'");
@@ -215,7 +215,7 @@ public class TimestampPrecisonInNanoRestTest {
         } catch (SQLException e) {
             e.printStackTrace();
         }
-    }    
+    }
 
     @Test
     public void canQueryLargerThanInNumberTypeForFirstCol() {
@@ -279,7 +279,7 @@ public class TimestampPrecisonInNanoRestTest {
         } catch (SQLException e) {
             e.printStackTrace();
         }
-    }    
+    }
 
     @Test
     public void canQueryLessThanInDateTypeForFirstCol() {
@@ -347,7 +347,7 @@ public class TimestampPrecisonInNanoRestTest {
         } catch (SQLException e) {
             e.printStackTrace();
         }
-    }    
+    }
 
     @Test
     public void canQueryLessThanOrEqualToInNumberTypeForFirstCol() {
@@ -466,7 +466,7 @@ public class TimestampPrecisonInNanoRestTest {
     }
 
     @Test
-    public void canInsertTimestampWithNowAndNsOffsetInBothFirstAndSecondCol(){
+    public void canInsertTimestampWithNowAndNsOffsetInBothFirstAndSecondCol() {
         try (Statement stmt = conn.createStatement()) {
             stmt.executeUpdate("insert into " + ns_timestamp_db + ".weather(ts, ts2, f1) values(now + 1000b, now - 1000b, 128)");
             ResultSet rs = stmt.executeQuery("select count(*) from " + ns_timestamp_db + ".weather");
@@ -477,7 +477,7 @@ public class TimestampPrecisonInNanoRestTest {
     }
 
     @Test
-    public void canIntervalAndSlidingAcceptNsUnitForFirstCol(){
+    public void canIntervalAndSlidingAcceptNsUnitForFirstCol() {
         try (Statement stmt = conn.createStatement()) {
             ResultSet rs = stmt.executeQuery("select sum(f1) from " + ns_timestamp_db + ".weather where ts >= '" + date2 + "' and ts <= '" + date3 + "' interval(10000000b) sliding(10000000b)");
             rs.next();
@@ -492,7 +492,7 @@ public class TimestampPrecisonInNanoRestTest {
     }
 
     @Test
-    public void canIntervalAndSlidingAcceptNsUnitForSecondCol(){
+    public void canIntervalAndSlidingAcceptNsUnitForSecondCol() {
         try (Statement stmt = conn.createStatement()) {
             ResultSet rs = stmt.executeQuery("select sum(f1) from " + ns_timestamp_db + ".weather where ts2 >= '" + date2 + "' and ts <= '" + date3 + "' interval(10000000b) sliding(10000000b)");
             rs.next();
@@ -506,21 +506,17 @@ public class TimestampPrecisonInNanoRestTest {
         }
     }
 
-    @Test
-    public void testDataOutOfRangeExceptionForFirstCol() {
+    @Test(expected = SQLException.class)
+    public void testDataOutOfRangeExceptionForFirstCol() throws SQLException {
         try (Statement stmt = conn.createStatement()) {
             stmt.executeUpdate("insert into " + ns_timestamp_db + ".weather(ts, ts2, f1) values(123456789012345678, 1234567890123456789, 127)");
-        } catch (SQLException e) {
-            Assert.assertEquals("TDengine ERROR (60b): Timestamp data out of range", e.getMessage());
         }
     }
 
-    @Test
-    public void testDataOutOfRangeExceptionForSecondCol() {
+    @Test(expected = SQLException.class)
+    public void testDataOutOfRangeExceptionForSecondCol() throws SQLException {
         try (Statement stmt = conn.createStatement()) {
             stmt.executeUpdate("insert into " + ns_timestamp_db + ".weather(ts, ts2, f1) values(1234567890123456789, 123456789012345678, 127)");
-        } catch (SQLException e) {
-            Assert.assertEquals("TDengine ERROR (60b): Timestamp data out of range", e.getMessage());
         }
     }
 

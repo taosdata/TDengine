@@ -1,0 +1,1763 @@
+system sh/stop_dnodes.sh
+
+system sh/deploy.sh -n dnode1 -i 1
+system sh/cfg.sh -n dnode1 -c walLevel -v 1
+system sh/exec.sh -n dnode1 -s start
+sleep 500
+sql connect
+
+$dbPrefix = db
+$tbPrefix = ct
+$mtPrefix = st
+$tbNum = 2
+$rowNum = 50
+
+print =============== step1 create stable/table
+$i = 0
+$db = $dbPrefix . $i
+$mt = $mtPrefix . $i
+
+sql drop database $db -x step1
+step1:
+sql create database $db
+sql use $db
+sql create table $mt (ts timestamp, c1 int, c2 float, c3 bigint, c4 smallint, c5 tinyint, c6 double, c7 bool, c8 nchar(5), c9 binary(10)) TAGS (tgcol int)
+$i = 0
+while $i < $tbNum
+  $tb = $tbPrefix . $i
+  sql create table $tb using $mt tags( $i )
+
+  $x = 0
+  $y = 0.25
+
+  while $x < $rowNum
+    $cc = $x * 60000
+    $ms = 1601481600000 + $cc
+    sql insert into $tb values ($ms , $x , $y , $x , $x , $x , $y , $x , $x , $x )
+    $x = $x + 1
+    $y = $y + 1
+  endw
+
+  $i = $i + 1
+endw
+
+print ================= step2
+$i = 1
+$tb = $tbPrefix . $i
+$stb = $mtPrefix . 0
+
+
+print execute sql select c1, sin(c1), cos(c1), tan(c1), asin(c1), acos(c1), atan(c1) from ct1
+sql select c1, sin(c1), cos(c1), tan(c1), asin(c1), acos(c1), atan(c1) from ct1
+if $data00 != @0@ then
+  return -1 
+endi
+if $data01 != @0.000000000@ then
+  return -1 
+endi
+if $data02 != @1.000000000@ then
+  return -1 
+endi
+if $data03 != @0.000000000@ then
+  return -1 
+endi
+if $data04 != @0.000000000@ then
+  return -1 
+endi
+if $data05 != @1.570796327@ then
+  return -1 
+endi
+if $data06 != @0.000000000@ then
+  return -1 
+endi
+if $data10 != @1@ then
+  return -1 
+endi
+if $data11 != @0.841470985@ then
+  return -1 
+endi
+if $data12 != @0.540302306@ then
+  return -1 
+endi
+if $data13 != @1.557407725@ then
+  return -1 
+endi
+if $data14 != @1.570796327@ then
+  return -1 
+endi
+if $data15 != @0.000000000@ then
+  return -1 
+endi
+if $data16 != @0.785398163@ then
+  return -1 
+endi
+if $data20 != @2@ then
+  return -1 
+endi
+if $data21 != @0.909297427@ then
+  return -1 
+endi
+if $data22 != @-0.416146837@ then
+  return -1 
+endi
+if $data23 != @-2.185039863@ then
+  return -1 
+endi
+if $data24 != @nan@ then
+  return -1 
+endi
+if $data25 != @nan@ then
+  return -1 
+endi
+if $data26 != @1.107148718@ then
+  return -1 
+endi
+if $data30 != @3@ then
+  return -1 
+endi
+if $data31 != @0.141120008@ then
+  return -1 
+endi
+if $data32 != @-0.989992497@ then
+  return -1 
+endi
+if $data33 != @-0.142546543@ then
+  return -1 
+endi
+if $data34 != @nan@ then
+  return -1 
+endi
+if $data35 != @nan@ then
+  return -1 
+endi
+if $data36 != @1.249045772@ then
+  return -1 
+endi
+if $data40 != @4@ then
+  return -1 
+endi
+if $data41 != @-0.756802495@ then
+  return -1 
+endi
+if $data42 != @-0.653643621@ then
+  return -1 
+endi
+if $data43 != @1.157821282@ then
+  return -1 
+endi
+if $data44 != @nan@ then
+  return -1 
+endi
+if $data45 != @nan@ then
+  return -1 
+endi
+if $data46 != @1.325817664@ then
+  return -1 
+endi
+if $data50 != @5@ then
+  return -1 
+endi
+if $data51 != @-0.958924275@ then
+  return -1 
+endi
+if $data52 != @0.283662185@ then
+  return -1 
+endi
+if $data53 != @-3.380515006@ then
+  return -1 
+endi
+if $data54 != @nan@ then
+  return -1 
+endi
+if $data55 != @nan@ then
+  return -1 
+endi
+if $data56 != @1.373400767@ then
+  return -1 
+endi
+if $data60 != @6@ then
+  return -1 
+endi
+if $data61 != @-0.279415498@ then
+  return -1 
+endi
+if $data62 != @0.960170287@ then
+  return -1 
+endi
+if $data63 != @-0.291006191@ then
+  return -1 
+endi
+if $data64 != @nan@ then
+  return -1 
+endi
+if $data65 != @nan@ then
+  return -1 
+endi
+if $data66 != @1.405647649@ then
+  return -1 
+endi
+if $data70 != @7@ then
+  return -1 
+endi
+if $data71 != @0.656986599@ then
+  return -1 
+endi
+if $data72 != @0.753902254@ then
+  return -1 
+endi
+if $data73 != @0.871447983@ then
+  return -1 
+endi
+if $data74 != @nan@ then
+  return -1 
+endi
+if $data75 != @nan@ then
+  return -1 
+endi
+if $data76 != @1.428899272@ then
+  return -1 
+endi
+if $data80 != @8@ then
+  return -1 
+endi
+if $data81 != @0.989358247@ then
+  return -1 
+endi
+if $data82 != @-0.145500034@ then
+  return -1 
+endi
+if $data83 != @-6.799711455@ then
+  return -1 
+endi
+if $data84 != @nan@ then
+  return -1 
+endi
+if $data85 != @nan@ then
+  return -1 
+endi
+if $data86 != @1.446441332@ then
+  return -1 
+endi
+if $data90 != @9@ then
+  return -1 
+endi
+if $data91 != @0.412118485@ then
+  return -1 
+endi
+if $data92 != @-0.911130262@ then
+  return -1 
+endi
+if $data93 != @-0.452315659@ then
+  return -1 
+endi
+if $data94 != @nan@ then
+  return -1 
+endi
+if $data95 != @nan@ then
+  return -1 
+endi
+if $data96 != @1.460139106@ then
+  return -1 
+endi
+print execute sql select c1, sin(c2)+2, cos(c2)+2, cos(pow(c2,2)+2), tan(pow(c2,3)+log(c3, 2)+pow(c5,2)) as v4, asin(pow(c4, 4.5)+pow(c3, 2)), acos(log(c1,2)+log(c3,4)+pow(c6,2.8)+2) as v6 from ct1 where ts == 1601481600000
+sql select c1, sin(c2)+2, cos(c2)+2, cos(pow(c2,2)+2), tan(pow(c2,3)+log(c3, 2)+pow(c5,2)) as v4, asin(pow(c4, 4.5)+pow(c3, 2)), acos(log(c1,2)+log(c3,4)+pow(c6,2.8)+2) as v6 from ct1 where ts == 1601481600000
+if $data00 != @0@ then
+  return -1 
+endi
+if $data01 != @2.247403959@ then
+  return -1 
+endi
+if $data02 != @2.968912422@ then
+  return -1 
+endi
+if $data03 != @-0.472128411@ then
+  return -1 
+endi
+if $data04 != @-nan@ then
+  return -1 
+endi
+if $data05 != @0.000000000@ then
+  return -1 
+endi
+if $data06 != @nan@ then
+  return -1 
+endi
+print execute sql select c1, sin(c2), cos(c1+2), tan(c2+2)+2, sin(c2+3)+cos(c3+2)+tan(c5+2) as v4, sin(c4+4.5)+tan(c3+2), sin(c1+2)+cos(c3+4)+acos(c6+2.8)+2 as v6 from st0 where ts == 1601481600000
+sql select c1, sin(c2), cos(c1+2), tan(c2+2)+2, sin(c2+3)+cos(c3+2)+tan(c5+2) as v4, sin(c4+4.5)+tan(c3+2), sin(c1+2)+cos(c3+4)+acos(c6+2.8)+2 as v6 from st0 where ts == 1601481600000
+if $data00 != @0@ then
+  return -1 
+endi
+if $data01 != @0.247403959@ then
+  return -1 
+endi
+if $data02 != @-0.416146837@ then
+  return -1 
+endi
+if $data03 != @0.761372384@ then
+  return -1 
+endi
+if $data04 != @-2.709381834@ then
+  return -1 
+endi
+if $data05 != @-3.162569981@ then
+  return -1 
+endi
+if $data06 != @nan@ then
+  return -1 
+endi
+if $data10 != @0@ then
+  return -1 
+endi
+if $data11 != @0.247403959@ then
+  return -1 
+endi
+if $data12 != @-0.416146837@ then
+  return -1 
+endi
+if $data13 != @0.761372384@ then
+  return -1 
+endi
+if $data14 != @-2.709381834@ then
+  return -1 
+endi
+if $data15 != @-3.162569981@ then
+  return -1 
+endi
+if $data16 != @nan@ then
+  return -1 
+endi
+print execute sql select c1, tan(c2+ 2), sin(pow(c1,2)), cos(pow(c2,2)+2), tan(pow(c2,3)+log(c3, 2)+pow(c5,2)) as v4, asin(pow(c4, 4.5)+pow(c3, 2)), acos(log(c1,2)+log(c3,4)+pow(c6,2.8)+2) as v6 from st0 where c1 == 0
+sql select c1, tan(c2+ 2), sin(pow(c1,2)), cos(pow(c2,2)+2), tan(pow(c2,3)+log(c3, 2)+pow(c5,2)) as v4, asin(pow(c4, 4.5)+pow(c3, 2)), acos(log(c1,2)+log(c3,4)+pow(c6,2.8)+2) as v6 from st0 where c1 == 0
+if $data00 != @0@ then
+  return -1 
+endi
+if $data01 != @-1.238627616@ then
+  return -1 
+endi
+if $data02 != @0.000000000@ then
+  return -1 
+endi
+if $data03 != @-0.472128411@ then
+  return -1 
+endi
+if $data04 != @-nan@ then
+  return -1 
+endi
+if $data05 != @0.000000000@ then
+  return -1 
+endi
+if $data06 != @nan@ then
+  return -1 
+endi
+if $data10 != @0@ then
+  return -1 
+endi
+if $data11 != @-1.238627616@ then
+  return -1 
+endi
+if $data12 != @0.000000000@ then
+  return -1 
+endi
+if $data13 != @-0.472128411@ then
+  return -1 
+endi
+if $data14 != @-nan@ then
+  return -1 
+endi
+if $data15 != @0.000000000@ then
+  return -1 
+endi
+if $data16 != @nan@ then
+  return -1 
+endi
+print execute sql select c1, atan(c2+2), asin(c1+2), acos(c2+c1)+2, acos(c2+c3)+asin(c3+c2)+pow(c5,2) as v4, acos(c4/4.5)+asin(c3-2), asin(c1/2)+log(c3,c4)+pow(c6, 2.8)+2 as v6 from st0 where c1 == 0
+sql select c1, atan(c2+2), asin(c1+2), acos(c2+c1)+2, acos(c2+c3)+asin(c3+c2)+pow(c5,2) as v4, acos(c4/4.5)+asin(c3-2), asin(c1/2)+log(c3,c4)+pow(c6, 2.8)+2 as v6 from st0 where c1 == 0
+if $data00 != @0@ then
+  return -1 
+endi
+if $data01 != @1.152571997@ then
+  return -1 
+endi
+if $data02 != @nan@ then
+  return -1 
+endi
+if $data03 != @3.318116072@ then
+  return -1 
+endi
+if $data04 != @1.570796327@ then
+  return -1 
+endi
+if $data05 != @nan@ then
+  return -1 
+endi
+if $data06 != @-nan@ then
+  return -1 
+endi
+if $data10 != @0@ then
+  return -1 
+endi
+if $data11 != @1.152571997@ then
+  return -1 
+endi
+if $data12 != @nan@ then
+  return -1 
+endi
+if $data13 != @3.318116072@ then
+  return -1 
+endi
+if $data14 != @1.570796327@ then
+  return -1 
+endi
+if $data15 != @nan@ then
+  return -1 
+endi
+if $data16 != @-nan@ then
+  return -1 
+endi
+print execute sql select c1, cos(c2+2), cos(ceil(pow(c1,2))), sin(floor(pow(c2,2)+2)), sin(ceil(c2)+floor(c3+c2)+round(c5+c2)) as v4, atan(pow(c4, 4.5)+pow(c3, 2)), tan(log(c1,2)+cos(c3+4)+pow(c6,2.8)+2) as v6 from st0 order by ts desc
+sql select c1, cos(c2+2), cos(ceil(pow(c1,2))), sin(floor(pow(c2,2)+2)), sin(ceil(c2)+floor(c3+c2)+round(c5+c2)) as v4, atan(pow(c4, 4.5)+pow(c3, 2)), tan(log(c1,2)+cos(c3+4)+pow(c6,2.8)+2) as v6 from st0 order by ts desc
+if $data00 != @49@ then
+  return -1 
+endi
+if $data01 != @0.742154197@ then
+  return -1 
+endi
+if $data02 != @0.679868770@ then
+  return -1 
+endi
+if $data03 != @0.313028384@ then
+  return -1 
+endi
+if $data04 != @-0.044212563@ then
+  return -1 
+endi
+if $data05 != @1.570796302@ then
+  return -1 
+endi
+if $data06 != @0.036525682@ then
+  return -1 
+endi
+if $data10 != @49@ then
+  return -1 
+endi
+if $data11 != @0.742154197@ then
+  return -1 
+endi
+if $data12 != @0.679868770@ then
+  return -1 
+endi
+if $data13 != @0.313028384@ then
+  return -1 
+endi
+if $data14 != @-0.044212563@ then
+  return -1 
+endi
+if $data15 != @1.570796302@ then
+  return -1 
+endi
+if $data16 != @0.036525682@ then
+  return -1 
+endi
+if $data20 != @48@ then
+  return -1 
+endi
+if $data21 != @0.964966028@ then
+  return -1 
+endi
+if $data22 != @-0.350599733@ then
+  return -1 
+endi
+if $data23 != @0.070932648@ then
+  return -1 
+endi
+if $data24 != @0.945445155@ then
+  return -1 
+endi
+if $data25 != @1.570796300@ then
+  return -1 
+endi
+if $data26 != @-2.376507095@ then
+  return -1 
+endi
+if $data30 != @48@ then
+  return -1 
+endi
+if $data31 != @0.964966028@ then
+  return -1 
+endi
+if $data32 != @-0.350599733@ then
+  return -1 
+endi
+if $data33 != @0.070932648@ then
+  return -1 
+endi
+if $data34 != @0.945445155@ then
+  return -1 
+endi
+if $data35 != @1.570796300@ then
+  return -1 
+endi
+if $data36 != @-2.376507095@ then
+  return -1 
+endi
+if $data40 != @47@ then
+  return -1 
+endi
+if $data41 != @0.300592544@ then
+  return -1 
+endi
+if $data42 != @-0.895890607@ then
+  return -1 
+endi
+if $data43 != @-0.629747508@ then
+  return -1 
+endi
+if $data44 != @0.580586641@ then
+  return -1 
+endi
+if $data45 != @1.570796297@ then
+  return -1 
+endi
+if $data46 != @-0.760993034@ then
+  return -1 
+endi
+if $data50 != @47@ then
+  return -1 
+endi
+if $data51 != @0.300592544@ then
+  return -1 
+endi
+if $data52 != @-0.895890607@ then
+  return -1 
+endi
+if $data53 != @-0.629747508@ then
+  return -1 
+endi
+if $data54 != @0.580586641@ then
+  return -1 
+endi
+if $data55 != @1.570796297@ then
+  return -1 
+endi
+if $data56 != @-0.760993034@ then
+  return -1 
+endi
+if $data60 != @46@ then
+  return -1 
+endi
+if $data61 != @-0.640144339@ then
+  return -1 
+endi
+if $data62 != @0.136916383@ then
+  return -1 
+endi
+if $data63 != @0.536725534@ then
+  return -1 
+endi
+if $data64 != @-0.616064204@ then
+  return -1 
+endi
+if $data65 != @1.570796294@ then
+  return -1 
+endi
+if $data66 != @-1.929269971@ then
+  return -1 
+endi
+if $data70 != @46@ then
+  return -1 
+endi
+if $data71 != @-0.640144339@ then
+  return -1 
+endi
+if $data72 != @0.136916383@ then
+  return -1 
+endi
+if $data73 != @0.536725534@ then
+  return -1 
+endi
+if $data74 != @-0.616064204@ then
+  return -1 
+endi
+if $data75 != @1.570796294@ then
+  return -1 
+endi
+if $data76 != @-1.929269971@ then
+  return -1 
+endi
+if $data80 != @45@ then
+  return -1 
+endi
+if $data81 != @-0.992335469@ then
+  return -1 
+endi
+if $data82 != @-0.241134582@ then
+  return -1 
+endi
+if $data83 != @-0.623130100@ then
+  return -1 
+endi
+if $data84 != @-0.930094878@ then
+  return -1 
+endi
+if $data85 != @1.570796290@ then
+  return -1 
+endi
+if $data86 != @-7.205947409@ then
+  return -1 
+endi
+if $data90 != @45@ then
+  return -1 
+endi
+if $data91 != @-0.992335469@ then
+  return -1 
+endi
+if $data92 != @-0.241134582@ then
+  return -1 
+endi
+if $data93 != @-0.623130100@ then
+  return -1 
+endi
+if $data94 != @-0.930094878@ then
+  return -1 
+endi
+if $data95 != @1.570796290@ then
+  return -1 
+endi
+if $data96 != @-7.205947409@ then
+  return -1 
+endi
+print execute sql select c1, sin(c2+2), cos(sin(c1-2)), tan(cos(c2*2))+2, asin(acos(c2%3))+acos(c3/2)+atan(c5+c2) as v4, sin(c4+4.5)+cos(c3/2), tan(c1)+log(c3, c4)+sin(c6+c3)+2 as v6 from ct1 order by ts limit 2;
+sql select c1, sin(c2+2), cos(sin(c1-2)), tan(cos(c2*2))+2, asin(acos(c2%3))+acos(c3/2)+atan(c5+c2) as v4, sin(c4+4.5)+cos(c3/2), tan(c1)+log(c3, c4)+sin(c6+c3)+2 as v6 from ct1 order by ts limit 2;
+if $data00 != @0@ then
+  return -1 
+endi
+if $data01 != @0.778073197@ then
+  return -1 
+endi
+if $data02 != @0.614300282@ then
+  return -1 
+endi
+if $data03 != @3.203726628@ then
+  return -1 
+endi
+if $data04 != @nan@ then
+  return -1 
+endi
+if $data05 != @0.022469882@ then
+  return -1 
+endi
+if $data06 != @-nan@ then
+  return -1 
+endi
+if $data10 != @1@ then
+  return -1 
+endi
+if $data11 != @0.141120008@ then
+  return -1 
+endi
+if $data12 != @0.666366745@ then
+  return -1 
+endi
+if $data13 != @1.558041126@ then
+  return -1 
+endi
+if $data14 != @2.154346269@ then
+  return -1 
+endi
+if $data15 != @0.172042236@ then
+  return -1 
+endi
+if $data16 != @-nan@ then
+  return -1 
+endi
+print execute sql select c1, sin(c2+2), cos(sin(c1-2)), tan(cos(c2*2))+2, asin(acos(c2%3))+acos(c3/2)+atan(c5*c2) as v4, sin(c4+4.5)+cos(c3/2), tan(c1)+log(c3, c4)+sin(c6+c3)+2 as v6  from (select * from st0 order by ts desc)
+sql select c1, sin(c2+2), cos(sin(c1-2)), tan(cos(c2*2))+2, asin(acos(c2%3))+acos(c3/2)+atan(c5*c2) as v4, sin(c4+4.5)+cos(c3/2), tan(c1)+log(c3, c4)+sin(c6+c3)+2 as v6  from (select * from st0 order by ts desc)
+if $data00 != @49@ then
+  return -1 
+endi
+if $data01 != @0.670229176@ then
+  return -1 
+endi
+if $data02 != @0.992374553@ then
+  return -1 
+endi
+if $data03 != @0.929814367@ then
+  return -1 
+endi
+if $data04 != @nan@ then
+  return -1 
+endi
+if $data05 != @0.713618282@ then
+  return -1 
+endi
+if $data06 != @-0.746290424@ then
+  return -1 
+endi
+if $data10 != @49@ then
+  return -1 
+endi
+if $data11 != @0.670229176@ then
+  return -1 
+endi
+if $data12 != @0.992374553@ then
+  return -1 
+endi
+if $data13 != @0.929814367@ then
+  return -1 
+endi
+if $data14 != @nan@ then
+  return -1 
+endi
+if $data15 != @0.713618282@ then
+  return -1 
+endi
+if $data16 != @-0.746290424@ then
+  return -1 
+endi
+if $data20 != @48@ then
+  return -1 
+endi
+if $data21 != @-0.262374854@ then
+  return -1 
+endi
+if $data22 != @0.620208114@ then
+  return -1 
+endi
+if $data23 != @1.817585733@ then
+  return -1 
+endi
+if $data24 != @nan@ then
+  return -1 
+endi
+if $data25 != @1.211884234@ then
+  return -1 
+endi
+if $data26 != @5.183714989@ then
+  return -1 
+endi
+if $data30 != @48@ then
+  return -1 
+endi
+if $data31 != @-0.262374854@ then
+  return -1 
+endi
+if $data32 != @0.620208114@ then
+  return -1 
+endi
+if $data33 != @1.817585733@ then
+  return -1 
+endi
+if $data34 != @nan@ then
+  return -1 
+endi
+if $data35 != @1.211884234@ then
+  return -1 
+endi
+if $data36 != @5.183714989@ then
+  return -1 
+endi
+if $data40 != @47@ then
+  return -1 
+endi
+if $data41 != @-0.953752653@ then
+  return -1 
+endi
+if $data42 != @0.659304076@ then
+  return -1 
+endi
+if $data43 != @3.457510675@ then
+  return -1 
+endi
+if $data44 != @nan@ then
+  return -1 
+endi
+if $data45 != @0.882083819@ then
+  return -1 
+endi
+if $data46 != @2.630220446@ then
+  return -1 
+endi
+if $data50 != @47@ then
+  return -1 
+endi
+if $data51 != @-0.953752653@ then
+  return -1 
+endi
+if $data52 != @0.659304076@ then
+  return -1 
+endi
+if $data53 != @3.457510675@ then
+  return -1 
+endi
+if $data54 != @nan@ then
+  return -1 
+endi
+if $data55 != @0.882083819@ then
+  return -1 
+endi
+if $data56 != @2.630220446@ then
+  return -1 
+endi
+if $data60 != @46@ then
+  return -1 
+endi
+if $data61 != @-0.768254661@ then
+  return -1 
+endi
+if $data62 != @0.999843325@ then
+  return -1 
+endi
+if $data63 != @1.276316926@ then
+  return -1 
+endi
+if $data64 != @nan@ then
+  return -1 
+endi
+if $data65 != @-0.300459259@ then
+  return -1 
+endi
+if $data66 != @0.133920399@ then
+  return -1 
+endi
+if $data70 != @46@ then
+  return -1 
+endi
+if $data71 != @-0.768254661@ then
+  return -1 
+endi
+if $data72 != @0.999843325@ then
+  return -1 
+endi
+if $data73 != @1.276316926@ then
+  return -1 
+endi
+if $data74 != @nan@ then
+  return -1 
+endi
+if $data75 != @-0.300459259@ then
+  return -1 
+endi
+if $data76 != @0.133920399@ then
+  return -1 
+endi
+if $data80 != @45@ then
+  return -1 
+endi
+if $data81 != @0.123573123@ then
+  return -1 
+endi
+if $data82 != @0.673565060@ then
+  return -1 
+endi
+if $data83 != @1.519318619@ then
+  return -1 
+endi
+if $data84 != @nan@ then
+  return -1 
+endi
+if $data85 != @-1.566189594@ then
+  return -1 
+endi
+if $data86 != @5.513771854@ then
+  return -1 
+endi
+if $data90 != @45@ then
+  return -1 
+endi
+if $data91 != @0.123573123@ then
+  return -1 
+endi
+if $data92 != @0.673565060@ then
+  return -1 
+endi
+if $data93 != @1.519318619@ then
+  return -1 
+endi
+if $data94 != @nan@ then
+  return -1 
+endi
+if $data95 != @-1.566189594@ then
+  return -1 
+endi
+if $data96 != @5.513771854@ then
+  return -1 
+endi
+print execute sql select c1, sin(c2+2), cos(sin(c1-2)), tan(cos(c2*2))+2, asin(acos(c2%3))+acos(c3/2)+atan(c5*c2) as v4, sin(c4+4.5)+cos(c3/2), tan(c1)+log(c3, c4)+sin(c6+c3)+2 as v6 from (select * from ct1 order by ts limit 2);
+sql select c1, sin(c2+2), cos(sin(c1-2)), tan(cos(c2*2))+2, asin(acos(c2%3))+acos(c3/2)+atan(c5*c2) as v4, sin(c4+4.5)+cos(c3/2), tan(c1)+log(c3, c4)+sin(c6+c3)+2 as v6 from (select * from ct1 order by ts limit 2);
+if $data00 != @0@ then
+  return -1 
+endi
+if $data01 != @0.778073197@ then
+  return -1 
+endi
+if $data02 != @0.614300282@ then
+  return -1 
+endi
+if $data03 != @3.203726628@ then
+  return -1 
+endi
+if $data04 != @nan@ then
+  return -1 
+endi
+if $data05 != @0.022469882@ then
+  return -1 
+endi
+if $data06 != @-nan@ then
+  return -1 
+endi
+if $data10 != @1@ then
+  return -1 
+endi
+if $data11 != @0.141120008@ then
+  return -1 
+endi
+if $data12 != @0.666366745@ then
+  return -1 
+endi
+if $data13 != @1.558041126@ then
+  return -1 
+endi
+if $data14 != @1.832595715@ then
+  return -1 
+endi
+if $data15 != @0.172042236@ then
+  return -1 
+endi
+if $data16 != @-nan@ then
+  return -1 
+endi
+print execute sql select c1, sin(c2+2), cos(sin(c1-2)), tan(cos(c2*2))+2, asin(acos(c2%3))+acos(c3/2)+atan(c5*c2) as v4, sin(c4+4.5)+cos(c3/2), tan(c1)+log(c3, c4)+sin(c6+c3)+2 as v6 from (select * from st0 ) order by ts desc
+sql select c1, sin(c2+2), cos(sin(c1-2)), tan(cos(c2*2))+2, asin(acos(c2%3))+acos(c3/2)+atan(c5*c2) as v4, sin(c4+4.5)+cos(c3/2), tan(c1)+log(c3, c4)+sin(c6+c3)+2 as v6 from (select * from st0 ) order by ts desc
+if $data00 != @49@ then
+  return -1 
+endi
+if $data01 != @0.670229176@ then
+  return -1 
+endi
+if $data02 != @0.992374553@ then
+  return -1 
+endi
+if $data03 != @0.929814367@ then
+  return -1 
+endi
+if $data04 != @nan@ then
+  return -1 
+endi
+if $data05 != @0.713618282@ then
+  return -1 
+endi
+if $data06 != @-0.746290424@ then
+  return -1 
+endi
+if $data10 != @49@ then
+  return -1 
+endi
+if $data11 != @0.670229176@ then
+  return -1 
+endi
+if $data12 != @0.992374553@ then
+  return -1 
+endi
+if $data13 != @0.929814367@ then
+  return -1 
+endi
+if $data14 != @nan@ then
+  return -1 
+endi
+if $data15 != @0.713618282@ then
+  return -1 
+endi
+if $data16 != @-0.746290424@ then
+  return -1 
+endi
+if $data20 != @48@ then
+  return -1 
+endi
+if $data21 != @-0.262374854@ then
+  return -1 
+endi
+if $data22 != @0.620208114@ then
+  return -1 
+endi
+if $data23 != @1.817585733@ then
+  return -1 
+endi
+if $data24 != @nan@ then
+  return -1 
+endi
+if $data25 != @1.211884234@ then
+  return -1 
+endi
+if $data26 != @5.183714989@ then
+  return -1 
+endi
+if $data30 != @48@ then
+  return -1 
+endi
+if $data31 != @-0.262374854@ then
+  return -1 
+endi
+if $data32 != @0.620208114@ then
+  return -1 
+endi
+if $data33 != @1.817585733@ then
+  return -1 
+endi
+if $data34 != @nan@ then
+  return -1 
+endi
+if $data35 != @1.211884234@ then
+  return -1 
+endi
+if $data36 != @5.183714989@ then
+  return -1 
+endi
+if $data40 != @47@ then
+  return -1 
+endi
+if $data41 != @-0.953752653@ then
+  return -1 
+endi
+if $data42 != @0.659304076@ then
+  return -1 
+endi
+if $data43 != @3.457510675@ then
+  return -1 
+endi
+if $data44 != @nan@ then
+  return -1 
+endi
+if $data45 != @0.882083819@ then
+  return -1 
+endi
+if $data46 != @2.630220446@ then
+  return -1 
+endi
+if $data50 != @47@ then
+  return -1 
+endi
+if $data51 != @-0.953752653@ then
+  return -1 
+endi
+if $data52 != @0.659304076@ then
+  return -1 
+endi
+if $data53 != @3.457510675@ then
+  return -1 
+endi
+if $data54 != @nan@ then
+  return -1 
+endi
+if $data55 != @0.882083819@ then
+  return -1 
+endi
+if $data56 != @2.630220446@ then
+  return -1 
+endi
+if $data60 != @46@ then
+  return -1 
+endi
+if $data61 != @-0.768254661@ then
+  return -1 
+endi
+if $data62 != @0.999843325@ then
+  return -1 
+endi
+if $data63 != @1.276316926@ then
+  return -1 
+endi
+if $data64 != @nan@ then
+  return -1 
+endi
+if $data65 != @-0.300459259@ then
+  return -1 
+endi
+if $data66 != @0.133920399@ then
+  return -1 
+endi
+if $data70 != @46@ then
+  return -1 
+endi
+if $data71 != @-0.768254661@ then
+  return -1 
+endi
+if $data72 != @0.999843325@ then
+  return -1 
+endi
+if $data73 != @1.276316926@ then
+  return -1 
+endi
+if $data74 != @nan@ then
+  return -1 
+endi
+if $data75 != @-0.300459259@ then
+  return -1 
+endi
+if $data76 != @0.133920399@ then
+  return -1 
+endi
+if $data80 != @45@ then
+  return -1 
+endi
+if $data81 != @0.123573123@ then
+  return -1 
+endi
+if $data82 != @0.673565060@ then
+  return -1 
+endi
+if $data83 != @1.519318619@ then
+  return -1 
+endi
+if $data84 != @nan@ then
+  return -1 
+endi
+if $data85 != @-1.566189594@ then
+  return -1 
+endi
+if $data86 != @5.513771854@ then
+  return -1 
+endi
+if $data90 != @45@ then
+  return -1 
+endi
+if $data91 != @0.123573123@ then
+  return -1 
+endi
+if $data92 != @0.673565060@ then
+  return -1 
+endi
+if $data93 != @1.519318619@ then
+  return -1 
+endi
+if $data94 != @nan@ then
+  return -1 
+endi
+if $data95 != @-1.566189594@ then
+  return -1 
+endi
+if $data96 != @5.513771854@ then
+  return -1 
+endi
+print execute sql select c1, sin(c2+2), cos(sin(c1-2)), tan(cos(c2*2))+2, asin(acos(c2%3))+acos(c3/2)+atan(c5*c2) as v4, sin(c4+4.5)+cos(c3/2), tan(c1)+log(c3, c4)+sin(c6+c3)+2 as v6 from (select * from st0 )
+sql select c1, sin(c2+2), cos(sin(c1-2)), tan(cos(c2*2))+2, asin(acos(c2%3))+acos(c3/2)+atan(c5*c2) as v4, sin(c4+4.5)+cos(c3/2), tan(c1)+log(c3, c4)+sin(c6+c3)+2 as v6 from (select * from st0 )
+if $data00 != @0@ then
+  return -1 
+endi
+if $data01 != @0.778073197@ then
+  return -1 
+endi
+if $data02 != @0.614300282@ then
+  return -1 
+endi
+if $data03 != @3.203726628@ then
+  return -1 
+endi
+if $data04 != @nan@ then
+  return -1 
+endi
+if $data05 != @0.022469882@ then
+  return -1 
+endi
+if $data06 != @-nan@ then
+  return -1 
+endi
+if $data10 != @1@ then
+  return -1 
+endi
+if $data11 != @0.141120008@ then
+  return -1 
+endi
+if $data12 != @0.666366745@ then
+  return -1 
+endi
+if $data13 != @1.558041126@ then
+  return -1 
+endi
+if $data14 != @1.832595715@ then
+  return -1 
+endi
+if $data15 != @0.172042236@ then
+  return -1 
+endi
+if $data16 != @-nan@ then
+  return -1 
+endi
+if $data20 != @2@ then
+  return -1 
+endi
+if $data21 != @-0.756802495@ then
+  return -1 
+endi
+if $data22 != @1.000000000@ then
+  return -1 
+endi
+if $data23 != @1.234030298@ then
+  return -1 
+endi
+if $data24 != @nan@ then
+  return -1 
+endi
+if $data25 != @0.755422294@ then
+  return -1 
+endi
+if $data26 != @0.058157641@ then
+  return -1 
+endi
+if $data30 != @3@ then
+  return -1 
+endi
+if $data31 != @-0.958924275@ then
+  return -1 
+endi
+if $data32 != @0.666366745@ then
+  return -1 
+endi
+if $data33 != @3.428875323@ then
+  return -1 
+endi
+if $data34 != @nan@ then
+  return -1 
+endi
+if $data35 != @1.008737178@ then
+  return -1 
+endi
+if $data36 != @2.578037959@ then
+  return -1 
+endi
+if $data40 != @4@ then
+  return -1 
+endi
+if $data41 != @-0.279415498@ then
+  return -1 
+endi
+if $data42 != @0.614300282@ then
+  return -1 
+endi
+if $data43 != @1.853464439@ then
+  return -1 
+endi
+if $data44 != @nan@ then
+  return -1 
+endi
+if $data45 != @0.382340276@ then
+  return -1 
+endi
+if $data46 != @5.147179529@ then
+  return -1 
+endi
+if $data50 != @5@ then
+  return -1 
+endi
+if $data51 != @0.656986599@ then
+  return -1 
+endi
+if $data52 != @0.990059086@ then
+  return -1 
+endi
+if $data53 != @0.886449574@ then
+  return -1 
+endi
+if $data54 != @nan@ then
+  return -1 
+endi
+if $data55 != @-0.876294736@ then
+  return -1 
+endi
+if $data56 != @-0.924536117@ then
+  return -1 
+endi
+if $data60 != @6@ then
+  return -1 
+endi
+if $data61 != @0.989358247@ then
+  return -1 
+endi
+if $data62 != @0.727035131@ then
+  return -1 
+endi
+if $data63 != @3.124320480@ then
+  return -1 
+endi
+if $data64 != @nan@ then
+  return -1 
+endi
+if $data65 != @-1.869688257@ then
+  return -1 
+endi
+if $data66 != @2.172420891@ then
+  return -1 
+endi
+if $data70 != @7@ then
+  return -1 
+endi
+if $data71 != @0.412118485@ then
+  return -1 
+endi
+if $data72 != @0.574400879@ then
+  return -1 
+endi
+if $data73 != @2.137595835@ then
+  return -1 
+endi
+if $data74 != @nan@ then
+  return -1 
+endi
+if $data75 != @-1.811908862@ then
+  return -1 
+endi
+if $data76 != @4.862055338@ then
+  return -1 
+endi
+if $data80 != @8@ then
+  return -1 
+endi
+if $data81 != @-0.544021111@ then
+  return -1 
+endi
+if $data82 != @0.961216805@ then
+  return -1 
+endi
+if $data83 != @0.578734473@ then
+  return -1 
+endi
+if $data84 != @nan@ then
+  return -1 
+endi
+if $data85 != @-0.719965518@ then
+  return -1 
+endi
+if $data86 != @-4.087614772@ then
+  return -1 
+endi
+if $data90 != @9@ then
+  return -1 
+endi
+if $data91 != @-0.999990207@ then
+  return -1 
+endi
+if $data92 != @0.791836209@ then
+  return -1 
+endi
+if $data93 != @2.776612512@ then
+  return -1 
+endi
+if $data94 != @nan@ then
+  return -1 
+endi
+if $data95 != @0.592988627@ then
+  return -1 
+endi
+if $data96 != @1.796697094@ then
+  return -1 
+endi
+print execute sql select c1, sin(c2+2), cos(sin(c1-2)), tan(cos(c2*2))+2, asin(acos(c2%3))+acos(c3/2)+atan(c5*c2) as v4, sin(c4+4.5)+cos(c3/2), tan(c1)+log(c3, c4)+sin(c6+c3)+2 as v6 from (select * from ct1 ) order by ts limit 2;
+sql select c1, sin(c2+2), cos(sin(c1-2)), tan(cos(c2*2))+2, asin(acos(c2%3))+acos(c3/2)+atan(c5*c2) as v4, sin(c4+4.5)+cos(c3/2), tan(c1)+log(c3, c4)+sin(c6+c3)+2 as v6 from (select * from ct1 ) order by ts limit 2;
+if $data00 != @0@ then
+  return -1 
+endi
+if $data01 != @0.778073197@ then
+  return -1 
+endi
+if $data02 != @0.614300282@ then
+  return -1 
+endi
+if $data03 != @3.203726628@ then
+  return -1 
+endi
+if $data04 != @nan@ then
+  return -1 
+endi
+if $data05 != @0.022469882@ then
+  return -1 
+endi
+if $data06 != @-nan@ then
+  return -1 
+endi
+if $data10 != @1@ then
+  return -1 
+endi
+if $data11 != @0.141120008@ then
+  return -1 
+endi
+if $data12 != @0.666366745@ then
+  return -1 
+endi
+if $data13 != @1.558041126@ then
+  return -1 
+endi
+if $data14 != @1.832595715@ then
+  return -1 
+endi
+if $data15 != @0.172042236@ then
+  return -1 
+endi
+if $data16 != @-nan@ then
+  return -1 
+endi
+print execute sql select c1, sin(c2+2), cos(sin(c1-2)), tan(cos(c2*2))+2, asin(acos(c2%3))+acos(c3/2)+atan(c5*c2) as v4, sin(c4+4.5)+cos(c3/2), tan(c1)+log(c3, c4)+sin(c6+c3)+2 as v6 from (select * from ct1 ) limit 2;
+sql select c1, sin(c2+2), cos(sin(c1-2)), tan(cos(c2*2))+2, asin(acos(c2%3))+acos(c3/2)+atan(c5*c2) as v4, sin(c4+4.5)+cos(c3/2), tan(c1)+log(c3, c4)+sin(c6+c3)+2 as v6 from (select * from ct1 ) limit 2;
+if $data00 != @0@ then
+  return -1 
+endi
+if $data01 != @0.778073197@ then
+  return -1 
+endi
+if $data02 != @0.614300282@ then
+  return -1 
+endi
+if $data03 != @3.203726628@ then
+  return -1 
+endi
+if $data04 != @nan@ then
+  return -1 
+endi
+if $data05 != @0.022469882@ then
+  return -1 
+endi
+if $data06 != @-nan@ then
+  return -1 
+endi
+if $data10 != @1@ then
+  return -1 
+endi
+if $data11 != @0.141120008@ then
+  return -1 
+endi
+if $data12 != @0.666366745@ then
+  return -1 
+endi
+if $data13 != @1.558041126@ then
+  return -1 
+endi
+if $data14 != @1.832595715@ then
+  return -1 
+endi
+if $data15 != @0.172042236@ then
+  return -1 
+endi
+if $data16 != @-nan@ then
+  return -1 
+endi
+print execute sql select * from (select c1, sin(c2+2), cos(sin(c1-2)), tan(cos(c2*2))+2, asin(acos(c2%3))+acos(c3/2)+atan(c5*c2) as v4, sin(c4+4.5)+cos(c3/2), tan(c1)+log(c3, c4)+sin(c6+c3)+2 as v6, ts from st0 order by ts desc)
+sql select * from (select c1, sin(c2+2), cos(sin(c1-2)), tan(cos(c2*2))+2, asin(acos(c2%3))+acos(c3/2)+atan(c5*c2) as v4, sin(c4+4.5)+cos(c3/2), tan(c1)+log(c3, c4)+sin(c6+c3)+2 as v6, ts from st0 order by ts desc)
+if $data00 != @49@ then
+  return -1 
+endi
+if $data01 != @0.670229176@ then
+  return -1 
+endi
+if $data02 != @0.992374553@ then
+  return -1 
+endi
+if $data03 != @0.929814367@ then
+  return -1 
+endi
+if $data04 != @nan@ then
+  return -1 
+endi
+if $data05 != @0.713618282@ then
+  return -1 
+endi
+if $data06 != @-0.746290424@ then
+  return -1 
+endi
+if $data07 != @20-10-01 00:49:00.000@ then
+  return -1 
+endi
+if $data10 != @49@ then
+  return -1 
+endi
+if $data11 != @0.670229176@ then
+  return -1 
+endi
+if $data12 != @0.992374553@ then
+  return -1 
+endi
+if $data13 != @0.929814367@ then
+  return -1 
+endi
+if $data14 != @nan@ then
+  return -1 
+endi
+if $data15 != @0.713618282@ then
+  return -1 
+endi
+if $data16 != @-0.746290424@ then
+  return -1 
+endi
+if $data17 != @20-10-01 00:49:00.000@ then
+  return -1 
+endi
+if $data20 != @48@ then
+  return -1 
+endi
+if $data21 != @-0.262374854@ then
+  return -1 
+endi
+if $data22 != @0.620208114@ then
+  return -1 
+endi
+if $data23 != @1.817585733@ then
+  return -1 
+endi
+if $data24 != @nan@ then
+  return -1 
+endi
+if $data25 != @1.211884234@ then
+  return -1 
+endi
+if $data26 != @5.183714989@ then
+  return -1 
+endi
+if $data27 != @20-10-01 00:48:00.000@ then
+  return -1 
+endi
+if $data30 != @48@ then
+  return -1 
+endi
+if $data31 != @-0.262374854@ then
+  return -1 
+endi
+if $data32 != @0.620208114@ then
+  return -1 
+endi
+if $data33 != @1.817585733@ then
+  return -1 
+endi
+if $data34 != @nan@ then
+  return -1 
+endi
+if $data35 != @1.211884234@ then
+  return -1 
+endi
+if $data36 != @5.183714989@ then
+  return -1 
+endi
+if $data37 != @20-10-01 00:48:00.000@ then
+  return -1 
+endi
+if $data40 != @47@ then
+  return -1 
+endi
+if $data41 != @-0.953752653@ then
+  return -1 
+endi
+if $data42 != @0.659304076@ then
+  return -1 
+endi
+if $data43 != @3.457510675@ then
+  return -1 
+endi
+if $data44 != @nan@ then
+  return -1 
+endi
+if $data45 != @0.882083819@ then
+  return -1 
+endi
+if $data46 != @2.630220446@ then
+  return -1 
+endi
+if $data47 != @20-10-01 00:47:00.000@ then
+  return -1 
+endi
+if $data50 != @47@ then
+  return -1 
+endi
+if $data51 != @-0.953752653@ then
+  return -1 
+endi
+if $data52 != @0.659304076@ then
+  return -1 
+endi
+if $data53 != @3.457510675@ then
+  return -1 
+endi
+if $data54 != @nan@ then
+  return -1 
+endi
+if $data55 != @0.882083819@ then
+  return -1 
+endi
+if $data56 != @2.630220446@ then
+  return -1 
+endi
+if $data57 != @20-10-01 00:47:00.000@ then
+  return -1 
+endi
+if $data60 != @46@ then
+  return -1 
+endi
+if $data61 != @-0.768254661@ then
+  return -1 
+endi
+if $data62 != @0.999843325@ then
+  return -1 
+endi
+if $data63 != @1.276316926@ then
+  return -1 
+endi
+if $data64 != @nan@ then
+  return -1 
+endi
+if $data65 != @-0.300459259@ then
+  return -1 
+endi
+if $data66 != @0.133920399@ then
+  return -1 
+endi
+if $data67 != @20-10-01 00:46:00.000@ then
+  return -1 
+endi
+if $data70 != @46@ then
+  return -1 
+endi
+if $data71 != @-0.768254661@ then
+  return -1 
+endi
+if $data72 != @0.999843325@ then
+  return -1 
+endi
+if $data73 != @1.276316926@ then
+  return -1 
+endi
+if $data74 != @nan@ then
+  return -1 
+endi
+if $data75 != @-0.300459259@ then
+  return -1 
+endi
+if $data76 != @0.133920399@ then
+  return -1 
+endi
+if $data77 != @20-10-01 00:46:00.000@ then
+  return -1 
+endi
+if $data80 != @45@ then
+  return -1 
+endi
+if $data81 != @0.123573123@ then
+  return -1 
+endi
+if $data82 != @0.673565060@ then
+  return -1 
+endi
+if $data83 != @1.519318619@ then
+  return -1 
+endi
+if $data84 != @nan@ then
+  return -1 
+endi
+if $data85 != @-1.566189594@ then
+  return -1 
+endi
+if $data86 != @5.513771854@ then
+  return -1 
+endi
+if $data87 != @20-10-01 00:45:00.000@ then
+  return -1 
+endi
+if $data90 != @45@ then
+  return -1 
+endi
+if $data91 != @0.123573123@ then
+  return -1 
+endi
+if $data92 != @0.673565060@ then
+  return -1 
+endi
+if $data93 != @1.519318619@ then
+  return -1 
+endi
+if $data94 != @nan@ then
+  return -1 
+endi
+if $data95 != @-1.566189594@ then
+  return -1 
+endi
+if $data96 != @5.513771854@ then
+  return -1 
+endi
+if $data97 != @20-10-01 00:45:00.000@ then
+  return -1 
+endi
+print execute sql select * from (select c1, sin(c2+2), cos(sin(c1-2)), tan(cos(c2*2))+2, asin(acos(c2%3))+acos(c3/2)+atan(c5*c2) as v4, sin(c4+4.5)+cos(c3/2), tan(c1)+log(c3, c4)+sin(c6+c3)+2 as v6, ts from ct1 order by ts limit 2);
+sql select * from (select c1, sin(c2+2), cos(sin(c1-2)), tan(cos(c2*2))+2, asin(acos(c2%3))+acos(c3/2)+atan(c5*c2) as v4, sin(c4+4.5)+cos(c3/2), tan(c1)+log(c3, c4)+sin(c6+c3)+2 as v6, ts from ct1 order by ts limit 2);
+if $data00 != @0@ then
+  return -1 
+endi
+if $data01 != @0.778073197@ then
+  return -1 
+endi
+if $data02 != @0.614300282@ then
+  return -1 
+endi
+if $data03 != @3.203726628@ then
+  return -1 
+endi
+if $data04 != @nan@ then
+  return -1 
+endi
+if $data05 != @0.022469882@ then
+  return -1 
+endi
+if $data06 != @-nan@ then
+  return -1 
+endi
+if $data07 != @20-10-01 00:00:00.000@ then
+  return -1 
+endi
+if $data10 != @1@ then
+  return -1 
+endi
+if $data11 != @0.141120008@ then
+  return -1 
+endi
+if $data12 != @0.666366745@ then
+  return -1 
+endi
+if $data13 != @1.558041126@ then
+  return -1 
+endi
+if $data14 != @1.832595715@ then
+  return -1 
+endi
+if $data15 != @0.172042236@ then
+  return -1 
+endi
+if $data16 != @-nan@ then
+  return -1 
+endi
+if $data17 != @20-10-01 00:01:00.000@ then
+  return -1 
+endi
+
+print ===============> step 3 sql_error stable, group by, window
+sql_error select sin(c2) from $stb group by tbname;
+
+sql_error select sin(c2) from $stb group by tgcol;
+
+sql_error select sin(c2) from $stb group by c3;
+
+sql_error select sin(c2) from $stb interval(1m);
+
+sql_error select sin(c2) from $stb state_window(c7);
+
+sql_error select sin(c2) from $tb state_window(c7);
+
+sql_error select sin(c2) from $stb session(ts, 30s);
+
+sql_error select sin(c2) from $tb session(ts, 30s);
+
+sql_error select sin(c2) from $stb slimit 2;
+
+sql_error select sin(c2) from $stb interval(1m) slimit 2;
+
+print =============== clear
+#sql drop database $db
+#sql show databases
+#if $rows != 0 then 
+#  return -1
+#endi
+
+#system sh/exec.sh -n dnode1 -s stop -x SIGINT
+

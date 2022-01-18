@@ -122,10 +122,10 @@ ${csudo} rm -f ${bin_link_dir}/taos       || :
 ${csudo} rm -f ${bin_link_dir}/taosd      || :
 ${csudo} rm -f ${bin_link_dir}/taosadapter       || :
 ${csudo} rm -f ${bin_link_dir}/taosdemo   || :
-${csudo} rm -f ${bin_link_dir}/taosdump   || :
 ${csudo} rm -f ${bin_link_dir}/set_core   || :
 ${csudo} rm -f ${cfg_link_dir}/*.new      || :
 ${csudo} rm -f ${inc_link_dir}/taos.h     || :
+${csudo} rm -f ${inc_link_dir}/taosdef.h  || :
 ${csudo} rm -f ${inc_link_dir}/taoserror.h || :
 ${csudo} rm -f ${lib_link_dir}/libtaos.*   || :
 ${csudo} rm -f ${lib64_link_dir}/libtaos.* || :

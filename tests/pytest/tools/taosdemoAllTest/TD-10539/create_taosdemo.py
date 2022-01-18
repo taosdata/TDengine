@@ -56,7 +56,7 @@ class TDTestCase:
         #print("==============taosdemo,#create stable,table; insert table; show table; select table; drop table")
         self.tsdemo = "tsdemo~!.@#$%^*[]-_=+{,?.}"
         #this escape character is not support in shell  . include  & () <> | /
-        os.system("%staosdemo -d test -E -m %s -t 10 -n 100 -l 10 -y " % (binPath,self.tsdemo))
+        os.system("%staosBenchmark -d test -E -m %s -t 10 -n 100 -l 10 -y " % (binPath,self.tsdemo))
         tdSql.execute("use test ;" )
         tdSql.query("select count(*) from meters")
         tdSql.checkData(0, 0, 1000)
@@ -91,14 +91,14 @@ class TDTestCase:
         tdSql.error("select * from test.`%s2` ; " %self.tsdemo)
 
         # Exception
-        os.system("%staosdemo -d test -m %s -t 10 -n 100 -l 10 -y " % (binPath,self.tsdemo))
+        os.system("%staosBenchmark -d test -m %s -t 10 -n 100 -l 10 -y " % (binPath,self.tsdemo))
         tdSql.query("show test.tables ")
         tdSql.checkRows(0)
 
         #print("==============taosdemo,#create regular table; insert table; show table; select table; drop table")
         self.tsdemo = "tsdemo~!.@#$%^*[]-_=+{,?.}"
         #this escape character is not support in shell  . include  & () <> | /
-        os.system("%staosdemo -N -E -m %s -t 10 -n 100 -l 10 -y " % (binPath,self.tsdemo))
+        os.system("%staosBenchmark -N -E -m %s -t 10 -n 100 -l 10 -y " % (binPath,self.tsdemo))
         tdSql.execute("use test ;" )
         tdSql.query("select count(*) from `%s1`" %self.tsdemo)
         tdSql.checkData(0, 0, 100)
@@ -112,7 +112,7 @@ class TDTestCase:
         tdSql.checkRows(11)
         tdSql.query("show create table test.`%s1` ; " %self.tsdemo)
         tdSql.checkData(0, 0, self.tsdemo+str(1))
-        tdSql.checkData(0, 1, "create table `%s1` (ts TIMESTAMP,c0 FLOAT,c1 INT,c2 INT,c3 INT,c4 INT,c5 INT,c6 INT,c7 INT,c8 INT,c9 INT)" %self.tsdemo)
+        tdSql.checkData(0, 1, "create table `%s1` (ts TIMESTAMP,c0 FLOAT,c1 INT,c2 FLOAT,c3 INT,c4 INT,c5 INT,c6 INT,c7 INT,c8 INT,c9 INT)" %self.tsdemo)
 
         print("==============drop table\stable")
         try:
@@ -125,13 +125,13 @@ class TDTestCase:
         tdSql.checkRows(9)
 
         # Exception
-        os.system("%staosdemo -N -m %s -t 10 -n 100 -l 10 -y " % (binPath,self.tsdemo))
+        os.system("%staosBenchmark -N -m %s -t 10 -n 100 -l 10 -y " % (binPath,self.tsdemo))
         tdSql.query("show test.tables ")
         tdSql.checkRows(0)
 
 
         #print("==============taosdemo——json_yes,#create stable,table; insert table; show table; select table; drop table")
-        os.system("%staosdemo -f tools/taosdemoAllTest/TD-10539/create_taosdemo_yes.json -y " % binPath)
+        os.system("%staosBenchmark -f tools/taosdemoAllTest/TD-10539/create_taosdemo_yes.json -y " % binPath)
         tdSql.execute("use dbyes")
 
         self.tsdemo_stable = "tsdemo_stable~!.@#$%^*[]-_=+{,?.}"
@@ -171,8 +171,8 @@ class TDTestCase:
        
         #print("==============taosdemo——json_no,#create stable,table; insert table; show table; select table; drop table")
 
-        assert os.system("%staosdemo -f tools/taosdemoAllTest/TD-10539/create_taosdemo_no.json -y " % binPath) == 0
-        tdSql.query("show dbno.tables ")
+        os.system("%staosBenchmark -f tools/taosdemoAllTest/TD-10539/create_taosdemo_no.json -y " % binPath) 
+        tdSql.query("show dbno.tables;")
         tdSql.checkRows(0)
         
 

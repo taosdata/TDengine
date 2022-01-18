@@ -71,25 +71,15 @@ cp %{_compiledir}/build/bin/taosd                   %{buildroot}%{homepath}/bin
 if [ -f %{_compiledir}/build/bin/taosadapter ]; then
     cp %{_compiledir}/build/bin/taosadapter                    %{buildroot}%{homepath}/bin ||:
 fi
-cp %{_compiledir}/build/bin/taosdemo                %{buildroot}%{homepath}/bin
-cp %{_compiledir}/build/bin/taosdump                %{buildroot}%{homepath}/bin
 cp %{_compiledir}/build/lib/${libfile}              %{buildroot}%{homepath}/driver
 cp %{_compiledir}/../src/inc/taos.h                 %{buildroot}%{homepath}/include
+cp %{_compiledir}/../src/inc/taosdef.h              %{buildroot}%{homepath}/include
 cp %{_compiledir}/../src/inc/taoserror.h            %{buildroot}%{homepath}/include
 cp -r %{_compiledir}/../src/connector/python        %{buildroot}%{homepath}/connector
 cp -r %{_compiledir}/../src/connector/go            %{buildroot}%{homepath}/connector
 cp -r %{_compiledir}/../src/connector/nodejs        %{buildroot}%{homepath}/connector
 cp %{_compiledir}/build/lib/taos-jdbcdriver*.*      %{buildroot}%{homepath}/connector ||:
 cp -r %{_compiledir}/../tests/examples/*            %{buildroot}%{homepath}/examples
-
-if [ -f %{_compiledir}/build/lib/libavro.so.23.0.0 ]; then
-    cp %{_compiledir}/build/lib/libavro.so.23.0.0 %{buildroot}%{homepath}/driver
-    ln -sf libavro.so.23.0.0 %{buildroot}%{homepath}/driver/libavro.so.23
-    ln -sf libavro.so.23 %{buildroot}%{homepath}/driver/libavro.so
-fi
-if [ -f %{_compiledir}/build/lib/libavro.a ]; then
-    cp %{_compiledir}/build/lib/libavro.a %{buildroot}%{homepath}/driver
-fi
 
 if [ -f %{_compiledir}/build/bin/jemalloc-config ]; then
     mkdir -p %{buildroot}%{userlocalpath}/bin
@@ -205,10 +195,9 @@ if [ $1 -eq 0 ];then
     ${csudo} rm -f ${bin_link_dir}/taos       || :
     ${csudo} rm -f ${bin_link_dir}/taosd      || :
     ${csudo} rm -f ${bin_link_dir}/taosadapter       || :
-    ${csudo} rm -f ${bin_link_dir}/taosdemo   || :
-    ${csudo} rm -f ${bin_link_dir}/taosdump   || :
     ${csudo} rm -f ${cfg_link_dir}/*          || :
     ${csudo} rm -f ${inc_link_dir}/taos.h     || :
+    ${csudo} rm -f ${inc_link_dir}/taosdef.h     || :
     ${csudo} rm -f ${inc_link_dir}/taoserror.h     || :
     ${csudo} rm -f ${lib_link_dir}/libtaos.*  || :
 

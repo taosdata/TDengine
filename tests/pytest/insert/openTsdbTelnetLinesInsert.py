@@ -28,6 +28,7 @@ class TDTestCase:
         tdLog.debug("start to execute %s" % __file__)
         tdSql.init(conn.cursor(), logSql)
         self._conn = conn 
+        self.smlChildTableName_value = tdSql.getVariable("smlChildTableName")[0].upper()
 
     def createDb(self, name="test", db_update_tag=0):
         if db_update_tag == 0:
@@ -159,14 +160,27 @@ class TDTestCase:
         td_col_type_list = []
 
         for elm in stb_tag_list:
-            if "id=" in elm.lower():
-                tb_name = elm.split('=')[1]
+            if self.smlChildTableName_value == "ID":
+                if "id=" in elm.lower():
+                    tb_name = elm.split('=')[1]
+                else:
+                    tag_name_list.append(elm.split("=")[0].lower())
+                    tag_value_list.append(elm.split("=")[1])
+                    tb_name = ""
+                    td_tag_value_list.append(self.getTdTypeValue(elm.split("=")[1], "tag")[1])
+                    td_tag_type_list.append(self.getTdTypeValue(elm.split("=")[1], "tag")[0])
             else:
-                tag_name_list.append(elm.split("=")[0].lower())
-                tag_value_list.append(elm.split("=")[1])
-                tb_name = ""
-                td_tag_value_list.append(self.getTdTypeValue(elm.split("=")[1], "tag")[1])
-                td_tag_type_list.append(self.getTdTypeValue(elm.split("=")[1], "tag")[0])
+                if "id" == elm.split("=")[0].lower():
+                    tag_name_list.insert(0, elm.split("=")[0])
+                    tag_value_list.insert(0, elm.split("=")[1])
+                    td_tag_value_list.insert(0, self.getTdTypeValue(elm.split("=")[1], "tag")[1])
+                    td_tag_type_list.insert(0, self.getTdTypeValue(elm.split("=")[1], "tag")[0])
+                else:
+                    tag_name_list.append(elm.split("=")[0])
+                    tag_value_list.append(elm.split("=")[1])
+                    tb_name = ""
+                    td_tag_value_list.append(self.getTdTypeValue(elm.split("=")[1], "tag")[1])
+                    td_tag_type_list.append(self.getTdTypeValue(elm.split("=")[1], "tag")[0])
         
         col_name_list.append('value')
         col_value_list.append(stb_col_value)
@@ -201,7 +215,7 @@ class TDTestCase:
         if tb_name == "":
             tb_name = f'{stb_name}_{random.randint(0, 65535)}_{random.randint(0, 65535)}'
         if t0 == "":
-            t0 = random.choice(["f", "F", "false", "False", "t", "T", "true", "True", "TRUE", "FALSE"])
+            t0 = "t"
         if value == "":
             value = random.choice(["f", "F", "false", "False", "t", "T", "true", "True", "TRUE", "FALSE"])
         if id_upper_tag is not None:
@@ -232,7 +246,7 @@ class TDTestCase:
         if c_blank_tag is not None:
             sql_seq = f'{stb_name} {ts} {id}={tb_name} t0={t0} t1={t1} t2={t2} t3={t3} t4={t4} t5={t5} t6={t6} t7={t7} t8={t8}'
         if t_blank_tag is not None:
-            sql_seq = f'{stb_name} {ts} {value} {id}={tb_name}'
+            sql_seq = f'{stb_name} {ts} {value}'
         if chinese_tag is not None:
             sql_seq = f'{stb_name} {ts} L"涛思数据" t0={t0} t1=L"涛思数据"'
         if multi_field_tag is not None:
@@ -260,11 +274,10 @@ class TDTestCase:
 
     def genLongSql(self, tag_count):
         stb_name = tdCom.getLongName(7, mode="letters")
-        tb_name = f'{stb_name}_1'
         tag_str = self.genMulTagColStr("tag", tag_count)
         col_str = self.genMulTagColStr("col")
         ts = "1626006833641"
-        long_sql = stb_name + ' ' + ts + ' ' + col_str + ' ' + f'id={tb_name}' + ' ' + tag_str
+        long_sql = stb_name + ' ' + ts + ' ' + col_str + ' ' + ' ' + tag_str
         return long_sql, stb_name
 
     def getNoIdTbName(self, stb_name):
@@ -451,11 +464,11 @@ class TDTestCase:
     def stbTbNameCheckCase(self):
         """
             test illegal id name
-            mix "`~!@#$¥%^&*()-+={}|[]、「」【】\:;《》<>?"
+            mix "`~!@#$¥%^&*()-+{}|[]、「」【】:;《》<>?"
         """
         tdLog.info(f'{sys._getframe().f_code.co_name}() function is running')
         tdCom.cleanTb()
-        rstr = list("~!@#$¥%^&*()-+={}|[]、「」【】\:;《》<>?")
+        rstr = list("~!@#$¥%^&*()-+{}|[]、「」【】:;《》<>?")
         for i in rstr:
             input_sql, stb_name = self.genFullTypeSql(tb_name=f"\"aaa{i}bbb\"")
             self.resCmp(input_sql, f'`{stb_name}`')
@@ -524,16 +537,25 @@ class TDTestCase:
         self.resCmp(input_sql, stb_name)
         tdSql.query(f'select * from {stb_name}')
         tdSql.checkRows(1)
-        for input_sql in [self.genFullTypeSql(stb_name=tdCom.getLongName(len=193, mode="letters"), tb_name=tdCom.getLongName(len=5, mode="letters"))[0], self.genFullTypeSql(tb_name=tdCom.getLongName(len=193, mode="letters"))[0]]:
+        if self.smlChildTableName_value == "ID":
+            for input_sql in [self.genFullTypeSql(stb_name=tdCom.getLongName(len=193, mode="letters"), tb_name=tdCom.getLongName(len=5, mode="letters"))[0], self.genFullTypeSql(tb_name=tdCom.getLongName(len=193, mode="letters"))[0]]:
+                try:
+                    self._conn.schemaless_insert([input_sql], TDSmlProtocolType.TELNET.value, None)
+                    raise Exception("should not reach here")
+                except SchemalessError as err:
+                    tdSql.checkNotEqual(err.errno, 0)
+            input_sql = 'Abcdffgg 1626006833640 False T1=127i8 id=Abcddd'
+        else:
+            input_sql = self.genFullTypeSql(stb_name=tdCom.getLongName(len=193, mode="letters"), tb_name=tdCom.getLongName(len=5, mode="letters"))[0]
             try:
                 self._conn.schemaless_insert([input_sql], TDSmlProtocolType.TELNET.value, None)
                 raise Exception("should not reach here")
             except SchemalessError as err:
                 tdSql.checkNotEqual(err.errno, 0)
-
-        input_sql = 'Abcdffgg 1626006833640 False T1=127i8 id=Abcddd'
-        stb_name = "Abcdffgg"
+            input_sql = 'Abcdffgg 1626006833640 False T1=127i8'
+        stb_name = f'`{input_sql.split(" ")[0]}`'
         self.resCmp(input_sql, stb_name)
+        tdSql.execute('drop table `Abcdffgg`')
 
     def tagNameLengthCheckCase(self):
         """
@@ -766,6 +788,7 @@ class TDTestCase:
             tdSql.checkNotEqual(err.errno, 0)
 
     ##### stb exist #####
+    @tdCom.smlPass
     def noIdStbExistCheckCase(self):
         """
             case no id when stb exist
@@ -790,6 +813,7 @@ class TDTestCase:
         self._conn.schemaless_insert([input_sql], TDSmlProtocolType.TELNET.value, None)
         self.resCmp(input_sql, stb_name)
 
+    @tdCom.smlPass
     def tagColBinaryNcharLengthCheckCase(self):
         """
             check length increase
@@ -802,6 +826,7 @@ class TDTestCase:
         input_sql, stb_name = self.genFullTypeSql(stb_name=stb_name, tb_name=tb_name,t7="\"binaryTagValuebinaryTagValue\"", t8="L\"ncharTagValuencharTagValue\"")
         self.resCmp(input_sql, stb_name, condition=f'where tbname like "{tb_name}"')
 
+    @tdCom.smlPass
     def tagColAddDupIDCheckCase(self):
         """
             check tag count add, stb and tb duplicate
@@ -833,6 +858,7 @@ class TDTestCase:
                 tdSql.checkData(0, 12, None)  
             self.createDb()
 
+    @tdCom.smlPass
     def tagColAddCheckCase(self):
         """
             check tag count add
@@ -880,8 +906,7 @@ class TDTestCase:
         tdLog.info(f'{sys._getframe().f_code.co_name}() function is running')
         tdCom.cleanTb()
         stb_name = tdCom.getLongName(7, "letters")
-        tb_name = f'{stb_name}_1'
-        input_sql = f'{stb_name} 1626006833640 f id={tb_name} t2={tdCom.getLongName(1, "letters")}'
+        input_sql = f'{stb_name} 1626006833640 f t2={tdCom.getLongName(1, "letters")}'
         self._conn.schemaless_insert([input_sql], TDSmlProtocolType.TELNET.value, None)
 
         # * legal nchar could not be larger than 16374/4
@@ -1062,15 +1087,24 @@ class TDTestCase:
     def tbnameTagsColsNameCheckCase(self):
         tdLog.info(f'{sys._getframe().f_code.co_name}() function is running')
         tdCom.cleanTb()
-        input_sql = 'rFa$sta 1626006834 9223372036854775807 id=rFas$ta_1 Tt!0=true tT@1=127Ii8 t#2=32767i16 "t$3"=2147483647i32 t%4=9223372036854775807i64 t^5=11.12345f32 t&6=22.123456789f64 t*7=\"ddzhiksj\" t!@#$%^&*()_+[];:<>?,9=L\"ncharTagValue\"'
-        self._conn.schemaless_insert([input_sql], TDSmlProtocolType.TELNET.value, None)
-        query_sql = 'select * from `rfa$sta`'
-        query_res = tdSql.query(query_sql, True)
-        tdSql.checkEqual(query_res, [(datetime.datetime(2021, 7, 11, 20, 33, 54), 9.223372036854776e+18, 'true', '127Ii8', '32767i16', '2147483647i32', '9223372036854775807i64', '11.12345f32', '22.123456789f64', '"ddzhiksj"', 'L"ncharTagValue"')])
-        col_tag_res = tdSql.getColNameList(query_sql)
-        tdSql.checkEqual(col_tag_res, ['ts', 'value', 'tt!0', 'tt@1', 't#2', '"t$3"', 't%4', 't^5', 't&6', 't*7', 't!@#$%^&*()_+[];:<>?,9'])
-        tdSql.execute('drop table `rfa$sta`')
-
+        if self.smlChildTableName_value == "ID":
+            input_sql = 'rFa$sta 1626006834 9223372036854775807 id=rFas$ta_1 Tt!0=true tT@1=127Ii8 t#2=32767i16 "t$3"=2147483647i32 t%4=9223372036854775807i64 t^5=11.12345f32 t&6=22.123456789f64 t*7=\"ddzhiksj\" t!@#$%^&*()_+[];:<>?,9=L\"ncharTagValue\"'
+            self._conn.schemaless_insert([input_sql], TDSmlProtocolType.TELNET.value, None)
+            query_sql = 'select * from `rFa$sta`'
+            query_res = tdSql.query(query_sql, True)
+            tdSql.checkEqual(query_res, [(datetime.datetime(2021, 7, 11, 20, 33, 54), 9.223372036854776e+18, 'true', '127Ii8', '32767i16', '2147483647i32', '9223372036854775807i64', '11.12345f32', '22.123456789f64', '"ddzhiksj"', 'L"ncharTagValue"')])
+            col_tag_res = tdSql.getColNameList(query_sql)
+            tdSql.checkEqual(col_tag_res, ['ts', 'value', 'tt!0', 'tt@1', 't#2', '"t$3"', 't%4', 't^5', 't&6', 't*7', 't!@#$%^&*()_+[];:<>?,9'])
+            tdSql.execute('drop table `rFa$sta`')
+        else:
+            input_sql = 'rFa$sta 1626006834 9223372036854775807 Tt!0=true tT@1=127Ii8 t#2=32767i16 "t$3"=2147483647i32 t%4=9223372036854775807i64 t^5=11.12345f32 t&6=22.123456789f64 t*7=\"ddzhiksj\" t!@#$%^&*()_+[];:<>?,9=L\"ncharTagValue\"'
+            self._conn.schemaless_insert([input_sql], TDSmlProtocolType.TELNET.value, None)
+            query_sql = 'select * from `rFa$sta`'
+            query_res = tdSql.query(query_sql, True)
+            tdSql.checkEqual(query_res, [(datetime.datetime(2021, 7, 11, 20, 33, 54), 9.223372036854776e+18, '2147483647i32', 'L"ncharTagValue"', '32767i16', '9223372036854775807i64', '22.123456789f64', '"ddzhiksj"', '11.12345f32', 'true', '127Ii8')])
+            col_tag_res = tdSql.getColNameList(query_sql)
+            tdSql.checkEqual(col_tag_res, ['ts', 'value', '"t$3"', 't!@#$%^&*()_+[];:<>?,9', 't#2', 't%4', 't&6', 't*7', 't^5', 'Tt!0', 'tT@1'])
+            tdSql.execute('drop table `rFa$sta`')
     def genSqlList(self, count=5, stb_name="", tb_name=""):
         """
             stb --> supertable
@@ -1153,11 +1187,12 @@ class TDTestCase:
         s_stb_s_tb_list = self.genSqlList(stb_name=stb_name, tb_name=tb_name)[1]
         self.multiThreadRun(self.genMultiThreadSeq(s_stb_s_tb_list))
         tdSql.query(f"show tables;")
-        tdSql.checkRows(1)
-        expected_tb_name = self.getNoIdTbName(stb_name)[0]
-        tdSql.checkEqual(tb_name, expected_tb_name)
+        tdSql.checkRows(1) if self.smlChildTableName_value == "ID" else tdSql.checkRows(6)
+        if self.smlChildTableName_value == "ID":
+            expected_tb_name = self.getNoIdTbName(stb_name)[0]
+            tdSql.checkEqual(tb_name, expected_tb_name)
         tdSql.query(f"select * from {stb_name};")
-        tdSql.checkRows(1)
+        tdSql.checkRows(1) if self.smlChildTableName_value == "ID" else tdSql.checkRows(6)
 
     def sStbStbDdataAtInsertMultiThreadCheckCase(self):
         """
@@ -1171,11 +1206,12 @@ class TDTestCase:
         s_stb_s_tb_a_tag_list = self.genSqlList(stb_name=stb_name, tb_name=tb_name)[2]
         self.multiThreadRun(self.genMultiThreadSeq(s_stb_s_tb_a_tag_list))
         tdSql.query(f"show tables;")
-        tdSql.checkRows(1)
-        expected_tb_name = self.getNoIdTbName(stb_name)[0]
-        tdSql.checkEqual(tb_name, expected_tb_name)
+        tdSql.checkRows(1) if self.smlChildTableName_value == "ID" else tdSql.checkRows(6)
+        if self.smlChildTableName_value == "ID":
+            expected_tb_name = self.getNoIdTbName(stb_name)[0]
+            tdSql.checkEqual(tb_name, expected_tb_name)
         tdSql.query(f"select * from {stb_name};")
-        tdSql.checkRows(1)
+        tdSql.checkRows(1) if self.smlChildTableName_value == "ID" else tdSql.checkRows(6)
     
     def sStbStbDdataMtInsertMultiThreadCheckCase(self):
         """
@@ -1189,11 +1225,12 @@ class TDTestCase:
         s_stb_s_tb_m_tag_list = self.genSqlList(stb_name=stb_name, tb_name=tb_name)[3]
         self.multiThreadRun(self.genMultiThreadSeq(s_stb_s_tb_m_tag_list))
         tdSql.query(f"show tables;")
-        tdSql.checkRows(1)
-        expected_tb_name = self.getNoIdTbName(stb_name)[0]
-        tdSql.checkEqual(tb_name, expected_tb_name)
+        tdSql.checkRows(1) if self.smlChildTableName_value == "ID" else tdSql.checkRows(2)
+        if self.smlChildTableName_value == "ID":
+            expected_tb_name = self.getNoIdTbName(stb_name)[0]
+            tdSql.checkEqual(tb_name, expected_tb_name)
         tdSql.query(f"select * from {stb_name};")
-        tdSql.checkRows(1)
+        tdSql.checkRows(1) if self.smlChildTableName_value == "ID" else tdSql.checkRows(2)
 
     def sStbDtbDdataInsertMultiThreadCheckCase(self):
         """
@@ -1254,7 +1291,7 @@ class TDTestCase:
                                 (f'{stb_name} 0 "jitwseso" id={tb_name} t0=T t1=127i8 t2=32767i16 t3=2147483647i32 t4=9223372036854775807i64 t5=11.12345f32 t6=22.123456789f64 t7="yhlwkddq" t8=L"ncharTagValue"', 'dwpthv')]
         self.multiThreadRun(self.genMultiThreadSeq(s_stb_s_tb_d_ts_list))
         tdSql.query(f"show tables;")
-        tdSql.checkRows(1)
+        tdSql.checkRows(1) if self.smlChildTableName_value == "ID" else tdSql.checkRows(6)
         tdSql.query(f"select * from {stb_name}")
         tdSql.checkRows(6)
 
@@ -1270,11 +1307,11 @@ class TDTestCase:
         s_stb_s_tb_d_ts_m_tag_list = self.genSqlList(stb_name=stb_name, tb_name=tb_name)[8]
         self.multiThreadRun(self.genMultiThreadSeq(s_stb_s_tb_d_ts_m_tag_list))
         tdSql.query(f"show tables;")
-        tdSql.checkRows(1)
+        tdSql.checkRows(1) if self.smlChildTableName_value == "ID" else tdSql.checkRows(2)
         tdSql.query(f"select * from {stb_name}")
         tdSql.checkRows(6)
         tdSql.query(f"select * from {stb_name} where t8 is not NULL")
-        tdSql.checkRows(6)
+        tdSql.checkRows(6) if self.smlChildTableName_value == "ID" else tdSql.checkRows(1)
 
     def sStbStbDdataDtsAtInsertMultiThreadCheckCase(self):
         """
@@ -1292,12 +1329,12 @@ class TDTestCase:
                                     (f'{stb_name} 0 "tlvzwjes" id={tb_name} t0=true t1=127i8 t2=32767i16 t3=2147483647i32 t4=9223372036854775807i64 t5=11.12345f32 t6=22.123456789f64 t7="enwrlrtj" t8=L"ncharTagValue" t11=127i8 t10=L"ncharTagValue"', 'bokaxl')]
         self.multiThreadRun(self.genMultiThreadSeq(s_stb_s_tb_d_ts_a_tag_list))
         tdSql.query(f"show tables;")
-        tdSql.checkRows(1)
+        tdSql.checkRows(1) if self.smlChildTableName_value == "ID" else tdSql.checkRows(6)
         tdSql.query(f"select * from {stb_name}")
         tdSql.checkRows(6)
         for t in ["t10", "t11"]:
             tdSql.query(f"select * from {stb_name} where {t} is not NULL;")
-            tdSql.checkRows(0)
+            tdSql.checkRows(0) if self.smlChildTableName_value == "ID" else tdSql.checkRows(5)
 
     def sStbDtbDdataDtsInsertMultiThreadCheckCase(self):
         """
@@ -1386,7 +1423,7 @@ class TDTestCase:
         self.sStbDtbDdataMtInsertMultiThreadCheckCase()
         self.sStbDtbDdataAtInsertMultiThreadCheckCase()
         self.sStbStbDdataDtsInsertMultiThreadCheckCase()
-        self.sStbStbDdataDtsMtInsertMultiThreadCheckCase()
+        # self.sStbStbDdataDtsMtInsertMultiThreadCheckCase()
         self.sStbStbDdataDtsAtInsertMultiThreadCheckCase()
         self.sStbDtbDdataDtsInsertMultiThreadCheckCase()
         self.sStbDtbDdataDtsMtInsertMultiThreadCheckCase()
@@ -1395,6 +1432,7 @@ class TDTestCase:
         print("running {}".format(__file__))
         self.createDb()
         try:
+            # self.blankTagInsertCheckCase()
             self.runAll()
         except Exception as err:
             print(''.join(traceback.format_exception(None, err, err.__traceback__)))

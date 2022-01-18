@@ -145,7 +145,7 @@ taos>
 | **CPU类型**  | x64（64bit） |          |          | ARM64    | ARM32      |
 | ------------ | ------------ | -------- | -------- | -------- | ---------- |
 | **OS类型**   | Linux        | Win64    | Win32    | Linux    | Linux      |
-| **支持与否** | **支持**     | **支持** | **支持** | **支持** | **开发中** |
+| **支持与否** | **支持**     | **支持** | **支持** | **支持** | **支持** |
 
 C/C++的API类似于MySQL的C API。应用程序使用时，需要包含TDengine头文件 *taos.h*，里面列出了提供的API的函数原型。安装后，taos.h位于：
 
@@ -207,6 +207,8 @@ C/C++的API类似于MySQL的C API。应用程序使用时，需要包含TDengine
     - port：TDengine管理主节点的端口号
 
   返回值为空表示失败。应用程序需要保存返回的参数，以便后续API调用。
+
+  **提示:** 同一进程可以根据不同的host/port 连接多个taosd 集群
 
 - `char *taos_get_server_info(TAOS *taos)`
 
@@ -1037,43 +1039,62 @@ HTTP 请求 URL 采用 `sqlutc` 时，返回结果集的时间戳将采用 UTC �
 
 ## <a class="anchor" id="csharp"></a>CSharp Connector
 
-C#连接器支持的系统有：Linux 64/Windows x64/Windows x86
+* C#连接器支持的系统有：Linux 64/Windows x64/Windows x86
 
+* C#连接器现在也支持从[Nuget下载引用](https://www.nuget.org/packages/TDengine.Connector/)
+
+* 在Windows系统上，C#应用程序可以使用TDengine的原生C接口来执行所有数据库操作，后续版本将提供ORM（Dapper）框架驱动。
 ### 安装准备
 
 * 应用驱动安装请参考[安装连接器驱动步骤](https://www.taosdata.com/cn/documentation/connector#driver)。
-* 接口文件﻿TDengineDrivercs.cs和参考程序示例TDengineTest.cs均位于Windows客户端install_directory/examples/C#目录下。
-* 在Windows系统上，C#应用程序可以使用TDengine的原生C接口来执行所有数据库操作，后续版本将提供ORM（Dapper）框架驱动。
+* 接口文件TDengineDrivercs.cs和参考程序示例TDengineTest.cs均位于Windows客户端install_directory/examples/C#目录下。
+* 安装[.NET SDK](https://dotnet.microsoft.com/download)
 
 ### 示例程序
 
-示例程序源码位于install_directory/examples/C#，有：
+示例程序源码位于
+* {client_install_directory}/examples/C#
+* [github C# example source code](https://github.com/taosdata/TDengine/tree/develop/tests/examples/C%2523)
 
-TDengineTest.cs       C#示例源程序
+**注意:** TDengineTest.cs       C#示例源程序,包含了数据库连接参数，以及如何执行数据插入、查询等操作。
 
 ### 安装验证
 
-运行install_directory/examples/C#/C#Checker/C#Checker.exe
-
+需要先安装 .Net SDK
 ```cmd
-cd {install_directory}/examples/C#/C#Checker
-csc /optimize *.cs
-C#Checker.exe -h <fqdn>
+cd {client_install_directory}/examples/C#/C#Checker
+//运行测试
+dotnet run -- -h <FQDN>. // 此步骤会先build，然后再运行。
 ```
 
 ### C#连接器的使用
 
 在Windows系统上，C#应用程序可以使用TDengine的C#连接器接口来执行所有数据库的操作。使用的具体步骤如下所示：
 
-1. 将接口文件﻿TDengineDrivercs.cs加入到应用程序所在的项目空间中。
-2. 用户可以参考﻿TDengineTest.cs来定义数据库连接参数，以及如何执行数据插入、查询等操作。
+需要 .NET SDK
+* 创建一个c# project. 
+``` cmd
+mkdir test
+cd test 
+dotnet new console
+```
+* 通过Nuget引用TDengineDriver包
+``` cmd
+dotnet add package TDengine.Connector
+```
+* 在项目中需要用到TDengineConnector的地方引用TDengineDriver namespace。
+```c# 
+using TDengineDriver;
+```
+* 用户可以参考[TDengineTest.cs](https://github.com/taosdata/TDengine/tree/develop/tests/examples/C%2523/TDengineTest)来定义数据库连接参数，以及如何执行数据插入、查询等操作。
 
-此接口需要用到taos.dll文件，所以在执行应用程序前，拷贝Windows客户端install_directory/driver目录中的taos.dll文件到项目最后生成.exe可执行文件所在的文件夹。之后运行exe文件，即可访问TDengine数据库并做插入、查询等操作。
 
 **注意：**
 
-1. TDengine V2.0.3.0之后同时支持32位和64位Windows系统，所以C#项目在生成.exe文件时，“解决方案”/“项目”的“平台”请选择对应的“X86” 或“x64”。
-2. 此接口目前已经在Visual Studio 2015/2017中验证过，其它VS版本尚待验证。
+* TDengine V2.0.3.0之后同时支持32位和64位Windows系统，所以C#项目在生成.exe文件时，“解决方案”/“项目”的“平台”请选择对应的“X86” 或“x64”。
+* 此接口目前已经在Visual Studio 2015/2017中验证过，其它VS版本尚待验证。
+* 此连接器需要用到taos.dll文件，所以在未安装客户端时需要在执行应用程序前，拷贝Windows{client_install_directory}/driver目录中的taos.dll文件到项目最后生成.exe可执行文件所在的文件夹。之后运行exe文件，即可访问TDengine数据库并做插入、查询等操作。
+
 
 ### 第三方驱动
 
@@ -1252,7 +1273,7 @@ node nodejsChecker.js host=localhost
 
 ### Node.js连接器的使用
 
-以下是Node.js 连接器的一些基本使用方法，详细的使用方法可参考[TDengine Node.js connector](http://docs.taosdata.com/node)。
+以下是Node.js 连接器的一些基本使用方法，详细的使用方法可参考[TDengine Node.js connector](https://github.com/taosdata/TDengine/tree/develop/src/connector/nodejs)。
 
 #### 建立连接
 

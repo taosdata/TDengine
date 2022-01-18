@@ -39,6 +39,20 @@ void osInit() {
 	strcpy(tsDataDir, "/var/lib/ProDB");
 	strcpy(tsLogDir, "/var/log/ProDB");
 	strcpy(tsScriptDir, "/etc/ProDB");
+#elif (_TD_KH_ == true)
+	if (configDir[0] == 0) {
+	  strcpy(configDir, "/etc/kinghistorian");
+	}
+	strcpy(tsDataDir, "/var/lib/kinghistorian");
+	strcpy(tsLogDir, "/var/log/kinghistorian");
+	strcpy(tsScriptDir, "/etc/kinghistorian");
+#elif (_TD_JH_ == true)
+	if (configDir[0] == 0) {
+	  strcpy(configDir, "/etc/jh_taos");
+	}
+	strcpy(tsDataDir, "/var/lib/jh_taos");
+	strcpy(tsLogDir, "/var/log/jh_taos");
+	strcpy(tsScriptDir, "/etc/jh_taos");
 #else
   if (configDir[0] == 0) {
     strcpy(configDir, "/etc/taos");

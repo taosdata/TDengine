@@ -36,6 +36,7 @@ typedef struct {
   int       totalThreads;
   void *    taos;
   char *    db;
+  int       code;
 } ShellThreadObj;
 
 static int32_t shellUseDb(TAOS *con, char *db) {
@@ -112,10 +113,10 @@ static void *shellCheckThreadFp(void *arg) {
   int32_t end = (pThread->threadIndex + 1) * interval;
 
   if (start >= tbNum) return NULL;
-  if (end > tbNum) end = tbNum + 1;
+  if (end > tbNum) end = tbNum;
 
   char file[32] = {0};
-  snprintf(file, 32, "tb%d.txt", pThread->threadIndex);
+  snprintf(file, 32, "tb%d.sql", pThread->threadIndex);
 
   FILE *fp = fopen(file, "w");
   if (!fp) {
@@ -123,16 +124,19 @@ static void *shellCheckThreadFp(void *arg) {
     return NULL;
   }
 
+  ASSERT(pThread->code != 0);
+
   char sql[SHELL_SQL_LEN];
   for (int32_t t = start; t < end; ++t) {
     char *tbname = tbNames[t];
     if (tbname == NULL) break;
 
-    snprintf(sql, SHELL_SQL_LEN, "select * from %s limit 1", tbname);
+    snprintf(sql, SHELL_SQL_LEN, "select last_row(_c0) from %s;", tbname);
 
     TAOS_RES *pSql = taos_query(pThread->taos, sql);
     int32_t   code = taos_errno(pSql);
-    if (code != 0) {
+    // -k: -1 means check all errors, while other non-zero values means check specific errors.
+    if ((code == pThread->code) || ((pThread->code == -1) && (code != 0))) {
       int32_t len = snprintf(sql, SHELL_SQL_LEN, "drop table %s.%s;\n", pThread->db, tbname);
       fwrite(sql, 1, len, fp);
       atomic_add_fetch_32(&errorNum, 1);
@@ -161,6 +165,7 @@ static void shellRunCheckThreads(TAOS *con, SShellArguments *_args) {
     pThread->totalThreads = _args->threadNum;
     pThread->taos = con;
     pThread->db = _args->database;
+    pThread->code = _args->check;
 
     pthread_attr_init(&thattr);
     pthread_attr_setdetachstate(&thattr, PTHREAD_CREATE_JOINABLE);

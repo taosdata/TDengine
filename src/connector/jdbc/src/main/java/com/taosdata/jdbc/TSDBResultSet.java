@@ -74,9 +74,8 @@ public class TSDBResultSet extends AbstractResultSet implements ResultSet {
 
     public boolean next() throws SQLException {
         if (this.getBatchFetch()) {
-            if (this.blockData.forward()) {
+            if (this.blockData.forward())
                 return true;
-            }
 
             int code = this.jniConnector.fetchBlock(this.resultSetPointer, this.blockData);
             this.blockData.reset();
@@ -214,7 +213,18 @@ public class TSDBResultSet extends AbstractResultSet implements ResultSet {
         if (!lastWasNull) {
             Object value = this.rowData.getObject(columnIndex);
             if (value instanceof Timestamp) {
-                res = ((Timestamp) value).getTime();
+                Timestamp ts = (Timestamp) value;
+                long epochSec = ts.getTime() / 1000;
+                long nanoAdjustment = ts.getNanos();
+                switch (this.timestampPrecision) {
+                    case 0:
+                    default:                        // ms
+                        return ts.getTime();
+                    case 1:                         // us
+                        return epochSec * 1000_000L + nanoAdjustment / 1000L;
+                    case 2:                         // ns
+                        return epochSec * 1000_000_000L + nanoAdjustment;
+                }
             } else {
                 int nativeType = this.columnMetaDataList.get(columnIndex - 1).getColType();
                 res = this.rowData.getLong(columnIndex, nativeType);

@@ -72,8 +72,8 @@ class TDTestCase:
         os.system("rm -rf ./all_subscribe_res*") 
 
         # subscribe: resultfile 
-        os.system("%staosdemo -f tools/taosdemoAllTest/subInsertdata.json" % binPath)
-        os.system("nohup %staosdemo -f tools/taosdemoAllTest/subAsync.json &" % binPath)
+        os.system("%staosBenchmark -f tools/taosdemoAllTest/subInsertdata.json" % binPath)
+        os.system("nohup %staosBenchmark -f tools/taosdemoAllTest/subAsync.json &" % binPath)
         query_pid = int(subprocess.getstatusoutput('ps aux|grep "taosdemoAllTest/subAsync.json" |grep -v "grep"|awk \'{print $2}\'')[1])
 
         # insert extral data     
@@ -106,9 +106,9 @@ class TDTestCase:
         os.system("kill -9 %d" % query_pid)
   
         # # query times less than or equal to 100
-        os.system("%staosdemo -f tools/taosdemoAllTest/subInsertdataMaxsql100.json" % binPath)
-        assert os.system("%staosdemo -f tools/taosdemoAllTest/subSyncSpecMaxsql100.json" % binPath) != 0
-        assert os.system("%staosdemo -f tools/taosdemoAllTest/subSyncSuperMaxsql100.json" % binPath) != 0
+        os.system("%staosBenchmark -f tools/taosdemoAllTest/subInsertdataMaxsql100.json" % binPath)
+        assert os.system("%staosBenchmark -f tools/taosdemoAllTest/subSyncSpecMaxsql100.json" % binPath) != 0
+        assert os.system("%staosBenchmark -f tools/taosdemoAllTest/subSyncSuperMaxsql100.json" % binPath) != 0
         
         # delete useless files
         os.system("rm -rf ./insert_res.txt")

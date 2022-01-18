@@ -15,7 +15,7 @@
     "max_sql_len": 102400000,
     "databases": [{
         "dbinfo": {
-            "name": "json",
+            "name": "json_test",
             "drop": "yes",
             "replica": 1,
             "days": 10,

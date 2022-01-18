@@ -39,7 +39,7 @@ extern "C" {
 #define TSKEY_INITIAL_VAL    INT64_MIN
 
 // Bytes for each type.
-extern const int32_t TYPE_BYTES[15];
+extern const int32_t TYPE_BYTES[16];
 
 // TODO: replace and remove code below
 #define CHAR_BYTES    sizeof(char)
@@ -70,6 +70,11 @@ extern const int32_t TYPE_BYTES[15];
 #define TSDB_DATA_DOUBLE_NULL           0x7FFFFF0000000000L     // an NAN
 #define TSDB_DATA_NCHAR_NULL            0xFFFFFFFF
 #define TSDB_DATA_BINARY_NULL           0xFF
+#define TSDB_DATA_JSON_PLACEHOLDER      0x7F
+#define TSDB_DATA_JSON_NULL             0xFFFFFFFF
+#define TSDB_DATA_JSON_null             0xFFFFFFFE
+#define TSDB_DATA_JSON_NOT_NULL         0x01
+#define TSDB_DATA_JSON_CAN_NOT_COMPARE  0x7FFFFFFF
 
 #define TSDB_DATA_UTINYINT_NULL         0xFF
 #define TSDB_DATA_USMALLINT_NULL        0xFFFF
@@ -80,12 +85,17 @@ extern const int32_t TYPE_BYTES[15];
 #define TSDB_DATA_NULL_STR_L            "null"
 
 #define TSDB_DEFAULT_USER               "root"
+
 #ifdef _TD_POWER_
 #define TSDB_DEFAULT_PASS               "powerdb"
 #elif (_TD_TQ_ == true)
 #define TSDB_DEFAULT_PASS               "tqueue"
 #elif (_TD_PRO_ == true)
 #define TSDB_DEFAULT_PASS               "prodb"
+#elif (_TD_KH_ == true)
+#define TSDB_DEFAULT_PASS               "khroot"
+#elif (_TD_JH_ == true)
+#define TSDB_DEFAULT_PASS               "jhdata"
 #else
 #define TSDB_DEFAULT_PASS               "taosdata"
 #endif
@@ -171,6 +181,9 @@ do { \
 #define TSDB_RELATION_MATCH       14
 #define TSDB_RELATION_NMATCH      15
 
+#define TSDB_RELATION_CONTAINS    16
+#define TSDB_RELATION_ARROW       17
+
 #define TSDB_BINARY_OP_ADD        30
 #define TSDB_BINARY_OP_SUBTRACT   31
 #define TSDB_BINARY_OP_MULTIPLY   32
@@ -217,8 +230,11 @@ do { \
    */
 #define TSDB_MAX_BYTES_PER_ROW    49151
 #define TSDB_MAX_TAGS_LEN         16384
+#define TSDB_MAX_JSON_TAGS_LEN    (4096*TSDB_NCHAR_SIZE + 2 + 1) // 2->var_header_len 1->type
 #define TSDB_MAX_TAGS             128
 #define TSDB_MAX_TAG_CONDITIONS   1024
+#define TSDB_MAX_JSON_KEY_LEN     256
+#define TSDB_MAX_JSON_KEY_MD5_LEN 16
 
 #define TSDB_AUTH_LEN             16
 #define TSDB_KEY_LEN              16

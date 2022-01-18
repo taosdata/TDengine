@@ -34,28 +34,36 @@
 char      CLIENT_VERSION[] = "Welcome to the PowerDB shell from %s, Client Version:%s\n"
                              "Copyright (c) 2020 by PowerDB, Inc. All rights reserved.\n\n";
 char      PROMPT_HEADER[] = "power> ";
-
 char      CONTINUE_PROMPT[] = "    -> ";
 int       prompt_size = 7;
 #elif (_TD_TQ_ == true)
 char      CLIENT_VERSION[] = "Welcome to the TQ shell from %s, Client Version:%s\n"
                              "Copyright (c) 2020 by TQ, Inc. All rights reserved.\n\n";
 char      PROMPT_HEADER[] = "tq> ";
-
-char      CONTINUE_PROMPT[] = "    -> ";
+char      CONTINUE_PROMPT[] = " -> ";
 int       prompt_size = 4;
 #elif (_TD_PRO_ == true)
 char      CLIENT_VERSION[] = "Welcome to the ProDB shell from %s, Client Version:%s\n"
                              "Copyright (c) 2020 by Hanatech, Inc. All rights reserved.\n\n";
 char      PROMPT_HEADER[] = "ProDB> ";
-
 char      CONTINUE_PROMPT[] = "    -> ";
 int       prompt_size = 7;
+#elif (_TD_KH_ == true)
+char      CLIENT_VERSION[] = "Welcome to the KingHistorian shell from %s, Client Version:%s\n"
+                             "Copyright (c) 2021 by Hanatech, Inc. All rights reserved.\n\n";
+char      PROMPT_HEADER[] = "kh> ";
+char      CONTINUE_PROMPT[] = " -> ";
+int       prompt_size = 4;
+#elif (_TD_JH_ == true)
+char      CLIENT_VERSION[] = "Welcome to the jh_iot shell from %s, Client Version:%s\n"
+                             "Copyright (c) 2021 by jinheng, Inc. All rights reserved.\n\n";
+char      PROMPT_HEADER[] = "jh_taos> ";
+char      CONTINUE_PROMPT[] = "      -> ";
+int       prompt_size = 9;
 #else
 char      CLIENT_VERSION[] = "Welcome to the TDengine shell from %s, Client Version:%s\n"
                              "Copyright (c) 2020 by TAOS Data, Inc. All rights reserved.\n\n";
 char      PROMPT_HEADER[] = "taos> ";
-
 char      CONTINUE_PROMPT[] = "   -> ";
 int       prompt_size = 6;
 #endif
@@ -501,6 +509,7 @@ static void dumpFieldToFile(FILE* fp, const char* val, TAOS_FIELD* field, int32_
       break;
     case TSDB_DATA_TYPE_BINARY:
     case TSDB_DATA_TYPE_NCHAR:
+    case TSDB_DATA_TYPE_JSON:
       memcpy(buf, val, length);
       buf[length] = 0;
       fprintf(fp, "\'%s\'", buf);
@@ -637,7 +646,7 @@ static void shellPrintNChar(const char *str, int length, int width) {
 static void printField(const char* val, TAOS_FIELD* field, int width, int32_t length, int precision) {
   if (val == NULL) {
     int w = width;
-    if (field->type < TSDB_DATA_TYPE_TINYINT || field->type > TSDB_DATA_TYPE_DOUBLE) {
+    if (field->type == TSDB_DATA_TYPE_BINARY || field->type == TSDB_DATA_TYPE_NCHAR || field->type == TSDB_DATA_TYPE_TIMESTAMP) {
       w = 0;
     }
     w = printf("%*s", w, TSDB_DATA_NULL_STR);
@@ -684,6 +693,7 @@ static void printField(const char* val, TAOS_FIELD* field, int width, int32_t le
       break;
     case TSDB_DATA_TYPE_BINARY:
     case TSDB_DATA_TYPE_NCHAR:
+    case TSDB_DATA_TYPE_JSON:
       shellPrintNChar(val, length, width);
       break;
     case TSDB_DATA_TYPE_TIMESTAMP:
@@ -797,7 +807,8 @@ static int calcColWidth(TAOS_FIELD* field, int precision) {
         return MAX(field->bytes, width);
       }
 
-    case TSDB_DATA_TYPE_NCHAR: {
+    case TSDB_DATA_TYPE_NCHAR:
+    case TSDB_DATA_TYPE_JSON:{
       int16_t bytes = field->bytes * TSDB_NCHAR_SIZE;
       if (bytes > tsMaxBinaryDisplayWidth) {
         return MAX(tsMaxBinaryDisplayWidth, width);

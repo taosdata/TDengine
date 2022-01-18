@@ -63,7 +63,7 @@ def test_subscribe(conn):
 def subscribe_callback(p_sub, p_result, p_param, errno):
     # type: (c_void_p, c_void_p, c_void_p, c_int) -> None
     print("callback")
-    result = TaosResult(p_result)
+    result = TaosResult(c_void_p(p_result))
     result.check_error(errno)
     for row in result.rows_iter():
         ts, n = row()
@@ -76,7 +76,7 @@ def test_subscribe_callback(conn):
     try:
         conn.execute("drop database if exists %s" % dbname)
         conn.execute("create database if not exists %s" % dbname)
-        conn.select_db(dbname)
+        conn.execute("use %s" % dbname)
         conn.execute("create table if not exists log(ts timestamp, n int)")
 
         print("# subscribe with callback")

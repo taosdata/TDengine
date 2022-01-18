@@ -8,7 +8,7 @@
 
 - 数据写入和查询的性能远超 OpenTSDB；
 - 针对时序数据的高效压缩机制，压缩后在磁盘上的存储空间不到 1/5；
-- 安装部署非常简单，单一安装包完成安装部署，除了 taosadapter 需要依赖 Go 运行环境外，不依赖其他的第三方软件，整个安装部署过程秒级搞定;
+- 安装部署非常简单，单一安装包完成安装部署，不依赖其他的第三方软件，整个安装部署过程秒级搞定;
 - 提供的内建函数覆盖 OpenTSDB 支持的全部查询函数，还支持更多的时序数据查询函数、标量函数及聚合函数，支持多种时间窗口聚合、连接查询、表达式运算、多种分组聚合、用户定义排序、以及用户定义函数等高级查询功能。采用类 SQL 的语法规则，更加简单易学，基本上没有学习成本。
 - 支持多达 128 个标签，标签总长度可达到 16 KB；
 - 除 HTTP 之外，还提供 Java、Python、C、Rust、Go 等多种语言的接口，支持 JDBC 等多种企业级标准连接器协议。
@@ -40,9 +40,13 @@
 
 - **调整数据收集器配置**
 
-在 TDengine 2.3 版本中，后台服务 taosd 启动后一个 HTTP 的服务 taosadapter 也会自动启用*。*利用 taosadapter 能够兼容 Influxdb 的 Line Protocol 和 OpenTSDB 的 telnet/Json 写入协议，可以将 collectd 和 StatsD 收集的数据直接推送到TDengine。
+在TDengine 2.3版本中，我们发布了taosAdapter ，taosAdapter 是一个无状态、可快速弹性伸缩的组件，它可以兼容 Influxdb 的 Line Protocol 和 OpenTSDB 的 telnet/JSON 写入协议规范，提供了丰富的数据接入能力，有效的节省用户迁移成本，降低用户应用迁移的难度。
 
-如果使用 collectd，修改其默认位置 `/etc/collectd/collectd.conf` 的配置文件为指向 taosadapter 部署的节点 IP 地址和端口。假设 taosadapter 的 IP 地址为192.168.1.130，端口为 6046，配置如下：
+用户可以根据需求弹性部署 taosAdapter 实例，结合场景的需要，快速提升数据写入的吞吐量，为不同应用场景下的数据写入提供保障。
+
+通过taosAdapter，用户可以将 collectd 和 StatsD 收集的数据直接推送到TDengine ，实现应用场景的无缝迁移，非常的轻松便捷。taosAdapter还支持Telegraf、Icinga、TCollector 、node_exporter的数据接入，使用详情参考[taosAdapter](https://www.taosdata.com/cn/documentation/tools/adapter)。
+
+如果使用 collectd，修改其默认位置 `/etc/collectd/collectd.conf` 的配置文件为指向 taosAdapter 部署的节点 IP 地址和端口。假设 taosAdapter 的 IP 地址为192.168.1.130，端口为 6046，配置如下：
 
 ```html
 LoadPlugin write_tsdb
@@ -57,28 +61,13 @@ LoadPlugin write_tsdb
 </Plugin>
 ```
 
-即可让 collectd 将数据使用推送到 OpenTSDB 的插件方式推送到 taosadapter， taosadapter 将调用 API 将数据写入到 taosd 中，从而完成数据的写入工作。如果你使用的是 StatsD 相应地调整配置文件信息。
+即可让 collectd 将数据使用推送到 OpenTSDB 的插件方式推送到 taosAdapter， taosAdapter 将调用 API 将数据写入到 taosd 中，从而完成数据的写入工作。如果你使用的是 StatsD 相应地调整配置文件信息。
 
 - **调整看板（Dashborad）系统**
 
-在数据能够正常写入TDengine 后，可以调整适配 Grafana 将写入 TDengine 的数据可视化呈现出来。Grafana 暂时还不能够直接连接 TDengine，在 TDengine 的安装目录下 connector/grafanaplugin 有为 Grafana 提供的连接插件。使用该插件的方式很简单：
+在数据能够正常写入TDengine 后，可以调整适配 Grafana 将写入 TDengine 的数据可视化呈现出来。获取和使用TDengine提供的Grafana插件请参考[与其他工具的连接](https://www.taosdata.com/cn/documentation/connections#grafana)。
 
-首先将grafanaplugin目录下的dist目录整体拷贝到Grafana的插件目录（默认地址为 `/var/lib/grafana/plugins/`），然后重启 Grafana 即可在 **Add Data Source** 菜单下看见 TDengine 数据源。
-
-```shell
-sudo cp -r . /var/lib/grafana/plugins/tdengine
-sudo chown grafana:grafana -R /var/lib/grafana/plugins/tdengine
-echo -e "[plugins]\nallow_loading_unsigned_plugins = taosdata-tdengine-datasource\n" | sudo tee -a /etc/grafana/grafana.ini
- 
-# start grafana service
-sudo service grafana-server restart
-# or with systemd
-sudo systemctl start grafana-server
-```
-
-
-
-此外，TDengine 还提供了默认的两套Dashboard 模板，供用户快速查看保存到TDengine库里的信息。你只需要将 Grafana 目录下的模板导入到Grafana中即可激活使用。
+TDengine 提供了默认的两套Dashboard 模板，用户只需要将 Grafana 目录下的模板导入到Grafana中即可激活使用。
 
 ![](../../images/IT-DevOps-Solutions-Immigrate-OpenTSDB-Dashboard.jpg)
 
@@ -106,7 +95,7 @@ sudo systemctl start grafana-server
 
 TDengine 当前只支持 Grafana 的可视化看板呈现，所以如果你的应用中使用了 Grafana 以外的前端看板（例如[TSDash](https://github.com/facebook/tsdash)、[Status Wolf](https://github.com/box/StatusWolf)等），那么前端看板将无法直接迁移到 TDengine，需要将前端看板重新适配到 Grafana 才可以正常运行。
 
-截止到 2.3.0.x 版本，TDengine 只能够支持 collectd 和 StatsD 作为数据收集汇聚软件，当然后面会陆续提供更多的数据收集聚合软件的接入支持。如果您的收集端使用了其他类型的数据汇聚器，您的应用需要适配到这两个数据汇聚端系统，才能够将数据正常写入。除了上述两个数据汇聚端软件协议以外，TDengine 还支持通过 InfluxDB 的行协议和 OpenTSDB 的数据写入协议、Json 格式将数据直接写入，您可以重写数据推送端的逻辑，使用 TDengine 支持的行协议来写入数据。
+截止到 2.3.0.x 版本，TDengine 只能够支持 collectd 和 StatsD 作为数据收集汇聚软件，当然后面会陆续提供更多的数据收集聚合软件的接入支持。如果您的收集端使用了其他类型的数据汇聚器，您的应用需要适配到这两个数据汇聚端系统，才能够将数据正常写入。除了上述两个数据汇聚端软件协议以外，TDengine 还支持通过 InfluxDB 的行协议和 OpenTSDB 的数据写入协议、JSON 格式将数据直接写入，您可以重写数据推送端的逻辑，使用 TDengine 支持的行协议来写入数据。
 
 此外，如果你的应用中使用了 OpenTSDB 以下特性，在将应用迁移到 TDengine 之前你还需要了解以下注意事项：
 
@@ -129,8 +118,8 @@ TDengine 当前只支持 Grafana 的可视化看板呈现，所以如果你的�
 
 | 序号 | 测量（metric） | 值名称 | 类型   | tag1 | tag2        | tag3                 | tag4      | tag5   |
 | ---- | -------------- | ------ | ------ | ---- | ----------- | -------------------- | --------- | ------ |
-| 1    | memory         | value  | double | host | memory_type | memory_type_instance | source    |        |
-| 2    | swap           | value  | double | host | swap_type   | swap_type_instance   | source    |        |
+| 1    | memory         | value  | double | host | memory_type | memory_type_instance | source    |   n/a     |
+| 2    | swap           | value  | double | host | swap_type   | swap_type_instance   | source    |      n/a  |
 | 3    | disk           | value  | double | host | disk_point  | disk_instance        | disk_type | source |
 
 
@@ -181,7 +170,7 @@ select count(*) from memory
 
 完成查询后，如果写入的数据与预期的相比没有差别，同时写入程序本身没有异常的报错信息，那么可用确认数据写入是完整有效的。
 
-TDengine不支持采用OpenTSDB的查询语法进行查询或数据获取处理，但是针对OpenTSDB的每种查询都提供对应的支持。你可以用检查附件2获取对应的查询处理的调整和应用使用的方式，如果需要全面了解TDengine支持的查询类型，请参阅TDengine的用户手册。
+TDengine不支持采用OpenTSDB的查询语法进行查询或数据获取处理，但是针对OpenTSDB的每种查询都提供对应的支持。可以用检查附录1获取对应的查询处理的调整和应用使用的方式，如果需要全面了解TDengine支持的查询类型，请参阅TDengine的用户手册。
 
 TDengine支持标准的JDBC 3.0接口操纵数据库，你也可以使用其他类型的高级语言的连接器来查询读取数据，以适配你的应用。具体的操作和使用帮助也请参阅用户手册。
 
@@ -191,7 +180,21 @@ TDengine支持标准的JDBC 3.0接口操纵数据库，你也可以使用其他�
 
 为了方便历史数据的迁移工作，我们为数据同步工具DataX提供了插件，能够将数据自动写入到TDengine中，需要注意的是DataX的自动化数据迁移只能够支持单值模型的数据迁移过程。
 
-DataX 具体的使用方式及如何使用DataX将数据写入TDengine请参见其使用帮助手册 [github.com/taosdata/datax](http://github.com/taosdata/datax)。 
+DataX 具体的使用方式及如何使用DataX将数据写入TDengine请参见[基于DataX的TDeninge数据迁移工具](https://www.taosdata.com/blog/2021/10/26/3156.html)。 
+
+在对DataX进行迁移实践后，我们发现通过启动多个进程，同时迁移多个metric 的方式，可以大幅度的提高迁移历史数据的效率，下面是迁移过程中的部分记录，希望这些能为应用迁移工作带来参考。
+
+| datax实例个数 (并发进程个数) | 迁移记录速度 （条/秒) | 
+| ---- | -------------- | 
+| 1    | 约13.9万        | 
+| 2    | 约21.8万        | 
+| 3    | 约24.9万        | 
+| 5    | 约29.5万        | 
+| 10   | 约33万          | 
+
+
+<br/>（注：测试数据源自 单节点 Intel(R) Core(TM) i7-10700 CPU@2.90GHz 16核64G硬件设备，channel和batchSize 分别为8和1000，每条记录包含10个tag)
+
 
 ### 2、手动迁移数据
 
@@ -353,7 +356,7 @@ Select sum(val) from table_name
 完整示例：
 
 ```json
-//OpenTSDB查询Json
+//OpenTSDB查询JSON
 query = {
 “start”:1510560000,
 “end”: 1515000009,

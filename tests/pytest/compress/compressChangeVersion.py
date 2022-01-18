@@ -66,7 +66,7 @@ class TwoClients:
 
         # create backgroud db and tb
         tdSql.execute("drop database if exists db1")
-        os.system("%staosdemo -f compress/insertDataDb1.json -y " % binPath)
+        os.system("%staosBenchmark -f compress/insertDataDb1.json -y " % binPath)
         # create foreground db and tb 
         tdSql.execute("drop database if exists foredb")
         tdSql.execute("create database foredb")

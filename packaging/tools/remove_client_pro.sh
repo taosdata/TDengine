@@ -46,13 +46,14 @@ function clean_lib() {
 
 function clean_header() {
     # Remove link
-    ${csudo} rm -f ${inc_link_dir}/taos.h       || :
-    ${csudo} rm -f ${inc_link_dir}/taoserror.h       || :
+    ${csudo} rm -f ${inc_link_dir}/taos.h           || :
+    ${csudo} rm -f ${inc_link_dir}/taosdef.h        || :
+    ${csudo} rm -f ${inc_link_dir}/taoserror.h      || :
 }
 
 function clean_config() {
     # Remove link
-    ${csudo} rm -f ${cfg_link_dir}/*            || :    
+    ${csudo} rm -f ${cfg_link_dir}/*            || :
 }
 
 function clean_log() {

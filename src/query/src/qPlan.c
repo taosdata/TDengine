@@ -538,7 +538,7 @@ SArray* createTableScanPlan(SQueryAttr* pQueryAttr) {
   } else {
     if (pQueryAttr->queryBlockDist) {
       op = OP_TableBlockInfoScan;
-    } else if (pQueryAttr->tsCompQuery || pQueryAttr->diffQuery) {
+    } else if (pQueryAttr->tsCompQuery || pQueryAttr->diffQuery || pQueryAttr->needTableSeqScan) {
       op = OP_TableSeqScan;
     } else if (pQueryAttr->needReverseScan || pQueryAttr->pointInterpQuery) {
       op = OP_DataBlocksOptScan;
@@ -567,6 +567,10 @@ SArray* createExecOperatorPlan(SQueryAttr* pQueryAttr) {
   } else if (pQueryAttr->pointInterpQuery) {
     op = OP_TimeEvery;
     taosArrayPush(plan, &op);
+    if (pQueryAttr->pExpr2 != NULL) {
+      op = OP_Project;
+      taosArrayPush(plan, &op);
+    }
   } else if (pQueryAttr->interval.interval > 0) {
     if (pQueryAttr->stableQuery) {
       op = OP_MultiTableTimeInterval;
@@ -691,7 +695,6 @@ SArray* createGlobalMergePlan(SQueryAttr* pQueryAttr) {
       op = OP_Filter;
       taosArrayPush(plan, &op);
     }
-
     if (pQueryAttr->pExpr2 != NULL) {
       op = OP_Project;
       taosArrayPush(plan, &op);

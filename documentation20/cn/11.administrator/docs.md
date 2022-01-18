@@ -114,7 +114,7 @@ taosd -C
 
 下面仅仅列出一些重要的配置参数，更多的参数请看配置文件里的说明。各个参数的详细介绍及作用请看前述章节，而且这些参数的缺省配置都是可以工作的，一般无需设置。**注意：配置文件参数修改后，需要重启*taosd*服务，或客户端应用才能生效。**
 
-| **#** | **配置参数名称**        | **内部** | **S\|C** | **单位** | **含义**                                                     | **取值范围**                                                 | **缺省值**                                                   | **备注**                                                     |
+| **#** | **配置参数名称**        | **内部** | **SC** | **单位** | **含义**                                                     | **取值范围**                                                 | **缺省值**                                                   | **补充说明**                                                     |
 | ----- | ----------------------- | -------- | -------- | -------- | ------------------------------------------------------------ | ------------------------------------------------------------ | ------------------------------------------------------------ | ------------------------------------------------------------ |
 | 1     | firstEP                 |          | **SC**   |          | taosd启动时，主动连接的集群中首个dnode的end point           |                                                              | localhost:6030                                            |                                                              |
 | 2     | secondEP                | YES      | **SC**   |          | taosd启动时，如果firstEp连接不上，尝试连接集群中第二个dnode的end point |                                                              | 无                                                           |                                                              |
@@ -166,7 +166,7 @@ taosd -C
 | 48    | mqttPort                | YES      | **S**    |          | mqtt client name                                             |                                                              |                                                              | 1883                                                         |
 | 49    | mqttTopic               | YES      | **S**    |          |                                                              |                                                              |                                                              | /test                                                        |
 | 50    | compressMsgSize         |          | **S**    | bytes    | 客户端与服务器之间进行消息通讯过程中，对通讯的消息进行压缩的阈值。如果要压缩消息，建议设置为64330字节，即大于64330字节的消息体才进行压缩。 | `0 `表示对所有的消息均进行压缩  >0: 超过该值的消息才进行压缩  -1: 不压缩 | -1                                                           |                                                              |
-| 51    | maxSQLLength            |          | **C**    | bytes    | 单条SQL语句允许的最长限制                                      | 65480-1048576                                                | 65380                                                        |                                                              |
+| 51    | maxSQLLength            |          | **C**    | bytes    | 单条SQL语句允许的最长限制                                      | 65480-1048576                                                | 1048576                                                        |                                                              |
 | 52    | maxNumOfOrderedRes      |          | **SC**   |          | 支持超级表时间排序允许的最多记录数限制                       |                                                              | 10万                                                         |                                                              |
 | 53    | timezone                |          | **SC**   |          | 时区                                                         |                                                              | 从系统中动态获取当前的时区设置                               |                                                              |
 | 54    | locale                  |          | **SC**   |          | 系统区位信息及编码格式                                       |                                                              | 系统中动态获取，如果自动获取失败，需要用户在配置文件设置或通过API设置 |                                                              |
@@ -223,7 +223,6 @@ taosd -C
 | 105  | compressColData         |          | **S**    | bytes    | 客户端与服务器之间进行消息通讯过程中，对服务器端查询结果进行列压缩的阈值。 | 0: 对所有查询结果均进行压缩  >0: 查询结果中任意列大小超过该值的消息才进行压缩  -1: 不压缩 | -1                                                           | 2.3.0.0 版本新增。                     |
 | 106    | tsdbMetaCompactRatio      |          | **C**    |          | tsdb meta文件中冗余数据超过多少阈值，开启meta文件的压缩功能                                  | 0：不开启，[1-100]：冗余数据比例                                                 | 0                                                            |  |
 | 107    | rpcForceTcp | | **SC**|  | 强制使用TCP传输 | 0: 不开启 1: 开启 ｜  0 ｜ 在网络比较差的环境中，建议开启。2.0版本新增。｜
-| 107  | rpcForceTcp         |          | **SC**    |     | 强制使用TCP传输。 | 0: 不开启 1: 开启 | 0                                              | 在网络比较差的环境中，建议开启。2.0 版本新增。                |
 
 **注意：**对于端口，TDengine会使用从serverPort起13个连续的TCP和UDP端口号，请务必在防火墙打开。因此如果是缺省配置，需要打开从6030到6042共13个端口，而且必须TCP和UDP都打开。（详细的端口情况请参见 [TDengine 2.0 端口说明](https://www.taosdata.com/cn/documentation/faq#port)）
 
@@ -553,11 +552,55 @@ KILL STREAM <stream-id>;
 
 强制关闭流式计算，其中的中stream-id是SHOW STREAMS中显示的connection-id:stream-no字串，如103:2，拷贝粘贴即可。
 
-## 系统监控
+## <a class="anchor" id="monitoring"></a>系统监控
 
 TDengine启动后，会自动创建一个监测数据库log，并自动将服务器的CPU、内存、硬盘空间、带宽、请求数、磁盘读写速度、慢查询等信息定时写入该数据库。TDengine还将重要的系统操作（比如登录、创建、删除数据库等）日志以及各种错误报警信息记录下来存放在log库里。系统管理员可以从CLI直接查看这个数据库，也可以在WEB通过图形化界面查看这些监测信息。
 
-这些监测信息的采集缺省是打开的，但可以修改配置文件里的选项enableMonitor将其关闭或打开。
+这些监测信息的采集缺省是打开的，但可以修改配置文件里的选项monitor将其关闭或打开。
+
+### TDinsight - 使用监控数据库 + Grafana 对 TDengine 进行监控的解决方案
+
+从 2.3.3.0 开始，监控数据库将提供更多的监控项，您可以从 [TDinsight Grafana Dashboard](https://grafana.com/grafana/dashboards/15167) 了解如何使用 TDinsight 方案对 TDengine 进行监控。
+
+我们提供了一个自动化脚本 `TDinsight.sh` 对TDinsight进行部署。
+
+下载 `TDinsight.sh`：
+
+```bash
+wget https://github.com/taosdata/grafanaplugin/raw/master/dashboards/TDinsight.sh
+chmod +x TDinsight.sh
+```
+
+准备：
+
+1. TDengine Server 信息：
+    * TDengine RESTful 服务：对本地而言，可以是 http://localhost:6041 ，使用参数 `-a`。
+    * TDengine 用户名和密码，使用 `-u` `-p` 参数设置。
+
+2. Grafana 告警通知
+   * 使用已经存在的Grafana Notification Channel `uid`，参数 `-E`。该参数可以使用 `curl -u admin:admin localhost:3000/api/alert-notifications |jq` 来获取。
+  
+        ```bash
+        sudo ./TDinsight.sh -a http://localhost:6041 -u root -p taosdata -E <notifier uid>
+        ```
+
+   * 使用 TDengine 数据源插件内置的阿里云短信告警通知，使用 `-s` 启用之，并设置如下参数：
+        1. 阿里云短信服务Key ID，参数 `-I`
+        2. 阿里云短信服务Key Secret，参数 `K`
+        3. 阿里云短信服务签名，参数 `-S`
+        4. 短信通知模板号，参数 `-C`
+        5. 短信通知模板输入参数，JSON格式，参数 `-T`，如 `{"alarm_level":"%s","time":"%s","name":"%s","content":"%s"}`
+        6. 逗号分隔的通知手机列表，参数 `-B`
+
+        ```bash
+        sudo ./TDinsight.sh -a http://localhost:6041 -u root -p taosdata -s \
+          -I XXXXXXX -K XXXXXXXX -S taosdata -C SMS_1111111 -B 18900000000 \
+          -T '{"alarm_level":"%s","time":"%s","name":"%s","content":"%s"}'
+        ```
+
+运行程序并重启 Grafana 服务，打开面板：<http://localhost:3000/d/tdinsight>。
+
+更多使用场景和限制请参考[TDinsight](https://github.com/taosdata/grafanaplugin/blob/master/dashboards/TDinsight.md) 文档。
 
 <a class="anchor" id="optimize"></a>
 ## 性能优化
@@ -687,7 +730,7 @@ rmtaos
 - 数据库名、表名、列名，都不能以数字开头，合法的可用字符集是“英文字符、数字和下划线”
 - 表的列数：不能超过 1024 列，最少需要 2 列，第一列必须是时间戳（从 2.1.7.0 版本开始，改为最多支持 4096 列）
 - 记录的最大长度：包括时间戳 8 byte，不能超过 16KB（每个 BINARY/NCHAR 类型的列还会额外占用 2 个 byte 的存储位置）
-- 单条 SQL 语句默认最大字符串长度：65480 byte，但可通过系统配置参数 maxSQLLength 修改，最长可配置为 1048576 byte
+- 单条 SQL 语句默认最大字符串长度：1048576 byte，但可通过系统配置参数 maxSQLLength 修改，取值范围 65480 ~ 1048576 byte
 - 数据库副本数：不能超过 3
 - 用户名：不能超过 23 个 byte
 - 用户密码：不能超过 15 个 byte

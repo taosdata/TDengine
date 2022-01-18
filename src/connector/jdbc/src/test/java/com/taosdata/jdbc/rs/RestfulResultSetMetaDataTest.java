@@ -186,22 +186,17 @@ public class RestfulResultSetMetaDataTest {
     }
 
     @BeforeClass
-    public static void beforeClass() {
-        try {
-            Class.forName("com.taosdata.jdbc.rs.RestfulDriver");
-            conn = DriverManager.getConnection("jdbc:TAOS-RS://" + host + ":6041/restful_test?user=root&password=taosdata");
-            stmt = conn.createStatement();
-            stmt.execute("create database if not exists restful_test");
-            stmt.execute("use restful_test");
-            stmt.execute("drop table if exists weather");
-            stmt.execute("create table if not exists weather(f1 timestamp, f2 int, f3 bigint, f4 float, f5 double, f6 binary(64), f7 smallint, f8 tinyint, f9 bool, f10 nchar(64))");
-            stmt.execute("insert into restful_test.weather values('2021-01-01 00:00:00.000', 1, 100, 3.1415, 3.1415926, 'abc', 10, 10, true, '涛思数据')");
-            rs = stmt.executeQuery("select * from restful_test.weather");
-            rs.next();
-            meta = rs.getMetaData();
-        } catch (ClassNotFoundException | SQLException e) {
-            e.printStackTrace();
-        }
+    public static void beforeClass() throws SQLException {
+        conn = DriverManager.getConnection("jdbc:TAOS-RS://" + host + ":6041/?user=root&password=taosdata");
+        stmt = conn.createStatement();
+        stmt.execute("create database if not exists restful_test");
+        stmt.execute("use restful_test");
+        stmt.execute("drop table if exists weather");
+        stmt.execute("create table if not exists weather(f1 timestamp, f2 int, f3 bigint, f4 float, f5 double, f6 binary(64), f7 smallint, f8 tinyint, f9 bool, f10 nchar(64))");
+        stmt.execute("insert into restful_test.weather values('2021-01-01 00:00:00.000', 1, 100, 3.1415, 3.1415926, 'abc', 10, 10, true, '涛思数据')");
+        rs = stmt.executeQuery("select * from restful_test.weather");
+        rs.next();
+        meta = rs.getMetaData();
     }
 
     @AfterClass

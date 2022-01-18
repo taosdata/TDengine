@@ -39,7 +39,7 @@ public class RestfulDriver extends AbstractDriver {
         String port = props.getProperty(TSDBDriver.PROPERTY_KEY_PORT, "6041");
         String database = props.containsKey(TSDBDriver.PROPERTY_KEY_DBNAME) ? props.getProperty(TSDBDriver.PROPERTY_KEY_DBNAME) : null;
 
-        String loginUrl = "http://" + host + ":" + port + "/rest/login/" + props.getProperty(TSDBDriver.PROPERTY_KEY_USER) + "/" + props.getProperty(TSDBDriver.PROPERTY_KEY_PASSWORD) + "";
+        String loginUrl;
         try {
             if (!props.containsKey(TSDBDriver.PROPERTY_KEY_USER))
                 throw TSDBError.createSQLException(TSDBErrorNumbers.ERROR_USER_IS_REQUIRED);
@@ -53,8 +53,8 @@ public class RestfulDriver extends AbstractDriver {
             throw TSDBError.createSQLException(TSDBErrorNumbers.ERROR_INVALID_VARIABLE, "unsupported UTF-8 concoding, user: " + props.getProperty(TSDBDriver.PROPERTY_KEY_USER) + ", password: " + props.getProperty(TSDBDriver.PROPERTY_KEY_PASSWORD));
         }
 
-        int poolSize = Integer.valueOf(props.getProperty("httpPoolSize", HttpClientPoolUtil.DEFAULT_MAX_PER_ROUTE));
-        boolean keepAlive = Boolean.valueOf(props.getProperty("httpKeepAlive", HttpClientPoolUtil.DEFAULT_HTTP_KEEP_ALIVE));
+        int poolSize = Integer.parseInt(props.getProperty("httpPoolSize", HttpClientPoolUtil.DEFAULT_MAX_PER_ROUTE));
+        boolean keepAlive = Boolean.parseBoolean(props.getProperty("httpKeepAlive", HttpClientPoolUtil.DEFAULT_HTTP_KEEP_ALIVE));
 
         HttpClientPoolUtil.init(poolSize, keepAlive);
         String result = HttpClientPoolUtil.execute(loginUrl);
@@ -79,7 +79,7 @@ public class RestfulDriver extends AbstractDriver {
     public boolean acceptsURL(String url) throws SQLException {
         if (url == null)
             throw TSDBError.createSQLException(TSDBErrorNumbers.ERROR_URL_NOT_SET);
-        return url.length() > 0 && url.trim().length() > 0 && url.startsWith(URL_PREFIX);
+        return url.trim().length() > 0 && url.startsWith(URL_PREFIX);
     }
 
     @Override

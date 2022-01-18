@@ -332,6 +332,14 @@ class TDSql:
             args = (caller.filename, caller.lineno, self.sql, elm, expect_elm)
             tdLog.exit("%s(%d) failed: sql:%s, elm:%s == expect_elm:%s" % args)
 
+    def checkIn(self, sub, res):
+        if sub in res:
+            tdLog.info("sql:%s, sub:%s in result:%s" % (self.sql, sub, res))
+        else:
+            caller = inspect.getframeinfo(inspect.stack()[1][0])
+            args = (caller.filename, caller.lineno, self.sql, sub, res)
+            tdLog.exit("%s(%d) failed: sql:%s, sub:%s not in result:%s" % args)
+
     def taosdStatus(self, state):
         tdLog.sleep(5)
         pstate = 0

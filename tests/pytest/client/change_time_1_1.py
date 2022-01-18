@@ -42,7 +42,7 @@ class TDTestCase:
         #11 data files should be generated
         #vnode at TDinternal/community/sim/dnode1/data/vnode
         try:
-            os.system(f"{binPath}taosdemo -f tools/taosdemoAllTest/manual_change_time_1_1_A.json")
+            os.system(f"{binPath}taosBenchmark -f tools/taosdemoAllTest/manual_change_time_1_1_A.json")
             commandArray = ['ls', '-l', f'{TDenginePath}/sim/dnode1/data/vnode/vnode2/tsdb/data']
             result = subprocess.run(commandArray, stdout=subprocess.PIPE).stdout.decode('utf-8')
         except BaseException:
@@ -59,7 +59,7 @@ class TDTestCase:
         #leaving 7 data files.
         try:
             os.system ('timedatectl set-time 2020-10-25')
-            os.system(f"{binPath}taosdemo -f tools/taosdemoAllTest/manual_change_time_1_1_B.json")
+            os.system(f"{binPath}taosBenchmark -f tools/taosdemoAllTest/manual_change_time_1_1_B.json")
         except BaseException:
             os.system('sudo timedatectl set-ntp on')
             tdLog.sleep(10)

@@ -228,7 +228,7 @@ Note: In 2.0.15.0 and later versions, STABLE reserved words are supported. That 
     ```mysql
     CREATE STABLE [IF NOT EXISTS] stb_name (timestamp_field_name TIMESTAMP, field1_name data_type1 [, field2_name data_type2 ...]) TAGS (tag1_name tag_type1, tag2_name tag_type2 [, tag3_name tag_type3]);
     ```
-    Similiar to a standard table creation SQL, but you need to specify name and type of TAGS field.
+    Similar to a standard table creation SQL, but you need to specify name and type of TAGS field.
     
     Note:
     
@@ -673,7 +673,7 @@ Query OK, 1 row(s) in set (0.001091s)
     SELECT * FROM tb1 WHERE ts >= NOW - 1h;
     ```
 
-- Look up table tb1 from 2018-06-01 08:00:00. 000 to 2018-06-02 08:00:00. 000, and col3 string is a record ending in'nny ', and the result is in descending order of timestamp:
+- Look up table tb1 from 2018-06-01 08:00:00. 000 to 2018-06-02 08:00:00. 000, and col3 string is a record ending in 'nny ', and the result is in descending order of timestamp:
 
     ```mysql
     SELECT * FROM tb1 WHERE ts > '2018-06-01 08:00:00.000' AND ts <= '2018-06-02 08:00:00.000' AND col3 LIKE '%nny' ORDER BY ts DESC;
@@ -782,7 +782,7 @@ TDengine supports aggregations over data, they are listed below:
   
   Function: return the sum of a statistics/STable.
   
-  Return Data Type: long integer INMT64 and Double.
+  Return Data Type: INT64 and Double.
   
   Applicable Fields: All types except timestamp, binary, nchar, bool.
   
@@ -1196,7 +1196,7 @@ SELECT function_list FROM stb_name
 
 - FILL statement specifies a filling mode when data missed in a certain interval. Applicable filling modes include the following:
   
-  1. Do not fill: NONE (default filingl mode).
+  1. Do not fill: NONE (default filing mode).
   2. VALUE filling: Fixed value filling, where the filled value needs to be specified. For example: fill (VALUE, 1.23).
   3. NULL filling: Fill the data with NULL. For example: fill (NULL).
   4. PREV filling: Filling data with the previous non-NULL value. For example: fill (PREV).

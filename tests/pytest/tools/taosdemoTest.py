@@ -51,7 +51,7 @@ class TDTestCase:
         else:
             tdLog.info("taosdemo found in %s" % buildPath)
         binPath = buildPath + "/build/bin/"
-        os.system("%staosdemo -y -t %d -n %d -b INT,INT,INT,INT" %
+        os.system("%staosBenchmark -y -t %d -n %d -b INT,INT,INT,INT" %
                   (binPath, self.numberOfTables, self.numberOfRecords))
 
         tdSql.execute("use test")

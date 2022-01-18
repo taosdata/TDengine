@@ -116,16 +116,14 @@ function install_bin() {
 }
 
 function install_header() {
-    ${csudo} rm -f ${inc_link_dir}/taos.h ${inc_link_dir}/taoserror.h    || :
+    ${csudo} rm -f ${inc_link_dir}/taos.h ${inc_link_dir}/taosdef.h ${inc_link_dir}/taoserror.h    || :
     ${csudo} cp -f ${script_dir}/inc/* ${install_main_dir}/include && ${csudo} chmod 644 ${install_main_dir}/include/*    
     ${csudo} ln -s ${install_main_dir}/include/taos.h ${inc_link_dir}/taos.h
+    ${csudo} ln -s ${install_main_dir}/include/taosdef.h ${inc_link_dir}/taosdef.h
     ${csudo} ln -s ${install_main_dir}/include/taoserror.h ${inc_link_dir}/taoserror.h
 }
 
 function clean_service_on_sysvinit() {
-    #restart_config_str="taos:2345:respawn:${service_config_dir}/taosd start"
-    #${csudo} sed -i "\|${restart_config_str}|d" /etc/inittab || :    
-       
     if pidof tarbitrator &> /dev/null; then
         ${csudo} service tarbitratord stop || :
     fi
@@ -221,7 +219,6 @@ function install_service() {
     elif ((${service_mod}==1)); then
         install_service_on_sysvinit
     else
-        # must manual stop taosd
         kill_tarbitrator
     fi
 }
@@ -247,7 +244,6 @@ function update_prodb() {
     install_service
 		
     echo
-    #echo -e "${GREEN_DARK}To configure ProDB ${NC}: edit /etc/taos/taos.cfg"
     if ((${service_mod}==0)); then
         echo -e "${GREEN_DARK}To start arbitrator     ${NC}: ${csudo} systemctl start tarbitratord${NC}"
     elif ((${service_mod}==1)); then
@@ -268,7 +264,6 @@ function install_prodb() {
     install_bin
     install_service
     echo
-    #echo -e "${GREEN_DARK}To configure ProDB ${NC}: edit /etc/taos/taos.cfg"
     if ((${service_mod}==0)); then
         echo -e "${GREEN_DARK}To start arbitrator     ${NC}: ${csudo} systemctl start tarbitratord${NC}"
     elif ((${service_mod}==1)); then

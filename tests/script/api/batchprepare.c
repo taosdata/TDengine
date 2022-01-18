@@ -2722,6 +2722,38 @@ int stmt_funcb_autoctb_e5(TAOS_STMT *stmt) {
 }
 
 
+int stmt_funcb_autoctb_e6(TAOS_STMT *stmt) {
+  char *sql = "insert into ? using stb1 tags(?,?,?,?,?,?,?,?,?) values(now,?,?,?,?,?,?,?,?,?)";
+  int code = taos_stmt_prepare(stmt, sql, 0);
+  if (code != 0){
+    printf("case success:failed to execute taos_stmt_prepare. code:%s\n", taos_stmt_errstr(stmt));
+  }
+
+  return 0;
+}
+
+
+int stmt_funcb_autoctb_e7(TAOS_STMT *stmt) {
+  char *sql = "insert into ? using stb1 tags(?,?,?,?,?,?,?,?,?) values(?,true,?,?,?,?,?,?,?,?)";
+  int code = taos_stmt_prepare(stmt, sql, 0);
+  if (code != 0){
+    printf("case success:failed to execute taos_stmt_prepare. code:%s\n", taos_stmt_errstr(stmt));
+  }
+
+  return 0;
+}
+
+
+int stmt_funcb_autoctb_e8(TAOS_STMT *stmt) {
+  char *sql = "insert into ? using stb1 tags(?,?,?,?,?,?,?,?,?) values(?,?,1,?,?,?,?,?,?,?)";
+  int code = taos_stmt_prepare(stmt, sql, 0);
+  if (code != 0){
+    printf("case success:failed to execute taos_stmt_prepare. code:%s\n", taos_stmt_errstr(stmt));
+  }
+
+  return 0;
+}
+
 
 //300 tables 60 records
 int stmt_funcb1(TAOS_STMT *stmt) {
@@ -4856,6 +4888,44 @@ void* runcase(void *par) {
   taos_stmt_close(stmt);
 
 #endif
+
+
+#if 1  
+  prepare(taos, 1, 0);
+
+  stmt = taos_stmt_init(taos);
+
+  printf("e6 start\n");
+  stmt_funcb_autoctb_e6(stmt);
+  printf("e6 end\n");
+  taos_stmt_close(stmt);
+
+#endif
+
+#if 1  
+  prepare(taos, 1, 0);
+
+  stmt = taos_stmt_init(taos);
+
+  printf("e7 start\n");
+  stmt_funcb_autoctb_e7(stmt);
+  printf("e7 end\n");
+  taos_stmt_close(stmt);
+
+#endif
+
+#if 1  
+  prepare(taos, 1, 0);
+
+  stmt = taos_stmt_init(taos);
+
+  printf("e8 start\n");
+  stmt_funcb_autoctb_e8(stmt);
+  printf("e8 end\n");
+  taos_stmt_close(stmt);
+
+#endif
+
 
 #if 1
   prepare(taos, 1, 0);

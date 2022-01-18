@@ -120,6 +120,14 @@ static void dnodeProcessMsgFromShell(SRpcMsg *pMsg, SRpcEpSet *pEpSet) {
 
   if (pMsg->pCont == NULL) return;
 
+  if (pMsg->msgType >= TSDB_MSG_TYPE_MAX) {
+    dError("RPC %p, shell msg type:%d is not processed", pMsg->handle, pMsg->msgType);
+    rpcMsg.code = TSDB_CODE_DND_MSG_NOT_PROCESSED;
+    rpcSendResponse(&rpcMsg);
+    rpcFreeCont(pMsg->pCont);
+    return;
+  }
+
   SRunStatus dnodeStatus = dnodeGetRunStatus();
   if (dnodeStatus == TSDB_RUN_STATUS_STOPPED) {
     dError("RPC %p, shell msg:%s is ignored since dnode exiting", pMsg->handle, taosMsg[pMsg->msgType]);

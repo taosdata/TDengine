@@ -1,6 +1,6 @@
 # Efficient Data Writing
 
-TDengine supports multiple ways to write data, including SQL, Prometheus, Telegraf, EMQ MQTT Broker, HiveMQ Broker, CSV file, etc. Kafka, OPC and other interfaces will be provided in the future. Data can be inserted in one single record or in batches, data from one or multiple data collection points can be inserted at the same time. TDengine supports multi-thread insertion, out-of-order data insertion, and also historical data insertion.
+TDengine supports multiple ways to write data, including SQL, Prometheus, Telegraf, collectd, StatsD, EMQ MQTT Broker, HiveMQ Broker, CSV file, etc. Kafka, OPC and other interfaces will be provided in the future. Data can be inserted in one single record or in batches, data from one or multiple data collection points can be inserted at the same time. TDengine supports multi-thread insertion, out-of-order data insertion, and also historical data insertion.
 
 ## <a class="anchor" id="sql"></a> Data Writing via SQL 
 
@@ -107,11 +107,10 @@ Launch an API service for blm_prometheus with the following command:
 
 Assuming that the IP address of the server where blm_prometheus located is "10.1.2. 3", the URL shall be added to the configuration file of Prometheus as:
 
+```yaml
 remote_write:
-
-\- url: "http://10.1.2.3:8088/receive"
-
-
+  - url: "http://10.1.2.3:8088/receive"
+```
 
 ### Query written data of prometheus
 
@@ -142,140 +141,83 @@ use prometheus;
 select * from apiserver_request_latencies_bucket;
 ```
 
+## <a class="anchor" id="telegraf"></a> Data Writing via Telegraf and taosAdapter
+Please refer to [Official document](https://portal.influxdata.com/downloads/) for Telegraf installation.
 
+TDengine version 2.3.0.0+ includes a stand-alone application taosAdapter in charge of receive data insertion from Telegraf.
 
-## <a class="anchor" id="telegraf"></a> Data Writing via Telegraf
-
-[Telegraf](https://www.influxdata.com/time-series-platform/telegraf/) is a popular open source tool for IT operation data collection. TDengine provides a simple tool [Bailongma](https://github.com/taosdata/Bailongma), which only needs to be simply configured in Telegraf without any code, and can directly write the data collected by Telegraf into TDengine, then automatically create databases and related table entries in TDengine according to rules. Blog post [Use Docker Container to Quickly Build a Devops Monitoring Demo](https://www.taosdata.com/blog/2020/02/03/1189.html), which is an example of using bailongma to write Prometheus and Telegraf data into TDengine.
-
-### Compile blm_telegraf From Source Code
-
-Users need to download the source code of [Bailongma](https://github.com/taosdata/Bailongma) from github, then compile and generate an executable file using Golang language compiler. Before you start compiling, you need to complete following prepares:
-
-- A server running Linux OS
-- Golang version 1.10 and higher installed
-- An appropriated TDengine version. Because the client dynamic link library of TDengine is used, it is necessary to install the same version of TDengine as the server-side; for example, if the server version is TDengine 2.0. 0, ensure install the same version on the linux server where bailongma is located (can be on the same server as TDengine, or on a different server)
-
-Bailongma project has a folder, blm_telegraf, which holds the Telegraf writing API. The compiling process is as follows:
-
-```bash
-cd blm_telegraf
-
-go build
+Configuration:
+Please add following words in /etc/telegraf/telegraf.conf. Fill 'database name' with the database name you want to store in the TDengine for Telegraf data. Please fill the values in TDengine server/cluster host, username and password fields.
+```
+[[outputs.http]]
+  url = "http://<TDengine server/cluster host>:6041/influxdb/v1/write?db=<database name>"
+  method = "POST"
+  timeout = "5s"
+  username = "<TDengine's username>"
+  password = "<TDengine's password>"
+  data_format = "influx"
+  influx_max_line_bytes = 250
 ```
 
-If everything goes well, an executable of blm_telegraf will be generated in the corresponding directory.
+Then restart telegraf:
+```
+sudo systemctl start telegraf
+```
+Now you can query the metrics data of Telegraf from TDengine.
 
-### Install Telegraf
+Please find taosAdapter configuration and usage from `taosadapter --help` output.
 
-At the moment, TDengine supports Telegraf version 1.7. 4 and above. Users can download the installation package on Telegraf's website according to your current operating system. The download address is as follows: https://portal.influxdata.com/downloads
+## <a class="anchor" id="collectd"></a> collectd 直接写入(通过 taosAdapter)
+Please refer to [official document](https://collectd.org/download.shtml) for collectd installation.
 
-### Configure Telegraf
+TDengine version 2.3.0.0+ includes a stand-alone application taosAdapter in charge of receive data insertion from collectd.
 
-Modify the TDengine-related configurations in the Telegraf configuration file /etc/telegraf/telegraf.conf.
+Configuration:
+Please add following words in /etc/collectd/collectd.conf. Please fill the value 'host' and 'port' with what the TDengine and taosAdapter using. 
+```
+LoadPlugin network
+<Plugin network>
+  Server "<TDengine cluster/server host>" "<port for collectd>"
+</Plugin>
+```
+Then restart collectd
+```
+sudo systemctl start collectd
+```
+Please find taosAdapter configuration and usage from `taosadapter --help` output.
 
-In the output plugins section, add the [[outputs.http]] configuration:
+## <a class="anchor" id="statsd"></a> StatsD 直接写入(通过 taosAdapter)
+Please refer to [official document](https://github.com/statsd/statsd) for StatsD installation.
 
-- url: The URL provided by bailongma API service, please refer to the example section below
-- data_format: "json"
-- json_timestamp_units: "1ms"
+TDengine version 2.3.0.0+ includes a stand-alone application taosAdapter in charge of receive data insertion from StatsD.
 
-In agent section:
-
-- hostname: The machine name that distinguishes different collection devices, and it is necessary to ensure its uniqueness
-- metric_batch_size: 100, which is the max number of records per batch wriiten by Telegraf allowed. Increasing the number can reduce the request sending frequency of Telegraf.
-
-For information on how to use Telegraf to collect data and more about using Telegraf, please refer to the official [document](https://docs.influxdata.com/telegraf/v1.11/) of Telegraf.
-
-### Launch blm_telegraf
-
-blm_telegraf has following options, which can be set to tune configurations of blm_telegraf when launching.
-
-```sh
---host
-
-The ip address of TDengine server, default is null
-
---batch-size
-
-blm_prometheus assembles the received telegraf data into a TDengine writing request. This parameter controls the number of data pieces carried in a writing request sent to TDengine at a time.
-
---dbname
-
-Set a name for the database created in TDengine, blm_telegraf will automatically create a database named dbname in TDengine, and the default value is prometheus.
-
---dbuser
-
-Set the user name to access TDengine, the default value is 'root '
-
---dbpassword
-
-Set the password to access TDengine, the default value is'taosdata '
-
---port
-
-The port number blm_telegraf used to serve Telegraf.
+Please add following words in the config.js file. Please fill the value to 'host' and 'port' with what the TDengine and taosAdapter using. 
+```
+add "./backends/repeater" to backends section.
+add { host:'<TDengine server/cluster host>', port: <port for StatsD>} to repeater section.
 ```
 
-
-
-### Example
-
-Launch an API service for blm_telegraf with the following command
-
-```bash
-./blm_telegraf -host 127.0.0.1 -port 8089
+Example file:
 ```
-
-Assuming that the IP address of the server where blm_telegraf located is "10.1.2. 3", the URL shall be added to the configuration file of telegraf as:
-
-```yaml
-url = "http://10.1.2.3:8089/telegraf"
-```
-
-### Query written data of telegraf
-
-The format of generated data by telegraf is as follows:
-
-```json
 {
-  "fields": {
-    "usage_guest": 0, 
-    "usage_guest_nice": 0,
-    "usage_idle": 89.7897897897898, 
-    "usage_iowait": 0,
-    "usage_irq": 0,
-    "usage_nice": 0,
-    "usage_softirq": 0,
-    "usage_steal": 0,
-    "usage_system": 5.405405405405405, 
-    "usage_user": 4.804804804804805
-  },
-  
-  "name": "cpu", 
-  "tags": {
-    "cpu": "cpu2",
-    "host": "bogon" 
-  },
-  "timestamp": 1576464360 
+port: 8125
+, backends: ["./backends/repeater"]
+, repeater: [{ host: '127.0.0.1', port: 6044}]
 }
 ```
 
-Where the name field is the name of the time-series data collected by telegraf, and the tag field is the tag of the time-series data. blm_telegraf automatically creates a STable in TDengine with the name of the time series data, and converts the tag field into the tag value of TDengine, with Timestamp as the timestamp and fields values as the value of the time-series data. Therefore, in the client of TDEngine, you can check whether this data was successfully written through the following instruction.
+Please find taosAdapter configuration and usage from `taosadapter --help` output.
 
-```mysql
-use telegraf;
 
-select * from cpu;
-```
+## <a class="anchor" id="taosadapter2-telegraf"></a> Insert data via Bailongma 2.0 and Telegraf
 
-MQTT is a popular data transmission protocol in the IoT. TDengine can easily access the data received by MQTT Broker and write it to TDengine.
+**Notice:**
+TDengine 2.3.0.0+ provides taosAdapter to support Telegraf data writing. Bailongma v2 will be abandoned and no more maintained.
+
 
 ## <a class="anchor" id="emq"></a> Data Writing via EMQ Broker
 
 [EMQ](https://github.com/emqx/emqx) is an open source MQTT Broker software, with no need of coding, only to use "rules" in EMQ Dashboard for simple configuration, and MQTT data can be directly written into TDengine. EMQ X supports storing data to the TDengine by sending it to a Web service, and also provides a native TDengine driver on Enterprise Edition for direct data store. Please refer to [EMQ official documents](https://docs.emqx.io/broker/latest/cn/rule/rule-example.html#%E4%BF%9D%E5%AD%98%E6%95%B0%E6%8D%AE%E5%88%B0-tdengine) for more details.
-
-
 
 ## <a class="anchor" id="hivemq"></a> Data Writing via HiveMQ Broker
 

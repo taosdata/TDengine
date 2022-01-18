@@ -42,6 +42,7 @@ extern int8_t   tsArbOnline;
 extern int64_t  tsArbOnlineTimestamp;
 extern int32_t  tsDnodeId;
 extern int64_t  tsDnodeStartTime;
+extern int8_t   tsDnodeNopLoop;
 
 // common
 extern int      tsRpcTimer;
@@ -237,6 +238,7 @@ extern int8_t tsDeadLockKillQuery;
 // schemaless
 extern char tsDefaultJSONStrType[];
 extern char tsSmlChildTableName[];
+extern char tsSmlTagNullName[];
 
 
 typedef struct {

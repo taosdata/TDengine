@@ -367,6 +367,14 @@ static int32_t tsCompareFunc(TSKEY k1, TSKEY k2, int32_t order) {
 }
 
 int32_t columnValueAscendingComparator(char *f1, char *f2, int32_t type, int32_t bytes) {
+  if (type == TSDB_DATA_TYPE_JSON){
+    bool canReturn = true;
+    int32_t result = jsonCompareUnit(f1, f2, &canReturn);
+    if(canReturn) return result;
+    type = *f1;
+    f1 += CHAR_BYTES;
+    f2 += CHAR_BYTES;
+  }
   switch (type) {
     case TSDB_DATA_TYPE_INT:     DEFAULT_COMP(GET_INT32_VAL(f1), GET_INT32_VAL(f2));
     case TSDB_DATA_TYPE_DOUBLE:  DEFAULT_DOUBLE_COMP(GET_DOUBLE_VAL(f1), GET_DOUBLE_VAL(f2));
@@ -641,6 +649,89 @@ static UNUSED_FUNC void tRowModelDisplay(tOrderDescriptor *pDescriptor, int32_t 
   printf("\n");
 }
 
+static void mergeSortIndicesByOrderColumns(tOrderDescriptor *pDescriptor, int32_t numOfRows, int32_t start, int32_t end, char *data,
+                                int32_t orderType, __col_compar_fn_t compareFn, int32_t* indices, int32_t* aux) {
+  if (end <= start) {
+    return;
+  }
+
+
+  int32_t mid = start + (end-start)/2;
+  mergeSortIndicesByOrderColumns(pDescriptor, numOfRows, start, mid, data, orderType, compareFn, indices, aux);
+  mergeSortIndicesByOrderColumns(pDescriptor, numOfRows, mid+1, end, data, orderType, compareFn, indices, aux);
+  int32_t left = start;
+  int32_t right = mid + 1;
+  int32_t k;
+  for (k = start; k <= end; ++k) {
+    if (left == mid+1) {
+      aux[k] = indices[right];
+      ++right;
+    } else if (right == end+1) {
+      aux[k] = indices[left];
+      ++left;
+    } else {
+      int32_t ret = compareFn(pDescriptor, numOfRows, indices[left], indices[right], data);
+      if (ret <= 0) {
+        aux[k] = indices[left];
+        ++left;
+      } else {
+        aux[k] = indices[right];
+        ++right;
+      }
+    }
+  }
+
+  for (k = start; k <= end; ++k) {
+    indices[k] = aux[k];
+  }
+}
+
+static void columnwiseMergeSortImpl(tOrderDescriptor *pDescriptor, int32_t numOfRows, int32_t start, int32_t end, char* data,
+                                    int32_t orderType, __col_compar_fn_t compareFn) {
+  int32_t* indices = malloc(numOfRows * sizeof(int32_t));
+  int32_t* aux = malloc(numOfRows * sizeof(int32_t));
+
+  for (int32_t i = 0; i < numOfRows; ++i) {
+    indices[i] = i;
+  }
+
+  mergeSortIndicesByOrderColumns(pDescriptor, numOfRows, 0, numOfRows-1, data, orderType, compareFn, indices, aux);
+
+  int32_t numOfCols = pDescriptor->pColumnModel->numOfCols;
+
+  int32_t prevLength = 0;
+  char* p = NULL;
+
+  for(int32_t i = 0; i < numOfCols; ++i) {
+    int16_t colOffset = getColumnModelOffset(pDescriptor->pColumnModel, i);
+    int32_t colBytes = pDescriptor->pColumnModel->pFields[i].field.bytes;
+    // make sure memory buffer is enough
+    if (prevLength < colBytes) {
+      char *tmp = realloc(p, colBytes * numOfRows);
+      assert(tmp);
+
+      p = tmp;
+      prevLength = colBytes;
+    }
+
+    char* colData = data + colOffset * numOfRows;
+    memcpy(p, colData, colBytes * numOfRows);
+
+    for(int32_t j = 0; j < numOfRows; ++j){
+      char* dest = colData + colBytes * j;
+
+      int32_t newPos = indices[j];
+      char* src = p + (newPos * colBytes);
+      memcpy(dest, src, colBytes);
+    }
+
+  }
+
+  tfree(p);
+  tfree(aux);
+  tfree(indices);
+}
+
 static void columnwiseQSortImpl(tOrderDescriptor *pDescriptor, int32_t numOfRows, int32_t start, int32_t end, char *data,
                                 int32_t orderType, __col_compar_fn_t compareFn, void* buf) {
 #ifdef _DEBUG_VIEW
@@ -742,9 +833,9 @@ static void columnwiseQSortImpl(tOrderDescriptor *pDescriptor, int32_t numOfRows
   }
 }
 
-void tColDataQSort(tOrderDescriptor *pDescriptor, int32_t numOfRows, int32_t start, int32_t end, char *data, int32_t order) {
+void tColDataQSort(tOrderDescriptor *pDescriptor, int32_t numOfRows, int32_t start, int32_t end, char *data, int32_t orderType) {
   // short array sort, incur another sort procedure instead of quick sort process
-  __col_compar_fn_t compareFn = (order == TSDB_ORDER_ASC) ? compare_sa : compare_sd;
+  __col_compar_fn_t compareFn = (orderType == TSDB_ORDER_ASC) ? compare_sa : compare_sd;
 
   SColumnModel* pModel = pDescriptor->pColumnModel;
 
@@ -762,11 +853,39 @@ void tColDataQSort(tOrderDescriptor *pDescriptor, int32_t numOfRows, int32_t sta
   if (end - start + 1 <= 8) {
     tColDataInsertSort(pDescriptor, numOfRows, start, end, data, compareFn, buf);
   } else {
-    columnwiseQSortImpl(pDescriptor, numOfRows, start, end, data, order, compareFn, buf);
+    columnwiseQSortImpl(pDescriptor, numOfRows, start, end, data, orderType, compareFn, buf);
   }
 
   free(buf);
 }
+
+void tColDataMergeSort(tOrderDescriptor *pDescriptor, int32_t numOfRows, int32_t start, int32_t end, char *data, int32_t orderType) {
+  // short array sort, incur another sort procedure instead of quick sort process
+  __col_compar_fn_t compareFn = (orderType == TSDB_ORDER_ASC) ? compare_sa : compare_sd;
+
+  SColumnModel* pModel = pDescriptor->pColumnModel;
+
+  size_t width = 0;
+  for(int32_t i = 0; i < pModel->numOfCols; ++i) {
+    SSchema1* pSchema = &pModel->pFields[i].field;
+    if (width < pSchema->bytes) {
+      width = pSchema->bytes;
+    }
+  }
+
+  char* buf = malloc(width);
+  assert(width > 0 && buf != NULL);
+
+  if (end - start + 1 <= 8) {
+    tColDataInsertSort(pDescriptor, numOfRows, start, end, data, compareFn, buf);
+  } else {
+    columnwiseMergeSortImpl(pDescriptor, numOfRows, start, end, data, orderType, compareFn);
+  }
+
+  free(buf);
+}
+
+
 
 /*
  * deep copy of sschema
