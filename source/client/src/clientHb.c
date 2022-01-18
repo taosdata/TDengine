@@ -157,6 +157,9 @@ SAppHbMgr* appHbMgrInit(SAppInstInfo* pAppInstInfo) {
   }
   // init stat
   pAppHbMgr->startTime = taosGetTimestampMs();
+  pAppHbMgr->connKeyCnt = 0;
+  pAppHbMgr->reportCnt = 0;
+  pAppHbMgr->reportBytes = 0;
 
   // init app info
   pAppHbMgr->pAppInstInfo = pAppInstInfo;
