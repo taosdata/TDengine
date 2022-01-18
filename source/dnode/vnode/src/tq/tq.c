@@ -607,3 +607,70 @@ int tqItemSSize() {
   // mainly for executor
   return 0;
 }
+
+STqReadHandle* tqInitSubmitMsgScanner(SMeta* pMeta, SSubmitMsg *pMsg) {
+  STqReadHandle* pReadHandle = malloc(sizeof(STqReadHandle));
+  if (pReadHandle == NULL) {
+    return NULL;
+  }
+  pReadHandle->pMeta = pMeta;
+  pReadHandle->pMsg = pMsg;
+  tInitSubmitMsgIter(pMsg, &pReadHandle->msgIter);
+  pReadHandle->ver = -1;
+  return NULL;
+}
+
+bool tqNextDataBlock(STqReadHandle* pHandle) {
+  if(tGetSubmitMsgNext(&pHandle->msgIter, &pHandle->pBlock) < 0) {
+    return false;
+  }
+  return true;
+}
+
+int tqRetrieveDataBlockInfo(STqReadHandle* pHandle, SDataBlockInfo* pBlockInfo) {
+  SMemRow row;
+  int32_t sversion = pHandle->pBlock->sversion;
+  SSchemaWrapper* pSchema = metaGetTableSchema(pHandle->pMeta, pHandle->pBlock->uid, sversion, false);
+  pBlockInfo->numOfCols = pSchema->nCols;
+  pBlockInfo->rows = pHandle->pBlock->numOfRows;
+  pBlockInfo->uid = pHandle->pBlock->uid;
+  while ((row = tGetSubmitBlkNext(&pHandle->blkIter)) != NULL) {
+     
+  }
+  return 0;
+}
+SArray *tqRetrieveDataBlock(STqReadHandle* pHandle, SArray* pColumnIdList) {
+  int32_t sversion = pHandle->pBlock->sversion;
+  SSchemaWrapper* pSchemaWrapper = metaGetTableSchema(pHandle->pMeta, pHandle->pBlock->uid, sversion, true);
+  STSchema* pTschema = metaGetTbTSchema(pHandle->pMeta, pHandle->pBlock->uid, sversion);
+  SArray *pArray = taosArrayInit(pSchemaWrapper->nCols, sizeof(SColumnInfoData));
+  if (pArray == NULL) {
+    return NULL;
+  }
+  SColumnInfoData colInfo;
+  int sz = pSchemaWrapper->nCols * pSchemaWrapper->pSchema->bytes;
+  colInfo.pData = malloc(sz);
+  if (colInfo.pData == NULL) {
+    return NULL;
+  }
+
+  for (int i = 0; i < pTschema->numOfCols; i++) {
+    taosArrayPush(pColumnIdList, &(schemaColAt(pTschema, i)->colId));
+  }
+
+  SMemRow row;
+  int32_t kvIdx;
+  while ((row = tGetSubmitBlkNext(&pHandle->blkIter)) != NULL) {
+    for (int i = 0; i < pTschema->numOfCols && kvIdx < pTschema->numOfCols; i++) {
+      STColumn *pCol = schemaColAt(pTschema, i);
+      void* val = tdGetMemRowDataOfColEx(row, pCol->colId, pCol->type, TD_DATA_ROW_HEAD_SIZE + pCol->offset, &kvIdx);
+      //TODO: handle varlen
+      memcpy(POINTER_SHIFT(colInfo.pData, pCol->offset), val, pCol->bytes);
+    }
+  }
+  taosArrayPush(pArray, &colInfo);
+  return pArray;
+}
+/*int tqLoadDataBlock(SExecTaskInfo* pTaskInfo, SSubmitBlkScanInfo* pSubmitBlkScanInfo, SSDataBlock* pBlock, uint32_t status) {*/
+  /*return 0;*/
+/*}*/
