@@ -55,6 +55,10 @@ static void* clientThread(void* arg);
 static void clientWriteCb(uv_write_t* req, int status) {
   // impl later
 }
+static void clientFailedCb(uv_handle_t* handle) {
+  // impl later
+  tDebug("close handle");
+}
 static void clientReadCb(uv_stream_t* cli, ssize_t nread, const uv_buf_t* buf) {
   // impl later
 }
@@ -68,8 +72,10 @@ static void clientConnCb(struct uv_connect_s* req, int status) {
   if (status != 0) {
     // call user fp later
     tError("failed to connect server(%s, %d), errmsg: %s", fqdn, port, uv_strerror(status));
+    uv_close((uv_handle_t*)req->handle, clientFailedCb);
     return;
   }
+  assert(pConn->stream == req->handle);
 
   // impl later
 }
@@ -123,19 +129,6 @@ static void clientAsyncCb(uv_async_t* handle) {
 
 static void* clientThread(void* arg) {
   SCliThrdObj* pThrd = (SCliThrdObj*)arg;
-
-  QUEUE_INIT(&pThrd->msg);
-  pthread_mutex_init(&pThrd->msgMtx, NULL);
-
-  // QUEUE_INIT(&pThrd->clientCache);
-
-  pThrd->loop = (uv_loop_t*)malloc(sizeof(uv_loop_t));
-  uv_loop_init(pThrd->loop);
-
-  pThrd->cliAsync = malloc(sizeof(uv_async_t));
-  uv_async_init(pThrd->loop, pThrd->cliAsync, clientAsyncCb);
-  pThrd->cliAsync->data = pThrd;
-
   uv_run(pThrd->loop, UV_RUN_DEFAULT);
 }
 
@@ -146,14 +139,25 @@ void* taosInitClient(uint32_t ip, uint32_t port, char* label, int numOfThreads, 
   cli->pThreadObj = (SCliThrdObj**)calloc(cli->numOfThreads, sizeof(SCliThrdObj*));
 
   for (int i = 0; i < cli->numOfThreads; i++) {
-    SCliThrdObj* thrd = (SCliThrdObj*)calloc(1, sizeof(SCliThrdObj));
+    SCliThrdObj* pThrd = (SCliThrdObj*)calloc(1, sizeof(SCliThrdObj));
+    QUEUE_INIT(&pThrd->msg);
+    pthread_mutex_init(&pThrd->msgMtx, NULL);
 
-    thrd->shandle = shandle;
-    int err = pthread_create(&thrd->thread, NULL, clientThread, (void*)(thrd));
+    // QUEUE_INIT(&pThrd->clientCache);
+
+    pThrd->loop = (uv_loop_t*)malloc(sizeof(uv_loop_t));
+    uv_loop_init(pThrd->loop);
+
+    pThrd->cliAsync = malloc(sizeof(uv_async_t));
+    uv_async_init(pThrd->loop, pThrd->cliAsync, clientAsyncCb);
+    pThrd->cliAsync->data = pThrd;
+
+    pThrd->shandle = shandle;
+    int err = pthread_create(&pThrd->thread, NULL, clientThread, (void*)(pThrd));
     if (err == 0) {
       tDebug("sucess to create tranport-client thread %d", i);
     }
-    cli->pThreadObj[i] = thrd;
+    cli->pThreadObj[i] = pThrd;
   }
   return cli;
 }
