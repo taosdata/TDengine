@@ -41,7 +41,7 @@ if echo $1 | grep -E "taosd$" - >/dev/null; then
 else
     cp -f $CFG_FILE /etc/taos/taos.cfg || true
     $@
-    exit
+    exit $?
 fi
 
 set +e
@@ -66,8 +66,9 @@ if [ -f "$DATA_DIR/dnode/mnodeEpSet.json" ] ||
 # others will first wait the first ep ready.
 else
     if [ "$TAOS_FIRST_EP" = "" ]; then
-        echo "TAOS_FIRST_EP must be setted in cluster"
-        exit
+        echo "run TDengine with single node."
+        $@ -c $CFG_DIR
+        exit $?
     fi
     while true; do
         es=0
