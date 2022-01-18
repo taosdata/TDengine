@@ -196,7 +196,7 @@ static int32_t getDataBlock(SDataSinkHandle* pHandle, SOutputData* pOutput) {
   pOutput->bufStatus = updateStatus(pDispatcher);
   pthread_mutex_lock(&pDispatcher->mutex);
   pOutput->queryEnd = pDispatcher->queryEnd;
-  pOutput->needSchedule = false;
+  pOutput->scheduleJobNo = 0;
   pOutput->useconds = pDispatcher->useconds;
   pOutput->precision = pDispatcher->schema.precision;
   pthread_mutex_unlock(&pDispatcher->mutex);

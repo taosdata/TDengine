@@ -234,6 +234,92 @@ static FORCE_INLINE void* taosDecodeSClientHbKey(void* buf, SClientHbKey* pKey) 
   return buf;
 }
 
+typedef struct SMqHbVgInfo {
+  int32_t vgId;
+} SMqHbVgInfo;
+
+static FORCE_INLINE int taosEncodeSMqVgInfo(void** buf, const SMqHbVgInfo* pVgInfo) {
+  int tlen = 0;
+  tlen += taosEncodeFixedI32(buf, pVgInfo->vgId);
+  return tlen;
+}
+
+static FORCE_INLINE void* taosDecodeSMqVgInfo(void* buf, SMqHbVgInfo* pVgInfo) {
+  buf = taosDecodeFixedI32(buf, &pVgInfo->vgId);
+  return buf;
+}
+
+typedef struct SMqHbTopicInfo {
+  int32_t epoch;
+  int64_t topicUid;
+  char    name[TSDB_TOPIC_FNAME_LEN];
+  SArray* pVgInfo;
+} SMqHbTopicInfo;
+
+static FORCE_INLINE int taosEncodeSMqHbTopicInfoMsg(void** buf, const SMqHbTopicInfo* pTopicInfo) {
+  int tlen = 0;
+  tlen += taosEncodeFixedI32(buf, pTopicInfo->epoch);
+  tlen += taosEncodeFixedI64(buf, pTopicInfo->topicUid);
+  tlen += taosEncodeString(buf, pTopicInfo->name);
+  int32_t sz = taosArrayGetSize(pTopicInfo->pVgInfo);
+  tlen += taosEncodeFixedI32(buf, sz);
+  for (int32_t i = 0; i < sz; i++) {
+    SMqHbVgInfo* pVgInfo = (SMqHbVgInfo*)taosArrayGet(pTopicInfo->pVgInfo, i);
+    tlen += taosEncodeSMqVgInfo(buf, pVgInfo);
+  }
+  return tlen;
+}
+
+static FORCE_INLINE void* taosDecodeSMqHbTopicInfoMsg(void* buf, SMqHbTopicInfo* pTopicInfo) {
+  buf = taosDecodeFixedI32(buf, &pTopicInfo->epoch);
+  buf = taosDecodeFixedI64(buf, &pTopicInfo->topicUid);
+  buf = taosDecodeStringTo(buf, pTopicInfo->name);
+  int32_t sz;
+  buf = taosDecodeFixedI32(buf, &sz);
+  pTopicInfo->pVgInfo = taosArrayInit(sz, sizeof(SMqHbVgInfo));
+  for (int32_t i = 0; i < sz; i++) {
+    SMqHbVgInfo vgInfo;
+    buf = taosDecodeSMqVgInfo(buf, &vgInfo);
+    taosArrayPush(pTopicInfo->pVgInfo, &vgInfo);
+  }
+  return buf;
+}
+
+typedef struct SMqHbMsg {
+  int32_t  status;   // ask hb endpoint
+  int32_t  epoch;
+  int64_t  consumerId;
+  SArray*  pTopics;  // SArray<SMqHbTopicInfo>
+} SMqHbMsg;
+
+static FORCE_INLINE int taosEncodeSMqMsg(void** buf, const SMqHbMsg* pMsg) {
+  int tlen = 0;
+  tlen += taosEncodeFixedI32(buf, pMsg->status);
+  tlen += taosEncodeFixedI32(buf, pMsg->epoch);
+  tlen += taosEncodeFixedI64(buf, pMsg->consumerId);
+  int32_t sz = taosArrayGetSize(pMsg->pTopics);
+  tlen += taosEncodeFixedI32(buf, sz);
+  for (int i = 0; i < sz; i++) {
+    SMqHbTopicInfo* topicInfo = (SMqHbTopicInfo*)taosArrayGet(pMsg->pTopics, i);
+    tlen += taosEncodeSMqHbTopicInfoMsg(buf, topicInfo);
+  }
+  return tlen;
+}
+
+static FORCE_INLINE void* taosDecodeSMqMsg(void* buf, SMqHbMsg* pMsg) {
+  buf = taosDecodeFixedI32(buf, &pMsg->status);
+  buf = taosDecodeFixedI32(buf, &pMsg->epoch);
+  buf = taosDecodeFixedI64(buf, &pMsg->consumerId);
+  int32_t sz;
+  buf = taosDecodeFixedI32(buf, &sz);
+  pMsg->pTopics = taosArrayInit(sz, sizeof(SMqHbTopicInfo));
+  for (int i = 0; i < sz; i++) {
+    SMqHbTopicInfo topicInfo;
+    buf = taosDecodeSMqHbTopicInfoMsg(buf, &topicInfo);
+    taosArrayPush(pMsg->pTopics, &topicInfo);
+  }
+  return buf;
+}
 
 typedef struct {
   int32_t vgId;
@@ -396,6 +482,66 @@ static FORCE_INLINE void* taosDecodeSMqHbRsp(void* buf, SMqHbRsp* pRsp) {
   buf = taosDecodeFixedI8(buf, &pRsp->vnodeChanged);
   buf = taosDecodeFixedI8(buf, &pRsp->epChanged);
   buf = taosDecodeSEpSet(buf, &pRsp->epSet);
+  return buf;
+}
+
+typedef struct SMqHbOneTopicBatchRsp {
+  char topicName[TSDB_TOPIC_FNAME_LEN];
+  SArray* rsps;  // SArray<SMqHbRsp>
+} SMqHbOneTopicBatchRsp;
+
+static FORCE_INLINE int taosEncodeSMqHbOneTopicBatchRsp(void** buf, const SMqHbOneTopicBatchRsp* pBatchRsp) {
+  int tlen = 0;
+  tlen += taosEncodeString(buf, pBatchRsp->topicName);
+  int32_t sz = taosArrayGetSize(pBatchRsp->rsps);
+  tlen += taosEncodeFixedI32(buf, sz);
+  for (int32_t i = 0; i < sz; i++) {
+    SMqHbRsp* pRsp = (SMqHbRsp*)taosArrayGet(pBatchRsp->rsps, i);
+    tlen += taosEncodeSMqHbRsp(buf, pRsp);
+  }
+  return tlen;
+}
+
+static FORCE_INLINE void* taosDecodeSMqHbOneTopicBatchRsp(void* buf, SMqHbOneTopicBatchRsp* pBatchRsp) {
+  int32_t sz;
+  buf = taosDecodeStringTo(buf, pBatchRsp->topicName);
+  buf = taosDecodeFixedI32(buf, &sz);
+  pBatchRsp->rsps = taosArrayInit(sz, sizeof(SMqHbRsp));
+  for (int32_t i = 0; i < sz; i++) {
+    SMqHbRsp rsp;
+    buf = taosDecodeSMqHbRsp(buf, &rsp);
+    buf = taosArrayPush(pBatchRsp->rsps, &rsp);
+  }
+  return buf;
+}
+
+typedef struct SMqHbBatchRsp {
+  int64_t consumerId; 
+  SArray* batchRsps; // SArray<SMqHbOneTopicBatchRsp>
+} SMqHbBatchRsp;
+
+static FORCE_INLINE int taosEncodeSMqHbBatchRsp(void** buf, const SMqHbBatchRsp* pBatchRsp) {
+  int tlen = 0;
+  tlen += taosEncodeFixedI64(buf, pBatchRsp->consumerId);
+  int32_t sz;
+  tlen += taosEncodeFixedI32(buf, sz);
+  for (int32_t i = 0; i < sz; i++) {
+    SMqHbOneTopicBatchRsp* pRsp = (SMqHbOneTopicBatchRsp*) taosArrayGet(pBatchRsp->batchRsps, i);
+    tlen += taosEncodeSMqHbOneTopicBatchRsp(buf, pRsp);
+  }
+  return tlen;
+}
+
+static FORCE_INLINE void* taosDecodeSMqHbBatchRsp(void* buf, SMqHbBatchRsp* pBatchRsp) {
+  buf = taosDecodeFixedI64(buf, &pBatchRsp->consumerId);
+  int32_t sz;
+  buf = taosDecodeFixedI32(buf, &sz);
+  pBatchRsp->batchRsps = taosArrayInit(sz, sizeof(SMqHbOneTopicBatchRsp));
+  for (int32_t i = 0; i < sz; i++) {
+    SMqHbOneTopicBatchRsp  rsp;
+    buf = taosDecodeSMqHbOneTopicBatchRsp(buf, &rsp);
+    buf = taosArrayPush(pBatchRsp->batchRsps, &rsp);
+  }
   return buf;
 }
 
