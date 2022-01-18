@@ -147,7 +147,9 @@ docker run -d --name tdengine --network td-net \
 Start TDengine client in another container with the specific network:
 
 ```bash
-docker run --rm -it --network td-net tdengine/tdengine taos
+docker run --rm -it --network td-net -e TAOS_FIRST_EP=tdengine tdengine/tdengine taos
+# or
+docker run --rm -it --network td-net -e tdengine/tdengine taos -h tdengine
 ```
 
 When you build your application with docker, you should add the TDengine client in the dockerfile, as based on `ubuntu:20.04` image, install the client like this:
@@ -650,6 +652,12 @@ ID                  NAME                MODE                REPLICAS            
 ```
 
 Now it remains only 1 taosadapter instance in the cluster.
+
+When you want to remove the cluster, just type:
+
+```bash
+docker stack rm taos
+```
 
 ### Environment Variables
 
