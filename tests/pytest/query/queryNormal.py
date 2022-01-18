@@ -149,6 +149,27 @@ class TDTestCase:
         tdSql.checkData(1, 0, "2020-03-01 00:01:01")
         tdSql.checkData(1, 1, 421)
         tdSql.checkData(1, 2, "tm1")
+        
+        # TD-12980	
+        if platform.system() == "Linux": 
+            types = ["tinyint unsigned", "smallint unsigned", "int unsigned", "bigint unsigned"]
+            ts = 1640000000000
+            
+            for type in types:
+                tdSql.execute("drop table if exists csvtest")
+                tdSql.execute("create table csvtest(ts timestamp, c1 %s)" % type)
+                for i in range(10):
+                    tdSql.execute("insert into csvtest values(%d, %d)" % (ts + i, i))
+                
+                os.system("taos -s 'select c1 from db.csvtest >> a.csv'")
+                
+                tdSql.query("select c1 from csvtest")
+                for i in range(10):
+                    r = os.popen("sed -n %dp a.csv" % (i + 2))
+                    data = r.read()              
+                    tdSql.checkData(i, 0, int(data))
+                
+                os.system("rm -rf a.csv")
 
     def stop(self):
         tdSql.close()
