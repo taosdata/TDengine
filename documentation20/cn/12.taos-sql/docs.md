@@ -605,7 +605,6 @@ SELECT DISTINCT tag_name [, tag_name ...] FROM stb_name;
 SELECT DISTINCT col_name [, col_name ...] FROM tb_name;
 ```
 
-需要注意的是，DISTINCT 目前不支持对超级表中的普通列进行处理。如果需要进行此类操作，那么需要把超级表放在子查询中，再对子查询的计算结果执行 DISTINCT。
 
 说明：
 1. cfg 文件中的配置参数 maxNumOfDistinctRes 将对 DISTINCT 能够输出的数据行数进行限制。其最小值是 100000，最大值是 100000000，默认值是 10000000。如果实际计算结果超出了这个限制，那么会仅输出这个数量范围内的部分。
