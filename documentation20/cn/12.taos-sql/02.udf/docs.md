@@ -147,7 +147,7 @@ SELECT X(c) FROM table/stable;
 6. UDF 在 SQL 中定义的函数名，必须与 .so 库文件实现中的接口函数名前缀保持一致，也即必须是 udfNormalFunc 的名称，而且不可与 TDengine 中已有的内建 SQL 函数重名。
 
 ## 代码附件
-### add_one.c
+### [add_one.c](https://github.com/taosdata/TDengine/blob/develop/tests/script/sh/add_one.c)
 <span id="add_one.c">
 
 ```
@@ -185,7 +185,7 @@ void add_one(char* data, short itype, short ibytes, int numOfRows, long long* ts
 ```
 </span>
  
-### abs_max.c
+### [abs_max.c](https://github.com/taosdata/TDengine/blob/develop/tests/script/sh/abs_max.c)
 
 <span id="abs_max.c">
 
@@ -288,7 +288,7 @@ void abs_max_destroy(SUdfInit* buf) {
 ```
 </span>
 
-### demo.c
+### [demo.c](https://github.com/taosdata/TDengine/blob/develop/tests/script/sh/demo.c)
 
 <span id="demo.c">
 
