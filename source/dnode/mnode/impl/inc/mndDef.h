@@ -333,7 +333,7 @@ typedef struct SMqConsumerEp {
 
 typedef struct SMqCgroupTopicPair {
   char key[TSDB_CONSUMER_GROUP_LEN + TSDB_TOPIC_FNAME_LEN];
-  SArray* assigned;
+  SArray* assigned; // SArray<SMqConsumerEp>
   SArray* unassignedConsumer;
   SArray* unassignedVg;
 } SMqCgroupTopicPair;
