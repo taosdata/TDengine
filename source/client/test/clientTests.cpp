@@ -53,7 +53,9 @@ TEST(testCase, connect_Test) {
   if (pConn == NULL) {
     printf("failed to connect to server, reason:%s\n", taos_errstr(NULL));
   }
-  sleep(3);
+  while (1) {
+    sleep(3);
+  }
   taos_close(pConn);
 }
 

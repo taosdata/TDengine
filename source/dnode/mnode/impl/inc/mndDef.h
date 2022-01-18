@@ -325,6 +325,19 @@ typedef struct SMqTopicConsumer {
 } SMqTopicConsumer;
 #endif
 
+typedef struct SMqConsumerEp {
+  int32_t vgId;
+  SEpSet  epset;
+  int64_t consumerId;
+} SMqConsumerEp;
+
+typedef struct SMqCgroupTopicPair {
+  char key[TSDB_CONSUMER_GROUP_LEN + TSDB_TOPIC_FNAME_LEN];
+  SArray* assigned;
+  SArray* unassignedConsumer;
+  SArray* unassignedVg;
+} SMqCgroupTopicPair;
+
 typedef struct SMqCGroup {
   char    name[TSDB_CONSUMER_GROUP_LEN];
   int32_t status;       // 0 - uninitialized, 1 - wait rebalance, 2- normal
@@ -351,10 +364,11 @@ typedef struct SMqTopicObj {
 
 // TODO: add cache and change name to id
 typedef struct SMqConsumerTopic {
+  char    name[TSDB_TOPIC_FNAME_LEN];
   int32_t epoch;
-  char    name[TSDB_TOPIC_NAME_LEN];
   //TODO: replace with something with ep
   SList   *vgroups;  // SList<int32_t>
+  SArray  *pVgInfo;  // SArray<int32_t>
 } SMqConsumerTopic;
 
 typedef struct SMqConsumerObj {
@@ -362,7 +376,7 @@ typedef struct SMqConsumerObj {
   SRWLatch lock;
   char     cgroup[TSDB_CONSUMER_GROUP_LEN];
   SArray  *topics;  // SArray<SMqConsumerTopic>
-  SHashObj *topicHash;
+  SHashObj *topicHash; //SHashObj<SMqConsumerTopic>
 } SMqConsumerObj;
 
 typedef struct SMqSubConsumerObj {

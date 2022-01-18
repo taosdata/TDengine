@@ -60,15 +60,17 @@ SClientHbBatchReq* hbGatherAllInfo(SAppHbMgr *pAppHbMgr) {
     pIter = taosHashIterate(pAppHbMgr->activeInfo, pIter);
   }
 
+#if 0
   pIter = taosHashIterate(pAppHbMgr->getInfoFuncs, NULL);
   while (pIter != NULL) {
     FGetConnInfo getConnInfoFp = (FGetConnInfo)pIter;
     SClientHbKey connKey;
     taosHashCopyKey(pIter, &connKey);
-    getConnInfoFp(connKey, NULL);
+    SArray* pArray = getConnInfoFp(connKey, NULL);
 
     pIter = taosHashIterate(pAppHbMgr->getInfoFuncs, pIter);
   }
+#endif
 
   return pBatchReq;
 }
@@ -99,12 +101,12 @@ static void* hbThreadFunc(void* param) {
         //TODO: error handling
         break;
       }
-      void *bufCopy = buf;
-      tSerializeSClientHbBatchReq(&bufCopy, pReq);
+      void *abuf = buf;
+      tSerializeSClientHbBatchReq(&abuf, pReq);
       SMsgSendInfo *pInfo = malloc(sizeof(SMsgSendInfo));
       if (pInfo == NULL) {
         terrno = TSDB_CODE_TSC_OUT_OF_MEMORY;
-        tFreeClientHbBatchReq(pReq);
+        tFreeClientHbBatchReq(pReq, false);
         free(buf);
         break;
       }
@@ -120,7 +122,7 @@ static void* hbThreadFunc(void* param) {
       int64_t transporterId = 0;
       SEpSet epSet = getEpSet_s(&pAppInstInfo->mgmtEp);
       asyncSendMsgToServer(pAppInstInfo->pTransporter, &epSet, &transporterId, pInfo);
-      tFreeClientHbBatchReq(pReq);
+      tFreeClientHbBatchReq(pReq, false);
 
       atomic_add_fetch_32(&pAppHbMgr->reportCnt, 1);
     }
