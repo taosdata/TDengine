@@ -16,7 +16,9 @@
 #ifndef _TD_TRANSPORT_INT_H_
 #define _TD_TRANSPORT_INT_H_
 
+#ifdef USE_UV
 #include <uv.h>
+#endif
 #include "lz4.h"
 #include "os.h"
 #include "rpcCache.h"
@@ -29,7 +31,6 @@
 #include "thash.h"
 #include "tidpool.h"
 #include "tmsg.h"
-#include "transportInt.h"
 #include "tref.h"
 #include "trpc.h"
 #include "ttimer.h"

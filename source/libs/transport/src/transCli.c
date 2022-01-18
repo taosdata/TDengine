@@ -149,13 +149,14 @@ void rpcSendRequest(void* shandle, const SEpSet* pEpSet, SRpcMsg* pMsg, int64_t*
   // impl later
   SRpcInfo* pRpc = (SRpcInfo*)shandle;
 
+  int len = rpcCompressRpcMsg(pMsg->pCont, pMsg->contLen);
+
   SRpcReqContext* pContext;
-  int             contLen = rpcCompressRpcMsg(pMsg->pCont, pMsg->contLen);
   pContext = (SRpcReqContext*)((char*)pMsg->pCont - sizeof(SRpcHead) - sizeof(SRpcReqContext));
   pContext->ahandle = pMsg->ahandle;
   pContext->pRpc = (SRpcInfo*)shandle;
   pContext->epSet = *pEpSet;
-  pContext->contLen = contLen;
+  pContext->contLen = len;
   pContext->pCont = pMsg->pCont;
   pContext->msgType = pMsg->msgType;
   pContext->oldInUse = pEpSet->inUse;
