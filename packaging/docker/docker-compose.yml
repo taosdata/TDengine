@@ -45,9 +45,9 @@ services:
       TAOS_FIRST_EP: "td-1"
       TOAS_SECOND_EP: "td-2"
     deploy:
-      replicas: 2
+      replicas: 4
       update_config:
-        parallelism: 2
+        parallelism: 4
   nginx:
     image: nginx
     depends_on:
@@ -57,11 +57,18 @@ services:
       - api
     ports:
       - 6041:6041
-    command:
-      [
+      - 6044:6044/udp
+    command: [
         "sh",
         "-c",
-        "while true; do curl -s http://adapter:6041/-/ping >/dev/null && break; done;printf 'server{listen 6041;location /{proxy_pass http://adapter:6041;}}' > /etc/nginx/conf.d/default.conf; nginx -g 'daemon off;'",
+        "while true;
+        do curl -s http://adapter:6041/-/ping >/dev/null && break;
+        done;
+        printf 'server{listen 6041;location /{proxy_pass http://adapter:6041;}}'
+        > /etc/nginx/conf.d/rest.conf;
+        printf 'stream{server{listen 6044 udp;proxy_pass adapter:6044;}}'
+        >> /etc/nginx/nginx.conf;cat /etc/nginx/nginx.conf;
+        nginx -g 'daemon off;'",
       ]
 volumes:
   taosdata-td1:
