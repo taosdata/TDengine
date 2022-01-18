@@ -322,24 +322,27 @@ SArray* tmqGetConnInfo(SClientHbKey connKey, void* param) {
     taosArrayDestroy(pArray);
     return NULL;
   }
-  strcpy(kv.key, "groupId");
-  kv.keyLen = strlen("groupId") + 1;
-  kv.value = malloc(256);
-  if (kv.value == NULL) {
-    free(kv.key);
-    taosArrayDestroy(pArray);
-    return NULL;
+  strcpy(kv.key, "mq-tmp");
+  kv.keyLen = strlen("mq-tmp") + 1;
+  SMqHbMsg* pMqHb = malloc(sizeof(SMqHbMsg));
+  if (pMqHb == NULL) {
+    return pArray;
   }
-  strcpy(kv.value, pTmq->groupId);
-  kv.valueLen = strlen(pTmq->groupId) + 1;
-
+  pMqHb->consumerId = connKey.connId;
+  SArray* clientTopics = pTmq->clientTopics;
+  int sz = taosArrayGetSize(clientTopics);
+  for (int i = 0; i < sz; i++) {
+    SMqClientTopic* pCTopic = taosArrayGet(clientTopics, i);
+    if (pCTopic->vgId == -1) {
+      pMqHb->status = 1;
+      break;
+    }
+  }
+  kv.value = pMqHb;
+  kv.valueLen = sizeof(SMqHbMsg);
   taosArrayPush(pArray, &kv);
-  strcpy(kv.key, "clientUid");
-  kv.keyLen = strlen("clientUid") + 1;
-  *(uint32_t*)kv.value = pTmq->pTscObj->connId;
-  kv.valueLen = sizeof(uint32_t);
 
-  return NULL;
+  return pArray;
 }
 
 tmq_t* tmqCreateConsumerImpl(TAOS* conn, tmq_conf_t* conf) {

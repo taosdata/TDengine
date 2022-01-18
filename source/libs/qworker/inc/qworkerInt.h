@@ -27,14 +27,30 @@ extern "C" {
 #define QWORKER_DEFAULT_SCH_TASK_NUMBER 10000
 
 enum {
-  QW_READY_NOT_RECEIVED = 0,
-  QW_READY_RECEIVED,
-  QW_READY_RESPONSED,
+  QW_PHASE_PRE_QUERY = 1,
+  QW_PHASE_POST_QUERY,
+  QW_PHASE_PRE_CQUERY,
+  QW_PHASE_POST_CQUERY,
+  QW_PHASE_PRE_SINK,
+  QW_PHASE_POST_SINK,
+  QW_PHASE_PRE_FETCH,
+  QW_PHASE_POST_FETCH,
 };
 
 enum {
-  QW_TASK_INFO_STATUS = 1,
-  QW_TASK_INFO_READY,
+  QW_EVENT_CANCEL = 1,
+  QW_EVENT_READY,
+  QW_EVENT_FETCH,
+  QW_EVENT_DROP,
+  QW_EVENT_CQUERY,
+
+  QW_EVENT_MAX,
+};
+
+enum {
+  QW_EVENT_NOT_RECEIVED = 0,
+  QW_EVENT_RECEIVED,
+  QW_EVENT_PROCESSED,
 };
 
 enum {
@@ -57,21 +73,45 @@ enum {
   QW_ADD_ACQUIRE,
 };
 
+typedef struct SQWDebug {
+  int32_t lockDebug;
+} SQWDebug;
+
+typedef struct SQWMsg {
+  void   *node;
+  char   *msg;
+  int32_t msgLen;
+  void   *connection;
+} SQWMsg;
+
+typedef struct SQWPhaseInput {
+  int8_t         status;
+  int32_t        code;
+  qTaskInfo_t    taskHandle;
+  DataSinkHandle sinkHandle;
+} SQWPhaseInput;
+
+typedef struct SQWPhaseOutput {
+  int32_t rspCode;
+  bool    needStop;
+  bool    needRsp;
+} SQWPhaseOutput;
+
+
 typedef struct SQWTaskStatus {  
-  SRWLatch lock;
   int32_t  code;
   int8_t   status;
-  int8_t   ready; 
-  bool     cancel;
-  bool     drop;
 } SQWTaskStatus;
 
 typedef struct SQWTaskCtx {
   SRWLatch        lock;
-  int8_t          sinkScheduled;
-  int8_t          queryScheduled;
+  int32_t         phase;
   
-  bool            needRsp;
+  int32_t         sinkId;
+  int32_t         readyCode; 
+
+  int8_t          events[QW_EVENT_MAX];
+  
   qTaskInfo_t     taskHandle;
   DataSinkHandle  sinkHandle;
 } SQWTaskCtx;
@@ -95,15 +135,22 @@ typedef struct SQWorkerMgmt {
   putReqToQueryQFp putToQueueFp;
 } SQWorkerMgmt;
 
-#define QW_GOT_RES_DATA(data) (true)
-#define QW_LOW_RES_DATA(data) (false)
+#define QW_FPARAMS_DEF SQWorkerMgmt *mgmt, uint64_t sId, uint64_t qId, uint64_t tId
+#define QW_IDS() sId, qId, tId
+#define QW_FPARAMS() mgmt, QW_IDS()
+
+#define QW_IS_EVENT_RECEIVED(ctx, event) (atomic_load_8(&(ctx)->events[event]) == QW_EVENT_RECEIVED)
+#define QW_IS_EVENT_PROCESSED(ctx, event) (atomic_load_8(&(ctx)->events[event]) == QW_EVENT_PROCESSED)
+#define QW_SET_EVENT_RECEIVED(ctx, event) atomic_store_8(&(ctx)->events[event], QW_EVENT_RECEIVED)
+#define QW_SET_EVENT_PROCESSED(ctx, event) atomic_store_8(&(ctx)->events[event], QW_EVENT_PROCESSED)
+
+#define QW_IN_EXECUTOR(ctx) ((ctx)->phase == QW_PHASE_PRE_QUERY || (ctx)->phase == QW_PHASE_PRE_CQUERY || (ctx)->phase == QW_PHASE_PRE_FETCH || (ctx)->phase == QW_PHASE_PRE_SINK)
 
 #define QW_TASK_NOT_EXIST(code) (TSDB_CODE_QRY_SCH_NOT_EXIST == (code) || TSDB_CODE_QRY_TASK_NOT_EXIST == (code))
 #define QW_TASK_ALREADY_EXIST(code) (TSDB_CODE_QRY_TASK_ALREADY_EXIST == (code))
 #define QW_TASK_READY(status) (status == JOB_TASK_STATUS_SUCCEED || status == JOB_TASK_STATUS_FAILED || status == JOB_TASK_STATUS_CANCELLED || status == JOB_TASK_STATUS_PARTIAL_SUCCEED)
 #define QW_SET_QTID(id, qId, tId) do { *(uint64_t *)(id) = (qId); *(uint64_t *)((char *)(id) + sizeof(qId)) = (tId); } while (0)
 #define QW_GET_QTID(id, qId, tId) do { (qId) = *(uint64_t *)(id); (tId) = *(uint64_t *)((char *)(id) + sizeof(qId)); } while (0)
-#define QW_IDS() sId, qId, tId
 
 #define QW_ERR_RET(c) do { int32_t _code = c; if (_code != TSDB_CODE_SUCCESS) { terrno = _code; return _code; } } while (0)
 #define QW_RET(c) do { int32_t _code = c; if (_code != TSDB_CODE_SUCCESS) { terrno = _code; } return _code; } while (0)
@@ -123,21 +170,22 @@ typedef struct SQWorkerMgmt {
 #define QW_SCH_TASK_WLOG(param, ...) qWarn("QW:%p SID:%"PRIx64",QID:%"PRIx64",TID:%"PRIx64" " param, mgmt, sId, qId, tId, __VA_ARGS__)
 #define QW_SCH_TASK_DLOG(param, ...) qDebug("QW:%p SID:%"PRIx64",QID:%"PRIx64",TID:%"PRIx64" " param, mgmt, sId, qId, tId, __VA_ARGS__)
 
+#define QW_LOCK_DEBUG(...) do { if (gQWDebug.lockDebug) { qDebug(__VA_ARGS__); } } while (0)
 
 #define TD_RWLATCH_WRITE_FLAG_COPY 0x40000000
 
 #define QW_LOCK(type, _lock) do {   \
   if (QW_READ == (type)) {          \
     assert(atomic_load_32((_lock)) >= 0);  \
-    qDebug("QW RLOCK%p:%d, %s:%d B", (_lock), atomic_load_32(_lock), __FILE__, __LINE__); \
+    QW_LOCK_DEBUG("QW RLOCK%p:%d, %s:%d B", (_lock), atomic_load_32(_lock), __FILE__, __LINE__); \
     taosRLockLatch(_lock);           \
-    qDebug("QW RLOCK%p:%d, %s:%d E", (_lock), atomic_load_32(_lock), __FILE__, __LINE__); \
+    QW_LOCK_DEBUG("QW RLOCK%p:%d, %s:%d E", (_lock), atomic_load_32(_lock), __FILE__, __LINE__); \
     assert(atomic_load_32((_lock)) > 0);  \
   } else {                                                \
     assert(atomic_load_32((_lock)) >= 0);  \
-    qDebug("QW WLOCK%p:%d, %s:%d B", (_lock), atomic_load_32(_lock), __FILE__, __LINE__);  \
+    QW_LOCK_DEBUG("QW WLOCK%p:%d, %s:%d B", (_lock), atomic_load_32(_lock), __FILE__, __LINE__);  \
     taosWLockLatch(_lock);                                \
-    qDebug("QW WLOCK%p:%d, %s:%d E", (_lock), atomic_load_32(_lock), __FILE__, __LINE__);  \
+    QW_LOCK_DEBUG("QW WLOCK%p:%d, %s:%d E", (_lock), atomic_load_32(_lock), __FILE__, __LINE__);  \
     assert(atomic_load_32((_lock)) == TD_RWLATCH_WRITE_FLAG_COPY);  \
   }                                                       \
 } while (0)
@@ -145,24 +193,20 @@ typedef struct SQWorkerMgmt {
 #define QW_UNLOCK(type, _lock) do {                       \
   if (QW_READ == (type)) {                                \
     assert(atomic_load_32((_lock)) > 0);  \
-    qDebug("QW RULOCK%p:%d, %s:%d B", (_lock), atomic_load_32(_lock), __FILE__, __LINE__); \
+    QW_LOCK_DEBUG("QW RULOCK%p:%d, %s:%d B", (_lock), atomic_load_32(_lock), __FILE__, __LINE__); \
     taosRUnLockLatch(_lock);                              \
-    qDebug("QW RULOCK%p:%d, %s:%d E", (_lock), atomic_load_32(_lock), __FILE__, __LINE__); \
+    QW_LOCK_DEBUG("QW RULOCK%p:%d, %s:%d E", (_lock), atomic_load_32(_lock), __FILE__, __LINE__); \
     assert(atomic_load_32((_lock)) >= 0);  \
   } else {                                                \
     assert(atomic_load_32((_lock)) == TD_RWLATCH_WRITE_FLAG_COPY);  \
-    qDebug("QW WULOCK%p:%d, %s:%d B", (_lock), atomic_load_32(_lock), __FILE__, __LINE__); \
+    QW_LOCK_DEBUG("QW WULOCK%p:%d, %s:%d B", (_lock), atomic_load_32(_lock), __FILE__, __LINE__); \
     taosWUnLockLatch(_lock);                              \
-    qDebug("QW WULOCK%p:%d, %s:%d E", (_lock), atomic_load_32(_lock), __FILE__, __LINE__); \
+    QW_LOCK_DEBUG("QW WULOCK%p:%d, %s:%d E", (_lock), atomic_load_32(_lock), __FILE__, __LINE__); \
     assert(atomic_load_32((_lock)) >= 0);  \
   }                                                       \
 } while (0)
 
 
-
-int32_t qwAcquireScheduler(int32_t rwType, SQWorkerMgmt *mgmt, uint64_t sId, SQWSchStatus **sch);
-int32_t qwAcquireAddScheduler(int32_t rwType, SQWorkerMgmt *mgmt, uint64_t sId, SQWSchStatus **sch);
-int32_t qwAcquireTask(SQWorkerMgmt *mgmt, int32_t rwType, SQWSchStatus *sch, uint64_t qId, uint64_t tId, SQWTaskStatus **task);
 
 
 #ifdef __cplusplus
