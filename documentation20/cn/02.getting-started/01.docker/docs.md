@@ -49,7 +49,7 @@ c452519b0f9b   tdengine/tdengine   "taosd"   14 minutes ago   Up 14 minutes   ·
 
 ```bash
 $ docker exec -it tdengine /bin/bash
-root@c452519b0f9b:~/TDengine-server-2.0.20.13# 
+root@tdengine-server:~/TDengine-server-2.4.0.4#
 ```
 
 - **docker exec**：通过 docker exec 命令进入容器，如果退出，容器不会停止。
@@ -61,38 +61,245 @@ root@c452519b0f9b:~/TDengine-server-2.0.20.13#
 4，进入容器后，执行 taos shell 客户端程序。
 
 ```bash
-$ root@c452519b0f9b:~/TDengine-server-2.0.20.13# taos
+$ root@c452519b0f9b:~/TDengine-server-2.4.0.4# taos
 
-Welcome to the TDengine shell from Linux, Client Version:2.0.20.13
+Welcome to the TDengine shell from Linux, Client Version:2.4.0.4
 Copyright (c) 2020 by TAOS Data, Inc. All rights reserved.
 
-taos> 
+taos>
 ```
 
 TDengine 终端成功连接服务端，打印出了欢迎消息和版本信息。如果失败，会有错误信息打印出来。
 
 在 TDengine 终端中，可以通过 SQL 命令来创建/删除数据库、表、超级表等，并可以进行插入和查询操作。具体可以参考 [TAOS SQL 说明文档](https://www.taosdata.com/cn/documentation/taos-sql)。
 
-## 通过 taosdemo 进一步了解 TDengine
+## 通过 taosBenchmark 进一步了解 TDengine
 
-1，接上面的步骤，先退出 TDengine 终端程序。
+### 在宿主机访问 Docker 容器中的 TDengine server
 
-```bash
-$ taos> q
-root@c452519b0f9b:~/TDengine-server-2.0.20.13#
+在使用了 -p 命令行参数映射了正确的端口启动了 TDengine Docker 容器后，就在宿主机使用 taos shell 命令即可访问运行在  Docker 容器中的 TDengine。
+
+```
+$ taos
+
+Welcome to the TDengine shell from Linux, Client Version:2.4.0.4
+Copyright (c) 2020 by TAOS Data, Inc. All rights reserved.
+
+taos>
 ```
 
-2，在命令行界面执行 taosdemo。
+也可以在宿主机使用 curl 通过 RESTful 端口访问 Docker 容器内的 TDengine server。
+
+```
+$ curl -u root:taosdata -d 'show databases' 127.0.0.1:6041/rest/sql
+{"status":"succ","head":["name","created_time","ntables","vgroups","replica","quorum","days","keep0,keep1,keep(D)","cache(MB)","blocks","minrows","maxrows","wallevel","fsync","comp","cachelast","precision","update","status"],"column_meta":[["name",8,32],["created_time",9,8],["ntables",4,4],["vgroups",4,4],["replica",3,2],["quorum",3,2],["days",3,2],["keep0,keep1,keep(D)",8,24],["cache(MB)",4,4],["blocks",4,4],["minrows",4,4],["maxrows",4,4],["wallevel",2,1],["fsync",4,4],["comp",2,1],["cachelast",2,1],["precision",8,3],["update",2,1],["status",8,10]],"data":[["test","2021-08-18 06:01:11.021",10000,4,1,1,10,"3650,3650,3650",16,6,100,4096,1,3000,2,0,"ms",0,"ready"],["log","2021-08-18 05:51:51.065",4,1,1,1,10,"30,30,30",1,3,100,4096,1,3000,2,0,"us",0,"ready"]],"rows":2}
+```
+
+这条命令，通过 RESTful 接口访问 TDengine server，这时连接的是本机的 6041 端口，可见连接成功。
+
+TDengine RESTful 接口详情请参考[官方文档](https://www.taosdata.com/cn/documentation/connector#restful)。
+
+
+### 使用 Docker 容器运行 TDengine server 和 taosAdapter
+
+在 TDegnine 2.4.0.0 之后版本的 Docker 容器，开始提供一个独立运行的组件 taosAdapter，代替之前版本 TDengine 中 taosd 进程中内置的 http server。taosAdapter 支持通过 RESTful 接口对 TDengine server 的数据写入和查询能力，并提供和 InfluxDB/OpenTSDB 兼容的数据摄取接口，允许 InfluxDB/OpenTSDB 应用程序无缝移植到 TDengine。在新版本 Docker 镜像中，默认运行 taosd，而 taosAdapter 没有运行；也可以使用 docker run 命令中指定 taosadapter 的方式来运行 taosadapter，而 taosd 不会运行；或者在 docker run 命令中指定运行 run_taosd_and_taosadapter.sh 来同时运行 taosd 和 taosAdapter。
+
+注意：如果容器中运行 taosAdapter，需要根据需要增加映射其他端口，具体端口默认配置和修改方法请参考[taosAdapter文档](https://github.com/taosdata/taosadapter/blob/develop/README-CN.md)。
+
+使用 docker 运行 TDengine 2.4.0.4 版本镜像（仅 taosd）：
+
+```
+$ docker run -d --name tdengine-taosa -p 6030-6049:6030-6049 -p 6030-6049:6030-6049/udp tdengine/tdengine:2.4.0.4
+```
+
+使用 docker 运行 TDengine 2.4.0.4 版本镜像（仅 taosAdapter）：
+
+```
+$ docker run -d --name tdengine-taosa -p 6041-6049:6041-6049 -p 6041-6049:6041-6049/udp tdengine/tdengine:2.4.0.4 taosadapter
+```
+
+使用 docker 运行 TDengine 2.4.0.4 版本镜像（同时运行 taosd 和 taosAdapter）：
+
+```
+$ docker run -d --name tdengine-taosa -p 6030-6049:6030-6049 -p 6030-6049:6030-6049/udp tdengine/tdengine:2.4.0.4 run_taosd_and_taosadapter.sh
+```
+
+
+使用 curl 命令验证 RESTful 接口可以正常工作：
+```
+$ curl -H 'Authorization: Basic cm9vdDp0YW9zZGF0YQ==' -d 'show databases;' 127.0.0.1:6041/rest/sql
+
+{"status":"succ","head":["name","created_time","ntables","vgroups","replica","quorum","days","keep","cache(MB)","blocks","minrows","maxrows","wallevel","fsync","comp","cachelast","precision","update","status"],"column_meta":[["name",8,32],["created_time",9,8],["ntables",4,4],["vgroups",4,4],["replica",3,2],["quorum",3,2],["days",3,2],["keep",8,24],["cache(MB)",4,4],["blocks",4,4],["minrows",4,4],["maxrows",4,4],["wallevel",2,1],["fsync",4,4],["comp",2,1],["cachelast",2,1],["precision",8,3],["update",2,1],["status",8,10]],"data":[["log","2021-12-28 09:18:55.765",10,1,1,1,10,"30",1,3,100,4096,1,3000,2,0,"us",0,"ready"]],"rows":1}
+```
+
+taosAdapter 支持多个数据收集代理软件（如 Telegraf、StatsD、collectd 等），这里仅模拟 StasD 写入数据，在宿主机执行命令如下：
+```
+$ echo "foo:1|c" | nc -u -w0 127.0.0.1 6044
+```
+
+然后可以使用 taos shell 查询 taosAdapter 自动创建的数据库 statsd 和 超级表 foo 中的内容：
+```
+taos> show databases;
+              name              |      created_time       |   ntables   |   vgroups   | replica | quorum |  days  |           keep           |  cache(MB)  |   blocks    |   minrows   |   maxrows   | wallevel |    fsync    | comp | cachelast | precision | update |   status   |
+====================================================================================================================================================================================================================================================================================
+ log                            | 2021-12-28 09:18:55.765 |          12 |           1 |       1 |      1 |     10 | 30                       |           1 |           3 |         100 |        4096 |        1 |        3000 |    2 |         0 | us        |      0 | ready      |
+ statsd                         | 2021-12-28 09:21:48.841 |           1 |           1 |       1 |      1 |     10 | 3650                     |          16 |           6 |         100 |        4096 |        1 |        3000 |    2 |         0 | ns        |      2 | ready      |
+Query OK, 2 row(s) in set (0.002112s)
+
+taos> use statsd;
+Database changed.
+
+taos> show stables;
+              name              |      created_time       | columns |  tags  |   tables    |
+============================================================================================
+ foo                            | 2021-12-28 09:21:48.894 |       2 |      1 |           1 |
+Query OK, 1 row(s) in set (0.001160s)
+
+taos> select * from foo;
+              ts               |         value         |         metric_type          |
+=======================================================================================
+ 2021-12-28 09:21:48.840820836 |                     1 | counter                      |
+Query OK, 1 row(s) in set (0.001639s)
+
+taos>
+```
+
+可以看到模拟数据已经被写入到 TDengine 中。
+
+
+### 应用示例：在宿主机使用 taosBenchmark 写入数据到 Docker 容器中的 TDengine server
+
+1，在宿主机命令行界面执行 taosBenchmark （曾命名为 taosdemo）写入数据到 Docker 容器中的 TDengine server
 
 ```bash
-root@c452519b0f9b:~/TDengine-server-2.0.20.13# taosdemo
+$ taosBenchmark
 
-taosdemo is simulating data generated by power equipments monitoring...
+taosBenchmark is simulating data generated by power equipments monitoring...
 
 host:                       127.0.0.1:6030
 user:                       root
 password:                   taosdata
-configDir:                  
+configDir:
+resultFile:                 ./output.txt
+thread num of insert data:  10
+thread num of create table: 10
+top insert interval:        0
+```
+
+使用 curl 命令验证 RESTful 接口可以正常工作：
+$ curl -H 'Authorization: Basic cm9vdDp0YW9zZGF0YQ==' -d 'show databases;' 127.0.0.1:6041/rest/sql
+
+{"status":"succ","head":["name","created_time","ntables","vgroups","replica","quorum","days","keep","cache(MB)","blocks","minrows","maxrows","wallevel","fsync","comp","cachelast","precision","update","status"],"column_meta":[["name",8,32],["created_time",9,8],["ntables",4,4],["vgroups",4,4],["replica",3,2],["quorum",3,2],["days",3,2],["keep",8,24],["cache(MB)",4,4],["blocks",4,4],["minrows",4,4],["maxrows",4,4],["wallevel",2,1],["fsync",4,4],["comp",2,1],["cachelast",2,1],["precision",8,3],["update",2,1],["status",8,10]],"data":[["log","2021-12-28 09:18:55.765",10,1,1,1,10,"30",1,3,100,4096,1,3000,2,0,"us",0,"ready"]],"rows":1}
+```
+
+taosAdapter 支持多个数据收集代理软件（如 Telegraf、StatsD、collectd 等），这里仅模拟 StasD 写入数据，在宿主机执行命令如下：
+```
+$ echo "foo:1|c" | nc -u -w0 127.0.0.1 6044
+```
+
+然后可以使用 taos shell 查询 taosAdapter 自动创建的数据库 statsd 和 超级表 foo 中的内容：
+```
+taos> show databases;
+              name              |      created_time       |   ntables   |   vgroups   | replica | quorum |  days  |           keep           |  cache(MB)  |   blocks    |   minrows   |   maxrows   | wallevel |    fsync    | comp | cachelast | precision | update |   status   |
+====================================================================================================================================================================================================================================================================================
+ log                            | 2021-12-28 09:18:55.765 |          12 |           1 |       1 |      1 |     10 | 30                       |           1 |           3 |         100 |        4096 |        1 |        3000 |    2 |         0 | us        |      0 | ready      |
+ statsd                         | 2021-12-28 09:21:48.841 |           1 |           1 |       1 |      1 |     10 | 3650                     |          16 |           6 |         100 |        4096 |        1 |        3000 |    2 |         0 | ns        |      2 | ready      |
+Query OK, 2 row(s) in set (0.002112s)
+
+taos> use statsd;
+Database changed.
+
+taos> show stables;
+              name              |      created_time       | columns |  tags  |   tables    |
+============================================================================================
+ foo                            | 2021-12-28 09:21:48.894 |       2 |      1 |           1 |
+Query OK, 1 row(s) in set (0.001160s)
+
+taos> select * from foo;
+              ts               |         value         |         metric_type          |
+=======================================================================================
+ 2021-12-28 09:21:48.840820836 |                     1 | counter                      |
+Query OK, 1 row(s) in set (0.001639s)
+
+taos>
+```
+
+可以看到模拟数据已经被写入到 TDengine 中。
+
+
+### 应用示例：在宿主机使用 taosBenchmark 写入数据到 Docker 容器中的 TDengine server
+
+1，在宿主机命令行界面执行 taosBenchmark 写入数据到 Docker 容器中的 TDengine server
+
+```bash
+$ taosBenchmark
+
+taosBenchmark is simulating data generated by power equipments monitoring...
+
+host:                       127.0.0.1:6030
+user:                       root
+password:                   taosdata
+configDir:
+resultFile:                 ./output.txt
+thread num of insert data:  10
+thread num of create table: 10
+top insert interval:        0
+
+使用 curl 命令验证 RESTful 接口可以正常工作：
+```
+$ curl -H 'Authorization: Basic cm9vdDp0YW9zZGF0YQ==' -d 'show databases;' 127.0.0.1:6041/rest/sql
+
+{"status":"succ","head":["name","created_time","ntables","vgroups","replica","quorum","days","keep","cache(MB)","blocks","minrows","maxrows","wallevel","fsync","comp","cachelast","precision","update","status"],"column_meta":[["name",8,32],["created_time",9,8],["ntables",4,4],["vgroups",4,4],["replica",3,2],["quorum",3,2],["days",3,2],["keep",8,24],["cache(MB)",4,4],["blocks",4,4],["minrows",4,4],["maxrows",4,4],["wallevel",2,1],["fsync",4,4],["comp",2,1],["cachelast",2,1],["precision",8,3],["update",2,1],["status",8,10]],"data":[["log","2021-12-28 09:18:55.765",10,1,1,1,10,"30",1,3,100,4096,1,3000,2,0,"us",0,"ready"]],"rows":1}
+```
+
+taosAdapter 支持多个数据收集代理软件（如 Telegraf、StatsD、collectd 等），这里仅模拟 StasD 写入数据，在宿主机执行命令如下：
+```
+$ echo "foo:1|c" | nc -u -w0 127.0.0.1 6044
+```
+
+然后可以使用 taos shell 查询 taosAdapter 自动创建的数据库 statsd 和 超级表 foo 中的内容：
+```
+taos> show databases;
+              name              |      created_time       |   ntables   |   vgroups   | replica | quorum |  days  |           keep           |  cache(MB)  |   blocks    |   minrows   |   maxrows   | wallevel |    fsync    | comp | cachelast | precision | update |   status   |
+====================================================================================================================================================================================================================================================================================
+ log                            | 2021-12-28 09:18:55.765 |          12 |           1 |       1 |      1 |     10 | 30                       |           1 |           3 |         100 |        4096 |        1 |        3000 |    2 |         0 | us        |      0 | ready      |
+ statsd                         | 2021-12-28 09:21:48.841 |           1 |           1 |       1 |      1 |     10 | 3650                     |          16 |           6 |         100 |        4096 |        1 |        3000 |    2 |         0 | ns        |      2 | ready      |
+Query OK, 2 row(s) in set (0.002112s)
+
+taos> use statsd;
+Database changed.
+
+taos> show stables;
+              name              |      created_time       | columns |  tags  |   tables    |
+============================================================================================
+ foo                            | 2021-12-28 09:21:48.894 |       2 |      1 |           1 |
+Query OK, 1 row(s) in set (0.001160s)
+
+taos> select * from foo;
+              ts               |         value         |         metric_type          |
+=======================================================================================
+ 2021-12-28 09:21:48.840820836 |                     1 | counter                      |
+Query OK, 1 row(s) in set (0.001639s)
+
+taos>
+```
+
+可以看到模拟数据已经被写入到 TDengine 中。
+
+
+### 应用示例：在宿主机使用 taosBenchmark 写入数据到 Docker 容器中的 TDengine server
+
+1，在宿主机命令行界面执行 taosBenchmark 写入数据到 Docker 容器中的 TDengine server
+
+```bash
+$ taosBenchmark
+
+taosBenchmark is simulating data generated by power equipments monitoring...
+
+host:                       127.0.0.1:6030
+user:                       root
+password:                   taosdata
+configDir:
 resultFile:                 ./output.txt
 thread num of insert data:  10
 thread num of create table: 10
@@ -121,13 +328,13 @@ database[0]:
       maxSqlLen:         1048576
       timeStampStep:     1
       startTimestamp:    2017-07-14 10:40:00.000
-      sampleFormat:      
-      sampleFile:        
-      tagsFile:          
+      sampleFormat:
+      sampleFile:
+      tagsFile:
       columnCount:       3
-column[0]:FLOAT column[1]:INT column[2]:FLOAT 
+column[0]:FLOAT column[1]:INT column[2]:FLOAT
       tagCount:            2
-        tag[0]:INT tag[1]:BINARY(16) 
+        tag[0]:INT tag[1]:BINARY(16)
 
          Press enter key to continue or Ctrl-C to stop
 ```
@@ -136,17 +343,17 @@ column[0]:FLOAT column[1]:INT column[2]:FLOAT
 
 执行这条命令大概需要几分钟，最后共插入 1 亿条记录。
 
-3，进入 TDengine 终端，查看 taosdemo 生成的数据。
+2，进入 TDengine 终端，查看 taosBenchmark 生成的数据。
 
 - **进入命令行。**
 
 ```bash
-$ root@c452519b0f9b:~/TDengine-server-2.0.20.13# taos
+$ root@c452519b0f9b:~/TDengine-server-2.4.0.4# taos
 
-Welcome to the TDengine shell from Linux, Client Version:2.0.20.13
+Welcome to the TDengine shell from Linux, Client Version:2.4.0.4
 Copyright (c) 2020 by TAOS Data, Inc. All rights reserved.
 
-taos> 
+taos>
 ```
 
 - **查看数据库。**

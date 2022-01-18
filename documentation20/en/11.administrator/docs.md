@@ -91,7 +91,7 @@ Only some important configuration parameters are listed below. For more paramete
 - firstEp: end point of the first dnode which will be connected in the cluster when taosd starts, the default value is localhost: 6030.
 - fqdn: FQDN of the data node, which defaults to the first hostname configured by the operating system. If you want to access via IP address directly, you can set it to the IP address of the node.
 - serverPort: the port number of the external service after taosd started, the default value is 6030.
-- httpPort: the port number used by the RESTful service to which all HTTP requests (TCP) require a query/write request. The default value is 6041.
+- httpPort: the port number used by the RESTful service to which all HTTP requests (TCP) require a query/write request. The default value is 6041. Note 2.4 and later version use a stand-alone software, taosAdapter to provide RESTFul interface.
 - dataDir: the data file directory to which all data files will be written. [Default:/var/lib/taos](http://default/var/lib/taos).
 - logDir: the log file directory to which the running log files of the client and server will be written. [Default:/var/log/taos](http://default/var/log/taos).
 - arbitrator: the end point of the arbitrator in the system; the default value is null.
