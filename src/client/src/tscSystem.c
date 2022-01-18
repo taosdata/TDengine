@@ -387,6 +387,10 @@ static int taos_options_imp(TSDB_OPTION option, const char *pStr) {
           cfg->cfgStatus = TAOS_CFG_CSTATUS_OPTION;
         } else { // set the user specified locale failed, use default LC_CTYPE as current locale
           locale = setlocale(LC_CTYPE, tsLocale);
+          if (locale == NULL) {
+            tscError("failed to set locale:%s failed, neither default LC_CTYPE: %s", pStr, tsLocale);
+            return -1;
+          }
           tscInfo("failed to set locale:%s, current locale:%s", pStr, tsLocale);
         }
 
