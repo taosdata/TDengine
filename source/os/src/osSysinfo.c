@@ -121,7 +121,7 @@ bool taosGetCpuUsage(float *sysCpuUsage, float *procCpuUsage) {
   return true;
 }
 
-int32_t taosGetDiskSize(char *dataDir, SysDiskSize *diskSize) {
+int32_t taosGetDiskSize(char *dataDir, SDiskSize *diskSize) {
   unsigned _int64 i64FreeBytesToCaller;
   unsigned _int64 i64TotalBytes;
   unsigned _int64 i64FreeBytes;
@@ -438,7 +438,7 @@ int taosSystem(const char *cmd) {
 
 void taosSetCoreDump() {}
 
-int32_t taosGetDiskSize(char *dataDir, SysDiskSize *diskSize) {
+int32_t taosGetDiskSize(char *dataDir, SDiskSize *diskSize) {
   struct statvfs info;
   if (statvfs(dataDir, &info)) {
     //printf("failed to get disk size, dataDir:%s errno:%s", tsDataDir, strerror(errno));
@@ -771,13 +771,12 @@ bool taosGetCpuUsage(float *sysCpuUsage, float *procCpuUsage) {
   return true;
 }
 
-int32_t taosGetDiskSize(char *dataDir, SysDiskSize *diskSize) {
+int32_t taosGetDiskSize(char *dataDir, SDiskSize *diskSize) {
   struct statvfs info;
   if (statvfs(dataDir, &info)) {
-    //printf("failed to get disk size, dataDir:%s errno:%s", dataDir, strerror(errno));
     return -1;
   } else {
-    diskSize->tsize = info.f_blocks * info.f_frsize;
+    diskSize->total = info.f_blocks * info.f_frsize;
     diskSize->avail = info.f_bavail * info.f_frsize;
     diskSize->used = (info.f_blocks - info.f_bfree) * info.f_frsize;
     return 0;

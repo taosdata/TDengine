@@ -357,10 +357,13 @@ static int32_t mndProcessHeartBeatReq(SMnodeMsg *pReq) {
       }
     }
   }
+  taosArrayDestroyEx(pArray, tFreeClientHbReq);
+
   int32_t tlen = tSerializeSClientHbBatchRsp(NULL, &batchRsp);
   void* buf = rpcMallocCont(tlen);
   void* abuf = buf;
   tSerializeSClientHbBatchRsp(&abuf, &batchRsp);
+  taosArrayDestroy(batchRsp.rsps);
   pReq->contLen = tlen;
   pReq->pCont = buf;
   return 0;

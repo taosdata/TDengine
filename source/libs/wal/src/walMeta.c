@@ -149,6 +149,7 @@ int walCheckAndRepairMeta(SWal* pWal) {
     }
   }
 
+  closedir(dir);
   regfree(&logRegPattern);
   regfree(&idxRegPattern);
 
