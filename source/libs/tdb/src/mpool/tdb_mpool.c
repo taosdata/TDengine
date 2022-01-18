@@ -12,28 +12,3 @@
  * You should have received a copy of the GNU Affero General Public License
  * along with this program. If not, see <http://www.gnu.org/licenses/>.
  */
-
-#ifndef _TD_TDB_BUF_POOL_H_
-#define _TD_TDB_BUF_POOL_H_
-
-#include "tdbPage.h"
-
-#ifdef __cplusplus
-extern "C" {
-#endif
-
-typedef struct STdbBufPool STdbBufPool;
-
-int       tbpOpen(STdbBufPool **ppTkvBufPool);
-int       tbpClose(STdbBufPool *pTkvBufPool);
-STdbPage *tbpNewPage(STdbBufPool *pTkvBufPool);
-int       tbpDelPage(STdbBufPool *pTkvBufPool);
-STdbPage *tbpFetchPage(STdbBufPool *pTkvBufPool, pgid_t pgid);
-int       tbpUnpinPage(STdbBufPool *pTkvBufPool, pgid_t pgid);
-void      tbpFlushPages(STdbBufPool *pTkvBufPool);
-
-#ifdef __cplusplus
-}
-#endif
-
-#endif /*_TD_TDB_BUF_POOL_H_*/

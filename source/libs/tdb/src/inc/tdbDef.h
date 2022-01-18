@@ -17,6 +17,7 @@
 #define _TD_TDB_DEF_H_
 
 #include "os.h"
+#include "tlist.h"
 
 #ifdef __cplusplus
 extern "C" {

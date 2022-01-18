@@ -30,6 +30,8 @@ typedef enum { TDB_BTREE_T = 0, TDB_HASH_T = 1, TDB_HEAP_T = 2 } tdb_db_t;
 
 // Forward declarations
 typedef struct TDB        TDB;
+typedef struct TDB_MPOOL  TDB_MPOOL;
+typedef struct TDB_MPFILE TDB_MPFILE;
 typedef struct TDB_CURSOR TDB_CURSOR;
 
 typedef struct {
@@ -43,6 +45,18 @@ int tdbOpenDB(TDB* dbp, const char* fname, const char* dbname, uint32_t flags);
 int tdbCloseDB(TDB* dbp, uint32_t flags);
 int tdbPut(TDB* dbp, const TDB_KEY* key, const TDB_VALUE* value, uint32_t flags);
 int tdbGet(TDB* dbp, const TDB_KEY* key, TDB_VALUE* value, uint32_t flags);
+
+// TDB_MPOOL
+int tdbOpenMPool(TDB_MPOOL** mp);
+int tdbCloseMPool(TDB_MPOOL* mp);
+
+// TDB_MPFILE
+int tdbOpenMPFile(TDB_MPFILE** mpf, TDB_MPOOL* mp);
+int tdbCloseMPFile(TDB_MPFILE** mpf);
+
+// TDB_CURSOR
+int tdbOpenCursor(TDB* dbp, TDB_CURSOR** tdbcpp);
+int tdbCloseCurosr(TDB_CURSOR* tdbcp);
 
 #ifdef __cplusplus
 }
