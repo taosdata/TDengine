@@ -42,7 +42,18 @@ void* rpcOpen(const SRpcInit* pInit) {
   return pRpc;
 }
 void  rpcClose(void* arg) { return; }
-void* rpcMallocCont(int contLen) { return NULL; }
+void* rpcMallocCont(int contLen) {
+  int size = contLen + RPC_MSG_OVERHEAD;
+
+  char* start = (char*)calloc(1, (size_t)size);
+  if (start == NULL) {
+    tError("failed to malloc msg, size:%d", size);
+    return NULL;
+  } else {
+    tTrace("malloc mem:%p size:%d", start, size);
+  }
+  return start + sizeof(SRpcReqContext) + sizeof(SRpcHead);
+}
 void  rpcFreeCont(void* cont) { return; }
 void* rpcReallocCont(void* ptr, int contLen) { return NULL; }
 
