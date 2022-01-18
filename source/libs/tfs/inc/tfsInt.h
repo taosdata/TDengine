@@ -13,8 +13,8 @@
  * along with this program. If not, see <http://www.gnu.org/licenses/>.
  */
 
-#ifndef _TD_TFSINT_H_
-#define _TD_TFSINT_H_
+#ifndef _TD_TFS_INT_H_
+#define _TD_TFS_INT_H_
 
 #include "os.h"
 
@@ -39,54 +39,39 @@ extern int32_t fsDebugFlag;
 // Global Definitions
 #define TFS_MIN_DISK_FREE_SIZE 50 * 1024 * 1024
 
-// tdisk.c ======================================================
-typedef struct {
-  int64_t size;
-  int64_t used;
-  int64_t free;
-} SDiskMeta;
-
 typedef struct SDisk {
   int32_t   level;
   int32_t   id;
-  char      dir[TSDB_FILENAME_LEN];
-  SDiskMeta dmeta;
+  char     *path;
+  SDiskSize size;
 } SDisk;
-
-#define DISK_LEVEL(pd) ((pd)->level)
-#define DISK_ID(pd) ((pd)->id)
-#define DISK_DIR(pd) ((pd)->dir)
-#define DISK_META(pd) ((pd)->dmeta)
-#define DISK_SIZE(pd) ((pd)->dmeta.size)
-#define DISK_USED_SIZE(pd) ((pd)->dmeta.used)
-#define DISK_FREE_SIZE(pd) ((pd)->dmeta.free)
-
-SDisk  *tfsNewDisk(int32_t level, int32_t id, const char *dir);
-SDisk  *tfsFreeDisk(SDisk *pDisk);
-int32_t tfsUpdateDiskInfo(SDisk *pDisk);
-
-// ttier.c ======================================================
 
 typedef struct STier {
   pthread_spinlock_t lock;
   int32_t            level;
-  int16_t            ndisk;   // # of disks mounted to this tier
-  int16_t            nextid;  // next disk id to allocate
-  STierMeta          tmeta;
+  int16_t            nextid;       // next disk id to allocate
+  int16_t            ndisk;        // # of disks mounted to this tier
+  int16_t            nAvailDisks;  // # of Available disks
   SDisk             *disks[TSDB_MAX_DISKS_PER_TIER];
+  SDiskSize          size;
 } STier;
 
 #define TIER_LEVEL(pt) ((pt)->level)
 #define TIER_NDISKS(pt) ((pt)->ndisk)
 #define TIER_SIZE(pt) ((pt)->tmeta.size)
 #define TIER_FREE_SIZE(pt) ((pt)->tmeta.free)
-#define TIER_AVAIL_DISKS(pt) ((pt)->tmeta.nAvailDisks)
+
 #define DISK_AT_TIER(pt, id) ((pt)->disks[id])
+#define DISK_DIR(pd) ((pd)->path)
+
+SDisk  *tfsNewDisk(int32_t level, int32_t id, const char *dir);
+SDisk  *tfsFreeDisk(SDisk *pDisk);
+int32_t tfsUpdateDiskSize(SDisk *pDisk);
 
 int32_t tfsInitTier(STier *pTier, int32_t level);
 void    tfsDestroyTier(STier *pTier);
 SDisk  *tfsMountDiskToTier(STier *pTier, SDiskCfg *pCfg);
-void    tfsUpdateTierInfo(STier *pTier, STierMeta *pTierMeta);
+void    tfsUpdateTierSize(STier *pTier);
 int32_t tfsAllocDiskOnTier(STier *pTier);
 void    tfsPosNextId(STier *pTier);
 
@@ -94,4 +79,4 @@ void    tfsPosNextId(STier *pTier);
 }
 #endif
 
-#endif /*_TD_TFSINT_H_*/
+#endif /*_TD_TFS_INT_H_*/

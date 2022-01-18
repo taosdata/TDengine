@@ -36,22 +36,14 @@ typedef struct {
 
 // FS APIs ====================================
 typedef struct {
-  int64_t tsize;
+  int64_t total;
   int64_t used;
   int64_t avail;
 } SFSMeta;
 
-typedef struct {
-  int64_t size;
-  int64_t used;
-  int64_t free;
-  int16_t nAvailDisks;  // # of Available disks
-} STierMeta;
-
 int32_t tfsInit(SDiskCfg *pDiskCfg, int32_t ndisk);
 void    tfsCleanup();
-void    tfsUpdateInfo(SFSMeta *pFSMeta, STierMeta *tierMetas, int8_t numLevels);
-void    tfsGetMeta(SFSMeta *pMeta);
+void    tfsUpdateSize(SFSMeta *pFSMeta);
 void    tfsAllocDisk(int32_t expLevel, int32_t *level, int32_t *id);
 
 const char *TFS_PRIMARY_PATH();
