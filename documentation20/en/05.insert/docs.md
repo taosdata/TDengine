@@ -168,6 +168,7 @@ Now you can query the metrics data of Telegraf from TDengine.
 Please find taosAdapter configuration and usage from `taosadapter --help` output.
 
 ## <a class="anchor" id="collectd"></a> Data Writing via collectd and taosAdapter
+
 Please refer to [official document](https://collectd.org/download.shtml) for collectd installation.
 
 TDengine version 2.3.0.0+ includes a stand-alone application taosAdapter in charge of receive data insertion from collectd.
@@ -187,6 +188,7 @@ sudo systemctl start collectd
 Please find taosAdapter configuration and usage from `taosadapter --help` output.
 
 ## <a class="anchor" id="statsd"></a> Data Writting via StatsD and taosAdapter
+
 Please refer to [official document](https://github.com/statsd/statsd) for StatsD installation.
 
 TDengine version 2.3.0.0+ includes a stand-alone application taosAdapter in charge of receive data insertion from StatsD.
