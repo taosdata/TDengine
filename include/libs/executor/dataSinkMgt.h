@@ -70,7 +70,7 @@ int32_t dsCreateDataSinker(const struct SDataSink *pDataSink, DataSinkHandle* pH
  */
 int32_t dsPutDataBlock(DataSinkHandle handle, const SInputData* pInput, bool* pContinue);
 
-void dsEndPut(DataSinkHandle handle, int64_t useconds);
+void dsEndPut(DataSinkHandle handle, uint64_t useconds);
 
 /**
  * Get the length of the data returned by the next call to dsGetDataBlock.

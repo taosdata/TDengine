@@ -20,6 +20,8 @@
 extern "C" {
 #endif
 
+#include "common.h"
+
 typedef void* qTaskInfo_t;
 typedef void* DataSinkHandle;
 struct SSubplan;
@@ -34,7 +36,7 @@ struct SSubplan;
   * @param qId
   * @return
   */
-int32_t qCreateExecTask(void* tsdb, int32_t vgId, struct SSubplan* pPlan, qTaskInfo_t* pTaskInfo);
+int32_t qCreateExecTask(void* tsdb, int32_t vgId, struct SSubplan* pPlan, qTaskInfo_t* pTaskInfo, DataSinkHandle* handle);
 
 /**
  * The main task execution function, including query on both table and multiple tables,
@@ -44,7 +46,7 @@ int32_t qCreateExecTask(void* tsdb, int32_t vgId, struct SSubplan* pPlan, qTaskI
  * @param handle
  * @return
  */
-struct SSDataBlock* qExecTask(qTaskInfo_t tinfo, DataSinkHandle* handle);
+int32_t qExecTask(qTaskInfo_t tinfo, SSDataBlock** pRes, uint64_t *useconds);
 
 /**
  * Retrieve the produced results information, if current query is not paused or completed,

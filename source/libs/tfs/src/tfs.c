@@ -13,22 +13,17 @@
  * along with this program. If not, see <http://www.gnu.org/licenses/>.
  */
 
-#include "os.h"
-
-#include "taosdef.h"
-#include "taoserror.h"
-#include "tfs.h"
-#include "tfsint.h"
-#include "thash.h"
+#define _DEFAULT_SOURCE
+#include "tfsInt.h"
 
 #define TMPNAME_LEN (TSDB_FILENAME_LEN * 2 + 32)
 
 typedef struct {
   pthread_spinlock_t lock;
   SFSMeta            meta;
-  int                nlevel;
+  int32_t            nlevel;
   STier              tiers[TSDB_MAX_TIERS];
-  SHashObj *         map;  // name to did map
+  SHashObj          *map;  // name to did map
 } SFS;
 
 typedef struct {
@@ -52,21 +47,24 @@ static SFS  tfs = {0};
 static SFS *pfs = &tfs;
 
 // STATIC DECLARATION
-static int    tfsMount(SDiskCfg *pCfg);
-static int    tfsCheck();
-static int    tfsCheckAndFormatCfg(SDiskCfg *pCfg);
-static int    tfsFormatDir(char *idir, char *odir);
-static SDisk *tfsGetDiskByID(SDiskID did);
-static SDisk *tfsGetDiskByName(const char *dir);
-static int    tfsOpendirImpl(TDIR *tdir);
-static void   tfsInitDiskIter(SDiskIter *pIter);
-static SDisk *tfsNextDisk(SDiskIter *pIter);
+static int32_t tfsMount(SDiskCfg *pCfg);
+static int32_t tfsCheck();
+static int32_t tfsCheckAndFormatCfg(SDiskCfg *pCfg);
+static int32_t tfsFormatDir(char *idir, char *odir);
+static SDisk  *tfsGetDiskByID(SDiskID did);
+static SDisk  *tfsGetDiskByName(const char *dir);
+static int32_t tfsOpendirImpl(TDIR *tdir);
+static void    tfsInitDiskIter(SDiskIter *pIter);
+static SDisk  *tfsNextDisk(SDiskIter *pIter);
 
 // FS APIs ====================================
-int tfsInit(SDiskCfg *pDiskCfg, int ndisk) {
-  ASSERT(ndisk > 0);
+int32_t tfsInit(SDiskCfg *pDiskCfg, int32_t ndisk) {
+  if (ndisk < 0) {
+    terrno = TSDB_CODE_INVALID_PARA;
+    return -1;
+  }
 
-  for (int level = 0; level < TSDB_MAX_TIERS; level++) {
+  for (int32_t level = 0; level < TSDB_MAX_TIERS; level++) {
     if (tfsInitTier(TFS_TIER_AT(level), level) < 0) {
       while (true) {
         level--;
@@ -84,12 +82,12 @@ int tfsInit(SDiskCfg *pDiskCfg, int ndisk) {
   pfs->map = taosHashInit(TSDB_MAX_TIERS * TSDB_MAX_DISKS_PER_TIER * 2,
                           taosGetDefaultHashFunction(TSDB_DATA_TYPE_BINARY), false, HASH_NO_LOCK);
   if (pfs->map == NULL) {
-    terrno = TSDB_CODE_FS_OUT_OF_MEMORY;
+    terrno = TSDB_CODE_OUT_OF_MEMORY;
     tfsCleanup();
     return -1;
   }
 
-  for (int idisk = 0; idisk < ndisk; idisk++) {
+  for (int32_t idisk = 0; idisk < ndisk; idisk++) {
     if (tfsMount(pDiskCfg + idisk) < 0) {
       tfsCleanup();
       return -1;
@@ -101,8 +99,8 @@ int tfsInit(SDiskCfg *pDiskCfg, int ndisk) {
     return -1;
   }
 
-  tfsUpdateInfo(NULL, NULL, 0);
-  for (int level = 0; level < TFS_NLEVEL(); level++) {
+  tfsUpdateSize(NULL);
+  for (int32_t level = 0; level < TFS_NLEVEL(); level++) {
     tfsPosNextId(TFS_TIER_AT(level));
   }
 
@@ -114,32 +112,27 @@ void tfsCleanup() {
   pfs->map = NULL;
 
   pthread_spin_destroy(&(pfs->lock));
-  for (int level = 0; level < TFS_NLEVEL(); level++) {
+  for (int32_t level = 0; level < TFS_NLEVEL(); level++) {
     tfsDestroyTier(TFS_TIER_AT(level));
   }
 }
 
-void tfsUpdateInfo(SFSMeta *pFSMeta, STierMeta *tierMetas, int8_t numTiers) {
-  SFSMeta   fsMeta;
-  STierMeta tierMeta;
+void tfsUpdateSize(SFSMeta *pFSMeta) {
+  SFSMeta   fsMeta = {0};
+  SDiskSize size = {0};
 
   if (pFSMeta == NULL) {
     pFSMeta = &fsMeta;
   }
 
-  memset(pFSMeta, 0, sizeof(*pFSMeta));
+  memset(pFSMeta, 0, sizeof(SFSMeta));
 
-  for (int level = 0; level < TFS_NLEVEL(); level++) {
-    STierMeta *pTierMeta = &tierMeta;
-    if (tierMetas && level < numTiers) {
-      pTierMeta = tierMetas + level;
-    }
-
+  for (int32_t level = 0; level < TFS_NLEVEL(); level++) {
     STier *pTier = TFS_TIER_AT(level);
-    tfsUpdateTierInfo(pTier, pTierMeta);
-    pFSMeta->tsize += pTierMeta->size;
-    pFSMeta->avail += pTierMeta->free;
-    pFSMeta->used += pTierMeta->used;
+    tfsUpdateTierSize(pTier);
+    pFSMeta->total += pTier->size.total;
+    pFSMeta->avail += pTier->size.avail;
+    pFSMeta->used += pTier->size.used;
   }
 
   tfsLock();
@@ -147,17 +140,9 @@ void tfsUpdateInfo(SFSMeta *pFSMeta, STierMeta *tierMetas, int8_t numTiers) {
   tfsUnLock();
 }
 
-void tfsGetMeta(SFSMeta *pMeta) {
-  ASSERT(pMeta);
-
-  tfsLock();
-  *pMeta = pfs->meta;
-  tfsUnLock();
-}
-
 /* Allocate an existing available tier level
  */
-void tfsAllocDisk(int expLevel, int *level, int *id) {
+void tfsAllocDisk(int32_t expLevel, int32_t *level, int32_t *id) {
   ASSERT(expLevel >= 0);
 
   *level = expLevel;
@@ -182,10 +167,10 @@ void tfsAllocDisk(int expLevel, int *level, int *id) {
 }
 
 const char *TFS_PRIMARY_PATH() { return DISK_DIR(TFS_PRIMARY_DISK()); }
-const char *TFS_DISK_PATH(int level, int id) { return DISK_DIR(TFS_DISK_AT(level, id)); }
+const char *TFS_DISK_PATH(int32_t level, int32_t id) { return DISK_DIR(TFS_DISK_AT(level, id)); }
 
 // TFILE APIs ====================================
-void tfsInitFile(TFILE *pf, int level, int id, const char *bname) {
+void tfsInitFile(TFILE *pf, int32_t level, int32_t id, const char *bname) {
   ASSERT(TFS_IS_VALID_DISK(level, id));
 
   SDisk *pDisk = TFS_DISK_AT(level, id);
@@ -208,8 +193,8 @@ bool tfsIsSameFile(const TFILE *pf1, const TFILE *pf2) {
   return true;
 }
 
-int tfsEncodeFile(void **buf, TFILE *pf) {
-  int tlen = 0;
+int32_t tfsEncodeFile(void **buf, TFILE *pf) {
+  int32_t tlen = 0;
 
   tlen += taosEncodeVariantI32(buf, pf->level);
   tlen += taosEncodeVariantI32(buf, pf->id);
@@ -220,7 +205,7 @@ int tfsEncodeFile(void **buf, TFILE *pf) {
 
 void *tfsDecodeFile(void *buf, TFILE *pf) {
   int32_t level, id;
-  char *  rname;
+  char   *rname;
 
   buf = taosDecodeVariantI32(buf, &(level));
   buf = taosDecodeVariantI32(buf, &(id));
@@ -247,7 +232,7 @@ void tfsdirname(const TFILE *pf, char *dest) {
 }
 
 // DIR APIs ====================================
-int tfsMkdirAt(const char *rname, int level, int id) {
+int32_t tfsMkdirAt(const char *rname, int32_t level, int32_t id) {
   SDisk *pDisk = TFS_DISK_AT(level, id);
   char   aname[TMPNAME_LEN];
 
@@ -260,7 +245,7 @@ int tfsMkdirAt(const char *rname, int level, int id) {
   return 0;
 }
 
-int tfsMkdirRecurAt(const char *rname, int level, int id) {
+int32_t tfsMkdirRecurAt(const char *rname, int32_t level, int32_t id) {
   if (tfsMkdirAt(rname, level, id) < 0) {
     if (errno == ENOENT) {
       // Try to create upper
@@ -293,10 +278,10 @@ int tfsMkdirRecurAt(const char *rname, int level, int id) {
   return 0;
 }
 
-int tfsMkdir(const char *rname) {
-  for (int level = 0; level < TFS_NLEVEL(); level++) {
+int32_t tfsMkdir(const char *rname) {
+  for (int32_t level = 0; level < TFS_NLEVEL(); level++) {
     STier *pTier = TFS_TIER_AT(level);
-    for (int id = 0; id < TIER_NDISKS(pTier); id++) {
+    for (int32_t id = 0; id < TIER_NDISKS(pTier); id++) {
       if (tfsMkdirAt(rname, level, id) < 0) {
         return -1;
       }
@@ -306,15 +291,15 @@ int tfsMkdir(const char *rname) {
   return 0;
 }
 
-int tfsRmdir(const char *rname) {
+int32_t tfsRmdir(const char *rname) {
   char aname[TMPNAME_LEN] = "\0";
 
-  for (int level = 0; level < TFS_NLEVEL(); level++) {
+  for (int32_t level = 0; level < TFS_NLEVEL(); level++) {
     STier *pTier = TFS_TIER_AT(level);
-    for (int id = 0; id < TIER_NDISKS(pTier); id++) {
-      SDisk *pDisk = DISK_AT_TIER(pTier, id);
+    for (int32_t id = 0; id < TIER_NDISKS(pTier); id++) {
+      SDisk *pDisk = pTier->disks[id];
 
-      snprintf(aname, TMPNAME_LEN, "%s/%s", DISK_DIR(pDisk), rname);
+      snprintf(aname, TMPNAME_LEN, "%s%s%s", DISK_DIR(pDisk), TS_PATH_DELIMITER, rname);
 
       taosRemoveDir(aname);
     }
@@ -323,13 +308,14 @@ int tfsRmdir(const char *rname) {
   return 0;
 }
 
-int tfsRename(char *orname, char *nrname) {
+#if 0
+int32_t tfsRename(char *orname, char *nrname) {
   char oaname[TMPNAME_LEN] = "\0";
   char naname[TMPNAME_LEN] = "\0";
 
-  for (int level = 0; level < pfs->nlevel; level++) {
+  for (int32_t level = 0; level < pfs->nlevel; level++) {
     STier *pTier = TFS_TIER_AT(level);
-    for (int id = 0; id < TIER_NDISKS(pTier); id++) {
+    for (int32_t id = 0; id < TIER_NDISKS(pTier); id++) {
       SDisk *pDisk = DISK_AT_TIER(pTier, id);
 
       snprintf(oaname, TMPNAME_LEN, "%s/%s", DISK_DIR(pDisk), orname);
@@ -341,20 +327,21 @@ int tfsRename(char *orname, char *nrname) {
 
   return 0;
 }
+#endif
 
 struct TDIR {
   SDiskIter iter;
-  int       level;
-  int       id;
+  int32_t   level;
+  int32_t   id;
   char      dirname[TSDB_FILENAME_LEN];
   TFILE     tfile;
-  DIR *     dir;
+  DIR      *dir;
 };
 
 TDIR *tfsOpendir(const char *rname) {
   TDIR *tdir = (TDIR *)calloc(1, sizeof(*tdir));
   if (tdir == NULL) {
-    terrno = TSDB_CODE_FS_OUT_OF_MEMORY;
+    terrno = TSDB_CODE_OUT_OF_MEMORY;
     return NULL;
   }
 
@@ -407,9 +394,9 @@ void tfsClosedir(TDIR *tdir) {
 }
 
 // private
-static int tfsMount(SDiskCfg *pCfg) {
+static int32_t tfsMount(SDiskCfg *pCfg) {
   SDiskID did;
-  SDisk * pDisk = NULL;
+  SDisk  *pDisk = NULL;
 
   if (tfsCheckAndFormatCfg(pCfg) < 0) return -1;
 
@@ -419,7 +406,7 @@ static int tfsMount(SDiskCfg *pCfg) {
     fError("failed to mount disk %s to level %d since %s", pCfg->dir, pCfg->level, tstrerror(terrno));
     return -1;
   }
-  did.id = DISK_ID(pDisk);
+  did.id = pDisk->id;
 
   taosHashPut(pfs->map, (void *)(pCfg->dir), strnlen(pCfg->dir, TSDB_FILENAME_LEN), (void *)(&did), sizeof(did));
   if (pfs->nlevel < pCfg->level + 1) pfs->nlevel = pCfg->level + 1;
@@ -427,7 +414,7 @@ static int tfsMount(SDiskCfg *pCfg) {
   return 0;
 }
 
-static int tfsCheckAndFormatCfg(SDiskCfg *pCfg) {
+static int32_t tfsCheckAndFormatCfg(SDiskCfg *pCfg) {
   char        dirName[TSDB_FILENAME_LEN] = "\0";
   struct stat pstat;
 
@@ -486,10 +473,10 @@ static int tfsCheckAndFormatCfg(SDiskCfg *pCfg) {
   return 0;
 }
 
-static int tfsFormatDir(char *idir, char *odir) {
+static int32_t tfsFormatDir(char *idir, char *odir) {
   wordexp_t wep = {0};
 
-  int code = wordexp(idir, &wep, 0);
+  int32_t code = wordexp(idir, &wep, 0);
   if (code != 0) {
     terrno = TAOS_SYSTEM_ERROR(code);
     return -1;
@@ -507,14 +494,14 @@ static int tfsFormatDir(char *idir, char *odir) {
   return 0;
 }
 
-static int tfsCheck() {
+static int32_t tfsCheck() {
   if (TFS_PRIMARY_DISK() == NULL) {
     fError("no primary disk is set");
     terrno = TSDB_CODE_FS_NO_PRIMARY_DISK;
     return -1;
   }
 
-  for (int level = 0; level < TFS_NLEVEL(); level++) {
+  for (int32_t level = 0; level < TFS_NLEVEL(); level++) {
     if (TIER_NDISKS(TFS_TIER_AT(level)) == 0) {
       fError("no disk at level %d", level);
       terrno = TSDB_CODE_FS_NO_MOUNT_AT_TIER;
@@ -528,8 +515,8 @@ static int tfsCheck() {
 static SDisk *tfsGetDiskByID(SDiskID did) { return TFS_DISK_AT(did.level, did.id); }
 static SDisk *tfsGetDiskByName(const char *dir) {
   SDiskID did;
-  SDisk * pDisk = NULL;
-  void *  pr = NULL;
+  SDisk  *pDisk = NULL;
+  void   *pr = NULL;
 
   pr = taosHashGet(pfs->map, (void *)dir, strnlen(dir, TSDB_FILENAME_LEN));
   if (pr == NULL) return NULL;
@@ -541,7 +528,7 @@ static SDisk *tfsGetDiskByName(const char *dir) {
   return pDisk;
 }
 
-static int tfsOpendirImpl(TDIR *tdir) {
+static int32_t tfsOpendirImpl(TDIR *tdir) {
   SDisk *pDisk = NULL;
   char   adir[TMPNAME_LEN * 2] = "\0";
 
@@ -554,10 +541,10 @@ static int tfsOpendirImpl(TDIR *tdir) {
     pDisk = tfsNextDisk(&(tdir->iter));
     if (pDisk == NULL) return 0;
 
-    tdir->level = DISK_LEVEL(pDisk);
-    tdir->id = DISK_ID(pDisk);
+    tdir->level = pDisk->level;
+    tdir->id = pDisk->id;
 
-    snprintf(adir, TMPNAME_LEN * 2, "%s/%s", DISK_DIR(pDisk), tdir->dirname);
+    snprintf(adir, TMPNAME_LEN * 2, "%s%s%s", pDisk->path, TS_PATH_DELIMITER,tdir->dirname);
     tdir->dir = opendir(adir);
     if (tdir->dir != NULL) break;
   }
@@ -572,8 +559,8 @@ static SDisk *tfsNextDisk(SDiskIter *pIter) {
 
   if (pDisk == NULL) return NULL;
 
-  int level = DISK_LEVEL(pDisk);
-  int id = DISK_ID(pDisk);
+  int32_t level = pDisk->level;
+  int32_t id = pDisk->id;
 
   id++;
   if (id < TIER_NDISKS(TFS_TIER_AT(level))) {
@@ -596,21 +583,21 @@ static SDisk *tfsNextDisk(SDiskIter *pIter) {
 // OTHER FUNCTIONS ===================================
 void taosGetDisk() {
   const double unit = 1024 * 1024 * 1024;
-  SysDiskSize  diskSize;
+  SDiskSize    diskSize;
   SFSMeta      fsMeta;
 
-  tfsUpdateInfo(&fsMeta, NULL, 0);
-  tsTotalDataDirGB = (float)(fsMeta.tsize / unit);
+  tfsUpdateSize(&fsMeta);
+  tsTotalDataDirGB = (float)(fsMeta.total / unit);
   tsUsedDataDirGB = (float)(fsMeta.used / unit);
   tsAvailDataDirGB = (float)(fsMeta.avail / unit);
 
   if (taosGetDiskSize(tsLogDir, &diskSize) == 0) {
-    tsTotalLogDirGB = (float)(diskSize.tsize / unit);
+    tsTotalLogDirGB = (float)(diskSize.total / unit);
     tsAvailLogDirGB = (float)(diskSize.avail / unit);
   }
 
   if (taosGetDiskSize(tsTempDir, &diskSize) == 0) {
-    tsTotalTmpDirGB = (float)(diskSize.tsize / unit);
+    tsTotalTmpDirGB = (float)(diskSize.total / unit);
     tsAvailTmpDirectorySpace = (float)(diskSize.avail / unit);
   }
 }
