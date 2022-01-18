@@ -6682,7 +6682,7 @@ int32_t validateOrderbyNode(SSqlCmd* pCmd, SQueryInfo* pQueryInfo, SSqlNode* pSq
     }
 
     if (tscIsProjectionQuery(pQueryInfo)) {
-      bool found = false; 
+      bool found = false;
       for (int32_t i = 0; i < tscNumOfExprs(pQueryInfo); ++i) {
        SExprInfo* pExpr = tscExprGet(pQueryInfo, i);
        if (pExpr->base.functionId == TSDB_FUNC_PRJ && pExpr->base.colInfo.colId == pSchema[index.columnIndex].colId) {
@@ -6694,10 +6694,10 @@ int32_t validateOrderbyNode(SSqlCmd* pCmd, SQueryInfo* pQueryInfo, SSqlNode* pSq
       if (!found) {
         int32_t numOfCols = (int32_t)tscNumOfFields(pQueryInfo);
         tscAddFuncInSelectClause(pQueryInfo, numOfCols, TSDB_FUNC_PRJ, &index, pSchema, TSDB_COL_NORMAL, getNewResColId(pCmd));
-        
+
         SInternalField* pSupInfo = tscFieldInfoGetInternalField(&pQueryInfo->fieldsInfo, numOfCols);
         pSupInfo->visible = false;
-        
+
         pQueryInfo->type |= TSDB_QUERY_TYPE_PROJECTION_QUERY;
       }
     }
@@ -6718,17 +6718,17 @@ int32_t setAlterTableInfo(SSqlObj* pSql, struct SSqlInfo* pInfo) {
   const char* msg4 = "set tag value only available for table";
   const char* msg5 = "only support add one tag";
   const char* msg6 = "column can only be modified by super table";
-  
+
   const char* msg7 = "no tags can be dropped";
   const char* msg8 = "only support one tag";
   const char* msg9 = "tag name too long";
-  
+
   const char* msg10 = "invalid tag name";
   const char* msg11 = "primary tag cannot be dropped";
   const char* msg12 = "update normal column not supported";
   const char* msg13 = "invalid tag value";
   const char* msg14 = "tag value too long";
-  
+
   const char* msg15 = "no columns can be dropped";
   const char* msg16 = "only support one column";
   const char* msg17 = "invalid column name";
@@ -6736,7 +6736,7 @@ int32_t setAlterTableInfo(SSqlObj* pSql, struct SSqlInfo* pInfo) {
   const char* msg19 = "invalid new tag name";
   const char* msg20 = "table is not super table";
   const char* msg21 = "only binary/nchar column length could be modified";
-  const char* msg23 = "only column length coulbe be modified";
+  const char* msg23 = "only column length can be be modified";
   const char* msg24 = "invalid binary/nchar column length";
 
   const char* msg25 = "json type error, should be string";
@@ -6799,7 +6799,7 @@ int32_t setAlterTableInfo(SSqlObj* pSql, struct SSqlInfo* pInfo) {
     if (ret != TSDB_CODE_SUCCESS) {
       return ret;
     }
-  
+
     tscFieldInfoAppend(&pQueryInfo->fieldsInfo, p);
   } else if (pAlterSQL->type == TSDB_ALTER_TABLE_DROP_TAG_COLUMN) {
     if (tscGetNumOfTags(pTableMeta) == 1) {
@@ -6832,7 +6832,7 @@ int32_t setAlterTableInfo(SSqlObj* pSql, struct SSqlInfo* pInfo) {
 
     char name1[128] = {0};
     strncpy(name1, pItem->pVar.pz, pItem->pVar.nLen);
-  
+
     TAOS_FIELD f = tscCreateField(TSDB_DATA_TYPE_INT, name1, tDataTypes[TSDB_DATA_TYPE_INT].bytes);
     tscFieldInfoAppend(&pQueryInfo->fieldsInfo, &f);
   } else if (pAlterSQL->type == TSDB_ALTER_TABLE_CHANGE_TAG_COLUMN) {
@@ -6882,7 +6882,7 @@ int32_t setAlterTableInfo(SSqlObj* pSql, struct SSqlInfo* pInfo) {
     // Note: update can only be applied to table not super table.
     // the following is used to handle tags value for table created according to super table
     pCmd->command = TSDB_SQL_UPDATE_TAGS_VAL;
-    
+
     SArray* pVarList = pAlterSQL->varList;
     tVariantListItem* item = taosArrayGet(pVarList, 0);
     int16_t       numOfTags = tscGetNumOfTags(pTableMeta);
