@@ -86,7 +86,9 @@ TDengine是一个高效的存储、查询、分析时序大数据的平台，专
 
 * [taosAdapter 用户手册](/tools/adapter)
 * [TDinsight 用户手册](/tools/insight)
-* [taoTools 用户手册](/tools/taos-tools)
+* [taoTools 安装手册](/tools/taos-tools)
+* [taosdump 用户手册](/tools/taosdump)
+* [taosbenchmark 用户手册](/tools/taosbenchmark)
 
 ## [与其他工具的连接](/connections)
 
