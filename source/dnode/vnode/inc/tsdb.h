@@ -92,6 +92,7 @@ int  tsdbOptionsInit(STsdbCfg *);
 void tsdbOptionsClear(STsdbCfg *);
 
 typedef void* tsdbReadHandleT;
+
 /**
  * Get the data block iterator, starting from position according to the query condition
  *
@@ -123,6 +124,24 @@ tsdbReadHandleT tsdbQueryCacheLast(STsdb *tsdb, STsdbQueryCond *pCond, STableGro
 
 bool isTsdbCacheLastRow(tsdbReadHandleT* pTsdbReadHandle);
 
+/**
+ *
+ * @param tsdb
+ * @param uid
+ * @param skey
+ * @param pTagCond
+ * @param len
+ * @param tagNameRelType
+ * @param tbnameCond
+ * @param pGroupInfo
+ * @param pColIndex
+ * @param numOfCols
+ * @param reqId
+ * @return
+ */
+int32_t tsdbQuerySTableByTagCond(STsdb* tsdb, uint64_t uid, TSKEY skey, const char* pTagCond, size_t len,
+                                 int16_t tagNameRelType, const char* tbnameCond, STableGroupInfo* pGroupInfo,
+                                 SColIndex* pColIndex, int32_t numOfCols, uint64_t reqId);
 /**
  * get num of rows in mem table
  *

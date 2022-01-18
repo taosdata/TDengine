@@ -558,11 +558,15 @@ static bool timeWindowToJson(const void* obj, cJSON* json) {
 static bool timeWindowFromJson(const cJSON* json, void* obj) {
   STimeWindow* win = (STimeWindow*)obj;
 
-  char* p = getString(json, jkTimeWindowStartKey);
-  win->skey = strtoll(p, NULL, 10);
+  char* pStartKey = getString(json, jkTimeWindowStartKey);
+  win->skey = strtoll(pStartKey, NULL, 10);
 
-  p = getString(json, jkTimeWindowEndKey);
-  win->ekey = strtoll(p, NULL, 10);
+  char* pEndKey = getString(json, jkTimeWindowEndKey);
+  win->ekey = strtoll(pEndKey, NULL, 10);
+
+  tfree(pStartKey);
+  tfree(pEndKey);
+
   return true;
 }
 
@@ -574,14 +578,19 @@ static const char* jkScanNodeTableRevCount = "Reverse";
 
 static bool scanNodeToJson(const void* obj, cJSON* json) {
   const SScanPhyNode* pNode = (const SScanPhyNode*)obj;
-  bool res = cJSON_AddNumberToObject(json, jkScanNodeTableId, pNode->uid);
+
+  char uid[40] = {0};
+  snprintf(uid, tListLen(uid), "%"PRIu64, pNode->uid);
+  bool res = cJSON_AddStringToObject(json, jkScanNodeTableId, uid);
 
   if (res) {
     res = cJSON_AddNumberToObject(json, jkScanNodeTableType, pNode->tableType);
   }
+
   if (res) {
     res = cJSON_AddNumberToObject(json, jkScanNodeTableOrder, pNode->order);
   }
+
   if (res) {
     res = cJSON_AddNumberToObject(json, jkScanNodeTableCount, pNode->count);
   }
@@ -589,12 +598,17 @@ static bool scanNodeToJson(const void* obj, cJSON* json) {
   if (res) {
     res = cJSON_AddNumberToObject(json, jkScanNodeTableRevCount, pNode->reverse);
   }
+
   return res;
 }
 
 static bool scanNodeFromJson(const cJSON* json, void* obj) {
   SScanPhyNode* pNode = (SScanPhyNode*)obj;
-  pNode->uid       = getNumber(json, jkScanNodeTableId);
+
+  char* val        = getString(json, jkScanNodeTableId);
+  pNode->uid       = strtoull(val, NULL, 10);
+  tfree(val);
+
   pNode->tableType = getNumber(json, jkScanNodeTableType);
   pNode->count     = getNumber(json, jkScanNodeTableCount);
   pNode->order     = getNumber(json, jkScanNodeTableOrder);
@@ -726,7 +740,7 @@ static bool nodeAddrToJson(const void* obj, cJSON* json) {
     res = cJSON_AddNumberToObject(json, jkNodeAddrInUse, ep->inUse);
   }
   if (res) {
-    res = addRawArray(json, jkNodeAddrEpAddrs, epAddrToJson, ep->epAddr, ep->numOfEps, sizeof(SEpAddr));
+    res = addRawArray(json, jkNodeAddrEpAddrs, epAddrToJson, ep->epAddr, sizeof(SEpAddr), ep->numOfEps);
   }
   return res;
 }

@@ -67,7 +67,7 @@ char *      metaTbCursorNext(SMTbCursor *pTbCur);
 
 SMCtbCursor *metaOpenCtbCursor(SMeta *pMeta, tb_uid_t uid);
 void         metaCloseCtbCurosr(SMCtbCursor *pCtbCur);
-char *       metaCtbCursorNext(SMCtbCursor *pCtbCur);
+tb_uid_t     metaCtbCursorNext(SMCtbCursor *pCtbCur);
 
 // Options
 void metaOptionsInit(SMetaCfg *pMetaCfg);

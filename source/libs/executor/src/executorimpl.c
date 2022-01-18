@@ -7369,15 +7369,13 @@ SOperatorInfo* doCreateOperatorTreeNode(SPhyNode* pPhyNode, SExecTaskInfo* pTask
   }
 }
 
-int32_t doCreateExecTaskInfo(SSubplan* pPlan, SExecTaskInfo** pTaskInfo, void* readerHandle) {
+int32_t doCreateExecTaskInfo(SSubplan* pPlan, SExecTaskInfo** pTaskInfo, STableGroupInfo* pGroupInfo, void* readerHandle) {
   STsdbQueryCond cond = {.loadExternalRows = false};
 
-  uint64_t uid = 0;
   SPhyNode* pPhyNode = pPlan->pNode;
   if (pPhyNode->info.type == OP_TableScan || pPhyNode->info.type == OP_DataBlocksOptScan) {
 
     STableScanPhyNode* pTableScanNode = (STableScanPhyNode*) pPhyNode;
-    uid            = pTableScanNode->scan.uid;
     cond.order     = pTableScanNode->scan.order;
     cond.numOfCols = taosArrayGetSize(pTableScanNode->scan.node.pTargets);
     cond.colList   = calloc(cond.numOfCols, sizeof(SColumnInfo));
@@ -7397,15 +7395,8 @@ int32_t doCreateExecTaskInfo(SSubplan* pPlan, SExecTaskInfo** pTaskInfo, void* r
     assert(0);
   }
 
-  STableGroupInfo group = {.numOfTables = 1, .pGroupList = taosArrayInit(1, POINTER_BYTES)};
-  SArray*         pa = taosArrayInit(1, sizeof(STableKeyInfo));
-  STableKeyInfo   info = {.pTable = NULL, .lastKey = 0, .uid = uid};
-  taosArrayPush(pa, &info);
-
-  taosArrayPush(group.pGroupList, &pa);
-
   *pTaskInfo = createExecTaskInfo((uint64_t)pPlan->id.queryId);
-  tsdbReadHandleT tsdbReadHandle = tsdbQueryTables(readerHandle, &cond, &group, (*pTaskInfo)->id.queryId, NULL);
+  tsdbReadHandleT tsdbReadHandle = tsdbQueryTables(readerHandle, &cond, pGroupInfo, (*pTaskInfo)->id.queryId, NULL);
 
   (*pTaskInfo)->pRoot = doCreateOperatorTreeNode(pPlan->pNode, *pTaskInfo, tsdbReadHandle);
   if ((*pTaskInfo)->pRoot == NULL) {

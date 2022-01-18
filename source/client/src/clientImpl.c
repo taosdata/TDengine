@@ -257,7 +257,14 @@ int32_t scheduleQuery(SRequestObj* pRequest, SQueryDag* pDag) {
     return pRequest->code;
   }
 
-  return scheduleAsyncExecJob(pRequest->pTscObj->pAppInfo->pTransporter, NULL, pDag, &pRequest->body.pQueryJob);
+  SArray *execNode = taosArrayInit(4, sizeof(SQueryNodeAddr));
+
+  SQueryNodeAddr addr = {.numOfEps = 1, .inUse = 0, .nodeId = 0};
+  addr.epAddr[0].port = 6030;
+  strcpy(addr.epAddr[0].fqdn, "ubuntu");
+
+  taosArrayPush(execNode, &addr);
+  return scheduleAsyncExecJob(pRequest->pTscObj->pAppInfo->pTransporter, execNode, pDag, &pRequest->body.pQueryJob);
 }
 
 typedef struct tmq_t tmq_t;
@@ -706,9 +713,13 @@ void* doFetchRow(SRequestObj* pRequest) {
         return NULL;
       }
 
-      scheduleFetchRows(pRequest->body.pQueryJob, (void **)&pRequest->body.resInfo.pData);
-      setQueryResultByRsp(&pRequest->body.resInfo, (SRetrieveTableRsp*)pRequest->body.resInfo.pData);
+      int32_t code = scheduleFetchRows(pRequest->body.pQueryJob, (void **)&pRequest->body.resInfo.pData);
+      if (code != TSDB_CODE_SUCCESS) {
+        pRequest->code = code;
+        return NULL;
+      }
 
+      setQueryResultByRsp(&pRequest->body.resInfo, (SRetrieveTableRsp*)pRequest->body.resInfo.pData);
       if (pResultInfo->numOfRows == 0) {
         return NULL;
       }

@@ -26,9 +26,9 @@ int32_t schInitTask(SSchJob* pJob, SSchTask *pTask, SSubplan* pPlan, SSchLevel *
   pTask->level  = pLevel;
   SCH_SET_TASK_STATUS(pTask, JOB_TASK_STATUS_NOT_START);
   pTask->taskId = atomic_add_fetch_64(&schMgmt.taskId, 1);
-  pTask->execAddrs = taosArrayInit(SCH_MAX_CONDIDATE_EP_NUM, sizeof(SQueryNodeAddr));
+  pTask->execAddrs = taosArrayInit(SCH_MAX_CANDIDATE_EP_NUM, sizeof(SQueryNodeAddr));
   if (NULL == pTask->execAddrs) {
-    SCH_TASK_ELOG("taosArrayInit %d exec addrs failed", SCH_MAX_CONDIDATE_EP_NUM);
+    SCH_TASK_ELOG("taosArrayInit %d exec addrs failed", SCH_MAX_CANDIDATE_EP_NUM);
     SCH_ERR_RET(TSDB_CODE_QRY_OUT_OF_MEMORY);
   }
 
@@ -383,9 +383,9 @@ int32_t schSetTaskCandidateAddrs(SSchJob *pJob, SSchTask *pTask) {
   }
 
   pTask->candidateIdx = 0;
-  pTask->candidateAddrs = taosArrayInit(SCH_MAX_CONDIDATE_EP_NUM, sizeof(SQueryNodeAddr));
+  pTask->candidateAddrs = taosArrayInit(SCH_MAX_CANDIDATE_EP_NUM, sizeof(SQueryNodeAddr));
   if (NULL == pTask->candidateAddrs) {
-    SCH_TASK_ELOG("taosArrayInit %d condidate addrs failed", SCH_MAX_CONDIDATE_EP_NUM);
+    SCH_TASK_ELOG("taosArrayInit %d condidate addrs failed", SCH_MAX_CANDIDATE_EP_NUM);
     SCH_ERR_RET(TSDB_CODE_QRY_OUT_OF_MEMORY);
   }
 
@@ -405,10 +405,10 @@ int32_t schSetTaskCandidateAddrs(SSchJob *pJob, SSchTask *pTask) {
   if (pJob->nodeList) {
     nodeNum = taosArrayGetSize(pJob->nodeList);
     
-    for (int32_t i = 0; i < nodeNum && addNum < SCH_MAX_CONDIDATE_EP_NUM; ++i) {
+    for (int32_t i = 0; i < nodeNum && addNum < SCH_MAX_CANDIDATE_EP_NUM; ++i) {
       SQueryNodeAddr *naddr = taosArrayGet(pJob->nodeList, i);
       
-      if (NULL == taosArrayPush(pTask->candidateAddrs, &pTask->plan->execNode)) {
+      if (NULL == taosArrayPush(pTask->candidateAddrs, naddr)) {
         SCH_TASK_ELOG("taosArrayPush execNode to candidate addrs failed, addNum:%d, errno:%d", addNum, errno);
         SCH_ERR_RET(TSDB_CODE_QRY_OUT_OF_MEMORY);
       }
@@ -418,12 +418,12 @@ int32_t schSetTaskCandidateAddrs(SSchJob *pJob, SSchTask *pTask) {
   }
 
   if (addNum <= 0) {
-    SCH_TASK_ELOG("no available execNode as condidate addr, nodeNum:%d", nodeNum);
+    SCH_TASK_ELOG("no available execNode as candidate addr, nodeNum:%d", nodeNum);
     return TSDB_CODE_QRY_INVALID_INPUT;
   }
 
 /*
-  for (int32_t i = 0; i < job->dataSrcEps.numOfEps && addNum < SCH_MAX_CONDIDATE_EP_NUM; ++i) {
+  for (int32_t i = 0; i < job->dataSrcEps.numOfEps && addNum < SCH_MAX_CANDIDATE_EP_NUM; ++i) {
     strncpy(epSet->fqdn[epSet->numOfEps], job->dataSrcEps.fqdn[i], sizeof(job->dataSrcEps.fqdn[i]));
     epSet->port[epSet->numOfEps] = job->dataSrcEps.port[i];
     
@@ -734,7 +734,7 @@ int32_t schProcessOnTaskSuccess(SSchJob *pJob, SSchTask *pTask) {
   }
 
 /*
-  if (SCH_IS_DATA_SRC_TASK(task) && job->dataSrcEps.numOfEps < SCH_MAX_CONDIDATE_EP_NUM) {
+  if (SCH_IS_DATA_SRC_TASK(task) && job->dataSrcEps.numOfEps < SCH_MAX_CANDIDATE_EP_NUM) {
     strncpy(job->dataSrcEps.fqdn[job->dataSrcEps.numOfEps], task->execAddr.fqdn, sizeof(task->execAddr.fqdn));
     job->dataSrcEps.port[job->dataSrcEps.numOfEps] = task->execAddr.port;
 
@@ -1165,6 +1165,8 @@ int32_t schLaunchTask(SSchJob *pJob, SSchTask *pTask) {
       SCH_TASK_ELOG("subplanToString error, code:%x, msg:%p, len:%d", code, pTask->msg, pTask->msgLen);
       SCH_ERR_JRET(code);
     }
+
+    printf("physical plan:%s\n", pTask->msg);
   }
   
   SCH_ERR_JRET(schSetTaskCandidateAddrs(pJob, pTask));

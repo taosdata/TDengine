@@ -658,7 +658,7 @@ void metaCloseCtbCurosr(SMCtbCursor *pCtbCur) {
   }
 }
 
-char *metaCtbCursorNext(SMCtbCursor *pCtbCur) {
+tb_uid_t metaCtbCursorNext(SMCtbCursor *pCtbCur) {
   DBT    skey = {0};
   DBT    pkey = {0};
   DBT    pval = {0};
@@ -669,11 +669,13 @@ char *metaCtbCursorNext(SMCtbCursor *pCtbCur) {
   skey.data = &(pCtbCur->suid);
   skey.size = sizeof(pCtbCur->suid);
 
-  if (pCtbCur->pCur->get(pCtbCur->pCur, &skey, &pval, DB_NEXT) == 0) {
-    pBuf = pval.data;
-    metaDecodeTbInfo(pBuf, &tbCfg);
-    return tbCfg.name;
+  if (pCtbCur->pCur->pget(pCtbCur->pCur, &skey, &pkey, &pval, DB_NEXT) == 0) {
+    tb_uid_t id = *(tb_uid_t *)pkey.data;
+    assert(id != 0);
+    return id;
+//    metaDecodeTbInfo(pBuf, &tbCfg);
+//    return tbCfg.;
   } else {
-    return NULL;
+    return 0;
   }
 }
