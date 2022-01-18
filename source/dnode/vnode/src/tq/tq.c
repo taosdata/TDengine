@@ -634,9 +634,7 @@ int tqRetrieveDataBlockInfo(STqReadHandle* pHandle, SDataBlockInfo* pBlockInfo) 
   pBlockInfo->numOfCols = pSchema->nCols;
   pBlockInfo->rows = pHandle->pBlock->numOfRows;
   pBlockInfo->uid = pHandle->pBlock->uid;
-  while ((row = tGetSubmitBlkNext(&pHandle->blkIter)) != NULL) {
-     
-  }
+  //TODO: filter out unused column
   return 0;
 }
 SArray *tqRetrieveDataBlock(STqReadHandle* pHandle, SArray* pColumnIdList) {
@@ -655,6 +653,7 @@ SArray *tqRetrieveDataBlock(STqReadHandle* pHandle, SArray* pColumnIdList) {
   }
 
   for (int i = 0; i < pTschema->numOfCols; i++) {
+    //TODO: filter out unused column
     taosArrayPush(pColumnIdList, &(schemaColAt(pTschema, i)->colId));
   }
 
@@ -662,6 +661,7 @@ SArray *tqRetrieveDataBlock(STqReadHandle* pHandle, SArray* pColumnIdList) {
   int32_t kvIdx;
   while ((row = tGetSubmitBlkNext(&pHandle->blkIter)) != NULL) {
     for (int i = 0; i < pTschema->numOfCols && kvIdx < pTschema->numOfCols; i++) {
+    //TODO: filter out unused column
       STColumn *pCol = schemaColAt(pTschema, i);
       void* val = tdGetMemRowDataOfColEx(row, pCol->colId, pCol->type, TD_DATA_ROW_HEAD_SIZE + pCol->offset, &kvIdx);
       //TODO: handle varlen
