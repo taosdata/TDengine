@@ -10,9 +10,7 @@ TDengine 提供 3 个 UDF 的源代码示例，分别为：
 * [add_one.c](#add_one.c)
 * [abs_max.c](#abs_max.c)
 * [demo.c](#demo.c)
-* [add_one.c](https://github.com/taosdata/TDengine/blob/develop/tests/script/sh/add_one.c)
-* [abs_max.c](https://github.com/taosdata/TDengine/blob/develop/tests/script/sh/abs_max.c)
-* [demo.c](https://github.com/taosdata/TDengine/blob/develop/tests/script/sh/demo.c)
+
 
 ### 标量函数
 
