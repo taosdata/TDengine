@@ -8,7 +8,7 @@ IF (TD_MVN_INSTALLED)
   SET(_output "${CMAKE_CURRENT_BINARY_DIR}/${JDBC_CMD_NAME}")
   file(GLOB_RECURSE _depends "${CMAKE_CURRENT_SOURCE_DIR}/src/*")
   ADD_CUSTOM_COMMAND(OUTPUT ${_output}
-    DEPENDS taos taos_static
+    POST_BUILD
     DEPENDS ${CMAKE_CURRENT_SOURCE_DIR}/pom.xml
     DEPENDS ${CMAKE_CURRENT_SOURCE_DIR}/deploy-pom.xml
     DEPENDS ${_depends}
