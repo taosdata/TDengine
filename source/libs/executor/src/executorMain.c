@@ -68,7 +68,7 @@ void freeParam(STaskParam *param) {
   tfree(param->prevResult);
 }
 
-int32_t qCreateExecTask(void* tsdb, int32_t vgId, SSubplan* pSubplan, qTaskInfo_t* pTaskInfo) {
+int32_t qCreateExecTask(void* tsdb, int32_t vgId, SSubplan* pSubplan, qTaskInfo_t* pTaskInfo, DataSinkHandle* handle) {
   assert(tsdb != NULL && pSubplan != NULL);
   SExecTaskInfo** pTask = (SExecTaskInfo**)pTaskInfo;
 
@@ -84,6 +84,8 @@ int32_t qCreateExecTask(void* tsdb, int32_t vgId, SSubplan* pSubplan, qTaskInfo_
   }
 
   code = dsCreateDataSinker(pSubplan->pDataSink, &(*pTask)->dsHandle);
+
+  *handle = (*pTask)->dsHandle;
 
   _error:
   // if failed to add ref for all tables in this query, abort current query
@@ -135,9 +137,11 @@ int waitMoment(SQInfo* pQInfo){
 }
 #endif
 
-int32_t qExecTask(qTaskInfo_t tinfo, DataSinkHandle* handle) {
+int32_t qExecTask(qTaskInfo_t tinfo, SSDataBlock** pRes, uint64_t *useconds) {
   SExecTaskInfo* pTaskInfo = (SExecTaskInfo*)tinfo;
   int64_t        threadId = taosGetSelfPthreadId();
+
+  *pRes = NULL;
 
   int64_t curOwner = 0;
   if ((curOwner = atomic_val_compare_exchange_64(&pTaskInfo->owner, 0, threadId)) != 0) {
@@ -153,7 +157,7 @@ int32_t qExecTask(qTaskInfo_t tinfo, DataSinkHandle* handle) {
 
   if (isTaskKilled(pTaskInfo)) {
     qDebug("QInfo:0x%" PRIx64 " it is already killed, abort", GET_TASKID(pTaskInfo));
-    return pTaskInfo->code;
+    return TSDB_CODE_SUCCESS;
   }
 
   //  STaskRuntimeEnv* pRuntimeEnv = &pTaskInfo->runtimeEnv;
@@ -168,7 +172,8 @@ int32_t qExecTask(qTaskInfo_t tinfo, DataSinkHandle* handle) {
   if (ret != TSDB_CODE_SUCCESS) {
     publishQueryAbortEvent(pTaskInfo, ret);
     pTaskInfo->code = ret;
-    qDebug("QInfo:0x%" PRIx64 " query abort due to error/cancel occurs, code:%s", GET_TASKID(pTaskInfo), tstrerror(pTaskInfo->code));
+    qDebug("QInfo:0x%" PRIx64 " query abort due to error/cancel occurs, code:%s", GET_TASKID(pTaskInfo),
+           tstrerror(pTaskInfo->code));
     return pTaskInfo->code;
   }
 
@@ -178,39 +183,21 @@ int32_t qExecTask(qTaskInfo_t tinfo, DataSinkHandle* handle) {
   publishOperatorProfEvent(pTaskInfo->pRoot, QUERY_PROF_BEFORE_OPERATOR_EXEC);
   int64_t st = 0;
 
-  if (handle) {
-    *handle = pTaskInfo->dsHandle;
+  st = taosGetTimestampUs();
+  *pRes = pTaskInfo->pRoot->exec(pTaskInfo->pRoot, &newgroup);
+
+  pTaskInfo->cost.elapsedTime += (taosGetTimestampUs() - st);
+  publishOperatorProfEvent(pTaskInfo->pRoot, QUERY_PROF_AFTER_OPERATOR_EXEC);
+
+  if (NULL == *pRes) {
+    *useconds = pTaskInfo->cost.elapsedTime;
   }
-  
-  while(1) {
-    st = taosGetTimestampUs();
-    SSDataBlock* pRes = pTaskInfo->pRoot->exec(pTaskInfo->pRoot, &newgroup);
 
-    pTaskInfo->cost.elapsedTime += (taosGetTimestampUs() - st);
-    publishOperatorProfEvent(pTaskInfo->pRoot, QUERY_PROF_AFTER_OPERATOR_EXEC);
+  qDebug("QInfo:0x%" PRIx64 " query paused, %d rows returned, total:%" PRId64 " rows, in sinkNode:%d",
+         GET_TASKID(pTaskInfo), 0, 0L, 0);
 
-    if (pRes == NULL) { // no results generated yet, abort
-      dsEndPut(pTaskInfo->dsHandle, pTaskInfo->cost.elapsedTime);
-      return pTaskInfo->code;
-    }
-
-    bool  qcontinue = false;
-    SInputData inputData = {.pData = pRes, .pTableRetrieveTsMap = NULL};
-    pTaskInfo->code = dsPutDataBlock(pTaskInfo->dsHandle, &inputData, &qcontinue);
-
-    if (isTaskKilled(pTaskInfo)) {
-      qDebug("QInfo:0x%" PRIx64 " task is killed", GET_TASKID(pTaskInfo));
-      //  } else if (GET_NUM_OF_RESULTS(pRuntimeEnv) == 0) {
-      //    qDebug("QInfo:0x%"PRIx64" over, %u tables queried, total %"PRId64" rows returned", pTaskInfo->qId, pRuntimeEnv->tableqinfoGroupInfo.numOfTables,
-      //           pRuntimeEnv->resultInfo.total);
-    }
-
-    if (!qcontinue) {
-          qDebug("QInfo:0x%"PRIx64" query paused, %d rows returned, total:%" PRId64 " rows, in sinkNode:%d", GET_TASKID(pTaskInfo),
-              0, 0L, 0);
-      return pTaskInfo->code;
-    }
-  }
+  atomic_store_64(&pTaskInfo->owner, 0);
+  return pTaskInfo->code;
 }
 
 int32_t qRetrieveQueryResultInfo(qTaskInfo_t qinfo, bool* buildRes, void* pRspContext) {

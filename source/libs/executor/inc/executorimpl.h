@@ -597,7 +597,6 @@ void clearOutputBuf(SOptrBasicInfo* pBInfo, int32_t *bufCapacity);
 void copyTsColoum(SSDataBlock* pRes, SQLFunctionCtx* pCtx, int32_t numOfOutput);
 
 void freeParam(STaskParam *param);
-int32_t convertQueryMsg(SQueryTableReq *pQueryMsg, STaskParam* param);
 int32_t createQueryFunc(SQueriedTableInfo* pTableInfo, int32_t numOfOutput, SExprInfo** pExprInfo,
                         SSqlExpr** pExprMsg, SColumnInfo* pTagCols, int32_t queryType, void* pMsg, struct SUdfInfo* pUdfInfo);
 
@@ -638,7 +637,8 @@ size_t getResultSize(SQInfo *pQInfo, int64_t *numOfRows);
 void setQueryKilled(SQInfo *pQInfo);
 
 void publishOperatorProfEvent(SOperatorInfo* operatorInfo, EQueryProfEventType eventType);
-void publishQueryAbortEvent(SQInfo* pQInfo, int32_t code);
+void publishQueryAbortEvent(SExecTaskInfo * pTaskInfo, int32_t code);
+
 void calculateOperatorProfResults(SQInfo* pQInfo);
 void queryCostStatis(SQInfo *pQInfo);
 

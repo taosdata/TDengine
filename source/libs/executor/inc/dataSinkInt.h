@@ -32,7 +32,7 @@ typedef struct SDataSinkManager {
 } SDataSinkManager;
 
 typedef int32_t (*FPutDataBlock)(struct SDataSinkHandle* pHandle, const SInputData* pInput, bool* pContinue);
-typedef void (*FEndPut)(struct SDataSinkHandle* pHandle, int64_t useconds);
+typedef void (*FEndPut)(struct SDataSinkHandle* pHandle, uint64_t useconds);
 typedef void (*FGetDataLength)(struct SDataSinkHandle* pHandle, int32_t* pLen, bool* pQueryEnd);
 typedef int32_t (*FGetDataBlock)(struct SDataSinkHandle* pHandle, SOutputData* pOutput);
 typedef int32_t (*FDestroyDataSinker)(struct SDataSinkHandle* pHandle);
