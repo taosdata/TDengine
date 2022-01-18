@@ -68,6 +68,14 @@ typedef uint16_t tmsg_t;
 #define TSDB_IE_TYPE_DNODE_EXT 6
 #define TSDB_IE_TYPE_DNODE_STATE 7
 
+typedef enum {
+  HEARTBEAT_TYPE_MQ    = 0,
+  HEARTBEAT_TYPE_QUERY = 1,
+  // types can be added here
+  //
+  HEARTBEAT_TYPE_MAX
+} EHbType;
+
 typedef enum _mgmt_table {
   TSDB_MGMT_TABLE_START,
   TSDB_MGMT_TABLE_ACCT,
@@ -147,7 +155,7 @@ typedef struct {
 
 typedef struct {
   SClientHbKey connKey;
-  SHashObj*    info;  // hash<Slv.key, Sklv>
+  SHashObj*    info;  // hash<Skv.key, Skv>
 } SClientHbReq;
 
 typedef struct {
@@ -173,7 +181,10 @@ static FORCE_INLINE uint32_t hbKeyHashFunc(const char* key, uint32_t keyLen) {
 }
 
 int   tSerializeSClientHbReq(void** buf, const SClientHbReq* pReq);
-void* tDeserializeClientHbReq(void* buf, SClientHbReq* pReq);
+void* tDeserializeSClientHbReq(void* buf, SClientHbReq* pReq);
+
+int   tSerializeSClientHbRsp(void** buf, const SClientHbRsp* pRsp);
+void* tDeserializeSClientHbRsp(void* buf, SClientHbRsp* pRsp);
 
 static FORCE_INLINE void  tFreeClientHbReq(void *pReq) {
   SClientHbReq* req = (SClientHbReq*)pReq;
@@ -182,13 +193,16 @@ static FORCE_INLINE void  tFreeClientHbReq(void *pReq) {
 }
 
 int   tSerializeSClientHbBatchReq(void** buf, const SClientHbBatchReq* pReq);
-void* tDeserializeClientHbBatchReq(void* buf, SClientHbBatchReq* pReq);
+void* tDeserializeSClientHbBatchReq(void* buf, SClientHbBatchReq* pReq);
 
 static FORCE_INLINE void tFreeClientHbBatchReq(void* pReq) {
   SClientHbBatchReq *req = (SClientHbBatchReq*)pReq;
-  taosArrayDestroyEx(req->reqs, tFreeClientHbReq);
+  //taosArrayDestroyEx(req->reqs, tFreeClientHbReq);
   free(pReq);
 }
+
+int   tSerializeSClientHbBatchRsp(void** buf, const SClientHbBatchRsp* pBatchRsp);
+void* tDeserializeSClientHbBatchRsp(void* buf, SClientHbBatchRsp* pBatchRsp);
 
 static FORCE_INLINE int taosEncodeSKv(void** buf, const SKv* pKv) {
   int tlen = 0;
@@ -217,6 +231,93 @@ static FORCE_INLINE int taosEncodeSClientHbKey(void** buf, const SClientHbKey* p
 static FORCE_INLINE void* taosDecodeSClientHbKey(void* buf, SClientHbKey* pKey) {
   buf = taosDecodeFixedI32(buf, &pKey->connId);
   buf = taosDecodeFixedI32(buf, &pKey->hbType);
+  return buf;
+}
+
+typedef struct SMqHbVgInfo {
+  int32_t vgId;
+} SMqHbVgInfo;
+
+static FORCE_INLINE int taosEncodeSMqVgInfo(void** buf, const SMqHbVgInfo* pVgInfo) {
+  int tlen = 0;
+  tlen += taosEncodeFixedI32(buf, pVgInfo->vgId);
+  return tlen;
+}
+
+static FORCE_INLINE void* taosDecodeSMqVgInfo(void* buf, SMqHbVgInfo* pVgInfo) {
+  buf = taosDecodeFixedI32(buf, &pVgInfo->vgId);
+  return buf;
+}
+
+typedef struct SMqHbTopicInfo {
+  int32_t epoch;
+  int64_t topicUid;
+  char    name[TSDB_TOPIC_FNAME_LEN];
+  SArray* pVgInfo;
+} SMqHbTopicInfo;
+
+static FORCE_INLINE int taosEncodeSMqHbTopicInfoMsg(void** buf, const SMqHbTopicInfo* pTopicInfo) {
+  int tlen = 0;
+  tlen += taosEncodeFixedI32(buf, pTopicInfo->epoch);
+  tlen += taosEncodeFixedI64(buf, pTopicInfo->topicUid);
+  tlen += taosEncodeString(buf, pTopicInfo->name);
+  int32_t sz = taosArrayGetSize(pTopicInfo->pVgInfo);
+  tlen += taosEncodeFixedI32(buf, sz);
+  for (int32_t i = 0; i < sz; i++) {
+    SMqHbVgInfo* pVgInfo = (SMqHbVgInfo*)taosArrayGet(pTopicInfo->pVgInfo, i);
+    tlen += taosEncodeSMqVgInfo(buf, pVgInfo);
+  }
+  return tlen;
+}
+
+static FORCE_INLINE void* taosDecodeSMqHbTopicInfoMsg(void* buf, SMqHbTopicInfo* pTopicInfo) {
+  buf = taosDecodeFixedI32(buf, &pTopicInfo->epoch);
+  buf = taosDecodeFixedI64(buf, &pTopicInfo->topicUid);
+  buf = taosDecodeStringTo(buf, pTopicInfo->name);
+  int32_t sz;
+  buf = taosDecodeFixedI32(buf, &sz);
+  pTopicInfo->pVgInfo = taosArrayInit(sz, sizeof(SMqHbVgInfo));
+  for (int32_t i = 0; i < sz; i++) {
+    SMqHbVgInfo vgInfo;
+    buf = taosDecodeSMqVgInfo(buf, &vgInfo);
+    taosArrayPush(pTopicInfo->pVgInfo, &vgInfo);
+  }
+  return buf;
+}
+
+typedef struct SMqHbMsg {
+  int32_t  status;   // ask hb endpoint
+  int32_t  epoch;
+  int64_t  consumerId;
+  SArray*  pTopics;  // SArray<SMqHbTopicInfo>
+} SMqHbMsg;
+
+static FORCE_INLINE int taosEncodeSMqMsg(void** buf, const SMqHbMsg* pMsg) {
+  int tlen = 0;
+  tlen += taosEncodeFixedI32(buf, pMsg->status);
+  tlen += taosEncodeFixedI32(buf, pMsg->epoch);
+  tlen += taosEncodeFixedI64(buf, pMsg->consumerId);
+  int32_t sz = taosArrayGetSize(pMsg->pTopics);
+  tlen += taosEncodeFixedI32(buf, sz);
+  for (int i = 0; i < sz; i++) {
+    SMqHbTopicInfo* topicInfo = (SMqHbTopicInfo*)taosArrayGet(pMsg->pTopics, i);
+    tlen += taosEncodeSMqHbTopicInfoMsg(buf, topicInfo);
+  }
+  return tlen;
+}
+
+static FORCE_INLINE void* taosDecodeSMqMsg(void* buf, SMqHbMsg* pMsg) {
+  buf = taosDecodeFixedI32(buf, &pMsg->status);
+  buf = taosDecodeFixedI32(buf, &pMsg->epoch);
+  buf = taosDecodeFixedI64(buf, &pMsg->consumerId);
+  int32_t sz;
+  buf = taosDecodeFixedI32(buf, &sz);
+  pMsg->pTopics = taosArrayInit(sz, sizeof(SMqHbTopicInfo));
+  for (int i = 0; i < sz; i++) {
+    SMqHbTopicInfo topicInfo;
+    buf = taosDecodeSMqHbTopicInfoMsg(buf, &topicInfo);
+    taosArrayPush(pMsg->pTopics, &topicInfo);
+  }
   return buf;
 }
 
@@ -355,6 +456,91 @@ static FORCE_INLINE void* taosDecodeSEpSet(void* buf, SEpSet* pEp) {
   for (int i = 0; i < TSDB_MAX_REPLICA; i++) {
     buf = taosDecodeFixedU16(buf, &pEp->port[i]);
     buf = taosDecodeStringTo(buf, pEp->fqdn[i]);
+  }
+  return buf;
+}
+
+typedef struct SMqHbRsp {
+  int8_t status;    //idle or not
+  int8_t vnodeChanged;
+  int8_t epChanged; // should use new epset
+  int8_t reserved;
+  SEpSet epSet;
+} SMqHbRsp;
+
+static FORCE_INLINE int taosEncodeSMqHbRsp(void** buf, const SMqHbRsp* pRsp) {
+  int tlen = 0;
+  tlen += taosEncodeFixedI8(buf, pRsp->status);
+  tlen += taosEncodeFixedI8(buf, pRsp->vnodeChanged);
+  tlen += taosEncodeFixedI8(buf, pRsp->epChanged);
+  tlen += taosEncodeSEpSet(buf, &pRsp->epSet);
+  return tlen;
+}
+
+static FORCE_INLINE void* taosDecodeSMqHbRsp(void* buf, SMqHbRsp* pRsp) {
+  buf = taosDecodeFixedI8(buf, &pRsp->status);
+  buf = taosDecodeFixedI8(buf, &pRsp->vnodeChanged);
+  buf = taosDecodeFixedI8(buf, &pRsp->epChanged);
+  buf = taosDecodeSEpSet(buf, &pRsp->epSet);
+  return buf;
+}
+
+typedef struct SMqHbOneTopicBatchRsp {
+  char topicName[TSDB_TOPIC_FNAME_LEN];
+  SArray* rsps;  // SArray<SMqHbRsp>
+} SMqHbOneTopicBatchRsp;
+
+static FORCE_INLINE int taosEncodeSMqHbOneTopicBatchRsp(void** buf, const SMqHbOneTopicBatchRsp* pBatchRsp) {
+  int tlen = 0;
+  tlen += taosEncodeString(buf, pBatchRsp->topicName);
+  int32_t sz = taosArrayGetSize(pBatchRsp->rsps);
+  tlen += taosEncodeFixedI32(buf, sz);
+  for (int32_t i = 0; i < sz; i++) {
+    SMqHbRsp* pRsp = (SMqHbRsp*)taosArrayGet(pBatchRsp->rsps, i);
+    tlen += taosEncodeSMqHbRsp(buf, pRsp);
+  }
+  return tlen;
+}
+
+static FORCE_INLINE void* taosDecodeSMqHbOneTopicBatchRsp(void* buf, SMqHbOneTopicBatchRsp* pBatchRsp) {
+  int32_t sz;
+  buf = taosDecodeStringTo(buf, pBatchRsp->topicName);
+  buf = taosDecodeFixedI32(buf, &sz);
+  pBatchRsp->rsps = taosArrayInit(sz, sizeof(SMqHbRsp));
+  for (int32_t i = 0; i < sz; i++) {
+    SMqHbRsp rsp;
+    buf = taosDecodeSMqHbRsp(buf, &rsp);
+    buf = taosArrayPush(pBatchRsp->rsps, &rsp);
+  }
+  return buf;
+}
+
+typedef struct SMqHbBatchRsp {
+  int64_t consumerId; 
+  SArray* batchRsps; // SArray<SMqHbOneTopicBatchRsp>
+} SMqHbBatchRsp;
+
+static FORCE_INLINE int taosEncodeSMqHbBatchRsp(void** buf, const SMqHbBatchRsp* pBatchRsp) {
+  int tlen = 0;
+  tlen += taosEncodeFixedI64(buf, pBatchRsp->consumerId);
+  int32_t sz;
+  tlen += taosEncodeFixedI32(buf, sz);
+  for (int32_t i = 0; i < sz; i++) {
+    SMqHbOneTopicBatchRsp* pRsp = (SMqHbOneTopicBatchRsp*) taosArrayGet(pBatchRsp->batchRsps, i);
+    tlen += taosEncodeSMqHbOneTopicBatchRsp(buf, pRsp);
+  }
+  return tlen;
+}
+
+static FORCE_INLINE void* taosDecodeSMqHbBatchRsp(void* buf, SMqHbBatchRsp* pBatchRsp) {
+  buf = taosDecodeFixedI64(buf, &pBatchRsp->consumerId);
+  int32_t sz;
+  buf = taosDecodeFixedI32(buf, &sz);
+  pBatchRsp->batchRsps = taosArrayInit(sz, sizeof(SMqHbOneTopicBatchRsp));
+  for (int32_t i = 0; i < sz; i++) {
+    SMqHbOneTopicBatchRsp  rsp;
+    buf = taosDecodeSMqHbOneTopicBatchRsp(buf, &rsp);
+    buf = taosArrayPush(pBatchRsp->batchRsps, &rsp);
   }
   return buf;
 }
@@ -993,6 +1179,13 @@ typedef struct {
   uint64_t taskId;
 } SSinkDataReq;
 
+typedef struct {
+  SMsgHead header;
+  uint64_t sId;
+  uint64_t queryId;
+  uint64_t taskId;
+} SQueryContinueReq;
+
 
 typedef struct {
   SMsgHead header;
@@ -1053,6 +1246,7 @@ typedef struct {
 typedef struct {
   int8_t igExists;
   char*  name;
+  char*  sql;
   char*  physicalPlan;
   char*  logicalPlan;
 } SCMCreateTopicReq;
@@ -1061,6 +1255,7 @@ static FORCE_INLINE int tSerializeSCMCreateTopicReq(void** buf, const SCMCreateT
   int tlen = 0;
   tlen += taosEncodeFixedI8(buf, pReq->igExists);
   tlen += taosEncodeString(buf, pReq->name);
+  tlen += taosEncodeString(buf, pReq->sql);
   tlen += taosEncodeString(buf, pReq->physicalPlan);
   tlen += taosEncodeString(buf, pReq->logicalPlan);
   return tlen;
@@ -1069,6 +1264,7 @@ static FORCE_INLINE int tSerializeSCMCreateTopicReq(void** buf, const SCMCreateT
 static FORCE_INLINE void* tDeserializeSCMCreateTopicReq(void* buf, SCMCreateTopicReq* pReq) {
   buf = taosDecodeFixedI8(buf, &(pReq->igExists));
   buf = taosDecodeString(buf, &(pReq->name));
+  buf = taosDecodeString(buf, &(pReq->sql));
   buf = taosDecodeString(buf, &(pReq->physicalPlan));
   buf = taosDecodeString(buf, &(pReq->logicalPlan));
   return buf;
@@ -1191,7 +1387,7 @@ typedef struct {
 } SMVSubscribeRsp;
 
 typedef struct {
-  char    name[TSDB_TOPIC_FNAME_LEN];
+  char    name[TSDB_TOPIC_NAME_LEN];
   int8_t  igExists;
   int32_t execLen;
   void*   executor;
@@ -1282,7 +1478,7 @@ typedef struct {
 typedef struct {
   SMsgHead head;
   char     name[TSDB_TABLE_FNAME_LEN];
-  int8_t   ignoreNotExists;
+  int64_t  suid;
 } SVDropTbReq;
 
 typedef struct {

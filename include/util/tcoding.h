@@ -351,6 +351,7 @@ static FORCE_INLINE void *taosDecodeString(void *buf, char **value) {
 
   buf = taosDecodeVariantU64(buf, &size);
   *value = (char *)malloc((size_t)size + 1);
+
   if (*value == NULL) return NULL;
   memcpy(*value, buf, (size_t)size);
 

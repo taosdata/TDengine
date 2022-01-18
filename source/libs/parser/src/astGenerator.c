@@ -972,14 +972,15 @@ void tSetDbName(SToken *pCpxName, SToken *pDb) {
 void tSetColumnInfo(SField *pField, SToken *pName, SField *pType) {
   int32_t maxLen = sizeof(pField->name) / sizeof(pField->name[0]);
 
-  // column name is too long, set the it to be invalid.
+  // The column name is too long, set it to be invalid.
   if ((int32_t) pName->n >= maxLen) {
-    pName->n = -1;
+    pField->name[0] = 0;
   } else {
     strncpy(pField->name, pName->z, pName->n);
     pField->name[pName->n] = 0;
   }
 
+  // denote an invalid data type in the column definition.
   pField->type = pType->type;
   if(!isValidDataType(pField->type)){
     pField->bytes = 0;

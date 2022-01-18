@@ -30,6 +30,21 @@ void* myCalloc(size_t nmemb, size_t size) {
 
 class PhyPlanTest : public Test {
 protected:
+  void pushAgg(int32_t aggOp) {
+    unique_ptr<SQueryPlanNode> agg((SQueryPlanNode*)myCalloc(1, sizeof(SQueryPlanNode)));
+    agg->info.type = aggOp;
+    agg->pExpr = taosArrayInit(TARRAY_MIN_SIZE, POINTER_BYTES);
+    unique_ptr<SExprInfo> expr((SExprInfo*)myCalloc(1, sizeof(SExprInfo)));
+    expr->base.resSchema.type = TSDB_DATA_TYPE_INT;
+    expr->base.resSchema.bytes = tDataTypes[TSDB_DATA_TYPE_INT].bytes;
+    expr->pExpr = (tExprNode*)myCalloc(1, sizeof(tExprNode));
+    expr->pExpr->nodeType = TEXPR_FUNCTION_NODE;
+    strcpy(expr->pExpr->_function.functionName, "Count");
+    SExprInfo* item = expr.release();
+    taosArrayPush(agg->pExpr, &item);
+    pushNode(agg.release());
+  }
+
   void pushScan(const string& db, const string& table, int32_t scanOp) {
     shared_ptr<MockTableMeta> meta = mockCatalogService->getTableMeta(db, table);
     EXPECT_TRUE(meta);
@@ -95,10 +110,11 @@ protected:
 private:
   void pushNode(SQueryPlanNode* node) {
     if (logicPlan_) {
-      // todo
-    } else {
-      logicPlan_.reset(node);
+      node->pChildren = taosArrayInit(TARRAY_MIN_SIZE, POINTER_BYTES);
+      SQueryPlanNode* child = logicPlan_.release();
+      taosArrayPush(node->pChildren, &child);
     }
+    logicPlan_.reset(node);
   }
 
   void copySchemaMeta(STableMeta** dst, const STableMeta* src) {
@@ -168,6 +184,16 @@ TEST_F(PhyPlanTest, serializeTest) {
 // select * from supertable
 TEST_F(PhyPlanTest, superTableScanTest) {
   pushScan("test", "st1", QNODE_TABLESCAN);
+  ASSERT_EQ(run(), TSDB_CODE_SUCCESS);
+  explain();
+  SQueryDag* dag = result();
+  // todo check
+}
+
+// select count(*) from table
+TEST_F(PhyPlanTest, simpleAggTest) {
+  pushScan("test", "t1", QNODE_TABLESCAN);
+  pushAgg(QNODE_AGGREGATE);
   ASSERT_EQ(run(), TSDB_CODE_SUCCESS);
   explain();
   SQueryDag* dag = result();

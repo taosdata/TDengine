@@ -13,12 +13,12 @@
 #include "tpagedfile.h"
 #include "tref.h"
 
-#define CHECK_CODE_GOTO(expr, lable) \
+#define CHECK_CODE_GOTO(expr, label) \
   do {                               \
     int32_t code = expr;             \
     if (TSDB_CODE_SUCCESS != code) { \
       terrno = code;                 \
-      goto lable;                    \
+      goto label;                    \
     }                                \
   } while (0)
 
@@ -58,7 +58,7 @@ static char* getClusterKey(const char* user, const char* auth, const char* ip, i
   return strdup(key);
 }
 
-static STscObj* taosConnectImpl(const char *ip, const char *user, const char *auth, const char *db, uint16_t port, __taos_async_fn_t fp, void *param, SAppInstInfo* pAppInfo);
+static STscObj* taosConnectImpl(const char *user, const char *auth, const char *db, uint16_t port, __taos_async_fn_t fp, void *param, SAppInstInfo* pAppInfo);
 static void  setResSchemaInfo(SReqResultInfo* pResInfo, const SDataBlockSchema* pDataBlockSchema);
 
 TAOS *taos_connect_internal(const char *ip, const char *user, const char *pass, const char *auth, const char *db, uint16_t port) {
@@ -71,18 +71,18 @@ TAOS *taos_connect_internal(const char *ip, const char *user, const char *pass, 
     return NULL;
   }
 
-  char tmp[TSDB_DB_NAME_LEN] = {0};
+  char localDb[TSDB_DB_NAME_LEN] = {0};
   if (db != NULL) {
     if(!validateDbName(db)) {
       terrno = TSDB_CODE_TSC_INVALID_DB_LENGTH;
       return NULL;
     }
 
-    tstrncpy(tmp, db, sizeof(tmp));
-    strdequote(tmp);
+    tstrncpy(localDb, db, sizeof(localDb));
+    strdequote(localDb);
   }
 
-  char secretEncrypt[32] = {0};
+  char secretEncrypt[TSDB_PASSWORD_LEN + 1] = {0};
   if (auth == NULL) {
     if (!validatePassword(pass)) {
       terrno = TSDB_CODE_TSC_INVALID_PASS_LENGTH;
@@ -111,18 +111,20 @@ TAOS *taos_connect_internal(const char *ip, const char *user, const char *pass, 
 
   char* key = getClusterKey(user, secretEncrypt, ip, port);
 
+  // TODO: race condition here.
   SAppInstInfo** pInst = taosHashGet(appInfo.pInstMap, key, strlen(key));
   if (pInst == NULL) {
     SAppInstInfo* p = calloc(1, sizeof(struct SAppInstInfo));
     p->mgmtEp       = epSet;
     p->pTransporter = openTransporter(user, secretEncrypt, tsNumOfCores);
+    p->pAppHbMgr = appHbMgrInit(p);
     taosHashPut(appInfo.pInstMap, key, strlen(key), &p, POINTER_BYTES);
 
     pInst = &p;
   }
 
   tfree(key);
-  return taosConnectImpl(ip, user, &secretEncrypt[0], db, port, NULL, NULL, *pInst);
+  return taosConnectImpl(user, &secretEncrypt[0], localDb, port, NULL, NULL, *pInst);
 }
 
 int32_t buildRequest(STscObj *pTscObj, const char *sql, int sqlLen, SRequestObj** pRequest) {
@@ -152,13 +154,13 @@ int32_t parseSql(SRequestObj* pRequest, SQueryNode** pQuery) {
 
   SParseContext cxt = {
     .requestId = pRequest->requestId,
-    .acctId = pTscObj->acctId,
-    .db     = getConnectionDB(pTscObj),
-    .pTransporter = pTscObj->pTransporter,
-    .pSql   = pRequest->sqlstr,
-    .sqlLen = pRequest->sqlLen,
-    .pMsg   = pRequest->msgBuf,
-    .msgLen = ERROR_MSG_BUF_DEFAULT_SIZE
+    .acctId    = pTscObj->acctId,
+    .db        = getConnectionDB(pTscObj),
+    .pSql      = pRequest->sqlstr,
+    .sqlLen    = pRequest->sqlLen,
+    .pMsg      = pRequest->msgBuf,
+    .msgLen    = ERROR_MSG_BUF_DEFAULT_SIZE,
+    .pTransporter = pTscObj->pAppInfo->pTransporter,
   };
 
   cxt.mgmtEpSet = getEpSet_s(&pTscObj->pAppInfo->mgmtEp);
@@ -191,10 +193,10 @@ int32_t execDdlQuery(SRequestObj* pRequest, SQueryNode* pQuery) {
         pShowReqInfo->pArray = pDcl->pExtension;
       }
     }
-    asyncSendMsgToServer(pTscObj->pTransporter, &pDcl->epSet, &transporterId, pSendMsg);
+    asyncSendMsgToServer(pTscObj->pAppInfo->pTransporter, &pDcl->epSet, &transporterId, pSendMsg);
   } else {
     SEpSet* pEpSet = &pTscObj->pAppInfo->mgmtEp.epSet;
-    asyncSendMsgToServer(pTscObj->pTransporter, pEpSet, &transporterId, pSendMsg);
+    asyncSendMsgToServer(pTscObj->pAppInfo->pTransporter, pEpSet, &transporterId, pSendMsg);
   }
 
   tsem_wait(&pRequest->body.rspSem);
@@ -241,7 +243,7 @@ int32_t scheduleQuery(SRequestObj* pRequest, SQueryDag* pDag) {
   if (TSDB_SQL_INSERT == pRequest->type || TSDB_SQL_CREATE_TABLE == pRequest->type) {
     SQueryResult res = {.code = 0, .numOfRows = 0, .msgSize = ERROR_MSG_BUF_DEFAULT_SIZE, .msg = pRequest->msgBuf};
 
-    int32_t code = scheduleExecJob(pRequest->pTscObj->pTransporter, NULL, pDag, &pRequest->body.pQueryJob, &res);
+    int32_t code = scheduleExecJob(pRequest->pTscObj->pAppInfo->pTransporter, NULL, pDag, &pRequest->body.pQueryJob, &res);
     if (code != TSDB_CODE_SUCCESS) {
       // handle error and retry
     } else {
@@ -255,39 +257,163 @@ int32_t scheduleQuery(SRequestObj* pRequest, SQueryDag* pDag) {
     return pRequest->code;
   }
 
-  return scheduleAsyncExecJob(pRequest->pTscObj->pTransporter, NULL, pDag, &pRequest->body.pQueryJob);
+  return scheduleAsyncExecJob(pRequest->pTscObj->pAppInfo->pTransporter, NULL, pDag, &pRequest->body.pQueryJob);
 }
 
-TAOS_RES *tmq_create_topic(TAOS* taos, const char* name, const char* sql, int sqlLen) {
-  STscObj* pTscObj = (STscObj*)taos;
-  SRequestObj* pRequest = NULL;
-  SQueryNode*  pQuery = NULL;
-  SQueryDag*   pDag = NULL;
-  char *dagStr = NULL;
+typedef struct tmq_t tmq_t;
+
+typedef struct SMqClientTopic {
+  // subscribe info
+  int32_t sqlLen;
+  char*   sql;
+  char*   topicName;
+  int64_t topicId;
+  // statistics
+  int64_t consumeCnt;
+  // offset
+  int64_t committedOffset;
+  int64_t currentOffset;
+  //connection info
+  int32_t vgId;
+  SEpSet  epSet;
+} SMqClientTopic;
+
+typedef struct tmq_resp_err_t {
+  int32_t code;
+} tmq_resp_err_t;
+
+typedef struct tmq_topic_vgroup_list_t {
+  char* topicName;
+  int32_t vgId;
+  int64_t committedOffset;
+} tmq_topic_vgroup_list_t;
+
+typedef void (tmq_commit_cb(tmq_t*, tmq_resp_err_t, tmq_topic_vgroup_list_t*, void* param));
+
+typedef struct tmq_conf_t{
+  char*          clientId;
+  char*          groupId;
+  char*          ip;
+  uint16_t       port;
+  tmq_commit_cb* commit_cb;
+} tmq_conf_t;
+
+struct tmq_t {
+  char           groupId[256];
+  char           clientId[256];
+  STscObj*       pTscObj;
+  tmq_commit_cb* commit_cb;
+  SArray*        clientTopics;  // SArray<SMqClientTopic>
+};
+
+void tmq_conf_set_offset_commit_cb(tmq_conf_t* conf, tmq_commit_cb* cb) {
+  conf->commit_cb = cb;
+}
+
+SArray* tmqGetConnInfo(SClientHbKey connKey, void* param) {
+  tmq_t* pTmq = (void*)param;
+  SArray* pArray = taosArrayInit(0, sizeof(SKv));
+  if (pArray == NULL) {
+    return NULL;
+  }
+  SKv kv = {0};
+  kv.key = malloc(256);
+  if (kv.key == NULL) {
+    taosArrayDestroy(pArray);
+    return NULL;
+  }
+  strcpy(kv.key, "mq-tmp");
+  kv.keyLen = strlen("mq-tmp") + 1;
+  SMqHbMsg* pMqHb = malloc(sizeof(SMqHbMsg));
+  if (pMqHb == NULL) {
+    return pArray;
+  }
+  pMqHb->consumerId = connKey.connId;
+  SArray* clientTopics = pTmq->clientTopics;
+  int sz = taosArrayGetSize(clientTopics);
+  for (int i = 0; i < sz; i++) {
+    SMqClientTopic* pCTopic = taosArrayGet(clientTopics, i);
+    if (pCTopic->vgId == -1) {
+      pMqHb->status = 1;
+      break;
+    }
+  }
+  kv.value = pMqHb;
+  kv.valueLen = sizeof(SMqHbMsg);
+  taosArrayPush(pArray, &kv);
+
+  return pArray;
+}
+
+tmq_t* tmqCreateConsumerImpl(TAOS* conn, tmq_conf_t* conf) {
+  tmq_t* pTmq = malloc(sizeof(tmq_t));
+  if (pTmq == NULL) {
+    return NULL;
+  }
+  strcpy(pTmq->groupId, conf->groupId);
+  strcpy(pTmq->clientId, conf->clientId);
+  pTmq->pTscObj = (STscObj*)conn;
+  pTmq->pTscObj->connType = HEARTBEAT_TYPE_MQ;
+
+  return pTmq;
+}
+
+TAOS_RES *taos_create_topic(TAOS* taos, const char* topicName, const char* sql, int sqlLen) {
+  STscObj     *pTscObj = (STscObj*)taos;
+  SRequestObj *pRequest = NULL;
+  SQueryNode  *pQueryNode = NULL;
+  char        *pStr = NULL;
 
   terrno = TSDB_CODE_SUCCESS;
+  if (taos == NULL || topicName == NULL || sql == NULL) {
+    tscError("invalid parameters for creating topic, connObj:%p, topic name:%s, sql:%s", taos, topicName, sql);
+    terrno = TSDB_CODE_TSC_INVALID_INPUT;
+    goto _return;
+  }
+
+  if (strlen(topicName) >= TSDB_TOPIC_NAME_LEN) {
+    tscError("topic name too long, max length:%d", TSDB_TOPIC_NAME_LEN - 1);
+    terrno = TSDB_CODE_TSC_INVALID_INPUT;
+    goto _return;
+  }
+
+  if (sqlLen > tsMaxSQLStringLen) {
+    tscError("sql string exceeds max length:%d", tsMaxSQLStringLen);
+    terrno = TSDB_CODE_TSC_EXCEED_SQL_LIMIT;
+    goto _return;
+  }
+
+  tscDebug("start to create topic, %s", topicName);
 
   CHECK_CODE_GOTO(buildRequest(pTscObj, sql, sqlLen, &pRequest), _return);
+  CHECK_CODE_GOTO(parseSql(pRequest, &pQueryNode), _return);
 
-//temporary disabled until planner ready
-#if 0
-  CHECK_CODE_GOTO(parseSql(pRequest, &pQuery), _return);
-  //TODO: check sql valid
+  // todo check for invalid sql statement and return with error code
 
-  CHECK_CODE_GOTO(qCreateQueryDag(pQuery, &pDag), _return);
+  CHECK_CODE_GOTO(qCreateQueryDag(pQueryNode, &pRequest->body.pDag, pRequest->requestId), _return);
 
-  dagStr = qDagToString(pDag);
-  if(dagStr == NULL) {
-    //TODO
+  pStr = qDagToString(pRequest->body.pDag);
+  if(pStr == NULL) {
+    goto _return;
   }
-#endif
+
+  // The topic should be related to a database that the queried table is belonged to.
+  SName name = {0};
+  char dbName[TSDB_DB_FNAME_LEN] = {0};
+  tNameGetFullDbName(&((SQueryStmtInfo*) pQueryNode)->pTableMetaInfo[0]->name, dbName);
+
+  tNameFromString(&name, dbName, T_NAME_ACCT|T_NAME_DB);
+  tNameFromString(&name, topicName, T_NAME_TABLE);
+
+  char topicFname[TSDB_TOPIC_FNAME_LEN] = {0};
+  tNameExtractFullName(&name, topicFname);
 
   SCMCreateTopicReq req = {
-    .name = (char*)name,
-    .igExists = 0,
-    /*.physicalPlan = dagStr,*/
-    .physicalPlan = (char*)sql,
-    .logicalPlan = "",
+    .name         = (char*) topicFname,
+    .igExists     = 0,
+    .physicalPlan = (char*) pStr,
+    .sql          = (char*) sql,
+    .logicalPlan  = "no logic plan",
   };
 
   int tlen = tSerializeSCMCreateTopicReq(NULL, &req);
@@ -295,29 +421,53 @@ TAOS_RES *tmq_create_topic(TAOS* taos, const char* name, const char* sql, int sq
   if(buf == NULL) {
     goto _return;
   }
+
   void* abuf = buf;
   tSerializeSCMCreateTopicReq(&abuf, &req);
   /*printf("formatted: %s\n", dagStr);*/
 
   pRequest->body.requestMsg = (SDataBuf){ .pData = buf, .len = tlen };
+  pRequest->type = TDMT_MND_CREATE_TOPIC;
 
   SMsgSendInfo* body = buildMsgInfoImpl(pRequest);
-  SEpSet* pEpSet = &pTscObj->pAppInfo->mgmtEp.epSet;
+  SEpSet epSet = getEpSet_s(&pTscObj->pAppInfo->mgmtEp);
 
   int64_t transporterId = 0;
-  asyncSendMsgToServer(pTscObj->pTransporter, pEpSet, &transporterId, body);
+  asyncSendMsgToServer(pTscObj->pAppInfo->pTransporter, &epSet, &transporterId, body);
 
   tsem_wait(&pRequest->body.rspSem);
 
 _return:
-  qDestroyQuery(pQuery);
-  qDestroyQueryDag(pDag); 
-  destroySendMsgInfo(body);
+  qDestroyQuery(pQueryNode);
+  if (body != NULL) {
+    destroySendMsgInfo(body);
+  }
+
   if (pRequest != NULL && terrno != TSDB_CODE_SUCCESS) {
     pRequest->code = terrno;
   }
+
   return pRequest;
 }
+
+typedef struct tmq_message_t {
+  int32_t  numOfRows;
+  char*    topicName;
+  TAOS_ROW row[];
+} tmq_message_t;
+
+tmq_message_t* tmq_consume_poll(tmq_t* mq, int64_t blocking_time) {
+  return NULL;
+}
+
+tmq_resp_err_t* tmq_commit(tmq_t* mq, void* callback, int32_t async) {
+  return NULL;
+}
+
+void tmq_message_destroy(tmq_message_t* mq_message) {
+
+}
+
 
 TAOS_RES *taos_query_l(TAOS *taos, const char *sql, int sqlLen) {
   STscObj *pTscObj = (STscObj *)taos;
@@ -330,24 +480,22 @@ TAOS_RES *taos_query_l(TAOS *taos, const char *sql, int sqlLen) {
   nPrintTsc("%s", sql)
 
   SRequestObj *pRequest = NULL;
-  SQueryNode  *pQuery   = NULL;
-  SQueryDag   *pDag     = NULL;
+  SQueryNode  *pQueryNode = NULL;
 
   terrno = TSDB_CODE_SUCCESS;
   CHECK_CODE_GOTO(buildRequest(pTscObj, sql, sqlLen, &pRequest), _return);
-  CHECK_CODE_GOTO(parseSql(pRequest, &pQuery), _return);
+  CHECK_CODE_GOTO(parseSql(pRequest, &pQueryNode), _return);
 
-  if (qIsDdlQuery(pQuery)) {
-    CHECK_CODE_GOTO(execDdlQuery(pRequest, pQuery), _return);
+  if (qIsDdlQuery(pQueryNode)) {
+    CHECK_CODE_GOTO(execDdlQuery(pRequest, pQueryNode), _return);
   } else {
-    CHECK_CODE_GOTO(getPlan(pRequest, pQuery, &pDag), _return);
-    CHECK_CODE_GOTO(scheduleQuery(pRequest, pDag), _return);
+    CHECK_CODE_GOTO(getPlan(pRequest, pQueryNode, &pRequest->body.pDag), _return);
+    CHECK_CODE_GOTO(scheduleQuery(pRequest, pRequest->body.pDag), _return);
     pRequest->code = terrno;
   }
 
 _return:
-  qDestroyQuery(pQuery);
-  qDestroyQueryDag(pDag);
+  qDestroyQuery(pQueryNode);
   if (NULL != pRequest && TSDB_CODE_SUCCESS != terrno) {
     pRequest->code = terrno;
   }
@@ -391,7 +539,7 @@ int initEpSetFromCfg(const char *firstEp, const char *secondEp, SCorEpSet *pEpSe
   return 0;
 }
 
-STscObj* taosConnectImpl(const char *ip, const char *user, const char *auth, const char *db, uint16_t port, __taos_async_fn_t fp, void *param, SAppInstInfo* pAppInfo) {
+STscObj* taosConnectImpl(const char *user, const char *auth, const char *db, uint16_t port, __taos_async_fn_t fp, void *param, SAppInstInfo* pAppInfo) {
   STscObj *pTscObj = createTscObj(user, auth, db, pAppInfo);
   if (NULL == pTscObj) {
     terrno = TSDB_CODE_TSC_OUT_OF_MEMORY;
@@ -408,7 +556,7 @@ STscObj* taosConnectImpl(const char *ip, const char *user, const char *auth, con
   SMsgSendInfo* body = buildConnectMsg(pRequest);
 
   int64_t transporterId = 0;
-  asyncSendMsgToServer(pTscObj->pTransporter, &pTscObj->pAppInfo->mgmtEp.epSet, &transporterId, body);
+  asyncSendMsgToServer(pTscObj->pAppInfo->pTransporter, &pTscObj->pAppInfo->mgmtEp.epSet, &transporterId, body);
 
   tsem_wait(&pRequest->body.rspSem);
   if (pRequest->code != TSDB_CODE_SUCCESS) {
@@ -419,7 +567,7 @@ STscObj* taosConnectImpl(const char *ip, const char *user, const char *auth, con
     taos_close(pTscObj);
     pTscObj = NULL;
   } else {
-    tscDebug("0x%"PRIx64" connection is opening, connId:%d, dnodeConn:%p, reqId:0x%"PRIx64, pTscObj->id, pTscObj->connId, pTscObj->pTransporter, pRequest->requestId);
+    tscDebug("0x%"PRIx64" connection is opening, connId:%d, dnodeConn:%p, reqId:0x%"PRIx64, pTscObj->id, pTscObj->connId, pTscObj->pAppInfo->pTransporter, pRequest->requestId);
     destroyRequest(pRequest);
   }
 
@@ -450,7 +598,9 @@ static SMsgSendInfo* buildConnectMsg(SRequestObj *pRequest) {
   STscObj *pObj = pRequest->pTscObj;
 
   char* db = getConnectionDB(pObj);
-  tstrncpy(pConnect->db, db, sizeof(pConnect->db));
+  if (db != NULL) {
+    tstrncpy(pConnect->db, db, sizeof(pConnect->db));
+  }
   tfree(db);
 
   pConnect->pid = htonl(appInfo.pid);
@@ -587,7 +737,7 @@ void* doFetchRow(SRequestObj* pRequest) {
 
       int64_t  transporterId = 0;
       STscObj *pTscObj = pRequest->pTscObj;
-      asyncSendMsgToServer(pTscObj->pTransporter, &pTscObj->pAppInfo->mgmtEp.epSet, &transporterId, body);
+      asyncSendMsgToServer(pTscObj->pAppInfo->pTransporter, &pTscObj->pAppInfo->mgmtEp.epSet, &transporterId, body);
       tsem_wait(&pRequest->body.rspSem);
 
       pRequest->type = TDMT_VND_SHOW_TABLES_FETCH;
@@ -597,7 +747,7 @@ void* doFetchRow(SRequestObj* pRequest) {
 
     int64_t  transporterId = 0;
     STscObj *pTscObj = pRequest->pTscObj;
-    asyncSendMsgToServer(pTscObj->pTransporter, &pTscObj->pAppInfo->mgmtEp.epSet, &transporterId, body);
+    asyncSendMsgToServer(pTscObj->pAppInfo->pTransporter, &pTscObj->pAppInfo->mgmtEp.epSet, &transporterId, body);
 
     tsem_wait(&pRequest->body.rspSem);
 
@@ -650,9 +800,12 @@ void setResultDataPtr(SReqResultInfo* pResultInfo, TAOS_FIELD* pFields, int32_t 
 char* getConnectionDB(STscObj* pObj) {
   char *p = NULL;
   pthread_mutex_lock(&pObj->mutex);
-  p = strndup(pObj->db, tListLen(pObj->db));
-  pthread_mutex_unlock(&pObj->mutex);
+  size_t len = strlen(pObj->db);
+  if (len > 0) {
+    p = strndup(pObj->db, tListLen(pObj->db));
+  }
 
+  pthread_mutex_unlock(&pObj->mutex);
   return p;
 }
 
