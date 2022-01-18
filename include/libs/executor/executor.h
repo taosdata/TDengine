@@ -44,7 +44,7 @@ int32_t qCreateExecTask(void* tsdb, int32_t vgId, struct SSubplan* pPlan, qTaskI
  * @param handle
  * @return
  */
-int32_t qExecTask(qTaskInfo_t tinfo, DataSinkHandle* handle);
+struct SSDataBlock* qExecTask(qTaskInfo_t tinfo, DataSinkHandle* handle);
 
 /**
  * Retrieve the produced results information, if current query is not paused or completed,

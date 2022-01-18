@@ -744,7 +744,7 @@ int32_t qwProcessQuery(SQWorkerMgmt *mgmt, uint64_t sId, uint64_t qId, uint64_t 
   queryRsped = true;
 
   DataSinkHandle sinkHandle = NULL;
-  code = qExecTask(pTaskInfo, &sinkHandle);
+  SSDataBlock* pRes = qExecTask(pTaskInfo, &sinkHandle);
   if (code) {
     QW_TASK_ELOG("qExecTask failed, code:%x", code);
     QW_ERR_JRET(code);

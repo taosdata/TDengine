@@ -4186,14 +4186,14 @@ void publishOperatorProfEvent(SOperatorInfo* operatorInfo, EQueryProfEventType e
   }
 }
 
-void publishQueryAbortEvent(SQInfo* pQInfo, int32_t code) {
+void publishQueryAbortEvent(SExecTaskInfo * pTaskInfo, int32_t code) {
   SQueryProfEvent event;
   event.eventType = QUERY_PROF_QUERY_ABORT;
   event.eventTime = taosGetTimestampUs();
   event.abortCode = code;
 
-  if (pQInfo->summary.queryProfEvents) {
-    taosArrayPush(pQInfo->summary.queryProfEvents, &event);
+  if (pTaskInfo->cost.queryProfEvents) {
+    taosArrayPush(pTaskInfo->cost.queryProfEvents, &event);
   }
 }
 
@@ -7423,358 +7423,358 @@ int32_t doCreateExecTaskInfo(SSubplan* pPlan, SExecTaskInfo** pTaskInfo, void* r
  * @param pExpr
  * @return
  */
-int32_t convertQueryMsg(SQueryTableReq *pQueryMsg, STaskParam* param) {
-  int32_t code = TSDB_CODE_SUCCESS;
-
-//  if (taosCheckVersion(pQueryMsg->version, version, 3) != 0) {
-//    return TSDB_CODE_QRY_INVALID_MSG;
+//int32_t convertQueryMsg(SQueryTableReq *pQueryMsg, STaskParam* param) {
+//  int32_t code = TSDB_CODE_SUCCESS;
+//
+////  if (taosCheckVersion(pQueryMsg->version, version, 3) != 0) {
+////    return TSDB_CODE_QRY_INVALID_MSG;
+////  }
+//
+//  pQueryMsg->numOfTables = htonl(pQueryMsg->numOfTables);
+//  pQueryMsg->window.skey = htobe64(pQueryMsg->window.skey);
+//  pQueryMsg->window.ekey = htobe64(pQueryMsg->window.ekey);
+//  pQueryMsg->interval.interval = htobe64(pQueryMsg->interval.interval);
+//  pQueryMsg->interval.sliding = htobe64(pQueryMsg->interval.sliding);
+//  pQueryMsg->interval.offset = htobe64(pQueryMsg->interval.offset);
+//  pQueryMsg->limit = htobe64(pQueryMsg->limit);
+//  pQueryMsg->offset = htobe64(pQueryMsg->offset);
+//  pQueryMsg->vgroupLimit = htobe64(pQueryMsg->vgroupLimit);
+//
+//  pQueryMsg->order = htons(pQueryMsg->order);
+//  pQueryMsg->orderColId = htons(pQueryMsg->orderColId);
+//  pQueryMsg->queryType = htonl(pQueryMsg->queryType);
+////  pQueryMsg->tagNameRelType = htons(pQueryMsg->tagNameRelType);
+//
+//  pQueryMsg->numOfCols = htons(pQueryMsg->numOfCols);
+//  pQueryMsg->numOfOutput = htons(pQueryMsg->numOfOutput);
+//  pQueryMsg->numOfGroupCols = htons(pQueryMsg->numOfGroupCols);
+//
+//  pQueryMsg->tagCondLen = htons(pQueryMsg->tagCondLen);
+//  pQueryMsg->colCondLen = htons(pQueryMsg->colCondLen);
+//
+//  pQueryMsg->tsBuf.tsOffset = htonl(pQueryMsg->tsBuf.tsOffset);
+//  pQueryMsg->tsBuf.tsLen = htonl(pQueryMsg->tsBuf.tsLen);
+//  pQueryMsg->tsBuf.tsNumOfBlocks = htonl(pQueryMsg->tsBuf.tsNumOfBlocks);
+//  pQueryMsg->tsBuf.tsOrder = htonl(pQueryMsg->tsBuf.tsOrder);
+//
+//  pQueryMsg->numOfTags = htonl(pQueryMsg->numOfTags);
+////  pQueryMsg->tbnameCondLen = htonl(pQueryMsg->tbnameCondLen);
+//  pQueryMsg->secondStageOutput = htonl(pQueryMsg->secondStageOutput);
+//  pQueryMsg->sqlstrLen = htonl(pQueryMsg->sqlstrLen);
+//  pQueryMsg->prevResultLen = htonl(pQueryMsg->prevResultLen);
+////  pQueryMsg->sw.gap = htobe64(pQueryMsg->sw.gap);
+////  pQueryMsg->sw.primaryColId = htonl(pQueryMsg->sw.primaryColId);
+//  pQueryMsg->tableScanOperator = htonl(pQueryMsg->tableScanOperator);
+//  pQueryMsg->numOfOperator = htonl(pQueryMsg->numOfOperator);
+//  pQueryMsg->udfContentOffset = htonl(pQueryMsg->udfContentOffset);
+//  pQueryMsg->udfContentLen    = htonl(pQueryMsg->udfContentLen);
+//  pQueryMsg->udfNum           = htonl(pQueryMsg->udfNum);
+//
+//  // query msg safety check
+//  if (!validateQueryMsg(pQueryMsg)) {
+//    code = TSDB_CODE_QRY_INVALID_MSG;
+//    goto _cleanup;
 //  }
-
-  pQueryMsg->numOfTables = htonl(pQueryMsg->numOfTables);
-  pQueryMsg->window.skey = htobe64(pQueryMsg->window.skey);
-  pQueryMsg->window.ekey = htobe64(pQueryMsg->window.ekey);
-  pQueryMsg->interval.interval = htobe64(pQueryMsg->interval.interval);
-  pQueryMsg->interval.sliding = htobe64(pQueryMsg->interval.sliding);
-  pQueryMsg->interval.offset = htobe64(pQueryMsg->interval.offset);
-  pQueryMsg->limit = htobe64(pQueryMsg->limit);
-  pQueryMsg->offset = htobe64(pQueryMsg->offset);
-  pQueryMsg->vgroupLimit = htobe64(pQueryMsg->vgroupLimit);
-
-  pQueryMsg->order = htons(pQueryMsg->order);
-  pQueryMsg->orderColId = htons(pQueryMsg->orderColId);
-  pQueryMsg->queryType = htonl(pQueryMsg->queryType);
-//  pQueryMsg->tagNameRelType = htons(pQueryMsg->tagNameRelType);
-
-  pQueryMsg->numOfCols = htons(pQueryMsg->numOfCols);
-  pQueryMsg->numOfOutput = htons(pQueryMsg->numOfOutput);
-  pQueryMsg->numOfGroupCols = htons(pQueryMsg->numOfGroupCols);
-
-  pQueryMsg->tagCondLen = htons(pQueryMsg->tagCondLen);
-  pQueryMsg->colCondLen = htons(pQueryMsg->colCondLen);  
-
-  pQueryMsg->tsBuf.tsOffset = htonl(pQueryMsg->tsBuf.tsOffset);
-  pQueryMsg->tsBuf.tsLen = htonl(pQueryMsg->tsBuf.tsLen);
-  pQueryMsg->tsBuf.tsNumOfBlocks = htonl(pQueryMsg->tsBuf.tsNumOfBlocks);
-  pQueryMsg->tsBuf.tsOrder = htonl(pQueryMsg->tsBuf.tsOrder);
-
-  pQueryMsg->numOfTags = htonl(pQueryMsg->numOfTags);
-//  pQueryMsg->tbnameCondLen = htonl(pQueryMsg->tbnameCondLen);
-  pQueryMsg->secondStageOutput = htonl(pQueryMsg->secondStageOutput);
-  pQueryMsg->sqlstrLen = htonl(pQueryMsg->sqlstrLen);
-  pQueryMsg->prevResultLen = htonl(pQueryMsg->prevResultLen);
-//  pQueryMsg->sw.gap = htobe64(pQueryMsg->sw.gap);
-//  pQueryMsg->sw.primaryColId = htonl(pQueryMsg->sw.primaryColId);
-  pQueryMsg->tableScanOperator = htonl(pQueryMsg->tableScanOperator);
-  pQueryMsg->numOfOperator = htonl(pQueryMsg->numOfOperator);
-  pQueryMsg->udfContentOffset = htonl(pQueryMsg->udfContentOffset);
-  pQueryMsg->udfContentLen    = htonl(pQueryMsg->udfContentLen);
-  pQueryMsg->udfNum           = htonl(pQueryMsg->udfNum);
-
-  // query msg safety check
-  if (!validateQueryMsg(pQueryMsg)) {
-    code = TSDB_CODE_QRY_INVALID_MSG;
-    goto _cleanup;
-  }
-
-  char *pMsg = (char *)(pQueryMsg->tableCols) + sizeof(SColumnInfo) * pQueryMsg->numOfCols;
-  for (int32_t col = 0; col < pQueryMsg->numOfCols; ++col) {
-    SColumnInfo *pColInfo = &pQueryMsg->tableCols[col];
-
-    pColInfo->colId = htons(pColInfo->colId);
-    pColInfo->type = htons(pColInfo->type);
-    pColInfo->bytes = htons(pColInfo->bytes);
-    pColInfo->flist.numOfFilters = 0;
-
-    if (!isValidDataType(pColInfo->type)) {
-      //qDebug("qmsg:%p, invalid data type in source column, index:%d, type:%d", pQueryMsg, col, pColInfo->type);
-      code = TSDB_CODE_QRY_INVALID_MSG;
-      goto _cleanup;
-    }
-
-/*
-    int32_t numOfFilters = pColInfo->flist.numOfFilters;
-    if (numOfFilters > 0) {
-      pColInfo->flist.filterInfo = calloc(numOfFilters, sizeof(SColumnFilterInfo));
-      if (pColInfo->flist.filterInfo == NULL) {
-        code = TSDB_CODE_QRY_OUT_OF_MEMORY;
-        goto _cleanup;
-      }
-    }
-
-    code = deserializeColFilterInfo(pColInfo->flist.filterInfo, numOfFilters, &pMsg);
-    if (code != TSDB_CODE_SUCCESS) {
-      goto _cleanup;
-    }
-*/    
-  }
-
-  if (pQueryMsg->colCondLen > 0) {
-    param->colCond = calloc(1, pQueryMsg->colCondLen);
-    if (param->colCond == NULL) {
-      code = TSDB_CODE_QRY_OUT_OF_MEMORY;
-      goto _cleanup;
-    }
-
-    memcpy(param->colCond, pMsg, pQueryMsg->colCondLen);
-    pMsg += pQueryMsg->colCondLen;
-  }
-
-
-  param->tableScanOperator = pQueryMsg->tableScanOperator;
-  param->pExpr = calloc(pQueryMsg->numOfOutput, POINTER_BYTES);
-  if (param->pExpr == NULL) {
-    code = TSDB_CODE_QRY_OUT_OF_MEMORY;
-    goto _cleanup;
-  }
-
-  SSqlExpr *pExprMsg = (SSqlExpr *)pMsg;
-
-  for (int32_t i = 0; i < pQueryMsg->numOfOutput; ++i) {
-    param->pExpr[i] = pExprMsg;
-
-//    pExprMsg->colInfo.colIndex = htons(pExprMsg->colInfo.colIndex);
-//    pExprMsg->colInfo.colId = htons(pExprMsg->colInfo.colId);
-//    pExprMsg->colInfo.flag  = htons(pExprMsg->colInfo.flag);
-//    pExprMsg->colBytes      = htons(pExprMsg->colBytes);
-//    pExprMsg->colType       = htons(pExprMsg->colType);
-
-//    pExprMsg->resType       = htons(pExprMsg->resType);
-//    pExprMsg->resBytes      = htons(pExprMsg->resBytes);
-    pExprMsg->interBytes    = htonl(pExprMsg->interBytes);
-
-//    pExprMsg->functionId    = htons(pExprMsg->functionId);
-    pExprMsg->numOfParams   = htons(pExprMsg->numOfParams);
-//    pExprMsg->resColId      = htons(pExprMsg->resColId);
-//    pExprMsg->flist.numOfFilters  = htons(pExprMsg->flist.numOfFilters);
-    pMsg += sizeof(SSqlExpr);
-
-    for (int32_t j = 0; j < pExprMsg->numOfParams; ++j) {
-      pExprMsg->param[j].nType = htonl(pExprMsg->param[j].nType);
-      pExprMsg->param[j].nLen  = htonl(pExprMsg->param[j].nLen);
-
-      if (pExprMsg->param[j].nType == TSDB_DATA_TYPE_BINARY) {
-        pExprMsg->param[j].pz = pMsg;
-        pMsg += pExprMsg->param[j].nLen;  // one more for the string terminated char.
-      } else {
-        pExprMsg->param[j].i = htobe64(pExprMsg->param[j].i);
-      }
-    }
-
-//    int16_t functionId = pExprMsg->functionId;
-//    if (functionId == FUNCTION_TAG || functionId == FUNCTION_TAGPRJ || functionId == FUNCTION_TAG_DUMMY) {
-//      if (!TSDB_COL_IS_TAG(pExprMsg->colInfo.flag)) {  // ignore the column  index check for arithmetic expression.
-//        code = TSDB_CODE_QRY_INVALID_MSG;
+//
+//  char *pMsg = (char *)(pQueryMsg->tableCols) + sizeof(SColumnInfo) * pQueryMsg->numOfCols;
+//  for (int32_t col = 0; col < pQueryMsg->numOfCols; ++col) {
+//    SColumnInfo *pColInfo = &pQueryMsg->tableCols[col];
+//
+//    pColInfo->colId = htons(pColInfo->colId);
+//    pColInfo->type = htons(pColInfo->type);
+//    pColInfo->bytes = htons(pColInfo->bytes);
+//    pColInfo->flist.numOfFilters = 0;
+//
+//    if (!isValidDataType(pColInfo->type)) {
+//      //qDebug("qmsg:%p, invalid data type in source column, index:%d, type:%d", pQueryMsg, col, pColInfo->type);
+//      code = TSDB_CODE_QRY_INVALID_MSG;
+//      goto _cleanup;
+//    }
+//
+///*
+//    int32_t numOfFilters = pColInfo->flist.numOfFilters;
+//    if (numOfFilters > 0) {
+//      pColInfo->flist.filterInfo = calloc(numOfFilters, sizeof(SColumnFilterInfo));
+//      if (pColInfo->flist.filterInfo == NULL) {
+//        code = TSDB_CODE_QRY_OUT_OF_MEMORY;
 //        goto _cleanup;
 //      }
 //    }
-
-//    if (pExprMsg->flist.numOfFilters > 0) {
-//      pExprMsg->flist.filterInfo = calloc(pExprMsg->flist.numOfFilters, sizeof(SColumnFilterInfo));
-//    }
 //
-//    deserializeColFilterInfo(pExprMsg->flist.filterInfo, pExprMsg->flist.numOfFilters, &pMsg);
-    pExprMsg = (SSqlExpr *)pMsg;
-  }
-
-  if (pQueryMsg->secondStageOutput) {
-    pExprMsg = (SSqlExpr *)pMsg;
-    param->pSecExpr = calloc(pQueryMsg->secondStageOutput, POINTER_BYTES);
-
-    for (int32_t i = 0; i < pQueryMsg->secondStageOutput; ++i) {
-      param->pSecExpr[i] = pExprMsg;
-
-//      pExprMsg->colInfo.colIndex = htons(pExprMsg->colInfo.colIndex);
-//      pExprMsg->colInfo.colId = htons(pExprMsg->colInfo.colId);
-//      pExprMsg->colInfo.flag  = htons(pExprMsg->colInfo.flag);
-//      pExprMsg->resType       = htons(pExprMsg->resType);
-//      pExprMsg->resBytes      = htons(pExprMsg->resBytes);
-//      pExprMsg->colBytes      = htons(pExprMsg->colBytes);
-//      pExprMsg->colType       = htons(pExprMsg->colType);
-
-//      pExprMsg->functionId = htons(pExprMsg->functionId);
-      pExprMsg->numOfParams = htons(pExprMsg->numOfParams);
-
-      pMsg += sizeof(SSqlExpr);
-
-      for (int32_t j = 0; j < pExprMsg->numOfParams; ++j) {
-        pExprMsg->param[j].nType = htonl(pExprMsg->param[j].nType);
-        pExprMsg->param[j].nLen = htonl(pExprMsg->param[j].nLen);
-
-        if (pExprMsg->param[j].nType == TSDB_DATA_TYPE_BINARY) {
-          pExprMsg->param[j].pz = pMsg;
-          pMsg += pExprMsg->param[j].nLen;  // one more for the string terminated char.
-        } else {
-          pExprMsg->param[j].i = htobe64(pExprMsg->param[j].i);
-        }
-      }
-
-//      int16_t functionId = pExprMsg->functionId;
-//      if (functionId == FUNCTION_TAG || functionId == FUNCTION_TAGPRJ || functionId == FUNCTION_TAG_DUMMY) {
-//        if (!TSDB_COL_IS_TAG(pExprMsg->colInfo.flag)) {  // ignore the column  index check for arithmetic expression.
-//          code = TSDB_CODE_QRY_INVALID_MSG;
-//          goto _cleanup;
-//        }
-//      }
-
-      pExprMsg = (SSqlExpr *)pMsg;
-    }
-  }
-
-  pMsg = createTableIdList(pQueryMsg, pMsg, &(param->pTableIdList));
-
-  if (pQueryMsg->numOfGroupCols > 0) {  // group by tag columns
-    param->pGroupColIndex = malloc(pQueryMsg->numOfGroupCols * sizeof(SColIndex));
-    if (param->pGroupColIndex == NULL) {
-      code = TSDB_CODE_QRY_OUT_OF_MEMORY;
-      goto _cleanup;
-    }
-
-    for (int32_t i = 0; i < pQueryMsg->numOfGroupCols; ++i) {
-      param->pGroupColIndex[i].colId = htons(*(int16_t *)pMsg);
-      pMsg += sizeof(param->pGroupColIndex[i].colId);
-
-      param->pGroupColIndex[i].colIndex = htons(*(int16_t *)pMsg);
-      pMsg += sizeof(param->pGroupColIndex[i].colIndex);
-
-      param->pGroupColIndex[i].flag = htons(*(int16_t *)pMsg);
-      pMsg += sizeof(param->pGroupColIndex[i].flag);
-
-      memcpy(param->pGroupColIndex[i].name, pMsg, tListLen(param->pGroupColIndex[i].name));
-      pMsg += tListLen(param->pGroupColIndex[i].name);
-    }
-
-    pQueryMsg->orderByIdx = htons(pQueryMsg->orderByIdx);
-    pQueryMsg->orderType = htons(pQueryMsg->orderType);
-  }
-
-  pQueryMsg->fillType = htons(pQueryMsg->fillType);
-  if (pQueryMsg->fillType != TSDB_FILL_NONE) {
-    pQueryMsg->fillVal = (uint64_t)(pMsg);
-
-    int64_t *v = (int64_t *)pMsg;
-    for (int32_t i = 0; i < pQueryMsg->numOfOutput; ++i) {
-      v[i] = htobe64(v[i]);
-    }
-
-    pMsg += sizeof(int64_t) * pQueryMsg->numOfOutput;
-  }
-
-  if (pQueryMsg->numOfTags > 0) {
-    param->pTagColumnInfo = calloc(1, sizeof(SColumnInfo) * pQueryMsg->numOfTags);
-    if (param->pTagColumnInfo == NULL) {
-      code = TSDB_CODE_QRY_OUT_OF_MEMORY;
-      goto _cleanup;
-    }
-
-    for (int32_t i = 0; i < pQueryMsg->numOfTags; ++i) {
-      SColumnInfo* pTagCol = (SColumnInfo*) pMsg;
-
-      pTagCol->colId = htons(pTagCol->colId);
-      pTagCol->bytes = htons(pTagCol->bytes);
-      pTagCol->type  = htons(pTagCol->type);
-//      pTagCol->flist.numOfFilters = 0;
-
-      param->pTagColumnInfo[i] = *pTagCol;
-      pMsg += sizeof(SColumnInfo);
-    }
-  }
-
-  // the tag query condition expression string is located at the end of query msg
-  if (pQueryMsg->tagCondLen > 0) {
-    param->tagCond = calloc(1, pQueryMsg->tagCondLen);
-    if (param->tagCond == NULL) {
-      code = TSDB_CODE_QRY_OUT_OF_MEMORY;
-      goto _cleanup;
-    }
-
-    memcpy(param->tagCond, pMsg, pQueryMsg->tagCondLen);
-    pMsg += pQueryMsg->tagCondLen;
-  }
-
-  if (pQueryMsg->prevResultLen > 0) {
-    param->prevResult = calloc(1, pQueryMsg->prevResultLen);
-    if (param->prevResult == NULL) {
-      code = TSDB_CODE_QRY_OUT_OF_MEMORY;
-      goto _cleanup;
-    }
-
-    memcpy(param->prevResult, pMsg, pQueryMsg->prevResultLen);
-    pMsg += pQueryMsg->prevResultLen;
-  }
-
-//  if (pQueryMsg->tbnameCondLen > 0) {
-//    param->tbnameCond = calloc(1, pQueryMsg->tbnameCondLen + 1);
-//    if (param->tbnameCond == NULL) {
+//    code = deserializeColFilterInfo(pColInfo->flist.filterInfo, numOfFilters, &pMsg);
+//    if (code != TSDB_CODE_SUCCESS) {
+//      goto _cleanup;
+//    }
+//*/
+//  }
+//
+//  if (pQueryMsg->colCondLen > 0) {
+//    param->colCond = calloc(1, pQueryMsg->colCondLen);
+//    if (param->colCond == NULL) {
 //      code = TSDB_CODE_QRY_OUT_OF_MEMORY;
 //      goto _cleanup;
 //    }
 //
-//    strncpy(param->tbnameCond, pMsg, pQueryMsg->tbnameCondLen);
-//    pMsg += pQueryMsg->tbnameCondLen;
+//    memcpy(param->colCond, pMsg, pQueryMsg->colCondLen);
+//    pMsg += pQueryMsg->colCondLen;
 //  }
-
-  //skip ts buf
-  if ((pQueryMsg->tsBuf.tsOffset + pQueryMsg->tsBuf.tsLen) > 0) {
-    pMsg = (char *)pQueryMsg + pQueryMsg->tsBuf.tsOffset + pQueryMsg->tsBuf.tsLen;
-  }
-
-  param->pOperator = taosArrayInit(pQueryMsg->numOfOperator, sizeof(int32_t));
-  for(int32_t i = 0; i < pQueryMsg->numOfOperator; ++i) {
-    int32_t op = htonl(*(int32_t*)pMsg);
-    taosArrayPush(param->pOperator, &op);
-
-    pMsg += sizeof(int32_t);
-  }
-
-  if (pQueryMsg->udfContentLen > 0) {
-    // todo extract udf function in tudf.c
-//    param->pUdfInfo = calloc(1, sizeof(SUdfInfo));
-//    param->pUdfInfo->contLen = pQueryMsg->udfContentLen;
 //
-//    pMsg = (char*)pQueryMsg + pQueryMsg->udfContentOffset;
-//    param->pUdfInfo->resType = *(int8_t*) pMsg;
-//    pMsg += sizeof(int8_t);
 //
-//    param->pUdfInfo->resBytes = htons(*(int16_t*)pMsg);
-//    pMsg += sizeof(int16_t);
+//  param->tableScanOperator = pQueryMsg->tableScanOperator;
+//  param->pExpr = calloc(pQueryMsg->numOfOutput, POINTER_BYTES);
+//  if (param->pExpr == NULL) {
+//    code = TSDB_CODE_QRY_OUT_OF_MEMORY;
+//    goto _cleanup;
+//  }
 //
-//    tstr* name = (tstr*)(pMsg);
-//    param->pUdfInfo->name = strndup(name->data, name->len);
+//  SSqlExpr *pExprMsg = (SSqlExpr *)pMsg;
 //
-//    pMsg += varDataTLen(name);
-//    param->pUdfInfo->funcType = htonl(*(int32_t*)pMsg);
+//  for (int32_t i = 0; i < pQueryMsg->numOfOutput; ++i) {
+//    param->pExpr[i] = pExprMsg;
+//
+////    pExprMsg->colInfo.colIndex = htons(pExprMsg->colInfo.colIndex);
+////    pExprMsg->colInfo.colId = htons(pExprMsg->colInfo.colId);
+////    pExprMsg->colInfo.flag  = htons(pExprMsg->colInfo.flag);
+////    pExprMsg->colBytes      = htons(pExprMsg->colBytes);
+////    pExprMsg->colType       = htons(pExprMsg->colType);
+//
+////    pExprMsg->resType       = htons(pExprMsg->resType);
+////    pExprMsg->resBytes      = htons(pExprMsg->resBytes);
+//    pExprMsg->interBytes    = htonl(pExprMsg->interBytes);
+//
+////    pExprMsg->functionId    = htons(pExprMsg->functionId);
+//    pExprMsg->numOfParams   = htons(pExprMsg->numOfParams);
+////    pExprMsg->resColId      = htons(pExprMsg->resColId);
+////    pExprMsg->flist.numOfFilters  = htons(pExprMsg->flist.numOfFilters);
+//    pMsg += sizeof(SSqlExpr);
+//
+//    for (int32_t j = 0; j < pExprMsg->numOfParams; ++j) {
+//      pExprMsg->param[j].nType = htonl(pExprMsg->param[j].nType);
+//      pExprMsg->param[j].nLen  = htonl(pExprMsg->param[j].nLen);
+//
+//      if (pExprMsg->param[j].nType == TSDB_DATA_TYPE_BINARY) {
+//        pExprMsg->param[j].pz = pMsg;
+//        pMsg += pExprMsg->param[j].nLen;  // one more for the string terminated char.
+//      } else {
+//        pExprMsg->param[j].i = htobe64(pExprMsg->param[j].i);
+//      }
+//    }
+//
+////    int16_t functionId = pExprMsg->functionId;
+////    if (functionId == FUNCTION_TAG || functionId == FUNCTION_TAGPRJ || functionId == FUNCTION_TAG_DUMMY) {
+////      if (!TSDB_COL_IS_TAG(pExprMsg->colInfo.flag)) {  // ignore the column  index check for arithmetic expression.
+////        code = TSDB_CODE_QRY_INVALID_MSG;
+////        goto _cleanup;
+////      }
+////    }
+//
+////    if (pExprMsg->flist.numOfFilters > 0) {
+////      pExprMsg->flist.filterInfo = calloc(pExprMsg->flist.numOfFilters, sizeof(SColumnFilterInfo));
+////    }
+////
+////    deserializeColFilterInfo(pExprMsg->flist.filterInfo, pExprMsg->flist.numOfFilters, &pMsg);
+//    pExprMsg = (SSqlExpr *)pMsg;
+//  }
+//
+//  if (pQueryMsg->secondStageOutput) {
+//    pExprMsg = (SSqlExpr *)pMsg;
+//    param->pSecExpr = calloc(pQueryMsg->secondStageOutput, POINTER_BYTES);
+//
+//    for (int32_t i = 0; i < pQueryMsg->secondStageOutput; ++i) {
+//      param->pSecExpr[i] = pExprMsg;
+//
+////      pExprMsg->colInfo.colIndex = htons(pExprMsg->colInfo.colIndex);
+////      pExprMsg->colInfo.colId = htons(pExprMsg->colInfo.colId);
+////      pExprMsg->colInfo.flag  = htons(pExprMsg->colInfo.flag);
+////      pExprMsg->resType       = htons(pExprMsg->resType);
+////      pExprMsg->resBytes      = htons(pExprMsg->resBytes);
+////      pExprMsg->colBytes      = htons(pExprMsg->colBytes);
+////      pExprMsg->colType       = htons(pExprMsg->colType);
+//
+////      pExprMsg->functionId = htons(pExprMsg->functionId);
+//      pExprMsg->numOfParams = htons(pExprMsg->numOfParams);
+//
+//      pMsg += sizeof(SSqlExpr);
+//
+//      for (int32_t j = 0; j < pExprMsg->numOfParams; ++j) {
+//        pExprMsg->param[j].nType = htonl(pExprMsg->param[j].nType);
+//        pExprMsg->param[j].nLen = htonl(pExprMsg->param[j].nLen);
+//
+//        if (pExprMsg->param[j].nType == TSDB_DATA_TYPE_BINARY) {
+//          pExprMsg->param[j].pz = pMsg;
+//          pMsg += pExprMsg->param[j].nLen;  // one more for the string terminated char.
+//        } else {
+//          pExprMsg->param[j].i = htobe64(pExprMsg->param[j].i);
+//        }
+//      }
+//
+////      int16_t functionId = pExprMsg->functionId;
+////      if (functionId == FUNCTION_TAG || functionId == FUNCTION_TAGPRJ || functionId == FUNCTION_TAG_DUMMY) {
+////        if (!TSDB_COL_IS_TAG(pExprMsg->colInfo.flag)) {  // ignore the column  index check for arithmetic expression.
+////          code = TSDB_CODE_QRY_INVALID_MSG;
+////          goto _cleanup;
+////        }
+////      }
+//
+//      pExprMsg = (SSqlExpr *)pMsg;
+//    }
+//  }
+//
+//  pMsg = createTableIdList(pQueryMsg, pMsg, &(param->pTableIdList));
+//
+//  if (pQueryMsg->numOfGroupCols > 0) {  // group by tag columns
+//    param->pGroupColIndex = malloc(pQueryMsg->numOfGroupCols * sizeof(SColIndex));
+//    if (param->pGroupColIndex == NULL) {
+//      code = TSDB_CODE_QRY_OUT_OF_MEMORY;
+//      goto _cleanup;
+//    }
+//
+//    for (int32_t i = 0; i < pQueryMsg->numOfGroupCols; ++i) {
+//      param->pGroupColIndex[i].colId = htons(*(int16_t *)pMsg);
+//      pMsg += sizeof(param->pGroupColIndex[i].colId);
+//
+//      param->pGroupColIndex[i].colIndex = htons(*(int16_t *)pMsg);
+//      pMsg += sizeof(param->pGroupColIndex[i].colIndex);
+//
+//      param->pGroupColIndex[i].flag = htons(*(int16_t *)pMsg);
+//      pMsg += sizeof(param->pGroupColIndex[i].flag);
+//
+//      memcpy(param->pGroupColIndex[i].name, pMsg, tListLen(param->pGroupColIndex[i].name));
+//      pMsg += tListLen(param->pGroupColIndex[i].name);
+//    }
+//
+//    pQueryMsg->orderByIdx = htons(pQueryMsg->orderByIdx);
+//    pQueryMsg->orderType = htons(pQueryMsg->orderType);
+//  }
+//
+//  pQueryMsg->fillType = htons(pQueryMsg->fillType);
+//  if (pQueryMsg->fillType != TSDB_FILL_NONE) {
+//    pQueryMsg->fillVal = (uint64_t)(pMsg);
+//
+//    int64_t *v = (int64_t *)pMsg;
+//    for (int32_t i = 0; i < pQueryMsg->numOfOutput; ++i) {
+//      v[i] = htobe64(v[i]);
+//    }
+//
+//    pMsg += sizeof(int64_t) * pQueryMsg->numOfOutput;
+//  }
+//
+//  if (pQueryMsg->numOfTags > 0) {
+//    param->pTagColumnInfo = calloc(1, sizeof(SColumnInfo) * pQueryMsg->numOfTags);
+//    if (param->pTagColumnInfo == NULL) {
+//      code = TSDB_CODE_QRY_OUT_OF_MEMORY;
+//      goto _cleanup;
+//    }
+//
+//    for (int32_t i = 0; i < pQueryMsg->numOfTags; ++i) {
+//      SColumnInfo* pTagCol = (SColumnInfo*) pMsg;
+//
+//      pTagCol->colId = htons(pTagCol->colId);
+//      pTagCol->bytes = htons(pTagCol->bytes);
+//      pTagCol->type  = htons(pTagCol->type);
+////      pTagCol->flist.numOfFilters = 0;
+//
+//      param->pTagColumnInfo[i] = *pTagCol;
+//      pMsg += sizeof(SColumnInfo);
+//    }
+//  }
+//
+//  // the tag query condition expression string is located at the end of query msg
+//  if (pQueryMsg->tagCondLen > 0) {
+//    param->tagCond = calloc(1, pQueryMsg->tagCondLen);
+//    if (param->tagCond == NULL) {
+//      code = TSDB_CODE_QRY_OUT_OF_MEMORY;
+//      goto _cleanup;
+//    }
+//
+//    memcpy(param->tagCond, pMsg, pQueryMsg->tagCondLen);
+//    pMsg += pQueryMsg->tagCondLen;
+//  }
+//
+//  if (pQueryMsg->prevResultLen > 0) {
+//    param->prevResult = calloc(1, pQueryMsg->prevResultLen);
+//    if (param->prevResult == NULL) {
+//      code = TSDB_CODE_QRY_OUT_OF_MEMORY;
+//      goto _cleanup;
+//    }
+//
+//    memcpy(param->prevResult, pMsg, pQueryMsg->prevResultLen);
+//    pMsg += pQueryMsg->prevResultLen;
+//  }
+//
+////  if (pQueryMsg->tbnameCondLen > 0) {
+////    param->tbnameCond = calloc(1, pQueryMsg->tbnameCondLen + 1);
+////    if (param->tbnameCond == NULL) {
+////      code = TSDB_CODE_QRY_OUT_OF_MEMORY;
+////      goto _cleanup;
+////    }
+////
+////    strncpy(param->tbnameCond, pMsg, pQueryMsg->tbnameCondLen);
+////    pMsg += pQueryMsg->tbnameCondLen;
+////  }
+//
+//  //skip ts buf
+//  if ((pQueryMsg->tsBuf.tsOffset + pQueryMsg->tsBuf.tsLen) > 0) {
+//    pMsg = (char *)pQueryMsg + pQueryMsg->tsBuf.tsOffset + pQueryMsg->tsBuf.tsLen;
+//  }
+//
+//  param->pOperator = taosArrayInit(pQueryMsg->numOfOperator, sizeof(int32_t));
+//  for(int32_t i = 0; i < pQueryMsg->numOfOperator; ++i) {
+//    int32_t op = htonl(*(int32_t*)pMsg);
+//    taosArrayPush(param->pOperator, &op);
+//
 //    pMsg += sizeof(int32_t);
+//  }
 //
-//    param->pUdfInfo->bufSize = htonl(*(int32_t*)pMsg);
-//    pMsg += sizeof(int32_t);
+//  if (pQueryMsg->udfContentLen > 0) {
+//    // todo extract udf function in tudf.c
+////    param->pUdfInfo = calloc(1, sizeof(SUdfInfo));
+////    param->pUdfInfo->contLen = pQueryMsg->udfContentLen;
+////
+////    pMsg = (char*)pQueryMsg + pQueryMsg->udfContentOffset;
+////    param->pUdfInfo->resType = *(int8_t*) pMsg;
+////    pMsg += sizeof(int8_t);
+////
+////    param->pUdfInfo->resBytes = htons(*(int16_t*)pMsg);
+////    pMsg += sizeof(int16_t);
+////
+////    tstr* name = (tstr*)(pMsg);
+////    param->pUdfInfo->name = strndup(name->data, name->len);
+////
+////    pMsg += varDataTLen(name);
+////    param->pUdfInfo->funcType = htonl(*(int32_t*)pMsg);
+////    pMsg += sizeof(int32_t);
+////
+////    param->pUdfInfo->bufSize = htonl(*(int32_t*)pMsg);
+////    pMsg += sizeof(int32_t);
+////
+////    param->pUdfInfo->content = malloc(pQueryMsg->udfContentLen);
+////    memcpy(param->pUdfInfo->content, pMsg, pQueryMsg->udfContentLen);
 //
-//    param->pUdfInfo->content = malloc(pQueryMsg->udfContentLen);
-//    memcpy(param->pUdfInfo->content, pMsg, pQueryMsg->udfContentLen);
-
-    pMsg += pQueryMsg->udfContentLen;
-  }
-
-  param->sql = strndup(pMsg, pQueryMsg->sqlstrLen);
-
-  SQueriedTableInfo info = { .numOfTags = pQueryMsg->numOfTags, .numOfCols = pQueryMsg->numOfCols, .colList = pQueryMsg->tableCols};
-  if (!validateQueryTableCols(&info, param->pExpr, pQueryMsg->numOfOutput, param->pTagColumnInfo, pQueryMsg)) {
-    code = TSDB_CODE_QRY_INVALID_MSG;
-    goto _cleanup;
-  }
-
-  //qDebug("qmsg:%p query %d tables, type:%d, qrange:%" PRId64 "-%" PRId64 ", numOfGroupbyTagCols:%d, order:%d, "
-//         "outputCols:%d, numOfCols:%d, interval:%" PRId64 ", fillType:%d, comptsLen:%d, compNumOfBlocks:%d, limit:%" PRId64 ", offset:%" PRId64,
-//         pQueryMsg, pQueryMsg->numOfTables, pQueryMsg->queryType, pQueryMsg->window.skey, pQueryMsg->window.ekey, pQueryMsg->numOfGroupCols,
-//         pQueryMsg->order, pQueryMsg->numOfOutput, pQueryMsg->numOfCols, pQueryMsg->interval.interval,
-//         pQueryMsg->fillType, pQueryMsg->tsBuf.tsLen, pQueryMsg->tsBuf.tsNumOfBlocks, pQueryMsg->limit, pQueryMsg->offset);
-
-  //qDebug("qmsg:%p, sql:%s", pQueryMsg, param->sql);
-  return TSDB_CODE_SUCCESS;
-
-_cleanup:
-  freeParam(param);
-  return code;
-}
+//    pMsg += pQueryMsg->udfContentLen;
+//  }
+//
+//  param->sql = strndup(pMsg, pQueryMsg->sqlstrLen);
+//
+//  SQueriedTableInfo info = { .numOfTags = pQueryMsg->numOfTags, .numOfCols = pQueryMsg->numOfCols, .colList = pQueryMsg->tableCols};
+//  if (!validateQueryTableCols(&info, param->pExpr, pQueryMsg->numOfOutput, param->pTagColumnInfo, pQueryMsg)) {
+//    code = TSDB_CODE_QRY_INVALID_MSG;
+//    goto _cleanup;
+//  }
+//
+//  //qDebug("qmsg:%p query %d tables, type:%d, qrange:%" PRId64 "-%" PRId64 ", numOfGroupbyTagCols:%d, order:%d, "
+////         "outputCols:%d, numOfCols:%d, interval:%" PRId64 ", fillType:%d, comptsLen:%d, compNumOfBlocks:%d, limit:%" PRId64 ", offset:%" PRId64,
+////         pQueryMsg, pQueryMsg->numOfTables, pQueryMsg->queryType, pQueryMsg->window.skey, pQueryMsg->window.ekey, pQueryMsg->numOfGroupCols,
+////         pQueryMsg->order, pQueryMsg->numOfOutput, pQueryMsg->numOfCols, pQueryMsg->interval.interval,
+////         pQueryMsg->fillType, pQueryMsg->tsBuf.tsLen, pQueryMsg->tsBuf.tsNumOfBlocks, pQueryMsg->limit, pQueryMsg->offset);
+//
+//  //qDebug("qmsg:%p, sql:%s", pQueryMsg, param->sql);
+//  return TSDB_CODE_SUCCESS;
+//
+//_cleanup:
+//  freeParam(param);
+//  return code;
+//}
 
 int32_t cloneExprFilterInfo(SColumnFilterInfo **dst, SColumnFilterInfo* src, int32_t filterNum) {
   if (filterNum <= 0) {
