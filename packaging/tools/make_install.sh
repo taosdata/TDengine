@@ -147,17 +147,17 @@ function install_main_path() {
     ${csudo}mkdir -p ${install_main_dir}
     ${csudo}mkdir -p ${install_main_dir}/cfg
     ${csudo}mkdir -p ${install_main_dir}/bin
-#    ${csudo}mkdir -p ${install_main_dir}/connector
+    #    ${csudo}mkdir -p ${install_main_dir}/connector
     ${csudo}mkdir -p ${install_main_dir}/driver
     ${csudo}mkdir -p ${install_main_dir}/examples
     ${csudo}mkdir -p ${install_main_dir}/include
-#    ${csudo}mkdir -p ${install_main_dir}/init.d
+    #    ${csudo}mkdir -p ${install_main_dir}/init.d
   else
     ${csudo}rm -rf ${install_main_dir} || ${csudo}rm -rf ${install_main_2_dir} || :
     ${csudo}mkdir -p ${install_main_dir} || ${csudo}mkdir -p ${install_main_2_dir}
     ${csudo}mkdir -p ${install_main_dir}/cfg || ${csudo}mkdir -p ${install_main_2_dir}/cfg
     ${csudo}mkdir -p ${install_main_dir}/bin || ${csudo}mkdir -p ${install_main_2_dir}/bin
-#    ${csudo}mkdir -p ${install_main_dir}/connector || ${csudo}mkdir -p ${install_main_2_dir}/connector
+    #    ${csudo}mkdir -p ${install_main_dir}/connector || ${csudo}mkdir -p ${install_main_2_dir}/connector
     ${csudo}mkdir -p ${install_main_dir}/driver || ${csudo}mkdir -p ${install_main_2_dir}/driver
     ${csudo}mkdir -p ${install_main_dir}/examples || ${csudo}mkdir -p ${install_main_2_dir}/examples
     ${csudo}mkdir -p ${install_main_dir}/include || ${csudo}mkdir -p ${install_main_2_dir}/include
@@ -175,15 +175,21 @@ function install_bin() {
   if [ "$osType" != "Darwin" ]; then
     ${csudo}rm -f ${bin_link_dir}/perfMonitor || :
     ${csudo}rm -f ${bin_link_dir}/set_core || :
-    ${csudo}rm -f ${bin_link_dir}/run_taosd.sh || :
+    ${csudo}rm -f ${bin_link_dir}/run_taosd_and_taosadapter.sh || :
     ${csudo}rm -f ${bin_link_dir}/${uninstallScript} || :
 
-    ${csudo}cp -r ${binary_dir}/build/bin/* ${install_main_dir}/bin
-    ${csudo}cp -r ${script_dir}/taosd-dump-cfg.gdb ${install_main_dir}/bin
+    ${csudo}cp -r ${binary_dir}/build/bin/${clientName} ${install_main_dir}/bin || :
+    [ -f ${binary_dir}/build/bin/taosBenchmark ] && ${csudo}cp -r ${binary_dir}/build/bin/taosBenchmark ${install_main_dir}/bin || :
+    [ -f ${install_main_dir}/bin/taosBenchmark ] && ${csudo}ln -sf ${install_main_dir}/bin/taosBenchmark ${install_main_dir}/bin/taosdemo || :
+    [ -f ${binary_dir}/build/bin/taosdump ] && ${csudo}cp -r ${binary_dir}/build/bin/taosdump ${install_main_dir}/bin || :
+    [ -f ${binary_dir}/build/bin/taosadapter ] && ${csudo}cp -r ${binary_dir}/build/bin/taosadapter ${install_main_dir}/bin || :
+    ${csudo}cp -r ${binary_dir}/build/bin/${serverName} ${install_main_dir}/bin || :
+    ${csudo}cp -r ${binary_dir}/build/bin/tarbitrator ${install_main_dir}/bin || :
 
+    ${csudo}cp -r ${script_dir}/taosd-dump-cfg.gdb ${install_main_dir}/bin
     ${csudo}cp -r ${script_dir}/remove.sh ${install_main_dir}/bin
     ${csudo}cp -r ${script_dir}/set_core.sh ${install_main_dir}/bin
-    ${csudo}cp -r ${script_dir}/run_taosd.sh ${install_main_dir}/bin
+    ${csudo}cp -r ${script_dir}/run_taosd_and_taosadapter.sh ${install_main_dir}/bin
     ${csudo}cp -r ${script_dir}/startPre.sh ${install_main_dir}/bin
 
     ${csudo}chmod 0555 ${install_main_dir}/bin/*
@@ -195,7 +201,7 @@ function install_bin() {
     [ -x ${install_main_dir}/bin/taosdemo ] && ${csudo}ln -s ${install_main_dir}/bin/taosdemo ${bin_link_dir}/taosdemo || :
     [ -x ${install_main_dir}/bin/perfMonitor ] && ${csudo}ln -s ${install_main_dir}/bin/perfMonitor ${bin_link_dir}/perfMonitor || :
     [ -x ${install_main_dir}/set_core.sh ] && ${csudo}ln -s ${install_main_dir}/bin/set_core.sh ${bin_link_dir}/set_core || :
-    [ -x ${install_main_dir}/run_taosd.sh ] && ${csudo}ln -s ${install_main_dir}/bin/run_taosd.sh ${bin_link_dir}/run_taosd.sh || :
+    [ -x ${install_main_dir}/run_taosd_and_taosadapter.sh ] && ${csudo}ln -s ${install_main_dir}/bin/run_taosd_and_taosadapter.sh ${bin_link_dir}/run_taosd_and_taosadapter.sh || :
     [ -x ${install_main_dir}/bin/remove.sh ] && ${csudo}ln -s ${install_main_dir}/bin/remove.sh ${bin_link_dir}/${uninstallScript} || :
   else
 
@@ -464,10 +470,10 @@ function install_service_on_sysvinit() {
   sleep 1
 
   if ((${os_type} == 1)); then
-#    ${csudo}cp -f ${script_dir}/../deb/${serverName} ${install_main_dir}/init.d
+    #    ${csudo}cp -f ${script_dir}/../deb/${serverName} ${install_main_dir}/init.d
     ${csudo}cp ${script_dir}/../deb/${serverName} ${service_config_dir} && ${csudo}chmod a+x ${service_config_dir}/${serverName}
   elif ((${os_type} == 2)); then
-#    ${csudo}cp -f ${script_dir}/../rpm/${serverName} ${install_main_dir}/init.d
+    #    ${csudo}cp -f ${script_dir}/../rpm/${serverName} ${install_main_dir}/init.d
     ${csudo}cp ${script_dir}/../rpm/${serverName} ${service_config_dir} && ${csudo}chmod a+x ${service_config_dir}/${serverName}
   fi
 
@@ -563,7 +569,7 @@ function update_TDengine() {
   install_log
   install_header
   install_lib
-#  install_connector
+  #  install_connector
   install_examples
   install_bin
 
@@ -603,7 +609,7 @@ function install_TDengine() {
   install_log
   install_header
   install_lib
-#  install_connector
+  #  install_connector
   install_examples
   install_bin
 

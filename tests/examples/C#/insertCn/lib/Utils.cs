@@ -13,17 +13,16 @@ namespace Test.UtilsTools
         static string password = "taosdata";
         static string db = "";
         static short port = 0;
+        //get a tdengine connection
         public static IntPtr TDConnection()
         {
             TDengine.Options((int)TDengineInitOption.TDDB_OPTION_CONFIGDIR, GetConfigPath());
             TDengine.Options((int)TDengineInitOption.TDDB_OPTION_SHELL_ACTIVITY_TIMER, "60");
             TDengine.Init();
             IntPtr conn = TDengine.Connect(ip, user, password, db, port);
-            // UtilsTools.ExecuteUpdate(conn, "drop database if  exists csharp");
-            UtilsTools.ExecuteUpdate(conn, "create database if not exists csharp keep 3650");
-            UtilsTools.ExecuteUpdate(conn, "use csharp");
             return conn;
         }
+        //get taos.cfg file based on different os
         public static string GetConfigPath()
         {
               string configDir = "" ;
@@ -89,58 +88,29 @@ namespace Test.UtilsTools
             TDengine.FreeResult(res);
         }
 
-        public static void DisplayRes(IntPtr res)
-        {
-            if (!IsValidResult(res))
-            {
-                ExitProgram();
-            }
 
-            List<TDengineMeta> metas = GetResField(res);
-            int fieldCount = metas.Count;
+        // public static List<List<string>> GetResultSet(IntPtr res)
+        // {
+        //     List<List<string>> result = new List<List<string>>();
+        //     List<string> colName = new List<string>();
+        //     List<Object> dataRaw = new List<Object>();
+        //     if (!IsValidResult(res))
+        //     {
+        //         ExitProgram();
+        //     }
 
-            IntPtr rowdata;
-            // StringBuilder builder = new StringBuilder();
-            List<string> datas = QueryRes(res, metas);
-            Console.Write(" DisplayRes ---");
-            for (int i = 0; i < metas.Count; i++)
-            {
-                for (int j = 0; j < datas.Count; j++)
-                {
-                    Console.Write(" {0} ---", datas[i * j + i]);
-                }
-                Console.WriteLine("");
-            }
+        //     List<TDengineMeta> metas = GetResField(res);
+        //     result.Add(colName);
 
-            // if (TDengine.ErrorNo(res) != 0)
-            // {
-            //     Console.Write("Query is not complete, Error {0:G}", TDengine.ErrorNo(res), TDengine.Error(res));
-            // }
-            // TDengine.FreeResult(res); Console.WriteLine("");
-        }
+        //     dataRaw = QueryRes(res, metas);
+        //     result.Add(dataRaw);
 
-        public static List<List<string>> GetResultSet(IntPtr res)
-        {
-            List<List<string>> result = new List<List<string>>();
-            List<string> colName = new List<string>();
-            List<string> dataRaw = new List<string>();
-            if (!IsValidResult(res))
-            {
-                ExitProgram();
-            }
-
-            List<TDengineMeta> metas = GetResField(res);
-            result.Add(colName);
-
-            dataRaw = QueryRes(res, metas);
-            result.Add(dataRaw);
-
-            if (TDengine.ErrorNo(res) != 0)
-            {
-                Console.Write("Query is not complete, Error {0:G}", TDengine.ErrorNo(res), TDengine.Error(res));
-            }
-            return result;
-        }
+        //     if (TDengine.ErrorNo(res) != 0)
+        //     {
+        //         Console.Write("Query is not complete, Error {0:G}", TDengine.ErrorNo(res), TDengine.Error(res));
+        //     }
+        //     return result;
+        // }
 
         public static bool IsValidResult(IntPtr res)
         {
@@ -158,7 +128,6 @@ namespace Test.UtilsTools
         }
         public static void CloseConnection(IntPtr conn)
         {
-            ExecuteUpdate(conn, "drop database if  exists csharp");
             if (conn != IntPtr.Zero)
             {
                 if (TDengine.Close(conn) == 0)
@@ -170,6 +139,7 @@ namespace Test.UtilsTools
                     Console.WriteLine("close Connection failed");
                 }
             }
+            TDengine.Cleanup();
         }
         public static List<TDengineMeta> GetResField(IntPtr res)
         {
@@ -193,10 +163,9 @@ namespace Test.UtilsTools
             TDengine.Cleanup();
             System.Environment.Exit(0);
         }
-        public static List<String> GetResData(IntPtr res)
+        public static List<Object> GetResData(IntPtr res)
         {
-            List<string> colName = new List<string>();
-            List<string> dataRaw = new List<string>();
+            List<Object> dataRaw = new List<Object>();
             if (!IsValidResult(res))
             {
                 ExitProgram();
@@ -284,11 +253,11 @@ namespace Test.UtilsTools
             return _meta;
         }
 
-        private static List<string> QueryRes(IntPtr res, List<TDengineMeta> metas)
+        private static List<Object> QueryRes(IntPtr res, List<TDengineMeta> metas)
         {
             IntPtr rowdata;
             long queryRows = 0;
-            List<string> dataRaw = new List<string>();
+            List<Object> dataRaw = new List<Object>();
             int fieldCount = metas.Count;
             while ((rowdata = TDengine.FetchRows(res)) != IntPtr.Zero)
             {
@@ -313,59 +282,61 @@ namespace Test.UtilsTools
                     {
                         case TDengineDataType.TSDB_DATA_TYPE_BOOL:
                             bool v1 = Marshal.ReadByte(data) == 0 ? false : true;
-                            dataRaw.Add(v1.ToString());
+                            dataRaw.Add(v1);
                             break;
                         case TDengineDataType.TSDB_DATA_TYPE_TINYINT:
                             sbyte v2 = (sbyte)Marshal.ReadByte(data);
-                            dataRaw.Add(v2.ToString());
+                            dataRaw.Add(v2);
                             break;
                         case TDengineDataType.TSDB_DATA_TYPE_SMALLINT:
                             short v3 = Marshal.ReadInt16(data);
-                            dataRaw.Add(v3.ToString());
+                            dataRaw.Add(v3);
                             break;
                         case TDengineDataType.TSDB_DATA_TYPE_INT:
                             int v4 = Marshal.ReadInt32(data);
-                            dataRaw.Add(v4.ToString());
+                            dataRaw.Add(v4);
                             break;
                         case TDengineDataType.TSDB_DATA_TYPE_BIGINT:
                             long v5 = Marshal.ReadInt64(data);
-                            dataRaw.Add(v5.ToString());
+                            dataRaw.Add(v5);
                             break;
                         case TDengineDataType.TSDB_DATA_TYPE_FLOAT:
                             float v6 = (float)Marshal.PtrToStructure(data, typeof(float));
-                            dataRaw.Add(v6.ToString());
+                            dataRaw.Add(v6);
                             break;
                         case TDengineDataType.TSDB_DATA_TYPE_DOUBLE:
                             double v7 = (double)Marshal.PtrToStructure(data, typeof(double));
-                            dataRaw.Add(v7.ToString());
+                            dataRaw.Add(v7);
                             break;
                         case TDengineDataType.TSDB_DATA_TYPE_BINARY:
-                            string v8 = Marshal.PtrToStringAnsi(data, colLengthArr[fields]);
+                            // string v8 = Marshal.PtrToStringAnsi(data, colLengthArr[fields]);
+                            string v8 = Marshal.PtrToStringUTF8(data, colLengthArr[fields]);
                             dataRaw.Add(v8);
                             break;
                         case TDengineDataType.TSDB_DATA_TYPE_TIMESTAMP:
                             long v9 = Marshal.ReadInt64(data);
-                            dataRaw.Add(v9.ToString());
+                            dataRaw.Add(v9);
                             break;
                         case TDengineDataType.TSDB_DATA_TYPE_NCHAR:
-                            string v10 = Marshal.PtrToStringAnsi(data, colLengthArr[fields]);
+                            // string v10 = Marshal.PtrToStringAnsi(data, colLengthArr[fields]);
+                            string v10 = Marshal.PtrToStringUTF8(data, colLengthArr[fields]);
                             dataRaw.Add(v10);
                             break;
                         case TDengineDataType.TSDB_DATA_TYPE_UTINYINT:
                             byte v12 = Marshal.ReadByte(data);
-                            dataRaw.Add(v12.ToString());
+                            dataRaw.Add(v12);
                             break;
                         case TDengineDataType.TSDB_DATA_TYPE_USMALLINT:
                             ushort v13 = (ushort)Marshal.ReadInt16(data);
-                            dataRaw.Add(v13.ToString());
+                            dataRaw.Add(v13);
                             break;
                         case TDengineDataType.TSDB_DATA_TYPE_UINT:
                             uint v14 = (uint)Marshal.ReadInt32(data);
-                            dataRaw.Add(v14.ToString());
+                            dataRaw.Add(v14);
                             break;
                         case TDengineDataType.TSDB_DATA_TYPE_UBIGINT:
                             ulong v15 = (ulong)Marshal.ReadInt64(data);
-                            dataRaw.Add(v15.ToString());
+                            dataRaw.Add(v15);
                             break;
                         default:
                             dataRaw.Add("unknown value");
@@ -383,6 +354,89 @@ namespace Test.UtilsTools
             return dataRaw;
         }
 
+        // Generate insert sql for the with the coldata and tag data 
+        public static string ConstructInsertSql(string table,string stable,List<Object> colData,List<Object> tagData,int numOfRows)
+        {
+            int numofFileds = colData.Count / numOfRows;
+            StringBuilder insertSql;
+
+            if (stable == "")
+            {
+                insertSql = new StringBuilder($"insert into {table} values(");
+            }
+            else
+            {
+                insertSql = new StringBuilder($"insert into {table} using {stable} tags(");
+
+                for (int j = 0; j < tagData.Count; j++)
+                {
+                    if (tagData[j] is String)
+                    {
+                        insertSql.Append('\'');
+                        insertSql.Append(tagData[j]);
+                        insertSql.Append('\'');
+                    }
+                    else
+                    {
+                        insertSql.Append(tagData[j]);
+                    }
+                    if (j + 1 != tagData.Count)
+                    {
+                        insertSql.Append(',');
+                    }
+                }
+
+                insertSql.Append(")values(");
+            }
+            for (int i = 0; i < colData.Count; i++)
+            {
+
+                if (colData[i] is String)
+                {
+                    insertSql.Append('\'');
+                    insertSql.Append(colData[i]);
+                    insertSql.Append('\'');
+                }
+                else
+                {
+                    insertSql.Append(colData[i]);
+                }
+
+                if ((i + 1) % numofFileds == 0 && (i + 1) != colData.Count)
+                {
+                    insertSql.Append(")(");
+                }
+                else if ((i + 1) == colData.Count)
+                {
+                    insertSql.Append(')');
+                }
+                else
+                {
+                    insertSql.Append(',');
+                }
+            }
+            insertSql.Append(';');
+            //Console.WriteLine(insertSql.ToString());
+
+            return insertSql.ToString();
+        }
+    
+        public static List<object> CombineColAndTagData(List<object> colData,List<object> tagData, int numOfRows)
+        {
+            var list = new List<Object>();
+            for (int i = 0; i < colData.Count; i++)
+            {
+                list.Add(colData[i]);
+                if ((i + 1) % (colData.Count / numOfRows) == 0)
+                {
+                    for (int j = 0; j < tagData.Count; j++)
+                    {
+                        list.Add(tagData[j]);
+                    }
+                }
+            }
+            return list;
+        }
     }
 }
 

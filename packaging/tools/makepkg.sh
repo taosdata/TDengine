@@ -63,7 +63,7 @@ else
       ${build_dir}/bin/tarbitrator\
       ${script_dir}/remove.sh \
       ${script_dir}/set_core.sh \
-      ${script_dir}/run_taosd.sh \
+      ${script_dir}/run_taosd_and_taosadapter.sh \
       ${script_dir}/startPre.sh \
       ${script_dir}/taosd-dump-cfg.gdb"
 
@@ -132,6 +132,15 @@ if [ -n "${taostools_bin_files}" ]; then
             || echo -e "failed to copy install-taostools.sh"
     else
         echo -e "install-taostools.sh not found"
+    fi
+    
+    if [ -f ${top_dir}/src/kit/taos-tools/packaging/tools/uninstall-taostools.sh ]; then
+        cp ${top_dir}/src/kit/taos-tools/packaging/tools/uninstall-taostools.sh \
+            ${taostools_install_dir}/ > /dev/null \
+            && chmod a+x ${taostools_install_dir}/uninstall-taostools.sh \
+            || echo -e "failed to copy uninstall-taostools.sh"
+    else
+        echo -e "uninstall-taostools.sh not found"
     fi
 
     if [ -f ${build_dir}/lib/libavro.so.23.0.0 ]; then
