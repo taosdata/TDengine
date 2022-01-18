@@ -388,6 +388,11 @@ int32_t getResultDataInfo(int32_t dataType, int32_t dataBytes, int32_t functionI
       *bytes = sizeof(SElapsedInfo);
       *interBytes = *bytes;
       return TSDB_CODE_SUCCESS;
+    } else if (functionId == TSDB_FUNC_HISTOGRAM) {
+      *type = TSDB_DATA_TYPE_BINARY;
+      *bytes = (sizeof(SHistogramFuncInfo) + param * sizeof(SHistogramFuncBin));
+      *interBytes = *bytes;
+      return TSDB_CODE_SUCCESS;
     }
   }
 
@@ -492,6 +497,10 @@ int32_t getResultDataInfo(int32_t dataType, int32_t dataBytes, int32_t functionI
     *type = TSDB_DATA_TYPE_DOUBLE;
     *bytes = tDataTypes[*type].bytes;
     *interBytes = sizeof(SElapsedInfo);
+  } else if (functionId == TSDB_FUNC_HISTOGRAM) {
+    *type = TSDB_DATA_TYPE_BINARY;
+    *bytes = 1024;
+    *interBytes = *bytes;
   } else {
     return TSDB_CODE_TSC_INVALID_OPERATION;
   }
@@ -513,7 +522,7 @@ int32_t isValidFunction(const char* name, int32_t len) {
     }
   }
 
-  for(int32_t i = 0; i <= TSDB_FUNC_ELAPSED; ++i) {
+  for(int32_t i = 0; i < TSDB_FUNC_MAX_NUM; ++i) {
     int32_t nameLen = (int32_t) strlen(aAggs[i].name);
     if (len != nameLen) {
       continue;
@@ -4955,8 +4964,9 @@ static bool histogram_function_setup(SQLFunctionCtx *pCtx, SResultRowCellInfo* p
     return false;
   }
 
-  double* listBin = (double*) pCtx->param[0].pz;
-  int32_t numOfBins = pCtx->param[0].nLen / sizeof(double) - 1;
+  double* listBin = (double*) pCtx->param[1].pz;
+  int32_t numOfBins = (int32_t)pCtx->param[0].i64;
+  pRes->numOfBins = numOfBins;
   pRes->orderedBins = (SHistogramFuncBin*)((char*)pRes + sizeof(SHistogramFuncInfo));
   for (int32_t i = 0; i < numOfBins; ++i) {
     pRes->orderedBins[i].lower = listBin[i];
@@ -4989,6 +4999,7 @@ static void histogram_function(SQLFunctionCtx *pCtx) {
     for (int32_t b = 0; b < pRes->numOfBins; ++b) {
       if (v > pRes->orderedBins[b].lower && v <= pRes->orderedBins[b].upper) {
         pRes->orderedBins[b].count++;
+        break;
       }
     }
   }
@@ -5002,11 +5013,14 @@ static void histogram_function(SQLFunctionCtx *pCtx) {
 
 static void histogram_func_merge(SQLFunctionCtx *pCtx) {
   SHistogramFuncInfo* pInput = (SHistogramFuncInfo*) GET_INPUT_DATA_LIST(pCtx);
+  pInput->orderedBins = (SHistogramFuncBin*)((char*)pInput + sizeof(SHistogramFuncInfo));
+
   SHistogramFuncInfo* pRes = getHistogramFuncOutputInfo(pCtx);
   for (int32_t i = 0; i < pInput->numOfBins; ++i) {
     pRes->orderedBins[i].count += pInput->orderedBins[i].count;
   }
   SResultRowCellInfo *pResInfo = GET_RES_INFO(pCtx);
+  pResInfo->numOfRes = 1;
   pResInfo->hasResult = DATA_SET_FLAG;
 }
 
@@ -5017,6 +5031,16 @@ static void histogram_func_finalizer(SQLFunctionCtx *pCtx) {
   if (!pRes) {
     return;
   }
+
+  for (int32_t i = 0; i < pRes->numOfBins; ++i) {
+    int sz = sprintf(pCtx->pOutput + VARSTR_HEADER_SIZE, "(%g-%g]:%"PRId64,
+                     pRes->orderedBins[i].lower, pRes->orderedBins[i].upper, pRes->orderedBins[i].count);
+    varDataSetLen(pCtx->pOutput, sz);
+    pCtx->pOutput += pCtx->outputBytes;
+  }
+
+  pResInfo->numOfRes = pRes->numOfBins;
+  pResInfo->hasResult = DATA_SET_FLAG;
 
   doFinalizer(pCtx);
 }
@@ -5041,8 +5065,8 @@ int32_t functionCompatList[] = {
     1,          1,        1,         1,       -1,      1,          1,           1,          5,          1,      1,
     // tid_tag, deriv,    csum,       mavg,        sample,
     6,          8,        -1,         -1,          -1,
-    // block_info, elapsed
-    7,             1
+    // block_info,elapsed,histogram
+    7,          1,        -1
 };
 
 SAggFunctionInfo aAggs[40] = {{
@@ -5505,6 +5529,7 @@ SAggFunctionInfo aAggs[40] = {{
                               elapsedRequired,
                           },
                           {
+                              //38
                               "histogram",
                               TSDB_FUNC_HISTOGRAM,
                               TSDB_FUNC_HISTOGRAM,

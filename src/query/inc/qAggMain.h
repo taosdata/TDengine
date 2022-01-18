@@ -76,15 +76,10 @@ extern "C" {
 
 #define TSDB_FUNC_BLKINFO      36
 
-#define TSDB_FUNC_ELAPSED      37 
+#define TSDB_FUNC_ELAPSED      37
 #define TSDB_FUNC_HISTOGRAM    38
 
-///////////////////////////////////////////
-// the following functions is not implemented.
-// after implementation, move them before TSDB_FUNC_BLKINFO. also make TSDB_FUNC_BLKINFO the maxium function index
-// #define TSDB_FUNC_HISTOGRAM    40
-// #define TSDB_FUNC_HLL          41
-// #define TSDB_FUNC_MODE         42
+#define TSDB_FUNC_MAX_NUM    39
 
 #define TSDB_FUNCSTATE_SO           0x1u    // single output
 #define TSDB_FUNCSTATE_MO           0x2u    // dynamic number of output, not multinumber of output e.g., TOP/BOTTOM

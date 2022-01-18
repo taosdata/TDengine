@@ -3331,6 +3331,58 @@ int32_t addExprAndResultField(SSqlCmd* pCmd, SQueryInfo* pQueryInfo, int32_t col
 
       return TSDB_CODE_SUCCESS;
     }
+
+    case TSDB_FUNC_HISTOGRAM: {
+      tSqlExprItem* pParamElem = taosArrayGet(pItem->pNode->Expr.paramList, 0);
+      if (pParamElem->pNode->tokenId != TK_ID) {
+        return invalidOperationMsg(tscGetErrorMsgPayload(pCmd), msg2);
+      }
+
+      SColumnIndex index = COLUMN_INDEX_INITIALIZER;
+      if (getColumnIndexByName(&pParamElem->pNode->columnName, pQueryInfo, &index, tscGetErrorMsgPayload(pCmd)) != TSDB_CODE_SUCCESS) {
+        return invalidOperationMsg(tscGetErrorMsgPayload(pCmd), msg3);
+      }
+
+      if (index.columnIndex == TSDB_TBNAME_COLUMN_INDEX) {
+        return invalidOperationMsg(tscGetErrorMsgPayload(pCmd), msg6);
+      }
+
+      pTableMetaInfo = tscGetMetaInfo(pQueryInfo, index.tableIndex);
+      SSchema* pSchema = tscGetTableColumnSchema(pTableMetaInfo->pTableMeta, index.columnIndex);
+
+      int32_t numBins = 4;
+      int16_t  resultType = pSchema->type;
+      int32_t  resultSize = pSchema->bytes;
+      int32_t  interResult = 0;
+      getResultDataInfo(pSchema->type, pSchema->bytes, functionId, numBins, &resultType, &resultSize, &interResult, 0, false,
+                        pUdfInfo);
+      SExprInfo* pExpr = NULL;
+      pExpr = tscExprAppend(pQueryInfo, functionId, &index, resultType, resultSize, getNewResColId(pCmd), interResult, false);
+      tscExprAddParams(&pExpr->base, (char*)&numBins, TSDB_DATA_TYPE_INT, sizeof(int32_t));
+      double* intervals = malloc((numBins + 1) * sizeof(double));
+      intervals[0] = -DBL_MAX;
+      intervals[1] = 10;
+      intervals[2] = 20;
+      intervals[3] = 30;
+      intervals[4] = DBL_MAX;
+      tscExprAddParams(&pExpr->base, (char*)intervals, TSDB_DATA_TYPE_BINARY, sizeof(double)*(numBins+1));
+
+      memset(pExpr->base.aliasName, 0, tListLen(pExpr->base.aliasName));
+      getColumnName(pItem, pExpr->base.aliasName, pExpr->base.token,sizeof(pExpr->base.aliasName) - 1);
+      // todo refactor: tscColumnListInsert part
+      SColumnList ids = createColumnList(1, index.tableIndex, index.columnIndex);
+
+      if (finalResult) {
+        insertResultField(pQueryInfo, colIndex, &ids, resultSize, (int8_t)resultType, pExpr->base.aliasName, pExpr);
+      } else {
+        assert(ids.num == 1);
+        tscColumnListInsert(pQueryInfo->colList, ids.ids[0].columnIndex, pExpr->base.uid, pSchema);
+      }
+
+      tscInsertPrimaryTsSourceColumn(pQueryInfo, pExpr->base.uid);
+      return TSDB_CODE_SUCCESS;
+    }
+
     default: {
       assert(!TSDB_FUNC_IS_SCALAR(functionId));
       pUdfInfo = isValidUdf(pQueryInfo->pUdfInfo, pItem->pNode->Expr.operand.z, pItem->pNode->Expr.operand.n);
@@ -3703,7 +3755,8 @@ int32_t tscTansformFuncForSTableQuery(SQueryInfo* pQueryInfo) {
     if ((functionId >= TSDB_FUNC_SUM && functionId <= TSDB_FUNC_TWA) ||
         (functionId >= TSDB_FUNC_FIRST_DST && functionId <= TSDB_FUNC_STDDEV_DST) ||
         (functionId >= TSDB_FUNC_RATE && functionId <= TSDB_FUNC_IRATE) ||
-        (functionId == TSDB_FUNC_SAMPLE) || (functionId == TSDB_FUNC_ELAPSED)) {
+        (functionId == TSDB_FUNC_SAMPLE) ||
+        (functionId == TSDB_FUNC_ELAPSED) || (functionId == TSDB_FUNC_HISTOGRAM)) {
       if (getResultDataInfo(pSrcSchema->type, pSrcSchema->bytes, functionId, (int32_t)pExpr->base.param[0].i64, &type, &bytes,
                             &interBytes, 0, true, NULL) != TSDB_CODE_SUCCESS) {
         return TSDB_CODE_TSC_INVALID_OPERATION;
@@ -6147,7 +6200,7 @@ int32_t validateFillNode(SSqlCmd* pCmd, SQueryInfo* pQueryInfo, SSqlNode* pSqlNo
 
   const char* msg1 = "value is expected";
   const char* msg2 = "invalid fill option";
-  const char* msg3 = "top/bottom/sample not support fill";
+  const char* msg3 = "top/bottom/sample/histogram not support fill";
   const char* msg4 = "illegal value or data overflow";
   const char* msg5 = "fill only available for interval query";
   const char* msg7 = "join query not supported fill operation";
@@ -6257,7 +6310,7 @@ int32_t validateFillNode(SSqlCmd* pCmd, SQueryInfo* pQueryInfo, SSqlNode* pSqlNo
   for(int32_t i = 0; i < numOfExprs; ++i) {
     SExprInfo* pExpr = tscExprGet(pQueryInfo, i);
     if (pExpr->base.functionId == TSDB_FUNC_TOP || pExpr->base.functionId == TSDB_FUNC_BOTTOM
-        || pExpr->base.functionId == TSDB_FUNC_SAMPLE) {
+        || pExpr->base.functionId == TSDB_FUNC_SAMPLE || pExpr->base.functionId == TSDB_FUNC_HISTOGRAM) {
       return invalidOperationMsg(tscGetErrorMsgPayload(pCmd), msg3);
     }
   }
