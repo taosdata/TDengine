@@ -1852,7 +1852,7 @@ TDengine 中的表（列）名命名规则如下：
      select jtag->'key' from (select jtag from stable) where jtag->'key'>0
      ```
 ## 转义字符说明
-- 转义字符表
+- 转义字符表 （转义符的功能从 2.4.0.4 版本开始）
 
   | 字符序列    | **代表的字符**  |
     | :--------:     |   -------    |
