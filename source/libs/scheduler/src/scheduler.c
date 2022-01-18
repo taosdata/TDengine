@@ -412,6 +412,8 @@ int32_t schSetTaskCandidateAddrs(SSchJob *pJob, SSchTask *pTask) {
         SCH_TASK_ELOG("taosArrayPush execNode to candidate addrs failed, addNum:%d, errno:%d", addNum, errno);
         SCH_ERR_RET(TSDB_CODE_QRY_OUT_OF_MEMORY);
       }
+
+      ++addNum;
     }
   }
 
@@ -791,6 +793,11 @@ int32_t schHandleResponseMsg(SSchJob *pJob, SSchTask *pTask, int32_t msgType, ch
         #else
         if (rspCode != TSDB_CODE_SUCCESS) {
           SCH_ERR_RET(schProcessOnTaskFailure(pJob, pTask, rspCode));
+        }
+
+        SShellSubmitRsp *rsp = (SShellSubmitRsp *)msg;
+        if (rsp) {
+          pJob->resNumOfRows += rsp->affectedRows;
         }
         #endif
 
@@ -1355,9 +1362,9 @@ int32_t scheduleExecJob(void *transport, SArray *nodeList, SQueryDag* pDag, stru
 
   SSchJob *job = NULL;
 
-  SCH_ERR_RET(schExecJobImpl(transport, nodeList, pDag, &job, true));
+  SCH_ERR_RET(schExecJobImpl(transport, nodeList, pDag, pJob, true));
 
-  *pJob = job;
+  job = *pJob;
 
   pRes->code = atomic_load_32(&job->errCode);
   pRes->numOfRows = job->resNumOfRows;

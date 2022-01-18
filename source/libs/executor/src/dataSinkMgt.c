@@ -37,7 +37,7 @@ int32_t dsPutDataBlock(DataSinkHandle handle, const SInputData* pInput, bool* pC
   return pHandleImpl->fPut(pHandleImpl, pInput, pContinue);
 }
 
-void dsEndPut(DataSinkHandle handle, int64_t useconds) {
+void dsEndPut(DataSinkHandle handle, uint64_t useconds) {
   SDataSinkHandle* pHandleImpl = (SDataSinkHandle*)handle;
   return pHandleImpl->fEndPut(pHandleImpl, useconds);
 }
