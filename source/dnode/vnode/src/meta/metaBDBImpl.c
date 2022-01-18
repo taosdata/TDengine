@@ -622,3 +622,58 @@ STSchema *metaGetTbTSchema(SMeta *pMeta, tb_uid_t uid, int32_t sver) {
 
   return pTSchema;
 }
+
+struct SMCtbCursor {
+  DBC *    pCur;
+  tb_uid_t suid;
+};
+
+SMCtbCursor *metaOpenCtbCursor(SMeta *pMeta, tb_uid_t uid) {
+  SMCtbCursor *pCtbCur = NULL;
+  SMetaDB *    pDB = pMeta->pDB;
+  int          ret;
+
+  pCtbCur = (SMCtbCursor *)calloc(1, sizeof(*pCtbCur));
+  if (pCtbCur == NULL) {
+    return NULL;
+  }
+
+  pCtbCur->suid = uid;
+  ret = pDB->pCtbIdx->cursor(pDB->pCtbIdx, NULL, &(pCtbCur->pCur), 0);
+  if (ret != 0) {
+    free(pCtbCur);
+    return NULL;
+  }
+
+  return pCtbCur;
+}
+
+void metaCloseCtbCurosr(SMCtbCursor *pCtbCur) {
+  if (pCtbCur) {
+    if (pCtbCur->pCur) {
+      pCtbCur->pCur->close(pCtbCur->pCur);
+    }
+
+    free(pCtbCur);
+  }
+}
+
+char *metaCtbCursorNext(SMCtbCursor *pCtbCur) {
+  DBT    skey = {0};
+  DBT    pkey = {0};
+  DBT    pval = {0};
+  void * pBuf;
+  STbCfg tbCfg;
+
+  // Set key
+  skey.data = &(pCtbCur->suid);
+  skey.size = sizeof(pCtbCur->suid);
+
+  if (pCtbCur->pCur->get(pCtbCur->pCur, &skey, &pval, DB_NEXT) == 0) {
+    pBuf = pval.data;
+    metaDecodeTbInfo(pBuf, &tbCfg);
+    return tbCfg.name;
+  } else {
+    return NULL;
+  }
+}
