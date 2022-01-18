@@ -25,6 +25,7 @@
 #include "trpc.h"
 #include "ttimer.h"
 #include "tutil.h"
+#include "meta.h"
 
 #ifdef __cplusplus
 extern "C" {
@@ -313,6 +314,26 @@ int tqSerializeGroup(const STqGroup*, STqSerializedHead**);
 const void* tqDeserializeGroup(const STqSerializedHead*, STqGroup**);
 
 static int tqQueryExecuting(int32_t status) { return status; }
+
+typedef struct STqReadHandle {
+  int64_t ver;
+  SSubmitMsg* pMsg;
+  SSubmitBlk* pBlock;
+  SSubmitMsgIter msgIter;
+  SSubmitBlkIter blkIter;
+  SMeta* pMeta;
+} STqReadHandle;
+
+typedef struct SSubmitBlkScanInfo {
+  
+} SSubmitBlkScanInfo;
+
+STqReadHandle* tqInitSubmitMsgScanner(SMeta* pMeta, SSubmitMsg *pMsg);
+bool tqNextDataBlock(STqReadHandle* pHandle);
+int tqRetrieveDataBlockInfo(STqReadHandle* pHandle, SDataBlockInfo *pBlockInfo);
+//return SArray<SColumnInfoData>
+SArray *tqRetrieveDataBlock(STqReadHandle* pHandle, SArray* pColumnIdList);
+//int tqLoadDataBlock(SExecTaskInfo* pTaskInfo, SSubmitBlkScanInfo* pSubmitBlkScanInfo, SSDataBlock* pBlock, uint32_t status);
 
 #ifdef __cplusplus
 }
