@@ -83,7 +83,9 @@ TDengine is a highly efficient platform to store, query, and analyze time-series
 
 * [taosAdapter User Manual](/tools/adapter)
 * [TDinsight User Manual](/tools/insight)
-* [taos-tools User Manual](/tools/taos-tools)
+* [taosTools Install Manual](/tools/taos-tools)
+* [taosdump User Manual](/tools/taosdump)
+* [taosbenchmark User Manual](/tools/taosbenchmark)
 
 ## [Connections with Other Tools](/connections)
 
