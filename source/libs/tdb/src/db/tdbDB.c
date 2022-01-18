@@ -56,9 +56,28 @@ _err:
   return 0;
 }
 
-TDB_EXTERN int tdbOpenDB(TDB* dbp, uint32_t flags) {
-  // TODO
-  return 0;
+TDB_EXTERN int tdbOpenDB(TDB* dbp, const char* fname, const char* dbname, uint32_t flags) {
+  int ret = 0;
+
+  if ((dbp->fname = strdup(fname)) == NULL) {
+    ret = -1;
+    return ret;
+  }
+
+  // Create the backup file if the file not exists
+
+  // Open the file as a sub-db or a master-db
+  if (dbname) {
+    if ((dbp->dbname = strdup(dbname)) == NULL) {
+      ret = -1;
+      return ret;
+    }
+    // TODO: Open the DB as a SUB-DB in this file
+  } else {
+    // TODO: Open the DB as a MASTER-DB in this file
+  }
+
+  return ret;
 }
 
 TDB_EXTERN int tdbCloseDB(TDB* dbp, uint32_t flags) {
