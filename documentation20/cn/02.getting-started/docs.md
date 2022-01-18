@@ -180,11 +180,9 @@ taos> select avg(current), max(voltage), min(phase) from test.d10 interval(10s);
 taosBenchmark 命令本身带有很多选项，配置表的数目、记录条数等等，请执行 `taosBenchmark --help` 详细列出。您可以设置不同参数进行体验。
 taosBenchmark 详细使用方法请参照 [如何使用taosBenchmark对TDengine进行性能测试](https://www.taosdata.com/cn/documentation/getting-started/taosBenchmark )。
 
-## 客户端和报警模块
+## 客户端
 
 如果客户端和服务端运行在不同的电脑上，可以单独安装客户端。Linux 和 Windows 安装包可以在 [这里](https://www.taosdata.com/cn/getting-started/#客户端) 下载。
-
-报警模块的 Linux 和 Windows 安装包请在 [所有下载链接](https://www.taosdata.com/cn/all-downloads/) 页面搜索“TDengine Alert Linux”章节或“TDengine Alert Windows”章节进行下载。使用方法请参考 [报警模块的使用方法](https://github.com/taosdata/TDengine/blob/master/alert/README_cn.md)。
 
 ## <a class="anchor" id="platforms"></a>支持平台列表
 
