@@ -29,6 +29,14 @@ static void copyString(const cJSON* json, const char* name, char* dst) {
   strcpy(dst, cJSON_GetStringValue(cJSON_GetObjectItem(json, name)));
 }
 
+static uint64_t getBigintFromString(const cJSON* json, const char* name) {
+  char* val = getString(json, name);
+  uint64_t intVal = strtoul(val, NULL, 10);
+  tfree(val);
+
+  return intVal;
+}
+
 static int64_t getNumber(const cJSON* json, const char* name) {
   double d = cJSON_GetNumberValue(cJSON_GetObjectItem(json, name));
   return (int64_t) d;
@@ -543,13 +551,13 @@ static const char* jkTimeWindowEndKey = "EndKey";
 static bool timeWindowToJson(const void* obj, cJSON* json) {
   const STimeWindow* win = (const STimeWindow*)obj;
 
-  char tmp[32] = {0};
-  sprintf(tmp, "%"PRId64, win->skey);
+  char tmp[40] = {0};
+  snprintf(tmp, tListLen(tmp),"%"PRId64, win->skey);
 
   bool res = cJSON_AddStringToObject(json, jkTimeWindowStartKey, tmp);
   if (res) {
     memset(tmp, 0, tListLen(tmp));
-    sprintf(tmp, "%"PRId64, win->ekey);
+    snprintf(tmp, tListLen(tmp),"%"PRId64, win->ekey);
     res = cJSON_AddStringToObject(json, jkTimeWindowEndKey, tmp);
   }
   return res;
@@ -557,16 +565,8 @@ static bool timeWindowToJson(const void* obj, cJSON* json) {
 
 static bool timeWindowFromJson(const cJSON* json, void* obj) {
   STimeWindow* win = (STimeWindow*)obj;
-
-  char* pStartKey = getString(json, jkTimeWindowStartKey);
-  win->skey = strtoul(pStartKey, NULL, 10);
-
-  char* pEndKey = getString(json, jkTimeWindowEndKey);
-  win->ekey = strtoul(pEndKey, NULL, 10);
-
-  tfree(pStartKey);
-  tfree(pEndKey);
-
+  win->skey = getBigintFromString(json, jkTimeWindowStartKey);
+  win->ekey = getBigintFromString(json, jkTimeWindowEndKey);
   return true;
 }
 
@@ -605,10 +605,7 @@ static bool scanNodeToJson(const void* obj, cJSON* json) {
 static bool scanNodeFromJson(const cJSON* json, void* obj) {
   SScanPhyNode* pNode = (SScanPhyNode*)obj;
 
-  char* val        = getString(json, jkScanNodeTableId);
-  pNode->uid       = strtoull(val, NULL, 10);
-  tfree(val);
-
+  pNode->uid       = getBigintFromString(json, jkScanNodeTableId);
   pNode->tableType = getNumber(json, jkScanNodeTableType);
   pNode->count     = getNumber(json, jkScanNodeTableCount);
   pNode->order     = getNumber(json, jkScanNodeTableOrder);
@@ -782,10 +779,7 @@ static bool nodeAddrFromJson(const cJSON* json, void* obj) {
   SDownstreamSource* pSource = (SDownstreamSource*)obj;
   pSource->taskId = getNumber(json, jkNodeTaskId);
 
-  char* pSchedId = getString(json, jkNodeTaskSchedId);
-  pSource->schedId = strtoul(pSchedId, NULL, 10);
-  tfree(pSchedId);
-
+  pSource->schedId = getBigintFromString(json, jkNodeTaskSchedId);
   bool res = fromObject(json, jkNodeAddr, queryNodeAddrFromJson, &pSource->addr, true);
   return res;
 }
@@ -1031,12 +1025,9 @@ static bool subplanIdToJson(const void* obj, cJSON* jId) {
 static bool subplanIdFromJson(const cJSON* json, void* obj) {
   SSubplanId* id = (SSubplanId*)obj;
 
-  char* queryId = getString(json, jkIdQueryId);
-  id->queryId = strtoul(queryId, NULL, 0);
-  tfree(queryId);
-
+  id->queryId    = getBigintFromString(json, jkIdQueryId);
   id->templateId = getNumber(json, jkIdTemplateId);
-  id->subplanId = getNumber(json, jkIdSubplanId);
+  id->subplanId  = getNumber(json, jkIdSubplanId);
   return true;
 }
 
