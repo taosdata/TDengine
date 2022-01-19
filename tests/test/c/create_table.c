@@ -204,7 +204,7 @@ void *threadFunc(void *param) {
       int64_t   startTs = taosGetTimestampUs();
       TAOS_RES *pRes = taos_query(con, qstr);
       code = taos_errno(pRes);
-      if ((code != 0) && (code != 0x0002)) {
+      if ((code != 0) && (code != TSDB_CODE_RPC_AUTH_REQUIRED)) {
         pError("failed to create table t%" PRId64 ", code: %d, reason:%s", t, code, tstrerror(code));
       }
       taos_free_result(pRes);
