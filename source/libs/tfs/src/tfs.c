@@ -152,7 +152,6 @@ void tfsInitFile(STfs *pTfs, STfsFile *pFile, SDiskID diskId, const char *rname)
 }
 
 bool tfsIsSameFile(const STfsFile *pFile1, const STfsFile *pFile2) {
-  ASSERT(pFile1 != NULL || pFile2 != NULL);
   if (pFile1 == NULL || pFile2 == NULL || pFile1->pTfs != pFile2->pTfs) return false;
   if (pFile1->did.level != pFile2->did.level) return false;
   if (pFile1->did.id != pFile2->did.id) return false;
@@ -308,7 +307,7 @@ STfsDir *tfsOpendir(STfs *pTfs, const char *rname) {
   }
 
   SDiskID diskId = {.id = 0, .level = 0};
-  pDir->iter->pDisk = TFS_DISK_AT(pTfs, diskId);
+  pDir->iter.pDisk = TFS_DISK_AT(pTfs, diskId);
   pDir->pTfs = pTfs;
   tstrncpy(pDir->dirname, rname, TSDB_FILENAME_LEN);
 
@@ -331,7 +330,7 @@ const STfsFile *tfsReaddir(STfsDir *pDir) {
       // Skip . and ..
       if (strcmp(dp->d_name, ".") == 0 || strcmp(dp->d_name, "..") == 0) continue;
 
-      snprintf(bname, TMPNAME_LEN * 2, "%s/%s", pDir->dirname, dp->d_name);
+      snprintf(bname, TMPNAME_LEN * 2, "%s%s%s", pDir->dirname, TD_DIRSEP, dp->d_name);
       tfsInitFile(pDir->pTfs, &pDir->tfile, pDir->did, bname);
       return &pDir->tfile;
     }
@@ -496,7 +495,7 @@ static int32_t tfsOpendirImpl(STfs *pTfs, STfsDir *pDir) {
   }
 
   while (true) {
-    pDisk = tfsNextDisk(pTfs, pDir->iter);
+    pDisk = tfsNextDisk(pTfs, &pDir->iter);
     if (pDisk == NULL) return 0;
 
     pDir->did.level = pDisk->level;
@@ -514,7 +513,9 @@ static STfsDisk *tfsNextDisk(STfs *pTfs, SDiskIter *pIter) {
   if (pIter == NULL) return NULL;
 
   STfsDisk *pDisk = pIter->pDisk;
-  SDiskID   did = {.level = pDisk->level, .id = pDisk->id + 1};
+  if (pDisk == NULL) return NULL;
+
+  SDiskID did = {.level = pDisk->level, .id = pDisk->id + 1};
 
   if (did.id < TFS_TIER_AT(pTfs, did.level)->ndisk) {
     pIter->pDisk = TFS_DISK_AT(pTfs, did);

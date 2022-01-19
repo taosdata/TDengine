@@ -58,12 +58,12 @@ typedef struct {
 } SDiskIter;
 
 typedef struct STfsDir {
-  SDiskIter *iter;
-  SDiskID    did;
-  char       dirname[TSDB_FILENAME_LEN];
-  STfsFile   tfile;
-  DIR       *dir;
-  STfs      *pTfs;
+  SDiskIter iter;
+  SDiskID   did;
+  char      dirname[TSDB_FILENAME_LEN];
+  STfsFile  tfile;
+  DIR      *dir;
+  STfs     *pTfs;
 } STfsDir;
 
 typedef struct STfs {

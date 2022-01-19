@@ -23,9 +23,9 @@ static const char *tsdbTxnFname[] = {"current.t", "current"};
 
 static int  tsdbComparFidFSet(const void *arg1, const void *arg2);
 static void tsdbResetFSStatus(SFSStatus *pStatus);
-static int  tsdbSaveFSStatus(STfs *pTfs, SFSStatus *pStatus, int vid);
+static int  tsdbSaveFSStatus(STsdb *pRepo, SFSStatus *pStatus);
 static void tsdbApplyFSTxnOnDisk(SFSStatus *pFrom, SFSStatus *pTo);
-static void tsdbGetTxnFname(STfs *pTfs, int repoid, TSDB_TXN_FILE_T ftype, char fname[]);
+static void tsdbGetTxnFname(STsdb *pRepo, TSDB_TXN_FILE_T ftype, char fname[]);
 static int  tsdbOpenFSFromCurrent(STsdb *pRepo);
 static int  tsdbScanAndTryFixFS(STsdb *pRepo);
 static int  tsdbScanRootDir(STsdb *pRepo);
@@ -311,7 +311,7 @@ int tsdbOpenFS(STsdb *pRepo) {
 
   ASSERT(pfs != NULL);
 
-  tsdbGetTxnFname(pRepo->pTfs, REPO_ID(pRepo), TSDB_TXN_CURR_FILE, current);
+  tsdbGetTxnFname(pRepo, TSDB_TXN_CURR_FILE, current);
 
   tsdbGetRtnSnap(pRepo, &pRepo->rtn);
   if (access(current, F_OK) == 0) {
@@ -375,7 +375,7 @@ int tsdbEndFSTxn(STsdb *pRepo) {
   SFSStatus *pStatus;
 
   // Write current file system snapshot
-  if (tsdbSaveFSStatus(pRepo->pTfs, pfs->nstatus, REPO_ID(pRepo)) < 0) {
+  if (tsdbSaveFSStatus(pRepo, pfs->nstatus) < 0) {
     tsdbEndFSTxnWithError(pfs);
     return -1;
   }
@@ -405,7 +405,7 @@ int tsdbEndFSTxnWithError(STsdbFS *pfs) {
 
 int tsdbUpdateDFileSet(STsdbFS *pfs, const SDFileSet *pSet) { return tsdbAddDFileSetToStatus(pfs->nstatus, pSet); }
 
-static int tsdbSaveFSStatus(STfs *pTfs, SFSStatus *pStatus, int vid) {
+static int tsdbSaveFSStatus(STsdb *pRepo, SFSStatus *pStatus) {
   SFSHeader fsheader;
   void *    pBuf = NULL;
   void *    ptr;
@@ -413,8 +413,8 @@ static int tsdbSaveFSStatus(STfs *pTfs, SFSStatus *pStatus, int vid) {
   char      tfname[TSDB_FILENAME_LEN] = "\0";
   char      cfname[TSDB_FILENAME_LEN] = "\0";
 
-  tsdbGetTxnFname(pTfs, vid, TSDB_TXN_TEMP_FILE, tfname);
-  tsdbGetTxnFname(pTfs, vid, TSDB_TXN_CURR_FILE, cfname);
+  tsdbGetTxnFname(pRepo, TSDB_TXN_TEMP_FILE, tfname);
+  tsdbGetTxnFname(pRepo, TSDB_TXN_CURR_FILE, cfname);
 
   int fd = open(tfname, O_WRONLY | O_CREAT | O_TRUNC | O_BINARY, 0755);
   if (fd < 0) {
@@ -645,8 +645,9 @@ static int tsdbComparFidFSet(const void *arg1, const void *arg2) {
   }
 }
 
-static void tsdbGetTxnFname(STfs *pTfs, int repoid, TSDB_TXN_FILE_T ftype, char fname[]) {
-  snprintf(fname, TSDB_FILENAME_LEN, "%s/vnode/vnode%d/tsdb/%s", tfsGetPrimaryPath(pTfs), repoid, tsdbTxnFname[ftype]);
+static void tsdbGetTxnFname(STsdb *pRepo, TSDB_TXN_FILE_T ftype, char fname[]) {
+  snprintf(fname, TSDB_FILENAME_LEN, "%s/vnode/vnode%d/tsdb/%s", tfsGetPrimaryPath(pRepo->pTfs), pRepo->vgId,
+           tsdbTxnFname[ftype]);
 }
 
 static int tsdbOpenFSFromCurrent(STsdb *pRepo) {
@@ -657,7 +658,7 @@ static int tsdbOpenFSFromCurrent(STsdb *pRepo) {
   char      current[TSDB_FILENAME_LEN] = "\0";
   void *    ptr;
 
-  tsdbGetTxnFname(pRepo->pTfs, REPO_ID(pRepo), TSDB_TXN_CURR_FILE, current);
+  tsdbGetTxnFname(pRepo, TSDB_TXN_CURR_FILE, current);
 
   // current file exists, try to recover
   fd = open(current, O_RDONLY | O_BINARY);
@@ -1287,7 +1288,7 @@ static int tsdbRestoreCurrent(STsdb *pRepo) {
     return -1;
   }
 
-  if (tsdbSaveFSStatus(pRepo->pTfs, pRepo->fs->cstatus, REPO_ID(pRepo)) < 0) {
+  if (tsdbSaveFSStatus(pRepo, pRepo->fs->cstatus) < 0) {
     tsdbError("vgId:%d failed to restore corrent since %s", REPO_ID(pRepo), tstrerror(terrno));
     return -1;
   }

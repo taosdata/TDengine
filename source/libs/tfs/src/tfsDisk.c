@@ -46,7 +46,7 @@ STfsDisk *tfsFreeDisk(STfsDisk *pDisk) {
 }
 
 int32_t tfsUpdateDiskSize(STfsDisk *pDisk) {
-  if (taosGetDiskSize(pDisk->path, &pDisk->size) != 0) {
+  if (taosGetDiskSize(pDisk->path, &pDisk->size) < 0) {
     terrno = TAOS_SYSTEM_ERROR(errno);
     fError("failed to get disk:%s size, level:%d id:%d since %s", pDisk->path, pDisk->level, pDisk->id, terrstr());
     return -1;

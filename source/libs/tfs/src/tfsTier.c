@@ -82,6 +82,7 @@ void tfsUpdateTierSize(STfsTier *pTier) {
   for (int32_t id = 0; id < pTier->ndisk; id++) {
     STfsDisk *pDisk = pTier->disks[id];
     if (pDisk == NULL) continue;
+    if (tfsUpdateDiskSize(pDisk) < 0) continue;
 
     size.total += pDisk->size.total;
     size.used += pDisk->size.used;

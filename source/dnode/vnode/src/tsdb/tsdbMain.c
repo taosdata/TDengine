@@ -21,7 +21,8 @@ static void   tsdbFree(STsdb *pTsdb);
 static int    tsdbOpenImpl(STsdb *pTsdb);
 static void   tsdbCloseImpl(STsdb *pTsdb);
 
-STsdb *tsdbOpen(const char *path, int32_t vgId, const STsdbCfg *pTsdbCfg, SMemAllocatorFactory *pMAF, SMeta *pMeta, STfs *pTfs) {
+STsdb *tsdbOpen(const char *path, int32_t vgId, const STsdbCfg *pTsdbCfg, SMemAllocatorFactory *pMAF, SMeta *pMeta,
+                STfs *pTfs) {
   STsdb *pTsdb = NULL;
 
   // Set default TSDB Options
