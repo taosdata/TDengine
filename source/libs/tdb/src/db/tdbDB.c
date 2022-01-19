@@ -13,6 +13,7 @@
  * along with this program. If not, see <http://www.gnu.org/licenses/>.
  */
 
+#if 0
 #include "tdbDB.h"
 #include "tdb.h"
 
@@ -84,3 +85,4 @@ TDB_EXTERN int tdbCloseDB(TDB* dbp, uint32_t flags) {
   // TODO
   return 0;
 }
+#endif

@@ -1,5 +1,5 @@
 
-set(TDB_SUBDIRS "btree" "db" "hash" "mpool" "dmgr")
+set(TDB_SUBDIRS "db")
 foreach(TDB_SUBDIR ${TDB_SUBDIRS})
     aux_source_directory("src/${TDB_SUBDIR}" TDB_SRC)
 endforeach()
@@ -18,5 +18,5 @@ target_link_libraries(
 )
 
 if(${BUILD_TEST})
-    add_subdirectory(test)
+    # add_subdirectory(test)
 endif(${BUILD_TEST})

@@ -13,23 +13,31 @@
  * along with this program. If not, see <http://www.gnu.org/licenses/>.
  */
 
-#ifndef _TD_TDB_HEAP_H_
-#define _TD_TDB_HEAP_H_
+#ifndef _TD_TDB_INC_H_
+#define _TD_TDB_INC_H_
 
-#include "tdbDef.h"
+#include "os.h"
 
 #ifdef __cplusplus
 extern "C" {
 #endif
 
-typedef struct {
-  // TODO
-} TDB_HEAP;
+// pgid_t
+typedef int32_t pgid_t;
+#define TDB_IVLD_PGID ((pgid_t)-1)
 
-TDB_PUBLIC int tdbInitHeapDB(TDB *dbp);
+// framd_id_t
+typedef int32_t frame_id_t;
+
+// pgsize_t
+typedef int32_t pgsize_t;
+#define TDB_MIN_PGSIZE 512
+#define TDB_MAX_PGSIZE 16384
+#define TDB_DEFAULT_PGSIZE 4096
+#define TDB_IS_PGSIZE_VLD(s) (((s) >= TKV_MIN_PGSIZE) && (TKV_MAX_PGSIZE <= TKV_MAX_PGSIZE))
 
 #ifdef __cplusplus
 }
 #endif
 
-#endif /*_TD_TDB_HEAP_H_*/
+#endif /*_TD_TDB_INC_H_*/

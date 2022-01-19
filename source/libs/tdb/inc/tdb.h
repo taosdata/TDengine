@@ -22,29 +22,29 @@
 extern "C" {
 #endif
 
-#define TDB_EXTERN
-#define TDB_PUBLIC
-#define TDB_STATIC static
+// #define TDB_EXTERN
+// #define TDB_PUBLIC
+// #define TDB_STATIC static
 
-typedef enum { TDB_BTREE_T = 0, TDB_HASH_T = 1, TDB_HEAP_T = 2 } tdb_db_t;
+// typedef enum { TDB_BTREE_T = 0, TDB_HASH_T = 1, TDB_HEAP_T = 2 } tdb_db_t;
 
-// Forward declarations
-typedef struct TDB TDB;
-// typedef struct TDB_MPOOL  TDB_MPOOL;
-// typedef struct TDB_MPFILE TDB_MPFILE;
-// typedef struct TDB_CURSOR TDB_CURSOR;
+// // Forward declarations
+// typedef struct TDB TDB;
+// // typedef struct TDB_MPOOL  TDB_MPOOL;
+// // typedef struct TDB_MPFILE TDB_MPFILE;
+// // typedef struct TDB_CURSOR TDB_CURSOR;
 
-typedef struct {
-  void*    bdata;
-  uint32_t size;
-} TDB_KEY, TDB_VALUE;
+// typedef struct {
+//   void*    bdata;
+//   uint32_t size;
+// } TDB_KEY, TDB_VALUE;
 
-// TDB Operations
-int tdbCreateDB(TDB** dbpp, tdb_db_t type);
-int tdbOpenDB(TDB* dbp, const char* fname, const char* dbname, uint32_t flags);
-int tdbCloseDB(TDB* dbp, uint32_t flags);
-int tdbPut(TDB* dbp, const TDB_KEY* key, const TDB_VALUE* value, uint32_t flags);
-int tdbGet(TDB* dbp, const TDB_KEY* key, TDB_VALUE* value, uint32_t flags);
+// // TDB Operations
+// int tdbCreateDB(TDB** dbpp, tdb_db_t type);
+// int tdbOpenDB(TDB* dbp, const char* fname, const char* dbname, uint32_t flags);
+// int tdbCloseDB(TDB* dbp, uint32_t flags);
+// int tdbPut(TDB* dbp, const TDB_KEY* key, const TDB_VALUE* value, uint32_t flags);
+// int tdbGet(TDB* dbp, const TDB_KEY* key, TDB_VALUE* value, uint32_t flags);
 
 // // TDB_MPOOL
 // int tdbOpenMPool(TDB_MPOOL** mp);

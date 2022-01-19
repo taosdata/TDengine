@@ -18,8 +18,6 @@
 
 #include "tdb.h"
 #include "tdbBtree.h"
-#include "tdbHash.h"
-#include "tdbHeap.h"
 
 #ifdef __cplusplus
 extern "C" {
@@ -34,11 +32,11 @@ struct TDB {
   tdb_db_t type;
   char *   fname;
   char *   dbname;
-  union {
-    TDB_BTREE *btree;
-    TDB_HASH * hash;
-    TDB_HEAP * heap;
-  } dbam;  // db access method
+  // union {
+  //   TDB_BTREE *btree;
+  //   TDB_HASH * hash;
+  //   TDB_HEAP * heap;
+  // } dbam;  // db access method
 
   // TDB_FH *   fhp;  // The backup file handle
   // TDB_MPOOL *mph;  // The memory pool handle
