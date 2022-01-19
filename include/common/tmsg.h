@@ -324,6 +324,30 @@ static FORCE_INLINE void* taosDecodeSMqMsg(void* buf, SMqHbMsg* pMsg) {
   return buf;
 }
 
+typedef struct SMqSetCVgReq {
+  int32_t vgId;
+  int64_t consumerId;
+  char    topicName[TSDB_TOPIC_FNAME_LEN];
+  char    cGroup[TSDB_CONSUMER_GROUP_LEN];
+} SMqSetCVgReq;
+
+static FORCE_INLINE int32_t tEncodeSMqSetCVgReq(void** buf, const SMqSetCVgReq* pReq) {
+  int32_t tlen = 0;
+  tlen += taosEncodeFixedI32(buf, pReq->vgId);
+  tlen += taosEncodeFixedI64(buf, pReq->consumerId);
+  tlen += taosEncodeString(buf, pReq->topicName);
+  tlen += taosEncodeString(buf, pReq->cGroup);
+  return tlen;
+}
+
+static FORCE_INLINE void* tDecodeSMqSetCVgReq(void* buf, SMqSetCVgReq* pReq) {
+  buf = taosDecodeFixedI32(buf, &pReq->vgId);
+  buf = taosDecodeFixedI64(buf, &pReq->consumerId);
+  buf = taosDecodeStringTo(buf, pReq->topicName);
+  buf = taosDecodeStringTo(buf, pReq->cGroup);
+  return buf;
+}
+
 typedef struct {
   int32_t vgId;
   char*   dbName;
