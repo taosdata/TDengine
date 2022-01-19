@@ -661,6 +661,8 @@ In tests/examples/python, we provide a sample Python program read_example. py to
 
 To support the development of various types of platforms, TDengine provides an API that conforms to REST design standards, that is, RESTful API. In order to minimize the learning cost, different from other designs of database RESTful APIs, TDengine directly requests SQL statements contained in BODY through HTTP POST to operate the database, and only needs a URL. See the [video tutorial](https://www.taosdata.com/blog/2020/11/11/1965.html) for the use of RESTful connectors.
 
+Note: One difference from the native connector is that the RESTful interface is stateless, so the `USE db_name` command has no effect and all references to table names and super table names require the database name to be specified. (Starting from version 2.2.0.0, we support specifying db_name in the RESTful url, in which case if the database name prefix is not specified in the SQL statement. Since version 2.4.0.0, RESTful service is provided by taosAdapter by default, which requires that db_name must be specified in the url.)
+
 ###  HTTP request format
 
 ```
