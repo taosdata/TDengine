@@ -48,9 +48,9 @@ Schemaless use one line of string literals to represent one data record. (Users 
 measurement,tag_set field_set timestamp
 ```
 
-* measurement is used as the table name。Comma delimiter is used to separate measurement and tag_set.
+* measurement is used as the table name. Comma delimiter is used to separate measurement and tag_set.
 * tag_set represent tag data in key-value pairs. The format is: `<tag_key>=<tag_value>,<tag_key>=<tag_value>`. Comma delimiter is used to separate multiple tag key-value pairs. Space delimiter is used to separate tag_set and field_set.
-* field_set represent column data in key-value pairs. The format is similar to tag_set: `<field_key>=<field_value>,<field_key>=<field_value>`，Comma delimiter is used to separate multiple tag key-value pairs。Space delimiter is used to separate field set and timestamp.
+* field_set represent column data in key-value pairs. The format is similar to tag_set: `<field_key>=<field_value>,<field_key>=<field_value>`. Comma delimiter is used to separate multiple tag key-value pairs。Space delimiter is used to separate field set and timestamp.
 * Timestamp is the primary key of one data row.
 
 All tag values in tag_set are automatically converted and stored as NCHAR data type in TDengine and no need to be surrounded by double quote("）
