@@ -53,7 +53,7 @@ typedef struct SClientObj {
 static SCliConn* getConnFromCache(void* cache, char* ip, uint32_t port);
 static void      addConnToCache(void* cache, char* ip, uint32_t port, SCliConn* conn);
 
-static void clientAllocrReadBufferCb(uv_handle_t* handle, size_t suggested_size, uv_buf_t* buf);
+static void clientAllocBufferCb(uv_handle_t* handle, size_t suggested_size, uv_buf_t* buf);
 static void clientReadCb(uv_stream_t* cli, ssize_t nread, const uv_buf_t* buf);
 static void clientWriteCb(uv_write_t* req, int status);
 static void clientConnCb(uv_connect_t* req, int status);
@@ -65,7 +65,7 @@ static void* clientThread(void* arg);
 
 static void clientHandleReq(SCliMsg* pMsg, SCliThrdObj* pThrd);
 
-static void clientAllocrReadBufferCb(uv_handle_t* handle, size_t suggested_size, uv_buf_t* buf) {
+static void clientAllocReadBufferCb(uv_handle_t* handle, size_t suggested_size, uv_buf_t* buf) {
   // impl later
 }
 static void clientReadCb(uv_stream_t* handle, ssize_t nread, const uv_buf_t* buf) {
@@ -96,7 +96,7 @@ static void clientWriteCb(uv_write_t* req, int status) {
     return;
   }
 
-  uv_read_start((uv_stream_t*)pConn->stream, clientAllocrReadBufferCb, clientReadCb);
+  uv_read_start((uv_stream_t*)pConn->stream, clientAllocReadBufferCb, clientReadCb);
   // impl later
 }
 
@@ -121,8 +121,6 @@ static void clientConnCb(uv_connect_t* req, int status) {
   SCliMsg* pMsg = pConn->data;
   SEpSet*  pEpSet = &pMsg->context->epSet;
   SRpcMsg  rpcMsg;
-  // rpcMsg.ahandle = pMsg->context->ahandle;
-  // rpcMsg.pCont = NULL;
 
   char*    fqdn = pEpSet->fqdn[pEpSet->inUse];
   uint32_t port = pEpSet->port[pEpSet->inUse];
@@ -135,6 +133,7 @@ static void clientConnCb(uv_connect_t* req, int status) {
     return;
   }
   assert(pConn->stream == req->handle);
+  clientWrite(pConn);
 }
 
 static SCliConn* getConnFromCache(void* cache, char* ip, uint32_t port) {
