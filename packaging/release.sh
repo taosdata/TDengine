@@ -4,11 +4,11 @@
 
 set -e
 #set -x
-[ -f ./sed_power.sh] && source ./sed_power.sh
-[ -f ./sed_tq.sh ] && source ./sed_tq.sh
-[ -f ./sed_pro.sh ] && source ./sed_pro.sh
-[ -f ./sed_kh.sh ] && source ./sed_kh.sh
-[ -f ./sed_jh.sh ] && source ./sed_jh.sh
+source ./sed_power.sh
+source ./sed_tq.sh
+source ./sed_pro.sh
+source ./sed_kh.sh
+source ./sed_jh.sh
 
 # release.sh  -v [cluster | edge]
 #             -c [aarch32 | aarch64 | x64 | x86 | mips64 ...]
