@@ -13,7 +13,6 @@
  * along with this program. If not, see <http://www.gnu.org/licenses/>.
  */
 
-#define _DEFAULT_SOURCE
 #include "mndConsumer.h"
 #include "mndDb.h"
 #include "mndDnode.h"

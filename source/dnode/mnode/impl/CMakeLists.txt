@@ -7,6 +7,7 @@ target_include_directories(
 )
 target_link_libraries(
     mnode
+    PRIVATE scheduler
     PRIVATE sdb
     PRIVATE wal
     PRIVATE transport
