@@ -4660,6 +4660,8 @@ static int32_t validateSQLExprItemArithmeticExpr(SSqlCmd* pCmd, tSqlExpr* pExpr,
   const char* msg1 = "arithmetic expression composed with columns from different tables";
   const char* msg2 = "arithmetic expression composed with functions/columns of different types";
   const char* msg3 = "comparison/logical expression involving string operands is not supported";
+  const char* msg4 = "comparison/logical expression involving function result is not supported";
+
   int32_t leftHeight = 0;
   int32_t  ret = validateSQLExprItem(pCmd, pExpr->pLeft, pQueryInfo, pList, &leftType, &uidLeft, &leftHeight);
   if (ret != TSDB_CODE_SUCCESS) {
@@ -4701,6 +4703,10 @@ static int32_t validateSQLExprItemArithmeticExpr(SSqlCmd* pCmd, tSqlExpr* pExpr,
       if ((leftType == SQLEXPR_TYPE_VALUE && pExpr->pLeft->tokenId == TK_STRING) ||
           (rightType == SQLEXPR_TYPE_VALUE && pExpr->pRight->tokenId == TK_STRING)) {
         return invalidOperationMsg(tscGetErrorMsgPayload(pCmd), msg3);
+      }
+      if (leftType == SQLEXPR_TYPE_AGG || leftType == SQLEXPR_TYPE_SCALAR ||
+          rightType == SQLEXPR_TYPE_AGG || rightType == SQLEXPR_TYPE_SCALAR) {
+        return invalidOperationMsg(tscGetErrorMsgPayload(pCmd), msg4);
       }
     }
   }
