@@ -34,9 +34,11 @@
 #include "stub.h"
 #include "addr_any.h"
 
+
 namespace {
 
 extern "C" int32_t schHandleResponseMsg(SSchJob *job, SSchTask *task, int32_t msgType, char *msg, int32_t msgSize, int32_t rspCode);
+
 
 void schtInitLogFile() {
   const char    *defaultLogFileNamePrefix = "taoslog";
@@ -113,9 +115,9 @@ void schtBuildInsertDag(SQueryDag *dag) {
   dag->queryId = qId;
   dag->numOfSubplans = 2;
   dag->pSubplans = taosArrayInit(1, POINTER_BYTES);
-  SArray *inserta = taosArrayInit(dag->numOfSubplans, sizeof(SSubplan));
+  SArray *inserta = taosArrayInit(dag->numOfSubplans, POINTER_BYTES);
   
-  SSubplan insertPlan[2] = {0};
+  SSubplan *insertPlan = (SSubplan *)calloc(2, sizeof(SSubplan));
 
   insertPlan[0].id.queryId = qId;
   insertPlan[0].id.templateId = 0x0000000000000003;
@@ -131,6 +133,7 @@ void schtBuildInsertDag(SQueryDag *dag) {
   insertPlan[0].pParents = NULL;
   insertPlan[0].pNode = NULL;
   insertPlan[0].pDataSink = (SDataSink*)calloc(1, sizeof(SDataSink));
+  insertPlan[0].msgType = TDMT_VND_SUBMIT;
 
   insertPlan[1].id.queryId = qId;
   insertPlan[1].id.templateId = 0x0000000000000003;
@@ -146,10 +149,11 @@ void schtBuildInsertDag(SQueryDag *dag) {
   insertPlan[1].pParents = NULL;
   insertPlan[1].pNode = NULL;
   insertPlan[1].pDataSink = (SDataSink*)calloc(1, sizeof(SDataSink));
+  insertPlan[1].msgType = TDMT_VND_SUBMIT;
 
-
-  taosArrayPush(inserta, &insertPlan[0]);
-  taosArrayPush(inserta, &insertPlan[1]);
+  taosArrayPush(inserta, &insertPlan);
+  insertPlan += 1;
+  taosArrayPush(inserta, &insertPlan);
 
   taosArrayPush(dag->pSubplans, &inserta);  
 }
@@ -210,6 +214,24 @@ void schtSetRpcSendRequest() {
   }
 }
 
+int32_t schtAsyncSendMsgToServer(void *pTransporter, SEpSet* epSet, int64_t* pTransporterId, const SMsgSendInfo* pInfo) {
+  return 0;
+}
+
+
+void schtSetAsyncSendMsgToServer() {
+  static Stub stub;
+  stub.set(asyncSendMsgToServer, schtAsyncSendMsgToServer);
+  {
+    AddrAny any("libtransport.so");
+    std::map<std::string,void*> result;
+    any.get_global_func_addr_dynsym("^asyncSendMsgToServer$", result);
+    for (const auto& f : result) {
+      stub.set(f.second, schtAsyncSendMsgToServer);
+    }
+  }
+}
+
 
 void *schtSendRsp(void *param) {
   SSchJob *job = NULL;
@@ -230,13 +252,30 @@ void *schtSendRsp(void *param) {
 
     SShellSubmitRsp rsp = {0};
     rsp.affectedRows = 10;
-    schHandleResponseMsg(job, task, TDMT_VND_SUBMIT, (char *)&rsp, sizeof(rsp), 0);
+    schHandleResponseMsg(job, task, TDMT_VND_SUBMIT_RSP, (char *)&rsp, sizeof(rsp), 0);
     
     pIter = taosHashIterate(job->execTasks, pIter);
   }    
 
   return NULL;
 }
+
+void *schtCreateFetchRspThread(void *param) {
+  struct SSchJob* job = (struct SSchJob*)param;
+
+  sleep(1);
+
+  int32_t code = 0;
+  SRetrieveTableRsp *rsp = (SRetrieveTableRsp *)calloc(1, sizeof(SRetrieveTableRsp));
+  rsp->completed = 1;
+  rsp->numOfRows = 10;
+  code = schHandleResponseMsg(job, job->fetchTask, TDMT_VND_FETCH_RSP, (char *)rsp, sizeof(rsp), 0);
+    
+  assert(code == 0);
+}
+
+
+
 
 struct SSchJob *pInsertJob = NULL;
 }
@@ -266,6 +305,7 @@ TEST(queryTest, normalCase) {
 
   schtSetPlanToString();
   schtSetExecNode();
+  schtSetAsyncSendMsgToServer();
   
   code = scheduleAsyncExecJob(mockPointer, qnodeList, &dag, &pJob);
   ASSERT_EQ(code, 0);
@@ -276,7 +316,7 @@ TEST(queryTest, normalCase) {
     SSchTask *task = *(SSchTask **)pIter;
 
     SQueryTableRsp rsp = {0};
-    code = schHandleResponseMsg(job, task, TDMT_VND_QUERY, (char *)&rsp, sizeof(rsp), 0);
+    code = schHandleResponseMsg(job, task, TDMT_VND_QUERY_RSP, (char *)&rsp, sizeof(rsp), 0);
     
     ASSERT_EQ(code, 0);
     pIter = taosHashIterate(job->execTasks, pIter);
@@ -287,8 +327,8 @@ TEST(queryTest, normalCase) {
     SSchTask *task = *(SSchTask **)pIter;
 
     SResReadyRsp rsp = {0};
-    code = schHandleResponseMsg(job, task, TDMT_VND_RES_READY, (char *)&rsp, sizeof(rsp), 0);
-    
+    code = schHandleResponseMsg(job, task, TDMT_VND_RES_READY_RSP, (char *)&rsp, sizeof(rsp), 0);
+    printf("code:%d", code);
     ASSERT_EQ(code, 0);
     pIter = taosHashIterate(job->execTasks, pIter);
   }  
@@ -298,7 +338,7 @@ TEST(queryTest, normalCase) {
     SSchTask *task = *(SSchTask **)pIter;
 
     SQueryTableRsp rsp = {0};
-    code = schHandleResponseMsg(job, task, TDMT_VND_QUERY, (char *)&rsp, sizeof(rsp), 0);
+    code = schHandleResponseMsg(job, task, TDMT_VND_QUERY_RSP, (char *)&rsp, sizeof(rsp), 0);
     
     ASSERT_EQ(code, 0);
     pIter = taosHashIterate(job->execTasks, pIter);
@@ -309,22 +349,19 @@ TEST(queryTest, normalCase) {
     SSchTask *task = *(SSchTask **)pIter;
 
     SResReadyRsp rsp = {0};
-    code = schHandleResponseMsg(job, task, TDMT_VND_RES_READY, (char *)&rsp, sizeof(rsp), 0);
+    code = schHandleResponseMsg(job, task, TDMT_VND_RES_READY_RSP, (char *)&rsp, sizeof(rsp), 0);
     ASSERT_EQ(code, 0);
     
     pIter = taosHashIterate(job->execTasks, pIter);
   }  
 
-  SRetrieveTableRsp rsp = {0};
-  rsp.completed = 1;
-  rsp.numOfRows = 10;
-  code = schHandleResponseMsg(job, NULL, TDMT_VND_FETCH, (char *)&rsp, sizeof(rsp), 0);
-    
-  ASSERT_EQ(code, 0);
+  pthread_attr_t thattr;
+  pthread_attr_init(&thattr);
 
+  pthread_t thread1;
+  pthread_create(&(thread1), &thattr, schtCreateFetchRspThread, job);
 
-  void *data = NULL;
-  
+  void *data = NULL;  
   code = scheduleFetchRows(job, &data);
   ASSERT_EQ(code, 0);
 
@@ -340,6 +377,8 @@ TEST(queryTest, normalCase) {
   scheduleFreeJob(pJob);
 
   schtFreeQueryDag(&dag);
+
+  schedulerDestroy();
 }
 
 
@@ -369,6 +408,7 @@ TEST(insertTest, normalCase) {
   schtBuildInsertDag(&dag);
 
   schtSetPlanToString();
+  schtSetAsyncSendMsgToServer();
 
   pthread_attr_t thattr;
   pthread_attr_init(&thattr);
@@ -382,6 +422,8 @@ TEST(insertTest, normalCase) {
   ASSERT_EQ(res.numOfRows, 20);
 
   scheduleFreeJob(pInsertJob);
+
+  schedulerDestroy();  
 }
 
 TEST(multiThread, forceFree) {

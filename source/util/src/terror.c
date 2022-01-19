@@ -396,7 +396,7 @@ TAOS_DEFINE_ERROR(TSDB_CODE_WAL_FILE_CORRUPTED,           "WAL file is corrupted
 TAOS_DEFINE_ERROR(TSDB_CODE_WAL_SIZE_LIMIT,               "WAL size exceeds limit")
 
 // tfs
-TAOS_DEFINE_ERROR(TSDB_CODE_FS_OUT_OF_MEMORY,             "tfs out of memory")
+TAOS_DEFINE_ERROR(TSDB_CODE_FS_APP_ERROR,                "tfs out of memory")
 TAOS_DEFINE_ERROR(TSDB_CODE_FS_INVLD_CFG,                 "tfs invalid mount config")
 TAOS_DEFINE_ERROR(TSDB_CODE_FS_TOO_MANY_MOUNT,            "tfs too many mount")
 TAOS_DEFINE_ERROR(TSDB_CODE_FS_DUP_PRIMARY,               "tfs duplicate primary mount")

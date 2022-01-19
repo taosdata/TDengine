@@ -35,12 +35,12 @@ extern char     tsLocale[];
 extern char     tsCharset[];            // default encode string
 
 typedef struct {
-  int64_t tsize;
+  int64_t total;
   int64_t used;
   int64_t avail;
-} SysDiskSize;
+} SDiskSize;
 
-int32_t taosGetDiskSize(char *dataDir, SysDiskSize *diskSize);
+int32_t taosGetDiskSize(char *dataDir, SDiskSize *diskSize);
 int32_t taosGetCpuCores();
 void    taosGetSystemInfo();
 bool    taosReadProcIO(int64_t *rchars, int64_t *wchars);
