@@ -39,7 +39,7 @@ For the SQL INSERT Grammar, please refer to  [Taos SQL insert](https://www.taosd
 <br/> Super table and corresponding child tables created via Schemaless are identical to the ones created via SQL, so inserting data into these tables via SQL is also supported. Note that child table names are generated via Schemaless are following special rules through tags mapping. Therefore, child table names are usually not meaningful in terms of readability.
 
 **Schemaless writing protocols**
-<br/>TDengine Schemaless writing protocol is compatible with InfluxDB's Line Protocol, OpenTSDB's telnet and JSON format protocols. Users need to specify which protocol to use as parameter when writing data using Schemaless API!
+<br/>TDengine Schemaless writing protocol is compatible with InfluxDB's Line Protocol, OpenTSDB's telnet and JSON format protocols. Users need to specify which protocol to use as parameter when writing data using Schemaless API.
 
 For InfluxDB, OpenTSDB data writing protocol format, users can refer to corresponding official documentation for details. Following will give examples of introducing protocol extension from TDengine based on InfluxDB's Line Protocol, allowing users to use Schemaless with more precision.
 
