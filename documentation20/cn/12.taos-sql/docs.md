@@ -1692,7 +1692,10 @@ SELECT function_list FROM stb_name
   [GROUP BY tags]
 ```
 
-- 在聚合查询中，function_list 位置允许使用聚合和选择函数，并要求每个函数仅输出单个结果（例如：COUNT、AVG、SUM、STDDEV、LEASTSQUARES、PERCENTILE、MIN、MAX、FIRST、LAST），而不能使用具有多行输出结果的函数（例如：TOP、BOTTOM、DIFF 以及四则运算）。
+- 在聚合查询中，function_list 位置允许使用聚合和选择函数，并要求每个函数仅输出单个结果（例如：COUNT、AVG、SUM、STDDEV、LEASTSQUARES、PERCENTILE、MIN、MAX、FIRST、LAST），而不能使用具有多行输出结果的函数（例如：DIFF 以及四则运算）。
+- 此外也 LAST_ROW 查询也不能与窗口聚合同时出现。
+- 标量函数（如：CEIL/FLOOR 等）也不能使用在窗口聚合查询中。
+- 
   
 
 - WHERE 语句可以指定查询的起止时间和其他过滤条件。
@@ -1855,7 +1858,7 @@ TDengine 中的表（列）名命名规则如下：
      select jtag->'key' from (select jtag from stable) where jtag->'key'>0
      ```
 ## 转义字符说明
-- 转义字符表
+- 转义字符表 （转义符的功能从 2.4.0.4 版本开始）
 
   | 字符序列    | **代表的字符**  |
     | :--------:     |   -------    |
@@ -1866,7 +1869,7 @@ TDengine 中的表（列）名命名规则如下：
   | \t             |  tab符       |
   | `\\`             |  斜杠\        |
   | `\%`             |  % 规则见下    |
-  | `\%`             |  _ 规则见下    |
+  | `\_`             |  _ 规则见下    |
 
 - 转义字符使用规则
   1. 标识符里有转义字符（数据库名、表名、列名）
