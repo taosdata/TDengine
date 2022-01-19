@@ -38,10 +38,10 @@ const char *sdbTableName(ESdbType type) {
       return "auth";
     case SDB_ACCT:
       return "acct";
+    case SDB_SUBSCRIBE:
+      return "subscribe";
     case SDB_CONSUMER:
       return "consumer";
-    case SDB_CGROUP:
-      return "cgroup";
     case SDB_TOPIC:
       return "topic";
     case SDB_VGROUP:
