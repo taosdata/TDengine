@@ -13,39 +13,15 @@
  * along with this program. If not, see <http://www.gnu.org/licenses/>.
  */
 
-#ifndef _TD_TDB_DB_H_
-#define _TD_TDB_DB_H_
-
-#include "tdb.h"
-#include "tdbBtree.h"
-#include "tdbHash.h"
-#include "tdbHeap.h"
+#ifndef _TD_TDB_INC_H_
+#define _TD_TDB_INC_H_
 
 #ifdef __cplusplus
 extern "C" {
 #endif
 
-typedef struct {
-  int fd;
-} TDB_FH;
-
-struct TDB {
-  pgsize_t pageSize;
-  tdb_db_t type;
-  char *   fname;
-  char *   dbname;
-  union {
-    TDB_BTREE *btree;
-    TDB_HASH * hash;
-    TDB_HEAP * heap;
-  } dbam;  // db access method
-
-  // TDB_FH *   fhp;  // The backup file handle
-  // TDB_MPOOL *mph;  // The memory pool handle
-};
-
 #ifdef __cplusplus
 }
 #endif
 
-#endif /*_TD_TDB_DB_H_*/
+#endif /*_TD_TDB_INC_H_*/

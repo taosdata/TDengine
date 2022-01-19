@@ -23,11 +23,21 @@
 extern "C" {
 #endif
 
-struct TDB_MPFILE {
-  TDB_MPOOL *mp;  // memory pool used to get/put pages in this file
+// Exposed handle
+typedef struct TDB_MPFILE TDB_MPFILE;
 
-  char *fname;
-  int   fd;
+// Exposed apis
+int tdbMPFOpen(TDB_MPFILE **mpfp, const char *fname, TDB_MPOOL *mp);
+int tdbMPFClose(TDB_MPFILE *mpf);
+int tdbMPFGet(TDB_MPFILE *mpf, pgid_t pgid, void *addr);
+int tdbMPFPut(TDB_MPOOL *mpf, pgid_t pgid, void *addr);
+
+// Hidden structures
+struct TDB_MPFILE {
+  uint8_t    fuid[20];  // file unique ID
+  TDB_MPOOL *mp;        // underlying memory pool
+  char *     fname;     // file name
+  int        fd;        // fd
 };
 
 #ifdef __cplusplus
