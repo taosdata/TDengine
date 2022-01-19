@@ -16,7 +16,6 @@
 #ifndef _TD_TDB_MPFILE_H_
 #define _TD_TDB_MPFILE_H_
 
-#include "tdbDef.h"
 #include "tdb_mpool.h"
 
 #ifdef __cplusplus

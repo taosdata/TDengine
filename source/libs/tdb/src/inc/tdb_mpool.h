@@ -25,6 +25,12 @@ extern "C" {
 // Exposed handle
 typedef struct TDB_MPOOL TDB_MPOOL;
 
+#define TDB_FILE_UID_LEN 20
+typedef struct {
+  uint8_t fuid[TDB_FILE_UID_LEN];
+  pgid_t  pgid;
+} mp_pgid_t;
+
 // Exposed apis
 int tdbOpenMP(TDB_MPOOL **mpp, uint64_t cachesize, pgsize_t pgsize);
 int tdbCloseMP(TDB_MPOOL *mp);
@@ -32,15 +38,9 @@ int tdbMPFetchPage(TDB_MPOOL *mp, mp_pgid_t mpgid, void *p);
 int tdbMpUnfetchPage(TDB_MPOOL *mp, mp_pgid_t mpgid, void *p);
 
 // Hidden impls
-#define TDB_FILE_UID_LEN 20
-
-typedef struct {
-  uint8_t fuid[TDB_FILE_UID_LEN];
-  pgid_t  pgid;
-} mp_pgid_t;
 
 typedef struct MP_PAGE {
-  SRWLatch  rwLatch;
+  // SRWLatch  rwLatch;
   mp_pgid_t mpgid;
   uint8_t   dirty;
   int32_t   pinRef;
