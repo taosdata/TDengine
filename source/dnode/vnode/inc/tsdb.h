@@ -19,6 +19,7 @@
 #include "mallocator.h"
 #include "meta.h"
 #include "common.h"
+#include "tfs.h"
 
 #ifdef __cplusplus
 extern "C" {

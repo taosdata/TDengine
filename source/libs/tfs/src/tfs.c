@@ -146,7 +146,7 @@ void tfsInitFile(STfs *pTfs, STfsFile *pFile, SDiskID diskId, const char *rname)
   tstrncpy(pFile->rname, rname, TSDB_FILENAME_LEN);
 
   char tmpName[TMPNAME_LEN] = {0};
-  snprintf(tmpName, TMPNAME_LEN, "%s%s%s", DISK_DIR(pDisk), TD_DIRSEP, rname);
+  snprintf(tmpName, TMPNAME_LEN, "%s%s%s", pDisk->path, TD_DIRSEP, rname);
   tstrncpy(pFile->aname, tmpName, TSDB_FILENAME_LEN);
   pFile->pTfs = pTfs;
 }

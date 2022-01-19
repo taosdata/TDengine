@@ -21,6 +21,7 @@
 
 #include "meta.h"
 #include "tarray.h"
+#include "tfs.h"
 #include "tq.h"
 #include "tsdb.h"
 #include "wal.h"

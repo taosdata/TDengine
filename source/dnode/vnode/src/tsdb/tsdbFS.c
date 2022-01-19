@@ -97,7 +97,7 @@ static int tsdbEncodeDFileSetArray(void **buf, SArray *pArray) {
   return tlen;
 }
 
-static void *tsdbDecodeDFileSetArray(void *buf, SArray *pArray) {
+static void *tsdbDecodeDFileSetArray(STsdb*pRepo, void *buf, SArray *pArray) {
   uint64_t  nset;
   SDFileSet dset;
 
@@ -105,7 +105,7 @@ static void *tsdbDecodeDFileSetArray(void *buf, SArray *pArray) {
 
   buf = taosDecodeFixedU64(buf, &nset);
   for (size_t i = 0; i < nset; i++) {
-    buf = tsdbDecodeDFileSet(buf, &dset);
+    buf = tsdbDecodeDFileSet(pRepo, buf, &dset);
     taosArrayPush(pArray, (void *)(&dset));
   }
   return buf;
@@ -122,13 +122,13 @@ static int tsdbEncodeFSStatus(void **buf, SFSStatus *pStatus) {
   return tlen;
 }
 
-static void *tsdbDecodeFSStatus(void *buf, SFSStatus *pStatus) {
+static void *tsdbDecodeFSStatus(STsdb*pRepo, void *buf, SFSStatus *pStatus) {
   tsdbResetFSStatus(pStatus);
 
   // pStatus->pmf = &(pStatus->mf);
 
   // buf = tsdbDecodeSMFile(buf, pStatus->pmf);
-  buf = tsdbDecodeDFileSetArray(buf, pStatus->df);
+  buf = tsdbDecodeDFileSetArray(pRepo, buf, pStatus->df);
 
   return buf;
 }
@@ -725,7 +725,7 @@ static int tsdbOpenFSFromCurrent(STsdb *pRepo) {
     }
 
     ptr = buffer;
-    ptr = tsdbDecodeFSStatus(ptr, pStatus);
+    ptr = tsdbDecodeFSStatus(pRepo, ptr, pStatus);
   } else {
     tsdbResetFSStatus(pStatus);
   }
@@ -913,7 +913,7 @@ static int tsdbScanRootDir(STsdb *pRepo) {
   const STfsFile *pf;
 
   tsdbGetRootDir(REPO_ID(pRepo), rootDir);
-  STfsDir *tdir = tfsOpendir(rootDir);
+  STfsDir *tdir = tfsOpendir(pRepo->pTfs, rootDir);
   if (tdir == NULL) {
     tsdbError("vgId:%d failed to open directory %s since %s", REPO_ID(pRepo), rootDir, tstrerror(terrno));
     return -1;
@@ -947,7 +947,7 @@ static int tsdbScanDataDir(STsdb *pRepo) {
   const STfsFile *pf;
 
   tsdbGetDataDir(REPO_ID(pRepo), dataDir);
-  STfsDir *tdir = tfsOpendir(dataDir);
+  STfsDir *tdir = tfsOpendir(pRepo->pTfs, dataDir);
   if (tdir == NULL) {
     tsdbError("vgId:%d failed to open directory %s since %s", REPO_ID(pRepo), dataDir, tstrerror(terrno));
     return -1;

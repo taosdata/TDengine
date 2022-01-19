@@ -29,7 +29,7 @@
 #define TSDB_FILE_INFO(tf) (&((tf)->info))
 #define TSDB_FILE_F(tf) (&((tf)->f))
 #define TSDB_FILE_FD(tf) ((tf)->fd)
-#define TSDB_FILE_FULL_NAME(tf) TFILE_NAME(TSDB_FILE_F(tf))
+#define TSDB_FILE_FULL_NAME(tf) (TSDB_FILE_F(tf)->aname)
 #define TSDB_FILE_OPENED(tf) (TSDB_FILE_FD(tf) >= 0)
 #define TSDB_FILE_CLOSED(tf) (!TSDB_FILE_OPENED(tf))
 #define TSDB_FILE_SET_CLOSED(f) (TSDB_FILE_FD(f) = -1)
@@ -181,10 +181,10 @@ typedef struct {
   uint8_t  state;
 } SDFile;
 
-void  tsdbInitDFile(SDFile* pDFile, SDiskID did, int vid, int fid, uint32_t ver, TSDB_FILE_T ftype);
+void  tsdbInitDFile(STsdb *pRepo, SDFile* pDFile, SDiskID did, int fid, uint32_t ver, TSDB_FILE_T ftype);
 void  tsdbInitDFileEx(SDFile* pDFile, SDFile* pODFile);
 int   tsdbEncodeSDFile(void** buf, SDFile* pDFile);
-void* tsdbDecodeSDFile(void* buf, SDFile* pDFile);
+void* tsdbDecodeSDFile(STsdb *pRepo, void* buf, SDFile* pDFile);
 int   tsdbCreateDFile(SDFile* pDFile, bool updateHeader);
 int   tsdbUpdateDFileHeader(SDFile* pDFile);
 int   tsdbLoadDFileHeader(SDFile* pDFile, SDFInfo* pInfo);
@@ -311,10 +311,10 @@ typedef struct {
     }                                                                          \
   } while (0);
 
-void  tsdbInitDFileSet(SDFileSet* pSet, SDiskID did, int vid, int fid, uint32_t ver);
+void  tsdbInitDFileSet(STsdb *pRepo, SDFileSet* pSet, SDiskID did, int fid, uint32_t ver);
 void  tsdbInitDFileSetEx(SDFileSet* pSet, SDFileSet* pOSet);
 int   tsdbEncodeDFileSet(void** buf, SDFileSet* pSet);
-void* tsdbDecodeDFileSet(void* buf, SDFileSet* pSet);
+void* tsdbDecodeDFileSet(STsdb *pRepo, void* buf, SDFileSet* pSet);
 int   tsdbEncodeDFileSetEx(void** buf, SDFileSet* pSet);
 void* tsdbDecodeDFileSetEx(void* buf, SDFileSet* pSet);
 int   tsdbApplyDFileSetChange(SDFileSet* from, SDFileSet* to);
