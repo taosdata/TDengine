@@ -66,7 +66,6 @@ void schFreeTask(SSchTask* pTask) {
     taosArrayDestroy(pTask->candidateAddrs);
   }
 
-  // TODO NEED TO VERFY WITH ASYNC_SEND MEMORY FREE
   tfree(pTask->msg); 
 
   if (pTask->children) {
@@ -97,7 +96,7 @@ int32_t schValidateTaskReceivedMsgType(SSchJob *pJob, SSchTask *pTask, int32_t m
         SCH_TASK_ELOG("rsp msg type mis-match, last sent msgType:%d, rspType:%d", lastMsgType, msgType);
         SCH_ERR_RET(TSDB_CODE_SCH_STATUS_ERROR);
       }
-      
+
       if (SCH_GET_TASK_STATUS(pTask) != JOB_TASK_STATUS_EXECUTING && SCH_GET_TASK_STATUS(pTask) != JOB_TASK_STATUS_PARTIAL_SUCCEED) {
         SCH_TASK_ELOG("rsp msg conflicted with task status, status:%d, rspType:%d", SCH_GET_TASK_STATUS(pTask), msgType);
         SCH_ERR_RET(TSDB_CODE_SCH_STATUS_ERROR);
@@ -868,8 +867,18 @@ int32_t schHandleResponseMsg(SSchJob *pJob, SSchTask *pTask, int32_t msgType, ch
           SCH_ERR_RET(schProcessOnTaskFailure(pJob, pTask, rspCode));
         }
 
+        if (pJob->res) {
+          SCH_TASK_ELOG("got fetch rsp while res already exists, res:%p", pJob->res);
+          tfree(rsp);
+          SCH_ERR_RET(TSDB_CODE_SCH_STATUS_ERROR);
+        }
+
         atomic_store_ptr(&pJob->res, rsp);
         atomic_store_32(&pJob->resNumOfRows, rsp->numOfRows);
+
+        if (rsp->completed) {
+          SCH_SET_TASK_STATUS(pTask, JOB_TASK_STATUS_SUCCEED);
+        }
         
         SCH_ERR_JRET(schProcessOnDataFetched(pJob));
         
@@ -1067,7 +1076,13 @@ int32_t schBuildAndSendMsg(SSchJob *pJob, SSchTask *pTask, SQueryNodeAddr *addr,
     case TDMT_VND_CREATE_TABLE:
     case TDMT_VND_SUBMIT: {
       msgSize = pTask->msgLen;
-      msg = pTask->msg;
+      msg = calloc(1, msgSize);
+      if (NULL == msg) {
+        SCH_TASK_ELOG("calloc %d failed", msgSize);
+        SCH_ERR_RET(TSDB_CODE_QRY_OUT_OF_MEMORY);
+      }
+
+      memcpy(msg, pTask->msg, msgSize);
       break;
     }
 
@@ -1549,29 +1564,24 @@ int32_t scheduleFetchRows(SSchJob *pJob, void** pData) {
   int8_t status = SCH_GET_JOB_STATUS(pJob);
   if (status == JOB_TASK_STATUS_DROPPING) {
     SCH_JOB_ELOG("job is dropping, status:%d", status);
-    atomic_sub_fetch_32(&pJob->ref, 1);
-    SCH_ERR_RET(TSDB_CODE_SCH_STATUS_ERROR);
+    SCH_ERR_JRET(TSDB_CODE_SCH_STATUS_ERROR);
   }
 
   if (!SCH_JOB_NEED_FETCH(&pJob->attr)) {
     SCH_JOB_ELOG("no need to fetch data, status:%d", SCH_GET_JOB_STATUS(pJob));
-    atomic_sub_fetch_32(&pJob->ref, 1);
-    SCH_ERR_RET(TSDB_CODE_QRY_APP_ERROR);
+    SCH_ERR_JRET(TSDB_CODE_QRY_APP_ERROR);
   }
 
   if (atomic_val_compare_exchange_8(&pJob->userFetch, 0, 1) != 0) {
     SCH_JOB_ELOG("prior fetching not finished, userFetch:%d", atomic_load_8(&pJob->userFetch));
-    atomic_sub_fetch_32(&pJob->ref, 1);
-    SCH_ERR_RET(TSDB_CODE_QRY_APP_ERROR);
+    SCH_ERR_JRET(TSDB_CODE_QRY_APP_ERROR);
   }
 
   if (JOB_TASK_STATUS_FAILED == status || JOB_TASK_STATUS_DROPPING == status) {
-    *pData = atomic_load_ptr(&pJob->res);
-    atomic_store_ptr(&pJob->res, NULL);
+    SCH_JOB_ELOG("job failed or dropping, status:%d", status);
     SCH_ERR_JRET(atomic_load_32(&pJob->errCode));
   } else if (status == JOB_TASK_STATUS_SUCCEED) {
-    *pData = atomic_load_ptr(&pJob->res);
-    atomic_store_ptr(&pJob->res, NULL);
+    SCH_JOB_ELOG("job already succeed, status:%d", status);
     goto _return;
   } else if (status == JOB_TASK_STATUS_PARTIAL_SUCCEED) {
     SCH_ERR_JRET(schFetchFromRemote(pJob));
@@ -1582,13 +1592,15 @@ int32_t scheduleFetchRows(SSchJob *pJob, void** pData) {
   status = SCH_GET_JOB_STATUS(pJob);
 
   if (JOB_TASK_STATUS_FAILED == status || JOB_TASK_STATUS_DROPPING == status) {
-    code = atomic_load_32(&pJob->errCode);
-    SCH_ERR_JRET(code);
+    SCH_JOB_ELOG("job failed or dropping, status:%d", status);
+    SCH_ERR_JRET(atomic_load_32(&pJob->errCode));
   }
   
   if (pJob->res && ((SRetrieveTableRsp *)pJob->res)->completed) {
     SCH_ERR_JRET(schCheckAndUpdateJobStatus(pJob, JOB_TASK_STATUS_SUCCEED));
   }
+
+_return:
 
   while (true) {
     *pData = atomic_load_ptr(&pJob->res);
@@ -1600,9 +1612,18 @@ int32_t scheduleFetchRows(SSchJob *pJob, void** pData) {
     break;
   }
 
-_return:
+  if (NULL == *pData) {
+    SRetrieveTableRsp *rsp = (SRetrieveTableRsp *)calloc(1, sizeof(SRetrieveTableRsp));
+    if (rsp) {
+      rsp->completed = 1;
+    }
+
+    *pData = rsp;
+  }
 
   atomic_val_compare_exchange_8(&pJob->userFetch, 1, 0);
+
+  SCH_JOB_DLOG("fetch done, code:%x", code);
 
   atomic_sub_fetch_32(&pJob->ref, 1);
 
@@ -1683,6 +1704,7 @@ void scheduleFreeJob(void *job) {
   taosHashCleanup(pJob->succTasks);
   
   taosArrayDestroy(pJob->levels);
+  taosArrayDestroy(pJob->nodeList);
 
   tfree(pJob->res);
   

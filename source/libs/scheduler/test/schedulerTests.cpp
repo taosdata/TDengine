@@ -49,7 +49,7 @@ uint64_t schtQueryId = 1;
 
 bool schtTestStop = false;
 bool schtTestDeadLoop = false;
-int32_t schtTestMTRunSec = 60;
+int32_t schtTestMTRunSec = 10;
 int32_t schtTestPrintNum = 1000;
 int32_t schtStartFetch = 0;
 
@@ -187,8 +187,6 @@ void schtRpcSendRequest(void *shandle, const SEpSet *pEpSet, SRpcMsg *pMsg, int6
 
 }
 
-
-
 void schtSetPlanToString() {
   static Stub stub;
   stub.set(qSubPlanToString, schtPlanToString);
@@ -228,7 +226,12 @@ void schtSetRpcSendRequest() {
   }
 }
 
-int32_t schtAsyncSendMsgToServer(void *pTransporter, SEpSet* epSet, int64_t* pTransporterId, const SMsgSendInfo* pInfo) {
+int32_t schtAsyncSendMsgToServer(void *pTransporter, SEpSet* epSet, int64_t* pTransporterId, SMsgSendInfo* pInfo) {
+  if (pInfo) {
+    tfree(pInfo->param);
+    tfree(pInfo->msgInfo.pData);
+    free(pInfo);
+  }
   return 0;
 }
 
@@ -284,7 +287,7 @@ void *schtCreateFetchRspThread(void *param) {
   rsp->completed = 1;
   rsp->numOfRows = 10;
  
-  code = schHandleResponseMsg(job, job->fetchTask, TDMT_VND_FETCH_RSP, (char *)rsp, sizeof(rsp), 0);
+  code = schHandleResponseMsg(job, job->fetchTask, TDMT_VND_FETCH_RSP, (char *)rsp, sizeof(*rsp), 0);
     
   assert(code == 0);
 }
@@ -344,12 +347,6 @@ void* schtRunJobThread(void *aa) {
 
   schtInitLogFile();
 
-  SArray *qnodeList = taosArrayInit(1, sizeof(SEpAddr));
-
-  SEpAddr qnodeAddr = {0};
-  strcpy(qnodeAddr.fqdn, "qnode0.ep");
-  qnodeAddr.port = 6031;
-  taosArrayPush(qnodeList, &qnodeAddr);
   
   int32_t code = schedulerInit(NULL);
   assert(code == 0);
@@ -367,6 +364,13 @@ void* schtRunJobThread(void *aa) {
 
   while (!schtTestStop) {
     schtBuildQueryDag(&dag);
+
+    SArray *qnodeList = taosArrayInit(1, sizeof(SEpAddr));
+
+    SEpAddr qnodeAddr = {0};
+    strcpy(qnodeAddr.fqdn, "qnode0.ep");
+    qnodeAddr.port = 6031;
+    taosArrayPush(qnodeList, &qnodeAddr);
 
     code = scheduleAsyncExecJob(mockPointer, qnodeList, &dag, &job);
     assert(code == 0);
@@ -475,8 +479,6 @@ void* schtRunJobThread(void *aa) {
     code = scheduleFetchRows(pQueryJob, &data);
     assert(code == 0 || code);
     
-    assert(data == (void*)NULL);
-
     schtFreeQueryJob(0);
 
     taosHashCleanup(execTasks);
@@ -496,7 +498,7 @@ void* schtRunJobThread(void *aa) {
 
 void* schtFreeJobThread(void *aa) {
   while (!schtTestStop) {
-    usleep(rand() % 2000);
+    usleep(rand() % 100);
     schtFreeQueryJob(1);
   }
 }
@@ -592,11 +594,12 @@ TEST(queryTest, normalCase) {
   SRetrieveTableRsp *pRsp = (SRetrieveTableRsp *)data;
   ASSERT_EQ(pRsp->completed, 1);
   ASSERT_EQ(pRsp->numOfRows, 10);
+  tfree(data);
 
   data = NULL;
   code = scheduleFetchRows(job, &data);
   ASSERT_EQ(code, 0);
-  ASSERT_EQ(data, (void*)NULL);
+  ASSERT_TRUE(data);
 
   scheduleFreeJob(pJob);
 
@@ -604,7 +607,6 @@ TEST(queryTest, normalCase) {
 
   schedulerDestroy();
 }
-
 
 
 
@@ -671,7 +673,6 @@ TEST(multiThread, forceFree) {
   schtTestStop = true;
   sleep(3);
 }
-
 
 int main(int argc, char** argv) {
   srand(time(NULL));
