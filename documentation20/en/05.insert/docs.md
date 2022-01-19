@@ -94,23 +94,23 @@ After MD5 value "md5_val" calculated using the above string, prefix "t_" is adde
 **Timestamp precisions**
 <br/>Following protocols are supported in Schemaless:
 
-| **ID** | **Value**         | **Description** |
-| ---- | ------------------- | ------------ |
-| 1    | SML_LINE_PROTOCOL           |    InfluxDB Line Protocol       |
-| 2    | SML_TELNET_PROTOCOL         |  OpenTSDB telnet Protocol       |
-| 3    | SML_JSON_PROTOCOL           |  OpenTSDB JSON format Protocol  |
+| **ID** |         **Value**          |         **Description**         |
+| ---- | ---------------------------- | ------------------------------- |
+| 1    | SML_LINE_PROTOCOL            |    InfluxDB Line Protocol       |
+| 2    | SML_TELNET_PROTOCOL          |  OpenTSDB telnet Protocol       |
+| 3    | SML_JSON_PROTOCOL            |  OpenTSDB JSON format Protocol  |
 
 <br/>When SML_LINE_PROTOCOL used，users need to indicate timestamp precision through API。Available timestamp resolutions are：<br/>
 
-| **ID** | **Precision Definition **   | **Meaning** |
-| ---- | ----------------------------- | --------- |
-| 1    | TSDB_SML_TIMESTAMP_NOT_CONFIGURED     |   undefined    |
-| 2    | TSDB_SML_TIMESTAMP_HOURS              |   hour         |
-| 3    | TSDB_SML_TIMESTAMP_MINUTES            |   minute       |
-| 4    | TSDB_SML_TIMESTAMP_SECONDS            |   second       |
-| 5    | TSDB_SML_TIMESTAMP_MILLI_SECONDS      |   millisecond  |
-| 6    | TSDB_SML_TIMESTAMP_MICRO_SECONDS      |   microsecon   |
-| 7    | TSDB_SML_TIMESTAMP_NANO_SECONDS       |   nanosecond   |
+| **ID** |       **Precision Definition **       |   **Meaning**  |
+| ------ | ------------------------------------- | -------------- |
+| 1      | TSDB_SML_TIMESTAMP_NOT_CONFIGURED     |   undefined    |
+| 2      | TSDB_SML_TIMESTAMP_HOURS              |   hour         |
+| 3      | TSDB_SML_TIMESTAMP_MINUTES            |   minute       |
+| 4      | TSDB_SML_TIMESTAMP_SECONDS            |   second       |
+| 5      | TSDB_SML_TIMESTAMP_MILLI_SECONDS      |   millisecond  |
+| 6      | TSDB_SML_TIMESTAMP_MICRO_SECONDS      |   microsecon   |
+| 7      | TSDB_SML_TIMESTAMP_NANO_SECONDS       |   nanosecond   |
 
 When SML_TELNET_PROTOCOL or SML_JSON_PROTOCOL used，timestamp precision is determined by how many digits used in timestamp（following OpenTSDB convention），precision from user input will be ignored。
 
