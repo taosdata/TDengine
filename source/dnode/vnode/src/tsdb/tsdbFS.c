@@ -931,8 +931,8 @@ static int tsdbScanRootDir(STsdb *pRepo) {
     //   continue;
     // }
 
-    (void)tfsremove(pf);
-    tsdbDebug("vgId:%d invalid file %s is removed", REPO_ID(pRepo), TFILE_NAME(pf));
+    (void)tfsRemoveFile(pf);
+    tsdbDebug("vgId:%d invalid file %s is removed", REPO_ID(pRepo), pf->aname);
   }
 
   tfsClosedir(tdir);
@@ -957,8 +957,8 @@ static int tsdbScanDataDir(STsdb *pRepo) {
     tfsBasename(pf, bname);
 
     if (!tsdbIsTFileInFS(pfs, pf)) {
-      (void)tfsremove(pf);
-      tsdbDebug("vgId:%d invalid file %s is removed", REPO_ID(pRepo), TFILE_NAME(pf));
+      (void)tfsRemoveFile(pf);
+      tsdbDebug("vgId:%d invalid file %s is removed", REPO_ID(pRepo), pf->aname);
     }
   }
 
@@ -1016,7 +1016,7 @@ static bool tsdbIsTFileInFS(STsdbFS *pfs, const STfsFile *pf) {
 
 //     if (strcmp(bname, tsdbTxnFname[TSDB_TXN_TEMP_FILE]) == 0) {
 //       // Skip current.t file
-//       tsdbInfo("vgId:%d file %s exists, remove it", REPO_ID(pRepo), TFILE_NAME(pf));
+//       tsdbInfo("vgId:%d file %s exists, remove it", REPO_ID(pRepo), pf->aname);
 //       (void)tfsremove(pf);
 //       continue;
 //     }
@@ -1026,7 +1026,7 @@ static bool tsdbIsTFileInFS(STsdbFS *pfs, const STfsFile *pf) {
 //       // Match
 //       if (pfs->cstatus->pmf != NULL) {
 //         tsdbError("vgId:%d failed to restore meta since two file exists, file1 %s and file2 %s", REPO_ID(pRepo),
-//                   TSDB_FILE_FULL_NAME(pfs->cstatus->pmf), TFILE_NAME(pf));
+//                   TSDB_FILE_FULL_NAME(pfs->cstatus->pmf), pf->aname);
 //         terrno = TSDB_CODE_TDB_FILE_CORRUPTED;
 //         tfsClosedir(tdir);
 //         regfree(&regex);
@@ -1081,7 +1081,7 @@ static bool tsdbIsTFileInFS(STsdbFS *pfs, const STfsFile *pf) {
 //       }
 //     } else if (code == REG_NOMATCH) {
 //       // Not match
-//       tsdbInfo("vgId:%d invalid file %s exists, remove it", REPO_ID(pRepo), TFILE_NAME(pf));
+//       tsdbInfo("vgId:%d invalid file %s exists, remove it", REPO_ID(pRepo), pf->aname);
 //       tfsremove(pf);
 //       continue;
 //     } else {
@@ -1129,7 +1129,7 @@ static int tsdbRestoreDFileSet(STsdb *pRepo) {
     return -1;
   }
 
-  tdir = tfsOpendir(dataDir);
+  tdir = tfsOpendir(pRepo->pTfs, dataDir);
   if (tdir == NULL) {
     tsdbError("vgId:%d failed to restore DFileSet while open directory %s since %s", REPO_ID(pRepo), dataDir,
               tstrerror(terrno));
@@ -1152,8 +1152,8 @@ static int tsdbRestoreDFileSet(STsdb *pRepo) {
       }
     } else if (code == REG_NOMATCH) {
       // Not match
-      tsdbInfo("vgId:%d invalid file %s exists, remove it", REPO_ID(pRepo), TFILE_NAME(pf));
-      (void)tfsremove(pf);
+      tsdbInfo("vgId:%d invalid file %s exists, remove it", REPO_ID(pRepo), pf->aname);
+      (void)tfsRemoveFile(pf);
       continue;
     } else {
       // Has other error

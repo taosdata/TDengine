@@ -33,8 +33,11 @@
 #define TSDB_FILE_OPENED(tf) (TSDB_FILE_FD(tf) >= 0)
 #define TSDB_FILE_CLOSED(tf) (!TSDB_FILE_OPENED(tf))
 #define TSDB_FILE_SET_CLOSED(f) (TSDB_FILE_FD(f) = -1)
-#define TSDB_FILE_LEVEL(tf) TFILE_LEVEL(TSDB_FILE_F(tf))
-#define TSDB_FILE_ID(tf) TFILE_ID(TSDB_FILE_F(tf))
+#define TSDB_FILE_LEVEL(tf) (TSDB_FILE_F(tf)->did.level)
+#define TSDB_FILE_ID(tf) (TSDB_FILE_F(tf)->did.id)
+#define TSDB_FILE_DID(tf) (TSDB_FILE_F(tf)->did)
+#define TSDB_FILE_REL_NAME(tf) (TSDB_FILE_F(tf)->rname)
+#define TSDB_FILE_ABS_NAME(tf) (TSDB_FILE_F(tf)->aname)
 #define TSDB_FILE_FSYNC(tf) taosFsyncFile(TSDB_FILE_FD(tf))
 #define TSDB_FILE_STATE(tf) ((tf)->state)
 #define TSDB_FILE_SET_STATE(tf, s) ((tf)->state = (s))
@@ -185,7 +188,7 @@ void  tsdbInitDFile(STsdb *pRepo, SDFile* pDFile, SDiskID did, int fid, uint32_t
 void  tsdbInitDFileEx(SDFile* pDFile, SDFile* pODFile);
 int   tsdbEncodeSDFile(void** buf, SDFile* pDFile);
 void* tsdbDecodeSDFile(STsdb *pRepo, void* buf, SDFile* pDFile);
-int   tsdbCreateDFile(SDFile* pDFile, bool updateHeader);
+int   tsdbCreateDFile(STsdb *pRepo, SDFile* pDFile, bool updateHeader);
 int   tsdbUpdateDFileHeader(SDFile* pDFile);
 int   tsdbLoadDFileHeader(SDFile* pDFile, SDFInfo* pInfo);
 int   tsdbParseDFilename(const char* fname, int* vid, int* fid, TSDB_FILE_T* ftype, uint32_t* version);
@@ -263,7 +266,7 @@ static FORCE_INLINE int tsdbAppendDFile(SDFile* pDFile, void* buf, int64_t nbyte
   return (int)nbyte;
 }
 
-static FORCE_INLINE int tsdbRemoveDFile(SDFile* pDFile) { return tfsremove(TSDB_FILE_F(pDFile)); }
+static FORCE_INLINE int tsdbRemoveDFile(SDFile* pDFile) { return tfsRemoveFile(TSDB_FILE_F(pDFile)); }
 
 static FORCE_INLINE int64_t tsdbReadDFile(SDFile* pDFile, void* buf, int64_t nbyte) {
   ASSERT(TSDB_FILE_OPENED(pDFile));
@@ -278,7 +281,7 @@ static FORCE_INLINE int64_t tsdbReadDFile(SDFile* pDFile, void* buf, int64_t nby
 }
 
 static FORCE_INLINE int tsdbCopyDFile(SDFile* pSrc, SDFile* pDest) {
-  if (tfscopy(TSDB_FILE_F(pSrc), TSDB_FILE_F(pDest)) < 0) {
+  if (tfsCopyFile(TSDB_FILE_F(pSrc), TSDB_FILE_F(pDest)) < 0) {
     terrno = TAOS_SYSTEM_ERROR(errno);
     return -1;
   }
@@ -318,7 +321,7 @@ void* tsdbDecodeDFileSet(STsdb *pRepo, void* buf, SDFileSet* pSet);
 int   tsdbEncodeDFileSetEx(void** buf, SDFileSet* pSet);
 void* tsdbDecodeDFileSetEx(void* buf, SDFileSet* pSet);
 int   tsdbApplyDFileSetChange(SDFileSet* from, SDFileSet* to);
-int   tsdbCreateDFileSet(SDFileSet* pSet, bool updateHeader);
+int   tsdbCreateDFileSet(STsdb *pRepo, SDFileSet* pSet, bool updateHeader);
 int   tsdbUpdateDFileSetHeader(SDFileSet* pSet);
 int   tsdbScanAndTryFixDFileSet(STsdb* pRepo, SDFileSet* pSet);
 

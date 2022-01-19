@@ -198,6 +198,14 @@ void tfsDirname(const STfsFile *pFile, char *dest) {
   tstrncpy(dest, dirname(tname), TSDB_FILENAME_LEN);
 }
 
+int32_t tfsRemoveFile(const STfsFile *pFile) {
+  return remove(pFile->aname);
+}
+
+int32_t tfsCopyFile(const STfsFile *pFile1, const STfsFile *pFile2) {
+  return taosCopyFile(pFile1->aname, pFile2->aname);
+}
+
 int32_t tfsMkdirAt(STfs *pTfs, const char *rname, SDiskID diskId) {
   STfsDisk *pDisk = TFS_DISK_AT(pTfs, diskId);
   char      aname[TMPNAME_LEN];
@@ -281,8 +289,8 @@ int32_t tfsRename(STfs *pTfs, char *orname, char *nrname) {
     STfsTier *pTier = TFS_TIER_AT(pTfs, level);
     for (int32_t id = 0; id < pTier->ndisk; id++) {
       STfsDisk *pDisk = pTier->disks[id];
-      snprintf(oaname, TMPNAME_LEN, "%s%s%s", DISK_DIR(pDisk), TD_DIRSEP, orname);
-      snprintf(naname, TMPNAME_LEN, "%s%s%s", DISK_DIR(pDisk), TD_DIRSEP, nrname);
+      snprintf(oaname, TMPNAME_LEN, "%s%s%s", pDisk->path, TD_DIRSEP, orname);
+      snprintf(naname, TMPNAME_LEN, "%s%s%s", pDisk->path, TD_DIRSEP, nrname);
       if (taosRenameFile(oaname, naname) != 0) {
         return -1;
       }

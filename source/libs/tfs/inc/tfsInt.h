@@ -88,26 +88,14 @@ void      tfsPosNextId(STfsTier *pTier);
 #define tfsLockTier(pTier) pthread_spin_lock(&(pTier)->lock)
 #define tfsUnLockTier(pTier) pthread_spin_unlock(&(pTier)->lock)
 
-#define TMPNAME_LEN (TSDB_FILENAME_LEN * 2 + 32)
-
 #define tfsLock(pTfs) pthread_spin_lock(&(pTfs)->lock)
 #define tfsUnLock(pTfs) pthread_spin_unlock(&(pTfs)->lock)
 
-#define TFS_TIER_AT(pTfs, level) (&pTfs->tiers[level])
-#define TFS_DISK_AT(pTfs, did) (pTfs->tiers[(did).level].disks[(did).id])
-#define TFS_PRIMARY_DISK(pTfs) (pTfs->tiers[0].disks[0])
+#define TFS_TIER_AT(pTfs, level) (&(pTfs)->tiers[level])
+#define TFS_DISK_AT(pTfs, did) ((pTfs)->tiers[(did).level].disks[(did).id])
+#define TFS_PRIMARY_DISK(pTfs) ((pTfs)->tiers[0].disks[0])
 
-#define TFS_IS_VALID_LEVEL(level) (((level) >= 0) && ((level) < TFS_NLEVEL()))
-#define TFS_IS_VALID_ID(level, id) (((id) >= 0) && ((id) < TIER_NDISKS(TFS_TIER_AT(level))))
-#define TFS_IS_VALID_DISK(level, id) (TFS_IS_VALID_LEVEL(level) && TFS_IS_VALID_ID(level, id))
-
-#define TIER_LEVEL(pt) ((pt)->level)
-#define TIER_NDISKS(pt) ((pt)->ndisk)
-#define TIER_SIZE(pt) ((pt)->tmeta.size)
-#define TIER_FREE_SIZE(pt) ((pt)->tmeta.free)
-
-#define DISK_AT_TIER(pt, id) ((pt)->disks[id])
-#define DISK_DIR(pd) ((pd)->path)
+#define TMPNAME_LEN (TSDB_FILENAME_LEN * 2 + 32)
 
 #ifdef __cplusplus
 }

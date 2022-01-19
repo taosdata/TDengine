@@ -352,15 +352,15 @@ static void *tsdbDecodeSDFileEx(void *buf, SDFile *pDFile) {
   return buf;
 }
 
-int tsdbCreateDFile(SDFile *pDFile, bool updateHeader) {
+int tsdbCreateDFile(STsdb *pRepo, SDFile *pDFile, bool updateHeader) {
   ASSERT(pDFile->info.size == 0 && pDFile->info.magic == TSDB_FILE_INIT_MAGIC);
 
   pDFile->fd = open(TSDB_FILE_FULL_NAME(pDFile), O_WRONLY | O_CREAT | O_TRUNC | O_BINARY, 0755);
   if (pDFile->fd < 0) {
     if (errno == ENOENT) {
       // Try to create directory recursively
-      char *s = strdup(TFILE_REL_NAME(&(pDFile->f)));
-      if (tfsMkdirRecurAt(dirname(s), TSDB_FILE_LEVEL(pDFile), TSDB_FILE_ID(pDFile)) < 0) {
+      char *s = strdup(TSDB_FILE_REL_NAME(pDFile));
+      if (tfsMkdirRecurAt(pRepo->pTfs, dirname(s), TSDB_FILE_DID(pDFile)) < 0) {
         tfree(s);
         return -1;
       }
@@ -565,7 +565,7 @@ void tsdbInitDFileSet(STsdb *pRepo, SDFileSet *pSet, SDiskID did, int fid, uint3
 
   for (TSDB_FILE_T ftype = 0; ftype < TSDB_FILE_MAX; ftype++) {
     SDFile *pDFile = TSDB_DFILE_IN_SET(pSet, ftype);
-    tsdbInitDFile(pRepo->pTfs, pDFile, did, fid, ver, ftype);
+    tsdbInitDFile(pRepo, pDFile, did, fid, ver, ftype);
   }
 }
 
@@ -594,7 +594,7 @@ void *tsdbDecodeDFileSet(STsdb *pRepo, void *buf, SDFileSet *pSet) {
   pSet->state = 0;
   pSet->fid = fid;
   for (TSDB_FILE_T ftype = 0; ftype < TSDB_FILE_MAX; ftype++) {
-    buf = tsdbDecodeSDFile(pRepo->pTfs, buf, TSDB_DFILE_IN_SET(pSet, ftype));
+    buf = tsdbDecodeSDFile(pRepo, buf, TSDB_DFILE_IN_SET(pSet, ftype));
   }
   return buf;
 }
@@ -633,9 +633,9 @@ int tsdbApplyDFileSetChange(SDFileSet *from, SDFileSet *to) {
   return 0;
 }
 
-int tsdbCreateDFileSet(SDFileSet *pSet, bool updateHeader) {
+int tsdbCreateDFileSet(STsdb *pRepo, SDFileSet *pSet, bool updateHeader) {
   for (TSDB_FILE_T ftype = 0; ftype < TSDB_FILE_MAX; ftype++) {
-    if (tsdbCreateDFile(TSDB_DFILE_IN_SET(pSet, ftype), updateHeader) < 0) {
+    if (tsdbCreateDFile(pRepo, TSDB_DFILE_IN_SET(pSet, ftype), updateHeader) < 0) {
       tsdbCloseDFileSet(pSet);
       tsdbRemoveDFileSet(pSet);
       return -1;
