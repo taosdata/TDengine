@@ -16,9 +16,18 @@
 #define _DEFAULT_SOURCE
 #include "mndAuth.h"
 
-int32_t mndInitAuth(SMnode *pMnode) { return 0; }
-void    mndCleanupAuth(SMnode *pMnode) {}
+static int32_t mndProcessAuthReq(SMnodeMsg *pReq);
 
-int32_t mndRetriveAuth(SMnode *pMnode, char *user, char *spi, char *encrypt, char *secret, char *ckey) {
+int32_t mndInitAuth(SMnode *pMnode) {
+  mndSetMsgHandle(pMnode, TDMT_MND_AUTH, mndProcessAuthReq);
+  return 0;
+}
+
+void mndCleanupAuth(SMnode *pMnode) {}
+
+int32_t mndRetriveAuth(SMnode *pMnode, char *user, char *spi, char *encrypt, char *secret, char *ckey) { return 0; }
+
+static int32_t mndProcessAuthReq(SMnodeMsg *pReq) {
+  mDebug("user:%s, auth req is processed", pReq->user);
   return 0;
 }
