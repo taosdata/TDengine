@@ -1692,7 +1692,10 @@ SELECT function_list FROM stb_name
   [GROUP BY tags]
 ```
 
-- 在聚合查询中，function_list 位置允许使用聚合和选择函数，并要求每个函数仅输出单个结果（例如：COUNT、AVG、SUM、STDDEV、LEASTSQUARES、PERCENTILE、MIN、MAX、FIRST、LAST），而不能使用具有多行输出结果的函数（例如：TOP、BOTTOM、DIFF 以及四则运算）。
+- 在聚合查询中，function_list 位置允许使用聚合和选择函数，并要求每个函数仅输出单个结果（例如：COUNT、AVG、SUM、STDDEV、LEASTSQUARES、PERCENTILE、MIN、MAX、FIRST、LAST），而不能使用具有多行输出结果的函数（例如：DIFF 以及四则运算）。
+- 此外也 LAST_ROW 查询也不能与窗口聚合同时出现。
+- 标量函数（如：CEIL/FLOOR 等）也不能使用在窗口聚合查询中。
+- 
   
 
 - WHERE 语句可以指定查询的起止时间和其他过滤条件。
