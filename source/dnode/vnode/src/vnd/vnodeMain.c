@@ -75,6 +75,7 @@ static SVnode *vnodeNew(const char *path, const SVnodeCfg *pVnodeCfg) {
 
   pVnode->vgId = pVnodeCfg->vgId;
   pVnode->pDnode = pVnodeCfg->pDnode;
+  pVnode->pTfs = pVnodeCfg->pTfs;
   pVnode->path = strdup(path);
   vnodeOptionsCopy(&(pVnode->config), pVnodeCfg);
 
@@ -109,7 +110,7 @@ static int vnodeOpenImpl(SVnode *pVnode) {
 
   // Open tsdb
   sprintf(dir, "%s/tsdb", pVnode->path);
-  pVnode->pTsdb = tsdbOpen(dir, pVnode->vgId, &(pVnode->config.tsdbCfg), vBufPoolGetMAF(pVnode), pVnode->pMeta);
+  pVnode->pTsdb = tsdbOpen(dir, pVnode->vgId, &(pVnode->config.tsdbCfg), vBufPoolGetMAF(pVnode), pVnode->pMeta, pVnode->pTfs);
   if (pVnode->pTsdb == NULL) {
     // TODO: handle error
     return -1;

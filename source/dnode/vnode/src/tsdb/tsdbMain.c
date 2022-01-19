@@ -16,12 +16,12 @@
 #include "tsdbDef.h"
 
 static STsdb *tsdbNew(const char *path, int32_t vgId, const STsdbCfg *pTsdbCfg, SMemAllocatorFactory *pMAF,
-                      SMeta *pMeta);
+                      SMeta *pMeta, STfs *pTfs);
 static void   tsdbFree(STsdb *pTsdb);
 static int    tsdbOpenImpl(STsdb *pTsdb);
 static void   tsdbCloseImpl(STsdb *pTsdb);
 
-STsdb *tsdbOpen(const char *path, int32_t vgId, const STsdbCfg *pTsdbCfg, SMemAllocatorFactory *pMAF, SMeta *pMeta) {
+STsdb *tsdbOpen(const char *path, int32_t vgId, const STsdbCfg *pTsdbCfg, SMemAllocatorFactory *pMAF, SMeta *pMeta, STfs *pTfs) {
   STsdb *pTsdb = NULL;
 
   // Set default TSDB Options
@@ -36,7 +36,7 @@ STsdb *tsdbOpen(const char *path, int32_t vgId, const STsdbCfg *pTsdbCfg, SMemAl
   }
 
   // Create the handle
-  pTsdb = tsdbNew(path, vgId, pTsdbCfg, pMAF, pMeta);
+  pTsdb = tsdbNew(path, vgId, pTsdbCfg, pMAF, pMeta, pTfs);
   if (pTsdb == NULL) {
     // TODO: handle error
     return NULL;
@@ -64,7 +64,7 @@ void tsdbRemove(const char *path) { taosRemoveDir(path); }
 
 /* ------------------------ STATIC METHODS ------------------------ */
 static STsdb *tsdbNew(const char *path, int32_t vgId, const STsdbCfg *pTsdbCfg, SMemAllocatorFactory *pMAF,
-                      SMeta *pMeta) {
+                      SMeta *pMeta, STfs *pTfs) {
   STsdb *pTsdb = NULL;
 
   pTsdb = (STsdb *)calloc(1, sizeof(STsdb));
@@ -78,6 +78,7 @@ static STsdb *tsdbNew(const char *path, int32_t vgId, const STsdbCfg *pTsdbCfg, 
   tsdbOptionsCopy(&(pTsdb->config), pTsdbCfg);
   pTsdb->pmaf = pMAF;
   pTsdb->pMeta = pMeta;
+  pTsdb->pTfs = pTfs;
 
   pTsdb->fs = tsdbNewFS(pTsdbCfg);
 
@@ -494,7 +495,7 @@ uint32_t tsdbGetFileInfo(STsdbRepo *repo, char *name, uint32_t *index, uint32_t 
     }
   } else {  // get the named file at the specified index. If not there, return 0
     fname = malloc(256);
-    sprintf(fname, "%s/vnode/vnode%d/%s", TFS_PRIMARY_PATH(), REPO_ID(pRepo), name);
+    sprintf(fname, "%s/vnode/vnode%d/%s", tfsGetPrimaryPath(pRepo->pTfs), REPO_ID(pRepo), name);
     if (access(fname, F_OK) != 0) {
       tfree(fname);
       return 0;

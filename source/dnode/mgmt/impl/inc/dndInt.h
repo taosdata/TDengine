@@ -43,6 +43,7 @@ extern "C" {
 #include "qnode.h"
 #include "snode.h"
 #include "vnode.h"
+#include "tfs.h"
 
 extern int32_t dDebugFlag;
 

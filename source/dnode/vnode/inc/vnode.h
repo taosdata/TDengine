@@ -36,7 +36,8 @@ typedef int32_t (*PutReqToVQueryQFp)(SDnode *pDnode, struct SRpcMsg *pReq);
 
 typedef struct SVnodeCfg {
   int32_t  vgId;
-  SDnode * pDnode;
+  SDnode  *pDnode;
+  STfs    *pTfs;
   uint64_t wsize;
   uint64_t ssize;
   uint64_t lsize;

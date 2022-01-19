@@ -134,6 +134,7 @@ typedef struct SDnode {
   SBnodeMgmt   bmgmt;
   SVnodesMgmt  vmgmt;
   STransMgmt   tmgmt;
+  STfs        *pTfs;
   SStartupReq  startup;
 } SDnode;
 

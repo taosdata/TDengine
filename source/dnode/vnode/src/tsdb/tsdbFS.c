@@ -23,14 +23,14 @@ static const char *tsdbTxnFname[] = {"current.t", "current"};
 
 static int  tsdbComparFidFSet(const void *arg1, const void *arg2);
 static void tsdbResetFSStatus(SFSStatus *pStatus);
-static int  tsdbSaveFSStatus(SFSStatus *pStatus, int vid);
+static int  tsdbSaveFSStatus(STfs *pTfs, SFSStatus *pStatus, int vid);
 static void tsdbApplyFSTxnOnDisk(SFSStatus *pFrom, SFSStatus *pTo);
-static void tsdbGetTxnFname(int repoid, TSDB_TXN_FILE_T ftype, char fname[]);
+static void tsdbGetTxnFname(STfs *pTfs, int repoid, TSDB_TXN_FILE_T ftype, char fname[]);
 static int  tsdbOpenFSFromCurrent(STsdb *pRepo);
 static int  tsdbScanAndTryFixFS(STsdb *pRepo);
 static int  tsdbScanRootDir(STsdb *pRepo);
 static int  tsdbScanDataDir(STsdb *pRepo);
-static bool tsdbIsTFileInFS(STsdbFS *pfs, const TFILE *pf);
+static bool tsdbIsTFileInFS(STsdbFS *pfs, const STfsFile *pf);
 static int  tsdbRestoreCurrent(STsdb *pRepo);
 static int  tsdbComparTFILE(const void *arg1, const void *arg2);
 static void tsdbScanAndTryFixDFilesHeader(STsdb *pRepo, int32_t *nExpired);
@@ -311,7 +311,7 @@ int tsdbOpenFS(STsdb *pRepo) {
 
   ASSERT(pfs != NULL);
 
-  tsdbGetTxnFname(REPO_ID(pRepo), TSDB_TXN_CURR_FILE, current);
+  tsdbGetTxnFname(pRepo->pTfs, REPO_ID(pRepo), TSDB_TXN_CURR_FILE, current);
 
   tsdbGetRtnSnap(pRepo, &pRepo->rtn);
   if (access(current, F_OK) == 0) {
@@ -375,7 +375,7 @@ int tsdbEndFSTxn(STsdb *pRepo) {
   SFSStatus *pStatus;
 
   // Write current file system snapshot
-  if (tsdbSaveFSStatus(pfs->nstatus, REPO_ID(pRepo)) < 0) {
+  if (tsdbSaveFSStatus(pRepo->pTfs, pfs->nstatus, REPO_ID(pRepo)) < 0) {
     tsdbEndFSTxnWithError(pfs);
     return -1;
   }
@@ -405,7 +405,7 @@ int tsdbEndFSTxnWithError(STsdbFS *pfs) {
 
 int tsdbUpdateDFileSet(STsdbFS *pfs, const SDFileSet *pSet) { return tsdbAddDFileSetToStatus(pfs->nstatus, pSet); }
 
-static int tsdbSaveFSStatus(SFSStatus *pStatus, int vid) {
+static int tsdbSaveFSStatus(STfs *pTfs, SFSStatus *pStatus, int vid) {
   SFSHeader fsheader;
   void *    pBuf = NULL;
   void *    ptr;
@@ -413,8 +413,8 @@ static int tsdbSaveFSStatus(SFSStatus *pStatus, int vid) {
   char      tfname[TSDB_FILENAME_LEN] = "\0";
   char      cfname[TSDB_FILENAME_LEN] = "\0";
 
-  tsdbGetTxnFname(vid, TSDB_TXN_TEMP_FILE, tfname);
-  tsdbGetTxnFname(vid, TSDB_TXN_CURR_FILE, cfname);
+  tsdbGetTxnFname(pTfs, vid, TSDB_TXN_TEMP_FILE, tfname);
+  tsdbGetTxnFname(pTfs, vid, TSDB_TXN_CURR_FILE, cfname);
 
   int fd = open(tfname, O_WRONLY | O_CREAT | O_TRUNC | O_BINARY, 0755);
   if (fd < 0) {
@@ -645,8 +645,8 @@ static int tsdbComparFidFSet(const void *arg1, const void *arg2) {
   }
 }
 
-static void tsdbGetTxnFname(int repoid, TSDB_TXN_FILE_T ftype, char fname[]) {
-  snprintf(fname, TSDB_FILENAME_LEN, "%s/vnode/vnode%d/tsdb/%s", TFS_PRIMARY_PATH(), repoid, tsdbTxnFname[ftype]);
+static void tsdbGetTxnFname(STfs *pTfs, int repoid, TSDB_TXN_FILE_T ftype, char fname[]) {
+  snprintf(fname, TSDB_FILENAME_LEN, "%s/vnode/vnode%d/tsdb/%s", tfsGetPrimaryPath(pTfs), repoid, tsdbTxnFname[ftype]);
 }
 
 static int tsdbOpenFSFromCurrent(STsdb *pRepo) {
@@ -657,7 +657,7 @@ static int tsdbOpenFSFromCurrent(STsdb *pRepo) {
   char      current[TSDB_FILENAME_LEN] = "\0";
   void *    ptr;
 
-  tsdbGetTxnFname(REPO_ID(pRepo), TSDB_TXN_CURR_FILE, current);
+  tsdbGetTxnFname(pRepo->pTfs, REPO_ID(pRepo), TSDB_TXN_CURR_FILE, current);
 
   // current file exists, try to recover
   fd = open(current, O_RDONLY | O_BINARY);
@@ -910,17 +910,17 @@ static int tsdbScanRootDir(STsdb *pRepo) {
   char         rootDir[TSDB_FILENAME_LEN];
   char         bname[TSDB_FILENAME_LEN];
   STsdbFS *    pfs = REPO_FS(pRepo);
-  const TFILE *pf;
+  const STfsFile *pf;
 
   tsdbGetRootDir(REPO_ID(pRepo), rootDir);
-  TDIR *tdir = tfsOpendir(rootDir);
+  STfsDir *tdir = tfsOpendir(rootDir);
   if (tdir == NULL) {
     tsdbError("vgId:%d failed to open directory %s since %s", REPO_ID(pRepo), rootDir, tstrerror(terrno));
     return -1;
   }
 
   while ((pf = tfsReaddir(tdir))) {
-    tfsbasename(pf, bname);
+    tfsBasename(pf, bname);
 
     if (strcmp(bname, tsdbTxnFname[TSDB_TXN_CURR_FILE]) == 0 || strcmp(bname, "data") == 0) {
       // Skip current file and data directory
@@ -944,17 +944,17 @@ static int tsdbScanDataDir(STsdb *pRepo) {
   char         dataDir[TSDB_FILENAME_LEN];
   char         bname[TSDB_FILENAME_LEN];
   STsdbFS *    pfs = REPO_FS(pRepo);
-  const TFILE *pf;
+  const STfsFile *pf;
 
   tsdbGetDataDir(REPO_ID(pRepo), dataDir);
-  TDIR *tdir = tfsOpendir(dataDir);
+  STfsDir *tdir = tfsOpendir(dataDir);
   if (tdir == NULL) {
     tsdbError("vgId:%d failed to open directory %s since %s", REPO_ID(pRepo), dataDir, tstrerror(terrno));
     return -1;
   }
 
   while ((pf = tfsReaddir(tdir))) {
-    tfsbasename(pf, bname);
+    tfsBasename(pf, bname);
 
     if (!tsdbIsTFileInFS(pfs, pf)) {
       (void)tfsremove(pf);
@@ -967,7 +967,7 @@ static int tsdbScanDataDir(STsdb *pRepo) {
   return 0;
 }
 
-static bool tsdbIsTFileInFS(STsdbFS *pfs, const TFILE *pf) {
+static bool tsdbIsTFileInFS(STsdbFS *pfs, const STfsFile *pf) {
   SFSIter fsiter;
   tsdbFSIterInit(&fsiter, pfs, TSDB_FS_ITER_FORWARD);
   SDFileSet *pSet;
@@ -987,8 +987,8 @@ static bool tsdbIsTFileInFS(STsdbFS *pfs, const TFILE *pf) {
 // static int tsdbRestoreMeta(STsdb *pRepo) {
 //   char         rootDir[TSDB_FILENAME_LEN];
 //   char         bname[TSDB_FILENAME_LEN];
-//   TDIR *       tdir = NULL;
-//   const TFILE *pf = NULL;
+//   STfsDir *       tdir = NULL;
+//   const STfsFile *pf = NULL;
 //   const char * pattern = "^meta(-ver[0-9]+)?$";
 //   regex_t      regex;
 //   STsdbFS *    pfs = REPO_FS(pRepo);
@@ -1007,7 +1007,7 @@ static bool tsdbIsTFileInFS(STsdbFS *pfs, const TFILE *pf) {
 //   }
 
 //   while ((pf = tfsReaddir(tdir))) {
-//     tfsbasename(pf, bname);
+//     tfsBasename(pf, bname);
 
 //     if (strcmp(bname, "data") == 0) {
 //       // Skip the data/ directory
@@ -1108,8 +1108,8 @@ static bool tsdbIsTFileInFS(STsdbFS *pfs, const TFILE *pf) {
 static int tsdbRestoreDFileSet(STsdb *pRepo) {
   char         dataDir[TSDB_FILENAME_LEN];
   char         bname[TSDB_FILENAME_LEN];
-  TDIR *       tdir = NULL;
-  const TFILE *pf = NULL;
+  STfsDir *       tdir = NULL;
+  const STfsFile *pf = NULL;
   const char * pattern = "^v[0-9]+f[0-9]+\\.(head|data|last)(-ver[0-9]+)?$";
   SArray *     fArray = NULL;
   regex_t      regex;
@@ -1120,7 +1120,7 @@ static int tsdbRestoreDFileSet(STsdb *pRepo) {
   // Resource allocation and init
   regcomp(&regex, pattern, REG_EXTENDED);
 
-  fArray = taosArrayInit(1024, sizeof(TFILE));
+  fArray = taosArrayInit(1024, sizeof(STfsFile));
   if (fArray == NULL) {
     terrno = TSDB_CODE_TDB_OUT_OF_MEMORY;
     tsdbError("vgId:%d failed to restore DFileSet while open directory %s since %s", REPO_ID(pRepo), dataDir,
@@ -1139,7 +1139,7 @@ static int tsdbRestoreDFileSet(STsdb *pRepo) {
   }
 
   while ((pf = tfsReaddir(tdir))) {
-    tfsbasename(pf, bname);
+    tfsBasename(pf, bname);
 
     int code = regexec(&regex, bname, 0, NULL, 0);
     if (code == 0) {
@@ -1200,7 +1200,7 @@ static int tsdbRestoreDFileSet(STsdb *pRepo) {
       uint32_t    tversion;
       char        _bname[TSDB_FILENAME_LEN];
 
-      tfsbasename(pf, _bname);
+      tfsBasename(pf, _bname);
       tsdbParseDFilename(_bname, &tvid, &tfid, &ttype, &tversion);
 
       ASSERT(tvid == REPO_ID(pRepo));
@@ -1287,7 +1287,7 @@ static int tsdbRestoreCurrent(STsdb *pRepo) {
     return -1;
   }
 
-  if (tsdbSaveFSStatus(pRepo->fs->cstatus, REPO_ID(pRepo)) < 0) {
+  if (tsdbSaveFSStatus(pRepo->pTfs, pRepo->fs->cstatus, REPO_ID(pRepo)) < 0) {
     tsdbError("vgId:%d failed to restore corrent since %s", REPO_ID(pRepo), tstrerror(terrno));
     return -1;
   }
@@ -1296,8 +1296,8 @@ static int tsdbRestoreCurrent(STsdb *pRepo) {
 }
 
 static int tsdbComparTFILE(const void *arg1, const void *arg2) {
-  TFILE *pf1 = (TFILE *)arg1;
-  TFILE *pf2 = (TFILE *)arg2;
+  STfsFile *pf1 = (STfsFile *)arg1;
+  STfsFile *pf2 = (STfsFile *)arg2;
 
   int         vid1, fid1, vid2, fid2;
   TSDB_FILE_T ftype1, ftype2;
@@ -1305,8 +1305,8 @@ static int tsdbComparTFILE(const void *arg1, const void *arg2) {
   char        bname1[TSDB_FILENAME_LEN];
   char        bname2[TSDB_FILENAME_LEN];
 
-  tfsbasename(pf1, bname1);
-  tfsbasename(pf2, bname2);
+  tfsBasename(pf1, bname1);
+  tfsBasename(pf2, bname2);
   tsdbParseDFilename(bname1, &vid1, &fid1, &ftype1, &version1);
   tsdbParseDFilename(bname2, &vid2, &fid2, &ftype2, &version2);
 

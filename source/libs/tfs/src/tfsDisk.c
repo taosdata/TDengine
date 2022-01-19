@@ -16,8 +16,8 @@
 #define _DEFAULT_SOURCE
 #include "tfsInt.h"
 
-SDisk *tfsNewDisk(int32_t level, int32_t id, const char *path) {
-  SDisk *pDisk = calloc(1, sizeof(SDisk));
+STfsDisk *tfsNewDisk(int32_t level, int32_t id, const char *path) {
+  STfsDisk *pDisk = calloc(1, sizeof(STfsDisk));
   if (pDisk == NULL) {
     terrno = TSDB_CODE_OUT_OF_MEMORY;
     return NULL;
@@ -36,7 +36,7 @@ SDisk *tfsNewDisk(int32_t level, int32_t id, const char *path) {
   return pDisk;
 }
 
-SDisk *tfsFreeDisk(SDisk *pDisk) {
+STfsDisk *tfsFreeDisk(STfsDisk *pDisk) {
   if (pDisk != NULL) {
     free(pDisk->path);
     free(pDisk);
@@ -45,7 +45,7 @@ SDisk *tfsFreeDisk(SDisk *pDisk) {
   return NULL;
 }
 
-int32_t tfsUpdateDiskSize(SDisk *pDisk) {
+int32_t tfsUpdateDiskSize(STfsDisk *pDisk) {
   if (taosGetDiskSize(pDisk->path, &pDisk->size) != 0) {
     terrno = TAOS_SYSTEM_ERROR(errno);
     fError("failed to get disk:%s size, level:%d id:%d since %s", pDisk->path, pDisk->level, pDisk->id, terrstr());

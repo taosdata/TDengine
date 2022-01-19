@@ -97,8 +97,7 @@ int tsdbApplyRtnOnFSet(STsdb *pRepo, SDFileSet *pSet, SRtn *pRtn) {
 
   level = tsdbGetFidLevel(pSet->fid, pRtn);
 
-  tfsAllocDisk(level, &(did.level), &(did.id));
-  if (did.level == TFS_UNDECIDED_LEVEL) {
+  if (tfsAllocDisk(pRepo->pTfs, level, &did) < 0) {
     terrno = TSDB_CODE_TDB_NO_AVAIL_DISK;
     return -1;
   }
@@ -456,8 +455,7 @@ static int tsdbSetAndOpenCommitFile(SCommitH *pCommith, SDFileSet *pSet, int fid
   STsdb *    pRepo = TSDB_COMMIT_REPO(pCommith);
   SDFileSet *pWSet = TSDB_COMMIT_WRITE_FSET(pCommith);
 
-  tfsAllocDisk(tsdbGetFidLevel(fid, &(pCommith->rtn)), &(did.level), &(did.id));
-  if (did.level == TFS_UNDECIDED_LEVEL) {
+  if (tfsAllocDisk(pRepo->pTfs, tsdbGetFidLevel(fid, &(pCommith->rtn)), &did) < 0) {
     terrno = TSDB_CODE_TDB_NO_AVAIL_DISK;
     return -1;
   }

@@ -173,11 +173,12 @@ SDnode *dndCreate(SDnodeObjCfg *pCfg) {
     return NULL;
   }
 
-  SDiskCfg dCfg;
-  strcpy(dCfg.dir, pDnode->cfg.dataDir);
+  SDiskCfg dCfg = {0};
+  tstrncpy(dCfg.dir, pDnode->cfg.dataDir, TSDB_FILENAME_LEN);
   dCfg.level = 0;
   dCfg.primary = 1;
-  if (tfsInit(&dCfg, 1) != 0) {
+  pDnode->pTfs = tfsOpen(&dCfg, 1);
+  if (pDnode->pTfs == NULL) {
     dError("failed to init tfs since %s", terrstr());
     dndClose(pDnode);
     return NULL;
@@ -251,7 +252,7 @@ void dndClose(SDnode *pDnode) {
   dndCleanupQnode(pDnode);
   dndCleanupVnodes(pDnode);
   dndCleanupMgmt(pDnode);
-  tfsCleanup();
+  tfsClose(pDnode->pTfs);
 
   dndCloseImp(pDnode);
   free(pDnode);
@@ -313,4 +314,28 @@ void dndCleanup() {
 
   taosStopCacheRefreshWorker();
   dInfo("dnode env is cleaned up");
+}
+
+// OTHER FUNCTIONS ===================================
+void taosGetDisk() {
+#if 0  
+  const double unit = 1024 * 1024 * 1024;
+  
+  SDiskSize    diskSize = tfsGetSize(pTfs);
+  
+  tfsUpdateSize(&fsMeta);
+  tsTotalDataDirGB = (float)(fsMeta.total / unit);
+  tsUsedDataDirGB = (float)(fsMeta.used / unit);
+  tsAvailDataDirGB = (float)(fsMeta.avail / unit);
+
+  if (taosGetDiskSize(tsLogDir, &diskSize) == 0) {
+    tsTotalLogDirGB = (float)(diskSize.total / unit);
+    tsAvailLogDirGB = (float)(diskSize.avail / unit);
+  }
+
+  if (taosGetDiskSize(tsTempDir, &diskSize) == 0) {
+    tsTotalTmpDirGB = (float)(diskSize.total / unit);
+    tsAvailTmpDirectorySpace = (float)(diskSize.avail / unit);
+  }
+#endif
 }
