@@ -26,6 +26,7 @@
 #include "tlog.h"
 #include "trpc.h"
 #include "ttimer.h"
+#include "scheduler.h"
 
 #include "mnode.h"
 
