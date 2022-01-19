@@ -69,6 +69,17 @@ static void mndTransReExecute(void *param, void *tmrId) {
   taosTmrReset(mndTransReExecute, 3000, pMnode, pMnode->timer, &pMnode->transTimer);
 }
 
+static void mndCalMqRebalance(void* param, void* tmrId) {
+  SMnode* pMnode = param;
+  if (mndIsMaster(pMnode)) {
+    // iterate cgroup, cal rebalance
+    // sync with raft
+    // write sdb
+  }
+
+  taosTmrReset(mndCalMqRebalance, 3000, pMnode, pMnode->timer, &pMnode->transTimer);
+}
+
 static int32_t mndInitTimer(SMnode *pMnode) {
   if (pMnode->timer == NULL) {
     pMnode->timer = taosTmrInit(5000, 200, 3600000, "MND");

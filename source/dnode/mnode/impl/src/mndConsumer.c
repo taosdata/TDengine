@@ -204,34 +204,37 @@ void mndReleaseConsumer(SMnode *pMnode, SMqConsumerObj *pConsumer) {
 static int32_t mndProcessSubscribeReq(SMnodeMsg *pMsg) {
   SMnode          *pMnode = pMsg->pMnode;
   char            *msgStr = pMsg->rpcMsg.pCont;
-  SCMSubscribeReq *pSubscribe;
-  tDeserializeSCMSubscribeReq(msgStr, pSubscribe);
-  int64_t consumerId = pSubscribe->consumerId;
-  char   *consumerGroup = pSubscribe->consumerGroup;
+  SCMSubscribeReq subscribe;
+  tDeserializeSCMSubscribeReq(msgStr, &subscribe);
+  int64_t consumerId = subscribe.consumerId;
+  char   *consumerGroup = subscribe.consumerGroup;
   int32_t cgroupLen = strlen(consumerGroup);
 
   SArray *newSub = NULL;
-  int     newTopicNum = pSubscribe->topicNum;
+  int     newTopicNum = subscribe.topicNum;
   if (newTopicNum) {
     newSub = taosArrayInit(newTopicNum, sizeof(SMqConsumerTopic));
   }
+  SMqConsumerTopic *pConsumerTopics = calloc(newTopicNum, sizeof(SMqConsumerTopic));
+  if (pConsumerTopics == NULL) {
+    terrno = TSDB_CODE_OUT_OF_MEMORY;
+    return -1;
+  }
   for (int i = 0; i < newTopicNum; i++) {
     char             *newTopicName = taosArrayGetP(newSub, i);
-    SMqConsumerTopic *pConsumerTopic = malloc(sizeof(SMqConsumerTopic));
-    if (pConsumerTopic == NULL) {
-      terrno = TSDB_CODE_OUT_OF_MEMORY;
-      // TODO: free
-      return -1;
-    }
+    SMqConsumerTopic *pConsumerTopic = &pConsumerTopics[i];
+
     strcpy(pConsumerTopic->name, newTopicName);
     pConsumerTopic->vgroups = tdListNew(sizeof(int64_t));
-    taosArrayPush(newSub, pConsumerTopic);
-    free(pConsumerTopic);
   }
+
+  taosArrayAddBatch(newSub, pConsumerTopics, newTopicNum);
+  free(pConsumerTopics);
   taosArraySortString(newSub, taosArrayCompareString);
 
   SArray         *oldSub = NULL;
   int             oldTopicNum = 0;
+  // create consumer if not exist
   SMqConsumerObj *pConsumer = mndAcquireConsumer(pMnode, consumerId);
   if (pConsumer == NULL) {
     // create consumer
@@ -249,6 +252,7 @@ static int32_t mndProcessSubscribeReq(SMnodeMsg *pMsg) {
   }
   STrans *pTrans = mndTransCreate(pMnode, TRN_POLICY_RETRY, &pMsg->rpcMsg);
   if (pTrans == NULL) {
+    //TODO: free memory
     return -1;
   }
 
@@ -286,6 +290,7 @@ static int32_t mndProcessSubscribeReq(SMnodeMsg *pMsg) {
     }
 
     if (pOldTopic != NULL) {
+      //cancel subscribe of that old topic
       ASSERT(pNewTopic == NULL);
       char     *oldTopicName = pOldTopic->name;
       SList    *vgroups = pOldTopic->vgroups;
@@ -298,13 +303,14 @@ static int32_t mndProcessSubscribeReq(SMnodeMsg *pMsg) {
       SMqCGroup *pGroup = taosHashGet(pTopic->cgroups, consumerGroup, cgroupLen);
       while ((pn = tdListNext(&iter)) != NULL) {
         int32_t vgId = *(int64_t *)pn->data;
+        // acquire and get epset
         SVgObj *pVgObj = mndAcquireVgroup(pMnode, vgId);
-        // TODO release
+        // TODO what time to release?
         if (pVgObj == NULL) {
           // TODO handle error
           continue;
         }
-        // acquire and get epset
+        //build reset msg
         void *pMqVgSetReq = mndBuildMqVGroupSetReq(pMnode, oldTopicName, vgId, consumerId, consumerGroup);
         // TODO:serialize
         if (pMsg == NULL) {
@@ -323,10 +329,12 @@ static int32_t mndProcessSubscribeReq(SMnodeMsg *pMsg) {
           return -1;
         }
       }
+      //delete data in mnode
       taosHashRemove(pTopic->cgroups, consumerGroup, cgroupLen);
       mndReleaseTopic(pMnode, pTopic);
 
     } else if (pNewTopic != NULL) {
+      // save subscribe info to mnode
       ASSERT(pOldTopic == NULL);
 
       char        *newTopicName = pNewTopic->name;
@@ -351,6 +359,7 @@ static int32_t mndProcessSubscribeReq(SMnodeMsg *pMsg) {
         // add into cgroups
         taosHashPut(pTopic->cgroups, consumerGroup, cgroupLen, pGroup, sizeof(SMqCGroup));
       }
+      /*taosHashPut(pTopic->consumers, &pConsumer->consumerId, sizeof(int64_t), pConsumer, sizeof(SMqConsumerObj));*/
 
       // put the consumer into list
       // rebalance will be triggered by timer

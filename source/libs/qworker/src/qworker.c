@@ -458,6 +458,37 @@ _return:
   QW_RET(code);
 }
 
+int32_t qwExecTask(QW_FPARAMS_DEF, qTaskInfo_t taskHandle, DataSinkHandle sinkHandle) {
+  int32_t code = 0;
+  bool  qcontinue = true;
+  SSDataBlock* pRes = NULL;
+  uint64_t useconds = 0;
+  
+  while (qcontinue) {
+    code = qExecTask(taskHandle, &pRes, &useconds);
+    if (code) {
+      QW_TASK_ELOG("qExecTask failed, code:%x", code);
+      QW_ERR_JRET(code);
+    }
+
+    if (NULL == pRes) {
+      QW_TASK_DLOG("query done, useconds:%"PRIu64, useconds);
+      dsEndPut(sinkHandle, useconds);
+      break;
+    }
+
+    SInputData inputData = {.pData = pRes, .pTableRetrieveTsMap = NULL};
+    code = dsPutDataBlock(sinkHandle, &inputData, &qcontinue);
+    if (code) {
+      QW_TASK_ELOG("dsPutDataBlock failed, code:%x", code);
+      QW_ERR_JRET(code);
+    }
+  }
+
+_return:
+
+  QW_RET(code);
+}
 
 
 int32_t qwGetResFromSink(QW_FPARAMS_DEF, SQWTaskCtx *ctx, int32_t *dataLen, void **rspMsg, SOutputData *pOutput) {
@@ -733,7 +764,9 @@ int32_t qwProcessQuery(SQWorkerMgmt *mgmt, uint64_t sId, uint64_t qId, uint64_t 
   }
 
   qTaskInfo_t pTaskInfo = NULL;
-  code = qCreateExecTask(qwMsg->node, 0, (struct SSubplan *)plan, &pTaskInfo);
+  DataSinkHandle sinkHandle = NULL;
+  
+  code = qCreateExecTask(qwMsg->node, 0, (struct SSubplan *)plan, &pTaskInfo, &sinkHandle);
   if (code) {
     QW_TASK_ELOG("qCreateExecTask failed, code:%x", code);
     QW_ERR_JRET(code);
@@ -743,12 +776,7 @@ int32_t qwProcessQuery(SQWorkerMgmt *mgmt, uint64_t sId, uint64_t qId, uint64_t 
 
   queryRsped = true;
 
-  DataSinkHandle sinkHandle = NULL;
-  code = qExecTask(pTaskInfo, &sinkHandle);
-  if (code) {
-    QW_TASK_ELOG("qExecTask failed, code:%x", code);
-    QW_ERR_JRET(code);
-  }
+  QW_ERR_JRET(qwExecTask(QW_FPARAMS(), pTaskInfo, sinkHandle));
 
 _return:
 
@@ -840,11 +868,7 @@ int32_t qwProcessCQuery(SQWorkerMgmt *mgmt, uint64_t sId, uint64_t qId, uint64_t
   qTaskInfo_t     taskHandle = ctx->taskHandle;
   DataSinkHandle  sinkHandle = ctx->sinkHandle;
 
-  code = qExecTask(taskHandle, &sinkHandle);
-  if (code) {
-    QW_TASK_ELOG("qExecTask failed, code:%x", code);
-    QW_ERR_JRET(code);
-  }
+  QW_ERR_JRET(qwExecTask(QW_FPARAMS(), taskHandle, sinkHandle));
 
   QW_SET_EVENT_PROCESSED(ctx, QW_EVENT_CQUERY);
 

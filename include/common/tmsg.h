@@ -188,16 +188,19 @@ void* tDeserializeSClientHbRsp(void* buf, SClientHbRsp* pRsp);
 
 static FORCE_INLINE void  tFreeClientHbReq(void *pReq) {
   SClientHbReq* req = (SClientHbReq*)pReq;
-  taosHashCleanup(req->info);
-  free(pReq);
+  if (req->info) taosHashCleanup(req->info);
 }
 
 int   tSerializeSClientHbBatchReq(void** buf, const SClientHbBatchReq* pReq);
 void* tDeserializeSClientHbBatchReq(void* buf, SClientHbBatchReq* pReq);
 
-static FORCE_INLINE void tFreeClientHbBatchReq(void* pReq) {
+static FORCE_INLINE void tFreeClientHbBatchReq(void* pReq, bool deep) {
   SClientHbBatchReq *req = (SClientHbBatchReq*)pReq;
-  //taosArrayDestroyEx(req->reqs, tFreeClientHbReq);
+  if (deep) {
+    taosArrayDestroyEx(req->reqs, tFreeClientHbReq);
+  } else {
+    taosArrayDestroy(req->reqs);
+  }
   free(pReq);
 }
 

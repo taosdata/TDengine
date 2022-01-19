@@ -841,6 +841,7 @@ static SVnodeObj *dndAcquireVnodeFromMsg(SDnode *pDnode, SRpcMsg *pMsg) {
 
   SVnodeObj *pVnode = dndAcquireVnode(pDnode, pHead->vgId);
   if (pVnode == NULL) {
+    dError("vgId:%d, failed to acquire vnode while process req", pHead->vgId);
     if (pMsg->msgType & 1u) {
       SRpcMsg rsp = {.handle = pMsg->handle, .code = TSDB_CODE_VND_INVALID_VGROUP_ID};
       rpcSendResponse(&rsp);

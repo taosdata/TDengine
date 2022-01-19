@@ -217,5 +217,6 @@ TEST(testCase, build_executor_tree_Test) {
       "}";
 
   SExecTaskInfo* pTaskInfo = nullptr;
-  int32_t code = qCreateExecTask((void*) 1, 2, NULL, (void**) &pTaskInfo);
+  DataSinkHandle sinkHandle = nullptr;
+  int32_t code = qCreateExecTask((void*) 1, 2, NULL, (void**) &pTaskInfo, &sinkHandle);
 }
