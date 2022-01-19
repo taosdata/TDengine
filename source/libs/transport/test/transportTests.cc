@@ -22,6 +22,7 @@
 #include <thread>
 #include <vector>
 
+#include "transComm.h"
 #include "transportInt.h"
 #include "trpc.h"
 
@@ -46,7 +47,7 @@ class QueueObj {
     if (!IsEmpty()) {
       queue *h = QUEUE_HEAD(&head);
       el = QUEUE_DATA(h, QueueElem, q);
-      QUEUE_REMOVE(&el->q);
+      QUEUE_REMOVE(h);
     }
     return el;
   }

@@ -94,7 +94,7 @@ createNewDnodesDataDir() {
         mkdir -p ${dataRootDir}/dnode_${i}/data 
         
         createNewCfgFile ${dataRootDir}/dnode_${i}/cfg ${dataRootDir}/dnode_${i}/data ${dataRootDir}/dnode_${i}/log ${firstEp} ${serverPort}
-        echo "create dnode: ${serverPort}, ${dataRootDir}/dnode_${i}"
+        #echo "create dnode: ${serverPort}, ${dataRootDir}/dnode_${i}"
         serverPort=$((10#${serverPort}+100))
     done
 }
@@ -131,6 +131,7 @@ fi
 ## start all dnode by nohup
 startDnodes ${dnodeNumber}
 
-echo " run setupDnodes.sh end !!!"
+echo "====run setupDnodes.sh end===="
+echo " "
 
 
