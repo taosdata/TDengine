@@ -114,6 +114,14 @@ void schedulerDestroy(void);
  */
 int32_t schedulerConvertDagToTaskList(SQueryDag* pDag, SArray **pTasks);
 
+/**
+ * make one task info's multiple copies
+ * @param src
+ * @param dst SArray**<STaskInfo>
+ * @return
+ */
+int32_t schedulerCopyTask(STaskInfo *src, SArray **dst, int32_t copyNum);
+
 void schedulerFreeTaskList(SArray *taskList);
 
 
