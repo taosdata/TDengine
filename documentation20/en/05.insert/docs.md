@@ -54,11 +54,11 @@ measurement,tag_set field_set timestamp
 * Timestamp is the primary key of one data row.
 
 All tag values in tag_set are automatically converted and stored as NCHAR data type in TDengine and no need to be surrounded by double quote("）
-<br/> In Schemaless Line Protocol, data format in field_set need to be self-descriptive in order to convert data to different TDengine data types. For example:
-* Field value surrounded by double quote indicate data is BINARY(32) data types. For example, `"abc"`.
-* Field value surrounded by double quote and L letter prefix indicate data is NCHAR(32) data type. For example `L"报错信息"`.
+<br/> In Schemaless Line Protocol, data format in field_set need to be self-descriptive in order to convert data to corresponding TDengine data types. For example:
+* Field value surrounded by double quote indicates data is BINARY(32) data types. For example, `"abc"`.
+* Field value surrounded by double quote and L letter prefix indicates data is NCHAR(32) data type. For example `L"报错信息"`.
 * Space, equal sign(=), comma(,), double quote(") need to use backslash(\) to escape.
-* Numerical values will convert to different data types according to its suffix:
+* Numerical values will be converted to corresponding data types according to the suffix:
 
 | **ID** | **Suffix** | **Data Type** | **Size(Bytes)** |
 | ------ | ---------- | ------------- | ------ |
@@ -79,14 +79,14 @@ Following rules are followed by Schemaless protocol parsing:
 "measurement,tag_key1=tag_value1,tag_key2=tag_value2"
 ```
 tag_key1, tag_key2 are not following the original order of user input, but sorted according to tag names.
-After MD5 value "md5_val" calculated using the above string, prefix "t_" is added to "md5_val" to form the child table name.
+After MD5 value "md5_val" calculated using the above string, prefix "t_" is prepended to "md5_val" to form the child table name.
 <br/>2. If super table does not exist, a new super table will be created.
 <br/>3. If child table does not exist, a new child table will be created with its name generated in 1 and 2.
-<br/>4. If columns/tags do not exist, new columns/tags will be created. (Columns/tags can only be added, existing columns/tags cannot be deleted with Schemaless)
+<br/>4. If columns/tags do not exist, new columns/tags will be created. (Columns/tags can only be added, existing columns/tags cannot be deleted)
 <br/>5. If columns/tags are not specified in a line, values of such columns/tags will be set to NULL.
-<br/>6. For BINARY/NCHAR type columns. If value length exceeds max length of the column, max length will be automatically extended to make sure data integrity.
-<br/>7. If child table is already created and tag value is different than previous stored value，old value will be overwritten by new value
-<br/>8. If any error occurs during processing, error code will be return.
+<br/>6. For BINARY/NCHAR type columns, if value length exceeds max length of the column, max length will be automatically extended to ensure data integrity.
+<br/>7. If child table is already created and tag value is different than previous stored value，old value will be overwritten by new value.
+<br/>8. If any error occurs during processing, error code will be returned.
 
 **Note**
 <br/>Schemaless will follow TDengine data structure limitations. For example, each table row cannot exceed 16KB. For detailed TDengine limitations please refer to (https://www.taosdata.com/en/documentation/taos-sql#limitation).
@@ -100,7 +100,7 @@ After MD5 value "md5_val" calculated using the above string, prefix "t_" is adde
 | 2    | SML_TELNET_PROTOCOL          |  OpenTSDB telnet Protocol       |
 | 3    | SML_JSON_PROTOCOL            |  OpenTSDB JSON format Protocol  |
 
-<br/>When SML_LINE_PROTOCOL used，users need to indicate timestamp precision through API。Available timestamp resolutions are：<br/>
+<br/>When SML_LINE_PROTOCOL used，users need to indicate timestamp precision through API。Available timestamp precisions are：<br/>
 
 | **ID** |       **Precision Definition **       |   **Meaning**  |
 | ------ | ------------------------------------- | -------------- |
@@ -115,7 +115,7 @@ After MD5 value "md5_val" calculated using the above string, prefix "t_" is adde
 When SML_TELNET_PROTOCOL or SML_JSON_PROTOCOL used，timestamp precision is determined by how many digits used in timestamp（following OpenTSDB convention），precision from user input will be ignored。
 
 **Schemaless data mapping rules**
-<br/>This section describes how Schemaless data are mapped to TDengine structured data。Measurement is mapped to super table name。keys in tag_set/field_set are mapped to tag/column names。For example:
+<br/>This section describes how Schemaless data are mapped to TDengine's structured data. Measurement is mapped to super table name. Keys in tag_set/field_set are mapped to tag/column names. For example:
 
 ```json
 st,t1=3,t2=4,t3=t3 c1=3i64,c3="passit",c2=false,c4=4f64 1626006833639000000
@@ -125,9 +125,9 @@ Above line is mapped to a super table with name "st" with 3 NCHAR type tags ("t1
 create stable st (_ts timestamp, c1 bigint, c2 bool, c3 binary(6), c4 bigint) tags(t1 nchar(1), t2 nchar(1), t3 nchar(2))
 ```
 **Schemaless data alternation rules**
-<br/>This section describes different data writing scenarios:
+<br/>This section describes several data alternation scenarios:
 
-When inserting column data with certain type, and the following operations cause the data type to change, an error will be reported by the API:
+When column with one line has certain type, and following lines attemp to change the data type of this column, an error will be reported by the API:
 
 ```json
 st,t1=3,t2=4,t3=t3 c1=3i64,c3="passit",c2=false,c4=4    1626006833639000000
@@ -135,7 +135,7 @@ st,t1=3,t2=4,t3=t3 c1=3i64,c3="passit",c2=false,c4=4i   1626006833640000000
 ```
 For first line of data, c4 column type is declared as DOUBLE with no suffix. However, the second line declared the column type to be BIGINT with suffix "i". Schemaless parsing error will be occurred.
 
-When data column is declared as BINARY type, but follow up data inserting requires longer BINARY length for this column, super table schema will be changed accordingly:
+When column is declared as BINARY type, but follow-up line insertion requires longer BINARY length of this column, max length of this column will be extended:
 ```json
 st,t1=3,t2=4,t3=t3 c1=3i64,c5="pass"     1626006833639000000
 st,t1=3,t2=4,t3=t3 c1=3i64,c5="passit"   1626006833640000000
@@ -146,16 +146,16 @@ In first line c5 column store string "pass" with 4 characters as BINARY(4), but 
 st,t1=3,t2=4,t3=t3 c1=3i64               1626006833639000000
 st,t1=3,t2=4,t3=t3 c1=3i64,c6="passit"   1626006833640000000
 ```
-In above example in second line has one more column c6 with value "passit", compared to the first line. A new column c6 will be added with type BINARY(6).
+In above example second line has one more column c6 with value "passit" compared to the first line. A new column c6 will be added with type BINARY(6).
 
 **Data integrity**
 <br/>TDengine ensure data writing through Schemaless is idempotent, which means users can call the API multiple times for writing data with errors. However. atomicity is not guaranteed. When writing multiple lines of data as a batch, data might be partially inserted due to errors.
 
 **Error code**
-<br/>If users do not write data following corresponding protocol syntax, application will get TSDB_CODE_TSC_LINE_SYNTAX_ERROR error code, which indicates error is happened in text. Other generic error codes returned by TDengine can also be obtained through taos_errstr API to get detailed error message.
+<br/>If users do not write data following corresponding protocol syntax, application will get TSDB_CODE_TSC_LINE_SYNTAX_ERROR error code, which indicates error is happened in input text. Other generic error codes returned by TDengine can also be obtained through taos_errstr API to get detailed error messages.
 
 **Future enhancement**
-<br/> Currently TDengine only provides clang API for Schemaless. In future versions, API/connectors with more language will be supported, e.g., Java/Go/Python/C# etc. From TDengine v2.3 and later versions, users can also use taosAdaptor to writing data via Schemaless through REST interface.
+<br/> Currently TDengine only provides clang API support for Schemaless. In future versions, APIs/connectors of more languages will be supported, e.g., Java/Go/Python/C# etc. From TDengine v2.3 and later versions, users can also use taosAdaptor to writing data via Schemaless through RESTful interface.
 
 ## <a class="anchor" id="prometheus"></a> Data Writing via Prometheus
 
