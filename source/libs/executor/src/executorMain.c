@@ -79,42 +79,43 @@ int32_t qCreateExecTask(void* tsdb, int32_t vgId, SSubplan* pSubplan, qTaskInfo_
   int32_t         tableType = 0;
 
   SPhyNode   *pPhyNode = pSubplan->pNode;
-  if (pPhyNode->info.type == OP_TableScan || pPhyNode->info.type == OP_DataBlocksOptScan) {
+  STableGroupInfo groupInfo = {0};
+
+  int32_t type = pPhyNode->info.type;
+  if (type == OP_TableScan || type == OP_DataBlocksOptScan) {
     STableScanPhyNode* pTableScanNode = (STableScanPhyNode*)pPhyNode;
-    uid       = pTableScanNode->scan.uid;
-    window    = pTableScanNode->window;
+    uid = pTableScanNode->scan.uid;
+    window = pTableScanNode->window;
     tableType = pTableScanNode->scan.tableType;
-  } else {
-    assert(0);
+
+    if (tableType == TSDB_SUPER_TABLE) {
+      code =
+          tsdbQuerySTableByTagCond(tsdb, uid, window.skey, NULL, 0, 0, NULL, &groupInfo, NULL, 0, pSubplan->id.queryId);
+      if (code != TSDB_CODE_SUCCESS) {
+        goto _error;
+      }
+    } else {  // Create one table group.
+      groupInfo.numOfTables = 1;
+      groupInfo.pGroupList = taosArrayInit(1, POINTER_BYTES);
+
+      SArray* pa = taosArrayInit(1, sizeof(STableKeyInfo));
+
+      STableKeyInfo info = {.pTable = NULL, .lastKey = 0, .uid = uid};
+      taosArrayPush(pa, &info);
+      taosArrayPush(groupInfo.pGroupList, &pa);
+    }
+
+    if (groupInfo.numOfTables == 0) {
+      code = 0;
+      //    qDebug("no table qualified for query, reqId:0x%"PRIx64, (*pTask)->id.queryId);
+      goto _error;
+    }
   }
 
-  STableGroupInfo groupInfo = {0};
-  if (tableType == TSDB_SUPER_TABLE) {
-    code = tsdbQuerySTableByTagCond(tsdb, uid, window.skey, NULL, 0, 0, NULL, &groupInfo, NULL, 0, pSubplan->id.queryId);
+    code = doCreateExecTaskInfo(pSubplan, pTask, &groupInfo, tsdb);
     if (code != TSDB_CODE_SUCCESS) {
       goto _error;
     }
-  } else { // Create one table group.
-    groupInfo.numOfTables = 1;
-    groupInfo.pGroupList = taosArrayInit(1, POINTER_BYTES);
-
-    SArray* pa = taosArrayInit(1, sizeof(STableKeyInfo));
-
-    STableKeyInfo info = {.pTable = NULL, .lastKey = 0, .uid = uid};
-    taosArrayPush(pa, &info);
-    taosArrayPush(groupInfo.pGroupList, &pa);
-  }
-
-  if (groupInfo.numOfTables == 0) {
-    code = 0;
-//    qDebug("no table qualified for query, reqId:0x%"PRIx64, (*pTask)->id.queryId);
-    goto _error;
-  }
-
-  code = doCreateExecTaskInfo(pSubplan, pTask, &groupInfo, tsdb);
-  if (code != TSDB_CODE_SUCCESS) {
-    goto _error;
-  }
 
   SDataSinkMgtCfg cfg = {.maxDataBlockNum = 1000, .maxDataBlockNumPerQuery = 100};
   code = dsDataSinkMgtInit(&cfg);
@@ -182,7 +183,7 @@ int32_t qExecTask(qTaskInfo_t tinfo, SSDataBlock** pRes, uint64_t *useconds) {
 
   // todo: remove it.
   if (tinfo == NULL) {
-    return NULL;
+    return TSDB_CODE_SUCCESS;
   }
 
   *pRes = NULL;

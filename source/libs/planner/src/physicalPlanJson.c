@@ -729,40 +729,75 @@ static bool epAddrFromJson(const cJSON* json, void* obj) {
   return true;
 }
 
-static const char* jkNodeAddrId = "NodeId";
-static const char* jkNodeAddrInUse = "InUse";
-static const char* jkNodeAddrEpAddrs = "EpAddrs";
+static const char* jkNodeAddrId      = "NodeId";
+static const char* jkNodeAddrInUse   = "InUse";
+static const char* jkNodeAddrEpAddrs = "Ep";
+static const char* jkNodeAddr        = "NodeAddr";
+static const char* jkNodeTaskId      = "TaskId";
+static const char* jkNodeTaskSchedId = "SchedId";
+
+static bool queryNodeAddrToJson(const void* obj, cJSON* json) {
+  const SQueryNodeAddr* pAddr = (const SQueryNodeAddr*) obj;
+  bool res = cJSON_AddNumberToObject(json, jkNodeAddrId, pAddr->nodeId);
+
+  if (res) {
+    res = cJSON_AddNumberToObject(json, jkNodeAddrInUse, pAddr->inUse);
+  }
+
+  if (res) {
+    res = addRawArray(json, jkNodeAddrEpAddrs, epAddrToJson, pAddr->epAddr, sizeof(SEpAddr), pAddr->numOfEps);
+  }
+  return res;
+}
+
+static bool queryNodeAddrFromJson(const cJSON* json, void* obj) {
+  SQueryNodeAddr* pAddr = (SQueryNodeAddr*) obj;
+
+  pAddr->nodeId = getNumber(json, jkNodeAddrId);
+  pAddr->inUse = getNumber(json, jkNodeAddrInUse);
+
+  int32_t numOfEps = 0;
+  bool res = fromRawArray(json, jkNodeAddrEpAddrs, epAddrFromJson, pAddr->epAddr, sizeof(SEpAddr), &numOfEps);
+  pAddr->numOfEps = numOfEps;
+  return res;
+}
 
 static bool nodeAddrToJson(const void* obj, cJSON* json) {
-  const SQueryNodeAddr* ep = (const SQueryNodeAddr*)obj;
-  bool res = cJSON_AddNumberToObject(json, jkNodeAddrId, ep->nodeId);
+  const SDownstreamSource* pSource = (const SDownstreamSource*) obj;
+  bool res = cJSON_AddNumberToObject(json, jkNodeTaskId, pSource->taskId);
+
   if (res) {
-    res = cJSON_AddNumberToObject(json, jkNodeAddrInUse, ep->inUse);
+    char t[30] = {0};
+    snprintf(t, tListLen(t), "%"PRIu64, pSource->schedId);
+    res = cJSON_AddStringToObject(json, jkNodeTaskSchedId, t);
   }
+
   if (res) {
-    res = addRawArray(json, jkNodeAddrEpAddrs, epAddrToJson, ep->epAddr, sizeof(SEpAddr), ep->numOfEps);
+    res = addObject(json, jkNodeAddr, queryNodeAddrToJson, &pSource->addr);
   }
   return res;
 }
 
 static bool nodeAddrFromJson(const cJSON* json, void* obj) {
-  SQueryNodeAddr* ep = (SQueryNodeAddr*)obj;
-  ep->nodeId = getNumber(json, jkNodeAddrId);
-  ep->inUse = getNumber(json, jkNodeAddrInUse);
-  int32_t numOfEps = 0;
-  bool res = fromRawArray(json, jkNodeAddrEpAddrs, nodeAddrFromJson, &ep->epAddr, sizeof(SEpAddr), &numOfEps);
-  ep->numOfEps = numOfEps;
+  SDownstreamSource* pSource = (SDownstreamSource*)obj;
+  pSource->taskId = getNumber(json, jkNodeTaskId);
+
+  char* pSchedId = getString(json, jkNodeTaskSchedId);
+  pSource->schedId = strtoll(pSchedId, NULL, 10);
+  tfree(pSchedId);
+
+  bool res = fromObject(json, jkNodeAddr, queryNodeAddrFromJson, &pSource->addr, true);
   return res;
 }
 
 static const char* jkExchangeNodeSrcTemplateId = "SrcTemplateId";
-static const char* jkExchangeNodeSrcEndPoints = "SrcEndPoints";
+static const char* jkExchangeNodeSrcEndPoints = "SrcAddrs";
 
 static bool exchangeNodeToJson(const void* obj, cJSON* json) {
   const SExchangePhyNode* exchange = (const SExchangePhyNode*)obj;
   bool res = cJSON_AddNumberToObject(json, jkExchangeNodeSrcTemplateId, exchange->srcTemplateId);
   if (res) {
-    res = addInlineArray(json, jkExchangeNodeSrcEndPoints, nodeAddrToJson, exchange->pSrcEndPoints);
+    res = addRawArray(json, jkExchangeNodeSrcEndPoints, nodeAddrToJson, exchange->pSrcEndPoints->pData, sizeof(SDownstreamSource), taosArrayGetSize(exchange->pSrcEndPoints));
   }
   return res;
 }
@@ -770,7 +805,7 @@ static bool exchangeNodeToJson(const void* obj, cJSON* json) {
 static bool exchangeNodeFromJson(const cJSON* json, void* obj) {
   SExchangePhyNode* exchange = (SExchangePhyNode*)obj;
   exchange->srcTemplateId = getNumber(json, jkExchangeNodeSrcTemplateId);
-  return fromInlineArray(json, jkExchangeNodeSrcEndPoints, nodeAddrFromJson, &exchange->pSrcEndPoints, sizeof(SQueryNodeAddr));
+  return fromInlineArray(json, jkExchangeNodeSrcEndPoints, nodeAddrFromJson, &exchange->pSrcEndPoints, sizeof(SDownstreamSource));
 }
 
 static bool specificPhyNodeToJson(const void* obj, cJSON* json) {
@@ -979,7 +1014,11 @@ static const char* jkIdSubplanId = "SubplanId";
 
 static bool subplanIdToJson(const void* obj, cJSON* jId) {
   const SSubplanId* id = (const SSubplanId*)obj;
-  bool res = cJSON_AddNumberToObject(jId, jkIdQueryId, id->queryId);
+
+  char ids[40] = {0};
+  snprintf(ids, tListLen(ids), "%"PRIu64, id->queryId);
+
+  bool res = cJSON_AddStringToObject(jId, jkIdQueryId, ids);
   if (res) {
     res = cJSON_AddNumberToObject(jId, jkIdTemplateId, id->templateId);
   }
@@ -991,7 +1030,11 @@ static bool subplanIdToJson(const void* obj, cJSON* jId) {
 
 static bool subplanIdFromJson(const cJSON* json, void* obj) {
   SSubplanId* id = (SSubplanId*)obj;
-  id->queryId = getNumber(json, jkIdQueryId);
+
+  char* queryId = getString(json, jkIdQueryId);
+  id->queryId = strtoll(queryId, NULL, 0);
+  tfree(queryId);
+
   id->templateId = getNumber(json, jkIdTemplateId);
   id->subplanId = getNumber(json, jkIdSubplanId);
   return true;
