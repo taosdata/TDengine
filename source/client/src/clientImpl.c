@@ -195,8 +195,7 @@ int32_t execDdlQuery(SRequestObj* pRequest, SQueryNode* pQuery) {
     }
     asyncSendMsgToServer(pTscObj->pAppInfo->pTransporter, &pDcl->epSet, &transporterId, pSendMsg);
   } else {
-    SEpSet* pEpSet = &pTscObj->pAppInfo->mgmtEp.epSet;
-    asyncSendMsgToServer(pTscObj->pAppInfo->pTransporter, pEpSet, &transporterId, pSendMsg);
+    asyncSendMsgToServer(pTscObj->pAppInfo->pTransporter, &pDcl->epSet, &transporterId, pSendMsg);
   }
 
   tsem_wait(&pRequest->body.rspSem);
@@ -706,6 +705,8 @@ void* doFetchRow(SRequestObj* pRequest) {
   assert(pRequest != NULL);
   SReqResultInfo* pResultInfo = &pRequest->body.resInfo;
 
+  SEpSet epSet = {0};
+
   if (pResultInfo->pData == NULL || pResultInfo->current >= pResultInfo->numOfRows) {
     if (pRequest->type == TDMT_VND_QUERY) {
       // All data has returned to App already, no need to try again
@@ -729,6 +730,17 @@ void* doFetchRow(SRequestObj* pRequest) {
       pRequest->type = TDMT_MND_SHOW_RETRIEVE;
     } else if (pRequest->type == TDMT_VND_SHOW_TABLES) {
       pRequest->type = TDMT_VND_SHOW_TABLES_FETCH;
+      SShowReqInfo* pShowReqInfo = &pRequest->body.showInfo;
+      SVgroupInfo* pVgroupInfo = taosArrayGet(pShowReqInfo->pArray, pShowReqInfo->currentIndex);
+
+      epSet.numOfEps = pVgroupInfo->numOfEps;
+      epSet.inUse = pVgroupInfo->inUse;
+
+      for (int32_t i = 0; i < epSet.numOfEps; ++i) {
+        strncpy(epSet.fqdn[i], pVgroupInfo->epAddr[i].fqdn, tListLen(epSet.fqdn[i]));
+        epSet.port[i] = pVgroupInfo->epAddr[i].port;
+      }
+
     } else if (pRequest->type == TDMT_VND_SHOW_TABLES_FETCH) {
       pRequest->type = TDMT_VND_SHOW_TABLES;
       SShowReqInfo* pShowReqInfo = &pRequest->body.showInfo;
@@ -746,9 +758,17 @@ void* doFetchRow(SRequestObj* pRequest) {
 
       SMsgSendInfo* body = buildMsgInfoImpl(pRequest);
 
+      epSet.numOfEps = pVgroupInfo->numOfEps;
+      epSet.inUse = pVgroupInfo->inUse;
+
+      for (int32_t i = 0; i < epSet.numOfEps; ++i) {
+        strncpy(epSet.fqdn[i], pVgroupInfo->epAddr[i].fqdn, tListLen(epSet.fqdn[i]));
+        epSet.port[i] = pVgroupInfo->epAddr[i].port;
+      }
+
       int64_t  transporterId = 0;
       STscObj *pTscObj = pRequest->pTscObj;
-      asyncSendMsgToServer(pTscObj->pAppInfo->pTransporter, &pTscObj->pAppInfo->mgmtEp.epSet, &transporterId, body);
+      asyncSendMsgToServer(pTscObj->pAppInfo->pTransporter, &epSet, &transporterId, body);
       tsem_wait(&pRequest->body.rspSem);
 
       pRequest->type = TDMT_VND_SHOW_TABLES_FETCH;
@@ -758,7 +778,7 @@ void* doFetchRow(SRequestObj* pRequest) {
 
     int64_t  transporterId = 0;
     STscObj *pTscObj = pRequest->pTscObj;
-    asyncSendMsgToServer(pTscObj->pAppInfo->pTransporter, &pTscObj->pAppInfo->mgmtEp.epSet, &transporterId, body);
+    asyncSendMsgToServer(pTscObj->pAppInfo->pTransporter, &epSet, &transporterId, body);
 
     tsem_wait(&pRequest->body.rspSem);
 
