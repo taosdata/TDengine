@@ -73,12 +73,12 @@ int32_t qCreateExecTask(void* tsdb, int32_t vgId, SSubplan* pSubplan, qTaskInfo_
   assert(tsdb != NULL && pSubplan != NULL);
   SExecTaskInfo** pTask = (SExecTaskInfo**)pTaskInfo;
 
-  int32_t         code = 0;
-  uint64_t        uid = 0;
-  STimeWindow     window = TSWINDOW_INITIALIZER;
-  int32_t         tableType = 0;
+  int32_t     code = 0;
+  uint64_t    uid = 0;
+  STimeWindow window = TSWINDOW_INITIALIZER;
+  int32_t     tableType = 0;
 
-  SPhyNode   *pPhyNode = pSubplan->pNode;
+  SPhyNode*       pPhyNode = pSubplan->pNode;
   STableGroupInfo groupInfo = {0};
 
   int32_t type = pPhyNode->info.type;
@@ -112,10 +112,10 @@ int32_t qCreateExecTask(void* tsdb, int32_t vgId, SSubplan* pSubplan, qTaskInfo_
     }
   }
 
-    code = doCreateExecTaskInfo(pSubplan, pTask, &groupInfo, tsdb);
-    if (code != TSDB_CODE_SUCCESS) {
-      goto _error;
-    }
+  code = doCreateExecTaskInfo(pSubplan, pTask, &groupInfo, tsdb);
+  if (code != TSDB_CODE_SUCCESS) {
+    goto _error;
+  }
 
   SDataSinkMgtCfg cfg = {.maxDataBlockNum = 1000, .maxDataBlockNumPerQuery = 100};
   code = dsDataSinkMgtInit(&cfg);
@@ -127,7 +127,7 @@ int32_t qCreateExecTask(void* tsdb, int32_t vgId, SSubplan* pSubplan, qTaskInfo_
 
   *handle = (*pTask)->dsHandle;
 
-  _error:
+_error:
   // if failed to add ref for all tables in this query, abort current query
   return code;
 }

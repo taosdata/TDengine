@@ -259,7 +259,7 @@ int32_t scheduleQuery(SRequestObj* pRequest, SQueryDag* pDag) {
 
   SArray *execNode = taosArrayInit(4, sizeof(SQueryNodeAddr));
 
-  SQueryNodeAddr addr = {.numOfEps = 1, .inUse = 0, .nodeId = 1};
+  SQueryNodeAddr addr = {.numOfEps = 1, .inUse = 0, .nodeId = 2};
   addr.epAddr[0].port = 6030;
   strcpy(addr.epAddr[0].fqdn, "localhost");
 

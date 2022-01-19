@@ -559,10 +559,10 @@ static bool timeWindowFromJson(const cJSON* json, void* obj) {
   STimeWindow* win = (STimeWindow*)obj;
 
   char* pStartKey = getString(json, jkTimeWindowStartKey);
-  win->skey = strtoll(pStartKey, NULL, 10);
+  win->skey = strtoul(pStartKey, NULL, 10);
 
   char* pEndKey = getString(json, jkTimeWindowEndKey);
-  win->ekey = strtoll(pEndKey, NULL, 10);
+  win->ekey = strtoul(pEndKey, NULL, 10);
 
   tfree(pStartKey);
   tfree(pEndKey);
@@ -783,7 +783,7 @@ static bool nodeAddrFromJson(const cJSON* json, void* obj) {
   pSource->taskId = getNumber(json, jkNodeTaskId);
 
   char* pSchedId = getString(json, jkNodeTaskSchedId);
-  pSource->schedId = strtoll(pSchedId, NULL, 10);
+  pSource->schedId = strtoul(pSchedId, NULL, 10);
   tfree(pSchedId);
 
   bool res = fromObject(json, jkNodeAddr, queryNodeAddrFromJson, &pSource->addr, true);
@@ -1032,7 +1032,7 @@ static bool subplanIdFromJson(const cJSON* json, void* obj) {
   SSubplanId* id = (SSubplanId*)obj;
 
   char* queryId = getString(json, jkIdQueryId);
-  id->queryId = strtoll(queryId, NULL, 0);
+  id->queryId = strtoul(queryId, NULL, 0);
   tfree(queryId);
 
   id->templateId = getNumber(json, jkIdTemplateId);

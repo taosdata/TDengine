@@ -4952,7 +4952,7 @@ void processMsgFromServer(void* parent, SRpcMsg* pMsg, SEpSet* pEpSet) {
 }
 
 static SSDataBlock* doLoadRemoteData(void* param, bool* newgroup) {
-  SOperatorInfo* pOperator = (SOperatorInfo*) param;
+  SOperatorInfo *pOperator = (SOperatorInfo*) param;
 
   SExchangeInfo *pExchangeInfo = pOperator->info;
   SExecTaskInfo *pTaskInfo = pOperator->pTaskInfo;
@@ -5012,8 +5012,13 @@ static SSDataBlock* doLoadRemoteData(void* param, bool* newgroup) {
 
     size_t len = pExchangeInfo->pRsp->numOfRows * pColInfoData->info.bytes;
     memcpy(tmp, pData, len);
+
+    pColInfoData->pData = tmp;
     pData += len;
   }
+
+  pRes->info.numOfCols = pOperator->numOfOutput;
+  pRes->info.rows = pExchangeInfo->pRsp->numOfRows;
 
   return pExchangeInfo->pResult;
 }
