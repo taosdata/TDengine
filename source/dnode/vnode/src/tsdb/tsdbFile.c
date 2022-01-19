@@ -295,7 +295,7 @@ static int tsdbRollBackMFile(SMFile *pMFile) {
 #endif
 
 // ============== Operations on SDFile
-void tsdbInitDFile(SDFile *pDFile, SDiskID did, int vid, int fid, uint32_t ver, TSDB_FILE_T ftype) {
+void tsdbInitDFile(STsdb *pRepo, SDFile *pDFile, SDiskID did, int fid, uint32_t ver, TSDB_FILE_T ftype) {
   char fname[TSDB_FILENAME_LEN];
 
   TSDB_FILE_SET_STATE(pDFile, TSDB_FILE_STATE_OK);
@@ -305,8 +305,8 @@ void tsdbInitDFile(SDFile *pDFile, SDiskID did, int vid, int fid, uint32_t ver, 
   memset(&(pDFile->info), 0, sizeof(pDFile->info));
   pDFile->info.magic = TSDB_FILE_INIT_MAGIC;
 
-  tsdbGetFilename(vid, fid, ver, ftype, fname);
-  tfsInitFile(&(pDFile->f), did.level, did.id, fname);
+  tsdbGetFilename(pRepo->vgId, fid, ver, ftype, fname);
+  tfsInitFile(pRepo->pTfs, &(pDFile->f), did, fname);
 }
 
 void tsdbInitDFileEx(SDFile *pDFile, SDFile *pODFile) {
@@ -323,9 +323,9 @@ int tsdbEncodeSDFile(void **buf, SDFile *pDFile) {
   return tlen;
 }
 
-void *tsdbDecodeSDFile(void *buf, SDFile *pDFile) {
+void *tsdbDecodeSDFile(STsdb *pRepo, void *buf, SDFile *pDFile) {
   buf = tsdbDecodeDFInfo(buf, &(pDFile->info));
-  buf = tfsDecodeFile(buf, &(pDFile->f));
+  buf = tfsDecodeFile(pRepo->pTfs, buf, &(pDFile->f));
   TSDB_FILE_SET_CLOSED(pDFile);
 
   return buf;
@@ -352,15 +352,15 @@ static void *tsdbDecodeSDFileEx(void *buf, SDFile *pDFile) {
   return buf;
 }
 
-int tsdbCreateDFile(SDFile *pDFile, bool updateHeader) {
+int tsdbCreateDFile(STsdb *pRepo, SDFile *pDFile, bool updateHeader) {
   ASSERT(pDFile->info.size == 0 && pDFile->info.magic == TSDB_FILE_INIT_MAGIC);
 
   pDFile->fd = open(TSDB_FILE_FULL_NAME(pDFile), O_WRONLY | O_CREAT | O_TRUNC | O_BINARY, 0755);
   if (pDFile->fd < 0) {
     if (errno == ENOENT) {
       // Try to create directory recursively
-      char *s = strdup(TFILE_REL_NAME(&(pDFile->f)));
-      if (tfsMkdirRecurAt(dirname(s), TSDB_FILE_LEVEL(pDFile), TSDB_FILE_ID(pDFile)) < 0) {
+      char *s = strdup(TSDB_FILE_REL_NAME(pDFile));
+      if (tfsMkdirRecurAt(pRepo->pTfs, dirname(s), TSDB_FILE_DID(pDFile)) < 0) {
         tfree(s);
         return -1;
       }
@@ -559,13 +559,13 @@ static int tsdbRollBackDFile(SDFile *pDFile) {
 }
 
 // ============== Operations on SDFileSet
-void tsdbInitDFileSet(SDFileSet *pSet, SDiskID did, int vid, int fid, uint32_t ver) {
+void tsdbInitDFileSet(STsdb *pRepo, SDFileSet *pSet, SDiskID did, int fid, uint32_t ver) {
   pSet->fid = fid;
   pSet->state = 0;
 
   for (TSDB_FILE_T ftype = 0; ftype < TSDB_FILE_MAX; ftype++) {
     SDFile *pDFile = TSDB_DFILE_IN_SET(pSet, ftype);
-    tsdbInitDFile(pDFile, did, vid, fid, ver, ftype);
+    tsdbInitDFile(pRepo, pDFile, did, fid, ver, ftype);
   }
 }
 
@@ -587,14 +587,14 @@ int tsdbEncodeDFileSet(void **buf, SDFileSet *pSet) {
   return tlen;
 }
 
-void *tsdbDecodeDFileSet(void *buf, SDFileSet *pSet) {
+void *tsdbDecodeDFileSet(STsdb *pRepo, void *buf, SDFileSet *pSet) {
   int32_t fid;
 
   buf = taosDecodeFixedI32(buf, &(fid));
   pSet->state = 0;
   pSet->fid = fid;
   for (TSDB_FILE_T ftype = 0; ftype < TSDB_FILE_MAX; ftype++) {
-    buf = tsdbDecodeSDFile(buf, TSDB_DFILE_IN_SET(pSet, ftype));
+    buf = tsdbDecodeSDFile(pRepo, buf, TSDB_DFILE_IN_SET(pSet, ftype));
   }
   return buf;
 }
@@ -633,9 +633,9 @@ int tsdbApplyDFileSetChange(SDFileSet *from, SDFileSet *to) {
   return 0;
 }
 
-int tsdbCreateDFileSet(SDFileSet *pSet, bool updateHeader) {
+int tsdbCreateDFileSet(STsdb *pRepo, SDFileSet *pSet, bool updateHeader) {
   for (TSDB_FILE_T ftype = 0; ftype < TSDB_FILE_MAX; ftype++) {
-    if (tsdbCreateDFile(TSDB_DFILE_IN_SET(pSet, ftype), updateHeader) < 0) {
+    if (tsdbCreateDFile(pRepo, TSDB_DFILE_IN_SET(pSet, ftype), updateHeader) < 0) {
       tsdbCloseDFileSet(pSet);
       tsdbRemoveDFileSet(pSet);
       return -1;
