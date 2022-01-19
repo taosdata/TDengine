@@ -204,7 +204,7 @@ void *threadFunc(void *param) {
       int64_t   startTs = taosGetTimestampUs();
       TAOS_RES *pRes = taos_query(con, qstr);
       code = taos_errno(pRes);
-      if (code != 0) {
+      if ((code != 0) && (code != 0x0002)) {
         pError("failed to create table t%" PRId64 ", reason:%s", t, tstrerror(code));
       }
       taos_free_result(pRes);
@@ -227,7 +227,6 @@ void *threadFunc(void *param) {
   if (insertData) {
     int64_t curMs = 0;
     int64_t beginMs = taosGetTimestampMs();
-    ;
 
     pInfo->startMs = taosGetTimestampMs();
     for (int64_t t = pInfo->tableBeginIndex; t < pInfo->tableEndIndex; ++t) {
