@@ -273,6 +273,7 @@ static int32_t mndSaveQueryStreamList(SConnObj *pConn, SHeartBeatReq *pReq) {
 }
 
 static SClientHbRsp* mndMqHbBuildRsp(SMnode* pMnode, SClientHbReq* pReq) {
+#if 0
   SClientHbRsp* pRsp = malloc(sizeof(SClientHbRsp));
   if (pRsp == NULL) {
     terrno = TSDB_CODE_OUT_OF_MEMORY;
@@ -332,6 +333,8 @@ static SClientHbRsp* mndMqHbBuildRsp(SMnode* pMnode, SClientHbReq* pReq) {
   pRsp->body = buf;
   pRsp->bodyLen = tlen;
   return pRsp;
+#endif
+  return NULL;
 }
 
 static int32_t mndProcessHeartBeatReq(SMnodeMsg *pReq) {

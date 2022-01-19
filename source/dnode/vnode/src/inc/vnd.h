@@ -78,6 +78,7 @@ struct SVnode {
   tsem_t     canCommit;
   SQHandle*  pQuery;
   SDnode*    pDnode;
+  STfs*      pTfs;
 };
 
 int vnodeScheduleTask(SVnodeTask* task);

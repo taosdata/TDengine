@@ -142,7 +142,7 @@ int64_t taosWriteFile(FileFd fd, const void *buf, int64_t n) {
 
 int64_t taosLSeekFile(FileFd fd, int64_t offset, int32_t whence) { return (int64_t)lseek(fd, (long)offset, whence); }
 
-int64_t taosCopyFile(char *from, char *to) {
+int64_t taosCopyFile(const char *from, const char *to) {
 #if defined(_TD_WINDOWS_64) || defined(_TD_WINDOWS_32)
   return 0;
 #else
@@ -400,7 +400,7 @@ int32_t taosFsyncFile(FileFd fd) {
 #endif
 }
 
-int32_t taosRenameFile(char *oldName, char *newName) {
+int32_t taosRenameFile(const char *oldName, const char *newName) {
 #if defined(_TD_WINDOWS_64) || defined(_TD_WINDOWS_32)
   int32_t code = MoveFileEx(oldName, newName, MOVEFILE_REPLACE_EXISTING | MOVEFILE_COPY_ALLOWED);
   if (code < 0) {
