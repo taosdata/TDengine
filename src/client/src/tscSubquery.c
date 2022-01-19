@@ -3177,6 +3177,9 @@ static SSqlObj *tscCreateSTableSubquery(SSqlObj *pSql, SRetrieveSupport *trsuppo
 
     // clear the limit/offset info, since it should not be sent to vnode to be executed.
     // pQueryInfo->limit.limit = -1; // alexduan subquery limit is same with parent is ok
+    if (pQueryInfo->limit.offset > 0) {
+      pQueryInfo->limit.limit += pQueryInfo->limit.offset;
+    }
     pQueryInfo->limit.offset = 0;
 
     assert(trsupport->subqueryIndex < pSql->subState.numOfSub);

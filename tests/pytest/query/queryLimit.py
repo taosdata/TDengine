@@ -205,7 +205,7 @@ class TDTestCase:
         tdSql.checkData(19, 1, 6)
         sql = "select * from st order by ts desc limit 20"
         tdSql.waitedQuery(sql, 20, WAITS)
-        tdSql.checkData(18, 1, 2999980)
+        tdSql.checkData(19, 1, 2999980)
         sql = "select * from st where ts>='2017-07-14 10:40:10' and ts<'2017-07-22 18:40:10' order by ts  limit 16;"
         tdSql.waitedQuery(sql, 16, WAITS)
         tdSql.checkData(15, 1, 15)
@@ -217,8 +217,7 @@ class TDTestCase:
         tdSql.checkData(15, 1, 720004)
         sql = "select * from st where ts>='2017-07-14 10:40:10' and ts<'2017-07-22 18:40:10' order by ts desc limit 16 offset 2;"
         tdSql.waitedQuery(sql, 16, WAITS)
-        tdSql.checkData(0, 15, 720004)
-
+        tdSql.checkData(15, 1, 720004)
 
 #
 # add case with filename
