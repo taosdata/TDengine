@@ -35,7 +35,13 @@ typedef int32_t pgsize_t;
 #define TDB_MIN_PGSIZE 512
 #define TDB_MAX_PGSIZE 16384
 #define TDB_DEFAULT_PGSIZE 4096
-#define TDB_IS_PGSIZE_VLD(s) (((s) >= TKV_MIN_PGSIZE) && (TKV_MAX_PGSIZE <= TKV_MAX_PGSIZE))
+#define TDB_IS_PGSIZE_VLD(s) (((s) >= TDB_MIN_PGSIZE) && ((s) <= TDB_MAX_PGSIZE))
+
+// fileid
+#define TDB_FILE_UID_LEN 20
+
+// tdb_log
+#define tdbError(var)
 
 #ifdef __cplusplus
 }
