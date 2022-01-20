@@ -41,7 +41,7 @@ to perform all database operations. The steps to use it are as follows:
 
 **tips:** Need to install .NET SDK first.
 
-* Create a dotnet project. (Using conosle project as an example)
+* Create a dotnet project. (Using console project as an example)
 
 ``` cmd
 mkdir test
