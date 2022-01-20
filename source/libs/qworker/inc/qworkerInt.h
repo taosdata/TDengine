@@ -105,6 +105,7 @@ typedef struct SQWTaskCtx {
   SRWLatch        lock;
   int8_t          phase;
 
+  bool            emptyRes;
   int8_t          queryContinue;
   int8_t          inQueue;
   int32_t         rspCode; 
