@@ -29,8 +29,6 @@ int vnodeProcessQueryReq(SVnode *pVnode, SRpcMsg *pMsg, SRpcMsg **pRsp) {
       return qWorkerProcessQueryMsg(pVnode->pTsdb, pVnode->pQuery, pMsg);
     case TDMT_VND_QUERY_CONTINUE:
       return qWorkerProcessCQueryMsg(pVnode->pTsdb, pVnode->pQuery, pMsg);
-    case TDMT_VND_SCHEDULE_DATA_SINK:
-      return qWorkerProcessDataSinkMsg(pVnode->pTsdb, pVnode->pQuery, pMsg);
     default:
       vError("unknown msg type:%d in query queue", pMsg->msgType);
       return TSDB_CODE_VND_APP_ERROR;

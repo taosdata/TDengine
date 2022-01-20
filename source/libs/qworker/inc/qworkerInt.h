@@ -31,8 +31,6 @@ enum {
   QW_PHASE_POST_QUERY,
   QW_PHASE_PRE_CQUERY,
   QW_PHASE_POST_CQUERY,
-  QW_PHASE_PRE_SINK,
-  QW_PHASE_POST_SINK,
   QW_PHASE_PRE_FETCH,
   QW_PHASE_POST_FETCH,
 };
@@ -105,10 +103,12 @@ typedef struct SQWTaskStatus {
 
 typedef struct SQWTaskCtx {
   SRWLatch        lock;
-  int32_t         phase;
-  
-  int32_t         sinkId;
-  int32_t         readyCode; 
+  int8_t          phase;
+
+  bool            emptyRes;
+  int8_t          queryContinue;
+  int8_t          inQueue;
+  int32_t         rspCode; 
 
   int8_t          events[QW_EVENT_MAX];
   
@@ -144,7 +144,11 @@ typedef struct SQWorkerMgmt {
 #define QW_SET_EVENT_RECEIVED(ctx, event) atomic_store_8(&(ctx)->events[event], QW_EVENT_RECEIVED)
 #define QW_SET_EVENT_PROCESSED(ctx, event) atomic_store_8(&(ctx)->events[event], QW_EVENT_PROCESSED)
 
-#define QW_IN_EXECUTOR(ctx) ((ctx)->phase == QW_PHASE_PRE_QUERY || (ctx)->phase == QW_PHASE_PRE_CQUERY || (ctx)->phase == QW_PHASE_PRE_FETCH || (ctx)->phase == QW_PHASE_PRE_SINK)
+#define QW_GET_PHASE(ctx) atomic_load_8(&(ctx)->phase)
+
+#define QW_SET_RSP_CODE(ctx, code) atomic_val_compare_exchange_32(&(ctx)->rspCode, 0, code)
+
+#define QW_IN_EXECUTOR(ctx) (QW_GET_PHASE(ctx) == QW_PHASE_PRE_QUERY || QW_GET_PHASE(ctx) == QW_PHASE_PRE_CQUERY || QW_GET_PHASE(ctx) == QW_PHASE_PRE_FETCH)
 
 #define QW_TASK_NOT_EXIST(code) (TSDB_CODE_QRY_SCH_NOT_EXIST == (code) || TSDB_CODE_QRY_TASK_NOT_EXIST == (code))
 #define QW_TASK_ALREADY_EXIST(code) (TSDB_CODE_QRY_TASK_ALREADY_EXIST == (code))
