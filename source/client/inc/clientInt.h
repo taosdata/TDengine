@@ -179,7 +179,7 @@ extern int32_t  clientConnRefPool;
 
 extern int (*handleRequestRspFp[TDMT_MAX])(void*, const SDataBuf* pMsg, int32_t code);
 int genericRspCallback(void* param, const SDataBuf* pMsg, int32_t code);
-SMsgSendInfo* buildMsgInfoImpl(SRequestObj*);
+SMsgSendInfo* buildMsgInfoImpl(SRequestObj* pReqObj);
 
 int   taos_init();
 

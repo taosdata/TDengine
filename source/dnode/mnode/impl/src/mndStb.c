@@ -853,6 +853,10 @@ static int32_t mndRetrieveStb(SMnodeMsg *pReq, SShowObj *pShow, char *data, int3
     if (pShow->pIter == NULL) break;
 
     if (pStb->dbUid != pDb->uid) {
+      if (strncmp(pStb->db, pDb->name, tListLen(pStb->db)) == 0) {
+        mError("Inconsistent table data, name:%s, db:%s, dbUid:%"PRIu64, pStb->name, pDb->name, pDb->uid);
+      }
+
       sdbRelease(pSdb, pStb);
       continue;
     }

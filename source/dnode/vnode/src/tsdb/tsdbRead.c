@@ -152,7 +152,7 @@ typedef struct STsdbReadHandle {
 typedef struct STableGroupSupporter {
   int32_t    numOfCols;
   SColIndex* pCols;
-  STSchema*  pTagSchema;
+  SSchema*   pTagSchema;
 } STableGroupSupporter;
 
 static STimeWindow updateLastrowForEachGroup(STableGroupInfo *groupList);
@@ -466,7 +466,7 @@ static STsdbReadHandle* tsdbQueryTablesImpl(STsdb* tsdb, STsdbQueryCond* pCond, 
   return (tsdbReadHandleT)pReadHandle;
 
   _end:
-//  tsdbCleanupQueryHandle(pTsdbReadHandle);
+  tsdbCleanupQueryHandle(pReadHandle);
   terrno = TSDB_CODE_TDB_OUT_OF_MEMORY;
   return NULL;
 }
@@ -2630,18 +2630,20 @@ static int tsdbReadRowsFromCache(STableCheckInfo* pCheckInfo, TSKEY maxKey, int 
   return numOfRows;
 }
 
-static int32_t getAllTableList(STable* pSuperTable, SArray* list) {
-  SSkipListIterator* iter = NULL;//tSkipListCreateIter(pSuperTable->pIndex);
-  while (tSkipListIterNext(iter)) {
-    SSkipListNode* pNode = tSkipListIterGet(iter);
+static int32_t getAllTableList(SMeta* pMeta, uint64_t uid, SArray* list) {
+  SMCtbCursor* pCur = metaOpenCtbCursor(pMeta, uid);
 
-    STable* pTable = (STable*) SL_GET_NODE_DATA((SSkipListNode*) pNode);
+  while (1) {
+    tb_uid_t id = metaCtbCursorNext(pCur);
+    if (id == 0) {
+      break;
+    }
 
-    STableKeyInfo info = {.pTable = pTable, .lastKey = TSKEY_INITIAL_VAL};
+    STableKeyInfo info = {.pTable = NULL, .lastKey = TSKEY_INITIAL_VAL, uid = id};
     taosArrayPush(list, &info);
   }
 
-  tSkipListDestroyIter(iter);
+  metaCloseCtbCurosr(pCur);
   return TSDB_CODE_SUCCESS;
 }
 
@@ -3553,7 +3555,7 @@ void createTableGroupImpl(SArray* pGroups, SArray* pTableList, size_t numOfTable
   taosArrayPush(pGroups, &g);
 }
 
-SArray* createTableGroup(SArray* pTableList, STSchema* pTagSchema, SColIndex* pCols, int32_t numOfOrderCols, TSKEY skey) {
+SArray* createTableGroup(SArray* pTableList, SSchemaWrapper* pTagSchema, SColIndex* pCols, int32_t numOfOrderCols, TSKEY skey) {
   assert(pTableList != NULL);
   SArray* pTableGroup = taosArrayInit(1, POINTER_BYTES);
 
@@ -3564,17 +3566,10 @@ SArray* createTableGroup(SArray* pTableList, STSchema* pTagSchema, SColIndex* pC
   }
 
   if (numOfOrderCols == 0 || size == 1) { // no group by tags clause or only one table
-    SArray* sa = taosArrayInit(size, sizeof(STableKeyInfo));
+    SArray* sa = taosArrayDup(pTableList);
     if (sa == NULL) {
       taosArrayDestroy(pTableGroup);
       return NULL;
-    }
-
-    for(int32_t i = 0; i < size; ++i) {
-      STableKeyInfo *pKeyInfo = taosArrayGet(pTableList, i);
-
-      STableKeyInfo info = {.pTable = pKeyInfo->pTable, .lastKey = skey};
-      taosArrayPush(sa, &info);
     }
 
     taosArrayPush(pTableGroup, &sa);
@@ -3582,7 +3577,7 @@ SArray* createTableGroup(SArray* pTableList, STSchema* pTagSchema, SColIndex* pC
   } else {
     STableGroupSupporter sup = {0};
     sup.numOfCols = numOfOrderCols;
-    sup.pTagSchema = pTagSchema;
+    sup.pTagSchema = pTagSchema->pSchema;
     sup.pCols = pCols;
 
 //    taosqsort(pTableList->pData, size, sizeof(STableKeyInfo), &sup, tableGroupComparFn);
@@ -3710,12 +3705,11 @@ int32_t tsdbQuerySTableByTagCond(STsdb* tsdb, uint64_t uid, TSKEY skey, const ch
 
   //NOTE: not add ref count for super table
   SArray* res = taosArrayInit(8, sizeof(STableKeyInfo));
-  STSchema* pTagSchema = metaGetTableSchema(tsdb->pMeta, uid, 0, true);
+  SSchemaWrapper* pTagSchema = metaGetTableSchema(tsdb->pMeta, uid, 0, true);
 
   // no tags and tbname condition, all child tables of this stable are involved
   if (tbnameCond == NULL && (pTagCond == NULL || len == 0)) {
-    assert(false);
-    int32_t ret = 0;//getAllTableList(pTable, res);
+    int32_t ret = getAllTableList(tsdb->pMeta, uid, res);
     if (ret != TSDB_CODE_SUCCESS) {
       goto _error;
     }
@@ -3854,7 +3848,7 @@ int32_t tsdbGetTableGroupFromIdList(STsdb* tsdb, SArray* pTableIdList, STableGro
 
   return TSDB_CODE_SUCCESS;
 }
-
+#endif
 static void* doFreeColumnInfoData(SArray* pColumnInfoData) {
   if (pColumnInfoData == NULL) {
     return NULL;
@@ -3882,6 +3876,7 @@ static void* destroyTableCheckInfo(SArray* pTableCheckInfo) {
   taosArrayDestroy(pTableCheckInfo);
   return NULL;
 }
+
 
 void tsdbCleanupQueryHandle(tsdbReadHandleT queryHandle) {
   STsdbReadHandle* pTsdbReadHandle = (STsdbReadHandle*)queryHandle;
@@ -3921,6 +3916,7 @@ void tsdbCleanupQueryHandle(tsdbReadHandleT queryHandle) {
   tfree(pTsdbReadHandle);
 }
 
+#if 0
 void tsdbDestroyTableGroup(STableGroupInfo *pGroupList) {
   assert(pGroupList != NULL);
 

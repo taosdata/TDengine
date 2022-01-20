@@ -80,6 +80,13 @@ extern "C" {
 
 #define FUNCTION_COV          38
 
+typedef struct SResultRowEntryInfo {
+  int8_t   hasResult;       // result generated, not NULL value
+  bool     initialized;     // output buffer has been initialized
+  bool     complete;        // query has completed
+  uint32_t numOfRes;        // num of output result in current buffer
+} SResultRowEntryInfo;
+
 // determine the real data need to calculated the result
 enum {
   BLK_DATA_NO_NEEDED     = 0x0,
@@ -127,6 +134,8 @@ typedef struct SFunctionFpSet {
   void (*combine)(struct SQLFunctionCtx *pCtx);
 } SFunctionFpSet;
 
+extern SFunctionFpSet fpSet[1];
+
 // sql function runtime context
 typedef struct SQLFunctionCtx {
   int32_t      size;      // number of rows
@@ -156,6 +165,7 @@ typedef struct SQLFunctionCtx {
   SPoint1      start;
   SPoint1      end;
 
+  int32_t      columnIndex;
   SFunctionFpSet* fpSet;
 } SQLFunctionCtx;
 

@@ -26,18 +26,26 @@ static int32_t setShowInfo(SShowInfo* pShowInfo, SParseContext* pCtx, void** out
   const char* msg4 = "pattern is invalid";
   const char* msg5 = "database name is empty";
   const char* msg6 = "pattern string is empty";
-
+  const char* msg7 = "db is not specified";
   /*
    * database prefix in pInfo->pMiscInfo->a[0]
    * wildcard in like clause in pInfo->pMiscInfo->a[1]
    */
   int16_t showType = pShowInfo->showType;
   if (showType == TSDB_MGMT_TABLE_TABLE) {
-    SVShowTablesReq* pShowReq = calloc(1, sizeof(SVShowTablesReq));
-
     SArray* array = NULL;
     SName   name = {0};
-    tNameSetDbName(&name, pCtx->acctId, pCtx->db, strlen(pCtx->db));
+
+    if (pCtx->db == NULL && pShowInfo->prefix.n == 0) {
+      return buildInvalidOperationMsg(pMsgBuf, msg7);
+    }
+
+    SVShowTablesReq* pShowReq = calloc(1, sizeof(SVShowTablesReq));
+    if (pShowInfo->prefix.n > 0) {
+      tNameSetDbName(&name, pCtx->acctId, pShowInfo->prefix.z, pShowInfo->prefix.n);
+    } else {
+      tNameSetDbName(&name, pCtx->acctId, pCtx->db, strlen(pCtx->db));
+    }
 
     char dbFname[TSDB_DB_FNAME_LEN] = {0};
     tNameGetFullDbName(&name, dbFname);
@@ -714,6 +722,8 @@ SDclStmtInfo* qParserValidateDclSqlNode(SSqlInfo* pInfo, SParseContext* pCtx, ch
 
   SMsgBuf  m = {.buf = msgBuf, .len = msgBufLen};
   SMsgBuf* pMsgBuf = &m;
+
+  pDcl->epSet = pCtx->mgmtEpSet;
 
   switch (pInfo->type) {
     case TSDB_SQL_CREATE_USER:
