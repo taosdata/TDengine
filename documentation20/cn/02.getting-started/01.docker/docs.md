@@ -197,6 +197,7 @@ thread num of create table: 10
 top insert interval:        0
 
 使用 curl 命令验证 RESTful 接口可以正常工作：
+
 ```
 $ curl -H 'Authorization: Basic cm9vdDp0YW9zZGF0YQ==' -d 'show databases;' 127.0.0.1:6041/rest/sql
 
@@ -204,11 +205,13 @@ $ curl -H 'Authorization: Basic cm9vdDp0YW9zZGF0YQ==' -d 'show databases;' 127.0
 ```
 
 taosAdapter 支持多个数据收集代理软件（如 Telegraf、StatsD、collectd 等），这里仅模拟 StasD 写入数据，在宿主机执行命令如下：
+
 ```
 $ echo "foo:1|c" | nc -u -w0 127.0.0.1 6044
 ```
 
 然后可以使用 taos shell 查询 taosAdapter 自动创建的数据库 statsd 和 超级表 foo 中的内容：
+
 ```
 taos> show databases;
               name              |      created_time       |   ntables   |   vgroups   | replica | quorum |  days  |           keep           |  cache(MB)  |   blocks    |   minrows   |   maxrows   | wallevel |    fsync    | comp | cachelast | precision | update |   status   |
@@ -257,6 +260,7 @@ thread num of create table: 10
 top insert interval:        0
 
 使用 curl 命令验证 RESTful 接口可以正常工作：
+
 ```
 $ curl -H 'Authorization: Basic cm9vdDp0YW9zZGF0YQ==' -d 'show databases;' 127.0.0.1:6041/rest/sql
 
@@ -269,6 +273,7 @@ $ echo "foo:1|c" | nc -u -w0 127.0.0.1 6044
 ```
 
 然后可以使用 taos shell 查询 taosAdapter 自动创建的数据库 statsd 和 超级表 foo 中的内容：
+
 ```
 taos> show databases;
               name              |      created_time       |   ntables   |   vgroups   | replica | quorum |  days  |           keep           |  cache(MB)  |   blocks    |   minrows   |   maxrows   | wallevel |    fsync    | comp | cachelast | precision | update |   status   |
