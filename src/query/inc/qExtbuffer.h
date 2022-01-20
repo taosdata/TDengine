@@ -53,14 +53,14 @@ typedef struct tFlushoutInfo {
 } tFlushoutInfo;
 
 typedef struct tFlushoutData {
-  uint32_t       nAllocSize;
-  uint32_t       nLength;
-  tFlushoutInfo *pFlushoutInfo;
+  uint32_t       nAllocSize;    // capacity
+  uint32_t       nLength;       // size
+  tFlushoutInfo *pFlushoutInfo; // dynamic allocate
 } tFlushoutData;
 
 typedef struct SExtFileInfo {
-  uint32_t      nFileSize;  // in pages
-  uint32_t      pageSize;
+  uint32_t      nFileSize;  // how many pages in file
+  //uint32_t      pageSize; // useless
   uint32_t      numOfElemsInFile;
   tFlushoutData flushoutData;
 } SExtFileInfo;
