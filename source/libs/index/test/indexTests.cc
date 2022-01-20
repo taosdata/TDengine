@@ -82,7 +82,9 @@ class FstReadMemory {
   bool init() {
     char* buf = (char*)calloc(1, sizeof(char) * _size);
     int   nRead = fstCountingWriterRead(_w, (uint8_t*)buf, _size);
-    if (nRead <= 0) { return false; }
+    if (nRead <= 0) {
+      return false;
+    }
     _size = nRead;
     _s = fstSliceCreate((uint8_t*)buf, _size);
     _fst = fstCreate(&_s);
@@ -108,7 +110,9 @@ class FstReadMemory {
     StreamWithState*       st = streamBuilderIntoStream(sb);
     StreamWithStateResult* rt = NULL;
 
-    while ((rt = streamWithStateNextWith(st, NULL)) != NULL) { result.push_back((uint64_t)(rt->out.out)); }
+    while ((rt = streamWithStateNextWith(st, NULL)) != NULL) {
+      result.push_back((uint64_t)(rt->out.out));
+    }
     return true;
   }
   bool SearchWithTimeCostUs(AutomationCtx* ctx, std::vector<uint64_t>& result) {
@@ -184,7 +188,9 @@ void checkFstPerf() {
   delete fw;
 
   FstReadMemory* m = new FstReadMemory(1024 * 64);
-  if (m->init()) { printf("success to init fst read"); }
+  if (m->init()) {
+    printf("success to init fst read");
+  }
   Performance_fstReadRecords(m);
   delete m;
 }
@@ -348,7 +354,9 @@ class TFileObj {
       tfileReaderDestroy(reader_);
       reader_ = NULL;
     }
-    if (writer_ == NULL) { InitWriter(); }
+    if (writer_ == NULL) {
+      InitWriter();
+    }
     return tfileWriterPut(writer_, tv, false);
   }
   bool InitWriter() {
@@ -388,8 +396,12 @@ class TFileObj {
     return tfileReaderSearch(reader_, query, result);
   }
   ~TFileObj() {
-    if (writer_) { tfileWriterDestroy(writer_); }
-    if (reader_) { tfileReaderDestroy(reader_); }
+    if (writer_) {
+      tfileWriterDestroy(writer_);
+    }
+    if (reader_) {
+      tfileReaderDestroy(reader_);
+    }
   }
 
  private:
@@ -912,7 +924,8 @@ TEST_F(IndexEnv2, testIndex_serarch_cache_and_tfile) {
 }
 TEST_F(IndexEnv2, testIndex_MultiWrite_and_MultiRead) {
   std::string path = "/tmp/cache_and_tfile";
-  if (index->Init(path) != 0) {}
+  if (index->Init(path) != 0) {
+  }
 
   std::thread threads[NUM_OF_THREAD];
   for (int i = 0; i < NUM_OF_THREAD; i++) {
@@ -927,14 +940,24 @@ TEST_F(IndexEnv2, testIndex_MultiWrite_and_MultiRead) {
 
 TEST_F(IndexEnv2, testIndex_restart) {
   std::string path = "/tmp/cache_and_tfile";
-  if (index->Init(path) != 0) {}
+  if (index->Init(path) != 0) {
+  }
+  index->SearchOneTarget("tag1", "Hello", 10);
+  index->SearchOneTarget("tag2", "Test", 10);
+}
+TEST_F(IndexEnv2, testIndex_restart1) {
+  std::string path = "/tmp/cache_and_tfile";
+  if (index->Init(path) != 0) {
+  }
+  index->ReadMultiMillonData("tag1", "coding");
   index->SearchOneTarget("tag1", "Hello", 10);
   index->SearchOneTarget("tag2", "Test", 10);
 }
 
 TEST_F(IndexEnv2, testIndex_read_performance) {
   std::string path = "/tmp/cache_and_tfile";
-  if (index->Init(path) != 0) {}
+  if (index->Init(path) != 0) {
+  }
   index->PutOneTarge("tag1", "Hello", 12);
   index->PutOneTarge("tag1", "Hello", 15);
   index->ReadMultiMillonData("tag1", "Hello");
@@ -943,17 +966,84 @@ TEST_F(IndexEnv2, testIndex_read_performance) {
 }
 TEST_F(IndexEnv2, testIndexMultiTag) {
   std::string path = "/tmp/multi_tag";
-  if (index->Init(path) != 0) {}
+  if (index->Init(path) != 0) {
+  }
   int64_t st = taosGetTimestampUs();
   int32_t num = 1000 * 10000;
   index->WriteMultiMillonData("tag1", "xxxxxxxxxxxxxxx", num);
   std::cout << "numOfRow: " << num << "\ttime cost:" << taosGetTimestampUs() - st << std::endl;
   // index->WriteMultiMillonData("tag2", "xxxxxxxxxxxxxxxxxxxxxxxxx", 100 * 10000);
 }
-TEST_F(IndexEnv2, testLongComVal) {
+TEST_F(IndexEnv2, testLongComVal1) {
   std::string path = "/tmp/long_colVal";
-  if (index->Init(path) != 0) {}
+  if (index->Init(path) != 0) {
+  }
   // gen colVal by randstr
   std::string randstr = "xxxxxxxxxxxxxxxxx";
   index->WriteMultiMillonData("tag1", randstr, 100 * 10000);
+}
+
+TEST_F(IndexEnv2, testLongComVal2) {
+  std::string path = "/tmp/long_colVal";
+  if (index->Init(path) != 0) {
+  }
+  // gen colVal by randstr
+  std::string randstr = "abcccc fdadfafdafda";
+  index->WriteMultiMillonData("tag1", randstr, 100 * 10000);
+}
+TEST_F(IndexEnv2, testLongComVal3) {
+  std::string path = "/tmp/long_colVal";
+  if (index->Init(path) != 0) {
+  }
+  // gen colVal by randstr
+  std::string randstr = "Yes, coding and coding and coding";
+  index->WriteMultiMillonData("tag1", randstr, 100 * 10000);
+}
+TEST_F(IndexEnv2, testLongComVal4) {
+  std::string path = "/tmp/long_colVal";
+  if (index->Init(path) != 0) {
+  }
+  // gen colVal by randstr
+  std::string randstr = "111111 bac fdadfa";
+  index->WriteMultiMillonData("tag1", randstr, 100 * 10000);
+}
+TEST_F(IndexEnv2, testIndex_read_performance1) {
+  std::string path = "/tmp/cache_and_tfile";
+  if (index->Init(path) != 0) {
+  }
+  index->PutOneTarge("tag1", "Hello", 12);
+  index->PutOneTarge("tag1", "Hello", 15);
+  index->ReadMultiMillonData("tag1", "Hello", 1000);
+  std::cout << "reader sz: " << index->SearchOne("tag1", "Hello") << std::endl;
+  assert(3 == index->SearchOne("tag1", "Hello"));
+}
+TEST_F(IndexEnv2, testIndex_read_performance2) {
+  std::string path = "/tmp/cache_and_tfile";
+  if (index->Init(path) != 0) {
+  }
+  index->PutOneTarge("tag1", "Hello", 12);
+  index->PutOneTarge("tag1", "Hello", 15);
+  index->ReadMultiMillonData("tag1", "Hello", 1000 * 10);
+  std::cout << "reader sz: " << index->SearchOne("tag1", "Hello") << std::endl;
+  assert(3 == index->SearchOne("tag1", "Hello"));
+}
+TEST_F(IndexEnv2, testIndex_read_performance3) {
+  std::string path = "/tmp/cache_and_tfile";
+  if (index->Init(path) != 0) {
+  }
+  index->PutOneTarge("tag1", "Hello", 12);
+  index->PutOneTarge("tag1", "Hello", 15);
+  index->ReadMultiMillonData("tag1", "Hello", 1000 * 100);
+  std::cout << "reader sz: " << index->SearchOne("tag1", "Hello") << std::endl;
+  assert(3 == index->SearchOne("tag1", "Hello"));
+}
+TEST_F(IndexEnv2, testIndex_read_performance4) {
+  std::string path = "/tmp/cache_and_tfile";
+  if (index->Init(path) != 0) {
+  }
+  index->PutOneTarge("tag10", "Hello", 12);
+  index->PutOneTarge("tag12", "Hello", 15);
+  index->ReadMultiMillonData("tag10", "Hello", 1000 * 100);
+  std::cout << "reader sz: " << index->SearchOne("tag1", "Hello") << std::endl;
+  assert(3 == index->SearchOne("tag10", "Hello"));
 }
