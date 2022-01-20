@@ -199,4 +199,6 @@ void transBuildAuthHead(void* pMsg, int msgLen, void* pAuth, void* pKey);
 bool transCompressMsg(char* msg, int32_t len, int32_t* flen);
 bool transDecompressMsg(char* msg, int32_t len, int32_t* flen);
 
+void transConnCtxDestroy(STransConnCtx* ctx);
+
 #endif

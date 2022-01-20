@@ -496,6 +496,7 @@ void* taosInitServer(uint32_t ip, uint32_t port, char* label, int numOfThreads, 
 
   for (int i = 0; i < srv->numOfThreads; i++) {
     SWorkThrdObj* thrd = (SWorkThrdObj*)calloc(1, sizeof(SWorkThrdObj));
+
     srv->pipe[i] = (uv_pipe_t*)calloc(2, sizeof(uv_pipe_t));
     int fds[2];
     if (uv_socketpair(AF_UNIX, SOCK_STREAM, fds, UV_NONBLOCK_PIPE, UV_NONBLOCK_PIPE) != 0) {
@@ -530,6 +531,17 @@ void* taosInitServer(uint32_t ip, uint32_t port, char* label, int numOfThreads, 
 void taosCloseServer(void* arg) {
   // impl later
   SServerObj* srv = arg;
+  for (int i = 0; i < srv->numOfThreads; i++) {
+    SWorkThrdObj* pThrd = srv->pThreadObj[i];
+    pthread_join(pThrd->thread, NULL);
+    free(srv->pipe[i]);
+    free(pThrd->loop);
+    free(pThrd);
+  }
+  free(srv->loop);
+  free(srv->pipe);
+  free(srv->pThreadObj);
+  pthread_join(srv->thread, NULL);
 }
 
 void rpcSendResponse(const SRpcMsg* pMsg) {

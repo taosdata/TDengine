@@ -63,6 +63,8 @@ static void clientAsyncCb(uv_async_t* handle);
 static void clientDestroy(uv_handle_t* handle);
 static void clientConnDestroy(SCliConn* pConn);
 
+static void clientMsgDestroy(SCliMsg* pMsg);
+
 static void* clientThread(void* arg);
 
 static void clientHandleReq(SCliMsg* pMsg, SCliThrdObj* pThrd);
@@ -235,9 +237,22 @@ void* taosInitClient(uint32_t ip, uint32_t port, char* label, int numOfThreads, 
   }
   return cli;
 }
+static void clientMsgDestroy(SCliMsg* pMsg) {
+  // impl later
+  free(pMsg);
+}
 void taosCloseClient(void* arg) {
   // impl later
   SClientObj* cli = arg;
+  for (int i = 0; i < cli->numOfThreads; i++) {
+    SCliThrdObj* pThrd = cli->pThreadObj[i];
+    pthread_join(pThrd->thread, NULL);
+    pthread_mutex_destroy(&pThrd->msgMtx);
+    free(pThrd->loop);
+    free(pThrd);
+  }
+  free(cli->pThreadObj);
+  free(cli);
 }
 
 void rpcSendRequest(void* shandle, const SEpSet* pEpSet, SRpcMsg* pMsg, int64_t* pRid) {
@@ -247,19 +262,18 @@ void rpcSendRequest(void* shandle, const SEpSet* pEpSet, SRpcMsg* pMsg, int64_t*
 
   SRpcInfo* pRpc = (SRpcInfo*)shandle;
 
-  int len = rpcCompressRpcMsg(pMsg->pCont, pMsg->contLen);
+  int32_t flen = 0;
+  if (transCompressMsg(pMsg->pCont, pMsg->contLen, &flen)) {
+    // imp later
+  }
 
   STransConnCtx* pCtx = calloc(1, sizeof(STransConnCtx));
 
   pCtx->pRpc = (SRpcInfo*)shandle;
   pCtx->ahandle = pMsg->ahandle;
-  // pContext->contLen = len;
-  // pContext->pCont = pMsg->pCont;
   pCtx->msgType = pMsg->msgType;
   pCtx->ip = strdup(ip);
   pCtx->port = port;
-  // pContext->epSet = *pEpSet;
-  // pContext->oldInUse = pEpSet->inUse;
 
   assert(pRpc->connType == TAOS_CONN_CLIENT);
   // atomic or not

@@ -107,6 +107,7 @@ int32_t rpcCompressRpcMsg(char* pCont, int32_t contLen) {
 }
 
 bool transCompressMsg(char* msg, int32_t len, int32_t* flen) {
+  return false;
   // SRpcHead* pHead = rpcHeadFromCont(pCont);
   bool succ = false;
   int  overhead = sizeof(STransCompMsg);
@@ -186,4 +187,8 @@ SRpcHead* rpcDecompressRpcMsg(SRpcHead* pHead) {
   return pHead;
 }
 
+void transConnCtxDestroy(STransConnCtx* ctx) {
+  free(ctx->ip);
+  free(ctx);
+}
 #endif
