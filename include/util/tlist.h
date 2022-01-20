@@ -34,6 +34,7 @@ extern "C" {
 #define TD_SLIST_HEAD(sl) ((sl)->sl_head_)
 #define TD_SLIST_NELES(sl) ((sl)->sl_neles_)
 #define TD_SLIST_NODE_NEXT(sln) ((sln)->sl_next_)
+#define TD_SLIST_NODE_NEXT_WITH_FIELD(sln, feild) ((sln)->(feild).sl_next_)
 
 #define TD_SLIST_INIT(sl)  \
   do {                     \
@@ -48,10 +49,23 @@ extern "C" {
     TD_SLIST_NELES(sl) += 1;                     \
   } while (0)
 
+#define TD_SLIST_PUSH_WITH_FIELD(sl, sln, feild)                   \
+  do {                                                             \
+    TD_SLIST_NODE_NEXT_WITH_FIELD(sln, feild) = TD_SLIST_HEAD(sl); \
+    TD_SLIST_HEAD(sl) = (sln);                                     \
+    TD_SLIST_NELES(sl) += 1;                                       \
+  } while (0)
+
 #define TD_SLIST_POP(sl)                                       \
   do {                                                         \
     TD_SLIST_HEAD(sl) = TD_SLIST_NODE_NEXT(TD_SLIST_HEAD(sl)); \
     TD_SLIST_NELES(sl) -= 1;                                   \
+  } while (0)
+
+#define TD_SLIST_POP_WITH_FIELD(sl, feild)                                       \
+  do {                                                                           \
+    TD_SLIST_HEAD(sl) = TD_SLIST_NODE_NEXT_WITH_FIELD(TD_SLIST_HEAD(sl), feild); \
+    TD_SLIST_NELES(sl) -= 1;                                                     \
   } while (0)
 
 // Double linked list ================
@@ -70,6 +84,8 @@ extern "C" {
 
 #define TD_DLIST_NODE_PREV(dln) ((dln)->dl_prev_)
 #define TD_DLIST_NODE_NEXT(dln) ((dln)->dl_next_)
+#define TD_DLIST_NODE_PREV_WITH_FIELD(dln, feild) ((dln)->(feild).dl_prev_)
+#define TD_DLIST_NODE_NEXT_WITH_FIELD(dln, feild) ((dln)->(feild).dl_next_)
 #define TD_DLIST_HEAD(dl) ((dl)->dl_head_)
 #define TD_DLIST_TAIL(dl) ((dl)->dl_tail_)
 #define TD_DLIST_NELES(dl) ((dl)->dl_neles_)
@@ -94,6 +110,20 @@ extern "C" {
     TD_DLIST_NELES(dl) += 1;                                    \
   } while (0)
 
+#define TD_DLIST_APPEND_WITH_FEILD(dl, dln, feild)                                                  \
+  do {                                                                                              \
+    if (TD_DLIST_HEAD(dl) == NULL) {                                                                \
+      TD_DLIST_NODE_PREV_WITH_FIELD(dln, feild) = TD_DLIST_NODE_NEXT_WITH_FIELD(dln, feild) = NULL; \
+      TD_DLIST_HEAD(dl) = TD_DLIST_TAIL(dl) = (dln);                                                \
+    } else {                                                                                        \
+      TD_DLIST_NODE_PREV_WITH_FIELD(dln, feild) = TD_DLIST_TAIL(dl);                                \
+      TD_DLIST_NODE_NEXT_WITH_FIELD(dln, feild) = NULL;                                             \
+      TD_DLIST_NODE_NEXT_WITH_FIELD(TD_DLIST_TAIL(dl), feild) = (dln);                              \
+      TD_DLIST_TAIL(dl) = (dln);                                                                    \
+    }                                                                                               \
+    TD_DLIST_NELES(dl) += 1;                                                                        \
+  } while (0)
+
 #define TD_DLIST_PREPEND(dl, dln)                               \
   do {                                                          \
     if (TD_DLIST_HEAD(dl) == NULL) {                            \
@@ -106,6 +136,20 @@ extern "C" {
       TD_DLIST_HEAD(dl) = (dln);                                \
     }                                                           \
     TD_DLIST_NELES(dl) += 1;                                    \
+  } while (0)
+
+#define TD_DLIST_PREPEND_WITH_FIELD(dl, dln, feild)                                                 \
+  do {                                                                                              \
+    if (TD_DLIST_HEAD(dl) == NULL) {                                                                \
+      TD_DLIST_NODE_PREV_WITH_FIELD(dln, feild) = TD_DLIST_NODE_NEXT_WITH_FIELD(dln, feild) = NULL; \
+      TD_DLIST_HEAD(dl) = TD_DLIST_TAIL(dl) = (dln);                                                \
+    } else {                                                                                        \
+      TD_DLIST_NODE_PREV_WITH_FIELD(dln, feild) = NULL;                                             \
+      TD_DLIST_NODE_NEXT_WITH_FIELD(dln, feild) = TD_DLIST_HEAD(dl);                                \
+      TD_DLIST_NODE_PREV_WITH_FIELD(TD_DLIST_HEAD(dl), feild) = (dln);                              \
+      TD_DLIST_HEAD(dl) = (dln);                                                                    \
+    }                                                                                               \
+    TD_DLIST_NELES(dl) += 1;                                                                        \
   } while (0)
 
 #define TD_DLIST_POP(dl, dln)                                                \
@@ -124,6 +168,26 @@ extern "C" {
     }                                                                        \
     TD_DLIST_NELES(dl) -= 1;                                                 \
     TD_DLIST_NODE_PREV(dln) = TD_DLIST_NODE_NEXT(dln) = NULL;                \
+  } while (0)
+
+#define TD_DLIST_POP_WITH_FIELD(dl, dln, field)                                                   \
+  do {                                                                                            \
+    if (TD_DLIST_HEAD(dl) == (dln)) {                                                             \
+      TD_DLIST_HEAD(dl) = TD_DLIST_NODE_NEXT_WITH_FIELD(dln, feild);                              \
+    }                                                                                             \
+    if (TD_DLIST_TAIL(dl) == (dln)) {                                                             \
+      TD_DLIST_TAIL(dl) = TD_DLIST_NODE_PREV_WITH_FIELD(dln, feild);                              \
+    }                                                                                             \
+    if (TD_DLIST_NODE_PREV_WITH_FIELD(dln, feild) != NULL) {                                      \
+      TD_DLIST_NODE_NEXT_WITH_FIELD(TD_DLIST_NODE_PREV_WITH_FIELD(dln, feild), feild) =           \
+          TD_DLIST_NODE_NEXT_WITH_FIELD(dln, feild);                                              \
+    }                                                                                             \
+    if (TD_DLIST_NODE_NEXT_WITH_FIELD(dln, feild) != NULL) {                                      \
+      TD_DLIST_NODE_PREV_WITH_FIELD(TD_DLIST_NODE_NEXT_WITH_FIELD(dln, feild), feild) =           \
+          TD_DLIST_NODE_PREV_WITH_FIELD(dln, feild);                                              \
+    }                                                                                             \
+    TD_DLIST_NELES(dl) -= 1;                                                                      \
+    TD_DLIST_NODE_PREV_WITH_FIELD(dln, feild) = TD_DLIST_NODE_NEXT_WITH_FIELD(dln, feild) = NULL; \
   } while (0)
 
 // General double linked list
