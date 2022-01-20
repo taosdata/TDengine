@@ -91,6 +91,7 @@ SSchema *getOneColumnSchema(const STableMeta* pTableMeta, int32_t colIndex);
 
 int32_t getNewResColId();
 void addIntoSourceParam(SSourceParam* pSourceParam, tExprNode* pNode, SColumn* pColumn);
+SExprInfo* createBinaryExprInfo(struct tExprNode* pNode, SSchema* pResSchema);
 
 #ifdef __cplusplus
 }

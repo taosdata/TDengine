@@ -55,8 +55,6 @@ int32_t mndInitSubscribe(SMnode *pMnode) {
                      .deleteFp = (SdbDeleteFp)mndSubActionDelete};
 
   mndSetMsgHandle(pMnode, TDMT_MND_SUBSCRIBE, mndProcessSubscribeReq);
-  /*mndSetMsgHandle(pMnode, TDMT_MND_SUBSCRIBE_RSP, mndProcessSubscribeRsp);*/
-  /*mndSetMsgHandle(pMnode, TDMT_VND_SUBSCRIBE, mndProcessSubscribeInternalReq);*/
   mndSetMsgHandle(pMnode, TDMT_VND_SUBSCRIBE_RSP, mndProcessSubscribeInternalRsp);
   mndSetMsgHandle(pMnode, TDMT_MND_MQ_TIMER, mndProcessMqTimerMsg);
   return sdbSetTable(pMnode->pSdb, table);
@@ -95,14 +93,14 @@ static int32_t mndProcessMqTimerMsg(SMnodeMsg *pMsg) {
         SMqConsumerEp *pCEp = taosArrayPop(pSub->unassignedVg);
         pCEp->consumerId = consumerId;
         taosArrayPush(pSub->assigned, pCEp);
-        pSub->nextConsumerIdx++;
+        pSub->nextConsumerIdx = (pSub->nextConsumerIdx + 1) % taosArrayGetSize(pSub->availConsumer);
 
         // build msg
         SMqSetCVgReq req = {
             .vgId = pCEp->vgId,
             .consumerId = consumerId,
         };
-        strcpy(req.cGroup, cgroup);
+        strcpy(req.cgroup, cgroup);
         strcpy(req.topicName, topic);
         strcpy(req.sql, pTopic->sql);
         strcpy(req.logicalPlan, pTopic->logicalPlan);
@@ -170,7 +168,7 @@ static int mndBuildMqSetConsumerVgReq(SMnode *pMnode, STrans *pTrans, SMqConsume
         .vgId = vgId,
         .consumerId = pConsumer->consumerId,
     };
-    strcpy(req.cGroup, pConsumer->cgroup);
+    strcpy(req.cgroup, pConsumer->cgroup);
     strcpy(req.topicName, pTopic->name);
     strcpy(req.sql, pTopic->sql);
     strcpy(req.logicalPlan, pTopic->logicalPlan);

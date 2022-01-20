@@ -2080,7 +2080,7 @@ static int32_t setColumnIndex(SQueryStmtInfo* pQueryInfo, SArray* pParamList, SC
   STableMeta* pTableMeta = getMetaInfo(pQueryInfo, 0)->pTableMeta;
   if (pParamList == NULL) {
     // count(*) is equalled to count(primary_timestamp_key)
-    *index = (SColumnIndex) {0, PRIMARYKEY_TIMESTAMP_COL_ID, false};
+    *index = (SColumnIndex) {0, 0, false};
     *columnSchema = *(SSchema*) getOneColumnSchema(pTableMeta, index->columnIndex);
   } else {
     tSqlExprItem* pParamElem = taosArrayGet(pParamList, 0);
@@ -3955,6 +3955,7 @@ int32_t qParserValidateSqlNode(SParseContext *pCtx, SSqlInfo* pInfo, SQueryStmtI
   pQueryInfo->pTableMetaInfo[0]->name = *name;
   pQueryInfo->numOfTables = 1;
   pQueryInfo->pTableMetaInfo[0]->tagColList = taosArrayInit(4, POINTER_BYTES);
+  strcpy(pQueryInfo->pTableMetaInfo[0]->aliasName, name->tname);
   
   code = setTableVgroupList(pCtx, name, &pQueryInfo->pTableMetaInfo[0]->vgroupList);
   if (code != TSDB_CODE_SUCCESS) {

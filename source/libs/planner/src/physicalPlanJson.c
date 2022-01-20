@@ -408,7 +408,7 @@ static bool functionToJson(const void* obj, cJSON* jFunc) {
   const tExprNode* exprInfo = (const tExprNode*)obj;
   bool res = cJSON_AddStringToObject(jFunc, jkFunctionName, exprInfo->_function.functionName);
   if (res && NULL != exprInfo->_function.pChild) {
-      res = addRawArray(jFunc, jkFunctionChild, exprNodeToJson, *(exprInfo->_function.pChild), sizeof(tExprNode*), exprInfo->_function.num);
+      res = addRawArray(jFunc, jkFunctionChild, exprNodeToJson, exprInfo->_function.pChild, sizeof(tExprNode*), exprInfo->_function.num);
   }
   return res;
 }
@@ -467,7 +467,7 @@ static const char* jkExprNodeColumn = "Column";
 static const char* jkExprNodeValue = "Value";
 
 static bool exprNodeToJson(const void* obj, cJSON* jExprInfo) {
-  const tExprNode* exprInfo = (const tExprNode*)obj;
+  const tExprNode* exprInfo = *(const tExprNode**)obj;
   bool res = cJSON_AddNumberToObject(jExprInfo, jkExprNodeType, exprInfo->nodeType);
   if (res) {
     switch (exprInfo->nodeType) {
@@ -555,7 +555,7 @@ static bool exprInfoToJson(const void* obj, cJSON* jExprInfo) {
   const SExprInfo* exprInfo = (const SExprInfo*)obj;
   bool res = addObject(jExprInfo, jkExprInfoBase, sqlExprToJson, &exprInfo->base);
   if (res) {
-    res = addObject(jExprInfo, jkExprInfoExpr, exprNodeToJson, exprInfo->pExpr);
+    res = addObject(jExprInfo, jkExprInfoExpr, exprNodeToJson, &exprInfo->pExpr);
   }
   return res;
 }

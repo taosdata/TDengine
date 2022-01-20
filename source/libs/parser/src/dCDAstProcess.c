@@ -26,18 +26,26 @@ static int32_t setShowInfo(SShowInfo* pShowInfo, SParseContext* pCtx, void** out
   const char* msg4 = "pattern is invalid";
   const char* msg5 = "database name is empty";
   const char* msg6 = "pattern string is empty";
-
+  const char* msg7 = "db is not specified";
   /*
    * database prefix in pInfo->pMiscInfo->a[0]
    * wildcard in like clause in pInfo->pMiscInfo->a[1]
    */
   int16_t showType = pShowInfo->showType;
   if (showType == TSDB_MGMT_TABLE_TABLE) {
-    SVShowTablesReq* pShowReq = calloc(1, sizeof(SVShowTablesReq));
-
     SArray* array = NULL;
     SName   name = {0};
-    tNameSetDbName(&name, pCtx->acctId, pCtx->db, strlen(pCtx->db));
+
+    if (pCtx->db == NULL && pShowInfo->prefix.n == 0) {
+      return buildInvalidOperationMsg(pMsgBuf, msg7);
+    }
+
+    SVShowTablesReq* pShowReq = calloc(1, sizeof(SVShowTablesReq));
+    if (pShowInfo->prefix.n > 0) {
+      tNameSetDbName(&name, pCtx->acctId, pShowInfo->prefix.z, pShowInfo->prefix.n);
+    } else {
+      tNameSetDbName(&name, pCtx->acctId, pCtx->db, strlen(pCtx->db));
+    }
 
     char dbFname[TSDB_DB_FNAME_LEN] = {0};
     tNameGetFullDbName(&name, dbFname);
@@ -715,6 +723,8 @@ SDclStmtInfo* qParserValidateDclSqlNode(SSqlInfo* pInfo, SParseContext* pCtx, ch
   SMsgBuf  m = {.buf = msgBuf, .len = msgBufLen};
   SMsgBuf* pMsgBuf = &m;
 
+  pDcl->epSet = pCtx->mgmtEpSet;
+
   switch (pInfo->type) {
     case TSDB_SQL_CREATE_USER:
     case TSDB_SQL_ALTER_USER: {
@@ -768,7 +778,6 @@ SDclStmtInfo* qParserValidateDclSqlNode(SSqlInfo* pInfo, SParseContext* pCtx, ch
 
       pDcl->pMsg = (char*)buildUserManipulationMsg(pInfo, &pDcl->msgLen, pCtx->requestId, msgBuf, msgBufLen);
       pDcl->msgType = (pInfo->type == TSDB_SQL_CREATE_USER) ? TDMT_MND_CREATE_USER : TDMT_MND_ALTER_USER;
-      pDcl->epSet = pCtx->mgmtEpSet;
       break;
     }
 
@@ -810,7 +819,6 @@ SDclStmtInfo* qParserValidateDclSqlNode(SSqlInfo* pInfo, SParseContext* pCtx, ch
 
       pDcl->pMsg = (char*)buildAcctManipulationMsg(pInfo, &pDcl->msgLen, pCtx->requestId, msgBuf, msgBufLen);
       pDcl->msgType = (pInfo->type == TSDB_SQL_CREATE_ACCT) ? TDMT_MND_CREATE_ACCT : TDMT_MND_ALTER_ACCT;
-      pDcl->epSet = pCtx->mgmtEpSet;
       break;
     }
 
@@ -818,7 +826,6 @@ SDclStmtInfo* qParserValidateDclSqlNode(SSqlInfo* pInfo, SParseContext* pCtx, ch
     case TSDB_SQL_DROP_USER: {
       pDcl->pMsg = (char*)buildDropUserMsg(pInfo, &pDcl->msgLen, pCtx->requestId, msgBuf, msgBufLen);
       pDcl->msgType = (pInfo->type == TSDB_SQL_DROP_ACCT) ? TDMT_MND_DROP_ACCT : TDMT_MND_DROP_USER;
-      pDcl->epSet = pCtx->mgmtEpSet;
       break;
     }
 
@@ -855,7 +862,6 @@ SDclStmtInfo* qParserValidateDclSqlNode(SSqlInfo* pInfo, SParseContext* pCtx, ch
       pDcl->pMsg = (char*)pUseDbMsg;
       pDcl->msgLen = sizeof(SUseDbReq);
       pDcl->msgType = TDMT_MND_USE_DB;
-      pDcl->epSet = pCtx->mgmtEpSet;
       break;
     }
 
@@ -884,7 +890,6 @@ SDclStmtInfo* qParserValidateDclSqlNode(SSqlInfo* pInfo, SParseContext* pCtx, ch
         goto _error;
       }
 
-      pDcl->epSet = pCtx->mgmtEpSet;
       pDcl->pMsg = (char*)pCreateMsg;
       pDcl->msgLen = sizeof(SCreateDbReq);
       pDcl->msgType = (pInfo->type == TSDB_SQL_CREATE_DB) ? TDMT_MND_CREATE_DB : TDMT_MND_ALTER_DB;
@@ -913,7 +918,6 @@ SDclStmtInfo* qParserValidateDclSqlNode(SSqlInfo* pInfo, SParseContext* pCtx, ch
       pDcl->msgType = TDMT_MND_DROP_DB;
       pDcl->msgLen = sizeof(SDropDbReq);
       pDcl->pMsg = (char*)pDropDbMsg;
-      pDcl->epSet = pCtx->mgmtEpSet;
       break;
     }
 
@@ -926,7 +930,6 @@ SDclStmtInfo* qParserValidateDclSqlNode(SSqlInfo* pInfo, SParseContext* pCtx, ch
 
       pDcl->pMsg = (char*)buildCreateStbMsg(pCreateTable, &pDcl->msgLen, pCtx, pMsgBuf);
       pDcl->msgType = TDMT_MND_CREATE_STB;
-      pDcl->epSet = pCtx->mgmtEpSet;
       break;
     }
 
@@ -947,7 +950,6 @@ SDclStmtInfo* qParserValidateDclSqlNode(SSqlInfo* pInfo, SParseContext* pCtx, ch
       }
 
       pDcl->msgType = TDMT_MND_CREATE_DNODE;
-      pDcl->epSet = pCtx->mgmtEpSet;
       break;
     }
 
@@ -958,7 +960,6 @@ SDclStmtInfo* qParserValidateDclSqlNode(SSqlInfo* pInfo, SParseContext* pCtx, ch
       }
 
       pDcl->msgType = TDMT_MND_DROP_DNODE;
-      pDcl->epSet = pCtx->mgmtEpSet;
       break;
     }
 
