@@ -212,16 +212,8 @@ TAOS *taos_connect_internal(const char *ip, const char *user, const char *pass, 
     
     tscDebug("%p DB connection is opening, rpcObj: %p, dnodeConn:%p", pObj, pObj->pRpcObj, pObj->pRpcObj->pDnodeConn);
     taos_free_result(pSql);
-  
-    // version compare only requires the first 3 segments of the version string
-    int code = taosCheckVersion(version, taos_get_server_info(pObj), 3);
-    if (code != 0) {
-      terrno = code;
-      taos_close(pObj);
-      return NULL;
-    } else {
-      return pObj;
-    }
+
+    return pObj;
   }
 
   return NULL;
