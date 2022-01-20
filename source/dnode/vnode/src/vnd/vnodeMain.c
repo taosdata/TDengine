@@ -117,18 +117,18 @@ static int vnodeOpenImpl(SVnode *pVnode) {
     return -1;
   }
 
-  // Open TQ
-  sprintf(dir, "%s/tq", pVnode->path);
-  pVnode->pTq = tqOpen(dir, &(pVnode->config.tqCfg), vBufPoolGetMAF(pVnode));
-  if (pVnode->pTq == NULL) {
-    // TODO: handle error
-    return -1;
-  }
-
   // Open WAL
   sprintf(dir, "%s/wal", pVnode->path);
   pVnode->pWal = walOpen(dir, &(pVnode->config.walCfg));
   if (pVnode->pWal == NULL) {
+    // TODO: handle error
+    return -1;
+  }
+
+  // Open TQ
+  sprintf(dir, "%s/tq", pVnode->path);
+  pVnode->pTq = tqOpen(dir, pVnode->pWal, &(pVnode->config.tqCfg), vBufPoolGetMAF(pVnode));
+  if (pVnode->pTq == NULL) {
     // TODO: handle error
     return -1;
   }

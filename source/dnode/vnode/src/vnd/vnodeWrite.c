@@ -121,7 +121,7 @@ int vnodeApplyWMsg(SVnode *pVnode, SRpcMsg *pMsg, SRpcMsg **pRsp) {
         // TODO: handle error
       }
       strcpy(pTopic->topicName, req.topicName); 
-      strcpy(pTopic->cGroup, req.cGroup); 
+      strcpy(pTopic->cgroup, req.cGroup); 
       strcpy(pTopic->sql, req.sql);
       strcpy(pTopic->logicalPlan, req.logicalPlan);
       strcpy(pTopic->physicalPlan, req.physicalPlan);
@@ -143,6 +143,7 @@ int vnodeApplyWMsg(SVnode *pVnode, SRpcMsg *pMsg, SRpcMsg **pRsp) {
         pTopic->buffer.output[i].pMsg = pMsg;
         pTopic->buffer.output[i].status = 0;
       }
+      pTopic->pReadhandle = walOpenReadHandle(pVnode->pTq->pWal);
       // write mq meta
     }
       break;
