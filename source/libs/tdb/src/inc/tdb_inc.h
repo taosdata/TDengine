@@ -32,7 +32,7 @@ typedef int32_t pgno_t;
 
 // pgid_t
 typedef struct {
-  uint8_t fuid[TDB_FILE_UID_LEN];
+  uint8_t fileid[TDB_FILE_UID_LEN];
   pgno_t  pgid;
 } pgid_t;
 
