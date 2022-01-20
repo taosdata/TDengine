@@ -29,7 +29,7 @@ class TDTestCase:
         tdSql.init(conn.cursor(), logSql)
 
     def run(self):
-        cmd = "taosBenchmark -f ./5-taos-tools/taosbenchmark/json/json_alltypes.json"
+        cmd = "taosBenchmark -f ./5-taos-tools/taosbenchmark/json/sml_json_alltypes.json"
         tdLog.info("%s" % cmd)
         os.system("%s" % cmd)
         tdSql.execute("reset query cache")
