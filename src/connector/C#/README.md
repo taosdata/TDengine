@@ -1,47 +1,44 @@
 ## CSharp Connector
 
-* The C # connector supports: Linux 64/Windows x64/Windows x86.
-* C# connector can be download and include as normal table form [Nuget.org](https://www.nuget.org/packages/TDengine.Connector/).
+* This C# connector supports: Linux 64/Windows x64/Windows x86.
+* This C# connector can be downloaded and included as a normal package form [Nuget.org](https://www.nuget.org/packages/TDengine.Connector/).
 
-### Installation preparation
+### Installation preparations
 
-* Install TDengine client, please refer to the[steps of installing connector driver](https://www.taosdata.com/en/documentation/connector#driver).
-* .NET interface file TDengineDrivercs.cs and reference sample TDengineTest.cs
- are both located in the Windows client path:install_directory/examples/C#.
+* Install TDengine client, please refers to the[steps of installing connector driver](https://www.taosdata.com/en/documentation/connector#driver).
+* .NET interface file TDengineDriver.cs and reference samples both 
+  located under Windows client's installation path:install_directory/examples/C#.
 * Install [.NET SDK](https://dotnet.microsoft.com/download)
 
 ### Installation verification
 
 Run {client_installation_directory}/examples/C#/C#Checker/C#Checker.cs
-Need install .Net SDK first
+Need to install .Net SDK first.
 
 ```cmd
 cd {client_install_directory}/examples/C#/C#Checker
 //run c#checker.cs
-dotnet run -- -h <FQDN> //dotnet run will build project first by default.
+dotnet run -- -h <FQDN>
 ```
 
 ### Example Source Code
 
-you can find sample code under follow directions:
+You can find examples under follow directions:
 
-* {client_install_directory}/examples/C#
+* {client_installation_directory}/examples/C#
 * [github C# example source code](https://github.com/taosdata/TDengine/tree/develop/tests/examples/C%23)
 
 **Tips:**
-TDengineTest.cs is one of C# connector's sample code that
-include basic examples like connection,sql executions and so on.
+"TDengineTest" is an example that includes some basic sample code like
+connect,query and so on.
 
-### How to use C# connector
-
-On Windows system, .NET applications can use the .NET interface of TDengine
-to perform all database operations. The steps to use it are as follows:
+### Use C# connector
 
 #### **prepare**
 
 **tips:** Need to install .NET SDK first.
 
-* Create a dotnet project. (Using console project as an example)
+* Create a dotnet project. (Using console project as an example.)
 
 ``` cmd
 mkdir test
@@ -49,7 +46,7 @@ cd test
 dotnet new console
 ```
 
-* Add TDengineDriver as an package through Nuget.
+* Add "TDengine.Connector" as a package through Nuget into project.
 
 ``` cmd
 dotnet add package TDengine.Connector
@@ -61,16 +58,16 @@ dotnet add package TDengine.Connector
 using TDengineDriver;
 using System.Runtime.InteropServices;
 // ... do something ...
-  string host = "127.0.0.1" ;
-  string configDir =  "C:/TDengine/cfg"; // For linux should be /etc/taos.
-  string user = "root";
-  string password = "taosdata";
-  string db = ''; // Also can set to the db name you want to connect.
-  string port = 0
+string host = "127.0.0.1" ; 
+string configDir =  "C:/TDengine/cfg"; // For linux should it be /etc/taos.
+string user = "root";
+string password = "taosdata";
+string db = ''; // Also can set it to the db name you want to connect.
+string port = 0
 
-/* Set client options (optional step):charset,locale,timezone.
- * Defualt: charset,locale,timezone same to system.
- * Current support options:TSDB_OPTION_LOCALE,TSDB_OPTION_CHARSET, TSDB_OPTION_TIMEZONE,TSDB_OPTION_CONFIGDIR
+/* Set client options (optional step):charset, locale, timezone.
+ * Defualt: charset, locale, timezone same to system.
+ * Current supports options:TSDB_OPTION_LOCALE, TSDB_OPTION_CHARSET, TSDB_OPTION_TIMEZONE, TSDB_OPTION_CONFIGDIR.
 */
 TDengine.Options((int)TDengineInitOption.TDDB_OPTION_CONFIGDIR,configDir);
 
@@ -93,25 +90,25 @@ if (conn != IntPtr.Zero)
     TDengine.Close(this.conn);
 }
 
-// Recommand to clean environment, before exit the your application.
+// Recommend to clean environment, before exit your application.
 TDengine.Cleanup();
 ```
 
 #### **Execute SQL**
 
 ```C#
-// Suppose this conn valid tdengine connection from previous Connection sample
-public static void ExecuteSQL(IntPtr conn,string sql)
+// Suppose conn is a valid tdengine connection from previous Connection sample
+public static void ExecuteSQL(IntPtr conn, string sql)
 {
-    IntPtr res = TDengine.Query(conn,sql);
+    IntPtr res = TDengine.Query(conn, sql);
     // Check if query success
-    if ((res == IntPtr.Zero) || (TDengine.ErrorNo(res) != 0))
+    if((res == IntPtr.Zero) || (TDengine.ErrorNo(res) != 0))
     {
         Console.Write(sql + " failure, ");
-        // Get the error message while Res is a not null pointer.
+        // Get error message while Res is a not null pointer.
         if (res != IntPtr.Zero)
          {
-             Console.Write("reason: " + TDengine.Error(res));
+             Console.Write("reason:" + TDengine.Error(res));
          }
     }
     else
@@ -124,7 +121,7 @@ public static void ExecuteSQL(IntPtr conn,string sql)
     }
 }
 
-// calling method to execute sql;
+// Calling method to execute sql;
 ExecuteSQL(conn,$"create database if not exists {db};");
 ExecuteSQL(conn,$"use {db};");
 string createSql = "CREATE TABLE meters(ts TIMESTAMP, current FLOAT,"+
@@ -137,11 +134,11 @@ ExecuteSQL(conn,$"drop database if exists {db};");
 #### **Get Query Result**
 
 ```C#
-// Using the following sample code to traverse the retrieve data from TDengine
+// Following code is a sample that traverses retrieve data from TDengine.
 public void ExecuteQuery(IntPtr conn,string sql)
 {
     // "conn" is a valid TDengine connection which can
-    // be got from previous "Connection" sample
+    // be got from previous "Connection" sample.
     IntPrt res = TDengine.Query(conn, sql);
     if ((res == IntPtr.Zero) || (TDengine.ErrorNo(res) != 0))
     {
@@ -150,17 +147,17 @@ public void ExecuteQuery(IntPtr conn,string sql)
          {
              Console.Write("reason: " + TDengine.Error(res));
          }
-         // Execute query sql faild
+         // Execute query sql failed
          // ... do something ...
     }
 
-    // Retrieve data success,iterate through the "res"
+    // Retrieve data successfully then iterate through "res".
 
-    // Feild count, num of field, that is equal to retrieved column number
+    // Fields count, num of fields, that is equal to retrieved column count.
     int fieldCount = TDengine.FieldCount(res);
     Console.WriteLine("field count: " + fieldCount);
 
-    // Getting querying result's feild info as a List.
+    // Get query result field information in list form.
     List<TDengineMeta> metas = TDengine.FetchFields(res);
     for(int j = 0; j < metas.Count; j++)
     {
@@ -168,7 +165,7 @@ public void ExecuteQuery(IntPtr conn,string sql)
         Console.WriteLine($"index:{j},type:{meta.type},typename:{meta.TypeName()},name:{meta.name},size:{meta.size}");
     }
 
-    // Traverse data from retreive result
+    // Iterate over the data from the retrieved results.
     IntPtr rowdata;
     StringBuilder builder = new StringBuilder();
     while ((rowdata = TDengine.FetchRows(res)) != IntPtr.Zero)
@@ -259,21 +256,21 @@ public void ExecuteQuery(IntPtr conn,string sql)
      // Do something with the result data, like print.
      Console.WriteLine(builder.ToString());
 
-    // Important free the res.
+    // Important free "res".
      TDengine.FreeResult(res);
 }
 ```
 
 #### **Stmt Bind Sample**
 
-* Bind different types of data
+* Bind different types of data.
 
 ```C#
-// Prepare the bind tags values.
+// Prepare tags values used to binding by stmt.
 // An instance of TAOS_BIND can just bind a cell of table.
 TAOS_BIND[] binds = new TAOS_BIND[1];
 binds[0] = TaosBind.BindNchar("-123acvnchar");
-// Bind null vaule using TaosBind.BindNil()
+// Use TaosBind.BindNil() to bind null values.
 
 long[] tsArr = new long[5] { 1637064040000, 1637064041000,
 1637064042000, 1637064043000, 1637064044000 };
@@ -285,7 +282,6 @@ string[] binaryArr = new string[5] { "/TDengine/src/client/src/tscPrepare.c",
  String.Empty, null, "doBindBatchParam",
  "string.Jion:1234567890123456789012345" };
 
-// Prepare the insert data
 // TAOS_MULTI_BIND can bind a column of data.
 TAOS_MULTI_BIND[] mBinds = new TAOS_MULTI_BIND[5];
 
@@ -296,7 +292,7 @@ mBinds[5] = TaosMultiBind.MultiBindBigint(longArr);
 mBinds[12] = TaosMultiBind.MultiBindBinary(binaryArr);
 
 // After using instance of TAOS_MULTI_BIND and TAOS_BIND,
-// need to free the allocated ummanaged memory.
+// need to free the allocated unmanaged memory.
 TaosMultiBind.FreeBind(mBind);
 TaosMultiBind.FreeMBind(mBinds);
 ```
@@ -305,40 +301,41 @@ TaosMultiBind.FreeMBind(mBinds);
 
 ```C#
   /* Pre-request: create stable or normal table.
-   * Target table for sample：stmtdemo
-   * Structure：create stable stmtdemo (ts timestamp ,b bool,v4 int,
+   * Target table for this sample：stmtdemo
+   * Structure：create stable stmtdemo (ts timestamp,b bool,v4 int,
    * v8 bigint,bin binary(100))tags(blob nchar(100));
   */
-  // This conn should be can valid connection get from TDengine.Connect()
+  // This conn should be a valid connection that is returned by TDengine.Connect().
   IntPtr conn;
   IntPtr stmt = IntPtr.Zero;
   // Insert statement
   string sql = "insert into ? using stmtdemo tags(?,?,?,?,?) values(?)";
-  // "use db" before stmtPrepare.
+  // "use db" before stmtPrepare().
+
   stmt = TDengine.StmtInit(conn);
   TDengine.StmtPrepare(stmt, sql);
 
-  // Using method StmtSetTbname to config tablename
-  // need to create the table before.
-  // Using StmtSetTbnameTags to config table name and
-  // tag value.(create sub table base on stable automatically)
+  // Use method StmtSetTbname() to config tablename,
+  // but needs to create the table before.
+  // Using StmtSetTbnameTags() to config table name and
+  // tags' value.(create sub table based on stable automatically)
   TDengine.StmtSetTbname_tags(stmt,"t1",binds);
 
-  // Bind multiple column values；using StmtBindParam to bind single line values
-  TDengine.StmtBindParamBatch(stmt,  mBinds);
+  // Binding multiple lines of data.
+  TDengine.StmtBindParamBatch(stmt,mBinds);
 
-  // Add current bound parameters into batch
+  // Add current bind parameters into batch.
   TDengine.StmtAddBatch(stmt);
 
-  //execute the batch instruction which has been prepared well in bind_param method
+  // Execute the batch instruction which has been prepared well by bind_param() method.
   TDengine.StmtExecute(stmt);
 
-  // Cause we use unmanaged memory, we need to free these memory after execute.
+  // Cause we use unmanaged memory, remember to free occupied memory, after execution.
   TaosMultiBind.FreeBind(mBind);
   TaosMultiBind.FreeMBind(mBinds);
 
-  // Get error info about the current stmt operation.
-  // This method if appropriate for all the stmt method to get error message.
+  // Get error information if current stmt operation failed.
+  // This method is appropriate for all the stmt methods to get error message.
   TDengine.StmtError(stmt);
 ```
 
@@ -350,38 +347,37 @@ stmt = StmtInit(conn);
 string querySql = "SELECT * FROM T1 WHERE V4 > ? AND V8 < ?";
 StmtPrepare(stmt, querySql);
 
-// Prepare Query parameters
+// Prepare Query parameters.
 TAOS_BIND qparams[2];
 qparams[0] = TaosBind.bindInt(-2);
 qparams[1] = TaosBind.bindLong(4);
 
-// Bind parameters
+// Bind parameters.
 TDengine.StmtBindParam(stmt, qparams);
 
-// Execute statement
+// Execute
 TDengine.StmtExecute(stmt);
 
-// Get the query result, for SELECT only.
-// User application should free it with API FreeResult at the end.
+// Get querying result, for SELECT only.
+// User application should be freed with API FreeResult() at the end.
 IntPtr result = TDengine.StmtUseResult(stmt);
 
-// Tthis "result" cam be traversed as normal sql query result.
+// This "result" cam be traversed as normal sql query result.
 // ... Do something with "result" ...
 
-// Free result,free the restsult.
 TDengine.FreeResult(result);
 
-// Cause we use unmanaged memory, we need to free these memory after execute.
+// Cause we use unmanaged memory, we need to free occupied memory after execution.
 TaosMultiBind.FreeBind(qparams);
 
-// Close stmt, release resource
+// Close stmt and release resource.
 TDengine.StmtClose(stmt);
 ```
 
-* Assert (samples about how to assert every step of stmt is successed or not)
+* Assert (samples about how to assert every step of stmt is successed or failed)
 
 ```C#
-// Specail StmtInit().
+// Special  StmtInit().
 IntPtr stmt = TDengine.StmtInit(conn);
 if ( stmt == IntPtr.Zero)
 {
@@ -394,7 +390,7 @@ else
       // Continue
 }
 
-// All the stmt method that return with int, you can get the error info by StmtErrorStr()
+// For all stmt methods that return int type,we can get error message by StmtErrorStr().
 if (TDengine.StmtPrepare(this.stmt, sql) == 0)
 {
     Console.WriteLine("stmt prepare success");
@@ -406,9 +402,8 @@ else
      // ... do something ...
 }
 
-// Estimate wether StmtUseResult is succeed
+// Estimate wether StmtUseResult() is successful or failed.
 // If failed, get the error message by TDengine.Error(res)
-
 IntPtr res = TDengine.StmtUseResult(stmt);
 if ((res == IntPtr.Zero) || (TDengine.ErrorNo(res) != 0))
 {
@@ -428,10 +423,10 @@ else
 **Note:**
 
 * TDengine V2.0. 3.0 supports both 32-bit and 64-bit Windows systems,
-so when. NET project generates a .exe file, please select the correspond
+so when .NET project generates a .exe file, please select correspond
 with "X86" or "x64" for the "Platform" under "Solution"/"Project".
-* This. NET interface has been verified in Visual Studio 2015/2017,
-and other VS versions have yet to be verified.
+* This .NET interface has been verified in Visual Studio 2015/2017,
+and other VS versions have not being verified yet.
 * Since this. NET connector interface requires the taos.dll file, so before
 executing the application, copy the taos.dll file in the
 Windows {client_install_directory}/driver directory to the folder where the
