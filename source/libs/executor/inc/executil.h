@@ -94,7 +94,7 @@ struct SUdfInfo;
 
 int32_t getOutputInterResultBufSize(struct STaskAttr* pQueryAttr);
 
-size_t  getResultRowSize(struct STaskRuntimeEnv* pRuntimeEnv);
+size_t  getResultRowSize(SArray* pExprInfo);
 int32_t initResultRowInfo(SResultRowInfo* pResultRowInfo, int32_t size, int16_t type);
 void    cleanupResultRowInfo(SResultRowInfo* pResultRowInfo);
 
