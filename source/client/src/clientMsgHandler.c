@@ -115,7 +115,7 @@ SMsgSendInfo* buildMsgInfoImpl(SRequestObj *pRequest) {
     }
   } else {
     assert(pRequest != NULL);
-    pMsgSendInfo->msgInfo   = pRequest->body.requestMsg;
+    pMsgSendInfo->msgInfo = pRequest->body.requestMsg;
   }
 
   pMsgSendInfo->fp = (handleRequestRspFp[TMSG_INDEX(pRequest->type)] == NULL)? genericRspCallback:handleRequestRspFp[TMSG_INDEX(pRequest->type)];

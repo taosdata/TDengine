@@ -42,7 +42,8 @@ typedef struct {
   SSchema *pSchema;
 } SSchemaWrapper;
 
-typedef struct SMTbCursor SMTbCursor;
+typedef struct SMTbCursor  SMTbCursor;
+typedef struct SMCtbCursor SMCtbCursor;
 
 typedef SVCreateTbReq STbCfg;
 
@@ -63,6 +64,10 @@ STSchema *      metaGetTbTSchema(SMeta *pMeta, tb_uid_t uid, int32_t sver);
 SMTbCursor *metaOpenTbCursor(SMeta *pMeta);
 void        metaCloseTbCursor(SMTbCursor *pTbCur);
 char *      metaTbCursorNext(SMTbCursor *pTbCur);
+
+SMCtbCursor *metaOpenCtbCursor(SMeta *pMeta, tb_uid_t uid);
+void         metaCloseCtbCurosr(SMCtbCursor *pCtbCur);
+tb_uid_t     metaCtbCursorNext(SMCtbCursor *pCtbCur);
 
 // Options
 void metaOptionsInit(SMetaCfg *pMetaCfg);

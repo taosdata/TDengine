@@ -271,6 +271,8 @@ int32_t qwAddTaskCtxImpl(SQWorkerMgmt *mgmt, uint64_t sId, uint64_t qId, uint64_
   char id[sizeof(qId) + sizeof(tId)] = {0};
   QW_SET_QTID(id, qId, tId);
 
+  printf("%"PRIx64", tid:%"PRIx64"\n", qId, tId);
+
   SQWTaskCtx nctx = {0};
 
   QW_LOCK(QW_WRITE, &mgmt->ctxLock);

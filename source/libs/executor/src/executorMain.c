@@ -13,10 +13,11 @@
  * along with this program. If not, see <http://www.gnu.org/licenses/>.
  */
 
-#include "os.h"
-#include "tarray.h"
+#include <tsdb.h>
 #include "dataSinkMgt.h"
 #include "exception.h"
+#include "os.h"
+#include "tarray.h"
 #include "tcache.h"
 #include "tglobal.h"
 #include "tmsg.h"
@@ -72,7 +73,46 @@ int32_t qCreateExecTask(void* tsdb, int32_t vgId, SSubplan* pSubplan, qTaskInfo_
   assert(tsdb != NULL && pSubplan != NULL);
   SExecTaskInfo** pTask = (SExecTaskInfo**)pTaskInfo;
 
-  int32_t code = doCreateExecTaskInfo(pSubplan, pTask, tsdb);
+  int32_t     code = 0;
+  uint64_t    uid = 0;
+  STimeWindow window = TSWINDOW_INITIALIZER;
+  int32_t     tableType = 0;
+
+  SPhyNode*       pPhyNode = pSubplan->pNode;
+  STableGroupInfo groupInfo = {0};
+
+  int32_t type = pPhyNode->info.type;
+  if (type == OP_TableScan || type == OP_DataBlocksOptScan) {
+    STableScanPhyNode* pTableScanNode = (STableScanPhyNode*)pPhyNode;
+    uid = pTableScanNode->scan.uid;
+    window = pTableScanNode->window;
+    tableType = pTableScanNode->scan.tableType;
+
+    if (tableType == TSDB_SUPER_TABLE) {
+      code =
+          tsdbQuerySTableByTagCond(tsdb, uid, window.skey, NULL, 0, 0, NULL, &groupInfo, NULL, 0, pSubplan->id.queryId);
+      if (code != TSDB_CODE_SUCCESS) {
+        goto _error;
+      }
+    } else {  // Create one table group.
+      groupInfo.numOfTables = 1;
+      groupInfo.pGroupList = taosArrayInit(1, POINTER_BYTES);
+
+      SArray* pa = taosArrayInit(1, sizeof(STableKeyInfo));
+
+      STableKeyInfo info = {.pTable = NULL, .lastKey = 0, .uid = uid};
+      taosArrayPush(pa, &info);
+      taosArrayPush(groupInfo.pGroupList, &pa);
+    }
+
+    if (groupInfo.numOfTables == 0) {
+      code = 0;
+      //    qDebug("no table qualified for query, reqId:0x%"PRIx64, (*pTask)->id.queryId);
+      goto _error;
+    }
+  }
+
+  code = doCreateExecTaskInfo(pSubplan, pTask, &groupInfo, tsdb);
   if (code != TSDB_CODE_SUCCESS) {
     goto _error;
   }
@@ -87,7 +127,7 @@ int32_t qCreateExecTask(void* tsdb, int32_t vgId, SSubplan* pSubplan, qTaskInfo_
 
   *handle = (*pTask)->dsHandle;
 
-  _error:
+_error:
   // if failed to add ref for all tables in this query, abort current query
   return code;
 }
@@ -140,6 +180,11 @@ int waitMoment(SQInfo* pQInfo){
 int32_t qExecTask(qTaskInfo_t tinfo, SSDataBlock** pRes, uint64_t *useconds) {
   SExecTaskInfo* pTaskInfo = (SExecTaskInfo*)tinfo;
   int64_t        threadId = taosGetSelfPthreadId();
+
+  // todo: remove it.
+  if (tinfo == NULL) {
+    return TSDB_CODE_SUCCESS;
+  }
 
   *pRes = NULL;
 

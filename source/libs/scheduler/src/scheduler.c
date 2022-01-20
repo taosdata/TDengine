@@ -52,9 +52,9 @@ int32_t schInitTask(SSchJob* pJob, SSchTask *pTask, SSubplan* pPlan, SSchLevel *
   pTask->level  = pLevel;
   SCH_SET_TASK_STATUS(pTask, JOB_TASK_STATUS_NOT_START);
   pTask->taskId = schGenTaskId();
-  pTask->execAddrs = taosArrayInit(SCH_MAX_CONDIDATE_EP_NUM, sizeof(SQueryNodeAddr));
+  pTask->execAddrs = taosArrayInit(SCH_MAX_CANDIDATE_EP_NUM, sizeof(SQueryNodeAddr));
   if (NULL == pTask->execAddrs) {
-    SCH_TASK_ELOG("taosArrayInit %d exec addrs failed", SCH_MAX_CONDIDATE_EP_NUM);
+    SCH_TASK_ELOG("taosArrayInit %d exec addrs failed", SCH_MAX_CANDIDATE_EP_NUM);
     SCH_ERR_RET(TSDB_CODE_QRY_OUT_OF_MEMORY);
   }
 
@@ -66,7 +66,7 @@ void schFreeTask(SSchTask* pTask) {
     taosArrayDestroy(pTask->candidateAddrs);
   }
 
-  tfree(pTask->msg); 
+  tfree(pTask->msg);
 
   if (pTask->children) {
     taosArrayDestroy(pTask->children);
@@ -408,9 +408,9 @@ int32_t schSetTaskCandidateAddrs(SSchJob *pJob, SSchTask *pTask) {
   }
 
   pTask->candidateIdx = 0;
-  pTask->candidateAddrs = taosArrayInit(SCH_MAX_CONDIDATE_EP_NUM, sizeof(SQueryNodeAddr));
+  pTask->candidateAddrs = taosArrayInit(SCH_MAX_CANDIDATE_EP_NUM, sizeof(SQueryNodeAddr));
   if (NULL == pTask->candidateAddrs) {
-    SCH_TASK_ELOG("taosArrayInit %d condidate addrs failed", SCH_MAX_CONDIDATE_EP_NUM);
+    SCH_TASK_ELOG("taosArrayInit %d condidate addrs failed", SCH_MAX_CANDIDATE_EP_NUM);
     SCH_ERR_RET(TSDB_CODE_QRY_OUT_OF_MEMORY);
   }
 
@@ -430,10 +430,10 @@ int32_t schSetTaskCandidateAddrs(SSchJob *pJob, SSchTask *pTask) {
   if (pJob->nodeList) {
     nodeNum = taosArrayGetSize(pJob->nodeList);
     
-    for (int32_t i = 0; i < nodeNum && addNum < SCH_MAX_CONDIDATE_EP_NUM; ++i) {
+    for (int32_t i = 0; i < nodeNum && addNum < SCH_MAX_CANDIDATE_EP_NUM; ++i) {
       SQueryNodeAddr *naddr = taosArrayGet(pJob->nodeList, i);
       
-      if (NULL == taosArrayPush(pTask->candidateAddrs, &pTask->plan->execNode)) {
+      if (NULL == taosArrayPush(pTask->candidateAddrs, naddr)) {
         SCH_TASK_ELOG("taosArrayPush execNode to candidate addrs failed, addNum:%d, errno:%d", addNum, errno);
         SCH_ERR_RET(TSDB_CODE_QRY_OUT_OF_MEMORY);
       }
@@ -443,12 +443,12 @@ int32_t schSetTaskCandidateAddrs(SSchJob *pJob, SSchTask *pTask) {
   }
 
   if (addNum <= 0) {
-    SCH_TASK_ELOG("no available execNode as condidate addr, nodeNum:%d", nodeNum);
+    SCH_TASK_ELOG("no available execNode as candidate addr, nodeNum:%d", nodeNum);
     return TSDB_CODE_QRY_INVALID_INPUT;
   }
 
 /*
-  for (int32_t i = 0; i < job->dataSrcEps.numOfEps && addNum < SCH_MAX_CONDIDATE_EP_NUM; ++i) {
+  for (int32_t i = 0; i < job->dataSrcEps.numOfEps && addNum < SCH_MAX_CANDIDATE_EP_NUM; ++i) {
     strncpy(epSet->fqdn[epSet->numOfEps], job->dataSrcEps.fqdn[i], sizeof(job->dataSrcEps.fqdn[i]));
     epSet->port[epSet->numOfEps] = job->dataSrcEps.port[i];
     
@@ -767,7 +767,7 @@ int32_t schProcessOnTaskSuccess(SSchJob *pJob, SSchTask *pTask) {
   }
 
 /*
-  if (SCH_IS_DATA_SRC_TASK(task) && job->dataSrcEps.numOfEps < SCH_MAX_CONDIDATE_EP_NUM) {
+  if (SCH_IS_DATA_SRC_TASK(task) && job->dataSrcEps.numOfEps < SCH_MAX_CANDIDATE_EP_NUM) {
     strncpy(job->dataSrcEps.fqdn[job->dataSrcEps.numOfEps], task->execAddr.fqdn, sizeof(task->execAddr.fqdn));
     job->dataSrcEps.port[job->dataSrcEps.numOfEps] = task->execAddr.port;
 
@@ -782,7 +782,8 @@ int32_t schProcessOnTaskSuccess(SSchJob *pJob, SSchTask *pTask) {
     atomic_add_fetch_32(&par->childReady, 1);
 
     SCH_LOCK(SCH_WRITE, &par->lock);
-    qSetSubplanExecutionNode(par->plan, pTask->plan->id.templateId, &pTask->succeedAddr);
+    SDownstreamSource source = {.taskId = pTask->taskId, .schedId = schMgmt.sId, .addr = pTask->succeedAddr};
+    qSetSubplanExecutionNode(par->plan, pTask->plan->id.templateId, &source);
     SCH_UNLOCK(SCH_WRITE, &par->lock);
     
     if (SCH_TASK_READY_TO_LUNCH(par)) {
@@ -853,7 +854,7 @@ int32_t schHandleResponseMsg(SSchJob *pJob, SSchTask *pTask, int32_t msgType, ch
         SResReadyRsp *rsp = (SResReadyRsp *)msg;
         
         if (rspCode != TSDB_CODE_SUCCESS || NULL == msg || rsp->code != TSDB_CODE_SUCCESS) {
-          SCH_ERR_RET(schProcessOnTaskFailure(pJob, pTask, rsp->code));
+          SCH_ERR_RET(schProcessOnTaskFailure(pJob, pTask, rspCode));
         }
         
         SCH_ERR_RET(schProcessOnTaskSuccess(pJob, pTask));
@@ -879,7 +880,7 @@ int32_t schHandleResponseMsg(SSchJob *pJob, SSchTask *pTask, int32_t msgType, ch
         if (rsp->completed) {
           SCH_SET_TASK_STATUS(pTask, JOB_TASK_STATUS_SUCCEED);
         }
-        
+
         SCH_ERR_JRET(schProcessOnDataFetched(pJob));
         
         break;
@@ -1214,6 +1215,8 @@ int32_t schLaunchTask(SSchJob *pJob, SSchTask *pTask) {
       SCH_TASK_ELOG("subplanToString error, code:%x, msg:%p, len:%d", code, pTask->msg, pTask->msgLen);
       SCH_ERR_JRET(code);
     }
+
+    printf("physical plan:%s\n", pTask->msg);
   }
   
   SCH_ERR_JRET(schSetTaskCandidateAddrs(pJob, pTask));
@@ -1477,7 +1480,7 @@ int32_t schedulerConvertDagToTaskList(SQueryDag* pDag, SArray **pTasks) {
       SCH_ERR_JRET(TSDB_CODE_QRY_OUT_OF_MEMORY);
     }
     
-    SSubQueryMsg *pMsg = msg;
+    SSubQueryMsg *pMsg = (SSubQueryMsg*) msg;
     
     pMsg->header.vgId = htonl(tInfo.addr.nodeId);
     
@@ -1512,7 +1515,7 @@ int32_t schedulerCopyTask(STaskInfo *src, SArray **dst, int32_t copyNum) {
   }
 
   int32_t code = 0;
-  
+
   *dst = taosArrayInit(copyNum, sizeof(STaskInfo));
   if (NULL == *dst) {
     qError("taosArrayInit %d taskInfo failed", copyNum);
@@ -1523,7 +1526,7 @@ int32_t schedulerCopyTask(STaskInfo *src, SArray **dst, int32_t copyNum) {
   STaskInfo info = {0};
 
   info.addr = src->addr;
-  
+
   for (int32_t i = 0; i < copyNum; ++i) {
     info.msg = malloc(msgSize);
     if (NULL == info.msg) {
@@ -1534,7 +1537,7 @@ int32_t schedulerCopyTask(STaskInfo *src, SArray **dst, int32_t copyNum) {
     memcpy(info.msg, src->msg, msgSize);
 
     info.msg->taskId = schGenUUID();
-    
+
     if (NULL == taosArrayPush(*dst, &info)) {
       qError("taosArrayPush failed, idx:%d", i);
       free(info.msg);
@@ -1548,7 +1551,7 @@ _return:
 
   schedulerFreeTaskList(*dst);
   *dst = NULL;
-  
+
   SCH_RET(code);
 }
 
@@ -1668,7 +1671,7 @@ void scheduleFreeJob(void *job) {
           schProcessOnJobDropped(pJob, TSDB_CODE_QRY_JOB_FREED);
           setJobFree = true;
         }
-        
+
         usleep(1);
       } else {
         assert(0);

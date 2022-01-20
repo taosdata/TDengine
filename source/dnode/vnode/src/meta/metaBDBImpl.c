@@ -374,22 +374,27 @@ static int metaCtbIdxCb(DB *pIdx, const DBT *pKey, const DBT *pValue, DBT *pSKey
   DBT *   pDbt;
 
   if (pTbCfg->type == META_CHILD_TABLE) {
-    pDbt = calloc(2, sizeof(DBT));
+    // pDbt = calloc(2, sizeof(DBT));
 
-    // First key is suid
-    pDbt[0].data = &(pTbCfg->ctbCfg.suid);
-    pDbt[0].size = sizeof(pTbCfg->ctbCfg.suid);
+    // // First key is suid
+    // pDbt[0].data = &(pTbCfg->ctbCfg.suid);
+    // pDbt[0].size = sizeof(pTbCfg->ctbCfg.suid);
 
-    // Second key is the first tag
-    void *pTagVal = tdGetKVRowValOfCol(pTbCfg->ctbCfg.pTag, (kvRowColIdx(pTbCfg->ctbCfg.pTag))[0].colId);
-    pDbt[1].data = pTagVal;
-    pDbt[1].size = sizeof(int32_t);
+    // // Second key is the first tag
+    // void *pTagVal = tdGetKVRowValOfCol(pTbCfg->ctbCfg.pTag, (kvRowColIdx(pTbCfg->ctbCfg.pTag))[0].colId);
+    // pDbt[1].data = pTagVal;
+    // pDbt[1].size = sizeof(int32_t);
 
     // Set index key
     memset(pSKey, 0, sizeof(*pSKey));
+#if 0
     pSKey->flags = DB_DBT_MULTIPLE | DB_DBT_APPMALLOC;
     pSKey->data = pDbt;
     pSKey->size = 2;
+#else
+    pSKey->data = &(pTbCfg->ctbCfg.suid);
+    pSKey->size = sizeof(pTbCfg->ctbCfg.suid);
+#endif
 
     return 0;
   } else {
@@ -621,4 +626,61 @@ STSchema *metaGetTbTSchema(SMeta *pMeta, tb_uid_t uid, int32_t sver) {
   tdDestroyTSchemaBuilder(&sb);
 
   return pTSchema;
+}
+
+struct SMCtbCursor {
+  DBC *    pCur;
+  tb_uid_t suid;
+};
+
+SMCtbCursor *metaOpenCtbCursor(SMeta *pMeta, tb_uid_t uid) {
+  SMCtbCursor *pCtbCur = NULL;
+  SMetaDB *    pDB = pMeta->pDB;
+  int          ret;
+
+  pCtbCur = (SMCtbCursor *)calloc(1, sizeof(*pCtbCur));
+  if (pCtbCur == NULL) {
+    return NULL;
+  }
+
+  pCtbCur->suid = uid;
+  ret = pDB->pCtbIdx->cursor(pDB->pCtbIdx, NULL, &(pCtbCur->pCur), 0);
+  if (ret != 0) {
+    free(pCtbCur);
+    return NULL;
+  }
+
+  return pCtbCur;
+}
+
+void metaCloseCtbCurosr(SMCtbCursor *pCtbCur) {
+  if (pCtbCur) {
+    if (pCtbCur->pCur) {
+      pCtbCur->pCur->close(pCtbCur->pCur);
+    }
+
+    free(pCtbCur);
+  }
+}
+
+tb_uid_t metaCtbCursorNext(SMCtbCursor *pCtbCur) {
+  DBT    skey = {0};
+  DBT    pkey = {0};
+  DBT    pval = {0};
+  void * pBuf;
+  STbCfg tbCfg;
+
+  // Set key
+  skey.data = &(pCtbCur->suid);
+  skey.size = sizeof(pCtbCur->suid);
+
+  if (pCtbCur->pCur->pget(pCtbCur->pCur, &skey, &pkey, &pval, DB_NEXT) == 0) {
+    tb_uid_t id = *(tb_uid_t *)pkey.data;
+    assert(id != 0);
+    return id;
+    //    metaDecodeTbInfo(pBuf, &tbCfg);
+    //    return tbCfg.;
+  } else {
+    return 0;
+  }
 }

@@ -375,9 +375,12 @@ typedef struct STaskParam {
 } STaskParam;
 
 typedef struct SExchangeInfo {
-  int32_t numOfSources;
-  SEpSet *pEpset;
-  int32_t bytes;   // total load bytes from remote
+  SArray            *pSources;
+  int32_t            bytes;   // total load bytes from remote
+  tsem_t             ready;
+  void              *pTransporter;
+  SRetrieveTableRsp *pRsp;
+  SSDataBlock       *pResult;
 } SExchangeInfo;
 
 typedef struct STableScanInfo {
@@ -545,7 +548,7 @@ typedef struct SOrderOperatorInfo {
 
 void appendUpstream(SOperatorInfo* p, SOperatorInfo* pUpstream);
 
-SOperatorInfo* createExchangeOperatorInfo(const SVgroupInfo* pVgroups, int32_t numOfSources, int32_t numOfOutput, SExecTaskInfo* pTaskInfo);
+SOperatorInfo* createExchangeOperatorInfo(const SArray* pSources, const SArray* pSchema, SExecTaskInfo* pTaskInfo);
 
 SOperatorInfo* createDataBlocksOptScanInfo(void* pTsdbReadHandle, int32_t order, int32_t numOfOutput, int32_t repeatTime, int32_t reverseTime, SExecTaskInfo* pTaskInfo);
 SOperatorInfo* createTableScanOperatorInfo(void* pTsdbReadHandle, int32_t order, int32_t numOfOutput, int32_t repeatTime, SExecTaskInfo* pTaskInfo);
@@ -649,6 +652,6 @@ int32_t getMaximumIdleDurationSec();
 
 void doInvokeUdf(struct SUdfInfo* pUdfInfo, SQLFunctionCtx *pCtx, int32_t idx, int32_t type);
 void setTaskStatus(SExecTaskInfo *pTaskInfo, int8_t status);
-int32_t doCreateExecTaskInfo(SSubplan* pPlan, SExecTaskInfo** pTaskInfo, void* readerHandle);
+int32_t doCreateExecTaskInfo(SSubplan* pPlan, SExecTaskInfo** pTaskInfo, STableGroupInfo* pGroupInfo, void* readerHandle);
 
 #endif  // TDENGINE_EXECUTORIMPL_H
