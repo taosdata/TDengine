@@ -26,6 +26,7 @@ char    dbName[32] = "db";
 char    stbName[64] = "st";
 int32_t numOfThreads = 1;
 int64_t numOfTables = 200000;
+int64_t startOffset = 0;
 int32_t createTable = 1;
 int32_t insertData = 0;
 int32_t batchNumOfTbl = 100;
@@ -84,7 +85,7 @@ void createDbAndStb() {
   }
   taos_free_result(pRes);
 
-  sprintf(qstr, "create table %s (ts timestamp, i int) tags (j int)", stbName);
+  sprintf(qstr, "create table if not exists %s (ts timestamp, i int) tags (j int)", stbName);
   pRes = taos_query(con, qstr);
   code = taos_errno(pRes);
   if (code != 0) {
@@ -296,6 +297,8 @@ void printHelp() {
   printf("%s%s%s%d\n", indent, indent, "numOfThreads, default is ", numOfThreads);
   printf("%s%s\n", indent, "-n");
   printf("%s%s%s%" PRId64 "\n", indent, indent, "numOfTables, default is ", numOfTables);
+  printf("%s%s\n", indent, "-o");
+  printf("%s%s%s%" PRId64 "\n", indent, indent, "startOffset, default is ", startOffset);
   printf("%s%s\n", indent, "-v");
   printf("%s%s%s%d\n", indent, indent, "numOfVgroups, default is ", numOfVgroups);
   printf("%s%s\n", indent, "-a");
@@ -329,6 +332,8 @@ void parseArgument(int32_t argc, char *argv[]) {
       numOfThreads = atoi(argv[++i]);
     } else if (strcmp(argv[i], "-n") == 0) {
       numOfTables = atoll(argv[++i]);
+    } else if (strcmp(argv[i], "-o") == 0) {
+      startOffset = atoll(argv[++i]);
     } else if (strcmp(argv[i], "-v") == 0) {
       numOfVgroups = atoi(argv[++i]);
     } else if (strcmp(argv[i], "-a") == 0) {
@@ -351,7 +356,8 @@ void parseArgument(int32_t argc, char *argv[]) {
   pPrint("%s dbName:%s %s", GREEN, dbName, NC);
   pPrint("%s stbName:%s %s", GREEN, stbName, NC);
   pPrint("%s configDir:%s %s", GREEN, configDir, NC);
-  pPrint("%s numOfTables:%" PRId64 " %s", GREEN, numOfTables, NC);
+  pPrint("%s numOfTables:%" PRId64 " %s", GREEN, numOfTables, NC);  
+  pPrint("%s startOffset:%" PRId64 " %s", GREEN, startOffset, NC);
   pPrint("%s numOfThreads:%d %s", GREEN, numOfThreads, NC);
   pPrint("%s numOfVgroups:%d %s", GREEN, numOfVgroups, NC);
   pPrint("%s createTable:%d %s", GREEN, createTable, NC);
@@ -381,7 +387,7 @@ int32_t main(int32_t argc, char *argv[]) {
     createDbAndStb();
   }
   
-  pPrint("%d threads are spawned to create %" PRId64 " tables", numOfThreads, numOfTables);
+  pPrint("%d threads are spawned to create %" PRId64 " tables, offset is %" PRId64 " ", numOfThreads, numOfTables, startOffset);
 
   pthread_attr_t thattr;
   pthread_attr_init(&thattr);
@@ -406,8 +412,8 @@ int32_t main(int32_t argc, char *argv[]) {
 
   int64_t tableFrom = 0;
   for (int32_t i = 0; i < numOfThreads; ++i) {
-    pInfo[i].tableBeginIndex = tableFrom;
-    pInfo[i].tableEndIndex = i < b ? tableFrom + a : tableFrom + a - 1;
+    pInfo[i].tableBeginIndex = tableFrom + startOffset;
+    pInfo[i].tableEndIndex = (i < b ? tableFrom + a : tableFrom + a - 1)  + startOffset;
     tableFrom = pInfo[i].tableEndIndex + 1;
     pInfo[i].threadIndex = i;
     pInfo[i].minDelay = INT64_MAX;
