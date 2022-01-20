@@ -198,17 +198,6 @@ typedef struct STqQueryMsg {
   struct STqQueryMsg* next;
 } STqQueryMsg;
 
-typedef struct STqLogHandle {
-  void* logHandle;
-  void* (*openLogReader)(void* logHandle);
-  void (*closeLogReader)(void* logReader);
-  int32_t (*logRead)(void* logReader, void** data, int64_t ver);
-
-  int64_t (*logGetFirstVer)(void* logHandle);
-  int64_t (*logGetSnapshotVer)(void* logHandle);
-  int64_t (*logGetLastVer)(void* logHandle);
-} STqLogHandle;
-
 typedef struct STqCfg {
   // TODO
 } STqCfg;
@@ -306,7 +295,6 @@ typedef struct STQ {
   // the handle of meta kvstore
   char*         path;
   STqCfg*       tqConfig;
-  STqLogHandle* tqLogHandle;
   STqMemRef     tqMemRef;
   STqMetaStore* tqMeta;
 } STQ;
@@ -323,7 +311,7 @@ int  tqInit();
 void tqCleanUp();
 
 // open in each vnode
-STQ* tqOpen(const char* path, STqCfg* tqConfig, STqLogHandle* tqLogHandle, SMemAllocatorFactory* allocFac);
+STQ* tqOpen(const char* path, STqCfg* tqConfig, SMemAllocatorFactory* allocFac);
 void tqClose(STQ*);
 
 // void* will be replace by a msg type

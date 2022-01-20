@@ -50,7 +50,7 @@ void tqCleanUp() {
   taosTmrCleanUp(tqMgmt.timer);
 }
 
-STQ* tqOpen(const char* path, STqCfg* tqConfig, STqLogHandle* tqLogHandle, SMemAllocatorFactory* allocFac) {
+STQ* tqOpen(const char* path, STqCfg* tqConfig, SMemAllocatorFactory* allocFac) {
   STQ* pTq = malloc(sizeof(STQ));
   if (pTq == NULL) {
     terrno = TSDB_CODE_TQ_OUT_OF_MEMORY;
@@ -58,20 +58,15 @@ STQ* tqOpen(const char* path, STqCfg* tqConfig, STqLogHandle* tqLogHandle, SMemA
   }
   pTq->path = strdup(path);
   pTq->tqConfig = tqConfig;
-  pTq->tqLogHandle = tqLogHandle;
-#if 0
   pTq->tqMemRef.pAllocatorFactory = allocFac;
   pTq->tqMemRef.pAllocator = allocFac->create(allocFac);
   if (pTq->tqMemRef.pAllocator == NULL) {
     // TODO: error code of buffer pool
   }
-#endif
   pTq->tqMeta = tqStoreOpen(path, (FTqSerialize)tqSerializeGroup, (FTqDeserialize)tqDeserializeGroup, free, 0);
   if (pTq->tqMeta == NULL) {
-    free(pTq);
-#if 0
     allocFac->destroy(allocFac, pTq->tqMemRef.pAllocator);
-#endif
+    free(pTq);
     return NULL;
   }
 
@@ -421,10 +416,10 @@ int tqConsume(STQ* pTq, SRpcMsg* pReq, SRpcMsg** pRsp) {
     // read from wal
     void* raw = NULL;
     /*int code = pTq->tqLogReader->logRead(, &raw, pItem->offset);*/
-    int code = pTq->tqLogHandle->logRead(pItem->pTopic->logReader, &raw, pItem->offset);
-    if (code < 0) {
+    /*int code = pTq->tqLogHandle->logRead(pItem->pTopic->logReader, &raw, pItem->offset);*/
+    /*if (code < 0) {*/
       // TODO: error
-    }
+    /*}*/
     // get msgType
     // if submitblk
     pItem->executor->assign(pItem->executor->runtimeEnv, raw);
