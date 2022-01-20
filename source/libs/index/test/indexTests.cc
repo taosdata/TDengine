@@ -1001,7 +1001,7 @@ TEST_F(IndexEnv2, testIndex_read_performance3) {
   std::cout << "reader sz: " << index->SearchOne("tag1", "Hello") << std::endl;
   assert(3 == index->SearchOne("tag1", "Hello"));
 }
-TEST_F(IndexEnv2, testIndex_read_performance3) {
+TEST_F(IndexEnv2, testIndex_read_performance4) {
   std::string path = "/tmp/cache_and_tfile1";
   if (index->Init(path) != 0) {
   }
@@ -1011,7 +1011,7 @@ TEST_F(IndexEnv2, testIndex_read_performance3) {
   std::cout << "reader sz: " << index->SearchOne("tag1", "Hello") << std::endl;
   assert(3 == index->SearchOne("tag1", "Hello"));
 }
-TEST_F(IndexEnv2, testIndex_read_performance4) {
+TEST_F(IndexEnv2, testIndex_read_performance5) {
   std::string path = "/tmp/cache_and_tfile1";
   if (index->Init(path) != 0) {
   }
