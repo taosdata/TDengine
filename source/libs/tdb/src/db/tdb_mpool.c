@@ -196,16 +196,14 @@ static int tdbGnrtFileID(const char *fname, uint8_t *fileid) {
 
 #define MPF_GET_BUCKETID(fileid)                   \
   ({                                               \
-    uint64_t *tmp = fileid;                        \
+    uint64_t *tmp = (uint64_t *)fileid;            \
     (tmp[0] + tmp[1] + tmp[2]) % MPF_HASH_BUCKETS; \
   })
 
 static void tdbMPoolRegFile(TDB_MPOOL *mp, TDB_MPFILE *mpf) {
-  int           bucketid;
   mpf_bucket_t *bktp;
 
-  bucketid = MPF_GET_BUCKETID(mpf->fileid);
-  bktp = mp->mpfht.buckets + bucketid;
+  bktp = mp->mpfht.buckets + MPF_GET_BUCKETID(mpf->fileid);
 
   taosWLockLatch(&(bktp->latch));
 
@@ -217,12 +215,10 @@ static void tdbMPoolRegFile(TDB_MPOOL *mp, TDB_MPFILE *mpf) {
 }
 
 static TDB_MPFILE *tdbMPoolGetFile(TDB_MPOOL *mp, uint8_t *fileid) {
-  int           bucketid;
   TDB_MPFILE *  mpf = NULL;
   mpf_bucket_t *bktp;
 
-  bucketid = MPF_GET_BUCKETID(fileid);
-  bktp = mp->mpfht.buckets + bucketid;
+  bktp = mp->mpfht.buckets + MPF_GET_BUCKETID(fileid);
 
   taosRLockLatch(&(bktp->latch));
 
