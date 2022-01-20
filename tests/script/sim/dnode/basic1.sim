@@ -114,9 +114,9 @@ sql create table c5 using st tags(2)
 sql show tables
 print $data00 $data01 $data02
 
-#if $rows != 5 then 
-#  return -1
-#endi
+if $rows != 5 then 
+  return -1
+endi
 
 print =============== insert data
 sql insert into c1 values(now+1s, 1)
@@ -177,7 +177,7 @@ if $rows != 3 then
   return -1
 endi
 
-#sql select * from st
+sql select * from st
 #if $rows != 15 then 
 #  return -1
 #endi
