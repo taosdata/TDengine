@@ -291,6 +291,8 @@ int32_t tfsRename(STfs *pTfs, char *orname, char *nrname) {
       snprintf(oaname, TMPNAME_LEN, "%s%s%s", pDisk->path, TD_DIRSEP, orname);
       snprintf(naname, TMPNAME_LEN, "%s%s%s", pDisk->path, TD_DIRSEP, nrname);
       if (taosRenameFile(oaname, naname) != 0) {
+        terrno = TAOS_SYSTEM_ERROR(errno);
+        fError("failed to rename %s to %s since %s", oaname, naname, terrstr());
         return -1;
       }
     }
@@ -402,8 +404,7 @@ static int32_t tfsCheckAndFormatCfg(STfs *pTfs, SDiskCfg *pCfg) {
   }
 
   if (tfsFormatDir(pCfg->dir, dirName) < 0) {
-    fError("failed to mount %s to FS since invalid dir format", pCfg->dir);
-    terrno = TSDB_CODE_FS_INVLD_CFG;
+    fError("failed to mount %s to FS since %s", pCfg->dir, terrstr());
     return -1;
   }
 
