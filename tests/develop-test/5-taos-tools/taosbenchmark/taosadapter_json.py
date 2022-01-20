@@ -29,20 +29,44 @@ class TDTestCase:
         tdSql.init(conn.cursor(), logSql)
 
     def run(self):
-        cmd = "taosBenchmark -f ./5-taos-tools/taosbenchmark/json/sml_interlace.json"
+        cmd = "taosBenchmark -f ./5-taos-tools/taosbenchmark/json/sml_rest_telnet.json"
         tdLog.info("%s" % cmd)
         os.system("%s" % cmd)
         tdSql.execute("reset query cache")
         tdSql.query("select count(tbname) from db.stb1")
         tdSql.checkData(0, 0, 8)
+        tdSql.query("select count(*) from db.stb1")
+        tdSql.checkData(0, 0, 160)
         tdSql.query("select count(tbname) from db.stb2")
         tdSql.checkData(0, 0, 8)
-        tdSql.query("select count(*) from db.stb1")
-        result = tdSql.getData(0, 0)
-        assert result <= 160, "result is %s > expect: 160" % result
         tdSql.query("select count(*) from db.stb2")
-        result = tdSql.getData(0, 0)
-        assert result <= 160, "result is %s > expect: 160" % result
+        tdSql.checkData(0, 0, 160)
+
+        cmd = "taosBenchmark -f ./5-taos-tools/taosbenchmark/json/sml_rest_line.json"
+        tdLog.info("%s" % cmd)
+        os.system("%s" % cmd)
+        tdSql.execute("reset query cache")
+        tdSql.query("select count(tbname) from db2.stb1")
+        tdSql.checkData(0, 0, 8)
+        tdSql.query("select count(*) from db2.stb1")
+        tdSql.checkData(0, 0, 160)
+        tdSql.query("select count(tbname) from db2.stb2")
+        tdSql.checkData(0, 0, 8)
+        tdSql.query("select count(*) from db2.stb2")
+        tdSql.checkData(0, 0, 160)
+
+        cmd = "taosBenchmark -f ./5-taos-tools/taosbenchmark/json/sml_rest_json.json"
+        tdLog.info("%s" % cmd)
+        os.system("%s" % cmd)
+        tdSql.execute("reset query cache")
+        tdSql.query("select count(tbname) from db3.stb1")
+        tdSql.checkData(0, 0, 8)
+        tdSql.query("select count(*) from db3.stb1")
+        tdSql.checkData(0, 0, 160)
+        tdSql.query("select count(tbname) from db3.stb2")
+        tdSql.checkData(0, 0, 8)
+        tdSql.query("select count(*) from db3.stb2")
+        tdSql.checkData(0, 0, 160)
 
     def stop(self):
         tdSql.close()
