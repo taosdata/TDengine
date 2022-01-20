@@ -7,8 +7,10 @@ print ============================ dnode1 start
 
 $i = 0
 $dbPrefix = db
+$stPrefix = st
 $tbPrefix = tb
 $db = $dbPrefix . $i
+$st = $stPrefix . $i
 $tb = $tbPrefix . $i
 
 print =============== step1
@@ -68,15 +70,51 @@ if $data06 != 15 then
   return -1
 endi
 
+return
+
 print =============== step6
 $i = $i + 1
 while $i < 5
   $db = $dbPrefix . $i
+  $st = $stPrefix . $i
+  $tb = $tbPrefix . $i
+
+  print create database $db
   sql create database $db
+
+  print use $db
   sql use $db
+
+  print create table $st (ts timestamp, i int) tags (j int)
+  sql create table $st (ts timestamp, i int) tags (j int)
+
+  print create table $tb using $st tags(1)
+  sql create table $tb using $st tags(1)
+
+  sql show stables
+  if $rows != 1 then 
+    return -1
+  endi
+
+  print $data00 $data01 $data02 $data03
+  if $data00 != $st then 
+    return -1
+  endi
+
+  sql show tables
+  if $rows != 1 then 
+    return -1
+  endi
+
+  print $data00 $data01 $data02 $data03
+  if $data00 != $tb then 
+    return -1
+  endi
+
   $i = $i + 1
 endw
 
+return 
 print =============== step7
 $i = 0
 while $i < 5
@@ -86,19 +124,30 @@ while $i < 5
 endw
 
 print =============== step8
-$i = 0
+$i = 1
 $db = $dbPrefix . $i
+$st = $stPrefix . $i
 $tb = $tbPrefix . $i
 sql create database $db
 sql use $db
-sql create table st (ts timestamp, i int) tags (j int)
-sql create table $tb using st tags(1)
+sql create table $st (ts timestamp, i int) tags (j int)
+sql create table $tb using $st tags(1)
 
-system sh/exec.sh -n dnode1 -s stop -x SIGINT
-return 
+sql show stables
+if $rows != 1 then 
+  return -1
+endi
+
+if $data00 != $st then 
+  return -1
+endi
 
 sql show tables
 if $rows != 1 then 
+  return -1
+endi
+
+if $data00 != $tb then 
   return -1
 endi
 
@@ -108,16 +157,36 @@ sql drop database $db
 print =============== step10
 sql create database $db
 sql use $db
+
+sql show stables
+if $rows != 0 then 
+  return -1
+endi
+
 sql show tables
 if $rows != 0 then 
   return -1
 endi
 
 print =============== step11
-sql create table st (ts timestamp, i int) tags (j int)
-sql create table $tb using st tags(1)
+sql create table $st (ts timestamp, i int) tags (j int)
+sql create table $tb using $st tags(1)
+
+sql show stables
+if $rows != 1 then 
+  return -1
+endi
+
+if $data00 != $st then 
+  return -1
+endi
+
 sql show tables
 if $rows != 1 then 
+  return -1
+endi
+
+if $data00 != $tb then 
   return -1
 endi
 
@@ -127,15 +196,36 @@ sql drop database $db
 print =============== step13
 sql create database $db
 sql use $db
+
+sql show stables
+if $rows != 0 then 
+  return -1
+endi
+
 sql show tables
 if $rows != 0 then 
   return -1
 endi
 
-sql create table st (ts timestamp, i int) tags (j int)
-sql create table $tb using st tags(1)
+print ============== step14
+sql create table $st (ts timestamp, i int) tags (j int)
+sql create table $tb using $st tags(1)
+
+sql show stables
+if $rows != 1 then 
+  return -1
+endi
+
+if $data00 != $st then 
+  return -1
+endi
+
 sql show tables
 if $rows != 1 then 
+  return -1
+endi
+
+if $data00 != $tb then 
   return -1
 endi
 
@@ -145,10 +235,12 @@ sql insert into $tb values (now+3a, 2)
 sql insert into $tb values (now+4a, 3)
 sql insert into $tb values (now+5a, 4)
 
-
-return 
-
 sql select * from $tb
+if $rows != 5 then 
+  return -1
+endi
+
+sql select * from $stb
 if $rows != 5 then 
   return -1
 endi
@@ -159,20 +251,52 @@ sql drop database $db
 print =============== step15
 sql create database $db
 sql use $db
+
+sql show stables
+if $rows != 0 then 
+  return -1
+endi
+
 sql show tables
 if $rows != 0 then 
   return -1
 endi
 
 print =============== step16
-sql create table st (ts timestamp, i int) tags (j int)
-sql create table $tb using st tags(1)
+sql create table $st (ts timestamp, i int) tags (j int)
+sql create table $tb using $st tags(1)
+
+sql show stables
+if $rows != 1 then 
+  return -1
+endi
+
+if $data00 != $st then 
+  return -1
+endi
+
 sql show tables
 if $rows != 1 then 
   return -1
 endi
+
+if $data00 != $tb then 
+  return -1
+endi
+
+sql insert into $tb values (now+1a, 0)
+sql insert into $tb values (now+2a, 1)
+sql insert into $tb values (now+3a, 2)
+sql insert into $tb values (now+4a, 3)
+sql insert into $tb values (now+5a, 4)
+
 sql select * from $tb
-if $rows != 0 then 
+if $rows != 5 then 
+  return -1
+endi
+
+sql select * from $stb
+if $rows != 5 then 
   return -1
 endi
 
