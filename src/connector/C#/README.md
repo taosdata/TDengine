@@ -16,7 +16,7 @@ Run {client_installation_directory}/examples/C#/C#Checker/C#Checker.cs
 Need to install .Net SDK first.
 
 ```cmd
-cd {client_install_directory}/examples/C#/C#Checker
+cd {client_install_directory}/examples/C\#/C#Checker
 //run c#checker.cs
 dotnet run -- -h <FQDN>
 ```
@@ -66,10 +66,10 @@ string db = ''; // Also can set it to the db name you want to connect.
 string port = 0
 
 /* Set client options (optional step):charset, locale, timezone.
- * Defualt: charset, locale, timezone same to system.
+ * Default: charset, locale, timezone same to system.
  * Current supports options:TSDB_OPTION_LOCALE, TSDB_OPTION_CHARSET, TSDB_OPTION_TIMEZONE, TSDB_OPTION_CONFIGDIR.
 */
-TDengine.Options((int)TDengineInitOption.TDDB_OPTION_CONFIGDIR,configDir);
+TDengine.Options((int)TDengineInitOption.TSDB_OPTION_CONFIGDIR,configDir);
 
 // Get an TDengine connection
 InPtr conn = TDengine.Connect(host, user, taosdata, db, port);
@@ -423,13 +423,13 @@ else
 **Note:**
 
 * TDengine V2.0. 3.0 supports both 32-bit and 64-bit Windows systems,
-so when .NET project generates a .exe file, please select correspond
-with "X86" or "x64" for the "Platform" under "Solution"/"Project".
+  so when .NET project generates a .exe file, please select correspond
+  with "X86" or "x64" for the "Platform" under "Solution"/"Project".
 * This .NET interface has been verified in Visual Studio 2015/2017,
-and other VS versions have not being verified yet.
+  and other VS versions have not being verified yet.
 * Since this. NET connector interface requires the taos.dll file, so before
-executing the application, copy the taos.dll file in the
-Windows {client_install_directory}/driver directory to the folder where the
-.NET project finally generated the .exe executable file. After running the exe
- file, you can access the TDengine database and do operations such as insert
- and query(This step can be skip if the client has been installed on you machine).
+  executing the application, copy the taos.dll file in the
+  Windows {client_install_directory}/driver directory to the folder where the
+  .NET project finally generated the .exe executable file. After running the exe
+  file, you can access the TDengine database and do operations such as insert
+  and query(This step can be skip if the client has been installed on you machine).
