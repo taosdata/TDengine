@@ -1336,7 +1336,7 @@ Is not null supports all types of columns. Non-null expression is < > "" and onl
      select jtag->'key' from (select jtag from stable) where jtag->'key'>0
      ```
 ## Escape character description
-- Special Character Escape Sequences
+- Special Character Escape Sequences(since version 2.4.0.4)
 
   | Escape Sequence    | **Character Represented by Sequence**  |
     | :--------:     |   -------------------   |

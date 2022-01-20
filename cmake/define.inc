@@ -110,10 +110,10 @@ IF (TD_MIPS_32)
 ENDIF ()
 
 IF (TD_ALPINE)
-  SET(COMMON_FLAGS "${COMMON_FLAGS} -largp")
-  link_libraries(/usr/lib/libargp.a)
+  SET(COMMON_FLAGS "${COMMON_FLAGS} -Wl,-z,stack-size=2097152")
+  link_libraries(argp)
   ADD_DEFINITIONS(-D_ALPINE)
-  MESSAGE(STATUS "aplhine is defined")
+  MESSAGE(STATUS "alpine is defined")
 ENDIF ()
 
 IF ("${BUILD_HTTP}" STREQUAL "")

@@ -119,7 +119,7 @@ taosd -C
 | 1     | firstEP                 |          | **SC**   |          | taosd启动时，主动连接的集群中首个dnode的end point           |                                                              | localhost:6030                                            |                                                              |
 | 2     | secondEP                | YES      | **SC**   |          | taosd启动时，如果firstEp连接不上，尝试连接集群中第二个dnode的end point |                                                              | 无                                                           |                                                              |
 | 3     | fqdn                    |          | **SC**   |          | 数据节点的FQDN。如果习惯IP地址访问，可设置为该节点的IP地址。   |                                                              | 缺省为操作系统配置的第一个hostname。                             | 这个参数值的长度需要控制在 96 个字符以内。                         |
-| 4     | serverPort              |          | **SC**   |          | taosd启动后，对外服务的端口号                              |                                                              | 6030                                                         | RESTful服务使用的端口号是在此基础上+11，即默认值为6041。            |
+| 4     | serverPort              |          | **SC**   |          | taosd启动后，对外服务的端口号                              |                                                              | 6030                                                         | RESTful服务使用的端口号是在此基础上+11，即默认值为6041（注意2.4及后续版本使用 taosAdapter 提供 RESTful 接口）。            |
 | 5     | logDir                  |          | **SC**   |          | 日志文件目录，客户端和服务器的运行日志将写入该目录           |                                                              | /var/log/taos                                                |                                                              |
 | 6     | scriptDir               | YES      | **S**    |          |                                                              |                                                              |                                                              |                                                              |
 | 7     | dataDir                 |          | **S**    |          | 数据文件目录，所有的数据文件都将写入该目录                   |                                                              | /var/lib/taos                                                |                                                              |
@@ -180,10 +180,10 @@ taosd -C
 | 62    | http                    |          | **S**    |          | 服务器内部的http服务开关。                                   | 0：关闭http服务， 1：激活http服务。                          | 1                                                            |                                                              |
 | 63    | mqtt                    | YES      | **S**    |          | 服务器内部的mqtt服务开关。                                   | 0：关闭mqtt服务， 1：激活mqtt服务。                          | 0                                                            |                                                              |
 | 64    | monitor                 |          | **S**    |          | 服务器内部的系统监控开关。监控主要负责收集物理节点的负载状况，包括CPU、内存、硬盘、网络带宽、HTTP请求量的监控记录，记录信息存储在`LOG`库中。 | 0：关闭监控服务， 1：激活监控服务。                          | 0                                                            |                                                              |
-| 65    | httpEnableRecordSql     |          | **S**    |          | 内部使用，记录通过RESTFul接口，产生的SQL调用                 |                                                              | 0                                                            | 生成的文件（httpnote.0/httpnote.1），与服务端日志所在目录相同。 |
-| 66    | httpMaxThreads          |          | **S**    |          | RESTFul接口的线程数                                          |                                                              | 2                                                            |                                                              |
+| 65    | httpEnableRecordSql     |          | **S**    |          | 内部使用，记录通过RESTFul接口，产生的SQL调用。taosAdapter 配置或有不同，请参考相应[文档](https://www.taosdata.com/cn/documentation/tools/adapter)。                 |                                                              | 0                                                            | 生成的文件（httpnote.0/httpnote.1），与服务端日志所在目录相同。 |
+| 66    | httpMaxThreads          |          | **S**    |          | RESTFul接口的线程数。taosAdapter 配置或有不同，请参考相应[文档](https://www.taosdata.com/cn/documentation/tools/adapter)。                                         |                                                              | 2                                                            |                                                              |
 | 67    | telegrafUseFieldNum     | YES      |          |          |                                                              |                                                              |                                                              |                                                              |
-| 68    | restfulRowLimit         |          | **S**    |          | RESTFul接口单次返回的记录条数                                |                                                              | 10240                                                        | 最大10,000,000                                               |
+| 68    | restfulRowLimit         |          | **S**    |          | RESTFul接口单次返回的记录条数。taosAdapter 配置或有不同，请参考相应[文档](https://www.taosdata.com/cn/documentation/tools/adapter)。                                |                                                              | 10240                                                        | 最大10,000,000                                               |
 | 69    | numOfLogLines           |          | **SC**   |          | 单个日志文件允许的最大行数。                                 |                                                              | 10,000,000                                                   |                                                              |
 | 70    | asyncLog                |          | **SC**   |          | 日志写入模式                                                 | 0：同步、1：异步                                             | 1                                                            |                                                              |
 | 71    | logKeepDays             |          | **SC**   | 天       | 日志文件的最长保存时间                                         |                                                              | 0                                                            | 大于0时，日志文件会被重命名为taosdlog.xxx，其中xxx为日志文件最后修改的时间戳。       |
@@ -641,8 +641,10 @@ TDengine的所有可执行文件默认存放在 _/usr/local/taos/bin_ 目录下�
 - *taosd*：TDengine服务端可执行文件
 - *taos*：TDengine Shell可执行文件
 - *taosdump*：数据导入导出工具
-- *taosdemo*：TDengine测试工具
+- *taosBenchmark*：TDengine测试工具
 - remove.sh：卸载TDengine的脚本，请谨慎执行，链接到/usr/bin目录下的**rmtaos**命令。会删除TDengine的安装目录/usr/local/taos，但会保留/etc/taos、/var/lib/taos、/var/log/taos。
+
+注意：2.4.0.0 版本之后的 taosBenchmark 和 taosdump 需要安装独立安装包 taosTools。
 
 您可以通过修改系统配置文件taos.cfg来配置不同的数据目录和日志目录。
 
@@ -692,6 +694,12 @@ rmtaos
 1. 合法字符：英文字符、数字和下划线
 2. 允许英文字符或下划线开头，不允许以数字开头
 3. 不区分大小写
+4. 转义后表（列）名规则：
+   为了兼容支持更多形式的表（列）名，TDengine 引入新的转义符  "`"。可用让表名与关键词不冲突，同时不受限于上述表名称合法性约束检查。
+   转义后的表（列）名同样受到长度限制要求，且长度计算的时候不计算转义符。使用转义字符以后，不再对转义字符中的内容进行大小写统一。
+   例如：\`aBc\` 和 \`abc\` 是不同的表（列）名，但是 abc 和 aBc 是相同的表（列）名。
+   需要注意的是转义字符中的内容必须是可打印字符。
+   支持转义符的功能从 2.3.0.1 版本开始。
 
 **密码合法字符集**
 
@@ -760,6 +768,28 @@ rmtaos
 | CONNECTIONS  | HAVING       | NOT          | SOFFSET      | VNODES       |
 | CONNS        | ID           | NOTNULL      | STABLE       | WAL          |
 | COPY         | IF           | NOW          | STABLES      | WHERE        |
+
+## 转义字符说明
+- 转义字符表（转义符的功能从 2.4.0.4 版本开始）
+
+  | 字符序列    | **代表的字符**  |
+         | :--------:     |   -------    |
+  | `\'`             |  单引号'      | 
+  | `\"`             |  双引号"      |
+  | \n             |  换行符       |
+  | \r             |  回车符       |
+  | \t             |  tab符       |
+  | `\\`             |  斜杠\        |
+  | `\%`             |  % 规则见下    |
+  | `\_`             |  _ 规则见下    |
+
+- 转义字符使用规则
+  1. 标识符里有转义字符（数据库名、表名、列名）
+    1. 普通标识符：    直接提示错误的标识符，因为标识符规定必须是数字、字母和下划线，并且不能以数字开头。
+    2. 反引号``标识符： 保持原样，不转义
+  2. 数据里有转义字符
+    1. 遇到上面定义的转义字符会转义（%和_见下面说明），如果没有匹配的转义字符会忽略掉转义符\。
+    2. 对于%和_，因为在like里这两个字符是通配符，所以在模式匹配like里用`\%`%和`\_`表示字符里本身的%和_，如果在like模式匹配上下文之外使用`\%`或`\_`，则它们的计算结果为字符串`\%`和`\_`，而不是%和_。
 
 ## 诊断及其他
 

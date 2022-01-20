@@ -209,6 +209,15 @@ JNIEXPORT jlong JNICALL Java_com_taosdata_jdbc_TSDBJNIConnector_prepareStmtImp
 JNIEXPORT jint JNICALL Java_com_taosdata_jdbc_TSDBJNIConnector_setBindTableNameImp
   (JNIEnv *, jobject, jlong, jstring, jlong);
 
+
+/**
+ * Class:     com_taosdata_jdbc_TSDBJNIConnector
+ * Method:    setTableNameTagsImp
+ * Signature: (JLjava/lang/String;I[B[B[B[BJ)I
+ */
+JNIEXPORT jint JNICALL Java_com_taosdata_jdbc_TSDBJNIConnector_setTableNameTagsImp
+    (JNIEnv *, jobject, jlong, jstring, jint, jbyteArray, jbyteArray, jbyteArray, jbyteArray, jlong);
+
 /*
  * Class:     com_taosdata_jdbc_TSDBJNIConnector
  * Method:    bindColDataImp
@@ -216,6 +225,14 @@ JNIEXPORT jint JNICALL Java_com_taosdata_jdbc_TSDBJNIConnector_setBindTableNameI
  */
 JNIEXPORT jlong JNICALL Java_com_taosdata_jdbc_TSDBJNIConnector_bindColDataImp
 (JNIEnv *, jobject, jlong, jbyteArray, jbyteArray, jbyteArray, jint, jint, jint, jint, jlong);
+
+/*
+ * Class:     com_taosdata_jdbc_TSDBJNIConnector
+ * Method:    stmt_add_batch
+ * Signature: (JJ)I
+ */
+JNIEXPORT jint JNICALL Java_com_taosdata_jdbc_TSDBJNIConnector_addBatchImp(JNIEnv *env, jobject jobj, jlong stmt, jlong con);
+
 
 /*
  * Class:     com_taosdata_jdbc_TSDBJNIConnector
@@ -231,13 +248,12 @@ JNIEXPORT jint JNICALL Java_com_taosdata_jdbc_TSDBJNIConnector_executeBatchImp(J
  */
 JNIEXPORT jint JNICALL Java_com_taosdata_jdbc_TSDBJNIConnector_closeStmt(JNIEnv *env, jobject jobj, jlong stmt, jlong con);
 
-/**
+/*
  * Class:     com_taosdata_jdbc_TSDBJNIConnector
- * Method:    setTableNameTagsImp
- * Signature: (JLjava/lang/String;I[B[B[B[BJ)I
+ * Method:    stmt_errstr
+ * Signature: (JJ)I
  */
-JNIEXPORT jint JNICALL Java_com_taosdata_jdbc_TSDBJNIConnector_setTableNameTagsImp
-    (JNIEnv *, jobject, jlong, jstring, jint, jbyteArray, jbyteArray, jbyteArray, jbyteArray, jlong);
+JNIEXPORT jstring JNICALL Java_com_taosdata_jdbc_TSDBJNIConnector_stmtErrorMsgImp(JNIEnv *env, jobject jobj, jlong stmt, jlong con);
 
 /*
  * Class:     com_taosdata_jdbc_TSDBJNIConnector
