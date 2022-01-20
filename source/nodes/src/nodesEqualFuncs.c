@@ -32,7 +32,7 @@
 
 #define COMPARE_NODE_FIELD(fldname) \
 	do { \
-		if (!nodeEqual(a->fldname, b->fldname)) \
+		if (!nodesEqualNode(a->fldname, b->fldname)) \
 			return false; \
 	} while (0)
 
@@ -57,7 +57,7 @@ static bool nodeArrayEqual(const SArray* a, const SArray* b) {
 
   size_t size = taosArrayGetSize(a);
   for (size_t i = 0; i < size; ++i) {
-    if (!nodeEqual((SNode*)taosArrayGetP(a, i), (SNode*)taosArrayGetP(b, i))) {
+    if (!nodesEqualNode((SNode*)taosArrayGetP(a, i), (SNode*)taosArrayGetP(b, i))) {
       return false;
     }
   }
@@ -101,7 +101,7 @@ static bool functionNodeEqual(const SFunctionNode* a, const SFunctionNode* b) {
   return true;
 }
 
-bool nodeEqual(const SNode* a, const SNode* b) {
+bool nodesEqualNode(const SNode* a, const SNode* b) {
   if (a == b) {
     return true;
   }

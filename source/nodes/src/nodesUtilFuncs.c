@@ -15,10 +15,10 @@
 
 #include "nodes.h"
 
-bool isTimeorderQuery(const SNode* pQuery) {
+bool nodesIsTimeorderQuery(const SNode* pQuery) {
 
 }
 
-bool isTimelineQuery(const SNode* pQuery) {
+bool nodesIsTimelineQuery(const SNode* pQuery) {
 
 }

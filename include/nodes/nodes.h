@@ -249,20 +249,20 @@ typedef struct SSetOperator {
 
 typedef bool (*FQueryNodeWalker)(SNode* pNode, void* pContext);
 
-bool nodeArrayWalker(SArray* pArray, FQueryNodeWalker walker, void* pContext);
-bool nodeTreeWalker(SNode* pNode, FQueryNodeWalker walker, void* pContext);
+bool nodesWalkArray(SArray* pArray, FQueryNodeWalker walker, void* pContext);
+bool nodesWalkNode(SNode* pNode, FQueryNodeWalker walker, void* pContext);
 
-bool stmtWalker(SNode* pNode, FQueryNodeWalker walker, void* pContext);
+bool nodesWalkStmt(SNode* pNode, FQueryNodeWalker walker, void* pContext);
 
-bool nodeEqual(const SNode* a, const SNode* b);
+bool nodesEqualNode(const SNode* a, const SNode* b);
 
-void cloneNode(const SNode* pNode);
+void nodesCloneNode(const SNode* pNode);
 
-int32_t nodeToString(const SNode* pNode, char** pStr, int32_t* pLen);
-int32_t stringToNode(const char* pStr, SNode** pNode);
+int32_t nodesNodeToString(const SNode* pNode, char** pStr, int32_t* pLen);
+int32_t nodesStringToNode(const char* pStr, SNode** pNode);
 
-bool isTimeorderQuery(const SNode* pQuery);
-bool isTimelineQuery(const SNode* pQuery);
+bool nodesIsTimeorderQuery(const SNode* pQuery);
+bool nodesIsTimelineQuery(const SNode* pQuery);
 
 #ifdef __cplusplus
 }

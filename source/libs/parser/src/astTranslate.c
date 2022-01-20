@@ -13,12 +13,6 @@
  * along with this program. If not, see <http://www.gnu.org/licenses/>.
  */
 
-#include "nodes.h"
-
-int32_t nodeToString(const SNode* pNode, char** pStr, int32_t* pLen) {
-
-}
-
-int32_t stringToNode(const char* pStr, SNode** pNode) {
+int32_t doTranslate() {
 
 }
