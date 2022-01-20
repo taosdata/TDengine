@@ -18,6 +18,7 @@
 #include "mndAuth.h"
 #include "mndBnode.h"
 #include "mndCluster.h"
+#include "mndConsumer.h"
 #include "mndDb.h"
 #include "mndDnode.h"
 #include "mndFunc.h"
@@ -27,6 +28,7 @@
 #include "mndShow.h"
 #include "mndSnode.h"
 #include "mndStb.h"
+#include "mndSubscribe.h"
 #include "mndSync.h"
 #include "mndTelem.h"
 #include "mndTopic.h"
@@ -69,15 +71,15 @@ static void mndTransReExecute(void *param, void *tmrId) {
   taosTmrReset(mndTransReExecute, 3000, pMnode, pMnode->timer, &pMnode->transTimer);
 }
 
-static void mndCalMqRebalance(void* param, void* tmrId) {
-  SMnode* pMnode = param;
+static void mndCalMqRebalance(void *param, void *tmrId) {
+  SMnode *pMnode = param;
   if (mndIsMaster(pMnode)) {
-    // iterate cgroup, cal rebalance
-    // sync with raft
-    // write sdb
+    SMqTmrMsg *pMsg = rpcMallocCont(sizeof(SMqTmrMsg));
+    SRpcMsg    rpcMsg = {.msgType = TDMT_MND_MQ_TIMER, .pCont = pMsg, .contLen = sizeof(SMqTmrMsg)};
+    pMnode->putReqToMWriteQFp(pMnode->pDnode, &rpcMsg);
   }
 
-  taosTmrReset(mndCalMqRebalance, 3000, pMnode, pMnode->timer, &pMnode->transTimer);
+  taosTmrReset(mndCalMqRebalance, 3000, pMnode, pMnode->timer, &pMnode->mqTimer);
 }
 
 static int32_t mndInitTimer(SMnode *pMnode) {
@@ -95,6 +97,11 @@ static int32_t mndInitTimer(SMnode *pMnode) {
     return -1;
   }
 
+  if (taosTmrReset(mndCalMqRebalance, 3000, pMnode, pMnode->timer, &pMnode->mqTimer)) {
+    terrno = TSDB_CODE_OUT_OF_MEMORY;
+    return -1;
+  }
+
   return 0;
 }
 
@@ -102,6 +109,8 @@ static void mndCleanupTimer(SMnode *pMnode) {
   if (pMnode->timer != NULL) {
     taosTmrStop(pMnode->transTimer);
     pMnode->transTimer = NULL;
+    taosTmrStop(pMnode->mqTimer);
+    pMnode->mqTimer = NULL;
     taosTmrCleanUp(pMnode->timer);
     pMnode->timer = NULL;
   }
@@ -171,6 +180,8 @@ static int32_t mndInitSteps(SMnode *pMnode) {
   if (mndAllocStep(pMnode, "mnode-auth", mndInitAuth, mndCleanupAuth) != 0) return -1;
   if (mndAllocStep(pMnode, "mnode-acct", mndInitAcct, mndCleanupAcct) != 0) return -1;
   if (mndAllocStep(pMnode, "mnode-topic", mndInitTopic, mndCleanupTopic) != 0) return -1;
+  if (mndAllocStep(pMnode, "mnode-consumer", mndInitConsumer, mndCleanupConsumer) != 0) return -1;
+  if (mndAllocStep(pMnode, "mnode-subscribe", mndInitSubscribe, mndCleanupSubscribe) != 0) return -1;
   if (mndAllocStep(pMnode, "mnode-vgroup", mndInitVgroup, mndCleanupVgroup) != 0) return -1;
   if (mndAllocStep(pMnode, "mnode-stb", mndInitStb, mndCleanupStb) != 0) return -1;
   if (mndAllocStep(pMnode, "mnode-db", mndInitDb, mndCleanupDb) != 0) return -1;
@@ -377,7 +388,7 @@ SMnodeMsg *mndInitMsg(SMnode *pMnode, SRpcMsg *pRpcMsg) {
     return NULL;
   }
 
-  if (pRpcMsg->msgType != TDMT_MND_TRANS) {
+  if (pRpcMsg->msgType != TDMT_MND_TRANS && pRpcMsg->msgType != TDMT_MND_MQ_TIMER) {
     SRpcConnInfo connInfo = {0};
     if ((pRpcMsg->msgType & 1U) && rpcGetConnInfo(pRpcMsg->handle, &connInfo) != 0) {
       taosFreeQitem(pMsg);
