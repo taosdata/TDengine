@@ -277,10 +277,6 @@ void uvOnReadCb(uv_stream_t* cli, ssize_t nread, const uv_buf_t* buf) {
     }
     return;
   }
-  if (terrno != 0) {
-    // handle err code
-  }
-
   if (nread != UV_EOF) {
     tDebug("Read error %s\n", uv_err_name(nread));
   }
@@ -309,21 +305,23 @@ void uvOnWriteCb(uv_write_t* req, int status) {
 void uvWorkerAsyncCb(uv_async_t* handle) {
   SWorkThrdObj* pThrd = container_of(handle, SWorkThrdObj, workerAsync);
   SConn*        conn = NULL;
-
-  // opt later
+  queue         wq;
+  // batch process to avoid to lock/unlock frequently
   pthread_mutex_lock(&pThrd->connMtx);
-  if (!QUEUE_IS_EMPTY(&pThrd->conn)) {
-    queue* head = QUEUE_HEAD(&pThrd->conn);
-    conn = QUEUE_DATA(head, SConn, queue);
-    QUEUE_REMOVE(head);
-  }
+  QUEUE_MOVE(&pThrd->conn, &wq);
   pthread_mutex_unlock(&pThrd->connMtx);
-  if (conn == NULL) {
-    tError("except occurred, do nothing");
-    return;
+
+  while (!QUEUE_IS_EMPTY(&wq)) {
+    queue* head = QUEUE_HEAD(&wq);
+    QUEUE_REMOVE(head);
+    SConn* conn = QUEUE_DATA(head, SConn, queue);
+    if (conn == NULL) {
+      tError("except occurred, do nothing");
+      return;
+    }
+    uv_buf_t wb = uv_buf_init(conn->writeBuf.buf, conn->writeBuf.len);
+    uv_write(conn->pWriter, (uv_stream_t*)conn->pTcp, &wb, 1, uvOnWriteCb);
   }
-  uv_buf_t wb = uv_buf_init(conn->writeBuf.buf, conn->writeBuf.len);
-  uv_write(conn->pWriter, (uv_stream_t*)conn->pTcp, &wb, 1, uvOnWriteCb);
 }
 
 void uvOnAcceptCb(uv_stream_t* stream, int status) {
