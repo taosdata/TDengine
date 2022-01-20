@@ -56,10 +56,10 @@ struct TDB_MPOOL {
 #define MP_PAGE_AT(mp, idx) (mp)->pages[idx]
 
 struct TDB_MPFILE {
-  uint8_t    fileid[TDB_FILE_ID_LEN];  // file ID
-  TDB_MPOOL *mp;                       // underlying memory pool
   char *     fname;                    // file name
   int        fd;                       // fd
+  uint8_t    fileid[TDB_FILE_ID_LEN];  // file ID
+  TDB_MPOOL *mp;                       // underlying memory pool
 };
 
 /*=================================================== Exposed apis ==================================================*/

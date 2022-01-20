@@ -104,12 +104,17 @@ int tdbMPoolFileOpen(TDB_MPFILE **mpfp, const char *fname, TDB_MPOOL *mp) {
   }
 
   mpf->fd = -1;
+  mpf->mp = mp;
 
   if ((mpf->fname = strdup(fname)) == NULL) {
     goto _err;
   }
 
   if ((mpf->fd = open(fname, O_CREAT | O_RDWR, 0755)) < 0) {
+    goto _err;
+  }
+
+  if (tdbGnrtFileID(fname, mpf->fileid) < 0) {
     goto _err;
   }
 
@@ -123,11 +128,28 @@ _err:
 }
 
 int tdbMPoolFileClose(TDB_MPFILE *mpf) {
-  // TODO
+  if (mpf) {
+    if (mpf->fd > 0) {
+      close(mpf->fd);
+    }
+    tfree(mpf->fname);
+    free(mpf);
+  }
   return 0;
 }
 
 static int tdbGnrtFileID(const char *fname, uint8_t *fileid) {
-  // TODO
+  struct stat statbuf;
+
+  if (stat(fname, &statbuf) < 0) {
+    return -1;
+  }
+
+  memset(fileid, 0, TDB_FILE_ID_LEN);
+
+  ((uint64_t *)fileid)[0] = (uint64_t)statbuf.st_ino;
+  ((uint64_t *)fileid)[1] = (uint64_t)statbuf.st_dev;
+  ((uint64_t *)fileid)[2] = rand();
+
   return 0;
 }
