@@ -16,13 +16,6 @@
 #ifdef USE_UV
 #include "transComm.h"
 
-typedef struct SConnBuffer {
-  char* buf;
-  int   len;
-  int   cap;
-  int   left;
-} SConnBuffer;
-
 typedef struct SConn {
   uv_tcp_t*   pTcp;
   uv_write_t* pWriter;
@@ -100,7 +93,8 @@ static void* acceptThread(void* arg);
 void uvAllocReadBufferCb(uv_handle_t* handle, size_t suggested_size, uv_buf_t* buf) {
   /*
    * formate of data buffer:
-   * |<-------SRpcReqContext------->|<------------data read from socket----------->|
+   * |<--------------------------data from socket------------------------------->|
+   * |<------STransMsgHead------->|<-------------------other data--------------->|
    */
   static const int CAPACITY = 1024;
 
@@ -133,7 +127,6 @@ void uvAllocReadBufferCb(uv_handle_t* handle, size_t suggested_size, uv_buf_t* b
 //
 static bool readComplete(SConnBuffer* data) {
   // TODO(yihao): handle pipeline later
-  // SRpcHead rpcHead;
   STransMsgHead head;
   int32_t       headLen = sizeof(head);
   if (data->len >= headLen) {
@@ -270,13 +263,13 @@ static void uvProcessData(SConn* pConn) {
 
 void uvOnReadCb(uv_stream_t* cli, ssize_t nread, const uv_buf_t* buf) {
   // opt
-  SConn*       ctx = cli->data;
-  SConnBuffer* pBuf = &ctx->connBuf;
+  SConn*       conn = cli->data;
+  SConnBuffer* pBuf = &conn->connBuf;
   if (nread > 0) {
     pBuf->len += nread;
     if (readComplete(pBuf)) {
       tDebug("alread read complete packet");
-      uvProcessData(ctx);
+      uvProcessData(conn);
     } else {
       tDebug("read half packet, continue to read");
     }
@@ -542,6 +535,7 @@ void taosCloseServer(void* arg) {
   free(srv->pipe);
   free(srv->pThreadObj);
   pthread_join(srv->thread, NULL);
+  free(srv);
 }
 
 void rpcSendResponse(const SRpcMsg* pMsg) {
