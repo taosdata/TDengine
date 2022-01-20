@@ -21,7 +21,7 @@
 #define MAX_INDEX_KEY_LEN 256  // test only, change later
 
 #define MEM_TERM_LIMIT 10 * 10000
-#define MEM_THRESHOLD 1024 * 1024 * 2
+#define MEM_THRESHOLD 1024 * 1024
 #define MEM_ESTIMATE_RADIO 1.5
 
 static void indexMemRef(MemTable* tbl);
@@ -217,9 +217,9 @@ int indexCachePut(void* cache, SIndexTerm* term, uint64_t uid) {
   // set value
   ct->uid = uid;
   ct->operaType = term->operType;
-
   // ugly code, refactor later
   int64_t estimate = sizeof(ct) + strlen(ct->colVal);
+
   pthread_mutex_lock(&pCache->mtx);
   pCache->occupiedMem += estimate;
   indexCacheMakeRoomForWrite(pCache);
@@ -331,7 +331,6 @@ static char* indexCacheTermGet(const void* pData) {
 static int32_t indexCacheTermCompare(const void* l, const void* r) {
   CacheTerm* lt = (CacheTerm*)l;
   CacheTerm* rt = (CacheTerm*)r;
-
   // compare colVal
   int32_t cmp = strcmp(lt->colVal, rt->colVal);
   if (cmp == 0) { return rt->version - lt->version; }
@@ -359,17 +358,32 @@ static bool indexCacheIteratorNext(Iterate* itera) {
   IterateValue* iv = &itera->val;
   iterateValueDestroy(iv, false);
 
+  // IterateValue* iv = &itera->val;
+  // IterateValue tIterVal = {.colVal = NULL, .val = taosArrayInit(1, sizeof(uint64_t))};
+
   bool next = tSkipListIterNext(iter);
   if (next) {
     SSkipListNode* node = tSkipListIterGet(iter);
     CacheTerm*     ct = (CacheTerm*)SL_GET_NODE_DATA(node);
 
+    // equal func
+    // if (iv->colVal != NULL && ct->colVal != NULL) {
+    //  if (0 == strcmp(iv->colVal, ct->colVal)) { if (iv->type == ADD_VALUE) }
+    //} else {
+    //  tIterVal.colVal = calloc(1, strlen(ct->colVal) + 1);
+    //  tIterval.colVal = tstrdup(ct->colVal);
+    //}
     iv->type = ct->operaType;
-    iv->colVal = calloc(1, strlen(ct->colVal) + 1);
-    memcpy(iv->colVal, ct->colVal, strlen(ct->colVal));
+    iv->colVal = tstrdup(ct->colVal);
+    // iv->colVal = calloc(1, strlen(ct->colVal) + 1);
+    // memcpy(iv->colVal, ct->colVal, strlen(ct->colVal));
 
     taosArrayPush(iv->val, &ct->uid);
   }
+  // IterateValue* iv = &itera->val;
+  // iterateValueDestroy(iv, true);
+  //*iv = tIterVal;
+
   return next;
 }
 

@@ -15,7 +15,16 @@
 
 #include "tsdbDef.h"
 
-const STsdbCfg defautlTsdbOptions = {.lruCacheSize = 0};
+const STsdbCfg defautlTsdbOptions = {.precision = 0,
+                                     .lruCacheSize = 0,
+                                     .daysPerFile = 10,
+                                     .minRowsPerFileBlock = 100,
+                                     .maxRowsPerFileBlock = 4096,
+                                     .keep = 3650,
+                                     .keep1 = 3650,
+                                     .keep2 = 3650,
+                                     .update = 0,
+                                     .compression = TWO_STAGE_COMP};
 
 int tsdbOptionsInit(STsdbCfg *pTsdbOptions) {
   // TODO

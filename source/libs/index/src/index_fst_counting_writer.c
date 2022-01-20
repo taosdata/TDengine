@@ -59,6 +59,14 @@ static int writeCtxDoReadFrom(WriterCtx* ctx, uint8_t* buf, int len, int32_t off
   }
   return nRead;
 }
+static int writeCtxGetSize(WriterCtx* ctx) {
+  if (ctx->type == TFile) {
+    struct stat fstat;
+    stat(ctx->file.buf, &fstat);
+    return fstat.st_size;
+  }
+  return 0;
+}
 static int writeCtxDoFlush(WriterCtx* ctx) {
   if (ctx->type == TFile) {
     // taosFsyncFile(ctx->file.fd);
@@ -81,7 +89,7 @@ WriterCtx* writerCtxCreate(WriterType type, const char* path, bool readOnly, int
     if (readOnly == false) {
       // ctx->file.fd = open(path, O_WRONLY | O_CREAT | O_APPEND, S_IRWXU | S_IRWXG | S_IRWXO);
       ctx->file.fd = tfOpenCreateWriteAppend(path);
-
+      tfFtruncate(ctx->file.fd, 0);
       struct stat fstat;
       stat(path, &fstat);
       ctx->file.size = fstat.st_size;
@@ -109,6 +117,7 @@ WriterCtx* writerCtxCreate(WriterType type, const char* path, bool readOnly, int
   ctx->read = writeCtxDoRead;
   ctx->flush = writeCtxDoFlush;
   ctx->readFrom = writeCtxDoReadFrom;
+  ctx->size = writeCtxGetSize;
 
   ctx->offset = 0;
   ctx->limit = capacity;
@@ -129,6 +138,11 @@ void writerCtxDestroy(WriterCtx* ctx, bool remove) {
 #ifdef USE_MMAP
       munmap(ctx->file.ptr, ctx->file.size);
 #endif
+    }
+    if (ctx->file.readOnly == false) {
+      struct stat fstat;
+      stat(ctx->file.buf, &fstat);
+      // indexError("write file size: %d", (int)(fstat.st_size));
     }
     if (remove) { unlink(ctx->file.buf); }
   }
@@ -159,6 +173,8 @@ int fstCountingWriterWrite(FstCountingWriter* write, uint8_t* buf, uint32_t len)
   int nWrite = ctx->write(ctx, buf, len);
   assert(nWrite == len);
   write->count += len;
+
+  write->summer = taosCalcChecksum(write->summer, buf, len);
   return len;
 }
 int fstCountingWriterRead(FstCountingWriter* write, uint8_t* buf, uint32_t len) {
@@ -169,7 +185,10 @@ int fstCountingWriterRead(FstCountingWriter* write, uint8_t* buf, uint32_t len) 
   return nRead;
 }
 
-uint32_t fstCountingWriterMaskedCheckSum(FstCountingWriter* write) { return 0; }
+uint32_t fstCountingWriterMaskedCheckSum(FstCountingWriter* write) {
+  // opt
+  return write->summer;
+}
 
 int fstCountingWriterFlush(FstCountingWriter* write) {
   WriterCtx* ctx = write->wrt;

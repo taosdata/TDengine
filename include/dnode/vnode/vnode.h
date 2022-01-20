@@ -32,6 +32,8 @@ extern "C" {
 /* ------------------------ TYPES EXPOSED ------------------------ */
 typedef struct SVnode SVnode;
 typedef struct SVnodeCfg {
+  int32_t vgId;
+
   /** vnode buffer pool options */
   struct {
     /** write buffer size */
@@ -87,7 +89,7 @@ void vnodeClear();
  * @param pVnodeCfg options of the vnode
  * @return SVnode* The vnode object
  */
-SVnode *vnodeOpen(const char *path, const SVnodeCfg *pVnodeCfg);
+SVnode *vnodeOpen(const char *path, const SVnodeCfg *pVnodeCfg, int32_t vid);
 
 /**
  * @brief Close a VNODE

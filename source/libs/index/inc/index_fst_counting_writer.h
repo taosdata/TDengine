@@ -34,6 +34,7 @@ typedef struct WriterCtx {
   int (*read)(struct WriterCtx* ctx, uint8_t* buf, int len);
   int (*flush)(struct WriterCtx* ctx);
   int (*readFrom)(struct WriterCtx* ctx, uint8_t* buf, int len, int32_t offset);
+  int (*size)(struct WriterCtx* ctx);
   WriterType type;
   union {
     struct {

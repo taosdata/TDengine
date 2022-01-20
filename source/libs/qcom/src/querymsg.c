@@ -29,7 +29,7 @@ int32_t queryBuildTableMetaReqMsg(void* input, char **msg, int32_t msgSize, int3
 
   SBuildTableMetaInput* bInput = (SBuildTableMetaInput *)input;
 
-  int32_t estimateSize = sizeof(STableInfoMsg);
+  int32_t estimateSize = sizeof(STableInfoReq);
   if (NULL == *msg || msgSize < estimateSize) {
     tfree(*msg);
     *msg = rpcMallocCont(estimateSize);
@@ -38,7 +38,7 @@ int32_t queryBuildTableMetaReqMsg(void* input, char **msg, int32_t msgSize, int3
     }
   }
 
-  STableInfoMsg *bMsg = (STableInfoMsg *)*msg;
+  STableInfoReq *bMsg = (STableInfoReq *)*msg;
 
   bMsg->header.vgId = htonl(bInput->vgId);
 
@@ -59,7 +59,7 @@ int32_t queryBuildUseDbMsg(void* input, char **msg, int32_t msgSize, int32_t *ms
 
   SBuildUseDBInput* bInput = (SBuildUseDBInput *)input;
 
-  int32_t estimateSize = sizeof(SUseDbMsg);
+  int32_t estimateSize = sizeof(SUseDbReq);
   if (NULL == *msg || msgSize < estimateSize) {
     tfree(*msg);
     *msg = rpcMallocCont(estimateSize);
@@ -68,7 +68,7 @@ int32_t queryBuildUseDbMsg(void* input, char **msg, int32_t msgSize, int32_t *ms
     }
   }
 
-  SUseDbMsg *bMsg = (SUseDbMsg *)*msg;
+  SUseDbReq *bMsg = (SUseDbReq *)*msg;
 
   strncpy(bMsg->db, bInput->db, sizeof(bMsg->db));
   bMsg->db[sizeof(bMsg->db) - 1] = 0;
@@ -146,7 +146,7 @@ _return:
   return code;
 }
 
-static int32_t queryConvertTableMetaMsg(STableMetaMsg* pMetaMsg) {
+static int32_t queryConvertTableMetaMsg(STableMetaRsp* pMetaMsg) {
   pMetaMsg->numOfTags = ntohl(pMetaMsg->numOfTags);
   pMetaMsg->numOfColumns = ntohl(pMetaMsg->numOfColumns);
   pMetaMsg->sversion = ntohl(pMetaMsg->sversion);
@@ -198,7 +198,7 @@ static int32_t queryConvertTableMetaMsg(STableMetaMsg* pMetaMsg) {
   return TSDB_CODE_SUCCESS;
 }
 
-int32_t queryCreateTableMetaFromMsg(STableMetaMsg* msg, bool isSuperTable, STableMeta **pMeta) {
+int32_t queryCreateTableMetaFromMsg(STableMetaRsp* msg, bool isSuperTable, STableMeta **pMeta) {
   int32_t total = msg->numOfColumns + msg->numOfTags;
   int32_t metaSize = sizeof(STableMeta) + sizeof(SSchema) * total;
   
@@ -232,7 +232,7 @@ int32_t queryCreateTableMetaFromMsg(STableMetaMsg* msg, bool isSuperTable, STabl
 
 
 int32_t queryProcessTableMetaRsp(void* output, char *msg, int32_t msgSize) {
-  STableMetaMsg *pMetaMsg = (STableMetaMsg *)msg;
+  STableMetaRsp *pMetaMsg = (STableMetaRsp *)msg;
   int32_t code = queryConvertTableMetaMsg(pMetaMsg);
   if (code != TSDB_CODE_SUCCESS) {
     return code;

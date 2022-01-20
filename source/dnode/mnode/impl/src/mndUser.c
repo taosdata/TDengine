@@ -32,7 +32,7 @@ static int32_t  mndCreateUser(SMnode *pMnode, char *acct, char *user, char *pass
 static int32_t  mndProcessCreateUserReq(SMnodeMsg *pReq);
 static int32_t  mndProcessAlterUserReq(SMnodeMsg *pReq);
 static int32_t  mndProcessDropUserReq(SMnodeMsg *pReq);
-static int32_t  mndGetUserMeta(SMnodeMsg *pReq, SShowObj *pShow, STableMetaMsg *pMeta);
+static int32_t  mndGetUserMeta(SMnodeMsg *pReq, SShowObj *pShow, STableMetaRsp *pMeta);
 static int32_t  mndRetrieveUsers(SMnodeMsg *pReq, SShowObj *pShow, char *data, int32_t rows);
 static void     mndCancelGetNextUser(SMnode *pMnode, void *pIter);
 
@@ -192,7 +192,7 @@ static int32_t mndUserActionDelete(SSdb *pSdb, SUserObj *pUser) {
 }
 
 static int32_t mndUserActionUpdate(SSdb *pSdb, SUserObj *pOld, SUserObj *pNew) {
-  mTrace("user:%s, perform update action, old_row:%p new_row:%p", pOld->user, pOld, pNew);
+  mTrace("user:%s, perform update action, old row:%p new row:%p", pOld->user, pOld, pNew);
   memcpy(pOld->pass, pNew->pass, TSDB_PASSWORD_LEN);
   pOld->updateTime = pNew->updateTime;
   return 0;
@@ -432,7 +432,7 @@ static int32_t mndProcessDropUserReq(SMnodeMsg *pReq) {
   return TSDB_CODE_MND_ACTION_IN_PROGRESS;
 }
 
-static int32_t mndGetUserMeta(SMnodeMsg *pReq, SShowObj *pShow, STableMetaMsg *pMeta) {
+static int32_t mndGetUserMeta(SMnodeMsg *pReq, SShowObj *pShow, STableMetaRsp *pMeta) {
   SMnode *pMnode = pReq->pMnode;
   SSdb   *pSdb = pMnode->pSdb;
 

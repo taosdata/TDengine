@@ -15,18 +15,18 @@
 
 #include "vnodeDef.h"
 
-static SVnode *vnodeNew(const char *path, const SVnodeCfg *pVnodeCfg);
+static SVnode *vnodeNew(const char *path, const SVnodeCfg *pVnodeCfg, int32_t vid);
 static void    vnodeFree(SVnode *pVnode);
 static int     vnodeOpenImpl(SVnode *pVnode);
 static void    vnodeCloseImpl(SVnode *pVnode);
 
-SVnode *vnodeOpen(const char *path, const SVnodeCfg *pVnodeCfg) {
+SVnode *vnodeOpen(const char *path, const SVnodeCfg *pVnodeCfg, int32_t vid) {
   SVnode *pVnode = NULL;
 
   // Set default options
-  if (pVnodeCfg == NULL) {
+  //if (pVnodeCfg == NULL) {
     pVnodeCfg = &defaultVnodeOptions;
-  }
+  //}
 
   // Validate options
   if (vnodeValidateOptions(pVnodeCfg) < 0) {
@@ -35,7 +35,7 @@ SVnode *vnodeOpen(const char *path, const SVnodeCfg *pVnodeCfg) {
   }
 
   // Create the handle
-  pVnode = vnodeNew(path, pVnodeCfg);
+  pVnode = vnodeNew(path, pVnodeCfg, vid);
   if (pVnode == NULL) {
     // TODO: handle error
     return NULL;
@@ -62,7 +62,7 @@ void vnodeClose(SVnode *pVnode) {
 void vnodeDestroy(const char *path) { taosRemoveDir(path); }
 
 /* ------------------------ STATIC METHODS ------------------------ */
-static SVnode *vnodeNew(const char *path, const SVnodeCfg *pVnodeCfg) {
+static SVnode *vnodeNew(const char *path, const SVnodeCfg *pVnodeCfg, int32_t vid) {
   SVnode *pVnode = NULL;
 
   pVnode = (SVnode *)calloc(1, sizeof(*pVnode));
@@ -71,6 +71,7 @@ static SVnode *vnodeNew(const char *path, const SVnodeCfg *pVnodeCfg) {
     return NULL;
   }
 
+  pVnode->vgId = vid;
   pVnode->path = strdup(path);
   vnodeOptionsCopy(&(pVnode->config), pVnodeCfg);
 
@@ -105,7 +106,7 @@ static int vnodeOpenImpl(SVnode *pVnode) {
 
   // Open tsdb
   sprintf(dir, "%s/tsdb", pVnode->path);
-  pVnode->pTsdb = tsdbOpen(dir, &(pVnode->config.tsdbCfg), vBufPoolGetMAF(pVnode));
+  pVnode->pTsdb = tsdbOpen(dir, pVnode->vgId, &(pVnode->config.tsdbCfg), vBufPoolGetMAF(pVnode), pVnode->pMeta);
   if (pVnode->pTsdb == NULL) {
     // TODO: handle error
     return -1;
@@ -137,7 +138,7 @@ static int vnodeOpenImpl(SVnode *pVnode) {
 }
 
 static void vnodeCloseImpl(SVnode *pVnode) {
-  // vnodeSyncCommit(pVnode);
+  vnodeSyncCommit(pVnode);
   if (pVnode) {
     vnodeCloseBufPool(pVnode);
     metaClose(pVnode->pMeta);

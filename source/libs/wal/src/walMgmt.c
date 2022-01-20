@@ -106,6 +106,7 @@ SWal *walOpen(const char *path, SWalCfg *pCfg) {
   // init write buffer
   memset(&pWal->writeHead, 0, sizeof(SWalHead));
   pWal->writeHead.head.headVer = WAL_HEAD_VER;
+  pWal->writeHead.magic = WAL_MAGIC;
 
   if (pthread_mutex_init(&pWal->mutex, NULL) < 0) {
     taosArrayDestroy(pWal->fileInfoSet);
@@ -121,7 +122,9 @@ SWal *walOpen(const char *path, SWalCfg *pCfg) {
     return NULL;
   }
 
-  if (walLoadMeta(pWal) < 0 && walCheckAndRepairMeta(pWal) < 0) {
+  walLoadMeta(pWal);
+
+  if (walCheckAndRepairMeta(pWal) < 0) {
     taosRemoveRef(tsWal.refSetId, pWal->refId);
     pthread_mutex_destroy(&pWal->mutex);
     taosArrayDestroy(pWal->fileInfoSet);
@@ -130,6 +133,7 @@ SWal *walOpen(const char *path, SWalCfg *pCfg) {
   }
 
   if (walCheckAndRepairIdx(pWal) < 0) {
+
   }
 
   wDebug("vgId:%d, wal:%p is opened, level:%d fsyncPeriod:%d", pWal->cfg.vgId, pWal, pWal->cfg.level,
@@ -232,7 +236,8 @@ static int32_t walCreateThread() {
 
   if (pthread_create(&tsWal.thread, &thAttr, walThreadFunc, NULL) != 0) {
     wError("failed to create wal thread since %s", strerror(errno));
-    return TAOS_SYSTEM_ERROR(errno);
+    terrno = TAOS_SYSTEM_ERROR(errno);
+    return -1;
   }
 
   pthread_attr_destroy(&thAttr);

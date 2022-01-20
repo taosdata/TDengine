@@ -21,6 +21,7 @@ extern "C" {
 #endif
 
 #include "tdef.h"
+#include "tcfg.h"
 
 // cluster
 extern char     tsFirst[];
@@ -105,11 +106,6 @@ extern uint32_t tsMaxRange;
 extern uint32_t tsCurRange;
 extern char     tsCompressor[];
 
-typedef struct {
-  char dir[TSDB_FILENAME_LEN];
-  int  level;
-  int  primary;
-} SDiskCfg;
 extern int32_t  tsDiskCfgNum;
 extern SDiskCfg tsDiskCfg[];
 

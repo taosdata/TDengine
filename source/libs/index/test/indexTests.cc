@@ -677,14 +677,19 @@ class IndexObj {
                            size_t numOfTable = 100 * 10000) {
     std::string tColVal = colVal;
     size_t      colValSize = tColVal.size();
+    int         skip = 100;
+    numOfTable /= skip;
     for (int i = 0; i < numOfTable; i++) {
-      tColVal[i % colValSize] = 'a' + i % 26;
+      for (int k = 0; k < 10 && k < colVal.size(); k++) {
+        // opt
+        tColVal[rand() % colValSize] = 'a' + k % 26;
+      }
       SIndexTerm*      term = indexTermCreate(0, ADD_VALUE, TSDB_DATA_TYPE_BINARY, colName.c_str(), colName.size(),
                                          tColVal.c_str(), tColVal.size());
       SIndexMultiTerm* terms = indexMultiTermCreate();
       indexMultiTermAdd(terms, term);
-      for (size_t i = 0; i < 10; i++) {
-        int ret = Put(terms, i);
+      for (size_t j = 0; j < skip; j++) {
+        int ret = Put(terms, j);
         assert(ret == 0);
       }
       indexMultiTermDestroy(terms);
@@ -955,10 +960,11 @@ TEST_F(IndexEnv2, testIndexMultiTag) {
   std::string path = "/tmp/multi_tag";
   if (index->Init(path) != 0) {
   }
-  index->WriteMultiMillonData("tag1", "Hello", 100 * 10000);
-  index->WriteMultiMillonData("tag2", "Test", 100 * 10000);
-  index->WriteMultiMillonData("tag3", "Test", 100 * 10000);
-  index->WriteMultiMillonData("tag4", "Test", 100 * 10000);
+  int64_t st = taosGetTimestampUs();
+  int32_t num = 1000 * 10000;
+  index->WriteMultiMillonData("tag1", "xxxxxxxxxxxxxxx", num);
+  std::cout << "numOfRow: " << num << "\ttime cost:" << taosGetTimestampUs() - st << std::endl;
+  // index->WriteMultiMillonData("tag2", "xxxxxxxxxxxxxxxxxxxxxxxxx", 100 * 10000);
 }
 TEST_F(IndexEnv2, testLongComVal) {
   std::string path = "/tmp/long_colVal";

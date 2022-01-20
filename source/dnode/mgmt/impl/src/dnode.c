@@ -23,6 +23,7 @@
 #include "dndVnodes.h"
 #include "sync.h"
 #include "wal.h"
+#include "tfs.h"
 
 EStat dndGetStat(SDnode *pDnode) { return pDnode->stat; }
 
@@ -45,14 +46,14 @@ char *dndStatStr(EStat stat) {
 }
 
 void dndReportStartup(SDnode *pDnode, char *pName, char *pDesc) {
-  SStartupMsg *pStartup = &pDnode->startup;
+  SStartupReq *pStartup = &pDnode->startup;
   tstrncpy(pStartup->name, pName, TSDB_STEP_NAME_LEN);
   tstrncpy(pStartup->desc, pDesc, TSDB_STEP_DESC_LEN);
   pStartup->finished = 0;
 }
 
-void dndGetStartup(SDnode *pDnode, SStartupMsg *pStartup) {
-  memcpy(pStartup, &pDnode->startup, sizeof(SStartupMsg));
+void dndGetStartup(SDnode *pDnode, SStartupReq *pStartup) {
+  memcpy(pStartup, &pDnode->startup, sizeof(SStartupReq));
   pStartup->finished = (dndGetStat(pDnode) == DND_STAT_RUNNING);
 }
 
@@ -185,13 +186,23 @@ SDnode *dndInit(SDnodeOpt *pOption) {
     return NULL;
   }
 
+  SDiskCfg dCfg;
+  strcpy(dCfg.dir, pDnode->opt.dataDir);
+  dCfg.level = 0;
+  dCfg.primary = 1;
+  if (tfsInit(&dCfg, 1) != 0) {
+    dError("failed to init tfs env");
+    dndCleanup(pDnode);
+    return NULL;
+  }
+
   if (vnodeInit(pDnode->opt.numOfCommitThreads) != 0) {
     dError("failed to init vnode env");
     dndCleanup(pDnode);
     return NULL;
   }
 
-  if (dndInitDnode(pDnode) != 0) {
+  if (dndInitMgmt(pDnode) != 0) {
     dError("failed to init dnode");
     dndCleanup(pDnode);
     return NULL;
@@ -252,13 +263,15 @@ void dndCleanup(SDnode *pDnode) {
   dInfo("start to cleanup TDengine");
   dndSetStat(pDnode, DND_STAT_STOPPED);
   dndCleanupTrans(pDnode);
+  dndStopMgmt(pDnode);
   dndCleanupMnode(pDnode);
   dndCleanupBnode(pDnode);
   dndCleanupSnode(pDnode);
   dndCleanupQnode(pDnode);
   dndCleanupVnodes(pDnode);
-  dndCleanupDnode(pDnode);
+  dndCleanupMgmt(pDnode);
   vnodeClear();
+  tfsDestroy();
   walCleanUp();
   rpcCleanup();
 

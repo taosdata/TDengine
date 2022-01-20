@@ -253,13 +253,9 @@ void rpcSendRequest(void* shandle, const SEpSet* pEpSet, SRpcMsg* pMsg, int64_t*
 
   pCtx->pRpc = (SRpcInfo*)shandle;
   pCtx->ahandle = pMsg->ahandle;
-  // pContext->contLen = len;
-  // pContext->pCont = pMsg->pCont;
   pCtx->msgType = pMsg->msgType;
   pCtx->ip = strdup(ip);
   pCtx->port = port;
-  // pContext->epSet = *pEpSet;
-  // pContext->oldInUse = pEpSet->inUse;
 
   assert(pRpc->connType == TAOS_CONN_CLIENT);
   // atomic or not
