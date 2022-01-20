@@ -1567,6 +1567,12 @@ typedef struct SMqCVConsumeReq {
   char    cgroup[TSDB_CONSUMER_GROUP_LEN];
 } SMqCVConsumeReq;
 
+typedef struct SMqConsumeRspBlock {
+  int32_t bodyLen;
+  char topicName[TSDB_TOPIC_FNAME_LEN];
+  char body[];
+} SMqConsumeRspBlock;
+
 typedef struct SMqCVConsumeRsp {
   int64_t reqId;
   int64_t clientId;
@@ -1576,7 +1582,7 @@ typedef struct SMqCVConsumeRsp {
   int32_t skipLogNum;
   int32_t bodyLen;
   char    topicName[TSDB_TOPIC_FNAME_LEN];
-  char    body[];
+  SMqConsumeRspBlock blocks[];
 } SMqCvConsumeRsp;
 
 #ifdef __cplusplus

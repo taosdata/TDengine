@@ -189,6 +189,7 @@ typedef struct STqTopicHandle {
 
 typedef struct STqConsumerHandle {
   int64_t consumerId;
+  int64_t epoch;
   SArray* topics;  // SArray<STqClientTopic>
 } STqConsumerHandle;
 
