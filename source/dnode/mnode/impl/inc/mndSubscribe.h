@@ -13,21 +13,26 @@
  * along with this program. If not, see <http://www.gnu.org/licenses/>.
  */
 
-#define _DEFAULT_SOURCE
-#include "mndAuth.h"
+#ifndef _TD_MND_SUBSCRIBE_H_
+#define _TD_MND_SUBSCRIBE_H_
 
-static int32_t mndProcessAuthReq(SMnodeMsg *pReq);
+#include "mndInt.h"
 
-int32_t mndInitAuth(SMnode *pMnode) {
-  mndSetMsgHandle(pMnode, TDMT_MND_AUTH, mndProcessAuthReq);
-  return 0;
+#ifdef __cplusplus
+extern "C" {
+#endif
+
+int32_t mndInitSubscribe(SMnode *pMnode);
+void    mndCleanupSubscribe(SMnode *pMnode);
+
+SMqSubscribeObj *mndAcquireSubscribe(SMnode *pMnode, char *CGroup, char *topicName);
+void             mndReleaseSubscribe(SMnode *pMnode, SMqSubscribeObj *pSub);
+
+SSdbRaw *mndSubscribeActionEncode(SMqSubscribeObj *pSub);
+SSdbRow *mndSubscribeActionDecode(SSdbRaw *pRaw);
+
+#ifdef __cplusplus
 }
+#endif
 
-void mndCleanupAuth(SMnode *pMnode) {}
-
-int32_t mndRetriveAuth(SMnode *pMnode, char *user, char *spi, char *encrypt, char *secret, char *ckey) { return 0; }
-
-static int32_t mndProcessAuthReq(SMnodeMsg *pReq) {
-  mDebug("user:%s, auth req is processed", pReq->user);
-  return 0;
-}
+#endif /*_TD_MND_SUBSCRIBE_H_*/

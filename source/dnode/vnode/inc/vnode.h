@@ -21,6 +21,7 @@
 
 #include "meta.h"
 #include "tarray.h"
+#include "tfs.h"
 #include "tq.h"
 #include "tsdb.h"
 #include "wal.h"
@@ -36,7 +37,8 @@ typedef int32_t (*PutReqToVQueryQFp)(SDnode *pDnode, struct SRpcMsg *pReq);
 
 typedef struct SVnodeCfg {
   int32_t  vgId;
-  SDnode * pDnode;
+  SDnode  *pDnode;
+  STfs    *pTfs;
   uint64_t wsize;
   uint64_t ssize;
   uint64_t lsize;
@@ -52,9 +54,9 @@ typedef struct SVnodeCfg {
 
 typedef struct {
   int32_t           sver;
-  char *            timezone;
-  char *            locale;
-  char *            charset;
+  const char       *timezone;
+  const char       *locale;
+  const char       *charset;
   uint16_t          nthreads;  // number of commit threads. 0 for no threads and a schedule queue should be given (TODO)
   PutReqToVQueryQFp putReqToVQueryQFp;
 } SVnodeOpt;

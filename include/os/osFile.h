@@ -58,8 +58,8 @@ int64_t taosWriteFile(FileFd fd, const void *buf, int64_t count);
 
 void taosCloseFile(FileFd fd);
 
-int32_t taosRenameFile(char *oldName, char *newName);
-int64_t taosCopyFile(char *from, char *to);
+int32_t taosRenameFile(const char *oldName, const char *newName);
+int64_t taosCopyFile(const char *from, const char *to);
 
 void taosGetTmpfilePath(const char *inputTmpDir, const char *fileNamePrefix, char *dstPath);
 
