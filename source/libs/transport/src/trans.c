@@ -17,13 +17,6 @@
 
 #include "transComm.h"
 
-typedef struct SConnBuffer {
-  char* buf;
-  int   len;
-  int   cap;
-  int   left;
-} SConnBuffer;
-
 void* (*taosInitHandle[])(uint32_t ip, uint32_t port, char* label, int numOfThreads, void* fp, void* shandle) = {
     taosInitServer, taosInitClient};
 void (*taosCloseHandle[])(void* arg) = {taosCloseServer, taosCloseClient};
@@ -46,10 +39,11 @@ void* rpcOpen(const SRpcInit* pInit) {
 void rpcClose(void* arg) {
   SRpcInfo* pRpc = (SRpcInfo*)arg;
   (*taosCloseHandle[pRpc->connType])(pRpc->tcphandle);
+  free(pRpc);
   return;
 }
 void* rpcMallocCont(int contLen) {
-  int size = contLen + RPC_MSG_OVERHEAD;
+  int size = contLen + TRANS_MSG_OVERHEAD;
 
   char* start = (char*)calloc(1, (size_t)size);
   if (start == NULL) {

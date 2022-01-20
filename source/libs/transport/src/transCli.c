@@ -21,6 +21,7 @@ typedef struct SCliConn {
   uv_connect_t connReq;
   uv_stream_t* stream;
   uv_write_t*  writeReq;
+  SConnBuffer  readBuf;
   void*        data;
   queue        conn;
   char         spi;
@@ -55,28 +56,92 @@ typedef struct SClientObj {
 static SCliConn* getConnFromCache(void* cache, char* ip, uint32_t port);
 static void      addConnToCache(void* cache, char* ip, uint32_t port, SCliConn* conn);
 
+// process data read from server, auth/decompress etc
+static void clientProcessData(SCliConn* conn);
+// check whether already read complete packet from server
+static bool clientReadComplete(SConnBuffer* pBuf);
+// alloc buf for read
 static void clientAllocBufferCb(uv_handle_t* handle, size_t suggested_size, uv_buf_t* buf);
+// callback after read nbytes from socket
 static void clientReadCb(uv_stream_t* cli, ssize_t nread, const uv_buf_t* buf);
+// callback after write data to socket
 static void clientWriteCb(uv_write_t* req, int status);
+// callback after conn  to server
 static void clientConnCb(uv_connect_t* req, int status);
 static void clientAsyncCb(uv_async_t* handle);
 static void clientDestroy(uv_handle_t* handle);
 static void clientConnDestroy(SCliConn* pConn);
 
+static void clientMsgDestroy(SCliMsg* pMsg);
+
 static void* clientThread(void* arg);
 
+static void clientProcessData(SCliConn* conn) {
+  // impl
+}
 static void clientHandleReq(SCliMsg* pMsg, SCliThrdObj* pThrd);
 
+static bool clientReadComplete(SConnBuffer* data) {
+  STransMsgHead head;
+  int32_t       headLen = sizeof(head);
+  if (data->len >= headLen) {
+    memcpy((char*)&head, data->buf, headLen);
+    int32_t msgLen = (int32_t)htonl((uint32_t)head.msgLen);
+    if (msgLen > data->len) {
+      data->left = msgLen - data->len;
+      return false;
+    } else {
+      return true;
+    }
+  } else {
+    return false;
+  }
+}
 static void clientAllocReadBufferCb(uv_handle_t* handle, size_t suggested_size, uv_buf_t* buf) {
   // impl later
+  static const int CAPACITY = 512;
+
+  SCliConn*    conn = handle->data;
+  SConnBuffer* pBuf = &conn->readBuf;
+  if (pBuf->cap == 0) {
+    pBuf->buf = (char*)calloc(CAPACITY, sizeof(char));
+    pBuf->len = 0;
+    pBuf->cap = CAPACITY;
+    pBuf->left = -1;
+    buf->base = pBuf->buf;
+    buf->len = CAPACITY;
+  } else {
+    if (pBuf->len >= pBuf->cap) {
+      if (pBuf->left == -1) {
+        pBuf->cap *= 2;
+        pBuf->buf = realloc(pBuf->buf, pBuf->cap);
+      } else if (pBuf->len + pBuf->left > pBuf->cap) {
+        pBuf->cap = pBuf->len + pBuf->left;
+        pBuf->buf = realloc(pBuf->buf, pBuf->len + pBuf->left);
+      }
+    }
+    buf->base = pBuf->buf + pBuf->len;
+    buf->len = pBuf->cap - pBuf->len;
+  }
 }
 static void clientReadCb(uv_stream_t* handle, ssize_t nread, const uv_buf_t* buf) {
   // impl later
-  SCliConn* conn = handle->data;
+  SCliConn*    conn = handle->data;
+  SConnBuffer* pBuf = &conn->readBuf;
   if (nread > 0) {
+    pBuf->len += nread;
+    if (clientReadComplete(pBuf)) {
+      tDebug("alread read complete pack");
+      clientProcessData(conn);
+    } else {
+      tDebug("read halp packet, continue to read");
+    }
     return;
   }
 
+  if (nread != UV_EOF) {
+    tDebug("Read error %s\n", uv_err_name(nread));
+  }
   //
   uv_close((uv_handle_t*)handle, clientDestroy);
 }
@@ -164,7 +229,7 @@ static void clientHandleReq(SCliMsg* pMsg, SCliThrdObj* pThrd) {
     conn->writeReq->data = conn;
     clientWrite(conn);
   } else {
-    SCliConn* conn = malloc(sizeof(SCliConn));
+    SCliConn* conn = calloc(1, sizeof(SCliConn));
 
     conn->stream = (uv_stream_t*)malloc(sizeof(uv_tcp_t));
     uv_tcp_init(pThrd->loop, (uv_tcp_t*)(conn->stream));
@@ -235,9 +300,23 @@ void* taosInitClient(uint32_t ip, uint32_t port, char* label, int numOfThreads, 
   }
   return cli;
 }
+static void clientMsgDestroy(SCliMsg* pMsg) {
+  // impl later
+  free(pMsg);
+}
 void taosCloseClient(void* arg) {
   // impl later
   SClientObj* cli = arg;
+  for (int i = 0; i < cli->numOfThreads; i++) {
+    SCliThrdObj* pThrd = cli->pThreadObj[i];
+    pthread_join(pThrd->thread, NULL);
+    pthread_mutex_destroy(&pThrd->msgMtx);
+    free(pThrd->cliAsync);
+    free(pThrd->loop);
+    free(pThrd);
+  }
+  free(cli->pThreadObj);
+  free(cli);
 }
 
 void rpcSendRequest(void* shandle, const SEpSet* pEpSet, SRpcMsg* pMsg, int64_t* pRid) {
@@ -247,19 +326,18 @@ void rpcSendRequest(void* shandle, const SEpSet* pEpSet, SRpcMsg* pMsg, int64_t*
 
   SRpcInfo* pRpc = (SRpcInfo*)shandle;
 
-  int len = rpcCompressRpcMsg(pMsg->pCont, pMsg->contLen);
+  int32_t flen = 0;
+  if (transCompressMsg(pMsg->pCont, pMsg->contLen, &flen)) {
+    // imp later
+  }
 
   STransConnCtx* pCtx = calloc(1, sizeof(STransConnCtx));
 
   pCtx->pRpc = (SRpcInfo*)shandle;
   pCtx->ahandle = pMsg->ahandle;
-  // pContext->contLen = len;
-  // pContext->pCont = pMsg->pCont;
   pCtx->msgType = pMsg->msgType;
   pCtx->ip = strdup(ip);
   pCtx->port = port;
-  // pContext->epSet = *pEpSet;
-  // pContext->oldInUse = pEpSet->inUse;
 
   assert(pRpc->connType == TAOS_CONN_CLIENT);
   // atomic or not
