@@ -26,16 +26,17 @@ extern "C" {
 
 // pgno_t
 typedef int32_t pgno_t;
-#define TDB_IVLD_PGID ((pgno_t)-1)
+#define TDB_IVLD_PGNO ((pgno_t)-1)
 
 // fileid
-#define TDB_FILE_UID_LEN 20
+#define TDB_FILE_ID_LEN 24
 
 // pgid_t
 typedef struct {
-  uint8_t fileid[TDB_FILE_UID_LEN];
+  uint8_t fileid[TDB_FILE_ID_LEN];
   pgno_t  pgid;
 } pgid_t;
+#define TDB_IVLD_PGID (pgid_t){0, TDB_IVLD_PGNO};
 
 // framd_id_t
 typedef int32_t frame_id_t;

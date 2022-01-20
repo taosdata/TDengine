@@ -15,8 +15,10 @@
 
 #include "tdb_mpool.h"
 
+static int tdbGnrtFileID(const char *fname, uint8_t *fileid);
+
 int tdbMPoolOpen(TDB_MPOOL **mpp, uint64_t cachesize, pgsize_t pgsize) {
-  TDB_MPOOL *mp;
+  TDB_MPOOL *mp = NULL;
   size_t     tsize;
   pg_t *     pagep;
 
@@ -30,42 +32,102 @@ int tdbMPoolOpen(TDB_MPOOL **mpp, uint64_t cachesize, pgsize_t pgsize) {
   mp = (TDB_MPOOL *)calloc(1, sizeof(*mp));
   if (mp == NULL) {
     tdbError("failed to malloc memory pool handle");
-    return -1;
+    goto _err;
   }
 
   // initialize the handle
   mp->cachesize = cachesize;
   mp->pgsize = pgsize;
   mp->npages = cachesize / pgsize;
-  mp->pages = (pg_t *)calloc(mp->npages, MP_PAGE_SIZE(pgsize));
+
+  TD_DLIST_INIT(&mp->freeList);
+
+  mp->pages = (pg_t **)calloc(mp->npages, sizeof(pg_t *));
   if (mp->pages == NULL) {
     tdbError("failed to malloc memory pool pages");
-    free(mp);
-    return -1;
+    goto _err;
   }
 
-  TD_DLIST_INIT(&(mp->freeList));
+  for (frame_id_t i = 0; i < mp->npages; i++) {
+    mp->pages[i] = (pg_t *)calloc(1, MP_PAGE_SIZE(pgsize));
+    if (mp->pages[i] == NULL) {
+      goto _err;
+    }
 
-  mp->nbucket = mp->npages;
-  mp->hashtab = (pg_list_t *)calloc(mp->nbucket, sizeof(pg_list_t));
-  if (mp->hashtab == NULL) {
+    taosInitRWLatch(&mp->pages[i]->rwLatch);
+    mp->pages[i]->frameid = i;
+    mp->pages[i]->pgid = TDB_IVLD_PGID;
+
+    // TODO: add the new page to the free list
+    // TD_DLIST_APPEND(&mp->freeList, mp->pages[i]);
+  }
+
+#define PGTAB_FACTOR 1.0
+  mp->pgtab.nbucket = mp->npages / PGTAB_FACTOR;
+  mp->pgtab.hashtab = (pg_list_t *)calloc(mp->pgtab.nbucket, sizeof(pg_list_t));
+  if (mp->pgtab.hashtab == NULL) {
     tdbError("failed to malloc memory pool hash table");
-    free(mp->pages);
-    free(mp);
-    return -1;
-  }
-
-  for (int i = 0; i < mp->npages; i++) {
-    pagep = (pg_t *)MP_PAGE_AT(mp, i);
-    TD_DLIST_APPEND(&mp->freeList, pagep);
+    goto _err;
   }
 
   // return
   *mpp = mp;
   return 0;
+
+_err:
+  tdbMPoolClose(mp);
+  *mpp = NULL;
+  return -1;
 }
 
 int tdbMPoolClose(TDB_MPOOL *mp) {
+  if (mp) {
+    tfree(mp->pgtab.hashtab);
+    if (mp->pages) {
+      for (int i = 0; i < mp->npages; i++) {
+        tfree(mp->pages[i]);
+      }
+
+      free(mp->pages);
+    }
+
+    free(mp);
+  }
+  return 0;
+}
+
+int tdbMPoolFileOpen(TDB_MPFILE **mpfp, const char *fname, TDB_MPOOL *mp) {
+  TDB_MPFILE *mpf;
+
+  if ((mpf = (TDB_MPFILE *)calloc(1, sizeof(*mpf))) == NULL) {
+    return -1;
+  }
+
+  mpf->fd = -1;
+
+  if ((mpf->fname = strdup(fname)) == NULL) {
+    goto _err;
+  }
+
+  if ((mpf->fd = open(fname, O_CREAT | O_RDWR, 0755)) < 0) {
+    goto _err;
+  }
+
+  *mpfp = mpf;
+  return 0;
+
+_err:
+  tdbMPoolFileClose(mpf);
+  *mpfp = NULL;
+  return -1;
+}
+
+int tdbMPoolFileClose(TDB_MPFILE *mpf) {
+  // TODO
+  return 0;
+}
+
+static int tdbGnrtFileID(const char *fname, uint8_t *fileid) {
   // TODO
   return 0;
 }

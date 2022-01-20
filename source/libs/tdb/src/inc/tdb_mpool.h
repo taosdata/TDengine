@@ -26,13 +26,16 @@ extern "C" {
 typedef struct TDB_MPOOL  TDB_MPOOL;
 typedef struct TDB_MPFILE TDB_MPFILE;
 
+typedef TD_DLIST_NODE(pg_t) pg_free_list_node_t, pg_hash_list_node_t;
 typedef struct pg_t {
-  SRWLatch rwLatch;
-  pgid_t   mpgid;
-  uint8_t  dirty;
-  int32_t  pinRef;
-  TD_DLIST_NODE(pg_t);
-  char *page[];
+  SRWLatch            rwLatch;
+  frame_id_t          frameid;
+  pgid_t              pgid;
+  uint8_t             dirty;
+  int32_t             pinRef;
+  pg_free_list_node_t free;
+  pg_hash_list_node_t hash;
+  uint8_t             data[];
 } pg_t;
 
 #define MP_PAGE_SIZE(pgsize) (sizeof(pg_t) + (pgsize))
@@ -42,22 +45,22 @@ struct TDB_MPOOL {
   int64_t   cachesize;
   pgsize_t  pgsize;
   int32_t   npages;
-  pg_t *    pages;
+  pg_t **   pages;
   pg_list_t freeList;
-  // Hash<pgid_t, frame_id_t>
-  int32_t    nbucket;
-  pg_list_t *hashtab;
-  // TODO: TD_DLIST(TD_MPFILE) mpfList; // MPFILE registered on this memory pool
+  struct {
+    int32_t    nbucket;
+    pg_list_t *hashtab;
+  } pgtab;  // page table, hash<pgid_t, pg_t>
 };
+
+#define MP_PAGE_AT(mp, idx) (mp)->pages[idx]
 
 struct TDB_MPFILE {
-  uint8_t    fuid[20];  // file unique ID
-  TDB_MPOOL *mp;        // underlying memory pool
-  char *     fname;     // file name
-  int        fd;        // fd
+  uint8_t    fileid[TDB_FILE_ID_LEN];  // file ID
+  TDB_MPOOL *mp;                       // underlying memory pool
+  char *     fname;                    // file name
+  int        fd;                       // fd
 };
-
-#define MP_PAGE_AT(mp, idx) ((char *)((mp)->pages) + MP_PAGE_SIZE((mp)->pgsize) * (idx))
 
 /*=================================================== Exposed apis ==================================================*/
 // TDB_MPOOL
@@ -65,10 +68,10 @@ int tdbMPoolOpen(TDB_MPOOL **mpp, uint64_t cachesize, pgsize_t pgsize);
 int tdbMPoolClose(TDB_MPOOL *mp);
 
 // TDB_MPFILE
-int tdbMPFOpen(TDB_MPFILE **mpfp, const char *fname, TDB_MPOOL *mp);
-int tdbMPFClose(TDB_MPFILE *mpf);
-int tdbMPFGet(TDB_MPFILE *mpf, pgno_t pgid, void *addr);
-int tdbMPFPut(TDB_MPOOL *mpf, pgno_t pgid, void *addr);
+int tdbMPoolFileOpen(TDB_MPFILE **mpfp, const char *fname, TDB_MPOOL *mp);
+int tdbMPoolFileClose(TDB_MPFILE *mpf);
+int tdbMPoolFileGet(TDB_MPFILE *mpf, pgno_t pgid, void *addr);
+int tdbMPoolFilePut(TDB_MPOOL *mpf, pgno_t pgid, void *addr);
 
 #ifdef __cplusplus
 }
