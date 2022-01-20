@@ -52,7 +52,14 @@ typedef struct SClientObj {
   SCliThrdObj** pThreadObj;
 } SClientObj;
 
+typedef struct SConnList {
+  queue conn;
+} SConnList;
+
 // conn pool
+// add expire timeout and capacity limit
+static void*     connCacheCreate(int size);
+static void*     connCacheDestroy(void* cache);
 static SCliConn* getConnFromCache(void* cache, char* ip, uint32_t port);
 static void      addConnToCache(void* cache, char* ip, uint32_t port, SCliConn* conn);
 
@@ -81,6 +88,53 @@ static void clientProcessData(SCliConn* conn) {
 }
 static void clientHandleReq(SCliMsg* pMsg, SCliThrdObj* pThrd);
 
+static void* connCacheCreate(int size) {
+  SHashObj* cache = taosHashInit(4, taosGetDefaultHashFunction(TSDB_DATA_TYPE_BINARY), false, HASH_NO_LOCK);
+  return false;
+}
+static void* connCacheDestroy(void* cache) {
+  SConnList* connList = taosHashIterate((SHashObj*)cache, NULL);
+  while (!QUEUE_IS_EMPTY(&connList->conn)) {
+    queue* h = QUEUE_HEAD(&connList->conn);
+    QUEUE_REMOVE(h);
+    SCliConn* c = QUEUE_DATA(h, SCliConn, conn);
+    clientConnDestroy(c);
+  }
+  taosHashClear(cache);
+}
+
+static SCliConn* getConnFromCache(void* cache, char* ip, uint32_t port) {
+  char key[128] = {0};
+  tstrncpy(key, ip, strlen(ip));
+  tstrncpy(key + strlen(key), (char*)(&port), sizeof(port));
+
+  SHashObj*  pCache = cache;
+  SConnList* plist = taosHashGet(pCache, key, strlen(key));
+  if (plist == NULL) {
+    SConnList list;
+    plist = &list;
+    QUEUE_INIT(&plist->conn);
+    taosHashPut(pCache, key, strlen(key), plist, sizeof(*plist));
+  }
+
+  if (QUEUE_IS_EMPTY(&plist->conn)) {
+    return NULL;
+  }
+  queue* h = QUEUE_HEAD(&plist->conn);
+  QUEUE_REMOVE(h);
+  return QUEUE_DATA(h, SCliConn, conn);
+}
+static void addConnToCache(void* cache, char* ip, uint32_t port, SCliConn* conn) {
+  char key[128] = {0};
+  tstrncpy(key, ip, strlen(ip));
+  tstrncpy(key + strlen(key), (char*)(&port), sizeof(port));
+
+  SHashObj*  pCache = cache;
+  SConnList* plist = taosHashGet(pCache, key, strlen(key));
+  // list already create before
+  assert(plist != NULL);
+  QUEUE_PUSH(&plist->conn, &conn->conn);
+}
 static bool clientReadComplete(SConnBuffer* data) {
   STransMsgHead head;
   int32_t       headLen = sizeof(head);
@@ -204,15 +258,6 @@ static void clientConnCb(uv_connect_t* req, int status) {
   }
   assert(pConn->stream == req->handle);
   clientWrite(pConn);
-}
-
-static SCliConn* getConnFromCache(void* cache, char* ip, uint32_t port) {
-  // impl later
-
-  return NULL;
-}
-static void addConnToCache(void* cache, char* ip, uint32_t port, SCliConn* conn) {
-  // impl later
 }
 
 static void clientHandleReq(SCliMsg* pMsg, SCliThrdObj* pThrd) {
