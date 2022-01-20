@@ -51,6 +51,10 @@ struct TDB_MPOOL {
     int32_t    nbucket;
     pg_list_t *hashtab;
   } pgtab;  // page table, hash<pgid_t, pg_t>
+  struct {
+    int32_t nbucket;
+    TD_DLIST(TDB_MPFILE) hashtab[8];
+  } mpftab;
 };
 
 #define MP_PAGE_AT(mp, idx) (mp)->pages[idx]
@@ -60,6 +64,7 @@ struct TDB_MPFILE {
   int        fd;                       // fd
   uint8_t    fileid[TDB_FILE_ID_LEN];  // file ID
   TDB_MPOOL *mp;                       // underlying memory pool
+  TD_DLIST_NODE(TDB_MPFILE);
 };
 
 /*=================================================== Exposed apis ==================================================*/

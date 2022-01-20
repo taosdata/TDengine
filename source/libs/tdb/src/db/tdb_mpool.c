@@ -15,7 +15,8 @@
 
 #include "tdb_mpool.h"
 
-static int tdbGnrtFileID(const char *fname, uint8_t *fileid);
+static int  tdbGnrtFileID(const char *fname, uint8_t *fileid);
+static void tdbMpoolRegFile(TDB_MPOOL *mp, TDB_MPFILE *mpf);
 
 int tdbMPoolOpen(TDB_MPOOL **mpp, uint64_t cachesize, pgsize_t pgsize) {
   TDB_MPOOL *mp = NULL;
@@ -118,6 +119,9 @@ int tdbMPoolFileOpen(TDB_MPFILE **mpfp, const char *fname, TDB_MPOOL *mp) {
     goto _err;
   }
 
+  // Register current MPF to MP
+  tdbMpoolRegFile(mp, mpf);
+
   *mpfp = mpf;
   return 0;
 
@@ -138,6 +142,41 @@ int tdbMPoolFileClose(TDB_MPFILE *mpf) {
   return 0;
 }
 
+int tdbMPoolFileGet(TDB_MPFILE *mpf, pgno_t pgid, void *addr) {
+  pg_t *     pagep;
+  TDB_MPOOL *mp;
+
+  mp = mpf->mp;
+
+  // get page in the cache
+  if (pagep) {
+    // page is found in the page table
+    // todo: pin the page and return
+    *(void **)addr = pagep->data;
+    return 0;
+  } else {
+    // page not found
+    pagep = TD_DLIST_HEAD(&mp->freeList);
+    if (pagep) {
+      // TD_DLIST_POP(&(mp->freeList), pagep);
+    } else {
+      // no page found in the freelist, need to evict
+      // pagep = tdbMpoolEvict(mp);
+      if (pagep) {
+      } else {
+        // TODO: Cannot find a page to evict
+      }
+    }
+  }
+
+  return 0;
+}
+
+int tdbMPoolFilePut(TDB_MPOOL *mpf, pgno_t pgid, void *addr) {
+  // TODO
+  return 0;
+}
+
 static int tdbGnrtFileID(const char *fname, uint8_t *fileid) {
   struct stat statbuf;
 
@@ -152,4 +191,8 @@ static int tdbGnrtFileID(const char *fname, uint8_t *fileid) {
   ((uint64_t *)fileid)[2] = rand();
 
   return 0;
+}
+
+static void tdbMpoolRegFile(TDB_MPOOL *mp, TDB_MPFILE *mpf) {
+  // TODO
 }
