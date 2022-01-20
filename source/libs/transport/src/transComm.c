@@ -30,7 +30,32 @@ int rpcAuthenticateMsg(void* pMsg, int msgLen, void* pAuth, void* pKey) {
 
   return ret;
 }
+int transAuthenticateMsg(void* pMsg, int msgLen, void* pAuth, void* pKey) {
+  T_MD5_CTX context;
+  int       ret = -1;
+
+  tMD5Init(&context);
+  tMD5Update(&context, (uint8_t*)pKey, TSDB_PASSWORD_LEN);
+  tMD5Update(&context, (uint8_t*)pMsg, msgLen);
+  tMD5Update(&context, (uint8_t*)pKey, TSDB_PASSWORD_LEN);
+  tMD5Final(&context);
+
+  if (memcmp(context.digest, pAuth, sizeof(context.digest)) == 0) ret = 0;
+
+  return ret;
+}
 void rpcBuildAuthHead(void* pMsg, int msgLen, void* pAuth, void* pKey) {
+  T_MD5_CTX context;
+
+  tMD5Init(&context);
+  tMD5Update(&context, (uint8_t*)pKey, TSDB_PASSWORD_LEN);
+  tMD5Update(&context, (uint8_t*)pMsg, msgLen);
+  tMD5Update(&context, (uint8_t*)pKey, TSDB_PASSWORD_LEN);
+  tMD5Final(&context);
+
+  memcpy(pAuth, context.digest, sizeof(context.digest));
+}
+void transBuildAuthHead(void* pMsg, int msgLen, void* pAuth, void* pKey) {
   T_MD5_CTX context;
 
   tMD5Init(&context);
@@ -79,6 +104,53 @@ int32_t rpcCompressRpcMsg(char* pCont, int32_t contLen) {
 
   free(buf);
   return finalLen;
+}
+
+bool transCompressMsg(char* msg, int32_t len, int32_t* flen) {
+  // SRpcHead* pHead = rpcHeadFromCont(pCont);
+  bool succ = false;
+  int  overhead = sizeof(STransCompMsg);
+  if (!NEEDTO_COMPRESSS_MSG(len)) {
+    return succ;
+  }
+
+  char* buf = malloc(len + overhead + 8);  // 8 extra bytes
+  if (buf == NULL) {
+    tError("failed to allocate memory for rpc msg compression, contLen:%d", len);
+    *flen = len;
+    return succ;
+  }
+
+  int32_t clen = LZ4_compress_default(msg, buf, len, len + overhead);
+  tDebug("compress rpc msg, before:%d, after:%d, overhead:%d", len, clen, overhead);
+  /*
+   * only the compressed size is less than the value of contLen - overhead, the compression is applied
+   * The first four bytes is set to 0, the second four bytes are utilized to keep the original length of message
+   */
+  if (clen > 0 && clen < len - overhead) {
+    STransCompMsg* pComp = (STransCompMsg*)msg;
+    pComp->reserved = 0;
+    pComp->contLen = htonl(len);
+    memcpy(msg + overhead, buf, clen);
+
+    tDebug("compress rpc msg, before:%d, after:%d", len, clen);
+    *flen = clen + overhead;
+    succ = true;
+  } else {
+    *flen = len;
+    succ = false;
+  }
+  free(buf);
+  return succ;
+}
+bool transDecompressMsg(char* msg, int32_t len, int32_t* flen) {
+  // impl later
+  return false;
+  STransCompMsg* pComp = (STransCompMsg*)msg;
+
+  int overhead = sizeof(STransCompMsg);
+  int clen = 0;
+  return false;
 }
 
 SRpcHead* rpcDecompressRpcMsg(SRpcHead* pHead) {

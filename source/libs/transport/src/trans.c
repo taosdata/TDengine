@@ -24,8 +24,9 @@ typedef struct SConnBuffer {
   int   left;
 } SConnBuffer;
 
-void* (*taosHandle[])(uint32_t ip, uint32_t port, char* label, int numOfThreads, void* fp, void* shandle) = {
+void* (*taosInitHandle[])(uint32_t ip, uint32_t port, char* label, int numOfThreads, void* fp, void* shandle) = {
     taosInitServer, taosInitClient};
+void (*taosCloseHandle[])(void* arg) = {taosCloseServer, taosCloseClient};
 
 void* rpcOpen(const SRpcInit* pInit) {
   SRpcInfo* pRpc = calloc(1, sizeof(SRpcInfo));
@@ -38,11 +39,15 @@ void* rpcOpen(const SRpcInit* pInit) {
   pRpc->cfp = pInit->cfp;
   pRpc->numOfThreads = pInit->numOfThreads > TSDB_MAX_RPC_THREADS ? TSDB_MAX_RPC_THREADS : pInit->numOfThreads;
   pRpc->connType = pInit->connType;
-  pRpc->tcphandle = (*taosHandle[pRpc->connType])(0, pInit->localPort, pRpc->label, pRpc->numOfThreads, NULL, pRpc);
+  pRpc->tcphandle = (*taosInitHandle[pRpc->connType])(0, pInit->localPort, pRpc->label, pRpc->numOfThreads, NULL, pRpc);
 
   return pRpc;
 }
-void  rpcClose(void* arg) { return; }
+void rpcClose(void* arg) {
+  SRpcInfo* pRpc = (SRpcInfo*)arg;
+  (*taosCloseHandle[pRpc->connType])(pRpc->tcphandle);
+  return;
+}
 void* rpcMallocCont(int contLen) {
   int size = contLen + RPC_MSG_OVERHEAD;
 
@@ -53,7 +58,7 @@ void* rpcMallocCont(int contLen) {
   } else {
     tTrace("malloc mem:%p size:%d", start, size);
   }
-  return start + sizeof(SRpcReqContext) + sizeof(SRpcHead);
+  return start + sizeof(STransMsgHead);
 }
 void  rpcFreeCont(void* cont) { return; }
 void* rpcReallocCont(void* ptr, int contLen) { return NULL; }
