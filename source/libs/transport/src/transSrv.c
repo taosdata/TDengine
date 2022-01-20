@@ -107,24 +107,24 @@ void uvAllocReadBufferCb(uv_handle_t* handle, size_t suggested_size, uv_buf_t* b
   SConn*       conn = handle->data;
   SConnBuffer* pBuf = &conn->connBuf;
   if (pBuf->cap == 0) {
-    pBuf->buf = (char*)calloc(CAPACITY + RPC_RESERVE_SIZE, sizeof(char));
+    pBuf->buf = (char*)calloc(CAPACITY, sizeof(char));
     pBuf->len = 0;
     pBuf->cap = CAPACITY;
     pBuf->left = -1;
 
-    buf->base = pBuf->buf + RPC_RESERVE_SIZE;
+    buf->base = pBuf->buf;
     buf->len = CAPACITY;
   } else {
     if (pBuf->len >= pBuf->cap) {
       if (pBuf->left == -1) {
         pBuf->cap *= 2;
-        pBuf->buf = realloc(pBuf->buf, pBuf->cap + RPC_RESERVE_SIZE);
+        pBuf->buf = realloc(pBuf->buf, pBuf->cap);
       } else if (pBuf->len + pBuf->left > pBuf->cap) {
         pBuf->cap = pBuf->len + pBuf->left;
-        pBuf->buf = realloc(pBuf->buf, pBuf->len + pBuf->left + RPC_RESERVE_SIZE);
+        pBuf->buf = realloc(pBuf->buf, pBuf->len + pBuf->left);
       }
     }
-    buf->base = pBuf->buf + pBuf->len + RPC_RESERVE_SIZE;
+    buf->base = pBuf->buf + pBuf->len;
     buf->len = pBuf->cap - pBuf->len;
   }
 }
@@ -133,11 +133,12 @@ void uvAllocReadBufferCb(uv_handle_t* handle, size_t suggested_size, uv_buf_t* b
 //
 static bool readComplete(SConnBuffer* data) {
   // TODO(yihao): handle pipeline later
-  SRpcHead rpcHead;
-  int32_t  headLen = sizeof(rpcHead);
+  // SRpcHead rpcHead;
+  STransMsgHead head;
+  int32_t       headLen = sizeof(head);
   if (data->len >= headLen) {
-    memcpy((char*)&rpcHead, data->buf + RPC_RESERVE_SIZE, headLen);
-    int32_t msgLen = (int32_t)htonl((uint32_t)rpcHead.msgLen);
+    memcpy((char*)&head, data->buf, headLen);
+    int32_t msgLen = (int32_t)htonl((uint32_t)head.msgLen);
     if (msgLen > data->len) {
       data->left = msgLen - data->len;
       return false;
@@ -150,21 +151,21 @@ static bool readComplete(SConnBuffer* data) {
 }
 
 static void uvDoProcess(SRecvInfo* pRecv) {
-  SRpcHead* pHead = (SRpcHead*)pRecv->msg;
-  SRpcInfo* pRpc = (SRpcInfo*)pRecv->shandle;
-  SConn*    pConn = pRecv->thandle;
-
+  // impl later
+  STransMsgHead* pHead = (STransMsgHead*)pRecv->msg;
+  SRpcInfo*      pRpc = (SRpcInfo*)pRecv->shandle;
+  SConn*         pConn = pRecv->thandle;
   tDump(pRecv->msg, pRecv->msgLen);
-
   terrno = 0;
-  SRpcReqContext* pContest;
+  // SRpcReqContext* pContest;
 
   // do auth and check
 }
 
 static int uvAuthMsg(SConn* pConn, char* msg, int len) {
-  SRpcHead* pHead = (SRpcHead*)msg;
-  int       code = 0;
+  STransMsgHead* pHead = (STransMsgHead*)msg;
+
+  int code = 0;
 
   if ((pConn->secured && pHead->spi == 0) || (pHead->spi == 0 && pConn->spi == 0)) {
     // secured link, or no authentication
@@ -224,7 +225,7 @@ static void uvProcessData(SConn* pConn) {
   SRecvInfo    info;
   SRecvInfo*   p = &info;
   SConnBuffer* pBuf = &pConn->connBuf;
-  p->msg = pBuf->buf + RPC_RESERVE_SIZE;
+  p->msg = pBuf->buf;
   p->msgLen = pBuf->len;
   p->ip = 0;
   p->port = 0;
@@ -233,11 +234,10 @@ static void uvProcessData(SConn* pConn) {
   p->chandle = NULL;
 
   //
-  SRpcHead* pHead = (SRpcHead*)p->msg;
-  assert(rpcIsReq(pHead->msgType));
+  STransMsgHead* pHead = (STransMsgHead*)p->msg;
+  assert(transIsReq(pHead->msgType));
 
   SRpcInfo* pRpc = (SRpcInfo*)p->shandle;
-  pConn->ahandle = (void*)pHead->ahandle;
   // auth here
 
   int8_t code = uvAuthMsg(pConn, (char*)pHead, p->msgLen);
@@ -247,14 +247,19 @@ static void uvProcessData(SConn* pConn) {
   }
   pHead->code = htonl(pHead->code);
 
+  int32_t dlen = 0;
   SRpcMsg rpcMsg;
-
-  pHead = rpcDecompressRpcMsg(pHead);
+  if (transDecompressMsg(NULL, 0, NULL)) {
+    // add compress later
+    // pHead = rpcDecompressRpcMsg(pHead);
+  } else {
+    // impl later
+  }
   rpcMsg.contLen = rpcContLenFromMsg(pHead->msgLen);
   rpcMsg.pCont = pHead->content;
   rpcMsg.msgType = pHead->msgType;
   rpcMsg.code = pHead->code;
-  rpcMsg.ahandle = pConn->ahandle;
+  rpcMsg.ahandle = NULL;
   rpcMsg.handle = pConn;
 
   (*(pRpc->cfp))(pRpc->parent, &rpcMsg, NULL);
@@ -423,7 +428,7 @@ void* workerThread(void* arg) {
   uv_loop_init(pThrd->loop);
 
   // SRpcInfo* pRpc = pThrd->shandle;
-  uv_pipe_init(pThrd->loop, pThrd->pipe, 1);
+  uv_pipe_init(pThrd->loop, pThrd->pipe, 0);
   uv_pipe_open(pThrd->pipe, pThrd->fd);
 
   pThrd->pipe->data = pThrd;
@@ -521,6 +526,10 @@ void* taosInitServer(uint32_t ip, uint32_t port, char* label, int numOfThreads, 
   }
 
   return srv;
+}
+void taosCloseServer(void* arg) {
+  // impl later
+  SServerObj* srv = arg;
 }
 
 void rpcSendResponse(const SRpcMsg* pMsg) {

@@ -102,38 +102,101 @@ typedef void* queue[2];
 #define QUEUE_DATA(e, type, field) ((type*)((void*)((char*)(e)-offsetof(type, field))))
 
 typedef struct {
-  SRpcInfo*        pRpc;      // associated SRpcInfo
-  SEpSet           epSet;     // ip list provided by app
-  void*            ahandle;   // handle provided by app
-  struct SRpcConn* pConn;     // pConn allocated
-  tmsg_t           msgType;   // message type
-  uint8_t*         pCont;     // content provided by app
-  int32_t          contLen;   // content length
-  int32_t          code;      // error code
-  int16_t          numOfTry;  // number of try for different servers
-  int8_t           oldInUse;  // server EP inUse passed by app
-  int8_t           redirect;  // flag to indicate redirect
-  int8_t           connType;  // connection type
-  int64_t          rid;       // refId returned by taosAddRef
-  SRpcMsg*         pRsp;      // for synchronous API
-  tsem_t*          pSem;      // for synchronous API
-  SEpSet*          pSet;      // for synchronous API
-  char             msg[0];    // RpcHead starts from here
+  SRpcInfo* pRpc;     // associated SRpcInfo
+  SEpSet    epSet;    // ip list provided by app
+  void*     ahandle;  // handle provided by app
+  // struct SRpcConn* pConn;     // pConn allocated
+  tmsg_t   msgType;  // message type
+  uint8_t* pCont;    // content provided by app
+  int32_t  contLen;  // content length
+  // int32_t  code;     // error code
+  // int16_t  numOfTry;  // number of try for different servers
+  // int8_t   oldInUse;  // server EP inUse passed by app
+  // int8_t   redirect;  // flag to indicate redirect
+  int8_t   connType;  // connection type
+  int64_t  rid;       // refId returned by taosAddRef
+  SRpcMsg* pRsp;      // for synchronous API
+  tsem_t*  pSem;      // for synchronous API
+  char*    ip;
+  uint32_t port;
+  // SEpSet*          pSet;      // for synchronous API
 } SRpcReqContext;
 
-#define container_of(ptr, type, member) ((type*)((char*)(ptr)-offsetof(type, member)))
-#define RPC_RESERVE_SIZE (sizeof(SRpcReqContext))
+typedef struct {
+  SRpcInfo* pRpc;     // associated SRpcInfo
+  SEpSet    epSet;    // ip list provided by app
+  void*     ahandle;  // handle provided by app
+  // struct SRpcConn* pConn;     // pConn allocated
+  tmsg_t   msgType;  // message type
+  uint8_t* pCont;    // content provided by app
+  int32_t  contLen;  // content length
+  // int32_t  code;     // error code
+  // int16_t  numOfTry;  // number of try for different servers
+  // int8_t   oldInUse;  // server EP inUse passed by app
+  // int8_t   redirect;  // flag to indicate redirect
+  int8_t   connType;  // connection type
+  int64_t  rid;       // refId returned by taosAddRef
+  SRpcMsg* pRsp;      // for synchronous API
+  tsem_t*  pSem;      // for synchronous API
+  char*    ip;
+  uint32_t port;
+  // SEpSet*          pSet;      // for synchronous API
+} STransConnCtx;
 
-#define RPC_MSG_OVERHEAD (sizeof(SRpcReqContext) + sizeof(SRpcHead) + sizeof(SRpcDigest))
+#pragma pack(push, 1)
+
+typedef struct {
+  char version : 4;  // RPC version
+  char comp : 4;     // compression algorithm, 0:no compression 1:lz4
+  char resflag : 2;  // reserved bits
+  char spi : 3;      // security parameter index
+  char encrypt : 3;  // encrypt algorithm, 0: no encryption
+
+  uint32_t code;  // del later
+  uint32_t msgType;
+  int32_t  msgLen;
+  uint8_t  content[0];  // message body starts from here
+} STransMsgHead;
+
+typedef struct {
+  int32_t reserved;
+  int32_t contLen;
+} STransCompMsg;
+
+typedef struct {
+  uint32_t timeStamp;
+  uint8_t  auth[TSDB_AUTH_LEN];
+} STransDigestMsg;
+
+#pragma pack(pop)
+
+#define container_of(ptr, type, member) ((type*)((char*)(ptr)-offsetof(type, member)))
+#define RPC_RESERVE_SIZE (sizeof(STranConnCtx))
+
+#define RPC_MSG_OVERHEAD (sizeof(SRpcHead) + sizeof(SRpcDigest))
 #define rpcHeadFromCont(cont) ((SRpcHead*)((char*)cont - sizeof(SRpcHead)))
 #define rpcContFromHead(msg) (msg + sizeof(SRpcHead))
 #define rpcMsgLenFromCont(contLen) (contLen + sizeof(SRpcHead))
 #define rpcContLenFromMsg(msgLen) (msgLen - sizeof(SRpcHead))
 #define rpcIsReq(type) (type & 1U)
 
+#define TRANS_RESERVE_SIZE (sizeof(STranConnCtx))
+
+#define TRANS_MSG_OVERHEAD (sizeof(STransMsgHead) + sizeof(STransDigestMsg))
+#define transHeadFromCont(cont) ((STransMsgHead*)((char*)cont - sizeof(STransMsgHead)))
+#define transContFromHead(msg) (msg + sizeof(STransMsgHead))
+#define transMsgLenFromCont(contLen) (contLen + sizeof(STransMsgHead))
+#define transContLenFromMsg(msgLen) (msgLen - sizeof(STransMsgHead));
+#define transIsReq(type) (type & 1U)
+
 int       rpcAuthenticateMsg(void* pMsg, int msgLen, void* pAuth, void* pKey);
 void      rpcBuildAuthHead(void* pMsg, int msgLen, void* pAuth, void* pKey);
 int32_t   rpcCompressRpcMsg(char* pCont, int32_t contLen);
 SRpcHead* rpcDecompressRpcMsg(SRpcHead* pHead);
+
+int  transAuthenticateMsg(void* pMsg, int msgLen, void* pAuth, void* pKey);
+void transBuildAuthHead(void* pMsg, int msgLen, void* pAuth, void* pKey);
+bool transCompressMsg(char* msg, int32_t len, int32_t* flen);
+bool transDecompressMsg(char* msg, int32_t len, int32_t* flen);
 
 #endif
