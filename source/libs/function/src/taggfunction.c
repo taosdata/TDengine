@@ -4835,3 +4835,9 @@ SAggFunctionInfo aggFunc[35] = {{
                               statisRequired,
                           }
                           };
+
+FuncDef defineCount() {
+  FuncDef def = createFuncDef("count", 1);
+  // todo define signature
+  return setExecFuncs(def, NULL, function_setup, count_function, doFinalizer);
+}
