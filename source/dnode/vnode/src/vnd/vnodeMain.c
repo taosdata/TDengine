@@ -117,7 +117,7 @@ static int vnodeOpenImpl(SVnode *pVnode) {
     return -1;
   }
 
-  // TODO: Open TQ
+  // Open TQ
   sprintf(dir, "%s/tq", pVnode->path);
   pVnode->pTq = tqOpen(dir, &(pVnode->config.tqCfg), vBufPoolGetMAF(pVnode));
   if (pVnode->pTq == NULL) {

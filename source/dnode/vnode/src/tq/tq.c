@@ -58,15 +58,19 @@ STQ* tqOpen(const char* path, STqCfg* tqConfig, SMemAllocatorFactory* allocFac) 
   }
   pTq->path = strdup(path);
   pTq->tqConfig = tqConfig;
+#if 0
   pTq->tqMemRef.pAllocatorFactory = allocFac;
   pTq->tqMemRef.pAllocator = allocFac->create(allocFac);
   if (pTq->tqMemRef.pAllocator == NULL) {
     // TODO: error code of buffer pool
   }
+#endif
   pTq->tqMeta = tqStoreOpen(path, (FTqSerialize)tqSerializeGroup, (FTqDeserialize)tqDeserializeGroup, free, 0);
   if (pTq->tqMeta == NULL) {
-    allocFac->destroy(allocFac, pTq->tqMemRef.pAllocator);
     free(pTq);
+#if 0
+    allocFac->destroy(allocFac, pTq->tqMemRef.pAllocator);
+#endif
     return NULL;
   }
 
