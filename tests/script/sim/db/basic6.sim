@@ -94,8 +94,8 @@ sql use $db
 sql create table st (ts timestamp, i int) tags (j int)
 sql create table $tb using st tags(1)
 
-return 
 system sh/exec.sh -n dnode1 -s stop -x SIGINT
+return 
 
 sql show tables
 if $rows != 1 then 
