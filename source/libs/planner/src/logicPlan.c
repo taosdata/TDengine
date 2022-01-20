@@ -197,23 +197,25 @@ static SQueryPlanNode* doAddTableColumnNode(const SQueryStmtInfo* pQueryInfo, SQ
   SQueryPlanNode*  pNode = createQueryNode(QNODE_TABLESCAN, "TableScan", NULL, 0, NULL, 0, info);
 
   if (!pQueryInfo->info.projectionQuery) {
+    SArray* p = pQueryInfo->exprList[0];
     STableMetaInfo* pTableMetaInfo1 = getMetaInfo(pQueryInfo, 0);
 
     // table source column projection, generate the projection expr
-    int32_t     numOfCols = (int32_t) taosArrayGetSize(tableCols);
-    SExprInfo** pExpr = calloc(numOfCols, POINTER_BYTES);
-    for (int32_t i = 0; i < numOfCols; ++i) {
-      SColumn* pCol = taosArrayGetP(tableCols, i);
+    int32_t numOfCols = (int32_t) taosArrayGetSize(tableCols);
+
+    pNode->numOfExpr = numOfCols;
+    pNode->pExpr = taosArrayInit(numOfCols, POINTER_BYTES);
+    for(int32_t i = 0; i < numOfCols; ++i) {
+      SExprInfo* pExprInfo = taosArrayGetP(p, i);
+      SColumn* pCol = pExprInfo->base.pColumns;
 
       SSourceParam param = {0};
       addIntoSourceParam(&param, NULL, pCol);
-      SSchema s = createSchema(pCol->info.type, pCol->info.bytes, pCol->info.colId, pCol->name);
-      SExprInfo* p = createExprInfo(pTableMetaInfo1, "project", &param, &s, 0);
-      pExpr[i] = p;
-    }
+      SSchema schema = createSchema(pCol->info.type, pCol->info.bytes, pCol->info.colId, pCol->name);
 
-    pNode = createQueryNode(QNODE_PROJECT, "Projection", &pNode, 1, pExpr, numOfCols, NULL);
-    tfree(pExpr);
+      SExprInfo* p = createExprInfo(pTableMetaInfo1, "project", &param, &schema, 0);
+      taosArrayPush(pNode->pExpr, &p);
+    }
   }
 
   return pNode;

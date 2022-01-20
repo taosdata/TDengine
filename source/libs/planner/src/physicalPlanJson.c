@@ -443,7 +443,7 @@ static const char* jkExprNodeColumn = "Column";
 static const char* jkExprNodeValue = "Value";
 
 static bool exprNodeToJson(const void* obj, cJSON* jExprInfo) {
-  const tExprNode* exprInfo = (const tExprNode*)obj;
+  const tExprNode* exprInfo = *(const tExprNode**)obj;
   bool res = cJSON_AddNumberToObject(jExprInfo, jkExprNodeType, exprInfo->nodeType);
   if (res) {
     switch (exprInfo->nodeType) {
@@ -531,7 +531,7 @@ static bool exprInfoToJson(const void* obj, cJSON* jExprInfo) {
   const SExprInfo* exprInfo = (const SExprInfo*)obj;
   bool res = addObject(jExprInfo, jkExprInfoBase, sqlExprToJson, &exprInfo->base);
   if (res) {
-    res = addObject(jExprInfo, jkExprInfoExpr, exprNodeToJson, exprInfo->pExpr);
+    res = addObject(jExprInfo, jkExprInfoExpr, exprNodeToJson, &exprInfo->pExpr);
   }
   return res;
 }

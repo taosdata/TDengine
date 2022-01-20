@@ -419,6 +419,7 @@ typedef struct SOptrBasicInfo {
   int32_t          *rowCellInfoOffset;  // offset value for each row result cell info
   SQLFunctionCtx   *pCtx;
   SSDataBlock      *pRes;
+  void             *keyBuf;
 } SOptrBasicInfo;
 
 typedef struct SOptrBasicInfo STableIntervalOperatorInfo;
@@ -426,6 +427,12 @@ typedef struct SOptrBasicInfo STableIntervalOperatorInfo;
 typedef struct SAggOperatorInfo {
   SOptrBasicInfo binfo;
   uint32_t       seed;
+  SDiskbasedResultBuf*  pResultBuf;       // query result buffer based on blocked-wised disk file
+  SHashObj*             pResultRowHashTable; // quick locate the window object for each result
+  SHashObj*             pResultRowListSet;   // used to check if current ResultRowInfo has ResultRow object or not
+  SArray*               pResultRowArrayList; // The array list that contains the Result rows
+  char*                 keyBuf;           // window key buffer
+  SResultRowPool*       pool;             // The window result objects pool, all the resultRow Objects are allocated and managed by this object.
 } SAggOperatorInfo;
 
 typedef struct SProjectOperatorInfo {
@@ -554,7 +561,7 @@ SOperatorInfo* createDataBlocksOptScanInfo(void* pTsdbReadHandle, int32_t order,
 SOperatorInfo* createTableScanOperatorInfo(void* pTsdbReadHandle, int32_t order, int32_t numOfOutput, int32_t repeatTime, SExecTaskInfo* pTaskInfo);
 SOperatorInfo* createTableSeqScanOperator(void* pTsdbReadHandle, STaskRuntimeEnv* pRuntimeEnv);
 
-SOperatorInfo* createAggregateOperatorInfo(SOperatorInfo* downstream, SExprInfo* pExpr, int32_t numOfOutput);
+SOperatorInfo* createAggregateOperatorInfo(SOperatorInfo* downstream, SArray* pExprInfo, SExecTaskInfo* pTaskInfo);
 SOperatorInfo* createProjectOperatorInfo(STaskRuntimeEnv* pRuntimeEnv, SOperatorInfo* downstream, SExprInfo* pExpr, int32_t numOfOutput);
 SOperatorInfo* createLimitOperatorInfo(STaskRuntimeEnv* pRuntimeEnv, SOperatorInfo* downstream);
 SOperatorInfo* createTimeIntervalOperatorInfo(STaskRuntimeEnv* pRuntimeEnv, SOperatorInfo* downstream, SExprInfo* pExpr, int32_t numOfOutput);

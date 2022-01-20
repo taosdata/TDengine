@@ -1947,6 +1947,7 @@ int32_t KvRowAppend(const void *value, int32_t len, void *param) {
 int32_t createSName(SName* pName, SToken* pTableName, SParseContext* pParseCtx, SMsgBuf* pMsgBuf) {
   const char* msg1 = "name too long";
   const char* msg2 = "invalid database name";
+  const char* msg3 = "db is not specified";
 
   int32_t  code = TSDB_CODE_SUCCESS;
   char* p  = strnchr(pTableName->z, TS_PATH_DELIMITER[0], pTableName->n, true);
@@ -1983,6 +1984,10 @@ int32_t createSName(SName* pName, SToken* pTableName, SParseContext* pParseCtx, 
     char name[TSDB_TABLE_FNAME_LEN] = {0};
     strncpy(name, pTableName->z, pTableName->n);
     strdequote(name);
+
+    if (pParseCtx->db == NULL) {
+      return buildInvalidOperationMsg(pMsgBuf, msg3);
+    }
 
     code = tNameSetDbName(pName, pParseCtx->acctId, pParseCtx->db, strlen(pParseCtx->db));
     if (code != TSDB_CODE_SUCCESS) {

@@ -259,7 +259,7 @@ int32_t scheduleQuery(SRequestObj* pRequest, SQueryDag* pDag) {
   SArray *execNode = taosArrayInit(4, sizeof(SQueryNodeAddr));
 
   SQueryNodeAddr addr = {.numOfEps = 1, .inUse = 0, .nodeId = 2};
-  addr.epAddr[0].port = 6030;
+  addr.epAddr[0].port = 7100;
   strcpy(addr.epAddr[0].fqdn, "localhost");
 
   taosArrayPush(execNode, &addr);
@@ -728,6 +728,7 @@ void* doFetchRow(SRequestObj* pRequest) {
       goto _return;
     } else if (pRequest->type == TDMT_MND_SHOW) {
       pRequest->type = TDMT_MND_SHOW_RETRIEVE;
+      epSet = getEpSet_s(&pRequest->pTscObj->pAppInfo->mgmtEp);
     } else if (pRequest->type == TDMT_VND_SHOW_TABLES) {
       pRequest->type = TDMT_VND_SHOW_TABLES_FETCH;
       SShowReqInfo* pShowReqInfo = &pRequest->body.showInfo;
@@ -772,6 +773,8 @@ void* doFetchRow(SRequestObj* pRequest) {
       tsem_wait(&pRequest->body.rspSem);
 
       pRequest->type = TDMT_VND_SHOW_TABLES_FETCH;
+    } else if (pRequest->type == TDMT_MND_SHOW_RETRIEVE && pResultInfo->pData != NULL) {
+      return NULL;
     }
 
     SMsgSendInfo* body = buildMsgInfoImpl(pRequest);
