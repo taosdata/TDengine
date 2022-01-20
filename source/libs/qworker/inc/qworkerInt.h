@@ -84,6 +84,7 @@ typedef struct SQWMsg {
 
 typedef struct SQWPhaseInput {
   int8_t         status;
+  int8_t         taskType;
   int32_t        code;
   qTaskInfo_t    taskHandle;
   DataSinkHandle sinkHandle;
@@ -91,8 +92,7 @@ typedef struct SQWPhaseInput {
 
 typedef struct SQWPhaseOutput {
   int32_t rspCode;
-  bool    needStop;
-  bool    needRsp;
+  bool    needStop;  
 } SQWPhaseOutput;
 
 
@@ -104,10 +104,15 @@ typedef struct SQWTaskStatus {
 typedef struct SQWTaskCtx {
   SRWLatch        lock;
   int8_t          phase;
+  int8_t          taskType;
 
+  void           *readyConnection;
+  void           *dropConnection;
+  void           *cancelConnection;
+  
   bool            emptyRes;
   int8_t          queryContinue;
-  int8_t          inQueue;
+  int8_t          queryInQueue;
   int32_t         rspCode; 
 
   int8_t          events[QW_EVENT_MAX];
@@ -169,6 +174,10 @@ typedef struct SQWorkerMgmt {
 #define QW_TASK_ELOG(param, ...) qError("QW:%p QID:%"PRIx64",TID:%"PRIx64" " param, mgmt, qId, tId, __VA_ARGS__)
 #define QW_TASK_WLOG(param, ...) qWarn("QW:%p QID:%"PRIx64",TID:%"PRIx64" " param, mgmt, qId, tId, __VA_ARGS__)
 #define QW_TASK_DLOG(param, ...) qDebug("QW:%p QID:%"PRIx64",TID:%"PRIx64" " param, mgmt, qId, tId, __VA_ARGS__)
+
+#define QW_TASK_ELOG_E(param) qError("QW:%p QID:%"PRIx64",TID:%"PRIx64" " param, mgmt, qId, tId)
+#define QW_TASK_WLOG_E(param) qWarn("QW:%p QID:%"PRIx64",TID:%"PRIx64" " param, mgmt, qId, tId)
+#define QW_TASK_DLOG_E(param) qDebug("QW:%p QID:%"PRIx64",TID:%"PRIx64" " param, mgmt, qId, tId)
 
 #define QW_SCH_TASK_ELOG(param, ...) qError("QW:%p SID:%"PRIx64",QID:%"PRIx64",TID:%"PRIx64" " param, mgmt, sId, qId, tId, __VA_ARGS__)
 #define QW_SCH_TASK_WLOG(param, ...) qWarn("QW:%p SID:%"PRIx64",QID:%"PRIx64",TID:%"PRIx64" " param, mgmt, sId, qId, tId, __VA_ARGS__)

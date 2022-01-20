@@ -290,7 +290,7 @@ int32_t qWorkerProcessQueryMsg(void *node, void *qWorkerMgmt, SRpcMsg *pMsg) {
 
   QW_SCH_TASK_DLOG("processQuery start, node:%p", node);
 
-  QW_RET(qwProcessQuery(QW_FPARAMS(), &qwMsg));
+  QW_RET(qwProcessQuery(QW_FPARAMS(), &qwMsg, msg->taskType));
 
   QW_SCH_TASK_DLOG("processQuery end, node:%p", node);
 
@@ -374,7 +374,9 @@ int32_t qWorkerProcessStatusMsg(void *node, void *qWorkerMgmt, SRpcMsg *pMsg) {
     QW_ERR_RET(TSDB_CODE_QRY_INVALID_INPUT);
   }  
 
+  SQWorkerMgmt *mgmt = (SQWorkerMgmt *)qWorkerMgmt;
   msg->sId = htobe64(msg->sId);
+  uint64_t sId = msg->sId;
 
   SSchedulerStatusRsp *sStatus = NULL;
   
