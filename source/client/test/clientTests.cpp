@@ -650,7 +650,13 @@ TEST(testCase, agg_query_tables) {
   TAOS* pConn = taos_connect("localhost", "root", "taosdata", NULL, 0);
   ASSERT_NE(pConn, nullptr);
 
-  TAOS_RES* pRes = taos_query(pConn, "use abc1");
+  TAOS_RES* pRes = taos_query(pConn, "use dbv");
+  taos_free_result(pRes);
+
+  pRes = taos_query(pConn, "create table tx using st tags(111111111111111)");
+  if (taos_errno(pRes) != 0) {
+    printf("failed to create table, reason:%s\n", taos_errstr(pRes));
+  }
   taos_free_result(pRes);
 
   pRes = taos_query(pConn, "select count(*) from tu");
