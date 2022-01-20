@@ -137,7 +137,7 @@ int32_t tsDiskCfgNum = 0;
 #ifndef _STORAGE
 SDiskCfg tsDiskCfg[1];
 #else
-SDiskCfg tsDiskCfg[TSDB_MAX_DISKS];
+SDiskCfg tsDiskCfg[TFS_MAX_DISKS];
 #endif
 
 /*

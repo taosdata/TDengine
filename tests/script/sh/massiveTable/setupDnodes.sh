@@ -121,7 +121,7 @@ startDnodes() {
 ###############################  main process ##########################################
 
 ## kill all taosd process
-kill_process taosd
+#kill_process taosd
 
 ## create director for all dnode
 if [[ "$enviMode" == "new" ]]; then
