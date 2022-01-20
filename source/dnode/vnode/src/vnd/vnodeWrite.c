@@ -13,8 +13,8 @@
  * along with this program. If not, see <http://www.gnu.org/licenses/>.
  */
 
-#include "vnd.h"
 #include "tq.h"
+#include "vnd.h"
 
 int vnodeProcessNoWalWMsgs(SVnode *pVnode, SRpcMsg *pMsg) {
   switch (pMsg->msgType) {
@@ -34,7 +34,7 @@ int vnodeProcessWMsgs(SVnode *pVnode, SArray *pMsgs) {
     pMsg = *(SRpcMsg **)taosArrayGet(pMsgs, i);
 
     // ser request version
-    void *  pBuf = POINTER_SHIFT(pMsg->pCont, sizeof(SMsgHead));
+    void   *pBuf = POINTER_SHIFT(pMsg->pCont, sizeof(SMsgHead));
     int64_t ver = pVnode->state.processed++;
     taosEncodeFixedU64(&pBuf, ver);
 
@@ -53,7 +53,7 @@ int vnodeProcessWMsgs(SVnode *pVnode, SArray *pMsgs) {
 int vnodeApplyWMsg(SVnode *pVnode, SRpcMsg *pMsg, SRpcMsg **pRsp) {
   SVCreateTbReq      vCreateTbReq;
   SVCreateTbBatchReq vCreateTbBatchReq;
-  void *             ptr = vnodeMalloc(pVnode, pMsg->contLen);
+  void              *ptr = vnodeMalloc(pVnode, pMsg->contLen);
   if (ptr == NULL) {
     // TODO: handle error
   }
@@ -110,39 +110,11 @@ int vnodeApplyWMsg(SVnode *pVnode, SRpcMsg *pMsg, SRpcMsg **pRsp) {
       }
       break;
     case TDMT_VND_MQ_SET_CONN: {
-      char* reqStr = ptr;
       SMqSetCVgReq req;
-      tDecodeSMqSetCVgReq(reqStr, &req);
-      STqClientHandle* pHandle = calloc(sizeof(STqClientHandle), 1);
-      if (pHandle == NULL) {
-        // TODO: handle error
+      tDecodeSMqSetCVgReq(ptr, &req);
+      if (tqProcessSetConnReq(pVnode->pTq, &req) < 0) {
       }
-      strcpy(pHandle->topicName, req.topicName); 
-      strcpy(pHandle->cGroup, req.cGroup); 
-      strcpy(pHandle->sql, req.sql);
-      strcpy(pHandle->logicalPlan, req.logicalPlan);
-      strcpy(pHandle->physicalPlan, req.physicalPlan);
-      SArray *pArray;
-      //TODO: deserialize to SQueryDag
-      SQueryDag *pDag;
-      // convert to task
-      if (schedulerConvertDagToTaskList(pDag, &pArray) < 0) {
-        // TODO: handle error
-      }
-      ASSERT(taosArrayGetSize(pArray) == 0);
-      STaskInfo *pInfo = taosArrayGet(pArray, 0);
-      SArray* pTasks;
-      schedulerCopyTask(pInfo, &pTasks, TQ_BUFFER_SIZE);
-      pHandle->buffer.firstOffset = -1;
-      pHandle->buffer.lastOffset = -1;
-      for (int i = 0; i < TQ_BUFFER_SIZE; i++) {
-        SSubQueryMsg* pMsg = taosArrayGet(pTasks, i);
-        pHandle->buffer.output[i].pMsg = pMsg;
-        pHandle->buffer.output[i].status = 0;
-      }
-      // write mq meta
-    }
-      break;
+    } break;
     default:
       ASSERT(0);
       break;

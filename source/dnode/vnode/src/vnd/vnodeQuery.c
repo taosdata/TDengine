@@ -58,7 +58,7 @@ int vnodeProcessFetchReq(SVnode *pVnode, SRpcMsg *pMsg, SRpcMsg **pRsp) {
     case TDMT_VND_TABLE_META:
       return vnodeGetTableMeta(pVnode, pMsg, pRsp);
     case TDMT_VND_CONSUME:
-      return 0;
+      return tqProcessConsumeReq(pVnode->pTq, pMsg, pRsp);
     default:
       vError("unknown msg type:%d in fetch queue", pMsg->msgType);
       return TSDB_CODE_VND_APP_ERROR;
@@ -166,16 +166,26 @@ static int32_t vnodeGetTableList(SVnode *pVnode, SRpcMsg *pMsg) {
 
   char *  name = NULL;
   int32_t totalLen = 0;
+  int32_t numOfTables = 0;
   while ((name = metaTbCursorNext(pCur)) != NULL) {
-    taosArrayPush(pArray, &name);
-    totalLen += strlen(name);
+    if (numOfTables < 1000) {  // TODO: temp get tables of vnode, and should del when show tables commad ok.
+      taosArrayPush(pArray, &name);
+      totalLen += strlen(name);
+    }
+    numOfTables++;
+  }
+
+  // TODO: temp debug, and should del when show tables command ok
+  vError("====vgId:%d, numOfTables: %d", pVnode->vgId, numOfTables);
+  if (numOfTables > 1000) {
+     numOfTables = 1000;
   }
 
   metaCloseTbCursor(pCur);
 
   int32_t rowLen =
       (TSDB_TABLE_NAME_LEN + VARSTR_HEADER_SIZE) + 8 + 2 + (TSDB_TABLE_NAME_LEN + VARSTR_HEADER_SIZE) + 8 + 4;
-  int32_t numOfTables = (int32_t)taosArrayGetSize(pArray);
+  //int32_t numOfTables = (int32_t)taosArrayGetSize(pArray);
 
   int32_t payloadLen = rowLen * numOfTables;
   //  SVShowTablesFetchReq *pFetchReq = pMsg->pCont;
@@ -203,5 +213,6 @@ static int32_t vnodeGetTableList(SVnode *pVnode, SRpcMsg *pMsg) {
   };
 
   rpcSendResponse(&rpcMsg);
+  taosArrayDestroy(pArray);
   return 0;
 }

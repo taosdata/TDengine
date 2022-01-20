@@ -765,7 +765,8 @@ int32_t schProcessOnTaskSuccess(SSchJob *pJob, SSchTask *pTask) {
     atomic_add_fetch_32(&par->childReady, 1);
 
     SCH_LOCK(SCH_WRITE, &par->lock);
-    qSetSubplanExecutionNode(par->plan, pTask->plan->id.templateId, &pTask->succeedAddr);
+    SDownstreamSource source = {.taskId = pTask->taskId, .schedId = schMgmt.sId, .addr = pTask->succeedAddr};
+    qSetSubplanExecutionNode(par->plan, pTask->plan->id.templateId, &source);
     SCH_UNLOCK(SCH_WRITE, &par->lock);
 
     if (SCH_TASK_READY_TO_LUNCH(par)) {
@@ -1197,7 +1198,7 @@ int32_t schLaunchTask(SSchJob *pJob, SSchTask *pTask) {
       SCH_ERR_JRET(code);
     }
 
-    printf("physical plan:%s\n", pTask->msg);
+//    printf("physical plan:%s\n", pTask->msg);
   }
 
   SCH_ERR_JRET(schSetTaskCandidateAddrs(pJob, pTask));
@@ -1462,9 +1463,9 @@ int32_t schedulerConvertDagToTaskList(SQueryDag *pDag, SArray **pTasks) {
       qError("calloc %d failed", msgSize);
       SCH_ERR_JRET(TSDB_CODE_QRY_OUT_OF_MEMORY);
     }
-
-    SSubQueryMsg *pMsg = msg;
-
+    
+    SSubQueryMsg *pMsg = (SSubQueryMsg*) msg;
+    
     pMsg->header.vgId = htonl(tInfo.addr.nodeId);
 
     pMsg->sId = htobe64(schMgmt.sId);
