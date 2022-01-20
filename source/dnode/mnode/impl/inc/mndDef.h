@@ -354,6 +354,7 @@ typedef struct SMqSubscribeObj {
   char    key[TSDB_SUBSCRIBE_KEY_LEN];
   int32_t epoch;
   //TODO: replace with priority queue
+  int32_t nextConsumerIdx;
   SArray* availConsumer;        // SArray<int64_t> (consumerId)
   SArray* assigned;             // SArray<SMqConsumerEp>
   SArray* unassignedConsumer;   // SArray<SMqConsumerEp>

@@ -1089,6 +1089,10 @@ static FORCE_INLINE void* tDeserializeSMVSubscribeReq(void* buf, SMVSubscribeReq
   return buf;
 }
 
+typedef struct SMqTmrMsg {
+  int32_t reserved;
+} SMqTmrMsg;
+
 typedef struct {
   int64_t status;
 } SMVSubscribeRsp;
