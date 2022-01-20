@@ -109,6 +109,26 @@ static bool fromPnode(const cJSON* json, const char* name, FFromJson func, void*
   return func(jObj, *obj);
 }
 
+static bool fromPnodeArray(const cJSON* json, const char* name, FFromJson func, SArray** array) {
+  const cJSON* jArray = cJSON_GetObjectItem(json, name);
+  int32_t size = (NULL == jArray ? 0 : cJSON_GetArraySize(jArray));
+  if (size > 0) {
+    *array = taosArrayInit(size, POINTER_BYTES);
+    if (NULL == *array) {
+      return false;
+    }
+  }
+  for (int32_t i = 0; i < size; ++i) {
+    cJSON* jItem = cJSON_GetArrayItem(jArray, i);
+    void* item = calloc(1, getPnodeTypeSize(jItem));
+    if (NULL == item || !func(jItem, item)) {
+      return false;
+    }
+    taosArrayPush(*array, &item);
+  }
+  return true;
+}
+
 static bool addTarray(cJSON* json, const char* name, FToJson func, const SArray* array, bool isPoint) {
   size_t size = (NULL == array) ? 0 : taosArrayGetSize(array);
   if (size > 0) {
@@ -379,8 +399,8 @@ static const char* jkFunctionChild = "Child";
 static bool functionToJson(const void* obj, cJSON* jFunc) {
   const tExprNode* exprInfo = (const tExprNode*)obj;
   bool res = cJSON_AddStringToObject(jFunc, jkFunctionName, exprInfo->_function.functionName);
-  if (res) {
-    res = addRawArray(jFunc, jkFunctionChild, exprNodeToJson, exprInfo->_function.pChild, sizeof(tExprNode*), exprInfo->_function.num);
+  if (res && NULL != exprInfo->_function.pChild) {
+      res = addRawArray(jFunc, jkFunctionChild, exprNodeToJson, *(exprInfo->_function.pChild), sizeof(tExprNode*), exprInfo->_function.num);
   }
   return res;
 }
@@ -388,6 +408,10 @@ static bool functionToJson(const void* obj, cJSON* jFunc) {
 static bool functionFromJson(const cJSON* json, void* obj) {
   tExprNode* exprInfo = (tExprNode*)obj;
   copyString(json, jkFunctionName, exprInfo->_function.functionName);
+  exprInfo->_function.pChild = calloc(1, sizeof(tExprNode*));
+  if (NULL == exprInfo->_function.pChild) {
+    return false;
+  }
   return fromRawArrayWithAlloc(json, jkFunctionChild, exprNodeFromJson, (void**)exprInfo->_function.pChild, sizeof(tExprNode*), &exprInfo->_function.num);
 }
 
@@ -808,7 +832,7 @@ static bool specificPhyNodeFromJson(const cJSON* json, void* obj) {
     case OP_SystemTableScan:
       return scanNodeFromJson(json, obj);
     case OP_Aggregate:
-      break; // todo
+      return aggNodeFromJson(json, obj);
     case OP_Project:
       return true;
     // case OP_Groupby:
@@ -879,7 +903,7 @@ static bool phyNodeFromJson(const cJSON* json, void* obj) {
     res = fromObject(json, jkPnodeSchema, dataBlockSchemaFromJson, &node->targetSchema, true);
   }
   if (res) {
-    res = fromArray(json, jkPnodeChildren, phyNodeFromJson, &node->pChildren, sizeof(SSlotSchema));
+    res = fromPnodeArray(json, jkPnodeChildren, phyNodeFromJson, &node->pChildren);
   }
   if (res) {
     res = fromObject(json, node->info.name, specificPhyNodeFromJson, node, true);
