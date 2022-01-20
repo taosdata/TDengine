@@ -18,6 +18,7 @@
 
 #include "os.h"
 #include "tlist.h"
+#include "tlockfree.h"
 
 #ifdef __cplusplus
 extern "C" {

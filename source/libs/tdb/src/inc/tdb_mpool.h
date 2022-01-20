@@ -26,28 +26,27 @@ extern "C" {
 typedef struct TDB_MPOOL  TDB_MPOOL;
 typedef struct TDB_MPFILE TDB_MPFILE;
 
-typedef struct MP_PAGE {
-  // SRWLatch  rwLatch;
-  pgid_t  mpgid;
-  uint8_t dirty;
-  uint8_t fileid[TDB_FILE_UID_LEN];
-  int32_t pinRef;
-  TD_DLIST_NODE(MP_PAGE);
+typedef struct pg_t {
+  SRWLatch rwLatch;
+  pgid_t   mpgid;
+  uint8_t  dirty;
+  int32_t  pinRef;
+  TD_DLIST_NODE(pg_t);
   char *page[];
-} MP_PAGE;
+} pg_t;
 
-#define MP_PAGE_SIZE(pgsize) (sizeof(MP_PAGE) + (pgsize))
+#define MP_PAGE_SIZE(pgsize) (sizeof(pg_t) + (pgsize))
 
-typedef TD_DLIST(MP_PAGE) MP_PAGE_LIST;
+typedef TD_DLIST(pg_t) pg_list_t;
 struct TDB_MPOOL {
-  int64_t      cachesize;
-  pgsize_t     pgsize;
-  int32_t      npages;
-  MP_PAGE *    pages;
-  MP_PAGE_LIST freeList;
+  int64_t   cachesize;
+  pgsize_t  pgsize;
+  int32_t   npages;
+  pg_t *    pages;
+  pg_list_t freeList;
   // Hash<pgid_t, frame_id_t>
-  int32_t       nbucket;
-  MP_PAGE_LIST *hashtab;
+  int32_t    nbucket;
+  pg_list_t *hashtab;
   // TODO: TD_DLIST(TD_MPFILE) mpfList; // MPFILE registered on this memory pool
 };
 

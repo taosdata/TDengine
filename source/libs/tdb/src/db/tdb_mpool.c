@@ -18,7 +18,7 @@
 int tdbMPoolOpen(TDB_MPOOL **mpp, uint64_t cachesize, pgsize_t pgsize) {
   TDB_MPOOL *mp;
   size_t     tsize;
-  MP_PAGE *  pagep;
+  pg_t *     pagep;
 
   // check parameters
   if (!TDB_IS_PGSIZE_VLD(pgsize)) {
@@ -37,7 +37,7 @@ int tdbMPoolOpen(TDB_MPOOL **mpp, uint64_t cachesize, pgsize_t pgsize) {
   mp->cachesize = cachesize;
   mp->pgsize = pgsize;
   mp->npages = cachesize / pgsize;
-  mp->pages = (MP_PAGE *)calloc(mp->npages, MP_PAGE_SIZE(pgsize));
+  mp->pages = (pg_t *)calloc(mp->npages, MP_PAGE_SIZE(pgsize));
   if (mp->pages == NULL) {
     tdbError("failed to malloc memory pool pages");
     free(mp);
@@ -47,7 +47,7 @@ int tdbMPoolOpen(TDB_MPOOL **mpp, uint64_t cachesize, pgsize_t pgsize) {
   TD_DLIST_INIT(&(mp->freeList));
 
   mp->nbucket = mp->npages;
-  mp->hashtab = (MP_PAGE_LIST *)calloc(mp->nbucket, sizeof(MP_PAGE_LIST));
+  mp->hashtab = (pg_list_t *)calloc(mp->nbucket, sizeof(pg_list_t));
   if (mp->hashtab == NULL) {
     tdbError("failed to malloc memory pool hash table");
     free(mp->pages);
@@ -56,7 +56,7 @@ int tdbMPoolOpen(TDB_MPOOL **mpp, uint64_t cachesize, pgsize_t pgsize) {
   }
 
   for (int i = 0; i < mp->npages; i++) {
-    pagep = (MP_PAGE *)MP_PAGE_AT(mp, i);
+    pagep = (pg_t *)MP_PAGE_AT(mp, i);
     TD_DLIST_APPEND(&mp->freeList, pagep);
   }
 
