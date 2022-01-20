@@ -27,6 +27,7 @@
 #include "trpc.h"
 #include "ttimer.h"
 #include "tutil.h"
+#include "wal.h"
 
 #ifdef __cplusplus
 extern "C" {
@@ -161,7 +162,8 @@ typedef struct STqGroup {
 } STqGroup;
 
 typedef struct STqTaskItem {
-  int32_t       status;
+  int8_t        status;
+  int64_t       offset;
   void*         dst;
   SSubQueryMsg* pMsg;
 } STqTaskItem;
@@ -173,33 +175,28 @@ typedef struct STqBuffer {
   STqTaskItem output[TQ_BUFFER_SIZE];
 } STqBuffer;
 
-typedef struct STqClientHandle {
-  int64_t   clientId;
-  char      topicName[TSDB_TOPIC_FNAME_LEN];
-  char      cGroup[TSDB_TOPIC_FNAME_LEN];
-  char*     sql;
-  char*     logicalPlan;
-  char*     physicalPlan;
-  int64_t   committedOffset;
-  int64_t   currentOffset;
-  STqBuffer buffer;
-} STqClientHandle;
+typedef struct STqTopicHandle {
+  char            topicName[TSDB_TOPIC_FNAME_LEN];
+  char            cGroup[TSDB_TOPIC_FNAME_LEN];
+  char*           sql;
+  char*           logicalPlan;
+  char*           physicalPlan;
+  int64_t         committedOffset;
+  int64_t         currentOffset;
+  STqBuffer       buffer;
+  SWalReadHandle* pReadhandle;
+} STqTopicHandle;
+
+typedef struct STqConsumerHandle {
+  int64_t consumerId;
+  int64_t epoch;
+  SArray* topics;  // SArray<STqClientTopic>
+} STqConsumerHandle;
 
 typedef struct STqQueryMsg {
   STqMsgItem*         item;
   struct STqQueryMsg* next;
 } STqQueryMsg;
-
-typedef struct STqLogHandle {
-  void* logHandle;
-  void* (*openLogReader)(void* logHandle);
-  void (*closeLogReader)(void* logReader);
-  int32_t (*logRead)(void* logReader, void** data, int64_t ver);
-
-  int64_t (*logGetFirstVer)(void* logHandle);
-  int64_t (*logGetSnapshotVer)(void* logHandle);
-  int64_t (*logGetLastVer)(void* logHandle);
-} STqLogHandle;
 
 typedef struct STqCfg {
   // TODO
@@ -298,7 +295,6 @@ typedef struct STQ {
   // the handle of meta kvstore
   char*         path;
   STqCfg*       tqConfig;
-  STqLogHandle* tqLogHandle;
   STqMemRef     tqMemRef;
   STqMetaStore* tqMeta;
 } STQ;
@@ -315,31 +311,26 @@ int  tqInit();
 void tqCleanUp();
 
 // open in each vnode
-STQ* tqOpen(const char* path, STqCfg* tqConfig, STqLogHandle* tqLogHandle, SMemAllocatorFactory* allocFac);
+STQ* tqOpen(const char* path, STqCfg* tqConfig, SMemAllocatorFactory* allocFac);
 void tqClose(STQ*);
 
 // void* will be replace by a msg type
 int tqPushMsg(STQ*, void* msg, int64_t version);
 int tqCommit(STQ*);
-int tqConsume(STQ*, SRpcMsg* pReq, SRpcMsg** pRsp);
 
+#if 0
+int tqConsume(STQ*, SRpcMsg* pReq, SRpcMsg** pRsp);
 int tqSetCursor(STQ*, STqSetCurReq* pMsg);
 int tqBufferSetOffset(STqTopic*, int64_t offset);
-
 STqTopic* tqFindTopic(STqGroup*, int64_t topicId);
-
 STqGroup* tqGetGroup(STQ*, int64_t clientId);
-
 STqGroup* tqOpenGroup(STQ*, int64_t topicId, int64_t cgId, int64_t cId);
 int       tqCloseGroup(STQ*, int64_t topicId, int64_t cgId, int64_t cId);
 int       tqRegisterContext(STqGroup*, void* ahandle);
 int       tqSendLaunchQuery(STqMsgItem*, int64_t offset);
+#endif
 
-int tqSerializeGroup(const STqGroup*, STqSerializedHead**);
-
-const void* tqDeserializeGroup(const STqSerializedHead*, STqGroup**);
-
-static int tqQueryExecuting(int32_t status) { return status; }
+int32_t tqProcessConsume(STQ* pTq, SRpcMsg* pMsg, SRpcMsg** ppRsp);
 
 typedef struct STqReadHandle {
   int64_t        ver;
@@ -349,9 +340,6 @@ typedef struct STqReadHandle {
   SSubmitBlkIter blkIter;
   SMeta*         pMeta;
 } STqReadHandle;
-
-typedef struct SSubmitBlkScanInfo {
-} SSubmitBlkScanInfo;
 
 STqReadHandle* tqInitSubmitMsgScanner(SMeta* pMeta, SSubmitMsg* pMsg);
 bool           tqNextDataBlock(STqReadHandle* pHandle);
