@@ -23,11 +23,12 @@ extern "C" {
 #endif
 
 // Exposed handle
-typedef struct TDB_MPOOL TDB_MPOOL;
+typedef struct TDB_MPOOL  TDB_MPOOL;
+typedef struct TDB_MPFILE TDB_MPFILE;
 
 typedef struct {
   uint8_t fuid[TDB_FILE_UID_LEN];
-  pgid_t  pgid;
+  pgno_t  pgid;
 } mp_pgid_t;
 
 typedef struct MP_PAGE {
@@ -55,14 +56,27 @@ struct TDB_MPOOL {
   // TODO: TD_DLIST(TD_MPFILE) mpfList; // MPFILE registered on this memory pool
 };
 
+struct TDB_MPFILE {
+  uint8_t    fuid[20];  // file unique ID
+  TDB_MPOOL *mp;        // underlying memory pool
+  char *     fname;     // file name
+  int        fd;        // fd
+};
+
 #define MP_PAGE_AT(mp, idx) ((char *)((mp)->pages) + MP_PAGE_SIZE((mp)->pgsize) * (idx))
 
-// Exposed apis =====================================================================================================
-
+/*=================================================== Exposed apis ==================================================*/
+// TDB_MPOOL
 int tdbOpenMP(TDB_MPOOL **mpp, uint64_t cachesize, pgsize_t pgsize);
 int tdbCloseMP(TDB_MPOOL *mp);
 int tdbMPFetchPage(TDB_MPOOL *mp, mp_pgid_t mpgid, void *p);
 int tdbMpUnfetchPage(TDB_MPOOL *mp, mp_pgid_t mpgid, void *p);
+
+// TDB_MPFILE
+int tdbMPFOpen(TDB_MPFILE **mpfp, const char *fname, TDB_MPOOL *mp);
+int tdbMPFClose(TDB_MPFILE *mpf);
+int tdbMPFGet(TDB_MPFILE *mpf, pgno_t pgid, void *addr);
+int tdbMPFPut(TDB_MPOOL *mpf, pgno_t pgid, void *addr);
 
 #ifdef __cplusplus
 }

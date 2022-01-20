@@ -23,9 +23,9 @@
 extern "C" {
 #endif
 
-// pgid_t
-typedef int32_t pgid_t;
-#define TDB_IVLD_PGID ((pgid_t)-1)
+// pgno_t
+typedef int32_t pgno_t;
+#define TDB_IVLD_PGID ((pgno_t)-1)
 
 // framd_id_t
 typedef int32_t frame_id_t;

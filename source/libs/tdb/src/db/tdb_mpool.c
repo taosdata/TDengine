@@ -13,7 +13,7 @@
  * along with this program. If not, see <http://www.gnu.org/licenses/>.
  */
 
-#include "tdb_mp.h"
+#include "tdb_mpool.h"
 
 int tdbOpenMP(TDB_MPOOL **mpp, uint64_t cachesize, pgsize_t pgsize) {
   TDB_MPOOL *mp;
