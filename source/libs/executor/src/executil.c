@@ -170,8 +170,7 @@ void clearResultRow(STaskRuntimeEnv *pRuntimeEnv, SResultRow *pResultRow, int16_
 // TODO refactor: use macro
 SResultRowEntryInfo* getResultCell(const SResultRow* pRow, int32_t index, int32_t* offset) {
   assert(index >= 0 && offset != NULL);
-//  return (SResultRowEntryInfo*)((char*) pRow->pCellInfo + offset[index]);
-return NULL;
+  return (SResultRowEntryInfo*)((char*) pRow->pEntryInfo + offset[index]);
 }
 
 size_t getResultRowSize(SArray* pExprInfo) {

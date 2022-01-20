@@ -425,14 +425,15 @@ typedef struct SOptrBasicInfo {
 typedef struct SOptrBasicInfo STableIntervalOperatorInfo;
 
 typedef struct SAggOperatorInfo {
-  SOptrBasicInfo binfo;
-  uint32_t       seed;
-  SDiskbasedResultBuf*  pResultBuf;       // query result buffer based on blocked-wised disk file
+  SOptrBasicInfo        binfo;
+  uint32_t              seed;
+  SDiskbasedResultBuf  *pResultBuf;       // query result buffer based on blocked-wised disk file
   SHashObj*             pResultRowHashTable; // quick locate the window object for each result
   SHashObj*             pResultRowListSet;   // used to check if current ResultRowInfo has ResultRow object or not
   SArray*               pResultRowArrayList; // The array list that contains the Result rows
   char*                 keyBuf;           // window key buffer
   SResultRowPool*       pool;             // The window result objects pool, all the resultRow Objects are allocated and managed by this object.
+  STableQueryInfo      *current;
 } SAggOperatorInfo;
 
 typedef struct SProjectOperatorInfo {
@@ -659,6 +660,6 @@ int32_t getMaximumIdleDurationSec();
 
 void doInvokeUdf(struct SUdfInfo* pUdfInfo, SQLFunctionCtx *pCtx, int32_t idx, int32_t type);
 void setTaskStatus(SExecTaskInfo *pTaskInfo, int8_t status);
-int32_t doCreateExecTaskInfo(SSubplan* pPlan, SExecTaskInfo** pTaskInfo, STableGroupInfo* pGroupInfo, void* readerHandle);
+int32_t doCreateExecTaskInfo(SSubplan* pPlan, SExecTaskInfo** pTaskInfo, void* readerHandle);
 
 #endif  // TDENGINE_EXECUTORIMPL_H

@@ -80,6 +80,7 @@ typedef struct SMnode {
   SReplica          replicas[TSDB_MAX_REPLICA];
   tmr_h             timer;
   tmr_h             transTimer;
+  tmr_h             mqTimer;
   char             *path;
   SMnodeCfg         cfg;
   int64_t           checkTime;

@@ -28,6 +28,7 @@ extern "C" {
 #include "function.h"
 #include "tudf.h"
 
+
 extern SAggFunctionInfo aggFunc[35];
 
 #define FUNCSTATE_SO           0x0u
@@ -87,6 +88,10 @@ static FORCE_INLINE void initResultRowEntry(SResultRowEntryInfo *pResInfo, int32
   
   memset(GET_ROWCELL_INTERBUF(pResInfo), 0, bufLen);
 }
+
+#include "functionMgtInt.h"
+
+FuncDef defineCount();
 
 #ifdef __cplusplus
 }

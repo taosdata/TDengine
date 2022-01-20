@@ -134,6 +134,8 @@ typedef struct SFunctionFpSet {
   void (*combine)(struct SQLFunctionCtx *pCtx);
 } SFunctionFpSet;
 
+extern SFunctionFpSet fpSet[1];
+
 // sql function runtime context
 typedef struct SQLFunctionCtx {
   int32_t      size;      // number of rows
