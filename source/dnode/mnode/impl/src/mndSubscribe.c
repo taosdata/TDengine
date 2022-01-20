@@ -100,7 +100,7 @@ static int32_t mndProcessMqTimerMsg(SMnodeMsg *pMsg) {
             .vgId = pCEp->vgId,
             .consumerId = consumerId,
         };
-        strcpy(req.cGroup, cgroup);
+        strcpy(req.cgroup, cgroup);
         strcpy(req.topicName, topic);
         strcpy(req.sql, pTopic->sql);
         strcpy(req.logicalPlan, pTopic->logicalPlan);
@@ -168,7 +168,7 @@ static int mndBuildMqSetConsumerVgReq(SMnode *pMnode, STrans *pTrans, SMqConsume
         .vgId = vgId,
         .consumerId = pConsumer->consumerId,
     };
-    strcpy(req.cGroup, pConsumer->cgroup);
+    strcpy(req.cgroup, pConsumer->cgroup);
     strcpy(req.topicName, pTopic->name);
     strcpy(req.sql, pTopic->sql);
     strcpy(req.logicalPlan, pTopic->logicalPlan);

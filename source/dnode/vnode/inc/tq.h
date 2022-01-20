@@ -297,7 +297,7 @@ typedef struct STQ {
   STqCfg*       tqConfig;
   STqMemRef     tqMemRef;
   STqMetaStore* tqMeta;
-  SWal        * pWal;
+  SWal*         pWal;
 } STQ;
 
 typedef struct STqMgmt {
@@ -331,7 +331,8 @@ int       tqRegisterContext(STqGroup*, void* ahandle);
 int       tqSendLaunchQuery(STqMsgItem*, int64_t offset);
 #endif
 
-int32_t tqProcessConsume(STQ* pTq, SRpcMsg* pMsg, SRpcMsg** ppRsp);
+int32_t tqProcessConsumeReq(STQ* pTq, SRpcMsg* pMsg, SRpcMsg** ppRsp);
+int32_t tqProcessSetConnReq(STQ* pTq, SMqSetCVgReq* pReq);
 
 typedef struct STqReadHandle {
   int64_t        ver;
@@ -340,13 +341,15 @@ typedef struct STqReadHandle {
   SSubmitMsgIter msgIter;
   SSubmitBlkIter blkIter;
   SMeta*         pMeta;
+  SArray*        pColumnIdList;
 } STqReadHandle;
 
-STqReadHandle* tqInitSubmitMsgScanner(SMeta* pMeta, SSubmitMsg* pMsg);
+STqReadHandle* tqInitSubmitMsgScanner(SMeta* pMeta, SArray* pColumnIdList);
+void           tqReadHandleSetMsg(STqReadHandle* pHandle, SSubmitMsg* pMsg, int64_t ver);
 bool           tqNextDataBlock(STqReadHandle* pHandle);
 int            tqRetrieveDataBlockInfo(STqReadHandle* pHandle, SDataBlockInfo* pBlockInfo);
 // return SArray<SColumnInfoData>
-SArray* tqRetrieveDataBlock(STqReadHandle* pHandle, SArray* pColumnIdList);
+SArray* tqRetrieveDataBlock(STqReadHandle* pHandle);
 
 #ifdef __cplusplus
 }

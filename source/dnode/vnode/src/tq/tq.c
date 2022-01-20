@@ -606,7 +606,7 @@ int tqItemSSize() {
   return 0;
 }
 
-int32_t tqProcessConsume(STQ* pTq, SRpcMsg* pMsg, SRpcMsg** ppRsp) {
+int32_t tqProcessConsumeReq(STQ* pTq, SRpcMsg* pMsg, SRpcMsg** ppRsp) {
   SMqCVConsumeReq* pReq = pMsg->pCont;
   int64_t          reqId = pReq->reqId;
   int64_t          consumerId = pReq->consumerId;
@@ -623,6 +623,7 @@ int32_t tqProcessConsume(STQ* pTq, SRpcMsg* pMsg, SRpcMsg** ppRsp) {
     int8_t           old = atomic_val_compare_exchange_8(&pHandle->buffer.output[pos].status, 0, 1);
     if (old == 1) {
       // do nothing
+      continue;
     }
     if (walReadWithHandle(pHandle->pReadhandle, offset) < 0) {
       // TODO
@@ -635,7 +636,17 @@ int32_t tqProcessConsume(STQ* pTq, SRpcMsg* pMsg, SRpcMsg** ppRsp) {
 
     SSubQueryMsg* pQueryMsg = pHandle->buffer.output[pos].pMsg;
 
+    // TODO: launch query and get output data
     void* outputData;
+    pHandle->buffer.output[pos].dst = outputData;
+    if (pHandle->buffer.firstOffset == -1
+        || pReq->offset < pHandle->buffer.firstOffset) {
+      pHandle->buffer.firstOffset = pReq->offset;
+    }
+    if (pHandle->buffer.lastOffset == -1
+        || pReq->offset > pHandle->buffer.lastOffset) {
+      pHandle->buffer.lastOffset = pReq->offset;
+    }
     atomic_store_8(&pHandle->buffer.output[pos].status, 1);
 
     // put output into rsp
@@ -647,16 +658,62 @@ int32_t tqProcessConsume(STQ* pTq, SRpcMsg* pMsg, SRpcMsg** ppRsp) {
   return 0;
 }
 
-STqReadHandle* tqInitSubmitMsgScanner(SMeta* pMeta, SSubmitMsg* pMsg) {
+int32_t tqProcessSetConnReq(STQ* pTq, SMqSetCVgReq* pReq) {
+  STqConsumerHandle* pConsumer = calloc(sizeof(STqConsumerHandle), 1);
+  if (pConsumer == NULL) {
+    return -1;
+  }
+  
+  STqTopicHandle* pTopic = calloc(sizeof(STqTopicHandle), 1);
+  if (pTopic == NULL) {
+    free(pConsumer);
+    return -1;
+  }
+  strcpy(pTopic->topicName, pReq->topicName); 
+  strcpy(pTopic->cgroup, pReq->cgroup); 
+  strcpy(pTopic->sql, pReq->sql);
+  strcpy(pTopic->logicalPlan, pReq->logicalPlan);
+  strcpy(pTopic->physicalPlan, pReq->physicalPlan);
+  SArray *pArray;
+  //TODO: deserialize to SQueryDag
+  SQueryDag *pDag;
+  // convert to task
+  if (schedulerConvertDagToTaskList(pDag, &pArray) < 0) {
+    // TODO: handle error
+  }
+  ASSERT(taosArrayGetSize(pArray) == 0);
+  STaskInfo *pInfo = taosArrayGet(pArray, 0);
+  SArray* pTasks;
+  schedulerCopyTask(pInfo, &pTasks, TQ_BUFFER_SIZE);
+  pTopic->buffer.firstOffset = -1;
+  pTopic->buffer.lastOffset = -1;
+  for (int i = 0; i < TQ_BUFFER_SIZE; i++) {
+    SSubQueryMsg* pMsg = taosArrayGet(pTasks, i);
+    pTopic->buffer.output[i].pMsg = pMsg;
+    pTopic->buffer.output[i].status = 0;
+  }
+  pTopic->pReadhandle = walOpenReadHandle(pTq->pWal);
+  // write mq meta
+  return 0;
+}
+
+STqReadHandle* tqInitSubmitMsgScanner(SMeta* pMeta, SArray* pColumnIdList) {
   STqReadHandle* pReadHandle = malloc(sizeof(STqReadHandle));
   if (pReadHandle == NULL) {
     return NULL;
   }
   pReadHandle->pMeta = pMeta;
+  pReadHandle->pMsg = NULL;
+  pReadHandle->ver = -1;
+  pReadHandle->pColumnIdList = pColumnIdList;
+  return NULL;
+}
+
+void tqReadHandleSetMsg(STqReadHandle* pReadHandle, SSubmitMsg* pMsg, int64_t ver) {
   pReadHandle->pMsg = pMsg;
   tInitSubmitMsgIter(pMsg, &pReadHandle->msgIter);
-  pReadHandle->ver = -1;
-  return NULL;
+  pReadHandle->ver = ver;
+  memset(&pReadHandle->blkIter, 0, sizeof(SSubmitBlkIter));
 }
 
 bool tqNextDataBlock(STqReadHandle* pHandle) {
@@ -676,7 +733,7 @@ int tqRetrieveDataBlockInfo(STqReadHandle* pHandle, SDataBlockInfo* pBlockInfo) 
   // TODO: filter out unused column
   return 0;
 }
-SArray* tqRetrieveDataBlock(STqReadHandle* pHandle, SArray* pColumnIdList) {
+SArray* tqRetrieveDataBlock(STqReadHandle* pHandle) {
   int32_t         sversion = pHandle->pBlock->sversion;
   SSchemaWrapper* pSchemaWrapper = metaGetTableSchema(pHandle->pMeta, pHandle->pBlock->uid, sversion, true);
   STSchema*       pTschema = metaGetTbTSchema(pHandle->pMeta, pHandle->pBlock->uid, sversion);
@@ -689,11 +746,6 @@ SArray* tqRetrieveDataBlock(STqReadHandle* pHandle, SArray* pColumnIdList) {
   colInfo.pData = malloc(sz);
   if (colInfo.pData == NULL) {
     return NULL;
-  }
-
-  for (int i = 0; i < pTschema->numOfCols; i++) {
-    // TODO: filter out unused column
-    taosArrayPush(pColumnIdList, &(schemaColAt(pTschema, i)->colId));
   }
 
   SMemRow row;
