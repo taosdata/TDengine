@@ -4651,7 +4651,7 @@ static int32_t validateSQLExprItemSQLFunc(SSqlCmd* pCmd, tSqlExpr* pExpr,
   return TSDB_CODE_SUCCESS;
 }
 
-static int32_t validateSQLExprItemArithmeticExpr(SSqlCmd* pCmd, tSqlExpr* pExpr, SQueryInfo* pQueryInfo, SColumnList* pList,
+static int32_t validateSQLExprItemOperatorExpr(SSqlCmd* pCmd, tSqlExpr* pExpr, SQueryInfo* pQueryInfo, SColumnList* pList,
                                       int32_t* type, uint64_t* uid, int32_t* height) {
   uint64_t uidLeft = 0;
   uint64_t uidRight = 0;
@@ -4680,7 +4680,9 @@ static int32_t validateSQLExprItemArithmeticExpr(SSqlCmd* pCmd, tSqlExpr* pExpr,
 
   *height = (leftHeight > rightHeight) ? leftHeight + 1 : rightHeight+1;
   {
-    assert(leftType != SQLEXPR_TYPE_UNASSIGNED && rightType != SQLEXPR_TYPE_UNASSIGNED);
+    if (leftType == SQLEXPR_TYPE_UNASSIGNED || rightType == SQLEXPR_TYPE_UNASSIGNED) {
+      return invalidOperationMsg(tscGetErrorMsgPayload(pCmd), "invalid operand expression");
+    }
 
     // return invalid operation when one child aggregate and the other child scalar or column
     if ((leftType == SQLEXPR_TYPE_AGG && rightType == SQLEXPR_TYPE_SCALAR) || (rightType == SQLEXPR_TYPE_AGG && leftType == SQLEXPR_TYPE_SCALAR)) {
@@ -4708,6 +4710,11 @@ static int32_t validateSQLExprItemArithmeticExpr(SSqlCmd* pCmd, tSqlExpr* pExpr,
           rightType == SQLEXPR_TYPE_AGG || rightType == SQLEXPR_TYPE_SCALAR) {
         return invalidOperationMsg(tscGetErrorMsgPayload(pCmd), msg4);
       }
+    } else if (pExpr->tokenId == TK_ISNULL || pExpr->tokenId == TK_NOTNULL ||
+               pExpr->tokenId == TK_IS || pExpr->tokenId == TK_LIKE ||
+               pExpr->tokenId == TK_MATCH || pExpr->tokenId == TK_NMATCH ||
+               pExpr->tokenId == TK_CONTAINS || pExpr->tokenId == TK_IN) {
+        return invalidOperationMsg(tscGetErrorMsgPayload(pCmd), "unsupported filtering operations");
     }
   }
   return TSDB_CODE_SUCCESS;
@@ -4723,7 +4730,7 @@ static int32_t validateSQLExprItem(SSqlCmd* pCmd, tSqlExpr* pExpr,
     return TSDB_CODE_SUCCESS;
   }
   if (pExpr->type == SQL_NODE_EXPR) {
-    int32_t ret = validateSQLExprItemArithmeticExpr(pCmd, pExpr, pQueryInfo, pList, type, uid, height);
+    int32_t ret = validateSQLExprItemOperatorExpr(pCmd, pExpr, pQueryInfo, pList, type, uid, height);
     if (ret != TSDB_CODE_SUCCESS) {
       return ret;
     }
