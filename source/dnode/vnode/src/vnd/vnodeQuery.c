@@ -55,6 +55,8 @@ int vnodeProcessFetchReq(SVnode *pVnode, SRpcMsg *pMsg, SRpcMsg **pRsp) {
       //      return qWorkerProcessShowFetchMsg(pVnode->pMeta, pVnode->pQuery, pMsg);
     case TDMT_VND_TABLE_META:
       return vnodeGetTableMeta(pVnode, pMsg, pRsp);
+    case TDMT_VND_CONSUME:
+      return 0;
     default:
       vError("unknown msg type:%d in fetch queue", pMsg->msgType);
       return TSDB_CODE_VND_APP_ERROR;
