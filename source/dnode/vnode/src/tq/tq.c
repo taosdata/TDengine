@@ -608,6 +608,40 @@ int tqItemSSize() {
   return 0;
 }
 
+int32_t tqProcessConsume(STQ* pTq, SRpcMsg* pMsg, SRpcMsg **ppRsp) {
+  SMqCVConsumeReq* pReq = pMsg->pCont;
+  int64_t reqId = pReq->reqId;
+  int64_t clientId = pReq->clientId;
+  int64_t offset = pReq->offset;
+  int64_t blockingTime = pReq->blockingTime;
+
+  STqClientHandle* pHandle = tqHandleGet(pTq->tqMeta, clientId);
+  int8_t pos = offset % TQ_BUFFER_SIZE;
+  int8_t old = atomic_val_compare_exchange_8(&pHandle->buffer.output[pos].status, 0, 1);
+  if (old == 1) {
+    // do nothing
+  }
+  if (walReadWithHandle(pHandle->pReadhandle, offset) < 0) {
+    //TODO
+  }
+  SWalHead *pHead = pHandle->pReadhandle->pHead;
+  while (pHead->head.msgType != TDMT_VND_SUBMIT) {
+    // read until find TDMT_VND_SUBMIT
+  }
+  SSubmitMsg *pCont = (SSubmitMsg*)&pHead->head.body;
+
+  SSubQueryMsg* pQueryMsg = pHandle->buffer.output[pos].pMsg;
+
+  void* outputData;
+
+  atomic_store_8(&pHandle->buffer.output[pos].status, 1);
+  // launch query
+  // get result
+  // put into 
+  SMqCvConsumeRsp* pRsp;
+  return 0;
+}
+
 STqReadHandle* tqInitSubmitMsgScanner(SMeta* pMeta, SSubmitMsg *pMsg) {
   STqReadHandle* pReadHandle = malloc(sizeof(STqReadHandle));
   if (pReadHandle == NULL) {

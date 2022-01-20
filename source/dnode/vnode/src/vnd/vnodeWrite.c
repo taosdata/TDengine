@@ -110,6 +110,7 @@ int vnodeApplyWMsg(SVnode *pVnode, SRpcMsg *pMsg, SRpcMsg **pRsp) {
       }
       break;
     case TDMT_VND_MQ_SET_CONN: {
+      //TODO: wrap in a function
       char* reqStr = ptr;
       SMqSetCVgReq req;
       tDecodeSMqSetCVgReq(reqStr, &req);

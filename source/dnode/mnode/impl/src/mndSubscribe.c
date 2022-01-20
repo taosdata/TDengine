@@ -95,7 +95,7 @@ static int32_t mndProcessMqTimerMsg(SMnodeMsg *pMsg) {
         SMqConsumerEp *pCEp = taosArrayPop(pSub->unassignedVg);
         pCEp->consumerId = consumerId;
         taosArrayPush(pSub->assigned, pCEp);
-        pSub->nextConsumerIdx++;
+        pSub->nextConsumerIdx = (pSub->nextConsumerIdx+1) % taosArrayGetSize(pSub->availConsumer);
 
         // build msg
         SMqSetCVgReq req = {

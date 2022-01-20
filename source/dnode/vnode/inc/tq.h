@@ -27,6 +27,7 @@
 #include "trpc.h"
 #include "ttimer.h"
 #include "tutil.h"
+#include "wal.h"
 
 #ifdef __cplusplus
 extern "C" {
@@ -161,7 +162,8 @@ typedef struct STqGroup {
 } STqGroup;
 
 typedef struct STqTaskItem {
-  int32_t       status;
+  int8_t       status;
+  int64_t       offset;
   void*         dst;
   SSubQueryMsg* pMsg;
 } STqTaskItem;
@@ -183,6 +185,7 @@ typedef struct STqClientHandle {
   int64_t   committedOffset;
   int64_t   currentOffset;
   STqBuffer buffer;
+  SWalReadHandle* pReadhandle;
 } STqClientHandle;
 
 typedef struct STqQueryMsg {
@@ -321,25 +324,20 @@ void tqClose(STQ*);
 // void* will be replace by a msg type
 int tqPushMsg(STQ*, void* msg, int64_t version);
 int tqCommit(STQ*);
-int tqConsume(STQ*, SRpcMsg* pReq, SRpcMsg** pRsp);
 
+#if 0
+int tqConsume(STQ*, SRpcMsg* pReq, SRpcMsg** pRsp);
 int tqSetCursor(STQ*, STqSetCurReq* pMsg);
 int tqBufferSetOffset(STqTopic*, int64_t offset);
-
 STqTopic* tqFindTopic(STqGroup*, int64_t topicId);
-
 STqGroup* tqGetGroup(STQ*, int64_t clientId);
-
 STqGroup* tqOpenGroup(STQ*, int64_t topicId, int64_t cgId, int64_t cId);
 int       tqCloseGroup(STQ*, int64_t topicId, int64_t cgId, int64_t cId);
 int       tqRegisterContext(STqGroup*, void* ahandle);
 int       tqSendLaunchQuery(STqMsgItem*, int64_t offset);
+#endif
 
-int tqSerializeGroup(const STqGroup*, STqSerializedHead**);
-
-const void* tqDeserializeGroup(const STqSerializedHead*, STqGroup**);
-
-static int tqQueryExecuting(int32_t status) { return status; }
+int32_t tqProcessConsume(STQ* pTq, SRpcMsg *pMsg, SRpcMsg **ppRsp);
 
 typedef struct STqReadHandle {
   int64_t        ver;
@@ -349,9 +347,6 @@ typedef struct STqReadHandle {
   SSubmitBlkIter blkIter;
   SMeta*         pMeta;
 } STqReadHandle;
-
-typedef struct SSubmitBlkScanInfo {
-} SSubmitBlkScanInfo;
 
 STqReadHandle* tqInitSubmitMsgScanner(SMeta* pMeta, SSubmitMsg* pMsg);
 bool           tqNextDataBlock(STqReadHandle* pHandle);

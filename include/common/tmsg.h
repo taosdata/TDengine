@@ -1527,7 +1527,6 @@ typedef struct SMqSetCVgReq {
   SArray* tasks;  // SArray<SSubQueryMsg>
 } SMqSetCVgReq;
 
-
 static FORCE_INLINE int32_t tEncodeSMqSetCVgReq(void** buf, const SMqSetCVgReq* pReq) {
   int32_t tlen = 0;
   tlen += taosEncodeFixedI32(buf, pReq->vgId);
@@ -1552,10 +1551,18 @@ static FORCE_INLINE void* tDecodeSMqSetCVgReq(void* buf, SMqSetCVgReq* pReq) {
   return buf;
 }
 
+typedef struct SMqSetCVgRsp {
+  int32_t vgId;
+  int64_t consumerId;
+  char    topicName[TSDB_TOPIC_FNAME_LEN];
+  char    cGroup[TSDB_CONSUMER_GROUP_LEN];
+} SMqSetCVgRsp;
+
 typedef struct SMqCVConsumeReq {
   int64_t reqId;
   int64_t offset;
   int64_t clientId;
+  int64_t blockingTime;
   char    topicName[TSDB_TOPIC_FNAME_LEN];
   char    cgroup[TSDB_CONSUMER_GROUP_LEN];
 } SMqCVConsumeReq;
