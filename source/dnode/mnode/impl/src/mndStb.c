@@ -839,14 +839,12 @@ static int32_t mndRetrieveStb(SMnodeMsg *pReq, SShowObj *pShow, char *data, int3
   SStbObj *pStb = NULL;
   int32_t  cols = 0;
   char    *pWrite;
-  char     prefix[64] = {0};
+  char     prefix[TSDB_DB_FNAME_LEN] = {0};
 
   SDbObj *pDb = mndAcquireDb(pMnode, pShow->db);
-  if (pDb == NULL) {
-    return TSDB_CODE_MND_INVALID_DB;
-  }
+  if (pDb == NULL) return 0;
 
-  tstrncpy(prefix, pShow->db, 64);
+  tstrncpy(prefix, pShow->db, TSDB_DB_FNAME_LEN);
   strcat(prefix, TS_PATH_DELIMITER);
   int32_t prefixLen = (int32_t)strlen(prefix);
 

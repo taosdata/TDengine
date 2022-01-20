@@ -22,7 +22,6 @@
 #include "taoserror.h"
 #include "tcoding.h"
 #include "tfs.h"
-#include "tglobal.h"
 #include "thash.h"
 #include "tlog.h"
 

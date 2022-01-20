@@ -141,6 +141,7 @@ const char *tfsGetDiskPath(STfs *pTfs, SDiskID diskId) { return TFS_DISK_AT(pTfs
 
 void tfsInitFile(STfs *pTfs, STfsFile *pFile, SDiskID diskId, const char *rname) {
   STfsDisk *pDisk = TFS_DISK_AT(pTfs, diskId);
+  if (pDisk == NULL) return;
 
   pFile->did = diskId;
   tstrncpy(pFile->rname, rname, TSDB_FILENAME_LEN);
@@ -197,9 +198,7 @@ void tfsDirname(const STfsFile *pFile, char *dest) {
   tstrncpy(dest, dirname(tname), TSDB_FILENAME_LEN);
 }
 
-int32_t tfsRemoveFile(const STfsFile *pFile) {
-  return remove(pFile->aname);
-}
+int32_t tfsRemoveFile(const STfsFile *pFile) { return remove(pFile->aname); }
 
 int32_t tfsCopyFile(const STfsFile *pFile1, const STfsFile *pFile2) {
   return taosCopyFile(pFile1->aname, pFile2->aname);
@@ -291,6 +290,8 @@ int32_t tfsRename(STfs *pTfs, char *orname, char *nrname) {
       snprintf(oaname, TMPNAME_LEN, "%s%s%s", pDisk->path, TD_DIRSEP, orname);
       snprintf(naname, TMPNAME_LEN, "%s%s%s", pDisk->path, TD_DIRSEP, nrname);
       if (taosRenameFile(oaname, naname) != 0) {
+        terrno = TAOS_SYSTEM_ERROR(errno);
+        fError("failed to rename %s to %s since %s", oaname, naname, terrstr());
         return -1;
       }
     }
@@ -330,7 +331,12 @@ const STfsFile *tfsReaddir(STfsDir *pDir) {
       // Skip . and ..
       if (strcmp(dp->d_name, ".") == 0 || strcmp(dp->d_name, "..") == 0) continue;
 
-      snprintf(bname, TMPNAME_LEN * 2, "%s%s%s", pDir->dirname, TD_DIRSEP, dp->d_name);
+      if (pDir->dirname == NULL || pDir->dirname[0] == 0) {
+        snprintf(bname, TMPNAME_LEN * 2, "%s", dp->d_name);
+      } else {
+        snprintf(bname, TMPNAME_LEN * 2, "%s%s%s", pDir->dirname, TD_DIRSEP, dp->d_name);
+      }
+
       tfsInitFile(pDir->pTfs, &pDir->tfile, pDir->did, bname);
       return &pDir->tfile;
     }
@@ -402,8 +408,7 @@ static int32_t tfsCheckAndFormatCfg(STfs *pTfs, SDiskCfg *pCfg) {
   }
 
   if (tfsFormatDir(pCfg->dir, dirName) < 0) {
-    fError("failed to mount %s to FS since invalid dir format", pCfg->dir);
-    terrno = TSDB_CODE_FS_INVLD_CFG;
+    fError("failed to mount %s to FS since %s", pCfg->dir, terrstr());
     return -1;
   }
 
@@ -501,7 +506,11 @@ static int32_t tfsOpendirImpl(STfs *pTfs, STfsDir *pDir) {
     pDir->did.level = pDisk->level;
     pDir->did.id = pDisk->id;
 
-    snprintf(adir, TMPNAME_LEN * 2, "%s%s%s", pDisk->path, TD_DIRSEP, pDir->dirname);
+    if (pDisk->path == NULL || pDisk->path[0] == 0) {
+      snprintf(adir, TMPNAME_LEN * 2, "%s", pDir->dirname);
+    } else {
+      snprintf(adir, TMPNAME_LEN * 2, "%s%s%s", pDisk->path, TD_DIRSEP, pDir->dirname);
+    }
     pDir->dir = opendir(adir);
     if (pDir->dir != NULL) break;
   }

@@ -78,8 +78,8 @@ if $data02 != master then
   return -1
 endi
 
-print =============== create table
-sql create database d1;
+print =============== create database
+sql create database d1 vgroups 4;
 sql create database d2;
 
 sql show databases
@@ -90,9 +90,97 @@ endi
 sql use d1
 sql show vgroups;
 
-if $rows != 2 then 
+if $rows != 4 then 
   return -1
 endi
+
+print =============== create table
+sql use d1
+
+sql create table st (ts timestamp, i int) tags (j int)
+sql show stables
+if $rows != 1 then 
+  return -1
+endi
+
+print $data00 $data01 $data02
+
+sql create table c1 using st tags(1)
+sql create table c2 using st tags(2) 
+sql create table c3 using st tags(2) 
+sql create table c4 using st tags(2) 
+sql create table c5 using st tags(2) 
+
+sql show tables
+print $data00 $data01 $data02
+
+#if $rows != 5 then 
+#  return -1
+#endi
+
+print =============== insert data
+sql insert into c1 values(now+1s, 1)
+sql insert into c1 values(now+2s, 2)
+sql insert into c1 values(now+3s, 3)
+sql insert into c2 values(now+1s, 1)
+sql insert into c2 values(now+2s, 2)
+sql insert into c2 values(now+3s, 3)
+sql insert into c3 values(now+1s, 1)
+sql insert into c3 values(now+2s, 2)
+sql insert into c3 values(now+3s, 3)
+sql insert into c4 values(now+1s, 1)
+sql insert into c4 values(now+2s, 2)
+sql insert into c4 values(now+3s, 3)
+sql insert into c5 values(now+1s, 1)
+sql insert into c5 values(now+2s, 2)
+sql insert into c5 values(now+3s, 3)
+
+print =============== query data
+sql select * from c1
+if $rows != 3 then 
+  return -1
+endi
+
+print $data00 $data01
+print $data10 $data11
+print $data20 $data11
+
+if $data01 != 1 then 
+  return -1
+endi
+
+if $data11 != 2 then 
+  return -1
+endi
+
+if $data21 != 3 then 
+  return -1
+endi
+
+sql select * from c2
+if $rows != 3 then 
+  return -1
+endi
+
+sql select * from c3
+if $rows != 3 then 
+  return -1
+endi
+
+sql select * from c4
+if $rows != 3 then 
+  return -1
+endi
+
+sql select * from c5
+if $rows != 3 then 
+  return -1
+endi
+
+#sql select * from st
+#if $rows != 15 then 
+#  return -1
+#endi
 
 print =============== drop dnode
 sql drop dnode 2;
