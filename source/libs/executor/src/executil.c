@@ -168,16 +168,14 @@ void clearResultRow(STaskRuntimeEnv *pRuntimeEnv, SResultRow *pResultRow, int16_
 }
 
 // TODO refactor: use macro
-struct SResultRowEntryInfo* getResultCell(const SResultRow* pRow, int32_t index, int32_t* offset) {
+SResultRowEntryInfo* getResultCell(const SResultRow* pRow, int32_t index, int32_t* offset) {
   assert(index >= 0 && offset != NULL);
-//  return (SResultRowEntryInfo*)((char*) pRow->pCellInfo + offset[index]);
-return NULL;
+  return (SResultRowEntryInfo*)((char*) pRow->pEntryInfo + offset[index]);
 }
 
-size_t getResultRowSize(STaskRuntimeEnv* pRuntimeEnv) {
-  STaskAttr* pQueryAttr = pRuntimeEnv->pQueryAttr;
-  return 0;
-//  return (pQueryAttr->numOfOutput * sizeof(SResultRowEntryInfo)) + pQueryAttr->interBufSize + sizeof(SResultRow);
+size_t getResultRowSize(SArray* pExprInfo) {
+  size_t numOfOutput = taosArrayGetSize(pExprInfo);
+  return (numOfOutput * sizeof(SResultRowEntryInfo)) + /*pQueryAttr->interBufSize +*/ sizeof(SResultRow);
 }
 
 SResultRowPool* initResultRowPool(size_t size) {

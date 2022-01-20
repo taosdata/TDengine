@@ -13,9 +13,10 @@
  * along with this program. If not, see <http://www.gnu.org/licenses/>.
  */
 
+#include <function.h>
+#include "function.h"
 #include "os.h"
 #include "parser.h"
-#include "function.h"
 #include "plannerInt.h"
 
 typedef struct SFillEssInfo {
@@ -197,23 +198,23 @@ static SQueryPlanNode* doAddTableColumnNode(const SQueryStmtInfo* pQueryInfo, SQ
   SQueryPlanNode*  pNode = createQueryNode(QNODE_TABLESCAN, "TableScan", NULL, 0, NULL, 0, info);
 
   if (!pQueryInfo->info.projectionQuery) {
-    STableMetaInfo* pTableMetaInfo1 = getMetaInfo(pQueryInfo, 0);
+    SArray* p = pQueryInfo->exprList[0];
 
     // table source column projection, generate the projection expr
-    int32_t     numOfCols = (int32_t) taosArrayGetSize(tableCols);
-    SExprInfo** pExpr = calloc(numOfCols, POINTER_BYTES);
-    for (int32_t i = 0; i < numOfCols; ++i) {
-      SColumn* pCol = taosArrayGetP(tableCols, i);
+    int32_t numOfCols = (int32_t) taosArrayGetSize(tableCols);
 
-      SSourceParam param = {0};
-      addIntoSourceParam(&param, NULL, pCol);
-      SSchema s = createSchema(pCol->info.type, pCol->info.bytes, pCol->info.colId, pCol->name);
-      SExprInfo* p = createExprInfo(pTableMetaInfo1, "project", &param, &s, 0);
-      pExpr[i] = p;
+    pNode->numOfExpr = numOfCols;
+    pNode->pExpr = taosArrayInit(numOfCols, POINTER_BYTES);
+    for(int32_t i = 0; i < numOfCols; ++i) {
+      SExprInfo* pExprInfo = taosArrayGetP(p, i);
+      SColumn* pCol = pExprInfo->base.pColumns;
+
+      SSchema schema = createSchema(pCol->info.type, pCol->info.bytes, pCol->info.colId, pCol->name);
+
+      tExprNode* pExprNode = pExprInfo->pExpr->_function.pChild[0];
+      SExprInfo* px = createBinaryExprInfo(pExprNode, &schema);
+      taosArrayPush(pNode->pExpr, &px);
     }
-
-    pNode = createQueryNode(QNODE_PROJECT, "Projection", &pNode, 1, pExpr, numOfCols, NULL);
-    tfree(pExpr);
   }
 
   return pNode;

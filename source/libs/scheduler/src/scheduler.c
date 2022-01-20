@@ -1217,7 +1217,7 @@ int32_t schLaunchTask(SSchJob *pJob, SSchTask *pTask) {
       SCH_ERR_JRET(code);
     }
 
-    printf("physical plan:%s\n", pTask->msg);
+//    printf("physical plan:%s\n", pTask->msg);
   }
   
   SCH_ERR_JRET(schSetTaskCandidateAddrs(pJob, pTask));

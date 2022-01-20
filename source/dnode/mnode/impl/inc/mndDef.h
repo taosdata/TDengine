@@ -230,7 +230,7 @@ typedef struct {
   char    acct[TSDB_USER_LEN];
   int64_t createdTime;
   int64_t updateTime;
-  int64_t uid;
+  uint64_t uid;
   int32_t cfgVersion;
   int32_t vgVersion;
   int8_t  hashMethod;  // default is 1
@@ -354,6 +354,7 @@ typedef struct SMqSubscribeObj {
   char    key[TSDB_SUBSCRIBE_KEY_LEN];
   int32_t epoch;
   //TODO: replace with priority queue
+  int32_t nextConsumerIdx;
   SArray* availConsumer;        // SArray<int64_t> (consumerId)
   SArray* assigned;             // SArray<SMqConsumerEp>
   SArray* unassignedConsumer;   // SArray<SMqConsumerEp>

@@ -4379,6 +4379,24 @@ int32_t functionCompatList[] = {
     6,          8,        7,
 };
 
+//typedef struct SFunctionFpSet {
+//  bool (*init)(struct SQLFunctionCtx *pCtx, struct SResultRowEntryInfo* pResultCellInfo);  // setup the execute environment
+//  void (*addInput)(struct SQLFunctionCtx *pCtx);
+//
+//  // finalizer must be called after all exec has been executed to generated final result.
+//  void (*finalize)(struct SQLFunctionCtx *pCtx);
+//  void (*combine)(struct SQLFunctionCtx *pCtx);
+//} SFunctionFpSet;
+
+SFunctionFpSet fpSet[1] = {
+    {
+      .init = function_setup,
+      .addInput = count_function,
+      .finalize = doFinalizer,
+      .combine = count_func_merge,
+    }
+};
+
 SAggFunctionInfo aggFunc[35] = {{
                               // 0, count function does not invoke the finalize function
                               "count",
@@ -4835,3 +4853,9 @@ SAggFunctionInfo aggFunc[35] = {{
                               statisRequired,
                           }
                           };
+
+FuncDef defineCount() {
+  FuncDef def = createFuncDef("count", 1);
+  // todo define signature
+  return setExecFuncs(def, NULL, function_setup, count_function, doFinalizer);
+}

@@ -1090,6 +1090,10 @@ static FORCE_INLINE void* tDeserializeSMVSubscribeReq(void* buf, SMVSubscribeReq
   return buf;
 }
 
+typedef struct SMqTmrMsg {
+  int32_t reserved;
+} SMqTmrMsg;
+
 typedef struct {
   int64_t status;
 } SMVSubscribeRsp;
@@ -1517,20 +1521,19 @@ typedef struct SMqSetCVgReq {
   int32_t vgId;
   int64_t consumerId;
   char    topicName[TSDB_TOPIC_FNAME_LEN];
-  char    cGroup[TSDB_CONSUMER_GROUP_LEN];
+  char    cgroup[TSDB_CONSUMER_GROUP_LEN];
   char*   sql;
   char*   logicalPlan;
   char*   physicalPlan;
   SArray* tasks;  // SArray<SSubQueryMsg>
 } SMqSetCVgReq;
 
-
 static FORCE_INLINE int32_t tEncodeSMqSetCVgReq(void** buf, const SMqSetCVgReq* pReq) {
   int32_t tlen = 0;
   tlen += taosEncodeFixedI32(buf, pReq->vgId);
   tlen += taosEncodeFixedI64(buf, pReq->consumerId);
   tlen += taosEncodeString(buf, pReq->topicName);
-  tlen += taosEncodeString(buf, pReq->cGroup);
+  tlen += taosEncodeString(buf, pReq->cgroup);
   tlen += taosEncodeString(buf, pReq->sql);
   tlen += taosEncodeString(buf, pReq->logicalPlan);
   tlen += taosEncodeString(buf, pReq->physicalPlan);
@@ -1541,7 +1544,7 @@ static FORCE_INLINE void* tDecodeSMqSetCVgReq(void* buf, SMqSetCVgReq* pReq) {
   buf = taosDecodeFixedI32(buf, &pReq->vgId);
   buf = taosDecodeFixedI64(buf, &pReq->consumerId);
   buf = taosDecodeStringTo(buf, pReq->topicName);
-  buf = taosDecodeStringTo(buf, pReq->cGroup);
+  buf = taosDecodeStringTo(buf, pReq->cgroup);
   buf = taosDecodeString(buf, &pReq->sql);
   buf = taosDecodeString(buf, &pReq->logicalPlan);
   buf = taosDecodeString(buf, &pReq->physicalPlan);
@@ -1549,6 +1552,39 @@ static FORCE_INLINE void* tDecodeSMqSetCVgReq(void* buf, SMqSetCVgReq* pReq) {
   return buf;
 }
 
+typedef struct SMqSetCVgRsp {
+  int32_t vgId;
+  int64_t consumerId;
+  char    topicName[TSDB_TOPIC_FNAME_LEN];
+  char    cGroup[TSDB_CONSUMER_GROUP_LEN];
+} SMqSetCVgRsp;
+
+typedef struct SMqCVConsumeReq {
+  int64_t reqId;
+  int64_t offset;
+  int64_t consumerId;
+  int64_t blockingTime;
+  char    topicName[TSDB_TOPIC_FNAME_LEN];
+  char    cgroup[TSDB_CONSUMER_GROUP_LEN];
+} SMqCVConsumeReq;
+
+typedef struct SMqConsumeRspBlock {
+  int32_t bodyLen;
+  char topicName[TSDB_TOPIC_FNAME_LEN];
+  char body[];
+} SMqConsumeRspBlock;
+
+typedef struct SMqCVConsumeRsp {
+  int64_t reqId;
+  int64_t clientId;
+  int64_t committedOffset;
+  int64_t receiveOffset;
+  int64_t rspOffset;
+  int32_t skipLogNum;
+  int32_t bodyLen;
+  char    topicName[TSDB_TOPIC_FNAME_LEN];
+  SMqConsumeRspBlock blocks[];
+} SMqCvConsumeRsp;
 
 #ifdef __cplusplus
 }
