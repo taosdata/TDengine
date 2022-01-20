@@ -464,7 +464,7 @@ static int32_t mndProcessSubscribeReq(SMnodeMsg *pMsg) {
       }
       taosArrayPush(pSub->availConsumer, &consumerId);
 
-      //TODO: no need
+      // TODO: no need
       SMqConsumerTopic *pConsumerTopic = tNewConsumerTopic(consumerId, pTopic, pSub);
       taosArrayPush(pConsumer->topics, pConsumerTopic);
 
@@ -542,7 +542,10 @@ static int32_t mndProcessSubscribeReq(SMnodeMsg *pMsg) {
   return 0;
 }
 
-static int32_t mndProcessSubscribeInternalRsp(SMnodeMsg *pMsg) { return 0; }
+static int32_t mndProcessSubscribeInternalRsp(SMnodeMsg *pRsp) {
+  mndTransProcessRsp(pRsp);
+  return 0;
+}
 
 static int32_t mndProcessConsumerMetaMsg(SMnodeMsg *pMsg) {
   SMnode        *pMnode = pMsg->pMnode;
