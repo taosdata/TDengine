@@ -162,7 +162,7 @@ typedef struct STqGroup {
 } STqGroup;
 
 typedef struct STqTaskItem {
-  int8_t       status;
+  int8_t        status;
   int64_t       offset;
   void*         dst;
   SSubQueryMsg* pMsg;
@@ -175,18 +175,22 @@ typedef struct STqBuffer {
   STqTaskItem output[TQ_BUFFER_SIZE];
 } STqBuffer;
 
-typedef struct STqClientHandle {
-  int64_t   clientId;
-  char      topicName[TSDB_TOPIC_FNAME_LEN];
-  char      cGroup[TSDB_TOPIC_FNAME_LEN];
-  char*     sql;
-  char*     logicalPlan;
-  char*     physicalPlan;
-  int64_t   committedOffset;
-  int64_t   currentOffset;
-  STqBuffer buffer;
+typedef struct STqTopicHandle {
+  char            topicName[TSDB_TOPIC_FNAME_LEN];
+  char            cGroup[TSDB_TOPIC_FNAME_LEN];
+  char*           sql;
+  char*           logicalPlan;
+  char*           physicalPlan;
+  int64_t         committedOffset;
+  int64_t         currentOffset;
+  STqBuffer       buffer;
   SWalReadHandle* pReadhandle;
-} STqClientHandle;
+} STqTopicHandle;
+
+typedef struct STqConsumerHandle {
+  int64_t consumerId;
+  SArray* topics;  // SArray<STqClientTopic>
+} STqConsumerHandle;
 
 typedef struct STqQueryMsg {
   STqMsgItem*         item;
@@ -337,7 +341,7 @@ int       tqRegisterContext(STqGroup*, void* ahandle);
 int       tqSendLaunchQuery(STqMsgItem*, int64_t offset);
 #endif
 
-int32_t tqProcessConsume(STQ* pTq, SRpcMsg *pMsg, SRpcMsg **ppRsp);
+int32_t tqProcessConsume(STQ* pTq, SRpcMsg* pMsg, SRpcMsg** ppRsp);
 
 typedef struct STqReadHandle {
   int64_t        ver;

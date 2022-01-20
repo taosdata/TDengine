@@ -1561,7 +1561,7 @@ typedef struct SMqSetCVgRsp {
 typedef struct SMqCVConsumeReq {
   int64_t reqId;
   int64_t offset;
-  int64_t clientId;
+  int64_t consumerId;
   int64_t blockingTime;
   char    topicName[TSDB_TOPIC_FNAME_LEN];
   char    cgroup[TSDB_CONSUMER_GROUP_LEN];
