@@ -260,6 +260,7 @@ resultFile:                 ./output.txt
 thread num of insert data:  10
 thread num of create table: 10
 top insert interval:        0
+```
 
 使用 curl 命令验证 RESTful 接口可以正常工作：
 
