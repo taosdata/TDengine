@@ -1520,7 +1520,7 @@ typedef struct SMqSetCVgReq {
   int32_t vgId;
   int64_t consumerId;
   char    topicName[TSDB_TOPIC_FNAME_LEN];
-  char    cGroup[TSDB_CONSUMER_GROUP_LEN];
+  char    cgroup[TSDB_CONSUMER_GROUP_LEN];
   char*   sql;
   char*   logicalPlan;
   char*   physicalPlan;
@@ -1532,7 +1532,7 @@ static FORCE_INLINE int32_t tEncodeSMqSetCVgReq(void** buf, const SMqSetCVgReq* 
   tlen += taosEncodeFixedI32(buf, pReq->vgId);
   tlen += taosEncodeFixedI64(buf, pReq->consumerId);
   tlen += taosEncodeString(buf, pReq->topicName);
-  tlen += taosEncodeString(buf, pReq->cGroup);
+  tlen += taosEncodeString(buf, pReq->cgroup);
   tlen += taosEncodeString(buf, pReq->sql);
   tlen += taosEncodeString(buf, pReq->logicalPlan);
   tlen += taosEncodeString(buf, pReq->physicalPlan);
@@ -1543,7 +1543,7 @@ static FORCE_INLINE void* tDecodeSMqSetCVgReq(void* buf, SMqSetCVgReq* pReq) {
   buf = taosDecodeFixedI32(buf, &pReq->vgId);
   buf = taosDecodeFixedI64(buf, &pReq->consumerId);
   buf = taosDecodeStringTo(buf, pReq->topicName);
-  buf = taosDecodeStringTo(buf, pReq->cGroup);
+  buf = taosDecodeStringTo(buf, pReq->cgroup);
   buf = taosDecodeString(buf, &pReq->sql);
   buf = taosDecodeString(buf, &pReq->logicalPlan);
   buf = taosDecodeString(buf, &pReq->physicalPlan);
