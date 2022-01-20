@@ -165,6 +165,7 @@ typedef struct SQLFunctionCtx {
   SPoint1      start;
   SPoint1      end;
 
+  int32_t      columnIndex;
   SFunctionFpSet* fpSet;
 } SQLFunctionCtx;
 

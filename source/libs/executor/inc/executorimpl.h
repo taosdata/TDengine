@@ -414,6 +414,10 @@ typedef struct STagScanInfo {
   int32_t      curPos;
 } STagScanInfo;
 
+typedef struct SStreamBlockScanInfo {
+
+} SStreamBlockScanInfo;
+
 typedef struct SOptrBasicInfo {
   SResultRowInfo    resultRowInfo;
   int32_t          *rowCellInfoOffset;  // offset value for each row result cell info
@@ -554,13 +558,12 @@ typedef struct SOrderOperatorInfo {
   SSDataBlock *pDataBlock;
 } SOrderOperatorInfo;
 
-void appendUpstream(SOperatorInfo* p, SOperatorInfo* pUpstream);
-
 SOperatorInfo* createExchangeOperatorInfo(const SArray* pSources, const SArray* pSchema, SExecTaskInfo* pTaskInfo);
 
 SOperatorInfo* createDataBlocksOptScanInfo(void* pTsdbReadHandle, int32_t order, int32_t numOfOutput, int32_t repeatTime, int32_t reverseTime, SExecTaskInfo* pTaskInfo);
 SOperatorInfo* createTableScanOperatorInfo(void* pTsdbReadHandle, int32_t order, int32_t numOfOutput, int32_t repeatTime, SExecTaskInfo* pTaskInfo);
 SOperatorInfo* createTableSeqScanOperator(void* pTsdbReadHandle, STaskRuntimeEnv* pRuntimeEnv);
+SOperatorInfo* createSubmitBlockScanOperatorInfo(void *pSubmitBlockReadHandle, int32_t numOfOutput, SExecTaskInfo* pTaskInfo);
 
 SOperatorInfo* createAggregateOperatorInfo(SOperatorInfo* downstream, SArray* pExprInfo, SExecTaskInfo* pTaskInfo);
 SOperatorInfo* createProjectOperatorInfo(STaskRuntimeEnv* pRuntimeEnv, SOperatorInfo* downstream, SExprInfo* pExpr, int32_t numOfOutput);

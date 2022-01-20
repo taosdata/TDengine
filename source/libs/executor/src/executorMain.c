@@ -73,15 +73,7 @@ int32_t qCreateExecTask(void* tsdb, int32_t vgId, SSubplan* pSubplan, qTaskInfo_
   assert(tsdb != NULL && pSubplan != NULL);
   SExecTaskInfo** pTask = (SExecTaskInfo**)pTaskInfo;
 
-  int32_t     code = 0;
-  uint64_t    uid = 0;
-  STimeWindow window = TSWINDOW_INITIALIZER;
-  int32_t     tableType = 0;
-
-  SPhyNode*       pPhyNode = pSubplan->pNode;
-//  STableGroupInfo groupInfo = {0};
-
-  code = doCreateExecTaskInfo(pSubplan, pTask, tsdb);
+  int32_t code = doCreateExecTaskInfo(pSubplan, pTask, tsdb);
   if (code != TSDB_CODE_SUCCESS) {
     goto _error;
   }
