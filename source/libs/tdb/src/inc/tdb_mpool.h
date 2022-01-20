@@ -29,11 +29,11 @@ typedef struct TDB_MPFILE TDB_MPFILE;
 typedef struct {
   uint8_t fuid[TDB_FILE_UID_LEN];
   pgno_t  pgid;
-} mp_pgid_t;
+} pgid_t;
 
 typedef struct MP_PAGE {
   // SRWLatch  rwLatch;
-  mp_pgid_t mpgid;
+  pgid_t mpgid;
   uint8_t   dirty;
   uint8_t   fileid[TDB_FILE_UID_LEN];
   int32_t   pinRef;
@@ -50,7 +50,7 @@ struct TDB_MPOOL {
   int32_t      npages;
   MP_PAGE *    pages;
   MP_PAGE_LIST freeList;
-  // Hash<mp_pgid_t, frame_id_t>
+  // Hash<pgid_t, frame_id_t>
   int32_t       nbucket;
   MP_PAGE_LIST *hashtab;
   // TODO: TD_DLIST(TD_MPFILE) mpfList; // MPFILE registered on this memory pool
@@ -69,8 +69,8 @@ struct TDB_MPFILE {
 // TDB_MPOOL
 int tdbOpenMP(TDB_MPOOL **mpp, uint64_t cachesize, pgsize_t pgsize);
 int tdbCloseMP(TDB_MPOOL *mp);
-int tdbMPFetchPage(TDB_MPOOL *mp, mp_pgid_t mpgid, void *p);
-int tdbMpUnfetchPage(TDB_MPOOL *mp, mp_pgid_t mpgid, void *p);
+int tdbMPFetchPage(TDB_MPOOL *mp, pgid_t mpgid, void *p);
+int tdbMpUnfetchPage(TDB_MPOOL *mp, pgid_t mpgid, void *p);
 
 // TDB_MPFILE
 int tdbMPFOpen(TDB_MPFILE **mpfp, const char *fname, TDB_MPOOL *mp);
