@@ -229,42 +229,6 @@ int32_t qwBuildAndSendShowFetchRsp(SRpcMsg *pMsg, SVShowTablesFetchReq* pFetchRe
   return TSDB_CODE_SUCCESS;
 }
 
-
-int32_t qwBuildAndSendSchSinkMsg(SQWorkerMgmt *mgmt, uint64_t sId, uint64_t qId, uint64_t tId, void *connection) {
-  SRpcMsg *pMsg = (SRpcMsg *)connection;
-  SSinkDataReq * req = (SSinkDataReq *)rpcMallocCont(sizeof(SSinkDataReq));
-  if (NULL == req) {
-    qError("rpcMallocCont %d failed", (int32_t)sizeof(SSinkDataReq));
-    QW_ERR_RET(TSDB_CODE_QRY_OUT_OF_MEMORY);
-  }
-
-  req->header.vgId = mgmt->nodeId;
-  req->sId = sId;
-  req->queryId = qId;
-  req->taskId = tId;
-
-  SRpcMsg pNewMsg = {
-    .handle = pMsg->handle,
-    .ahandle = pMsg->ahandle, 
-    .msgType = TDMT_VND_SCHEDULE_DATA_SINK,
-    .pCont   = req,
-    .contLen = sizeof(SSinkDataReq),
-    .code    = 0,
-  };
-
-  int32_t code = (*mgmt->putToQueueFp)(mgmt->nodeObj, &pNewMsg);
-  if (TSDB_CODE_SUCCESS != code) {
-    qError("put data sink schedule msg to queue failed, code:%x", code);
-    rpcFreeCont(req);
-    QW_ERR_RET(code);
-  }
-
-  qDebug("put data sink schedule msg to query queue");
-
-  return TSDB_CODE_SUCCESS;
-}
-
-
 int32_t qwBuildAndSendCQueryMsg(SQWorkerMgmt *mgmt, uint64_t sId, uint64_t qId, uint64_t tId, void *connection) {
   SRpcMsg *pMsg = (SRpcMsg *)connection;
   SQueryContinueReq * req = (SQueryContinueReq *)rpcMallocCont(sizeof(SQueryContinueReq));
@@ -364,25 +328,6 @@ int32_t qWorkerProcessCQueryMsg(void *node, void *qWorkerMgmt, SRpcMsg *pMsg) {
   QW_SCH_TASK_DLOG("processCQuery end, node:%p", node);
 
   return TSDB_CODE_SUCCESS;    
-}
-
-
-
-int32_t qWorkerProcessDataSinkMsg(void *node, void *qWorkerMgmt, SRpcMsg *pMsg){
-  if (NULL == node || NULL == qWorkerMgmt || NULL == pMsg) {
-    return TSDB_CODE_QRY_INVALID_INPUT;
-  }
-
-  SSinkDataReq *msg = pMsg->pCont;
-  if (NULL == msg || pMsg->contLen < sizeof(*msg)) {
-    qError("invalid sink data msg");
-    QW_ERR_RET(TSDB_CODE_QRY_INVALID_INPUT);
-  }
-
-  //dsScheduleProcess();
-  //TODO
-
-  return TSDB_CODE_SUCCESS;
 }
 
 int32_t qWorkerProcessReadyMsg(void *node, void *qWorkerMgmt, SRpcMsg *pMsg){

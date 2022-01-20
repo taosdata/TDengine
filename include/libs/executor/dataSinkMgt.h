@@ -48,7 +48,6 @@ typedef struct SOutputData {
   int8_t  compressed;
   char*   pData;
   bool    queryEnd;
-  int32_t scheduleJobNo;
   int32_t bufStatus;
   int64_t useconds;
   int8_t  precision;
