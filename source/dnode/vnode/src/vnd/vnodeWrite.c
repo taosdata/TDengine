@@ -108,6 +108,15 @@ int vnodeApplyWMsg(SVnode *pVnode, SRpcMsg *pMsg, SRpcMsg **pRsp) {
         // TODO: handle error
       }
       break;
+    case TDMT_VND_MQ_SET_CONN: {
+      char* reqStr = ptr;
+      SMqSetCVgReq req;
+      /*tDecodeSMqSetCVgReq(reqStr, &req);*/
+      // create topic if not exist
+      // convert to task
+      // write mq meta
+    }
+      break;
     default:
       ASSERT(0);
       break;

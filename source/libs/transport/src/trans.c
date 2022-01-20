@@ -35,6 +35,7 @@ void* rpcOpen(const SRpcInit* pInit) {
   if (pInit->label) {
     tstrncpy(pRpc->label, pInit->label, strlen(pInit->label));
   }
+  pRpc->cfp = pInit->cfp;
   pRpc->numOfThreads = pInit->numOfThreads > TSDB_MAX_RPC_THREADS ? TSDB_MAX_RPC_THREADS : pInit->numOfThreads;
   pRpc->connType = pInit->connType;
   pRpc->tcphandle = (*taosHandle[pRpc->connType])(0, pInit->localPort, pRpc->label, pRpc->numOfThreads, NULL, pRpc);

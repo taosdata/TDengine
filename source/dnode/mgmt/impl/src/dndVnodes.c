@@ -381,7 +381,7 @@ static void *dnodeOpenVnodeFunc(void *param) {
              pMgmt->openVnodes, pMgmt->totalVnodes);
     dndReportStartup(pDnode, "open-vnodes", stepDesc);
 
-    SVnodeCfg cfg = {.pDnode = pDnode, .vgId = pCfg->vgId};
+    SVnodeCfg cfg = {.pDnode = pDnode, .pTfs = pDnode->pTfs, .vgId = pCfg->vgId};
     SVnode   *pImpl = vnodeOpen(pCfg->path, &cfg);
     if (pImpl == NULL) {
       dError("vgId:%d, failed to open vnode by thread:%d", pCfg->vgId, pThread->threadIndex);
@@ -587,6 +587,7 @@ int32_t dndProcessCreateVnodeReq(SDnode *pDnode, SRpcMsg *pReq) {
   }
 
   vnodeCfg.pDnode = pDnode;
+  vnodeCfg.pTfs = pDnode->pTfs;
   SVnode *pImpl = vnodeOpen(wrapperCfg.path, &vnodeCfg);
   if (pImpl == NULL) {
     dError("vgId:%d, failed to create vnode since %s", pCreate->vgId, terrstr());

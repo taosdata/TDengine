@@ -50,6 +50,7 @@ struct STsdb {
   SMemAllocatorFactory *pmaf;
   STsdbFS *             fs;
   SMeta *               pMeta;
+  STfs *                pTfs;
 };
 
 #define REPO_ID(r) ((r)->vgId)

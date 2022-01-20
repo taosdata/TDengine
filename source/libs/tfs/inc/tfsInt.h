@@ -33,47 +33,69 @@ extern int32_t fsDebugFlag;
 #define fError(...) { if (fsDebugFlag & DEBUG_ERROR) { taosPrintLog("TFS ERROR ", 255, __VA_ARGS__); }}
 #define fWarn(...)  { if (fsDebugFlag & DEBUG_WARN)  { taosPrintLog("TFS WARN ", 255, __VA_ARGS__); }}
 #define fInfo(...)  { if (fsDebugFlag & DEBUG_INFO)  { taosPrintLog("TFS ", 255, __VA_ARGS__); }}
-#define fDebug(...) { if (fsDebugFlag & DEBUG_DEBUG) { taosPrintLog("TFS ", cqDebugFlag, __VA_ARGS__); }}
-#define fTrace(...) { if (fsDebugFlag & DEBUG_TRACE) { taosPrintLog("TFS ", cqDebugFlag, __VA_ARGS__); }}
+#define fDebug(...) { if (fsDebugFlag & DEBUG_DEBUG) { taosPrintLog("TFS ", fsDebugFlag, __VA_ARGS__); }}
+#define fTrace(...) { if (fsDebugFlag & DEBUG_TRACE) { taosPrintLog("TFS ", fsDebugFlag, __VA_ARGS__); }}
 
-// Global Definitions
-#define TFS_MIN_DISK_FREE_SIZE 50 * 1024 * 1024
-
-typedef struct SDisk {
+typedef struct {
   int32_t   level;
   int32_t   id;
   char     *path;
   SDiskSize size;
-} SDisk;
+} STfsDisk;
 
-typedef struct STier {
+typedef struct {
   pthread_spinlock_t lock;
   int32_t            level;
-  int16_t            nextid;       // next disk id to allocate
-  int16_t            ndisk;        // # of disks mounted to this tier
-  int16_t            nAvailDisks;  // # of Available disks
-  SDisk             *disks[TSDB_MAX_DISKS_PER_TIER];
+  int32_t            nextid;       // next disk id to allocate
+  int32_t            ndisk;        // # of disks mounted to this tier
+  int32_t            nAvailDisks;  // # of Available disks
+  STfsDisk          *disks[TFS_MAX_DISKS_PER_TIER];
   SDiskSize          size;
-} STier;
+} STfsTier;
 
-#define TIER_LEVEL(pt) ((pt)->level)
-#define TIER_NDISKS(pt) ((pt)->ndisk)
-#define TIER_SIZE(pt) ((pt)->tmeta.size)
-#define TIER_FREE_SIZE(pt) ((pt)->tmeta.free)
+typedef struct {
+  STfsDisk *pDisk;
+} SDiskIter;
 
-#define DISK_AT_TIER(pt, id) ((pt)->disks[id])
-#define DISK_DIR(pd) ((pd)->path)
+typedef struct STfsDir {
+  SDiskIter iter;
+  SDiskID   did;
+  char      dirname[TSDB_FILENAME_LEN];
+  STfsFile  tfile;
+  DIR      *dir;
+  STfs     *pTfs;
+} STfsDir;
 
-SDisk  *tfsNewDisk(int32_t level, int32_t id, const char *dir);
-SDisk  *tfsFreeDisk(SDisk *pDisk);
-int32_t tfsUpdateDiskSize(SDisk *pDisk);
+typedef struct STfs {
+  pthread_spinlock_t lock;
+  SDiskSize          size;
+  int32_t            nlevel;
+  STfsTier           tiers[TFS_MAX_TIERS];
+  SHashObj          *hash;  // name to did map
+} STfs;
 
-int32_t tfsInitTier(STier *pTier, int32_t level);
-void    tfsDestroyTier(STier *pTier);
-SDisk  *tfsMountDiskToTier(STier *pTier, SDiskCfg *pCfg);
-void    tfsUpdateTierSize(STier *pTier);
-int32_t tfsAllocDiskOnTier(STier *pTier);
-void    tfsPosNextId(STier *pTier);
+STfsDisk *tfsNewDisk(int32_t level, int32_t id, const char *dir);
+STfsDisk *tfsFreeDisk(STfsDisk *pDisk);
+int32_t   tfsUpdateDiskSize(STfsDisk *pDisk);
+
+int32_t   tfsInitTier(STfsTier *pTier, int32_t level);
+void      tfsDestroyTier(STfsTier *pTier);
+STfsDisk *tfsMountDiskToTier(STfsTier *pTier, SDiskCfg *pCfg);
+void      tfsUpdateTierSize(STfsTier *pTier);
+int32_t   tfsAllocDiskOnTier(STfsTier *pTier);
+void      tfsPosNextId(STfsTier *pTier);
+
+#define tfsLockTier(pTier) pthread_spin_lock(&(pTier)->lock)
+#define tfsUnLockTier(pTier) pthread_spin_unlock(&(pTier)->lock)
+
+#define tfsLock(pTfs) pthread_spin_lock(&(pTfs)->lock)
+#define tfsUnLock(pTfs) pthread_spin_unlock(&(pTfs)->lock)
+
+#define TFS_TIER_AT(pTfs, level) (&(pTfs)->tiers[level])
+#define TFS_DISK_AT(pTfs, did) ((pTfs)->tiers[(did).level].disks[(did).id])
+#define TFS_PRIMARY_DISK(pTfs) ((pTfs)->tiers[0].disks[0])
+
+#define TMPNAME_LEN (TSDB_FILENAME_LEN * 2 + 32)
 
 #ifdef __cplusplus
 }

@@ -68,6 +68,25 @@ typedef void* queue[2];
     QUEUE_PREV_NEXT(e) = QUEUE_NEXT(e); \
     QUEUE_NEXT_PREV(e) = QUEUE_PREV(e); \
   }
+#define QUEUE_SPLIT(h, q, n)       \
+  do {                             \
+    QUEUE_PREV(n) = QUEUE_PREV(h); \
+    QUEUE_PREV_NEXT(n) = (n);      \
+    QUEUE_NEXT(n) = (q);           \
+    QUEUE_PREV(h) = QUEUE_PREV(q); \
+    QUEUE_PREV_NEXT(h) = (h);      \
+    QUEUE_PREV(q) = (n);           \
+  } while (0)
+
+#define QUEUE_MOVE(h, n)        \
+  do {                          \
+    if (QUEUE_IS_EMPTY(h)) {    \
+      QUEUE_INIT(n);            \
+    } else {                    \
+      queue* q = QUEUE_HEAD(h); \
+      QUEUE_SPLIT(h, q, n);     \
+    }                           \
+  } while (0)
 
 /* Return the element at the front of the queue. */
 #define QUEUE_HEAD(q) (QUEUE_NEXT(q))

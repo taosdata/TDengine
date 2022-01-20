@@ -186,8 +186,7 @@ static int tsdbCompactMeta(STsdbRepo *pRepo) {
       }
     } else {
       // Create new fset as compacted fset
-      tfsAllocDisk(tsdbGetFidLevel(pSet->fid, &(pComph->rtn)), &(did.level), &(did.id));
-      if (did.level == TFS_UNDECIDED_LEVEL) {
+      if (tfsAllocDisk(pRepo->pTfs, tsdbGetFidLevel(pSet->fid, &(pComph->rtn)), &did) < 0) {
         terrno = TSDB_CODE_TDB_NO_AVAIL_DISK;
         tsdbError("vgId:%d failed to compact FSET %d since %s", REPO_ID(pRepo), pSet->fid, tstrerror(terrno));
         tsdbCompactFSetEnd(pComph);
