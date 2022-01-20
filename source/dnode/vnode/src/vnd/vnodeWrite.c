@@ -14,6 +14,7 @@
  */
 
 #include "vnd.h"
+#include "tq.h"
 
 int vnodeProcessNoWalWMsgs(SVnode *pVnode, SRpcMsg *pMsg) {
   switch (pMsg->msgType) {
@@ -109,11 +110,40 @@ int vnodeApplyWMsg(SVnode *pVnode, SRpcMsg *pMsg, SRpcMsg **pRsp) {
       }
       break;
     case TDMT_VND_MQ_SET_CONN: {
+      //TODO: wrap in a function
       char* reqStr = ptr;
       SMqSetCVgReq req;
-      /*tDecodeSMqSetCVgReq(reqStr, &req);*/
-      // create topic if not exist
+      tDecodeSMqSetCVgReq(reqStr, &req);
+      STqConsumerHandle* pConsumer = calloc(sizeof(STqConsumerHandle), 1);
+      
+      STqTopicHandle* pTopic = calloc(sizeof(STqTopicHandle), 1);
+      if (pTopic == NULL) {
+        // TODO: handle error
+      }
+      strcpy(pTopic->topicName, req.topicName); 
+      strcpy(pTopic->cgroup, req.cGroup); 
+      strcpy(pTopic->sql, req.sql);
+      strcpy(pTopic->logicalPlan, req.logicalPlan);
+      strcpy(pTopic->physicalPlan, req.physicalPlan);
+      SArray *pArray;
+      //TODO: deserialize to SQueryDag
+      SQueryDag *pDag;
       // convert to task
+      if (schedulerConvertDagToTaskList(pDag, &pArray) < 0) {
+        // TODO: handle error
+      }
+      ASSERT(taosArrayGetSize(pArray) == 0);
+      STaskInfo *pInfo = taosArrayGet(pArray, 0);
+      SArray* pTasks;
+      schedulerCopyTask(pInfo, &pTasks, TQ_BUFFER_SIZE);
+      pTopic->buffer.firstOffset = -1;
+      pTopic->buffer.lastOffset = -1;
+      for (int i = 0; i < TQ_BUFFER_SIZE; i++) {
+        SSubQueryMsg* pMsg = taosArrayGet(pTasks, i);
+        pTopic->buffer.output[i].pMsg = pMsg;
+        pTopic->buffer.output[i].status = 0;
+      }
+      pTopic->pReadhandle = walOpenReadHandle(pVnode->pTq->pWal);
       // write mq meta
     }
       break;

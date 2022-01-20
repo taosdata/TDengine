@@ -55,8 +55,6 @@ int32_t mndInitSubscribe(SMnode *pMnode) {
                      .deleteFp = (SdbDeleteFp)mndSubActionDelete};
 
   mndSetMsgHandle(pMnode, TDMT_MND_SUBSCRIBE, mndProcessSubscribeReq);
-  /*mndSetMsgHandle(pMnode, TDMT_MND_SUBSCRIBE_RSP, mndProcessSubscribeRsp);*/
-  /*mndSetMsgHandle(pMnode, TDMT_VND_SUBSCRIBE, mndProcessSubscribeInternalReq);*/
   mndSetMsgHandle(pMnode, TDMT_VND_SUBSCRIBE_RSP, mndProcessSubscribeInternalRsp);
   mndSetMsgHandle(pMnode, TDMT_MND_MQ_TIMER, mndProcessMqTimerMsg);
   return sdbSetTable(pMnode->pSdb, table);
@@ -95,7 +93,7 @@ static int32_t mndProcessMqTimerMsg(SMnodeMsg *pMsg) {
         SMqConsumerEp *pCEp = taosArrayPop(pSub->unassignedVg);
         pCEp->consumerId = consumerId;
         taosArrayPush(pSub->assigned, pCEp);
-        pSub->nextConsumerIdx++;
+        pSub->nextConsumerIdx = (pSub->nextConsumerIdx + 1) % taosArrayGetSize(pSub->availConsumer);
 
         // build msg
         SMqSetCVgReq req = {
@@ -464,7 +462,7 @@ static int32_t mndProcessSubscribeReq(SMnodeMsg *pMsg) {
       }
       taosArrayPush(pSub->availConsumer, &consumerId);
 
-      //TODO: no need
+      // TODO: no need
       SMqConsumerTopic *pConsumerTopic = tNewConsumerTopic(consumerId, pTopic, pSub);
       taosArrayPush(pConsumer->topics, pConsumerTopic);
 
@@ -542,7 +540,10 @@ static int32_t mndProcessSubscribeReq(SMnodeMsg *pMsg) {
   return 0;
 }
 
-static int32_t mndProcessSubscribeInternalRsp(SMnodeMsg *pMsg) { return 0; }
+static int32_t mndProcessSubscribeInternalRsp(SMnodeMsg *pRsp) {
+  mndTransProcessRsp(pRsp);
+  return 0;
+}
 
 static int32_t mndProcessConsumerMetaMsg(SMnodeMsg *pMsg) {
   SMnode        *pMnode = pMsg->pMnode;
