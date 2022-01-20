@@ -113,8 +113,8 @@ function replace_community_power() {
   # packaging/tools/startPre.sh
   sed -i "s/serverName=\"taosd\"/serverName=\"powerd\"/g" ${top_dir}/packaging/tools/startPre.sh
   sed -i "s/logDir=\"\/var\/log\/taos\"/logDir=\"\/var\/log\/Power\"/g" ${top_dir}/packaging/tools/startPre.sh
-  # packaging/tools/run_taosd.sh
-  sed -i "s/taosd/powerd/g" ${top_dir}/packaging/tools/run_taosd.sh
+  # packaging/tools/run_taosd_and_taosadapter.sh
+  sed -i "s/taosd/powerd/g" ${top_dir}/packaging/tools/run_taosd_and_taosadapter.sh
   # packaging/tools/install.sh
   sed -i "s/clientName=\"taos\"/clientName=\"power\"/g" ${top_dir}/packaging/tools/install.sh
   sed -i "s/serverName=\"taosd\"/serverName=\"powerd\"/g" ${top_dir}/packaging/tools/install.sh

@@ -18,5 +18,5 @@ ENV LD_LIBRARY_PATH="$LD_LIBRARY_PATH:/usr/lib" \
     LC_ALL=en_US.UTF-8
 
 EXPOSE 6030 6031 6032 6033 6034 6035 6036 6037 6038 6039 6040 6041 6042
-CMD ["run_taosd.sh"]
+CMD ["taosd"]
 VOLUME [ "/var/lib/taos", "/var/log/taos","/etc/taos/" ]
