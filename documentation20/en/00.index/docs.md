@@ -35,6 +35,7 @@ TDengine is a highly efficient platform to store, query, and analyze time-series
 ## [Efficient Data Ingestion](/insert)
 
 - [Data Writing via SQL](/insert#sql): write one or multiple records into one or multiple tables via SQL insert command
+- [Data Writing via Schemaless](/insert#schemaless): write one or multiple records with automatic table creation and adaptive table structure maintenance
 - [Data Writing via Prometheus](/insert#prometheus): Configure Prometheus to write data directly without any code
 - [Data Writing via Telegraf](/insert#telegraf): Configure Telegraf to write collected data directly without any code
 - [Data Writing via EMQ X](/insert#emq): Configure EMQ X to write MQTT data directly without any code
@@ -83,7 +84,9 @@ TDengine is a highly efficient platform to store, query, and analyze time-series
 
 * [taosAdapter User Manual](/tools/adapter)
 * [TDinsight User Manual](/tools/insight)
-* [taos-tools User Manual](/tools/taos-tools)
+* [taosTools Install Manual](/tools/taos-tools)
+* [taosdump User Manual](/tools/taosdump)
+* [taosbenchmark User Manual](/tools/taosbenchmark)
 
 ## [Connections with Other Tools](/connections)
 

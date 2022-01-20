@@ -356,10 +356,3 @@ select last_row(voltage) from meters where location='Beijing.Chaoyang';
 ```
 
 该SQL语句将获取所有位于北京朝阳区的电表最后记录的电压值。
-
-
-## <a class="anchor" id="alert"></a>报警监测（Alert）
-
-在 TDengine 的应用场景中，报警监测是一个常见需求，从概念上说，它要求程序从最近一段时间的数据中筛选出符合一定条件的数据，并基于这些数据根据定义好的公式计算出一个结果，当这个结果符合某个条件且持续一定时间后，以某种形式通知用户。
-
-为了满足用户对报警监测的需求，TDengine 以独立模块的形式提供了这一功能，有关它的安装使用方法，请参考博客 [使用 TDengine 进行报警监测](https://www.taosdata.com/blog/2020/04/14/1438.html) 。

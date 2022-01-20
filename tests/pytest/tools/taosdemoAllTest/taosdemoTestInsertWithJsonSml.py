@@ -131,10 +131,10 @@ class TDTestCase:
         tdSql.execute("drop database if exists db") 
         os.system("%staosBenchmark -f tools/taosdemoAllTest/sml/insertSigcolumnsNum4096-sml.json -y " % binPath)
         tdSql.error("select * from db.stb0")
-        # tdSql.execute("drop database if exists db") 
-        # os.system("%staosBenchmark -f tools/taosdemoAllTest/sml/insertColumnsAndTagNum4096-sml.json -y " % binPath)
-        # tdSql.query("select count(*) from db.stb0")
-        # tdSql.checkData(0, 0, 10000) 
+        tdSql.execute("drop database if exists db") 
+        os.system("%staosBenchmark -f tools/taosdemoAllTest/sml/insertColumnsAndTagNum4096-sml.json -y " % binPath)
+        tdSql.query("select count(*) from db.stb0")
+        tdSql.checkData(0, 0, 10000) 
 
         # there is no limit of 4096 columns,so cancels this case
         # tdSql.execute("drop database if exists db")
