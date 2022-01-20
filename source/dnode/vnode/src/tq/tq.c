@@ -50,7 +50,7 @@ void tqCleanUp() {
   taosTmrCleanUp(tqMgmt.timer);
 }
 
-STQ* tqOpen(const char* path, STqCfg* tqConfig, SMemAllocatorFactory* allocFac) {
+STQ* tqOpen(const char* path, SWal* pWal, STqCfg* tqConfig, SMemAllocatorFactory* allocFac) {
   STQ* pTq = malloc(sizeof(STQ));
   if (pTq == NULL) {
     terrno = TSDB_CODE_TQ_OUT_OF_MEMORY;

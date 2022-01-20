@@ -177,7 +177,7 @@ typedef struct STqBuffer {
 
 typedef struct STqTopicHandle {
   char            topicName[TSDB_TOPIC_FNAME_LEN];
-  char            cGroup[TSDB_TOPIC_FNAME_LEN];
+  char            cgroup[TSDB_TOPIC_FNAME_LEN];
   char*           sql;
   char*           logicalPlan;
   char*           physicalPlan;
@@ -297,6 +297,7 @@ typedef struct STQ {
   STqCfg*       tqConfig;
   STqMemRef     tqMemRef;
   STqMetaStore* tqMeta;
+  SWal        * pWal;
 } STQ;
 
 typedef struct STqMgmt {
@@ -311,7 +312,7 @@ int  tqInit();
 void tqCleanUp();
 
 // open in each vnode
-STQ* tqOpen(const char* path, STqCfg* tqConfig, SMemAllocatorFactory* allocFac);
+STQ* tqOpen(const char* path, SWal* pWal, STqCfg* tqConfig, SMemAllocatorFactory* allocFac);
 void tqClose(STQ*);
 
 // void* will be replace by a msg type
