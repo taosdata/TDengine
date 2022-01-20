@@ -114,7 +114,6 @@ while $i < 5
   $i = $i + 1
 endw
 
-return 
 print =============== step7
 $i = 0
 while $i < 5

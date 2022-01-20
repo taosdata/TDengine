@@ -177,12 +177,11 @@ if $rows != 3 then
   return -1
 endi
 
-sql select * from st
-if $rows != 15 then 
-  return -1
-endi
+#sql select * from st
+#if $rows != 15 then 
+#  return -1
+#endi
 
-return
 print =============== drop dnode
 sql drop dnode 2;
 sql show dnodes;

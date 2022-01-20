@@ -158,7 +158,7 @@ TEST_F(TfsTest, 03_Dir) {
 
   tfsClose(pTfs);
 }
-#if 0
+
 TEST_F(TfsTest, 04_File) {
   int32_t  code = 0;
   SDiskCfg dCfg = {0};
@@ -194,6 +194,100 @@ TEST_F(TfsTest, 04_File) {
   EXPECT_FALSE(tfsIsSameFile(&file0, &file3));
   EXPECT_FALSE(tfsIsSameFile(&file0, &file4));
 
+  {
+    int32_t size = 1024;
+    void   *ret = malloc(size + sizeof(size_t));
+    *(size_t *)ret = size;
+    void *buf = (void *)((char *)ret + sizeof(size_t));
+
+    file0.did.id = 0;
+    file0.did.level = 0;
+    int32_t len = tfsEncodeFile((void **)&buf, &file0);
+    EXPECT_EQ(len, 8);
+
+    STfsFile outfile = {0};
+    char    *outbuf = (char *)tfsDecodeFile(pTfs, (void *)((char *)buf - len), &outfile);
+    int32_t  decodeLen = (outbuf - (char *)buf);
+
+    EXPECT_EQ(outfile.did.id, 0);
+    EXPECT_EQ(outfile.did.level, 0);
+    EXPECT_STREQ(outfile.aname, file0.aname);
+    EXPECT_STREQ(outfile.rname, "fname");
+    EXPECT_EQ(outfile.pTfs, pTfs);
+  }
+
+  {
+    char     n1[] = "t3/t1.json";
+    char     n2[] = "t3/t2.json";
+    STfsFile f1 = {0};
+    STfsFile f2 = {0};
+    SDiskID  did;
+    did.id = 0;
+    did.level = 0;
+
+    tfsInitFile(pTfs, &f1, did, n1);
+    tfsInitFile(pTfs, &f2, did, n2);
+
+    EXPECT_EQ(tfsMkdir(pTfs, "t3"), 0);
+
+    FILE *fp = fopen(f1.aname, "w");
+    ASSERT_NE(fp, nullptr);
+    fwrite("12345678", 1, 5, fp);
+    fclose(fp);
+
+    char base[128] = {0};
+    tfsBasename(&f1, base);
+    char dir[128] = {0};
+    tfsDirname(&f1, dir);
+
+    EXPECT_STREQ(base, "t1.json");
+
+    char fulldir[128];
+    snprintf(fulldir, 128, "%s%s%s", root, TD_DIRSEP, "t3");
+    EXPECT_STREQ(dir, fulldir);
+
+    EXPECT_NE(tfsCopyFile(&f1, &f2), 0);
+
+    char af2[128] = {0};
+    snprintf(af2, 128, "%s%s%s", root, TD_DIRSEP, n2);
+    EXPECT_EQ(taosDirExist(af2), 0);
+    tfsRemoveFile(&f2);
+    EXPECT_NE(taosDirExist(af2), 0);
+    EXPECT_NE(tfsCopyFile(&f1, &f2), 0);
+
+    {
+      STfsDir *pDir = tfsOpendir(pTfs, "");
+
+      const STfsFile *pf1 = tfsReaddir(pDir);
+      EXPECT_STREQ(pf1->rname, "t3");
+      EXPECT_EQ(pf1->did.id, 0);
+      EXPECT_EQ(pf1->did.level, 0);
+      EXPECT_EQ(pf1->pTfs, pTfs);
+
+      const STfsFile *pf2 = tfsReaddir(pDir);
+      EXPECT_EQ(pf2, nullptr);
+
+      tfsClosedir(pDir);
+    }
+
+    {
+      STfsDir *pDir = tfsOpendir(pTfs, "t3");
+
+      const STfsFile *pf1 = tfsReaddir(pDir);
+      EXPECT_NE(pf1, nullptr);
+      EXPECT_EQ(pf1->did.id, 0);
+      EXPECT_EQ(pf1->did.level, 0);
+      EXPECT_EQ(pf1->pTfs, pTfs);
+
+      const STfsFile *pf2 = tfsReaddir(pDir);
+      EXPECT_NE(pf2, nullptr);
+
+      const STfsFile *pf3 = tfsReaddir(pDir);
+      EXPECT_EQ(pf3, nullptr);
+
+      tfsClosedir(pDir);
+    }
+  }
+
   tfsClose(pTfs);
 }
-#endif
