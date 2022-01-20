@@ -152,6 +152,7 @@ print =============== restart
 system sh/exec.sh -n dnode1 -s stop -x SIGKILL
 system sh/exec.sh -n dnode1 -s start
 
+print =============== show databases
 sql show databases
 if $rows != 1 then 
   return -1
@@ -166,7 +167,10 @@ if $rows != 4 then
   return -1
 endi
 
+print =============== create databases
 sql create database d5 vgroups 5;
+
+print =============== show vgroups
 sql use d5
 sql show vgroups
 if $rows != 5 then
