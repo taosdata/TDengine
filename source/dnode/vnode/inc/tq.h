@@ -18,14 +18,15 @@
 
 #include "common.h"
 #include "mallocator.h"
+#include "meta.h"
 #include "os.h"
+#include "scheduler.h"
 #include "taoserror.h"
-#include "tmsg.h"
 #include "tlist.h"
+#include "tmsg.h"
 #include "trpc.h"
 #include "ttimer.h"
 #include "tutil.h"
-#include "meta.h"
 
 #ifdef __cplusplus
 extern "C" {
@@ -150,14 +151,39 @@ typedef struct STqListHandle {
 } STqList;
 
 typedef struct STqGroup {
-  int64_t clientId;
-  int64_t cgId;
-  void*   ahandle;
-  int32_t topicNum;
+  int64_t      clientId;
+  int64_t      cgId;
+  void*        ahandle;
+  int32_t      topicNum;
   STqList*     head;
   SList*       topicList;  // SList<STqTopic>
   STqRspHandle rspHandle;
 } STqGroup;
+
+typedef struct STqTaskItem {
+  int32_t       status;
+  void*         dst;
+  SSubQueryMsg* pMsg;
+} STqTaskItem;
+
+// new version
+typedef struct STqBuffer {
+  int64_t     firstOffset;
+  int64_t     lastOffset;
+  STqTaskItem output[TQ_BUFFER_SIZE];
+} STqBuffer;
+
+typedef struct STqClientHandle {
+  int64_t   clientId;
+  char      topicName[TSDB_TOPIC_FNAME_LEN];
+  char      cGroup[TSDB_TOPIC_FNAME_LEN];
+  char*     sql;
+  char*     logicalPlan;
+  char*     physicalPlan;
+  int64_t   committedOffset;
+  int64_t   currentOffset;
+  STqBuffer buffer;
+} STqClientHandle;
 
 typedef struct STqQueryMsg {
   STqMsgItem*         item;
@@ -253,7 +279,7 @@ typedef struct STqMetaStore {
   // a table head
   STqMetaList* unpersistHead;
   // topics that are not connectted
-  STqMetaList*   unconnectTopic;
+  STqMetaList* unconnectTopic;
 
   // TODO:temporaral use, to be replaced by unified tfile
   int fileFd;
@@ -316,24 +342,22 @@ const void* tqDeserializeGroup(const STqSerializedHead*, STqGroup**);
 static int tqQueryExecuting(int32_t status) { return status; }
 
 typedef struct STqReadHandle {
-  int64_t ver;
-  SSubmitMsg* pMsg;
-  SSubmitBlk* pBlock;
+  int64_t        ver;
+  SSubmitMsg*    pMsg;
+  SSubmitBlk*    pBlock;
   SSubmitMsgIter msgIter;
   SSubmitBlkIter blkIter;
-  SMeta* pMeta;
+  SMeta*         pMeta;
 } STqReadHandle;
 
 typedef struct SSubmitBlkScanInfo {
-  
 } SSubmitBlkScanInfo;
 
-STqReadHandle* tqInitSubmitMsgScanner(SMeta* pMeta, SSubmitMsg *pMsg);
-bool tqNextDataBlock(STqReadHandle* pHandle);
-int tqRetrieveDataBlockInfo(STqReadHandle* pHandle, SDataBlockInfo *pBlockInfo);
-//return SArray<SColumnInfoData>
-SArray *tqRetrieveDataBlock(STqReadHandle* pHandle, SArray* pColumnIdList);
-//int tqLoadDataBlock(SExecTaskInfo* pTaskInfo, SSubmitBlkScanInfo* pSubmitBlkScanInfo, SSDataBlock* pBlock, uint32_t status);
+STqReadHandle* tqInitSubmitMsgScanner(SMeta* pMeta, SSubmitMsg* pMsg);
+bool           tqNextDataBlock(STqReadHandle* pHandle);
+int            tqRetrieveDataBlockInfo(STqReadHandle* pHandle, SDataBlockInfo* pBlockInfo);
+// return SArray<SColumnInfoData>
+SArray* tqRetrieveDataBlock(STqReadHandle* pHandle, SArray* pColumnIdList);
 
 #ifdef __cplusplus
 }

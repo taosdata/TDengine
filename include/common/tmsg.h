@@ -1552,6 +1552,25 @@ static FORCE_INLINE void* tDecodeSMqSetCVgReq(void* buf, SMqSetCVgReq* pReq) {
   return buf;
 }
 
+typedef struct SMqCVConsumeReq {
+  int64_t reqId;
+  int64_t offset;
+  int64_t clientId;
+  char    topicName[TSDB_TOPIC_FNAME_LEN];
+  char    cgroup[TSDB_CONSUMER_GROUP_LEN];
+} SMqCVConsumeReq;
+
+typedef struct SMqCVConsumeRsp {
+  int64_t reqId;
+  int64_t clientId;
+  int64_t committedOffset;
+  int64_t receiveOffset;
+  int64_t rspOffset;
+  int32_t skipLogNum;
+  int32_t bodyLen;
+  char    topicName[TSDB_TOPIC_FNAME_LEN];
+  char    body[];
+} SMqCvConsumeRsp;
 
 #ifdef __cplusplus
 }
