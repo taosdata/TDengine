@@ -59,8 +59,8 @@ int tdbMPoolOpen(TDB_MPOOL **mpp, uint64_t cachesize, pgsize_t pgsize) {
     mp->pages[i]->frameid = i;
     mp->pages[i]->pgid = TDB_IVLD_PGID;
 
-    // TODO: add the new page to the free list
-    // TD_DLIST_APPEND(&mp->freeList, mp->pages[i]);
+    // add new page to the free list
+    TD_DLIST_APPEND_WITH_FEILD(&(mp->freeList), mp->pages[i], free);
   }
 
 #define PGTAB_FACTOR 1.0

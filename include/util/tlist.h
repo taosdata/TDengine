@@ -34,7 +34,7 @@ extern "C" {
 #define TD_SLIST_HEAD(sl) ((sl)->sl_head_)
 #define TD_SLIST_NELES(sl) ((sl)->sl_neles_)
 #define TD_SLIST_NODE_NEXT(sln) ((sln)->sl_next_)
-#define TD_SLIST_NODE_NEXT_WITH_FIELD(sln, feild) ((sln)->(feild).sl_next_)
+#define TD_SLIST_NODE_NEXT_WITH_FIELD(sln, feild) ((sln)->feild.sl_next_)
 
 #define TD_SLIST_INIT(sl)  \
   do {                     \
@@ -84,8 +84,8 @@ extern "C" {
 
 #define TD_DLIST_NODE_PREV(dln) ((dln)->dl_prev_)
 #define TD_DLIST_NODE_NEXT(dln) ((dln)->dl_next_)
-#define TD_DLIST_NODE_PREV_WITH_FIELD(dln, feild) ((dln)->(feild).dl_prev_)
-#define TD_DLIST_NODE_NEXT_WITH_FIELD(dln, feild) ((dln)->(feild).dl_next_)
+#define TD_DLIST_NODE_PREV_WITH_FIELD(dln, feild) ((dln)->feild.dl_prev_)
+#define TD_DLIST_NODE_NEXT_WITH_FIELD(dln, feild) ((dln)->feild.dl_next_)
 #define TD_DLIST_HEAD(dl) ((dl)->dl_head_)
 #define TD_DLIST_TAIL(dl) ((dl)->dl_tail_)
 #define TD_DLIST_NELES(dl) ((dl)->dl_neles_)
