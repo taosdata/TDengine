@@ -27,6 +27,15 @@ extern "C" {
 typedef int32_t pgno_t;
 #define TDB_IVLD_PGID ((pgno_t)-1)
 
+// fileid
+#define TDB_FILE_UID_LEN 20
+
+// pgid_t
+typedef struct {
+  uint8_t fuid[TDB_FILE_UID_LEN];
+  pgno_t  pgid;
+} pgid_t;
+
 // framd_id_t
 typedef int32_t frame_id_t;
 
@@ -36,9 +45,6 @@ typedef int32_t pgsize_t;
 #define TDB_MAX_PGSIZE 16384
 #define TDB_DEFAULT_PGSIZE 4096
 #define TDB_IS_PGSIZE_VLD(s) (((s) >= TDB_MIN_PGSIZE) && ((s) <= TDB_MAX_PGSIZE))
-
-// fileid
-#define TDB_FILE_UID_LEN 20
 
 // tdb_log
 #define tdbError(var)

@@ -15,7 +15,7 @@
 
 #include "tdb_mpool.h"
 
-int tdbOpenMP(TDB_MPOOL **mpp, uint64_t cachesize, pgsize_t pgsize) {
+int tdbMPoolOpen(TDB_MPOOL **mpp, uint64_t cachesize, pgsize_t pgsize) {
   TDB_MPOOL *mp;
   size_t     tsize;
   MP_PAGE *  pagep;
@@ -65,18 +65,7 @@ int tdbOpenMP(TDB_MPOOL **mpp, uint64_t cachesize, pgsize_t pgsize) {
   return 0;
 }
 
-int tdbCloseMP(TDB_MPOOL *mp) {
-  // TODO
-  return 0;
-}
-
-int tdbMPFetchPage(TDB_MPOOL *mp, pgid_t mpgid, void *p) {
-  // Search the hash
-  // TODO
-  return 0;
-}
-
-int tdbMpUnfetchPage(TDB_MPOOL *mp, pgid_t mpgid, void *p) {
+int tdbMPoolClose(TDB_MPOOL *mp) {
   // TODO
   return 0;
 }
