@@ -15,8 +15,10 @@
 
 #include "tdb_mpool.h"
 
-static int  tdbGnrtFileID(const char *fname, uint8_t *fileid);
-static void tdbMpoolRegFile(TDB_MPOOL *mp, TDB_MPFILE *mpf);
+static int         tdbGnrtFileID(const char *fname, uint8_t *fileid);
+static void        tdbMPoolRegFile(TDB_MPOOL *mp, TDB_MPFILE *mpf);
+static void        tdbMPoolUnregFile(TDB_MPOOL *mp, TDB_MPFILE *mpf);
+static TDB_MPFILE *tdbMPoolGetFile(TDB_MPOOL *mp, uint8_t *fileid);
 
 int tdbMPoolOpen(TDB_MPOOL **mpp, uint64_t cachesize, pgsize_t pgsize) {
   TDB_MPOOL *mp = NULL;
@@ -60,7 +62,7 @@ int tdbMPoolOpen(TDB_MPOOL **mpp, uint64_t cachesize, pgsize_t pgsize) {
     mp->pages[i]->pgid = TDB_IVLD_PGID;
 
     // add new page to the free list
-    TD_DLIST_APPEND_WITH_FEILD(&(mp->freeList), mp->pages[i], free);
+    TD_DLIST_APPEND_WITH_FIELD(&(mp->freeList), mp->pages[i], free);
   }
 
 #define PGTAB_FACTOR 1.0
@@ -105,7 +107,6 @@ int tdbMPoolFileOpen(TDB_MPFILE **mpfp, const char *fname, TDB_MPOOL *mp) {
   }
 
   mpf->fd = -1;
-  mpf->mp = mp;
 
   if ((mpf->fname = strdup(fname)) == NULL) {
     goto _err;
@@ -120,7 +121,7 @@ int tdbMPoolFileOpen(TDB_MPFILE **mpfp, const char *fname, TDB_MPOOL *mp) {
   }
 
   // Register current MPF to MP
-  tdbMpoolRegFile(mp, mpf);
+  tdbMPoolRegFile(mp, mpf);
 
   *mpfp = mpf;
   return 0;
@@ -193,6 +194,76 @@ static int tdbGnrtFileID(const char *fname, uint8_t *fileid) {
   return 0;
 }
 
-static void tdbMpoolRegFile(TDB_MPOOL *mp, TDB_MPFILE *mpf) {
-  // TODO
+#define MPF_GET_BUCKETID(fileid)                   \
+  ({                                               \
+    uint64_t *tmp = fileid;                        \
+    (tmp[0] + tmp[1] + tmp[2]) % MPF_HASH_BUCKETS; \
+  })
+
+static void tdbMPoolRegFile(TDB_MPOOL *mp, TDB_MPFILE *mpf) {
+  int           bucketid;
+  mpf_bucket_t *bktp;
+
+  bucketid = MPF_GET_BUCKETID(mpf->fileid);
+  bktp = mp->mpfht.buckets + bucketid;
+
+  taosWLockLatch(&(bktp->latch));
+
+  TD_DLIST_APPEND_WITH_FIELD(bktp, mpf, node);
+
+  taosWUnLockLatch(&(bktp->latch));
+
+  mpf->mp = mp;
+}
+
+static TDB_MPFILE *tdbMPoolGetFile(TDB_MPOOL *mp, uint8_t *fileid) {
+  int           bucketid;
+  TDB_MPFILE *  mpf = NULL;
+  mpf_bucket_t *bktp;
+
+  bucketid = MPF_GET_BUCKETID(fileid);
+  bktp = mp->mpfht.buckets + bucketid;
+
+  taosRLockLatch(&(bktp->latch));
+
+  mpf = TD_DLIST_HEAD(bktp);
+  while (mpf) {
+    if (memcmp(fileid, mpf->fileid, TDB_FILE_ID_LEN) == 0) {
+      break;
+    }
+
+    mpf = TD_DLIST_NODE_NEXT_WITH_FIELD(mpf, node);
+  }
+
+  taosRUnLockLatch(&(bktp->latch));
+
+  return mpf;
+}
+
+static void tdbMPoolUnregFile(TDB_MPOOL *mp, TDB_MPFILE *mpf) {
+  mpf_bucket_t *bktp;
+  TDB_MPFILE *  tmpf;
+
+  if (mpf->mp == NULL) return;
+
+  ASSERT(mpf->mp == mp);
+
+  bktp = mp->mpfht.buckets + MPF_GET_BUCKETID(mpf->fileid);
+
+  taosWLockLatch(&(bktp->latch));
+
+  tmpf = TD_DLIST_HEAD(bktp);
+
+  while (tmpf) {
+    if (memcmp(mpf->fileid, tmpf->fileid, TDB_FILE_ID_LEN) == 0) {
+      TD_DLIST_POP_WITH_FIELD(bktp, tmpf, node);
+      break;
+    }
+
+    tmpf = TD_DLIST_NODE_NEXT_WITH_FIELD(tmpf, node);
+  }
+
+  taosWUnLockLatch(&(bktp->latch));
+
+  ASSERT(tmpf == mpf);
 }

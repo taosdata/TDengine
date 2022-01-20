@@ -26,21 +26,25 @@ extern "C" {
 typedef struct TDB_MPOOL  TDB_MPOOL;
 typedef struct TDB_MPFILE TDB_MPFILE;
 
-typedef TD_DLIST_NODE(pg_t) pg_free_list_node_t, pg_hash_list_node_t;
+typedef TD_DLIST_NODE(pg_t) pg_free_dlist_node_t, pg_hash_dlist_node_t;
 typedef struct pg_t {
-  SRWLatch            rwLatch;
-  frame_id_t          frameid;
-  pgid_t              pgid;
-  uint8_t             dirty;
-  int32_t             pinRef;
-  pg_free_list_node_t free;
-  pg_hash_list_node_t hash;
-  uint8_t             data[];
+  SRWLatch             rwLatch;
+  frame_id_t           frameid;
+  pgid_t               pgid;
+  uint8_t              dirty;
+  int32_t              pinRef;
+  pg_free_dlist_node_t free;
+  pg_hash_dlist_node_t hash;
+  uint8_t              data[];
 } pg_t;
 
 #define MP_PAGE_SIZE(pgsize) (sizeof(pg_t) + (pgsize))
 
 typedef TD_DLIST(pg_t) pg_list_t;
+typedef struct {
+  SRWLatch latch;
+  TD_DLIST(TDB_MPFILE);
+} mpf_bucket_t;
 struct TDB_MPOOL {
   int64_t   cachesize;
   pgsize_t  pgsize;
@@ -52,19 +56,20 @@ struct TDB_MPOOL {
     pg_list_t *hashtab;
   } pgtab;  // page table, hash<pgid_t, pg_t>
   struct {
-    int32_t nbucket;
-    TD_DLIST(TDB_MPFILE) hashtab[8];
-  } mpftab;
+#define MPF_HASH_BUCKETS 16
+    mpf_bucket_t buckets[MPF_HASH_BUCKETS];
+  } mpfht;  // MPF hash table. MPFs using this MP will be put in this hash table
 };
 
 #define MP_PAGE_AT(mp, idx) (mp)->pages[idx]
 
+typedef TD_DLIST_NODE(TDB_MPFILE) td_mpf_dlist_node_t;
 struct TDB_MPFILE {
-  char *     fname;                    // file name
-  int        fd;                       // fd
-  uint8_t    fileid[TDB_FILE_ID_LEN];  // file ID
-  TDB_MPOOL *mp;                       // underlying memory pool
-  TD_DLIST_NODE(TDB_MPFILE);
+  char *              fname;                    // file name
+  int                 fd;                       // fd
+  uint8_t             fileid[TDB_FILE_ID_LEN];  // file ID
+  TDB_MPOOL *         mp;                       // underlying memory pool
+  td_mpf_dlist_node_t node;
 };
 
 /*=================================================== Exposed apis ==================================================*/
