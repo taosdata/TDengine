@@ -69,3 +69,14 @@ int tdbCloseMP(TDB_MPOOL *mp) {
   // TODO
   return 0;
 }
+
+int tdbMPFetchPage(TDB_MPOOL *mp, mp_pgid_t mpgid, void *p) {
+  // Search the hash
+  // TODO
+  return 0;
+}
+
+int tdbMpUnfetchPage(TDB_MPOOL *mp, mp_pgid_t mpgid, void *p) {
+  // TODO
+  return 0;
+}

@@ -34,6 +34,7 @@ typedef struct MP_PAGE {
   // SRWLatch  rwLatch;
   mp_pgid_t mpgid;
   uint8_t   dirty;
+  uint8_t   fileid[TDB_FILE_UID_LEN];
   int32_t   pinRef;
   TD_DLIST_NODE(MP_PAGE);
   char *page[];
