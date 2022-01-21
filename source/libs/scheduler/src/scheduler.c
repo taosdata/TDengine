@@ -1485,11 +1485,11 @@ int32_t schedulerConvertDagToTaskList(SQueryDag* pDag, SArray **pTasks) {
     
     pMsg->header.vgId = htonl(tInfo.addr.nodeId);
     
-    pMsg->sId = htobe64(schMgmt.sId);
-    pMsg->queryId = htobe64(plan->id.queryId);
-    pMsg->taskId = htobe64(schGenUUID());
+    pMsg->sId = schMgmt.sId;
+    pMsg->queryId = plan->id.queryId;
+    pMsg->taskId = schGenUUID();
     pMsg->taskType = TASK_TYPE_PERSISTENT;
-    pMsg->contentLen = htonl(msgLen);
+    pMsg->contentLen = msgLen;
     memcpy(pMsg->msg, msg, msgLen);
 
     tInfo.msg = pMsg;

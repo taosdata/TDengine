@@ -1529,17 +1529,22 @@ typedef struct SMqSetCVgReq {
 } SMqSetCVgReq;
 
 static FORCE_INLINE int32_t tEncodeSSubQueryMsg(void** buf, const SSubQueryMsg* pMsg) {
-  int32_t tlen = sizeof(SSubQueryMsg) + pMsg->contentLen;
-  if (buf == NULL) return tlen;
-  memcpy(*buf, pMsg, tlen);
-  *buf = POINTER_SHIFT(*buf, tlen); 
+  int32_t tlen = 0;
+  tlen += taosEncodeFixedU64(buf, pMsg->sId);
+  tlen += taosEncodeFixedU64(buf, pMsg->queryId);
+  tlen += taosEncodeFixedU64(buf, pMsg->taskId);
+  tlen += taosEncodeFixedU32(buf, pMsg->contentLen);
+  tlen += taosEncodeBinary(buf, pMsg->msg, pMsg->contentLen);
   return tlen;
 }
 
 static FORCE_INLINE void* tDecodeSSubQueryMsg(void* buf, SSubQueryMsg* pMsg) {
-  int32_t tlen = sizeof(SSubQueryMsg) + ((SSubQueryMsg*)buf)->contentLen;
-  memcpy(pMsg, buf, tlen);
-  return POINTER_SHIFT(buf, tlen);
+  buf = taosDecodeFixedU64(buf, &pMsg->sId);
+  buf = taosDecodeFixedU64(buf, &pMsg->queryId);
+  buf = taosDecodeFixedU64(buf, &pMsg->taskId);
+  buf = taosDecodeFixedU32(buf, &pMsg->contentLen);
+  buf = taosDecodeBinaryTo(buf, pMsg->msg, pMsg->contentLen);
+  return buf;
 }
 
 static FORCE_INLINE int32_t tEncodeSMqSetCVgReq(void** buf, const SMqSetCVgReq* pReq) {
