@@ -181,20 +181,20 @@ void *threadFunc(void *param) {
     pError("index:%d, failed to connect to DB, reason:%s", pInfo->threadIndex, taos_errstr(NULL));
     exit(1);
   }
-  
-  pError("====before thread:%d, table range: %"PRId64 " - %"PRId64 "\n", 
-			  pInfo->threadIndex, 
+
+  pError("====before thread:%d, table range: %"PRId64 " - %"PRId64 "\n",
+			  pInfo->threadIndex,
 			  pInfo->tableBeginIndex,
 			  pInfo->tableEndIndex);
 
   pInfo->tableBeginIndex += startOffset;
   pInfo->tableEndIndex   += startOffset;
-  
-  pError("====after thread:%d, table range: %"PRId64 " - %"PRId64 "\n", 
-			  pInfo->threadIndex, 
+
+  pError("====after thread:%d, table range: %"PRId64 " - %"PRId64 "\n",
+			  pInfo->threadIndex,
 			  pInfo->tableBeginIndex,
 			  pInfo->tableEndIndex);
-			   
+
   sprintf(qstr, "use %s", pInfo->dbName);
   TAOS_RES *pRes = taos_query(con, qstr);
   taos_free_result(pRes);
@@ -367,7 +367,7 @@ void parseArgument(int32_t argc, char *argv[]) {
   pPrint("%s dbName:%s %s", GREEN, dbName, NC);
   pPrint("%s stbName:%s %s", GREEN, stbName, NC);
   pPrint("%s configDir:%s %s", GREEN, configDir, NC);
-  pPrint("%s numOfTables:%" PRId64 " %s", GREEN, numOfTables, NC);  
+  pPrint("%s numOfTables:%" PRId64 " %s", GREEN, numOfTables, NC);
   pPrint("%s startOffset:%" PRId64 " %s", GREEN, startOffset, NC);
   pPrint("%s numOfThreads:%d %s", GREEN, numOfThreads, NC);
   pPrint("%s numOfVgroups:%d %s", GREEN, numOfVgroups, NC);
