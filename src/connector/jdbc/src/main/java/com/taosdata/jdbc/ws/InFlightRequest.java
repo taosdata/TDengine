@@ -16,11 +16,11 @@ public class InFlightRequest implements AutoCloseable {
     public InFlightRequest(int timeoutSec, int concurrentNum) {
         this.timeoutSec = timeoutSec;
         this.semaphore = new Semaphore(concurrentNum);
-        this.scheduledFuture = scheduledExecutorService.scheduleAtFixedRate(this::removeTimeoutFuture, timeoutSec, timeoutSec, TimeUnit.SECONDS);
+        this.scheduledFuture = scheduledExecutorService.scheduleAtFixedRate(this::removeTimeoutFuture, timeoutSec, timeoutSec, TimeUnit.MILLISECONDS);
     }
 
     public void put(ResponseFuture responseFuture) throws InterruptedException, TimeoutException {
-        if (semaphore.tryAcquire(timeoutSec, TimeUnit.SECONDS)) {
+        if (semaphore.tryAcquire(timeoutSec, TimeUnit.MILLISECONDS)) {
             futureMap.put(responseFuture.getId(), responseFuture);
         } else {
             throw new TimeoutException();
@@ -37,7 +37,7 @@ public class InFlightRequest implements AutoCloseable {
 
     private void removeTimeoutFuture() {
         futureMap.entrySet().removeIf(entry -> {
-            if (System.nanoTime() - entry.getValue().getTimestamp() > timeoutSec * 1_000_000_000L) {
+            if (System.nanoTime() - entry.getValue().getTimestamp() > timeoutSec * 1_000_000L) {
                 try {
                     entry.getValue().getFuture().completeExceptionally(new TimeoutException());
                 }finally {
