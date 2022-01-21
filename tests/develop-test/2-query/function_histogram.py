@@ -1047,6 +1047,17 @@ class TDTestCase:
         tdSql.error('select histogram(col_tinyint, \'linear_bin\', \'{"start": 0, "width": -1.80e+308, "count": 5, "infinity": false}\', 0) from stb;')
         tdSql.error('select histogram(col_tinyint, \'linear_bin\', \'{"start": 0, "width": 1.80e+308, "count": 5, "infinity": false}\', 0) from stb;')
 
+        tdSql.error('select histogram(col_tinyint, \'linear_bin\', \'{"start": -1.4e+308, "width": 1.4e+308, "count": 3, "infinity": false}\', 0) from stb;')
+        tdSql.error('select histogram(col_tinyint, \'linear_bin\', \'{"start": -1.4e+308, "width": 1.4e+308, "count": 3, "infinity": true}\', 0) from stb;')
+
+        tdSql.error('select histogram(col_tinyint, \'linear_bin\', \'{"start": 0, "width": 1, "count": -1, "infinity": false}\', 0) from stb;')
+        tdSql.error('select histogram(col_tinyint, \'linear_bin\', \'{"start": 0, "width": 1, "count": 0, "infinity": true}\', 0) from stb;')
+        tdSql.error('select histogram(col_tinyint, \'linear_bin\', \'{"start": 0, "width": 1, "count": true, "infinity": true}\', 0) from stb;')
+        tdSql.error('select histogram(col_tinyint, \'linear_bin\', \'{"start": 0, "width": 1, "count": false, "infinity": true}\', 0) from stb;')
+        tdSql.error('select histogram(col_tinyint, \'linear_bin\', \'{"start": 0, "width": 1, "count": "abc", "infinity": true}\', 0) from stb;')
+        tdSql.error('select histogram(col_tinyint, \'linear_bin\', \'{"start": 0, "width": 1, "count": "中文", "infinity": true}\', 0) from stb;')
+        tdSql.error('select histogram(col_tinyint, \'linear_bin\', \'{"start": 0, "width": 1, "count": abc, "infinity": true}\', 0) from stb;')
+
         return
         tdSql.execute('drop database db')
     def stop(self):

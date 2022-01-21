@@ -2680,7 +2680,8 @@ int32_t addExprAndResultField(SSqlCmd* pCmd, SQueryInfo* pQueryInfo, int32_t col
   const char* msg21 = "third parameter must be in JSON format";
   const char* msg22 = "invalid parameters for bin_desciption";
   const char* msg23 = "parameter/bin out of range [-DBL_MAX, DBL_MAX]";
-  const char* msg24 = "linear_bin 'width' param cannot be 0";
+  const char* msg24 = "width param cannot be 0";
+  const char* msg25 = "count param should be greater than 0";
 
   switch (functionId) {
     case TSDB_FUNC_COUNT: {
@@ -3419,6 +3420,10 @@ int32_t addExprAndResultField(SSqlCmd* pCmd, SQueryInfo* pQueryInfo, int32_t col
 
         if (!cJSON_IsNumber(start) || !cJSON_IsNumber(count) || !cJSON_IsBool(infinity)) {
           return invalidOperationMsg(tscGetErrorMsgPayload(pCmd), msg22);
+        }
+
+        if (count->valueint <= 0) {
+          return invalidOperationMsg(tscGetErrorMsgPayload(pCmd), msg25);
         }
 
         if (isinf(start->valuedouble) ||
