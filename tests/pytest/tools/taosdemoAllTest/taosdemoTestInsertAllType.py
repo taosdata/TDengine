@@ -97,15 +97,15 @@ class TDTestCase:
         tdSql.checkData(0, 0, 4000) 
 
 
-        #  # insert-interface: sml-json
-        # os.system("%staosBenchmark -f tools/taosdemoAllTest/sml/insert-sml-json-alltype.json -y " % binPath)
-        # tdSql.execute("use db")
-        # tdSql.query("show stables")
-        # for i in range(13):
-        #     for  j in range(13):
-        #         if tdSql.queryResult[i][0] == 'stb%d'%j:
-        #             # print(i,"stb%d"%j)
-        #             tdSql.checkData(i, 4, j+1)
+         # insert-interface: sml-json
+        os.system("%staosBenchmark -f tools/taosdemoAllTest/sml/insert-sml-json-alltype.json -y " % binPath)
+        tdSql.execute("use db")
+        tdSql.query("show stables")
+        for i in range(13):
+            for  j in range(13):
+                if tdSql.queryResult[i][0] == 'stb%d'%j:
+                    # print(i,"stb%d"%j)
+                    tdSql.checkData(i, 4, j+1)
 
 
         # insert-interface: sml-telnet

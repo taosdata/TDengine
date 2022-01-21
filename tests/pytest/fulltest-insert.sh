@@ -4,7 +4,6 @@ ulimit -c unlimited
 
 python3 testCompress.py
 python3 testNoCompress.py
-
 python3 ./test.py -f import_merge/importBlock1HO.py
 python3 ./test.py -f import_merge/importBlock1HPO.py
 python3 ./test.py -f import_merge/importBlock1H.py
@@ -23,10 +22,6 @@ python3 ./test.py -f import_merge/importBlock2TPO.py
 python3 ./test.py -f import_merge/importBlock2T.py
 python3 ./test.py -f import_merge/importBlockbetween.py
 python3 ./test.py -f import_merge/importCacheFileHO.py
-
-#======================p1-end===============
-#======================p2-start===============
-
 python3 ./test.py -f import_merge/importCacheFileHPO.py
 python3 ./test.py -f import_merge/importCacheFileH.py
 python3 ./test.py -f import_merge/importCacheFileS.py
@@ -48,10 +43,6 @@ python3 ./test.py -f import_merge/importDataLastTPO.py
 python3 ./test.py -f import_merge/importDataLastT.py
 python3 ./test.py -f import_merge/importDataS.py
 python3 ./test.py -f import_merge/importDataSub.py
-
-#======================p2-end===============
-#======================p3-start===============
-
 python3 ./test.py -f import_merge/importDataTO.py
 python3 ./test.py -f import_merge/importDataTPO.py
 python3 ./test.py -f import_merge/importDataT.py
@@ -73,10 +64,6 @@ python3 ./test.py -f import_merge/importSpan.py
 python3 ./test.py -f import_merge/importSRestart.py
 python3 ./test.py -f import_merge/importSubRestart.py
 python3 ./test.py -f import_merge/importTailOverlap.py
-
-#======================p3-end===============
-#======================p4-start===============
-
 python3 ./test.py -f import_merge/importTailPartOverlap.py
 python3 ./test.py -f import_merge/importTail.py
 python3 ./test.py -f import_merge/importToCommit.py
@@ -88,7 +75,6 @@ python3 ./test.py -f import_merge/importCSV.py
 python3 ./test.py -f import_merge/import_update_0.py
 python3 ./test.py -f import_merge/import_update_1.py
 python3 ./test.py -f import_merge/import_update_2.py
-
 python3 ./test.py -f insert/basic.py
 python3 ./test.py -f insert/int.py
 python3 ./test.py -f insert/float.py
@@ -98,8 +84,6 @@ python3 ./test.py -f insert/double.py
 python3 ./test.py -f insert/smallint.py
 python3 ./test.py -f insert/tinyint.py
 python3 ./test.py -f insert/date.py
-
-
 python3 ./test.py -f insert/binary.py
 python3 ./test.py -f insert/nchar.py
 #python3 ./test.py -f insert/nchar-boundary.py
@@ -133,40 +117,20 @@ python3 ./test.py -f insert/verifyMemToDiskCrash.py
 #python3 ./test.py -f insert/schemalessInsert.py
 #python3 ./test.py -f insert/openTsdbJsonInsert.py
 python3 ./test.py -f insert/openTsdbTelnetLinesInsert.py
-
-
-# update
 python3 ./test.py -f update/merge_commit_data.py
 python3 ./test.py -f update/allow_update.py
 python3 ./test.py -f update/allow_update-0.py
 python3 ./test.py -f update/append_commit_data.py
 python3 ./test.py -f update/append_commit_last-0.py
 python3 ./test.py -f update/append_commit_last.py
-
-
 python3 ./test.py -f update/merge_commit_data2.py
 python3 ./test.py -f update/merge_commit_data2_update0.py
 python3 ./test.py -f update/merge_commit_last-0.py
 python3 ./test.py -f update/merge_commit_last.py
 python3 ./test.py -f update/update_options.py
 python3 ./test.py -f update/merge_commit_data-0.py
-
-# wal
 python3 ./test.py -f wal/addOldWalTest.py
-python3 ./test.py -f wal/sdbComp.py
-
-#======================p4-end===============
-#======================p5-start===============
-python3 ./test.py -f ../system-test/1-insert/0-sql/basic.py
-python3 ./test.py -f ../develop-test/1-insert/0-sql/basic.py
-python3 ./test.py -f ../develop-test/1-insert/0-sql/batchInsert.py
-
-#======================p5-end===============
-
-
-
-
-
+# python3 ./test.py -f wal/sdbComp.py
 
 
 

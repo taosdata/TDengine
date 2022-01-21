@@ -68,21 +68,21 @@ class TDTestCase:
         tdSql.query("select count(*) from stb1")
         tdSql.checkData(0, 0, 2000)
 
-        # # restful connector insert data
-        # os.system("%staosBenchmark -f tools/taosdemoAllTest/insertRestful.json -y " % binPath)
-        # tdSql.execute("use db")
-        # tdSql.query("select count (tbname) from stb0")
-        # tdSql.checkData(0, 0, 10)
-        # tdSql.query("select count (tbname) from stb1")
-        # tdSql.checkData(0, 0, 10)
-        # tdSql.query("select count(*) from stb00_0")
-        # tdSql.checkData(0, 0, 10)
-        # tdSql.query("select count(*) from stb0")
-        # tdSql.checkData(0, 0, 100)
-        # tdSql.query("select count(*) from stb01_1")
-        # tdSql.checkData(0, 0, 20)
-        # tdSql.query("select count(*) from stb1")
-        # tdSql.checkData(0, 0, 200)
+        # restful connector insert data
+        os.system("%staosBenchmark -f tools/taosdemoAllTest/insertRestful.json -y " % binPath)
+        tdSql.execute("use db")
+        tdSql.query("select count (tbname) from stb0")
+        tdSql.checkData(0, 0, 10)
+        tdSql.query("select count (tbname) from stb1")
+        tdSql.checkData(0, 0, 10)
+        tdSql.query("select count(*) from stb00_0")
+        tdSql.checkData(0, 0, 10)
+        tdSql.query("select count(*) from stb0")
+        tdSql.checkData(0, 0, 100)
+        tdSql.query("select count(*) from stb01_1")
+        tdSql.checkData(0, 0, 20)
+        tdSql.query("select count(*) from stb1")
+        tdSql.checkData(0, 0, 200)
 
         # default values json files 
         tdSql.execute("drop database if exists db") 
@@ -357,14 +357,21 @@ class TDTestCase:
         tdSql.query('show tables like \'YYY%\'')    #child_table_exists = yes, auto_create_table varies = yes
         tdSql.checkRows(20)
 
-        # insert: test chinese encoding
-        os.system("%staosBenchmark -f tools/taosdemoAllTest/insert-chinese.json -y " % binPath)
-        tdSql.execute("use db")
-        tdSql.query("select count (tbname) from stb0")
-        tdSql.checkData(0, 0, 10)
-        tdSql.query("select count (*) from stb0")
-        tdSql.checkData(0, 0, 1500)
 
+        # insert: test chinese encoding
+        # TD-11399、TD-10819
+        os.system("%staosBenchmark -f tools/taosdemoAllTest/insert-chinese.json -y " % binPath)
+        os.system("%staosBenchmark -f tools/taosdemoAllTest/insert-chinese-sml.json -y " % binPath)
+        tdSql.execute("use db")
+        tdSql.query("show stables")
+        for i in range(6):
+            for  j in range(6):
+                if tdSql.queryResult[i][0] == 'stb%d'%j:
+                    # print(i,"stb%d"%j)
+                    tdSql.checkData(i, 4, (j+1)*10)
+        for i in range(6):
+            tdSql.query("select count(*) from stb%d"%i)
+            tdSql.checkData(0, 0, (i+1)*1000)  
 
         # rm useless files
         os.system("rm -rf ./insert*_res.txt*")

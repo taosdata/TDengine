@@ -170,6 +170,16 @@ void tscAddIntoStreamList(SSqlStream *pStream) {
   STscObj *       pObj = pStream->pSql->pTscObj;
 
   pthread_mutex_lock(&pObj->mutex);
+  //check if newly added stream node is present
+  //in the streamList to prevent loop in the list
+  SSqlStream *iter = pObj->streamList;
+  while (iter) {
+    if (pStream == iter) {
+      pthread_mutex_unlock(&pObj->mutex);
+      return;
+    }
+    iter = iter->next;
+  }
 
   pStream->next = pObj->streamList;
   if (pObj->streamList) pObj->streamList->prev = pStream;

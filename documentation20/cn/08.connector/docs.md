@@ -749,6 +749,49 @@ conn.execute("drop database pytest")
     conn.close()
     ```
 
+#### JSON 类型
+
+从 `taospy` `v2.2.0` 开始，Python连接器开始支持 JSON 数据类型的标签（TDengine版本要求 Beta 版 2.3.5+， 稳定版 2.4.0+）。
+
+创建一个使用JSON类型标签的超级表及其子表：
+
+```python
+# encoding:UTF-8
+import taos
+
+conn = taos.connect()
+conn.execute("create database if not exists py_test_json_type")
+conn.execute("use py_test_json_type")
+
+conn.execute("create stable s1 (ts timestamp, v1 int) tags (info json)")
+conn.execute("create table s1_1 using s1 tags ('{\"k1\": \"v1\"}')")
+```
+
+查询子表标签及表名：
+
+```python
+tags = conn.query("select info, tbname from s1").fetch_all_into_dict()
+tags
+```
+
+`tags` 内容为：
+
+```python
+[{'info': '{"k1":"v1"}', 'tbname': 's1_1'}]
+```
+
+获取 JSON 中某值：
+
+```python
+k1 = conn.query("select info->'k1' as k1 from s1").fetch_all_into_dict()
+"""
+>>> k1
+[{'k1': '"v1"'}]
+"""
+```
+
+更多JSON类型的操作方式请参考 [JSON 类型使用说明](https://www.taosdata.com/cn/documentation/taos-sql)。
+
 #### 关于纳秒 (nanosecond) 在 Python 连接器中的说明
 
 由于目前 Python 对 nanosecond 支持的不完善(参见链接 1. 2. )，目前的实现方式是在 nanosecond 精度时返回整数，而不是 ms 和 us 返回的 datetime 类型，应用开发者需要自行处理，建议使用 pandas 的 to_datetime()。未来如果 Python 正式完整支持了纳秒，涛思数据可能会修改相关接口。
@@ -779,7 +822,7 @@ conn.execute("drop database pytest")
 
 为支持各种不同类型平台的开发，TDengine 提供符合 REST 设计标准的 API，即 RESTful API。为最大程度降低学习成本，不同于其他数据库 RESTful API 的设计方法，TDengine 直接通过 HTTP POST 请求 BODY 中包含的 SQL 语句来操作数据库，仅需要一个 URL。RESTful 连接器的使用参见[视频教程](https://www.taosdata.com/blog/2020/11/11/1965.html)。
 
-注意：与标准连接器的一个区别是，RESTful 接口是无状态的，因此 `USE db_name` 指令没有效果，所有对表名、超级表名的引用都需要指定数据库名前缀。（从 2.2.0.0 版本开始，支持在 RESTful url 中指定 db_name，这时如果 SQL 语句中没有指定数据库名前缀的话，会使用 url 中指定的这个 db_name。）
+注意：与原生连接器的一个区别是，RESTful 接口是无状态的，因此 `USE db_name` 指令没有效果，所有对表名、超级表名的引用都需要指定数据库名前缀。（从 2.2.0.0 版本开始，支持在 RESTful url 中指定 db_name，这时如果 SQL 语句中没有指定数据库名前缀的话，会使用 url 中指定的这个 db_name。从 2.4.0.0 版本开始，RESTful 默认有 taosAdapter 提供，要求必须在 url 中指定 db_name。）
 
 ### 安装
 

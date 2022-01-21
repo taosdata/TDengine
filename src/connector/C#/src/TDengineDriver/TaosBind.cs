@@ -1,6 +1,6 @@
 using System;
 using System.Runtime.InteropServices;
-
+using System.Text;
 
 namespace TDengineDriver
 {
@@ -247,9 +247,11 @@ namespace TDengineDriver
         {
 
             TAOS_BIND bind = new TAOS_BIND();
-            IntPtr umanageBinary = Marshal.StringToHGlobalAnsi(val);
+            // IntPtr umanageBinary = Marshal.StringToHGlobalAnsi(val);
+            IntPtr umanageBinary = Marshal.StringToCoTaskMemUTF8(val);
 
-            int leng = val.Length;
+            var strToBytes = System.Text.Encoding.UTF8.GetBytes(val);
+            int leng = strToBytes.Length;
             IntPtr lenPtr = Marshal.AllocHGlobal(sizeof(ulong));
             Marshal.WriteInt64(lenPtr, leng);
 
@@ -264,9 +266,12 @@ namespace TDengineDriver
         public static TAOS_BIND BindNchar(String val)
         {
             TAOS_BIND bind = new TAOS_BIND();
-            IntPtr umanageNchar = (IntPtr)Marshal.StringToHGlobalAnsi(val);
+            var strToBytes = System.Text.Encoding.UTF8.GetBytes(val);
+            // IntPtr umanageNchar = (IntPtr)Marshal.StringToHGlobalAnsi(val);
+            IntPtr umanageNchar = (IntPtr)Marshal.StringToCoTaskMemUTF8(val);
 
-            int leng = val.Length;
+
+            int leng = strToBytes.Length;
             IntPtr lenPtr = Marshal.AllocHGlobal(sizeof(ulong));
             Marshal.WriteInt64(lenPtr, leng);
 

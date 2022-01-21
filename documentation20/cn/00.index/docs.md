@@ -69,7 +69,6 @@ TDengine是一个高效的存储、查询、分析时序大数据的平台，专
 * [连续查询(Continuous Query)](/advanced-features#continuous-query)：基于滑动窗口，定时自动的对数据流进行查询计算
 * [数据订阅(Publisher/Subscriber)](/advanced-features#subscribe)：类似典型的消息队列，应用可订阅接收到的最新数据
 * [缓存(Cache)](/advanced-features#cache)：每个设备最新的数据都会缓存在内存中，可快速获取
-* [报警监测](/advanced-features#alert)：根据配置规则，自动监测超限行为数据，并主动推送
 
 ## [连接器](/connector)
 
@@ -83,10 +82,13 @@ TDengine是一个高效的存储、查询、分析时序大数据的平台，专
 * [Windows客户端](https://www.taosdata.com/blog/2019/07/26/514.html)：自行编译windows客户端，Windows环境的各种连接器都需要它
 * [Rust Connector](/connector/rust): Rust语言下通过libtaos客户端或RESTful接口，连接TDengine服务器。
 
-## [TDengine 组件与工具](/cn/documentation/)
+## TDengine 组件与工具
 
 * [taosAdapter 用户手册](/tools/adapter)
 * [TDinsight 用户手册](/tools/insight)
+* [taosTools 安装手册](/tools/taos-tools)
+* [taosdump 用户手册](/tools/taosdump)
+* [taosbenchmark 用户手册](/tools/taosbenchmark)
 
 ## [与其他工具的连接](/connections)
 

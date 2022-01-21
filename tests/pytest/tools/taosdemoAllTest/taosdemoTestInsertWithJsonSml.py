@@ -74,22 +74,23 @@ class TDTestCase:
         tdSql.query("select count(*) from stb1")
         tdSql.checkData(0, 0, 3000) 
 
-        # # insert: using parament "insert_interval to controls spped  of insert. 
-        # # but We need to have accurate methods to control the speed, such as getting the speed value, checking the count and so on。
-        # os.system("%staosBenchmark -f tools/taosdemoAllTest/sml/insert-interval-speed-sml.json -y" % binPath)
-        # tdSql.execute("use db")
-        # tdSql.query("select tbname from  db.stb0")
-        # tdSql.checkRows(100 )
-        # # tdSql.query("select count(*) from stb00_0")
-        # # tdSql.checkData(0, 0, 20)   
-        # tdSql.query("select count(*) from stb0")
-        # tdSql.checkData(0, 0, 2000) 
-        # tdSql.query("show stables")
-        # tdSql.checkData(1, 4, 20)
-        # # tdSql.query("select count(*) from stb01_0")
-        # # tdSql.checkData(0, 0, 35)   
-        # tdSql.query("select count(*) from stb1")
-        # tdSql.checkData(0, 0, 700)           
+        # insert: using parament "insert_interval to controls spped  of insert. 
+        # but We need to have accurate methods to control the speed, such as getting the speed value, checking the count and so on。
+        os.system("%staosBenchmark -f tools/taosdemoAllTest/sml/insert-interval-speed-sml.json -y" % binPath)
+        tdSql.execute("use db")
+        # tdSql.query("select count (tbname) from stb0")
+        tdSql.query("select tbname from  db.stb0")
+        tdSql.checkRows(100 )
+        # tdSql.query("select count(*) from stb00_0")
+        # tdSql.checkData(0, 0, 20)   
+        tdSql.query("select count(*) from stb0")
+        tdSql.checkData(0, 0, 2000) 
+        tdSql.query("show stables")
+        tdSql.checkData(1, 4, 20)
+        # tdSql.query("select count(*) from stb01_0")
+        # tdSql.checkData(0, 0, 35)   
+        tdSql.query("select count(*) from stb1")
+        tdSql.checkData(0, 0, 700)           
         
         # spend 2min30s for 3 testcases.
         # insert: drop and child_table_exists combination test 
@@ -130,14 +131,17 @@ class TDTestCase:
         tdSql.execute("drop database if exists db") 
         os.system("%staosBenchmark -f tools/taosdemoAllTest/sml/insertSigcolumnsNum4096-sml.json -y " % binPath)
         tdSql.error("select * from db.stb0")
-        # tdSql.execute("drop database if exists db") 
-        # os.system("%staosBenchmark -f tools/taosdemoAllTest/sml/insertColumnsAndTagNum4096-sml.json -y " % binPath)
-        # tdSql.query("select count(*) from db.stb0")
-        # tdSql.checkData(0, 0, 10000) 
+        tdSql.execute("drop database if exists db") 
+        os.system("%staosBenchmark -f tools/taosdemoAllTest/sml/insertColumnsAndTagNum4096-sml.json -y " % binPath)
+        tdSql.query("select count(*) from db.stb0")
+        tdSql.checkData(0, 0, 10000) 
+
+        # there is no limit of 4096 columns,so cancels this case
         # tdSql.execute("drop database if exists db")
         # os.system("%staosBenchmark -f tools/taosdemoAllTest/sml/insertInterlaceRowsLarge1M-sml.json -y " % binPath)
         # tdSql.query("select count(*) from db.stb0")
         # tdSql.checkRows(0)
+
         tdSql.execute("drop database if exists db") 
         os.system("%staosBenchmark -f tools/taosdemoAllTest/sml/insertColumnsNum0-sml.json -y " % binPath)
         tdSql.execute("use db") 

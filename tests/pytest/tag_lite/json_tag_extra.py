@@ -12,6 +12,7 @@
 # -*- coding: utf-8 -*-
 
 import sys
+import os
 import taos
 from util.log import tdLog
 from util.cases import tdCases
@@ -24,6 +25,21 @@ class TDTestCase:
     def init(self, conn, logSql):
         tdLog.debug("start to execute %s" % __file__)
         tdSql.init(conn.cursor(), logSql)
+
+    # def assertCheck(self, filename, queryResult, expectResult):
+    #     self.filename = filename
+    #     self.queryResult = queryResult
+    #     self.expectResult = expectResult
+    #     args0 = (filename, queryResult, expectResult)
+    #     assert queryResult == expectResult, "Queryfile:%s ,result is %s != expect: %s" % args0
+
+    def assertfileDataExport(self, filename, expectResult):
+        self.filename = filename
+        self.expectResult = expectResult
+        with open("%s" % filename, 'r+') as f1:
+            for line in f1.readlines():
+                queryResultTaosc = line.strip().split(',')[0]
+                # self.assertCheck(filename, queryResultTaosc, expectResult)
 
     def run(self):
         tdSql.prepare()
@@ -62,8 +78,18 @@ class TDTestCase:
         tdSql.error("CREATE TABLE if not exists  jsons4_1 using  jsons4 tags('{\"%s1\":5}')" % char2)   # len(key)=257
         tdSql.execute("CREATE TABLE if not exists  jsons4_2 using  jsons4 tags('{\"T\":\"%s\"}')" % char3)  # len(object)=4096
         tdSql.error("CREATE TABLE if not exists  jsons4_2 using  jsons4 tags('{\"TS\":\"%s\"}')" % char3)   # len(object)=4097
+        
+        # test the  min/max length of double type , and int64  is not required 
+        tdSql.error("CREATE TABLE if not exists  jsons4_3 using  jsons4 tags('{\"doublength\":-1.8e308}')")
+        tdSql.error("CREATE TABLE if not exists  jsons4_3 using  jsons4 tags('{\"doublength\":1.8e308}')") 
+        tdSql.execute("CREATE TABLE if not exists  jsons4_4 using  jsons4 tags('{\"doublength\":-1.7e308}')") 
+        tdSql.execute("CREATE TABLE if not exists  jsons4_5 using  jsons4 tags('{\"doublength\":1.71e308}')") 
+        tdSql.query("select jtag from  jsons4 where jtag->'doublength'<-1.69e+308;")
+        tdSql.checkRows(1)        
+        tdSql.query("select jtag from  jsons4 where jtag->'doublength'>1.7e+308;")
+        tdSql.checkRows(1)    
 
-        tdSql.execute("insert into  jsons1_1 values(now, 1, 'json1')")
+        tdSql.execute("insert into  jsons1_1 values(now+2s, 1, 'json1')")
         tdSql.execute("insert into  jsons1_1 values(now+1s, 1, 'json1')")
         tdSql.execute("insert into  jsons1_2 using  jsons1 tags('{\"num\":5,\"location\":\"beijing\"}') values (now, 1, 'json2')")
         tdSql.execute("insert into  jsons1_3 using  jsons1 tags('{\"num\":34,\"location\":\"beijing\",\"level\":\"l1\"}') values (now, 1, 'json3')")
@@ -194,15 +220,12 @@ class TDTestCase:
         tdSql.checkRows(0)
 
         # # test where condition in
-        # tdSql.query("select * from  jsons1 where jtag->'location' in ('beijing')")
+        tdSql.error("select * from  jsons1 where jtag->'location' in ('beijing')")
         # tdSql.checkRows(3)
-
-        # tdSql.query("select * from  jsons1 where jtag->'num' in (5,34)")
+        tdSql.error("select * from  jsons1 where jtag->'num' in (5,34)")
         # tdSql.checkRows(2)
-
-        # tdSql.error("select * from  jsons1 where jtag->'num' in ('5',34)")
-
-        # tdSql.query("select * from  jsons1 where jtag->'location' in ('beijing') and jtag->'class'=55")
+        tdSql.error("select * from  jsons1 where jtag->'num' in ('5',34)")
+        tdSql.error("select * from  jsons1 where jtag->'location' in ('beijing') and jtag->'class'=55")
         # tdSql.checkRows(1)
 
         # test where condition match
@@ -412,7 +435,24 @@ class TDTestCase:
         tdSql.query(" select stddev(dataint) from jsons1  where  jtag->'location'='beijing';")
         tdSql.checkRows(1)
         tdSql.error(" select LEASTSQUARES(dataint,1,2) from jsons1_1 where  jtag->'location' ='beijing' ;")
+        
+        tdSql.query("select count(jtag) from jsons1 ;")
+        tdSql.checkData(0, 0, 15) 
+        tdSql.error("select count( jtag->'location'='beijing') from jsons1 ;")
+        tdSql.error("select count( jtag contains 'age') from jsons1 ;")
+        functionName = ['avg','twa','irate','stddev', 'stddev', 'leastsquares']
+        print(functionName)
+        for fn in functionName:
+            tdSql.error("select %s( jtag) from jsons1 ;"%fn)
+            tdSql.error("select %s( jtag->'location'='beijing') from jsons1 ;"%fn)
+            tdSql.error("select %s( jtag contains 'age') from jsons1 ;"%fn)            
+        # tdSql.error("select avg( jtag) from jsons1 ;")
+        # tdSql.error("select avg( jtag->'location'='beijing') from jsons1 ;")
+        # tdSql.error("select avg( jtag contains 'age') from jsons1 ;")
 
+
+        
+       
 
 
         # Select_exprs is SQL function -Selection function
@@ -467,6 +507,13 @@ class TDTestCase:
         tdSql.checkRows(4)   
         tdSql.checkData(0,1,2)
         tdSql.checkData(2,1,4)
+        #error
+        functionName = ['min','max','last','TOP','last_row','bottom','apercentile','interp']
+        print(functionName)
+        for fn in functionName:
+            tdSql.error("select %s( jtag) from jsons1 ;"%fn)
+            tdSql.error("select %s( jtag->'location'='beijing') from jsons1 ;"%fn)
+            tdSql.error("select %s( jtag contains 'age') from jsons1 ;"%fn)         
 
         #  Select_exprs is SQL function -Calculation  function
         tdSql.error(" select  diff(dataint) from jsons1 where  jtag->'location'= 'beijing' or  jtag->'location'= 'tianjing'or jtag contains 'num' or jtag->'age'=35 ;")
@@ -500,13 +547,21 @@ class TDTestCase:
         tdSql.query("select ts,round(dataint),round(datafloat),round(datadouble) from jsons7 where jtag contains 'tea';")
         tdSql.query("select round(dataint),round(datafloat),round(datadouble) from jsons7 where jtag contains 'tea';")
 
+        functionName = ['diff','Derivative','SPREAD','ceil','round','floor']
+        print(functionName)
+        for fn in functionName:
+            tdSql.error("select %s( jtag) from jsons1 ;"%fn)
+            tdSql.error("select %s( jtag->'location'='beijing') from jsons1 ;"%fn)
+            tdSql.error("select %s( jtag contains 'age') from jsons1 ;"%fn)       
+
+
         #modify one same key and diffirent data type,include negative number of double  
         tdSql.execute("insert into jsons7_4 using jsons7 tags('{\"nv\":null,\"tea\":123,\"tag\":123,\"tea\":false}') values (now+1s,5,'true',4.01,2.2,'abc'); ")
         tdSql.execute("insert into jsons7_5 using jsons7 tags('{\"nv\":null,\"tea\":\"app\",\"tag\":123,\"tea\":false}') values (now+2s,5,'true',4.01,2.2,'abc'); ")
         tdSql.error("insert into jsons7_6 using jsons7 tags('{\"nv\":null,\"tea\":-1.111111111111111111111111111111111111111111111111111111111111111111111,\"tag\":123,\"tea\":false}') values (now+3s,5,'true',4.01,2.2,'123'); ")
         tdSql.execute("insert into jsons7_6 using jsons7 tags('{\"nv\":null,\"tea\":-1.111111111,\"tag\":123,\"tea\":false}') values (now,5,'false',4.01,2.2,'t123'); ")
-        tdSql.query("select  jtag from jsons7 where jtag->'tea'>-1.01;")
-        # tdSql.checkRows(2)   
+        tdSql.query("select  jtag from jsons7 where jtag->'tea'<-1.01;")
+        tdSql.checkRows(1)   
         
         # test join
         tdSql.execute("create table if not exists jsons6(ts timestamp, dataInt int, dataBool bool, dataStr nchar(50)) tags(jtag json)")
@@ -572,6 +627,36 @@ class TDTestCase:
         tdSql.query(" select stddev(dataint) from jsons8 group by datatime;")
         tdSql.error(" select stddev(datatime) from jsons8 group by datadouble;")
 
+        # # verify the tag length of the super table and the child table 
+        # TD-12389
+        # tdSql.query("describe jsons1;")
+        # jtagLengthSup=tdSql.queryResult[3][2]
+        # tdSql.query("describe jsons1_1;")
+        # tdSql.checkData(3, 2, jtagLengthSup)
+
+        
+        # #test import and export
+        # tdSql.execute("select * from jsons1 >> jsons1_data.csv;")
+        # tdSql.query("select * from jsons1 ")
+        # with open("./jsons1_data.csv", 'r+') as f1:
+        #     # count=len(open("./jsons1_data.csv",'rU').readlines())
+        #     # print(count)
+        #     rows=0
+        #     for line in f1.readlines():
+        #             # for columns in range(4): # it will be replaced with column length later,but now  it is setted to a fixed value first
+        #         queryResultInt = line.strip().split(',')[1]
+        #         # queryResultTag = line.strip().split(',')[3]
+        #        # for rows in range(9):
+        #         # print(rows,1,queryResultInt,queryResultTag)
+        #         tdSql.checkData(rows, 1, "%s" %queryResultInt)  
+        #         # tdSql.checkData(rows, 3, "%s" %queryResultTag)  
+        #         rows +=1
+
+        # # test taos -f
+        # os.system("taos -f stable/json_tag_extra.py.sql ")
+        # tdSql.execute("use db_json")    
+        # tdSql.query("select * from jsons1")
+        # tdSql.checkRows(9)      
 
         # # test drop tables and databases
         # tdSql.execute("drop table jsons1_1")
@@ -579,7 +664,10 @@ class TDTestCase:
         # tdSql.execute("drop stable jsons3")
         # tdSql.execute("drop stable jsons2")
         # tdSql.execute("drop database db_json")
-
+        
+        testcaseFilename = os.path.split(__file__)[-1]
+        os.system("rm -rf ./insert_res.txt")
+        os.system("rm -rf tools/taosdemoAllTest/%s.sql" % testcaseFilename )     
 
 
     def stop(self):

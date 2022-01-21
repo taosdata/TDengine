@@ -6,23 +6,45 @@ TDengine can be quickly integrated with [Grafana](https://www.grafana.com/), an 
 
 ### Install Grafana
 
-TDengine currently supports Grafana 6.2 and above. You can download and install the package from Grafana website according to the current operating system. The download address is as follows:
-
-https://grafana.com/grafana/download.
+TDengine currently supports Grafana 7.0 and above. You can download and install the package from Grafana website according to the current operating system. The download address is as follows: <https://grafana.com/grafana/download>.
 
 ### Configure Grafana
 
-Download grafana plugin from <https://github.com/taosdata/grafanaplugin/releases/latest> .
+TDengine data source plugin for Grafana is hosted on GitHub, refer to GitHub latest release page <https://github.com/taosdata/grafanaplugin/releases/latest> to download the latest plugin package. Currently it's version 3.1.3 .
+
+It is recommended to use [`grafana-cli` command line tool](https://grafana.com/docs/grafana/latest/administration/cli/) to install the plugin.
+
+```bash
+sudo -u grafana grafana-cli \
+  --pluginUrl https://github.com/taosdata/grafanaplugin/releases/download/v3.1.3/tdengine-datasource-3.1.3.zip \
+  plugins install tdengine-datasource
+```
+
+Users could manually download the plugin package and install it to Grafana plugins directory.
 
 ```bash
 GF_VERSION=3.1.3
 wget https://github.com/taosdata/grafanaplugin/releases/download/v$GF_VERSION/tdengine-datasource-$GF_VERSION.zip
 ```
 
-Taking Centos 7.2 as an example, just copy grafanaplugin directory to /var/lib/grafana/plugins directory and restart Grafana.
+Taking Centos 7.2 as an example, just unpack the package to /var/lib/grafana/plugins directory and restart Grafana.
 
 ```bash
 sudo unzip tdengine-datasource-$GF_VERSION.zip /var/lib/grafana/plugins/
+```
+
+Grafana will check the signature after 7.3 and 8.x for security. Users need additional configurations in `grafana.ini` file to allow unsigned plugins like TDengine data source.
+
+```ini
+[plugins]
+allow_loading_unsigned_plugins = tdengine-datasource
+```
+
+In docker/compose/k8s, simply setting the two environment variables will take it all for you.
+
+```bash
+GF_INSTALL_PLUGINS=https://github.com/taosdata/grafanaplugin/releases/download/v3.1.3/tdengine-datasource-3.1.3.zip;tdengine-datasource
+GF_PLUGINS_ALLOW_LOADING_UNSIGNED_PLUGINS=tdengine-datasource
 ```
 
 ### Use Grafana
@@ -41,7 +63,7 @@ Enter the data source configuration page and modify the corresponding configurat
 
 ![img](../images/connections/add_datasource3.jpg)
 
-- Host: IP address of any server in TDengine cluster and port number of TDengine RESTful interface (6041), default  [http://localhost:6041](http://localhost:6041/)
+- Host: IP address of any server in TDengine cluster and port number of TDengine RESTful interface (6041), use [http://localhost:6041](http://localhost:6041/) to access the interface by default. Note the 2.4 and later version of TDengine use a stand-alone software, taosAdapter to provide RESTful interface. Please refer to its document for configuration and deployment. 
 - User: TDengine username.
 - Password: TDengine user password.
 

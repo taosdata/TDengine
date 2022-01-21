@@ -119,7 +119,7 @@ taosd -C
 | 1     | firstEP                 |          | **SC**   |          | taosd启动时，主动连接的集群中首个dnode的end point           |                                                              | localhost:6030                                            |                                                              |
 | 2     | secondEP                | YES      | **SC**   |          | taosd启动时，如果firstEp连接不上，尝试连接集群中第二个dnode的end point |                                                              | 无                                                           |                                                              |
 | 3     | fqdn                    |          | **SC**   |          | 数据节点的FQDN。如果习惯IP地址访问，可设置为该节点的IP地址。   |                                                              | 缺省为操作系统配置的第一个hostname。                             | 这个参数值的长度需要控制在 96 个字符以内。                         |
-| 4     | serverPort              |          | **SC**   |          | taosd启动后，对外服务的端口号                              |                                                              | 6030                                                         | RESTful服务使用的端口号是在此基础上+11，即默认值为6041。            |
+| 4     | serverPort              |          | **SC**   |          | taosd启动后，对外服务的端口号                              |                                                              | 6030                                                         | RESTful服务使用的端口号是在此基础上+11，即默认值为6041（注意2.4及后续版本使用 taosAdapter 提供 RESTful 接口）。            |
 | 5     | logDir                  |          | **SC**   |          | 日志文件目录，客户端和服务器的运行日志将写入该目录           |                                                              | /var/log/taos                                                |                                                              |
 | 6     | scriptDir               | YES      | **S**    |          |                                                              |                                                              |                                                              |                                                              |
 | 7     | dataDir                 |          | **S**    |          | 数据文件目录，所有的数据文件都将写入该目录                   |                                                              | /var/lib/taos                                                |                                                              |
@@ -180,10 +180,10 @@ taosd -C
 | 62    | http                    |          | **S**    |          | 服务器内部的http服务开关。                                   | 0：关闭http服务， 1：激活http服务。                          | 1                                                            |                                                              |
 | 63    | mqtt                    | YES      | **S**    |          | 服务器内部的mqtt服务开关。                                   | 0：关闭mqtt服务， 1：激活mqtt服务。                          | 0                                                            |                                                              |
 | 64    | monitor                 |          | **S**    |          | 服务器内部的系统监控开关。监控主要负责收集物理节点的负载状况，包括CPU、内存、硬盘、网络带宽、HTTP请求量的监控记录，记录信息存储在`LOG`库中。 | 0：关闭监控服务， 1：激活监控服务。                          | 0                                                            |                                                              |
-| 65    | httpEnableRecordSql     |          | **S**    |          | 内部使用，记录通过RESTFul接口，产生的SQL调用                 |                                                              | 0                                                            | 生成的文件（httpnote.0/httpnote.1），与服务端日志所在目录相同。 |
-| 66    | httpMaxThreads          |          | **S**    |          | RESTFul接口的线程数                                          |                                                              | 2                                                            |                                                              |
+| 65    | httpEnableRecordSql     |          | **S**    |          | 内部使用，记录通过RESTFul接口，产生的SQL调用。taosAdapter 配置或有不同，请参考相应[文档](https://www.taosdata.com/cn/documentation/tools/adapter)。                 |                                                              | 0                                                            | 生成的文件（httpnote.0/httpnote.1），与服务端日志所在目录相同。 |
+| 66    | httpMaxThreads          |          | **S**    |          | RESTFul接口的线程数。taosAdapter 配置或有不同，请参考相应[文档](https://www.taosdata.com/cn/documentation/tools/adapter)。                                         |                                                              | 2                                                            |                                                              |
 | 67    | telegrafUseFieldNum     | YES      |          |          |                                                              |                                                              |                                                              |                                                              |
-| 68    | restfulRowLimit         |          | **S**    |          | RESTFul接口单次返回的记录条数                                |                                                              | 10240                                                        | 最大10,000,000                                               |
+| 68    | restfulRowLimit         |          | **S**    |          | RESTFul接口单次返回的记录条数。taosAdapter 配置或有不同，请参考相应[文档](https://www.taosdata.com/cn/documentation/tools/adapter)。                                |                                                              | 10240                                                        | 最大10,000,000                                               |
 | 69    | numOfLogLines           |          | **SC**   |          | 单个日志文件允许的最大行数。                                 |                                                              | 10,000,000                                                   |                                                              |
 | 70    | asyncLog                |          | **SC**   |          | 日志写入模式                                                 | 0：同步、1：异步                                             | 1                                                            |                                                              |
 | 71    | logKeepDays             |          | **SC**   | 天       | 日志文件的最长保存时间                                         |                                                              | 0                                                            | 大于0时，日志文件会被重命名为taosdlog.xxx，其中xxx为日志文件最后修改的时间戳。       |
@@ -222,7 +222,11 @@ taosd -C
 | 104   | maxWildCardsLength      |          | **C**    | bytes    | 设定 LIKE 算子的通配符字符串允许的最大长度                     | 0-16384                                                       | 100                                                          | 2.1.6.1 版本新增。                                                     |
 | 105  | compressColData         |          | **S**    | bytes    | 客户端与服务器之间进行消息通讯过程中，对服务器端查询结果进行列压缩的阈值。 | 0: 对所有查询结果均进行压缩  >0: 查询结果中任意列大小超过该值的消息才进行压缩  -1: 不压缩 | -1                                                           | 2.3.0.0 版本新增。                     |
 | 106    | tsdbMetaCompactRatio      |          | **C**    |          | tsdb meta文件中冗余数据超过多少阈值，开启meta文件的压缩功能                                  | 0：不开启，[1-100]：冗余数据比例                                                 | 0                                                            |  |
-| 107    | rpcForceTcp | | **SC**|  | 强制使用TCP传输 | 0: 不开启 1: 开启 ｜  0 ｜ 在网络比较差的环境中，建议开启。2.0版本新增。｜
+| 107    | rpcForceTcp | | **SC**|  | 强制使用TCP传输 | 0: 不开启 1: 开启 | 0 | 在网络比较差的环境中，建议开启。2.0版本新增。|
+| 108    | maxNumOfDistinctRes | | **S**|  | 允许返回的distinct结果最大行数 |默认值为10万，最大值1亿 | 10万 | 2.3版本新增。|
+| 109    | clientMerge | | **C**|  | 是否允许客户端对写入数据去重 |0：不开启，1：开启|  0 | 2.3版本新增。|
+| 110   | httpDBNameMandatory | | **S**|  | 是否在URL中输入 数据库名称|0：不开启，1：开启|  0 | 2.3版本新增。|
+| 111   | maxRegexStringLen  | | **C**|  | 正则表达式最大允许长度 |默认值128，最大长度 16384 |  128 | 2.3版本新增。|
 
 **注意：**对于端口，TDengine会使用从serverPort起13个连续的TCP和UDP端口号，请务必在防火墙打开。因此如果是缺省配置，需要打开从6030到6042共13个端口，而且必须TCP和UDP都打开。（详细的端口情况请参见 [TDengine 2.0 端口说明](https://www.taosdata.com/cn/documentation/faq#port)）
 
@@ -615,35 +619,6 @@ COMPACT 命令对指定的一个或多个 VGroup 启动碎片重整，系统会�
 
 需要注意的是，碎片重整操作会大幅消耗磁盘 I/O。因此在重整进行期间，有可能会影响节点的写入和查询性能，甚至在极端情况下导致短时间的阻写。
 
-<a class="anchor" id="tsz_compress"></a>
-## 浮点数有损压缩
-
-在车联网等物联网智能应用场景中，经常会采集和存储海量的浮点数类型数据，如果能更高效地对此类数据进行压缩，那么不但能够节省数据存储的硬件资源，也能够因降低磁盘 I/O 数据量而提升系统性能表现。
-
-从 2.1.6.0 版本开始，TDengine 提供一种名为 TSZ 的新型数据压缩算法，无论设置为有损压缩还是无损压缩，都能够显著提升浮点数类型数据的压缩率表现。目前该功能以可选模块的方式进行发布，可以通过添加特定的编译参数来启用该功能（也即常规安装包中暂未包含该功能）。
-
-**需要注意的是，该功能一旦启用，效果是全局的，也即会对系统中所有的 FLOAT、DOUBLE 类型的数据生效。同时，在启用了浮点数有损压缩功能后写入的数据，也无法被未启用该功能的版本载入，并有可能因此而导致数据库服务报错退出。**
-
-### 创建支持 TSZ 压缩算法的 TDengine 版本
-
-TSZ 模块保存在单独的代码仓库 https://github.com/taosdata/TSZ 中。可以通过以下步骤创建包含此模块的 TDengine 版本：
-1. TDengine 中的插件目前只支持通过 SSH 的方式拉取和编译，所以需要自己先配置好通过 SSH 拉取 GitHub 代码的环境。
-2. `git clone git@github.com:taosdata/TDengine -b your_branchname --recurse-submodules` 通过 `--recurse-submodules` 使依赖模块的源代码可以被一并下载。
-3. `mkdir debug && cd debug` 进入单独的编译目录。
-4. `cmake .. -DTSZ_ENABLED=true` 其中参数 `-DTSZ_ENABLED=true` 表示在编译过程中加入对 TSZ 插件功能的支持。如果成功激活对 TSZ 模块的编译，那么 CMAKE 过程中也会显示 `build with TSZ enabled` 字样。
-5. 编译成功后，包含 TSZ 浮点压缩功能的插件便已经编译进了 TDengine 中了，可以通过调整 taos.cfg 中的配置参数来使用此功能了。
-
-### 通过配置文件来启用 TSZ 压缩算法
-
-如果要启用 TSZ 压缩算法，除了在 TDengine 的编译过程需要声明启用 TSZ 模块之外，还需要在 taos.cfg 配置文件中对以下参数进行设置：
-* lossyColumns：配置要进行有损压缩的浮点数数据类型。参数值类型为字符串，含义为：空 - 关闭有损压缩；float - 只对 FLOAT 类型进行有损压缩；double - 只对 DOUBLE 类型进行有损压缩；float|double：对 FLOAT 和 DOUBLE 类型都进行有损压缩。默认值是“空”，也即关闭有损压缩。
-* fPrecision：设置 float 类型浮点数压缩精度，小于此值的浮点数尾数部分将被截断。参数值类型为 FLOAT，最小值为 0.0，最大值为 100,000.0。缺省值为 0.00000001（1E-8）。
-* dPrecision：设置 double 类型浮点数压缩精度，小于此值的浮点数尾数部分将被截断。参数值类型为 DOUBLE，最小值为 0.0，最大值为 100,000.0。缺省值为 0.0000000000000001（1E-16）。
-* maxRange：表示数据的最大浮动范围。一般无需调整，在数据具有特定特征时可以配合 range 参数来实现极高的数据压缩率。默认值为 500。
-* range：表示数据大体浮动范围。一般无需调整，在数据具有特定特征时可以配合 maxRange 参数来实现极高的数据压缩率。默认值为 100。
-
-**注意：**对 cfg 配置文件中参数值的任何调整，都需要重新启动 taosd 才能生效。并且以上选项为全局配置选项，配置后对所有数据库中所有表的 FLOAT 及 DOUBLE 类型的字段生效。
-
 ## <a class="anchor" id="directories"></a>文件目录结构
 
 安装TDengine后，默认会在操作系统中生成下列目录或文件：
@@ -666,8 +641,10 @@ TDengine的所有可执行文件默认存放在 _/usr/local/taos/bin_ 目录下�
 - *taosd*：TDengine服务端可执行文件
 - *taos*：TDengine Shell可执行文件
 - *taosdump*：数据导入导出工具
-- *taosdemo*：TDengine测试工具
+- *taosBenchmark*：TDengine测试工具
 - remove.sh：卸载TDengine的脚本，请谨慎执行，链接到/usr/bin目录下的**rmtaos**命令。会删除TDengine的安装目录/usr/local/taos，但会保留/etc/taos、/var/lib/taos、/var/log/taos。
+
+注意：2.4.0.0 版本之后的 taosBenchmark 和 taosdump 需要安装独立安装包 taosTools。
 
 您可以通过修改系统配置文件taos.cfg来配置不同的数据目录和日志目录。
 
@@ -717,6 +694,13 @@ rmtaos
 1. 合法字符：英文字符、数字和下划线
 2. 允许英文字符或下划线开头，不允许以数字开头
 3. 不区分大小写
+4. 转义后表（列）名规则：
+   为了兼容支持更多形式的表（列）名，TDengine 引入新的转义符  "`"。可用让表名与关键词不冲突，同时不受限于上述表名称合法性约束检查。
+   转义后的表（列）名同样受到长度限制要求，且长度计算的时候不计算转义符。使用转义字符以后，不再对转义字符中的内容进行大小写统一。
+
+   例如：\`aBc\` 和 \`abc\` 是不同的表（列）名，但是 abc 和 aBc 是相同的表（列）名。
+   需要注意的是转义字符中的内容必须是可打印字符。
+   支持转义符的功能从 2.3.0.1 版本开始。
 
 **密码合法字符集**
 
@@ -786,6 +770,27 @@ rmtaos
 | CONNS        | ID           | NOTNULL      | STABLE       | WAL          |
 | COPY         | IF           | NOW          | STABLES      | WHERE        |
 
+## 转义字符说明
+- 转义字符表（转义符的功能从 2.4.0.4 版本开始）
+
+  | 字符序列    | **代表的字符**  |
+      | :--------:     |   -------    |
+  | `\'`             |  单引号'      | 
+  | `\"`             |  双引号"      |
+  | \n             |  换行符       |
+  | \r             |  回车符       |
+  | \t             |  tab符       |
+  | `\\`             |  斜杠\        |
+  | `\%`             |  % 规则见下    |
+  | `\_`             |  _ 规则见下    |
+
+- 转义字符使用规则
+  1. 标识符里有转义字符（数据库名、表名、列名）
+     1. 普通标识符：    直接提示错误的标识符，因为标识符规定必须是数字、字母和下划线，并且不能以数字开头。
+     2. 反引号``标识符： 保持原样，不转义
+  2. 数据里有转义字符
+     1. 遇到上面定义的转义字符会转义（%和_见下面说明），如果没有匹配的转义字符会忽略掉转义符\。
+     2. 对于%和_，因为在like里这两个字符是通配符，所以在模式匹配like里用`\%`%和`\_`表示字符里本身的%和_，如果在like模式匹配上下文之外使用`\%`或`\_`，则它们的计算结果为字符串`\%`和`\_`，而不是%和_。
 ## 诊断及其他
 
 #### 网络连接诊断
@@ -900,10 +905,14 @@ taosd 服务端日志文件标志位 debugflag 默认为 131，在 debug 时往�
 
 一旦设定为 135 或 143，日志文件增长很快，特别是写入、查询请求量较大时，增长速度惊人。如合并保存日志，很容易把日志内的关键信息（如配置信息、错误信息等）冲掉。为此，服务端将重要信息日志与其他日志分开存放：
 
-- taosinfo    存放重要信息日志
-- taosdlog    存放其他日志
+- taosinfo    存放重要信息日志, 包括：INFO/ERROR/WARNING 级别的日志信息。不记录DEBUG、TRACE级别的日志。
+- taosdlog    服务器端生成的日志，记录taosinfo中全部信息外，还根据设置的日志输出级别，记录DEBUG（日志级别135）、TRACE（日志级别是 143）。
 
-其中，taosinfo 日志文件最大长度由 numOfLogLines 来进行配置，一个 taosd 实例最多保留两个文件。
+### 客户端日志
+每个独立运行的客户端（一个进程）生成一个独立的客户端日志，其命名方式采用 taoslog+<序号> 的方式命名。文件标志位 debugflag 默认为 131，在 debug 时往往需要将其提升到 135 或 143 。
+- taoslog     客户端（driver）生成的日志，默认记录客户端INFO/ERROR/WARNING 级别日志，还根据设置的日志输出级别，记录DEBUG（日志级别135）、TRACE（日志级别是 143）。
+
+其中，日志文件最大长度由 numOfLogLines 来进行配置，一个 taosd 实例最多保留两个文件。
 
 taosd 服务端日志采用异步落盘写入机制，优点是可以避免硬盘写入压力太大，对性能造成很大影响。缺点是，在极端情况下，存在少量日志行数丢失的可能。
 

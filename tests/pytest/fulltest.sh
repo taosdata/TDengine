@@ -190,7 +190,7 @@ python3 test.py -f tools/taosdemoAllTest/NanoTestCase/taosdemoTestInsertTime_ste
 python3 test.py -f tools/taosdumpTestNanoSupport.py
 
 #
-python3 ./test.py -f tsdb/tsdbComp.py
+# python3 ./test.py -f tsdb/tsdbComp.py
 
 # update
 python3 ./test.py -f update/allow_update.py
@@ -229,7 +229,8 @@ python3 test.py -f tools/taosdemoAllTest/taosdemoTestInsertAllType.py
 python3 test.py -f tools/taosdemoAllTest/taosdemoTestInsertShell.py
 
 #query
-python3 test.py -f query/distinctOneColTb.py
+python3 ./test.py -f query/queryBase.py
+python3 ./test.py -f query/distinctOneColTb.py
 python3 ./test.py -f query/filter.py
 python3 ./test.py -f query/filterCombo.py
 python3 ./test.py -f query/queryNormal.py
@@ -286,6 +287,9 @@ python3 ./test.py -f query/queryCnameDisplay.py
 python3 test.py -f query/nestedQuery/queryWithSpread.py
 python3 ./test.py -f query/bug6586.py
 # python3 ./test.py -f query/bug5903.py
+python3 ./test.py -f query/queryLimit.py
+python3 ./test.py -f query/queryPriKey.py
+python3 ./test.py -f query/queryNcharNull.py
 
 #stream
 python3 ./test.py -f stream/metric_1.py

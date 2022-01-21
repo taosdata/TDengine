@@ -27,6 +27,7 @@
 #include "tskiplist.h"
 #include "texpr.h"
 #include "tarithoperator.h"
+#include "tulog.h"
 
 static int32_t exprValidateMathNode(tExprNode *pExpr);
 static int32_t exprValidateStringConcatNode(tExprNode *pExpr);
@@ -1274,6 +1275,11 @@ void castConvert(int16_t inputType, int16_t inputBytes, char *input, int16_t Out
       } else if (inputType == TSDB_DATA_TYPE_NCHAR) {
         char *newColData = calloc(1, outputBytes * TSDB_NCHAR_SIZE + 1);
         int len = taosUcs4ToMbs(varDataVal(input), varDataLen(input), newColData);
+        if (len < 0){
+          uError("castConvert taosUcs4ToMbs error 1");
+          tfree(newColData);
+          return;
+        }
         newColData[len] = 0;
         *(int64_t *)output = strtoll(newColData, NULL, 10);
         tfree(newColData);
@@ -1291,6 +1297,11 @@ void castConvert(int16_t inputType, int16_t inputBytes, char *input, int16_t Out
       } else if (inputType == TSDB_DATA_TYPE_NCHAR) {
         char *newColData = calloc(1, outputBytes * TSDB_NCHAR_SIZE + 1);
         int len = taosUcs4ToMbs(varDataVal(input), varDataLen(input), newColData);
+        if (len < 0){
+          uError("castConvert taosUcs4ToMbs error 2");
+          tfree(newColData);
+          return;
+        }
         newColData[len] = 0;
         *(int64_t *)output = strtoull(newColData, NULL, 10);
         tfree(newColData);
@@ -1332,11 +1343,19 @@ void castConvert(int16_t inputType, int16_t inputBytes, char *input, int16_t Out
         if (inputType == TSDB_DATA_TYPE_BOOL) {
           char tmp[8] = {0};
           int32_t len = sprintf(tmp, "%.*s", ncharSize, *(int8_t*)input ? "true" : "false");
-          taosMbsToUcs4(tmp, len, varDataVal(output), outputBytes - VARSTR_HEADER_SIZE, &len);
+          bool ret = taosMbsToUcs4(tmp, len, varDataVal(output), outputBytes - VARSTR_HEADER_SIZE, &len);
+          if(!ret) {
+            uError("castConvert1 taosMbsToUcs4 error");
+            return;
+          }
           varDataSetLen(output, len);
         } else if (inputType == TSDB_DATA_TYPE_BINARY) {
           int32_t len = ncharSize > varDataLen(input) ? varDataLen(input) : ncharSize;
-          taosMbsToUcs4(input + VARSTR_HEADER_SIZE, len, varDataVal(output), outputBytes - VARSTR_HEADER_SIZE, &len);
+          bool ret = taosMbsToUcs4(input + VARSTR_HEADER_SIZE, len, varDataVal(output), outputBytes - VARSTR_HEADER_SIZE, &len);
+          if(!ret) {
+            uError("castConvert2 taosMbsToUcs4 error");
+            return;
+          }
           varDataSetLen(output, len);
         } else if (inputType == TSDB_DATA_TYPE_TIMESTAMP) {
           assert(0);
@@ -1348,7 +1367,11 @@ void castConvert(int16_t inputType, int16_t inputBytes, char *input, int16_t Out
           char tmp[400] = {0};
           NUM_TO_STRING(inputType, input, sizeof(tmp), tmp);
           int32_t len = (int32_t)(ncharSize > strlen(tmp) ? strlen(tmp) : ncharSize);
-          taosMbsToUcs4(tmp, len, varDataVal(output), outputBytes - VARSTR_HEADER_SIZE, &len);
+          bool ret = taosMbsToUcs4(tmp, len, varDataVal(output), outputBytes - VARSTR_HEADER_SIZE, &len);
+          if(!ret) {
+            uError("castConvert3 taosMbsToUcs4 error");
+            return;
+          }
           varDataSetLen(output, len);
         }
         break;
