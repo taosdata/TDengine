@@ -3463,6 +3463,9 @@ int32_t addExprAndResultField(SSqlCmd* pCmd, SQueryInfo* pQueryInfo, int32_t col
         int i = 0;
         while (bin) {
           intervals[i] = bin->valuedouble;
+          if (!cJSON_IsNumber(bin)) {
+            return invalidOperationMsg(tscGetErrorMsgPayload(pCmd), msg22);
+          }
           if (i != 0 && intervals[i] <= intervals[i - 1]) {
             return invalidOperationMsg(tscGetErrorMsgPayload(pCmd), msg22);
           }

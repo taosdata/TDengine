@@ -193,7 +193,7 @@ class TDTestCase:
 
 
         print("============== STEP 2: bin types  ================== ")
-        #user_input
+        ## user_input ##
         #TINYINT
         tdSql.query('select histogram(col_tinyint, "user_input", "[1,3,5]", 0) from stb;')
         tdSql.checkRows(2);
@@ -759,6 +759,30 @@ class TDTestCase:
         tdSql.checkData(0, 0, "(-1e+14-9.9]:11");
         tdSql.checkData(1, 0, "(9.9-19.9]:2");
         tdSql.checkData(2, 0, "(19.9-1e+14]:2");
+
+        #ERROR CASE
+        tdSql.error('select histogram(col_double, "user_input", "[1,5,3,7]", 0) from stb;')
+        tdSql.error('select histogram(col_double, "user_input", "[1,-1,3,-3]", 0) from stb;')
+        tdSql.error('select histogram(col_double, "user_input", "[1.0,5.5,3.3,7.7]", 0) from stb;')
+        tdSql.error('select histogram(col_double, "user_input", "[1,1,1]", 0) from stb;')
+        tdSql.error('select histogram(col_double, "user_input", "[false,3,5]", 0) from stb;')
+        tdSql.error('select histogram(col_double, "user_input", "[true,3,5]", 0) from stb;')
+
+
+        ## user_input ##
+        #TINYINT
+        tdSql.query('select histogram(col_tinyint, "user_input", "[1,3,5]", 0) from stb;')
+        tdSql.checkRows(2);
+        tdSql.checkData(0, 0, "(1-3]:2");
+        tdSql.checkData(1, 0, "(3-5]:2");
+        tdSql.query('select histogram(col_tinyint, "user_input", "[1,3,5]", 0) from ctb;')
+        tdSql.checkRows(2);
+        tdSql.checkData(0, 0, "(1-3]:2");
+        tdSql.checkData(1, 0, "(3-5]:2");
+        tdSql.query('select histogram(col_tinyint, "user_input", "[1,3,5]", 0) from tb;')
+        tdSql.checkRows(2);
+        tdSql.checkData(0, 0, "(1-3]:2");
+        tdSql.checkData(1, 0, "(3-5]:2");
 
         return
         tdSql.execute('drop database db')
