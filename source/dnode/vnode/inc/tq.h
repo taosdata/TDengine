@@ -320,6 +320,8 @@ void tqClose(STQ*);
 int tqPushMsg(STQ*, void* msg, int64_t version);
 int tqCommit(STQ*);
 
+int tqSetCursor(STQ*, STqSetCurReq* pMsg);
+
 #if 0
 int tqConsume(STQ*, SRpcMsg* pReq, SRpcMsg** pRsp);
 int tqSetCursor(STQ*, STqSetCurReq* pMsg);

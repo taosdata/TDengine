@@ -32,7 +32,7 @@ size_t metaEncodeTbObjFromTbOptions(const STbCfg *pTbOptions, void *pBuf, size_t
   switch (pTbOptions->type) {
     case META_SUPER_TABLE:
       tlen += taosEncodeFixedU64(ppBuf, pTbOptions->stbCfg.suid);
-      tlen += tdEncodeSchema(ppBuf, pTbOptions->stbCfg.pTagSchema);
+      tlen += tdEncodeSchema(ppBuf, (STSchema *)pTbOptions->stbCfg.pTagSchema);
       // TODO: encode schema version array
       break;
     case META_CHILD_TABLE:

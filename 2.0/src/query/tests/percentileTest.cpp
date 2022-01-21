@@ -7,6 +7,7 @@
 
 #include "qPercentile.h"
 
+#pragma GCC diagnostic push
 #pragma GCC diagnostic ignored "-Wunused-function"
 #pragma GCC diagnostic ignored "-Wunused-variable"
 
@@ -255,3 +256,5 @@ TEST(testCase, percentileTest) {
   unsignedDataTest();
   largeDataTest();
 }
+
+#pragma GCC diagnostic pop

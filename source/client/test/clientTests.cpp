@@ -17,8 +17,9 @@
 #include <taoserror.h>
 #include <tglobal.h>
 #include <iostream>
-#pragma GCC diagnostic ignored "-Wwrite-strings"
 
+#pragma GCC diagnostic push
+#pragma GCC diagnostic ignored "-Wwrite-strings"
 #pragma GCC diagnostic ignored "-Wunused-function"
 #pragma GCC diagnostic ignored "-Wunused-variable"
 #pragma GCC diagnostic ignored "-Wsign-compare"
@@ -679,3 +680,5 @@ TEST(testCase, create_topic_Test) {
 //  taos_free_result(pRes);
 //  taos_close(pConn);
 //}
+
+#pragma GCC diagnostic pop
