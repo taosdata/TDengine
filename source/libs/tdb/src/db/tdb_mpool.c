@@ -47,24 +47,24 @@ int tdbMPoolOpen(TDB_MPOOL **mpp, uint64_t cachesize, pgsize_t pgsize) {
 
   TD_DLIST_INIT(&mp->freeList);
 
-  mp->pages = (pg_t **)calloc(mp->npages, sizeof(pg_t *));
+  mp->pages = (pg_t *)calloc(mp->npages, sizeof(pg_t));
   if (mp->pages == NULL) {
     tdbError("failed to malloc memory pool pages");
     goto _err;
   }
 
   for (frame_id_t i = 0; i < mp->npages; i++) {
-    mp->pages[i] = (pg_t *)calloc(1, MP_PAGE_SIZE(pgsize));
-    if (mp->pages[i] == NULL) {
+    mp->pages[i].p = malloc(pgsize);
+    if (mp->pages[i].p == NULL) {
       goto _err;
     }
 
-    taosInitRWLatch(&mp->pages[i]->rwLatch);
-    mp->pages[i]->frameid = i;
-    mp->pages[i]->pgid = TDB_IVLD_PGID;
+    taosInitRWLatch(&mp->pages[i].rwLatch);
+    mp->pages[i].frameid = i;
+    mp->pages[i].pgid = TDB_IVLD_PGID;
 
     // add new page to the free list
-    TD_DLIST_APPEND_WITH_FIELD(&(mp->freeList), mp->pages[i], free);
+    TD_DLIST_APPEND_WITH_FIELD(&(mp->freeList), &(mp->pages[i]), free);
   }
 
 #define PGTAB_FACTOR 1.0
@@ -90,7 +90,7 @@ int tdbMPoolClose(TDB_MPOOL *mp) {
     tfree(mp->pgtab.hashtab);
     if (mp->pages) {
       for (int i = 0; i < mp->npages; i++) {
-        tfree(mp->pages[i]);
+        tfree(mp->pages[i].p);
       }
 
       free(mp->pages);
@@ -182,7 +182,7 @@ int tdbMPoolFileGetPage(TDB_MPFILE *mpf, pgno_t pgno, void *addr) {
   if (pagep) {
     // page is found
     // todo: pin the page and return
-    *(void **)addr = pagep->data;
+    *(void **)addr = pagep->p;
     return 0;
   }
 
@@ -191,7 +191,6 @@ int tdbMPoolFileGetPage(TDB_MPFILE *mpf, pgno_t pgno, void *addr) {
   if (pagep) {
     // has free page
     TD_DLIST_POP_WITH_FIELD(&(mp->freeList), pagep, free);
-    // todo: load the page from file and pin the page
   } else {
     // no free page available
     // pagep = tdbMpoolEvict(mp);
@@ -208,7 +207,7 @@ int tdbMPoolFileGetPage(TDB_MPFILE *mpf, pgno_t pgno, void *addr) {
 
   // load page from the disk if a container page is available
   // TODO: load the page from the disk
-  if (tdbMPoolFileReadPage(mpf, pgno, pagep->data) < 0) {
+  if (tdbMPoolFileReadPage(mpf, pgno, pagep->p) < 0) {
     return -1;
   }
 

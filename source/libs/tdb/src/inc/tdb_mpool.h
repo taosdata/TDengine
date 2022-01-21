@@ -32,13 +32,12 @@ typedef struct pg_t {
   frame_id_t           frameid;
   pgid_t               pgid;
   uint8_t              dirty;
+  uint8_t              rbit;
   int32_t              pinRef;
   pg_free_dlist_node_t free;
   pg_hash_dlist_node_t hash;
-  uint8_t              data[];
+  void *               p;
 } pg_t;
-
-#define MP_PAGE_SIZE(pgsize) (sizeof(pg_t) + (pgsize))
 
 typedef TD_DLIST(pg_t) pg_list_t;
 typedef struct {
@@ -49,7 +48,7 @@ struct TDB_MPOOL {
   int64_t   cachesize;
   pgsize_t  pgsize;
   int32_t   npages;
-  pg_t **   pages;
+  pg_t *    pages;
   pg_list_t freeList;
   struct {
     int32_t    nbucket;
