@@ -156,7 +156,7 @@ int tdbMPoolFileGet(TDB_MPFILE *mpf, pgno_t pgno, void *addr) {
 
   mp = mpf->mp;
 
-  // get page in the cache
+  // check if the page already in pool
   pglist = mp->pgtab.hashtab + MPF_GET_PAGE_BUCKETID(mpf->fileid, pgno, mp->pgtab.nbucket);
   pagep = TD_DLIST_HEAD(pglist);
   while (pagep) {
@@ -168,24 +168,37 @@ int tdbMPoolFileGet(TDB_MPFILE *mpf, pgno_t pgno, void *addr) {
   }
 
   if (pagep) {
-    // page is found in the page table
+    // page is found
     // todo: pin the page and return
     *(void **)addr = pagep->data;
     return 0;
+  }
+
+  // page not found
+  pagep = TD_DLIST_HEAD(&mp->freeList);
+  if (pagep) {
+    // has free page
+    TD_DLIST_POP_WITH_FIELD(&(mp->freeList), pagep, free);
+    // todo: load the page from file and pin the page
   } else {
-    // page not found
-    pagep = TD_DLIST_HEAD(&mp->freeList);
+    // no free page available
+    // pagep = tdbMpoolEvict(mp);
     if (pagep) {
-      // TD_DLIST_POP(&(mp->freeList), pagep);
     } else {
-      // no page found in the freelist, need to evict
-      // pagep = tdbMpoolEvict(mp);
-      if (pagep) {
-      } else {
-        // TODO: Cannot find a page to evict
-      }
+      // TODO: Cannot find a page to evict
     }
   }
+
+  if (pagep == NULL) {
+    // no available container page
+    return -1;
+  }
+
+  // load page from the disk if a container page is available
+  // TODO: load the page from the disk
+
+  // add current page to page table
+  TD_DLIST_APPEND_WITH_FIELD(pglist, pagep, hash);
 
   return 0;
 }
