@@ -3485,8 +3485,25 @@ int32_t addExprAndResultField(SSqlCmd* pCmd, SQueryInfo* pQueryInfo, int32_t col
       //intervals[4] = DBL_MAX;
       tscExprAddParams(&pExpr->base, (char*)intervals, TSDB_DATA_TYPE_BINARY, sizeof(double) * numBins);
 
+      //normalized param
+      char val[8] = {0};
+      if (pParamElem[3].pNode->tokenId == TK_ID) {
+        return invalidOperationMsg(tscGetErrorMsgPayload(pCmd), msg2);
+      }
+
+      pVariant = &pParamElem[3].pNode->value;
+      if (pVariant == NULL && pVariant->nType != TSDB_DATA_TYPE_BIGINT) {
+        return invalidOperationMsg(tscGetErrorMsgPayload(pCmd), msg2);
+      }
+
+      if (tVariantDump(pVariant, val, TSDB_DATA_TYPE_BIGINT, true) < 0) {
+        return TSDB_CODE_TSC_INVALID_OPERATION;
+      }
+
+      tscExprAddParams(&pExpr->base, val, TSDB_DATA_TYPE_BIGINT, LONG_BYTES);
+
       memset(pExpr->base.aliasName, 0, tListLen(pExpr->base.aliasName));
-      getColumnName(pItem, pExpr->base.aliasName, pExpr->base.token,sizeof(pExpr->base.aliasName) - 1);
+      getColumnName(pItem, pExpr->base.aliasName, pExpr->base.token, sizeof(pExpr->base.aliasName) - 1);
       // todo refactor: tscColumnListInsert part
       SColumnList ids = createColumnList(1, index.tableIndex, index.columnIndex);
 
