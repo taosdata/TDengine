@@ -3484,6 +3484,7 @@ int32_t addExprAndResultField(SSqlCmd* pCmd, SQueryInfo* pQueryInfo, int32_t col
       //intervals[3] = 30;
       //intervals[4] = DBL_MAX;
       tscExprAddParams(&pExpr->base, (char*)intervals, TSDB_DATA_TYPE_BINARY, sizeof(double) * numBins);
+      tfree(intervals);
 
       //normalized param
       char val[8] = {0};
