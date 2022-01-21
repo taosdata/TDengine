@@ -2675,6 +2675,10 @@ int32_t addExprAndResultField(SSqlCmd* pCmd, SQueryInfo* pQueryInfo, int32_t col
   const char* msg16 = "elapsed duration should be greater than or equal to database precision";
   const char* msg17 = "elapsed/twa should not be used in nested query if inner query has group by clause";
   const char* msg18 = "the second parameter is not an integer";
+  const char* msg19 = "histogram function requires four parameters";
+  const char* msg20 = "second parameter must be 'user_input', 'linear_bin' or 'log_bin'";
+  const char* msg21 = "third parameter must be in JSON format";
+  const char* msg22 = "invalid parameters for bin_desciption";
 
   switch (functionId) {
     case TSDB_FUNC_COUNT: {
@@ -3333,6 +3337,11 @@ int32_t addExprAndResultField(SSqlCmd* pCmd, SQueryInfo* pQueryInfo, int32_t col
     }
 
     case TSDB_FUNC_HISTOGRAM: {
+      // check params
+      if (taosArrayGetSize(pItem->pNode->Expr.paramList) != 4) {
+        return invalidOperationMsg(tscGetErrorMsgPayload(pCmd), msg19);
+      }
+
       tSqlExprItem* pParamElem = taosArrayGet(pItem->pNode->Expr.paramList, 0);
       if (pParamElem->pNode->tokenId != TK_ID) {
         return invalidOperationMsg(tscGetErrorMsgPayload(pCmd), msg2);
@@ -3350,7 +3359,71 @@ int32_t addExprAndResultField(SSqlCmd* pCmd, SQueryInfo* pQueryInfo, int32_t col
       pTableMetaInfo = tscGetMetaInfo(pQueryInfo, index.tableIndex);
       SSchema* pSchema = tscGetTableColumnSchema(pTableMetaInfo->pTableMeta, index.columnIndex);
 
-      int32_t numBins = 4;
+      //bin_type param
+      if (pParamElem[1].pNode->tokenId == TK_ID) {
+        return invalidOperationMsg(tscGetErrorMsgPayload(pCmd), msg2);
+      }
+
+      tVariant *pVariant = &pParamElem[1].pNode->value;
+      if (pVariant == NULL && pVariant->nType != TSDB_DATA_TYPE_BINARY) {
+        return invalidOperationMsg(tscGetErrorMsgPayload(pCmd), msg2);
+      }
+
+#define USER_INPUT_BIN 0
+#define LINEAR_BIN     1
+#define LOG_BIN        2
+
+      int8_t binType;
+      if (strcasecmp(pVariant->pz, "user_input") == 0) {
+        binType = USER_INPUT_BIN;
+      } else if (strcasecmp(pVariant->pz, "linear_bin") == 0) {
+        binType = LINEAR_BIN;
+      } else if (strcasecmp(pVariant->pz, "log_bin") == 0) {
+        binType = LOG_BIN;
+      } else {
+        return invalidOperationMsg(tscGetErrorMsgPayload(pCmd), msg20);
+      }
+      //bin_description param in JSON format
+      if (pParamElem[2].pNode->tokenId == TK_ID) {
+        return invalidOperationMsg(tscGetErrorMsgPayload(pCmd), msg2);
+      }
+
+      pVariant = &pParamElem[2].pNode->value;
+      if (pVariant == NULL && pVariant->nType != TSDB_DATA_TYPE_BINARY) {
+        return invalidOperationMsg(tscGetErrorMsgPayload(pCmd), msg2);
+      }
+
+      cJSON *binDesc = cJSON_Parse(pVariant->pz);
+      if (cJSON_IsObject(binDesc)) { // linaer/log bins
+        int32_t numOfParams = cJSON_GetArraySize(binDesc);
+        if (numOfParams != 4) {
+          return invalidOperationMsg(tscGetErrorMsgPayload(pCmd), msg22);
+        }
+
+        cJSON *start = cJSON_GetObjectItem(binDesc, "start");
+        cJSON *factor = cJSON_GetObjectItem(binDesc, "factor");
+        cJSON *width = cJSON_GetObjectItem(binDesc, "width");
+        cJSON *count = cJSON_GetObjectItem(binDesc, "count");
+        cJSON *infinity = cJSON_GetObjectItem(binDesc, "infinity");
+
+        if (!cJSON_IsNumber(start) || !cJSON_IsNumber(count) || !cJSON_IsBool(infinity)) {
+          return invalidOperationMsg(tscGetErrorMsgPayload(pCmd), msg22);
+        }
+
+        if (cJSON_IsNumber(width) && factor == NULL && binType == LINEAR_BIN) {
+
+        } else if (cJSON_IsNumber(factor) && width == NULL && binType == LOG_BIN) {
+        } else {
+          return invalidOperationMsg(tscGetErrorMsgPayload(pCmd), msg22);
+        }
+
+      } else if (cJSON_IsArray(binDesc)) { //user input bins
+      } else {
+        return invalidOperationMsg(tscGetErrorMsgPayload(pCmd), msg21);
+      }
+
+
+      int32_t numBins;
       int16_t  resultType = pSchema->type;
       int32_t  resultSize = pSchema->bytes;
       int32_t  interResult = 0;
