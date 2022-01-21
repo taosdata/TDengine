@@ -99,6 +99,11 @@ static void clientProcessData(SCliConn* conn) {
   rpcMsg.contLen = conn->readBuf.len;
   rpcMsg.ahandle = pCtx->ahandle;
   (pRpc->cfp)(NULL, &rpcMsg, NULL);
+
+  SCliThrdObj* pThrd = conn->hostThrd;
+  addConnToCache(pThrd->cache, pCtx->ip, pCtx->port, conn);
+  free(pCtx->ip);
+  free(pCtx);
   // impl
 }
 static void clientHandleReq(SCliMsg* pMsg, SCliThrdObj* pThrd);
