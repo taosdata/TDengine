@@ -89,7 +89,7 @@ if (conn != IntPtr.Zero)
     TDengine.Close(this.conn);
 }
 
-// Recommend to clean environment, before exit your application.
+// Suggest to clean environment, before exit your application.
 TDengine.Cleanup();
 ```
 
