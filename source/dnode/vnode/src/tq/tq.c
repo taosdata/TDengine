@@ -681,7 +681,6 @@ int32_t tqProcessSetConnReq(STQ* pTq, SMqSetCVgReq* pReq) {
   if (schedulerConvertDagToTaskList(pDag, &pArray) < 0) {
     // TODO: handle error
   }
-  ASSERT(taosArrayGetSize(pArray) == 0);
   STaskInfo *pInfo = taosArrayGet(pArray, 0);
   SArray* pTasks;
   schedulerCopyTask(pInfo, &pTasks, TQ_BUFFER_SIZE);
@@ -733,6 +732,7 @@ int tqRetrieveDataBlockInfo(STqReadHandle* pHandle, SDataBlockInfo* pBlockInfo) 
   // TODO: filter out unused column
   return 0;
 }
+
 SArray* tqRetrieveDataBlock(STqReadHandle* pHandle) {
   int32_t         sversion = pHandle->pBlock->sversion;
   SSchemaWrapper* pSchemaWrapper = metaGetTableSchema(pHandle->pMeta, pHandle->pBlock->uid, sversion, true);
@@ -762,7 +762,3 @@ SArray* tqRetrieveDataBlock(STqReadHandle* pHandle) {
   taosArrayPush(pArray, &colInfo);
   return pArray;
 }
-/*int tqLoadDataBlock(SExecTaskInfo* pTaskInfo, SSubmitBlkScanInfo* pSubmitBlkScanInfo, SSDataBlock* pBlock, uint32_t
- * status) {*/
-/*return 0;*/
-/*}*/
