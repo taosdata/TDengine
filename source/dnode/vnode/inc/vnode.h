@@ -68,7 +68,7 @@ typedef struct {
 
 typedef struct STqReadHandle {
   int64_t        ver;
-  int64_t        tbUid;
+  uint64_t       tbUid;
   SSubmitMsg*    pMsg;
   SSubmitBlk*    pBlock;
   SSubmitMsgIter msgIter;
@@ -204,7 +204,7 @@ static FORCE_INLINE void tqReadHandleSetColIdList(STqReadHandle* pReadHandle, SA
   pReadHandle->pColIdList = pColIdList;
 }
 
-static FORCE_INLINE void tqReadHandleSetTbUid(STqReadHandle* pHandle, int64_t tbUid) {
+static FORCE_INLINE void tqReadHandleSetTbUid(STqReadHandle* pHandle, uint64_t tbUid) {
   pHandle->tbUid = tbUid;
 }
 
