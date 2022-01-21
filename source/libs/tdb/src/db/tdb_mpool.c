@@ -151,7 +151,17 @@ int tdbMPoolFileClose(TDB_MPFILE *mpf) {
     (tmp[0] + tmp[1] + tmp[2] + (pgno)) % (nbuckets); \
   })
 
-int tdbMPoolFileGet(TDB_MPFILE *mpf, pgno_t pgno, void *addr) {
+int tdbMPoolFileNewPage(TDB_MPFILE *mpf, pgno_t *pgno, void *addr) {
+  // TODO
+  return 0;
+}
+
+int tdbMPoolFileFreePage(TDB_MPOOL *mpf, pgno_t *pgno, void *addr) {
+  // TODO
+  return 0;
+}
+
+int tdbMPoolFileGetPage(TDB_MPFILE *mpf, pgno_t pgno, void *addr) {
   pg_t *     pagep;
   TDB_MPOOL *mp;
   pg_list_t *pglist;
@@ -213,7 +223,7 @@ int tdbMPoolFileGet(TDB_MPFILE *mpf, pgno_t pgno, void *addr) {
   return 0;
 }
 
-int tdbMPoolFilePut(TDB_MPOOL *mpf, pgno_t pgno, void *addr) {
+int tdbMPoolFilePutPage(TDB_MPOOL *mpf, pgno_t pgno, void *addr) {
   // TODO
   return 0;
 }
