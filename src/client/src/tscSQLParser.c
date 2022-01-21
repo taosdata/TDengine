@@ -2679,6 +2679,7 @@ int32_t addExprAndResultField(SSqlCmd* pCmd, SQueryInfo* pQueryInfo, int32_t col
   const char* msg20 = "second parameter must be 'user_input', 'linear_bin' or 'log_bin'";
   const char* msg21 = "third parameter must be in JSON format";
   const char* msg22 = "invalid parameters for bin_desciption";
+  const char* msg23 = "parameter/bin out of range [-DBL_MAX, DBL_MAX]";
 
   switch (functionId) {
     case TSDB_FUNC_COUNT: {
@@ -3415,6 +3416,10 @@ int32_t addExprAndResultField(SSqlCmd* pCmd, SQueryInfo* pQueryInfo, int32_t col
         cJSON *count = cJSON_GetObjectItem(binDesc, "count");
         cJSON *infinity = cJSON_GetObjectItem(binDesc, "infinity");
 
+        if (isinf(start->valuedouble) || isinf(width->valuedouble)) {
+          return invalidOperationMsg(tscGetErrorMsgPayload(pCmd), msg23);
+        }
+
         if (!cJSON_IsNumber(start) || !cJSON_IsNumber(count) || !cJSON_IsBool(infinity)) {
           return invalidOperationMsg(tscGetErrorMsgPayload(pCmd), msg22);
         }
@@ -3433,12 +3438,20 @@ int32_t addExprAndResultField(SSqlCmd* pCmd, SQueryInfo* pQueryInfo, int32_t col
           //linear bin process
           for (int i = 0; i < counter + 1; ++i) {
             intervals[startIndex] = start->valuedouble + i * width->valuedouble;
+            if (isinf(intervals[i])) {
+              tfree(intervals);
+              return invalidOperationMsg(tscGetErrorMsgPayload(pCmd), msg23);
+            }
             startIndex++;
           }
         } else if (cJSON_IsNumber(factor) && width == NULL && binType == LOG_BIN) {
           //log bin process
           for (int i = 0; i < counter + 1; ++i) {
             intervals[startIndex] = start->valuedouble * pow(factor->valuedouble, i * 1.0);
+            if (isinf(intervals[i])) {
+              tfree(intervals);
+              return invalidOperationMsg(tscGetErrorMsgPayload(pCmd), msg23);
+            }
             startIndex++;
           }
         } else {
@@ -3449,6 +3462,10 @@ int32_t addExprAndResultField(SSqlCmd* pCmd, SQueryInfo* pQueryInfo, int32_t col
         if (infinity->valueint == true) {
           intervals[0] = -DBL_MAX;
           intervals[numBins - 1] = DBL_MAX;
+          if (isinf(intervals[0]) || isinf(intervals[numBins - 1])) {
+            tfree(intervals);
+            return invalidOperationMsg(tscGetErrorMsgPayload(pCmd), msg23);
+          }
         }
 
       } else if (cJSON_IsArray(binDesc)) { /* user input bins */
