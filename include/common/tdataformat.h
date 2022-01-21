@@ -573,7 +573,7 @@ static FORCE_INLINE int tdAddColToKVRow(SKVRowBuilder *pBuilder, int16_t colId, 
   return 0;
 }
 
-// ----------------- SRow appended with tuple row structure
+// ----------------- SMemRow appended with tuple row structure
 /*
  * |---------|------------------------------------------------- len ---------------------------------->|
  * |<--------     Head      ------>|<---------   flen -------------->|                                 |
@@ -586,7 +586,7 @@ static FORCE_INLINE int tdAddColToKVRow(SKVRowBuilder *pBuilder, int16_t colId, 
  * NOTE: timestamp in this row structure is TKEY instead of TSKEY
  */
 
-// ----------------- SRow appended with extended K-V data row structure
+// ----------------- SMemRow appended with extended K-V data row structure
 /* |--------------------|------------------------------------------------  len ---------------------------------->|
  * |<-------------     Head      ------------>|<---------   flen -------------->|                                 |
  * |--------------------+----------+--------------------------------------------+---------------------------------+
