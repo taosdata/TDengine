@@ -2657,7 +2657,7 @@ int32_t addExprAndResultField(SSqlCmd* pCmd, SQueryInfo* pQueryInfo, int32_t col
   STableMetaInfo* pTableMetaInfo = NULL;
   int32_t functionId = pItem->pNode->functionId;
 
-  const char* msg1 = "not support column types";
+  const char* msg1 = "unsupported column types";
   const char* msg2 = "invalid parameters";
   const char* msg3 = "illegal column name";
   const char* msg4 = "invalid table name";
@@ -2928,7 +2928,7 @@ int32_t addExprAndResultField(SSqlCmd* pCmd, SQueryInfo* pQueryInfo, int32_t col
         tscColumnListInsert(pQueryInfo->colList, ids.ids[0].columnIndex, pExpr->base.uid, pSchema);
       }
       tscInsertPrimaryTsSourceColumn(pQueryInfo, pExpr->base.uid);
-        
+
       return TSDB_CODE_SUCCESS;
     }
 
@@ -3359,6 +3359,10 @@ int32_t addExprAndResultField(SSqlCmd* pCmd, SQueryInfo* pQueryInfo, int32_t col
       pTableMetaInfo = tscGetMetaInfo(pQueryInfo, index.tableIndex);
       SSchema* pSchema = tscGetTableColumnSchema(pTableMetaInfo->pTableMeta, index.columnIndex);
 
+      if (!IS_NUMERIC_TYPE(pSchema->type)) {
+        return invalidOperationMsg(tscGetErrorMsgPayload(pCmd), msg1);
+      }
+
       //bin_type param
       if (pParamElem[1].pNode->tokenId == TK_ID) {
         return invalidOperationMsg(tscGetErrorMsgPayload(pCmd), msg2);
@@ -3478,11 +3482,6 @@ int32_t addExprAndResultField(SSqlCmd* pCmd, SQueryInfo* pQueryInfo, int32_t col
       pExpr = tscExprAppend(pQueryInfo, functionId, &index, resultType, resultSize, getNewResColId(pCmd), interResult, false);
       numOutput = numBins - 1;
       tscExprAddParams(&pExpr->base, (char*)&numOutput, TSDB_DATA_TYPE_INT, sizeof(int32_t));
-      //intervals[0] = -DBL_MAX;
-      //intervals[1] = 10;
-      //intervals[2] = 20;
-      //intervals[3] = 30;
-      //intervals[4] = DBL_MAX;
       tscExprAddParams(&pExpr->base, (char*)intervals, TSDB_DATA_TYPE_BINARY, sizeof(double) * numBins);
       tfree(intervals);
 
@@ -3493,7 +3492,8 @@ int32_t addExprAndResultField(SSqlCmd* pCmd, SQueryInfo* pQueryInfo, int32_t col
       }
 
       pVariant = &pParamElem[3].pNode->value;
-      if (pVariant == NULL && pVariant->nType != TSDB_DATA_TYPE_BIGINT) {
+      if (pVariant == NULL || pVariant->nType != TSDB_DATA_TYPE_BIGINT ||
+          (pVariant->i64 != 0 && pVariant->i64 != 1)) {
         return invalidOperationMsg(tscGetErrorMsgPayload(pCmd), msg2);
       }
 
@@ -3527,9 +3527,9 @@ int32_t addExprAndResultField(SSqlCmd* pCmd, SQueryInfo* pQueryInfo, int32_t col
       }
 
       if (pItem->pNode->Expr.paramList == NULL || taosArrayGetSize(pItem->pNode->Expr.paramList) <= 0) {
-        return invalidOperationMsg(tscGetErrorMsgPayload(pCmd), msg13);        
+        return invalidOperationMsg(tscGetErrorMsgPayload(pCmd), msg13);
       }
-      
+
       tSqlExprItem* pParamElem = taosArrayGet(pItem->pNode->Expr.paramList, 0);;
       if (pParamElem->pNode->tokenId != TK_ID) {
         return invalidOperationMsg(tscGetErrorMsgPayload(pCmd), msg2);
