@@ -3442,6 +3442,7 @@ int32_t addExprAndResultField(SSqlCmd* pCmd, SQueryInfo* pQueryInfo, int32_t col
             startIndex++;
           }
         } else {
+          tfree(intervals);
           return invalidOperationMsg(tscGetErrorMsgPayload(pCmd), msg22);
         }
 
@@ -3458,15 +3459,18 @@ int32_t addExprAndResultField(SSqlCmd* pCmd, SQueryInfo* pQueryInfo, int32_t col
         intervals = tcalloc(numBins, sizeof(double));
         cJSON *bin = binDesc->child;
         if (bin == NULL) {
+          tfree(intervals);
           return invalidOperationMsg(tscGetErrorMsgPayload(pCmd), msg22);
         }
         int i = 0;
         while (bin) {
           intervals[i] = bin->valuedouble;
           if (!cJSON_IsNumber(bin)) {
+            tfree(intervals);
             return invalidOperationMsg(tscGetErrorMsgPayload(pCmd), msg22);
           }
           if (i != 0 && intervals[i] <= intervals[i - 1]) {
+            tfree(intervals);
             return invalidOperationMsg(tscGetErrorMsgPayload(pCmd), msg22);
           }
           bin = bin->next;
