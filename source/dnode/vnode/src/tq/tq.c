@@ -633,12 +633,16 @@ int32_t tqProcessConsumeReq(STQ* pTq, SRpcMsg* pMsg, SRpcMsg** ppRsp) {
       // read until find TDMT_VND_SUBMIT
     }
     SSubmitMsg* pCont = (SSubmitMsg*)&pHead->head.body;
+    void* task = pHandle->buffer.output[pos].task;
 
-    /*SSubQueryMsg* pQueryMsg = pHandle->buffer.output[pos].pMsg;*/
+    qStreamExecTaskSetInput(task, pCont);
+    SSDataBlock* pDataBlock;
+    uint64_t ts;
+    if (qExecTask(task, &pDataBlock, &ts) < 0) {
 
+    }
     // TODO: launch query and get output data
-    void* outputData;
-    pHandle->buffer.output[pos].dst = outputData;
+    pHandle->buffer.output[pos].dst = pDataBlock;
     if (pHandle->buffer.firstOffset == -1
         || pReq->offset < pHandle->buffer.firstOffset) {
       pHandle->buffer.firstOffset = pReq->offset;
@@ -674,22 +678,12 @@ int32_t tqProcessSetConnReq(STQ* pTq, SMqSetCVgReq* pReq) {
   strcpy(pTopic->sql, pReq->sql);
   strcpy(pTopic->logicalPlan, pReq->logicalPlan);
   strcpy(pTopic->physicalPlan, pReq->physicalPlan);
-  SArray *pArray;
-  //TODO: deserialize to SQueryDag
-  SQueryDag *pDag;
-  // convert to task
-  if (schedulerConvertDagToTaskList(pDag, &pArray) < 0) {
-    // TODO: handle error
-  }
-  STaskInfo *pInfo = taosArrayGet(pArray, 0);
-  SArray* pTasks;
-  schedulerCopyTask(pInfo, &pTasks, TQ_BUFFER_SIZE);
+
   pTopic->buffer.firstOffset = -1;
   pTopic->buffer.lastOffset = -1;
   for (int i = 0; i < TQ_BUFFER_SIZE; i++) {
-    SSubQueryMsg* pMsg = taosArrayGet(pTasks, i);
     pTopic->buffer.output[i].status = 0;
-    pTopic->buffer.output[i].task = createStreamExecTaskInfo(pMsg, NULL);
+    pTopic->buffer.output[i].task = qCreateStreamExecTaskInfo(&pReq->msg, NULL);
   }
   pTopic->pReadhandle = walOpenReadHandle(pTq->pWal);
   // write mq meta

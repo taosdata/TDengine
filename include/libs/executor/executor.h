@@ -32,7 +32,9 @@ struct SSubplan;
   * @param pStreamBlockReadHandle
   * @return
   */
-qTaskInfo_t createStreamExecTaskInfo(SSubQueryMsg *pMsg, void* pStreamBlockReadHandle);
+qTaskInfo_t qCreateStreamExecTaskInfo(SSubQueryMsg *pMsg, void* pStreamBlockReadHandle);
+
+void        qStreamExecTaskSetInput(qTaskInfo_t qHandle, void* input);
 
  /**
   * Create the exec task object according to task json

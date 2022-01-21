@@ -13,10 +13,12 @@
  * along with this program. If not, see <http://www.gnu.org/licenses/>.
  */
 
-#include "planner.h"
 #include "executor.h"
+#include "planner.h"
 
-qTaskInfo_t createStreamExecTaskInfo(SSubQueryMsg *pMsg, void* pStreamBlockReadHandle) {
+void qStreamExecTaskSetInput(qTaskInfo_t qHandle, void* input) {}
+
+qTaskInfo_t qCreateStreamExecTaskInfo(SSubQueryMsg* pMsg, void* pStreamBlockReadHandle) {
   if (pMsg == NULL || pStreamBlockReadHandle == NULL) {
     return NULL;
   }
@@ -27,8 +29,8 @@ qTaskInfo_t createStreamExecTaskInfo(SSubQueryMsg *pMsg, void* pStreamBlockReadH
   pMsg->taskId = be64toh(pMsg->taskId);
   pMsg->contentLen = ntohl(pMsg->contentLen);
 
-  struct SSubplan *plan = NULL;
-  int32_t code = qStringToSubplan(pMsg->msg, &plan);
+  struct SSubplan* plan = NULL;
+  int32_t          code = qStringToSubplan(pMsg->msg, &plan);
   if (code != TSDB_CODE_SUCCESS) {
     terrno = code;
     return NULL;
