@@ -7,15 +7,15 @@ TDengine provides many connectors for development, including C/C++, JAVA, Python
 At present, TDengine connectors support a wide range of platforms, including hardware platforms such as X64/X86/ARM64/ARM32/MIPS/Alpha, and development environments such as Linux/Win64/Win32. The comparison matrix is as follows:
 
 | **CPU**     | **X64 64bit** | **X64 64bit** | **X64 64bit** | **X86 32bit** | **ARM64** | **ARM32** | **MIPS Godson** | **Alpha Sunway** | **X64 TimecomTech** |
-| ----------- | ------------- | ------------- | ------------- | ------------- | --------- | --------- | --------------- | ----------------- | ------------------- |
-| **OS**      | **Linux**     | **Win64**     | **Win32**     | **Win32**     | **Linux** | **Linux** | **Linux**       | **Linux**         | **Linux**           |
-| **C/C++**   | ●             | ●             | ●             | ○             | ●         | ●         | ○               | ○                 | ○                   |
-| **JDBC**    | ●             | ●             | ●             | ○             | ●         | ●         | ○               | ○                 | ○                   |
-| **Python**  | ●             | ●             | ●             | ○             | ●         | ●         | ○               | --                | ○                   |
-| **Go**      | ●             | ●             | ●             | ○             | ●         | ●         | ○               | --                | --                  |
-| **NodeJs**  | ●             | ●             | ○             | ○             | ●         | ●         | ○               | --                | --                  |
-| **C#**      | ○             | ●             | ●             | ○             | ○         | ○         | ○               | --                | --                  |
-| **RESTful** | ●             | ●             | ●             | ●             | ●         | ●         | ○               | ○                 | ○                   |
+| ----------- | ------------- | ------------- | ------------- | ------------- | --------- | --------- | --------------- | ---------------- | ------------------- |
+| **OS**      | **Linux**     | **Win64**     | **Win32**     | **Win32**     | **Linux** | **Linux** | **Linux**       | **Linux**        | **Linux**           |
+| **C/C++**   | ●             | ●             | ●             | ○             | ●         | ●         | ○               | ○                | ○                   |
+| **JDBC**    | ●             | ●             | ●             | ○             | ●         | ●         | ○               | ○                | ○                   |
+| **Python**  | ●             | ●             | ●             | ○             | ●         | ●         | ○               | --               | ○                   |
+| **Go**      | ●             | ●             | ●             | ○             | ●         | ●         | ○               | --               | --                  |
+| **NodeJs**  | ●             | ●             | ○             | ○             | ●         | ●         | ○               | --               | --                  |
+| **C#**      | ○             | ●             | ●             | ○             | ○         | ○         | ○               | --               | --                  |
+| **RESTful** | ●             | ●             | ●             | ●             | ●         | ●         | ○               | ○                | ○                   |
 
 Note: ● stands for that has been verified by official tests; ○ stands for that has been verified by unofficial tests. 
 
@@ -151,10 +151,10 @@ Under cmd, enter the c:\TDengine directory and directly execute taos.exe, and yo
 
 **Systems supported by C/C++ connectors as follows:**
 
-| **CPU Type**         | **x64****（****64bit****）** |         |         | **ARM64** | **ARM32**          |
-| -------------------- | ---------------------------- | ------- | ------- | --------- | ------------------ |
-| **OS Type**          | Linux                        | Win64   | Win32   | Linux     | Linux              |
-| **Supported or Not** | Yes                          | **Yes** | **Yes** | **Yes**   | **Yes** |
+| **CPU Type**         | **x64****（****64bit****）** |         |         | **ARM64** | **ARM32** |
+| -------------------- | ---------------------------- | ------- | ------- | --------- | --------- |
+| **OS Type**          | Linux                        | Win64   | Win32   | Linux     | Linux     |
+| **Supported or Not** | Yes                          | **Yes** | **Yes** | **Yes**   | **Yes**   |
 
 The C/C++ API is similar to MySQL's C API. When application use it, it needs to include the TDengine header file taos.h (after installed, it is located in/usr/local/taos/include):
 
@@ -661,6 +661,8 @@ In tests/examples/python, we provide a sample Python program read_example. py to
 
 To support the development of various types of platforms, TDengine provides an API that conforms to REST design standards, that is, RESTful API. In order to minimize the learning cost, different from other designs of database RESTful APIs, TDengine directly requests SQL statements contained in BODY through HTTP POST to operate the database, and only needs a URL. See the [video tutorial](https://www.taosdata.com/blog/2020/11/11/1965.html) for the use of RESTful connectors.
 
+Note: One difference from the native connector is that the RESTful interface is stateless, so the `USE db_name` command has no effect and all references to table names and super table names require the database name to be specified. (Starting from version 2.2.0.0, we support specifying db_name in the RESTful url, in which case if the database name prefix is not specified in the SQL statement. Since version 2.4.0.0, RESTful service is provided by taosAdapter by default, which requires that db_name must be specified in the url.)
+
 ###  HTTP request format
 
 ```
@@ -672,7 +674,7 @@ Parameter description:
 - IP: Any host in the cluster
 - PORT: httpPort configuration item in the configuration file, defaulting to 6041
 
-For example: [http://192.168.0.1](http://192.168.0.1/): 6041/rest/sql is a URL that points to an IP address of 192.168. 0.1.
+For example: http://192.168.0.1:6041/rest/sql is a URL that points to an IP address of 192.168.0.1.
 
 The header of HTTP request needs to carry identity authentication information. TDengine supports Basic authentication and custom authentication. Subsequent versions will provide standard and secure digital signature mechanism for identity authentication.
 
@@ -1003,10 +1005,10 @@ This API is used to open DB and return an object of type \* DB. Generally, DRIVE
 
 The Node.js connector supports the following systems:
 
-| **CPU Type**         | x64(64bit）                  |         |         |   aarch64   |   aarch32   |
-| -------------------- | ---------------------------- | ------- | ------- | ----------- | ----------- |
-| **OS Type**          | Linux                        | Win64   | Win32   | Linux       | Linux       |
-| **Supported or Not** | **Yes**                      | **Yes** | **Yes** | **Yes**     | **Yes**     |
+| **CPU Type**         | x64(64bit） |         |         | aarch64 | aarch32 |
+| -------------------- | ----------- | ------- | ------- | ------- | ------- |
+| **OS Type**          | Linux       | Win64   | Win32   | Linux   | Linux   |
+| **Supported or Not** | **Yes**     | **Yes** | **Yes** | **Yes** | **Yes** |
 
 See the [video tutorial](https://www.taosdata.com/blog/2020/11/11/1957.html) for use of the Node.js connector.
 

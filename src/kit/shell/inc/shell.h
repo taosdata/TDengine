@@ -27,21 +27,7 @@
 #define MAX_IP_SIZE            20
 #define MAX_HISTORY_SIZE       1000
 #define MAX_COMMAND_SIZE       1048586
-
-#ifdef _TD_POWER_
-    #define HISTORY_FILE           ".power_history"
-#elif (_TD_TQ_ == true)
-    #define HISTORY_FILE           ".tq_history"
-#elif (_TD_PRO_ == true)
-    #define HISTORY_FILE           ".prodb_history"
-#elif (_TD_KH_ == true)
-    #define HISTORY_FILE           ".kh_history"
-#elif (_TD_JH_ == true)
-    #define HISTORY_FILE           ".jh_taos_history"
-#else
-    #define HISTORY_FILE           ".taos_history"
-#endif
-
+#define HISTORY_FILE           ".taos_history"
 #define DEFAULT_RES_SHOW_NUM   100
 
 typedef struct SShellHistory {
