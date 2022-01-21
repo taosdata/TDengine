@@ -83,7 +83,7 @@ typedef struct SQWMsg {
 } SQWMsg;
 
 typedef struct SQWPhaseInput {
-  int8_t         status;
+  int8_t         taskStatus;
   int8_t         taskType;
   int32_t        code;
   qTaskInfo_t    taskHandle;

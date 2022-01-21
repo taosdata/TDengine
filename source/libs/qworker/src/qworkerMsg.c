@@ -273,7 +273,7 @@ int32_t qWorkerProcessQueryMsg(void *node, void *qWorkerMgmt, SRpcMsg *pMsg) {
   SQWorkerMgmt *mgmt = (SQWorkerMgmt *)qWorkerMgmt;
   
   if (NULL == msg || pMsg->contLen <= sizeof(*msg)) {
-    QW_ELOG("invalid query msg, contLen:%d", pMsg->contLen);
+    QW_ELOG("invalid query msg, msg:%p, msgLen:%d", msg, pMsg->contLen);
     QW_ERR_RET(TSDB_CODE_QRY_INVALID_INPUT);
   }
 
@@ -307,7 +307,7 @@ int32_t qWorkerProcessCQueryMsg(void *node, void *qWorkerMgmt, SRpcMsg *pMsg) {
   SQWorkerMgmt *mgmt = (SQWorkerMgmt *)qWorkerMgmt;
 
   if (NULL == msg || pMsg->contLen <= sizeof(*msg)) {
-    QW_ELOG("invalid cquery msg, contLen:%d", pMsg->contLen);
+    QW_ELOG("invalid cquery msg, msg:%p, msgLen:%d", msg, pMsg->contLen);
     QW_ERR_RET(TSDB_CODE_QRY_INVALID_INPUT);
   }
 
@@ -337,7 +337,7 @@ int32_t qWorkerProcessReadyMsg(void *node, void *qWorkerMgmt, SRpcMsg *pMsg){
 
   SResReadyReq *msg = pMsg->pCont;
   if (NULL == msg || pMsg->contLen < sizeof(*msg)) {
-    qError("invalid task status msg");  
+    QW_ELOG("invalid task ready msg, msg:%p, msgLen:%d", msg, pMsg->contLen);
     QW_ERR_RET(TSDB_CODE_QRY_INVALID_INPUT);
   }  
 
@@ -398,6 +398,7 @@ int32_t qWorkerProcessFetchMsg(void *node, void *qWorkerMgmt, SRpcMsg *pMsg) {
   SQWorkerMgmt *mgmt = (SQWorkerMgmt *)qWorkerMgmt;
   
   if (NULL == msg || pMsg->contLen < sizeof(*msg)) {
+    QW_ELOG("invalid fetch msg, msg:%p, msgLen:%d", msg, pMsg->contLen);  
     QW_ERR_RET(TSDB_CODE_QRY_INVALID_INPUT);
   }  
 
