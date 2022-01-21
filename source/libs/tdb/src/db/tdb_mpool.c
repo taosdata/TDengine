@@ -20,6 +20,7 @@ static void        tdbMPoolRegFile(TDB_MPOOL *mp, TDB_MPFILE *mpf);
 static void        tdbMPoolUnregFile(TDB_MPOOL *mp, TDB_MPFILE *mpf);
 static TDB_MPFILE *tdbMPoolGetFile(TDB_MPOOL *mp, uint8_t *fileid);
 static int         tdbMPoolFileReadPage(TDB_MPFILE *mpf, pgno_t pgno, void *p);
+static int         tdbMPoolFileWritePage(TDB_MPFILE *mpf, pgno_t pgno, const void *p);
 
 int tdbMPoolOpen(TDB_MPOOL **mpp, uint64_t cachesize, pgsize_t pgsize) {
   TDB_MPOOL *mp = NULL;
@@ -316,6 +317,24 @@ static int tdbMPoolFileReadPage(TDB_MPFILE *mpf, pgno_t pgno, void *p) {
   // TODO: use loop to read all data
   rsize = pread(mpf->fd, p, pgsize, offset);
   // TODO: error handle
+
+  return 0;
+}
+
+static int tdbMPoolFileWritePage(TDB_MPFILE *mpf, pgno_t pgno, const void *p) {
+  pgsize_t   pgsize;
+  TDB_MPOOL *mp;
+  off_t      offset;
+
+  mp = mpf->mp;
+  pgsize = mp->pgsize;
+  offset = pgno * pgsize;
+
+  lseek(mpf->fd, offset, SEEK_SET);
+  // TODO: handle error
+
+  write(mpf->fd, p, pgsize);
+  // TODO: handle error
 
   return 0;
 }
