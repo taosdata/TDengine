@@ -37,7 +37,7 @@ int syncRaftHandleVoteMessage(SSyncRaft* pRaft, const SSyncMessage* pMsg) {
   if (pRespMsg == NULL) {
     return 0;
   }
-  syncInfo("[%d:%d] [logterm: %" PRId64 ", index: %" PRId64 ", vote: %d] %s for %d"\    
+  syncInfo("[%d:%d] [logterm: %" PRId64 ", index: %" PRId64 ", vote: %d] %s for %d"    
     "[logterm: %" PRId64 ", index: %" PRId64 "] at term %" PRId64 "",
     pRaft->selfGroupId, pRaft->selfId, lastTerm, lastIndex, pRaft->voteFor,
     grant ? "grant" : "reject",

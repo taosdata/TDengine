@@ -23,8 +23,8 @@ SSyncManager* gSyncManager = NULL;
 #define SYNC_ACTIVITY_TIMER 5
 #define SYNC_SERVER_WORKER 2
 
-static void syncProcessRsp(SRpcMsg *pMsg, SEpSet *pEpSet);
-static void syncProcessReqMsg(SRpcMsg *pMsg, SEpSet *pEpSet);
+static void syncProcessRsp(void *parent, SRpcMsg *pMsg, SEpSet *pEpSet);
+static void syncProcessReqMsg(void *parent, SRpcMsg *pMsg, SEpSet *pEpSet);
 
 static int syncInitRpcServer(SSyncManager* syncManager, const SSyncCluster* pSyncCfg);
 static int syncInitRpcClient(SSyncManager* syncManager);
@@ -119,7 +119,7 @@ SSyncNode* syncStart(const SSyncInfo* pInfo) {
     return NULL;
   }
 
-  pNode->syncTimer = taosTmrStart(syncNodeTick, SYNC_TICK_TIMER, (void*)pInfo->vgId, gSyncManager->syncTimerManager);
+  pNode->syncTimer = taosTmrStart(syncNodeTick, SYNC_TICK_TIMER, (void*)((int64_t)pInfo->vgId), gSyncManager->syncTimerManager);
 
   // start raft
   pNode->raft.pNode = pNode;
@@ -176,12 +176,12 @@ int32_t syncRemoveNode(SSyncNode syncNode, const SNodeInfo *pNode) {
 }
 
 // process rpc rsp message from other sync server
-static void syncProcessRsp(SRpcMsg *pMsg, SEpSet *pEpSet) {
+static void syncProcessRsp(void *parent, SRpcMsg *pMsg, SEpSet *pEpSet) {
 
 }
 
 // process rpc message from other sync server
-static void syncProcessReqMsg(SRpcMsg *pMsg, SEpSet *pEpSet) {
+static void syncProcessReqMsg(void *parent, SRpcMsg *pMsg, SEpSet *pEpSet) {
 
 }
 
@@ -195,7 +195,7 @@ static int syncInitRpcServer(SSyncManager* syncManager, const SSyncCluster* pSyn
   }
   assert(pSyncCfg->selfIndex < pSyncCfg->replica && pSyncCfg->selfIndex >= 0);
   const SNodeInfo* pNode = &(pSyncCfg->nodeInfo[pSyncCfg->replica]);
-  char buffer[20] = {'\0'};
+  char buffer[156] = {'\0'};
   snprintf(buffer, sizeof(buffer), "%s:%d", &(pNode->nodeFqdn[0]), pNode->nodePort);
   size_t len = strlen(buffer);
   void** ppRpcServer = taosHashGet(gSyncManager->rpcServerTable, buffer, len);
@@ -287,7 +287,7 @@ static void *syncWorkerMain(void *argv) {
 }
 
 static void syncNodeTick(void *param, void *tmrId) {
-  SyncGroupId vgId = (SyncGroupId)param;
+  SyncGroupId vgId = (SyncGroupId)((int64_t)param);
   SSyncNode **ppNode = taosHashGet(gSyncManager->vgroupTable, &vgId, sizeof(SyncGroupId*));
   if (ppNode == NULL) {
     return;
@@ -298,5 +298,5 @@ static void syncNodeTick(void *param, void *tmrId) {
   syncRaftTick(&pNode->raft);
   pthread_mutex_unlock(&pNode->mutex);
 
-  pNode->syncTimer = taosTmrStart(syncNodeTick, SYNC_TICK_TIMER, (void*)pNode->vgId, gSyncManager->syncTimerManager);
+  pNode->syncTimer = taosTmrStart(syncNodeTick, SYNC_TICK_TIMER, (void*)(int64_t)pNode->vgId, gSyncManager->syncTimerManager);
 }
