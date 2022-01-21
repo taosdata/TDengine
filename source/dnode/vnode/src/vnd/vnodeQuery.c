@@ -22,7 +22,7 @@ static int     vnodeGetTableMeta(SVnode *pVnode, SRpcMsg *pMsg, SRpcMsg **pRsp);
 int vnodeQueryOpen(SVnode *pVnode) { return qWorkerInit(NODE_TYPE_VNODE, pVnode->vgId, NULL, &pVnode->pQuery, pVnode, vnodePutReqToVQueryQ); }
 
 int vnodeProcessQueryReq(SVnode *pVnode, SRpcMsg *pMsg, SRpcMsg **pRsp) {
-  vTrace("query message is processing");
+  vTrace("message in query queue is processing");
 
   switch (pMsg->msgType) {
     case TDMT_VND_QUERY:
@@ -36,7 +36,7 @@ int vnodeProcessQueryReq(SVnode *pVnode, SRpcMsg *pMsg, SRpcMsg **pRsp) {
 }
 
 int vnodeProcessFetchReq(SVnode *pVnode, SRpcMsg *pMsg, SRpcMsg **pRsp) {
-  vTrace("fetch message is processed");
+  vTrace("message in fetch queue is processing");
   switch (pMsg->msgType) {
     case TDMT_VND_FETCH:
       return qWorkerProcessFetchMsg(pVnode, pVnode->pQuery, pMsg);

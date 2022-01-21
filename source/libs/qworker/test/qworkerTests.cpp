@@ -38,6 +38,10 @@
 
 namespace {
 
+#define qwtTestQueryQueueSize 1000
+#define qwtTestFetchQueueSize 1000
+#define qwtTestMaxExecTaskUsec 1000000
+
 bool qwtTestEnableSleep = true;
 bool qwtTestStop = false;
 bool qwtTestDeadLoop = true;
@@ -45,6 +49,36 @@ int32_t qwtTestMTRunSec = 10;
 int32_t qwtTestPrintNum = 100000;
 int32_t qwtTestCaseIdx = 0;
 int32_t qwtTestCaseNum = 4;
+bool qwtTestCaseFinished = false;
+tsem_t qwtTestQuerySem;
+tsem_t qwtTestFetchSem;
+
+int32_t qwtTestQueryQueueRIdx = 0;
+int32_t qwtTestQueryQueueWIdx = 0;
+int32_t qwtTestQueryQueueNum = 0;
+SRWLatch qwtTestQueryQueueLock = 0;
+struct SRpcMsg *qwtTestQueryQueue[qwtTestQueryQueueSize] = {0};
+
+int32_t qwtTestFetchQueueRIdx = 0;
+int32_t qwtTestFetchQueueWIdx = 0;
+int32_t qwtTestFetchQueueNum = 0;
+SRWLatch qwtTestFetchQueueLock = 0;
+struct SRpcMsg *qwtTestFetchQueue[qwtTestFetchQueueSize] = {0};
+
+
+int32_t qwtTestSinkBlockNum = 0;
+int32_t qwtTestSinkMaxBlockNum = 0;
+bool qwtTestSinkQueryEnd = false;
+SRWLatch qwtTestSinkLock = 0;
+
+
+SRpcMsg qwtfetchRpc = {0};
+SResFetchReq qwtfetchMsg = {0};
+SRpcMsg qwtreadyRpc = {0};
+SResReadyReq qwtreadyMsg = {0};
+SRpcMsg qwtdropRpc = {0};
+STaskDropReq qwtdropMsg = {0};  
+
 
 void qwtInitLogFile() {
   const char    *defaultLogFileNamePrefix = "taosdlog";
@@ -103,30 +137,112 @@ void qwtBuildStatusReqMsg(SSchTasksStatusReq *statusMsg, SRpcMsg *statusRpc) {
 }
 
 int32_t qwtStringToPlan(const char* str, SSubplan** subplan) {
+  *subplan = 0x1;
   return 0;
 }
 
-int32_t qwtPutReqToQueue(void *node, struct SRpcMsg *pMsg) {
+int32_t qwtPutReqToFetchQueue(void *node, struct SRpcMsg *pMsg) {
+  taosWLockLatch(&qwtTestFetchQueueLock);
+  qwtTestFetchQueue[qwtTestFetchQueueWIdx++] = pMsg;
+  if (qwtTestFetchQueueWIdx >= qwtTestFetchQueueSize) {
+    qwtTestFetchQueueWIdx = 0;
+  }
+  
+  qwtTestFetchQueueNum++;
+
+  if (qwtTestFetchQueueWIdx == qwtTestFetchQueueRIdx) {
+    printf("Fetch queue is full");
+    assert(0);
+  }
+  taosWUnLockLatch(&qwtTestFetchQueueLock);
+  
+  tsem_post(&qwtTestFetchSem);
+  
   return 0;
 }
+
+
+int32_t qwtPutReqToQueue(void *node, struct SRpcMsg *pMsg) {
+  taosWLockLatch(&qwtTestQueryQueueLock);
+  qwtTestQueryQueue[qwtTestQueryQueueWIdx++] = pMsg;
+  if (qwtTestQueryQueueWIdx >= qwtTestQueryQueueSize) {
+    qwtTestQueryQueueWIdx = 0;
+  }
+  
+  qwtTestQueryQueueNum++;
+
+  if (qwtTestQueryQueueWIdx == qwtTestQueryQueueRIdx) {
+    printf("query queue is full");
+    assert(0);
+  }
+  taosWUnLockLatch(&qwtTestQueryQueueLock);
+  
+  tsem_post(&qwtTestQuerySem);
+  
+  return 0;
+}
+
 
 
 void qwtRpcSendResponse(const SRpcMsg *pRsp) {
-/*
-  if (TDMT_VND_TASKS_STATUS_RSP == pRsp->msgType) {
-    SSchedulerStatusRsp *rsp = (SSchedulerStatusRsp *)pRsp->pCont;
-    printf("task num:%d\n", rsp->num);
-    for (int32_t i = 0; i < rsp->num; ++i) {
-      STaskStatus *task = &rsp->status[i];
-      printf("qId:%"PRIx64",tId:%"PRIx64",status:%d\n", task->queryId, task->taskId, task->status);
+
+  switch (pRsp->msgType) {
+    case TDMT_VND_QUERY_RSP: {
+      SQueryTableRsp *rsp = (SQueryTableRsp *)pRsp->pCont;
+
+      if (0 == pRsp->code) {
+        qwtBuildReadyReqMsg(&qwtreadyMsg, &qwtreadyRpc);    
+        qwtPutReqToFetchQueue(0x1, &qwtreadyRpc);
+      } else {
+        qwtBuildDropReqMsg(&qwtdropMsg, &qwtdropRpc);
+        qwtPutReqToFetchQueue(0x1, &qwtdropRpc);
+      }
+      
+      break;
+    }
+    case TDMT_VND_RES_READY_RSP: {
+      SResReadyRsp *rsp = (SResReadyRsp *)pRsp->pCont;
+      
+      if (0 == pRsp->code) {
+        qwtBuildFetchReqMsg(&qwtfetchMsg, &qwtfetchRpc);
+        qwtPutReqToFetchQueue(0x1, &qwtfetchRpc);
+      } else {
+        qwtBuildDropReqMsg(&qwtdropMsg, &qwtdropRpc);
+        qwtPutReqToFetchQueue(0x1, &qwtdropRpc);
+      }
+      break;
+    }
+    case TDMT_VND_FETCH_RSP: {
+      SRetrieveTableRsp *rsp = (SRetrieveTableRsp *)pRsp->pCont;
+  
+      if (0 == pRsp->code && 0 == rsp->completed) {
+        qwtBuildFetchReqMsg(&qwtfetchMsg, &qwtfetchRpc);
+        qwtPutReqToFetchQueue(0x1, &qwtfetchRpc);
+        return;
+      }
+
+      qwtBuildDropReqMsg(&qwtdropMsg, &qwtdropRpc);
+      qwtPutReqToFetchQueue(0x1, &qwtdropRpc);
+      
+      break;
+    }
+    case TDMT_VND_DROP_TASK: {
+      STaskDropRsp *rsp = (STaskDropRsp *)pRsp->pCont;
+
+      qwtTestCaseFinished = true;
+      break;
     }
   }
-*/  
+  
   return;
 }
 
 int32_t qwtCreateExecTask(void* tsdb, int32_t vgId, struct SSubplan* pPlan, qTaskInfo_t* pTaskInfo, DataSinkHandle* handle) {
-  int32_t idx = qwtTestCaseIdx % qwtTestCaseNum;
+  int32_t idx = abs((++qwtTestCaseIdx) % qwtTestCaseNum);
+
+  qwtTestSinkBlockNum = 0;
+  qwtTestSinkMaxBlockNum = rand() % 100 + 1;
+  qwtTestSinkQueryEnd = false;
   
   if (0 == idx) {
     *pTaskInfo = (qTaskInfo_t)qwtTestCaseIdx;
@@ -141,13 +257,30 @@ int32_t qwtCreateExecTask(void* tsdb, int32_t vgId, struct SSubplan* pPlan, qTas
     *pTaskInfo = NULL;
     *handle = (DataSinkHandle)qwtTestCaseIdx;
   }
-
-  ++qwtTestCaseIdx;
   
   return 0;
 }
 
 int32_t qwtExecTask(qTaskInfo_t tinfo, SSDataBlock** pRes, uint64_t *useconds) {
+  int32_t endExec = 0;
+  
+  if (NULL == tinfo) {
+    *pRes = NULL;
+    *useconds = 0;
+  } else {
+    endExec = rand() % 5;
+    
+    if (endExec) {
+      usleep(rand() % qwtTestMaxExecTaskUsec);
+      
+      *pRes = (SSDataBlock*)0x1;
+    } else {
+      *pRes = NULL;
+      usleep(rand() % qwtTestMaxExecTaskUsec);
+      *useconds = rand() % 10;
+    }
+  }
+  
   return 0;
 }
 
@@ -156,21 +289,85 @@ int32_t qwtKillTask(qTaskInfo_t qinfo) {
 }
 
 void qwtDestroyTask(qTaskInfo_t qHandle) {
-
 }
 
 
 int32_t qwtPutDataBlock(DataSinkHandle handle, const SInputData* pInput, bool* pContinue) {
+  if (NULL == handle || NULL == pInput || NULL == pContinue) {
+    assert(0);
+  }
+
+  taosWLockLatch(&qwtTestSinkLock);
+
+  qwtTestSinkBlockNum++;
+
+  if (qwtTestSinkBlockNum >= qwtTestSinkMaxBlockNum) {
+    *pContinue = true;
+  } else {
+    *pContinue = false;
+  }
+  taosWUnLockLatch(&qwtTestSinkLock);
+  
   return 0;
 }
 
 void qwtEndPut(DataSinkHandle handle, uint64_t useconds) {
+  if (NULL == handle) {
+    assert(0);
+  }
+
+  qwtTestSinkQueryEnd = true;
 }
 
 void qwtGetDataLength(DataSinkHandle handle, int32_t* pLen, bool* pQueryEnd) {
+  static int32_t in = 0;
+
+  if (in > 0) {
+    assert(0);
+  }
+
+  atomic_add_fetch_32(&in, 1);
+  
+  if (NULL == handle) {
+    assert(0);
+  }
+
+  taosWLockLatch(&qwtTestSinkLock);
+  if (qwtTestSinkBlockNum > 0) {
+    *pLen = rand() % 100 + 1;
+    qwtTestSinkBlockNum--;
+  } else {
+    *pLen = 0;
+  }
+  taosWUnLockLatch(&qwtTestSinkLock);
+
+  *pQueryEnd = qwtTestSinkQueryEnd;
+
+  atomic_sub_fetch_32(&in, 1);
 }
 
 int32_t qwtGetDataBlock(DataSinkHandle handle, SOutputData* pOutput) {
+  taosWLockLatch(&qwtTestSinkLock);
+  if (qwtTestSinkBlockNum > 0) {
+    qwtTestSinkBlockNum--;
+    pOutput->numOfRows = rand() % 10 + 1;
+    pOutput->compressed = 1;
+    pOutput->pData = malloc(pOutput->numOfRows);
+    pOutput->queryEnd = qwtTestSinkQueryEnd;
+    if (qwtTestSinkBlockNum == 0) {
+      pOutput->bufStatus = DS_BUF_EMPTY;
+    } else if (qwtTestSinkBlockNum <= qwtTestSinkMaxBlockNum*0.5) {
+      pOutput->bufStatus = DS_BUF_LOW;
+    } else {
+      pOutput->bufStatus = DS_BUF_FULL;
+    }
+    pOutput->useconds = rand() % 10 + 1;
+    pOutput->precision = 1;
+  } else {
+    assert(0);
+  }
+  taosWUnLockLatch(&qwtTestSinkLock);
+  
   return 0;
 }
 
@@ -438,20 +635,31 @@ void *statusThread(void *param) {
 }
 
 
-void *controlThread(void *param) {
-  SRpcMsg queryRpc = {0};
+void *clientThread(void *param) {
   int32_t code = 0;
   uint32_t n = 0;
-  void *mockPointer = (void *)0x1;    
   void *mgmt = param;
+  void *mockPointer = (void *)0x1;    
+  SRpcMsg queryRpc = {0};
+
+  sleep(1);
 
   while (!qwtTestStop) {
+    qwtTestCaseFinished = false;
+    
     qwtBuildQueryReqMsg(&queryRpc);
-    qWorkerProcessQueryMsg(mockPointer, mgmt, &queryRpc);    
+    qwtPutReqToQueue(0x1, &queryRpc);
+
+    while (!qwtTestCaseFinished) {
+      usleep(1);
+    }
+    
     free(queryRpc.pCont);
+    
     if (qwtTestEnableSleep) {
       usleep(rand()%5);
     }
+    
     if (++n % qwtTestPrintNum == 0) {
       printf("query:%d\n", n);
     }
@@ -461,10 +669,79 @@ void *controlThread(void *param) {
 }
 
 void *queryQueueThread(void *param) {
+  void *mockPointer = (void *)0x1;   
+  SRpcMsg *queryRpc = NULL;
+  void *mgmt = param;
+
+  while (!qwtTestStop) {
+    tsem_wait(&qwtTestQuerySem);
+
+    taosWLockLatch(&qwtTestQueryQueueLock);
+    if (qwtTestQueryQueueNum <= 0 || qwtTestQueryQueueRIdx == qwtTestQueryQueueWIdx) {
+      printf("query queue is empty\n");
+      assert(0);
+    }
+    
+    queryRpc = qwtTestQueryQueue[qwtTestQueryQueueRIdx++];
+    
+    if (qwtTestQueryQueueRIdx >= qwtTestQueryQueueSize) {
+      qwtTestQueryQueueRIdx = 0;
+    }
+    
+    qwtTestQueryQueueNum--;
+    taosWUnLockLatch(&qwtTestQueryQueueLock);
+
+    if (TDMT_VND_QUERY == queryRpc->msgType) {
+      qWorkerProcessQueryMsg(mockPointer, mgmt, &queryRpc);
+    } else if (TDMT_VND_QUERY_CONTINUE == queryRpc->msgType) {
+      qWorkerProcessCQueryMsg(mockPointer, mgmt, &queryRpc)
+    } else {
+      printf("unknown msg in query queue, type:%d\n", queryRpc->msgType);
+      assert(0);
+    }
+  }
 
 }
 
 void *fetchQueueThread(void *param) {
+  void *mockPointer = (void *)0x1;   
+  SRpcMsg *fetchRpc = NULL;
+  void *mgmt = param;
+
+  while (!qwtTestStop) {
+    tsem_wait(&qwtTestFetchSem);
+
+    taosWLockLatch(&qwtTestFetchQueueLock);
+    if (qwtTestFetchQueueNum <= 0 || qwtTestFetchQueueRIdx == qwtTestFetchQueueWIdx) {
+      printf("Fetch queue is empty\n");
+      assert(0);
+    }
+    
+    fetchRpc = qwtTestFetchQueue[qwtTestFetchQueueRIdx++];
+    
+    if (qwtTestFetchQueueRIdx >= qwtTestFetchQueueSize) {
+      qwtTestFetchQueueRIdx = 0;
+    }
+    
+    qwtTestFetchQueueNum--;
+    taosWUnLockLatch(&qwtTestFetchQueueLock);
+
+    switch (fetchRpc->msgType) {
+      case TDMT_VND_FETCH:
+        qWorkerProcessFetchMsg(mockPointer, mgmt, fetchRpc);
+      case TDMT_VND_RES_READY:
+        qWorkerProcessReadyMsg(mockPointer, mgmt, fetchRpc);
+      case TDMT_VND_TASKS_STATUS:
+        qWorkerProcessStatusMsg(mockPointer, mgmt, fetchRpc);
+      case TDMT_VND_CANCEL_TASK:
+        qWorkerProcessCancelMsg(mockPointer, mgmt, fetchRpc);
+      case TDMT_VND_DROP_TASK:
+        qWorkerProcessDropMsg(mockPointer, mgmt, fetchRpc);
+      default:
+        printf("unknown msg type:%d in fetch queue", fetchRpc->msgType);
+        assert(0);
+    }
+  }
 
 }
 
@@ -753,13 +1030,16 @@ TEST(rcTest, multithread) {
   code = qWorkerInit(NODE_TYPE_VNODE, 1, NULL, &mgmt, mockPointer, qwtPutReqToQueue);
   ASSERT_EQ(code, 0);
 
+  tsem_init(&qwtTestQuerySem, 0, 0);
+  tsem_init(&qwtTestFetchSem, 0, 0);
+
   pthread_attr_t thattr;
   pthread_attr_init(&thattr);
 
   pthread_t t1,t2,t3,t4,t5;
-  pthread_create(&(t1), &thattr, controlThread, mgmt);
-  pthread_create(&(t2), &thattr, queryQueueThread, NULL);
-  pthread_create(&(t3), &thattr, fetchQueueThread, NULL);
+  pthread_create(&(t1), &thattr, clientThread, mgmt);
+  pthread_create(&(t2), &thattr, queryQueueThread, mgmt);
+  pthread_create(&(t3), &thattr, fetchQueueThread, mgmt);
 
   while (true) {
     if (qwtTestDeadLoop) {
@@ -779,6 +1059,7 @@ TEST(rcTest, multithread) {
 
 
 int main(int argc, char** argv) {
+  srand(time(NULL));
   testing::InitGoogleTest(&argc, argv);
   return RUN_ALL_TESTS();
 }

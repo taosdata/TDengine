@@ -242,12 +242,12 @@ int32_t scheduleQuery(SRequestObj* pRequest, SQueryDag* pDag) {
   if (TSDB_SQL_INSERT == pRequest->type || TSDB_SQL_CREATE_TABLE == pRequest->type) {
     SQueryResult res = {.code = 0, .numOfRows = 0, .msgSize = ERROR_MSG_BUF_DEFAULT_SIZE, .msg = pRequest->msgBuf};
 
-    int32_t code = scheduleExecJob(pRequest->pTscObj->pAppInfo->pTransporter, NULL, pDag, &pRequest->body.pQueryJob, &res);
+    int32_t code = schedulerExecJob(pRequest->pTscObj->pAppInfo->pTransporter, NULL, pDag, &pRequest->body.pQueryJob, &res);
     if (code != TSDB_CODE_SUCCESS) {
       // handle error and retry
     } else {
       if (pRequest->body.pQueryJob != NULL) {
-        scheduleFreeJob(pRequest->body.pQueryJob);
+        schedulerFreeJob(pRequest->body.pQueryJob);
       }
     }
 
@@ -263,7 +263,7 @@ int32_t scheduleQuery(SRequestObj* pRequest, SQueryDag* pDag) {
   strcpy(addr.epAddr[0].fqdn, "localhost");
 
   taosArrayPush(execNode, &addr);
-  return scheduleAsyncExecJob(pRequest->pTscObj->pAppInfo->pTransporter, execNode, pDag, &pRequest->body.pQueryJob);
+  return schedulerAsyncExecJob(pRequest->pTscObj->pAppInfo->pTransporter, execNode, pDag, &pRequest->body.pQueryJob);
 }
 
 typedef struct tmq_t tmq_t;
@@ -714,7 +714,7 @@ void* doFetchRow(SRequestObj* pRequest) {
         return NULL;
       }
 
-      int32_t code = scheduleFetchRows(pRequest->body.pQueryJob, (void **)&pRequest->body.resInfo.pData);
+      int32_t code = schedulerFetchRows(pRequest->body.pQueryJob, (void **)&pRequest->body.resInfo.pData);
       if (code != TSDB_CODE_SUCCESS) {
         pRequest->code = code;
         return NULL;
