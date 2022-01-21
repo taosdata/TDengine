@@ -635,7 +635,7 @@ int32_t tqProcessConsumeReq(STQ* pTq, SRpcMsg* pMsg, SRpcMsg** ppRsp) {
     SSubmitMsg* pCont = (SSubmitMsg*)&pHead->head.body;
     void* task = pHandle->buffer.output[pos].task;
 
-    qStreamExecTaskSetInput(task, pCont);
+    qSetStreamInput(task, pCont);
     SSDataBlock* pDataBlock;
     uint64_t ts;
     if (qExecTask(task, &pDataBlock, &ts) < 0) {
