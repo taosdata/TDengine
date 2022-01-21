@@ -2683,7 +2683,7 @@ int32_t addExprAndResultField(SSqlCmd* pCmd, SQueryInfo* pQueryInfo, int32_t col
   const char* msg24 = "width param cannot be 0";
   const char* msg25 = "count param should be greater than 0";
   const char* msg26 = "start param cannot be 0 with 'log_bin'";
-  const char* msg27 = "factor param should be greater than 1";
+  const char* msg27 = "factor param cannot be negative or equal to 0/1";
 
   switch (functionId) {
     case TSDB_FUNC_COUNT: {
@@ -3465,7 +3465,7 @@ int32_t addExprAndResultField(SSqlCmd* pCmd, SQueryInfo* pQueryInfo, int32_t col
             tfree(intervals);
             return invalidOperationMsg(tscGetErrorMsgPayload(pCmd), msg26);
           }
-          if (factor->valuedouble <= 1) {
+          if (factor->valuedouble < 0 || factor->valuedouble == 0 || factor->valuedouble == 1) {
             tfree(intervals);
             return invalidOperationMsg(tscGetErrorMsgPayload(pCmd), msg27);
           }
