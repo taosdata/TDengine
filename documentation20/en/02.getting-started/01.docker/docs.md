@@ -20,11 +20,11 @@ Docker version 20.10.3, build 48d30b5
 ### running TDengine server inside Docker
 
 ```bash
-$ docker run -d -p 6030-6041:6030-6041 -p 6030-6041:6030-6041/udp tdengine/tdengine
+$ docker run -d -p 6030-6049:6030-6049 -p 6030-6049:6030-6049/udp tdengine/tdengine
 526aa188da767ae94b244226a2b2eec2b5f17dd8eff592893d9ec0cd0f3a1ccd
 ```
 
-This command starts a docker container with TDengine server running and maps the container's ports from 6030 to 6041 to the host's ports from 6030 to 6041. If the host is already running TDengine server and occupying the same port(s), you need to map the container's port to a different unused port segment. (Please see [TDengine 2.0 Port Description](https://www.taosdata.com/en/documentation/faq#port) for details). In order to support TDengine clients accessing TDengine server services, both TCP and UDP ports need to be open.
+This command starts a docker container with TDengine server running and maps the container's ports from 6030 to 6049 to the host's ports from 6030 to 6049. If the host is already running TDengine server and occupying the same port(s), you need to map the container's port to a different unused port segment. (Please see [TDengine 2.0 Port Description](https://www.taosdata.com/en/documentation/faq#port) for details). In order to support TDengine clients accessing TDengine server services, both TCP and UDP ports need to be open.
 
 - **docker run**: Run a container via Docker
 - **-d**: put the container run in the background
@@ -117,6 +117,8 @@ Docker containers of TDegnine version 2.4.0.0 and later include a component name
 Note: If taosAdapter is running inside the container, you need to add mapping to other additional ports as needed, please refer to [taosAdapter documentation](https://github.com/taosdata/taosadapter/blob/develop/README.md) for the default port number and modification methods for the specific purpose.
 
 Running TDengine version 2.4.0.4 image with docker.
+
+Start taosAdapter and taosd by default:
 
 ```
 $ docker run -d --name tdengine-taosa -p 6030-6049:6030-6049 -p 6030-6049:6030-6049/udp tdengine/tdengine:2.4.0.4
