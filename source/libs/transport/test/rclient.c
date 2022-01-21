@@ -40,6 +40,7 @@ static void processResponse(void *pParent, SRpcMsg *pMsg, SEpSet *pEpSet) {
   if (pEpSet) pInfo->epSet = *pEpSet;
 
   rpcFreeCont(pMsg->pCont);
+  // tsem_post(&pInfo->rspSem);
   tsem_post(&pInfo->rspSem);
 }
 
@@ -60,6 +61,7 @@ static void *sendRequest(void *param) {
     // tDebug("thread:%d, send request, contLen:%d num:%d", pInfo->index, pInfo->msgSize, pInfo->num);
     rpcSendRequest(pInfo->pRpc, &pInfo->epSet, &rpcMsg, NULL);
     if (pInfo->num % 20000 == 0) tInfo("thread:%d, %d requests have been sent", pInfo->index, pInfo->num);
+    // tsem_wait(&pInfo->rspSem);
     tsem_wait(&pInfo->rspSem);
   }
 

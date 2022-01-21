@@ -70,6 +70,7 @@ int32_t rpcInit(void) {
 
 void rpcCleanup(void) {
   // impl later
+  //
   return;
 }
 #endif

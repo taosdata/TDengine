@@ -210,8 +210,8 @@ static int uvAuthMsg(SConn* pConn, char* msg, int len) {
 
 // refers specifically to query or insert timeout
 static void uvHandleActivityTimeout(uv_timer_t* handle) {
-  // impl later
   SConn* conn = handle->data;
+  tDebug("%p timeout since no activity", conn);
 }
 
 static void uvProcessData(SConn* pConn) {
@@ -232,12 +232,13 @@ static void uvProcessData(SConn* pConn) {
 
   SRpcInfo* pRpc = (SRpcInfo*)p->shandle;
   // auth here
+  // auth should not do in rpc thread
 
-  int8_t code = uvAuthMsg(pConn, (char*)pHead, p->msgLen);
-  if (code != 0) {
-    terrno = code;
-    return;
-  }
+  // int8_t code = uvAuthMsg(pConn, (char*)pHead, p->msgLen);
+  // if (code != 0) {
+  //  terrno = code;
+  //  return;
+  //}
   pHead->code = htonl(pHead->code);
 
   int32_t dlen = 0;
@@ -248,7 +249,7 @@ static void uvProcessData(SConn* pConn) {
   } else {
     // impl later
   }
-  rpcMsg.contLen = rpcContLenFromMsg(pHead->msgLen);
+  rpcMsg.contLen = transContLenFromMsg(pHead->msgLen);
   rpcMsg.pCont = pHead->content;
   rpcMsg.msgType = pHead->msgType;
   rpcMsg.code = pHead->code;
@@ -318,6 +319,9 @@ void uvWorkerAsyncCb(uv_async_t* handle) {
       return;
     }
     uv_buf_t wb = uv_buf_init(conn->writeBuf.buf, conn->writeBuf.len);
+
+    uv_timer_stop(conn->pTimer);
+
     uv_write(conn->pWriter, (uv_stream_t*)conn->pTcp, &wb, 1, uvOnWriteCb);
   }
 }
