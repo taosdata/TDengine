@@ -45,11 +45,12 @@ typedef struct {
   TD_DLIST(TDB_MPFILE);
 } mpf_bucket_t;
 struct TDB_MPOOL {
-  int64_t   cachesize;
-  pgsize_t  pgsize;
-  int32_t   npages;
-  pg_t *    pages;
-  pg_list_t freeList;
+  int64_t    cachesize;
+  pgsize_t   pgsize;
+  int32_t    npages;
+  pg_t *     pages;
+  pg_list_t  freeList;
+  frame_id_t clockHand;
   struct {
     int32_t    nbucket;
     pg_list_t *hashtab;

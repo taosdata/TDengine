@@ -21,6 +21,7 @@ static void        tdbMPoolUnregFile(TDB_MPOOL *mp, TDB_MPFILE *mpf);
 static TDB_MPFILE *tdbMPoolGetFile(TDB_MPOOL *mp, uint8_t *fileid);
 static int         tdbMPoolFileReadPage(TDB_MPFILE *mpf, pgno_t pgno, void *p);
 static int         tdbMPoolFileWritePage(TDB_MPFILE *mpf, pgno_t pgno, const void *p);
+static void        tdbMPoolClockEvictPage(TDB_MPOOL *mp, pg_t **pagepp);
 
 int tdbMPoolOpen(TDB_MPOOL **mpp, uint64_t cachesize, pgsize_t pgsize) {
   TDB_MPOOL *mp = NULL;
@@ -44,6 +45,7 @@ int tdbMPoolOpen(TDB_MPOOL **mpp, uint64_t cachesize, pgsize_t pgsize) {
   mp->cachesize = cachesize;
   mp->pgsize = pgsize;
   mp->npages = cachesize / pgsize;
+  mp->clockHand = 0;
 
   TD_DLIST_INIT(&mp->freeList);
 
@@ -193,10 +195,11 @@ int tdbMPoolFileGetPage(TDB_MPFILE *mpf, pgno_t pgno, void *addr) {
     TD_DLIST_POP_WITH_FIELD(&(mp->freeList), pagep, free);
   } else {
     // no free page available
-    // pagep = tdbMpoolEvict(mp);
+    tdbMPoolClockEvictPage(mp, &pagep);
     if (pagep) {
-    } else {
-      // TODO: Cannot find a page to evict
+      if (pagep->dirty) {
+        // TODO: Handle dirty page eviction
+      }
     }
   }
 
@@ -346,4 +349,31 @@ static int tdbMPoolFileWritePage(TDB_MPFILE *mpf, pgno_t pgno, const void *p) {
   // TODO: handle error
 
   return 0;
+}
+
+static void tdbMPoolClockEvictPage(TDB_MPOOL *mp, pg_t **pagepp) {
+  pg_t *     pagep;
+  frame_id_t och;
+
+  *pagepp = NULL;
+  och = mp->clockHand;
+
+  do {
+    pagep = mp->pages + mp->clockHand;
+    mp->clockHand = (mp->clockHand + 1) % mp->npages;
+
+    if (pagep->pinRef == 0) {
+      if (pagep->rbit == 1) {
+        pagep->rbit = 0;
+      } else {
+        break;
+      }
+    }
+
+    if (mp->clockHand == och) {
+      return;
+    }
+  } while (1);
+
+  *pagepp = pagep;
 }
