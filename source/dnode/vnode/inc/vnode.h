@@ -68,12 +68,13 @@ typedef struct {
 
 typedef struct STqReadHandle {
   int64_t        ver;
+  int64_t        tbUid;
   SSubmitMsg*    pMsg;
   SSubmitBlk*    pBlock;
   SSubmitMsgIter msgIter;
   SSubmitBlkIter blkIter;
   SMeta*         pMeta;
-  SArray*        pColumnIdList;
+  SArray*        pColIdList;
 } STqReadHandle;
 
 /* ------------------------ SVnode ------------------------ */
@@ -199,8 +200,12 @@ int32_t vnodeGetLoad(SVnode *pVnode, SVnodeLoad *pLoad);
 
 STqReadHandle* tqInitSubmitMsgScanner(SMeta* pMeta);
 
-static FORCE_INLINE void tqReadHandleSetColIdList(STqReadHandle* pReadHandle, SArray* pColumnIdList) {
-  pReadHandle->pColumnIdList = pColumnIdList;
+static FORCE_INLINE void tqReadHandleSetColIdList(STqReadHandle* pReadHandle, SArray* pColIdList) {
+  pReadHandle->pColIdList = pColIdList;
+}
+
+static FORCE_INLINE void tqReadHandleSetTbUid(STqReadHandle* pHandle, int64_t tbUid) {
+  pHandle->tbUid = tbUid;
 }
 
 void           tqReadHandleSetMsg(STqReadHandle* pHandle, SSubmitMsg* pMsg, int64_t ver);
