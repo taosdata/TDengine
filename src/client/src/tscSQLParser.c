@@ -3428,7 +3428,8 @@ int32_t addExprAndResultField(SSqlCmd* pCmd, SQueryInfo* pQueryInfo, int32_t col
 
         if (isinf(start->valuedouble) ||
             (width != NULL && isinf(width->valuedouble)) ||
-            (factor != NULL && isinf(factor->valuedouble))) {
+            (factor != NULL && isinf(factor->valuedouble)) ||
+            (count != NULL && isinf(count->valuedouble))) {
           return invalidOperationMsg(tscGetErrorMsgPayload(pCmd), msg23);
         }
 
