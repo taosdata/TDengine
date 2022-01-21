@@ -26,6 +26,7 @@ target_link_libraries(
     PUBLIC tfs
     PUBLIC wal
     PUBLIC scheduler
+    PUBLIC executor
     PUBLIC qworker
 )
 
