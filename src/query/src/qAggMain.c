@@ -213,8 +213,7 @@ typedef struct {
 typedef struct {
   double lower; // >lower
   double upper; // <=upper
-  int64_t count;
-  double  count_norm;
+  double count;
 } SHistogramFuncBin;
 
 typedef struct{
@@ -5012,7 +5011,7 @@ static void histogram_function(SQLFunctionCtx *pCtx) {
 
   if (pRes->normalized) {
     for (int32_t b = 0; b < pRes->numOfBins; ++b) {
-      pRes->orderedBins[b].count_norm = pRes->orderedBins[b].count / (double)totalElems;
+      pRes->orderedBins[b].count = pRes->orderedBins[b].count / (double)totalElems;
     }
   }
 
@@ -5047,11 +5046,12 @@ static void histogram_func_finalizer(SQLFunctionCtx *pCtx) {
   for (int32_t i = 0; i < pRes->numOfBins; ++i) {
     int sz;
     if (!pRes->normalized) {
+      int64_t count = (int64_t)pRes->orderedBins[i].count;
       sz = sprintf(pCtx->pOutput + VARSTR_HEADER_SIZE, "(%g-%g]:%"PRId64,
-                   pRes->orderedBins[i].lower, pRes->orderedBins[i].upper, pRes->orderedBins[i].count);
+                   pRes->orderedBins[i].lower, pRes->orderedBins[i].upper, count);
     } else {
       sz = sprintf(pCtx->pOutput + VARSTR_HEADER_SIZE, "(%g-%g]:%lf",
-                   pRes->orderedBins[i].lower, pRes->orderedBins[i].upper, pRes->orderedBins[i].count_norm);
+                   pRes->orderedBins[i].lower, pRes->orderedBins[i].upper, pRes->orderedBins[i].count);
     }
     varDataSetLen(pCtx->pOutput, sz);
     pCtx->pOutput += pCtx->outputBytes;
