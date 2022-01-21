@@ -3451,7 +3451,7 @@ int32_t addExprAndResultField(SSqlCmd* pCmd, SQueryInfo* pQueryInfo, int32_t col
           }
           for (int i = 0; i < counter + 1; ++i) {
             intervals[startIndex] = start->valuedouble + i * width->valuedouble;
-            if (isinf(intervals[i])) {
+            if (isinf(intervals[startIndex])) {
               tfree(intervals);
               return invalidOperationMsg(tscGetErrorMsgPayload(pCmd), msg23);
             }
@@ -3461,7 +3461,7 @@ int32_t addExprAndResultField(SSqlCmd* pCmd, SQueryInfo* pQueryInfo, int32_t col
           //log bin process
           for (int i = 0; i < counter + 1; ++i) {
             intervals[startIndex] = start->valuedouble * pow(factor->valuedouble, i * 1.0);
-            if (isinf(intervals[i])) {
+            if (isinf(intervals[startIndex])) {
               tfree(intervals);
               return invalidOperationMsg(tscGetErrorMsgPayload(pCmd), msg23);
             }
