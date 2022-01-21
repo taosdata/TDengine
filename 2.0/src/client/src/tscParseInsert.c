@@ -43,12 +43,6 @@ static int32_t parseBoundColumns(SInsertStatementParam *pInsertParam, SParsedDat
                                  char *str, char **end);
 int            initMemRowBuilder(SMemRowBuilder *pBuilder, uint32_t nRows, SParsedDataColInfo *pColInfo) {
   ASSERT(nRows >= 0 && pColInfo->numOfCols > 0 && (pColInfo->numOfBound <= pColInfo->numOfCols));
-  if (nRows > 0) {
-    // already init(bind multiple rows by single column)
-    if (pBuilder->compareStat == ROW_COMPARE_NEED && (pBuilder->rowInfo != NULL)) {
-      return TSDB_CODE_SUCCESS;
-    }
-  }
 
   uint32_t dataLen = TD_MEM_ROW_DATA_HEAD_SIZE + pColInfo->allNullLen;
   uint32_t kvLen = TD_MEM_ROW_KV_HEAD_SIZE + pColInfo->numOfBound * sizeof(SColIdx) + pColInfo->boundNullLen;

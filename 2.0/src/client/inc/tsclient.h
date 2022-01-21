@@ -125,20 +125,9 @@ typedef struct SParsedDataColInfo {
 #define IS_DATA_COL_ORDERED(spd) ((spd->orderStatus) == (int8_t)ORDER_STATUS_ORDERED)
 
 typedef struct {
-  int32_t dataLen;  // len of SDataRow
-  int32_t kvLen;    // len of SKVRow
-} SMemRowInfo;
-typedef struct {
-  uint8_t      memRowType;   // default is 0, that is SDataRow 
-  uint8_t      compareStat;  // 0 no need, 1 need compare
-  int32_t      rowSize;
-  SMemRowInfo *rowInfo;
+  uint8_t memRowType;  // default is 0, that is SDataRow
+  int32_t rowSize;
 } SMemRowBuilder;
-
-typedef enum {
-  ROW_COMPARE_NO_NEED = 0,
-  ROW_COMPARE_NEED = 1,
-} ERowCompareStat;
 
 int tsParseTime(SStrToken *pToken, int64_t *time, char **next, char *error, int16_t timePrec);
 

@@ -34,11 +34,6 @@ typedef enum EValStat {
   VAL_STAT_NONE = 0x01,  // 1 means no val
 } EValStat;
 
-typedef enum ERowCompareStat {
-  ROW_COMPARE_NO_NEED = 0,
-  ROW_COMPARE_NEED = 1,
-} ERowCompareStat;
-
 typedef struct SBoundColumn {
   int32_t offset;   // all column offset value
   int32_t toffset;  // first part offset for SDataRow TODO: get offset from STSchema on future
@@ -64,16 +59,9 @@ typedef struct SParsedDataColInfo {
   int8_t         orderStatus;  // bound columns
 } SParsedDataColInfo;
 
-typedef struct SMemRowInfo {
-  int32_t dataLen;  // len of SDataRow
-  int32_t kvLen;    // len of SKVRow
-} SMemRowInfo;
-
 typedef struct {
-  uint8_t      memRowType;   // default is 0, that is SDataRow 
-  uint8_t      compareStat;  // 0 no need, 1 need compare
-  int32_t      rowSize;
-  SMemRowInfo *rowInfo;
+  uint8_t memRowType;  // default is 0, that is SDataRow
+  int32_t rowSize;
 } SMemRowBuilder;
 
 typedef struct STableDataBlocks {

@@ -262,9 +262,6 @@ typedef struct SMemParam {
   SMemRow row;
   SSchema* schema;
   int32_t toffset;
-  uint8_t compareStat;
-  int32_t dataLen;
-  int32_t kvLen;
 } SMemParam;
 
 static FORCE_INLINE int32_t MemRowAppend(const void *value, int32_t len, void *param) {
@@ -426,7 +423,6 @@ static int parseOneRow(SInsertParseContext* pCxt, STableDataBlocks* pDataBlocks,
     NEXT_TOKEN(pCxt->pSql, sToken);
     SSchema *pSchema = &schema[spd->boundedColumns[i] - 1];
     param.schema = pSchema;
-    param.compareStat = pBuilder->compareStat;
     getMemRowAppendInfo(schema, pBuilder->memRowType, spd, i, &param.toffset);
     CHECK_CODE(parseValueToken(&pCxt->pSql, &sToken, pSchema, timePrec, tmpTokenBuf, MemRowAppend, &param, &pCxt->msg));
 
