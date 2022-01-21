@@ -59,7 +59,7 @@ option(
 option(
     BUILD_WITH_TRAFT
     "If build with traft"
-    ON
+    OFF
 )
 
 option(
