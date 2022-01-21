@@ -1949,8 +1949,457 @@ class TDTestCase:
         tdSql.error('select histogram(col_double, \'log_bin\', \'{"start": -0.5, "factor": 0.5, "count": 2, "infinity": true}\', abc) from tb;')
 
         ## Combinations ##
+        #select distinct func(col_name)
+        tdSql.error('select distinct histogram(col_tinyint, "user_input", "[1,3,5,7]", 0) from stb;')
+        tdSql.error('select distinct histogram(col_smallint, "user_input", "[1,3,5,7]", 0) from stb;')
+        tdSql.error('select distinct histogram(col_int, "user_input", "[1,3,5,7]", 0) from stb;')
+        tdSql.error('select distinct histogram(col_bigint, "user_input", "[1,3,5,7]", 0) from stb;')
+        tdSql.error('select distinct histogram(col_float, "user_input", "[1,3,5,7]", 0) from stb;')
+        tdSql.error('select distinct histogram(col_double, "user_input", "[1,3,5,7]", 0) from stb;')
+        tdSql.error('select distinct histogram(col_bool, "user_input", "[1,3,5,7]", 0) from stb;')
+        tdSql.error('select distinct histogram(col_timestamp, "user_input", "[1,3,5,7]", 0) from stb;')
+        tdSql.error('select distinct histogram(col_nchar, "user_input", "[1,3,5,7]", 0) from stb;')
+        tdSql.error('select distinct histogram(col_binary, "user_input", "[1,3,5,7]", 0) from stb;')
+        tdSql.error('select distinct histogram(tag_tinyint, "user_input", "[1,3,5,7]", 0) from stb;')
+        tdSql.error('select distinct histogram(tag_smallint, "user_input", "[1,3,5,7]", 0) from stb;')
+        tdSql.error('select distinct histogram(tag_int, "user_input", "[1,3,5,7]", 0) from stb;')
+        tdSql.error('select distinct histogram(tag_bigint, "user_input", "[1,3,5,7]", 0) from stb;')
+        tdSql.error('select distinct histogram(tag_float, "user_input", "[1,3,5,7]", 0) from stb;')
+        tdSql.error('select distinct histogram(tag_double, "user_input", "[1,3,5,7]", 0) from stb;')
+        tdSql.error('select distinct histogram(tag_bool, "user_input", "[1,3,5,7]", 0) from stb;')
+        tdSql.error('select distinct histogram(tag_timestamp, "user_input", "[1,3,5,7]", 0) from stb;')
+        tdSql.error('select distinct histogram(tag_nchar, "user_input", "[1,3,5,7]", 0) from stb;')
+        tdSql.error('select distinct histogram(tag_binary, "user_input", "[1,3,5,7]", 0) from stb;')
 
+        tdSql.error('select histogram(*, "user_input", "[1,3,5,7]", 0) from stb;')
 
+        #select func(col_name arith_oper xxx)
+        tdSql.error('select histogram(col_int + 1, "user_input", "[1,3,5,7]", 0) from stb;')
+        tdSql.error('select histogram(col_int - 1, "user_input", "[1,3,5,7]", 0) from stb;')
+        tdSql.error('select histogram(col_int * 2.0, "user_input", "[1,3,5,7]", 0) from stb;')
+        tdSql.error('select histogram(col_int / 2.0, "user_input", "[1,3,5,7]", 0) from stb;')
+        tdSql.error('select histogram(col_int % 2.0, "user_input", "[1,3,5,7]", 0) from stb;')
+        tdSql.error('select histogram(col_timestamp + now, "user_input", "[1,3,5,7]", 0) from stb;')
+        tdSql.error('select histogram(col_int + col_bigint, "user_input", "[1,3,5,7]", 0) from stb;')
+        tdSql.error('select histogram(col_int - col_bigint, "user_input", "[1,3,5,7]", 0) from stb;')
+        tdSql.error('select histogram(col_int * col_bigint, "user_input", "[1,3,5,7]", 0) from stb;')
+        tdSql.error('select histogram(col_int / col_bigint, "user_input", "[1,3,5,7]", 0) from stb;')
+        tdSql.error('select histogram(col_int % col_bigint, "user_input", "[1,3,5,7]", 0) from stb;')
+        tdSql.error('select histogram(col_int + pow(1,2), "user_input", "[1,3,5,7]", 0) from stb;')
+        tdSql.error('select histogram(col_int - abs(-100), "user_input", "[1,3,5,7]", 0) from stb;')
+        tdSql.error('select histogram(col_int * round(col_float), "user_input", "[1,3,5,7]", 0) from stb;')
+        tdSql.error('select histogram(col_int / ceil(1.5), "user_input", "[1,3,5,7]", 0) from stb;')
+        tdSql.error('select histogram(col_int % floor(col_double), "user_input", "[1,3,5,7]", 0) from stb;')
+
+        #select func() arith_oper xxx
+        tdSql.error('select histogram(col_int, "user_input", "[1,3,5,7]", 0) + 1 from stb;')
+        tdSql.error('select histogram(col_int, "user_input", "[1,3,5,7]", 0) - 1 from stb;')
+        tdSql.error('select histogram(col_int, "user_input", "[1,3,5,7]", 0) * 1 from stb;')
+        tdSql.error('select histogram(col_int, "user_input", "[1,3,5,7]", 0) / 1 from stb;')
+        tdSql.error('select histogram(col_int, "user_input", "[1,3,5,7]", 0) % 1 from stb;')
+        tdSql.error('select histogram(col_int, "user_input", "[1,3,5,7]", 0) + col_double from stb;')
+        tdSql.error('select histogram(col_int, "user_input", "[1,3,5,7]", 0) - col_double from stb;')
+        tdSql.error('select histogram(col_int, "user_input", "[1,3,5,7]", 0) * col_double from stb;')
+        tdSql.error('select histogram(col_int, "user_input", "[1,3,5,7]", 0) / col_double from stb;')
+        tdSql.error('select histogram(col_int, "user_input", "[1,3,5,7]", 0) % col_double from stb;')
+
+        tdSql.error('select histogram(col_int, "user_input", "[1,3,5,7]", 0) + abs(col_double) from stb;')
+        tdSql.error('select histogram(col_int, "user_input", "[1,3,5,7]", 0) - ceil(col_double) from stb;')
+        tdSql.error('select histogram(col_int, "user_input", "[1,3,5,7]", 0) * floor(col_double) from stb;')
+        tdSql.error('select histogram(col_int, "user_input", "[1,3,5,7]", 0) / round(col_double) from stb;')
+        tdSql.error('select histogram(col_int, "user_input", "[1,3,5,7]", 0) % acos(col_double) from stb;')
+
+        tdSql.error('select histogram(col_int, "user_input", "[1,3,5,7]", 0) + max(col_double) from stb;')
+        tdSql.error('select histogram(col_int, "user_input", "[1,3,5,7]", 0) - min(col_double) from stb;')
+        tdSql.error('select histogram(col_int, "user_input", "[1,3,5,7]", 0) * first(col_double) from stb;')
+        tdSql.error('select histogram(col_int, "user_input", "[1,3,5,7]", 0) / last(col_double) from stb;')
+        tdSql.error('select histogram(col_int, "user_input", "[1,3,5,7]", 0) % top(col_double, 1) from stb;')
+
+        tdSql.error('select histogram(col_int, "user_input", "[1,3,5,7]", 0) + sum(col_double) from stb;')
+        tdSql.error('select histogram(col_int, "user_input", "[1,3,5,7]", 0) - avg(col_double) from stb;')
+        tdSql.error('select histogram(col_int, "user_input", "[1,3,5,7]", 0) * count(col_double) from stb;')
+        tdSql.error('select histogram(col_int, "user_input", "[1,3,5,7]", 0) / stddev(col_double) from stb;')
+        tdSql.error('select histogram(col_int, "user_input", "[1,3,5,7]", 0) % twa(col_double) from stb;')
+
+        #select func(),xxx
+        tdSql.error('select histogram(col_int, "user_input", "[1,3,5,7]", 0),col_tinyint from stb;')
+        tdSql.error('select histogram(col_int, "user_input", "[1,3,5,7]", 0),col_smallint from stb;')
+        tdSql.error('select histogram(col_int, "user_input", "[1,3,5,7]", 0),col_int from stb;')
+        tdSql.error('select histogram(col_int, "user_input", "[1,3,5,7]", 0),col_bigint from stb;')
+        tdSql.error('select histogram(col_int, "user_input", "[1,3,5,7]", 0),col_timstamp from stb;')
+        tdSql.error('select histogram(col_int, "user_input", "[1,3,5,7]", 0),col_bool from stb;')
+        tdSql.error('select histogram(col_int, "user_input", "[1,3,5,7]", 0),col_float from stb;')
+        tdSql.error('select histogram(col_int, "user_input", "[1,3,5,7]", 0),col_double from stb;')
+        tdSql.error('select histogram(col_int, "user_input", "[1,3,5,7]", 0),col_binary from stb;')
+        tdSql.error('select histogram(col_int, "user_input", "[1,3,5,7]", 0),col_nchar from stb;')
+
+        tdSql.error('select histogram(tag_int, "user_input", "[1,3,5,7]", 0),tag_tinyint from stb;')
+        tdSql.error('select histogram(tag_int, "user_input", "[1,3,5,7]", 0),tag_smallint from stb;')
+        tdSql.error('select histogram(tag_int, "user_input", "[1,3,5,7]", 0),tag_int from stb;')
+        tdSql.error('select histogram(tag_int, "user_input", "[1,3,5,7]", 0),tag_bigint from stb;')
+        tdSql.error('select histogram(tag_int, "user_input", "[1,3,5,7]", 0),tag_timstamp from stb;')
+        tdSql.error('select histogram(tag_int, "user_input", "[1,3,5,7]", 0),tag_bool from stb;')
+        tdSql.error('select histogram(tag_int, "user_input", "[1,3,5,7]", 0),tag_float from stb;')
+        tdSql.error('select histogram(tag_int, "user_input", "[1,3,5,7]", 0),tag_double from stb;')
+        tdSql.error('select histogram(tag_int, "user_input", "[1,3,5,7]", 0),tag_binary from stb;')
+        tdSql.error('select histogram(tag_int, "user_input", "[1,3,5,7]", 0),tag_nchar from stb;')
+
+        tdSql.error('select histogram(tag_int, "user_input", "[1,3,5,7]", 0),tag_tinyint from stb;')
+        tdSql.error('select histogram(tag_int, "user_input", "[1,3,5,7]", 0),tag_smallint from stb;')
+        tdSql.error('select histogram(tag_int, "user_input", "[1,3,5,7]", 0),tag_int from stb;')
+        tdSql.error('select histogram(tag_int, "user_input", "[1,3,5,7]", 0),tag_bigint from stb;')
+        tdSql.error('select histogram(tag_int, "user_input", "[1,3,5,7]", 0),tag_timstamp from stb;')
+        tdSql.error('select histogram(tag_int, "user_input", "[1,3,5,7]", 0),tag_bool from stb;')
+        tdSql.error('select histogram(tag_int, "user_input", "[1,3,5,7]", 0),tag_float from stb;')
+        tdSql.error('select histogram(tag_int, "user_input", "[1,3,5,7]", 0),tag_double from stb;')
+        tdSql.error('select histogram(tag_int, "user_input", "[1,3,5,7]", 0),tag_binary from stb;')
+        tdSql.error('select histogram(tag_int, "user_input", "[1,3,5,7]", 0),tag_nchar from stb;')
+
+        tdSql.error('select histogram(tag_int, "user_input", "[1,3,5,7]", 0),ts from stb;')
+        tdSql.error('select histogram(tag_int, "user_input", "[1,3,5,7]", 0),tbname from stb;')
+        tdSql.error('select histogram(tag_int, "user_input", "[1,3,5,7]", 0),_c0 from stb;')
+        tdSql.error('select histogram(tag_int, "user_input", "[1,3,5,7]", 0),_C0 from stb;')
+
+        tdSql.error('select histogram(col_int, "user_input", "[1,3,5,7]", 0),abs(col_double) from stb;')
+        tdSql.error('select histogram(col_int, "user_input", "[1,3,5,7]", 0),ceil(col_double) from stb;')
+        tdSql.error('select histogram(col_int, "user_input", "[1,3,5,7]", 0),floor(col_double) from stb;')
+        tdSql.error('select histogram(col_int, "user_input", "[1,3,5,7]", 0),round(col_double) from stb;')
+        tdSql.error('select histogram(col_int, "user_input", "[1,3,5,7]", 0),acos(col_double) from stb;')
+
+        tdSql.error('select histogram(col_int, "user_input", "[1,3,5,7]", 0),max(col_double) from stb;')
+        tdSql.error('select histogram(col_int, "user_input", "[1,3,5,7]", 0),min(col_double) from stb;')
+        tdSql.error('select histogram(col_int, "user_input", "[1,3,5,7]", 0),first(col_double) from stb;')
+        tdSql.error('select histogram(col_int, "user_input", "[1,3,5,7]", 0),last(col_double) from stb;')
+        tdSql.error('select histogram(col_int, "user_input", "[1,3,5,7]", 0),top(col_double, 1) from stb;')
+
+        tdSql.error('select histogram(col_int, "user_input", "[1,3,5,7]", 0),sum(col_double) from stb;')
+        tdSql.error('select histogram(col_int, "user_input", "[1,3,5,7]", 0),avg(col_double) from stb;')
+        tdSql.error('select histogram(col_int, "user_input", "[1,3,5,7]", 0),count(col_double) from stb;')
+        tdSql.error('select histogram(col_int, "user_input", "[1,3,5,7]", 0),stddev(col_double) from stb;')
+        tdSql.error('select histogram(col_int, "user_input", "[1,3,5,7]", 0),twa(col_double) from stb;')
+
+        tdSql.error('select histogram(col_int, "user_input", "[1,3,5,7]", 0),histogram(col_int, "user_input", "[1,3,5,7]", 0) from stb;')
+        tdSql.error('select histogram(col_int, "user_input", "[1,3,5,7]", 0),histogram(col_int, "linear_bin", \'{"start": -1, "width":5, "count":5, "infinity":false}\', 0) from stb;')
+        tdSql.error('select histogram(col_int, "user_input", "[1,3,5,7]", 0),histogram(col_int, "log_bin", \'{"start": 10, "factor":0.5, "count":5, "infinity":false}\', 0) from stb;')
+
+        #select where condition
+        tdSql.query('select histogram(col_int, "user_input", "[1,3,5,7,9,15]", 0) from tb;')
+        tdSql.checkRows(5)
+        tdSql.checkData(0, 0, "(1:3]:2");
+        tdSql.checkData(1, 0, "(3:5]:2");
+        tdSql.checkData(2, 0, "(5:7]:2");
+        tdSql.checkData(3, 0, "(7:9]:2");
+        tdSql.checkData(4, 0, "(9:15]:2");
+        tdSql.query('select histogram(col_int, "user_input", "[1,3,5,7,9,15]", 0) from tb where col_int > 3;')
+        tdSql.checkRows(5)
+        tdSql.checkData(0, 0, "(1:3]:0");
+        tdSql.checkData(1, 0, "(3:5]:2");
+        tdSql.checkData(2, 0, "(5:7]:2");
+        tdSql.checkData(3, 0, "(7:9]:2");
+        tdSql.checkData(4, 0, "(9:15]:2");
+        tdSql.query('select histogram(col_int, "user_input", "[1,3,5,7,9,15]", 0) from tb where col_int < 7;')
+        tdSql.checkRows(5)
+        tdSql.checkData(0, 0, "(1:3]:2");
+        tdSql.checkData(1, 0, "(3:5]:2");
+        tdSql.checkData(2, 0, "(5:7]:1");
+        tdSql.checkData(3, 0, "(7:9]:0");
+        tdSql.checkData(4, 0, "(9:15]:0");
+        tdSql.query('select histogram(col_int, "user_input", "[1,3,5,7,9,15]", 0) from tb where col_int >= 3;')
+        tdSql.checkRows(5)
+        tdSql.checkData(0, 0, "(1:3]:1");
+        tdSql.checkData(1, 0, "(3:5]:2");
+        tdSql.checkData(2, 0, "(5:7]:2");
+        tdSql.checkData(3, 0, "(7:9]:2");
+        tdSql.checkData(4, 0, "(9:15]:2");
+        tdSql.query('select histogram(col_int, "user_input", "[1,3,5,7,9,15]", 0) from tb where col_int <= 7;')
+        tdSql.checkRows(5)
+        tdSql.checkData(0, 0, "(1:3]:2");
+        tdSql.checkData(1, 0, "(3:5]:2");
+        tdSql.checkData(2, 0, "(5:7]:2");
+        tdSql.checkData(3, 0, "(7:9]:0");
+        tdSql.checkData(4, 0, "(9:15]:0");
+        tdSql.query('select histogram(col_int, "user_input", "[1,3,5,7,9,15]", 0) from tb where col_int = 7;')
+        tdSql.checkRows(5)
+        tdSql.checkData(0, 0, "(1:3]:0");
+        tdSql.checkData(1, 0, "(3:5]:0");
+        tdSql.checkData(2, 0, "(5:7]:1");
+        tdSql.checkData(3, 0, "(7:9]:0");
+        tdSql.checkData(4, 0, "(9:15]:0");
+        tdSql.query('select histogram(col_int, "user_input", "[1,3,5,7,9,15]", 0) from tb where col_int != 7;')
+        tdSql.checkRows(5)
+        tdSql.checkData(0, 0, "(1:3]:2");
+        tdSql.checkData(1, 0, "(3:5]:2");
+        tdSql.checkData(2, 0, "(5:7]:1");
+        tdSql.checkData(3, 0, "(7:9]:2");
+        tdSql.checkData(4, 0, "(9:15]:2");
+        tdSql.query('select histogram(col_int, "user_input", "[1,3,5,7,9,15]", 0) from tb where col_int <> 7;')
+        tdSql.checkRows(5)
+        tdSql.checkData(0, 0, "(1:3]:2");
+        tdSql.checkData(1, 0, "(3:5]:2");
+        tdSql.checkData(2, 0, "(5:7]:1");
+        tdSql.checkData(3, 0, "(7:9]:2");
+        tdSql.checkData(4, 0, "(9:15]:2");
+        tdSql.query('select histogram(col_int, "user_input", "[1,3,5,7,9,15]", 0) from tb where col_int > 5 and col_int <7;')
+        tdSql.checkRows(5)
+        tdSql.checkData(0, 0, "(1:3]:0");
+        tdSql.checkData(1, 0, "(3:5]:0");
+        tdSql.checkData(2, 0, "(5:7]:1");
+        tdSql.checkData(3, 0, "(7:9]:0");
+        tdSql.checkData(4, 0, "(9:15]:0");
+        tdSql.query('select histogram(col_int, "user_input", "[1,3,5,7,9,15]", 0) from tb where col_int >= 5 and col_int <=7;')
+        tdSql.checkRows(5)
+        tdSql.checkData(0, 0, "(1:3]:0");
+        tdSql.checkData(1, 0, "(3:5]:1");
+        tdSql.checkData(2, 0, "(5:7]:2");
+        tdSql.checkData(3, 0, "(7:9]:0");
+        tdSql.checkData(4, 0, "(9:15]:0");
+        tdSql.query('select histogram(col_int, "user_input", "[1,3,5,7,9,15]", 0) from tb where col_int between 5 and 7;')
+        tdSql.checkRows(5)
+        tdSql.checkData(0, 0, "(1:3]:0");
+        tdSql.checkData(1, 0, "(3:5]:1");
+        tdSql.checkData(2, 0, "(5:7]:2");
+        tdSql.checkData(3, 0, "(7:9]:0");
+        tdSql.checkData(4, 0, "(9:15]:0");
+
+        tdSql.query('select histogram(col_tinyint, "user_input", "[1,3,5,7,9,15]", 0) from ctb;')
+        tdSql.checkRows(5)
+        tdSql.checkData(0, 0, "(1:3]:2");
+        tdSql.checkData(1, 0, "(3:5]:2");
+        tdSql.checkData(2, 0, "(5:7]:2");
+        tdSql.checkData(3, 0, "(7:9]:2");
+        tdSql.checkData(4, 0, "(9:15]:2");
+        tdSql.query('select histogram(col_tinyint, "user_input", "[1,3,5,7,9,15]", 0) from ctb where col_tinyint > 3;')
+        tdSql.checkRows(5)
+        tdSql.checkData(0, 0, "(1:3]:0");
+        tdSql.checkData(1, 0, "(3:5]:2");
+        tdSql.checkData(2, 0, "(5:7]:2");
+        tdSql.checkData(3, 0, "(7:9]:2");
+        tdSql.checkData(4, 0, "(9:15]:2");
+        tdSql.query('select histogram(col_tinyint, "user_input", "[1,3,5,7,9,15]", 0) from ctb where col_tinyint < 7;')
+        tdSql.checkRows(5)
+        tdSql.checkData(0, 0, "(1:3]:2");
+        tdSql.checkData(1, 0, "(3:5]:2");
+        tdSql.checkData(2, 0, "(5:7]:1");
+        tdSql.checkData(3, 0, "(7:9]:0");
+        tdSql.checkData(4, 0, "(9:15]:0");
+        tdSql.query('select histogram(col_tinyint, "user_input", "[1,3,5,7,9,15]", 0) from ctb where col_tinyint >= 3;')
+        tdSql.checkRows(5)
+        tdSql.checkData(0, 0, "(1:3]:1");
+        tdSql.checkData(1, 0, "(3:5]:2");
+        tdSql.checkData(2, 0, "(5:7]:2");
+        tdSql.checkData(3, 0, "(7:9]:2");
+        tdSql.checkData(4, 0, "(9:15]:2");
+        tdSql.query('select histogram(col_tinyint, "user_input", "[1,3,5,7,9,15]", 0) from ctb where col_tinyint <= 7;')
+        tdSql.checkRows(5)
+        tdSql.checkData(0, 0, "(1:3]:2");
+        tdSql.checkData(1, 0, "(3:5]:2");
+        tdSql.checkData(2, 0, "(5:7]:2");
+        tdSql.checkData(3, 0, "(7:9]:0");
+        tdSql.checkData(4, 0, "(9:15]:0");
+        tdSql.query('select histogram(col_tinyint, "user_input", "[1,3,5,7,9,15]", 0) from ctb where col_tinyint = 7;')
+        tdSql.checkRows(5)
+        tdSql.checkData(0, 0, "(1:3]:0");
+        tdSql.checkData(1, 0, "(3:5]:0");
+        tdSql.checkData(2, 0, "(5:7]:1");
+        tdSql.checkData(3, 0, "(7:9]:0");
+        tdSql.checkData(4, 0, "(9:15]:0");
+        tdSql.query('select histogram(col_tinyint, "user_input", "[1,3,5,7,9,15]", 0) from ctb where col_tinyint != 7;')
+        tdSql.checkRows(5)
+        tdSql.checkData(0, 0, "(1:3]:2");
+        tdSql.checkData(1, 0, "(3:5]:2");
+        tdSql.checkData(2, 0, "(5:7]:1");
+        tdSql.checkData(3, 0, "(7:9]:2");
+        tdSql.checkData(4, 0, "(9:15]:2");
+        tdSql.query('select histogram(col_tinyint, "user_input", "[1,3,5,7,9,15]", 0) from ctb where col_tinyint <> 7;')
+        tdSql.checkRows(5)
+        tdSql.checkData(0, 0, "(1:3]:2");
+        tdSql.checkData(1, 0, "(3:5]:2");
+        tdSql.checkData(2, 0, "(5:7]:1");
+        tdSql.checkData(3, 0, "(7:9]:2");
+        tdSql.checkData(4, 0, "(9:15]:2");
+        tdSql.query('select histogram(col_tinyint, "user_input", "[1,3,5,7,9,15]", 0) from ctb where col_tinyint > 5 and col_tinyint <7;')
+        tdSql.checkRows(5)
+        tdSql.checkData(0, 0, "(1:3]:0");
+        tdSql.checkData(1, 0, "(3:5]:0");
+        tdSql.checkData(2, 0, "(5:7]:1");
+        tdSql.checkData(3, 0, "(7:9]:0");
+        tdSql.checkData(4, 0, "(9:15]:0");
+        tdSql.query('select histogram(col_tinyint, "user_input", "[1,3,5,7,9,15]", 0) from ctb where col_tinyint >= 5 and col_tinyint <=7;')
+        tdSql.checkRows(5)
+        tdSql.checkData(0, 0, "(1:3]:0");
+        tdSql.checkData(1, 0, "(3:5]:1");
+        tdSql.checkData(2, 0, "(5:7]:2");
+        tdSql.checkData(3, 0, "(7:9]:0");
+        tdSql.checkData(4, 0, "(9:15]:0");
+        tdSql.query('select histogram(col_tinyint, "user_input", "[1,3,5,7,9,15]", 0) from ctb where col_tinyint between 5 and 7;')
+        tdSql.checkRows(5)
+        tdSql.checkData(0, 0, "(1:3]:0");
+        tdSql.checkData(1, 0, "(3:5]:1");
+        tdSql.checkData(2, 0, "(5:7]:2");
+        tdSql.checkData(3, 0, "(7:9]:0");
+        tdSql.checkData(4, 0, "(9:15]:0");
+
+        tdSql.query('select histogram(col_bigint, "user_input", "[1,3,5,7,9,15]", 0) from stb;')
+        tdSql.checkRows(5)
+        tdSql.checkData(0, 0, "(1:3]:2");
+        tdSql.checkData(1, 0, "(3:5]:2");
+        tdSql.checkData(2, 0, "(5:7]:2");
+        tdSql.checkData(3, 0, "(7:9]:2");
+        tdSql.checkData(4, 0, "(9:15]:2");
+        tdSql.query('select histogram(col_bigint, "user_input", "[1,3,5,7,9,15]", 0) from stb where col_bigint > 3;')
+        tdSql.checkRows(5)
+        tdSql.checkData(0, 0, "(1:3]:0");
+        tdSql.checkData(1, 0, "(3:5]:2");
+        tdSql.checkData(2, 0, "(5:7]:2");
+        tdSql.checkData(3, 0, "(7:9]:2");
+        tdSql.checkData(4, 0, "(9:15]:2");
+        tdSql.query('select histogram(col_bigint, "user_input", "[1,3,5,7,9,15]", 0) from stb where col_bigint < 7;')
+        tdSql.checkRows(5)
+        tdSql.checkData(0, 0, "(1:3]:2");
+        tdSql.checkData(1, 0, "(3:5]:2");
+        tdSql.checkData(2, 0, "(5:7]:1");
+        tdSql.checkData(3, 0, "(7:9]:0");
+        tdSql.checkData(4, 0, "(9:15]:0");
+        tdSql.query('select histogram(col_bigint, "user_input", "[1,3,5,7,9,15]", 0) from stb where col_bigint >= 3;')
+        tdSql.checkRows(5)
+        tdSql.checkData(0, 0, "(1:3]:1");
+        tdSql.checkData(1, 0, "(3:5]:2");
+        tdSql.checkData(2, 0, "(5:7]:2");
+        tdSql.checkData(3, 0, "(7:9]:2");
+        tdSql.checkData(4, 0, "(9:15]:2");
+        tdSql.query('select histogram(col_bigint, "user_input", "[1,3,5,7,9,15]", 0) from stb where col_bigint <= 7;')
+        tdSql.checkRows(5)
+        tdSql.checkData(0, 0, "(1:3]:2");
+        tdSql.checkData(1, 0, "(3:5]:2");
+        tdSql.checkData(2, 0, "(5:7]:2");
+        tdSql.checkData(3, 0, "(7:9]:0");
+        tdSql.checkData(4, 0, "(9:15]:0");
+        tdSql.query('select histogram(col_bigint, "user_input", "[1,3,5,7,9,15]", 0) from stb where col_bigint = 7;')
+        tdSql.checkRows(5)
+        tdSql.checkData(0, 0, "(1:3]:0");
+        tdSql.checkData(1, 0, "(3:5]:0");
+        tdSql.checkData(2, 0, "(5:7]:1");
+        tdSql.checkData(3, 0, "(7:9]:0");
+        tdSql.checkData(4, 0, "(9:15]:0");
+        tdSql.query('select histogram(col_bigint, "user_input", "[1,3,5,7,9,15]", 0) from stb where col_bigint != 7;')
+        tdSql.checkRows(5)
+        tdSql.checkData(0, 0, "(1:3]:2");
+        tdSql.checkData(1, 0, "(3:5]:2");
+        tdSql.checkData(2, 0, "(5:7]:1");
+        tdSql.checkData(3, 0, "(7:9]:2");
+        tdSql.checkData(4, 0, "(9:15]:2");
+        tdSql.query('select histogram(col_bigint, "user_input", "[1,3,5,7,9,15]", 0) from stb where col_bigint <> 7;')
+        tdSql.checkRows(5)
+        tdSql.checkData(0, 0, "(1:3]:2");
+        tdSql.checkData(1, 0, "(3:5]:2");
+        tdSql.checkData(2, 0, "(5:7]:1");
+        tdSql.checkData(3, 0, "(7:9]:2");
+        tdSql.checkData(4, 0, "(9:15]:2");
+        tdSql.query('select histogram(col_bigint, "user_input", "[1,3,5,7,9,15]", 0) from stb where col_bigint > 5 and col_bigint <7;')
+        tdSql.checkRows(5)
+        tdSql.checkData(0, 0, "(1:3]:0");
+        tdSql.checkData(1, 0, "(3:5]:0");
+        tdSql.checkData(2, 0, "(5:7]:1");
+        tdSql.checkData(3, 0, "(7:9]:0");
+        tdSql.checkData(4, 0, "(9:15]:0");
+        tdSql.query('select histogram(col_bigint, "user_input", "[1,3,5,7,9,15]", 0) from stb where col_bigint >= 5 and col_bigint <=7;')
+        tdSql.checkRows(5)
+        tdSql.checkData(0, 0, "(1:3]:0");
+        tdSql.checkData(1, 0, "(3:5]:1");
+        tdSql.checkData(2, 0, "(5:7]:2");
+        tdSql.checkData(3, 0, "(7:9]:0");
+        tdSql.checkData(4, 0, "(9:15]:0");
+        tdSql.query('select histogram(col_bigint, "user_input", "[1,3,5,7,9,15]", 0) from stb where col_bigint between 5 and 7;')
+        tdSql.checkRows(5)
+        tdSql.checkData(0, 0, "(1:3]:0");
+        tdSql.checkData(1, 0, "(3:5]:1");
+        tdSql.checkData(2, 0, "(5:7]:2");
+        tdSql.checkData(3, 0, "(7:9]:0");
+        tdSql.checkData(4, 0, "(9:15]:0");
+
+        tdSql.query('select histogram(col_bigint, "user_input", "[1,3,5,7,9,15]", 0) from stb;')
+        tdSql.checkRows(5)
+        tdSql.checkData(0, 0, "(1:3]:2");
+        tdSql.checkData(1, 0, "(3:5]:2");
+        tdSql.checkData(2, 0, "(5:7]:2");
+        tdSql.checkData(3, 0, "(7:9]:2");
+        tdSql.checkData(4, 0, "(9:15]:2");
+        tdSql.query('select histogram(col_bigint, "user_input", "[1,3,5,7,9,15]", 0) from stb where tag_bigint > 0;')
+        tdSql.checkRows(5)
+        tdSql.checkData(0, 0, "(1:3]:2");
+        tdSql.checkData(1, 0, "(3:5]:2");
+        tdSql.checkData(2, 0, "(5:7]:2");
+        tdSql.checkData(3, 0, "(7:9]:2");
+        tdSql.checkData(4, 0, "(9:15]:2");
+        tdSql.query('select histogram(col_bigint, "user_input", "[1,3,5,7,9,15]", 0) from stb where tag_bigint < 2;')
+        tdSql.checkRows(5)
+        tdSql.checkData(0, 0, "(1:3]:2");
+        tdSql.checkData(1, 0, "(3:5]:2");
+        tdSql.checkData(2, 0, "(5:7]:2");
+        tdSql.checkData(3, 0, "(7:9]:2");
+        tdSql.checkData(4, 0, "(9:15]:2");
+        tdSql.query('select histogram(col_bigint, "user_input", "[1,3,5,7,9,15]", 0) from stb where tag_bigint >= 1;')
+        tdSql.checkRows(5)
+        tdSql.checkData(0, 0, "(1:3]:2");
+        tdSql.checkData(1, 0, "(3:5]:2");
+        tdSql.checkData(2, 0, "(5:7]:2");
+        tdSql.checkData(3, 0, "(7:9]:2");
+        tdSql.checkData(4, 0, "(9:15]:2");
+        tdSql.query('select histogram(col_bigint, "user_input", "[1,3,5,7,9,15]", 0) from stb where tag_bigint <= 1;')
+        tdSql.checkRows(5)
+        tdSql.checkData(0, 0, "(1:3]:2");
+        tdSql.checkData(1, 0, "(3:5]:2");
+        tdSql.checkData(2, 0, "(5:7]:2");
+        tdSql.checkData(3, 0, "(7:9]:2");
+        tdSql.checkData(4, 0, "(9:15]:2");
+        tdSql.query('select histogram(col_bigint, "user_input", "[1,3,5,7,9,15]", 0) from stb where tag_bigint = 1;')
+        tdSql.checkRows(5)
+        tdSql.checkData(0, 0, "(1:3]:2");
+        tdSql.checkData(1, 0, "(3:5]:2");
+        tdSql.checkData(2, 0, "(5:7]:2");
+        tdSql.checkData(3, 0, "(7:9]:2");
+        tdSql.checkData(4, 0, "(9:15]:2");
+        tdSql.query('select histogram(col_bigint, "user_input", "[1,3,5,7,9,15]", 0) from stb where tag_bigint != 2;')
+        tdSql.checkRows(5)
+        tdSql.checkData(0, 0, "(1:3]:2");
+        tdSql.checkData(1, 0, "(3:5]:2");
+        tdSql.checkData(2, 0, "(5:7]:2");
+        tdSql.checkData(3, 0, "(7:9]:2");
+        tdSql.checkData(4, 0, "(9:15]:2");
+        tdSql.query('select histogram(col_bigint, "user_input", "[1,3,5,7,9,15]", 0) from stb where tag_bigint <> 2;')
+        tdSql.checkRows(5)
+        tdSql.checkData(0, 0, "(1:3]:2");
+        tdSql.checkData(1, 0, "(3:5]:2");
+        tdSql.checkData(2, 0, "(5:7]:2");
+        tdSql.checkData(3, 0, "(7:9]:2");
+        tdSql.checkData(4, 0, "(9:15]:2");
+        tdSql.query('select histogram(col_bigint, "user_input", "[1,3,5,7,9,15]", 0) from stb where tag_bigint > 0 and tag_bigint < 2;')
+        tdSql.checkRows(5)
+        tdSql.checkData(0, 0, "(1:3]:2");
+        tdSql.checkData(1, 0, "(3:5]:2");
+        tdSql.checkData(2, 0, "(5:7]:2");
+        tdSql.checkData(3, 0, "(7:9]:2");
+        tdSql.checkData(4, 0, "(9:15]:2");
+        tdSql.query('select histogram(col_bigint, "user_input", "[1,3,5,7,9,15]", 0) from stb where tag_bigint >= 1 and tag_bigint <= 1;')
+        tdSql.checkRows(5)
+        tdSql.checkData(0, 0, "(1:3]:2");
+        tdSql.checkData(1, 0, "(3:5]:2");
+        tdSql.checkData(2, 0, "(5:7]:2");
+        tdSql.checkData(3, 0, "(7:9]:2");
+        tdSql.checkData(4, 0, "(9:15]:2");
+        tdSql.query('select histogram(col_bigint, "user_input", "[1,3,5,7,9,15]", 0) from stb where tag_bigint between 0 and 2;')
+        tdSql.checkRows(5)
+        tdSql.checkData(0, 0, "(1:3]:2");
+        tdSql.checkData(1, 0, "(3:5]:2");
+        tdSql.checkData(2, 0, "(5:7]:2");
+        tdSql.checkData(3, 0, "(7:9]:2");
+        tdSql.checkData(4, 0, "(9:15]:2");
+
+        #select session
+        #select state_window
+        #select interval/sliding/fill
+
+        return
         tdSql.execute('drop database db')
     def stop(self):
         tdSql.close()
