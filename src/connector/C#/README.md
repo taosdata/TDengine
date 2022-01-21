@@ -1,19 +1,18 @@
 ## CSharp Connector
 
 * This C# connector supports: Linux 64/Windows x64/Windows x86.
-* This C# connector can be downloaded and included as a normal package form [Nuget.org](https://www.nuget.org/packages/TDengine.Connector/).
+* This C# connector can be downloaded and included as a normal package from [Nuget.org](https://www.nuget.org/packages/TDengine.Connector/).
 
 ### Installation preparations
 
-* Install TDengine client, please refers to the[steps of installing connector driver](https://www.taosdata.com/en/documentation/connector#driver).
+* Install TDengine client.
 * .NET interface file TDengineDriver.cs and reference samples both 
-  located under Windows client's installation path:install_directory/examples/C#.
+  are located under Windows client's installation path:install_directory/examples/C#.
 * Install [.NET SDK](https://dotnet.microsoft.com/download)
 
 ### Installation verification
 
 Run {client_installation_directory}/examples/C#/C#Checker/C#Checker.cs
-Need to install .Net SDK first.
 
 ```cmd
 cd {client_install_directory}/examples/C\#/C#Checker
@@ -23,14 +22,14 @@ dotnet run -- -h <FQDN>
 
 ### Example Source Code
 
-You can find examples under follow directions:
+You can find examples under follow directories:
 
 * {client_installation_directory}/examples/C#
 * [github C# example source code](https://github.com/taosdata/TDengine/tree/develop/tests/examples/C%23)
 
 **Tips:**
 "TDengineTest" is an example that includes some basic sample code like
-connect,query and so on.
+connect, query and so on.
 
 ### Use C# connector
 
@@ -38,7 +37,7 @@ connect,query and so on.
 
 **tips:** Need to install .NET SDK first.
 
-* Create a dotnet project. (Using console project as an example.)
+* Create a dotnet project(using console project as an example).
 
 ``` cmd
 mkdir test
@@ -422,11 +421,11 @@ else
 
 **Note:**
 
-* TDengine V2.0. 3.0 supports both 32-bit and 64-bit Windows systems,
+* TDengine V2.0.3.0 supports both 32-bit and 64-bit Windows systems,
   so when .NET project generates a .exe file, please select correspond
   with "X86" or "x64" for the "Platform" under "Solution"/"Project".
 * This .NET interface has been verified in Visual Studio 2015/2017,
-  and other VS versions have not being verified yet.
+  other VS versions have not been verified yet.
 * Since this. NET connector interface requires the taos.dll file, so before
   executing the application, copy the taos.dll file in the
   Windows {client_install_directory}/driver directory to the folder where the
