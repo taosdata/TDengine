@@ -875,6 +875,7 @@ typedef struct SSubQueryMsg {
   uint64_t sId;
   uint64_t queryId;
   uint64_t taskId;
+  int8_t   taskType;
   uint32_t contentLen;
   char     msg[];
 } SSubQueryMsg;

@@ -680,10 +680,9 @@ int32_t doCheckAndBuildCreateTableReq(SCreateTableSql* pCreateTable, SParseConte
 
     serializeVgroupTablesBatchImpl(&tbatch, pBufArray);
     destroyCreateTbReqBatch(&tbatch);
-
   } else { // it is a child table, created according to a super table
     code = doCheckAndBuildCreateCTableReq(pCreateTable, pCtx, pMsgBuf, &pBufArray);
-    if (code != 0) {
+    if (code != TSDB_CODE_SUCCESS) {
       return code;
     }
   }

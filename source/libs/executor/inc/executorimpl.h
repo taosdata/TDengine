@@ -376,7 +376,7 @@ typedef struct STaskParam {
 
 typedef struct SExchangeInfo {
   SArray            *pSources;
-  int32_t            bytes;   // total load bytes from remote
+  uint64_t           bytes;   // total load bytes from remote
   tsem_t             ready;
   void              *pTransporter;
   SRetrieveTableRsp *pRsp;
@@ -385,7 +385,7 @@ typedef struct SExchangeInfo {
 
 typedef struct STableScanInfo {
   void           *pTsdbReadHandle;
-  int32_t         numOfBlocks;
+  int32_t         numOfBlocks;     // extract basic running information.
   int32_t         numOfSkipped;
   int32_t         numOfBlockStatis;
   int64_t         numOfRows;
@@ -415,7 +415,11 @@ typedef struct STagScanInfo {
 } STagScanInfo;
 
 typedef struct SStreamBlockScanInfo {
-
+  SSDataBlock *pRes;        // result SSDataBlock
+  SColumnInfo *pCols;       // the output column info
+  uint64_t     numOfRows;   // total scanned rows
+  uint64_t     numOfExec;   // execution times
+  void        *readerHandle;// stream block reader handle
 } SStreamBlockScanInfo;
 
 typedef struct SOptrBasicInfo {
@@ -423,7 +427,6 @@ typedef struct SOptrBasicInfo {
   int32_t          *rowCellInfoOffset;  // offset value for each row result cell info
   SQLFunctionCtx   *pCtx;
   SSDataBlock      *pRes;
-  void             *keyBuf;
 } SOptrBasicInfo;
 
 typedef struct SOptrBasicInfo STableIntervalOperatorInfo;

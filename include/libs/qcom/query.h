@@ -38,6 +38,11 @@ enum {
   JOB_TASK_STATUS_FREEING,
 };
 
+enum {
+  TASK_TYPE_PERSISTENT = 1,
+  TASK_TYPE_TEMP,
+};
+
 typedef struct STableComInfo {
   uint8_t numOfTags;      // the number of tags in schema
   uint8_t precision;      // the number of precision

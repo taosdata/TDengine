@@ -12,7 +12,8 @@
  * You should have received a copy of the GNU Affero General Public License
  * along with this program. If not, see <http://www.gnu.org/licenses/>.
  */
-#include <parser.h>
+#include "parser.h"
+#include "tq.h"
 #include "exception.h"
 #include "os.h"
 #include "tglobal.h"
@@ -3576,7 +3577,7 @@ void setDefaultOutputBuf_rv(SAggOperatorInfo* pAggInfo, int64_t uid, int32_t sta
   SResultRowInfo* pResultRowInfo = &pInfo->resultRowInfo;
 
   int64_t tid = 0;
-  pInfo->keyBuf = realloc(pInfo->keyBuf, sizeof(tid) + sizeof(int64_t) + POINTER_BYTES);
+  pAggInfo->keyBuf = realloc(pAggInfo->keyBuf, sizeof(tid) + sizeof(int64_t) + POINTER_BYTES);
   SResultRow* pRow = doSetResultOutBufByKey_rv(pResultRowInfo, tid, (char *)&tid, sizeof(tid), true, uid, pTaskInfo, false, pAggInfo);
 
   for (int32_t i = 0; i < pDataBlock->info.numOfCols; ++i) {
@@ -5061,6 +5062,42 @@ static SSDataBlock* doBlockInfoScan(void* param, bool* newgroup) {
 #endif
 }
 
+static SSDataBlock* doStreamBlockScan(void* param, bool* newgroup) {
+  SOperatorInfo* pOperator = (SOperatorInfo*)param;
+
+  // NOTE: this operator never check if current status is done or not
+  SExecTaskInfo* pTaskInfo = pOperator->pTaskInfo;
+  SStreamBlockScanInfo* pInfo = pOperator->info;
+
+  SDataBlockInfo* pBlockInfo = &pInfo->pRes->info;
+  while (tqNextDataBlock(pInfo->readerHandle)) {
+    pTaskInfo->code = tqRetrieveDataBlockInfo(pInfo->readerHandle, pBlockInfo);
+    if (pTaskInfo->code != TSDB_CODE_SUCCESS) {
+      terrno = pTaskInfo->code;
+      return NULL;
+    }
+
+    if (pBlockInfo->rows == 0) {
+      return NULL;
+    }
+
+    pInfo->pRes->pDataBlock = tqRetrieveDataBlock(pInfo->readerHandle);
+    if (pInfo->pRes->pDataBlock == NULL) {
+      // TODO add log
+      pTaskInfo->code = terrno;
+      return NULL;
+    }
+
+    break;
+  }
+
+  // record the scan action.
+  pInfo->numOfExec++;
+  pInfo->numOfRows += pBlockInfo->rows;
+
+  return (pBlockInfo->rows == 0)? NULL:pInfo->pRes;
+}
+
 int32_t loadRemoteDataCallback(void* param, const SDataBuf* pMsg, int32_t code) {
   SExchangeInfo* pEx = (SExchangeInfo*) param;
   pEx->pRsp = pMsg->pData;
@@ -5263,7 +5300,6 @@ SOperatorInfo* createTableScanOperatorInfo(void* pTsdbReadHandle, int32_t order,
 
   STableScanInfo* pInfo    = calloc(1, sizeof(STableScanInfo));
   SOperatorInfo* pOperator = calloc(1, sizeof(SOperatorInfo));
-
   if (pInfo == NULL || pOperator == NULL) {
     tfree(pInfo);
     tfree(pOperator);
@@ -5371,8 +5407,26 @@ SOperatorInfo* createTableBlockInfoScanOperator(void* pTsdbReadHandle, STaskRunt
   return pOperator;
 }
 
-SOperatorInfo* createSubmitBlockScanOperatorInfo(void *pSubmitBlockReadHandle, int32_t numOfOutput, SExecTaskInfo* pTaskInfo) {
+SOperatorInfo* createStreamBlockScanOperatorInfo(void *pStreamBlockHandle, int32_t numOfOutput, SExecTaskInfo* pTaskInfo) {
+  SStreamBlockScanInfo* pInfo = calloc(1, sizeof(SStreamBlockScanInfo));
+  SOperatorInfo* pOperator = calloc(1, sizeof(SOperatorInfo));
+  if (pInfo == NULL || pOperator == NULL) {
+    tfree(pInfo);
+    tfree(pOperator);
+    terrno = TSDB_CODE_QRY_OUT_OF_MEMORY;
+    return NULL;
+  }
 
+  pInfo->readerHandle = pStreamBlockHandle;
+
+  pOperator->name          = "StreamBlockScanOperator";
+  pOperator->operatorType  = OP_StreamBlockScan;
+  pOperator->blockingOptr  = false;
+  pOperator->status        = OP_IN_EXECUTING;
+  pOperator->info          = pInfo;
+  pOperator->numOfOutput   = numOfOutput;
+  pOperator->exec          = doStreamBlockScan;
+  pOperator->pTaskInfo     = pTaskInfo;
 }
 
 
