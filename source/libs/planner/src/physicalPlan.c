@@ -290,7 +290,8 @@ static bool needMultiNodeScan(SQueryTableInfo* pTable) {
 static SPhyNode* createSingleTableScanNode(SQueryPlanNode* pPlanNode, SQueryTableInfo* pTable, SSubplan* subplan) {
   vgroupMsgToEpSet(&(pTable->pMeta->vgroupList->vgroups[0]), &subplan->execNode);
 
-  return createUserTableScanNode(pPlanNode, pTable, OP_TableScan);
+  int32_t type = (pPlanNode->info.type == QNODE_TABLESCAN)? OP_TableScan:OP_StreamScan;
+  return createUserTableScanNode(pPlanNode, pTable, type);
 }
 
 static SPhyNode* createTableScanNode(SPlanContext* pCxt, SQueryPlanNode* pPlanNode) {
@@ -326,6 +327,7 @@ static SPhyNode* createPhyNode(SPlanContext* pCxt, SQueryPlanNode* pPlanNode) {
     case QNODE_TAGSCAN:
       node = createTagScanNode(pPlanNode);
       break;
+    case QNODE_STREAMSCAN:
     case QNODE_TABLESCAN:
       node = createTableScanNode(pCxt, pPlanNode);
       break;
