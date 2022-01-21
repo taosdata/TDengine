@@ -62,9 +62,8 @@ static int32_t setShowInfo(SShowInfo* pShowInfo, SParseContext* pCtx, void** out
       pEpSet->port[i] = info->epAddr[i].port;
     }
 
-    *outputLen = sizeof(SVShowTablesReq);
-    *output = pShowReq;
-
+    *outputLen  = sizeof(SVShowTablesReq);
+    *output     = pShowReq;
     *pExtension = array;
   } else {
     if (showType == TSDB_MGMT_TABLE_STB || showType == TSDB_MGMT_TABLE_VGROUP) {
