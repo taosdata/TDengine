@@ -254,6 +254,7 @@ typedef struct SMultiFunctionsDesc {
   bool interpQuery;
   bool distinct;
   bool join;
+  bool continueQuery;
 } SMultiFunctionsDesc;
 
 int32_t getResultDataInfo(int32_t dataType, int32_t dataBytes, int32_t functionId, int32_t param, SResultDataInfo* pInfo, int16_t extLength,

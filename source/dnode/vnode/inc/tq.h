@@ -21,6 +21,7 @@
 #include "meta.h"
 #include "os.h"
 #include "scheduler.h"
+#include "executor.h"
 #include "taoserror.h"
 #include "tlist.h"
 #include "tmsg.h"
@@ -165,7 +166,7 @@ typedef struct STqTaskItem {
   int8_t        status;
   int64_t       offset;
   void*         dst;
-  SSubQueryMsg* pMsg;
+  qTaskInfo_t   task;
 } STqTaskItem;
 
 // new version

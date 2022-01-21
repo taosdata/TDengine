@@ -634,7 +634,7 @@ int32_t tqProcessConsumeReq(STQ* pTq, SRpcMsg* pMsg, SRpcMsg** ppRsp) {
     }
     SSubmitMsg* pCont = (SSubmitMsg*)&pHead->head.body;
 
-    SSubQueryMsg* pQueryMsg = pHandle->buffer.output[pos].pMsg;
+    /*SSubQueryMsg* pQueryMsg = pHandle->buffer.output[pos].pMsg;*/
 
     // TODO: launch query and get output data
     void* outputData;
@@ -681,7 +681,6 @@ int32_t tqProcessSetConnReq(STQ* pTq, SMqSetCVgReq* pReq) {
   if (schedulerConvertDagToTaskList(pDag, &pArray) < 0) {
     // TODO: handle error
   }
-  ASSERT(taosArrayGetSize(pArray) == 0);
   STaskInfo *pInfo = taosArrayGet(pArray, 0);
   SArray* pTasks;
   schedulerCopyTask(pInfo, &pTasks, TQ_BUFFER_SIZE);
@@ -689,8 +688,8 @@ int32_t tqProcessSetConnReq(STQ* pTq, SMqSetCVgReq* pReq) {
   pTopic->buffer.lastOffset = -1;
   for (int i = 0; i < TQ_BUFFER_SIZE; i++) {
     SSubQueryMsg* pMsg = taosArrayGet(pTasks, i);
-    pTopic->buffer.output[i].pMsg = pMsg;
     pTopic->buffer.output[i].status = 0;
+    pTopic->buffer.output[i].task = createStreamExecTaskInfo(pMsg, NULL);
   }
   pTopic->pReadhandle = walOpenReadHandle(pTq->pWal);
   // write mq meta
@@ -733,6 +732,7 @@ int tqRetrieveDataBlockInfo(STqReadHandle* pHandle, SDataBlockInfo* pBlockInfo) 
   // TODO: filter out unused column
   return 0;
 }
+
 SArray* tqRetrieveDataBlock(STqReadHandle* pHandle) {
   int32_t         sversion = pHandle->pBlock->sversion;
   SSchemaWrapper* pSchemaWrapper = metaGetTableSchema(pHandle->pMeta, pHandle->pBlock->uid, sversion, true);
@@ -762,7 +762,3 @@ SArray* tqRetrieveDataBlock(STqReadHandle* pHandle) {
   taosArrayPush(pArray, &colInfo);
   return pArray;
 }
-/*int tqLoadDataBlock(SExecTaskInfo* pTaskInfo, SSubmitBlkScanInfo* pSubmitBlkScanInfo, SSDataBlock* pBlock, uint32_t
- * status) {*/
-/*return 0;*/
-/*}*/

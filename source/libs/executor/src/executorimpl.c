@@ -7778,22 +7778,29 @@ static tsdbReadHandleT doCreateDataReadHandle(STableScanPhyNode* pTableScanNode,
   return NULL;
 }
 
-int32_t doCreateExecTaskInfo(SSubplan* pPlan, SExecTaskInfo** pTaskInfo, void* readerHandle) {
-  tsdbReadHandleT tReaderHandle = NULL;
-
-  int32_t code = 0;
+int32_t createExecTaskInfoImpl(SSubplan* pPlan, SExecTaskInfo** pTaskInfo, void* readerHandle) {
   uint64_t queryId = pPlan->id.queryId;
 
-  SPhyNode* pPhyNode = pPlan->pNode;
-
+  int32_t code = TSDB_CODE_SUCCESS;
   *pTaskInfo = createExecTaskInfo(queryId);
+  if (*pTaskInfo == NULL) {
+    code = TSDB_CODE_QRY_OUT_OF_MEMORY;
+    goto _complete;
+  }
 
   (*pTaskInfo)->pRoot = doCreateOperatorTreeNode(pPlan->pNode, *pTaskInfo, readerHandle, queryId);
   if ((*pTaskInfo)->pRoot == NULL) {
-    return terrno;
+    code = TSDB_CODE_QRY_OUT_OF_MEMORY;
+    goto _complete;
   }
 
-  return TSDB_CODE_SUCCESS;
+  return code;
+
+_complete:
+  tfree(*pTaskInfo);
+
+  terrno = code;
+  return code;
 }
 
 /**

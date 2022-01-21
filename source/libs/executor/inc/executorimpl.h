@@ -253,12 +253,8 @@ typedef struct SExecTaskInfo {
 
   STableGroupInfo tableqinfoGroupInfo;  // this is a group array list, including SArray<STableQueryInfo*> structure
   pthread_mutex_t lock;        // used to synchronize the rsp/query threads
-//  tsem_t           ready;
-//  int32_t          dataReady;   // denote if query result is ready or not
-//  void*            rspContext;  // response context
   char           *sql;         // query sql string
   jmp_buf         env;         //
-  DataSinkHandle  dsHandle;
   struct SOperatorInfo  *pRoot;
 } SExecTaskInfo;
 
@@ -666,6 +662,6 @@ int32_t getMaximumIdleDurationSec();
 
 void doInvokeUdf(struct SUdfInfo* pUdfInfo, SQLFunctionCtx *pCtx, int32_t idx, int32_t type);
 void setTaskStatus(SExecTaskInfo *pTaskInfo, int8_t status);
-int32_t doCreateExecTaskInfo(SSubplan* pPlan, SExecTaskInfo** pTaskInfo, void* readerHandle);
+int32_t createExecTaskInfoImpl(SSubplan* pPlan, SExecTaskInfo** pTaskInfo, void* readerHandle);
 
 #endif  // TDENGINE_EXECUTORIMPL_H
