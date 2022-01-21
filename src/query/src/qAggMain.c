@@ -5013,7 +5013,11 @@ static void histogram_function(SQLFunctionCtx *pCtx) {
 
   if (pRes->normalized) {
     for (int32_t b = 0; b < pRes->numOfBins; ++b) {
-      pRes->orderedBins[b].count = pRes->orderedBins[b].count / (double)totalElems;
+      if (totalElems != 0) {
+        pRes->orderedBins[b].count = pRes->orderedBins[b].count / (double)totalElems;
+      } else {
+        pRes->orderedBins[b].count = 0;
+      }
     }
   }
 

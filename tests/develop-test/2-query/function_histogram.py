@@ -71,6 +71,7 @@ class TDTestCase:
         tdSql.execute("insert into ctb values (now + 12s, 15, 15, 15, 15, 15.5, 15.5, false, 'abc', 'abc');")
         tdSql.execute("insert into ctb values (now + 13s, 20, 20, 20, 20, 20.5, 20.5, false, 'abc', 'abc');")
         tdSql.execute("insert into ctb values (now + 14s, 99, 99, 99, 99, 99.5, 99.5, false, 'abc', 'abc');")
+        tdSql.execute("insert into ctb values (now + 15s, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL);")
 
         tdSql.execute("insert into tb values (now, -9, -9, -9, -9, -9.5, -9.5, true, 'abc', 'abc');")
         tdSql.execute("insert into tb values (now + 1s, -1, -1, -1, -1, -1.5, -1.5, true, 'abc', 'abc');")
@@ -87,6 +88,7 @@ class TDTestCase:
         tdSql.execute("insert into tb values (now + 12s, 15, 15, 15, 15, 15.5, 15.5, false, 'abc', 'abc');")
         tdSql.execute("insert into tb values (now + 13s, 20, 20, 20, 20, 20.5, 20.5, false, 'abc', 'abc');")
         tdSql.execute("insert into tb values (now + 14s, 99, 99, 99, 99, 99.5, 99.5, false, 'abc', 'abc');")
+        tdSql.execute("insert into tb values (now + 15s, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL);")
 
         #execute query
         print("============== STEP 1: column types  ================== ")
@@ -1014,6 +1016,28 @@ class TDTestCase:
         tdSql.checkData(1, 0, "(-1.76e+308:-1.76e+308]:0");
         tdSql.checkData(2, 0, "(-1.76e+308:1.79769e+308]:15");
 
+        tdSql.query('select histogram(col_tinyint, \'linear_bin\', \'{"start": 10, "width": -5, "count": 3, "infinity": true}\', 0) from stb;')
+        tdSql.checkRows(5);
+        tdSql.checkData(0, 0, "(10:1.79769e+308]:3");
+        tdSql.checkData(1, 0, "(5:10]:5");
+        tdSql.checkData(2, 0, "(0:5]:5");
+        tdSql.checkData(3, 0, "(-5:0]:1");
+        tdSql.checkData(4, 0, "(-1.79769e+308:-5]:1");
+        tdSql.query('select histogram(col_tinyint, \'linear_bin\', \'{"start": 10, "width": -5, "count": 3, "infinity": true}\', 0) from ctb;')
+        tdSql.checkRows(5);
+        tdSql.checkData(0, 0, "(10:1.79769e+308]:3");
+        tdSql.checkData(1, 0, "(5:10]:5");
+        tdSql.checkData(2, 0, "(0:5]:5");
+        tdSql.checkData(3, 0, "(-5:0]:1");
+        tdSql.checkData(4, 0, "(-1.79769e+308:-5]:1");
+        tdSql.query('select histogram(col_tinyint, \'linear_bin\', \'{"start": 10, "width": -5, "count": 3, "infinity": true}\', 0) from tb;')
+        tdSql.checkRows(5);
+        tdSql.checkData(0, 0, "(10:1.79769e+308]:3");
+        tdSql.checkData(1, 0, "(5:10]:5");
+        tdSql.checkData(2, 0, "(0:5]:5");
+        tdSql.checkData(3, 0, "(-5:0]:1");
+        tdSql.checkData(4, 0, "(-1.79769e+308:-5]:1");
+
         tdSql.query('select histogram(col_tinyint, \'linear_bin\', \'{"start": -0.7e+308, "width": 0.7e+308, "count": 2, "infinity": false}\', 0) from stb;')
         tdSql.checkRows(2);
         tdSql.checkData(0, 0, "(-7e+307:0]:2");
@@ -1117,8 +1141,8 @@ class TDTestCase:
         tdSql.checkData(3, 0, "(-1:-0.5]:0");
         tdSql.checkData(4, 0, "(-0.5:0]:0");
         tdSql.checkData(5, 0, "(0:0.5]:0");
-        tdSql.checkData(6, 0, "(0.5:1]:1");
-        tdSql.checkData(7, 0, "(1:1.5]:0");
+        tdSql.checkData(6, 0, "(0.5:1]:0");
+        tdSql.checkData(7, 0, "(1:1.5]:1");
         tdSql.query('select histogram(col_float, \'linear_bin\', \'{"start": -2.5, "width": 0.5, "count": 8, "infinity": false}\', 0) from ctb;')
         tdSql.checkRows(8);
         tdSql.checkData(0, 0, "(-2.5:-2]:0");
@@ -1127,8 +1151,8 @@ class TDTestCase:
         tdSql.checkData(3, 0, "(-1:-0.5]:0");
         tdSql.checkData(4, 0, "(-0.5:0]:0");
         tdSql.checkData(5, 0, "(0:0.5]:0");
-        tdSql.checkData(6, 0, "(0.5:1]:1");
-        tdSql.checkData(7, 0, "(1:1.5]:0");
+        tdSql.checkData(6, 0, "(0.5:1]:0");
+        tdSql.checkData(7, 0, "(1:1.5]:1");
         tdSql.query('select histogram(col_float, \'linear_bin\', \'{"start": -2.5, "width": 0.5, "count": 8, "infinity": false}\', 0) from tb;')
         tdSql.checkRows(8);
         tdSql.checkData(0, 0, "(-2.5:-2]:0");
@@ -1137,8 +1161,8 @@ class TDTestCase:
         tdSql.checkData(3, 0, "(-1:-0.5]:0");
         tdSql.checkData(4, 0, "(-0.5:0]:0");
         tdSql.checkData(5, 0, "(0:0.5]:0");
-        tdSql.checkData(6, 0, "(0.5:1]:1");
-        tdSql.checkData(7, 0, "(1:1.5]:0");
+        tdSql.checkData(6, 0, "(0.5:1]:0");
+        tdSql.checkData(7, 0, "(1:1.5]:1");
 
         tdSql.query('select histogram(col_float, \'linear_bin\', \'{"start": 4, "width": -0.5, "count": 10, "infinity": false}\', 0) from stb;')
         tdSql.checkRows(10);
@@ -1228,6 +1252,28 @@ class TDTestCase:
         tdSql.checkData(5, 0, "(20:25]:1");
         tdSql.checkData(6, 0, "(25:1.79769e+308]:1");
 
+        tdSql.query('select histogram(col_float, \'linear_bin\', \'{"start": 10, "width": -5, "count": 3, "infinity": true}\', 0) from stb;')
+        tdSql.checkRows(5);
+        tdSql.checkData(0, 0, "(10:1.79769e+308]:4");
+        tdSql.checkData(1, 0, "(5:10]:5");
+        tdSql.checkData(2, 0, "(0:5]:4");
+        tdSql.checkData(3, 0, "(-5:0]:1");
+        tdSql.checkData(4, 0, "(-1.79769e+308:-5]:1");
+        tdSql.query('select histogram(col_float, \'linear_bin\', \'{"start": 10, "width": -5, "count": 3, "infinity": true}\', 0) from ctb;')
+        tdSql.checkRows(5);
+        tdSql.checkData(0, 0, "(10:1.79769e+308]:4");
+        tdSql.checkData(1, 0, "(5:10]:5");
+        tdSql.checkData(2, 0, "(0:5]:4");
+        tdSql.checkData(3, 0, "(-5:0]:1");
+        tdSql.checkData(4, 0, "(-1.79769e+308:-5]:1");
+        tdSql.query('select histogram(col_float, \'linear_bin\', \'{"start": 10, "width": -5, "count": 3, "infinity": true}\', 0) from tb;')
+        tdSql.checkRows(5);
+        tdSql.checkData(0, 0, "(10:1.79769e+308]:4");
+        tdSql.checkData(1, 0, "(5:10]:5");
+        tdSql.checkData(2, 0, "(0:5]:4");
+        tdSql.checkData(3, 0, "(-5:0]:1");
+        tdSql.checkData(4, 0, "(-1.79769e+308:-5]:1");
+
         tdSql.query('select histogram(col_float, \'linear_bin\', \'{"start": -1.76e+308, "width": 5, "count": 1, "infinity": true}\', 0) from stb;')
         tdSql.checkRows(3);
         tdSql.checkData(0, 0, "(-1.79769e+308:-1.76e+308]:0");
@@ -1276,45 +1322,635 @@ class TDTestCase:
         tdSql.checkData(2, 0, "(0:7e+307]:13");
         tdSql.checkData(3, 0, "(7e+307:1.79769e+308]:0");
 
+        #ERROR CASE
         tdSql.error('select histogram(col_tinyint, \'linear_bin\', \'{"start": true, "width": 5, "count": 5, "infinity": false}\', 0) from stb;')
+        tdSql.error('select histogram(col_tinyint, \'linear_bin\', \'{"start": true, "width": 5, "count": 5, "infinity": false}\', 0) from ctb;')
+        tdSql.error('select histogram(col_tinyint, \'linear_bin\', \'{"start": true, "width": 5, "count": 5, "infinity": false}\', 0) from tb;')
         tdSql.error('select histogram(col_tinyint, \'linear_bin\', \'{"start": false, "width": 5, "count": 5, "infinity": false}\', 0) from stb;')
+        tdSql.error('select histogram(col_tinyint, \'linear_bin\', \'{"start": false, "width": 5, "count": 5, "infinity": false}\', 0) from ctb;')
+        tdSql.error('select histogram(col_tinyint, \'linear_bin\', \'{"start": false, "width": 5, "count": 5, "infinity": false}\', 0) from tb;')
         tdSql.error('select histogram(col_tinyint, \'linear_bin\', \'{"start": "abc", "width": 5, "count": 5, "infinity": false}\', 0) from stb;')
+        tdSql.error('select histogram(col_tinyint, \'linear_bin\', \'{"start": "abc", "width": 5, "count": 5, "infinity": false}\', 0) from ctb;')
+        tdSql.error('select histogram(col_tinyint, \'linear_bin\', \'{"start": "abc", "width": 5, "count": 5, "infinity": false}\', 0) from tb;')
         tdSql.error('select histogram(col_tinyint, \'linear_bin\', \'{"start": "中文", "width": 5, "count": 5, "infinity": false}\', 0) from stb;')
+        tdSql.error('select histogram(col_tinyint, \'linear_bin\', \'{"start": "中文", "width": 5, "count": 5, "infinity": false}\', 0) from ctb;')
+        tdSql.error('select histogram(col_tinyint, \'linear_bin\', \'{"start": "中文", "width": 5, "count": 5, "infinity": false}\', 0) from tb;')
         tdSql.error('select histogram(col_tinyint, \'linear_bin\', \'{"start": abc, "width": 5, "count": 5, "infinity": false}\', 0) from stb;')
+        tdSql.error('select histogram(col_tinyint, \'linear_bin\', \'{"start": abc, "width": 5, "count": 5, "infinity": false}\', 0) from ctb;')
+        tdSql.error('select histogram(col_tinyint, \'linear_bin\', \'{"start": abc, "width": 5, "count": 5, "infinity": false}\', 0) from tb;')
         tdSql.error('select histogram(col_tinyint, \'linear_bin\', \'{"start": -1.80e+308, "width": 5, "count": 5, "infinity": false}\', 0) from stb;')
+        tdSql.error('select histogram(col_tinyint, \'linear_bin\', \'{"start": -1.80e+308, "width": 5, "count": 5, "infinity": false}\', 0) from ctb;')
+        tdSql.error('select histogram(col_tinyint, \'linear_bin\', \'{"start": -1.80e+308, "width": 5, "count": 5, "infinity": false}\', 0) from tb;')
         tdSql.error('select histogram(col_tinyint, \'linear_bin\', \'{"start": 1.80e+308, "width": 5, "count": 5, "infinity": false}\', 0) from stb;')
+        tdSql.error('select histogram(col_tinyint, \'linear_bin\', \'{"start": 1.80e+308, "width": 5, "count": 5, "infinity": false}\', 0) from ctb;')
+        tdSql.error('select histogram(col_tinyint, \'linear_bin\', \'{"start": 1.80e+308, "width": 5, "count": 5, "infinity": false}\', 0) from tb;')
 
         tdSql.error('select histogram(col_tinyint, \'linear_bin\', \'{"start": 0, "width": true, "count": 5, "infinity": false}\', 0) from stb;')
+        tdSql.error('select histogram(col_tinyint, \'linear_bin\', \'{"start": 0, "width": true, "count": 5, "infinity": false}\', 0) from ctb;')
+        tdSql.error('select histogram(col_tinyint, \'linear_bin\', \'{"start": 0, "width": true, "count": 5, "infinity": false}\', 0) from tb;')
         tdSql.error('select histogram(col_tinyint, \'linear_bin\', \'{"start": 0, "width": false, "count": 5, "infinity": false}\', 0) from stb;')
+        tdSql.error('select histogram(col_tinyint, \'linear_bin\', \'{"start": 0, "width": false, "count": 5, "infinity": false}\', 0) from ctb;')
+        tdSql.error('select histogram(col_tinyint, \'linear_bin\', \'{"start": 0, "width": false, "count": 5, "infinity": false}\', 0) from tb;')
         tdSql.error('select histogram(col_tinyint, \'linear_bin\', \'{"start": 0, "width": "abc", "count": 5, "infinity": false}\', 0) from stb;')
+        tdSql.error('select histogram(col_tinyint, \'linear_bin\', \'{"start": 0, "width": "abc", "count": 5, "infinity": false}\', 0) from ctb;')
+        tdSql.error('select histogram(col_tinyint, \'linear_bin\', \'{"start": 0, "width": "abc", "count": 5, "infinity": false}\', 0) from tb;')
         tdSql.error('select histogram(col_tinyint, \'linear_bin\', \'{"start": 0, "width": "中文", "count": 5, "infinity": false}\', 0) from stb;')
+        tdSql.error('select histogram(col_tinyint, \'linear_bin\', \'{"start": 0, "width": "中文", "count": 5, "infinity": false}\', 0) from ctb;')
+        tdSql.error('select histogram(col_tinyint, \'linear_bin\', \'{"start": 0, "width": "中文", "count": 5, "infinity": false}\', 0) from tb;')
         tdSql.error('select histogram(col_tinyint, \'linear_bin\', \'{"start": 0, "width": abc, "count": 5, "infinity": false}\', 0) from stb;')
+        tdSql.error('select histogram(col_tinyint, \'linear_bin\', \'{"start": 0, "width": abc, "count": 5, "infinity": false}\', 0) from ctb;')
+        tdSql.error('select histogram(col_tinyint, \'linear_bin\', \'{"start": 0, "width": abc, "count": 5, "infinity": false}\', 0) from tb;')
         tdSql.error('select histogram(col_tinyint, \'linear_bin\', \'{"start": 0, "width": 0, "count": 5, "infinity": false}\', 0) from stb;')
+        tdSql.error('select histogram(col_tinyint, \'linear_bin\', \'{"start": 0, "width": 0, "count": 5, "infinity": false}\', 0) from ctb;')
+        tdSql.error('select histogram(col_tinyint, \'linear_bin\', \'{"start": 0, "width": 0, "count": 5, "infinity": false}\', 0) from tb;')
         tdSql.error('select histogram(col_tinyint, \'linear_bin\', \'{"start": 0, "width": -1.80e+308, "count": 5, "infinity": false}\', 0) from stb;')
+        tdSql.error('select histogram(col_tinyint, \'linear_bin\', \'{"start": 0, "width": -1.80e+308, "count": 5, "infinity": false}\', 0) from ctb;')
+        tdSql.error('select histogram(col_tinyint, \'linear_bin\', \'{"start": 0, "width": -1.80e+308, "count": 5, "infinity": false}\', 0) from tb;')
         tdSql.error('select histogram(col_tinyint, \'linear_bin\', \'{"start": 0, "width": 1.80e+308, "count": 5, "infinity": false}\', 0) from stb;')
+        tdSql.error('select histogram(col_tinyint, \'linear_bin\', \'{"start": 0, "width": 1.80e+308, "count": 5, "infinity": false}\', 0) from ctb;')
+        tdSql.error('select histogram(col_tinyint, \'linear_bin\', \'{"start": 0, "width": 1.80e+308, "count": 5, "infinity": false}\', 0) from tb;')
 
         tdSql.error('select histogram(col_tinyint, \'linear_bin\', \'{"start": -1.4e+308, "width": 1.4e+308, "count": 3, "infinity": false}\', 0) from stb;')
+        tdSql.error('select histogram(col_tinyint, \'linear_bin\', \'{"start": -1.4e+308, "width": 1.4e+308, "count": 3, "infinity": false}\', 0) from ctb;')
+        tdSql.error('select histogram(col_tinyint, \'linear_bin\', \'{"start": -1.4e+308, "width": 1.4e+308, "count": 3, "infinity": false}\', 0) from tb;')
         tdSql.error('select histogram(col_tinyint, \'linear_bin\', \'{"start": -1.4e+308, "width": 1.4e+308, "count": 3, "infinity": true}\', 0) from stb;')
+        tdSql.error('select histogram(col_tinyint, \'linear_bin\', \'{"start": -1.4e+308, "width": 1.4e+308, "count": 3, "infinity": true}\', 0) from ctb;')
+        tdSql.error('select histogram(col_tinyint, \'linear_bin\', \'{"start": -1.4e+308, "width": 1.4e+308, "count": 3, "infinity": true}\', 0) from tb;')
 
         tdSql.error('select histogram(col_tinyint, \'linear_bin\', \'{"start": 0, "width": 1, "count": -1, "infinity": false}\', 0) from stb;')
+        tdSql.error('select histogram(col_tinyint, \'linear_bin\', \'{"start": 0, "width": 1, "count": -1, "infinity": false}\', 0) from ctb;')
+        tdSql.error('select histogram(col_tinyint, \'linear_bin\', \'{"start": 0, "width": 1, "count": -1, "infinity": false}\', 0) from tb;')
         tdSql.error('select histogram(col_tinyint, \'linear_bin\', \'{"start": 0, "width": 1, "count": 0, "infinity": true}\', 0) from stb;')
+        tdSql.error('select histogram(col_tinyint, \'linear_bin\', \'{"start": 0, "width": 1, "count": 0, "infinity": true}\', 0) from ctb;')
+        tdSql.error('select histogram(col_tinyint, \'linear_bin\', \'{"start": 0, "width": 1, "count": 0, "infinity": true}\', 0) from tb;')
         tdSql.error('select histogram(col_tinyint, \'linear_bin\', \'{"start": 0, "width": 1, "count": true, "infinity": true}\', 0) from stb;')
+        tdSql.error('select histogram(col_tinyint, \'linear_bin\', \'{"start": 0, "width": 1, "count": true, "infinity": true}\', 0) from ctb;')
+        tdSql.error('select histogram(col_tinyint, \'linear_bin\', \'{"start": 0, "width": 1, "count": true, "infinity": true}\', 0) from tb;')
         tdSql.error('select histogram(col_tinyint, \'linear_bin\', \'{"start": 0, "width": 1, "count": false, "infinity": true}\', 0) from stb;')
+        tdSql.error('select histogram(col_tinyint, \'linear_bin\', \'{"start": 0, "width": 1, "count": false, "infinity": true}\', 0) from ctb;')
+        tdSql.error('select histogram(col_tinyint, \'linear_bin\', \'{"start": 0, "width": 1, "count": false, "infinity": true}\', 0) from tb;')
         tdSql.error('select histogram(col_tinyint, \'linear_bin\', \'{"start": 0, "width": 1, "count": "abc", "infinity": true}\', 0) from stb;')
+        tdSql.error('select histogram(col_tinyint, \'linear_bin\', \'{"start": 0, "width": 1, "count": "abc", "infinity": true}\', 0) from ctb;')
+        tdSql.error('select histogram(col_tinyint, \'linear_bin\', \'{"start": 0, "width": 1, "count": "abc", "infinity": true}\', 0) from tb;')
         tdSql.error('select histogram(col_tinyint, \'linear_bin\', \'{"start": 0, "width": 1, "count": "中文", "infinity": true}\', 0) from stb;')
+        tdSql.error('select histogram(col_tinyint, \'linear_bin\', \'{"start": 0, "width": 1, "count": "中文", "infinity": true}\', 0) from ctb;')
+        tdSql.error('select histogram(col_tinyint, \'linear_bin\', \'{"start": 0, "width": 1, "count": "中文", "infinity": true}\', 0) from tb;')
         tdSql.error('select histogram(col_tinyint, \'linear_bin\', \'{"start": 0, "width": 1, "count": abc, "infinity": true}\', 0) from stb;')
+        tdSql.error('select histogram(col_tinyint, \'linear_bin\', \'{"start": 0, "width": 1, "count": abc, "infinity": true}\', 0) from ctb;')
+        tdSql.error('select histogram(col_tinyint, \'linear_bin\', \'{"start": 0, "width": 1, "count": abc, "infinity": true}\', 0) from tb;')
         tdSql.error('select histogram(col_tinyint, \'linear_bin\', \'{"start": 0, "width": 1, "count": 1.8e+308, "infinity": true}\', 0) from stb;')
+        tdSql.error('select histogram(col_tinyint, \'linear_bin\', \'{"start": 0, "width": 1, "count": 1.8e+308, "infinity": true}\', 0) from ctb;')
+        tdSql.error('select histogram(col_tinyint, \'linear_bin\', \'{"start": 0, "width": 1, "count": 1.8e+308, "infinity": true}\', 0) from tb;')
         tdSql.error('select histogram(col_tinyint, \'linear_bin\', \'{"start": 0, "width": 1, "count": -1.8e+308, "infinity": true}\', 0) from stb;')
+        tdSql.error('select histogram(col_tinyint, \'linear_bin\', \'{"start": 0, "width": 1, "count": -1.8e+308, "infinity": true}\', 0) from ctb;')
+        tdSql.error('select histogram(col_tinyint, \'linear_bin\', \'{"start": 0, "width": 1, "count": -1.8e+308, "infinity": true}\', 0) from tb;')
 
         tdSql.error('select histogram(col_tinyint, \'linear_bin\', \'{"start": 0, "width": 1, "count": 1, "infinity": 1}\', 0) from stb;')
+        tdSql.error('select histogram(col_tinyint, \'linear_bin\', \'{"start": 0, "width": 1, "count": 1, "infinity": 1}\', 0) from ctb;')
+        tdSql.error('select histogram(col_tinyint, \'linear_bin\', \'{"start": 0, "width": 1, "count": 1, "infinity": 1}\', 0) from tb;')
         tdSql.error('select histogram(col_tinyint, \'linear_bin\', \'{"start": 0, "width": 1, "count": 1, "infinity": 0}\', 0) from stb;')
+        tdSql.error('select histogram(col_tinyint, \'linear_bin\', \'{"start": 0, "width": 1, "count": 1, "infinity": 0}\', 0) from ctb;')
+        tdSql.error('select histogram(col_tinyint, \'linear_bin\', \'{"start": 0, "width": 1, "count": 1, "infinity": 0}\', 0) from tb;')
         tdSql.error('select histogram(col_tinyint, \'linear_bin\', \'{"start": 0, "width": 1, "count": 1, "infinity": -1.5}\', 0) from stb;')
+        tdSql.error('select histogram(col_tinyint, \'linear_bin\', \'{"start": 0, "width": 1, "count": 1, "infinity": -1.5}\', 0) from ctb;')
+        tdSql.error('select histogram(col_tinyint, \'linear_bin\', \'{"start": 0, "width": 1, "count": 1, "infinity": -1.5}\', 0) from tb;')
         tdSql.error('select histogram(col_tinyint, \'linear_bin\', \'{"start": 0, "width": 1, "count": 1, "infinity": 1.8e+308}\', 0) from stb;')
+        tdSql.error('select histogram(col_tinyint, \'linear_bin\', \'{"start": 0, "width": 1, "count": 1, "infinity": 1.8e+308}\', 0) from ctb;')
+        tdSql.error('select histogram(col_tinyint, \'linear_bin\', \'{"start": 0, "width": 1, "count": 1, "infinity": 1.8e+308}\', 0) from tb;')
         tdSql.error('select histogram(col_tinyint, \'linear_bin\', \'{"start": 0, "width": 1, "count": 1, "infinity": "abc"}\', 0) from stb;')
+        tdSql.error('select histogram(col_tinyint, \'linear_bin\', \'{"start": 0, "width": 1, "count": 1, "infinity": "abc"}\', 0) from ctb;')
+        tdSql.error('select histogram(col_tinyint, \'linear_bin\', \'{"start": 0, "width": 1, "count": 1, "infinity": "abc"}\', 0) from tb;')
         tdSql.error('select histogram(col_tinyint, \'linear_bin\', \'{"start": 0, "width": 1, "count": 1, "infinity": "中文"}\', 0) from stb;')
+        tdSql.error('select histogram(col_tinyint, \'linear_bin\', \'{"start": 0, "width": 1, "count": 1, "infinity": "中文"}\', 0) from ctb;')
+        tdSql.error('select histogram(col_tinyint, \'linear_bin\', \'{"start": 0, "width": 1, "count": 1, "infinity": "中文"}\', 0) from tb;')
         tdSql.error('select histogram(col_tinyint, \'linear_bin\', \'{"start": 0, "width": 1, "count": 1, "infinity": abc}\', 0) from stb;')
+        tdSql.error('select histogram(col_tinyint, \'linear_bin\', \'{"start": 0, "width": 1, "count": 1, "infinity": abc}\', 0) from ctb;')
+        tdSql.error('select histogram(col_tinyint, \'linear_bin\', \'{"start": 0, "width": 1, "count": 1, "infinity": abc}\', 0) from tb;')
 
-        return
+        tdSql.error('select histogram(col_tinyint, \'linear_bin\', \'{"begin": 0, "width": 1, "count": 1, "infinity": true}\', 0) from stb;')
+        tdSql.error('select histogram(col_tinyint, \'linear_bin\', \'{"begin": 0, "width": 1, "count": 1, "infinity": true}\', 0) from ctb;')
+        tdSql.error('select histogram(col_tinyint, \'linear_bin\', \'{"begin": 0, "width": 1, "count": 1, "infinity": true}\', 0) from tb;')
+        tdSql.error('select histogram(col_tinyint, \'linear_bin\', \'{"start": 0, "factor": 1, "count": 1, "infinity": true}\', 0) from stb;')
+        tdSql.error('select histogram(col_tinyint, \'linear_bin\', \'{"start": 0, "factor": 1, "count": 1, "infinity": true}\', 0) from ctb;')
+        tdSql.error('select histogram(col_tinyint, \'linear_bin\', \'{"start": 0, "factor": 1, "count": 1, "infinity": true}\', 0) from tb;')
+        tdSql.error('select histogram(col_tinyint, \'linear_bin\', \'{"start": 0, "factor": 1, "cnt": 1, "infinity": true}\', 0) from stb;')
+        tdSql.error('select histogram(col_tinyint, \'linear_bin\', \'{"start": 0, "factor": 1, "cnt": 1, "infinity": true}\', 0) from ctb;')
+        tdSql.error('select histogram(col_tinyint, \'linear_bin\', \'{"start": 0, "factor": 1, "cnt": 1, "infinity": true}\', 0) from tb;')
+        tdSql.error('select histogram(col_tinyint, \'linear_bin\', \'{"start": 0, "width": 1, "count": 1, "inf": true}\', 0) from stb;')
+        tdSql.error('select histogram(col_tinyint, \'linear_bin\', \'{"start": 0, "width": 1, "count": 1, "inf": true}\', 0) from ctb;')
+        tdSql.error('select histogram(col_tinyint, \'linear_bin\', \'{"start": 0, "width": 1, "count": 1, "inf": true}\', 0) from tb;')
+        tdSql.error('select histogram(col_tinyint, \'linear_bin\', \'{start: 0, width: 1, count: 1, infinity: true}\', 0) from stb;')
+        tdSql.error('select histogram(col_tinyint, \'linear_bin\', \'{start: 0, width: 1, count: 1, infinity: true}\', 0) from ctb;')
+        tdSql.error('select histogram(col_tinyint, \'linear_bin\', \'{start: 0, width: 1, count: 1, infinity: true}\', 0) from tb;')
+        tdSql.error('select histogram(col_tinyint, \'linear_bin\', \'[ 0, 1, 1, true]\', 0) from stb;')
+        tdSql.error('select histogram(col_tinyint, \'linear_bin\', \'[ 0, 1, 1, true]\', 0) from ctb;')
+        tdSql.error('select histogram(col_tinyint, \'linear_bin\', \'[ 0, 1, 1, true]\', 0) from tb;')
+
+        ## log_bin ##
+        #INTEGER
+        tdSql.query('select histogram(col_tinyint, \'log_bin\', \'{"start": 1, "factor": 3, "count": 6, "infinity": false}\', 0) from stb;')
+        tdSql.checkRows(6);
+        tdSql.checkData(0, 0, "(1:3]:2");
+        tdSql.checkData(1, 0, "(3:9]:6");
+        tdSql.checkData(2, 0, "(9:27]:3");
+        tdSql.checkData(3, 0, "(27:81]:0");
+        tdSql.checkData(4, 0, "(81:243]:1");
+        tdSql.checkData(5, 0, "(243:729]:0");
+        tdSql.query('select histogram(col_tinyint, \'log_bin\', \'{"start": 1, "factor": 3, "count": 6, "infinity": false}\', 0) from ctb;')
+        tdSql.checkRows(6);
+        tdSql.checkData(0, 0, "(1:3]:2");
+        tdSql.checkData(1, 0, "(3:9]:6");
+        tdSql.checkData(2, 0, "(9:27]:3");
+        tdSql.checkData(3, 0, "(27:81]:0");
+        tdSql.checkData(4, 0, "(81:243]:1");
+        tdSql.checkData(5, 0, "(243:729]:0");
+        tdSql.query('select histogram(col_tinyint, \'log_bin\', \'{"start": 1, "factor": 3, "count": 6, "infinity": false}\', 0) from tb;')
+        tdSql.checkRows(6);
+        tdSql.checkData(0, 0, "(1:3]:2");
+        tdSql.checkData(1, 0, "(3:9]:6");
+        tdSql.checkData(2, 0, "(9:27]:3");
+        tdSql.checkData(3, 0, "(27:81]:0");
+        tdSql.checkData(4, 0, "(81:243]:1");
+        tdSql.checkData(5, 0, "(243:729]:0");
+
+        tdSql.query('select histogram(col_tinyint, \'log_bin\', \'{"start": -1.0, "factor": 3.0, "count": 6, "infinity": false}\', 0) from stb;')
+        tdSql.checkRows(6);
+        tdSql.checkData(0, 0, "(-3:-1]:1");
+        tdSql.checkData(1, 0, "(-9:-3]:0");
+        tdSql.checkData(2, 0, "(-27:-9]:1");
+        tdSql.checkData(3, 0, "(-81:-27]:0");
+        tdSql.checkData(4, 0, "(-243:-81]:0");
+        tdSql.checkData(5, 0, "(-729:-243]:0");
+        tdSql.query('select histogram(col_tinyint, \'log_bin\', \'{"start": -1.0, "factor": 3.0, "count": 6, "infinity": false}\', 0) from ctb;')
+        tdSql.checkRows(6);
+        tdSql.checkData(0, 0, "(-3:-1]:1");
+        tdSql.checkData(1, 0, "(-9:-3]:0");
+        tdSql.checkData(2, 0, "(-27:-9]:1");
+        tdSql.checkData(3, 0, "(-81:-27]:0");
+        tdSql.checkData(4, 0, "(-243:-81]:0");
+        tdSql.checkData(5, 0, "(-729:-243]:0");
+        tdSql.query('select histogram(col_tinyint, \'log_bin\', \'{"start": -1.0, "factor": 3.0, "count": 6, "infinity": false}\', 0) from tb;')
+        tdSql.checkRows(6);
+        tdSql.checkData(0, 0, "(-3:-1]:1");
+        tdSql.checkData(1, 0, "(-9:-3]:0");
+        tdSql.checkData(2, 0, "(-27:-9]:1");
+        tdSql.checkData(3, 0, "(-81:-27]:0");
+        tdSql.checkData(4, 0, "(-243:-81]:0");
+        tdSql.checkData(5, 0, "(-729:-243]:0");
+
+        tdSql.query('select histogram(col_tinyint, \'log_bin\', \'{"start": 10, "factor": 0.5, "count": 6, "infinity": false}\', 0) from stb;')
+        tdSql.checkRows(6);
+        tdSql.checkData(0, 0, "(5:10]:5");
+        tdSql.checkData(1, 0, "(2.5:5]:3");
+        tdSql.checkData(2, 0, "(1.25:2.5]:1");
+        tdSql.checkData(3, 0, "(0.625:1.25]:1");
+        tdSql.checkData(4, 0, "(0.3125:0.625]:0");
+        tdSql.checkData(5, 0, "(0.15625:0.3125]:0");
+        tdSql.query('select histogram(col_tinyint, \'log_bin\', \'{"start": 10, "factor": 0.5, "count": 6, "infinity": false}\', 0) from ctb;')
+        tdSql.checkRows(6);
+        tdSql.checkData(0, 0, "(5:10]:5");
+        tdSql.checkData(1, 0, "(2.5:5]:3");
+        tdSql.checkData(2, 0, "(1.25:2.5]:1");
+        tdSql.checkData(3, 0, "(0.625:1.25]:1");
+        tdSql.checkData(4, 0, "(0.3125:0.625]:0");
+        tdSql.checkData(5, 0, "(0.15625:0.3125]:0");
+        tdSql.query('select histogram(col_tinyint, \'log_bin\', \'{"start": 10, "factor": 0.5, "count": 6, "infinity": false}\', 0) from tb;')
+        tdSql.checkRows(6);
+        tdSql.checkData(0, 0, "(5:10]:5");
+        tdSql.checkData(1, 0, "(2.5:5]:3");
+        tdSql.checkData(2, 0, "(1.25:2.5]:1");
+        tdSql.checkData(3, 0, "(0.625:1.25]:1");
+        tdSql.checkData(4, 0, "(0.3125:0.625]:0");
+        tdSql.checkData(5, 0, "(0.15625:0.3125]:0");
+
+        tdSql.query('select histogram(col_tinyint, \'log_bin\', \'{"start": -10, "factor": 0.5, "count": 6, "infinity": false}\', 0) from stb;')
+        tdSql.checkRows(6);
+        tdSql.checkData(0, 0, "(-10:-5]:1");
+        tdSql.checkData(1, 0, "(-5:-2.5]:0");
+        tdSql.checkData(2, 0, "(-2.5:-1.25]:0");
+        tdSql.checkData(3, 0, "(-1.25:-0.625]:1");
+        tdSql.checkData(4, 0, "(-0.625:-0.3125]:0");
+        tdSql.checkData(5, 0, "(-0.3125:-0.15625]:0");
+        tdSql.query('select histogram(col_tinyint, \'log_bin\', \'{"start": -10, "factor": 0.5, "count": 6, "infinity": false}\', 0) from ctb;')
+        tdSql.checkRows(6);
+        tdSql.checkData(0, 0, "(-10:-5]:1");
+        tdSql.checkData(1, 0, "(-5:-2.5]:0");
+        tdSql.checkData(2, 0, "(-2.5:-1.25]:0");
+        tdSql.checkData(3, 0, "(-1.25:-0.625]:1");
+        tdSql.checkData(4, 0, "(-0.625:-0.3125]:0");
+        tdSql.checkData(5, 0, "(-0.3125:-0.15625]:0");
+        tdSql.query('select histogram(col_tinyint, \'log_bin\', \'{"start": -10, "factor": 0.5, "count": 6, "infinity": false}\', 0) from tb;')
+        tdSql.checkRows(6);
+        tdSql.checkData(0, 0, "(-10:-5]:1");
+        tdSql.checkData(1, 0, "(-5:-2.5]:0");
+        tdSql.checkData(2, 0, "(-2.5:-1.25]:0");
+        tdSql.checkData(3, 0, "(-1.25:-0.625]:1");
+        tdSql.checkData(4, 0, "(-0.625:-0.3125]:0");
+        tdSql.checkData(5, 0, "(-0.3125:-0.15625]:0");
+
+        tdSql.query('select histogram(col_tinyint, \'log_bin\', \'{"start": 2, "factor": 1.5, "count": 6, "infinity": false}\', 0) from stb;')
+        tdSql.checkRows(6);
+        tdSql.checkData(0, 0, "(2:3]:1");
+        tdSql.checkData(1, 0, "(3:4.5]:1");
+        tdSql.checkData(2, 0, "(4.5:6.75]:2");
+        tdSql.checkData(3, 0, "(6.75:10.125]:4");
+        tdSql.checkData(4, 0, "(10.125:15.1875]:1");
+        tdSql.checkData(5, 0, "(15.1875:22.7812]:1");
+        tdSql.query('select histogram(col_tinyint, \'log_bin\', \'{"start": 2, "factor": 1.5, "count": 6, "infinity": false}\', 0) from ctb;')
+        tdSql.checkRows(6);
+        tdSql.checkData(0, 0, "(2:3]:1");
+        tdSql.checkData(1, 0, "(3:4.5]:1");
+        tdSql.checkData(2, 0, "(4.5:6.75]:2");
+        tdSql.checkData(3, 0, "(6.75:10.125]:4");
+        tdSql.checkData(4, 0, "(10.125:15.1875]:1");
+        tdSql.checkData(5, 0, "(15.1875:22.7812]:1");
+        tdSql.query('select histogram(col_tinyint, \'log_bin\', \'{"start": 2, "factor": 1.5, "count": 6, "infinity": false}\', 0) from tb;')
+        tdSql.checkRows(6);
+        tdSql.checkData(0, 0, "(2:3]:1");
+        tdSql.checkData(1, 0, "(3:4.5]:1");
+        tdSql.checkData(2, 0, "(4.5:6.75]:2");
+        tdSql.checkData(3, 0, "(6.75:10.125]:4");
+        tdSql.checkData(4, 0, "(10.125:15.1875]:1");
+        tdSql.checkData(5, 0, "(15.1875:22.7812]:1");
+
+
+        tdSql.query('select histogram(col_tinyint, \'log_bin\', \'{"start": 3.2, "factor": 0.5, "count": 1.9999, "infinity": false}\', 0) from stb;')
+        tdSql.checkRows(1);
+        tdSql.checkData(0, 0, "(1.6:3.2]:2");
+        tdSql.query('select histogram(col_tinyint, \'log_bin\', \'{"start": 3.2, "factor": 0.5, "count": 1.9999, "infinity": false}\', 0) from ctb;')
+        tdSql.checkRows(1);
+        tdSql.checkData(0, 0, "(1.6:3.2]:2");
+        tdSql.query('select histogram(col_tinyint, \'log_bin\', \'{"start": 3.2, "factor": 0.5, "count": 1.9999, "infinity": false}\', 0) from tb;')
+        tdSql.checkRows(1);
+        tdSql.checkData(0, 0, "(1.6:3.2]:2");
+
+        tdSql.query('select histogram(col_tinyint, \'log_bin\', \'{"start": 3.2, "factor": 0.5, "count": 1.99999999999999999, "infinity": false}\', 0) from stb;')
+        tdSql.checkRows(2);
+        tdSql.checkData(0, 0, "(1.6:3.2]:2");
+        tdSql.checkData(1, 0, "(0.8:1.6]:1");
+        tdSql.query('select histogram(col_tinyint, \'log_bin\', \'{"start": 3.2, "factor": 0.5, "count": 1.99999999999999999, "infinity": false}\', 0) from ctb;')
+        tdSql.checkRows(2);
+        tdSql.checkData(0, 0, "(1.6:3.2]:2");
+        tdSql.checkData(1, 0, "(0.8:1.6]:1");
+        tdSql.query('select histogram(col_tinyint, \'log_bin\', \'{"start": 3.2, "factor": 0.5, "count": 1.99999999999999999, "infinity": false}\', 0) from tb;')
+        tdSql.checkRows(2);
+        tdSql.checkData(0, 0, "(1.6:3.2]:2");
+        tdSql.checkData(1, 0, "(0.8:1.6]:1");
+
+        tdSql.query('select histogram(col_tinyint, \'log_bin\', \'{"start": 1, "factor": 5, "count": 3, "infinity": true}\', 0) from stb;')
+        tdSql.checkRows(5);
+        tdSql.checkData(0, 0, "(-1.79769e+308:1]:3");
+        tdSql.checkData(1, 0, "(1:5]:4");
+        tdSql.checkData(2, 0, "(5:25]:7");
+        tdSql.checkData(3, 0, "(25:125]:1");
+        tdSql.checkData(4, 0, "(125:1.79769e+308]:0");
+        tdSql.query('select histogram(col_tinyint, \'log_bin\', \'{"start": 1, "factor": 5, "count": 3, "infinity": true}\', 0) from ctb;')
+        tdSql.checkRows(5);
+        tdSql.checkData(0, 0, "(-1.79769e+308:1]:3");
+        tdSql.checkData(1, 0, "(1:5]:4");
+        tdSql.checkData(2, 0, "(5:25]:7");
+        tdSql.checkData(3, 0, "(25:125]:1");
+        tdSql.checkData(4, 0, "(125:1.79769e+308]:0");
+        tdSql.query('select histogram(col_tinyint, \'log_bin\', \'{"start": 1, "factor": 5, "count": 3, "infinity": true}\', 0) from tb;')
+        tdSql.checkRows(5);
+        tdSql.checkData(0, 0, "(-1.79769e+308:1]:3");
+        tdSql.checkData(1, 0, "(1:5]:4");
+        tdSql.checkData(2, 0, "(5:25]:7");
+        tdSql.checkData(3, 0, "(25:125]:1");
+        tdSql.checkData(4, 0, "(125:1.79769e+308]:0");
+
+        tdSql.query('select histogram(col_tinyint, \'log_bin\', \'{"start": 0.2e+308, "factor": 3.14, "count": 1, "infinity": true}\', 0) from stb;')
+        tdSql.checkRows(3);
+        tdSql.checkData(0, 0, "(-1.79769e+308:2e+307]:15");
+        tdSql.checkData(1, 0, "(2e+307:6.28e+307]:0");
+        tdSql.checkData(2, 0, "(6.28e+307:1.79769e+308]:0");
+        tdSql.query('select histogram(col_tinyint, \'log_bin\', \'{"start": 0.2e+308, "factor": 3.14, "count": 1, "infinity": true}\', 0) from ctb;')
+        tdSql.checkRows(3);
+        tdSql.checkData(0, 0, "(-1.79769e+308:2e+307]:15");
+        tdSql.checkData(1, 0, "(2e+307:6.28e+307]:0");
+        tdSql.checkData(2, 0, "(6.28e+307:1.79769e+308]:0");
+        tdSql.query('select histogram(col_tinyint, \'log_bin\', \'{"start": 0.2e+308, "factor": 3.14, "count": 1, "infinity": true}\', 0) from tb;')
+        tdSql.checkRows(3);
+        tdSql.checkData(0, 0, "(-1.79769e+308:2e+307]:15");
+        tdSql.checkData(1, 0, "(2e+307:6.28e+307]:0");
+        tdSql.checkData(2, 0, "(6.28e+307:1.79769e+308]:0");
+
+        tdSql.query('select histogram(col_tinyint, \'log_bin\', \'{"start": -2, "factor": 3, "count": 3, "infinity": true}\', 0) from stb;')
+        tdSql.checkRows(5);
+        tdSql.checkData(0, 0, "(-2:1.79769e+308]:14");
+        tdSql.checkData(1, 0, "(-6:-2]:0");
+        tdSql.checkData(2, 0, "(-18:-6]:1");
+        tdSql.checkData(3, 0, "(-54:-18]:0");
+        tdSql.checkData(4, 0, "(-1.79769e+308:-54]:0");
+        tdSql.query('select histogram(col_tinyint, \'log_bin\', \'{"start": -2, "factor": 3, "count": 3, "infinity": true}\', 0) from ctb;')
+        tdSql.checkRows(5);
+        tdSql.checkData(0, 0, "(-2:1.79769e+308]:14");
+        tdSql.checkData(1, 0, "(-6:-2]:0");
+        tdSql.checkData(2, 0, "(-18:-6]:1");
+        tdSql.checkData(3, 0, "(-54:-18]:0");
+        tdSql.checkData(4, 0, "(-1.79769e+308:-54]:0");
+        tdSql.query('select histogram(col_tinyint, \'log_bin\', \'{"start": -2, "factor": 3, "count": 3, "infinity": true}\', 0) from tb;')
+        tdSql.checkRows(5);
+        tdSql.checkData(0, 0, "(-2:1.79769e+308]:14");
+        tdSql.checkData(1, 0, "(-6:-2]:0");
+        tdSql.checkData(2, 0, "(-18:-6]:1");
+        tdSql.checkData(3, 0, "(-54:-18]:0");
+        tdSql.checkData(4, 0, "(-1.79769e+308:-54]:0");
+
+        tdSql.query('select histogram(col_tinyint, \'log_bin\', \'{"start": 10, "factor": 0.5, "count": 3, "infinity": true}\', 0) from stb;')
+        tdSql.checkRows(5);
+        tdSql.checkData(0, 0, "(10:1.79769e+308]:3");
+        tdSql.checkData(1, 0, "(5:10]:5");
+        tdSql.checkData(2, 0, "(2.5:5]:3");
+        tdSql.checkData(3, 0, "(1.25:2.5]:1");
+        tdSql.checkData(4, 0, "(-1.79769e+308:1.25]:3");
+        tdSql.query('select histogram(col_tinyint, \'log_bin\', \'{"start": 10, "factor": 0.5, "count": 3, "infinity": true}\', 0) from ctb;')
+        tdSql.checkRows(5);
+        tdSql.checkData(0, 0, "(10:1.79769e+308]:3");
+        tdSql.checkData(1, 0, "(5:10]:5");
+        tdSql.checkData(2, 0, "(2.5:5]:3");
+        tdSql.checkData(3, 0, "(1.25:2.5]:1");
+        tdSql.checkData(4, 0, "(-1.79769e+308:1.25]:3");
+        tdSql.query('select histogram(col_tinyint, \'log_bin\', \'{"start": 10, "factor": 0.5, "count": 3, "infinity": true}\', 0) from tb;')
+        tdSql.checkRows(5);
+        tdSql.checkData(0, 0, "(10:1.79769e+308]:3");
+        tdSql.checkData(1, 0, "(5:10]:5");
+        tdSql.checkData(2, 0, "(2.5:5]:3");
+        tdSql.checkData(3, 0, "(1.25:2.5]:1");
+        tdSql.checkData(4, 0, "(-1.79769e+308:1.25]:3");
+
+        #ERROR CASE
+        tdSql.error('select histogram(col_tinyint, \'log_bin\', \'{"start": true, "factor": 5, "count": 5, "infinity": false}\', 0) from stb;')
+        tdSql.error('select histogram(col_tinyint, \'log_bin\', \'{"start": true, "factor": 5, "count": 5, "infinity": false}\', 0) from ctb;')
+        tdSql.error('select histogram(col_tinyint, \'log_bin\', \'{"start": true, "factor": 5, "count": 5, "infinity": false}\', 0) from tb;')
+        tdSql.error('select histogram(col_tinyint, \'log_bin\', \'{"start": false, "factor": 5, "count": 5, "infinity": false}\', 0) from stb;')
+        tdSql.error('select histogram(col_tinyint, \'log_bin\', \'{"start": false, "factor": 5, "count": 5, "infinity": false}\', 0) from ctb;')
+        tdSql.error('select histogram(col_tinyint, \'log_bin\', \'{"start": false, "factor": 5, "count": 5, "infinity": false}\', 0) from tb;')
+        tdSql.error('select histogram(col_tinyint, \'log_bin\', \'{"start": "abc", "factor": 5, "count": 5, "infinity": false}\', 0) from stb;')
+        tdSql.error('select histogram(col_tinyint, \'log_bin\', \'{"start": "abc", "factor": 5, "count": 5, "infinity": false}\', 0) from ctb;')
+        tdSql.error('select histogram(col_tinyint, \'log_bin\', \'{"start": "abc", "factor": 5, "count": 5, "infinity": false}\', 0) from tb;')
+        tdSql.error('select histogram(col_tinyint, \'log_bin\', \'{"start": "中文", "factor": 5, "count": 5, "infinity": false}\', 0) from stb;')
+        tdSql.error('select histogram(col_tinyint, \'log_bin\', \'{"start": "中文", "factor": 5, "count": 5, "infinity": false}\', 0) from ctb;')
+        tdSql.error('select histogram(col_tinyint, \'log_bin\', \'{"start": "中文", "factor": 5, "count": 5, "infinity": false}\', 0) from tb;')
+        tdSql.error('select histogram(col_tinyint, \'log_bin\', \'{"start": abc, "factor": 5, "count": 5, "infinity": false}\', 0) from stb;')
+        tdSql.error('select histogram(col_tinyint, \'log_bin\', \'{"start": abc, "factor": 5, "count": 5, "infinity": false}\', 0) from ctb;')
+        tdSql.error('select histogram(col_tinyint, \'log_bin\', \'{"start": abc, "factor": 5, "count": 5, "infinity": false}\', 0) from tb;')
+        tdSql.error('select histogram(col_tinyint, \'log_bin\', \'{"start": -1.80e+308, "factor": 5, "count": 5, "infinity": false}\', 0) from stb;')
+        tdSql.error('select histogram(col_tinyint, \'log_bin\', \'{"start": -1.80e+308, "factor": 5, "count": 5, "infinity": false}\', 0) from ctb;')
+        tdSql.error('select histogram(col_tinyint, \'log_bin\', \'{"start": -1.80e+308, "factor": 5, "count": 5, "infinity": false}\', 0) from tb;')
+        tdSql.error('select histogram(col_tinyint, \'log_bin\', \'{"start": 1.80e+308, "factor": 5, "count": 5, "infinity": false}\', 0) from stb;')
+        tdSql.error('select histogram(col_tinyint, \'log_bin\', \'{"start": 1.80e+308, "factor": 5, "count": 5, "infinity": false}\', 0) from ctb;')
+        tdSql.error('select histogram(col_tinyint, \'log_bin\', \'{"start": 1.80e+308, "factor": 5, "count": 5, "infinity": false}\', 0) from tb;')
+        tdSql.error('select histogram(col_tinyint, \'log_bin\', \'{"start": 0, "factor": 5, "count": 5, "infinity": false}\', 0) from stb;')
+        tdSql.error('select histogram(col_tinyint, \'log_bin\', \'{"start": 0, "factor": 5, "count": 5, "infinity": false}\', 0) from ctb;')
+        tdSql.error('select histogram(col_tinyint, \'log_bin\', \'{"start": 0, "factor": 5, "count": 5, "infinity": false}\', 0) from tb;')
+
+        tdSql.error('select histogram(col_tinyint, \'log_bin\', \'{"start": 1, "factor": true, "count": 5, "infinity": false}\', 0) from stb;')
+        tdSql.error('select histogram(col_tinyint, \'log_bin\', \'{"start": 1, "factor": true, "count": 5, "infinity": false}\', 0) from ctb;')
+        tdSql.error('select histogram(col_tinyint, \'log_bin\', \'{"start": 1, "factor": true, "count": 5, "infinity": false}\', 0) from tb;')
+        tdSql.error('select histogram(col_tinyint, \'log_bin\', \'{"start": 1, "factor": false, "count": 5, "infinity": false}\', 0) from stb;')
+        tdSql.error('select histogram(col_tinyint, \'log_bin\', \'{"start": 1, "factor": false, "count": 5, "infinity": false}\', 0) from ctb;')
+        tdSql.error('select histogram(col_tinyint, \'log_bin\', \'{"start": 1, "factor": false, "count": 5, "infinity": false}\', 0) from tb;')
+        tdSql.error('select histogram(col_tinyint, \'log_bin\', \'{"start": 1, "factor": "abc", "count": 5, "infinity": false}\', 0) from stb;')
+        tdSql.error('select histogram(col_tinyint, \'log_bin\', \'{"start": 1, "factor": "abc", "count": 5, "infinity": false}\', 0) from ctb;')
+        tdSql.error('select histogram(col_tinyint, \'log_bin\', \'{"start": 1, "factor": "abc", "count": 5, "infinity": false}\', 0) from tb;')
+        tdSql.error('select histogram(col_tinyint, \'log_bin\', \'{"start": 1, "factor": "中文", "count": 5, "infinity": false}\', 0) from stb;')
+        tdSql.error('select histogram(col_tinyint, \'log_bin\', \'{"start": 1, "factor": "中文", "count": 5, "infinity": false}\', 0) from ctb;')
+        tdSql.error('select histogram(col_tinyint, \'log_bin\', \'{"start": 1, "factor": "中文", "count": 5, "infinity": false}\', 0) from tb;')
+        tdSql.error('select histogram(col_tinyint, \'log_bin\', \'{"start": 1, "factor": abc, "count": 5, "infinity": false}\', 0) from stb;')
+        tdSql.error('select histogram(col_tinyint, \'log_bin\', \'{"start": 1, "factor": abc, "count": 5, "infinity": false}\', 0) from ctb;')
+        tdSql.error('select histogram(col_tinyint, \'log_bin\', \'{"start": 1, "factor": abc, "count": 5, "infinity": false}\', 0) from tb;')
+        tdSql.error('select histogram(col_tinyint, \'log_bin\', \'{"start": 1, "factor": 1.80e+308, "count": 5, "infinity": false}\', 0) from stb;')
+        tdSql.error('select histogram(col_tinyint, \'log_bin\', \'{"start": 1, "factor": 1.80e+308, "count": 5, "infinity": false}\', 0) from ctb;')
+        tdSql.error('select histogram(col_tinyint, \'log_bin\', \'{"start": 1, "factor": 1.80e+308, "count": 5, "infinity": false}\', 0) from tb;')
+        tdSql.error('select histogram(col_tinyint, \'log_bin\', \'{"start": 1, "factor": 0, "count": 5, "infinity": false}\', 0) from stb;')
+        tdSql.error('select histogram(col_tinyint, \'log_bin\', \'{"start": 1, "factor": 0, "count": 5, "infinity": false}\', 0) from ctb;')
+        tdSql.error('select histogram(col_tinyint, \'log_bin\', \'{"start": 1, "factor": 0, "count": 5, "infinity": false}\', 0) from tb;')
+        tdSql.error('select histogram(col_tinyint, \'log_bin\', \'{"start": 1, "factor": -5, "count": 5, "infinity": false}\', 0) from stb;')
+        tdSql.error('select histogram(col_tinyint, \'log_bin\', \'{"start": 1, "factor": -5, "count": 5, "infinity": false}\', 0) from ctb;')
+        tdSql.error('select histogram(col_tinyint, \'log_bin\', \'{"start": 1, "factor": -5, "count": 5, "infinity": false}\', 0) from tb;')
+        tdSql.error('select histogram(col_tinyint, \'log_bin\', \'{"start": 1, "factor": 1, "count": 5, "infinity": false}\', 0) from stb;')
+        tdSql.error('select histogram(col_tinyint, \'log_bin\', \'{"start": 1, "factor": 1, "count": 5, "infinity": false}\', 0) from ctb;')
+        tdSql.error('select histogram(col_tinyint, \'log_bin\', \'{"start": 1, "factor": 1, "count": 5, "infinity": false}\', 0) from tb;')
+
+        #out of range
+        tdSql.error('select histogram(col_tinyint, \'log_bin\', \'{"start": -1.4e+308, "factor": 1.5, "count": 3, "infinity": false}\', 0) from stb;')
+        tdSql.error('select histogram(col_tinyint, \'log_bin\', \'{"start": -1.4e+308, "factor": 1.5, "count": 3, "infinity": false}\', 0) from ctb;')
+        tdSql.error('select histogram(col_tinyint, \'log_bin\', \'{"start": -1.4e+308, "factor": 1.5, "count": 3, "infinity": false}\', 0) from tb;')
+        tdSql.error('select histogram(col_tinyint, \'log_bin\', \'{"start": -1.4e+308, "factor": 1.5, "count": 3, "infinity": true}\', 0) from stb;')
+        tdSql.error('select histogram(col_tinyint, \'log_bin\', \'{"start": -1.4e+308, "factor": 1.5, "count": 3, "infinity": true}\', 0) from ctb;')
+        tdSql.error('select histogram(col_tinyint, \'log_bin\', \'{"start": -1.4e+308, "factor": 1.5, "count": 3, "infinity": true}\', 0) from tb;')
+
+        tdSql.error('select histogram(col_tinyint, \'log_bin\', \'{"start": 0, "factor": 1, "count": -1, "infinity": false}\', 0) from stb;')
+        tdSql.error('select histogram(col_tinyint, \'log_bin\', \'{"start": 0, "factor": 1, "count": -1, "infinity": false}\', 0) from ctb;')
+        tdSql.error('select histogram(col_tinyint, \'log_bin\', \'{"start": 0, "factor": 1, "count": -1, "infinity": false}\', 0) from tb;')
+        tdSql.error('select histogram(col_tinyint, \'log_bin\', \'{"start": 0, "factor": 1, "count": 0, "infinity": true}\', 0) from stb;')
+        tdSql.error('select histogram(col_tinyint, \'log_bin\', \'{"start": 0, "factor": 1, "count": 0, "infinity": true}\', 0) from ctb;')
+        tdSql.error('select histogram(col_tinyint, \'log_bin\', \'{"start": 0, "factor": 1, "count": 0, "infinity": true}\', 0) from tb;')
+        tdSql.error('select histogram(col_tinyint, \'log_bin\', \'{"start": 0, "factor": 1, "count": true, "infinity": true}\', 0) from stb;')
+        tdSql.error('select histogram(col_tinyint, \'log_bin\', \'{"start": 0, "factor": 1, "count": true, "infinity": true}\', 0) from ctb;')
+        tdSql.error('select histogram(col_tinyint, \'log_bin\', \'{"start": 0, "factor": 1, "count": true, "infinity": true}\', 0) from tb;')
+        tdSql.error('select histogram(col_tinyint, \'log_bin\', \'{"start": 0, "factor": 1, "count": false, "infinity": true}\', 0) from stb;')
+        tdSql.error('select histogram(col_tinyint, \'log_bin\', \'{"start": 0, "factor": 1, "count": false, "infinity": true}\', 0) from ctb;')
+        tdSql.error('select histogram(col_tinyint, \'log_bin\', \'{"start": 0, "factor": 1, "count": false, "infinity": true}\', 0) from tb;')
+        tdSql.error('select histogram(col_tinyint, \'log_bin\', \'{"start": 0, "factor": 1, "count": "abc", "infinity": true}\', 0) from stb;')
+        tdSql.error('select histogram(col_tinyint, \'log_bin\', \'{"start": 0, "factor": 1, "count": "abc", "infinity": true}\', 0) from ctb;')
+        tdSql.error('select histogram(col_tinyint, \'log_bin\', \'{"start": 0, "factor": 1, "count": "abc", "infinity": true}\', 0) from tb;')
+        tdSql.error('select histogram(col_tinyint, \'log_bin\', \'{"start": 0, "factor": 1, "count": "中文", "infinity": true}\', 0) from stb;')
+        tdSql.error('select histogram(col_tinyint, \'log_bin\', \'{"start": 0, "factor": 1, "count": "中文", "infinity": true}\', 0) from ctb;')
+        tdSql.error('select histogram(col_tinyint, \'log_bin\', \'{"start": 0, "factor": 1, "count": "中文", "infinity": true}\', 0) from tb;')
+        tdSql.error('select histogram(col_tinyint, \'log_bin\', \'{"start": 0, "factor": 1, "count": abc, "infinity": true}\', 0) from stb;')
+        tdSql.error('select histogram(col_tinyint, \'log_bin\', \'{"start": 0, "factor": 1, "count": abc, "infinity": true}\', 0) from ctb;')
+        tdSql.error('select histogram(col_tinyint, \'log_bin\', \'{"start": 0, "factor": 1, "count": abc, "infinity": true}\', 0) from tb;')
+        tdSql.error('select histogram(col_tinyint, \'log_bin\', \'{"start": 0, "factor": 1, "count": 1.8e+308, "infinity": true}\', 0) from stb;')
+        tdSql.error('select histogram(col_tinyint, \'log_bin\', \'{"start": 0, "factor": 1, "count": 1.8e+308, "infinity": true}\', 0) from ctb;')
+        tdSql.error('select histogram(col_tinyint, \'log_bin\', \'{"start": 0, "factor": 1, "count": 1.8e+308, "infinity": true}\', 0) from tb;')
+        tdSql.error('select histogram(col_tinyint, \'log_bin\', \'{"start": 0, "factor": 1, "count": -1.8e+308, "infinity": true}\', 0) from stb;')
+        tdSql.error('select histogram(col_tinyint, \'log_bin\', \'{"start": 0, "factor": 1, "count": -1.8e+308, "infinity": true}\', 0) from ctb;')
+        tdSql.error('select histogram(col_tinyint, \'log_bin\', \'{"start": 0, "factor": 1, "count": -1.8e+308, "infinity": true}\', 0) from tb;')
+
+        tdSql.error('select histogram(col_tinyint, \'log_bin\', \'{"start": 0, "factor": 1, "count": 1, "infinity": 1}\', 0) from stb;')
+        tdSql.error('select histogram(col_tinyint, \'log_bin\', \'{"start": 0, "factor": 1, "count": 1, "infinity": 1}\', 0) from ctb;')
+        tdSql.error('select histogram(col_tinyint, \'log_bin\', \'{"start": 0, "factor": 1, "count": 1, "infinity": 1}\', 0) from tb;')
+        tdSql.error('select histogram(col_tinyint, \'log_bin\', \'{"start": 0, "factor": 1, "count": 1, "infinity": 0}\', 0) from stb;')
+        tdSql.error('select histogram(col_tinyint, \'log_bin\', \'{"start": 0, "factor": 1, "count": 1, "infinity": 0}\', 0) from ctb;')
+        tdSql.error('select histogram(col_tinyint, \'log_bin\', \'{"start": 0, "factor": 1, "count": 1, "infinity": 0}\', 0) from tb;')
+        tdSql.error('select histogram(col_tinyint, \'log_bin\', \'{"start": 0, "factor": 1, "count": 1, "infinity": -1.5}\', 0) from stb;')
+        tdSql.error('select histogram(col_tinyint, \'log_bin\', \'{"start": 0, "factor": 1, "count": 1, "infinity": -1.5}\', 0) from ctb;')
+        tdSql.error('select histogram(col_tinyint, \'log_bin\', \'{"start": 0, "factor": 1, "count": 1, "infinity": -1.5}\', 0) from tb;')
+        tdSql.error('select histogram(col_tinyint, \'log_bin\', \'{"start": 0, "factor": 1, "count": 1, "infinity": 1.8e+308}\', 0) from stb;')
+        tdSql.error('select histogram(col_tinyint, \'log_bin\', \'{"start": 0, "factor": 1, "count": 1, "infinity": 1.8e+308}\', 0) from ctb;')
+        tdSql.error('select histogram(col_tinyint, \'log_bin\', \'{"start": 0, "factor": 1, "count": 1, "infinity": 1.8e+308}\', 0) from tb;')
+        tdSql.error('select histogram(col_tinyint, \'log_bin\', \'{"start": 0, "factor": 1, "count": 1, "infinity": "abc"}\', 0) from stb;')
+        tdSql.error('select histogram(col_tinyint, \'log_bin\', \'{"start": 0, "factor": 1, "count": 1, "infinity": "abc"}\', 0) from ctb;')
+        tdSql.error('select histogram(col_tinyint, \'log_bin\', \'{"start": 0, "factor": 1, "count": 1, "infinity": "abc"}\', 0) from tb;')
+        tdSql.error('select histogram(col_tinyint, \'log_bin\', \'{"start": 0, "factor": 1, "count": 1, "infinity": "中文"}\', 0) from stb;')
+        tdSql.error('select histogram(col_tinyint, \'log_bin\', \'{"start": 0, "factor": 1, "count": 1, "infinity": "中文"}\', 0) from ctb;')
+        tdSql.error('select histogram(col_tinyint, \'log_bin\', \'{"start": 0, "factor": 1, "count": 1, "infinity": "中文"}\', 0) from tb;')
+        tdSql.error('select histogram(col_tinyint, \'log_bin\', \'{"start": 0, "factor": 1, "count": 1, "infinity": abc}\', 0) from stb;')
+        tdSql.error('select histogram(col_tinyint, \'log_bin\', \'{"start": 0, "factor": 1, "count": 1, "infinity": abc}\', 0) from ctb;')
+        tdSql.error('select histogram(col_tinyint, \'log_bin\', \'{"start": 0, "factor": 1, "count": 1, "infinity": abc}\', 0) from tb;')
+
+        tdSql.error('select histogram(col_tinyint, \'log_bin\', \'{"begin": 0, "factor": 1, "count": 1, "infinity": true}\', 0) from stb;')
+        tdSql.error('select histogram(col_tinyint, \'log_bin\', \'{"begin": 0, "factor": 1, "count": 1, "infinity": true}\', 0) from ctb;')
+        tdSql.error('select histogram(col_tinyint, \'log_bin\', \'{"begin": 0, "factor": 1, "count": 1, "infinity": true}\', 0) from tb;')
+        tdSql.error('select histogram(col_tinyint, \'log_bin\', \'{"start": 0, "width": 1, "count": 1, "infinity": true}\', 0) from stb;')
+        tdSql.error('select histogram(col_tinyint, \'log_bin\', \'{"start": 0, "width": 1, "count": 1, "infinity": true}\', 0) from ctb;')
+        tdSql.error('select histogram(col_tinyint, \'log_bin\', \'{"start": 0, "width": 1, "count": 1, "infinity": true}\', 0) from tb;')
+        tdSql.error('select histogram(col_tinyint, \'log_bin\', \'{"start": 0, "factor": 1, "cnt": 1, "infinity": true}\', 0) from stb;')
+        tdSql.error('select histogram(col_tinyint, \'log_bin\', \'{"start": 0, "factor": 1, "cnt": 1, "infinity": true}\', 0) from ctb;')
+        tdSql.error('select histogram(col_tinyint, \'log_bin\', \'{"start": 0, "factor": 1, "cnt": 1, "infinity": true}\', 0) from tb;')
+        tdSql.error('select histogram(col_tinyint, \'log_bin\', \'{"start": 0, "factor": 1, "count": 1, "inf": true}\', 0) from stb;')
+        tdSql.error('select histogram(col_tinyint, \'log_bin\', \'{"start": 0, "factor": 1, "count": 1, "inf": true}\', 0) from ctb;')
+        tdSql.error('select histogram(col_tinyint, \'log_bin\', \'{"start": 0, "factor": 1, "count": 1, "inf": true}\', 0) from tb;')
+        tdSql.error('select histogram(col_tinyint, \'log_bin\', \'{start: 0, factor: 1, count: 1, infinity: true}\', 0) from stb;')
+        tdSql.error('select histogram(col_tinyint, \'log_bin\', \'{start: 0, factor: 1, count: 1, infinity: true}\', 0) from ctb;')
+        tdSql.error('select histogram(col_tinyint, \'log_bin\', \'{start: 0, factor: 1, count: 1, infinity: true}\', 0) from tb;')
+        tdSql.error('select histogram(col_tinyint, \'log_bin\', \'[ 0, 1, 1, true]\', 0) from stb;')
+        tdSql.error('select histogram(col_tinyint, \'log_bin\', \'[ 0, 1, 1, true]\', 0) from ctb;')
+        tdSql.error('select histogram(col_tinyint, \'log_bin\', \'[ 0, 1, 1, true]\', 0) from tb;')
+
+        print("============== STEP 3: normalization  ================== ")
+        ## Normalization ##
+        tdSql.query('select histogram(col_smallint, "user_input", "[1,3,5,7]", 0) from stb;')
+        tdSql.checkRows(3)
+        tdSql.checkData(0, 0, "(1:3]:2");
+        tdSql.checkData(1, 0, "(3:5]:2");
+        tdSql.checkData(2, 0, "(5:7]:2");
+        tdSql.query('select histogram(col_smallint, "user_input", "[1,3,5,7]", 1) from ctb;')
+        tdSql.checkRows(3)
+        tdSql.checkData(0, 0, "(1:3]:0.333333");
+        tdSql.checkData(1, 0, "(3:5]:0.333333");
+        tdSql.checkData(2, 0, "(5:7]:0.333333");
+        tdSql.query('select histogram(col_smallint, "user_input", "[1,3,5,7]", 1) from tb;')
+        tdSql.checkRows(3)
+        tdSql.checkData(0, 0, "(1:3]:0.333333");
+        tdSql.checkData(1, 0, "(3:5]:0.333333");
+        tdSql.checkData(2, 0, "(5:7]:0.333333");
+
+        tdSql.query('select histogram(col_int, "user_input", "[1,5,10]", 0) from stb;')
+        tdSql.checkRows(2)
+        tdSql.checkData(0, 0, "(1:5]:4");
+        tdSql.checkData(1, 0, "(5:10]:5");
+        tdSql.query('select histogram(col_int, "user_input", "[1,5,10]", 1) from ctb;')
+        tdSql.checkRows(2)
+        tdSql.checkData(0, 0, "(1:5]:0.444444");
+        tdSql.checkData(1, 0, "(5:10]:0.555556");
+        tdSql.query('select histogram(col_int, "user_input", "[1,5,10]", 1) from tb;')
+        tdSql.checkRows(2)
+        tdSql.checkData(0, 0, "(1:5]:0.444444");
+        tdSql.checkData(1, 0, "(5:10]:0.555556");
+
+        tdSql.query('select histogram(col_double, "user_input", "[0,5,11]", 0) from stb;')
+        tdSql.checkRows(2)
+        tdSql.checkData(0, 0, "(0:5]:4");
+        tdSql.checkData(1, 0, "(5:11]:6");
+        tdSql.query('select histogram(col_double, "user_input", "[0,5,11]", 1) from ctb;')
+        tdSql.checkRows(2)
+        tdSql.checkData(0, 0, "(0:5]:0.400000");
+        tdSql.checkData(1, 0, "(5:11]:0.600000");
+        tdSql.query('select histogram(col_double, "user_input", "[0,5,11]", 1) from tb;')
+        tdSql.checkRows(2)
+        tdSql.checkData(0, 0, "(0:5]:0.400000");
+        tdSql.checkData(1, 0, "(5:11]:0.600000");
+
+        tdSql.query('select histogram(col_bigint, \'linear_bin\', \'{"start": 1, "width": 5, "count": 2, "infinity": false}\', 0) from stb;')
+        tdSql.checkRows(2)
+        tdSql.checkData(0, 0, "(1:6]:5");
+        tdSql.checkData(1, 0, "(6:11]:4");
+        tdSql.query('select histogram(col_bigint, \'linear_bin\', \'{"start": 1, "width": 5, "count": 2, "infinity": false}\', 1) from ctb;')
+        tdSql.checkRows(2)
+        tdSql.checkData(0, 0, "(1:6]:0.555556");
+        tdSql.checkData(1, 0, "(6:11]:0.444444");
+        tdSql.query('select histogram(col_bigint, \'linear_bin\', \'{"start": 1, "width": 5, "count": 2, "infinity": false}\', 1) from tb;')
+        tdSql.checkRows(2)
+        tdSql.checkData(0, 0, "(1:6]:0.555556");
+        tdSql.checkData(1, 0, "(6:11]:0.444444");
+
+        tdSql.query('select histogram(col_int, \'linear_bin\', \'{"start": -10, "width": 5, "count": 3, "infinity": true}\', 0) from stb;')
+        tdSql.checkRows(5)
+        tdSql.checkData(0, 0, "(-1.79769e+308:-10]:0");
+        tdSql.checkData(1, 0, "(-10:-5]:1");
+        tdSql.checkData(2, 0, "(-5:0]:1");
+        tdSql.checkData(3, 0, "(0:5]:5");
+        tdSql.checkData(4, 0, "(5:1.79769e+308]:8");
+        tdSql.query('select histogram(col_int, \'linear_bin\', \'{"start": -10, "width": 5, "count": 3, "infinity": true}\', 1) from ctb;')
+        tdSql.checkRows(5)
+        tdSql.checkData(0, 0, "(-1.79769e+308:-10]:0.000000");
+        tdSql.checkData(1, 0, "(-10:-5]:0.066667");
+        tdSql.checkData(2, 0, "(-5:0]:0.066667");
+        tdSql.checkData(3, 0, "(0:5]:0.333333");
+        tdSql.checkData(4, 0, "(5:1.79769e+308]:0.533333");
+        tdSql.query('select histogram(col_int, \'linear_bin\', \'{"start": -10, "width": 5, "count": 3, "infinity": true}\', 1) from tb;')
+        tdSql.checkRows(5)
+        tdSql.checkData(0, 0, "(-1.79769e+308:-10]:0.000000");
+        tdSql.checkData(1, 0, "(-10:-5]:0.066667");
+        tdSql.checkData(2, 0, "(-5:0]:0.066667");
+        tdSql.checkData(3, 0, "(0:5]:0.333333");
+        tdSql.checkData(4, 0, "(5:1.79769e+308]:0.533333");
+
+        tdSql.query('select histogram(col_float, \'log_bin\', \'{"start": 1, "factor": 5, "count": 3, "infinity": false}\', 0) from stb;')
+        tdSql.checkRows(3)
+        tdSql.checkData(0, 0, "(1:5]:4");
+        tdSql.checkData(1, 0, "(5:25]:8");
+        tdSql.checkData(2, 0, "(25:125]:1");
+        tdSql.query('select histogram(col_float, \'log_bin\', \'{"start": 1, "factor": 5, "count": 3, "infinity": false}\', 1) from ctb;')
+        tdSql.checkRows(3)
+        tdSql.checkData(0, 0, "(1:5]:0.307692");
+        tdSql.checkData(1, 0, "(5:25]:0.615385");
+        tdSql.checkData(2, 0, "(25:125]:0.076923");
+        tdSql.query('select histogram(col_float, \'log_bin\', \'{"start": 1, "factor": 5, "count": 3, "infinity": false}\', 1) from tb;')
+        tdSql.checkRows(3)
+        tdSql.checkData(0, 0, "(1:5]:0.307692");
+        tdSql.checkData(1, 0, "(5:25]:0.615385");
+        tdSql.checkData(2, 0, "(25:125]:0.076923");
+
+        tdSql.query('select histogram(col_double, \'log_bin\', \'{"start": -0.5, "factor": 0.5, "count": 2, "infinity": false}\', 0) from stb;')
+        tdSql.checkRows(2)
+        tdSql.checkData(0, 0, "(-0.5:-0.25]:0");
+        tdSql.checkData(1, 0, "(-0.25:-0.125]:0");
+        tdSql.query('select histogram(col_double, \'log_bin\', \'{"start": -0.5, "factor": 0.5, "count": 2, "infinity": false}\', 1) from ctb;')
+        tdSql.checkRows(2)
+        tdSql.checkData(0, 0, "(-0.5:-0.25]:0.000000");
+        tdSql.checkData(1, 0, "(-0.25:-0.125]:0.000000");
+        tdSql.query('select histogram(col_double, \'log_bin\', \'{"start": -0.5, "factor": 0.5, "count": 2, "infinity": false}\', 1) from tb;')
+        tdSql.checkRows(2)
+        tdSql.checkData(0, 0, "(-0.5:-0.25]:0.000000");
+        tdSql.checkData(1, 0, "(-0.25:-0.125]:0.000000");
+
+        tdSql.query('select histogram(col_double, \'log_bin\', \'{"start": -0.5, "factor": 0.5, "count": 2, "infinity": true}\', 0) from stb;')
+        tdSql.checkRows(4)
+        tdSql.checkData(0, 0, "(-1.79769e+308:-0.5]:2");
+        tdSql.checkData(1, 0, "(-0.5:-0.25]:0");
+        tdSql.checkData(2, 0, "(-0.25:-0.125]:0");
+        tdSql.checkData(3, 0, "(-0.125:1.79769e+308]:13");
+        tdSql.query('select histogram(col_double, \'log_bin\', \'{"start": -0.5, "factor": 0.5, "count": 2, "infinity": true}\', 1) from ctb;')
+        tdSql.checkRows(4)
+        tdSql.checkData(0, 0, "(-1.79769e+308:-0.5]:0.133333");
+        tdSql.checkData(1, 0, "(-0.5:-0.25]:0.000000");
+        tdSql.checkData(2, 0, "(-0.25:-0.125]:0.000000");
+        tdSql.checkData(3, 0, "(-0.125:1.79769e+308]:0.866667");
+        tdSql.query('select histogram(col_double, \'log_bin\', \'{"start": -0.5, "factor": 0.5, "count": 2, "infinity": true}\', 1) from tb;')
+        tdSql.checkRows(4)
+        tdSql.checkData(0, 0, "(-1.79769e+308:-0.5]:0.133333");
+        tdSql.checkData(1, 0, "(-0.5:-0.25]:0.000000");
+        tdSql.checkData(2, 0, "(-0.25:-0.125]:0.000000");
+        tdSql.checkData(3, 0, "(-0.125:1.79769e+308]:0.866667");
+
+        #ERROR CASE
+        tdSql.error('select histogram(col_smallint, "user_input", "[1,3,5,7]", -10) from stb;')
+        tdSql.error('select histogram(col_int, "user_input", "[1,3,5,7]", 2) from ctb;')
+        tdSql.error('select histogram(col_int, "user_input", "[1,3,5,7]", 3.14) from tb;')
+
+        tdSql.error('select histogram(col_bigint, \'linear_bin\', \'{"start": 1, "width": 5, "count": 2, "infinity": false}\', true) from stb;')
+        tdSql.error('select histogram(col_bigint, \'linear_bin\', \'{"start": 1, "width": 5, "count": 2, "infinity": false}\', false) from ctb;')
+
+        tdSql.error('select histogram(col_double, \'log_bin\', \'{"start": -0.5, "factor": 0.5, "count": 2, "infinity": true}\', "abc") from tb;')
+        tdSql.error('select histogram(col_double, \'log_bin\', \'{"start": -0.5, "factor": 0.5, "count": 2, "infinity": true}\', abc) from tb;')
+
+        ## Combinations ##
+
+
         tdSql.execute('drop database db')
     def stop(self):
         tdSql.close()
