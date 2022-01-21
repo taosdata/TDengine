@@ -3394,7 +3394,9 @@ int32_t addExprAndResultField(SSqlCmd* pCmd, SQueryInfo* pQueryInfo, int32_t col
       }
 
       cJSON *binDesc = cJSON_Parse(pVariant->pz);
+      int32_t counter;
       int32_t numBins;
+      int32_t numOutput;
       double *intervals;
       if (cJSON_IsObject(binDesc)) { /* linaer/log bins */
         int32_t numOfParams = cJSON_GetArraySize(binDesc);
@@ -3413,24 +3415,36 @@ int32_t addExprAndResultField(SSqlCmd* pCmd, SQueryInfo* pQueryInfo, int32_t col
           return invalidOperationMsg(tscGetErrorMsgPayload(pCmd), msg22);
         }
 
-        numBins = count->valueint;
-        if (infinity->valueint == true) {
+        counter = count->valueint;
+        if (infinity->valueint == false) {
           startIndex = 0;
-          intervals = tcalloc(numBins, sizeof(double));
+          numBins = counter + 1;
         } else {
           startIndex = 1;
-          intervals = tcalloc(numBins + 2, sizeof(double));
+          numBins = counter + 3;
         }
+        numOutput = numBins - 1;
 
+        intervals = tcalloc(numBins, sizeof(double));
         if (cJSON_IsNumber(width) && factor == NULL && binType == LINEAR_BIN) {
           //linear bin process
-          for (int i = startIndex; i < numBins; ++i) {
-            intervals[i] = start->valuedouble + i * width->valuedouble;
+          for (int i = 0; i < counter + 1; ++i) {
+            intervals[startIndex] = start->valuedouble + i * width->valuedouble;
+            startIndex++;
           }
         } else if (cJSON_IsNumber(factor) && width == NULL && binType == LOG_BIN) {
           //log bin process
+          for (int i = 0; i < counter + 1; ++i) {
+            intervals[startIndex] = start->valuedouble * pow(factor->valuedouble, i * 1.0);
+            startIndex++;
+          }
         } else {
           return invalidOperationMsg(tscGetErrorMsgPayload(pCmd), msg22);
+        }
+
+        if (infinity->valueint == true) {
+          intervals[0] = -DBL_MAX;
+          intervals[numBins - 1] = DBL_MAX;
         }
 
       } else if (cJSON_IsArray(binDesc)) { /* user input bins */
@@ -3438,20 +3452,20 @@ int32_t addExprAndResultField(SSqlCmd* pCmd, SQueryInfo* pQueryInfo, int32_t col
         return invalidOperationMsg(tscGetErrorMsgPayload(pCmd), msg21);
       }
 
-      int16_t  resultType = pSchema->type;
-      int32_t  resultSize = pSchema->bytes;
-      int32_t  interResult = 0;
-      getResultDataInfo(pSchema->type, pSchema->bytes, functionId, numBins, &resultType, &resultSize, &interResult, 0, false,
+      int16_t resultType = pSchema->type;
+      int32_t resultSize = pSchema->bytes;
+      int32_t interResult = 0;
+      getResultDataInfo(pSchema->type, pSchema->bytes, functionId, counter, &resultType, &resultSize, &interResult, 0, false,
                         pUdfInfo);
       SExprInfo* pExpr = NULL;
       pExpr = tscExprAppend(pQueryInfo, functionId, &index, resultType, resultSize, getNewResColId(pCmd), interResult, false);
-      tscExprAddParams(&pExpr->base, (char*)&numBins, TSDB_DATA_TYPE_INT, sizeof(int32_t));
+      tscExprAddParams(&pExpr->base, (char*)&numOutput, TSDB_DATA_TYPE_INT, sizeof(int32_t));
       //intervals[0] = -DBL_MAX;
       //intervals[1] = 10;
       //intervals[2] = 20;
       //intervals[3] = 30;
       //intervals[4] = DBL_MAX;
-      tscExprAddParams(&pExpr->base, (char*)intervals, TSDB_DATA_TYPE_BINARY, sizeof(double)*(numBins+1));
+      tscExprAddParams(&pExpr->base, (char*)intervals, TSDB_DATA_TYPE_BINARY, sizeof(double) * numBins);
 
       memset(pExpr->base.aliasName, 0, tListLen(pExpr->base.aliasName));
       getColumnName(pItem, pExpr->base.aliasName, pExpr->base.token,sizeof(pExpr->base.aliasName) - 1);
