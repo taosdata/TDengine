@@ -34,7 +34,7 @@ typedef int32_t pgno_t;
 // pgid_t
 typedef struct {
   uint8_t fileid[TDB_FILE_ID_LEN];
-  pgno_t  pgid;
+  pgno_t  pgno;
 } pgid_t;
 #define TDB_IVLD_PGID (pgid_t){0, TDB_IVLD_PGNO};
 

@@ -143,13 +143,30 @@ int tdbMPoolFileClose(TDB_MPFILE *mpf) {
   return 0;
 }
 
-int tdbMPoolFileGet(TDB_MPFILE *mpf, pgno_t pgid, void *addr) {
+#define MPF_GET_PAGE_BUCKETID(fileid, pgno, nbuckets) \
+  ({                                                  \
+    uint64_t *tmp = (uint64_t *)fileid;               \
+    (tmp[0] + tmp[1] + tmp[2] + (pgno)) % (nbuckets); \
+  })
+
+int tdbMPoolFileGet(TDB_MPFILE *mpf, pgno_t pgno, void *addr) {
   pg_t *     pagep;
   TDB_MPOOL *mp;
+  pg_list_t *pglist;
 
   mp = mpf->mp;
 
   // get page in the cache
+  pglist = mp->pgtab.hashtab + MPF_GET_PAGE_BUCKETID(mpf->fileid, pgno, mp->pgtab.nbucket);
+  pagep = TD_DLIST_HEAD(pglist);
+  while (pagep) {
+    if (memcmp(mpf->fileid, pagep->pgid.fileid, TDB_FILE_ID_LEN) == 0 && pgno == pagep->pgid.pgno) {
+      break;
+    }
+
+    pagep = TD_DLIST_NODE_NEXT_WITH_FIELD(pagep, hash);
+  }
+
   if (pagep) {
     // page is found in the page table
     // todo: pin the page and return
@@ -173,7 +190,7 @@ int tdbMPoolFileGet(TDB_MPFILE *mpf, pgno_t pgid, void *addr) {
   return 0;
 }
 
-int tdbMPoolFilePut(TDB_MPOOL *mpf, pgno_t pgid, void *addr) {
+int tdbMPoolFilePut(TDB_MPOOL *mpf, pgno_t pgno, void *addr) {
   // TODO
   return 0;
 }

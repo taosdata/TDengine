@@ -80,8 +80,8 @@ int tdbMPoolClose(TDB_MPOOL *mp);
 // TDB_MPFILE
 int tdbMPoolFileOpen(TDB_MPFILE **mpfp, const char *fname, TDB_MPOOL *mp);
 int tdbMPoolFileClose(TDB_MPFILE *mpf);
-int tdbMPoolFileGet(TDB_MPFILE *mpf, pgno_t pgid, void *addr);
-int tdbMPoolFilePut(TDB_MPOOL *mpf, pgno_t pgid, void *addr);
+int tdbMPoolFileGet(TDB_MPFILE *mpf, pgno_t pgno, void *addr);
+int tdbMPoolFilePut(TDB_MPOOL *mpf, pgno_t pgno, void *addr);
 
 #ifdef __cplusplus
 }
