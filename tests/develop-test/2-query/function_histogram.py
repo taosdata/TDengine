@@ -1322,6 +1322,82 @@ class TDTestCase:
         tdSql.checkData(2, 0, "(0:7e+307]:13");
         tdSql.checkData(3, 0, "(7e+307:1.79769e+308]:0");
 
+        tdSql.query('select histogram(col_float, \'linear_bin\', \'{"width":2, "start": 0, "count": 4, "infinity": false}\', 0) from stb;')
+        tdSql.checkRows(4);
+        tdSql.checkData(0, 0, "(0:2]:1");
+        tdSql.checkData(1, 0, "(2:4]:2");
+        tdSql.checkData(2, 0, "(4:6]:2");
+        tdSql.checkData(3, 0, "(6:8]:2");
+        tdSql.query('select histogram(col_float, \'linear_bin\', \'{"width":2, "start": 0, "count": 4, "infinity": false}\', 0) from ctb;')
+        tdSql.checkRows(4);
+        tdSql.checkData(0, 0, "(0:2]:1");
+        tdSql.checkData(1, 0, "(2:4]:2");
+        tdSql.checkData(2, 0, "(4:6]:2");
+        tdSql.checkData(3, 0, "(6:8]:2");
+        tdSql.query('select histogram(col_float, \'linear_bin\', \'{"width":2, "start": 0, "count": 4, "infinity": false}\', 0) from tb;')
+        tdSql.checkRows(4);
+        tdSql.checkData(0, 0, "(0:2]:1");
+        tdSql.checkData(1, 0, "(2:4]:2");
+        tdSql.checkData(2, 0, "(4:6]:2");
+        tdSql.checkData(3, 0, "(6:8]:2");
+
+        tdSql.query('select histogram(col_float, \'linear_bin\', \'{"width":2, "start": 0, "count": 4, "infinity": false}\', 0) from stb;')
+        tdSql.checkRows(4);
+        tdSql.checkData(0, 0, "(0:2]:1");
+        tdSql.checkData(1, 0, "(2:4]:2");
+        tdSql.checkData(2, 0, "(4:6]:2");
+        tdSql.checkData(3, 0, "(6:8]:2");
+        tdSql.query('select histogram(col_float, \'linear_bin\', \'{"width":2, "start": 0, "count": 4, "infinity": false}\', 0) from ctb;')
+        tdSql.checkRows(4);
+        tdSql.checkData(0, 0, "(0:2]:1");
+        tdSql.checkData(1, 0, "(2:4]:2");
+        tdSql.checkData(2, 0, "(4:6]:2");
+        tdSql.checkData(3, 0, "(6:8]:2");
+        tdSql.query('select histogram(col_float, \'linear_bin\', \'{"width":2, "start": 0, "count": 4, "infinity": false}\', 0) from tb;')
+        tdSql.checkRows(4);
+        tdSql.checkData(0, 0, "(0:2]:1");
+        tdSql.checkData(1, 0, "(2:4]:2");
+        tdSql.checkData(2, 0, "(4:6]:2");
+        tdSql.checkData(3, 0, "(6:8]:2");
+
+        tdSql.query('select histogram(col_float, \'linear_bin\', \'{"count": 4, "width":2, "start": 0, "infinity": false}\', 0) from stb;')
+        tdSql.checkRows(4);
+        tdSql.checkData(0, 0, "(0:2]:1");
+        tdSql.checkData(1, 0, "(2:4]:2");
+        tdSql.checkData(2, 0, "(4:6]:2");
+        tdSql.checkData(3, 0, "(6:8]:2");
+        tdSql.query('select histogram(col_float, \'linear_bin\', \'{"count": 4, "width":2, "start": 0, "infinity": false}\', 0) from ctb;')
+        tdSql.checkRows(4);
+        tdSql.checkData(0, 0, "(0:2]:1");
+        tdSql.checkData(1, 0, "(2:4]:2");
+        tdSql.checkData(2, 0, "(4:6]:2");
+        tdSql.checkData(3, 0, "(6:8]:2");
+        tdSql.query('select histogram(col_float, \'linear_bin\', \'{"count": 4, "width":2, "start": 0, "infinity": false}\', 0) from tb;')
+        tdSql.checkRows(4);
+        tdSql.checkData(0, 0, "(0:2]:1");
+        tdSql.checkData(1, 0, "(2:4]:2");
+        tdSql.checkData(2, 0, "(4:6]:2");
+        tdSql.checkData(3, 0, "(6:8]:2");
+
+        tdSql.query('select histogram(col_float, \'linear_bin\', \'{"infinity": false, "width":2, "start": 0, "count": 4}\', 0) from stb;')
+        tdSql.checkRows(4);
+        tdSql.checkData(0, 0, "(0:2]:1");
+        tdSql.checkData(1, 0, "(2:4]:2");
+        tdSql.checkData(2, 0, "(4:6]:2");
+        tdSql.checkData(3, 0, "(6:8]:2");
+        tdSql.query('select histogram(col_float, \'linear_bin\', \'{"infinity": false, "width":2, "start": 0, "count": 4}\', 0) from ctb;')
+        tdSql.checkRows(4);
+        tdSql.checkData(0, 0, "(0:2]:1");
+        tdSql.checkData(1, 0, "(2:4]:2");
+        tdSql.checkData(2, 0, "(4:6]:2");
+        tdSql.checkData(3, 0, "(6:8]:2");
+        tdSql.query('select histogram(col_float, \'linear_bin\', \'{"infinity": false, "width":2, "start": 0, "count": 4}\', 0) from tb;')
+        tdSql.checkRows(4);
+        tdSql.checkData(0, 0, "(0:2]:1");
+        tdSql.checkData(1, 0, "(2:4]:2");
+        tdSql.checkData(2, 0, "(4:6]:2");
+        tdSql.checkData(3, 0, "(6:8]:2");
+
         #ERROR CASE
         tdSql.error('select histogram(col_tinyint, \'linear_bin\', \'{"start": true, "width": 5, "count": 5, "infinity": false}\', 0) from stb;')
         tdSql.error('select histogram(col_tinyint, \'linear_bin\', \'{"start": true, "width": 5, "count": 5, "infinity": false}\', 0) from ctb;')
@@ -1679,6 +1755,64 @@ class TDTestCase:
         tdSql.checkData(3, 0, "(1.25:2.5]:1");
         tdSql.checkData(4, 0, "(-1.79769e+308:1.25]:3");
 
+        #FLOAT
+        tdSql.query('select histogram(col_float, \'log_bin\', \'{"factor":2, "start": 1, "count": 4, "infinity": false}\', 0) from stb;')
+        tdSql.checkRows(4);
+        tdSql.checkData(0, 0, "(1:2]:1");
+        tdSql.checkData(1, 0, "(2:4]:2");
+        tdSql.checkData(2, 0, "(4:8]:4");
+        tdSql.checkData(3, 0, "(8:16]:4");
+        tdSql.query('select histogram(col_float, \'log_bin\', \'{"factor":2, "start": 1, "count": 4, "infinity": false}\', 0) from ctb;')
+        tdSql.checkRows(4);
+        tdSql.checkData(0, 0, "(1:2]:1");
+        tdSql.checkData(1, 0, "(2:4]:2");
+        tdSql.checkData(2, 0, "(4:8]:4");
+        tdSql.checkData(3, 0, "(8:16]:4");
+        tdSql.query('select histogram(col_float, \'log_bin\', \'{"factor":2, "start": 1, "count": 4, "infinity": false}\', 0) from tb;')
+        tdSql.checkRows(4);
+        tdSql.checkData(0, 0, "(1:2]:1");
+        tdSql.checkData(1, 0, "(2:4]:2");
+        tdSql.checkData(2, 0, "(4:8]:4");
+        tdSql.checkData(3, 0, "(8:16]:4");
+
+        tdSql.query('select histogram(col_float, \'log_bin\', \'{"count": 4, "factor":2, "start": 1, "infinity": false}\', 0) from stb;')
+        tdSql.checkRows(4);
+        tdSql.checkData(0, 0, "(1:2]:1");
+        tdSql.checkData(1, 0, "(2:4]:2");
+        tdSql.checkData(2, 0, "(4:8]:4");
+        tdSql.checkData(3, 0, "(8:16]:4");
+        tdSql.query('select histogram(col_float, \'log_bin\', \'{"count": 4, "factor":2, "start": 1, "infinity": false}\', 0) from ctb;')
+        tdSql.checkRows(4);
+        tdSql.checkData(0, 0, "(1:2]:1");
+        tdSql.checkData(1, 0, "(2:4]:2");
+        tdSql.checkData(2, 0, "(4:8]:4");
+        tdSql.checkData(3, 0, "(8:16]:4");
+        tdSql.query('select histogram(col_float, \'log_bin\', \'{"count": 4, "factor":2, "start": 1, "infinity": false}\', 0) from tb;')
+        tdSql.checkRows(4);
+        tdSql.checkData(0, 0, "(1:2]:1");
+        tdSql.checkData(1, 0, "(2:4]:2");
+        tdSql.checkData(2, 0, "(4:8]:4");
+        tdSql.checkData(3, 0, "(8:16]:4");
+
+        tdSql.query('select histogram(col_float, \'log_bin\', \'{"infinity": false, "count": 4, "factor":2, "start": 1}\', 0) from stb;')
+        tdSql.checkRows(4);
+        tdSql.checkData(0, 0, "(1:2]:1");
+        tdSql.checkData(1, 0, "(2:4]:2");
+        tdSql.checkData(2, 0, "(4:8]:4");
+        tdSql.checkData(3, 0, "(8:16]:4");
+        tdSql.query('select histogram(col_float, \'log_bin\', \'{"infinity": false, "count": 4, "factor":2, "start": 1}\', 0) from ctb;')
+        tdSql.checkRows(4);
+        tdSql.checkData(0, 0, "(1:2]:1");
+        tdSql.checkData(1, 0, "(2:4]:2");
+        tdSql.checkData(2, 0, "(4:8]:4");
+        tdSql.checkData(3, 0, "(8:16]:4");
+        tdSql.query('select histogram(col_float, \'log_bin\', \'{"infinity": false, "count": 4, "factor":2, "start": 1}\', 0) from tb;')
+        tdSql.checkRows(4);
+        tdSql.checkData(0, 0, "(1:2]:1");
+        tdSql.checkData(1, 0, "(2:4]:2");
+        tdSql.checkData(2, 0, "(4:8]:4");
+        tdSql.checkData(3, 0, "(8:16]:4");
+
         #ERROR CASE
         tdSql.error('select histogram(col_tinyint, \'log_bin\', \'{"start": true, "factor": 5, "count": 5, "infinity": false}\', 0) from stb;')
         tdSql.error('select histogram(col_tinyint, \'log_bin\', \'{"start": true, "factor": 5, "count": 5, "infinity": false}\', 0) from ctb;')
@@ -1948,6 +2082,7 @@ class TDTestCase:
         tdSql.error('select histogram(col_double, \'log_bin\', \'{"start": -0.5, "factor": 0.5, "count": 2, "infinity": true}\', "abc") from tb;')
         tdSql.error('select histogram(col_double, \'log_bin\', \'{"start": -0.5, "factor": 0.5, "count": 2, "infinity": true}\', abc) from tb;')
 
+        print("============== STEP 4: combinations ================== ")
         ## Combinations ##
         #select distinct func(col_name)
         tdSql.error('select distinct histogram(col_tinyint, "user_input", "[1,3,5,7]", 0) from stb;')
@@ -2396,10 +2531,652 @@ class TDTestCase:
         tdSql.checkData(4, 0, "(9:15]:2");
 
         #select session
-        #select state_window
-        #select interval/sliding/fill
+        tdSql.query('select histogram(col_int, "user_input", "[0,10]", 0) from tb session (col_timestamp, 1w);')
+        tdSql.checkRows(1)
+        tdSql.checkData(0, 1, "(0:10]:10");
 
-        return
+        tdSql.query('select histogram(col_int, "user_input", "[0,10]", 0) from tb session (col_timestamp, 1d);')
+        tdSql.checkRows(1)
+        tdSql.checkData(0, 1, "(0:10]:10");
+
+        tdSql.query('select histogram(col_int, "user_input", "[0,10]", 0) from tb session (col_timestamp, 1h);')
+        tdSql.checkRows(1)
+        tdSql.checkData(0, 1, "(0:10]:10");
+
+        tdSql.query('select histogram(col_int, "user_input", "[0,10]", 0) from tb session (col_timestamp, 1m);')
+        tdSql.checkRows(1)
+        tdSql.checkData(0, 1, "(0:10]:10");
+
+        tdSql.query('select histogram(col_int, "user_input", "[0,10]", 0) from tb session (col_timestamp, 1s);')
+        tdSql.checkRows(16)
+        tdSql.checkData(0,  1, "(0:10]:0");
+        tdSql.checkData(1,  1, "(0:10]:0");
+        tdSql.checkData(2,  1, "(0:10]:1");
+        tdSql.checkData(3,  1, "(0:10]:1");
+        tdSql.checkData(4,  1, "(0:10]:1");
+        tdSql.checkData(5,  1, "(0:10]:1");
+        tdSql.checkData(6,  1, "(0:10]:1");
+        tdSql.checkData(7,  1, "(0:10]:1");
+        tdSql.checkData(8,  1, "(0:10]:1");
+        tdSql.checkData(9, 1,  "(0:10]:1");
+        tdSql.checkData(10, 1,  "(0:10]:1");
+        tdSql.checkData(11, 1,  "(0:10]:1");
+        tdSql.checkData(12, 1,  "(0:10]:0");
+        tdSql.checkData(13, 1,  "(0:10]:0");
+        tdSql.checkData(14, 1,  "(0:10]:0");
+        tdSql.checkData(15, 1,  "(0:10]:0");
+
+        tdSql.query('select histogram(col_int, "user_input", "[0,10]", 0) from tb session (col_timestamp, 1a);')
+        tdSql.checkRows(16)
+        tdSql.checkData(0,  1, "(0:10]:0");
+        tdSql.checkData(1,  1, "(0:10]:0");
+        tdSql.checkData(2,  1, "(0:10]:1");
+        tdSql.checkData(3,  1, "(0:10]:1");
+        tdSql.checkData(4,  1, "(0:10]:1");
+        tdSql.checkData(5,  1, "(0:10]:1");
+        tdSql.checkData(6,  1, "(0:10]:1");
+        tdSql.checkData(7,  1, "(0:10]:1");
+        tdSql.checkData(8,  1, "(0:10]:1");
+        tdSql.checkData(9, 1,  "(0:10]:1");
+        tdSql.checkData(10, 1,  "(0:10]:1");
+        tdSql.checkData(11, 1,  "(0:10]:1");
+        tdSql.checkData(12, 1,  "(0:10]:0");
+        tdSql.checkData(13, 1,  "(0:10]:0");
+        tdSql.checkData(14, 1,  "(0:10]:0");
+        tdSql.checkData(15, 1,  "(0:10]:0");
+
+        #select state_window
+        tdSql.error('select histogram(col_int, "user_input", "[0,10]", 0) from tb state_window(col_timestamp);')
+        tdSql.error('select histogram(col_int, "user_input", "[0,10]", 0) from tb state_window(col_tinyint);')
+        tdSql.error('select histogram(col_int, "user_input", "[0,10]", 0) from tb state_window(col_smallint);')
+        tdSql.error('select histogram(col_int, "user_input", "[0,10]", 0) from tb state_window(col_int);')
+        tdSql.error('select histogram(col_int, "user_input", "[0,10]", 0) from tb state_window(col_bigint);')
+        tdSql.error('select histogram(col_int, "user_input", "[0,10]", 0) from tb state_window(col_bool);')
+        tdSql.error('select histogram(col_int, "user_input", "[0,10]", 0) from tb state_window(col_float);')
+        tdSql.error('select histogram(col_int, "user_input", "[0,10]", 0) from tb state_window(col_double);')
+        tdSql.error('select histogram(col_int, "user_input", "[0,10]", 0) from tb state_window(col_binary);')
+        tdSql.error('select histogram(col_int, "user_input", "[0,10]", 0) from tb state_window(col_nchar);')
+
+        #select interval/sliding/fill
+        tdSql.query('select histogram(col_int, "user_input", "[0,10]", 0) from tb interval(1y);')
+        tdSql.checkRows(1)
+        tdSql.checkData(0, 1, "(0:10]:10");
+
+        tdSql.query('select histogram(col_int, "user_input", "[0,10]", 0) from tb interval(1n);')
+        tdSql.checkRows(1)
+        tdSql.checkData(0, 1, "(0:10]:10");
+
+        tdSql.query('select histogram(col_int, "user_input", "[0,10]", 0) from tb interval(1w);')
+        tdSql.checkRows(1)
+        tdSql.checkData(0, 1, "(0:10]:10");
+
+        tdSql.query('select histogram(col_int, "user_input", "[0,10]", 0) from tb interval(1d);')
+        tdSql.checkRows(1)
+        tdSql.checkData(0, 1, "(0:10]:10");
+
+        tdSql.query('select histogram(col_int, "user_input", "[0,10]", 0) from tb interval(1h);')
+        tdSql.checkRows(1)
+        tdSql.checkData(0, 1, "(0:10]:10");
+
+        tdSql.query('select histogram(col_int, "user_input", "[0,10]", 0) from tb interval(1s);')
+        tdSql.checkRows(16)
+        tdSql.checkData(0,  1, "(0:10]:0");
+        tdSql.checkData(1,  1, "(0:10]:0");
+        tdSql.checkData(2,  1, "(0:10]:1");
+        tdSql.checkData(3,  1, "(0:10]:1");
+        tdSql.checkData(4,  1, "(0:10]:1");
+        tdSql.checkData(5,  1, "(0:10]:1");
+        tdSql.checkData(6,  1, "(0:10]:1");
+        tdSql.checkData(7,  1, "(0:10]:1");
+        tdSql.checkData(8,  1, "(0:10]:1");
+        tdSql.checkData(9, 1,  "(0:10]:1");
+        tdSql.checkData(10, 1,  "(0:10]:1");
+        tdSql.checkData(11, 1,  "(0:10]:1");
+        tdSql.checkData(12, 1,  "(0:10]:0");
+        tdSql.checkData(13, 1,  "(0:10]:0");
+        tdSql.checkData(14, 1,  "(0:10]:0");
+        tdSql.checkData(15, 1,  "(0:10]:0");
+
+        tdSql.query('select histogram(col_int, "user_input", "[0,10]", 0) from tb interval(1a);')
+        tdSql.checkRows(16)
+        tdSql.checkData(0,  1, "(0:10]:0");
+        tdSql.checkData(1,  1, "(0:10]:0");
+        tdSql.checkData(2,  1, "(0:10]:1");
+        tdSql.checkData(3,  1, "(0:10]:1");
+        tdSql.checkData(4,  1, "(0:10]:1");
+        tdSql.checkData(5,  1, "(0:10]:1");
+        tdSql.checkData(6,  1, "(0:10]:1");
+        tdSql.checkData(7,  1, "(0:10]:1");
+        tdSql.checkData(8,  1, "(0:10]:1");
+        tdSql.checkData(9, 1,  "(0:10]:1");
+        tdSql.checkData(10, 1,  "(0:10]:1");
+        tdSql.checkData(11, 1,  "(0:10]:1");
+        tdSql.checkData(12, 1,  "(0:10]:0");
+        tdSql.checkData(13, 1,  "(0:10]:0");
+        tdSql.checkData(14, 1,  "(0:10]:0");
+        tdSql.checkData(15, 1,  "(0:10]:0");
+
+        tdSql.query('select histogram(col_int, "user_input", "[0,10]", 0) from tb interval(1w) sliding(1w);')
+        tdSql.checkRows(1)
+        tdSql.checkData(0, 1, "(0:10]:10");
+
+        tdSql.query('select histogram(col_int, "user_input", "[0,10]", 0) from tb interval(1d) sliding(1d);')
+        tdSql.checkRows(1)
+        tdSql.checkData(0, 1, "(0:10]:10");
+
+        tdSql.query('select histogram(col_int, "user_input", "[0,10]", 0) from tb interval(1h) sliding(1h);')
+        tdSql.checkRows(1)
+        tdSql.checkData(0, 1, "(0:10]:10");
+
+        tdSql.query('select histogram(col_int, "user_input", "[0,10]", 0) from tb interval(1s) sliding(1s);')
+        tdSql.checkRows(16)
+        tdSql.checkData(0,  1, "(0:10]:0");
+        tdSql.checkData(1,  1, "(0:10]:0");
+        tdSql.checkData(2,  1, "(0:10]:1");
+        tdSql.checkData(3,  1, "(0:10]:1");
+        tdSql.checkData(4,  1, "(0:10]:1");
+        tdSql.checkData(5,  1, "(0:10]:1");
+        tdSql.checkData(6,  1, "(0:10]:1");
+        tdSql.checkData(7,  1, "(0:10]:1");
+        tdSql.checkData(8,  1, "(0:10]:1");
+        tdSql.checkData(9, 1,  "(0:10]:1");
+        tdSql.checkData(10, 1,  "(0:10]:1");
+        tdSql.checkData(11, 1,  "(0:10]:1");
+        tdSql.checkData(12, 1,  "(0:10]:0");
+        tdSql.checkData(13, 1,  "(0:10]:0");
+        tdSql.checkData(14, 1,  "(0:10]:0");
+        tdSql.checkData(15, 1,  "(0:10]:0");
+
+        tdSql.error('select histogram(col_int, "user_input", "[0,10]", 0) from tb where col_timestamp > now - 1w and col_timestamp < now + 1w interval(1w) fill(NULL);')
+        tdSql.error('select histogram(col_int, "user_input", "[0,10]", 0) from tb where col_timestamp > now - 1d and col_timestamp < now + 1d interval(1d) fill(None);')
+        tdSql.error('select histogram(col_int, "user_input", "[0,10]", 0) from tb where col_timestamp > now - 1h and col_timestamp < now + 1h interval(1h) fill(Prev);')
+        tdSql.error('select histogram(col_int, "user_input", "[0,10]", 0) from tb where col_timestamp > now - 1m and col_timestamp < now + 1m interval(1m) fill(Next);')
+        tdSql.error('select histogram(col_int, "user_input", "[0,10]", 0) from tb where col_timestamp > now - 1s and col_timestamp < now + 1s interval(1s) fill(Linear);')
+        tdSql.error('select histogram(col_int, "user_input", "[0,10]", 0) from tb where col_timestamp > now - 1a and col_timestamp < now + 1a interval(1a) fill(Value, 1);')
+
+        #select group by
+        tdSql.error('select histogram(col_int, "user_input", "[0,10]", 0) from stb group by col_tinyint;')
+        tdSql.error('select histogram(col_int, "user_input", "[0,10]", 0) from stb group by col_smallint;')
+        tdSql.error('select histogram(col_int, "user_input", "[0,10]", 0) from stb group by col_int;')
+        tdSql.error('select histogram(col_int, "user_input", "[0,10]", 0) from stb group by col_bigint;')
+        tdSql.error('select histogram(col_int, "user_input", "[0,10]", 0) from stb group by col_bool;')
+        tdSql.error('select histogram(col_int, "user_input", "[0,10]", 0) from stb group by col_float;')
+        tdSql.error('select histogram(col_int, "user_input", "[0,10]", 0) from stb group by col_double;')
+        tdSql.error('select histogram(col_int, "user_input", "[0,10]", 0) from stb group by col_binary;')
+        tdSql.error('select histogram(col_int, "user_input", "[0,10]", 0) from stb group by col_nchar;')
+
+        tdSql.error('select histogram(col_int, "user_input", "[0,10]", 0) from stb group by tag_tinyint;')
+        tdSql.error('select histogram(col_int, "user_input", "[0,10]", 0) from stb group by tag_smallint;')
+        tdSql.error('select histogram(col_int, "user_input", "[0,10]", 0) from stb group by tag_int;')
+        tdSql.error('select histogram(col_int, "user_input", "[0,10]", 0) from stb group by tag_bigint;')
+        tdSql.error('select histogram(col_int, "user_input", "[0,10]", 0) from stb group by tag_bool;')
+        tdSql.error('select histogram(col_int, "user_input", "[0,10]", 0) from stb group by tag_float;')
+        tdSql.error('select histogram(col_int, "user_input", "[0,10]", 0) from stb group by tag_double;')
+        tdSql.error('select histogram(col_int, "user_input", "[0,10]", 0) from stb group by tag_binary;')
+        tdSql.error('select histogram(col_int, "user_input", "[0,10]", 0) from stb group by tag_nchar;')
+
+        tdSql.error('select histogram(col_int, "user_input", "[0,10]", 0) from stb group by tbname;')
+
+        tdSql.error('select histogram(col_int, "user_input", "[0,10]", 0) from stb group by tag_tinyint,col_tinyint;')
+        tdSql.error('select histogram(col_int, "user_input", "[0,10]", 0) from stb group by tag_smallint,col_smallint;')
+        tdSql.error('select histogram(col_int, "user_input", "[0,10]", 0) from stb group by tag_int,col_int;')
+        tdSql.error('select histogram(col_int, "user_input", "[0,10]", 0) from stb group by tag_bigint,col_bigint;')
+        tdSql.error('select histogram(col_int, "user_input", "[0,10]", 0) from stb group by tag_bool,col_bool;')
+        tdSql.error('select histogram(col_int, "user_input", "[0,10]", 0) from stb group by tag_float,col_float;')
+        tdSql.error('select histogram(col_int, "user_input", "[0,10]", 0) from stb group by tag_double,col_double;')
+        tdSql.error('select histogram(col_int, "user_input", "[0,10]", 0) from stb group by tag_binary,col_binary;')
+        tdSql.error('select histogram(col_int, "user_input", "[0,10]", 0) from stb group by tag_nchar,col_nchar;')
+
+        #select order by
+        tdSql.query('select histogram(col_int, "user_input", "[0,3,5,7,9,15]", 0) from stb order by col_timestamp;')
+        tdSql.checkRows(5)
+        tdSql.checkData(0,  0, "(0:3]:3");
+        tdSql.checkData(1,  0, "(3:5]:2");
+        tdSql.checkData(2,  0, "(5:7]:2");
+        tdSql.checkData(3,  0, "(7:9]:2");
+        tdSql.checkData(4,  0, "(9:15]:2");
+
+        tdSql.query('select histogram(col_int, "user_input", "[0,3,5,7,9,15]", 0) from stb order by col_timestamp desc;')
+        tdSql.checkRows(5)
+        tdSql.checkData(0,  0, "(0:3]:3");
+        tdSql.checkData(1,  0, "(3:5]:2");
+        tdSql.checkData(2,  0, "(5:7]:2");
+        tdSql.checkData(3,  0, "(7:9]:2");
+        tdSql.checkData(4,  0, "(9:15]:2");
+
+        tdSql.error('select histogram(col_int, "user_input", "[0,3,5,7,9,15]", 0) from stb order by col_tinyint;')
+        tdSql.error('select histogram(col_int, "user_input", "[0,3,5,7,9,15]", 0) from stb order by col_tinyint desc;')
+        tdSql.error('select histogram(col_int, "user_input", "[0,3,5,7,9,15]", 0) from stb order by col_smallint;')
+        tdSql.error('select histogram(col_int, "user_input", "[0,3,5,7,9,15]", 0) from stb order by col_smallint desc;')
+        tdSql.error('select histogram(col_int, "user_input", "[0,3,5,7,9,15]", 0) from stb order by col_int;')
+        tdSql.error('select histogram(col_int, "user_input", "[0,3,5,7,9,15]", 0) from stb order by col_int desc;')
+        tdSql.error('select histogram(col_int, "user_input", "[0,3,5,7,9,15]", 0) from stb order by col_bigint;')
+        tdSql.error('select histogram(col_int, "user_input", "[0,3,5,7,9,15]", 0) from stb order by col_bigint desc;')
+        tdSql.error('select histogram(col_int, "user_input", "[0,3,5,7,9,15]", 0) from stb order by col_bool;')
+        tdSql.error('select histogram(col_int, "user_input", "[0,3,5,7,9,15]", 0) from stb order by col_bool desc;')
+        tdSql.error('select histogram(col_int, "user_input", "[0,3,5,7,9,15]", 0) from stb order by col_float;')
+        tdSql.error('select histogram(col_int, "user_input", "[0,3,5,7,9,15]", 0) from stb order by col_float desc;')
+        tdSql.error('select histogram(col_int, "user_input", "[0,3,5,7,9,15]", 0) from stb order by col_double;')
+        tdSql.error('select histogram(col_int, "user_input", "[0,3,5,7,9,15]", 0) from stb order by col_double desc;')
+        tdSql.error('select histogram(col_int, "user_input", "[0,3,5,7,9,15]", 0) from stb order by col_double;')
+        tdSql.error('select histogram(col_int, "user_input", "[0,3,5,7,9,15]", 0) from stb order by col_double desc;')
+
+        tdSql.error('select histogram(col_int, "user_input", "[0,3,5,7,9,15]", 0) from stb order by tag_timestamp;')
+        tdSql.error('select histogram(col_int, "user_input", "[0,3,5,7,9,15]", 0) from stb order by tag_timestamp desc;')
+        tdSql.error('select histogram(col_int, "user_input", "[0,3,5,7,9,15]", 0) from stb order by tag_tinyint;')
+        tdSql.error('select histogram(col_int, "user_input", "[0,3,5,7,9,15]", 0) from stb order by tag_tinyint desc;')
+        tdSql.error('select histogram(col_int, "user_input", "[0,3,5,7,9,15]", 0) from stb order by tag_smallint;')
+        tdSql.error('select histogram(col_int, "user_input", "[0,3,5,7,9,15]", 0) from stb order by tag_smallint desc;')
+        tdSql.error('select histogram(col_int, "user_input", "[0,3,5,7,9,15]", 0) from stb order by tag_int;')
+        tdSql.error('select histogram(col_int, "user_input", "[0,3,5,7,9,15]", 0) from stb order by tag_int desc;')
+        tdSql.error('select histogram(col_int, "user_input", "[0,3,5,7,9,15]", 0) from stb order by tag_bigint;')
+        tdSql.error('select histogram(col_int, "user_input", "[0,3,5,7,9,15]", 0) from stb order by tag_bigint desc;')
+        tdSql.error('select histogram(col_int, "user_input", "[0,3,5,7,9,15]", 0) from stb order by tag_bool;')
+        tdSql.error('select histogram(col_int, "user_input", "[0,3,5,7,9,15]", 0) from stb order by tag_bool desc;')
+        tdSql.error('select histogram(col_int, "user_input", "[0,3,5,7,9,15]", 0) from stb order by tag_float;')
+        tdSql.error('select histogram(col_int, "user_input", "[0,3,5,7,9,15]", 0) from stb order by tag_float desc;')
+        tdSql.error('select histogram(col_int, "user_input", "[0,3,5,7,9,15]", 0) from stb order by tag_double;')
+        tdSql.error('select histogram(col_int, "user_input", "[0,3,5,7,9,15]", 0) from stb order by tag_double desc;')
+        tdSql.error('select histogram(col_int, "user_input", "[0,3,5,7,9,15]", 0) from stb order by tag_double;')
+        tdSql.error('select histogram(col_int, "user_input", "[0,3,5,7,9,15]", 0) from stb order by tag_double desc;')
+
+        tdSql.error('select histogram(col_int, "user_input", "[0,3,5,7,9,15]", 0) from stb order by tbname;')
+        tdSql.error('select histogram(col_int, "user_input", "[0,3,5,7,9,15]", 0) from stb order by tbname desc;')
+
+        tdSql.error('select histogram(col_int, "user_input", "[0,3,5,7,9,15]", 0) from stb order by tag_timestamp,col_timestamp;')
+        tdSql.error('select histogram(col_int, "user_input", "[0,3,5,7,9,15]", 0) from stb order by tag_timestamp,col_timestamp desc;')
+        tdSql.error('select histogram(col_int, "user_input", "[0,3,5,7,9,15]", 0) from stb order by tag_tinyint,col_timestamp;')
+        tdSql.error('select histogram(col_int, "user_input", "[0,3,5,7,9,15]", 0) from stb order by tag_tinyint,col_timestamp desc;')
+        tdSql.error('select histogram(col_int, "user_input", "[0,3,5,7,9,15]", 0) from stb order by tag_smallint,col_timestamp;')
+        tdSql.error('select histogram(col_int, "user_input", "[0,3,5,7,9,15]", 0) from stb order by tag_smallint,col_timestamp desc;')
+        tdSql.error('select histogram(col_int, "user_input", "[0,3,5,7,9,15]", 0) from stb order by tag_int,col_timestamp;')
+        tdSql.error('select histogram(col_int, "user_input", "[0,3,5,7,9,15]", 0) from stb order by tag_int,col_timestamp desc;')
+        tdSql.error('select histogram(col_int, "user_input", "[0,3,5,7,9,15]", 0) from stb order by tag_bigint,col_timestamp;')
+        tdSql.error('select histogram(col_int, "user_input", "[0,3,5,7,9,15]", 0) from stb order by tag_bigint,col_timestamp desc;')
+        tdSql.error('select histogram(col_int, "user_input", "[0,3,5,7,9,15]", 0) from stb order by tag_bool,col_timestamp;')
+        tdSql.error('select histogram(col_int, "user_input", "[0,3,5,7,9,15]", 0) from stb order by tag_bool,col_timestamp desc;')
+        tdSql.error('select histogram(col_int, "user_input", "[0,3,5,7,9,15]", 0) from stb order by tag_float,col_timestamp;')
+        tdSql.error('select histogram(col_int, "user_input", "[0,3,5,7,9,15]", 0) from stb order by tag_float,col_timestamp desc;')
+        tdSql.error('select histogram(col_int, "user_input", "[0,3,5,7,9,15]", 0) from stb order by tag_double,col_timestamp;')
+        tdSql.error('select histogram(col_int, "user_input", "[0,3,5,7,9,15]", 0) from stb order by tag_double,col_timestamp desc;')
+        tdSql.error('select histogram(col_int, "user_input", "[0,3,5,7,9,15]", 0) from stb order by tag_double,col_timestamp;')
+        tdSql.error('select histogram(col_int, "user_input", "[0,3,5,7,9,15]", 0) from stb order by tag_double,col_timestamp desc;')
+
+        #select limit/offset
+        tdSql.query('select histogram(col_int, "user_input", "[0,3,5,7,9,15]", 0) from stb limit 3;')
+        tdSql.checkRows(3)
+        tdSql.checkData(0,  0, "(0:3]:3");
+        tdSql.checkData(1,  0, "(3:5]:2");
+        tdSql.checkData(2,  0, "(5:7]:2");
+        tdSql.query('select histogram(col_int, "user_input", "[0,3,5,7,9,15]", 0) from ctb limit 3;')
+        tdSql.checkRows(3)
+        tdSql.checkData(0,  0, "(0:3]:3");
+        tdSql.checkData(1,  0, "(3:5]:2");
+        tdSql.checkData(2,  0, "(5:7]:2");
+        tdSql.query('select histogram(col_int, "user_input", "[0,3,5,7,9,15]", 0) from tb limit 3;')
+        tdSql.checkRows(3)
+        tdSql.checkData(0,  0, "(0:3]:3");
+        tdSql.checkData(1,  0, "(3:5]:2");
+        tdSql.checkData(2,  0, "(5:7]:2");
+
+        tdSql.query('select histogram(col_int, "user_input", "[0,3,5,7,9,15]", 0) from stb limit 3 offset 2;')
+        tdSql.checkRows(3)
+        tdSql.checkData(0,  0, "(5:7]:2");
+        tdSql.checkData(1,  0, "(7:9]:2");
+        tdSql.checkData(2,  0, "(9:15]:2");
+        tdSql.query('select histogram(col_int, "user_input", "[0,3,5,7,9,15]", 0) from ctb limit 3 offset 2;')
+        tdSql.checkRows(3)
+        tdSql.checkData(0,  0, "(5:7]:2");
+        tdSql.checkData(1,  0, "(7:9]:2");
+        tdSql.checkData(2,  0, "(9:15]:2");
+        tdSql.query('select histogram(col_int, "user_input", "[0,3,5,7,9,15]", 0) from tb limit 3 offset 2;')
+        tdSql.checkRows(3)
+        tdSql.checkData(0,  0, "(5:7]:2");
+        tdSql.checkData(1,  0, "(7:9]:2");
+        tdSql.checkData(2,  0, "(9:15]:2");
+
+        tdSql.query('select histogram(col_int, "user_input", "[0,3,5,7,9,15]", 0) from stb limit 2,3;')
+        tdSql.checkRows(3)
+        tdSql.checkData(0,  0, "(5:7]:2");
+        tdSql.checkData(1,  0, "(7:9]:2");
+        tdSql.checkData(2,  0, "(9:15]:2");
+        tdSql.query('select histogram(col_int, "user_input", "[0,3,5,7,9,15]", 0) from ctb limit 2,3;')
+        tdSql.checkRows(3)
+        tdSql.checkData(0,  0, "(5:7]:2");
+        tdSql.checkData(1,  0, "(7:9]:2");
+        tdSql.checkData(2,  0, "(9:15]:2");
+        tdSql.query('select histogram(col_int, "user_input", "[0,3,5,7,9,15]", 0) from tb limit 2,3;')
+        tdSql.checkRows(3)
+        tdSql.checkData(0,  0, "(5:7]:2");
+        tdSql.checkData(1,  0, "(7:9]:2");
+        tdSql.checkData(2,  0, "(9:15]:2");
+
+        #nested query
+        tdSql.query('select histogram(col_int, "user_input", "[0,3,5,7,9,15]", 0) from (select * from stb);')
+        tdSql.checkRows(5)
+        tdSql.checkData(0,  0, "(0:3]:3");
+        tdSql.checkData(1,  0, "(3:5]:2");
+        tdSql.checkData(2,  0, "(5:7]:2");
+        tdSql.checkData(3,  0, "(7:9]:2");
+        tdSql.checkData(4,  0, "(9:15]:2");
+        tdSql.query('select histogram(col_int, "user_input", "[0,3,5,7,9,15]", 0) from (select * from ctb);')
+        tdSql.checkRows(5)
+        tdSql.checkData(0,  0, "(0:3]:3");
+        tdSql.checkData(1,  0, "(3:5]:2");
+        tdSql.checkData(2,  0, "(5:7]:2");
+        tdSql.checkData(3,  0, "(7:9]:2");
+        tdSql.checkData(4,  0, "(9:15]:2");
+        tdSql.query('select histogram(col_int, "user_input", "[0,3,5,7,9,15]", 0) from (select * from tb);')
+        tdSql.checkRows(5)
+        tdSql.checkData(0,  0, "(0:3]:3");
+        tdSql.checkData(1,  0, "(3:5]:2");
+        tdSql.checkData(2,  0, "(5:7]:2");
+        tdSql.checkData(3,  0, "(7:9]:2");
+        tdSql.checkData(4,  0, "(9:15]:2");
+
+        tdSql.query('select histogram(val, "user_input", "[0,3,5,7,9,15]", 0) from (select col_int as val from stb);')
+        tdSql.checkRows(5)
+        tdSql.checkData(0,  0, "(0:3]:3");
+        tdSql.checkData(1,  0, "(3:5]:2");
+        tdSql.checkData(2,  0, "(5:7]:2");
+        tdSql.checkData(3,  0, "(7:9]:2");
+        tdSql.checkData(4,  0, "(9:15]:2");
+        tdSql.query('select histogram(val, "user_input", "[0,3,5,7,9,15]", 0) from (select col_int as val from ctb);')
+        tdSql.checkRows(5)
+        tdSql.checkData(0,  0, "(0:3]:3");
+        tdSql.checkData(1,  0, "(3:5]:2");
+        tdSql.checkData(2,  0, "(5:7]:2");
+        tdSql.checkData(3,  0, "(7:9]:2");
+        tdSql.checkData(4,  0, "(9:15]:2");
+        tdSql.query('select histogram(val, "user_input", "[0,3,5,7,9,15]", 0) from (select col_int as val from tb);')
+        tdSql.checkRows(5)
+        tdSql.checkData(0,  0, "(0:3]:3");
+        tdSql.checkData(1,  0, "(3:5]:2");
+        tdSql.checkData(2,  0, "(5:7]:2");
+        tdSql.checkData(3,  0, "(7:9]:2");
+        tdSql.checkData(4,  0, "(9:15]:2");
+
+        tdSql.query('select * from (select histogram(col_int, "user_input", "[0,3,5,7,9,15]", 0) from stb);')
+        tdSql.checkRows(5)
+        tdSql.checkData(0,  0, "(0:3]:3");
+        tdSql.checkData(1,  0, "(3:5]:2");
+        tdSql.checkData(2,  0, "(5:7]:2");
+        tdSql.checkData(3,  0, "(7:9]:2");
+        tdSql.checkData(4,  0, "(9:15]:2");
+        tdSql.query('select * from (select histogram(col_int, "user_input", "[0,3,5,7,9,15]", 0) from ctb)')
+        tdSql.checkRows(5)
+        tdSql.checkData(0,  0, "(0:3]:3");
+        tdSql.checkData(1,  0, "(3:5]:2");
+        tdSql.checkData(2,  0, "(5:7]:2");
+        tdSql.checkData(3,  0, "(7:9]:2");
+        tdSql.checkData(4,  0, "(9:15]:2");
+        tdSql.query('select * from (select histogram(col_int, "user_input", "[0,3,5,7,9,15]", 0) from tb)')
+        tdSql.checkRows(5)
+        tdSql.checkData(0,  0, "(0:3]:3");
+        tdSql.checkData(1,  0, "(3:5]:2");
+        tdSql.checkData(2,  0, "(5:7]:2");
+        tdSql.checkData(3,  0, "(7:9]:2");
+        tdSql.checkData(4,  0, "(9:15]:2");
+
+        tdSql.query('select _c0 from (select histogram(col_int, "user_input", "[0,3,5,7,9,15]", 0) from stb);')
+        tdSql.checkRows(5)
+        tdSql.checkData(0,  0, "(0:3]:3");
+        tdSql.checkData(1,  0, "(3:5]:2");
+        tdSql.checkData(2,  0, "(5:7]:2");
+        tdSql.checkData(3,  0, "(7:9]:2");
+        tdSql.checkData(4,  0, "(9:15]:2");
+        tdSql.query('select _c0 from (select histogram(col_int, "user_input", "[0,3,5,7,9,15]", 0) from ctb)')
+        tdSql.checkRows(5)
+        tdSql.checkData(0,  0, "(0:3]:3");
+        tdSql.checkData(1,  0, "(3:5]:2");
+        tdSql.checkData(2,  0, "(5:7]:2");
+        tdSql.checkData(3,  0, "(7:9]:2");
+        tdSql.checkData(4,  0, "(9:15]:2");
+        tdSql.query('select _c0 from (select histogram(col_int, "user_input", "[0,3,5,7,9,15]", 0) from tb)')
+        tdSql.checkRows(5)
+        tdSql.checkData(0,  0, "(0:3]:3");
+        tdSql.checkData(1,  0, "(3:5]:2");
+        tdSql.checkData(2,  0, "(5:7]:2");
+        tdSql.checkData(3,  0, "(7:9]:2");
+        tdSql.checkData(4,  0, "(9:15]:2");
+
+        tdSql.query('select first(_c0) from (select histogram(col_int, "user_input", "[0,3,5,7,9,15]", 0) from stb);')
+        tdSql.checkRows(1)
+        tdSql.checkData(0,  0, "(0:3]:3");
+        tdSql.query('select first(_c0) from (select histogram(col_int, "user_input", "[0,3,5,7,9,15]", 0) from ctb)')
+        tdSql.checkRows(1)
+        tdSql.checkData(0,  0, "(0:3]:3");
+        tdSql.query('select first(_c0) from (select histogram(col_int, "user_input", "[0,3,5,7,9,15]", 0) from tb)')
+        tdSql.checkRows(1)
+        tdSql.checkData(0,  0, "(0:3]:3");
+
+        tdSql.query('select last(_c0) from (select histogram(col_int, "user_input", "[0,3,5,7,9,15]", 0) from stb);')
+        tdSql.checkRows(1)
+        tdSql.checkData(0,  0, "(9:15]:2");
+        tdSql.query('select last(_c0) from (select histogram(col_int, "user_input", "[0,3,5,7,9,15]", 0) from ctb)')
+        tdSql.checkRows(1)
+        tdSql.checkData(0,  0, "(9:15]:2");
+        tdSql.query('select last(_c0) from (select histogram(col_int, "user_input", "[0,3,5,7,9,15]", 0) from tb)')
+        tdSql.checkRows(1)
+        tdSql.checkData(0,  0, "(9:15]:2");
+
+
+        tdSql.query('select _c0 from (select histogram(col_int, "user_input", "[0,3,5,7,9,15]", 0) from stb limit 3);')
+        tdSql.checkRows(3)
+        tdSql.checkData(0,  0, "(0:3]:3");
+        tdSql.checkData(1,  0, "(3:5]:2");
+        tdSql.checkData(2,  0, "(5:7]:2");
+        tdSql.query('select _c0 from (select histogram(col_int, "user_input", "[0,3,5,7,9,15]", 0) from ctb limit 3)')
+        tdSql.checkRows(3)
+        tdSql.checkData(0,  0, "(0:3]:3");
+        tdSql.checkData(1,  0, "(3:5]:2");
+        tdSql.checkData(2,  0, "(5:7]:2");
+        tdSql.query('select _c0 from (select histogram(col_int, "user_input", "[0,3,5,7,9,15]", 0) from tb limit 3)')
+        tdSql.checkRows(3)
+        tdSql.checkData(0,  0, "(0:3]:3");
+        tdSql.checkData(1,  0, "(3:5]:2");
+        tdSql.checkData(2,  0, "(5:7]:2");
+
+        tdSql.query('select _c0 from (select histogram(col_int, "user_input", "[0,3,5,7,9,15]", 0) from stb) limit 3;')
+        tdSql.checkRows(3)
+        tdSql.checkData(0,  0, "(0:3]:3");
+        tdSql.checkData(1,  0, "(3:5]:2");
+        tdSql.checkData(2,  0, "(5:7]:2");
+        tdSql.query('select _c0 from (select histogram(col_int, "user_input", "[0,3,5,7,9,15]", 0) from ctb) limit 3')
+        tdSql.checkRows(3)
+        tdSql.checkData(0,  0, "(0:3]:3");
+        tdSql.checkData(1,  0, "(3:5]:2");
+        tdSql.checkData(2,  0, "(5:7]:2");
+        tdSql.query('select _c0 from (select histogram(col_int, "user_input", "[0,3,5,7,9,15]", 0) from tb) limit 3')
+        tdSql.checkRows(3)
+        tdSql.checkData(0,  0, "(0:3]:3");
+        tdSql.checkData(1,  0, "(3:5]:2");
+        tdSql.checkData(2,  0, "(5:7]:2");
+
+        tdSql.query('select _c0 from (select histogram(col_int, "user_input", "[0,3,5,7,9,15]", 0) from stb order by col_timestamp);')
+        tdSql.checkRows(5)
+        tdSql.checkData(0,  0, "(0:3]:3");
+        tdSql.checkData(1,  0, "(3:5]:2");
+        tdSql.checkData(2,  0, "(5:7]:2");
+        tdSql.checkData(3,  0, "(7:9]:2");
+        tdSql.checkData(4,  0, "(9:15]:2");
+        tdSql.query('select _c0 from (select histogram(col_int, "user_input", "[0,3,5,7,9,15]", 0) from ctb order by col_timestamp)')
+        tdSql.checkRows(5)
+        tdSql.checkData(0,  0, "(0:3]:3");
+        tdSql.checkData(1,  0, "(3:5]:2");
+        tdSql.checkData(2,  0, "(5:7]:2");
+        tdSql.checkData(3,  0, "(7:9]:2");
+        tdSql.checkData(4,  0, "(9:15]:2");
+        tdSql.query('select _c0 from (select histogram(col_int, "user_input", "[0,3,5,7,9,15]", 0) from tb order by col_timestamp)')
+        tdSql.checkRows(5)
+        tdSql.checkData(0,  0, "(0:3]:3");
+        tdSql.checkData(1,  0, "(3:5]:2");
+        tdSql.checkData(2,  0, "(5:7]:2");
+        tdSql.checkData(3,  0, "(7:9]:2");
+        tdSql.checkData(4,  0, "(9:15]:2");
+
+        #join
+        tdSql.execute("create stable stb1 (col_timestamp timestamp, col_tinyint tinyint, col_smallint smallint, col_int int, col_bigint bigint, col_float float, col_double double, col_bool bool, col_binary binary(10), col_nchar nchar(10)) \
+                       tags(tag_timestamp timestamp, tag_tinyint tinyint, tag_smallint smallint, tag_int int, tag_bigint bigint, tag_float float, tag_double double, tag_bool bool, tag_binary binary(10), tag_nchar nchar(10));")
+        tdSql.execute("create table ctb1 using stb1 tags (now, 1, 1, 1, 1, 1.0, 1.0, true, 'abc', 'abc');")
+        tdSql.execute("create table tb1 (col_timestamp timestamp, col_tinyint tinyint, col_smallint smallint, col_int int, col_bigint bigint, col_float float, col_double double, col_bool bool, col_binary binary(10), col_nchar nchar(10));")
+
+        tdSql.execute("insert into ctb1 values ('2022-01-01 00:00:00', -9, -9, -9, -9, -9.5, -9.5, true, 'abc', 'abc');")
+        tdSql.execute("insert into ctb1 values ('2022-01-01 00:00:01', -1, -1, -1, -1, -1.5, -1.5, true, 'abc', 'abc');")
+        tdSql.execute("insert into ctb1 values ('2022-01-01 00:00:02', 1, 1, 1, 1, 1.5, 1.5, true, 'abc', 'abc');")
+        tdSql.execute("insert into ctb1 values ('2022-01-01 00:00:03', 2, 2, 2, 2, 2.5, 2.5, true, 'abc', 'abc');")
+        tdSql.execute("insert into ctb1 values ('2022-01-01 00:00:04', 3, 3, 3, 3, 3.5, 3.5, true, 'abc', 'abc');")
+        tdSql.execute("insert into ctb1 values ('2022-01-01 00:00:05', 4, 4, 4, 4, 4.5, 4.5, true, 'abc', 'abc');")
+        tdSql.execute("insert into ctb1 values ('2022-01-01 00:00:06', 5, 5, 5, 5, 5.5, 5.5, true, 'abc', 'abc');")
+        tdSql.execute("insert into ctb1 values ('2022-01-01 00:00:07', 6, 6, 6, 6, 6.5, 6.5, true, 'abc', 'abc');")
+        tdSql.execute("insert into ctb1 values ('2022-01-01 00:00:08', 7, 7, 7, 7, 7.5, 7.5, false, 'abc', 'abc');")
+        tdSql.execute("insert into ctb1 values ('2022-01-01 00:00:09', 8, 8, 8, 8, 8.5, 8.5, false, 'abc', 'abc');")
+        tdSql.execute("insert into ctb1 values ('2022-01-01 00:00:10', 9, 9, 9, 9, 9.5, 9.5, false, 'abc', 'abc');")
+        tdSql.execute("insert into ctb1 values ('2022-01-01 00:00:11', 10, 10, 10, 10, 10.5, 10.5, false, 'abc', 'abc');")
+        tdSql.execute("insert into ctb1 values ('2022-01-01 00:00:12', 15, 15, 15, 15, 15.5, 15.5, false, 'abc', 'abc');")
+        tdSql.execute("insert into ctb1 values ('2022-01-01 00:00:13', 20, 20, 20, 20, 20.5, 20.5, false, 'abc', 'abc');")
+        tdSql.execute("insert into ctb1 values ('2022-01-01 00:00:14', 99, 99, 99, 99, 99.5, 99.5, false, 'abc', 'abc');")
+        tdSql.execute("insert into ctb1 values ('2022-01-01 00:00:15', NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL);")
+
+        tdSql.execute("insert into tb1 values ('2022-01-01 00:00:00', -9, -9, -9, -9, -9.5, -9.5, true, 'abc', 'abc');")
+        tdSql.execute("insert into tb1 values ('2022-01-01 00:00:01', -1, -1, -1, -1, -1.5, -1.5, true, 'abc', 'abc');")
+        tdSql.execute("insert into tb1 values ('2022-01-01 00:00:02', 1, 1, 1, 1, 1.5, 1.5, true, 'abc', 'abc');")
+        tdSql.execute("insert into tb1 values ('2022-01-01 00:00:03', 2, 2, 2, 2, 2.5, 2.5, true, 'abc', 'abc');")
+        tdSql.execute("insert into tb1 values ('2022-01-01 00:00:04', 3, 3, 3, 3, 3.5, 3.5, true, 'abc', 'abc');")
+        tdSql.execute("insert into tb1 values ('2022-01-01 00:00:05', 4, 4, 4, 4, 4.5, 4.5, true, 'abc', 'abc');")
+        tdSql.execute("insert into tb1 values ('2022-01-01 00:00:06', 5, 5, 5, 5, 5.5, 5.5, true, 'abc', 'abc');")
+        tdSql.execute("insert into tb1 values ('2022-01-01 00:00:07', 6, 6, 6, 6, 6.5, 6.5, true, 'abc', 'abc');")
+        tdSql.execute("insert into tb1 values ('2022-01-01 00:00:08', 7, 7, 7, 7, 7.5, 7.5, false, 'abc', 'abc');")
+        tdSql.execute("insert into tb1 values ('2022-01-01 00:00:09', 8, 8, 8, 8, 8.5, 8.5, false, 'abc', 'abc');")
+        tdSql.execute("insert into tb1 values ('2022-01-01 00:00:10', 9, 9, 9, 9, 9.5, 9.5, false, 'abc', 'abc');")
+        tdSql.execute("insert into tb1 values ('2022-01-01 00:00:11', 10, 10, 10, 10, 10.5, 10.5, false, 'abc', 'abc');")
+        tdSql.execute("insert into tb1 values ('2022-01-01 00:00:12', 15, 15, 15, 15, 15.5, 15.5, false, 'abc', 'abc');")
+        tdSql.execute("insert into tb1 values ('2022-01-01 00:00:13', 20, 20, 20, 20, 20.5, 20.5, false, 'abc', 'abc');")
+        tdSql.execute("insert into tb1 values ('2022-01-01 00:00:14', 99, 99, 99, 99, 99.5, 99.5, false, 'abc', 'abc');")
+        tdSql.execute("insert into tb1 values ('2022-01-01 00:00:15', NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL);")
+
+        tdSql.execute("create stable stb2 (col_timestamp timestamp, col_tinyint tinyint, col_smallint smallint, col_int int, col_bigint bigint, col_float float, col_double double, col_bool bool, col_binary binary(10), col_nchar nchar(10)) \
+                       tags(tag_timestamp timestamp, tag_tinyint tinyint, tag_smallint smallint, tag_int int, tag_bigint bigint, tag_float float, tag_double double, tag_bool bool, tag_binary binary(10), tag_nchar nchar(10));")
+        tdSql.execute("create table ctb2 using stb2 tags (now, 1, 1, 1, 1, 1.0, 1.0, true, 'abc', 'abc');")
+        tdSql.execute("create table tb2 (col_timestamp timestamp, col_tinyint tinyint, col_smallint smallint, col_int int, col_bigint bigint, col_float float, col_double double, col_bool bool, col_binary binary(10), col_nchar nchar(10));")
+
+        tdSql.execute("insert into ctb2 values ('2022-01-01 00:00:00', -9, -9, -9, -9, -9.5, -9.5, true, 'abc', 'abc');")
+        tdSql.execute("insert into ctb2 values ('2022-01-01 00:00:01', -1, -1, -1, -1, -1.5, -1.5, true, 'abc', 'abc');")
+        tdSql.execute("insert into ctb2 values ('2022-01-01 00:00:02', 1, 1, 1, 1, 1.5, 1.5, true, 'abc', 'abc');")
+        tdSql.execute("insert into ctb2 values ('2022-01-01 00:00:03', 2, 2, 2, 2, 2.5, 2.5, true, 'abc', 'abc');")
+        tdSql.execute("insert into ctb2 values ('2022-01-01 00:00:04', 3, 3, 3, 3, 3.5, 3.5, true, 'abc', 'abc');")
+        tdSql.execute("insert into ctb2 values ('2022-01-01 00:00:05', 4, 4, 4, 4, 4.5, 4.5, true, 'abc', 'abc');")
+        tdSql.execute("insert into ctb2 values ('2022-01-01 00:00:06', 5, 5, 5, 5, 5.5, 5.5, true, 'abc', 'abc');")
+        tdSql.execute("insert into ctb2 values ('2022-01-01 00:00:07', 6, 6, 6, 6, 6.5, 6.5, true, 'abc', 'abc');")
+        tdSql.execute("insert into ctb2 values ('2022-01-01 00:00:08', 7, 7, 7, 7, 7.5, 7.5, false, 'abc', 'abc');")
+        tdSql.execute("insert into ctb2 values ('2022-01-01 00:00:09', 8, 8, 8, 8, 8.5, 8.5, false, 'abc', 'abc');")
+        tdSql.execute("insert into ctb2 values ('2022-01-01 00:00:10', 9, 9, 9, 9, 9.5, 9.5, false, 'abc', 'abc');")
+        tdSql.execute("insert into ctb2 values ('2022-01-01 00:00:11', 10, 10, 10, 10, 10.5, 10.5, false, 'abc', 'abc');")
+        tdSql.execute("insert into ctb2 values ('2022-01-01 00:00:12', 15, 15, 15, 15, 15.5, 15.5, false, 'abc', 'abc');")
+        tdSql.execute("insert into ctb2 values ('2022-01-01 00:00:13', 20, 20, 20, 20, 20.5, 20.5, false, 'abc', 'abc');")
+        tdSql.execute("insert into ctb2 values ('2022-01-01 00:00:14', 99, 99, 99, 99, 99.5, 99.5, false, 'abc', 'abc');")
+        tdSql.execute("insert into ctb2 values ('2022-01-01 00:00:15', NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL);")
+
+        tdSql.execute("insert into tb2 values ('2022-01-01 00:00:00', -9, -9, -9, -9, -9.5, -9.5, true, 'abc', 'abc');")
+        tdSql.execute("insert into tb2 values ('2022-01-01 00:00:01', -1, -1, -1, -1, -1.5, -1.5, true, 'abc', 'abc');")
+        tdSql.execute("insert into tb2 values ('2022-01-01 00:00:02', 1, 1, 1, 1, 1.5, 1.5, true, 'abc', 'abc');")
+        tdSql.execute("insert into tb2 values ('2022-01-01 00:00:03', 2, 2, 2, 2, 2.5, 2.5, true, 'abc', 'abc');")
+        tdSql.execute("insert into tb2 values ('2022-01-01 00:00:04', 3, 3, 3, 3, 3.5, 3.5, true, 'abc', 'abc');")
+        tdSql.execute("insert into tb2 values ('2022-01-01 00:00:05', 4, 4, 4, 4, 4.5, 4.5, true, 'abc', 'abc');")
+        tdSql.execute("insert into tb2 values ('2022-01-01 00:00:06', 5, 5, 5, 5, 5.5, 5.5, true, 'abc', 'abc');")
+        tdSql.execute("insert into tb2 values ('2022-01-01 00:00:07', 6, 6, 6, 6, 6.5, 6.5, true, 'abc', 'abc');")
+        tdSql.execute("insert into tb2 values ('2022-01-01 00:00:08', 7, 7, 7, 7, 7.5, 7.5, false, 'abc', 'abc');")
+        tdSql.execute("insert into tb2 values ('2022-01-01 00:00:09', 8, 8, 8, 8, 8.5, 8.5, false, 'abc', 'abc');")
+        tdSql.execute("insert into tb2 values ('2022-01-01 00:00:10', 9, 9, 9, 9, 9.5, 9.5, false, 'abc', 'abc');")
+        tdSql.execute("insert into tb2 values ('2022-01-01 00:00:11', 10, 10, 10, 10, 10.5, 10.5, false, 'abc', 'abc');")
+        tdSql.execute("insert into tb2 values ('2022-01-01 00:00:12', 15, 15, 15, 15, 15.5, 15.5, false, 'abc', 'abc');")
+        tdSql.execute("insert into tb2 values ('2022-01-01 00:00:13', 20, 20, 20, 20, 20.5, 20.5, false, 'abc', 'abc');")
+        tdSql.execute("insert into tb2 values ('2022-01-01 00:00:14', 99, 99, 99, 99, 99.5, 99.5, false, 'abc', 'abc');")
+        tdSql.execute("insert into tb2 values ('2022-01-01 00:00:15', NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL);")
+
+        tdSql.query('select histogram(col_int, "user_input", "[0,3,5,7,9,15]", 0) from tb1, tb2 where tb1.col_timestamp = tb2.col_timestamp;');
+        tdSql.checkRows(5)
+        tdSql.checkData(0,  0, "(0:3]:3");
+        tdSql.checkData(1,  0, "(3:5]:2");
+        tdSql.checkData(2,  0, "(5:7]:2");
+        tdSql.checkData(3,  0, "(7:9]:2");
+        tdSql.checkData(4,  0, "(9:15]:2");
+
+        tdSql.query('select histogram(col_int, "user_input", "[0,3,5,7,9,15]", 0) from ctb1, ctb2 where ctb1.col_timestamp = ctb2.col_timestamp;');
+        tdSql.checkRows(5)
+        tdSql.checkData(0,  0, "(0:3]:3");
+        tdSql.checkData(1,  0, "(3:5]:2");
+        tdSql.checkData(2,  0, "(5:7]:2");
+        tdSql.checkData(3,  0, "(7:9]:2");
+        tdSql.checkData(4,  0, "(9:15]:2");
+
+        #stable join will cause crash
+        #tdSql.query('select histogram(col_int, "user_input", "[0,3,5,7,9,15]", 0) from stb1, stb2 where stb1.col_timestamp = stb2.col_timestamp and stb1.tag_int = stb2.tag_int;');
+        #tdSql.checkRows(5)
+        #tdSql.checkData(0,  0, "(0:3]:3");
+        #tdSql.checkData(1,  0, "(3:5]:2");
+        #tdSql.checkData(2,  0, "(5:7]:2");
+        #tdSql.checkData(3,  0, "(7:9]:2");
+        #tdSql.checkData(4,  0, "(9:15]:2");
+
+        #union all
+        tdSql.query('select histogram(col_int, \'user_input\', \'[1,3,5]\', 0) from tb1 union all select histogram(col_int, \'user_input\', \'[1,3,5]\', 0) from tb2;')
+        tdSql.checkRows(4)
+        tdSql.checkData(0,  0, "(1:3]:2");
+        tdSql.checkData(1,  0, "(3:5]:2");
+        tdSql.checkData(2,  0, "(1:3]:2");
+        tdSql.checkData(3,  0, "(3:5]:2");
+        tdSql.query('select histogram(col_int, \'user_input\', \'[1,3,5]\', 0) from ctb1 union all select histogram(col_int, \'user_input\', \'[1,3,5]\', 0) from ctb2;')
+        tdSql.checkRows(4)
+        tdSql.checkData(0,  0, "(1:3]:2");
+        tdSql.checkData(1,  0, "(3:5]:2");
+        tdSql.checkData(2,  0, "(1:3]:2");
+        tdSql.checkData(3,  0, "(3:5]:2");
+        tdSql.query('select histogram(col_int, \'user_input\', \'[1,3,5]\', 0) from stb1 union all select histogram(col_int, \'user_input\', \'[1,3,5]\', 0) from stb2;')
+        tdSql.checkRows(4)
+        tdSql.checkData(0,  0, "(1:3]:2");
+        tdSql.checkData(1,  0, "(3:5]:2");
+        tdSql.checkData(2,  0, "(1:3]:2");
+        tdSql.checkData(3,  0, "(3:5]:2");
+
+        tdSql.query('select histogram(col_int, \'linear_bin\', \'{"start":1, "width":2, "count":2, "infinity":false}\', 0) from tb1 union all select histogram(col_int, \'linear_bin\', \'{"start":1, "width":2, "count":2, "infinity":false}\', 0) from tb2;')
+        tdSql.checkRows(4)
+        tdSql.checkData(0,  0, "(1:3]:2");
+        tdSql.checkData(1,  0, "(3:5]:2");
+        tdSql.checkData(2,  0, "(1:3]:2");
+        tdSql.checkData(3,  0, "(3:5]:2");
+        tdSql.query('select histogram(col_int, \'linear_bin\', \'{"start":1, "width":2, "count":2, "infinity":false}\', 0) from ctb1 union all select histogram(col_int, \'linear_bin\', \'{"start":1, "width":2, "count":2, "infinity":false}\', 0) from ctb2;')
+        tdSql.checkRows(4)
+        tdSql.checkData(0,  0, "(1:3]:2");
+        tdSql.checkData(1,  0, "(3:5]:2");
+        tdSql.checkData(2,  0, "(1:3]:2");
+        tdSql.checkData(3,  0, "(3:5]:2");
+        tdSql.query('select histogram(col_int, \'linear_bin\', \'{"start":1, "width":2, "count":2, "infinity":false}\', 0) from stb1 union all select histogram(col_int, \'linear_bin\', \'{"start":1, "width":2, "count":2, "infinity":false}\', 0) from stb2;')
+        tdSql.checkRows(4)
+        tdSql.checkData(0,  0, "(1:3]:2");
+        tdSql.checkData(1,  0, "(3:5]:2");
+        tdSql.checkData(2,  0, "(1:3]:2");
+        tdSql.checkData(3,  0, "(3:5]:2");
+
+        tdSql.query('select histogram(col_int, \'log_bin\', \'{"start":1, "factor":2, "count":2, "infinity":false}\', 0) from tb1 union all select histogram(col_int, \'log_bin\', \'{"start":1, "factor":2, "count":2, "infinity":false}\', 0) from tb2;')
+        tdSql.checkRows(4)
+        tdSql.checkData(0,  0, "(1:2]:1");
+        tdSql.checkData(1,  0, "(2:4]:2");
+        tdSql.checkData(2,  0, "(1:2]:1");
+        tdSql.checkData(3,  0, "(2:4]:2");
+        tdSql.query('select histogram(col_int, \'log_bin\', \'{"start":1, "factor":2, "count":2, "infinity":false}\', 0) from ctb1 union all select histogram(col_int, \'log_bin\', \'{"start":1, "factor":2, "count":2, "infinity":false}\', 0) from ctb2;')
+        tdSql.checkRows(4)
+        tdSql.checkData(0,  0, "(1:2]:1");
+        tdSql.checkData(1,  0, "(2:4]:2");
+        tdSql.checkData(2,  0, "(1:2]:1");
+        tdSql.checkData(3,  0, "(2:4]:2");
+        tdSql.query('select histogram(col_int, \'log_bin\', \'{"start":1, "factor":2, "count":2, "infinity":false}\', 0) from stb1 union all select histogram(col_int, \'log_bin\', \'{"start":1, "factor":2, "count":2, "infinity":false}\', 0) from stb2;')
+        tdSql.checkRows(4)
+        tdSql.checkData(0,  0, "(1:2]:1");
+        tdSql.checkData(1,  0, "(2:4]:2");
+        tdSql.checkData(2,  0, "(1:2]:1");
+        tdSql.checkData(3,  0, "(2:4]:2");
+
         tdSql.execute('drop database db')
     def stop(self):
         tdSql.close()
