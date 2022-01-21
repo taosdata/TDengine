@@ -666,8 +666,6 @@ void processMsgFromServer(void* parent, SRpcMsg* pMsg, SEpSet* pEpSet) {
 
   if (pMsg->contLen > 0) {
     buf.pData = calloc(1, pMsg->contLen);
-    printf("create------------>%p\n", buf.pData);
-
     if (buf.pData == NULL) {
       terrno = TSDB_CODE_OUT_OF_MEMORY;
       pMsg->code = TSDB_CODE_OUT_OF_MEMORY;
