@@ -129,17 +129,17 @@ int32_t qwtCreateExecTask(void* tsdb, int32_t vgId, struct SSubplan* pPlan, qTas
   int32_t idx = qwtTestCaseIdx % qwtTestCaseNum;
   
   if (0 == idx) {
-    *pTaskInfo = qwtTestCaseIdx;
-    *handle = qwtTestCaseIdx+1;
+    *pTaskInfo = (qTaskInfo_t)qwtTestCaseIdx;
+    *handle = (DataSinkHandle)qwtTestCaseIdx+1;
   } else if (1 == idx) {
     *pTaskInfo = NULL;
     *handle = NULL;
   } else if (2 == idx) {
-    *pTaskInfo = qwtTestCaseIdx;
+    *pTaskInfo = (qTaskInfo_t)qwtTestCaseIdx;
     *handle = NULL;
   } else if (3 == idx) {
     *pTaskInfo = NULL;
-    *handle = qwtTestCaseIdx;
+    *handle = (DataSinkHandle)qwtTestCaseIdx;
   }
 
   ++qwtTestCaseIdx;
@@ -458,6 +458,14 @@ void *controlThread(void *param) {
   }
 
   return NULL;
+}
+
+void *queryQueueThread(void *param) {
+
+}
+
+void *fetchQueueThread(void *param) {
+
 }
 
 
