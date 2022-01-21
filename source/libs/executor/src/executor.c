@@ -14,12 +14,50 @@
  */
 
 #include "executor.h"
+#include "tq.h"
+#include "executorimpl.h"
 #include "planner.h"
 
-void qStreamExecTaskSetInput(qTaskInfo_t qHandle, void* input) {}
+static int32_t doSetStreamBlock(SOperatorInfo* pOperator, void* input) {
+  ASSERT(pOperator != NULL);
+  if (pOperator->operatorType != OP_StreamScan) {
+    if (pOperator->numOfDownstream > 0) {
 
-qTaskInfo_t qCreateStreamExecTaskInfo(SSubQueryMsg* pMsg, void* pStreamBlockReadHandle) {
-  if (pMsg == NULL || pStreamBlockReadHandle == NULL) {
+      if (pOperator->numOfDownstream > 1) { // not handle this in join query
+        return TSDB_CODE_QRY_APP_ERROR;
+      }
+
+      return doSetStreamBlock(pOperator->pDownstream[0], input);
+    }
+  } else {
+    SStreamBlockScanInfo* pInfo = pOperator->info;
+    tqReadHandleSetMsg(pInfo->readerHandle, input, 0);
+    return TSDB_CODE_SUCCESS;
+  }
+}
+
+int32_t qSetStreamInput(qTaskInfo_t tinfo, void* input) {
+  if (tinfo == NULL) {
+    return TSDB_CODE_QRY_APP_ERROR;
+  }
+
+  if (input == NULL) {
+    return TSDB_CODE_SUCCESS;
+  }
+
+  SExecTaskInfo* pTaskInfo = (SExecTaskInfo*) tinfo;
+  int32_t code = doSetStreamBlock(pTaskInfo->pRoot, input);
+  if (code != TSDB_CODE_SUCCESS) {
+    qError("failed to set the stream block data, reqId:0x%"PRIx64, GET_TASKID(pTaskInfo));
+  } else {
+    qDebug("set the stream block successfully, reqId:0x%"PRIx64, GET_TASKID(pTaskInfo));
+  }
+
+  return code;
+}
+
+qTaskInfo_t qCreateStreamExecTaskInfo(SSubQueryMsg* pMsg, void* streamReadHandle) {
+  if (pMsg == NULL || streamReadHandle == NULL) {
     return NULL;
   }
 
@@ -37,7 +75,7 @@ qTaskInfo_t qCreateStreamExecTaskInfo(SSubQueryMsg* pMsg, void* pStreamBlockRead
   }
 
   qTaskInfo_t pTaskInfo = NULL;
-  code = qCreateExecTask(pStreamBlockReadHandle, 0, plan, &pTaskInfo, NULL);
+  code = qCreateExecTask(streamReadHandle, 0, plan, &pTaskInfo, NULL);
   if (code != TSDB_CODE_SUCCESS) {
     // TODO: destroy SSubplan & pTaskInfo
     terrno = code;
