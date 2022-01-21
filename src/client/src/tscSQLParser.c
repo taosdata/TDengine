@@ -2682,6 +2682,8 @@ int32_t addExprAndResultField(SSqlCmd* pCmd, SQueryInfo* pQueryInfo, int32_t col
   const char* msg23 = "parameter/bin out of range [-DBL_MAX, DBL_MAX]";
   const char* msg24 = "width param cannot be 0";
   const char* msg25 = "count param should be greater than 0";
+  const char* msg26 = "start param cannot be 0 with 'log_bin'";
+  const char* msg27 = "factor param should be greater than 1";
 
   switch (functionId) {
     case TSDB_FUNC_COUNT: {
@@ -3459,6 +3461,14 @@ int32_t addExprAndResultField(SSqlCmd* pCmd, SQueryInfo* pQueryInfo, int32_t col
           }
         } else if (cJSON_IsNumber(factor) && width == NULL && binType == LOG_BIN) {
           //log bin process
+          if (start->valuedouble == 0) {
+            tfree(intervals);
+            return invalidOperationMsg(tscGetErrorMsgPayload(pCmd), msg26);
+          }
+          if (factor->valuedouble <= 1) {
+            tfree(intervals);
+            return invalidOperationMsg(tscGetErrorMsgPayload(pCmd), msg27);
+          }
           for (int i = 0; i < counter + 1; ++i) {
             intervals[startIndex] = start->valuedouble * pow(factor->valuedouble, i * 1.0);
             if (isinf(intervals[startIndex])) {
@@ -3478,6 +3488,11 @@ int32_t addExprAndResultField(SSqlCmd* pCmd, SQueryInfo* pQueryInfo, int32_t col
           if (isinf(intervals[0]) || isinf(intervals[numBins - 1])) {
             tfree(intervals);
             return invalidOperationMsg(tscGetErrorMsgPayload(pCmd), msg23);
+          }
+          //in case of desc bin orders, -inf/inf should be swapped
+          assert(numBins >= 4);
+          if (intervals[1] > intervals[numBins - 2]) {
+            SWAP(intervals[0], intervals[numBins - 1], double);
           }
         }
 
