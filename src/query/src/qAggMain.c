@@ -218,6 +218,7 @@ typedef struct {
 
 typedef struct{
   int32_t numOfBins;
+  int32_t normalized;
   SHistogramFuncBin* orderedBins;
 } SHistogramFuncInfo;
 
@@ -4968,6 +4969,7 @@ static bool histogram_function_setup(SQLFunctionCtx *pCtx, SResultRowCellInfo* p
   double* listBin = (double*) pCtx->param[1].pz;
   int32_t normalized = (int32_t)pCtx->param[2].i64;
   pRes->numOfBins = numOfBins;
+  pRes->normalized = normalized;
   pRes->orderedBins = (SHistogramFuncBin*)((char*)pRes + sizeof(SHistogramFuncInfo));
   for (int32_t i = 0; i < numOfBins; ++i) {
     pRes->orderedBins[i].lower = listBin[i];
