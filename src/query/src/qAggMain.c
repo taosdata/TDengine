@@ -4972,8 +4972,10 @@ static bool histogram_function_setup(SQLFunctionCtx *pCtx, SResultRowCellInfo* p
   pRes->normalized = normalized;
   pRes->orderedBins = (SHistogramFuncBin*)((char*)pRes + sizeof(SHistogramFuncInfo));
   for (int32_t i = 0; i < numOfBins; ++i) {
-    pRes->orderedBins[i].lower = listBin[i];
-    pRes->orderedBins[i].upper = listBin[i+1];
+    double lower = listBin[i] < listBin[i + 1] ? listBin[i] : listBin[i + 1];
+    double upper = listBin[i + 1] > listBin[i] ? listBin[i + 1] : listBin[i];
+    pRes->orderedBins[i].lower = lower;
+    pRes->orderedBins[i].upper = upper;
     pRes->orderedBins[i].count = 0;
   }
   return true;
@@ -5047,10 +5049,10 @@ static void histogram_func_finalizer(SQLFunctionCtx *pCtx) {
     int sz;
     if (!pRes->normalized) {
       int64_t count = (int64_t)pRes->orderedBins[i].count;
-      sz = sprintf(pCtx->pOutput + VARSTR_HEADER_SIZE, "(%g-%g]:%"PRId64,
+      sz = sprintf(pCtx->pOutput + VARSTR_HEADER_SIZE, "(%g:%g]:%"PRId64,
                    pRes->orderedBins[i].lower, pRes->orderedBins[i].upper, count);
     } else {
-      sz = sprintf(pCtx->pOutput + VARSTR_HEADER_SIZE, "(%g-%g]:%lf",
+      sz = sprintf(pCtx->pOutput + VARSTR_HEADER_SIZE, "(%g:%g]:%lf",
                    pRes->orderedBins[i].lower, pRes->orderedBins[i].upper, pRes->orderedBins[i].count);
     }
     varDataSetLen(pCtx->pOutput, sz);
