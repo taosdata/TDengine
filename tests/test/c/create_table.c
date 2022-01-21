@@ -181,9 +181,20 @@ void *threadFunc(void *param) {
     pError("index:%d, failed to connect to DB, reason:%s", pInfo->threadIndex, taos_errstr(NULL));
     exit(1);
   }
+  
+  pError("====before thread:%d, table range: %"PRId64 " - %"PRId64 "\n", 
+			  pInfo->threadIndex, 
+			  pInfo->tableBeginIndex,
+			  pInfo->tableEndIndex);
 
-  // printf("thread:%d, table range: %"PRId64 " - %"PRId64 "\n", pInfo->threadIndex, pInfo->tableBeginIndex,
-  // pInfo->tableEndIndex);
+  pInfo->tableBeginIndex += startOffset;
+  pInfo->tableEndIndex   += startOffset;
+  
+  pError("====after thread:%d, table range: %"PRId64 " - %"PRId64 "\n", 
+			  pInfo->threadIndex, 
+			  pInfo->tableBeginIndex,
+			  pInfo->tableEndIndex);
+			   
   sprintf(qstr, "use %s", pInfo->dbName);
   TAOS_RES *pRes = taos_query(con, qstr);
   taos_free_result(pRes);
@@ -211,7 +222,7 @@ void *threadFunc(void *param) {
       TAOS_RES *pRes = taos_query(con, qstr);
       code = taos_errno(pRes);
       if ((code != 0) && (code != TSDB_CODE_RPC_AUTH_REQUIRED)) {
-        pError("failed to create table t%" PRId64 ", reason:%s", t, tstrerror(code));
+        pError("failed to create table reason:%s, sql: %s", tstrerror(code), qstr);
       }
       taos_free_result(pRes);
       int64_t endTs = taosGetTimestampUs();
@@ -297,7 +308,7 @@ void printHelp() {
   printf("%s%s%s%d\n", indent, indent, "numOfThreads, default is ", numOfThreads);
   printf("%s%s\n", indent, "-n");
   printf("%s%s%s%" PRId64 "\n", indent, indent, "numOfTables, default is ", numOfTables);
-  printf("%s%s\n", indent, "-o");
+  printf("%s%s\n", indent, "-g");
   printf("%s%s%s%" PRId64 "\n", indent, indent, "startOffset, default is ", startOffset);
   printf("%s%s\n", indent, "-v");
   printf("%s%s%s%d\n", indent, indent, "numOfVgroups, default is ", numOfVgroups);
@@ -332,7 +343,7 @@ void parseArgument(int32_t argc, char *argv[]) {
       numOfThreads = atoi(argv[++i]);
     } else if (strcmp(argv[i], "-n") == 0) {
       numOfTables = atoll(argv[++i]);
-    } else if (strcmp(argv[i], "-o") == 0) {
+    } else if (strcmp(argv[i], "-g") == 0) {
       startOffset = atoll(argv[++i]);
     } else if (strcmp(argv[i], "-v") == 0) {
       numOfVgroups = atoi(argv[++i]);
@@ -412,8 +423,8 @@ int32_t main(int32_t argc, char *argv[]) {
 
   int64_t tableFrom = 0;
   for (int32_t i = 0; i < numOfThreads; ++i) {
-    pInfo[i].tableBeginIndex = tableFrom + startOffset;
-    pInfo[i].tableEndIndex = (i < b ? tableFrom + a : tableFrom + a - 1)  + startOffset;
+    pInfo[i].tableBeginIndex = tableFrom;
+    pInfo[i].tableEndIndex = (i < b ? tableFrom + a : tableFrom + a - 1);
     tableFrom = pInfo[i].tableEndIndex + 1;
     pInfo[i].threadIndex = i;
     pInfo[i].minDelay = INT64_MAX;
