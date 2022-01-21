@@ -2680,6 +2680,7 @@ int32_t addExprAndResultField(SSqlCmd* pCmd, SQueryInfo* pQueryInfo, int32_t col
   const char* msg21 = "third parameter must be in JSON format";
   const char* msg22 = "invalid parameters for bin_desciption";
   const char* msg23 = "parameter/bin out of range [-DBL_MAX, DBL_MAX]";
+  const char* msg24 = "linear_bin 'width' param cannot be 0";
 
   switch (functionId) {
     case TSDB_FUNC_COUNT: {
@@ -3420,7 +3421,9 @@ int32_t addExprAndResultField(SSqlCmd* pCmd, SQueryInfo* pQueryInfo, int32_t col
           return invalidOperationMsg(tscGetErrorMsgPayload(pCmd), msg22);
         }
 
-        if (isinf(start->valuedouble) || isinf(width->valuedouble)) {
+        if (isinf(start->valuedouble) ||
+            (width != NULL && isinf(width->valuedouble)) ||
+            (factor != NULL && isinf(factor->valuedouble))) {
           return invalidOperationMsg(tscGetErrorMsgPayload(pCmd), msg23);
         }
 
@@ -3436,6 +3439,10 @@ int32_t addExprAndResultField(SSqlCmd* pCmd, SQueryInfo* pQueryInfo, int32_t col
         intervals = tcalloc(numBins, sizeof(double));
         if (cJSON_IsNumber(width) && factor == NULL && binType == LINEAR_BIN) {
           //linear bin process
+          if (width->valuedouble == 0) {
+            tfree(intervals);
+            return invalidOperationMsg(tscGetErrorMsgPayload(pCmd), msg24);
+          }
           for (int i = 0; i < counter + 1; ++i) {
             intervals[startIndex] = start->valuedouble + i * width->valuedouble;
             if (isinf(intervals[i])) {
