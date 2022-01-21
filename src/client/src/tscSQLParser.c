@@ -3416,12 +3416,12 @@ int32_t addExprAndResultField(SSqlCmd* pCmd, SQueryInfo* pQueryInfo, int32_t col
         cJSON *count = cJSON_GetObjectItem(binDesc, "count");
         cJSON *infinity = cJSON_GetObjectItem(binDesc, "infinity");
 
-        if (isinf(start->valuedouble) || isinf(width->valuedouble)) {
-          return invalidOperationMsg(tscGetErrorMsgPayload(pCmd), msg23);
-        }
-
         if (!cJSON_IsNumber(start) || !cJSON_IsNumber(count) || !cJSON_IsBool(infinity)) {
           return invalidOperationMsg(tscGetErrorMsgPayload(pCmd), msg22);
+        }
+
+        if (isinf(start->valuedouble) || isinf(width->valuedouble)) {
+          return invalidOperationMsg(tscGetErrorMsgPayload(pCmd), msg23);
         }
 
         counter = count->valueint;
