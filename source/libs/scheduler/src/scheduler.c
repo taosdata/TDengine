@@ -666,12 +666,12 @@ int32_t schProcessOnTaskFailure(SSchJob *pJob, SSchTask *pTask, int32_t errCode)
   int32_t taskDone = 0;
   int32_t code = 0;
 
-  SCH_TASK_DLOG("taskOnFailure, code:%x", errCode);
+  SCH_TASK_DLOG("taskOnFailure, code:%s", tstrerror(errCode));
   
   SCH_ERR_JRET(schTaskCheckAndSetRetry(pJob, pTask, errCode, &needRetry));
   
   if (!needRetry) {
-    SCH_TASK_ELOG("task failed and no more retry, code:%x", errCode);
+    SCH_TASK_ELOG("task failed and no more retry, code:%s", tstrerror(errCode));
 
     if (SCH_GET_TASK_STATUS(pTask) == JOB_TASK_STATUS_EXECUTING) {
       code = schMoveTaskToFailList(pJob, pTask, &moved);

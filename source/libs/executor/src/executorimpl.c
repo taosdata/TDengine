@@ -7791,7 +7791,10 @@ int32_t createExecTaskInfoImpl(SSubplan* pPlan, SExecTaskInfo** pTaskInfo, void*
   (*pTaskInfo)->pRoot = doCreateOperatorTreeNode(pPlan->pNode, *pTaskInfo, readerHandle, queryId);
   if ((*pTaskInfo)->pRoot == NULL) {
     code = TSDB_CODE_QRY_OUT_OF_MEMORY;
+    goto _complete;
   }
+
+  return code;
 
 _complete:
   tfree(*pTaskInfo);
