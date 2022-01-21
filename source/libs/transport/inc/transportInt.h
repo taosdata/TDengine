@@ -45,6 +45,9 @@ extern "C" {
 void* taosInitClient(uint32_t ip, uint32_t port, char* label, int numOfThreads, void* fp, void* shandle);
 void* taosInitServer(uint32_t ip, uint32_t port, char* label, int numOfThreads, void* fp, void* shandle);
 
+void taosCloseServer(void* arg);
+void taosCloseClient(void* arg);
+
 typedef struct {
   int      sessions;      // number of sessions allowed
   int      numOfThreads;  // number of threads to process incoming messages

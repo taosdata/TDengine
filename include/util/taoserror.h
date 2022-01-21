@@ -362,6 +362,7 @@ int32_t* taosGetErrno();
 #define TSDB_CODE_QRY_DUPLICATTED_OPERATION     TAOS_DEF_ERROR_CODE(0, 0x0718)  //"Duplicatted operation")
 #define TSDB_CODE_QRY_TASK_MSG_ERROR            TAOS_DEF_ERROR_CODE(0, 0x0719)  //"Task message error")
 #define TSDB_CODE_QRY_JOB_FREED                 TAOS_DEF_ERROR_CODE(0, 0x071A)  //"Job freed")
+#define TSDB_CODE_QRY_TASK_STATUS_ERROR         TAOS_DEF_ERROR_CODE(0, 0x071B)  //"Task status error")
 
 // grant
 #define TSDB_CODE_GRANT_EXPIRED                 TAOS_DEF_ERROR_CODE(0, 0x0800)  //"License expired")

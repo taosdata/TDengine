@@ -114,10 +114,16 @@ typedef struct SProjectPhyNode {
   SPhyNode node;
 } SProjectPhyNode;
 
+typedef struct SDownstreamSource {
+  SQueryNodeAddr addr;
+  uint64_t       taskId;
+  uint64_t       schedId;
+} SDownstreamSource;
+
 typedef struct SExchangePhyNode {
   SPhyNode    node;
-  uint64_t    srcTemplateId; // template id of datasource suplans
-  SArray     *pSrcEndPoints;  // SEpAddr, scheduler fill by calling qSetSuplanExecutionNode
+  uint64_t    srcTemplateId;  // template id of datasource suplans
+  SArray     *pSrcEndPoints;  // SArray<SDownstreamSource>, scheduler fill by calling qSetSuplanExecutionNode
 } SExchangePhyNode;
 
 typedef enum EAggAlgo {
@@ -178,7 +184,7 @@ int32_t qCreateQueryDag(const struct SQueryNode* pQueryInfo, struct SQueryDag** 
 // @subplan subplan to be schedule
 // @templateId templateId of a group of datasource subplans of this @subplan
 // @ep one execution location of this group of datasource subplans 
-void qSetSubplanExecutionNode(SSubplan* subplan, uint64_t templateId, SQueryNodeAddr* ep);
+void qSetSubplanExecutionNode(SSubplan* subplan, uint64_t templateId, SDownstreamSource* pSource);
 
 int32_t qExplainQuery(const struct SQueryNode* pQueryInfo, struct SEpSet* pQnode, char** str);
 

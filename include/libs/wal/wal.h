@@ -80,8 +80,8 @@ typedef enum { TAOS_WAL_NOLOG = 0, TAOS_WAL_WRITE = 1, TAOS_WAL_FSYNC = 2 } EWal
 
 typedef struct SWalReadHead {
   int8_t  headVer;
-  uint8_t msgType;
-  int8_t  reserved[2];
+  int16_t msgType;
+  int8_t  reserved;
   int32_t len;
   int64_t ingestTs;  // not implemented
   int64_t version;

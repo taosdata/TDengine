@@ -13,10 +13,11 @@
  * along with this program. If not, see <http://www.gnu.org/licenses/>.
  */
 
-#include "os.h"
-#include "tarray.h"
+#include <tsdb.h>
 #include "dataSinkMgt.h"
 #include "exception.h"
+#include "os.h"
+#include "tarray.h"
 #include "tcache.h"
 #include "tglobal.h"
 #include "tmsg.h"
@@ -87,7 +88,7 @@ int32_t qCreateExecTask(void* tsdb, int32_t vgId, SSubplan* pSubplan, qTaskInfo_
 
   *handle = (*pTask)->dsHandle;
 
-  _error:
+_error:
   // if failed to add ref for all tables in this query, abort current query
   return code;
 }
@@ -140,6 +141,11 @@ int waitMoment(SQInfo* pQInfo){
 int32_t qExecTask(qTaskInfo_t tinfo, SSDataBlock** pRes, uint64_t *useconds) {
   SExecTaskInfo* pTaskInfo = (SExecTaskInfo*)tinfo;
   int64_t        threadId = taosGetSelfPthreadId();
+
+  // todo: remove it.
+  if (tinfo == NULL) {
+    return TSDB_CODE_SUCCESS;
+  }
 
   *pRes = NULL;
 
@@ -268,6 +274,19 @@ int32_t qKillTask(qTaskInfo_t qinfo) {
   while (pQInfo->owner != 0) {
     taosMsleep(100);
   }
+
+  return TSDB_CODE_SUCCESS;
+}
+
+int32_t qAsyncKillTask(qTaskInfo_t qinfo) {
+  SQInfo *pQInfo = (SQInfo *)qinfo;
+
+  if (pQInfo == NULL || !isValidQInfo(pQInfo)) {
+    return TSDB_CODE_QRY_INVALID_QHANDLE;
+  }
+
+  qDebug("QInfo:0x%"PRIx64" query async killed", pQInfo->qId);
+  setQueryKilled(pQInfo);
 
   return TSDB_CODE_SUCCESS;
 }
