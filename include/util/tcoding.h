@@ -375,7 +375,6 @@ static FORCE_INLINE void *taosDecodeStringTo(void *buf, char *value) {
 static FORCE_INLINE int taosEncodeBinary(void **buf, const void *value, int32_t valueLen) {
   int    tlen = 0;
 
-  tlen += taosEncodeVariantI32(buf, valueLen);
   if (buf != NULL) {
     memcpy(*buf, value, valueLen);
     *buf = POINTER_SHIFT(*buf, valueLen);

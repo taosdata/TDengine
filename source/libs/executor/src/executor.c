@@ -62,10 +62,12 @@ qTaskInfo_t qCreateStreamExecTaskInfo(SSubQueryMsg* pMsg, void* streamReadHandle
   }
 
   // print those info into log
+#if 0
   pMsg->sId = pMsg->sId;
   pMsg->queryId = pMsg->queryId;
   pMsg->taskId = pMsg->taskId;
   pMsg->contentLen = pMsg->contentLen;
+#endif
 
   struct SSubplan* plan = NULL;
   int32_t          code = qStringToSubplan(pMsg->msg, &plan);
