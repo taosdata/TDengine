@@ -19,6 +19,7 @@ static int         tdbGnrtFileID(const char *fname, uint8_t *fileid);
 static void        tdbMPoolRegFile(TDB_MPOOL *mp, TDB_MPFILE *mpf);
 static void        tdbMPoolUnregFile(TDB_MPOOL *mp, TDB_MPFILE *mpf);
 static TDB_MPFILE *tdbMPoolGetFile(TDB_MPOOL *mp, uint8_t *fileid);
+static int         tdbMPoolFileReadPage(TDB_MPFILE *mpf, pgno_t pgno, void *p);
 
 int tdbMPoolOpen(TDB_MPOOL **mpp, uint64_t cachesize, pgsize_t pgsize) {
   TDB_MPOOL *mp = NULL;
@@ -196,6 +197,14 @@ int tdbMPoolFileGet(TDB_MPFILE *mpf, pgno_t pgno, void *addr) {
 
   // load page from the disk if a container page is available
   // TODO: load the page from the disk
+  if (tdbMPoolFileReadPage(mpf, pgno, pagep->data) < 0) {
+    return -1;
+  }
+
+  memcpy(pagep->pgid.fileid, mpf->fileid, TDB_FILE_ID_LEN);
+  pagep->pgid.pgno = pgno;
+  pagep->dirty = 0;
+  pagep->pinRef = 1;
 
   // add current page to page table
   TD_DLIST_APPEND_WITH_FIELD(pglist, pagep, hash);
@@ -292,4 +301,21 @@ static void tdbMPoolUnregFile(TDB_MPOOL *mp, TDB_MPFILE *mpf) {
   taosWUnLockLatch(&(bktp->latch));
 
   ASSERT(tmpf == mpf);
+}
+
+static int tdbMPoolFileReadPage(TDB_MPFILE *mpf, pgno_t pgno, void *p) {
+  pgsize_t   pgsize;
+  TDB_MPOOL *mp;
+  off_t      offset;
+  size_t     rsize;
+
+  mp = mpf->mp;
+  pgsize = mp->pgsize;
+  offset = pgno * pgsize;
+
+  // TODO: use loop to read all data
+  rsize = pread(mpf->fd, p, pgsize, offset);
+  // TODO: error handle
+
+  return 0;
 }
