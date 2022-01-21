@@ -1525,8 +1525,22 @@ typedef struct SMqSetCVgReq {
   char*   sql;
   char*   logicalPlan;
   char*   physicalPlan;
-  SArray* tasks;  // SArray<SSubQueryMsg>
+  SSubQueryMsg msg;
 } SMqSetCVgReq;
+
+static FORCE_INLINE int32_t tEncodeSSubQueryMsg(void** buf, const SSubQueryMsg* pMsg) {
+  int32_t tlen = sizeof(SSubQueryMsg) + pMsg->contentLen;
+  if (buf == NULL) return tlen;
+  memcpy(*buf, pMsg, tlen);
+  *buf = POINTER_SHIFT(*buf, tlen); 
+  return tlen;
+}
+
+static FORCE_INLINE void* tDecodeSSubQueryMsg(void* buf, SSubQueryMsg* pMsg) {
+  int32_t tlen = sizeof(SSubQueryMsg) + ((SSubQueryMsg*)buf)->contentLen;
+  memcpy(pMsg, buf, tlen);
+  return POINTER_SHIFT(buf, tlen);
+}
 
 static FORCE_INLINE int32_t tEncodeSMqSetCVgReq(void** buf, const SMqSetCVgReq* pReq) {
   int32_t tlen = 0;
@@ -1537,6 +1551,7 @@ static FORCE_INLINE int32_t tEncodeSMqSetCVgReq(void** buf, const SMqSetCVgReq* 
   tlen += taosEncodeString(buf, pReq->sql);
   tlen += taosEncodeString(buf, pReq->logicalPlan);
   tlen += taosEncodeString(buf, pReq->physicalPlan);
+  tlen += tEncodeSSubQueryMsg(buf, &pReq->msg);
   return tlen;
 }
 
@@ -1548,7 +1563,7 @@ static FORCE_INLINE void* tDecodeSMqSetCVgReq(void* buf, SMqSetCVgReq* pReq) {
   buf = taosDecodeString(buf, &pReq->sql);
   buf = taosDecodeString(buf, &pReq->logicalPlan);
   buf = taosDecodeString(buf, &pReq->physicalPlan);
-  pReq->tasks = NULL;
+  buf = tDecodeSSubQueryMsg(buf, &pReq->msg);
   return buf;
 }
 
