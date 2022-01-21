@@ -448,18 +448,11 @@ static int trimDataBlock(void* pDataBlock, STableDataBlocks* pTableDataBlock, SB
     }
   } else {
     for (int32_t i = 0; i < numOfRows; ++i) {
-      char* payload = (blkKeyTuple + i)->payloadAddr;
-      if (isNeedConvertRow(payload)) {
-        convertSMemRow(pDataBlock, payload, pTableDataBlock);
-        TDRowTLenT rowTLen = memRowTLen(pDataBlock);
-        pDataBlock = POINTER_SHIFT(pDataBlock, rowTLen);
-        pBlock->dataLen += rowTLen;
-      } else {
-        TDRowTLenT rowTLen = memRowTLen(payload);
-        memcpy(pDataBlock, payload, rowTLen);
-        pDataBlock = POINTER_SHIFT(pDataBlock, rowTLen);
-        pBlock->dataLen += rowTLen;
-      }
+      char*      payload = (blkKeyTuple + i)->payloadAddr;
+      TDRowLenT rowTLen = memRowTLen(payload);
+      memcpy(pDataBlock, payload, rowTLen);
+      pDataBlock = POINTER_SHIFT(pDataBlock, rowTLen);
+      pBlock->dataLen += rowTLen;
     }
   }
 
@@ -577,8 +570,8 @@ int32_t allocateMemIfNeed(STableDataBlocks *pDataBlock, int32_t rowSize, int32_t
   return TSDB_CODE_SUCCESS;
 }
 
-int32_t initMemRowBuilder(SMemRowBuilder *pBuilder, uint32_t nRows, uint32_t nCols, uint32_t nBoundCols, int32_t allNullLen) {
-  ASSERT(nRows >= 0 && nCols > 0 && (nBoundCols <= nCols));
+int  initMemRowBuilder(SMemRowBuilder *pBuilder, uint32_t nRows, SParsedDataColInfo *pColInfo) {
+  ASSERT(nRows >= 0 && pColInfo->numOfCols > 0 && (pColInfo->numOfBound <= pColInfo->numOfCols));
   if (nRows > 0) {
     // already init(bind multiple rows by single column)
     if (pBuilder->compareStat == ROW_COMPARE_NEED && (pBuilder->rowInfo != NULL)) {
@@ -586,41 +579,12 @@ int32_t initMemRowBuilder(SMemRowBuilder *pBuilder, uint32_t nRows, uint32_t nCo
     }
   }
 
-  // default compareStat is  ROW_COMPARE_NO_NEED
-  if (nBoundCols == 0) {  // file input
-    pBuilder->memRowType = SMEM_ROW_DATA;
-    return TSDB_CODE_SUCCESS;
+  uint32_t dataLen = TD_MEM_ROW_DATA_HEAD_SIZE + pColInfo->allNullLen;
+  uint32_t kvLen = TD_MEM_ROW_KV_HEAD_SIZE + pColInfo->numOfBound * sizeof(SColIdx) + pColInfo->boundNullLen;
+  if (isUtilizeKVRow(kvLen, dataLen)) {
+    pBuilder->memRowType = SMEM_ROW_KV;
   } else {
-    float boundRatio = ((float)nBoundCols / (float)nCols);
-
-    if (boundRatio < KVRatioKV) {
-      pBuilder->memRowType = SMEM_ROW_KV;
-      return TSDB_CODE_SUCCESS;
-    } else if (boundRatio > KVRatioData) {
-      pBuilder->memRowType = SMEM_ROW_DATA;
-      return TSDB_CODE_SUCCESS;
-    }
-    pBuilder->compareStat = ROW_COMPARE_NEED;
-
-    if (boundRatio < KVRatioPredict) {
-      pBuilder->memRowType = SMEM_ROW_KV;
-    } else {
-      pBuilder->memRowType = SMEM_ROW_DATA;
-    }
-  }
-
-  pBuilder->kvRowInitLen = TD_MEM_ROW_KV_HEAD_SIZE + nBoundCols * sizeof(SColIdx);
-
-  if (nRows > 0) {
-    pBuilder->rowInfo = calloc(nRows, sizeof(SMemRowInfo));
-    if (pBuilder->rowInfo == NULL) {
-      return TSDB_CODE_TSC_OUT_OF_MEMORY;
-    }
-
-    for (int i = 0; i < nRows; ++i) {
-      (pBuilder->rowInfo + i)->dataLen = TD_MEM_ROW_DATA_HEAD_SIZE + allNullLen;
-      (pBuilder->rowInfo + i)->kvLen = pBuilder->kvRowInitLen;
-    }
+    pBuilder->memRowType = SMEM_ROW_DATA;
   }
 
   return TSDB_CODE_SUCCESS;

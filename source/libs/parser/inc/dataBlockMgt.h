@@ -55,11 +55,12 @@ typedef struct SParsedDataColInfo {
   int16_t        numOfCols;
   int16_t        numOfBound;
   uint16_t       flen;        // TODO: get from STSchema
-  uint16_t       allNullLen;  // TODO: get from STSchema
+  uint16_t       allNullLen;  // TODO: get from STSchema(base on SDataRow)
   uint16_t       extendedVarLen;
-  int32_t        *boundedColumns;  // bound column idx according to schema
-  SBoundColumn   *cols;
-  SBoundIdxInfo  *colIdxInfo;
+  uint16_t       boundNullLen;    // bound column len with all NULL value(without VarDataOffsetT/SColIdx part)
+  int32_t *      boundedColumns;  // bound column idx according to schema
+  SBoundColumn * cols;
+  SBoundIdxInfo *colIdxInfo;
   int8_t         orderStatus;  // bound columns
 } SParsedDataColInfo;
 
@@ -71,7 +72,7 @@ typedef struct SMemRowInfo {
 typedef struct {
   uint8_t      memRowType;   // default is 0, that is SDataRow 
   uint8_t      compareStat;  // 0 no need, 1 need compare
-  TDRowTLenT   kvRowInitLen;
+  int32_t      rowSize;
   SMemRowInfo *rowInfo;
 } SMemRowBuilder;
 
@@ -143,16 +144,6 @@ static FORCE_INLINE void getMemRowAppendInfo(SSchema *pSchema, uint8_t memRowTyp
   }
 }
 
-static FORCE_INLINE void convertMemRow(SMemRow row, int32_t dataLen, int32_t kvLen) {
-  if (isDataRow(row)) {
-    if (kvLen < (dataLen * KVRatioConvert)) {
-      memRowSetConvert(row);
-    }
-  } else if (kvLen > dataLen) {
-    memRowSetConvert(row);
-  }
-}
-
 static FORCE_INLINE int32_t setBlockInfo(SSubmitBlk *pBlocks, const STableMeta *pTableMeta, int32_t numOfRows) {
   pBlocks->tid = pTableMeta->suid;
   pBlocks->uid = pTableMeta->uid;
@@ -171,7 +162,7 @@ int32_t boundIdxCompar(const void *lhs, const void *rhs);
 void setBoundColumnInfo(SParsedDataColInfo* pColList, SSchema* pSchema, int32_t numOfCols);
 void destroyBoundColumnInfo(SParsedDataColInfo* pColList);
 void destroyBlockArrayList(SArray* pDataBlockList);
-int32_t initMemRowBuilder(SMemRowBuilder *pBuilder, uint32_t nRows, uint32_t nCols, uint32_t nBoundCols, int32_t allNullLen);
+int  initMemRowBuilder(SMemRowBuilder *pBuilder, uint32_t nRows, SParsedDataColInfo *pColInfo);
 int32_t allocateMemIfNeed(STableDataBlocks *pDataBlock, int32_t rowSize, int32_t * numOfRows);
 int32_t getDataBlockFromList(SHashObj* pHashList, int64_t id, int32_t size, int32_t startOffset, int32_t rowSize,
     const STableMeta* pTableMeta, STableDataBlocks** dataBlocks, SArray* pBlockList);

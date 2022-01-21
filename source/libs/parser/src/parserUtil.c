@@ -402,7 +402,7 @@ static void createInputDataFilterInfo(SQueryStmtInfo* px, int32_t numOfCol1, int
  * @param dataBlocks
  * @return
  */
-//int32_t tscCreateDataBlock(size_t defaultSize, int32_t rowSize, int32_t startOffset, SName* name,
+//  int32_t tscCreateDataBlock(size_t defaultSize, int32_t rowSize, int32_t startOffset, SName* name,
 //                           STableMeta* pTableMeta, STableDataBlocks** dataBlocks) {
 //  STableDataBlocks* dataBuf = (STableDataBlocks*)calloc(1, sizeof(STableDataBlocks));
 //  if (dataBuf == NULL) {
@@ -449,7 +449,7 @@ static void createInputDataFilterInfo(SQueryStmtInfo* px, int32_t numOfCol1, int
 //  return TSDB_CODE_SUCCESS;
 //}
 //
-//int32_t tscGetDataBlockFromList(SHashObj* pHashList, int64_t id, int32_t size, int32_t startOffset, int32_t rowSize,
+//  int32_t tscGetDataBlockFromList(SHashObj* pHashList, int64_t id, int32_t size, int32_t startOffset, int32_t rowSize,
 //                                SName* name, STableMeta* pTableMeta, STableDataBlocks** dataBlocks,
 //                                SArray* pBlockList) {
 //  *dataBlocks = NULL;
@@ -474,7 +474,7 @@ static void createInputDataFilterInfo(SQueryStmtInfo* px, int32_t numOfCol1, int
 //}
 //
 //// Erase the empty space reserved for binary data
-//static int trimDataBlock(void* pDataBlock, STableDataBlocks* pTableDataBlock, SInsertStatementParam* insertParam,
+//  static int trimDataBlock(void* pDataBlock, STableDataBlocks* pTableDataBlock, SInsertStatementParam* insertParam,
 //                         SBlockKeyTuple* blkKeyTuple) {
 //  // TODO: optimize this function, handle the case while binary is not presented
 //  STableMeta*     pTableMeta = pTableDataBlock->pTableMeta;
@@ -536,27 +536,20 @@ static void createInputDataFilterInfo(SQueryStmtInfo* px, int32_t numOfCol1, int
 //    }
 //  } else {
 //    for (int32_t i = 0; i < numOfRows; ++i) {
-//      char* payload = (blkKeyTuple + i)->payloadAddr;
-//      if (isNeedConvertRow(payload)) {
-//        convertSMemRow(pDataBlock, payload, pTableDataBlock);
-//        TDRowTLenT rowTLen = memRowTLen(pDataBlock);
-//        pDataBlock = POINTER_SHIFT(pDataBlock, rowTLen);
-//        pBlock->dataLen += rowTLen;
-//      } else {
-//        TDRowTLenT rowTLen = memRowTLen(payload);
-//        memcpy(pDataBlock, payload, rowTLen);
-//        pDataBlock = POINTER_SHIFT(pDataBlock, rowTLen);
-//        pBlock->dataLen += rowTLen;
-//      }
+//       char*      payload = (blkKeyTuple + i)->payloadAddr;
+//       TDRowLenT rowTLen = memRowTLen(payload);
+//       memcpy(pDataBlock, payload, rowTLen);
+//       pDataBlock = POINTER_SHIFT(pDataBlock, rowTLen);
+//       pBlock->dataLen += rowTLen;
 //    }
 //  }
-//
+
 //  int32_t len = pBlock->dataLen + pBlock->schemaLen;
 //  pBlock->dataLen = htonl(pBlock->dataLen);
 //  pBlock->schemaLen = htonl(pBlock->schemaLen);
-//
+
 //  return len;
-//}
+// }
 
 TAOS_FIELD createField(const SSchema* pSchema) {
   TAOS_FIELD f = { .type = pSchema->type, .bytes = pSchema->bytes, };

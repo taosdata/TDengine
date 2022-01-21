@@ -328,6 +328,7 @@ typedef struct SDataCol {
   int             len;        // column data length
   VarDataOffsetT *dataOff;    // For binary and nchar data, the offset in the data column
   void *          pData;      // Actual data pointer
+  void *          pBitmap;    // Bitmap pointer to support None value
   TSKEY           ts;         // only used in last NULL column
 } SDataCol;
 
@@ -572,7 +573,7 @@ static FORCE_INLINE int tdAddColToKVRow(SKVRowBuilder *pBuilder, int16_t colId, 
   return 0;
 }
 
-// ----------------- SMemRow appended with sequential data row structure
+// ----------------- SRow appended with tuple row structure
 /*
  * |---------|------------------------------------------------- len ---------------------------------->|
  * |<--------     Head      ------>|<---------   flen -------------->|                                 |
@@ -585,7 +586,7 @@ static FORCE_INLINE int tdAddColToKVRow(SKVRowBuilder *pBuilder, int16_t colId, 
  * NOTE: timestamp in this row structure is TKEY instead of TSKEY
  */
 
-// ----------------- SMemRow appended with extended K-V data row structure
+// ----------------- SRow appended with extended K-V data row structure
 /* |--------------------|------------------------------------------------  len ---------------------------------->|
  * |<-------------     Head      ------------>|<---------   flen -------------->|                                 |
  * |--------------------+----------+--------------------------------------------+---------------------------------+
@@ -605,22 +606,17 @@ typedef void *SMemRow;
 
 #define SMEM_ROW_DATA 0x0U      // SDataRow
 #define SMEM_ROW_KV 0x01U       // SKVRow
-#define SMEM_ROW_CONVERT 0x80U  // SMemRow convert flag
 
-#define KVRatioKV (0.2f)  // all bool
-#define KVRatioPredict (0.4f)
-#define KVRatioData (0.75f)  // all bigint
 #define KVRatioConvert (0.9f)
 
 #define memRowType(r) ((*(uint8_t *)(r)) & 0x01)
 
 #define memRowSetType(r, t) ((*(uint8_t *)(r)) = (t))  // set the total byte in case of dirty memory
-#define memRowSetConvert(r) ((*(uint8_t *)(r)) = (((*(uint8_t *)(r)) & 0x7F) | SMEM_ROW_CONVERT))  // highest bit
 #define isDataRowT(t) (SMEM_ROW_DATA == (((uint8_t)(t)) & 0x01))
 #define isDataRow(r) (SMEM_ROW_DATA == memRowType(r))
 #define isKvRowT(t) (SMEM_ROW_KV == (((uint8_t)(t)) & 0x01))
 #define isKvRow(r) (SMEM_ROW_KV == memRowType(r))
-#define isNeedConvertRow(r) (((*(uint8_t *)(r)) & 0x80) == SMEM_ROW_CONVERT)
+#define isUtilizeKVRow(k, d) ((k) < ((d)*KVRatioConvert))
 
 #define memRowDataBody(r) POINTER_SHIFT(r, TD_MEM_ROW_TYPE_SIZE)  // section after flag
 #define memRowKvBody(r) \
@@ -630,9 +626,9 @@ typedef void *SMemRow;
 #define memRowKvLen(r) (*(TDRowLenT *)memRowKvBody(r))      //  0~65535
 
 #define memRowDataTLen(r) \
-  ((TDRowTLenT)(memRowDataLen(r) + TD_MEM_ROW_TYPE_SIZE))  // using uint32_t/int32_t to store the TLen
+  ((TDRowLenT)(memRowDataLen(r) + TD_MEM_ROW_TYPE_SIZE))  // using uint32_t/int32_t to store the TLen
 
-#define memRowKvTLen(r) ((TDRowTLenT)(memRowKvLen(r) + TD_MEM_ROW_KV_TYPE_VER_SIZE))
+#define memRowKvTLen(r) ((TDRowLenT)(memRowKvLen(r) + TD_MEM_ROW_KV_TYPE_VER_SIZE))
 
 #define memRowLen(r) (isDataRow(r) ? memRowDataLen(r) : memRowKvLen(r))
 #define memRowTLen(r) (isDataRow(r) ? memRowDataTLen(r) : memRowKvTLen(r))  // using uint32_t/int32_t to store the TLen
@@ -774,7 +770,7 @@ SMemRow mergeTwoMemRows(void *buffer, SMemRow row1, SMemRow row2, STSchema *pSch
  */
 
 #define PAYLOAD_NCOLS_LEN sizeof(uint16_t)
-#define PAYLOAD_NCOLS_OFFSET (sizeof(uint8_t) + sizeof(TDRowTLenT))
+#define PAYLOAD_NCOLS_OFFSET (sizeof(uint8_t) + sizeof(TDRowLenT))
 #define PAYLOAD_HEADER_LEN (PAYLOAD_NCOLS_OFFSET + PAYLOAD_NCOLS_LEN)
 #define PAYLOAD_ID_LEN sizeof(int16_t)
 #define PAYLOAD_ID_TYPE_LEN (sizeof(int16_t) + sizeof(uint8_t))
@@ -784,7 +780,7 @@ SMemRow mergeTwoMemRows(void *buffer, SMemRow row1, SMemRow row2, STSchema *pSch
 #define payloadBody(r) POINTER_SHIFT(r, PAYLOAD_HEADER_LEN)
 #define payloadType(r) (*(uint8_t *)(r))
 #define payloadSetType(r, t) (payloadType(r) = (t))
-#define payloadTLen(r) (*(TDRowTLenT *)POINTER_SHIFT(r, TD_MEM_ROW_TYPE_SIZE))  // including total header
+#define payloadTLen(r) (*(TDRowLenT *)POINTER_SHIFT(r, TD_MEM_ROW_TYPE_SIZE))  // including total header
 #define payloadSetTLen(r, l) (payloadTLen(r) = (l))
 #define payloadNCols(r) (*(TDRowLenT *)POINTER_SHIFT(r, PAYLOAD_NCOLS_OFFSET))
 #define payloadSetNCols(r, n) (payloadNCols(r) = (n))

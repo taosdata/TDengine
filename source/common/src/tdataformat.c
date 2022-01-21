@@ -792,7 +792,7 @@ SMemRow mergeTwoMemRows(void *buffer, SMemRow row1, SMemRow row2, STSchema *pSch
   dataRowSetVersion(dataRow, schemaVersion(pSchema1));  // use latest schema version
   dataRowSetLen(dataRow, (TDRowLenT)(TD_DATA_ROW_HEAD_SIZE + pSchema1->flen));
 
-  TDRowTLenT dataLen = 0, kvLen = TD_MEM_ROW_KV_HEAD_SIZE;
+  TDRowLenT dataLen = 0, kvLen = TD_MEM_ROW_KV_HEAD_SIZE;
 
   int32_t  i = 0;  // row1
   int32_t  j = 0;  // row2

@@ -440,13 +440,8 @@ static int parseOneRow(SInsertParseContext* pCxt, STableDataBlocks* pDataBlocks,
   }
 
   if (!isParseBindParam) {
-    // 2. check and set convert flag
-    if (pBuilder->compareStat == ROW_COMPARE_NEED) {
-      convertMemRow(row, spd->allNullLen + TD_MEM_ROW_DATA_HEAD_SIZE, pBuilder->kvRowInitLen);
-    }
-
-    // 3. set the null value for the columns that do not assign values
-    if ((spd->numOfBound < spd->numOfCols) && isDataRow(row) && !isNeedConvertRow(row)) {
+    // set the null value for the columns that do not assign values
+    if ((spd->numOfBound < spd->numOfCols) && isDataRow(row)) {
       SDataRow dataRow = memRowDataBody(row);
       for (int32_t i = 0; i < spd->numOfCols; ++i) {
         if (spd->cols[i].valStat == VAL_STAT_NONE) {
@@ -456,7 +451,7 @@ static int parseOneRow(SInsertParseContext* pCxt, STableDataBlocks* pDataBlocks,
     }
   }
 
-  *len = getExtendedRowSize(pDataBlocks);
+  *len = pBuilder->rowSize;
   return TSDB_CODE_SUCCESS;
 }
 
@@ -464,7 +459,7 @@ static int parseOneRow(SInsertParseContext* pCxt, STableDataBlocks* pDataBlocks,
 static int32_t parseValues(SInsertParseContext* pCxt, STableDataBlocks* pDataBlock, int maxRows, int32_t* numOfRows) {
   STableComInfo tinfo = getTableInfo(pDataBlock->pTableMeta);
   int32_t extendedRowSize = getExtendedRowSize(pDataBlock);
-  CHECK_CODE(initMemRowBuilder(&pDataBlock->rowBuilder, 0, tinfo.numOfColumns, pDataBlock->boundColumnInfo.numOfBound, pDataBlock->boundColumnInfo.allNullLen));
+  CHECK_CODE(initMemRowBuilder(&pDataBlock->rowBuilder, 0, &pDataBlock->boundColumnInfo));
 
   (*numOfRows) = 0;
   char tmpTokenBuf[TSDB_MAX_BYTES_PER_ROW] = {0};  // used for deleting Escape character: \\, \', \"

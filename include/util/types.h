@@ -79,7 +79,6 @@ typedef int16_t  VarDataLenT;  // maxVarDataLen: 32767
 #define varDataVal(v) ((void *)((char *)v + VARSTR_HEADER_SIZE))
 
 typedef int32_t VarDataOffsetT;
-typedef int16_t VarDataLenT;  // maxVarDataLen: 32767
 
 #ifdef __cplusplus
 }
