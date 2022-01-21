@@ -195,8 +195,7 @@ int32_t execDdlQuery(SRequestObj* pRequest, SQueryNode* pQuery) {
     }
     asyncSendMsgToServer(pTscObj->pAppInfo->pTransporter, &pDcl->epSet, &transporterId, pSendMsg);
   } else {
-    SEpSet* pEpSet = &pTscObj->pAppInfo->mgmtEp.epSet;
-    asyncSendMsgToServer(pTscObj->pAppInfo->pTransporter, pEpSet, &transporterId, pSendMsg);
+    asyncSendMsgToServer(pTscObj->pAppInfo->pTransporter, &pDcl->epSet, &transporterId, pSendMsg);
   }
 
   tsem_wait(&pRequest->body.rspSem);
@@ -257,7 +256,14 @@ int32_t scheduleQuery(SRequestObj* pRequest, SQueryDag* pDag) {
     return pRequest->code;
   }
 
-  return scheduleAsyncExecJob(pRequest->pTscObj->pAppInfo->pTransporter, NULL, pDag, &pRequest->body.pQueryJob);
+  SArray *execNode = taosArrayInit(4, sizeof(SQueryNodeAddr));
+
+  SQueryNodeAddr addr = {.numOfEps = 1, .inUse = 0, .nodeId = 2};
+  addr.epAddr[0].port = 7100;
+  strcpy(addr.epAddr[0].fqdn, "localhost");
+
+  taosArrayPush(execNode, &addr);
+  return scheduleAsyncExecJob(pRequest->pTscObj->pAppInfo->pTransporter, execNode, pDag, &pRequest->body.pQueryJob);
 }
 
 typedef struct tmq_t tmq_t;
@@ -388,6 +394,9 @@ TAOS_RES *taos_create_topic(TAOS* taos, const char* topicName, const char* sql, 
   CHECK_CODE_GOTO(buildRequest(pTscObj, sql, sqlLen, &pRequest), _return);
   CHECK_CODE_GOTO(parseSql(pRequest, &pQueryNode), _return);
 
+  SQueryStmtInfo* pQueryStmtInfo = (SQueryStmtInfo* ) pQueryNode;
+  pQueryStmtInfo->info.continueQuery = true;
+
   // todo check for invalid sql statement and return with error code
 
   CHECK_CODE_GOTO(qCreateQueryDag(pQueryNode, &pRequest->body.pDag, pRequest->requestId), _return);
@@ -396,6 +405,8 @@ TAOS_RES *taos_create_topic(TAOS* taos, const char* topicName, const char* sql, 
   if(pStr == NULL) {
     goto _return;
   }
+
+  printf("%s\n", pStr);
 
   // The topic should be related to a database that the queried table is belonged to.
   SName name = {0};
@@ -699,6 +710,8 @@ void* doFetchRow(SRequestObj* pRequest) {
   assert(pRequest != NULL);
   SReqResultInfo* pResultInfo = &pRequest->body.resInfo;
 
+  SEpSet epSet = {0};
+
   if (pResultInfo->pData == NULL || pResultInfo->current >= pResultInfo->numOfRows) {
     if (pRequest->type == TDMT_VND_QUERY) {
       // All data has returned to App already, no need to try again
@@ -706,9 +719,13 @@ void* doFetchRow(SRequestObj* pRequest) {
         return NULL;
       }
 
-      scheduleFetchRows(pRequest->body.pQueryJob, (void **)&pRequest->body.resInfo.pData);
-      setQueryResultByRsp(&pRequest->body.resInfo, (SRetrieveTableRsp*)pRequest->body.resInfo.pData);
+      int32_t code = scheduleFetchRows(pRequest->body.pQueryJob, (void **)&pRequest->body.resInfo.pData);
+      if (code != TSDB_CODE_SUCCESS) {
+        pRequest->code = code;
+        return NULL;
+      }
 
+      setQueryResultByRsp(&pRequest->body.resInfo, (SRetrieveTableRsp*)pRequest->body.resInfo.pData);
       if (pResultInfo->numOfRows == 0) {
         return NULL;
       }
@@ -716,8 +733,20 @@ void* doFetchRow(SRequestObj* pRequest) {
       goto _return;
     } else if (pRequest->type == TDMT_MND_SHOW) {
       pRequest->type = TDMT_MND_SHOW_RETRIEVE;
+      epSet = getEpSet_s(&pRequest->pTscObj->pAppInfo->mgmtEp);
     } else if (pRequest->type == TDMT_VND_SHOW_TABLES) {
       pRequest->type = TDMT_VND_SHOW_TABLES_FETCH;
+      SShowReqInfo* pShowReqInfo = &pRequest->body.showInfo;
+      SVgroupInfo* pVgroupInfo = taosArrayGet(pShowReqInfo->pArray, pShowReqInfo->currentIndex);
+
+      epSet.numOfEps = pVgroupInfo->numOfEps;
+      epSet.inUse = pVgroupInfo->inUse;
+
+      for (int32_t i = 0; i < epSet.numOfEps; ++i) {
+        strncpy(epSet.fqdn[i], pVgroupInfo->epAddr[i].fqdn, tListLen(epSet.fqdn[i]));
+        epSet.port[i] = pVgroupInfo->epAddr[i].port;
+      }
+
     } else if (pRequest->type == TDMT_VND_SHOW_TABLES_FETCH) {
       pRequest->type = TDMT_VND_SHOW_TABLES;
       SShowReqInfo* pShowReqInfo = &pRequest->body.showInfo;
@@ -735,19 +764,29 @@ void* doFetchRow(SRequestObj* pRequest) {
 
       SMsgSendInfo* body = buildMsgInfoImpl(pRequest);
 
+      epSet.numOfEps = pVgroupInfo->numOfEps;
+      epSet.inUse = pVgroupInfo->inUse;
+
+      for (int32_t i = 0; i < epSet.numOfEps; ++i) {
+        strncpy(epSet.fqdn[i], pVgroupInfo->epAddr[i].fqdn, tListLen(epSet.fqdn[i]));
+        epSet.port[i] = pVgroupInfo->epAddr[i].port;
+      }
+
       int64_t  transporterId = 0;
       STscObj *pTscObj = pRequest->pTscObj;
-      asyncSendMsgToServer(pTscObj->pAppInfo->pTransporter, &pTscObj->pAppInfo->mgmtEp.epSet, &transporterId, body);
+      asyncSendMsgToServer(pTscObj->pAppInfo->pTransporter, &epSet, &transporterId, body);
       tsem_wait(&pRequest->body.rspSem);
 
       pRequest->type = TDMT_VND_SHOW_TABLES_FETCH;
+    } else if (pRequest->type == TDMT_MND_SHOW_RETRIEVE && pResultInfo->pData != NULL) {
+      return NULL;
     }
 
     SMsgSendInfo* body = buildMsgInfoImpl(pRequest);
 
     int64_t  transporterId = 0;
     STscObj *pTscObj = pRequest->pTscObj;
-    asyncSendMsgToServer(pTscObj->pAppInfo->pTransporter, &pTscObj->pAppInfo->mgmtEp.epSet, &transporterId, body);
+    asyncSendMsgToServer(pTscObj->pAppInfo->pTransporter, &epSet, &transporterId, body);
 
     tsem_wait(&pRequest->body.rspSem);
 

@@ -28,14 +28,8 @@ extern "C" {
 #include "function.h"
 #include "tudf.h"
 
-extern SAggFunctionInfo aggFunc[35];
 
-typedef struct SResultRowEntryInfo {
-  int8_t   hasResult;       // result generated, not NULL value
-  bool     initialized;     // output buffer has been initialized
-  bool     complete;        // query has completed
-  uint32_t numOfRes;        // num of output result in current buffer
-} SResultRowEntryInfo;
+extern SAggFunctionInfo aggFunc[35];
 
 #define FUNCSTATE_SO           0x0u
 #define FUNCSTATE_MO           0x1u    // dynamic number of output, not multinumber of output e.g., TOP/BOTTOM
@@ -94,6 +88,10 @@ static FORCE_INLINE void initResultRowEntry(SResultRowEntryInfo *pResInfo, int32
   
   memset(GET_ROWCELL_INTERBUF(pResInfo), 0, bufLen);
 }
+
+#include "functionMgtInt.h"
+
+FuncDef defineCount();
 
 #ifdef __cplusplus
 }

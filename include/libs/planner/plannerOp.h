@@ -23,11 +23,13 @@
   #error To use this include file, first define either INCLUDE_AS_ENUM or INCLUDE_AS_NAME
 #endif
 
+OP_ENUM_MACRO(StreamScan)
 OP_ENUM_MACRO(TableScan)
 OP_ENUM_MACRO(DataBlocksOptScan)
 OP_ENUM_MACRO(TableSeqScan)
 OP_ENUM_MACRO(TagScan)
 OP_ENUM_MACRO(SystemTableScan)
+OP_ENUM_MACRO(StreamBlockScan)
 OP_ENUM_MACRO(Aggregate)
 OP_ENUM_MACRO(Project)
 // OP_ENUM_MACRO(Groupby)

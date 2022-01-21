@@ -28,19 +28,20 @@ extern "C" {
 
 #define QNODE_TAGSCAN       1
 #define QNODE_TABLESCAN     2
-#define QNODE_PROJECT       3
-#define QNODE_AGGREGATE     4
-#define QNODE_GROUPBY       5
-#define QNODE_LIMIT         6
-#define QNODE_JOIN          7
-#define QNODE_DISTINCT      8
-#define QNODE_SORT          9
-#define QNODE_UNION         10
-#define QNODE_TIMEWINDOW    11
-#define QNODE_SESSIONWINDOW 12
-#define QNODE_STATEWINDOW   13
-#define QNODE_FILL          14
-#define QNODE_MODIFY        15
+#define QNODE_STREAMSCAN    3
+#define QNODE_PROJECT       4
+#define QNODE_AGGREGATE     5
+#define QNODE_GROUPBY       6
+#define QNODE_LIMIT         7
+#define QNODE_JOIN          8
+#define QNODE_DISTINCT      9
+#define QNODE_SORT          10
+#define QNODE_UNION         11
+#define QNODE_TIMEWINDOW    12
+#define QNODE_SESSIONWINDOW 13
+#define QNODE_STATEWINDOW   14
+#define QNODE_FILL          15
+#define QNODE_MODIFY        16
 
 typedef struct SQueryDistPlanNodeInfo {
   bool      stableQuery;   // super table query or not
@@ -106,7 +107,7 @@ int32_t queryPlanToString(struct SQueryPlanNode* pQueryNode, char** str);
 int32_t queryPlanToSql(struct SQueryPlanNode* pQueryNode, char** sql);
 
 int32_t createDag(SQueryPlanNode* pQueryNode, struct SCatalog* pCatalog, SQueryDag** pDag, uint64_t requestId);
-void setSubplanExecutionNode(SSubplan* subplan, uint64_t templateId, SQueryNodeAddr* ep);
+void setSubplanExecutionNode(SSubplan* subplan, uint64_t templateId, SDownstreamSource* pSource);
 int32_t subPlanToString(const SSubplan *pPhyNode, char** str, int32_t* len);
 int32_t stringToSubplan(const char* str, SSubplan** subplan);
 

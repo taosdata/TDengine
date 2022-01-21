@@ -92,6 +92,10 @@ static int32_t mndRestoreWal(SMnode *pMnode) {
       goto WAL_RESTORE_OVER;
     }
 
+    if (walCommit(pWal, sdbVer) != 0) {
+      goto WAL_RESTORE_OVER;
+    }
+
     if (walBeginSnapshot(pWal, sdbVer) < 0) {
       goto WAL_RESTORE_OVER;
     }
@@ -99,7 +103,6 @@ static int32_t mndRestoreWal(SMnode *pMnode) {
     if (walEndSnapshot(pWal) < 0) {
       goto WAL_RESTORE_OVER;
     }
-
   }
 
   code = 0;

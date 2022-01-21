@@ -16,62 +16,64 @@
 #ifndef _TD_TRANSPORT_INT_H_
 #define _TD_TRANSPORT_INT_H_
 
+#ifdef USE_UV
+#include <uv.h>
+#endif
+#include "lz4.h"
+#include "os.h"
+#include "rpcCache.h"
 #include "rpcHead.h"
+#include "rpcLog.h"
+#include "rpcTcp.h"
+#include "rpcUdp.h"
+#include "taoserror.h"
+#include "tglobal.h"
+#include "thash.h"
+#include "tidpool.h"
+#include "tmsg.h"
+#include "tref.h"
+#include "trpc.h"
+#include "ttimer.h"
+#include "tutil.h"
+
 #ifdef __cplusplus
 extern "C" {
 #endif
 
 #ifdef USE_UV
 
-#include <stddef.h>
-typedef void *queue[2];
+void* taosInitClient(uint32_t ip, uint32_t port, char* label, int numOfThreads, void* fp, void* shandle);
+void* taosInitServer(uint32_t ip, uint32_t port, char* label, int numOfThreads, void* fp, void* shandle);
 
-/* Private macros. */
-#define QUEUE_NEXT(q) (*(queue **)&((*(q))[0]))
-#define QUEUE_PREV(q) (*(queue **)&((*(q))[1]))
+void taosCloseServer(void* arg);
+void taosCloseClient(void* arg);
 
-#define QUEUE_PREV_NEXT(q) (QUEUE_NEXT(QUEUE_PREV(q)))
-#define QUEUE_NEXT_PREV(q) (QUEUE_PREV(QUEUE_NEXT(q)))
+typedef struct {
+  int      sessions;      // number of sessions allowed
+  int      numOfThreads;  // number of threads to process incoming messages
+  int      idleTime;      // milliseconds;
+  uint16_t localPort;
+  int8_t   connType;
+  int64_t  index;
+  char     label[TSDB_LABEL_LEN];
 
-/* Initialize an empty queue. */
-#define QUEUE_INIT(q)    \
-  {                      \
-    QUEUE_NEXT(q) = (q); \
-    QUEUE_PREV(q) = (q); \
-  }
+  char user[TSDB_UNI_LEN];         // meter ID
+  char spi;                        // security parameter index
+  char encrypt;                    // encrypt algorithm
+  char secret[TSDB_PASSWORD_LEN];  // secret for the link
+  char ckey[TSDB_PASSWORD_LEN];    // ciphering key
 
-/* Return true if the queue has no element. */
-#define QUEUE_IS_EMPTY(q) ((const queue *)(q) == (const queue *)QUEUE_NEXT(q))
+  void (*cfp)(void* parent, SRpcMsg*, SEpSet*);
+  int (*afp)(void* parent, char* user, char* spi, char* encrypt, char* secret, char* ckey);
 
-/* Insert an element at the back of a queue. */
-#define QUEUE_PUSH(q, e)           \
-  {                                \
-    QUEUE_NEXT(e) = (q);           \
-    QUEUE_PREV(e) = QUEUE_PREV(q); \
-    QUEUE_PREV_NEXT(e) = (e);      \
-    QUEUE_PREV(q) = (e);           \
-  }
-
-/* Remove the given element from the queue. Any element can be removed at any *
- * time. */
-#define QUEUE_REMOVE(e)                 \
-  {                                     \
-    QUEUE_PREV_NEXT(e) = QUEUE_NEXT(e); \
-    QUEUE_NEXT_PREV(e) = QUEUE_PREV(e); \
-  }
-
-/* Return the element at the front of the queue. */
-#define QUEUE_HEAD(q) (QUEUE_NEXT(q))
-
-/* Return the element at the back of the queue. */
-#define QUEUE_TAIL(q) (QUEUE_PREV(q))
-
-/* Iterate over the element of a queue. * Mutating the queue while iterating
- * results in undefined behavior. */
-#define QUEUE_FOREACH(q, e) for ((q) = QUEUE_NEXT(e); (q) != (e); (q) = QUEUE_NEXT(q))
-
-/* Return the structure holding the given element. */
-#define QUEUE_DATA(e, type, field) ((type *)((void *)((char *)(e)-offsetof(type, field))))
+  int32_t         refCount;
+  void*           parent;
+  void*           idPool;     // handle to ID pool
+  void*           tmrCtrl;    // handle to timer
+  SHashObj*       hash;       // handle returned by hash utility
+  void*           tcphandle;  // returned handle from TCP initialization
+  pthread_mutex_t mutex;
+} SRpcInfo;
 
 #endif  // USE_LIBUV
 

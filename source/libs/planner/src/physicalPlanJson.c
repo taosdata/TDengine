@@ -29,6 +29,14 @@ static void copyString(const cJSON* json, const char* name, char* dst) {
   strcpy(dst, cJSON_GetStringValue(cJSON_GetObjectItem(json, name)));
 }
 
+static uint64_t getBigintFromString(const cJSON* json, const char* name) {
+  char* val = getString(json, name);
+  uint64_t intVal = strtoul(val, NULL, 10);
+  tfree(val);
+
+  return intVal;
+}
+
 static int64_t getNumber(const cJSON* json, const char* name) {
   double d = cJSON_GetNumberValue(cJSON_GetObjectItem(json, name));
   return (int64_t) d;
@@ -107,6 +115,26 @@ static bool fromPnode(const cJSON* json, const char* name, FFromJson func, void*
     return false;
   }
   return func(jObj, *obj);
+}
+
+static bool fromPnodeArray(const cJSON* json, const char* name, FFromJson func, SArray** array) {
+  const cJSON* jArray = cJSON_GetObjectItem(json, name);
+  int32_t size = (NULL == jArray ? 0 : cJSON_GetArraySize(jArray));
+  if (size > 0) {
+    *array = taosArrayInit(size, POINTER_BYTES);
+    if (NULL == *array) {
+      return false;
+    }
+  }
+  for (int32_t i = 0; i < size; ++i) {
+    cJSON* jItem = cJSON_GetArrayItem(jArray, i);
+    void* item = calloc(1, getPnodeTypeSize(jItem));
+    if (NULL == item || !func(jItem, item)) {
+      return false;
+    }
+    taosArrayPush(*array, &item);
+  }
+  return true;
 }
 
 static bool addTarray(cJSON* json, const char* name, FToJson func, const SArray* array, bool isPoint) {
@@ -379,8 +407,8 @@ static const char* jkFunctionChild = "Child";
 static bool functionToJson(const void* obj, cJSON* jFunc) {
   const tExprNode* exprInfo = (const tExprNode*)obj;
   bool res = cJSON_AddStringToObject(jFunc, jkFunctionName, exprInfo->_function.functionName);
-  if (res) {
-    res = addRawArray(jFunc, jkFunctionChild, exprNodeToJson, exprInfo->_function.pChild, sizeof(tExprNode*), exprInfo->_function.num);
+  if (res && NULL != exprInfo->_function.pChild) {
+      res = addRawArray(jFunc, jkFunctionChild, exprNodeToJson, exprInfo->_function.pChild, sizeof(tExprNode*), exprInfo->_function.num);
   }
   return res;
 }
@@ -388,6 +416,10 @@ static bool functionToJson(const void* obj, cJSON* jFunc) {
 static bool functionFromJson(const cJSON* json, void* obj) {
   tExprNode* exprInfo = (tExprNode*)obj;
   copyString(json, jkFunctionName, exprInfo->_function.functionName);
+  exprInfo->_function.pChild = calloc(1, sizeof(tExprNode*));
+  if (NULL == exprInfo->_function.pChild) {
+    return false;
+  }
   return fromRawArrayWithAlloc(json, jkFunctionChild, exprNodeFromJson, (void**)exprInfo->_function.pChild, sizeof(tExprNode*), &exprInfo->_function.num);
 }
 
@@ -435,7 +467,7 @@ static const char* jkExprNodeColumn = "Column";
 static const char* jkExprNodeValue = "Value";
 
 static bool exprNodeToJson(const void* obj, cJSON* jExprInfo) {
-  const tExprNode* exprInfo = (const tExprNode*)obj;
+  const tExprNode* exprInfo = *(const tExprNode**)obj;
   bool res = cJSON_AddNumberToObject(jExprInfo, jkExprNodeType, exprInfo->nodeType);
   if (res) {
     switch (exprInfo->nodeType) {
@@ -523,7 +555,7 @@ static bool exprInfoToJson(const void* obj, cJSON* jExprInfo) {
   const SExprInfo* exprInfo = (const SExprInfo*)obj;
   bool res = addObject(jExprInfo, jkExprInfoBase, sqlExprToJson, &exprInfo->base);
   if (res) {
-    res = addObject(jExprInfo, jkExprInfoExpr, exprNodeToJson, exprInfo->pExpr);
+    res = addObject(jExprInfo, jkExprInfoExpr, exprNodeToJson, &exprInfo->pExpr);
   }
   return res;
 }
@@ -543,13 +575,13 @@ static const char* jkTimeWindowEndKey = "EndKey";
 static bool timeWindowToJson(const void* obj, cJSON* json) {
   const STimeWindow* win = (const STimeWindow*)obj;
 
-  char tmp[32] = {0};
-  sprintf(tmp, "%"PRId64, win->skey);
+  char tmp[40] = {0};
+  snprintf(tmp, tListLen(tmp),"%"PRId64, win->skey);
 
   bool res = cJSON_AddStringToObject(json, jkTimeWindowStartKey, tmp);
   if (res) {
     memset(tmp, 0, tListLen(tmp));
-    sprintf(tmp, "%"PRId64, win->ekey);
+    snprintf(tmp, tListLen(tmp),"%"PRId64, win->ekey);
     res = cJSON_AddStringToObject(json, jkTimeWindowEndKey, tmp);
   }
   return res;
@@ -557,12 +589,8 @@ static bool timeWindowToJson(const void* obj, cJSON* json) {
 
 static bool timeWindowFromJson(const cJSON* json, void* obj) {
   STimeWindow* win = (STimeWindow*)obj;
-
-  char* p = getString(json, jkTimeWindowStartKey);
-  win->skey = strtoll(p, NULL, 10);
-
-  p = getString(json, jkTimeWindowEndKey);
-  win->ekey = strtoll(p, NULL, 10);
+  win->skey = getBigintFromString(json, jkTimeWindowStartKey);
+  win->ekey = getBigintFromString(json, jkTimeWindowEndKey);
   return true;
 }
 
@@ -574,14 +602,19 @@ static const char* jkScanNodeTableRevCount = "Reverse";
 
 static bool scanNodeToJson(const void* obj, cJSON* json) {
   const SScanPhyNode* pNode = (const SScanPhyNode*)obj;
-  bool res = cJSON_AddNumberToObject(json, jkScanNodeTableId, pNode->uid);
+
+  char uid[40] = {0};
+  snprintf(uid, tListLen(uid), "%"PRIu64, pNode->uid);
+  bool res = cJSON_AddStringToObject(json, jkScanNodeTableId, uid);
 
   if (res) {
     res = cJSON_AddNumberToObject(json, jkScanNodeTableType, pNode->tableType);
   }
+
   if (res) {
     res = cJSON_AddNumberToObject(json, jkScanNodeTableOrder, pNode->order);
   }
+
   if (res) {
     res = cJSON_AddNumberToObject(json, jkScanNodeTableCount, pNode->count);
   }
@@ -589,12 +622,14 @@ static bool scanNodeToJson(const void* obj, cJSON* json) {
   if (res) {
     res = cJSON_AddNumberToObject(json, jkScanNodeTableRevCount, pNode->reverse);
   }
+
   return res;
 }
 
 static bool scanNodeFromJson(const cJSON* json, void* obj) {
   SScanPhyNode* pNode = (SScanPhyNode*)obj;
-  pNode->uid       = getNumber(json, jkScanNodeTableId);
+
+  pNode->uid       = getBigintFromString(json, jkScanNodeTableId);
   pNode->tableType = getNumber(json, jkScanNodeTableType);
   pNode->count     = getNumber(json, jkScanNodeTableCount);
   pNode->order     = getNumber(json, jkScanNodeTableOrder);
@@ -715,40 +750,72 @@ static bool epAddrFromJson(const cJSON* json, void* obj) {
   return true;
 }
 
-static const char* jkNodeAddrId = "NodeId";
-static const char* jkNodeAddrInUse = "InUse";
-static const char* jkNodeAddrEpAddrs = "EpAddrs";
+static const char* jkNodeAddrId      = "NodeId";
+static const char* jkNodeAddrInUse   = "InUse";
+static const char* jkNodeAddrEpAddrs = "Ep";
+static const char* jkNodeAddr        = "NodeAddr";
+static const char* jkNodeTaskId      = "TaskId";
+static const char* jkNodeTaskSchedId = "SchedId";
+
+static bool queryNodeAddrToJson(const void* obj, cJSON* json) {
+  const SQueryNodeAddr* pAddr = (const SQueryNodeAddr*) obj;
+  bool res = cJSON_AddNumberToObject(json, jkNodeAddrId, pAddr->nodeId);
+
+  if (res) {
+    res = cJSON_AddNumberToObject(json, jkNodeAddrInUse, pAddr->inUse);
+  }
+
+  if (res) {
+    res = addRawArray(json, jkNodeAddrEpAddrs, epAddrToJson, pAddr->epAddr, sizeof(SEpAddr), pAddr->numOfEps);
+  }
+  return res;
+}
+
+static bool queryNodeAddrFromJson(const cJSON* json, void* obj) {
+  SQueryNodeAddr* pAddr = (SQueryNodeAddr*) obj;
+
+  pAddr->nodeId = getNumber(json, jkNodeAddrId);
+  pAddr->inUse = getNumber(json, jkNodeAddrInUse);
+
+  int32_t numOfEps = 0;
+  bool res = fromRawArray(json, jkNodeAddrEpAddrs, epAddrFromJson, pAddr->epAddr, sizeof(SEpAddr), &numOfEps);
+  pAddr->numOfEps = numOfEps;
+  return res;
+}
 
 static bool nodeAddrToJson(const void* obj, cJSON* json) {
-  const SQueryNodeAddr* ep = (const SQueryNodeAddr*)obj;
-  bool res = cJSON_AddNumberToObject(json, jkNodeAddrId, ep->nodeId);
+  const SDownstreamSource* pSource = (const SDownstreamSource*) obj;
+  bool res = cJSON_AddNumberToObject(json, jkNodeTaskId, pSource->taskId);
+
   if (res) {
-    res = cJSON_AddNumberToObject(json, jkNodeAddrInUse, ep->inUse);
+    char t[30] = {0};
+    snprintf(t, tListLen(t), "%"PRIu64, pSource->schedId);
+    res = cJSON_AddStringToObject(json, jkNodeTaskSchedId, t);
   }
+
   if (res) {
-    res = addRawArray(json, jkNodeAddrEpAddrs, epAddrToJson, ep->epAddr, ep->numOfEps, sizeof(SEpAddr));
+    res = addObject(json, jkNodeAddr, queryNodeAddrToJson, &pSource->addr);
   }
   return res;
 }
 
 static bool nodeAddrFromJson(const cJSON* json, void* obj) {
-  SQueryNodeAddr* ep = (SQueryNodeAddr*)obj;
-  ep->nodeId = getNumber(json, jkNodeAddrId);
-  ep->inUse = getNumber(json, jkNodeAddrInUse);
-  int32_t numOfEps = 0;
-  bool res = fromRawArray(json, jkNodeAddrEpAddrs, nodeAddrFromJson, &ep->epAddr, sizeof(SEpAddr), &numOfEps);
-  ep->numOfEps = numOfEps;
+  SDownstreamSource* pSource = (SDownstreamSource*)obj;
+  pSource->taskId = getNumber(json, jkNodeTaskId);
+
+  pSource->schedId = getBigintFromString(json, jkNodeTaskSchedId);
+  bool res = fromObject(json, jkNodeAddr, queryNodeAddrFromJson, &pSource->addr, true);
   return res;
 }
 
 static const char* jkExchangeNodeSrcTemplateId = "SrcTemplateId";
-static const char* jkExchangeNodeSrcEndPoints = "SrcEndPoints";
+static const char* jkExchangeNodeSrcEndPoints = "SrcAddrs";
 
 static bool exchangeNodeToJson(const void* obj, cJSON* json) {
   const SExchangePhyNode* exchange = (const SExchangePhyNode*)obj;
   bool res = cJSON_AddNumberToObject(json, jkExchangeNodeSrcTemplateId, exchange->srcTemplateId);
   if (res) {
-    res = addInlineArray(json, jkExchangeNodeSrcEndPoints, nodeAddrToJson, exchange->pSrcEndPoints);
+    res = addRawArray(json, jkExchangeNodeSrcEndPoints, nodeAddrToJson, exchange->pSrcEndPoints->pData, sizeof(SDownstreamSource), taosArrayGetSize(exchange->pSrcEndPoints));
   }
   return res;
 }
@@ -756,12 +823,13 @@ static bool exchangeNodeToJson(const void* obj, cJSON* json) {
 static bool exchangeNodeFromJson(const cJSON* json, void* obj) {
   SExchangePhyNode* exchange = (SExchangePhyNode*)obj;
   exchange->srcTemplateId = getNumber(json, jkExchangeNodeSrcTemplateId);
-  return fromInlineArray(json, jkExchangeNodeSrcEndPoints, nodeAddrFromJson, &exchange->pSrcEndPoints, sizeof(SQueryNodeAddr));
+  return fromInlineArray(json, jkExchangeNodeSrcEndPoints, nodeAddrFromJson, &exchange->pSrcEndPoints, sizeof(SDownstreamSource));
 }
 
 static bool specificPhyNodeToJson(const void* obj, cJSON* json) {
   const SPhyNode* phyNode = (const SPhyNode*)obj;
   switch (phyNode->info.type) {
+    case OP_StreamScan:
     case OP_TableScan:
     case OP_DataBlocksOptScan:
     case OP_TableSeqScan:
@@ -808,7 +876,7 @@ static bool specificPhyNodeFromJson(const cJSON* json, void* obj) {
     case OP_SystemTableScan:
       return scanNodeFromJson(json, obj);
     case OP_Aggregate:
-      break; // todo
+      return aggNodeFromJson(json, obj);
     case OP_Project:
       return true;
     // case OP_Groupby:
@@ -879,7 +947,7 @@ static bool phyNodeFromJson(const cJSON* json, void* obj) {
     res = fromObject(json, jkPnodeSchema, dataBlockSchemaFromJson, &node->targetSchema, true);
   }
   if (res) {
-    res = fromArray(json, jkPnodeChildren, phyNodeFromJson, &node->pChildren, sizeof(SSlotSchema));
+    res = fromPnodeArray(json, jkPnodeChildren, phyNodeFromJson, &node->pChildren);
   }
   if (res) {
     res = fromObject(json, node->info.name, specificPhyNodeFromJson, node, true);
@@ -965,7 +1033,11 @@ static const char* jkIdSubplanId = "SubplanId";
 
 static bool subplanIdToJson(const void* obj, cJSON* jId) {
   const SSubplanId* id = (const SSubplanId*)obj;
-  bool res = cJSON_AddNumberToObject(jId, jkIdQueryId, id->queryId);
+
+  char ids[40] = {0};
+  snprintf(ids, tListLen(ids), "%"PRIu64, id->queryId);
+
+  bool res = cJSON_AddStringToObject(jId, jkIdQueryId, ids);
   if (res) {
     res = cJSON_AddNumberToObject(jId, jkIdTemplateId, id->templateId);
   }
@@ -977,9 +1049,10 @@ static bool subplanIdToJson(const void* obj, cJSON* jId) {
 
 static bool subplanIdFromJson(const cJSON* json, void* obj) {
   SSubplanId* id = (SSubplanId*)obj;
-  id->queryId = getNumber(json, jkIdQueryId);
+
+  id->queryId    = getBigintFromString(json, jkIdQueryId);
   id->templateId = getNumber(json, jkIdTemplateId);
-  id->subplanId = getNumber(json, jkIdSubplanId);
+  id->subplanId  = getNumber(json, jkIdSubplanId);
   return true;
 }
 

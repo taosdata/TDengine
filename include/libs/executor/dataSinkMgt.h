@@ -48,7 +48,6 @@ typedef struct SOutputData {
   int8_t  compressed;
   char*   pData;
   bool    queryEnd;
-  int32_t scheduleJobNo;
   int32_t bufStatus;
   int64_t useconds;
   int8_t  precision;
@@ -70,7 +69,7 @@ int32_t dsCreateDataSinker(const struct SDataSink *pDataSink, DataSinkHandle* pH
  */
 int32_t dsPutDataBlock(DataSinkHandle handle, const SInputData* pInput, bool* pContinue);
 
-void dsEndPut(DataSinkHandle handle, int64_t useconds);
+void dsEndPut(DataSinkHandle handle, uint64_t useconds);
 
 /**
  * Get the length of the data returned by the next call to dsGetDataBlock.

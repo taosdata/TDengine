@@ -278,7 +278,7 @@ static uint64_t splitSubplanByTable(SPlanContext* pCxt, SQueryPlanNode* pPlanNod
 static SPhyNode* createExchangeNode(SPlanContext* pCxt, SQueryPlanNode* pPlanNode, uint64_t srcTemplateId) {
   SExchangePhyNode* node = (SExchangePhyNode*)initPhyNode(pPlanNode, OP_Exchange, sizeof(SExchangePhyNode));
   node->srcTemplateId = srcTemplateId;
-  node->pSrcEndPoints = validPointer(taosArrayInit(TARRAY_MIN_SIZE, sizeof(SQueryNodeAddr)));
+  node->pSrcEndPoints = validPointer(taosArrayInit(TARRAY_MIN_SIZE, sizeof(SDownstreamSource)));
   return (SPhyNode*)node;
 }
 
@@ -290,7 +290,8 @@ static bool needMultiNodeScan(SQueryTableInfo* pTable) {
 static SPhyNode* createSingleTableScanNode(SQueryPlanNode* pPlanNode, SQueryTableInfo* pTable, SSubplan* subplan) {
   vgroupMsgToEpSet(&(pTable->pMeta->vgroupList->vgroups[0]), &subplan->execNode);
 
-  return createUserTableScanNode(pPlanNode, pTable, OP_TableScan);
+  int32_t type = (pPlanNode->info.type == QNODE_TABLESCAN)? OP_TableScan:OP_StreamScan;
+  return createUserTableScanNode(pPlanNode, pTable, type);
 }
 
 static SPhyNode* createTableScanNode(SPlanContext* pCxt, SQueryPlanNode* pPlanNode) {
@@ -326,6 +327,7 @@ static SPhyNode* createPhyNode(SPlanContext* pCxt, SQueryPlanNode* pPlanNode) {
     case QNODE_TAGSCAN:
       node = createTagScanNode(pPlanNode);
       break;
+    case QNODE_STREAMSCAN:
     case QNODE_TABLESCAN:
       node = createTableScanNode(pCxt, pPlanNode);
       break;
@@ -409,24 +411,25 @@ int32_t createDag(SQueryPlanNode* pQueryNode, struct SCatalog* pCatalog, SQueryD
   return TSDB_CODE_SUCCESS;
 }
 
-void setExchangSourceNode(uint64_t templateId, SQueryNodeAddr* pEp, SPhyNode* pNode) {
+void setExchangSourceNode(uint64_t templateId, SDownstreamSource *pSource, SPhyNode* pNode) {
   if (NULL == pNode) {
     return;
   }
   if (OP_Exchange == pNode->info.type) {
     SExchangePhyNode* pExchange = (SExchangePhyNode*)pNode;
     if (templateId == pExchange->srcTemplateId) {
-      taosArrayPush(pExchange->pSrcEndPoints, pEp);
+      taosArrayPush(pExchange->pSrcEndPoints, pSource);
     }
   }
+
   if (pNode->pChildren != NULL) {
     size_t size = taosArrayGetSize(pNode->pChildren);
     for(int32_t i = 0; i < size; ++i) {
-      setExchangSourceNode(templateId, pEp, taosArrayGetP(pNode->pChildren, i));
+      setExchangSourceNode(templateId, pSource, taosArrayGetP(pNode->pChildren, i));
     }
   }
 }
 
-void setSubplanExecutionNode(SSubplan* subplan, uint64_t templateId, SQueryNodeAddr* pEp) {
-  setExchangSourceNode(templateId, pEp, subplan->pNode);
+void setSubplanExecutionNode(SSubplan* subplan, uint64_t templateId, SDownstreamSource* pSource) {
+  setExchangSourceNode(templateId, pSource, subplan->pNode);
 }

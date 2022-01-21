@@ -540,35 +540,41 @@ static int32_t mndRetrieveVgroups(SMnodeMsg *pReq, SShowObj *pShow, char *data, 
   int32_t cols = 0;
   char   *pWrite;
 
+  SDbObj *pDb = mndAcquireDb(pMnode, pShow->db);
+  if (pDb == NULL) return 0;
+
   while (numOfRows < rows) {
     pShow->pIter = sdbFetch(pSdb, SDB_VGROUP, pShow->pIter, (void **)&pVgroup);
     if (pShow->pIter == NULL) break;
 
-    cols = 0;
+    if (pVgroup->dbUid == pDb->uid) {
+      cols = 0;
 
-    pWrite = data + pShow->offset[cols] * rows + pShow->bytes[cols] * numOfRows;
-    *(int32_t *)pWrite = pVgroup->vgId;
-    cols++;
-
-    pWrite = data + pShow->offset[cols] * rows + pShow->bytes[cols] * numOfRows;
-    *(int32_t *)pWrite = pVgroup->numOfTables;
-    cols++;
-
-    for (int32_t i = 0; i < pShow->replica; ++i) {
       pWrite = data + pShow->offset[cols] * rows + pShow->bytes[cols] * numOfRows;
-      *(int16_t *)pWrite = pVgroup->vnodeGid[i].dnodeId;
+      *(int32_t *)pWrite = pVgroup->vgId;
       cols++;
 
-      const char *role = mndGetRoleStr(pVgroup->vnodeGid[i].role);
       pWrite = data + pShow->offset[cols] * rows + pShow->bytes[cols] * numOfRows;
-      STR_WITH_MAXSIZE_TO_VARSTR(pWrite, role, pShow->bytes[cols]);
+      *(int32_t *)pWrite = pVgroup->numOfTables;
       cols++;
+
+      for (int32_t i = 0; i < pShow->replica; ++i) {
+        pWrite = data + pShow->offset[cols] * rows + pShow->bytes[cols] * numOfRows;
+        *(int16_t *)pWrite = pVgroup->vnodeGid[i].dnodeId;
+        cols++;
+
+        const char *role = mndGetRoleStr(pVgroup->vnodeGid[i].role);
+        pWrite = data + pShow->offset[cols] * rows + pShow->bytes[cols] * numOfRows;
+        STR_WITH_MAXSIZE_TO_VARSTR(pWrite, role, pShow->bytes[cols]);
+        cols++;
+      }
+      numOfRows++;
     }
 
     sdbRelease(pSdb, pVgroup);
-    numOfRows++;
   }
 
+  mndReleaseDb(pMnode, pDb);
   mndVacuumResult(data, pShow->numOfColumns, numOfRows, rows, pShow);
   pShow->numOfReads += numOfRows;
   return numOfRows;

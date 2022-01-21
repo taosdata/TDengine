@@ -28,6 +28,7 @@ SVnode *vnodeOpen(const char *path, const SVnodeCfg *pVnodeCfg) {
   if (pVnodeCfg != NULL) {
     cfg.vgId = pVnodeCfg->vgId;
     cfg.pDnode = pVnodeCfg->pDnode;
+    cfg.pTfs = pVnodeCfg->pTfs;
   }
 
   // Validate options
@@ -75,6 +76,7 @@ static SVnode *vnodeNew(const char *path, const SVnodeCfg *pVnodeCfg) {
 
   pVnode->vgId = pVnodeCfg->vgId;
   pVnode->pDnode = pVnodeCfg->pDnode;
+  pVnode->pTfs = pVnodeCfg->pTfs;
   pVnode->path = strdup(path);
   vnodeOptionsCopy(&(pVnode->config), pVnodeCfg);
 
@@ -109,16 +111,8 @@ static int vnodeOpenImpl(SVnode *pVnode) {
 
   // Open tsdb
   sprintf(dir, "%s/tsdb", pVnode->path);
-  pVnode->pTsdb = tsdbOpen(dir, pVnode->vgId, &(pVnode->config.tsdbCfg), vBufPoolGetMAF(pVnode), pVnode->pMeta);
+  pVnode->pTsdb = tsdbOpen(dir, pVnode->vgId, &(pVnode->config.tsdbCfg), vBufPoolGetMAF(pVnode), pVnode->pMeta, pVnode->pTfs);
   if (pVnode->pTsdb == NULL) {
-    // TODO: handle error
-    return -1;
-  }
-
-  // TODO: Open TQ
-  sprintf(dir, "%s/tq", pVnode->path);
-  pVnode->pTq = tqOpen(dir, &(pVnode->config.tqCfg), NULL, vBufPoolGetMAF(pVnode));
-  if (pVnode->pTq == NULL) {
     // TODO: handle error
     return -1;
   }
@@ -127,6 +121,14 @@ static int vnodeOpenImpl(SVnode *pVnode) {
   sprintf(dir, "%s/wal", pVnode->path);
   pVnode->pWal = walOpen(dir, &(pVnode->config.walCfg));
   if (pVnode->pWal == NULL) {
+    // TODO: handle error
+    return -1;
+  }
+
+  // Open TQ
+  sprintf(dir, "%s/tq", pVnode->path);
+  pVnode->pTq = tqOpen(dir, pVnode->pWal, &(pVnode->config.tqCfg), vBufPoolGetMAF(pVnode));
+  if (pVnode->pTq == NULL) {
     // TODO: handle error
     return -1;
   }

@@ -25,6 +25,14 @@
 extern "C" {
 #endif
 
+typedef struct {
+  // TODO
+} TDB_MPOOL;
+
+typedef struct {
+  int fd;
+} TDB_FH;
+
 struct TDB {
   pgsize_t pageSize;
   tdb_db_t type;
@@ -35,6 +43,9 @@ struct TDB {
     TDB_HASH * hash;
     TDB_HEAP * heap;
   } dbam;  // db access method
+
+  TDB_FH *   fhp;  // The backup file handle
+  TDB_MPOOL *mph;  // The memory pool handle
 };
 
 #ifdef __cplusplus

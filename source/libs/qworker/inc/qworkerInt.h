@@ -31,8 +31,6 @@ enum {
   QW_PHASE_POST_QUERY,
   QW_PHASE_PRE_CQUERY,
   QW_PHASE_POST_CQUERY,
-  QW_PHASE_PRE_SINK,
-  QW_PHASE_POST_SINK,
   QW_PHASE_PRE_FETCH,
   QW_PHASE_POST_FETCH,
 };
@@ -86,6 +84,7 @@ typedef struct SQWMsg {
 
 typedef struct SQWPhaseInput {
   int8_t         status;
+  int8_t         taskType;
   int32_t        code;
   qTaskInfo_t    taskHandle;
   DataSinkHandle sinkHandle;
@@ -93,8 +92,7 @@ typedef struct SQWPhaseInput {
 
 typedef struct SQWPhaseOutput {
   int32_t rspCode;
-  bool    needStop;
-  bool    needRsp;
+  bool    needStop;  
 } SQWPhaseOutput;
 
 
@@ -105,10 +103,17 @@ typedef struct SQWTaskStatus {
 
 typedef struct SQWTaskCtx {
   SRWLatch        lock;
-  int32_t         phase;
+  int8_t          phase;
+  int8_t          taskType;
+
+  void           *readyConnection;
+  void           *dropConnection;
+  void           *cancelConnection;
   
-  int32_t         sinkId;
-  int32_t         readyCode; 
+  bool            emptyRes;
+  int8_t          queryContinue;
+  int8_t          queryInQueue;
+  int32_t         rspCode; 
 
   int8_t          events[QW_EVENT_MAX];
   
@@ -144,7 +149,11 @@ typedef struct SQWorkerMgmt {
 #define QW_SET_EVENT_RECEIVED(ctx, event) atomic_store_8(&(ctx)->events[event], QW_EVENT_RECEIVED)
 #define QW_SET_EVENT_PROCESSED(ctx, event) atomic_store_8(&(ctx)->events[event], QW_EVENT_PROCESSED)
 
-#define QW_IN_EXECUTOR(ctx) ((ctx)->phase == QW_PHASE_PRE_QUERY || (ctx)->phase == QW_PHASE_PRE_CQUERY || (ctx)->phase == QW_PHASE_PRE_FETCH || (ctx)->phase == QW_PHASE_PRE_SINK)
+#define QW_GET_PHASE(ctx) atomic_load_8(&(ctx)->phase)
+
+#define QW_SET_RSP_CODE(ctx, code) atomic_val_compare_exchange_32(&(ctx)->rspCode, 0, code)
+
+#define QW_IN_EXECUTOR(ctx) (QW_GET_PHASE(ctx) == QW_PHASE_PRE_QUERY || QW_GET_PHASE(ctx) == QW_PHASE_PRE_CQUERY || QW_GET_PHASE(ctx) == QW_PHASE_PRE_FETCH)
 
 #define QW_TASK_NOT_EXIST(code) (TSDB_CODE_QRY_SCH_NOT_EXIST == (code) || TSDB_CODE_QRY_TASK_NOT_EXIST == (code))
 #define QW_TASK_ALREADY_EXIST(code) (TSDB_CODE_QRY_TASK_ALREADY_EXIST == (code))
@@ -165,6 +174,10 @@ typedef struct SQWorkerMgmt {
 #define QW_TASK_ELOG(param, ...) qError("QW:%p QID:%"PRIx64",TID:%"PRIx64" " param, mgmt, qId, tId, __VA_ARGS__)
 #define QW_TASK_WLOG(param, ...) qWarn("QW:%p QID:%"PRIx64",TID:%"PRIx64" " param, mgmt, qId, tId, __VA_ARGS__)
 #define QW_TASK_DLOG(param, ...) qDebug("QW:%p QID:%"PRIx64",TID:%"PRIx64" " param, mgmt, qId, tId, __VA_ARGS__)
+
+#define QW_TASK_ELOG_E(param) qError("QW:%p QID:%"PRIx64",TID:%"PRIx64" " param, mgmt, qId, tId)
+#define QW_TASK_WLOG_E(param) qWarn("QW:%p QID:%"PRIx64",TID:%"PRIx64" " param, mgmt, qId, tId)
+#define QW_TASK_DLOG_E(param) qDebug("QW:%p QID:%"PRIx64",TID:%"PRIx64" " param, mgmt, qId, tId)
 
 #define QW_SCH_TASK_ELOG(param, ...) qError("QW:%p SID:%"PRIx64",QID:%"PRIx64",TID:%"PRIx64" " param, mgmt, sId, qId, tId, __VA_ARGS__)
 #define QW_SCH_TASK_WLOG(param, ...) qWarn("QW:%p SID:%"PRIx64",QID:%"PRIx64",TID:%"PRIx64" " param, mgmt, sId, qId, tId, __VA_ARGS__)

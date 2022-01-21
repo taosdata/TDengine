@@ -65,9 +65,9 @@ int32_t qCreateQueryDag(const struct SQueryNode* pNode, struct SQueryDag** pDag,
   }
 
   if (pLogicPlan->info.type != QNODE_MODIFY) {
-   char* str = NULL;
-   queryPlanToString(pLogicPlan, &str);
-   printf("%s\n", str);
+//   char* str = NULL;
+//   queryPlanToString(pLogicPlan, &str);
+//   printf("%s\n", str);
   }
 
   code = optimizeQueryPlan(pLogicPlan);
@@ -87,8 +87,8 @@ int32_t qCreateQueryDag(const struct SQueryNode* pNode, struct SQueryDag** pDag,
   return TSDB_CODE_SUCCESS;
 }
 
-void qSetSubplanExecutionNode(SSubplan* subplan, uint64_t templateId, SQueryNodeAddr* ep) {
-  setSubplanExecutionNode(subplan, templateId, ep);
+void qSetSubplanExecutionNode(SSubplan* subplan, uint64_t templateId, SDownstreamSource* pSource) {
+  setSubplanExecutionNode(subplan, templateId, pSource);
 }
 
 int32_t qSubPlanToString(const SSubplan *subplan, char** str, int32_t* len) {

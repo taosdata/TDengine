@@ -44,7 +44,7 @@ typedef struct SDataDispatchHandle {
   SDataDispatchBuf nextOutput;
   int32_t status;
   bool queryEnd;
-  int64_t useconds;
+  uint64_t useconds;
   pthread_mutex_t mutex;
 } SDataDispatchHandle;
 
@@ -158,7 +158,7 @@ static int32_t putDataBlock(SDataSinkHandle* pHandle, const SInputData* pInput, 
   return TSDB_CODE_SUCCESS;
 }
 
-static void endPut(struct SDataSinkHandle* pHandle, int64_t useconds) {
+static void endPut(struct SDataSinkHandle* pHandle, uint64_t useconds) {
   SDataDispatchHandle* pDispatcher = (SDataDispatchHandle*)pHandle;
   pthread_mutex_lock(&pDispatcher->mutex);
   pDispatcher->queryEnd = true;
@@ -196,7 +196,6 @@ static int32_t getDataBlock(SDataSinkHandle* pHandle, SOutputData* pOutput) {
   pOutput->bufStatus = updateStatus(pDispatcher);
   pthread_mutex_lock(&pDispatcher->mutex);
   pOutput->queryEnd = pDispatcher->queryEnd;
-  pOutput->scheduleJobNo = 0;
   pOutput->useconds = pDispatcher->useconds;
   pOutput->precision = pDispatcher->schema.precision;
   pthread_mutex_unlock(&pDispatcher->mutex);

@@ -44,7 +44,7 @@ typedef struct {
 
 // TDB Operations
 TDB_EXTERN int tdbCreateDB(TDB** dbpp, tdb_db_t type);
-TDB_EXTERN int tdbOpenDB(TDB* dbp, uint32_t flags);
+TDB_EXTERN int tdbOpenDB(TDB* dbp, const char* fname, const char* dbname, uint32_t flags);
 TDB_EXTERN int tdbCloseDB(TDB* dbp, uint32_t flags);
 
 #ifdef __cplusplus

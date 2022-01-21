@@ -79,8 +79,6 @@ SSdbRaw *mndTopicActionEncode(SMqTopicObj *pTopic) {
   SDB_SET_BINARY(pRaw, dataPos, pTopic->logicalPlan, logicalPlanLen, TOPIC_ENCODE_OVER);
 
   int32_t physicalPlanLen = strlen(pTopic->physicalPlan) + 1;
-  pTopic->physicalPlan = calloc(physicalPlanLen, sizeof(char));
-  if (pTopic->physicalPlan == NULL) goto TOPIC_ENCODE_OVER;
   SDB_SET_INT32(pRaw, dataPos, strlen(pTopic->physicalPlan)+1, TOPIC_ENCODE_OVER);
   SDB_SET_BINARY(pRaw, dataPos, pTopic->physicalPlan, physicalPlanLen, TOPIC_ENCODE_OVER);
 
@@ -92,12 +90,6 @@ SSdbRaw *mndTopicActionEncode(SMqTopicObj *pTopic) {
 TOPIC_ENCODE_OVER:
   if (terrno != TSDB_CODE_SUCCESS) {
     mError("topic:%s, failed to encode to raw:%p since %s", pTopic->name, pRaw, terrstr());
-    /*if (pTopic->logicalPlan) {*/
-      /*free(pTopic->logicalPlan);*/
-    /*}*/
-    /*if (pTopic->physicalPlan) {*/
-      /*free(pTopic->physicalPlan);*/
-    /*}*/
     sdbFreeRaw(pRaw);
     return NULL;
   }
@@ -138,7 +130,7 @@ SSdbRow *mndTopicActionDecode(SSdbRaw *pRaw) {
   SDB_GET_BINARY(pRaw, dataPos, pTopic->sql, pTopic->sqlLen, TOPIC_DECODE_OVER);
 
   SDB_GET_INT32(pRaw, dataPos, &len, TOPIC_DECODE_OVER);
-  pTopic->logicalPlan = calloc(len+1, sizeof(char));
+  pTopic->logicalPlan = calloc(len + 1, sizeof(char));
   if (pTopic->logicalPlan == NULL) {
     terrno = TSDB_CODE_OUT_OF_MEMORY;
     goto TOPIC_DECODE_OVER;
@@ -146,7 +138,7 @@ SSdbRow *mndTopicActionDecode(SSdbRaw *pRaw) {
   SDB_GET_BINARY(pRaw, dataPos, pTopic->logicalPlan, len+1, TOPIC_DECODE_OVER);
 
   SDB_GET_INT32(pRaw, dataPos, &len, TOPIC_DECODE_OVER);
-  pTopic->logicalPlan = calloc(len + 1, sizeof(char));
+  pTopic->physicalPlan = calloc(len + 1, sizeof(char));
   if (pTopic->physicalPlan == NULL) {
     free(pTopic->logicalPlan);
     terrno = TSDB_CODE_OUT_OF_MEMORY;
@@ -154,7 +146,7 @@ SSdbRow *mndTopicActionDecode(SSdbRaw *pRaw) {
   }
   SDB_GET_BINARY(pRaw, dataPos, pTopic->physicalPlan, len+1, TOPIC_DECODE_OVER);
 
-  SDB_GET_RESERVE(pRaw, dataPos, MND_TOPIC_RESERVE_SIZE, TOPIC_DECODE_OVER)
+  SDB_GET_RESERVE(pRaw, dataPos, MND_TOPIC_RESERVE_SIZE, TOPIC_DECODE_OVER);
 
   terrno = TSDB_CODE_SUCCESS;
 

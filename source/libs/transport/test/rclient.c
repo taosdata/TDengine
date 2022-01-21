@@ -34,11 +34,13 @@ typedef struct {
 
 static void processResponse(void *pParent, SRpcMsg *pMsg, SEpSet *pEpSet) {
   SInfo *pInfo = (SInfo *)pMsg->ahandle;
-  tDebug("thread:%d, response is received, type:%d contLen:%d code:0x%x", pInfo->index, pMsg->msgType, pMsg->contLen, pMsg->code);
+  // tDebug("thread:%d, response is received, type:%d contLen:%d code:0x%x", pInfo->index, pMsg->msgType, pMsg->contLen,
+  //       pMsg->code);
 
   if (pEpSet) pInfo->epSet = *pEpSet;
 
   rpcFreeCont(pMsg->pCont);
+  // tsem_post(&pInfo->rspSem);
   tsem_post(&pInfo->rspSem);
 }
 
@@ -56,9 +58,10 @@ static void *sendRequest(void *param) {
     rpcMsg.contLen = pInfo->msgSize;
     rpcMsg.ahandle = pInfo;
     rpcMsg.msgType = 1;
-    tDebug("thread:%d, send request, contLen:%d num:%d", pInfo->index, pInfo->msgSize, pInfo->num);
+    // tDebug("thread:%d, send request, contLen:%d num:%d", pInfo->index, pInfo->msgSize, pInfo->num);
     rpcSendRequest(pInfo->pRpc, &pInfo->epSet, &rpcMsg, NULL);
     if (pInfo->num % 20000 == 0) tInfo("thread:%d, %d requests have been sent", pInfo->index, pInfo->num);
+    // tsem_wait(&pInfo->rspSem);
     tsem_wait(&pInfo->rspSem);
   }
 
@@ -185,7 +188,8 @@ int main(int argc, char *argv[]) {
   // float usedTime = (endTime - startTime) / 1000.0f;  // mseconds
 
   // tInfo("it takes %.3f mseconds to send %d requests to server", usedTime, numOfReqs * appThreads);
-  // tInfo("Performance: %.3f requests per second, msgSize:%d bytes", 1000.0 * numOfReqs * appThreads / usedTime, msgSize);
+  // tInfo("Performance: %.3f requests per second, msgSize:%d bytes", 1000.0 * numOfReqs * appThreads / usedTime,
+  // msgSize);
 
   int ch = getchar();
   UNUSED(ch);

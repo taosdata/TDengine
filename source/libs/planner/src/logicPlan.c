@@ -13,6 +13,7 @@
  * along with this program. If not, see <http://www.gnu.org/licenses/>.
  */
 
+#include <function.h>
 #include "function.h"
 #include "os.h"
 #include "parser.h"
@@ -120,6 +121,7 @@ static SQueryPlanNode* createQueryNode(int32_t type, const char* name, SQueryPla
 
   switch(type) {
     case QNODE_TAGSCAN:
+    case QNODE_STREAMSCAN:
     case QNODE_TABLESCAN: {
       SQueryTableInfo* info = calloc(1, sizeof(SQueryTableInfo));
       memcpy(info, pExtInfo, sizeof(SQueryTableInfo));
@@ -194,26 +196,31 @@ static SQueryPlanNode* doAddTableColumnNode(const SQueryStmtInfo* pQueryInfo, SQ
     return pNode;
   }
 
-  SQueryPlanNode*  pNode = createQueryNode(QNODE_TABLESCAN, "TableScan", NULL, 0, NULL, 0, info);
+  SQueryPlanNode* pNode = NULL;
+  if (pQueryInfo->info.continueQuery) {
+    pNode = createQueryNode(QNODE_STREAMSCAN, "StreamScan", NULL, 0, NULL, 0, info);
+  } else {
+    pNode = createQueryNode(QNODE_TABLESCAN, "TableScan", NULL, 0, NULL, 0, info);
+  }
 
   if (!pQueryInfo->info.projectionQuery) {
-    STableMetaInfo* pTableMetaInfo1 = getMetaInfo(pQueryInfo, 0);
+    SArray* p = pQueryInfo->exprList[0];
 
     // table source column projection, generate the projection expr
-    int32_t     numOfCols = (int32_t) taosArrayGetSize(tableCols);
-    SExprInfo** pExpr = calloc(numOfCols, POINTER_BYTES);
-    for (int32_t i = 0; i < numOfCols; ++i) {
-      SColumn* pCol = taosArrayGetP(tableCols, i);
+    int32_t numOfCols = (int32_t) taosArrayGetSize(tableCols);
 
-      SSourceParam param = {0};
-      addIntoSourceParam(&param, NULL, pCol);
-      SSchema s = createSchema(pCol->info.type, pCol->info.bytes, pCol->info.colId, pCol->name);
-      SExprInfo* p = createExprInfo(pTableMetaInfo1, "project", &param, &s, 0);
-      pExpr[i] = p;
+    pNode->numOfExpr = numOfCols;
+    pNode->pExpr = taosArrayInit(numOfCols, POINTER_BYTES);
+    for(int32_t i = 0; i < numOfCols; ++i) {
+      SExprInfo* pExprInfo = taosArrayGetP(p, i);
+      SColumn* pCol = pExprInfo->base.pColumns;
+
+      SSchema schema = createSchema(pCol->info.type, pCol->info.bytes, pCol->info.colId, pCol->name);
+
+      tExprNode* pExprNode = pExprInfo->pExpr->_function.pChild[0];
+      SExprInfo* px = createBinaryExprInfo(pExprNode, &schema);
+      taosArrayPush(pNode->pExpr, &px);
     }
-
-    pNode = createQueryNode(QNODE_PROJECT, "Projection", &pNode, 1, pExpr, numOfCols, NULL);
-    tfree(pExpr);
   }
 
   return pNode;
@@ -260,7 +267,6 @@ static SQueryPlanNode* doCreateQueryPlanForSingleTableImpl(const SQueryStmtInfo*
       pNode->numOfExpr = num;
       pNode->pExpr = taosArrayInit(num, POINTER_BYTES);
       taosArrayAddAll(pNode->pExpr, p);
-//      pNode = createQueryNode(QNODE_PROJECT, "Projection", &pNode, 1, p->pData, num, NULL);
     }
   }
 
@@ -432,6 +438,7 @@ static int32_t doPrintPlan(char* buf, SQueryPlanNode* pQueryNode, int32_t level,
   int32_t len = len1 + totalLen;
 
   switch(pQueryNode->info.type) {
+    case QNODE_STREAMSCAN:
     case QNODE_TABLESCAN: {
       SQueryTableInfo* pInfo = (SQueryTableInfo*)pQueryNode->pExtInfo;
       len1 = sprintf(buf + len, "%s #%" PRIu64, pInfo->tableName, pInfo->uid);
@@ -642,7 +649,6 @@ int32_t queryPlanToStringImpl(char* buf, SQueryPlanNode* pQueryNode, int32_t lev
 
 int32_t queryPlanToString(struct SQueryPlanNode* pQueryNode, char** str) {
   assert(pQueryNode);
-
   *str = calloc(1, 4096);
 
   int32_t len = sprintf(*str, "===== logic plan =====\n");

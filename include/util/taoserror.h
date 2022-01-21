@@ -361,6 +361,8 @@ int32_t* taosGetErrno();
 #define TSDB_CODE_QRY_TASK_DROPPING             TAOS_DEF_ERROR_CODE(0, 0x0717)  //"Task dropping")
 #define TSDB_CODE_QRY_DUPLICATTED_OPERATION     TAOS_DEF_ERROR_CODE(0, 0x0718)  //"Duplicatted operation")
 #define TSDB_CODE_QRY_TASK_MSG_ERROR            TAOS_DEF_ERROR_CODE(0, 0x0719)  //"Task message error")
+#define TSDB_CODE_QRY_JOB_FREED                 TAOS_DEF_ERROR_CODE(0, 0x071A)  //"Job freed")
+#define TSDB_CODE_QRY_TASK_STATUS_ERROR         TAOS_DEF_ERROR_CODE(0, 0x071B)  //"Task status error")
 
 // grant
 #define TSDB_CODE_GRANT_EXPIRED                 TAOS_DEF_ERROR_CODE(0, 0x0800)  //"License expired")
@@ -411,7 +413,7 @@ int32_t* taosGetErrno();
 #define TSDB_CODE_WAL_OUT_OF_MEMORY             TAOS_DEF_ERROR_CODE(0, 0x1004)  //"WAL out of memory")
 
 // tfs
-#define TSDB_CODE_FS_OUT_OF_MEMORY              TAOS_DEF_ERROR_CODE(0, 0x2200)  //"tfs out of memory")
+#define TSDB_CODE_FS_APP_ERROR                  TAOS_DEF_ERROR_CODE(0, 0x2200)  //"tfs out of memory")
 #define TSDB_CODE_FS_INVLD_CFG                  TAOS_DEF_ERROR_CODE(0, 0x2201)  //"tfs invalid mount config")
 #define TSDB_CODE_FS_TOO_MANY_MOUNT             TAOS_DEF_ERROR_CODE(0, 0x2202)  //"tfs too many mount")
 #define TSDB_CODE_FS_DUP_PRIMARY                TAOS_DEF_ERROR_CODE(0, 0x2203)  //"tfs duplicate primary mount")
