@@ -1590,8 +1590,8 @@ typedef struct SMqCVConsumeReq {
 
 typedef struct SMqConsumeRspBlock {
   int32_t bodyLen;
-  char topicName[TSDB_TOPIC_FNAME_LEN];
-  char body[];
+  char    topicName[TSDB_TOPIC_FNAME_LEN];
+  char    body[];
 } SMqConsumeRspBlock;
 
 typedef struct SMqCVConsumeRsp {

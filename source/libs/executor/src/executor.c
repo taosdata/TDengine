@@ -29,6 +29,7 @@ static int32_t doSetStreamBlock(SOperatorInfo* pOperator, void* input) {
 
       return doSetStreamBlock(pOperator->pDownstream[0], input);
     }
+    return TSDB_CODE_QRY_APP_ERROR;
   } else {
     SStreamBlockScanInfo* pInfo = pOperator->info;
     tqReadHandleSetMsg(pInfo->readerHandle, input, 0);
