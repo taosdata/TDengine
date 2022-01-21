@@ -27,6 +27,7 @@
 #include "thash.h"
 #include "ttypes.h"
 #include "query.h"
+#include "vnode.h"
 #include "tsdb.h"
 
 #define IS_MAIN_SCAN(runtime)          ((runtime)->scanFlag == MAIN_SCAN)
@@ -5407,7 +5408,7 @@ SOperatorInfo* createTableBlockInfoScanOperator(void* pTsdbReadHandle, STaskRunt
   return pOperator;
 }
 
-SOperatorInfo* createStreamBlockScanOperatorInfo(void *pStreamBlockHandle, int32_t numOfOutput, SExecTaskInfo* pTaskInfo) {
+SOperatorInfo* createStreamScanOperatorInfo(void *streamReadHandle, SArray* pExprInfo, SExecTaskInfo* pTaskInfo) {
   SStreamBlockScanInfo* pInfo = calloc(1, sizeof(SStreamBlockScanInfo));
   SOperatorInfo* pOperator = calloc(1, sizeof(SOperatorInfo));
   if (pInfo == NULL || pOperator == NULL) {
@@ -5417,16 +5418,28 @@ SOperatorInfo* createStreamBlockScanOperatorInfo(void *pStreamBlockHandle, int32
     return NULL;
   }
 
-  pInfo->readerHandle = pStreamBlockHandle;
+  int32_t numOfOutput = (int32_t) taosArrayGetSize(pExprInfo);
+  SArray* pColList = taosArrayInit(numOfOutput, sizeof(int32_t));
+  for(int32_t i = 0; i < numOfOutput; ++i) {
+    SExprInfo* pExpr = taosArrayGetP(pExprInfo, i);
+
+    taosArrayPush(pColList, &pExpr->pExpr->pSchema[0].colId);
+  }
+  
+  // set the extract column id to streamHandle
+  tqReadHandleSetColIdList((STqReadHandle* )streamReadHandle, pColList);
+
+  pInfo->readerHandle = streamReadHandle;
 
   pOperator->name          = "StreamBlockScanOperator";
-  pOperator->operatorType  = OP_StreamBlockScan;
+  pOperator->operatorType  = OP_StreamScan;
   pOperator->blockingOptr  = false;
   pOperator->status        = OP_IN_EXECUTING;
   pOperator->info          = pInfo;
   pOperator->numOfOutput   = numOfOutput;
   pOperator->exec          = doStreamBlockScan;
   pOperator->pTaskInfo     = pTaskInfo;
+  return pOperator;
 }
 
 
@@ -7704,6 +7717,9 @@ SOperatorInfo* doCreateOperatorTreeNode(SPhyNode* pPhyNode, SExecTaskInfo* pTask
     } else if (pPhyNode->info.type == OP_Exchange) {
       SExchangePhyNode* pEx = (SExchangePhyNode*) pPhyNode;
       return createExchangeOperatorInfo(pEx->pSrcEndPoints, pEx->node.pTargets, pTaskInfo);
+    } else if (pPhyNode->info.type == OP_StreamScan) {
+      size_t numOfCols = taosArrayGetSize(pPhyNode->pTargets);
+      return createStreamScanOperatorInfo(readerHandle, pPhyNode->pTargets, pTaskInfo);
     }
   }
 

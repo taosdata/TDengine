@@ -17,6 +17,7 @@
 #define _TD_TQ_INT_H_
 
 #include "tq.h"
+#include "meta.h"
 #include "tlog.h"
 #include "trpc.h"
 #ifdef __cplusplus

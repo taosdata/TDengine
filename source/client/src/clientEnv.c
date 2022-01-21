@@ -196,6 +196,10 @@ static void doDestroyRequest(void* p) {
   doFreeReqResultInfo(&pRequest->body.resInfo);
   qDestroyQueryDag(pRequest->body.pDag);
 
+  if (pRequest->body.showInfo.pArray != NULL) {
+    taosArrayDestroy(pRequest->body.showInfo.pArray);
+  }
+
   deregisterRequest(pRequest);
   tfree(pRequest);
 }
