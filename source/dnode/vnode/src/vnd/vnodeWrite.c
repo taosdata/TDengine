@@ -84,7 +84,7 @@ int vnodeApplyWMsg(SVnode *pVnode, SRpcMsg *pMsg, SRpcMsg **pRsp) {
         if (metaCreateTable(pVnode->pMeta, pCreateTbReq) < 0) {
           // TODO: handle error
         }
-        vTrace("vgId:%d process create table %s", pVnode->vgId, pCreateTbReq->name);
+        vInfo("vgId:%d process create table %s", pVnode->vgId, pCreateTbReq->name);
         free(pCreateTbReq->name);
         if (pCreateTbReq->type == TD_SUPER_TABLE) {
           free(pCreateTbReq->stbCfg.pSchema);

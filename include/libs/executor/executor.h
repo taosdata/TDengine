@@ -29,21 +29,23 @@ struct SSubplan;
  /**
   * Create the exec task for streaming mode
   * @param pMsg
-  * @param pStreamBlockReadHandle
+  * @param streamReadHandle
   * @return
   */
-qTaskInfo_t createStreamExecTaskInfo(SSubQueryMsg *pMsg, void* pStreamBlockReadHandle);
+qTaskInfo_t qCreateStreamExecTaskInfo(SSubQueryMsg *pMsg, void* streamReadHandle);
+
+int32_t     qSetStreamInput(qTaskInfo_t tinfo, void* input);
 
  /**
   * Create the exec task object according to task json
-  * @param tsdb
+  * @param readHandle
   * @param vgId
   * @param pTaskInfoMsg
   * @param pTaskInfo
   * @param qId
   * @return
   */
-int32_t qCreateExecTask(void* tsdb, int32_t vgId, struct SSubplan* pPlan, qTaskInfo_t* pTaskInfo, DataSinkHandle* handle);
+int32_t qCreateExecTask(void* readHandle, int32_t vgId, struct SSubplan* pPlan, qTaskInfo_t* pTaskInfo, DataSinkHandle* handle);
 
 /**
  * The main task execution function, including query on both table and multiple tables,
@@ -60,63 +62,63 @@ int32_t qExecTask(qTaskInfo_t tinfo, SSDataBlock** pRes, uint64_t *useconds);
  * this function will be blocked to wait for the query execution completed or paused,
  * in which case enough results have been produced already.
  *
- * @param qinfo
+ * @param tinfo
  * @return
  */
-int32_t qRetrieveQueryResultInfo(qTaskInfo_t qinfo, bool* buildRes, void* pRspContext);
+int32_t qRetrieveQueryResultInfo(qTaskInfo_t tinfo, bool* buildRes, void* pRspContext);
 
 /**
  *
  * Retrieve the actual results to fill the response message payload.
  * Note that this function must be executed after qRetrieveQueryResultInfo is invoked.
  *
- * @param qinfo  qinfo object
+ * @param tinfo  tinfo object
  * @param pRsp    response message
  * @param contLen payload length
  * @return
  */
-//int32_t qDumpRetrieveResult(qTaskInfo_t qinfo, SRetrieveTableRsp** pRsp, int32_t* contLen, bool* continueExec);
+//int32_t qDumpRetrieveResult(qTaskInfo_t tinfo, SRetrieveTableRsp** pRsp, int32_t* contLen, bool* continueExec);
 
 /**
  * return the transporter context (RPC)
- * @param qinfo
+ * @param tinfo
  * @return
  */
-void* qGetResultRetrieveMsg(qTaskInfo_t qinfo);
+void* qGetResultRetrieveMsg(qTaskInfo_t tinfo);
 
 /**
  * kill the ongoing query and free the query handle and corresponding resources automatically
- * @param qinfo  qhandle
+ * @param tinfo  qhandle
  * @return
  */
-int32_t qKillTask(qTaskInfo_t qinfo);
+int32_t qKillTask(qTaskInfo_t tinfo);
 
 /**
  * kill the ongoing query asynchronously
- * @param qinfo  qhandle
+ * @param tinfo  qhandle
  * @return
  */
-int32_t qAsyncKillTask(qTaskInfo_t qinfo);
+int32_t qAsyncKillTask(qTaskInfo_t tinfo);
 
 /**
  * return whether query is completed or not
- * @param qinfo
+ * @param tinfo
  * @return
  */
-int32_t qIsTaskCompleted(qTaskInfo_t qinfo);
+int32_t qIsTaskCompleted(qTaskInfo_t tinfo);
 
 /**
  * destroy query info structure
  * @param qHandle
  */
-void qDestroyTask(qTaskInfo_t qHandle);
+void qDestroyTask(qTaskInfo_t tinfo);
 
 /**
  * Get the queried table uid
  * @param qHandle
  * @return
  */
-int64_t qGetQueriedTableUid(qTaskInfo_t qHandle);
+int64_t qGetQueriedTableUid(qTaskInfo_t tinfo);
 
 /**
  * Extract the qualified table id list, and than pass them to the TSDB driver to load the required table data blocks.
@@ -143,7 +145,7 @@ int32_t qGetQualifiedTableIdList(void* pTableList, const char* tagCond, int32_t 
  * @param type  operation type: ADD|DROP
  * @return
  */
-int32_t qUpdateQueriedTableIdList(qTaskInfo_t qinfo, int64_t uid, int32_t type);
+int32_t qUpdateQueriedTableIdList(qTaskInfo_t tinfo, int64_t uid, int32_t type);
 
 //================================================================================================
 // query handle management
