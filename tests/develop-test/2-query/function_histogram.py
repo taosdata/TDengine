@@ -150,6 +150,10 @@ class TDTestCase:
         tdSql.error('select histogram(col_nchar, "user_input", "[1,3,5,7]", 0) from ctb;')
         tdSql.error('select histogram(col_nchar, "user_input", "[1,3,5,7]", 0) from tb;')
 
+        tdSql.error('select histogram(col, "user_input", "[1,3,5,7]", 0) from stb;')
+        tdSql.error('select histogram(col, "user_input", "[1,3,5,7]", 0) from ctb;')
+        tdSql.error('select histogram(col, "user_input", "[1,3,5,7]", 0) from tb;')
+
         #Unsupported tags
         tdSql.error('select histogram(tag_timestamp, "user_input", "[1,3,5,7]", 0) from stb;')
         tdSql.error('select histogram(tag_timestamp, "user_input", "[1,3,5,7]", 0) from ctb;')
@@ -761,6 +765,18 @@ class TDTestCase:
         tdSql.checkData(2, 0, "(19.9:1e+14]:2");
 
         #ERROR CASE
+        tdSql.error('select histogram(col_double, 1, "[1,5,3,7]", 0) from stb;')
+        tdSql.error('select histogram(col_double, 1, "[1,5,3,7]", 0) from ctb;')
+        tdSql.error('select histogram(col_double, 1, "[1,5,3,7]", 0) from tb;')
+        tdSql.error('select histogram(col_double, -1.0, "[1,5,3,7]", 0) from stb;')
+        tdSql.error('select histogram(col_double, -1.0, "[1,5,3,7]", 0) from ctb;')
+        tdSql.error('select histogram(col_double, -1.0, "[1,5,3,7]", 0) from tb;')
+        tdSql.error('select histogram(col_double, true, "[1,5,3,7]", 0) from stb;')
+        tdSql.error('select histogram(col_double, false, "[1,5,3,7]", 0) from ctb;')
+        tdSql.error('select histogram(col_double, true, "[1,5,3,7]", 0) from tb;')
+        tdSql.error('select histogram(col_double, "user", "[1,5,3,7]", 0) from stb;')
+        tdSql.error('select histogram(col_double, "user", "[1,5,3,7]", 0) from ctb;')
+        tdSql.error('select histogram(col_double, "user", "[1,5,3,7]", 0) from tb;')
         tdSql.error('select histogram(col_double, "user_input", "[1,5,3,7]", 0) from stb;')
         tdSql.error('select histogram(col_double, "user_input", "[1,5,3,7]", 0) from ctb;')
         tdSql.error('select histogram(col_double, "user_input", "[1,5,3,7]", 0) from tb;')
@@ -800,7 +816,7 @@ class TDTestCase:
 
 
         ## linear_bins ##
-        #TINYINT
+        #INTEGER
         tdSql.query('select histogram(col_tinyint, \'linear_bin\', \'{"start": 1, "width": 3, "count": 8, "infinity": false}\', 0) from stb;')
         tdSql.checkRows(8);
         tdSql.checkData(0, 0, "(1:4]:3");
@@ -1024,6 +1040,236 @@ class TDTestCase:
         tdSql.checkData(2, 0, "(0:7e+307]:13");
         tdSql.checkData(3, 0, "(7e+307:1.79769e+308]:0");
         tdSql.query('select histogram(col_tinyint, \'linear_bin\', \'{"start": -0.7e+308, "width": 0.7e+308, "count": 2, "infinity": true}\', 0) from tb;')
+        tdSql.checkRows(4);
+        tdSql.checkData(0, 0, "(-1.79769e+308:-7e+307]:0");
+        tdSql.checkData(1, 0, "(-7e+307:0]:2");
+        tdSql.checkData(2, 0, "(0:7e+307]:13");
+        tdSql.checkData(3, 0, "(7e+307:1.79769e+308]:0");
+
+        #FLOATING NUMBER
+        tdSql.query('select histogram(col_float, \'linear_bin\', \'{"start": 1, "width": 3, "count": 8, "infinity": false}\', 0) from stb;')
+        tdSql.checkRows(8);
+        tdSql.checkData(0, 0, "(1:4]:3");
+        tdSql.checkData(1, 0, "(4:7]:3");
+        tdSql.checkData(2, 0, "(7:10]:3");
+        tdSql.checkData(3, 0, "(10:13]:1");
+        tdSql.checkData(4, 0, "(13:16]:1");
+        tdSql.checkData(5, 0, "(16:19]:0");
+        tdSql.checkData(6, 0, "(19:22]:1");
+        tdSql.checkData(7, 0, "(22:25]:0");
+        tdSql.query('select histogram(col_float, \'linear_bin\', \'{"start": 1, "width": 3, "count": 8, "infinity": false}\', 0) from ctb;')
+        tdSql.checkRows(8);
+        tdSql.checkData(0, 0, "(1:4]:3");
+        tdSql.checkData(1, 0, "(4:7]:3");
+        tdSql.checkData(2, 0, "(7:10]:3");
+        tdSql.checkData(3, 0, "(10:13]:1");
+        tdSql.checkData(4, 0, "(13:16]:1");
+        tdSql.checkData(5, 0, "(16:19]:0");
+        tdSql.checkData(6, 0, "(19:22]:1");
+        tdSql.checkData(7, 0, "(22:25]:0");
+        tdSql.query('select histogram(col_float, \'linear_bin\', \'{"start": 1, "width": 3, "count": 8, "infinity": false}\', 0) from tb;')
+        tdSql.checkRows(8);
+        tdSql.checkData(0, 0, "(1:4]:3");
+        tdSql.checkData(1, 0, "(4:7]:3");
+        tdSql.checkData(2, 0, "(7:10]:3");
+        tdSql.checkData(3, 0, "(10:13]:1");
+        tdSql.checkData(4, 0, "(13:16]:1");
+        tdSql.checkData(5, 0, "(16:19]:0");
+        tdSql.checkData(6, 0, "(19:22]:1");
+        tdSql.checkData(7, 0, "(22:25]:0");
+
+        tdSql.query('select histogram(col_float, \'linear_bin\', \'{"start": -10.0, "width": 3.0, "count": 8, "infinity": false}\', 0) from stb;')
+        tdSql.checkRows(8);
+        tdSql.checkData(0, 0, "(-10:-7]:1");
+        tdSql.checkData(1, 0, "(-7:-4]:0");
+        tdSql.checkData(2, 0, "(-4:-1]:1");
+        tdSql.checkData(3, 0, "(-1:2]:1");
+        tdSql.checkData(4, 0, "(2:5]:3");
+        tdSql.checkData(5, 0, "(5:8]:3");
+        tdSql.checkData(6, 0, "(8:11]:3");
+        tdSql.checkData(7, 0, "(11:14]:0");
+        tdSql.query('select histogram(col_float, \'linear_bin\', \'{"start": -10.0, "width": 3.0, "count": 8, "infinity": false}\', 0) from ctb;')
+        tdSql.checkRows(8);
+        tdSql.checkData(0, 0, "(-10:-7]:1");
+        tdSql.checkData(1, 0, "(-7:-4]:0");
+        tdSql.checkData(2, 0, "(-4:-1]:1");
+        tdSql.checkData(3, 0, "(-1:2]:1");
+        tdSql.checkData(4, 0, "(2:5]:3");
+        tdSql.checkData(5, 0, "(5:8]:3");
+        tdSql.checkData(6, 0, "(8:11]:3");
+        tdSql.checkData(7, 0, "(11:14]:0");
+        tdSql.query('select histogram(col_float, \'linear_bin\', \'{"start": -10.0, "width": 3.0, "count": 8, "infinity": false}\', 0) from tb;')
+        tdSql.checkRows(8);
+        tdSql.checkData(0, 0, "(-10:-7]:1");
+        tdSql.checkData(1, 0, "(-7:-4]:0");
+        tdSql.checkData(2, 0, "(-4:-1]:1");
+        tdSql.checkData(3, 0, "(-1:2]:1");
+        tdSql.checkData(4, 0, "(2:5]:3");
+        tdSql.checkData(5, 0, "(5:8]:3");
+        tdSql.checkData(6, 0, "(8:11]:3");
+        tdSql.checkData(7, 0, "(11:14]:0");
+
+        tdSql.query('select histogram(col_float, \'linear_bin\', \'{"start": -2.5, "width": 0.5, "count": 8, "infinity": false}\', 0) from stb;')
+        tdSql.checkRows(8);
+        tdSql.checkData(0, 0, "(-2.5:-2]:0");
+        tdSql.checkData(1, 0, "(-2:-1.5]:1");
+        tdSql.checkData(2, 0, "(-1.5:-1]:0");
+        tdSql.checkData(3, 0, "(-1:-0.5]:0");
+        tdSql.checkData(4, 0, "(-0.5:0]:0");
+        tdSql.checkData(5, 0, "(0:0.5]:0");
+        tdSql.checkData(6, 0, "(0.5:1]:1");
+        tdSql.checkData(7, 0, "(1:1.5]:0");
+        tdSql.query('select histogram(col_float, \'linear_bin\', \'{"start": -2.5, "width": 0.5, "count": 8, "infinity": false}\', 0) from ctb;')
+        tdSql.checkRows(8);
+        tdSql.checkData(0, 0, "(-2.5:-2]:0");
+        tdSql.checkData(1, 0, "(-2:-1.5]:1");
+        tdSql.checkData(2, 0, "(-1.5:-1]:0");
+        tdSql.checkData(3, 0, "(-1:-0.5]:0");
+        tdSql.checkData(4, 0, "(-0.5:0]:0");
+        tdSql.checkData(5, 0, "(0:0.5]:0");
+        tdSql.checkData(6, 0, "(0.5:1]:1");
+        tdSql.checkData(7, 0, "(1:1.5]:0");
+        tdSql.query('select histogram(col_float, \'linear_bin\', \'{"start": -2.5, "width": 0.5, "count": 8, "infinity": false}\', 0) from tb;')
+        tdSql.checkRows(8);
+        tdSql.checkData(0, 0, "(-2.5:-2]:0");
+        tdSql.checkData(1, 0, "(-2:-1.5]:1");
+        tdSql.checkData(2, 0, "(-1.5:-1]:0");
+        tdSql.checkData(3, 0, "(-1:-0.5]:0");
+        tdSql.checkData(4, 0, "(-0.5:0]:0");
+        tdSql.checkData(5, 0, "(0:0.5]:0");
+        tdSql.checkData(6, 0, "(0.5:1]:1");
+        tdSql.checkData(7, 0, "(1:1.5]:0");
+
+        tdSql.query('select histogram(col_float, \'linear_bin\', \'{"start": 4, "width": -0.5, "count": 10, "infinity": false}\', 0) from stb;')
+        tdSql.checkRows(10);
+        tdSql.checkData(0, 0, "(3.5:4]:0");
+        tdSql.checkData(1, 0, "(3:3.5]:1");
+        tdSql.checkData(2, 0, "(2.5:3]:0");
+        tdSql.checkData(3, 0, "(2:2.5]:1");
+        tdSql.checkData(4, 0, "(1.5:2]:0");
+        tdSql.checkData(5, 0, "(1:1.5]:1");
+        tdSql.checkData(6, 0, "(0.5:1]:0");
+        tdSql.checkData(7, 0, "(0:0.5]:0");
+        tdSql.checkData(8, 0, "(-0.5:0]:0");
+        tdSql.checkData(9, 0, "(-1:-0.5]:0");
+        tdSql.query('select histogram(col_float, \'linear_bin\', \'{"start": 4, "width": -0.5, "count": 10, "infinity": false}\', 0) from ctb;')
+        tdSql.checkRows(10);
+        tdSql.checkData(0, 0, "(3.5:4]:0");
+        tdSql.checkData(1, 0, "(3:3.5]:1");
+        tdSql.checkData(2, 0, "(2.5:3]:0");
+        tdSql.checkData(3, 0, "(2:2.5]:1");
+        tdSql.checkData(4, 0, "(1.5:2]:0");
+        tdSql.checkData(5, 0, "(1:1.5]:1");
+        tdSql.checkData(6, 0, "(0.5:1]:0");
+        tdSql.checkData(7, 0, "(0:0.5]:0");
+        tdSql.checkData(8, 0, "(-0.5:0]:0");
+        tdSql.checkData(9, 0, "(-1:-0.5]:0");
+        tdSql.query('select histogram(col_float, \'linear_bin\', \'{"start": 4, "width": -0.5, "count": 10, "infinity": false}\', 0) from tb;')
+        tdSql.checkRows(10);
+        tdSql.checkData(0, 0, "(3.5:4]:0");
+        tdSql.checkData(1, 0, "(3:3.5]:1");
+        tdSql.checkData(2, 0, "(2.5:3]:0");
+        tdSql.checkData(3, 0, "(2:2.5]:1");
+        tdSql.checkData(4, 0, "(1.5:2]:0");
+        tdSql.checkData(5, 0, "(1:1.5]:1");
+        tdSql.checkData(6, 0, "(0.5:1]:0");
+        tdSql.checkData(7, 0, "(0:0.5]:0");
+        tdSql.checkData(8, 0, "(-0.5:0]:0");
+        tdSql.checkData(9, 0, "(-1:-0.5]:0");
+
+        tdSql.query('select histogram(col_float, \'linear_bin\', \'{"start": 1, "width": 0.5, "count": 1.9999, "infinity": false}\', 0) from stb;')
+        tdSql.checkRows(1);
+        tdSql.checkData(0, 0, "(1:1.5]:1");
+        tdSql.query('select histogram(col_float, \'linear_bin\', \'{"start": 1, "width": 0.5, "count": 1.9999, "infinity": false}\', 0) from ctb;')
+        tdSql.checkRows(1);
+        tdSql.checkData(0, 0, "(1:1.5]:1");
+        tdSql.query('select histogram(col_float, \'linear_bin\', \'{"start": 1, "width": 0.5, "count": 1.9999, "infinity": false}\', 0) from tb;')
+        tdSql.checkRows(1);
+        tdSql.checkData(0, 0, "(1:1.5]:1");
+
+        tdSql.query('select histogram(col_float, \'linear_bin\', \'{"start": 1, "width": 0.5, "count": 1.99999999999999999, "infinity": false}\', 0) from stb;')
+        tdSql.checkRows(2);
+        tdSql.checkData(0, 0, "(1:1.5]:1");
+        tdSql.checkData(1, 0, "(1.5:2]:0");
+        tdSql.query('select histogram(col_float, \'linear_bin\', \'{"start": 1, "width": 0.5, "count": 1.99999999999999999, "infinity": false}\', 0) from ctb;')
+        tdSql.checkRows(2);
+        tdSql.checkData(0, 0, "(1:1.5]:1");
+        tdSql.checkData(1, 0, "(1.5:2]:0");
+        tdSql.query('select histogram(col_float, \'linear_bin\', \'{"start": 1, "width": 0.5, "count": 1.99999999999999999, "infinity": false}\', 0) from tb;')
+        tdSql.checkRows(2);
+        tdSql.checkData(0, 0, "(1:1.5]:1");
+        tdSql.checkData(1, 0, "(1.5:2]:0");
+
+        tdSql.query('select histogram(col_float, \'linear_bin\', \'{"start": 0, "width": 5, "count": 5, "infinity": true}\', 0) from stb;')
+        tdSql.checkRows(7);
+        tdSql.checkData(0, 0, "(-1.79769e+308:0]:2");
+        tdSql.checkData(1, 0, "(0:5]:4");
+        tdSql.checkData(2, 0, "(5:10]:5");
+        tdSql.checkData(3, 0, "(10:15]:1");
+        tdSql.checkData(4, 0, "(15:20]:1");
+        tdSql.checkData(5, 0, "(20:25]:1");
+        tdSql.checkData(6, 0, "(25:1.79769e+308]:1");
+        tdSql.query('select histogram(col_float, \'linear_bin\', \'{"start": 0, "width": 5, "count": 5, "infinity": true}\', 0) from ctb;')
+        tdSql.checkRows(7);
+        tdSql.checkData(0, 0, "(-1.79769e+308:0]:2");
+        tdSql.checkData(1, 0, "(0:5]:4");
+        tdSql.checkData(2, 0, "(5:10]:5");
+        tdSql.checkData(3, 0, "(10:15]:1");
+        tdSql.checkData(4, 0, "(15:20]:1");
+        tdSql.checkData(5, 0, "(20:25]:1");
+        tdSql.checkData(6, 0, "(25:1.79769e+308]:1");
+        tdSql.query('select histogram(col_float, \'linear_bin\', \'{"start": 0, "width": 5, "count": 5, "infinity": true}\', 0) from tb;')
+        tdSql.checkRows(7);
+        tdSql.checkData(0, 0, "(-1.79769e+308:0]:2");
+        tdSql.checkData(1, 0, "(0:5]:4");
+        tdSql.checkData(2, 0, "(5:10]:5");
+        tdSql.checkData(3, 0, "(10:15]:1");
+        tdSql.checkData(4, 0, "(15:20]:1");
+        tdSql.checkData(5, 0, "(20:25]:1");
+        tdSql.checkData(6, 0, "(25:1.79769e+308]:1");
+
+        tdSql.query('select histogram(col_float, \'linear_bin\', \'{"start": -1.76e+308, "width": 5, "count": 1, "infinity": true}\', 0) from stb;')
+        tdSql.checkRows(3);
+        tdSql.checkData(0, 0, "(-1.79769e+308:-1.76e+308]:0");
+        tdSql.checkData(1, 0, "(-1.76e+308:-1.76e+308]:0");
+        tdSql.checkData(2, 0, "(-1.76e+308:1.79769e+308]:15");
+        tdSql.query('select histogram(col_float, \'linear_bin\', \'{"start": -1.76e+308, "width": 5, "count": 1, "infinity": true}\', 0) from ctb;')
+        tdSql.checkRows(3);
+        tdSql.checkData(0, 0, "(-1.79769e+308:-1.76e+308]:0");
+        tdSql.checkData(1, 0, "(-1.76e+308:-1.76e+308]:0");
+        tdSql.checkData(2, 0, "(-1.76e+308:1.79769e+308]:15");
+        tdSql.query('select histogram(col_float, \'linear_bin\', \'{"start": -1.76e+308, "width": 5, "count": 1, "infinity": true}\', 0) from tb;')
+        tdSql.checkRows(3);
+        tdSql.checkData(0, 0, "(-1.79769e+308:-1.76e+308]:0");
+        tdSql.checkData(1, 0, "(-1.76e+308:-1.76e+308]:0");
+        tdSql.checkData(2, 0, "(-1.76e+308:1.79769e+308]:15");
+
+        tdSql.query('select histogram(col_float, \'linear_bin\', \'{"start": -0.7e+308, "width": 0.7e+308, "count": 2, "infinity": false}\', 0) from stb;')
+        tdSql.checkRows(2);
+        tdSql.checkData(0, 0, "(-7e+307:0]:2");
+        tdSql.checkData(1, 0, "(0:7e+307]:13");
+        tdSql.query('select histogram(col_float, \'linear_bin\', \'{"start": -0.7e+308, "width": 0.7e+308, "count": 2, "infinity": false}\', 0) from ctb;')
+        tdSql.checkRows(2);
+        tdSql.checkData(0, 0, "(-7e+307:0]:2");
+        tdSql.checkData(1, 0, "(0:7e+307]:13");
+        tdSql.query('select histogram(col_float, \'linear_bin\', \'{"start": -0.7e+308, "width": 0.7e+308, "count": 2, "infinity": false}\', 0) from tb;')
+        tdSql.checkRows(2);
+        tdSql.checkData(0, 0, "(-7e+307:0]:2");
+        tdSql.checkData(1, 0, "(0:7e+307]:13");
+
+        tdSql.query('select histogram(col_float, \'linear_bin\', \'{"start": -0.7e+308, "width": 0.7e+308, "count": 2, "infinity": true}\', 0) from stb;')
+        tdSql.checkRows(4);
+        tdSql.checkData(0, 0, "(-1.79769e+308:-7e+307]:0");
+        tdSql.checkData(1, 0, "(-7e+307:0]:2");
+        tdSql.checkData(2, 0, "(0:7e+307]:13");
+        tdSql.checkData(3, 0, "(7e+307:1.79769e+308]:0");
+        tdSql.query('select histogram(col_float, \'linear_bin\', \'{"start": -0.7e+308, "width": 0.7e+308, "count": 2, "infinity": true}\', 0) from ctb;')
+        tdSql.checkRows(4);
+        tdSql.checkData(0, 0, "(-1.79769e+308:-7e+307]:0");
+        tdSql.checkData(1, 0, "(-7e+307:0]:2");
+        tdSql.checkData(2, 0, "(0:7e+307]:13");
+        tdSql.checkData(3, 0, "(7e+307:1.79769e+308]:0");
+        tdSql.query('select histogram(col_float, \'linear_bin\', \'{"start": -0.7e+308, "width": 0.7e+308, "count": 2, "infinity": true}\', 0) from tb;')
         tdSql.checkRows(4);
         tdSql.checkData(0, 0, "(-1.79769e+308:-7e+307]:0");
         tdSql.checkData(1, 0, "(-7e+307:0]:2");
