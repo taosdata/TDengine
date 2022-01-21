@@ -109,11 +109,70 @@ typedef struct STableMetaOutput {
   STableMeta *tbMeta;
 } STableMetaOutput;
 
-const SSchema* tGetTbnameColumnSchema();
+typedef struct SDataBuf {
+  void     *pData;
+  uint32_t  len;
+} SDataBuf;
+
+typedef int32_t (*__async_send_cb_fn_t)(void* param, const SDataBuf* pMsg, int32_t code);
+typedef int32_t (*__async_exec_fn_t)(void* param);
+
+typedef struct SMsgSendInfo {
+  __async_send_cb_fn_t fp;        //async callback function
+  void     *param;
+  uint64_t  requestId;
+  uint64_t  requestObjRefId;
+  int32_t   msgType;
+  SDataBuf  msgInfo;
+} SMsgSendInfo;
+
+typedef struct SQueryNodeAddr {
+  int32_t nodeId;  // vgId or qnodeId
+  int8_t  inUse;
+  int8_t  numOfEps;
+  SEpAddr epAddr[TSDB_MAX_REPLICA];
+} SQueryNodeAddr;
+
+static FORCE_INLINE void tConvertQueryAddrToEpSet(SEpSet* pEpSet, const SQueryNodeAddr* pAddr) {
+  pEpSet->inUse = pAddr->inUse;
+  pEpSet->numOfEps = pAddr->numOfEps;
+  for (int j = 0; j < TSDB_MAX_REPLICA; j++) {
+    pEpSet->port[j] = pAddr->epAddr[j].port;
+    memcpy(pEpSet->fqdn[j], pAddr->epAddr[j].fqdn, TSDB_FQDN_LEN);
+  }
+}
+
+int32_t initTaskQueue();
+int32_t cleanupTaskQueue();
+
+/**
+ *
+ * @param execFn      The asynchronously execution function
+ * @param execParam   The parameters of the execFn
+ * @param code        The response code during execution the execFn
+ * @return
+ */
+int32_t taosAsyncExec(__async_exec_fn_t execFn, void* execParam, int32_t* code);
+
+/**
+ * Asynchronously send message to server, after the response received, the callback will be incured.
+ *
+ * @param pTransporter
+ * @param epSet
+ * @param pTransporterId
+ * @param pInfo
+ * @return
+ */
+int32_t asyncSendMsgToServer(void *pTransporter, SEpSet* epSet, int64_t* pTransporterId, const SMsgSendInfo* pInfo);
+
 void initQueryModuleMsgHandle();
+
+const SSchema* tGetTbnameColumnSchema();
+bool tIsValidSchema(struct SSchema* pSchema, int32_t numOfCols, int32_t numOfTags);
 
 extern int32_t (*queryBuildMsg[TDMT_MAX])(void* input, char **msg, int32_t msgSize, int32_t *msgLen);
 extern int32_t (*queryProcessMsgRsp[TDMT_MAX])(void* output, char *msg, int32_t msgSize);
+
 
 #define SET_META_TYPE_NONE(t) (t) = META_TYPE_NON_TABLE
 #define SET_META_TYPE_CTABLE(t) (t) = META_TYPE_CTABLE

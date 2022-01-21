@@ -69,11 +69,11 @@ void freeParam(STaskParam *param) {
   tfree(param->prevResult);
 }
 
-int32_t qCreateExecTask(void* tsdb, int32_t vgId, SSubplan* pSubplan, qTaskInfo_t* pTaskInfo, DataSinkHandle* handle) {
-  assert(tsdb != NULL && pSubplan != NULL);
+int32_t qCreateExecTask(void* readHandle, int32_t vgId, SSubplan* pSubplan, qTaskInfo_t* pTaskInfo, DataSinkHandle* handle) {
+  assert(readHandle != NULL && pSubplan != NULL);
   SExecTaskInfo** pTask = (SExecTaskInfo**)pTaskInfo;
 
-  int32_t code = doCreateExecTaskInfo(pSubplan, pTask, tsdb);
+  int32_t code = createExecTaskInfoImpl(pSubplan, pTask, readHandle);
   if (code != TSDB_CODE_SUCCESS) {
     goto _error;
   }
@@ -84,11 +84,9 @@ int32_t qCreateExecTask(void* tsdb, int32_t vgId, SSubplan* pSubplan, qTaskInfo_
     goto _error;
   }
 
-  code = dsCreateDataSinker(pSubplan->pDataSink, &(*pTask)->dsHandle);
+  code = dsCreateDataSinker(pSubplan->pDataSink, handle);
 
-  *handle = (*pTask)->dsHandle;
-
-_error:
+  _error:
   // if failed to add ref for all tables in this query, abort current query
   return code;
 }

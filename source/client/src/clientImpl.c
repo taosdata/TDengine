@@ -394,6 +394,9 @@ TAOS_RES *taos_create_topic(TAOS* taos, const char* topicName, const char* sql, 
   CHECK_CODE_GOTO(buildRequest(pTscObj, sql, sqlLen, &pRequest), _return);
   CHECK_CODE_GOTO(parseSql(pRequest, &pQueryNode), _return);
 
+  SQueryStmtInfo* pQueryStmtInfo = (SQueryStmtInfo* ) pQueryNode;
+  pQueryStmtInfo->info.continueQuery = true;
+
   // todo check for invalid sql statement and return with error code
 
   CHECK_CODE_GOTO(qCreateQueryDag(pQueryNode, &pRequest->body.pDag, pRequest->requestId), _return);
@@ -402,6 +405,8 @@ TAOS_RES *taos_create_topic(TAOS* taos, const char* topicName, const char* sql, 
   if(pStr == NULL) {
     goto _return;
   }
+
+  printf("%s\n", pStr);
 
   // The topic should be related to a database that the queried table is belonged to.
   SName name = {0};

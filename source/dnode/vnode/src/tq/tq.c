@@ -13,6 +13,7 @@
  * along with this program. If not, see <http://www.gnu.org/licenses/>.
  */
 
+#include "../../../../../include/libs/executor/executor.h"
 #include "tqInt.h"
 #include "tqMetaStore.h"
 
@@ -681,7 +682,6 @@ int32_t tqProcessSetConnReq(STQ* pTq, SMqSetCVgReq* pReq) {
   if (schedulerConvertDagToTaskList(pDag, &pArray) < 0) {
     // TODO: handle error
   }
-  ASSERT(taosArrayGetSize(pArray) == 0);
   STaskInfo *pInfo = taosArrayGet(pArray, 0);
   SArray* pTasks;
   schedulerCopyTask(pInfo, &pTasks, TQ_BUFFER_SIZE);
@@ -733,6 +733,7 @@ int tqRetrieveDataBlockInfo(STqReadHandle* pHandle, SDataBlockInfo* pBlockInfo) 
   // TODO: filter out unused column
   return 0;
 }
+
 SArray* tqRetrieveDataBlock(STqReadHandle* pHandle) {
   int32_t         sversion = pHandle->pBlock->sversion;
   SSchemaWrapper* pSchemaWrapper = metaGetTableSchema(pHandle->pMeta, pHandle->pBlock->uid, sversion, true);
@@ -762,7 +763,32 @@ SArray* tqRetrieveDataBlock(STqReadHandle* pHandle) {
   taosArrayPush(pArray, &colInfo);
   return pArray;
 }
-/*int tqLoadDataBlock(SExecTaskInfo* pTaskInfo, SSubmitBlkScanInfo* pSubmitBlkScanInfo, SSDataBlock* pBlock, uint32_t
- * status) {*/
-/*return 0;*/
-/*}*/
+
+static qTaskInfo_t createExecTaskInfo(SSubQueryMsg *pMsg, void* pStreamBlockReadHandle) {
+  if (pMsg == NULL || pStreamBlockReadHandle == NULL) {
+    return NULL;
+  }
+
+  // print those info into log
+  pMsg->sId = be64toh(pMsg->sId);
+  pMsg->queryId = be64toh(pMsg->queryId);
+  pMsg->taskId = be64toh(pMsg->taskId);
+  pMsg->contentLen = ntohl(pMsg->contentLen);
+
+  struct SSubplan *plan = NULL;
+  int32_t code = qStringToSubplan(pMsg->msg, &plan);
+  if (code != TSDB_CODE_SUCCESS) {
+    terrno = code;
+    return NULL;
+  }
+
+  qTaskInfo_t pTaskInfo = NULL;
+  code = qCreateExecTask(pStreamBlockReadHandle, 0, plan, &pTaskInfo, NULL);
+  if (code != TSDB_CODE_SUCCESS) {
+    // TODO: destroy SSubplan & pTaskInfo
+    terrno = code;
+    return NULL;
+  }
+
+  return pTaskInfo;
+}

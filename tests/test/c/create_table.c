@@ -85,7 +85,7 @@ void createDbAndStb() {
   }
   taos_free_result(pRes);
 
-  sprintf(qstr, "create table if not exists %s (ts timestamp, i int) tags (j int)", stbName);
+  sprintf(qstr, "create table if not exists %s (ts timestamp, i int) tags (j bigint)", stbName);
   pRes = taos_query(con, qstr);
   code = taos_errno(pRes);
   if (code != 0) {
