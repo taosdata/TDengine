@@ -13,7 +13,6 @@
  * along with this program. If not, see <http://www.gnu.org/licenses/>.
  */
 
-#include "../../../../../include/libs/executor/executor.h"
 #include "tqInt.h"
 #include "tqMetaStore.h"
 
@@ -635,7 +634,7 @@ int32_t tqProcessConsumeReq(STQ* pTq, SRpcMsg* pMsg, SRpcMsg** ppRsp) {
     }
     SSubmitMsg* pCont = (SSubmitMsg*)&pHead->head.body;
 
-    SSubQueryMsg* pQueryMsg = pHandle->buffer.output[pos].pMsg;
+    /*SSubQueryMsg* pQueryMsg = pHandle->buffer.output[pos].pMsg;*/
 
     // TODO: launch query and get output data
     void* outputData;
@@ -689,8 +688,8 @@ int32_t tqProcessSetConnReq(STQ* pTq, SMqSetCVgReq* pReq) {
   pTopic->buffer.lastOffset = -1;
   for (int i = 0; i < TQ_BUFFER_SIZE; i++) {
     SSubQueryMsg* pMsg = taosArrayGet(pTasks, i);
-    pTopic->buffer.output[i].pMsg = pMsg;
     pTopic->buffer.output[i].status = 0;
+    pTopic->buffer.output[i].task = createStreamExecTaskInfo(pMsg, NULL);
   }
   pTopic->pReadhandle = walOpenReadHandle(pTq->pWal);
   // write mq meta
@@ -762,33 +761,4 @@ SArray* tqRetrieveDataBlock(STqReadHandle* pHandle) {
   }
   taosArrayPush(pArray, &colInfo);
   return pArray;
-}
-
-static qTaskInfo_t createExecTaskInfo(SSubQueryMsg *pMsg, void* pStreamBlockReadHandle) {
-  if (pMsg == NULL || pStreamBlockReadHandle == NULL) {
-    return NULL;
-  }
-
-  // print those info into log
-  pMsg->sId = be64toh(pMsg->sId);
-  pMsg->queryId = be64toh(pMsg->queryId);
-  pMsg->taskId = be64toh(pMsg->taskId);
-  pMsg->contentLen = ntohl(pMsg->contentLen);
-
-  struct SSubplan *plan = NULL;
-  int32_t code = qStringToSubplan(pMsg->msg, &plan);
-  if (code != TSDB_CODE_SUCCESS) {
-    terrno = code;
-    return NULL;
-  }
-
-  qTaskInfo_t pTaskInfo = NULL;
-  code = qCreateExecTask(pStreamBlockReadHandle, 0, plan, &pTaskInfo, NULL);
-  if (code != TSDB_CODE_SUCCESS) {
-    // TODO: destroy SSubplan & pTaskInfo
-    terrno = code;
-    return NULL;
-  }
-
-  return pTaskInfo;
 }
