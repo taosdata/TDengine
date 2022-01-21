@@ -3394,8 +3394,11 @@ int32_t addExprAndResultField(SSqlCmd* pCmd, SQueryInfo* pQueryInfo, int32_t col
       }
 
       cJSON *binDesc = cJSON_Parse(pVariant->pz);
-      if (cJSON_IsObject(binDesc)) { // linaer/log bins
+      int32_t numBins;
+      double *intervals;
+      if (cJSON_IsObject(binDesc)) { /* linaer/log bins */
         int32_t numOfParams = cJSON_GetArraySize(binDesc);
+        int32_t startIndex;
         if (numOfParams != 4) {
           return invalidOperationMsg(tscGetErrorMsgPayload(pCmd), msg22);
         }
@@ -3410,20 +3413,31 @@ int32_t addExprAndResultField(SSqlCmd* pCmd, SQueryInfo* pQueryInfo, int32_t col
           return invalidOperationMsg(tscGetErrorMsgPayload(pCmd), msg22);
         }
 
-        if (cJSON_IsNumber(width) && factor == NULL && binType == LINEAR_BIN) {
+        numBins = count->valueint;
+        if (infinity->valueint == true) {
+          startIndex = 0;
+          intervals = tcalloc(numBins, sizeof(double));
+        } else {
+          startIndex = 1;
+          intervals = tcalloc(numBins + 2, sizeof(double));
+        }
 
+        if (cJSON_IsNumber(width) && factor == NULL && binType == LINEAR_BIN) {
+          //linear bin process
+          for (int i = startIndex; i < numBins; ++i) {
+            intervals[i] = start->valuedouble + i * width->valuedouble;
+          }
         } else if (cJSON_IsNumber(factor) && width == NULL && binType == LOG_BIN) {
+          //log bin process
         } else {
           return invalidOperationMsg(tscGetErrorMsgPayload(pCmd), msg22);
         }
 
-      } else if (cJSON_IsArray(binDesc)) { //user input bins
+      } else if (cJSON_IsArray(binDesc)) { /* user input bins */
       } else {
         return invalidOperationMsg(tscGetErrorMsgPayload(pCmd), msg21);
       }
 
-
-      int32_t numBins;
       int16_t  resultType = pSchema->type;
       int32_t  resultSize = pSchema->bytes;
       int32_t  interResult = 0;
@@ -3432,12 +3446,11 @@ int32_t addExprAndResultField(SSqlCmd* pCmd, SQueryInfo* pQueryInfo, int32_t col
       SExprInfo* pExpr = NULL;
       pExpr = tscExprAppend(pQueryInfo, functionId, &index, resultType, resultSize, getNewResColId(pCmd), interResult, false);
       tscExprAddParams(&pExpr->base, (char*)&numBins, TSDB_DATA_TYPE_INT, sizeof(int32_t));
-      double* intervals = malloc((numBins + 1) * sizeof(double));
-      intervals[0] = -DBL_MAX;
-      intervals[1] = 10;
-      intervals[2] = 20;
-      intervals[3] = 30;
-      intervals[4] = DBL_MAX;
+      //intervals[0] = -DBL_MAX;
+      //intervals[1] = 10;
+      //intervals[2] = 20;
+      //intervals[3] = 30;
+      //intervals[4] = DBL_MAX;
       tscExprAddParams(&pExpr->base, (char*)intervals, TSDB_DATA_TYPE_BINARY, sizeof(double)*(numBins+1));
 
       memset(pExpr->base.aliasName, 0, tListLen(pExpr->base.aliasName));
