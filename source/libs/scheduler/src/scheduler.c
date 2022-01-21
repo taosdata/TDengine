@@ -1102,6 +1102,7 @@ int32_t schBuildAndSendMsg(SSchJob *pJob, SSchTask *pTask, SQueryNodeAddr *addr,
       pMsg->sId = htobe64(schMgmt.sId);
       pMsg->queryId = htobe64(pJob->queryId);
       pMsg->taskId = htobe64(pTask->taskId);
+      pMsg->taskType = TASK_TYPE_TEMP;      
       pMsg->contentLen = htonl(pTask->msgLen);
       memcpy(pMsg->msg, pTask->msg, pTask->msgLen);
       break;
@@ -1487,6 +1488,7 @@ int32_t schedulerConvertDagToTaskList(SQueryDag* pDag, SArray **pTasks) {
     pMsg->sId = htobe64(schMgmt.sId);
     pMsg->queryId = htobe64(plan->id.queryId);
     pMsg->taskId = htobe64(schGenUUID());
+    pMsg->taskType = TASK_TYPE_PERSISTENT;
     pMsg->contentLen = htonl(msgLen);
     memcpy(pMsg->msg, msg, msgLen);
 

@@ -85,6 +85,13 @@ void* qGetResultRetrieveMsg(qTaskInfo_t qinfo);
 int32_t qKillTask(qTaskInfo_t qinfo);
 
 /**
+ * kill the ongoing query asynchronously
+ * @param qinfo  qhandle
+ * @return
+ */
+int32_t qAsyncKillTask(qTaskInfo_t qinfo);
+
+/**
  * return whether query is completed or not
  * @param qinfo
  * @return
