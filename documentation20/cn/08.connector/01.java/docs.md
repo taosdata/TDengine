@@ -46,10 +46,12 @@ TDengine 的 JDBC 驱动实现尽可能与关系型数据库驱动保持一致�
 </tr>
 </table>
 
-注意：与 JNI 方式不同，RESTful 接口是无状态的。在使用JDBC-RESTful时，需要在sql中指定表、超级表的数据库名称。（从 TDengine 2.2.0.0 版本开始，也可以在 RESTful url 中指定当前 SQL 语句所使用的默认数据库名。）例如：
+注意：
+* 与 JNI 方式不同，RESTful 接口是无状态的。在使用JDBC-RESTful时，需要在sql中指定表、超级表的数据库名称。例如：
 ```sql
 INSERT INTO test.t1 USING test.weather (ts, temperature) TAGS('beijing') VALUES(now, 24.6);
 ```
+* 从taos-jdbcdriver-2.0.36和TDengine 2.2.0.0 版本开始，如果在url中指定了dbname，那么，JDBC-RESTful会默认使用/rest/sql/dbname作为resful请求的url，在sql中不需要指定dbname。例如：url为jdbc:TAOS-RS://127.0.0.1:6041/test，那么，可以执行sql：insert into t1 using weather(ts, temperatrue) tags('beijing') values(now, 24.6);
 
 ## <a class="anchor" id="version"></a>TAOS-JDBCDriver 版本以及支持的 TDengine 版本和 JDK 版本
 
