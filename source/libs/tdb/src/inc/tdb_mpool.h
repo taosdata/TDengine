@@ -76,6 +76,7 @@ struct TDB_MPFILE {
 // TDB_MPOOL
 int tdbMPoolOpen(TDB_MPOOL **mpp, uint64_t cachesize, pgsize_t pgsize);
 int tdbMPoolClose(TDB_MPOOL *mp);
+int tdbMPoolSync(TDB_MPOOL *mp);
 
 // TDB_MPFILE
 int tdbMPoolFileOpen(TDB_MPFILE **mpfp, const char *fname, TDB_MPOOL *mp);
@@ -83,7 +84,8 @@ int tdbMPoolFileClose(TDB_MPFILE *mpf);
 int tdbMPoolFileNewPage(TDB_MPFILE *mpf, pgno_t *pgno, void *addr);
 int tdbMPoolFileFreePage(TDB_MPOOL *mpf, pgno_t *pgno, void *addr);
 int tdbMPoolFileGetPage(TDB_MPFILE *mpf, pgno_t pgno, void *addr);
-int tdbMPoolFilePutPage(TDB_MPOOL *mpf, pgno_t pgno, void *addr);
+int tdbMPoolFilePutPage(TDB_MPFILE *mpf, pgno_t pgno, void *addr);
+int tdbMPoolFileSync(TDB_MPFILE *mpf);
 
 #ifdef __cplusplus
 }
