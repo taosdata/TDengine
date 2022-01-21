@@ -276,6 +276,19 @@ int32_t qKillTask(qTaskInfo_t qinfo) {
   return TSDB_CODE_SUCCESS;
 }
 
+int32_t qAsyncKillTask(qTaskInfo_t qinfo) {
+  SQInfo *pQInfo = (SQInfo *)qinfo;
+
+  if (pQInfo == NULL || !isValidQInfo(pQInfo)) {
+    return TSDB_CODE_QRY_INVALID_QHANDLE;
+  }
+
+  qDebug("QInfo:0x%"PRIx64" query async killed", pQInfo->qId);
+  setQueryKilled(pQInfo);
+
+  return TSDB_CODE_SUCCESS;
+}
+
 int32_t qIsTaskCompleted(qTaskInfo_t qinfo) {
   SExecTaskInfo *pTaskInfo = (SExecTaskInfo *)qinfo;
 

@@ -105,6 +105,7 @@ static int32_t mndProcessMqTimerMsg(SMnodeMsg *pMsg) {
         strcpy(req.sql, pTopic->sql);
         strcpy(req.logicalPlan, pTopic->logicalPlan);
         strcpy(req.physicalPlan, pTopic->physicalPlan);
+        memcpy(&req.msg, &pCEp->qExec, pCEp->execLen);
         int32_t tlen = tEncodeSMqSetCVgReq(NULL, &req);
         void   *reqStr = malloc(tlen);
         if (reqStr == NULL) {
@@ -143,7 +144,21 @@ static int32_t mndProcessMqTimerMsg(SMnodeMsg *pMsg) {
 static int mndInitUnassignedVg(SMnode *pMnode, SMqTopicObj *pTopic, SArray *unassignedVg) {
   SMqConsumerEp CEp;
   CEp.lastConsumerHbTs = CEp.lastVgHbTs = -1;
-  int32_t sz;
+  //convert phyplan to dag
+  SQueryDag *pDag = qStringToDag(pTopic->physicalPlan);
+  SArray *pArray;
+  if (schedulerConvertDagToTaskList(pDag, &pArray) < 0) {
+
+  }
+  int32_t sz = taosArrayGetSize(pArray);
+  //convert dag to msg
+  for (int32_t i = 0; i < sz; i++) {
+    STaskInfo* pTaskInfo = taosArrayGet(pArray, i);
+    int32_t vgId = pTaskInfo->addr.nodeId;
+    SEpSet epSet;
+    tConvertQueryAddrToEpSet(&epSet, &pTaskInfo->addr);
+  }
+  /*pTopic->physicalPlan;*/
   SVgObj *pVgroup = NULL;
   SSdb   *pSdb = pMnode->pSdb;
   void   *pIter = sdbFetch(pSdb, SDB_VGROUP, NULL, (void **)&pVgroup);
@@ -156,6 +171,7 @@ static int mndInitUnassignedVg(SMnode *pMnode, SMqTopicObj *pTopic, SArray *unas
     pIter = sdbFetch(pSdb, SDB_VGROUP, pIter, (void **)&pVgroup);
   }
   return 0;
+  qDestroyQueryDag(pDag);
 }
 
 static int mndBuildMqSetConsumerVgReq(SMnode *pMnode, STrans *pTrans, SMqConsumerObj *pConsumer,

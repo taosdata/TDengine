@@ -327,11 +327,13 @@ typedef struct SMqTopicConsumer {
 #endif
 
 typedef struct SMqConsumerEp {
-  int32_t vgId;      // -1 for unassigned
-  SEpSet  epset;
-  int64_t consumerId; // -1 for unassigned
-  int64_t lastConsumerHbTs;
-  int64_t lastVgHbTs;
+  int32_t      vgId;      // -1 for unassigned
+  SEpSet       epset;
+  int64_t      consumerId; // -1 for unassigned
+  int64_t      lastConsumerHbTs;
+  int64_t      lastVgHbTs;
+  int32_t      execLen;
+  SSubQueryMsg qExec;
 } SMqConsumerEp;
 
 static FORCE_INLINE int32_t tEncodeSMqConsumerEp(void** buf, SMqConsumerEp* pConsumerEp) {
@@ -339,6 +341,7 @@ static FORCE_INLINE int32_t tEncodeSMqConsumerEp(void** buf, SMqConsumerEp* pCon
   tlen += taosEncodeFixedI32(buf, pConsumerEp->vgId);
   tlen += taosEncodeSEpSet(buf, &pConsumerEp->epset);
   tlen += taosEncodeFixedI64(buf, pConsumerEp->consumerId);
+  tlen += tEncodeSSubQueryMsg(buf, &pConsumerEp->qExec);
   return tlen;
 }
 
@@ -346,6 +349,8 @@ static FORCE_INLINE void* tDecodeSMqConsumerEp(void** buf, SMqConsumerEp* pConsu
   buf = taosDecodeFixedI32(buf, &pConsumerEp->vgId);
   buf = taosDecodeSEpSet(buf, &pConsumerEp->epset);
   buf = taosDecodeFixedI64(buf, &pConsumerEp->consumerId);
+  buf = tDecodeSSubQueryMsg(buf, &pConsumerEp->qExec);
+  pConsumerEp->execLen = sizeof(SSubQueryMsg) + pConsumerEp->qExec.contentLen;
   return buf;
 }
 
