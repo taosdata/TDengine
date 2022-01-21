@@ -26,6 +26,15 @@ typedef void* qTaskInfo_t;
 typedef void* DataSinkHandle;
 struct SSubplan;
 
+ /**
+  * Create the exec task for streaming mode
+  * @param pMsg
+  * @param pStreamBlockReadHandle
+  * @return
+  */
+qTaskInfo_t qCreateStreamExecTaskInfo(SSubQueryMsg *pMsg, void* pStreamBlockReadHandle);
+
+void        qStreamExecTaskSetInput(qTaskInfo_t qHandle, void* input);
 
  /**
   * Create the exec task object according to task json

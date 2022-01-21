@@ -21,6 +21,7 @@
 #include "meta.h"
 #include "os.h"
 #include "scheduler.h"
+#include "executor.h"
 #include "taoserror.h"
 #include "tlist.h"
 #include "tmsg.h"
@@ -81,26 +82,11 @@ typedef struct STqSubscribeReq {
   int64_t    topic[];
 } STqSubscribeReq;
 
-typedef struct STqSubscribeRsp {
-  STqMsgHead head;
-  int64_t    vgId;
-  char       ep[TSDB_EP_LEN];  // TSDB_EP_LEN
-} STqSubscribeRsp;
-
 typedef struct STqHeartbeatReq {
 } STqHeartbeatReq;
 
 typedef struct STqHeartbeatRsp {
 } STqHeartbeatRsp;
-
-typedef struct STqTopicVhandle {
-  int64_t topicId;
-  // executor for filter
-  void* filterExec;
-  // callback for mnode
-  // trigger when vnode list associated topic change
-  void* (*mCallback)(void*, void*);
-} STqTopicVhandle;
 
 #define TQ_BUFFER_SIZE 8
 
@@ -165,7 +151,7 @@ typedef struct STqTaskItem {
   int8_t        status;
   int64_t       offset;
   void*         dst;
-  SSubQueryMsg* pMsg;
+  qTaskInfo_t   task;
 } STqTaskItem;
 
 // new version
