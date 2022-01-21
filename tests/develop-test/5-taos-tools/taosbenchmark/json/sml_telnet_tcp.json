@@ -3,6 +3,7 @@
   "cfgdir": "/etc/taos",
   "host": "127.0.0.1",
   "port": 6030,
+  "telnet_tcp_port": 6046,
   "user": "root",
   "password": "taosdata",
   "thread_count": 4,
