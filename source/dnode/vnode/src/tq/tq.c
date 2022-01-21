@@ -50,7 +50,7 @@ void tqCleanUp() {
   taosTmrCleanUp(tqMgmt.timer);
 }
 
-STQ* tqOpen(const char* path, SWal* pWal, STqCfg* tqConfig, SMemAllocatorFactory* allocFac) {
+STQ* tqOpen(const char* path, SWal* pWal, SMeta* pMeta, STqCfg* tqConfig, SMemAllocatorFactory* allocFac) {
   STQ* pTq = malloc(sizeof(STQ));
   if (pTq == NULL) {
     terrno = TSDB_CODE_TQ_OUT_OF_MEMORY;
@@ -58,6 +58,8 @@ STQ* tqOpen(const char* path, SWal* pWal, STqCfg* tqConfig, SMemAllocatorFactory
   }
   pTq->path = strdup(path);
   pTq->tqConfig = tqConfig;
+  pTq->pWal = pWal;
+  pTq->pMeta = pMeta;
 #if 0
   pTq->tqMemRef.pAllocatorFactory = allocFac;
   pTq->tqMemRef.pAllocator = allocFac->create(allocFac);
@@ -610,48 +612,52 @@ int32_t tqProcessConsumeReq(STQ* pTq, SRpcMsg* pMsg, SRpcMsg** ppRsp) {
   SMqCVConsumeReq* pReq = pMsg->pCont;
   int64_t          reqId = pReq->reqId;
   int64_t          consumerId = pReq->consumerId;
-  int64_t          offset = pReq->offset;
+  int64_t          reqOffset = pReq->offset;
+  int64_t          fetchOffset = reqOffset;
   int64_t          blockingTime = pReq->blockingTime;
 
   STqConsumerHandle* pConsumer = tqHandleGet(pTq->tqMeta, consumerId);
   int sz = taosArrayGetSize(pConsumer->topics);
 
   for (int i = 0 ; i < sz; i++) {
-    STqTopicHandle *pHandle = taosArrayGet(pConsumer->topics, i);
+    STqTopicHandle *pTopic = taosArrayGet(pConsumer->topics, i);
 
-    int8_t           pos = offset % TQ_BUFFER_SIZE;
-    int8_t           old = atomic_val_compare_exchange_8(&pHandle->buffer.output[pos].status, 0, 1);
+    int8_t           pos = fetchOffset % TQ_BUFFER_SIZE;
+    int8_t           old = atomic_val_compare_exchange_8(&pTopic->buffer.output[pos].status, 0, 1);
     if (old == 1) {
       // do nothing
       continue;
     }
-    if (walReadWithHandle(pHandle->pReadhandle, offset) < 0) {
-      // TODO
+    if (walReadWithHandle(pTopic->pReadhandle, fetchOffset) < 0) {
+      return -1;
     }
-    SWalHead* pHead = pHandle->pReadhandle->pHead;
-    while (pHead->head.msgType != TDMT_VND_SUBMIT) {
+    SWalHead* pHead = pTopic->pReadhandle->pHead;
+    while (1) {
       // read until find TDMT_VND_SUBMIT
+      if (walReadWithHandle(pTopic->pReadhandle, fetchOffset) < 0) {
+        return -1;
+      }
     }
     SSubmitMsg* pCont = (SSubmitMsg*)&pHead->head.body;
-    void* task = pHandle->buffer.output[pos].task;
+    void* task = pTopic->buffer.output[pos].task;
 
-    qStreamExecTaskSetInput(task, pCont);
+    qSetStreamInput(task, pCont);
     SSDataBlock* pDataBlock;
     uint64_t ts;
     if (qExecTask(task, &pDataBlock, &ts) < 0) {
 
     }
     // TODO: launch query and get output data
-    pHandle->buffer.output[pos].dst = pDataBlock;
-    if (pHandle->buffer.firstOffset == -1
-        || pReq->offset < pHandle->buffer.firstOffset) {
-      pHandle->buffer.firstOffset = pReq->offset;
+    pTopic->buffer.output[pos].dst = pDataBlock;
+    if (pTopic->buffer.firstOffset == -1
+        || pReq->offset < pTopic->buffer.firstOffset) {
+      pTopic->buffer.firstOffset = pReq->offset;
     }
-    if (pHandle->buffer.lastOffset == -1
-        || pReq->offset > pHandle->buffer.lastOffset) {
-      pHandle->buffer.lastOffset = pReq->offset;
+    if (pTopic->buffer.lastOffset == -1
+        || pReq->offset > pTopic->buffer.lastOffset) {
+      pTopic->buffer.lastOffset = pReq->offset;
     }
-    atomic_store_8(&pHandle->buffer.output[pos].status, 1);
+    atomic_store_8(&pTopic->buffer.output[pos].status, 1);
 
     // put output into rsp
   }
@@ -681,16 +687,20 @@ int32_t tqProcessSetConnReq(STQ* pTq, SMqSetCVgReq* pReq) {
 
   pTopic->buffer.firstOffset = -1;
   pTopic->buffer.lastOffset = -1;
+  pTopic->pReadhandle = walOpenReadHandle(pTq->pWal);
+  if (pTopic->pReadhandle == NULL) {
+
+  }
   for (int i = 0; i < TQ_BUFFER_SIZE; i++) {
     pTopic->buffer.output[i].status = 0;
-    pTopic->buffer.output[i].task = qCreateStreamExecTaskInfo(&pReq->msg, NULL);
+    STqReadHandle* pReadHandle = tqInitSubmitMsgScanner(pTq->pMeta);
+    pTopic->buffer.output[i].task = qCreateStreamExecTaskInfo(&pReq->msg, pReadHandle);
   }
-  pTopic->pReadhandle = walOpenReadHandle(pTq->pWal);
   // write mq meta
   return 0;
 }
 
-STqReadHandle* tqInitSubmitMsgScanner(SMeta* pMeta, SArray* pColumnIdList) {
+STqReadHandle* tqInitSubmitMsgScanner(SMeta* pMeta) {
   STqReadHandle* pReadHandle = malloc(sizeof(STqReadHandle));
   if (pReadHandle == NULL) {
     return NULL;
@@ -698,7 +708,7 @@ STqReadHandle* tqInitSubmitMsgScanner(SMeta* pMeta, SArray* pColumnIdList) {
   pReadHandle->pMeta = pMeta;
   pReadHandle->pMsg = NULL;
   pReadHandle->ver = -1;
-  pReadHandle->pColumnIdList = pColumnIdList;
+  pReadHandle->pColumnIdList = NULL;
   return NULL;
 }
 

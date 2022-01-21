@@ -372,9 +372,10 @@ static FORCE_INLINE void *taosDecodeStringTo(void *buf, char *value) {
 }
 
 // ---- binary
-static FORCE_INLINE int taosEncodeBinary(void **buf, const void *value, int valueLen) {
+static FORCE_INLINE int taosEncodeBinary(void **buf, const void *value, int32_t valueLen) {
   int    tlen = 0;
 
+  tlen += taosEncodeVariantI32(buf, valueLen);
   if (buf != NULL) {
     memcpy(*buf, value, valueLen);
     *buf = POINTER_SHIFT(*buf, valueLen);
@@ -384,14 +385,19 @@ static FORCE_INLINE int taosEncodeBinary(void **buf, const void *value, int valu
   return tlen;
 }
 
-static FORCE_INLINE void *taosDecodeBinary(void *buf, void **value, int valueLen) {
-  uint64_t size = 0;
+static FORCE_INLINE void *taosDecodeBinary(void *buf, void **value, int32_t valueLen) {
 
   *value = malloc((size_t)valueLen);
   if (*value == NULL) return NULL;
-  memcpy(*value, buf, (size_t)size);
+  memcpy(*value, buf, (size_t)valueLen);
 
-  return POINTER_SHIFT(buf, size);
+  return POINTER_SHIFT(buf, valueLen);
+}
+
+static FORCE_INLINE void *taosDecodeBinaryTo(void *buf, void *value, int32_t valueLen) {
+
+  memcpy(value, buf, (size_t)valueLen);
+  return POINTER_SHIFT(buf, valueLen);
 }
 
 #endif

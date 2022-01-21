@@ -24,6 +24,7 @@
 #include "tlockfree.h"
 #include "tmacro.h"
 #include "wal.h"
+#include "tq.h"
 
 #include "vnode.h"
 

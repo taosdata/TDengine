@@ -27,6 +27,7 @@
 #include "thash.h"
 #include "ttypes.h"
 #include "query.h"
+#include "vnode.h"
 #include "tsdb.h"
 
 #define IS_MAIN_SCAN(runtime)          ((runtime)->scanFlag == MAIN_SCAN)
@@ -5425,8 +5426,8 @@ SOperatorInfo* createStreamScanOperatorInfo(void *streamReadHandle, SArray* pExp
     taosArrayPush(pColList, &pExpr->pExpr->pSchema[0].colId);
   }
   
-  // TODO set the extract column id to streamHandle
-  // pColList
+  // set the extract column id to streamHandle
+  tqReadHandleSetColIdList((STqReadHandle* )streamReadHandle, pColList);
 
   pInfo->readerHandle = streamReadHandle;
 
@@ -5438,6 +5439,7 @@ SOperatorInfo* createStreamScanOperatorInfo(void *streamReadHandle, SArray* pExp
   pOperator->numOfOutput   = numOfOutput;
   pOperator->exec          = doStreamBlockScan;
   pOperator->pTaskInfo     = pTaskInfo;
+  return pOperator;
 }
 
 
