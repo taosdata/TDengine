@@ -214,6 +214,7 @@ typedef struct {
   double lower; // >lower
   double upper; // <=upper
   int64_t count;
+  double  count_norm;
 } SHistogramFuncBin;
 
 typedef struct{
@@ -4989,6 +4990,7 @@ static void histogram_function(SQLFunctionCtx *pCtx) {
   }
 
   int32_t notNullElems = 0;
+  int32_t totalElems = 0;
   for (int32_t i = 0; i < pCtx->size; ++i) {
     char *data = GET_INPUT_DATA(pCtx, i);
     if (pCtx->hasNull && isNull(data, pCtx->inputType)) {
@@ -5002,8 +5004,15 @@ static void histogram_function(SQLFunctionCtx *pCtx) {
     for (int32_t b = 0; b < pRes->numOfBins; ++b) {
       if (v > pRes->orderedBins[b].lower && v <= pRes->orderedBins[b].upper) {
         pRes->orderedBins[b].count++;
+        totalElems++;
         break;
       }
+    }
+  }
+
+  if (pRes->normalized) {
+    for (int32_t b = 0; b < pRes->numOfBins; ++b) {
+      pRes->orderedBins[b].count_norm = pRes->orderedBins[b].count / totalElems;
     }
   }
 
@@ -5036,8 +5045,14 @@ static void histogram_func_finalizer(SQLFunctionCtx *pCtx) {
   }
 
   for (int32_t i = 0; i < pRes->numOfBins; ++i) {
-    int sz = sprintf(pCtx->pOutput + VARSTR_HEADER_SIZE, "(%g-%g]:%"PRId64,
-                     pRes->orderedBins[i].lower, pRes->orderedBins[i].upper, pRes->orderedBins[i].count);
+    int sz;
+    if (!pRes->normalized) {
+      sz = sprintf(pCtx->pOutput + VARSTR_HEADER_SIZE, "(%g-%g]:%"PRId64,
+                   pRes->orderedBins[i].lower, pRes->orderedBins[i].upper, pRes->orderedBins[i].count);
+    } else {
+      sz = sprintf(pCtx->pOutput + VARSTR_HEADER_SIZE, "(%g-%g]:%lf",
+                   pRes->orderedBins[i].lower, pRes->orderedBins[i].upper, pRes->orderedBins[i].count_norm);
+    }
     varDataSetLen(pCtx->pOutput, sz);
     pCtx->pOutput += pCtx->outputBytes;
   }
