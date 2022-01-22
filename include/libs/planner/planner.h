@@ -178,7 +178,7 @@ struct SQueryNode;
   * @param requestId
   * @return
   */
-int32_t qCreateQueryDag(const struct SQueryNode* pQueryInfo, struct SQueryDag** pDag, uint64_t requestId);
+ int32_t qCreateQueryDag(const struct SQueryNode* pNode, struct SQueryDag** pDag, SSchema** pResSchema, int32_t* numOfCols, SArray* pNodeList, uint64_t requestId);
 
 // Set datasource of this subplan, multiple calls may be made to a subplan.
 // @subplan subplan to be schedule

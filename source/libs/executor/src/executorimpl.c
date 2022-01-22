@@ -5408,7 +5408,7 @@ SOperatorInfo* createTableBlockInfoScanOperator(void* pTsdbReadHandle, STaskRunt
   return pOperator;
 }
 
-SOperatorInfo* createStreamScanOperatorInfo(void *streamReadHandle, SArray* pExprInfo, SExecTaskInfo* pTaskInfo) {
+SOperatorInfo* createStreamScanOperatorInfo(void *streamReadHandle, SArray* pExprInfo, uint64_t uid, SExecTaskInfo* pTaskInfo) {
   SStreamBlockScanInfo* pInfo = calloc(1, sizeof(SStreamBlockScanInfo));
   SOperatorInfo* pOperator = calloc(1, sizeof(SOperatorInfo));
   if (pInfo == NULL || pOperator == NULL) {
@@ -5428,6 +5428,7 @@ SOperatorInfo* createStreamScanOperatorInfo(void *streamReadHandle, SArray* pExp
   
   // set the extract column id to streamHandle
   tqReadHandleSetColIdList((STqReadHandle* )streamReadHandle, pColList);
+  tqReadHandleSetTbUid(streamReadHandle, uid);
 
   pInfo->readerHandle = streamReadHandle;
 
@@ -7719,7 +7720,8 @@ SOperatorInfo* doCreateOperatorTreeNode(SPhyNode* pPhyNode, SExecTaskInfo* pTask
       return createExchangeOperatorInfo(pEx->pSrcEndPoints, pEx->node.pTargets, pTaskInfo);
     } else if (pPhyNode->info.type == OP_StreamScan) {
       size_t numOfCols = taosArrayGetSize(pPhyNode->pTargets);
-      return createStreamScanOperatorInfo(readerHandle, pPhyNode->pTargets, pTaskInfo);
+      SScanPhyNode*  pScanPhyNode = (SScanPhyNode*)pPhyNode;   // simple child table.
+      return createStreamScanOperatorInfo(readerHandle, pPhyNode->pTargets, pScanPhyNode->uid, pTaskInfo);
     }
   }
 

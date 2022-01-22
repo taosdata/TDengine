@@ -61,7 +61,7 @@ protected:
   int32_t run() {
     SQueryDag* dag = nullptr;
     uint64_t requestId = 20;
-    int32_t code = createDag(logicPlan_.get(), nullptr, &dag, requestId);
+    int32_t code = createDag(logicPlan_.get(), nullptr, &dag, NULL, requestId);
     dag_.reset(dag);
     return code;
   }
@@ -78,9 +78,9 @@ protected:
     SQueryDag* dag = nullptr;
     uint64_t requestId = 20;
     SSchema *schema = NULL;
-    uint32_t numOfOutput = 0;
+    int32_t numOfOutput = 0;
 
-    code = qCreateQueryDag(query, &dag, requestId);
+    code = qCreateQueryDag(query, &dag, &schema, &numOfOutput, nullptr, requestId);
     dag_.reset(dag);
     return code;
   }
