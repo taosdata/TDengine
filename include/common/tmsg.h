@@ -1579,32 +1579,47 @@ typedef struct SMqSetCVgRsp {
   char    cGroup[TSDB_CONSUMER_GROUP_LEN];
 } SMqSetCVgRsp;
 
-typedef struct SMqCVConsumeReq {
+typedef struct SMqConsumeReq {
   int64_t reqId;
   int64_t offset;
   int64_t consumerId;
   int64_t blockingTime;
   char    topicName[TSDB_TOPIC_FNAME_LEN];
   char    cgroup[TSDB_CONSUMER_GROUP_LEN];
-} SMqCVConsumeReq;
+} SMqConsumeReq;
 
-typedef struct SMqConsumeRspBlock {
-  int32_t bodyLen;
-  char topicName[TSDB_TOPIC_FNAME_LEN];
-  char body[];
-} SMqConsumeRspBlock;
+typedef struct SMqColData {
+  int16_t colId;
+  int16_t type;
+  int16_t bytes;
+  char    data[];
+} SMqColData;
 
-typedef struct SMqCVConsumeRsp {
-  int64_t reqId;
-  int64_t clientId;
-  int64_t committedOffset;
-  int64_t receiveOffset;
-  int64_t rspOffset;
-  int32_t skipLogNum;
-  int32_t bodyLen;
-  char    topicName[TSDB_TOPIC_FNAME_LEN];
-  SMqConsumeRspBlock blocks[];
-} SMqCvConsumeRsp;
+typedef struct SMqTbData {
+  int64_t    uid;
+  int32_t    numOfCols;
+  int32_t    numOfRows;
+  SMqColData colData[];
+} SMqTbData;
+
+typedef struct SMqTopicBlk {
+  char      topicName[TSDB_TOPIC_FNAME_LEN];
+  int64_t   committedOffset;
+  int64_t   reqOffset;
+  int64_t   rspOffset;
+  int32_t   skipLogNum;
+  int32_t   bodyLen;
+  int32_t   numOfTb;
+  SMqTbData tbData[];
+} SMqTopicData;
+
+typedef struct SMqConsumeRsp {
+  int64_t      reqId;
+  int64_t      clientId;
+  int32_t      bodyLen;
+  int32_t      numOfTopics;
+  SMqTopicData data[];
+} SMqConsumeRsp;
 
 #ifdef __cplusplus
 }
