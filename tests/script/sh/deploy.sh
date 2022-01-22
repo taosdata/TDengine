@@ -115,6 +115,8 @@ elif [ $NODE -eq 8 ]; then
   NODE=7800    
 fi
 
+HOSTNAME=localhost
+
 echo " "                                         >> $TAOS_CFG   
 echo "firstEp                ${HOSTNAME}:7100"   >> $TAOS_CFG
 echo "secondEp               ${HOSTNAME}:7200"   >> $TAOS_CFG
