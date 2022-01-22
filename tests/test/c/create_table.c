@@ -35,8 +35,7 @@ int32_t numOfVgroups = 2;
 int32_t showTablesFlag = 0;
 int32_t queryFlag = 0;
 
-int64_t startTimestamp = 1640966400000; // 2020-01-01 00:00:00.000
-
+int64_t startTimestamp = 1640966400000;  // 2020-01-01 00:00:00.000
 
 typedef struct {
   int64_t   tableBeginIndex;
@@ -89,7 +88,7 @@ void createDbAndStb() {
   pRes = taos_query(con, qstr);
   code = taos_errno(pRes);
   if (code != 0) {
-    pError("failed to use db, code:%d reason:%s", taos_errno(pRes), taos_errstr(pRes));
+    pError("failed to create stable, code:%d reason:%s", taos_errno(pRes), taos_errstr(pRes));
     exit(0);
   }
   taos_free_result(pRes);
@@ -182,18 +181,14 @@ void *threadFunc(void *param) {
     exit(1);
   }
 
-  pPrint("====before thread:%d, table range: %"PRId64 " - %"PRId64 "\n",
-			  pInfo->threadIndex,
-			  pInfo->tableBeginIndex,
-			  pInfo->tableEndIndex);
+  pPrint("====before thread:%d, table range: %" PRId64 " - %" PRId64 "\n", pInfo->threadIndex, pInfo->tableBeginIndex,
+         pInfo->tableEndIndex);
 
   pInfo->tableBeginIndex += startOffset;
-  pInfo->tableEndIndex   += startOffset;
+  pInfo->tableEndIndex += startOffset;
 
-  pPrint("====after thread:%d, table range: %"PRId64 " - %"PRId64 "\n",
-			  pInfo->threadIndex,
-			  pInfo->tableBeginIndex,
-			  pInfo->tableEndIndex);
+  pPrint("====after thread:%d, table range: %" PRId64 " - %" PRId64 "\n", pInfo->threadIndex, pInfo->tableBeginIndex,
+         pInfo->tableEndIndex);
 
   sprintf(qstr, "use %s", pInfo->dbName);
   TAOS_RES *pRes = taos_query(con, qstr);
@@ -221,7 +216,7 @@ void *threadFunc(void *param) {
       int64_t   startTs = taosGetTimestampUs();
       TAOS_RES *pRes = taos_query(con, qstr);
       code = taos_errno(pRes);
-      if ((code != 0) && (code != TSDB_CODE_RPC_AUTH_REQUIRED)) {
+      if (code != 0) {
         pError("failed to create table reason:%s, sql: %s", tstrerror(code), qstr);
       }
       taos_free_result(pRes);
@@ -251,20 +246,20 @@ void *threadFunc(void *param) {
       // batch = MIN(batch, batchNum);
 
       int32_t len = sprintf(qstr, "insert into ");
-	  
+
       for (int32_t i = 0; i < batchNumOfTbl;) {
-		int64_t ts = startTimestamp;	  	
+        int64_t ts = startTimestamp;
         len += sprintf(qstr + len, "%s_t%" PRId64 " values ", stbName, t);
         for (int32_t j = 0; j < batchNumOfRow; j++) {
-		  len += sprintf(qstr + len, "(%" PRId64 ", 6666) ", ts++);
+          len += sprintf(qstr + len, "(%" PRId64 ", 6666) ", ts++);
         }
-		
+
         t++;
         i++;
         if (t > pInfo->tableEndIndex) {
           break;
         }
-      }	  
+      }
 
       int64_t   startTs = taosGetTimestampUs();
       TAOS_RES *pRes = taos_query(con, qstr);
@@ -360,7 +355,7 @@ void parseArgument(int32_t argc, char *argv[]) {
     } else if (strcmp(argv[i], "-q") == 0) {
       queryFlag = atoi(argv[++i]);
     } else {
-	  pPrint("%s unknow para: %s %s", GREEN, argv[++i], NC);
+      pPrint("%s unknow para: %s %s", GREEN, argv[++i], NC);
     }
   }
 
@@ -390,15 +385,16 @@ int32_t main(int32_t argc, char *argv[]) {
   }
 
   if (queryFlag) {
-    //selectRowsFromTable();
+    // selectRowsFromTable();
     return 0;
   }
 
   if (createTable) {
     createDbAndStb();
   }
-  
-  pPrint("%d threads are spawned to create %" PRId64 " tables, offset is %" PRId64 " ", numOfThreads, numOfTables, startOffset);
+
+  pPrint("%d threads are spawned to create %" PRId64 " tables, offset is %" PRId64 " ", numOfThreads, numOfTables,
+         startOffset);
 
   pthread_attr_t thattr;
   pthread_attr_init(&thattr);
@@ -456,8 +452,8 @@ int32_t main(int32_t argc, char *argv[]) {
 
   if (createTable) {
     pPrint("%s total %" PRId64 " tables, %.1f tables/second, threads:%d, maxDelay: %" PRId64 "us, minDelay: %" PRId64
-         "us %s",
-         GREEN, numOfTables, createTableSpeed, numOfThreads, maxDelay, minDelay, NC);
+           "us %s",
+           GREEN, numOfTables, createTableSpeed, numOfThreads, maxDelay, minDelay, NC);
   }
 
   if (insertData) {
