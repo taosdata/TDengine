@@ -111,6 +111,7 @@ typedef struct SQWTaskCtx {
   void           *cancelConnection;
   
   bool            emptyRes;
+  bool            multiExec;
   int8_t          queryContinue;
   int8_t          queryInQueue;
   int32_t         rspCode; 

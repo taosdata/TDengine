@@ -891,7 +891,7 @@ int32_t schHandleResponseMsg(SSchJob *pJob, SSchTask *pTask, int32_t msgType, ch
         
         break;
       }
-    case TDMT_VND_DROP_TASK: {
+    case TDMT_VND_DROP_TASK_RSP: {
         // SHOULD NEVER REACH HERE
         SCH_TASK_ELOG("invalid status to handle drop task rsp, ref:%d", atomic_load_32(&pJob->ref));
         SCH_ERR_JRET(TSDB_CODE_SCH_INTERNAL_ERROR);

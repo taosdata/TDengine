@@ -50,6 +50,7 @@ int32_t qwBuildAndSendQueryRsp(void *connection, int32_t code) {
   pRsp->code = code;
 
   SRpcMsg rpcRsp = {
+    .msgType = TDMT_VND_QUERY_RSP,
     .handle  = pMsg->handle,
     .ahandle = pMsg->ahandle,
     .pCont   = pRsp,
@@ -68,6 +69,7 @@ int32_t qwBuildAndSendReadyRsp(void *connection, int32_t code) {
   pRsp->code = code;
 
   SRpcMsg rpcRsp = {
+    .msgType = TDMT_VND_RES_READY_RSP,
     .handle  = pMsg->handle,
     .ahandle = pMsg->ahandle,
     .pCont   = pRsp,
@@ -98,7 +100,7 @@ int32_t qwBuildAndSendStatusRsp(SRpcMsg *pMsg, SSchedulerStatusRsp *sStatus) {
   }
 
   SRpcMsg rpcRsp = {
-    .msgType = pMsg->msgType + 1,
+    .msgType = TDMT_VND_TASKS_STATUS_RSP,
     .handle  = pMsg->handle,
     .ahandle = pMsg->ahandle,
     .pCont   = pRsp,
@@ -121,6 +123,7 @@ int32_t qwBuildAndSendFetchRsp(void *connection, SRetrieveTableRsp *pRsp, int32_
   }
 
   SRpcMsg rpcRsp = {
+    .msgType = TDMT_VND_FETCH_RSP,
     .handle  = pMsg->handle,
     .ahandle = pMsg->ahandle,
     .pCont   = pRsp,
@@ -138,6 +141,7 @@ int32_t qwBuildAndSendCancelRsp(SRpcMsg *pMsg, int32_t code) {
   pRsp->code = code;
 
   SRpcMsg rpcRsp = {
+    .msgType = TDMT_VND_CANCEL_TASK_RSP,
     .handle  = pMsg->handle,
     .ahandle = pMsg->ahandle,
     .pCont   = pRsp,
@@ -155,6 +159,7 @@ int32_t qwBuildAndSendDropRsp(void *connection, int32_t code) {
   pRsp->code = code;
 
   SRpcMsg rpcRsp = {
+    .msgType = TDMT_VND_DROP_TASK_RSP,
     .handle  = pMsg->handle,
     .ahandle = pMsg->ahandle,
     .pCont   = pRsp,
