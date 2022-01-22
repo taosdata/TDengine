@@ -7534,15 +7534,9 @@ int32_t validateLimitNode(SSqlCmd* pCmd, SQueryInfo* pQueryInfo, SSqlNode* pSqlN
        */
       if (pQueryInfo->limit.limit > 0) {
         pQueryInfo->vgroupLimit = pQueryInfo->limit.limit + pQueryInfo->limit.offset;
-        // if have group by , not do limit on parent sql
-        if(pSqlNode->pGroupby == NULL)
-          pQueryInfo->limit.limit += pQueryInfo->limit.offset;
-        else
-          pQueryInfo->limit.limit = -1;
+        pQueryInfo->limit.limit += pQueryInfo->limit.offset;
       }
       pQueryInfo->limit.offset = 0;
-    } else if(pSqlNode->pGroupby) {
-      pQueryInfo->limit.limit = -1; // has groupby , no order on super table, limit is limit clause query rows by one group
     }
   } else {
     if (pQueryInfo->slimit.limit != -1 || pQueryInfo->slimit.offset != 0) {
