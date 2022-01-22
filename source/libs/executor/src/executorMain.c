@@ -164,13 +164,6 @@ int32_t qExecTask(qTaskInfo_t tinfo, SSDataBlock** pRes, uint64_t *useconds) {
     return TSDB_CODE_SUCCESS;
   }
 
-  //  STaskRuntimeEnv* pRuntimeEnv = &pTaskInfo->runtimeEnv;
-  //  if (pTaskInfo->tableqinfoGroupInfo.numOfTables == 0) {
-  //    qDebug("QInfo:0x%"PRIx64" no table exists for query, abort", GET_TASKID(pTaskInfo));
-  //    setTaskStatus(pTaskInfo, TASK_COMPLETED);
-  //    return doBuildResCheck(pTaskInfo);
-  //  }
-
   // error occurs, record the error code and return to client
   int32_t ret = setjmp(pTaskInfo->env);
   if (ret != TSDB_CODE_SUCCESS) {

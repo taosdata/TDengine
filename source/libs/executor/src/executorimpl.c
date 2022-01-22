@@ -4958,6 +4958,10 @@ static SSDataBlock* doTableScan(void* param, bool *newgroup) {
   STableScanInfo *pTableScanInfo = pOperator->info;
   SExecTaskInfo  *pTaskInfo = pOperator->pTaskInfo;
 
+  if (pTableScanInfo->pTsdbReadHandle == NULL) {
+    return NULL;
+  }
+
   SResultRowInfo* pResultRowInfo = pTableScanInfo->pResultRowInfo;
   *newgroup = false;
 
@@ -5161,8 +5165,8 @@ static SSDataBlock* doLoadRemoteData(void* param, bool* newgroup) {
     }
 
     SDownstreamSource* pSource = taosArrayGet(pExchangeInfo->pSources, pExchangeInfo->current);
-    SEpSet             epSet = {0};
 
+    SEpSet epSet = {0};
     epSet.numOfEps = pSource->addr.numOfEps;
     epSet.port[0] = pSource->addr.epAddr[0].port;
     tstrncpy(epSet.fqdn[0], pSource->addr.epAddr[0].fqdn, tListLen(epSet.fqdn[0]));
@@ -5195,17 +5199,18 @@ static SSDataBlock* doLoadRemoteData(void* param, bool* newgroup) {
 
     SRetrieveTableRsp* pRsp = pExchangeInfo->pRsp;
     if (pRsp->numOfRows == 0) {
-      if (pExchangeInfo->current >= taosArrayGetSize(pExchangeInfo->pSources)) {
-        return NULL;
-      }
-
       qDebug("QID:0x%"PRIx64" vgId:%d, taskID:0x%"PRIx64" %d of total completed, rowsOfSource:%"PRIu64", totalRows:%"PRIu64" try next",
           GET_TASKID(pTaskInfo), pSource->addr.nodeId, pSource->taskId, pExchangeInfo->current + 1,
              pExchangeInfo->rowsOfCurrentSource, pExchangeInfo->totalRows);
 
       pExchangeInfo->rowsOfCurrentSource = 0;
       pExchangeInfo->current += 1;
-      continue;
+
+      if (pExchangeInfo->current >= totalSources) {
+        return NULL;
+      } else {
+        continue;
+      }
     }
 
     SSDataBlock* pRes = pExchangeInfo->pResult;
@@ -7823,11 +7828,12 @@ static tsdbReadHandleT doCreateDataReadHandle(STableScanPhyNode* pTableScanNode,
 
   if (groupInfo.numOfTables == 0) {
     code = 0;
-    //    qDebug("no table qualified for query, reqId:0x%"PRIx64, (*pTask)->id.queryId);
+    qDebug("no table qualified for query, reqId:0x%"PRIx64, queryId);
     goto _error;
   }
 
   return createDataReadHandle(pTableScanNode, &groupInfo, readerHandle, queryId);
+
   _error:
   terrno = code;
   return NULL;
