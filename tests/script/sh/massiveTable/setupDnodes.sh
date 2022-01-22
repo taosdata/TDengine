@@ -70,7 +70,7 @@ createNewCfgFile() {
     echo "dataDir       ${dataDir}"     >> ${cfgFile}
     echo "logDir        ${logDir}"      >> ${cfgFile}
     echo "serverPort    ${serverPort}"  >> ${cfgFile}     
-    
+    echo "numOfLogLines      100000000" >> ${cfgFile}  
     echo "supportVnodes        1024"   >> ${cfgFile} 
     #echo "asyncLog             0"     >> ${cfgFile}
     echo "telemetryReporting   0"      >> ${cfgFile}  

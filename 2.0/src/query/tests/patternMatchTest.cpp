@@ -6,6 +6,7 @@
 #include "qAggMain.h"
 #include "tcompare.h"
 
+#pragma GCC diagnostic push
 #pragma GCC diagnostic ignored "-Wunused-function"
 #pragma GCC diagnostic ignored "-Wunused-variable"
 
@@ -84,3 +85,5 @@ TEST(testCase, patternMatchTest) {
   ret = patternMatch("%9", str, 2, &info);
   EXPECT_EQ(ret, TSDB_PATTERN_MATCH);
 }
+
+#pragma GCC diagnostic pop

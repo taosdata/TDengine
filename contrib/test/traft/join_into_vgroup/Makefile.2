@@ -1,0 +1,10 @@
+all:
+	gcc node_follower10000.c -I ../../include/ ../../.libs/libraft.a -o node_follower10000 -luv -llz4 -lpthread -g
+	gcc node_follower10001.c -I ../../include/ ../../.libs/libraft.a -o node_follower10001 -luv -llz4 -lpthread -g
+	gcc node_leader10002.c -I ../../include/ ../../.libs/libraft.a -o node_leader10002 -luv -llz4 -lpthread -g
+clean:
+	rm -f node_follower10000
+	rm -f node_follower10001
+	rm -f node_leader10002
+	sh clear.sh
+

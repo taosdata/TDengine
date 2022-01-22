@@ -96,7 +96,7 @@ int vnodeApplyWMsg(SVnode *pVnode, SRpcMsg *pMsg, SRpcMsg **pRsp) {
         }
       }
 
-      vInfo("vgId:%d process create %"PRIzu" tables", pVnode->vgId, taosArrayGetSize(vCreateTbBatchReq.pArray));
+      vDebug("vgId:%d process create %"PRIzu" tables", pVnode->vgId, taosArrayGetSize(vCreateTbBatchReq.pArray));
       taosArrayDestroy(vCreateTbBatchReq.pArray);
       break;
 

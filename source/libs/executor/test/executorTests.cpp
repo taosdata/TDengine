@@ -17,8 +17,9 @@
 #include <gtest/gtest.h>
 #include <tglobal.h>
 #include <iostream>
-#pragma GCC diagnostic ignored "-Wwrite-strings"
 
+#pragma GCC diagnostic push
+#pragma GCC diagnostic ignored "-Wwrite-strings"
 #pragma GCC diagnostic ignored "-Wunused-function"
 #pragma GCC diagnostic ignored "-Wunused-variable"
 #pragma GCC diagnostic ignored "-Wsign-compare"
@@ -220,3 +221,5 @@ TEST(testCase, build_executor_tree_Test) {
   DataSinkHandle sinkHandle = nullptr;
   int32_t code = qCreateExecTask((void*) 1, 2, NULL, (void**) &pTaskInfo, &sinkHandle);
 }
+
+#pragma GCC diagnostic pop

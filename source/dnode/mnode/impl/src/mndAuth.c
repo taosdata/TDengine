@@ -28,6 +28,14 @@ void mndCleanupAuth(SMnode *pMnode) {}
 int32_t mndRetriveAuth(SMnode *pMnode, char *user, char *spi, char *encrypt, char *secret, char *ckey) { return 0; }
 
 static int32_t mndProcessAuthReq(SMnodeMsg *pReq) {
-  mDebug("user:%s, auth req is processed", pReq->user);
-  return 0;
+  SAuthReq *pAuth = pReq->rpcMsg.pCont;
+
+  int32_t   contLen = sizeof(SAuthRsp);
+  SAuthRsp *pRsp = rpcMallocCont(contLen);
+  pReq->pCont = pRsp;
+  pReq->contLen = contLen;
+
+  int32_t code = mndRetriveAuth(pReq->pMnode, pAuth->user, &pRsp->spi, &pRsp->encrypt, pRsp->secret, pRsp->ckey);
+  mTrace("user:%s, auth req received, spi:%d encrypt:%d ruser:%s", pReq->user, pAuth->spi, pAuth->encrypt, pAuth->user);
+  return code;
 }

@@ -182,7 +182,7 @@ void *threadFunc(void *param) {
     exit(1);
   }
 
-  pError("====before thread:%d, table range: %"PRId64 " - %"PRId64 "\n",
+  pPrint("====before thread:%d, table range: %"PRId64 " - %"PRId64 "\n",
 			  pInfo->threadIndex,
 			  pInfo->tableBeginIndex,
 			  pInfo->tableEndIndex);
@@ -190,7 +190,7 @@ void *threadFunc(void *param) {
   pInfo->tableBeginIndex += startOffset;
   pInfo->tableEndIndex   += startOffset;
 
-  pError("====after thread:%d, table range: %"PRId64 " - %"PRId64 "\n",
+  pPrint("====after thread:%d, table range: %"PRId64 " - %"PRId64 "\n",
 			  pInfo->threadIndex,
 			  pInfo->tableBeginIndex,
 			  pInfo->tableEndIndex);
