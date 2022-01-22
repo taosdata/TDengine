@@ -10041,7 +10041,7 @@ void freeQueryAttr(SQueryAttr* pQueryAttr) {
 // add table read rows count. pHashTables must not be NULL
 void addTableReadRows(SQueryRuntimeEnv* pEnv, int32_t tid, int32_t rows) {
   SHashObj* pHashObj = pEnv->pTablesRead;
-  int32_t limit = (int64_t)pEnv->pQueryAttr->limit.limit;
+  int32_t limit = (int32_t)pEnv->pQueryAttr->limit.limit;
   if (pHashObj == NULL) {
     return ;
   }
