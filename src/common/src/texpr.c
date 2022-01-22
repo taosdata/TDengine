@@ -1579,8 +1579,7 @@ void vectorLowerUpperTrimFunc(int16_t functionId, tExprOperandInfo *pInputs, int
           memcpy(varDataVal(outputData),varDataVal(inputData[0]), resultByteLen);
           break;
         }
-        case TSDB_FUNC_SCALAR_SUBSTR: {
-
+        default: {
           break;
         }
       }
@@ -1590,7 +1589,40 @@ void vectorLowerUpperTrimFunc(int16_t functionId, tExprOperandInfo *pInputs, int
 }
 
 void vectorSubstrFunc(int16_t functionId, tExprOperandInfo *pInputs, int32_t numInputs, tExprOperandInfo* pOutput, int32_t order) {
+  int32_t subPosChar = 0;
+  GET_TYPED_DATA(subPosChar, int32_t, pInputs[1].type, pInputs[1].data);
 
+  int32_t subLenChar = INT16_MAX;
+  if (numInputs == 3) {
+    GET_TYPED_DATA(subLenChar, int32_t, pInputs[2].type, pInputs[2].data);
+  }
+
+  int32_t subPosBytes = (pInputs[0].type == TSDB_DATA_TYPE_BINARY) ? subPosChar-1 : (subPosChar-1) * TSDB_NCHAR_SIZE;
+  int32_t subLenBytes = (pInputs[0].type == TSDB_DATA_TYPE_BINARY) ? subLenChar : subLenChar * TSDB_NCHAR_SIZE;
+
+  for (int32_t i = 0; i < pOutput->numOfRows; ++i) {
+    char* inputData = NULL;
+    if (pInputs[0].numOfRows == 1) {
+      inputData = pInputs[0].data;
+    } else {
+      inputData = pInputs[0].data + i * pInputs[0].bytes;
+    }
+    char* outputData = pOutput->data + i * pOutput->bytes;
+    if (isNull(inputData, pInputs[0].type)) {
+      setNull(outputData, pOutput->type, pOutput->bytes);
+      continue;
+    }
+
+    int16_t strBytes = varDataLen(pInputs[0].data);
+    int32_t resultStartBytes = MIN(subPosBytes, strBytes);
+    int32_t resultLenBytes = MIN(subLenBytes, strBytes - resultStartBytes);
+
+    varDataSetLen(outputData, resultLenBytes);
+    if (resultLenBytes > 0) {
+      memcpy(varDataVal(outputData), varDataVal(inputData), resultLenBytes);
+    }
+
+  }
 }
 
 void vectorMathFunc(int16_t functionId, tExprOperandInfo *pInputs, int32_t numInputs, tExprOperandInfo* pOutput, int32_t order)  {
