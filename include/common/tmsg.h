@@ -696,13 +696,13 @@ typedef struct SVgroupInfo {
   uint32_t   hashEnd;
   int8_t     inUse;
   int8_t     numOfEps;
-  SEpAddr epAddr[TSDB_MAX_REPLICA];
+  SEpAddr    epAddr[TSDB_MAX_REPLICA];
 } SVgroupInfo;
 
 typedef struct {
   int32_t    vgId;
   int8_t     numOfEps;
-  SEpAddr epAddr[TSDB_MAX_REPLICA];
+  SEpAddr    epAddr[TSDB_MAX_REPLICA];
 } SVgroupMsg;
 
 typedef struct {

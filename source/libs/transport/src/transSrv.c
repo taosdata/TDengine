@@ -91,9 +91,13 @@ static SConn* connCreate();
 static void   connDestroy(SConn* conn);
 static void   uvConnDestroy(uv_handle_t* handle);
 
-// server worke thread
+// server and worker thread
 static void* workerThread(void* arg);
 static void* acceptThread(void* arg);
+
+// add handle loop
+static bool addHandleToWorkloop(void* arg);
+static bool addHandleToAcceptloop(void* arg);
 
 void uvAllocReadBufferCb(uv_handle_t* handle, size_t suggested_size, uv_buf_t* buf) {
   /*
@@ -268,7 +272,7 @@ static void uvProcessData(SConn* pConn) {
   rpcMsg.handle = pConn;
 
   (*(pRpc->cfp))(pRpc->parent, &rpcMsg, NULL);
-  uv_timer_start(pConn->pTimer, uvHandleActivityTimeout, pRpc->idleTime * 10000, 0);
+  // uv_timer_start(pConn->pTimer, uvHandleActivityTimeout, pRpc->idleTime * 10000, 0);
   // auth
   // validate msg type
 }
@@ -451,22 +455,14 @@ void uvOnConnectionCb(uv_stream_t* q, ssize_t nread, const uv_buf_t* buf) {
 void* acceptThread(void* arg) {
   // opt
   SServerObj* srv = (SServerObj*)arg;
-  uv_tcp_init(srv->loop, &srv->server);
-
-  struct sockaddr_in bind_addr;
-
-  uv_ip4_addr("0.0.0.0", srv->port, &bind_addr);
-  uv_tcp_bind(&srv->server, (const struct sockaddr*)&bind_addr, 0);
-  int err = 0;
-  if ((err = uv_listen((uv_stream_t*)&srv->server, 128, uvOnAcceptCb)) != 0) {
-    tError("Listen error %s\n", uv_err_name(err));
-    return NULL;
-  }
   uv_run(srv->loop, UV_RUN_DEFAULT);
 }
-static void initWorkThrdObj(SWorkThrdObj* pThrd) {
+static bool addHandleToWorkloop(void* arg) {
+  SWorkThrdObj* pThrd = arg;
   pThrd->loop = (uv_loop_t*)malloc(sizeof(uv_loop_t));
-  uv_loop_init(pThrd->loop);
+  if (0 != uv_loop_init(pThrd->loop)) {
+    return false;
+  }
 
   // SRpcInfo* pRpc = pThrd->shandle;
   uv_pipe_init(pThrd->loop, pThrd->pipe, 1);
@@ -482,6 +478,31 @@ static void initWorkThrdObj(SWorkThrdObj* pThrd) {
   pThrd->workerAsync->data = pThrd;
 
   uv_read_start((uv_stream_t*)pThrd->pipe, uvAllocConnBufferCb, uvOnConnectionCb);
+  return true;
+}
+
+static bool addHandleToAcceptloop(void* arg) {
+  // impl later
+  SServerObj* srv = arg;
+
+  int err = 0;
+  if ((err = uv_tcp_init(srv->loop, &srv->server)) != 0) {
+    tError("failed to init accept server: %s", uv_err_name(err));
+    return false;
+  }
+
+  struct sockaddr_in bind_addr;
+
+  uv_ip4_addr("0.0.0.0", srv->port, &bind_addr);
+  if ((err = uv_tcp_bind(&srv->server, (const struct sockaddr*)&bind_addr, 0)) != 0) {
+    tError("failed to bind: %s", uv_err_name(err));
+    return false;
+  }
+  if ((err = uv_listen((uv_stream_t*)&srv->server, 128, uvOnAcceptCb)) != 0) {
+    tError("failed to listen: %s", uv_err_name(err));
+    return false;
+  }
+  return true;
 }
 void* workerThread(void* arg) {
   SWorkThrdObj* pThrd = (SWorkThrdObj*)arg;
@@ -546,11 +567,12 @@ void* taosInitServer(uint32_t ip, uint32_t port, char* label, int numOfThreads, 
 
   for (int i = 0; i < srv->numOfThreads; i++) {
     SWorkThrdObj* thrd = (SWorkThrdObj*)calloc(1, sizeof(SWorkThrdObj));
+    srv->pThreadObj[i] = thrd;
 
     srv->pipe[i] = (uv_pipe_t*)calloc(2, sizeof(uv_pipe_t));
     int fds[2];
     if (uv_socketpair(AF_UNIX, SOCK_STREAM, fds, UV_NONBLOCK_PIPE, UV_NONBLOCK_PIPE) != 0) {
-      return NULL;
+      goto End;
     }
     uv_pipe_init(srv->loop, &(srv->pipe[i][0]), 1);
     uv_pipe_open(&(srv->pipe[i][0]), fds[1]);  // init write
@@ -559,7 +581,9 @@ void* taosInitServer(uint32_t ip, uint32_t port, char* label, int numOfThreads, 
     thrd->fd = fds[0];
     thrd->pipe = &(srv->pipe[i][1]);  // init read
 
-    initWorkThrdObj(thrd);
+    if (false == addHandleToWorkloop(thrd)) {
+      goto End;
+    }
     int err = pthread_create(&(thrd->thread), NULL, workerThread, (void*)(thrd));
     if (err == 0) {
       tDebug("sucess to create worker-thread %d", i);
@@ -568,9 +592,10 @@ void* taosInitServer(uint32_t ip, uint32_t port, char* label, int numOfThreads, 
       // TODO: clear all other resource later
       tError("failed to create worker-thread %d", i);
     }
-    srv->pThreadObj[i] = thrd;
   }
-
+  if (false == addHandleToAcceptloop(srv)) {
+    goto End;
+  }
   int err = pthread_create(&srv->thread, NULL, acceptThread, (void*)srv);
   if (err == 0) {
     tDebug("success to create accept-thread");
@@ -579,16 +604,25 @@ void* taosInitServer(uint32_t ip, uint32_t port, char* label, int numOfThreads, 
   }
 
   return srv;
+End:
+  taosCloseServer(srv);
+  return NULL;
+}
+
+void destroyWorkThrd(SWorkThrdObj* pThrd) {
+  if (pThrd == NULL) {
+    return;
+  }
+  pthread_join(pThrd->thread, NULL);
+  // free(srv->pipe[i]);
+  free(pThrd->loop);
+  free(pThrd);
 }
 void taosCloseServer(void* arg) {
   // impl later
   SServerObj* srv = arg;
   for (int i = 0; i < srv->numOfThreads; i++) {
-    SWorkThrdObj* pThrd = srv->pThreadObj[i];
-    pthread_join(pThrd->thread, NULL);
-    free(srv->pipe[i]);
-    free(pThrd->loop);
-    free(pThrd);
+    destroyWorkThrd(srv->pThreadObj[i]);
   }
   free(srv->loop);
   free(srv->pipe);
