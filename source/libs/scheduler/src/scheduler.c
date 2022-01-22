@@ -738,7 +738,7 @@ int32_t schProcessOnTaskSuccess(SSchJob *pJob, SSchTask *pTask) {
       SCH_UNLOCK(SCH_WRITE, &pTask->level->lock);
       
       if (taskDone < pTask->level->taskNum) {
-        SCH_TASK_ELOG("wait all tasks, done:%d, all:%d", taskDone, pTask->level->taskNum);
+        SCH_TASK_DLOG("wait all tasks, done:%d, all:%d", taskDone, pTask->level->taskNum);
         
         return TSDB_CODE_SUCCESS;
       } else if (taskDone > pTask->level->taskNum) {
