@@ -9,9 +9,14 @@ bool isPrint = true;
 void one_batch_one_table_1(TAOS *conn, long totalRows, long batchRows);
 void one_batch_one_table_2(TAOS *conn, long totalRows, long batchRows);
 void one_batch_one_table_3(TAOS *conn, long totalRows, long batchRows);
-
 void one_batch_one_table_4(TAOS *conn, long totalRows, long batchRows);
 void one_batch_one_table_5(TAOS *conn, long totalRows, long batchRows);
+void one_batch_one_table_6(TAOS *conn, long totalRows, long batchRows);
+void one_batch_one_table_7(TAOS *conn, long totalRows, long batchRows);
+
+void one_batch_multi_table_1(TAOS *conn, long totalRows, long batchRows, int tables);
+void one_batch_multi_table_2(TAOS *conn, long totalRows, long batchRows, int tables);
+void one_batch_multi_table_3(TAOS *conn, long totalRows, long batchRows, int tables);
 
 void    execute(TAOS *conn, char *sql);
 void    prepare_normal_table(TAOS *conn);
@@ -46,8 +51,9 @@ int main() {
   execute(conn, "create database if not exists test");
   execute(conn, "use test");
 
-  long totalRows = 10;
-  long batchRows = 3;
+  long totalRows = 1000000;
+  long batchRows = 32767;
+  int  tables = 10;
 
   prepare_super_table(conn, 1);
   // A -> B -> D -> [F -> I]... -> J -> L
@@ -55,11 +61,22 @@ int main() {
   // A -> B -> [D -> [F -> I]... -> J]... -> L
   //  one_batch_one_table_2(conn, totalRows, batchRows);
   // A -> B -> D -> [F... -> I -> J]... -> L
-  one_batch_one_table_3(conn, totalRows, batchRows);
+  //  one_batch_one_table_3(conn, totalRows, batchRows);
   // A -> B -> D -> [H -> I -> J]... -> L
-//  one_batch_one_table_4(conn, totalRows, batchRows);
+  //  one_batch_one_table_4(conn, totalRows, batchRows);
   // A -> B -> [D -> H -> I -> J]... -> L
-//  one_batch_one_table_5(conn, totalRows, batchRows);
+  //  one_batch_one_table_5(conn, totalRows, batchRows);
+  // A -> B -> [D -> H -> I -> J]... -> L
+  //  one_batch_one_table_6(conn, totalRows, batchRows);
+  // A -> B -> [D -> H -> I -> J]... -> L
+  //  one_batch_one_table_7(conn, totalRows, batchRows);
+
+  // A -> B -> [D -> [F -> I]... -> J]... -> L
+  //  one_batch_multi_table_1(conn, totalRows, batchRows, tables);
+  // A -> B -> [D -> H -> I -> J]... -> L
+  //  one_batch_multi_table_2(conn, totalRows, batchRows, tables);
+  // A -> B -> [D -> G1 -> G2 -> I -> J]... -> L
+  one_batch_multi_table_3(conn, totalRows, batchRows, tables);
 
   // close
   taos_close(conn);
@@ -191,6 +208,168 @@ void one_batch_one_table_5(TAOS *conn, long totalRows, long batchRows) {
 
   int64_t end = getCurrentTimeMill();
   printf("totalRows: %ld, batchRows: %ld, time cost: %lld ms\n", totalRows, batchRows, (end - start));
+}
+
+void one_batch_one_table_6(TAOS *conn, long totalRows, long batchRows) {
+  // given
+  time_t current;
+  time(&current);
+  current -= totalRows;
+
+  int64_t start = getCurrentTimeMill();
+  // when
+  TAOS_STMT *stmt = A(conn);
+  B(stmt, "insert into ? using weather tags(?) values(?,?)");
+  D(stmt, "t1", 1);
+  for (int i = 1; i <= totalRows; i += batchRows) {
+    int rows = (i + batchRows) > totalRows ? (totalRows + 1 - i) : batchRows;
+    G1(stmt, (current + i) * 1000, rows);
+    G2(stmt, rows);
+    I(stmt);
+    J(stmt);
+  }
+  L(stmt);
+
+  int64_t end = getCurrentTimeMill();
+  printf("totalRows: %ld, batchRows: %ld, time cost: %lld ms\n", totalRows, batchRows, (end - start));
+}
+
+void one_batch_one_table_7(TAOS *conn, long totalRows, long batchRows) {
+  // given
+  time_t current;
+  time(&current);
+  current -= totalRows;
+
+  int64_t start = getCurrentTimeMill();
+  // when
+  TAOS_STMT *stmt = A(conn);
+  B(stmt, "insert into ? using weather tags(?) values(?,?)");
+  for (int i = 1; i <= totalRows; i += batchRows) {
+    if (i % batchRows == 1) {
+      D(stmt, "t1", 1);
+    }
+    int rows = (i + batchRows) > totalRows ? (totalRows + 1 - i) : batchRows;
+    G1(stmt, (current + i) * 1000, rows);
+    G2(stmt, rows);
+    I(stmt);
+    J(stmt);
+  }
+  L(stmt);
+
+  int64_t end = getCurrentTimeMill();
+  printf("totalRows: %ld, batchRows: %ld, time cost: %lld ms\n", totalRows, batchRows, (end - start));
+}
+
+void one_batch_multi_table_1(TAOS *conn, long totalRows, long batchRows, int tables) {
+  // given
+  time_t current;
+  time(&current);
+  long eachTable = (totalRows - 1) / tables + 1;
+  current -= eachTable;
+
+  int64_t start = getCurrentTimeMill();
+  // when
+  TAOS_STMT *stmt = A(conn);
+  B(stmt, "insert into ? using weather tags(?) values(?, ?)");
+
+  for (int tbIndex = 0; tbIndex < tables; ++tbIndex) {
+    char tbname[10];
+    sprintf(tbname, "t%d", tbIndex);
+
+    eachTable = ((tbIndex + 1) * eachTable > totalRows) ? (totalRows - tbIndex * eachTable) : eachTable;
+    for (int rowIndex = 1; rowIndex <= eachTable; ++rowIndex) {
+      if (rowIndex % batchRows == 1) {
+        D(stmt, tbname, tbIndex);
+        if (isPrint)
+          printf("\ntbIndex: %d, table_rows: %ld, rowIndex: %d, batch_rows: %ld\n", tbIndex, eachTable, rowIndex,
+                 batchRows);
+      }
+      F(stmt, (current + rowIndex - 1) * 1000);
+      I(stmt);
+      if (rowIndex % batchRows == 0 || rowIndex == eachTable) {
+        J(stmt);
+      }
+    }
+  }
+  L(stmt);
+
+  int64_t end = getCurrentTimeMill();
+  printf("totalRows: %ld, batchRows: %ld, table: %d, eachTableRows: %ld, time cost: %lld ms\n", totalRows, batchRows,
+         tables, eachTable, (end - start));
+}
+
+void one_batch_multi_table_2(TAOS *conn, long totalRows, long batchRows, int tables) {
+  // given
+  time_t current;
+  time(&current);
+  long eachTable = (totalRows - 1) / tables + 1;
+  current -= eachTable;
+
+  int64_t start = getCurrentTimeMill();
+  // when
+  TAOS_STMT *stmt = A(conn);
+  B(stmt, "insert into ? using weather tags(?) values(?,?)");
+  for (int tbIndex = 0; tbIndex < tables; ++tbIndex) {
+    char tbname[10];
+    sprintf(tbname, "t%d", tbIndex);
+
+    eachTable = ((tbIndex + 1) * eachTable > totalRows) ? (totalRows - tbIndex * eachTable) : eachTable;
+    for (int rowIndex = 1; rowIndex <= eachTable; rowIndex += batchRows) {
+      int rows = (rowIndex + batchRows) > eachTable ? (eachTable + 1 - rowIndex) : batchRows;
+
+      if (rowIndex % batchRows == 1) {
+        D(stmt, tbname, tbIndex);
+        if (isPrint)
+          printf("\ntbIndex: %d, table_rows: %ld, rowIndex: %d, batch_rows: %d\n", tbIndex, eachTable, rowIndex, rows);
+      }
+
+      H(stmt, (current + rowIndex) * 1000, rows);
+      I(stmt);
+      J(stmt);
+    }
+  }
+  L(stmt);
+
+  int64_t end = getCurrentTimeMill();
+  printf("totalRows: %ld, batchRows: %ld, table: %d, eachTableRows: %ld, time cost: %lld ms\n", totalRows, batchRows,
+         tables, eachTable, (end - start));
+}
+
+void one_batch_multi_table_3(TAOS *conn, long totalRows, long batchRows, int tables) {
+  // given
+  time_t current;
+  time(&current);
+  long eachTable = (totalRows - 1) / tables + 1;
+  current -= eachTable;
+
+  int64_t start = getCurrentTimeMill();
+  // when
+  TAOS_STMT *stmt = A(conn);
+  B(stmt, "insert into ? using weather tags(?) values(?, ?)");
+  for (int tbIndex = 0; tbIndex < tables; ++tbIndex) {
+    char tbname[10];
+    sprintf(tbname, "t%d", tbIndex);
+
+    eachTable = ((tbIndex + 1) * eachTable > totalRows) ? (totalRows - tbIndex * eachTable) : eachTable;
+    for (int rowIndex = 1; rowIndex <= eachTable; rowIndex += batchRows) {
+      int rows = (rowIndex + batchRows) > eachTable ? (eachTable + 1 - rowIndex) : batchRows;
+
+      if (rowIndex % batchRows == 1) {
+        D(stmt, tbname, tbIndex);
+        if (isPrint)
+          printf("\ntbIndex: %d, table_rows: %ld, rowIndex: %d, batch_rows: %d\n", tbIndex, eachTable, rowIndex, rows);
+      }
+      G1(stmt, (current + rowIndex) * 1000, rows);
+      G2(stmt, rows);
+      I(stmt);
+      J(stmt);
+    }
+  }
+  L(stmt);
+
+  int64_t end = getCurrentTimeMill();
+  printf("totalRows: %ld, batchRows: %ld, table: %d, eachTableRows: %ld, time cost: %lld ms\n", totalRows, batchRows,
+         tables, eachTable, (end - start));
 }
 
 void execute(TAOS *conn, char *sql) {
