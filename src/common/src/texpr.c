@@ -1076,7 +1076,7 @@ int32_t exprValidateStringLowerUpperTrimNode(char* msgBuf, tExprNode *pExpr) {
 }
 
 int32_t exprValidateStringSubstrNode(char* msgBuf, tExprNode *pExpr) {
-  if (pExpr->_func.numChildren != 2 || pExpr->_func.numChildren != 3) {
+  if ((pExpr->_func.numChildren != 2) && (pExpr->_func.numChildren != 3)) {
     return TSDB_CODE_TSC_INVALID_OPERATION;
   }
 
@@ -1475,7 +1475,118 @@ void vectorCharLength(int16_t functionId, tExprOperandInfo *pInputs, int32_t num
 void vectorLowerUpperTrimFunc(int16_t functionId, tExprOperandInfo *pInputs, int32_t numInputs, tExprOperandInfo* pOutput, int32_t order) {
   assert(numInputs == 1);
   assert(pInputs[0].numOfRows == 1 || pInputs[0].numOfRows == pOutput->numOfRows);
-  
+
+  char* outputData = NULL;
+  char** inputData = calloc(numInputs, sizeof(char*));
+
+  int16_t inputType = pInputs[0].type;
+  for (int i = 0; i < pOutput->numOfRows; ++i) {
+    for (int j = 0; j < numInputs; ++j) {
+      if (pInputs[j].numOfRows == 1) {
+        inputData[j] = pInputs[j].data;
+      } else {
+        inputData[j] = pInputs[j].data + i * pInputs[j].bytes;
+      }
+    }
+
+    outputData = pOutput->data + i * pOutput->bytes;
+    bool hasNullInputs = false;
+    for (int j = 0; j < numInputs; ++j) {
+      if (isNull(inputData[j], pInputs[j].type)) {
+        hasNullInputs = true;
+        setNull(outputData, pOutput->type, pOutput->bytes);
+      }
+    }
+    if (!hasNullInputs) {
+      switch (functionId) {
+        case TSDB_FUNC_SCALAR_LOWER:
+        case TSDB_FUNC_SCALAR_UPPER: {
+          assert(numInputs = 1);
+
+          int32_t len = varDataLen(inputData[0]);
+          varDataSetLen(outputData, len);
+
+          if (inputType == TSDB_DATA_TYPE_BINARY) {
+            char* pInputChar = varDataVal(inputData[0]);
+            char* pOutputChar = varDataVal(outputData);
+            for (int32_t k = 0; k < len; ++k) {
+              if (functionId == TSDB_FUNC_SCALAR_LOWER)
+                *(pOutputChar + k) = tolower(*(pInputChar + k));
+              else
+                *(pOutputChar + k) = toupper(*(pInputChar + k));
+            }
+          } else if (inputType == TSDB_DATA_TYPE_NCHAR) {
+            uint32_t* pInputChar = (uint32_t*)varDataVal(inputData[0]);
+            uint32_t* pOutputChar = (uint32_t*)varDataVal(outputData);
+            for (int32_t k = 0; k < len / TSDB_NCHAR_SIZE; ++k) {
+              if (functionId == TSDB_FUNC_SCALAR_LOWER)
+                *(pOutputChar + k) = towlower(*(pInputChar + k));
+              else
+                *(pOutputChar + k) = towupper((*(pInputChar + k)));
+            }
+          }
+          break;
+        }
+        case TSDB_FUNC_SCALAR_LTRIM: {
+          int32_t len = varDataLen(inputData[0]);
+          int32_t charLen = (inputType == TSDB_DATA_TYPE_BINARY) ? len : len / TSDB_NCHAR_SIZE;
+
+          int32_t k = 0;
+          for (; k < charLen; ++k) {
+            if (inputType == TSDB_DATA_TYPE_BINARY) {
+              char* pInputChar = (char*) varDataVal(inputData[0]);
+              if (!isspace(*(pInputChar + k))) {
+                break;
+              }
+            } else {
+              uint32_t* pInputChar = (uint32_t*)varDataVal(inputData[0]);
+              if (!iswspace(*(pInputChar + k))) {
+                break;
+              }
+            }
+          }
+
+          int32_t resultCharLen = charLen - k;
+          int32_t resultByteLen = (inputType == TSDB_DATA_TYPE_BINARY) ? resultCharLen : resultCharLen * TSDB_NCHAR_SIZE;
+          int32_t beginByteLen = (inputType == TSDB_DATA_TYPE_BINARY) ? k : k * TSDB_NCHAR_SIZE;
+          varDataSetLen(outputData, resultByteLen);
+          memcpy(varDataVal(outputData),varDataVal(inputData[0])+beginByteLen, resultByteLen);
+          break;
+        }
+
+        case TSDB_FUNC_SCALAR_RTRIM: {
+          int32_t len = varDataLen(inputData[0]);
+          int32_t charLen = (inputType == TSDB_DATA_TYPE_BINARY) ? len : len / TSDB_NCHAR_SIZE;
+
+          int32_t k = charLen-1;
+          for (; k >=0; --k) {
+            if (inputType == TSDB_DATA_TYPE_BINARY) {
+              char* pInputChar = (char*) varDataVal(inputData[0]);
+              if (!isspace(*(pInputChar + k))) {
+                break;
+              }
+            } else {
+              uint32_t* pInputChar = (uint32_t*)varDataVal(inputData[0]);
+              if (!iswspace(*(pInputChar + k))) {
+                break;
+              }
+            }
+          }
+
+          int32_t resultCharLen = k + 1;
+          int32_t resultByteLen = (inputType == TSDB_DATA_TYPE_BINARY) ? resultCharLen : resultCharLen * TSDB_NCHAR_SIZE;
+          varDataSetLen(outputData, resultByteLen);
+          memcpy(varDataVal(outputData),varDataVal(inputData[0]), resultByteLen);
+          break;
+        }
+        case TSDB_FUNC_SCALAR_SUBSTR: {
+
+          break;
+        }
+      }
+    }
+  }
+  free(inputData);
 }
 
 void vectorSubstrFunc(int16_t functionId, tExprOperandInfo *pInputs, int32_t numInputs, tExprOperandInfo* pOutput, int32_t order) {
