@@ -14,8 +14,8 @@
  */
 
 #ifdef USE_UV
-#include "transComm.h"
 
+#include "transComm.h"
 typedef struct SConn {
   uv_tcp_t*   pTcp;
   uv_write_t* pWriter;
@@ -84,12 +84,12 @@ static void uvWorkerAsyncCb(uv_async_t* handle);
 
 static void uvPrepareSendData(SConn* conn, uv_buf_t* wb);
 
-// already read complete packet
-static bool readComplete(SConnBuffer* buf);
+// check whether already read complete packet
+static bool   readComplete(SConnBuffer* buf);
+static SConn* createConn();
+static void   destroyConn(SConn* conn, bool clear /*clear handle or not*/);
 
-static SConn* connCreate();
-static void   connDestroy(SConn* conn);
-static void   uvConnDestroy(uv_handle_t* handle);
+static void uvDestroyConn(uv_handle_t* handle);
 
 // server and worker thread
 static void* workerThread(void* arg);
@@ -283,6 +283,7 @@ void uvOnReadCb(uv_stream_t* cli, ssize_t nread, const uv_buf_t* buf) {
   SConnBuffer* pBuf = &conn->connBuf;
   if (nread > 0) {
     pBuf->len += nread;
+    tDebug("on read %p, total read: %d, current read: %d", cli, pBuf->len, (int)nread);
     if (readComplete(pBuf)) {
       tDebug("alread read complete packet");
       uvProcessData(conn);
@@ -291,11 +292,12 @@ void uvOnReadCb(uv_stream_t* cli, ssize_t nread, const uv_buf_t* buf) {
     }
     return;
   }
-  if (nread != UV_EOF) {
-    tDebug("Read error %s", uv_err_name(nread));
+  if (nread == 0) {
+    return;
   }
-  tDebug("read error %s", uv_err_name(nread));
-  uv_close((uv_handle_t*)cli, uvConnDestroy);
+  if (nread != UV_EOF) {
+    tDebug("read error %s", uv_err_name(nread));
+  }
 }
 void uvAllocConnBufferCb(uv_handle_t* handle, size_t suggested_size, uv_buf_t* buf) {
   buf->base = malloc(sizeof(char));
@@ -318,7 +320,7 @@ void uvOnWriteCb(uv_write_t* req, int status) {
     tDebug("data already was written on stream");
   } else {
     tDebug("failed to write data, %s", uv_err_name(status));
-    connDestroy(conn);
+    destroyConn(conn, true);
   }
   // opt
 }
@@ -331,7 +333,8 @@ static void uvOnPipeWriteCb(uv_write_t* req, int status) {
 }
 
 static void uvPrepareSendData(SConn* conn, uv_buf_t* wb) {
-  // impl later
+  // impl later;
+  tDebug("prepare to send back");
   SRpcMsg* pMsg = &conn->sendMsg;
   if (pMsg->pCont == 0) {
     pMsg->pCont = (void*)rpcMallocCont(0);
@@ -394,6 +397,7 @@ void uvOnAcceptCb(uv_stream_t* stream, int status) {
     uv_write2(wr, (uv_stream_t*)&(pObj->pipe[pObj->workerIdx][0]), &buf, 1, (uv_stream_t*)cli, uvOnPipeWriteCb);
   } else {
     uv_close((uv_handle_t*)cli, NULL);
+    free(cli);
   }
 }
 void uvOnConnectionCb(uv_stream_t* q, ssize_t nread, const uv_buf_t* buf) {
@@ -403,7 +407,7 @@ void uvOnConnectionCb(uv_stream_t* q, ssize_t nread, const uv_buf_t* buf) {
       tError("read error %s", uv_err_name(nread));
     }
     // TODO(log other failure reason)
-    uv_close((uv_handle_t*)q, NULL);
+    // uv_close((uv_handle_t*)q, NULL);
     return;
   }
   // free memory allocated by
@@ -422,7 +426,7 @@ void uvOnConnectionCb(uv_stream_t* q, ssize_t nread, const uv_buf_t* buf) {
   uv_handle_type pending = uv_pipe_pending_type(pipe);
   assert(pending == UV_TCP);
 
-  SConn* pConn = connCreate();
+  SConn* pConn = createConn();
   pConn->pTransInst = pThrd->pTransInst;
   /* init conn timer*/
   pConn->pTimer = malloc(sizeof(uv_timer_t));
@@ -448,7 +452,7 @@ void uvOnConnectionCb(uv_stream_t* q, ssize_t nread, const uv_buf_t* buf) {
     uv_read_start((uv_stream_t*)(pConn->pTcp), uvAllocReadBufferCb, uvOnReadCb);
   } else {
     tDebug("failed to create new connection");
-    connDestroy(pConn);
+    destroyConn(pConn, true);
   }
 }
 
@@ -509,7 +513,7 @@ void* workerThread(void* arg) {
   uv_run(pThrd->loop, UV_RUN_DEFAULT);
 }
 
-static SConn* connCreate() {
+static SConn* createConn() {
   SConn* pConn = (SConn*)calloc(1, sizeof(SConn));
   return pConn;
 }
@@ -517,22 +521,24 @@ static void connCloseCb(uv_handle_t* handle) {
   // impl later
   //
 }
-static void connDestroy(SConn* conn) {
+static void destroyConn(SConn* conn, bool clear) {
   if (conn == NULL) {
     return;
   }
+  if (clear) {
+    uv_handle_t handle = *((uv_handle_t*)conn->pTcp);
+    uv_close(&handle, NULL);
+  }
   uv_timer_stop(conn->pTimer);
   free(conn->pTimer);
-  // uv_close((uv_handle_t*)conn->pTcp, connCloseCb);
   free(conn->pTcp);
   free(conn->connBuf.buf);
   free(conn->pWriter);
-  // free(conn);
-  // handle
+  free(conn);
 }
-static void uvConnDestroy(uv_handle_t* handle) {
+static void uvDestroyConn(uv_handle_t* handle) {
   SConn* conn = handle->data;
-  connDestroy(conn);
+  destroyConn(conn, false);
 }
 static int transAddAuthPart(SConn* pConn, char* msg, int msgLen) {
   STransMsgHead* pHead = (STransMsgHead*)msg;

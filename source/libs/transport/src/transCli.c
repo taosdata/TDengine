@@ -17,7 +17,7 @@
 
 #include "transComm.h"
 
-#define CONN_PERSIST_TIME(para) (para * 1000 * 100)
+#define CONN_PERSIST_TIME(para) (para * 1000 * 10)
 
 typedef struct SCliConn {
   uv_connect_t connReq;
@@ -65,15 +65,15 @@ typedef struct SConnList {
 
 // conn pool
 // add expire timeout and capacity limit
-static void*     connPoolCreate(int size);
-static void*     connPoolDestroy(void* pool);
+static void*     creatConnPool(int size);
+static void*     destroyConnPool(void* pool);
 static SCliConn* getConnFromPool(void* pool, char* ip, uint32_t port);
 static void      addConnToPool(void* pool, char* ip, uint32_t port, SCliConn* conn);
 
 // register timer in each thread to clear expire conn
 static void clientTimeoutCb(uv_timer_t* handle);
 // process data read from server, auth/decompress etc later
-static void clientProcessData(SCliConn* conn);
+static void clientHandleResp(SCliConn* conn);
 // check whether already read complete packet from server
 static bool clientReadComplete(SConnBuffer* pBuf);
 // alloc buf for read
@@ -86,9 +86,11 @@ static void clientWriteCb(uv_write_t* req, int status);
 static void clientConnCb(uv_connect_t* req, int status);
 static void clientAsyncCb(uv_async_t* handle);
 static void clientDestroy(uv_handle_t* handle);
-static void clientConnDestroy(SCliConn* pConn);
+static void clientConnDestroy(SCliConn* pConn, bool clear /*clear tcp handle or not*/);
 
 static void clientMsgDestroy(SCliMsg* pMsg);
+// handle req from app
+static void clientHandleReq(SCliMsg* pMsg, SCliThrdObj* pThrd);
 
 // thread obj
 static SCliThrdObj* createThrdObj();
@@ -96,9 +98,7 @@ static void         destroyThrdObj(SCliThrdObj* pThrd);
 // thread
 static void* clientThread(void* arg);
 
-static void clientHandleReq(SCliMsg* pMsg, SCliThrdObj* pThrd);
-
-static void clientProcessData(SCliConn* conn) {
+static void clientHandleResp(SCliConn* conn) {
   STransConnCtx* pCtx = ((SCliMsg*)conn->data)->ctx;
   SRpcInfo*      pRpc = pCtx->pRpc;
   SRpcMsg        rpcMsg;
@@ -131,7 +131,9 @@ static void clientTimeoutCb(uv_timer_t* handle) {
       SCliConn* c = QUEUE_DATA(h, SCliConn, conn);
       if (c->expireTime < currentTime) {
         QUEUE_REMOVE(h);
-        clientConnDestroy(c);
+        // uv_stream_t stm = *(c->stream);
+        // uv_close((uv_handle_t*)&stm, clientDestroy);
+        clientConnDestroy(c, true);
       } else {
         break;
       }
@@ -142,18 +144,18 @@ static void clientTimeoutCb(uv_timer_t* handle) {
   pThrd->nextTimeout = taosGetTimestampMs() + CONN_PERSIST_TIME(pRpc->idleTime);
   uv_timer_start(handle, clientTimeoutCb, CONN_PERSIST_TIME(pRpc->idleTime) / 2, 0);
 }
-static void* connPoolCreate(int size) {
-  SHashObj* pool = taosHashInit(4, taosGetDefaultHashFunction(TSDB_DATA_TYPE_BINARY), false, HASH_NO_LOCK);
-  return pool;
+static void* creatConnPool(int size) {
+  // thread local, no lock
+  return taosHashInit(size, taosGetDefaultHashFunction(TSDB_DATA_TYPE_BINARY), false, HASH_NO_LOCK);
 }
-static void* connPoolDestroy(void* pool) {
+static void* destroyConnPool(void* pool) {
   SConnList* connList = taosHashIterate((SHashObj*)pool, NULL);
   while (connList != NULL) {
     while (!QUEUE_IS_EMPTY(&connList->conn)) {
       queue* h = QUEUE_HEAD(&connList->conn);
       QUEUE_REMOVE(h);
       SCliConn* c = QUEUE_DATA(h, SCliConn, conn);
-      clientConnDestroy(c);
+      clientConnDestroy(c, true);
     }
     connList = taosHashIterate((SHashObj*)pool, connList);
   }
@@ -245,28 +247,37 @@ static void clientReadCb(uv_stream_t* handle, ssize_t nread, const uv_buf_t* buf
     pBuf->len += nread;
     if (clientReadComplete(pBuf)) {
       tDebug("alread read complete");
-      clientProcessData(conn);
+      clientHandleResp(conn);
     } else {
-      tDebug("read halp packet, continue to read");
+      tDebug("read half packet, continue to read");
     }
     return;
   }
-
-  if (nread != UV_EOF) {
-    tDebug("Read error %s\n", uv_err_name(nread));
+  assert(nread <= 0);
+  if (nread == 0) {
+    return;
   }
-  //
-  uv_close((uv_handle_t*)handle, clientDestroy);
+  if (nread != UV_EOF) {
+    tDebug("read error %s", uv_err_name(nread));
+  }
+  // tDebug("Read error %s\n", uv_err_name(nread));
+  // uv_close((uv_handle_t*)handle, clientDestroy);
 }
 
-static void clientConnDestroy(SCliConn* conn) {
-  // impl later
-  //
+static void clientConnDestroy(SCliConn* conn, bool clear) {
+  tDebug("conn %p destroy", conn);
+  if (clear) {
+    uv_close((uv_handle_t*)conn->stream, NULL);
+  }
+  free(conn->stream);
+  free(conn->readBuf.buf);
+  free(conn->writeReq);
+  free(conn);
 }
 static void clientDestroy(uv_handle_t* handle) {
   SCliConn* conn = handle->data;
-  QUEUE_REMOVE(&conn->conn);
-  clientConnDestroy(conn);
+  // QUEUE_REMOVE(&conn->conn);
+  clientConnDestroy(conn, false);
 }
 
 static void clientWriteCb(uv_write_t* req, int status) {
@@ -274,7 +285,8 @@ static void clientWriteCb(uv_write_t* req, int status) {
   if (status == 0) {
     tDebug("data already was written on stream");
   } else {
-    uv_close((uv_handle_t*)pConn->stream, clientDestroy);
+    tError("failed to write: %s", uv_err_name(status));
+    clientConnDestroy(pConn, true);
     return;
   }
   SCliThrdObj* pThrd = pConn->hostThrd;
@@ -317,7 +329,9 @@ static void clientConnCb(uv_connect_t* req, int status) {
     rpcMsg.ahandle = pCtx->ahandle;
     // SRpcInfo* pRpc = pMsg->ctx->pRpc;
     (pRpc->cfp)(NULL, &rpcMsg, NULL);
-    uv_close((uv_handle_t*)req->handle, clientDestroy);
+
+    clientConnDestroy(pConn, true);
+    // uv_close((uv_handle_t*)req->handle, clientDestroy);
     return;
   }
 
@@ -421,7 +435,6 @@ static void clientMsgDestroy(SCliMsg* pMsg) {
 }
 static SCliThrdObj* createThrdObj() {
   SCliThrdObj* pThrd = (SCliThrdObj*)calloc(1, sizeof(SCliThrdObj));
-
   QUEUE_INIT(&pThrd->msg);
   pthread_mutex_init(&pThrd->msgMtx, NULL);
 
@@ -436,7 +449,7 @@ static SCliThrdObj* createThrdObj() {
   uv_timer_init(pThrd->loop, pThrd->pTimer);
   pThrd->pTimer->data = pThrd;
 
-  pThrd->pool = connPoolCreate(1);
+  pThrd->pool = creatConnPool(1);
   return pThrd;
 }
 static void destroyThrdObj(SCliThrdObj* pThrd) {
