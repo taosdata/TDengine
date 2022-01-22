@@ -13,11 +13,13 @@
  * You should have received a copy of the GNU Affero General Public License
  * along with this program. If not, see <http://www.gnu.org/licenses/>.
  */
-#include "tskiplist.h"
+
 #include "os.h"
+
 #include "compare.h"
-#include "ulog.h"
+#include "tskiplist.h"
 #include "tutil.h"
+#include "ulog.h"
 
 static int                initForwardBackwardPtr(SSkipList *pSkipList);
 static SSkipListNode *    getPriorNode(SSkipList *pSkipList, const char *val, int32_t order, SSkipListNode **pCur);
@@ -52,11 +54,17 @@ SSkipList *tSkipListCreate(uint8_t maxLevel, uint8_t keyType, uint16_t keyLen, _
   pSkipList->flags = flags;
   pSkipList->keyFn = fn;
   pSkipList->seed = rand();
+
+#if 0 
+  // the function getkeycomparfunc is defined in common
   if (comparFn == NULL) {
     pSkipList->comparFn = getKeyComparFunc(keyType, TSDB_ORDER_ASC);
   } else {
     pSkipList->comparFn = comparFn;
   }
+#else
+  pSkipList->comparFn = comparFn;
+#endif
 
   if (initForwardBackwardPtr(pSkipList) < 0) {
     tSkipListDestroy(pSkipList);

@@ -17,8 +17,9 @@
 #include <gtest/gtest.h>
 #include <tglobal.h>
 #include <iostream>
-#pragma GCC diagnostic ignored "-Wwrite-strings"
 
+#pragma GCC diagnostic push
+#pragma GCC diagnostic ignored "-Wwrite-strings"
 #pragma GCC diagnostic ignored "-Wunused-function"
 #pragma GCC diagnostic ignored "-Wunused-variable"
 #pragma GCC diagnostic ignored "-Wsign-compare"
@@ -204,3 +205,5 @@ TEST(testCase, displayPlan) {
   //   TableScan(t.1abc #110) time_range: -9223372036854775808 - 9223372036854775807
 
 }
+
+#pragma GCC diagnostic pop

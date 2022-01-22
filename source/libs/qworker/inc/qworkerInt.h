@@ -219,8 +219,7 @@ typedef struct SQWorkerMgmt {
   }                                                       \
 } while (0)
 
-
-
+int32_t qwBuildAndSendCancelRsp(SRpcMsg *pMsg, int32_t code);
 
 #ifdef __cplusplus
 }

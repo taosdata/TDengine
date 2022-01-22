@@ -4,6 +4,11 @@
 
 #include "encode.h"
 
+#pragma GCC diagnostic push
+#pragma GCC diagnostic ignored "-Wshift-count-overflow"
+#pragma GCC diagnostic ignored "-Woverflow"
+#pragma GCC diagnostic ignored "-Woverflow"
+
 #define BUF_SIZE 64
 td_endian_t endian_arr[2] = {TD_LITTLE_ENDIAN, TD_BIG_ENDIAN};
 
@@ -354,10 +359,10 @@ TEST(td_encode_test, compound_struct_encode_test) {
   SCoder       encoder, decoder;
   uint8_t *    buf1;
   int32_t      buf1size;
-  uint8_t *    buf2;
+  uint8_t     *buf2;
   int32_t      buf2size;
-  SStructA_v1  sa1 = {.A_a = 10, .A_b = 65478, .A_c = "Hello"};
-  SStructA_v2  sa2 = {.A_a = 10, .A_b = 65478, .A_c = "Hello", .A_d = 67, .A_e = 13};
+  SStructA_v1  sa1 = {.A_a = 10, .A_b = 65478, .A_c = (char *)"Hello"};
+  SStructA_v2  sa2 = {.A_a = 10, .A_b = 65478, .A_c = (char *)"Hello", .A_d = 67, .A_e = 13};
   SFinalReq_v1 req1 = {.pA = &sa1, .v_a = 15, .v_b = 35};
   SFinalReq_v2 req2 = {.pA = &sa2, .v_a = 15, .v_b = 32, .v_c = 37};
   SFinalReq_v1 dreq11, dreq21;
@@ -431,3 +436,5 @@ TEST(td_encode_test, compound_struct_encode_test) {
   GTEST_ASSERT_EQ(dreq21.v_b, req2.v_b);
   tCoderClear(&decoder);
 }
+
+#pragma GCC diagnostic pop

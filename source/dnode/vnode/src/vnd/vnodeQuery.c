@@ -19,7 +19,10 @@
 static int32_t vnodeGetTableList(SVnode *pVnode, SRpcMsg *pMsg);
 static int     vnodeGetTableMeta(SVnode *pVnode, SRpcMsg *pMsg, SRpcMsg **pRsp);
 
-int vnodeQueryOpen(SVnode *pVnode) { return qWorkerInit(NODE_TYPE_VNODE, pVnode->vgId, NULL, &pVnode->pQuery, pVnode, vnodePutReqToVQueryQ); }
+int vnodeQueryOpen(SVnode *pVnode) {
+  return qWorkerInit(NODE_TYPE_VNODE, pVnode->vgId, NULL, (void **)&pVnode->pQuery, pVnode,
+                     (putReqToQueryQFp)vnodePutReqToVQueryQ);
+}
 
 int vnodeProcessQueryReq(SVnode *pVnode, SRpcMsg *pMsg, SRpcMsg **pRsp) {
   vTrace("query message is processing");

@@ -16,27 +16,28 @@
 #include <gtest/gtest.h>
 #include <tglobal.h>
 #include <iostream>
-#pragma GCC diagnostic ignored "-Wwrite-strings"
+#include "os.h"
 
+#pragma GCC diagnostic push
+#pragma GCC diagnostic ignored "-Wwrite-strings"
 #pragma GCC diagnostic ignored "-Wunused-function"
 #pragma GCC diagnostic ignored "-Wunused-variable"
 #pragma GCC diagnostic ignored "-Wsign-compare"
-#include "os.h"
+#pragma GCC diagnostic ignored "-Wformat"
 
+#include "addr_any.h"
+#include "catalog.h"
+#include "stub.h"
 #include "taos.h"
 #include "tdef.h"
-#include "tvariant.h"
-#include "catalog.h"
 #include "tep.h"
 #include "trpc.h"
-#include "stub.h"
-#include "addr_any.h"
-
-
+#include "tvariant.h"
 
 namespace {
 
-extern "C" int32_t ctgGetTableMetaFromCache(struct SCatalog* pCatalog, const SName* pTableName, STableMeta** pTableMeta, int32_t *exist);
+extern "C" int32_t ctgGetTableMetaFromCache(struct SCatalog *pCatalog, const SName *pTableName, STableMeta **pTableMeta,
+                                            int32_t *exist);
 extern "C" int32_t ctgUpdateTableMetaCache(struct SCatalog *pCatalog, STableMetaOutput *output);
 
 void ctgTestSetPrepareTableMeta();
@@ -44,9 +45,9 @@ void ctgTestSetPrepareCTableMeta();
 void ctgTestSetPrepareSTableMeta();
 void ctgTestSetPrepareMultiSTableMeta();
 
-bool ctgTestStop = false;
-bool ctgTestEnableSleep = false;
-bool ctgTestDeadLoop = false;
+bool    ctgTestStop = false;
+bool    ctgTestEnableSleep = false;
+bool    ctgTestDeadLoop = false;
 int32_t ctgTestPrintNum = 200000;
 int32_t ctgTestMTRunSec = 30;
 
@@ -61,14 +62,13 @@ int32_t ctgTestSuid = 2;
 int64_t ctgTestDbId = 33;
 
 uint64_t ctgTestClusterId = 0x1;
-char *ctgTestDbname = "1.db1";
-char *ctgTestTablename = "table1";
-char *ctgTestCTablename = "ctable1";
-char *ctgTestSTablename = "stable1";
-
+char    *ctgTestDbname = "1.db1";
+char    *ctgTestTablename = "table1";
+char    *ctgTestCTablename = "ctable1";
+char    *ctgTestSTablename = "stable1";
 
 void sendCreateDbMsg(void *shandle, SEpSet *pEpSet) {
-  SCreateDbReq* pReq = (SCreateDbReq*)rpcMallocCont(sizeof(SCreateDbReq));
+  SCreateDbReq *pReq = (SCreateDbReq *)rpcMallocCont(sizeof(SCreateDbReq));
   strcpy(pReq->db, "1.db1");
   pReq->numOfVgroups = htonl(2);
   pReq->cacheBlockSize = htonl(16);
@@ -89,7 +89,7 @@ void sendCreateDbMsg(void *shandle, SEpSet *pEpSet) {
   pReq->update = 0;
   pReq->cacheLastRow = 0;
   pReq->ignoreExist = 1;
-  
+
   SRpcMsg rpcMsg = {0};
   rpcMsg.pCont = pReq;
   rpcMsg.contLen = sizeof(SCreateDbReq);
@@ -103,8 +103,8 @@ void sendCreateDbMsg(void *shandle, SEpSet *pEpSet) {
 }
 
 void ctgTestInitLogFile() {
-  const char    *defaultLogFileNamePrefix = "taoslog";
-  const int32_t  maxLogFileNum = 10;
+  const char   *defaultLogFileNamePrefix = "taoslog";
+  const int32_t maxLogFileNum = 10;
 
   tsAsyncLog = 0;
 
@@ -113,7 +113,6 @@ void ctgTestInitLogFile() {
   if (taosInitLog(temp, tsNumOfLogLines, maxLogFileNum) < 0) {
     printf("failed to open log file in directory:%s\n", tsLogDir);
   }
-
 }
 
 int32_t ctgTestGetVgNumFromVgVersion(int32_t vgVersion) {
@@ -152,10 +151,10 @@ void ctgTestBuildCTableMetaOutput(STableMetaOutput *output) {
 
   output->tbMeta->tableInfo.numOfColumns = ctgTestColNum;
   output->tbMeta->tableInfo.numOfTags = ctgTestTagNum;
-  
+
   output->tbMeta->sversion = ctgTestSVersion;
   output->tbMeta->tversion = ctgTestTVersion;
-  
+
   SSchema *s = NULL;
   s = &output->tbMeta->schema[0];
   s->type = TSDB_DATA_TYPE_TIMESTAMP;
@@ -174,18 +173,17 @@ void ctgTestBuildCTableMetaOutput(STableMetaOutput *output) {
   s->colId = 3;
   s->bytes = 12;
   strcpy(s->name, "tag1s");
-  
 }
 
 void ctgTestBuildDBVgroup(SDBVgroupInfo *dbVgroup) {
   static int32_t vgVersion = ctgTestVgVersion + 1;
-  int32_t vgNum = 0;
-  SVgroupInfo vgInfo = {0};
-  
+  int32_t        vgNum = 0;
+  SVgroupInfo    vgInfo = {0};
+
   dbVgroup->vgVersion = vgVersion++;
-  
+
   ctgTestCurrentVgVersion = dbVgroup->vgVersion;
-  
+
   dbVgroup->hashMethod = 0;
   dbVgroup->dbId = ctgTestDbId;
   dbVgroup->vgInfo = taosHashInit(ctgTestVgNum, taosGetDefaultHashFunction(TSDB_DATA_TYPE_INT), true, HASH_ENTRY_LOCK);
@@ -210,9 +208,9 @@ void ctgTestBuildDBVgroup(SDBVgroupInfo *dbVgroup) {
 }
 
 void ctgTestPrepareDbVgroups(void *shandle, SEpSet *pEpSet, SRpcMsg *pMsg, SRpcMsg *pRsp) {
-  SUseDbRsp *rspMsg = NULL; //todo
+  SUseDbRsp *rspMsg = NULL;  // todo
 
-  pRsp->code =0;
+  pRsp->code = 0;
   pRsp->contLen = sizeof(SUseDbRsp) + ctgTestVgNum * sizeof(SVgroupInfo);
   pRsp->pCont = calloc(1, pRsp->contLen);
   rspMsg = (SUseDbRsp *)pRsp->pCont;
@@ -224,7 +222,7 @@ void ctgTestPrepareDbVgroups(void *shandle, SEpSet *pEpSet, SRpcMsg *pMsg, SRpcM
   rspMsg->uid = htobe64(ctgTestDbId);
 
   SVgroupInfo *vg = NULL;
-  uint32_t hashUnit = UINT32_MAX / ctgTestVgNum;
+  uint32_t     hashUnit = UINT32_MAX / ctgTestVgNum;
   for (int32_t i = 0; i < ctgTestVgNum; ++i) {
     vg = &rspMsg->vgroupInfo[i];
 
@@ -245,13 +243,10 @@ void ctgTestPrepareDbVgroups(void *shandle, SEpSet *pEpSet, SRpcMsg *pMsg, SRpcM
   return;
 }
 
-
-
-
 void ctgTestPrepareTableMeta(void *shandle, SEpSet *pEpSet, SRpcMsg *pMsg, SRpcMsg *pRsp) {
-  STableMetaRsp *rspMsg = NULL; //todo
+  STableMetaRsp *rspMsg = NULL;  // todo
 
-  pRsp->code =0;
+  pRsp->code = 0;
   pRsp->contLen = sizeof(STableMetaRsp) + (ctgTestColNum + ctgTestTagNum) * sizeof(SSchema);
   pRsp->pCont = calloc(1, pRsp->contLen);
   rspMsg = (STableMetaRsp *)pRsp->pCont;
@@ -279,15 +274,14 @@ void ctgTestPrepareTableMeta(void *shandle, SEpSet *pEpSet, SRpcMsg *pMsg, SRpcM
   s->colId = htonl(2);
   s->bytes = htonl(4);
   strcpy(s->name, "col1");
-  
+
   return;
 }
 
-
 void ctgTestPrepareCTableMeta(void *shandle, SEpSet *pEpSet, SRpcMsg *pMsg, SRpcMsg *pRsp) {
-  STableMetaRsp *rspMsg = NULL; //todo
+  STableMetaRsp *rspMsg = NULL;  // todo
 
-  pRsp->code =0;
+  pRsp->code = 0;
   pRsp->contLen = sizeof(STableMetaRsp) + (ctgTestColNum + ctgTestTagNum) * sizeof(SSchema);
   pRsp->pCont = calloc(1, pRsp->contLen);
   rspMsg = (STableMetaRsp *)pRsp->pCont;
@@ -323,15 +317,13 @@ void ctgTestPrepareCTableMeta(void *shandle, SEpSet *pEpSet, SRpcMsg *pMsg, SRpc
   s->bytes = htonl(12);
   strcpy(s->name, "tag1s");
 
-  
   return;
 }
 
-
 void ctgTestPrepareSTableMeta(void *shandle, SEpSet *pEpSet, SRpcMsg *pMsg, SRpcMsg *pRsp) {
-  STableMetaRsp *rspMsg = NULL; //todo
+  STableMetaRsp *rspMsg = NULL;  // todo
 
-  pRsp->code =0;
+  pRsp->code = 0;
   pRsp->contLen = sizeof(STableMetaRsp) + (ctgTestColNum + ctgTestTagNum) * sizeof(SSchema);
   pRsp->pCont = calloc(1, pRsp->contLen);
   rspMsg = (STableMetaRsp *)pRsp->pCont;
@@ -367,15 +359,14 @@ void ctgTestPrepareSTableMeta(void *shandle, SEpSet *pEpSet, SRpcMsg *pMsg, SRpc
   s->bytes = htonl(12);
   strcpy(s->name, "tag1s");
 
-  
   return;
 }
 
 void ctgTestPrepareMultiSTableMeta(void *shandle, SEpSet *pEpSet, SRpcMsg *pMsg, SRpcMsg *pRsp) {
-  STableMetaRsp *rspMsg = NULL; //todo
+  STableMetaRsp *rspMsg = NULL;  // todo
   static int32_t idx = 1;
 
-  pRsp->code =0;
+  pRsp->code = 0;
   pRsp->contLen = sizeof(STableMetaRsp) + (ctgTestColNum + ctgTestTagNum) * sizeof(SSchema);
   pRsp->pCont = calloc(1, pRsp->contLen);
   rspMsg = (STableMetaRsp *)pRsp->pCont;
@@ -412,55 +403,50 @@ void ctgTestPrepareMultiSTableMeta(void *shandle, SEpSet *pEpSet, SRpcMsg *pMsg,
   strcpy(s->name, "tag1s");
 
   ++idx;
-  
+
   return;
 }
-
-
 
 void ctgTestPrepareDbVgroupsAndNormalMeta(void *shandle, SEpSet *pEpSet, SRpcMsg *pMsg, SRpcMsg *pRsp) {
   ctgTestPrepareDbVgroups(shandle, pEpSet, pMsg, pRsp);
-  
+
   ctgTestSetPrepareTableMeta();
-  
+
   return;
 }
 
-
 void ctgTestPrepareDbVgroupsAndChildMeta(void *shandle, SEpSet *pEpSet, SRpcMsg *pMsg, SRpcMsg *pRsp) {
   ctgTestPrepareDbVgroups(shandle, pEpSet, pMsg, pRsp);
-  
+
   ctgTestSetPrepareCTableMeta();
-  
+
   return;
 }
 
 void ctgTestPrepareDbVgroupsAndSuperMeta(void *shandle, SEpSet *pEpSet, SRpcMsg *pMsg, SRpcMsg *pRsp) {
   ctgTestPrepareDbVgroups(shandle, pEpSet, pMsg, pRsp);
-  
+
   ctgTestSetPrepareSTableMeta();
-  
+
   return;
 }
 
 void ctgTestPrepareDbVgroupsAndMultiSuperMeta(void *shandle, SEpSet *pEpSet, SRpcMsg *pMsg, SRpcMsg *pRsp) {
   ctgTestPrepareDbVgroups(shandle, pEpSet, pMsg, pRsp);
-  
+
   ctgTestSetPrepareMultiSTableMeta();
-  
+
   return;
 }
-
-
 
 void ctgTestSetPrepareDbVgroups() {
   static Stub stub;
   stub.set(rpcSendRecv, ctgTestPrepareDbVgroups);
   {
-    AddrAny any("libtransport.so");
-    std::map<std::string,void*> result;
+    AddrAny                       any("libtransport.so");
+    std::map<std::string, void *> result;
     any.get_global_func_addr_dynsym("^rpcSendRecv$", result);
-    for (const auto& f : result) {
+    for (const auto &f : result) {
       stub.set(f.second, ctgTestPrepareDbVgroups);
     }
   }
@@ -470,10 +456,10 @@ void ctgTestSetPrepareTableMeta() {
   static Stub stub;
   stub.set(rpcSendRecv, ctgTestPrepareTableMeta);
   {
-    AddrAny any("libtransport.so");
-    std::map<std::string,void*> result;
+    AddrAny                       any("libtransport.so");
+    std::map<std::string, void *> result;
     any.get_global_func_addr_dynsym("^rpcSendRecv$", result);
-    for (const auto& f : result) {
+    for (const auto &f : result) {
       stub.set(f.second, ctgTestPrepareTableMeta);
     }
   }
@@ -483,10 +469,10 @@ void ctgTestSetPrepareCTableMeta() {
   static Stub stub;
   stub.set(rpcSendRecv, ctgTestPrepareCTableMeta);
   {
-    AddrAny any("libtransport.so");
-    std::map<std::string,void*> result;
+    AddrAny                       any("libtransport.so");
+    std::map<std::string, void *> result;
     any.get_global_func_addr_dynsym("^rpcSendRecv$", result);
-    for (const auto& f : result) {
+    for (const auto &f : result) {
       stub.set(f.second, ctgTestPrepareCTableMeta);
     }
   }
@@ -496,10 +482,10 @@ void ctgTestSetPrepareSTableMeta() {
   static Stub stub;
   stub.set(rpcSendRecv, ctgTestPrepareSTableMeta);
   {
-    AddrAny any("libtransport.so");
-    std::map<std::string,void*> result;
+    AddrAny                       any("libtransport.so");
+    std::map<std::string, void *> result;
     any.get_global_func_addr_dynsym("^rpcSendRecv$", result);
-    for (const auto& f : result) {
+    for (const auto &f : result) {
       stub.set(f.second, ctgTestPrepareSTableMeta);
     }
   }
@@ -509,38 +495,36 @@ void ctgTestSetPrepareMultiSTableMeta() {
   static Stub stub;
   stub.set(rpcSendRecv, ctgTestPrepareMultiSTableMeta);
   {
-    AddrAny any("libtransport.so");
-    std::map<std::string,void*> result;
+    AddrAny                       any("libtransport.so");
+    std::map<std::string, void *> result;
     any.get_global_func_addr_dynsym("^rpcSendRecv$", result);
-    for (const auto& f : result) {
+    for (const auto &f : result) {
       stub.set(f.second, ctgTestPrepareMultiSTableMeta);
     }
   }
 }
 
-
 void ctgTestSetPrepareDbVgroupsAndNormalMeta() {
   static Stub stub;
   stub.set(rpcSendRecv, ctgTestPrepareDbVgroupsAndNormalMeta);
   {
-    AddrAny any("libtransport.so");
-    std::map<std::string,void*> result;
+    AddrAny                       any("libtransport.so");
+    std::map<std::string, void *> result;
     any.get_global_func_addr_dynsym("^rpcSendRecv$", result);
-    for (const auto& f : result) {
+    for (const auto &f : result) {
       stub.set(f.second, ctgTestPrepareDbVgroupsAndNormalMeta);
     }
   }
 }
 
-
 void ctgTestSetPrepareDbVgroupsAndChildMeta() {
   static Stub stub;
   stub.set(rpcSendRecv, ctgTestPrepareDbVgroupsAndChildMeta);
   {
-    AddrAny any("libtransport.so");
-    std::map<std::string,void*> result;
+    AddrAny                       any("libtransport.so");
+    std::map<std::string, void *> result;
     any.get_global_func_addr_dynsym("^rpcSendRecv$", result);
-    for (const auto& f : result) {
+    for (const auto &f : result) {
       stub.set(f.second, ctgTestPrepareDbVgroupsAndChildMeta);
     }
   }
@@ -550,10 +534,10 @@ void ctgTestSetPrepareDbVgroupsAndSuperMeta() {
   static Stub stub;
   stub.set(rpcSendRecv, ctgTestPrepareDbVgroupsAndSuperMeta);
   {
-    AddrAny any("libtransport.so");
-    std::map<std::string,void*> result;
+    AddrAny                       any("libtransport.so");
+    std::map<std::string, void *> result;
     any.get_global_func_addr_dynsym("^rpcSendRecv$", result);
-    for (const auto& f : result) {
+    for (const auto &f : result) {
       stub.set(f.second, ctgTestPrepareDbVgroupsAndSuperMeta);
     }
   }
@@ -563,25 +547,24 @@ void ctgTestSetPrepareDbVgroupsAndMultiSuperMeta() {
   static Stub stub;
   stub.set(rpcSendRecv, ctgTestPrepareDbVgroupsAndMultiSuperMeta);
   {
-    AddrAny any("libtransport.so");
-    std::map<std::string,void*> result;
+    AddrAny                       any("libtransport.so");
+    std::map<std::string, void *> result;
     any.get_global_func_addr_dynsym("^rpcSendRecv$", result);
-    for (const auto& f : result) {
+    for (const auto &f : result) {
       stub.set(f.second, ctgTestPrepareDbVgroupsAndMultiSuperMeta);
     }
   }
 }
 
-
-}
+}  // namespace
 
 void *ctgTestGetDbVgroupThread(void *param) {
-  struct SCatalog* pCtg = (struct SCatalog*)param;
-  int32_t code = 0;
-  void *mockPointer = (void *)0x1;
-  SArray *vgList = NULL;
-  int32_t n = 0;
-  
+  struct SCatalog *pCtg = (struct SCatalog *)param;
+  int32_t          code = 0;
+  void            *mockPointer = (void *)0x1;
+  SArray          *vgList = NULL;
+  int32_t          n = 0;
+
   while (!ctgTestStop) {
     code = catalogGetDBVgroup(pCtg, mockPointer, (const SEpSet *)mockPointer, ctgTestDbname, false, &vgList);
     if (code) {
@@ -593,7 +576,7 @@ void *ctgTestGetDbVgroupThread(void *param) {
     }
 
     if (ctgTestEnableSleep) {
-      usleep(rand()%5);
+      usleep(rand() % 5);
     }
     if (++n % ctgTestPrintNum == 0) {
       printf("Get:%d\n", n);
@@ -604,11 +587,11 @@ void *ctgTestGetDbVgroupThread(void *param) {
 }
 
 void *ctgTestSetDbVgroupThread(void *param) {
-  struct SCatalog* pCtg = (struct SCatalog*)param;
-  int32_t code = 0;
-  SDBVgroupInfo dbVgroup = {0};
-  int32_t n = 0;
-  
+  struct SCatalog *pCtg = (struct SCatalog *)param;
+  int32_t          code = 0;
+  SDBVgroupInfo    dbVgroup = {0};
+  int32_t          n = 0;
+
   while (!ctgTestStop) {
     ctgTestBuildDBVgroup(&dbVgroup);
     code = catalogUpdateDBVgroup(pCtg, ctgTestDbname, &dbVgroup);
@@ -616,8 +599,8 @@ void *ctgTestSetDbVgroupThread(void *param) {
       assert(0);
     }
 
-    if (ctgTestEnableSleep) {    
-      usleep(rand()%5);
+    if (ctgTestEnableSleep) {
+      usleep(rand() % 5);
     }
     if (++n % ctgTestPrintNum == 0) {
       printf("Set:%d\n", n);
@@ -625,20 +608,19 @@ void *ctgTestSetDbVgroupThread(void *param) {
   }
 
   return NULL;
-
 }
 
 void *ctgTestGetCtableMetaThread(void *param) {
-  struct SCatalog* pCtg = (struct SCatalog*)param;
-  int32_t code = 0;
-  int32_t n = 0;
-  STableMeta* tbMeta = NULL;
-  int32_t exist = 0;
+  struct SCatalog *pCtg = (struct SCatalog *)param;
+  int32_t          code = 0;
+  int32_t          n = 0;
+  STableMeta      *tbMeta = NULL;
+  int32_t          exist = 0;
 
   SName cn = {.type = TSDB_TABLE_NAME_T, .acctId = 1};
   strcpy(cn.dbname, "db1");
   strcpy(cn.tname, ctgTestCTablename);
-  
+
   while (!ctgTestStop) {
     code = ctgGetTableMetaFromCache(pCtg, &cn, &tbMeta, &exist);
     if (code || 0 == exist) {
@@ -648,9 +630,9 @@ void *ctgTestGetCtableMetaThread(void *param) {
     tfree(tbMeta);
 
     if (ctgTestEnableSleep) {
-      usleep(rand()%5);
+      usleep(rand() % 5);
     }
-    
+
     if (++n % ctgTestPrintNum == 0) {
       printf("Get:%d\n", n);
     }
@@ -660,22 +642,22 @@ void *ctgTestGetCtableMetaThread(void *param) {
 }
 
 void *ctgTestSetCtableMetaThread(void *param) {
-  struct SCatalog* pCtg = (struct SCatalog*)param;
-  int32_t code = 0;
-  SDBVgroupInfo dbVgroup = {0};
-  int32_t n = 0;
+  struct SCatalog *pCtg = (struct SCatalog *)param;
+  int32_t          code = 0;
+  SDBVgroupInfo    dbVgroup = {0};
+  int32_t          n = 0;
   STableMetaOutput output = {0};
 
   ctgTestBuildCTableMetaOutput(&output);
-  
+
   while (!ctgTestStop) {
     code = ctgUpdateTableMetaCache(pCtg, &output);
     if (code) {
       assert(0);
     }
 
-    if (ctgTestEnableSleep) {    
-      usleep(rand()%5);
+    if (ctgTestEnableSleep) {
+      usleep(rand() % 5);
     }
     if (++n % ctgTestPrintNum == 0) {
       printf("Set:%d\n", n);
@@ -685,21 +667,19 @@ void *ctgTestSetCtableMetaThread(void *param) {
   tfree(output.tbMeta);
 
   return NULL;
-
 }
 
-
 TEST(tableMeta, normalTable) {
-  struct SCatalog* pCtg = NULL;
-  void *mockPointer = (void *)0x1;
-  SVgroupInfo vgInfo = {0};
+  struct SCatalog *pCtg = NULL;
+  void            *mockPointer = (void *)0x1;
+  SVgroupInfo      vgInfo = {0};
 
   ctgTestSetPrepareDbVgroups();
 
   initQueryModuleMsgHandle();
 
-  //sendCreateDbMsg(pConn->pTransporter, &pConn->pAppInfo->mgmtEp.epSet);
-  
+  // sendCreateDbMsg(pConn->pTransporter, &pConn->pAppInfo->mgmtEp.epSet);
+
   int32_t code = catalogInit(NULL);
   ASSERT_EQ(code, 0);
 
@@ -714,7 +694,6 @@ TEST(tableMeta, normalTable) {
   ASSERT_EQ(code, 0);
   ASSERT_EQ(vgInfo.vgId, 8);
   ASSERT_EQ(vgInfo.numOfEps, 3);
-
 
   ctgTestSetPrepareTableMeta();
 
@@ -742,19 +721,19 @@ TEST(tableMeta, normalTable) {
   ASSERT_EQ(tableMeta->tableInfo.precision, 1);
   ASSERT_EQ(tableMeta->tableInfo.rowSize, 12);
 
-  SDbVgVersion *dbs = NULL;
+  SDbVgVersion       *dbs = NULL;
   SSTableMetaVersion *stb = NULL;
-  uint32_t dbNum = 0, stbNum = 0, allDbNum = 0, allStbNum = 0;
-  int32_t i = 0;
+  uint32_t            dbNum = 0, stbNum = 0, allDbNum = 0, allStbNum = 0;
+  int32_t             i = 0;
   while (i < 5) {
     ++i;
     code = catalogGetExpiredDBs(pCtg, &dbs, &dbNum);
     ASSERT_EQ(code, 0);
     code = catalogGetExpiredSTables(pCtg, &stb, &stbNum);
     ASSERT_EQ(code, 0);
-    
+
     if (dbNum) {
-      printf("got expired db,dbId:%"PRId64"\n", dbs->dbId);
+      printf("got expired db,dbId:%" PRId64 "\n", dbs->dbId);
       free(dbs);
       dbs = NULL;
     } else {
@@ -762,7 +741,7 @@ TEST(tableMeta, normalTable) {
     }
 
     if (stbNum) {
-      printf("got expired stb,suid:%"PRId64"\n", stb->suid);
+      printf("got expired stb,suid:%" PRId64 "\n", stb->suid);
       free(stb);
       stb = NULL;
     } else {
@@ -773,7 +752,7 @@ TEST(tableMeta, normalTable) {
     allStbNum += stbNum;
     sleep(2);
   }
-  
+
   ASSERT_EQ(allDbNum, 1);
   ASSERT_EQ(allStbNum, 0);
 
@@ -781,18 +760,18 @@ TEST(tableMeta, normalTable) {
 }
 
 TEST(tableMeta, childTableCase) {
-  struct SCatalog* pCtg = NULL;
-  void *mockPointer = (void *)0x1;
-  SVgroupInfo vgInfo = {0};
+  struct SCatalog *pCtg = NULL;
+  void            *mockPointer = (void *)0x1;
+  SVgroupInfo      vgInfo = {0};
 
   ctgTestSetPrepareDbVgroupsAndChildMeta();
 
   initQueryModuleMsgHandle();
 
-  //sendCreateDbMsg(pConn->pTransporter, &pConn->pAppInfo->mgmtEp.epSet);
+  // sendCreateDbMsg(pConn->pTransporter, &pConn->pAppInfo->mgmtEp.epSet);
   int32_t code = catalogInit(NULL);
   ASSERT_EQ(code, 0);
-  
+
   code = catalogGetHandle(ctgTestClusterId, &pCtg);
   ASSERT_EQ(code, 0);
 
@@ -838,19 +817,19 @@ TEST(tableMeta, childTableCase) {
   ASSERT_EQ(tableMeta->tableInfo.precision, 1);
   ASSERT_EQ(tableMeta->tableInfo.rowSize, 12);
 
-  SDbVgVersion *dbs = NULL;
+  SDbVgVersion       *dbs = NULL;
   SSTableMetaVersion *stb = NULL;
-  uint32_t dbNum = 0, stbNum = 0, allDbNum = 0, allStbNum = 0;
-  int32_t i = 0;
+  uint32_t            dbNum = 0, stbNum = 0, allDbNum = 0, allStbNum = 0;
+  int32_t             i = 0;
   while (i < 5) {
     ++i;
     code = catalogGetExpiredDBs(pCtg, &dbs, &dbNum);
     ASSERT_EQ(code, 0);
     code = catalogGetExpiredSTables(pCtg, &stb, &stbNum);
     ASSERT_EQ(code, 0);
-    
+
     if (dbNum) {
-      printf("got expired db,dbId:%"PRId64"\n", dbs->dbId);
+      printf("got expired db,dbId:%" PRId64 "\n", dbs->dbId);
       free(dbs);
       dbs = NULL;
     } else {
@@ -858,7 +837,7 @@ TEST(tableMeta, childTableCase) {
     }
 
     if (stbNum) {
-      printf("got expired stb,suid:%"PRId64"\n", stb->suid);
+      printf("got expired stb,suid:%" PRId64 "\n", stb->suid);
       free(stb);
       stb = NULL;
     } else {
@@ -869,18 +848,17 @@ TEST(tableMeta, childTableCase) {
     allStbNum += stbNum;
     sleep(2);
   }
-  
+
   ASSERT_EQ(allDbNum, 1);
   ASSERT_EQ(allStbNum, 1);
-
 
   catalogDestroy();
 }
 
 TEST(tableMeta, superTableCase) {
-  struct SCatalog* pCtg = NULL;
-  void *mockPointer = (void *)0x1;
-  SVgroupInfo vgInfo = {0};
+  struct SCatalog *pCtg = NULL;
+  void            *mockPointer = (void *)0x1;
+  SVgroupInfo      vgInfo = {0};
 
   ctgTestSetPrepareDbVgroupsAndSuperMeta();
 
@@ -889,7 +867,7 @@ TEST(tableMeta, superTableCase) {
   int32_t code = catalogInit(NULL);
   ASSERT_EQ(code, 0);
 
-  //sendCreateDbMsg(pConn->pTransporter, &pConn->pAppInfo->mgmtEp.epSet);
+  // sendCreateDbMsg(pConn->pTransporter, &pConn->pAppInfo->mgmtEp.epSet);
   code = catalogGetHandle(ctgTestClusterId, &pCtg);
   ASSERT_EQ(code, 0);
 
@@ -940,19 +918,19 @@ TEST(tableMeta, superTableCase) {
   ASSERT_EQ(tableMeta->tableInfo.precision, 1);
   ASSERT_EQ(tableMeta->tableInfo.rowSize, 12);
 
-  SDbVgVersion *dbs = NULL;
+  SDbVgVersion       *dbs = NULL;
   SSTableMetaVersion *stb = NULL;
-  uint32_t dbNum = 0, stbNum = 0, allDbNum = 0, allStbNum = 0;
-  int32_t i = 0;
+  uint32_t            dbNum = 0, stbNum = 0, allDbNum = 0, allStbNum = 0;
+  int32_t             i = 0;
   while (i < 5) {
     ++i;
     code = catalogGetExpiredDBs(pCtg, &dbs, &dbNum);
     ASSERT_EQ(code, 0);
     code = catalogGetExpiredSTables(pCtg, &stb, &stbNum);
     ASSERT_EQ(code, 0);
-    
+
     if (dbNum) {
-      printf("got expired db,dbId:%"PRId64"\n", dbs->dbId);
+      printf("got expired db,dbId:%" PRId64 "\n", dbs->dbId);
       free(dbs);
       dbs = NULL;
     } else {
@@ -960,7 +938,7 @@ TEST(tableMeta, superTableCase) {
     }
 
     if (stbNum) {
-      printf("got expired stb,suid:%"PRId64"\n", stb->suid);
+      printf("got expired stb,suid:%" PRId64 "\n", stb->suid);
       free(stb);
       stb = NULL;
     } else {
@@ -971,19 +949,18 @@ TEST(tableMeta, superTableCase) {
     allStbNum += stbNum;
     sleep(2);
   }
-  
+
   ASSERT_EQ(allDbNum, 1);
   ASSERT_EQ(allStbNum, 1);
-
 
   catalogDestroy();
 }
 
 TEST(tableDistVgroup, normalTable) {
-  struct SCatalog* pCtg = NULL;
-  void *mockPointer = (void *)0x1;
-  SVgroupInfo *vgInfo = NULL;
-  SArray *vgList = NULL;
+  struct SCatalog *pCtg = NULL;
+  void            *mockPointer = (void *)0x1;
+  SVgroupInfo     *vgInfo = NULL;
+  SArray          *vgList = NULL;
 
   ctgTestSetPrepareDbVgroupsAndNormalMeta();
 
@@ -992,8 +969,8 @@ TEST(tableDistVgroup, normalTable) {
   int32_t code = catalogInit(NULL);
   ASSERT_EQ(code, 0);
 
-  //sendCreateDbMsg(pConn->pTransporter, &pConn->pAppInfo->mgmtEp.epSet);
-  
+  // sendCreateDbMsg(pConn->pTransporter, &pConn->pAppInfo->mgmtEp.epSet);
+
   code = catalogGetHandle(ctgTestClusterId, &pCtg);
   ASSERT_EQ(code, 0);
 
@@ -1012,17 +989,17 @@ TEST(tableDistVgroup, normalTable) {
 }
 
 TEST(tableDistVgroup, childTableCase) {
-  struct SCatalog* pCtg = NULL;
-  void *mockPointer = (void *)0x1;
-  SVgroupInfo *vgInfo = NULL;
-  SArray *vgList = NULL;
+  struct SCatalog *pCtg = NULL;
+  void            *mockPointer = (void *)0x1;
+  SVgroupInfo     *vgInfo = NULL;
+  SArray          *vgList = NULL;
 
   ctgTestSetPrepareDbVgroupsAndChildMeta();
 
   initQueryModuleMsgHandle();
 
-  //sendCreateDbMsg(pConn->pTransporter, &pConn->pAppInfo->mgmtEp.epSet);
-  
+  // sendCreateDbMsg(pConn->pTransporter, &pConn->pAppInfo->mgmtEp.epSet);
+
   int32_t code = catalogInit(NULL);
   ASSERT_EQ(code, 0);
 
@@ -1040,15 +1017,14 @@ TEST(tableDistVgroup, childTableCase) {
   ASSERT_EQ(vgInfo->vgId, 9);
   ASSERT_EQ(vgInfo->numOfEps, 4);
 
-
   catalogDestroy();
 }
 
 TEST(tableDistVgroup, superTableCase) {
-  struct SCatalog* pCtg = NULL;
-  void *mockPointer = (void *)0x1;
-  SVgroupInfo *vgInfo = NULL;
-  SArray *vgList = NULL;
+  struct SCatalog *pCtg = NULL;
+  void            *mockPointer = (void *)0x1;
+  SVgroupInfo     *vgInfo = NULL;
+  SArray          *vgList = NULL;
 
   ctgTestSetPrepareDbVgroupsAndSuperMeta();
 
@@ -1057,7 +1033,7 @@ TEST(tableDistVgroup, superTableCase) {
   int32_t code = catalogInit(NULL);
   ASSERT_EQ(code, 0);
 
-  //sendCreateDbMsg(pConn->pTransporter, &pConn->pAppInfo->mgmtEp.epSet);
+  // sendCreateDbMsg(pConn->pTransporter, &pConn->pAppInfo->mgmtEp.epSet);
   code = catalogGetHandle(ctgTestClusterId, &pCtg);
   ASSERT_EQ(code, 0);
 
@@ -1078,24 +1054,23 @@ TEST(tableDistVgroup, superTableCase) {
   ASSERT_EQ(vgInfo->vgId, 3);
   ASSERT_EQ(vgInfo->numOfEps, 3);
 
-
   catalogDestroy();
 }
 
 TEST(dbVgroup, getSetDbVgroupCase) {
-  struct SCatalog* pCtg = NULL;
-  void *mockPointer = (void *)0x1;
-  SVgroupInfo vgInfo = {0};
-  SVgroupInfo *pvgInfo = NULL;
-  SDBVgroupInfo dbVgroup = {0};
-  SArray *vgList = NULL;
+  struct SCatalog *pCtg = NULL;
+  void            *mockPointer = (void *)0x1;
+  SVgroupInfo      vgInfo = {0};
+  SVgroupInfo     *pvgInfo = NULL;
+  SDBVgroupInfo    dbVgroup = {0};
+  SArray          *vgList = NULL;
 
   ctgTestSetPrepareDbVgroupsAndNormalMeta();
 
   initQueryModuleMsgHandle();
 
-  //sendCreateDbMsg(pConn->pTransporter, &pConn->pAppInfo->mgmtEp.epSet);
-  
+  // sendCreateDbMsg(pConn->pTransporter, &pConn->pAppInfo->mgmtEp.epSet);
+
   int32_t code = catalogInit(NULL);
   ASSERT_EQ(code, 0);
 
@@ -1109,7 +1084,7 @@ TEST(dbVgroup, getSetDbVgroupCase) {
   code = catalogGetDBVgroup(pCtg, mockPointer, (const SEpSet *)mockPointer, ctgTestDbname, false, &vgList);
   ASSERT_EQ(code, 0);
   ASSERT_EQ(taosArrayGetSize((const SArray *)vgList), ctgTestVgNum);
-  
+
   code = catalogGetTableHashVgroup(pCtg, mockPointer, (const SEpSet *)mockPointer, &n, &vgInfo);
   ASSERT_EQ(code, 0);
   ASSERT_EQ(vgInfo.vgId, 8);
@@ -1139,27 +1114,27 @@ TEST(dbVgroup, getSetDbVgroupCase) {
   ASSERT_EQ(pvgInfo->vgId, 8);
   ASSERT_EQ(pvgInfo->numOfEps, 3);
   taosArrayDestroy(vgList);
-  
+
   catalogDestroy();
 }
 
 TEST(multiThread, getSetDbVgroupCase) {
-  struct SCatalog* pCtg = NULL;
-  void *mockPointer = (void *)0x1;
-  SVgroupInfo vgInfo = {0};
-  SVgroupInfo *pvgInfo = NULL;
-  SDBVgroupInfo dbVgroup = {0};
-  SArray *vgList = NULL;
+  struct SCatalog *pCtg = NULL;
+  void            *mockPointer = (void *)0x1;
+  SVgroupInfo      vgInfo = {0};
+  SVgroupInfo     *pvgInfo = NULL;
+  SDBVgroupInfo    dbVgroup = {0};
+  SArray          *vgList = NULL;
   ctgTestStop = false;
 
   ctgTestInitLogFile();
-  
+
   ctgTestSetPrepareDbVgroups();
 
   initQueryModuleMsgHandle();
 
-  //sendCreateDbMsg(pConn->pTransporter, &pConn->pAppInfo->mgmtEp.epSet);
-  
+  // sendCreateDbMsg(pConn->pTransporter, &pConn->pAppInfo->mgmtEp.epSet);
+
   int32_t code = catalogInit(NULL);
   ASSERT_EQ(code, 0);
 
@@ -1187,28 +1162,28 @@ TEST(multiThread, getSetDbVgroupCase) {
       break;
     }
   }
-  
+
   ctgTestStop = true;
   sleep(1);
-  
+
   catalogDestroy();
 }
 
 TEST(multiThread, ctableMeta) {
-  struct SCatalog* pCtg = NULL;
-  void *mockPointer = (void *)0x1;
-  SVgroupInfo vgInfo = {0};
-  SVgroupInfo *pvgInfo = NULL;
-  SDBVgroupInfo dbVgroup = {0};
-  SArray *vgList = NULL;
+  struct SCatalog *pCtg = NULL;
+  void            *mockPointer = (void *)0x1;
+  SVgroupInfo      vgInfo = {0};
+  SVgroupInfo     *pvgInfo = NULL;
+  SDBVgroupInfo    dbVgroup = {0};
+  SArray          *vgList = NULL;
   ctgTestStop = false;
 
   ctgTestSetPrepareDbVgroupsAndChildMeta();
 
   initQueryModuleMsgHandle();
 
-  //sendCreateDbMsg(pConn->pTransporter, &pConn->pAppInfo->mgmtEp.epSet);
-  
+  // sendCreateDbMsg(pConn->pTransporter, &pConn->pAppInfo->mgmtEp.epSet);
+
   int32_t code = catalogInit(NULL);
   ASSERT_EQ(code, 0);
 
@@ -1235,25 +1210,24 @@ TEST(multiThread, ctableMeta) {
       break;
     }
   }
-  
+
   ctgTestStop = true;
   sleep(1);
-  
+
   catalogDestroy();
 }
 
-
 TEST(rentTest, allRent) {
-  struct SCatalog* pCtg = NULL;
-  void *mockPointer = (void *)0x1;
-  SVgroupInfo vgInfo = {0};
-  SVgroupInfo *pvgInfo = NULL;
-  SDBVgroupInfo dbVgroup = {0};
-  SArray *vgList = NULL;
+  struct SCatalog *pCtg = NULL;
+  void            *mockPointer = (void *)0x1;
+  SVgroupInfo      vgInfo = {0};
+  SVgroupInfo     *pvgInfo = NULL;
+  SDBVgroupInfo    dbVgroup = {0};
+  SArray          *vgList = NULL;
   ctgTestStop = false;
-  SDbVgVersion *dbs = NULL;
+  SDbVgVersion       *dbs = NULL;
   SSTableMetaVersion *stable = NULL;
-  uint32_t num = 0;
+  uint32_t            num = 0;
 
   ctgTestSetPrepareDbVgroupsAndMultiSuperMeta();
 
@@ -1264,7 +1238,6 @@ TEST(rentTest, allRent) {
 
   code = catalogGetHandle(ctgTestClusterId, &pCtg);
   ASSERT_EQ(code, 0);
-
 
   SName n = {.type = TSDB_TABLE_NAME_T, .acctId = 1};
   strcpy(n.dbname, "db1");
@@ -1285,41 +1258,37 @@ TEST(rentTest, allRent) {
     ASSERT_EQ(tableMeta->tableInfo.numOfTags, ctgTestTagNum);
     ASSERT_EQ(tableMeta->tableInfo.precision, 1);
     ASSERT_EQ(tableMeta->tableInfo.rowSize, 12);
-    
+
     code = catalogGetExpiredDBs(pCtg, &dbs, &num);
     ASSERT_EQ(code, 0);
     printf("%d - expired dbNum:%d\n", i, num);
     if (dbs) {
-      printf("%d - expired dbId:%"PRId64", vgVersion:%d\n", i, dbs->dbId, dbs->vgVersion);
+      printf("%d - expired dbId:%" PRId64 ", vgVersion:%d\n", i, dbs->dbId, dbs->vgVersion);
       free(dbs);
       dbs = NULL;
     }
-    
+
     code = catalogGetExpiredSTables(pCtg, &stable, &num);
     ASSERT_EQ(code, 0);
     printf("%d - expired stableNum:%d\n", i, num);
     if (stable) {
       for (int32_t n = 0; n < num; ++n) {
-        printf("suid:%"PRId64", sversion:%d, tversion:%d\n", stable[n].suid, stable[n].sversion, stable[n].tversion);
+        printf("suid:%" PRId64 ", sversion:%d, tversion:%d\n", stable[n].suid, stable[n].sversion, stable[n].tversion);
       }
       free(stable);
       stable = NULL;
     }
     printf("*************************************************\n");
-    
+
     sleep(2);
   }
-  
+
   catalogDestroy();
 }
 
-
-
-int main(int argc, char** argv) {
+int main(int argc, char **argv) {
   testing::InitGoogleTest(&argc, argv);
   return RUN_ALL_TESTS();
 }
 
-
-
-                    
+#pragma GCC diagnostic pop

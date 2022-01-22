@@ -6,6 +6,7 @@
 #include "taos.h"
 #include "tsdb.h"
 
+#pragma GCC diagnostic push
 #pragma GCC diagnostic ignored "-Wunused-function"
 #pragma GCC diagnostic ignored "-Wunused-variable"
 
@@ -161,3 +162,5 @@ TEST(testCase, resultBufferTest) {
   writeDownTest();
   recyclePageTest();
 }
+
+#pragma GCC diagnostic pop
