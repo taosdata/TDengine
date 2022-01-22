@@ -629,7 +629,9 @@ int32_t qwHandlePrePhaseEvents(QW_FPARAMS_DEF, int8_t phase, SQWPhaseInput *inpu
         dropConnection = ctx->dropConnection;
         
         // Note: ctx freed, no need to unlock it
-        locked = false;        
+        locked = false;      
+
+        break;
       } else if (QW_IS_EVENT_RECEIVED(ctx, QW_EVENT_CANCEL)) {
         QW_ERR_JRET(qwAddTaskStatus(QW_FPARAMS(), JOB_TASK_STATUS_CANCELLED));
         
@@ -639,6 +641,8 @@ int32_t qwHandlePrePhaseEvents(QW_FPARAMS_DEF, int8_t phase, SQWPhaseInput *inpu
         QW_SET_RSP_CODE(ctx, output->rspCode);
         
         cancelConnection = ctx->cancelConnection;
+
+        break;
       }
 
       if (ctx->rspCode) {
@@ -1215,8 +1219,6 @@ int32_t qwProcessDrop(QW_FPARAMS_DEF, SQWMsg *qwMsg) {
     QW_ERR_JRET(qwKillTaskHandle(QW_FPARAMS(), ctx));
     
     QW_ERR_JRET(qwUpdateTaskStatus(QW_FPARAMS(), JOB_TASK_STATUS_DROPPING));
-    
-    ctx->dropConnection = qwMsg->connection;
   } else if (ctx->phase > 0) {
     QW_ERR_JRET(qwDropTaskStatus(QW_FPARAMS()));
     QW_ERR_JRET(qwDropTaskCtx(QW_FPARAMS(), QW_WRITE));
@@ -1225,11 +1227,11 @@ int32_t qwProcessDrop(QW_FPARAMS_DEF, SQWMsg *qwMsg) {
 
     locked = false;
     needRsp = true;
-    
-    QW_ERR_JRET(TSDB_CODE_QRY_TASK_DROPPED);
   }
 
-  if (!needRsp) {
+  if (!needRsp) {    
+    ctx->dropConnection = qwMsg->connection;
+    
     QW_SET_EVENT_RECEIVED(ctx, QW_EVENT_DROP);
   }
   
@@ -1237,6 +1239,10 @@ _return:
 
   if (code) {
     QW_UPDATE_RSP_CODE(ctx, code);
+  }
+
+  if (locked) {
+    QW_UNLOCK(QW_WRITE, &ctx->lock);
   }
 
   if (ctx) {

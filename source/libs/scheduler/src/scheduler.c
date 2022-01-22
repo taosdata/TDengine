@@ -275,7 +275,7 @@ int32_t schBuildTaskRalation(SSchJob *pJob, SHashObj *planToTask) {
 }
 
 
-int32_t schRecordTaskSucceedNode(SSchTask *pTask) {
+int32_t schRecordTaskSucceedNode(SSchJob *pJob, SSchTask *pTask) {
   int32_t idx = atomic_load_8(&pTask->candidateIdx);
   SQueryNodeAddr *addr = taosArrayGet(pTask->candidateAddrs, idx);
   if (NULL == addr) {

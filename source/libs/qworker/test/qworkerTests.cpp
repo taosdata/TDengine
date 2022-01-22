@@ -137,7 +137,7 @@ void qwtBuildStatusReqMsg(SSchTasksStatusReq *statusMsg, SRpcMsg *statusRpc) {
 }
 
 int32_t qwtStringToPlan(const char* str, SSubplan** subplan) {
-  *subplan = 0x1;
+  *subplan = (SSubplan *)0x1;
   return 0;
 }
 
@@ -192,10 +192,10 @@ void qwtRpcSendResponse(const SRpcMsg *pRsp) {
 
       if (0 == pRsp->code) {
         qwtBuildReadyReqMsg(&qwtreadyMsg, &qwtreadyRpc);    
-        qwtPutReqToFetchQueue(0x1, &qwtreadyRpc);
+        qwtPutReqToFetchQueue((void *)0x1, &qwtreadyRpc);
       } else {
         qwtBuildDropReqMsg(&qwtdropMsg, &qwtdropRpc);
-        qwtPutReqToFetchQueue(0x1, &qwtdropRpc);
+        qwtPutReqToFetchQueue((void *)0x1, &qwtdropRpc);
       }
       
       break;
@@ -205,10 +205,10 @@ void qwtRpcSendResponse(const SRpcMsg *pRsp) {
       
       if (0 == pRsp->code) {
         qwtBuildFetchReqMsg(&qwtfetchMsg, &qwtfetchRpc);
-        qwtPutReqToFetchQueue(0x1, &qwtfetchRpc);
+        qwtPutReqToFetchQueue((void *)0x1, &qwtfetchRpc);
       } else {
         qwtBuildDropReqMsg(&qwtdropMsg, &qwtdropRpc);
-        qwtPutReqToFetchQueue(0x1, &qwtdropRpc);
+        qwtPutReqToFetchQueue((void *)0x1, &qwtdropRpc);
       }
       break;
     }
@@ -217,12 +217,12 @@ void qwtRpcSendResponse(const SRpcMsg *pRsp) {
   
       if (0 == pRsp->code && 0 == rsp->completed) {
         qwtBuildFetchReqMsg(&qwtfetchMsg, &qwtfetchRpc);
-        qwtPutReqToFetchQueue(0x1, &qwtfetchRpc);
+        qwtPutReqToFetchQueue((void *)0x1, &qwtfetchRpc);
         return;
       }
 
       qwtBuildDropReqMsg(&qwtdropMsg, &qwtdropRpc);
-      qwtPutReqToFetchQueue(0x1, &qwtdropRpc);
+      qwtPutReqToFetchQueue((void *)0x1, &qwtdropRpc);
       
       break;
     }
@@ -352,7 +352,7 @@ int32_t qwtGetDataBlock(DataSinkHandle handle, SOutputData* pOutput) {
     qwtTestSinkBlockNum--;
     pOutput->numOfRows = rand() % 10 + 1;
     pOutput->compressed = 1;
-    pOutput->pData = malloc(pOutput->numOfRows);
+    pOutput->pData = (char *)malloc(pOutput->numOfRows);
     pOutput->queryEnd = qwtTestSinkQueryEnd;
     if (qwtTestSinkBlockNum == 0) {
       pOutput->bufStatus = DS_BUF_EMPTY;
@@ -648,7 +648,7 @@ void *clientThread(void *param) {
     qwtTestCaseFinished = false;
     
     qwtBuildQueryReqMsg(&queryRpc);
-    qwtPutReqToQueue(0x1, &queryRpc);
+    qwtPutReqToQueue((void *)0x1, &queryRpc);
 
     while (!qwtTestCaseFinished) {
       usleep(1);
@@ -692,15 +692,16 @@ void *queryQueueThread(void *param) {
     taosWUnLockLatch(&qwtTestQueryQueueLock);
 
     if (TDMT_VND_QUERY == queryRpc->msgType) {
-      qWorkerProcessQueryMsg(mockPointer, mgmt, &queryRpc);
+      qWorkerProcessQueryMsg(mockPointer, mgmt, queryRpc);
     } else if (TDMT_VND_QUERY_CONTINUE == queryRpc->msgType) {
-      qWorkerProcessCQueryMsg(mockPointer, mgmt, &queryRpc)
+      qWorkerProcessCQueryMsg(mockPointer, mgmt, queryRpc);
     } else {
       printf("unknown msg in query queue, type:%d\n", queryRpc->msgType);
       assert(0);
     }
   }
 
+  return NULL;
 }
 
 void *fetchQueueThread(void *param) {
@@ -743,6 +744,7 @@ void *fetchQueueThread(void *param) {
     }
   }
 
+  return NULL;
 }
 
 
