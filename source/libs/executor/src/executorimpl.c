@@ -5302,7 +5302,7 @@ SOperatorInfo* createExchangeOperatorInfo(const SArray* pSources, const SArray* 
     rpcInit.user = (char *)"root";
     rpcInit.idleTime = tsShellActivityTimer * 1000;
     rpcInit.ckey = "key";
-//  rpcInit.spi = 1;
+    rpcInit.spi = 1;
     rpcInit.secret = (char *)"dcc5bed04851fec854c035b2e40263b6";
 
     pInfo->pTransporter = rpcOpen(&rpcInit);

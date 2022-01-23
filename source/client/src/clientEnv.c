@@ -110,7 +110,7 @@ void* openTransporter(const char *user, const char *auth, int32_t numOfThread) {
   rpcInit.user = (char *)user;
   rpcInit.idleTime = tsShellActivityTimer * 1000;
   rpcInit.ckey = "key";
-//  rpcInit.spi = 1;
+  rpcInit.spi = 1;
   rpcInit.secret = (char *)auth;
 
   void* pDnodeConn = rpcOpen(&rpcInit);

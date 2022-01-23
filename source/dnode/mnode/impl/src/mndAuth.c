@@ -34,7 +34,7 @@ int32_t mndRetriveAuth(SMnode *pMnode, char *user, char *spi, char *encrypt, cha
     return -1;
   }
 
-  *spi = 0;
+  *spi = 1;
   *encrypt = 0;
   *ckey = 0;
 
