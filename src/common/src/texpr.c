@@ -1501,7 +1501,7 @@ void vectorLowerUpperTrimFunc(int16_t functionId, tExprOperandInfo *pInputs, int
       switch (functionId) {
         case TSDB_FUNC_SCALAR_LOWER:
         case TSDB_FUNC_SCALAR_UPPER: {
-          assert(numInputs = 1);
+          assert(numInputs == 1);
 
           int32_t len = varDataLen(inputData[0]);
           varDataSetLen(outputData, len);
@@ -1597,9 +1597,6 @@ void vectorSubstrFunc(int16_t functionId, tExprOperandInfo *pInputs, int32_t num
     GET_TYPED_DATA(subLenChar, int32_t, pInputs[2].type, pInputs[2].data);
   }
 
-  int32_t subPosBytes = (pInputs[0].type == TSDB_DATA_TYPE_BINARY) ? subPosChar-1 : (subPosChar-1) * TSDB_NCHAR_SIZE;
-  int32_t subLenBytes = (pInputs[0].type == TSDB_DATA_TYPE_BINARY) ? subLenChar : subLenChar * TSDB_NCHAR_SIZE;
-
   for (int32_t i = 0; i < pOutput->numOfRows; ++i) {
     char* inputData = NULL;
     if (pInputs[0].numOfRows == 1) {
@@ -1614,14 +1611,26 @@ void vectorSubstrFunc(int16_t functionId, tExprOperandInfo *pInputs, int32_t num
     }
 
     int16_t strBytes = varDataLen(pInputs[0].data);
-    int32_t resultStartBytes = MIN(subPosBytes, strBytes);
+    int32_t resultStartBytes = 0;
+    if (subPosChar > 0) {
+      int32_t subPosBytes = (pInputs[0].type == TSDB_DATA_TYPE_BINARY) ? subPosChar-1 : (subPosChar-1) * TSDB_NCHAR_SIZE;
+      resultStartBytes = MIN(subPosBytes, strBytes);
+    } else {
+      int32_t subPosBytes = (pInputs[0].type == TSDB_DATA_TYPE_BINARY) ? strBytes + subPosChar : (strBytes) + subPosChar * TSDB_NCHAR_SIZE;
+      resultStartBytes = MAX(subPosBytes, 0);
+    }
+    int32_t subLenBytes = 0;
+    if (subLenChar > 0) {
+      subLenBytes = (pInputs[0].type == TSDB_DATA_TYPE_BINARY) ? subLenChar : subLenChar * TSDB_NCHAR_SIZE;
+    } else {
+      subLenBytes = 0;
+    }
     int32_t resultLenBytes = MIN(subLenBytes, strBytes - resultStartBytes);
 
     varDataSetLen(outputData, resultLenBytes);
     if (resultLenBytes > 0) {
       memcpy(varDataVal(outputData), varDataVal(inputData), resultLenBytes);
     }
-
   }
 }
 
