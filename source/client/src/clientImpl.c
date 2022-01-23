@@ -562,7 +562,7 @@ STscObj* taosConnectImpl(const char *user, const char *auth, const char *db, uin
 
   tsem_wait(&pRequest->body.rspSem);
   if (pRequest->code != TSDB_CODE_SUCCESS) {
-    const char *errorMsg = (pRequest->code == TSDB_CODE_RPC_FQDN_ERROR) ? taos_errstr(pRequest) : tstrerror(terrno);
+    const char *errorMsg = (pRequest->code == TSDB_CODE_RPC_FQDN_ERROR) ? taos_errstr(pRequest) : tstrerror(pRequest->code);
     printf("failed to connect to server, reason: %s\n\n", errorMsg);
 
     destroyRequest(pRequest);
