@@ -13,24 +13,26 @@
  * along with this program. If not, see <http://www.gnu.org/licenses/>.
  */
 
+#ifndef _TD_NODES_SHOW_STMTS_H_
+#define _TD_NODES_SHOW_STMTS_H_
+
+#ifdef __cplusplus
+extern "C" {
+#endif
+
 #include "nodes.h"
 
-bool nodesIsTimeorderQuery(const SNode* pQuery) {
+typedef enum EShowStmtType {
+  SHOW_TYPE_DATABASE = 1
+} EShowStmtType;
 
+typedef struct SShowStmt {
+  ENodeType type; // QUERY_NODE_SHOW_STMT
+  EShowStmtType showType;
+} SShowStmt;
+
+#ifdef __cplusplus
 }
+#endif
 
-bool nodesIsTimelineQuery(const SNode* pQuery) {
-
-}
-
-SNode* nodesMakeNode(ENodeType type) {
-
-}
-
-void nodesDestroyNode(SNode* pNode) {
-
-}
-
-void nodesDestroyNodeList(SNodeList* pList) {
-
-}
+#endif /*_TD_NODES_SHOW_STMTS_H_*/

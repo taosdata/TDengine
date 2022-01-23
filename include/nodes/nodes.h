@@ -40,7 +40,8 @@ typedef enum ENodeType {
   QUERY_NODE_INTERVAL_WINDOW,
 
   QUERY_NODE_SET_OPERATOR,
-  QUERY_NODE_SELECT_STMT
+  QUERY_NODE_SELECT_STMT,
+  QUERY_NODE_SHOW_STMT
 } ENodeType;
 
 /**
@@ -52,6 +53,19 @@ typedef struct SNode {
 } SNode;
 
 #define nodeType(nodeptr) (((const SNode*)(nodeptr))->type)
+
+typedef struct SListCell {
+  SNode* pNode;
+  struct SListCell* pNext;
+} SListCell;
+
+typedef struct SNodeList {
+  int16_t length;
+  SListCell* pHeader;
+} SNodeList;
+
+#define foreach(node, list)	\
+  for (SListCell* cell = (NULL != list ? list->pHeader : NULL); (NULL != cell &&  ? (node = cell->pNode, true) : (node = NULL, false)); cell = cell->pNext)
 
 typedef struct SDataType {
   uint8_t type;
@@ -188,7 +202,8 @@ typedef enum EOrder {
 } EOrder;
 
 typedef enum ENullOrder {
-  NULL_ORDER_FIRST = 1,
+  NULL_ORDER_DEFAULT = 1,
+  NULL_ORDER_FIRST,
   NULL_ORDER_LAST
 } ENullOrder;
 
@@ -263,6 +278,10 @@ int32_t nodesStringToNode(const char* pStr, SNode** pNode);
 
 bool nodesIsTimeorderQuery(const SNode* pQuery);
 bool nodesIsTimelineQuery(const SNode* pQuery);
+
+SNode* nodesMakeNode(ENodeType type);
+void nodesDestroyNode(SNode* pNode);
+void nodesDestroyNodeList(SNodeList* pList);
 
 #ifdef __cplusplus
 }

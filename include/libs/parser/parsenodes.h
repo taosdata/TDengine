@@ -35,7 +35,7 @@ typedef struct SQueryNode {
   int16_t type;
 } SQueryNode;
 
-#define nodeType(nodeptr) (((const SQueryNode*)(nodeptr))->type)
+#define queryNodeType(nodeptr) (((const SQueryNode*)(nodeptr))->type)
 
 typedef struct SField {
   char     name[TSDB_COL_NAME_LEN];

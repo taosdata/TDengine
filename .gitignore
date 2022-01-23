@@ -86,6 +86,7 @@ tests/comparisonTest/opentsdb/opentsdbtest/.settings/
 tests/examples/JDBC/JDBCDemo/.classpath
 tests/examples/JDBC/JDBCDemo/.project
 tests/examples/JDBC/JDBCDemo/.settings/
+source/libs/parser/inc/new_sql.*
 
 # Emacs
 # -*- mode: gitignore; -*-

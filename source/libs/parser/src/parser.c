@@ -243,7 +243,7 @@ void qDestroyQuery(SQueryNode* pQueryNode) {
   if (NULL == pQueryNode) {
     return;
   }
-  if (nodeType(pQueryNode) == TSDB_SQL_INSERT || nodeType(pQueryNode) == TSDB_SQL_CREATE_TABLE) {
+  if (queryNodeType(pQueryNode) == TSDB_SQL_INSERT || queryNodeType(pQueryNode) == TSDB_SQL_CREATE_TABLE) {
     SVnodeModifOpStmtInfo* pModifInfo = (SVnodeModifOpStmtInfo*)pQueryNode;
     taosArrayDestroy(pModifInfo->pDataBlocks);
   }
