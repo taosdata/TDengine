@@ -179,8 +179,12 @@ static int32_t dndInitClient(SDnode *pDnode) {
   rpcInit.idleTime = pDnode->cfg.shellActivityTimer * 1000;
   rpcInit.user = INTERNAL_USER;
   rpcInit.ckey = INTERNAL_CKEY;
-  rpcInit.secret = INTERNAL_SECRET;
+  rpcInit.spi = 1;
   rpcInit.parent = pDnode;
+
+  char pass[TSDB_PASSWORD_LEN] = {0};
+  taosEncryptPass((uint8_t *)(INTERNAL_SECRET), strlen(INTERNAL_SECRET), pass);
+  rpcInit.secret = pass;
 
   pMgmt->clientRpc = rpcOpen(&rpcInit);
   if (pMgmt->clientRpc == NULL) {
@@ -260,7 +264,7 @@ static int32_t dndAuthInternalReq(SDnode *pDnode, char *user, char *spi, char *e
     char pass[TSDB_PASSWORD_LEN] = {0};
     taosEncryptPass((uint8_t *)(INTERNAL_SECRET), strlen(INTERNAL_SECRET), pass);
     memcpy(secret, pass, TSDB_PASSWORD_LEN);
-    *spi = 0;
+    *spi = 1;
     *encrypt = 0;
     *ckey = 0;
     return 0;
@@ -269,7 +273,7 @@ static int32_t dndAuthInternalReq(SDnode *pDnode, char *user, char *spi, char *e
     char pass[TSDB_PASSWORD_LEN] = {0};
     taosEncryptPass((uint8_t *)(TSDB_NETTEST_USER), strlen(TSDB_NETTEST_USER), pass);
     memcpy(secret, pass, TSDB_PASSWORD_LEN);
-    *spi = 0;
+    *spi = 1;
     *encrypt = 0;
     *ckey = 0;
     return 0;
