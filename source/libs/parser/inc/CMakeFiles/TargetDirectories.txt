@@ -1,3 +1,0 @@
-/home/wangxiaoyu/work/code/TDengine/source/libs/parser/inc/CMakeFiles/rebuild_cache.dir
-/home/wangxiaoyu/work/code/TDengine/source/libs/parser/inc/CMakeFiles/parser.dir
-/home/wangxiaoyu/work/code/TDengine/source/libs/parser/inc/CMakeFiles/edit_cache.dir
