@@ -16,13 +16,13 @@
 #define _GNU_SOURCE
 #define _XOPEN_SOURCE
 #define _DEFAULT_SOURCE
-
 #include "os.h"
-#include "types.h"
+
 #include "compare.h"
-#include "ulog.h"
-#include "thash.h"
 #include "regex.h"
+#include "thash.h"
+#include "types.h"
+#include "ulog.h"
 
 int32_t setCompareBytes1(const void *pLeft, const void *pRight) {
   return NULL != taosHashGet((SHashObj *)pRight, pLeft, 1) ? 1 : 0;
@@ -228,7 +228,7 @@ int32_t compareLenPrefixedWStrDesc(const void* pLeft, const void* pRight) {
  *      '_': Matches one character
  *
  */
-int patternMatch(const char *patterStr, const char *str, size_t size, const SPatternCompareInfo *pInfo) {
+int32_t patternMatch(const char *patterStr, const char *str, size_t size, const SPatternCompareInfo *pInfo) {
   char c, c1;
 
   int32_t i = 0;
@@ -289,7 +289,7 @@ int patternMatch(const char *patterStr, const char *str, size_t size, const SPat
   return (str[j] == 0 || j >= size) ? TSDB_PATTERN_MATCH : TSDB_PATTERN_NOMATCH;
 }
 
-int WCSPatternMatch(const wchar_t *patterStr, const wchar_t *str, size_t size, const SPatternCompareInfo *pInfo) {
+int32_t WCSPatternMatch(const wchar_t *patterStr, const wchar_t *str, size_t size, const SPatternCompareInfo *pInfo) {
   wchar_t c, c1;
   wchar_t matchOne = L'_';  // "_"
   wchar_t matchAll = L'%';  // "%"
@@ -360,11 +360,11 @@ int32_t compareStrRegexComp(const void* pLeft, const void* pRight) {
   memcpy(str, varDataVal(pLeft), sz);
   str[sz] = 0;
 
-  int errCode = 0;
+  int32_t errCode = 0;
   regex_t regex;
   char    msgbuf[256] = {0};
 
-  int cflags = REG_EXTENDED;
+  int32_t cflags = REG_EXTENDED;
   if ((errCode = regcomp(&regex, pattern, cflags)) != 0) {
     regerror(errCode, &regex, msgbuf, sizeof(msgbuf));
     uError("Failed to compile regex pattern %s. reason %s", pattern, msgbuf);

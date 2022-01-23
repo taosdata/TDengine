@@ -504,7 +504,7 @@ void tsdbResetQueryHandle(tsdbReadHandleT queryHandle, STsdbQueryCond *pCond) {
   if (emptyQueryTimewindow(pTsdbReadHandle)) {
     if (pCond->order != pTsdbReadHandle->order) {
       pTsdbReadHandle->order = pCond->order;
-      SWAP(pTsdbReadHandle->window.skey, pTsdbReadHandle->window.ekey, int64_t);
+      TSWAP(pTsdbReadHandle->window.skey, pTsdbReadHandle->window.ekey, int64_t);
     }
 
     return;
@@ -971,7 +971,7 @@ static bool hasMoreDataInCache(STsdbReadHandle* pHandle) {
   pHandle->cur.mixBlock = true;
 
   if (!ASCENDING_TRAVERSE(pHandle->order)) {
-    SWAP(win->skey, win->ekey, TSKEY);
+    TSWAP(win->skey, win->ekey, TSKEY);
   }
 
   return true;
@@ -1074,8 +1074,8 @@ static int32_t loadBlockInfo(STsdbReadHandle * pTsdbReadHandle, int32_t index, i
     assert(pCheckInfo->lastKey >= pTsdbReadHandle->window.ekey && pTsdbReadHandle->window.skey >= pTsdbReadHandle->window.ekey);
   }
 
-  s = MIN(pCheckInfo->lastKey, pTsdbReadHandle->window.ekey);
-  e = MAX(pCheckInfo->lastKey, pTsdbReadHandle->window.ekey);
+  s = TMIN(pCheckInfo->lastKey, pTsdbReadHandle->window.ekey);
+  e = TMAX(pCheckInfo->lastKey, pTsdbReadHandle->window.ekey);
 
   // discard the unqualified data block based on the query time window
   int32_t start = binarySearchForBlock(pCompInfo->blocks, compIndex->numOfBlocks, s, TSDB_ORDER_ASC);
@@ -1240,7 +1240,7 @@ static int32_t handleDataMergeIfNeeded(STsdbReadHandle* pTsdbReadHandle, SBlock*
       // update the last key value
       pCheckInfo->lastKey = cur->win.ekey + step;
       if (!ASCENDING_TRAVERSE(pTsdbReadHandle->order)) {
-        SWAP(cur->win.skey, cur->win.ekey, TSKEY);
+        TSWAP(cur->win.skey, cur->win.ekey, TSKEY);
       }
 
       cur->mixBlock = true;
@@ -1795,7 +1795,7 @@ static void copyAllRemainRowsFromFileBlock(STsdbReadHandle* pTsdbReadHandle, STa
   int32_t end = endPos;
 
   if (!ASCENDING_TRAVERSE(pTsdbReadHandle->order)) {
-    SWAP(start, end, int32_t);
+    TSWAP(start, end, int32_t);
   }
 
   assert(pTsdbReadHandle->outputCapacity >= (end - start + 1));
@@ -2020,7 +2020,7 @@ static void doMergeTwoLevelData(STsdbReadHandle* pTsdbReadHandle, STableCheckInf
        ((pos < endPos || cur->lastKey < pTsdbReadHandle->window.ekey) && !ASCENDING_TRAVERSE(pTsdbReadHandle->order)));
 
   if (!ASCENDING_TRAVERSE(pTsdbReadHandle->order)) {
-    SWAP(cur->win.skey, cur->win.ekey, TSKEY);
+    TSWAP(cur->win.skey, cur->win.ekey, TSKEY);
   }
 
   moveDataToFront(pTsdbReadHandle, numOfRows, numOfCols);

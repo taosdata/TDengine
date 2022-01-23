@@ -42,6 +42,8 @@ int tsRpcMaxRetry;
 int tsRpcHeadSize;
 int tsRpcOverhead;
 
+SHashObj *tsFqdnHash;
+
 #ifndef USE_UV
 
 typedef struct {
@@ -215,6 +217,8 @@ static void rpcInitImp(void) {
   tsRpcOverhead = sizeof(SRpcReqContext);
 
   tsRpcRefId = taosOpenRef(200, rpcFree);
+
+  tsFqdnHash = taosHashInit(64, taosGetDefaultHashFunction(TSDB_DATA_TYPE_BINARY), false, HASH_ENTRY_LOCK);
 }
 
 int32_t rpcInit(void) {
@@ -224,6 +228,9 @@ int32_t rpcInit(void) {
 
 void rpcCleanup(void) {
   taosCloseRef(tsRpcRefId);
+  taosHashClear(tsFqdnHash);
+  taosHashCleanup(tsFqdnHash);
+  tsFqdnHash = NULL;
   tsRpcRefId = -1;
 }
 
@@ -571,7 +578,17 @@ static void rpcFreeMsg(void *msg) {
 static SRpcConn *rpcOpenConn(SRpcInfo *pRpc, char *peerFqdn, uint16_t peerPort, int8_t connType) {
   SRpcConn *pConn;
 
-  uint32_t peerIp = taosGetIpv4FromFqdn(peerFqdn);
+  uint32_t  peerIp = 0;
+  uint32_t *pPeerIp = taosHashGet(tsFqdnHash, peerFqdn, strlen(peerFqdn) + 1);
+  if (pPeerIp != NULL) {
+    peerIp = *pPeerIp;
+  } else {
+    peerIp = taosGetIpv4FromFqdn(peerFqdn);
+    if (peerIp != 0xFFFFFFFF) {
+      taosHashPut(tsFqdnHash, peerFqdn, strlen(peerFqdn) + 1, &peerIp, sizeof(peerIp));
+    }
+  }
+
   if (peerIp == 0xFFFFFFFF) {
     tError("%s, failed to resolve FQDN:%s", pRpc->label, peerFqdn);
     terrno = TSDB_CODE_RPC_FQDN_ERROR;
@@ -752,8 +769,8 @@ static SRpcConn *rpcAllocateServerConn(SRpcInfo *pRpc, SRecvInfo *pRecv) {
     }
 
     taosHashPut(pRpc->hash, hashstr, size, (char *)&pConn, POINTER_BYTES);
-    tDebug("%s %p server connection is allocated, uid:0x%x sid:%d key:%s", pRpc->label, pConn, pConn->linkUid, sid,
-           hashstr);
+    tDebug("%s %p server connection is allocated, uid:0x%x sid:%d key:%s spi:%d", pRpc->label, pConn, pConn->linkUid, sid,
+           hashstr, pConn->spi);
   }
 
   return pConn;
@@ -1612,7 +1629,7 @@ static int rpcCheckAuthentication(SRpcConn *pConn, char *msg, int msgLen) {
       }
     }
   } else {
-    tDebug("%s, auth spi:%d not matched with received:%d", pConn->info, pConn->spi, pHead->spi);
+    tError("%s, auth spi:%d not matched with received:%d %p", pConn->info, pConn->spi, pHead->spi, pConn);
     code = pHead->spi ? TSDB_CODE_RPC_AUTH_FAILURE : TSDB_CODE_RPC_AUTH_REQUIRED;
   }
 

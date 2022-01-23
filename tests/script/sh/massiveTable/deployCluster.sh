@@ -5,10 +5,12 @@
 set -e
 #set -x
 
+fqdn=`hostname`
+
 masterDnode=slave
 dataRootDir="/data"
-firstEp="trd02:7000"
-startPort=7000
+firstEp="${fqdn}:6030"
+startPort=6030
 dnodeNumber=1
 updateSrc=no
 
@@ -52,23 +54,17 @@ done
 curr_dir=$(readlink -f "$(dirname "$0")")
 echo $curr_dir
 
-${curr_dir}/cleanCluster.sh -r "/data"
-#${curr_dir}/cleanCluster.sh -r "/data2"
+${curr_dir}/cleanCluster.sh -r ${dataRootDir}
 
 if [[ "${updateSrc}" == "yes" ]]; then
   ${curr_dir}/compileVersion.sh -r ${curr_dir}/../../../../ -v "3.0"
 fi
 
-${curr_dir}/setupDnodes.sh -r "/data"  -n ${dnodeNumber} -f ${firstEp} -p 7000
-#${curr_dir}/setupDnodes.sh -r "/data2" -n ${dnodeNumber} -f ${firstEp} -p 8000
+${curr_dir}/setupDnodes.sh -r ${dataRootDir}  -n ${dnodeNumber} -f ${firstEp} -p ${startPort}
 
 if [[ "${masterDnode}" == "master" ]]; then
-  # create all dnode into cluster
-  #taos -s "create dnode trd02 port 8000;"
-  taos -s "create dnode trd03 port 7000;"
-  #taos -s "create dnode trd03 port 8000;"
-  taos -s "create dnode trd04 port 7000;"
-  #taos -s "create dnode trd04 port 8000;"
+  taos -s "create dnode trd03 port 6030;"
+  taos -s "create dnode trd04 port 6030;"
 fi
 
 

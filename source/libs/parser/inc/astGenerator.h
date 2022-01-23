@@ -24,7 +24,7 @@ extern "C" {
 #include "tvariant.h"
 #include "parser.h"
 
-// #define ParseTOKENTYPE SToken
+#define ParseTOKENTYPE SToken
 
 #define NON_ARITHMEIC_EXPR 0
 #define NORMAL_ARITHMETIC  1
@@ -338,21 +338,21 @@ void tSetColumnType(struct SField *pField, SToken *type);
  * @param yymajor  The major token code number
  * @param yyminor  The value for the token
  */
-// void Parse(void *yyp, int yymajor, ParseTOKENTYPE yyminor, SSqlInfo *);
+void Parse(void *yyp, int yymajor, ParseTOKENTYPE yyminor, SSqlInfo *);
 
 /**
  * Free the allocated resources in case of failure.
  * @param p         The parser to be deleted
  * @param freeProc  Function used to reclaim memory
  */
-// void ParseFree(void *p, void (*freeProc)(void *));
+void ParseFree(void *p, void (*freeProc)(void *));
 
 /**
  * Allocated callback function.
  * @param mallocProc  The parser allocator
  * @return
  */
-// void *ParseAlloc(void *(*mallocProc)(size_t));
+void *ParseAlloc(void *(*mallocProc)(size_t));
 
 /**
  *

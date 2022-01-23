@@ -135,7 +135,7 @@ static SDataSink* createDataInserter(SPlanContext* pCxt, SVgDataBlocks* pBlocks,
   SDataInserter* inserter = (SDataInserter*)initDataSink(DSINK_Insert, sizeof(SDataInserter), pRoot);
   inserter->numOfTables = pBlocks->numOfTables;
   inserter->size = pBlocks->size;
-  SWAP(inserter->pData, pBlocks->pData, char*);
+  TSWAP(inserter->pData, pBlocks->pData, char*);
   return (SDataSink*)inserter;
 }
 
@@ -153,6 +153,16 @@ static SPhyNode* initPhyNode(SQueryPlanNode* pPlanNode, int32_t type, int32_t si
     THROW(TSDB_CODE_TSC_OUT_OF_MEMORY);
   }
   return node;
+}
+
+static void cleanupPhyNode(SPhyNode* pPhyNode) {
+  if (pPhyNode == NULL) {
+    return;
+  }
+
+  dropOneLevelExprInfo(pPhyNode->pTargets);
+  tfree(pPhyNode->targetSchema.pSchema);
+  tfree(pPhyNode);
 }
 
 static SPhyNode* initScanNode(SQueryPlanNode* pPlanNode, SQueryTableInfo* pTable, int32_t type, int32_t size) {
@@ -261,14 +271,14 @@ static void vgroupMsgToEpSet(const SVgroupMsg* vg, SQueryNodeAddr* execNode) {
   return;
 }
 
-static uint64_t splitSubplanByTable(SPlanContext* pCxt, SQueryPlanNode* pPlanNode, SQueryTableInfo* pTable) {
-  SVgroupsInfo* pVgroupList = pTable->pMeta->vgroupList;
+static uint64_t splitSubplanByTable(SPlanContext* pCxt, SQueryPlanNode* pPlanNode, SQueryTableInfo* pTableInfo) {
+  SVgroupsInfo* pVgroupList = pTableInfo->pMeta->vgroupList;
   for (int32_t i = 0; i < pVgroupList->numOfVgroups; ++i) {
     STORE_CURRENT_SUBPLAN(pCxt);
     SSubplan* subplan = initSubplan(pCxt, QUERY_TYPE_SCAN);
     subplan->msgType   = TDMT_VND_QUERY;
-    vgroupMsgToEpSet(&(pTable->pMeta->vgroupList->vgroups[i]), &subplan->execNode);
-    subplan->pNode = createMultiTableScanNode(pPlanNode, pTable);
+    vgroupMsgToEpSet(&(pTableInfo->pMeta->vgroupList->vgroups[i]), &subplan->execNode);
+    subplan->pNode = createMultiTableScanNode(pPlanNode, pTableInfo);
     subplan->pDataSink = createDataDispatcher(pCxt, pPlanNode, subplan->pNode);
     RECOVERY_CURRENT_SUBPLAN(pCxt);
   }
@@ -384,18 +394,19 @@ static void createSubplanByLevel(SPlanContext* pCxt, SQueryPlanNode* pRoot) {
 
     subplan->msgType   = TDMT_VND_QUERY;
     subplan->pNode     = createPhyNode(pCxt, pRoot);
-    subplan->pDataSink = createDataDispatcher(pCxt, pRoot, subplan->pNode);    
+    subplan->pDataSink = createDataDispatcher(pCxt, pRoot, subplan->pNode);
   }
   // todo deal subquery
 }
 
-int32_t createDag(SQueryPlanNode* pQueryNode, struct SCatalog* pCatalog, SQueryDag** pDag, uint64_t requestId) {
+int32_t createDag(SQueryPlanNode* pQueryNode, struct SCatalog* pCatalog, SQueryDag** pDag, SArray* pNodeList, uint64_t requestId) {
   TRY(TSDB_MAX_TAG_CONDITIONS) {
     SPlanContext context = {
       .pCatalog = pCatalog,
       .pDag     = validPointer(calloc(1, sizeof(SQueryDag))),
       .pCurrentSubplan = NULL,
-      .nextId   = {.queryId = requestId},
+       //The unsigned Id starting from 1 would be better
+      .nextId   = {.queryId = requestId, .subplanId = 1, .templateId = 1},
     };
 
     *pDag = context.pDag;
@@ -408,6 +419,17 @@ int32_t createDag(SQueryPlanNode* pQueryNode, struct SCatalog* pCatalog, SQueryD
     terrno = code;
     return TSDB_CODE_FAILED;
   } END_TRY
+
+  // traverse the dag again to acquire the execution node.
+  if (pNodeList != NULL) {
+    SArray** pSubLevel = taosArrayGetLast((*pDag)->pSubplans);
+    size_t  num = taosArrayGetSize(*pSubLevel);
+    for (int32_t j = 0; j < num; ++j) {
+      SSubplan* pPlan = taosArrayGetP(*pSubLevel, j);
+      taosArrayPush(pNodeList, &pPlan->execNode);
+    }
+  }
+
   return TSDB_CODE_SUCCESS;
 }
 
@@ -432,4 +454,30 @@ void setExchangSourceNode(uint64_t templateId, SDownstreamSource *pSource, SPhyN
 
 void setSubplanExecutionNode(SSubplan* subplan, uint64_t templateId, SDownstreamSource* pSource) {
   setExchangSourceNode(templateId, pSource, subplan->pNode);
+}
+
+static void destroyDataSinkNode(SDataSink* pSinkNode) {
+  if (pSinkNode == NULL) {
+    return;
+  }
+
+  if (queryNodeType(pSinkNode) == DSINK_Dispatch) {
+    SDataDispatcher* pDdSink = (SDataDispatcher*)pSinkNode;
+    tfree(pDdSink->sink.schema.pSchema);
+  }
+
+  tfree(pSinkNode);
+}
+
+void qDestroySubplan(SSubplan* pSubplan) {
+  if (pSubplan == NULL) {
+    return;
+  }
+
+  taosArrayDestroy(pSubplan->pChildren);
+  taosArrayDestroy(pSubplan->pParents);
+  destroyDataSinkNode(pSubplan->pDataSink);
+  cleanupPhyNode(pSubplan->pNode);
+
+  tfree(pSubplan);
 }

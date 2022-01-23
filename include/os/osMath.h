@@ -20,37 +20,37 @@
 extern "C" {
 #endif
 
-#define POW2(x) ((x) * (x))
-#define ABS(x) ((x) > 0 ? (x) : -(x))
+#define TPOW2(x) ((x) * (x))
+#define TABS(x) ((x) > 0 ? (x) : -(x))
 
 #if defined(_TD_WINDOWS_64) || defined(_TD_WINDOWS_32)
 
-  #define SWAP(a, b, c) \
+  #define TSWAP(a, b, c) \
     do {                \
       c __tmp = (c)(a); \
       (a) = (c)(b);     \
       (b) = __tmp;      \
     } while (0)
-  #define MAX(a, b) (((a) > (b)) ? (a) : (b))
-  #define MIN(a, b) (((a) < (b)) ? (a) : (b))
+  #define TMAX(a, b) (((a) > (b)) ? (a) : (b))
+  #define TMIN(a, b) (((a) < (b)) ? (a) : (b))
 
 #else
 
-  #define SWAP(a, b, c)      \
+  #define TSWAP(a, b, c)      \
     do {                     \
       typeof(a) __tmp = (a); \
       (a) = (b);             \
       (b) = __tmp;           \
     } while (0)
 
-  #define MAX(a, b)            \
+  #define TMAX(a, b)            \
     ({                         \
       typeof(a) __a = (a);     \
       typeof(b) __b = (b);     \
       (__a > __b) ? __a : __b; \
     })
 
-  #define MIN(a, b)            \
+  #define TMIN(a, b)            \
     ({                         \
       typeof(a) __a = (a);     \
       typeof(b) __b = (b);     \

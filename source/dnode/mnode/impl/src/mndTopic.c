@@ -60,7 +60,9 @@ void mndCleanupTopic(SMnode *pMnode) {}
 SSdbRaw *mndTopicActionEncode(SMqTopicObj *pTopic) {
   terrno = TSDB_CODE_OUT_OF_MEMORY;
 
-  int32_t  size = sizeof(SMqTopicObj) + MND_TOPIC_RESERVE_SIZE;
+  int32_t logicalPlanLen = strlen(pTopic->logicalPlan) + 1;
+  int32_t physicalPlanLen = strlen(pTopic->physicalPlan) + 1;
+  int32_t  size = sizeof(SMqTopicObj) + logicalPlanLen + physicalPlanLen + pTopic->sqlLen + MND_TOPIC_RESERVE_SIZE;
   SSdbRaw *pRaw = sdbAllocRaw(SDB_TOPIC, MND_TOPIC_VER_NUMBER, size);
   if (pRaw == NULL) goto TOPIC_ENCODE_OVER;
 
@@ -74,12 +76,10 @@ SSdbRaw *mndTopicActionEncode(SMqTopicObj *pTopic) {
   SDB_SET_INT32(pRaw, dataPos, pTopic->version, TOPIC_ENCODE_OVER);
   SDB_SET_INT32(pRaw, dataPos, pTopic->sqlLen, TOPIC_ENCODE_OVER);
   SDB_SET_BINARY(pRaw, dataPos, pTopic->sql, pTopic->sqlLen, TOPIC_ENCODE_OVER);
-  int32_t logicalPlanLen = strlen(pTopic->logicalPlan) + 1;
-  SDB_SET_INT32(pRaw, dataPos, strlen(pTopic->logicalPlan)+1, TOPIC_ENCODE_OVER);
+  SDB_SET_INT32(pRaw, dataPos, logicalPlanLen, TOPIC_ENCODE_OVER);
   SDB_SET_BINARY(pRaw, dataPos, pTopic->logicalPlan, logicalPlanLen, TOPIC_ENCODE_OVER);
 
-  int32_t physicalPlanLen = strlen(pTopic->physicalPlan) + 1;
-  SDB_SET_INT32(pRaw, dataPos, strlen(pTopic->physicalPlan)+1, TOPIC_ENCODE_OVER);
+  SDB_SET_INT32(pRaw, dataPos, physicalPlanLen, TOPIC_ENCODE_OVER);
   SDB_SET_BINARY(pRaw, dataPos, pTopic->physicalPlan, physicalPlanLen, TOPIC_ENCODE_OVER);
 
   SDB_SET_RESERVE(pRaw, dataPos, MND_TOPIC_RESERVE_SIZE, TOPIC_ENCODE_OVER);
@@ -127,7 +127,7 @@ SSdbRow *mndTopicActionDecode(SSdbRaw *pRaw) {
   SDB_GET_INT32(pRaw, dataPos, &pTopic->sqlLen, TOPIC_DECODE_OVER);
 
   pTopic->sql = calloc(pTopic->sqlLen + 1, sizeof(char));
-  SDB_GET_BINARY(pRaw, dataPos, pTopic->sql, pTopic->sqlLen, TOPIC_DECODE_OVER);
+  SDB_GET_BINARY(pRaw, dataPos, pTopic->sql,  pTopic->sqlLen, TOPIC_DECODE_OVER);
 
   SDB_GET_INT32(pRaw, dataPos, &len, TOPIC_DECODE_OVER);
   pTopic->logicalPlan = calloc(len + 1, sizeof(char));
@@ -135,7 +135,7 @@ SSdbRow *mndTopicActionDecode(SSdbRaw *pRaw) {
     terrno = TSDB_CODE_OUT_OF_MEMORY;
     goto TOPIC_DECODE_OVER;
   }
-  SDB_GET_BINARY(pRaw, dataPos, pTopic->logicalPlan, len+1, TOPIC_DECODE_OVER);
+  SDB_GET_BINARY(pRaw, dataPos, pTopic->logicalPlan, len, TOPIC_DECODE_OVER);
 
   SDB_GET_INT32(pRaw, dataPos, &len, TOPIC_DECODE_OVER);
   pTopic->physicalPlan = calloc(len + 1, sizeof(char));
@@ -144,7 +144,7 @@ SSdbRow *mndTopicActionDecode(SSdbRaw *pRaw) {
     terrno = TSDB_CODE_OUT_OF_MEMORY;
     goto TOPIC_DECODE_OVER;
   }
-  SDB_GET_BINARY(pRaw, dataPos, pTopic->physicalPlan, len+1, TOPIC_DECODE_OVER);
+  SDB_GET_BINARY(pRaw, dataPos, pTopic->physicalPlan, len, TOPIC_DECODE_OVER);
 
   SDB_GET_RESERVE(pRaw, dataPos, MND_TOPIC_RESERVE_SIZE, TOPIC_DECODE_OVER);
 
@@ -231,6 +231,7 @@ static int32_t mndCheckCreateTopicMsg(SCMCreateTopicReq *creattopReq) {
 }
 
 static int32_t mndCreateTopic(SMnode *pMnode, SMnodeMsg *pMsg, SCMCreateTopicReq *pCreate, SDbObj *pDb) {
+  mDebug("topic:%s to create", pCreate->name);
   SMqTopicObj topicObj = {0};
   tstrncpy(topicObj.name, pCreate->name, TSDB_TOPIC_FNAME_LEN);
   tstrncpy(topicObj.db, pDb->name, TSDB_DB_FNAME_LEN);
@@ -273,7 +274,7 @@ static int32_t mndProcessCreateTopicMsg(SMnodeMsg *pMsg) {
       return 0;
     } else {
       terrno = TSDB_CODE_MND_TOPIC_ALREADY_EXIST;
-      mError("db:%s, failed to create since %s", createTopicReq.name, terrstr());
+      mError("topic:%s, failed to create since already exists", createTopicReq.name);
       return -1;
     }
   }

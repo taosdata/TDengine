@@ -633,3 +633,5 @@ TEST(testCase, astTest) {
 //  exprSerializeTest2();
 }
 #endif
+
+#pragma GCC diagnostic pop

@@ -100,12 +100,12 @@ int32_t taosParseTime(const char* timestr, int64_t* time, int32_t len, int32_t t
   } else if (checkTzPresent(timestr, len)) {
     return parseTimeWithTz(timestr, time, timePrec, 0);
   } else {
-    return (*parseLocaltimeFp[day_light])(timestr, time, timePrec);
+    return (*parseLocaltimeFp[day_light])((char*)timestr, time, timePrec);
   }
 }
 
-bool checkTzPresent(const char *str, int32_t len) {
-  char *seg = forwardToTimeStringEnd(str);
+bool checkTzPresent(const char* str, int32_t len) {
+  char*   seg = forwardToTimeStringEnd((char*)str);
   int32_t seg_len = len - (int32_t)(seg - str);
 
   char *c = &seg[seg_len - 1];
@@ -267,7 +267,7 @@ int32_t parseTimeWithTz(const char* timestr, int64_t* time, int32_t timePrec, ch
 #endif
 
   int64_t fraction = 0;
-  str = forwardToTimeStringEnd(timestr);
+  str = forwardToTimeStringEnd((char*)timestr);
 
   if ((str[0] == 'Z' || str[0] == 'z') && str[1] == '\0') {
     /* utc time, no millisecond, return directly*/

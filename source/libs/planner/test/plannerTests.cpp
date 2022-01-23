@@ -22,8 +22,8 @@
 #include "parser.h"
 #include "mockCatalog.h"
 
+#pragma GCC diagnostic push
 #pragma GCC diagnostic ignored "-Wwrite-strings"
-
 #pragma GCC diagnostic ignored "-Wunused-function"
 #pragma GCC diagnostic ignored "-Wunused-variable"
 #pragma GCC diagnostic ignored "-Wsign-compare"
@@ -103,3 +103,5 @@ TEST(testCase, planner_test) {
 //  qParserCleanupMetaRequestInfo(&req);
 //  destroySqlInfo(&info1);
 }
+
+#pragma GCC diagnostic pop

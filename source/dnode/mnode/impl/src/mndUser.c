@@ -60,9 +60,9 @@ void mndCleanupUser(SMnode *pMnode) {}
 
 static int32_t mndCreateDefaultUser(SMnode *pMnode, char *acct, char *user, char *pass) {
   SUserObj userObj = {0};
+  taosEncryptPass_c((uint8_t *)pass, strlen(pass), userObj.pass);
   tstrncpy(userObj.user, user, TSDB_USER_LEN);
   tstrncpy(userObj.acct, acct, TSDB_USER_LEN);
-  taosEncryptPass((uint8_t *)pass, strlen(pass), userObj.pass);
   userObj.createdTime = taosGetTimestampMs();
   userObj.updateTime = userObj.createdTime;
 
@@ -202,7 +202,7 @@ SUserObj *mndAcquireUser(SMnode *pMnode, char *userName) {
   SSdb     *pSdb = pMnode->pSdb;
   SUserObj *pUser = sdbAcquire(pSdb, SDB_USER, userName);
   if (pUser == NULL) {
-    terrno = TSDB_CODE_MND_DB_NOT_EXIST;
+    terrno = TSDB_CODE_MND_USER_NOT_EXIST;
   }
   return pUser;
 }
@@ -214,9 +214,9 @@ void mndReleaseUser(SMnode *pMnode, SUserObj *pUser) {
 
 static int32_t mndCreateUser(SMnode *pMnode, char *acct, char *user, char *pass, SMnodeMsg *pReq) {
   SUserObj userObj = {0};
+  taosEncryptPass_c((uint8_t *)pass, strlen(pass), userObj.pass);
   tstrncpy(userObj.user, user, TSDB_USER_LEN);
   tstrncpy(userObj.acct, acct, TSDB_USER_LEN);
-  taosEncryptPass((uint8_t *)pass, strlen(pass), userObj.pass);
   userObj.createdTime = taosGetTimestampMs();
   userObj.updateTime = userObj.createdTime;
   userObj.superUser = 0;
@@ -351,8 +351,9 @@ static int32_t mndProcessAlterUserReq(SMnodeMsg *pReq) {
 
   SUserObj newUser = {0};
   memcpy(&newUser, pUser, sizeof(SUserObj));
-  memset(pUser->pass, 0, sizeof(pUser->pass));
-  taosEncryptPass((uint8_t *)pAlter->pass, strlen(pAlter->pass), pUser->pass);
+  char pass[TSDB_PASSWORD_LEN + 1] = {0};
+  taosEncryptPass_c((uint8_t *)pAlter->pass, strlen(pAlter->pass), pass);
+  memcpy(pUser->pass, pass, TSDB_PASSWORD_LEN);
   newUser.updateTime = taosGetTimestampMs();
 
   int32_t code = mndUpdateUser(pMnode, pUser, &newUser, pReq);

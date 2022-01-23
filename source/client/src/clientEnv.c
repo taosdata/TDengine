@@ -67,7 +67,9 @@ static void deregisterRequest(SRequestObj* pRequest) {
   int32_t currentInst = atomic_sub_fetch_32(&pActivity->currentRequests, 1);
   int32_t num = atomic_sub_fetch_32(&pTscObj->numOfReqs, 1);
 
-  tscDebug("0x%"PRIx64" free Request from connObj: 0x%"PRIx64", current:%d, app current:%d", pRequest->self, pTscObj->id, num, currentInst);
+  int64_t duration = taosGetTimestampMs() - pRequest->metric.start;
+  tscDebug("0x%"PRIx64" free Request from connObj: 0x%"PRIx64", reqId:0x%"PRIx64" elapsed:%"PRIu64" ms, current:%d, app current:%d", pRequest->self, pTscObj->id,
+      pRequest->requestId, duration, num, currentInst);
   taosReleaseRef(clientConnRefPool, pTscObj->id);
 }
 
@@ -110,7 +112,7 @@ void* openTransporter(const char *user, const char *auth, int32_t numOfThread) {
   rpcInit.user = (char *)user;
   rpcInit.idleTime = tsShellActivityTimer * 1000;
   rpcInit.ckey = "key";
-//  rpcInit.spi = 1;
+  rpcInit.spi = 1;
   rpcInit.secret = (char *)auth;
 
   void* pDnodeConn = rpcOpen(&rpcInit);
@@ -196,6 +198,10 @@ static void doDestroyRequest(void* p) {
   doFreeReqResultInfo(&pRequest->body.resInfo);
   qDestroyQueryDag(pRequest->body.pDag);
 
+  if (pRequest->body.showInfo.pArray != NULL) {
+    taosArrayDestroy(pRequest->body.showInfo.pArray);
+  }
+
   deregisterRequest(pRequest);
   tfree(pRequest);
 }
@@ -247,10 +253,11 @@ void taos_init_imp(void) {
   clientReqRefPool  = taosOpenRef(40960, doDestroyRequest);
 
   taosGetAppName(appInfo.appName, NULL);
+  pthread_mutex_init(&appInfo.mutex, NULL);
+
   appInfo.pid       = taosGetPId();
   appInfo.startTime = taosGetTimestampMs();
   appInfo.pInstMap  = taosHashInit(4, taosGetDefaultHashFunction(TSDB_DATA_TYPE_BINARY), true, HASH_ENTRY_LOCK);
-
   tscDebug("client is initialized successfully");
 }
 

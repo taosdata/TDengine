@@ -34,7 +34,7 @@ int vnodeProcessWMsgs(SVnode *pVnode, SArray *pMsgs) {
     pMsg = *(SRpcMsg **)taosArrayGet(pMsgs, i);
 
     // ser request version
-    void   *pBuf = POINTER_SHIFT(pMsg->pCont, sizeof(SMsgHead));
+    void *  pBuf = POINTER_SHIFT(pMsg->pCont, sizeof(SMsgHead));
     int64_t ver = pVnode->state.processed++;
     taosEncodeFixedU64(&pBuf, ver);
 
@@ -53,7 +53,7 @@ int vnodeProcessWMsgs(SVnode *pVnode, SArray *pMsgs) {
 int vnodeApplyWMsg(SVnode *pVnode, SRpcMsg *pMsg, SRpcMsg **pRsp) {
   SVCreateTbReq      vCreateTbReq;
   SVCreateTbBatchReq vCreateTbBatchReq;
-  void              *ptr = vnodeMalloc(pVnode, pMsg->contLen);
+  void *             ptr = vnodeMalloc(pVnode, pMsg->contLen);
   if (ptr == NULL) {
     // TODO: handle error
   }
@@ -76,6 +76,9 @@ int vnodeApplyWMsg(SVnode *pVnode, SRpcMsg *pMsg, SRpcMsg **pRsp) {
       }
 
       // TODO: maybe need to clear the requst struct
+      free(vCreateTbReq.stbCfg.pSchema);
+      free(vCreateTbReq.stbCfg.pTagSchema);
+      free(vCreateTbReq.name);
       break;
     case TDMT_VND_CREATE_TABLE:
       tSVCreateTbBatchReqDeserialize(POINTER_SHIFT(pMsg->pCont, sizeof(SMsgHead)), &vCreateTbBatchReq);
@@ -83,8 +86,8 @@ int vnodeApplyWMsg(SVnode *pVnode, SRpcMsg *pMsg, SRpcMsg **pRsp) {
         SVCreateTbReq *pCreateTbReq = taosArrayGet(vCreateTbBatchReq.pArray, i);
         if (metaCreateTable(pVnode->pMeta, pCreateTbReq) < 0) {
           // TODO: handle error
+          vError("vgId:%d, failed to create table: %s", pVnode->vgId, pCreateTbReq->name);
         }
-        vTrace("vgId:%d process create table %s", pVnode->vgId, pCreateTbReq->name);
         free(pCreateTbReq->name);
         if (pCreateTbReq->type == TD_SUPER_TABLE) {
           free(pCreateTbReq->stbCfg.pSchema);
@@ -95,6 +98,8 @@ int vnodeApplyWMsg(SVnode *pVnode, SRpcMsg *pMsg, SRpcMsg **pRsp) {
           free(pCreateTbReq->ntbCfg.pSchema);
         }
       }
+
+      vTrace("vgId:%d process create %" PRIzu " tables", pVnode->vgId, taosArrayGetSize(vCreateTbBatchReq.pArray));
       taosArrayDestroy(vCreateTbBatchReq.pArray);
       break;
 
@@ -110,9 +115,8 @@ int vnodeApplyWMsg(SVnode *pVnode, SRpcMsg *pMsg, SRpcMsg **pRsp) {
       }
       break;
     case TDMT_VND_MQ_SET_CONN: {
-      SMqSetCVgReq req;
-      tDecodeSMqSetCVgReq(ptr, &req);
-      if (tqProcessSetConnReq(pVnode->pTq, &req) < 0) {
+      if (tqProcessSetConnReq(pVnode->pTq, POINTER_SHIFT(ptr, sizeof(SMsgHead)), NULL) < 0) {
+        // TODO: handle error
       }
     } break;
     default:
@@ -129,6 +133,7 @@ int vnodeApplyWMsg(SVnode *pVnode, SRpcMsg *pMsg, SRpcMsg **pRsp) {
       // TODO: handle error
     }
   }
+
   return 0;
 }
 

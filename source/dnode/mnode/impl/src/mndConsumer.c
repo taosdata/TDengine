@@ -56,7 +56,9 @@ void mndCleanupConsumer(SMnode *pMnode) {}
 SSdbRaw *mndConsumerActionEncode(SMqConsumerObj *pConsumer) {
   terrno = TSDB_CODE_OUT_OF_MEMORY;
   int32_t tlen = tEncodeSMqConsumerObj(NULL, pConsumer);
-  SSdbRaw *pRaw = sdbAllocRaw(SDB_CONSUMER, MND_CONSUMER_VER_NUMBER, tlen);
+  int32_t size = sizeof(int32_t) + tlen + MND_CONSUMER_RESERVE_SIZE;
+
+  SSdbRaw *pRaw = sdbAllocRaw(SDB_CONSUMER, MND_CONSUMER_VER_NUMBER, size);
   if (pRaw == NULL) goto CM_ENCODE_OVER;
 
   void* buf = malloc(tlen);
@@ -68,34 +70,6 @@ SSdbRaw *mndConsumerActionEncode(SMqConsumerObj *pConsumer) {
   int32_t dataPos = 0;
   SDB_SET_INT32(pRaw, dataPos, tlen, CM_ENCODE_OVER);
   SDB_SET_BINARY(pRaw, dataPos, buf, tlen, CM_ENCODE_OVER);
-
-#if 0
-  int32_t topicNum = taosArrayGetSize(pConsumer->topics);
-  SDB_SET_INT64(pRaw, dataPos, pConsumer->consumerId, CM_ENCODE_OVER);
-  int32_t len = strlen(pConsumer->cgroup);
-  SDB_SET_INT32(pRaw, dataPos, len, CM_ENCODE_OVER);
-  SDB_SET_BINARY(pRaw, dataPos, pConsumer->cgroup, len, CM_ENCODE_OVER);
-  SDB_SET_INT32(pRaw, dataPos, topicNum, CM_ENCODE_OVER);
-  for (int i = 0; i < topicNum; i++) {
-    int32_t           len;
-    SMqConsumerTopic *pConsumerTopic = taosArrayGet(pConsumer->topics, i);
-    len = strlen(pConsumerTopic->name);
-    SDB_SET_INT32(pRaw, dataPos, len, CM_ENCODE_OVER);
-    SDB_SET_BINARY(pRaw, dataPos, pConsumerTopic->name, len, CM_ENCODE_OVER);
-    int vgSize;
-    if (pConsumerTopic->vgroups == NULL) {
-      vgSize = 0;
-    } else {
-      vgSize = listNEles(pConsumerTopic->vgroups);
-    }
-    SDB_SET_INT32(pRaw, dataPos, vgSize, CM_ENCODE_OVER);
-    for (int j = 0; j < vgSize; j++) {
-      // SList* head;
-      /*SDB_SET_INT64(pRaw, dataPos, 0[> change to list item <]);*/
-    }
-  }
-#endif
-
   SDB_SET_RESERVE(pRaw, dataPos, MND_CONSUMER_RESERVE_SIZE, CM_ENCODE_OVER);
   SDB_SET_DATALEN(pRaw, dataPos, CM_ENCODE_OVER);
 
@@ -116,53 +90,35 @@ SSdbRow *mndConsumerActionDecode(SSdbRaw *pRaw) {
   terrno = TSDB_CODE_OUT_OF_MEMORY;
 
   int8_t sver = 0;
-  if (sdbGetRawSoftVer(pRaw, &sver) != 0) goto CONSUME_DECODE_OVER;
+  if (sdbGetRawSoftVer(pRaw, &sver) != 0) goto CM_DECODE_OVER;
 
   if (sver != MND_CONSUMER_VER_NUMBER) {
     terrno = TSDB_CODE_SDB_INVALID_DATA_VER;
-    goto CONSUME_DECODE_OVER;
+    goto CM_DECODE_OVER;
   }
 
   SSdbRow *pRow = sdbAllocRow(sizeof(SMqConsumerObj));
-  if (pRow == NULL) goto CONSUME_DECODE_OVER;
+  if (pRow == NULL) goto CM_DECODE_OVER;
 
   SMqConsumerObj *pConsumer = sdbGetRowObj(pRow);
-  if (pConsumer == NULL) goto CONSUME_DECODE_OVER;
+  if (pConsumer == NULL) goto CM_DECODE_OVER;
 
   int32_t dataPos = 0;
   int32_t len;
-  SDB_GET_INT32(pRaw, dataPos, &len, CONSUME_DECODE_OVER);
+  SDB_GET_INT32(pRaw, dataPos, &len, CM_DECODE_OVER);
   void* buf = malloc(len);
-  if (buf == NULL) goto CONSUME_DECODE_OVER;
-  
-  SDB_GET_BINARY(pRaw, dataPos, buf, len, CONSUME_DECODE_OVER);
+  if (buf == NULL) goto CM_DECODE_OVER;
+  SDB_GET_BINARY(pRaw, dataPos, buf, len, CM_DECODE_OVER);
+  SDB_GET_RESERVE(pRaw, dataPos, MND_CONSUMER_RESERVE_SIZE, CM_DECODE_OVER);
 
-  tDecodeSMqConsumerObj(buf, pConsumer);
-
-  SDB_GET_RESERVE(pRaw, dataPos, MND_CONSUMER_RESERVE_SIZE, CONSUME_DECODE_OVER);
+  if (tDecodeSMqConsumerObj(buf, pConsumer) == NULL) {
+    goto CM_DECODE_OVER;
+  }
 
   terrno = TSDB_CODE_SUCCESS;
 
-#if 0
-  SDB_GET_INT32(pRaw, dataPos, &topicNum, CONSUME_DECODE_OVER);
-  for (int i = 0; i < topicNum; i++) {
-    int32_t           topicLen;
-    SMqConsumerTopic *pConsumerTopic = malloc(sizeof(SMqConsumerTopic));
-    if (pConsumerTopic == NULL) {
-      terrno = TSDB_CODE_OUT_OF_MEMORY;
-      // TODO
-      return NULL;
-    }
-    /*pConsumerTopic->vgroups = taosArrayInit(topicNum, sizeof(SMqConsumerTopic));*/
-    SDB_GET_INT32(pRaw, dataPos, &topicLen, CONSUME_DECODE_OVER);
-    SDB_GET_BINARY(pRaw, dataPos, pConsumerTopic->name, topicLen, CONSUME_DECODE_OVER);
-    int32_t vgSize;
-    SDB_GET_INT32(pRaw, dataPos, &vgSize, CONSUME_DECODE_OVER);
-  }
-#endif
-
-CONSUME_DECODE_OVER:
-  if (terrno != 0) {
+CM_DECODE_OVER:
+  if (terrno != TSDB_CODE_SUCCESS) {
     mError("consumer:%ld, failed to decode from raw:%p since %s", pConsumer->consumerId, pRaw, terrstr());
     tfree(pRow);
     return NULL;

@@ -27,6 +27,7 @@
 #include "thash.h"
 #include "ttypes.h"
 #include "query.h"
+#include "vnode.h"
 #include "tsdb.h"
 
 #define IS_MAIN_SCAN(runtime)          ((runtime)->scanFlag == MAIN_SCAN)
@@ -303,7 +304,7 @@ SSDataBlock* createOutputBuf(SExprInfo* pExpr, int32_t numOfOutput, int32_t numO
     idata.info.bytes = pExpr[i].base.resSchema.bytes;
     idata.info.colId = pExpr[i].base.resSchema.colId;
 
-    int32_t size = MAX(idata.info.bytes * numOfRows, minSize);
+    int32_t size = TMAX(idata.info.bytes * numOfRows, minSize);
     idata.pData = calloc(1, size);  // at least to hold a pointer on x64 platform
     taosArrayPush(res->pDataBlock, &idata);
   }
@@ -328,7 +329,7 @@ SSDataBlock* createOutputBuf_rv(SArray* pExprInfo, int32_t numOfRows) {
     idata.info.bytes = pExpr->base.resSchema.bytes;
     idata.info.colId = pExpr->base.resSchema.colId;
 
-    int32_t size = MAX(idata.info.bytes * numOfRows, minSize);
+    int32_t size = TMAX(idata.info.bytes * numOfRows, minSize);
     idata.pData = calloc(1, size);  // at least to hold a pointer on x64 platform
     taosArrayPush(res->pDataBlock, &idata);
   }
@@ -2678,7 +2679,7 @@ static void updateDataCheckOrder(SQInfo *pQInfo, SQueryTableReq* pQueryMsg, bool
 
     pQueryAttr->order.order = TSDB_ORDER_ASC;
     if (pQueryAttr->window.skey > pQueryAttr->window.ekey) {
-      SWAP(pQueryAttr->window.skey, pQueryAttr->window.ekey, TSKEY);
+      TSWAP(pQueryAttr->window.skey, pQueryAttr->window.ekey, TSKEY);
     }
 
     pQueryAttr->needReverseScan = false;
@@ -2688,7 +2689,7 @@ static void updateDataCheckOrder(SQInfo *pQInfo, SQueryTableReq* pQueryMsg, bool
   if (pQueryAttr->groupbyColumn && pQueryAttr->order.order == TSDB_ORDER_DESC) {
     pQueryAttr->order.order = TSDB_ORDER_ASC;
     if (pQueryAttr->window.skey > pQueryAttr->window.ekey) {
-      SWAP(pQueryAttr->window.skey, pQueryAttr->window.ekey, TSKEY);
+      TSWAP(pQueryAttr->window.skey, pQueryAttr->window.ekey, TSKEY);
     }
 
     pQueryAttr->needReverseScan = false;
@@ -2699,7 +2700,7 @@ static void updateDataCheckOrder(SQInfo *pQInfo, SQueryTableReq* pQueryMsg, bool
   if (pQueryAttr->pointInterpQuery && pQueryAttr->interval.interval == 0) {
     if (!QUERY_IS_ASC_QUERY(pQueryAttr)) {
       //qDebug(msg, pQInfo->qId, "interp", pQueryAttr->order.order, TSDB_ORDER_ASC, pQueryAttr->window.skey, pQueryAttr->window.ekey, pQueryAttr->window.ekey, pQueryAttr->window.skey);
-      SWAP(pQueryAttr->window.skey, pQueryAttr->window.ekey, TSKEY);
+      TSWAP(pQueryAttr->window.skey, pQueryAttr->window.ekey, TSKEY);
     }
 
     pQueryAttr->order.order = TSDB_ORDER_ASC;
@@ -2712,7 +2713,7 @@ static void updateDataCheckOrder(SQInfo *pQInfo, SQueryTableReq* pQueryMsg, bool
         //qDebug(msg, pQInfo->qId, "only-first", pQueryAttr->order.order, TSDB_ORDER_ASC, pQueryAttr->window.skey,
 //               pQueryAttr->window.ekey, pQueryAttr->window.ekey, pQueryAttr->window.skey);
 
-        SWAP(pQueryAttr->window.skey, pQueryAttr->window.ekey, TSKEY);
+        TSWAP(pQueryAttr->window.skey, pQueryAttr->window.ekey, TSKEY);
         doUpdateLastKey(pQueryAttr);
       }
 
@@ -2723,7 +2724,7 @@ static void updateDataCheckOrder(SQInfo *pQInfo, SQueryTableReq* pQueryMsg, bool
         //qDebug(msg, pQInfo->qId, "only-last", pQueryAttr->order.order, TSDB_ORDER_DESC, pQueryAttr->window.skey,
 //               pQueryAttr->window.ekey, pQueryAttr->window.ekey, pQueryAttr->window.skey);
 
-        SWAP(pQueryAttr->window.skey, pQueryAttr->window.ekey, TSKEY);
+        TSWAP(pQueryAttr->window.skey, pQueryAttr->window.ekey, TSKEY);
         doUpdateLastKey(pQueryAttr);
       }
 
@@ -2738,7 +2739,7 @@ static void updateDataCheckOrder(SQInfo *pQInfo, SQueryTableReq* pQueryMsg, bool
           //qDebug(msg, pQInfo->qId, "only-first stable", pQueryAttr->order.order, TSDB_ORDER_ASC,
 //                 pQueryAttr->window.skey, pQueryAttr->window.ekey, pQueryAttr->window.ekey, pQueryAttr->window.skey);
 
-          SWAP(pQueryAttr->window.skey, pQueryAttr->window.ekey, TSKEY);
+          TSWAP(pQueryAttr->window.skey, pQueryAttr->window.ekey, TSKEY);
           doUpdateLastKey(pQueryAttr);
         }
 
@@ -2749,7 +2750,7 @@ static void updateDataCheckOrder(SQInfo *pQInfo, SQueryTableReq* pQueryMsg, bool
           //qDebug(msg, pQInfo->qId, "only-last stable", pQueryAttr->order.order, TSDB_ORDER_DESC,
 //                 pQueryAttr->window.skey, pQueryAttr->window.ekey, pQueryAttr->window.ekey, pQueryAttr->window.skey);
 
-          SWAP(pQueryAttr->window.skey, pQueryAttr->window.ekey, TSKEY);
+          TSWAP(pQueryAttr->window.skey, pQueryAttr->window.ekey, TSKEY);
           doUpdateLastKey(pQueryAttr);
         }
 
@@ -2789,8 +2790,8 @@ static void getIntermediateBufInfo(STaskRuntimeEnv* pRuntimeEnv, int32_t* ps, in
 static bool overlapWithTimeWindow(STaskAttr* pQueryAttr, SDataBlockInfo* pBlockInfo) {
   STimeWindow w = {0};
 
-  TSKEY sk = MIN(pQueryAttr->window.skey, pQueryAttr->window.ekey);
-  TSKEY ek = MAX(pQueryAttr->window.skey, pQueryAttr->window.ekey);
+  TSKEY sk = TMIN(pQueryAttr->window.skey, pQueryAttr->window.ekey);
+  TSKEY ek = TMAX(pQueryAttr->window.skey, pQueryAttr->window.ekey);
 
   if (QUERY_IS_ASC_QUERY(pQueryAttr)) {
     getAlignQueryTimeWindow(pQueryAttr, pBlockInfo->window.skey, sk, ek, &w);
@@ -3473,7 +3474,7 @@ static void updateTableQueryInfoForReverseScan(STableQueryInfo *pTableQueryInfo)
     return;
   }
 
-  SWAP(pTableQueryInfo->win.skey, pTableQueryInfo->win.ekey, TSKEY);
+  TSWAP(pTableQueryInfo->win.skey, pTableQueryInfo->win.ekey, TSKEY);
   pTableQueryInfo->lastKey = pTableQueryInfo->win.skey;
 
   SWITCH_ORDER(pTableQueryInfo->cur.order);
@@ -4095,8 +4096,8 @@ void setIntervalQueryRange(STaskRuntimeEnv *pRuntimeEnv, TSKEY key) {
    */
   STimeWindow w = TSWINDOW_INITIALIZER;
 
-  TSKEY sk = MIN(win.skey, win.ekey);
-  TSKEY ek = MAX(win.skey, win.ekey);
+  TSKEY sk = TMIN(win.skey, win.ekey);
+  TSKEY ek = TMAX(win.skey, win.ekey);
   getAlignQueryTimeWindow(pQueryAttr, win.skey, sk, ek, &w);
 
 //  if (pResultRowInfo->prevSKey == TSKEY_INITIAL_VAL) {
@@ -4221,7 +4222,7 @@ static void updateNumOfRowsInResultRows(STaskRuntimeEnv* pRuntimeEnv, SQLFunctio
       }
 
 //      SResultRowEntryInfo* pCell = getResultCell(pResult, j, rowCellInfoOffset);
-//      pResult->numOfRows = (uint16_t)(MAX(pResult->numOfRows, pCell->numOfRes));
+//      pResult->numOfRows = (uint16_t)(TMAX(pResult->numOfRows, pCell->numOfRes));
     }
   }
 }
@@ -4957,6 +4958,10 @@ static SSDataBlock* doTableScan(void* param, bool *newgroup) {
   STableScanInfo *pTableScanInfo = pOperator->info;
   SExecTaskInfo  *pTaskInfo = pOperator->pTaskInfo;
 
+  if (pTableScanInfo->pTsdbReadHandle == NULL) {
+    return NULL;
+  }
+
   SResultRowInfo* pResultRowInfo = pTableScanInfo->pResultRowInfo;
   *newgroup = false;
 
@@ -5143,71 +5148,110 @@ static SSDataBlock* doLoadRemoteData(void* param, bool* newgroup) {
   SExecTaskInfo *pTaskInfo = pOperator->pTaskInfo;
 
   *newgroup = false;
-  if (pExchangeInfo->pRsp != NULL && pExchangeInfo->pRsp->completed == 1) {
+
+  size_t totalSources = taosArrayGetSize(pExchangeInfo->pSources);
+  if (pExchangeInfo->current >= totalSources) {
     return NULL;
   }
 
-  SResFetchReq *pMsg = calloc(1, sizeof(SResFetchReq));
-  if (NULL == pMsg) {  // todo handle malloc error
-    pTaskInfo->code = TSDB_CODE_QRY_OUT_OF_MEMORY;
-    goto _error;
-  }
+  SResFetchReq* pMsg = NULL;
+  SMsgSendInfo* pMsgSendInfo = NULL;
 
-  SDownstreamSource* pSource = taosArrayGet(pExchangeInfo->pSources, 0);
-  SEpSet epSet = {0};
-
-  epSet.numOfEps = pSource->addr.numOfEps;
-  epSet.port[0] = pSource->addr.epAddr[0].port;
-  tstrncpy(epSet.fqdn[0], pSource->addr.epAddr[0].fqdn, tListLen(epSet.fqdn[0]));
-
-  pMsg->header.vgId = htonl(pSource->addr.nodeId);
-  pMsg->sId         = htobe64(pSource->schedId);
-  pMsg->taskId      = htobe64(pSource->taskId);
-  pMsg->queryId     = htobe64(pTaskInfo->id.queryId);
-
-  // send the fetch remote task result reques
-  SMsgSendInfo* pMsgSendInfo = calloc(1, sizeof(SMsgSendInfo));
-  if (NULL == pMsgSendInfo) {
-    qError("QID:%"PRIx64" calloc %d failed", GET_TASKID(pTaskInfo), (int32_t)sizeof(SMsgSendInfo));
-    pTaskInfo->code = TSDB_CODE_QRY_OUT_OF_MEMORY;
-    goto _error;
-  }
-
-  pMsgSendInfo->param = pExchangeInfo;
-  pMsgSendInfo->msgInfo.pData = pMsg;
-  pMsgSendInfo->msgInfo.len = sizeof(SResFetchReq);
-  pMsgSendInfo->msgType = TDMT_VND_FETCH;
-  pMsgSendInfo->fp = loadRemoteDataCallback;
-
-  int64_t  transporterId = 0;
-  int32_t code = asyncSendMsgToServer(pExchangeInfo->pTransporter, &epSet, &transporterId, pMsgSendInfo);
-  tsem_wait(&pExchangeInfo->ready);
-
-  if (pExchangeInfo->pRsp->numOfRows == 0) {
-    return NULL;
-  }
-
-  SSDataBlock* pRes = pExchangeInfo->pResult;
-  char* pData = pExchangeInfo->pRsp->data;
-
-  for(int32_t i = 0; i < pOperator->numOfOutput; ++i) {
-    SColumnInfoData* pColInfoData = taosArrayGet(pRes->pDataBlock, i);
-    char* tmp = realloc(pColInfoData->pData, pColInfoData->info.bytes * pExchangeInfo->pRsp->numOfRows);
-    if (tmp == NULL) {
+  while(1) {
+    pMsg = calloc(1, sizeof(SResFetchReq));
+    if (NULL == pMsg) {  // todo handle malloc error
+      pTaskInfo->code = TSDB_CODE_QRY_OUT_OF_MEMORY;
       goto _error;
     }
 
-    size_t len = pExchangeInfo->pRsp->numOfRows * pColInfoData->info.bytes;
-    memcpy(tmp, pData, len);
+    SDownstreamSource* pSource = taosArrayGet(pExchangeInfo->pSources, pExchangeInfo->current);
 
-    pColInfoData->pData = tmp;
-    pData += len;
+    SEpSet epSet = {0};
+    epSet.numOfEps = pSource->addr.numOfEps;
+    epSet.port[0] = pSource->addr.epAddr[0].port;
+    tstrncpy(epSet.fqdn[0], pSource->addr.epAddr[0].fqdn, tListLen(epSet.fqdn[0]));
+
+    qDebug("QID:0x%" PRIx64 " build fetch msg and send to vgId:%d, ep:%s, taskId:0x%" PRIx64 ", %d/%" PRIzu,
+           GET_TASKID(pTaskInfo), pSource->addr.nodeId, epSet.fqdn[0], pSource->taskId, pExchangeInfo->current, totalSources);
+
+    pMsg->header.vgId = htonl(pSource->addr.nodeId);
+    pMsg->sId = htobe64(pSource->schedId);
+    pMsg->taskId = htobe64(pSource->taskId);
+    pMsg->queryId = htobe64(pTaskInfo->id.queryId);
+
+    // send the fetch remote task result reques
+    pMsgSendInfo = calloc(1, sizeof(SMsgSendInfo));
+    if (NULL == pMsgSendInfo) {
+      qError("QID:0x%" PRIx64 " prepare message %d failed", GET_TASKID(pTaskInfo), (int32_t)sizeof(SMsgSendInfo));
+      pTaskInfo->code = TSDB_CODE_QRY_OUT_OF_MEMORY;
+      goto _error;
+    }
+
+    pMsgSendInfo->param = pExchangeInfo;
+    pMsgSendInfo->msgInfo.pData = pMsg;
+    pMsgSendInfo->msgInfo.len = sizeof(SResFetchReq);
+    pMsgSendInfo->msgType = TDMT_VND_FETCH;
+    pMsgSendInfo->fp = loadRemoteDataCallback;
+
+    int64_t transporterId = 0;
+    int32_t code = asyncSendMsgToServer(pExchangeInfo->pTransporter, &epSet, &transporterId, pMsgSendInfo);
+    tsem_wait(&pExchangeInfo->ready);
+
+    SRetrieveTableRsp* pRsp = pExchangeInfo->pRsp;
+    if (pRsp->numOfRows == 0) {
+      qDebug("QID:0x%"PRIx64" vgId:%d, taskID:0x%"PRIx64" %d of total completed, rowsOfSource:%"PRIu64", totalRows:%"PRIu64" try next",
+          GET_TASKID(pTaskInfo), pSource->addr.nodeId, pSource->taskId, pExchangeInfo->current + 1,
+             pExchangeInfo->rowsOfCurrentSource, pExchangeInfo->totalRows);
+
+      pExchangeInfo->rowsOfCurrentSource = 0;
+      pExchangeInfo->current += 1;
+
+      if (pExchangeInfo->current >= totalSources) {
+        return NULL;
+      } else {
+        continue;
+      }
+    }
+
+    SSDataBlock* pRes = pExchangeInfo->pResult;
+    char*        pData = pRsp->data;
+
+    for (int32_t i = 0; i < pOperator->numOfOutput; ++i) {
+      SColumnInfoData* pColInfoData = taosArrayGet(pRes->pDataBlock, i);
+      char*            tmp = realloc(pColInfoData->pData, pColInfoData->info.bytes * pRsp->numOfRows);
+      if (tmp == NULL) {
+        goto _error;
+      }
+
+      size_t len = pRsp->numOfRows * pColInfoData->info.bytes;
+      memcpy(tmp, pData, len);
+
+      pColInfoData->pData = tmp;
+      pData += len;
+    }
+
+    pRes->info.numOfCols = pOperator->numOfOutput;
+    pRes->info.rows = pRsp->numOfRows;
+
+    pExchangeInfo->totalRows += pRsp->numOfRows;
+    pExchangeInfo->bytes += pRsp->compLen;
+    pExchangeInfo->rowsOfCurrentSource += pRsp->numOfRows;
+
+    if (pRsp->completed == 1) {
+      qDebug("QID:0x%" PRIx64 " fetch msg rsp from vgId:%d, taskId:0x%" PRIx64 " numOfRows:%d, rowsOfSource:%" PRIu64
+             ", totalRows:%" PRIu64 ", totalBytes:%" PRIu64 " try next %d/%" PRIzu,
+             GET_TASKID(pTaskInfo), pSource->addr.nodeId, pSource->taskId, pRes->info.rows, pExchangeInfo->rowsOfCurrentSource, pExchangeInfo->totalRows, pExchangeInfo->bytes,
+             pExchangeInfo->current + 1, totalSources);
+
+      pExchangeInfo->rowsOfCurrentSource = 0;
+      pExchangeInfo->current += 1;
+    } else {
+      qDebug("QID:0x%" PRIx64 " fetch msg rsp from vgId:%d, taskId:0x%" PRIx64 " numOfRows:%d, totalRows:%" PRIu64 ", totalBytes:%" PRIu64,
+             GET_TASKID(pTaskInfo), pSource->addr.nodeId, pSource->taskId, pRes->info.rows, pExchangeInfo->totalRows, pExchangeInfo->bytes);
+    }
+
+    return pExchangeInfo->pResult;
   }
-
-  pRes->info.numOfCols = pOperator->numOfOutput;
-  pRes->info.rows = pExchangeInfo->pRsp->numOfRows;
-
-  return pExchangeInfo->pResult;
 
   _error:
   tfree(pMsg);
@@ -5258,7 +5302,7 @@ SOperatorInfo* createExchangeOperatorInfo(const SArray* pSources, const SArray* 
     rpcInit.user = (char *)"root";
     rpcInit.idleTime = tsShellActivityTimer * 1000;
     rpcInit.ckey = "key";
-//  rpcInit.spi = 1;
+    rpcInit.spi = 1;
     rpcInit.secret = (char *)"dcc5bed04851fec854c035b2e40263b6";
 
     pInfo->pTransporter = rpcOpen(&rpcInit);
@@ -5407,7 +5451,7 @@ SOperatorInfo* createTableBlockInfoScanOperator(void* pTsdbReadHandle, STaskRunt
   return pOperator;
 }
 
-SOperatorInfo* createStreamBlockScanOperatorInfo(void *pStreamBlockHandle, int32_t numOfOutput, SExecTaskInfo* pTaskInfo) {
+SOperatorInfo* createStreamScanOperatorInfo(void *streamReadHandle, SArray* pExprInfo, uint64_t uid, SExecTaskInfo* pTaskInfo) {
   SStreamBlockScanInfo* pInfo = calloc(1, sizeof(SStreamBlockScanInfo));
   SOperatorInfo* pOperator = calloc(1, sizeof(SOperatorInfo));
   if (pInfo == NULL || pOperator == NULL) {
@@ -5417,16 +5461,29 @@ SOperatorInfo* createStreamBlockScanOperatorInfo(void *pStreamBlockHandle, int32
     return NULL;
   }
 
-  pInfo->readerHandle = pStreamBlockHandle;
+  int32_t numOfOutput = (int32_t) taosArrayGetSize(pExprInfo);
+  SArray* pColList = taosArrayInit(numOfOutput, sizeof(int32_t));
+  for(int32_t i = 0; i < numOfOutput; ++i) {
+    SExprInfo* pExpr = taosArrayGetP(pExprInfo, i);
+
+    taosArrayPush(pColList, &pExpr->pExpr->pSchema[0].colId);
+  }
+  
+  // set the extract column id to streamHandle
+  tqReadHandleSetColIdList((STqReadHandle* )streamReadHandle, pColList);
+  tqReadHandleSetTbUid(streamReadHandle, uid);
+
+  pInfo->readerHandle = streamReadHandle;
 
   pOperator->name          = "StreamBlockScanOperator";
-  pOperator->operatorType  = OP_StreamBlockScan;
+  pOperator->operatorType  = OP_StreamScan;
   pOperator->blockingOptr  = false;
   pOperator->status        = OP_IN_EXECUTING;
   pOperator->info          = pInfo;
   pOperator->numOfOutput   = numOfOutput;
   pOperator->exec          = doStreamBlockScan;
   pOperator->pTaskInfo     = pTaskInfo;
+  return pOperator;
 }
 
 
@@ -7147,8 +7204,8 @@ SOperatorInfo* createFillOperatorInfo(STaskRuntimeEnv* pRuntimeEnv, SOperatorInf
     struct SFillColInfo* pColInfo = createFillColInfo(pExpr, numOfOutput, pQueryAttr->fillVal);
     STimeWindow w = TSWINDOW_INITIALIZER;
 
-    TSKEY sk = MIN(pQueryAttr->window.skey, pQueryAttr->window.ekey);
-    TSKEY ek = MAX(pQueryAttr->window.skey, pQueryAttr->window.ekey);
+    TSKEY sk = TMIN(pQueryAttr->window.skey, pQueryAttr->window.ekey);
+    TSKEY ek = TMAX(pQueryAttr->window.skey, pQueryAttr->window.ekey);
     getAlignQueryTimeWindow(pQueryAttr, pQueryAttr->window.skey, sk, ek, &w);
 
     pInfo->pFillInfo =
@@ -7704,6 +7761,9 @@ SOperatorInfo* doCreateOperatorTreeNode(SPhyNode* pPhyNode, SExecTaskInfo* pTask
     } else if (pPhyNode->info.type == OP_Exchange) {
       SExchangePhyNode* pEx = (SExchangePhyNode*) pPhyNode;
       return createExchangeOperatorInfo(pEx->pSrcEndPoints, pEx->node.pTargets, pTaskInfo);
+    } else if (pPhyNode->info.type == OP_StreamScan) {
+      SScanPhyNode*  pScanPhyNode = (SScanPhyNode*)pPhyNode;   // simple child table.
+      return createStreamScanOperatorInfo(readerHandle, pPhyNode->pTargets, pScanPhyNode->uid, pTaskInfo);
     }
   }
 
@@ -7768,11 +7828,12 @@ static tsdbReadHandleT doCreateDataReadHandle(STableScanPhyNode* pTableScanNode,
 
   if (groupInfo.numOfTables == 0) {
     code = 0;
-    //    qDebug("no table qualified for query, reqId:0x%"PRIx64, (*pTask)->id.queryId);
+    qDebug("no table qualified for query, reqId:0x%"PRIx64, queryId);
     goto _error;
   }
 
   return createDataReadHandle(pTableScanNode, &groupInfo, readerHandle, queryId);
+
   _error:
   terrno = code;
   return NULL;

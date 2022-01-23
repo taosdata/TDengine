@@ -98,7 +98,7 @@ void taosRemoveOldFiles(char *dirname, int32_t keepDays) {
       }
 
       if (fileSec <= 100) continue;
-      int32_t days = (int32_t)(ABS(sec - fileSec) / 86400 + 1);
+      int32_t days = (int32_t)(TABS(sec - fileSec) / 86400 + 1);
       if (days > keepDays) {
         (void)remove(filename);
         //printf("file:%s is removed, days:%d keepDays:%d", filename, days, keepDays);

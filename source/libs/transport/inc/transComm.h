@@ -123,9 +123,9 @@ typedef struct {
 } SRpcReqContext;
 
 typedef struct {
-  SRpcInfo* pRpc;     // associated SRpcInfo
-  SEpSet    epSet;    // ip list provided by app
-  void*     ahandle;  // handle provided by app
+  SRpcInfo* pTransInst;  // associated SRpcInfo
+  SEpSet    epSet;       // ip list provided by app
+  void*     ahandle;     // handle provided by app
   // struct SRpcConn* pConn;     // pConn allocated
   tmsg_t   msgType;  // message type
   uint8_t* pCont;    // content provided by app
@@ -182,7 +182,7 @@ typedef struct {
 
 #define TRANS_RESERVE_SIZE (sizeof(STranConnCtx))
 
-#define TRANS_MSG_OVERHEAD (sizeof(STransMsgHead) + sizeof(STransDigestMsg))
+#define TRANS_MSG_OVERHEAD (sizeof(STransMsgHead))
 #define transHeadFromCont(cont) ((STransMsgHead*)((char*)cont - sizeof(STransMsgHead)))
 #define transContFromHead(msg) (msg + sizeof(STransMsgHead))
 #define transMsgLenFromCont(contLen) (contLen + sizeof(STransMsgHead))
@@ -201,6 +201,7 @@ bool transDecompressMsg(char* msg, int32_t len, int32_t* flen);
 
 void transConnCtxDestroy(STransConnCtx* ctx);
 
+void transFreeMsg(void* msg);
 typedef struct SConnBuffer {
   char* buf;
   int   len;

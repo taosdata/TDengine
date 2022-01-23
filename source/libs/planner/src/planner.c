@@ -16,24 +16,7 @@
 #include "parser.h"
 #include "plannerInt.h"
 
-static void destroyDataSinkNode(SDataSink* pSinkNode) {
-  if (pSinkNode == NULL) {
-    return;
-  }
-  tfree(pSinkNode);
-}
-
-void qDestroySubplan(SSubplan* pSubplan) {
-  if (pSubplan == NULL) {
-    return;
-  }
-
-  taosArrayDestroy(pSubplan->pChildren);
-  taosArrayDestroy(pSubplan->pParents);
-  destroyDataSinkNode(pSubplan->pDataSink);
-  // todo destroy pNode
-  tfree(pSubplan);
-}
+static void extractResSchema(struct SQueryDag* const* pDag, SSchema** pResSchema, int32_t* numOfCols);
 
 void qDestroyQueryDag(struct SQueryDag* pDag) {
   if (pDag == NULL) {
@@ -49,6 +32,7 @@ void qDestroyQueryDag(struct SQueryDag* pDag) {
       SSubplan* pSubplan = taosArrayGetP(pa, j);
       qDestroySubplan(pSubplan);
     }
+
     taosArrayDestroy(pa);
   }
 
@@ -56,7 +40,7 @@ void qDestroyQueryDag(struct SQueryDag* pDag) {
   tfree(pDag);
 }
 
-int32_t qCreateQueryDag(const struct SQueryNode* pNode, struct SQueryDag** pDag, uint64_t requestId) {
+int32_t qCreateQueryDag(const struct SQueryNode* pNode, struct SQueryDag** pDag, SSchema** pResSchema, int32_t* numOfCols, SArray* pNodeList, uint64_t requestId) {
   SQueryPlanNode* pLogicPlan;
   int32_t code = createQueryPlan(pNode, &pLogicPlan);
   if (TSDB_CODE_SUCCESS != code) {
@@ -76,15 +60,31 @@ int32_t qCreateQueryDag(const struct SQueryNode* pNode, struct SQueryDag** pDag,
     return code;
   }
 
-  code = createDag(pLogicPlan, NULL, pDag, requestId);
+  code = createDag(pLogicPlan, NULL, pDag, pNodeList, requestId);
   if (TSDB_CODE_SUCCESS != code) {
     destroyQueryPlan(pLogicPlan);
     qDestroyQueryDag(*pDag);
     return code;
   }
 
+  extractResSchema(pDag, pResSchema, numOfCols);
+
   destroyQueryPlan(pLogicPlan);
   return TSDB_CODE_SUCCESS;
+}
+
+// extract the final result schema
+void extractResSchema(struct SQueryDag* const* pDag, SSchema** pResSchema, int32_t* numOfCols) {
+  SArray* pTopSubplan = taosArrayGetP((*pDag)->pSubplans, 0);
+
+  SSubplan*         pPlan = taosArrayGetP(pTopSubplan, 0);
+  SDataBlockSchema* pDataBlockSchema = &(pPlan->pDataSink->schema);
+
+  *numOfCols = pDataBlockSchema->numOfCols;
+  if (*numOfCols > 0) {
+    *pResSchema = calloc(pDataBlockSchema->numOfCols, sizeof(SSchema));
+    memcpy((*pResSchema), pDataBlockSchema->pSchema, pDataBlockSchema->numOfCols * sizeof(SSchema));
+  }
 }
 
 void qSetSubplanExecutionNode(SSubplan* subplan, uint64_t templateId, SDownstreamSource* pSource) {
