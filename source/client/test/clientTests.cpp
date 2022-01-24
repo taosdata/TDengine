@@ -537,7 +537,6 @@ TEST(testCase, create_topic_Test) {
   if (taos_errno(pRes) != 0) {
     printf("error in use db, reason:%s\n", taos_errstr(pRes));
   }
-  taos_free_result(pRes);
 
   TAOS_FIELD* pFields = taos_fetch_fields(pRes);
   ASSERT_TRUE(pFields == nullptr);

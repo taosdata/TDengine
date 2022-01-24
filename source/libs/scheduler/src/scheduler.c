@@ -1706,7 +1706,7 @@ void scheduleFreeJob(void *job) {
   
   tfree(pJob);
 
-  qDebug("QID:%"PRIx64" job freed", queryId);
+  qDebug("QID:0x%"PRIx64" job freed", queryId);
 }
 
 void schedulerFreeTaskList(SArray *taskList) {
