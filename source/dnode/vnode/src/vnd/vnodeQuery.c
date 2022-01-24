@@ -145,9 +145,15 @@ static int vnodeGetTableMeta(SVnode *pVnode, SRpcMsg *pMsg, SRpcMsg **pRsp) {
 
 _exit:
 
+  free(pSW->pSchema);
   free(pSW);
   free(pTbCfg->name);
   free(pTbCfg);
+  if (pTbCfg->type == META_SUPER_TABLE) {
+    free(pTbCfg->stbCfg.pTagSchema);
+  } else if (pTbCfg->type == META_SUPER_TABLE) {
+    kvRowFree(pTbCfg->ctbCfg.pTag);
+  }
   rpcMsg.handle = pMsg->handle;
   rpcMsg.ahandle = pMsg->ahandle;
   rpcMsg.pCont = pTbMetaMsg;
@@ -159,8 +165,8 @@ _exit:
   return 0;
 }
 
-static void freeItemHelper(void* pItem) {
-  char* p = *(char**)pItem;
+static void freeItemHelper(void *pItem) {
+  char *p = *(char **)pItem;
   free(p);
 }
 
@@ -190,14 +196,14 @@ static int32_t vnodeGetTableList(SVnode *pVnode, SRpcMsg *pMsg) {
   // TODO: temp debug, and should del when show tables command ok
   vInfo("====vgId:%d, numOfTables: %d", pVnode->vgId, numOfTables);
   if (numOfTables > 10000) {
-     numOfTables = 10000;
+    numOfTables = 10000;
   }
 
   metaCloseTbCursor(pCur);
 
   int32_t rowLen =
       (TSDB_TABLE_NAME_LEN + VARSTR_HEADER_SIZE) + 8 + 2 + (TSDB_TABLE_NAME_LEN + VARSTR_HEADER_SIZE) + 8 + 4;
-  //int32_t numOfTables = (int32_t)taosArrayGetSize(pArray);
+  // int32_t numOfTables = (int32_t)taosArrayGetSize(pArray);
 
   int32_t payloadLen = rowLen * numOfTables;
   //  SVShowTablesFetchReq *pFetchReq = pMsg->pCont;
@@ -225,6 +231,11 @@ static int32_t vnodeGetTableList(SVnode *pVnode, SRpcMsg *pMsg) {
   };
 
   rpcSendResponse(&rpcMsg);
+  for (int i = 0; i < taosArrayGetSize(pArray); i++) {
+    name = *(char **)taosArrayGet(pArray, i);
+    free(name);
+  }
+
   taosArrayDestroyEx(pArray, freeItemHelper);
   return 0;
 }

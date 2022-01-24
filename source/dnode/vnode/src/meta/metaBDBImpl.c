@@ -587,9 +587,10 @@ char *metaTbCursorNext(SMTbCursor *pTbCur) {
       pBuf = value.data;
       metaDecodeTbInfo(pBuf, &tbCfg);
       if (tbCfg.type == META_SUPER_TABLE) {
+        free(tbCfg.stbCfg.pTagSchema);
         continue;
       } else if (tbCfg.type == META_CHILD_TABLE) {
-        kvRowFree(tbCfg.ctbCfg.pTag)
+        kvRowFree(tbCfg.ctbCfg.pTag);
       }
       return tbCfg.name;
     } else {
