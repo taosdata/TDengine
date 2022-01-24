@@ -171,6 +171,8 @@ int32_t boundIdxCompar(const void *lhs, const void *rhs);
 void setBoundColumnInfo(SParsedDataColInfo* pColList, SSchema* pSchema, int32_t numOfCols);
 void destroyBoundColumnInfo(SParsedDataColInfo* pColList);
 void destroyBlockArrayList(SArray* pDataBlockList);
+void destroyBlockHashmap(SHashObj* pDataBlockHash);
+
 int32_t initMemRowBuilder(SMemRowBuilder *pBuilder, uint32_t nRows, uint32_t nCols, uint32_t nBoundCols, int32_t allNullLen);
 int32_t allocateMemIfNeed(STableDataBlocks *pDataBlock, int32_t rowSize, int32_t * numOfRows);
 int32_t getDataBlockFromList(SHashObj* pHashList, int64_t id, int32_t size, int32_t startOffset, int32_t rowSize,

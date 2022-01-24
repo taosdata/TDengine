@@ -213,10 +213,11 @@ SQueryStmtInfo *createQueryInfo() {
 
   pQueryInfo->slimit.limit   = -1;
   pQueryInfo->slimit.offset  = 0;
-  pQueryInfo->pDownstream = taosArrayInit(4, POINTER_BYTES);
+  pQueryInfo->pDownstream    = taosArrayInit(4, POINTER_BYTES);
   pQueryInfo->window         = TSWINDOW_INITIALIZER;
 
   pQueryInfo->exprList       = calloc(10, POINTER_BYTES);
+
   for(int32_t i = 0; i < 10; ++i) {
     pQueryInfo->exprList[i] = taosArrayInit(4, POINTER_BYTES);
   }
@@ -232,7 +233,8 @@ static void destroyQueryInfoImpl(SQueryStmtInfo* pQueryInfo) {
   cleanupFieldInfo(&pQueryInfo->fieldsInfo);
 
   dropAllExprInfo(pQueryInfo->exprList, 10);
-  pQueryInfo->exprList = NULL;
+
+  tfree(pQueryInfo->exprList);
 
   columnListDestroy(pQueryInfo->colList);
   pQueryInfo->colList = NULL;
@@ -258,10 +260,10 @@ void destroyQueryInfo(SQueryStmtInfo* pQueryInfo) {
 
     size_t numOfUpstream = taosArrayGetSize(pQueryInfo->pDownstream);
     for (int32_t i = 0; i < numOfUpstream; ++i) {
-      SQueryStmtInfo* pUpQueryInfo = taosArrayGetP(pQueryInfo->pDownstream, i);
-      destroyQueryInfoImpl(pUpQueryInfo);
-      clearAllTableMetaInfo(pUpQueryInfo, false, 0);
-      tfree(pUpQueryInfo);
+      SQueryStmtInfo* pDownstream = taosArrayGetP(pQueryInfo->pDownstream, i);
+      destroyQueryInfoImpl(pDownstream);
+      clearAllTableMetaInfo(pDownstream, false, 0);
+      tfree(pDownstream);
     }
 
     destroyQueryInfoImpl(pQueryInfo);
@@ -1395,6 +1397,13 @@ int32_t validateFillNode(SQueryStmtInfo *pQueryInfo, SSqlNode* pSqlNode, SMsgBuf
 static void pushDownAggFuncExprInfo(SQueryStmtInfo* pQueryInfo);
 static void addColumnNodeFromLowerLevel(SQueryStmtInfo* pQueryInfo);
 
+static void freeItemHelper(void* pItem) {
+  void** p = pItem;
+  if (*p != NULL) {
+    tfree(*p);
+  }
+}
+
 int32_t validateSqlNode(SSqlNode* pSqlNode, SQueryStmtInfo* pQueryInfo, SMsgBuf* pMsgBuf) {
   assert(pSqlNode != NULL && (pSqlNode->from == NULL || taosArrayGetSize(pSqlNode->from->list) > 0));
 
@@ -1590,7 +1599,10 @@ int32_t validateSqlNode(SSqlNode* pSqlNode, SQueryStmtInfo* pQueryInfo, SMsgBuf*
     SArray* functionList = extractFunctionList(pQueryInfo->exprList[i]);
     extractFunctionDesc(functionList, &pQueryInfo->info);
 
-    if ((code = checkForInvalidExpr(pQueryInfo, pMsgBuf)) != TSDB_CODE_SUCCESS) {
+    code = checkForInvalidExpr(pQueryInfo, pMsgBuf);
+    taosArrayDestroyEx(functionList, freeItemHelper);
+
+    if (code != TSDB_CODE_SUCCESS) {
       return code;
     }
   }
@@ -2902,6 +2914,8 @@ int32_t doAddOneProjectCol(SQueryStmtInfo* pQueryInfo, int32_t outputColIndex, S
   }
 
   pQueryInfo->info.projectionQuery = true;
+
+  taosArrayDestroy(pColumnList);
   return TSDB_CODE_SUCCESS;
 }
 
@@ -3982,6 +3996,10 @@ int32_t qParserValidateSqlNode(SParseContext *pCtx, SSqlInfo* pInfo, SQueryStmtI
     SSqlNode* p = taosArrayGetP(pInfo->sub.node, i);
     validateSqlNode(p, pQueryInfo, &buf);
   }
+
+  taosArrayDestroy(data.pTableMeta);
+  taosArrayDestroy(req.pUdf);
+  taosArrayDestroy(req.pTableName);
 
   return code;
 }

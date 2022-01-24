@@ -525,10 +525,28 @@ static void destroyInsertParseContextForTable(SInsertParseContext* pCxt) {
   tdDestroyKVRowBuilder(&pCxt->tagsBuilder);
 }
 
+static void destroyDataBlock(STableDataBlocks* pDataBlock) {
+  if (pDataBlock == NULL) {
+    return;
+  }
+
+  tfree(pDataBlock->pData);
+  if (!pDataBlock->cloned) {
+    // free the refcount for metermeta
+    if (pDataBlock->pTableMeta != NULL) {
+      tfree(pDataBlock->pTableMeta);
+    }
+
+    destroyBoundColumnInfo(&pDataBlock->boundColumnInfo);
+  }
+  tfree(pDataBlock);
+}
+
 static void destroyInsertParseContext(SInsertParseContext* pCxt) {
   destroyInsertParseContextForTable(pCxt);
   taosHashCleanup(pCxt->pVgroupsHashObj);
-  taosHashCleanup(pCxt->pTableBlockHashObj);
+
+  destroyBlockHashmap(pCxt->pTableBlockHashObj);
   destroyBlockArrayList(pCxt->pTableDataBlocks);
   destroyBlockArrayList(pCxt->pVgDataBlocks);
 }

@@ -191,10 +191,12 @@ void destroyExprInfo(SExprInfo* pExprInfo) {
   for(int32_t i = 0; i < pExprInfo->base.numOfParams; ++i) {
     taosVariantDestroy(&pExprInfo->base.param[i]);
   }
+
+  tfree(pExprInfo->base.pColumns);
   tfree(pExprInfo);
 }
 
-static void dropOneLevelExprInfo(SArray* pExprInfo) {
+void dropOneLevelExprInfo(SArray* pExprInfo) {
   size_t size = taosArrayGetSize(pExprInfo);
 
   for (int32_t i = 0; i < size; ++i) {
@@ -239,6 +241,9 @@ void assignExprInfo(SExprInfo* dst, const SExprInfo* src) {
 #endif
 
   dst->pExpr = exprdup(src->pExpr);
+  dst->base.pColumns = calloc(src->base.numOfCols, sizeof(SColumn));
+  memcpy(dst->base.pColumns, src->base.pColumns, sizeof(SColumn) * src->base.numOfCols);
+
   memset(dst->base.param, 0, sizeof(SVariant) * tListLen(dst->base.param));
   for (int32_t j = 0; j < src->base.numOfParams; ++j) {
     taosVariantAssign(&dst->base.param[j], &src->base.param[j]);
