@@ -40,20 +40,18 @@ echo "dnodeNumber=${dnodeNumber} dataRootDir=${dataRootDir} firstEp=${firstEp}"
 
 createTaosCfg() {
     cfgFile=$1/cfg/taos.cfg
-    #dataDir=$1/data
-    #logDir=$1/log
     firstEp=$2    
     fqdn=$3
     
-    echo "debugFlag     131"             > ${cfgFile}
-    echo "firstEp       ${firstEp}"     >> ${cfgFile}
+    echo "debugFlag     131"              > ${cfgFile}
+    echo "firstEp       ${firstEp}"      >> ${cfgFile}
     #echo "dataDir       ${dataDir}"     >> ${cfgFile}
     #echo "logDir        ${logDir}"      >> ${cfgFile}
-    echo "fqdn          ${fqdn}"        >> ${cfgFile}     
+    echo "fqdn          ${fqdn}"         >> ${cfgFile}     
     
-    echo "supportVnodes        1024"   >> ${cfgFile} 
-    echo "asyncLog             0"     >> ${cfgFile}
-    echo "telemetryReporting   0"      >> ${cfgFile}  
+    echo "supportVnodes        1024"     >> ${cfgFile} 
+    echo "asyncLog             0"        >> ${cfgFile}
+    echo "telemetryReporting   0"        >> ${cfgFile}  
 }
 
 createDnodesDataDir() {

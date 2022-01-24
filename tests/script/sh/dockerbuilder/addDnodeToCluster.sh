@@ -6,12 +6,16 @@ set -e
 #set -x
 
 dnodeNumber=1
+serverPort=6030
 
-while getopts "hn:" arg
+while getopts "hn:p:" arg
 do
   case $arg in
     n)
       dnodeNumber=$(echo $OPTARG)
+      ;;
+    p)
+      serverPort=$(echo $OPTARG)
       ;;
     h)
       echo "Usage: `basename $0` -n [ dnode number] "
@@ -23,8 +27,6 @@ do
       ;;
   esac
 done
-
-serverPort=6030
 
 for ((i=2; i<=${dnodeNumber}; i++)); do
     taos -s "create dnode node${i} port ${serverPort};" ||:
