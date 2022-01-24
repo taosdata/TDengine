@@ -15,7 +15,6 @@
 
 #include "tdb_mpool.h"
 
-static int         tdbGnrtFileID(const char *fname, uint8_t *fileid);
 static void        tdbMPoolRegFile(TDB_MPOOL *mp, TDB_MPFILE *mpf);
 static void        tdbMPoolUnregFile(TDB_MPOOL *mp, TDB_MPFILE *mpf);
 static TDB_MPFILE *tdbMPoolGetFile(TDB_MPOOL *mp, uint8_t *fileid);
@@ -227,22 +226,6 @@ int tdbMPoolFileGetPage(TDB_MPFILE *mpf, pgno_t pgno, void *addr) {
 
 int tdbMPoolFilePutPage(TDB_MPFILE *mpf, pgno_t pgno, void *addr) {
   // TODO
-  return 0;
-}
-
-static int tdbGnrtFileID(const char *fname, uint8_t *fileid) {
-  struct stat statbuf;
-
-  if (stat(fname, &statbuf) < 0) {
-    return -1;
-  }
-
-  memset(fileid, 0, TDB_FILE_ID_LEN);
-
-  ((uint64_t *)fileid)[0] = (uint64_t)statbuf.st_ino;
-  ((uint64_t *)fileid)[1] = (uint64_t)statbuf.st_dev;
-  ((uint64_t *)fileid)[2] = rand();
-
   return 0;
 }
 
