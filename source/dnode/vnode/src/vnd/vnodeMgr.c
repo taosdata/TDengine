@@ -98,6 +98,8 @@ int32_t vnodePutReqToVQueryQ(SVnode* pVnode, struct SRpcMsg* pReq) {
 
 /* ------------------------ STATIC METHODS ------------------------ */
 static void* loop(void* arg) {
+  setThreadName("vnode-commit");
+
   SVnodeTask* pTask;
   for (;;) {
     pthread_mutex_lock(&(vnodeMgr.mutex));
