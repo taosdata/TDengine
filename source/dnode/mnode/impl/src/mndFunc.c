@@ -267,9 +267,9 @@ static int32_t mndProcessCreateFuncReq(SMnodeMsg *pReq) {
 
   mDebug("func:%s, start to create", pCreate->name);
 
-  SFuncObj *pFunc = mndAcquireFunc(pMnode->pSdb, pCreate->name);
+  SFuncObj *pFunc = mndAcquireFunc(pMnode, pCreate->name);
   if (pFunc != NULL) {
-    mndReleaseFunc(pMnode->pSdb, pFunc);
+    mndReleaseFunc(pMnode, pFunc);
     if (pCreate->igExists) {
       mDebug("stb:%s, already exist, ignore exist is set", pCreate->name);
       return 0;
@@ -334,7 +334,7 @@ static int32_t mndProcessDropFuncReq(SMnodeMsg *pReq) {
     return -1;
   }
 
-  SFuncObj *pFunc = mndAcquireFunc(pMnode->pSdb, pDrop->name);
+  SFuncObj *pFunc = mndAcquireFunc(pMnode, pDrop->name);
   if (pFunc == NULL) {
     if (pDrop->igNotExists) {
       mDebug("func:%s, not exist, ignore not exist is set", pDrop->name);
@@ -347,6 +347,8 @@ static int32_t mndProcessDropFuncReq(SMnodeMsg *pReq) {
   }
 
   int32_t code = mndDropFunc(pMnode, pReq, pFunc);
+  mndReleaseFunc(pMnode, pFunc);
+
   if (code != 0) {
     mError("func:%s, failed to drop since %s", pDrop->name, terrstr());
     return -1;

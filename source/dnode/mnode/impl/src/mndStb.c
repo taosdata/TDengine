@@ -483,7 +483,7 @@ static int32_t mndProcessMCreateStbReq(SMnodeMsg *pReq) {
 
   SStbObj *pStb = mndAcquireStb(pMnode, pCreate->name);
   if (pStb != NULL) {
-    mndReleaseStb(pMnode->pSdb, pStb);
+    mndReleaseStb(pMnode, pStb);
     if (pCreate->igExists) {
       mDebug("stb:%s, already exist, ignore exist is set", pCreate->name);
       return 0;
@@ -643,7 +643,7 @@ static int32_t mndDropStb(SMnode *pMnode, SMnodeMsg *pReq, SStbObj *pStb) {
 
 DROP_STB_OVER:
   mndTransDrop(pTrans);
-  return 0;
+  return code;
 }
 
 static int32_t mndProcessMDropStbReq(SMnodeMsg *pReq) {
@@ -668,7 +668,6 @@ static int32_t mndProcessMDropStbReq(SMnodeMsg *pReq) {
   mndReleaseStb(pMnode, pStb);
 
   if (code != 0) {
-    terrno = code;
     mError("stb:%s, failed to drop since %s", pDrop->name, terrstr());
     return -1;
   }
