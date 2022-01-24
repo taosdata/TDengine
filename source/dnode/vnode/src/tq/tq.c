@@ -82,6 +82,7 @@ STQ* tqOpen(const char* path, SWal* pWal, SMeta* pMeta, STqCfg* tqConfig, SMemAl
 
 void tqClose(STQ* pTq) {
   if (pTq) {
+    tfree(pTq->path);
     free(pTq);
   }
   // TODO

@@ -114,3 +114,4 @@ static void vArenaNodeFree(SVArenaNode *pNode) {
   if (pNode) {
     free(pNode);
   }
+}

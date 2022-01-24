@@ -217,6 +217,7 @@ static int32_t vnodeGetTableList(SVnode *pVnode, SRpcMsg *pMsg) {
     STR_TO_VARSTR(p, n);
 
     p += (TSDB_TABLE_NAME_LEN + VARSTR_HEADER_SIZE);
+    free(n);
   }
 
   pFetchRsp->numOfRows = htonl(numOfTables);
@@ -231,10 +232,6 @@ static int32_t vnodeGetTableList(SVnode *pVnode, SRpcMsg *pMsg) {
   };
 
   rpcSendResponse(&rpcMsg);
-  for (int i = 0; i < taosArrayGetSize(pArray); i++) {
-    name = *(char **)taosArrayGet(pArray, i);
-    free(name);
-  }
 
   taosArrayDestroyEx(pArray, freeItemHelper);
   return 0;
