@@ -73,7 +73,7 @@ static SSdbRaw *mndFuncActionEncode(SFuncObj *pFunc) {
   SDB_SET_INT8(pRaw, dataPos, pFunc->outputType, FUNC_ENCODE_OVER)
   SDB_SET_INT32(pRaw, dataPos, pFunc->outputLen, FUNC_ENCODE_OVER)
   SDB_SET_INT32(pRaw, dataPos, pFunc->bufSize, FUNC_ENCODE_OVER)
-  SDB_SET_INT64(pRaw, dataPos, pFunc->sigature, FUNC_ENCODE_OVER)
+  SDB_SET_INT64(pRaw, dataPos, pFunc->signature, FUNC_ENCODE_OVER)
   SDB_SET_INT32(pRaw, dataPos, pFunc->commentSize, FUNC_ENCODE_OVER)
   SDB_SET_INT32(pRaw, dataPos, pFunc->codeSize, FUNC_ENCODE_OVER)
   SDB_SET_BINARY(pRaw, dataPos, pFunc->pComment, pFunc->commentSize, FUNC_ENCODE_OVER)
@@ -121,7 +121,7 @@ static SSdbRow *mndFuncActionDecode(SSdbRaw *pRaw) {
   SDB_GET_INT8(pRaw, dataPos, &pFunc->outputType, FUNC_DECODE_OVER)
   SDB_GET_INT32(pRaw, dataPos, &pFunc->outputLen, FUNC_DECODE_OVER)
   SDB_GET_INT32(pRaw, dataPos, &pFunc->bufSize, FUNC_DECODE_OVER)
-  SDB_GET_INT64(pRaw, dataPos, &pFunc->sigature, FUNC_DECODE_OVER)
+  SDB_GET_INT64(pRaw, dataPos, &pFunc->signature, FUNC_DECODE_OVER)
   SDB_GET_INT32(pRaw, dataPos, &pFunc->commentSize, FUNC_DECODE_OVER)
   SDB_GET_INT32(pRaw, dataPos, &pFunc->codeSize, FUNC_DECODE_OVER)
   SDB_GET_BINARY(pRaw, dataPos, pFunc->pData, pFunc->commentSize + pFunc->codeSize, FUNC_DECODE_OVER)
@@ -164,7 +164,7 @@ static int32_t mndCreateFunc(SMnode *pMnode, SMnodeMsg *pReq, SCreateFuncReq *pC
   pFunc->outputType = pCreate->outputType;
   pFunc->outputLen = pCreate->outputLen;
   pFunc->bufSize = pCreate->bufSize;
-  pFunc->sigature = pCreate->sigature;
+  pFunc->signature = pCreate->signature;
   pFunc->commentSize = pCreate->commentSize;
   pFunc->codeSize = pCreate->codeSize;
   pFunc->pComment = pFunc->pData;
@@ -267,7 +267,7 @@ static int32_t mndProcessCreateFuncReq(SMnodeMsg *pReq) {
   SCreateFuncReq *pCreate = pReq->rpcMsg.pCont;
   pCreate->outputLen = htonl(pCreate->outputLen);
   pCreate->bufSize = htonl(pCreate->bufSize);
-  pCreate->sigature = htobe64(pCreate->sigature);
+  pCreate->signature = htobe64(pCreate->signature);
   pCreate->commentSize = htonl(pCreate->commentSize);
   pCreate->codeSize = htonl(pCreate->codeSize);
 
@@ -381,7 +381,7 @@ static int32_t mndProcessRetrieveFuncReq(SMnodeMsg *pReq) {
     pFuncInfo->outputType = pFunc->outputType;
     pFuncInfo->outputLen = htonl(pFunc->outputLen);
     pFuncInfo->bufSize = htonl(pFunc->bufSize);
-    pFuncInfo->sigature = htobe64(pFunc->sigature);
+    pFuncInfo->signature = htobe64(pFunc->signature);
     pFuncInfo->commentSize = htonl(pFunc->commentSize);
     pFuncInfo->codeSize = htonl(pFunc->codeSize);
     memcpy(pFuncInfo->pCont, pFunc->pCode, pFunc->commentSize + pFunc->codeSize);

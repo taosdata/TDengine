@@ -532,7 +532,7 @@ typedef struct {
   int8_t  outputType;
   int32_t outputLen;
   int32_t bufSize;
-  int64_t sigature;
+  int64_t signature;
   int32_t commentSize;
   int32_t codeSize;
   char    pCont[];
@@ -555,7 +555,7 @@ typedef struct {
   int8_t  outputType;
   int32_t outputLen;
   int32_t bufSize;
-  int64_t sigature;
+  int64_t signature;
   int32_t commentSize;
   int32_t codeSize;
   char    pCont[];
