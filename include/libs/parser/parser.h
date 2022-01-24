@@ -74,6 +74,7 @@ void columnListCopy(SArray* dst, const SArray* src, uint64_t uid);
 void columnListDestroy(SArray* pColumnList);
 
 void dropAllExprInfo(SArray** pExprInfo, int32_t numOfLevel);
+void dropOneLevelExprInfo(SArray* pExprInfo);
 
 typedef struct SSourceParam {
   SArray    *pExprNodeList; //Array<struct tExprNode*>

@@ -123,8 +123,7 @@ static SSdbRow *mndStbActionDecode(SSdbRaw *pRaw) {
     goto STB_DECODE_OVER;
   }
 
-  int32_t  size = sizeof(SStbObj) + TSDB_MAX_COLUMNS * sizeof(SSchema);
-  SSdbRow *pRow = sdbAllocRow(size);
+  SSdbRow *pRow = sdbAllocRow(sizeof(SStbObj));
   if (pRow == NULL) goto STB_DECODE_OVER;
 
   SStbObj *pStb = sdbGetRowObj(pRow);
@@ -143,6 +142,9 @@ static SSdbRow *mndStbActionDecode(SSdbRaw *pRaw) {
 
   int32_t totalCols = pStb->numOfColumns + pStb->numOfTags;
   pStb->pSchema = calloc(totalCols, sizeof(SSchema));
+  if (pStb->pSchema == NULL) {
+    goto STB_DECODE_OVER;
+  }
 
   for (int32_t i = 0; i < totalCols; ++i) {
     SSchema *pSchema = &pStb->pSchema[i];
@@ -448,7 +450,7 @@ static int32_t mndCreateStb(SMnode *pMnode, SMnodeMsg *pReq, SMCreateStbReq *pCr
     stbObj.pSchema[i].colId = i + 1;
   }
 
-  int32_t code = 0;
+  int32_t code = -1;
   STrans *pTrans = mndTransCreate(pMnode, TRN_POLICY_ROLLBACK, &pReq->rpcMsg);
   if (pTrans == NULL) goto CREATE_STB_OVER;
 
@@ -481,7 +483,7 @@ static int32_t mndProcessMCreateStbReq(SMnodeMsg *pReq) {
 
   SStbObj *pStb = mndAcquireStb(pMnode, pCreate->name);
   if (pStb != NULL) {
-    sdbRelease(pMnode->pSdb, pStb);
+    mndReleaseStb(pMnode, pStb);
     if (pCreate->igExists) {
       mDebug("stb:%s, already exist, ignore exist is set", pCreate->name);
       return 0;
@@ -492,6 +494,7 @@ static int32_t mndProcessMCreateStbReq(SMnodeMsg *pReq) {
     }
   } else if (terrno != TSDB_CODE_MND_STB_NOT_EXIST) {
     mError("stb:%s, failed to create since %s", pCreate->name, terrstr());
+    return -1;
   }
 
   // topic should have different name with stb
@@ -640,7 +643,7 @@ static int32_t mndDropStb(SMnode *pMnode, SMnodeMsg *pReq, SStbObj *pStb) {
 
 DROP_STB_OVER:
   mndTransDrop(pTrans);
-  return 0;
+  return code;
 }
 
 static int32_t mndProcessMDropStbReq(SMnodeMsg *pReq) {
@@ -665,7 +668,6 @@ static int32_t mndProcessMDropStbReq(SMnodeMsg *pReq) {
   mndReleaseStb(pMnode, pStb);
 
   if (code != 0) {
-    terrno = code;
     mError("stb:%s, failed to drop since %s", pDrop->name, terrstr());
     return -1;
   }

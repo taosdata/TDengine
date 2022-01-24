@@ -248,10 +248,15 @@ void qDestroyQuery(SQueryNode* pQueryNode) {
   if (NULL == pQueryNode) {
     return;
   }
-  if (nodeType(pQueryNode) == TSDB_SQL_INSERT || nodeType(pQueryNode) == TSDB_SQL_CREATE_TABLE) {
+
+  int32_t type = nodeType(pQueryNode);
+  if (type == TSDB_SQL_INSERT || type == TSDB_SQL_CREATE_TABLE) {
     SVnodeModifOpStmtInfo* pModifInfo = (SVnodeModifOpStmtInfo*)pQueryNode;
     taosArrayDestroy(pModifInfo->pDataBlocks);
-  }
 
-  tfree(pQueryNode);
+    tfree(pQueryNode);
+  } else if (type == TSDB_SQL_SELECT) {
+    SQueryStmtInfo* pQueryStmtInfo = (SQueryStmtInfo*) pQueryNode;
+    destroyQueryInfo(pQueryStmtInfo);
+  }
 }
