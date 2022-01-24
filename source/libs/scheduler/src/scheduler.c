@@ -1288,9 +1288,9 @@ void schDropJobAllTasks(SSchJob *pJob) {
   schDropTaskInHashList(pJob, pJob->failTasks);
 }
 
-int32_t schExecJobImpl(void *transport, SArray *nodeList, SQueryDag* pDag, struct SSchJob** job, bool syncSchedule) {
-  if (nodeList && taosArrayGetSize(nodeList) <= 0) {
-    qInfo("QID:%"PRIx64" input nodeList is empty", pDag->queryId);
+int32_t schExecJobImpl(void *transport, SArray *pNodeList, SQueryDag* pDag, struct SSchJob** job, bool syncSchedule) {
+  if (pNodeList && taosArrayGetSize(pNodeList) <= 0) {
+    qDebug("QID:%"PRIx64" input exec nodeList is empty", pDag->queryId);
   }
 
   int32_t code = 0;
@@ -1302,7 +1302,10 @@ int32_t schExecJobImpl(void *transport, SArray *nodeList, SQueryDag* pDag, struc
 
   pJob->attr.syncSchedule = syncSchedule;
   pJob->transport = transport;
-  pJob->nodeList = nodeList;
+
+  if (pNodeList != NULL) {
+    pJob->nodeList = taosArrayDup(pNodeList);
+  }
 
   SCH_ERR_JRET(schValidateAndBuildJob(pDag, pJob));
 
@@ -1418,12 +1421,12 @@ int32_t scheduleExecJob(void *transport, SArray *nodeList, SQueryDag* pDag, stru
   return TSDB_CODE_SUCCESS;
 }
 
-int32_t scheduleAsyncExecJob(void *transport, SArray *nodeList, SQueryDag* pDag, struct SSchJob** pJob) {
+int32_t scheduleAsyncExecJob(void *transport, SArray *pNodeList, SQueryDag* pDag, struct SSchJob** pJob) {
   if (NULL == transport || NULL == pDag || NULL == pDag->pSubplans || NULL == pJob) {
     SCH_ERR_RET(TSDB_CODE_QRY_INVALID_INPUT);
   }
 
-  SCH_ERR_RET(schExecJobImpl(transport, nodeList, pDag, pJob, false));
+  SCH_ERR_RET(schExecJobImpl(transport, pNodeList, pDag, pJob, false));
   return TSDB_CODE_SUCCESS;
 }
 
