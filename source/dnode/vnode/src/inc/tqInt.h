@@ -44,8 +44,10 @@ extern int32_t tqDebugFlag;
 // delete persistent storage for meta info
 // int tqDropTCGroup(STQ*, const char* topic, int cgId);
 
-int tqSerializeGroup(const STqGroup*, STqSerializedHead**);
-const void* tqDeserializeGroup(const STqSerializedHead* pHead, STqGroup** ppGroup);
+//int tqSerializeGroup(const STqGroup*, STqSerializedHead**);
+//const void* tqDeserializeGroup(const STqSerializedHead* pHead, STqGroup** ppGroup);
+int tqSerializeConsumer(const STqConsumerHandle*, STqSerializedHead**);
+const void* tqDeserializeConsumer(const STqSerializedHead* pHead, STqConsumerHandle**);
 static int FORCE_INLINE tqQueryExecuting(int32_t status) { return status; }
 #ifdef __cplusplus
 }

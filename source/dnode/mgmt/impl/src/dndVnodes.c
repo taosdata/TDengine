@@ -892,7 +892,7 @@ int32_t dndPutReqToVQueryQ(SDnode *pDnode, SRpcMsg *pMsg) {
   SVnodeObj *pVnode = dndAcquireVnode(pDnode, pHead->vgId);
   if (pVnode == NULL) return -1;
 
-  int32_t code = dndWriteRpcMsgToVnodeQueue(pVnode->pFetchQ, pMsg, false);
+  int32_t code = dndWriteRpcMsgToVnodeQueue(pVnode->pQueryQ, pMsg, false);
   dndReleaseVnode(pDnode, pVnode);
   return code;
 }

@@ -192,8 +192,37 @@ DLL_EXPORT void taos_close_stream(TAOS_STREAM *tstr);
 
 DLL_EXPORT int taos_load_table_info(TAOS *taos, const char* tableNameList);
 DLL_EXPORT TAOS_RES* taos_schemaless_insert(TAOS* taos, char* lines[], int numLines, int protocol, int precision);
+typedef struct tmq_t tmq_t;
+typedef struct tmq_conf_t tmq_conf_t;
+typedef struct tmq_list_t tmq_list_t;
+
+typedef struct tmq_message_t       tmq_message_t;
+typedef struct tmq_message_topic_t tmq_message_topic_t;
+typedef struct tmq_message_tb_t    tmq_message_tb_t;
+typedef struct tmq_tb_iter_t       tmq_tb_iter_t;
+typedef struct tmq_message_col_t   tmq_message_col_t;
+typedef struct tmq_col_iter_t      tmq_col_iter_t;
+
+DLL_EXPORT tmq_list_t* tmq_list_new();
+DLL_EXPORT int32_t tmq_list_append(tmq_list_t*, char*);
+
+DLL_EXPORT tmq_conf_t* tmq_conf_new();
+
+DLL_EXPORT int32_t tmq_conf_set(tmq_conf_t* conf, const char* key, const char* value);
 
 DLL_EXPORT TAOS_RES *taos_create_topic(TAOS* taos, const char* name, const char* sql, int sqlLen);
+
+DLL_EXPORT tmq_t* taos_consumer_new(void* conn, tmq_conf_t* conf, char* errstr, int32_t errstrLen);
+
+DLL_EXPORT TAOS_RES* tmq_subscribe(tmq_t* tmq, tmq_list_t* topic_list);
+
+DLL_EXPORT tmq_message_t* tmq_consume_poll(tmq_t* tmq, int64_t blocking_time);
+
+DLL_EXPORT int32_t tmq_topic_num(tmq_message_t* msg);
+DLL_EXPORT char* tmq_get_topic(tmq_message_topic_t* msg);
+DLL_EXPORT int32_t tmq_get_vgId(tmq_message_topic_t* msg);
+DLL_EXPORT tmq_message_tb_t* tmq_get_next_tb(tmq_message_topic_t* msg, tmq_tb_iter_t* iter);
+DLL_EXPORT tmq_message_col_t* tmq_get_next_col(tmq_message_tb_t* msg, tmq_col_iter_t* iter);
 
 #ifdef __cplusplus
 }
