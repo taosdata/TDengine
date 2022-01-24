@@ -3463,6 +3463,13 @@ static int16_t doGetColumnIndex(SQueryInfo* pQueryInfo, int32_t index, SStrToken
     pToken->n = stringProcess(pToken->z, pToken->n);
   }
 
+  //handle Escape character backstick
+  if (pToken->z && pToken->z[0] == TS_BACKQUOTE_CHAR && pToken->z[pToken->n - 1] == TS_BACKQUOTE_CHAR) {
+    memmove(pToken->z, pToken->z + 1, pToken->n - 1);
+    pToken->z[pToken->n - TS_BACKQUOTE_CHAR_SIZE] = '\0';
+    pToken->n -= TS_BACKQUOTE_CHAR_SIZE;
+  }
+
   for (int16_t i = 0; i < numOfCols; ++i) {
     if (pToken->n != strlen(pSchema[i].name)) {
       continue;
@@ -3554,7 +3561,10 @@ int32_t getTableIndexImpl(SStrToken* pTableToken, SQueryInfo* pQueryInfo, SColum
 
 int32_t getTableIndexByName(SStrToken* pToken, SQueryInfo* pQueryInfo, SColumnIndex* pIndex) {
   SStrToken tableToken = {0};
-  extractTableNameFromToken(pToken, &tableToken);
+
+  if (pToken->z && (pToken->z[0] != TS_BACKQUOTE_CHAR || pToken->z[pToken->n - 1] != TS_BACKQUOTE_CHAR)) {
+    extractTableNameFromToken(pToken, &tableToken);
+  }
 
   if (getTableIndexImpl(&tableToken, pQueryInfo, pIndex) != TSDB_CODE_SUCCESS) {
     return TSDB_CODE_TSC_INVALID_OPERATION;
@@ -7156,12 +7166,6 @@ int32_t setAlterTableInfo(SSqlObj* pSql, struct SSqlInfo* pInfo) {
 
     SColumnIndex columnIndex = COLUMN_INDEX_INITIALIZER;
     SStrToken    name = {.type = TK_STRING, .z = pItem->name, .n = (uint32_t)strlen(pItem->name)};
-    //handle Escape character backstick
-    if (name.z[0] == TS_BACKQUOTE_CHAR && name.z[name.n - 1] == TS_BACKQUOTE_CHAR) {
-      memmove(name.z, name.z + 1, name.n);
-      name.z[name.n - TS_BACKQUOTE_CHAR_SIZE] = '\0';
-      name.n -= TS_BACKQUOTE_CHAR_SIZE;
-    }
     if (getColumnIndexByName(&name, pQueryInfo, &columnIndex, tscGetErrorMsgPayload(pCmd)) != TSDB_CODE_SUCCESS) {
       return invalidOperationMsg(pMsg, msg17);
     }
@@ -7200,6 +7204,13 @@ int32_t setAlterTableInfo(SSqlObj* pSql, struct SSqlInfo* pInfo) {
     }
     if (nLen >= TSDB_MAX_TAGS_LEN) {
       return invalidOperationMsg(pMsg, msg24);
+    }
+
+    //handle Escape character backstick
+    if (name.z && name.z[0] == TS_BACKQUOTE_CHAR && name.z[name.n - 1] == TS_BACKQUOTE_CHAR) {
+      memmove(name.z, name.z + 1, name.n);
+      name.z[name.n - TS_BACKQUOTE_CHAR_SIZE] = '\0';
+      name.n -= TS_BACKQUOTE_CHAR_SIZE;
     }
 
     TAOS_FIELD f = tscCreateField(pColSchema->type, name.z, pItem->bytes);
