@@ -265,7 +265,6 @@ static SQueryPlanNode* doCreateQueryPlanForSingleTableImpl(const SQueryStmtInfo*
     } else {
       // here we can push down the projection to tablescan operator.
       pNode->numOfExpr = num;
-      pNode->pExpr = taosArrayInit(num, POINTER_BYTES);
       taosArrayAddAll(pNode->pExpr, p);
     }
   }
@@ -357,7 +356,6 @@ SArray* createQueryPlanImpl(const SQueryStmtInfo* pQueryInfo) {
       SArray* exprList = taosArrayInit(4, POINTER_BYTES);
       if (copyExprInfoList(exprList, pQueryInfo->exprList[0], uid, true) != 0) {
         terrno = TSDB_CODE_TSC_OUT_OF_MEMORY;
-//        dropAllExprInfo(exprList);
         exit(-1);
       }
 
@@ -373,7 +371,6 @@ SArray* createQueryPlanImpl(const SQueryStmtInfo* pQueryInfo) {
       // 4. add the projection query node
       SQueryPlanNode* pNode = doAddTableColumnNode(pQueryInfo, &info, exprList, tableColumnList);
       columnListDestroy(tableColumnList);
-//      dropAllExprInfo(exprList);
       taosArrayPush(pDownstream, &pNode);
     }
 
@@ -398,7 +395,8 @@ SArray* createQueryPlanImpl(const SQueryStmtInfo* pQueryInfo) {
 }
 
 static void doDestroyQueryNode(SQueryPlanNode* pQueryNode) {
-  if (pQueryNode->info.type == QNODE_MODIFY) {
+  int32_t type = nodeType(pQueryNode);
+  if (type == QNODE_MODIFY) {
     SDataPayloadInfo* pInfo = pQueryNode->pExtInfo;
 
     size_t size = taosArrayGetSize(pInfo->payload);
@@ -410,10 +408,17 @@ static void doDestroyQueryNode(SQueryPlanNode* pQueryNode) {
     taosArrayDestroy(pInfo->payload);
   }
 
+  if (type == QNODE_STREAMSCAN || type == QNODE_TABLESCAN) {
+    SQueryTableInfo* pQueryTableInfo = pQueryNode->pExtInfo;
+    tfree(pQueryTableInfo->tableName);
+  }
+
+  printf("----------->Free:%p\n", pQueryNode->pExpr);
+  taosArrayDestroy(pQueryNode->pExpr);
+
   tfree(pQueryNode->pExtInfo);
   tfree(pQueryNode->pSchema);
   tfree(pQueryNode->info.name);
-//  dropAllExprInfo(pQueryNode->pExpr);
 
   if (pQueryNode->pChildren != NULL) {
     int32_t size = (int32_t) taosArrayGetSize(pQueryNode->pChildren);

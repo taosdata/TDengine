@@ -135,7 +135,7 @@ static SDataSink* createDataInserter(SPlanContext* pCxt, SVgDataBlocks* pBlocks,
   SDataInserter* inserter = (SDataInserter*)initDataSink(DSINK_Insert, sizeof(SDataInserter), pRoot);
   inserter->numOfTables = pBlocks->numOfTables;
   inserter->size = pBlocks->size;
-  SWAP(inserter->pData, pBlocks->pData, char*);
+  TSWAP(inserter->pData, pBlocks->pData, char*);
   return (SDataSink*)inserter;
 }
 
@@ -153,6 +153,16 @@ static SPhyNode* initPhyNode(SQueryPlanNode* pPlanNode, int32_t type, int32_t si
     THROW(TSDB_CODE_TSC_OUT_OF_MEMORY);
   }
   return node;
+}
+
+static void cleanupPhyNode(SPhyNode* pPhyNode) {
+  if (pPhyNode == NULL) {
+    return;
+  }
+
+  dropOneLevelExprInfo(pPhyNode->pTargets);
+  tfree(pPhyNode->targetSchema.pSchema);
+  tfree(pPhyNode);
 }
 
 static SPhyNode* initScanNode(SQueryPlanNode* pPlanNode, SQueryTableInfo* pTable, int32_t type, int32_t size) {
@@ -444,4 +454,30 @@ void setExchangSourceNode(uint64_t templateId, SDownstreamSource *pSource, SPhyN
 
 void setSubplanExecutionNode(SSubplan* subplan, uint64_t templateId, SDownstreamSource* pSource) {
   setExchangSourceNode(templateId, pSource, subplan->pNode);
+}
+
+static void destroyDataSinkNode(SDataSink* pSinkNode) {
+  if (pSinkNode == NULL) {
+    return;
+  }
+
+  if (nodeType(pSinkNode) == DSINK_Dispatch) {
+    SDataDispatcher* pDdSink = (SDataDispatcher*)pSinkNode;
+    tfree(pDdSink->sink.schema.pSchema);
+  }
+
+  tfree(pSinkNode);
+}
+
+void qDestroySubplan(SSubplan* pSubplan) {
+  if (pSubplan == NULL) {
+    return;
+  }
+
+  taosArrayDestroy(pSubplan->pChildren);
+  taosArrayDestroy(pSubplan->pParents);
+  destroyDataSinkNode(pSubplan->pDataSink);
+  cleanupPhyNode(pSubplan->pNode);
+
+  tfree(pSubplan);
 }

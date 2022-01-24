@@ -100,7 +100,7 @@ typedef enum _mgmt_table {
   TSDB_MGMT_TABLE_CLUSTER,
   TSDB_MGMT_TABLE_STREAMTABLES,
   TSDB_MGMT_TABLE_TP,
-  TSDB_MGMT_TABLE_FUNCTION,
+  TSDB_MGMT_TABLE_FUNC,
   TSDB_MGMT_TABLE_MAX,
 } EShowType;
 
@@ -526,20 +526,21 @@ typedef struct {
 
 typedef struct {
   char    name[TSDB_FUNC_NAME_LEN];
+  int8_t  igExists;
   int8_t  funcType;
   int8_t  scriptType;
-  int8_t  align;
   int8_t  outputType;
   int32_t outputLen;
   int32_t bufSize;
-  int64_t sigature;
+  int64_t signature;
   int32_t commentSize;
   int32_t codeSize;
   char    pCont[];
 } SCreateFuncReq;
 
 typedef struct {
-  char name[TSDB_FUNC_NAME_LEN];
+  char   name[TSDB_FUNC_NAME_LEN];
+  int8_t igNotExists;
 } SDropFuncReq;
 
 typedef struct {
@@ -549,13 +550,13 @@ typedef struct {
 
 typedef struct {
   char    name[TSDB_FUNC_NAME_LEN];
+  int8_t  align;
   int8_t  funcType;
   int8_t  scriptType;
-  int8_t  align;
   int8_t  outputType;
   int32_t outputLen;
   int32_t bufSize;
-  int64_t sigature;
+  int64_t signature;
   int32_t commentSize;
   int32_t codeSize;
   char    pCont[];

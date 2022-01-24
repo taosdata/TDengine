@@ -123,9 +123,9 @@ typedef struct {
 } SRpcReqContext;
 
 typedef struct {
-  SRpcInfo* pRpc;     // associated SRpcInfo
-  SEpSet    epSet;    // ip list provided by app
-  void*     ahandle;  // handle provided by app
+  SRpcInfo* pTransInst;  // associated SRpcInfo
+  SEpSet    epSet;       // ip list provided by app
+  void*     ahandle;     // handle provided by app
   // struct SRpcConn* pConn;     // pConn allocated
   tmsg_t   msgType;  // message type
   uint8_t* pCont;    // content provided by app

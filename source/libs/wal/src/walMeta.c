@@ -66,7 +66,7 @@ static inline int64_t walScanLogGetLastVer(SWal* pWal) {
 
   struct stat statbuf;
   stat(fnameStr, &statbuf);
-  int readSize = MIN(WAL_MAX_SIZE + 2, statbuf.st_size);
+  int readSize = TMIN(WAL_MAX_SIZE + 2, statbuf.st_size);
   pLastFileInfo->fileSize = statbuf.st_size;
 
   FileFd fd = taosOpenFileRead(fnameStr);

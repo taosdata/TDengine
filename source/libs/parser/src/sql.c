@@ -2232,7 +2232,7 @@ static void yy_reduce(
 { setShowOptions(pInfo, TSDB_MGMT_TABLE_TP, 0, 0);}
         break;
       case 3: /* cmd ::= SHOW FUNCTIONS */
-{ setShowOptions(pInfo, TSDB_MGMT_TABLE_FUNCTION, 0, 0);}
+{ setShowOptions(pInfo, TSDB_MGMT_TABLE_FUNC, 0, 0);}
         break;
       case 4: /* cmd ::= SHOW MNODES */
 { setShowOptions(pInfo, TSDB_MGMT_TABLE_MNODE, 0, 0);}

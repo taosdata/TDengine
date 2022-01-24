@@ -25,14 +25,14 @@ static SSdbRaw *mndFuncActionEncode(SFuncObj *pFunc);
 static SSdbRow *mndFuncActionDecode(SSdbRaw *pRaw);
 static int32_t  mndFuncActionInsert(SSdb *pSdb, SFuncObj *pFunc);
 static int32_t  mndFuncActionDelete(SSdb *pSdb, SFuncObj *pFunc);
-static int32_t  mndFuncActionUpdate(SSdb *pSdb, SFuncObj *pOldFunc, SFuncObj *pNewFunc);
-static int32_t  mndCreateFunc(SMnode *pMnode, SMnodeMsg *pMsg, SCreateFuncReq *pCreate);
-static int32_t  mndDropFunc(SMnode *pMnode, SMnodeMsg *pMsg, SFuncObj *pFunc);
-static int32_t  mndProcessCreateFuncMsg(SMnodeMsg *pMsg);
-static int32_t  mndProcessDropFuncMsg(SMnodeMsg *pMsg);
-static int32_t  mndProcessRetrieveFuncMsg(SMnodeMsg *pMsg);
-static int32_t  mndGetFuncMeta(SMnodeMsg *pMsg, SShowObj *pShow, STableMetaRsp *pMeta);
-static int32_t  mndRetrieveFuncs(SMnodeMsg *pMsg, SShowObj *pShow, char *data, int32_t rows);
+static int32_t  mndFuncActionUpdate(SSdb *pSdb, SFuncObj *pOld, SFuncObj *pNew);
+static int32_t  mndCreateFunc(SMnode *pMnode, SMnodeMsg *pReq, SCreateFuncReq *pCreate);
+static int32_t  mndDropFunc(SMnode *pMnode, SMnodeMsg *pReq, SFuncObj *pFunc);
+static int32_t  mndProcessCreateFuncReq(SMnodeMsg *pReq);
+static int32_t  mndProcessDropFuncReq(SMnodeMsg *pReq);
+static int32_t  mndProcessRetrieveFuncReq(SMnodeMsg *pReq);
+static int32_t  mndGetFuncMeta(SMnodeMsg *pReq, SShowObj *pShow, STableMetaRsp *pMeta);
+static int32_t  mndRetrieveFuncs(SMnodeMsg *pReq, SShowObj *pShow, char *data, int32_t rows);
 static void     mndCancelGetNextFunc(SMnode *pMnode, void *pIter);
 
 int32_t mndInitFunc(SMnode *pMnode) {
@@ -44,13 +44,13 @@ int32_t mndInitFunc(SMnode *pMnode) {
                      .updateFp = (SdbUpdateFp)mndFuncActionUpdate,
                      .deleteFp = (SdbDeleteFp)mndFuncActionDelete};
 
-  mndSetMsgHandle(pMnode, TDMT_MND_CREATE_FUNCTION, mndProcessCreateFuncMsg);
-  mndSetMsgHandle(pMnode, TDMT_MND_DROP_FUNCTION, mndProcessDropFuncMsg);
-  mndSetMsgHandle(pMnode, TDMT_MND_RETRIEVE_FUNCTION, mndProcessRetrieveFuncMsg);
+  mndSetMsgHandle(pMnode, TDMT_MND_CREATE_FUNC, mndProcessCreateFuncReq);
+  mndSetMsgHandle(pMnode, TDMT_MND_DROP_FUNC, mndProcessDropFuncReq);
+  mndSetMsgHandle(pMnode, TDMT_MND_RETRIEVE_FUNC, mndProcessRetrieveFuncReq);
 
-  mndAddShowMetaHandle(pMnode, TSDB_MGMT_TABLE_FUNCTION, mndGetFuncMeta);
-  mndAddShowRetrieveHandle(pMnode, TSDB_MGMT_TABLE_FUNCTION, mndRetrieveFuncs);
-  mndAddShowFreeIterHandle(pMnode, TSDB_MGMT_TABLE_FUNCTION, mndCancelGetNextFunc);
+  mndAddShowMetaHandle(pMnode, TSDB_MGMT_TABLE_FUNC, mndGetFuncMeta);
+  mndAddShowRetrieveHandle(pMnode, TSDB_MGMT_TABLE_FUNC, mndRetrieveFuncs);
+  mndAddShowFreeIterHandle(pMnode, TSDB_MGMT_TABLE_FUNC, mndCancelGetNextFunc);
 
   return sdbSetTable(pMnode->pSdb, table);
 }
@@ -73,7 +73,7 @@ static SSdbRaw *mndFuncActionEncode(SFuncObj *pFunc) {
   SDB_SET_INT8(pRaw, dataPos, pFunc->outputType, FUNC_ENCODE_OVER)
   SDB_SET_INT32(pRaw, dataPos, pFunc->outputLen, FUNC_ENCODE_OVER)
   SDB_SET_INT32(pRaw, dataPos, pFunc->bufSize, FUNC_ENCODE_OVER)
-  SDB_SET_INT64(pRaw, dataPos, pFunc->sigature, FUNC_ENCODE_OVER)
+  SDB_SET_INT64(pRaw, dataPos, pFunc->signature, FUNC_ENCODE_OVER)
   SDB_SET_INT32(pRaw, dataPos, pFunc->commentSize, FUNC_ENCODE_OVER)
   SDB_SET_INT32(pRaw, dataPos, pFunc->codeSize, FUNC_ENCODE_OVER)
   SDB_SET_BINARY(pRaw, dataPos, pFunc->pComment, pFunc->commentSize, FUNC_ENCODE_OVER)
@@ -104,13 +104,11 @@ static SSdbRow *mndFuncActionDecode(SSdbRaw *pRaw) {
     goto FUNC_DECODE_OVER;
   }
 
-  int32_t  size = sizeof(SFuncObj) + TSDB_FUNC_COMMENT_LEN + TSDB_FUNC_CODE_LEN;
-  SSdbRow *pRow = sdbAllocRow(size);
+  SSdbRow *pRow = sdbAllocRow(sizeof(SFuncObj));
   if (pRow == NULL) goto FUNC_DECODE_OVER;
 
   SFuncObj *pFunc = sdbGetRowObj(pRow);
   if (pFunc == NULL) goto FUNC_DECODE_OVER;
-  char *tmp = (char *)pFunc + sizeof(SFuncObj);
 
   int32_t dataPos = 0;
   SDB_GET_BINARY(pRaw, dataPos, pFunc->name, TSDB_FUNC_NAME_LEN, FUNC_DECODE_OVER)
@@ -121,12 +119,18 @@ static SSdbRow *mndFuncActionDecode(SSdbRaw *pRaw) {
   SDB_GET_INT8(pRaw, dataPos, &pFunc->outputType, FUNC_DECODE_OVER)
   SDB_GET_INT32(pRaw, dataPos, &pFunc->outputLen, FUNC_DECODE_OVER)
   SDB_GET_INT32(pRaw, dataPos, &pFunc->bufSize, FUNC_DECODE_OVER)
-  SDB_GET_INT64(pRaw, dataPos, &pFunc->sigature, FUNC_DECODE_OVER)
+  SDB_GET_INT64(pRaw, dataPos, &pFunc->signature, FUNC_DECODE_OVER)
   SDB_GET_INT32(pRaw, dataPos, &pFunc->commentSize, FUNC_DECODE_OVER)
   SDB_GET_INT32(pRaw, dataPos, &pFunc->codeSize, FUNC_DECODE_OVER)
-  SDB_GET_BINARY(pRaw, dataPos, pFunc->pData, pFunc->commentSize + pFunc->codeSize, FUNC_DECODE_OVER)
-  pFunc->pComment = pFunc->pData;
-  pFunc->pCode = (pFunc->pData + pFunc->commentSize);
+
+  pFunc->pComment = calloc(1, pFunc->commentSize);
+  pFunc->pCode = calloc(1, pFunc->codeSize);
+  if (pFunc->pComment == NULL || pFunc->pCode == NULL) {
+    goto FUNC_DECODE_OVER;
+  }
+
+  SDB_GET_BINARY(pRaw, dataPos, pFunc->pComment, pFunc->commentSize, FUNC_DECODE_OVER)
+  SDB_GET_BINARY(pRaw, dataPos, pFunc->pCode, pFunc->codeSize, FUNC_DECODE_OVER)
 
   terrno = 0;
 
@@ -148,136 +152,136 @@ static int32_t mndFuncActionInsert(SSdb *pSdb, SFuncObj *pFunc) {
 
 static int32_t mndFuncActionDelete(SSdb *pSdb, SFuncObj *pFunc) {
   mTrace("func:%s, perform delete action, row:%p", pFunc->name, pFunc);
+  tfree(pFunc->pCode);
+  tfree(pFunc->pComment);
   return 0;
 }
 
-static int32_t mndFuncActionUpdate(SSdb *pSdb, SFuncObj *pOldFunc, SFuncObj *pNewFunc) {
-  mTrace("func:%s, perform update action, old row:%p new row:%p", pOldFunc->name, pOldFunc, pNewFunc);
+static int32_t mndFuncActionUpdate(SSdb *pSdb, SFuncObj *pOld, SFuncObj *pNew) {
+  mTrace("func:%s, perform update action, old row:%p new row:%p", pOld->name, pOld, pNew);
   return 0;
 }
 
-static int32_t mndCreateFunc(SMnode *pMnode, SMnodeMsg *pMsg, SCreateFuncReq *pCreate) {
-  SFuncObj *pFunc = calloc(1, sizeof(SFuncObj) + pCreate->commentSize + pCreate->codeSize);
-  pFunc->createdTime = taosGetTimestampMs();
-  pFunc->funcType = pCreate->funcType;
-  pFunc->scriptType = pCreate->scriptType;
-  pFunc->outputType = pCreate->outputType;
-  pFunc->outputLen = pCreate->outputLen;
-  pFunc->bufSize = pCreate->bufSize;
-  pFunc->sigature = pCreate->sigature;
-  pFunc->commentSize = pCreate->commentSize;
-  pFunc->codeSize = pCreate->codeSize;
-  pFunc->pComment = pFunc->pData;
-  memcpy(pFunc->pComment, pCreate->pCont, pCreate->commentSize);
-  pFunc->pCode = pFunc->pData + pCreate->commentSize;
-  memcpy(pFunc->pCode, pCreate->pCont + pCreate->commentSize, pFunc->codeSize);
-
-  STrans *pTrans = mndTransCreate(pMnode, TRN_POLICY_ROLLBACK, &pMsg->rpcMsg);
-  if (pTrans == NULL) {
-    free(pFunc);
-    mError("func:%s, failed to create since %s", pCreate->name, terrstr());
-    return -1;
+static SFuncObj *mndAcquireFunc(SMnode *pMnode, char *funcName) {
+  SSdb     *pSdb = pMnode->pSdb;
+  SFuncObj *pFunc = sdbAcquire(pSdb, SDB_FUNC, funcName);
+  if (pFunc == NULL && terrno == TSDB_CODE_SDB_OBJ_NOT_THERE) {
+    terrno = TSDB_CODE_MND_FUNC_NOT_EXIST;
   }
+  return pFunc;
+}
+
+static void mndReleaseFunc(SMnode *pMnode, SFuncObj *pFunc) {
+  SSdb *pSdb = pMnode->pSdb;
+  sdbRelease(pSdb, pFunc);
+}
+
+static int32_t mndCreateFunc(SMnode *pMnode, SMnodeMsg *pReq, SCreateFuncReq *pCreate) {
+  int32_t code = -1;
+  STrans *pTrans = NULL;
+
+  SFuncObj func = {0};
+  memcpy(func.name, pCreate->name, TSDB_FUNC_NAME_LEN);
+  func.createdTime = taosGetTimestampMs();
+  func.funcType = pCreate->funcType;
+  func.scriptType = pCreate->scriptType;
+  func.outputType = pCreate->outputType;
+  func.outputLen = pCreate->outputLen;
+  func.bufSize = pCreate->bufSize;
+  func.signature = pCreate->signature;
+  func.commentSize = pCreate->commentSize;
+  func.codeSize = pCreate->codeSize;
+  func.pComment = malloc(func.commentSize);
+  func.pCode = malloc(func.codeSize);
+  if (func.pCode == NULL || func.pCode == NULL) {
+    terrno = TSDB_CODE_OUT_OF_MEMORY;
+    goto CREATE_FUNC_OVER;
+  }
+
+  memcpy(func.pComment, pCreate->pCont, pCreate->commentSize);
+  memcpy(func.pCode, pCreate->pCont + pCreate->commentSize, func.codeSize);
+
+  pTrans = mndTransCreate(pMnode, TRN_POLICY_ROLLBACK, &pReq->rpcMsg);
+  if (pTrans == NULL) goto CREATE_FUNC_OVER;
 
   mDebug("trans:%d, used to create func:%s", pTrans->id, pCreate->name);
 
-  SSdbRaw *pRedoRaw = mndFuncActionEncode(pFunc);
-  if (pRedoRaw == NULL || mndTransAppendRedolog(pTrans, pRedoRaw) != 0) {
-    mError("trans:%d, failed to append redo log since %s", pTrans->id, terrstr());
-    free(pFunc);
-    mndTransDrop(pTrans);
-    return -1;
-  }
-  sdbSetRawStatus(pRedoRaw, SDB_STATUS_CREATING);
+  SSdbRaw *pRedoRaw = mndFuncActionEncode(&func);
+  if (pRedoRaw == NULL || mndTransAppendRedolog(pTrans, pRedoRaw) != 0) goto CREATE_FUNC_OVER;
+  if (sdbSetRawStatus(pRedoRaw, SDB_STATUS_CREATING) != 0) goto CREATE_FUNC_OVER;
 
-  SSdbRaw *pUndoRaw = mndFuncActionEncode(pFunc);
-  if (pUndoRaw == NULL || mndTransAppendUndolog(pTrans, pUndoRaw) != 0) {
-    mError("trans:%d, failed to append undo log since %s", pTrans->id, terrstr());
-    free(pFunc);
-    mndTransDrop(pTrans);
-    return -1;
-  }
-  sdbSetRawStatus(pUndoRaw, SDB_STATUS_DROPPED);
+  SSdbRaw *pUndoRaw = mndFuncActionEncode(&func);
+  if (pUndoRaw == NULL || mndTransAppendUndolog(pTrans, pUndoRaw) != 0) goto CREATE_FUNC_OVER;
+  if (sdbSetRawStatus(pUndoRaw, SDB_STATUS_DROPPED) != 0) goto CREATE_FUNC_OVER;
 
-  SSdbRaw *pCommitRaw = mndFuncActionEncode(pFunc);
-  if (pCommitRaw == NULL || mndTransAppendCommitlog(pTrans, pCommitRaw) != 0) {
-    mError("trans:%d, failed to append commit log since %s", pTrans->id, terrstr());
-    free(pFunc);
-    mndTransDrop(pTrans);
-    return -1;
-  }
-  sdbSetRawStatus(pCommitRaw, SDB_STATUS_READY);
+  SSdbRaw *pCommitRaw = mndFuncActionEncode(&func);
+  if (pCommitRaw == NULL || mndTransAppendCommitlog(pTrans, pCommitRaw) != 0) goto CREATE_FUNC_OVER;
+  if (sdbSetRawStatus(pCommitRaw, SDB_STATUS_READY) != 0) goto CREATE_FUNC_OVER;
 
-  if (mndTransPrepare(pMnode, pTrans) != 0) {
-    mError("trans:%d, failed to prepare since %s", pTrans->id, terrstr());
-    mndTransDrop(pTrans);
-    return -1;
-  }
+  if (mndTransPrepare(pMnode, pTrans) != 0) goto CREATE_FUNC_OVER;
 
-  free(pFunc);
+  code = 0;
+
+CREATE_FUNC_OVER:
+  free(func.pCode);
+  free(func.pComment);
   mndTransDrop(pTrans);
-  return 0;
+  return code;
 }
 
-static int32_t mndDropFunc(SMnode *pMnode, SMnodeMsg *pMsg, SFuncObj *pFunc) {
-  STrans *pTrans = mndTransCreate(pMnode, TRN_POLICY_ROLLBACK, &pMsg->rpcMsg);
-  if (pTrans == NULL) {
-    mError("func:%s, failed to drop since %s", pFunc->name, terrstr());
-    return -1;
-  }
+static int32_t mndDropFunc(SMnode *pMnode, SMnodeMsg *pReq, SFuncObj *pFunc) {
+  int32_t code = -1;
+  STrans *pTrans = mndTransCreate(pMnode, TRN_POLICY_ROLLBACK, &pReq->rpcMsg);
+  if (pTrans == NULL) goto DROP_FUNC_OVER;
+
   mDebug("trans:%d, used to drop user:%s", pTrans->id, pFunc->name);
 
   SSdbRaw *pRedoRaw = mndFuncActionEncode(pFunc);
-  if (pRedoRaw == NULL || mndTransAppendRedolog(pTrans, pRedoRaw) != 0) {
-    mError("trans:%d, failed to append redo log since %s", pTrans->id, terrstr());
-    mndTransDrop(pTrans);
-    return -1;
-  }
+  if (pRedoRaw == NULL || mndTransAppendRedolog(pTrans, pRedoRaw) != 0) goto DROP_FUNC_OVER;
   sdbSetRawStatus(pRedoRaw, SDB_STATUS_DROPPING);
 
   SSdbRaw *pUndoRaw = mndFuncActionEncode(pFunc);
-  if (pUndoRaw == NULL || mndTransAppendUndolog(pTrans, pUndoRaw) != 0) {
-    mError("trans:%d, failed to append undo log since %s", pTrans->id, terrstr());
-    mndTransDrop(pTrans);
-    return -1;
-  }
+  if (pUndoRaw == NULL || mndTransAppendUndolog(pTrans, pUndoRaw) != 0) goto DROP_FUNC_OVER;
   sdbSetRawStatus(pUndoRaw, SDB_STATUS_READY);
 
   SSdbRaw *pCommitRaw = mndFuncActionEncode(pFunc);
-  if (pCommitRaw == NULL || mndTransAppendCommitlog(pTrans, pCommitRaw) != 0) {
-    mError("trans:%d, failed to append commit log since %s", pTrans->id, terrstr());
-    mndTransDrop(pTrans);
-    return -1;
-  }
+  if (pCommitRaw == NULL || mndTransAppendCommitlog(pTrans, pCommitRaw) != 0) goto DROP_FUNC_OVER;
   sdbSetRawStatus(pCommitRaw, SDB_STATUS_DROPPED);
 
-  if (mndTransPrepare(pMnode, pTrans) != 0) {
-    mError("trans:%d, failed to prepare since %s", pTrans->id, terrstr());
-    mndTransDrop(pTrans);
-    return -1;
-  }
+  if (mndTransPrepare(pMnode, pTrans) != 0) goto DROP_FUNC_OVER;
 
+  code = 0;
+
+DROP_FUNC_OVER:
   mndTransDrop(pTrans);
-  return 0;
+  return code;
 }
 
-static int32_t mndProcessCreateFuncMsg(SMnodeMsg *pMsg) {
-  SMnode *pMnode = pMsg->pMnode;
+static int32_t mndProcessCreateFuncReq(SMnodeMsg *pReq) {
+  SMnode *pMnode = pReq->pMnode;
 
-  SCreateFuncReq *pCreate = pMsg->rpcMsg.pCont;
+  SCreateFuncReq *pCreate = pReq->rpcMsg.pCont;
   pCreate->outputLen = htonl(pCreate->outputLen);
   pCreate->bufSize = htonl(pCreate->bufSize);
-  pCreate->sigature = htobe64(pCreate->sigature);
+  pCreate->signature = htobe64(pCreate->signature);
   pCreate->commentSize = htonl(pCreate->commentSize);
   pCreate->codeSize = htonl(pCreate->codeSize);
 
   mDebug("func:%s, start to create", pCreate->name);
 
-  SFuncObj *pFunc = sdbAcquire(pMnode->pSdb, SDB_FUNC, pCreate->name);
+  SFuncObj *pFunc = mndAcquireFunc(pMnode, pCreate->name);
   if (pFunc != NULL) {
-    sdbRelease(pMnode->pSdb, pFunc);
-    terrno = TSDB_CODE_MND_FUNC_ALREADY_EXIST;
-    mError("func:%s, failed to create since %s", pCreate->name, terrstr());
+    mndReleaseFunc(pMnode, pFunc);
+    if (pCreate->igExists) {
+      mDebug("stb:%s, already exist, ignore exist is set", pCreate->name);
+      return 0;
+    } else {
+      terrno = TSDB_CODE_MND_FUNC_ALREADY_EXIST;
+      mError("func:%s, failed to create since %s", pCreate->name, terrstr());
+      return -1;
+    }
+  } else if (terrno == TSDB_CODE_MND_FUNC_ALREADY_EXIST) {
+    mError("stb:%s, failed to create since %s", pCreate->name, terrstr());
     return -1;
   }
 
@@ -305,14 +309,13 @@ static int32_t mndProcessCreateFuncMsg(SMnodeMsg *pMsg) {
     return -1;
   }
 
-  if (pCreate->bufSize < 0 || pCreate->bufSize > TSDB_FUNC_BUF_SIZE) {
+  if (pCreate->bufSize <= 0 || pCreate->bufSize > TSDB_FUNC_BUF_SIZE) {
     terrno = TSDB_CODE_MND_INVALID_FUNC_BUFSIZE;
     mError("func:%s, failed to create since %s", pCreate->name, terrstr());
     return -1;
   }
 
-  int32_t code = mndCreateFunc(pMnode, pMsg, pCreate);
-
+  int32_t code = mndCreateFunc(pMnode, pReq, pCreate);
   if (code != 0) {
     mError("func:%s, failed to create since %s", pCreate->name, terrstr());
     return -1;
@@ -321,9 +324,9 @@ static int32_t mndProcessCreateFuncMsg(SMnodeMsg *pMsg) {
   return TSDB_CODE_MND_ACTION_IN_PROGRESS;
 }
 
-static int32_t mndProcessDropFuncMsg(SMnodeMsg *pMsg) {
-  SMnode       *pMnode = pMsg->pMnode;
-  SDropFuncReq *pDrop = pMsg->rpcMsg.pCont;
+static int32_t mndProcessDropFuncReq(SMnodeMsg *pReq) {
+  SMnode       *pMnode = pReq->pMnode;
+  SDropFuncReq *pDrop = pReq->rpcMsg.pCont;
 
   mDebug("func:%s, start to drop", pDrop->name);
 
@@ -333,14 +336,20 @@ static int32_t mndProcessDropFuncMsg(SMnodeMsg *pMsg) {
     return -1;
   }
 
-  SFuncObj *pFunc = sdbAcquire(pMnode->pSdb, SDB_FUNC, pDrop->name);
+  SFuncObj *pFunc = mndAcquireFunc(pMnode, pDrop->name);
   if (pFunc == NULL) {
-    terrno = TSDB_CODE_MND_FUNC_NOT_EXIST;
-    mError("func:%s, failed to drop since %s", pDrop->name, terrstr());
-    return -1;
+    if (pDrop->igNotExists) {
+      mDebug("func:%s, not exist, ignore not exist is set", pDrop->name);
+      return 0;
+    } else {
+      terrno = TSDB_CODE_MND_FUNC_NOT_EXIST;
+      mError("func:%s, failed to drop since %s", pDrop->name, terrstr());
+      return -1;
+    }
   }
 
-  int32_t code = mndDropFunc(pMnode, pMsg, pFunc);
+  int32_t code = mndDropFunc(pMnode, pReq, pFunc);
+  mndReleaseFunc(pMnode, pFunc);
 
   if (code != 0) {
     mError("func:%s, failed to drop since %s", pDrop->name, terrstr());
@@ -350,15 +359,26 @@ static int32_t mndProcessDropFuncMsg(SMnodeMsg *pMsg) {
   return TSDB_CODE_MND_ACTION_IN_PROGRESS;
 }
 
-static int32_t mndProcessRetrieveFuncMsg(SMnodeMsg *pMsg) {
-  SMnode *pMnode = pMsg->pMnode;
+static int32_t mndProcessRetrieveFuncReq(SMnodeMsg *pReq) {
+  int32_t code = -1;
+  SMnode *pMnode = pReq->pMnode;
 
-  SRetrieveFuncReq *pRetrieve = pMsg->rpcMsg.pCont;
+  SRetrieveFuncReq *pRetrieve = pReq->rpcMsg.pCont;
   pRetrieve->numOfFuncs = htonl(pRetrieve->numOfFuncs);
+  if (pRetrieve->numOfFuncs <= 0 || pRetrieve->numOfFuncs > TSDB_FUNC_MAX_RETRIEVE) {
+    terrno = TSDB_CODE_MND_INVALID_FUNC_RETRIEVE;
+    return -1;
+  }
 
-  int32_t size = sizeof(SRetrieveFuncRsp) + (sizeof(SFuncInfo) + TSDB_FUNC_CODE_LEN) * pRetrieve->numOfFuncs + 16384;
+  int32_t fsize = sizeof(SFuncInfo) + TSDB_FUNC_CODE_LEN + TSDB_FUNC_COMMENT_LEN;
+  int32_t size = sizeof(SRetrieveFuncRsp) + fsize * pRetrieve->numOfFuncs;
 
   SRetrieveFuncRsp *pRetrieveRsp = rpcMallocCont(size);
+  if (pRetrieveRsp == NULL) {
+    terrno = TSDB_CODE_OUT_OF_MEMORY;
+    goto FUNC_RETRIEVE_OVER;
+  }
+
   pRetrieveRsp->numOfFuncs = htonl(pRetrieve->numOfFuncs);
   char *pOutput = pRetrieveRsp->pFuncInfos;
 
@@ -366,37 +386,42 @@ static int32_t mndProcessRetrieveFuncMsg(SMnodeMsg *pMsg) {
     char funcName[TSDB_FUNC_NAME_LEN] = {0};
     memcpy(funcName, pRetrieve->pFuncNames + i * TSDB_FUNC_NAME_LEN, TSDB_FUNC_NAME_LEN);
 
-    SFuncObj *pFunc = sdbAcquire(pMnode->pSdb, SDB_FUNC, funcName);
+    SFuncObj *pFunc = mndAcquireFunc(pMnode, funcName);
     if (pFunc == NULL) {
       terrno = TSDB_CODE_MND_INVALID_FUNC;
       mError("func:%s, failed to retrieve since %s", funcName, terrstr());
-      return -1;
+      goto FUNC_RETRIEVE_OVER;
     }
 
     SFuncInfo *pFuncInfo = (SFuncInfo *)pOutput;
-
-    strncpy(pFuncInfo->name, pFunc->name, TSDB_FUNC_NAME_LEN);
+    memcpy(pFuncInfo->name, pFunc->name, TSDB_FUNC_NAME_LEN);
     pFuncInfo->funcType = pFunc->funcType;
     pFuncInfo->scriptType = pFunc->scriptType;
     pFuncInfo->outputType = pFunc->outputType;
     pFuncInfo->outputLen = htonl(pFunc->outputLen);
     pFuncInfo->bufSize = htonl(pFunc->bufSize);
-    pFuncInfo->sigature = htobe64(pFunc->sigature);
+    pFuncInfo->signature = htobe64(pFunc->signature);
     pFuncInfo->commentSize = htonl(pFunc->commentSize);
     pFuncInfo->codeSize = htonl(pFunc->codeSize);
-    memcpy(pFuncInfo->pCont, pFunc->pCode, pFunc->commentSize + pFunc->codeSize);
-
-    pOutput += sizeof(SFuncInfo) + pFunc->commentSize + pFunc->codeSize;
+    memcpy(pFuncInfo->pCont, pFunc->pComment, pFunc->commentSize);
+    memcpy(pFuncInfo->pCont + pFunc->commentSize, pFunc->pCode, pFunc->codeSize);
+    pOutput += (sizeof(SFuncInfo) + pFunc->commentSize + pFunc->codeSize);
+    mndReleaseFunc(pMnode, pFunc);
   }
 
-  pMsg->pCont = pRetrieveRsp;
-  pMsg->contLen = (int32_t)(pOutput - (char *)pRetrieveRsp);
+  pReq->pCont = pRetrieveRsp;
+  pReq->contLen = (int32_t)(pOutput - (char *)pRetrieveRsp);
 
-  return 0;
+  code = 0;
+
+FUNC_RETRIEVE_OVER:
+  if (code != 0) rpcFreeCont(pRetrieveRsp);
+
+  return code;
 }
 
-static int32_t mndGetFuncMeta(SMnodeMsg *pMsg, SShowObj *pShow, STableMetaRsp *pMeta) {
-  SMnode *pMnode = pMsg->pMnode;
+static int32_t mndGetFuncMeta(SMnodeMsg *pReq, SShowObj *pShow, STableMetaRsp *pMeta) {
+  SMnode *pMnode = pReq->pMnode;
   SSdb   *pSdb = pMnode->pSdb;
 
   int32_t  cols = 0;
@@ -454,7 +479,7 @@ static int32_t mndGetFuncMeta(SMnodeMsg *pMsg, SShowObj *pShow, STableMetaRsp *p
 
   pShow->numOfRows = sdbGetSize(pSdb, SDB_FUNC);
   pShow->rowSize = pShow->offset[cols - 1] + pShow->bytes[cols - 1];
-  strcpy(pMeta->tbFname, "show funcs");
+  strcpy(pMeta->tbFname, mndShowStr(pShow->type));
 
   return 0;
 }
@@ -477,8 +502,8 @@ static void *mnodeGenTypeStr(char *buf, int32_t buflen, uint8_t type, int16_t le
   return tDataTypes[type].name;
 }
 
-static int32_t mndRetrieveFuncs(SMnodeMsg *pMsg, SShowObj *pShow, char *data, int32_t rows) {
-  SMnode   *pMnode = pMsg->pMnode;
+static int32_t mndRetrieveFuncs(SMnodeMsg *pReq, SShowObj *pShow, char *data, int32_t rows) {
+  SMnode   *pMnode = pReq->pMnode;
   SSdb     *pSdb = pMnode->pSdb;
   int32_t   numOfRows = 0;
   SFuncObj *pFunc = NULL;

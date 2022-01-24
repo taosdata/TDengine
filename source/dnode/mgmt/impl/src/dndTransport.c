@@ -90,9 +90,9 @@ static void dndInitMsgFp(STransMgmt *pMgmt) {
   pMgmt->msgFp[TMSG_INDEX(TDMT_MND_ALTER_DB)] = dndProcessMnodeWriteMsg;
   pMgmt->msgFp[TMSG_INDEX(TDMT_MND_SYNC_DB)] = dndProcessMnodeWriteMsg;
   pMgmt->msgFp[TMSG_INDEX(TDMT_MND_COMPACT_DB)] = dndProcessMnodeWriteMsg;
-  pMgmt->msgFp[TMSG_INDEX(TDMT_MND_CREATE_FUNCTION)] = dndProcessMnodeWriteMsg;
-  pMgmt->msgFp[TMSG_INDEX(TDMT_MND_RETRIEVE_FUNCTION)] = dndProcessMnodeWriteMsg;
-  pMgmt->msgFp[TMSG_INDEX(TDMT_MND_DROP_FUNCTION)] = dndProcessMnodeWriteMsg;
+  pMgmt->msgFp[TMSG_INDEX(TDMT_MND_CREATE_FUNC)] = dndProcessMnodeWriteMsg;
+  pMgmt->msgFp[TMSG_INDEX(TDMT_MND_RETRIEVE_FUNC)] = dndProcessMnodeWriteMsg;
+  pMgmt->msgFp[TMSG_INDEX(TDMT_MND_DROP_FUNC)] = dndProcessMnodeWriteMsg;
   pMgmt->msgFp[TMSG_INDEX(TDMT_MND_CREATE_STB)] = dndProcessMnodeWriteMsg;
   pMgmt->msgFp[TMSG_INDEX(TDMT_MND_ALTER_STB)] = dndProcessMnodeWriteMsg;
   pMgmt->msgFp[TMSG_INDEX(TDMT_MND_DROP_STB)] = dndProcessMnodeWriteMsg;
@@ -119,6 +119,7 @@ static void dndInitMsgFp(STransMgmt *pMgmt) {
   // Requests handled by VNODE
   pMgmt->msgFp[TMSG_INDEX(TDMT_VND_SUBMIT)] = dndProcessVnodeWriteMsg;
   pMgmt->msgFp[TMSG_INDEX(TDMT_VND_QUERY)] = dndProcessVnodeQueryMsg;
+  pMgmt->msgFp[TMSG_INDEX(TDMT_VND_QUERY_CONTINUE)] = dndProcessVnodeQueryMsg;  
   pMgmt->msgFp[TMSG_INDEX(TDMT_VND_FETCH)] = dndProcessVnodeFetchMsg;
   pMgmt->msgFp[TMSG_INDEX(TDMT_VND_ALTER_TABLE)] = dndProcessVnodeWriteMsg;
   pMgmt->msgFp[TMSG_INDEX(TDMT_VND_UPDATE_TAG_VAL)] = dndProcessVnodeWriteMsg;
@@ -184,8 +185,12 @@ static int32_t dndInitClient(SDnode *pDnode) {
   rpcInit.idleTime = pDnode->cfg.shellActivityTimer * 1000;
   rpcInit.user = INTERNAL_USER;
   rpcInit.ckey = INTERNAL_CKEY;
-  rpcInit.secret = INTERNAL_SECRET;
+  rpcInit.spi = 1;
   rpcInit.parent = pDnode;
+
+  char pass[TSDB_PASSWORD_LEN + 1] = {0};
+  taosEncryptPass_c((uint8_t *)(INTERNAL_SECRET), strlen(INTERNAL_SECRET), pass);
+  rpcInit.secret = pass;
 
   pMgmt->clientRpc = rpcOpen(&rpcInit);
   if (pMgmt->clientRpc == NULL) {
@@ -261,20 +266,18 @@ static void dndSendMsgToMnodeRecv(SDnode *pDnode, SRpcMsg *pRpcMsg, SRpcMsg *pRp
 
 static int32_t dndAuthInternalReq(SDnode *pDnode, char *user, char *spi, char *encrypt, char *secret, char *ckey) {
   if (strcmp(user, INTERNAL_USER) == 0) {
-    // A simple temporary implementation
-    char pass[TSDB_PASSWORD_LEN] = {0};
-    taosEncryptPass((uint8_t *)(INTERNAL_SECRET), strlen(INTERNAL_SECRET), pass);
+    char pass[TSDB_PASSWORD_LEN + 1] = {0};
+    taosEncryptPass_c((uint8_t *)(INTERNAL_SECRET), strlen(INTERNAL_SECRET), pass);
     memcpy(secret, pass, TSDB_PASSWORD_LEN);
-    *spi = 0;
+    *spi = 1;
     *encrypt = 0;
     *ckey = 0;
     return 0;
   } else if (strcmp(user, TSDB_NETTEST_USER) == 0) {
-    // A simple temporary implementation
-    char pass[TSDB_PASSWORD_LEN] = {0};
-    taosEncryptPass((uint8_t *)(TSDB_NETTEST_USER), strlen(TSDB_NETTEST_USER), pass);
+    char pass[TSDB_PASSWORD_LEN + 1] = {0};
+    taosEncryptPass_c((uint8_t *)(TSDB_NETTEST_USER), strlen(TSDB_NETTEST_USER), pass);
     memcpy(secret, pass, TSDB_PASSWORD_LEN);
-    *spi = 0;
+    *spi = 1;
     *encrypt = 0;
     *ckey = 0;
     return 0;

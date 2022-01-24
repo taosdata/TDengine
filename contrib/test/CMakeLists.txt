@@ -20,7 +20,7 @@ if(${BUILD_WITH_CRAFT})
 endif(${BUILD_WITH_CRAFT})
 
 if(${BUILD_WITH_TRAFT})
-    add_subdirectory(traft)
+    # add_subdirectory(traft)
 endif(${BUILD_WITH_TRAFT})
 
 add_subdirectory(tdev)
