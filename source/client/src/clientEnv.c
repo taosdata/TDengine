@@ -253,10 +253,11 @@ void taos_init_imp(void) {
   clientReqRefPool  = taosOpenRef(40960, doDestroyRequest);
 
   taosGetAppName(appInfo.appName, NULL);
+  pthread_mutex_init(&appInfo.mutex, NULL);
+
   appInfo.pid       = taosGetPId();
   appInfo.startTime = taosGetTimestampMs();
   appInfo.pInstMap  = taosHashInit(4, taosGetDefaultHashFunction(TSDB_DATA_TYPE_BINARY), true, HASH_ENTRY_LOCK);
-
   tscDebug("client is initialized successfully");
 }
 

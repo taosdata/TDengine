@@ -77,10 +77,10 @@ int32_t schedulerExecJob(void *transport, SArray *nodeList, SQueryDag* pDag, str
 /**
  * Process the query job, generated according to the query physical plan.
  * This is a asynchronized API, and is also thread-safety.
- * @param nodeList  Qnode/Vnode address list, element is SQueryNodeAddr
+ * @param pNodeList  Qnode/Vnode address list, element is SQueryNodeAddr
  * @return
  */
-int32_t schedulerAsyncExecJob(void *transport, SArray *nodeList, SQueryDag* pDag, struct SSchJob** pJob);
+int32_t schedulerAsyncExecJob(void *transport, SArray *pNodeList, SQueryDag* pDag, struct SSchJob** pJob);
 
 /**
  * Fetch query result from the remote query executor

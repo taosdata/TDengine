@@ -91,16 +91,18 @@ int32_t qCreateQueryDag(const struct SQueryNode* pNode, struct SQueryDag** pDag,
   return TSDB_CODE_SUCCESS;
 }
 
-void extractResSchema(struct SQueryDag* const* pDag, SSchema** pResSchema,
-                      int32_t* numOfCols) {  // extract the final result schema
+// extract the final result schema
+void extractResSchema(struct SQueryDag* const* pDag, SSchema** pResSchema, int32_t* numOfCols) {
   SArray* pTopSubplan = taosArrayGetP((*pDag)->pSubplans, 0);
 
-  SSubplan* pPlan = taosArrayGetP(pTopSubplan, 0);
+  SSubplan*         pPlan = taosArrayGetP(pTopSubplan, 0);
   SDataBlockSchema* pDataBlockSchema = &(pPlan->pDataSink->schema);
 
   *numOfCols = pDataBlockSchema->numOfCols;
-  *pResSchema = calloc(pDataBlockSchema->numOfCols, sizeof(SSchema));
-  memcpy((*pResSchema), pDataBlockSchema->pSchema, pDataBlockSchema->numOfCols * sizeof(SSchema));
+  if (*numOfCols > 0) {
+    *pResSchema = calloc(pDataBlockSchema->numOfCols, sizeof(SSchema));
+    memcpy((*pResSchema), pDataBlockSchema->pSchema, pDataBlockSchema->numOfCols * sizeof(SSchema));
+  }
 }
 
 void qSetSubplanExecutionNode(SSubplan* subplan, uint64_t templateId, SDownstreamSource* pSource) {
