@@ -59,7 +59,7 @@ int32_t ctgTestTagNum = 1;
 int32_t ctgTestSVersion = 1;
 int32_t ctgTestTVersion = 1;
 int32_t ctgTestSuid = 2;
-int64_t ctgTestDbId = 33;
+uint64_t ctgTestDbId = 33;
 
 uint64_t ctgTestClusterId = 0x1;
 char    *ctgTestDbname = "1.db1";
