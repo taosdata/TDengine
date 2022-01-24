@@ -363,7 +363,7 @@ TEST_F(MndTestFunc, 03_Retrieve_Func) {
     contLen = (contLen + numOfFuncs * TSDB_FUNC_NAME_LEN);
 
     SRetrieveFuncReq* pReq = (SRetrieveFuncReq*)rpcMallocCont(contLen);
-    pReq->numOfFuncs = htonl(1);
+    pReq->numOfFuncs = htonl(numOfFuncs);
     strcpy(pReq->pFuncNames, "f2");
     strcpy((char*)pReq->pFuncNames + TSDB_FUNC_NAME_LEN, "f1");
 
@@ -425,41 +425,54 @@ TEST_F(MndTestFunc, 03_Retrieve_Func) {
       EXPECT_EQ(pFuncInfo->commentSize, TSDB_FUNC_COMMENT_LEN);
       EXPECT_EQ(pFuncInfo->codeSize, TSDB_FUNC_CODE_LEN);
 
-      // char* pComment = pFuncInfo->pCont;
-      // char* pCode = pFuncInfo->pCont + pFuncInfo->commentSize;
-      // char  comments[TSDB_FUNC_COMMENT_LEN] = {0};
-      // for (int32_t i = 0; i < TSDB_FUNC_COMMENT_LEN - 1; ++i) {
-      //   comments[i] = 'm';
-      // }
-      // char codes[TSDB_FUNC_CODE_LEN] = {0};
-      // for (int32_t i = 0; i < TSDB_FUNC_CODE_LEN - 1; ++i) {
-      //   codes[i] = 'd';
-      // }
-      // EXPECT_STREQ(pComment, comments);
-      // EXPECT_STREQ(pCode, codes);
+      char* pComment = pFuncInfo->pCont;
+      char* pCode = pFuncInfo->pCont + pFuncInfo->commentSize;
+      char  comments[TSDB_FUNC_COMMENT_LEN] = {0};
+      for (int32_t i = 0; i < TSDB_FUNC_COMMENT_LEN - 1; ++i) {
+        comments[i] = 'm';
+      }
+      char codes[TSDB_FUNC_CODE_LEN] = {0};
+      for (int32_t i = 0; i < TSDB_FUNC_CODE_LEN - 1; ++i) {
+        codes[i] = 'd';
+      }
+      EXPECT_STREQ(pComment, comments);
+      EXPECT_STREQ(pCode, codes);
     }
   }
-}
 
-#if 0
+    {
+    int32_t contLen = sizeof(SRetrieveFuncReq);
+    int32_t numOfFuncs = 2;
+    contLen = (contLen + numOfFuncs * TSDB_FUNC_NAME_LEN);
+
+    SRetrieveFuncReq* pReq = (SRetrieveFuncReq*)rpcMallocCont(contLen);
+    pReq->numOfFuncs = htonl(numOfFuncs);
+    strcpy(pReq->pFuncNames, "f2");
+    strcpy((char*)pReq->pFuncNames + TSDB_FUNC_NAME_LEN, "f3");
+
+    SRpcMsg* pRsp = test.SendReq(TDMT_MND_RETRIEVE_FUNC, pReq, contLen);
+    ASSERT_NE(pRsp, nullptr);
+    ASSERT_EQ(pRsp->code, TSDB_CODE_MND_INVALID_FUNC);
+    }
+}
 
 TEST_F(MndTestFunc, 04_Drop_Func) {
   {
     int32_t contLen = sizeof(SDropFuncReq);
 
     SDropFuncReq* pReq = (SDropFuncReq*)rpcMallocCont(contLen);
-    strcpy(pReq->user, "");
+    strcpy(pReq->name, "");
 
     SRpcMsg* pRsp = test.SendReq(TDMT_MND_DROP_FUNC, pReq, contLen);
     ASSERT_NE(pRsp, nullptr);
-    ASSERT_EQ(pRsp->code, TSDB_CODE_MND_INVALID_FUNC_FORMAT);
+    ASSERT_EQ(pRsp->code, TSDB_CODE_MND_INVALID_FUNC_NAME);
   }
 
   {
     int32_t contLen = sizeof(SDropFuncReq);
 
     SDropFuncReq* pReq = (SDropFuncReq*)rpcMallocCont(contLen);
-    strcpy(pReq->user, "u4");
+    strcpy(pReq->name, "f3");
 
     SRpcMsg* pRsp = test.SendReq(TDMT_MND_DROP_FUNC, pReq, contLen);
     ASSERT_NE(pRsp, nullptr);
@@ -470,100 +483,19 @@ TEST_F(MndTestFunc, 04_Drop_Func) {
     int32_t contLen = sizeof(SDropFuncReq);
 
     SDropFuncReq* pReq = (SDropFuncReq*)rpcMallocCont(contLen);
-    strcpy(pReq->user, "u1");
+    strcpy(pReq->name, "f3");
+    pReq->igNotExists = 1;
 
     SRpcMsg* pRsp = test.SendReq(TDMT_MND_DROP_FUNC, pReq, contLen);
     ASSERT_NE(pRsp, nullptr);
     ASSERT_EQ(pRsp->code, 0);
   }
-
-  test.SendShowMetaReq(TSDB_MGMT_TABLE_FUNC, "");
-  CHECK_META("show functions", 4);
-
-  test.SendShowRetrieveReq();
-  EXPECT_EQ(test.GetShowRows(), 1);
-}
-
-TEST_F(MndTestFunc, 05_Create_Drop_Alter_Func) {
-  {
-    int32_t contLen = sizeof(SCreateFuncReq);
-
-    SCreateFuncReq* pReq = (SCreateFuncReq*)rpcMallocCont(contLen);
-    strcpy(pReq->user, "u1");
-    strcpy(pReq->pass, "p1");
-
-    SRpcMsg* pRsp = test.SendReq(TDMT_MND_CREATE_FUNC, pReq, contLen);
-    ASSERT_NE(pRsp, nullptr);
-    ASSERT_EQ(pRsp->code, 0);
-  }
-
-  {
-    int32_t contLen = sizeof(SCreateFuncReq);
-
-    SCreateFuncReq* pReq = (SCreateFuncReq*)rpcMallocCont(contLen);
-    strcpy(pReq->user, "u2");
-    strcpy(pReq->pass, "p2");
-
-    SRpcMsg* pRsp = test.SendReq(TDMT_MND_CREATE_FUNC, pReq, contLen);
-    ASSERT_NE(pRsp, nullptr);
-    ASSERT_EQ(pRsp->code, 0);
-  }
-
-  test.SendShowMetaReq(TSDB_MGMT_TABLE_FUNC, "");
-  CHECK_META("show functions", 4);
-
-  test.SendShowRetrieveReq();
-  EXPECT_EQ(test.GetShowRows(), 3);
-
-  CheckBinary("u1", TSDB_FUNC_LEN);
-  CheckBinary("root", TSDB_FUNC_LEN);
-  CheckBinary("u2", TSDB_FUNC_LEN);
-  CheckBinary("normal", 10);
-  CheckBinary("super", 10);
-  CheckBinary("normal", 10);
-  CheckTimestamp();
-  CheckTimestamp();
-  CheckTimestamp();
-  CheckBinary("root", TSDB_FUNC_LEN);
-  CheckBinary("root", TSDB_FUNC_LEN);
-  CheckBinary("root", TSDB_FUNC_LEN);
-
-  {
-    int32_t contLen = sizeof(SAlterFuncReq);
-
-    SAlterFuncReq* pReq = (SAlterFuncReq*)rpcMallocCont(contLen);
-    strcpy(pReq->user, "u1");
-    strcpy(pReq->pass, "p2");
-
-    SRpcMsg* pRsp = test.SendReq(TDMT_MND_ALTER_FUNC, pReq, contLen);
-    ASSERT_NE(pRsp, nullptr);
-    ASSERT_EQ(pRsp->code, 0);
-  }
-
-  test.SendShowMetaReq(TSDB_MGMT_TABLE_FUNC, "");
-  CHECK_META("show functions", 4);
-
-  test.SendShowRetrieveReq();
-  EXPECT_EQ(test.GetShowRows(), 3);
-
-  CheckBinary("u1", TSDB_FUNC_LEN);
-  CheckBinary("root", TSDB_FUNC_LEN);
-  CheckBinary("u2", TSDB_FUNC_LEN);
-  CheckBinary("normal", 10);
-  CheckBinary("super", 10);
-  CheckBinary("normal", 10);
-  CheckTimestamp();
-  CheckTimestamp();
-  CheckTimestamp();
-  CheckBinary("root", TSDB_FUNC_LEN);
-  CheckBinary("root", TSDB_FUNC_LEN);
-  CheckBinary("root", TSDB_FUNC_LEN);
 
   {
     int32_t contLen = sizeof(SDropFuncReq);
 
     SDropFuncReq* pReq = (SDropFuncReq*)rpcMallocCont(contLen);
-    strcpy(pReq->user, "u1");
+    strcpy(pReq->name, "f1");
 
     SRpcMsg* pRsp = test.SendReq(TDMT_MND_DROP_FUNC, pReq, contLen);
     ASSERT_NE(pRsp, nullptr);
@@ -571,37 +503,19 @@ TEST_F(MndTestFunc, 05_Create_Drop_Alter_Func) {
   }
 
   test.SendShowMetaReq(TSDB_MGMT_TABLE_FUNC, "");
-  CHECK_META("show functions", 4);
+  CHECK_META("show functions", 7);
 
   test.SendShowRetrieveReq();
-  EXPECT_EQ(test.GetShowRows(), 2);
-
-  CheckBinary("root", TSDB_FUNC_LEN);
-  CheckBinary("u2", TSDB_FUNC_LEN);
-  CheckBinary("super", 10);
-  CheckBinary("normal", 10);
-  CheckTimestamp();
-  CheckTimestamp();
-  CheckBinary("root", TSDB_FUNC_LEN);
-  CheckBinary("root", TSDB_FUNC_LEN);
+  EXPECT_EQ(test.GetShowRows(), 1);
 
   // restart
   test.Restart();
 
   test.SendShowMetaReq(TSDB_MGMT_TABLE_FUNC, "");
-  CHECK_META("show functions", 4);
+  CHECK_META("show functions", 7);
 
   test.SendShowRetrieveReq();
-  EXPECT_EQ(test.GetShowRows(), 2);
+  EXPECT_EQ(test.GetShowRows(), 1);
 
-  CheckBinary("root", TSDB_FUNC_LEN);
-  CheckBinary("u2", TSDB_FUNC_LEN);
-  CheckBinary("super", 10);
-  CheckBinary("normal", 10);
-  CheckTimestamp();
-  CheckTimestamp();
-  CheckBinary("root", TSDB_FUNC_LEN);
-  CheckBinary("root", TSDB_FUNC_LEN);
+   CheckBinary("f2", TSDB_FUNC_NAME_LEN);
 }
-
-#endif

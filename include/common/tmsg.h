@@ -539,8 +539,8 @@ typedef struct {
 } SCreateFuncReq;
 
 typedef struct {
-  char name[TSDB_FUNC_NAME_LEN];
-  int8_t  igNotExists;
+  char   name[TSDB_FUNC_NAME_LEN];
+  int8_t igNotExists;
 } SDropFuncReq;
 
 typedef struct {

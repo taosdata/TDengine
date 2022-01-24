@@ -405,7 +405,7 @@ static int32_t mndProcessRetrieveFuncReq(SMnodeMsg *pReq) {
     pFuncInfo->codeSize = htonl(pFunc->codeSize);
     memcpy(pFuncInfo->pCont, pFunc->pComment, pFunc->commentSize);
     memcpy(pFuncInfo->pCont + pFunc->commentSize, pFunc->pCode, pFunc->codeSize);
-    pOutput += sizeof(SFuncInfo) + pFunc->commentSize + pFunc->codeSize;
+    pOutput += (sizeof(SFuncInfo) + pFunc->commentSize + pFunc->codeSize);
     mndReleaseFunc(pMnode, pFunc);
   }
 
