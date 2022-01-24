@@ -279,7 +279,7 @@ int32_t schRecordTaskSucceedNode(SSchJob *pJob, SSchTask *pTask) {
   int32_t idx = atomic_load_8(&pTask->candidateIdx);
   SQueryNodeAddr *addr = taosArrayGet(pTask->candidateAddrs, idx);
   if (NULL == addr) {
-    SCH_TASK_ELOG("taosArrayGet candidate addr failed, idx:%d, size:%d", idx, taosArrayGetSize(pTask->candidateAddrs));
+    SCH_TASK_ELOG("taosArrayGet candidate addr failed, idx:%d, size:%d", idx, (int32_t)taosArrayGetSize(pTask->candidateAddrs));
     SCH_ERR_RET(TSDB_CODE_SCH_INTERNAL_ERROR);
   }
 
@@ -1743,4 +1743,3 @@ void schedulerDestroy(void) {
   }
 }
 
-         
