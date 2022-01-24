@@ -215,6 +215,8 @@ int32_t getPlan(SRequestObj* pRequest, SQueryNode* pQueryNode, SQueryDag** pDag,
   if (pQueryNode->type == TSDB_SQL_SELECT) {
     setResSchemaInfo(&pRequest->body.resInfo, pSchema, numOfCols);
     pRequest->type = TDMT_VND_QUERY;
+  } else {
+    tfree(pSchema);
   }
 
   return code;
@@ -641,7 +643,6 @@ TAOS_RES *taos_query_l(TAOS *taos, const char *sql, int sqlLen) {
 
   SRequestObj *pRequest = NULL;
   SQueryNode  *pQueryNode = NULL;
-  SArray      *pNodeList = taosArrayInit(4, sizeof(struct SQueryNodeAddr));
 
   terrno = TSDB_CODE_SUCCESS;
   CHECK_CODE_GOTO(buildRequest(pTscObj, sql, sqlLen, &pRequest), _return);
@@ -650,6 +651,8 @@ TAOS_RES *taos_query_l(TAOS *taos, const char *sql, int sqlLen) {
   if (qIsDdlQuery(pQueryNode)) {
     CHECK_CODE_GOTO(execDdlQuery(pRequest, pQueryNode), _return);
   } else {
+    SArray      *pNodeList = taosArrayInit(4, sizeof(struct SQueryNodeAddr));
+
     CHECK_CODE_GOTO(getPlan(pRequest, pQueryNode, &pRequest->body.pDag, pNodeList), _return);
     CHECK_CODE_GOTO(scheduleQuery(pRequest, pRequest->body.pDag, pNodeList), _return);
     pRequest->code = terrno;
