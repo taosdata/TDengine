@@ -18,8 +18,9 @@
 #include "tmsg.h"
 #include "query.h"
 #include "trpc.h"
-#pragma GCC diagnostic ignored "-Wwrite-strings"
 
+#pragma GCC diagnostic push
+#pragma GCC diagnostic ignored "-Wwrite-strings"
 #pragma GCC diagnostic ignored "-Wunused-function"
 #pragma GCC diagnostic ignored "-Wunused-variable"
 #pragma GCC diagnostic ignored "-Wsign-compare"
@@ -82,3 +83,5 @@ TEST(testCase, error_in_async_test) {
   usleep(1000);
   printf("Error code:%d after asynchronously exec function\n", code);
 }
+
+#pragma GCC diagnostic pop

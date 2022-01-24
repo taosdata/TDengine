@@ -372,11 +372,14 @@ typedef struct STaskParam {
 
 typedef struct SExchangeInfo {
   SArray            *pSources;
-  uint64_t           bytes;   // total load bytes from remote
   tsem_t             ready;
   void              *pTransporter;
   SRetrieveTableRsp *pRsp;
   SSDataBlock       *pResult;
+  int32_t            current;
+  uint64_t           rowsOfCurrentSource;
+  uint64_t           bytes;   // total load bytes from remote
+  uint64_t           totalRows;
 } SExchangeInfo;
 
 typedef struct STableScanInfo {

@@ -7,6 +7,7 @@
 
 #include "qFilter.h"
 
+#pragma GCC diagnostic push
 #pragma GCC diagnostic ignored "-Wunused-function"
 #pragma GCC diagnostic ignored "-Wunused-variable"
 
@@ -365,3 +366,5 @@ TEST(testCase, rangeMergeTest) {
   intDataTest();
 
 }
+
+#pragma GCC diagnostic pop

@@ -83,8 +83,8 @@ int vnodeApplyWMsg(SVnode *pVnode, SRpcMsg *pMsg, SRpcMsg **pRsp) {
         SVCreateTbReq *pCreateTbReq = taosArrayGet(vCreateTbBatchReq.pArray, i);
         if (metaCreateTable(pVnode->pMeta, pCreateTbReq) < 0) {
           // TODO: handle error
+          vError("vgId:%d, failed to create table: %s", pVnode->vgId, pCreateTbReq->name);
         }
-        vTrace("vgId:%d process create table %s", pVnode->vgId, pCreateTbReq->name);
         free(pCreateTbReq->name);
         if (pCreateTbReq->type == TD_SUPER_TABLE) {
           free(pCreateTbReq->stbCfg.pSchema);
@@ -95,6 +95,8 @@ int vnodeApplyWMsg(SVnode *pVnode, SRpcMsg *pMsg, SRpcMsg **pRsp) {
           free(pCreateTbReq->ntbCfg.pSchema);
         }
       }
+
+      vTrace("vgId:%d process create %" PRIzu " tables", pVnode->vgId, taosArrayGetSize(vCreateTbBatchReq.pArray));
       taosArrayDestroy(vCreateTbBatchReq.pArray);
       break;
 
@@ -129,6 +131,7 @@ int vnodeApplyWMsg(SVnode *pVnode, SRpcMsg *pMsg, SRpcMsg **pRsp) {
       // TODO: handle error
     }
   }
+  
   return 0;
 }
 

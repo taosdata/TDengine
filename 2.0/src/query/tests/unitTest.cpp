@@ -4,6 +4,7 @@
 #include "taos.h"
 #include "tsdb.h"
 
+#pragma GCC diagnostic push
 #pragma GCC diagnostic ignored "-Wwrite-strings"
 #pragma GCC diagnostic ignored "-Wunused-function"
 #pragma GCC diagnostic ignored "-Wunused-variable"
@@ -910,3 +911,4 @@ TEST(testCase, getTempFilePath_test) {
   printf("%s\n", path);
 }
 
+#pragma GCC diagnostic pop
