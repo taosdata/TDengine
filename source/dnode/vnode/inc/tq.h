@@ -18,7 +18,6 @@
 
 #include "common.h"
 #include "executor.h"
-#include "vnode.h"
 #include "mallocator.h"
 #include "meta.h"
 #include "os.h"
@@ -29,6 +28,7 @@
 #include "trpc.h"
 #include "ttimer.h"
 #include "tutil.h"
+#include "vnode.h"
 #include "wal.h"
 
 #ifdef __cplusplus
@@ -149,10 +149,11 @@ typedef struct STqGroup {
 } STqGroup;
 
 typedef struct STqTaskItem {
-  int8_t      status;
-  int64_t     offset;
-  void*       dst;
-  qTaskInfo_t task;
+  int8_t        status;
+  int64_t       offset;
+  void*         dst;
+  qTaskInfo_t   task;
+  SSubQueryMsg* pQueryMsg;
 } STqTaskItem;
 
 // new version
@@ -164,7 +165,6 @@ typedef struct STqBuffer {
 
 typedef struct STqTopicHandle {
   char            topicName[TSDB_TOPIC_FNAME_LEN];
-  char            cgroup[TSDB_TOPIC_FNAME_LEN];
   char*           sql;
   char*           logicalPlan;
   char*           physicalPlan;
@@ -177,6 +177,7 @@ typedef struct STqTopicHandle {
 typedef struct STqConsumerHandle {
   int64_t consumerId;
   int64_t epoch;
+  char    cgroup[TSDB_TOPIC_FNAME_LEN];
   SArray* topics;  // SArray<STqClientTopic>
 } STqConsumerHandle;
 
@@ -318,7 +319,7 @@ int       tqSendLaunchQuery(STqMsgItem*, int64_t offset);
 #endif
 
 int32_t tqProcessConsumeReq(STQ* pTq, SRpcMsg* pMsg, SRpcMsg** ppRsp);
-int32_t tqProcessSetConnReq(STQ* pTq, SMqSetCVgReq* pReq);
+int32_t tqProcessSetConnReq(STQ* pTq, char* msg);
 
 #ifdef __cplusplus
 }

@@ -261,7 +261,7 @@ static int32_t mndSaveQueryStreamList(SConnObj *pConn, SHeartBeatReq *pReq) {
       pConn->pQueries = calloc(sizeof(SQueryDesc), QUERY_SAVE_SIZE);
     }
 
-    pConn->numOfQueries = MIN(QUERY_SAVE_SIZE, numOfQueries);
+    pConn->numOfQueries = TMIN(QUERY_SAVE_SIZE, numOfQueries);
 
     int32_t saveSize = pConn->numOfQueries * sizeof(SQueryDesc);
     if (saveSize > 0 && pConn->pQueries != NULL) {

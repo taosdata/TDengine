@@ -47,7 +47,7 @@ int compareSmlColKv(const void* p1, const void* p2) {
   TAOS_SML_KV* kv2 = (TAOS_SML_KV*)p2;
   int kvLen1 = (int)strlen(kv1->key);
   int kvLen2 = (int)strlen(kv2->key);
-  int res = strncasecmp(kv1->key, kv2->key, MIN(kvLen1, kvLen2));
+  int res = strncasecmp(kv1->key, kv2->key, TMIN(kvLen1, kvLen2));
   if (res != 0) {
     return res;
   } else {
@@ -123,7 +123,7 @@ static int32_t buildSmlKvSchema(TAOS_SML_KV* smlKv, SHashObj* hash, SArray* arra
     if (code != 0) {
       return code;
     }
-    pField->bytes = MAX(pField->bytes, bytes);
+    pField->bytes = TMAX(pField->bytes, bytes);
 
   } else {
     SSchema field = {0};

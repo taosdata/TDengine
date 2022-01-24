@@ -1785,7 +1785,7 @@ static int32_t handleArithmeticExpr(SSqlCmd* pCmd, SQueryInfo* pQueryInfo, int32
                                        getNewResColId(pCmd), sizeof(double), false);
 
     char* name = (pItem->aliasName != NULL)? pItem->aliasName:pItem->pNode->exprToken.z;
-    size_t len = MIN(sizeof(pExpr->base.aliasName), pItem->pNode->exprToken.n + 1);
+    size_t len = TMIN(sizeof(pExpr->base.aliasName), pItem->pNode->exprToken.n + 1);
     tstrncpy(pExpr->base.aliasName, name, len);
 
     tExprNode* pNode = NULL;
@@ -2246,7 +2246,7 @@ SSchema tGetUserSpecifiedColumnSchema(SVariant* pVal, SStrToken* exprStr, const 
   if (name != NULL) {
     tstrncpy(s.name, name, sizeof(s.name));
   } else {
-    size_t tlen = MIN(sizeof(s.name), exprStr->n + 1);
+    size_t tlen = TMIN(sizeof(s.name), exprStr->n + 1);
     tstrncpy(s.name, exprStr->z, tlen);
     strdequote(s.name);
   }
@@ -2419,7 +2419,7 @@ void setResultColName(char* name, tSqlExprItem* pItem, int32_t functionId, SStrT
     tstrncpy(name, pItem->aliasName, TSDB_COL_NAME_LEN);
   } else if (multiCols) {
     char uname[TSDB_COL_NAME_LEN] = {0};
-    int32_t len = MIN(pToken->n + 1, TSDB_COL_NAME_LEN);
+    int32_t len = TMIN(pToken->n + 1, TSDB_COL_NAME_LEN);
     tstrncpy(uname, pToken->z, len);
 
     if (tsKeepOriginalColumnName) { // keep the original column name
@@ -2432,7 +2432,7 @@ void setResultColName(char* name, tSqlExprItem* pItem, int32_t functionId, SStrT
       tstrncpy(name, tmp, TSDB_COL_NAME_LEN);
     }
   } else  { // use the user-input result column name
-    int32_t len = MIN(pItem->pNode->exprToken.n + 1, TSDB_COL_NAME_LEN);
+    int32_t len = TMIN(pItem->pNode->exprToken.n + 1, TSDB_COL_NAME_LEN);
     tstrncpy(name, pItem->pNode->exprToken.z, len);
   }
 }
@@ -4380,7 +4380,7 @@ static void exchangeExpr(tSqlExpr* pExpr) {
     }
 
     pExpr->tokenId = optr;
-    SWAP(pExpr->pLeft, pExpr->pRight, void*);
+    TSWAP(pExpr->pLeft, pExpr->pRight, void*);
   }
 }
 
@@ -8089,7 +8089,7 @@ int32_t checkQueryRangeForFill(SSqlCmd* pCmd, SQueryInfo* pQueryInfo) {
       return invalidOperationMsg(tscGetErrorMsgPayload(pCmd), msg3);
     }
 
-    int64_t timeRange = ABS(pQueryInfo->window.skey - pQueryInfo->window.ekey);
+    int64_t timeRange = TABS(pQueryInfo->window.skey - pQueryInfo->window.ekey);
 
     int64_t intervalRange = 0;
     if (pQueryInfo->interval.intervalUnit == 'n' || pQueryInfo->interval.intervalUnit == 'y') {

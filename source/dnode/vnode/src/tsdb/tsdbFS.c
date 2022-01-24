@@ -836,7 +836,7 @@ static int tsdbScanAndTryFixFS(STsdb *pRepo) {
 //         return -1;
 //       }
 
-//       maxBufSize = MAX(maxBufSize, rInfo.size);
+//       maxBufSize = TMAX(maxBufSize, rInfo.size);
 
 //       if (tsdbSeekMFile(pMFile, rInfo.size, SEEK_CUR) < 0) {
 //         tsdbError("vgId:%d failed to lseek file %s since %s", REPO_ID(pRepo), TSDB_FILE_FULL_NAME(pMFile),

@@ -13,23 +13,14 @@
  * along with this program. If not, see <http://www.gnu.org/licenses/>.
  */
 
-#ifndef _TD_TDB_HEAP_H_
-#define _TD_TDB_HEAP_H_
+#include "tdb_db.h"
 
-#include "tdbDef.h"
-
-#ifdef __cplusplus
-extern "C" {
-#endif
-
-typedef struct {
+int tdbOpen(TDB **dbpp, const char *fname, const char *dbname, uint32_t flags) {
   // TODO
-} TDB_HEAP;
-
-TDB_PUBLIC int tdbInitHeapDB(TDB *dbp);
-
-#ifdef __cplusplus
+  return 0;
 }
-#endif
 
-#endif /*_TD_TDB_HEAP_H_*/
+int tdbClose(TDB *dbp, uint32_t flags) {
+  // TODO
+  return 0;
+}

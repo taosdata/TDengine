@@ -3,8 +3,8 @@
 #include "tdb.h"
 
 TEST(tdb_api_test, tdb_create_open_close_db_test) {
-  int  ret;
-  TDB *dbp;
+  // int  ret;
+  // TDB *dbp;
 
   // tdbCreateDB(&dbp, TDB_BTREE_T);
 

@@ -459,7 +459,7 @@ static int tsdbCompactMeta(STsdbRepo *pRepo) {
 
           while (true) {
             if (pReadh->pDCols[0]->numOfRows - ridx == 0) break;
-            int rowsToMerge = MIN(pReadh->pDCols[0]->numOfRows - ridx, defaultRows - pComph->pDataCols->numOfRows);
+            int rowsToMerge = TMIN(pReadh->pDCols[0]->numOfRows - ridx, defaultRows - pComph->pDataCols->numOfRows);
 
             tdMergeDataCols(pComph->pDataCols, pReadh->pDCols[0], rowsToMerge, &ridx, pCfg->update != TD_ROW_PARTIAL_UPDATE);
 

@@ -1520,7 +1520,8 @@ static FORCE_INLINE void* taosDecodeSMqMsg(void* buf, SMqHbMsg* pMsg) {
 
 typedef struct SMqSetCVgReq {
   int32_t vgId;
-  int64_t consumerId;
+  int64_t oldConsumerId;
+  int64_t newConsumerId;
   char    topicName[TSDB_TOPIC_FNAME_LEN];
   char    cgroup[TSDB_CONSUMER_GROUP_LEN];
   char*   sql;
@@ -1551,7 +1552,8 @@ static FORCE_INLINE void* tDecodeSSubQueryMsg(void* buf, SSubQueryMsg* pMsg) {
 static FORCE_INLINE int32_t tEncodeSMqSetCVgReq(void** buf, const SMqSetCVgReq* pReq) {
   int32_t tlen = 0;
   tlen += taosEncodeFixedI32(buf, pReq->vgId);
-  tlen += taosEncodeFixedI64(buf, pReq->consumerId);
+  tlen += taosEncodeFixedI64(buf, pReq->oldConsumerId);
+  tlen += taosEncodeFixedI64(buf, pReq->newConsumerId);
   tlen += taosEncodeString(buf, pReq->topicName);
   tlen += taosEncodeString(buf, pReq->cgroup);
   tlen += taosEncodeString(buf, pReq->sql);
@@ -1563,7 +1565,8 @@ static FORCE_INLINE int32_t tEncodeSMqSetCVgReq(void** buf, const SMqSetCVgReq* 
 
 static FORCE_INLINE void* tDecodeSMqSetCVgReq(void* buf, SMqSetCVgReq* pReq) {
   buf = taosDecodeFixedI32(buf, &pReq->vgId);
-  buf = taosDecodeFixedI64(buf, &pReq->consumerId);
+  buf = taosDecodeFixedI64(buf, &pReq->oldConsumerId);
+  buf = taosDecodeFixedI64(buf, &pReq->newConsumerId);
   buf = taosDecodeStringTo(buf, pReq->topicName);
   buf = taosDecodeStringTo(buf, pReq->cgroup);
   buf = taosDecodeString(buf, &pReq->sql);
@@ -1579,15 +1582,6 @@ typedef struct SMqSetCVgRsp {
   char    topicName[TSDB_TOPIC_FNAME_LEN];
   char    cGroup[TSDB_CONSUMER_GROUP_LEN];
 } SMqSetCVgRsp;
-
-typedef struct SMqConsumeReq {
-  int64_t reqId;
-  int64_t offset;
-  int64_t consumerId;
-  int64_t blockingTime;
-  char    topicName[TSDB_TOPIC_FNAME_LEN];
-  char    cgroup[TSDB_CONSUMER_GROUP_LEN];
-} SMqConsumeReq;
 
 typedef struct SMqColData {
   int16_t colId;
@@ -1616,11 +1610,28 @@ typedef struct SMqTopicBlk {
 
 typedef struct SMqConsumeRsp {
   int64_t      reqId;
-  int64_t      clientId;
+  int64_t      consumerId;
   int32_t      bodyLen;
   int32_t      numOfTopics;
   SMqTopicData data[];
 } SMqConsumeRsp;
+
+// one req for one vg+topic
+typedef struct SMqConsumeReq {
+  //0: commit only, current offset
+  //1: consume only, poll next offset
+  //2: commit current and consume next offset
+  int32_t        reqType;
+
+  int64_t        reqId;
+  int64_t        consumerId;
+  int64_t        blockingTime;
+  char           cgroup[TSDB_CONSUMER_GROUP_LEN];
+
+  int64_t        offset;
+  char           topic[TSDB_TOPIC_FNAME_LEN];
+} SMqConsumeReq;
+
 
 #ifdef __cplusplus
 }
