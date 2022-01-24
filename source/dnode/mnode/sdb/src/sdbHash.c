@@ -162,10 +162,10 @@ static int32_t sdbInsertRow(SSdb *pSdb, SHashObj *hash, SSdbRaw *pRaw, SSdbRow *
   }
 
   if (pSdb->keyTypes[pRow->type] == SDB_KEY_INT32) {
-    pSdb->maxId[pRow->type] = MAX(pSdb->maxId[pRow->type], *((int32_t *)pRow->pObj));
+    pSdb->maxId[pRow->type] = TMAX(pSdb->maxId[pRow->type], *((int32_t *)pRow->pObj));
   }
   if (pSdb->keyTypes[pRow->type] == SDB_KEY_INT64) {
-    pSdb->maxId[pRow->type] = MAX(pSdb->maxId[pRow->type], *((int32_t *)pRow->pObj));
+    pSdb->maxId[pRow->type] = TMAX(pSdb->maxId[pRow->type], *((int32_t *)pRow->pObj));
   }
   pSdb->tableVer[pRow->type]++;
 
@@ -420,13 +420,13 @@ int32_t sdbGetMaxId(SSdb *pSdb, ESdbType type) {
   while (ppRow != NULL) {
     SSdbRow *pRow = *ppRow;
     int32_t  id = *(int32_t *)pRow->pObj;
-    maxId = MAX(id, maxId);
+    maxId = TMAX(id, maxId);
     ppRow = taosHashIterate(hash, ppRow);
   }
 
   taosRUnLockLatch(pLock);
 
-  maxId = MAX(maxId, pSdb->maxId[type]);
+  maxId = TMAX(maxId, pSdb->maxId[type]);
   return maxId + 1;
 }
 

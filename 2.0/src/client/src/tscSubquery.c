@@ -3396,7 +3396,7 @@ static void doBuildResFromSubqueries(SSqlObj* pSql) {
     }
 
     int32_t remain = (int32_t)(pSub->res.numOfRows - pSub->res.row);
-    numOfRes = (int32_t)(MIN(numOfRes, remain));
+    numOfRes = (int32_t)(TMIN(numOfRes, remain));
   }
 
   if (numOfRes == 0) {  // no result any more, free all subquery objects

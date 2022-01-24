@@ -303,7 +303,7 @@ SSDataBlock* createOutputBuf(SExprInfo* pExpr, int32_t numOfOutput, int32_t numO
     idata.info.bytes = pExpr[i].base.resSchema.bytes;
     idata.info.colId = pExpr[i].base.resSchema.colId;
 
-    int32_t size = MAX(idata.info.bytes * numOfRows, minSize);
+    int32_t size = TMAX(idata.info.bytes * numOfRows, minSize);
     idata.pData = calloc(1, size);  // at least to hold a pointer on x64 platform
     taosArrayPush(res->pDataBlock, &idata);
   }
@@ -328,7 +328,7 @@ SSDataBlock* createOutputBuf_rv(SArray* pExprInfo, int32_t numOfRows) {
     idata.info.bytes = pExpr->base.resSchema.bytes;
     idata.info.colId = pExpr->base.resSchema.colId;
 
-    int32_t size = MAX(idata.info.bytes * numOfRows, minSize);
+    int32_t size = TMAX(idata.info.bytes * numOfRows, minSize);
     idata.pData = calloc(1, size);  // at least to hold a pointer on x64 platform
     taosArrayPush(res->pDataBlock, &idata);
   }
@@ -2678,7 +2678,7 @@ static void updateDataCheckOrder(SQInfo *pQInfo, SQueryTableReq* pQueryMsg, bool
 
     pQueryAttr->order.order = TSDB_ORDER_ASC;
     if (pQueryAttr->window.skey > pQueryAttr->window.ekey) {
-      SWAP(pQueryAttr->window.skey, pQueryAttr->window.ekey, TSKEY);
+      TSWAP(pQueryAttr->window.skey, pQueryAttr->window.ekey, TSKEY);
     }
 
     pQueryAttr->needReverseScan = false;
@@ -2688,7 +2688,7 @@ static void updateDataCheckOrder(SQInfo *pQInfo, SQueryTableReq* pQueryMsg, bool
   if (pQueryAttr->groupbyColumn && pQueryAttr->order.order == TSDB_ORDER_DESC) {
     pQueryAttr->order.order = TSDB_ORDER_ASC;
     if (pQueryAttr->window.skey > pQueryAttr->window.ekey) {
-      SWAP(pQueryAttr->window.skey, pQueryAttr->window.ekey, TSKEY);
+      TSWAP(pQueryAttr->window.skey, pQueryAttr->window.ekey, TSKEY);
     }
 
     pQueryAttr->needReverseScan = false;
@@ -2699,7 +2699,7 @@ static void updateDataCheckOrder(SQInfo *pQInfo, SQueryTableReq* pQueryMsg, bool
   if (pQueryAttr->pointInterpQuery && pQueryAttr->interval.interval == 0) {
     if (!QUERY_IS_ASC_QUERY(pQueryAttr)) {
       //qDebug(msg, pQInfo->qId, "interp", pQueryAttr->order.order, TSDB_ORDER_ASC, pQueryAttr->window.skey, pQueryAttr->window.ekey, pQueryAttr->window.ekey, pQueryAttr->window.skey);
-      SWAP(pQueryAttr->window.skey, pQueryAttr->window.ekey, TSKEY);
+      TSWAP(pQueryAttr->window.skey, pQueryAttr->window.ekey, TSKEY);
     }
 
     pQueryAttr->order.order = TSDB_ORDER_ASC;
@@ -2712,7 +2712,7 @@ static void updateDataCheckOrder(SQInfo *pQInfo, SQueryTableReq* pQueryMsg, bool
         //qDebug(msg, pQInfo->qId, "only-first", pQueryAttr->order.order, TSDB_ORDER_ASC, pQueryAttr->window.skey,
 //               pQueryAttr->window.ekey, pQueryAttr->window.ekey, pQueryAttr->window.skey);
 
-        SWAP(pQueryAttr->window.skey, pQueryAttr->window.ekey, TSKEY);
+        TSWAP(pQueryAttr->window.skey, pQueryAttr->window.ekey, TSKEY);
         doUpdateLastKey(pQueryAttr);
       }
 
@@ -2723,7 +2723,7 @@ static void updateDataCheckOrder(SQInfo *pQInfo, SQueryTableReq* pQueryMsg, bool
         //qDebug(msg, pQInfo->qId, "only-last", pQueryAttr->order.order, TSDB_ORDER_DESC, pQueryAttr->window.skey,
 //               pQueryAttr->window.ekey, pQueryAttr->window.ekey, pQueryAttr->window.skey);
 
-        SWAP(pQueryAttr->window.skey, pQueryAttr->window.ekey, TSKEY);
+        TSWAP(pQueryAttr->window.skey, pQueryAttr->window.ekey, TSKEY);
         doUpdateLastKey(pQueryAttr);
       }
 
@@ -2738,7 +2738,7 @@ static void updateDataCheckOrder(SQInfo *pQInfo, SQueryTableReq* pQueryMsg, bool
           //qDebug(msg, pQInfo->qId, "only-first stable", pQueryAttr->order.order, TSDB_ORDER_ASC,
 //                 pQueryAttr->window.skey, pQueryAttr->window.ekey, pQueryAttr->window.ekey, pQueryAttr->window.skey);
 
-          SWAP(pQueryAttr->window.skey, pQueryAttr->window.ekey, TSKEY);
+          TSWAP(pQueryAttr->window.skey, pQueryAttr->window.ekey, TSKEY);
           doUpdateLastKey(pQueryAttr);
         }
 
@@ -2749,7 +2749,7 @@ static void updateDataCheckOrder(SQInfo *pQInfo, SQueryTableReq* pQueryMsg, bool
           //qDebug(msg, pQInfo->qId, "only-last stable", pQueryAttr->order.order, TSDB_ORDER_DESC,
 //                 pQueryAttr->window.skey, pQueryAttr->window.ekey, pQueryAttr->window.ekey, pQueryAttr->window.skey);
 
-          SWAP(pQueryAttr->window.skey, pQueryAttr->window.ekey, TSKEY);
+          TSWAP(pQueryAttr->window.skey, pQueryAttr->window.ekey, TSKEY);
           doUpdateLastKey(pQueryAttr);
         }
 
@@ -2789,8 +2789,8 @@ static void getIntermediateBufInfo(STaskRuntimeEnv* pRuntimeEnv, int32_t* ps, in
 static bool overlapWithTimeWindow(STaskAttr* pQueryAttr, SDataBlockInfo* pBlockInfo) {
   STimeWindow w = {0};
 
-  TSKEY sk = MIN(pQueryAttr->window.skey, pQueryAttr->window.ekey);
-  TSKEY ek = MAX(pQueryAttr->window.skey, pQueryAttr->window.ekey);
+  TSKEY sk = TMIN(pQueryAttr->window.skey, pQueryAttr->window.ekey);
+  TSKEY ek = TMAX(pQueryAttr->window.skey, pQueryAttr->window.ekey);
 
   if (QUERY_IS_ASC_QUERY(pQueryAttr)) {
     getAlignQueryTimeWindow(pQueryAttr, pBlockInfo->window.skey, sk, ek, &w);
@@ -3473,7 +3473,7 @@ static void updateTableQueryInfoForReverseScan(STableQueryInfo *pTableQueryInfo)
     return;
   }
 
-  SWAP(pTableQueryInfo->win.skey, pTableQueryInfo->win.ekey, TSKEY);
+  TSWAP(pTableQueryInfo->win.skey, pTableQueryInfo->win.ekey, TSKEY);
   pTableQueryInfo->lastKey = pTableQueryInfo->win.skey;
 
   SWITCH_ORDER(pTableQueryInfo->cur.order);
@@ -4095,8 +4095,8 @@ void setIntervalQueryRange(STaskRuntimeEnv *pRuntimeEnv, TSKEY key) {
    */
   STimeWindow w = TSWINDOW_INITIALIZER;
 
-  TSKEY sk = MIN(win.skey, win.ekey);
-  TSKEY ek = MAX(win.skey, win.ekey);
+  TSKEY sk = TMIN(win.skey, win.ekey);
+  TSKEY ek = TMAX(win.skey, win.ekey);
   getAlignQueryTimeWindow(pQueryAttr, win.skey, sk, ek, &w);
 
 //  if (pResultRowInfo->prevSKey == TSKEY_INITIAL_VAL) {
@@ -4221,7 +4221,7 @@ static void updateNumOfRowsInResultRows(STaskRuntimeEnv* pRuntimeEnv, SQLFunctio
       }
 
 //      SResultRowEntryInfo* pCell = getResultCell(pResult, j, rowCellInfoOffset);
-//      pResult->numOfRows = (uint16_t)(MAX(pResult->numOfRows, pCell->numOfRes));
+//      pResult->numOfRows = (uint16_t)(TMAX(pResult->numOfRows, pCell->numOfRes));
     }
   }
 }
@@ -7147,8 +7147,8 @@ SOperatorInfo* createFillOperatorInfo(STaskRuntimeEnv* pRuntimeEnv, SOperatorInf
     struct SFillColInfo* pColInfo = createFillColInfo(pExpr, numOfOutput, pQueryAttr->fillVal);
     STimeWindow w = TSWINDOW_INITIALIZER;
 
-    TSKEY sk = MIN(pQueryAttr->window.skey, pQueryAttr->window.ekey);
-    TSKEY ek = MAX(pQueryAttr->window.skey, pQueryAttr->window.ekey);
+    TSKEY sk = TMIN(pQueryAttr->window.skey, pQueryAttr->window.ekey);
+    TSKEY ek = TMAX(pQueryAttr->window.skey, pQueryAttr->window.ekey);
     getAlignQueryTimeWindow(pQueryAttr, pQueryAttr->window.skey, sk, ek, &w);
 
     pInfo->pFillInfo =

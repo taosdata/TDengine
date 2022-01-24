@@ -156,7 +156,7 @@ static int32_t buildOutput(SInsertParseContext* pCxt) {
     taosHashGetClone(pCxt->pVgroupsHashObj, (const char*)&src->vgId, sizeof(src->vgId), &dst->vg);
     dst->numOfTables = src->numOfTables;
     dst->size = src->size;
-    SWAP(dst->pData, src->pData, char*);
+    TSWAP(dst->pData, src->pData, char*);
     buildMsgHeader(dst);
     taosArrayPush(pCxt->pOutput->pDataBlocks, &dst);
   }

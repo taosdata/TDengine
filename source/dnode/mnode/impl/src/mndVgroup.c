@@ -459,7 +459,7 @@ static bool mndGetVgroupMaxReplicaFp(SMnode *pMnode, void *pObj, void *p1, void 
   int32_t *pNumOfVgroups = p3;
 
   if (pVgroup->dbUid == uid) {
-    *pReplica = MAX(*pReplica, pVgroup->replica);
+    *pReplica = TMAX(*pReplica, pVgroup->replica);
     (*pNumOfVgroups)++;
   }
 
