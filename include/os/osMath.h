@@ -21,7 +21,7 @@ extern "C" {
 #endif
 
 #define TPOW2(x) ((x) * (x))
-#define ABS(x) ((x) > 0 ? (x) : -(x))
+#define TABS(x) ((x) > 0 ? (x) : -(x))
 
 #if defined(_TD_WINDOWS_64) || defined(_TD_WINDOWS_32)
 

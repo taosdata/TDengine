@@ -8089,7 +8089,7 @@ int32_t checkQueryRangeForFill(SSqlCmd* pCmd, SQueryInfo* pQueryInfo) {
       return invalidOperationMsg(tscGetErrorMsgPayload(pCmd), msg3);
     }
 
-    int64_t timeRange = ABS(pQueryInfo->window.skey - pQueryInfo->window.ekey);
+    int64_t timeRange = TABS(pQueryInfo->window.skey - pQueryInfo->window.ekey);
 
     int64_t intervalRange = 0;
     if (pQueryInfo->interval.intervalUnit == 'n' || pQueryInfo->interval.intervalUnit == 'y') {

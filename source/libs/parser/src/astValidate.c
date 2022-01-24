@@ -1267,7 +1267,7 @@ static int32_t checkFillQueryRange(SQueryStmtInfo* pQueryInfo, SMsgBuf* pMsgBuf)
 //    return buildInvalidOperationMsg(pMsgBuf, msg1);
 //  }
 
-  int64_t timeRange = ABS(pQueryInfo->window.skey - pQueryInfo->window.ekey);
+  int64_t timeRange = TABS(pQueryInfo->window.skey - pQueryInfo->window.ekey);
 
   int64_t intervalRange = 0;
   if (!TIME_IS_VAR_DURATION(pQueryInfo->interval.intervalUnit)) {
