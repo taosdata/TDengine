@@ -96,6 +96,15 @@ class Testbase {
 #define CheckBinary(val, len) \
   { EXPECT_STREQ(test.GetShowBinary(len), val); }
 
+#define CheckBinaryByte(b, len)                   \
+  {                                               \
+    char* bytes = (char*)calloc(1, len);          \
+    for (int32_t i = 0; i < len - 1; ++i) {       \
+      bytes[i] = b;                             \
+    }                                             \
+    EXPECT_STREQ(test.GetShowBinary(len), bytes); \
+  }
+
 #define CheckInt8(val) \
   { EXPECT_EQ(test.GetShowInt8(), val); }
 

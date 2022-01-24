@@ -152,6 +152,8 @@ static int32_t mndFuncActionInsert(SSdb *pSdb, SFuncObj *pFunc) {
 
 static int32_t mndFuncActionDelete(SSdb *pSdb, SFuncObj *pFunc) {
   mTrace("func:%s, perform delete action, row:%p", pFunc->name, pFunc);
+  tfree(pFunc->pCode);
+  tfree(pFunc->pComment);
   return 0;
 }
 
@@ -278,7 +280,7 @@ static int32_t mndProcessCreateFuncReq(SMnodeMsg *pReq) {
       mError("func:%s, failed to create since %s", pCreate->name, terrstr());
       return -1;
     }
-  } else if (terrno != TSDB_CODE_MND_FUNC_ALREADY_EXIST) {
+  } else if (terrno == TSDB_CODE_MND_FUNC_ALREADY_EXIST) {
     mError("stb:%s, failed to create since %s", pCreate->name, terrstr());
     return -1;
   }
@@ -307,7 +309,7 @@ static int32_t mndProcessCreateFuncReq(SMnodeMsg *pReq) {
     return -1;
   }
 
-  if (pCreate->bufSize < 0 || pCreate->bufSize > TSDB_FUNC_BUF_SIZE) {
+  if (pCreate->bufSize <= 0 || pCreate->bufSize > TSDB_FUNC_BUF_SIZE) {
     terrno = TSDB_CODE_MND_INVALID_FUNC_BUFSIZE;
     mError("func:%s, failed to create since %s", pCreate->name, terrstr());
     return -1;
@@ -363,6 +365,10 @@ static int32_t mndProcessRetrieveFuncReq(SMnodeMsg *pReq) {
 
   SRetrieveFuncReq *pRetrieve = pReq->rpcMsg.pCont;
   pRetrieve->numOfFuncs = htonl(pRetrieve->numOfFuncs);
+  if (pRetrieve->numOfFuncs <= 0 || pRetrieve->numOfFuncs > TSDB_FUNC_MAX_RETRIEVE) {
+    terrno = TSDB_CODE_MND_INVALID_FUNC_RETRIEVE;
+    return -1;
+  }
 
   int32_t fsize = sizeof(SFuncInfo) + TSDB_FUNC_CODE_LEN + TSDB_FUNC_COMMENT_LEN;
   int32_t size = sizeof(SRetrieveFuncRsp) + fsize * pRetrieve->numOfFuncs;
