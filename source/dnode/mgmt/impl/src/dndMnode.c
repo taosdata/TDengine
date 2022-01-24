@@ -621,5 +621,7 @@ int32_t dndGetUserAuthFromMnode(SDnode *pDnode, char *user, char *spi, char *enc
 
   int32_t code = mndRetriveAuth(pMnode, user, spi, encrypt, secret, ckey);
   dndReleaseMnode(pDnode, pMnode);
+
+  dTrace("user:%s, retrieve auth spi:%d encrypt:%d", user, *spi, *encrypt);
   return code;
 }

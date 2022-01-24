@@ -122,7 +122,7 @@ int main(int argc, char *argv[]) {
   rpcInit.numOfThreads = 1;
   rpcInit.cfp = processRequestMsg;
   rpcInit.sessions = 1000;
-  rpcInit.idleTime = tsShellActivityTimer * 1500;
+  rpcInit.idleTime = 2 * 1500;
   rpcInit.afp = retrieveAuthInfo;
 
   for (int i = 1; i < argc; ++i) {

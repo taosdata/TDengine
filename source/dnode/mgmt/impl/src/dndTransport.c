@@ -172,7 +172,7 @@ static int32_t dndInitClient(SDnode *pDnode) {
 
   SRpcInit rpcInit;
   memset(&rpcInit, 0, sizeof(rpcInit));
-  rpcInit.label = "DND-C";
+  rpcInit.label = "D-C";
   rpcInit.numOfThreads = 1;
   rpcInit.cfp = dndProcessResponse;
   rpcInit.sessions = 1024;
@@ -180,8 +180,12 @@ static int32_t dndInitClient(SDnode *pDnode) {
   rpcInit.idleTime = pDnode->cfg.shellActivityTimer * 1000;
   rpcInit.user = INTERNAL_USER;
   rpcInit.ckey = INTERNAL_CKEY;
-  rpcInit.secret = INTERNAL_SECRET;
+  rpcInit.spi = 1;
   rpcInit.parent = pDnode;
+
+  char pass[TSDB_PASSWORD_LEN + 1] = {0};
+  taosEncryptPass_c((uint8_t *)(INTERNAL_SECRET), strlen(INTERNAL_SECRET), pass);
+  rpcInit.secret = pass;
 
   pMgmt->clientRpc = rpcOpen(&rpcInit);
   if (pMgmt->clientRpc == NULL) {
@@ -257,20 +261,18 @@ static void dndSendMsgToMnodeRecv(SDnode *pDnode, SRpcMsg *pRpcMsg, SRpcMsg *pRp
 
 static int32_t dndAuthInternalReq(SDnode *pDnode, char *user, char *spi, char *encrypt, char *secret, char *ckey) {
   if (strcmp(user, INTERNAL_USER) == 0) {
-    // A simple temporary implementation
-    char pass[TSDB_PASSWORD_LEN] = {0};
-    taosEncryptPass((uint8_t *)(INTERNAL_SECRET), strlen(INTERNAL_SECRET), pass);
+    char pass[TSDB_PASSWORD_LEN + 1] = {0};
+    taosEncryptPass_c((uint8_t *)(INTERNAL_SECRET), strlen(INTERNAL_SECRET), pass);
     memcpy(secret, pass, TSDB_PASSWORD_LEN);
-    *spi = 0;
+    *spi = 1;
     *encrypt = 0;
     *ckey = 0;
     return 0;
   } else if (strcmp(user, TSDB_NETTEST_USER) == 0) {
-    // A simple temporary implementation
-    char pass[TSDB_PASSWORD_LEN] = {0};
-    taosEncryptPass((uint8_t *)(TSDB_NETTEST_USER), strlen(TSDB_NETTEST_USER), pass);
+    char pass[TSDB_PASSWORD_LEN + 1] = {0};
+    taosEncryptPass_c((uint8_t *)(TSDB_NETTEST_USER), strlen(TSDB_NETTEST_USER), pass);
     memcpy(secret, pass, TSDB_PASSWORD_LEN);
-    *spi = 0;
+    *spi = 1;
     *encrypt = 0;
     *ckey = 0;
     return 0;
@@ -283,12 +285,12 @@ static int32_t dndRetrieveUserAuthInfo(void *parent, char *user, char *spi, char
   SDnode *pDnode = parent;
 
   if (dndAuthInternalReq(parent, user, spi, encrypt, secret, ckey) == 0) {
-    // dTrace("get internal auth success");
+    dTrace("user:%s, get auth from internal mnode, spi:%d encrypt:%d", user, *spi, *encrypt);
     return 0;
   }
 
   if (dndGetUserAuthFromMnode(pDnode, user, spi, encrypt, secret, ckey) == 0) {
-    // dTrace("get auth from internal mnode");
+    dTrace("user:%s, get auth from internal mnode, spi:%d encrypt:%d", user, *spi, *encrypt);
     return 0;
   }
 
@@ -297,13 +299,12 @@ static int32_t dndRetrieveUserAuthInfo(void *parent, char *user, char *spi, char
     return -1;
   }
 
-  // dDebug("user:%s, send auth msg to other mnodes", user);
-
   SAuthReq *pReq = rpcMallocCont(sizeof(SAuthReq));
   tstrncpy(pReq->user, user, TSDB_USER_LEN);
 
   SRpcMsg rpcMsg = {.pCont = pReq, .contLen = sizeof(SAuthReq), .msgType = TDMT_MND_AUTH};
   SRpcMsg rpcRsp = {0};
+  dTrace("user:%s, send user auth req to other mnodes, spi:%d encrypt:%d", user, pReq->spi, pReq->encrypt);
   dndSendMsgToMnodeRecv(pDnode, &rpcMsg, &rpcRsp);
 
   if (rpcRsp.code != 0) {
@@ -315,7 +316,7 @@ static int32_t dndRetrieveUserAuthInfo(void *parent, char *user, char *spi, char
     memcpy(ckey, pRsp->ckey, TSDB_PASSWORD_LEN);
     *spi = pRsp->spi;
     *encrypt = pRsp->encrypt;
-    dDebug("user:%s, success to get user auth from other mnodes", user);
+    dTrace("user:%s, success to get user auth from other mnodes, spi:%d encrypt:%d", user, pRsp->spi, pRsp->encrypt);
   }
 
   rpcFreeCont(rpcRsp.pCont);
@@ -334,7 +335,7 @@ static int32_t dndInitServer(SDnode *pDnode) {
   SRpcInit rpcInit;
   memset(&rpcInit, 0, sizeof(rpcInit));
   rpcInit.localPort = pDnode->cfg.serverPort;
-  rpcInit.label = "DND-S";
+  rpcInit.label = "D-S";
   rpcInit.numOfThreads = numOfThreads;
   rpcInit.cfp = dndProcessRequest;
   rpcInit.sessions = pDnode->cfg.maxShellConns;

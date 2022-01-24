@@ -110,7 +110,7 @@ void* openTransporter(const char *user, const char *auth, int32_t numOfThread) {
   rpcInit.user = (char *)user;
   rpcInit.idleTime = tsShellActivityTimer * 1000;
   rpcInit.ckey = "key";
-//  rpcInit.spi = 1;
+  rpcInit.spi = 1;
   rpcInit.secret = (char *)auth;
 
   void* pDnodeConn = rpcOpen(&rpcInit);
@@ -195,6 +195,10 @@ static void doDestroyRequest(void* p) {
 
   doFreeReqResultInfo(&pRequest->body.resInfo);
   qDestroyQueryDag(pRequest->body.pDag);
+
+  if (pRequest->body.showInfo.pArray != NULL) {
+    taosArrayDestroy(pRequest->body.showInfo.pArray);
+  }
 
   deregisterRequest(pRequest);
   tfree(pRequest);

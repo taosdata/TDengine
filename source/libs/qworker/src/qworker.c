@@ -970,17 +970,17 @@ int32_t qwProcessQuery(QW_FPARAMS_DEF, SQWMsg *qwMsg, int8_t taskType) {
   
   code = qStringToSubplan(qwMsg->msg, &plan);
   if (TSDB_CODE_SUCCESS != code) {
-    QW_TASK_ELOG("task string to subplan failed, code:%x", code);
+    QW_TASK_ELOG("task string to subplan failed, code:%s", tstrerror(code));
     QW_ERR_JRET(code);
   }
   
   code = qCreateExecTask(qwMsg->node, 0, (struct SSubplan *)plan, &pTaskInfo, &sinkHandle);
   if (code) {
-    QW_TASK_ELOG("qCreateExecTask failed, code:%x", code);
+    QW_TASK_ELOG("qCreateExecTask failed, code:%s", tstrerror(code));
     QW_ERR_JRET(code);
   }
 
-  if ((pTaskInfo && NULL == sinkHandle) || (NULL == pTaskInfo && sinkHandle)) {
+  if (NULL == sinkHandle || NULL == pTaskInfo) {
     QW_TASK_ELOG("create task result error, taskHandle:%p, sinkHandle:%p", pTaskInfo, sinkHandle);
     QW_ERR_JRET(TSDB_CODE_QRY_APP_ERROR);
   }

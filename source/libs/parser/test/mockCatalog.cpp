@@ -18,7 +18,13 @@
 #include <iostream>
 
 #include "stub.h"
+
+#pragma GCC diagnostic push
+#pragma GCC diagnostic ignored "-Wformat"
+
 #include "addr_any.h"
+
+#pragma GCC diagnostic pop
 
 namespace {
 

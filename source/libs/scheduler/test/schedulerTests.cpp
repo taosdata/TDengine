@@ -16,11 +16,7 @@
 #include <gtest/gtest.h>
 #include <tglobal.h>
 #include <iostream>
-#pragma GCC diagnostic ignored "-Wwrite-strings"
 
-#pragma GCC diagnostic ignored "-Wunused-function"
-#pragma GCC diagnostic ignored "-Wunused-variable"
-#pragma GCC diagnostic ignored "-Wsign-compare"
 #include "os.h"
 
 #include "taos.h"
@@ -30,6 +26,16 @@
 #include "scheduler.h"
 #include "tep.h"
 #include "trpc.h"
+
+#pragma GCC diagnostic push
+#pragma GCC diagnostic ignored "-Wwrite-strings"
+#pragma GCC diagnostic ignored "-Wliteral-suffix"
+#pragma GCC diagnostic ignored "-Wunused-function"
+#pragma GCC diagnostic ignored "-Wunused-variable"
+#pragma GCC diagnostic ignored "-Wsign-compare"
+#pragma GCC diagnostic ignored "-Wreturn-type"
+#pragma GCC diagnostic ignored "-Wformat"
+
 #include "schedulerInt.h"
 #include "stub.h"
 #include "addr_any.h"
@@ -680,6 +686,4 @@ int main(int argc, char** argv) {
   return RUN_ALL_TESTS();
 }
 
-
-
-
+#pragma GCC diagnostic pop

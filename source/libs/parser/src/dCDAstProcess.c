@@ -26,7 +26,7 @@ static int32_t setShowInfo(SShowInfo* pShowInfo, SParseContext* pCtx, void** out
   const char* msg4 = "pattern is invalid";
   const char* msg5 = "database name is empty";
   const char* msg6 = "pattern string is empty";
-  const char* msg7 = "db is not specified";
+  const char* msg7 = "database not specified";
   /*
    * database prefix in pInfo->pMiscInfo->a[0]
    * wildcard in like clause in pInfo->pMiscInfo->a[1]
@@ -50,7 +50,11 @@ static int32_t setShowInfo(SShowInfo* pShowInfo, SParseContext* pCtx, void** out
     char dbFname[TSDB_DB_FNAME_LEN] = {0};
     tNameGetFullDbName(&name, dbFname);
 
-    catalogGetDBVgroup(pCtx->pCatalog, pCtx->pTransporter, &pCtx->mgmtEpSet, dbFname, false, &array);
+    int32_t code = catalogGetDBVgroup(pCtx->pCatalog, pCtx->pTransporter, &pCtx->mgmtEpSet, dbFname, false, &array);
+    if (code != TSDB_CODE_SUCCESS) {
+      terrno = code;
+      return code;
+    }
 
     SVgroupInfo* info = taosArrayGet(array, 0);
     pShowReq->head.vgId = htonl(info->vgId);
@@ -62,9 +66,8 @@ static int32_t setShowInfo(SShowInfo* pShowInfo, SParseContext* pCtx, void** out
       pEpSet->port[i] = info->epAddr[i].port;
     }
 
-    *outputLen = sizeof(SVShowTablesReq);
-    *output = pShowReq;
-
+    *outputLen  = sizeof(SVShowTablesReq);
+    *output     = pShowReq;
     *pExtension = array;
   } else {
     if (showType == TSDB_MGMT_TABLE_STB || showType == TSDB_MGMT_TABLE_VGROUP) {
@@ -680,10 +683,9 @@ int32_t doCheckAndBuildCreateTableReq(SCreateTableSql* pCreateTable, SParseConte
 
     serializeVgroupTablesBatchImpl(&tbatch, pBufArray);
     destroyCreateTbReqBatch(&tbatch);
-
   } else { // it is a child table, created according to a super table
     code = doCheckAndBuildCreateCTableReq(pCreateTable, pCtx, pMsgBuf, &pBufArray);
-    if (code != 0) {
+    if (code != TSDB_CODE_SUCCESS) {
       return code;
     }
   }

@@ -253,12 +253,8 @@ typedef struct SExecTaskInfo {
 
   STableGroupInfo tableqinfoGroupInfo;  // this is a group array list, including SArray<STableQueryInfo*> structure
   pthread_mutex_t lock;        // used to synchronize the rsp/query threads
-//  tsem_t           ready;
-//  int32_t          dataReady;   // denote if query result is ready or not
-//  void*            rspContext;  // response context
   char           *sql;         // query sql string
   jmp_buf         env;         //
-  DataSinkHandle  dsHandle;
   struct SOperatorInfo  *pRoot;
 } SExecTaskInfo;
 
@@ -376,16 +372,19 @@ typedef struct STaskParam {
 
 typedef struct SExchangeInfo {
   SArray            *pSources;
-  int32_t            bytes;   // total load bytes from remote
   tsem_t             ready;
   void              *pTransporter;
   SRetrieveTableRsp *pRsp;
   SSDataBlock       *pResult;
+  int32_t            current;
+  uint64_t           rowsOfCurrentSource;
+  uint64_t           bytes;   // total load bytes from remote
+  uint64_t           totalRows;
 } SExchangeInfo;
 
 typedef struct STableScanInfo {
   void           *pTsdbReadHandle;
-  int32_t         numOfBlocks;
+  int32_t         numOfBlocks;     // extract basic running information.
   int32_t         numOfSkipped;
   int32_t         numOfBlockStatis;
   int64_t         numOfRows;
@@ -415,7 +414,11 @@ typedef struct STagScanInfo {
 } STagScanInfo;
 
 typedef struct SStreamBlockScanInfo {
-
+  SSDataBlock *pRes;        // result SSDataBlock
+  SColumnInfo *pCols;       // the output column info
+  uint64_t     numOfRows;   // total scanned rows
+  uint64_t     numOfExec;   // execution times
+  void        *readerHandle;// stream block reader handle
 } SStreamBlockScanInfo;
 
 typedef struct SOptrBasicInfo {
@@ -423,7 +426,6 @@ typedef struct SOptrBasicInfo {
   int32_t          *rowCellInfoOffset;  // offset value for each row result cell info
   SQLFunctionCtx   *pCtx;
   SSDataBlock      *pRes;
-  void             *keyBuf;
 } SOptrBasicInfo;
 
 typedef struct SOptrBasicInfo STableIntervalOperatorInfo;
@@ -663,6 +665,6 @@ int32_t getMaximumIdleDurationSec();
 
 void doInvokeUdf(struct SUdfInfo* pUdfInfo, SQLFunctionCtx *pCtx, int32_t idx, int32_t type);
 void setTaskStatus(SExecTaskInfo *pTaskInfo, int8_t status);
-int32_t doCreateExecTaskInfo(SSubplan* pPlan, SExecTaskInfo** pTaskInfo, void* readerHandle);
+int32_t createExecTaskInfoImpl(SSubplan* pPlan, SExecTaskInfo** pTaskInfo, void* readerHandle);
 
 #endif  // TDENGINE_EXECUTORIMPL_H

@@ -829,6 +829,7 @@ static bool exchangeNodeFromJson(const cJSON* json, void* obj) {
 static bool specificPhyNodeToJson(const void* obj, cJSON* json) {
   const SPhyNode* phyNode = (const SPhyNode*)obj;
   switch (phyNode->info.type) {
+    case OP_StreamScan:
     case OP_TableScan:
     case OP_DataBlocksOptScan:
     case OP_TableSeqScan:

@@ -152,6 +152,7 @@ static int32_t sdbInsertRow(SSdb *pSdb, SHashObj *hash, SSdbRaw *pRaw, SSdbRow *
   if (insertFp != NULL) {
     code = (*insertFp)(pSdb, pRow->pObj);
     if (code != 0) {
+      code = terrno;
       taosWLockLatch(pLock);
       taosHashRemove(hash, pRow->pObj, keySize);
       taosWUnLockLatch(pLock);

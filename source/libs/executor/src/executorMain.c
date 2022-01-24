@@ -69,11 +69,11 @@ void freeParam(STaskParam *param) {
   tfree(param->prevResult);
 }
 
-int32_t qCreateExecTask(void* tsdb, int32_t vgId, SSubplan* pSubplan, qTaskInfo_t* pTaskInfo, DataSinkHandle* handle) {
-  assert(tsdb != NULL && pSubplan != NULL);
+int32_t qCreateExecTask(void* readHandle, int32_t vgId, SSubplan* pSubplan, qTaskInfo_t* pTaskInfo, DataSinkHandle* handle) {
+  assert(readHandle != NULL && pSubplan != NULL);
   SExecTaskInfo** pTask = (SExecTaskInfo**)pTaskInfo;
 
-  int32_t code = doCreateExecTaskInfo(pSubplan, pTask, tsdb);
+  int32_t code = createExecTaskInfoImpl(pSubplan, pTask, readHandle);
   if (code != TSDB_CODE_SUCCESS) {
     goto _error;
   }
@@ -84,11 +84,9 @@ int32_t qCreateExecTask(void* tsdb, int32_t vgId, SSubplan* pSubplan, qTaskInfo_
     goto _error;
   }
 
-  code = dsCreateDataSinker(pSubplan->pDataSink, &(*pTask)->dsHandle);
+  code = dsCreateDataSinker(pSubplan->pDataSink, handle);
 
-  *handle = (*pTask)->dsHandle;
-
-_error:
+  _error:
   // if failed to add ref for all tables in this query, abort current query
   return code;
 }
@@ -165,13 +163,6 @@ int32_t qExecTask(qTaskInfo_t tinfo, SSDataBlock** pRes, uint64_t *useconds) {
     qDebug("QInfo:0x%" PRIx64 " it is already killed, abort", GET_TASKID(pTaskInfo));
     return TSDB_CODE_SUCCESS;
   }
-
-  //  STaskRuntimeEnv* pRuntimeEnv = &pTaskInfo->runtimeEnv;
-  //  if (pTaskInfo->tableqinfoGroupInfo.numOfTables == 0) {
-  //    qDebug("QInfo:0x%"PRIx64" no table exists for query, abort", GET_TASKID(pTaskInfo));
-  //    setTaskStatus(pTaskInfo, TASK_COMPLETED);
-  //    return doBuildResCheck(pTaskInfo);
-  //  }
 
   // error occurs, record the error code and return to client
   int32_t ret = setjmp(pTaskInfo->env);

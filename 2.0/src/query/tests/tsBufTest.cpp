@@ -9,6 +9,7 @@
 #include "ttoken.h"
 #include "tutil.h"
 
+#pragma GCC diagnostic push
 #pragma GCC diagnostic ignored "-Wunused-function"
 #pragma GCC diagnostic ignored "-Wunused-variable"
 #pragma GCC diagnostic ignored "-Wunused-but-set-variable"
@@ -513,3 +514,5 @@ TEST(testCase, tsBufTest) {
   mergeDiffVnodeBufferTest();
   mergeIdenticalVnodeBufferTest();
 }
+
+#pragma GCC diagnostic pop

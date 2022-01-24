@@ -696,13 +696,13 @@ typedef struct SVgroupInfo {
   uint32_t   hashEnd;
   int8_t     inUse;
   int8_t     numOfEps;
-  SEpAddr epAddr[TSDB_MAX_REPLICA];
+  SEpAddr    epAddr[TSDB_MAX_REPLICA];
 } SVgroupInfo;
 
 typedef struct {
   int32_t    vgId;
   int8_t     numOfEps;
-  SEpAddr epAddr[TSDB_MAX_REPLICA];
+  SEpAddr    epAddr[TSDB_MAX_REPLICA];
 } SVgroupMsg;
 
 typedef struct {
@@ -1525,8 +1525,27 @@ typedef struct SMqSetCVgReq {
   char*   sql;
   char*   logicalPlan;
   char*   physicalPlan;
-  SArray* tasks;  // SArray<SSubQueryMsg>
+  SSubQueryMsg msg;
 } SMqSetCVgReq;
+
+static FORCE_INLINE int32_t tEncodeSSubQueryMsg(void** buf, const SSubQueryMsg* pMsg) {
+  int32_t tlen = 0;
+  tlen += taosEncodeFixedU64(buf, pMsg->sId);
+  tlen += taosEncodeFixedU64(buf, pMsg->queryId);
+  tlen += taosEncodeFixedU64(buf, pMsg->taskId);
+  tlen += taosEncodeFixedU32(buf, pMsg->contentLen);
+  tlen += taosEncodeBinary(buf, pMsg->msg, pMsg->contentLen);
+  return tlen;
+}
+
+static FORCE_INLINE void* tDecodeSSubQueryMsg(void* buf, SSubQueryMsg* pMsg) {
+  buf = taosDecodeFixedU64(buf, &pMsg->sId);
+  buf = taosDecodeFixedU64(buf, &pMsg->queryId);
+  buf = taosDecodeFixedU64(buf, &pMsg->taskId);
+  buf = taosDecodeFixedU32(buf, &pMsg->contentLen);
+  buf = taosDecodeBinaryTo(buf, pMsg->msg, pMsg->contentLen);
+  return buf;
+}
 
 static FORCE_INLINE int32_t tEncodeSMqSetCVgReq(void** buf, const SMqSetCVgReq* pReq) {
   int32_t tlen = 0;
@@ -1537,6 +1556,7 @@ static FORCE_INLINE int32_t tEncodeSMqSetCVgReq(void** buf, const SMqSetCVgReq* 
   tlen += taosEncodeString(buf, pReq->sql);
   tlen += taosEncodeString(buf, pReq->logicalPlan);
   tlen += taosEncodeString(buf, pReq->physicalPlan);
+  tlen += tEncodeSSubQueryMsg(buf, &pReq->msg);
   return tlen;
 }
 
@@ -1548,7 +1568,7 @@ static FORCE_INLINE void* tDecodeSMqSetCVgReq(void* buf, SMqSetCVgReq* pReq) {
   buf = taosDecodeString(buf, &pReq->sql);
   buf = taosDecodeString(buf, &pReq->logicalPlan);
   buf = taosDecodeString(buf, &pReq->physicalPlan);
-  pReq->tasks = NULL;
+  buf = tDecodeSSubQueryMsg(buf, &pReq->msg);
   return buf;
 }
 
@@ -1559,32 +1579,47 @@ typedef struct SMqSetCVgRsp {
   char    cGroup[TSDB_CONSUMER_GROUP_LEN];
 } SMqSetCVgRsp;
 
-typedef struct SMqCVConsumeReq {
+typedef struct SMqConsumeReq {
   int64_t reqId;
   int64_t offset;
   int64_t consumerId;
   int64_t blockingTime;
   char    topicName[TSDB_TOPIC_FNAME_LEN];
   char    cgroup[TSDB_CONSUMER_GROUP_LEN];
-} SMqCVConsumeReq;
+} SMqConsumeReq;
 
-typedef struct SMqConsumeRspBlock {
-  int32_t bodyLen;
-  char topicName[TSDB_TOPIC_FNAME_LEN];
-  char body[];
-} SMqConsumeRspBlock;
+typedef struct SMqColData {
+  int16_t colId;
+  int16_t type;
+  int16_t bytes;
+  char    data[];
+} SMqColData;
 
-typedef struct SMqCVConsumeRsp {
-  int64_t reqId;
-  int64_t clientId;
-  int64_t committedOffset;
-  int64_t receiveOffset;
-  int64_t rspOffset;
-  int32_t skipLogNum;
-  int32_t bodyLen;
-  char    topicName[TSDB_TOPIC_FNAME_LEN];
-  SMqConsumeRspBlock blocks[];
-} SMqCvConsumeRsp;
+typedef struct SMqTbData {
+  int64_t    uid;
+  int32_t    numOfCols;
+  int32_t    numOfRows;
+  SMqColData colData[];
+} SMqTbData;
+
+typedef struct SMqTopicBlk {
+  char      topicName[TSDB_TOPIC_FNAME_LEN];
+  int64_t   committedOffset;
+  int64_t   reqOffset;
+  int64_t   rspOffset;
+  int32_t   skipLogNum;
+  int32_t   bodyLen;
+  int32_t   numOfTb;
+  SMqTbData tbData[];
+} SMqTopicData;
+
+typedef struct SMqConsumeRsp {
+  int64_t      reqId;
+  int64_t      clientId;
+  int32_t      bodyLen;
+  int32_t      numOfTopics;
+  SMqTopicData data[];
+} SMqConsumeRsp;
 
 #ifdef __cplusplus
 }

@@ -319,7 +319,7 @@ void *taosNetInitRpc(char *secretEncrypt, char spi) {
 
   char user[] = "nettestinternal";
   char pass[] = "nettestinternal";
-  taosEncryptPass((uint8_t *)pass, strlen(pass), secretEncrypt);
+  taosEncryptPass_c((uint8_t *)pass, strlen(pass), secretEncrypt);
 
   memset(&rpcInit, 0, sizeof(rpcInit));
   rpcInit.localPort = 0;
@@ -344,7 +344,7 @@ static int32_t taosNetCheckRpc(const char* serverFqdn, uint16_t port, uint16_t p
   SRpcMsg   rspMsg;
   void *    pRpcConn;
 
-  char secretEncrypt[32] = {0};
+  char secretEncrypt[TSDB_PASSWORD_LEN + 1] = {0};
 
   pRpcConn = taosNetInitRpc(secretEncrypt, spi);
   if (NULL == pRpcConn) {

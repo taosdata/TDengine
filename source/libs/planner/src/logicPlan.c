@@ -121,6 +121,7 @@ static SQueryPlanNode* createQueryNode(int32_t type, const char* name, SQueryPla
 
   switch(type) {
     case QNODE_TAGSCAN:
+    case QNODE_STREAMSCAN:
     case QNODE_TABLESCAN: {
       SQueryTableInfo* info = calloc(1, sizeof(SQueryTableInfo));
       memcpy(info, pExtInfo, sizeof(SQueryTableInfo));
@@ -195,7 +196,12 @@ static SQueryPlanNode* doAddTableColumnNode(const SQueryStmtInfo* pQueryInfo, SQ
     return pNode;
   }
 
-  SQueryPlanNode*  pNode = createQueryNode(QNODE_TABLESCAN, "TableScan", NULL, 0, NULL, 0, info);
+  SQueryPlanNode* pNode = NULL;
+  if (pQueryInfo->info.continueQuery) {
+    pNode = createQueryNode(QNODE_STREAMSCAN, "StreamScan", NULL, 0, NULL, 0, info);
+  } else {
+    pNode = createQueryNode(QNODE_TABLESCAN, "TableScan", NULL, 0, NULL, 0, info);
+  }
 
   if (!pQueryInfo->info.projectionQuery) {
     SArray* p = pQueryInfo->exprList[0];
@@ -261,7 +267,6 @@ static SQueryPlanNode* doCreateQueryPlanForSingleTableImpl(const SQueryStmtInfo*
       pNode->numOfExpr = num;
       pNode->pExpr = taosArrayInit(num, POINTER_BYTES);
       taosArrayAddAll(pNode->pExpr, p);
-//      pNode = createQueryNode(QNODE_PROJECT, "Projection", &pNode, 1, p->pData, num, NULL);
     }
   }
 
@@ -433,6 +438,7 @@ static int32_t doPrintPlan(char* buf, SQueryPlanNode* pQueryNode, int32_t level,
   int32_t len = len1 + totalLen;
 
   switch(pQueryNode->info.type) {
+    case QNODE_STREAMSCAN:
     case QNODE_TABLESCAN: {
       SQueryTableInfo* pInfo = (SQueryTableInfo*)pQueryNode->pExtInfo;
       len1 = sprintf(buf + len, "%s #%" PRIu64, pInfo->tableName, pInfo->uid);
@@ -643,7 +649,6 @@ int32_t queryPlanToStringImpl(char* buf, SQueryPlanNode* pQueryNode, int32_t lev
 
 int32_t queryPlanToString(struct SQueryPlanNode* pQueryNode, char** str) {
   assert(pQueryNode);
-
   *str = calloc(1, 4096);
 
   int32_t len = sprintf(*str, "===== logic plan =====\n");
