@@ -8471,10 +8471,6 @@ static int32_t deserializeColFilterInfo(SColumnFilterInfo* pColFilters, int16_t 
 int32_t convertQueryMsg(SQueryTableMsg *pQueryMsg, SQueryParam* param) {
   int32_t code = TSDB_CODE_SUCCESS;
 
-  if (taosCheckVersion(pQueryMsg->version, version, 3) != 0) {
-    return TSDB_CODE_QRY_INVALID_MSG;
-  }
-
   pQueryMsg->numOfTables = htonl(pQueryMsg->numOfTables);
   pQueryMsg->window.skey = htobe64(pQueryMsg->window.skey);
   pQueryMsg->window.ekey = htobe64(pQueryMsg->window.ekey);

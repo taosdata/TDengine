@@ -55,7 +55,8 @@
       "sample_file": "./sample.csv",
       "use_sample_ts": "no",
       "tags_file": "",
-      "columns": [{"type": "TIMESTAMP"},{"type": "INT"}, {"type": "BIGINT"}, {"type": "FLOAT"}, {"type": "DOUBLE"}, {"type": "SMALLINT"}, {"type": "TINYINT"}, {"type": "BOOL"}, {"type": "NCHAR","len": 29, "count":1}, {"type": "UINT"}, {"type": "UBIGINT"}, {"type": "UTINYINT"}, {"type": "USMALLINT"}, {"type": "BINARY", "len": 23, "count":1}],
+      "partial_col_num": 3,
+      "columns": [{"type": "TIMESTAMP"},{"type": "INT", "len": 0}, {"type": "BIGINT"}, {"type": "FLOAT"}, {"type": "DOUBLE"}, {"type": "SMALLINT"}, {"type": "TINYINT"}, {"type": "BOOL"}, {"type": "NCHAR","len": 29, "count":1}, {"type": "UINT"}, {"type": "UBIGINT"}, {"type": "UTINYINT"}, {"type": "USMALLINT"}, {"type": "BINARY", "len": 23, "count":1}],
       "tags": [{"type": "TIMESTAMP"},{"type": "INT"}, {"type": "BIGINT"}, {"type": "FLOAT"}, {"type": "DOUBLE"}, {"type": "SMALLINT"}, {"type": "TINYINT"}, {"type": "BOOL"}, {"type": "NCHAR","len": 17, "count":1}, {"type": "UINT"}, {"type": "UBIGINT"}, {"type": "UTINYINT"}, {"type": "USMALLINT"}, {"type": "BINARY", "len": 19, "count":1}]
     }]
   }]

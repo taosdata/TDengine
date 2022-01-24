@@ -1129,6 +1129,56 @@ class TDTestCase:
         tdSql.error('select 1 != 2 and 1 < 2 or \'abc123\' or 2 between \'abc123\' and 5 and false or "abc123" from tb;')
         tdSql.error('select \'1234\' or 1 < 2 or \'aace\' and "cde" between 4 and "def" and "ckas" or 10.1 from tb;')
 
+        #operator: is NULL
+        tdSql.error('select 1 is NULL from tb;')
+        tdSql.error('select 1.0 is NULL from tb;')
+        tdSql.error('select true is NULL from tb;')
+        tdSql.error('select \'a\' is NULL from tb;')
+        tdSql.error('select "abc" is NULL from tb;')
+        tdSql.error('select 1 is NULL and 1.0 is NULL or "abc" is NULL from tb;')
+
+        #operator: is not NULL
+        tdSql.error('select 1 is not NULL from tb;')
+        tdSql.error('select 1.0 is not NULL from tb;')
+        tdSql.error('select true is not NULL from tb;')
+        tdSql.error('select \'a\' is not NULL from tb;')
+        tdSql.error('select "abc" is not NULL from tb;')
+        tdSql.error('select 1 is not NULL and 1.0 is not NULL or "abc" is not NULL from tb;')
+
+        #operator: like
+        tdSql.error('select 1 like 1 from tb;')
+        tdSql.error('select 1.0 like 1.0 from tb;')
+        tdSql.error('select true like true from tb;')
+        tdSql.error('select \'abc\' like \'a_\' from tb;')
+        tdSql.error('select "abc" like "ab__%" from tb;')
+        tdSql.error('select 1 like 1 and 1.0 like 1.0 or "abc" like "a%" from tb;')
+
+        #operator: match
+        tdSql.error('select 1 match 1 from tb;')
+        tdSql.error('select 1.0 match 1.0 from tb;')
+        tdSql.error('select true match true from tb;')
+        tdSql.error('select \'abc\' match \'a_\' from tb;')
+        tdSql.error('select "abc" match "ab__%" from tb;')
+        tdSql.error('select 1 match 1 and 1.0 match 1.0 or "abc" match "a%" from tb;')
+
+        #operator: nmatch
+        tdSql.error('select 1 nmatch 1 from tb;')
+        tdSql.error('select 1.0 nmatch 1.0 from tb;')
+        tdSql.error('select true nmatch true from tb;')
+        tdSql.error('select \'abc\' nmatch \'a_\' from tb;')
+        tdSql.error('select "abc" nmatch "ab__%" from tb;')
+        tdSql.error('select 1 nmatch 1 and 1.0 nmatch 1.0 or "abc" nmatch "a%" from tb;')
+
+        #operator: in
+        tdSql.error('select 1 in 1 from tb;')
+        tdSql.error('select 1 in (1, 2, 3) from tb;')
+        tdSql.error('select 1.0 in 1.0 from tb;')
+        tdSql.error('select 1.0 in (1.0, 2.0, 3.0) from tb;')
+        tdSql.error('select true in (true, false, true) from tb;')
+        tdSql.error('select \'abc\' in (\'acd\', \'bce\') from tb;')
+        tdSql.error('select "abc" in ("acd", "bce") from tb;')
+        tdSql.error('select 1 in (1,2,3) and 1.0 in (1.0,2.0,3.0) or "abc" in ("abc","cde") from tb;')
+
         tdSql.execute('drop database db')
 
     def stop(self):

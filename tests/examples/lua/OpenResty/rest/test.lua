@@ -28,7 +28,7 @@ else
    ngx.say("select db--- pass.")
 end
 
-res = driver.query(conn,"create table m1 (ts timestamp, speed int,owner binary(20))")
+res = driver.query(conn,"create table m1 (ts timestamp, speed int, owner binary(20), mark nchar(30))")
 if res.code ~=0 then
    ngx.say("create table---failed: "..res.error)
 
@@ -36,7 +36,7 @@ else
    ngx.say("create table--- pass.")
 end
 
-res = driver.query(conn,"insert into m1 values ('2019-09-01 00:00:00.001', 0, 'robotspace'), ('2019-09-01 00:00:00.002',1,'Hilink'),('2019-09-01 00:00:00.003',2,'Harmony')")
+res = driver.query(conn,"insert into m1 values ('2019-09-01 00:00:00.001', 0, 'robotspace', '世界人民大团结万岁'), ('2019-09-01 00:00:00.002',1,'Hilink','⾾⾿⿀⿁⿂⿃⿄⿅⿆⿇⿈⿉⿊⿋⿌⿍⿎⿏⿐⿑⿒⿓⿔⿕'),('2019-09-01 00:00:00.003',2,'Harmony', '₠₡₢₣₤₥₦₧₨₩₪₫€₭₮₯₰₱₲₳₴₵')")
 if res.code ~=0 then
    ngx.say("insert records failed: "..res.error)
    return
@@ -56,13 +56,12 @@ if res.code ~=0 then
 else
    ngx.say(cjson.encode(res))
     if (#(res.item) == 3) then
-	ngx.say("select--- pass")
+        ngx.say("select--- pass")
     else
 	ngx.say("select--- failed: expect 3 affected records, actually received "..#(res.item))
     end
 
 end
-
 --[[
 local flag = false
 function query_callback(res)

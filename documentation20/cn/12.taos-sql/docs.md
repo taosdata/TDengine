@@ -1805,9 +1805,9 @@ TDengine 中的表（列）名命名规则如下：
   1. 在where条件中时，支持函数match/nmatch/between and/like/and/or/is null/is no null，不支持in
 
      ```mysql 
-     select * from s1 where info→'k1' match 'v*'; 
+     select * from s1 where info->'k1' match 'v*'; 
 
-     select * from s1 where info→'k1' like 'v%' and info contains 'k2';
+     select * from s1 where info->'k1' like 'v%' and info contains 'k2';
 
      select * from s1 where info is null; 
   
@@ -1819,7 +1819,7 @@ TDengine 中的表（列）名命名规则如下：
   3. 支持distinct操作.
 
      ```mysql 
-     select distinct info→'k1' from s1
+     select distinct info->'k1' from s1
      ```
   
   5. 标签操作
@@ -1850,7 +1850,7 @@ TDengine 中的表（列）名命名规则如下：
   
      比如暂不支持 
      ```mysql 
-     select jtag→'key' from (select jtag from stable)
+     select jtag->'key' from (select jtag from stable)
      ```
   
      不支持 

@@ -1933,9 +1933,6 @@ int tscBuildConnectMsg(SSqlObj *pSql, SSqlInfo *pInfo) {
   tstrncpy(pConnect->db, db, sizeof(pConnect->db));
   pthread_mutex_unlock(&pObj->mutex);
 
-  tstrncpy(pConnect->clientVersion, version, sizeof(pConnect->clientVersion));
-  tstrncpy(pConnect->msgVersion, "", sizeof(pConnect->msgVersion));
-
   pConnect->pid = htonl(taosGetPId());
   taosGetCurrentAPPName(pConnect->appName, NULL);
 
@@ -2035,7 +2032,6 @@ int tscBuildHeartBeatMsg(SSqlObj *pSql, SSqlInfo *pInfo) {
 
   // TODO the expired hb and client can not be identified by server till now.
   SHeartBeatMsg *pHeartbeat = (SHeartBeatMsg *)pCmd->payload;
-  tstrncpy(pHeartbeat->clientVer, version, tListLen(pHeartbeat->clientVer));
 
   pHeartbeat->numOfQueries = numOfQueries;
   pHeartbeat->numOfStreams = numOfStreams;
