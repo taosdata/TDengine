@@ -13,10 +13,12 @@ set -e
 #             -r [ dnode root dir]
 
 # set parameters by default value
+fqdn=`hostname`
+
 enviMode=new
 dataRootDir="/data"
-firstEp="localhost:7000"
-startPort=7000
+firstEp="${fqdn}:6030"
+startPort=6030
 dnodeNumber=1
 
 

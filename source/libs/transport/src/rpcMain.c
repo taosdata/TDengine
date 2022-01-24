@@ -42,6 +42,8 @@ int tsRpcMaxRetry;
 int tsRpcHeadSize;
 int tsRpcOverhead;
 
+SHashObj *tsFqdnHash;
+
 #ifndef USE_UV
 
 typedef struct {
@@ -215,6 +217,8 @@ static void rpcInitImp(void) {
   tsRpcOverhead = sizeof(SRpcReqContext);
 
   tsRpcRefId = taosOpenRef(200, rpcFree);
+
+  tsFqdnHash = taosHashInit(64, taosGetDefaultHashFunction(TSDB_DATA_TYPE_BINARY), false, HASH_ENTRY_LOCK);
 }
 
 int32_t rpcInit(void) {
@@ -224,6 +228,9 @@ int32_t rpcInit(void) {
 
 void rpcCleanup(void) {
   taosCloseRef(tsRpcRefId);
+  taosHashClear(tsFqdnHash);
+  taosHashCleanup(tsFqdnHash);
+  tsFqdnHash = NULL;
   tsRpcRefId = -1;
 }
 
@@ -571,7 +578,17 @@ static void rpcFreeMsg(void *msg) {
 static SRpcConn *rpcOpenConn(SRpcInfo *pRpc, char *peerFqdn, uint16_t peerPort, int8_t connType) {
   SRpcConn *pConn;
 
-  uint32_t peerIp = taosGetIpv4FromFqdn(peerFqdn);
+  uint32_t  peerIp = 0;
+  uint32_t *pPeerIp = taosHashGet(tsFqdnHash, peerFqdn, strlen(peerFqdn) + 1);
+  if (pPeerIp != NULL) {
+    peerIp = *pPeerIp;
+  } else {
+    peerIp = taosGetIpv4FromFqdn(peerFqdn);
+    if (peerIp != 0xFFFFFFFF) {
+      taosHashPut(tsFqdnHash, peerFqdn, strlen(peerFqdn) + 1, &peerIp, sizeof(peerIp));
+    }
+  }
+
   if (peerIp == 0xFFFFFFFF) {
     tError("%s, failed to resolve FQDN:%s", pRpc->label, peerFqdn);
     terrno = TSDB_CODE_RPC_FQDN_ERROR;

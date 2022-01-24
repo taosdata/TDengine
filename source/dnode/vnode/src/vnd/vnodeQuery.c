@@ -217,7 +217,7 @@ static int32_t vnodeGetTableList(SVnode *pVnode, SRpcMsg *pMsg) {
     STR_TO_VARSTR(p, n);
 
     p += (TSDB_TABLE_NAME_LEN + VARSTR_HEADER_SIZE);
-    free(n);
+    // free(n);
   }
 
   pFetchRsp->numOfRows = htonl(numOfTables);
