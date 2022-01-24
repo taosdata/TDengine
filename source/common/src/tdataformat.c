@@ -185,6 +185,10 @@ STSchema *tdGetSchemaFromBuilder(STSchemaBuilder *pBuilder) {
   schemaFLen(pSchema) = pBuilder->flen;
   schemaVLen(pSchema) = pBuilder->vlen;
 
+#ifdef TD_SUPPORT_BITMAP
+  schemaTLen(pSchema) += (int)ceil((double)schemaNCols(pSchema) / TD_VTYPE_PARTS);
+#endif
+
   memcpy(schemaColAt(pSchema, 0), pBuilder->columns, sizeof(STColumn) * pBuilder->nCols);
 
   return pSchema;

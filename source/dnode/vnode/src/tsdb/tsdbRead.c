@@ -699,7 +699,7 @@ static bool initTableMemIterator(STsdbReadHandle* pHandle, STableCheckInfo* pChe
   STbData** pMem = NULL;
   STbData** pIMem = NULL;
 
-  TKEY tLastKey = 0;  /// keyToTkey(pCheckInfo->lastKey);
+  TSKEY tLastKey = 0;  /// keyToTkey(pCheckInfo->lastKey);
   if (pHandle->pTsdb->mem != NULL) {
     pMem = taosHashGet(pHandle->pTsdb->mem->pHashIdx, &pCheckInfo->tableId, sizeof(pCheckInfo->tableId));
     if (pMem != NULL) {
@@ -1661,11 +1661,14 @@ static void mergeTwoRowFromMem(STsdbReadHandle* pTsdbReadHandle, int32_t capacit
             SET_DOUBLE_PTR(pData, value);
             break;
           case TSDB_DATA_TYPE_TIMESTAMP:
+#if 0  // only TSKEY supported since 3.0
             if (pColInfo->info.colId == PRIMARYKEY_TIMESTAMP_COL_ID) {
               *(TSKEY *)pData = tdGetKey(*(TKEY *)value);
             } else {
               *(TSKEY *)pData = *(TSKEY *)value;
             }
+#endif
+            *(TSKEY*)pData = *(TSKEY*)value;
             break;
           default:
             memcpy(pData, value, pColInfo->info.bytes);
