@@ -55,7 +55,7 @@ int32_t mndInitSubscribe(SMnode *pMnode) {
                      .deleteFp = (SdbDeleteFp)mndSubActionDelete};
 
   mndSetMsgHandle(pMnode, TDMT_MND_SUBSCRIBE, mndProcessSubscribeReq);
-  mndSetMsgHandle(pMnode, TDMT_VND_SUBSCRIBE_RSP, mndProcessSubscribeInternalRsp);
+  mndSetMsgHandle(pMnode, TDMT_VND_MQ_SET_CONN_RSP, mndProcessSubscribeInternalRsp);
   mndSetMsgHandle(pMnode, TDMT_MND_MQ_TIMER, mndProcessMqTimerMsg);
   return sdbSetTable(pMnode->pSdb, table);
 }
@@ -107,8 +107,8 @@ static int32_t mndProcessMqTimerMsg(SMnodeMsg *pMsg) {
         pReq->sql = strdup(pTopic->sql);
         pReq->logicalPlan = strdup(pTopic->logicalPlan);
         pReq->physicalPlan = strdup(pTopic->physicalPlan);
-        pReq->msg.contentLen = pCEp->qmsgLen;
-        memcpy(pReq->msg.msg, pCEp->qmsg, pCEp->qmsgLen);
+        pReq->qmsgLen = pCEp->qmsgLen;
+        memcpy(pReq->qmsg, pCEp->qmsg, pCEp->qmsgLen);
         int32_t tlen = tEncodeSMqSetCVgReq(NULL, pReq);
         void   *reqStr = malloc(tlen);
         if (reqStr == NULL) {
@@ -168,9 +168,10 @@ static int mndInitUnassignedVg(SMnode *pMnode, SMqTopicObj *pTopic, SArray *unas
     CEp.lastConsumerHbTs = CEp.lastVgHbTs = -1;
     STaskInfo* pTaskInfo = taosArrayGet(pArray, i);
     tConvertQueryAddrToEpSet(&CEp.epSet, &pTaskInfo->addr);
-    mDebug("subscribe convert ep %d %s %s %s %s %s\n", CEp.epSet.numOfEps, CEp.epSet.fqdn[0], CEp.epSet.fqdn[1], CEp.epSet.fqdn[2], CEp.epSet.fqdn[3], CEp.epSet.fqdn[4]);
+    /*mDebug("subscribe convert ep %d %s %s %s %s %s\n", CEp.epSet.numOfEps, CEp.epSet.fqdn[0], CEp.epSet.fqdn[1], CEp.epSet.fqdn[2], CEp.epSet.fqdn[3], CEp.epSet.fqdn[4]);*/
     CEp.vgId = pTaskInfo->addr.nodeId;
-    CEp.qmsg = malloc(sizeof(pTaskInfo->msg->contentLen));
+    CEp.qmsgLen = pTaskInfo->msg->contentLen;
+    CEp.qmsg = malloc(CEp.qmsgLen);
     if (CEp.qmsg == NULL) {
       return -1;
     }
@@ -195,27 +196,33 @@ static int mndBuildMqSetConsumerVgReq(SMnode *pMnode, STrans *pTrans, SMqConsume
     };
     strcpy(req.cgroup, pConsumer->cgroup);
     strcpy(req.topicName, pTopic->name);
-    req.sql = strdup(pTopic->sql);
-    req.logicalPlan = strdup(pTopic->logicalPlan);
-    req.physicalPlan = strdup(pTopic->physicalPlan);
+    req.sql = pTopic->sql;
+    req.logicalPlan = pTopic->logicalPlan;
+    req.physicalPlan = pTopic->physicalPlan;
     int32_t tlen = tEncodeSMqSetCVgReq(NULL, &req);
-    void   *reqStr = malloc(tlen);
-    if (reqStr == NULL) {
+    void   *buf = malloc(sizeof(SMsgHead) + tlen);
+    if (buf == NULL) {
       terrno = TSDB_CODE_OUT_OF_MEMORY;
       return -1;
     }
-    void *abuf = reqStr;
+
+    SMsgHead* pMsgHead = (SMsgHead*)buf;
+
+    pMsgHead->contLen = htonl(sizeof(SMsgHead) + tlen);
+    pMsgHead->vgId = htonl(vgId);
+
+    void* abuf = POINTER_SHIFT(buf, sizeof(SMsgHead));
     tEncodeSMqSetCVgReq(&abuf, &req);
 
     STransAction action = {0};
     action.epSet = mndGetVgroupEpset(pMnode, pVgObj);
-    action.pCont = reqStr;
+    action.pCont = buf;
     action.contLen = tlen;
     action.msgType = TDMT_VND_MQ_SET_CONN;
 
     mndReleaseVgroup(pMnode, pVgObj);
     if (mndTransAppendRedoAction(pTrans, &action) != 0) {
-      free(reqStr);
+      free(buf);
       return -1;
     }
   }
