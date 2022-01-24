@@ -59,6 +59,7 @@ typedef struct SSTableMetaVersion {
 } SSTableMetaVersion;
 
 typedef struct SDbVgVersion {
+  char    dbName[TSDB_DB_FNAME_LEN];
   int64_t dbId;
   int32_t vgVersion;
 } SDbVgVersion;
