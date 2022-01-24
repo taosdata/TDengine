@@ -20,7 +20,6 @@
 extern "C" {
 #endif
 
-#include "tarray.h"
 #include "tdef.h"
 
 typedef enum ENodeType {
@@ -35,6 +34,7 @@ typedef enum ENodeType {
   QUERY_NODE_JOIN_TABLE,
   QUERY_NODE_GROUPING_SET,
   QUERY_NODE_ORDER_BY_EXPR,
+  QUERY_NODE_LIMIT,
   QUERY_NODE_STATE_WINDOW,
   QUERY_NODE_SESSION_WINDOW,
   QUERY_NODE_INTERVAL_WINDOW,
@@ -53,6 +53,7 @@ typedef struct SNode {
 } SNode;
 
 #define nodeType(nodeptr) (((const SNode*)(nodeptr))->type)
+#define setNodeType(nodeptr, type) (((SNode*)(nodeptr))->type = (type))
 
 typedef struct SListCell {
   SNode* pNode;
@@ -64,8 +65,15 @@ typedef struct SNodeList {
   SListCell* pHeader;
 } SNodeList;
 
-#define foreach(node, list)	\
-  for (SListCell* cell = (NULL != list ? list->pHeader : NULL); (NULL != cell &&  ? (node = cell->pNode, true) : (node = NULL, false)); cell = cell->pNext)
+#define LIST_LENGTH(l) (NULL != (l) ? (l)->length : 0)
+
+#define FOREACH(node, list)	\
+  for (SListCell* cell = (NULL != (list) ? (list)->pHeader : NULL); (NULL != cell ? (node = cell->pNode, true) : (node = NULL, false)); cell = cell->pNext)
+
+#define FORBOTH(node1, list1, node2, list2) \
+  for (SListCell* cell1 = (NULL != (list1) ? (list1)->pHeader : NULL), *cell2 = (NULL != (list2) ? (list2)->pHeader : NULL); \
+    (NULL == cell1 ? (node1 = NULL, false) : (node1 = cell1->pNode, true)), (NULL == cell2 ? (node2 = NULL, false) : (node2 = cell2->pNode, true)), (node1 != NULL && node2 != NULL); \
+    cell1 = cell1->pNext, cell2 = cell2->pNext)
 
 typedef struct SDataType {
   uint8_t type;
@@ -142,7 +150,7 @@ typedef enum ELogicConditionType {
 typedef struct SLogicConditionNode {
   ENodeType type; // QUERY_NODE_LOGIC_CONDITION
   ELogicConditionType condType;
-  SArray* pParameterList;
+  SNodeList* pParameterList;
 } SLogicConditionNode;
 
 typedef struct SIsNullCondNode {
@@ -155,7 +163,7 @@ typedef struct SFunctionNode {
   SExprNode type; // QUERY_NODE_FUNCTION
   char functionName[TSDB_FUNC_NAME_LEN];
   int32_t funcId;
-  SArray* pParameterList; // SNode
+  SNodeList* pParameterList; // SNode
 } SFunctionNode;
 
 typedef struct STableNode {
@@ -165,12 +173,12 @@ typedef struct STableNode {
 } STableNode;
 
 typedef struct SRealTableNode {
-  STableNode type; // QUERY_NODE_REAL_TABLE
+  STableNode table; // QUERY_NODE_REAL_TABLE
   char dbName[TSDB_DB_NAME_LEN];
 } SRealTableNode;
 
 typedef struct STempTableNode {
-  STableNode type; // QUERY_NODE_TEMP_TABLE
+  STableNode table; // QUERY_NODE_TEMP_TABLE
   SNode* pSubquery;
 } STempTableNode;
 
@@ -179,7 +187,7 @@ typedef enum EJoinType {
 } EJoinType;
 
 typedef struct SJoinTableNode {
-  STableNode type; // QUERY_NODE_JOIN_TABLE
+  STableNode table; // QUERY_NODE_JOIN_TABLE
   EJoinType joinType;
   SNode* pLeft;
   SNode* pRight;
@@ -193,7 +201,7 @@ typedef enum EGroupingSetType {
 typedef struct SGroupingSetNode {
   ENodeType type; // QUERY_NODE_GROUPING_SET
   EGroupingSetType groupingSetType;
-  SArray* pParameterList; 
+  SNodeList* pParameterList; 
 } SGroupingSetNode;
 
 typedef enum EOrder {
@@ -214,10 +222,11 @@ typedef struct SOrderByExprNode {
   ENullOrder nullOrder;
 } SOrderByExprNode;
 
-typedef struct SLimitInfo {
+typedef struct SLimitNode {
+  ENodeType type; // QUERY_NODE_LIMIT
   uint64_t limit;
   uint64_t offset;
-} SLimitInfo;
+} SLimitNode;
 
 typedef struct SStateWindowNode {
   ENodeType type; // QUERY_NODE_STATE_WINDOW
@@ -240,15 +249,16 @@ typedef struct SIntervalWindowNode {
 typedef struct SSelectStmt {
   ENodeType type; // QUERY_NODE_SELECT_STMT
   bool isDistinct;
-  SArray* pProjectionList; // SNode
+  bool isStar;
+  SNodeList* pProjectionList; // SNode
   SNode* pFromTable;
   SNode* pWhereCond;
-  SArray* pPartitionByList; // SNode
+  SNodeList* pPartitionByList; // SNode
   SNode* pWindowClause;
-  SArray* pGroupByList; // SGroupingSetNode
-  SArray* pOrderByList; // SOrderByExprNode
-  SLimitInfo limit;
-  SLimitInfo slimit;
+  SNodeList* pGroupByList; // SGroupingSetNode
+  SNodeList* pOrderByList; // SOrderByExprNode
+  SLimitNode limit;
+  SLimitNode slimit;
 } SSelectStmt;
 
 typedef enum ESetOperatorType {
@@ -264,8 +274,8 @@ typedef struct SSetOperator {
 
 typedef bool (*FQueryNodeWalker)(SNode* pNode, void* pContext);
 
-bool nodesWalkArray(SArray* pArray, FQueryNodeWalker walker, void* pContext);
 bool nodesWalkNode(SNode* pNode, FQueryNodeWalker walker, void* pContext);
+bool nodesWalkNodeList(SNodeList* pNodeList, FQueryNodeWalker walker, void* pContext);
 
 bool nodesWalkStmt(SNode* pNode, FQueryNodeWalker walker, void* pContext);
 

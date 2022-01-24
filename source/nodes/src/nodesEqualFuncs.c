@@ -36,13 +36,13 @@
 			return false; \
 	} while (0)
 
-#define COMPARE_ARRAY_FIELD(fldname) \
+#define COMPARE_NODE_LIST_FIELD(fldname) \
 	do { \
-		if (!nodeArrayEqual(a->fldname, b->fldname)) \
+		if (!nodeNodeListEqual(a->fldname, b->fldname)) \
 			return false; \
 	} while (0)
 
-static bool nodeArrayEqual(const SArray* a, const SArray* b) {
+static bool nodeNodeListEqual(const SNodeList* a, const SNodeList* b) {
   if (a == b) {
     return true;
   }
@@ -51,13 +51,13 @@ static bool nodeArrayEqual(const SArray* a, const SArray* b) {
     return false;
   }
 
-  if (taosArrayGetSize(a) != taosArrayGetSize(b)) {
+  if (LIST_LENGTH(a) != LIST_LENGTH(b)) {
     return false;
   }
 
-  size_t size = taosArrayGetSize(a);
-  for (size_t i = 0; i < size; ++i) {
-    if (!nodesEqualNode((SNode*)taosArrayGetP(a, i), (SNode*)taosArrayGetP(b, i))) {
+  SNode* na, *nb;
+  FORBOTH(na, a, nb, b) {
+    if (!nodesEqualNode(na, nb)) {
       return false;
     }
   }
@@ -85,7 +85,7 @@ static bool operatorNodeEqual(const SOperatorNode* a, const SOperatorNode* b) {
 
 static bool logicConditionNodeEqual(const SLogicConditionNode* a, const SLogicConditionNode* b) {
   COMPARE_SCALAR_FIELD(condType);
-  COMPARE_ARRAY_FIELD(pParameterList);
+  COMPARE_NODE_LIST_FIELD(pParameterList);
   return true;
 }
 
@@ -97,7 +97,7 @@ static bool isNullConditionNodeEqual(const SIsNullCondNode* a, const SIsNullCond
 
 static bool functionNodeEqual(const SFunctionNode* a, const SFunctionNode* b) {
   COMPARE_SCALAR_FIELD(funcId);
-  COMPARE_ARRAY_FIELD(pParameterList);
+  COMPARE_NODE_LIST_FIELD(pParameterList);
   return true;
 }
 
@@ -132,6 +132,7 @@ bool nodesEqualNode(const SNode* a, const SNode* b) {
     case QUERY_NODE_JOIN_TABLE:
     case QUERY_NODE_GROUPING_SET:
     case QUERY_NODE_ORDER_BY_EXPR:
+    case QUERY_NODE_LIMIT:
       return false; // todo
     default:
       break;

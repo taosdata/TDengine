@@ -17,23 +17,37 @@
 #include "nodesShowStmts.h"
 #include "parser.h"
 
-typedef void* (*FMalloc)(size_t);
-typedef void (*FFree)(void*);
+#ifndef _TD_AST_CREATE_FUNCS_H_
+#define _TD_AST_CREATE_FUNCS_H_
 
-typedef struct SAstCreaterContext {
+#ifdef __cplusplus
+extern "C" {
+#endif
+
+typedef struct SAstCreateContext {
   SParseContext* pQueryCxt;
   bool notSupport;
   bool valid;
   SNode* pRootNode;
-  FMalloc mallocFunc;
-  FFree freeFunc;
-} SAstCreaterContext;
+} SAstCreateContext;
 
-SNodeList* addNodeToList(SAstCreaterContext* pCxt, SNodeList* pList, SNode* pNode);
-SNode* createColumnNode(SAstCreaterContext* pCxt, SToken* pDbName, SToken* pTableName, SToken* pColumnName);
-SNodeList* createNodeList(SAstCreaterContext* pCxt, SNode* pNode);
-SNode* createOrderByExprNode(SAstCreaterContext* pCxt, SNode* pExpr, EOrder order, ENullOrder nullOrder);
-SNode* createSelectStmt(SAstCreaterContext* pCxt, bool isDistinct, SNodeList* pProjectionList, SNode* pTable);
-SNode* createSetOperator(SAstCreaterContext* pCxt, ESetOperatorType type, SNode* pLeft, SNode* pRight);
-SNode* createShowStmt(SAstCreaterContext* pCxt, EShowStmtType type);
-SNode* setProjectionAlias(SAstCreaterContext* pCxt, SNode* pNode, SToken* pAlias);
+int32_t createAstCreater(const SParseContext* pQueryCxt, SAstCreateContext* pCxt);
+int32_t destroyAstCreater(SAstCreateContext* pCxt);
+
+bool checkTableName(const SToken* pTableName);
+
+SNodeList* addNodeToList(SAstCreateContext* pCxt, SNodeList* pList, SNode* pNode);
+SNode* createColumnNode(SAstCreateContext* pCxt, const SToken* pTableName, const SToken* pColumnName);
+SNodeList* createNodeList(SAstCreateContext* pCxt, SNode* pNode);
+SNode* createOrderByExprNode(SAstCreateContext* pCxt, SNode* pExpr, EOrder order, ENullOrder nullOrder);
+SNode* createRealTableNode(SAstCreateContext* pCxt, const SToken* pDbName, const SToken* pTableName);
+SNode* createSelectStmt(SAstCreateContext* pCxt, bool isDistinct, SNodeList* pProjectionList, SNode* pTable);
+SNode* createSetOperator(SAstCreateContext* pCxt, ESetOperatorType type, SNode* pLeft, SNode* pRight);
+SNode* createShowStmt(SAstCreateContext* pCxt, EShowStmtType type);
+SNode* setProjectionAlias(SAstCreateContext* pCxt, SNode* pNode, const SToken* pAlias);
+
+#ifdef __cplusplus
+}
+#endif
+
+#endif /*_TD_AST_CREATE_FUNCS_H_*/

@@ -17,14 +17,14 @@
 
 typedef bool (*FQueryNodeWalker)(SNode* pNode, void* pContext);
 
-bool nodesWalkArray(SArray* pArray, FQueryNodeWalker walker, void* pContext) {
-    size_t size = taosArrayGetSize(pArray);
-    for (size_t i = 0; i < size; ++i) {
-      if (!nodesWalkNode((SNode*)taosArrayGetP(pArray, i), walker, pContext)) {
-        return false;
-      }
+bool nodesWalkNodeList(SNodeList* pNodeList, FQueryNodeWalker walker, void* pContext) {
+  SNode* node;
+  FOREACH(node, pNodeList) {
+    if (!nodesWalkNode(node, walker, pContext)) {
+      return false;
     }
-    return true;
+  }
+  return true;
 }
 
 bool nodesWalkNode(SNode* pNode, FQueryNodeWalker walker, void* pContext) {
@@ -39,6 +39,7 @@ bool nodesWalkNode(SNode* pNode, FQueryNodeWalker walker, void* pContext) {
   switch (nodeType(pNode)) {
     case QUERY_NODE_COLUMN:
     case QUERY_NODE_VALUE:
+    case QUERY_NODE_LIMIT:
       // these node types with no subnodes
       return true;
     case QUERY_NODE_OPERATOR: {
@@ -49,11 +50,11 @@ bool nodesWalkNode(SNode* pNode, FQueryNodeWalker walker, void* pContext) {
       return nodesWalkNode(pOpNode->pRight, walker, pContext);
     }
     case QUERY_NODE_LOGIC_CONDITION:
-      return nodesWalkArray(((SLogicConditionNode*)pNode)->pParameterList, walker, pContext);
+      return nodesWalkNodeList(((SLogicConditionNode*)pNode)->pParameterList, walker, pContext);
     case QUERY_NODE_IS_NULL_CONDITION:
       return nodesWalkNode(((SIsNullCondNode*)pNode)->pExpr, walker, pContext);
     case QUERY_NODE_FUNCTION:
-      return nodesWalkArray(((SFunctionNode*)pNode)->pParameterList, walker, pContext);
+      return nodesWalkNodeList(((SFunctionNode*)pNode)->pParameterList, walker, pContext);
     case QUERY_NODE_REAL_TABLE:
     case QUERY_NODE_TEMP_TABLE:
       return true; // todo
@@ -68,7 +69,7 @@ bool nodesWalkNode(SNode* pNode, FQueryNodeWalker walker, void* pContext) {
       return nodesWalkNode(pJoinTableNode->pOnCond, walker, pContext);
     }
     case QUERY_NODE_GROUPING_SET:
-      return nodesWalkArray(((SGroupingSetNode*)pNode)->pParameterList, walker, pContext);
+      return nodesWalkNodeList(((SGroupingSetNode*)pNode)->pParameterList, walker, pContext);
     case QUERY_NODE_ORDER_BY_EXPR:
       return nodesWalkNode(((SOrderByExprNode*)pNode)->pExpr, walker, pContext);
     default:
