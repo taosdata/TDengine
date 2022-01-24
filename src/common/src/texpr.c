@@ -1550,7 +1550,7 @@ void vectorLowerUpperTrimFunc(int16_t functionId, tExprOperandInfo *pInputs, int
           int32_t resultByteLen = (inputType == TSDB_DATA_TYPE_BINARY) ? resultCharLen : resultCharLen * TSDB_NCHAR_SIZE;
           int32_t beginByteLen = (inputType == TSDB_DATA_TYPE_BINARY) ? k : k * TSDB_NCHAR_SIZE;
           varDataSetLen(outputData, resultByteLen);
-          memcpy(varDataVal(outputData),varDataVal(inputData[0])+beginByteLen, resultByteLen);
+          memcpy((char*)varDataVal(outputData),(char*)varDataVal(inputData[0])+beginByteLen, resultByteLen);
           break;
         }
 
@@ -1629,7 +1629,7 @@ void vectorSubstrFunc(int16_t functionId, tExprOperandInfo *pInputs, int32_t num
 
     varDataSetLen(outputData, resultLenBytes);
     if (resultLenBytes > 0) {
-      memcpy(varDataVal(outputData), varDataVal(inputData) + resultStartBytes, resultLenBytes);
+      memcpy((char*)varDataVal(outputData), (char*)varDataVal(inputData) + resultStartBytes, resultLenBytes);
     }
   }
 }
