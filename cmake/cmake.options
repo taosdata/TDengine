@@ -47,7 +47,7 @@ option(
 option(
     BUILD_WITH_UV
     "If build with libuv" 
-    ON
+    OFF
 )
 
 option(
