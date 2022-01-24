@@ -526,9 +526,9 @@ typedef struct {
 
 typedef struct {
   char    name[TSDB_FUNC_NAME_LEN];
+  int8_t  igExists;
   int8_t  funcType;
   int8_t  scriptType;
-  int8_t  align;
   int8_t  outputType;
   int32_t outputLen;
   int32_t bufSize;
@@ -540,6 +540,7 @@ typedef struct {
 
 typedef struct {
   char name[TSDB_FUNC_NAME_LEN];
+  int8_t  igNotExists;
 } SDropFuncReq;
 
 typedef struct {
@@ -549,9 +550,9 @@ typedef struct {
 
 typedef struct {
   char    name[TSDB_FUNC_NAME_LEN];
+  int8_t  align;
   int8_t  funcType;
   int8_t  scriptType;
-  int8_t  align;
   int8_t  outputType;
   int32_t outputLen;
   int32_t bufSize;

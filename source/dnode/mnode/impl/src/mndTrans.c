@@ -390,9 +390,11 @@ static void mndTransDropActions(SArray *pArray) {
 }
 
 void mndTransDrop(STrans *pTrans) {
-  mndTransDropData(pTrans);
-  mDebug("trans:%d, is dropped, data:%p", pTrans->id, pTrans);
-  tfree(pTrans);
+  if (pTrans != NULL) {
+    mndTransDropData(pTrans);
+    mDebug("trans:%d, is dropped, data:%p", pTrans->id, pTrans);
+    tfree(pTrans);
+  }
 }
 
 static int32_t mndTransAppendLog(SArray *pArray, SSdbRaw *pRaw) {

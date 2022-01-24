@@ -289,7 +289,6 @@ typedef struct {
   int32_t codeSize;
   char   *pComment;
   char   *pCode;
-  char    pData[];
 } SFuncObj;
 
 typedef struct {
