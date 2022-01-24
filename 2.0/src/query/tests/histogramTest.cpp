@@ -6,6 +6,7 @@
 #include "taos.h"
 #include "qHistogram.h"
 
+#pragma GCC diagnostic push
 #pragma GCC diagnostic ignored "-Wunused-function"
 #pragma GCC diagnostic ignored "-Wunused-variable"
 
@@ -140,3 +141,5 @@ TEST(testCase, heapsort) {
   //
   //    free(pEntry);
 }
+
+#pragma GCC diagnostic pop

@@ -25,9 +25,9 @@
 static int32_t initEpSetFromCfg(const char *firstEp, const char *secondEp, SCorEpSet *pEpSet);
 static SMsgSendInfo* buildConnectMsg(SRequestObj *pRequest);
 static void destroySendMsgInfo(SMsgSendInfo* pMsgBody);
-static void setQueryResultByRsp(SReqResultInfo* pResultInfo, const SRetrieveTableRsp* pRsp);
+static void setQueryResultFromRsp(SReqResultInfo* pResultInfo, const SRetrieveTableRsp* pRsp);
 
-  static bool stringLengthCheck(const char* str, size_t maxsize) {
+static bool stringLengthCheck(const char* str, size_t maxsize) {
   if (str == NULL) {
     return false;
   }
@@ -59,7 +59,7 @@ static char* getClusterKey(const char* user, const char* auth, const char* ip, i
 }
 
 static STscObj* taosConnectImpl(const char *user, const char *auth, const char *db, uint16_t port, __taos_async_fn_t fp, void *param, SAppInstInfo* pAppInfo);
-static void  setResSchemaInfo(SReqResultInfo* pResInfo, const SDataBlockSchema* pDataBlockSchema);
+static void setResSchemaInfo(SReqResultInfo* pResInfo, const SSchema* pSchema, int32_t numOfCols);
 
 TAOS *taos_connect_internal(const char *ip, const char *user, const char *pass, const char *auth, const char *db, uint16_t port) {
   if (taos_init() != TSDB_CODE_SUCCESS) {
@@ -117,7 +117,7 @@ TAOS *taos_connect_internal(const char *ip, const char *user, const char *pass, 
     SAppInstInfo* p = calloc(1, sizeof(struct SAppInstInfo));
     p->mgmtEp       = epSet;
     p->pTransporter = openTransporter(user, secretEncrypt, tsNumOfCores);
-    p->pAppHbMgr = appHbMgrInit(p);
+    /*p->pAppHbMgr = appHbMgrInit(p);*/
     taosHashPut(appInfo.pInstMap, key, strlen(key), &p, POINTER_BYTES);
 
     pInst = &p;
@@ -202,43 +202,38 @@ int32_t execDdlQuery(SRequestObj* pRequest, SQueryNode* pQuery) {
   return TSDB_CODE_SUCCESS;
 }
 
-int32_t getPlan(SRequestObj* pRequest, SQueryNode* pQueryNode, SQueryDag** pDag) {
+int32_t getPlan(SRequestObj* pRequest, SQueryNode* pQueryNode, SQueryDag** pDag, SArray* pNodeList) {
   pRequest->type = pQueryNode->type;
 
-  SReqResultInfo* pResInfo = &pRequest->body.resInfo;
-  int32_t code = qCreateQueryDag(pQueryNode, pDag, pRequest->requestId);
+  SSchema* pSchema = NULL;
+  int32_t  numOfCols = 0;
+  int32_t code = qCreateQueryDag(pQueryNode, pDag, &pSchema, &numOfCols, pNodeList, pRequest->requestId);
   if (code != 0) {
     return code;
   }
 
   if (pQueryNode->type == TSDB_SQL_SELECT) {
-    SArray* pa = taosArrayGetP((*pDag)->pSubplans, 0);
-
-    SSubplan* pPlan = taosArrayGetP(pa, 0);
-    SDataBlockSchema* pDataBlockSchema = &(pPlan->pDataSink->schema);
-    setResSchemaInfo(pResInfo, pDataBlockSchema);
-
+    setResSchemaInfo(&pRequest->body.resInfo, pSchema, numOfCols);
     pRequest->type = TDMT_VND_QUERY;
   }
 
   return code;
 }
 
-void setResSchemaInfo(SReqResultInfo* pResInfo, const SDataBlockSchema* pDataBlockSchema) {
-  assert(pDataBlockSchema != NULL && pDataBlockSchema->numOfCols > 0);
+void setResSchemaInfo(SReqResultInfo* pResInfo, const SSchema* pSchema, int32_t numOfCols) {
+  assert(pSchema != NULL && numOfCols > 0);
 
-  pResInfo->numOfCols = pDataBlockSchema->numOfCols;
-  pResInfo->fields = calloc(pDataBlockSchema->numOfCols, sizeof(pDataBlockSchema->pSchema[0]));
+  pResInfo->numOfCols = numOfCols;
+  pResInfo->fields = calloc(numOfCols, sizeof(pSchema[0]));
 
   for (int32_t i = 0; i < pResInfo->numOfCols; ++i) {
-    SSchema* pSchema = &pDataBlockSchema->pSchema[i];
-    pResInfo->fields[i].bytes = pSchema->bytes;
-    pResInfo->fields[i].type  = pSchema->type;
-    tstrncpy(pResInfo->fields[i].name, pSchema->name, tListLen(pResInfo->fields[i].name));
+    pResInfo->fields[i].bytes = pSchema[i].bytes;
+    pResInfo->fields[i].type  = pSchema[i].type;
+    tstrncpy(pResInfo->fields[i].name, pSchema[i].name, tListLen(pResInfo->fields[i].name));
   }
 }
 
-int32_t scheduleQuery(SRequestObj* pRequest, SQueryDag* pDag) {
+int32_t scheduleQuery(SRequestObj* pRequest, SQueryDag* pDag, SArray* pNodeList) {
   if (TSDB_SQL_INSERT == pRequest->type || TSDB_SQL_CREATE_TABLE == pRequest->type) {
     SQueryResult res = {.code = 0, .numOfRows = 0, .msgSize = ERROR_MSG_BUF_DEFAULT_SIZE, .msg = pRequest->msgBuf};
 
@@ -256,14 +251,7 @@ int32_t scheduleQuery(SRequestObj* pRequest, SQueryDag* pDag) {
     return pRequest->code;
   }
 
-  SArray *execNode = taosArrayInit(4, sizeof(SQueryNodeAddr));
-
-  SQueryNodeAddr addr = {.numOfEps = 1, .inUse = 0, .nodeId = 2};
-  addr.epAddr[0].port = 7100;
-  strcpy(addr.epAddr[0].fqdn, "localhost");
-
-  taosArrayPush(execNode, &addr);
-  return scheduleAsyncExecJob(pRequest->pTscObj->pAppInfo->pTransporter, execNode, pDag, &pRequest->body.pQueryJob);
+  return scheduleAsyncExecJob(pRequest->pTscObj->pAppInfo->pTransporter, pNodeList, pDag, &pRequest->body.pQueryJob);
 }
 
 typedef struct tmq_t tmq_t;
@@ -394,14 +382,21 @@ TAOS_RES *taos_create_topic(TAOS* taos, const char* topicName, const char* sql, 
   CHECK_CODE_GOTO(buildRequest(pTscObj, sql, sqlLen, &pRequest), _return);
   CHECK_CODE_GOTO(parseSql(pRequest, &pQueryNode), _return);
 
+  SQueryStmtInfo* pQueryStmtInfo = (SQueryStmtInfo* ) pQueryNode;
+  pQueryStmtInfo->info.continueQuery = true;
+
   // todo check for invalid sql statement and return with error code
 
-  CHECK_CODE_GOTO(qCreateQueryDag(pQueryNode, &pRequest->body.pDag, pRequest->requestId), _return);
+  SSchema *schema = NULL;
+  int32_t  numOfCols = 0;
+  CHECK_CODE_GOTO(qCreateQueryDag(pQueryNode, &pRequest->body.pDag, &schema, &numOfCols, NULL, pRequest->requestId), _return);
 
   pStr = qDagToString(pRequest->body.pDag);
   if(pStr == NULL) {
     goto _return;
   }
+
+  printf("%s\n", pStr);
 
   // The topic should be related to a database that the queried table is belonged to.
   SName name = {0};
@@ -487,6 +482,7 @@ TAOS_RES *taos_query_l(TAOS *taos, const char *sql, int sqlLen) {
 
   SRequestObj *pRequest = NULL;
   SQueryNode  *pQueryNode = NULL;
+  SArray      *pNodeList = taosArrayInit(4, sizeof(struct SQueryNodeAddr));
 
   terrno = TSDB_CODE_SUCCESS;
   CHECK_CODE_GOTO(buildRequest(pTscObj, sql, sqlLen, &pRequest), _return);
@@ -495,8 +491,8 @@ TAOS_RES *taos_query_l(TAOS *taos, const char *sql, int sqlLen) {
   if (qIsDdlQuery(pQueryNode)) {
     CHECK_CODE_GOTO(execDdlQuery(pRequest, pQueryNode), _return);
   } else {
-    CHECK_CODE_GOTO(getPlan(pRequest, pQueryNode, &pRequest->body.pDag), _return);
-    CHECK_CODE_GOTO(scheduleQuery(pRequest, pRequest->body.pDag), _return);
+    CHECK_CODE_GOTO(getPlan(pRequest, pQueryNode, &pRequest->body.pDag, pNodeList), _return);
+    CHECK_CODE_GOTO(scheduleQuery(pRequest, pRequest->body.pDag, pNodeList), _return);
     pRequest->code = terrno;
   }
 
@@ -566,7 +562,7 @@ STscObj* taosConnectImpl(const char *user, const char *auth, const char *db, uin
 
   tsem_wait(&pRequest->body.rspSem);
   if (pRequest->code != TSDB_CODE_SUCCESS) {
-    const char *errorMsg = (pRequest->code == TSDB_CODE_RPC_FQDN_ERROR) ? taos_errstr(pRequest) : tstrerror(terrno);
+    const char *errorMsg = (pRequest->code == TSDB_CODE_RPC_FQDN_ERROR) ? taos_errstr(pRequest) : tstrerror(pRequest->code);
     printf("failed to connect to server, reason: %s\n\n", errorMsg);
 
     destroyRequest(pRequest);
@@ -714,13 +710,17 @@ void* doFetchRow(SRequestObj* pRequest) {
         return NULL;
       }
 
-      int32_t code = scheduleFetchRows(pRequest->body.pQueryJob, (void **)&pRequest->body.resInfo.pData);
+      SReqResultInfo* pResInfo = &pRequest->body.resInfo;
+      int32_t code = scheduleFetchRows(pRequest->body.pQueryJob, (void **)&pResInfo->pData);
       if (code != TSDB_CODE_SUCCESS) {
         pRequest->code = code;
         return NULL;
       }
 
-      setQueryResultByRsp(&pRequest->body.resInfo, (SRetrieveTableRsp*)pRequest->body.resInfo.pData);
+      setQueryResultFromRsp(&pRequest->body.resInfo, (SRetrieveTableRsp*)pResInfo->pData);
+      tscDebug("0x%"PRIx64 " fetch results, numOfRows:%d total Rows:%"PRId64", complete:%d, reqId:0x%"PRIx64, pRequest->self, pResInfo->numOfRows,
+               pResInfo->totalRows, pResInfo->completed, pRequest->requestId);
+
       if (pResultInfo->numOfRows == 0) {
         return NULL;
       }
@@ -850,7 +850,7 @@ void setConnectionDB(STscObj* pTscObj, const char* db) {
   pthread_mutex_unlock(&pTscObj->mutex);
 }
 
-void setQueryResultByRsp(SReqResultInfo* pResultInfo, const SRetrieveTableRsp* pRsp) {
+void setQueryResultFromRsp(SReqResultInfo* pResultInfo, const SRetrieveTableRsp* pRsp) {
   assert(pResultInfo != NULL && pRsp != NULL);
 
   pResultInfo->pRspMsg   = (const char*) pRsp;
@@ -859,5 +859,6 @@ void setQueryResultByRsp(SReqResultInfo* pResultInfo, const SRetrieveTableRsp* p
   pResultInfo->current   = 0;
   pResultInfo->completed = (pRsp->completed == 1);
 
+  pResultInfo->totalRows += pResultInfo->numOfRows;
   setResultDataPtr(pResultInfo, pResultInfo->fields, pResultInfo->numOfCols, pResultInfo->numOfRows);
 }

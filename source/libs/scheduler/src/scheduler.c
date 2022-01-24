@@ -650,14 +650,10 @@ _return:
   SCH_RET(code);
 }
 
-
 int32_t schProcessOnDataFetched(SSchJob *job) {
   atomic_val_compare_exchange_32(&job->remoteFetch, 1, 0);
-
   tsem_post(&job->rspSem);
 }
-
-
 
 // Note: no more error processing, handled in function internal
 int32_t schProcessOnTaskFailure(SSchJob *pJob, SSchTask *pTask, int32_t errCode) {
@@ -666,12 +662,12 @@ int32_t schProcessOnTaskFailure(SSchJob *pJob, SSchTask *pTask, int32_t errCode)
   int32_t taskDone = 0;
   int32_t code = 0;
 
-  SCH_TASK_DLOG("taskOnFailure, code:%x", errCode);
+  SCH_TASK_DLOG("taskOnFailure, code:%s", tstrerror(errCode));
   
   SCH_ERR_JRET(schTaskCheckAndSetRetry(pJob, pTask, errCode, &needRetry));
   
   if (!needRetry) {
-    SCH_TASK_ELOG("task failed and no more retry, code:%x", errCode);
+    SCH_TASK_ELOG("task failed and no more retry, code:%s", tstrerror(errCode));
 
     if (SCH_GET_TASK_STATUS(pTask) == JOB_TASK_STATUS_EXECUTING) {
       code = schMoveTaskToFailList(pJob, pTask, &moved);
@@ -738,7 +734,7 @@ int32_t schProcessOnTaskSuccess(SSchJob *pJob, SSchTask *pTask) {
       SCH_UNLOCK(SCH_WRITE, &pTask->level->lock);
       
       if (taskDone < pTask->level->taskNum) {
-        SCH_TASK_ELOG("wait all tasks, done:%d, all:%d", taskDone, pTask->level->taskNum);
+        SCH_TASK_DLOG("wait all tasks, done:%d, all:%d", taskDone, pTask->level->taskNum);
         
         return TSDB_CODE_SUCCESS;
       } else if (taskDone > pTask->level->taskNum) {
@@ -882,7 +878,6 @@ int32_t schHandleResponseMsg(SSchJob *pJob, SSchTask *pTask, int32_t msgType, ch
         }
 
         SCH_ERR_JRET(schProcessOnDataFetched(pJob));
-        
         break;
       }
     case TDMT_VND_DROP_TASK: {
@@ -892,7 +887,6 @@ int32_t schHandleResponseMsg(SSchJob *pJob, SSchTask *pTask, int32_t msgType, ch
       }
     default:
       SCH_TASK_ELOG("unknown rsp msg, type:%d, status:%d", msgType, SCH_GET_TASK_STATUS(pTask));
-      
       SCH_ERR_JRET(TSDB_CODE_QRY_INVALID_INPUT);
   }
 
@@ -935,8 +929,7 @@ int32_t schHandleCallback(void* param, const SDataBuf* pMsg, int32_t msgType, in
   }
 
   pTask = *task;
-
-  SCH_TASK_DLOG("rsp msg received, type:%d, code:%x", msgType, rspCode);
+  SCH_TASK_DLOG("rsp msg received, type:%s, code:%s", TMSG_INFO(msgType), tstrerror(rspCode));
   
   SCH_ERR_JRET(schHandleResponseMsg(pJob, pTask, msgType, pMsg->pData, pMsg->len, rspCode));
 
@@ -1485,11 +1478,11 @@ int32_t schedulerConvertDagToTaskList(SQueryDag* pDag, SArray **pTasks) {
     
     pMsg->header.vgId = htonl(tInfo.addr.nodeId);
     
-    pMsg->sId = htobe64(schMgmt.sId);
-    pMsg->queryId = htobe64(plan->id.queryId);
-    pMsg->taskId = htobe64(schGenUUID());
+    pMsg->sId = schMgmt.sId;
+    pMsg->queryId = plan->id.queryId;
+    pMsg->taskId = schGenUUID();
     pMsg->taskType = TASK_TYPE_PERSISTENT;
-    pMsg->contentLen = htonl(msgLen);
+    pMsg->contentLen = msgLen;
     memcpy(pMsg->msg, msg, msgLen);
 
     tInfo.msg = pMsg;
@@ -1562,8 +1555,8 @@ int32_t scheduleFetchRows(SSchJob *pJob, void** pData) {
   if (NULL == pJob || NULL == pData) {
     SCH_ERR_RET(TSDB_CODE_QRY_INVALID_INPUT);
   }
-  int32_t code = 0;
 
+  int32_t code = 0;
   atomic_add_fetch_32(&pJob->ref, 1);
 
   int8_t status = SCH_GET_JOB_STATUS(pJob);
@@ -1609,7 +1602,6 @@ _return:
 
   while (true) {
     *pData = atomic_load_ptr(&pJob->res);
-    
     if (*pData != atomic_val_compare_exchange_ptr(&pJob->res, *pData, NULL)) {
       continue;
     }
@@ -1628,8 +1620,7 @@ _return:
 
   atomic_val_compare_exchange_8(&pJob->userFetch, 1, 0);
 
-  SCH_JOB_DLOG("fetch done, code:%x", code);
-
+  SCH_JOB_DLOG("fetch done, code:%s", tstrerror(code));
   atomic_sub_fetch_32(&pJob->ref, 1);
 
   SCH_RET(code);

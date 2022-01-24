@@ -1,7 +1,8 @@
 #include <gtest/gtest.h>
 #include <iostream>
-#pragma GCC diagnostic ignored "-Wwrite-strings"
 
+#pragma GCC diagnostic push
+#pragma GCC diagnostic ignored "-Wwrite-strings"
 #pragma GCC diagnostic ignored "-Wunused-function"
 #pragma GCC diagnostic ignored "-Wunused-variable"
 #pragma GCC diagnostic ignored "-Wunused-but-set-variable"
@@ -94,3 +95,5 @@ TEST(testCase, toInteger_test) {
   ret = toInteger(s, strlen(s), 10, &val, &sign);
   ASSERT_EQ(ret, -1);
 }
+
+#pragma GCC diagnostic pop

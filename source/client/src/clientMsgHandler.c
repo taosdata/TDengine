@@ -72,7 +72,7 @@ int processConnectRsp(void* param, const SDataBuf* pMsg, int32_t code) {
   atomic_add_fetch_64(&pTscObj->pAppInfo->numOfConns, 1);
 
   SClientHbKey connKey = {.connId = pConnect->connId, .hbType = HEARTBEAT_TYPE_QUERY};
-  hbRegisterConn(pTscObj->pAppInfo->pAppHbMgr, connKey, NULL);
+  /*hbRegisterConn(pTscObj->pAppInfo->pAppHbMgr, connKey, NULL);*/
 
   //  pRequest->body.resInfo.pRspMsg = pMsg->pData;
   tscDebug("0x%" PRIx64 " clusterId:%" PRId64 ", totalConn:%" PRId64, pRequest->requestId, pConnect->clusterId,
@@ -145,19 +145,23 @@ int32_t processShowRsp(void* param, const SDataBuf* pMsg, int32_t code) {
   }
 
   pSchema = pMetaMsg->pSchema;
-  TAOS_FIELD* pFields = calloc(pMetaMsg->numOfColumns, sizeof(TAOS_FIELD));
-  for (int32_t i = 0; i < pMetaMsg->numOfColumns; ++i) {
-    tstrncpy(pFields[i].name, pSchema[i].name, tListLen(pFields[i].name));
-    pFields[i].type  = pSchema[i].type;
-    pFields[i].bytes = pSchema[i].bytes;
-  }
+  tfree(pRequest->body.resInfo.pRspMsg);
 
   pRequest->body.resInfo.pRspMsg = pMsg->pData;
   SReqResultInfo* pResInfo = &pRequest->body.resInfo;
 
-  pResInfo->fields    = pFields;
-  pResInfo->numOfCols = pMetaMsg->numOfColumns;
+  if (pResInfo->fields == NULL) {
+    TAOS_FIELD* pFields = calloc(pMetaMsg->numOfColumns, sizeof(TAOS_FIELD));
+    for (int32_t i = 0; i < pMetaMsg->numOfColumns; ++i) {
+      tstrncpy(pFields[i].name, pSchema[i].name, tListLen(pFields[i].name));
+      pFields[i].type = pSchema[i].type;
+      pFields[i].bytes = pSchema[i].bytes;
+    }
 
+    pResInfo->fields = pFields;
+  }
+
+  pResInfo->numOfCols = pMetaMsg->numOfColumns;
   pRequest->body.showInfo.execId = pShow->showId;
 
   // todo

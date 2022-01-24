@@ -105,6 +105,7 @@ static int32_t mndProcessMqTimerMsg(SMnodeMsg *pMsg) {
         strcpy(req.sql, pTopic->sql);
         strcpy(req.logicalPlan, pTopic->logicalPlan);
         strcpy(req.physicalPlan, pTopic->physicalPlan);
+        memcpy(&req.msg, &pCEp->qExec, pCEp->execLen);
         int32_t tlen = tEncodeSMqSetCVgReq(NULL, &req);
         void   *reqStr = malloc(tlen);
         if (reqStr == NULL) {
@@ -116,7 +117,7 @@ static int32_t mndProcessMqTimerMsg(SMnodeMsg *pMsg) {
 
         // persist msg
         STransAction action = {0};
-        action.epSet = pCEp->epset;
+        action.epSet = pCEp->epSet;
         action.pCont = reqStr;
         action.contLen = tlen;
         action.msgType = TDMT_VND_MQ_SET_CONN;
@@ -141,20 +142,24 @@ static int32_t mndProcessMqTimerMsg(SMnodeMsg *pMsg) {
 }
 
 static int mndInitUnassignedVg(SMnode *pMnode, SMqTopicObj *pTopic, SArray *unassignedVg) {
-  SMqConsumerEp CEp;
-  CEp.lastConsumerHbTs = CEp.lastVgHbTs = -1;
-  int32_t sz;
-  SVgObj *pVgroup = NULL;
-  SSdb   *pSdb = pMnode->pSdb;
-  void   *pIter = sdbFetch(pSdb, SDB_VGROUP, NULL, (void **)&pVgroup);
-  while (pIter != NULL) {
-    if (pVgroup->dbUid == pTopic->dbUid) {
-      CEp.epset = mndGetVgroupEpset(pMnode, pVgroup);
-      CEp.vgId = pVgroup->vgId;
-      taosArrayPush(unassignedVg, &CEp);
-    }
-    pIter = sdbFetch(pSdb, SDB_VGROUP, pIter, (void **)&pVgroup);
+  //convert phyplan to dag
+  SQueryDag *pDag = qStringToDag(pTopic->physicalPlan);
+  SArray *pArray;
+  if (schedulerConvertDagToTaskList(pDag, &pArray) < 0) {
+    return -1;
   }
+  int32_t sz = taosArrayGetSize(pArray);
+  //convert dag to msg
+  for (int32_t i = 0; i < sz; i++) {
+    SMqConsumerEp CEp;
+    CEp.lastConsumerHbTs = CEp.lastVgHbTs = -1;
+    STaskInfo* pTaskInfo = taosArrayGet(pArray, i);
+    tConvertQueryAddrToEpSet(&CEp.epSet, &pTaskInfo->addr);
+    CEp.vgId = pTaskInfo->addr.nodeId;
+    taosArrayPush(unassignedVg, &CEp);
+  }
+
+  qDestroyQueryDag(pDag);
   return 0;
 }
 

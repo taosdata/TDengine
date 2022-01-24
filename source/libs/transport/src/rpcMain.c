@@ -752,8 +752,8 @@ static SRpcConn *rpcAllocateServerConn(SRpcInfo *pRpc, SRecvInfo *pRecv) {
     }
 
     taosHashPut(pRpc->hash, hashstr, size, (char *)&pConn, POINTER_BYTES);
-    tDebug("%s %p server connection is allocated, uid:0x%x sid:%d key:%s", pRpc->label, pConn, pConn->linkUid, sid,
-           hashstr);
+    tDebug("%s %p server connection is allocated, uid:0x%x sid:%d key:%s spi:%d", pRpc->label, pConn, pConn->linkUid, sid,
+           hashstr, pConn->spi);
   }
 
   return pConn;
@@ -1612,7 +1612,7 @@ static int rpcCheckAuthentication(SRpcConn *pConn, char *msg, int msgLen) {
       }
     }
   } else {
-    tDebug("%s, auth spi:%d not matched with received:%d", pConn->info, pConn->spi, pHead->spi);
+    tError("%s, auth spi:%d not matched with received:%d %p", pConn->info, pConn->spi, pHead->spi, pConn);
     code = pHead->spi ? TSDB_CODE_RPC_AUTH_FAILURE : TSDB_CODE_RPC_AUTH_REQUIRED;
   }
 

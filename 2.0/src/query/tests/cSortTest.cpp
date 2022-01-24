@@ -5,6 +5,7 @@
 #include "tsdb.h"
 #include "qExtbuffer.h"
 
+#pragma GCC diagnostic push
 #pragma GCC diagnostic ignored "-Wwrite-strings"
 #pragma GCC diagnostic ignored "-Wunused-function"
 #pragma GCC diagnostic ignored "-Wunused-variable"
@@ -122,3 +123,5 @@ TEST(testCase, columnsort_test) {
 
   destroyColumnModel(pModel);
 }
+
+#pragma GCC diagnostic pop

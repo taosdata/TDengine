@@ -261,14 +261,14 @@ static void vgroupMsgToEpSet(const SVgroupMsg* vg, SQueryNodeAddr* execNode) {
   return;
 }
 
-static uint64_t splitSubplanByTable(SPlanContext* pCxt, SQueryPlanNode* pPlanNode, SQueryTableInfo* pTable) {
-  SVgroupsInfo* pVgroupList = pTable->pMeta->vgroupList;
+static uint64_t splitSubplanByTable(SPlanContext* pCxt, SQueryPlanNode* pPlanNode, SQueryTableInfo* pTableInfo) {
+  SVgroupsInfo* pVgroupList = pTableInfo->pMeta->vgroupList;
   for (int32_t i = 0; i < pVgroupList->numOfVgroups; ++i) {
     STORE_CURRENT_SUBPLAN(pCxt);
     SSubplan* subplan = initSubplan(pCxt, QUERY_TYPE_SCAN);
     subplan->msgType   = TDMT_VND_QUERY;
-    vgroupMsgToEpSet(&(pTable->pMeta->vgroupList->vgroups[i]), &subplan->execNode);
-    subplan->pNode = createMultiTableScanNode(pPlanNode, pTable);
+    vgroupMsgToEpSet(&(pTableInfo->pMeta->vgroupList->vgroups[i]), &subplan->execNode);
+    subplan->pNode = createMultiTableScanNode(pPlanNode, pTableInfo);
     subplan->pDataSink = createDataDispatcher(pCxt, pPlanNode, subplan->pNode);
     RECOVERY_CURRENT_SUBPLAN(pCxt);
   }
@@ -290,7 +290,8 @@ static bool needMultiNodeScan(SQueryTableInfo* pTable) {
 static SPhyNode* createSingleTableScanNode(SQueryPlanNode* pPlanNode, SQueryTableInfo* pTable, SSubplan* subplan) {
   vgroupMsgToEpSet(&(pTable->pMeta->vgroupList->vgroups[0]), &subplan->execNode);
 
-  return createUserTableScanNode(pPlanNode, pTable, OP_TableScan);
+  int32_t type = (pPlanNode->info.type == QNODE_TABLESCAN)? OP_TableScan:OP_StreamScan;
+  return createUserTableScanNode(pPlanNode, pTable, type);
 }
 
 static SPhyNode* createTableScanNode(SPlanContext* pCxt, SQueryPlanNode* pPlanNode) {
@@ -326,6 +327,7 @@ static SPhyNode* createPhyNode(SPlanContext* pCxt, SQueryPlanNode* pPlanNode) {
     case QNODE_TAGSCAN:
       node = createTagScanNode(pPlanNode);
       break;
+    case QNODE_STREAMSCAN:
     case QNODE_TABLESCAN:
       node = createTableScanNode(pCxt, pPlanNode);
       break;
@@ -382,18 +384,19 @@ static void createSubplanByLevel(SPlanContext* pCxt, SQueryPlanNode* pRoot) {
 
     subplan->msgType   = TDMT_VND_QUERY;
     subplan->pNode     = createPhyNode(pCxt, pRoot);
-    subplan->pDataSink = createDataDispatcher(pCxt, pRoot, subplan->pNode);    
+    subplan->pDataSink = createDataDispatcher(pCxt, pRoot, subplan->pNode);
   }
   // todo deal subquery
 }
 
-int32_t createDag(SQueryPlanNode* pQueryNode, struct SCatalog* pCatalog, SQueryDag** pDag, uint64_t requestId) {
+int32_t createDag(SQueryPlanNode* pQueryNode, struct SCatalog* pCatalog, SQueryDag** pDag, SArray* pNodeList, uint64_t requestId) {
   TRY(TSDB_MAX_TAG_CONDITIONS) {
     SPlanContext context = {
       .pCatalog = pCatalog,
       .pDag     = validPointer(calloc(1, sizeof(SQueryDag))),
       .pCurrentSubplan = NULL,
-      .nextId   = {.queryId = requestId},
+       //The unsigned Id starting from 1 would be better
+      .nextId   = {.queryId = requestId, .subplanId = 1, .templateId = 1},
     };
 
     *pDag = context.pDag;
@@ -406,6 +409,17 @@ int32_t createDag(SQueryPlanNode* pQueryNode, struct SCatalog* pCatalog, SQueryD
     terrno = code;
     return TSDB_CODE_FAILED;
   } END_TRY
+
+  // traverse the dag again to acquire the execution node.
+  if (pNodeList != NULL) {
+    SArray** pSubLevel = taosArrayGetLast((*pDag)->pSubplans);
+    size_t  num = taosArrayGetSize(*pSubLevel);
+    for (int32_t j = 0; j < num; ++j) {
+      SSubplan* pPlan = taosArrayGetP(*pSubLevel, j);
+      taosArrayPush(pNodeList, &pPlan->execNode);
+    }
+  }
+
   return TSDB_CODE_SUCCESS;
 }
 

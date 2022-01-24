@@ -136,6 +136,7 @@ typedef struct SReqResultInfo {
   TAOS_ROW     row;
   char       **pCol;
   uint32_t     numOfRows;
+  uint64_t     totalRows;
   uint32_t     current;
   bool         completed;
 } SReqResultInfo;

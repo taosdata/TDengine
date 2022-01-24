@@ -19,7 +19,10 @@
 static int32_t vnodeGetTableList(SVnode *pVnode, SRpcMsg *pMsg);
 static int     vnodeGetTableMeta(SVnode *pVnode, SRpcMsg *pMsg, SRpcMsg **pRsp);
 
-int vnodeQueryOpen(SVnode *pVnode) { return qWorkerInit(NODE_TYPE_VNODE, pVnode->vgId, NULL, &pVnode->pQuery, pVnode, vnodePutReqToVQueryQ); }
+int vnodeQueryOpen(SVnode *pVnode) {
+  return qWorkerInit(NODE_TYPE_VNODE, pVnode->vgId, NULL, (void **)&pVnode->pQuery, pVnode,
+                     (putReqToQueryQFp)vnodePutReqToVQueryQ);
+}
 
 int vnodeProcessQueryReq(SVnode *pVnode, SRpcMsg *pMsg, SRpcMsg **pRsp) {
   vTrace("query message is processing");
@@ -153,6 +156,11 @@ _exit:
   return 0;
 }
 
+static void freeItemHelper(void* pItem) {
+  char* p = *(char**)pItem;
+  free(p);
+}
+
 /**
  * @param pVnode
  * @param pMsg
@@ -166,17 +174,20 @@ static int32_t vnodeGetTableList(SVnode *pVnode, SRpcMsg *pMsg) {
   int32_t totalLen = 0;
   int32_t numOfTables = 0;
   while ((name = metaTbCursorNext(pCur)) != NULL) {
-    if (numOfTables < 1000) {  // TODO: temp get tables of vnode, and should del when show tables commad ok.
+    if (numOfTables < 10000) {  // TODO: temp get tables of vnode, and should del when show tables commad ok.
       taosArrayPush(pArray, &name);
       totalLen += strlen(name);
+    } else {
+      tfree(name);
     }
+
     numOfTables++;
   }
 
   // TODO: temp debug, and should del when show tables command ok
-  vError("====vgId:%d, numOfTables: %d", pVnode->vgId, numOfTables);
-  if (numOfTables > 1000) {
-     numOfTables = 1000;
+  vInfo("====vgId:%d, numOfTables: %d", pVnode->vgId, numOfTables);
+  if (numOfTables > 10000) {
+     numOfTables = 10000;
   }
 
   metaCloseTbCursor(pCur);
@@ -211,6 +222,6 @@ static int32_t vnodeGetTableList(SVnode *pVnode, SRpcMsg *pMsg) {
   };
 
   rpcSendResponse(&rpcMsg);
-  taosArrayDestroy(pArray);
+  taosArrayDestroyEx(pArray, freeItemHelper);
   return 0;
 }

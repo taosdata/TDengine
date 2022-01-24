@@ -23,6 +23,7 @@
   #error To use this include file, first define either INCLUDE_AS_ENUM or INCLUDE_AS_NAME
 #endif
 
+OP_ENUM_MACRO(StreamScan)
 OP_ENUM_MACRO(TableScan)
 OP_ENUM_MACRO(DataBlocksOptScan)
 OP_ENUM_MACRO(TableSeqScan)

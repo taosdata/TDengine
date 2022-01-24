@@ -42,7 +42,8 @@ char *simParseArbitratorName(char *varName) {
 
 char *simParseHostName(char *varName) {
   static char hostName[140];
-  sprintf(hostName, "%s", simHostName);
+  //sprintf(hostName, "%s", simHostName);
+  sprintf(hostName, "%s", "localhost");
   return hostName;
 }
 
