@@ -21,4 +21,7 @@ IF (TD_DARWIN)
   TARGET_LINK_LIBRARIES(demo taos_static trpc tutil pthread ${LINK_LUA})
   ADD_EXECUTABLE(epoll epoll.c)
   TARGET_LINK_LIBRARIES(epoll taos_static trpc tutil pthread ${LINK_LUA})
+
+  ADD_EXECUTABLE(parameter-binding parameter-binding.c)
+  TARGET_LINK_LIBRARIES(parameter-binding taos)
 ENDIF ()
