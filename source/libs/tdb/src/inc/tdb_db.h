@@ -16,31 +16,27 @@
 #ifndef _TD_TDB_DB_H_
 #define _TD_TDB_DB_H_
 
-#include "tdb.h"
-#include "tdbBtree.h"
+#include "tdb_mpool.h"
 
 #ifdef __cplusplus
 extern "C" {
 #endif
 
-typedef struct {
-  int fd;
-} TDB_FH;
+typedef struct TDB TDB;
 
 struct TDB {
-  pgsize_t pageSize;
-  tdb_db_t type;
-  char *   fname;
-  char *   dbname;
+  char *      fname;
+  char *      dbname;
+  TDB_MPFILE *mpf;
   // union {
   //   TDB_BTREE *btree;
   //   TDB_HASH * hash;
   //   TDB_HEAP * heap;
   // } dbam;  // db access method
-
-  // TDB_FH *   fhp;  // The backup file handle
-  // TDB_MPOOL *mph;  // The memory pool handle
 };
+
+int tdbOpen(TDB **dbpp, const char *fname, const char *dbname, uint32_t flags);
+int tdbClose(TDB *dbp, uint32_t flags);
 
 #ifdef __cplusplus
 }
