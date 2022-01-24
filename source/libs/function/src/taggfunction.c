@@ -443,7 +443,7 @@ int32_t getResultDataInfo(int32_t dataType, int32_t dataBytes, int32_t functionI
     pInfo->intermediateBytes = (int16_t)sizeof(SPercentileInfo);
   } else if (functionId == FUNCTION_LEASTSQR) {
     pInfo->type = TSDB_DATA_TYPE_BINARY;
-    pInfo->bytes = MAX(AVG_FUNCTION_INTER_BUFFER_SIZE, sizeof(SLeastsquaresInfo));  // string
+    pInfo->bytes = TMAX(AVG_FUNCTION_INTER_BUFFER_SIZE, sizeof(SLeastsquaresInfo));  // string
     pInfo->intermediateBytes = pInfo->bytes;
   } else if (functionId == FUNCTION_FIRST_DST || functionId == FUNCTION_LAST_DST) {
     pInfo->type = TSDB_DATA_TYPE_BINARY;
@@ -1331,7 +1331,7 @@ static void max_func_merge(SQLFunctionCtx *pCtx) {
       continue;                                                       \
     }                                                                 \
     (num) += 1;                                                       \
-    (r) += POW2(((type *)d)[i] - (delta));                            \
+    (r) += TPOW2(((type *)d)[i] - (delta));                            \
   }
 
 static void stddev_function(SQLFunctionCtx *pCtx) {
@@ -1370,7 +1370,7 @@ static void stddev_function(SQLFunctionCtx *pCtx) {
             continue;
           }
           num += 1;
-          *retVal += POW2(((int32_t *)pData)[i] - avg);
+          *retVal += TPOW2(((int32_t *)pData)[i] - avg);
         }
         break;
       }
@@ -1484,7 +1484,7 @@ static void stddev_dst_function(SQLFunctionCtx *pCtx) {
           continue;
         }
         num += 1;
-        *retVal += POW2(((int32_t *)pData)[i] - avg);
+        *retVal += TPOW2(((int32_t *)pData)[i] - avg);
       }
       break;
     }
@@ -4210,8 +4210,8 @@ static void mergeTableBlockDist(SResultRowEntryInfo* pResInfo, const STableBlock
   pDist->totalRows += pSrc->totalRows;
 
   if (pResInfo->hasResult == DATA_SET_FLAG) {
-    pDist->maxRows = MAX(pDist->maxRows, pSrc->maxRows);
-    pDist->minRows = MIN(pDist->minRows, pSrc->minRows);
+    pDist->maxRows = TMAX(pDist->maxRows, pSrc->maxRows);
+    pDist->minRows = TMIN(pDist->minRows, pSrc->minRows);
   } else {
     pDist->maxRows = pSrc->maxRows;
     pDist->minRows = pSrc->minRows;
