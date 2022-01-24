@@ -380,7 +380,7 @@ TAOS_RES* tmq_subscribe(tmq_t* tmq, tmq_list_t* topic_list) {
     char* topicName = topic_list->elems[i];
 
     SName name = {0};
-    char* dbName = getConnectionDB(tmq->pTscObj);
+    char* dbName = getDbOfConnection(tmq->pTscObj);
     tNameSetDbName(&name, tmq->pTscObj->acctId, dbName, strlen(dbName));     
     tNameFromString(&name, topicName, T_NAME_TABLE);
 
