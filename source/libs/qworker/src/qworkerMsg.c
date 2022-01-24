@@ -50,6 +50,7 @@ int32_t qwBuildAndSendQueryRsp(void *connection, int32_t code) {
   pRsp->code = code;
 
   SRpcMsg rpcRsp = {
+    .msgType = TDMT_VND_QUERY_RSP,
     .handle  = pMsg->handle,
     .ahandle = pMsg->ahandle,
     .pCont   = pRsp,
@@ -68,6 +69,7 @@ int32_t qwBuildAndSendReadyRsp(void *connection, int32_t code) {
   pRsp->code = code;
 
   SRpcMsg rpcRsp = {
+    .msgType = TDMT_VND_RES_READY_RSP,
     .handle  = pMsg->handle,
     .ahandle = pMsg->ahandle,
     .pCont   = pRsp,
@@ -98,7 +100,7 @@ int32_t qwBuildAndSendStatusRsp(SRpcMsg *pMsg, SSchedulerStatusRsp *sStatus) {
   }
 
   SRpcMsg rpcRsp = {
-    .msgType = pMsg->msgType + 1,
+    .msgType = TDMT_VND_TASKS_STATUS_RSP,
     .handle  = pMsg->handle,
     .ahandle = pMsg->ahandle,
     .pCont   = pRsp,
@@ -121,6 +123,7 @@ int32_t qwBuildAndSendFetchRsp(void *connection, SRetrieveTableRsp *pRsp, int32_
   }
 
   SRpcMsg rpcRsp = {
+    .msgType = TDMT_VND_FETCH_RSP,
     .handle  = pMsg->handle,
     .ahandle = pMsg->ahandle,
     .pCont   = pRsp,
@@ -138,6 +141,7 @@ int32_t qwBuildAndSendCancelRsp(SRpcMsg *pMsg, int32_t code) {
   pRsp->code = code;
 
   SRpcMsg rpcRsp = {
+    .msgType = TDMT_VND_CANCEL_TASK_RSP,
     .handle  = pMsg->handle,
     .ahandle = pMsg->ahandle,
     .pCont   = pRsp,
@@ -155,6 +159,7 @@ int32_t qwBuildAndSendDropRsp(void *connection, int32_t code) {
   pRsp->code = code;
 
   SRpcMsg rpcRsp = {
+    .msgType = TDMT_VND_DROP_TASK_RSP,
     .handle  = pMsg->handle,
     .ahandle = pMsg->ahandle,
     .pCont   = pRsp,
@@ -273,7 +278,7 @@ int32_t qWorkerProcessQueryMsg(void *node, void *qWorkerMgmt, SRpcMsg *pMsg) {
   SQWorkerMgmt *mgmt = (SQWorkerMgmt *)qWorkerMgmt;
   
   if (NULL == msg || pMsg->contLen <= sizeof(*msg)) {
-    QW_ELOG("invalid query msg, contLen:%d", pMsg->contLen);
+    QW_ELOG("invalid query msg, msg:%p, msgLen:%d", msg, pMsg->contLen);
     QW_ERR_RET(TSDB_CODE_QRY_INVALID_INPUT);
   }
 
@@ -306,15 +311,11 @@ int32_t qWorkerProcessCQueryMsg(void *node, void *qWorkerMgmt, SRpcMsg *pMsg) {
   SQWTaskCtx *handles = NULL;
   SQWorkerMgmt *mgmt = (SQWorkerMgmt *)qWorkerMgmt;
 
-  if (NULL == msg || pMsg->contLen <= sizeof(*msg)) {
-    QW_ELOG("invalid cquery msg, contLen:%d", pMsg->contLen);
+  if (NULL == msg || pMsg->contLen < sizeof(*msg)) {
+    QW_ELOG("invalid cquery msg, msg:%p, msgLen:%d", msg, pMsg->contLen);
     QW_ERR_RET(TSDB_CODE_QRY_INVALID_INPUT);
   }
 
-  msg->sId = be64toh(msg->sId);
-  msg->queryId = be64toh(msg->queryId);
-  msg->taskId = be64toh(msg->taskId);
-  
   uint64_t sId = msg->sId;
   uint64_t qId = msg->queryId;
   uint64_t tId = msg->taskId;
@@ -335,13 +336,12 @@ int32_t qWorkerProcessReadyMsg(void *node, void *qWorkerMgmt, SRpcMsg *pMsg){
     return TSDB_CODE_QRY_INVALID_INPUT;
   }
 
+  SQWorkerMgmt *mgmt = (SQWorkerMgmt *)qWorkerMgmt;
   SResReadyReq *msg = pMsg->pCont;
   if (NULL == msg || pMsg->contLen < sizeof(*msg)) {
-    qError("invalid task status msg");  
+    QW_ELOG("invalid task ready msg, msg:%p, msgLen:%d", msg, pMsg->contLen);
     QW_ERR_RET(TSDB_CODE_QRY_INVALID_INPUT);
   }  
-
-  SQWorkerMgmt *mgmt = (SQWorkerMgmt *)qWorkerMgmt;
 
   msg->sId = be64toh(msg->sId);
   msg->queryId = be64toh(msg->queryId);
@@ -398,6 +398,7 @@ int32_t qWorkerProcessFetchMsg(void *node, void *qWorkerMgmt, SRpcMsg *pMsg) {
   SQWorkerMgmt *mgmt = (SQWorkerMgmt *)qWorkerMgmt;
   
   if (NULL == msg || pMsg->contLen < sizeof(*msg)) {
+    QW_ELOG("invalid fetch msg, msg:%p, msgLen:%d", msg, pMsg->contLen);  
     QW_ERR_RET(TSDB_CODE_QRY_INVALID_INPUT);
   }  
 
