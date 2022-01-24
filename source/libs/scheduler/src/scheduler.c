@@ -275,10 +275,13 @@ int32_t schBuildTaskRalation(SSchJob *pJob, SHashObj *planToTask) {
 }
 
 
-int32_t schRecordTaskSucceedNode(SSchTask *pTask) {
-  SQueryNodeAddr *addr = taosArrayGet(pTask->candidateAddrs, atomic_load_8(&pTask->candidateIdx));
-
-  assert(NULL != addr);
+int32_t schRecordTaskSucceedNode(SSchJob *pJob, SSchTask *pTask) {
+  int32_t idx = atomic_load_8(&pTask->candidateIdx);
+  SQueryNodeAddr *addr = taosArrayGet(pTask->candidateAddrs, idx);
+  if (NULL == addr) {
+    SCH_TASK_ELOG("taosArrayGet candidate addr failed, idx:%d, size:%d", idx, (int32_t)taosArrayGetSize(pTask->candidateAddrs));
+    SCH_ERR_RET(TSDB_CODE_SCH_INTERNAL_ERROR);
+  }
 
   pTask->succeedAddr = *addr;
 
@@ -578,9 +581,10 @@ int32_t schProcessOnJobFailureImpl(SSchJob *pJob, int32_t status, int32_t errCod
     tsem_post(&pJob->rspSem);
   }
 
-  SCH_ERR_RET(atomic_load_32(&pJob->errCode));
+  int32_t code = atomic_load_32(&pJob->errCode);
+  SCH_ERR_RET(code);
 
-  assert(0);
+  SCH_JOB_ELOG("job errCode is invalid, errCode:%d", code);
 }
 
 
@@ -721,7 +725,7 @@ int32_t schProcessOnTaskSuccess(SSchJob *pJob, SSchTask *pTask) {
 
   SCH_SET_TASK_STATUS(pTask, JOB_TASK_STATUS_PARTIAL_SUCCEED);
 
-  SCH_ERR_JRET(schRecordTaskSucceedNode(pTask));
+  SCH_ERR_JRET(schRecordTaskSucceedNode(pJob, pTask));
   
   int32_t parentNum = pTask->parents ? (int32_t)taosArrayGetSize(pTask->parents) : 0;
   if (parentNum == 0) {
@@ -734,11 +738,11 @@ int32_t schProcessOnTaskSuccess(SSchJob *pJob, SSchTask *pTask) {
       SCH_UNLOCK(SCH_WRITE, &pTask->level->lock);
       
       if (taskDone < pTask->level->taskNum) {
-        SCH_TASK_ELOG("wait all tasks, done:%d, all:%d", taskDone, pTask->level->taskNum);
+        SCH_TASK_DLOG("wait all tasks, done:%d, all:%d", taskDone, pTask->level->taskNum);
         
         return TSDB_CODE_SUCCESS;
       } else if (taskDone > pTask->level->taskNum) {
-        assert(0);
+        SCH_TASK_ELOG("taskDone number invalid, done:%d, total:%d", taskDone, pTask->level->taskNum);
       }
 
       if (pTask->level->taskFailed > 0) {
@@ -871,18 +875,21 @@ int32_t schHandleResponseMsg(SSchJob *pJob, SSchTask *pTask, int32_t msgType, ch
         }
 
         atomic_store_ptr(&pJob->res, rsp);
-        atomic_store_32(&pJob->resNumOfRows, rsp->numOfRows);
+        atomic_add_fetch_32(&pJob->resNumOfRows, htonl(rsp->numOfRows));
 
         if (rsp->completed) {
           SCH_SET_TASK_STATUS(pTask, JOB_TASK_STATUS_SUCCEED);
         }
 
+        SCH_TASK_DLOG("got fetch rsp, rows:%d, complete:%d", htonl(rsp->numOfRows), rsp->completed);
+
         SCH_ERR_JRET(schProcessOnDataFetched(pJob));
         break;
       }
-    case TDMT_VND_DROP_TASK: {
+    case TDMT_VND_DROP_TASK_RSP: {
         // SHOULD NEVER REACH HERE
-        assert(0);
+        SCH_TASK_ELOG("invalid status to handle drop task rsp, ref:%d", atomic_load_32(&pJob->ref));
+        SCH_ERR_JRET(TSDB_CODE_SCH_INTERNAL_ERROR);
         break;
       }
     default:
@@ -1030,7 +1037,9 @@ int32_t schAsyncSendMsg(void *transport, SEpSet* epSet, uint64_t qId, uint64_t t
     qError("QID:%"PRIx64 ",TID:%"PRIx64 " asyncSendMsgToServer failed, code:%x", qId, tId, code);
     SCH_ERR_JRET(code);
   }
-  
+
+  qDebug("QID:%"PRIx64 ",TID:%"PRIx64 " req msg sent, type:%d, %s", qId, tId, msgType, TMSG_INFO(msgType));
+
   return TSDB_CODE_SUCCESS;
 
 _return:
@@ -1289,8 +1298,10 @@ void schDropJobAllTasks(SSchJob *pJob) {
 }
 
 int32_t schExecJobImpl(void *transport, SArray *pNodeList, SQueryDag* pDag, struct SSchJob** job, bool syncSchedule) {
+  qDebug("QID:0x%"PRIx64" job started", pDag->queryId);
+
   if (pNodeList && taosArrayGetSize(pNodeList) <= 0) {
-    qDebug("QID:%"PRIx64" input exec nodeList is empty", pDag->queryId);
+    qDebug("QID:0x%"PRIx64" input exec nodeList is empty", pDag->queryId);
   }
 
   int32_t code = 0;
@@ -1359,7 +1370,7 @@ _return:
 
   *(SSchJob **)job = NULL;
   
-  scheduleFreeJob(pJob);
+  schedulerFreeJob(pJob);
   
   SCH_RET(code);
 }
@@ -1404,7 +1415,7 @@ int32_t schedulerInit(SSchedulerCfg *cfg) {
   return TSDB_CODE_SUCCESS;
 }
 
-int32_t scheduleExecJob(void *transport, SArray *nodeList, SQueryDag* pDag, struct SSchJob** pJob, SQueryResult *pRes) {
+int32_t schedulerExecJob(void *transport, SArray *nodeList, SQueryDag* pDag, struct SSchJob** pJob, SQueryResult *pRes) {
   if (NULL == transport || NULL == pDag || NULL == pDag->pSubplans || NULL == pJob || NULL == pRes) {
     SCH_ERR_RET(TSDB_CODE_QRY_INVALID_INPUT);
   }
@@ -1421,7 +1432,7 @@ int32_t scheduleExecJob(void *transport, SArray *nodeList, SQueryDag* pDag, stru
   return TSDB_CODE_SUCCESS;
 }
 
-int32_t scheduleAsyncExecJob(void *transport, SArray *pNodeList, SQueryDag* pDag, struct SSchJob** pJob) {
+int32_t schedulerAsyncExecJob(void *transport, SArray *nodeList, SQueryDag* pDag, struct SSchJob** pJob) {
   if (NULL == transport || NULL == pDag || NULL == pDag->pSubplans || NULL == pJob) {
     SCH_ERR_RET(TSDB_CODE_QRY_INVALID_INPUT);
   }
@@ -1554,7 +1565,7 @@ _return:
 }
 
 
-int32_t scheduleFetchRows(SSchJob *pJob, void** pData) {
+int32_t schedulerFetchRows(SSchJob *pJob, void** pData) {
   if (NULL == pJob || NULL == pData) {
     SCH_ERR_RET(TSDB_CODE_QRY_INVALID_INPUT);
   }
@@ -1619,11 +1630,12 @@ _return:
     }
 
     *pData = rsp;
+    SCH_JOB_DLOG("empty res and set query complete, code:%x", code);
   }
 
   atomic_val_compare_exchange_8(&pJob->userFetch, 1, 0);
 
-  SCH_JOB_DLOG("fetch done, code:%s", tstrerror(code));
+  SCH_JOB_DLOG("fetch done, totalRows:%d, code:%s", pJob->resNumOfRows, tstrerror(code));
   atomic_sub_fetch_32(&pJob->ref, 1);
 
   SCH_RET(code);
@@ -1641,7 +1653,7 @@ int32_t scheduleCancelJob(void *job) {
   SCH_RET(code);
 }
 
-void scheduleFreeJob(void *job) {
+void schedulerFreeJob(void *job) {
   if (NULL == job) {
     return;
   }
@@ -1670,7 +1682,8 @@ void scheduleFreeJob(void *job) {
 
         usleep(1);
       } else {
-        assert(0);
+        SCH_JOB_ELOG("invalid job ref number, ref:%d", ref);
+        break;
       }
     }
 

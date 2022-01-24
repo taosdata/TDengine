@@ -113,7 +113,11 @@ elif [ $NODE -eq 7 ]; then
   NODE=7700  
 elif [ $NODE -eq 8 ]; then
   NODE=7800    
+elif [ $NODE -eq 9 ]; then
+  NODE=7900    
 fi
+
+HOSTNAME=localhost
 
 echo " "                                         >> $TAOS_CFG   
 echo "firstEp                ${HOSTNAME}:7100"   >> $TAOS_CFG

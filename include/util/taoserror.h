@@ -354,7 +354,7 @@ int32_t* taosGetErrno();
 #define TSDB_CODE_QRY_SCH_NOT_EXIST             TAOS_DEF_ERROR_CODE(0, 0x0710)  //"Scheduler not exist")
 #define TSDB_CODE_QRY_TASK_NOT_EXIST            TAOS_DEF_ERROR_CODE(0, 0x0711)  //"Task not exist")
 #define TSDB_CODE_QRY_TASK_ALREADY_EXIST        TAOS_DEF_ERROR_CODE(0, 0x0712)  //"Task already exist")
-#define TSDB_CODE_QRY_RES_CACHE_NOT_EXIST       TAOS_DEF_ERROR_CODE(0, 0x0713)  //"Task result cache not exist")
+#define TSDB_CODE_QRY_TASK_CTX_NOT_EXIST        TAOS_DEF_ERROR_CODE(0, 0x0713)  //"Task context not exist")
 #define TSDB_CODE_QRY_TASK_CANCELLED            TAOS_DEF_ERROR_CODE(0, 0x0714)  //"Task cancelled")
 #define TSDB_CODE_QRY_TASK_DROPPED              TAOS_DEF_ERROR_CODE(0, 0x0715)  //"Task dropped")
 #define TSDB_CODE_QRY_TASK_CANCELLING           TAOS_DEF_ERROR_CODE(0, 0x0716)  //"Task cancelling")

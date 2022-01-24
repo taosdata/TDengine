@@ -15,6 +15,7 @@
 
 #define _DEFAULT_SOURCE
 #include "mndAuth.h"
+#include "mndUser.h"
 
 static int32_t mndProcessAuthReq(SMnodeMsg *pReq);
 
@@ -25,7 +26,24 @@ int32_t mndInitAuth(SMnode *pMnode) {
 
 void mndCleanupAuth(SMnode *pMnode) {}
 
-int32_t mndRetriveAuth(SMnode *pMnode, char *user, char *spi, char *encrypt, char *secret, char *ckey) { return 0; }
+int32_t mndRetriveAuth(SMnode *pMnode, char *user, char *spi, char *encrypt, char *secret, char *ckey) {
+  SUserObj *pUser = mndAcquireUser(pMnode, user);
+  if (pUser == NULL) {
+    *secret = 0;
+    mError("user:%s, failed to auth user since %s", user, terrstr());
+    return -1;
+  }
+
+  *spi = 1;
+  *encrypt = 0;
+  *ckey = 0;
+
+  memcpy(secret, pUser->pass, TSDB_PASSWORD_LEN);
+  mndReleaseUser(pMnode, pUser);
+
+  mDebug("user:%s, auth info is returned", user);
+  return 0;
+}
 
 static int32_t mndProcessAuthReq(SMnodeMsg *pReq) {
   SAuthReq *pAuth = pReq->rpcMsg.pCont;

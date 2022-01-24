@@ -96,7 +96,7 @@ int vnodeApplyWMsg(SVnode *pVnode, SRpcMsg *pMsg, SRpcMsg **pRsp) {
         }
       }
 
-      vDebug("vgId:%d process create %"PRIzu" tables", pVnode->vgId, taosArrayGetSize(vCreateTbBatchReq.pArray));
+      vTrace("vgId:%d process create %" PRIzu " tables", pVnode->vgId, taosArrayGetSize(vCreateTbBatchReq.pArray));
       taosArrayDestroy(vCreateTbBatchReq.pArray);
       break;
 
@@ -112,9 +112,7 @@ int vnodeApplyWMsg(SVnode *pVnode, SRpcMsg *pMsg, SRpcMsg **pRsp) {
       }
       break;
     case TDMT_VND_MQ_SET_CONN: {
-      SMqSetCVgReq req;
-      tDecodeSMqSetCVgReq(ptr, &req);
-      if (tqProcessSetConnReq(pVnode->pTq, &req) < 0) {
+      if (tqProcessSetConnReq(pVnode->pTq, ptr) < 0) {
       }
     } break;
     default:
@@ -131,6 +129,7 @@ int vnodeApplyWMsg(SVnode *pVnode, SRpcMsg *pMsg, SRpcMsg **pRsp) {
       // TODO: handle error
     }
   }
+  
   return 0;
 }
 

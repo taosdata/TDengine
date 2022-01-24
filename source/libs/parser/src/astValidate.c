@@ -1267,7 +1267,7 @@ static int32_t checkFillQueryRange(SQueryStmtInfo* pQueryInfo, SMsgBuf* pMsgBuf)
 //    return buildInvalidOperationMsg(pMsgBuf, msg1);
 //  }
 
-  int64_t timeRange = ABS(pQueryInfo->window.skey - pQueryInfo->window.ekey);
+  int64_t timeRange = TABS(pQueryInfo->window.skey - pQueryInfo->window.ekey);
 
   int64_t intervalRange = 0;
   if (!TIME_IS_VAR_DURATION(pQueryInfo->interval.intervalUnit)) {
@@ -1353,7 +1353,7 @@ int32_t validateFillNode(SQueryStmtInfo *pQueryInfo, SSqlNode* pSqlNode, SMsgBuf
         numOfFillVal = numOfFields;
       }
     } else {
-      numOfFillVal = MIN(num, numOfFields);
+      numOfFillVal = TMIN(num, numOfFields);
     }
 
     int32_t j = 1;
@@ -1928,7 +1928,7 @@ void setResultColName(char* name, tSqlExprItem* pItem, SToken* pToken, SToken* f
     tstrncpy(name, pItem->aliasName, TSDB_COL_NAME_LEN);
   } else if (multiCols) {
     char uname[TSDB_COL_NAME_LEN] = {0};
-    int32_t len = MIN(pToken->n + 1, TSDB_COL_NAME_LEN);
+    int32_t len = TMIN(pToken->n + 1, TSDB_COL_NAME_LEN);
     tstrncpy(uname, pToken->z, len);
 
     if (tsKeepOriginalColumnName) { // keep the original column name
@@ -1944,7 +1944,7 @@ void setResultColName(char* name, tSqlExprItem* pItem, SToken* pToken, SToken* f
       tstrncpy(name, tmp, TSDB_COL_NAME_LEN);
     }
   } else  { // use the user-input result column name
-    int32_t len = MIN(pItem->pNode->exprToken.n + 1, TSDB_COL_NAME_LEN);
+    int32_t len = TMIN(pItem->pNode->exprToken.n + 1, TSDB_COL_NAME_LEN);
     tstrncpy(name, pItem->pNode->exprToken.z, len);
   }
 }
@@ -2948,7 +2948,7 @@ static SSchema createConstantColumnSchema(SVariant* pVal, const SToken* exprStr,
   if (name != NULL) {
     tstrncpy(s.name, name, sizeof(s.name));
   } else {
-    size_t tlen = MIN(sizeof(s.name), exprStr->n + 1);
+    size_t tlen = TMIN(sizeof(s.name), exprStr->n + 1);
     tstrncpy(s.name, exprStr->z, tlen);
     strdequote(s.name);
   }
@@ -3026,7 +3026,7 @@ int32_t addProjectionExprAndResColumn(SQueryStmtInfo* pQueryInfo, tSqlExprItem* 
     SSchema colSchema = createConstantColumnSchema(&pItem->pNode->value, &pItem->pNode->exprToken, pItem->aliasName);
 
     char token[TSDB_COL_NAME_LEN] = {0};
-    tstrncpy(token, pItem->pNode->exprToken.z, MIN(TSDB_COL_NAME_LEN, TSDB_COL_NAME_LEN));
+    tstrncpy(token, pItem->pNode->exprToken.z, TMIN(TSDB_COL_NAME_LEN, TSDB_COL_NAME_LEN));
 
     STableMetaInfo* pTableMetaInfo = getMetaInfo(pQueryInfo, index.tableIndex);
     SColumn c = createColumn(pTableMetaInfo->pTableMeta->uid, pTableMetaInfo->aliasName, index.type, &colSchema);
