@@ -218,6 +218,7 @@ int32_t getPlan(SRequestObj* pRequest, SQueryNode* pQueryNode, SQueryDag** pDag,
 
   if (pQueryNode->type == TSDB_SQL_SELECT) {
     setResSchemaInfo(&pRequest->body.resInfo, pSchema, numOfCols);
+    tfree(pSchema);
     pRequest->type = TDMT_VND_QUERY;
   } else {
     tfree(pSchema);

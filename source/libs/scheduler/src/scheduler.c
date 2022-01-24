@@ -1512,9 +1512,7 @@ int32_t schedulerConvertDagToTaskList(SQueryDag* pDag, SArray **pTasks) {
   info = NULL;
   
 _return:
-
   schedulerFreeTaskList(info);
-
   SCH_RET(code);
 }
 
