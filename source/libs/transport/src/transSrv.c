@@ -27,7 +27,6 @@ typedef struct SConn {
   int         ref;
   int         persist;  // persist connection or not
   SConnBuffer connBuf;  // read buf,
-  int         count;
   int         inType;
   void*       pTransInst;  // rpc init
   void*       ahandle;     //
@@ -272,6 +271,7 @@ static void uvHandleReq(SConn* pConn) {
   rpcMsg.ahandle = NULL;
   rpcMsg.handle = pConn;
 
+  pConn->ref++;
   (*(pRpc->cfp))(pRpc->parent, &rpcMsg, NULL);
   // uv_timer_start(pConn->pTimer, uvHandleActivityTimeout, pRpc->idleTime * 10000, 0);
   // auth
@@ -432,6 +432,7 @@ void uvOnConnectionCb(uv_stream_t* q, ssize_t nread, const uv_buf_t* buf) {
   assert(pending == UV_TCP);
 
   SConn* pConn = createConn();
+
   pConn->pTransInst = pThrd->pTransInst;
   /* init conn timer*/
   pConn->pTimer = malloc(sizeof(uv_timer_t));
@@ -520,11 +521,15 @@ void* workerThread(void* arg) {
 
 static SConn* createConn() {
   SConn* pConn = (SConn*)calloc(1, sizeof(SConn));
+  ++pConn->ref;
   return pConn;
 }
 
 static void destroyConn(SConn* conn, bool clear) {
   if (conn == NULL) {
+    return;
+  }
+  if (--conn->ref == 0) {
     return;
   }
   if (clear) {

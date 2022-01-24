@@ -63,7 +63,7 @@ static void *sendRequest(void *param) {
     if (pInfo->num % 20000 == 0) tInfo("thread:%d, %d requests have been sent", pInfo->index, pInfo->num);
     // tsem_wait(&pInfo->rspSem);
     tsem_wait(&pInfo->rspSem);
-    tDebug("recv response");
+    tDebug("recv response succefully");
     // usleep(100000000);
   }
 

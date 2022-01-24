@@ -267,20 +267,20 @@ static void clientReadCb(uv_stream_t* handle, ssize_t nread, const uv_buf_t* buf
   if (nread > 0) {
     pBuf->len += nread;
     if (clientReadComplete(pBuf)) {
-      tDebug("conn read complete");
+      tDebug("conn %p read complete", conn);
       clientHandleResp(conn);
     } else {
-      tDebug("conn read half packet, continue to read");
+      tDebug("conn %p read partial packet, continue to read", conn);
     }
     return;
   }
   assert(nread <= 0);
   if (nread == 0) {
-    tError("conn closed");
+    tError("conn %p closed", conn);
     return;
   }
   if (nread < 0) {
-    tError("conn read error: %s", uv_err_name(nread));
+    tError("conn %p read error: %s", conn, uv_err_name(nread));
     clientHandleExcept(conn);
   }
   // tDebug("Read error %s\n", uv_err_name(nread));
@@ -307,9 +307,9 @@ static void clientWriteCb(uv_write_t* req, int status) {
   SCliConn* pConn = req->data;
 
   if (status == 0) {
-    tDebug("conn data already was written out");
+    tDebug("conn %p data already was written out", pConn);
   } else {
-    tError("failed to write: %s", uv_err_name(status));
+    tError("conn %p failed to write: %s", pConn, uv_err_name(status));
     clientHandleExcept(pConn);
     return;
   }
@@ -334,7 +334,7 @@ static void clientWrite(SCliConn* pConn) {
   pHead->msgLen = (int32_t)htonl((uint32_t)msgLen);
 
   uv_buf_t wb = uv_buf_init((char*)pHead, msgLen);
-  tDebug("data write out, msgType : %d, len: %d", pHead->msgType, msgLen);
+  tDebug("conn %p data write out, msgType : %d, len: %d", pConn, pHead->msgType, msgLen);
   uv_write(pConn->writeReq, (uv_stream_t*)pConn->stream, &wb, 1, clientWriteCb);
 }
 static void clientConnCb(uv_connect_t* req, int status) {
@@ -342,9 +342,11 @@ static void clientConnCb(uv_connect_t* req, int status) {
   SCliConn* pConn = req->data;
   if (status != 0) {
     // tError("failed to connect server(%s, %d), errmsg: %s", pCtx->ip, pCtx->port, uv_strerror(status));
-    tError("failed to connect server,  errmsg: %s", uv_strerror(status));
+    tError("conn %p failed to connect server: %s", pConn, uv_strerror(status));
     clientHandleExcept(pConn);
+    return;
   }
+  tDebug("conn %p create", pConn);
 
   assert(pConn->stream == req->handle);
   clientWrite(pConn);
@@ -360,6 +362,7 @@ static void clientHandleReq(SCliMsg* pMsg, SCliThrdObj* pThrd) {
   SCliConn*      conn = getConnFromPool(pThrd->pool, pCtx->ip, pCtx->port);
   if (conn != NULL) {
     // impl later
+    tDebug("conn %p get from conn pool", conn);
     conn->data = pMsg;
     conn->writeReq->data = conn;
 
