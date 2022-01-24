@@ -67,7 +67,9 @@ static void deregisterRequest(SRequestObj* pRequest) {
   int32_t currentInst = atomic_sub_fetch_32(&pActivity->currentRequests, 1);
   int32_t num = atomic_sub_fetch_32(&pTscObj->numOfReqs, 1);
 
-  tscDebug("0x%"PRIx64" free Request from connObj: 0x%"PRIx64", current:%d, app current:%d", pRequest->self, pTscObj->id, num, currentInst);
+  int64_t duration = taosGetTimestampMs() - pRequest->metric.start;
+  tscDebug("0x%"PRIx64" free Request from connObj: 0x%"PRIx64", reqId:0x%"PRIx64" elapsed:%"PRIu64" ms, current:%d, app current:%d", pRequest->self, pTscObj->id,
+      pRequest->requestId, duration, num, currentInst);
   taosReleaseRef(clientConnRefPool, pTscObj->id);
 }
 
