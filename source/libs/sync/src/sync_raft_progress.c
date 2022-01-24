@@ -59,7 +59,7 @@ bool syncRaftProgressMaybeUpdate(SSyncRaftProgress* progress, SyncIndex lastInde
     probeAcked(progress);
   }
 
-  progress->nextIndex = MAX(progress->nextIndex, lastIndex + 1);
+  progress->nextIndex = TMAX(progress->nextIndex, lastIndex + 1);
 
   return updated;
 }
@@ -100,7 +100,7 @@ bool syncRaftProgressMaybeDecrTo(SSyncRaftProgress* progress,
     return false;
   }
 
-  progress->nextIndex = MAX(MIN(rejected, matchHint + 1), 1);
+  progress->nextIndex = TMAX(TMIN(rejected, matchHint + 1), 1);
 
   progress->probeSent = false;
   return true;
@@ -166,7 +166,7 @@ void syncRaftProgressBecomeProbe(SSyncRaftProgress* progress) {
   if (progress->state == PROGRESS_STATE_SNAPSHOT) {
     SyncIndex pendingSnapshotIndex = progress->pendingSnapshotIndex;
     resetProgressState(progress, PROGRESS_STATE_PROBE);
-    progress->nextIndex = MAX(progress->matchIndex + 1, pendingSnapshotIndex + 1);
+    progress->nextIndex = TMAX(progress->matchIndex + 1, pendingSnapshotIndex + 1);
   } else {
     resetProgressState(progress, PROGRESS_STATE_PROBE);
     progress->nextIndex = progress->matchIndex + 1;

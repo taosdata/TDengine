@@ -68,7 +68,7 @@ void *vmaMalloc(SVMemAllocator *pVMA, uint64_t size) {
   void *       ptr;
 
   if (pNode->size < POINTER_DISTANCE(pNode->ptr, pNode->data) + size) {
-    uint64_t capacity = MAX(pVMA->ssize, size);
+    uint64_t capacity = TMAX(pVMA->ssize, size);
     pNode = vArenaNodeNew(capacity);
     if (pNode == NULL) {
       // TODO: handle error

@@ -120,7 +120,7 @@ static SSqlObj *taosConnectImpl(const char *ip, const char *user, const char *pa
   pObj->signature = pObj;
   pObj->pRpcObj = (SRpcObj *)pRpcObj;
   tstrncpy(pObj->user, user, sizeof(pObj->user));
-  secretEncryptLen = MIN(secretEncryptLen, sizeof(pObj->pass));
+  secretEncryptLen = TMIN(secretEncryptLen, sizeof(pObj->pass));
   memcpy(pObj->pass, secretEncrypt, secretEncryptLen);
 
   if (db) {
@@ -245,10 +245,10 @@ TAOS *taos_connect_c(const char *ip, uint8_t ipLen, const char *user, uint8_t us
   char userBuf[TSDB_USER_LEN] = {0};
   char passBuf[TSDB_KEY_LEN] = {0};
   char dbBuf[TSDB_DB_NAME_LEN] = {0};
-  strncpy(ipBuf, ip, MIN(TSDB_EP_LEN - 1, ipLen));
-  strncpy(userBuf, user, MIN(TSDB_USER_LEN - 1, userLen));
-  strncpy(passBuf, pass, MIN(TSDB_KEY_LEN - 1, passLen));
-  strncpy(dbBuf, db, MIN(TSDB_DB_NAME_LEN - 1, dbLen));
+  strncpy(ipBuf, ip, TMIN(TSDB_EP_LEN - 1, ipLen));
+  strncpy(userBuf, user, TMIN(TSDB_USER_LEN - 1, userLen));
+  strncpy(passBuf, pass, TMIN(TSDB_KEY_LEN - 1, passLen));
+  strncpy(dbBuf, db, TMIN(TSDB_DB_NAME_LEN - 1, dbLen));
   return taos_connect(ipBuf, userBuf, passBuf, dbBuf, port);
 }
 

@@ -67,7 +67,7 @@ static FORCE_INLINE void __wr_unlock(void *lock, int32_t type) {
 }
 
 static FORCE_INLINE int32_t taosHashCapacity(int32_t length) {
-  int32_t len = MIN(length, HASH_MAX_CAPACITY);
+  int32_t len = TMIN(length, HASH_MAX_CAPACITY);
 
   int32_t i = 4;
   while (i < len) i = (i << 1u);

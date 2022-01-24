@@ -135,7 +135,7 @@ static SDataSink* createDataInserter(SPlanContext* pCxt, SVgDataBlocks* pBlocks,
   SDataInserter* inserter = (SDataInserter*)initDataSink(DSINK_Insert, sizeof(SDataInserter), pRoot);
   inserter->numOfTables = pBlocks->numOfTables;
   inserter->size = pBlocks->size;
-  SWAP(inserter->pData, pBlocks->pData, char*);
+  TSWAP(inserter->pData, pBlocks->pData, char*);
   return (SDataSink*)inserter;
 }
 

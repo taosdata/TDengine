@@ -153,8 +153,8 @@ int tsdbLoadDataFromCache(STable *pTable, SSkipListIterator *pIter, TSKEY maxKey
     if (fKey == INT64_MAX && rowKey == INT64_MAX) break;
 
     if (fKey < rowKey) {
-      pMergeInfo->keyFirst = MIN(pMergeInfo->keyFirst, fKey);
-      pMergeInfo->keyLast = MAX(pMergeInfo->keyLast, fKey);
+      pMergeInfo->keyFirst = TMIN(pMergeInfo->keyFirst, fKey);
+      pMergeInfo->keyLast = TMAX(pMergeInfo->keyLast, fKey);
 
       filterIter++;
       if (filterIter >= nFilterKeys) {
@@ -170,8 +170,8 @@ int tsdbLoadDataFromCache(STable *pTable, SSkipListIterator *pIter, TSKEY maxKey
         if (pCols && pMergeInfo->nOperations >= pCols->maxPoints) break;
         pMergeInfo->rowsInserted++;
         pMergeInfo->nOperations++;
-        pMergeInfo->keyFirst = MIN(pMergeInfo->keyFirst, rowKey);
-        pMergeInfo->keyLast = MAX(pMergeInfo->keyLast, rowKey);
+        pMergeInfo->keyFirst = TMIN(pMergeInfo->keyFirst, rowKey);
+        pMergeInfo->keyLast = TMAX(pMergeInfo->keyLast, rowKey);
         tsdbAppendTableRowToCols(pTable, pCols, &pSchema, row);
       }
 
@@ -196,12 +196,12 @@ int tsdbLoadDataFromCache(STable *pTable, SSkipListIterator *pIter, TSKEY maxKey
           if (pCols && pMergeInfo->nOperations >= pCols->maxPoints) break;
           pMergeInfo->rowsUpdated++;
           pMergeInfo->nOperations++;
-          pMergeInfo->keyFirst = MIN(pMergeInfo->keyFirst, rowKey);
-          pMergeInfo->keyLast = MAX(pMergeInfo->keyLast, rowKey);
+          pMergeInfo->keyFirst = TMIN(pMergeInfo->keyFirst, rowKey);
+          pMergeInfo->keyLast = TMAX(pMergeInfo->keyLast, rowKey);
           tsdbAppendTableRowToCols(pTable, pCols, &pSchema, row);
         } else {
-          pMergeInfo->keyFirst = MIN(pMergeInfo->keyFirst, fKey);
-          pMergeInfo->keyLast = MAX(pMergeInfo->keyLast, fKey);
+          pMergeInfo->keyFirst = TMIN(pMergeInfo->keyFirst, fKey);
+          pMergeInfo->keyLast = TMAX(pMergeInfo->keyLast, fKey);
         }
       }
 
@@ -714,8 +714,8 @@ int tsdbLoadDataFromCache(STable *pTable, SSkipListIterator *pIter, TSKEY maxKey
     if (fKey == INT64_MAX && rowKey == INT64_MAX) break;
 
     if (fKey < rowKey) {
-      pMergeInfo->keyFirst = MIN(pMergeInfo->keyFirst, fKey);
-      pMergeInfo->keyLast = MAX(pMergeInfo->keyLast, fKey);
+      pMergeInfo->keyFirst = TMIN(pMergeInfo->keyFirst, fKey);
+      pMergeInfo->keyLast = TMAX(pMergeInfo->keyLast, fKey);
 
       filterIter++;
       if (filterIter >= nFilterKeys) {
@@ -731,8 +731,8 @@ int tsdbLoadDataFromCache(STable *pTable, SSkipListIterator *pIter, TSKEY maxKey
         if (pCols && pMergeInfo->nOperations >= pCols->maxPoints) break;
         pMergeInfo->rowsInserted++;
         pMergeInfo->nOperations++;
-        pMergeInfo->keyFirst = MIN(pMergeInfo->keyFirst, rowKey);
-        pMergeInfo->keyLast = MAX(pMergeInfo->keyLast, rowKey);
+        pMergeInfo->keyFirst = TMIN(pMergeInfo->keyFirst, rowKey);
+        pMergeInfo->keyLast = TMAX(pMergeInfo->keyLast, rowKey);
         tsdbAppendTableRowToCols(pTable, pCols, &pSchema, row);
       }
 
@@ -757,12 +757,12 @@ int tsdbLoadDataFromCache(STable *pTable, SSkipListIterator *pIter, TSKEY maxKey
           if (pCols && pMergeInfo->nOperations >= pCols->maxPoints) break;
           pMergeInfo->rowsUpdated++;
           pMergeInfo->nOperations++;
-          pMergeInfo->keyFirst = MIN(pMergeInfo->keyFirst, rowKey);
-          pMergeInfo->keyLast = MAX(pMergeInfo->keyLast, rowKey);
+          pMergeInfo->keyFirst = TMIN(pMergeInfo->keyFirst, rowKey);
+          pMergeInfo->keyLast = TMAX(pMergeInfo->keyLast, rowKey);
           tsdbAppendTableRowToCols(pTable, pCols, &pSchema, row);
         } else {
-          pMergeInfo->keyFirst = MIN(pMergeInfo->keyFirst, fKey);
-          pMergeInfo->keyLast = MAX(pMergeInfo->keyLast, fKey);
+          pMergeInfo->keyFirst = TMIN(pMergeInfo->keyFirst, fKey);
+          pMergeInfo->keyLast = TMAX(pMergeInfo->keyLast, fKey);
         }
       }
 

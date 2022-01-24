@@ -43,12 +43,12 @@ typedef struct SSyncRaftLog SSyncRaftLog;
 typedef struct SSyncRaftEntry SSyncRaftEntry;
 
 #if 0
-#ifndef MIN
-#define MIN(x, y) (((x) < (y)) ? (x) : (y))
+#ifndef TMIN
+#define TMIN(x, y) (((x) < (y)) ? (x) : (y))
 #endif
 
-#ifndef MAX
-#define MAX(x, y) (((x) > (y)) ? (x) : (y))
+#ifndef TMAX
+#define TMAX(x, y) (((x) > (y)) ? (x) : (y))
 #endif
 #endif
 

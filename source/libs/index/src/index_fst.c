@@ -152,7 +152,7 @@ uint64_t fstUnFinishedNodesFindCommPrefixAndSetOutput(FstUnFinishedNodes* node, 
     uint64_t           addPrefix = 0;
     uint8_t*           data = fstSliceData(s, NULL);
     if (t && t->inp == data[i]) {
-      uint64_t commPrefix = MIN(t->out, *out);
+      uint64_t commPrefix = TMIN(t->out, *out);
       uint64_t tAddPrefix = t->out - commPrefix;
       (*out) = (*out) - commPrefix;
       t->out = commPrefix;
@@ -244,8 +244,8 @@ void fstStateCompileForAnyTrans(FstCountingWriter* w, CompiledAddr addr, FstBuil
   bool anyOuts = (node->finalOutput != 0);
   for (size_t i = 0; i < sz; i++) {
     FstTransition* t = taosArrayGet(node->trans, i);
-    tSize = MAX(tSize, packDeltaSize(addr, t->addr));
-    oSize = MAX(oSize, packSize(t->out));
+    tSize = TMAX(tSize, packDeltaSize(addr, t->addr));
+    oSize = TMAX(oSize, packSize(t->out));
     anyOuts = anyOuts || (t->out != 0);
   }
 
