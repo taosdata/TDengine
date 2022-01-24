@@ -86,7 +86,7 @@ int32_t ctgGetDBVgroupFromMnode(struct SCatalog* pCatalog, void *pRpc, const SEp
 
   rpcSendRecv(pRpc, (SEpSet*)pMgmtEps, &rpcMsg, &rpcRsp);
   if (TSDB_CODE_SUCCESS != rpcRsp.code) {
-    ctgError("error rsp for use db, code:%x, db:%s", rpcRsp.code, input->db);
+    ctgError("error rsp for use db, code:%s, db:%s", tstrerror(rpcRsp.code), input->db);
     CTG_ERR_RET(rpcRsp.code);
   }
 
@@ -258,7 +258,7 @@ int32_t ctgGetTableMetaFromMnodeImpl(struct SCatalog* pCatalog, void *pTransport
       return TSDB_CODE_SUCCESS;
     }
     
-    ctgError("error rsp for stablemeta from mnode, code:%x, tbName:%s", rpcRsp.code, tbFullName);
+    ctgError("error rsp for stablemeta from mnode, code:%s, tbName:%s", tstrerror(rpcRsp.code), tbFullName);
     CTG_ERR_RET(rpcRsp.code);
   }
 
@@ -320,18 +320,17 @@ int32_t ctgGetTableMetaFromVnode(struct SCatalog* pCatalog, void *pTransporter, 
       return TSDB_CODE_SUCCESS;
     }
   
-    ctgError("error rsp for table meta from vnode, code:%x, tbName:%s", rpcRsp.code, tNameGetTableName(pTableName));
+    ctgError("error rsp for table meta from vnode, code:%s, tbName:%s", tstrerror(rpcRsp.code), tNameGetTableName(pTableName));
     CTG_ERR_RET(rpcRsp.code);
   }
 
   code = queryProcessMsgRsp[TMSG_INDEX(TDMT_VND_TABLE_META)](output, rpcRsp.pCont, rpcRsp.contLen);
   if (code) {
-    ctgError("Process vnode tablemeta rsp failed, code:%x, tbName:%s", code, tNameGetTableName(pTableName));
+    ctgError("Process vnode tablemeta rsp failed, code:%s, tbName:%s", tstrerror(code), tNameGetTableName(pTableName));
     CTG_ERR_RET(code);
   }
 
   ctgDebug("Got table meta from vnode, db:%s, tbName:%s", dbFullName, tNameGetTableName(pTableName));
-
   return TSDB_CODE_SUCCESS;
 }
 
