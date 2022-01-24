@@ -104,8 +104,7 @@ typedef void* tsdbReadHandleT;
  * @param qinfo      query info handle from query processor
  * @return
  */
-tsdbReadHandleT *tsdbQueryTables(STsdb *tsdb, STsdbQueryCond *pCond, STableGroupInfo *tableInfoGroup, uint64_t qId,
-                                  void *pRef);
+tsdbReadHandleT *tsdbQueryTables(STsdb *tsdb, STsdbQueryCond *pCond, STableGroupInfo *tableInfoGroup, uint64_t qId, uint64_t taskId);
 
 /**
  * Get the last row of the given query time window for all the tables in STableGroupInfo object.

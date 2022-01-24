@@ -1241,6 +1241,12 @@ typedef struct {
   char    data[];
 } SVShowTablesFetchRsp;
 
+typedef struct SMqCMGetSubEpReq {
+  int64_t consumerId;
+  int32_t epoch;
+  char    cgroup[TSDB_CONSUMER_GROUP_LEN];
+} SMqCMGetSubEpReq;
+
 #pragma pack(pop)
 
 static FORCE_INLINE int32_t tEncodeSMsgHead(void** buf, const SMsgHead* pMsg) {
@@ -1562,7 +1568,7 @@ static FORCE_INLINE int32_t tEncodeSMqSetCVgReq(void** buf, const SMqSetCVgReq* 
   tlen += taosEncodeString(buf, pReq->logicalPlan);
   tlen += taosEncodeString(buf, pReq->physicalPlan);
   tlen += taosEncodeFixedU32(buf, pReq->qmsgLen);
-  tlen += taosEncodeBinary(buf, pReq->qmsg, pReq->qmsgLen);
+  tlen += taosEncodeString(buf, (char*)pReq->qmsg);
   //tlen += tEncodeSSubQueryMsg(buf, &pReq->msg);
   return tlen;
 }
@@ -1577,7 +1583,7 @@ static FORCE_INLINE void* tDecodeSMqSetCVgReq(void* buf, SMqSetCVgReq* pReq) {
   buf = taosDecodeString(buf, &pReq->logicalPlan);
   buf = taosDecodeString(buf, &pReq->physicalPlan);
   buf = taosDecodeFixedU32(buf, &pReq->qmsgLen);
-  buf = taosDecodeBinary(buf, &pReq->qmsg, pReq->qmsgLen);
+  buf = taosDecodeString(buf, (char**)&pReq->qmsg);
   //buf = tDecodeSSubQueryMsg(buf, &pReq->msg);
   return buf;
 }
@@ -1639,6 +1645,92 @@ typedef struct SMqConsumeReq {
   char           topic[TSDB_TOPIC_FNAME_LEN];
 } SMqConsumeReq;
 
+typedef struct SMqSubVgEp {
+  int32_t vgId;
+  SEpSet  epSet;
+} SMqSubVgEp;
+
+typedef struct SMqSubTopicEp {
+  char    topic[TSDB_TOPIC_FNAME_LEN];
+  SArray* vgs;   // SArray<SMqSubVgEp>
+} SMqSubTopicEp;
+
+typedef struct SMqCMGetSubEpRsp {
+  int64_t consumerId;
+  char    cgroup[TSDB_CONSUMER_GROUP_LEN];
+  SArray* topics;  // SArray<SMqSubTopicEp>
+} SMqCMGetSubEpRsp;
+
+static FORCE_INLINE int32_t tEncodeSMqSubVgEp(void** buf, const SMqSubVgEp* pVgEp) {
+  int32_t tlen = 0;
+  tlen += taosEncodeFixedI16(buf, pVgEp->vgId);
+  tlen += taosEncodeSEpSet(buf, &pVgEp->epSet);
+  return tlen;
+}
+
+static FORCE_INLINE void* tDecodeSMqSubVgEp(void* buf, SMqSubVgEp* pVgEp) {
+  buf = taosDecodeFixedI32(buf, &pVgEp->vgId);
+  buf = taosDecodeSEpSet(buf, &pVgEp->epSet);
+  return buf;
+}
+
+static FORCE_INLINE int32_t tEncodeSMqSubTopicEp(void** buf, const SMqSubTopicEp* pTopicEp) {
+  int32_t tlen = 0;
+  tlen += taosEncodeString(buf, pTopicEp->topic);
+  int32_t sz = taosArrayGetSize(pTopicEp->vgs);
+  tlen += taosEncodeFixedI32(buf, sz);
+  for (int32_t i = 0; i < sz; i++) {
+    SMqSubVgEp* pVgEp = (SMqSubVgEp*)taosArrayGet(pTopicEp->vgs, i);
+    tlen += tEncodeSMqSubVgEp(buf, pVgEp);
+  }
+  return tlen;
+}
+
+static FORCE_INLINE void* tDecodeSMqSubTopicEp(void* buf, SMqSubTopicEp* pTopicEp) {
+  buf = taosDecodeStringTo(buf, pTopicEp->topic);
+  int32_t sz;
+  buf = taosDecodeFixedI32(buf, &sz);
+  pTopicEp->vgs = taosArrayInit(sz, sizeof(SMqSubVgEp));
+  if (pTopicEp->vgs == NULL) {
+    return NULL;
+  }
+  for (int32_t i = 0; i < sz; i++) {
+    SMqSubVgEp vgEp;
+    buf = tDecodeSMqSubVgEp(buf, &vgEp);
+    taosArrayPush(pTopicEp->vgs, &vgEp);
+  }
+  return buf;
+}
+
+static FORCE_INLINE int32_t tEncodeSMqCMGetSubEpRsp(void** buf, const SMqCMGetSubEpRsp* pRsp) {
+  int32_t tlen = 0;
+  tlen += taosEncodeFixedI64(buf, pRsp->consumerId);
+  tlen += taosEncodeString(buf, pRsp->cgroup);
+  int32_t sz = taosArrayGetSize(pRsp->topics);
+  tlen += taosEncodeFixedI32(buf, sz);
+  for (int32_t i = 0; i < sz; i++) {
+    SMqSubTopicEp* pVgEp = (SMqSubTopicEp*)taosArrayGet(pRsp->topics, i);
+    tlen += tEncodeSMqSubTopicEp(buf, pVgEp);
+  }
+  return tlen;
+}
+
+static FORCE_INLINE void* tDecodeSMqCMGetSubEpRsp(void* buf, SMqCMGetSubEpRsp* pRsp) {
+  buf = taosDecodeFixedI64(buf, &pRsp->consumerId);
+  buf = taosDecodeStringTo(buf, pRsp->cgroup);
+  int32_t sz;
+  buf = taosDecodeFixedI32(buf, &sz);
+  pRsp->topics = taosArrayInit(sz, sizeof(SMqSubTopicEp));
+  if (pRsp->topics == NULL) {
+    return NULL;
+  }
+  for (int32_t i = 0; i < sz; i++) {
+    SMqSubTopicEp topicEp;
+    buf = tDecodeSMqSubTopicEp(buf, &topicEp);
+    taosArrayPush(pRsp->topics, &topicEp);
+  }
+  return buf;
+}
 
 #ifdef __cplusplus
 }

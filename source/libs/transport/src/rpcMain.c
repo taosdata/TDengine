@@ -242,11 +242,14 @@ void *rpcOpen(const SRpcInit *pInit) {
   pRpc = (SRpcInfo *)calloc(1, sizeof(SRpcInfo));
   if (pRpc == NULL) return NULL;
 
-  if (pInit->label) tstrncpy(pRpc->label, pInit->label, strlen(pInit->label));
+  if (pInit->label) tstrncpy(pRpc->label, pInit->label, tListLen(pInit->label));
 
   pRpc->connType = pInit->connType;
   if (pRpc->connType == TAOS_CONN_CLIENT) {
     pRpc->numOfThreads = pInit->numOfThreads;
+    if (pRpc->numOfThreads >= 10) {
+      pRpc->numOfThreads = 10;
+    }
   } else {
     pRpc->numOfThreads = pInit->numOfThreads > TSDB_MAX_RPC_THREADS ? TSDB_MAX_RPC_THREADS : pInit->numOfThreads;
   }
@@ -769,8 +772,8 @@ static SRpcConn *rpcAllocateServerConn(SRpcInfo *pRpc, SRecvInfo *pRecv) {
     }
 
     taosHashPut(pRpc->hash, hashstr, size, (char *)&pConn, POINTER_BYTES);
-    tDebug("%s %p server connection is allocated, uid:0x%x sid:%d key:%s spi:%d", pRpc->label, pConn, pConn->linkUid, sid,
-           hashstr, pConn->spi);
+    tDebug("%s %p server connection is allocated, uid:0x%x sid:%d key:%s spi:%d", pRpc->label, pConn, pConn->linkUid,
+           sid, hashstr, pConn->spi);
   }
 
   return pConn;
@@ -1357,9 +1360,14 @@ static void rpcSendMsgToPeer(SRpcConn *pConn, void *msg, int msgLen) {
     tDebug("%s, %s is sent to %s:%hu, len:%d sig:0x%08x:0x%08x:%d", pConn->info, TMSG_INFO(pHead->msgType),
            pConn->peerFqdn, pConn->peerPort, msgLen, pHead->sourceId, pHead->destId, pHead->tranId);
   } else {
-    if (pHead->code == 0) pConn->secured = 1;  // for success response, set link as secured
-    tDebug("%s, %s is sent to 0x%x:%hu, code:0x%x len:%d sig:0x%08x:0x%08x:%d", pConn->info, TMSG_INFO(pHead->msgType),
-           pConn->peerIp, pConn->peerPort, htonl(pHead->code), msgLen, pHead->sourceId, pHead->destId, pHead->tranId);
+    if (pHead->code == 0) {
+      pConn->secured = 1;  // for success response, set link as secured
+    }
+
+    char ipport[40] = {0};
+    taosIpPort2String(pConn->peerIp, pConn->peerPort, ipport);
+    tDebug("%s, %s is sent to %s, code:0x%x len:%d sig:0x%08x:0x%08x:%d", pConn->info, TMSG_INFO(pHead->msgType),
+           ipport, htonl(pHead->code), msgLen, pHead->sourceId, pHead->destId, pHead->tranId);
   }
 
   // tTrace("connection type is: %d", pConn->connType);

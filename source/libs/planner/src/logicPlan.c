@@ -413,7 +413,6 @@ static void doDestroyQueryNode(SQueryPlanNode* pQueryNode) {
     tfree(pQueryTableInfo->tableName);
   }
 
-  printf("----------->Free:%p\n", pQueryNode->pExpr);
   taosArrayDestroy(pQueryNode->pExpr);
 
   tfree(pQueryNode->pExtInfo);

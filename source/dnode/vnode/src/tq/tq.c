@@ -667,8 +667,8 @@ int tqItemSSize() {
 }
 #endif
 
-int32_t tqProcessConsumeReq(STQ* pTq, SRpcMsg* pMsg, SRpcMsg** ppRsp) {
-  SMqConsumeReq* pReq = pMsg->pCont;
+int32_t tqProcessConsumeReq(STQ* pTq, SRpcMsg* pMsg) {
+  SMqConsumeReq*   pReq = pMsg->pCont;
   SRpcMsg          rpcMsg;
   int64_t          reqId = pReq->reqId;
   int64_t          consumerId = pReq->consumerId;
@@ -783,7 +783,7 @@ int32_t tqProcessConsumeReq(STQ* pTq, SRpcMsg* pMsg, SRpcMsg** ppRsp) {
   return 0;
 }
 
-int32_t tqProcessSetConnReq(STQ* pTq, char* msg, SRpcMsg** ppRsp) {
+int32_t tqProcessSetConnReq(STQ* pTq, char* msg) {
   SMqSetCVgReq req;
   tDecodeSMqSetCVgReq(msg, &req);
   STqConsumerHandle* pConsumer = calloc(sizeof(STqConsumerHandle), 1);
@@ -811,7 +811,7 @@ int32_t tqProcessSetConnReq(STQ* pTq, char* msg, SRpcMsg** ppRsp) {
   for (int i = 0; i < TQ_BUFFER_SIZE; i++) {
     pTopic->buffer.output[i].status = 0;
     STqReadHandle* pReadHandle = tqInitSubmitMsgScanner(pTq->pMeta);
-    pTopic->buffer.output[i].task = qCreateStreamExecTaskInfo(&req.qmsg, pReadHandle);
+    pTopic->buffer.output[i].task = qCreateStreamExecTaskInfo(req.qmsg, pReadHandle);
   }
   taosArrayPush(pConsumer->topics, pTopic);
   terrno = TSDB_CODE_SUCCESS;
