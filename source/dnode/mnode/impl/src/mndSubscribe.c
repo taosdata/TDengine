@@ -98,7 +98,8 @@ static int32_t mndProcessMqTimerMsg(SMnodeMsg *pMsg) {
         // build msg
         SMqSetCVgReq req = {
             .vgId = pCEp->vgId,
-            .consumerId = consumerId,
+            .oldConsumerId = -1,
+            .newConsumerId = consumerId,
         };
         strcpy(req.cgroup, cgroup);
         strcpy(req.topicName, topic);
@@ -152,6 +153,7 @@ static int mndInitUnassignedVg(SMnode *pMnode, SMqTopicObj *pTopic, SArray *unas
   //convert dag to msg
   for (int32_t i = 0; i < sz; i++) {
     SMqConsumerEp CEp;
+    CEp.status = 0;
     CEp.lastConsumerHbTs = CEp.lastVgHbTs = -1;
     STaskInfo* pTaskInfo = taosArrayGet(pArray, i);
     tConvertQueryAddrToEpSet(&CEp.epSet, &pTaskInfo->addr);
@@ -171,7 +173,8 @@ static int mndBuildMqSetConsumerVgReq(SMnode *pMnode, STrans *pTrans, SMqConsume
     SVgObj      *pVgObj = mndAcquireVgroup(pMnode, vgId);
     SMqSetCVgReq req = {
         .vgId = vgId,
-        .consumerId = pConsumer->consumerId,
+        .oldConsumerId = -1,
+        .newConsumerId = pConsumer->consumerId,
     };
     strcpy(req.cgroup, pConsumer->cgroup);
     strcpy(req.topicName, pTopic->name);
@@ -451,12 +454,13 @@ static int32_t mndProcessSubscribeReq(SMnodeMsg *pMsg) {
 
       SMqTopicObj *pTopic = mndAcquireTopic(pMnode, newTopicName);
       if (pTopic == NULL) {
-        /*terrno = */
+        mError("topic being subscribed not exist: %s", newTopicName);
         continue;
       }
 
       SMqSubscribeObj *pSub = mndAcquireSubscribe(pMnode, consumerGroup, newTopicName);
       if (pSub == NULL) {
+        mDebug("create new subscription, group: %s, topic %s", consumerGroup, newTopicName);
         pSub = tNewSubscribeObj();
         if (pSub == NULL) {
           terrno = TSDB_CODE_OUT_OF_MEMORY;
@@ -464,14 +468,15 @@ static int32_t mndProcessSubscribeReq(SMnodeMsg *pMsg) {
         }
         // set unassigned vg
         mndInitUnassignedVg(pMnode, pTopic, pSub->unassignedVg);
+        //TODO: disable alter
       }
       taosArrayPush(pSub->availConsumer, &consumerId);
 
-      // TODO: no need
       SMqConsumerTopic *pConsumerTopic = tNewConsumerTopic(consumerId, pTopic, pSub);
       taosArrayPush(pConsumer->topics, pConsumerTopic);
 
       if (taosArrayGetSize(pConsumerTopic->pVgInfo) > 0) {
+        ASSERT(taosArrayGetSize(pConsumerTopic->pVgInfo) == 1);
         int32_t vgId = *(int32_t *)taosArrayGetLast(pConsumerTopic->pVgInfo);
         // send setmsg to vnode
         if (mndBuildMqSetConsumerVgReq(pMnode, pTrans, pConsumer, pConsumerTopic, pTopic) < 0) {
@@ -479,8 +484,7 @@ static int32_t mndProcessSubscribeReq(SMnodeMsg *pMsg) {
           return -1;
         }
       }
-      taosArrayDestroy(pConsumerTopic->pVgInfo);
-      free(pConsumerTopic);
+
       SSdbRaw *pRaw = mndSubActionEncode(pSub);
       /*sdbSetRawStatus(pRaw, SDB_STATUS_READY);*/
       mndTransAppendRedolog(pTrans, pRaw);
@@ -533,12 +537,12 @@ static int32_t mndProcessSubscribeReq(SMnodeMsg *pMsg) {
 
   if (mndTransPrepare(pMnode, pTrans) != 0) {
     mError("trans:%d, failed to prepare since %s", pTrans->id, terrstr());
+    if (newSub) taosArrayDestroy(newSub);
     mndTransDrop(pTrans);
     mndReleaseConsumer(pMnode, pConsumer);
     return -1;
   }
 
-  // TODO: free memory
   if (newSub) taosArrayDestroy(newSub);
   mndTransDrop(pTrans);
   mndReleaseConsumer(pMnode, pConsumer);

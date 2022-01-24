@@ -112,9 +112,7 @@ int vnodeApplyWMsg(SVnode *pVnode, SRpcMsg *pMsg, SRpcMsg **pRsp) {
       }
       break;
     case TDMT_VND_MQ_SET_CONN: {
-      SMqSetCVgReq req;
-      tDecodeSMqSetCVgReq(ptr, &req);
-      if (tqProcessSetConnReq(pVnode->pTq, &req) < 0) {
+      if (tqProcessSetConnReq(pVnode->pTq, ptr) < 0) {
       }
     } break;
     default:
