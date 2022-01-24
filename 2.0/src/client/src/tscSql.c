@@ -51,7 +51,7 @@ static bool validPassword(const char* passwd) {
 }
 
 static SSqlObj *taosConnectImpl(const char *ip, const char *user, const char *pass, const char *auth, const char *db,
-                         uint16_t port, void (*fp)(void *, TAOS_RES *, int), void *param, TAOS **taos) {
+                         void (*fp)(void *, TAOS_RES *, int), void *param, TAOS **taos) {
   if (taos_init()) {
     return NULL;
   }
@@ -186,7 +186,7 @@ static void syncConnCallback(void *param, TAOS_RES *tres, int code) {
 TAOS *taos_connect_internal(const char *ip, const char *user, const char *pass, const char *auth, const char *db,
                             uint16_t port) {
   STscObj *pObj = NULL;
-  SSqlObj *pSql = taosConnectImpl(ip, user, pass, auth, db, port, syncConnCallback, NULL, (void **)&pObj);
+  SSqlObj *pSql = taosConnectImpl(ip, user, pass, auth, db, syncConnCallback, NULL, (void **)&pObj);
   if (pSql != NULL) {
     pSql->fp = syncConnCallback;
     pSql->param = pSql;
@@ -262,7 +262,7 @@ static void asyncConnCallback(void *param, TAOS_RES *tres, int code) {
 TAOS *taos_connect_a(char *ip, char *user, char *pass, char *db, uint16_t port, void (*fp)(void *, TAOS_RES *, int),
                      void *param, TAOS **taos) {
   STscObj *pObj = NULL;
-  SSqlObj *pSql = taosConnectImpl(ip, user, pass, NULL, db, port, asyncConnCallback, param, (void **)&pObj);
+  SSqlObj *pSql = taosConnectImpl(ip, user, pass, NULL, db, asyncConnCallback, param, (void **)&pObj);
   if (pSql == NULL) {
     return NULL;
   }
