@@ -1039,7 +1039,7 @@ int32_t schAsyncSendMsg(void *transport, SEpSet* epSet, uint64_t qId, uint64_t t
   }
 
   qDebug("QID:%"PRIx64 ",TID:%"PRIx64 " req msg sent, type:%d, %s", qId, tId, msgType, TMSG_INFO(msgType));
-  
+
   return TSDB_CODE_SUCCESS;
 
 _return:
@@ -1297,11 +1297,11 @@ void schDropJobAllTasks(SSchJob *pJob) {
   schDropTaskInHashList(pJob, pJob->failTasks);
 }
 
-int32_t schExecJobImpl(void *transport, SArray *nodeList, SQueryDag* pDag, struct SSchJob** job, bool syncSchedule) {
-  qDebug("QID:%"PRIx64" job started", pDag->queryId);
-  
-  if (nodeList && taosArrayGetSize(nodeList) <= 0) {
-    qInfo("QID:%"PRIx64" input nodeList is empty", pDag->queryId);
+int32_t schExecJobImpl(void *transport, SArray *pNodeList, SQueryDag* pDag, struct SSchJob** job, bool syncSchedule) {
+  qDebug("QID:0x%"PRIx64" job started", pDag->queryId);
+
+  if (pNodeList && taosArrayGetSize(pNodeList) <= 0) {
+    qDebug("QID:0x%"PRIx64" input exec nodeList is empty", pDag->queryId);
   }
 
   int32_t code = 0;
@@ -1313,7 +1313,10 @@ int32_t schExecJobImpl(void *transport, SArray *nodeList, SQueryDag* pDag, struc
 
   pJob->attr.syncSchedule = syncSchedule;
   pJob->transport = transport;
-  pJob->nodeList = nodeList;
+
+  if (pNodeList != NULL) {
+    pJob->nodeList = taosArrayDup(pNodeList);
+  }
 
   SCH_ERR_JRET(schValidateAndBuildJob(pDag, pJob));
 
@@ -1429,12 +1432,12 @@ int32_t schedulerExecJob(void *transport, SArray *nodeList, SQueryDag* pDag, str
   return TSDB_CODE_SUCCESS;
 }
 
-int32_t schedulerAsyncExecJob(void *transport, SArray *nodeList, SQueryDag* pDag, struct SSchJob** pJob) {
+int32_t schedulerAsyncExecJob(void *transport, SArray *pNodeList, SQueryDag* pDag, struct SSchJob** pJob) {
   if (NULL == transport || NULL == pDag || NULL == pDag->pSubplans || NULL == pJob) {
     SCH_ERR_RET(TSDB_CODE_QRY_INVALID_INPUT);
   }
 
-  SCH_ERR_RET(schExecJobImpl(transport, nodeList, pDag, pJob, false));
+  SCH_ERR_RET(schExecJobImpl(transport, pNodeList, pDag, pJob, false));
   return TSDB_CODE_SUCCESS;
 }
 
@@ -1719,7 +1722,7 @@ void schedulerFreeJob(void *job) {
   
   tfree(pJob);
 
-  qDebug("QID:%"PRIx64" job freed", queryId);
+  qDebug("QID:0x%"PRIx64" job freed", queryId);
 }
 
 void schedulerFreeTaskList(SArray *taskList) {
