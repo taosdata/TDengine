@@ -297,22 +297,22 @@ TEST(testCase, driverInit_Test) {
 //}
 //
 //TEST(testCase, create_table_Test) {
-//  TAOS* pConn = taos_connect("localhost", "root", "taosdata", NULL, 0);
-//  assert(pConn != NULL);
-//
-//  TAOS_RES* pRes = taos_query(pConn, "use abc1");
-//  taos_free_result(pRes);
-//
-//  pRes = taos_query(pConn, "create table if not exists tm0(ts timestamp, k int)");
-//  ASSERT_EQ(taos_errno(pRes), 0);
-//
-//  taos_free_result(pRes);
-//
-//  pRes = taos_query(pConn, "create table if not exists tm0(ts timestamp, k blob)");
-//  ASSERT_NE(taos_errno(pRes), 0);
-//
-//  taos_free_result(pRes);
-//  taos_close(pConn);
+  //TAOS* pConn = taos_connect("localhost", "root", "taosdata", NULL, 0);
+  //assert(pConn != NULL);
+
+  //TAOS_RES* pRes = taos_query(pConn, "use abc1");
+  //taos_free_result(pRes);
+
+  //pRes = taos_query(pConn, "create table if not exists tm0(ts timestamp, k int)");
+  //ASSERT_EQ(taos_errno(pRes), 0);
+
+  //taos_free_result(pRes);
+
+  //pRes = taos_query(pConn, "create table if not exists tm0(ts timestamp, k blob)");
+  //ASSERT_NE(taos_errno(pRes), 0);
+
+  //taos_free_result(pRes);
+  //taos_close(pConn);
 //}
 //
 //TEST(testCase, create_ctable_Test) {
@@ -453,37 +453,37 @@ TEST(testCase, driverInit_Test) {
 //  taos_close(pConn);
 //}
 
-TEST(testCase, show_table_Test) {
-  TAOS* pConn = taos_connect("localhost", "root", "taosdata", NULL, 0);
-  assert(pConn != NULL);
+//TEST(testCase, show_table_Test) {
+  //TAOS* pConn = taos_connect("localhost", "root", "taosdata", NULL, 0);
+  //assert(pConn != NULL);
 
-  TAOS_RES* pRes = taos_query(pConn, "show tables");
-  if (taos_errno(pRes) != 0) {
-    printf("failed to show tables, reason:%s\n", taos_errstr(pRes));
-    taos_free_result(pRes);
-  }
+  //TAOS_RES* pRes = taos_query(pConn, "show tables");
+  //if (taos_errno(pRes) != 0) {
+    //printf("failed to show tables, reason:%s\n", taos_errstr(pRes));
+    //taos_free_result(pRes);
+  //}
 
-  pRes = taos_query(pConn, "show abc1.tables");
-  if (taos_errno(pRes) != 0) {
-    printf("failed to show tables, reason:%s\n", taos_errstr(pRes));
-    taos_free_result(pRes);
-  }
+  //pRes = taos_query(pConn, "show abc1.tables");
+  //if (taos_errno(pRes) != 0) {
+    //printf("failed to show tables, reason:%s\n", taos_errstr(pRes));
+    //taos_free_result(pRes);
+  //}
 
-  TAOS_ROW    pRow = NULL;
-  TAOS_FIELD* pFields = taos_fetch_fields(pRes);
-  int32_t     numOfFields = taos_num_fields(pRes);
+  //TAOS_ROW    pRow = NULL;
+  //TAOS_FIELD* pFields = taos_fetch_fields(pRes);
+  //int32_t     numOfFields = taos_num_fields(pRes);
 
-  int32_t count = 0;
-  char str[512] = {0};
+  //int32_t count = 0;
+  //char str[512] = {0};
 
-  while ((pRow = taos_fetch_row(pRes)) != NULL) {
-    int32_t code = taos_print_row(str, pRow, pFields, numOfFields);
-    printf("%d: %s\n", ++count, str);
-  }
+  //while ((pRow = taos_fetch_row(pRes)) != NULL) {
+    //int32_t code = taos_print_row(str, pRow, pFields, numOfFields);
+    //printf("%d: %s\n", ++count, str);
+  //}
 
-  taos_free_result(pRes);
-  taos_close(pConn);
-}
+  //taos_free_result(pRes);
+  //taos_close(pConn);
+//}
 
 //TEST(testCase, drop_stable_Test) {
 //  TAOS* pConn = taos_connect("localhost", "root", "taosdata", NULL, 0);
@@ -546,13 +546,23 @@ TEST(testCase, create_topic_Test) {
 
   char* sql = "select * from tu";
   pRes = taos_create_topic(pConn, "test_topic_1", sql, strlen(sql));
+  if (taos_errno(pRes) != 0) {
+    printf("failed to create topic, reason:%s\n", taos_errstr(pRes));
+    ASSERT_TRUE(0);
+  }
+
   taos_free_result(pRes);
   taos_close(pConn);
 }
 
 TEST(testCase, tmq_subscribe_Test) {
-  TAOS* pConn = taos_connect("localhost", "root", "taosdata", NULL, 0);
+  TAOS* pConn = taos_connect("localhost", "root", "taosdata", "abc1", 0);
   assert(pConn != NULL);
+  TAOS_RES* pRes = taos_query(pConn, "use abc1");
+  if (taos_errno(pRes) != 0) {
+    printf("error in use db, reason:%s\n", taos_errstr(pRes));
+  }
+  taos_free_result(pRes);
 
   tmq_conf_t* conf = tmq_conf_new();
   tmq_conf_set(conf, "group.id", "tg1");
@@ -593,56 +603,56 @@ TEST(testCase, tmq_commit_TEST) {
 //  taos_close(pConn);
 //}
 
-TEST(testCase, projection_query_tables) {
-  TAOS* pConn = taos_connect("localhost", "root", "taosdata", NULL, 0);
-  ASSERT_NE(pConn, nullptr);
+//TEST(testCase, projection_query_tables) {
+  //TAOS* pConn = taos_connect("localhost", "root", "taosdata", NULL, 0);
+  //ASSERT_NE(pConn, nullptr);
 
-  TAOS_RES* pRes = taos_query(pConn, "use abc1");
-  taos_free_result(pRes);
+  //TAOS_RES* pRes = taos_query(pConn, "use abc1");
+  //taos_free_result(pRes);
 
-  pRes = taos_query(pConn, "create stable st1 (ts timestamp, k int) tags(a int)");
-  if (taos_errno(pRes) != 0) {
-    printf("failed to create table tu, reason:%s\n", taos_errstr(pRes));
-  }
-  taos_free_result(pRes);
+  //pRes = taos_query(pConn, "create stable st1 (ts timestamp, k int) tags(a int)");
+  //if (taos_errno(pRes) != 0) {
+    //printf("failed to create table tu, reason:%s\n", taos_errstr(pRes));
+  //}
+  //taos_free_result(pRes);
 
-  pRes = taos_query(pConn, "create table tu using st1 tags(1)");
-  if (taos_errno(pRes) != 0) {
-    printf("failed to create table tu, reason:%s\n", taos_errstr(pRes));
-  }
-  taos_free_result(pRes);
+  //pRes = taos_query(pConn, "create table tu using st1 tags(1)");
+  //if (taos_errno(pRes) != 0) {
+    //printf("failed to create table tu, reason:%s\n", taos_errstr(pRes));
+  //}
+  //taos_free_result(pRes);
 
-  for(int32_t i = 0; i < 100000; ++i) {
-    char sql[512] = {0};
-    sprintf(sql, "insert into tu values(now+%da, %d)", i, i);
-    TAOS_RES* p = taos_query(pConn, sql);
-    if (taos_errno(p) != 0) {
-      printf("failed to insert data, reason:%s\n", taos_errstr(p));
-    }
+  //for(int32_t i = 0; i < 100000; ++i) {
+    //char sql[512] = {0};
+    //sprintf(sql, "insert into tu values(now+%da, %d)", i, i);
+    //TAOS_RES* p = taos_query(pConn, sql);
+    //if (taos_errno(p) != 0) {
+      //printf("failed to insert data, reason:%s\n", taos_errstr(p));
+    //}
 
-    taos_free_result(p);
-  }
+    //taos_free_result(p);
+  //}
 
-  pRes = taos_query(pConn, "select * from tu");
-  if (taos_errno(pRes) != 0) {
-    printf("failed to select from table, reason:%s\n", taos_errstr(pRes));
-    taos_free_result(pRes);
-    ASSERT_TRUE(false);
-  }
+  //pRes = taos_query(pConn, "select * from tu");
+  //if (taos_errno(pRes) != 0) {
+    //printf("failed to select from table, reason:%s\n", taos_errstr(pRes));
+    //taos_free_result(pRes);
+    //ASSERT_TRUE(false);
+  //}
 
-  TAOS_ROW    pRow = NULL;
-  TAOS_FIELD* pFields = taos_fetch_fields(pRes);
-  int32_t     numOfFields = taos_num_fields(pRes);
+  //TAOS_ROW    pRow = NULL;
+  //TAOS_FIELD* pFields = taos_fetch_fields(pRes);
+  //int32_t     numOfFields = taos_num_fields(pRes);
 
-  char str[512] = {0};
-  while ((pRow = taos_fetch_row(pRes)) != NULL) {
-    int32_t code = taos_print_row(str, pRow, pFields, numOfFields);
-    printf("%s\n", str);
-  }
+  //char str[512] = {0};
+  //while ((pRow = taos_fetch_row(pRes)) != NULL) {
+    //int32_t code = taos_print_row(str, pRow, pFields, numOfFields);
+    //printf("%s\n", str);
+  //}
 
-  taos_free_result(pRes);
-  taos_close(pConn);
-}
+  //taos_free_result(pRes);
+  //taos_close(pConn);
+//}
 
 //TEST(testCase, projection_query_stables) {
 //  TAOS* pConn = taos_connect("localhost", "root", "taosdata", NULL, 0);

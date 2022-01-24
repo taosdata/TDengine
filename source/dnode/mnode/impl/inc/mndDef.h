@@ -363,8 +363,9 @@ typedef struct SMqConsumerEp {
   int64_t      consumerId;  // -1 for unassigned
   int64_t      lastConsumerHbTs;
   int64_t      lastVgHbTs;
-  int32_t      execLen;
-  SSubQueryMsg qExec;
+  uint32_t     qmsgLen;
+  char*        qmsg;
+  //SSubQueryMsg qExec;
 } SMqConsumerEp;
 
 static FORCE_INLINE int32_t tEncodeSMqConsumerEp(void** buf, SMqConsumerEp* pConsumerEp) {
@@ -373,7 +374,9 @@ static FORCE_INLINE int32_t tEncodeSMqConsumerEp(void** buf, SMqConsumerEp* pCon
   tlen += taosEncodeFixedI32(buf, pConsumerEp->status);
   tlen += taosEncodeSEpSet(buf, &pConsumerEp->epSet);
   tlen += taosEncodeFixedI64(buf, pConsumerEp->consumerId);
-  tlen += tEncodeSSubQueryMsg(buf, &pConsumerEp->qExec);
+  //tlen += tEncodeSSubQueryMsg(buf, &pConsumerEp->qExec);
+  tlen += taosEncodeFixedU32(buf, pConsumerEp->qmsgLen);
+  tlen += taosEncodeBinary(buf, pConsumerEp->qmsg, pConsumerEp->qmsgLen);
   return tlen;
 }
 
@@ -382,8 +385,9 @@ static FORCE_INLINE void* tDecodeSMqConsumerEp(void** buf, SMqConsumerEp* pConsu
   buf = taosDecodeFixedI32(buf, &pConsumerEp->status);
   buf = taosDecodeSEpSet(buf, &pConsumerEp->epSet);
   buf = taosDecodeFixedI64(buf, &pConsumerEp->consumerId);
-  buf = tDecodeSSubQueryMsg(buf, &pConsumerEp->qExec);
-  pConsumerEp->execLen = sizeof(SSubQueryMsg) + pConsumerEp->qExec.contentLen;
+  //buf = tDecodeSSubQueryMsg(buf, &pConsumerEp->qExec);
+  buf = taosDecodeFixedU32(buf, &pConsumerEp->qmsgLen);
+  buf = taosDecodeBinary(buf, (void**)&pConsumerEp->qmsg, pConsumerEp->qmsgLen);
   return buf;
 }
 
@@ -402,11 +406,12 @@ typedef struct SMqSubscribeObj {
 
 static FORCE_INLINE SMqSubscribeObj* tNewSubscribeObj() {
   SMqSubscribeObj* pSub = malloc(sizeof(SMqSubscribeObj));
-  pSub->key[0] = 0;
-  pSub->epoch = 0;
   if (pSub == NULL) {
     return NULL;
   }
+  pSub->key[0] = 0;
+  pSub->epoch = 0;
+
   pSub->availConsumer = taosArrayInit(0, sizeof(int64_t));
   if (pSub->availConsumer == NULL) {
     free(pSub);
@@ -433,7 +438,7 @@ static FORCE_INLINE SMqSubscribeObj* tNewSubscribeObj() {
     free(pSub);
     return NULL;
   }
-  return NULL;
+  return pSub;
 }
 
 static FORCE_INLINE int32_t tEncodeSubscribeObj(void** buf, const SMqSubscribeObj* pSub) {

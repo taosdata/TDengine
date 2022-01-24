@@ -1535,7 +1535,7 @@ static FORCE_INLINE int32_t tEncodeSSubQueryMsg(void** buf, const SSubQueryMsg* 
   tlen += taosEncodeFixedU64(buf, pMsg->queryId);
   tlen += taosEncodeFixedU64(buf, pMsg->taskId);
   tlen += taosEncodeFixedU32(buf, pMsg->contentLen);
-  tlen += taosEncodeBinary(buf, pMsg->msg, pMsg->contentLen);
+  //tlen += taosEncodeBinary(buf, pMsg->msg, pMsg->contentLen);
   return tlen;
 }
 
@@ -1544,7 +1544,7 @@ static FORCE_INLINE void* tDecodeSSubQueryMsg(void* buf, SSubQueryMsg* pMsg) {
   buf = taosDecodeFixedU64(buf, &pMsg->queryId);
   buf = taosDecodeFixedU64(buf, &pMsg->taskId);
   buf = taosDecodeFixedU32(buf, &pMsg->contentLen);
-  buf = taosDecodeBinaryTo(buf, pMsg->msg, pMsg->contentLen);
+  //buf = taosDecodeBinaryTo(buf, pMsg->msg, pMsg->contentLen);
   return buf;
 }
 

@@ -87,6 +87,7 @@ static bool fromObjectWithAlloc(const cJSON* json, const char* name, FFromJson f
 static const char* jkPnodeType = "Type";
 static int32_t getPnodeTypeSize(cJSON* json) {
   switch (getNumber(json, jkPnodeType)) {
+    case OP_StreamScan:
     case OP_TableScan:
     case OP_DataBlocksOptScan:
     case OP_TableSeqScan:
@@ -869,6 +870,7 @@ static bool specificPhyNodeFromJson(const cJSON* json, void* obj) {
   SPhyNode* phyNode = (SPhyNode*)obj;
   switch (phyNode->info.type) {
     case OP_TableScan:
+    case OP_StreamScan:
     case OP_DataBlocksOptScan:
     case OP_TableSeqScan:
       return tableScanNodeFromJson(json, obj);
@@ -1187,14 +1189,14 @@ SQueryDag* qJsonToDag(const cJSON* pRoot) {
   if(pDag == NULL) {
     return NULL;
   }
-  pDag->numOfSubplans = cJSON_GetNumberValue(cJSON_GetObjectItem(pRoot, "numOfSubplans"));
-  pDag->queryId = cJSON_GetNumberValue(cJSON_GetObjectItem(pRoot, "queryId"));
+  pDag->numOfSubplans = cJSON_GetNumberValue(cJSON_GetObjectItem(pRoot, "Number"));
+  pDag->queryId = cJSON_GetNumberValue(cJSON_GetObjectItem(pRoot, "QueryId"));
   pDag->pSubplans = taosArrayInit(0, sizeof(SArray));
   if (pDag->pSubplans == NULL) {
     free(pDag);
     return NULL;
   }
-  cJSON* pLevels = cJSON_GetObjectItem(pRoot, "pSubplans");
+  cJSON* pLevels = cJSON_GetObjectItem(pRoot, "Subplans");
   int level = cJSON_GetArraySize(pLevels);
   for(int i = 0; i < level; i++) {
     SArray* plansOneLevel = taosArrayInit(0, sizeof(void*));

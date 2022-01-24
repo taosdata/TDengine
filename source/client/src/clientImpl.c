@@ -308,10 +308,10 @@ tmq_conf_t* tmq_conf_new() {
 }
 
 int32_t tmq_conf_set(tmq_conf_t* conf, const char* key, const char* value) {
-  if (strcmp(key, "group.id")) {
+  if (strcmp(key, "group.id") == 0) {
     strcpy(conf->groupId, value);
   }
-  if (strcmp(key, "client.id")) {
+  if (strcmp(key, "client.id") == 0) {
     strcpy(conf->clientId, value);
   }
   return 0;
@@ -359,7 +359,7 @@ tmq_list_t* tmq_list_new() {
 
 int32_t tmq_list_append(tmq_list_t* ptr, char* src) {
   if (ptr->cnt >= ptr->tot-1) return -1;
-  ptr->elems[ptr->cnt] = src;
+  ptr->elems[ptr->cnt] = strdup(src);
   ptr->cnt++;
   return 0;
 }
@@ -371,8 +371,23 @@ TAOS_RES* tmq_subscribe(tmq_t* tmq, tmq_list_t* topic_list) {
   int32_t sz = topic_list->cnt;
   tmq->clientTopics = taosArrayInit(sz, sizeof(void*));
   for (int i = 0; i < sz; i++) {
-    char* topicName = strdup(topic_list->elems[i]);
-    taosArrayPush(tmq->clientTopics, &topicName); 
+    char* topicName = topic_list->elems[i];
+
+    SName name = {0};
+    char* dbName = getConnectionDB(tmq->pTscObj);
+    tNameSetDbName(&name, tmq->pTscObj->acctId, dbName, strlen(dbName));     
+    tNameFromString(&name, topicName, T_NAME_TABLE);
+
+    char* topicFname = calloc(1, TSDB_TOPIC_FNAME_LEN);
+    if (topicFname == NULL) {
+
+    }
+    tNameExtractFullName(&name, topicFname);
+    tscDebug("subscribe topic: %s", topicFname);
+    taosArrayPush(tmq->clientTopics, &topicFname); 
+    /*SMqClientTopic topic = {*/
+      /*.*/
+    /*};*/
   }
   SCMSubscribeReq req;
   req.topicNum = taosArrayGetSize(tmq->clientTopics);
@@ -396,7 +411,7 @@ TAOS_RES* tmq_subscribe(tmq_t* tmq, tmq_list_t* topic_list) {
   }
 
   pRequest->body.requestMsg = (SDataBuf){ .pData = buf, .len = tlen };
-  pRequest->type = TDMT_MND_CREATE_TOPIC;
+  pRequest->type = TDMT_MND_SUBSCRIBE;
 
   SMsgSendInfo* body = buildMsgInfoImpl(pRequest);
   SEpSet epSet = getEpSet_s(&tmq->pTscObj->pAppInfo->mgmtEp);
@@ -529,7 +544,7 @@ TAOS_RES *taos_create_topic(TAOS* taos, const char* topicName, const char* sql, 
 
   SCMCreateTopicReq req = {
     .name         = (char*) topicFname,
-    .igExists     = 0,
+    .igExists     = 1,
     .physicalPlan = (char*) pStr,
     .sql          = (char*) sql,
     .logicalPlan  = "no logic plan",

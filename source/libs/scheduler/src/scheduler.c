@@ -1476,7 +1476,7 @@ int32_t schedulerConvertDagToTaskList(SQueryDag* pDag, SArray **pTasks) {
     
     SSubQueryMsg *pMsg = (SSubQueryMsg*) msg;
     
-    pMsg->header.vgId = htonl(tInfo.addr.nodeId);
+    pMsg->header.vgId = tInfo.addr.nodeId;
     
     pMsg->sId = schMgmt.sId;
     pMsg->queryId = plan->id.queryId;
