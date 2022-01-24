@@ -31,6 +31,7 @@ int32_t createTable = 1;
 int32_t insertData = 0;
 int32_t batchNumOfTbl = 100;
 int32_t batchNumOfRow = 1;
+int32_t totalRowsOfPerTbl = 1;
 int32_t numOfVgroups = 2;
 int32_t showTablesFlag = 0;
 int32_t queryFlag = 0;
@@ -106,14 +107,14 @@ void printCreateProgress(SThreadInfo *pInfo, int64_t t) {
          totalTables, seconds, speed);
 }
 
-void printInsertProgress(SThreadInfo *pInfo, int64_t t) {
+void printInsertProgress(SThreadInfo *pInfo, int64_t insertTotalRows) {
   int64_t endMs = taosGetTimestampMs();
-  int64_t totalTables = t - pInfo->tableBeginIndex;
+  //int64_t totalTables = t - pInfo->tableBeginIndex;
   float   seconds = (endMs - pInfo->startMs) / 1000.0;
-  float   speed = totalTables / seconds;
+  float   speed = insertTotalRows / seconds;
   pInfo->insertDataSpeed = speed;
   pPrint("thread:%d, %" PRId64 " rows inserted, time:%.2f sec, speed:%.1f rows/second, ", pInfo->threadIndex,
-         totalTables, seconds, speed);
+         insertTotalRows, seconds, speed);
 }
 
 static int64_t getResult(TAOS_RES *tres) {
@@ -181,14 +182,13 @@ void *threadFunc(void *param) {
     exit(1);
   }
 
-  pPrint("====before thread:%d, table range: %" PRId64 " - %" PRId64 "\n", pInfo->threadIndex, pInfo->tableBeginIndex,
-         pInfo->tableEndIndex);
+  //pPrint("====before thread:%d, table range: %" PRId64 " - %" PRId64 "\n", pInfo->threadIndex, pInfo->tableBeginIndex,
+  //       pInfo->tableEndIndex);
 
   pInfo->tableBeginIndex += startOffset;
   pInfo->tableEndIndex += startOffset;
 
-  pPrint("====after thread:%d, table range: %" PRId64 " - %" PRId64 "\n", pInfo->threadIndex, pInfo->tableBeginIndex,
-         pInfo->tableEndIndex);
+  pPrint("====thread:%d, table range: %" PRId64 " - %" PRId64 "\n", pInfo->threadIndex, pInfo->tableBeginIndex, pInfo->tableEndIndex);
 
   sprintf(qstr, "use %s", pInfo->dbName);
   TAOS_RES *pRes = taos_query(con, qstr);
@@ -237,51 +237,50 @@ void *threadFunc(void *param) {
   }
 
   if (insertData) {
+  	int64_t insertTotalRows = 0;
     int64_t curMs = 0;
     int64_t beginMs = taosGetTimestampMs();
     pInfo->startMs = beginMs;
     int64_t t = pInfo->tableBeginIndex;
-    for (; t <= pInfo->tableEndIndex;) {
-      // int64_t batch = (pInfo->tableEndIndex - t);
-      // batch = MIN(batch, batchNum);
-
-      int32_t len = sprintf(qstr, "insert into ");
-
-      for (int32_t i = 0; i < batchNumOfTbl;) {
-        int64_t ts = startTimestamp;
+    for (; t <= pInfo->tableEndIndex; t++) {
+      //printf("table name: %"PRId64"\n", t);
+      int64_t ts = startTimestamp;
+      for (int32_t i = 0; i < totalRowsOfPerTbl;) {
+        int32_t len = sprintf(qstr, "insert into ");
         len += sprintf(qstr + len, "%s_t%" PRId64 " values ", stbName, t);
         for (int32_t j = 0; j < batchNumOfRow; j++) {
           len += sprintf(qstr + len, "(%" PRId64 ", 6666) ", ts++);
+		  i++;
+		  insertTotalRows++;
+		  if (i >= totalRowsOfPerTbl) {
+		  	break;
+		  }
         }
 
-        t++;
-        i++;
-        if (t > pInfo->tableEndIndex) {
-          break;
+        #if 1
+        int64_t	startTs = taosGetTimestampUs();
+        TAOS_RES *pRes = taos_query(con, qstr);
+        code = taos_errno(pRes);
+        if ((code != 0) && (code != TSDB_CODE_RPC_AUTH_REQUIRED)) {
+          pError("failed to insert %s_t%" PRId64 ", reason:%s", stbName, t, tstrerror(code));
         }
+        taos_free_result(pRes);
+        int64_t endTs = taosGetTimestampUs();
+        int64_t delay = endTs - startTs;
+        // printf("==== %"PRId64" -  %"PRId64", %"PRId64"\n", startTs, endTs, delay);
+        if (delay > pInfo->maxDelay) pInfo->maxDelay = delay;
+        if (delay < pInfo->minDelay) pInfo->minDelay = delay;
+        
+        curMs = taosGetTimestampMs();
+        if (curMs - beginMs > 10000) {
+          beginMs = curMs;
+          // printf("==== tableBeginIndex: %"PRId64", t: %"PRId64"\n", pInfo->tableBeginIndex, t);
+          printInsertProgress(pInfo, insertTotalRows);
+        }
+        #endif		
       }
-
-      int64_t   startTs = taosGetTimestampUs();
-      TAOS_RES *pRes = taos_query(con, qstr);
-      code = taos_errno(pRes);
-      if ((code != 0) && (code != TSDB_CODE_RPC_AUTH_REQUIRED)) {
-        pError("failed to insert %s_t%" PRId64 ", reason:%s", stbName, t, tstrerror(code));
-      }
-      taos_free_result(pRes);
-      int64_t endTs = taosGetTimestampUs();
-      int64_t delay = endTs - startTs;
-      // printf("==== %"PRId64" -  %"PRId64", %"PRId64"\n", startTs, endTs, delay);
-      if (delay > pInfo->maxDelay) pInfo->maxDelay = delay;
-      if (delay < pInfo->minDelay) pInfo->minDelay = delay;
-
-      curMs = taosGetTimestampMs();
-      if (curMs - beginMs > 10000) {
-        beginMs = curMs;
-        // printf("==== tableBeginIndex: %"PRId64", t: %"PRId64"\n", pInfo->tableBeginIndex, t);
-        printInsertProgress(pInfo, t);
-      }
-    }
-    printInsertProgress(pInfo, t);
+    }	
+    printInsertProgress(pInfo, insertTotalRows);    
   }
 
   taos_close(con);
@@ -319,6 +318,8 @@ void printHelp() {
   printf("%s%s%s%d\n", indent, indent, "queryFlag, default is ", queryFlag);
   printf("%s%s\n", indent, "-l");
   printf("%s%s%s%d\n", indent, indent, "batchNumOfRow, default is ", batchNumOfRow);
+  printf("%s%s\n", indent, "-r");
+  printf("%s%s%s%d\n", indent, indent, "totalRowsOfPerTbl, default is ", totalRowsOfPerTbl);
 
   exit(EXIT_SUCCESS);
 }
@@ -350,6 +351,8 @@ void parseArgument(int32_t argc, char *argv[]) {
       batchNumOfTbl = atoi(argv[++i]);
     } else if (strcmp(argv[i], "-l") == 0) {
       batchNumOfRow = atoi(argv[++i]);
+    } else if (strcmp(argv[i], "-r") == 0) {
+      totalRowsOfPerTbl = atoi(argv[++i]);
     } else if (strcmp(argv[i], "-w") == 0) {
       showTablesFlag = atoi(argv[++i]);
     } else if (strcmp(argv[i], "-q") == 0) {
@@ -370,6 +373,7 @@ void parseArgument(int32_t argc, char *argv[]) {
   pPrint("%s insertData:%d %s", GREEN, insertData, NC);
   pPrint("%s batchNumOfTbl:%d %s", GREEN, batchNumOfTbl, NC);
   pPrint("%s batchNumOfRow:%d %s", GREEN, batchNumOfRow, NC);
+  pPrint("%s totalRowsOfPerTbl:%d %s", GREEN, totalRowsOfPerTbl, NC);
   pPrint("%s showTablesFlag:%d %s", GREEN, showTablesFlag, NC);
   pPrint("%s queryFlag:%d %s", GREEN, queryFlag, NC);
 
