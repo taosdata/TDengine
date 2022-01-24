@@ -65,7 +65,7 @@ program ::= cmd.    {}
 //////////////////////////////////THE SHOW STATEMENT///////////////////////////////////////////
 cmd ::= SHOW DATABASES.  { setShowOptions(pInfo, TSDB_MGMT_TABLE_DB, 0, 0);}
 cmd ::= SHOW TOPICS.     { setShowOptions(pInfo, TSDB_MGMT_TABLE_TP, 0, 0);}
-cmd ::= SHOW FUNCTIONS.  { setShowOptions(pInfo, TSDB_MGMT_TABLE_FUNCTION, 0, 0);}
+cmd ::= SHOW FUNCTIONS.  { setShowOptions(pInfo, TSDB_MGMT_TABLE_FUNC, 0, 0);}
 cmd ::= SHOW MNODES.     { setShowOptions(pInfo, TSDB_MGMT_TABLE_MNODE, 0, 0);}
 cmd ::= SHOW DNODES.     { setShowOptions(pInfo, TSDB_MGMT_TABLE_DNODE, 0, 0);}
 cmd ::= SHOW ACCOUNTS.   { setShowOptions(pInfo, TSDB_MGMT_TABLE_ACCT, 0, 0);}
