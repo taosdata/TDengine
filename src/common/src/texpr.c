@@ -1610,7 +1610,7 @@ void vectorSubstrFunc(int16_t functionId, tExprOperandInfo *pInputs, int32_t num
       continue;
     }
 
-    int16_t strBytes = varDataLen(pInputs[0].data);
+    int16_t strBytes = varDataLen(inputData);
     int32_t resultStartBytes = 0;
     if (subPosChar > 0) {
       int32_t subPosBytes = (pInputs[0].type == TSDB_DATA_TYPE_BINARY) ? subPosChar-1 : (subPosChar-1) * TSDB_NCHAR_SIZE;
@@ -1629,7 +1629,7 @@ void vectorSubstrFunc(int16_t functionId, tExprOperandInfo *pInputs, int32_t num
 
     varDataSetLen(outputData, resultLenBytes);
     if (resultLenBytes > 0) {
-      memcpy(varDataVal(outputData), varDataVal(inputData), resultLenBytes);
+      memcpy(varDataVal(outputData), varDataVal(inputData) + resultStartBytes, resultLenBytes);
     }
   }
 }
