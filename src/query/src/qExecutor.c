@@ -2057,6 +2057,22 @@ static int32_t setupQueryRuntimeEnv(SQueryRuntimeEnv *pRuntimeEnv, int32_t numOf
   pRuntimeEnv->prevRow = malloc(POINTER_BYTES * pQueryAttr->numOfCols + pQueryAttr->srcRowSize);
   pRuntimeEnv->tagVal  = malloc(pQueryAttr->tagLen);
 
+  // malloc pTablesRead value if super table  && project query and && has order by && limit is true
+  if( pRuntimeEnv->pQueryHandle &&  // client merge no tsdb query, so pQueryHandle is NULL, except client merge case in here 
+      pQueryAttr->limit.limit > 0 &&
+      pQueryAttr->limit.offset == 0 && // if have offset, ignore limit optimization 
+      pQueryAttr->stableQuery &&
+      isProjQuery(pQueryAttr) &&
+      pQueryAttr->order.orderColId != -1 ) {
+        // can be optimizate limit 
+        pRuntimeEnv->pTablesRead = taosHashInit(numOfTables, taosGetDefaultHashFunction(TSDB_DATA_TYPE_INT), true, HASH_NO_LOCK);
+        if (pRuntimeEnv->pTablesRead) // must malloc ok, set callback to tsdb
+          tsdbAddScanCallback(pRuntimeEnv->pQueryHandle, qReadOverCB, pRuntimeEnv);
+  } else {
+    pRuntimeEnv->pTablesRead = NULL;
+  }
+  pRuntimeEnv->cntTableReadOver= 0;
+
   // NOTE: pTableCheckInfo need to update the query time range and the lastKey info
   pRuntimeEnv->pTableRetrieveTsMap = taosHashInit(numOfTables, taosGetDefaultHashFunction(TSDB_DATA_TYPE_INT), false, HASH_NO_LOCK);
 
@@ -5990,6 +6006,9 @@ static SSDataBlock* doProjectOperation(void* param, bool* newgroup) {
     STableQueryInfo* pTableQueryInfo = pRuntimeEnv->current;
 
     SSDataBlock* pBlock = pProjectInfo->existDataBlock;
+    // record table read rows
+    addTableReadRows(pRuntimeEnv, pBlock->info.tid,  pBlock->info.rows);
+
     pProjectInfo->existDataBlock = NULL;
     *newgroup = true;
 
@@ -6035,6 +6054,9 @@ static SSDataBlock* doProjectOperation(void* param, bool* newgroup) {
       doSetOperatorCompleted(pOperator);
       break;
     }
+    
+    // record table read rows
+    addTableReadRows(pRuntimeEnv, pBlock->info.tid,  pBlock->info.rows);
 
     // Return result of the previous group in the firstly.
     if (*newgroup) {
@@ -10018,4 +10040,70 @@ void freeQueryAttr(SQueryAttr* pQueryAttr) {
 
     filterFreeInfo(pQueryAttr->pFilters);
   }
+}
+
+// add table read rows count. pHashTables must not be NULL
+void addTableReadRows(SQueryRuntimeEnv* pEnv, int32_t tid, int32_t rows) {
+  SHashObj* pHashObj = pEnv->pTablesRead;
+  int32_t limit = (int32_t)pEnv->pQueryAttr->limit.limit;
+  if (pHashObj == NULL) {
+    return ;
+  }
+
+  // read old value
+  int32_t v = 0;
+  int32_t* pv = (int32_t* )taosHashGet(pHashObj, &tid, sizeof(int32_t));
+  if (pv && *pv > 0) {
+    v = *pv;
+  }
+
+  bool over = v >= limit;
+  // add new and save
+  v += rows;
+  taosHashPut(pHashObj, &tid, sizeof(int32_t), &rows, sizeof(int32_t));
+
+  // update read table over cnt 
+  if (!over && v >= limit) {
+    pEnv->cntTableReadOver += 1;
+  }
+}
+
+// tsdb scan table callback table or query is over. param is SQueryRuntimeEnv*
+bool qReadOverCB(void* param, int8_t type, int32_t tid) {
+  SQueryRuntimeEnv* pEnv = (SQueryRuntimeEnv* )param;
+  if (pEnv->pTablesRead == NULL) {
+    return false;
+  }
+
+  // check query is over
+  if (pEnv->cntTableReadOver >= pEnv->pQueryAttr->tableGroupInfo.numOfTables) {
+    return true;
+  }
+
+  // if type is read_query can return
+  if (type == READ_QUERY) {
+    return false;
+  }
+ 
+  // read tid value
+  int32_t* pv = (int32_t* )taosHashGet(pEnv->pTablesRead, &tid, sizeof(int32_t));
+  if (pv == NULL) {
+    return false;
+  }
+
+  // compare
+  if (pEnv->pQueryAttr->limit.limit > 0 && *pv >= pEnv->pQueryAttr->limit.limit ) {
+    return true; // need data is read ok
+  }
+
+  return false;
+}
+
+// check query read is over, retur true over. param is SQueryRuntimeEnv*
+bool queryReadOverCB(void* param) {
+  SQueryRuntimeEnv* pEnv = (SQueryRuntimeEnv* )param;
+  if (pEnv->cntTableReadOver >= pEnv->pQueryAttr->tableGroupInfo.numOfTables) {
+    return true;
+  }
+  return false;
 }
