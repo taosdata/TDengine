@@ -722,7 +722,7 @@ void *queryQueueThread(void *param) {
   while (true) {
     tsem_wait(&qwtTestQuerySem);
 
-    if (qwtTestStop && qwtTestQueryQueueNum <= 0) {
+    if (qwtTestStop && qwtTestQueryQueueNum <= 0 && qwtTestCaseFinished) {
       break;
     }
 
@@ -761,7 +761,7 @@ void *queryQueueThread(void *param) {
 
     free(queryRpc);
 
-    if (qwtTestStop && qwtTestQueryQueueNum <= 0) {
+    if (qwtTestStop && qwtTestQueryQueueNum <= 0 && qwtTestCaseFinished) {
       break;
     }
   }
@@ -778,6 +778,10 @@ void *fetchQueueThread(void *param) {
 
   while (true) {
     tsem_wait(&qwtTestFetchSem);
+
+    if (qwtTestStop && qwtTestFetchQueueNum <= 0 && qwtTestCaseFinished) {
+      break;
+    }    
 
     taosWLockLatch(&qwtTestFetchQueueLock);
     if (qwtTestFetchQueueNum <= 0 || qwtTestFetchQueueRIdx == qwtTestFetchQueueWIdx) {
@@ -826,7 +830,7 @@ void *fetchQueueThread(void *param) {
 
     free(fetchRpc);
 
-    if (qwtTestStop && qwtTestFetchQueueNum <= 0) {
+    if (qwtTestStop && qwtTestFetchQueueNum <= 0 && qwtTestCaseFinished) {
       break;
     }    
   }
@@ -1104,10 +1108,17 @@ TEST(rcTest, shortExecshortDelay) {
       break;
     }
     
-    sleep(3);
+    sleep(1);
+
+    if (qwtTestCaseFinished) {
+      if (qwtTestQuitThreadNum < 3) { 
+        tsem_post(&qwtTestQuerySem);
+        tsem_post(&qwtTestFetchSem);
+
+        usleep(10);
+      }
+    }
     
-    tsem_post(&qwtTestQuerySem);
-    usleep(10);
   }
 
   qwtTestQueryQueueNum = 0;
@@ -1179,10 +1190,17 @@ TEST(rcTest, longExecshortDelay) {
       break;
     }
     
-    sleep(3);
+    sleep(1);
+
+    if (qwtTestCaseFinished) {
+      if (qwtTestQuitThreadNum < 3) { 
+        tsem_post(&qwtTestQuerySem);
+        tsem_post(&qwtTestFetchSem);
+        
+        usleep(10);
+      }
+    }
     
-    tsem_post(&qwtTestQuerySem);
-    usleep(10);
   }
 
   qwtTestQueryQueueNum = 0;
@@ -1255,10 +1273,17 @@ TEST(rcTest, shortExeclongDelay) {
       break;
     }
     
-    sleep(3);
+    sleep(1);
+
+    if (qwtTestCaseFinished) {
+      if (qwtTestQuitThreadNum < 3) { 
+        tsem_post(&qwtTestQuerySem);
+        tsem_post(&qwtTestFetchSem);
+        
+        usleep(10);
+      }
+    }
     
-    tsem_post(&qwtTestQuerySem);
-    usleep(10);
   }
 
   qwtTestQueryQueueNum = 0;

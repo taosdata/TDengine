@@ -456,13 +456,15 @@ _return:
   QW_RET(code);
 }
 
-int32_t qwExecTask(QW_FPARAMS_DEF, qTaskInfo_t *taskHandle, DataSinkHandle sinkHandle, int8_t taskType, bool shortRun) {
+int32_t qwExecTask(QW_FPARAMS_DEF, SQWTaskCtx *ctx) {
   int32_t code = 0;
   bool  qcontinue = true;
   SSDataBlock* pRes = NULL;
   uint64_t useconds = 0;
   int32_t i = 0;
-  int32_t leftRun = QW_DEFAULT_SHORT_RUN_TIMES;
+  int32_t execNum = 0;
+  qTaskInfo_t *taskHandle = &ctx->taskHandle; 
+  DataSinkHandle sinkHandle = ctx->sinkHandle;
  
   while (true) {
     QW_TASK_DLOG("start to execTask in executor, loopIdx:%d", i++);
@@ -473,12 +475,14 @@ int32_t qwExecTask(QW_FPARAMS_DEF, qTaskInfo_t *taskHandle, DataSinkHandle sinkH
       QW_ERR_JRET(code);
     }
 
+    ++execNum;
+
     if (NULL == pRes) {
       QW_TASK_DLOG("task query done, useconds:%"PRIu64, useconds);
       
       dsEndPut(sinkHandle, useconds);
       
-      if (TASK_TYPE_TEMP == taskType) {
+      if (TASK_TYPE_TEMP == ctx->taskType) {
         qwFreeTaskHandle(QW_FPARAMS(), taskHandle);
       }
       
@@ -498,7 +502,11 @@ int32_t qwExecTask(QW_FPARAMS_DEF, qTaskInfo_t *taskHandle, DataSinkHandle sinkH
       break;
     }
 
-    if (shortRun && ((--leftRun) <= 0)) {
+    if (QW_IS_EVENT_RECEIVED(ctx, QW_EVENT_READY) && execNum >= QW_DEFAULT_SHORT_RUN_TIMES) {
+      break;
+    }
+
+    if (QW_IS_EVENT_RECEIVED(ctx, QW_EVENT_FETCH)) {
       break;
     }
   }
@@ -616,8 +624,6 @@ int32_t qwHandlePrePhaseEvents(QW_FPARAMS_DEF, int8_t phase, SQWPhaseInput *inpu
   switch (phase) {
     case QW_PHASE_PRE_QUERY: {
       atomic_store_8(&ctx->phase, phase);
-
-      atomic_store_8(&ctx->taskType, input->taskType);
 
       if (QW_IS_EVENT_PROCESSED(ctx, QW_EVENT_CANCEL) || QW_IS_EVENT_PROCESSED(ctx, QW_EVENT_DROP)) {
         QW_TASK_ELOG("task already cancelled/dropped at wrong phase, phase:%d", phase);
@@ -842,9 +848,6 @@ int32_t qwHandlePostPhaseEvents(QW_FPARAMS_DEF, int8_t phase, SQWPhaseInput *inp
   }
 
   if (QW_PHASE_POST_QUERY == phase) {
-    ctx->taskHandle = input->taskHandle;
-    ctx->sinkHandle = input->sinkHandle;
-    
     if (NULL == ctx->taskHandle && NULL == ctx->sinkHandle) {
       ctx->emptyRes = true;
     }
@@ -949,8 +952,7 @@ int32_t qwProcessQuery(QW_FPARAMS_DEF, SQWMsg *qwMsg, int8_t taskType) {
   SQWPhaseOutput output = {0};
   qTaskInfo_t pTaskInfo = NULL;
   DataSinkHandle sinkHandle = NULL;
-
-  input.taskType = taskType;
+  SQWTaskCtx *ctx = NULL;
 
   QW_ERR_JRET(qwHandlePrePhaseEvents(QW_FPARAMS(), QW_PHASE_PRE_QUERY, &input, &output));
 
@@ -961,6 +963,10 @@ int32_t qwProcessQuery(QW_FPARAMS_DEF, SQWMsg *qwMsg, int8_t taskType) {
     QW_TASK_DLOG("task need stop, phase:%d", QW_PHASE_PRE_QUERY);
     QW_ERR_JRET(code);
   }
+
+  QW_ERR_JRET(qwGetTaskCtx(QW_FPARAMS(), &ctx));
+  
+  atomic_store_8(&ctx->taskType, taskType);
   
   code = qStringToSubplan(qwMsg->msg, &plan);
   if (TSDB_CODE_SUCCESS != code) {
@@ -986,8 +992,11 @@ int32_t qwProcessQuery(QW_FPARAMS_DEF, SQWMsg *qwMsg, int8_t taskType) {
 
   queryRsped = true;
 
+  atomic_store_ptr(&ctx->taskHandle, pTaskInfo);
+  atomic_store_ptr(&ctx->sinkHandle, sinkHandle);
+
   if (pTaskInfo && sinkHandle) {
-    QW_ERR_JRET(qwExecTask(QW_FPARAMS(), &pTaskInfo, sinkHandle, taskType, true));
+    QW_ERR_JRET(qwExecTask(QW_FPARAMS(), ctx));
   }
   
 _return:
@@ -1002,8 +1011,6 @@ _return:
   }
 
   input.code = rspCode;
-  input.taskHandle = pTaskInfo;
-  input.sinkHandle = sinkHandle;
   input.taskStatus = rspCode ? JOB_TASK_STATUS_FAILED : JOB_TASK_STATUS_PARTIAL_SUCCEED;
   
   QW_ERR_RET(qwHandlePostPhaseEvents(QW_FPARAMS(), QW_PHASE_POST_QUERY, &input, &output));
@@ -1095,7 +1102,7 @@ int32_t qwProcessCQuery(QW_FPARAMS_DEF, SQWMsg *qwMsg) {
 
     DataSinkHandle  sinkHandle = ctx->sinkHandle;
 
-    QW_ERR_JRET(qwExecTask(QW_FPARAMS(), &ctx->taskHandle, sinkHandle, ctx->taskType, QW_IS_EVENT_RECEIVED(ctx, QW_EVENT_FETCH)));
+    QW_ERR_JRET(qwExecTask(QW_FPARAMS(), ctx));
 
     if (QW_IS_EVENT_RECEIVED(ctx, QW_EVENT_FETCH)) {
       SOutputData sOutput = {0};
