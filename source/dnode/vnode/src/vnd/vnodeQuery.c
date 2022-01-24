@@ -145,6 +145,9 @@ static int vnodeGetTableMeta(SVnode *pVnode, SRpcMsg *pMsg, SRpcMsg **pRsp) {
 
 _exit:
 
+  free(pSW);
+  free(pTbCfg->name);
+  free(pTbCfg);
   rpcMsg.handle = pMsg->handle;
   rpcMsg.ahandle = pMsg->ahandle;
   rpcMsg.pCont = pTbMetaMsg;

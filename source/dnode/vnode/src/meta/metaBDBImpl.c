@@ -588,6 +588,8 @@ char *metaTbCursorNext(SMTbCursor *pTbCur) {
       metaDecodeTbInfo(pBuf, &tbCfg);
       if (tbCfg.type == META_SUPER_TABLE) {
         continue;
+      } else if (tbCfg.type == META_CHILD_TABLE) {
+        kvRowFree(tbCfg.ctbCfg.pTag)
       }
       return tbCfg.name;
     } else {
