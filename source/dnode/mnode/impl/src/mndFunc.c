@@ -358,14 +358,21 @@ static int32_t mndProcessDropFuncReq(SMnodeMsg *pReq) {
 }
 
 static int32_t mndProcessRetrieveFuncReq(SMnodeMsg *pReq) {
+  int32_t code = -1;
   SMnode *pMnode = pReq->pMnode;
 
   SRetrieveFuncReq *pRetrieve = pReq->rpcMsg.pCont;
   pRetrieve->numOfFuncs = htonl(pRetrieve->numOfFuncs);
 
-  int32_t size = sizeof(SRetrieveFuncRsp) + (sizeof(SFuncInfo) + TSDB_FUNC_CODE_LEN) * pRetrieve->numOfFuncs + 16384;
+  int32_t fsize = sizeof(SFuncInfo) + TSDB_FUNC_CODE_LEN + TSDB_FUNC_COMMENT_LEN;
+  int32_t size = sizeof(SRetrieveFuncRsp) + fsize * pRetrieve->numOfFuncs;
 
   SRetrieveFuncRsp *pRetrieveRsp = rpcMallocCont(size);
+  if (pRetrieveRsp == NULL) {
+    terrno = TSDB_CODE_OUT_OF_MEMORY;
+    goto FUNC_RETRIEVE_OVER;
+  }
+
   pRetrieveRsp->numOfFuncs = htonl(pRetrieve->numOfFuncs);
   char *pOutput = pRetrieveRsp->pFuncInfos;
 
@@ -373,16 +380,15 @@ static int32_t mndProcessRetrieveFuncReq(SMnodeMsg *pReq) {
     char funcName[TSDB_FUNC_NAME_LEN] = {0};
     memcpy(funcName, pRetrieve->pFuncNames + i * TSDB_FUNC_NAME_LEN, TSDB_FUNC_NAME_LEN);
 
-    SFuncObj *pFunc = sdbAcquire(pMnode->pSdb, SDB_FUNC, funcName);
+    SFuncObj *pFunc = mndAcquireFunc(pMnode, funcName);
     if (pFunc == NULL) {
       terrno = TSDB_CODE_MND_INVALID_FUNC;
       mError("func:%s, failed to retrieve since %s", funcName, terrstr());
-      return -1;
+      goto FUNC_RETRIEVE_OVER;
     }
 
     SFuncInfo *pFuncInfo = (SFuncInfo *)pOutput;
-
-    strncpy(pFuncInfo->name, pFunc->name, TSDB_FUNC_NAME_LEN);
+    memcpy(pFuncInfo->name, pFunc->name, TSDB_FUNC_NAME_LEN);
     pFuncInfo->funcType = pFunc->funcType;
     pFuncInfo->scriptType = pFunc->scriptType;
     pFuncInfo->outputType = pFunc->outputType;
@@ -391,15 +397,21 @@ static int32_t mndProcessRetrieveFuncReq(SMnodeMsg *pReq) {
     pFuncInfo->signature = htobe64(pFunc->signature);
     pFuncInfo->commentSize = htonl(pFunc->commentSize);
     pFuncInfo->codeSize = htonl(pFunc->codeSize);
-    memcpy(pFuncInfo->pCont, pFunc->pCode, pFunc->commentSize + pFunc->codeSize);
-
+    memcpy(pFuncInfo->pCont, pFunc->pComment, pFunc->commentSize);
+    memcpy(pFuncInfo->pCont + pFunc->commentSize, pFunc->pCode, pFunc->codeSize);
     pOutput += sizeof(SFuncInfo) + pFunc->commentSize + pFunc->codeSize;
+    mndReleaseFunc(pMnode, pFunc);
   }
 
   pReq->pCont = pRetrieveRsp;
   pReq->contLen = (int32_t)(pOutput - (char *)pRetrieveRsp);
 
-  return 0;
+  code = 0;
+
+FUNC_RETRIEVE_OVER:
+  if (code != 0) rpcFreeCont(pRetrieveRsp);
+
+  return code;
 }
 
 static int32_t mndGetFuncMeta(SMnodeMsg *pReq, SShowObj *pShow, STableMetaRsp *pMeta) {
@@ -461,7 +473,7 @@ static int32_t mndGetFuncMeta(SMnodeMsg *pReq, SShowObj *pShow, STableMetaRsp *p
 
   pShow->numOfRows = sdbGetSize(pSdb, SDB_FUNC);
   pShow->rowSize = pShow->offset[cols - 1] + pShow->bytes[cols - 1];
-  strcpy(pMeta->tbFname, "show funcs");
+  strcpy(pMeta->tbFname, mndShowStr(pShow->type));
 
   return 0;
 }
