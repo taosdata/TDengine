@@ -115,7 +115,8 @@ int vnodeApplyWMsg(SVnode *pVnode, SRpcMsg *pMsg, SRpcMsg **pRsp) {
       }
       break;
     case TDMT_VND_MQ_SET_CONN: {
-      if (tqProcessSetConnReq(pVnode->pTq, ptr) < 0) {
+      if (tqProcessSetConnReq(pVnode->pTq, POINTER_SHIFT(ptr, sizeof(SMsgHead)), NULL) < 0) {
+        // TODO: handle error
       }
     } break;
     default:
