@@ -119,6 +119,7 @@ static void* loop(void* arg) {
     pthread_mutex_unlock(&(vnodeMgr.mutex));
 
     (*(pTask->execute))(pTask->arg);
+    free(pTask);
   }
 
   return NULL;
