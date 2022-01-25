@@ -81,7 +81,6 @@ enum {
   CHECKINFO_CHOSEN_BOTH = 2    //for update=2(merge case)
 };
 
-
 typedef struct STableCheckInfo {
   uint64_t      tableId;
   TSKEY         lastKey;
@@ -258,9 +257,7 @@ static SArray* createCheckInfoFromTableGroup(STsdbReadHandle* pTsdbReadHandle, S
     for (int32_t j = 0; j < gsize; ++j) {
       STableKeyInfo* pKeyInfo = (STableKeyInfo*) taosArrayGet(group, j);
 
-      STableCheckInfo info = { .lastKey = pKeyInfo->lastKey};
-
-      info.tableId = pKeyInfo->uid;
+      STableCheckInfo info = { .lastKey = pKeyInfo->lastKey, .tableId = pKeyInfo->uid};
       if (ASCENDING_TRAVERSE(pTsdbReadHandle->order)) {
         if (info.lastKey == INT64_MIN || info.lastKey < pTsdbReadHandle->window.skey) {
           info.lastKey = pTsdbReadHandle->window.skey;
@@ -277,12 +274,7 @@ static SArray* createCheckInfoFromTableGroup(STsdbReadHandle* pTsdbReadHandle, S
   }
 
   // TODO  group table according to the tag value.
-//  taosArraySort(pTableCheckInfo, tsdbCheckInfoCompar);
-//  size_t gsize = taosArrayGetSize(pTableCheckInfo);
-//  for (int32_t i = 0; i < gsize; ++i) {
-//    STableCheckInfo* pInfo = (STableCheckInfo*) taosArrayGet(pTableCheckInfo, i);
-//  }
-
+  taosArraySort(pTableCheckInfo, tsdbCheckInfoCompar);
   return pTableCheckInfo;
 }
 
@@ -2605,7 +2597,7 @@ static int32_t getAllTableList(SMeta* pMeta, uint64_t uid, SArray* list) {
       break;
     }
 
-    STableKeyInfo info = {.pTable = NULL, .lastKey = TSKEY_INITIAL_VAL, uid = id};
+    STableKeyInfo info = {.lastKey = TSKEY_INITIAL_VAL, uid = id};
     taosArrayPush(list, &info);
   }
 
@@ -3196,7 +3188,7 @@ STimeWindow updateLastrowForEachGroup(STableGroupInfo *groupList) {
       if (key < lastKey) {
         key = lastKey;
 
-        keyInfo.pTable  = pInfo->pTable;
+//        keyInfo.pTable  = pInfo->pTable;
         keyInfo.lastKey = key;
         pInfo->lastKey  = key;
 
@@ -3210,29 +3202,19 @@ STimeWindow updateLastrowForEachGroup(STableGroupInfo *groupList) {
       }
     }
 
-    // clear current group, unref unused table
-    for (int32_t i = 0; i < numOfTables; ++i) {
-      STableKeyInfo* pInfo = (STableKeyInfo*)taosArrayGet(pGroup, i);
-
-      // keyInfo.pTable may be NULL here.
-      if (pInfo->pTable != keyInfo.pTable) {
-//        tsdbUnRefTable(pInfo->pTable);
-      }
-    }
-
     // more than one table in each group, only one table left for each group
-    if (keyInfo.pTable != NULL) {
-      totalNumOfTable++;
-      if (taosArrayGetSize(pGroup) == 1) {
-        // do nothing
-      } else {
-        taosArrayClear(pGroup);
-        taosArrayPush(pGroup, &keyInfo);
-      }
-    } else {  // mark all the empty groups, and remove it later
-      taosArrayDestroy(pGroup);
-      taosArrayPush(emptyGroup, &j);
-    }
+//    if (keyInfo.pTable != NULL) {
+//      totalNumOfTable++;
+//      if (taosArrayGetSize(pGroup) == 1) {
+//        // do nothing
+//      } else {
+//        taosArrayClear(pGroup);
+//        taosArrayPush(pGroup, &keyInfo);
+//      }
+//    } else {  // mark all the empty groups, and remove it later
+//      taosArrayDestroy(pGroup);
+//      taosArrayPush(emptyGroup, &j);
+//    }
   }
 
   // window does not being updated, so set the original
@@ -3422,11 +3404,13 @@ void filterPrepare(void* expr, void* param) {
   }
 }
 
+#endif
 
 static int32_t tableGroupComparFn(const void *p1, const void *p2, const void *param) {
+#if 0
   STableGroupSupporter* pTableGroupSupp = (STableGroupSupporter*) param;
-  STable* pTable1 = ((STableKeyInfo*) p1)->pTable;
-  STable* pTable2 = ((STableKeyInfo*) p2)->pTable;
+  STable* pTable1 = ((STableKeyInfo*) p1)->uid;
+  STable* pTable2 = ((STableKeyInfo*) p2)->uid;
 
   for (int32_t i = 0; i < pTableGroupSupp->numOfCols; ++i) {
     SColIndex* pColIndex = &pTableGroupSupp->pCols[i];
@@ -3474,10 +3458,9 @@ static int32_t tableGroupComparFn(const void *p1, const void *p2, const void *pa
       return ret;
     }
   }
-
+#endif
   return 0;
 }
-#endif
 
 static int tsdbCheckInfoCompar(const void* key1, const void* key2) {
   if (((STableCheckInfo*)key1)->tableId < ((STableCheckInfo*)key2)->tableId) {
@@ -3493,10 +3476,9 @@ static int tsdbCheckInfoCompar(const void* key1, const void* key2) {
 void createTableGroupImpl(SArray* pGroups, SArray* pTableList, size_t numOfTables, TSKEY skey,
                           STableGroupSupporter* pSupp, __ext_compar_fn_t compareFn) {
   STable* pTable = taosArrayGetP(pTableList, 0);
-
   SArray* g = taosArrayInit(16, sizeof(STableKeyInfo));
 
-  STableKeyInfo info = {.pTable = pTable, .lastKey = skey};
+  STableKeyInfo info = {.lastKey = skey};
   taosArrayPush(g, &info);
 
   for (int32_t i = 1; i < numOfTables; ++i) {
@@ -3507,13 +3489,13 @@ void createTableGroupImpl(SArray* pGroups, SArray* pTableList, size_t numOfTable
     assert(ret == 0 || ret == -1);
 
     if (ret == 0) {
-      STableKeyInfo info1 = {.pTable = *p, .lastKey = skey};
+      STableKeyInfo info1 = {.lastKey = skey};
       taosArrayPush(g, &info1);
     } else {
       taosArrayPush(pGroups, &g);  // current group is ended, start a new group
       g = taosArrayInit(16, sizeof(STableKeyInfo));
 
-      STableKeyInfo info1 = {.pTable = *p, .lastKey = skey};
+      STableKeyInfo info1 = {.lastKey = skey};
       taosArrayPush(g, &info1);
     }
   }
@@ -3546,8 +3528,8 @@ SArray* createTableGroup(SArray* pTableList, SSchemaWrapper* pTagSchema, SColInd
     sup.pTagSchema = pTagSchema->pSchema;
     sup.pCols = pCols;
 
-//    taosqsort(pTableList->pData, size, sizeof(STableKeyInfo), &sup, tableGroupComparFn);
-//    createTableGroupImpl(pTableGroup, pTableList, size, skey, &sup, tableGroupComparFn);
+    taosqsort(pTableList->pData, size, sizeof(STableKeyInfo), &sup, tableGroupComparFn);
+    createTableGroupImpl(pTableGroup, pTableList, size, skey, &sup, tableGroupComparFn);
   }
 
   return pTableGroup;

@@ -75,7 +75,6 @@ typedef struct STsdbQueryCond {
 } STsdbQueryCond;
 
 typedef struct {
-  void    *pTable;
   TSKEY    lastKey;
   uint64_t uid;
 } STableKeyInfo;
