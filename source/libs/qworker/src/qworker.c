@@ -974,7 +974,7 @@ int32_t qwProcessQuery(QW_FPARAMS_DEF, SQWMsg *qwMsg, int8_t taskType) {
     QW_ERR_JRET(code);
   }
   
-  code = qCreateExecTask(qwMsg->node, 0, (struct SSubplan *)plan, &pTaskInfo, &sinkHandle);
+  code = qCreateExecTask(qwMsg->node, 0, tId, (struct SSubplan *)plan, &pTaskInfo, &sinkHandle);
   if (code) {
     QW_TASK_ELOG("qCreateExecTask failed, code:%s", tstrerror(code));
     QW_ERR_JRET(code);

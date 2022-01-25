@@ -240,6 +240,7 @@ typedef struct STaskIdInfo {
   uint64_t       subplanId;
   uint64_t       templateId;
   uint64_t       taskId;     // this is a subplan id
+  char          *idstr;
 } STaskIdInfo;
 
 typedef struct SExecTaskInfo {
@@ -660,6 +661,6 @@ int32_t getMaximumIdleDurationSec();
 
 void doInvokeUdf(struct SUdfInfo* pUdfInfo, SQLFunctionCtx *pCtx, int32_t idx, int32_t type);
 void setTaskStatus(SExecTaskInfo *pTaskInfo, int8_t status);
-int32_t createExecTaskInfoImpl(SSubplan* pPlan, SExecTaskInfo** pTaskInfo, void* readerHandle);
+int32_t createExecTaskInfoImpl(SSubplan* pPlan, SExecTaskInfo** pTaskInfo, void* readerHandle, uint64_t taskId);
 
 #endif  // TDENGINE_EXECUTORIMPL_H
