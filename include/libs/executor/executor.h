@@ -32,7 +32,7 @@ struct SSubplan;
   * @param streamReadHandle
   * @return
   */
-qTaskInfo_t qCreateStreamExecTaskInfo(SSubQueryMsg *pMsg, void* streamReadHandle);
+qTaskInfo_t qCreateStreamExecTaskInfo(void *msg, void* streamReadHandle);
 
 int32_t     qSetStreamInput(qTaskInfo_t tinfo, void* input);
 

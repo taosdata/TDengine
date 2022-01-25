@@ -60,8 +60,8 @@ int32_t qSetStreamInput(qTaskInfo_t tinfo, void* input) {
   return code;
 }
 
-qTaskInfo_t qCreateStreamExecTaskInfo(SSubQueryMsg* pMsg, void* streamReadHandle) {
-  if (pMsg == NULL || streamReadHandle == NULL) {
+qTaskInfo_t qCreateStreamExecTaskInfo(void* msg, void* streamReadHandle) {
+  if (msg == NULL || streamReadHandle == NULL) {
     return NULL;
   }
 
@@ -74,7 +74,7 @@ qTaskInfo_t qCreateStreamExecTaskInfo(SSubQueryMsg* pMsg, void* streamReadHandle
 #endif
 
   struct SSubplan* plan = NULL;
-  int32_t          code = qStringToSubplan(pMsg->msg, &plan);
+  int32_t          code = qStringToSubplan(msg, &plan);
   if (code != TSDB_CODE_SUCCESS) {
     terrno = code;
     return NULL;

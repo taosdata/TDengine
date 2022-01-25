@@ -121,11 +121,19 @@ static void toDataCacheEntry(const SDataDispatchHandle* pHandle, const SInputDat
 }
 
 static bool allocBuf(SDataDispatchHandle* pDispatcher, const SInputData* pInput, SDataDispatchBuf* pBuf) {
-  if (taosQueueSize(pDispatcher->pDataBlocks) >= pDispatcher->pManager->cfg.maxDataBlockNumPerQuery) {
+  uint32_t capacity = pDispatcher->pManager->cfg.maxDataBlockNumPerQuery;
+  if (taosQueueSize(pDispatcher->pDataBlocks) > capacity) {
+    qError("SinkNode queue is full, no capacity, max:%d, current:%d, no capacity", capacity,
+           taosQueueSize(pDispatcher->pDataBlocks));
     return false;
   }
+
   pBuf->allocSize = DATA_META_LENGTH(pInput->pTableRetrieveTsMap) + pDispatcher->schema.resultRowSize * pInput->pData->info.rows;
   pBuf->pData = malloc(pBuf->allocSize);
+  if (pBuf->pData == NULL) {
+    qError("SinkNode failed to malloc memory, size:%d, code:%d", pBuf->allocSize, TAOS_SYSTEM_ERROR(errno));
+  }
+
   return NULL != pBuf->pData;
 }
 

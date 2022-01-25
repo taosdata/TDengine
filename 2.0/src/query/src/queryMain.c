@@ -461,7 +461,7 @@ int32_t qKillQuery(qinfo_t qinfo) {
   }
 
   qDebug("QInfo:0x%"PRIx64" query killed", pQInfo->qId);
-  setQueryKilled(pQInfo);
+  setTaskKilled(pQInfo);
 
   // Wait for the query executing thread being stopped/
   // Once the query is stopped, the owner of qHandle will be cleared immediately.
@@ -634,7 +634,7 @@ int32_t qKillQueryByQId(void* pMgmt, int64_t qId, int32_t waitMs, int32_t waitCo
     return TSDB_CODE_QRY_INVALID_QHANDLE;
   }
   qWarn("QId:0x%"PRIx64" be killed(no memory commit).", pQInfo->qId);
-  setQueryKilled(pQInfo);
+  setTaskKilled(pQInfo);
 
   // wait query stop
   int32_t loop = 0;

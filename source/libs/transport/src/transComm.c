@@ -191,4 +191,11 @@ void transConnCtxDestroy(STransConnCtx* ctx) {
   free(ctx->ip);
   free(ctx);
 }
+
+void transFreeMsg(void* msg) {
+  if (msg == NULL) {
+    return;
+  }
+  free((char*)msg - sizeof(STransMsgHead));
+}
 #endif

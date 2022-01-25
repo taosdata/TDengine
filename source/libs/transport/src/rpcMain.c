@@ -242,11 +242,14 @@ void *rpcOpen(const SRpcInit *pInit) {
   pRpc = (SRpcInfo *)calloc(1, sizeof(SRpcInfo));
   if (pRpc == NULL) return NULL;
 
-  if (pInit->label) tstrncpy(pRpc->label, pInit->label, strlen(pInit->label));
+  if (pInit->label) tstrncpy(pRpc->label, pInit->label, tListLen(pInit->label));
 
   pRpc->connType = pInit->connType;
   if (pRpc->connType == TAOS_CONN_CLIENT) {
     pRpc->numOfThreads = pInit->numOfThreads;
+    if (pRpc->numOfThreads >= 10) {
+      pRpc->numOfThreads = 10;
+    }
   } else {
     pRpc->numOfThreads = pInit->numOfThreads > TSDB_MAX_RPC_THREADS ? TSDB_MAX_RPC_THREADS : pInit->numOfThreads;
   }
@@ -769,8 +772,8 @@ static SRpcConn *rpcAllocateServerConn(SRpcInfo *pRpc, SRecvInfo *pRecv) {
     }
 
     taosHashPut(pRpc->hash, hashstr, size, (char *)&pConn, POINTER_BYTES);
-    tDebug("%s %p server connection is allocated, uid:0x%x sid:%d key:%s spi:%d", pRpc->label, pConn, pConn->linkUid, sid,
-           hashstr, pConn->spi);
+    tDebug("%s %p server connection is allocated, uid:0x%x sid:%d key:%s spi:%d", pRpc->label, pConn, pConn->linkUid,
+           sid, hashstr, pConn->spi);
   }
 
   return pConn;
