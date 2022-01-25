@@ -374,9 +374,17 @@ int32_t tmq_list_append(tmq_list_t* ptr, char* src) {
 
 TAOS_RES* tmq_subscribe(tmq_t* tmq, tmq_list_t* topic_list) {
   SRequestObj *pRequest = NULL;
-  tmq->status = 1;
   int32_t sz = topic_list->cnt;
-  tmq->clientTopics = taosArrayInit(sz, sizeof(void*));
+  //destroy ex
+  taosArrayDestroy(tmq->clientTopics);
+  tmq->clientTopics = taosArrayInit(sz, sizeof(SMqClientTopic));
+
+  SCMSubscribeReq req;
+  req.topicNum = sz;
+  req.consumerId = tmq->consumerId;
+  req.consumerGroup = strdup(tmq->groupId);
+  req.topicNames = taosArrayInit(sz, sizeof(void*));
+
   for (int i = 0; i < sz; i++) {
     char* topicName = topic_list->elems[i];
 
@@ -391,16 +399,21 @@ TAOS_RES* tmq_subscribe(tmq_t* tmq, tmq_list_t* topic_list) {
     }
     tNameExtractFullName(&name, topicFname);
     tscDebug("subscribe topic: %s", topicFname);
-    taosArrayPush(tmq->clientTopics, &topicFname); 
+    SMqClientTopic topic = {
+      .nextVgIdx = 0,
+      .sql = NULL,
+      .sqlLen = 0,
+      .topicId = 0,
+      .topicName = topicFname,
+      .vgs = NULL
+    };
+    topic.vgs = taosArrayInit(0, sizeof(SMqClientVg));
+    taosArrayPush(tmq->clientTopics, &topic); 
     /*SMqClientTopic topic = {*/
       /*.*/
     /*};*/
+    taosArrayPush(req.topicNames, &topicFname);
   }
-  SCMSubscribeReq req;
-  req.topicNum = taosArrayGetSize(tmq->clientTopics);
-  req.consumerId = tmq->consumerId;
-  req.consumerGroup = strdup(tmq->groupId);
-  req.topicNames = tmq->clientTopics;
 
   int tlen = tSerializeSCMSubscribeReq(NULL, &req);
   void* buf = malloc(tlen);
@@ -419,17 +432,17 @@ TAOS_RES* tmq_subscribe(tmq_t* tmq, tmq_list_t* topic_list) {
 
   pRequest->body.requestMsg = (SDataBuf){ .pData = buf, .len = tlen };
 
-  SMsgSendInfo* body = buildMsgInfoImpl(pRequest);
+  SMsgSendInfo* sendInfo = buildMsgInfoImpl(pRequest);
   SEpSet epSet = getEpSet_s(&tmq->pTscObj->pAppInfo->mgmtEp);
 
   int64_t transporterId = 0;
-  asyncSendMsgToServer(tmq->pTscObj->pAppInfo->pTransporter, &epSet, &transporterId, body);
+  asyncSendMsgToServer(tmq->pTscObj->pAppInfo->pTransporter, &epSet, &transporterId, sendInfo);
 
   tsem_wait(&pRequest->body.rspSem);
 
 _return:
-  if (body != NULL) {
-    destroySendMsgInfo(body);
+  if (sendInfo != NULL) {
+    destroySendMsgInfo(sendInfo);
   }
 
   if (pRequest != NULL && terrno != TSDB_CODE_SUCCESS) {
@@ -601,6 +614,8 @@ int32_t tmq_poll_cb_inner(void* param, const SDataBuf* pMsg, int32_t code) {
 }
 
 int32_t tmq_ask_ep_cb(void* param, const SDataBuf* pMsg, int32_t code) {
+  tscDebug("tmq ask ep cb called");
+  bool set = false;
   tmq_t* tmq = (tmq_t*)param;
   SMqCMGetSubEpRsp rsp;
   tDecodeSMqCMGetSubEpRsp(pMsg->pData, &rsp);
@@ -620,17 +635,16 @@ int32_t tmq_ask_ep_cb(void* param, const SDataBuf* pMsg, int32_t code) {
         .epSet = pVgEp->epSet
       };
       taosArrayPush(topic.vgs, &clientVg);
+      set = true;
     }
     taosArrayPush(tmq->clientTopics, &topic);
   }
+  if(set) tmq->status = 1;
   // unlock
   return 0;
 }
 
 tmq_message_t* tmq_consume_poll(tmq_t* tmq, int64_t blocking_time) {
-  if (tmq->clientTopics == NULL || taosArrayGetSize(tmq->clientTopics) == 0) {
-    return NULL;
-  }
   SRequestObj *pRequest = NULL;
   SMqConsumeReq req = {0};
   req.reqType = 1;
@@ -639,7 +653,7 @@ tmq_message_t* tmq_consume_poll(tmq_t* tmq, int64_t blocking_time) {
   tmq_message_t* tmq_message = NULL;
   strcpy(req.cgroup, tmq->groupId);
 
-  if (taosArrayGetSize(tmq->clientTopics) == 0) {
+  if (taosArrayGetSize(tmq->clientTopics) == 0 || tmq->status == 0) {
     int32_t tlen = sizeof(SMqCMGetSubEpReq);
     SMqCMGetSubEpReq* buf = malloc(tlen);
     if (buf == NULL) {
@@ -667,7 +681,12 @@ tmq_message_t* tmq_consume_poll(tmq_t* tmq, int64_t blocking_time) {
     tsem_wait(&pRequest->body.rspSem);
   }
 
-  SMqClientTopic* pTopic = taosArrayGetP(tmq->clientTopics, tmq->nextTopicIdx);
+  if (taosArrayGetSize(tmq->clientTopics) == 0) {
+    tscDebug("consumer:%ld poll but not assigned", tmq->consumerId);
+    return NULL;
+  }
+
+  SMqClientTopic* pTopic = taosArrayGet(tmq->clientTopics, tmq->nextTopicIdx);
   tmq->nextTopicIdx = (tmq->nextTopicIdx + 1) % taosArrayGetSize(tmq->clientTopics);
   strcpy(req.topic, pTopic->topicName);
   int32_t nextVgIdx = pTopic->nextVgIdx;

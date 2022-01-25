@@ -161,8 +161,6 @@ static int32_t mndProcessMqTimerMsg(SMnodeMsg *pMsg) {
         pReq->sql = strdup(pTopic->sql);
         pReq->logicalPlan = strdup(pTopic->logicalPlan);
         pReq->physicalPlan = strdup(pTopic->physicalPlan);
-        pReq->qmsgLen = pCEp->qmsgLen;
-        /*memcpy(pReq->qmsg, pCEp->qmsg, pCEp->qmsgLen);*/
         pReq->qmsg = strdup(pCEp->qmsg);
         int32_t tlen = tEncodeSMqSetCVgReq(NULL, pReq);
         void   *reqStr = malloc(tlen);
@@ -227,13 +225,6 @@ static int mndInitUnassignedVg(SMnode *pMnode, SMqTopicObj *pTopic, SArray *unas
      * CEp.epSet.fqdn[2], CEp.epSet.fqdn[3], CEp.epSet.fqdn[4]);*/
     CEp.vgId = pTaskInfo->addr.nodeId;
     CEp.qmsg = strdup(pTaskInfo->msg->msg);
-    CEp.qmsgLen = strlen(CEp.qmsg) + 1;
-    printf("abc:\n%s\n", CEp.qmsg);
-    /*CEp.qmsg = malloc(CEp.qmsgLen);*/
-    /*if (CEp.qmsg == NULL) {*/
-    /*return -1;*/
-    /*}*/
-    /*memcpy(CEp.qmsg, pTaskInfo->msg->msg, pTaskInfo->msg->contentLen);*/
     taosArrayPush(unassignedVg, &CEp);
   }
 
@@ -257,8 +248,7 @@ static int mndBuildMqSetConsumerVgReq(SMnode *pMnode, STrans *pTrans, SMqConsume
     req.sql = pTopic->sql;
     req.logicalPlan = pTopic->logicalPlan;
     req.physicalPlan = pTopic->physicalPlan;
-    req.qmsg = strdup(pCEp->qmsg);
-    req.qmsgLen = strlen(req.qmsg);
+    req.qmsg = pCEp->qmsg;
     int32_t tlen = tEncodeSMqSetCVgReq(NULL, &req);
     void   *buf = malloc(sizeof(SMsgHead) + tlen);
     if (buf == NULL) {

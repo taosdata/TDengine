@@ -570,30 +570,30 @@ TEST(testCase, create_topic_Test) {
   //taos_close(pConn);
 //}
 
-//TEST(testCase, tmq_subscribe_Test) {
-  //TAOS* pConn = taos_connect("localhost", "root", "taosdata", NULL, 0);
-  //assert(pConn != NULL);
+TEST(testCase, tmq_subscribe_Test) {
+  TAOS* pConn = taos_connect("localhost", "root", "taosdata", NULL, 0);
+  assert(pConn != NULL);
 
-  //TAOS_RES* pRes = taos_query(pConn, "use abc1");
-  //if (taos_errno(pRes) != 0) {
-    //printf("error in use db, reason:%s\n", taos_errstr(pRes));
-  //}
-  //taos_free_result(pRes);
+  TAOS_RES* pRes = taos_query(pConn, "use abc1");
+  if (taos_errno(pRes) != 0) {
+    printf("error in use db, reason:%s\n", taos_errstr(pRes));
+  }
+  taos_free_result(pRes);
 
-  //tmq_conf_t* conf = tmq_conf_new();
-  //tmq_conf_set(conf, "group.id", "tg1");
-  //tmq_t* tmq = taos_consumer_new(pConn, conf, NULL, 0);
+  tmq_conf_t* conf = tmq_conf_new();
+  tmq_conf_set(conf, "group.id", "tg1");
+  tmq_t* tmq = taos_consumer_new(pConn, conf, NULL, 0);
   
-  //tmq_list_t* topic_list = tmq_list_new();
-  //tmq_list_append(topic_list, "test_topic_1");
-  //tmq_subscribe(tmq, topic_list);
+  tmq_list_t* topic_list = tmq_list_new();
+  tmq_list_append(topic_list, "test_topic_1");
+  tmq_subscribe(tmq, topic_list);
 
-  //while (1) {
-    //tmq_message_t* msg = tmq_consume_poll(tmq, 0);
-    //printf("get msg\n");
-    //if (msg == NULL) break;
-  //}
-//}
+  while (1) {
+    tmq_message_t* msg = tmq_consume_poll(tmq, 0);
+    printf("get msg\n");
+    if (msg == NULL) break;
+  }
+}
 
 TEST(testCase, tmq_consume_Test) {
 }
