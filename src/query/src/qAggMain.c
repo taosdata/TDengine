@@ -210,14 +210,18 @@ typedef struct {
   };
 } SDiffFuncInfo;
 
-//typedef struct {
-//  int64_t  timestamp;
-//  char *   pTags;
-//} UniqueUnit;
+typedef struct {
+  int64_t  timestamp;
+  char *   pTags;
+} UniqueUnit;
 
 typedef struct{
   SHashObj  *pSet;
 } SUniqueFuncInfo;
+
+void freeUniqueUnit(void* unit){
+    tfree(((UniqueUnit *)unit)->pTags);
+}
 
 int32_t getResultDataInfo(int32_t dataType, int32_t dataBytes, int32_t functionId, int32_t param, int16_t *type,
                           int32_t *bytes, int32_t *interBytes, int16_t extLength, bool isSuperTable, SUdfInfo* pUdfInfo) {
@@ -4936,6 +4940,7 @@ static bool unique_function_setup(SQLFunctionCtx *pCtx, SResultRowCellInfo* pRes
 
   SUniqueFuncInfo *uniqueInfo = GET_ROWCELL_INTERBUF(pResInfo);
   uniqueInfo->pSet = taosHashInit(64, taosGetDefaultHashFunction(TSDB_DATA_TYPE_BINARY), true, HASH_NO_LOCK);
+  taosHashSetFreeFp(uniqueInfo->pSet, freeUniqueUnit);
   return true;
 }
 
@@ -4943,75 +4948,64 @@ static void unique_function(SQLFunctionCtx *pCtx) {
   SResultRowCellInfo *pResInfo = GET_RES_INFO(pCtx);
   SUniqueFuncInfo    *pInfo = GET_ROWCELL_INTERBUF(pResInfo);
 
-  int32_t notNullElems = 0;
-
   for (int32_t i = 0; i < pCtx->size; i++) {
     char *pData = GET_INPUT_DATA(pCtx, i);
     TSKEY k = 0;
     if (pCtx->ptsList != NULL) {
       k = GET_TS_DATA(pCtx, i);
-      DO_UPDATE_TAG_COLUMNS(pCtx, k);
     }
-    TSKEY *uniqueTime = taosHashGet(pInfo->pSet, pData, pCtx->inputBytes);
-    if (uniqueTime == NULL || *uniqueTime < k) {
-      taosHashPut(pInfo->pSet, pData, pCtx->inputBytes, &k, sizeof(TSKEY));
+    UniqueUnit *unique = taosHashGet(pInfo->pSet, pData, pCtx->inputBytes);
+    if (unique == NULL || unique->timestamp > k) {
+      UniqueUnit unit;
+      unit.timestamp = k;
+      if (pCtx->tagInfo.numOfTagCols > 0) {
+        unit.pTags = calloc(pCtx->tagInfo.tagsLen, 1);
+        int32_t offset = 0;
+        for (int t = 0; t < pCtx->tagInfo.numOfTagCols; ++t) {
+          SQLFunctionCtx *tagCtx = pCtx->tagInfo.pTagCtxList[t];
+          if (tagCtx->functionId == TSDB_FUNC_TAG_DUMMY) {
+            aAggs[TSDB_FUNC_TAG].xFunction(tagCtx);
+            memcpy(unit.pTags + offset, tagCtx->pOutput, tagCtx->outputBytes);
+            offset += tagCtx->outputBytes;
+          }
+        }
+      }
+      taosHashPut(pInfo->pSet, pData, pCtx->inputBytes, &unit, sizeof(UniqueUnit));
     }
 
 //    if (pRes->info.rows >= pInfo->threshold) {
 //      break;
 //    }
-
-    {
-      for (int t = 0; t < pCtx->tagInfo.numOfTagCols; ++t) {
-        SQLFunctionCtx *tagCtx = pCtx->tagInfo.pTagCtxList[t];
-        if (tagCtx->functionId == TSDB_FUNC_TAG_DUMMY) {
-          aAggs[TSDB_FUNC_TAGPRJ].xFunction(tagCtx);
-        }
-      }
-      GET_RES_INFO(pCtx)->numOfRes += notNullElems;
-      GET_RES_INFO(pCtx)->hasResult = DATA_SET_FLAG;
-    }
   }
 }
 
 static void unique_func_finalizer(SQLFunctionCtx *pCtx) {
-  if (GET_RES_INFO(pCtx)->hasResult != DATA_SET_FLAG) {
-    setNull(pCtx->pOutput, pCtx->outputType, pCtx->outputBytes);
-    return;
+  SUniqueFuncInfo *pInfo = GET_ROWCELL_INTERBUF(GET_RES_INFO(pCtx));
+
+  GET_RES_INFO(pCtx)->numOfRes = taosHashGetSize(pInfo->pSet);
+  UniqueUnit *unit = taosHashIterate(pInfo->pSet, NULL);
+  int32_t offset = 0;
+
+  char **pData = calloc(pCtx->tagInfo.numOfTagCols, POINTER_BYTES);
+  for (int32_t i = 0; i < pCtx->tagInfo.numOfTagCols; ++i) {
+    pData[i] = pCtx->tagInfo.pTagCtxList[i]->pOutput;
   }
 
-  SElapsedInfo *pInfo = GET_ROWCELL_INTERBUF(GET_RES_INFO(pCtx));
-  double result = (double)pInfo->max - (double)pInfo->min;
-  *(double *)pCtx->pOutput = result >= 0 ? result : -result;
-  if (pCtx->numOfParams > 0 && pCtx->param[0].i64 > 0) {
-    *(double *)pCtx->pOutput = *(double *)pCtx->pOutput / pCtx->param[0].i64;
+  while(unit) {
+    void *unique = taosHashGetDataKey(NULL, unit);
+    memcpy(pCtx->pOutput + offset, unique, pCtx->inputBytes);
+    offset += pCtx->inputBytes;
+
+    for (int32_t j = 0; j < pCtx->tagInfo.numOfTagCols; ++j) {
+      memcpy(pData[j], unit->pTags, (size_t)pCtx->tagInfo.pTagCtxList[j]->outputBytes);
+      pData[j] += pCtx->tagInfo.pTagCtxList[j]->outputBytes;
+    }
+
+    unit = taosHashIterate(pInfo->pSet, unit);
   }
-  GET_RES_INFO(pCtx)->numOfRes = 1;
 
-  // set the output timestamp of each record.
-//  TSKEY *output = pCtx->ptsOutputBuf;
-//  for (int32_t i = 0; i < len; ++i, output += step) {
-//    *output = tvp[i]->timestamp;
-//  }
-//
-//  // set the corresponding tag data for each record
-//  // todo check malloc failure
-//  char **pData = calloc(pCtx->tagInfo.numOfTagCols, POINTER_BYTES);
-//  for (int32_t i = 0; i < pCtx->tagInfo.numOfTagCols; ++i) {
-//    pData[i] = pCtx->tagInfo.pTagCtxList[i]->pOutput;
-//  }
-//
-//  for (int32_t i = 0; i < len; ++i, output += step) {
-//    int16_t offset = 0;
-//    for (int32_t j = 0; j < pCtx->tagInfo.numOfTagCols; ++j) {
-//      memcpy(pData[j], tvp[i]->pTags + offset, (size_t)pCtx->tagInfo.pTagCtxList[j]->outputBytes);
-//      offset += pCtx->tagInfo.pTagCtxList[j]->outputBytes;
-//      pData[j] += pCtx->tagInfo.pTagCtxList[j]->outputBytes;
-//    }
-//  }
-//
-//  tfree(pData);
-
+  tfree(pData);
+  taosHashCleanup(pInfo->pSet);
   doFinalizer(pCtx);
 }
 
