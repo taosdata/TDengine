@@ -659,7 +659,8 @@ tmq_message_t* tmq_consume_poll(tmq_t* tmq, int64_t blocking_time) {
     if (buf == NULL) {
       tscError("failed to malloc get subscribe ep buf");
     }
-    buf->consumerId = htobe64(buf->consumerId);
+    buf->consumerId = htobe64(tmq->consumerId);
+    strcpy(buf->cgroup, tmq->groupId);
     
     pRequest = createRequest(tmq->pTscObj, NULL, NULL, TDMT_MND_GET_SUB_EP);
     if (pRequest == NULL) {
