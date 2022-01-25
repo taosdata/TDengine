@@ -76,6 +76,12 @@ typedef enum {
   HEARTBEAT_TYPE_MAX
 } EHbType;
 
+typedef enum {
+  HEARTBEAT_KEY_DBINFO = 1,
+  HEARTBEAT_KEY_STBINFO,
+};
+
+
 typedef enum _mgmt_table {
   TSDB_MGMT_TABLE_START,
   TSDB_MGMT_TABLE_ACCT,
@@ -1335,9 +1341,8 @@ static FORCE_INLINE void* taosDecodeSMqHbBatchRsp(void* buf, SMqHbBatchRsp* pBat
 }
 
 typedef struct {
-  int32_t keyLen;
+  int32_t key;
   int32_t valueLen;
-  void*   key;
   void*   value;
 } SKv;
 
@@ -1359,8 +1364,7 @@ typedef struct {
 typedef struct {
   SClientHbKey connKey;
   int32_t      status;
-  int32_t      bodyLen;
-  void*        body;
+  SArray*      info;  // Array<Skv>
 } SClientHbRsp;
 
 typedef struct {
@@ -1402,17 +1406,15 @@ void* tDeserializeSClientHbBatchRsp(void* buf, SClientHbBatchRsp* pBatchRsp);
 
 static FORCE_INLINE int taosEncodeSKv(void** buf, const SKv* pKv) {
   int tlen = 0;
-  tlen += taosEncodeFixedI32(buf, pKv->keyLen);
+  tlen += taosEncodeFixedI32(buf, pKv->key);
   tlen += taosEncodeFixedI32(buf, pKv->valueLen);
-  tlen += taosEncodeBinary(buf, pKv->key, pKv->keyLen);
   tlen += taosEncodeBinary(buf, pKv->value, pKv->valueLen);
   return tlen;
 }
 
 static FORCE_INLINE void* taosDecodeSKv(void* buf, SKv* pKv) {
-  buf = taosDecodeFixedI32(buf, &pKv->keyLen);
+  buf = taosDecodeFixedI32(buf, &pKv->key);
   buf = taosDecodeFixedI32(buf, &pKv->valueLen);
-  buf = taosDecodeBinary(buf, &pKv->key, pKv->keyLen);
   buf = taosDecodeBinary(buf, &pKv->value, pKv->valueLen);
   return buf;
 }

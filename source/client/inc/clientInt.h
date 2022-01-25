@@ -37,7 +37,15 @@ typedef struct SAppInstInfo SAppInstInfo;
 
 typedef int32_t (*FHbRspHandle)(SClientHbRsp* pReq);
 
+typedef int32_t (*FHbReqHandle)(SClientHbKey *connKey, void* param, SClientHbReq *req);
+
+typedef struct SHbConnInfo {
+  void         *param;
+  SClientHbReq *req;
+} SHbConnInfo;
+
 typedef struct SAppHbMgr {
+  char   *key;
   // statistics
   int32_t reportCnt;
   int32_t connKeyCnt;
@@ -49,7 +57,7 @@ typedef struct SAppHbMgr {
   SAppInstInfo* pAppInstInfo;
   // info
   SHashObj* activeInfo;    // hash<SClientHbKey, SClientHbReq>
-  SHashObj* getInfoFuncs;  // hash<SClientHbKey, FGetConnInfo>
+  SHashObj* connInfo;      // hash<SClientHbKey, SHbConnInfo>
 } SAppHbMgr;
 
 typedef struct SClientHbMgr {
@@ -59,12 +67,10 @@ typedef struct SClientHbMgr {
   pthread_t       thread;
   pthread_mutex_t lock;       // used when app init and cleanup
   SArray*         appHbMgrs;  // SArray<SAppHbMgr*> one for each cluster
-  FHbRspHandle    handle[HEARTBEAT_TYPE_MAX];
+  FHbReqHandle    reqHandle[HEARTBEAT_TYPE_MAX];
+  FHbRspHandle    rspHandle[HEARTBEAT_TYPE_MAX];
 } SClientHbMgr;
 
-// TODO: embed param into function
-// return type: SArray<Skv>
-typedef SArray* (*FGetConnInfo)(SClientHbKey connKey, void* param);
 
 typedef struct SQueryExecMetric {
   int64_t      start;    // start timestamp

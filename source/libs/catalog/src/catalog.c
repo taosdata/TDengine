@@ -253,7 +253,7 @@ int32_t ctgGetTableMetaFromMnodeImpl(struct SCatalog* pCatalog, void *pTransport
   
   if (TSDB_CODE_SUCCESS != rpcRsp.code) {
     if (CTG_TABLE_NOT_EXIST(rpcRsp.code)) {
-      SET_META_TYPE_NONE(output->metaType);
+      SET_META_TYPE_NULL(output->metaType);
       ctgDebug("stablemeta not exist in mnode, tbName:%s", tbFullName);
       return TSDB_CODE_SUCCESS;
     }
@@ -315,7 +315,7 @@ int32_t ctgGetTableMetaFromVnode(struct SCatalog* pCatalog, void *pTransporter, 
   
   if (TSDB_CODE_SUCCESS != rpcRsp.code) {
     if (CTG_TABLE_NOT_EXIST(rpcRsp.code)) {
-      SET_META_TYPE_NONE(output->metaType);
+      SET_META_TYPE_NULL(output->metaType);
       ctgDebug("tablemeta not exist in vnode, tbName:%s", tNameGetTableName(pTableName));
       return TSDB_CODE_SUCCESS;
     }
@@ -510,14 +510,14 @@ int32_t ctgMetaRentUpdate(SMetaRentMgmt *mgmt, void *meta, int64_t id, int32_t s
   
   CTG_LOCK(CTG_WRITE, &slot->lock);
   if (NULL == slot->meta) {
-    qError("meta in slot is empty, id:%"PRIx64", slot idx:%d, type:%d", id, widx, mgmt->type);
-    CTG_ERR_JRET(TSDB_CODE_CTG_MEM_ERROR);
+    qError("empty meta slot, id:%"PRIx64", slot idx:%d, type:%d", id, widx, mgmt->type);
+    CTG_ERR_JRET(TSDB_CODE_CTG_INTERNAL_ERROR);
   }
 
   if (slot->needSort) {
     taosArraySort(slot->meta, compare);
     slot->needSort = false;
-    qDebug("slot meta sorted, slot idx:%d, type:%d", widx, mgmt->type);
+    qDebug("meta slot sorted, slot idx:%d, type:%d", widx, mgmt->type);
   }
 
   void *orig = taosArraySearch(slot->meta, &id, compare, TD_EQ);
@@ -541,6 +541,42 @@ _return:
 
   CTG_RET(code);
 }
+
+int32_t ctgMetaRentRemove(SMetaRentMgmt *mgmt, int64_t id, __compar_fn_t compare) {
+  int16_t widx = abs(id % mgmt->slotNum);
+
+  SRentSlotInfo *slot = &mgmt->slots[widx];
+  int32_t code = 0;
+  
+  CTG_LOCK(CTG_WRITE, &slot->lock);
+  if (NULL == slot->meta) {
+    qError("empty meta slot, id:%"PRIx64", slot idx:%d, type:%d", id, widx, mgmt->type);
+    CTG_ERR_JRET(TSDB_CODE_CTG_INTERNAL_ERROR);
+  }
+
+  if (slot->needSort) {
+    taosArraySort(slot->meta, compare);
+    slot->needSort = false;
+    qDebug("meta slot sorted, slot idx:%d, type:%d", widx, mgmt->type);
+  }
+
+  int32_t idx = taosArraySearchIdx(slot->meta, &id, compare, TD_EQ);
+  if (idx < 0) {
+    qError("meta not found in slot, id:%"PRIx64", slot idx:%d, type:%d", id, widx, mgmt->type);
+    CTG_ERR_JRET(TSDB_CODE_CTG_INTERNAL_ERROR);
+  }
+
+  taosArrayRemove(slot->meta, idx);
+
+  qDebug("meta in rent removed, id:%"PRIx64", slot idx:%d, type:%d", id, widx, mgmt->type);
+
+_return:
+
+  CTG_UNLOCK(CTG_WRITE, &slot->lock);
+
+  CTG_RET(code);
+}
+
 
 int32_t ctgMetaRentGetImpl(SMetaRentMgmt *mgmt, void **res, uint32_t *num, int32_t size) {
   int16_t ridx = atomic_add_fetch_16(&mgmt->slotRIdx, 1);
@@ -763,44 +799,49 @@ int32_t ctgValidateAndFreeDbInfo(struct SCatalog* pCatalog, const char* dbName, 
   return TSDB_CODE_SUCCESS;
 }
 
-int32_t ctgValidateAndRemoveDbInfo(struct SCatalog* pCatalog, SDbVgVersion* target) {
-  SDBVgroupInfo *info = (SDBVgroupInfo *)taosHashAcquire(pCatalog->dbCache.cache, target->dbName, strlen(target->dbName));
-  if (info) {
-    CTG_LOCK(CTG_WRITE, &info->lock);
-    if (info->dbId != target->dbId) {
-      ctgInfo("db id already updated, db:%s, dbId:%"PRIx64 ", targetId:%"PRIx64, target->dbName, info->dbId, target->dbId);
-      CTG_UNLOCK(CTG_WRITE, &info->lock);
-      taosHashRelease(pCatalog->dbCache.cache, info);
-      
-      return TSDB_CODE_SUCCESS;
-    }
-    
-    if (info->vgVersion > target->vgVersion) {
-      ctgInfo("db vgVersion already updated, db:%s, version:%d, targetVer:%d", target->dbName, info->vgVersion, target->vgVersion);
-      CTG_UNLOCK(CTG_WRITE, &info->lock);
-      taosHashRelease(pCatalog->dbCache.cache, info);
-      
-      return TSDB_CODE_SUCCESS;
-    }
-    
-    if (info->vgInfo) {
-      ctgInfo("cleanup db vgInfo, db:%s", target->dbName);
-      taosHashCleanup(info->vgInfo);
-      info->vgInfo = NULL;
-    }
+int32_t ctgValidateAndRemoveDbInfo(struct SCatalog* pCatalog, SDbVgVersion* target, bool *removed) {
+  *removed = false;
 
-    if (taosHashRemove(pCatalog->dbCache.cache, target->dbName, strlen(target->dbName))) {
-      ctgError("taosHashRemove from dbCache failed, db:%s", target->dbName);
-      CTG_UNLOCK(CTG_WRITE, &info->lock);      
-      taosHashRelease(pCatalog->dbCache.cache, info);
-      CTG_ERR_RET(TSDB_CODE_CTG_INTERNAL_ERROR);
-    }
-    
-    CTG_UNLOCK(CTG_WRITE, &info->lock);
+  SDBVgroupInfo *info = (SDBVgroupInfo *)taosHashAcquire(pCatalog->dbCache.cache, target->dbName, strlen(target->dbName));
+  if (NULL == info) {
+    ctgInfo("db not exist in dbCache, may be removed, db:%s", target->dbName);
+    return TSDB_CODE_SUCCESS;
+  }
   
+  CTG_LOCK(CTG_WRITE, &info->lock);
+  if (info->dbId != target->dbId) {
+    ctgInfo("db id already updated, db:%s, dbId:%"PRIx64 ", targetId:%"PRIx64, target->dbName, info->dbId, target->dbId);
+    CTG_UNLOCK(CTG_WRITE, &info->lock);
     taosHashRelease(pCatalog->dbCache.cache, info);
+    return TSDB_CODE_SUCCESS;
+  }
+  
+  if (info->vgVersion > target->vgVersion) {
+    ctgInfo("db vgVersion already updated, db:%s, version:%d, targetVer:%d", target->dbName, info->vgVersion, target->vgVersion);
+    CTG_UNLOCK(CTG_WRITE, &info->lock);
+    taosHashRelease(pCatalog->dbCache.cache, info);
+    return TSDB_CODE_SUCCESS;
+  }
+  
+  if (info->vgInfo) {
+    ctgInfo("cleanup db vgInfo, db:%s", target->dbName);
+    taosHashCleanup(info->vgInfo);
+    info->vgInfo = NULL;
   }
 
+  if (taosHashRemove(pCatalog->dbCache.cache, target->dbName, strlen(target->dbName))) {
+    ctgError("taosHashRemove from dbCache failed, db:%s", target->dbName);
+    CTG_UNLOCK(CTG_WRITE, &info->lock);      
+    taosHashRelease(pCatalog->dbCache.cache, info);
+    CTG_ERR_RET(TSDB_CODE_CTG_INTERNAL_ERROR);
+  }
+  
+  CTG_UNLOCK(CTG_WRITE, &info->lock);
+
+  taosHashRelease(pCatalog->dbCache.cache, info);
+
+  *removed = true;
+  
   return TSDB_CODE_SUCCESS;
 }
 
@@ -825,7 +866,7 @@ int32_t ctgRenewTableMetaImpl(struct SCatalog* pCatalog, void *pTransporter, con
     // if get from mnode failed, will not try vnode
     CTG_ERR_JRET(ctgGetTableMetaFromMnode(pCatalog, pTransporter, pMgmtEps, pTableName, &moutput));
 
-    if (CTG_IS_META_NONE(moutput.metaType)) {
+    if (CTG_IS_META_NULL(moutput.metaType)) {
       CTG_ERR_JRET(ctgGetTableMetaFromVnode(pCatalog, pTransporter, pMgmtEps, pTableName, &vgroupInfo, &voutput));
     } else {
       output = &moutput;
@@ -841,6 +882,8 @@ int32_t ctgRenewTableMetaImpl(struct SCatalog* pCatalog, void *pTransporter, con
       
       CTG_ERR_JRET(ctgGetTableMetaFromMnodeImpl(pCatalog, pTransporter, pMgmtEps, voutput.tbFname, &moutput));
 
+      voutput.metaType = moutput.metaType;
+      
       tfree(voutput.tbMeta);
       voutput.tbMeta = moutput.tbMeta;
       moutput.tbMeta = NULL;
@@ -850,20 +893,22 @@ int32_t ctgRenewTableMetaImpl(struct SCatalog* pCatalog, void *pTransporter, con
       if (0 == exist) {
         CTG_ERR_JRET(ctgGetTableMetaFromMnodeImpl(pCatalog, pTransporter, pMgmtEps, voutput.tbFname, &moutput));
 
-        if (CTG_IS_META_NONE(moutput.metaType)) {
-          SET_META_TYPE_NONE(voutput.metaType);
+        if (CTG_IS_META_NULL(moutput.metaType)) {
+          SET_META_TYPE_NULL(voutput.metaType);
         }
         
         tfree(voutput.tbMeta);
         voutput.tbMeta = moutput.tbMeta;
         moutput.tbMeta = NULL;
       } else {
+        tfree(voutput.tbMeta);
+        
         SET_META_TYPE_CTABLE(voutput.metaType); 
       }
     }
   }
 
-  if (CTG_IS_META_NONE(output->metaType)) {
+  if (CTG_IS_META_NULL(output->metaType)) {
     ctgError("no tablemeta got, tbNmae:%s", tNameGetTableName(pTableName));
     CTG_ERR_JRET(CTG_ERR_CODE_TABLE_NOT_EXIST);
   }
@@ -1221,43 +1266,26 @@ _return:
 
 int32_t catalogRemoveDBVgroup(struct SCatalog* pCatalog, SDbVgVersion* dbInfo) {
   int32_t code = 0;
+  bool removed = false;
   
   if (NULL == pCatalog || NULL == dbInfo) {
     CTG_ERR_JRET(TSDB_CODE_CTG_INVALID_INPUT);
   }
 
-  if (pCatalog->dbCache.cache) {
-    CTG_ERR_JRET(ctgValidateAndRemoveDbInfo(pCatalog, dbInfo));
-    
-    CTG_ERR_JRET(taosHashRemove(pCatalog->dbCache.cache, dbName, strlen(dbName)));
+  if (NULL == pCatalog->dbCache.cache) {
+    return TSDB_CODE_SUCCESS;
   }
   
-  ctgWarn("db removed from cache, db:%s", dbName);
-
-  bool newAdded = false;
-  if (taosHashPutExt(pCatalog->dbCache.cache, dbName, strlen(dbName), dbInfo, sizeof(*dbInfo), &newAdded) != 0) {
-    ctgError("taosHashPutExt db vgroup to cache failed, db:%s", dbName);
-    CTG_ERR_JRET(TSDB_CODE_CTG_MEM_ERROR);
-  }
-
-  dbInfo->vgInfo = NULL;
-
-  SDbVgVersion vgVersion = {.dbId = dbInfo->dbId, .vgVersion = dbInfo->vgVersion};
-  if (newAdded) {
-    CTG_ERR_JRET(ctgMetaRentAdd(&pCatalog->dbRent, &vgVersion, dbInfo->dbId, sizeof(SDbVgVersion)));
-  } else {
-    CTG_ERR_JRET(ctgMetaRentUpdate(&pCatalog->dbRent, &vgVersion, dbInfo->dbId, sizeof(SDbVgVersion), ctgDbVgVersionCompare));
+  CTG_ERR_RET(ctgValidateAndRemoveDbInfo(pCatalog, dbInfo, &removed));
+  if (!removed) {
+    return TSDB_CODE_SUCCESS;
   }
   
-  ctgDebug("dbName:%s vgroup updated, vgVersion:%d", dbName, dbInfo->vgVersion);
+  ctgInfo("db removed from cache, db:%s", dbInfo->dbName);
 
-
-_return:
-
-  if (dbInfo && dbInfo->vgInfo) {
-    taosHashCleanup(dbInfo->vgInfo);
-    dbInfo->vgInfo = NULL;
-  }
+  CTG_ERR_RET(ctgMetaRentRemove(&pCatalog->dbRent, dbInfo->dbId, ctgDbVgVersionCompare));
+  
+  ctgDebug("db removed from rent, db:%s", dbInfo->dbName);
   
   CTG_RET(code);
 }
@@ -1365,6 +1393,7 @@ int32_t catalogGetTableHashVgroup(struct SCatalog *pCatalog, void *pTransporter,
   CTG_ERR_JRET(ctgGetVgInfoFromHashValue(pCatalog, dbInfo, pTableName, pVgroup));
 
 _return:
+
   if (dbInfo) {
     CTG_UNLOCK(CTG_READ, &dbInfo->lock);  
     taosHashRelease(pCatalog->dbCache.cache, dbInfo);
