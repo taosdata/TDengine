@@ -15,6 +15,7 @@
 
 #ifndef _TD_UTIL_QUEUE_H
 #define _TD_UTIL_QUEUE_H
+#include "os.h"
 
 #ifdef __cplusplus
 extern "C" {

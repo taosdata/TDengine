@@ -15,7 +15,6 @@
 
 #ifndef _TD_UTIL_WORKER_H
 #define _TD_UTIL_WORKER_H
-#include "os.h"
 #include "tqueue.h"
 
 #ifdef __cplusplus
