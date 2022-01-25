@@ -1519,15 +1519,17 @@ static FORCE_INLINE void* taosDecodeSMqMsg(void* buf, SMqHbMsg* pMsg) {
 }
 
 typedef struct SMqSetCVgReq {
-  int32_t vgId;
-  int64_t oldConsumerId;
-  int64_t newConsumerId;
-  char    topicName[TSDB_TOPIC_FNAME_LEN];
-  char    cgroup[TSDB_CONSUMER_GROUP_LEN];
-  char*   sql;
-  char*   logicalPlan;
-  char*   physicalPlan;
-  SSubQueryMsg msg;
+  int32_t  vgId;
+  int64_t  oldConsumerId;
+  int64_t  newConsumerId;
+  char     topicName[TSDB_TOPIC_FNAME_LEN];
+  char     cgroup[TSDB_CONSUMER_GROUP_LEN];
+  char*    sql;
+  char*    logicalPlan;
+  char*    physicalPlan;
+  uint32_t qmsgLen;
+  void*    qmsg;
+  //SSubQueryMsg msg;
 } SMqSetCVgReq;
 
 static FORCE_INLINE int32_t tEncodeSSubQueryMsg(void** buf, const SSubQueryMsg* pMsg) {
@@ -1536,7 +1538,7 @@ static FORCE_INLINE int32_t tEncodeSSubQueryMsg(void** buf, const SSubQueryMsg* 
   tlen += taosEncodeFixedU64(buf, pMsg->queryId);
   tlen += taosEncodeFixedU64(buf, pMsg->taskId);
   tlen += taosEncodeFixedU32(buf, pMsg->contentLen);
-  tlen += taosEncodeBinary(buf, pMsg->msg, pMsg->contentLen);
+  //tlen += taosEncodeBinary(buf, pMsg->msg, pMsg->contentLen);
   return tlen;
 }
 
@@ -1545,7 +1547,7 @@ static FORCE_INLINE void* tDecodeSSubQueryMsg(void* buf, SSubQueryMsg* pMsg) {
   buf = taosDecodeFixedU64(buf, &pMsg->queryId);
   buf = taosDecodeFixedU64(buf, &pMsg->taskId);
   buf = taosDecodeFixedU32(buf, &pMsg->contentLen);
-  buf = taosDecodeBinaryTo(buf, pMsg->msg, pMsg->contentLen);
+  //buf = taosDecodeBinaryTo(buf, pMsg->msg, pMsg->contentLen);
   return buf;
 }
 
@@ -1559,7 +1561,9 @@ static FORCE_INLINE int32_t tEncodeSMqSetCVgReq(void** buf, const SMqSetCVgReq* 
   tlen += taosEncodeString(buf, pReq->sql);
   tlen += taosEncodeString(buf, pReq->logicalPlan);
   tlen += taosEncodeString(buf, pReq->physicalPlan);
-  tlen += tEncodeSSubQueryMsg(buf, &pReq->msg);
+  tlen += taosEncodeFixedU32(buf, pReq->qmsgLen);
+  tlen += taosEncodeBinary(buf, pReq->qmsg, pReq->qmsgLen);
+  //tlen += tEncodeSSubQueryMsg(buf, &pReq->msg);
   return tlen;
 }
 
@@ -1572,15 +1576,18 @@ static FORCE_INLINE void* tDecodeSMqSetCVgReq(void* buf, SMqSetCVgReq* pReq) {
   buf = taosDecodeString(buf, &pReq->sql);
   buf = taosDecodeString(buf, &pReq->logicalPlan);
   buf = taosDecodeString(buf, &pReq->physicalPlan);
-  buf = tDecodeSSubQueryMsg(buf, &pReq->msg);
+  buf = taosDecodeFixedU32(buf, &pReq->qmsgLen);
+  buf = taosDecodeBinary(buf, &pReq->qmsg, pReq->qmsgLen);
+  //buf = tDecodeSSubQueryMsg(buf, &pReq->msg);
   return buf;
 }
 
 typedef struct SMqSetCVgRsp {
-  int32_t vgId;
-  int64_t consumerId;
-  char    topicName[TSDB_TOPIC_FNAME_LEN];
-  char    cGroup[TSDB_CONSUMER_GROUP_LEN];
+  SMsgHead header;
+  int32_t  vgId;
+  int64_t  consumerId;
+  char     topicName[TSDB_TOPIC_FNAME_LEN];
+  char     cGroup[TSDB_CONSUMER_GROUP_LEN];
 } SMqSetCVgRsp;
 
 typedef struct SMqColData {

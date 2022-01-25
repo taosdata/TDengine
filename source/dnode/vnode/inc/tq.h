@@ -319,7 +319,7 @@ int       tqSendLaunchQuery(STqMsgItem*, int64_t offset);
 #endif
 
 int32_t tqProcessConsumeReq(STQ* pTq, SRpcMsg* pMsg, SRpcMsg** ppRsp);
-int32_t tqProcessSetConnReq(STQ* pTq, char* msg);
+int32_t tqProcessSetConnReq(STQ* pTq, char* msg, SRpcMsg** ppRsp);
 
 #ifdef __cplusplus
 }

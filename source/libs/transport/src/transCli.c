@@ -107,8 +107,17 @@ static void clientHandleResp(SCliConn* conn) {
   SRpcInfo*      pRpc = pCtx->pTransInst;
   SRpcMsg        rpcMsg;
 
-  rpcMsg.pCont = conn->readBuf.buf;
-  rpcMsg.contLen = conn->readBuf.len;
+  STransMsgHead* pHead = (STransMsgHead*)(conn->readBuf.buf);
+  pHead->code = htonl(pHead->code);
+  pHead->msgLen = htonl(pHead->msgLen);
+
+  rpcMsg.contLen = transContLenFromMsg(pHead->msgLen);
+  rpcMsg.pCont = transContFromHead(pHead);
+  rpcMsg.code = pHead->code;
+  rpcMsg.msgType = pHead->msgType;
+
+  // rpcMsg.pCont = conn->readBuf.buf;
+  // rpcMsg.contLen = conn->readBuf.len;
   rpcMsg.ahandle = pCtx->ahandle;
   (pRpc->cfp)(NULL, &rpcMsg, NULL);
   conn->notifyCount += 1;
@@ -128,8 +137,12 @@ static void clientHandleExcept(SCliConn* pConn) {
   STransConnCtx* pCtx = pMsg->ctx;
   SRpcInfo*      pRpc = pCtx->pTransInst;
 
-  SRpcMsg rpcMsg;
+  transFreeMsg((pMsg->msg.pCont));
+  pMsg->msg.pCont = NULL;
+
+  SRpcMsg rpcMsg = {0};
   rpcMsg.ahandle = pCtx->ahandle;
+  rpcMsg.code = -1;
   // SRpcInfo* pRpc = pMsg->ctx->pRpc;
   (pRpc->cfp)(NULL, &rpcMsg, NULL);
 
@@ -305,6 +318,10 @@ static void clientDestroy(uv_handle_t* handle) {
 
 static void clientWriteCb(uv_write_t* req, int status) {
   SCliConn* pConn = req->data;
+
+  SCliMsg* pMsg = pConn->data;
+  transFreeMsg((pMsg->msg.pCont));
+  pMsg->msg.pCont = NULL;
 
   if (status == 0) {
     tDebug("conn %p data already was written out", pConn);
