@@ -7155,7 +7155,7 @@ int32_t setAlterTableInfo(SSqlObj* pSql, struct SSqlInfo* pInfo) {
       return invalidOperationMsg(pMsg, msg24);
     }
 
-    name.n = stringProcess(name.z, name.n);
+    stringProcess(name.z, name.n);
     TAOS_FIELD f = tscCreateField(pColSchema->type, name.z, pItem->bytes);
     tscFieldInfoAppend(&pQueryInfo->fieldsInfo, &f);
   }
