@@ -2432,10 +2432,6 @@ static bool needBuildResAfterQueryComplete(SQInfo* pQInfo) {
 }
 
 bool isTaskKilled(SExecTaskInfo *pTaskInfo) {
-//  if (IS_QUERY_KILLED(pTaskInfo)) {
-//    return true;
-//  }
-
   // query has been executed more than tsShellActivityTimer, and the retrieve has not arrived
   // abort current query execution.
   if (pTaskInfo->owner != 0 && ((taosGetTimestampSec() - pTaskInfo->cost.start/1000) > 10*getMaximumIdleDurationSec())
@@ -4441,9 +4437,9 @@ void queryCostStatis(SExecTaskInfo *pTaskInfo) {
 //
 //  calculateOperatorProfResults(pQInfo);
 
-  qDebug("QID:0x%"PRIx64" :cost summary: elapsed time:%"PRId64" us, first merge:%"PRId64" us, total blocks:%d, "
+  qDebug("%s :cost summary: elapsed time:%"PRId64" us, first merge:%"PRId64" us, total blocks:%d, "
          "load block statis:%d, load data block:%d, total rows:%"PRId64 ", check rows:%"PRId64,
-         pTaskInfo->id.queryId, pSummary->elapsedTime, pSummary->firstStageMergeTime, pSummary->totalBlocks, pSummary->loadBlockStatis,
+         GET_TASKID(pTaskInfo), pSummary->elapsedTime, pSummary->firstStageMergeTime, pSummary->totalBlocks, pSummary->loadBlockStatis,
          pSummary->loadBlocks, pSummary->totalRows, pSummary->totalCheckedRows);
 //
   //qDebug("QInfo:0x%"PRIx64" :cost summary: winResPool size:%.2f Kb, numOfWin:%"PRId64", tableInfoSize:%.2f Kb, hashTable:%.2f Kb", pQInfo->qId, pSummary->winInfoSize/1024.0,
@@ -4994,7 +4990,7 @@ static SSDataBlock* doTableScan(void* param, bool *newgroup) {
       pResultRowInfo->curPos = 0;
     }
 
-    qDebug("QInfo:0x%"PRIx64" start to repeat scan data blocks due to query func required, qrange:%" PRId64 "-%" PRId64,
+    qDebug("%s start to repeat scan data blocks due to query func required, qrange:%" PRId64 "-%" PRId64,
            GET_TASKID(pTaskInfo), pTaskInfo->window.skey, pTaskInfo->window.ekey);
   }
 
@@ -5005,7 +5001,7 @@ static SSDataBlock* doTableScan(void* param, bool *newgroup) {
 //    STsdbQueryCond cond = createTsdbQueryCond(pQueryAttr, &pQueryAttr->window);
 //    tsdbResetQueryHandle(pTableScanInfo->pTsdbReadHandle, &cond);
 
-    qDebug("QInfo:0x%"PRIx64" start to reverse scan data blocks due to query func required, qrange:%" PRId64 "-%" PRId64,
+    qDebug("%s start to reverse scan data blocks due to query func required, qrange:%" PRId64 "-%" PRId64,
            GET_TASKID(pTaskInfo), pTaskInfo->window.skey, pTaskInfo->window.ekey);
 
     if (pResultRowInfo->size > 0) {
@@ -5150,6 +5146,8 @@ static SSDataBlock* doLoadRemoteData(void* param, bool* newgroup) {
 
   size_t totalSources = taosArrayGetSize(pExchangeInfo->pSources);
   if (pExchangeInfo->current >= totalSources) {
+    qDebug("%s all %"PRIzu" source(s) are exhausted, total rows:%"PRIu64" bytes:%"PRIu64", elapsed:%.2f ms", pTaskInfo->id.idstr, totalSources,
+           pExchangeInfo->totalRows, pExchangeInfo->totalSize, pExchangeInfo->totalElapsed/1000.0);
     return NULL;
   }
 
@@ -5170,7 +5168,8 @@ static SSDataBlock* doLoadRemoteData(void* param, bool* newgroup) {
     epSet.port[0] = pSource->addr.epAddr[0].port;
     tstrncpy(epSet.fqdn[0], pSource->addr.epAddr[0].fqdn, tListLen(epSet.fqdn[0]));
 
-    qDebug("QID:0x%" PRIx64 " build fetch msg and send to vgId:%d, ep:%s, taskId:0x%" PRIx64 ", %d/%" PRIzu,
+    int64_t startTs = taosGetTimestampUs();
+    qDebug("%s build fetch msg and send to vgId:%d, ep:%s, taskId:0x%" PRIx64 ", %d/%" PRIzu,
            GET_TASKID(pTaskInfo), pSource->addr.nodeId, epSet.fqdn[0], pSource->taskId, pExchangeInfo->current, totalSources);
 
     pMsg->header.vgId = htonl(pSource->addr.nodeId);
@@ -5181,7 +5180,7 @@ static SSDataBlock* doLoadRemoteData(void* param, bool* newgroup) {
     // send the fetch remote task result reques
     pMsgSendInfo = calloc(1, sizeof(SMsgSendInfo));
     if (NULL == pMsgSendInfo) {
-      qError("QID:0x%" PRIx64 " prepare message %d failed", GET_TASKID(pTaskInfo), (int32_t)sizeof(SMsgSendInfo));
+      qError("%s prepare message %d failed", GET_TASKID(pTaskInfo), (int32_t)sizeof(SMsgSendInfo));
       pTaskInfo->code = TSDB_CODE_QRY_OUT_OF_MEMORY;
       goto _error;
     }
@@ -5198,7 +5197,7 @@ static SSDataBlock* doLoadRemoteData(void* param, bool* newgroup) {
 
     SRetrieveTableRsp* pRsp = pExchangeInfo->pRsp;
     if (pRsp->numOfRows == 0) {
-      qDebug("QID:0x%"PRIx64" vgId:%d, taskID:0x%"PRIx64" %d of total completed, rowsOfSource:%"PRIu64", totalRows:%"PRIu64" try next",
+      qDebug("%s vgId:%d, taskID:0x%"PRIx64" %d of total completed, rowsOfSource:%"PRIu64", totalRows:%"PRIu64" try next",
           GET_TASKID(pTaskInfo), pSource->addr.nodeId, pSource->taskId, pExchangeInfo->current + 1,
              pExchangeInfo->rowsOfCurrentSource, pExchangeInfo->totalRows);
 
@@ -5206,6 +5205,11 @@ static SSDataBlock* doLoadRemoteData(void* param, bool* newgroup) {
       pExchangeInfo->current += 1;
 
       if (pExchangeInfo->current >= totalSources) {
+        int64_t el = taosGetTimestampUs() - startTs;
+        pExchangeInfo->totalElapsed += el;
+
+        qDebug("%s all %"PRIzu" sources are exhausted, total rows: %"PRIu64" bytes:%"PRIu64", elapsed:%.2f ms", pTaskInfo->id.idstr, totalSources,
+               pExchangeInfo->totalRows, pExchangeInfo->totalSize, pExchangeInfo->totalElapsed/1000.0);
         return NULL;
       } else {
         continue;
@@ -5232,21 +5236,24 @@ static SSDataBlock* doLoadRemoteData(void* param, bool* newgroup) {
     pRes->info.numOfCols = pOperator->numOfOutput;
     pRes->info.rows = pRsp->numOfRows;
 
+    int64_t el = taosGetTimestampUs() - startTs;
+
     pExchangeInfo->totalRows += pRsp->numOfRows;
-    pExchangeInfo->bytes += pRsp->compLen;
+    pExchangeInfo->totalSize += pRsp->compLen;
     pExchangeInfo->rowsOfCurrentSource += pRsp->numOfRows;
+    pExchangeInfo->totalElapsed += el;
 
     if (pRsp->completed == 1) {
-      qDebug("QID:0x%" PRIx64 " fetch msg rsp from vgId:%d, taskId:0x%" PRIx64 " numOfRows:%d, rowsOfSource:%" PRIu64
+      qDebug("%s fetch msg rsp from vgId:%d, taskId:0x%" PRIx64 " numOfRows:%d, rowsOfSource:%" PRIu64
              ", totalRows:%" PRIu64 ", totalBytes:%" PRIu64 " try next %d/%" PRIzu,
-             GET_TASKID(pTaskInfo), pSource->addr.nodeId, pSource->taskId, pRes->info.rows, pExchangeInfo->rowsOfCurrentSource, pExchangeInfo->totalRows, pExchangeInfo->bytes,
+             GET_TASKID(pTaskInfo), pSource->addr.nodeId, pSource->taskId, pRes->info.rows, pExchangeInfo->rowsOfCurrentSource, pExchangeInfo->totalRows, pExchangeInfo->totalSize,
              pExchangeInfo->current + 1, totalSources);
 
       pExchangeInfo->rowsOfCurrentSource = 0;
       pExchangeInfo->current += 1;
     } else {
-      qDebug("QID:0x%" PRIx64 " fetch msg rsp from vgId:%d, taskId:0x%" PRIx64 " numOfRows:%d, totalRows:%" PRIu64 ", totalBytes:%" PRIu64,
-             GET_TASKID(pTaskInfo), pSource->addr.nodeId, pSource->taskId, pRes->info.rows, pExchangeInfo->totalRows, pExchangeInfo->bytes);
+      qDebug("%s fetch msg rsp from vgId:%d, taskId:0x%" PRIx64 " numOfRows:%d, totalRows:%" PRIu64 ", totalBytes:%" PRIu64,
+             GET_TASKID(pTaskInfo), pSource->addr.nodeId, pSource->taskId, pRes->info.rows, pExchangeInfo->totalRows, pExchangeInfo->totalSize);
     }
 
     return pExchangeInfo->pResult;
@@ -5293,7 +5300,7 @@ SOperatorInfo* createExchangeOperatorInfo(const SArray* pSources, const SArray* 
     SRpcInit rpcInit;
     memset(&rpcInit, 0, sizeof(rpcInit));
     rpcInit.localPort = 0;
-    rpcInit.label = "TSC";
+    rpcInit.label = "EX";
     rpcInit.numOfThreads = 1;
     rpcInit.cfp = processRspMsg;
     rpcInit.sessions = tsMaxConnections;
@@ -7728,32 +7735,38 @@ static int32_t deserializeColFilterInfo(SColumnFilterInfo* pColFilters, int16_t 
   return TSDB_CODE_SUCCESS;
 }
 
-static SExecTaskInfo* createExecTaskInfo(uint64_t queryId) {
+static SExecTaskInfo* createExecTaskInfo(uint64_t queryId, uint64_t taskId) {
   SExecTaskInfo* pTaskInfo = calloc(1, sizeof(SExecTaskInfo));
   setTaskStatus(pTaskInfo, TASK_NOT_COMPLETED);
 
   pTaskInfo->cost.created = taosGetTimestampMs();
   pTaskInfo->id.queryId = queryId;
+  pTaskInfo->id.taskId  = taskId;
+
+  char* p = calloc(1, 128);
+  snprintf(p, 128, "TID:0x%"PRIx64" QID:0x%"PRIx64, taskId, queryId);
+  pTaskInfo->id.idstr = strdup(p);
+
   return pTaskInfo;
 }
 
-static tsdbReadHandleT doCreateDataReadHandle(STableScanPhyNode* pTableScanNode, void* readerHandle, uint64_t queryId);
+static tsdbReadHandleT doCreateDataReadHandle(STableScanPhyNode* pTableScanNode, void* readerHandle, uint64_t queryId, uint64_t taskId);
 
-SOperatorInfo* doCreateOperatorTreeNode(SPhyNode* pPhyNode, SExecTaskInfo* pTaskInfo, void* readerHandle, uint64_t queryId) {
+SOperatorInfo* doCreateOperatorTreeNode(SPhyNode* pPhyNode, SExecTaskInfo* pTaskInfo, void* readerHandle, uint64_t queryId, uint64_t taskId) {
   if (pPhyNode->pChildren == NULL || taosArrayGetSize(pPhyNode->pChildren) == 0) {
     if (pPhyNode->info.type == OP_TableScan) {
 
       SScanPhyNode*  pScanPhyNode = (SScanPhyNode*)pPhyNode;
       size_t         numOfCols = taosArrayGetSize(pPhyNode->pTargets);
 
-      tsdbReadHandleT tReaderHandle = doCreateDataReadHandle((STableScanPhyNode*) pPhyNode, readerHandle, (uint64_t) queryId);
+      tsdbReadHandleT tReaderHandle = doCreateDataReadHandle((STableScanPhyNode*) pPhyNode, readerHandle, (uint64_t) queryId, taskId);
 
       return createTableScanOperatorInfo(tReaderHandle, pScanPhyNode->order, numOfCols, pScanPhyNode->count, pTaskInfo);
     } else if (pPhyNode->info.type == OP_DataBlocksOptScan) {
       SScanPhyNode*  pScanPhyNode = (SScanPhyNode*)pPhyNode;
       size_t         numOfCols = taosArrayGetSize(pPhyNode->pTargets);
 
-      tsdbReadHandleT tReaderHandle = doCreateDataReadHandle((STableScanPhyNode*) pPhyNode, readerHandle, (uint64_t) queryId);
+      tsdbReadHandleT tReaderHandle = doCreateDataReadHandle((STableScanPhyNode*) pPhyNode, readerHandle, (uint64_t) queryId, taskId);
 
       return createDataBlocksOptScanInfo(tReaderHandle, pScanPhyNode->order, numOfCols, pScanPhyNode->count, pScanPhyNode->reverse, pTaskInfo);
     } else if (pPhyNode->info.type == OP_Exchange) {
@@ -7771,13 +7784,13 @@ SOperatorInfo* doCreateOperatorTreeNode(SPhyNode* pPhyNode, SExecTaskInfo* pTask
 
     for (int32_t i = 0; i < size; ++i) {
       SPhyNode*      pChildNode = taosArrayGetP(pPhyNode->pChildren, i);
-      SOperatorInfo* op = doCreateOperatorTreeNode(pChildNode, pTaskInfo, readerHandle, queryId);
+      SOperatorInfo* op = doCreateOperatorTreeNode(pChildNode, pTaskInfo, readerHandle, queryId, taskId);
       return createAggregateOperatorInfo(op, pPhyNode->pTargets, pTaskInfo);
     }
   }
 }
 
-static tsdbReadHandleT createDataReadHandle(STableScanPhyNode* pTableScanNode, STableGroupInfo* pGroupInfo, void* readerHandle, uint64_t queryId) {
+static tsdbReadHandleT createDataReadHandle(STableScanPhyNode* pTableScanNode, STableGroupInfo* pGroupInfo, void* readerHandle, uint64_t queryId, uint64_t taskId) {
   STsdbQueryCond cond = {.loadExternalRows = false};
 
   cond.order = pTableScanNode->scan.order;
@@ -7796,10 +7809,10 @@ static tsdbReadHandleT createDataReadHandle(STableScanPhyNode* pTableScanNode, S
     cond.colList[i].colId = pSchema->colId;
   }
 
-  return tsdbQueryTables(readerHandle, &cond, pGroupInfo, queryId, NULL);
+  return tsdbQueryTables(readerHandle, &cond, pGroupInfo, queryId, taskId);
 }
 
-static tsdbReadHandleT doCreateDataReadHandle(STableScanPhyNode* pTableScanNode, void* readerHandle, uint64_t queryId) {
+static tsdbReadHandleT doCreateDataReadHandle(STableScanPhyNode* pTableScanNode, void* readerHandle, uint64_t queryId, uint64_t taskId) {
   int32_t         code = 0;
   STableGroupInfo groupInfo = {0};
 
@@ -7826,28 +7839,28 @@ static tsdbReadHandleT doCreateDataReadHandle(STableScanPhyNode* pTableScanNode,
 
   if (groupInfo.numOfTables == 0) {
     code = 0;
-    qDebug("no table qualified for query, reqId:0x%"PRIx64, queryId);
+    qDebug("no table qualified for query, TID:0x%"PRIx64", QID:0x%"PRIx64, taskId, queryId);
     goto _error;
   }
 
-  return createDataReadHandle(pTableScanNode, &groupInfo, readerHandle, queryId);
+  return createDataReadHandle(pTableScanNode, &groupInfo, readerHandle, queryId, taskId);
 
   _error:
   terrno = code;
   return NULL;
 }
 
-int32_t createExecTaskInfoImpl(SSubplan* pPlan, SExecTaskInfo** pTaskInfo, void* readerHandle) {
+int32_t createExecTaskInfoImpl(SSubplan* pPlan, SExecTaskInfo** pTaskInfo, void* readerHandle, uint64_t taskId) {
   uint64_t queryId = pPlan->id.queryId;
 
   int32_t code = TSDB_CODE_SUCCESS;
-  *pTaskInfo = createExecTaskInfo(queryId);
+  *pTaskInfo = createExecTaskInfo(queryId, taskId);
   if (*pTaskInfo == NULL) {
     code = TSDB_CODE_QRY_OUT_OF_MEMORY;
     goto _complete;
   }
 
-  (*pTaskInfo)->pRoot = doCreateOperatorTreeNode(pPlan->pNode, *pTaskInfo, readerHandle, queryId);
+  (*pTaskInfo)->pRoot = doCreateOperatorTreeNode(pPlan->pNode, *pTaskInfo, readerHandle, queryId, taskId);
   if ((*pTaskInfo)->pRoot == NULL) {
     code = TSDB_CODE_QRY_OUT_OF_MEMORY;
     goto _complete;
@@ -8814,70 +8827,13 @@ void* freeColumnInfo(SColumnInfo* pColumnInfo, int32_t numOfCols) {
 }
 
 void doDestroyTask(SExecTaskInfo *pTaskInfo) {
-  qDebug("QID:0x%"PRIx64" start to free execTask", pTaskInfo->id.queryId);
+  qDebug("%s start to free execTask", GET_TASKID(pTaskInfo));
   doDestroyTableQueryInfo(&pTaskInfo->tableqinfoGroupInfo);
 //  taosArrayDestroy(pTaskInfo->summary.queryProfEvents);
 //  taosHashCleanup(pTaskInfo->summary.operatorProfResults);
 
-  qDebug("QID:0x%"PRIx64" execTask is freed", pTaskInfo->id.queryId);
+  qDebug("%s execTask is freed", GET_TASKID(pTaskInfo));
   tfree(pTaskInfo);
-}
-
-int32_t doDumpQueryResult(SQInfo *pQInfo, char *data, int8_t compressed, int32_t *compLen) {
-  // the remained number of retrieved rows, not the interpolated result
-  STaskRuntimeEnv* pRuntimeEnv = &pQInfo->runtimeEnv;
-  STaskAttr *pQueryAttr = pQInfo->runtimeEnv.pQueryAttr;
-
-  // load data from file to msg buffer
-  if (pQueryAttr->tsCompQuery) {
-    SColumnInfoData* pColInfoData = taosArrayGet(pRuntimeEnv->outputBuf->pDataBlock, 0);
-    FILE *f = *(FILE **)pColInfoData->pData;  // TODO refactor
-
-    // make sure file exist
-    if (f) {
-      off_t s = lseek(fileno(f), 0, SEEK_END);
-      assert(s == pRuntimeEnv->outputBuf->info.rows);
-
-      //qDebug("QInfo:0x%"PRIx64" ts comp data return, file:%p, size:%"PRId64, pQInfo->qId, f, (uint64_t)s);
-      if (fseek(f, 0, SEEK_SET) >= 0) {
-        size_t sz = fread(data, 1, s, f);
-        if(sz < s) {  // todo handle error
-          //qError("fread(f:%p,%d) failed, rsize:%" PRId64 ", expect size:%" PRId64, f, fileno(f), (uint64_t)sz, (uint64_t)s);
-          assert(0);
-        }
-      } else {
-        UNUSED(s);
-        //qError("fseek(f:%p,%d) failed, error:%s", f, fileno(f), strerror(errno));
-        assert(0);
-      }
-
-      // dump error info
-      if (s <= (sizeof(STSBufFileHeader) + sizeof(STSGroupBlockInfo) + 6 * sizeof(int32_t))) {
-//        qDump(data, s);
-        assert(0);
-      }
-
-      fclose(f);
-      *(FILE **)pColInfoData->pData = NULL;
-    }
-
-    // all data returned, set query over
-    if (Q_STATUS_EQUAL(pRuntimeEnv->status, TASK_COMPLETED)) {
-//      setTaskStatus(pOperator->pTaskInfo, QUERY_OVER);
-    }
-  } else {
-    doCopyQueryResultToMsg(pQInfo, (int32_t)pRuntimeEnv->outputBuf->info.rows, data, compressed, compLen);
-  }
-
-  //qDebug("QInfo:0x%"PRIx64" current numOfRes rows:%d, total:%" PRId64, pQInfo->qId,
-//         pRuntimeEnv->outputBuf->info.rows, pRuntimeEnv->resultInfo.total);
-
-  if (pQueryAttr->limit.limit > 0 && pQueryAttr->limit.limit == pRuntimeEnv->resultInfo.total) {
-    //qDebug("QInfo:0x%"PRIx64" results limitation reached, limitation:%"PRId64, pQInfo->qId, pQueryAttr->limit.limit);
-//    setTaskStatus(pOperator->pTaskInfo, QUERY_OVER);
-  }
-
-  return TSDB_CODE_SUCCESS;
 }
 
 bool doBuildResCheck(SQInfo* pQInfo) {

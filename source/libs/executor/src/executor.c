@@ -50,11 +50,11 @@ int32_t qSetStreamInput(qTaskInfo_t tinfo, void* input) {
 
   SExecTaskInfo* pTaskInfo = (SExecTaskInfo*) tinfo;
 
-  int32_t code = doSetStreamBlock(pTaskInfo->pRoot, input, GET_TASKID(pTaskInfo));
+  int32_t code = doSetStreamBlock(pTaskInfo->pRoot, input, pTaskInfo->id.queryId);
   if (code != TSDB_CODE_SUCCESS) {
-    qError("failed to set the stream block data, reqId:0x%"PRIx64, GET_TASKID(pTaskInfo));
+    qError("%s failed to set the stream block data", GET_TASKID(pTaskInfo));
   } else {
-    qDebug("set the stream block successfully, reqId:0x%"PRIx64, GET_TASKID(pTaskInfo));
+    qDebug("%s set the stream block successfully", GET_TASKID(pTaskInfo));
   }
 
   return code;
@@ -81,7 +81,7 @@ qTaskInfo_t qCreateStreamExecTaskInfo(void* msg, void* streamReadHandle) {
   }
 
   qTaskInfo_t pTaskInfo = NULL;
-  code = qCreateExecTask(streamReadHandle, 0, plan, &pTaskInfo, NULL);
+  code = qCreateExecTask(streamReadHandle, 0, 0, plan, &pTaskInfo, NULL);
   if (code != TSDB_CODE_SUCCESS) {
     // TODO: destroy SSubplan & pTaskInfo
     terrno = code;

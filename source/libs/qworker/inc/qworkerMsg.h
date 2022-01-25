@@ -32,7 +32,7 @@ int32_t qwProcessDrop(SQWorkerMgmt *mgmt, uint64_t sId, uint64_t qId, uint64_t t
 int32_t qwBuildAndSendDropRsp(void *connection, int32_t code);
 int32_t qwBuildAndSendCancelRsp(SRpcMsg *pMsg, int32_t code);
 int32_t qwBuildAndSendFetchRsp(void *connection, SRetrieveTableRsp *pRsp, int32_t dataLength, int32_t code);
-void qwBuildFetchRsp(void *msg, SOutputData *input, int32_t len);
+void qwBuildFetchRsp(void *msg, SOutputData *input, int32_t len, bool qComplete);
 int32_t qwBuildAndSendCQueryMsg(SQWorkerMgmt *mgmt, uint64_t sId, uint64_t qId, uint64_t tId, void *connection);
 int32_t qwBuildAndSendSchSinkMsg(SQWorkerMgmt *mgmt, uint64_t sId, uint64_t qId, uint64_t tId, void *connection);
 int32_t qwBuildAndSendReadyRsp(void *connection, int32_t code);

@@ -73,8 +73,8 @@ static int vnodeGetTableMeta(SVnode *pVnode, SRpcMsg *pMsg) {
   tb_uid_t        uid;
   int32_t         nCols;
   int32_t         nTagCols;
-  SSchemaWrapper *pSW;
-  STableMetaRsp * pTbMetaMsg = NULL;
+  SSchemaWrapper *pSW = NULL;
+  STableMetaRsp  *pTbMetaMsg = NULL;
   SSchema *       pTagSchema;
   SRpcMsg         rpcMsg;
   int             msgLen = 0;
@@ -145,15 +145,22 @@ static int vnodeGetTableMeta(SVnode *pVnode, SRpcMsg *pMsg) {
 
 _exit:
 
-  free(pSW->pSchema);
-  free(pSW);
-  free(pTbCfg->name);
-  free(pTbCfg);
-  if (pTbCfg->type == META_SUPER_TABLE) {
-    free(pTbCfg->stbCfg.pTagSchema);
-  } else if (pTbCfg->type == META_SUPER_TABLE) {
-    kvRowFree(pTbCfg->ctbCfg.pTag);
+  if (pSW != NULL) {
+    tfree(pSW->pSchema);
+    tfree(pSW);
   }
+
+  if (pTbCfg) {
+    tfree(pTbCfg->name);
+    if (pTbCfg->type == META_SUPER_TABLE) {
+      free(pTbCfg->stbCfg.pTagSchema);
+    } else if (pTbCfg->type == META_SUPER_TABLE) {
+      kvRowFree(pTbCfg->ctbCfg.pTag);
+    }
+
+    tfree(pTbCfg);
+  }
+
   rpcMsg.handle = pMsg->handle;
   rpcMsg.ahandle = pMsg->ahandle;
   rpcMsg.pCont = pTbMetaMsg;
