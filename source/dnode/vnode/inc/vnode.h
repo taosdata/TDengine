@@ -159,20 +159,18 @@ int vnodeProcessSyncReq(SVnode *pVnode, SRpcMsg *pMsg, SRpcMsg **pRsp);
  *
  * @param pVnode The vnode object.
  * @param pMsg The request message
- * @param pRsp The response message
  * @return int 0 for success, -1 for failure
  */
-int vnodeProcessQueryReq(SVnode *pVnode, SRpcMsg *pMsg, SRpcMsg **pRsp);
+int vnodeProcessQueryMsg(SVnode *pVnode, SRpcMsg *pMsg);
 
 /**
  * @brief Process a fetch message.
  *
  * @param pVnode The vnode object.
  * @param pMsg The request message
- * @param pRsp The response message
  * @return int 0 for success, -1 for failure
  */
-int vnodeProcessFetchReq(SVnode *pVnode, SRpcMsg *pMsg, SRpcMsg **pRsp);
+int vnodeProcessFetchMsg(SVnode *pVnode, SRpcMsg *pMsg);
 
 /* ------------------------ SVnodeCfg ------------------------ */
 /**

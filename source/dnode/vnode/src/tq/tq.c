@@ -667,8 +667,8 @@ int tqItemSSize() {
 }
 #endif
 
-int32_t tqProcessConsumeReq(STQ* pTq, SRpcMsg* pMsg, SRpcMsg** ppRsp) {
-  SMqConsumeReq* pReq = pMsg->pCont;
+int32_t tqProcessConsumeReq(STQ* pTq, SRpcMsg* pMsg) {
+  SMqConsumeReq*   pReq = pMsg->pCont;
   SRpcMsg          rpcMsg;
   int64_t          reqId = pReq->reqId;
   int64_t          consumerId = pReq->consumerId;
