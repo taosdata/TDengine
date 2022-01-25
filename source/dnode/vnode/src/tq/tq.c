@@ -735,23 +735,6 @@ int32_t tqProcessConsumeReq(STQ* pTq, SRpcMsg* pMsg, SRpcMsg** ppRsp) {
         break;
       }
       if (pDataBlock != NULL) {
-        SMqTbData tbData = {
-          .uid = pDataBlock->info.uid,
-          .numOfCols = pDataBlock->info.numOfCols,
-          .numOfRows = pDataBlock->info.rows,
-        };
-        for (int i = 0; i < pDataBlock->info.numOfCols; i++) {
-          SColumnInfoData* pColData = taosArrayGet(pDataBlock->pDataBlock, i);
-          int32_t sz = pColData->info.bytes * pDataBlock->info.rows;
-          SMqColData colData = {
-            .bytes = pColData->info.bytes,
-            .colId = pColData->info.colId,
-            .type = pColData->info.type,
-          };
-          memcpy(colData.data, pColData->pData, colData.bytes * pDataBlock->info.rows);
-          memcpy(&tbData.colData[i], &colData, sz);
-        }
-        /*pDataBlock->info.*/
         taosArrayPush(pRes, pDataBlock);
       } else {
         break;

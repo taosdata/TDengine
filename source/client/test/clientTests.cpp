@@ -591,7 +591,7 @@ TEST(testCase, tmq_subscribe_Test) {
   while (1) {
     tmq_message_t* msg = tmq_consume_poll(tmq, 0);
     printf("get msg\n");
-    if (msg == NULL) break;
+    //if (msg == NULL) break;
   }
 }
 

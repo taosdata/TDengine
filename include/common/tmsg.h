@@ -1596,34 +1596,37 @@ typedef struct SMqColData {
   int16_t colId;
   int16_t type;
   int16_t bytes;
-  char    data[];
-} SMqColData;
+} SMqColMeta;
 
 typedef struct SMqTbData {
   int64_t    uid;
-  int32_t    numOfCols;
   int32_t    numOfRows;
-  SMqColData colData[];
+  char       colData[];
 } SMqTbData;
 
 typedef struct SMqTopicBlk {
-  char      topicName[TSDB_TOPIC_FNAME_LEN];
-  int64_t   committedOffset;
-  int64_t   reqOffset;
-  int64_t   rspOffset;
-  int32_t   skipLogNum;
-  int32_t   bodyLen;
-  int32_t   numOfTb;
-  SMqTbData tbData[];
+  char       topicName[TSDB_TOPIC_FNAME_LEN];
+  int64_t    committedOffset;
+  int64_t    reqOffset;
+  int64_t    rspOffset;
+  int32_t    skipLogNum;
+  int32_t    bodyLen;
+  int32_t    numOfTb;
+  SMqTbData* tbData;
 } SMqTopicData;
 
 typedef struct SMqConsumeRsp {
-  int64_t      reqId;
-  int64_t      consumerId;
-  int32_t      bodyLen;
-  int32_t      numOfTopics;
-  SMqTopicData data[];
+  int64_t       consumerId;
+  int32_t       numOfCols;
+  SMqColMeta*   meta;
+  int32_t       numOfTopics;
+  SMqTopicData* data;
 } SMqConsumeRsp;
+
+static FORCE_INLINE int32_t tEncodeSMqConsumeRsp(void** buf, const SMqConsumeRsp* pRsp) {
+  int32_t tlen = 0;
+  return tlen;
+}
 
 // one req for one vg+topic
 typedef struct SMqConsumeReq {

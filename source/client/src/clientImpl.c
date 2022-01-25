@@ -328,6 +328,7 @@ struct tmq_t {
   char           clientId[256];
   int64_t        consumerId;
   int64_t        status;
+  tsem_t         rspSem;
   STscObj*       pTscObj;
   tmq_commit_cb* commit_cb;
   int32_t        nextTopicIdx;
@@ -344,6 +345,7 @@ tmq_t* taos_consumer_new(void* conn, tmq_conf_t* conf, char* errstr, int32_t err
   strcpy(pTmq->clientId, conf->clientId);
   strcpy(pTmq->groupId, conf->groupId);
   pTmq->commit_cb = conf->commit_cb;
+  tsem_init(&pTmq->rspSem, 0, 0);
   pTmq->consumerId = generateRequestId() & ((uint64_t)-1 >> 1);
   pTmq->clientTopics = taosArrayInit(0, sizeof(SMqClientTopic));
   return pTmq;
@@ -371,6 +373,14 @@ int32_t tmq_list_append(tmq_list_t* ptr, char* src) {
   return 0;
 }
 
+
+int32_t tmq_null_cb(void* param, const SDataBuf* pMsg, int32_t code)  {
+  if (code == 0) {
+    //
+  }
+  //
+  return 0;
+}
 
 TAOS_RES* tmq_subscribe(tmq_t* tmq, tmq_list_t* topic_list) {
   SRequestObj *pRequest = NULL;
@@ -433,6 +443,7 @@ TAOS_RES* tmq_subscribe(tmq_t* tmq, tmq_list_t* topic_list) {
   pRequest->body.requestMsg = (SDataBuf){ .pData = buf, .len = tlen };
 
   SMsgSendInfo* sendInfo = buildMsgInfoImpl(pRequest);
+  /*sendInfo->fp*/
   SEpSet epSet = getEpSet_s(&tmq->pTscObj->pAppInfo->mgmtEp);
 
   int64_t transporterId = 0;
@@ -641,6 +652,7 @@ int32_t tmq_ask_ep_cb(void* param, const SDataBuf* pMsg, int32_t code) {
   }
   if(set) tmq->status = 1;
   // unlock
+  tsem_post(&tmq->rspSem);
   return 0;
 }
 
@@ -679,7 +691,7 @@ tmq_message_t* tmq_consume_poll(tmq_t* tmq, int64_t blocking_time) {
     int64_t transporterId = 0;
     asyncSendMsgToServer(tmq->pTscObj->pAppInfo->pTransporter, &epSet, &transporterId, sendInfo);
 
-    tsem_wait(&pRequest->body.rspSem);
+    tsem_wait(&tmq->rspSem);
   }
 
   if (taosArrayGetSize(tmq->clientTopics) == 0) {
@@ -695,13 +707,13 @@ tmq_message_t* tmq_consume_poll(tmq_t* tmq, int64_t blocking_time) {
   SMqClientVg* pVg = taosArrayGet(pTopic->vgs, nextVgIdx);
   req.offset = pVg->currentOffset;
 
+  pRequest = createRequest(tmq->pTscObj, NULL, NULL, TDMT_VND_CONSUME);
   pRequest->body.requestMsg = (SDataBuf){ .pData = &req, .len = sizeof(SMqConsumeReq) };
-  pRequest->type = TDMT_VND_CONSUME;
 
   SMsgSendInfo* sendInfo = buildMsgInfoImpl(pRequest);
-  sendInfo->requestObjRefId = 0;
-  sendInfo->param = &tmq_message;
-  sendInfo->fp = tmq_poll_cb_inner;
+  /*sendInfo->requestObjRefId = 0;*/
+  /*sendInfo->param = &tmq_message;*/
+  /*sendInfo->fp = tmq_poll_cb_inner;*/
 
   int64_t transporterId = 0;
   asyncSendMsgToServer(tmq->pTscObj->pAppInfo->pTransporter, &pVg->epSet, &transporterId, sendInfo);
