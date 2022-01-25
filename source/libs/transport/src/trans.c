@@ -55,7 +55,13 @@ void* rpcMallocCont(int contLen) {
   }
   return start + sizeof(STransMsgHead);
 }
-void  rpcFreeCont(void* cont) { return; }
+void rpcFreeCont(void* cont) {
+  // impl
+  if (cont == NULL) {
+    return;
+  }
+  free((char*)cont - TRANS_MSG_OVERHEAD);
+}
 void* rpcReallocCont(void* ptr, int contLen) { return NULL; }
 
 void rpcSendRedirectRsp(void* pConn, const SEpSet* pEpSet) {}
