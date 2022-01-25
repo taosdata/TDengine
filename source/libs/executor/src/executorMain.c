@@ -154,7 +154,7 @@ int32_t qExecTask(qTaskInfo_t tinfo, SSDataBlock** pRes, uint64_t *useconds) {
   }
 
   if (isTaskKilled(pTaskInfo)) {
-    qDebug("%s it is already killed, abort", GET_TASKID(pTaskInfo));
+    qDebug("%s already killed, abort", GET_TASKID(pTaskInfo));
     return TSDB_CODE_SUCCESS;
   }
 
@@ -163,12 +163,12 @@ int32_t qExecTask(qTaskInfo_t tinfo, SSDataBlock** pRes, uint64_t *useconds) {
   if (ret != TSDB_CODE_SUCCESS) {
     publishQueryAbortEvent(pTaskInfo, ret);
     pTaskInfo->code = ret;
-    qDebug("%s query abort due to error/cancel occurs, code:%s", GET_TASKID(pTaskInfo),
+    qDebug("%s task abort due to error/cancel occurs, code:%s", GET_TASKID(pTaskInfo),
            tstrerror(pTaskInfo->code));
     return pTaskInfo->code;
   }
 
-  qDebug("%s query task is launched", GET_TASKID(pTaskInfo));
+  qDebug("%s execTask is launched", GET_TASKID(pTaskInfo));
 
   bool newgroup = false;
   publishOperatorProfEvent(pTaskInfo->pRoot, QUERY_PROF_BEFORE_OPERATOR_EXEC);
@@ -177,7 +177,9 @@ int32_t qExecTask(qTaskInfo_t tinfo, SSDataBlock** pRes, uint64_t *useconds) {
   st = taosGetTimestampUs();
   *pRes = pTaskInfo->pRoot->exec(pTaskInfo->pRoot, &newgroup);
 
-  pTaskInfo->cost.elapsedTime += (taosGetTimestampUs() - st);
+  uint64_t el = (taosGetTimestampUs() - st);
+  pTaskInfo->cost.elapsedTime += el;
+
   publishOperatorProfEvent(pTaskInfo->pRoot, QUERY_PROF_AFTER_OPERATOR_EXEC);
 
   if (NULL == *pRes) {
@@ -187,8 +189,8 @@ int32_t qExecTask(qTaskInfo_t tinfo, SSDataBlock** pRes, uint64_t *useconds) {
   int32_t current = (*pRes != NULL)? (*pRes)->info.rows:0;
   pTaskInfo->totalRows += current;
 
-  qDebug("%s task paused, %d rows returned, total:%" PRId64 " rows, in sinkNode:%d",
-         GET_TASKID(pTaskInfo), current, pTaskInfo->totalRows, 0);
+  qDebug("%s task suspended, %d rows returned, total:%" PRId64 " rows, in sinkNode:%d, elapsed:%.2f ms",
+         GET_TASKID(pTaskInfo), current, pTaskInfo->totalRows, 0, el/1000.0);
 
   atomic_store_64(&pTaskInfo->owner, 0);
   return pTaskInfo->code;

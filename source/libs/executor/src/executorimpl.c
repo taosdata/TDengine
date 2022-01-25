@@ -5146,6 +5146,8 @@ static SSDataBlock* doLoadRemoteData(void* param, bool* newgroup) {
 
   size_t totalSources = taosArrayGetSize(pExchangeInfo->pSources);
   if (pExchangeInfo->current >= totalSources) {
+    qDebug("%s all %"PRIzu" source(s) are exhausted, total rows:%"PRIu64" bytes:%"PRIu64", elapsed:%.2f ms", pTaskInfo->id.idstr, totalSources,
+           pExchangeInfo->totalRows, pExchangeInfo->totalSize, pExchangeInfo->totalElapsed/1000.0);
     return NULL;
   }
 
@@ -5166,6 +5168,7 @@ static SSDataBlock* doLoadRemoteData(void* param, bool* newgroup) {
     epSet.port[0] = pSource->addr.epAddr[0].port;
     tstrncpy(epSet.fqdn[0], pSource->addr.epAddr[0].fqdn, tListLen(epSet.fqdn[0]));
 
+    int64_t startTs = taosGetTimestampUs();
     qDebug("%s build fetch msg and send to vgId:%d, ep:%s, taskId:0x%" PRIx64 ", %d/%" PRIzu,
            GET_TASKID(pTaskInfo), pSource->addr.nodeId, epSet.fqdn[0], pSource->taskId, pExchangeInfo->current, totalSources);
 
@@ -5202,6 +5205,11 @@ static SSDataBlock* doLoadRemoteData(void* param, bool* newgroup) {
       pExchangeInfo->current += 1;
 
       if (pExchangeInfo->current >= totalSources) {
+        int64_t el = taosGetTimestampUs() - startTs;
+        pExchangeInfo->totalElapsed += el;
+
+        qDebug("%s all %"PRIzu" sources are exhausted, total rows: %"PRIu64" bytes:%"PRIu64", elapsed:%.2f ms", pTaskInfo->id.idstr, totalSources,
+               pExchangeInfo->totalRows, pExchangeInfo->totalSize, pExchangeInfo->totalElapsed/1000.0);
         return NULL;
       } else {
         continue;
@@ -5228,21 +5236,24 @@ static SSDataBlock* doLoadRemoteData(void* param, bool* newgroup) {
     pRes->info.numOfCols = pOperator->numOfOutput;
     pRes->info.rows = pRsp->numOfRows;
 
+    int64_t el = taosGetTimestampUs() - startTs;
+
     pExchangeInfo->totalRows += pRsp->numOfRows;
-    pExchangeInfo->bytes += pRsp->compLen;
+    pExchangeInfo->totalSize += pRsp->compLen;
     pExchangeInfo->rowsOfCurrentSource += pRsp->numOfRows;
+    pExchangeInfo->totalElapsed += el;
 
     if (pRsp->completed == 1) {
       qDebug("%s fetch msg rsp from vgId:%d, taskId:0x%" PRIx64 " numOfRows:%d, rowsOfSource:%" PRIu64
              ", totalRows:%" PRIu64 ", totalBytes:%" PRIu64 " try next %d/%" PRIzu,
-             GET_TASKID(pTaskInfo), pSource->addr.nodeId, pSource->taskId, pRes->info.rows, pExchangeInfo->rowsOfCurrentSource, pExchangeInfo->totalRows, pExchangeInfo->bytes,
+             GET_TASKID(pTaskInfo), pSource->addr.nodeId, pSource->taskId, pRes->info.rows, pExchangeInfo->rowsOfCurrentSource, pExchangeInfo->totalRows, pExchangeInfo->totalSize,
              pExchangeInfo->current + 1, totalSources);
 
       pExchangeInfo->rowsOfCurrentSource = 0;
       pExchangeInfo->current += 1;
     } else {
       qDebug("%s fetch msg rsp from vgId:%d, taskId:0x%" PRIx64 " numOfRows:%d, totalRows:%" PRIu64 ", totalBytes:%" PRIu64,
-             GET_TASKID(pTaskInfo), pSource->addr.nodeId, pSource->taskId, pRes->info.rows, pExchangeInfo->totalRows, pExchangeInfo->bytes);
+             GET_TASKID(pTaskInfo), pSource->addr.nodeId, pSource->taskId, pRes->info.rows, pExchangeInfo->totalRows, pExchangeInfo->totalSize);
     }
 
     return pExchangeInfo->pResult;
@@ -5289,7 +5300,7 @@ SOperatorInfo* createExchangeOperatorInfo(const SArray* pSources, const SArray* 
     SRpcInit rpcInit;
     memset(&rpcInit, 0, sizeof(rpcInit));
     rpcInit.localPort = 0;
-    rpcInit.label = "TSC";
+    rpcInit.label = "EX";
     rpcInit.numOfThreads = 1;
     rpcInit.cfp = processRspMsg;
     rpcInit.sessions = tsMaxConnections;

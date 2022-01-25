@@ -467,11 +467,11 @@ int32_t qwExecTask(QW_FPARAMS_DEF, SQWTaskCtx *ctx) {
   DataSinkHandle sinkHandle = ctx->sinkHandle;
  
   while (true) {
-    QW_TASK_DLOG("start to execTask in executor, loopIdx:%d", i++);
+    QW_TASK_DLOG("start to execTask, loopIdx:%d", i++);
     
     code = qExecTask(*taskHandle, &pRes, &useconds);
     if (code) {
-      QW_TASK_ELOG("qExecTask failed, code:%x", code);
+      QW_TASK_ELOG("qExecTask failed, code:%s", tstrerror(code));
       QW_ERR_JRET(code);
     }
 

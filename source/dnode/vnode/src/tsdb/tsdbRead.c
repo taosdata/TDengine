@@ -417,7 +417,7 @@ static STsdbReadHandle* tsdbQueryTablesImpl(STsdb* tsdb, STsdbQueryCond* pCond, 
   pReadHandle->currentLoadExternalRows = pCond->loadExternalRows;
 
   char buf[128] = {0};
-  snprintf(buf, tListLen(buf), "0x%"PRIx64" 0x%"PRIx64, taskId, qId);
+  snprintf(buf, tListLen(buf), "TID:0x%"PRIx64" QID:0x%"PRIx64, taskId, qId);
   pReadHandle->idStr = strdup(buf);
 
   if (tsdbInitReadH(&pReadHandle->rhelper, (STsdb*)tsdb) != 0) {

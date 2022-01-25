@@ -378,8 +378,10 @@ typedef struct SExchangeInfo {
   SSDataBlock       *pResult;
   int32_t            current;
   uint64_t           rowsOfCurrentSource;
-  uint64_t           bytes;   // total load bytes from remote
-  uint64_t           totalRows;
+
+  uint64_t           totalSize;   // total load bytes from remote
+  uint64_t           totalRows;   // total number of rows
+  uint64_t           totalElapsed;// total elapsed time
 } SExchangeInfo;
 
 typedef struct STableScanInfo {
