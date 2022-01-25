@@ -39,7 +39,7 @@ int32_t dndInitWorker(SDnode *pDnode, SDnodeWorker *pWorker, EWorkerType type, c
       terrno = TSDB_CODE_OUT_OF_MEMORY;
       return -1;
     }
-    pWorker->queue = tQWorkerAllocQueue(pPool, pDnode, (FProcessItem)queueFp);
+    pWorker->queue = tQWorkerAllocQueue(pPool, pDnode, (FItem)queueFp);
     if (pWorker->queue == NULL) {
       terrno = TSDB_CODE_OUT_OF_MEMORY;
       return -1;
@@ -52,7 +52,7 @@ int32_t dndInitWorker(SDnode *pDnode, SDnodeWorker *pWorker, EWorkerType type, c
       terrno = TSDB_CODE_OUT_OF_MEMORY;
       return -1;
     }
-    pWorker->queue = tWWorkerAllocQueue(pPool, pDnode, (FProcessItems)queueFp);
+    pWorker->queue = tWWorkerAllocQueue(pPool, pDnode, (FItems)queueFp);
     if (pWorker->queue == NULL) {
       terrno = TSDB_CODE_OUT_OF_MEMORY;
       return -1;

@@ -253,7 +253,7 @@ static int32_t dndGetVnodesFromFile(SDnode *pDnode, SWrapperCfg **ppCfgs, int32_
     }
 
     for (int32_t i = 0; i < vnodesNum; ++i) {
-      cJSON       *vnode = cJSON_GetArrayItem(vnodes, i);
+      cJSON *      vnode = cJSON_GetArrayItem(vnodes, i);
       SWrapperCfg *pCfg = &pCfgs[i];
 
       cJSON *vgId = cJSON_GetObjectItem(vnode, "vgId");
@@ -382,7 +382,7 @@ static void *dnodeOpenVnodeFunc(void *param) {
     dndReportStartup(pDnode, "open-vnodes", stepDesc);
 
     SVnodeCfg cfg = {.pDnode = pDnode, .pTfs = pDnode->pTfs, .vgId = pCfg->vgId};
-    SVnode   *pImpl = vnodeOpen(pCfg->path, &cfg);
+    SVnode *  pImpl = vnodeOpen(pCfg->path, &cfg);
     if (pImpl == NULL) {
       dError("vgId:%d, failed to open vnode by thread:%d", pCfg->vgId, pThread->threadIndex);
       pThread->failed++;
@@ -948,11 +948,11 @@ static void dndCleanupVnodeWorkers(SDnode *pDnode) {
 static int32_t dndAllocVnodeQueue(SDnode *pDnode, SVnodeObj *pVnode) {
   SVnodesMgmt *pMgmt = &pDnode->vmgmt;
 
-  pVnode->pWriteQ = tWWorkerAllocQueue(&pMgmt->writePool, pVnode, (FProcessItems)dndProcessVnodeWriteQueue);
-  pVnode->pApplyQ = tWWorkerAllocQueue(&pMgmt->writePool, pVnode, (FProcessItems)dndProcessVnodeApplyQueue);
-  pVnode->pSyncQ = tWWorkerAllocQueue(&pMgmt->syncPool, pVnode, (FProcessItems)dndProcessVnodeSyncQueue);
-  pVnode->pFetchQ = tQWorkerAllocQueue(&pMgmt->fetchPool, pVnode, (FProcessItem)dndProcessVnodeFetchQueue);
-  pVnode->pQueryQ = tQWorkerAllocQueue(&pMgmt->queryPool, pVnode, (FProcessItem)dndProcessVnodeQueryQueue);
+  pVnode->pWriteQ = tWWorkerAllocQueue(&pMgmt->writePool, pVnode, (FItems)dndProcessVnodeWriteQueue);
+  pVnode->pApplyQ = tWWorkerAllocQueue(&pMgmt->writePool, pVnode, (FItems)dndProcessVnodeApplyQueue);
+  pVnode->pSyncQ = tWWorkerAllocQueue(&pMgmt->syncPool, pVnode, (FItems)dndProcessVnodeSyncQueue);
+  pVnode->pFetchQ = tQWorkerAllocQueue(&pMgmt->fetchPool, pVnode, (FItem)dndProcessVnodeFetchQueue);
+  pVnode->pQueryQ = tQWorkerAllocQueue(&pMgmt->queryPool, pVnode, (FItem)dndProcessVnodeQueryQueue);
 
   if (pVnode->pApplyQ == NULL || pVnode->pWriteQ == NULL || pVnode->pSyncQ == NULL || pVnode->pFetchQ == NULL ||
       pVnode->pQueryQ == NULL) {

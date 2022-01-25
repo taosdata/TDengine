@@ -22,14 +22,13 @@ extern "C" {
 #endif
 
 typedef struct SQWorkerPool SQWorkerPool;
-typedef struct SFWorkerPool SFWorkerPool;
 typedef struct SWWorkerPool SWWorkerPool;
 
 typedef struct SQWorker {
   int32_t       id;      // worker ID
   pthread_t     thread;  // thread
   SQWorkerPool *pool;
-} SQWorker;
+} SQWorker, SFWorker;
 
 typedef struct SQWorkerPool {
   int32_t         max;  // max number of workers
@@ -39,23 +38,7 @@ typedef struct SQWorkerPool {
   const char *    name;
   SQWorker *      workers;
   pthread_mutex_t mutex;
-} SQWorkerPool;
-
-typedef struct SFWorker {
-  int32_t       id;      // worker ID
-  pthread_t     thread;  // thread
-  SFWorkerPool *pool;
-} SFWorker;
-
-typedef struct SFWorkerPool {
-  int32_t         max;  // max number of workers
-  int32_t         min;  // min number of workers
-  int32_t         num;  // current number of workers
-  STaosQset *     qset;
-  const char *    name;
-  SFWorker *      workers;
-  pthread_mutex_t mutex;
-} SFWorkerPool;
+} SQWorkerPool, SFWorkerPool;
 
 typedef struct SWWorker {
   int32_t       id;      // worker id
@@ -75,12 +58,17 @@ typedef struct SWWorkerPool {
 
 int32_t     tQWorkerInit(SQWorkerPool *pool);
 void        tQWorkerCleanup(SQWorkerPool *pool);
-STaosQueue *tQWorkerAllocQueue(SQWorkerPool *pool, void *ahandle, FProcessItem fp);
+STaosQueue *tQWorkerAllocQueue(SQWorkerPool *pool, void *ahandle, FItem fp);
 void        tQWorkerFreeQueue(SQWorkerPool *pool, STaosQueue *queue);
+
+int32_t     tFWorkerInit(SFWorkerPool *pool);
+void        tFWorkerCleanup(SFWorkerPool *pool);
+STaosQueue *tFWorkerAllocQueue(SFWorkerPool *pool, void *ahandle, FItem fp);
+void        tFWorkerFreeQueue(SFWorkerPool *pool, STaosQueue *queue);
 
 int32_t     tWWorkerInit(SWWorkerPool *pool);
 void        tWWorkerCleanup(SWWorkerPool *pool);
-STaosQueue *tWWorkerAllocQueue(SWWorkerPool *pool, void *ahandle, FProcessItems fp);
+STaosQueue *tWWorkerAllocQueue(SWWorkerPool *pool, void *ahandle, FItems fp);
 void        tWWorkerFreeQueue(SWWorkerPool *pool, STaosQueue *queue);
 
 #ifdef __cplusplus
