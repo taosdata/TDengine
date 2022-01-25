@@ -4,12 +4,22 @@ import com.alibaba.fastjson.JSON;
 import com.alibaba.fastjson.JSONObject;
 import com.taosdata.jdbc.*;
 import com.taosdata.jdbc.utils.HttpClientPoolUtil;
+import com.taosdata.jdbc.ws.InFlightRequest;
+import com.taosdata.jdbc.ws.Transport;
+import com.taosdata.jdbc.ws.WSClient;
+import com.taosdata.jdbc.ws.WSConnection;
 
 import java.io.UnsupportedEncodingException;
+import java.net.URI;
+import java.net.URISyntaxException;
 import java.net.URLEncoder;
 import java.nio.charset.StandardCharsets;
 import java.sql.*;
+import java.util.HashMap;
+import java.util.Map;
 import java.util.Properties;
+import java.util.concurrent.CountDownLatch;
+import java.util.concurrent.TimeUnit;
 import java.util.logging.Logger;
 
 public class RestfulDriver extends AbstractDriver {
@@ -39,20 +49,56 @@ public class RestfulDriver extends AbstractDriver {
         String port = props.getProperty(TSDBDriver.PROPERTY_KEY_PORT, "6041");
         String database = props.containsKey(TSDBDriver.PROPERTY_KEY_DBNAME) ? props.getProperty(TSDBDriver.PROPERTY_KEY_DBNAME) : null;
 
-        String loginUrl;
+        String user;
+        String password;
         try {
             if (!props.containsKey(TSDBDriver.PROPERTY_KEY_USER))
                 throw TSDBError.createSQLException(TSDBErrorNumbers.ERROR_USER_IS_REQUIRED);
             if (!props.containsKey(TSDBDriver.PROPERTY_KEY_PASSWORD))
                 throw TSDBError.createSQLException(TSDBErrorNumbers.ERROR_PASSWORD_IS_REQUIRED);
 
-            String user = URLEncoder.encode(props.getProperty(TSDBDriver.PROPERTY_KEY_USER), StandardCharsets.UTF_8.displayName());
-            String password = URLEncoder.encode(props.getProperty(TSDBDriver.PROPERTY_KEY_PASSWORD), StandardCharsets.UTF_8.displayName());
-            loginUrl = "http://" + props.getProperty(TSDBDriver.PROPERTY_KEY_HOST) + ":" + props.getProperty(TSDBDriver.PROPERTY_KEY_PORT) + "/rest/login/" + user + "/" + password + "";
+            user = URLEncoder.encode(props.getProperty(TSDBDriver.PROPERTY_KEY_USER), StandardCharsets.UTF_8.displayName());
+            password = URLEncoder.encode(props.getProperty(TSDBDriver.PROPERTY_KEY_PASSWORD), StandardCharsets.UTF_8.displayName());
         } catch (UnsupportedEncodingException e) {
             throw TSDBError.createSQLException(TSDBErrorNumbers.ERROR_INVALID_VARIABLE, "unsupported UTF-8 concoding, user: " + props.getProperty(TSDBDriver.PROPERTY_KEY_USER) + ", password: " + props.getProperty(TSDBDriver.PROPERTY_KEY_PASSWORD));
         }
-
+        String loginUrl;
+        String batchLoad = info.getProperty(TSDBDriver.PROPERTY_KEY_BATCH_LOAD);
+//        if (Boolean.parseBoolean(batchLoad)) {
+        if (false) {
+            loginUrl = "ws://" + props.getProperty(TSDBDriver.PROPERTY_KEY_HOST)
+                    + ":" + props.getProperty(TSDBDriver.PROPERTY_KEY_PORT) + "/rest/ws";
+            WSClient client;
+            Transport transport;
+            try {
+                int timeout = props.containsKey(TSDBDriver.PROPERTY_KEY_MESSAGE_WAIT_TIMEOUT)
+                        ? Integer.parseInt(props.getProperty(TSDBDriver.PROPERTY_KEY_MESSAGE_WAIT_TIMEOUT))
+                        : Transport.DEFAULT_MESSAGE_WAIT_TIMEOUT;
+                int maxRequest = props.containsKey(TSDBDriver.PROPERTY_KEY_MAX_CONCURRENT_REQUEST)
+                        ? Integer.parseInt(props.getProperty(TSDBDriver.PROPERTY_KEY_MAX_CONCURRENT_REQUEST))
+                        : Transport.DEFAULT_MAX_REQUEST;
+                InFlightRequest inFlightRequest = new InFlightRequest(timeout, maxRequest);
+                CountDownLatch latch = new CountDownLatch(1);
+                Map<String, String> httpHeaders = new HashMap<>();
+                client = new WSClient(new URI(loginUrl), user, password, database, inFlightRequest, httpHeaders, latch, maxRequest);
+                transport = new Transport(client, inFlightRequest);
+                if (!client.connectBlocking()) {
+                    throw new SQLException("can't create connection with server");
+                }
+                if (!latch.await(timeout, TimeUnit.MILLISECONDS)) {
+                    throw new SQLException("auth timeout");
+                }
+                if (client.isAuth()) {
+                    throw new SQLException("auth failure");
+                }
+            } catch (URISyntaxException e) {
+                throw new SQLException("Websocket url parse error: " + loginUrl, e);
+            } catch (InterruptedException e) {
+                throw new SQLException("creat websocket connection has been Interrupted ", e);
+            }
+            return new WSConnection(url, props, transport, database, true);
+        }
+        loginUrl = "http://" + props.getProperty(TSDBDriver.PROPERTY_KEY_HOST) + ":" + props.getProperty(TSDBDriver.PROPERTY_KEY_PORT) + "/rest/login/" + user + "/" + password + "";
         int poolSize = Integer.parseInt(props.getProperty("httpPoolSize", HttpClientPoolUtil.DEFAULT_MAX_PER_ROUTE));
         boolean keepAlive = Boolean.parseBoolean(props.getProperty("httpKeepAlive", HttpClientPoolUtil.DEFAULT_HTTP_KEEP_ALIVE));
 
