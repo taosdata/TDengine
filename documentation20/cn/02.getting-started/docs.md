@@ -134,7 +134,7 @@ taos> source <filename>;
 
 ## <a class="anchor" id="demo"></a>TDengine 极速体验
 
-启动 TDengine 的服务，在 Linux 终端执行 taosBenchmark （曾命名为 taosdemo）：
+启动 TDengine 的服务，在 Linux 终端执行 taosBenchmark （曾命名为 taosdemo，在 2.4 之后的版本请按照独立的 taosTools 软件包）：
 
 ```bash
 $ taosBenchmark
