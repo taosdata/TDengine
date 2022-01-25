@@ -83,8 +83,9 @@ int32_t qCreateExecTask(void* readHandle, int32_t vgId, SSubplan* pSubplan, qTas
   if (code != TSDB_CODE_SUCCESS) {
     goto _error;
   }
-
-  code = dsCreateDataSinker(pSubplan->pDataSink, handle);
+  if (handle) {
+    code = dsCreateDataSinker(pSubplan->pDataSink, handle);
+  }
 
   _error:
   // if failed to add ref for all tables in this query, abort current query

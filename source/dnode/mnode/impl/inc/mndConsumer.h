@@ -25,7 +25,7 @@ extern "C" {
 int32_t mndInitConsumer(SMnode *pMnode);
 void    mndCleanupConsumer(SMnode *pMnode);
 
-SMqConsumerObj *mndAcquireConsumer(SMnode *pMnode, int32_t consumerId);
+SMqConsumerObj *mndAcquireConsumer(SMnode *pMnode, int64_t consumerId);
 void            mndReleaseConsumer(SMnode *pMnode, SMqConsumerObj *pConsumer);
 
 SSdbRaw *mndConsumerActionEncode(SMqConsumerObj *pConsumer);
