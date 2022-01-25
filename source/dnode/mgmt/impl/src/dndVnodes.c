@@ -737,15 +737,9 @@ int32_t dndProcessCompactVnodeReq(SDnode *pDnode, SRpcMsg *pReq) {
   return 0;
 }
 
-static void dndProcessVnodeQueryQueue(SVnodeObj *pVnode, SRpcMsg *pMsg) {
-  SRpcMsg *pRsp = NULL;
-  vnodeProcessQueryReq(pVnode->pImpl, pMsg, &pRsp);
-}
+static void dndProcessVnodeQueryQueue(SVnodeObj *pVnode, SRpcMsg *pMsg) { vnodeProcessQueryMsg(pVnode->pImpl, pMsg); }
 
-static void dndProcessVnodeFetchQueue(SVnodeObj *pVnode, SRpcMsg *pMsg) {
-  SRpcMsg *pRsp = NULL;
-  vnodeProcessFetchReq(pVnode->pImpl, pMsg, &pRsp);
-}
+static void dndProcessVnodeFetchQueue(SVnodeObj *pVnode, SRpcMsg *pMsg) { vnodeProcessFetchMsg(pVnode->pImpl, pMsg); }
 
 static void dndProcessVnodeWriteQueue(SVnodeObj *pVnode, STaosQall *qall, int32_t numOfMsgs) {
   SArray *pArray = taosArrayInit(numOfMsgs, sizeof(SRpcMsg *));
@@ -892,7 +886,7 @@ int32_t dndPutReqToVQueryQ(SDnode *pDnode, SRpcMsg *pMsg) {
   SVnodeObj *pVnode = dndAcquireVnode(pDnode, pHead->vgId);
   if (pVnode == NULL) return -1;
 
-  int32_t code = dndWriteRpcMsgToVnodeQueue(pVnode->pFetchQ, pMsg, false);
+  int32_t code = dndWriteRpcMsgToVnodeQueue(pVnode->pQueryQ, pMsg, false);
   dndReleaseVnode(pDnode, pVnode);
   return code;
 }
@@ -910,11 +904,11 @@ static int32_t dndInitVnodeWorkers(SDnode *pDnode) {
   SVnodesMgmt *pMgmt = &pDnode->vmgmt;
 
   int32_t maxFetchThreads = 4;
-  int32_t minFetchThreads = MIN(maxFetchThreads, pDnode->env.numOfCores);
-  int32_t minQueryThreads = MAX((int32_t)(pDnode->env.numOfCores * pDnode->cfg.ratioOfQueryCores), 1);
+  int32_t minFetchThreads = TMIN(maxFetchThreads, pDnode->env.numOfCores);
+  int32_t minQueryThreads = TMAX((int32_t)(pDnode->env.numOfCores * pDnode->cfg.ratioOfQueryCores), 1);
   int32_t maxQueryThreads = minQueryThreads;
-  int32_t maxWriteThreads = MAX(pDnode->env.numOfCores, 1);
-  int32_t maxSyncThreads = MAX(pDnode->env.numOfCores / 2, 1);
+  int32_t maxWriteThreads = TMAX(pDnode->env.numOfCores, 1);
+  int32_t maxSyncThreads = TMAX(pDnode->env.numOfCores / 2, 1);
 
   SWorkerPool *pPool = &pMgmt->queryPool;
   pPool->name = "vnode-query";

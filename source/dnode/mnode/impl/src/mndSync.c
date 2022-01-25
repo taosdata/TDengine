@@ -56,7 +56,7 @@ static int32_t mndRestoreWal(SMnode *pMnode) {
   int64_t last = walGetLastVer(pWal);
   mDebug("start to restore sdb wal, sdb ver:%" PRId64 ", wal first:%" PRId64 " last:%" PRId64, lastSdbVer, first, last);
 
-  first = MAX(lastSdbVer + 1, first);
+  first = TMAX(lastSdbVer + 1, first);
   for (int64_t ver = first; ver >= 0 && ver <= last; ++ver) {
     if (walReadWithHandle(pHandle, ver) < 0) {
       mError("failed to read by wal handle since %s, ver:%" PRId64, terrstr(), ver);

@@ -17,12 +17,15 @@
 #include "vnd.h"
 
 static int32_t vnodeGetTableList(SVnode *pVnode, SRpcMsg *pMsg);
-static int     vnodeGetTableMeta(SVnode *pVnode, SRpcMsg *pMsg, SRpcMsg **pRsp);
+static int     vnodeGetTableMeta(SVnode *pVnode, SRpcMsg *pMsg);
 
-int vnodeQueryOpen(SVnode *pVnode) { return qWorkerInit(NODE_TYPE_VNODE, pVnode->vgId, NULL, &pVnode->pQuery, pVnode, vnodePutReqToVQueryQ); }
+int vnodeQueryOpen(SVnode *pVnode) {
+  return qWorkerInit(NODE_TYPE_VNODE, pVnode->vgId, NULL, (void **)&pVnode->pQuery, pVnode,
+                     (putReqToQueryQFp)vnodePutReqToVQueryQ);
+}
 
-int vnodeProcessQueryReq(SVnode *pVnode, SRpcMsg *pMsg, SRpcMsg **pRsp) {
-  vTrace("query message is processing");
+int vnodeProcessQueryMsg(SVnode *pVnode, SRpcMsg *pMsg) {
+  vTrace("message in query queue is processing");
 
   switch (pMsg->msgType) {
     case TDMT_VND_QUERY:
@@ -35,8 +38,8 @@ int vnodeProcessQueryReq(SVnode *pVnode, SRpcMsg *pMsg, SRpcMsg **pRsp) {
   }
 }
 
-int vnodeProcessFetchReq(SVnode *pVnode, SRpcMsg *pMsg, SRpcMsg **pRsp) {
-  vTrace("fetch message is processed");
+int vnodeProcessFetchMsg(SVnode *pVnode, SRpcMsg *pMsg) {
+  vTrace("message in fetch queue is processing");
   switch (pMsg->msgType) {
     case TDMT_VND_FETCH:
       return qWorkerProcessFetchMsg(pVnode, pVnode->pQuery, pMsg);
@@ -54,24 +57,24 @@ int vnodeProcessFetchReq(SVnode *pVnode, SRpcMsg *pMsg, SRpcMsg **pRsp) {
       return vnodeGetTableList(pVnode, pMsg);
       //      return qWorkerProcessShowFetchMsg(pVnode->pMeta, pVnode->pQuery, pMsg);
     case TDMT_VND_TABLE_META:
-      return vnodeGetTableMeta(pVnode, pMsg, pRsp);
+      return vnodeGetTableMeta(pVnode, pMsg);
     case TDMT_VND_CONSUME:
-      return tqProcessConsumeReq(pVnode->pTq, pMsg, pRsp);
+      return tqProcessConsumeReq(pVnode->pTq, pMsg);
     default:
       vError("unknown msg type:%d in fetch queue", pMsg->msgType);
       return TSDB_CODE_VND_APP_ERROR;
   }
 }
 
-static int vnodeGetTableMeta(SVnode *pVnode, SRpcMsg *pMsg, SRpcMsg **pRsp) {
+static int vnodeGetTableMeta(SVnode *pVnode, SRpcMsg *pMsg) {
   STableInfoReq * pReq = (STableInfoReq *)(pMsg->pCont);
   STbCfg *        pTbCfg = NULL;
   STbCfg *        pStbCfg = NULL;
   tb_uid_t        uid;
   int32_t         nCols;
   int32_t         nTagCols;
-  SSchemaWrapper *pSW;
-  STableMetaRsp * pTbMetaMsg = NULL;
+  SSchemaWrapper *pSW = NULL;
+  STableMetaRsp  *pTbMetaMsg = NULL;
   SSchema *       pTagSchema;
   SRpcMsg         rpcMsg;
   int             msgLen = 0;
@@ -142,6 +145,22 @@ static int vnodeGetTableMeta(SVnode *pVnode, SRpcMsg *pMsg, SRpcMsg **pRsp) {
 
 _exit:
 
+  if (pSW != NULL) {
+    tfree(pSW->pSchema);
+    tfree(pSW);
+  }
+
+  if (pTbCfg) {
+    tfree(pTbCfg->name);
+    if (pTbCfg->type == META_SUPER_TABLE) {
+      free(pTbCfg->stbCfg.pTagSchema);
+    } else if (pTbCfg->type == META_SUPER_TABLE) {
+      kvRowFree(pTbCfg->ctbCfg.pTag);
+    }
+
+    tfree(pTbCfg);
+  }
+
   rpcMsg.handle = pMsg->handle;
   rpcMsg.ahandle = pMsg->ahandle;
   rpcMsg.pCont = pTbMetaMsg;
@@ -151,6 +170,11 @@ _exit:
   rpcSendResponse(&rpcMsg);
 
   return 0;
+}
+
+static void freeItemHelper(void *pItem) {
+  char *p = *(char **)pItem;
+  free(p);
 }
 
 /**
@@ -166,24 +190,27 @@ static int32_t vnodeGetTableList(SVnode *pVnode, SRpcMsg *pMsg) {
   int32_t totalLen = 0;
   int32_t numOfTables = 0;
   while ((name = metaTbCursorNext(pCur)) != NULL) {
-    if (numOfTables < 1000) {  // TODO: temp get tables of vnode, and should del when show tables commad ok.
+    if (numOfTables < 10000) {  // TODO: temp get tables of vnode, and should del when show tables commad ok.
       taosArrayPush(pArray, &name);
       totalLen += strlen(name);
+    } else {
+      tfree(name);
     }
+
     numOfTables++;
   }
 
   // TODO: temp debug, and should del when show tables command ok
-  vError("====vgId:%d, numOfTables: %d", pVnode->vgId, numOfTables);
-  if (numOfTables > 1000) {
-     numOfTables = 1000;
+  vInfo("====vgId:%d, numOfTables: %d", pVnode->vgId, numOfTables);
+  if (numOfTables > 10000) {
+    numOfTables = 10000;
   }
 
   metaCloseTbCursor(pCur);
 
   int32_t rowLen =
       (TSDB_TABLE_NAME_LEN + VARSTR_HEADER_SIZE) + 8 + 2 + (TSDB_TABLE_NAME_LEN + VARSTR_HEADER_SIZE) + 8 + 4;
-  //int32_t numOfTables = (int32_t)taosArrayGetSize(pArray);
+  // int32_t numOfTables = (int32_t)taosArrayGetSize(pArray);
 
   int32_t payloadLen = rowLen * numOfTables;
   //  SVShowTablesFetchReq *pFetchReq = pMsg->pCont;
@@ -197,6 +224,7 @@ static int32_t vnodeGetTableList(SVnode *pVnode, SRpcMsg *pMsg) {
     STR_TO_VARSTR(p, n);
 
     p += (TSDB_TABLE_NAME_LEN + VARSTR_HEADER_SIZE);
+    // free(n);
   }
 
   pFetchRsp->numOfRows = htonl(numOfTables);
@@ -211,6 +239,7 @@ static int32_t vnodeGetTableList(SVnode *pVnode, SRpcMsg *pMsg) {
   };
 
   rpcSendResponse(&rpcMsg);
-  taosArrayDestroy(pArray);
+
+  taosArrayDestroyEx(pArray, freeItemHelper);
   return 0;
 }

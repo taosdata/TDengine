@@ -34,8 +34,8 @@ typedef struct {
 
 static void processResponse(void *pParent, SRpcMsg *pMsg, SEpSet *pEpSet) {
   SInfo *pInfo = (SInfo *)pMsg->ahandle;
-  // tDebug("thread:%d, response is received, type:%d contLen:%d code:0x%x", pInfo->index, pMsg->msgType, pMsg->contLen,
-  //       pMsg->code);
+  tDebug("thread:%d, response is received, type:%d contLen:%d code:0x%x", pInfo->index, pMsg->msgType, pMsg->contLen,
+         pMsg->code);
 
   if (pEpSet) pInfo->epSet = *pEpSet;
 
@@ -63,6 +63,8 @@ static void *sendRequest(void *param) {
     if (pInfo->num % 20000 == 0) tInfo("thread:%d, %d requests have been sent", pInfo->index, pInfo->num);
     // tsem_wait(&pInfo->rspSem);
     tsem_wait(&pInfo->rspSem);
+    tDebug("recv response succefully");
+    // usleep(100000000);
   }
 
   tDebug("thread:%d, it is over", pInfo->index);
@@ -98,7 +100,7 @@ int main(int argc, char *argv[]) {
   rpcInit.numOfThreads = 1;
   rpcInit.cfp = processResponse;
   rpcInit.sessions = 100;
-  rpcInit.idleTime = tsShellActivityTimer * 1000;
+  rpcInit.idleTime = 100;
   rpcInit.user = "michael";
   rpcInit.secret = secret;
   rpcInit.ckey = "key";

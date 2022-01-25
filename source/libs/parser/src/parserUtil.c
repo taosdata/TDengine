@@ -725,18 +725,8 @@ void cleanupFieldInfo(SFieldInfo* pFieldInfo) {
     return;
   }
 
-  if (pFieldInfo->internalField != NULL) {
-    size_t num = taosArrayGetSize(pFieldInfo->internalField);
-    for (int32_t i = 0; i < num; ++i) {
-//      SInternalField* pfield = taosArrayGet(pFieldInfo->internalField, i);
-//      if (pfield->pExpr != NULL && pfield->pExpr->pExpr != NULL) {
-//        sqlExprDestroy(pfield->pExpr);
-//      }
-    }
-  }
-
   taosArrayDestroy(pFieldInfo->internalField);
-//  tfree(pFieldInfo->final);
+  tfree(pFieldInfo->final);
 
   memset(pFieldInfo, 0, sizeof(SFieldInfo));
 }

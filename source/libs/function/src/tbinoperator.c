@@ -26,7 +26,7 @@ void calc_i32_i32_add(void *left, void *right, int32_t numLeft, int32_t numRight
   int32_t *pRight = (int32_t *)right;
   double * pOutput = (double *)output;
 
-  int32_t i = (order == TSDB_ORDER_ASC) ? 0 : MAX(numLeft, numRight) - 1;
+  int32_t i = (order == TSDB_ORDER_ASC) ? 0 : TMAX(numLeft, numRight) - 1;
   int32_t step = (order == TSDB_ORDER_ASC) ? 1 : -1;
 
   if (numLeft == numRight) {
@@ -181,7 +181,7 @@ _getValueAddr_fn_t getVectorValueAddrFn(int32_t srcType) {
 }
 
 void vectorAdd(SScalarFuncParam* pLeft, SScalarFuncParam* pRight, void *out, int32_t _ord) {
-  int32_t i = ((_ord) == TSDB_ORDER_ASC) ? 0 : MAX(pLeft->num, pRight->num) - 1;
+  int32_t i = ((_ord) == TSDB_ORDER_ASC) ? 0 : TMAX(pLeft->num, pRight->num) - 1;
   int32_t step = ((_ord) == TSDB_ORDER_ASC) ? 1 : -1;
 
   double *output=(double*)out;
@@ -220,7 +220,7 @@ void vectorAdd(SScalarFuncParam* pLeft, SScalarFuncParam* pRight, void *out, int
 }
 
 void vectorSub(SScalarFuncParam* pLeft, SScalarFuncParam* pRight, void *out, int32_t _ord) {
-  int32_t i = ((_ord) == TSDB_ORDER_ASC) ? 0 : MAX(pLeft->num, pRight->num) - 1;
+  int32_t i = ((_ord) == TSDB_ORDER_ASC) ? 0 : TMAX(pLeft->num, pRight->num) - 1;
   int32_t step = ((_ord) == TSDB_ORDER_ASC) ? 1 : -1;
 
   double *output=(double*)out;
@@ -257,7 +257,7 @@ void vectorSub(SScalarFuncParam* pLeft, SScalarFuncParam* pRight, void *out, int
   }
 }
 void vectorMultiply(SScalarFuncParam* pLeft, SScalarFuncParam* pRight, void *out, int32_t _ord) {
-  int32_t i = ((_ord) == TSDB_ORDER_ASC) ? 0 : MAX(pLeft->num, pRight->num) - 1;
+  int32_t i = ((_ord) == TSDB_ORDER_ASC) ? 0 : TMAX(pLeft->num, pRight->num) - 1;
   int32_t step = ((_ord) == TSDB_ORDER_ASC) ? 1 : -1;
 
   double *output=(double*)out;
@@ -296,7 +296,7 @@ void vectorMultiply(SScalarFuncParam* pLeft, SScalarFuncParam* pRight, void *out
 }
 
 void vectorDivide(SScalarFuncParam* pLeft, SScalarFuncParam* pRight, void *out, int32_t _ord) {
-  int32_t i = ((_ord) == TSDB_ORDER_ASC) ? 0 : MAX(pLeft->num, pRight->num) - 1;
+  int32_t i = ((_ord) == TSDB_ORDER_ASC) ? 0 : TMAX(pLeft->num, pRight->num) - 1;
   int32_t step = ((_ord) == TSDB_ORDER_ASC) ? 1 : -1;
 
   double *output=(double*)out;
@@ -342,7 +342,7 @@ void vectorDivide(SScalarFuncParam* pLeft, SScalarFuncParam* pRight, void *out, 
 }
 
 void vectorRemainder(SScalarFuncParam* pLeft, SScalarFuncParam* pRight, void *out, int32_t _ord) {
-  int32_t i = ((_ord) == TSDB_ORDER_ASC) ? 0 : MAX(pLeft->num, pRight->num) - 1;
+  int32_t i = ((_ord) == TSDB_ORDER_ASC) ? 0 : TMAX(pLeft->num, pRight->num) - 1;
   int32_t step = ((_ord) == TSDB_ORDER_ASC) ? 1 : -1;
 
   double *             output = (double *)out;
@@ -416,7 +416,7 @@ void vectorRemainder(SScalarFuncParam* pLeft, SScalarFuncParam* pRight, void *ou
 void vectorConcat(SScalarFuncParam* pLeft, SScalarFuncParam* pRight, void *out, int32_t _ord) {
   int32_t len = pLeft->bytes + pRight->bytes;
 
-  int32_t i = ((_ord) == TSDB_ORDER_ASC) ? 0 : MAX(pLeft->num, pRight->num) - 1;
+  int32_t i = ((_ord) == TSDB_ORDER_ASC) ? 0 : TMAX(pLeft->num, pRight->num) - 1;
   int32_t step = ((_ord) == TSDB_ORDER_ASC) ? 1 : -1;
 
   char *output = (char *)out;

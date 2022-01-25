@@ -118,7 +118,11 @@ int32_t tfsAllocDisk(STfs *pTfs, int32_t expLevel, SDiskID *pDiskId) {
   pDiskId->id = -1;
 
   if (pDiskId->level >= pTfs->nlevel) {
-    pDiskId->level--;
+    pDiskId->level = pTfs->nlevel - 1;
+  }
+
+  if (pDiskId->level < 0) {
+    pDiskId->level = 0;
   }
 
   while (pDiskId->level >= 0) {
@@ -289,7 +293,7 @@ int32_t tfsRename(STfs *pTfs, char *orname, char *nrname) {
       STfsDisk *pDisk = pTier->disks[id];
       snprintf(oaname, TMPNAME_LEN, "%s%s%s", pDisk->path, TD_DIRSEP, orname);
       snprintf(naname, TMPNAME_LEN, "%s%s%s", pDisk->path, TD_DIRSEP, nrname);
-      if (taosRenameFile(oaname, naname) != 0) {
+      if (taosRenameFile(oaname, naname) != 0 && errno != ENOENT) {
         terrno = TAOS_SYSTEM_ERROR(errno);
         fError("failed to rename %s to %s since %s", oaname, naname, terrstr());
         return -1;

@@ -71,6 +71,7 @@ int vnodeOpenBufPool(SVnode *pVnode) {
 
 void vnodeCloseBufPool(SVnode *pVnode) {
   if (pVnode->pBufPool) {
+    tfree(pVnode->pBufPool->pMAF);
     vmaDestroy(pVnode->pBufPool->inuse);
 
     while (true) {

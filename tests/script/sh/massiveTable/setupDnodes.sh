@@ -13,10 +13,12 @@ set -e
 #             -r [ dnode root dir]
 
 # set parameters by default value
+fqdn=`hostname`
+
 enviMode=new
 dataRootDir="/data"
-firstEp="localhost:7000"
-startPort=7000
+firstEp="${fqdn}:6030"
+startPort=6030
 dnodeNumber=1
 
 
@@ -70,7 +72,7 @@ createNewCfgFile() {
     echo "dataDir       ${dataDir}"     >> ${cfgFile}
     echo "logDir        ${logDir}"      >> ${cfgFile}
     echo "serverPort    ${serverPort}"  >> ${cfgFile}     
-    
+    echo "numOfLogLines      100000000" >> ${cfgFile}  
     echo "supportVnodes        1024"   >> ${cfgFile} 
     #echo "asyncLog             0"     >> ${cfgFile}
     echo "telemetryReporting   0"      >> ${cfgFile}  

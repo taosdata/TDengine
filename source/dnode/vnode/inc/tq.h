@@ -17,17 +17,18 @@
 #define _TD_TQ_H_
 
 #include "common.h"
+#include "executor.h"
 #include "mallocator.h"
 #include "meta.h"
 #include "os.h"
 #include "scheduler.h"
-#include "executor.h"
 #include "taoserror.h"
 #include "tlist.h"
 #include "tmsg.h"
 #include "trpc.h"
 #include "ttimer.h"
 #include "tutil.h"
+#include "vnode.h"
 #include "wal.h"
 
 #ifdef __cplusplus
@@ -82,26 +83,11 @@ typedef struct STqSubscribeReq {
   int64_t    topic[];
 } STqSubscribeReq;
 
-typedef struct STqSubscribeRsp {
-  STqMsgHead head;
-  int64_t    vgId;
-  char       ep[TSDB_EP_LEN];  // TSDB_EP_LEN
-} STqSubscribeRsp;
-
 typedef struct STqHeartbeatReq {
 } STqHeartbeatReq;
 
 typedef struct STqHeartbeatRsp {
 } STqHeartbeatRsp;
-
-typedef struct STqTopicVhandle {
-  int64_t topicId;
-  // executor for filter
-  void* filterExec;
-  // callback for mnode
-  // trigger when vnode list associated topic change
-  void* (*mCallback)(void*, void*);
-} STqTopicVhandle;
 
 #define TQ_BUFFER_SIZE 8
 
@@ -167,6 +153,7 @@ typedef struct STqTaskItem {
   int64_t       offset;
   void*         dst;
   qTaskInfo_t   task;
+  SSubQueryMsg* pQueryMsg;
 } STqTaskItem;
 
 // new version
@@ -178,7 +165,6 @@ typedef struct STqBuffer {
 
 typedef struct STqTopicHandle {
   char            topicName[TSDB_TOPIC_FNAME_LEN];
-  char            cgroup[TSDB_TOPIC_FNAME_LEN];
   char*           sql;
   char*           logicalPlan;
   char*           physicalPlan;
@@ -191,6 +177,7 @@ typedef struct STqTopicHandle {
 typedef struct STqConsumerHandle {
   int64_t consumerId;
   int64_t epoch;
+  char    cgroup[TSDB_TOPIC_FNAME_LEN];
   SArray* topics;  // SArray<STqClientTopic>
 } STqConsumerHandle;
 
@@ -198,10 +185,6 @@ typedef struct STqQueryMsg {
   STqMsgItem*         item;
   struct STqQueryMsg* next;
 } STqQueryMsg;
-
-typedef struct STqCfg {
-  // TODO
-} STqCfg;
 
 typedef struct STqMemRef {
   SMemAllocatorFactory* pAllocatorFactory;
@@ -299,6 +282,7 @@ typedef struct STQ {
   STqMemRef     tqMemRef;
   STqMetaStore* tqMeta;
   SWal*         pWal;
+  SMeta*        pMeta;
 } STQ;
 
 typedef struct STqMgmt {
@@ -313,12 +297,14 @@ int  tqInit();
 void tqCleanUp();
 
 // open in each vnode
-STQ* tqOpen(const char* path, SWal* pWal, STqCfg* tqConfig, SMemAllocatorFactory* allocFac);
+STQ* tqOpen(const char* path, SWal* pWal, SMeta* pMeta, STqCfg* tqConfig, SMemAllocatorFactory* allocFac);
 void tqClose(STQ*);
 
 // void* will be replace by a msg type
 int tqPushMsg(STQ*, void* msg, int64_t version);
 int tqCommit(STQ*);
+
+int tqSetCursor(STQ*, STqSetCurReq* pMsg);
 
 #if 0
 int tqConsume(STQ*, SRpcMsg* pReq, SRpcMsg** pRsp);
@@ -332,25 +318,8 @@ int       tqRegisterContext(STqGroup*, void* ahandle);
 int       tqSendLaunchQuery(STqMsgItem*, int64_t offset);
 #endif
 
-int32_t tqProcessConsumeReq(STQ* pTq, SRpcMsg* pMsg, SRpcMsg** ppRsp);
-int32_t tqProcessSetConnReq(STQ* pTq, SMqSetCVgReq* pReq);
-
-typedef struct STqReadHandle {
-  int64_t        ver;
-  SSubmitMsg*    pMsg;
-  SSubmitBlk*    pBlock;
-  SSubmitMsgIter msgIter;
-  SSubmitBlkIter blkIter;
-  SMeta*         pMeta;
-  SArray*        pColumnIdList;
-} STqReadHandle;
-
-STqReadHandle* tqInitSubmitMsgScanner(SMeta* pMeta, SArray* pColumnIdList);
-void           tqReadHandleSetMsg(STqReadHandle* pHandle, SSubmitMsg* pMsg, int64_t ver);
-bool           tqNextDataBlock(STqReadHandle* pHandle);
-int            tqRetrieveDataBlockInfo(STqReadHandle* pHandle, SDataBlockInfo* pBlockInfo);
-// return SArray<SColumnInfoData>
-SArray* tqRetrieveDataBlock(STqReadHandle* pHandle);
+int32_t tqProcessConsumeReq(STQ* pTq, SRpcMsg* pMsg);
+int32_t tqProcessSetConnReq(STQ* pTq, char* msg);
 
 #ifdef __cplusplus
 }

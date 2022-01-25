@@ -27,8 +27,8 @@ void TestClient::SetRpcRsp(SRpcMsg* pRsp) { this->pRsp = pRsp; };
 tsem_t* TestClient::GetSem() { return &sem; }
 
 bool TestClient::Init(const char* user, const char* pass, const char* fqdn, uint16_t port) {
-  char secretEncrypt[TSDB_PASSWORD_LEN] = {0};
-  taosEncryptPass((uint8_t*)pass, strlen(pass), secretEncrypt);
+  char secretEncrypt[TSDB_PASSWORD_LEN + 1] = {0};
+  taosEncryptPass_c((uint8_t*)pass, strlen(pass), secretEncrypt);
 
   SRpcInit rpcInit;
   memset(&rpcInit, 0, sizeof(rpcInit));
@@ -42,7 +42,7 @@ bool TestClient::Init(const char* user, const char* pass, const char* fqdn, uint
   rpcInit.ckey = (char*)"key";
   rpcInit.parent = this;
   rpcInit.secret = (char*)secretEncrypt;
-  // rpcInit.spi = 1;
+  rpcInit.spi = 1;
 
   clientRpc = rpcOpen(&rpcInit);
   ASSERT(clientRpc);

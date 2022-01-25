@@ -701,7 +701,7 @@ SGlobalMerger* tscInitResObjForLocalQuery(int32_t numOfRes, int32_t rowLen, uint
 
 // todo remove it
 int32_t doArithmeticCalculate(SQueryInfo* pQueryInfo, tFilePage* pOutput, int32_t rowSize, int32_t finalRowSize) {
-  int32_t maxRowSize = MAX(rowSize, finalRowSize);
+  int32_t maxRowSize = TMAX(rowSize, finalRowSize);
   char* pbuf = calloc(1, (size_t)(pOutput->num * maxRowSize));
 
   size_t size = tscNumOfFields(pQueryInfo);
@@ -965,7 +965,7 @@ SSDataBlock* doGlobalAggregate(void* param, bool* newgroup) {
       w->ekey = *(int64_t*)(((char*)pInfoData->pData) + TSDB_KEYSIZE * (pRes->info.rows - 1));
 
       if (pOperator->pRuntimeEnv->pQueryAttr->order.order == TSDB_ORDER_DESC) {
-        SWAP(w->skey, w->ekey, TSKEY);
+        TSWAP(w->skey, w->ekey, TSKEY);
         assert(w->skey <= w->ekey);
       }
     }

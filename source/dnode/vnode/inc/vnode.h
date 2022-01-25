@@ -22,7 +22,6 @@
 #include "meta.h"
 #include "tarray.h"
 #include "tfs.h"
-#include "tq.h"
 #include "tsdb.h"
 #include "wal.h"
 
@@ -34,6 +33,12 @@ extern "C" {
 typedef struct SVnode SVnode;
 typedef struct SDnode SDnode;
 typedef int32_t (*PutReqToVQueryQFp)(SDnode *pDnode, struct SRpcMsg *pReq);
+
+typedef struct STqCfg {
+  // TODO
+  int32_t reserved;
+} STqCfg;
+
 
 typedef struct SVnodeCfg {
   int32_t  vgId;
@@ -60,6 +65,17 @@ typedef struct {
   uint16_t          nthreads;  // number of commit threads. 0 for no threads and a schedule queue should be given (TODO)
   PutReqToVQueryQFp putReqToVQueryQFp;
 } SVnodeOpt;
+
+typedef struct STqReadHandle {
+  int64_t        ver;
+  uint64_t       tbUid;
+  SSubmitMsg*    pMsg;
+  SSubmitBlk*    pBlock;
+  SSubmitMsgIter msgIter;
+  SSubmitBlkIter blkIter;
+  SMeta*         pMeta;
+  SArray*        pColIdList;
+} STqReadHandle;
 
 /* ------------------------ SVnode ------------------------ */
 /**
@@ -143,20 +159,18 @@ int vnodeProcessSyncReq(SVnode *pVnode, SRpcMsg *pMsg, SRpcMsg **pRsp);
  *
  * @param pVnode The vnode object.
  * @param pMsg The request message
- * @param pRsp The response message
  * @return int 0 for success, -1 for failure
  */
-int vnodeProcessQueryReq(SVnode *pVnode, SRpcMsg *pMsg, SRpcMsg **pRsp);
+int vnodeProcessQueryMsg(SVnode *pVnode, SRpcMsg *pMsg);
 
 /**
  * @brief Process a fetch message.
  *
  * @param pVnode The vnode object.
  * @param pMsg The request message
- * @param pRsp The response message
  * @return int 0 for success, -1 for failure
  */
-int vnodeProcessFetchReq(SVnode *pVnode, SRpcMsg *pMsg, SRpcMsg **pRsp);
+int vnodeProcessFetchMsg(SVnode *pVnode, SRpcMsg *pMsg);
 
 /* ------------------------ SVnodeCfg ------------------------ */
 /**
@@ -179,6 +193,25 @@ int32_t vnodeAlter(SVnode *pVnode, const SVnodeCfg *pCfg);
 int32_t vnodeCompact(SVnode *pVnode);
 int32_t vnodeSync(SVnode *pVnode);
 int32_t vnodeGetLoad(SVnode *pVnode, SVnodeLoad *pLoad);
+
+/* ------------------------- TQ QUERY -------------------------- */
+
+STqReadHandle* tqInitSubmitMsgScanner(SMeta* pMeta);
+
+static FORCE_INLINE void tqReadHandleSetColIdList(STqReadHandle* pReadHandle, SArray* pColIdList) {
+  pReadHandle->pColIdList = pColIdList;
+}
+
+static FORCE_INLINE void tqReadHandleSetTbUid(STqReadHandle* pHandle, uint64_t tbUid) {
+  pHandle->tbUid = tbUid;
+}
+
+void           tqReadHandleSetMsg(STqReadHandle* pHandle, SSubmitMsg* pMsg, int64_t ver);
+bool           tqNextDataBlock(STqReadHandle* pHandle);
+int            tqRetrieveDataBlockInfo(STqReadHandle* pHandle, SDataBlockInfo* pBlockInfo);
+// return SArray<SColumnInfoData>
+SArray*        tqRetrieveDataBlock(STqReadHandle* pHandle);
+
 
 #ifdef __cplusplus
 }

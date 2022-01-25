@@ -36,25 +36,29 @@ bool qIsDdlQuery(const SQueryNode* pQueryNode) {
 }
 
 int32_t parseQuerySql(SParseContext* pCxt, SQueryNode** pQuery) {
+  int32_t code = TSDB_CODE_SUCCESS;
+
   SSqlInfo info = doGenerateAST(pCxt->pSql);
   if (!info.valid) {
     strncpy(pCxt->pMsg, info.msg, pCxt->msgLen);
-    terrno = TSDB_CODE_TSC_SQL_SYNTAX_ERROR;
-    return terrno;
+    code = TSDB_CODE_TSC_SQL_SYNTAX_ERROR;
+    goto _end;
   }
 
   if (!isDqlSqlStatement(&info)) {
     if (info.type == TSDB_SQL_CREATE_TABLE) {
       SVnodeModifOpStmtInfo * pModifStmtInfo = qParserValidateCreateTbSqlNode(&info, pCxt, pCxt->pMsg, pCxt->msgLen);
       if (pModifStmtInfo == NULL) {
-        return terrno;
+        code = terrno;
+        goto _end;
       }
 
       *pQuery = (SQueryNode*)pModifStmtInfo;
     } else {
       SDclStmtInfo* pDcl = qParserValidateDclSqlNode(&info, pCxt, pCxt->pMsg, pCxt->msgLen);
       if (pDcl == NULL) {
-        return terrno;
+        code = terrno;
+        goto _end;
       }
 
       *pQuery = (SQueryNode*)pDcl;
@@ -63,21 +67,22 @@ int32_t parseQuerySql(SParseContext* pCxt, SQueryNode** pQuery) {
   } else {
     SQueryStmtInfo* pQueryInfo = createQueryInfo();
     if (pQueryInfo == NULL) {
-      terrno = TSDB_CODE_QRY_OUT_OF_MEMORY; // set correct error code.
-      return terrno;
+      code = TSDB_CODE_QRY_OUT_OF_MEMORY; // set correct error code.
+      goto _end;
     }
 
-    int32_t code = qParserValidateSqlNode(pCxt, &info, pQueryInfo, pCxt->pMsg, pCxt->msgLen);
+    code = qParserValidateSqlNode(pCxt, &info, pQueryInfo, pCxt->pMsg, pCxt->msgLen);
     if (code == TSDB_CODE_SUCCESS) {
       *pQuery = (SQueryNode*)pQueryInfo;
     } else {
-      terrno = code;
-      return code;
+      goto _end;
     }
   }
 
+  _end:
   destroySqlInfo(&info);
-  return TSDB_CODE_SUCCESS;
+  terrno = code;
+  return code;
 }
 
 int32_t qParseQuerySql(SParseContext* pCxt, SQueryNode** pQueryNode) {
@@ -243,9 +248,15 @@ void qDestroyQuery(SQueryNode* pQueryNode) {
   if (NULL == pQueryNode) {
     return;
   }
-  if (nodeType(pQueryNode) == TSDB_SQL_INSERT || nodeType(pQueryNode) == TSDB_SQL_CREATE_TABLE) {
+
+  int32_t type = nodeType(pQueryNode);
+  if (type == TSDB_SQL_INSERT || type == TSDB_SQL_CREATE_TABLE) {
     SVnodeModifOpStmtInfo* pModifInfo = (SVnodeModifOpStmtInfo*)pQueryNode;
     taosArrayDestroy(pModifInfo->pDataBlocks);
+
+    tfree(pQueryNode);
+  } else if (type == TSDB_SQL_SELECT) {
+    SQueryStmtInfo* pQueryStmtInfo = (SQueryStmtInfo*) pQueryNode;
+    destroyQueryInfo(pQueryStmtInfo);
   }
-  tfree(pQueryNode);
 }

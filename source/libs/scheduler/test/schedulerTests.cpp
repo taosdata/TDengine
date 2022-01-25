@@ -16,11 +16,7 @@
 #include <gtest/gtest.h>
 #include <tglobal.h>
 #include <iostream>
-#pragma GCC diagnostic ignored "-Wwrite-strings"
 
-#pragma GCC diagnostic ignored "-Wunused-function"
-#pragma GCC diagnostic ignored "-Wunused-variable"
-#pragma GCC diagnostic ignored "-Wsign-compare"
 #include "os.h"
 
 #include "taos.h"
@@ -30,6 +26,16 @@
 #include "scheduler.h"
 #include "tep.h"
 #include "trpc.h"
+
+#pragma GCC diagnostic push
+#pragma GCC diagnostic ignored "-Wwrite-strings"
+#pragma GCC diagnostic ignored "-Wliteral-suffix"
+#pragma GCC diagnostic ignored "-Wunused-function"
+#pragma GCC diagnostic ignored "-Wunused-variable"
+#pragma GCC diagnostic ignored "-Wsign-compare"
+#pragma GCC diagnostic ignored "-Wreturn-type"
+#pragma GCC diagnostic ignored "-Wformat"
+
 #include "schedulerInt.h"
 #include "stub.h"
 #include "addr_any.h"
@@ -328,7 +334,7 @@ void schtFreeQueryJob(int32_t freeThread) {
   SSchJob *job = atomic_load_ptr(&pQueryJob);
   
   if (job && atomic_val_compare_exchange_ptr(&pQueryJob, job, NULL)) {
-    scheduleFreeJob(job);
+    schedulerFreeJob(job);
     if (freeThread) {
       if (++freeNum % schtTestPrintNum == 0) {
         printf("FreeNum:%d\n", freeNum);
@@ -372,7 +378,7 @@ void* schtRunJobThread(void *aa) {
     qnodeAddr.port = 6031;
     taosArrayPush(qnodeList, &qnodeAddr);
 
-    code = scheduleAsyncExecJob(mockPointer, qnodeList, &dag, &job);
+    code = schedulerAsyncExecJob(mockPointer, qnodeList, &dag, &job);
     assert(code == 0);
 
     execTasks = taosHashInit(5, taosGetDefaultHashFunction(TSDB_DATA_TYPE_UBIGINT), false, HASH_ENTRY_LOCK);
@@ -466,7 +472,7 @@ void* schtRunJobThread(void *aa) {
     atomic_store_32(&schtStartFetch, 1);
 
     void *data = NULL;  
-    code = scheduleFetchRows(pQueryJob, &data);
+    code = schedulerFetchRows(pQueryJob, &data);
     assert(code == 0 || code);
 
     if (0 == code) {
@@ -476,7 +482,7 @@ void* schtRunJobThread(void *aa) {
     }
 
     data = NULL;
-    code = scheduleFetchRows(pQueryJob, &data);
+    code = schedulerFetchRows(pQueryJob, &data);
     assert(code == 0 || code);
     
     schtFreeQueryJob(0);
@@ -533,7 +539,7 @@ TEST(queryTest, normalCase) {
   schtSetExecNode();
   schtSetAsyncSendMsgToServer();
   
-  code = scheduleAsyncExecJob(mockPointer, qnodeList, &dag, &pJob);
+  code = schedulerAsyncExecJob(mockPointer, qnodeList, &dag, &pJob);
   ASSERT_EQ(code, 0);
 
   SSchJob *job = (SSchJob *)pJob;
@@ -588,7 +594,7 @@ TEST(queryTest, normalCase) {
   pthread_create(&(thread1), &thattr, schtCreateFetchRspThread, job);
 
   void *data = NULL;  
-  code = scheduleFetchRows(job, &data);
+  code = schedulerFetchRows(job, &data);
   ASSERT_EQ(code, 0);
 
   SRetrieveTableRsp *pRsp = (SRetrieveTableRsp *)data;
@@ -597,11 +603,11 @@ TEST(queryTest, normalCase) {
   tfree(data);
 
   data = NULL;
-  code = scheduleFetchRows(job, &data);
+  code = schedulerFetchRows(job, &data);
   ASSERT_EQ(code, 0);
   ASSERT_TRUE(data);
 
-  scheduleFreeJob(pJob);
+  schedulerFreeJob(pJob);
 
   schtFreeQueryDag(&dag);
 
@@ -643,11 +649,11 @@ TEST(insertTest, normalCase) {
   pthread_create(&(thread1), &thattr, schtSendRsp, &pInsertJob);
 
   SQueryResult res = {0};
-  code = scheduleExecJob(mockPointer, qnodeList, &dag, &pInsertJob, &res);
+  code = schedulerExecJob(mockPointer, qnodeList, &dag, &pInsertJob, &res);
   ASSERT_EQ(code, 0);
   ASSERT_EQ(res.numOfRows, 20);
 
-  scheduleFreeJob(pInsertJob);
+  schedulerFreeJob(pInsertJob);
 
   schedulerDestroy();  
 }
@@ -680,6 +686,4 @@ int main(int argc, char** argv) {
   return RUN_ALL_TESTS();
 }
 
-
-
-
+#pragma GCC diagnostic pop

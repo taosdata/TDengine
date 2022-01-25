@@ -185,7 +185,7 @@ static void taosKeepOldLog(char *oldName) {
     }
   }
 
-  taosRemoveOldFiles(tsLogDir, ABS(tsLogKeepDays));
+  taosRemoveOldFiles(tsLogDir, TABS(tsLogKeepDays));
 }
 
 static void *taosThreadToOpenNewFile(void *param) {

@@ -39,19 +39,19 @@ extern "C" {
 #define TD_ROW_KV 0x01
 
 // val type
-#define TD_VTYPE_NORM 0x0   // normal val: not none, not null
-#define TD_VTYPE_NONE 0x01  // none or unknown/undefined
-#define TD_VTYPE_NULL 0x02  // null val
+#define TD_VTYPE_NORM 0x0U   // normal val: not none, not null
+#define TD_VTYPE_NONE 0x01U  // none or unknown/undefined
+#define TD_VTYPE_NULL 0x02U  // null val
 
 #define isSelectKVRow(klen, tlen) ((klen) < (tlen))
 
 #ifdef TD_SUPPORT_BITMAP
-static FORCE_INLINE bool tdValTypeIsNorm(int8_t valType) { return (valType & TD_VTYPE_NORM); }
-static FORCE_INLINE bool tdValTypeIsNone(int8_t valType) { return (valType & TD_VTYPE_NONE); }
-static FORCE_INLINE bool tdValTypeIsNull(int8_t valType) { return (valType & TD_VTYPE_NULL); }
+static FORCE_INLINE bool tdValTypeIsNorm(TDRowValT valType) { return (valType & TD_VTYPE_NORM); }
+static FORCE_INLINE bool tdValTypeIsNone(TDRowValT valType) { return (valType & TD_VTYPE_NONE); }
+static FORCE_INLINE bool tdValTypeIsNull(TDRowValT valType) { return (valType & TD_VTYPE_NULL); }
 #endif
 
-static FORCE_INLINE bool tdValIsNorm(int8_t valType, const void *val, int32_t colType) {
+static FORCE_INLINE bool tdValIsNorm(TDRowValT valType, const void *val, int32_t colType) {
 #ifdef TD_SUPPORT_BITMAP
   return tdValTypeIsNorm(valType);
 #else
@@ -59,7 +59,7 @@ static FORCE_INLINE bool tdValIsNorm(int8_t valType, const void *val, int32_t co
 #endif
 }
 
-static FORCE_INLINE bool tdValIsNone(int8_t valType) {
+static FORCE_INLINE bool tdValIsNone(TDRowValT valType) {
 #ifdef TD_SUPPORT_BITMAP
   return tdValTypeIsNone(valType);
 #else
@@ -67,7 +67,7 @@ static FORCE_INLINE bool tdValIsNone(int8_t valType) {
 #endif
 }
 
-static FORCE_INLINE bool tdValIsNull(int8_t valType, const void *val, int32_t colType) {
+static FORCE_INLINE bool tdValIsNull(TDRowValT valType, const void *val, int32_t colType) {
 #ifdef TD_SUPPORT_BITMAP
   return tdValTypeIsNull(valType);
 #else
@@ -78,8 +78,8 @@ static FORCE_INLINE bool tdValIsNull(int8_t valType, const void *val, int32_t co
 typedef void *SRow;
 
 typedef struct {
-  int8_t valType;
-  void * val;
+  TDRowValT valType;
+  void *    val;
 } SCellVal;
 
 typedef struct {
@@ -154,21 +154,28 @@ typedef struct {
 
 #define TD_ROW_OFFSET(p) ((p)->toffset);
 
+static FORCE_INLINE int32_t tdRowSetValType(void *pBitmap, int16_t tIdx, TDRowValT valType);
+static FORCE_INLINE int32_t tdRowGetValType(void *pBitmap, int16_t tIdx, TDRowValT *pValType);
+static FORCE_INLINE int32_t tdAppendColValToTpRow(STSRow *row, void *pBitmap, const void *val, bool isCopyVarData,
+                                                  int8_t colType, TDRowValT valType, int16_t idx, int32_t offset);
+static FORCE_INLINE int32_t tdAppendColValToKvRow(STSRow *row, void *pBitmap, const void *val, bool isCopyValData,
+                                                  int8_t colType, TDRowValT valType, int16_t idx, int32_t offset,
+                                                  int16_t colId);
+
+static FORCE_INLINE void *tdGetBitmapAddr(STSRow *pRow, uint8_t rowType, uint32_t flen, int16_t nBoundCols) {
 #ifdef TD_SUPPORT_BITMAP
-static FORCE_INLINE void *tdRowBitmap(STSRow *pRow, uint16_t flen) {
-  switch (pRow->type) {
+  switch (rowType) {
     case TD_ROW_TP:
-      return POINTER_SHIFT(pRow->data, flen);
+      return POINTER_SHIFT(pRow, flen);
     case TD_ROW_KV:
-      return POINTER_SHIFT(pRow->data, pRow->ncols * sizeof(SKvRowIdx));
+      return POINTER_SHIFT(pRow, nBoundCols * sizeof(SKvRowIdx));
     default:
       break;
   }
+#endif
   return NULL;
 }
-#endif
 
-STpRow tdNewTpRowFromSchema(STSchema *pSchema);
 void   tdFreeTpRow(STpRow row);
 void   tdInitTpRow(STpRow row, STSchema *pSchema);
 STpRow tdTpRowDup(STpRow row);
@@ -219,7 +226,7 @@ typedef struct {
  * @param sversion schema version
  * @return int32_t
  */
-int32_t tdSRowInit(SRowBuilder *pBuilder, int16_t sversion) {
+static FORCE_INLINE int32_t tdSRowInit(SRowBuilder *pBuilder, int16_t sversion) {
   pBuilder->rowType = TD_ROW_TP;
   pBuilder->sver = sversion;
   return TSDB_CODE_SUCCESS;
@@ -273,23 +280,24 @@ static FORCE_INLINE int32_t tdSRowSetExtendedInfo(SRowBuilder *pBuilder, int32_t
  * @param pBuilder
  * @param pBuf
  */
-int32_t tdSRowResetBuf(SRowBuilder *pBuilder, void *pBuf) {
-  pBuilder->pBuf = pBuf;
+static FORCE_INLINE int32_t tdSRowResetBuf(SRowBuilder *pBuilder, void *pBuf) {
+  pBuilder->pBuf = (STSRow*)pBuf;
   if (!pBuilder->pBuf) {
     terrno = TSDB_CODE_INVALID_PARA;
     return TSDB_CODE_INVALID_PARA;
   }
+  uint32_t len = 0;
   switch (pBuilder->rowType) {
     case TD_ROW_TP:
 #ifdef TD_SUPPORT_BITMAP
       pBuilder->pBitmap = POINTER_SHIFT(pBuilder->pBuf, pBuilder->flen);
 #endif
-      uint32_t len = TD_ROW_HEAD_LEN + pBuilder->flen + pBuilder->nBitmaps;
+      len = TD_ROW_HEAD_LEN + pBuilder->flen + pBuilder->nBitmaps;
       TD_ROW_SET_LEN(pBuilder->pBuf, len);
       TD_ROW_SET_SVER(pBuilder->pBuf, pBuilder->sver);
       break;
     case TD_ROW_KV:
-      uint32_t len = pBuilder->nBoundCols * sizeof(SKvRowIdx);
+      len = pBuilder->nBoundCols * sizeof(SKvRowIdx);
 #ifdef TD_SUPPORT_BITMAP
       pBuilder->pBitmap = POINTER_SHIFT(pBuilder->pBuf, len);
 #endif
@@ -328,7 +336,7 @@ static FORCE_INLINE int32_t tdSRowInitEx(SRowBuilder *pBuilder, void *pBuf, uint
  *
  * @param pBuilder
  */
-void tdSRowReset(SRowBuilder *pBuilder) {
+static FORCE_INLINE void tdSRowReset(SRowBuilder *pBuilder) {
   pBuilder->rowType = TD_ROW_TP;
   pBuilder->pBuf = NULL;
   pBuilder->nBoundCols = -1;
@@ -350,7 +358,7 @@ void tdSRowReset(SRowBuilder *pBuilder) {
  * @return FORCE_INLINE
  */
 static FORCE_INLINE int32_t tdAppendColValToRow(SRowBuilder *pBuilder, int16_t colId, int8_t colType, const void *val,
-                                                int8_t valType, int32_t offset, int16_t idx) {
+                                                TDRowValT valType, int32_t offset, int16_t idx) {
   STSRow *pRow = pBuilder->pBuf;
   void *  pBitmap = NULL;
   if (!val) {
@@ -368,8 +376,8 @@ static FORCE_INLINE int32_t tdAppendColValToRow(SRowBuilder *pBuilder, int16_t c
   if (colId == PRIMARYKEY_TIMESTAMP_COL_ID) {
     TD_ROW_TSKEY(pRow) = *(TSKEY *)val;
 #ifdef TD_SUPPORT_BITMAP
-    pBitmap = tdRowBitmap(pRow, pBuilder->flen);
-    if (tdSetBitmap(pBitmap, idx, valType) != TSDB_CODE_SUCCESS) {
+    pBitmap = tdGetBitmapAddr(pRow, pRow->type, pBuilder->flen, pRow->ncols);
+    if (tdRowSetValType(pBitmap, idx, valType) != TSDB_CODE_SUCCESS) {
       return terrno;
     }
 #endif
@@ -379,15 +387,15 @@ static FORCE_INLINE int32_t tdAppendColValToRow(SRowBuilder *pBuilder, int16_t c
   // typedef int (*tdAppendColValToSRowFp)(STSRow *pRow, void *pBitmap, int16_t colId, int8_t colType,
   //                                                    const void *val, int8_t valType, int32_t tOffset, int16_t tIdx);
   if (TD_IS_TP_ROW(pRow)) {
-    tdAppendColValToTpRow(pRow->data, pBitmap, val, true, colType, valType, idx, offset);
+    tdAppendColValToTpRow(pRow, pBitmap, val, true, colType, valType, idx, offset);
   } else {
-    tdAppendColValToKvRow(pRow->data, pBitmap, val, true, colType, valType, idx, offset, colId);
+    tdAppendColValToKvRow(pRow, pBitmap, val, true, colType, valType, idx, offset, colId);
   }
   return TSDB_CODE_SUCCESS;
 }
 
-static FORCE_INLINE int tdAppendColValToTpRow(STSRow *row, void *pBitmap, const void *val, bool isCopyVarData,
-                                              int8_t colType, int8_t valType, int16_t idx, int32_t offset) {
+static FORCE_INLINE int32_t tdAppendColValToTpRow(STSRow *row, void *pBitmap, const void *val, bool isCopyVarData,
+                                                  int8_t colType, TDRowValT valType, int16_t idx, int32_t offset) {
   ASSERT(offset >= sizeof(TSDB_DATA_TYPE_TIMESTAMP));
   if (!tdValIsNone(valType)) {
     if (IS_VAR_DATA_TYPE(colType)) {
@@ -403,15 +411,15 @@ static FORCE_INLINE int tdAppendColValToTpRow(STSRow *row, void *pBitmap, const 
   }
 
 #ifdef TD_SUPPORT_BITMAP
-  tdSetBitmap(pBitmap, idx, valType);
+  tdRowSetValType(pBitmap, idx, valType);
 #endif
 
   return 0;
 }
 
-static FORCE_INLINE int tdAppendColValToKvRow(STSRow *row, void *pBitmap, const void *val, bool isCopyValData,
-                                              int8_t colType, int8_t valType, int16_t idx, int32_t offset,
-                                              int16_t colId) {
+static FORCE_INLINE int32_t tdAppendColValToKvRow(STSRow *row, void *pBitmap, const void *val, bool isCopyValData,
+                                                  int8_t colType, TDRowValT valType, int16_t idx, int32_t offset,
+                                                  int16_t colId) {
   ASSERT(offset >= sizeof(SKvRowIdx));
 
   if (!tdValIsNone(valType)) {
@@ -433,13 +441,13 @@ static FORCE_INLINE int tdAppendColValToKvRow(STSRow *row, void *pBitmap, const 
   }
   
 #ifdef TD_SUPPORT_BITMAP
-  tdSetBitmap(pBitmap, idx, valType);
+  tdRowSetValType(pBitmap, idx, valType);
 #endif
 
   return 0;
 }
 
-static FORCE_INLINE int32_t tdSetBitmap(void *pBitmap, int16_t tIdx, int8_t valType) {
+static FORCE_INLINE int32_t tdRowSetValType(void *pBitmap, int16_t tIdx, TDRowValT valType) {
   if (!pBitmap) {
     terrno = TSDB_CODE_INVALID_PTR;
     return terrno;
@@ -465,6 +473,186 @@ static FORCE_INLINE int32_t tdSetBitmap(void *pBitmap, int16_t tIdx, int8_t valT
       return terrno;
   }
   return TSDB_CODE_SUCCESS;
+}
+
+static FORCE_INLINE int32_t tdRowGetValType(void *pBitmap, int16_t tIdx, TDRowValT *pValType) {
+  if (!pBitmap) {
+    terrno = TSDB_CODE_INVALID_PTR;
+    return terrno;
+  }
+  int16_t nBytes = tIdx / TD_VTYPE_PARTS;
+  int16_t nOffset = tIdx & TD_VTYPE_OPTR;
+  char *  pDestByte = (char *)POINTER_SHIFT(pBitmap, nBytes);
+  switch (nOffset) {
+    case 0:
+      *pValType = (((*pDestByte) & 0xC0) >> 6);
+      break;
+    case 1:
+      *pValType = (((*pDestByte) & 0x30) >> 4);
+      break;
+    case 2:
+      *pValType = (((*pDestByte) & 0x0C) >> 2);
+      break;
+    case 3:
+      *pValType = ((*pDestByte) & 0x03);
+      break;
+    default:
+      terrno = TSDB_CODE_INVALID_PARA;
+      return terrno;
+  }
+  return TSDB_CODE_SUCCESS;
+}
+
+static FORCE_INLINE int32_t tdGetTpRowDataOfCol(SCellVal *output, STSRow *row, void *pBitmap, int8_t colType,
+                                                int32_t offset, int16_t idx) {
+#ifdef TD_SUPPORT_BITMAP
+  TDRowValT valType;
+  if (tdRowGetValType(pBitmap, idx, &valType) != TSDB_CODE_SUCCESS) {
+    return terrno;
+  }
+  output->valType = valType;
+  if (tdValIsNorm(valType, NULL, -1)) {
+    if (IS_VAR_DATA_TYPE(colType)) {
+      output->val =
+          POINTER_SHIFT(row, *(VarDataOffsetT *)POINTER_SHIFT(row->data, offset - sizeof(TSDB_DATA_TYPE_TIMESTAMP)));
+    } else {
+      output->val = POINTER_SHIFT(row->data, offset - sizeof(TSDB_DATA_TYPE_TIMESTAMP));
+    }
+  }
+#else
+  if (IS_VAR_DATA_TYPE(colType)) {
+    output->val =
+        POINTER_SHIFT(row, *(VarDataOffsetT *)POINTER_SHIFT(row->data, offset - sizeof(TSDB_DATA_TYPE_TIMESTAMP)));
+  } else {
+    output->val = POINTER_SHIFT(row->data, offset - sizeof(TSDB_DATA_TYPE_TIMESTAMP));
+  }
+  output->valType = isNull(output->val, colType) ? TD_VTYPE_NULL : TD_VTYPE_NORM;
+#endif
+  return TSDB_CODE_SUCCESS;
+}
+
+static FORCE_INLINE int32_t tdGetKvRowValOfCol(SKVRow row, int16_t colId) {
+  // void *ret = taosbsearch(&colId, kvRowColIdx(row), kvRowNCols(row), sizeof(SColIdx), comparTagId, TD_EQ);
+  // if (ret == NULL) return NULL;
+  // return kvRowColVal(row, (SColIdx *)ret);
+  return TSDB_CODE_SUCCESS;
+}
+
+static FORCE_INLINE int32_t tdGetSRowDataOfCol(SCellVal *output, STSRow *row, int16_t colId, int8_t colType,
+                                               int32_t offset, uint16_t flen, int16_t idx) {
+  void *pBitmap = tdGetBitmapAddr(row, row->type, flen, row->ncols);
+  if (TD_IS_TP_ROW(row)) {
+    return tdGetTpRowDataOfCol(output, row, pBitmap, colType, offset, idx);
+  } else {
+    return tdGetKvRowValOfCol(memRowKvBody(row), colId);
+  }
+}
+
+// NOTE: offset here including the header size
+// static FORCE_INLINE void *tdGetKvRowDataOfCol(void *row, int32_t offset) { return POINTER_SHIFT(row, offset); }
+
+// static FORCE_INLINE void *tdGetKVRowValOfColEx(SKVRow row, int16_t colId, int32_t *nIdx) {
+//   while (*nIdx < kvRowNCols(row)) {
+//     SColIdx *pColIdx = kvRowColIdxAt(row, *nIdx);
+//     if (pColIdx->colId == colId) {
+//       ++(*nIdx);
+//       return tdGetKvRowDataOfCol(row, pColIdx->offset);
+//     } else if (pColIdx->colId > colId) {
+//       return NULL;
+//     } else {
+//       ++(*nIdx);
+//     }
+//   }
+//   return NULL;
+// }
+
+/**
+ * NOTE:
+ *  1. Applicable to scan columns one by one
+ *  2. offset here including the header size
+ */
+// static FORCE_INLINE SCellVal *tdGetRowDataOfColEx(void *row, int16_t colId, int8_t colType, int32_t offset,
+//                                                   int32_t *kvNIdx) {
+//   if (isDataRow(row)) {
+//     return tdGetRowDataOfCol(memRowDataBody(row), colType, offset);
+//   } else {
+//     return tdGetKVRowValOfColEx(memRowKvBody(row), colId, kvNIdx);
+//   }
+// }
+
+
+typedef struct {
+  STSchema *pSchema;
+  STSRow *  pRow;
+  void *    pBitmap;
+  uint32_t  offset;
+  col_id_t  maxColId;
+} STSRowIter;
+
+static FORCE_INLINE void tdSTSRowIterReset(STSRowIter *pIter, STSRow *pRow) {
+  pIter->pRow = pRow;
+  pIter->pBitmap = tdGetBitmapAddr(pRow, pRow->type, pIter->pSchema->flen, pRow->ncols);
+  pIter->offset = 0;
+}
+
+static FORCE_INLINE void tdSTSRowIterInit(STSRowIter *pIter, STSchema *pSchema) {
+  pIter->pSchema = pSchema;
+  pIter->maxColId = pSchema->columns[pSchema->numOfCols - 1].colId;
+}
+
+static int tdCompareColId(const void *arg1, const void *arg2) {
+  int       colId = *(int *)arg1;
+  STColumn *pCol = (STColumn *)arg2;
+
+  if (colId < pCol->colId) {
+    return -1;
+  } else if (colId == pCol->colId) {
+    return 0;
+  } else {
+    return 1;
+  }
+}
+/**
+ * @brief
+ *
+ * @param pIter
+ * @param colId
+ * @param pVal
+ * @return true  Not reach end and pVal is set(None/Null/Norm).
+ * @return false Reach end of row and pVal not set.
+ */
+static FORCE_INLINE bool tdSTSRowIterNext(STSRowIter *pIter, col_id_t colId, SCellVal *pVal) {
+  if (colId == PRIMARYKEY_TIMESTAMP_COL_ID) {
+    pVal->val = &pIter->pRow->ts;
+#ifdef TD_SUPPORT_BITMAP
+    if (tdRowGetValType(pIter->pBitmap, 0, &pVal->valType) != TSDB_CODE_SUCCESS) {
+      pVal->valType = TD_VTYPE_NONE;
+    }
+#else
+    pVal->valType = isNull(pVal->val, TSDB_DATA_TYPE_TIMESTAMP) ? TD_VTYPE_NULL : TD_VTYPE_NORM;
+#endif
+    return true;
+  }
+
+  STSRow *pRow = pIter->pRow;
+  if (TD_IS_TP_ROW(pRow)) {
+    STSchema *pSchema = pIter->pSchema;
+    STColumn *pCol =
+        (STColumn *)taosbsearch(&colId, pSchema->columns, pSchema->numOfCols, sizeof(STColumn), tdCompareColId, TD_EQ);
+    if (!pCol) {
+      if (colId >= pIter->maxColId) return false;
+      return true;
+    }
+
+    int16_t idx = POINTER_DISTANCE(pCol, pSchema->columns) / sizeof(STColumn);
+  } else if (TD_IS_KV_ROW(pRow)) {
+
+  } else {
+    pVal->valType = TD_VTYPE_NONE;
+    return false;
+  }
+
+  return true;
 }
 
 #ifdef TROW_ORIGIN_HZ

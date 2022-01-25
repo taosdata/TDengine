@@ -56,7 +56,7 @@ extern "C" {
 // ----------------- TSDB COLUMN DEFINITION
 typedef struct {
   int8_t   type;    // Column type
-  int16_t  colId;   // column ID
+  col_id_t colId;   // column ID
   int16_t  bytes;   // column bytes (restore to int16_t in case of misuse)
   uint16_t offset;  // point offset in SDataRow after the header part.
 } STColumn;
@@ -132,7 +132,7 @@ int       tdAddColToSchema(STSchemaBuilder *pBuilder, int8_t type, int16_t colId
 STSchema *tdGetSchemaFromBuilder(STSchemaBuilder *pBuilder);
 
 // ----------------- Semantic timestamp key definition
-#ifdef TD_2 .0
+#ifdef TD_2_0
 
 typedef uint64_t TKEY;
 
@@ -145,7 +145,7 @@ typedef uint64_t TKEY;
 #define TKEY_IS_NEGATIVE(tkey) (((tkey)&TKEY_NEGATIVE_FLAG) != 0)
 #define TKEY_IS_DELETED(tkey) (((tkey)&TKEY_DELETE_FLAG) != 0)
 #define tdSetTKEYDeleted(tkey) ((tkey) | TKEY_DELETE_FLAG)
-#define tdGetTKEY(key) (((TKEY)ABS(key)) | (TKEY_NEGATIVE_FLAG & (TKEY)(key)))
+#define tdGetTKEY(key) (((TKEY)TABS(key)) | (TKEY_NEGATIVE_FLAG & (TKEY)(key)))
 #define tdGetKey(tkey) (((TSKEY)((tkey)&TKEY_VALUE_FILTER)) * (TKEY_IS_NEGATIVE(tkey) ? -1 : 1))
 
 #define MIN_TS_KEY ((TSKEY)0x8000000000000001)
@@ -166,7 +166,7 @@ typedef uint64_t TKEY;
 #define TKEY_IS_NEGATIVE(tkey) (((tkey)&TKEY_NEGATIVE_FLAG) != 0)
 #define TKEY_IS_DELETED(tkey) (((tkey)&TKEY_DELETE_FLAG) != 0)
 #define tdSetTKEYDeleted(tkey) ((tkey) | TKEY_DELETE_FLAG)
-#define tdGetTKEY(key) (((TKEY)ABS(key)) | (TKEY_NEGATIVE_FLAG & (TKEY)(key)))
+#define tdGetTKEY(key) (((TKEY)TABS(key)) | (TKEY_NEGATIVE_FLAG & (TKEY)(key)))
 #define tdGetKey(tkey) (((TSKEY)((tkey)&TKEY_VALUE_FILTER)) * (TKEY_IS_NEGATIVE(tkey) ? -1 : 1))
 
 #define MIN_TS_KEY ((TSKEY)0x8000000000000001)

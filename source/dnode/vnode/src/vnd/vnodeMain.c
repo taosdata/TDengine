@@ -127,7 +127,7 @@ static int vnodeOpenImpl(SVnode *pVnode) {
 
   // Open TQ
   sprintf(dir, "%s/tq", pVnode->path);
-  pVnode->pTq = tqOpen(dir, pVnode->pWal, &(pVnode->config.tqCfg), vBufPoolGetMAF(pVnode));
+  pVnode->pTq = tqOpen(dir, pVnode->pWal, pVnode->pMeta, &(pVnode->config.tqCfg), vBufPoolGetMAF(pVnode));
   if (pVnode->pTq == NULL) {
     // TODO: handle error
     return -1;

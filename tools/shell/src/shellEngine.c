@@ -751,56 +751,56 @@ static int calcColWidth(TAOS_FIELD *field, int precision) {
 
   switch (field->type) {
     case TSDB_DATA_TYPE_BOOL:
-      return MAX(5, width);  // 'false'
+      return TMAX(5, width);  // 'false'
 
     case TSDB_DATA_TYPE_TINYINT:
     case TSDB_DATA_TYPE_UTINYINT:
-      return MAX(4, width);  // '-127'
+      return TMAX(4, width);  // '-127'
 
     case TSDB_DATA_TYPE_SMALLINT:
     case TSDB_DATA_TYPE_USMALLINT:
-      return MAX(6, width);  // '-32767'
+      return TMAX(6, width);  // '-32767'
 
     case TSDB_DATA_TYPE_INT:
     case TSDB_DATA_TYPE_UINT:
-      return MAX(11, width);  // '-2147483648'
+      return TMAX(11, width);  // '-2147483648'
 
     case TSDB_DATA_TYPE_BIGINT:
     case TSDB_DATA_TYPE_UBIGINT:
-      return MAX(21, width);  // '-9223372036854775807'
+      return TMAX(21, width);  // '-9223372036854775807'
 
     case TSDB_DATA_TYPE_FLOAT:
-      return MAX(20, width);
+      return TMAX(20, width);
 
     case TSDB_DATA_TYPE_DOUBLE:
-      return MAX(25, width);
+      return TMAX(25, width);
 
     case TSDB_DATA_TYPE_BINARY:
       if (field->bytes > tsMaxBinaryDisplayWidth) {
-        return MAX(tsMaxBinaryDisplayWidth, width);
+        return TMAX(tsMaxBinaryDisplayWidth, width);
       } else {
-        return MAX(field->bytes, width);
+        return TMAX(field->bytes, width);
       }
 
     case TSDB_DATA_TYPE_NCHAR: {
       int16_t bytes = field->bytes * TSDB_NCHAR_SIZE;
       if (bytes > tsMaxBinaryDisplayWidth) {
-        return MAX(tsMaxBinaryDisplayWidth, width);
+        return TMAX(tsMaxBinaryDisplayWidth, width);
       } else {
-        return MAX(bytes, width);
+        return TMAX(bytes, width);
       }
     }
 
     case TSDB_DATA_TYPE_TIMESTAMP:
       if (args.is_raw_time) {
-        return MAX(14, width);
+        return TMAX(14, width);
       }
       if (precision == TSDB_TIME_PRECISION_NANO) {
-        return MAX(29, width);
+        return TMAX(29, width);
       } else if (precision == TSDB_TIME_PRECISION_MICRO) {
-        return MAX(26, width);  // '2020-01-01 00:00:00.000000'
+        return TMAX(26, width);  // '2020-01-01 00:00:00.000000'
       } else {
-        return MAX(23, width);  // '2020-01-01 00:00:00.000'
+        return TMAX(23, width);  // '2020-01-01 00:00:00.000'
       }
 
     default:

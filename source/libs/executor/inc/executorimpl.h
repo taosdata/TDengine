@@ -240,6 +240,7 @@ typedef struct STaskIdInfo {
   uint64_t       subplanId;
   uint64_t       templateId;
   uint64_t       taskId;     // this is a subplan id
+  char          *idstr;
 } STaskIdInfo;
 
 typedef struct SExecTaskInfo {
@@ -250,9 +251,8 @@ typedef struct SExecTaskInfo {
   STaskCostInfo   cost;
   int64_t         owner;       // if it is in execution
   int32_t         code;
-
+  uint64_t        totalRows;   // total number of rows
   STableGroupInfo tableqinfoGroupInfo;  // this is a group array list, including SArray<STableQueryInfo*> structure
-  pthread_mutex_t lock;        // used to synchronize the rsp/query threads
   char           *sql;         // query sql string
   jmp_buf         env;         //
   struct SOperatorInfo  *pRoot;
@@ -372,11 +372,16 @@ typedef struct STaskParam {
 
 typedef struct SExchangeInfo {
   SArray            *pSources;
-  uint64_t           bytes;   // total load bytes from remote
   tsem_t             ready;
   void              *pTransporter;
   SRetrieveTableRsp *pRsp;
   SSDataBlock       *pResult;
+  int32_t            current;
+  uint64_t           rowsOfCurrentSource;
+
+  uint64_t           totalSize;   // total load bytes from remote
+  uint64_t           totalRows;   // total number of rows
+  uint64_t           totalElapsed;// total elapsed time
 } SExchangeInfo;
 
 typedef struct STableScanInfo {
@@ -619,8 +624,6 @@ int32_t createIndirectQueryFuncExprFromMsg(SQueryTableReq *pQueryMsg, int32_t nu
 int32_t createQueryFilter(char *data, uint16_t len, SFilterInfo** pFilters);
 
 SGroupbyExpr *createGroupbyExprFromMsg(SQueryTableReq *pQueryMsg, SColIndex *pColIndex, int32_t *code);
-SQInfo *createQInfoImpl(SQueryTableReq *pQueryMsg, SGroupbyExpr *pGroupbyExpr, SExprInfo *pExprs,
-                        SExprInfo *pSecExprs, STableGroupInfo *pTableGroupInfo, SColumnInfo* pTagCols, SFilterInfo* pFilters, int32_t vgId, char* sql, uint64_t qId, struct SUdfInfo* pUdfInfo);
 
 int32_t initQInfo(STsBufInfo* pTsBufInfo, void* tsdb, void* sourceOptr, SQInfo* pQInfo, STaskParam* param, char* start,
                   int32_t prevResultLen, void* merger);
@@ -642,26 +645,24 @@ void setQueryStatus(STaskRuntimeEnv *pRuntimeEnv, int8_t status);
 bool onlyQueryTags(STaskAttr* pQueryAttr);
 //void destroyUdfInfo(struct SUdfInfo* pUdfInfo);
 
-bool isValidQInfo(void *param);
-
 int32_t doDumpQueryResult(SQInfo *pQInfo, char *data, int8_t compressed, int32_t *compLen);
 
 size_t getResultSize(SQInfo *pQInfo, int64_t *numOfRows);
-void setQueryKilled(SQInfo *pQInfo);
+void setTaskKilled(SExecTaskInfo *pTaskInfo);
 
 void publishOperatorProfEvent(SOperatorInfo* operatorInfo, EQueryProfEventType eventType);
 void publishQueryAbortEvent(SExecTaskInfo * pTaskInfo, int32_t code);
 
 void calculateOperatorProfResults(SQInfo* pQInfo);
-void queryCostStatis(SQInfo *pQInfo);
+void queryCostStatis(SExecTaskInfo *pTaskInfo);
 
-void doDestroyTask(SQInfo *pQInfo);
+void doDestroyTask(SExecTaskInfo *pTaskInfo);
 void freeQueryAttr(STaskAttr *pQuery);
 
 int32_t getMaximumIdleDurationSec();
 
 void doInvokeUdf(struct SUdfInfo* pUdfInfo, SQLFunctionCtx *pCtx, int32_t idx, int32_t type);
 void setTaskStatus(SExecTaskInfo *pTaskInfo, int8_t status);
-int32_t createExecTaskInfoImpl(SSubplan* pPlan, SExecTaskInfo** pTaskInfo, void* readerHandle);
+int32_t createExecTaskInfoImpl(SSubplan* pPlan, SExecTaskInfo** pTaskInfo, void* readerHandle, uint64_t taskId);
 
 #endif  // TDENGINE_EXECUTORIMPL_H

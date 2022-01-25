@@ -101,13 +101,13 @@ struct SAppInstInfo {
 };
 
 typedef struct SAppInfo {
-  int64_t        startTime;
-  char           appName[TSDB_APP_NAME_LEN];
-  char          *ep;
-  int32_t        pid;
-  int32_t        numOfThreads;
-
-  SHashObj      *pInstMap;
+  int64_t         startTime;
+  char            appName[TSDB_APP_NAME_LEN];
+  char           *ep;
+  int32_t         pid;
+  int32_t         numOfThreads;
+  SHashObj       *pInstMap;
+  pthread_mutex_t mutex;
 } SAppInfo;
 
 typedef struct STscObj {
@@ -136,6 +136,7 @@ typedef struct SReqResultInfo {
   TAOS_ROW     row;
   char       **pCol;
   uint32_t     numOfRows;
+  uint64_t     totalRows;
   uint32_t     current;
   bool         completed;
 } SReqResultInfo;
@@ -191,7 +192,7 @@ uint64_t generateRequestId();
 void *createRequest(STscObj* pObj, __taos_async_fn_t fp, void* param, int32_t type);
 void  destroyRequest(SRequestObj* pRequest);
 
-char *getConnectionDB(STscObj* pObj);
+char *getDbOfConnection(STscObj* pObj);
 void  setConnectionDB(STscObj* pTscObj, const char* db);
 
 void taos_init_imp(void);

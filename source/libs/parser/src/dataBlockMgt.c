@@ -249,7 +249,7 @@ static FORCE_INLINE void convertSMemRow(SMemRow dest, SMemRow src, STableDataBlo
   }
 }
 
-void destroyDataBlock(STableDataBlocks* pDataBlock) {
+static void destroyDataBlock(STableDataBlocks* pDataBlock) {
   if (pDataBlock == NULL) {
     return;
   }
@@ -273,10 +273,27 @@ void destroyBlockArrayList(SArray* pDataBlockList) {
 
   size_t size = taosArrayGetSize(pDataBlockList);
   for (int32_t i = 0; i < size; i++) {
-    destroyDataBlock(taosArrayGetP(pDataBlockList, i));
+    void* p = taosArrayGetP(pDataBlockList, i);
+    destroyDataBlock(p);
   }
 
   taosArrayDestroy(pDataBlockList);
+}
+
+void destroyBlockHashmap(SHashObj* pDataBlockHash) {
+  if (pDataBlockHash == NULL) {
+    return;
+  }
+
+  void** p1 = taosHashIterate(pDataBlockHash, NULL);
+  while (p1) {
+    STableDataBlocks* pBlocks = *p1;
+    destroyDataBlock(pBlocks);
+
+    p1 = taosHashIterate(pDataBlockHash, p1);
+  }
+
+  taosHashCleanup(pDataBlockHash);
 }
 
 // data block is disordered, sort it in ascending order
@@ -483,7 +500,7 @@ int32_t mergeTableDataBlocks(SHashObj* pHashObj, int8_t schemaAttached, uint8_t 
       }
 
       // the maximum expanded size in byte when a row-wise data is converted to SDataRow format
-      int32_t           expandSize = isRawPayload ? getRowExpandSize(pOneTableBlock->pTableMeta) : 0;
+      int32_t expandSize = isRawPayload ? getRowExpandSize(pOneTableBlock->pTableMeta) : 0;
       int64_t destSize = dataBuf->size + pOneTableBlock->size + pBlocks->numOfRows * expandSize +
                          sizeof(STColumn) * getNumOfColumns(pOneTableBlock->pTableMeta);
 

@@ -181,7 +181,8 @@ extern "C" {
   #endif
 #else
   // Windows
-  #define setThreadName(name)
+//  #define setThreadName(name)
+#define setThreadName(name) do { prctl(PR_SET_NAME, (name)); } while (0)
 #endif
 
 #if defined(_WIN32)
