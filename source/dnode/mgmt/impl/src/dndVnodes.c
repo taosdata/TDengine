@@ -910,27 +910,27 @@ static int32_t dndInitVnodeWorkers(SDnode *pDnode) {
   int32_t maxWriteThreads = TMAX(pDnode->env.numOfCores, 1);
   int32_t maxSyncThreads = TMAX(pDnode->env.numOfCores / 2, 1);
 
-  SWorkerPool *pPool = &pMgmt->queryPool;
+  SQWorkerPool *pPool = &pMgmt->queryPool;
   pPool->name = "vnode-query";
   pPool->min = minQueryThreads;
   pPool->max = maxQueryThreads;
-  if (tWorkerInit(pPool) != 0) return -1;
+  if (tQWorkerInit(pPool) != 0) return -1;
 
   pPool = &pMgmt->fetchPool;
   pPool->name = "vnode-fetch";
   pPool->min = minFetchThreads;
   pPool->max = maxFetchThreads;
-  if (tWorkerInit(pPool) != 0) return -1;
+  if (tQWorkerInit(pPool) != 0) return -1;
 
-  SMWorkerPool *pMPool = &pMgmt->writePool;
+  SWWorkerPool *pMPool = &pMgmt->writePool;
   pMPool->name = "vnode-write";
   pMPool->max = maxWriteThreads;
-  if (tMWorkerInit(pMPool) != 0) return -1;
+  if (tWWorkerInit(pMPool) != 0) return -1;
 
   pMPool = &pMgmt->syncPool;
   pMPool->name = "vnode-sync";
   pMPool->max = maxSyncThreads;
-  if (tMWorkerInit(pMPool) != 0) return -1;
+  if (tWWorkerInit(pMPool) != 0) return -1;
 
   dDebug("vnode workers is initialized");
   return 0;
@@ -938,21 +938,21 @@ static int32_t dndInitVnodeWorkers(SDnode *pDnode) {
 
 static void dndCleanupVnodeWorkers(SDnode *pDnode) {
   SVnodesMgmt *pMgmt = &pDnode->vmgmt;
-  tWorkerCleanup(&pMgmt->fetchPool);
-  tWorkerCleanup(&pMgmt->queryPool);
-  tMWorkerCleanup(&pMgmt->writePool);
-  tMWorkerCleanup(&pMgmt->syncPool);
+  tQWorkerCleanup(&pMgmt->fetchPool);
+  tQWorkerCleanup(&pMgmt->queryPool);
+  tWWorkerCleanup(&pMgmt->writePool);
+  tWWorkerCleanup(&pMgmt->syncPool);
   dDebug("vnode workers is closed");
 }
 
 static int32_t dndAllocVnodeQueue(SDnode *pDnode, SVnodeObj *pVnode) {
   SVnodesMgmt *pMgmt = &pDnode->vmgmt;
 
-  pVnode->pWriteQ = tMWorkerAllocQueue(&pMgmt->writePool, pVnode, (FProcessItems)dndProcessVnodeWriteQueue);
-  pVnode->pApplyQ = tMWorkerAllocQueue(&pMgmt->writePool, pVnode, (FProcessItems)dndProcessVnodeApplyQueue);
-  pVnode->pSyncQ = tMWorkerAllocQueue(&pMgmt->syncPool, pVnode, (FProcessItems)dndProcessVnodeSyncQueue);
-  pVnode->pFetchQ = tWorkerAllocQueue(&pMgmt->fetchPool, pVnode, (FProcessItem)dndProcessVnodeFetchQueue);
-  pVnode->pQueryQ = tWorkerAllocQueue(&pMgmt->queryPool, pVnode, (FProcessItem)dndProcessVnodeQueryQueue);
+  pVnode->pWriteQ = tWWorkerAllocQueue(&pMgmt->writePool, pVnode, (FProcessItems)dndProcessVnodeWriteQueue);
+  pVnode->pApplyQ = tWWorkerAllocQueue(&pMgmt->writePool, pVnode, (FProcessItems)dndProcessVnodeApplyQueue);
+  pVnode->pSyncQ = tWWorkerAllocQueue(&pMgmt->syncPool, pVnode, (FProcessItems)dndProcessVnodeSyncQueue);
+  pVnode->pFetchQ = tQWorkerAllocQueue(&pMgmt->fetchPool, pVnode, (FProcessItem)dndProcessVnodeFetchQueue);
+  pVnode->pQueryQ = tQWorkerAllocQueue(&pMgmt->queryPool, pVnode, (FProcessItem)dndProcessVnodeQueryQueue);
 
   if (pVnode->pApplyQ == NULL || pVnode->pWriteQ == NULL || pVnode->pSyncQ == NULL || pVnode->pFetchQ == NULL ||
       pVnode->pQueryQ == NULL) {
@@ -965,11 +965,11 @@ static int32_t dndAllocVnodeQueue(SDnode *pDnode, SVnodeObj *pVnode) {
 
 static void dndFreeVnodeQueue(SDnode *pDnode, SVnodeObj *pVnode) {
   SVnodesMgmt *pMgmt = &pDnode->vmgmt;
-  tWorkerFreeQueue(&pMgmt->queryPool, pVnode->pQueryQ);
-  tWorkerFreeQueue(&pMgmt->fetchPool, pVnode->pFetchQ);
-  tMWorkerFreeQueue(&pMgmt->writePool, pVnode->pWriteQ);
-  tMWorkerFreeQueue(&pMgmt->writePool, pVnode->pApplyQ);
-  tMWorkerFreeQueue(&pMgmt->syncPool, pVnode->pSyncQ);
+  tQWorkerFreeQueue(&pMgmt->queryPool, pVnode->pQueryQ);
+  tQWorkerFreeQueue(&pMgmt->fetchPool, pVnode->pFetchQ);
+  tWWorkerFreeQueue(&pMgmt->writePool, pVnode->pWriteQ);
+  tWWorkerFreeQueue(&pMgmt->writePool, pVnode->pApplyQ);
+  tWWorkerFreeQueue(&pMgmt->syncPool, pVnode->pSyncQ);
   pVnode->pWriteQ = NULL;
   pVnode->pApplyQ = NULL;
   pVnode->pSyncQ = NULL;
