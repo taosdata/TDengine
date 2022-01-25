@@ -91,7 +91,7 @@ static int32_t mndProcessGetSubEpReq(SMnodeMsg *pMsg) {
     int32_t          assignedSz = taosArrayGetSize(pSub->assigned);
     topicEp.vgs = taosArrayInit(assignedSz, sizeof(SMqSubVgEp));
     for (int32_t j = 0; j < assignedSz; j++) {
-      SMqConsumerEp *pCEp = taosArrayGet(pSub->assigned, i);
+      SMqConsumerEp *pCEp = taosArrayGet(pSub->assigned, j);
       if (pCEp->consumerId == consumerId) {
         SMqSubVgEp vgEp = {
           .epSet = pCEp->epSet,

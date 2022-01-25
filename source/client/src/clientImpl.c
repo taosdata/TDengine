@@ -452,9 +452,9 @@ TAOS_RES* tmq_subscribe(tmq_t* tmq, tmq_list_t* topic_list) {
   tsem_wait(&pRequest->body.rspSem);
 
 _return:
-  if (sendInfo != NULL) {
-    destroySendMsgInfo(sendInfo);
-  }
+  /*if (sendInfo != NULL) {*/
+    /*destroySendMsgInfo(sendInfo);*/
+  /*}*/
 
   if (pRequest != NULL && terrno != TSDB_CODE_SUCCESS) {
     pRequest->code = terrno;
