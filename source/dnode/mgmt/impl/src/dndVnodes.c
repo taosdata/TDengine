@@ -737,15 +737,9 @@ int32_t dndProcessCompactVnodeReq(SDnode *pDnode, SRpcMsg *pReq) {
   return 0;
 }
 
-static void dndProcessVnodeQueryQueue(SVnodeObj *pVnode, SRpcMsg *pMsg) {
-  SRpcMsg *pRsp = NULL;
-  vnodeProcessQueryReq(pVnode->pImpl, pMsg, &pRsp);
-}
+static void dndProcessVnodeQueryQueue(SVnodeObj *pVnode, SRpcMsg *pMsg) { vnodeProcessQueryMsg(pVnode->pImpl, pMsg); }
 
-static void dndProcessVnodeFetchQueue(SVnodeObj *pVnode, SRpcMsg *pMsg) {
-  SRpcMsg *pRsp = NULL;
-  vnodeProcessFetchReq(pVnode->pImpl, pMsg, &pRsp);
-}
+static void dndProcessVnodeFetchQueue(SVnodeObj *pVnode, SRpcMsg *pMsg) { vnodeProcessFetchMsg(pVnode->pImpl, pMsg); }
 
 static void dndProcessVnodeWriteQueue(SVnodeObj *pVnode, STaosQall *qall, int32_t numOfMsgs) {
   SArray *pArray = taosArrayInit(numOfMsgs, sizeof(SRpcMsg *));
