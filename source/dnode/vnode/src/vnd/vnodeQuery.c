@@ -21,7 +21,7 @@ static int     vnodeGetTableMeta(SVnode *pVnode, SRpcMsg *pMsg);
 
 int vnodeQueryOpen(SVnode *pVnode) {
   return qWorkerInit(NODE_TYPE_VNODE, pVnode->vgId, NULL, (void **)&pVnode->pQuery, pVnode,
-                     (putReqToQueryQFp)vnodePutReqToVQueryQ);
+                     (putReqToQueryQFp)vnodePutReqToVQueryQ, (sendReqToDnodeFp)vnodeSendReqToDnode);
 }
 
 int vnodeProcessQueryMsg(SVnode *pVnode, SRpcMsg *pMsg) {
@@ -43,6 +43,8 @@ int vnodeProcessFetchMsg(SVnode *pVnode, SRpcMsg *pMsg) {
   switch (pMsg->msgType) {
     case TDMT_VND_FETCH:
       return qWorkerProcessFetchMsg(pVnode, pVnode->pQuery, pMsg);
+    case TDMT_VND_FETCH_RSP:
+      return qWorkerProcessFetchRsp(pVnode, pVnode->pQuery, pMsg);
     case TDMT_VND_RES_READY:
       return qWorkerProcessReadyMsg(pVnode, pVnode->pQuery, pMsg);
     case TDMT_VND_TASKS_STATUS:

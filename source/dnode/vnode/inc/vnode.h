@@ -33,6 +33,7 @@ extern "C" {
 typedef struct SVnode SVnode;
 typedef struct SDnode SDnode;
 typedef int32_t (*PutReqToVQueryQFp)(SDnode *pDnode, struct SRpcMsg *pReq);
+typedef int32_t (*SendReqToDnodeFp)(SDnode *pDnode, struct SEpSet *epSet, struct SRpcMsg *rpcMsg);
 
 typedef struct STqCfg {
   // TODO
@@ -64,6 +65,7 @@ typedef struct {
   const char       *charset;
   uint16_t          nthreads;  // number of commit threads. 0 for no threads and a schedule queue should be given (TODO)
   PutReqToVQueryQFp putReqToVQueryQFp;
+  SendReqToDnodeFp  sendReqToDnodeFp;
 } SVnodeOpt;
 
 typedef struct STqReadHandle {
