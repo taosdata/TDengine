@@ -242,7 +242,7 @@ void *rpcOpen(const SRpcInit *pInit) {
   pRpc = (SRpcInfo *)calloc(1, sizeof(SRpcInfo));
   if (pRpc == NULL) return NULL;
 
-  if (pInit->label) tstrncpy(pRpc->label, pInit->label, strlen(pInit->label));
+  if (pInit->label) tstrncpy(pRpc->label, pInit->label, tListLen(pInit->label));
 
   pRpc->connType = pInit->connType;
   if (pRpc->connType == TAOS_CONN_CLIENT) {

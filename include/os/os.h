@@ -51,6 +51,7 @@ extern "C" {
 #include <libgen.h>
 
 #include <sys/mman.h>
+#include <sys/prctl.h>
 
 #include "osAtomic.h"
 #include "osDef.h"
