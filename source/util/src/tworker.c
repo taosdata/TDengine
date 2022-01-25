@@ -149,8 +149,8 @@ void tFWorkerCleanup(SFWorkerPool *pool) { tQWorkerCleanup(pool); }
 
 static void *tFWorkerThreadFp(SQWorker *worker) {
   SQWorkerPool *pool = worker->pool;
-  FItem         fp = NULL;
 
+  FItem   fp = NULL;
   void *  msg = NULL;
   void *  ahandle = NULL;
   int32_t code = 0;
@@ -160,9 +160,14 @@ static void *tFWorkerThreadFp(SQWorker *worker) {
   uDebug("worker:%s:%d is running", pool->name, worker->id);
 
   while (1) {
-    if (taosReadQitemFromQsetByThread(pool->qset, (void **)&msg, &ahandle, &fp, worker->id) == 0) {
+    code = taosReadQitemFromQsetByThread(pool->qset, (void **)&msg, &ahandle, &fp, worker->id);
+
+    if (code < 0) {
       uDebug("worker:%s:%d qset:%p, got no message and exiting", pool->name, worker->id, pool->qset);
       break;
+    } else if (code == 0) {
+      // uTrace("worker:%s:%d qset:%p, got no message and continue", pool->name, worker->id, pool->qset);
+      continue;
     }
 
     if (fp != NULL) {
@@ -231,7 +236,7 @@ void tWWorkerCleanup(SWWorkerPool *pool) {
   uInfo("worker:%s is closed", pool->name);
 }
 
-static void *tWriteWorkerThreadFp(SWWorker *worker) {
+static void *tWWorkerThreadFp(SWWorker *worker) {
   SWWorkerPool *pool = worker->pool;
   FItems        fp = NULL;
 
@@ -293,7 +298,7 @@ STaosQueue *tWWorkerAllocQueue(SWWorkerPool *pool, void *ahandle, FItems fp) {
     pthread_attr_init(&thAttr);
     pthread_attr_setdetachstate(&thAttr, PTHREAD_CREATE_JOINABLE);
 
-    if (pthread_create(&worker->thread, &thAttr, (ThreadFp)tWriteWorkerThreadFp, worker) != 0) {
+    if (pthread_create(&worker->thread, &thAttr, (ThreadFp)tWWorkerThreadFp, worker) != 0) {
       uError("worker:%s:%d failed to create thread to process since %s", pool->name, worker->id, strerror(errno));
       taosFreeQall(worker->qall);
       taosCloseQset(worker->qset);

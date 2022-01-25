@@ -910,27 +910,27 @@ static int32_t dndInitVnodeWorkers(SDnode *pDnode) {
   int32_t maxWriteThreads = TMAX(pDnode->env.numOfCores, 1);
   int32_t maxSyncThreads = TMAX(pDnode->env.numOfCores / 2, 1);
 
-  SQWorkerPool *pPool = &pMgmt->queryPool;
-  pPool->name = "vnode-query";
-  pPool->min = minQueryThreads;
-  pPool->max = maxQueryThreads;
-  if (tQWorkerInit(pPool) != 0) return -1;
+  SQWorkerPool *pQPool = &pMgmt->queryPool;
+  pQPool->name = "vnode-query";
+  pQPool->min = minQueryThreads;
+  pQPool->max = maxQueryThreads;
+  if (tQWorkerInit(pQPool) != 0) return -1;
 
-  pPool = &pMgmt->fetchPool;
-  pPool->name = "vnode-fetch";
-  pPool->min = minFetchThreads;
-  pPool->max = maxFetchThreads;
-  if (tFWorkerInit(pPool) != 0) return -1;
+  SFWorkerPool *pFPool = &pMgmt->fetchPool;
+  pFPool->name = "vnode-fetch";
+  pFPool->min = minFetchThreads;
+  pFPool->max = maxFetchThreads;
+  if (tFWorkerInit(pFPool) != 0) return -1;
 
-  SWWorkerPool *pMPool = &pMgmt->writePool;
-  pMPool->name = "vnode-write";
-  pMPool->max = maxWriteThreads;
-  if (tWWorkerInit(pMPool) != 0) return -1;
+  SWWorkerPool *pWPool = &pMgmt->writePool;
+  pWPool->name = "vnode-write";
+  pWPool->max = maxWriteThreads;
+  if (tWWorkerInit(pWPool) != 0) return -1;
 
-  pMPool = &pMgmt->syncPool;
-  pMPool->name = "vnode-sync";
-  pMPool->max = maxSyncThreads;
-  if (tWWorkerInit(pMPool) != 0) return -1;
+  pWPool = &pMgmt->syncPool;
+  pWPool->name = "vnode-sync";
+  pWPool->max = maxSyncThreads;
+  if (tWWorkerInit(pWPool) != 0) return -1;
 
   dDebug("vnode workers is initialized");
   return 0;

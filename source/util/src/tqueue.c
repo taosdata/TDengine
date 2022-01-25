@@ -423,7 +423,9 @@ int32_t taosReadAllQitemsFromQset(STaosQset *qset, STaosQall *qall, void **ahand
       queue->tail = NULL;
       queue->numOfItems = 0;
       atomic_sub_fetch_32(&qset->numOfItems, qall->numOfItems);
-      for (int32_t j = 1; j < qall->numOfItems; ++j) tsem_wait(&qset->sem);
+      for (int32_t j = 1; j < qall->numOfItems; ++j) {
+        tsem_wait(&qset->sem);
+      }
     }
 
     pthread_mutex_unlock(&queue->mutex);
@@ -437,7 +439,7 @@ int32_t taosReadAllQitemsFromQset(STaosQset *qset, STaosQall *qall, void **ahand
 
 int32_t taosReadQitemFromQsetByThread(STaosQset *qset, void **ppItem, void **ahandle, FItem *itemFp, int32_t threadId) {
   STaosQnode *pNode = NULL;
-  int32_t     code = 0;
+  int32_t     code = -1;
 
   tsem_wait(&qset->sem);
 
@@ -449,7 +451,10 @@ int32_t taosReadQitemFromQsetByThread(STaosQset *qset, void **ppItem, void **aha
     if (queue) qset->current = queue->next;
     if (queue == NULL) break;
     if (queue->head == NULL) continue;
-    if (queue->threadId != -1 && queue->threadId != threadId) continue;
+    if (queue->threadId != -1 && queue->threadId != threadId) {
+      code = 0;
+      continue;
+    }
 
     pthread_mutex_lock(&queue->mutex);
 
@@ -485,6 +490,9 @@ void taosResetQsetThread(STaosQset *qset, void *pItem) {
 
   pthread_mutex_lock(&qset->mutex);
   pNode->queue->threadId = -1;
+  for (int32_t i = 0; i < pNode->queue->numOfItems; ++i) {
+    tsem_post(&qset->sem);
+  }
   pthread_mutex_unlock(&qset->mutex);
 }
 
