@@ -306,6 +306,7 @@ void uvOnTimeoutCb(uv_timer_t* handle) {
 void uvOnWriteCb(uv_write_t* req, int status) {
   SSrvConn* conn = req->data;
   SSrvMsg*  smsg = conn->pSrvMsg;
+  destroySrvMsg(conn);
 
   transClearBuffer(&conn->readBuf);
   if (status == 0) {
