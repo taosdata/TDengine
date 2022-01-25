@@ -321,6 +321,10 @@ void uvOnWriteCb(uv_write_t* req, int status) {
   buf->len = 0;
   memset(buf->buf, 0, buf->cap);
   buf->left = -1;
+
+  SRpcMsg* pMsg = &conn->sendMsg;
+  transFreeMsg(pMsg->pCont);
+
   if (status == 0) {
     tDebug("conn %p data already was written on stream", conn);
   } else {
