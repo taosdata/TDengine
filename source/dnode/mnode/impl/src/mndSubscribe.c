@@ -43,7 +43,7 @@ static int32_t mndProcessSubscribeInternalRsp(SMnodeMsg *pMsg);
 static int32_t mndProcessMqTimerMsg(SMnodeMsg *pMsg);
 
 static int mndBuildMqSetConsumerVgReq(SMnode *pMnode, STrans *pTrans, SMqConsumerObj *pConsumer,
-                                      SMqConsumerTopic *pConsumerTopic, SMqTopicObj *pTopic);
+                                      SMqConsumerTopic *pConsumerTopic, SMqTopicObj *pTopic, SMqConsumerEp *pSub);
 
 int32_t mndInitSubscribe(SMnode *pMnode) {
   SSdbTable table = {.sdbType = SDB_SUBSCRIBE,
@@ -184,7 +184,7 @@ static int mndInitUnassignedVg(SMnode *pMnode, SMqTopicObj *pTopic, SArray *unas
 }
 
 static int mndBuildMqSetConsumerVgReq(SMnode *pMnode, STrans *pTrans, SMqConsumerObj *pConsumer,
-                                      SMqConsumerTopic *pConsumerTopic, SMqTopicObj *pTopic) {
+                                      SMqConsumerTopic *pConsumerTopic, SMqTopicObj *pTopic, SMqConsumerEp* pCEp) {
   int32_t sz = taosArrayGetSize(pConsumerTopic->pVgInfo);
   for (int32_t i = 0; i < sz; i++) {
     int32_t      vgId = *(int32_t *)taosArrayGet(pConsumerTopic->pVgInfo, i);
@@ -199,6 +199,8 @@ static int mndBuildMqSetConsumerVgReq(SMnode *pMnode, STrans *pTrans, SMqConsume
     req.sql = pTopic->sql;
     req.logicalPlan = pTopic->logicalPlan;
     req.physicalPlan = pTopic->physicalPlan;
+    req.qmsg = strdup(pCEp->qmsg);
+    req.qmsgLen = strlen(req.qmsg);
     int32_t tlen = tEncodeSMqSetCVgReq(NULL, &req);
     void   *buf = malloc(sizeof(SMsgHead) + tlen);
     if (buf == NULL) {
@@ -501,17 +503,21 @@ static int32_t mndProcessSubscribeReq(SMnodeMsg *pMsg) {
       }
       taosArrayPush(pSub->availConsumer, &consumerId);
 
+
       SMqConsumerTopic *pConsumerTopic = tNewConsumerTopic(consumerId, pTopic, pSub);
       taosArrayPush(pConsumer->topics, pConsumerTopic);
 
       if (taosArrayGetSize(pConsumerTopic->pVgInfo) > 0) {
         ASSERT(taosArrayGetSize(pConsumerTopic->pVgInfo) == 1);
         int32_t vgId = *(int32_t *)taosArrayGetLast(pConsumerTopic->pVgInfo);
-        // send setmsg to vnode
-        if (mndBuildMqSetConsumerVgReq(pMnode, pTrans, pConsumer, pConsumerTopic, pTopic) < 0) {
-          // TODO
-          return -1;
+        SMqConsumerEp* pCEp = taosArrayGetLast(pSub->assigned);
+        if (pCEp->vgId == vgId) {
+          if (mndBuildMqSetConsumerVgReq(pMnode, pTrans, pConsumer, pConsumerTopic, pTopic, pCEp) < 0) {
+            // TODO
+            return -1;
+          }
         }
+        // send setmsg to vnode
       }
 
       SSdbRaw *pRaw = mndSubActionEncode(pSub);

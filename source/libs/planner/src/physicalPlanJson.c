@@ -1132,6 +1132,7 @@ int32_t subPlanToString(const SSubplan* subplan, char** str, int32_t* len) {
 }
 
 int32_t stringToSubplan(const char* str, SSubplan** subplan) {
+  printf("aa: %s\n", str);
   cJSON* json = cJSON_Parse(str);
   if (NULL == json) {
     return TSDB_CODE_FAILED;
