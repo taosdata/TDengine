@@ -221,7 +221,7 @@ PARSE_SDB_DATA_ERROR:
   return code;
 }
 
-int32_t sdbWriteFile(SSdb *pSdb) {
+static int32_t sdbWriteFileImp(SSdb *pSdb) {
   int32_t code = 0;
 
   char tmpfile[PATH_MAX] = {0};
@@ -229,7 +229,8 @@ int32_t sdbWriteFile(SSdb *pSdb) {
   char curfile[PATH_MAX] = {0};
   snprintf(curfile, sizeof(curfile), "%s%ssdb.data", pSdb->currDir, TD_DIRSEP);
 
-  mDebug("start to write file:%s", curfile);
+  mDebug("start to write file:%s, current ver:%" PRId64 ", commit ver:%" PRId64, curfile, pSdb->curVer,
+         pSdb->lastCommitVer);
 
   FileFd fd = taosOpenFileCreateWriteTrunc(tmpfile);
   if (fd <= 0) {
@@ -323,12 +324,20 @@ int32_t sdbWriteFile(SSdb *pSdb) {
   return code;
 }
 
+int32_t sdbWriteFile(SSdb *pSdb) {
+  if (pSdb->curVer == pSdb->lastCommitVer) {
+    return 0;
+  }
+
+  return sdbWriteFileImp(pSdb);
+}
+
 int32_t sdbDeploy(SSdb *pSdb) {
   if (sdbRunDeployFp(pSdb) != 0) {
     return -1;
   }
 
-  if (sdbWriteFile(pSdb) != 0) {
+  if (sdbWriteFileImp(pSdb) != 0) {
     return -1;
   }
 
