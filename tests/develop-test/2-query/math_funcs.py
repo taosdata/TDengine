@@ -79,6 +79,7 @@ class TDTestCase:
 
         tdSql.execute('insert into tbn values (\'2021-11-11 09:00:06\',true,7,7,7,7,7,7,"777","7777",7,7,7,7);')
 
+        #===========  begin math_sqrt  ==========
         tdSql.query('select sqrt(13) from tb1;')
         tdSql.checkRows(7)
         tdSql.checkData(0, 0, 3.605551275463989)
@@ -487,6 +488,10 @@ class TDTestCase:
         tdSql.checkData(12, 0, 2.449489742783178)
         tdSql.checkData(13, 0, 2.6457513110645907)
 
+        #===========  end   math_sqrt  ==========
+
+
+        #===========  begin math_abs  ==========
         tdSql.query('select abs(13) from tb1;')
         tdSql.checkRows(7)
         tdSql.checkData(0, 0, 13)
@@ -895,6 +900,10 @@ class TDTestCase:
         tdSql.checkData(12, 0, 6)
         tdSql.checkData(13, 0, 7)
 
+        #===========  end   math_abs  ==========
+
+
+        #===========  begin math_asin  ==========
         tdSql.query('select asin(13) from tb1;')
         tdSql.checkRows(7)
         tdSql.checkData(0, 0, None)
@@ -1303,6 +1312,10 @@ class TDTestCase:
         tdSql.checkData(12, 0, None)
         tdSql.checkData(13, 0, None)
 
+        #===========  end   math_asin  ==========
+
+
+        #===========  begin math_acos  ==========
         tdSql.query('select acos(13) from tb1;')
         tdSql.checkRows(7)
         tdSql.checkData(0, 0, None)
@@ -1711,6 +1724,10 @@ class TDTestCase:
         tdSql.checkData(12, 0, None)
         tdSql.checkData(13, 0, None)
 
+        #===========  end   math_acos  ==========
+
+
+        #===========  begin math_atan  ==========
         tdSql.query('select acos(13) from tb1;')
         tdSql.checkRows(7)
         tdSql.checkData(0, 0, None)
@@ -2119,6 +2136,10 @@ class TDTestCase:
         tdSql.checkData(12, 0, None)
         tdSql.checkData(13, 0, None)
 
+        #===========  end   math_atan  ==========
+
+
+        #===========  begin math_sin  ==========
         tdSql.query('select sin(13) from tb1;')
         tdSql.checkRows(7)
         tdSql.checkData(0, 0, 0.4201670368266409)
@@ -2527,6 +2548,10 @@ class TDTestCase:
         tdSql.checkData(12, 0, -0.27941549819892586)
         tdSql.checkData(13, 0, 0.6569865987187891)
 
+        #===========  end   math_sin  ==========
+
+
+        #===========  begin math_cos  ==========
         tdSql.query('select cos(13) from tb1;')
         tdSql.checkRows(7)
         tdSql.checkData(0, 0, 0.9074467814501962)
@@ -2935,6 +2960,10 @@ class TDTestCase:
         tdSql.checkData(12, 0, 0.960170286650366)
         tdSql.checkData(13, 0, 0.7539022543433046)
 
+        #===========  end   math_cos  ==========
+
+
+        #===========  begin math_tan  ==========
         tdSql.query('select tan(13) from tb1;')
         tdSql.checkRows(7)
         tdSql.checkData(0, 0, 0.4630211329364896)
@@ -3343,6 +3372,10 @@ class TDTestCase:
         tdSql.checkData(12, 0, -0.29100619138474915)
         tdSql.checkData(13, 0, 0.8714479827243188)
 
+        #===========  end   math_tan  ==========
+
+
+        #===========  begin math_pow  ==========
         tdSql.query('select pow(c2,13) from tb1;')
         tdSql.checkRows(7)
         tdSql.checkData(0, 0, 1.0)
@@ -3639,6 +3672,10 @@ class TDTestCase:
         tdSql.checkData(12, 0, 46656.0)
         tdSql.checkData(13, 0, 823543.0)
 
+        #===========  end   math_pow  ==========
+
+
+        #===========  begin math_log  ==========
         tdSql.query('select log(c2,13) from tb1;')
         tdSql.checkRows(7)
         tdSql.checkData(0, 0, 0.0)
@@ -3935,6 +3972,9 @@ class TDTestCase:
         tdSql.checkData(12, 0, 1.0)
         tdSql.checkData(13, 0, 1.0)
 
+        #===========  end   math_log  ==========
+
+
 
         tdSql.execute('create table stba (ts timestamp, c1 bool, c2 tinyint, c3 smallint, c4 int, c5 bigint, c6 float, c7 double, c8 binary(10), c9 nchar(10), c10 tinyint unsigned, c11 smallint unsigned, c12 int unsigned, c13 bigint unsigned) TAGS(t1 int, t2 binary(10), t3 double);')
 
@@ -4004,6 +4044,7 @@ class TDTestCase:
 
         tdSql.execute('insert into tba1 values (\'2021-11-11 09:00:29\',true, 0,0,0,0,0,0,"000","0000",0,0,0,0);')
 
+        #===========  begin math_sqrt  ==========
         tdSql.query('select sqrt(13) from tb1;')
         tdSql.checkRows(7)
         tdSql.checkData(0, 0, 3.605551275463989)
@@ -4412,6 +4453,10 @@ class TDTestCase:
         tdSql.checkData(12, 0, 2.449489742783178)
         tdSql.checkData(13, 0, 2.6457513110645907)
 
+        #===========  end   math_sqrt  ==========
+
+
+        #===========  begin math_sqrt2  ==========
         tdSql.query('select sqrt(stb1.c4),sqrt(stba.c5) from stb1,stba where stb1.t1=stba.t1 and stb1.ts=stba.ts;')
         tdSql.checkRows(7)
         tdSql.checkData(0, 0, 1.0)
@@ -4729,6 +4774,10 @@ class TDTestCase:
         tdSql.checkRows(1)
         tdSql.checkData(0, 0, 0.0)
 
+        #===========  end   math_sqrt2  ==========
+
+
+        #===========  begin math_abs  ==========
         tdSql.query('select abs(13) from tb1;')
         tdSql.checkRows(7)
         tdSql.checkData(0, 0, 13)
@@ -5137,6 +5186,10 @@ class TDTestCase:
         tdSql.checkData(12, 0, 6)
         tdSql.checkData(13, 0, 7)
 
+        #===========  end   math_abs  ==========
+
+
+        #===========  begin math_abs2  ==========
         tdSql.query('select abs(stb1.c4),abs(stba.c5) from stb1,stba where stb1.t1=stba.t1 and stb1.ts=stba.ts;')
         tdSql.checkRows(7)
         tdSql.checkData(0, 0, 1)
@@ -5454,6 +5507,10 @@ class TDTestCase:
         tdSql.checkRows(1)
         tdSql.checkData(0, 0, 0)
 
+        #===========  end   math_abs2  ==========
+
+
+        #===========  begin math_asin  ==========
         tdSql.query('select asin(13) from tb1;')
         tdSql.checkRows(7)
         tdSql.checkData(0, 0, None)
@@ -5862,6 +5919,10 @@ class TDTestCase:
         tdSql.checkData(12, 0, None)
         tdSql.checkData(13, 0, None)
 
+        #===========  end   math_asin  ==========
+
+
+        #===========  begin math_asin2  ==========
         tdSql.query('select asin(stb1.c4),asin(stba.c5) from stb1,stba where stb1.t1=stba.t1 and stb1.ts=stba.ts;')
         tdSql.checkRows(7)
         tdSql.checkData(0, 0, 1.5707963267948966)
@@ -6179,6 +6240,10 @@ class TDTestCase:
         tdSql.checkRows(1)
         tdSql.checkData(0, 0, 0.0)
 
+        #===========  end   math_asin2  ==========
+
+
+        #===========  begin math_acos  ==========
         tdSql.query('select acos(13) from tb1;')
         tdSql.checkRows(7)
         tdSql.checkData(0, 0, None)
@@ -6587,6 +6652,10 @@ class TDTestCase:
         tdSql.checkData(12, 0, None)
         tdSql.checkData(13, 0, None)
 
+        #===========  end   math_acos  ==========
+
+
+        #===========  begin math_acos2  ==========
         tdSql.query('select acos(stb1.c4),acos(stba.c5) from stb1,stba where stb1.t1=stba.t1 and stb1.ts=stba.ts;')
         tdSql.checkRows(7)
         tdSql.checkData(0, 0, 0.0)
@@ -6904,6 +6973,10 @@ class TDTestCase:
         tdSql.checkRows(1)
         tdSql.checkData(0, 0, 1.5707963267948966)
 
+        #===========  end   math_acos2  ==========
+
+
+        #===========  begin math_atan  ==========
         tdSql.query('select acos(13) from tb1;')
         tdSql.checkRows(7)
         tdSql.checkData(0, 0, None)
@@ -7312,6 +7385,10 @@ class TDTestCase:
         tdSql.checkData(12, 0, None)
         tdSql.checkData(13, 0, None)
 
+        #===========  end   math_atan  ==========
+
+
+        #===========  begin math_atan2  ==========
         tdSql.query('select acos(stb1.c4),acos(stba.c5) from stb1,stba where stb1.t1=stba.t1 and stb1.ts=stba.ts;')
         tdSql.checkRows(7)
         tdSql.checkData(0, 0, 0.0)
@@ -7629,6 +7706,10 @@ class TDTestCase:
         tdSql.checkRows(1)
         tdSql.checkData(0, 0, 1.5707963267948966)
 
+        #===========  end   math_atan2  ==========
+
+
+        #===========  begin math_sin  ==========
         tdSql.query('select sin(13) from tb1;')
         tdSql.checkRows(7)
         tdSql.checkData(0, 0, 0.4201670368266409)
@@ -8037,6 +8118,10 @@ class TDTestCase:
         tdSql.checkData(12, 0, -0.27941549819892586)
         tdSql.checkData(13, 0, 0.6569865987187891)
 
+        #===========  end   math_sin  ==========
+
+
+        #===========  begin math_sin2  ==========
         tdSql.query('select sin(stb1.c4),sin(stba.c5) from stb1,stba where stb1.t1=stba.t1 and stb1.ts=stba.ts;')
         tdSql.checkRows(7)
         tdSql.checkData(0, 0, 0.8414709848078965)
@@ -8354,6 +8439,10 @@ class TDTestCase:
         tdSql.checkRows(1)
         tdSql.checkData(0, 0, 0.0)
 
+        #===========  end   math_sin2  ==========
+
+
+        #===========  begin math_cos  ==========
         tdSql.query('select cos(13) from tb1;')
         tdSql.checkRows(7)
         tdSql.checkData(0, 0, 0.9074467814501962)
@@ -8762,6 +8851,10 @@ class TDTestCase:
         tdSql.checkData(12, 0, 0.960170286650366)
         tdSql.checkData(13, 0, 0.7539022543433046)
 
+        #===========  end   math_cos  ==========
+
+
+        #===========  begin math_cos2  ==========
         tdSql.query('select cos(stb1.c4),cos(stba.c5) from stb1,stba where stb1.t1=stba.t1 and stb1.ts=stba.ts;')
         tdSql.checkRows(7)
         tdSql.checkData(0, 0, 0.5403023058681398)
@@ -9079,6 +9172,10 @@ class TDTestCase:
         tdSql.checkRows(1)
         tdSql.checkData(0, 0, 1.0)
 
+        #===========  end   math_cos2  ==========
+
+
+        #===========  begin math_tan  ==========
         tdSql.query('select tan(13) from tb1;')
         tdSql.checkRows(7)
         tdSql.checkData(0, 0, 0.4630211329364896)
@@ -9487,6 +9584,10 @@ class TDTestCase:
         tdSql.checkData(12, 0, -0.29100619138474915)
         tdSql.checkData(13, 0, 0.8714479827243188)
 
+        #===========  end   math_tan  ==========
+
+
+        #===========  begin math_tan2  ==========
         tdSql.query('select tan(stb1.c4),tan(stba.c5) from stb1,stba where stb1.t1=stba.t1 and stb1.ts=stba.ts;')
         tdSql.checkRows(7)
         tdSql.checkData(0, 0, 1.5574077246549023)
@@ -9804,6 +9905,10 @@ class TDTestCase:
         tdSql.checkRows(1)
         tdSql.checkData(0, 0, 0.0)
 
+        #===========  end   math_tan2  ==========
+
+
+        #===========  begin math_pow  ==========
         tdSql.query('select pow(c2,13) from tb1;')
         tdSql.checkRows(7)
         tdSql.checkData(0, 0, 1.0)
@@ -10100,6 +10205,10 @@ class TDTestCase:
         tdSql.checkData(12, 0, 46656.0)
         tdSql.checkData(13, 0, 823543.0)
 
+        #===========  end   math_pow  ==========
+
+
+        #===========  begin math_pow2  ==========
         tdSql.query('select pow(c2,c4) as a from stb1 union all select pow(c2,c5) as a from stba;')
         tdSql.checkRows(44)
         tdSql.checkData(0, 0, 1.0)
@@ -10180,6 +10289,10 @@ class TDTestCase:
         tdSql.checkData(28, 0, 387420489.0)
         tdSql.checkData(29, 0, 1.0)
 
+        #===========  end   math_pow2  ==========
+
+
+        #===========  begin math_log  ==========
         tdSql.query('select log(c2,13) from tb1;')
         tdSql.checkRows(7)
         tdSql.checkData(0, 0, 0.0)
@@ -10476,6 +10589,10 @@ class TDTestCase:
         tdSql.checkData(12, 0, 1.0)
         tdSql.checkData(13, 0, 1.0)
 
+        #===========  end   math_log  ==========
+
+
+        #===========  begin math_log2  ==========
         tdSql.query('select log(c2,c4) as a from stb1 union all select log(c2,c5) as a from stba;')
         tdSql.checkRows(44)
         tdSql.checkData(0, 0, None)
@@ -10555,6 +10672,9 @@ class TDTestCase:
         tdSql.checkData(27, 0, 1.0)
         tdSql.checkData(28, 0, 1.0)
         tdSql.checkData(29, 0, None)
+
+        #===========  end   math_log2  ==========
+
 
 
         tdSql.execute('drop database math_funcs')
