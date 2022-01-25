@@ -76,7 +76,8 @@ extern "C" {
 
 #define TSDB_FUNC_BLKINFO      36
 
-#define TSDB_FUNC_ELAPSED      37 
+#define TSDB_FUNC_ELAPSED      37
+#define TSDB_FUNC_UNIQUE       38
 
 ///////////////////////////////////////////
 // the following functions is not implemented.

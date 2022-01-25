@@ -210,6 +210,15 @@ typedef struct {
   };
 } SDiffFuncInfo;
 
+//typedef struct {
+//  int64_t  timestamp;
+//  char *   pTags;
+//} UniqueUnit;
+
+typedef struct{
+  SHashObj  *pSet;
+} SUniqueFuncInfo;
+
 int32_t getResultDataInfo(int32_t dataType, int32_t dataBytes, int32_t functionId, int32_t param, int16_t *type,
                           int32_t *bytes, int32_t *interBytes, int16_t extLength, bool isSuperTable, SUdfInfo* pUdfInfo) {
   if (!isValidDataType(dataType)) {
@@ -222,7 +231,7 @@ int32_t getResultDataInfo(int32_t dataType, int32_t dataBytes, int32_t functionI
 
   if (functionId == TSDB_FUNC_TS || functionId == TSDB_FUNC_TS_DUMMY || functionId == TSDB_FUNC_TAG_DUMMY ||
       functionId == TSDB_FUNC_DIFF || functionId == TSDB_FUNC_PRJ || functionId == TSDB_FUNC_TAGPRJ ||
-      functionId == TSDB_FUNC_TAG || functionId == TSDB_FUNC_INTERP)
+      functionId == TSDB_FUNC_TAG || functionId == TSDB_FUNC_INTERP || functionId == TSDB_FUNC_UNIQUE)
   {
     *type = (int16_t)dataType;
     *bytes = dataBytes;
@@ -231,6 +240,8 @@ int32_t getResultDataInfo(int32_t dataType, int32_t dataBytes, int32_t functionI
       *interBytes = sizeof(SInterpInfoDetail);
     } else if (functionId == TSDB_FUNC_DIFF) {
       *interBytes = sizeof(SDiffFuncInfo);
+    } else if (functionId == TSDB_FUNC_UNIQUE) {
+      *interBytes = sizeof(SUniqueFuncInfo);
     } else {
       *interBytes = 0;
     }
@@ -502,7 +513,7 @@ int32_t isValidFunction(const char* name, int32_t len) {
     }
   }
 
-  for(int32_t i = 0; i <= TSDB_FUNC_ELAPSED; ++i) {
+  for(int32_t i = 0; i <= TSDB_FUNC_UNIQUE; ++i) {
     int32_t nameLen = (int32_t) strlen(aAggs[i].name);
     if (len != nameLen) {
       continue;
@@ -4917,6 +4928,93 @@ static void elapsedFinalizer(SQLFunctionCtx *pCtx) {
   doFinalizer(pCtx);
 }
 
+// unique
+static bool unique_function_setup(SQLFunctionCtx *pCtx, SResultRowCellInfo* pResInfo) {
+  if (!function_setup(pCtx, pResInfo)) {
+    return false;
+  }
+
+  SUniqueFuncInfo *uniqueInfo = GET_ROWCELL_INTERBUF(pResInfo);
+  uniqueInfo->pSet = taosHashInit(64, taosGetDefaultHashFunction(TSDB_DATA_TYPE_BINARY), true, HASH_NO_LOCK);
+  return true;
+}
+
+static void unique_function(SQLFunctionCtx *pCtx) {
+  SResultRowCellInfo *pResInfo = GET_RES_INFO(pCtx);
+  SUniqueFuncInfo    *pInfo = GET_ROWCELL_INTERBUF(pResInfo);
+
+  int32_t notNullElems = 0;
+
+  for (int32_t i = 0; i < pCtx->size; i++) {
+    char *pData = GET_INPUT_DATA(pCtx, i);
+    TSKEY k = 0;
+    if (pCtx->ptsList != NULL) {
+      k = GET_TS_DATA(pCtx, i);
+      DO_UPDATE_TAG_COLUMNS(pCtx, k);
+    }
+    TSKEY *uniqueTime = taosHashGet(pInfo->pSet, pData, pCtx->inputBytes);
+    if (uniqueTime == NULL || *uniqueTime < k) {
+      taosHashPut(pInfo->pSet, pData, pCtx->inputBytes, &k, sizeof(TSKEY));
+    }
+
+//    if (pRes->info.rows >= pInfo->threshold) {
+//      break;
+//    }
+
+    {
+      for (int t = 0; t < pCtx->tagInfo.numOfTagCols; ++t) {
+        SQLFunctionCtx *tagCtx = pCtx->tagInfo.pTagCtxList[t];
+        if (tagCtx->functionId == TSDB_FUNC_TAG_DUMMY) {
+          aAggs[TSDB_FUNC_TAGPRJ].xFunction(tagCtx);
+        }
+      }
+      GET_RES_INFO(pCtx)->numOfRes += notNullElems;
+      GET_RES_INFO(pCtx)->hasResult = DATA_SET_FLAG;
+    }
+  }
+}
+
+static void unique_func_finalizer(SQLFunctionCtx *pCtx) {
+  if (GET_RES_INFO(pCtx)->hasResult != DATA_SET_FLAG) {
+    setNull(pCtx->pOutput, pCtx->outputType, pCtx->outputBytes);
+    return;
+  }
+
+  SElapsedInfo *pInfo = GET_ROWCELL_INTERBUF(GET_RES_INFO(pCtx));
+  double result = (double)pInfo->max - (double)pInfo->min;
+  *(double *)pCtx->pOutput = result >= 0 ? result : -result;
+  if (pCtx->numOfParams > 0 && pCtx->param[0].i64 > 0) {
+    *(double *)pCtx->pOutput = *(double *)pCtx->pOutput / pCtx->param[0].i64;
+  }
+  GET_RES_INFO(pCtx)->numOfRes = 1;
+
+  // set the output timestamp of each record.
+//  TSKEY *output = pCtx->ptsOutputBuf;
+//  for (int32_t i = 0; i < len; ++i, output += step) {
+//    *output = tvp[i]->timestamp;
+//  }
+//
+//  // set the corresponding tag data for each record
+//  // todo check malloc failure
+//  char **pData = calloc(pCtx->tagInfo.numOfTagCols, POINTER_BYTES);
+//  for (int32_t i = 0; i < pCtx->tagInfo.numOfTagCols; ++i) {
+//    pData[i] = pCtx->tagInfo.pTagCtxList[i]->pOutput;
+//  }
+//
+//  for (int32_t i = 0; i < len; ++i, output += step) {
+//    int16_t offset = 0;
+//    for (int32_t j = 0; j < pCtx->tagInfo.numOfTagCols; ++j) {
+//      memcpy(pData[j], tvp[i]->pTags + offset, (size_t)pCtx->tagInfo.pTagCtxList[j]->outputBytes);
+//      offset += pCtx->tagInfo.pTagCtxList[j]->outputBytes;
+//      pData[j] += pCtx->tagInfo.pTagCtxList[j]->outputBytes;
+//    }
+//  }
+//
+//  tfree(pData);
+
+  doFinalizer(pCtx);
+}
+
 /////////////////////////////////////////////////////////////////////////////////////////////
 /*
  * function compatible list.
@@ -4937,8 +5035,8 @@ int32_t functionCompatList[] = {
     1,          1,        1,         1,       -1,      1,          1,           1,          5,          1,      1,
     // tid_tag, deriv,    csum,       mavg,        sample,
     6,          8,        -1,         -1,          -1,
-    // block_info, elapsed
-    7,             1
+    // block_info, elapsed, unique
+    7,             1,     -1
 };
 
 SAggFunctionInfo aAggs[40] = {{
@@ -5399,5 +5497,17 @@ SAggFunctionInfo aAggs[40] = {{
                               elapsedFinalizer,
                               elapsedMerge,
                               elapsedRequired,
-                          }
+                          },
+                          {
+                              // 38
+                              "unique",
+                              TSDB_FUNC_UNIQUE,
+                              TSDB_FUNC_INVALID_ID,
+                              TSDB_FUNCSTATE_MO | TSDB_FUNCSTATE_STABLE | TSDB_FUNCSTATE_SELECTIVITY,
+                              unique_function_setup,
+                              unique_function,
+                              unique_func_finalizer,
+                              unique_function,
+                              dataBlockRequired,
+                          },
 };
