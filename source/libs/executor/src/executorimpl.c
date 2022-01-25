@@ -7744,7 +7744,7 @@ static SExecTaskInfo* createExecTaskInfo(uint64_t queryId, uint64_t taskId) {
   pTaskInfo->id.taskId  = taskId;
 
   char* p = calloc(1, 128);
-  snprintf(p, 128, "TID:0x%"PRIu64" QID:0x%"PRIx64, taskId, queryId);
+  snprintf(p, 128, "TID:0x%"PRIx64" QID:0x%"PRIx64, taskId, queryId);
   pTaskInfo->id.idstr = strdup(p);
 
   return pTaskInfo;

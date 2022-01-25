@@ -258,12 +258,12 @@ int32_t qwBuildAndSendCQueryMsg(SQWorkerMgmt *mgmt, uint64_t sId, uint64_t qId, 
 
   int32_t code = (*mgmt->putToQueueFp)(mgmt->nodeObj, &pNewMsg);
   if (TSDB_CODE_SUCCESS != code) {
-    QW_SCH_TASK_ELOG("put query continue msg to queue failed, code:%x", code);
+    QW_SCH_TASK_ELOG("put query continue msg to queue failed, vgId:%d, code:%s", mgmt->nodeId, tstrerror(code));
     rpcFreeCont(req);
     QW_ERR_RET(code);
   }
 
-  QW_SCH_TASK_DLOG("put query continue msg to query queue, vgId:%d", mgmt->nodeId);
+  QW_SCH_TASK_DLOG("put task continue exec msg to query queue, vgId:%d", mgmt->nodeId);
 
   return TSDB_CODE_SUCCESS;
 }
