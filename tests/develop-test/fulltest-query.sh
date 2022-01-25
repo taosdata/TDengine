@@ -9,3 +9,4 @@ python3 ./test.py -f 2-query/escape.py
 python3 ./test.py -f 2-query/func_compare.py
 python3 ./test.py -f 2-query/diff_ignore_negative.py
 python3 ./test.py -f 2-query/diff_funcs.py
+python3 ./test.py -f 2-query/math_funcs.py
