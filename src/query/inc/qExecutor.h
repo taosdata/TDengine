@@ -727,8 +727,6 @@ void qInfoLogSSDataBlock(SSDataBlock* block, char* location);
 // add table read rows count. pHashTables must not be NULL
 void addTableReadRows(SQueryRuntimeEnv* pEnv, int32_t tid, int32_t rows);
 // tsdb scan table callback table or query is over. param is SQueryRuntimeEnv*
-#define READ_TABLE    1
-#define READ_QUERY    2 
 bool qReadOverCB(void* param, int8_t type, int32_t tid);
 
 #endif  // TDENGINE_QEXECUTOR_H
