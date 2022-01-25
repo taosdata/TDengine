@@ -56,6 +56,13 @@ class TDTestCase:
         self.test_case2()
         tdLog.debug(" LIMIT test_case2 ............ [OK]")
 
+        # insert data 
+        self.insert_data("t2", self.ts, 100*10000, 30000);
+        self.insert_data("t3", self.ts, 200*10000, 30000);
+        # test supper table 
+        self.test_limit()
+        tdLog.debug(" LIMIT test super table ............ [OK]")
+
 
     # stop 
     def stop(self):
@@ -186,6 +193,31 @@ class TDTestCase:
         tdSql.waitedQuery(sql, 3, WAITS)
         tdSql.checkData(0, 1, 1)
 
+    # test limit 
+    def test_limit(self):
+        # 
+        # base test
+        #
+        
+        # offset
+        sql = "select * from st order by ts limit 20"
+        tdSql.waitedQuery(sql, 20, WAITS)
+        tdSql.checkData(19, 1, 6)
+        sql = "select * from st order by ts desc limit 20"
+        tdSql.waitedQuery(sql, 20, WAITS)
+        tdSql.checkData(19, 1, 2999980)
+        sql = "select * from st where ts>='2017-07-14 10:40:10' and ts<'2017-07-22 18:40:10' order by ts  limit 16;"
+        tdSql.waitedQuery(sql, 16, WAITS)
+        tdSql.checkData(15, 1, 15)
+        sql = "select * from st where ts>='2017-07-14 10:40:10' and ts<'2017-07-22 18:40:10' order by ts desc limit 16;"
+        tdSql.waitedQuery(sql, 16, WAITS)
+        tdSql.checkData(15, 1, 720004)
+        sql = "select * from st where ts>='2017-07-14 10:40:10' and ts<'2017-07-22 18:40:10' order by ts desc limit 16;"
+        tdSql.waitedQuery(sql, 16, WAITS)
+        tdSql.checkData(15, 1, 720004)
+        sql = "select * from st where ts>='2017-07-14 10:40:10' and ts<'2017-07-22 18:40:10' order by ts desc limit 16 offset 3;"
+        tdSql.waitedQuery(sql, 16, WAITS)
+        tdSql.checkData(15, 1, 720003)
 
 #
 # add case with filename

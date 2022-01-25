@@ -432,6 +432,16 @@ void* getJsonTagValueElment(void* data, char* key, int32_t keyLen, char* out, in
 void getJsonTagValueAll(void* data, void* dst, int16_t bytes);
 char* parseTagDatatoJson(void *p);
 
+//
+// scan callback 
+//
+
+// type define
+#define READ_TABLE    1
+#define READ_QUERY    2
+typedef bool (*readover_callback)(void* param, int8_t type, int32_t tid);
+void tsdbAddScanCallback(TsdbQueryHandleT* queryHandle, readover_callback callback, void* param);
+
 #ifdef __cplusplus
 }
 #endif
