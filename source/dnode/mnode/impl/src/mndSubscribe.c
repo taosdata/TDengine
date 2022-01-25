@@ -105,7 +105,7 @@ static int32_t mndProcessGetSubEpReq(SMnodeMsg *pMsg) {
     }
   }
   int32_t tlen = tEncodeSMqCMGetSubEpRsp(NULL, &rsp);
-  void   *buf = malloc(tlen);
+  void   *buf = rpcMallocCont(tlen);
   if (buf == NULL) {
     terrno = TSDB_CODE_OUT_OF_MEMORY;
     return -1;
@@ -222,6 +222,7 @@ static int mndInitUnassignedVg(SMnode *pMnode, SMqTopicObj *pTopic, SArray *unas
   for (int32_t i = 0; i < sz; i++) {
     SMqConsumerEp CEp;
     CEp.status = 0;
+    CEp.consumerId = -1;
     CEp.lastConsumerHbTs = CEp.lastVgHbTs = -1;
     STaskInfo *pTaskInfo = taosArrayGet(pArray, i);
     tConvertQueryAddrToEpSet(&CEp.epSet, &pTaskInfo->addr);
