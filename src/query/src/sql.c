@@ -3843,7 +3843,7 @@ static YYACTIONTYPE yy_reduce(
     yymsp[-4].minor.yy0.n += yymsp[-3].minor.yy0.n;
 
     toTSDBType(yymsp[0].minor.yy0.type);
-    SArray* A = tVariantListAppendToken(NULL, &yymsp[0].minor.yy0, -1, true);
+    SArray* A = tVariantListAppendToken(NULL, &yymsp[0].minor.yy0, -1, false);
 
     SAlterTableInfo* pAlterTable = tSetAlterTableInfo(&yymsp[-4].minor.yy0, NULL, A, TSDB_ALTER_TABLE_DROP_TAG_COLUMN, -1);
     setSqlInfo(pInfo, pAlterTable, NULL, TSDB_SQL_ALTER_TABLE);
@@ -3854,10 +3854,10 @@ static YYACTIONTYPE yy_reduce(
     yymsp[-5].minor.yy0.n += yymsp[-4].minor.yy0.n;
 
     toTSDBType(yymsp[-1].minor.yy0.type);
-    SArray* A = tVariantListAppendToken(NULL, &yymsp[-1].minor.yy0, -1, true);
+    SArray* A = tVariantListAppendToken(NULL, &yymsp[-1].minor.yy0, -1, false);
 
     toTSDBType(yymsp[0].minor.yy0.type);
-    A = tVariantListAppendToken(A, &yymsp[0].minor.yy0, -1, true);
+    A = tVariantListAppendToken(A, &yymsp[0].minor.yy0, -1, false);
 
     SAlterTableInfo* pAlterTable = tSetAlterTableInfo(&yymsp[-5].minor.yy0, NULL, A, TSDB_ALTER_TABLE_CHANGE_TAG_COLUMN, -1);
     setSqlInfo(pInfo, pAlterTable, NULL, TSDB_SQL_ALTER_TABLE);
@@ -3868,7 +3868,7 @@ static YYACTIONTYPE yy_reduce(
     yymsp[-6].minor.yy0.n += yymsp[-5].minor.yy0.n;
 
     toTSDBType(yymsp[-2].minor.yy0.type);
-    SArray* A = tVariantListAppendToken(NULL, &yymsp[-2].minor.yy0, -1, true);
+    SArray* A = tVariantListAppendToken(NULL, &yymsp[-2].minor.yy0, -1, false);
     A = tVariantListAppend(A, &yymsp[0].minor.yy162, -1);
 
     SAlterTableInfo* pAlterTable = tSetAlterTableInfo(&yymsp[-6].minor.yy0, NULL, A, TSDB_ALTER_TABLE_UPDATE_TAG_VAL, -1);
