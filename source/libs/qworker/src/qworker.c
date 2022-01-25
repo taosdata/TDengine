@@ -456,7 +456,7 @@ _return:
   QW_RET(code);
 }
 
-int32_t qwExecTask(QW_FPARAMS_DEF, SQWTaskCtx *ctx) {
+int32_t qwExecTask(QW_FPARAMS_DEF, SQWTaskCtx *ctx, bool *queryEnd) {
   int32_t code = 0;
   bool  qcontinue = true;
   SSDataBlock* pRes = NULL;
@@ -484,6 +484,10 @@ int32_t qwExecTask(QW_FPARAMS_DEF, SQWTaskCtx *ctx) {
       
       if (TASK_TYPE_TEMP == ctx->taskType) {
         qwFreeTaskHandle(QW_FPARAMS(), taskHandle);
+      }
+
+      if (queryEnd) {
+        *queryEnd = true;
       }
       
       break;
@@ -587,12 +591,7 @@ int32_t qwGetResFromSink(QW_FPARAMS_DEF, SQWTaskCtx *ctx, int32_t *dataLen, void
     QW_ERR_RET(code);
   }
 
-  queryEnd = pOutput->queryEnd;
-  pOutput->queryEnd = false;
-
-  if (DS_BUF_EMPTY == pOutput->bufStatus && queryEnd) {
-    pOutput->queryEnd = true;
-    
+  if (DS_BUF_EMPTY == pOutput->bufStatus && pOutput->queryEnd) {
     QW_SCH_TASK_DLOG("task all fetched, status:%d", JOB_TASK_STATUS_SUCCEED);
     QW_ERR_RET(qwUpdateTaskStatus(QW_FPARAMS(), JOB_TASK_STATUS_SUCCEED));
   }
@@ -996,7 +995,7 @@ int32_t qwProcessQuery(QW_FPARAMS_DEF, SQWMsg *qwMsg, int8_t taskType) {
   atomic_store_ptr(&ctx->sinkHandle, sinkHandle);
 
   if (pTaskInfo && sinkHandle) {
-    QW_ERR_JRET(qwExecTask(QW_FPARAMS(), ctx));
+    QW_ERR_JRET(qwExecTask(QW_FPARAMS(), ctx, NULL));
   }
   
 _return:
@@ -1083,6 +1082,7 @@ int32_t qwProcessCQuery(QW_FPARAMS_DEF, SQWMsg *qwMsg) {
   SQWPhaseOutput output = {0};
   void *rsp = NULL;
   int32_t dataLen = 0;
+  bool queryEnd = false;
   
   do {
     QW_ERR_JRET(qwHandlePrePhaseEvents(QW_FPARAMS(), QW_PHASE_PRE_CQUERY, &input, &output));
@@ -1102,7 +1102,7 @@ int32_t qwProcessCQuery(QW_FPARAMS_DEF, SQWMsg *qwMsg) {
 
     DataSinkHandle  sinkHandle = ctx->sinkHandle;
 
-    QW_ERR_JRET(qwExecTask(QW_FPARAMS(), ctx));
+    QW_ERR_JRET(qwExecTask(QW_FPARAMS(), ctx, &queryEnd));
 
     if (QW_IS_EVENT_RECEIVED(ctx, QW_EVENT_FETCH)) {
       SOutputData sOutput = {0};
@@ -1113,10 +1113,6 @@ int32_t qwProcessCQuery(QW_FPARAMS_DEF, SQWMsg *qwMsg) {
         
         // RC WARNING
         atomic_store_8(&ctx->queryContinue, 1);
-      }
-
-      if (sOutput.queryEnd) {
-        needStop = true;
       }
       
       if (rsp) {
@@ -1129,6 +1125,10 @@ int32_t qwProcessCQuery(QW_FPARAMS_DEF, SQWMsg *qwMsg) {
       } else {
         atomic_store_8(&ctx->queryContinue, 1);
       }
+    }
+
+    if (queryEnd) {
+      needStop = true;
     }
 
   _return:
