@@ -593,19 +593,19 @@ TAOS_RES *taos_create_topic(TAOS* taos, const char* topicName, const char* sql, 
   pRequest->body.requestMsg = (SDataBuf){ .pData = buf, .len = tlen };
   pRequest->type = TDMT_MND_CREATE_TOPIC;
 
-  SMsgSendInfo* body = buildMsgInfoImpl(pRequest);
+  SMsgSendInfo* sendInfo = buildMsgInfoImpl(pRequest);
   SEpSet epSet = getEpSet_s(&pTscObj->pAppInfo->mgmtEp);
 
   int64_t transporterId = 0;
-  asyncSendMsgToServer(pTscObj->pAppInfo->pTransporter, &epSet, &transporterId, body);
+  asyncSendMsgToServer(pTscObj->pAppInfo->pTransporter, &epSet, &transporterId, sendInfo);
 
   tsem_wait(&pRequest->body.rspSem);
 
 _return:
   qDestroyQuery(pQueryNode);
-  if (body != NULL) {
-    destroySendMsgInfo(body);
-  }
+  /*if (sendInfo != NULL) {*/
+    /*destroySendMsgInfo(sendInfo);*/
+  /*}*/
 
   if (pRequest != NULL && terrno != TSDB_CODE_SUCCESS) {
     pRequest->code = terrno;
