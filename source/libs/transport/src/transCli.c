@@ -105,24 +105,23 @@ static void* clientThread(void* arg);
 static void clientHandleResp(SCliConn* conn) {
   STransConnCtx* pCtx = ((SCliMsg*)conn->data)->ctx;
   SRpcInfo*      pRpc = pCtx->pTransInst;
-  SRpcMsg        rpcMsg;
 
   STransMsgHead* pHead = (STransMsgHead*)(conn->readBuf.buf);
   pHead->code = htonl(pHead->code);
   pHead->msgLen = htonl(pHead->msgLen);
 
+  SRpcMsg rpcMsg;
   rpcMsg.contLen = transContLenFromMsg(pHead->msgLen);
   rpcMsg.pCont = transContFromHead(pHead);
   rpcMsg.code = pHead->code;
   rpcMsg.msgType = pHead->msgType;
-
-  // rpcMsg.pCont = conn->readBuf.buf;
-  // rpcMsg.contLen = conn->readBuf.len;
   rpcMsg.ahandle = pCtx->ahandle;
+
   (pRpc->cfp)(NULL, &rpcMsg, NULL);
   conn->notifyCount += 1;
 
   SCliThrdObj* pThrd = conn->hostThrd;
+  tfree(conn->data);
   addConnToPool(pThrd->pool, pCtx->ip, pCtx->port, conn);
 
   // start thread's timer of conn pool if not active
@@ -145,7 +144,7 @@ static void clientHandleExcept(SCliConn* pConn) {
   rpcMsg.code = -1;
   // SRpcInfo* pRpc = pMsg->ctx->pRpc;
   (pRpc->cfp)(NULL, &rpcMsg, NULL);
-
+  tfree(pConn->data);
   pConn->notifyCount += 1;
   destroyTransConnCtx(pCtx);
   clientConnDestroy(pConn, true);
