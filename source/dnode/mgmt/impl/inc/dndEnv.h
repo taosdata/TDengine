@@ -110,7 +110,7 @@ typedef struct {
   int32_t      totalVnodes;
   SRWLatch     latch;
   SQWorkerPool queryPool;
-  SQWorkerPool fetchPool;
+  SFWorkerPool fetchPool;
   SWWorkerPool syncPool;
   SWWorkerPool writePool;
 } SVnodesMgmt;
