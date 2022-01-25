@@ -209,31 +209,6 @@ static SArray* getDefaultLoadColumns(STsdbReadHandle* pTsdbReadHandle, bool load
   return pLocalIdList;
 }
 
-static void tsdbMayTakeMemSnapshot(STsdbReadHandle* pTsdbReadHandle, SArray* psTable) {
-//  assert(pTsdbReadHandle != NULL && pTsdbReadHandle->pMemRef != NULL);
-//
-//  STsdbMemTable* pMemRef = pTsdbReadHandle->pMemRef;
-//  if (pTsdbReadHandle->pMemRef->ref++ == 0) {
-//    tsdbTakeMemSnapshot(pTsdbReadHandle->pTsdb, &(pMemRef->snapshot), psTable);
-//  }
-//
-//  taosArrayDestroy(psTable);
-}
-
-static void tsdbMayUnTakeMemSnapshot(STsdbReadHandle* pTsdbReadHandle) {
-//  assert(pTsdbReadHandle != NULL);
-//  STsdbMemTable* pMemRef = pTsdbReadHandle->pMemRef;
-//  if (pMemRef == NULL) { // it has been freed
-//    return;
-//  }
-//
-//  if (--pMemRef->ref == 0) {
-//    tsdbUnTakeMemSnapShot(pTsdbReadHandle->pTsdb, &(pMemRef->snapshot));
-//  }
-//
-//  pTsdbReadHandle->pMemRef = NULL;
-}
-
 //int64_t tsdbGetNumOfRowsInMemTable(tsdbReadHandleT* pHandle) {
 //  STsdbReadHandle* pTsdbReadHandle = (STsdbReadHandle*) pHandle;
 //
@@ -263,9 +238,9 @@ static void tsdbMayUnTakeMemSnapshot(STsdbReadHandle* pTsdbReadHandle) {
 //  return rows;
 //}
 
-static SArray* createCheckInfoFromTableGroup(STsdbReadHandle* pTsdbReadHandle, STableGroupInfo* pGroupList, SArray** psTable) {
-  size_t sizeOfGroup = taosArrayGetSize(pGroupList->pGroupList);
-  assert(sizeOfGroup >= 1);
+static SArray* createCheckInfoFromTableGroup(STsdbReadHandle* pTsdbReadHandle, STableGroupInfo* pGroupList) {
+  size_t numOfGroup = taosArrayGetSize(pGroupList->pGroupList);
+  assert(numOfGroup >= 1);
 
   // allocate buffer in order to load data blocks from file
   SArray* pTableCheckInfo = taosArrayInit(pGroupList->numOfTables, sizeof(STableCheckInfo));
@@ -273,14 +248,8 @@ static SArray* createCheckInfoFromTableGroup(STsdbReadHandle* pTsdbReadHandle, S
     return NULL;
   }
 
-  SArray* pTable = taosArrayInit(4, sizeof(STable*));
-  if (pTable == NULL) {
-    taosArrayDestroy(pTableCheckInfo);
-    return NULL;
-  }
-
   // todo apply the lastkey of table check to avoid to load header file
-  for (int32_t i = 0; i < sizeOfGroup; ++i) {
+  for (int32_t i = 0; i < numOfGroup; ++i) {
     SArray* group = *(SArray**) taosArrayGet(pGroupList->pGroupList, i);
 
     size_t gsize = taosArrayGetSize(group);
@@ -290,11 +259,8 @@ static SArray* createCheckInfoFromTableGroup(STsdbReadHandle* pTsdbReadHandle, S
       STableKeyInfo* pKeyInfo = (STableKeyInfo*) taosArrayGet(group, j);
 
       STableCheckInfo info = { .lastKey = pKeyInfo->lastKey};
-//      assert(info.pTableObj != NULL && (info.pTableObj->type == TSDB_NORMAL_TABLE ||
-//                                        info.pTableObj->type == TSDB_CHILD_TABLE || info.pTableObj->type == TSDB_STREAM_TABLE));
 
       info.tableId = pKeyInfo->uid;
-
       if (ASCENDING_TRAVERSE(pTsdbReadHandle->order)) {
         if (info.lastKey == INT64_MIN || info.lastKey < pTsdbReadHandle->window.skey) {
           info.lastKey = pTsdbReadHandle->window.skey;
@@ -310,13 +276,13 @@ static SArray* createCheckInfoFromTableGroup(STsdbReadHandle* pTsdbReadHandle, S
     }
   }
 
+  // TODO  group table according to the tag value.
 //  taosArraySort(pTableCheckInfo, tsdbCheckInfoCompar);
-  size_t gsize = taosArrayGetSize(pTableCheckInfo);
+//  size_t gsize = taosArrayGetSize(pTableCheckInfo);
 //  for (int32_t i = 0; i < gsize; ++i) {
 //    STableCheckInfo* pInfo = (STableCheckInfo*) taosArrayGet(pTableCheckInfo, i);
 //  }
 
-  *psTable = pTable;
   return pTableCheckInfo;
 }
 
@@ -484,18 +450,17 @@ tsdbReadHandleT* tsdbQueryTables(STsdb* tsdb, STsdbQueryCond* pCond, STableGroup
     return (tsdbReadHandleT*) pTsdbReadHandle;
   }
 
-  SArray* psTable = NULL;
-
   // todo apply the lastkey of table check to avoid to load header file
-  pTsdbReadHandle->pTableCheckInfo = createCheckInfoFromTableGroup(pTsdbReadHandle, groupList, &psTable);
+  pTsdbReadHandle->pTableCheckInfo = createCheckInfoFromTableGroup(pTsdbReadHandle, groupList);
   if (pTsdbReadHandle->pTableCheckInfo == NULL) {
 //    tsdbCleanupQueryHandle(pTsdbReadHandle);
-    taosArrayDestroy(psTable);
     terrno = TSDB_CODE_TDB_OUT_OF_MEMORY;
     return NULL;
   }
 
-  tsdbDebug("%p total numOfTable:%" PRIzu " in query, %s", pTsdbReadHandle, taosArrayGetSize(pTsdbReadHandle->pTableCheckInfo), pTsdbReadHandle->idStr);
+  tsdbDebug("%p total numOfTable:%" PRIzu " in this query, group %"PRIzu" %s", pTsdbReadHandle, taosArrayGetSize(pTsdbReadHandle->pTableCheckInfo),
+      taosArrayGetSize(groupList->pGroupList), pTsdbReadHandle->idStr);
+
   return (tsdbReadHandleT) pTsdbReadHandle;
 }
 
@@ -3690,16 +3655,16 @@ SArray* createTableGroup(SArray* pTableList, SSchemaWrapper* pTagSchema, SColInd
 
 int32_t tsdbQuerySTableByTagCond(STsdb* tsdb, uint64_t uid, TSKEY skey, const char* pTagCond, size_t len,
                                  int16_t tagNameRelType, const char* tbnameCond, STableGroupInfo* pGroupInfo,
-                                 SColIndex* pColIndex, int32_t numOfCols, uint64_t reqId) {
+                                 SColIndex* pColIndex, int32_t numOfCols, uint64_t reqId, uint64_t taskId) {
   STbCfg* pTbCfg = metaGetTbInfoByUid(tsdb->pMeta, uid);
   if (pTbCfg == NULL) {
-    tsdbError("%p failed to get stable, uid:%"PRIu64", reqId:0x%"PRIx64, tsdb, uid, reqId);
+    tsdbError("%p failed to get stable, uid:%"PRIu64", TID:0x%"PRIx64" QID:0x%"PRIx64, tsdb, uid, taskId, reqId);
     terrno = TSDB_CODE_TDB_INVALID_TABLE_ID;
     goto _error;
   }
 
   if (pTbCfg->type != META_SUPER_TABLE) {
-    tsdbError("%p query normal tag not allowed, uid:%" PRIu64 ", reId:0x%"PRIx64, tsdb, uid, reqId);
+    tsdbError("%p query normal tag not allowed, uid:%" PRIu64 ", TID:0x%"PRIx64" QID:0x%"PRIx64, tsdb, uid, taskId, reqId);
     terrno = TSDB_CODE_OPS_NOT_SUPPORT; //basically, this error is caused by invalid sql issued by client
     goto _error;
   }
@@ -3718,8 +3683,8 @@ int32_t tsdbQuerySTableByTagCond(STsdb* tsdb, uint64_t uid, TSKEY skey, const ch
     pGroupInfo->numOfTables = (uint32_t) taosArrayGetSize(res);
     pGroupInfo->pGroupList  = createTableGroup(res, pTagSchema, pColIndex, numOfCols, skey);
 
-    tsdbDebug("%p no table name/tag condition, all tables qualified, numOfTables:%u, group:%zu", tsdb,
-              pGroupInfo->numOfTables, taosArrayGetSize(pGroupInfo->pGroupList));
+    tsdbDebug("%p no table name/tag condition, all tables qualified, numOfTables:%u, group:%zu, TID:0x%"PRIx64" QID:0x%"PRIx64, tsdb,
+              pGroupInfo->numOfTables, taosArrayGetSize(pGroupInfo->pGroupList), taskId, reqId);
 
     taosArrayDestroy(res);
     return ret;
@@ -3892,7 +3857,7 @@ void tsdbCleanupQueryHandle(tsdbReadHandleT queryHandle) {
   tfree(pTsdbReadHandle->statis);
 
   if (!emptyQueryTimewindow(pTsdbReadHandle)) {
-    tsdbMayUnTakeMemSnapshot(pTsdbReadHandle);
+//    tsdbMayUnTakeMemSnapshot(pTsdbReadHandle);
   } else {
     assert(pTsdbReadHandle->pTableCheckInfo == NULL);
   }

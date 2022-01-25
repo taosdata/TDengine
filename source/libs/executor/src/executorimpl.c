@@ -7822,7 +7822,7 @@ static tsdbReadHandleT doCreateDataReadHandle(STableScanPhyNode* pTableScanNode,
 
   if (tableType == TSDB_SUPER_TABLE) {
     code =
-        tsdbQuerySTableByTagCond(readerHandle, uid, window.skey, NULL, 0, 0, NULL, &groupInfo, NULL, 0, queryId);
+        tsdbQuerySTableByTagCond(readerHandle, uid, window.skey, NULL, 0, 0, NULL, &groupInfo, NULL, 0, queryId, taskId);
     if (code != TSDB_CODE_SUCCESS) {
       goto _error;
     }
