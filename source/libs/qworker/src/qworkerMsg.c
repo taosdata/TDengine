@@ -26,11 +26,11 @@ int32_t qwMallocFetchRsp(int32_t length, SRetrieveTableRsp **rsp) {
   return TSDB_CODE_SUCCESS;
 }
 
-void qwBuildFetchRsp(void *msg, SOutputData *input, int32_t len) {
+void qwBuildFetchRsp(void *msg, SOutputData *input, int32_t len, bool qComplete) {
   SRetrieveTableRsp *rsp = (SRetrieveTableRsp *)msg;
   
   rsp->useconds = htobe64(input->useconds);
-  rsp->completed = input->queryEnd;
+  rsp->completed = qComplete;
   rsp->precision = input->precision;
   rsp->compressed = input->compressed;
   rsp->compLen = htonl(len);

@@ -1116,7 +1116,8 @@ int32_t qwProcessCQuery(QW_FPARAMS_DEF, SQWMsg *qwMsg) {
       }
       
       if (rsp) {
-        qwBuildFetchRsp(rsp, &sOutput, dataLen); 
+        bool qComplete = (DS_BUF_EMPTY == sOutput.bufStatus && sOutput.queryEnd);
+        qwBuildFetchRsp(rsp, &sOutput, dataLen, qComplete);
         
         QW_SET_EVENT_PROCESSED(ctx, QW_EVENT_FETCH);            
         
@@ -1196,7 +1197,8 @@ int32_t qwProcessFetch(QW_FPARAMS_DEF, SQWMsg *qwMsg) {
   if (NULL == rsp) {
     QW_SET_EVENT_RECEIVED(ctx, QW_EVENT_FETCH);
   } else {
-    qwBuildFetchRsp(rsp, &sOutput, dataLen);
+    bool qComplete = (DS_BUF_EMPTY == sOutput.bufStatus && sOutput.queryEnd);
+    qwBuildFetchRsp(rsp, &sOutput, dataLen, qComplete);
   }
 
   if ((!sOutput.queryEnd) && (DS_BUF_LOW == sOutput.bufStatus || DS_BUF_EMPTY == sOutput.bufStatus)) {    
