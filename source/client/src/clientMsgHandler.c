@@ -67,6 +67,7 @@ int processConnectRsp(void* param, const SDataBuf* pMsg, int32_t code) {
 
   pTscObj->connId = pConnect->connId;
   pTscObj->acctId = pConnect->acctId;
+  tstrncpy(pTscObj->ver, pConnect->sVersion, tListLen(pTscObj->ver));
 
   // update the appInstInfo
   pTscObj->pAppInfo->clusterId = pConnect->clusterId;

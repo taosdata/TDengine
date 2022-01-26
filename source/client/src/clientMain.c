@@ -275,3 +275,70 @@ int taos_affected_rows(TAOS_RES *res) {
 }
 
 int taos_result_precision(TAOS_RES *res) { return TSDB_TIME_PRECISION_MILLI; }
+
+int taos_select_db(TAOS *taos, const char *db) {
+  STscObj *pObj = (STscObj *)taos;
+  if (pObj == NULL) {
+    terrno = TSDB_CODE_TSC_DISCONNECTED;
+    return TSDB_CODE_TSC_DISCONNECTED;
+  }
+
+  if (db == NULL || strlen(db) == 0) {
+    terrno = TSDB_CODE_TSC_INVALID_INPUT;
+    return terrno;
+  }
+
+  char sql[256] = {0};
+  snprintf(sql, tListLen(sql), "use %s", db);
+
+  TAOS_RES* pRequest = taos_query(taos, sql);
+  int32_t code = taos_errno(pRequest);
+
+  taos_free_result(pRequest);
+  return code;
+}
+
+void taos_stop_query(TAOS_RES *res) {
+  if (res == NULL) {
+    return;
+  }
+
+  SRequestObj* pRequest = (SRequestObj*) res;
+  int32_t numOfFields = taos_num_fields(pRequest);
+
+  // It is not a query, no need to stop.
+  if (numOfFields == 0) {
+    return;
+  }
+
+//  scheduleCancelJob(pRequest->body.pQueryJob);
+}
+
+bool taos_is_null(TAOS_RES *res, int32_t row, int32_t col) {
+  return false;
+}
+
+int  taos_fetch_block(TAOS_RES *res, TAOS_ROW *rows) {
+  return 0;
+}
+
+int  taos_validate_sql(TAOS *taos, const char *sql) {
+  return true;
+}
+
+const char *taos_get_server_info(TAOS *taos) {
+  if (taos == NULL) {
+    return NULL;
+  }
+
+  STscObj* pTscObj = (STscObj*) taos;
+  return pTscObj->ver;
+}
+
+void taos_query_a(TAOS *taos, const char *sql, __taos_async_fn_t fp, void *param) {
+  // TODO
+}
+
+void taos_fetch_rows_a(TAOS_RES *res, __taos_async_fn_t fp, void *param) {
+  // TODO
+}
