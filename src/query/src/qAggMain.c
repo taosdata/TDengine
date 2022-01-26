@@ -4945,8 +4945,7 @@ static bool unique_function_setup(SQLFunctionCtx *pCtx, SResultRowCellInfo* pRes
 }
 
 static void unique_function(SQLFunctionCtx *pCtx) {
-  SResultRowCellInfo *pResInfo = GET_RES_INFO(pCtx);
-  SUniqueFuncInfo    *pInfo = GET_ROWCELL_INTERBUF(pResInfo);
+  SUniqueFuncInfo    *pInfo = GET_ROWCELL_INTERBUF(GET_RES_INFO(pCtx));
 
   for (int32_t i = 0; i < pCtx->size; i++) {
     char *pData = GET_INPUT_DATA(pCtx, i);
@@ -4977,12 +4976,12 @@ static void unique_function(SQLFunctionCtx *pCtx) {
 //      break;
 //    }
   }
+  GET_RES_INFO(pCtx)->numOfRes = taosHashGetSize(pInfo->pSet);
 }
 
 static void unique_func_finalizer(SQLFunctionCtx *pCtx) {
   SUniqueFuncInfo *pInfo = GET_ROWCELL_INTERBUF(GET_RES_INFO(pCtx));
 
-  GET_RES_INFO(pCtx)->numOfRes = taosHashGetSize(pInfo->pSet);
   UniqueUnit *unit = taosHashIterate(pInfo->pSet, NULL);
   int32_t offset = 0;
 

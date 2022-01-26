@@ -5400,7 +5400,7 @@ int parseJsontoTagData(char* json, SKVRowBuilder* kvRowBuilder, char* errMsg, in
   // set json real data
   cJSON *root = cJSON_Parse(json);
   if (root == NULL){
-    tscError("json parse error");
+    tscError("json parse error:%s", json);
     return tscSQLSyntaxErrMsg(errMsg, "json parse error", NULL);
   }
 
