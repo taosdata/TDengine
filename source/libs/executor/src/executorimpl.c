@@ -5896,7 +5896,7 @@ static SSDataBlock* doAggregate(void* param, bool* newgroup) {
   finalizeQueryResult(pOperator, pInfo->pCtx, &pInfo->resultRowInfo, pInfo->rowCellInfoOffset);
   pInfo->pRes->info.rows = getNumOfResult(pInfo->pCtx, pOperator->numOfOutput);
 
-  return pInfo->pRes;
+  return (pInfo->pRes->info.rows != 0)? pInfo->pRes:NULL;
 }
 
 static SSDataBlock* doSTableAggregate(void* param, bool* newgroup) {
