@@ -776,7 +776,6 @@ TAOS_RES *taos_query_l(TAOS *taos, const char *sql, int sqlLen) {
   if (qIsDdlQuery(pQueryNode)) {
     CHECK_CODE_GOTO(execDdlQuery(pRequest, pQueryNode), _return);
   } else {
-
     CHECK_CODE_GOTO(getPlan(pRequest, pQueryNode, &pRequest->body.pDag, pNodeList), _return);
     CHECK_CODE_GOTO(scheduleQuery(pRequest, pRequest->body.pDag, pNodeList), _return);
     pRequest->code = terrno;
