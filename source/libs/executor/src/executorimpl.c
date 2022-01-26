@@ -5896,7 +5896,7 @@ static SSDataBlock* doAggregate(void* param, bool* newgroup) {
   finalizeQueryResult(pOperator, pInfo->pCtx, &pInfo->resultRowInfo, pInfo->rowCellInfoOffset);
   pInfo->pRes->info.rows = getNumOfResult(pInfo->pCtx, pOperator->numOfOutput);
 
-  return pInfo->pRes;
+  return (pInfo->pRes->info.rows != 0)? pInfo->pRes:NULL;
 }
 
 static SSDataBlock* doSTableAggregate(void* param, bool* newgroup) {
@@ -8825,14 +8825,14 @@ void* freeColumnInfo(SColumnInfo* pColumnInfo, int32_t numOfCols) {
 }
 
 void doDestroyTask(SExecTaskInfo *pTaskInfo) {
+  qDebug("%s execTask is freed", GET_TASKID(pTaskInfo));
+
   doDestroyTableQueryInfo(&pTaskInfo->tableqinfoGroupInfo);
 //  taosArrayDestroy(pTaskInfo->summary.queryProfEvents);
 //  taosHashCleanup(pTaskInfo->summary.operatorProfResults);
 
   tfree(pTaskInfo->sql);
   tfree(pTaskInfo->id.str);
-  qDebug("%s execTask is freed", GET_TASKID(pTaskInfo));
-
   tfree(pTaskInfo);
 }
 

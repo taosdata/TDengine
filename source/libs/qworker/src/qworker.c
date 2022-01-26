@@ -1100,8 +1100,6 @@ int32_t qwProcessCQuery(QW_FPARAMS_DEF, SQWMsg *qwMsg) {
     atomic_store_8(&ctx->queryInQueue, 0);
     atomic_store_8(&ctx->queryContinue, 0);
 
-    DataSinkHandle  sinkHandle = ctx->sinkHandle;
-
     QW_ERR_JRET(qwExecTask(QW_FPARAMS(), ctx, &queryEnd));
 
     if (QW_IS_EVENT_RECEIVED(ctx, QW_EVENT_FETCH)) {
