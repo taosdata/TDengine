@@ -91,7 +91,7 @@ static void uvWorkerAsyncCb(uv_async_t* handle);
 
 static void uvPrepareSendData(SSrvMsg* msg, uv_buf_t* wb);
 static void uvStartSendResp(SSrvMsg* msg);
-static void destroySrvMsg(SSrvConn* conn);
+static void destroySmsg(SSrvMsg* smsg);
 // check whether already read complete packet
 static bool      readComplete(SConnBuffer* buf);
 static SSrvConn* createConn();
@@ -305,8 +305,10 @@ void uvOnTimeoutCb(uv_timer_t* handle) {
 
 void uvOnWriteCb(uv_write_t* req, int status) {
   SSrvConn* conn = req->data;
-  SSrvMsg*  smsg = conn->pSrvMsg;
-  destroySrvMsg(conn);
+
+  SSrvMsg* smsg = conn->pSrvMsg;
+  destroySmsg(smsg);
+  conn->pSrvMsg = NULL;
 
   transClearBuffer(&conn->readBuf);
   if (status == 0) {
@@ -362,14 +364,12 @@ static void uvStartSendResp(SSrvMsg* smsg) {
 
   return;
 }
-static void destroySrvMsg(SSrvConn* conn) {
-  SSrvMsg* smsg = conn->pSrvMsg;
+static void destroySmsg(SSrvMsg* smsg) {
   if (smsg == NULL) {
     return;
   }
   transFreeMsg(smsg->msg.pCont);
-  free(conn->pSrvMsg);
-  conn->pSrvMsg = NULL;
+  free(smsg);
 }
 void uvWorkerAsyncCb(uv_async_t* handle) {
   SWorkThrdObj* pThrd = handle->data;
@@ -555,7 +555,8 @@ static void destroyConn(SSrvConn* conn, bool clear) {
     return;
   }
   transDestroyBuffer(&conn->readBuf);
-  destroySrvMsg(conn);
+  destroySmsg(conn->pSrvMsg);
+  conn->pSrvMsg = NULL;
 
   if (clear) {
     uv_close((uv_handle_t*)conn->pTcp, uvDestroyConn);
