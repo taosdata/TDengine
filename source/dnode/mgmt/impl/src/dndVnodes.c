@@ -527,7 +527,6 @@ static void dndGenerateVnodeCfg(SCreateVnodeReq *pCreate, SVnodeCfg *pCfg) {
   pCfg->vgId = pCreate->vgId;
   pCfg->wsize = pCreate->cacheBlockSize;
   pCfg->ssize = pCreate->cacheBlockSize;
-  pCfg->wsize = pCreate->cacheBlockSize;
   pCfg->lsize = pCreate->cacheBlockSize;
   pCfg->isHeapAllocator = true;
   pCfg->ttl = 4;

@@ -498,7 +498,7 @@ static int32_t mndProcessCreateDbReq(SMnodeMsg *pReq) {
   return TSDB_CODE_MND_ACTION_IN_PROGRESS;
 }
 
-static int32_t mndSetDbCfgFromAlterDbMsg(SDbObj *pDb, SAlterDbReq *pAlter) {
+static int32_t mndSetDbCfgFromAlterDbReq(SDbObj *pDb, SAlterDbReq *pAlter) {
   terrno = TSDB_CODE_MND_DB_OPTION_UNCHANGED;
 
   if (pAlter->totalBlocks >= 0 && pAlter->totalBlocks != pDb->cfg.totalBlocks) {
@@ -649,7 +649,7 @@ static int32_t mndProcessAlterDbReq(SMnodeMsg *pReq) {
   SDbObj dbObj = {0};
   memcpy(&dbObj, pDb, sizeof(SDbObj));
 
-  int32_t code = mndSetDbCfgFromAlterDbMsg(&dbObj, pAlter);
+  int32_t code = mndSetDbCfgFromAlterDbReq(&dbObj, pAlter);
   if (code != 0) {
     mndReleaseDb(pMnode, pDb);
     mError("db:%s, failed to alter since %s", pAlter->db, tstrerror(code));
