@@ -570,6 +570,7 @@ TEST(testCase, create_topic_Test) {
   //taos_close(pConn);
 //}
 
+#if 0
 TEST(testCase, tmq_subscribe_Test) {
   TAOS* pConn = taos_connect("localhost", "root", "taosdata", NULL, 0);
   assert(pConn != NULL);
@@ -594,6 +595,7 @@ TEST(testCase, tmq_subscribe_Test) {
     //if (msg == NULL) break;
   }
 }
+#endif
 
 TEST(testCase, tmq_consume_Test) {
 }

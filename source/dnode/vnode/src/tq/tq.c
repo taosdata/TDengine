@@ -861,8 +861,17 @@ int tqRetrieveDataBlockInfo(STqReadHandle* pHandle, SDataBlockInfo* pBlockInfo) 
 SArray* tqRetrieveDataBlock(STqReadHandle* pHandle) {
   int32_t         sversion = pHandle->pBlock->sversion;
   //TODO : change sversion
-  SSchemaWrapper* pSchemaWrapper = metaGetTableSchema(pHandle->pMeta, pHandle->pBlock->uid, 0, true);
   STSchema*       pTschema = metaGetTbTSchema(pHandle->pMeta, pHandle->pBlock->uid, 0);
+
+  tb_uid_t quid;
+  STbCfg* pTbCfg = metaGetTbInfoByUid(pHandle->pMeta, pHandle->pBlock->uid);
+  if (pTbCfg->type == META_CHILD_TABLE) {
+    quid = pTbCfg->ctbCfg.suid;
+  } else {
+    quid = pHandle->pBlock->uid;
+  }
+
+  SSchemaWrapper* pSchemaWrapper = metaGetTableSchema(pHandle->pMeta, quid, 0, true);
   SArray*         pArray = taosArrayInit(pSchemaWrapper->nCols, sizeof(SColumnInfoData));
   if (pArray == NULL) {
     return NULL;
