@@ -72,8 +72,8 @@ int processConnectRsp(void* param, const SDataBuf* pMsg, int32_t code) {
   pTscObj->pAppInfo->clusterId = pConnect->clusterId;
   atomic_add_fetch_64(&pTscObj->pAppInfo->numOfConns, 1);
 
-  SClientHbKey connKey = {.connId = pConnect->connId, .hbType = HEARTBEAT_TYPE_QUERY};
-  hbRegisterConn(pTscObj->pAppInfo->pAppHbMgr, connKey, NULL);
+  /*SClientHbKey connKey = {.connId = pConnect->connId, .hbType = HEARTBEAT_TYPE_QUERY};*/
+  /*hbRegisterConn(pTscObj->pAppInfo->pAppHbMgr, connKey, NULL);*/
 
   //  pRequest->body.resInfo.pRspMsg = pMsg->pData;
   tscDebug("0x%" PRIx64 " clusterId:%" PRId64 ", totalConn:%" PRId64, pRequest->requestId, pConnect->clusterId,

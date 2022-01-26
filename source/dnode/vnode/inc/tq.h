@@ -149,11 +149,12 @@ typedef struct STqGroup {
 } STqGroup;
 
 typedef struct STqTaskItem {
-  int8_t        status;
-  int64_t       offset;
-  void*         dst;
-  qTaskInfo_t   task;
-  SSubQueryMsg* pQueryMsg;
+  int8_t         status;
+  int64_t        offset;
+  void*          dst;
+  qTaskInfo_t    task;
+  STqReadHandle* pReadHandle;
+  SSubQueryMsg*  pQueryMsg;
 } STqTaskItem;
 
 // new version
