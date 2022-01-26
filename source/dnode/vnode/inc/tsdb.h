@@ -75,7 +75,6 @@ typedef struct STsdbQueryCond {
 } STsdbQueryCond;
 
 typedef struct {
-  void    *pTable;
   TSKEY    lastKey;
   uint64_t uid;
 } STableKeyInfo;
@@ -141,7 +140,7 @@ bool isTsdbCacheLastRow(tsdbReadHandleT* pTsdbReadHandle);
  */
 int32_t tsdbQuerySTableByTagCond(STsdb* tsdb, uint64_t uid, TSKEY skey, const char* pTagCond, size_t len,
                                  int16_t tagNameRelType, const char* tbnameCond, STableGroupInfo* pGroupInfo,
-                                 SColIndex* pColIndex, int32_t numOfCols, uint64_t reqId);
+                                 SColIndex* pColIndex, int32_t numOfCols, uint64_t reqId, uint64_t taskId);
 /**
  * get num of rows in mem table
  *
