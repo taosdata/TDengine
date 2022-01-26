@@ -487,6 +487,8 @@ static void *dnodeThreadRoutine(void *param) {
   SDnodeMgmt *pMgmt = &pDnode->dmgmt;
   int32_t     ms = pDnode->cfg.statusInterval * 1000;
 
+  setThreadName("dnode-hb");
+
   while (true) {
     pthread_testcancel();
     taosMsleep(ms);

@@ -359,7 +359,7 @@ void tsdbStartFSTxn(STsdb *pRepo, int64_t pointsAdd, int64_t storageAdd) {
   tsdbResetFSStatus(pfs->nstatus);
   pfs->nstatus->meta = pfs->cstatus->meta;
   // if (pfs->cstatus->pmf == NULL) {
-  pfs->nstatus->meta.version = 0;
+  pfs->nstatus->meta.version += 1;
   // } else {
   //   pfs->nstatus->meta.version = pfs->cstatus->meta.version + 1;
   // }

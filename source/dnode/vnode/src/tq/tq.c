@@ -81,6 +81,10 @@ STQ* tqOpen(const char* path, SWal* pWal, SMeta* pMeta, STqCfg* tqConfig, SMemAl
 }
 
 void tqClose(STQ* pTq) {
+  if (pTq) {
+    tfree(pTq->path);
+    free(pTq);
+  }
   // TODO
 }
 
@@ -663,8 +667,8 @@ int tqItemSSize() {
 }
 #endif
 
-int32_t tqProcessConsumeReq(STQ* pTq, SRpcMsg* pMsg, SRpcMsg** ppRsp) {
-  SMqConsumeReq* pReq = pMsg->pCont;
+int32_t tqProcessConsumeReq(STQ* pTq, SRpcMsg* pMsg) {
+  SMqConsumeReq*   pReq = pMsg->pCont;
   SRpcMsg          rpcMsg;
   int64_t          reqId = pReq->reqId;
   int64_t          consumerId = pReq->consumerId;
@@ -795,9 +799,9 @@ int32_t tqProcessSetConnReq(STQ* pTq, char* msg) {
     return -1;
   }
   strcpy(pTopic->topicName, req.topicName);
-  strcpy(pTopic->sql, req.sql);
-  strcpy(pTopic->logicalPlan, req.logicalPlan);
-  strcpy(pTopic->physicalPlan, req.physicalPlan);
+  pTopic->sql = strdup(req.sql);
+  pTopic->logicalPlan = strdup(req.logicalPlan);
+  pTopic->physicalPlan = strdup(req.physicalPlan);
 
   pTopic->buffer.firstOffset = -1;
   pTopic->buffer.lastOffset = -1;
@@ -807,9 +811,10 @@ int32_t tqProcessSetConnReq(STQ* pTq, char* msg) {
   for (int i = 0; i < TQ_BUFFER_SIZE; i++) {
     pTopic->buffer.output[i].status = 0;
     STqReadHandle* pReadHandle = tqInitSubmitMsgScanner(pTq->pMeta);
-    pTopic->buffer.output[i].task = qCreateStreamExecTaskInfo(&req.msg, pReadHandle);
+    pTopic->buffer.output[i].task = qCreateStreamExecTaskInfo(req.qmsg, pReadHandle);
   }
   taosArrayPush(pConsumer->topics, pTopic);
+  terrno = TSDB_CODE_SUCCESS;
   return 0;
 }
 
@@ -822,7 +827,7 @@ STqReadHandle* tqInitSubmitMsgScanner(SMeta* pMeta) {
   pReadHandle->pMsg = NULL;
   pReadHandle->ver = -1;
   pReadHandle->pColIdList = NULL;
-  return NULL;
+  return pReadHandle;
 }
 
 void tqReadHandleSetMsg(STqReadHandle* pReadHandle, SSubmitMsg* pMsg, int64_t ver) {

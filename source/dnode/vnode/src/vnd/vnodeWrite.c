@@ -34,7 +34,7 @@ int vnodeProcessWMsgs(SVnode *pVnode, SArray *pMsgs) {
     pMsg = *(SRpcMsg **)taosArrayGet(pMsgs, i);
 
     // ser request version
-    void   *pBuf = POINTER_SHIFT(pMsg->pCont, sizeof(SMsgHead));
+    void *  pBuf = POINTER_SHIFT(pMsg->pCont, sizeof(SMsgHead));
     int64_t ver = pVnode->state.processed++;
     taosEncodeFixedU64(&pBuf, ver);
 
@@ -53,7 +53,7 @@ int vnodeProcessWMsgs(SVnode *pVnode, SArray *pMsgs) {
 int vnodeApplyWMsg(SVnode *pVnode, SRpcMsg *pMsg, SRpcMsg **pRsp) {
   SVCreateTbReq      vCreateTbReq;
   SVCreateTbBatchReq vCreateTbBatchReq;
-  void              *ptr = vnodeMalloc(pVnode, pMsg->contLen);
+  void *             ptr = vnodeMalloc(pVnode, pMsg->contLen);
   if (ptr == NULL) {
     // TODO: handle error
   }
@@ -76,6 +76,9 @@ int vnodeApplyWMsg(SVnode *pVnode, SRpcMsg *pMsg, SRpcMsg **pRsp) {
       }
 
       // TODO: maybe need to clear the requst struct
+      free(vCreateTbReq.stbCfg.pSchema);
+      free(vCreateTbReq.stbCfg.pTagSchema);
+      free(vCreateTbReq.name);
       break;
     case TDMT_VND_CREATE_TABLE:
       tSVCreateTbBatchReqDeserialize(POINTER_SHIFT(pMsg->pCont, sizeof(SMsgHead)), &vCreateTbBatchReq);
@@ -112,7 +115,8 @@ int vnodeApplyWMsg(SVnode *pVnode, SRpcMsg *pMsg, SRpcMsg **pRsp) {
       }
       break;
     case TDMT_VND_MQ_SET_CONN: {
-      if (tqProcessSetConnReq(pVnode->pTq, ptr) < 0) {
+      if (tqProcessSetConnReq(pVnode->pTq, POINTER_SHIFT(ptr, sizeof(SMsgHead))) < 0) {
+        // TODO: handle error
       }
     } break;
     default:
@@ -129,7 +133,7 @@ int vnodeApplyWMsg(SVnode *pVnode, SRpcMsg *pMsg, SRpcMsg **pRsp) {
       // TODO: handle error
     }
   }
-  
+
   return 0;
 }
 
