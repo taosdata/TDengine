@@ -8825,14 +8825,14 @@ void* freeColumnInfo(SColumnInfo* pColumnInfo, int32_t numOfCols) {
 }
 
 void doDestroyTask(SExecTaskInfo *pTaskInfo) {
+  qDebug("%s execTask is freed", GET_TASKID(pTaskInfo));
+
   doDestroyTableQueryInfo(&pTaskInfo->tableqinfoGroupInfo);
 //  taosArrayDestroy(pTaskInfo->summary.queryProfEvents);
 //  taosHashCleanup(pTaskInfo->summary.operatorProfResults);
 
   tfree(pTaskInfo->sql);
   tfree(pTaskInfo->id.str);
-  qDebug("%s execTask is freed", GET_TASKID(pTaskInfo));
-
   tfree(pTaskInfo);
 }
 

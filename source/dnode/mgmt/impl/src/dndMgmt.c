@@ -398,7 +398,7 @@ void dndSendStatusReq(SDnode *pDnode) {
 static void dndUpdateDnodeCfg(SDnode *pDnode, SDnodeCfg *pCfg) {
   SDnodeMgmt *pMgmt = &pDnode->dmgmt;
   if (pMgmt->dnodeId == 0) {
-    dInfo("set dnodeId:%d clusterId:%" PRId64, pCfg->dnodeId, pCfg->clusterId);
+    dInfo("set dnodeId:%d clusterId:0x%" PRId64, pCfg->dnodeId, pCfg->clusterId);
     taosWLockLatch(&pMgmt->latch);
     pMgmt->dnodeId = pCfg->dnodeId;
     pMgmt->clusterId = pCfg->clusterId;
