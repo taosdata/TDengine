@@ -18,6 +18,7 @@
 #include "tname.h"
 #include "clientInt.h"
 #include "clientLog.h"
+#include "catalog.h"
 
 int (*handleRequestRspFp[TDMT_MAX])(void*, const SDataBuf* pMsg, int32_t code);
 
@@ -287,13 +288,24 @@ int32_t processCreateTableRsp(void* param, const SDataBuf* pMsg, int32_t code) {
 }
 
 int32_t processDropDbRsp(void* param, const SDataBuf* pMsg, int32_t code) {
-  // todo: Remove cache in catalog cache.
   SRequestObj* pRequest = param;
   if (code != TSDB_CODE_SUCCESS) {
     setErrno(pRequest, code);
     tsem_post(&pRequest->body.rspSem);
     return code;
   }
+
+  SDropDbReq *req = pRequest->body.requestMsg.pData;
+
+  SDbVgVersion dbVer = {0};
+  struct SCatalog *pCatalog = NULL;
+  
+  strncpy(dbVer.dbName, req->db, sizeof(dbVer.dbName));
+  dbVer.dbId = 0; //TODO GET DBID FROM RSP
+
+  catalogGetHandle(pRequest->pTscObj->pAppInfo->clusterId, &pCatalog);
+  
+  catalogRemoveDBVgroup(pCatalog, &dbVer);
 
   tsem_post(&pRequest->body.rspSem);
   return code;

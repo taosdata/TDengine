@@ -370,8 +370,6 @@ static int32_t mndProcessHeartBeatReq(SMnodeMsg *pReq) {
             if (rspMsg && rspLen > 0) {
               SKv kv = {.key = HEARTBEAT_KEY_DBINFO, .valueLen = rspLen, .value = rspMsg};
               taosArrayPush(hbRsp.info, &kv);
-              
-              taosArrayPush(batchRsp.rsps, &hbRsp);
             }
             break;
           }
@@ -380,11 +378,14 @@ static int32_t mndProcessHeartBeatReq(SMnodeMsg *pReq) {
             break;
           default:
             mError("invalid kv key:%d", kv->key);
+            hbRsp.status = TSDB_CODE_MND_APP_ERROR;
             break;
         }
               
         pIter = taosHashIterate(pHbReq->info, pIter);
       }
+
+      taosArrayPush(batchRsp.rsps, &hbRsp);
     } else if (pHbReq->connKey.hbType == HEARTBEAT_TYPE_MQ) {
       SClientHbRsp *pRsp = mndMqHbBuildRsp(pMnode, pHbReq);
       if (pRsp != NULL) {

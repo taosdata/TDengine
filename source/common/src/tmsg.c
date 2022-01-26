@@ -114,7 +114,7 @@ void *tDeserializeSClientHbReq(void *buf, SClientHbReq *pReq) {
   for(int i = 0; i < kvNum; i++) {
     SKv kv;
     buf = taosDecodeSKv(buf, &kv);
-    taosHashPut(pReq->info, &kv.key, sizeof(kv.key), kv.value, kv.valueLen);
+    taosHashPut(pReq->info, &kv.key, sizeof(kv.key), &kv, sizeof(kv));
   }
 
   return buf;

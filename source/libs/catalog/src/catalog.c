@@ -443,9 +443,9 @@ int32_t ctgSTableVersionCompare(const void* key1, const void* key2) {
 }
 
 int32_t ctgDbVgVersionCompare(const void* key1, const void* key2) {
-  if (((SDbVgVersion*)key1)->dbId < ((SDbVgVersion*)key2)->dbId) {
+  if (*(int64_t *)key1 < ((SDbVgVersion*)key2)->dbId) {
     return -1;
-  } else if (((SDbVgVersion*)key1)->dbId > ((SDbVgVersion*)key2)->dbId) {
+  } else if (*(int64_t *)key1 > ((SDbVgVersion*)key2)->dbId) {
     return 1;
   } else {
     return 0;
@@ -652,7 +652,7 @@ int32_t ctgMetaRentGet(SMetaRentMgmt *mgmt, void **res, uint32_t *num, int32_t s
 int32_t ctgUpdateTableMetaCache(struct SCatalog *pCatalog, STableMetaOutput *output) {
   int32_t code = 0;
 
-  if (NULL == output->tbMeta) {
+  if ((!CTG_IS_META_CTABLE(output->metaType)) && NULL == output->tbMeta) {
     ctgError("no valid table meta got from meta rsp, tbName:%s", output->tbFname);
     CTG_ERR_RET(TSDB_CODE_CTG_INTERNAL_ERROR);
   }
@@ -809,20 +809,19 @@ int32_t ctgValidateAndRemoveDbInfo(struct SCatalog* pCatalog, SDbVgVersion* targ
   }
   
   CTG_LOCK(CTG_WRITE, &info->lock);
+  
+  //TODO OPEN IT
+#if 0
   if (info->dbId != target->dbId) {
     ctgInfo("db id already updated, db:%s, dbId:%"PRIx64 ", targetId:%"PRIx64, target->dbName, info->dbId, target->dbId);
     CTG_UNLOCK(CTG_WRITE, &info->lock);
     taosHashRelease(pCatalog->dbCache.cache, info);
     return TSDB_CODE_SUCCESS;
   }
-  
-  if (info->vgVersion > target->vgVersion) {
-    ctgInfo("db vgVersion already updated, db:%s, version:%d, targetVer:%d", target->dbName, info->vgVersion, target->vgVersion);
-    CTG_UNLOCK(CTG_WRITE, &info->lock);
-    taosHashRelease(pCatalog->dbCache.cache, info);
-    return TSDB_CODE_SUCCESS;
-  }
-  
+#else
+  target->dbId = info->dbId;
+#endif
+    
   if (info->vgInfo) {
     ctgInfo("cleanup db vgInfo, db:%s", target->dbName);
     taosHashCleanup(info->vgInfo);
@@ -1246,6 +1245,8 @@ int32_t catalogUpdateDBVgroup(struct SCatalog* pCatalog, const char* dbName, SDB
   dbInfo->vgInfo = NULL;
 
   SDbVgVersion vgVersion = {.dbId = dbInfo->dbId, .vgVersion = dbInfo->vgVersion};
+  strncpy(vgVersion.dbName, dbName, sizeof(vgVersion.dbName));
+  
   if (newAdded) {
     CTG_ERR_JRET(ctgMetaRentAdd(&pCatalog->dbRent, &vgVersion, dbInfo->dbId, sizeof(SDbVgVersion)));
   } else {

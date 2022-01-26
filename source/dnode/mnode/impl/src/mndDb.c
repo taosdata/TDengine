@@ -894,6 +894,8 @@ int32_t mndValidateDBInfo(SMnode *pMnode, SDbVgVersion *dbs, int32_t num, void *
 
   for (int32_t i = 0; i < num; ++i) {
     SDbVgVersion *db = &dbs[i];
+    db->dbId = be64toh(db->dbId);
+    db->vgVersion = ntohl(db->vgVersion);
 
     len = 0;
     
@@ -929,6 +931,9 @@ int32_t mndValidateDBInfo(SMnode *pMnode, SDbVgVersion *dbs, int32_t num, void *
       pRsp->vgNum = htonl(vgNum);
       pRsp->hashMethod = pDb->hashMethod;
     } else {
+      pRsp->uid = htobe64(db->dbId);
+      pRsp->vgNum = htonl(0);
+      pRsp->hashMethod = 0;
       pRsp->vgVersion = htonl(-1);
     }
 
