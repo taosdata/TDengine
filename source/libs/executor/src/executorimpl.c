@@ -5070,6 +5070,7 @@ static SSDataBlock* doStreamBlockScan(void* param, bool* newgroup) {
   SStreamBlockScanInfo* pInfo = pOperator->info;
 
   SDataBlockInfo* pBlockInfo = &pInfo->pRes->info;
+  pBlockInfo->rows = 0;
   while (tqNextDataBlock(pInfo->readerHandle)) {
     pTaskInfo->code = tqRetrieveDataBlockInfo(pInfo->readerHandle, pBlockInfo);
     if (pTaskInfo->code != TSDB_CODE_SUCCESS) {
