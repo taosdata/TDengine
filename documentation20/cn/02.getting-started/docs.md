@@ -178,7 +178,7 @@ taos> select avg(current), max(voltage), min(phase) from test.d10 interval(10s);
 ## <a class="anchor" id="taosBenchmark"></a> taosBenchmark 详细功能列表
 
 taosBenchmark 命令本身带有很多选项，配置表的数目、记录条数等等，请执行 `taosBenchmark --help` 详细列出。您可以设置不同参数进行体验。
-taosBenchmark 详细使用方法请参照 [如何使用taosBenchmark对TDengine进行性能测试](https://www.taosdata.com/cn/documentation/getting-started/taosBenchmark )。
+taosBenchmark 详细使用方法请参照 [如何使用taosBenchmark对TDengine进行性能测试](https://www.taosdata.com/2021/10/09/3111.html)。
 
 ## 客户端
 

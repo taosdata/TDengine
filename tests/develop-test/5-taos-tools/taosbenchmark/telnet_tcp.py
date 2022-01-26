@@ -11,6 +11,7 @@
 
 # -*- coding: utf-8 -*-
 import os
+import time
 from util.log import *
 from util.cases import *
 from util.sql import *
@@ -32,6 +33,7 @@ class TDTestCase:
         cmd = "taosBenchmark -f ./5-taos-tools/taosbenchmark/json/sml_telnet_tcp.json"
         tdLog.info("%s" % cmd)
         os.system("%s" % cmd)
+        time.sleep(5)
         tdSql.execute("reset query cache")
         tdSql.query("select count(tbname) from opentsdb_telnet.stb1")
         tdSql.checkData(0, 0, 8)
