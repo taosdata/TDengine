@@ -546,10 +546,6 @@ static void destroyConn(SSrvConn* conn, bool clear) {
   if (conn == NULL) {
     return;
   }
-  // SRpcMsg* pMsg = &conn->sendMsg;
-  // transFreeMsg(pMsg->pCont);
-  // pMsg->pCont = NULL;
-
   tDebug("conn %p try to destroy", conn);
   if (--conn->ref > 0) {
     return;
