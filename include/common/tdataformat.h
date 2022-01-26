@@ -56,7 +56,7 @@ extern "C" {
 // ----------------- TSDB COLUMN DEFINITION
 typedef struct {
   int8_t   type;    // Column type
-  col_id_t colId;   // column ID
+  col_id_t colId;   // column ID(start from PRIMARYKEY_TIMESTAMP_COL_ID(1))
   int16_t  bytes;   // column bytes (restore to int16_t in case of misuse)
   uint16_t offset;  // point offset in SDataRow after the header part.
 } STColumn;
@@ -124,6 +124,8 @@ typedef struct {
 #define TD_VTYPE_BITS 2   // val type
 #define TD_VTYPE_PARTS 4  // 8 bits / TD_VTYPE_BITS = 4
 #define TD_VTYPE_OPTR 3   // TD_VTYPE_PARTS - 1, utilize to get remainder
+
+#define TD_BITMAP_BYTES(cnt) (ceil((double)cnt / TD_VTYPE_PARTS))
 
 int       tdInitTSchemaBuilder(STSchemaBuilder *pBuilder, int32_t version);
 void      tdDestroyTSchemaBuilder(STSchemaBuilder *pBuilder);

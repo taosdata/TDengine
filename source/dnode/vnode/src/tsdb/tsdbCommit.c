@@ -1185,6 +1185,9 @@ int tsdbWriteBlockImpl(STsdb *pRepo, STable *pTable, SDFile *pDFile, SDataCols *
 
     int32_t flen;  // final length
     int32_t tlen = dataColGetNEleLen(pDataCol, rowsToWrite);
+#ifdef TD_SUPPORT_BITMAP
+    tlen += (int32_t)TD_BITMAP_BYTES(rowsToWrite);
+#endif
     void *  tptr;
 
     // Make room

@@ -28,6 +28,9 @@ int tdAllocMemForCol(SDataCol *pCol, int maxPoints) {
   if(IS_VAR_DATA_TYPE(pCol->type)) {
     spaceNeeded += sizeof(VarDataOffsetT) * maxPoints;
   }
+#ifdef TD_SUPPORT_BITMAP
+  spaceNeeded += (int)TD_BITMAP_BYTES(maxPoints);
+#endif
   if(pCol->spaceSize < spaceNeeded) {
     void* ptr = realloc(pCol->pData, spaceNeeded);
     if(ptr == NULL) {
@@ -39,9 +42,17 @@ int tdAllocMemForCol(SDataCol *pCol, int maxPoints) {
       pCol->spaceSize = spaceNeeded;
     }
   }
-  if(IS_VAR_DATA_TYPE(pCol->type)) {
+  if (IS_VAR_DATA_TYPE(pCol->type)) {
     pCol->dataOff = POINTER_SHIFT(pCol->pData, pCol->bytes * maxPoints);
+#ifdef TD_SUPPORT_BITMAP
+    pCol->pBitmap = POINTER_SHIFT(pCol->dataOff, sizeof(VarDataOffsetT) * maxPoints);
+#endif
   }
+#ifdef TD_SUPPORT_BITMAP
+  else {
+    pCol->pBitmap = POINTER_SHIFT(pCol->pData, pCol->bytes * maxPoints);
+  }
+#endif
   return 0;
 }
 
@@ -186,7 +197,7 @@ STSchema *tdGetSchemaFromBuilder(STSchemaBuilder *pBuilder) {
   schemaVLen(pSchema) = pBuilder->vlen;
 
 #ifdef TD_SUPPORT_BITMAP
-  schemaTLen(pSchema) += (int)ceil((double)schemaNCols(pSchema) / TD_VTYPE_PARTS);
+  schemaTLen(pSchema) += (int)TD_BITMAP_BYTES(schemaNCols(pSchema));
 #endif
 
   memcpy(schemaColAt(pSchema, 0), pBuilder->columns, sizeof(STColumn) * pBuilder->nCols);
@@ -479,7 +490,7 @@ static void tdAppendDataRowToDataCol(SDataRow row, STSchema *pSchema, SDataCols 
   pCols->numOfRows++;
 }
 
-static void tdAppendKvRowToDataCol(SKVRow row, STSchema *pSchema, SDataCols *pCols, bool forceSetNull) {
+static void tdAppendKVRowToDataCol(SKVRow row, STSchema *pSchema, SDataCols *pCols, bool forceSetNull) {
   ASSERT(pCols->numOfRows == 0 || dataColsKeyLast(pCols) < kvRowKey(row));
 
   int rcol = 0;
@@ -520,7 +531,7 @@ void tdAppendMemRowToDataCol(SMemRow row, STSchema *pSchema, SDataCols *pCols, b
   if (isDataRow(row)) {
     tdAppendDataRowToDataCol(memRowDataBody(row), pSchema, pCols, forceSetNull);
   } else if (isKvRow(row)) {
-    tdAppendKvRowToDataCol(memRowKvBody(row), pSchema, pCols, forceSetNull);
+    tdAppendKVRowToDataCol(memRowKvBody(row), pSchema, pCols, forceSetNull);
   } else {
     ASSERT(0);
   }
