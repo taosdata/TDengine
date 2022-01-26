@@ -147,35 +147,36 @@ subquery ::= NK_LR query_expression NK_RP.
 
 table_subquery ::= subquery.
 
+// query_expression
+query_expression(A) ::= with_clause_opt query_expression_body(B) order_by_clause_opt(C) slimit_clause_opt(D) limit_clause_opt(E). { 
+                                                                                                                                    PARSER_TRACE;
+                                                                                                                                    addOrderByList(pCxt, B, C);
+                                                                                                                                    addSlimit(pCxt, B, D);
+                                                                                                                                    addLimit(pCxt, B, E);
+                                                                                                                                    A = B;  
+                                                                                                                                  }
 
-//////////////////////// query_expression /////////////////////////////////
-query_expression(A) ::= with_clause_opt query_expression_body(B) order_by_clause_opt limit_clause_opt slimit_clause_opt. { PARSER_TRACE; A = B; }
+// WITH AS 
+with_clause_opt ::= .                                                                                                             {}
 
-with_clause_opt ::= .                         {}
-with_clause_opt ::= WITH with_list.           { PARSER_TRACE; pCxt->notSupport = true; pCxt->valid = false; }
-with_clause_opt ::= WITH RECURSIVE with_list. { PARSER_TRACE; pCxt->notSupport = true; pCxt->valid = false; }
+query_expression_body(A) ::= query_primary(B).                                                                                    { PARSER_TRACE; A = B; }
+query_expression_body(A) ::= query_expression_body(B) UNION ALL query_expression_body(D).                                         { PARSER_TRACE; A = createSetOperator(pCxt, SET_OP_TYPE_UNION_ALL, B, D); }
 
-with_list ::= with_list_element.                    {}
-with_list ::= with_list NK_COMMA with_list_element. {}
-
-with_list_element ::= NK_ID AS table_subquery. {}
-
-table_subquery ::= . {}
-
-query_expression_body(A) ::= query_primary(B).                                            { PARSER_TRACE; A = B; }
-query_expression_body(A) ::= query_expression_body(B) UNION ALL query_expression_body(C). { PARSER_TRACE; A = createSetOperator(pCxt, SET_OP_TYPE_UNION_ALL, B, C); }
-
-query_primary(A) ::= query_specification(B).                                                                   { PARSER_TRACE; A = B; }
-query_primary(A) ::= NK_LP query_expression_body(B) order_by_clause_opt limit_clause_opt slimit_clause_opt NK_RP. { PARSER_TRACE; A = B;}
+query_primary(A) ::= query_specification(B).                                                                                      { PARSER_TRACE; A = B; }
+query_primary(A) ::= NK_LP query_expression_body(B) order_by_clause_opt limit_clause_opt slimit_clause_opt NK_RP.                 { PARSER_TRACE; A = B;}
 
 %type order_by_clause_opt { SNodeList* }
 %destructor order_by_clause_opt { nodesDestroyNodeList($$); }
-order_by_clause_opt(A) ::= .                                    { PARSER_TRACE; A = NULL; }
-order_by_clause_opt(A) ::= ORDER BY sort_specification_list(B). { PARSER_TRACE; A = B; }
+order_by_clause_opt(A) ::= .                                                                                                      { PARSER_TRACE; A = NULL; }
+order_by_clause_opt(A) ::= ORDER BY sort_specification_list(B).                                                                   { PARSER_TRACE; A = B; }
 
-limit_clause_opt ::= .
+slimit_clause_opt(A) ::= .                                                                                                        { A = NULL; }
+slimit_clause_opt(A) ::= SLIMIT NK_INTEGER(B) SOFFSET NK_INTEGER(C).                                                              { A = createLimitNode(pCxt, &B, &C); }
+slimit_clause_opt(A) ::= SLIMIT NK_INTEGER(C) NK_COMMA NK_INTEGER(B).                                                             { A = createLimitNode(pCxt, &B, &C); }
 
-slimit_clause_opt ::= .
+limit_clause_opt(A) ::= .                                                                                                         { A = NULL; }
+limit_clause_opt(A) ::= LIMIT NK_INTEGER(B) OFFSET NK_INTEGER(C).                                                                 { A = createLimitNode(pCxt, &B, &C); }
+limit_clause_opt(A) ::= LIMIT NK_INTEGER(C) NK_COMMA NK_INTEGER(B).                                                               { A = createLimitNode(pCxt, &B, &C); }
 
 //////////////////////// sort_specification_list /////////////////////////////////
 %type sort_specification_list { SNodeList* }

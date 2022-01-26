@@ -13,9 +13,10 @@
  * along with this program. If not, see <http://www.gnu.org/licenses/>.
  */
 
+#include "parserImpl.h"
+
 #include "ttoken.h"
-#include "astCreateFuncs.h"
-#include "astCreater.h"
+#include "astCreateContext.h"
 
 typedef void* (*FMalloc)(size_t);
 typedef void (*FFree)(void*);
@@ -23,84 +24,6 @@ typedef void (*FFree)(void*);
 extern void* NewParseAlloc(FMalloc);
 extern void NewParse(void*, int, SToken, void*);
 extern void NewParseFree(void*, FFree);
-
-static void* acquireRaii(SAstCreateContext* pCxt, void* p) {
-  if (NULL == p) {
-    return NULL;
-  }
-  return p;
-}
-
-static void* releaseRaii(SAstCreateContext* pCxt, void* p) {
-  if (NULL == p) {
-    return NULL;
-  }
-  return p;
-}
-
-int32_t createAstCreater(const SParseContext* pQueryCxt, SAstCreateContext* pCxt) {
-
-}
-
-int32_t destroyAstCreater(SAstCreateContext* pCxt) {
-
-}
-
-bool checkTableName(const SToken* pTableName) {
-  printf("%p : %d, %d, %s\n", pTableName, pTableName->type, pTableName->n, pTableName->z);
-  return pTableName->n < TSDB_TABLE_NAME_LEN ? true : false;
-}
-
-SNodeList* addNodeToList(SAstCreateContext* pCxt, SNodeList* pList, SNode* pNode) {
-
-}
-
-SNode* createColumnNode(SAstCreateContext* pCxt, const SToken* pTableName, const SToken* pColumnName) {
-
-}
-
-SNodeList* createNodeList(SAstCreateContext* pCxt, SNode* pNode) {
-
-}
-
-SNode* createOrderByExprNode(SAstCreateContext* pCxt, SNode* pExpr, EOrder order, ENullOrder nullOrder) {
-
-}
-
-SNode* createRealTableNode(SAstCreateContext* pCxt, const SToken* pDbName, const SToken* pTableName) {
-  SRealTableNode* realTable = (SRealTableNode*)nodesMakeNode(QUERY_NODE_REAL_TABLE);
-  if (NULL != pDbName) {
-    printf("DbName %p : %d, %d, %s\n", pDbName, pDbName->type, pDbName->n, pDbName->z);
-    strncpy(realTable->dbName, pDbName->z, pDbName->n);
-  }
-  printf("TableName %p : %d, %d, %s\n", pTableName, pTableName->type, pTableName->n, pTableName->z);
-  strncpy(realTable->table.tableName, pTableName->z, pTableName->n);
-  return acquireRaii(pCxt, realTable);
-}
-
-SNode* createSelectStmt(SAstCreateContext* pCxt, bool isDistinct, SNodeList* pProjectionList, SNode* pTable) {
-  SSelectStmt* select = (SSelectStmt*)nodesMakeNode(QUERY_NODE_SELECT_STMT);
-  select->isDistinct = isDistinct;
-  if (NULL == pProjectionList) {
-    select->isStar = true;
-  }
-  select->pProjectionList = releaseRaii(pCxt, pProjectionList);
-  printf("pTable = %p, name = %s\n", pTable, ((SRealTableNode*)pTable)->table.tableName);
-  select->pFromTable = releaseRaii(pCxt, pTable);
-  return acquireRaii(pCxt, select);
-}
-
-SNode* createSetOperator(SAstCreateContext* pCxt, ESetOperatorType type, SNode* pLeft, SNode* pRight) {
-
-}
-
-SNode* createShowStmt(SAstCreateContext* pCxt, EShowStmtType type) {
-
-}
-
-SNode* setProjectionAlias(SAstCreateContext* pCxt, SNode* pNode, const SToken* pAlias) {
-
-}
 
 uint32_t toNewTokenId(uint32_t tokenId) {
   switch (tokenId) {

@@ -13,24 +13,28 @@
  * along with this program. If not, see <http://www.gnu.org/licenses/>.
  */
 
-#ifndef _TD_AST_CREATER_H_
-#define _TD_AST_CREATER_H_
+#include "ttoken.h"
+#include "astCreateContext.h"
 
-#ifdef __cplusplus
-extern "C" {
-#endif
-
-#include "nodes.h"
-#include "parser.h"
-
-typedef struct SQuery {
-  SNode* pRoot;
-} SQuery;
-
-int32_t doParse(SParseContext* pParseCxt, SQuery* pQuery);
-
-#ifdef __cplusplus
+void* acquireRaii(SAstCreateContext* pCxt, void* p) {
+  if (NULL == p) {
+    return NULL;
+  }
+  return p;
 }
-#endif
 
-#endif /*_TD_AST_CREATER_H_*/
+void* releaseRaii(SAstCreateContext* pCxt, void* p) {
+  if (NULL == p) {
+    return NULL;
+  }
+  return p;
+}
+
+int32_t createAstCreater(const SParseContext* pQueryCxt, SAstCreateContext* pCxt) {
+
+}
+
+int32_t destroyAstCreater(SAstCreateContext* pCxt) {
+
+}
+

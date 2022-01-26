@@ -15,7 +15,8 @@
 
 #include "nodes.h"
 #include "nodesShowStmts.h"
-#include "parser.h"
+#include "astCreateContext.h"
+#include "ttoken.h"
 
 #ifndef _TD_AST_CREATE_FUNCS_H_
 #define _TD_AST_CREATE_FUNCS_H_
@@ -24,20 +25,13 @@
 extern "C" {
 #endif
 
-typedef struct SAstCreateContext {
-  SParseContext* pQueryCxt;
-  bool notSupport;
-  bool valid;
-  SNode* pRootNode;
-} SAstCreateContext;
-
-int32_t createAstCreater(const SParseContext* pQueryCxt, SAstCreateContext* pCxt);
-int32_t destroyAstCreater(SAstCreateContext* pCxt);
-
 bool checkTableName(const SToken* pTableName);
-
 SNodeList* addNodeToList(SAstCreateContext* pCxt, SNodeList* pList, SNode* pNode);
+SNode* addOrderByList(SAstCreateContext* pCxt, SNode* pStmt, SNodeList* pOrderByList);
+SNode* addSlimit(SAstCreateContext* pCxt, SNode* pStmt, SNode* pSlimit);
+SNode* addLimit(SAstCreateContext* pCxt, SNode* pStmt, SNode* pLimit);
 SNode* createColumnNode(SAstCreateContext* pCxt, const SToken* pTableName, const SToken* pColumnName);
+SNode* createLimitNode(SAstCreateContext* pCxt, const SToken* pLimit, const SToken* pOffset);
 SNodeList* createNodeList(SAstCreateContext* pCxt, SNode* pNode);
 SNode* createOrderByExprNode(SAstCreateContext* pCxt, SNode* pExpr, EOrder order, ENullOrder nullOrder);
 SNode* createRealTableNode(SAstCreateContext* pCxt, const SToken* pDbName, const SToken* pTableName);
