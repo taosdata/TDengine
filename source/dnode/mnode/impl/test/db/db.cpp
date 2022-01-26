@@ -277,9 +277,9 @@ TEST_F(MndTestDb, 03_Create_Use_Restart_Use_Db) {
       EXPECT_GT(pInfo->vgId, 0);
       EXPECT_EQ(pInfo->hashBegin, 0);
       EXPECT_EQ(pInfo->hashEnd, UINT32_MAX / 2 - 1);
-      EXPECT_EQ(pInfo->inUse, 0);
-      EXPECT_EQ(pInfo->numOfEps, 1);
-      SEpAddr* pAddr = &pInfo->epAddr[0];
+      EXPECT_EQ(pInfo->epset.inUse, 0);
+      EXPECT_EQ(pInfo->epset.numOfEps, 1);
+      SEp* pAddr = &pInfo->epset.eps[0];
       pAddr->port = htons(pAddr->port);
       EXPECT_EQ(pAddr->port, 9030);
       EXPECT_STREQ(pAddr->fqdn, "localhost");
@@ -293,9 +293,9 @@ TEST_F(MndTestDb, 03_Create_Use_Restart_Use_Db) {
       EXPECT_GT(pInfo->vgId, 0);
       EXPECT_EQ(pInfo->hashBegin, UINT32_MAX / 2);
       EXPECT_EQ(pInfo->hashEnd, UINT32_MAX);
-      EXPECT_EQ(pInfo->inUse, 0);
-      EXPECT_EQ(pInfo->numOfEps, 1);
-      SEpAddr* pAddr = &pInfo->epAddr[0];
+      EXPECT_EQ(pInfo->epset.inUse, 0);
+      EXPECT_EQ(pInfo->epset.numOfEps, 1);
+      SEp* pAddr = &pInfo->epset.eps[0];
       pAddr->port = htons(pAddr->port);
       EXPECT_EQ(pAddr->port, 9030);
       EXPECT_STREQ(pAddr->fqdn, "localhost");

@@ -65,7 +65,6 @@ int32_t ctgGetDBVgroupFromCache(struct SCatalog* pCatalog, const char *dbName, S
 
 int32_t ctgGetDBVgroupFromMnode(struct SCatalog* pCatalog, void *pRpc, const SEpSet* pMgmtEps, SBuildUseDBInput *input, SUseDbOutput *out) {
   char *msg = NULL;
-  SEpSet *pVnodeEpSet = NULL;
   int32_t msgLen = 0;
 
   ctgDebug("try to get db vgroup from mnode, db:%s", input->db);
@@ -216,17 +215,6 @@ int32_t ctgGetTableTypeFromCache(struct SCatalog* pCatalog, const SName* pTableN
   return TSDB_CODE_SUCCESS;
 }
 
-
-void ctgGenEpSet(SEpSet *epSet, SVgroupInfo *vgroupInfo) {
-  epSet->inUse = 0;
-  epSet->numOfEps = vgroupInfo->numOfEps;
-
-  for (int32_t i = 0; i < vgroupInfo->numOfEps; ++i) {
-    memcpy(&epSet->port[i], &vgroupInfo->epAddr[i].port, sizeof(epSet->port[i]));
-    memcpy(&epSet->fqdn[i], &vgroupInfo->epAddr[i].fqdn, sizeof(epSet->fqdn[i]));
-  }
-}
-
 int32_t ctgGetTableMetaFromMnodeImpl(struct SCatalog* pCatalog, void *pTransporter, const SEpSet* pMgmtEps, char* tbFullName, STableMetaOutput* output) {
   SBuildTableMetaInput bInput = {.vgId = 0, .dbName = NULL, .tableFullName = tbFullName};
   char *msg = NULL;
@@ -292,7 +280,6 @@ int32_t ctgGetTableMetaFromVnode(struct SCatalog* pCatalog, void *pTransporter, 
 
   SBuildTableMetaInput bInput = {.vgId = vgroupInfo->vgId, .dbName = dbFullName, .tableFullName = (char *)tNameGetTableName(pTableName)};
   char *msg = NULL;
-  SEpSet *pVnodeEpSet = NULL;
   int32_t msgLen = 0;
 
   int32_t code = queryBuildMsg[TMSG_INDEX(TDMT_VND_TABLE_META)](&bInput, &msg, 0, &msgLen);
@@ -308,10 +295,7 @@ int32_t ctgGetTableMetaFromVnode(struct SCatalog* pCatalog, void *pTransporter, 
   };
 
   SRpcMsg rpcRsp = {0};
-  SEpSet  epSet;
-  
-  ctgGenEpSet(&epSet, vgroupInfo);
-  rpcSendRecv(pTransporter, &epSet, &rpcMsg, &rpcRsp);
+  rpcSendRecv(pTransporter, &vgroupInfo->epset, &rpcMsg, &rpcRsp);
   
   if (TSDB_CODE_SUCCESS != rpcRsp.code) {
     if (CTG_TABLE_NOT_EXIST(rpcRsp.code)) {

@@ -29,7 +29,6 @@
 
 #pragma GCC diagnostic push
 #pragma GCC diagnostic ignored "-Wwrite-strings"
-#pragma GCC diagnostic ignored "-Wliteral-suffix"
 #pragma GCC diagnostic ignored "-Wunused-function"
 #pragma GCC diagnostic ignored "-Wunused-variable"
 #pragma GCC diagnostic ignored "-Wsign-compare"
@@ -92,11 +91,11 @@ void schtBuildQueryDag(SQueryDag *dag) {
   scanPlan->id.templateId = 0x0000000000000002;
   scanPlan->id.subplanId = 0x0000000000000003;
   scanPlan->type = QUERY_TYPE_SCAN;
-  scanPlan->execNode.numOfEps = 1;
+
   scanPlan->execNode.nodeId = 1;
-  scanPlan->execNode.inUse = 0;
-  scanPlan->execNode.epAddr[0].port = 6030;
-  strcpy(scanPlan->execNode.epAddr[0].fqdn, "ep0");
+  scanPlan->execNode.epset.inUse = 0;
+  addEpIntoEpSet(&scanPlan->execNode.epset, "ep0", 6030);
+
   scanPlan->pChildren = NULL;
   scanPlan->level = 1;
   scanPlan->pParents = taosArrayInit(1, POINTER_BYTES);
@@ -108,7 +107,8 @@ void schtBuildQueryDag(SQueryDag *dag) {
   mergePlan->id.subplanId = 0x5555555555;
   mergePlan->type = QUERY_TYPE_MERGE;
   mergePlan->level = 0;
-  mergePlan->execNode.numOfEps = 0;
+  mergePlan->execNode.epset.numOfEps = 0;
+
   mergePlan->pChildren = taosArrayInit(1, POINTER_BYTES);
   mergePlan->pParents = NULL;
   mergePlan->pNode = (SPhyNode*)calloc(1, sizeof(SPhyNode));
@@ -144,11 +144,11 @@ void schtBuildInsertDag(SQueryDag *dag) {
   insertPlan[0].id.subplanId = 0x0000000000000004;
   insertPlan[0].type = QUERY_TYPE_MODIFY;
   insertPlan[0].level = 0;
-  insertPlan[0].execNode.numOfEps = 1;
+
   insertPlan[0].execNode.nodeId = 1;
-  insertPlan[0].execNode.inUse = 0;
-  insertPlan[0].execNode.epAddr[0].port = 6030;
-  strcpy(insertPlan[0].execNode.epAddr[0].fqdn, "ep0");
+  insertPlan[0].execNode.epset.inUse = 0;
+  addEpIntoEpSet(&insertPlan[0].execNode.epset, "ep0", 6030);
+
   insertPlan[0].pChildren = NULL;
   insertPlan[0].pParents = NULL;
   insertPlan[0].pNode = NULL;
@@ -160,11 +160,11 @@ void schtBuildInsertDag(SQueryDag *dag) {
   insertPlan[1].id.subplanId = 0x0000000000000005;
   insertPlan[1].type = QUERY_TYPE_MODIFY;
   insertPlan[1].level = 0;
-  insertPlan[1].execNode.numOfEps = 1;
+
   insertPlan[1].execNode.nodeId = 1;
-  insertPlan[1].execNode.inUse = 1;
-  insertPlan[1].execNode.epAddr[0].port = 6030;
-  strcpy(insertPlan[1].execNode.epAddr[0].fqdn, "ep1");
+  insertPlan[1].execNode.epset.inUse = 0;
+  addEpIntoEpSet(&insertPlan[1].execNode.epset, "ep0", 6030);
+
   insertPlan[1].pChildren = NULL;
   insertPlan[1].pParents = NULL;
   insertPlan[1].pNode = NULL;
@@ -371,9 +371,9 @@ void* schtRunJobThread(void *aa) {
   while (!schtTestStop) {
     schtBuildQueryDag(&dag);
 
-    SArray *qnodeList = taosArrayInit(1, sizeof(SEpAddr));
+    SArray *qnodeList = taosArrayInit(1, sizeof(SEp));
 
-    SEpAddr qnodeAddr = {0};
+    SEp qnodeAddr = {0};
     strcpy(qnodeAddr.fqdn, "qnode0.ep");
     qnodeAddr.port = 6031;
     taosArrayPush(qnodeList, &qnodeAddr);
@@ -523,9 +523,9 @@ TEST(queryTest, normalCase) {
 
   schtInitLogFile();
 
-  SArray *qnodeList = taosArrayInit(1, sizeof(SEpAddr));
+  SArray *qnodeList = taosArrayInit(1, sizeof(SEp));
 
-  SEpAddr qnodeAddr = {0};
+  SEp qnodeAddr = {0};
   strcpy(qnodeAddr.fqdn, "qnode0.ep");
   qnodeAddr.port = 6031;
   taosArrayPush(qnodeList, &qnodeAddr);
@@ -627,9 +627,9 @@ TEST(insertTest, normalCase) {
 
   schtInitLogFile();
 
-  SArray *qnodeList = taosArrayInit(1, sizeof(SEpAddr));
+  SArray *qnodeList = taosArrayInit(1, sizeof(SEp));
 
-  SEpAddr qnodeAddr = {0};
+  SEp qnodeAddr = {0};
   strcpy(qnodeAddr.fqdn, "qnode0.ep");
   qnodeAddr.port = 6031;
   taosArrayPush(qnodeList, &qnodeAddr);

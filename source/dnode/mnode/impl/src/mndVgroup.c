@@ -424,9 +424,7 @@ SEpSet mndGetVgroupEpset(SMnode *pMnode, SVgObj *pVgroup) {
       epset.inUse = epset.numOfEps;
     }
 
-    epset.port[epset.numOfEps] = pDnode->port;
-    memcpy(&epset.fqdn[epset.numOfEps], pDnode->fqdn, TSDB_FQDN_LEN);
-    epset.numOfEps++;
+    addEpIntoEpSet(&epset, pDnode->fqdn, pDnode->port);
     mndReleaseDnode(pMnode, pDnode);
   }
 

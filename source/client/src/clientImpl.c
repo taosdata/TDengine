@@ -101,7 +101,7 @@ TAOS *taos_connect_internal(const char *ip, const char *user, const char *pass, 
     }
 
     if (port) {
-      epSet.epSet.port[0] = port;
+      epSet.epSet.eps[0].port = port;
     }
   } else {
     if (initEpSetFromCfg(tsFirst, tsSecond, &epSet) < 0) {
@@ -701,7 +701,7 @@ int initEpSetFromCfg(const char *firstEp, const char *secondEp, SCorEpSet *pEpSe
       return -1;
     }
 
-    taosGetFqdnPortFromEp(firstEp, mgmtEpSet->fqdn[0], &(mgmtEpSet->port[0]));
+    taosGetFqdnPortFromEp(firstEp, &mgmtEpSet->eps[0]);
     mgmtEpSet->numOfEps++;
   }
 
@@ -711,7 +711,7 @@ int initEpSetFromCfg(const char *firstEp, const char *secondEp, SCorEpSet *pEpSe
       return -1;
     }
 
-    taosGetFqdnPortFromEp(secondEp, mgmtEpSet->fqdn[mgmtEpSet->numOfEps], &(mgmtEpSet->port[mgmtEpSet->numOfEps]));
+    taosGetFqdnPortFromEp(secondEp, &mgmtEpSet->eps[mgmtEpSet->numOfEps]);
     mgmtEpSet->numOfEps++;
   }
 
@@ -916,14 +916,7 @@ void* doFetchRow(SRequestObj* pRequest) {
       SShowReqInfo* pShowReqInfo = &pRequest->body.showInfo;
       SVgroupInfo* pVgroupInfo = taosArrayGet(pShowReqInfo->pArray, pShowReqInfo->currentIndex);
 
-      epSet.numOfEps = pVgroupInfo->numOfEps;
-      epSet.inUse = pVgroupInfo->inUse;
-
-      for (int32_t i = 0; i < epSet.numOfEps; ++i) {
-        strncpy(epSet.fqdn[i], pVgroupInfo->epAddr[i].fqdn, tListLen(epSet.fqdn[i]));
-        epSet.port[i] = pVgroupInfo->epAddr[i].port;
-      }
-
+      epSet = pVgroupInfo->epset;
     } else if (pRequest->type == TDMT_VND_SHOW_TABLES_FETCH) {
       pRequest->type = TDMT_VND_SHOW_TABLES;
       SShowReqInfo* pShowReqInfo = &pRequest->body.showInfo;
@@ -940,14 +933,7 @@ void* doFetchRow(SRequestObj* pRequest) {
       pRequest->body.requestMsg.pData = pShowReq;
 
       SMsgSendInfo* body = buildMsgInfoImpl(pRequest);
-
-      epSet.numOfEps = pVgroupInfo->numOfEps;
-      epSet.inUse = pVgroupInfo->inUse;
-
-      for (int32_t i = 0; i < epSet.numOfEps; ++i) {
-        strncpy(epSet.fqdn[i], pVgroupInfo->epAddr[i].fqdn, tListLen(epSet.fqdn[i]));
-        epSet.port[i] = pVgroupInfo->epAddr[i].port;
-      }
+      epSet = pVgroupInfo->epset;
 
       int64_t  transporterId = 0;
       STscObj *pTscObj = pRequest->pTscObj;

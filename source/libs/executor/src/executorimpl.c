@@ -5163,14 +5163,9 @@ static SSDataBlock* doLoadRemoteData(void* param, bool* newgroup) {
 
     SDownstreamSource* pSource = taosArrayGet(pExchangeInfo->pSources, pExchangeInfo->current);
 
-    SEpSet epSet = {0};
-    epSet.numOfEps = pSource->addr.numOfEps;
-    epSet.port[0] = pSource->addr.epAddr[0].port;
-    tstrncpy(epSet.fqdn[0], pSource->addr.epAddr[0].fqdn, tListLen(epSet.fqdn[0]));
-
     int64_t startTs = taosGetTimestampUs();
     qDebug("%s build fetch msg and send to vgId:%d, ep:%s, taskId:0x%" PRIx64 ", %d/%" PRIzu,
-           GET_TASKID(pTaskInfo), pSource->addr.nodeId, epSet.fqdn[0], pSource->taskId, pExchangeInfo->current, totalSources);
+           GET_TASKID(pTaskInfo), pSource->addr.nodeId, pSource->addr.epset.eps[0].fqdn, pSource->taskId, pExchangeInfo->current, totalSources);
 
     pMsg->header.vgId = htonl(pSource->addr.nodeId);
     pMsg->sId = htobe64(pSource->schedId);
@@ -5192,7 +5187,7 @@ static SSDataBlock* doLoadRemoteData(void* param, bool* newgroup) {
     pMsgSendInfo->fp = loadRemoteDataCallback;
 
     int64_t transporterId = 0;
-    int32_t code = asyncSendMsgToServer(pExchangeInfo->pTransporter, &epSet, &transporterId, pMsgSendInfo);
+    int32_t code = asyncSendMsgToServer(pExchangeInfo->pTransporter, &pSource->addr.epset, &transporterId, pMsgSendInfo);
     tsem_wait(&pExchangeInfo->ready);
 
     SRetrieveTableRsp* pRsp = pExchangeInfo->pRsp;

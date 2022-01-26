@@ -154,10 +154,10 @@ typedef struct {
 #pragma pack(push, 1)
 
 // null-terminated string instead of char array to avoid too many memory consumption in case of more than 1M tableMeta
-typedef struct {
+typedef struct SEp {
   char     fqdn[TSDB_FQDN_LEN];
   uint16_t port;
-} SEpAddr;
+} SEp;
 
 typedef struct {
   int32_t contLen;
@@ -266,8 +266,7 @@ typedef struct {
 typedef struct SEpSet {
   int8_t   inUse;
   int8_t   numOfEps;
-  uint16_t port[TSDB_MAX_REPLICA];
-  char     fqdn[TSDB_MAX_REPLICA][TSDB_FQDN_LEN];
+  SEp      eps[TSDB_MAX_REPLICA];
 } SEpSet;
 
 static FORCE_INLINE int taosEncodeSEpSet(void** buf, const SEpSet* pEp) {
@@ -275,8 +274,8 @@ static FORCE_INLINE int taosEncodeSEpSet(void** buf, const SEpSet* pEp) {
   tlen += taosEncodeFixedI8(buf, pEp->inUse);
   tlen += taosEncodeFixedI8(buf, pEp->numOfEps);
   for (int i = 0; i < TSDB_MAX_REPLICA; i++) {
-    tlen += taosEncodeFixedU16(buf, pEp->port[i]);
-    tlen += taosEncodeString(buf, pEp->fqdn[i]);
+    tlen += taosEncodeFixedU16(buf, pEp->eps[i].port);
+    tlen += taosEncodeString(buf, pEp->eps[i].fqdn);
   }
   return tlen;
 }
@@ -285,8 +284,8 @@ static FORCE_INLINE void* taosDecodeSEpSet(void* buf, SEpSet* pEp) {
   buf = taosDecodeFixedI8(buf, &pEp->inUse);
   buf = taosDecodeFixedI8(buf, &pEp->numOfEps);
   for (int i = 0; i < TSDB_MAX_REPLICA; i++) {
-    buf = taosDecodeFixedU16(buf, &pEp->port[i]);
-    buf = taosDecodeStringTo(buf, pEp->fqdn[i]);
+    buf = taosDecodeFixedU16(buf, &pEp->eps[i].port);
+    buf = taosDecodeStringTo(buf, pEp->eps[i].fqdn);
   }
   return buf;
 }
@@ -617,8 +616,7 @@ typedef struct {
   int32_t  id;
   int8_t   isMnode;
   int8_t   align;
-  uint16_t port;
-  char     fqdn[TSDB_FQDN_LEN];
+  SEp      ep;
 } SDnodeEp;
 
 typedef struct {
@@ -691,24 +689,17 @@ typedef struct {
   char    tableNames[];
 } SMultiTableInfoReq;
 
+// todo refactor
 typedef struct SVgroupInfo {
   int32_t    vgId;
   uint32_t   hashBegin;
   uint32_t   hashEnd;
-  int8_t     inUse;
-  int8_t     numOfEps;
-  SEpAddr    epAddr[TSDB_MAX_REPLICA];
+  SEpSet     epset;
 } SVgroupInfo;
 
 typedef struct {
-  int32_t    vgId;
-  int8_t     numOfEps;
-  SEpAddr    epAddr[TSDB_MAX_REPLICA];
-} SVgroupMsg;
-
-typedef struct {
-  int32_t    numOfVgroups;
-  SVgroupMsg vgroups[];
+  int32_t     numOfVgroups;
+  SVgroupInfo vgroups[];
 } SVgroupsInfo;
 
 typedef struct {
