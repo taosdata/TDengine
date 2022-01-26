@@ -139,7 +139,8 @@ class TDTestCase:
         if rj['httpDbNameMandatory'] != '1' and pname not in str(val):
             tdLog.info('httpDbNameMandatory data:%s == expect:0'%rj['httpDbNameMandatory'])
             tdLog.exit(1)
-        tdLog.info("httpDbNameMandatory by restful query data:%s == expect:1" % (rj['httpDbNameMandatory']))
+        if pname not in str(val):
+            tdLog.info("httpDbNameMandatory by restful query data:%s == expect:1" % (rj['httpDbNameMandatory']))
 
     def run(self):
         
