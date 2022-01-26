@@ -208,16 +208,12 @@ static int mndInitUnassignedVg(SMnode *pMnode, SMqTopicObj *pTopic, SArray *unas
   SArray    *pArray;
   SArray    *inner = taosArrayGet(pDag->pSubplans, 0);
   SSubplan  *plan = taosArrayGetP(inner, 0);
-  plan->execNode.inUse = 0;
-  strcpy(plan->execNode.epAddr[0].fqdn, "localhost");
-  plan->execNode.epAddr[0].port = 6030;
+
   plan->execNode.nodeId = 2;
   SEpSet* pEpSet = &plan->execNode.epset;
 
   pEpSet->inUse = 0;
-  pEpSet->numOfEps = 0;
   addEpIntoEpSet(pEpSet, "localhost", 6030);
-
   if (schedulerConvertDagToTaskList(pDag, &pArray) < 0) {
     return -1;
   }
@@ -229,7 +225,8 @@ static int mndInitUnassignedVg(SMnode *pMnode, SMqTopicObj *pTopic, SArray *unas
     CEp.consumerId = -1;
     CEp.lastConsumerHbTs = CEp.lastVgHbTs = -1;
     STaskInfo *pTaskInfo = taosArrayGet(pArray, i);
-    tConvertQueryAddrToEpSet(&CEp.epSet, &pTaskInfo->addr);
+    CEp.epSet = pTaskInfo->addr.epset;
+    
     /*mDebug("subscribe convert ep %d %s %s %s %s %s\n", CEp.epSet.numOfEps, CEp.epSet.fqdn[0], CEp.epSet.fqdn[1],
      * CEp.epSet.fqdn[2], CEp.epSet.fqdn[3], CEp.epSet.fqdn[4]);*/
     CEp.vgId = pTaskInfo->addr.nodeId;
