@@ -11,12 +11,16 @@ RUN tar -zxf ${pkgFile}
 WORKDIR /root/${dirName}/
 RUN /bin/bash install.sh -e no
 
-RUN apt-get clean && apt-get update && apt-get install -y locales && locale-gen en_US.UTF-8
+ENV DEBIAN_FRONTEND=noninteractive
+RUN apt-get clean && apt-get update && apt-get install -y locales tzdata netcat && locale-gen en_US.UTF-8
 ENV LD_LIBRARY_PATH="$LD_LIBRARY_PATH:/usr/lib" \
     LC_CTYPE=en_US.UTF-8 \
     LANG=en_US.UTF-8 \
     LC_ALL=en_US.UTF-8
 
-EXPOSE 6030 6031 6032 6033 6034 6035 6036 6037 6038 6039 6040 6041 6042
+EXPOSE 6030-6049
+EXPOSE 6030-6039/udp
+COPY ./bin/* /usr/bin/
+ENTRYPOINT ["/usr/bin/entrypoint.sh"]
 CMD ["taosd"]
-VOLUME [ "/var/lib/taos", "/var/log/taos","/etc/taos/" ]
+VOLUME [ "/var/lib/taos", "/var/log/taos", "/corefile" ]
