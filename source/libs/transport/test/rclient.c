@@ -13,6 +13,7 @@
  * along with this program. If not, see <http://www.gnu.org/licenses/>.
  */
 
+#include <tep.h>
 #include "os.h"
 #include "rpcLog.h"
 #include "taoserror.h"
@@ -87,12 +88,9 @@ int main(int argc, char *argv[]) {
   pthread_attr_t thattr;
 
   // server info
-  epSet.numOfEps = 1;
   epSet.inUse = 0;
-  epSet.port[0] = 7000;
-  epSet.port[1] = 7000;
-  strcpy(epSet.fqdn[0], serverIp);
-  strcpy(epSet.fqdn[1], "192.168.0.1");
+  addEpIntoEpSet(&epSet, serverIp, 7000);
+  addEpIntoEpSet(&epSet, "192.168.0.1", 7000);
 
   // client info
   memset(&rpcInit, 0, sizeof(rpcInit));
@@ -110,9 +108,9 @@ int main(int argc, char *argv[]) {
 
   for (int i = 1; i < argc; ++i) {
     if (strcmp(argv[i], "-p") == 0 && i < argc - 1) {
-      epSet.port[0] = atoi(argv[++i]);
+      epSet.eps[0].port = atoi(argv[++i]);
     } else if (strcmp(argv[i], "-i") == 0 && i < argc - 1) {
-      tstrncpy(epSet.fqdn[0], argv[++i], sizeof(epSet.fqdn[0]));
+      tstrncpy(epSet.eps[0].fqdn, argv[++i], sizeof(epSet.eps[0].fqdn));
     } else if (strcmp(argv[i], "-t") == 0 && i < argc - 1) {
       rpcInit.numOfThreads = atoi(argv[++i]);
     } else if (strcmp(argv[i], "-m") == 0 && i < argc - 1) {
@@ -136,7 +134,7 @@ int main(int argc, char *argv[]) {
     } else {
       printf("\nusage: %s [options] \n", argv[0]);
       printf("  [-i ip]: first server IP address, default is:%s\n", serverIp);
-      printf("  [-p port]: server port number, default is:%d\n", epSet.port[0]);
+      printf("  [-p port]: server port number, default is:%d\n", epSet.eps[0].port);
       printf("  [-t threads]: number of rpc threads, default is:%d\n", rpcInit.numOfThreads);
       printf("  [-s sessions]: number of rpc sessions, default is:%d\n", rpcInit.sessions);
       printf("  [-m msgSize]: message body size, default is:%d\n", msgSize);

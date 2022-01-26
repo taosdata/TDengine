@@ -417,13 +417,13 @@ int32_t schSetTaskCandidateAddrs(SSchJob *pJob, SSchTask *pTask) {
     SCH_ERR_RET(TSDB_CODE_QRY_OUT_OF_MEMORY);
   }
 
-  if (pTask->plan->execNode.numOfEps > 0) {
+  if (pTask->plan->execNode.epset.numOfEps > 0) {
     if (NULL == taosArrayPush(pTask->candidateAddrs, &pTask->plan->execNode)) {
       SCH_TASK_ELOG("taosArrayPush execNode to candidate addrs failed, errno:%d", errno);
       SCH_ERR_RET(TSDB_CODE_QRY_OUT_OF_MEMORY);
     }
 
-    SCH_TASK_DLOG("use execNode from plan as candidate addr, numOfEps:%d", pTask->plan->execNode.numOfEps);
+    SCH_TASK_DLOG("use execNode from plan as candidate addr, numOfEps:%d", pTask->plan->execNode.epset.numOfEps);
 
     return TSDB_CODE_SUCCESS;
   }
@@ -446,7 +446,7 @@ int32_t schSetTaskCandidateAddrs(SSchJob *pJob, SSchTask *pTask) {
   }
 
   if (addNum <= 0) {
-    SCH_TASK_ELOG("no available execNode as candidate addr, nodeNum:%d", nodeNum);
+    SCH_TASK_ELOG("no available execNode as candidates, nodeNum:%d", nodeNum);
     return TSDB_CODE_QRY_INVALID_INPUT;
   }
 
@@ -1050,31 +1050,19 @@ _return:
   SCH_RET(code);
 }
 
-void schConvertAddrToEpSet(SQueryNodeAddr *addr, SEpSet *epSet) {
-  epSet->inUse = addr->inUse;
-  epSet->numOfEps = addr->numOfEps;
-  
-  for (int8_t i = 0; i < epSet->numOfEps; ++i) {
-    strncpy(epSet->fqdn[i], addr->epAddr[i].fqdn, sizeof(addr->epAddr[i].fqdn));
-    epSet->port[i] = addr->epAddr[i].port;
-  }
-}
-
 int32_t schBuildAndSendMsg(SSchJob *pJob, SSchTask *pTask, SQueryNodeAddr *addr, int32_t msgType) {
   uint32_t msgSize = 0;
   void *msg = NULL;
   int32_t code = 0;
   bool isCandidateAddr = false;
-  SEpSet epSet;
-
   if (NULL == addr) {
     addr = taosArrayGet(pTask->candidateAddrs, atomic_load_8(&pTask->candidateIdx));
     
     isCandidateAddr = true;
   }
 
-  schConvertAddrToEpSet(addr, &epSet);
-  
+  SEpSet epSet = addr->epset;
+
   switch (msgType) {
     case TDMT_VND_CREATE_TABLE:
     case TDMT_VND_SUBMIT: {
@@ -1218,8 +1206,6 @@ int32_t schLaunchTask(SSchJob *pJob, SSchTask *pTask) {
       SCH_TASK_ELOG("subplanToString error, code:%x, msg:%p, len:%d", code, pTask->msg, pTask->msgLen);
       SCH_ERR_JRET(code);
     }
-
-//    printf("physical plan:%s\n", pTask->msg);
   }
   
   SCH_ERR_JRET(schSetTaskCandidateAddrs(pJob, pTask));
@@ -1300,7 +1286,7 @@ void schDropJobAllTasks(SSchJob *pJob) {
 int32_t schExecJobImpl(void *transport, SArray *pNodeList, SQueryDag* pDag, struct SSchJob** job, bool syncSchedule) {
   qDebug("QID:0x%"PRIx64" job started", pDag->queryId);
 
-  if (pNodeList && taosArrayGetSize(pNodeList) <= 0) {
+  if (pNodeList == NULL || (pNodeList && taosArrayGetSize(pNodeList) <= 0)) {
     qDebug("QID:0x%"PRIx64" input exec nodeList is empty", pDag->queryId);
   }
 

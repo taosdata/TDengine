@@ -44,7 +44,7 @@ TEST_F(MndTestProfile, 01_ConnectMsg) {
   pRsp->acctId = htonl(pRsp->acctId);
   pRsp->clusterId = htobe64(pRsp->clusterId);
   pRsp->connId = htonl(pRsp->connId);
-  pRsp->epSet.port[0] = htons(pRsp->epSet.port[0]);
+  pRsp->epSet.eps[0].port = htons(pRsp->epSet.eps[0].port);
 
   EXPECT_EQ(pRsp->acctId, 1);
   EXPECT_GT(pRsp->clusterId, 0);
@@ -53,8 +53,8 @@ TEST_F(MndTestProfile, 01_ConnectMsg) {
 
   EXPECT_EQ(pRsp->epSet.inUse, 0);
   EXPECT_EQ(pRsp->epSet.numOfEps, 1);
-  EXPECT_EQ(pRsp->epSet.port[0], 9031);
-  EXPECT_STREQ(pRsp->epSet.fqdn[0], "localhost");
+  EXPECT_EQ(pRsp->epSet.eps[0].port, 9031);
+  EXPECT_STREQ(pRsp->epSet.eps[0].fqdn, "localhost");
 
   connId = pRsp->connId;
 }

@@ -58,13 +58,7 @@ static int32_t setShowInfo(SShowInfo* pShowInfo, SParseContext* pCtx, void** out
 
     SVgroupInfo* info = taosArrayGet(array, 0);
     pShowReq->head.vgId = htonl(info->vgId);
-    pEpSet->numOfEps = info->numOfEps;
-    pEpSet->inUse = info->inUse;
-
-    for (int32_t i = 0; i < pEpSet->numOfEps; ++i) {
-      strncpy(pEpSet->fqdn[i], info->epAddr[i].fqdn, tListLen(pEpSet->fqdn[i]));
-      pEpSet->port[i] = info->epAddr[i].port;
-    }
+    *pEpSet = info->epset;
 
     *outputLen  = sizeof(SVShowTablesReq);
     *output     = pShowReq;

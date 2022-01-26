@@ -127,8 +127,8 @@ int32_t queryProcessUseDBRsp(void* output, char *msg, int32_t msgSize) {
     pRsp->vgroupInfo[i].hashBegin = ntohl(pRsp->vgroupInfo[i].hashBegin);
     pRsp->vgroupInfo[i].hashEnd = ntohl(pRsp->vgroupInfo[i].hashEnd);
 
-    for (int32_t n = 0; n < pRsp->vgroupInfo[i].numOfEps; ++n) {
-      pRsp->vgroupInfo[i].epAddr[n].port = ntohs(pRsp->vgroupInfo[i].epAddr[n].port);
+    for (int32_t n = 0; n < pRsp->vgroupInfo[i].epset.numOfEps; ++n) {
+      pRsp->vgroupInfo[i].epset.eps[n].port = ntohs(pRsp->vgroupInfo[i].epset.eps[n].port);
     }
 
     if (0 != taosHashPut(pOut->dbVgroup.vgInfo, &pRsp->vgroupInfo[i].vgId, sizeof(pRsp->vgroupInfo[i].vgId), &pRsp->vgroupInfo[i], sizeof(pRsp->vgroupInfo[i]))) {

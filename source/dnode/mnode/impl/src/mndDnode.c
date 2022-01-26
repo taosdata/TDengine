@@ -203,8 +203,8 @@ void mndReleaseDnode(SMnode *pMnode, SDnodeObj *pDnode) {
 }
 
 SEpSet mndGetDnodeEpset(SDnodeObj *pDnode) {
-  SEpSet epSet = {.inUse = 0, .numOfEps = 1, .port[0] = pDnode->port};
-  memcpy(epSet.fqdn[0], pDnode->fqdn, TSDB_FQDN_LEN);
+  SEpSet epSet = {0};
+  addEpIntoEpSet(&epSet, pDnode->fqdn, pDnode->port);
   return epSet;
 }
 
@@ -261,8 +261,8 @@ static void mndGetDnodeData(SMnode *pMnode, SDnodeEps *pEps, int32_t maxEps) {
 
     SDnodeEp *pEp = &pEps->eps[numOfEps];
     pEp->id = htonl(pDnode->id);
-    pEp->port = htons(pDnode->port);
-    memcpy(pEp->fqdn, pDnode->fqdn, TSDB_FQDN_LEN);
+    pEp->ep.port = htons(pDnode->port);
+    memcpy(pEp->ep.fqdn, pDnode->fqdn, TSDB_FQDN_LEN);
     pEp->isMnode = 0;
     if (mndIsMnode(pMnode, pDnode->id)) {
       pEp->isMnode = 1;

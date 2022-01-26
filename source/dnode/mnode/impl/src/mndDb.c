@@ -840,18 +840,18 @@ static int32_t mndProcessUseDbReq(SMnodeMsg *pReq) {
         pInfo->vgId = htonl(pVgroup->vgId);
         pInfo->hashBegin = htonl(pVgroup->hashBegin);
         pInfo->hashEnd = htonl(pVgroup->hashEnd);
-        pInfo->numOfEps = pVgroup->replica;
+        pInfo->epset.numOfEps = pVgroup->replica;
         for (int32_t gid = 0; gid < pVgroup->replica; ++gid) {
           SVnodeGid  *pVgid = &pVgroup->vnodeGid[gid];
-          SEpAddr *pEpArrr = &pInfo->epAddr[gid];
+          SEp *       pEp = &pInfo->epset.eps[gid];
           SDnodeObj  *pDnode = mndAcquireDnode(pMnode, pVgid->dnodeId);
           if (pDnode != NULL) {
-            memcpy(pEpArrr->fqdn, pDnode->fqdn, TSDB_FQDN_LEN);
-            pEpArrr->port = htons(pDnode->port);
+            memcpy(pEp->fqdn, pDnode->fqdn, TSDB_FQDN_LEN);
+            pEp->port = htons(pDnode->port);
           }
           mndReleaseDnode(pMnode, pDnode);
           if (pVgid->role == TAOS_SYNC_STATE_LEADER) {
-            pInfo->inUse = gid;
+            pInfo->epset.inUse = gid;
           }
         }
         vindex++;

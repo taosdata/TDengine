@@ -736,7 +736,7 @@ static const char* jkEpAddrFqdn = "Fqdn";
 static const char* jkEpAddrPort = "Port";
 
 static bool epAddrToJson(const void* obj, cJSON* json) {
-  const SEpAddr* ep = (const SEpAddr*)obj;
+  const SEp* ep = (const SEp*)obj;
   bool res = cJSON_AddStringToObject(json, jkEpAddrFqdn, ep->fqdn);
   if (res) {
     res = cJSON_AddNumberToObject(json, jkEpAddrPort, ep->port);
@@ -745,7 +745,7 @@ static bool epAddrToJson(const void* obj, cJSON* json) {
 }
 
 static bool epAddrFromJson(const cJSON* json, void* obj) {
-  SEpAddr* ep = (SEpAddr*)obj;
+  SEp* ep = (SEp*)obj;
   copyString(json, jkEpAddrFqdn, ep->fqdn);
   ep->port = getNumber(json, jkEpAddrPort);
   return true;
@@ -763,11 +763,11 @@ static bool queryNodeAddrToJson(const void* obj, cJSON* json) {
   bool res = cJSON_AddNumberToObject(json, jkNodeAddrId, pAddr->nodeId);
 
   if (res) {
-    res = cJSON_AddNumberToObject(json, jkNodeAddrInUse, pAddr->inUse);
+    res = cJSON_AddNumberToObject(json, jkNodeAddrInUse, pAddr->epset.inUse);
   }
 
   if (res) {
-    res = addRawArray(json, jkNodeAddrEpAddrs, epAddrToJson, pAddr->epAddr, sizeof(SEpAddr), pAddr->numOfEps);
+    res = addRawArray(json, jkNodeAddrEpAddrs, epAddrToJson, pAddr->epset.eps, sizeof(SEp), pAddr->epset.numOfEps);
   }
   return res;
 }
@@ -776,11 +776,11 @@ static bool queryNodeAddrFromJson(const cJSON* json, void* obj) {
   SQueryNodeAddr* pAddr = (SQueryNodeAddr*) obj;
 
   pAddr->nodeId = getNumber(json, jkNodeAddrId);
-  pAddr->inUse = getNumber(json, jkNodeAddrInUse);
+  pAddr->epset.inUse = getNumber(json, jkNodeAddrInUse);
 
   int32_t numOfEps = 0;
-  bool res = fromRawArray(json, jkNodeAddrEpAddrs, epAddrFromJson, pAddr->epAddr, sizeof(SEpAddr), &numOfEps);
-  pAddr->numOfEps = numOfEps;
+  bool res = fromRawArray(json, jkNodeAddrEpAddrs, epAddrFromJson, pAddr->epset.eps, sizeof(SEp), &numOfEps);
+  pAddr->epset.numOfEps = numOfEps;
   return res;
 }
 

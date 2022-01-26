@@ -57,13 +57,13 @@ void dndGetDnodeEp(SDnode *pDnode, int32_t dnodeId, char *pEp, char *pFqdn, uint
   SDnodeEp *pDnodeEp = taosHashGet(pMgmt->dnodeHash, &dnodeId, sizeof(int32_t));
   if (pDnodeEp != NULL) {
     if (pPort != NULL) {
-      *pPort = pDnodeEp->port;
+      *pPort = pDnodeEp->ep.port;
     }
     if (pFqdn != NULL) {
-      tstrncpy(pFqdn, pDnodeEp->fqdn, TSDB_FQDN_LEN);
+      tstrncpy(pFqdn, pDnodeEp->ep.fqdn, TSDB_FQDN_LEN);
     }
     if (pEp != NULL) {
-      snprintf(pEp, TSDB_EP_LEN, "%s:%u", pDnodeEp->fqdn, pDnodeEp->port);
+      snprintf(pEp, TSDB_EP_LEN, "%s:%u", pDnodeEp->ep.fqdn, pDnodeEp->ep.port);
     }
   }
 
@@ -85,12 +85,12 @@ void dndSendRedirectRsp(SDnode *pDnode, SRpcMsg *pReq) {
 
   dDebug("RPC %p, req:%s is redirected, num:%d use:%d", pReq->handle, TMSG_INFO(msgType), epSet.numOfEps, epSet.inUse);
   for (int32_t i = 0; i < epSet.numOfEps; ++i) {
-    dDebug("mnode index:%d %s:%u", i, epSet.fqdn[i], epSet.port[i]);
-    if (strcmp(epSet.fqdn[i], pDnode->cfg.localFqdn) == 0 && epSet.port[i] == pDnode->cfg.serverPort) {
+    dDebug("mnode index:%d %s:%u", i, epSet.eps[i].fqdn, epSet.eps[i].port);
+    if (strcmp(epSet.eps[i].fqdn, pDnode->cfg.localFqdn) == 0 && epSet.eps[i].port == pDnode->cfg.serverPort) {
       epSet.inUse = (i + 1) % epSet.numOfEps;
     }
 
-    epSet.port[i] = htons(epSet.port[i]);
+    epSet.eps[i].port = htons(epSet.eps[i].port);
   }
 
   rpcSendRedirectRsp(pReq->handle, &epSet);
@@ -104,7 +104,7 @@ static void dndUpdateMnodeEpSet(SDnode *pDnode, SEpSet *pEpSet) {
 
   pMgmt->mnodeEpSet = *pEpSet;
   for (int32_t i = 0; i < pEpSet->numOfEps; ++i) {
-    dInfo("mnode index:%d %s:%u", i, pEpSet->fqdn[i], pEpSet->port[i]);
+    dInfo("mnode index:%d %s:%u", i, pEpSet->eps[i].fqdn, pEpSet->eps[i].port);
   }
 
   taosWUnLockLatch(&pMgmt->latch);
@@ -116,7 +116,7 @@ static void dndPrintDnodes(SDnode *pDnode) {
   dDebug("print dnode ep list, num:%d", pMgmt->dnodeEps->num);
   for (int32_t i = 0; i < pMgmt->dnodeEps->num; i++) {
     SDnodeEp *pEp = &pMgmt->dnodeEps->eps[i];
-    dDebug("dnode:%d, fqdn:%s port:%u isMnode:%d", pEp->id, pEp->fqdn, pEp->port, pEp->isMnode);
+    dDebug("dnode:%d, fqdn:%s port:%u isMnode:%d", pEp->id, pEp->ep.fqdn, pEp->ep.port, pEp->isMnode);
   }
 }
 
@@ -145,8 +145,8 @@ static void dndResetDnodes(SDnode *pDnode, SDnodeEps *pDnodeEps) {
     if (!pDnodeEp->isMnode) continue;
     if (mIndex >= TSDB_MAX_REPLICA) continue;
     pMgmt->mnodeEpSet.numOfEps++;
-    strcpy(pMgmt->mnodeEpSet.fqdn[mIndex], pDnodeEp->fqdn);
-    pMgmt->mnodeEpSet.port[mIndex] = pDnodeEp->port;
+
+    pMgmt->mnodeEpSet.eps[mIndex] = pDnodeEp->ep;
     mIndex++;
   }
 
@@ -167,7 +167,7 @@ static bool dndIsEpChanged(SDnode *pDnode, int32_t dnodeId, char *pEp) {
   SDnodeEp *pDnodeEp = taosHashGet(pMgmt->dnodeHash, &dnodeId, sizeof(int32_t));
   if (pDnodeEp != NULL) {
     char epstr[TSDB_EP_LEN + 1];
-    snprintf(epstr, TSDB_EP_LEN, "%s:%u", pDnodeEp->fqdn, pDnodeEp->port);
+    snprintf(epstr, TSDB_EP_LEN, "%s:%u", pDnodeEp->ep.fqdn, pDnodeEp->ep.port);
     changed = strcmp(pEp, epstr) != 0;
   }
 
@@ -251,11 +251,12 @@ static int32_t dndReadDnodes(SDnode *pDnode) {
 
     SDnodeEp *pDnodeEp = &pMgmt->dnodeEps->eps[i];
 
-    cJSON *dnodeId = cJSON_GetObjectItem(node, "id");
-    if (!dnodeId || dnodeId->type != cJSON_Number) {
+    cJSON *did = cJSON_GetObjectItem(node, "id");
+    if (!did || did->type != cJSON_Number) {
       dError("failed to read %s since dnodeId not found", pMgmt->file);
       goto PRASE_DNODE_OVER;
     }
+
     pDnodeEp->id = dnodeId->valueint;
 
     cJSON *dnodeFqdn = cJSON_GetObjectItem(node, "fqdn");
@@ -263,14 +264,15 @@ static int32_t dndReadDnodes(SDnode *pDnode) {
       dError("failed to read %s since dnodeFqdn not found", pMgmt->file);
       goto PRASE_DNODE_OVER;
     }
-    tstrncpy(pDnodeEp->fqdn, dnodeFqdn->valuestring, TSDB_FQDN_LEN);
+    tstrncpy(pDnodeEp->ep.fqdn, dnodeFqdn->valuestring, TSDB_FQDN_LEN);
 
     cJSON *dnodePort = cJSON_GetObjectItem(node, "port");
     if (!dnodePort || dnodePort->type != cJSON_Number) {
       dError("failed to read %s since dnodePort not found", pMgmt->file);
       goto PRASE_DNODE_OVER;
     }
-    pDnodeEp->port = dnodePort->valueint;
+
+    pDnodeEp->ep.port = dnodePort->valueint;
 
     cJSON *isMnode = cJSON_GetObjectItem(node, "isMnode");
     if (!isMnode || isMnode->type != cJSON_Number) {
@@ -298,7 +300,8 @@ PRASE_DNODE_OVER:
     pMgmt->dnodeEps = calloc(1, sizeof(SDnodeEps) + sizeof(SDnodeEp));
     pMgmt->dnodeEps->num = 1;
     pMgmt->dnodeEps->eps[0].isMnode = 1;
-    taosGetFqdnPortFromEp(pDnode->cfg.firstEp, pMgmt->dnodeEps->eps[0].fqdn, &pMgmt->dnodeEps->eps[0].port);
+
+    taosGetFqdnPortFromEp(pDnode->cfg.firstEp, &(pMgmt->dnodeEps->eps[0].ep));
   }
 
   dndResetDnodes(pDnode, pMgmt->dnodeEps);
@@ -329,8 +332,8 @@ static int32_t dndWriteDnodes(SDnode *pDnode) {
   for (int32_t i = 0; i < pMgmt->dnodeEps->num; ++i) {
     SDnodeEp *pDnodeEp = &pMgmt->dnodeEps->eps[i];
     len += snprintf(content + len, maxLen - len, "    \"id\": %d,\n", pDnodeEp->id);
-    len += snprintf(content + len, maxLen - len, "    \"fqdn\": \"%s\",\n", pDnodeEp->fqdn);
-    len += snprintf(content + len, maxLen - len, "    \"port\": %u,\n", pDnodeEp->port);
+    len += snprintf(content + len, maxLen - len, "    \"fqdn\": \"%s\",\n", pDnodeEp->ep.fqdn);
+    len += snprintf(content + len, maxLen - len, "    \"port\": %u,\n", pDnodeEp->ep.port);
     len += snprintf(content + len, maxLen - len, "    \"isMnode\": %d\n", pDnodeEp->isMnode);
     if (i < pMgmt->dnodeEps->num - 1) {
       len += snprintf(content + len, maxLen - len, "  },{\n");
@@ -450,7 +453,7 @@ static void dndProcessStatusRsp(SDnode *pDnode, SRpcMsg *pRsp) {
     pDnodeEps->num = htonl(pDnodeEps->num);
     for (int32_t i = 0; i < pDnodeEps->num; ++i) {
       pDnodeEps->eps[i].id = htonl(pDnodeEps->eps[i].id);
-      pDnodeEps->eps[i].port = htons(pDnodeEps->eps[i].port);
+      pDnodeEps->eps[i].ep.port = htons(pDnodeEps->eps[i].ep.port);
     }
 
     dndUpdateDnodeEps(pDnode, pDnodeEps);

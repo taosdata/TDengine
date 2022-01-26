@@ -1426,35 +1426,6 @@ bool isQueryWithLimit(SQueryStmtInfo* pQueryInfo) {
   return false;
 }
 
-SVgroupsInfo* vgroupInfoClone(SVgroupsInfo *vgroupList) {
-  if (vgroupList == NULL) {
-    return NULL;
-  }
-
-  size_t size = sizeof(SVgroupsInfo) + sizeof(SVgroupMsg) * vgroupList->numOfVgroups;
-  SVgroupsInfo* pNew = malloc(size);
-  if (pNew == NULL) {
-    return NULL;
-  }
-
-  pNew->numOfVgroups = vgroupList->numOfVgroups;
-
-  for(int32_t i = 0; i < vgroupList->numOfVgroups; ++i) {
-    SVgroupMsg* pNewVInfo = &pNew->vgroups[i];
-
-    SVgroupMsg* pvInfo = &vgroupList->vgroups[i];
-    pNewVInfo->vgId = pvInfo->vgId;
-    pNewVInfo->numOfEps = pvInfo->numOfEps;
-
-    for(int32_t j = 0; j < pvInfo->numOfEps; ++j) {
-      pNewVInfo->epAddr[j].port = pvInfo->epAddr[j].port;
-      tstrncpy(pNewVInfo->epAddr[j].fqdn, pvInfo->epAddr[j].fqdn, TSDB_FQDN_LEN);
-    }
-  }
-
-  return pNew;
-}
-
 void* vgroupInfoClear(SVgroupsInfo *vgroupList) {
   if (vgroupList == NULL) {
     return NULL;
@@ -1503,19 +1474,6 @@ STableMeta* tableMetaDup(const STableMeta* pTableMeta) {
   STableMeta* p = malloc(size);
   memcpy(p, pTableMeta, size);
   return p;
-}
-
-SVgroupsInfo* vgroupsInfoDup(SVgroupsInfo* pVgroupsInfo) {
-  assert(pVgroupsInfo != NULL);
-
-  size_t size = sizeof(SVgroupMsg) * pVgroupsInfo->numOfVgroups + sizeof(SVgroupsInfo);
-  SVgroupsInfo* pInfo = calloc(1, size);
-  pInfo->numOfVgroups = pVgroupsInfo->numOfVgroups;
-  for (int32_t m = 0; m < pVgroupsInfo->numOfVgroups; ++m) {
-    memcpy(&pInfo->vgroups[m], &pVgroupsInfo->vgroups[m], sizeof(SVgroupMsg));
-  }
-
-  return pInfo;
 }
 
 int32_t getNumOfOutput(SFieldInfo* pFieldInfo) {

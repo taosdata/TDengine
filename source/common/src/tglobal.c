@@ -1080,9 +1080,7 @@ static void doInitGlobalConfig(void) {
 void taosInitGlobalCfg() { pthread_once(&tsInitGlobalCfgOnce, doInitGlobalConfig); }
 
 int32_t taosCheckAndPrintCfg() {
-  char     fqdn[TSDB_FQDN_LEN];
-  uint16_t port;
-
+  SEp ep = {0};
   if (debugFlag & DEBUG_TRACE || debugFlag & DEBUG_DEBUG || debugFlag & DEBUG_DUMP) {
     taosSetAllDebugFlag();
   }
@@ -1097,15 +1095,15 @@ int32_t taosCheckAndPrintCfg() {
   if (tsFirst[0] == 0) {
     strcpy(tsFirst, tsLocalEp);
   } else {
-    taosGetFqdnPortFromEp(tsFirst, fqdn, &port);
-    snprintf(tsFirst, sizeof(tsFirst), "%s:%u", fqdn, port);
+    taosGetFqdnPortFromEp(tsFirst, &ep);
+    snprintf(tsFirst, sizeof(tsFirst), "%s:%u", ep.fqdn, ep.port);
   }
 
   if (tsSecond[0] == 0) {
     strcpy(tsSecond, tsLocalEp);
   } else {
-    taosGetFqdnPortFromEp(tsSecond, fqdn, &port);
-    snprintf(tsSecond, sizeof(tsSecond), "%s:%u", fqdn, port);
+    taosGetFqdnPortFromEp(tsSecond, &ep);
+    snprintf(tsSecond, sizeof(tsSecond), "%s:%u", ep.fqdn, ep.port);
   }
 
   taosCheckDataDirCfg();
