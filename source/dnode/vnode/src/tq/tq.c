@@ -679,6 +679,7 @@ int32_t tqProcessConsumeReq(STQ* pTq, SRpcMsg* pMsg) {
   int              rspLen = 0;
 
   STqConsumerHandle* pConsumer = tqHandleGet(pTq->tqMeta, consumerId);
+  ASSERT(pConsumer);
   int                sz = taosArrayGetSize(pConsumer->topics);
 
   for (int i = 0; i < sz; i++) {
@@ -735,23 +736,6 @@ int32_t tqProcessConsumeReq(STQ* pTq, SRpcMsg* pMsg) {
         break;
       }
       if (pDataBlock != NULL) {
-        SMqTbData tbData = {
-          .uid = pDataBlock->info.uid,
-          .numOfCols = pDataBlock->info.numOfCols,
-          .numOfRows = pDataBlock->info.rows,
-        };
-        for (int i = 0; i < pDataBlock->info.numOfCols; i++) {
-          SColumnInfoData* pColData = taosArrayGet(pDataBlock->pDataBlock, i);
-          int32_t sz = pColData->info.bytes * pDataBlock->info.rows;
-          SMqColData colData = {
-            .bytes = pColData->info.bytes,
-            .colId = pColData->info.colId,
-            .type = pColData->info.type,
-          };
-          memcpy(colData.data, pColData->pData, colData.bytes * pDataBlock->info.rows);
-          memcpy(&tbData.colData[i], &colData, sz);
-        }
-        /*pDataBlock->info.*/
         taosArrayPush(pRes, pDataBlock);
       } else {
         break;
@@ -792,6 +776,8 @@ int32_t tqProcessSetConnReq(STQ* pTq, char* msg) {
   }
   strcpy(pConsumer->cgroup, req.cgroup);
   pConsumer->topics = taosArrayInit(0, sizeof(STqTopicHandle));
+  pConsumer->consumerId = req.newConsumerId;
+  pConsumer->epoch = 0;
 
   STqTopicHandle* pTopic = calloc(sizeof(STqTopicHandle), 1);
   if (pTopic == NULL) {
@@ -802,6 +788,8 @@ int32_t tqProcessSetConnReq(STQ* pTq, char* msg) {
   pTopic->sql = strdup(req.sql);
   pTopic->logicalPlan = strdup(req.logicalPlan);
   pTopic->physicalPlan = strdup(req.physicalPlan);
+  pTopic->committedOffset = -1;
+  pTopic->currentOffset = -1;
 
   pTopic->buffer.firstOffset = -1;
   pTopic->buffer.lastOffset = -1;
@@ -814,6 +802,8 @@ int32_t tqProcessSetConnReq(STQ* pTq, char* msg) {
     pTopic->buffer.output[i].task = qCreateStreamExecTaskInfo(req.qmsg, pReadHandle);
   }
   taosArrayPush(pConsumer->topics, pTopic);
+  tqHandleMovePut(pTq->tqMeta, req.newConsumerId, pConsumer);
+  tqHandleCommit(pTq->tqMeta, req.newConsumerId);
   terrno = TSDB_CODE_SUCCESS;
   return 0;
 }
@@ -838,7 +828,7 @@ void tqReadHandleSetMsg(STqReadHandle* pReadHandle, SSubmitMsg* pMsg, int64_t ve
 }
 
 bool tqNextDataBlock(STqReadHandle* pHandle) {
-  while (tGetSubmitMsgNext(&pHandle->msgIter, &pHandle->pBlock) >= 0) {
+  while (tGetSubmitMsgNext(&pHandle->msgIter, &pHandle->pBlock)) {
     if (pHandle->tbUid == pHandle->pBlock->uid) return true;
   }
   return false;

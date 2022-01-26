@@ -257,7 +257,7 @@ static int walWriteIndex(SWal *pWal, int64_t ver, int64_t offset) {
   return 0;
 }
 
-int64_t walWrite(SWal *pWal, int64_t index, uint8_t msgType, const void *body, int32_t bodyLen) {
+int64_t walWrite(SWal *pWal, int64_t index, tmsg_t msgType, const void *body, int32_t bodyLen) {
   if (pWal == NULL) return -1;
   int code = 0;
 
