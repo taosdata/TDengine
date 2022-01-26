@@ -626,8 +626,10 @@ static FORCE_INLINE int32_t tEncodeSMqConsumerTopic(void** buf, SMqConsumerTopic
   int32_t tlen = 0;
   tlen += taosEncodeString(buf, pConsumerTopic->name);
   tlen += taosEncodeFixedI32(buf, pConsumerTopic->epoch);
-  ASSERT(pConsumerTopic->pVgInfo);
-  int32_t sz = taosArrayGetSize(pConsumerTopic->pVgInfo);
+  int32_t sz = 0;
+  if (pConsumerTopic->pVgInfo != NULL) {
+    sz = taosArrayGetSize(pConsumerTopic->pVgInfo);
+  }
   tlen += taosEncodeFixedI32(buf, sz);
   for (int32_t i = 0; i < sz; i++) {
     int32_t* pVgInfo = taosArrayGet(pConsumerTopic->pVgInfo, i);

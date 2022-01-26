@@ -757,12 +757,12 @@ int32_t tqProcessConsumeReq(STQ* pTq, SRpcMsg* pMsg) {
     if (pTopic->buffer.lastOffset == -1 || pReq->offset > pTopic->buffer.lastOffset) {
       pTopic->buffer.lastOffset = pReq->offset;
     }
-    // put output into rsp
-    SMqConsumeRsp rsp = {
-      .consumerId = consumerId,
-      .numOfTopics = 1
-    };
   }
+    // put output into rsp
+  SMqConsumeRsp rsp = {
+    .consumerId = consumerId,
+    .numOfTopics = 1
+  };
 
   return 0;
 }
@@ -822,14 +822,29 @@ STqReadHandle* tqInitSubmitMsgScanner(SMeta* pMeta) {
 
 void tqReadHandleSetMsg(STqReadHandle* pReadHandle, SSubmitMsg* pMsg, int64_t ver) {
   pReadHandle->pMsg = pMsg;
+  pMsg->length = htonl(pMsg->length);
+  pMsg->numOfBlocks = htonl(pMsg->numOfBlocks);
   tInitSubmitMsgIter(pMsg, &pReadHandle->msgIter);
   pReadHandle->ver = ver;
   memset(&pReadHandle->blkIter, 0, sizeof(SSubmitBlkIter));
 }
 
 bool tqNextDataBlock(STqReadHandle* pHandle) {
-  while (tGetSubmitMsgNext(&pHandle->msgIter, &pHandle->pBlock)) {
-    if (pHandle->tbUid == pHandle->pBlock->uid) return true;
+  while (1) {
+    if (tGetSubmitMsgNext(&pHandle->msgIter, &pHandle->pBlock) < 0) {
+      return false;
+    }
+    if (pHandle->pBlock == NULL) return false;
+
+    pHandle->pBlock->uid = htobe64(pHandle->pBlock->uid);
+    if (pHandle->tbUid == pHandle->pBlock->uid){
+      pHandle->pBlock->tid = htonl(pHandle->pBlock->tid);
+      pHandle->pBlock->sversion = htonl(pHandle->pBlock->sversion);
+      pHandle->pBlock->dataLen = htonl(pHandle->pBlock->dataLen);
+      pHandle->pBlock->schemaLen = htonl(pHandle->pBlock->schemaLen);
+      pHandle->pBlock->numOfRows = htons(pHandle->pBlock->numOfRows);
+     return true;
+    }
   }
   return false;
 }
@@ -845,8 +860,9 @@ int tqRetrieveDataBlockInfo(STqReadHandle* pHandle, SDataBlockInfo* pBlockInfo) 
 
 SArray* tqRetrieveDataBlock(STqReadHandle* pHandle) {
   int32_t         sversion = pHandle->pBlock->sversion;
-  SSchemaWrapper* pSchemaWrapper = metaGetTableSchema(pHandle->pMeta, pHandle->pBlock->uid, sversion, true);
-  STSchema*       pTschema = metaGetTbTSchema(pHandle->pMeta, pHandle->pBlock->uid, sversion);
+  //TODO : change sversion
+  SSchemaWrapper* pSchemaWrapper = metaGetTableSchema(pHandle->pMeta, pHandle->pBlock->uid, 0, true);
+  STSchema*       pTschema = metaGetTbTSchema(pHandle->pMeta, pHandle->pBlock->uid, 0);
   SArray*         pArray = taosArrayInit(pSchemaWrapper->nCols, sizeof(SColumnInfoData));
   if (pArray == NULL) {
     return NULL;
