@@ -38,6 +38,12 @@
 //  int16_t bytes;
 //} SSchema;
 
+typedef struct {
+  uint32_t  numOfTables;
+  SArray   *pGroupList;
+  SHashObj *map;  // speedup acquire the tableQueryInfo by table uid
+} STableGroupInfo;
+
 typedef struct SColumnDataAgg {
   int16_t colId;
   int64_t sum;
@@ -57,17 +63,12 @@ typedef struct SDataBlockInfo {
 
 typedef struct SConstantItem {
   SColumnInfo info;
-  int32_t     startIndex;    // run-length-encoding to save the space for multiple rows
-  int32_t     endIndex;
+  int32_t     startRow;    // run-length-encoding to save the space for multiple rows
+  int32_t     endRow;
   SVariant    value;
 } SConstantItem;
 
-typedef struct {
-  uint32_t  numOfTables;
-  SArray   *pGroupList;
-  SHashObj *map;  // speedup acquire the tableQueryInfo by table uid
-} STableGroupInfo;
-
+// info.numOfCols = taosArrayGetSize(pDataBlock) + taosArrayGetSize(pConstantList);
 typedef struct SSDataBlock {
   SColumnDataAgg *pBlockAgg;
   SArray         *pDataBlock;    // SArray<SColumnInfoData>
@@ -75,9 +76,12 @@ typedef struct SSDataBlock {
   SDataBlockInfo  info;
 } SSDataBlock;
 
+// pBlockAgg->numOfNull == info.rows, all data are null
+// pBlockAgg->numOfNull == 0, no data are null.
 typedef struct SColumnInfoData {
-  SColumnInfo info;     // TODO filter info needs to be removed
-  char       *pData;    // the corresponding block data in memory
+  SColumnInfo info;      // TODO filter info needs to be removed
+  char       *nullbitmap;//
+  char       *pData;     // the corresponding block data in memory
 } SColumnInfoData;
 
 //======================================================================================================================
