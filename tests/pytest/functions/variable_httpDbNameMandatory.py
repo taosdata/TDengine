@@ -136,7 +136,7 @@ class TDTestCase:
         p = subprocess.Popen(cmd,shell=True, stdout=subprocess.PIPE)
         if p.wait() == 0:
             val = p.stdout.read()
-        if rj['httpDbNameMandatory'] != '1' and pname in str(val):
+        if rj['httpDbNameMandatory'] != '1' and pname not in str(val):
             tdLog.info('httpDbNameMandatory data:%s == expect:0'%rj['httpDbNameMandatory'])
             tdLog.exit(1)
         tdLog.info("httpDbNameMandatory by restful query data:%s == expect:1" % (rj['httpDbNameMandatory']))
