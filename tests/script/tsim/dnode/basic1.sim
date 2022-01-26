@@ -178,9 +178,9 @@ if $rows != 3 then
 endi
 
 sql select * from st
-#if $rows != 15 then 
-#  return -1
-#endi
+if $rows != 15 then 
+  return -1
+endi
 
 print =============== drop dnode
 sql drop dnode 2;
