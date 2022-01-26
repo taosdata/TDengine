@@ -507,8 +507,8 @@ function install_service_on_systemd() {
 
   ${csudo}bash -c "echo '[Unit]'                             >> ${taosd_service_config}"
   ${csudo}bash -c "echo 'Description=${productName} server service' >> ${taosd_service_config}"
-  ${csudo}bash -c "echo 'After=network-online.target taosadapter.service'        >> ${taosd_service_config}"
-  ${csudo}bash -c "echo 'Wants=network-online.target taosadapter.service'        >> ${taosd_service_config}"
+  ${csudo}bash -c "echo 'After=network-online.target'        >> ${taosd_service_config}"
+  ${csudo}bash -c "echo 'Wants=network-online.target'        >> ${taosd_service_config}"
   ${csudo}bash -c "echo                                      >> ${taosd_service_config}"
   ${csudo}bash -c "echo '[Service]'                          >> ${taosd_service_config}"
   ${csudo}bash -c "echo 'Type=simple'                        >> ${taosd_service_config}"
