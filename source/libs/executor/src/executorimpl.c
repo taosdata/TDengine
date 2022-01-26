@@ -5468,6 +5468,9 @@ SOperatorInfo* createStreamScanOperatorInfo(void *streamReadHandle, SArray* pExp
     return NULL;
   }
 
+  // todo dynamic set the value of 4096
+  pInfo->pRes = createOutputBuf_rv(pExprInfo, 4096);
+
   int32_t numOfOutput = (int32_t) taosArrayGetSize(pExprInfo);
   SArray* pColList = taosArrayInit(numOfOutput, sizeof(int32_t));
   for(int32_t i = 0; i < numOfOutput; ++i) {
@@ -7432,7 +7435,7 @@ SOperatorInfo* createTagScanOperatorInfo(STaskRuntimeEnv* pRuntimeEnv, SExprInfo
 
   SOperatorInfo* pOperator = calloc(1, sizeof(SOperatorInfo));
   pOperator->name         = "SeqTableTagScan";
-//  pOperator->operatorType = OP_TagScan;
+  pOperator->operatorType = OP_TagScan;
   pOperator->blockingOptr = false;
   pOperator->status       = OP_IN_EXECUTING;
   pOperator->info         = pInfo;
