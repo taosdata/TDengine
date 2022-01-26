@@ -10,3 +10,4 @@ python3 ./test.py -f 2-query/func_compare.py
 python3 ./test.py -f 2-query/diff_ignore_negative.py
 python3 ./test.py -f 2-query/diff_funcs.py
 python3 ./test.py -f 2-query/TD-13246.py
+python3 ./test.py -f 2-query/TD-6347.py
