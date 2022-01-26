@@ -202,11 +202,18 @@ bool transDecompressMsg(char* msg, int32_t len, int32_t* flen);
 void transConnCtxDestroy(STransConnCtx* ctx);
 
 void transFreeMsg(void* msg);
+
+//
 typedef struct SConnBuffer {
   char* buf;
   int   len;
   int   cap;
   int   left;
 } SConnBuffer;
+
+int transInitBuffer(SConnBuffer* buf);
+int transClearBuffer(SConnBuffer* buf);
+int transDestroyBuffer(SConnBuffer* buf);
+int transAllocBuffer(SConnBuffer* connBuf, uv_buf_t* uvBuf);
 
 #endif

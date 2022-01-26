@@ -26,11 +26,11 @@ int32_t qwMallocFetchRsp(int32_t length, SRetrieveTableRsp **rsp) {
   return TSDB_CODE_SUCCESS;
 }
 
-void qwBuildFetchRsp(void *msg, SOutputData *input, int32_t len) {
+void qwBuildFetchRsp(void *msg, SOutputData *input, int32_t len, bool qComplete) {
   SRetrieveTableRsp *rsp = (SRetrieveTableRsp *)msg;
   
   rsp->useconds = htobe64(input->useconds);
-  rsp->completed = input->queryEnd;
+  rsp->completed = qComplete;
   rsp->precision = input->precision;
   rsp->compressed = input->compressed;
   rsp->compLen = htonl(len);
@@ -258,12 +258,12 @@ int32_t qwBuildAndSendCQueryMsg(SQWorkerMgmt *mgmt, uint64_t sId, uint64_t qId, 
 
   int32_t code = (*mgmt->putToQueueFp)(mgmt->nodeObj, &pNewMsg);
   if (TSDB_CODE_SUCCESS != code) {
-    QW_SCH_TASK_ELOG("put query continue msg to queue failed, code:%x", code);
+    QW_SCH_TASK_ELOG("put query continue msg to queue failed, vgId:%d, code:%s", mgmt->nodeId, tstrerror(code));
     rpcFreeCont(req);
     QW_ERR_RET(code);
   }
 
-  QW_SCH_TASK_DLOG("put query continue msg to query queue, vgId:%d", mgmt->nodeId);
+  QW_SCH_TASK_DLOG("put task continue exec msg to query queue, vgId:%d", mgmt->nodeId);
 
   return TSDB_CODE_SUCCESS;
 }

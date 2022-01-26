@@ -139,9 +139,9 @@ endi
 
 print =============== query data frpm st
 sql select * from st
-#if $rows != 21 then 
-#  return -1
-#endi
+if $rows != 21 then 
+  return -1
+endi
 
 system sh/exec.sh -n dnode1 -s stop -x SIGINT
 system sh/exec.sh -n dnode1 -s start
@@ -200,8 +200,8 @@ endi
 
 print =============== query data frpm st
 sql select * from st
-#if $rows != 21 then 
-#  return -1
-#endi
+if $rows != 21 then 
+  return -1
+endi
 
 system sh/exec.sh -n dnode1 -s stop -x SIGINT

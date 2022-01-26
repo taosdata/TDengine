@@ -31,8 +31,8 @@ typedef struct {
   SDnode     *pDnode;
   STaosQueue *queue;
   union {
-    SWorkerPool  pool;
-    SMWorkerPool mpool;
+    SQWorkerPool  pool;
+    SWWorkerPool mpool;
   };
 } SDnodeWorker;
 
@@ -109,10 +109,10 @@ typedef struct {
   int32_t      openVnodes;
   int32_t      totalVnodes;
   SRWLatch     latch;
-  SWorkerPool  queryPool;
-  SWorkerPool  fetchPool;
-  SMWorkerPool syncPool;
-  SMWorkerPool writePool;
+  SQWorkerPool queryPool;
+  SFWorkerPool fetchPool;
+  SWWorkerPool syncPool;
+  SWWorkerPool writePool;
 } SVnodesMgmt;
 
 typedef struct {

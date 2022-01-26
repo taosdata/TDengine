@@ -239,7 +239,7 @@ typedef struct STaskIdInfo {
   uint64_t       queryId;    // this is also a request id
   uint64_t       subplanId;
   uint64_t       templateId;
-  uint64_t       taskId;     // this is a subplan id
+  char          *str;
 } STaskIdInfo;
 
 typedef struct SExecTaskInfo {
@@ -377,8 +377,10 @@ typedef struct SExchangeInfo {
   SSDataBlock       *pResult;
   int32_t            current;
   uint64_t           rowsOfCurrentSource;
-  uint64_t           bytes;   // total load bytes from remote
-  uint64_t           totalRows;
+
+  uint64_t           totalSize;   // total load bytes from remote
+  uint64_t           totalRows;   // total number of rows
+  uint64_t           totalElapsed;// total elapsed time
 } SExchangeInfo;
 
 typedef struct STableScanInfo {
@@ -636,7 +638,6 @@ int32_t buildArithmeticExprFromMsg(SExprInfo *pArithExprInfo, void *pQueryMsg);
 bool isTaskKilled(SExecTaskInfo *pTaskInfo);
 int32_t checkForQueryBuf(size_t numOfTables);
 bool checkNeedToCompressQueryCol(SQInfo *pQInfo);
-bool doBuildResCheck(SQInfo* pQInfo);
 void setQueryStatus(STaskRuntimeEnv *pRuntimeEnv, int8_t status);
 
 bool onlyQueryTags(STaskAttr* pQueryAttr);
@@ -660,6 +661,6 @@ int32_t getMaximumIdleDurationSec();
 
 void doInvokeUdf(struct SUdfInfo* pUdfInfo, SQLFunctionCtx *pCtx, int32_t idx, int32_t type);
 void setTaskStatus(SExecTaskInfo *pTaskInfo, int8_t status);
-int32_t createExecTaskInfoImpl(SSubplan* pPlan, SExecTaskInfo** pTaskInfo, void* readerHandle);
+int32_t createExecTaskInfoImpl(SSubplan* pPlan, SExecTaskInfo** pTaskInfo, void* readerHandle, uint64_t taskId);
 
 #endif  // TDENGINE_EXECUTORIMPL_H

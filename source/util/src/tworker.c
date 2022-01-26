@@ -14,38 +14,46 @@
  */
 
 #define _DEFAULT_SOURCE
-#include "os.h"
-#include "ulog.h"
-#include "tqueue.h"
 #include "tworker.h"
+#include "taoserror.h"
+#include "ulog.h"
 
-typedef void* (*ThreadFp)(void *param);
+typedef void *(*ThreadFp)(void *param);
 
-int32_t tWorkerInit(SWorkerPool *pool) {
+int32_t tQWorkerInit(SQWorkerPool *pool) {
   pool->qset = taosOpenQset();
-  pool->workers = calloc(sizeof(SWorker), pool->max);
-  pthread_mutex_init(&pool->mutex, NULL);
-  for (int i = 0; i < pool->max; ++i) {
-    SWorker *worker = pool->workers + i;
+  pool->workers = calloc(sizeof(SQWorker), pool->max);
+  if (pool->workers == NULL) {
+    terrno = TSDB_CODE_OUT_OF_MEMORY;
+    return -1;
+  }
+
+  if (pthread_mutex_init(&pool->mutex, NULL)) {
+    terrno = TSDB_CODE_OUT_OF_MEMORY;
+    return -1;
+  }
+
+  for (int32_t i = 0; i < pool->max; ++i) {
+    SQWorker *worker = pool->workers + i;
     worker->id = i;
     worker->pool = pool;
   }
 
-  uInfo("worker:%s is initialized, min:%d max:%d", pool->name, pool->min, pool->max);
+  uDebug("worker:%s is initialized, min:%d max:%d", pool->name, pool->min, pool->max);
   return 0;
 }
 
-void tWorkerCleanup(SWorkerPool *pool) {
-  for (int i = 0; i < pool->max; ++i) {
-    SWorker *worker = pool->workers + i;
+void tQWorkerCleanup(SQWorkerPool *pool) {
+  for (int32_t i = 0; i < pool->max; ++i) {
+    SQWorker *worker = pool->workers + i;
     if (worker == NULL) continue;
     if (taosCheckPthreadValid(worker->thread)) {
       taosQsetThreadResume(pool->qset);
     }
   }
 
-  for (int i = 0; i < pool->max; ++i) {
-    SWorker *worker = pool->workers + i;
+  for (int32_t i = 0; i < pool->max; ++i) {
+    SQWorker *worker = pool->workers + i;
     if (worker == NULL) continue;
     if (taosCheckPthreadValid(worker->thread)) {
       pthread_join(worker->thread, NULL);
@@ -56,15 +64,15 @@ void tWorkerCleanup(SWorkerPool *pool) {
   taosCloseQset(pool->qset);
   pthread_mutex_destroy(&pool->mutex);
 
-  uInfo("worker:%s is closed", pool->name);
+  uDebug("worker:%s is closed", pool->name);
 }
 
-static void *tWorkerThreadFp(SWorker *worker) {
-  SWorkerPool *pool = worker->pool;
-  FProcessItem fp = NULL;
+static void *tQWorkerThreadFp(SQWorker *worker) {
+  SQWorkerPool *pool = worker->pool;
+  FItem         fp = NULL;
 
-  void   *msg = NULL;
-  void   *ahandle = NULL;
+  void *  msg = NULL;
+  void *  ahandle = NULL;
   int32_t code = 0;
 
   taosBlockSIGPIPE();
@@ -77,7 +85,7 @@ static void *tWorkerThreadFp(SWorker *worker) {
       break;
     }
 
-    if (fp) {
+    if (fp != NULL) {
       (*fp)(ahandle, msg);
     }
   }
@@ -85,11 +93,12 @@ static void *tWorkerThreadFp(SWorker *worker) {
   return NULL;
 }
 
-STaosQueue *tWorkerAllocQueue(SWorkerPool *pool, void *ahandle, FProcessItem fp) {
+STaosQueue *tWorkerAllocQueue(SQWorkerPool *pool, void *ahandle, FItem fp, ThreadFp threadFp) {
   pthread_mutex_lock(&pool->mutex);
   STaosQueue *queue = taosOpenQueue();
   if (queue == NULL) {
     pthread_mutex_unlock(&pool->mutex);
+    terrno = TSDB_CODE_OUT_OF_MEMORY;
     return NULL;
   }
 
@@ -99,14 +108,18 @@ STaosQueue *tWorkerAllocQueue(SWorkerPool *pool, void *ahandle, FProcessItem fp)
   // spawn a thread to process queue
   if (pool->num < pool->max) {
     do {
-      SWorker *worker = pool->workers + pool->num;
+      SQWorker *worker = pool->workers + pool->num;
 
       pthread_attr_t thAttr;
       pthread_attr_init(&thAttr);
       pthread_attr_setdetachstate(&thAttr, PTHREAD_CREATE_JOINABLE);
 
-      if (pthread_create(&worker->thread, &thAttr, (ThreadFp)tWorkerThreadFp, worker) != 0) {
+      if (pthread_create(&worker->thread, &thAttr, threadFp, worker) != 0) {
         uError("worker:%s:%d failed to create thread to process since %s", pool->name, worker->id, strerror(errno));
+        taosCloseQueue(queue);
+        terrno = TSDB_CODE_OUT_OF_MEMORY;
+        queue = NULL;
+        break;
       }
 
       pthread_attr_destroy(&thAttr);
@@ -121,19 +134,73 @@ STaosQueue *tWorkerAllocQueue(SWorkerPool *pool, void *ahandle, FProcessItem fp)
   return queue;
 }
 
-void tWorkerFreeQueue(SWorkerPool *pool, STaosQueue *queue) {
+STaosQueue *tQWorkerAllocQueue(SQWorkerPool *pool, void *ahandle, FItem fp) {
+  return tWorkerAllocQueue(pool, ahandle, fp, (ThreadFp)tQWorkerThreadFp);
+}
+
+void tQWorkerFreeQueue(SQWorkerPool *pool, STaosQueue *queue) {
   taosCloseQueue(queue);
   uDebug("worker:%s, queue:%p is freed", pool->name, queue);
 }
 
-int32_t tMWorkerInit(SMWorkerPool *pool) {
-  pool->nextId = 0;
-  pool->workers = calloc(sizeof(SMWorker), pool->max);
-  if (pool->workers == NULL) return -1;
+int32_t tFWorkerInit(SFWorkerPool *pool) { return tQWorkerInit((SQWorkerPool *)pool); }
 
-  pthread_mutex_init(&pool->mutex, NULL);
+void tFWorkerCleanup(SFWorkerPool *pool) { tQWorkerCleanup(pool); }
+
+static void *tFWorkerThreadFp(SQWorker *worker) {
+  SQWorkerPool *pool = worker->pool;
+
+  FItem   fp = NULL;
+  void *  msg = NULL;
+  void *  ahandle = NULL;
+  int32_t code = 0;
+
+  taosBlockSIGPIPE();
+  setThreadName(pool->name);
+  uDebug("worker:%s:%d is running", pool->name, worker->id);
+
+  while (1) {
+    code = taosReadQitemFromQsetByThread(pool->qset, (void **)&msg, &ahandle, &fp, worker->id);
+
+    if (code < 0) {
+      uDebug("worker:%s:%d qset:%p, got no message and exiting", pool->name, worker->id, pool->qset);
+      break;
+    } else if (code == 0) {
+      // uTrace("worker:%s:%d qset:%p, got no message and continue", pool->name, worker->id, pool->qset);
+      continue;
+    }
+
+    if (fp != NULL) {
+      (*fp)(ahandle, msg);
+    }
+
+    taosResetQsetThread(pool->qset, msg);
+  }
+
+  return NULL;
+}
+
+STaosQueue *tFWorkerAllocQueue(SQWorkerPool *pool, void *ahandle, FItem fp) {
+  return tWorkerAllocQueue(pool, ahandle, fp, (ThreadFp)tFWorkerThreadFp);
+}
+
+void tFWorkerFreeQueue(SFWorkerPool *pool, STaosQueue *queue) { tQWorkerFreeQueue(pool, queue); }
+
+int32_t tWWorkerInit(SWWorkerPool *pool) {
+  pool->nextId = 0;
+  pool->workers = calloc(sizeof(SWWorker), pool->max);
+  if (pool->workers == NULL) {
+    terrno = TSDB_CODE_OUT_OF_MEMORY;
+    return -1;
+  }
+
+  if (pthread_mutex_init(&pool->mutex, NULL) != 0) {
+    terrno = TSDB_CODE_OUT_OF_MEMORY;
+    return -1;
+  }
+
   for (int32_t i = 0; i < pool->max; ++i) {
-    SMWorker *worker = pool->workers + i;
+    SWWorker *worker = pool->workers + i;
     worker->id = i;
     worker->qall = NULL;
     worker->qset = NULL;
@@ -144,16 +211,18 @@ int32_t tMWorkerInit(SMWorkerPool *pool) {
   return 0;
 }
 
-void tMWorkerCleanup(SMWorkerPool *pool) {
+void tWWorkerCleanup(SWWorkerPool *pool) {
   for (int32_t i = 0; i < pool->max; ++i) {
-    SMWorker *worker = pool->workers + i;
+    SWWorker *worker = pool->workers + i;
     if (taosCheckPthreadValid(worker->thread)) {
-      if (worker->qset) taosQsetThreadResume(worker->qset);
+      if (worker->qset) {
+        taosQsetThreadResume(worker->qset);
+      }
     }
   }
 
   for (int32_t i = 0; i < pool->max; ++i) {
-    SMWorker *worker = pool->workers + i;
+    SWWorker *worker = pool->workers + i;
     if (taosCheckPthreadValid(worker->thread)) {
       pthread_join(worker->thread, NULL);
       taosFreeQall(worker->qall);
@@ -167,12 +236,12 @@ void tMWorkerCleanup(SMWorkerPool *pool) {
   uInfo("worker:%s is closed", pool->name);
 }
 
-static void *tWriteWorkerThreadFp(SMWorker *worker) {
-  SMWorkerPool *pool = worker->pool;
-  FProcessItems fp = NULL;
+static void *tWWorkerThreadFp(SWWorker *worker) {
+  SWWorkerPool *pool = worker->pool;
+  FItems        fp = NULL;
 
-  void   *msg = NULL;
-  void   *ahandle = NULL;
+  void *  msg = NULL;
+  void *  ahandle = NULL;
   int32_t numOfMsgs = 0;
   int32_t qtype = 0;
 
@@ -187,7 +256,7 @@ static void *tWriteWorkerThreadFp(SMWorker *worker) {
       break;
     }
 
-    if (fp) {
+    if (fp != NULL) {
       (*fp)(ahandle, worker->qall, numOfMsgs);
     }
   }
@@ -195,13 +264,14 @@ static void *tWriteWorkerThreadFp(SMWorker *worker) {
   return NULL;
 }
 
-STaosQueue *tMWorkerAllocQueue(SMWorkerPool *pool, void *ahandle, FProcessItems fp) {
+STaosQueue *tWWorkerAllocQueue(SWWorkerPool *pool, void *ahandle, FItems fp) {
   pthread_mutex_lock(&pool->mutex);
-  SMWorker *worker = pool->workers + pool->nextId;
+  SWWorker *worker = pool->workers + pool->nextId;
 
   STaosQueue *queue = taosOpenQueue();
   if (queue == NULL) {
     pthread_mutex_unlock(&pool->mutex);
+    terrno = TSDB_CODE_OUT_OF_MEMORY;
     return NULL;
   }
 
@@ -221,17 +291,19 @@ STaosQueue *tMWorkerAllocQueue(SMWorkerPool *pool, void *ahandle, FProcessItems 
       taosCloseQset(worker->qset);
       taosCloseQueue(queue);
       pthread_mutex_unlock(&pool->mutex);
+      terrno = TSDB_CODE_OUT_OF_MEMORY;
       return NULL;
     }
     pthread_attr_t thAttr;
     pthread_attr_init(&thAttr);
     pthread_attr_setdetachstate(&thAttr, PTHREAD_CREATE_JOINABLE);
 
-    if (pthread_create(&worker->thread, &thAttr, (ThreadFp)tWriteWorkerThreadFp, worker) != 0) {
+    if (pthread_create(&worker->thread, &thAttr, (ThreadFp)tWWorkerThreadFp, worker) != 0) {
       uError("worker:%s:%d failed to create thread to process since %s", pool->name, worker->id, strerror(errno));
       taosFreeQall(worker->qall);
       taosCloseQset(worker->qset);
       taosCloseQueue(queue);
+      terrno = TSDB_CODE_OUT_OF_MEMORY;
       queue = NULL;
     } else {
       uDebug("worker:%s:%d is launched, max:%d", pool->name, worker->id, pool->max);
@@ -250,7 +322,7 @@ STaosQueue *tMWorkerAllocQueue(SMWorkerPool *pool, void *ahandle, FProcessItems 
   return queue;
 }
 
-void tMWorkerFreeQueue(SMWorkerPool *pool, STaosQueue *queue) {
+void tWWorkerFreeQueue(SWWorkerPool *pool, STaosQueue *queue) {
   taosCloseQueue(queue);
   uDebug("worker:%s, queue:%p is freed", pool->name, queue);
 }
