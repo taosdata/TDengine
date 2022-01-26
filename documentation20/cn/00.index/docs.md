@@ -1,6 +1,6 @@
 # TDengine文档
 
-TDengine是一个高效的存储、查询、分析时序大数据的平台，专为物联网、车联网、工业互联网、运维监测等优化而设计。您可以像使用关系型数据库MySQL一样来使用它，但建议您在使用前仔细阅读一遍下面的文档，特别是 [数据模型](/architecture) 与 [数据建模](/model)。除本文档之外，欢迎 [下载产品白皮书](https://www.taosdata.com/downloads/TDengine%20White%20Paper.pdf)。如需查阅TDengine 1.6 文档，请点击 [这里](https://www.taosdata.com/cn/documentation16/) 访问。
+TDengine是一个高效的存储、查询、分析时序大数据的平台，专为物联网、车联网、工业互联网、运维监测等优化而设计。您可以像使用关系型数据库MySQL一样来使用它，但建议您在使用前仔细阅读一遍下面的文档，特别是 [数据模型](/architecture) 与 [数据建模](/model)。除本文档之外，欢迎 [下载产品白皮书](https://www.taosdata.com/downloads/TDengine%20White%20Paper.pdf)。
 
 ## [TDengine介绍](/evaluation)
 
