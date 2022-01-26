@@ -209,7 +209,7 @@ void** qReleaseTask(void* pMgmt, void* pQInfo, bool freeHandle);
  */
 void** qDeregisterQInfo(void* pMgmt, void* pQInfo);
 
-void qProcessFetchRsp(struct SRpcMsg* pMsg);
+void qProcessFetchRsp(void* parent, struct SRpcMsg* pMsg, struct SEpSet* pEpSet);
 
 #ifdef __cplusplus
 }
