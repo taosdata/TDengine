@@ -2007,9 +2007,23 @@ int taos_stmt_bind_single_param_batch(TAOS_STMT* stmt, TAOS_MULTI_BIND* bind, in
   STscStmt* pStmt = (STscStmt*)stmt;
   STMT_CHECK
 
-  if (bind == NULL || bind->num <= 0 || bind->num > INT16_MAX || colIdx < 0) {
-    tscError("0x%"PRIx64" invalid parameter", pStmt->pSql->self);
-    STMT_RET(invalidOperationMsg(tscGetErrorMsgPayload(&pStmt->pSql->cmd), "invalid bind param"));
+  if (bind == NULL) {
+    tscError("0x%" PRIx64 " invalid parameter: bind is NULL", pStmt->pSql->self);
+    STMT_RET(invalidOperationMsg(tscGetErrorMsgPayload(&pStmt->pSql->cmd), "invalid bind param: bind is NULL"));
+  }
+
+  if (bind->num <= 0 || bind->num > INT16_MAX) {
+    char errMsg[128];
+    sprintf(errMsg, "invalid parameter: bind->num:%d out of range [0, %d)", bind->num, INT16_MAX);
+    tscError("0x%" PRIx64 " %s", pStmt->pSql->self, errMsg);
+    STMT_RET(invalidOperationMsg(tscGetErrorMsgPayload(&pStmt->pSql->cmd), errMsg));
+  }
+
+  if (colIdx < 0) {
+    char errMsg[128];
+    sprintf(errMsg, "invalid parameter: column index:%d less than 0", colIdx);
+    tscError("0x%" PRIx64 " %s", pStmt->pSql->self, errMsg);
+    STMT_RET(invalidOperationMsg(tscGetErrorMsgPayload(&pStmt->pSql->cmd), errMsg));
   }
 
   if (!pStmt->isInsert) {

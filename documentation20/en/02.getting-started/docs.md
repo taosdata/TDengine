@@ -138,7 +138,7 @@ taos> source <filename>;
 
 ## <a class="anchor" id="demo"></a>Experience TDengine’s Lightning Speed
 
-After starting the TDengine server, you can execute the command `taosBenchmark` (was named `taosdemo`) in the Linux terminal.
+After starting the TDengine server, you can execute the command `taosBenchmark` (was named `taosdemo`, please install taosTools package if you use TDengine 2.4 or later version) in the Linux terminal.
 
 ```bash 
 $ taosBenchmark
