@@ -421,6 +421,11 @@ int32_t qWorkerProcessFetchMsg(void *node, void *qWorkerMgmt, SRpcMsg *pMsg) {
   return TSDB_CODE_SUCCESS;  
 }
 
+int32_t qWorkerProcessFetchRsp(void *node, void *qWorkerMgmt, SRpcMsg *pMsg) {
+  qProcessFetchRsp(NULL, pMsg, NULL);
+  return TSDB_CODE_SUCCESS;
+}
+
 int32_t qWorkerProcessCancelMsg(void *node, void *qWorkerMgmt, SRpcMsg *pMsg) {
   if (NULL == node || NULL == qWorkerMgmt || NULL == pMsg) {
     return TSDB_CODE_QRY_INVALID_INPUT;

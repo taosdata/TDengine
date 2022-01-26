@@ -24,6 +24,7 @@ extern "C" {
 
 typedef void* qTaskInfo_t;
 typedef void* DataSinkHandle;
+struct SRpcMsg;
 struct SSubplan;
 
  /**
@@ -207,6 +208,8 @@ void** qReleaseTask(void* pMgmt, void* pQInfo, bool freeHandle);
  * @return
  */
 void** qDeregisterQInfo(void* pMgmt, void* pQInfo);
+
+void qProcessFetchRsp(void* parent, struct SRpcMsg* pMsg, struct SEpSet* pEpSet);
 
 #ifdef __cplusplus
 }

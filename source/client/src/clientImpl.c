@@ -328,6 +328,7 @@ struct tmq_t {
   char           clientId[256];
   int64_t        consumerId;
   int64_t        status;
+  tsem_t         rspSem;
   STscObj*       pTscObj;
   tmq_commit_cb* commit_cb;
   int32_t        nextTopicIdx;
@@ -344,6 +345,7 @@ tmq_t* taos_consumer_new(void* conn, tmq_conf_t* conf, char* errstr, int32_t err
   strcpy(pTmq->clientId, conf->clientId);
   strcpy(pTmq->groupId, conf->groupId);
   pTmq->commit_cb = conf->commit_cb;
+  tsem_init(&pTmq->rspSem, 0, 0);
   pTmq->consumerId = generateRequestId() & ((uint64_t)-1 >> 1);
   pTmq->clientTopics = taosArrayInit(0, sizeof(SMqClientTopic));
   return pTmq;
@@ -372,11 +374,27 @@ int32_t tmq_list_append(tmq_list_t* ptr, char* src) {
 }
 
 
+int32_t tmq_null_cb(void* param, const SDataBuf* pMsg, int32_t code)  {
+  if (code == 0) {
+    //
+  }
+  //
+  return 0;
+}
+
 TAOS_RES* tmq_subscribe(tmq_t* tmq, tmq_list_t* topic_list) {
   SRequestObj *pRequest = NULL;
-  tmq->status = 1;
   int32_t sz = topic_list->cnt;
-  tmq->clientTopics = taosArrayInit(sz, sizeof(void*));
+  //destroy ex
+  taosArrayDestroy(tmq->clientTopics);
+  tmq->clientTopics = taosArrayInit(sz, sizeof(SMqClientTopic));
+
+  SCMSubscribeReq req;
+  req.topicNum = sz;
+  req.consumerId = tmq->consumerId;
+  req.consumerGroup = strdup(tmq->groupId);
+  req.topicNames = taosArrayInit(sz, sizeof(void*));
+
   for (int i = 0; i < sz; i++) {
     char* topicName = topic_list->elems[i];
 
@@ -391,16 +409,21 @@ TAOS_RES* tmq_subscribe(tmq_t* tmq, tmq_list_t* topic_list) {
     }
     tNameExtractFullName(&name, topicFname);
     tscDebug("subscribe topic: %s", topicFname);
-    taosArrayPush(tmq->clientTopics, &topicFname); 
+    SMqClientTopic topic = {
+      .nextVgIdx = 0,
+      .sql = NULL,
+      .sqlLen = 0,
+      .topicId = 0,
+      .topicName = topicFname,
+      .vgs = NULL
+    };
+    topic.vgs = taosArrayInit(0, sizeof(SMqClientVg));
+    taosArrayPush(tmq->clientTopics, &topic); 
     /*SMqClientTopic topic = {*/
       /*.*/
     /*};*/
+    taosArrayPush(req.topicNames, &topicFname);
   }
-  SCMSubscribeReq req;
-  req.topicNum = taosArrayGetSize(tmq->clientTopics);
-  req.consumerId = tmq->consumerId;
-  req.consumerGroup = strdup(tmq->groupId);
-  req.topicNames = tmq->clientTopics;
 
   int tlen = tSerializeSCMSubscribeReq(NULL, &req);
   void* buf = malloc(tlen);
@@ -419,18 +442,19 @@ TAOS_RES* tmq_subscribe(tmq_t* tmq, tmq_list_t* topic_list) {
 
   pRequest->body.requestMsg = (SDataBuf){ .pData = buf, .len = tlen };
 
-  SMsgSendInfo* body = buildMsgInfoImpl(pRequest);
+  SMsgSendInfo* sendInfo = buildMsgInfoImpl(pRequest);
+  /*sendInfo->fp*/
   SEpSet epSet = getEpSet_s(&tmq->pTscObj->pAppInfo->mgmtEp);
 
   int64_t transporterId = 0;
-  asyncSendMsgToServer(tmq->pTscObj->pAppInfo->pTransporter, &epSet, &transporterId, body);
+  asyncSendMsgToServer(tmq->pTscObj->pAppInfo->pTransporter, &epSet, &transporterId, sendInfo);
 
   tsem_wait(&pRequest->body.rspSem);
 
 _return:
-  if (body != NULL) {
-    destroySendMsgInfo(body);
-  }
+  /*if (sendInfo != NULL) {*/
+    /*destroySendMsgInfo(sendInfo);*/
+  /*}*/
 
   if (pRequest != NULL && terrno != TSDB_CODE_SUCCESS) {
     pRequest->code = terrno;
@@ -569,19 +593,19 @@ TAOS_RES *taos_create_topic(TAOS* taos, const char* topicName, const char* sql, 
   pRequest->body.requestMsg = (SDataBuf){ .pData = buf, .len = tlen };
   pRequest->type = TDMT_MND_CREATE_TOPIC;
 
-  SMsgSendInfo* body = buildMsgInfoImpl(pRequest);
+  SMsgSendInfo* sendInfo = buildMsgInfoImpl(pRequest);
   SEpSet epSet = getEpSet_s(&pTscObj->pAppInfo->mgmtEp);
 
   int64_t transporterId = 0;
-  asyncSendMsgToServer(pTscObj->pAppInfo->pTransporter, &epSet, &transporterId, body);
+  asyncSendMsgToServer(pTscObj->pAppInfo->pTransporter, &epSet, &transporterId, sendInfo);
 
   tsem_wait(&pRequest->body.rspSem);
 
 _return:
   qDestroyQuery(pQueryNode);
-  if (body != NULL) {
-    destroySendMsgInfo(body);
-  }
+  /*if (sendInfo != NULL) {*/
+    /*destroySendMsgInfo(sendInfo);*/
+  /*}*/
 
   if (pRequest != NULL && terrno != TSDB_CODE_SUCCESS) {
     pRequest->code = terrno;
@@ -602,6 +626,12 @@ int32_t tmq_poll_cb_inner(void* param, const SDataBuf* pMsg, int32_t code) {
 
 int32_t tmq_ask_ep_cb(void* param, const SDataBuf* pMsg, int32_t code) {
   tmq_t* tmq = (tmq_t*)param;
+  if (code != 0) {
+    tsem_post(&tmq->rspSem);
+    return 0;
+  }
+  tscDebug("tmq ask ep cb called");
+  bool set = false;
   SMqCMGetSubEpRsp rsp;
   tDecodeSMqCMGetSubEpRsp(pMsg->pData, &rsp);
   int32_t sz = taosArrayGetSize(rsp.topics);
@@ -616,38 +646,35 @@ int32_t tmq_ask_ep_cb(void* param, const SDataBuf* pMsg, int32_t code) {
     for (int32_t j = 0; j < vgSz; j++) {
       SMqSubVgEp* pVgEp = taosArrayGet(pTopicEp->vgs, j);
       SMqClientVg clientVg = {
+        .pollCnt = 0,
+        .committedOffset = -1,
+        .currentOffset = -1,
         .vgId = pVgEp->vgId,
         .epSet = pVgEp->epSet
       };
       taosArrayPush(topic.vgs, &clientVg);
+      set = true;
     }
     taosArrayPush(tmq->clientTopics, &topic);
   }
+  if(set) tmq->status = 1;
   // unlock
+  tsem_post(&tmq->rspSem);
   return 0;
 }
 
 tmq_message_t* tmq_consume_poll(tmq_t* tmq, int64_t blocking_time) {
-  if (tmq->clientTopics == NULL || taosArrayGetSize(tmq->clientTopics) == 0) {
-    return NULL;
-  }
-  SRequestObj *pRequest = NULL;
-  SMqConsumeReq req = {0};
-  req.reqType = 1;
-  req.blockingTime = blocking_time;
-  req.consumerId = tmq->consumerId;
-  tmq_message_t* tmq_message = NULL;
-  strcpy(req.cgroup, tmq->groupId);
 
-  if (taosArrayGetSize(tmq->clientTopics) == 0) {
+  if (taosArrayGetSize(tmq->clientTopics) == 0 || tmq->status == 0) {
     int32_t tlen = sizeof(SMqCMGetSubEpReq);
     SMqCMGetSubEpReq* buf = malloc(tlen);
     if (buf == NULL) {
       tscError("failed to malloc get subscribe ep buf");
     }
-    buf->consumerId = htobe64(buf->consumerId);
+    buf->consumerId = htobe64(tmq->consumerId);
+    strcpy(buf->cgroup, tmq->groupId);
     
-    pRequest = createRequest(tmq->pTscObj, NULL, NULL, TDMT_MND_GET_SUB_EP);
+    SRequestObj *pRequest = createRequest(tmq->pTscObj, NULL, NULL, TDMT_MND_GET_SUB_EP);
     if (pRequest == NULL) {
       tscError("failed to malloc subscribe ep request");
     }
@@ -664,24 +691,39 @@ tmq_message_t* tmq_consume_poll(tmq_t* tmq, int64_t blocking_time) {
     int64_t transporterId = 0;
     asyncSendMsgToServer(tmq->pTscObj->pAppInfo->pTransporter, &epSet, &transporterId, sendInfo);
 
-    tsem_wait(&pRequest->body.rspSem);
+    tsem_wait(&tmq->rspSem);
   }
 
-  SMqClientTopic* pTopic = taosArrayGetP(tmq->clientTopics, tmq->nextTopicIdx);
+  if (taosArrayGetSize(tmq->clientTopics) == 0) {
+    tscDebug("consumer:%ld poll but not assigned", tmq->consumerId);
+    return NULL;
+  }
+
+  SMqConsumeReq* pReq = malloc(sizeof(SMqConsumeReq));
+  pReq->reqType = 1;
+  pReq->blockingTime = blocking_time;
+  pReq->consumerId = tmq->consumerId;
+  tmq_message_t* tmq_message = NULL;
+  strcpy(pReq->cgroup, tmq->groupId);
+
+  SMqClientTopic* pTopic = taosArrayGet(tmq->clientTopics, tmq->nextTopicIdx);
   tmq->nextTopicIdx = (tmq->nextTopicIdx + 1) % taosArrayGetSize(tmq->clientTopics);
-  strcpy(req.topic, pTopic->topicName);
+  strcpy(pReq->topic, pTopic->topicName);
   int32_t nextVgIdx = pTopic->nextVgIdx;
   pTopic->nextVgIdx = (nextVgIdx + 1) % taosArrayGetSize(pTopic->vgs);
   SMqClientVg* pVg = taosArrayGet(pTopic->vgs, nextVgIdx);
-  req.offset = pVg->currentOffset;
+  pReq->offset = pVg->currentOffset;
 
-  pRequest->body.requestMsg = (SDataBuf){ .pData = &req, .len = sizeof(SMqConsumeReq) };
-  pRequest->type = TDMT_VND_CONSUME;
+  pReq->head.vgId = htonl(pVg->vgId);
+  pReq->head.contLen = htonl(sizeof(SMqConsumeReq));
+
+  SRequestObj* pRequest = createRequest(tmq->pTscObj, NULL, NULL, TDMT_VND_CONSUME);
+  pRequest->body.requestMsg = (SDataBuf){ .pData = pReq, .len = sizeof(SMqConsumeReq) };
 
   SMsgSendInfo* sendInfo = buildMsgInfoImpl(pRequest);
-  sendInfo->requestObjRefId = 0;
-  sendInfo->param = &tmq_message;
-  sendInfo->fp = tmq_poll_cb_inner;
+  /*sendInfo->requestObjRefId = 0;*/
+  /*sendInfo->param = &tmq_message;*/
+  /*sendInfo->fp = tmq_poll_cb_inner;*/
 
   int64_t transporterId = 0;
   asyncSendMsgToServer(tmq->pTscObj->pAppInfo->pTransporter, &pVg->epSet, &transporterId, sendInfo);

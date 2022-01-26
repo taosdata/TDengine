@@ -38,7 +38,7 @@
 #define GET_RES_WINDOW_KEY_LEN(_l) ((_l) + sizeof(uint64_t))
 #define GET_RES_EXT_WINDOW_KEY_LEN(_l) ((_l) + sizeof(uint64_t) + POINTER_BYTES)
 
-#define GET_TASKID(_t)  (((SExecTaskInfo*)(_t))->id.idstr)
+#define GET_TASKID(_t)  (((SExecTaskInfo*)(_t))->id.str)
 
 #define curTimeWindowIndex(_winres)        ((_winres)->curIndex)
 

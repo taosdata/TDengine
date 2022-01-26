@@ -239,8 +239,7 @@ typedef struct STaskIdInfo {
   uint64_t       queryId;    // this is also a request id
   uint64_t       subplanId;
   uint64_t       templateId;
-  uint64_t       taskId;     // this is a subplan id
-  char          *idstr;
+  char          *str;
 } STaskIdInfo;
 
 typedef struct SExecTaskInfo {
@@ -639,7 +638,6 @@ int32_t buildArithmeticExprFromMsg(SExprInfo *pArithExprInfo, void *pQueryMsg);
 bool isTaskKilled(SExecTaskInfo *pTaskInfo);
 int32_t checkForQueryBuf(size_t numOfTables);
 bool checkNeedToCompressQueryCol(SQInfo *pQInfo);
-bool doBuildResCheck(SQInfo* pQInfo);
 void setQueryStatus(STaskRuntimeEnv *pRuntimeEnv, int8_t status);
 
 bool onlyQueryTags(STaskAttr* pQueryAttr);
