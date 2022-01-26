@@ -646,6 +646,7 @@ void destroyWorkThrd(SWorkThrdObj* pThrd) {
   if (pThrd == NULL) {
     return;
   }
+  uv_stop(pThrd->loop);
   pthread_join(pThrd->thread, NULL);
   // free(srv->pipe[i]);
   free(pThrd->loop);
@@ -658,6 +659,7 @@ void taosCloseServer(void* arg) {
   for (int i = 0; i < srv->numOfThreads; i++) {
     destroyWorkThrd(srv->pThreadObj[i]);
   }
+  uv_stop(srv->loop);
   free(srv->loop);
   free(srv->pipe);
   free(srv->pThreadObj);
