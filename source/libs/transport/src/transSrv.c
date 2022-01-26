@@ -70,6 +70,7 @@ typedef struct SServerObj {
   uv_pipe_t**    pipe;
   uint32_t       ip;
   uint32_t       port;
+  uv_async_t*    pAcceptAsync;  // just to quit from from accept thread
 } SServerObj;
 
 static const char* notify = "a";
@@ -88,9 +89,11 @@ static void uvOnPipeWriteCb(uv_write_t* req, int status);
 static void uvOnAcceptCb(uv_stream_t* stream, int status);
 static void uvOnConnectionCb(uv_stream_t* q, ssize_t nread, const uv_buf_t* buf);
 static void uvWorkerAsyncCb(uv_async_t* handle);
+static void uvAcceptAsyncCb(uv_async_t* handle);
 
 static void uvPrepareSendData(SSrvMsg* msg, uv_buf_t* wb);
 static void uvStartSendResp(SSrvMsg* msg);
+
 static void destroySmsg(SSrvMsg* smsg);
 // check whether already read complete packet
 static bool      readComplete(SConnBuffer* buf);
@@ -389,13 +392,23 @@ void uvWorkerAsyncCb(uv_async_t* handle) {
       tError("except occurred, continue");
       continue;
     }
-    uvStartSendResp(msg);
+    if (msg->pConn == NULL) {
+      //
+      free(msg);
+      uv_stop(pThrd->loop);
+    } else {
+      uvStartSendResp(msg);
+    }
     // uv_buf_t wb;
     // uvPrepareSendData(msg, &wb);
     // uv_timer_stop(conn->pTimer);
 
     // uv_write(conn->pWriter, (uv_stream_t*)conn->pTcp, &wb, 1, uvOnWriteCb);
   }
+}
+static void uvAcceptAsyncCb(uv_async_t* async) {
+  SServerObj* srv = async->data;
+  uv_stop(srv->loop);
 }
 
 void uvOnAcceptCb(uv_stream_t* stream, int status) {
@@ -517,8 +530,12 @@ static bool addHandleToAcceptloop(void* arg) {
     return false;
   }
 
-  struct sockaddr_in bind_addr;
+  // register an async here to quit server gracefully
+  srv->pAcceptAsync = calloc(1, sizeof(uv_async_t));
+  uv_async_init(srv->loop, srv->pAcceptAsync, uvAcceptAsyncCb);
+  srv->pAcceptAsync->data = srv;
 
+  struct sockaddr_in bind_addr;
   uv_ip4_addr("0.0.0.0", srv->port, &bind_addr);
   if ((err = uv_tcp_bind(&srv->server, (const struct sockaddr*)&bind_addr, 0)) != 0) {
     tError("failed to bind: %s", uv_err_name(err));
@@ -647,21 +664,42 @@ void destroyWorkThrd(SWorkThrdObj* pThrd) {
     return;
   }
   pthread_join(pThrd->thread, NULL);
-  // free(srv->pipe[i]);
   free(pThrd->loop);
-  pthread_mutex_destroy(&pThrd->msgMtx);
+  free(pThrd->workerAsync);
   free(pThrd);
 }
+void sendQuitToWorkThrd(SWorkThrdObj* pThrd) {
+  SSrvMsg* srvMsg = calloc(1, sizeof(SSrvMsg));
+
+  pthread_mutex_lock(&pThrd->msgMtx);
+  QUEUE_PUSH(&pThrd->msg, &srvMsg->q);
+  pthread_mutex_unlock(&pThrd->msgMtx);
+  tDebug("send quit msg to work thread");
+
+  uv_async_send(pThrd->workerAsync);
+}
+
 void taosCloseServer(void* arg) {
   // impl later
   SServerObj* srv = arg;
   for (int i = 0; i < srv->numOfThreads; i++) {
+    sendQuitToWorkThrd(srv->pThreadObj[i]);
     destroyWorkThrd(srv->pThreadObj[i]);
   }
-  free(srv->loop);
-  free(srv->pipe);
-  free(srv->pThreadObj);
+
+  tDebug("send quit msg to accept thread");
+  uv_async_send(srv->pAcceptAsync);
   pthread_join(srv->thread, NULL);
+
+  free(srv->pThreadObj);
+  free(srv->pAcceptAsync);
+  free(srv->loop);
+
+  for (int i = 0; i < srv->numOfThreads; i++) {
+    free(srv->pipe[i]);
+  }
+  free(srv->pipe);
+
   free(srv);
 }
 
