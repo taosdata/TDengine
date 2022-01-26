@@ -15,6 +15,7 @@
 
 #ifndef _TD_UTIL_QUEUE_H
 #define _TD_UTIL_QUEUE_H
+#include "os.h"
 
 #ifdef __cplusplus
 extern "C" {
@@ -40,13 +41,13 @@ shall be used to set up the protection.
 typedef struct STaosQueue STaosQueue;
 typedef struct STaosQset  STaosQset;
 typedef struct STaosQall  STaosQall;
-typedef void (*FProcessItem)(void *ahandle, void *pItem);
-typedef void (*FProcessItems)(void *ahandle, STaosQall *qall, int32_t numOfItems);
+typedef void (*FItem)(void *ahandle, void *pItem);
+typedef void (*FItems)(void *ahandle, STaosQall *qall, int32_t numOfItems);
 
 STaosQueue *taosOpenQueue();
 void        taosCloseQueue(STaosQueue *queue);
-void        taosSetQueueFp(STaosQueue *queue, FProcessItem itemFp, FProcessItems itemsFp);
-void       *taosAllocateQitem(int32_t size);
+void        taosSetQueueFp(STaosQueue *queue, FItem itemFp, FItems itemsFp);
+void *      taosAllocateQitem(int32_t size);
 void        taosFreeQitem(void *pItem);
 int32_t     taosWriteQitem(STaosQueue *queue, void *pItem);
 int32_t     taosReadQitem(STaosQueue *queue, void **ppItem);
@@ -66,8 +67,11 @@ int32_t    taosAddIntoQset(STaosQset *qset, STaosQueue *queue, void *ahandle);
 void       taosRemoveFromQset(STaosQset *qset, STaosQueue *queue);
 int32_t    taosGetQueueNumber(STaosQset *qset);
 
-int32_t taosReadQitemFromQset(STaosQset *qset, void **ppItem, void **ahandle, FProcessItem *itemFp);
-int32_t taosReadAllQitemsFromQset(STaosQset *qset, STaosQall *qall, void **ahandle, FProcessItems *itemsFp);
+int32_t taosReadQitemFromQset(STaosQset *qset, void **ppItem, void **ahandle, FItem *itemFp);
+int32_t taosReadAllQitemsFromQset(STaosQset *qset, STaosQall *qall, void **ahandle, FItems *itemsFp);
+
+int32_t taosReadQitemFromQsetByThread(STaosQset *qset, void **ppItem, void **ahandle, FItem *itemFp, int32_t threadId);
+void    taosResetQsetThread(STaosQset *qset, void *pItem);
 
 int32_t taosGetQueueItemsNumber(STaosQueue *queue);
 int32_t taosGetQsetItemsNumber(STaosQset *qset);

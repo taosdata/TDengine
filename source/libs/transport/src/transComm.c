@@ -198,4 +198,51 @@ void transFreeMsg(void* msg) {
   }
   free((char*)msg - sizeof(STransMsgHead));
 }
+
+int transInitBuffer(SConnBuffer* buf) {
+  transClearBuffer(buf);
+  return 0;
+}
+int transClearBuffer(SConnBuffer* buf) {
+  memset(buf, 0, sizeof(*buf));
+  return 0;
+}
+int transAllocBuffer(SConnBuffer* connBuf, uv_buf_t* uvBuf) {
+  /*
+   * formate of data buffer:
+   * |<--------------------------data from socket------------------------------->|
+   * |<------STransMsgHead------->|<-------------------other data--------------->|
+   */
+  static const int CAPACITY = 1024;
+
+  SConnBuffer* p = connBuf;
+  if (p->cap == 0) {
+    p->buf = (char*)calloc(CAPACITY, sizeof(char));
+    p->len = 0;
+    p->cap = CAPACITY;
+    p->left = -1;
+
+    uvBuf->base = p->buf;
+    uvBuf->len = CAPACITY;
+  } else {
+    if (p->len >= p->cap) {
+      if (p->left == -1) {
+        p->cap *= 2;
+        p->buf = realloc(p->buf, p->cap);
+      } else if (p->len + p->left > p->cap) {
+        p->cap = p->len + p->left;
+        p->buf = realloc(p->buf, p->len + p->left);
+      }
+    }
+    uvBuf->base = p->buf + p->len;
+    uvBuf->len = p->cap - p->len;
+  }
+  return 0;
+}
+int transDestroyBuffer(SConnBuffer* buf) {
+  if (buf->cap > 0) {
+    tfree(buf->buf);
+  }
+  transClearBuffer(buf);
+}
 #endif

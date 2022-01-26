@@ -165,6 +165,7 @@ int main(int argc, char *argv[]) {
     tError("failed to start RPC server");
     return -1;
   }
+  // sleep(5);
 
   tInfo("RPC server is running, ctrl-c to exit");
 
@@ -172,7 +173,6 @@ int main(int argc, char *argv[]) {
     dataFd = open(dataName, O_APPEND | O_CREAT | O_WRONLY, S_IRWXU | S_IRWXG | S_IRWXO);
     if (dataFd < 0) tInfo("failed to open data file, reason:%s", strerror(errno));
   }
-
   qhandle = taosOpenQueue();
   qset = taosOpenQset();
   taosAddIntoQset(qset, qhandle, NULL);

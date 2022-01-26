@@ -5115,7 +5115,7 @@ static void destroySendMsgInfo(SMsgSendInfo* pMsgBody) {
   tfree(pMsgBody);
 }
 
-void processRspMsg(void* parent, SRpcMsg* pMsg, SEpSet* pEpSet) {
+void qProcessFetchRsp(void* parent, SRpcMsg* pMsg, SEpSet* pEpSet) {
   SMsgSendInfo *pSendInfo = (SMsgSendInfo *) pMsg->ahandle;
   assert(pMsg->ahandle != NULL);
 
@@ -5291,13 +5291,14 @@ SOperatorInfo* createExchangeOperatorInfo(const SArray* pSources, const SArray* 
   pOperator->exec         = doLoadRemoteData;
   pOperator->pTaskInfo    = pTaskInfo;
 
+#if 1
   { // todo refactor
     SRpcInit rpcInit;
     memset(&rpcInit, 0, sizeof(rpcInit));
     rpcInit.localPort = 0;
     rpcInit.label = "EX";
     rpcInit.numOfThreads = 1;
-    rpcInit.cfp = processRspMsg;
+    rpcInit.cfp = qProcessFetchRsp;
     rpcInit.sessions = tsMaxConnections;
     rpcInit.connType = TAOS_CONN_CLIENT;
     rpcInit.user = (char *)"root";
@@ -5311,7 +5312,7 @@ SOperatorInfo* createExchangeOperatorInfo(const SArray* pSources, const SArray* 
       return NULL; // todo
     }
   }
-
+#endif
   return pOperator;
 }
 

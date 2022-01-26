@@ -1468,13 +1468,14 @@ int32_t schedulerConvertDagToTaskList(SQueryDag* pDag, SArray **pTasks) {
     }
 
     int32_t msgSize = sizeof(SSubQueryMsg) + msgLen;
-    msg = calloc(1, msgSize);
     if (NULL == msg) {
       qError("calloc %d failed", msgSize);
       SCH_ERR_JRET(TSDB_CODE_QRY_OUT_OF_MEMORY);
     }
     
-    SSubQueryMsg *pMsg = (SSubQueryMsg*) msg;
+    SSubQueryMsg* pMsg = calloc(1, msgSize);
+    /*SSubQueryMsg *pMsg = (SSubQueryMsg*) msg;*/
+    memcpy(pMsg->msg, msg, msgLen);
     
     pMsg->header.vgId = tInfo.addr.nodeId;
     
@@ -1483,7 +1484,7 @@ int32_t schedulerConvertDagToTaskList(SQueryDag* pDag, SArray **pTasks) {
     pMsg->taskId = schGenUUID();
     pMsg->taskType = TASK_TYPE_PERSISTENT;
     pMsg->contentLen = msgLen;
-    memcpy(pMsg->msg, msg, msgLen);
+    /*memcpy(pMsg->msg, ((SSubQueryMsg*)msg)->msg, msgLen);*/
 
     tInfo.msg = pMsg;
 

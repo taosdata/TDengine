@@ -33,6 +33,7 @@ extern "C" {
 typedef struct SVnode SVnode;
 typedef struct SDnode SDnode;
 typedef int32_t (*PutReqToVQueryQFp)(SDnode *pDnode, struct SRpcMsg *pReq);
+typedef int32_t (*SendReqToDnodeFp)(SDnode *pDnode, struct SEpSet *epSet, struct SRpcMsg *rpcMsg);
 
 typedef struct STqCfg {
   // TODO
@@ -64,6 +65,7 @@ typedef struct {
   const char       *charset;
   uint16_t          nthreads;  // number of commit threads. 0 for no threads and a schedule queue should be given (TODO)
   PutReqToVQueryQFp putReqToVQueryQFp;
+  SendReqToDnodeFp  sendReqToDnodeFp;
 } SVnodeOpt;
 
 typedef struct STqReadHandle {
@@ -159,20 +161,18 @@ int vnodeProcessSyncReq(SVnode *pVnode, SRpcMsg *pMsg, SRpcMsg **pRsp);
  *
  * @param pVnode The vnode object.
  * @param pMsg The request message
- * @param pRsp The response message
  * @return int 0 for success, -1 for failure
  */
-int vnodeProcessQueryReq(SVnode *pVnode, SRpcMsg *pMsg, SRpcMsg **pRsp);
+int vnodeProcessQueryMsg(SVnode *pVnode, SRpcMsg *pMsg);
 
 /**
  * @brief Process a fetch message.
  *
  * @param pVnode The vnode object.
  * @param pMsg The request message
- * @param pRsp The response message
  * @return int 0 for success, -1 for failure
  */
-int vnodeProcessFetchReq(SVnode *pVnode, SRpcMsg *pMsg, SRpcMsg **pRsp);
+int vnodeProcessFetchMsg(SVnode *pVnode, SRpcMsg *pMsg);
 
 /* ------------------------ SVnodeCfg ------------------------ */
 /**

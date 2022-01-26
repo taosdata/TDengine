@@ -65,6 +65,7 @@ static void *sendRequest(void *param) {
     // tsem_wait(&pInfo->rspSem);
     tsem_wait(&pInfo->rspSem);
     tDebug("recv response succefully");
+
     // usleep(100000000);
   }
 

@@ -532,7 +532,7 @@ int32_t dndInitMgmt(SDnode *pDnode) {
   }
 
   if (pMgmt->dropped) {
-    dError("dnode will not start for its already dropped");
+    dError("dnode not start since its already dropped");
     return -1;
   }
 
