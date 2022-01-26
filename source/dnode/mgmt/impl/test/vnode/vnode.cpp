@@ -68,6 +68,44 @@ TEST_F(DndTestVnode, 01_Create_Vnode) {
       ASSERT_EQ(pRsp->code, TSDB_CODE_DND_VNODE_ALREADY_DEPLOYED);
     }
   }
+
+  {
+    int32_t contLen = sizeof(SCreateVnodeReq);
+
+    SCreateVnodeReq* pReq = (SCreateVnodeReq*)rpcMallocCont(contLen);
+    pReq->vgId = htonl(2);
+    pReq->dnodeId = htonl(3);
+    strcpy(pReq->db, "1.d1");
+    pReq->dbUid = htobe64(9527);
+    pReq->vgVersion = htonl(1);
+    pReq->cacheBlockSize = htonl(16);
+    pReq->totalBlocks = htonl(10);
+    pReq->daysPerFile = htonl(10);
+    pReq->daysToKeep0 = htonl(3650);
+    pReq->daysToKeep1 = htonl(3650);
+    pReq->daysToKeep2 = htonl(3650);
+    pReq->minRows = htonl(100);
+    pReq->minRows = htonl(4096);
+    pReq->commitTime = htonl(3600);
+    pReq->fsyncPeriod = htonl(3000);
+    pReq->walLevel = 1;
+    pReq->precision = 0;
+    pReq->compression = 2;
+    pReq->replica = 1;
+    pReq->quorum = 1;
+    pReq->update = 0;
+    pReq->cacheLastRow = 0;
+    pReq->selfIndex = 0;
+    for (int r = 0; r < pReq->replica; ++r) {
+      SReplica* pReplica = &pReq->replicas[r];
+      pReplica->id = htonl(1);
+      pReplica->port = htons(9527);
+    }
+
+    SRpcMsg* pRsp = test.SendReq(TDMT_DND_CREATE_VNODE, pReq, contLen);
+    ASSERT_NE(pRsp, nullptr);
+    ASSERT_EQ(pRsp->code, TSDB_CODE_DND_VNODE_INVALID_OPTION);
+  }
 }
 
 TEST_F(DndTestVnode, 02_ALTER_Vnode) {
