@@ -35,10 +35,6 @@ extern "C" {
 
 typedef struct SAppInstInfo SAppInstInfo;
 
-typedef int32_t (*FHbRspHandle)(SClientHbRsp* pReq);
-
-typedef int32_t (*FHbReqHandle)(SClientHbKey *connKey, void* param, SClientHbReq *req);
-
 typedef struct SHbConnInfo {
   void         *param;
   SClientHbReq *req;
@@ -59,6 +55,12 @@ typedef struct SAppHbMgr {
   SHashObj* activeInfo;    // hash<SClientHbKey, SClientHbReq>
   SHashObj* connInfo;      // hash<SClientHbKey, SHbConnInfo>
 } SAppHbMgr;
+
+
+typedef int32_t (*FHbRspHandle)(struct SAppHbMgr *pAppHbMgr, SClientHbRsp* pRsp);
+
+typedef int32_t (*FHbReqHandle)(SClientHbKey *connKey, void* param, SClientHbReq *req);
+
 
 typedef struct SClientHbMgr {
   int8_t inited;
@@ -223,11 +225,11 @@ void hbMgrCleanUp();
 int  hbHandleRsp(SClientHbBatchRsp* hbRsp);
 
 // cluster level
-SAppHbMgr* appHbMgrInit(SAppInstInfo* pAppInstInfo);
+SAppHbMgr* appHbMgrInit(SAppInstInfo* pAppInstInfo, char *key);
 void appHbMgrCleanup(SAppHbMgr* pAppHbMgr);
 
 // conn level
-int  hbRegisterConn(SAppHbMgr* pAppHbMgr, SClientHbKey connKey, FGetConnInfo func);
+int  hbRegisterConn(SAppHbMgr* pAppHbMgr, int32_t connId, int64_t clusterId, int32_t hbType);
 void hbDeregisterConn(SAppHbMgr* pAppHbMgr, SClientHbKey connKey);
 
 int hbAddConnInfo(SAppHbMgr* pAppHbMgr, SClientHbKey connKey, void* key, void* value, int32_t keyLen, int32_t valueLen);

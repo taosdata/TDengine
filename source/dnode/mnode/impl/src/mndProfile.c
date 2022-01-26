@@ -346,8 +346,6 @@ static int32_t mndProcessHeartBeatReq(SMnodeMsg *pReq) {
   int sz = taosArrayGetSize(pArray);
 
   SClientHbBatchRsp batchRsp = {0};
-  batchRsp.key = batchReq.key;
-  batchRsp.keyLen = batchReq.keyLen;
   batchRsp.rsps = taosArrayInit(0, sizeof(SClientHbRsp));
 
   for (int i = 0; i < sz; i++) {
@@ -365,17 +363,18 @@ static int32_t mndProcessHeartBeatReq(SMnodeMsg *pReq) {
         SKv* kv = pIter;
       
         switch (kv->key) {
-          case HEARTBEAT_KEY_DBINFO:
+          case HEARTBEAT_KEY_DBINFO: {
             void *rspMsg = NULL;
             int32_t rspLen = 0;
             mndValidateDBInfo(pMnode, (SDbVgVersion *)kv->value, kv->valueLen/sizeof(SDbVgVersion), &rspMsg, &rspLen);
             if (rspMsg && rspLen > 0) {
               SKv kv = {.key = HEARTBEAT_KEY_DBINFO, .valueLen = rspLen, .value = rspMsg};
-              taosArrayPush(hbRsp->info, &kv);
+              taosArrayPush(hbRsp.info, &kv);
               
               taosArrayPush(batchRsp.rsps, &hbRsp);
             }
             break;
+          }
           case HEARTBEAT_KEY_STBINFO:
 
             break;
@@ -412,7 +411,6 @@ static int32_t mndProcessHeartBeatReq(SMnodeMsg *pReq) {
     taosArrayDestroy(rsp->info);
   }
 
-  tfree(batchRsp.key);
   taosArrayDestroy(batchRsp.rsps);
   pReq->contLen = tlen;
   pReq->pCont = buf;

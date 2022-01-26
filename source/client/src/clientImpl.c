@@ -434,13 +434,8 @@ SArray* tmqGetConnInfo(SClientHbKey connKey, void* param) {
     return NULL;
   }
   SKv kv = {0};
-  kv.key = malloc(256);
-  if (kv.key == NULL) {
-    taosArrayDestroy(pArray);
-    return NULL;
-  }
-  strcpy(kv.key, "mq-tmp");
-  kv.keyLen = strlen("mq-tmp") + 1;
+  kv.key = HEARTBEAT_KEY_MQ_TMP;
+
   SMqHbMsg* pMqHb = malloc(sizeof(SMqHbMsg));
   if (pMqHb == NULL) {
     return pArray;

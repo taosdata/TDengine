@@ -1236,6 +1236,8 @@ int32_t catalogUpdateDBVgroup(struct SCatalog* pCatalog, const char* dbName, SDB
   }
 
   bool newAdded = false;
+  
+  dbInfo->lock = 0;
   if (taosHashPutExt(pCatalog->dbCache.cache, dbName, strlen(dbName), dbInfo, sizeof(*dbInfo), &newAdded) != 0) {
     ctgError("taosHashPutExt db vgroup to cache failed, db:%s", dbName);
     CTG_ERR_JRET(TSDB_CODE_CTG_MEM_ERROR);
@@ -1269,7 +1271,7 @@ int32_t catalogRemoveDBVgroup(struct SCatalog* pCatalog, SDbVgVersion* dbInfo) {
   bool removed = false;
   
   if (NULL == pCatalog || NULL == dbInfo) {
-    CTG_ERR_JRET(TSDB_CODE_CTG_INVALID_INPUT);
+    CTG_ERR_RET(TSDB_CODE_CTG_INVALID_INPUT);
   }
 
   if (NULL == pCatalog->dbCache.cache) {

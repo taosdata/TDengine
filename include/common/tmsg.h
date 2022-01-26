@@ -76,9 +76,10 @@ typedef enum {
   HEARTBEAT_TYPE_MAX
 } EHbType;
 
-typedef enum {
+enum {
   HEARTBEAT_KEY_DBINFO = 1,
   HEARTBEAT_KEY_STBINFO,
+  HEARTBEAT_KEY_MQ_TMP,
 };
 
 
