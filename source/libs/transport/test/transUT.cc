@@ -29,7 +29,7 @@ class TransObj {
     memset(&rpcInit, 0, sizeof(rpcInit));
     rpcInit.localPort = 0;
     rpcInit.label = (char *)label;
-    rpcInit.numOfThreads = 1;
+    rpcInit.numOfThreads = 5;
     rpcInit.cfp = NULL;
     rpcInit.sessions = 100;
     rpcInit.idleTime = 100;
@@ -37,12 +37,22 @@ class TransObj {
     rpcInit.secret = (char *)secret;
     rpcInit.ckey = (char *)ckey;
     rpcInit.spi = 1;
+  }
+  bool startCli() {
+    trans = NULL;
     rpcInit.connType = TAOS_CONN_CLIENT;
-
     trans = rpcOpen(&rpcInit);
+    return trans != NULL ? true : false;
+  }
+  bool startSrv() {
+    trans = NULL;
+    rpcInit.connType = TAOS_CONN_SERVER;
+    trans = rpcOpen(&rpcInit);
+    return trans != NULL ? true : false;
   }
   bool stop() {
     rpcClose(trans);
+    trans = NULL;
     return true;
   }
 
@@ -63,4 +73,10 @@ class TransEnv : public ::testing::Test {
 
   TransObj *tr = NULL;
 };
-TEST_F(TransEnv, test_start_stop) { assert(tr->stop()); }
+TEST_F(TransEnv, test_start_stop) {
+  assert(tr->startCli());
+  assert(tr->stop());
+
+  assert(tr->startSrv());
+  assert(tr->stop());
+}
