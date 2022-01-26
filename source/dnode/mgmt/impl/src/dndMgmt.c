@@ -487,6 +487,8 @@ static void *dnodeThreadRoutine(void *param) {
   SDnodeMgmt *pMgmt = &pDnode->dmgmt;
   int32_t     ms = pDnode->cfg.statusInterval * 1000;
 
+  setThreadName("dnode-hb");
+
   while (true) {
     pthread_testcancel();
     taosMsleep(ms);
@@ -527,7 +529,7 @@ int32_t dndInitMgmt(SDnode *pDnode) {
   }
 
   if (pMgmt->dropped) {
-    dError("dnode will not start for its already dropped");
+    dError("dnode not start since its already dropped");
     return -1;
   }
 

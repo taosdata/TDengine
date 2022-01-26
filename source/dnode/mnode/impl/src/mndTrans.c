@@ -921,7 +921,7 @@ static int32_t mndProcessTransMsg(SMnodeMsg *pMsg) {
 
 void mndTransPullup(SMnode *pMnode) {
   STrans *pTrans = NULL;
-  void   *pIter = NULL;
+  void *  pIter = NULL;
 
   while (1) {
     pIter = sdbFetch(pMnode->pSdb, SDB_TRANS, pIter, (void **)&pTrans);
@@ -930,4 +930,6 @@ void mndTransPullup(SMnode *pMnode) {
     mndTransExecute(pMnode, pTrans);
     sdbRelease(pMnode->pSdb, pTrans);
   }
+
+  sdbWriteFile(pMnode->pSdb);
 }

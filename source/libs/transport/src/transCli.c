@@ -31,6 +31,7 @@ typedef struct SCliConn {
   char         secured;
   uint64_t     expireTime;
   int8_t       notifyCount;  // timers already notify to client
+  int32_t      ref;
 } SCliConn;
 
 typedef struct SCliMsg {
@@ -105,15 +106,28 @@ static void* clientThread(void* arg);
 static void clientHandleResp(SCliConn* conn) {
   STransConnCtx* pCtx = ((SCliMsg*)conn->data)->ctx;
   SRpcInfo*      pRpc = pCtx->pTransInst;
-  SRpcMsg        rpcMsg;
 
-  rpcMsg.pCont = conn->readBuf.buf;
-  rpcMsg.contLen = conn->readBuf.len;
+  STransMsgHead* pHead = (STransMsgHead*)(conn->readBuf.buf);
+  pHead->code = htonl(pHead->code);
+  pHead->msgLen = htonl(pHead->msgLen);
+
+  SRpcMsg rpcMsg;
+  rpcMsg.contLen = transContLenFromMsg(pHead->msgLen);
+  rpcMsg.pCont = transContFromHead((char*)pHead);
+  rpcMsg.code = pHead->code;
+  rpcMsg.msgType = pHead->msgType;
   rpcMsg.ahandle = pCtx->ahandle;
+
+  tDebug("conn %p handle resp", conn);
   (pRpc->cfp)(NULL, &rpcMsg, NULL);
   conn->notifyCount += 1;
 
   SCliThrdObj* pThrd = conn->hostThrd;
+  tfree(conn->data);
+  // buf alread translated to rpcMsg.pCont
+  transClearBuffer(&conn->readBuf);
+
+  uv_read_start((uv_stream_t*)conn->stream, clientAllocBufferCb, clientReadCb);
   addConnToPool(pThrd->pool, pCtx->ip, pCtx->port, conn);
 
   // start thread's timer of conn pool if not active
@@ -123,16 +137,24 @@ static void clientHandleResp(SCliConn* conn) {
   destroyTransConnCtx(pCtx);
 }
 static void clientHandleExcept(SCliConn* pConn) {
+  if (pConn->data == NULL) {
+    clientConnDestroy(pConn, true);
+    return;
+  }
+  tDebug("conn %p destroy", pConn);
   SCliMsg* pMsg = pConn->data;
+  transFreeMsg((pMsg->msg.pCont));
+  pMsg->msg.pCont = NULL;
 
   STransConnCtx* pCtx = pMsg->ctx;
   SRpcInfo*      pRpc = pCtx->pTransInst;
 
-  SRpcMsg rpcMsg;
+  SRpcMsg rpcMsg = {0};
   rpcMsg.ahandle = pCtx->ahandle;
+  rpcMsg.code = -1;
   // SRpcInfo* pRpc = pMsg->ctx->pRpc;
   (pRpc->cfp)(NULL, &rpcMsg, NULL);
-
+  tfree(pConn->data);
   pConn->notifyCount += 1;
   destroyTransConnCtx(pCtx);
   clientConnDestroy(pConn, true);
@@ -201,12 +223,17 @@ static SCliConn* getConnFromPool(void* pool, char* ip, uint32_t port) {
   }
   queue* h = QUEUE_HEAD(&plist->conn);
   QUEUE_REMOVE(h);
-  return QUEUE_DATA(h, SCliConn, conn);
+
+  SCliConn* conn = QUEUE_DATA(h, SCliConn, conn);
+  QUEUE_INIT(&conn->conn);
+  return conn;
 }
 static void addConnToPool(void* pool, char* ip, uint32_t port, SCliConn* conn) {
   char key[128] = {0};
+
   tstrncpy(key, ip, strlen(ip));
   tstrncpy(key + strlen(key), (char*)(&port), sizeof(port));
+  tDebug("conn %p added to conn pool, read buf cap: %d", conn, conn->readBuf.cap);
 
   SRpcInfo* pRpc = ((SCliThrdObj*)conn->hostThrd)->pTransInst;
   conn->expireTime = taosGetTimestampMs() + CONN_PERSIST_TIME(pRpc->idleTime);
@@ -225,40 +252,18 @@ static bool clientReadComplete(SConnBuffer* data) {
     if (msgLen > data->len) {
       data->left = msgLen - data->len;
       return false;
-    } else {
+    } else if (msgLen == data->len) {
+      data->left = 0;
       return true;
     }
   } else {
     return false;
   }
 }
-static void clientAllocReadBufferCb(uv_handle_t* handle, size_t suggested_size, uv_buf_t* buf) {
-  // impl later
-  static const int CAPACITY = 512;
-
+static void clientAllocBufferCb(uv_handle_t* handle, size_t suggested_size, uv_buf_t* buf) {
   SCliConn*    conn = handle->data;
   SConnBuffer* pBuf = &conn->readBuf;
-  if (pBuf->cap == 0) {
-    pBuf->buf = (char*)calloc(1, CAPACITY * sizeof(char));
-    pBuf->len = 0;
-    pBuf->cap = CAPACITY;
-    pBuf->left = -1;
-
-    buf->base = pBuf->buf;
-    buf->len = CAPACITY;
-  } else {
-    if (pBuf->len >= pBuf->cap) {
-      if (pBuf->left == -1) {
-        pBuf->cap *= 2;
-        pBuf->buf = realloc(pBuf->buf, pBuf->cap);
-      } else if (pBuf->len + pBuf->left > pBuf->cap) {
-        pBuf->cap = pBuf->len + pBuf->left;
-        pBuf->buf = realloc(pBuf->buf, pBuf->cap);
-      }
-    }
-    buf->base = pBuf->buf + pBuf->len;
-    buf->len = pBuf->cap - pBuf->len;
-  }
+  transAllocBuffer(pBuf, buf);
 }
 static void clientReadCb(uv_stream_t* handle, ssize_t nread, const uv_buf_t* buf) {
   // impl later
@@ -267,6 +272,7 @@ static void clientReadCb(uv_stream_t* handle, ssize_t nread, const uv_buf_t* buf
   if (nread > 0) {
     pBuf->len += nread;
     if (clientReadComplete(pBuf)) {
+      uv_read_stop((uv_stream_t*)conn->stream);
       tDebug("conn %p read complete", conn);
       clientHandleResp(conn);
     } else {
@@ -276,10 +282,9 @@ static void clientReadCb(uv_stream_t* handle, ssize_t nread, const uv_buf_t* buf
   }
   assert(nread <= 0);
   if (nread == 0) {
-    tError("conn %p closed", conn);
     return;
   }
-  if (nread < 0) {
+  if (nread < 0 || nread == UV_EOF) {
     tError("conn %p read error: %s", conn, uv_err_name(nread));
     clientHandleExcept(conn);
   }
@@ -288,39 +293,46 @@ static void clientReadCb(uv_stream_t* handle, ssize_t nread, const uv_buf_t* buf
 }
 
 static void clientConnDestroy(SCliConn* conn, bool clear) {
-  tDebug("conn %p destroy", conn);
-  if (clear) {
-    uv_close((uv_handle_t*)conn->stream, NULL);
+  //
+  conn->ref--;
+  if (conn->ref == 0) {
+    tDebug("conn %p remove from conn pool", conn);
+    QUEUE_REMOVE(&conn->conn);
+    tDebug("conn %p remove from conn pool successfully", conn);
+    if (clear) {
+      uv_close((uv_handle_t*)conn->stream, clientDestroy);
+    }
   }
-  free(conn->stream);
-  free(conn->readBuf.buf);
-  free(conn->writeReq);
-  free(conn);
 }
 static void clientDestroy(uv_handle_t* handle) {
   SCliConn* conn = handle->data;
-  // QUEUE_REMOVE(&conn->conn);
-  clientConnDestroy(conn, false);
+  // transDestroyBuffer(&conn->readBuf);
+
+  free(conn->stream);
+  free(conn->writeReq);
+  tDebug("conn %p destroy successfully", conn);
+  free(conn);
+
+  // clientConnDestroy(conn, false);
 }
 
 static void clientWriteCb(uv_write_t* req, int status) {
   SCliConn* pConn = req->data;
-
   if (status == 0) {
     tDebug("conn %p data already was written out", pConn);
+    SCliMsg* pMsg = pConn->data;
+    if (pMsg != NULL) {
+      transFreeMsg((pMsg->msg.pCont));
+      pMsg->msg.pCont = NULL;
+    }
+
   } else {
     tError("conn %p failed to write: %s", pConn, uv_err_name(status));
     clientHandleExcept(pConn);
     return;
   }
   SCliThrdObj* pThrd = pConn->hostThrd;
-  // if (pConn->stream == NULL) {
-  //  pConn->stream = (uv_stream_t*)malloc(sizeof(uv_tcp_t));
-  //  uv_tcp_init(pThrd->loop, (uv_tcp_t*)pConn->stream);
-  //  pConn->stream->data = pConn;
-  //}
-  uv_read_start((uv_stream_t*)pConn->stream, clientAllocReadBufferCb, clientReadCb);
-  // impl later
+  uv_read_start((uv_stream_t*)pConn->stream, clientAllocBufferCb, clientReadCb);
 }
 
 static void clientWrite(SCliConn* pConn) {
@@ -365,14 +377,11 @@ static void clientHandleReq(SCliMsg* pMsg, SCliThrdObj* pThrd) {
     tDebug("conn %p get from conn pool", conn);
     conn->data = pMsg;
     conn->writeReq->data = conn;
-
-    conn->readBuf.len = 0;
-    memset(conn->readBuf.buf, 0, conn->readBuf.cap);
-    conn->readBuf.left = -1;
+    transDestroyBuffer(&conn->readBuf);
     clientWrite(conn);
   } else {
     SCliConn* conn = calloc(1, sizeof(SCliConn));
-
+    conn->ref++;
     // read/write stream handle
     conn->stream = (uv_stream_t*)malloc(sizeof(uv_tcp_t));
     uv_tcp_init(pThrd->loop, (uv_tcp_t*)(conn->stream));
@@ -381,6 +390,7 @@ static void clientHandleReq(SCliMsg* pMsg, SCliThrdObj* pThrd) {
     // write req handle
     conn->writeReq = malloc(sizeof(uv_write_t));
     conn->writeReq->data = conn;
+
     QUEUE_INIT(&conn->conn);
 
     conn->connReq.data = conn;

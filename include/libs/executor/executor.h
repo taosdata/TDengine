@@ -24,6 +24,7 @@ extern "C" {
 
 typedef void* qTaskInfo_t;
 typedef void* DataSinkHandle;
+struct SRpcMsg;
 struct SSubplan;
 
  /**
@@ -45,7 +46,7 @@ int32_t     qSetStreamInput(qTaskInfo_t tinfo, void* input);
   * @param qId
   * @return
   */
-int32_t qCreateExecTask(void* readHandle, int32_t vgId, struct SSubplan* pPlan, qTaskInfo_t* pTaskInfo, DataSinkHandle* handle);
+int32_t qCreateExecTask(void* readHandle, int32_t vgId, uint64_t taskId, struct SSubplan* pPlan, qTaskInfo_t* pTaskInfo, DataSinkHandle* handle);
 
 /**
  * The main task execution function, including query on both table and multiple tables,
@@ -207,6 +208,8 @@ void** qReleaseTask(void* pMgmt, void* pQInfo, bool freeHandle);
  * @return
  */
 void** qDeregisterQInfo(void* pMgmt, void* pQInfo);
+
+void qProcessFetchRsp(void* parent, struct SRpcMsg* pMsg, struct SEpSet* pEpSet);
 
 #ifdef __cplusplus
 }

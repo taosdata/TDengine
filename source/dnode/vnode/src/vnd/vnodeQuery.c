@@ -17,14 +17,14 @@
 #include "vnd.h"
 
 static int32_t vnodeGetTableList(SVnode *pVnode, SRpcMsg *pMsg);
-static int     vnodeGetTableMeta(SVnode *pVnode, SRpcMsg *pMsg, SRpcMsg **pRsp);
+static int     vnodeGetTableMeta(SVnode *pVnode, SRpcMsg *pMsg);
 
 int vnodeQueryOpen(SVnode *pVnode) {
   return qWorkerInit(NODE_TYPE_VNODE, pVnode->vgId, NULL, (void **)&pVnode->pQuery, pVnode,
-                     (putReqToQueryQFp)vnodePutReqToVQueryQ);
+                     (putReqToQueryQFp)vnodePutReqToVQueryQ, (sendReqToDnodeFp)vnodeSendReqToDnode);
 }
 
-int vnodeProcessQueryReq(SVnode *pVnode, SRpcMsg *pMsg, SRpcMsg **pRsp) {
+int vnodeProcessQueryMsg(SVnode *pVnode, SRpcMsg *pMsg) {
   vTrace("message in query queue is processing");
 
   switch (pMsg->msgType) {
@@ -38,11 +38,13 @@ int vnodeProcessQueryReq(SVnode *pVnode, SRpcMsg *pMsg, SRpcMsg **pRsp) {
   }
 }
 
-int vnodeProcessFetchReq(SVnode *pVnode, SRpcMsg *pMsg, SRpcMsg **pRsp) {
+int vnodeProcessFetchMsg(SVnode *pVnode, SRpcMsg *pMsg) {
   vTrace("message in fetch queue is processing");
   switch (pMsg->msgType) {
     case TDMT_VND_FETCH:
       return qWorkerProcessFetchMsg(pVnode, pVnode->pQuery, pMsg);
+    case TDMT_VND_FETCH_RSP:
+      return qWorkerProcessFetchRsp(pVnode, pVnode->pQuery, pMsg);
     case TDMT_VND_RES_READY:
       return qWorkerProcessReadyMsg(pVnode, pVnode->pQuery, pMsg);
     case TDMT_VND_TASKS_STATUS:
@@ -57,24 +59,24 @@ int vnodeProcessFetchReq(SVnode *pVnode, SRpcMsg *pMsg, SRpcMsg **pRsp) {
       return vnodeGetTableList(pVnode, pMsg);
       //      return qWorkerProcessShowFetchMsg(pVnode->pMeta, pVnode->pQuery, pMsg);
     case TDMT_VND_TABLE_META:
-      return vnodeGetTableMeta(pVnode, pMsg, pRsp);
+      return vnodeGetTableMeta(pVnode, pMsg);
     case TDMT_VND_CONSUME:
-      return tqProcessConsumeReq(pVnode->pTq, pMsg, pRsp);
+      return tqProcessConsumeReq(pVnode->pTq, pMsg);
     default:
       vError("unknown msg type:%d in fetch queue", pMsg->msgType);
       return TSDB_CODE_VND_APP_ERROR;
   }
 }
 
-static int vnodeGetTableMeta(SVnode *pVnode, SRpcMsg *pMsg, SRpcMsg **pRsp) {
+static int vnodeGetTableMeta(SVnode *pVnode, SRpcMsg *pMsg) {
   STableInfoReq * pReq = (STableInfoReq *)(pMsg->pCont);
   STbCfg *        pTbCfg = NULL;
   STbCfg *        pStbCfg = NULL;
   tb_uid_t        uid;
   int32_t         nCols;
   int32_t         nTagCols;
-  SSchemaWrapper *pSW;
-  STableMetaRsp * pTbMetaMsg = NULL;
+  SSchemaWrapper *pSW = NULL;
+  STableMetaRsp  *pTbMetaMsg = NULL;
   SSchema *       pTagSchema;
   SRpcMsg         rpcMsg;
   int             msgLen = 0;
@@ -145,15 +147,22 @@ static int vnodeGetTableMeta(SVnode *pVnode, SRpcMsg *pMsg, SRpcMsg **pRsp) {
 
 _exit:
 
-  free(pSW->pSchema);
-  free(pSW);
-  free(pTbCfg->name);
-  free(pTbCfg);
-  if (pTbCfg->type == META_SUPER_TABLE) {
-    free(pTbCfg->stbCfg.pTagSchema);
-  } else if (pTbCfg->type == META_SUPER_TABLE) {
-    kvRowFree(pTbCfg->ctbCfg.pTag);
+  if (pSW != NULL) {
+    tfree(pSW->pSchema);
+    tfree(pSW);
   }
+
+  if (pTbCfg) {
+    tfree(pTbCfg->name);
+    if (pTbCfg->type == META_SUPER_TABLE) {
+      free(pTbCfg->stbCfg.pTagSchema);
+    } else if (pTbCfg->type == META_SUPER_TABLE) {
+      kvRowFree(pTbCfg->ctbCfg.pTag);
+    }
+
+    tfree(pTbCfg);
+  }
+
   rpcMsg.handle = pMsg->handle;
   rpcMsg.ahandle = pMsg->ahandle;
   rpcMsg.pCont = pTbMetaMsg;
