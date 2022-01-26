@@ -20,6 +20,7 @@
 #include "mndTrans.h"
 
 #define SDB_FUNC_VER 1
+#define SDB_FUNC_RESERVE_SIZE 64
 
 static SSdbRaw *mndFuncActionEncode(SFuncObj *pFunc);
 static SSdbRow *mndFuncActionDecode(SSdbRaw *pRaw);
@@ -78,6 +79,7 @@ static SSdbRaw *mndFuncActionEncode(SFuncObj *pFunc) {
   SDB_SET_INT32(pRaw, dataPos, pFunc->codeSize, FUNC_ENCODE_OVER)
   SDB_SET_BINARY(pRaw, dataPos, pFunc->pComment, pFunc->commentSize, FUNC_ENCODE_OVER)
   SDB_SET_BINARY(pRaw, dataPos, pFunc->pCode, pFunc->codeSize, FUNC_ENCODE_OVER)
+  SDB_SET_RESERVE(pRaw, dataPos, SDB_FUNC_RESERVE_SIZE, FUNC_ENCODE_OVER)
   SDB_SET_DATALEN(pRaw, dataPos, FUNC_ENCODE_OVER);
 
   terrno = 0;
@@ -122,6 +124,7 @@ static SSdbRow *mndFuncActionDecode(SSdbRaw *pRaw) {
   SDB_GET_INT64(pRaw, dataPos, &pFunc->signature, FUNC_DECODE_OVER)
   SDB_GET_INT32(pRaw, dataPos, &pFunc->commentSize, FUNC_DECODE_OVER)
   SDB_GET_INT32(pRaw, dataPos, &pFunc->codeSize, FUNC_DECODE_OVER)
+  SDB_GET_RESERVE(pRaw, dataPos, SDB_FUNC_RESERVE_SIZE, FUNC_DECODE_OVER)
 
   pFunc->pComment = calloc(1, pFunc->commentSize);
   pFunc->pCode = calloc(1, pFunc->codeSize);

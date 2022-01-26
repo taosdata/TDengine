@@ -226,10 +226,10 @@ static int32_t mndCheckDbCfg(SMnode *pMnode, SDbCfg *pCfg) {
   if (pCfg->cacheBlockSize < TSDB_MIN_CACHE_BLOCK_SIZE || pCfg->cacheBlockSize > TSDB_MAX_CACHE_BLOCK_SIZE) return -1;
   if (pCfg->totalBlocks < TSDB_MIN_TOTAL_BLOCKS || pCfg->totalBlocks > TSDB_MAX_TOTAL_BLOCKS) return -1;
   if (pCfg->daysPerFile < TSDB_MIN_DAYS_PER_FILE || pCfg->daysPerFile > TSDB_MAX_DAYS_PER_FILE) return -1;
-  if (pCfg->daysToKeep0 < pCfg->daysPerFile) return -1;
   if (pCfg->daysToKeep0 < TSDB_MIN_KEEP || pCfg->daysToKeep0 > TSDB_MAX_KEEP) return -1;
   if (pCfg->daysToKeep1 < TSDB_MIN_KEEP || pCfg->daysToKeep1 > TSDB_MAX_KEEP) return -1;
   if (pCfg->daysToKeep2 < TSDB_MIN_KEEP || pCfg->daysToKeep2 > TSDB_MAX_KEEP) return -1;
+  if (pCfg->daysToKeep0 < pCfg->daysPerFile) return -1;
   if (pCfg->daysToKeep0 > pCfg->daysToKeep1) return -1;
   if (pCfg->daysToKeep1 > pCfg->daysToKeep2) return -1;
   if (pCfg->minRows < TSDB_MIN_MIN_ROW_FBLOCK || pCfg->minRows > TSDB_MAX_MIN_ROW_FBLOCK) return -1;
@@ -1143,7 +1143,7 @@ static int32_t mndRetrieveDbs(SMnodeMsg *pReq, SShowObj *pShow, char *data, int3
         prec = TSDB_TIME_PRECISION_NANO_STR;
         break;
       default:
-        assert(false);
+        prec = "none";
         break;
     }
     STR_WITH_SIZE_TO_VARSTR(pWrite, prec, 2);
