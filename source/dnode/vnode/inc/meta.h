@@ -37,11 +37,6 @@ typedef struct SMetaCfg {
   uint64_t lruSize;
 } SMetaCfg;
 
-typedef struct {
-  uint32_t nCols;
-  SSchema *pSchema;
-} SSchemaWrapper;
-
 typedef struct SMTbCursor  SMTbCursor;
 typedef struct SMCtbCursor SMCtbCursor;
 
