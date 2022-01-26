@@ -424,7 +424,7 @@ static FORCE_INLINE SMqSubscribeObj* tNewSubscribeObj() {
     return NULL;
   }
   pSub->lostConsumer = taosArrayInit(0, sizeof(SMqConsumerEp));
-  if (pSub->idleConsumer == NULL) {
+  if (pSub->lostConsumer == NULL) {
     taosArrayDestroy(pSub->availConsumer);
     taosArrayDestroy(pSub->assigned);
     free(pSub);

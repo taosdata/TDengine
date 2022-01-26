@@ -1630,6 +1630,7 @@ static FORCE_INLINE int32_t tEncodeSMqConsumeRsp(void** buf, const SMqConsumeRsp
 
 // one req for one vg+topic
 typedef struct SMqConsumeReq {
+  SMsgHead       head;
   //0: commit only, current offset
   //1: consume only, poll next offset
   //2: commit current and consume next offset
@@ -1662,7 +1663,7 @@ typedef struct SMqCMGetSubEpRsp {
 
 static FORCE_INLINE int32_t tEncodeSMqSubVgEp(void** buf, const SMqSubVgEp* pVgEp) {
   int32_t tlen = 0;
-  tlen += taosEncodeFixedI16(buf, pVgEp->vgId);
+  tlen += taosEncodeFixedI32(buf, pVgEp->vgId);
   tlen += taosEncodeSEpSet(buf, &pVgEp->epSet);
   return tlen;
 }
