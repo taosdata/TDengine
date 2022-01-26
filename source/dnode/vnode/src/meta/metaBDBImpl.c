@@ -140,6 +140,7 @@ void metaCloseDB(SMeta *pMeta) {
 int metaSaveTableToDB(SMeta *pMeta, STbCfg *pTbCfg) {
   tb_uid_t uid;
   char     buf[512];
+  char     buf1[512];
   void *   pBuf;
   DBT      key1, value1;
   DBT      key2, value2;
@@ -178,7 +179,7 @@ int metaSaveTableToDB(SMeta *pMeta, STbCfg *pTbCfg) {
   }
 
   if (pSchema) {
-    pBuf = buf;
+    pBuf = buf1;
     memset(&key2, 0, sizeof(key2));
     memset(&value2, 0, sizeof(key2));
     SSchemaKey schemaKey = {uid, 0 /*TODO*/, 0};
@@ -189,13 +190,15 @@ int metaSaveTableToDB(SMeta *pMeta, STbCfg *pTbCfg) {
     SSchemaWrapper sw = {.nCols = ncols, .pSchema = pSchema};
     metaEncodeSchema(&pBuf, &sw);
 
-    value2.data = buf;
-    value2.size = POINTER_DISTANCE(pBuf, buf);
+    value2.data = buf1;
+    value2.size = POINTER_DISTANCE(pBuf, buf1);
   }
 
   metaDBWLock(pMeta->pDB);
   pMeta->pDB->pTbDB->put(pMeta->pDB->pTbDB, NULL, &key1, &value1, 0);
-  pMeta->pDB->pSchemaDB->put(pMeta->pDB->pSchemaDB, NULL, &key2, &value2, 0);
+  if (pSchema) {
+    pMeta->pDB->pSchemaDB->put(pMeta->pDB->pSchemaDB, NULL, &key2, &value2, 0);
+  }
   metaDBULock(pMeta->pDB);
 
   return 0;
