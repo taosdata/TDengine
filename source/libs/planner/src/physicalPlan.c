@@ -461,7 +461,7 @@ static void destroyDataSinkNode(SDataSink* pSinkNode) {
     return;
   }
 
-  if (nodeType(pSinkNode) == DSINK_Dispatch) {
+  if (queryNodeType(pSinkNode) == DSINK_Dispatch) {
     SDataDispatcher* pDdSink = (SDataDispatcher*)pSinkNode;
     tfree(pDdSink->sink.schema.pSchema);
   }

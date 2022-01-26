@@ -15,5 +15,5 @@ TARGET_INCLUDE_DIRECTORIES(
 
 TARGET_LINK_LIBRARIES(
         parserTest
-        PUBLIC os util common parser catalog transport gtest function planner qcom
+        PUBLIC os util common nodes parser catalog transport gtest function planner qcom
 )

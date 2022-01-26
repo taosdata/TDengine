@@ -13,12 +13,28 @@
  * along with this program. If not, see <http://www.gnu.org/licenses/>.
  */
 
-#include "nodes.h"
+#include "ttoken.h"
+#include "astCreateContext.h"
 
-bool isTimeorderQuery(const SNode* pQuery) {
+void* acquireRaii(SAstCreateContext* pCxt, void* p) {
+  if (NULL == p) {
+    return NULL;
+  }
+  return p;
+}
+
+void* releaseRaii(SAstCreateContext* pCxt, void* p) {
+  if (NULL == p) {
+    return NULL;
+  }
+  return p;
+}
+
+int32_t createAstCreater(const SParseContext* pQueryCxt, SAstCreateContext* pCxt) {
 
 }
 
-bool isTimelineQuery(const SNode* pQuery) {
+int32_t destroyAstCreater(SAstCreateContext* pCxt) {
 
 }
+
