@@ -6864,7 +6864,7 @@ int32_t setAlterTableInfo(SSqlObj* pSql, struct SSqlInfo* pInfo) {
 
     char name1[128] = {0};
     strncpy(name1, pItem->pVar.pz, pItem->pVar.nLen);
-    stringProcess(name1, strlen(name1));
+    stringProcess(name1, (int32_t)strlen(name1));
     TAOS_FIELD f = tscCreateField(TSDB_DATA_TYPE_INT, name1, tDataTypes[TSDB_DATA_TYPE_INT].bytes);
     tscFieldInfoAppend(&pQueryInfo->fieldsInfo, &f);
   } else if (pAlterSQL->type == TSDB_ALTER_TABLE_CHANGE_TAG_COLUMN) {
@@ -6901,7 +6901,7 @@ int32_t setAlterTableInfo(SSqlObj* pSql, struct SSqlInfo* pInfo) {
 
     char name[TSDB_COL_NAME_LEN] = {0};
     strncpy(name, pItem->pVar.pz, pItem->pVar.nLen);
-    stringProcess(name, strlen(name));
+    stringProcess(name, (int32_t)strlen(name));
     TAOS_FIELD f = tscCreateField(TSDB_DATA_TYPE_INT, name, tDataTypes[TSDB_DATA_TYPE_INT].bytes);
     tscFieldInfoAppend(&pQueryInfo->fieldsInfo, &f);
 
@@ -6909,7 +6909,7 @@ int32_t setAlterTableInfo(SSqlObj* pSql, struct SSqlInfo* pInfo) {
     memset(name, 0, tListLen(name));
 
     strncpy(name, pItem->pVar.pz, pItem->pVar.nLen);
-    stringProcess(name, strlen(name));
+    stringProcess(name, (int32_t)strlen(name));
     f = tscCreateField(TSDB_DATA_TYPE_INT, name, tDataTypes[TSDB_DATA_TYPE_INT].bytes);
     tscFieldInfoAppend(&pQueryInfo->fieldsInfo, &f);
   } else if (pAlterSQL->type == TSDB_ALTER_TABLE_UPDATE_TAG_VAL) {
@@ -7067,7 +7067,7 @@ int32_t setAlterTableInfo(SSqlObj* pSql, struct SSqlInfo* pInfo) {
 
     char name1[TSDB_COL_NAME_LEN] = {0};
     tstrncpy(name1, pItem->pVar.pz, sizeof(name1));
-    stringProcess(name1, strlen(name1));
+    stringProcess(name1, (int32_t)strlen(name1));
 
     TAOS_FIELD f = tscCreateField(TSDB_DATA_TYPE_INT, name1, tDataTypes[TSDB_DATA_TYPE_INT].bytes);
     tscFieldInfoAppend(&pQueryInfo->fieldsInfo, &f);
