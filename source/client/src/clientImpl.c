@@ -239,9 +239,10 @@ void setResSchemaInfo(SReqResultInfo* pResInfo, const SSchema* pSchema, int32_t 
 }
 
 int32_t scheduleQuery(SRequestObj* pRequest, SQueryDag* pDag, SArray* pNodeList) {
+  void* pTransporter = pRequest->pTscObj->pAppInfo->pTransporter;
   if (TSDB_SQL_INSERT == pRequest->type || TSDB_SQL_CREATE_TABLE == pRequest->type) {
     SQueryResult res = {.code = 0, .numOfRows = 0, .msgSize = ERROR_MSG_BUF_DEFAULT_SIZE, .msg = pRequest->msgBuf};
-    int32_t code = schedulerExecJob(pRequest->pTscObj->pAppInfo->pTransporter, NULL, pDag, &pRequest->body.pQueryJob, &res);
+    int32_t code = schedulerExecJob(pTransporter, NULL, pDag, &pRequest->body.pQueryJob, pRequest->sqlstr, &res);
     if (code != TSDB_CODE_SUCCESS) {
       // handle error and retry
     } else {
@@ -255,7 +256,7 @@ int32_t scheduleQuery(SRequestObj* pRequest, SQueryDag* pDag, SArray* pNodeList)
     return pRequest->code;
   }
 
-  return schedulerAsyncExecJob(pRequest->pTscObj->pAppInfo->pTransporter, pNodeList, pDag, &pRequest->body.pQueryJob);
+  return schedulerAsyncExecJob(pTransporter, pNodeList, pDag, pRequest->sqlstr, &pRequest->body.pQueryJob);
 }
 
 
@@ -527,8 +528,8 @@ TAOS_RES *taos_create_topic(TAOS* taos, const char* topicName, const char* sql, 
     goto _return;
   }
 
-  if (sqlLen > tsMaxSQLStringLen) {
-    tscError("sql string exceeds max length:%d", tsMaxSQLStringLen);
+  if (sqlLen > TSDB_MAX_ALLOWED_SQL_LEN) {
+    tscError("sql string exceeds max length:%d", TSDB_MAX_ALLOWED_SQL_LEN);
     terrno = TSDB_CODE_TSC_EXCEED_SQL_LIMIT;
     goto _return;
   }
@@ -771,8 +772,8 @@ void tmq_message_destroy(tmq_message_t* tmq_message) {
 
 TAOS_RES *taos_query_l(TAOS *taos, const char *sql, int sqlLen) {
   STscObj *pTscObj = (STscObj *)taos;
-  if (sqlLen > (size_t) tsMaxSQLStringLen) {
-    tscError("sql string exceeds max length:%d", tsMaxSQLStringLen);
+  if (sqlLen > (size_t) TSDB_MAX_ALLOWED_SQL_LEN) {
+    tscError("sql string exceeds max length:%d", TSDB_MAX_ALLOWED_SQL_LEN);
     terrno = TSDB_CODE_TSC_EXCEED_SQL_LIMIT;
     return NULL;
   }

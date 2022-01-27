@@ -282,18 +282,21 @@ int32_t qWorkerProcessQueryMsg(void *node, void *qWorkerMgmt, SRpcMsg *pMsg) {
     QW_ERR_RET(TSDB_CODE_QRY_INVALID_INPUT);
   }
 
-  msg->sId = be64toh(msg->sId);
+  msg->sId     = be64toh(msg->sId);
   msg->queryId = be64toh(msg->queryId);
-  msg->taskId = be64toh(msg->taskId);
-  msg->contentLen = ntohl(msg->contentLen);
-  
+  msg->taskId  = be64toh(msg->taskId);
+  msg->phyLen  = ntohl(msg->phyLen);
+  msg->sqlLen  = ntohl(msg->sqlLen);
+
   uint64_t sId = msg->sId;
   uint64_t qId = msg->queryId;
   uint64_t tId = msg->taskId;
 
-  SQWMsg qwMsg = {.node = node, .msg = msg->msg, .msgLen = msg->contentLen, .connection = pMsg};
+  SQWMsg qwMsg = {.node = node, .msg = msg->msg + msg->sqlLen, .msgLen = msg->phyLen, .connection = pMsg};
 
-  QW_SCH_TASK_DLOG("processQuery start, node:%p", node);
+  char* sql = strndup(msg->msg, msg->sqlLen);
+  QW_SCH_TASK_DLOG("processQuery start, node:%p, sql:%s", node, sql);
+  tfree(sql);
 
   QW_RET(qwProcessQuery(QW_FPARAMS(), &qwMsg, msg->taskType));
 

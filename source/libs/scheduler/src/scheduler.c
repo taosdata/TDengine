@@ -345,7 +345,6 @@ int32_t schValidateAndBuildJob(SQueryDag *pDag, SSchJob *pJob) {
     }
 
     pLevel = taosArrayGet(pJob->levels, i);
-  
     pLevel->level = i;
     
     plans = taosArrayGetP(pDag->pSubplans, i);
@@ -375,7 +374,7 @@ int32_t schValidateAndBuildJob(SQueryDag *pDag, SSchJob *pJob) {
 
       SSchTask  task = {0};
       SSchTask *pTask = &task;
-      
+
       SCH_ERR_JRET(schInitTask(pJob, &task, plan, pLevel));
       
       void *p = taosArrayPush(pLevel->subTasks, &task);
@@ -388,8 +387,6 @@ int32_t schValidateAndBuildJob(SQueryDag *pDag, SSchJob *pJob) {
         SCH_TASK_ELOG("taosHashPut to planToTaks failed, taskIdx:%d", n);
         SCH_ERR_JRET(TSDB_CODE_QRY_OUT_OF_MEMORY);
       }
-
-      SCH_TASK_DLOG("task initialized, level:%d", pLevel->level);
     }
 
     SCH_JOB_DLOG("level initialized, taskNum:%d", taskNum);
@@ -716,8 +713,6 @@ int32_t schProcessOnTaskSuccess(SSchJob *pJob, SSchTask *pTask) {
   int32_t code = 0;
   SSchTask *pErrTask = pTask;
 
-  SCH_TASK_DLOG("taskOnSuccess, status:%d", SCH_GET_TASK_STATUS(pTask));
-  
   code = schMoveTaskToSuccList(pJob, pTask, &moved);
   if (code && moved) {
     SCH_ERR_RET(code);
@@ -739,7 +734,6 @@ int32_t schProcessOnTaskSuccess(SSchJob *pJob, SSchTask *pTask) {
       
       if (taskDone < pTask->level->taskNum) {
         SCH_TASK_DLOG("wait all tasks, done:%d, all:%d", taskDone, pTask->level->taskNum);
-        
         return TSDB_CODE_SUCCESS;
       } else if (taskDone > pTask->level->taskNum) {
         SCH_TASK_ELOG("taskDone number invalid, done:%d, total:%d", taskDone, pTask->level->taskNum);
@@ -1031,22 +1025,18 @@ int32_t schAsyncSendMsg(void *transport, SEpSet* epSet, uint64_t qId, uint64_t t
   pMsgSendInfo->fp = fp;
   
   int64_t  transporterId = 0;
-  
   code = asyncSendMsgToServer(transport, epSet, &transporterId, pMsgSendInfo);
   if (code) {
-    qError("QID:%"PRIx64 ",TID:%"PRIx64 " asyncSendMsgToServer failed, code:%x", qId, tId, code);
     SCH_ERR_JRET(code);
   }
 
-  qDebug("QID:%"PRIx64 ",TID:%"PRIx64 " req msg sent, type:%d, %s", qId, tId, msgType, TMSG_INFO(msgType));
-
+  qDebug("QID:0x%"PRIx64 ",TID:0x%"PRIx64 " req msg sent, type:%d, %s", qId, tId, msgType, TMSG_INFO(msgType));
   return TSDB_CODE_SUCCESS;
 
 _return:
   
   tfree(param);
   tfree(pMsgSendInfo);
-
   SCH_RET(code);
 }
 
@@ -1057,7 +1047,6 @@ int32_t schBuildAndSendMsg(SSchJob *pJob, SSchTask *pTask, SQueryNodeAddr *addr,
   bool isCandidateAddr = false;
   if (NULL == addr) {
     addr = taosArrayGet(pTask->candidateAddrs, atomic_load_8(&pTask->candidateIdx));
-    
     isCandidateAddr = true;
   }
 
@@ -1078,7 +1067,9 @@ int32_t schBuildAndSendMsg(SSchJob *pJob, SSchTask *pTask, SQueryNodeAddr *addr,
     }
 
     case TDMT_VND_QUERY: {
-      msgSize = sizeof(SSubQueryMsg) + pTask->msgLen;
+      uint32_t len = strlen(pJob->sql);
+
+      msgSize = sizeof(SSubQueryMsg) + pTask->msgLen + len;
       msg = calloc(1, msgSize);
       if (NULL == msg) {
         SCH_TASK_ELOG("calloc %d failed", msgSize);
@@ -1086,15 +1077,16 @@ int32_t schBuildAndSendMsg(SSchJob *pJob, SSchTask *pTask, SQueryNodeAddr *addr,
       }
 
       SSubQueryMsg *pMsg = msg;
-
       pMsg->header.vgId = htonl(addr->nodeId);
-      
-      pMsg->sId = htobe64(schMgmt.sId);
-      pMsg->queryId = htobe64(pJob->queryId);
-      pMsg->taskId = htobe64(pTask->taskId);
-      pMsg->taskType = TASK_TYPE_TEMP;      
-      pMsg->contentLen = htonl(pTask->msgLen);
-      memcpy(pMsg->msg, pTask->msg, pTask->msgLen);
+      pMsg->sId        = htobe64(schMgmt.sId);
+      pMsg->queryId    = htobe64(pJob->queryId);
+      pMsg->taskId     = htobe64(pTask->taskId);
+      pMsg->taskType   = TASK_TYPE_TEMP;
+      pMsg->phyLen     = htonl(pTask->msgLen);
+      pMsg->sqlLen     = htonl(len);
+
+      memcpy(pMsg->msg, pJob->sql, len);
+      memcpy(pMsg->msg + len, pTask->msg, pTask->msgLen);
       break;
     }
 
@@ -1205,7 +1197,7 @@ int32_t schLaunchTask(SSchJob *pJob, SSchTask *pTask) {
       SCH_TASK_ELOG("failed to create physical plan, code:%s, msg:%p, len:%d", tstrerror(code), pTask->msg, pTask->msgLen);
       SCH_ERR_JRET(code);
     } else {
-      SCH_TASK_DLOG(" ===physical plan=== len:%d, %s", pTask->msgLen, pTask->msg);
+      SCH_TASK_DLOG("physical plan len:%d, %s", pTask->msgLen, pTask->msg);
     }
   }
   
@@ -1214,7 +1206,6 @@ int32_t schLaunchTask(SSchJob *pJob, SSchTask *pTask) {
   // NOTE: race condition: the task should be put into the hash table before send msg to server
   if (SCH_GET_TASK_STATUS(pTask) != JOB_TASK_STATUS_EXECUTING) {
     SCH_ERR_JRET(schPushTaskToExecList(pJob, pTask));
-
     SCH_SET_TASK_STATUS(pTask, JOB_TASK_STATUS_EXECUTING);
   }
 
@@ -1281,7 +1272,7 @@ void schDropJobAllTasks(SSchJob *pJob) {
   schDropTaskInHashList(pJob, pJob->failTasks);
 }
 
-int32_t schExecJobImpl(void *transport, SArray *pNodeList, SQueryDag* pDag, struct SSchJob** job, bool syncSchedule) {
+static int32_t schExecJobImpl(void *transport, SArray *pNodeList, SQueryDag* pDag, struct SSchJob** job, const char* sql, bool syncSchedule) {
   qDebug("QID:0x%"PRIx64" job started", pDag->queryId);
 
   if (pNodeList == NULL || (pNodeList && taosArrayGetSize(pNodeList) <= 0)) {
@@ -1297,6 +1288,7 @@ int32_t schExecJobImpl(void *transport, SArray *pNodeList, SQueryDag* pDag, stru
 
   pJob->attr.syncSchedule = syncSchedule;
   pJob->transport = transport;
+  pJob->sql       = sql;
 
   if (pNodeList != NULL) {
     pJob->nodeList = taosArrayDup(pNodeList);
@@ -1336,7 +1328,6 @@ int32_t schExecJobImpl(void *transport, SArray *pNodeList, SQueryDag* pDag, stru
   }
 
   pJob->status = JOB_TASK_STATUS_NOT_START;
-  
   SCH_ERR_JRET(schLaunchJob(pJob));
 
   *(SSchJob **)job = pJob;
@@ -1347,15 +1338,12 @@ int32_t schExecJobImpl(void *transport, SArray *pNodeList, SQueryDag* pDag, stru
   }
 
   SCH_JOB_DLOG("job exec done, job status:%d", SCH_GET_JOB_STATUS(pJob));
-
   return TSDB_CODE_SUCCESS;
 
 _return:
 
   *(SSchJob **)job = NULL;
-  
   schedulerFreeJob(pJob);
-  
   SCH_RET(code);
 }
 
@@ -1399,29 +1387,24 @@ int32_t schedulerInit(SSchedulerCfg *cfg) {
   return TSDB_CODE_SUCCESS;
 }
 
-int32_t schedulerExecJob(void *transport, SArray *nodeList, SQueryDag* pDag, struct SSchJob** pJob, SQueryResult *pRes) {
+int32_t schedulerExecJob(void *transport, SArray *nodeList, SQueryDag* pDag, struct SSchJob** pJob, const char* sql, SQueryResult *pRes) {
   if (NULL == transport || NULL == pDag || NULL == pDag->pSubplans || NULL == pJob || NULL == pRes) {
     SCH_ERR_RET(TSDB_CODE_QRY_INVALID_INPUT);
   }
 
-  SSchJob *job = NULL;
-
-  SCH_ERR_RET(schExecJobImpl(transport, nodeList, pDag, pJob, true));
-
-  job = *pJob;
-
-  pRes->code = atomic_load_32(&job->errCode);
-  pRes->numOfRows = job->resNumOfRows;
+  SCH_ERR_RET(schExecJobImpl(transport, nodeList, pDag, pJob, sql, true));
+  pRes->code = atomic_load_32(&(*pJob)->errCode);
+  pRes->numOfRows = (*pJob)->resNumOfRows;
   
   return TSDB_CODE_SUCCESS;
 }
 
-int32_t schedulerAsyncExecJob(void *transport, SArray *pNodeList, SQueryDag* pDag, struct SSchJob** pJob) {
+int32_t schedulerAsyncExecJob(void *transport, SArray *pNodeList, SQueryDag* pDag, const char* sql, struct SSchJob** pJob) {
   if (NULL == transport || NULL == pDag || NULL == pDag->pSubplans || NULL == pJob) {
     SCH_ERR_RET(TSDB_CODE_QRY_INVALID_INPUT);
   }
 
-  SCH_ERR_RET(schExecJobImpl(transport, pNodeList, pDag, pJob, false));
+  SCH_ERR_RET(schExecJobImpl(transport, pNodeList, pDag, pJob, sql, false));
   return TSDB_CODE_SUCCESS;
 }
 
@@ -1456,7 +1439,6 @@ int32_t schedulerConvertDagToTaskList(SQueryDag* pDag, SArray **pTasks) {
   
   for (int32_t i = 0; i < taskNum; ++i) {
     SSubplan *plan = taosArrayGetP(plans, i);
-
     tInfo.addr = plan->execNode;
 
     code = qSubPlanToString(plan, &msg, &msgLen);
@@ -1472,16 +1454,16 @@ int32_t schedulerConvertDagToTaskList(SQueryDag* pDag, SArray **pTasks) {
     }
     
     SSubQueryMsg* pMsg = calloc(1, msgSize);
-    /*SSubQueryMsg *pMsg = (SSubQueryMsg*) msg;*/
     memcpy(pMsg->msg, msg, msgLen);
     
     pMsg->header.vgId = tInfo.addr.nodeId;
     
-    pMsg->sId = schMgmt.sId;
-    pMsg->queryId = plan->id.queryId;
-    pMsg->taskId = schGenUUID();
+    pMsg->sId      = schMgmt.sId;
+    pMsg->queryId  = plan->id.queryId;
+    pMsg->taskId   = schGenUUID();
     pMsg->taskType = TASK_TYPE_PERSISTENT;
-    pMsg->contentLen = msgLen;
+    pMsg->phyLen   = msgLen;
+    pMsg->sqlLen   = 0;
     /*memcpy(pMsg->msg, ((SSubQueryMsg*)msg)->msg, msgLen);*/
 
     tInfo.msg = pMsg;
@@ -1514,7 +1496,7 @@ int32_t schedulerCopyTask(STaskInfo *src, SArray **dst, int32_t copyNum) {
     SCH_ERR_RET(TSDB_CODE_QRY_OUT_OF_MEMORY);
   }
 
-  int32_t msgSize = src->msg->contentLen + sizeof(*src->msg);
+  int32_t msgSize = src->msg->phyLen + sizeof(*src->msg);
   STaskInfo info = {0};
 
   info.addr = src->addr;
