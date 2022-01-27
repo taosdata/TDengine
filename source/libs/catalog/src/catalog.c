@@ -794,17 +794,12 @@ int32_t ctgValidateAndRemoveDbInfo(struct SCatalog* pCatalog, SDbVgVersion* targ
   
   CTG_LOCK(CTG_WRITE, &info->lock);
   
-  //TODO OPEN IT
-#if 0
   if (info->dbId != target->dbId) {
     ctgInfo("db id already updated, db:%s, dbId:%"PRIx64 ", targetId:%"PRIx64, target->dbName, info->dbId, target->dbId);
     CTG_UNLOCK(CTG_WRITE, &info->lock);
     taosHashRelease(pCatalog->dbCache.cache, info);
     return TSDB_CODE_SUCCESS;
   }
-#else
-  target->dbId = info->dbId;
-#endif
     
   if (info->vgInfo) {
     ctgInfo("cleanup db vgInfo, db:%s", target->dbName);
