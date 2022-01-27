@@ -38,11 +38,11 @@ protected:
 
   }
 
-  int32_t run() {
+  bool run(int32_t expectCode = TSDB_CODE_SUCCESS) {
     int32_t code = doParse(&cxt_, &query_);
     if (code != TSDB_CODE_SUCCESS) {
       cout << "code:" << tstrerror(code) << ", msg:" << errMagBuf_ << endl;
-      return code;
+      return (code == expectCode);
     }
     cout << nodeType(query_.pRoot) << endl;
     if (NULL != query_.pRoot && QUERY_NODE_SELECT_STMT == nodeType(query_.pRoot)) {
@@ -76,7 +76,7 @@ protected:
     //   return code;
     // }
     // cout << "node tree:\n" << pStr << endl;
-    return TSDB_CODE_SUCCESS;
+    return (code == expectCode);
   }
 
 private:
@@ -136,8 +136,24 @@ TEST_F(NewParserTest, selectStar) {
   setDatabase("root", "test");
 
   bind("SELECT * FROM t1");
-  ASSERT_EQ(run(), TSDB_CODE_SUCCESS);
+  ASSERT_TRUE(run());
 
   bind("SELECT * FROM test.t1");
-  ASSERT_EQ(run(), TSDB_CODE_SUCCESS);
+  ASSERT_TRUE(run());
+}
+
+TEST_F(NewParserTest, syntaxError) {
+  setDatabase("root", "test");
+
+  bind("SELECTT * FROM t1");
+  ASSERT_TRUE(run(TSDB_CODE_FAILED));
+
+  bind("SELECT *");
+  ASSERT_TRUE(run(TSDB_CODE_FAILED));
+
+  bind("SELECT *, * FROM test.t1");
+  ASSERT_TRUE(run(TSDB_CODE_FAILED));
+
+  bind("SELECT * FROM test.t1 t WHER");
+  ASSERT_TRUE(run(TSDB_CODE_FAILED));
 }

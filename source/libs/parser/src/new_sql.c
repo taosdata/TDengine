@@ -37,7 +37,8 @@
 #include "ttokendef.h"
 #include "astCreateFuncs.h"
 
-#define PARSER_TRACE printf("rule = %s\n", yyRuleName[yyruleno])
+#define PARSER_TRACE printf("lemon rule = %s\n", yyRuleName[yyruleno])
+#define PARSER_DESTRUCTOR_TRACE printf("lemon destroy token = %s\n", yyTokenName[yymajor])
 /**************** End of %include directives **********************************/
 /* These constants specify the various numeric values for terminal symbols
 ** in a format understandable to "makeheaders".  This section is blank unless
@@ -101,18 +102,19 @@
 #endif
 /************* Begin control #defines *****************************************/
 #define YYCODETYPE unsigned char
-#define YYNOCODE 71
-#define YYACTIONTYPE unsigned char
+#define YYNOCODE 98
+#define YYACTIONTYPE unsigned short int
 #define NewParseTOKENTYPE  SToken 
 typedef union {
   int yyinit;
   NewParseTOKENTYPE yy0;
-  bool yy9;
-  SNodeList* yy30;
-  SToken yy67;
-  ENullOrder yy68;
-  EOrder yy108;
-  SNode* yy130;
+  SNodeList* yy40;
+  EOrder yy106;
+  EJoinType yy148;
+  SNode* yy168;
+  SToken yy169;
+  bool yy173;
+  ENullOrder yy193;
 } YYMINORTYPE;
 #ifndef YYSTACKDEPTH
 #define YYSTACKDEPTH 100
@@ -127,17 +129,17 @@ typedef union {
 #define NewParseCTX_PARAM
 #define NewParseCTX_FETCH
 #define NewParseCTX_STORE
-#define YYNSTATE             63
-#define YYNRULE              68
-#define YYNTOKEN             35
-#define YY_MAX_SHIFT         62
-#define YY_MIN_SHIFTREDUCE   114
-#define YY_MAX_SHIFTREDUCE   181
-#define YY_ERROR_ACTION      182
-#define YY_ACCEPT_ACTION     183
-#define YY_NO_ACTION         184
-#define YY_MIN_REDUCE        185
-#define YY_MAX_REDUCE        252
+#define YYNSTATE             92
+#define YYNRULE              106
+#define YYNTOKEN             45
+#define YY_MAX_SHIFT         91
+#define YY_MIN_SHIFTREDUCE   169
+#define YY_MAX_SHIFTREDUCE   274
+#define YY_ERROR_ACTION      275
+#define YY_ACCEPT_ACTION     276
+#define YY_NO_ACTION         277
+#define YY_MIN_REDUCE        278
+#define YY_MAX_REDUCE        383
 /************* End control #defines *******************************************/
 #define YY_NLOOKAHEAD ((int)(sizeof(yy_lookahead)/sizeof(yy_lookahead[0])))
 
@@ -204,89 +206,142 @@ typedef union {
 **  yy_default[]       Default action for each state.
 **
 *********** Begin parsing tables **********************************************/
-#define YY_ACTTAB_COUNT (229)
+#define YY_ACTTAB_COUNT (464)
 static const YYACTIONTYPE yy_action[] = {
- /*     0 */    30,   50,   30,   30,   30,   30,   55,   50,   30,   30,
- /*    10 */    10,    9,   29,   62,   51,  195,   30,   19,   30,   30,
- /*    20 */    30,   30,   57,   19,   30,   30,   30,   19,   30,   30,
- /*    30 */    30,   30,   57,   19,   30,   30,   30,   50,   30,   30,
- /*    40 */    30,   30,   55,   50,   30,   30,   39,  222,  155,  156,
- /*    50 */    23,  196,   12,   11,   10,    9,   25,  223,   30,   58,
- /*    60 */    30,   30,   30,   30,   57,   58,   30,   30,   30,   59,
- /*    70 */    30,   30,   30,   30,   57,   59,   30,   30,   30,   37,
- /*    80 */    30,   30,   30,   30,   57,   37,   30,   30,  204,   38,
- /*    90 */     5,  183,   60,  166,  158,  159,  121,   53,  200,  201,
- /*   100 */   202,  203,   54,  203,  203,  203,  246,   18,  246,  246,
- /*   110 */   246,  246,   57,  120,  246,  246,  245,   17,  245,  245,
- /*   120 */   245,  245,   57,   46,  245,  245,   35,   27,   35,   35,
- /*   130 */    35,   35,   57,   31,   35,   35,   36,   47,   36,   36,
- /*   140 */    36,   36,   57,  128,   36,   36,  242,  117,  242,  242,
- /*   150 */   242,  242,   57,   42,  241,  242,  241,  241,  241,  241,
- /*   160 */    57,   52,  212,  241,   14,   13,  122,    1,  212,  212,
- /*   170 */    38,    5,   14,   13,  166,   40,  224,   20,   38,    5,
- /*   180 */    15,  210,  166,  211,   21,   22,   17,  210,  210,   43,
- /*   190 */   160,    6,    7,   45,   41,   26,  207,   48,   24,  208,
- /*   200 */   136,   44,  205,    8,  189,    3,  142,    2,   16,  127,
- /*   210 */   147,  146,   32,  150,   49,  149,    4,   33,  180,  206,
- /*   220 */    28,  117,   34,  186,   56,  162,  161,  185,   61,
+ /*     0 */    60,   60,   77,   60,   60,   60,  290,   80,  289,   47,
+ /*    10 */    60,   60,   62,   60,   60,   60,  171,  172,  245,  246,
+ /*    20 */   247,   70,  249,    6,   21,   20,   76,   33,  292,  295,
+ /*    30 */    46,   11,   10,    9,    8,   31,   72,  318,   34,   22,
+ /*    40 */    19,   42,  300,   75,   49,   74,  187,   60,   62,   60,
+ /*    50 */    60,   60,   60,  179,   60,   60,   60,   22,   87,  289,
+ /*    60 */    44,   60,   60,   37,   60,   60,   60,   18,  202,   63,
+ /*    70 */   291,  295,  294,  291,  295,   73,  291,  295,   60,   60,
+ /*    80 */   310,   60,   60,   60,  262,   80,  289,    5,   60,   60,
+ /*    90 */    62,   60,   60,   60,   83,  341,   51,   50,   60,   37,
+ /*   100 */    60,   60,  171,   79,   53,   15,   60,   60,  306,   60,
+ /*   110 */    60,   60,    1,   87,  289,  319,   60,   60,   37,   60,
+ /*   120 */    60,   60,   19,  304,  206,   60,   62,   60,   60,   60,
+ /*   130 */    60,  306,   60,   60,   60,  202,   87,  289,  212,   60,
+ /*   140 */    60,   81,   60,   60,   60,   71,  303,   61,  291,  295,
+ /*   150 */   342,  205,  177,   60,   37,   60,   60,   60,   60,  306,
+ /*   160 */    60,   60,   60,   32,   87,  289,   23,   60,   60,   88,
+ /*   170 */    60,   60,   60,  214,  302,   40,   60,   81,   60,   60,
+ /*   180 */    60,   60,  178,   60,   60,   60,  327,   87,  289,  327,
+ /*   190 */    60,   60,   64,   60,   60,   60,   38,  236,  237,  326,
+ /*   200 */   325,    9,    8,  325,   60,   88,   60,   60,  381,  381,
+ /*   210 */   307,  381,  381,  381,  179,   87,  289,   14,  381,  381,
+ /*   220 */    67,  381,  381,  381,  282,   28,  334,   60,   64,   60,
+ /*   230 */    60,  380,  380,   59,  380,  380,  380,   29,   87,  289,
+ /*   240 */   343,  380,  380,   91,  380,  380,  380,  282,  282,  333,
+ /*   250 */    68,  282,   23,  338,  282,  381,  337,  381,  381,   65,
+ /*   260 */    65,   40,   65,   65,   65,   86,   87,  289,   27,   65,
+ /*   270 */    65,   30,   65,   65,   65,  282,   85,   69,  380,   48,
+ /*   280 */   380,  380,   66,   66,  171,   66,   66,   66,  284,   87,
+ /*   290 */   289,  283,   66,   66,   84,   66,   66,   66,   21,   20,
+ /*   300 */   239,  240,   25,    7,  324,  286,   65,   52,   65,   65,
+ /*   310 */   377,  377,   26,  377,  377,  377,  178,   87,  289,  312,
+ /*   320 */   377,  377,   56,  377,  377,  377,   55,   57,   58,   66,
+ /*   330 */   213,   66,   66,  376,  376,    3,  376,  376,  376,   20,
+ /*   340 */    87,  289,  200,  376,  376,  199,  376,  376,  376,   43,
+ /*   350 */    17,   16,  285,   36,  263,  230,   24,  377,   13,   12,
+ /*   360 */   377,    4,  219,  250,  171,  172,  245,  246,  247,   70,
+ /*   370 */   249,    6,    2,  279,   54,  276,   89,  278,   90,   82,
+ /*   380 */   376,  277,  277,  376,  277,  277,  277,  277,   19,  277,
+ /*   390 */    13,   12,  207,  277,  277,  277,  171,  172,  245,  246,
+ /*   400 */   247,   70,  249,    6,  277,  327,  277,  277,  327,  277,
+ /*   410 */   277,  277,   76,   33,  277,   39,  277,  277,   39,  325,
+ /*   420 */    19,   31,  325,   76,   33,  277,   78,   41,  300,  301,
+ /*   430 */   277,  300,   31,  277,  277,  277,  277,  277,   35,  300,
+ /*   440 */   301,  277,  300,  277,   76,   33,  277,  277,  277,  277,
+ /*   450 */   277,  277,  277,   31,  277,  277,  277,  277,  277,   45,
+ /*   460 */   300,  301,  277,  300,
 };
 static const YYCODETYPE yy_lookahead[] = {
- /*     0 */    37,   38,   39,   40,   41,   42,   43,   44,   45,   46,
- /*    10 */     8,    9,   49,   10,   51,   52,   37,   38,   39,   40,
- /*    20 */    41,   42,   43,   44,   45,   46,   37,   38,   39,   40,
- /*    30 */    41,   42,   43,   44,   45,   46,   37,   38,   39,   40,
- /*    40 */    41,   42,   43,   44,   45,   46,   67,   68,   30,   31,
- /*    50 */    69,   52,    6,    7,    8,    9,   63,   68,   37,   38,
- /*    60 */    39,   40,   41,   42,   43,   44,   45,   46,   37,   38,
- /*    70 */    39,   40,   41,   42,   43,   44,   45,   46,   37,   38,
- /*    80 */    39,   40,   41,   42,   43,   44,   45,   46,   43,   12,
- /*    90 */    13,   35,   36,   16,   33,   34,    2,   12,   53,   54,
- /*   100 */    55,   56,   57,   58,   59,   60,   37,   22,   39,   40,
- /*   110 */    41,   42,   43,   19,   45,   46,   37,   61,   39,   40,
- /*   120 */    41,   42,   43,   15,   45,   46,   37,   63,   39,   40,
- /*   130 */    41,   42,   43,   32,   45,   46,   37,   29,   39,   40,
- /*   140 */    41,   42,   43,    8,   45,   46,   37,   12,   39,   40,
- /*   150 */    41,   42,   43,    1,   37,   46,   39,   40,   41,   42,
- /*   160 */    43,   36,   47,   46,    6,    7,    8,   48,   47,   47,
- /*   170 */    12,   13,    6,    7,   16,   23,   70,   62,   12,   13,
- /*   180 */    13,   66,   16,   62,   62,   18,   61,   66,   66,   15,
- /*   190 */    14,   15,   13,   25,   64,   64,   17,   28,   65,   65,
- /*   200 */    12,   27,   43,   21,   50,   15,   14,   24,    2,   12,
- /*   210 */    26,   26,   26,   26,   20,   26,   15,   26,   14,   17,
- /*   220 */    17,   12,   17,    0,   17,   14,   14,    0,   11,   71,
- /*   230 */    71,   71,   71,   71,   71,   71,   71,   71,   71,   71,
- /*   240 */    71,   71,   71,   71,   71,   71,   71,   71,   71,   71,
- /*   250 */    71,   71,   71,   71,   71,   71,   71,   71,   71,   71,
- /*   260 */    71,   71,   71,   71,
+ /*     0 */    47,   48,   73,   50,   51,   52,   55,   54,   55,   92,
+ /*    10 */    57,   58,   59,   60,   61,   62,   15,   16,   17,   18,
+ /*    20 */    19,   20,   21,   22,    1,    2,   53,   54,   64,   65,
+ /*    30 */    77,    9,   10,   11,   12,   62,   83,   84,    3,   22,
+ /*    40 */    39,   68,   69,   70,   86,   72,   23,   94,   95,   96,
+ /*    50 */    97,   47,   48,   20,   50,   51,   52,   22,   54,   55,
+ /*    60 */    27,   57,   58,   59,   60,   61,   62,   29,   30,   63,
+ /*    70 */    64,   65,   63,   64,   65,   63,   64,   65,   47,   48,
+ /*    80 */    74,   50,   51,   52,   23,   54,   55,   26,   57,   58,
+ /*    90 */    59,   60,   61,   62,   90,   91,    9,   10,   94,   95,
+ /*   100 */    96,   97,   15,   20,   86,   22,   47,   48,   56,   50,
+ /*   110 */    51,   52,   76,   54,   55,   84,   57,   58,   59,   60,
+ /*   120 */    61,   62,   39,   71,    5,   94,   95,   96,   97,   47,
+ /*   130 */    48,   56,   50,   51,   52,   30,   54,   55,   20,   57,
+ /*   140 */    58,   59,   60,   61,   62,   27,   71,   63,   64,   65,
+ /*   150 */    91,   32,   20,   94,   95,   96,   97,   47,   48,   56,
+ /*   160 */    50,   51,   52,   54,   54,   55,   22,   57,   58,   59,
+ /*   170 */    60,   61,   62,   11,   71,   31,   94,   95,   96,   97,
+ /*   180 */    47,   48,   20,   50,   51,   52,   75,   54,   55,   75,
+ /*   190 */    57,   58,   59,   60,   61,   62,   85,   40,   41,   85,
+ /*   200 */    89,   11,   12,   89,   94,   95,   96,   97,   47,   48,
+ /*   210 */    56,   50,   51,   52,   20,   54,   55,   25,   57,   58,
+ /*   220 */    42,   60,   61,   62,   47,   26,   49,   94,   95,   96,
+ /*   230 */    97,   47,   48,   66,   50,   51,   52,   38,   54,   55,
+ /*   240 */    93,   57,   58,   13,   60,   61,   62,   47,   47,   49,
+ /*   250 */    49,   47,   22,   49,   47,   94,   49,   96,   97,   47,
+ /*   260 */    48,   31,   50,   51,   52,    4,   54,   55,   35,   57,
+ /*   270 */    58,   37,   60,   61,   62,   47,   87,   49,   94,   88,
+ /*   280 */    96,   97,   47,   48,   15,   50,   51,   52,   47,   54,
+ /*   290 */    55,   47,   57,   58,   33,   60,   61,   62,    1,    2,
+ /*   300 */    43,   44,   26,   22,   88,   24,   94,   87,   96,   97,
+ /*   310 */    47,   48,   36,   50,   51,   52,   20,   54,   55,   82,
+ /*   320 */    57,   58,   80,   60,   61,   62,   81,   79,   78,   94,
+ /*   330 */    20,   96,   97,   47,   48,   26,   50,   51,   52,    2,
+ /*   340 */    54,   55,   23,   57,   58,   23,   60,   61,   62,   24,
+ /*   350 */    26,   28,   24,   24,   23,   23,    5,   94,    9,   10,
+ /*   360 */    97,   26,   23,   23,   15,   16,   17,   18,   19,   20,
+ /*   370 */    21,   22,   34,    0,   24,   45,   46,    0,   14,   46,
+ /*   380 */    94,   98,   98,   97,   98,   98,   98,   98,   39,   98,
+ /*   390 */     9,   10,   11,   98,   98,   98,   15,   16,   17,   18,
+ /*   400 */    19,   20,   21,   22,   98,   75,   98,   98,   75,   98,
+ /*   410 */    98,   98,   53,   54,   98,   85,   98,   98,   85,   89,
+ /*   420 */    39,   62,   89,   53,   54,   98,   67,   68,   69,   70,
+ /*   430 */    98,   72,   62,   98,   98,   98,   98,   98,   68,   69,
+ /*   440 */    70,   98,   72,   98,   53,   54,   98,   98,   98,   98,
+ /*   450 */    98,   98,   98,   62,   98,   98,   98,   98,   98,   68,
+ /*   460 */    69,   70,   98,   72,
 };
-#define YY_SHIFT_COUNT    (62)
+#define YY_SHIFT_COUNT    (91)
 #define YY_SHIFT_MIN      (0)
-#define YY_SHIFT_MAX      (227)
+#define YY_SHIFT_MAX      (381)
 static const unsigned short int yy_shift_ofst[] = {
- /*     0 */     3,  158,  166,  166,  166,  166,  166,  166,   85,  166,
- /*    10 */   166,  166,  166,   77,   77,  167,  167,  167,  229,   18,
- /*    20 */   152,  152,   94,  101,  168,  169,  169,  168,  188,  182,
- /*    30 */    46,   61,  174,  108,  135,    2,    2,  176,  179,  190,
- /*    40 */   183,  192,  206,  184,  185,  186,  187,  189,  191,  197,
- /*    50 */   194,  201,  204,  202,  203,  205,  209,  207,  211,  212,
- /*    60 */   223,  227,  217,
+ /*     0 */   230,  381,  349,  349,  349,  349,  349,  349,  349,  349,
+ /*    10 */   349,  349,    1,    1,   83,   83,   83,   83,   35,  144,
+ /*    20 */    35,   35,   35,  144,  144,   87,   87,   87,   87,   87,
+ /*    30 */    87,   33,   33,   33,   17,   38,  162,  157,  261,  261,
+ /*    40 */   119,  105,  105,  132,  194,  105,  192,  178,  233,  234,
+ /*    50 */   269,  269,  234,  233,  296,  464,  464,  464,  464,  464,
+ /*    60 */    22,   23,  118,  297,   61,  190,  190,  257,  276,  199,
+ /*    70 */   281,  310,  309,  337,  319,  322,  325,  323,  324,  328,
+ /*    80 */   329,  331,  332,  335,  338,  339,  351,  350,  340,  373,
+ /*    90 */   377,  364,
 };
-#define YY_REDUCE_COUNT (29)
-#define YY_REDUCE_MIN   (-37)
-#define YY_REDUCE_MAX   (159)
+#define YY_REDUCE_COUNT (59)
+#define YY_REDUCE_MIN   (-83)
+#define YY_REDUCE_MAX   (391)
 static const short yy_reduce_ofst[] = {
- /*     0 */    56,  -37,  -21,  -11,   -1,   21,   31,   41,   45,   69,
- /*    10 */    79,   89,   99,  109,  117,  115,  121,  122,  125,  -19,
- /*    20 */    -7,   64,  119,  106,  130,  133,  134,  131,  159,  154,
+ /*     0 */   330,  -47,    4,   31,   59,   82,  110,  133,  161,  184,
+ /*    10 */   212,  235,  263,  286,  359,  -27,  370,  391,    6,  333,
+ /*    20 */     9,   12,   84,  111,  114,  177,  200,  201,  204,  207,
+ /*    30 */   228,   52,   75,  103,  -36,  -71,  -49,  -83,  -42,   18,
+ /*    40 */    36,  -71,  -71,  109,  154,  -71,  167,  147,  189,  191,
+ /*    50 */   241,  244,  216,  220,  -49,  237,  245,  242,  248,  250,
 };
 static const YYACTIONTYPE yy_default[] = {
- /*     0 */   209,  182,  182,  182,  182,  182,  182,  182,  182,  182,
- /*    10 */   182,  182,  182,  182,  182,  182,  182,  182,  209,  225,
- /*    20 */   214,  214,  190,  228,  216,  219,  219,  216,  182,  182,
- /*    30 */   239,  182,  182,  182,  182,  244,  243,  182,  187,  215,
- /*    40 */   182,  182,  182,  182,  182,  182,  182,  182,  182,  182,
- /*    50 */   197,  194,  182,  207,  182,  182,  182,  182,  182,  182,
- /*    60 */   182,  182,  182,
+ /*     0 */   275,  275,  275,  275,  275,  275,  275,  275,  275,  275,
+ /*    10 */   275,  275,  275,  275,  275,  275,  275,  275,  365,  275,
+ /*    20 */   365,  365,  365,  275,  275,  275,  275,  275,  275,  275,
+ /*    30 */   275,  305,  305,  305,  365,  275,  275,  344,  329,  329,
+ /*    40 */   313,  298,  275,  275,  275,  299,  275,  347,  331,  335,
+ /*    50 */   275,  275,  335,  331,  275,  370,  369,  368,  367,  366,
+ /*    60 */   374,  275,  320,  340,  275,  379,  378,  275,  332,  336,
+ /*    70 */   287,  275,  317,  293,  364,  301,  275,  275,  297,  286,
+ /*    80 */   275,  275,  275,  330,  275,  275,  275,  275,  275,  275,
+ /*    90 */   275,  275,
 };
 /********** End of lemon-generated parsing tables *****************************/
 
@@ -394,76 +449,103 @@ void NewParseTrace(FILE *TraceFILE, char *zTracePrompt){
 ** are required.  The following table supplies these names */
 static const char *const yyTokenName[] = { 
   /*    0 */ "$",
-  /*    1 */ "UNION",
-  /*    2 */ "ALL",
-  /*    3 */ "MINUS",
-  /*    4 */ "EXCEPT",
-  /*    5 */ "INTERSECT",
-  /*    6 */ "NK_PLUS",
-  /*    7 */ "NK_MINUS",
-  /*    8 */ "NK_STAR",
-  /*    9 */ "NK_SLASH",
-  /*   10 */ "SHOW",
-  /*   11 */ "DATABASES",
-  /*   12 */ "NK_ID",
-  /*   13 */ "NK_LP",
-  /*   14 */ "NK_RP",
-  /*   15 */ "NK_COMMA",
-  /*   16 */ "NK_LITERAL",
-  /*   17 */ "NK_DOT",
-  /*   18 */ "SELECT",
-  /*   19 */ "DISTINCT",
-  /*   20 */ "AS",
-  /*   21 */ "FROM",
-  /*   22 */ "NK_LR",
-  /*   23 */ "ORDER",
-  /*   24 */ "BY",
-  /*   25 */ "SLIMIT",
-  /*   26 */ "NK_INTEGER",
-  /*   27 */ "SOFFSET",
-  /*   28 */ "LIMIT",
-  /*   29 */ "OFFSET",
-  /*   30 */ "ASC",
-  /*   31 */ "DESC",
-  /*   32 */ "NULLS",
-  /*   33 */ "FIRST",
-  /*   34 */ "LAST",
-  /*   35 */ "cmd",
-  /*   36 */ "query_expression",
-  /*   37 */ "value_function",
-  /*   38 */ "value_expression",
-  /*   39 */ "value_expression_primary",
-  /*   40 */ "nonparenthesized_value_expression_primary",
-  /*   41 */ "literal",
-  /*   42 */ "column_reference",
-  /*   43 */ "table_name",
-  /*   44 */ "common_value_expression",
-  /*   45 */ "numeric_value_expression",
-  /*   46 */ "numeric_primary",
-  /*   47 */ "query_specification",
-  /*   48 */ "set_quantifier_opt",
-  /*   49 */ "select_list",
-  /*   50 */ "from_clause",
-  /*   51 */ "select_sublist",
-  /*   52 */ "select_item",
-  /*   53 */ "table_reference_list",
-  /*   54 */ "table_reference",
-  /*   55 */ "table_factor",
-  /*   56 */ "table_primary",
-  /*   57 */ "db_name",
-  /*   58 */ "derived_table",
-  /*   59 */ "table_subquery",
-  /*   60 */ "subquery",
-  /*   61 */ "with_clause_opt",
-  /*   62 */ "query_expression_body",
-  /*   63 */ "order_by_clause_opt",
-  /*   64 */ "slimit_clause_opt",
-  /*   65 */ "limit_clause_opt",
-  /*   66 */ "query_primary",
-  /*   67 */ "sort_specification_list",
-  /*   68 */ "sort_specification",
-  /*   69 */ "ordering_specification_opt",
-  /*   70 */ "null_ordering_opt",
+  /*    1 */ "OR",
+  /*    2 */ "AND",
+  /*    3 */ "NOT",
+  /*    4 */ "UNION",
+  /*    5 */ "ALL",
+  /*    6 */ "MINUS",
+  /*    7 */ "EXCEPT",
+  /*    8 */ "INTERSECT",
+  /*    9 */ "NK_PLUS",
+  /*   10 */ "NK_MINUS",
+  /*   11 */ "NK_STAR",
+  /*   12 */ "NK_SLASH",
+  /*   13 */ "SHOW",
+  /*   14 */ "DATABASES",
+  /*   15 */ "NK_INTEGER",
+  /*   16 */ "NK_FLOAT",
+  /*   17 */ "NK_STRING",
+  /*   18 */ "NK_BOOL",
+  /*   19 */ "NK_NOW",
+  /*   20 */ "NK_ID",
+  /*   21 */ "NK_QUESTION",
+  /*   22 */ "NK_LP",
+  /*   23 */ "NK_RP",
+  /*   24 */ "NK_DOT",
+  /*   25 */ "FROM",
+  /*   26 */ "NK_COMMA",
+  /*   27 */ "AS",
+  /*   28 */ "JOIN",
+  /*   29 */ "ON",
+  /*   30 */ "INNER",
+  /*   31 */ "SELECT",
+  /*   32 */ "DISTINCT",
+  /*   33 */ "ORDER",
+  /*   34 */ "BY",
+  /*   35 */ "SLIMIT",
+  /*   36 */ "SOFFSET",
+  /*   37 */ "LIMIT",
+  /*   38 */ "OFFSET",
+  /*   39 */ "NK_LR",
+  /*   40 */ "ASC",
+  /*   41 */ "DESC",
+  /*   42 */ "NULLS",
+  /*   43 */ "FIRST",
+  /*   44 */ "LAST",
+  /*   45 */ "cmd",
+  /*   46 */ "query_expression",
+  /*   47 */ "unsigned_integer",
+  /*   48 */ "unsigned_approximate_numeric",
+  /*   49 */ "signed_integer",
+  /*   50 */ "unsigned_literal",
+  /*   51 */ "unsigned_numeric_literal",
+  /*   52 */ "general_literal",
+  /*   53 */ "db_name",
+  /*   54 */ "table_name",
+  /*   55 */ "column_name",
+  /*   56 */ "table_alias",
+  /*   57 */ "unsigned_value_specification",
+  /*   58 */ "value_expression_primary",
+  /*   59 */ "value_expression",
+  /*   60 */ "nonparenthesized_value_expression_primary",
+  /*   61 */ "column_reference",
+  /*   62 */ "subquery",
+  /*   63 */ "boolean_value_expression",
+  /*   64 */ "boolean_primary",
+  /*   65 */ "predicate",
+  /*   66 */ "from_clause",
+  /*   67 */ "table_reference_list",
+  /*   68 */ "table_reference",
+  /*   69 */ "table_primary",
+  /*   70 */ "joined_table",
+  /*   71 */ "correlation_or_recognition_opt",
+  /*   72 */ "parenthesized_joined_table",
+  /*   73 */ "join_type",
+  /*   74 */ "search_condition",
+  /*   75 */ "query_specification",
+  /*   76 */ "set_quantifier_opt",
+  /*   77 */ "select_list",
+  /*   78 */ "where_clause_opt",
+  /*   79 */ "partition_by_clause_opt",
+  /*   80 */ "twindow_clause_opt",
+  /*   81 */ "group_by_clause_opt",
+  /*   82 */ "having_clause_opt",
+  /*   83 */ "select_sublist",
+  /*   84 */ "select_item",
+  /*   85 */ "query_expression_body",
+  /*   86 */ "order_by_clause_opt",
+  /*   87 */ "slimit_clause_opt",
+  /*   88 */ "limit_clause_opt",
+  /*   89 */ "query_primary",
+  /*   90 */ "sort_specification_list",
+  /*   91 */ "sort_specification",
+  /*   92 */ "ordering_specification_opt",
+  /*   93 */ "null_ordering_opt",
+  /*   94 */ "value_function",
+  /*   95 */ "common_value_expression",
+  /*   96 */ "numeric_value_expression",
+  /*   97 */ "numeric_primary",
 };
 #endif /* defined(YYCOVERAGE) || !defined(NDEBUG) */
 
@@ -473,72 +555,110 @@ static const char *const yyTokenName[] = {
 static const char *const yyRuleName[] = {
  /*   0 */ "cmd ::= SHOW DATABASES",
  /*   1 */ "cmd ::= query_expression",
- /*   2 */ "column_reference ::= NK_ID",
- /*   3 */ "column_reference ::= table_name NK_DOT NK_ID",
- /*   4 */ "query_specification ::= SELECT set_quantifier_opt select_list from_clause",
- /*   5 */ "set_quantifier_opt ::=",
- /*   6 */ "set_quantifier_opt ::= DISTINCT",
- /*   7 */ "set_quantifier_opt ::= ALL",
- /*   8 */ "select_list ::= NK_STAR",
- /*   9 */ "select_list ::= select_sublist",
- /*  10 */ "select_sublist ::= select_item",
- /*  11 */ "select_sublist ::= select_sublist NK_COMMA select_item",
- /*  12 */ "select_item ::= value_expression",
- /*  13 */ "select_item ::= value_expression AS NK_ID",
- /*  14 */ "select_item ::= table_name NK_DOT NK_STAR",
- /*  15 */ "from_clause ::= FROM table_reference_list",
- /*  16 */ "table_reference_list ::= table_reference",
- /*  17 */ "table_reference ::= table_factor",
- /*  18 */ "table_factor ::= table_primary",
- /*  19 */ "table_primary ::= table_name",
- /*  20 */ "table_primary ::= db_name NK_DOT table_name",
- /*  21 */ "db_name ::= NK_ID",
- /*  22 */ "table_name ::= NK_ID",
- /*  23 */ "query_expression ::= with_clause_opt query_expression_body order_by_clause_opt slimit_clause_opt limit_clause_opt",
- /*  24 */ "with_clause_opt ::=",
- /*  25 */ "query_expression_body ::= query_primary",
- /*  26 */ "query_expression_body ::= query_expression_body UNION ALL query_expression_body",
- /*  27 */ "query_primary ::= query_specification",
- /*  28 */ "query_primary ::= NK_LP query_expression_body order_by_clause_opt limit_clause_opt slimit_clause_opt NK_RP",
- /*  29 */ "order_by_clause_opt ::=",
- /*  30 */ "order_by_clause_opt ::= ORDER BY sort_specification_list",
- /*  31 */ "slimit_clause_opt ::=",
- /*  32 */ "slimit_clause_opt ::= SLIMIT NK_INTEGER SOFFSET NK_INTEGER",
- /*  33 */ "slimit_clause_opt ::= SLIMIT NK_INTEGER NK_COMMA NK_INTEGER",
- /*  34 */ "limit_clause_opt ::=",
- /*  35 */ "limit_clause_opt ::= LIMIT NK_INTEGER OFFSET NK_INTEGER",
- /*  36 */ "limit_clause_opt ::= LIMIT NK_INTEGER NK_COMMA NK_INTEGER",
- /*  37 */ "sort_specification_list ::= sort_specification",
- /*  38 */ "sort_specification_list ::= sort_specification_list NK_COMMA sort_specification",
- /*  39 */ "sort_specification ::= value_expression ordering_specification_opt null_ordering_opt",
- /*  40 */ "ordering_specification_opt ::=",
- /*  41 */ "ordering_specification_opt ::= ASC",
- /*  42 */ "ordering_specification_opt ::= DESC",
- /*  43 */ "null_ordering_opt ::=",
- /*  44 */ "null_ordering_opt ::= NULLS FIRST",
- /*  45 */ "null_ordering_opt ::= NULLS LAST",
- /*  46 */ "value_function ::= NK_ID NK_LP value_expression NK_RP",
- /*  47 */ "value_function ::= NK_ID NK_LP value_expression NK_COMMA value_expression NK_RP",
- /*  48 */ "value_expression_primary ::= NK_LP value_expression NK_RP",
- /*  49 */ "value_expression_primary ::= nonparenthesized_value_expression_primary",
- /*  50 */ "nonparenthesized_value_expression_primary ::= literal",
- /*  51 */ "nonparenthesized_value_expression_primary ::= column_reference",
- /*  52 */ "literal ::= NK_LITERAL",
- /*  53 */ "value_expression ::= common_value_expression",
- /*  54 */ "common_value_expression ::= numeric_value_expression",
- /*  55 */ "numeric_value_expression ::= numeric_primary",
- /*  56 */ "numeric_value_expression ::= NK_PLUS numeric_primary",
- /*  57 */ "numeric_value_expression ::= NK_MINUS numeric_primary",
- /*  58 */ "numeric_value_expression ::= numeric_value_expression NK_PLUS numeric_value_expression",
- /*  59 */ "numeric_value_expression ::= numeric_value_expression NK_MINUS numeric_value_expression",
- /*  60 */ "numeric_value_expression ::= numeric_value_expression NK_STAR numeric_value_expression",
- /*  61 */ "numeric_value_expression ::= numeric_value_expression NK_SLASH numeric_value_expression",
- /*  62 */ "numeric_primary ::= value_expression_primary",
- /*  63 */ "numeric_primary ::= value_function",
- /*  64 */ "table_primary ::= derived_table",
- /*  65 */ "derived_table ::= table_subquery",
- /*  66 */ "subquery ::= NK_LR query_expression NK_RP",
- /*  67 */ "table_subquery ::= subquery",
+ /*   2 */ "unsigned_integer ::= NK_INTEGER",
+ /*   3 */ "unsigned_approximate_numeric ::= NK_FLOAT",
+ /*   4 */ "signed_integer ::= unsigned_integer",
+ /*   5 */ "signed_integer ::= NK_PLUS unsigned_integer",
+ /*   6 */ "signed_integer ::= NK_MINUS unsigned_integer",
+ /*   7 */ "db_name ::= NK_ID",
+ /*   8 */ "table_name ::= NK_ID",
+ /*   9 */ "column_name ::= NK_ID",
+ /*  10 */ "table_alias ::= NK_ID",
+ /*  11 */ "column_reference ::= column_name",
+ /*  12 */ "column_reference ::= table_name NK_DOT column_name",
+ /*  13 */ "boolean_value_expression ::= boolean_primary",
+ /*  14 */ "boolean_value_expression ::= NOT boolean_primary",
+ /*  15 */ "boolean_value_expression ::= boolean_value_expression OR boolean_value_expression",
+ /*  16 */ "boolean_value_expression ::= boolean_value_expression AND boolean_value_expression",
+ /*  17 */ "boolean_primary ::= predicate",
+ /*  18 */ "boolean_primary ::= NK_LP boolean_value_expression NK_RP",
+ /*  19 */ "from_clause ::= FROM table_reference_list",
+ /*  20 */ "table_reference_list ::= table_reference",
+ /*  21 */ "table_reference_list ::= table_reference_list NK_COMMA table_reference",
+ /*  22 */ "table_reference ::= table_primary",
+ /*  23 */ "table_reference ::= joined_table",
+ /*  24 */ "table_primary ::= table_name correlation_or_recognition_opt",
+ /*  25 */ "table_primary ::= db_name NK_DOT table_name correlation_or_recognition_opt",
+ /*  26 */ "table_primary ::= subquery correlation_or_recognition_opt",
+ /*  27 */ "correlation_or_recognition_opt ::=",
+ /*  28 */ "correlation_or_recognition_opt ::= table_alias",
+ /*  29 */ "correlation_or_recognition_opt ::= AS table_alias",
+ /*  30 */ "parenthesized_joined_table ::= NK_LP joined_table NK_RP",
+ /*  31 */ "parenthesized_joined_table ::= NK_LP parenthesized_joined_table NK_RP",
+ /*  32 */ "joined_table ::= table_reference join_type JOIN table_reference ON search_condition",
+ /*  33 */ "join_type ::= INNER",
+ /*  34 */ "query_specification ::= SELECT set_quantifier_opt select_list from_clause where_clause_opt partition_by_clause_opt twindow_clause_opt group_by_clause_opt having_clause_opt",
+ /*  35 */ "set_quantifier_opt ::=",
+ /*  36 */ "set_quantifier_opt ::= DISTINCT",
+ /*  37 */ "set_quantifier_opt ::= ALL",
+ /*  38 */ "select_list ::= NK_STAR",
+ /*  39 */ "select_list ::= select_sublist",
+ /*  40 */ "select_sublist ::= select_item",
+ /*  41 */ "select_sublist ::= select_sublist NK_COMMA select_item",
+ /*  42 */ "select_item ::= value_expression",
+ /*  43 */ "select_item ::= value_expression NK_ID",
+ /*  44 */ "select_item ::= value_expression AS NK_ID",
+ /*  45 */ "select_item ::= table_name NK_DOT NK_STAR",
+ /*  46 */ "query_expression ::= query_expression_body order_by_clause_opt slimit_clause_opt limit_clause_opt",
+ /*  47 */ "query_expression_body ::= query_primary",
+ /*  48 */ "query_expression_body ::= query_expression_body UNION ALL query_expression_body",
+ /*  49 */ "query_primary ::= query_specification",
+ /*  50 */ "query_primary ::= NK_LP query_expression_body order_by_clause_opt limit_clause_opt slimit_clause_opt NK_RP",
+ /*  51 */ "order_by_clause_opt ::=",
+ /*  52 */ "order_by_clause_opt ::= ORDER BY sort_specification_list",
+ /*  53 */ "slimit_clause_opt ::=",
+ /*  54 */ "slimit_clause_opt ::= SLIMIT signed_integer",
+ /*  55 */ "slimit_clause_opt ::= SLIMIT signed_integer SOFFSET signed_integer",
+ /*  56 */ "slimit_clause_opt ::= SLIMIT signed_integer NK_COMMA signed_integer",
+ /*  57 */ "limit_clause_opt ::=",
+ /*  58 */ "limit_clause_opt ::= LIMIT signed_integer",
+ /*  59 */ "limit_clause_opt ::= LIMIT signed_integer OFFSET signed_integer",
+ /*  60 */ "limit_clause_opt ::= LIMIT signed_integer NK_COMMA signed_integer",
+ /*  61 */ "subquery ::= NK_LR query_expression NK_RP",
+ /*  62 */ "search_condition ::= boolean_value_expression",
+ /*  63 */ "sort_specification_list ::= sort_specification",
+ /*  64 */ "sort_specification_list ::= sort_specification_list NK_COMMA sort_specification",
+ /*  65 */ "sort_specification ::= value_expression ordering_specification_opt null_ordering_opt",
+ /*  66 */ "ordering_specification_opt ::=",
+ /*  67 */ "ordering_specification_opt ::= ASC",
+ /*  68 */ "ordering_specification_opt ::= DESC",
+ /*  69 */ "null_ordering_opt ::=",
+ /*  70 */ "null_ordering_opt ::= NULLS FIRST",
+ /*  71 */ "null_ordering_opt ::= NULLS LAST",
+ /*  72 */ "unsigned_literal ::= unsigned_numeric_literal",
+ /*  73 */ "unsigned_literal ::= general_literal",
+ /*  74 */ "unsigned_numeric_literal ::= unsigned_integer",
+ /*  75 */ "unsigned_numeric_literal ::= unsigned_approximate_numeric",
+ /*  76 */ "general_literal ::= NK_STRING",
+ /*  77 */ "general_literal ::= NK_BOOL",
+ /*  78 */ "general_literal ::= NK_NOW",
+ /*  79 */ "unsigned_value_specification ::= unsigned_literal",
+ /*  80 */ "unsigned_value_specification ::= NK_QUESTION",
+ /*  81 */ "value_expression_primary ::= NK_LP value_expression NK_RP",
+ /*  82 */ "value_expression_primary ::= nonparenthesized_value_expression_primary",
+ /*  83 */ "nonparenthesized_value_expression_primary ::= unsigned_value_specification",
+ /*  84 */ "nonparenthesized_value_expression_primary ::= column_reference",
+ /*  85 */ "nonparenthesized_value_expression_primary ::= subquery",
+ /*  86 */ "table_primary ::= parenthesized_joined_table",
+ /*  87 */ "predicate ::=",
+ /*  88 */ "where_clause_opt ::=",
+ /*  89 */ "partition_by_clause_opt ::=",
+ /*  90 */ "twindow_clause_opt ::=",
+ /*  91 */ "group_by_clause_opt ::=",
+ /*  92 */ "having_clause_opt ::=",
+ /*  93 */ "value_function ::= NK_ID NK_LP value_expression NK_RP",
+ /*  94 */ "value_function ::= NK_ID NK_LP value_expression NK_COMMA value_expression NK_RP",
+ /*  95 */ "value_expression ::= common_value_expression",
+ /*  96 */ "common_value_expression ::= numeric_value_expression",
+ /*  97 */ "numeric_value_expression ::= numeric_primary",
+ /*  98 */ "numeric_value_expression ::= NK_PLUS numeric_primary",
+ /*  99 */ "numeric_value_expression ::= NK_MINUS numeric_primary",
+ /* 100 */ "numeric_value_expression ::= numeric_value_expression NK_PLUS numeric_value_expression",
+ /* 101 */ "numeric_value_expression ::= numeric_value_expression NK_MINUS numeric_value_expression",
+ /* 102 */ "numeric_value_expression ::= numeric_value_expression NK_STAR numeric_value_expression",
+ /* 103 */ "numeric_value_expression ::= numeric_value_expression NK_SLASH numeric_value_expression",
+ /* 104 */ "numeric_primary ::= value_expression_primary",
+ /* 105 */ "numeric_primary ::= value_function",
 };
 #endif /* NDEBUG */
 
@@ -665,60 +785,85 @@ static void yy_destructor(
     */
 /********* Begin destructor definitions ***************************************/
       /* Default NON-TERMINAL Destructor */
-    case 35: /* cmd */
-    case 36: /* query_expression */
-    case 37: /* value_function */
-    case 38: /* value_expression */
-    case 39: /* value_expression_primary */
-    case 40: /* nonparenthesized_value_expression_primary */
-    case 41: /* literal */
-    case 42: /* column_reference */
-    case 43: /* table_name */
-    case 44: /* common_value_expression */
-    case 45: /* numeric_value_expression */
-    case 46: /* numeric_primary */
-    case 47: /* query_specification */
-    case 50: /* from_clause */
-    case 52: /* select_item */
-    case 53: /* table_reference_list */
-    case 54: /* table_reference */
-    case 55: /* table_factor */
-    case 56: /* table_primary */
-    case 57: /* db_name */
-    case 58: /* derived_table */
-    case 59: /* table_subquery */
-    case 60: /* subquery */
-    case 61: /* with_clause_opt */
-    case 62: /* query_expression_body */
-    case 64: /* slimit_clause_opt */
-    case 65: /* limit_clause_opt */
-    case 66: /* query_primary */
-    case 68: /* sort_specification */
+    case 45: /* cmd */
+    case 46: /* query_expression */
+    case 47: /* unsigned_integer */
+    case 48: /* unsigned_approximate_numeric */
+    case 49: /* signed_integer */
+    case 50: /* unsigned_literal */
+    case 51: /* unsigned_numeric_literal */
+    case 52: /* general_literal */
+    case 57: /* unsigned_value_specification */
+    case 58: /* value_expression_primary */
+    case 59: /* value_expression */
+    case 60: /* nonparenthesized_value_expression_primary */
+    case 61: /* column_reference */
+    case 62: /* subquery */
+    case 63: /* boolean_value_expression */
+    case 64: /* boolean_primary */
+    case 65: /* predicate */
+    case 66: /* from_clause */
+    case 67: /* table_reference_list */
+    case 68: /* table_reference */
+    case 69: /* table_primary */
+    case 70: /* joined_table */
+    case 72: /* parenthesized_joined_table */
+    case 74: /* search_condition */
+    case 75: /* query_specification */
+    case 78: /* where_clause_opt */
+    case 80: /* twindow_clause_opt */
+    case 82: /* having_clause_opt */
+    case 84: /* select_item */
+    case 85: /* query_expression_body */
+    case 87: /* slimit_clause_opt */
+    case 88: /* limit_clause_opt */
+    case 89: /* query_primary */
+    case 91: /* sort_specification */
+    case 94: /* value_function */
+    case 95: /* common_value_expression */
+    case 96: /* numeric_value_expression */
+    case 97: /* numeric_primary */
 {
- nodesDestroyNode((yypminor->yy130)); 
+ PARSER_DESTRUCTOR_TRACE; nodesDestroyNode((yypminor->yy168)); 
 }
       break;
-    case 48: /* set_quantifier_opt */
+    case 53: /* db_name */
+    case 54: /* table_name */
+    case 55: /* column_name */
+    case 56: /* table_alias */
+    case 71: /* correlation_or_recognition_opt */
 {
-
+ PARSER_DESTRUCTOR_TRACE; 
 }
       break;
-    case 49: /* select_list */
-    case 51: /* select_sublist */
-    case 63: /* order_by_clause_opt */
-    case 67: /* sort_specification_list */
+    case 73: /* join_type */
 {
- nodesDestroyNodeList((yypminor->yy30)); 
+ PARSER_DESTRUCTOR_TRACE; 
 }
       break;
-    case 69: /* ordering_specification_opt */
+    case 76: /* set_quantifier_opt */
 {
-
+ PARSER_DESTRUCTOR_TRACE; 
 }
       break;
-    case 70: /* null_ordering_opt */
+    case 77: /* select_list */
+    case 79: /* partition_by_clause_opt */
+    case 81: /* group_by_clause_opt */
+    case 83: /* select_sublist */
+    case 86: /* order_by_clause_opt */
+    case 90: /* sort_specification_list */
 {
-
+ PARSER_DESTRUCTOR_TRACE; nodesDestroyList((yypminor->yy40)); 
+}
+      break;
+    case 92: /* ordering_specification_opt */
+{
+ PARSER_DESTRUCTOR_TRACE; 
+}
+      break;
+    case 93: /* null_ordering_opt */
+{
+ PARSER_DESTRUCTOR_TRACE; 
 }
       break;
 /********* End destructor definitions *****************************************/
@@ -1015,74 +1160,112 @@ static const struct {
   YYCODETYPE lhs;       /* Symbol on the left-hand side of the rule */
   signed char nrhs;     /* Negative of the number of RHS symbols in the rule */
 } yyRuleInfo[] = {
-  {   35,   -2 }, /* (0) cmd ::= SHOW DATABASES */
-  {   35,   -1 }, /* (1) cmd ::= query_expression */
-  {   42,   -1 }, /* (2) column_reference ::= NK_ID */
-  {   42,   -3 }, /* (3) column_reference ::= table_name NK_DOT NK_ID */
-  {   47,   -4 }, /* (4) query_specification ::= SELECT set_quantifier_opt select_list from_clause */
-  {   48,    0 }, /* (5) set_quantifier_opt ::= */
-  {   48,   -1 }, /* (6) set_quantifier_opt ::= DISTINCT */
-  {   48,   -1 }, /* (7) set_quantifier_opt ::= ALL */
-  {   49,   -1 }, /* (8) select_list ::= NK_STAR */
-  {   49,   -1 }, /* (9) select_list ::= select_sublist */
-  {   51,   -1 }, /* (10) select_sublist ::= select_item */
-  {   51,   -3 }, /* (11) select_sublist ::= select_sublist NK_COMMA select_item */
-  {   52,   -1 }, /* (12) select_item ::= value_expression */
-  {   52,   -3 }, /* (13) select_item ::= value_expression AS NK_ID */
-  {   52,   -3 }, /* (14) select_item ::= table_name NK_DOT NK_STAR */
-  {   50,   -2 }, /* (15) from_clause ::= FROM table_reference_list */
-  {   53,   -1 }, /* (16) table_reference_list ::= table_reference */
-  {   54,   -1 }, /* (17) table_reference ::= table_factor */
-  {   55,   -1 }, /* (18) table_factor ::= table_primary */
-  {   56,   -1 }, /* (19) table_primary ::= table_name */
-  {   56,   -3 }, /* (20) table_primary ::= db_name NK_DOT table_name */
-  {   57,   -1 }, /* (21) db_name ::= NK_ID */
-  {   43,   -1 }, /* (22) table_name ::= NK_ID */
-  {   36,   -5 }, /* (23) query_expression ::= with_clause_opt query_expression_body order_by_clause_opt slimit_clause_opt limit_clause_opt */
-  {   61,    0 }, /* (24) with_clause_opt ::= */
-  {   62,   -1 }, /* (25) query_expression_body ::= query_primary */
-  {   62,   -4 }, /* (26) query_expression_body ::= query_expression_body UNION ALL query_expression_body */
-  {   66,   -1 }, /* (27) query_primary ::= query_specification */
-  {   66,   -6 }, /* (28) query_primary ::= NK_LP query_expression_body order_by_clause_opt limit_clause_opt slimit_clause_opt NK_RP */
-  {   63,    0 }, /* (29) order_by_clause_opt ::= */
-  {   63,   -3 }, /* (30) order_by_clause_opt ::= ORDER BY sort_specification_list */
-  {   64,    0 }, /* (31) slimit_clause_opt ::= */
-  {   64,   -4 }, /* (32) slimit_clause_opt ::= SLIMIT NK_INTEGER SOFFSET NK_INTEGER */
-  {   64,   -4 }, /* (33) slimit_clause_opt ::= SLIMIT NK_INTEGER NK_COMMA NK_INTEGER */
-  {   65,    0 }, /* (34) limit_clause_opt ::= */
-  {   65,   -4 }, /* (35) limit_clause_opt ::= LIMIT NK_INTEGER OFFSET NK_INTEGER */
-  {   65,   -4 }, /* (36) limit_clause_opt ::= LIMIT NK_INTEGER NK_COMMA NK_INTEGER */
-  {   67,   -1 }, /* (37) sort_specification_list ::= sort_specification */
-  {   67,   -3 }, /* (38) sort_specification_list ::= sort_specification_list NK_COMMA sort_specification */
-  {   68,   -3 }, /* (39) sort_specification ::= value_expression ordering_specification_opt null_ordering_opt */
-  {   69,    0 }, /* (40) ordering_specification_opt ::= */
-  {   69,   -1 }, /* (41) ordering_specification_opt ::= ASC */
-  {   69,   -1 }, /* (42) ordering_specification_opt ::= DESC */
-  {   70,    0 }, /* (43) null_ordering_opt ::= */
-  {   70,   -2 }, /* (44) null_ordering_opt ::= NULLS FIRST */
-  {   70,   -2 }, /* (45) null_ordering_opt ::= NULLS LAST */
-  {   37,   -4 }, /* (46) value_function ::= NK_ID NK_LP value_expression NK_RP */
-  {   37,   -6 }, /* (47) value_function ::= NK_ID NK_LP value_expression NK_COMMA value_expression NK_RP */
-  {   39,   -3 }, /* (48) value_expression_primary ::= NK_LP value_expression NK_RP */
-  {   39,   -1 }, /* (49) value_expression_primary ::= nonparenthesized_value_expression_primary */
-  {   40,   -1 }, /* (50) nonparenthesized_value_expression_primary ::= literal */
-  {   40,   -1 }, /* (51) nonparenthesized_value_expression_primary ::= column_reference */
-  {   41,   -1 }, /* (52) literal ::= NK_LITERAL */
-  {   38,   -1 }, /* (53) value_expression ::= common_value_expression */
-  {   44,   -1 }, /* (54) common_value_expression ::= numeric_value_expression */
-  {   45,   -1 }, /* (55) numeric_value_expression ::= numeric_primary */
-  {   45,   -2 }, /* (56) numeric_value_expression ::= NK_PLUS numeric_primary */
-  {   45,   -2 }, /* (57) numeric_value_expression ::= NK_MINUS numeric_primary */
-  {   45,   -3 }, /* (58) numeric_value_expression ::= numeric_value_expression NK_PLUS numeric_value_expression */
-  {   45,   -3 }, /* (59) numeric_value_expression ::= numeric_value_expression NK_MINUS numeric_value_expression */
-  {   45,   -3 }, /* (60) numeric_value_expression ::= numeric_value_expression NK_STAR numeric_value_expression */
-  {   45,   -3 }, /* (61) numeric_value_expression ::= numeric_value_expression NK_SLASH numeric_value_expression */
-  {   46,   -1 }, /* (62) numeric_primary ::= value_expression_primary */
-  {   46,   -1 }, /* (63) numeric_primary ::= value_function */
-  {   56,   -1 }, /* (64) table_primary ::= derived_table */
-  {   58,   -1 }, /* (65) derived_table ::= table_subquery */
-  {   60,   -3 }, /* (66) subquery ::= NK_LR query_expression NK_RP */
-  {   59,   -1 }, /* (67) table_subquery ::= subquery */
+  {   45,   -2 }, /* (0) cmd ::= SHOW DATABASES */
+  {   45,   -1 }, /* (1) cmd ::= query_expression */
+  {   47,   -1 }, /* (2) unsigned_integer ::= NK_INTEGER */
+  {   48,   -1 }, /* (3) unsigned_approximate_numeric ::= NK_FLOAT */
+  {   49,   -1 }, /* (4) signed_integer ::= unsigned_integer */
+  {   49,   -2 }, /* (5) signed_integer ::= NK_PLUS unsigned_integer */
+  {   49,   -2 }, /* (6) signed_integer ::= NK_MINUS unsigned_integer */
+  {   53,   -1 }, /* (7) db_name ::= NK_ID */
+  {   54,   -1 }, /* (8) table_name ::= NK_ID */
+  {   55,   -1 }, /* (9) column_name ::= NK_ID */
+  {   56,   -1 }, /* (10) table_alias ::= NK_ID */
+  {   61,   -1 }, /* (11) column_reference ::= column_name */
+  {   61,   -3 }, /* (12) column_reference ::= table_name NK_DOT column_name */
+  {   63,   -1 }, /* (13) boolean_value_expression ::= boolean_primary */
+  {   63,   -2 }, /* (14) boolean_value_expression ::= NOT boolean_primary */
+  {   63,   -3 }, /* (15) boolean_value_expression ::= boolean_value_expression OR boolean_value_expression */
+  {   63,   -3 }, /* (16) boolean_value_expression ::= boolean_value_expression AND boolean_value_expression */
+  {   64,   -1 }, /* (17) boolean_primary ::= predicate */
+  {   64,   -3 }, /* (18) boolean_primary ::= NK_LP boolean_value_expression NK_RP */
+  {   66,   -2 }, /* (19) from_clause ::= FROM table_reference_list */
+  {   67,   -1 }, /* (20) table_reference_list ::= table_reference */
+  {   67,   -3 }, /* (21) table_reference_list ::= table_reference_list NK_COMMA table_reference */
+  {   68,   -1 }, /* (22) table_reference ::= table_primary */
+  {   68,   -1 }, /* (23) table_reference ::= joined_table */
+  {   69,   -2 }, /* (24) table_primary ::= table_name correlation_or_recognition_opt */
+  {   69,   -4 }, /* (25) table_primary ::= db_name NK_DOT table_name correlation_or_recognition_opt */
+  {   69,   -2 }, /* (26) table_primary ::= subquery correlation_or_recognition_opt */
+  {   71,    0 }, /* (27) correlation_or_recognition_opt ::= */
+  {   71,   -1 }, /* (28) correlation_or_recognition_opt ::= table_alias */
+  {   71,   -2 }, /* (29) correlation_or_recognition_opt ::= AS table_alias */
+  {   72,   -3 }, /* (30) parenthesized_joined_table ::= NK_LP joined_table NK_RP */
+  {   72,   -3 }, /* (31) parenthesized_joined_table ::= NK_LP parenthesized_joined_table NK_RP */
+  {   70,   -6 }, /* (32) joined_table ::= table_reference join_type JOIN table_reference ON search_condition */
+  {   73,   -1 }, /* (33) join_type ::= INNER */
+  {   75,   -9 }, /* (34) query_specification ::= SELECT set_quantifier_opt select_list from_clause where_clause_opt partition_by_clause_opt twindow_clause_opt group_by_clause_opt having_clause_opt */
+  {   76,    0 }, /* (35) set_quantifier_opt ::= */
+  {   76,   -1 }, /* (36) set_quantifier_opt ::= DISTINCT */
+  {   76,   -1 }, /* (37) set_quantifier_opt ::= ALL */
+  {   77,   -1 }, /* (38) select_list ::= NK_STAR */
+  {   77,   -1 }, /* (39) select_list ::= select_sublist */
+  {   83,   -1 }, /* (40) select_sublist ::= select_item */
+  {   83,   -3 }, /* (41) select_sublist ::= select_sublist NK_COMMA select_item */
+  {   84,   -1 }, /* (42) select_item ::= value_expression */
+  {   84,   -2 }, /* (43) select_item ::= value_expression NK_ID */
+  {   84,   -3 }, /* (44) select_item ::= value_expression AS NK_ID */
+  {   84,   -3 }, /* (45) select_item ::= table_name NK_DOT NK_STAR */
+  {   46,   -4 }, /* (46) query_expression ::= query_expression_body order_by_clause_opt slimit_clause_opt limit_clause_opt */
+  {   85,   -1 }, /* (47) query_expression_body ::= query_primary */
+  {   85,   -4 }, /* (48) query_expression_body ::= query_expression_body UNION ALL query_expression_body */
+  {   89,   -1 }, /* (49) query_primary ::= query_specification */
+  {   89,   -6 }, /* (50) query_primary ::= NK_LP query_expression_body order_by_clause_opt limit_clause_opt slimit_clause_opt NK_RP */
+  {   86,    0 }, /* (51) order_by_clause_opt ::= */
+  {   86,   -3 }, /* (52) order_by_clause_opt ::= ORDER BY sort_specification_list */
+  {   87,    0 }, /* (53) slimit_clause_opt ::= */
+  {   87,   -2 }, /* (54) slimit_clause_opt ::= SLIMIT signed_integer */
+  {   87,   -4 }, /* (55) slimit_clause_opt ::= SLIMIT signed_integer SOFFSET signed_integer */
+  {   87,   -4 }, /* (56) slimit_clause_opt ::= SLIMIT signed_integer NK_COMMA signed_integer */
+  {   88,    0 }, /* (57) limit_clause_opt ::= */
+  {   88,   -2 }, /* (58) limit_clause_opt ::= LIMIT signed_integer */
+  {   88,   -4 }, /* (59) limit_clause_opt ::= LIMIT signed_integer OFFSET signed_integer */
+  {   88,   -4 }, /* (60) limit_clause_opt ::= LIMIT signed_integer NK_COMMA signed_integer */
+  {   62,   -3 }, /* (61) subquery ::= NK_LR query_expression NK_RP */
+  {   74,   -1 }, /* (62) search_condition ::= boolean_value_expression */
+  {   90,   -1 }, /* (63) sort_specification_list ::= sort_specification */
+  {   90,   -3 }, /* (64) sort_specification_list ::= sort_specification_list NK_COMMA sort_specification */
+  {   91,   -3 }, /* (65) sort_specification ::= value_expression ordering_specification_opt null_ordering_opt */
+  {   92,    0 }, /* (66) ordering_specification_opt ::= */
+  {   92,   -1 }, /* (67) ordering_specification_opt ::= ASC */
+  {   92,   -1 }, /* (68) ordering_specification_opt ::= DESC */
+  {   93,    0 }, /* (69) null_ordering_opt ::= */
+  {   93,   -2 }, /* (70) null_ordering_opt ::= NULLS FIRST */
+  {   93,   -2 }, /* (71) null_ordering_opt ::= NULLS LAST */
+  {   50,   -1 }, /* (72) unsigned_literal ::= unsigned_numeric_literal */
+  {   50,   -1 }, /* (73) unsigned_literal ::= general_literal */
+  {   51,   -1 }, /* (74) unsigned_numeric_literal ::= unsigned_integer */
+  {   51,   -1 }, /* (75) unsigned_numeric_literal ::= unsigned_approximate_numeric */
+  {   52,   -1 }, /* (76) general_literal ::= NK_STRING */
+  {   52,   -1 }, /* (77) general_literal ::= NK_BOOL */
+  {   52,   -1 }, /* (78) general_literal ::= NK_NOW */
+  {   57,   -1 }, /* (79) unsigned_value_specification ::= unsigned_literal */
+  {   57,   -1 }, /* (80) unsigned_value_specification ::= NK_QUESTION */
+  {   58,   -3 }, /* (81) value_expression_primary ::= NK_LP value_expression NK_RP */
+  {   58,   -1 }, /* (82) value_expression_primary ::= nonparenthesized_value_expression_primary */
+  {   60,   -1 }, /* (83) nonparenthesized_value_expression_primary ::= unsigned_value_specification */
+  {   60,   -1 }, /* (84) nonparenthesized_value_expression_primary ::= column_reference */
+  {   60,   -1 }, /* (85) nonparenthesized_value_expression_primary ::= subquery */
+  {   69,   -1 }, /* (86) table_primary ::= parenthesized_joined_table */
+  {   65,    0 }, /* (87) predicate ::= */
+  {   78,    0 }, /* (88) where_clause_opt ::= */
+  {   79,    0 }, /* (89) partition_by_clause_opt ::= */
+  {   80,    0 }, /* (90) twindow_clause_opt ::= */
+  {   81,    0 }, /* (91) group_by_clause_opt ::= */
+  {   82,    0 }, /* (92) having_clause_opt ::= */
+  {   94,   -4 }, /* (93) value_function ::= NK_ID NK_LP value_expression NK_RP */
+  {   94,   -6 }, /* (94) value_function ::= NK_ID NK_LP value_expression NK_COMMA value_expression NK_RP */
+  {   59,   -1 }, /* (95) value_expression ::= common_value_expression */
+  {   95,   -1 }, /* (96) common_value_expression ::= numeric_value_expression */
+  {   96,   -1 }, /* (97) numeric_value_expression ::= numeric_primary */
+  {   96,   -2 }, /* (98) numeric_value_expression ::= NK_PLUS numeric_primary */
+  {   96,   -2 }, /* (99) numeric_value_expression ::= NK_MINUS numeric_primary */
+  {   96,   -3 }, /* (100) numeric_value_expression ::= numeric_value_expression NK_PLUS numeric_value_expression */
+  {   96,   -3 }, /* (101) numeric_value_expression ::= numeric_value_expression NK_MINUS numeric_value_expression */
+  {   96,   -3 }, /* (102) numeric_value_expression ::= numeric_value_expression NK_STAR numeric_value_expression */
+  {   96,   -3 }, /* (103) numeric_value_expression ::= numeric_value_expression NK_SLASH numeric_value_expression */
+  {   97,   -1 }, /* (104) numeric_primary ::= value_expression_primary */
+  {   97,   -1 }, /* (105) numeric_primary ::= value_function */
 };
 
 static void yy_accept(yyParser*);  /* Forward Declaration */
@@ -1173,240 +1356,347 @@ static YYACTIONTYPE yy_reduce(
 { PARSER_TRACE; createShowStmt(pCxt, SHOW_TYPE_DATABASE); }
         break;
       case 1: /* cmd ::= query_expression */
-{ PARSER_TRACE; pCxt->pRootNode = yymsp[0].minor.yy130; }
+{ PARSER_TRACE; pCxt->pRootNode = yymsp[0].minor.yy168; }
         break;
-      case 2: /* column_reference ::= NK_ID */
-{ PARSER_TRACE; yylhsminor.yy130 = createColumnNode(pCxt, NULL, &yymsp[0].minor.yy0); }
-  yymsp[0].minor.yy130 = yylhsminor.yy130;
+      case 2: /* unsigned_integer ::= NK_INTEGER */
+{ yylhsminor.yy168 = createValueNode(pCxt, TSDB_DATA_TYPE_BIGINT, &yymsp[0].minor.yy0); }
+  yymsp[0].minor.yy168 = yylhsminor.yy168;
         break;
-      case 3: /* column_reference ::= table_name NK_DOT NK_ID */
-      case 14: /* select_item ::= table_name NK_DOT NK_STAR */ yytestcase(yyruleno==14);
-{ PARSER_TRACE; yylhsminor.yy130 = createColumnNode(pCxt, &yymsp[-2].minor.yy67, &yymsp[0].minor.yy0); }
-  yymsp[-2].minor.yy130 = yylhsminor.yy130;
+      case 3: /* unsigned_approximate_numeric ::= NK_FLOAT */
+{ yylhsminor.yy168 = createValueNode(pCxt, TSDB_DATA_TYPE_DOUBLE, &yymsp[0].minor.yy0); }
+  yymsp[0].minor.yy168 = yylhsminor.yy168;
         break;
-      case 4: /* query_specification ::= SELECT set_quantifier_opt select_list from_clause */
-{ PARSER_TRACE; yymsp[-3].minor.yy130 = createSelectStmt(pCxt, yymsp[-2].minor.yy9, yymsp[-1].minor.yy30, yymsp[0].minor.yy130); }
+      case 4: /* signed_integer ::= unsigned_integer */
+{ yylhsminor.yy168 = yymsp[0].minor.yy168; }
+  yymsp[0].minor.yy168 = yylhsminor.yy168;
         break;
-      case 5: /* set_quantifier_opt ::= */
-{ PARSER_TRACE; yymsp[1].minor.yy9 = false; }
+      case 5: /* signed_integer ::= NK_PLUS unsigned_integer */
+{ yymsp[-1].minor.yy168 = yymsp[0].minor.yy168; }
         break;
-      case 6: /* set_quantifier_opt ::= DISTINCT */
-{ PARSER_TRACE; yymsp[0].minor.yy9 = true; }
+      case 6: /* signed_integer ::= NK_MINUS unsigned_integer */
+{ yymsp[-1].minor.yy168 = addMinusSign(pCxt, yymsp[0].minor.yy168);}
         break;
-      case 7: /* set_quantifier_opt ::= ALL */
-{ PARSER_TRACE; yymsp[0].minor.yy9 = false; }
+      case 7: /* db_name ::= NK_ID */
+      case 8: /* table_name ::= NK_ID */ yytestcase(yyruleno==8);
+      case 9: /* column_name ::= NK_ID */ yytestcase(yyruleno==9);
+      case 10: /* table_alias ::= NK_ID */ yytestcase(yyruleno==10);
+{ PARSER_TRACE; yylhsminor.yy169 = yymsp[0].minor.yy0; }
+  yymsp[0].minor.yy169 = yylhsminor.yy169;
         break;
-      case 8: /* select_list ::= NK_STAR */
-{ PARSER_TRACE; yymsp[0].minor.yy30 = NULL; }
+      case 11: /* column_reference ::= column_name */
+{ PARSER_TRACE; yylhsminor.yy168 = createColumnNode(pCxt, NULL, &yymsp[0].minor.yy169); }
+  yymsp[0].minor.yy168 = yylhsminor.yy168;
         break;
-      case 9: /* select_list ::= select_sublist */
-{ PARSER_TRACE; yylhsminor.yy30 = yymsp[0].minor.yy30; }
-  yymsp[0].minor.yy30 = yylhsminor.yy30;
+      case 12: /* column_reference ::= table_name NK_DOT column_name */
+{ PARSER_TRACE; yylhsminor.yy168 = createColumnNode(pCxt, &yymsp[-2].minor.yy169, &yymsp[0].minor.yy169); }
+  yymsp[-2].minor.yy168 = yylhsminor.yy168;
         break;
-      case 10: /* select_sublist ::= select_item */
-      case 37: /* sort_specification_list ::= sort_specification */ yytestcase(yyruleno==37);
-{ PARSER_TRACE; yylhsminor.yy30 = createNodeList(pCxt, yymsp[0].minor.yy130); }
-  yymsp[0].minor.yy30 = yylhsminor.yy30;
+      case 13: /* boolean_value_expression ::= boolean_primary */
+      case 17: /* boolean_primary ::= predicate */ yytestcase(yyruleno==17);
+      case 20: /* table_reference_list ::= table_reference */ yytestcase(yyruleno==20);
+      case 22: /* table_reference ::= table_primary */ yytestcase(yyruleno==22);
+      case 23: /* table_reference ::= joined_table */ yytestcase(yyruleno==23);
+      case 42: /* select_item ::= value_expression */ yytestcase(yyruleno==42);
+      case 47: /* query_expression_body ::= query_primary */ yytestcase(yyruleno==47);
+      case 49: /* query_primary ::= query_specification */ yytestcase(yyruleno==49);
+      case 62: /* search_condition ::= boolean_value_expression */ yytestcase(yyruleno==62);
+{ PARSER_TRACE; yylhsminor.yy168 = yymsp[0].minor.yy168; }
+  yymsp[0].minor.yy168 = yylhsminor.yy168;
         break;
-      case 11: /* select_sublist ::= select_sublist NK_COMMA select_item */
-      case 38: /* sort_specification_list ::= sort_specification_list NK_COMMA sort_specification */ yytestcase(yyruleno==38);
-{ PARSER_TRACE; yylhsminor.yy30 = addNodeToList(pCxt, yymsp[-2].minor.yy30, yymsp[0].minor.yy130); }
-  yymsp[-2].minor.yy30 = yylhsminor.yy30;
+      case 14: /* boolean_value_expression ::= NOT boolean_primary */
+{ PARSER_TRACE; yymsp[-1].minor.yy168 = createLogicConditionNode(pCxt, LOGIC_COND_TYPE_NOT, yymsp[0].minor.yy168, NULL); }
         break;
-      case 12: /* select_item ::= value_expression */
-      case 16: /* table_reference_list ::= table_reference */ yytestcase(yyruleno==16);
-      case 17: /* table_reference ::= table_factor */ yytestcase(yyruleno==17);
-      case 18: /* table_factor ::= table_primary */ yytestcase(yyruleno==18);
-      case 25: /* query_expression_body ::= query_primary */ yytestcase(yyruleno==25);
-      case 27: /* query_primary ::= query_specification */ yytestcase(yyruleno==27);
-{ PARSER_TRACE; yylhsminor.yy130 = yymsp[0].minor.yy130; }
-  yymsp[0].minor.yy130 = yylhsminor.yy130;
+      case 15: /* boolean_value_expression ::= boolean_value_expression OR boolean_value_expression */
+{ PARSER_TRACE; yylhsminor.yy168 = createLogicConditionNode(pCxt, LOGIC_COND_TYPE_OR, yymsp[-2].minor.yy168, yymsp[0].minor.yy168); }
+  yymsp[-2].minor.yy168 = yylhsminor.yy168;
         break;
-      case 13: /* select_item ::= value_expression AS NK_ID */
-{ PARSER_TRACE; yylhsminor.yy130 = setProjectionAlias(pCxt, yymsp[-2].minor.yy130, &yymsp[0].minor.yy0); }
-  yymsp[-2].minor.yy130 = yylhsminor.yy130;
+      case 16: /* boolean_value_expression ::= boolean_value_expression AND boolean_value_expression */
+{ PARSER_TRACE; yylhsminor.yy168 = createLogicConditionNode(pCxt, LOGIC_COND_TYPE_AND, yymsp[-2].minor.yy168, yymsp[0].minor.yy168); }
+  yymsp[-2].minor.yy168 = yylhsminor.yy168;
         break;
-      case 15: /* from_clause ::= FROM table_reference_list */
-{ PARSER_TRACE; yymsp[-1].minor.yy130 = yymsp[0].minor.yy130; }
+      case 18: /* boolean_primary ::= NK_LP boolean_value_expression NK_RP */
+      case 30: /* parenthesized_joined_table ::= NK_LP joined_table NK_RP */ yytestcase(yyruleno==30);
+      case 31: /* parenthesized_joined_table ::= NK_LP parenthesized_joined_table NK_RP */ yytestcase(yyruleno==31);
+      case 61: /* subquery ::= NK_LR query_expression NK_RP */ yytestcase(yyruleno==61);
+{ PARSER_TRACE; yymsp[-2].minor.yy168 = yymsp[-1].minor.yy168; }
         break;
-      case 19: /* table_primary ::= table_name */
-{ PARSER_TRACE; yylhsminor.yy130 = createRealTableNode(pCxt, NULL, &yymsp[0].minor.yy67); }
-  yymsp[0].minor.yy130 = yylhsminor.yy130;
+      case 19: /* from_clause ::= FROM table_reference_list */
+{ PARSER_TRACE; yymsp[-1].minor.yy168 = yymsp[0].minor.yy168; }
         break;
-      case 20: /* table_primary ::= db_name NK_DOT table_name */
-{ PARSER_TRACE; yylhsminor.yy130 = createRealTableNode(pCxt, &yymsp[-2].minor.yy67, &yymsp[0].minor.yy67); }
-  yymsp[-2].minor.yy130 = yylhsminor.yy130;
+      case 21: /* table_reference_list ::= table_reference_list NK_COMMA table_reference */
+{ PARSER_TRACE; yylhsminor.yy168 = createJoinTableNode(pCxt, JOIN_TYPE_INNER, yymsp[-2].minor.yy168, yymsp[0].minor.yy168, NULL); }
+  yymsp[-2].minor.yy168 = yylhsminor.yy168;
         break;
-      case 21: /* db_name ::= NK_ID */
-      case 22: /* table_name ::= NK_ID */ yytestcase(yyruleno==22);
-{ PARSER_TRACE; yylhsminor.yy67 = yymsp[0].minor.yy0; }
-  yymsp[0].minor.yy67 = yylhsminor.yy67;
+      case 24: /* table_primary ::= table_name correlation_or_recognition_opt */
+{ PARSER_TRACE; yylhsminor.yy168 = createRealTableNode(pCxt, NULL, &yymsp[-1].minor.yy169, &yymsp[0].minor.yy169); }
+  yymsp[-1].minor.yy168 = yylhsminor.yy168;
         break;
-      case 23: /* query_expression ::= with_clause_opt query_expression_body order_by_clause_opt slimit_clause_opt limit_clause_opt */
-{  yy_destructor(yypParser,61,&yymsp[-4].minor);
+      case 25: /* table_primary ::= db_name NK_DOT table_name correlation_or_recognition_opt */
+{ PARSER_TRACE; yylhsminor.yy168 = createRealTableNode(pCxt, &yymsp[-3].minor.yy169, &yymsp[-1].minor.yy169, &yymsp[0].minor.yy169); }
+  yymsp[-3].minor.yy168 = yylhsminor.yy168;
+        break;
+      case 26: /* table_primary ::= subquery correlation_or_recognition_opt */
+{ PARSER_TRACE; yylhsminor.yy168 = createTempTableNode(pCxt, yymsp[-1].minor.yy168, &yymsp[0].minor.yy169); }
+  yymsp[-1].minor.yy168 = yylhsminor.yy168;
+        break;
+      case 27: /* correlation_or_recognition_opt ::= */
+{ PARSER_TRACE; yymsp[1].minor.yy169 = nil_token;  }
+        break;
+      case 28: /* correlation_or_recognition_opt ::= table_alias */
+{ PARSER_TRACE; yylhsminor.yy169 = yymsp[0].minor.yy169; }
+  yymsp[0].minor.yy169 = yylhsminor.yy169;
+        break;
+      case 29: /* correlation_or_recognition_opt ::= AS table_alias */
+{ PARSER_TRACE; yymsp[-1].minor.yy169 = yymsp[0].minor.yy169; }
+        break;
+      case 32: /* joined_table ::= table_reference join_type JOIN table_reference ON search_condition */
+{ PARSER_TRACE; yylhsminor.yy168 = createJoinTableNode(pCxt, yymsp[-4].minor.yy148, yymsp[-5].minor.yy168, yymsp[-2].minor.yy168, yymsp[0].minor.yy168); }
+  yymsp[-5].minor.yy168 = yylhsminor.yy168;
+        break;
+      case 33: /* join_type ::= INNER */
+{ PARSER_TRACE; yymsp[0].minor.yy148 = JOIN_TYPE_INNER; }
+        break;
+      case 34: /* query_specification ::= SELECT set_quantifier_opt select_list from_clause where_clause_opt partition_by_clause_opt twindow_clause_opt group_by_clause_opt having_clause_opt */
 { 
-                                                                                                                                    PARSER_TRACE;
-                                                                                                                                    addOrderByList(pCxt, yymsp[-3].minor.yy130, yymsp[-2].minor.yy30);
-                                                                                                                                    addSlimit(pCxt, yymsp[-3].minor.yy130, yymsp[-1].minor.yy130);
-                                                                                                                                    addLimit(pCxt, yymsp[-3].minor.yy130, yymsp[0].minor.yy130);
-                                                                                                                                    yymsp[-4].minor.yy130 = yymsp[-3].minor.yy130;  
-                                                                                                                                  }
-}
+                                                                                    PARSER_TRACE;
+                                                                                    yymsp[-8].minor.yy168 = createSelectStmt(pCxt, yymsp[-7].minor.yy173, yymsp[-6].minor.yy40, yymsp[-5].minor.yy168);
+                                                                                    yymsp[-8].minor.yy168 = addWhereClause(pCxt, yymsp[-8].minor.yy168, yymsp[-4].minor.yy168);
+                                                                                    yymsp[-8].minor.yy168 = addPartitionByClause(pCxt, yymsp[-8].minor.yy168, yymsp[-3].minor.yy40);
+                                                                                    yymsp[-8].minor.yy168 = addWindowClauseClause(pCxt, yymsp[-8].minor.yy168, yymsp[-2].minor.yy168);
+                                                                                    yymsp[-8].minor.yy168 = addGroupByClause(pCxt, yymsp[-8].minor.yy168, yymsp[-1].minor.yy40);
+                                                                                    yymsp[-8].minor.yy168 = addHavingClause(pCxt, yymsp[-8].minor.yy168, yymsp[0].minor.yy168);
+                                                                                  }
         break;
-      case 24: /* with_clause_opt ::= */
-{}
+      case 35: /* set_quantifier_opt ::= */
+{ PARSER_TRACE; yymsp[1].minor.yy173 = false; }
         break;
-      case 26: /* query_expression_body ::= query_expression_body UNION ALL query_expression_body */
-{ PARSER_TRACE; yylhsminor.yy130 = createSetOperator(pCxt, SET_OP_TYPE_UNION_ALL, yymsp[-3].minor.yy130, yymsp[0].minor.yy130); }
-  yymsp[-3].minor.yy130 = yylhsminor.yy130;
+      case 36: /* set_quantifier_opt ::= DISTINCT */
+{ PARSER_TRACE; yymsp[0].minor.yy173 = true; }
         break;
-      case 28: /* query_primary ::= NK_LP query_expression_body order_by_clause_opt limit_clause_opt slimit_clause_opt NK_RP */
-{ PARSER_TRACE; yymsp[-5].minor.yy130 = yymsp[-4].minor.yy130;}
-  yy_destructor(yypParser,63,&yymsp[-3].minor);
-  yy_destructor(yypParser,65,&yymsp[-2].minor);
-  yy_destructor(yypParser,64,&yymsp[-1].minor);
+      case 37: /* set_quantifier_opt ::= ALL */
+{ PARSER_TRACE; yymsp[0].minor.yy173 = false; }
         break;
-      case 29: /* order_by_clause_opt ::= */
-{ PARSER_TRACE; yymsp[1].minor.yy30 = NULL; }
+      case 38: /* select_list ::= NK_STAR */
+{ PARSER_TRACE; yymsp[0].minor.yy40 = NULL; }
         break;
-      case 30: /* order_by_clause_opt ::= ORDER BY sort_specification_list */
-{ PARSER_TRACE; yymsp[-2].minor.yy30 = yymsp[0].minor.yy30; }
+      case 39: /* select_list ::= select_sublist */
+{ PARSER_TRACE; yylhsminor.yy40 = yymsp[0].minor.yy40; }
+  yymsp[0].minor.yy40 = yylhsminor.yy40;
         break;
-      case 31: /* slimit_clause_opt ::= */
-      case 34: /* limit_clause_opt ::= */ yytestcase(yyruleno==34);
-{ yymsp[1].minor.yy130 = NULL; }
+      case 40: /* select_sublist ::= select_item */
+      case 63: /* sort_specification_list ::= sort_specification */ yytestcase(yyruleno==63);
+{ PARSER_TRACE; yylhsminor.yy40 = createNodeList(pCxt, yymsp[0].minor.yy168); }
+  yymsp[0].minor.yy40 = yylhsminor.yy40;
         break;
-      case 32: /* slimit_clause_opt ::= SLIMIT NK_INTEGER SOFFSET NK_INTEGER */
-      case 35: /* limit_clause_opt ::= LIMIT NK_INTEGER OFFSET NK_INTEGER */ yytestcase(yyruleno==35);
-{ yymsp[-3].minor.yy130 = createLimitNode(pCxt, &yymsp[-2].minor.yy0, &yymsp[0].minor.yy0); }
+      case 41: /* select_sublist ::= select_sublist NK_COMMA select_item */
+      case 64: /* sort_specification_list ::= sort_specification_list NK_COMMA sort_specification */ yytestcase(yyruleno==64);
+{ PARSER_TRACE; yylhsminor.yy40 = addNodeToList(pCxt, yymsp[-2].minor.yy40, yymsp[0].minor.yy168); }
+  yymsp[-2].minor.yy40 = yylhsminor.yy40;
         break;
-      case 33: /* slimit_clause_opt ::= SLIMIT NK_INTEGER NK_COMMA NK_INTEGER */
-      case 36: /* limit_clause_opt ::= LIMIT NK_INTEGER NK_COMMA NK_INTEGER */ yytestcase(yyruleno==36);
-{ yymsp[-3].minor.yy130 = createLimitNode(pCxt, &yymsp[0].minor.yy0, &yymsp[-2].minor.yy0); }
+      case 43: /* select_item ::= value_expression NK_ID */
+{ PARSER_TRACE; yylhsminor.yy168 = setProjectionAlias(pCxt, yymsp[-1].minor.yy168, &yymsp[0].minor.yy0); }
+  yymsp[-1].minor.yy168 = yylhsminor.yy168;
         break;
-      case 39: /* sort_specification ::= value_expression ordering_specification_opt null_ordering_opt */
-{ PARSER_TRACE; yylhsminor.yy130 = createOrderByExprNode(pCxt, yymsp[-2].minor.yy130, yymsp[-1].minor.yy108, yymsp[0].minor.yy68); }
-  yymsp[-2].minor.yy130 = yylhsminor.yy130;
+      case 44: /* select_item ::= value_expression AS NK_ID */
+{ PARSER_TRACE; yylhsminor.yy168 = setProjectionAlias(pCxt, yymsp[-2].minor.yy168, &yymsp[0].minor.yy0); }
+  yymsp[-2].minor.yy168 = yylhsminor.yy168;
         break;
-      case 40: /* ordering_specification_opt ::= */
-{ PARSER_TRACE; yymsp[1].minor.yy108 = ORDER_ASC; }
+      case 45: /* select_item ::= table_name NK_DOT NK_STAR */
+{ PARSER_TRACE; yylhsminor.yy168 = createColumnNode(pCxt, &yymsp[-2].minor.yy169, &yymsp[0].minor.yy0); }
+  yymsp[-2].minor.yy168 = yylhsminor.yy168;
         break;
-      case 41: /* ordering_specification_opt ::= ASC */
-{ PARSER_TRACE; yymsp[0].minor.yy108 = ORDER_ASC; }
+      case 46: /* query_expression ::= query_expression_body order_by_clause_opt slimit_clause_opt limit_clause_opt */
+{ 
+                                                                                    PARSER_TRACE;
+                                                                                    yylhsminor.yy168 = addOrderByClause(pCxt, yymsp[-3].minor.yy168, yymsp[-2].minor.yy40);
+                                                                                    yylhsminor.yy168 = addSlimitClause(pCxt, yylhsminor.yy168, yymsp[-1].minor.yy168);
+                                                                                    yylhsminor.yy168 = addLimitClause(pCxt, yylhsminor.yy168, yymsp[0].minor.yy168);
+                                                                                  }
+  yymsp[-3].minor.yy168 = yylhsminor.yy168;
         break;
-      case 42: /* ordering_specification_opt ::= DESC */
-{ PARSER_TRACE; yymsp[0].minor.yy108 = ORDER_DESC; }
+      case 48: /* query_expression_body ::= query_expression_body UNION ALL query_expression_body */
+{ PARSER_TRACE; yylhsminor.yy168 = createSetOperator(pCxt, SET_OP_TYPE_UNION_ALL, yymsp[-3].minor.yy168, yymsp[0].minor.yy168); }
+  yymsp[-3].minor.yy168 = yylhsminor.yy168;
         break;
-      case 43: /* null_ordering_opt ::= */
-{ PARSER_TRACE; yymsp[1].minor.yy68 = NULL_ORDER_DEFAULT; }
+      case 50: /* query_primary ::= NK_LP query_expression_body order_by_clause_opt limit_clause_opt slimit_clause_opt NK_RP */
+{ PARSER_TRACE; yymsp[-5].minor.yy168 = yymsp[-4].minor.yy168;}
+  yy_destructor(yypParser,86,&yymsp[-3].minor);
+  yy_destructor(yypParser,88,&yymsp[-2].minor);
+  yy_destructor(yypParser,87,&yymsp[-1].minor);
         break;
-      case 44: /* null_ordering_opt ::= NULLS FIRST */
-{ PARSER_TRACE; yymsp[-1].minor.yy68 = NULL_ORDER_FIRST; }
+      case 51: /* order_by_clause_opt ::= */
+{ PARSER_TRACE; yymsp[1].minor.yy40 = NULL; }
         break;
-      case 45: /* null_ordering_opt ::= NULLS LAST */
-{ PARSER_TRACE; yymsp[-1].minor.yy68 = NULL_ORDER_LAST; }
+      case 52: /* order_by_clause_opt ::= ORDER BY sort_specification_list */
+{ PARSER_TRACE; yymsp[-2].minor.yy40 = yymsp[0].minor.yy40; }
         break;
-      case 46: /* value_function ::= NK_ID NK_LP value_expression NK_RP */
-      case 48: /* value_expression_primary ::= NK_LP value_expression NK_RP */ yytestcase(yyruleno==48);
-{
-}
-  yy_destructor(yypParser,38,&yymsp[-1].minor);
+      case 53: /* slimit_clause_opt ::= */
+      case 57: /* limit_clause_opt ::= */ yytestcase(yyruleno==57);
+{ PARSER_TRACE; yymsp[1].minor.yy168 = NULL; }
         break;
-      case 47: /* value_function ::= NK_ID NK_LP value_expression NK_COMMA value_expression NK_RP */
-{
-}
-  yy_destructor(yypParser,38,&yymsp[-3].minor);
-  yy_destructor(yypParser,38,&yymsp[-1].minor);
+      case 54: /* slimit_clause_opt ::= SLIMIT signed_integer */
+      case 58: /* limit_clause_opt ::= LIMIT signed_integer */ yytestcase(yyruleno==58);
+{ PARSER_TRACE; yymsp[-1].minor.yy168 = createLimitNode(pCxt, yymsp[0].minor.yy168, 0); }
         break;
-      case 49: /* value_expression_primary ::= nonparenthesized_value_expression_primary */
-{  yy_destructor(yypParser,40,&yymsp[0].minor);
-{
-}
-}
+      case 55: /* slimit_clause_opt ::= SLIMIT signed_integer SOFFSET signed_integer */
+      case 59: /* limit_clause_opt ::= LIMIT signed_integer OFFSET signed_integer */ yytestcase(yyruleno==59);
+{ PARSER_TRACE; yymsp[-3].minor.yy168 = createLimitNode(pCxt, yymsp[-2].minor.yy168, yymsp[0].minor.yy168); }
         break;
-      case 50: /* nonparenthesized_value_expression_primary ::= literal */
-{  yy_destructor(yypParser,41,&yymsp[0].minor);
-{
-}
-}
+      case 56: /* slimit_clause_opt ::= SLIMIT signed_integer NK_COMMA signed_integer */
+      case 60: /* limit_clause_opt ::= LIMIT signed_integer NK_COMMA signed_integer */ yytestcase(yyruleno==60);
+{ PARSER_TRACE; yymsp[-3].minor.yy168 = createLimitNode(pCxt, yymsp[0].minor.yy168, yymsp[-2].minor.yy168); }
         break;
-      case 51: /* nonparenthesized_value_expression_primary ::= column_reference */
-{  yy_destructor(yypParser,42,&yymsp[0].minor);
-{
-}
-}
+      case 65: /* sort_specification ::= value_expression ordering_specification_opt null_ordering_opt */
+{ PARSER_TRACE; yylhsminor.yy168 = createOrderByExprNode(pCxt, yymsp[-2].minor.yy168, yymsp[-1].minor.yy106, yymsp[0].minor.yy193); }
+  yymsp[-2].minor.yy168 = yylhsminor.yy168;
         break;
-      case 53: /* value_expression ::= common_value_expression */
-{  yy_destructor(yypParser,44,&yymsp[0].minor);
-{
-}
-}
+      case 66: /* ordering_specification_opt ::= */
+{ PARSER_TRACE; yymsp[1].minor.yy106 = ORDER_ASC; }
         break;
-      case 54: /* common_value_expression ::= numeric_value_expression */
-{  yy_destructor(yypParser,45,&yymsp[0].minor);
-{
-}
-}
+      case 67: /* ordering_specification_opt ::= ASC */
+{ PARSER_TRACE; yymsp[0].minor.yy106 = ORDER_ASC; }
         break;
-      case 55: /* numeric_value_expression ::= numeric_primary */
-{  yy_destructor(yypParser,46,&yymsp[0].minor);
-{
-}
-}
+      case 68: /* ordering_specification_opt ::= DESC */
+{ PARSER_TRACE; yymsp[0].minor.yy106 = ORDER_DESC; }
         break;
-      case 56: /* numeric_value_expression ::= NK_PLUS numeric_primary */
-      case 57: /* numeric_value_expression ::= NK_MINUS numeric_primary */ yytestcase(yyruleno==57);
-{
-}
-  yy_destructor(yypParser,46,&yymsp[0].minor);
+      case 69: /* null_ordering_opt ::= */
+{ PARSER_TRACE; yymsp[1].minor.yy193 = NULL_ORDER_DEFAULT; }
         break;
-      case 58: /* numeric_value_expression ::= numeric_value_expression NK_PLUS numeric_value_expression */
-      case 59: /* numeric_value_expression ::= numeric_value_expression NK_MINUS numeric_value_expression */ yytestcase(yyruleno==59);
-      case 60: /* numeric_value_expression ::= numeric_value_expression NK_STAR numeric_value_expression */ yytestcase(yyruleno==60);
-      case 61: /* numeric_value_expression ::= numeric_value_expression NK_SLASH numeric_value_expression */ yytestcase(yyruleno==61);
-{  yy_destructor(yypParser,45,&yymsp[-2].minor);
-{
-}
-  yy_destructor(yypParser,45,&yymsp[0].minor);
-}
+      case 70: /* null_ordering_opt ::= NULLS FIRST */
+{ PARSER_TRACE; yymsp[-1].minor.yy193 = NULL_ORDER_FIRST; }
         break;
-      case 62: /* numeric_primary ::= value_expression_primary */
-{  yy_destructor(yypParser,39,&yymsp[0].minor);
+      case 71: /* null_ordering_opt ::= NULLS LAST */
+{ PARSER_TRACE; yymsp[-1].minor.yy193 = NULL_ORDER_LAST; }
+        break;
+      case 72: /* unsigned_literal ::= unsigned_numeric_literal */
+{  yy_destructor(yypParser,51,&yymsp[0].minor);
 {
 }
 }
         break;
-      case 63: /* numeric_primary ::= value_function */
-{  yy_destructor(yypParser,37,&yymsp[0].minor);
+      case 73: /* unsigned_literal ::= general_literal */
+{  yy_destructor(yypParser,52,&yymsp[0].minor);
 {
 }
 }
         break;
-      case 64: /* table_primary ::= derived_table */
-{  yy_destructor(yypParser,58,&yymsp[0].minor);
+      case 74: /* unsigned_numeric_literal ::= unsigned_integer */
+{  yy_destructor(yypParser,47,&yymsp[0].minor);
 {
 }
 }
         break;
-      case 65: /* derived_table ::= table_subquery */
-{  yy_destructor(yypParser,59,&yymsp[0].minor);
+      case 75: /* unsigned_numeric_literal ::= unsigned_approximate_numeric */
+{  yy_destructor(yypParser,48,&yymsp[0].minor);
 {
 }
 }
         break;
-      case 66: /* subquery ::= NK_LR query_expression NK_RP */
+      case 79: /* unsigned_value_specification ::= unsigned_literal */
+{  yy_destructor(yypParser,50,&yymsp[0].minor);
 {
 }
-  yy_destructor(yypParser,36,&yymsp[-1].minor);
+}
         break;
-      case 67: /* table_subquery ::= subquery */
+      case 81: /* value_expression_primary ::= NK_LP value_expression NK_RP */
+      case 93: /* value_function ::= NK_ID NK_LP value_expression NK_RP */ yytestcase(yyruleno==93);
+{
+}
+  yy_destructor(yypParser,59,&yymsp[-1].minor);
+        break;
+      case 82: /* value_expression_primary ::= nonparenthesized_value_expression_primary */
 {  yy_destructor(yypParser,60,&yymsp[0].minor);
 {
 }
 }
         break;
+      case 83: /* nonparenthesized_value_expression_primary ::= unsigned_value_specification */
+{  yy_destructor(yypParser,57,&yymsp[0].minor);
+{
+}
+}
+        break;
+      case 84: /* nonparenthesized_value_expression_primary ::= column_reference */
+{  yy_destructor(yypParser,61,&yymsp[0].minor);
+{
+}
+}
+        break;
+      case 85: /* nonparenthesized_value_expression_primary ::= subquery */
+{  yy_destructor(yypParser,62,&yymsp[0].minor);
+{
+}
+}
+        break;
+      case 86: /* table_primary ::= parenthesized_joined_table */
+{  yy_destructor(yypParser,72,&yymsp[0].minor);
+{
+}
+}
+        break;
+      case 94: /* value_function ::= NK_ID NK_LP value_expression NK_COMMA value_expression NK_RP */
+{
+}
+  yy_destructor(yypParser,59,&yymsp[-3].minor);
+  yy_destructor(yypParser,59,&yymsp[-1].minor);
+        break;
+      case 95: /* value_expression ::= common_value_expression */
+{  yy_destructor(yypParser,95,&yymsp[0].minor);
+{
+}
+}
+        break;
+      case 96: /* common_value_expression ::= numeric_value_expression */
+{  yy_destructor(yypParser,96,&yymsp[0].minor);
+{
+}
+}
+        break;
+      case 97: /* numeric_value_expression ::= numeric_primary */
+{  yy_destructor(yypParser,97,&yymsp[0].minor);
+{
+}
+}
+        break;
+      case 98: /* numeric_value_expression ::= NK_PLUS numeric_primary */
+      case 99: /* numeric_value_expression ::= NK_MINUS numeric_primary */ yytestcase(yyruleno==99);
+{
+}
+  yy_destructor(yypParser,97,&yymsp[0].minor);
+        break;
+      case 100: /* numeric_value_expression ::= numeric_value_expression NK_PLUS numeric_value_expression */
+      case 101: /* numeric_value_expression ::= numeric_value_expression NK_MINUS numeric_value_expression */ yytestcase(yyruleno==101);
+      case 102: /* numeric_value_expression ::= numeric_value_expression NK_STAR numeric_value_expression */ yytestcase(yyruleno==102);
+      case 103: /* numeric_value_expression ::= numeric_value_expression NK_SLASH numeric_value_expression */ yytestcase(yyruleno==103);
+{  yy_destructor(yypParser,96,&yymsp[-2].minor);
+{
+}
+  yy_destructor(yypParser,96,&yymsp[0].minor);
+}
+        break;
+      case 104: /* numeric_primary ::= value_expression_primary */
+{  yy_destructor(yypParser,58,&yymsp[0].minor);
+{
+}
+}
+        break;
+      case 105: /* numeric_primary ::= value_function */
+{  yy_destructor(yypParser,94,&yymsp[0].minor);
+{
+}
+}
+        break;
       default:
-      /* (52) literal ::= NK_LITERAL */ yytestcase(yyruleno==52);
+      /* (76) general_literal ::= NK_STRING */ yytestcase(yyruleno==76);
+      /* (77) general_literal ::= NK_BOOL */ yytestcase(yyruleno==77);
+      /* (78) general_literal ::= NK_NOW */ yytestcase(yyruleno==78);
+      /* (80) unsigned_value_specification ::= NK_QUESTION */ yytestcase(yyruleno==80);
+      /* (87) predicate ::= */ yytestcase(yyruleno==87);
+      /* (88) where_clause_opt ::= */ yytestcase(yyruleno==88);
+      /* (89) partition_by_clause_opt ::= */ yytestcase(yyruleno==89);
+      /* (90) twindow_clause_opt ::= */ yytestcase(yyruleno==90);
+      /* (91) group_by_clause_opt ::= */ yytestcase(yyruleno==91);
+      /* (92) having_clause_opt ::= */ yytestcase(yyruleno==92);
         break;
 /********** End reduce actions ************************************************/
   };

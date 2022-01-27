@@ -80,7 +80,8 @@ uint32_t getToken(const char* z, uint32_t* tokenId) {
 }
 
 int32_t doParse(SParseContext* pParseCxt, SQuery* pQuery) {
-  SAstCreateContext cxt = { .pQueryCxt = pParseCxt, .valid = true, .pRootNode = NULL };
+  SAstCreateContext cxt;
+  createAstCreateContext(pParseCxt, &cxt);
   void *pParser = NewParseAlloc(malloc);
   int32_t i = 0;
   while (1) {
@@ -93,7 +94,7 @@ int32_t doParse(SParseContext* pParseCxt, SQuery* pQuery) {
     printf("input: [%s]\n", cxt.pQueryCxt->pSql + i);
     t0.n = getToken((char *)&cxt.pQueryCxt->pSql[i], &t0.type);
     t0.z = (char *)(cxt.pQueryCxt->pSql + i);
-    printf("token %p : %d %d [%s]\n", &t0, t0.type, t0.n, t0.z);
+    printf("token : %d %d [%s]\n", t0.type, t0.n, t0.z);
     i += t0.n;
 
     switch (t0.type) {
@@ -130,7 +131,9 @@ int32_t doParse(SParseContext* pParseCxt, SQuery* pQuery) {
   }
 
 abort_parse:
+  printf("doParse completed.\n");
   NewParseFree(pParser, free);
+  destroyAstCreateContext(&cxt);
   pQuery->pRoot = cxt.pRootNode;
   return cxt.valid ? TSDB_CODE_SUCCESS : TSDB_CODE_FAILED;
 }

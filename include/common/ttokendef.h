@@ -207,36 +207,50 @@
 #define TK_INTO                           189
 #define TK_VALUES                         190
 
-#define NEW_TK_UNION                            1
-#define NEW_TK_ALL                              2
-#define NEW_TK_MINUS                            3
-#define NEW_TK_EXCEPT                           4
-#define NEW_TK_INTERSECT                        5
-#define NEW_TK_NK_PLUS                          6
-#define NEW_TK_NK_MINUS                         7
-#define NEW_TK_NK_STAR                          8
-#define NEW_TK_NK_SLASH                         9
-#define NEW_TK_SHOW                            10
-#define NEW_TK_DATABASES                       11
-#define NEW_TK_NK_ID                           12
-#define NEW_TK_NK_LP                           13
-#define NEW_TK_NK_RP                           14
-#define NEW_TK_NK_COMMA                        15
-#define NEW_TK_NK_LITERAL                      16
-#define NEW_TK_NK_DOT                          17
-#define NEW_TK_SELECT                          18
-#define NEW_TK_DISTINCT                        19
-#define NEW_TK_AS                              20
-#define NEW_TK_FROM                            21
-#define NEW_TK_WITH                            22
-#define NEW_TK_RECURSIVE                       23
-#define NEW_TK_ORDER                           24
-#define NEW_TK_BY                              25
-#define NEW_TK_ASC                             26
-#define NEW_TK_DESC                            27
-#define NEW_TK_NULLS                           28
-#define NEW_TK_FIRST                           29
-#define NEW_TK_LAST                            30
+#define NEW_TK_OR                               1
+#define NEW_TK_AND                              2
+#define NEW_TK_NOT                              3
+#define NEW_TK_UNION                            4
+#define NEW_TK_ALL                              5
+#define NEW_TK_MINUS                            6
+#define NEW_TK_EXCEPT                           7
+#define NEW_TK_INTERSECT                        8
+#define NEW_TK_NK_PLUS                          9
+#define NEW_TK_NK_MINUS                        10
+#define NEW_TK_NK_STAR                         11
+#define NEW_TK_NK_SLASH                        12
+#define NEW_TK_SHOW                            13
+#define NEW_TK_DATABASES                       14
+#define NEW_TK_NK_INTEGER                      15
+#define NEW_TK_NK_FLOAT                        16
+#define NEW_TK_NK_STRING                       17
+#define NEW_TK_NK_BOOL                         18
+#define NEW_TK_NK_NOW                          19
+#define NEW_TK_NK_ID                           20
+#define NEW_TK_NK_QUESTION                     21
+#define NEW_TK_NK_LP                           22
+#define NEW_TK_NK_RP                           23
+#define NEW_TK_NK_DOT                          24
+#define NEW_TK_FROM                            25
+#define NEW_TK_NK_COMMA                        26
+#define NEW_TK_AS                              27
+#define NEW_TK_JOIN                            28
+#define NEW_TK_ON                              29
+#define NEW_TK_INNER                           30
+#define NEW_TK_SELECT                          31
+#define NEW_TK_DISTINCT                        32
+#define NEW_TK_ORDER                           33
+#define NEW_TK_BY                              34
+#define NEW_TK_SLIMIT                          35
+#define NEW_TK_SOFFSET                         36
+#define NEW_TK_LIMIT                           37
+#define NEW_TK_OFFSET                          38
+#define NEW_TK_NK_LR                           39
+#define NEW_TK_ASC                             40
+#define NEW_TK_DESC                            41
+#define NEW_TK_NULLS                           42
+#define NEW_TK_FIRST                           43
+#define NEW_TK_LAST                            44
 
 #define TK_SPACE                          300
 #define TK_COMMENT                        301
@@ -246,6 +260,8 @@
 #define TK_BIN                            305   // bin format data 0b111
 #define TK_FILE                           306
 #define TK_QUESTION                       307   // denoting the placeholder of "?",when invoking statement bind query
+
+#define TK_NIL                            65535
 
 #endif
 
