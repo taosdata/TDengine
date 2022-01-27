@@ -53,6 +53,7 @@ TEST(testCase, driverInit_Test) {
 //  taos_init();
 }
 
+#if 0
 TEST(testCase, connect_Test) {
   TAOS* pConn = taos_connect("localhost", "root", "taosdata", NULL, 0);
   if (pConn == NULL) {
@@ -562,7 +563,7 @@ TEST(testCase, insert_test) {
   taos_close(pConn);
 }
 
-#if 0
+#endif
 TEST(testCase, create_topic_Test) {
   TAOS* pConn = taos_connect("localhost", "root", "taosdata", NULL, 0);
   assert(pConn != NULL);
@@ -607,12 +608,11 @@ TEST(testCase, tmq_subscribe_Test) {
   tmq_subscribe(tmq, topic_list);
 
   while (1) {
-    tmq_message_t* msg = tmq_consume_poll(tmq, 0);
-    printf("get msg\n");
+    tmq_message_t* msg = tmq_consume_poll(tmq, 1000);
+    //printf("get msg\n");
     //if (msg == NULL) break;
   }
 }
-#endif
 
 TEST(testCase, tmq_consume_Test) {
 }
@@ -620,6 +620,7 @@ TEST(testCase, tmq_consume_Test) {
 TEST(testCase, tmq_commit_TEST) {
 }
 
+#if 0
 TEST(testCase, projection_query_tables) {
   TAOS* pConn = taos_connect("localhost", "root", "taosdata", NULL, 0);
   ASSERT_NE(pConn, nullptr);
@@ -732,5 +733,6 @@ TEST(testCase, agg_query_tables) {
   taos_free_result(pRes);
   taos_close(pConn);
 }
+#endif
 
 #pragma GCC diagnostic pop

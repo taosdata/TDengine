@@ -119,7 +119,7 @@ TAOS *taos_connect_internal(const char *ip, const char *user, const char *pass, 
     SAppInstInfo* p = calloc(1, sizeof(struct SAppInstInfo));
     p->mgmtEp       = epSet;
     p->pTransporter = openTransporter(user, secretEncrypt, tsNumOfCores);
-    p->pAppHbMgr = appHbMgrInit(p, key);
+    /*p->pAppHbMgr = appHbMgrInit(p, key);*/
     taosHashPut(appInfo.pInstMap, key, strlen(key), &p, POINTER_BYTES);
 
     pInst = &p;
@@ -691,8 +691,8 @@ int32_t tmq_ask_ep_cb(void* param, const SDataBuf* pMsg, int32_t code) {
   tDecodeSMqCMGetSubEpRsp(pMsg->pData, &rsp);
   int32_t sz = taosArrayGetSize(rsp.topics);
   // TODO: lock
-    printf("rsp epoch %ld sz %ld\n", rsp.epoch, rsp.topics->size);
-    printf("tmq epoch %ld sz %ld\n", tmq->epoch, tmq->clientTopics->size);
+    /*printf("rsp epoch %ld sz %ld\n", rsp.epoch, rsp.topics->size);*/
+    /*printf("tmq epoch %ld sz %ld\n", tmq->epoch, tmq->clientTopics->size);*/
   if (rsp.epoch != tmq->epoch) {
     //TODO
     if (tmq->clientTopics) taosArrayDestroy(tmq->clientTopics);

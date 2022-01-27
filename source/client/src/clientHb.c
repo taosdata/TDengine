@@ -389,6 +389,7 @@ static void hbStopThread() {
 }
 
 SAppHbMgr* appHbMgrInit(SAppInstInfo* pAppInstInfo, char *key) {
+  return NULL;
   hbMgrInit();
   SAppHbMgr* pAppHbMgr = malloc(sizeof(SAppHbMgr)); 
   if (pAppHbMgr == NULL) {
@@ -452,6 +453,7 @@ void appHbMgrCleanup(SAppHbMgr* pAppHbMgr) {
 }
 
 int hbMgrInit() {
+  return 0;
   // init once
   int8_t old = atomic_val_compare_exchange_8(&clientHbMgr.inited, 0, 1);
   if (old == 1) return 0;
@@ -469,6 +471,7 @@ int hbMgrInit() {
 }
 
 void hbMgrCleanUp() {
+  return;
   hbStopThread();
   
   // destroy all appHbMgr
@@ -506,6 +509,7 @@ int hbRegisterConnImpl(SAppHbMgr* pAppHbMgr, SClientHbKey connKey, SHbConnInfo *
 }
 
 int hbRegisterConn(SAppHbMgr* pAppHbMgr, int32_t connId, int64_t clusterId, int32_t hbType) {
+  return 0;
   SClientHbKey connKey = {.connId = connId, .hbType = HEARTBEAT_TYPE_QUERY};
   SHbConnInfo info = {0};
 
