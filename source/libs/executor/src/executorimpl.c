@@ -7778,7 +7778,19 @@ SOperatorInfo* doCreateOperatorTreeNode(SPhyNode* pPhyNode, SExecTaskInfo* pTask
 
       SArray* pa = taosArrayGetP(groupInfo.pGroupList, 0);
       ASSERT(taosArrayGetSize(groupInfo.pGroupList) == 1);
-      return createStreamScanOperatorInfo(readerHandle, pPhyNode->pTargets, pa, pTaskInfo);
+      // Transfer the Array of STableKeyInfo into uid list.
+      size_t numOfTables = taosArrayGetSize(pa);
+      SArray* idList = taosArrayInit(numOfTables, sizeof(uint64_t));
+      for(int32_t i = 0; i < numOfTables; ++i) {
+        STableKeyInfo* pkeyInfo = taosArrayGet(pa, i);
+        taosArrayPush(idList, &pkeyInfo->uid);
+      }
+
+      SOperatorInfo* pOperator = createStreamScanOperatorInfo(readerHandle, pPhyNode->pTargets, idList, pTaskInfo);
+      taosArrayDestroy(idList);
+
+      //TODO destroy groupInfo
+      return pOperator;
     }
   }
 
