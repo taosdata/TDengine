@@ -202,6 +202,10 @@ TEST_F(MndTestDb, 02_Create_Alter_Drop_Db) {
     SRpcMsg* pRsp = test.SendReq(TDMT_MND_DROP_DB, pReq, contLen);
     ASSERT_NE(pRsp, nullptr);
     ASSERT_EQ(pRsp->code, 0);
+
+    SDropDbRsp* pDrop = (SDropDbRsp*)pRsp->pCont;
+    pDrop->uid = htobe64(pDrop->uid);
+    EXPECT_STREQ(pDrop->db, "1.d1");
   }
 
   test.SendShowMetaReq(TSDB_MGMT_TABLE_DB, "");
@@ -249,6 +253,8 @@ TEST_F(MndTestDb, 03_Create_Use_Restart_Use_Db) {
   EXPECT_EQ(test.GetShowRows(), 1);
   CheckBinary("d2", TSDB_DB_NAME_LEN - 1);
 
+  uint64_t d2_uid = 0;
+
   {
     int32_t contLen = sizeof(SUseDbReq);
 
@@ -262,6 +268,8 @@ TEST_F(MndTestDb, 03_Create_Use_Restart_Use_Db) {
 
     SUseDbRsp* pRsp = (SUseDbRsp*)pMsg->pCont;
     EXPECT_STREQ(pRsp->db, "1.d2");
+    pRsp->uid = htobe64(pRsp->uid);
+    d2_uid = pRsp->uid;
     pRsp->vgVersion = htonl(pRsp->vgVersion);
     pRsp->vgNum = htonl(pRsp->vgNum);
     pRsp->hashMethod = pRsp->hashMethod;
@@ -311,5 +319,10 @@ TEST_F(MndTestDb, 03_Create_Use_Restart_Use_Db) {
     SRpcMsg* pRsp = test.SendReq(TDMT_MND_DROP_DB, pReq, contLen);
     ASSERT_NE(pRsp, nullptr);
     ASSERT_EQ(pRsp->code, 0);
+
+    SDropDbRsp* pDrop = (SDropDbRsp*)pRsp->pCont;
+    pDrop->uid = htobe64(pDrop->uid);
+    EXPECT_STREQ(pDrop->db, "1.d2");
+    EXPECT_EQ(pDrop->uid, d2_uid);
   }
 }

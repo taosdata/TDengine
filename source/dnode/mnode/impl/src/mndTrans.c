@@ -308,6 +308,11 @@ static void mndTransDropData(STrans *pTrans) {
   mndTransDropLogs(pTrans->commitLogs);
   mndTransDropActions(pTrans->redoActions);
   mndTransDropActions(pTrans->undoActions);
+  if (pTrans->rpcRsp != NULL) {
+    rpcFreeCont(pTrans->rpcRsp);
+    pTrans->rpcRsp = NULL;
+    pTrans->rpcRspLen = 0;
+  }
 }
 
 static int32_t mndTransActionDelete(SSdb *pSdb, STrans *pTrans) {
@@ -339,7 +344,7 @@ void mndReleaseTrans(SMnode *pMnode, STrans *pTrans) {
   sdbRelease(pSdb, pTrans);
 }
 
-STrans *mndTransCreate(SMnode *pMnode, ETrnPolicy policy, SRpcMsg *pMsg) {
+STrans *mndTransCreate(SMnode *pMnode, ETrnPolicy policy, const SRpcMsg *pReq) {
   STrans *pTrans = calloc(1, sizeof(STrans));
   if (pTrans == NULL) {
     terrno = TSDB_CODE_OUT_OF_MEMORY;
@@ -350,8 +355,8 @@ STrans *mndTransCreate(SMnode *pMnode, ETrnPolicy policy, SRpcMsg *pMsg) {
   pTrans->id = sdbGetMaxId(pMnode->pSdb, SDB_TRANS);
   pTrans->stage = TRN_STAGE_PREPARE;
   pTrans->policy = policy;
-  pTrans->rpcHandle = pMsg->handle;
-  pTrans->rpcAHandle = pMsg->ahandle;
+  pTrans->rpcHandle = pReq->handle;
+  pTrans->rpcAHandle = pReq->ahandle;
   pTrans->redoLogs = taosArrayInit(MND_TRANS_ARRAY_SIZE, sizeof(void *));
   pTrans->undoLogs = taosArrayInit(MND_TRANS_ARRAY_SIZE, sizeof(void *));
   pTrans->commitLogs = taosArrayInit(MND_TRANS_ARRAY_SIZE, sizeof(void *));
@@ -436,6 +441,11 @@ int32_t mndTransAppendUndoAction(STrans *pTrans, STransAction *pAction) {
   return mndTransAppendAction(pTrans->undoActions, pAction);
 }
 
+void mndTransSetRpcRsp(STrans *pTrans, void *pCont, int32_t contLen) {
+  pTrans->rpcRsp = pCont;
+  pTrans->rpcRspLen = contLen;
+}
+
 static int32_t mndTransSync(SMnode *pMnode, STrans *pTrans) {
   SSdbRaw *pRaw = mndTransActionEncode(pTrans);
   if (pRaw == NULL) {
@@ -479,6 +489,11 @@ int32_t mndTransPrepare(SMnode *pMnode, STrans *pTrans) {
 
   pNew->rpcHandle = pTrans->rpcHandle;
   pNew->rpcAHandle = pTrans->rpcAHandle;
+  pNew->rpcRsp = pTrans->rpcRsp;
+  pNew->rpcRspLen = pTrans->rpcRspLen;
+  pTrans->rpcRsp = NULL;
+  pTrans->rpcRspLen = 0;
+
   mndTransExecute(pMnode, pNew);
   mndReleaseTrans(pMnode, pNew);
   return 0;
@@ -529,15 +544,21 @@ static void mndTransSendRpcRsp(STrans *pTrans) {
   if (sendRsp && pTrans->rpcHandle != NULL) {
     mDebug("trans:%d, send rsp, code:0x%x stage:%d app:%p", pTrans->id, pTrans->code & 0xFFFF, pTrans->stage,
            pTrans->rpcAHandle);
-    SRpcMsg rspMsg = {.handle = pTrans->rpcHandle, .code = pTrans->code, .ahandle = pTrans->rpcAHandle};
+    SRpcMsg rspMsg = {.handle = pTrans->rpcHandle,
+                      .code = pTrans->code,
+                      .ahandle = pTrans->rpcAHandle,
+                      .pCont = pTrans->rpcRsp,
+                      .contLen = pTrans->rpcRspLen};
     rpcSendResponse(&rspMsg);
     pTrans->rpcHandle = NULL;
+    pTrans->rpcRsp = NULL;
+    pTrans->rpcRspLen = 0;
   }
 }
 
-void mndTransProcessRsp(SMnodeMsg *pMsg) {
-  SMnode *pMnode = pMsg->pMnode;
-  int64_t signature = (int64_t)(pMsg->rpcMsg.ahandle);
+void mndTransProcessRsp(SMnodeMsg *pRsp) {
+  SMnode *pMnode = pRsp->pMnode;
+  int64_t signature = (int64_t)(pRsp->rpcMsg.ahandle);
   int32_t transId = (int32_t)(signature >> 32);
   int32_t action = (int32_t)((signature << 32) >> 32);
 
@@ -571,10 +592,10 @@ void mndTransProcessRsp(SMnodeMsg *pMsg) {
   STransAction *pAction = taosArrayGet(pArray, action);
   if (pAction != NULL) {
     pAction->msgReceived = 1;
-    pAction->errCode = pMsg->rpcMsg.code;
+    pAction->errCode = pRsp->rpcMsg.code;
   }
 
-  mDebug("trans:%d, action:%d response is received, code:0x%x, accept:0x%x", transId, action, pMsg->rpcMsg.code,
+  mDebug("trans:%d, action:%d response is received, code:0x%x, accept:0x%x", transId, action, pRsp->rpcMsg.code,
          pAction->acceptableCode);
   mndTransExecute(pMnode, pTrans);
 
@@ -921,7 +942,7 @@ static int32_t mndProcessTransMsg(SMnodeMsg *pMsg) {
 
 void mndTransPullup(SMnode *pMnode) {
   STrans *pTrans = NULL;
-  void *  pIter = NULL;
+  void   *pIter = NULL;
 
   while (1) {
     pIter = sdbFetch(pMnode->pSdb, SDB_TRANS, pIter, (void **)&pTrans);
