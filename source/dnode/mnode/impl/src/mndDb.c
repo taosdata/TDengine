@@ -767,6 +767,14 @@ static int32_t mndDropDb(SMnode *pMnode, SMnodeMsg *pReq, SDbObj *pDb) {
   if (mndSetDropDbRedoLogs(pMnode, pTrans, pDb) != 0) goto DROP_DB_OVER;
   if (mndSetDropDbCommitLogs(pMnode, pTrans, pDb) != 0) goto DROP_DB_OVER;
   if (mndSetDropDbRedoActions(pMnode, pTrans, pDb) != 0) goto DROP_DB_OVER;
+
+  int32_t     rspLen = sizeof(SDropDbRsp);
+  SDropDbRsp *pRsp = rpcMallocCont(rspLen);
+  if (pRsp == NULL) goto DROP_DB_OVER;
+  memcpy(pRsp->db, pDb->name, TSDB_DB_FNAME_LEN);
+  pRsp->uid = htobe64(pDb->uid);
+  mndTransSetRpcRsp(pTrans, pRsp, rspLen);
+
   if (mndTransPrepare(pMnode, pTrans) != 0) goto DROP_DB_OVER;
 
   code = 0;
