@@ -138,7 +138,7 @@ bool isTsdbCacheLastRow(tsdbReadHandleT* pTsdbReadHandle);
  * @param reqId
  * @return
  */
-int32_t tsdbQuerySTableByTagCond(STsdb* tsdb, uint64_t uid, TSKEY skey, const char* pTagCond, size_t len,
+int32_t tsdbQuerySTableByTagCond(void* pMeta, uint64_t uid, TSKEY skey, const char* pTagCond, size_t len,
                                  int16_t tagNameRelType, const char* tbnameCond, STableGroupInfo* pGroupInfo,
                                  SColIndex* pColIndex, int32_t numOfCols, uint64_t reqId, uint64_t taskId);
 /**
@@ -205,7 +205,7 @@ void tsdbDestroyTableGroup(STableGroupInfo *pGroupList);
  * @param pGroupInfo  the generated result
  * @return
  */
-int32_t tsdbGetOneTableGroup(STsdb *tsdb, uint64_t uid, TSKEY startKey, STableGroupInfo *pGroupInfo);
+int32_t tsdbGetOneTableGroup(void *pMeta, uint64_t uid, TSKEY startKey, STableGroupInfo *pGroupInfo);
 
 /**
  *

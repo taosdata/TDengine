@@ -7775,7 +7775,8 @@ SOperatorInfo* doCreateOperatorTreeNode(SPhyNode* pPhyNode, SExecTaskInfo* pTask
     } else if (pPhyNode->info.type == OP_StreamScan) {
       SScanPhyNode* pScanPhyNode = (SScanPhyNode*)pPhyNode;   // simple child table.
       STableGroupInfo groupInfo = {0};
-      int32_t code = doCreateTableGroup(readerHandle, pScanPhyNode->tableType, pScanPhyNode->uid, &groupInfo, queryId, taskId);
+
+      int32_t code = doCreateTableGroup(((STqReadHandle*)readerHandle)->pMeta, pScanPhyNode->tableType, pScanPhyNode->uid, &groupInfo, queryId, taskId);
 
       SArray* pa = taosArrayGetP(groupInfo.pGroupList, 0);
       ASSERT(taosArrayGetSize(groupInfo.pGroupList) == 1);
@@ -7829,12 +7830,12 @@ static tsdbReadHandleT createDataReadHandle(STableScanPhyNode* pTableScanNode, S
   return tsdbQueryTables(readerHandle, &cond, pGroupInfo, queryId, taskId);
 }
 
-static int32_t doCreateTableGroup(void* readerHandle, int32_t tableType, uint64_t tableUid, STableGroupInfo* pGroupInfo, uint64_t queryId, uint64_t taskId) {
+static int32_t doCreateTableGroup(void* metaHandle, int32_t tableType, uint64_t tableUid, STableGroupInfo* pGroupInfo, uint64_t queryId, uint64_t taskId) {
   int32_t code = 0;
   if (tableType == TSDB_SUPER_TABLE) {
-    code = tsdbQuerySTableByTagCond(readerHandle, tableUid, 0, NULL, 0, 0, NULL, pGroupInfo, NULL, 0, queryId, taskId);
+    code = tsdbQuerySTableByTagCond(metaHandle, tableUid, 0, NULL, 0, 0, NULL, pGroupInfo, NULL, 0, queryId, taskId);
   } else {  // Create one table group.
-    code = tsdbGetOneTableGroup(readerHandle, tableUid, 0, pGroupInfo);
+    code = tsdbGetOneTableGroup(metaHandle, tableUid, 0, pGroupInfo);
   }
 
   return code;
