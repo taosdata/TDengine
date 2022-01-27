@@ -112,7 +112,7 @@ def pre_test(){
     git clean -dfx
     mkdir debug
     cd debug
-    cmake .. -DBUILD_HTTP=false -DBUILD_TOOLS=true -DBUILD_TYPE=Debug > /dev/null
+    cmake .. -DBUILD_HTTP=false -DBUILD_TOOLS=true > /dev/null
     make > /dev/null
     make install > /dev/null
     cd ${WKC}/tests
@@ -190,7 +190,7 @@ def pre_test_noinstall(){
     git clean -dfx
     mkdir debug
     cd debug
-    cmake .. -DBUILD_HTTP=false -DBUILD_TOOLS=true -DBUILD_TYPE=Debug > /dev/null
+    cmake .. -DBUILD_HTTP=false -DBUILD_TOOLS=true > /dev/null
     make
     '''
     return 1
@@ -370,7 +370,7 @@ pipeline {
             script{
               abort_previous()
               abortPreviousBuilds()
-              scope = ['connector','query','insert','other','tools','taosAdapter']
+              scope = ['tools']
               Collections.shuffle mod
               Collections.shuffle sim_mod
               }
@@ -473,188 +473,188 @@ pipeline {
             }
           }
         }
-        stage('sim_1') {
-          agent{label " slave6 || slave16 "}
-          steps {
-            pre_test()
-            timeout(time: 100, unit: 'MINUTES'){
-                  sh """
-                    date
-                    cd ${WKC}/tests
-                    ./test-CI.sh sim 4 ${sim_mod[0]}
-                    date"""
-              }
-          }            
-        }
-        stage('sim_2') {
-          agent{label " slave7 || slave17 "}
-          steps {
-            pre_test()
-            timeout(time: 100, unit: 'MINUTES'){
-              sh """
-                date
-                cd ${WKC}/tests
-                ./test-CI.sh sim 4 ${sim_mod[1]} 
-                date"""
-            }
-          }
-        }
-        stage('sim_3') {
-          agent{label " slave8 || slave18 "}
-          steps {
-            timeout(time: 105, unit: 'MINUTES'){
-              pre_test()
-              sh """
-                date
-                cd ${WKC}/tests
-                ./test-CI.sh sim 4 ${sim_mod[2]}
-                date"""
-            }
-          }
-        }
-        stage('sim_4') {
-          agent{label " slave9 || slave19 "}
-          steps {
-            timeout(time: 100, unit: 'MINUTES'){
-              pre_test()
-              sh """
-                date
-                cd ${WKC}/tests
-                ./test-CI.sh sim 4 ${sim_mod[3]}
-                date"""
-              }
-            }
-          
-        }
-        stage('other') {
-          agent{label " slave10 || slave20 "}
-          steps {
-            timeout(time: 100, unit: 'MINUTES'){
-              pre_test()
-              timeout(time: 60, unit: 'MINUTES'){
-                sh '''
-                cd ${WKC}/tests/pytest
-                ./crash_gen.sh -a -p -t 4 -s 2000
-                '''
-              }
-              timeout(time: 60, unit: 'MINUTES'){
-                sh '''
-                cd ${WKC}/tests/pytest
-                rm -rf /var/lib/taos/*
-                rm -rf /var/log/taos/*
-                ./handle_crash_gen_val_log.sh
-                '''
-                sh '''
-                cd ${WKC}/tests/pytest
-                rm -rf /var/lib/taos/*
-                rm -rf /var/log/taos/*
-                ./handle_taosd_val_log.sh
-                '''
-              }
-              catchError(buildResult: 'SUCCESS', stageResult: 'FAILURE') {
-                sh '''
-                cd ${WKC}/tests/pytest
-                ./valgrind-test.sh 2>&1 > mem-error-out.log
-                ./handle_val_log.sh
-                '''
-              } 
-              sh '''
-                cd ${WKC}/tests
-                ./test-all.sh full unit
-                date
-              '''
-            }
-          }
-        }
-        stage('centos7') {
-          agent{label " centos7 "}
-          steps {
-              pre_test_noinstall()
-            }
-        }
-        stage('ubuntu:trusty') {
-          agent{label " trusty "}
-          steps {
-              pre_test_noinstall()
-            }
-        }
-        stage('ubuntu:xenial') {
-          agent{label " xenial "}
-          steps {
-              pre_test_noinstall()
-            }
-        }
-        stage('ubuntu:bionic') {
-          agent{label " bionic "}
-          steps {
-              pre_test_noinstall()
-            }
-        }
-        stage('Mac_build') {
-          agent{label " catalina "}
-          steps {
-              pre_test_mac()
-            }
-        }
-        stage('arm64centos7') {
-          agent{label " arm64centos7 "}
-          steps {     
-              pre_test_noinstall()    
-            }
-        }
-        stage('arm64centos8') {
-          agent{label " arm64centos8 "}
-          steps {     
-              pre_test_noinstall()    
-            }
-        }
-        stage('arm32bionic') {
-          agent{label " arm32bionic "}
-          steps {     
-              pre_test_noinstall()    
-            }
-        }
-        stage('arm64bionic') {
-          agent{label " arm64bionic "}
-          steps {     
-              pre_test_noinstall()    
-            }
-        }
-        stage('arm64focal') {
-          agent{label " arm64focal "}
-          steps {     
-              pre_test_noinstall()    
-            }
-        }
-        stage('build'){
-          agent{label " wintest "}
-          steps {
-            pre_test()
-            script{             
-                while(win_stop == 0){
-                  sleep(1)
-                  }
-              }
-            }
-        }
-        stage('test'){
-          agent{label "win"}
-          steps{
-            
-            catchError(buildResult: 'FAILURE', stageResult: 'FAILURE') {
-                pre_test_win()
-                timeout(time: 20, unit: 'MINUTES'){
-                bat'''
-                cd C:\\workspace\\TDinternal\\community\\tests\\pytest
-                .\\test-all.bat wintest
-                '''
-                }
-            }     
-            script{
-              win_stop=1
-            }
-          }
-        }
+//         stage('sim_1') {
+//           agent{label " slave6 || slave16 "}
+//           steps {
+//             pre_test()
+//             timeout(time: 100, unit: 'MINUTES'){
+//                   sh """
+//                     date
+//                     cd ${WKC}/tests
+//                     ./test-CI.sh sim 4 ${sim_mod[0]}
+//                     date"""
+//               }
+//           }
+//         }
+//         stage('sim_2') {
+//           agent{label " slave7 || slave17 "}
+//           steps {
+//             pre_test()
+//             timeout(time: 100, unit: 'MINUTES'){
+//               sh """
+//                 date
+//                 cd ${WKC}/tests
+//                 ./test-CI.sh sim 4 ${sim_mod[1]}
+//                 date"""
+//             }
+//           }
+//         }
+//         stage('sim_3') {
+//           agent{label " slave8 || slave18 "}
+//           steps {
+//             timeout(time: 105, unit: 'MINUTES'){
+//               pre_test()
+//               sh """
+//                 date
+//                 cd ${WKC}/tests
+//                 ./test-CI.sh sim 4 ${sim_mod[2]}
+//                 date"""
+//             }
+//           }
+//         }
+//         stage('sim_4') {
+//           agent{label " slave9 || slave19 "}
+//           steps {
+//             timeout(time: 100, unit: 'MINUTES'){
+//               pre_test()
+//               sh """
+//                 date
+//                 cd ${WKC}/tests
+//                 ./test-CI.sh sim 4 ${sim_mod[3]}
+//                 date"""
+//               }
+//             }
+//
+//         }
+//         stage('other') {
+//           agent{label " slave10 || slave20 "}
+//           steps {
+//             timeout(time: 100, unit: 'MINUTES'){
+//               pre_test()
+//               timeout(time: 60, unit: 'MINUTES'){
+//                 sh '''
+//                 cd ${WKC}/tests/pytest
+//                 ./crash_gen.sh -a -p -t 4 -s 2000
+//                 '''
+//               }
+//               timeout(time: 60, unit: 'MINUTES'){
+//                 sh '''
+//                 cd ${WKC}/tests/pytest
+//                 rm -rf /var/lib/taos/*
+//                 rm -rf /var/log/taos/*
+//                 ./handle_crash_gen_val_log.sh
+//                 '''
+//                 sh '''
+//                 cd ${WKC}/tests/pytest
+//                 rm -rf /var/lib/taos/*
+//                 rm -rf /var/log/taos/*
+//                 ./handle_taosd_val_log.sh
+//                 '''
+//               }
+//               catchError(buildResult: 'SUCCESS', stageResult: 'FAILURE') {
+//                 sh '''
+//                 cd ${WKC}/tests/pytest
+//                 ./valgrind-test.sh 2>&1 > mem-error-out.log
+//                 ./handle_val_log.sh
+//                 '''
+//               }
+//               sh '''
+//                 cd ${WKC}/tests
+//                 ./test-all.sh full unit
+//                 date
+//               '''
+//             }
+//           }
+//         }
+//         stage('centos7') {
+//           agent{label " centos7 "}
+//           steps {
+//               pre_test_noinstall()
+//             }
+//         }
+//         stage('ubuntu:trusty') {
+//           agent{label " trusty "}
+//           steps {
+//               pre_test_noinstall()
+//             }
+//         }
+//         stage('ubuntu:xenial') {
+//           agent{label " xenial "}
+//           steps {
+//               pre_test_noinstall()
+//             }
+//         }
+//         stage('ubuntu:bionic') {
+//           agent{label " bionic "}
+//           steps {
+//               pre_test_noinstall()
+//             }
+//         }
+//         stage('Mac_build') {
+//           agent{label " catalina "}
+//           steps {
+//               pre_test_mac()
+//             }
+//         }
+//         stage('arm64centos7') {
+//           agent{label " arm64centos7 "}
+//           steps {
+//               pre_test_noinstall()
+//             }
+//         }
+//         stage('arm64centos8') {
+//           agent{label " arm64centos8 "}
+//           steps {
+//               pre_test_noinstall()
+//             }
+//         }
+//         stage('arm32bionic') {
+//           agent{label " arm32bionic "}
+//           steps {
+//               pre_test_noinstall()
+//             }
+//         }
+//         stage('arm64bionic') {
+//           agent{label " arm64bionic "}
+//           steps {
+//               pre_test_noinstall()
+//             }
+//         }
+//         stage('arm64focal') {
+//           agent{label " arm64focal "}
+//           steps {
+//               pre_test_noinstall()
+//             }
+//         }
+//         stage('build'){
+//           agent{label " wintest "}
+//           steps {
+//             pre_test()
+//             script{
+//                 while(win_stop == 0){
+//                   sleep(1)
+//                   }
+//               }
+//             }
+//         }
+//         stage('test'){
+//           agent{label "win"}
+//           steps{
+//
+//             catchError(buildResult: 'FAILURE', stageResult: 'FAILURE') {
+//                 pre_test_win()
+//                 timeout(time: 20, unit: 'MINUTES'){
+//                 bat'''
+//                 cd C:\\workspace\\TDinternal\\community\\tests\\pytest
+//                 .\\test-all.bat wintest
+//                 '''
+//                 }
+//             }
+//             script{
+//               win_stop=1
+//             }
+//           }
+//         }
     }
   }
   }
