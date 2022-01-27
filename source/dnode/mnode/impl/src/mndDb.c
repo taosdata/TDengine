@@ -824,7 +824,7 @@ static void mndBuildDBVgroupInfo(SDbObj *pDb, SMnode *pMnode, SVgroupInfo *vgLis
     if (pIter == NULL) break;
 
     if (pVgroup->dbUid == pDb->uid) {
-      SVgroupInfo *pInfo = &pRsp->vgroupInfo[vindex];
+      SVgroupInfo *pInfo = &vgList[vindex];
       pInfo->vgId = htonl(pVgroup->vgId);
       pInfo->hashBegin = htonl(pVgroup->hashBegin);
       pInfo->hashEnd = htonl(pVgroup->hashEnd);
@@ -1253,4 +1253,5 @@ static int32_t mndRetrieveDbs(SMnodeMsg *pReq, SShowObj *pShow, char *data, int3
 
 static void mndCancelGetNextDb(SMnode *pMnode, void *pIter) {
   SSdb *pSdb = pMnode->pSdb;
-  sdbCancelFetch(pSdb, 
+  sdbCancelFetch(pSdb, pIter);
+}
