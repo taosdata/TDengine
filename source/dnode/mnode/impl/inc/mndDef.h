@@ -658,12 +658,17 @@ typedef struct SMqConsumerObj {
   SRWLatch lock;
   char     cgroup[TSDB_CONSUMER_GROUP_LEN];
   SArray*  topics;  // SArray<SMqConsumerTopic>
-  // SHashObj *topicHash; //SHashObj<SMqTopicObj>
+  int64_t  epoch;
+  // stat
+  int64_t  pollCnt;
 } SMqConsumerObj;
 
 static FORCE_INLINE int32_t tEncodeSMqConsumerObj(void** buf, const SMqConsumerObj* pConsumer) {
   int32_t tlen = 0;
   tlen += taosEncodeFixedI64(buf, pConsumer->consumerId);
+  tlen += taosEncodeFixedI64(buf, pConsumer->connId);
+  tlen += taosEncodeFixedI64(buf, pConsumer->epoch);
+  tlen += taosEncodeFixedI64(buf, pConsumer->pollCnt);
   tlen += taosEncodeString(buf, pConsumer->cgroup);
   int32_t sz = taosArrayGetSize(pConsumer->topics);
   tlen += taosEncodeFixedI32(buf, sz);
@@ -676,6 +681,9 @@ static FORCE_INLINE int32_t tEncodeSMqConsumerObj(void** buf, const SMqConsumerO
 
 static FORCE_INLINE void* tDecodeSMqConsumerObj(void* buf, SMqConsumerObj* pConsumer) {
   buf = taosDecodeFixedI64(buf, &pConsumer->consumerId);
+  buf = taosDecodeFixedI64(buf, &pConsumer->connId);
+  buf = taosDecodeFixedI64(buf, &pConsumer->epoch);
+  buf = taosDecodeFixedI64(buf, &pConsumer->pollCnt);
   buf = taosDecodeStringTo(buf, pConsumer->cgroup);
   int32_t sz;
   buf = taosDecodeFixedI32(buf, &sz);

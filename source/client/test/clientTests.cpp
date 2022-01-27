@@ -570,7 +570,6 @@ TEST(testCase, create_topic_Test) {
   //taos_close(pConn);
 //}
 
-#if 0
 TEST(testCase, tmq_subscribe_Test) {
   TAOS* pConn = taos_connect("localhost", "root", "taosdata", NULL, 0);
   assert(pConn != NULL);
@@ -590,12 +589,11 @@ TEST(testCase, tmq_subscribe_Test) {
   tmq_subscribe(tmq, topic_list);
 
   while (1) {
-    tmq_message_t* msg = tmq_consume_poll(tmq, 0);
-    printf("get msg\n");
+    tmq_message_t* msg = tmq_consume_poll(tmq, 1000);
+    //printf("get msg\n");
     //if (msg == NULL) break;
   }
 }
-#endif
 
 TEST(testCase, tmq_consume_Test) {
 }

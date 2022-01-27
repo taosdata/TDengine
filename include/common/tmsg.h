@@ -1655,6 +1655,10 @@ typedef struct SMqTopicBlk {
 typedef struct SMqConsumeRsp {
   int64_t         consumerId;
   SSchemaWrapper* schemas;
+  int64_t         committedOffset;
+  int64_t         reqOffset;
+  int64_t         rspOffset;
+  int32_t         skipLogNum;
   int32_t         numOfTopics;
   SArray*         pBlockData;   //SArray<SSDataBlock>
 } SMqConsumeRsp;
@@ -1688,6 +1692,7 @@ typedef struct SMqSubTopicEp {
 
 typedef struct SMqCMGetSubEpRsp {
   int64_t consumerId;
+  int64_t epoch;
   char    cgroup[TSDB_CONSUMER_GROUP_LEN];
   SArray* topics;  // SArray<SMqSubTopicEp>
 } SMqCMGetSubEpRsp;
@@ -1736,6 +1741,7 @@ static FORCE_INLINE void* tDecodeSMqSubTopicEp(void* buf, SMqSubTopicEp* pTopicE
 static FORCE_INLINE int32_t tEncodeSMqCMGetSubEpRsp(void** buf, const SMqCMGetSubEpRsp* pRsp) {
   int32_t tlen = 0;
   tlen += taosEncodeFixedI64(buf, pRsp->consumerId);
+  tlen += taosEncodeFixedI64(buf, pRsp->epoch);
   tlen += taosEncodeString(buf, pRsp->cgroup);
   int32_t sz = taosArrayGetSize(pRsp->topics);
   tlen += taosEncodeFixedI32(buf, sz);
@@ -1748,6 +1754,7 @@ static FORCE_INLINE int32_t tEncodeSMqCMGetSubEpRsp(void** buf, const SMqCMGetSu
 
 static FORCE_INLINE void* tDecodeSMqCMGetSubEpRsp(void* buf, SMqCMGetSubEpRsp* pRsp) {
   buf = taosDecodeFixedI64(buf, &pRsp->consumerId);
+  buf = taosDecodeFixedI64(buf, &pRsp->epoch);
   buf = taosDecodeStringTo(buf, pRsp->cgroup);
   int32_t sz;
   buf = taosDecodeFixedI32(buf, &sz);
