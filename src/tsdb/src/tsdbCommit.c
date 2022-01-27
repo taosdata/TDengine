@@ -98,6 +98,11 @@ void *tsdbCommitData(STsdbRepo *pRepo) {
   }
   tsdbStartCommit(pRepo);
 
+  if (tsShortcutFlag & TSDB_SHORTCUT_RB_TSDB_COMMIT) {
+    tsdbEndCommit(pRepo, terrno);
+    return NULL;
+  }
+
   // Commit to update meta file
   if (tsdbCommitMeta(pRepo) < 0) {
     tsdbError("vgId:%d error occurs while committing META data since %s", REPO_ID(pRepo), tstrerror(terrno));

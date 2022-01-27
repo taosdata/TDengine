@@ -332,7 +332,12 @@ int tscSendMsgToServer(SSqlObj *pSql) {
       .handle  = NULL,
       .code    = 0
   };
-  
+
+  if ((rpcMsg.msgType == TSDB_MSG_TYPE_SUBMIT) && (tsShortcutFlag & TSDB_SHORTCUT_RB_RPC_SEND_SUBMIT)) {
+    rpcFreeCont(rpcMsg.pCont);
+    return TSDB_CODE_FAILED;
+  }
+
   rpcSendRequest(pObj->pRpcObj->pDnodeConn, &pSql->epSet, &rpcMsg, &pSql->rpcRid);
   return TSDB_CODE_SUCCESS;
 }
