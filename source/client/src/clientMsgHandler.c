@@ -18,6 +18,7 @@
 #include "tname.h"
 #include "clientInt.h"
 #include "clientLog.h"
+#include "catalog.h"
 
 int (*handleRequestRspFp[TDMT_MAX])(void*, const SDataBuf* pMsg, int32_t code);
 
@@ -73,8 +74,9 @@ int processConnectRsp(void* param, const SDataBuf* pMsg, int32_t code) {
   pTscObj->pAppInfo->clusterId = pConnect->clusterId;
   atomic_add_fetch_64(&pTscObj->pAppInfo->numOfConns, 1);
 
-  /*SClientHbKey connKey = {.connId = pConnect->connId, .hbType = HEARTBEAT_TYPE_QUERY};*/
-  /*hbRegisterConn(pTscObj->pAppInfo->pAppHbMgr, connKey, NULL);*/
+  pTscObj->connType = HEARTBEAT_TYPE_QUERY;
+
+  hbRegisterConn(pTscObj->pAppInfo->pAppHbMgr, pConnect->connId, pConnect->clusterId, HEARTBEAT_TYPE_QUERY);
 
   //  pRequest->body.resInfo.pRspMsg = pMsg->pData;
   tscDebug("0x%" PRIx64 " clusterId:%" PRId64 ", totalConn:%" PRId64, pRequest->requestId, pConnect->clusterId,
@@ -290,13 +292,24 @@ int32_t processCreateTableRsp(void* param, const SDataBuf* pMsg, int32_t code) {
 }
 
 int32_t processDropDbRsp(void* param, const SDataBuf* pMsg, int32_t code) {
-  // todo: Remove cache in catalog cache.
   SRequestObj* pRequest = param;
   if (code != TSDB_CODE_SUCCESS) {
     setErrno(pRequest, code);
     tsem_post(&pRequest->body.rspSem);
     return code;
   }
+
+  SDropDbRsp *rsp = (SDropDbRsp *)pMsg->pData;
+
+  SDbVgVersion dbVer = {0};
+  struct SCatalog *pCatalog = NULL;
+  
+  strncpy(dbVer.dbName, rsp->db, sizeof(dbVer.dbName));
+  dbVer.dbId = be64toh(rsp->uid);
+
+  catalogGetHandle(pRequest->pTscObj->pAppInfo->clusterId, &pCatalog);
+  
+  catalogRemoveDBVgroup(pCatalog, &dbVer);
 
   tsem_post(&pRequest->body.rspSem);
   return code;

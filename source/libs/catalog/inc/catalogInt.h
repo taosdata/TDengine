@@ -31,7 +31,7 @@ extern "C" {
 #define CTG_DEFAULT_RENT_SECOND 10
 #define CTG_DEFAULT_RENT_SLOT_SIZE 10
 
-#define CTG_RENT_SLOT_SECOND 2
+#define CTG_RENT_SLOT_SECOND 1.5
 
 #define CTG_DEFAULT_INVALID_VERSION (-1)
 
@@ -115,7 +115,7 @@ typedef struct SCatalogMgmt {
 
 typedef uint32_t (*tableNameHashFp)(const char *, uint32_t);
 
-#define CTG_IS_META_NONE(type) ((type) == META_TYPE_NON_TABLE)
+#define CTG_IS_META_NULL(type) ((type) == META_TYPE_NULL_TABLE)
 #define CTG_IS_META_CTABLE(type) ((type) == META_TYPE_CTABLE)
 #define CTG_IS_META_TABLE(type) ((type) == META_TYPE_TABLE)
 #define CTG_IS_META_BOTH(type) ((type) == META_TYPE_BOTH_TABLE)

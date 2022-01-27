@@ -354,7 +354,41 @@ static int32_t mndProcessHeartBeatReq(SMnodeMsg *pReq) {
   for (int i = 0; i < sz; i++) {
     SClientHbReq* pHbReq = taosArrayGet(pArray, i);
     if (pHbReq->connKey.hbType == HEARTBEAT_TYPE_QUERY) {
+      int32_t kvNum = taosHashGetSize(pHbReq->info);
+      if (NULL == pHbReq->info || kvNum <= 0) {
+        continue;
+      }
 
+      SClientHbRsp hbRsp = {.connKey = pHbReq->connKey, .status = 0, .info = taosArrayInit(kvNum, sizeof(SKv))};
+
+      void *pIter = taosHashIterate(pHbReq->info, NULL);
+      while (pIter != NULL) {
+        SKv* kv = pIter;
+      
+        switch (kv->key) {
+          case HEARTBEAT_KEY_DBINFO: {
+            void *rspMsg = NULL;
+            int32_t rspLen = 0;
+            mndValidateDBInfo(pMnode, (SDbVgVersion *)kv->value, kv->valueLen/sizeof(SDbVgVersion), &rspMsg, &rspLen);
+            if (rspMsg && rspLen > 0) {
+              SKv kv = {.key = HEARTBEAT_KEY_DBINFO, .valueLen = rspLen, .value = rspMsg};
+              taosArrayPush(hbRsp.info, &kv);
+            }
+            break;
+          }
+          case HEARTBEAT_KEY_STBINFO:
+
+            break;
+          default:
+            mError("invalid kv key:%d", kv->key);
+            hbRsp.status = TSDB_CODE_MND_APP_ERROR;
+            break;
+        }
+              
+        pIter = taosHashIterate(pHbReq->info, pIter);
+      }
+
+      taosArrayPush(batchRsp.rsps, &hbRsp);
     } else if (pHbReq->connKey.hbType == HEARTBEAT_TYPE_MQ) {
       SClientHbRsp *pRsp = mndMqHbBuildRsp(pMnode, pHbReq);
       if (pRsp != NULL) {
@@ -369,6 +403,18 @@ static int32_t mndProcessHeartBeatReq(SMnodeMsg *pReq) {
   void* buf = rpcMallocCont(tlen);
   void* abuf = buf;
   tSerializeSClientHbBatchRsp(&abuf, &batchRsp);
+  
+  int32_t rspNum = (int32_t)taosArrayGetSize(batchRsp.rsps);
+  for (int32_t i = 0; i < rspNum; ++i) {
+    SClientHbRsp *rsp = taosArrayGet(batchRsp.rsps, i);
+    int32_t kvNum = (rsp->info) ? taosArrayGetSize(rsp->info): 0;
+    for (int32_t n = 0; n < kvNum; ++n) {
+      SKv *kv = taosArrayGet(rsp->info, n);
+      tfree(kv->value);
+    }
+    taosArrayDestroy(rsp->info);
+  }
+
   taosArrayDestroy(batchRsp.rsps);
   pReq->contLen = tlen;
   pReq->pCont = buf;

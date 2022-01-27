@@ -82,7 +82,7 @@ typedef struct STableMeta {
 
 typedef struct SDBVgroupInfo {
   SRWLatch  lock;
-  int64_t   dbId;
+  uint64_t  dbId;
   int32_t   vgVersion;  
   int8_t    hashMethod;
   SHashObj *vgInfo;  //key:vgId, value:SVgroupInfo
@@ -94,7 +94,7 @@ typedef struct SUseDbOutput {
 } SUseDbOutput;
 
 enum {
-  META_TYPE_NON_TABLE = 1,
+  META_TYPE_NULL_TABLE = 1,
   META_TYPE_CTABLE,
   META_TYPE_TABLE,
   META_TYPE_BOTH_TABLE
@@ -163,7 +163,7 @@ extern int32_t (*queryBuildMsg[TDMT_MAX])(void* input, char **msg, int32_t msgSi
 extern int32_t (*queryProcessMsgRsp[TDMT_MAX])(void* output, char *msg, int32_t msgSize);
 
 
-#define SET_META_TYPE_NONE(t) (t) = META_TYPE_NON_TABLE
+#define SET_META_TYPE_NULL(t) (t) = META_TYPE_NULL_TABLE
 #define SET_META_TYPE_CTABLE(t) (t) = META_TYPE_CTABLE
 #define SET_META_TYPE_TABLE(t) (t) = META_TYPE_TABLE
 #define SET_META_TYPE_BOTH_TABLE(t) (t) = META_TYPE_BOTH_TABLE

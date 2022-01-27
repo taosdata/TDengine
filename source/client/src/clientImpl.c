@@ -119,7 +119,7 @@ TAOS *taos_connect_internal(const char *ip, const char *user, const char *pass, 
     SAppInstInfo* p = calloc(1, sizeof(struct SAppInstInfo));
     p->mgmtEp       = epSet;
     p->pTransporter = openTransporter(user, secretEncrypt, tsNumOfCores);
-    /*p->pAppHbMgr = appHbMgrInit(p);*/
+    p->pAppHbMgr = appHbMgrInit(p, key);
     taosHashPut(appInfo.pInstMap, key, strlen(key), &p, POINTER_BYTES);
 
     pInst = &p;
@@ -472,13 +472,8 @@ SArray* tmqGetConnInfo(SClientHbKey connKey, void* param) {
     return NULL;
   }
   SKv kv = {0};
-  kv.key = malloc(256);
-  if (kv.key == NULL) {
-    taosArrayDestroy(pArray);
-    return NULL;
-  }
-  strcpy(kv.key, "mq-tmp");
-  kv.keyLen = strlen("mq-tmp") + 1;
+  kv.key = HEARTBEAT_KEY_MQ_TMP;
+
   SMqHbMsg* pMqHb = malloc(sizeof(SMqHbMsg));
   if (pMqHb == NULL) {
     return pArray;

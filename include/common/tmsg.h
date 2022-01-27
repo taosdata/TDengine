@@ -76,6 +76,13 @@ typedef enum {
   HEARTBEAT_TYPE_MAX
 } EHbType;
 
+enum {
+  HEARTBEAT_KEY_DBINFO = 1,
+  HEARTBEAT_KEY_STBINFO,
+  HEARTBEAT_KEY_MQ_TMP,
+};
+
+
 typedef enum _mgmt_table {
   TSDB_MGMT_TABLE_START,
   TSDB_MGMT_TABLE_ACCT,
@@ -147,7 +154,7 @@ typedef struct {
 } SBuildTableMetaInput;
 
 typedef struct {
-  char    db[TSDB_TABLE_FNAME_LEN];
+  char    db[TSDB_DB_FNAME_LEN];
   int32_t vgVersion;
 } SBuildUseDBInput;
 
@@ -745,7 +752,7 @@ typedef struct {
 
 typedef struct {
   char        db[TSDB_DB_FNAME_LEN];
-  int64_t     uid;
+  uint64_t    uid;
   int32_t     vgVersion;
   int32_t     vgNum;
   int8_t      hashMethod;
@@ -1340,9 +1347,8 @@ static FORCE_INLINE void* taosDecodeSMqHbBatchRsp(void* buf, SMqHbBatchRsp* pBat
 }
 
 typedef struct {
-  int32_t keyLen;
+  int32_t key;
   int32_t valueLen;
-  void*   key;
   void*   value;
 } SKv;
 
@@ -1364,8 +1370,7 @@ typedef struct {
 typedef struct {
   SClientHbKey connKey;
   int32_t      status;
-  int32_t      bodyLen;
-  void*        body;
+  SArray*      info;  // Array<Skv>
 } SClientHbRsp;
 
 typedef struct {
@@ -1384,9 +1389,26 @@ void* tDeserializeSClientHbReq(void* buf, SClientHbReq* pReq);
 int   tSerializeSClientHbRsp(void** buf, const SClientHbRsp* pRsp);
 void* tDeserializeSClientHbRsp(void* buf, SClientHbRsp* pRsp);
 
+
+static FORCE_INLINE void tFreeReqKvHash(SHashObj*      info) {
+  void *pIter = taosHashIterate(info, NULL);
+  while (pIter != NULL) {
+    SKv* kv = (SKv*)pIter;
+
+    tfree(kv->value);
+
+    pIter = taosHashIterate(info, pIter);
+  }
+}
+
+
 static FORCE_INLINE void  tFreeClientHbReq(void *pReq) {
   SClientHbReq* req = (SClientHbReq*)pReq;
-  if (req->info) taosHashCleanup(req->info);
+  if (req->info) {
+    tFreeReqKvHash(req->info);
+  
+    taosHashCleanup(req->info);
+  }
 }
 
 int   tSerializeSClientHbBatchReq(void** buf, const SClientHbBatchReq* pReq);
@@ -1402,22 +1424,39 @@ static FORCE_INLINE void tFreeClientHbBatchReq(void* pReq, bool deep) {
   free(pReq);
 }
 
+static FORCE_INLINE void tFreeClientKv(void *pKv) {
+  SKv *kv = (SKv *)pKv;
+  if (kv) {
+    tfree(kv->value);
+  }
+}
+
+static FORCE_INLINE void  tFreeClientHbRsp(void *pRsp) {
+  SClientHbRsp* rsp = (SClientHbRsp*)pRsp;
+  if (rsp->info) taosArrayDestroyEx(rsp->info, tFreeClientKv);
+}
+
+
+static FORCE_INLINE void tFreeClientHbBatchRsp(void* pRsp) {
+  SClientHbBatchRsp *rsp = (SClientHbBatchRsp*)pRsp;
+  taosArrayDestroyEx(rsp->rsps, tFreeClientHbRsp);
+}
+
+
 int   tSerializeSClientHbBatchRsp(void** buf, const SClientHbBatchRsp* pBatchRsp);
 void* tDeserializeSClientHbBatchRsp(void* buf, SClientHbBatchRsp* pBatchRsp);
 
 static FORCE_INLINE int taosEncodeSKv(void** buf, const SKv* pKv) {
   int tlen = 0;
-  tlen += taosEncodeFixedI32(buf, pKv->keyLen);
+  tlen += taosEncodeFixedI32(buf, pKv->key);
   tlen += taosEncodeFixedI32(buf, pKv->valueLen);
-  tlen += taosEncodeBinary(buf, pKv->key, pKv->keyLen);
   tlen += taosEncodeBinary(buf, pKv->value, pKv->valueLen);
   return tlen;
 }
 
 static FORCE_INLINE void* taosDecodeSKv(void* buf, SKv* pKv) {
-  buf = taosDecodeFixedI32(buf, &pKv->keyLen);
+  buf = taosDecodeFixedI32(buf, &pKv->key);
   buf = taosDecodeFixedI32(buf, &pKv->valueLen);
-  buf = taosDecodeBinary(buf, &pKv->key, pKv->keyLen);
   buf = taosDecodeBinary(buf, &pKv->value, pKv->valueLen);
   return buf;
 }

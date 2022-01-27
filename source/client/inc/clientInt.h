@@ -35,9 +35,13 @@ extern "C" {
 
 typedef struct SAppInstInfo SAppInstInfo;
 
-typedef int32_t (*FHbRspHandle)(SClientHbRsp* pReq);
+typedef struct SHbConnInfo {
+  void         *param;
+  SClientHbReq *req;
+} SHbConnInfo;
 
 typedef struct SAppHbMgr {
+  char   *key;
   // statistics
   int32_t reportCnt;
   int32_t connKeyCnt;
@@ -49,8 +53,14 @@ typedef struct SAppHbMgr {
   SAppInstInfo* pAppInstInfo;
   // info
   SHashObj* activeInfo;    // hash<SClientHbKey, SClientHbReq>
-  SHashObj* getInfoFuncs;  // hash<SClientHbKey, FGetConnInfo>
+  SHashObj* connInfo;      // hash<SClientHbKey, SHbConnInfo>
 } SAppHbMgr;
+
+
+typedef int32_t (*FHbRspHandle)(struct SAppHbMgr *pAppHbMgr, SClientHbRsp* pRsp);
+
+typedef int32_t (*FHbReqHandle)(SClientHbKey *connKey, void* param, SClientHbReq *req);
+
 
 typedef struct SClientHbMgr {
   int8_t inited;
@@ -59,12 +69,10 @@ typedef struct SClientHbMgr {
   pthread_t       thread;
   pthread_mutex_t lock;       // used when app init and cleanup
   SArray*         appHbMgrs;  // SArray<SAppHbMgr*> one for each cluster
-  FHbRspHandle    handle[HEARTBEAT_TYPE_MAX];
+  FHbReqHandle    reqHandle[HEARTBEAT_TYPE_MAX];
+  FHbRspHandle    rspHandle[HEARTBEAT_TYPE_MAX];
 } SClientHbMgr;
 
-// TODO: embed param into function
-// return type: SArray<Skv>
-typedef SArray* (*FGetConnInfo)(SClientHbKey connKey, void* param);
 
 typedef struct SQueryExecMetric {
   int64_t      start;    // start timestamp
@@ -218,11 +226,11 @@ void hbMgrCleanUp();
 int  hbHandleRsp(SClientHbBatchRsp* hbRsp);
 
 // cluster level
-SAppHbMgr* appHbMgrInit(SAppInstInfo* pAppInstInfo);
+SAppHbMgr* appHbMgrInit(SAppInstInfo* pAppInstInfo, char *key);
 void appHbMgrCleanup(SAppHbMgr* pAppHbMgr);
 
 // conn level
-int  hbRegisterConn(SAppHbMgr* pAppHbMgr, SClientHbKey connKey, FGetConnInfo func);
+int  hbRegisterConn(SAppHbMgr* pAppHbMgr, int32_t connId, int64_t clusterId, int32_t hbType);
 void hbDeregisterConn(SAppHbMgr* pAppHbMgr, SClientHbKey connKey);
 
 int hbAddConnInfo(SAppHbMgr* pAppHbMgr, SClientHbKey connKey, void* key, void* value, int32_t keyLen, int32_t valueLen);
