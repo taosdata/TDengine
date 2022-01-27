@@ -233,7 +233,7 @@ static int32_t mndProcessMqTimerMsg(SMnodeMsg *pMsg) {
         STransAction action = {0};
         action.epSet = pCEp->epSet;
         action.pCont = buf;
-        action.contLen = tlen;
+        action.contLen = sizeof(SMsgHead) + tlen;
         action.msgType = TDMT_VND_MQ_SET_CONN;
         mndTransAppendRedoAction(pTrans, &action);
 
