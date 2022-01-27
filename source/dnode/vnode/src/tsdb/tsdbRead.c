@@ -427,7 +427,7 @@ static STsdbReadHandle* tsdbQueryTablesImpl(STsdb* tsdb, STsdbQueryCond* pCond, 
   return (tsdbReadHandleT)pReadHandle;
 
   _end:
-  tsdbCleanupQueryHandle(pReadHandle);
+  tsdbCleanupReadHandle(pReadHandle);
   terrno = TSDB_CODE_TDB_OUT_OF_MEMORY;
   return NULL;
 }
@@ -445,7 +445,7 @@ tsdbReadHandleT* tsdbQueryTables(STsdb* tsdb, STsdbQueryCond* pCond, STableGroup
   // todo apply the lastkey of table check to avoid to load header file
   pTsdbReadHandle->pTableCheckInfo = createCheckInfoFromTableGroup(pTsdbReadHandle, groupList);
   if (pTsdbReadHandle->pTableCheckInfo == NULL) {
-//    tsdbCleanupQueryHandle(pTsdbReadHandle);
+//    tsdbCleanupReadHandle(pTsdbReadHandle);
     terrno = TSDB_CODE_TDB_OUT_OF_MEMORY;
     return NULL;
   }
@@ -525,7 +525,7 @@ void tsdbResetQueryHandleForNewTable(tsdbReadHandleT queryHandle, STsdbQueryCond
 
   pTsdbReadHandle->pTableCheckInfo = NULL;//createCheckInfoFromTableGroup(pTsdbReadHandle, groupList, pMeta, &pTable);
   if (pTsdbReadHandle->pTableCheckInfo == NULL) {
-//    tsdbCleanupQueryHandle(pTsdbReadHandle);
+//    tsdbCleanupReadHandle(pTsdbReadHandle);
     terrno = TSDB_CODE_TDB_OUT_OF_MEMORY;
   }
 
@@ -3051,7 +3051,7 @@ bool tsdbNextDataBlock(tsdbReadHandleT pHandle) {
 //  }
 //
 //out_of_memory:
-//  tsdbCleanupQueryHandle(pSecQueryHandle);
+//  tsdbCleanupReadHandle(pSecQueryHandle);
 //  return terrno;
 //}
 
@@ -3722,26 +3722,19 @@ int32_t tsdbQuerySTableByTagCond(STsdb* tsdb, uint64_t uid, TSKEY skey, const ch
   return terrno;
 }
 
-#if 0
 int32_t tsdbGetOneTableGroup(STsdb* tsdb, uint64_t uid, TSKEY startKey, STableGroupInfo* pGroupInfo) {
-  if (tsdbRLockRepoMeta(tsdb) < 0) goto _error;
-
-  STable* pTable = tsdbGetTableByUid(tsdbGetMeta(tsdb), uid);
-  if (pTable == NULL) {
+  STbCfg* pTbCfg = metaGetTbInfoByUid(tsdb->pMeta, uid);
+  if (pTbCfg == NULL) {
     terrno = TSDB_CODE_TDB_INVALID_TABLE_ID;
-    tsdbUnlockRepoMeta(tsdb);
     goto _error;
   }
-
-  assert(pTable->type == TSDB_CHILD_TABLE || pTable->type == TSDB_NORMAL_TABLE || pTable->type == TSDB_STREAM_TABLE);
-  if (tsdbUnlockRepoMeta(tsdb) < 0) goto _error;
 
   pGroupInfo->numOfTables = 1;
   pGroupInfo->pGroupList = taosArrayInit(1, POINTER_BYTES);
 
   SArray* group = taosArrayInit(1, sizeof(STableKeyInfo));
 
-  STableKeyInfo info = {.pTable = pTable, .lastKey = startKey};
+  STableKeyInfo info = {.lastKey = startKey, .uid = uid};
   taosArrayPush(group, &info);
 
   taosArrayPush(pGroupInfo->pGroupList, &group);
@@ -3751,6 +3744,7 @@ int32_t tsdbGetOneTableGroup(STsdb* tsdb, uint64_t uid, TSKEY startKey, STableGr
   return terrno;
 }
 
+#if 0
 int32_t tsdbGetTableGroupFromIdList(STsdb* tsdb, SArray* pTableIdList, STableGroupInfo* pGroupInfo) {
   if (tsdbRLockRepoMeta(tsdb) < 0) {
     return terrno;
@@ -3826,7 +3820,7 @@ static void* destroyTableCheckInfo(SArray* pTableCheckInfo) {
 }
 
 
-void tsdbCleanupQueryHandle(tsdbReadHandleT queryHandle) {
+void tsdbCleanupReadHandle(tsdbReadHandleT queryHandle) {
   STsdbReadHandle* pTsdbReadHandle = (STsdbReadHandle*)queryHandle;
   if (pTsdbReadHandle == NULL) {
     return;
