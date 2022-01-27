@@ -66,12 +66,12 @@ class TDTestCase:
         tdSql.query("select count(*) from test.meters")
         tdSql.checkData(0, 0, 20)
 
-        cmd = "taosBenchmark -n 3 -t 3 -B 2 -i 1 -G -y -T 1 2>&1 | grep sleep | wc -l"
-        sleepTimes = subprocess.check_output(cmd, shell=True).decode("utf-8")
-        tdLog.info("%s" % cmd)
-        os.system("%s" % cmd)
-        if (int(sleepTimes) != 2):
-            tdLog.exit("expected sleep times 2, actual %d" % int(sleepTimes))
+        # cmd = "taosBenchmark -n 3 -t 3 -B 2 -i 1 -G -y -T 1 2>&1 | grep sleep | wc -l"
+        # sleepTimes = subprocess.check_output(cmd, shell=True).decode("utf-8")
+        # tdLog.info("%s" % cmd)
+        # os.system("%s" % cmd)
+        # if (int(sleepTimes) != 2):
+        #     tdLog.exit("expected sleep times 2, actual %d" % int(sleepTimes))
 
         cmd = "taosBenchmark -n 3 -t 3 -B 2 -i 1 -G -y -T 1 -r 1 2>&1 | grep sleep | wc -l"
         sleepTimes = subprocess.check_output(cmd, shell=True).decode("utf-8")
