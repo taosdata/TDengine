@@ -22,8 +22,15 @@
 #include "ttokendef.h"
 #include "astCreateFuncs.h"
 
+#if 0
 #define PARSER_TRACE printf("lemon rule = %s\n", yyRuleName[yyruleno])
 #define PARSER_DESTRUCTOR_TRACE printf("lemon destroy token = %s\n", yyTokenName[yymajor])
+#define PARSER_COMPLETE printf("parsing complete!\n" )
+#else
+#define PARSER_TRACE
+#define PARSER_DESTRUCTOR_TRACE
+#define PARSER_COMPLETE
+#endif
 }
 
 %syntax_error {  
@@ -44,43 +51,37 @@
   pCxt->valid = false;
 }
 
-%parse_accept       { printf("parsing complete!\n" );}
+%parse_accept       { PARSER_COMPLETE; }
 
 %left OR.
 %left AND.
-%right NOT.
 %left UNION ALL MINUS EXCEPT INTERSECT.
-//%left EQ NE ISNULL NOTNULL IS LIKE MATCH NMATCH GLOB BETWEEN IN.
-//%left GT GE LT LE.
 //%left BITAND BITOR LSHIFT RSHIFT.
 %left NK_PLUS NK_MINUS.
 //%left DIVIDE TIMES.
-%left NK_STAR NK_SLASH. //REM.
+%left NK_STAR NK_SLASH NK_REM.
 //%left CONCAT.
 //%right UMINUS UPLUS BITNOT.
 
 cmd ::= SHOW DATABASES.                                                           { PARSER_TRACE; createShowStmt(pCxt, SHOW_TYPE_DATABASE); }
 cmd ::= query_expression(A).                                                      { PARSER_TRACE; pCxt->pRootNode = A; }
 
-/*5.4*********************************************** literal *********************************************************/
-unsigned_integer(A) ::= NK_INTEGER(B).                                            { A = createValueNode(pCxt, TSDB_DATA_TYPE_BIGINT, &B); }
-unsigned_approximate_numeric(A) ::= NK_FLOAT(B).                                  { A = createValueNode(pCxt, TSDB_DATA_TYPE_DOUBLE, &B); }
+/************************************************ literal *************************************************************/
+literal(A) ::= NK_INTEGER(B).                                                     { PARSER_TRACE; A = createValueNode(pCxt, TSDB_DATA_TYPE_BIGINT, &B); }
+literal(A) ::= NK_FLOAT(B).                                                       { PARSER_TRACE; A = createValueNode(pCxt, TSDB_DATA_TYPE_DOUBLE, &B); }
+literal(A) ::= NK_STRING(B).                                                      { PARSER_TRACE; A = createValueNode(pCxt, TSDB_DATA_TYPE_BINARY, &B); }
+literal(A) ::= NK_BOOL(B).                                                        { PARSER_TRACE; A = createValueNode(pCxt, TSDB_DATA_TYPE_BOOL, &B); }
+literal(A) ::= TIMESTAMP NK_STRING(B).                                            { PARSER_TRACE; A = createValueNode(pCxt, TSDB_DATA_TYPE_TIMESTAMP, &B); }
+literal(A) ::= duration_literal(B).                                               { PARSER_TRACE; A = B; }
 
-signed_integer(A) ::= unsigned_integer(B).                                        { A = B; }
-signed_integer(A) ::= NK_PLUS unsigned_integer(B).                                { A = B; }
-signed_integer(A) ::= NK_MINUS unsigned_integer(B).                               { A = addMinusSign(pCxt, B);}
+duration_literal(A) ::= NK_VARIABLE(B).                                           { PARSER_TRACE; A = createDurationValueNode(pCxt, &B); }
 
-unsigned_literal ::= unsigned_numeric_literal.
-unsigned_literal ::= general_literal.
+%type literal_list                                                                { SNodeList* }
+%destructor literal_list                                                          { PARSER_DESTRUCTOR_TRACE; nodesDestroyList($$); }
+literal_list(A) ::= literal(B).                                                   { PARSER_TRACE; A = createNodeList(pCxt, B); }
+literal_list(A) ::= literal_list(B) NK_COMMA literal(C).                          { PARSER_TRACE; A = addNodeToList(pCxt, B, C); }
 
-unsigned_numeric_literal ::= unsigned_integer.
-unsigned_numeric_literal ::= unsigned_approximate_numeric.
-
-general_literal ::= NK_STRING.
-general_literal ::= NK_BOOL.
-general_literal ::= NK_NOW.
-
-/*5.4*********************************************** names and identifiers *********************************************************/
+/************************************************ names and identifiers ***********************************************/
 %type db_name                                                                     { SToken }
 %destructor db_name                                                               { PARSER_DESTRUCTOR_TRACE; }
 db_name(A) ::= NK_ID(B).                                                          { PARSER_TRACE; A = B; }
@@ -93,29 +94,76 @@ table_name(A) ::= NK_ID(B).                                                     
 %destructor column_name                                                           { PARSER_DESTRUCTOR_TRACE; }
 column_name(A) ::= NK_ID(B).                                                      { PARSER_TRACE; A = B; }
 
+%type function_name                                                               { SToken }
+%destructor function_name                                                         { PARSER_DESTRUCTOR_TRACE; }
+function_name(A) ::= NK_ID(B).                                                    { PARSER_TRACE; A = B; }
+
 %type table_alias                                                                 { SToken }
 %destructor table_alias                                                           { PARSER_DESTRUCTOR_TRACE; }
 table_alias(A) ::= NK_ID(B).                                                      { PARSER_TRACE; A = B; }
 
-/*6.4*********************************************** value_specification *********************************************************/
-unsigned_value_specification ::= unsigned_literal.
-unsigned_value_specification ::= NK_QUESTION.
+%type column_alias                                                                { SToken }
+%destructor column_alias                                                          { PARSER_DESTRUCTOR_TRACE; }
+column_alias(A) ::= NK_ID(B).                                                     { PARSER_TRACE; A = B; }
 
-/*6.35 todo *********************************************** value_expression_primary *********************************************************/
-value_expression_primary ::= NK_LP value_expression NK_RP.
-value_expression_primary ::= nonparenthesized_value_expression_primary.
+/************************************************ expression **********************************************************/
+expression(A) ::= literal(B).                                                     { PARSER_TRACE; A = B; }
+//expression(A) ::= NK_QUESTION(B).                                                 { PARSER_TRACE; A = B; }
+//expression(A) ::= pseudo_column(B).                                               { PARSER_TRACE; A = B; }
+expression(A) ::= column_reference(B).                                            { PARSER_TRACE; A = B; }
+expression(A) ::= function_name(B) NK_LP expression_list(C) NK_RP.                { PARSER_TRACE; A = createFunctionNode(pCxt, &B, C); }
+//expression(A) ::= cast_expression(B).                                             { PARSER_TRACE; A = B; }
+//expression(A) ::= case_expression(B).                                             { PARSER_TRACE; A = B; }
+expression(A) ::= subquery(B).                                                    { PARSER_TRACE; A = B; }
+expression(A) ::= NK_LP expression(B) NK_RP.                                      { PARSER_TRACE; A = B; }
+expression(A) ::= NK_PLUS expression(B).                                          { PARSER_TRACE; A = B; }
+expression(A) ::= NK_MINUS expression(B).                                         { PARSER_TRACE; A = createOperatorNode(pCxt, OP_TYPE_SUB, B, NULL); }
+expression(A) ::= expression(B) NK_PLUS expression(C).                            { PARSER_TRACE; A = createOperatorNode(pCxt, OP_TYPE_ADD, B, C); }
+expression(A) ::= expression(B) NK_MINUS expression(C).                           { PARSER_TRACE; A = createOperatorNode(pCxt, OP_TYPE_SUB, B, C); }
+expression(A) ::= expression(B) NK_STAR expression(C).                            { PARSER_TRACE; A = createOperatorNode(pCxt, OP_TYPE_MULTI, B, C); }
+expression(A) ::= expression(B) NK_SLASH expression(C).                           { PARSER_TRACE; A = createOperatorNode(pCxt, OP_TYPE_DIV, B, C); }
+expression(A) ::= expression(B) NK_REM expression(C).                             { PARSER_TRACE; A = createOperatorNode(pCxt, OP_TYPE_MOD, B, C); }
 
-nonparenthesized_value_expression_primary ::= unsigned_value_specification.
-nonparenthesized_value_expression_primary ::= column_reference.
-//nonparenthesized_value_expression_primary ::= agg_function.
-nonparenthesized_value_expression_primary ::= subquery.
-//nonparenthesized_value_expression_primary ::= case_expression. // todo
-//nonparenthesized_value_expression_primary ::= cast_specification. // todo
+%type expression_list                                                             { SNodeList* }
+%destructor expression_list                                                       { PARSER_DESTRUCTOR_TRACE; nodesDestroyList($$); }
+expression_list(A) ::= expression(B).                                             { PARSER_TRACE; A = createNodeList(pCxt, B); }
+expression_list(A) ::= expression_list(B) NK_COMMA expression(C).                 { PARSER_TRACE; A = addNodeToList(pCxt, B, C); }
 
 column_reference(A) ::= column_name(B).                                           { PARSER_TRACE; A = createColumnNode(pCxt, NULL, &B); }
 column_reference(A) ::= table_name(B) NK_DOT column_name(C).                      { PARSER_TRACE; A = createColumnNode(pCxt, &B, &C); }
 
-/*6.35*********************************************** boolean_value_expression *********************************************************/
+//pseudo_column(A) ::= NK_NOW.                                                      { PARSER_TRACE; A = createFunctionNode(pCxt, NULL, NULL); }
+
+/************************************************ predicate ***********************************************************/
+predicate(A) ::= expression(B) compare_op(C) expression(D).                       { PARSER_TRACE; A = createOperatorNode(pCxt, C, B, D); }
+//predicate(A) ::= expression(B) compare_op sub_type expression(B).
+predicate(A) ::= expression(B) BETWEEN expression(C) AND expression(D).           { PARSER_TRACE; A = createBetweenAnd(pCxt, B, C, D); }
+predicate(A) ::= expression(B) NOT BETWEEN expression(C) AND expression(D).       { PARSER_TRACE; A = createNotBetweenAnd(pCxt, C, B, D); }
+predicate(A) ::= expression(B) IS NULL.                                           { PARSER_TRACE; A = createIsNullCondNode(pCxt, B, true); }
+predicate(A) ::= expression(B) IS NOT NULL.                                       { PARSER_TRACE; A = createIsNullCondNode(pCxt, B, false); }
+predicate(A) ::= expression(B) in_op(C) in_predicate_value(D).                    { PARSER_TRACE; A = createOperatorNode(pCxt, C, B, D); }
+
+%type compare_op                                                                  { EOperatorType }
+%destructor compare_op                                                            { PARSER_DESTRUCTOR_TRACE; }
+compare_op(A) ::= NK_LT.                                                          { PARSER_TRACE; A = OP_TYPE_LOWER_THAN; }
+compare_op(A) ::= NK_GT.                                                          { PARSER_TRACE; A = OP_TYPE_GREATER_THAN; }
+compare_op(A) ::= NK_LE.                                                          { PARSER_TRACE; A = OP_TYPE_LOWER_EQUAL; }
+compare_op(A) ::= NK_GE.                                                          { PARSER_TRACE; A = OP_TYPE_GREATER_EQUAL; }
+compare_op(A) ::= NK_NE.                                                          { PARSER_TRACE; A = OP_TYPE_NOT_EQUAL; }
+compare_op(A) ::= NK_EQ.                                                          { PARSER_TRACE; A = OP_TYPE_EQUAL; }
+compare_op(A) ::= LIKE.                                                           { PARSER_TRACE; A = OP_TYPE_LIKE; }
+compare_op(A) ::= NOT LIKE.                                                       { PARSER_TRACE; A = OP_TYPE_NOT_LIKE; }
+compare_op(A) ::= MATCH.                                                          { PARSER_TRACE; A = OP_TYPE_MATCH; }
+compare_op(A) ::= NMATCH.                                                         { PARSER_TRACE; A = OP_TYPE_NMATCH; }
+
+%type in_op                                                                       { EOperatorType }
+%destructor in_op                                                                 { PARSER_DESTRUCTOR_TRACE; }
+in_op(A) ::= IN.                                                                  { PARSER_TRACE; A = OP_TYPE_IN; }
+in_op(A) ::= NOT IN.                                                              { PARSER_TRACE; A = OP_TYPE_NOT_IN; }
+
+in_predicate_value(A) ::= NK_LP expression_list(B) NK_RP.                         { PARSER_TRACE; A = createNodeListNode(pCxt, B); }
+
+/************************************************ boolean_value_expression ********************************************/
 boolean_value_expression(A) ::= boolean_primary(B).                               { PARSER_TRACE; A = B; }
 boolean_value_expression(A) ::= NOT boolean_primary(B).                           { PARSER_TRACE; A = createLogicConditionNode(pCxt, LOGIC_COND_TYPE_NOT, B, NULL); }
 boolean_value_expression(A) ::=
@@ -126,32 +174,31 @@ boolean_value_expression(A) ::=
 boolean_primary(A) ::= predicate(B).                                              { PARSER_TRACE; A = B; }
 boolean_primary(A) ::= NK_LP boolean_value_expression(B) NK_RP.                   { PARSER_TRACE; A = B; }
 
-/*7.5*********************************************** from_clause *********************************************************/
+/************************************************ from_clause *********************************************************/
 from_clause(A) ::= FROM table_reference_list(B).                                  { PARSER_TRACE; A = B; }
 
 table_reference_list(A) ::= table_reference(B).                                   { PARSER_TRACE; A = B; }
 table_reference_list(A) ::= table_reference_list(B) NK_COMMA table_reference(C).  { PARSER_TRACE; A = createJoinTableNode(pCxt, JOIN_TYPE_INNER, B, C, NULL); }
 
-/*7.6*********************************************** table_reference *****************************************************/
+/************************************************ table_reference *****************************************************/
 table_reference(A) ::= table_primary(B).                                          { PARSER_TRACE; A = B; }
 table_reference(A) ::= joined_table(B).                                           { PARSER_TRACE; A = B; }
 
-table_primary(A) ::= table_name(B) correlation_or_recognition_opt(C).             { PARSER_TRACE; A = createRealTableNode(pCxt, NULL, &B, &C); }
-table_primary(A) ::=
-  db_name(B) NK_DOT table_name(C) correlation_or_recognition_opt(D).              { PARSER_TRACE; A = createRealTableNode(pCxt, &B, &C, &D); }
-table_primary(A) ::= subquery(B) correlation_or_recognition_opt(C).               { PARSER_TRACE; A = createTempTableNode(pCxt, B, &C); }
+table_primary(A) ::= table_name(B) alias_opt(C).                                  { PARSER_TRACE; A = createRealTableNode(pCxt, NULL, &B, &C); }
+table_primary(A) ::= db_name(B) NK_DOT table_name(C) alias_opt(D).                { PARSER_TRACE; A = createRealTableNode(pCxt, &B, &C, &D); }
+table_primary(A) ::= subquery(B) alias_opt(C).                                    { PARSER_TRACE; A = createTempTableNode(pCxt, B, &C); }
 table_primary ::= parenthesized_joined_table.
 
-%type correlation_or_recognition_opt                                              { SToken }
-%destructor correlation_or_recognition_opt                                        { PARSER_DESTRUCTOR_TRACE; }
-correlation_or_recognition_opt(A) ::= .                                           { PARSER_TRACE; A = nil_token;  }
-correlation_or_recognition_opt(A) ::= table_alias(B).                             { PARSER_TRACE; A = B; }
-correlation_or_recognition_opt(A) ::= AS table_alias(B).                          { PARSER_TRACE; A = B; }
+%type alias_opt                                                                   { SToken }
+%destructor alias_opt                                                             { PARSER_DESTRUCTOR_TRACE; }
+alias_opt(A) ::= .                                                                { PARSER_TRACE; A = nil_token;  }
+alias_opt(A) ::= table_alias(B).                                                  { PARSER_TRACE; A = B; }
+alias_opt(A) ::= AS table_alias(B).                                               { PARSER_TRACE; A = B; }
 
 parenthesized_joined_table(A) ::= NK_LP joined_table(B) NK_RP.                    { PARSER_TRACE; A = B; }
 parenthesized_joined_table(A) ::= NK_LP parenthesized_joined_table(B) NK_RP.      { PARSER_TRACE; A = B; }
 
-/*7.10*********************************************** joined_table ************************************************************/
+/************************************************ joined_table ********************************************************/
 joined_table(A) ::=
   table_reference(B) join_type(C) JOIN table_reference(D) ON search_condition(E). { PARSER_TRACE; A = createJoinTableNode(pCxt, C, B, D, E); }
 
@@ -159,7 +206,7 @@ joined_table(A) ::=
 %destructor join_type                                                             { PARSER_DESTRUCTOR_TRACE; }
 join_type(A) ::= INNER.                                                           { PARSER_TRACE; A = JOIN_TYPE_INNER; }
 
-/*7.15*********************************************** query_specification *************************************************/
+/************************************************ query_specification *************************************************/
 query_specification(A) ::=
   SELECT set_quantifier_opt(B) select_list(C) from_clause(D) where_clause_opt(E) 
     partition_by_clause_opt(F) twindow_clause_opt(G) 
@@ -189,12 +236,53 @@ select_list(A) ::= select_sublist(B).                                           
 select_sublist(A) ::= select_item(B).                                             { PARSER_TRACE; A = createNodeList(pCxt, B); }
 select_sublist(A) ::= select_sublist(B) NK_COMMA select_item(C).                  { PARSER_TRACE; A = addNodeToList(pCxt, B, C); }
 
-select_item(A) ::= value_expression(B).                                           { PARSER_TRACE; A = B; }
-select_item(A) ::= value_expression(B) NK_ID(C).                                  { PARSER_TRACE; A = setProjectionAlias(pCxt, B, &C); }
-select_item(A) ::= value_expression(B) AS NK_ID(C).                               { PARSER_TRACE; A = setProjectionAlias(pCxt, B, &C); }
+select_item(A) ::= expression(B).                                                 { PARSER_TRACE; A = B; }
+select_item(A) ::= expression(B) column_alias(C).                                 { PARSER_TRACE; A = setProjectionAlias(pCxt, B, &C); }
+select_item(A) ::= expression(B) AS column_alias(C).                              { PARSER_TRACE; A = setProjectionAlias(pCxt, B, &C); }
 select_item(A) ::= table_name(B) NK_DOT NK_STAR(C).                               { PARSER_TRACE; A = createColumnNode(pCxt, &B, &C); }
 
-/*7.16*********************************************** query_expression ****************************************************/
+where_clause_opt(A) ::= .                                                         { PARSER_TRACE; A = NULL; }
+where_clause_opt(A) ::= WHERE search_condition(B).                                { PARSER_TRACE; A = B; }
+
+%type partition_by_clause_opt                                                     { SNodeList* }
+%destructor partition_by_clause_opt                                               { PARSER_DESTRUCTOR_TRACE; nodesDestroyList($$); }
+partition_by_clause_opt(A) ::= .                                                  { PARSER_TRACE; A = NULL; }
+partition_by_clause_opt(A) ::= PARTITION BY expression_list(B).                   { PARSER_TRACE; A = B; }
+
+twindow_clause_opt(A) ::= .                                                       { PARSER_TRACE; A = NULL; }
+twindow_clause_opt(A) ::=
+  SESSION NK_LP column_reference(B) NK_COMMA NK_INTEGER(C) NK_RP.                 { PARSER_TRACE; A = createSessionWindowNode(pCxt, B, &C); }
+twindow_clause_opt(A) ::= STATE_WINDOW NK_LP column_reference(B) NK_RP.           { PARSER_TRACE; A = createStateWindowNode(pCxt, B); }
+twindow_clause_opt(A) ::=
+  INTERVAL NK_LP duration_literal(B) NK_RP sliding_opt(C) fill_opt(D).            { PARSER_TRACE; A = createIntervalWindowNode(pCxt, B, NULL, C, D); }
+twindow_clause_opt(A) ::=
+  INTERVAL NK_LP duration_literal(B) NK_COMMA duration_literal(C) NK_RP 
+  sliding_opt(D) fill_opt(E).                                                     { PARSER_TRACE; A = createIntervalWindowNode(pCxt, B, C, D, E); }
+
+sliding_opt(A) ::= .                                                              { PARSER_TRACE; A = NULL; }
+sliding_opt(A) ::= SLIDING NK_LP duration_literal(B) NK_RP.                       { PARSER_TRACE; A = B; }
+
+fill_opt(A) ::= .                                                                 { PARSER_TRACE; A = NULL; }
+fill_opt(A) ::= FILL NK_LP fill_mode(B) NK_RP.                                    { PARSER_TRACE; A = createFillNode(pCxt, B, NULL); }
+fill_opt(A) ::= FILL NK_LP VALUE NK_COMMA literal_list(B) NK_RP.                  { PARSER_TRACE; A = createFillNode(pCxt, FILL_MODE_VALUE, createNodeListNode(pCxt, B)); }  
+
+%type fill_mode                                                                   { EFillMode }
+%destructor fill_mode                                                             { PARSER_DESTRUCTOR_TRACE; }
+fill_mode(A) ::= NONE.                                                            { PARSER_TRACE; A = FILL_MODE_NONE; }
+fill_mode(A) ::= PREV.                                                            { PARSER_TRACE; A = FILL_MODE_PREV; }
+fill_mode(A) ::= NULL.                                                            { PARSER_TRACE; A = FILL_MODE_NULL; }
+fill_mode(A) ::= LINEAR.                                                          { PARSER_TRACE; A = FILL_MODE_LINEAR; }
+fill_mode(A) ::= NEXT.                                                            { PARSER_TRACE; A = FILL_MODE_NEXT; }
+
+%type group_by_clause_opt                                                         { SNodeList* }
+%destructor group_by_clause_opt                                                   { PARSER_DESTRUCTOR_TRACE; nodesDestroyList($$); }
+group_by_clause_opt(A) ::= .                                                      { PARSER_TRACE; A = NULL; }
+group_by_clause_opt(A) ::= GROUP BY expression_list(B).                           { PARSER_TRACE; A = B; }
+
+having_clause_opt(A) ::= .                                                        { PARSER_TRACE; A = NULL; }
+having_clause_opt(A) ::= HAVING search_condition(B).                              { PARSER_TRACE; A = B; }
+
+/************************************************ query_expression ****************************************************/
 query_expression(A) ::= 
   query_expression_body(B) 
     order_by_clause_opt(C) slimit_clause_opt(D) limit_clause_opt(E).              { 
@@ -219,25 +307,22 @@ order_by_clause_opt(A) ::= .                                                    
 order_by_clause_opt(A) ::= ORDER BY sort_specification_list(B).                   { PARSER_TRACE; A = B; }
 
 slimit_clause_opt(A) ::= .                                                        { PARSER_TRACE; A = NULL; }
-slimit_clause_opt(A) ::= SLIMIT signed_integer(B).                                { PARSER_TRACE; A = createLimitNode(pCxt, B, 0); }
-slimit_clause_opt(A) ::= SLIMIT signed_integer(B) SOFFSET signed_integer(C).      { PARSER_TRACE; A = createLimitNode(pCxt, B, C); }
-slimit_clause_opt(A) ::= SLIMIT signed_integer(C) NK_COMMA signed_integer(B).     { PARSER_TRACE; A = createLimitNode(pCxt, B, C); }
+slimit_clause_opt(A) ::= SLIMIT NK_INTEGER(B).                                    { PARSER_TRACE; A = createLimitNode(pCxt, &B, NULL); }
+slimit_clause_opt(A) ::= SLIMIT NK_INTEGER(B) SOFFSET NK_INTEGER(C).              { PARSER_TRACE; A = createLimitNode(pCxt, &B, &C); }
+slimit_clause_opt(A) ::= SLIMIT NK_INTEGER(C) NK_COMMA NK_INTEGER(B).             { PARSER_TRACE; A = createLimitNode(pCxt, &B, &C); }
 
 limit_clause_opt(A) ::= .                                                         { PARSER_TRACE; A = NULL; }
-limit_clause_opt(A) ::= LIMIT signed_integer(B).                                  { PARSER_TRACE; A = createLimitNode(pCxt, B, 0); }
-limit_clause_opt(A) ::= LIMIT signed_integer(B) OFFSET signed_integer(C).         { PARSER_TRACE; A = createLimitNode(pCxt, B, C); }
-limit_clause_opt(A) ::= LIMIT signed_integer(C) NK_COMMA signed_integer(B).       { PARSER_TRACE; A = createLimitNode(pCxt, B, C); }
+limit_clause_opt(A) ::= LIMIT NK_INTEGER(B).                                      { PARSER_TRACE; A = createLimitNode(pCxt, &B, NULL); }
+limit_clause_opt(A) ::= LIMIT NK_INTEGER(B) OFFSET NK_INTEGER(C).                 { PARSER_TRACE; A = createLimitNode(pCxt, &B, &C); }
+limit_clause_opt(A) ::= LIMIT NK_INTEGER(C) NK_COMMA NK_INTEGER(B).               { PARSER_TRACE; A = createLimitNode(pCxt, &B, &C); }
 
-/*7.18*********************************************** subquery ************************************************************/
+/************************************************ subquery ************************************************************/
 subquery(A) ::= NK_LR query_expression(B) NK_RP.                                  { PARSER_TRACE; A = B; }
 
-/*8.1*********************************************** predicate ************************************************************/
-predicate ::= .
-
-/*8.21 todo *********************************************** search_condition ************************************************************/
+/************************************************ search_condition ****************************************************/
 search_condition(A) ::= boolean_value_expression(B).                              { PARSER_TRACE; A = B; }
 
-/*10.10*********************************************** sort_specification_list ************************************************************/
+/************************************************ sort_specification_list *********************************************/
 %type sort_specification_list                                                     { SNodeList* }
 %destructor sort_specification_list                                               { PARSER_DESTRUCTOR_TRACE; nodesDestroyList($$); }
 sort_specification_list(A) ::= sort_specification(B).                             { PARSER_TRACE; A = createNodeList(pCxt, B); }
@@ -245,7 +330,7 @@ sort_specification_list(A) ::=
   sort_specification_list(B) NK_COMMA sort_specification(C).                      { PARSER_TRACE; A = addNodeToList(pCxt, B, C); }
 
 sort_specification(A) ::= 
-  value_expression(B) ordering_specification_opt(C) null_ordering_opt(D).         { PARSER_TRACE; A = createOrderByExprNode(pCxt, B, C, D); }
+  expression(B) ordering_specification_opt(C) null_ordering_opt(D).               { PARSER_TRACE; A = createOrderByExprNode(pCxt, B, C, D); }
 
 %type ordering_specification_opt EOrder
 %destructor ordering_specification_opt                                            { PARSER_DESTRUCTOR_TRACE; }
@@ -258,39 +343,3 @@ ordering_specification_opt(A) ::= DESC.                                         
 null_ordering_opt(A) ::= .                                                        { PARSER_TRACE; A = NULL_ORDER_DEFAULT; }
 null_ordering_opt(A) ::= NULLS FIRST.                                             { PARSER_TRACE; A = NULL_ORDER_FIRST; }
 null_ordering_opt(A) ::= NULLS LAST.                                              { PARSER_TRACE; A = NULL_ORDER_LAST; }
-
-/************************************************ todo ************************************************************/
-
-where_clause_opt ::= .
-
-%type partition_by_clause_opt                                                                                                              { SNodeList* }
-%destructor partition_by_clause_opt                                                                                                        { PARSER_DESTRUCTOR_TRACE; nodesDestroyList($$); }
-partition_by_clause_opt ::=.
-
-twindow_clause_opt ::= .
-
-%type group_by_clause_opt                                                                                                              { SNodeList* }
-%destructor group_by_clause_opt                                                                                                        { PARSER_DESTRUCTOR_TRACE; nodesDestroyList($$); }
-group_by_clause_opt ::= .
-
-having_clause_opt ::= .
-
-//////////////////////// value_function /////////////////////////////////
-value_function ::= NK_ID NK_LP value_expression NK_RP.
-value_function ::= NK_ID NK_LP value_expression NK_COMMA value_expression NK_RP.
-
-//////////////////////// value_expression /////////////////////////////////
-value_expression ::= common_value_expression.
-
-common_value_expression ::= numeric_value_expression.
-
-numeric_value_expression ::= numeric_primary.
-numeric_value_expression ::= NK_PLUS numeric_primary.
-numeric_value_expression ::= NK_MINUS numeric_primary.
-numeric_value_expression ::= numeric_value_expression NK_PLUS numeric_value_expression.
-numeric_value_expression ::= numeric_value_expression NK_MINUS numeric_value_expression.
-numeric_value_expression ::= numeric_value_expression NK_STAR numeric_value_expression.
-numeric_value_expression ::= numeric_value_expression NK_SLASH numeric_value_expression.
-
-numeric_primary ::= value_expression_primary.
-numeric_primary ::= value_function.
