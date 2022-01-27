@@ -873,6 +873,11 @@ bool tqNextDataBlock(STqReadHandle* pHandle) {
       pHandle->pBlock->schemaLen = htonl(pHandle->pBlock->schemaLen);
       pHandle->pBlock->numOfRows = htons(pHandle->pBlock->numOfRows);
       return true;
+    } else if (pHandle->tbIdHash != NULL) {
+      void* ret = taosHashGet(pHandle->tbIdHash, &pHandle->pBlock->uid, sizeof(int64_t));
+      if (ret != NULL) {
+        return  true;
+      }
     }
   }
   return false;
