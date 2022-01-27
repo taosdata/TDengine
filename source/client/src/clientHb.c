@@ -63,8 +63,8 @@ static int32_t hbProcessDBInfoRsp(void *value, int32_t valueLen, struct SCatalog
         rsp->vgroupInfo[i].hashBegin = ntohl(rsp->vgroupInfo[i].hashBegin);
         rsp->vgroupInfo[i].hashEnd = ntohl(rsp->vgroupInfo[i].hashEnd);
 
-        for (int32_t n = 0; n < rsp->vgroupInfo[i].numOfEps; ++n) {
-          rsp->vgroupInfo[i].epAddr[n].port = ntohs(rsp->vgroupInfo[i].epAddr[n].port);
+        for (int32_t n = 0; n < rsp->vgroupInfo[i].epset.numOfEps; ++n) {
+          rsp->vgroupInfo[i].epset.eps[n].port = ntohs(rsp->vgroupInfo[i].epset.eps[n].port);
         }
 
         if (0 != taosHashPut(vgInfo.vgInfo, &rsp->vgroupInfo[i].vgId, sizeof(rsp->vgroupInfo[i].vgId), &rsp->vgroupInfo[i], sizeof(rsp->vgroupInfo[i]))) {
@@ -377,12 +377,15 @@ static int32_t hbCreateThread() {
 
 static void hbStopThread() {
   if (atomic_val_compare_exchange_8(&clientHbMgr.threadStop, 0, 1)) {
+    tscDebug("hb thread already stopped");
     return;
   }
   
   while (2 != atomic_load_8(&clientHbMgr.threadStop)) {
     usleep(10);
   }
+
+  tscDebug("hb thread stopped");  
 }
 
 SAppHbMgr* appHbMgrInit(SAppInstInfo* pAppInstInfo, char *key) {
