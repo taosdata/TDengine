@@ -208,8 +208,8 @@ static FORCE_INLINE void tqReadHandleSetColIdList(STqReadHandle* pReadHandle, SA
   pReadHandle->pColIdList = pColIdList;
 }
 
-static FORCE_INLINE void tqReadHandleSetTbUid(STqReadHandle* pHandle, uint64_t tbUid) {
-  pHandle->tbUid = tbUid;
+static FORCE_INLINE void tqReadHandleSetTbUid(STqReadHandle* pHandle, const SArray* pTableIdList) {
+//  pHandle->tbUid = pTableIdList;
 }
 
 static FORCE_INLINE int tqReadHandleSetTbUidList(STqReadHandle* pHandle, SArray* tbUidList) {

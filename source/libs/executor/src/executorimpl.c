@@ -2371,7 +2371,7 @@ _clean:
 static void doFreeQueryHandle(STaskRuntimeEnv* pRuntimeEnv) {
   STaskAttr* pQueryAttr = pRuntimeEnv->pQueryAttr;
 
-//  tsdbCleanupQueryHandle(pRuntimeEnv->pTsdbReadHandle);
+//  tsdbCleanupReadHandle(pRuntimeEnv->pTsdbReadHandle);
   pRuntimeEnv->pTsdbReadHandle = NULL;
 
 //  SMemRef* pMemRef = &pQueryAttr->memRef;
@@ -5454,7 +5454,7 @@ SOperatorInfo* createTableBlockInfoScanOperator(void* pTsdbReadHandle, STaskRunt
   return pOperator;
 }
 
-SOperatorInfo* createStreamScanOperatorInfo(void *streamReadHandle, SArray* pExprInfo, uint64_t uid, SExecTaskInfo* pTaskInfo) {
+SOperatorInfo* createStreamScanOperatorInfo(void *streamReadHandle, SArray* pExprInfo, SArray* pTableIdList, SExecTaskInfo* pTaskInfo) {
   SStreamBlockScanInfo* pInfo = calloc(1, sizeof(SStreamBlockScanInfo));
   SOperatorInfo* pOperator = calloc(1, sizeof(SOperatorInfo));
   if (pInfo == NULL || pOperator == NULL) {
@@ -5477,7 +5477,7 @@ SOperatorInfo* createStreamScanOperatorInfo(void *streamReadHandle, SArray* pExp
   
   // set the extract column id to streamHandle
   tqReadHandleSetColIdList((STqReadHandle* )streamReadHandle, pColList);
-  tqReadHandleSetTbUid(streamReadHandle, uid);
+  tqReadHandleSetTbUid(streamReadHandle, pTableIdList);
 
   pInfo->readerHandle = streamReadHandle;
 
@@ -7750,20 +7750,21 @@ static SExecTaskInfo* createExecTaskInfo(uint64_t queryId, uint64_t taskId) {
 }
 
 static tsdbReadHandleT doCreateDataReadHandle(STableScanPhyNode* pTableScanNode, void* readerHandle, uint64_t queryId, uint64_t taskId);
+static int32_t doCreateTableGroup(void* readerHandle, int32_t tableType, uint64_t tableUid, STableGroupInfo* pGroupInfo, uint64_t queryId, uint64_t taskId);
 
 SOperatorInfo* doCreateOperatorTreeNode(SPhyNode* pPhyNode, SExecTaskInfo* pTaskInfo, void* readerHandle, uint64_t queryId, uint64_t taskId) {
   if (pPhyNode->pChildren == NULL || taosArrayGetSize(pPhyNode->pChildren) == 0) {
     if (pPhyNode->info.type == OP_TableScan) {
 
-      SScanPhyNode*  pScanPhyNode = (SScanPhyNode*)pPhyNode;
-      size_t         numOfCols = taosArrayGetSize(pPhyNode->pTargets);
+      SScanPhyNode* pScanPhyNode = (SScanPhyNode*)pPhyNode;
+      size_t        numOfCols = taosArrayGetSize(pPhyNode->pTargets);
 
       tsdbReadHandleT tReaderHandle = doCreateDataReadHandle((STableScanPhyNode*) pPhyNode, readerHandle, (uint64_t) queryId, taskId);
 
       return createTableScanOperatorInfo(tReaderHandle, pScanPhyNode->order, numOfCols, pScanPhyNode->count, pTaskInfo);
     } else if (pPhyNode->info.type == OP_DataBlocksOptScan) {
-      SScanPhyNode*  pScanPhyNode = (SScanPhyNode*)pPhyNode;
-      size_t         numOfCols = taosArrayGetSize(pPhyNode->pTargets);
+      SScanPhyNode* pScanPhyNode = (SScanPhyNode*)pPhyNode;
+      size_t        numOfCols = taosArrayGetSize(pPhyNode->pTargets);
 
       tsdbReadHandleT tReaderHandle = doCreateDataReadHandle((STableScanPhyNode*) pPhyNode, readerHandle, (uint64_t) queryId, taskId);
 
@@ -7772,8 +7773,13 @@ SOperatorInfo* doCreateOperatorTreeNode(SPhyNode* pPhyNode, SExecTaskInfo* pTask
       SExchangePhyNode* pEx = (SExchangePhyNode*) pPhyNode;
       return createExchangeOperatorInfo(pEx->pSrcEndPoints, pEx->node.pTargets, pTaskInfo);
     } else if (pPhyNode->info.type == OP_StreamScan) {
-      SScanPhyNode*  pScanPhyNode = (SScanPhyNode*)pPhyNode;   // simple child table.
-      return createStreamScanOperatorInfo(readerHandle, pPhyNode->pTargets, pScanPhyNode->uid, pTaskInfo);
+      SScanPhyNode* pScanPhyNode = (SScanPhyNode*)pPhyNode;   // simple child table.
+      STableGroupInfo groupInfo = {0};
+      int32_t code = doCreateTableGroup(readerHandle, pScanPhyNode->tableType, pScanPhyNode->uid, &groupInfo, queryId, taskId);
+
+      SArray* pa = taosArrayGetP(groupInfo.pGroupList, 0);
+      ASSERT(taosArrayGetSize(groupInfo.pGroupList) == 1);
+      return createStreamScanOperatorInfo(readerHandle, pPhyNode->pTargets, pa, pTaskInfo);
     }
   }
 
@@ -7811,29 +7817,24 @@ static tsdbReadHandleT createDataReadHandle(STableScanPhyNode* pTableScanNode, S
   return tsdbQueryTables(readerHandle, &cond, pGroupInfo, queryId, taskId);
 }
 
+static int32_t doCreateTableGroup(void* readerHandle, int32_t tableType, uint64_t tableUid, STableGroupInfo* pGroupInfo, uint64_t queryId, uint64_t taskId) {
+  int32_t code = 0;
+  if (tableType == TSDB_SUPER_TABLE) {
+    code = tsdbQuerySTableByTagCond(readerHandle, tableUid, 0, NULL, 0, 0, NULL, pGroupInfo, NULL, 0, queryId, taskId);
+  } else {  // Create one table group.
+    code = tsdbGetOneTableGroup(readerHandle, tableUid, 0, pGroupInfo);
+  }
+
+  return code;
+}
+
 static tsdbReadHandleT doCreateDataReadHandle(STableScanPhyNode* pTableScanNode, void* readerHandle, uint64_t queryId, uint64_t taskId) {
-  int32_t         code = 0;
   STableGroupInfo groupInfo = {0};
 
   uint64_t uid = pTableScanNode->scan.uid;
-  STimeWindow window = pTableScanNode->window;
-  int32_t tableType = pTableScanNode->scan.tableType;
-
-  if (tableType == TSDB_SUPER_TABLE) {
-    code =
-        tsdbQuerySTableByTagCond(readerHandle, uid, window.skey, NULL, 0, 0, NULL, &groupInfo, NULL, 0, queryId, taskId);
-    if (code != TSDB_CODE_SUCCESS) {
-      goto _error;
-    }
-  } else {  // Create one table group.
-    groupInfo.numOfTables = 1;
-    groupInfo.pGroupList = taosArrayInit(1, POINTER_BYTES);
-
-    SArray* pa = taosArrayInit(1, sizeof(STableKeyInfo));
-
-    STableKeyInfo info = {.lastKey = 0, .uid = uid};
-    taosArrayPush(pa, &info);
-    taosArrayPush(groupInfo.pGroupList, &pa);
+  int32_t code = doCreateTableGroup(readerHandle, pTableScanNode->scan.tableType, uid, &groupInfo, queryId, taskId);
+  if (code != TSDB_CODE_SUCCESS) {
+    goto _error;
   }
 
   if (groupInfo.numOfTables == 0) {

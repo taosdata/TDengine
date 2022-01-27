@@ -220,7 +220,7 @@ int32_t tsdbGetTableGroupFromIdList(STsdb *tsdb, SArray *pTableIdList, STableGro
  * clean up the query handle
  * @param queryHandle
  */
-void tsdbCleanupQueryHandle(tsdbReadHandleT queryHandle);
+void tsdbCleanupReadHandle(tsdbReadHandleT queryHandle);
 
 #ifdef __cplusplus
 }
