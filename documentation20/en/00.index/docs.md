@@ -81,11 +81,10 @@ TDengine is a highly efficient platform to store, query, and analyze time-series
 
 ## [Components and Tools](/cn/documentation/)
 
-* [taosAdapter User Manual](/tools/adapter)
-* [TDinsight User Manual](/tools/insight)
-* [taosTools Install Manual](/tools/taos-tools)
-* [taosdump User Manual](/tools/taosdump)
-* [taosbenchmark User Manual](/tools/taosbenchmark)
+* taosAdapter: a bridge/adapter between TDengine cluster and applications. [User Manual](/tools/adapter)
+* TDinsight: monitoring TDengine cluster with Grafana. [User Manual](/tools/insight)
+* taosdump: backup tool for TDengine. [User Manual](/tools/taosdump)
+* taosBenchmark: stress test tool for TDengine. [User Manual](/tools/taosbenchmark)
 
 ## [Connections with Other Tools](/connections)
 
