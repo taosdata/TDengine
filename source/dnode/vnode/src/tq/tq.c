@@ -670,18 +670,22 @@ int tqItemSSize() {
 
 int32_t tqProcessConsumeReq(STQ* pTq, SRpcMsg* pMsg) {
   SMqConsumeReq* pReq = pMsg->pCont;
-  SRpcMsg        rpcMsg;
   int64_t        reqId = pReq->reqId;
   int64_t        consumerId = pReq->consumerId;
-  int64_t        reqOffset = pReq->offset;
-  int64_t        fetchOffset = reqOffset;
+  int64_t        fetchOffset = pReq->offset;
   int64_t        blockingTime = pReq->blockingTime;
 
   int           rspLen = 0;
-  SMqConsumeRsp rsp = {.consumerId = consumerId, .numOfTopics = 1, .pBlockData = NULL};
+  SMqConsumeRsp rsp = {.consumerId = consumerId, .numOfTopics = 0, .pBlockData = NULL};
 
   STqConsumerHandle* pConsumer = tqHandleGet(pTq->tqMeta, consumerId);
-  ASSERT(pConsumer);
+  if (pConsumer == NULL) {
+    pMsg->pCont = NULL;
+    pMsg->contLen = 0;
+    pMsg->code = -1;
+    rpcSendResponse(pMsg);
+    return 0;
+  }
   int sz = taosArrayGetSize(pConsumer->topics);
 
   for (int i = 0; i < sz; i++) {
@@ -690,6 +694,9 @@ int32_t tqProcessConsumeReq(STQ* pTq, SRpcMsg* pMsg) {
     if (strcmp(pTopic->topicName, pReq->topic) != 0) {
       continue;
     }
+    rsp.committedOffset = pTopic->committedOffset;
+    rsp.reqOffset = pReq->offset;
+    rsp.skipLogNum = 0;
 
     if (fetchOffset == -1) {
       fetchOffset = pTopic->committedOffset + 1;
@@ -715,6 +722,7 @@ int32_t tqProcessConsumeReq(STQ* pTq, SRpcMsg* pMsg) {
       if (pHead->head.msgType == TDMT_VND_SUBMIT) {
         break;
       }
+      rsp.skipLogNum++;
       if (walReadWithHandle(pTopic->pReadhandle, fetchOffset) < 0) {
         atomic_store_8(&pTopic->buffer.output[pos].status, 0);
         skip = 1;
@@ -745,6 +753,7 @@ int32_t tqProcessConsumeReq(STQ* pTq, SRpcMsg* pMsg) {
     }
     //TODO copy
     rsp.schemas = pTopic->buffer.output[pos].pReadHandle->pSchemaWrapper;
+    rsp.rspOffset = fetchOffset;
 
     atomic_store_8(&pTopic->buffer.output[pos].status, 0);
 
@@ -752,6 +761,8 @@ int32_t tqProcessConsumeReq(STQ* pTq, SRpcMsg* pMsg) {
       taosArrayDestroy(pRes);
       fetchOffset++;
       continue;
+    } else {
+      rsp.numOfTopics++;
     }
 
     rsp.pBlockData = pRes;
@@ -862,6 +873,11 @@ bool tqNextDataBlock(STqReadHandle* pHandle) {
       pHandle->pBlock->schemaLen = htonl(pHandle->pBlock->schemaLen);
       pHandle->pBlock->numOfRows = htons(pHandle->pBlock->numOfRows);
       return true;
+    } else if (pHandle->tbIdHash != NULL) {
+      void* ret = taosHashGet(pHandle->tbIdHash, &pHandle->pBlock->uid, sizeof(int64_t));
+      if (ret != NULL) {
+        return  true;
+      }
     }
   }
   return false;
@@ -931,6 +947,7 @@ SArray* tqRetrieveDataBlock(STqReadHandle* pHandle) {
 
   SMemRow row;
   int32_t kvIdx = 0;
+  int32_t curRow = 0;
   tInitSubmitBlkIter(pHandle->pBlock, &pHandle->blkIter);
   while ((row = tGetSubmitBlkNext(&pHandle->blkIter)) != NULL) {
     // get all wanted col of that block
@@ -940,8 +957,9 @@ SArray* tqRetrieveDataBlock(STqReadHandle* pHandle) {
       // TODO
       ASSERT(pCol->colId == pColData->info.colId);
       void* val = tdGetMemRowDataOfColEx(row, pCol->colId, pCol->type, TD_DATA_ROW_HEAD_SIZE + pCol->offset, &kvIdx);
-      memcpy(pColData->pData, val, pCol->bytes);
+      memcpy(POINTER_SHIFT(pColData->pData, curRow * pCol->bytes), val, pCol->bytes);
     }
+    curRow++;
   }
   return pArray;
 }

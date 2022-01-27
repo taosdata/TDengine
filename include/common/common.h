@@ -130,6 +130,12 @@ static FORCE_INLINE int32_t tEncodeSMqConsumeRsp(void** buf, const SMqConsumeRsp
   int32_t tlen = 0;
   int32_t sz = 0;
   tlen += taosEncodeFixedI64(buf, pRsp->consumerId);
+  tlen += taosEncodeFixedI64(buf, pRsp->committedOffset);
+  tlen += taosEncodeFixedI64(buf, pRsp->reqOffset);
+  tlen += taosEncodeFixedI64(buf, pRsp->rspOffset);
+  tlen += taosEncodeFixedI32(buf, pRsp->skipLogNum);
+  tlen += taosEncodeFixedI32(buf, pRsp->numOfTopics);
+  if (pRsp->numOfTopics == 0) return tlen;
   tlen += tEncodeSSchemaWrapper(buf, pRsp->schemas);
   if (pRsp->pBlockData) {
     sz = taosArrayGetSize(pRsp->pBlockData);
@@ -145,6 +151,12 @@ static FORCE_INLINE int32_t tEncodeSMqConsumeRsp(void** buf, const SMqConsumeRsp
 static FORCE_INLINE void* tDecodeSMqConsumeRsp(void* buf, SMqConsumeRsp* pRsp) {
   int32_t sz;
   buf = taosDecodeFixedI64(buf, &pRsp->consumerId);
+  buf = taosDecodeFixedI64(buf, &pRsp->committedOffset);
+  buf = taosDecodeFixedI64(buf, &pRsp->reqOffset);
+  buf = taosDecodeFixedI64(buf, &pRsp->rspOffset);
+  buf = taosDecodeFixedI32(buf, &pRsp->skipLogNum);
+  buf = taosDecodeFixedI32(buf, &pRsp->numOfTopics);
+  if (pRsp->numOfTopics == 0) return buf;
   pRsp->schemas = (SSchemaWrapper*)calloc(1, sizeof(SSchemaWrapper));
   if (pRsp->schemas == NULL) return NULL;
   buf = tDecodeSSchemaWrapper(buf, pRsp->schemas);
