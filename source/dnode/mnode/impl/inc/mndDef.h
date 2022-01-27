@@ -128,6 +128,8 @@ typedef struct {
   int32_t    failedTimes;
   void*      rpcHandle;
   void*      rpcAHandle;
+  void*      rpcRsp;
+  int32_t    rpcRspLen;
   SArray*    redoLogs;
   SArray*    undoLogs;
   SArray*    commitLogs;

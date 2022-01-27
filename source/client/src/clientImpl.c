@@ -101,7 +101,7 @@ TAOS *taos_connect_internal(const char *ip, const char *user, const char *pass, 
     }
 
     if (port) {
-      epSet.epSet.port[0] = port;
+      epSet.epSet.eps[0].port = port;
     }
   } else {
     if (initEpSetFromCfg(tsFirst, tsSecond, &epSet) < 0) {
@@ -119,7 +119,7 @@ TAOS *taos_connect_internal(const char *ip, const char *user, const char *pass, 
     SAppInstInfo* p = calloc(1, sizeof(struct SAppInstInfo));
     p->mgmtEp       = epSet;
     p->pTransporter = openTransporter(user, secretEncrypt, tsNumOfCores);
-    /*p->pAppHbMgr = appHbMgrInit(p);*/
+    p->pAppHbMgr = appHbMgrInit(p, key);
     taosHashPut(appInfo.pInstMap, key, strlen(key), &p, POINTER_BYTES);
 
     pInst = &p;
@@ -218,12 +218,10 @@ int32_t getPlan(SRequestObj* pRequest, SQueryNode* pQueryNode, SQueryDag** pDag,
 
   if (pQueryNode->type == TSDB_SQL_SELECT) {
     setResSchemaInfo(&pRequest->body.resInfo, pSchema, numOfCols);
-    tfree(pSchema);
     pRequest->type = TDMT_VND_QUERY;
-  } else {
-    tfree(pSchema);
   }
 
+  tfree(pSchema);
   return code;
 }
 
@@ -241,9 +239,10 @@ void setResSchemaInfo(SReqResultInfo* pResInfo, const SSchema* pSchema, int32_t 
 }
 
 int32_t scheduleQuery(SRequestObj* pRequest, SQueryDag* pDag, SArray* pNodeList) {
+  void* pTransporter = pRequest->pTscObj->pAppInfo->pTransporter;
   if (TSDB_SQL_INSERT == pRequest->type || TSDB_SQL_CREATE_TABLE == pRequest->type) {
     SQueryResult res = {.code = 0, .numOfRows = 0, .msgSize = ERROR_MSG_BUF_DEFAULT_SIZE, .msg = pRequest->msgBuf};
-    int32_t code = schedulerExecJob(pRequest->pTscObj->pAppInfo->pTransporter, NULL, pDag, &pRequest->body.pQueryJob, &res);
+    int32_t code = schedulerExecJob(pTransporter, NULL, pDag, &pRequest->body.pQueryJob, pRequest->sqlstr, &res);
     if (code != TSDB_CODE_SUCCESS) {
       // handle error and retry
     } else {
@@ -257,7 +256,7 @@ int32_t scheduleQuery(SRequestObj* pRequest, SQueryDag* pDag, SArray* pNodeList)
     return pRequest->code;
   }
 
-  return schedulerAsyncExecJob(pRequest->pTscObj->pAppInfo->pTransporter, pNodeList, pDag, &pRequest->body.pQueryJob);
+  return schedulerAsyncExecJob(pTransporter, pNodeList, pDag, pRequest->sqlstr, &pRequest->body.pQueryJob);
 }
 
 
@@ -481,13 +480,8 @@ SArray* tmqGetConnInfo(SClientHbKey connKey, void* param) {
     return NULL;
   }
   SKv kv = {0};
-  kv.key = malloc(256);
-  if (kv.key == NULL) {
-    taosArrayDestroy(pArray);
-    return NULL;
-  }
-  strcpy(kv.key, "mq-tmp");
-  kv.keyLen = strlen("mq-tmp") + 1;
+  kv.key = HEARTBEAT_KEY_MQ_TMP;
+
   SMqHbMsg* pMqHb = malloc(sizeof(SMqHbMsg));
   if (pMqHb == NULL) {
     return pArray;
@@ -541,8 +535,8 @@ TAOS_RES *taos_create_topic(TAOS* taos, const char* topicName, const char* sql, 
     goto _return;
   }
 
-  if (sqlLen > tsMaxSQLStringLen) {
-    tscError("sql string exceeds max length:%d", tsMaxSQLStringLen);
+  if (sqlLen > TSDB_MAX_ALLOWED_SQL_LEN) {
+    tscError("sql string exceeds max length:%d", TSDB_MAX_ALLOWED_SQL_LEN);
     terrno = TSDB_CODE_TSC_EXCEED_SQL_LIMIT;
     goto _return;
   }
@@ -854,8 +848,8 @@ void tmq_message_destroy(tmq_message_t* tmq_message) {
 
 TAOS_RES *taos_query_l(TAOS *taos, const char *sql, int sqlLen) {
   STscObj *pTscObj = (STscObj *)taos;
-  if (sqlLen > (size_t) tsMaxSQLStringLen) {
-    tscError("sql string exceeds max length:%d", tsMaxSQLStringLen);
+  if (sqlLen > (size_t) TSDB_MAX_ALLOWED_SQL_LEN) {
+    tscError("sql string exceeds max length:%d", TSDB_MAX_ALLOWED_SQL_LEN);
     terrno = TSDB_CODE_TSC_EXCEED_SQL_LIMIT;
     return NULL;
   }
@@ -873,7 +867,6 @@ TAOS_RES *taos_query_l(TAOS *taos, const char *sql, int sqlLen) {
   if (qIsDdlQuery(pQueryNode)) {
     CHECK_CODE_GOTO(execDdlQuery(pRequest, pQueryNode), _return);
   } else {
-
     CHECK_CODE_GOTO(getPlan(pRequest, pQueryNode, &pRequest->body.pDag, pNodeList), _return);
     CHECK_CODE_GOTO(scheduleQuery(pRequest, pRequest->body.pDag, pNodeList), _return);
     pRequest->code = terrno;
@@ -903,7 +896,7 @@ int initEpSetFromCfg(const char *firstEp, const char *secondEp, SCorEpSet *pEpSe
       return -1;
     }
 
-    taosGetFqdnPortFromEp(firstEp, mgmtEpSet->fqdn[0], &(mgmtEpSet->port[0]));
+    taosGetFqdnPortFromEp(firstEp, &mgmtEpSet->eps[0]);
     mgmtEpSet->numOfEps++;
   }
 
@@ -913,7 +906,7 @@ int initEpSetFromCfg(const char *firstEp, const char *secondEp, SCorEpSet *pEpSe
       return -1;
     }
 
-    taosGetFqdnPortFromEp(secondEp, mgmtEpSet->fqdn[mgmtEpSet->numOfEps], &(mgmtEpSet->port[mgmtEpSet->numOfEps]));
+    taosGetFqdnPortFromEp(secondEp, &mgmtEpSet->eps[mgmtEpSet->numOfEps]);
     mgmtEpSet->numOfEps++;
   }
 
@@ -1118,14 +1111,7 @@ void* doFetchRow(SRequestObj* pRequest) {
       SShowReqInfo* pShowReqInfo = &pRequest->body.showInfo;
       SVgroupInfo* pVgroupInfo = taosArrayGet(pShowReqInfo->pArray, pShowReqInfo->currentIndex);
 
-      epSet.numOfEps = pVgroupInfo->numOfEps;
-      epSet.inUse = pVgroupInfo->inUse;
-
-      for (int32_t i = 0; i < epSet.numOfEps; ++i) {
-        strncpy(epSet.fqdn[i], pVgroupInfo->epAddr[i].fqdn, tListLen(epSet.fqdn[i]));
-        epSet.port[i] = pVgroupInfo->epAddr[i].port;
-      }
-
+      epSet = pVgroupInfo->epset;
     } else if (pRequest->type == TDMT_VND_SHOW_TABLES_FETCH) {
       pRequest->type = TDMT_VND_SHOW_TABLES;
       SShowReqInfo* pShowReqInfo = &pRequest->body.showInfo;
@@ -1142,14 +1128,7 @@ void* doFetchRow(SRequestObj* pRequest) {
       pRequest->body.requestMsg.pData = pShowReq;
 
       SMsgSendInfo* body = buildMsgInfoImpl(pRequest);
-
-      epSet.numOfEps = pVgroupInfo->numOfEps;
-      epSet.inUse = pVgroupInfo->inUse;
-
-      for (int32_t i = 0; i < epSet.numOfEps; ++i) {
-        strncpy(epSet.fqdn[i], pVgroupInfo->epAddr[i].fqdn, tListLen(epSet.fqdn[i]));
-        epSet.port[i] = pVgroupInfo->epAddr[i].port;
-      }
+      epSet = pVgroupInfo->epset;
 
       int64_t  transporterId = 0;
       STscObj *pTscObj = pRequest->pTscObj;

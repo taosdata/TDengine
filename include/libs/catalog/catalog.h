@@ -59,6 +59,7 @@ typedef struct SSTableMetaVersion {
 } SSTableMetaVersion;
 
 typedef struct SDbVgVersion {
+  char    dbName[TSDB_DB_FNAME_LEN];
   int64_t dbId;
   int32_t vgVersion;
 } SDbVgVersion;
@@ -97,6 +98,8 @@ int32_t catalogGetDBVgroupVersion(struct SCatalog* pCatalog, const char* dbName,
 int32_t catalogGetDBVgroup(struct SCatalog* pCatalog, void *pTransporter, const SEpSet* pMgmtEps, const char* pDBName, bool forceUpdate, SArray** pVgroupList);
 
 int32_t catalogUpdateDBVgroup(struct SCatalog* pCatalog, const char* dbName, SDBVgroupInfo* dbInfo);
+
+int32_t catalogRemoveDBVgroup(struct SCatalog* pCatalog, SDbVgVersion* dbInfo);
 
 /**
  * Get a table's meta data. 

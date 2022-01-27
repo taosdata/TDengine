@@ -13,23 +13,6 @@
  * along with this program. If not, see <http://www.gnu.org/licenses/>.
  */
 
-#ifndef _TD_MND_DATABASE_H_
-#define _TD_MND_DATABASE_H_
+// int32_t doTranslate() {
 
-#include "mndInt.h"
-
-#ifdef __cplusplus
-extern "C" {
-#endif
-
-int32_t mndInitDb(SMnode *pMnode);
-void    mndCleanupDb(SMnode *pMnode);
-SDbObj *mndAcquireDb(SMnode *pMnode, char *db);
-void    mndReleaseDb(SMnode *pMnode, SDbObj *pDb);
-int32_t mndValidateDBInfo(SMnode *pMnode, SDbVgVersion *dbs, int32_t num, void **rsp, int32_t *rspLen);
-
-#ifdef __cplusplus
-}
-#endif
-
-#endif /*_TD_MND_DATABASE_H_*/
+// }

@@ -15,6 +15,6 @@
 
 #include "nodes.h"
 
-void cloneNode(const SNode* pNode) {
+void nodesCloneNode(const SNode* pNode) {
 
 }

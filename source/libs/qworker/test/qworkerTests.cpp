@@ -113,7 +113,8 @@ void qwtBuildQueryReqMsg(SRpcMsg *queryRpc) {
   qwtqueryMsg.queryId = htobe64(atomic_add_fetch_64(&qwtTestQueryId, 1));
   qwtqueryMsg.sId = htobe64(1);
   qwtqueryMsg.taskId = htobe64(1);
-  qwtqueryMsg.contentLen = htonl(100);
+  qwtqueryMsg.phyLen = htonl(100);
+  qwtqueryMsg.sqlLen = 0;
   queryRpc->msgType = TDMT_VND_QUERY;
   queryRpc->pCont = &qwtqueryMsg;
   queryRpc->contLen = sizeof(SSubQueryMsg) + 100;

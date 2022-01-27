@@ -13,23 +13,31 @@
  * along with this program. If not, see <http://www.gnu.org/licenses/>.
  */
 
-#ifndef _TD_MND_DATABASE_H_
-#define _TD_MND_DATABASE_H_
-
-#include "mndInt.h"
+#ifndef _TD_AST_CREATER_H_
+#define _TD_AST_CREATER_H_
 
 #ifdef __cplusplus
 extern "C" {
 #endif
 
-int32_t mndInitDb(SMnode *pMnode);
-void    mndCleanupDb(SMnode *pMnode);
-SDbObj *mndAcquireDb(SMnode *pMnode, char *db);
-void    mndReleaseDb(SMnode *pMnode, SDbObj *pDb);
-int32_t mndValidateDBInfo(SMnode *pMnode, SDbVgVersion *dbs, int32_t num, void **rsp, int32_t *rspLen);
+#include "nodes.h"
+#include "parser.h"
+
+typedef struct SAstCreateContext {
+  SParseContext* pQueryCxt;
+  bool notSupport;
+  bool valid;
+  SNode* pRootNode;
+} SAstCreateContext;
+
+int32_t createAstCreateContext(const SParseContext* pQueryCxt, SAstCreateContext* pCxt);
+int32_t destroyAstCreateContext(SAstCreateContext* pCxt);
+
+void* acquireRaii(SAstCreateContext* pCxt, void* p);
+void* releaseRaii(SAstCreateContext* pCxt, void* p);
 
 #ifdef __cplusplus
 }
 #endif
 
-#endif /*_TD_MND_DATABASE_H_*/
+#endif /*_TD_AST_CREATER_H_*/

@@ -76,6 +76,13 @@ typedef enum {
   HEARTBEAT_TYPE_MAX
 } EHbType;
 
+enum {
+  HEARTBEAT_KEY_DBINFO = 1,
+  HEARTBEAT_KEY_STBINFO,
+  HEARTBEAT_KEY_MQ_TMP,
+};
+
+
 typedef enum _mgmt_table {
   TSDB_MGMT_TABLE_START,
   TSDB_MGMT_TABLE_ACCT,
@@ -147,17 +154,17 @@ typedef struct {
 } SBuildTableMetaInput;
 
 typedef struct {
-  char    db[TSDB_TABLE_FNAME_LEN];
+  char    db[TSDB_DB_FNAME_LEN];
   int32_t vgVersion;
 } SBuildUseDBInput;
 
 #pragma pack(push, 1)
 
 // null-terminated string instead of char array to avoid too many memory consumption in case of more than 1M tableMeta
-typedef struct {
+typedef struct SEp {
   char     fqdn[TSDB_FQDN_LEN];
   uint16_t port;
-} SEpAddr;
+} SEp;
 
 typedef struct {
   int32_t contLen;
@@ -266,8 +273,7 @@ typedef struct {
 typedef struct SEpSet {
   int8_t   inUse;
   int8_t   numOfEps;
-  uint16_t port[TSDB_MAX_REPLICA];
-  char     fqdn[TSDB_MAX_REPLICA][TSDB_FQDN_LEN];
+  SEp      eps[TSDB_MAX_REPLICA];
 } SEpSet;
 
 static FORCE_INLINE int taosEncodeSEpSet(void** buf, const SEpSet* pEp) {
@@ -275,8 +281,8 @@ static FORCE_INLINE int taosEncodeSEpSet(void** buf, const SEpSet* pEp) {
   tlen += taosEncodeFixedI8(buf, pEp->inUse);
   tlen += taosEncodeFixedI8(buf, pEp->numOfEps);
   for (int i = 0; i < TSDB_MAX_REPLICA; i++) {
-    tlen += taosEncodeFixedU16(buf, pEp->port[i]);
-    tlen += taosEncodeString(buf, pEp->fqdn[i]);
+    tlen += taosEncodeFixedU16(buf, pEp->eps[i].port);
+    tlen += taosEncodeString(buf, pEp->eps[i].fqdn);
   }
   return tlen;
 }
@@ -285,11 +291,12 @@ static FORCE_INLINE void* taosDecodeSEpSet(void* buf, SEpSet* pEp) {
   buf = taosDecodeFixedI8(buf, &pEp->inUse);
   buf = taosDecodeFixedI8(buf, &pEp->numOfEps);
   for (int i = 0; i < TSDB_MAX_REPLICA; i++) {
-    buf = taosDecodeFixedU16(buf, &pEp->port[i]);
-    buf = taosDecodeStringTo(buf, pEp->fqdn[i]);
+    buf = taosDecodeFixedU16(buf, &pEp->eps[i].port);
+    buf = taosDecodeStringTo(buf, pEp->eps[i].fqdn);
   }
   return buf;
 }
+
 typedef struct {
   int32_t acctId;
   int64_t clusterId;
@@ -297,6 +304,7 @@ typedef struct {
   int8_t  superUser;
   int8_t  align[3];
   SEpSet  epSet;
+  char    sVersion[128];
 } SConnectRsp;
 
 typedef struct {
@@ -507,21 +515,26 @@ typedef struct {
 } SAlterDbReq;
 
 typedef struct {
-  char   db[TSDB_TABLE_FNAME_LEN];
+  char   db[TSDB_DB_FNAME_LEN];
   int8_t ignoreNotExists;
 } SDropDbReq;
 
 typedef struct {
-  char    db[TSDB_TABLE_FNAME_LEN];
+  char     db[TSDB_DB_FNAME_LEN];
+  uint64_t uid;
+} SDropDbRsp;
+
+typedef struct {
+  char    db[TSDB_DB_FNAME_LEN];
   int32_t vgVersion;
 } SUseDbReq;
 
 typedef struct {
-  char db[TSDB_TABLE_FNAME_LEN];
+  char db[TSDB_DB_FNAME_LEN];
 } SSyncDbReq;
 
 typedef struct {
-  char db[TSDB_TABLE_FNAME_LEN];
+  char db[TSDB_DB_FNAME_LEN];
 } SCompactDbReq;
 
 typedef struct {
@@ -617,8 +630,7 @@ typedef struct {
   int32_t  id;
   int8_t   isMnode;
   int8_t   align;
-  uint16_t port;
-  char     fqdn[TSDB_FQDN_LEN];
+  SEp      ep;
 } SDnodeEp;
 
 typedef struct {
@@ -691,24 +703,17 @@ typedef struct {
   char    tableNames[];
 } SMultiTableInfoReq;
 
+// todo refactor
 typedef struct SVgroupInfo {
   int32_t    vgId;
   uint32_t   hashBegin;
   uint32_t   hashEnd;
-  int8_t     inUse;
-  int8_t     numOfEps;
-  SEpAddr    epAddr[TSDB_MAX_REPLICA];
+  SEpSet     epset;
 } SVgroupInfo;
 
 typedef struct {
-  int32_t    vgId;
-  int8_t     numOfEps;
-  SEpAddr    epAddr[TSDB_MAX_REPLICA];
-} SVgroupMsg;
-
-typedef struct {
-  int32_t    numOfVgroups;
-  SVgroupMsg vgroups[];
+  int32_t     numOfVgroups;
+  SVgroupInfo vgroups[];
 } SVgroupsInfo;
 
 typedef struct {
@@ -747,7 +752,7 @@ typedef struct {
 
 typedef struct {
   char        db[TSDB_DB_FNAME_LEN];
-  int64_t     uid;
+  uint64_t    uid;
   int32_t     vgVersion;
   int32_t     vgNum;
   int8_t      hashMethod;
@@ -871,13 +876,21 @@ typedef struct {
   char   desc[TSDB_STEP_DESC_LEN];
 } SStartupReq;
 
+/**
+ * The layout of the query message payload is as following:
+ * +--------------------+---------------------------------+
+ * |Sql statement       | Physical plan                   |
+ * |(denoted by sqlLen) |(In JSON, denoted by contentLen) |
+ * +--------------------+---------------------------------+
+ */
 typedef struct SSubQueryMsg {
   SMsgHead header;
   uint64_t sId;
   uint64_t queryId;
   uint64_t taskId;
   int8_t   taskType;
-  uint32_t contentLen;
+  uint32_t sqlLen;     // the query sql,
+  uint32_t phyLen;
   char     msg[];
 } SSubQueryMsg;
 
@@ -1342,9 +1355,8 @@ static FORCE_INLINE void* taosDecodeSMqHbBatchRsp(void* buf, SMqHbBatchRsp* pBat
 }
 
 typedef struct {
-  int32_t keyLen;
+  int32_t key;
   int32_t valueLen;
-  void*   key;
   void*   value;
 } SKv;
 
@@ -1366,8 +1378,7 @@ typedef struct {
 typedef struct {
   SClientHbKey connKey;
   int32_t      status;
-  int32_t      bodyLen;
-  void*        body;
+  SArray*      info;  // Array<Skv>
 } SClientHbRsp;
 
 typedef struct {
@@ -1386,9 +1397,26 @@ void* tDeserializeSClientHbReq(void* buf, SClientHbReq* pReq);
 int   tSerializeSClientHbRsp(void** buf, const SClientHbRsp* pRsp);
 void* tDeserializeSClientHbRsp(void* buf, SClientHbRsp* pRsp);
 
+
+static FORCE_INLINE void tFreeReqKvHash(SHashObj*      info) {
+  void *pIter = taosHashIterate(info, NULL);
+  while (pIter != NULL) {
+    SKv* kv = (SKv*)pIter;
+
+    tfree(kv->value);
+
+    pIter = taosHashIterate(info, pIter);
+  }
+}
+
+
 static FORCE_INLINE void  tFreeClientHbReq(void *pReq) {
   SClientHbReq* req = (SClientHbReq*)pReq;
-  if (req->info) taosHashCleanup(req->info);
+  if (req->info) {
+    tFreeReqKvHash(req->info);
+  
+    taosHashCleanup(req->info);
+  }
 }
 
 int   tSerializeSClientHbBatchReq(void** buf, const SClientHbBatchReq* pReq);
@@ -1404,22 +1432,39 @@ static FORCE_INLINE void tFreeClientHbBatchReq(void* pReq, bool deep) {
   free(pReq);
 }
 
+static FORCE_INLINE void tFreeClientKv(void *pKv) {
+  SKv *kv = (SKv *)pKv;
+  if (kv) {
+    tfree(kv->value);
+  }
+}
+
+static FORCE_INLINE void  tFreeClientHbRsp(void *pRsp) {
+  SClientHbRsp* rsp = (SClientHbRsp*)pRsp;
+  if (rsp->info) taosArrayDestroyEx(rsp->info, tFreeClientKv);
+}
+
+
+static FORCE_INLINE void tFreeClientHbBatchRsp(void* pRsp) {
+  SClientHbBatchRsp *rsp = (SClientHbBatchRsp*)pRsp;
+  taosArrayDestroyEx(rsp->rsps, tFreeClientHbRsp);
+}
+
+
 int   tSerializeSClientHbBatchRsp(void** buf, const SClientHbBatchRsp* pBatchRsp);
 void* tDeserializeSClientHbBatchRsp(void* buf, SClientHbBatchRsp* pBatchRsp);
 
 static FORCE_INLINE int taosEncodeSKv(void** buf, const SKv* pKv) {
   int tlen = 0;
-  tlen += taosEncodeFixedI32(buf, pKv->keyLen);
+  tlen += taosEncodeFixedI32(buf, pKv->key);
   tlen += taosEncodeFixedI32(buf, pKv->valueLen);
-  tlen += taosEncodeBinary(buf, pKv->key, pKv->keyLen);
   tlen += taosEncodeBinary(buf, pKv->value, pKv->valueLen);
   return tlen;
 }
 
 static FORCE_INLINE void* taosDecodeSKv(void* buf, SKv* pKv) {
-  buf = taosDecodeFixedI32(buf, &pKv->keyLen);
+  buf = taosDecodeFixedI32(buf, &pKv->key);
   buf = taosDecodeFixedI32(buf, &pKv->valueLen);
-  buf = taosDecodeBinary(buf, &pKv->key, pKv->keyLen);
   buf = taosDecodeBinary(buf, &pKv->value, pKv->valueLen);
   return buf;
 }
@@ -1541,7 +1586,8 @@ static FORCE_INLINE int32_t tEncodeSSubQueryMsg(void** buf, const SSubQueryMsg* 
   tlen += taosEncodeFixedU64(buf, pMsg->sId);
   tlen += taosEncodeFixedU64(buf, pMsg->queryId);
   tlen += taosEncodeFixedU64(buf, pMsg->taskId);
-  tlen += taosEncodeFixedU32(buf, pMsg->contentLen);
+  tlen += taosEncodeFixedU32(buf, pMsg->sqlLen);
+  tlen += taosEncodeFixedU32(buf, pMsg->phyLen);
   //tlen += taosEncodeBinary(buf, pMsg->msg, pMsg->contentLen);
   return tlen;
 }
@@ -1550,7 +1596,8 @@ static FORCE_INLINE void* tDecodeSSubQueryMsg(void* buf, SSubQueryMsg* pMsg) {
   buf = taosDecodeFixedU64(buf, &pMsg->sId);
   buf = taosDecodeFixedU64(buf, &pMsg->queryId);
   buf = taosDecodeFixedU64(buf, &pMsg->taskId);
-  buf = taosDecodeFixedU32(buf, &pMsg->contentLen);
+  buf = taosDecodeFixedU32(buf, &pMsg->sqlLen);
+  buf = taosDecodeFixedU32(buf, &pMsg->phyLen);
   //buf = taosDecodeBinaryTo(buf, pMsg->msg, pMsg->contentLen);
   return buf;
 }

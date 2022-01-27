@@ -64,7 +64,6 @@ extern int8_t  tsKeepOriginalColumnName;
 extern int8_t  tsDeadLockKillQuery;
 
 // client
-extern int32_t tsMaxSQLStringLen;
 extern int32_t tsMaxWildCardsLen;
 extern int32_t tsMaxRegexStringLen;
 extern int8_t  tsTscEnableRecordSql;

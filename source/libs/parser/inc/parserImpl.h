@@ -13,23 +13,24 @@
  * along with this program. If not, see <http://www.gnu.org/licenses/>.
  */
 
-#ifndef _TD_MND_DATABASE_H_
-#define _TD_MND_DATABASE_H_
+#include "nodes.h"
+#include "parser.h"
 
-#include "mndInt.h"
+#ifndef _TD_AST_CREATE_FUNCS_H_
+#define _TD_AST_CREATE_FUNCS_H_
 
 #ifdef __cplusplus
 extern "C" {
 #endif
 
-int32_t mndInitDb(SMnode *pMnode);
-void    mndCleanupDb(SMnode *pMnode);
-SDbObj *mndAcquireDb(SMnode *pMnode, char *db);
-void    mndReleaseDb(SMnode *pMnode, SDbObj *pDb);
-int32_t mndValidateDBInfo(SMnode *pMnode, SDbVgVersion *dbs, int32_t num, void **rsp, int32_t *rspLen);
+typedef struct SQuery {
+  SNode* pRoot;
+} SQuery;
+
+int32_t doParse(SParseContext* pParseCxt, SQuery* pQuery);
 
 #ifdef __cplusplus
 }
 #endif
 
-#endif /*_TD_MND_DATABASE_H_*/
+#endif /*_TD_AST_CREATE_FUNCS_H_*/
