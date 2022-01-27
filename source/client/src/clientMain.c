@@ -78,7 +78,7 @@ void taos_close(TAOS* taos) {
   STscObj *pTscObj = (STscObj *)taos;
   tscDebug("0x%"PRIx64" try to close connection, numOfReq:%d", pTscObj->id, pTscObj->numOfReqs);
 
-  taosRemoveRef(clientConnRefPool, pTscObj->id);
+  /*taosRemoveRef(clientConnRefPool, pTscObj->id);*/
 }
 
 int taos_errno(TAOS_RES *tres) {
