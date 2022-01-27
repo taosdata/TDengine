@@ -528,8 +528,12 @@ int hbRegisterConn(SAppHbMgr* pAppHbMgr, int32_t connId, int64_t clusterId, int3
 }
 
 void hbDeregisterConn(SAppHbMgr* pAppHbMgr, SClientHbKey connKey) {
-  taosHashRemove(pAppHbMgr->activeInfo, &connKey, sizeof(SClientHbKey));
-  taosHashRemove(pAppHbMgr->connInfo, &connKey, sizeof(SClientHbKey));
+  int32_t code = 0;
+  code = taosHashRemove(pAppHbMgr->activeInfo, &connKey, sizeof(SClientHbKey));
+  code = taosHashRemove(pAppHbMgr->connInfo, &connKey, sizeof(SClientHbKey));
+  if (code) {
+    return;
+  }
   atomic_sub_fetch_32(&pAppHbMgr->connKeyCnt, 1);
   if (atomic_load_32(&pAppHbMgr->connKeyCnt) <= 0) {
     appHbMgrCleanup(pAppHbMgr);
