@@ -679,7 +679,13 @@ int32_t tqProcessConsumeReq(STQ* pTq, SRpcMsg* pMsg) {
   SMqConsumeRsp rsp = {.consumerId = consumerId, .numOfTopics = 0, .pBlockData = NULL};
 
   STqConsumerHandle* pConsumer = tqHandleGet(pTq->tqMeta, consumerId);
-  ASSERT(pConsumer);
+  if (pConsumer == NULL) {
+    pMsg->pCont = NULL;
+    pMsg->contLen = 0;
+    pMsg->code = -1;
+    rpcSendResponse(pMsg);
+    return 0;
+  }
   int sz = taosArrayGetSize(pConsumer->topics);
 
   for (int i = 0; i < sz; i++) {

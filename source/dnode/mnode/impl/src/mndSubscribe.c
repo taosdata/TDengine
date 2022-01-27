@@ -104,9 +104,6 @@ static int32_t mndProcessGetSubEpReq(SMnodeMsg *pMsg) {
     if (found == 0) {
       taosArrayPush(pSub->availConsumer, &consumerId);
     }
-    SSdbRaw* pRaw = mndSubActionEncode(pSub);
-    sdbSetRawStatus(pRaw, SDB_STATUS_READY);
-    sdbWriteNotFree(pMnode->pSdb, pRaw);
 
     int32_t          assignedSz = taosArrayGetSize(pSub->assigned);
     topicEp.vgs = taosArrayInit(assignedSz, sizeof(SMqSubVgEp));
@@ -126,7 +123,9 @@ static int32_t mndProcessGetSubEpReq(SMnodeMsg *pMsg) {
       taosArrayPush(rsp.topics, &topicEp);
     }
     if (changed || found) {
-
+      SSdbRaw* pRaw = mndSubActionEncode(pSub);
+      sdbSetRawStatus(pRaw, SDB_STATUS_READY);
+      sdbWriteNotFree(pMnode->pSdb, pRaw);
     }
     mndReleaseSubscribe(pMnode, pSub);
   }
@@ -183,12 +182,15 @@ static int32_t mndProcessMqTimerMsg(SMnodeMsg *pMsg) {
           }
           // TODO: acquire consumer, set status to unavail
         }
+#if 0
         SMqConsumerObj* pConsumer = mndAcquireConsumer(pMnode, consumerId);
         pConsumer->epoch++;
+        printf("current epoch %ld size %ld", pConsumer->epoch, pConsumer->topics->size);
         SSdbRaw* pRaw = mndConsumerActionEncode(pConsumer);
         sdbSetRawStatus(pRaw, SDB_STATUS_READY);
         sdbWriteNotFree(pMnode->pSdb, pRaw);
         mndReleaseConsumer(pMnode, pConsumer);
+#endif
       }
     }
     if ((sz = taosArrayGetSize(pSub->unassignedVg)) > 0 && taosArrayGetSize(pSub->availConsumer) > 0) {
@@ -207,6 +209,13 @@ static int32_t mndProcessMqTimerMsg(SMnodeMsg *pMsg) {
         taosArrayPush(pSub->assigned, pCEp);
         pSub->nextConsumerIdx = (pSub->nextConsumerIdx + 1) % taosArrayGetSize(pSub->availConsumer);
 
+        SMqConsumerObj* pConsumer = mndAcquireConsumer(pMnode, consumerId);
+        pConsumer->epoch++;
+        /*SSdbRaw* pConsumerRaw = mndConsumerActionEncode(pConsumer);*/
+        /*sdbSetRawStatus(pConsumerRaw, SDB_STATUS_READY);*/
+        /*sdbWriteNotFree(pMnode->pSdb, pConsumerRaw);*/
+        mndReleaseConsumer(pMnode, pConsumer);
+
         // build msg
 
         SMqSetCVgReq req = {0};
@@ -216,8 +225,9 @@ static int32_t mndProcessMqTimerMsg(SMnodeMsg *pMsg) {
         req.logicalPlan = pTopic->logicalPlan;
         req.physicalPlan = pTopic->physicalPlan;
         req.qmsg = pCEp->qmsg;
+        req.newConsumerId = consumerId;
         int32_t tlen = tEncodeSMqSetCVgReq(NULL, &req);
-        void   *buf = malloc(tlen);
+        void   *buf = malloc(sizeof(SMsgHead) + tlen);
         if (buf == NULL) {
           terrno = TSDB_CODE_OUT_OF_MEMORY;
           return -1;
@@ -262,6 +272,7 @@ static int mndInitUnassignedVg(SMnode *pMnode, SMqTopicObj *pTopic, SArray *unas
   SArray    *pArray;
   SArray    *inner = taosArrayGet(pDag->pSubplans, 0);
   SSubplan  *plan = taosArrayGetP(inner, 0);
+
   plan->execNode.inUse = 0;
   strcpy(plan->execNode.epAddr[0].fqdn, "localhost");
   plan->execNode.epAddr[0].port = 6030;

@@ -628,6 +628,10 @@ struct tmq_message_t {
 };
 
 int32_t tmq_poll_cb_inner(void* param, const SDataBuf* pMsg, int32_t code) {
+  if (code == -1) {
+    printf("discard\n");
+    return 0;
+  }
   SMqClientVg* pVg = (SMqClientVg*)param;
   SMqConsumeRsp rsp;
   tDecodeSMqConsumeRsp(pMsg->pData, &rsp);
@@ -680,6 +684,8 @@ int32_t tmq_ask_ep_cb(void* param, const SDataBuf* pMsg, int32_t code) {
   SMqAskEpCbParam* pParam = (SMqAskEpCbParam*)param;
   tmq_t* tmq = pParam->tmq;
   if (code != 0) {
+
+    printf("exit wait %d\n", pParam->wait);
     if (pParam->wait) {
       tsem_post(&tmq->rspSem);
     }
@@ -691,9 +697,9 @@ int32_t tmq_ask_ep_cb(void* param, const SDataBuf* pMsg, int32_t code) {
   tDecodeSMqCMGetSubEpRsp(pMsg->pData, &rsp);
   int32_t sz = taosArrayGetSize(rsp.topics);
   // TODO: lock
+    printf("rsp epoch %ld sz %ld\n", rsp.epoch, rsp.topics->size);
+    printf("tmq epoch %ld sz %ld\n", tmq->epoch, tmq->clientTopics->size);
   if (rsp.epoch != tmq->epoch) {
-    /*printf("rsp epoch %ld", rsp.epoch);*/
-    /*printf("tmq epoch %ld", tmq->epoch);*/
     //TODO
     if (tmq->clientTopics) taosArrayDestroy(tmq->clientTopics);
     tmq->clientTopics = taosArrayInit(sz, sizeof(SMqClientTopic));
