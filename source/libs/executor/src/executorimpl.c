@@ -7831,7 +7831,7 @@ static tsdbReadHandleT doCreateDataReadHandle(STableScanPhyNode* pTableScanNode,
   STableGroupInfo groupInfo = {0};
 
   uint64_t uid = pTableScanNode->scan.uid;
-  int32_t code = doCreateTableGroup(readerHandle, pTableScanNode->scan.tableType, uid, queryId, taskId);
+  int32_t code = doCreateTableGroup(readerHandle, pTableScanNode->scan.tableType, uid, &groupInfo, queryId, taskId);
   if (code != TSDB_CODE_SUCCESS) {
     goto _error;
   }
