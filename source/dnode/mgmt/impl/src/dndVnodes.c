@@ -16,6 +16,7 @@
 #define _DEFAULT_SOURCE
 #include "dndVnodes.h"
 #include "dndTransport.h"
+#include "dndMgmt.h"
 
 typedef struct {
   int32_t  vgId;
@@ -527,7 +528,6 @@ static void dndGenerateVnodeCfg(SCreateVnodeReq *pCreate, SVnodeCfg *pCfg) {
   pCfg->vgId = pCreate->vgId;
   pCfg->wsize = pCreate->cacheBlockSize;
   pCfg->ssize = pCreate->cacheBlockSize;
-  pCfg->wsize = pCreate->cacheBlockSize;
   pCfg->lsize = pCreate->cacheBlockSize;
   pCfg->isHeapAllocator = true;
   pCfg->ttl = 4;
@@ -577,6 +577,12 @@ int32_t dndProcessCreateVnodeReq(SDnode *pDnode, SRpcMsg *pReq) {
 
   SWrapperCfg wrapperCfg = {0};
   dndGenerateWrapperCfg(pDnode, pCreate, &wrapperCfg);
+
+  if (pCreate->dnodeId != dndGetDnodeId(pDnode)) {
+    terrno = TSDB_CODE_DND_VNODE_INVALID_OPTION;
+    dDebug("vgId:%d, failed to create vnode since %s", pCreate->vgId, terrstr());
+    return -1;
+  }
 
   SVnodeObj *pVnode = dndAcquireVnode(pDnode, pCreate->vgId);
   if (pVnode != NULL) {

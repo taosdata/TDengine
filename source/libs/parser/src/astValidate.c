@@ -3644,6 +3644,7 @@ int32_t evaluateSqlNode(SSqlNode* pNode, int32_t tsPrecision, SMsgBuf* pMsgBuf) 
   return TSDB_CODE_SUCCESS;
 }
 
+//TODO remove it
 int32_t setTableVgroupList(SParseContext *pCtx, SName* name, SVgroupsInfo **pVgList) {
   SArray* vgroupList = NULL;
   int32_t code = catalogGetTableDistVgroup(pCtx->pCatalog, pCtx->pTransporter, &pCtx->mgmtEpSet, name, &vgroupList);
@@ -3651,21 +3652,17 @@ int32_t setTableVgroupList(SParseContext *pCtx, SName* name, SVgroupsInfo **pVgL
     return code;
   }
   
-  int32_t vgroupNum = taosArrayGetSize(vgroupList);
+  size_t vgroupNum = taosArrayGetSize(vgroupList);
 
-  SVgroupsInfo *vgList = calloc(1, sizeof(SVgroupsInfo) + sizeof(SVgroupMsg) * vgroupNum);
-  
+  SVgroupsInfo *vgList = calloc(1, sizeof(SVgroupsInfo) + sizeof(SVgroupInfo) * vgroupNum);
   vgList->numOfVgroups = vgroupNum;
   
   for (int32_t i = 0; i < vgroupNum; ++i) {
     SVgroupInfo *vg = taosArrayGet(vgroupList, i);
-    vgList->vgroups[i].vgId = vg->vgId;
-    vgList->vgroups[i].numOfEps = vg->numOfEps;
-    memcpy(vgList->vgroups[i].epAddr, vg->epAddr, sizeof(vgList->vgroups[i].epAddr));
+    vgList->vgroups[i] = *vg;
   }
 
   *pVgList = vgList;
-
   taosArrayDestroy(vgroupList);
 
   return TSDB_CODE_SUCCESS;

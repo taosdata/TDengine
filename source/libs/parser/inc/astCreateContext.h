@@ -13,16 +13,31 @@
  * along with this program. If not, see <http://www.gnu.org/licenses/>.
  */
 
-#ifndef _TD_TRANSPORT_H_
-#define _TD_TRANSPORT_H_
+#ifndef _TD_AST_CREATER_H_
+#define _TD_AST_CREATER_H_
 
 #ifdef __cplusplus
 extern "C" {
 #endif
 
+#include "nodes.h"
+#include "parser.h"
+
+typedef struct SAstCreateContext {
+  SParseContext* pQueryCxt;
+  bool notSupport;
+  bool valid;
+  SNode* pRootNode;
+} SAstCreateContext;
+
+int32_t createAstCreateContext(const SParseContext* pQueryCxt, SAstCreateContext* pCxt);
+int32_t destroyAstCreateContext(SAstCreateContext* pCxt);
+
+void* acquireRaii(SAstCreateContext* pCxt, void* p);
+void* releaseRaii(SAstCreateContext* pCxt, void* p);
 
 #ifdef __cplusplus
 }
 #endif
 
-#endif /*_TD_TRANSPORT_H_*/
+#endif /*_TD_AST_CREATER_H_*/

@@ -54,7 +54,7 @@ int processConnectRsp(void* param, const SDataBuf* pMsg, int32_t code) {
 
   assert(pConnect->epSet.numOfEps > 0);
   for(int32_t i = 0; i < pConnect->epSet.numOfEps; ++i) {
-    pConnect->epSet.port[i] = htons(pConnect->epSet.port[i]);
+    pConnect->epSet.eps[i].port = htons(pConnect->epSet.eps[i].port);
   }
 
   if (!isEpsetEqual(&pTscObj->pAppInfo->mgmtEp.epSet, &pConnect->epSet)) {
@@ -62,7 +62,8 @@ int processConnectRsp(void* param, const SDataBuf* pMsg, int32_t code) {
   }
 
   for (int i = 0; i < pConnect->epSet.numOfEps; ++i) {
-    tscDebug("0x%" PRIx64 " epSet.fqdn[%d]:%s port:%d, connObj:0x%"PRIx64, pRequest->requestId, i, pConnect->epSet.fqdn[i], pConnect->epSet.port[i], pTscObj->id);
+    tscDebug("0x%" PRIx64 " epSet.fqdn[%d]:%s port:%d, connObj:0x%"PRIx64, pRequest->requestId, i, pConnect->epSet.eps[i].fqdn,
+        pConnect->epSet.eps[i].port, pTscObj->id);
   }
 
   pTscObj->connId = pConnect->connId;
@@ -71,6 +72,8 @@ int processConnectRsp(void* param, const SDataBuf* pMsg, int32_t code) {
   // update the appInstInfo
   pTscObj->pAppInfo->clusterId = pConnect->clusterId;
   atomic_add_fetch_64(&pTscObj->pAppInfo->numOfConns, 1);
+
+  pTscObj->connType = HEARTBEAT_TYPE_QUERY;
 
   hbRegisterConn(pTscObj->pAppInfo->pAppHbMgr, pConnect->connId, pConnect->clusterId, HEARTBEAT_TYPE_QUERY);
 

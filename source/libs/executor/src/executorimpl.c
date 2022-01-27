@@ -5070,6 +5070,7 @@ static SSDataBlock* doStreamBlockScan(void* param, bool* newgroup) {
   SStreamBlockScanInfo* pInfo = pOperator->info;
 
   SDataBlockInfo* pBlockInfo = &pInfo->pRes->info;
+  pBlockInfo->rows = 0;
   while (tqNextDataBlock(pInfo->readerHandle)) {
     pTaskInfo->code = tqRetrieveDataBlockInfo(pInfo->readerHandle, pBlockInfo);
     if (pTaskInfo->code != TSDB_CODE_SUCCESS) {
@@ -5115,7 +5116,7 @@ static void destroySendMsgInfo(SMsgSendInfo* pMsgBody) {
   tfree(pMsgBody);
 }
 
-void processRspMsg(void* parent, SRpcMsg* pMsg, SEpSet* pEpSet) {
+void qProcessFetchRsp(void* parent, SRpcMsg* pMsg, SEpSet* pEpSet) {
   SMsgSendInfo *pSendInfo = (SMsgSendInfo *) pMsg->ahandle;
   assert(pMsg->ahandle != NULL);
 
@@ -5163,14 +5164,9 @@ static SSDataBlock* doLoadRemoteData(void* param, bool* newgroup) {
 
     SDownstreamSource* pSource = taosArrayGet(pExchangeInfo->pSources, pExchangeInfo->current);
 
-    SEpSet epSet = {0};
-    epSet.numOfEps = pSource->addr.numOfEps;
-    epSet.port[0] = pSource->addr.epAddr[0].port;
-    tstrncpy(epSet.fqdn[0], pSource->addr.epAddr[0].fqdn, tListLen(epSet.fqdn[0]));
-
     int64_t startTs = taosGetTimestampUs();
     qDebug("%s build fetch msg and send to vgId:%d, ep:%s, taskId:0x%" PRIx64 ", %d/%" PRIzu,
-           GET_TASKID(pTaskInfo), pSource->addr.nodeId, epSet.fqdn[0], pSource->taskId, pExchangeInfo->current, totalSources);
+           GET_TASKID(pTaskInfo), pSource->addr.nodeId, pSource->addr.epset.eps[0].fqdn, pSource->taskId, pExchangeInfo->current, totalSources);
 
     pMsg->header.vgId = htonl(pSource->addr.nodeId);
     pMsg->sId = htobe64(pSource->schedId);
@@ -5192,7 +5188,7 @@ static SSDataBlock* doLoadRemoteData(void* param, bool* newgroup) {
     pMsgSendInfo->fp = loadRemoteDataCallback;
 
     int64_t transporterId = 0;
-    int32_t code = asyncSendMsgToServer(pExchangeInfo->pTransporter, &epSet, &transporterId, pMsgSendInfo);
+    int32_t code = asyncSendMsgToServer(pExchangeInfo->pTransporter, &pSource->addr.epset, &transporterId, pMsgSendInfo);
     tsem_wait(&pExchangeInfo->ready);
 
     SRetrieveTableRsp* pRsp = pExchangeInfo->pRsp;
@@ -5296,13 +5292,14 @@ SOperatorInfo* createExchangeOperatorInfo(const SArray* pSources, const SArray* 
   pOperator->exec         = doLoadRemoteData;
   pOperator->pTaskInfo    = pTaskInfo;
 
+#if 1
   { // todo refactor
     SRpcInit rpcInit;
     memset(&rpcInit, 0, sizeof(rpcInit));
     rpcInit.localPort = 0;
     rpcInit.label = "EX";
     rpcInit.numOfThreads = 1;
-    rpcInit.cfp = processRspMsg;
+    rpcInit.cfp = qProcessFetchRsp;
     rpcInit.sessions = tsMaxConnections;
     rpcInit.connType = TAOS_CONN_CLIENT;
     rpcInit.user = (char *)"root";
@@ -5316,7 +5313,7 @@ SOperatorInfo* createExchangeOperatorInfo(const SArray* pSources, const SArray* 
       return NULL; // todo
     }
   }
-
+#endif
   return pOperator;
 }
 
@@ -5466,6 +5463,9 @@ SOperatorInfo* createStreamScanOperatorInfo(void *streamReadHandle, SArray* pExp
     terrno = TSDB_CODE_QRY_OUT_OF_MEMORY;
     return NULL;
   }
+
+  // todo dynamic set the value of 4096
+  pInfo->pRes = createOutputBuf_rv(pExprInfo, 4096);
 
   int32_t numOfOutput = (int32_t) taosArrayGetSize(pExprInfo);
   SArray* pColList = taosArrayInit(numOfOutput, sizeof(int32_t));
@@ -5897,7 +5897,7 @@ static SSDataBlock* doAggregate(void* param, bool* newgroup) {
   finalizeQueryResult(pOperator, pInfo->pCtx, &pInfo->resultRowInfo, pInfo->rowCellInfoOffset);
   pInfo->pRes->info.rows = getNumOfResult(pInfo->pCtx, pOperator->numOfOutput);
 
-  return pInfo->pRes;
+  return (pInfo->pRes->info.rows != 0)? pInfo->pRes:NULL;
 }
 
 static SSDataBlock* doSTableAggregate(void* param, bool* newgroup) {
@@ -7431,7 +7431,7 @@ SOperatorInfo* createTagScanOperatorInfo(STaskRuntimeEnv* pRuntimeEnv, SExprInfo
 
   SOperatorInfo* pOperator = calloc(1, sizeof(SOperatorInfo));
   pOperator->name         = "SeqTableTagScan";
-//  pOperator->operatorType = OP_TagScan;
+  pOperator->operatorType = OP_TagScan;
   pOperator->blockingOptr = false;
   pOperator->status       = OP_IN_EXECUTING;
   pOperator->info         = pInfo;
@@ -8826,14 +8826,14 @@ void* freeColumnInfo(SColumnInfo* pColumnInfo, int32_t numOfCols) {
 }
 
 void doDestroyTask(SExecTaskInfo *pTaskInfo) {
+  qDebug("%s execTask is freed", GET_TASKID(pTaskInfo));
+
   doDestroyTableQueryInfo(&pTaskInfo->tableqinfoGroupInfo);
 //  taosArrayDestroy(pTaskInfo->summary.queryProfEvents);
 //  taosHashCleanup(pTaskInfo->summary.operatorProfResults);
 
   tfree(pTaskInfo->sql);
   tfree(pTaskInfo->id.str);
-  qDebug("%s execTask is freed", GET_TASKID(pTaskInfo));
-
   tfree(pTaskInfo);
 }
 

@@ -300,10 +300,12 @@ void hbClearReqInfo(SAppHbMgr *pAppHbMgr) {
 static void* hbThreadFunc(void* param) {
   setThreadName("hb");
   while (1) {
-    int8_t threadStop = atomic_load_8(&clientHbMgr.threadStop);
-    if(threadStop) {
+    int8_t threadStop = atomic_val_compare_exchange_8(&clientHbMgr.threadStop, 1, 2);
+    if(1 == threadStop) {
       break;
     }
+
+    pthread_mutex_lock(&clientHbMgr.lock);
 
     int sz = taosArrayGetSize(clientHbMgr.appHbMgrs);
     for(int i = 0; i < sz; i++) {
@@ -352,6 +354,9 @@ static void* hbThreadFunc(void* param) {
 
       atomic_add_fetch_32(&pAppHbMgr->reportCnt, 1);
     }
+
+    pthread_mutex_unlock(&clientHbMgr.lock);
+    
     taosMsleep(HEARTBEAT_INTERVAL);
   }
   return NULL;
@@ -371,7 +376,13 @@ static int32_t hbCreateThread() {
 }
 
 static void hbStopThread() {
-  atomic_store_8(&clientHbMgr.threadStop, 1);
+  if (atomic_val_compare_exchange_8(&clientHbMgr.threadStop, 0, 1)) {
+    return;
+  }
+  
+  while (2 != atomic_load_8(&clientHbMgr.threadStop)) {
+    usleep(10);
+  }
 }
 
 SAppHbMgr* appHbMgrInit(SAppInstInfo* pAppInstInfo, char *key) {
@@ -409,11 +420,18 @@ SAppHbMgr* appHbMgrInit(SAppInstInfo* pAppInstInfo, char *key) {
     return NULL;
   }
 
+  pthread_mutex_lock(&clientHbMgr.lock);
   taosArrayPush(clientHbMgr.appHbMgrs, &pAppHbMgr);
+  pthread_mutex_unlock(&clientHbMgr.lock);
+  
   return pAppHbMgr;
 }
 
 void appHbMgrCleanup(SAppHbMgr* pAppHbMgr) {
+  if (NULL == pAppHbMgr) {
+    return;
+  }
+  
   pthread_mutex_lock(&clientHbMgr.lock);
 
   int sz = taosArrayGetSize(clientHbMgr.appHbMgrs);
@@ -421,7 +439,9 @@ void appHbMgrCleanup(SAppHbMgr* pAppHbMgr) {
     SAppHbMgr* pTarget = taosArrayGetP(clientHbMgr.appHbMgrs, i);
     if (pAppHbMgr == pTarget) {
       taosHashCleanup(pTarget->activeInfo);
+      pTarget->activeInfo = NULL;
       taosHashCleanup(pTarget->connInfo);
+      pTarget->connInfo = NULL;
     }
   }
 
@@ -446,11 +466,17 @@ int hbMgrInit() {
 }
 
 void hbMgrCleanUp() {
+  hbStopThread();
+  
   // destroy all appHbMgr
   int8_t old = atomic_val_compare_exchange_8(&clientHbMgr.inited, 1, 0);
   if (old == 0) return;
 
-  taosArrayDestroy(clientHbMgr.appHbMgrs);
+  pthread_mutex_lock(&clientHbMgr.lock);
+  taosArrayDestroy(clientHbMgr.appHbMgrs);  
+  pthread_mutex_unlock(&clientHbMgr.lock);
+  
+  clientHbMgr.appHbMgrs = NULL;
 }
 
 int hbRegisterConnImpl(SAppHbMgr* pAppHbMgr, SClientHbKey connKey, SHbConnInfo *info) {
@@ -502,6 +528,9 @@ void hbDeregisterConn(SAppHbMgr* pAppHbMgr, SClientHbKey connKey) {
   taosHashRemove(pAppHbMgr->activeInfo, &connKey, sizeof(SClientHbKey));
   taosHashRemove(pAppHbMgr->connInfo, &connKey, sizeof(SClientHbKey));
   atomic_sub_fetch_32(&pAppHbMgr->connKeyCnt, 1);
+  if (atomic_load_32(&pAppHbMgr->connKeyCnt) <= 0) {
+    appHbMgrCleanup(pAppHbMgr);
+  }
 }
 
 int hbAddConnInfo(SAppHbMgr *pAppHbMgr, SClientHbKey connKey, void* key, void* value, int32_t keyLen, int32_t valueLen) {

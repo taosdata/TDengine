@@ -237,7 +237,7 @@ static int32_t mndCreateTopic(SMnode *pMnode, SMnodeMsg *pMsg, SCMCreateTopicReq
   tstrncpy(topicObj.db, pDb->name, TSDB_DB_FNAME_LEN);
   topicObj.createTime = taosGetTimestampMs();
   topicObj.updateTime = topicObj.createTime;
-  topicObj.uid = mndGenerateUid(pCreate->name, TSDB_TABLE_FNAME_LEN);
+  topicObj.uid = mndGenerateUid(pCreate->name, strlen(pCreate->name));
   topicObj.dbUid = pDb->uid;
   topicObj.version = 1;
   topicObj.sql = strdup(pCreate->sql);

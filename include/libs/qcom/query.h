@@ -128,19 +128,8 @@ typedef struct SMsgSendInfo {
 
 typedef struct SQueryNodeAddr {
   int32_t nodeId;  // vgId or qnodeId
-  int8_t  inUse;
-  int8_t  numOfEps;
-  SEpAddr epAddr[TSDB_MAX_REPLICA];
+  SEpSet  epset;
 } SQueryNodeAddr;
-
-static FORCE_INLINE void tConvertQueryAddrToEpSet(SEpSet* pEpSet, const SQueryNodeAddr* pAddr) {
-  pEpSet->inUse = pAddr->inUse;
-  pEpSet->numOfEps = pAddr->numOfEps;
-  for (int j = 0; j < TSDB_MAX_REPLICA; j++) {
-    pEpSet->port[j] = pAddr->epAddr[j].port;
-    memcpy(pEpSet->fqdn[j], pAddr->epAddr[j].fqdn, TSDB_FQDN_LEN);
-  }
-}
 
 int32_t initTaskQueue();
 int32_t cleanupTaskQueue();

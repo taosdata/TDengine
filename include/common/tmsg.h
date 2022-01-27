@@ -161,10 +161,10 @@ typedef struct {
 #pragma pack(push, 1)
 
 // null-terminated string instead of char array to avoid too many memory consumption in case of more than 1M tableMeta
-typedef struct {
+typedef struct SEp {
   char     fqdn[TSDB_FQDN_LEN];
   uint16_t port;
-} SEpAddr;
+} SEp;
 
 typedef struct {
   int32_t contLen;
@@ -273,8 +273,7 @@ typedef struct {
 typedef struct SEpSet {
   int8_t   inUse;
   int8_t   numOfEps;
-  uint16_t port[TSDB_MAX_REPLICA];
-  char     fqdn[TSDB_MAX_REPLICA][TSDB_FQDN_LEN];
+  SEp      eps[TSDB_MAX_REPLICA];
 } SEpSet;
 
 static FORCE_INLINE int taosEncodeSEpSet(void** buf, const SEpSet* pEp) {
@@ -282,8 +281,8 @@ static FORCE_INLINE int taosEncodeSEpSet(void** buf, const SEpSet* pEp) {
   tlen += taosEncodeFixedI8(buf, pEp->inUse);
   tlen += taosEncodeFixedI8(buf, pEp->numOfEps);
   for (int i = 0; i < TSDB_MAX_REPLICA; i++) {
-    tlen += taosEncodeFixedU16(buf, pEp->port[i]);
-    tlen += taosEncodeString(buf, pEp->fqdn[i]);
+    tlen += taosEncodeFixedU16(buf, pEp->eps[i].port);
+    tlen += taosEncodeString(buf, pEp->eps[i].fqdn);
   }
   return tlen;
 }
@@ -292,8 +291,8 @@ static FORCE_INLINE void* taosDecodeSEpSet(void* buf, SEpSet* pEp) {
   buf = taosDecodeFixedI8(buf, &pEp->inUse);
   buf = taosDecodeFixedI8(buf, &pEp->numOfEps);
   for (int i = 0; i < TSDB_MAX_REPLICA; i++) {
-    buf = taosDecodeFixedU16(buf, &pEp->port[i]);
-    buf = taosDecodeStringTo(buf, pEp->fqdn[i]);
+    buf = taosDecodeFixedU16(buf, &pEp->eps[i].port);
+    buf = taosDecodeStringTo(buf, pEp->eps[i].fqdn);
   }
   return buf;
 }
@@ -624,8 +623,7 @@ typedef struct {
   int32_t  id;
   int8_t   isMnode;
   int8_t   align;
-  uint16_t port;
-  char     fqdn[TSDB_FQDN_LEN];
+  SEp      ep;
 } SDnodeEp;
 
 typedef struct {
@@ -698,24 +696,17 @@ typedef struct {
   char    tableNames[];
 } SMultiTableInfoReq;
 
+// todo refactor
 typedef struct SVgroupInfo {
   int32_t    vgId;
   uint32_t   hashBegin;
   uint32_t   hashEnd;
-  int8_t     inUse;
-  int8_t     numOfEps;
-  SEpAddr    epAddr[TSDB_MAX_REPLICA];
+  SEpSet     epset;
 } SVgroupInfo;
 
 typedef struct {
-  int32_t    vgId;
-  int8_t     numOfEps;
-  SEpAddr    epAddr[TSDB_MAX_REPLICA];
-} SVgroupMsg;
-
-typedef struct {
-  int32_t    numOfVgroups;
-  SVgroupMsg vgroups[];
+  int32_t     numOfVgroups;
+  SVgroupInfo vgroups[];
 } SVgroupsInfo;
 
 typedef struct {
@@ -1572,9 +1563,7 @@ typedef struct SMqSetCVgReq {
   char*    sql;
   char*    logicalPlan;
   char*    physicalPlan;
-  uint32_t qmsgLen;
-  void*    qmsg;
-  //SSubQueryMsg msg;
+  char*    qmsg;
 } SMqSetCVgReq;
 
 static FORCE_INLINE int32_t tEncodeSSubQueryMsg(void** buf, const SSubQueryMsg* pMsg) {
@@ -1606,7 +1595,6 @@ static FORCE_INLINE int32_t tEncodeSMqSetCVgReq(void** buf, const SMqSetCVgReq* 
   tlen += taosEncodeString(buf, pReq->sql);
   tlen += taosEncodeString(buf, pReq->logicalPlan);
   tlen += taosEncodeString(buf, pReq->physicalPlan);
-  tlen += taosEncodeFixedU32(buf, pReq->qmsgLen);
   tlen += taosEncodeString(buf, (char*)pReq->qmsg);
   //tlen += tEncodeSSubQueryMsg(buf, &pReq->msg);
   return tlen;
@@ -1621,7 +1609,6 @@ static FORCE_INLINE void* tDecodeSMqSetCVgReq(void* buf, SMqSetCVgReq* pReq) {
   buf = taosDecodeString(buf, &pReq->sql);
   buf = taosDecodeString(buf, &pReq->logicalPlan);
   buf = taosDecodeString(buf, &pReq->physicalPlan);
-  buf = taosDecodeFixedU32(buf, &pReq->qmsgLen);
   buf = taosDecodeString(buf, (char**)&pReq->qmsg);
   //buf = tDecodeSSubQueryMsg(buf, &pReq->msg);
   return buf;
@@ -1635,41 +1622,76 @@ typedef struct SMqSetCVgRsp {
   char     cGroup[TSDB_CONSUMER_GROUP_LEN];
 } SMqSetCVgRsp;
 
-typedef struct SMqColData {
-  int16_t colId;
-  int16_t type;
-  int16_t bytes;
-  char    data[];
-} SMqColData;
+typedef struct {
+  uint32_t nCols;
+  SSchema *pSchema;
+} SSchemaWrapper;
+
+static FORCE_INLINE int32_t tEncodeSSchema(void** buf, const SSchema* pSchema) {
+  int32_t tlen = 0;
+  tlen += taosEncodeFixedI8(buf, pSchema->type);
+  tlen += taosEncodeFixedI32(buf, pSchema->bytes);
+  tlen += taosEncodeFixedI32(buf, pSchema->colId);
+  tlen += taosEncodeString(buf, pSchema->name);
+  return tlen;
+}
+
+static FORCE_INLINE void* tDecodeSSchema(void* buf, SSchema* pSchema) {
+  buf = taosDecodeFixedI8(buf, &pSchema->type);
+  buf = taosDecodeFixedI32(buf, &pSchema->bytes);
+  buf = taosDecodeFixedI32(buf, &pSchema->colId);
+  buf = taosDecodeStringTo(buf, pSchema->name);
+  return buf;
+}
+
+static FORCE_INLINE int32_t tEncodeSSchemaWrapper(void** buf, const SSchemaWrapper* pSW) {
+  int32_t tlen = 0;
+  tlen += taosEncodeFixedU32(buf, pSW->nCols);
+  for (int32_t i = 0; i < pSW->nCols; i ++) {
+    tlen += tEncodeSSchema(buf, &pSW->pSchema[i]);
+  }
+  return tlen;
+}
+
+static FORCE_INLINE void* tDecodeSSchemaWrapper(void* buf, SSchemaWrapper* pSW) {
+  buf = taosDecodeFixedU32(buf, &pSW->nCols);
+  pSW->pSchema = (SSchema*) calloc(pSW->nCols, sizeof(SSchema));
+  if (pSW->pSchema == NULL) {
+    return NULL;
+  }
+  for (int32_t i = 0; i < pSW->nCols; i ++) {
+    buf = tDecodeSSchema(buf, &pSW->pSchema[i]);
+  }
+  return buf;
+}
 
 typedef struct SMqTbData {
   int64_t    uid;
-  int32_t    numOfCols;
   int32_t    numOfRows;
-  SMqColData colData[];
+  char*      colData;
 } SMqTbData;
 
 typedef struct SMqTopicBlk {
-  char      topicName[TSDB_TOPIC_FNAME_LEN];
-  int64_t   committedOffset;
-  int64_t   reqOffset;
-  int64_t   rspOffset;
-  int32_t   skipLogNum;
-  int32_t   bodyLen;
-  int32_t   numOfTb;
-  SMqTbData tbData[];
+  char       topicName[TSDB_TOPIC_FNAME_LEN];
+  int64_t    committedOffset;
+  int64_t    reqOffset;
+  int64_t    rspOffset;
+  int32_t    skipLogNum;
+  int32_t    bodyLen;
+  int32_t    numOfTb;
+  SMqTbData* tbData;
 } SMqTopicData;
 
 typedef struct SMqConsumeRsp {
-  int64_t      reqId;
-  int64_t      consumerId;
-  int32_t      bodyLen;
-  int32_t      numOfTopics;
-  SMqTopicData data[];
+  int64_t         consumerId;
+  SSchemaWrapper* schemas;
+  int32_t         numOfTopics;
+  SArray*         pBlockData;   //SArray<SSDataBlock>
 } SMqConsumeRsp;
 
 // one req for one vg+topic
 typedef struct SMqConsumeReq {
+  SMsgHead       head;
   //0: commit only, current offset
   //1: consume only, poll next offset
   //2: commit current and consume next offset
@@ -1702,7 +1724,7 @@ typedef struct SMqCMGetSubEpRsp {
 
 static FORCE_INLINE int32_t tEncodeSMqSubVgEp(void** buf, const SMqSubVgEp* pVgEp) {
   int32_t tlen = 0;
-  tlen += taosEncodeFixedI16(buf, pVgEp->vgId);
+  tlen += taosEncodeFixedI32(buf, pVgEp->vgId);
   tlen += taosEncodeSEpSet(buf, &pVgEp->epSet);
   return tlen;
 }

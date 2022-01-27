@@ -1100,8 +1100,6 @@ int32_t qwProcessCQuery(QW_FPARAMS_DEF, SQWMsg *qwMsg) {
     atomic_store_8(&ctx->queryInQueue, 0);
     atomic_store_8(&ctx->queryContinue, 0);
 
-    DataSinkHandle  sinkHandle = ctx->sinkHandle;
-
     QW_ERR_JRET(qwExecTask(QW_FPARAMS(), ctx, &queryEnd));
 
     if (QW_IS_EVENT_RECEIVED(ctx, QW_EVENT_FETCH)) {
@@ -1313,12 +1311,13 @@ _return:
   QW_RET(code);
 }
 
-int32_t qWorkerInit(int8_t nodeType, int32_t nodeId, SQWorkerCfg *cfg, void **qWorkerMgmt, void *nodeObj, putReqToQueryQFp fp) {
-  if (NULL == qWorkerMgmt || NULL == nodeObj || NULL == fp) {
+int32_t qWorkerInit(int8_t nodeType, int32_t nodeId, SQWorkerCfg *cfg, void **qWorkerMgmt, void *nodeObj,
+                    putReqToQueryQFp fp1, sendReqToDnodeFp fp2) {
+  if (NULL == qWorkerMgmt || NULL == nodeObj || NULL == fp1 || NULL == fp2) {
     qError("invalid param to init qworker");
     QW_RET(TSDB_CODE_QRY_INVALID_INPUT);
   }
-  
+
   SQWorkerMgmt *mgmt = calloc(1, sizeof(SQWorkerMgmt));
   if (NULL == mgmt) {
     qError("calloc %d failed", (int32_t)sizeof(SQWorkerMgmt));
@@ -1361,7 +1360,8 @@ int32_t qWorkerInit(int8_t nodeType, int32_t nodeId, SQWorkerCfg *cfg, void **qW
   mgmt->nodeType = nodeType;
   mgmt->nodeId = nodeId;
   mgmt->nodeObj = nodeObj;
-  mgmt->putToQueueFp = fp;
+  mgmt->putToQueueFp = fp1;
+  mgmt->sendReqFp = fp2;
 
   *qWorkerMgmt = mgmt;
 

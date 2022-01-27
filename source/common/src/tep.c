@@ -2,22 +2,33 @@
 #include "tglobal.h"
 #include "tlockfree.h"
 
-int taosGetFqdnPortFromEp(const char *ep, char *fqdn, uint16_t *port) {
-  *port = 0;
-  strcpy(fqdn, ep);
+int taosGetFqdnPortFromEp(const char *ep, SEp* pEp) {
+  pEp->port = 0;
+  strcpy(pEp->fqdn, ep);
 
-  char *temp = strchr(fqdn, ':');
+  char *temp = strchr(pEp->fqdn, ':');
   if (temp) {
     *temp = 0;
-    *port = atoi(temp+1);
+    pEp->port = atoi(temp+1);
   }
 
-  if (*port == 0) {
-    *port = tsServerPort;
+  if (pEp->port == 0) {
+    pEp->port = tsServerPort;
     return -1;
   }
 
   return 0;
+}
+
+void addEpIntoEpSet(SEpSet *pEpSet, const char* fqdn, uint16_t port) {
+  if (pEpSet == NULL || fqdn == NULL || strlen(fqdn) == 0) {
+    return;
+  }
+
+  int32_t index = pEpSet->numOfEps;
+  tstrncpy(pEpSet->eps[index].fqdn, fqdn, tListLen(pEpSet->eps[index].fqdn));
+  pEpSet->eps[index].port = port;
+  pEpSet->numOfEps += 1;
 }
 
 bool isEpsetEqual(const SEpSet *s1, const SEpSet *s2) {
@@ -26,8 +37,8 @@ bool isEpsetEqual(const SEpSet *s1, const SEpSet *s2) {
   }
 
   for (int32_t i = 0; i < s1->numOfEps; i++) {
-    if (s1->port[i] != s2->port[i]
-        || strncmp(s1->fqdn[i], s2->fqdn[i], TSDB_FQDN_LEN) != 0)
+    if (s1->eps[i].port != s2->eps[i].port
+        || strncmp(s1->eps[i].fqdn, s2->eps[i].fqdn, TSDB_FQDN_LEN) != 0)
       return false;
   }
   return true;

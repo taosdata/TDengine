@@ -251,24 +251,9 @@ static SSubplan* initSubplan(SPlanContext* pCxt, int32_t type) {
   return subplan;
 }
 
-static void vgroupInfoToEpSet(const SVgroupInfo* vg, SQueryNodeAddr* execNode) {
-  execNode->nodeId = vg->vgId;
-  execNode->inUse = vg->inUse;
-  execNode->numOfEps = vg->numOfEps;
-  for (int8_t i = 0; i < vg->numOfEps; ++i) {
-    execNode->epAddr[i] = vg->epAddr[i];
-  }
-  return;
-}
-
-static void vgroupMsgToEpSet(const SVgroupMsg* vg, SQueryNodeAddr* execNode) {
-  execNode->nodeId = vg->vgId;
-  execNode->inUse = 0; // todo
-  execNode->numOfEps = vg->numOfEps;
-  for (int8_t i = 0; i < vg->numOfEps; ++i) {
-    execNode->epAddr[i] = vg->epAddr[i];
-  }
-  return;
+static void vgroupInfoToNodeAddr(const SVgroupInfo* vg, SQueryNodeAddr* pNodeAddr) {
+  pNodeAddr->nodeId = vg->vgId;
+  pNodeAddr->epset  = vg->epset;
 }
 
 static uint64_t splitSubplanByTable(SPlanContext* pCxt, SQueryPlanNode* pPlanNode, SQueryTableInfo* pTableInfo) {
@@ -277,7 +262,8 @@ static uint64_t splitSubplanByTable(SPlanContext* pCxt, SQueryPlanNode* pPlanNod
     STORE_CURRENT_SUBPLAN(pCxt);
     SSubplan* subplan = initSubplan(pCxt, QUERY_TYPE_SCAN);
     subplan->msgType   = TDMT_VND_QUERY;
-    vgroupMsgToEpSet(&(pTableInfo->pMeta->vgroupList->vgroups[i]), &subplan->execNode);
+
+    vgroupInfoToNodeAddr(&(pTableInfo->pMeta->vgroupList->vgroups[i]), &subplan->execNode);
     subplan->pNode = createMultiTableScanNode(pPlanNode, pTableInfo);
     subplan->pDataSink = createDataDispatcher(pCxt, pPlanNode, subplan->pNode);
     RECOVERY_CURRENT_SUBPLAN(pCxt);
@@ -297,11 +283,12 @@ static bool needMultiNodeScan(SQueryTableInfo* pTable) {
   return (TSDB_SUPER_TABLE == pTable->pMeta->pTableMeta->tableType);
 }
 
-static SPhyNode* createSingleTableScanNode(SQueryPlanNode* pPlanNode, SQueryTableInfo* pTable, SSubplan* subplan) {
-  vgroupMsgToEpSet(&(pTable->pMeta->vgroupList->vgroups[0]), &subplan->execNode);
-
+// TODO: the SVgroupInfo index
+static SPhyNode* createSingleTableScanNode(SQueryPlanNode* pPlanNode, SQueryTableInfo* pTableInfo, SSubplan* subplan) {
+  SVgroupsInfo* pVgroupsInfo = pTableInfo->pMeta->vgroupList;
+  vgroupInfoToNodeAddr(&(pVgroupsInfo->vgroups[0]), &subplan->execNode);
   int32_t type = (pPlanNode->info.type == QNODE_TABLESCAN)? OP_TableScan:OP_StreamScan;
-  return createUserTableScanNode(pPlanNode, pTable, type);
+  return createUserTableScanNode(pPlanNode, pTableInfo, type);
 }
 
 static SPhyNode* createTableScanNode(SPlanContext* pCxt, SQueryPlanNode* pPlanNode) {
@@ -374,7 +361,7 @@ static void splitModificationOpSubPlan(SPlanContext* pCxt, SQueryPlanNode* pPlan
     SSubplan* subplan = initSubplan(pCxt, QUERY_TYPE_MODIFY);
     SVgDataBlocks* blocks = (SVgDataBlocks*)taosArrayGetP(pPayload->payload, i);
 
-    vgroupInfoToEpSet(&blocks->vg, &subplan->execNode);
+    subplan->execNode.epset = blocks->vg.epset;
     subplan->pDataSink  = createDataInserter(pCxt, blocks, NULL);
     subplan->pNode      = NULL;
     subplan->type       = QUERY_TYPE_MODIFY;
@@ -461,7 +448,7 @@ static void destroyDataSinkNode(SDataSink* pSinkNode) {
     return;
   }
 
-  if (nodeType(pSinkNode) == DSINK_Dispatch) {
+  if (queryNodeType(pSinkNode) == DSINK_Dispatch) {
     SDataDispatcher* pDdSink = (SDataDispatcher*)pSinkNode;
     tfree(pDdSink->sink.schema.pSchema);
   }

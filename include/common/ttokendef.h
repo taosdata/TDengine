@@ -207,6 +207,36 @@
 #define TK_INTO                           189
 #define TK_VALUES                         190
 
+#define NEW_TK_UNION                            1
+#define NEW_TK_ALL                              2
+#define NEW_TK_MINUS                            3
+#define NEW_TK_EXCEPT                           4
+#define NEW_TK_INTERSECT                        5
+#define NEW_TK_NK_PLUS                          6
+#define NEW_TK_NK_MINUS                         7
+#define NEW_TK_NK_STAR                          8
+#define NEW_TK_NK_SLASH                         9
+#define NEW_TK_SHOW                            10
+#define NEW_TK_DATABASES                       11
+#define NEW_TK_NK_ID                           12
+#define NEW_TK_NK_LP                           13
+#define NEW_TK_NK_RP                           14
+#define NEW_TK_NK_COMMA                        15
+#define NEW_TK_NK_LITERAL                      16
+#define NEW_TK_NK_DOT                          17
+#define NEW_TK_SELECT                          18
+#define NEW_TK_DISTINCT                        19
+#define NEW_TK_AS                              20
+#define NEW_TK_FROM                            21
+#define NEW_TK_WITH                            22
+#define NEW_TK_RECURSIVE                       23
+#define NEW_TK_ORDER                           24
+#define NEW_TK_BY                              25
+#define NEW_TK_ASC                             26
+#define NEW_TK_DESC                            27
+#define NEW_TK_NULLS                           28
+#define NEW_TK_FIRST                           29
+#define NEW_TK_LAST                            30
 
 #define TK_SPACE                          300
 #define TK_COMMENT                        301

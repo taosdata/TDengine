@@ -195,10 +195,10 @@ void ctgTestBuildDBVgroup(SDBVgroupInfo *dbVgroup) {
     vgInfo.vgId = i + 1;
     vgInfo.hashBegin = i * hashUnit;
     vgInfo.hashEnd = hashUnit * (i + 1) - 1;
-    vgInfo.numOfEps = i % TSDB_MAX_REPLICA + 1;
-    vgInfo.inUse = i % vgInfo.numOfEps;
-    for (int32_t n = 0; n < vgInfo.numOfEps; ++n) {
-      SEpAddr *addr = &vgInfo.epAddr[n];
+    vgInfo.epset.numOfEps = i % TSDB_MAX_REPLICA + 1;
+    vgInfo.epset.inUse = i % vgInfo.epset.numOfEps;
+    for (int32_t n = 0; n < vgInfo.epset.numOfEps; ++n) {
+      SEp *addr = &vgInfo.epset.eps[n];
       strcpy(addr->fqdn, "a0");
       addr->port = htons(n + 22);
     }
@@ -229,10 +229,10 @@ void ctgTestPrepareDbVgroups(void *shandle, SEpSet *pEpSet, SRpcMsg *pMsg, SRpcM
     vg->vgId = htonl(i + 1);
     vg->hashBegin = htonl(i * hashUnit);
     vg->hashEnd = htonl(hashUnit * (i + 1) - 1);
-    vg->numOfEps = i % TSDB_MAX_REPLICA + 1;
-    vg->inUse = i % vg->numOfEps;
-    for (int32_t n = 0; n < vg->numOfEps; ++n) {
-      SEpAddr *addr = &vg->epAddr[n];
+    vg->epset.numOfEps = i % TSDB_MAX_REPLICA + 1;
+    vg->epset.inUse = i % vg->epset.numOfEps;
+    for (int32_t n = 0; n < vg->epset.numOfEps; ++n) {
+      SEp *addr = &vg->epset.eps[n];
       strcpy(addr->fqdn, "a0");
       addr->port = htons(n + 22);
     }
@@ -693,7 +693,7 @@ TEST(tableMeta, normalTable) {
   code = catalogGetTableHashVgroup(pCtg, mockPointer, (const SEpSet *)mockPointer, &n, &vgInfo);
   ASSERT_EQ(code, 0);
   ASSERT_EQ(vgInfo.vgId, 8);
-  ASSERT_EQ(vgInfo.numOfEps, 3);
+  ASSERT_EQ(vgInfo.epset.numOfEps, 3);
 
   ctgTestSetPrepareTableMeta();
 
@@ -983,7 +983,7 @@ TEST(tableDistVgroup, normalTable) {
   ASSERT_EQ(taosArrayGetSize((const SArray *)vgList), 1);
   vgInfo = (SVgroupInfo *)taosArrayGet(vgList, 0);
   ASSERT_EQ(vgInfo->vgId, 8);
-  ASSERT_EQ(vgInfo->numOfEps, 3);
+  ASSERT_EQ(vgInfo->epset.numOfEps, 3);
 
   catalogDestroy();
 }
@@ -1015,7 +1015,7 @@ TEST(tableDistVgroup, childTableCase) {
   ASSERT_EQ(taosArrayGetSize((const SArray *)vgList), 1);
   vgInfo = (SVgroupInfo *)taosArrayGet(vgList, 0);
   ASSERT_EQ(vgInfo->vgId, 9);
-  ASSERT_EQ(vgInfo->numOfEps, 4);
+  ASSERT_EQ(vgInfo->epset.numOfEps, 4);
 
   catalogDestroy();
 }
@@ -1046,13 +1046,13 @@ TEST(tableDistVgroup, superTableCase) {
   ASSERT_EQ(taosArrayGetSize((const SArray *)vgList), 10);
   vgInfo = (SVgroupInfo *)taosArrayGet(vgList, 0);
   ASSERT_EQ(vgInfo->vgId, 1);
-  ASSERT_EQ(vgInfo->numOfEps, 1);
+  ASSERT_EQ(vgInfo->epset.numOfEps, 1);
   vgInfo = (SVgroupInfo *)taosArrayGet(vgList, 1);
   ASSERT_EQ(vgInfo->vgId, 2);
-  ASSERT_EQ(vgInfo->numOfEps, 2);
+  ASSERT_EQ(vgInfo->epset.numOfEps, 2);
   vgInfo = (SVgroupInfo *)taosArrayGet(vgList, 2);
   ASSERT_EQ(vgInfo->vgId, 3);
-  ASSERT_EQ(vgInfo->numOfEps, 3);
+  ASSERT_EQ(vgInfo->epset.numOfEps, 3);
 
   catalogDestroy();
 }
@@ -1088,14 +1088,14 @@ TEST(dbVgroup, getSetDbVgroupCase) {
   code = catalogGetTableHashVgroup(pCtg, mockPointer, (const SEpSet *)mockPointer, &n, &vgInfo);
   ASSERT_EQ(code, 0);
   ASSERT_EQ(vgInfo.vgId, 8);
-  ASSERT_EQ(vgInfo.numOfEps, 3);
+  ASSERT_EQ(vgInfo.epset.numOfEps, 3);
 
   code = catalogGetTableDistVgroup(pCtg, mockPointer, (const SEpSet *)mockPointer, &n, &vgList);
   ASSERT_EQ(code, 0);
   ASSERT_EQ(taosArrayGetSize((const SArray *)vgList), 1);
   pvgInfo = (SVgroupInfo *)taosArrayGet(vgList, 0);
   ASSERT_EQ(pvgInfo->vgId, 8);
-  ASSERT_EQ(pvgInfo->numOfEps, 3);
+  ASSERT_EQ(pvgInfo->epset.numOfEps, 3);
   taosArrayDestroy(vgList);
 
   ctgTestBuildDBVgroup(&dbVgroup);
@@ -1105,14 +1105,14 @@ TEST(dbVgroup, getSetDbVgroupCase) {
   code = catalogGetTableHashVgroup(pCtg, mockPointer, (const SEpSet *)mockPointer, &n, &vgInfo);
   ASSERT_EQ(code, 0);
   ASSERT_EQ(vgInfo.vgId, 7);
-  ASSERT_EQ(vgInfo.numOfEps, 2);
+  ASSERT_EQ(vgInfo.epset.numOfEps, 2);
 
   code = catalogGetTableDistVgroup(pCtg, mockPointer, (const SEpSet *)mockPointer, &n, &vgList);
   ASSERT_EQ(code, 0);
   ASSERT_EQ(taosArrayGetSize((const SArray *)vgList), 1);
   pvgInfo = (SVgroupInfo *)taosArrayGet(vgList, 0);
   ASSERT_EQ(pvgInfo->vgId, 8);
-  ASSERT_EQ(pvgInfo->numOfEps, 3);
+  ASSERT_EQ(pvgInfo->epset.numOfEps, 3);
   taosArrayDestroy(vgList);
 
   catalogDestroy();

@@ -46,6 +46,8 @@ void taos_cleanup(void) {
   clientConnRefPool = -1;
   taosCloseRef(id);
 
+  hbMgrCleanUp();
+
   rpcCleanup();
   catalogDestroy();
   taosCloseLog();

@@ -289,6 +289,7 @@ int32_t dndInit(const SDnodeEnvCfg *pCfg) {
       .charset = pCfg->charset,
       .nthreads = pCfg->numOfCommitThreads,
       .putReqToVQueryQFp = dndPutReqToVQueryQ,
+      .sendReqToDnodeFp = dndSendReqToDnode
   };
 
   if (vnodeInit(&vnodeOpt) != 0) {

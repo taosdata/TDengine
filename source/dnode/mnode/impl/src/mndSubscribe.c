@@ -66,13 +66,13 @@ int32_t mndInitSubscribe(SMnode *pMnode) {
 
 static int32_t mndProcessGetSubEpReq(SMnodeMsg *pMsg) {
   SMnode           *pMnode = pMsg->pMnode;
-  SMqCMGetSubEpReq *pReq = (SMqCMGetSubEpReq *)pMsg->pCont;
+  SMqCMGetSubEpReq *pReq = (SMqCMGetSubEpReq *)pMsg->rpcMsg.pCont;
   SMqCMGetSubEpRsp  rsp;
   int64_t           consumerId = be64toh(pReq->consumerId);
 
   SMqConsumerObj *pConsumer = mndAcquireConsumer(pMsg->pMnode, consumerId);
   if (pConsumer == NULL) {
-    /*terrno = */
+    terrno = TSDB_CODE_MND_CONSUMER_NOT_EXIST;
     return -1;
   }
   ASSERT(strcmp(pReq->cgroup, pConsumer->cgroup) == 0);
@@ -91,9 +91,13 @@ static int32_t mndProcessGetSubEpReq(SMnodeMsg *pMsg) {
     int32_t          assignedSz = taosArrayGetSize(pSub->assigned);
     topicEp.vgs = taosArrayInit(assignedSz, sizeof(SMqSubVgEp));
     for (int32_t j = 0; j < assignedSz; j++) {
-      SMqConsumerEp *pCEp = taosArrayGet(pSub->assigned, i);
+      SMqConsumerEp *pCEp = taosArrayGet(pSub->assigned, j);
       if (pCEp->consumerId == consumerId) {
-        taosArrayPush(pSub->assigned, pCEp);
+        SMqSubVgEp vgEp = {
+          .epSet = pCEp->epSet,
+          .vgId = pCEp->vgId
+        };
+        taosArrayPush(topicEp.vgs, &vgEp);
       }
     }
     if (taosArrayGetSize(topicEp.vgs) != 0) {
@@ -101,7 +105,7 @@ static int32_t mndProcessGetSubEpReq(SMnodeMsg *pMsg) {
     }
   }
   int32_t tlen = tEncodeSMqCMGetSubEpRsp(NULL, &rsp);
-  void   *buf = malloc(tlen);
+  void   *buf = rpcMallocCont(tlen);
   if (buf == NULL) {
     terrno = TSDB_CODE_OUT_OF_MEMORY;
     return -1;
@@ -161,8 +165,6 @@ static int32_t mndProcessMqTimerMsg(SMnodeMsg *pMsg) {
         pReq->sql = strdup(pTopic->sql);
         pReq->logicalPlan = strdup(pTopic->logicalPlan);
         pReq->physicalPlan = strdup(pTopic->physicalPlan);
-        pReq->qmsgLen = pCEp->qmsgLen;
-        /*memcpy(pReq->qmsg, pCEp->qmsg, pCEp->qmsgLen);*/
         pReq->qmsg = strdup(pCEp->qmsg);
         int32_t tlen = tEncodeSMqSetCVgReq(NULL, pReq);
         void   *reqStr = malloc(tlen);
@@ -192,7 +194,7 @@ static int32_t mndProcessMqTimerMsg(SMnodeMsg *pMsg) {
       if (mndTransPrepare(pMnode, pTrans) != 0) {
         mError("trans:%d, failed to prepare since %s", pTrans->id, terrstr());
       }
-      mndReleaseTopic(pMnode, pTopic);
+      /*mndReleaseTopic(pMnode, pTopic);*/
       mndTransDrop(pTrans);
     }
     pIter = sdbFetch(pSdb, SDB_SUBSCRIBE, NULL, (void **)&pSub);
@@ -206,12 +208,12 @@ static int mndInitUnassignedVg(SMnode *pMnode, SMqTopicObj *pTopic, SArray *unas
   SArray    *pArray;
   SArray    *inner = taosArrayGet(pDag->pSubplans, 0);
   SSubplan  *plan = taosArrayGetP(inner, 0);
-  plan->execNode.inUse = 0;
-  strcpy(plan->execNode.epAddr[0].fqdn, "localhost");
-  plan->execNode.epAddr[0].port = 6030;
-  plan->execNode.nodeId = 2;
-  plan->execNode.numOfEps = 1;
 
+  plan->execNode.nodeId = 2;
+  SEpSet* pEpSet = &plan->execNode.epset;
+
+  pEpSet->inUse = 0;
+  addEpIntoEpSet(pEpSet, "localhost", 6030);
   if (schedulerConvertDagToTaskList(pDag, &pArray) < 0) {
     return -1;
   }
@@ -220,20 +222,15 @@ static int mndInitUnassignedVg(SMnode *pMnode, SMqTopicObj *pTopic, SArray *unas
   for (int32_t i = 0; i < sz; i++) {
     SMqConsumerEp CEp;
     CEp.status = 0;
+    CEp.consumerId = -1;
     CEp.lastConsumerHbTs = CEp.lastVgHbTs = -1;
     STaskInfo *pTaskInfo = taosArrayGet(pArray, i);
-    tConvertQueryAddrToEpSet(&CEp.epSet, &pTaskInfo->addr);
+    CEp.epSet = pTaskInfo->addr.epset;
+    
     /*mDebug("subscribe convert ep %d %s %s %s %s %s\n", CEp.epSet.numOfEps, CEp.epSet.fqdn[0], CEp.epSet.fqdn[1],
      * CEp.epSet.fqdn[2], CEp.epSet.fqdn[3], CEp.epSet.fqdn[4]);*/
     CEp.vgId = pTaskInfo->addr.nodeId;
     CEp.qmsg = strdup(pTaskInfo->msg->msg);
-    CEp.qmsgLen = strlen(CEp.qmsg) + 1;
-    printf("abc:\n%s\n", CEp.qmsg);
-    /*CEp.qmsg = malloc(CEp.qmsgLen);*/
-    /*if (CEp.qmsg == NULL) {*/
-    /*return -1;*/
-    /*}*/
-    /*memcpy(CEp.qmsg, pTaskInfo->msg->msg, pTaskInfo->msg->contentLen);*/
     taosArrayPush(unassignedVg, &CEp);
   }
 
@@ -257,8 +254,7 @@ static int mndBuildMqSetConsumerVgReq(SMnode *pMnode, STrans *pTrans, SMqConsume
     req.sql = pTopic->sql;
     req.logicalPlan = pTopic->logicalPlan;
     req.physicalPlan = pTopic->physicalPlan;
-    req.qmsg = strdup(pCEp->qmsg);
-    req.qmsgLen = strlen(req.qmsg);
+    req.qmsg = pCEp->qmsg;
     int32_t tlen = tEncodeSMqSetCVgReq(NULL, &req);
     void   *buf = malloc(sizeof(SMsgHead) + tlen);
     if (buf == NULL) {
@@ -631,14 +627,14 @@ static int32_t mndProcessSubscribeReq(SMnodeMsg *pMsg) {
     mError("trans:%d, failed to prepare since %s", pTrans->id, terrstr());
     if (newSub) taosArrayDestroy(newSub);
     mndTransDrop(pTrans);
-    mndReleaseConsumer(pMnode, pConsumer);
+    /*mndReleaseConsumer(pMnode, pConsumer);*/
     return -1;
   }
 
   if (newSub) taosArrayDestroy(newSub);
   mndTransDrop(pTrans);
-  mndReleaseConsumer(pMnode, pConsumer);
-  return 0;
+  /*mndReleaseConsumer(pMnode, pConsumer);*/
+  return TSDB_CODE_MND_ACTION_IN_PROGRESS;
 }
 
 static int32_t mndProcessSubscribeInternalRsp(SMnodeMsg *pRsp) {
