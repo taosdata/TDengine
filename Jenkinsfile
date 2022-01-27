@@ -112,7 +112,7 @@ def pre_test(){
     git clean -dfx
     mkdir debug
     cd debug
-    cmake .. -DBUILD_HTTP=false -DBUILD_TOOLS=true > /dev/null
+    cmake .. -DBUILD_HTTP=false -DBUILD_TOOLS=true -DBUILD_TYPE=Debug > /dev/null
     make > /dev/null
     make install > /dev/null
     cd ${WKC}/tests
@@ -190,7 +190,7 @@ def pre_test_noinstall(){
     git clean -dfx
     mkdir debug
     cd debug
-    cmake .. -DBUILD_HTTP=false -DBUILD_TOOLS=true > /dev/null
+    cmake .. -DBUILD_HTTP=false -DBUILD_TOOLS=true -DBUILD_TYPE=Debug > /dev/null
     make
     '''
     return 1
