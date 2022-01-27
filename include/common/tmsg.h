@@ -864,13 +864,21 @@ typedef struct {
   char   desc[TSDB_STEP_DESC_LEN];
 } SStartupReq;
 
+/**
+ * The layout of the query message payload is as following:
+ * +--------------------+---------------------------------+
+ * |Sql statement       | Physical plan                   |
+ * |(denoted by sqlLen) |(In JSON, denoted by contentLen) |
+ * +--------------------+---------------------------------+
+ */
 typedef struct SSubQueryMsg {
   SMsgHead header;
   uint64_t sId;
   uint64_t queryId;
   uint64_t taskId;
   int8_t   taskType;
-  uint32_t contentLen;
+  uint32_t sqlLen;     // the query sql,
+  uint32_t phyLen;
   char     msg[];
 } SSubQueryMsg;
 
@@ -1534,7 +1542,8 @@ static FORCE_INLINE int32_t tEncodeSSubQueryMsg(void** buf, const SSubQueryMsg* 
   tlen += taosEncodeFixedU64(buf, pMsg->sId);
   tlen += taosEncodeFixedU64(buf, pMsg->queryId);
   tlen += taosEncodeFixedU64(buf, pMsg->taskId);
-  tlen += taosEncodeFixedU32(buf, pMsg->contentLen);
+  tlen += taosEncodeFixedU32(buf, pMsg->sqlLen);
+  tlen += taosEncodeFixedU32(buf, pMsg->phyLen);
   //tlen += taosEncodeBinary(buf, pMsg->msg, pMsg->contentLen);
   return tlen;
 }
@@ -1543,7 +1552,8 @@ static FORCE_INLINE void* tDecodeSSubQueryMsg(void* buf, SSubQueryMsg* pMsg) {
   buf = taosDecodeFixedU64(buf, &pMsg->sId);
   buf = taosDecodeFixedU64(buf, &pMsg->queryId);
   buf = taosDecodeFixedU64(buf, &pMsg->taskId);
-  buf = taosDecodeFixedU32(buf, &pMsg->contentLen);
+  buf = taosDecodeFixedU32(buf, &pMsg->sqlLen);
+  buf = taosDecodeFixedU32(buf, &pMsg->phyLen);
   //buf = taosDecodeBinaryTo(buf, pMsg->msg, pMsg->contentLen);
   return buf;
 }

@@ -479,7 +479,6 @@ int32_t qwExecTask(QW_FPARAMS_DEF, SQWTaskCtx *ctx, bool *queryEnd) {
 
     if (NULL == pRes) {
       QW_TASK_DLOG("task query done, useconds:%"PRIu64, useconds);
-      
       dsEndPut(sinkHandle, useconds);
       
       if (TASK_TYPE_TEMP == ctx->taskType) {
@@ -492,6 +491,8 @@ int32_t qwExecTask(QW_FPARAMS_DEF, SQWTaskCtx *ctx, bool *queryEnd) {
       
       break;
     }
+
+    ASSERT(pRes->info.rows > 0);
 
     SInputData inputData = {.pData = pRes, .pTableRetrieveTsMap = NULL};
     code = dsPutDataBlock(sinkHandle, &inputData, &qcontinue);

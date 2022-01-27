@@ -378,7 +378,7 @@ void* schtRunJobThread(void *aa) {
     qnodeAddr.port = 6031;
     taosArrayPush(qnodeList, &qnodeAddr);
 
-    code = schedulerAsyncExecJob(mockPointer, qnodeList, &dag, &job);
+    code = schedulerAsyncExecJob(mockPointer, qnodeList, &dag, "select * from tb", &job);
     assert(code == 0);
 
     execTasks = taosHashInit(5, taosGetDefaultHashFunction(TSDB_DATA_TYPE_UBIGINT), false, HASH_ENTRY_LOCK);
@@ -539,7 +539,7 @@ TEST(queryTest, normalCase) {
   schtSetExecNode();
   schtSetAsyncSendMsgToServer();
   
-  code = schedulerAsyncExecJob(mockPointer, qnodeList, &dag, &pJob);
+  code = schedulerAsyncExecJob(mockPointer, qnodeList, &dag, "select * from tb", &pJob);
   ASSERT_EQ(code, 0);
 
   SSchJob *job = (SSchJob *)pJob;
@@ -649,7 +649,7 @@ TEST(insertTest, normalCase) {
   pthread_create(&(thread1), &thattr, schtSendRsp, &pInsertJob);
 
   SQueryResult res = {0};
-  code = schedulerExecJob(mockPointer, qnodeList, &dag, &pInsertJob, &res);
+  code = schedulerExecJob(mockPointer, qnodeList, &dag, &pInsertJob, "insert into tb values(now,1)", &res);
   ASSERT_EQ(code, 0);
   ASSERT_EQ(res.numOfRows, 20);
 

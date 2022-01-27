@@ -78,7 +78,6 @@ int32_t tsCompressColData = -1;
 int32_t tsCompatibleModel = 1;
 
 // client
-int32_t tsMaxSQLStringLen = TSDB_MAX_ALLOWED_SQL_LEN;
 int32_t tsMaxWildCardsLen = TSDB_PATTERN_STRING_DEFAULT_LEN;
 int32_t tsMaxRegexStringLen = TSDB_REGEX_STRING_DEFAULT_LEN;
 
@@ -592,16 +591,6 @@ static void doInitGlobalConfig(void) {
   cfg.maxValue = 100000000.0f;
   cfg.ptrLength = 0;
   cfg.unitType = TAOS_CFG_UTYPE_NONE;
-  taosAddConfigOption(cfg);
-
-  cfg.option = "maxSQLLength";
-  cfg.ptr = &tsMaxSQLStringLen;
-  cfg.valType = TAOS_CFG_VTYPE_INT32;
-  cfg.cfgType = TSDB_CFG_CTYPE_B_CONFIG | TSDB_CFG_CTYPE_B_CLIENT | TSDB_CFG_CTYPE_B_SHOW;
-  cfg.minValue = TSDB_MAX_SQL_LEN;
-  cfg.maxValue = TSDB_MAX_ALLOWED_SQL_LEN;
-  cfg.ptrLength = 0;
-  cfg.unitType = TAOS_CFG_UTYPE_BYTE;
   taosAddConfigOption(cfg);
 
   cfg.option = "maxWildCardsLength";
