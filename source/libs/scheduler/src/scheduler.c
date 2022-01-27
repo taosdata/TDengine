@@ -1194,17 +1194,18 @@ int32_t schLaunchTask(SSchJob *pJob, SSchTask *pTask) {
     
     code = atomic_load_32(&pJob->errCode);
     SCH_ERR_RET(code);
-    
     SCH_RET(TSDB_CODE_SCH_STATUS_ERROR);
   }
   
   SSubplan *plan = pTask->plan;
 
-  if (NULL == pTask->msg) {
+  if (NULL == pTask->msg) { // TODO add more detailed reason for failure
     code = qSubPlanToString(plan, &pTask->msg, &pTask->msgLen);
     if (TSDB_CODE_SUCCESS != code || NULL == pTask->msg || pTask->msgLen <= 0) {
-      SCH_TASK_ELOG("subplanToString error, code:%x, msg:%p, len:%d", code, pTask->msg, pTask->msgLen);
+      SCH_TASK_ELOG("failed to create physical plan, code:%s, msg:%p, len:%d", tstrerror(code), pTask->msg, pTask->msgLen);
       SCH_ERR_JRET(code);
+    } else {
+      SCH_TASK_DLOG(" ===physical plan=== len:%d, %s", pTask->msgLen, pTask->msg);
     }
   }
   
@@ -1218,13 +1219,10 @@ int32_t schLaunchTask(SSchJob *pJob, SSchTask *pTask) {
   }
 
   SCH_ERR_JRET(schBuildAndSendMsg(pJob, pTask, NULL, plan->msgType));
-  
   return TSDB_CODE_SUCCESS;
 
 _return:
-
   SCH_ERR_RET(schProcessOnTaskFailure(pJob, pTask, code));
-  
   SCH_RET(code);
 }
 

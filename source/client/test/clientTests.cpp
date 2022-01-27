@@ -237,27 +237,27 @@ TEST(testCase, use_db_test) {
   taos_close(pConn);
 }
 
- TEST(testCase, drop_db_test) {
-  TAOS* pConn = taos_connect("localhost", "root", "taosdata", NULL, 0);
-  assert(pConn != NULL);
-
-  showDB(pConn);
-
-  TAOS_RES* pRes = taos_query(pConn, "drop database abc1");
-  if (taos_errno(pRes) != 0) {
-    printf("failed to drop db, reason:%s\n", taos_errstr(pRes));
-  }
-  taos_free_result(pRes);
-
-  showDB(pConn);
-
-  pRes = taos_query(pConn, "create database abc1");
-  if (taos_errno(pRes) != 0) {
-    printf("create to drop db, reason:%s\n", taos_errstr(pRes));
-  }
-  taos_free_result(pRes);
-  taos_close(pConn);
-}
+// TEST(testCase, drop_db_test) {
+//  TAOS* pConn = taos_connect("localhost", "root", "taosdata", NULL, 0);
+//  assert(pConn != NULL);
+//
+//  showDB(pConn);
+//
+//  TAOS_RES* pRes = taos_query(pConn, "drop database abc1");
+//  if (taos_errno(pRes) != 0) {
+//    printf("failed to drop db, reason:%s\n", taos_errstr(pRes));
+//  }
+//  taos_free_result(pRes);
+//
+//  showDB(pConn);
+//
+//  pRes = taos_query(pConn, "create database abc1");
+//  if (taos_errno(pRes) != 0) {
+//    printf("create to drop db, reason:%s\n", taos_errstr(pRes));
+//  }
+//  taos_free_result(pRes);
+//  taos_close(pConn);
+//}
 
 TEST(testCase, create_stable_Test) {
   TAOS* pConn = taos_connect("localhost", "root", "taosdata", NULL, 0);
@@ -503,30 +503,30 @@ TEST(testCase, show_table_Test) {
   taos_close(pConn);
 }
 
-TEST(testCase, drop_stable_Test) {
-  TAOS* pConn = taos_connect("localhost", "root", "taosdata", NULL, 0);
-  assert(pConn != nullptr);
-
-  TAOS_RES* pRes = taos_query(pConn, "create database if not exists abc1");
-  if (taos_errno(pRes) != 0) {
-    printf("error in creating db, reason:%s\n", taos_errstr(pRes));
-  }
-  taos_free_result(pRes);
-
-  pRes = taos_query(pConn, "use abc1");
-  if (taos_errno(pRes) != 0) {
-    printf("error in using db, reason:%s\n", taos_errstr(pRes));
-  }
-  taos_free_result(pRes);
-
-  pRes = taos_query(pConn, "drop stable st1");
-  if (taos_errno(pRes) != 0) {
-    printf("failed to drop stable, reason:%s\n", taos_errstr(pRes));
-  }
-
-  taos_free_result(pRes);
-  taos_close(pConn);
-}
+//TEST(testCase, drop_stable_Test) {
+//  TAOS* pConn = taos_connect("localhost", "root", "taosdata", NULL, 0);
+//  assert(pConn != nullptr);
+//
+//  TAOS_RES* pRes = taos_query(pConn, "create database if not exists abc1");
+//  if (taos_errno(pRes) != 0) {
+//    printf("error in creating db, reason:%s\n", taos_errstr(pRes));
+//  }
+//  taos_free_result(pRes);
+//
+//  pRes = taos_query(pConn, "use abc1");
+//  if (taos_errno(pRes) != 0) {
+//    printf("error in using db, reason:%s\n", taos_errstr(pRes));
+//  }
+//  taos_free_result(pRes);
+//
+//  pRes = taos_query(pConn, "drop stable st1");
+//  if (taos_errno(pRes) != 0) {
+//    printf("failed to drop stable, reason:%s\n", taos_errstr(pRes));
+//  }
+//
+//  taos_free_result(pRes);
+//  taos_close(pConn);
+//}
 
 TEST(testCase, generated_request_id_test) {
   SHashObj* phash = taosHashInit(10000, taosGetDefaultHashFunction(TSDB_DATA_TYPE_BIGINT), false, HASH_ENTRY_LOCK);
@@ -601,7 +601,7 @@ TEST(testCase, tmq_subscribe_Test) {
   tmq_conf_t* conf = tmq_conf_new();
   tmq_conf_set(conf, "group.id", "tg1");
   tmq_t* tmq = taos_consumer_new(pConn, conf, NULL, 0);
-  
+
   tmq_list_t* topic_list = tmq_list_new();
   tmq_list_append(topic_list, "test_topic_1");
   tmq_subscribe(tmq, topic_list);
@@ -712,7 +712,7 @@ TEST(testCase, agg_query_tables) {
   }
   taos_free_result(pRes);
 
-  pRes = taos_query(pConn, "select count(*) from tu");
+  pRes = taos_query(pConn, "select count(*) from t_x_19");
   if (taos_errno(pRes) != 0) {
     printf("failed to select from table, reason:%s\n", taos_errstr(pRes));
     taos_free_result(pRes);

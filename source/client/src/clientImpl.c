@@ -119,7 +119,7 @@ TAOS *taos_connect_internal(const char *ip, const char *user, const char *pass, 
     SAppInstInfo* p = calloc(1, sizeof(struct SAppInstInfo));
     p->mgmtEp       = epSet;
     p->pTransporter = openTransporter(user, secretEncrypt, tsNumOfCores);
-    p->pAppHbMgr = appHbMgrInit(p);
+    /*p->pAppHbMgr = appHbMgrInit(p);*/
     taosHashPut(appInfo.pInstMap, key, strlen(key), &p, POINTER_BYTES);
 
     pInst = &p;
@@ -218,12 +218,10 @@ int32_t getPlan(SRequestObj* pRequest, SQueryNode* pQueryNode, SQueryDag** pDag,
 
   if (pQueryNode->type == TSDB_SQL_SELECT) {
     setResSchemaInfo(&pRequest->body.resInfo, pSchema, numOfCols);
-    tfree(pSchema);
     pRequest->type = TDMT_VND_QUERY;
-  } else {
-    tfree(pSchema);
   }
 
+  tfree(pSchema);
   return code;
 }
 
@@ -621,6 +619,27 @@ struct tmq_message_t {
 };
 
 int32_t tmq_poll_cb_inner(void* param, const SDataBuf* pMsg, int32_t code) {
+  SMqConsumeRsp rsp;
+  tDecodeSMqConsumeRsp(pMsg->pData, &rsp);
+  int32_t colNum = rsp.schemas->nCols;
+  for (int32_t i = 0; i < colNum; i++) {
+    printf("| %s |", rsp.schemas->pSchema[i].name);
+  }
+  printf("\n");
+  int32_t sz = taosArrayGetSize(rsp.pBlockData);
+  for (int32_t i = 0; i < sz; i++) {
+    SSDataBlock* pDataBlock = taosArrayGet(rsp.pBlockData, i);
+    int32_t rows = pDataBlock->info.rows;
+    for (int32_t j = 0; j < colNum; j++) {
+      SColumnInfoData* pColInfoData = taosArrayGet(pDataBlock->pDataBlock, j);
+      for (int32_t k = 0; k < rows; k++) {
+        void* var = POINTER_SHIFT(pColInfoData->pData, k * pColInfoData->info.bytes);
+        if (j == 0) printf(" %ld ", *(int64_t*)var);
+        if (j == 1) printf(" %d ", *(int32_t*)var);
+      }
+    }
+    /*pDataBlock->*/
+  }
   return 0;
 }
 
@@ -721,9 +740,9 @@ tmq_message_t* tmq_consume_poll(tmq_t* tmq, int64_t blocking_time) {
   pRequest->body.requestMsg = (SDataBuf){ .pData = pReq, .len = sizeof(SMqConsumeReq) };
 
   SMsgSendInfo* sendInfo = buildMsgInfoImpl(pRequest);
-  /*sendInfo->requestObjRefId = 0;*/
+  sendInfo->requestObjRefId = 0;
   /*sendInfo->param = &tmq_message;*/
-  /*sendInfo->fp = tmq_poll_cb_inner;*/
+  sendInfo->fp = tmq_poll_cb_inner;
 
   int64_t transporterId = 0;
   asyncSendMsgToServer(tmq->pTscObj->pAppInfo->pTransporter, &pVg->epSet, &transporterId, sendInfo);
@@ -776,7 +795,6 @@ TAOS_RES *taos_query_l(TAOS *taos, const char *sql, int sqlLen) {
   if (qIsDdlQuery(pQueryNode)) {
     CHECK_CODE_GOTO(execDdlQuery(pRequest, pQueryNode), _return);
   } else {
-
     CHECK_CODE_GOTO(getPlan(pRequest, pQueryNode, &pRequest->body.pDag, pNodeList), _return);
     CHECK_CODE_GOTO(scheduleQuery(pRequest, pRequest->body.pDag, pNodeList), _return);
     pRequest->code = terrno;

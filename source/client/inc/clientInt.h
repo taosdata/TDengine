@@ -114,6 +114,7 @@ typedef struct STscObj {
   char             user[TSDB_USER_LEN];
   char             pass[TSDB_PASSWORD_LEN];
   char             db[TSDB_DB_FNAME_LEN];
+  char             ver[128];
   int32_t          acctId;
   uint32_t         connId;
   int32_t          connType;

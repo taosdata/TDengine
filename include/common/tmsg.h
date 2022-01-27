@@ -289,6 +289,7 @@ static FORCE_INLINE void* taosDecodeSEpSet(void* buf, SEpSet* pEp) {
   }
   return buf;
 }
+
 typedef struct {
   int32_t acctId;
   int64_t clusterId;
@@ -296,6 +297,7 @@ typedef struct {
   int8_t  superUser;
   int8_t  align[3];
   SEpSet  epSet;
+  char    sVersion[128];
 } SConnectRsp;
 
 typedef struct {
@@ -1588,16 +1590,53 @@ typedef struct SMqSetCVgRsp {
   char     cGroup[TSDB_CONSUMER_GROUP_LEN];
 } SMqSetCVgRsp;
 
-typedef struct SMqColData {
-  int16_t colId;
-  int16_t type;
-  int16_t bytes;
-} SMqColMeta;
+typedef struct {
+  uint32_t nCols;
+  SSchema *pSchema;
+} SSchemaWrapper;
+
+static FORCE_INLINE int32_t tEncodeSSchema(void** buf, const SSchema* pSchema) {
+  int32_t tlen = 0;
+  tlen += taosEncodeFixedI8(buf, pSchema->type);
+  tlen += taosEncodeFixedI32(buf, pSchema->bytes);
+  tlen += taosEncodeFixedI32(buf, pSchema->colId);
+  tlen += taosEncodeString(buf, pSchema->name);
+  return tlen;
+}
+
+static FORCE_INLINE void* tDecodeSSchema(void* buf, SSchema* pSchema) {
+  buf = taosDecodeFixedI8(buf, &pSchema->type);
+  buf = taosDecodeFixedI32(buf, &pSchema->bytes);
+  buf = taosDecodeFixedI32(buf, &pSchema->colId);
+  buf = taosDecodeStringTo(buf, pSchema->name);
+  return buf;
+}
+
+static FORCE_INLINE int32_t tEncodeSSchemaWrapper(void** buf, const SSchemaWrapper* pSW) {
+  int32_t tlen = 0;
+  tlen += taosEncodeFixedU32(buf, pSW->nCols);
+  for (int32_t i = 0; i < pSW->nCols; i ++) {
+    tlen += tEncodeSSchema(buf, &pSW->pSchema[i]);
+  }
+  return tlen;
+}
+
+static FORCE_INLINE void* tDecodeSSchemaWrapper(void* buf, SSchemaWrapper* pSW) {
+  buf = taosDecodeFixedU32(buf, &pSW->nCols);
+  pSW->pSchema = (SSchema*) calloc(pSW->nCols, sizeof(SSchema));
+  if (pSW->pSchema == NULL) {
+    return NULL;
+  }
+  for (int32_t i = 0; i < pSW->nCols; i ++) {
+    buf = tDecodeSSchema(buf, &pSW->pSchema[i]);
+  }
+  return buf;
+}
 
 typedef struct SMqTbData {
   int64_t    uid;
   int32_t    numOfRows;
-  char       colData[];
+  char*      colData;
 } SMqTbData;
 
 typedef struct SMqTopicBlk {
@@ -1612,17 +1651,11 @@ typedef struct SMqTopicBlk {
 } SMqTopicData;
 
 typedef struct SMqConsumeRsp {
-  int64_t       consumerId;
-  int32_t       numOfCols;
-  SMqColMeta*   meta;
-  int32_t       numOfTopics;
-  SMqTopicData* data;
+  int64_t         consumerId;
+  SSchemaWrapper* schemas;
+  int32_t         numOfTopics;
+  SArray*         pBlockData;   //SArray<SSDataBlock>
 } SMqConsumeRsp;
-
-static FORCE_INLINE int32_t tEncodeSMqConsumeRsp(void** buf, const SMqConsumeRsp* pRsp) {
-  int32_t tlen = 0;
-  return tlen;
-}
 
 // one req for one vg+topic
 typedef struct SMqConsumeReq {

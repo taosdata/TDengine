@@ -69,14 +69,17 @@ typedef struct {
 } SVnodeOpt;
 
 typedef struct STqReadHandle {
-  int64_t        ver;
-  uint64_t       tbUid;
-  SSubmitMsg*    pMsg;
-  SSubmitBlk*    pBlock;
-  SSubmitMsgIter msgIter;
-  SSubmitBlkIter blkIter;
-  SMeta*         pMeta;
-  SArray*        pColIdList;
+  int64_t         ver;
+  uint64_t        tbUid;
+  SSubmitMsg*     pMsg;
+  SSubmitBlk*     pBlock;
+  SSubmitMsgIter  msgIter;
+  SSubmitBlkIter  blkIter;
+  SMeta*          pVnodeMeta;
+  SArray*         pColIdList; //SArray<int32_t>
+  int32_t         sver;
+  SSchemaWrapper* pSchemaWrapper;
+  STSchema*       pSchema;
 } STqReadHandle;
 
 /* ------------------------ SVnode ------------------------ */
