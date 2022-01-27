@@ -360,6 +360,7 @@ void shellRunCommandOnServer(TAOS *con, char command[]) {
     }
   } else {
     int num_rows_affacted = taos_affected_rows(pSql);
+    taos_free_result(pSql);
     et = taosGetTimestampUs();
     printf("Query OK, %d of %d row(s) in database (%.6fs)\n", num_rows_affacted, num_rows_affacted, (et - st) / 1E6);
   }

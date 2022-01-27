@@ -92,14 +92,16 @@ typedef struct taosField {
 
 typedef void (*__taos_async_fn_t)(void *param, TAOS_RES *, int code);
 
-DLL_EXPORT void  taos_cleanup(void);
-DLL_EXPORT int   taos_options(TSDB_OPTION option, const void *arg, ...);
-DLL_EXPORT TAOS *taos_connect(const char *ip, const char *user, const char *pass, const char *db, uint16_t port);
-DLL_EXPORT TAOS *taos_connect_l(const char *ip, int ipLen, const char *user, int userLen, const char *pass, int passLen, const char *db, int dbLen, uint16_t port);
-DLL_EXPORT TAOS *taos_connect_auth(const char *ip, const char *user, const char *auth, const char *db, uint16_t port);
-DLL_EXPORT void  taos_close(TAOS *taos);
+typedef struct tmq_t tmq_t;
+typedef struct tmq_conf_t tmq_conf_t;
+typedef struct tmq_list_t tmq_list_t;
 
-const char *taos_data_type(int type);
+typedef struct tmq_message_t       tmq_message_t;
+typedef struct tmq_message_topic_t tmq_message_topic_t;
+typedef struct tmq_message_tb_t    tmq_message_tb_t;
+typedef struct tmq_tb_iter_t       tmq_tb_iter_t;
+typedef struct tmq_message_col_t   tmq_message_col_t;
+typedef struct tmq_col_iter_t      tmq_col_iter_t;
 
 typedef struct TAOS_BIND {
   int            buffer_type;
@@ -133,6 +135,15 @@ typedef struct TAOS_MULTI_BIND {
   char          *is_null;
   int            num;
 } TAOS_MULTI_BIND;
+
+DLL_EXPORT void  taos_cleanup(void);
+DLL_EXPORT int   taos_options(TSDB_OPTION option, const void *arg, ...);
+DLL_EXPORT TAOS *taos_connect(const char *ip, const char *user, const char *pass, const char *db, uint16_t port);
+DLL_EXPORT TAOS *taos_connect_l(const char *ip, int ipLen, const char *user, int userLen, const char *pass, int passLen, const char *db, int dbLen, uint16_t port);
+DLL_EXPORT TAOS *taos_connect_auth(const char *ip, const char *user, const char *auth, const char *db, uint16_t port);
+DLL_EXPORT void  taos_close(TAOS *taos);
+
+const char *taos_data_type(int type);
 
 DLL_EXPORT TAOS_STMT *taos_stmt_init(TAOS *taos);
 DLL_EXPORT int        taos_stmt_prepare(TAOS_STMT *stmt, const char *sql, unsigned long length);
@@ -192,16 +203,6 @@ DLL_EXPORT void taos_close_stream(TAOS_STREAM *tstr);
 
 DLL_EXPORT int taos_load_table_info(TAOS *taos, const char* tableNameList);
 DLL_EXPORT TAOS_RES* taos_schemaless_insert(TAOS* taos, char* lines[], int numLines, int protocol, int precision);
-typedef struct tmq_t tmq_t;
-typedef struct tmq_conf_t tmq_conf_t;
-typedef struct tmq_list_t tmq_list_t;
-
-typedef struct tmq_message_t       tmq_message_t;
-typedef struct tmq_message_topic_t tmq_message_topic_t;
-typedef struct tmq_message_tb_t    tmq_message_tb_t;
-typedef struct tmq_tb_iter_t       tmq_tb_iter_t;
-typedef struct tmq_message_col_t   tmq_message_col_t;
-typedef struct tmq_col_iter_t      tmq_col_iter_t;
 
 DLL_EXPORT tmq_list_t* tmq_list_new();
 DLL_EXPORT int32_t tmq_list_append(tmq_list_t*, char*);
