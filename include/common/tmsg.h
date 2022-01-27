@@ -296,6 +296,7 @@ static FORCE_INLINE void* taosDecodeSEpSet(void* buf, SEpSet* pEp) {
   }
   return buf;
 }
+
 typedef struct {
   int32_t acctId;
   int64_t clusterId;
@@ -303,6 +304,7 @@ typedef struct {
   int8_t  superUser;
   int8_t  align[3];
   SEpSet  epSet;
+  char    sVersion[128];
 } SConnectRsp;
 
 typedef struct {
@@ -513,21 +515,26 @@ typedef struct {
 } SAlterDbReq;
 
 typedef struct {
-  char   db[TSDB_TABLE_FNAME_LEN];
+  char   db[TSDB_DB_FNAME_LEN];
   int8_t ignoreNotExists;
 } SDropDbReq;
 
 typedef struct {
-  char    db[TSDB_TABLE_FNAME_LEN];
+  char     db[TSDB_DB_FNAME_LEN];
+  uint64_t uid;
+} SDropDbRsp;
+
+typedef struct {
+  char    db[TSDB_DB_FNAME_LEN];
   int32_t vgVersion;
 } SUseDbReq;
 
 typedef struct {
-  char db[TSDB_TABLE_FNAME_LEN];
+  char db[TSDB_DB_FNAME_LEN];
 } SSyncDbReq;
 
 typedef struct {
-  char db[TSDB_TABLE_FNAME_LEN];
+  char db[TSDB_DB_FNAME_LEN];
 } SCompactDbReq;
 
 typedef struct {

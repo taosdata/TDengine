@@ -14,14 +14,15 @@
  */
 
 #define _DEFAULT_SOURCE
+#include "tglobal.h"
 #include "mndProfile.h"
-#include "mndConsumer.h"
+//#include "mndConsumer.h"
 #include "mndDb.h"
 #include "mndMnode.h"
 #include "mndShow.h"
-#include "mndTopic.h"
+//#include "mndTopic.h"
 #include "mndUser.h"
-#include "mndVgroup.h"
+//#include "mndVgroup.h"
 
 #define QUERY_ID_SIZE 20
 #define QUERY_OBJ_ID_SIZE 18
@@ -230,10 +231,12 @@ static int32_t mndProcessConnectReq(SMnodeMsg *pReq) {
     goto CONN_OVER;
   }
 
-  pRsp->acctId = htonl(pUser->acctId);
+  pRsp->acctId    = htonl(pUser->acctId);
   pRsp->superUser = pUser->superUser;
   pRsp->clusterId = htobe64(pMnode->clusterId);
-  pRsp->connId = htonl(pConn->id);
+  pRsp->connId    = htonl(pConn->id);
+
+  snprintf(pRsp->sVersion, tListLen(pRsp->sVersion), "ver:%s\nbuild:%s\ngitinfo:%s", version, buildinfo, gitinfo);
   mndGetMnodeEpSet(pMnode, &pRsp->epSet);
 
   pReq->contLen = sizeof(SConnectRsp);
