@@ -449,6 +449,7 @@ static int32_t mndSubActionInsert(SSdb *pSdb, SMqSubscribeObj *pSub) {
 
 static int32_t mndSubActionDelete(SSdb *pSdb, SMqSubscribeObj *pSub) {
   mTrace("subscribe:%s, perform delete action", pSub->key);
+  tDeleteSMqSubscribeObj(pSub);
   return 0;
 }
 

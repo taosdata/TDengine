@@ -393,6 +393,12 @@ static FORCE_INLINE void* tDecodeSMqConsumerEp(void** buf, SMqConsumerEp* pConsu
   return buf;
 }
 
+static FORCE_INLINE void tDeleteSMqConsumerEp(SMqConsumerEp* pConsumerEp) {
+  if (pConsumerEp) {
+    tfree(pConsumerEp->qmsg);
+  }
+}
+
 // unit for rebalance
 typedef struct SMqSubscribeObj {
   char    key[TSDB_SUBSCRIBE_KEY_LEN];
@@ -569,6 +575,14 @@ static FORCE_INLINE void* tDecodeSubscribeObj(void* buf, SMqSubscribeObj* pSub) 
   }
 
   return buf;
+}
+
+static FORCE_INLINE void tDeleteSMqSubscribeObj(SMqSubscribeObj* pSub) {
+  if (pSub->availConsumer) taosArrayDestroy(pSub->availConsumer);
+  if (pSub->assigned) taosArrayDestroyEx(pSub->assigned, (void (*)(void*))tDeleteSMqConsumerEp);
+  if (pSub->unassignedVg) taosArrayDestroyEx(pSub->unassignedVg, (void (*)(void*))tDeleteSMqConsumerEp);
+  if (pSub->idleConsumer) taosArrayDestroyEx(pSub->idleConsumer, (void (*)(void*))tDeleteSMqConsumerEp);
+  if (pSub->lostConsumer) taosArrayDestroyEx(pSub->lostConsumer, (void (*)(void*))tDeleteSMqConsumerEp);
 }
 
 typedef struct SMqCGroup {

@@ -565,6 +565,7 @@ int32_t tmqAsyncAskEp(tmq_t* tmq, bool wait) {
     int32_t tlen = sizeof(SMqCMGetSubEpReq);
     SMqCMGetSubEpReq* buf = malloc(tlen);
     if (buf == NULL) {
+      goto END;
       tscError("failed to malloc get subscribe ep buf");
     }
     buf->consumerId = htobe64(tmq->consumerId);
@@ -572,6 +573,7 @@ int32_t tmqAsyncAskEp(tmq_t* tmq, bool wait) {
     
     SRequestObj *pRequest = createRequest(tmq->pTscObj, NULL, NULL, TDMT_MND_GET_SUB_EP);
     if (pRequest == NULL) {
+      goto END;
       tscError("failed to malloc subscribe ep request");
     }
 
@@ -579,7 +581,6 @@ int32_t tmqAsyncAskEp(tmq_t* tmq, bool wait) {
 
     SMqAskEpCbParam *pParam = malloc(sizeof(SMqAskEpCbParam));
     if (pParam == NULL) {
-      free(buf);
       goto END;
     }
     pParam->tmq = tmq;
@@ -596,6 +597,7 @@ int32_t tmqAsyncAskEp(tmq_t* tmq, bool wait) {
     asyncSendMsgToServer(tmq->pTscObj->pAppInfo->pTransporter, &epSet, &transporterId, sendInfo);
 
 END:
+    tfree(buf);
     if (wait) tsem_wait(&tmq->rspSem);
     return 0;
 }
