@@ -269,7 +269,9 @@ function run_thread() {
             local corefile=`ls $log_dir/${case_file}.coredump/`
             corefile=`find $log_dir/${case_file}.coredump/ -name "core.*"`
             echo -e "$case_info \e[31m failed\e[0m"
+            echo "=========================log============================"
             cat $log_dir/$case_file.log
+            echo "====================================================="
             echo -e "\e[34m log file: $log_dir/$case_file.log \e[0m"
             if [ ! -z $corefile ]; then
                 echo -e "\e[34m corefiles: $corefile \e[0m"
@@ -346,5 +348,7 @@ if [ -f "$log_dir/failed.log" ]; then
 fi
 
 echo "${log_dir}" >&2
+
+date
 
 exit $RET
