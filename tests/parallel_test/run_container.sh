@@ -97,3 +97,6 @@ docker run \
     -e PATH=/usr/local/bin:/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin:$CONTAINER_TESTDIR/debug/build/bin:/usr/local/go/bin:/usr/local/node-v12.20.0-linux-x64/bin:/usr/local/apache-maven-3.8.4/bin:/usr/local/jdk1.8.0_144/bin \
     -e JAVA_HOME=/usr/local/jdk1.8.0_144 \
     --rm --ulimit core=-1 taos_test:v1.0 $CONTAINER_TESTDIR/tests/parallel_test/run_case.sh -d "$exec_dir" -c "$cmd"
+ret=$?
+exit $ret
+

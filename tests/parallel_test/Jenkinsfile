@@ -4,7 +4,10 @@ import jenkins.model.CauseOfInterruption
 node {
 }
 def sync_source() {
-    sh 'hostname'
+    sh '''
+        hostname
+        date
+        '''
     sh '''
         cd ${WKC}
         [ -f src/connector/grafanaplugin/README.md ] && rm -f src/connector/grafanaplugin/README.md > /dev/null || echo "failed to remove grafanaplugin README.md"
@@ -40,7 +43,7 @@ def sync_source() {
         git pull >/dev/null
         git fetch origin +refs/pull/${CHANGE_ID}/merge
         git checkout -qf FETCH_HEAD
-        echo "// git clean -dfx"
+        git clean -dfx
         git submodule update --init --recursive
         cd ${WK}
         git reset --hard HEAD~10
@@ -73,7 +76,7 @@ def sync_source() {
         git pull >/dev/null
         export TZ=Asia/Harbin
         date
-        echo "// git clean -dfx"
+        git clean -dfx
     '''
 }
 def pre_test() {
@@ -82,11 +85,23 @@ def pre_test() {
         cd ${WK}
         mkdir -p debug
         cd debug
+        go env -w GOPROXY=https://goproxy.cn,direct
+        go env -w GO111MODULE=on
         cmake .. -DBUILD_HTTP=false -DBUILD_TOOLS=true > /dev/null
-        make -j8> /dev/null
-        echo "make install > /dev/null"
-        cd ${WKC}/tests
-        echo "pip3 install ${WKC}/src/connector/python/"
+        make -j8 >/dev/null
+    '''
+    return 1
+}
+def pre_test_mac() {
+    sync_source()
+    sh '''
+        cd ${WK}
+        mkdir -p debug
+        cd debug
+        go env -w GOPROXY=https://goproxy.cn,direct
+        go env -w GO111MODULE=on
+        cmake .. -DBUILD_TOOLS=false > /dev/null
+        make -j8 >/dev/null
     '''
     return 1
 }
@@ -94,9 +109,9 @@ pipeline {
     agent {label " dispatcher "}
     options { skipDefaultCheckout() }
     environment{
-        WK = '/root/jenkins/workspace/TDinternal'
-        WKC = '/root/jenkins/workspace/TDinternal/community'
-        LOGDIR = '/root/jenkins/workspace/log'
+        WK = '/var/data/jenkins/workspace/TDinternal'
+        WKC = '/var/data/jenkins/workspace/TDinternal/community'
+        LOGDIR = '/var/data/jenkins/workspace/log'
     }
     stages {
         stage ('pre_build') {
@@ -121,8 +136,8 @@ pipeline {
             parallel {
                 stage ('dispatcher sync source') {
                     steps {
-                        sync_source()
-                        timeout(time: 100, unit: 'MINUTES') {
+                        timeout(time: 20, unit: 'MINUTES') {
+                            sync_source()
                             script {
                                 sh '''
                                     echo "dispatcher ready"
@@ -135,8 +150,8 @@ pipeline {
                 stage ('build worker01') {
                     agent {label " worker01 "}
                     steps {
-                        pre_test()
-                        timeout(time: 100, unit: 'MINUTES') {
+                        timeout(time: 20, unit: 'MINUTES') {
+                            pre_test()
                             script {
                                 sh '''
                                     echo "worker01 build done"
@@ -149,8 +164,8 @@ pipeline {
                 stage ('build worker02') {
                     agent {label " worker02 "}
                     steps {
-                        pre_test()
-                        timeout(time: 100, unit: 'MINUTES') {
+                        timeout(time: 20, unit: 'MINUTES') {
+                            pre_test()
                             script {
                                 sh '''
                                     echo "worker02 build done"
@@ -163,8 +178,8 @@ pipeline {
                 stage ('build worker03') {
                     agent {label " worker03 "}
                     steps {
-                        pre_test()
-                        timeout(time: 100, unit: 'MINUTES') {
+                        timeout(time: 20, unit: 'MINUTES') {
+                            pre_test()
                             script {
                                 sh '''
                                     echo "worker03 build done"
@@ -177,8 +192,8 @@ pipeline {
                 stage ('build worker04') {
                     agent {label " worker04 "}
                     steps {
-                        pre_test()
-                        timeout(time: 100, unit: 'MINUTES') {
+                        timeout(time: 20, unit: 'MINUTES') {
+                            pre_test()
                             script {
                                 sh '''
                                     echo "worker04 build done"
@@ -191,8 +206,8 @@ pipeline {
                 stage ('build worker05') {
                     agent {label " worker05 "}
                     steps {
-                        pre_test()
-                        timeout(time: 100, unit: 'MINUTES') {
+                        timeout(time: 20, unit: 'MINUTES') {
+                            pre_test()
                             script {
                                 sh '''
                                     echo "worker05 build done"
@@ -205,19 +220,65 @@ pipeline {
             }
         }
         stage('run test') {
-            steps {
-                sh '''
-                    date
-                    hostname
-                '''
-                timeout(time: 100, unit: 'MINUTES') {
-                    sh '''
-                        date
-                        cd ${WKC}/tests/parallel_test
-                        time ./run.sh -m m.json -t cases.task -l ${LOGDIR} -b ${BRANCH_NAME}
-                        date
-                        hostname
-                    '''
+            parallel {
+                stage ('build worker06_arm64') {
+                    agent {label " worker06_arm64 "}
+                    steps {
+                        timeout(time: 20, unit: 'MINUTES') {
+                            pre_test()
+                            script {
+                                sh '''
+                                    echo "worker06_arm64 build done"
+                                    date
+                                '''
+                            }
+                        }
+                    }
+                }
+                stage ('build worker07_arm64') {
+                    agent {label " worker07_arm64 "}
+                    steps {
+                        timeout(time: 20, unit: 'MINUTES') {
+                            pre_test()
+                            script {
+                                sh '''
+                                    echo "worker07_arm64 build done"
+                                    date
+                                '''
+                            }
+                        }
+                    }
+                }
+                stage ('build Mac_catalina ') {
+                    agent {label " Mac_catalina "}
+                    steps {
+                        timeout(time: 20, unit: 'MINUTES') {
+                            pre_test_mac()
+                            script {
+                                sh '''
+                                    echo "Mac_catalina build done"
+                                    date
+                                '''
+                            }
+                        }
+                    }
+                }
+                stage('run cases') {
+                    steps {
+                        sh '''
+                            date
+                            hostname
+                        '''
+                        timeout(time: 60, unit: 'MINUTES') {
+                            sh '''
+                                date
+                                cd ${WKC}/tests/parallel_test
+                                time ./run.sh -m m.json -t cases.task -l ${LOGDIR} -b ${BRANCH_NAME}
+                                date
+                                hostname
+                            '''
+                        }
+                    }
                 }
             }    
         }
