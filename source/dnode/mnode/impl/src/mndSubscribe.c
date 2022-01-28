@@ -122,7 +122,7 @@ static int32_t mndProcessGetSubEpReq(SMnodeMsg *pMsg) {
     if (changed || found) {
       SSdbRaw *pRaw = mndSubActionEncode(pSub);
       sdbSetRawStatus(pRaw, SDB_STATUS_READY);
-      sdbWriteNotFree(pMnode->pSdb, pRaw);
+      sdbWrite(pMnode->pSdb, pRaw);
     }
     mndReleaseSubscribe(pMnode, pSub);
   }
@@ -434,6 +434,7 @@ SUB_DECODE_OVER:
   if (terrno != TSDB_CODE_SUCCESS) {
     mError("subscribe:%s, failed to decode from raw:%p since %s", pSub->key, pRaw, terrstr());
     // TODO free subscribeobj
+    tfree(buf);
     tfree(pRow);
     return NULL;
   }
