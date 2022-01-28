@@ -41,19 +41,10 @@ protected:
   bool run(int32_t expectCode = TSDB_CODE_SUCCESS) {
     int32_t code = doParse(&cxt_, &query_);
     if (code != TSDB_CODE_SUCCESS) {
-      cout << "code:" << tstrerror(code) << ", msg:" << errMagBuf_ << endl;
+      cout << "sql:[" << cxt_.pSql << "] code:" << tstrerror(code) << ", msg:" << errMagBuf_ << endl;
       return (code == expectCode);
     }
-    cout << nodeType(query_.pRoot) << endl;
     if (NULL != query_.pRoot && QUERY_NODE_SELECT_STMT == nodeType(query_.pRoot)) {
-  // SNode* pWhereCond;
-  // SNodeList* pPartitionByList; // SNode
-  // SNode* pWindowClause;
-  // SNodeList* pGroupByList; // SGroupingSetNode
-  // SNodeList* pOrderByList; // SOrderByExprNode
-  // SLimitNode limit;
-  // SLimitNode slimit;
-
       SSelectStmt* select = (SSelectStmt*)query_.pRoot;
       string sql("SELECT ");
       if (select->isDistinct) {
@@ -68,14 +59,6 @@ protected:
       tableToSql(select->pFromTable, sql);
       cout << sql << endl;
     }
-    // char* pStr = NULL;
-    // int32_t len = 0;
-    // code = nodesNodeToString(query_.pRoot, &pStr, &len);
-    // if (code != TSDB_CODE_SUCCESS) {
-    //   cout << "code:" << tstrerror(code) << ", msg:" << errMagBuf_ << endl;
-    //   return code;
-    // }
-    // cout << "node tree:\n" << pStr << endl;
     return (code == expectCode);
   }
 
@@ -85,7 +68,6 @@ private:
 
   void tableToSql(const SNode* node, string& sql) {
     const STableNode* table = (const STableNode*)node;
-    cout << "node : " << nodeType(node) << endl;
     switch (nodeType(node)) {
       case QUERY_NODE_REAL_TABLE: {
         SRealTableNode* realTable = (SRealTableNode*)table;
@@ -108,12 +90,14 @@ private:
       if (!firstNode) {
         sql.append(", ");
       }
+      firstNode = false;
       switch (nodeType(node)) {
         case QUERY_NODE_COLUMN:
           sql.append(((SColumnNode*)node)->colName);
           break;
       }
     }
+    sql.append(" ");
   }
 
   void reset() {
@@ -139,6 +123,12 @@ TEST_F(NewParserTest, selectStar) {
   ASSERT_TRUE(run());
 
   bind("SELECT * FROM test.t1");
+  ASSERT_TRUE(run());
+
+  bind("SELECT ts FROM t1");
+  ASSERT_TRUE(run());
+
+  bind("SELECT ts, tag1, c1 FROM t1");
   ASSERT_TRUE(run());
 }
 

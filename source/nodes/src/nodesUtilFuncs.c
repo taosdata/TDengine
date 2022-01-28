@@ -92,7 +92,12 @@ SNodeList* nodesListAppend(SNodeList* pList, SNode* pNode) {
     return pList;
   }
   p->pNode = pNode;
-  pList->pTail->pNext = p;
+  if (NULL == pList->pHead) {
+    pList->pHead = p;
+  }
+  if (NULL != pList->pTail) {
+    pList->pTail->pNext = p;
+  }
   pList->pTail = p;
   return pList;
 }

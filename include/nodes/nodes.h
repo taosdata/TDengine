@@ -51,6 +51,8 @@ typedef enum ENodeType {
   QUERY_NODE_STATE_WINDOW,
   QUERY_NODE_SESSION_WINDOW,
   QUERY_NODE_INTERVAL_WINDOW,
+  QUERY_NODE_NODE_LIST,
+  QUERY_NODE_FILL,
 
   QUERY_NODE_SET_OPERATOR,
   QUERY_NODE_SELECT_STMT,
@@ -157,14 +159,19 @@ typedef struct SLogicConditionNode {
 typedef struct SIsNullCondNode {
   ENodeType type; // QUERY_NODE_IS_NULL_CONDITION
   SNode* pExpr;
-  bool isNot;
+  bool isNull;
 } SIsNullCondNode;
+
+typedef struct SNodeListNode {
+  ENodeType type; // QUERY_NODE_NODE_LIST
+  SNodeList* pNodeList;
+} SNodeListNode;
 
 typedef struct SFunctionNode {
   SExprNode type; // QUERY_NODE_FUNCTION
   char functionName[TSDB_FUNC_NAME_LEN];
   int32_t funcId;
-  SNodeList* pParameterList; // SNode
+  SNodeList* pParameterList;
 } SFunctionNode;
 
 typedef struct STableNode {
@@ -242,10 +249,26 @@ typedef struct SSessionWindowNode {
 
 typedef struct SIntervalWindowNode {
   ENodeType type; // QUERY_NODE_INTERVAL_WINDOW
-  int64_t interval;
-  int64_t sliding;
-  int64_t offset;
+  SNode* pInterval; // SValueNode
+  SNode* pOffset;   // SValueNode
+  SNode* pSliding;  // SValueNode
+  SNode* pFill;
 } SIntervalWindowNode;
+
+typedef enum EFillMode {
+  FILL_MODE_NONE = 1,
+  FILL_MODE_VALUE,
+  FILL_MODE_PREV,
+  FILL_MODE_NULL,
+  FILL_MODE_LINEAR,
+  FILL_MODE_NEXT
+} EFillMode;
+
+typedef struct SFillNode {
+  ENodeType type; // QUERY_NODE_FILL
+  EFillMode mode;
+  SNode* pValues; // SNodeListNode
+} SFillNode;
 
 typedef struct SSelectStmt {
   ENodeType type; // QUERY_NODE_SELECT_STMT
@@ -259,8 +282,8 @@ typedef struct SSelectStmt {
   SNodeList* pGroupByList; // SGroupingSetNode
   SNode* pHaving;
   SNodeList* pOrderByList; // SOrderByExprNode
-  SLimitNode* pLimit;
-  SLimitNode* pSlimit;
+  SNode* pLimit;
+  SNode* pSlimit;
 } SSelectStmt;
 
 typedef enum ESetOperatorType {
