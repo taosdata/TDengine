@@ -183,7 +183,7 @@ taos> select avg(f1), max(f2), min(f3) from test.t10 interval(10s);
 ## <a class="anchor" id="taosBenchmark"></a> Using taosBenchmark in detail
 
 you can run command `taosBenchmark` with many options, like number of tables, rows of records and so on. To know more about these options, you can execute `taosBenchmark --help` and then take a try using different options.
-Please refer to [How to use taosBenchmark to test the performance of TDengine](https://www.taosdata.com/en/documentation/getting-started/taosBenchmark) for detail.
+Please refer to [How to use taosBenchmark to test the performance of TDengine](https://tdengine.com/2021/10/09/3114.html) for detail.
 
 ## Client and Alarm Module
 
