@@ -688,7 +688,8 @@ bool isSimpleAggregateRv(SQueryInfo* pQueryInfo) {
     if ((!IS_MULTIOUTPUT(aAggs[functionId].status)) ||
         (functionId == TSDB_FUNC_TOP || functionId == TSDB_FUNC_BOTTOM ||
          functionId == TSDB_FUNC_TS_COMP ||
-         functionId == TSDB_FUNC_SAMPLE)) {
+         functionId == TSDB_FUNC_SAMPLE ||
+         functionId == TSDB_FUNC_UNIQUE)) {
       return true;
     }
   }

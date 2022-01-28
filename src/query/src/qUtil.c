@@ -153,8 +153,8 @@ void clearResultRow(SQueryRuntimeEnv *pRuntimeEnv, SResultRow *pResultRow, int16
     for (int32_t i = 0; i < pRuntimeEnv->pQueryAttr->numOfOutput; ++i) {
       SResultRowCellInfo *pResultInfo = &pResultRow->pCellInfo[i];
 
-      int16_t size = pRuntimeEnv->pQueryAttr->pExpr1[i].base.resType;
-      char * s = getPosInResultPage(pRuntimeEnv->pQueryAttr, page, pResultRow->offset, offset);
+      int16_t size = pRuntimeEnv->pQueryAttr->pExpr1[i].base.resBytes;
+      char * s = getPosInResultPage(pRuntimeEnv->pQueryAttr, page, pResultRow, offset);
       memset(s, 0, size);
 
       offset += size;
@@ -216,7 +216,6 @@ SResultRow* getNewResultRow(SResultRowPool* p) {
   }
 
   p->position.pos = (p->position.pos + 1)%p->numOfElemPerBlock;
-  initResultRow(ptr);
 
   return ptr;
 }

@@ -87,6 +87,7 @@ typedef struct SResultRow {
   bool          endInterp;   // the time window end timestamp has done the interpolation already.
   bool          closed;      // this result status: closed or opened
   uint32_t      numOfRows;   // number of rows of current time window
+  uint32_t      totalRows;   // total number of rows
   SResultRowCellInfo*  pCellInfo;  // For each result column, there is a resultInfo
   STimeWindow   win;
   char         *key;               // start key of current result row

@@ -4941,6 +4941,7 @@ static bool unique_function_setup(SQLFunctionCtx *pCtx, SResultRowCellInfo* pRes
   SUniqueFuncInfo *uniqueInfo = GET_ROWCELL_INTERBUF(pResInfo);
   uniqueInfo->pSet = taosHashInit(64, taosGetDefaultHashFunction(TSDB_DATA_TYPE_BINARY), true, HASH_NO_LOCK);
   taosHashSetFreeFp(uniqueInfo->pSet, freeUniqueUnit);
+
   return true;
 }
 

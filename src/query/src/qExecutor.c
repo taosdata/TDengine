@@ -282,8 +282,8 @@ static int compareRowData(const void *a, const void *b, const void *userData) {
   tFilePage *page2 = getResBufPage(pRuntimeEnv->pResultBuf, pRow2->pageId);
 
   int16_t offset = supporter->dataOffset;
-  char *in1  = getPosInResultPage(pRuntimeEnv->pQueryAttr, page1, pRow1->offset, offset);
-  char *in2  = getPosInResultPage(pRuntimeEnv->pQueryAttr, page2, pRow2->offset, offset);
+  char *in1  = getPosInResultPage(pRuntimeEnv->pQueryAttr, page1, pRow1, offset);
+  char *in2  = getPosInResultPage(pRuntimeEnv->pQueryAttr, page2, pRow2, offset);
 
   return (in1 != NULL && in2 != NULL) ? supporter->comFunc(in1, in2) : 0;
 }
@@ -564,6 +564,7 @@ static SResultRow* doSetResultOutBufByKey(SQueryRuntimeEnv* pRuntimeEnv, SResult
     if (p1 == NULL) {
       pResult = getNewResultRow(pRuntimeEnv->pool);
       int32_t ret = initResultRow(pResult);
+      pResult->totalRows = (int32_t)getRowNumForMultioutput(pRuntimeEnv->pQueryAttr, pRuntimeEnv->pQueryAttr->topBotQuery, pRuntimeEnv->pQueryAttr->stableQuery);
       if (ret != TSDB_CODE_SUCCESS) {
         longjmp(pRuntimeEnv->env, TSDB_CODE_QRY_OUT_OF_MEMORY);
       }
@@ -3978,7 +3979,7 @@ void setResultRowOutputBufInitCtx(SQueryRuntimeEnv *pRuntimeEnv, SResultRow *pRe
       continue;
     }
 
-    pCtx[i].pOutput = getPosInResultPage(pRuntimeEnv->pQueryAttr, bufPage, pResult->offset, offset);
+    pCtx[i].pOutput = getPosInResultPage(pRuntimeEnv->pQueryAttr, bufPage, pResult, offset);
     offset += pCtx[i].outputBytes;
 
     int32_t functionId = pCtx[i].functionId;
@@ -4047,7 +4048,7 @@ void setResultOutputBuf(SQueryRuntimeEnv *pRuntimeEnv, SResultRow *pResult, SQLF
 
   int16_t offset = 0;
   for (int32_t i = 0; i < numOfCols; ++i) {
-    pCtx[i].pOutput = getPosInResultPage(pRuntimeEnv->pQueryAttr, page, pResult->offset, offset);
+    pCtx[i].pOutput = getPosInResultPage(pRuntimeEnv->pQueryAttr, page, pResult, offset);
     offset += pCtx[i].outputBytes;
 
     int32_t functionId = pCtx[i].functionId;
@@ -4300,7 +4301,7 @@ static int32_t doCopyToSDataBlock(SQueryRuntimeEnv* pRuntimeEnv, SGroupResInfo* 
       int32_t bytes = pColInfoData->info.bytes;
 
       char *out = pColInfoData->pData + numOfResult * bytes;
-      char *in  = getPosInResultPage(pQueryAttr, page, pRow->offset, offset);
+      char *in  = getPosInResultPage(pQueryAttr, page, pRow, offset);
       memcpy(out, in, bytes * numOfRowsToCopy);
 
       offset += bytes;

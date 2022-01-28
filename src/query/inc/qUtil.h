@@ -66,12 +66,9 @@ static FORCE_INLINE SResultRow *getResultRow(SResultRowInfo *pResultRowInfo, int
   return pResultRowInfo->pResult[slot];
 }
 
-static FORCE_INLINE char* getPosInResultPage(SQueryAttr* pQueryAttr, tFilePage* page, int32_t rowOffset,
+static FORCE_INLINE char* getPosInResultPage(SQueryAttr* pQueryAttr, tFilePage* page, const SResultRow *pResultRow,
                                              int32_t offset) {
-  assert(rowOffset >= 0 && pQueryAttr != NULL);
-
-  int32_t numOfRows = (int32_t)getRowNumForMultioutput(pQueryAttr, pQueryAttr->topBotQuery, pQueryAttr->stableQuery);
-  return ((char *)page->data) + rowOffset + offset * numOfRows;
+  return ((char *)page->data) + pResultRow->offset + offset * pResultRow->totalRows;
 }
 
 bool isNullOperator(SColumnFilterElem *pFilter, const char* minval, const char* maxval, int16_t type);

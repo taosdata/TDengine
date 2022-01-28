@@ -3048,7 +3048,8 @@ int32_t addExprAndResultField(SSqlCmd* pCmd, SQueryInfo* pQueryInfo, int32_t col
     case TSDB_FUNC_MAVG:
     case TSDB_FUNC_SAMPLE:
     case TSDB_FUNC_PERCT:
-    case TSDB_FUNC_APERCT: {
+    case TSDB_FUNC_APERCT:
+    case TSDB_FUNC_UNIQUE:{
       // 1. valid the number of parameters
       bool valid = true;
       if(pItem->pNode->Expr.paramList == NULL) {
@@ -3056,6 +3057,8 @@ int32_t addExprAndResultField(SSqlCmd* pCmd, SQueryInfo* pQueryInfo, int32_t col
       } else if(functionId == TSDB_FUNC_APERCT) {
         size_t cnt = taosArrayGetSize(pItem->pNode->Expr.paramList);
         if(cnt != 2 && cnt !=3) valid = false;
+      } else if(functionId == TSDB_FUNC_UNIQUE){
+        if (taosArrayGetSize(pItem->pNode->Expr.paramList) != 1) valid = false;
       } else {
         if (taosArrayGetSize(pItem->pNode->Expr.paramList) != 2) valid = false;
       }
@@ -3090,12 +3093,15 @@ int32_t addExprAndResultField(SSqlCmd* pCmd, SQueryInfo* pQueryInfo, int32_t col
         return invalidOperationMsg(tscGetErrorMsgPayload(pCmd), msg1);
       }
 
-      // 3. valid the parameters
-      if (pParamElem[1].pNode->tokenId == TK_ID) {
-        return invalidOperationMsg(tscGetErrorMsgPayload(pCmd), msg2);
-      }
+      tVariant* pVariant = NULL;
+      if (functionId != TSDB_FUNC_UNIQUE){
+        // 3. valid the parameters
+        if (pParamElem[1].pNode->tokenId == TK_ID) {
+          return invalidOperationMsg(tscGetErrorMsgPayload(pCmd), msg2);
+        }
 
-      tVariant* pVariant = &pParamElem[1].pNode->value;
+        pVariant = &pParamElem[1].pNode->value;
+      }
 
       int16_t  resultType = pSchema->type;
       int32_t  resultSize = pSchema->bytes;
@@ -3188,7 +3194,7 @@ int32_t addExprAndResultField(SSqlCmd* pCmd, SQueryInfo* pQueryInfo, int32_t col
                           pUdfInfo);
         pExpr = tscExprAppend(pQueryInfo, functionId, &index, resultType, resultSize, getNewResColId(pCmd), interResult, false);
         tscExprAddParams(&pExpr->base, val, TSDB_DATA_TYPE_BIGINT, sizeof(int64_t));
-      } else {
+      } else if(functionId != TSDB_FUNC_UNIQUE) {
         tVariantDump(pVariant, val, TSDB_DATA_TYPE_BIGINT, true);
 
         int64_t numRowsSelected = GET_INT32_VAL(val);
@@ -3212,6 +3218,8 @@ int32_t addExprAndResultField(SSqlCmd* pCmd, SQueryInfo* pQueryInfo, int32_t col
 
         pExpr = tscExprAppend(pQueryInfo, functionId, &index, resultType, resultSize, getNewResColId(pCmd), resultSize, false);
         tscExprAddParams(&pExpr->base, val, TSDB_DATA_TYPE_BIGINT, sizeof(int64_t));
+      }else{
+        pExpr = tscExprAppend(pQueryInfo, functionId, &index, resultType, resultSize, getNewResColId(pCmd), resultSize, false);
       }
   
       memset(pExpr->base.aliasName, 0, tListLen(pExpr->base.aliasName));
