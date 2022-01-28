@@ -293,7 +293,7 @@ class TDDnode:
 
             print(cmd)
 
-        taosadapterCmd = "nohup %s > /dev/null 2>&1 & " % (
+        taosadapterCmd = "nohup %s --opentsdb_telnet.enable=true > /dev/null 2>&1 & " % (
                 taosadapterBinPath)
         if os.system(taosadapterCmd) != 0:
             tdLog.exit(taosadapterCmd)
