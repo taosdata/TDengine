@@ -23,17 +23,23 @@ extern "C" {
 #include "nodes.h"
 #include "parser.h"
 
+typedef enum EResourceType {
+  AST_CXT_RESOURCE_NODE = 1,
+  AST_CXT_RESOURCE_NODE_LIST
+} EResourceType;
+
 typedef struct SAstCreateContext {
   SParseContext* pQueryCxt;
   bool notSupport;
   bool valid;
   SNode* pRootNode;
+  SHashObj* pResourceHash;
 } SAstCreateContext;
 
-int32_t createAstCreateContext(const SParseContext* pQueryCxt, SAstCreateContext* pCxt);
+int32_t createAstCreateContext(SParseContext* pQueryCxt, SAstCreateContext* pCxt);
 int32_t destroyAstCreateContext(SAstCreateContext* pCxt);
 
-void* acquireRaii(SAstCreateContext* pCxt, void* p);
+void* acquireRaii(SAstCreateContext* pCxt, EResourceType type, void* p);
 void* releaseRaii(SAstCreateContext* pCxt, void* p);
 
 #ifdef __cplusplus
