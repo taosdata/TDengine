@@ -202,34 +202,36 @@ enum tmq_resp_err_t {
 
 typedef enum tmq_resp_err_t tmq_resp_err_t;
 
-typedef struct tmq_t tmq_t;
-typedef struct tmq_topic_vgroup_t tmq_topic_vgroup_t;
+typedef struct tmq_t                   tmq_t;
+typedef struct tmq_topic_vgroup_t      tmq_topic_vgroup_t;
 typedef struct tmq_topic_vgroup_list_t tmq_topic_vgroup_list_t;
 
-typedef struct tmq_conf_t tmq_conf_t;
-typedef struct tmq_list_t tmq_list_t;
-typedef struct tmq_message_t       tmq_message_t;
+typedef struct tmq_conf_t    tmq_conf_t;
+typedef struct tmq_list_t    tmq_list_t;
+typedef struct tmq_message_t tmq_message_t;
 
-typedef void (tmq_commit_cb(tmq_t*, tmq_resp_err_t, tmq_topic_vgroup_list_t*, void* param));
-DLL_EXPORT tmq_list_t* tmq_list_new();
-DLL_EXPORT int32_t tmq_list_append(tmq_list_t*, char*);
+typedef void(tmq_commit_cb(tmq_t *, tmq_resp_err_t, tmq_topic_vgroup_list_t *, void *param));
 
-DLL_EXPORT TAOS_RES *taos_create_topic(TAOS* taos, const char* name, const char* sql, int sqlLen);
-DLL_EXPORT tmq_t* tmq_consumer_new(void* conn, tmq_conf_t* conf, char* errstr, int32_t errstrLen);
+DLL_EXPORT tmq_list_t *tmq_list_new();
+DLL_EXPORT int32_t     tmq_list_append(tmq_list_t *, char *);
+
+DLL_EXPORT TAOS_RES *tmq_create_topic(TAOS *taos, const char *name, const char *sql, int sqlLen);
+DLL_EXPORT tmq_t    *tmq_consumer_new(void *conn, tmq_conf_t *conf, char *errstr, int32_t errstrLen);
+DLL_EXPORT void tmq_message_destroy(tmq_message_t* tmq_message);
 
 /* ------------------------TMQ CONSUMER INTERFACE------------------------ */
-DLL_EXPORT tmq_resp_err_t tmq_subscribe(tmq_t* tmq, tmq_list_t* topic_list);
+DLL_EXPORT tmq_resp_err_t tmq_subscribe(tmq_t *tmq, tmq_list_t *topic_list);
 #if 0
 DLL_EXPORT tmq_resp_err_t tmq_unsubscribe(tmq_t* tmq);
 DLL_EXPORT tmq_resp_err_t tmq_subscription(tmq_t* tmq, tmq_topic_vgroup_list_t** topics);
 #endif
-DLL_EXPORT tmq_message_t* tmq_consumer_poll(tmq_t* tmq, int64_t blocking_time);
+DLL_EXPORT tmq_message_t *tmq_consumer_poll(tmq_t *tmq, int64_t blocking_time);
 #if 0
 DLL_EXPORT tmq_resp_err_t tmq_consumer_close(tmq_t* tmq);
 DLL_EXPORT tmq_resp_err_t tmq_assign(tmq_t* tmq, const tmq_topic_vgroup_list_t* vgroups);
 DLL_EXPORT tmq_resp_err_t tmq_assignment(tmq_t* tmq, tmq_topic_vgroup_list_t** vgroups);
 #endif
-DLL_EXPORT tmq_resp_err_t tmq_commit(tmq_t* tmq, const tmq_topic_vgroup_list_t* offsets, int32_t async);
+DLL_EXPORT tmq_resp_err_t tmq_commit(tmq_t *tmq, const tmq_topic_vgroup_list_t *offsets, int32_t async);
 #if 0
 DLL_EXPORT tmq_resp_err_t tmq_commit_message(tmq_t* tmq, const tmq_message_t* tmqmessage, int32_t async);
 #endif
@@ -243,10 +245,13 @@ enum tmq_conf_res_t {
 
 typedef enum tmq_conf_res_t tmq_conf_res_t;
 
-DLL_EXPORT tmq_conf_t* tmq_conf_new();
-DLL_EXPORT void tmq_conf_destroy(tmq_conf_t* conf);
-DLL_EXPORT tmq_conf_res_t tmq_conf_set(tmq_conf_t* conf, const char* key, const char* value);
-DLL_EXPORT void tmq_conf_set_offset_commit_cb(tmq_conf_t* conf, tmq_commit_cb* cb);
+DLL_EXPORT tmq_conf_t    *tmq_conf_new();
+DLL_EXPORT void           tmq_conf_destroy(tmq_conf_t *conf);
+DLL_EXPORT tmq_conf_res_t tmq_conf_set(tmq_conf_t *conf, const char *key, const char *value);
+DLL_EXPORT void           tmq_conf_set_offset_commit_cb(tmq_conf_t *conf, tmq_commit_cb *cb);
+
+//temporary used function for demo only
+void tmqShowMsg(tmq_message_t* tmq_message);
 
 #ifdef __cplusplus
 }
