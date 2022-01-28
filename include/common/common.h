@@ -188,7 +188,7 @@ static FORCE_INLINE void tDeleteSSDataBlock(SSDataBlock* pBlock) {
 
   taosArrayDestroy(pBlock->pDataBlock);
   tfree(pBlock->pBlockAgg);
-  tfree(pBlock);
+  //tfree(pBlock);
 }
 
 
@@ -199,10 +199,12 @@ static FORCE_INLINE void tDeleteSMqConsumeRsp(SMqConsumeRsp* pRsp) {
     }
     free(pRsp->schemas);
   }
-  for (int i = 0; i < taosArrayGetSize(pRsp->pBlockData); i++) {
-    SSDataBlock* pDataBlock = (SSDataBlock*)taosArrayGet(pRsp->pBlockData, i);
-    tDeleteSSDataBlock(pDataBlock);
-  }
+    taosArrayDestroyEx(pRsp->pBlockData, (void(*)(void*))tDeleteSSDataBlock);
+    pRsp->pBlockData = NULL;
+  //for (int i = 0; i < taosArrayGetSize(pRsp->pBlockData); i++) {
+    //SSDataBlock* pDataBlock = (SSDataBlock*)taosArrayGet(pRsp->pBlockData, i);
+    //tDeleteSSDataBlock(pDataBlock);
+  //}
 }
 
 //======================================================================================================================
