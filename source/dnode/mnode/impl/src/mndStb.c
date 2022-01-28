@@ -231,15 +231,11 @@ static SDbObj *mndAcquireDbByStb(SMnode *pMnode, const char *stbName) {
 }
 
 static void *mndBuildCreateStbReq(SMnode *pMnode, SVgObj *pVgroup, SStbObj *pStb, int32_t *pContLen) {
-  SVCreateTbReq req = {0};
-  void         *buf = NULL;
-  int32_t       bsize = 0;
-  SMsgHead     *pMsgHead = NULL;
-
-  req.ver = 0;
   SName name = {0};
   tNameFromString(&name, pStb->name, T_NAME_ACCT | T_NAME_DB | T_NAME_TABLE);
 
+  SVCreateTbReq req = {0};
+  req.ver = 0;
   req.name = (char *)tNameGetTableName(&name);
   req.ttl = 0;
   req.keep = 0;
@@ -250,40 +246,48 @@ static void *mndBuildCreateStbReq(SMnode *pMnode, SVgObj *pVgroup, SStbObj *pStb
   req.stbCfg.nTagCols = pStb->numOfTags;
   req.stbCfg.pTagSchema = pStb->pSchema + pStb->numOfColumns;
 
-  bsize = tSerializeSVCreateTbReq(NULL, &req);
-  buf = malloc(sizeof(SMsgHead) + bsize);
-  if (buf == NULL) {
+  int32_t   contLen = tSerializeSVCreateTbReq(NULL, &req) + sizeof(SMsgHead);
+  SMsgHead *pHead = malloc(contLen);
+  if (pHead == NULL) {
     terrno = TSDB_CODE_OUT_OF_MEMORY;
     return NULL;
   }
 
-  pMsgHead = (SMsgHead *)buf;
+  pHead->contLen = htonl(contLen);
+  pHead->vgId = htonl(pVgroup->vgId);
 
-  pMsgHead->contLen = htonl(sizeof(SMsgHead) + bsize);
-  pMsgHead->vgId = htonl(pVgroup->vgId);
-
-  void *pBuf = POINTER_SHIFT(buf, sizeof(SMsgHead));
+  void *pBuf = POINTER_SHIFT(pHead, sizeof(SMsgHead));
   tSerializeSVCreateTbReq(&pBuf, &req);
 
-  *pContLen = sizeof(SMsgHead) + bsize;
-  return buf;
+  *pContLen = contLen;
+  return pHead;
 }
 
-static SVDropTbReq *mndBuildDropStbReq(SMnode *pMnode, SVgObj *pVgroup, SStbObj *pStb) {
-  int32_t contLen = sizeof(SVDropTbReq);
+static void *mndBuildDropStbReq(SMnode *pMnode, SVgObj *pVgroup, SStbObj *pStb, int32_t *pContLen) {
+  SName name = {0};
+  tNameFromString(&name, pStb->name, T_NAME_ACCT | T_NAME_DB | T_NAME_TABLE);
 
-  SVDropTbReq *pDrop = calloc(1, contLen);
-  if (pDrop == NULL) {
+  SVDropTbReq req = {0};
+  req.ver = 0;
+  req.name = (char *)tNameGetTableName(&name);
+  req.type = TD_SUPER_TABLE;
+  req.suid = pStb->uid;
+
+  int32_t   contLen = tSerializeSVDropTbReq(NULL, &req) + sizeof(SMsgHead);
+  SMsgHead *pHead = malloc(contLen);
+  if (pHead == NULL) {
     terrno = TSDB_CODE_OUT_OF_MEMORY;
     return NULL;
   }
 
-  pDrop->head.contLen = htonl(contLen);
-  pDrop->head.vgId = htonl(pVgroup->vgId);
-  memcpy(pDrop->name, pStb->name, TSDB_TABLE_FNAME_LEN);
-  pDrop->suid = htobe64(pStb->uid);
+  pHead->contLen = htonl(contLen);
+  pHead->vgId = htonl(pVgroup->vgId);
 
-  return pDrop;
+  void *pBuf = POINTER_SHIFT(pHead, sizeof(SMsgHead));
+  tSerializeSVDropTbReq(&pBuf, &req);
+
+  *pContLen = contLen;
+  return pHead;
 }
 
 static int32_t mndCheckCreateStbReq(SMCreateStbReq *pCreate) {
@@ -403,7 +407,8 @@ static int32_t mndSetCreateStbUndoActions(SMnode *pMnode, STrans *pTrans, SDbObj
     if (pIter == NULL) break;
     if (pVgroup->dbUid != pDb->uid) continue;
 
-    SVDropTbReq *pReq = mndBuildDropStbReq(pMnode, pVgroup, pStb);
+    int32_t contLen = 0;
+    void   *pReq = mndBuildDropStbReq(pMnode, pVgroup, pStb, &contLen);
     if (pReq == NULL) {
       sdbCancelFetch(pSdb, pIter);
       sdbRelease(pSdb, pVgroup);
@@ -414,7 +419,7 @@ static int32_t mndSetCreateStbUndoActions(SMnode *pMnode, STrans *pTrans, SDbObj
     STransAction action = {0};
     action.epSet = mndGetVgroupEpset(pMnode, pVgroup);
     action.pCont = pReq;
-    action.contLen = sizeof(SVDropTbReq);
+    action.contLen = contLen;
     action.msgType = TDMT_VND_DROP_STB;
     if (mndTransAppendUndoAction(pTrans, &action) != 0) {
       free(pReq);
@@ -625,7 +630,8 @@ static int32_t mndSetDropStbRedoActions(SMnode *pMnode, STrans *pTrans, SDbObj *
     if (pIter == NULL) break;
     if (pVgroup->dbUid != pDb->uid) continue;
 
-    void *pReq = mndBuildDropStbReq(pMnode, pVgroup, pStb);
+    int32_t contLen = 0;
+    void   *pReq = mndBuildDropStbReq(pMnode, pVgroup, pStb, &contLen);
     if (pReq == NULL) {
       sdbCancelFetch(pSdb, pIter);
       sdbRelease(pSdb, pVgroup);

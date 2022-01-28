@@ -199,19 +199,16 @@ TEST_F(DndTestVnode, 03_Create_Stb) {
     req.stbCfg.nTagCols = 3;
     req.stbCfg.pTagSchema = &schemas[2];
 
-    int32_t   bsize = tSerializeSVCreateTbReq(NULL, &req);
-    void*     buf = rpcMallocCont(sizeof(SMsgHead) + bsize);
-    SMsgHead* pMsgHead = (SMsgHead*)buf;
+    int32_t   contLen = tSerializeSVCreateTbReq(NULL, &req) + sizeof(SMsgHead);
+    SMsgHead* pHead = (SMsgHead*)rpcMallocCont(contLen);
 
-    pMsgHead->contLen = htonl(sizeof(SMsgHead) + bsize);
-    pMsgHead->vgId = htonl(2);
+    pHead->contLen = htonl(contLen);
+    pHead->vgId = htonl(2);
 
-    void* pBuf = POINTER_SHIFT(buf, sizeof(SMsgHead));
+    void* pBuf = POINTER_SHIFT(pHead, sizeof(SMsgHead));
     tSerializeSVCreateTbReq(&pBuf, &req);
 
-    int32_t contLen = sizeof(SMsgHead) + bsize;
-
-    SRpcMsg* pRsp = test.SendReq(TDMT_VND_CREATE_STB, buf, contLen);
+    SRpcMsg* pRsp = test.SendReq(TDMT_VND_CREATE_STB, (void*)pHead, contLen);
     ASSERT_NE(pRsp, nullptr);
     if (i == 0) {
       ASSERT_EQ(pRsp->code, 0);
@@ -236,23 +233,25 @@ TEST_F(DndTestVnode, 04_ALTER_Stb) {
 
 TEST_F(DndTestVnode, 05_DROP_Stb) {
   {
-    int32_t      contLen = sizeof(SVDropTbReq);
-    SVDropTbReq* pReq = (SVDropTbReq*)rpcMallocCont(contLen);
-    strcpy(pReq->name, "stb1");
-    pReq->suid = 0;
-
-    SMsgHead* pMsgHead = (SMsgHead*)&pReq->head;
-    pMsgHead->contLen = htonl(contLen);
-    pMsgHead->vgId = htonl(2);
-
     for (int i = 0; i < 3; ++i) {
-      SRpcMsg* pRsp = test.SendReq(TDMT_VND_DROP_STB, pReq, contLen);
+      SVDropTbReq req = {0};
+      req.ver = 0;
+      req.name = (char*)"stb1";
+      req.suid = 9599;
+      req.type = TD_SUPER_TABLE;
+
+      int32_t   contLen = tSerializeSVDropTbReq(NULL, &req) + sizeof(SMsgHead);
+      SMsgHead* pHead = (SMsgHead*)rpcMallocCont(contLen);
+
+      pHead->contLen = htonl(contLen);
+      pHead->vgId = htonl(2);
+
+      void* pBuf = POINTER_SHIFT(pHead, sizeof(SMsgHead));
+      tSerializeSVDropTbReq(&pBuf, &req);
+
+      SRpcMsg* pRsp = test.SendReq(TDMT_VND_DROP_STB, (void*)pHead, contLen);
       ASSERT_NE(pRsp, nullptr);
-      if (i == 0) {
-        ASSERT_EQ(pRsp->code, 0);
-      }  // else {
-         // ASSERT_EQ(pRsp->code, TSDB_CODE_TDB_INVALID_TABLE_ID);
-      //}
+      ASSERT_EQ(pRsp->code, 0);
     }
   }
 }
