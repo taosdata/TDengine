@@ -91,7 +91,7 @@ static int tsdbEncodeDFileSetArray(void **buf, SArray *pArray) {
 }
 
 static int tsdbDecodeDFileSetArray(void **originBuf, void *buf, SArray *pArray, SFSHeader *pSFSHeader) {
-  uint64_t  nset;
+  uint64_t  nset = 0;
   SDFileSet dset = {0};
   dset.ver = TSDB_FSET_VER_0;  // default value
 
