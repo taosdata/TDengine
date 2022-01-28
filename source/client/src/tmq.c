@@ -456,6 +456,7 @@ static char *formatTimestamp(char *buf, int64_t val, int precision) {
 int32_t tmq_poll_cb_inner(void* param, const SDataBuf* pMsg, int32_t code) {
   if (code == -1) {
     printf("msg discard\n");
+    free(param);
     return 0;
   }
   char pBuf[128];
@@ -465,6 +466,7 @@ int32_t tmq_poll_cb_inner(void* param, const SDataBuf* pMsg, int32_t code) {
   tDecodeSMqConsumeRsp(pMsg->pData, &rsp);
   if (rsp.numOfTopics == 0) {
     /*printf("no data\n");*/
+    free(param);
     return 0;
   }
   int32_t colNum = rsp.schemas->nCols;
@@ -501,6 +503,8 @@ int32_t tmq_poll_cb_inner(void* param, const SDataBuf* pMsg, int32_t code) {
       printf("\n");
     }
   }
+  tDeleteSMqConsumeRsp(&rsp);
+  free(param);
   /*printf("\n-----msg end------\n");*/
   return 0;
 }

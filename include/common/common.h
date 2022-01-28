@@ -174,7 +174,7 @@ static FORCE_INLINE void* tDecodeSMqConsumeRsp(void* buf, SMqConsumeRsp* pRsp) {
   return buf;
 }
 
-static FORCE_INLINE void destroySSDataBlock(SSDataBlock* pBlock) {
+static FORCE_INLINE void tDeleteSSDataBlock(SSDataBlock* pBlock) {
   if (pBlock == NULL) {
     return;
   }
@@ -191,6 +191,19 @@ static FORCE_INLINE void destroySSDataBlock(SSDataBlock* pBlock) {
   tfree(pBlock);
 }
 
+
+static FORCE_INLINE void tDeleteSMqConsumeRsp(SMqConsumeRsp* pRsp) {
+  if (pRsp->schemas) {
+    if (pRsp->schemas->nCols) {
+      tfree(pRsp->schemas->pSchema);
+    }
+    free(pRsp->schemas);
+  }
+  for (int i = 0; i < taosArrayGetSize(pRsp->pBlockData); i++) {
+    SSDataBlock* pDataBlock = (SSDataBlock*)taosArrayGet(pRsp->pBlockData, i);
+    tDeleteSSDataBlock(pDataBlock);
+  }
+}
 
 //======================================================================================================================
 // the following structure shared by parser and executor

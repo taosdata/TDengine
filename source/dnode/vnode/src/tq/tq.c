@@ -788,7 +788,7 @@ int32_t tqProcessConsumeReq(STQ* pTq, SRpcMsg* pMsg) {
   if (rsp.pBlockData) {
     for (int i = 0; i < taosArrayGetSize(rsp.pBlockData); i++) {
       SSDataBlock* pBlock = taosArrayGet(rsp.pBlockData, i);
-      destroySSDataBlock(pBlock);
+      tDeleteSSDataBlock(pBlock);
     }
     free(rsp.pBlockData);
   }
