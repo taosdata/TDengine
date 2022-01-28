@@ -51,25 +51,7 @@ static void freeqinfoFn(void *qhandle) {
   qDestroyTask(*handle);
 }
 
-void freeParam(STaskParam *param) {
-  tfree(param->sql);
-  tfree(param->tagCond);
-  tfree(param->tbnameCond);
-  tfree(param->pTableIdList);
-  taosArrayDestroy(param->pOperator);
-  tfree(param->pExprs);
-  tfree(param->pSecExprs);
-
-  tfree(param->pExpr);
-  tfree(param->pSecExpr);
-
-  tfree(param->pGroupColIndex);
-  tfree(param->pTagColumnInfo);
-  tfree(param->pGroupbyExpr);
-  tfree(param->prevResult);
-}
-
-int32_t qCreateExecTask(void* readHandle, int32_t vgId, uint64_t taskId, SSubplan* pSubplan, qTaskInfo_t* pTaskInfo, DataSinkHandle* handle) {
+int32_t qCreateExecTask(SReadHandle* readHandle, int32_t vgId, uint64_t taskId, SSubplan* pSubplan, qTaskInfo_t* pTaskInfo, DataSinkHandle* handle) {
   assert(readHandle != NULL && pSubplan != NULL);
   SExecTaskInfo** pTask = (SExecTaskInfo**)pTaskInfo;
 

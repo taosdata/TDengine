@@ -73,7 +73,7 @@ typedef struct STwaInfo {
 
 extern int32_t functionCompatList[]; // compatible check array list
 
-bool topbot_datablock_filter(SQLFunctionCtx *pCtx, const char *minval, const char *maxval);
+bool topbot_datablock_filter(SqlFunctionCtx *pCtx, const char *minval, const char *maxval);
 
 /**
  * the numOfRes should be kept, since it may be used later

@@ -88,7 +88,6 @@ static const char* jkPnodeType = "Type";
 static int32_t getPnodeTypeSize(cJSON* json) {
   switch (getNumber(json, jkPnodeType)) {
     case OP_StreamScan:
-    case OP_TableScan:
     case OP_DataBlocksOptScan:
     case OP_TableSeqScan:
       return sizeof(STableScanPhyNode);
@@ -831,7 +830,6 @@ static bool specificPhyNodeToJson(const void* obj, cJSON* json) {
   const SPhyNode* phyNode = (const SPhyNode*)obj;
   switch (phyNode->info.type) {
     case OP_StreamScan:
-    case OP_TableScan:
     case OP_DataBlocksOptScan:
     case OP_TableSeqScan:
       return tableScanNodeToJson(obj, json);
@@ -869,7 +867,6 @@ static bool specificPhyNodeToJson(const void* obj, cJSON* json) {
 static bool specificPhyNodeFromJson(const cJSON* json, void* obj) {
   SPhyNode* phyNode = (SPhyNode*)obj;
   switch (phyNode->info.type) {
-    case OP_TableScan:
     case OP_StreamScan:
     case OP_DataBlocksOptScan:
     case OP_TableSeqScan:

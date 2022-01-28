@@ -159,7 +159,7 @@ static int32_t checkForCachedLastRow(STsdbReadHandle* pTsdbReadHandle, STableGro
 static int32_t checkForCachedLast(STsdbReadHandle* pTsdbReadHandle);
 //static int32_t tsdbGetCachedLastRow(STable* pTable, SMemRow* pRes, TSKEY* lastKey);
 
-static void    changeQueryHandleForInterpQuery(tsdbReadHandleT pHandle);
+static void    changeQueryHandleForInterpQuery(tsdbReaderT pHandle);
 static void    doMergeTwoLevelData(STsdbReadHandle* pTsdbReadHandle, STableCheckInfo* pCheckInfo, SBlock* pBlock);
 static int32_t binarySearchForKey(char* pValue, int num, TSKEY key, int order);
 static int32_t tsdbReadRowsFromCache(STableCheckInfo* pCheckInfo, TSKEY maxKey, int maxRowsToRead, STimeWindow* win, STsdbReadHandle* pTsdbReadHandle);
@@ -167,7 +167,7 @@ static int32_t tsdbCheckInfoCompar(const void* key1, const void* key2);
 //static int32_t doGetExternalRow(STsdbReadHandle* pTsdbReadHandle, int16_t type, void* pMemRef);
 //static void*   doFreeColumnInfoData(SArray* pColumnInfoData);
 //static void*   destroyTableCheckInfo(SArray* pTableCheckInfo);
-static bool    tsdbGetExternalRow(tsdbReadHandleT pHandle);
+static bool    tsdbGetExternalRow(tsdbReaderT pHandle);
 
 static void tsdbInitDataBlockLoadInfo(SDataBlockLoadInfo* pBlockLoadInfo) {
   pBlockLoadInfo->slot = -1;
@@ -208,7 +208,7 @@ static SArray* getDefaultLoadColumns(STsdbReadHandle* pTsdbReadHandle, bool load
   return pLocalIdList;
 }
 
-//int64_t tsdbGetNumOfRowsInMemTable(tsdbReadHandleT* pHandle) {
+//int64_t tsdbGetNumOfRowsInMemTable(tsdbReaderT* pHandle) {
 //  STsdbReadHandle* pTsdbReadHandle = (STsdbReadHandle*) pHandle;
 //
 //  int64_t rows = 0;
@@ -424,7 +424,7 @@ static STsdbReadHandle* tsdbQueryTablesImpl(STsdb* tsdb, STsdbQueryCond* pCond, 
   tsdbInitDataBlockLoadInfo(&pReadHandle->dataBlockLoadInfo);
   tsdbInitCompBlockLoadInfo(&pReadHandle->compBlockLoadInfo);
 
-  return (tsdbReadHandleT)pReadHandle;
+  return (tsdbReaderT)pReadHandle;
 
   _end:
   tsdbCleanupReadHandle(pReadHandle);
@@ -432,14 +432,14 @@ static STsdbReadHandle* tsdbQueryTablesImpl(STsdb* tsdb, STsdbQueryCond* pCond, 
   return NULL;
 }
 
-tsdbReadHandleT* tsdbQueryTables(STsdb* tsdb, STsdbQueryCond* pCond, STableGroupInfo* groupList, uint64_t qId, uint64_t taskId) {
+tsdbReaderT* tsdbQueryTables(STsdb* tsdb, STsdbQueryCond* pCond, STableGroupInfo* groupList, uint64_t qId, uint64_t taskId) {
   STsdbReadHandle* pTsdbReadHandle = tsdbQueryTablesImpl(tsdb, pCond, qId, taskId);
   if (pTsdbReadHandle == NULL) {
     return NULL;
   }
 
   if (emptyQueryTimewindow(pTsdbReadHandle)) {
-    return (tsdbReadHandleT*) pTsdbReadHandle;
+    return (tsdbReaderT*) pTsdbReadHandle;
   }
 
   // todo apply the lastkey of table check to avoid to load header file
@@ -453,10 +453,10 @@ tsdbReadHandleT* tsdbQueryTables(STsdb* tsdb, STsdbQueryCond* pCond, STableGroup
   tsdbDebug("%p total numOfTable:%" PRIzu " in this query, group %"PRIzu" %s", pTsdbReadHandle, taosArrayGetSize(pTsdbReadHandle->pTableCheckInfo),
       taosArrayGetSize(groupList->pGroupList), pTsdbReadHandle->idStr);
 
-  return (tsdbReadHandleT) pTsdbReadHandle;
+  return (tsdbReaderT) pTsdbReadHandle;
 }
 
-void tsdbResetQueryHandle(tsdbReadHandleT queryHandle, STsdbQueryCond *pCond) {
+void tsdbResetQueryHandle(tsdbReaderT queryHandle, STsdbQueryCond *pCond) {
   STsdbReadHandle* pTsdbReadHandle = queryHandle;
 
   if (emptyQueryTimewindow(pTsdbReadHandle)) {
@@ -493,7 +493,7 @@ void tsdbResetQueryHandle(tsdbReadHandleT queryHandle, STsdbQueryCond *pCond) {
   resetCheckInfo(pTsdbReadHandle);
 }
 
-void tsdbResetQueryHandleForNewTable(tsdbReadHandleT queryHandle, STsdbQueryCond *pCond, STableGroupInfo* groupList) {
+void tsdbResetQueryHandleForNewTable(tsdbReaderT queryHandle, STsdbQueryCond *pCond, STableGroupInfo* groupList) {
   STsdbReadHandle* pTsdbReadHandle = queryHandle;
 
   pTsdbReadHandle->order       = pCond->order;
@@ -533,7 +533,7 @@ void tsdbResetQueryHandleForNewTable(tsdbReadHandleT queryHandle, STsdbQueryCond
 //  pTsdbReadHandle->next = doFreeColumnInfoData(pTsdbReadHandle->next);
 }
 
-tsdbReadHandleT tsdbQueryLastRow(STsdb *tsdb, STsdbQueryCond *pCond, STableGroupInfo *groupList, uint64_t qId, uint64_t taskId) {
+tsdbReaderT tsdbQueryLastRow(STsdb *tsdb, STsdbQueryCond *pCond, STableGroupInfo *groupList, uint64_t qId, uint64_t taskId) {
   pCond->twindow = updateLastrowForEachGroup(groupList);
 
   // no qualified table
@@ -561,7 +561,7 @@ tsdbReadHandleT tsdbQueryLastRow(STsdb *tsdb, STsdbQueryCond *pCond, STableGroup
 }
 
 #if 0
-tsdbReadHandleT tsdbQueryCacheLast(STsdb *tsdb, STsdbQueryCond *pCond, STableGroupInfo *groupList, uint64_t qId, STsdbMemTable* pMemRef) {
+tsdbReaderT tsdbQueryCacheLast(STsdb *tsdb, STsdbQueryCond *pCond, STableGroupInfo *groupList, uint64_t qId, STsdbMemTable* pMemRef) {
   STsdbReadHandle *pTsdbReadHandle = (STsdbReadHandle*) tsdbQueryTables(tsdb, pCond, groupList, qId, pMemRef);
   if (pTsdbReadHandle == NULL) {
     return NULL;
@@ -581,7 +581,7 @@ tsdbReadHandleT tsdbQueryCacheLast(STsdb *tsdb, STsdbQueryCond *pCond, STableGro
 }
 
 #endif
-SArray* tsdbGetQueriedTableList(tsdbReadHandleT *pHandle) {
+SArray* tsdbGetQueriedTableList(tsdbReaderT *pHandle) {
   assert(pHandle != NULL);
 
   STsdbReadHandle *pTsdbReadHandle = (STsdbReadHandle*) pHandle;
@@ -624,7 +624,7 @@ static STableGroupInfo* trimTableGroup(STimeWindow* window, STableGroupInfo* pGr
   return pNew;
 }
 
-tsdbReadHandleT tsdbQueryRowsInExternalWindow(STsdb *tsdb, STsdbQueryCond* pCond, STableGroupInfo *groupList, uint64_t qId, uint64_t taskId) {
+tsdbReaderT tsdbQueryRowsInExternalWindow(STsdb *tsdb, STsdbQueryCond* pCond, STableGroupInfo *groupList, uint64_t qId, uint64_t taskId) {
   STableGroupInfo* pNew = trimTableGroup(&pCond->twindow, groupList);
 
   if (pNew->numOfTables == 0) {
@@ -2338,7 +2338,7 @@ static void moveToNextDataBlockInCurrentFile(STsdbReadHandle* pTsdbReadHandle) {
   cur->blockCompleted = false;
 }
 #if 0
-int32_t tsdbGetFileBlocksDistInfo(tsdbReadHandleT* queryHandle, STableBlockDist* pTableBlockInfo) {
+int32_t tsdbGetFileBlocksDistInfo(tsdbReaderT* queryHandle, STableBlockDist* pTableBlockInfo) {
   STsdbReadHandle* pTsdbReadHandle = (STsdbReadHandle*) queryHandle;
 
   pTableBlockInfo->totalSize = 0;
@@ -2494,7 +2494,7 @@ static bool doHasDataInBuffer(STsdbReadHandle* pTsdbReadHandle) {
 }
 
 //todo not unref yet, since it is not support multi-group interpolation query
-static UNUSED_FUNC void changeQueryHandleForInterpQuery(tsdbReadHandleT pHandle) {
+static UNUSED_FUNC void changeQueryHandleForInterpQuery(tsdbReaderT pHandle) {
   // filter the queried time stamp in the first place
   STsdbReadHandle* pTsdbReadHandle = (STsdbReadHandle*) pHandle;
 
@@ -2635,7 +2635,7 @@ static bool  loadBlockOfActiveTable(STsdbReadHandle* pTsdbReadHandle) {
     }
 
     if (exists) {
-      tsdbRetrieveDataBlock((tsdbReadHandleT*) pTsdbReadHandle, NULL);
+      tsdbRetrieveDataBlock((tsdbReaderT*) pTsdbReadHandle, NULL);
       if (pTsdbReadHandle->currentLoadExternalRows && pTsdbReadHandle->window.skey == pTsdbReadHandle->window.ekey) {
         SColumnInfoData* pColInfo = taosArrayGet(pTsdbReadHandle->pColumns, 0);
         assert(*(int64_t*)pColInfo->pData == pTsdbReadHandle->window.skey);
@@ -2891,7 +2891,7 @@ static bool loadDataBlockFromTableSeq(STsdbReadHandle* pTsdbReadHandle) {
 }
 
 // handle data in cache situation
-bool tsdbNextDataBlock(tsdbReadHandleT pHandle) {
+bool tsdbNextDataBlock(tsdbReaderT pHandle) {
   STsdbReadHandle* pTsdbReadHandle = (STsdbReadHandle*) pHandle;
 
   if (emptyQueryTimewindow(pTsdbReadHandle)) {
@@ -3055,7 +3055,7 @@ bool tsdbNextDataBlock(tsdbReadHandleT pHandle) {
 //  return terrno;
 //}
 
-bool tsdbGetExternalRow(tsdbReadHandleT pHandle) {
+bool tsdbGetExternalRow(tsdbReaderT pHandle) {
   STsdbReadHandle* pTsdbReadHandle = (STsdbReadHandle*) pHandle;
   SQueryFilePos* cur = &pTsdbReadHandle->cur;
 
@@ -3112,7 +3112,7 @@ bool tsdbGetExternalRow(tsdbReadHandleT pHandle) {
 //  return code;
 //}
 
-bool isTsdbCacheLastRow(tsdbReadHandleT* pTsdbReadHandle) {
+bool isTsdbCacheLastRow(tsdbReaderT* pTsdbReadHandle) {
   return ((STsdbReadHandle *)pTsdbReadHandle)->cachelastrow > TSDB_CACHED_TYPE_NONE;
 }
 
@@ -3230,7 +3230,7 @@ STimeWindow updateLastrowForEachGroup(STableGroupInfo *groupList) {
   return window;
 }
 
-void tsdbRetrieveDataBlockInfo(tsdbReadHandleT* pTsdbReadHandle, SDataBlockInfo* pDataBlockInfo) {
+void tsdbRetrieveDataBlockInfo(tsdbReaderT* pTsdbReadHandle, SDataBlockInfo* pDataBlockInfo) {
   STsdbReadHandle* pHandle = (STsdbReadHandle*)pTsdbReadHandle;
   SQueryFilePos* cur = &pHandle->cur;
 
@@ -3254,7 +3254,7 @@ void tsdbRetrieveDataBlockInfo(tsdbReadHandleT* pTsdbReadHandle, SDataBlockInfo*
 /*
  * return null for mixed data block, if not a complete file data block, the statistics value will always return NULL
  */
-int32_t tsdbRetrieveDataBlockStatisInfo(tsdbReadHandleT* pTsdbReadHandle, SDataStatis** pBlockStatis) {
+int32_t tsdbRetrieveDataBlockStatisInfo(tsdbReaderT* pTsdbReadHandle, SDataStatis** pBlockStatis) {
   STsdbReadHandle* pHandle = (STsdbReadHandle*) pTsdbReadHandle;
 
   SQueryFilePos* c = &pHandle->cur;
@@ -3309,7 +3309,7 @@ int32_t tsdbRetrieveDataBlockStatisInfo(tsdbReadHandleT* pTsdbReadHandle, SDataS
   return TSDB_CODE_SUCCESS;
 }
 
-SArray* tsdbRetrieveDataBlock(tsdbReadHandleT* pTsdbReadHandle, SArray* pIdList) {
+SArray* tsdbRetrieveDataBlock(tsdbReaderT* pTsdbReadHandle, SArray* pIdList) {
   /**
    * In the following two cases, the data has been loaded to SColumnInfoData.
    * 1. data is from cache, 2. data block is not completed qualified to query time range
@@ -3820,7 +3820,7 @@ static void* destroyTableCheckInfo(SArray* pTableCheckInfo) {
 }
 
 
-void tsdbCleanupReadHandle(tsdbReadHandleT queryHandle) {
+void tsdbCleanupReadHandle(tsdbReaderT queryHandle) {
   STsdbReadHandle* pTsdbReadHandle = (STsdbReadHandle*)queryHandle;
   if (pTsdbReadHandle == NULL) {
     return;

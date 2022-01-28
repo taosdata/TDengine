@@ -26,12 +26,14 @@ int vnodeQueryOpen(SVnode *pVnode) {
 
 int vnodeProcessQueryMsg(SVnode *pVnode, SRpcMsg *pMsg) {
   vTrace("message in query queue is processing");
+  SReadHandle handle = {.reader = pVnode->pTsdb, .meta = pVnode->pMeta};
 
   switch (pMsg->msgType) {
-    case TDMT_VND_QUERY:
-      return qWorkerProcessQueryMsg(pVnode->pTsdb, pVnode->pQuery, pMsg);
+    case TDMT_VND_QUERY:{
+      return qWorkerProcessQueryMsg(&handle, pVnode->pQuery, pMsg);
+    }
     case TDMT_VND_QUERY_CONTINUE:
-      return qWorkerProcessCQueryMsg(pVnode->pTsdb, pVnode->pQuery, pMsg);
+      return qWorkerProcessCQueryMsg(&handle, pVnode->pQuery, pMsg);
     default:
       vError("unknown msg type:%d in query queue", pMsg->msgType);
       return TSDB_CODE_VND_APP_ERROR;

@@ -71,7 +71,7 @@ typedef struct {
 typedef struct STqReadHandle {
   int64_t        ver;
   uint64_t       tbUid;
-  SSubmitMsg*    pMsg;
+  const SSubmitMsg*    pMsg;
   SSubmitBlk*    pBlock;
   SSubmitMsgIter msgIter;
   SSubmitBlkIter blkIter;
