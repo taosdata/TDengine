@@ -201,6 +201,7 @@ int32_t processRetrieveMnodeRsp(void* param, const SDataBuf* pMsg, int32_t code)
   pResInfo->pRspMsg   = pMsg->pData;
   pResInfo->numOfRows = pRetrieve->numOfRows;
   pResInfo->pData     = pRetrieve->data;
+  pResInfo->completed = pRetrieve->completed;
 
   pResInfo->current = 0;
   setResultDataPtr(pResInfo, pResInfo->fields, pResInfo->numOfCols, pResInfo->numOfRows);

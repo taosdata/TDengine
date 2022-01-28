@@ -1215,8 +1215,12 @@ void* doFetchRow(SRequestObj* pRequest) {
       tsem_wait(&pRequest->body.rspSem);
 
       pRequest->type = TDMT_VND_SHOW_TABLES_FETCH;
-    } else if (pRequest->type == TDMT_MND_SHOW_RETRIEVE && pResultInfo->pData != NULL) {
-      return NULL;
+    } else if (pRequest->type == TDMT_MND_SHOW_RETRIEVE) {      
+      epSet = getEpSet_s(&pRequest->pTscObj->pAppInfo->mgmtEp);
+      
+      if (pResultInfo->completed) {
+        return NULL;
+      }
     }
 
     SMsgSendInfo* body = buildMsgInfoImpl(pRequest);
