@@ -3889,6 +3889,17 @@ void finalizeQueryResult(SOperatorInfo* pOperator, SQLFunctionCtx* pCtx, SResult
   }
 }
 
+bool isUniqueQuery(SOperatorInfo* pOperator, SQLFunctionCtx* pCtx) {
+  int32_t numOfOutput = pOperator->numOfOutput;
+
+  for (int32_t j = 0; j < numOfOutput; ++j) {
+    if (pCtx[j].functionId == TSDB_FUNC_UNIQUE) {
+      return true;
+    }
+  }
+  return false;
+}
+
 static bool hasMainOutput(SQueryAttr *pQueryAttr) {
   for (int32_t i = 0; i < pQueryAttr->numOfOutput; ++i) {
     int32_t functionId = pQueryAttr->pExpr1[i].base.functionId;
@@ -5993,6 +6004,9 @@ static SSDataBlock* doSTableAggregate(void* param, bool* newgroup) {
   pOperator->status = OP_RES_TO_RETURN;
   closeAllResultRows(&pInfo->resultRowInfo);
 
+  if (isUniqueQuery(pOperator, pInfo->pCtx)) { // finalize include the update of result rows
+    finalizeQueryResult(pOperator, pInfo->pCtx, &pInfo->resultRowInfo, pInfo->rowCellInfoOffset);
+  }
   updateNumOfRowsInResultRows(pRuntimeEnv, pInfo->pCtx, pOperator->numOfOutput, &pInfo->resultRowInfo,
                              pInfo->rowCellInfoOffset);
 
