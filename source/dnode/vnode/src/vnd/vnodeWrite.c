@@ -103,7 +103,12 @@ int vnodeApplyWMsg(SVnode *pVnode, SRpcMsg *pMsg, SRpcMsg **pRsp) {
       taosArrayDestroy(vCreateTbBatchReq.pArray);
       break;
 
+    case TDMT_VND_ALTER_STB:
+      vTrace("vgId:%d, process drop stb req", pVnode->vgId);
+      break;
     case TDMT_VND_DROP_STB:
+      vTrace("vgId:%d, process drop stb req", pVnode->vgId);
+      break;
     case TDMT_VND_DROP_TABLE:
       // if (metaDropTable(pVnode->pMeta, vReq.dtReq.uid) < 0) {
       //   // TODO: handle error
