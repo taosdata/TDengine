@@ -48,7 +48,8 @@ static int32_t mndProcessMqTimerMsg(SMnodeMsg *pMsg);
 static int32_t mndProcessGetSubEpReq(SMnodeMsg *pMsg);
 
 static int mndBuildMqSetConsumerVgReq(SMnode *pMnode, STrans *pTrans, SMqConsumerObj *pConsumer,
-                                      SMqConsumerTopic *pConsumerTopic, SMqTopicObj *pTopic, SMqConsumerEp *pSub);
+                                      SMqConsumerTopic *pConsumerTopic, SMqTopicObj *pTopic, SMqConsumerEp *pSub,
+                                      int64_t oldConsumerId);
 
 int32_t mndInitSubscribe(SMnode *pMnode) {
   SSdbTable table = {.sdbType = SDB_SUBSCRIBE,
@@ -166,7 +167,7 @@ static int32_t mndProcessMqTimerMsg(SMnodeMsg *pMsg) {
       if (pCEp->lastConsumerHbTs != -1 && currentTs - pCEp->lastConsumerHbTs > MND_SUBSCRIBE_REBALANCE_MS) {
         // put consumer into lostConsumer
         taosArrayPush(pSub->lostConsumer, pCEp);
-        // put vg into unassgined
+        // put vg into unassigned
         taosArrayPush(pSub->unassignedVg, pCEp);
         // remove from assigned
         // TODO: swap with last one, reduce size and reset i
@@ -202,6 +203,7 @@ static int32_t mndProcessMqTimerMsg(SMnodeMsg *pMsg) {
       for (int32_t i = 0; i < sz; i++) {
         int64_t        consumerId = *(int64_t *)taosArrayGet(pSub->availConsumer, pSub->nextConsumerIdx);
         SMqConsumerEp *pCEp = taosArrayPop(pSub->unassignedVg);
+        int64_t        oldConsumerId = pCEp->consumerId;
         pCEp->consumerId = consumerId;
         taosArrayPush(pSub->assigned, pCEp);
         pSub->nextConsumerIdx = (pSub->nextConsumerIdx + 1) % taosArrayGetSize(pSub->availConsumer);
@@ -222,7 +224,9 @@ static int32_t mndProcessMqTimerMsg(SMnodeMsg *pMsg) {
         req.logicalPlan = pTopic->logicalPlan;
         req.physicalPlan = pTopic->physicalPlan;
         req.qmsg = pCEp->qmsg;
+        req.oldConsumerId = oldConsumerId;
         req.newConsumerId = consumerId;
+        req.vgId = pCEp->vgId;
         int32_t tlen = tEncodeSMqSetCVgReq(NULL, &req);
         void   *buf = malloc(sizeof(SMsgHead) + tlen);
         if (buf == NULL) {
@@ -237,6 +241,7 @@ static int32_t mndProcessMqTimerMsg(SMnodeMsg *pMsg) {
         tEncodeSMqSetCVgReq(&abuf, &req);
 
         // persist msg
+        // TODO: no need for txn
         STransAction action = {0};
         action.epSet = pCEp->epSet;
         action.pCont = buf;
@@ -303,13 +308,12 @@ static int mndInitUnassignedVg(SMnode *pMnode, SMqTopicObj *pTopic, SArray *unas
     ASSERT(CEp.vgId == pVgroup->vgId);
     CEp.qmsg = strdup(pTaskInfo->msg->msg);
     taosArrayPush(unassignedVg, &CEp);
-    //TODO: free taskInfo
+    // TODO: free taskInfo
     taosArrayDestroy(pArray);
 
     /*SEpSet *pEpSet = &plan->execNode.epset;*/
     /*pEpSet->inUse = 0;*/
     /*addEpIntoEpSet(pEpSet, "localhost", 6030);*/
-     
   }
 
   /*qDestroyQueryDag(pDag);*/
@@ -317,14 +321,15 @@ static int mndInitUnassignedVg(SMnode *pMnode, SMqTopicObj *pTopic, SArray *unas
 }
 
 static int mndBuildMqSetConsumerVgReq(SMnode *pMnode, STrans *pTrans, SMqConsumerObj *pConsumer,
-                                      SMqConsumerTopic *pConsumerTopic, SMqTopicObj *pTopic, SMqConsumerEp *pCEp) {
+                                      SMqConsumerTopic *pConsumerTopic, SMqTopicObj *pTopic, SMqConsumerEp *pCEp,
+                                      int64_t oldConsumerId) {
   int32_t sz = taosArrayGetSize(pConsumerTopic->pVgInfo);
   for (int32_t i = 0; i < sz; i++) {
     int32_t      vgId = *(int32_t *)taosArrayGet(pConsumerTopic->pVgInfo, i);
     SVgObj      *pVgObj = mndAcquireVgroup(pMnode, vgId);
     SMqSetCVgReq req = {
         .vgId = vgId,
-        .oldConsumerId = -1,
+        .oldConsumerId = oldConsumerId,
         .newConsumerId = pConsumer->consumerId,
     };
     strcpy(req.cgroup, pConsumer->cgroup);
@@ -456,10 +461,6 @@ static int32_t mndSubActionDelete(SSdb *pSdb, SMqSubscribeObj *pSub) {
 
 static int32_t mndSubActionUpdate(SSdb *pSdb, SMqSubscribeObj *pOldSub, SMqSubscribeObj *pNewSub) {
   mTrace("subscribe:%s, perform update action", pOldSub->key);
-  return 0;
-}
-
-static void *mndBuildMqVGroupSetReq(SMnode *pMnode, char *topicName, int32_t vgId, int64_t consumerId, char *cgroup) {
   return 0;
 }
 
@@ -642,7 +643,7 @@ static int32_t mndProcessSubscribeReq(SMnodeMsg *pMsg) {
         free(key);
         // set unassigned vg
         if (mndInitUnassignedVg(pMnode, pTopic, pSub->unassignedVg) < 0) {
-          //TODO: free memory
+          // TODO: free memory
           return -1;
         }
         // TODO: disable alter
@@ -650,7 +651,8 @@ static int32_t mndProcessSubscribeReq(SMnodeMsg *pMsg) {
       }
       taosArrayPush(pSub->availConsumer, &consumerId);
 
-      SMqConsumerTopic *pConsumerTopic = tNewConsumerTopic(consumerId, pTopic, pSub);
+      int64_t           oldConsumerId;
+      SMqConsumerTopic *pConsumerTopic = tNewConsumerTopic(consumerId, pTopic, pSub, &oldConsumerId);
       taosArrayPush(pConsumer->topics, pConsumerTopic);
 
       if (taosArrayGetSize(pConsumerTopic->pVgInfo) > 0) {
@@ -658,7 +660,7 @@ static int32_t mndProcessSubscribeReq(SMnodeMsg *pMsg) {
         int32_t        vgId = *(int32_t *)taosArrayGetLast(pConsumerTopic->pVgInfo);
         SMqConsumerEp *pCEp = taosArrayGetLast(pSub->assigned);
         if (pCEp->vgId == vgId) {
-          if (mndBuildMqSetConsumerVgReq(pMnode, pTrans, pConsumer, pConsumerTopic, pTopic, pCEp) < 0) {
+          if (mndBuildMqSetConsumerVgReq(pMnode, pTrans, pConsumer, pConsumerTopic, pTopic, pCEp, oldConsumerId) < 0) {
             // TODO
             return -1;
           }

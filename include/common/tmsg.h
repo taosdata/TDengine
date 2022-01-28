@@ -1578,6 +1578,7 @@ static FORCE_INLINE void* taosDecodeSMqMsg(void* buf, SMqHbMsg* pMsg) {
 }
 
 typedef struct SMqSetCVgReq {
+  int64_t  leftForVer;
   int32_t  vgId;
   int64_t  oldConsumerId;
   int64_t  newConsumerId;
@@ -1612,6 +1613,7 @@ static FORCE_INLINE void* tDecodeSSubQueryMsg(void* buf, SSubQueryMsg* pMsg) {
 
 static FORCE_INLINE int32_t tEncodeSMqSetCVgReq(void** buf, const SMqSetCVgReq* pReq) {
   int32_t tlen = 0;
+  tlen += taosEncodeFixedI64(buf, pReq->leftForVer);
   tlen += taosEncodeFixedI32(buf, pReq->vgId);
   tlen += taosEncodeFixedI64(buf, pReq->oldConsumerId);
   tlen += taosEncodeFixedI64(buf, pReq->newConsumerId);
@@ -1620,12 +1622,13 @@ static FORCE_INLINE int32_t tEncodeSMqSetCVgReq(void** buf, const SMqSetCVgReq* 
   tlen += taosEncodeString(buf, pReq->sql);
   tlen += taosEncodeString(buf, pReq->logicalPlan);
   tlen += taosEncodeString(buf, pReq->physicalPlan);
-  tlen += taosEncodeString(buf, (char*)pReq->qmsg);
+  tlen += taosEncodeString(buf, pReq->qmsg);
   //tlen += tEncodeSSubQueryMsg(buf, &pReq->msg);
   return tlen;
 }
 
 static FORCE_INLINE void* tDecodeSMqSetCVgReq(void* buf, SMqSetCVgReq* pReq) {
+  buf = taosDecodeFixedI64(buf, &pReq->leftForVer);
   buf = taosDecodeFixedI32(buf, &pReq->vgId);
   buf = taosDecodeFixedI64(buf, &pReq->oldConsumerId);
   buf = taosDecodeFixedI64(buf, &pReq->newConsumerId);
@@ -1634,7 +1637,7 @@ static FORCE_INLINE void* tDecodeSMqSetCVgReq(void* buf, SMqSetCVgReq* pReq) {
   buf = taosDecodeString(buf, &pReq->sql);
   buf = taosDecodeString(buf, &pReq->logicalPlan);
   buf = taosDecodeString(buf, &pReq->physicalPlan);
-  buf = taosDecodeString(buf, (char**)&pReq->qmsg);
+  buf = taosDecodeString(buf, &pReq->qmsg);
   //buf = tDecodeSSubQueryMsg(buf, &pReq->msg);
   return buf;
 }

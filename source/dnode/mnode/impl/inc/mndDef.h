@@ -633,7 +633,7 @@ typedef struct SMqConsumerTopic {
 } SMqConsumerTopic;
 
 static FORCE_INLINE SMqConsumerTopic* tNewConsumerTopic(int64_t consumerId, SMqTopicObj* pTopic,
-                                                        SMqSubscribeObj* pSub) {
+                                                        SMqSubscribeObj* pSub, int64_t* oldConsumerId) {
   SMqConsumerTopic* pCTopic = malloc(sizeof(SMqConsumerTopic));
   if (pCTopic == NULL) {
     terrno = TSDB_CODE_OUT_OF_MEMORY;
@@ -646,6 +646,7 @@ static FORCE_INLINE SMqConsumerTopic* tNewConsumerTopic(int64_t consumerId, SMqT
   int32_t unassignedVgSz = taosArrayGetSize(pSub->unassignedVg);
   if (unassignedVgSz > 0) {
     SMqConsumerEp* pCEp = taosArrayPop(pSub->unassignedVg);
+    *oldConsumerId = pCEp->consumerId;
     pCEp->consumerId = consumerId;
     taosArrayPush(pCTopic->pVgInfo, &pCEp->vgId);
     taosArrayPush(pSub->assigned, pCEp);

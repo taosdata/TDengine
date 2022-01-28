@@ -16,6 +16,7 @@
 #include "tq.h"
 #include "vnd.h"
 
+#if 0
 int vnodeProcessNoWalWMsgs(SVnode *pVnode, SRpcMsg *pMsg) {
   switch (pMsg->msgType) {
     case TDMT_VND_MQ_SET_CUR:
@@ -26,6 +27,7 @@ int vnodeProcessNoWalWMsgs(SVnode *pVnode, SRpcMsg *pMsg) {
   }
   return 0;
 }
+#endif
 
 int vnodeProcessWMsgs(SVnode *pVnode, SArray *pMsgs) {
   SRpcMsg *pMsg;
