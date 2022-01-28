@@ -174,6 +174,24 @@ static FORCE_INLINE void* tDecodeSMqConsumeRsp(void* buf, SMqConsumeRsp* pRsp) {
   return buf;
 }
 
+static FORCE_INLINE void destroySSDataBlock(SSDataBlock* pBlock) {
+  if (pBlock == NULL) {
+    return;
+  }
+
+  //int32_t numOfOutput = pBlock->info.numOfCols;
+  int32_t sz = taosArrayGetSize(pBlock->pDataBlock);
+  for(int32_t i = 0; i < sz; ++i) {
+    SColumnInfoData* pColInfoData = (SColumnInfoData*)taosArrayGet(pBlock->pDataBlock, i);
+    tfree(pColInfoData->pData);
+  }
+
+  taosArrayDestroy(pBlock->pDataBlock);
+  tfree(pBlock->pBlockAgg);
+  tfree(pBlock);
+}
+
+
 //======================================================================================================================
 // the following structure shared by parser and executor
 typedef struct SColumn {

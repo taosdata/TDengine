@@ -606,7 +606,7 @@ TEST(testCase, create_topic_stb_Test) {
 
   taos_free_result(pRes);
 
-  char* sql = "select ts, k from st1";
+  char* sql = "select * from st1";
   pRes = taos_create_topic(pConn, "test_stb_topic_1", sql, strlen(sql));
   taos_free_result(pRes);
   taos_close(pConn);

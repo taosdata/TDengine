@@ -785,6 +785,13 @@ int32_t tqProcessConsumeReq(STQ* pTq, SRpcMsg* pMsg) {
   }
   void* abuf = buf;
   tEncodeSMqConsumeRsp(&abuf, &rsp);
+  if (rsp.pBlockData) {
+    for (int i = 0; i < taosArrayGetSize(rsp.pBlockData); i++) {
+      SSDataBlock* pBlock = taosArrayGet(rsp.pBlockData, i);
+      destroySSDataBlock(pBlock);
+    }
+    free(rsp.pBlockData);
+  }
   pMsg->pCont = buf;
   pMsg->contLen = tlen;
   pMsg->code = 0;
