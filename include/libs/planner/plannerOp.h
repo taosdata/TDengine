@@ -24,7 +24,6 @@
 #endif
 
 OP_ENUM_MACRO(StreamScan)
-OP_ENUM_MACRO(TableScan)
 OP_ENUM_MACRO(DataBlocksOptScan)
 OP_ENUM_MACRO(TableSeqScan)
 OP_ENUM_MACRO(TagScan)
@@ -48,3 +47,5 @@ OP_ENUM_MACRO(AllTimeWindow)
 OP_ENUM_MACRO(AllMultiTableTimeInterval)
 OP_ENUM_MACRO(Order)
 OP_ENUM_MACRO(Exchange)
+
+//OP_ENUM_MACRO(TableScan)

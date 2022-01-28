@@ -22,7 +22,7 @@ extern "C" {
 
 #include "nodes.h"
 
-struct SQLFunctionCtx;
+struct SqlFunctionCtx;
 struct SResultRowEntryInfo;
 struct STimeWindow;
 
@@ -32,9 +32,9 @@ typedef struct SFuncExecEnv {
 
 typedef void* FuncMgtHandle;
 typedef bool (*FExecGetEnv)(SFunctionNode* pFunc, SFuncExecEnv* pEnv);
-typedef bool (*FExecInit)(struct SQLFunctionCtx *pCtx, struct SResultRowEntryInfo* pResultCellInfo);
-typedef void (*FExecProcess)(struct SQLFunctionCtx *pCtx);
-typedef void (*FExecFinalize)(struct SQLFunctionCtx *pCtx);
+typedef bool (*FExecInit)(struct SqlFunctionCtx *pCtx, struct SResultRowEntryInfo* pResultCellInfo);
+typedef void (*FExecProcess)(struct SqlFunctionCtx *pCtx);
+typedef void (*FExecFinalize)(struct SqlFunctionCtx *pCtx);
 
 typedef struct SFuncExecFuncs {
   FExecGetEnv getEnv;

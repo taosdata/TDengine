@@ -38,6 +38,10 @@
 //  int16_t bytes;
 //} SSchema;
 
+#define TMQ_REQ_TYPE_COMMIT_ONLY        0
+#define TMQ_REQ_TYPE_CONSUME_ONLY       1
+#define TMQ_REQ_TYPE_CONSUME_AND_COMMIT 2
+
 typedef struct {
   uint32_t  numOfTables;
   SArray   *pGroupList;

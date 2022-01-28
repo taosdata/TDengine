@@ -103,6 +103,7 @@ static int32_t mndRestoreWal(SMnode *pMnode) {
     if (walEndSnapshot(pWal) < 0) {
       goto WAL_RESTORE_OVER;
     }
+
   }
 
   code = 0;
