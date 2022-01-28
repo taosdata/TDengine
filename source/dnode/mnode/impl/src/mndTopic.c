@@ -240,15 +240,14 @@ static int32_t mndCreateTopic(SMnode *pMnode, SMnodeMsg *pMsg, SCMCreateTopicReq
   topicObj.uid = mndGenerateUid(pCreate->name, strlen(pCreate->name));
   topicObj.dbUid = pDb->uid;
   topicObj.version = 1;
-  topicObj.sql = strdup(pCreate->sql);
-  topicObj.physicalPlan = strdup(pCreate->physicalPlan);
-  topicObj.logicalPlan = strdup(pCreate->logicalPlan);
+  topicObj.sql = pCreate->sql;
+  topicObj.physicalPlan = pCreate->physicalPlan;
+  topicObj.logicalPlan = pCreate->logicalPlan;
   topicObj.sqlLen = strlen(pCreate->sql);
 
   SSdbRaw *pTopicRaw = mndTopicActionEncode(&topicObj);
   if (pTopicRaw == NULL) return -1;
   if (sdbSetRawStatus(pTopicRaw, SDB_STATUS_READY) != 0) return -1;
-  // TODO: replace with trans to support recovery
   return sdbWrite(pMnode->pSdb, pTopicRaw);
 }
 

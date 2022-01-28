@@ -462,7 +462,7 @@ int32_t tmq_poll_cb_inner(void* param, const SDataBuf* pMsg, int32_t code) {
   char pBuf[128];
   SMqConsumeCbParam* pParam = (SMqConsumeCbParam*)param;
   SMqClientVg* pVg = pParam->pVg;
-  SMqConsumeRsp rsp;
+  SMqConsumeRsp rsp = {0};
   tDecodeSMqConsumeRsp(pMsg->pData, &rsp);
   if (rsp.numOfTopics == 0) {
     /*printf("no data\n");*/

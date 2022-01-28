@@ -119,7 +119,7 @@ static FORCE_INLINE void* tDecodeDataBlock(void* buf, SSDataBlock* pBlock) {
   buf = taosDecodeFixedI32(buf, &sz);
   pBlock->pDataBlock = taosArrayInit(sz, sizeof(SColumnInfoData));
   for (int32_t i = 0; i < sz; i++) {
-    SColumnInfoData data;
+    SColumnInfoData data = {0};
     buf = taosDecodeFixedI16(buf, &data.info.colId);
     buf = taosDecodeFixedI16(buf, &data.info.type);
     buf = taosDecodeFixedI16(buf, &data.info.bytes);
@@ -167,7 +167,7 @@ static FORCE_INLINE void* tDecodeSMqConsumeRsp(void* buf, SMqConsumeRsp* pRsp) {
   buf = taosDecodeFixedI32(buf, &sz);
   pRsp->pBlockData = taosArrayInit(sz, sizeof(SSDataBlock));
   for (int32_t i = 0; i < sz; i++) {
-    SSDataBlock block;
+    SSDataBlock block = {0};
     tDecodeDataBlock(buf, &block);
     taosArrayPush(pRsp->pBlockData, &block);
   }

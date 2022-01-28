@@ -69,7 +69,7 @@ int32_t mndInitSubscribe(SMnode *pMnode) {
 static int32_t mndProcessGetSubEpReq(SMnodeMsg *pMsg) {
   SMnode           *pMnode = pMsg->pMnode;
   SMqCMGetSubEpReq *pReq = (SMqCMGetSubEpReq *)pMsg->rpcMsg.pCont;
-  SMqCMGetSubEpRsp  rsp;
+  SMqCMGetSubEpRsp  rsp = {0};
   int64_t           consumerId = be64toh(pReq->consumerId);
   int64_t           currentTs = taosGetTimestampMs();
 
@@ -134,7 +134,7 @@ static int32_t mndProcessGetSubEpReq(SMnodeMsg *pMsg) {
   }
   void *abuf = buf;
   tEncodeSMqCMGetSubEpRsp(&abuf, &rsp);
-  // TODO: free rsp
+  tDeleteSMqCMGetSubEpRsp(&rsp);
   pMsg->pCont = buf;
   pMsg->contLen = tlen;
   return 0;
