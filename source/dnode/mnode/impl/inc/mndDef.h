@@ -393,6 +393,12 @@ static FORCE_INLINE void* tDecodeSMqConsumerEp(void** buf, SMqConsumerEp* pConsu
   return buf;
 }
 
+static FORCE_INLINE void tDeleteSMqConsumerEp(SMqConsumerEp* pConsumerEp) {
+  if (pConsumerEp) {
+    tfree(pConsumerEp->qmsg);
+  }
+}
+
 // unit for rebalance
 typedef struct SMqSubscribeObj {
   char    key[TSDB_SUBSCRIBE_KEY_LEN];
@@ -520,7 +526,7 @@ static FORCE_INLINE void* tDecodeSubscribeObj(void* buf, SMqSubscribeObj* pSub) 
     return NULL;
   }
   for (int32_t i = 0; i < sz; i++) {
-    SMqConsumerEp cEp;
+    SMqConsumerEp cEp = {0};
     buf = tDecodeSMqConsumerEp(buf, &cEp);
     taosArrayPush(pSub->assigned, &cEp);
   }
@@ -533,7 +539,7 @@ static FORCE_INLINE void* tDecodeSubscribeObj(void* buf, SMqSubscribeObj* pSub) 
     return NULL;
   }
   for (int32_t i = 0; i < sz; i++) {
-    SMqConsumerEp cEp;
+    SMqConsumerEp cEp = {0};
     buf = tDecodeSMqConsumerEp(buf, &cEp);
     taosArrayPush(pSub->lostConsumer, &cEp);
   }
@@ -547,7 +553,7 @@ static FORCE_INLINE void* tDecodeSubscribeObj(void* buf, SMqSubscribeObj* pSub) 
     return NULL;
   }
   for (int32_t i = 0; i < sz; i++) {
-    SMqConsumerEp cEp;
+    SMqConsumerEp cEp = {0};
     buf = tDecodeSMqConsumerEp(buf, &cEp);
     taosArrayPush(pSub->idleConsumer, &cEp);
   }
@@ -563,12 +569,35 @@ static FORCE_INLINE void* tDecodeSubscribeObj(void* buf, SMqSubscribeObj* pSub) 
     return NULL;
   }
   for (int32_t i = 0; i < sz; i++) {
-    SMqConsumerEp cEp;
+    SMqConsumerEp cEp = {0};
     buf = tDecodeSMqConsumerEp(buf, &cEp);
     taosArrayPush(pSub->unassignedVg, &cEp);
   }
 
   return buf;
+}
+
+static FORCE_INLINE void tDeleteSMqSubscribeObj(SMqSubscribeObj* pSub) {
+  if (pSub->availConsumer) {
+    taosArrayDestroy(pSub->availConsumer);
+    pSub->availConsumer = NULL;
+  }
+  if (pSub->assigned) {
+    taosArrayDestroyEx(pSub->assigned, (void (*)(void*))tDeleteSMqConsumerEp);
+    pSub->assigned = NULL;
+  }
+  if (pSub->unassignedVg) {
+    taosArrayDestroyEx(pSub->unassignedVg, (void (*)(void*))tDeleteSMqConsumerEp);
+    pSub->unassignedVg = NULL;
+  }
+  if (pSub->idleConsumer) {
+    taosArrayDestroyEx(pSub->idleConsumer, (void (*)(void*))tDeleteSMqConsumerEp);
+    pSub->idleConsumer = NULL;
+  }
+  if (pSub->lostConsumer) {
+    taosArrayDestroyEx(pSub->lostConsumer, (void (*)(void*))tDeleteSMqConsumerEp);
+    pSub->lostConsumer = NULL;
+  }
 }
 
 typedef struct SMqCGroup {

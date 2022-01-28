@@ -785,6 +785,15 @@ int32_t tqProcessConsumeReq(STQ* pTq, SRpcMsg* pMsg) {
   }
   void* abuf = buf;
   tEncodeSMqConsumeRsp(&abuf, &rsp);
+  if (rsp.pBlockData) {
+    taosArrayDestroyEx(rsp.pBlockData, (void(*)(void*))tDeleteSSDataBlock);
+    rsp.pBlockData = NULL;
+    /*for (int i = 0; i < taosArrayGetSize(rsp.pBlockData); i++) {*/
+      /*SSDataBlock* pBlock = taosArrayGet(rsp.pBlockData, i);*/
+      /*tDeleteSSDataBlock(pBlock);*/
+    /*}*/
+    /*taosArrayDestroy(rsp.pBlockData);*/
+  }
   pMsg->pCont = buf;
   pMsg->contLen = tlen;
   pMsg->code = 0;
@@ -916,6 +925,11 @@ SArray* tqRetrieveDataBlock(STqReadHandle* pHandle) {
   int32_t numOfCols = pHandle->pSchema->numOfCols;
   int32_t colNumNeed = taosArrayGetSize(pHandle->pColIdList);
 
+  //TODO: stable case
+  if (colNumNeed > pSchemaWrapper->nCols) {
+    colNumNeed = pSchemaWrapper->nCols;
+  }
+
   SArray* pArray = taosArrayInit(colNumNeed, sizeof(SColumnInfoData));
   if (pArray == NULL) {
     return NULL;
@@ -928,7 +942,6 @@ SArray* tqRetrieveDataBlock(STqReadHandle* pHandle) {
       j++;
     }
     SSchema* pColSchema = &pSchemaWrapper->pSchema[j];
-    ASSERT(pColSchema->colId == colId);
     SColumnInfoData colInfo = {0};
     int             sz = numOfRows * pColSchema->bytes;
     colInfo.info.bytes = pColSchema->bytes;

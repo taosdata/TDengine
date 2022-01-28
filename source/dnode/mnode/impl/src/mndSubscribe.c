@@ -69,7 +69,7 @@ int32_t mndInitSubscribe(SMnode *pMnode) {
 static int32_t mndProcessGetSubEpReq(SMnodeMsg *pMsg) {
   SMnode           *pMnode = pMsg->pMnode;
   SMqCMGetSubEpReq *pReq = (SMqCMGetSubEpReq *)pMsg->rpcMsg.pCont;
-  SMqCMGetSubEpRsp  rsp;
+  SMqCMGetSubEpRsp  rsp = {0};
   int64_t           consumerId = be64toh(pReq->consumerId);
   int64_t           currentTs = taosGetTimestampMs();
 
@@ -122,7 +122,7 @@ static int32_t mndProcessGetSubEpReq(SMnodeMsg *pMsg) {
     if (changed || found) {
       SSdbRaw *pRaw = mndSubActionEncode(pSub);
       sdbSetRawStatus(pRaw, SDB_STATUS_READY);
-      sdbWriteNotFree(pMnode->pSdb, pRaw);
+      sdbWrite(pMnode->pSdb, pRaw);
     }
     mndReleaseSubscribe(pMnode, pSub);
   }
@@ -134,7 +134,7 @@ static int32_t mndProcessGetSubEpReq(SMnodeMsg *pMsg) {
   }
   void *abuf = buf;
   tEncodeSMqCMGetSubEpRsp(&abuf, &rsp);
-  // TODO: free rsp
+  tDeleteSMqCMGetSubEpRsp(&rsp);
   pMsg->pCont = buf;
   pMsg->contLen = tlen;
   return 0;
@@ -292,7 +292,7 @@ static int mndInitUnassignedVg(SMnode *pMnode, SMqTopicObj *pTopic, SArray *unas
       return -1;
     }
 
-    SMqConsumerEp CEp;
+    SMqConsumerEp CEp = {0};
     CEp.status = 0;
     CEp.consumerId = -1;
     CEp.lastConsumerHbTs = CEp.lastVgHbTs = -1;
@@ -388,6 +388,7 @@ static SSdbRaw *mndSubActionEncode(SMqSubscribeObj *pSub) {
   terrno = TSDB_CODE_SUCCESS;
 
 SUB_ENCODE_OVER:
+  tfree(buf);
   if (terrno != 0) {
     mError("subscribe:%s, failed to encode to raw:%p since %s", pSub->key, pRaw, terrstr());
     sdbFreeRaw(pRaw);
@@ -431,6 +432,7 @@ static SSdbRow *mndSubActionDecode(SSdbRaw *pRaw) {
   terrno = TSDB_CODE_SUCCESS;
 
 SUB_DECODE_OVER:
+  tfree(buf);
   if (terrno != TSDB_CODE_SUCCESS) {
     mError("subscribe:%s, failed to decode from raw:%p since %s", pSub->key, pRaw, terrstr());
     // TODO free subscribeobj
@@ -448,6 +450,7 @@ static int32_t mndSubActionInsert(SSdb *pSdb, SMqSubscribeObj *pSub) {
 
 static int32_t mndSubActionDelete(SSdb *pSdb, SMqSubscribeObj *pSub) {
   mTrace("subscribe:%s, perform delete action", pSub->key);
+  tDeleteSMqSubscribeObj(pSub);
   return 0;
 }
 

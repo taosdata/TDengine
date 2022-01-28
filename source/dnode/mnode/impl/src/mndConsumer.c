@@ -75,6 +75,7 @@ SSdbRaw *mndConsumerActionEncode(SMqConsumerObj *pConsumer) {
   terrno = TSDB_CODE_SUCCESS;
 
 CM_ENCODE_OVER:
+  tfree(buf);
   if (terrno != 0) {
     mError("consumer:%ld, failed to encode to raw:%p since %s", pConsumer->consumerId, pRaw, terrstr());
     sdbFreeRaw(pRaw);
@@ -117,6 +118,7 @@ SSdbRow *mndConsumerActionDecode(SSdbRaw *pRaw) {
   terrno = TSDB_CODE_SUCCESS;
 
 CM_DECODE_OVER:
+  tfree(buf);
   if (terrno != TSDB_CODE_SUCCESS) {
     mError("consumer:%ld, failed to decode from raw:%p since %s", pConsumer->consumerId, pRaw, terrstr());
     tfree(pRow);
