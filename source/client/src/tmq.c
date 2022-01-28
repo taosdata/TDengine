@@ -557,6 +557,7 @@ int32_t tmq_ask_ep_cb(void* param, const SDataBuf* pMsg, int32_t code) {
   if (pParam->wait) {
     tsem_post(&tmq->rspSem);
   }
+  tDeleteSMqCMGetSubEpRsp(&rsp);
   free(pParam);
   return 0;
 }
