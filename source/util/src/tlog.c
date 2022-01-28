@@ -92,7 +92,7 @@ int32_t debugFlag = 0;
 int32_t sDebugFlag = 135;
 int32_t wDebugFlag = 135;
 int32_t tsdbDebugFlag = 131;
-int32_t tqDebugFlag = 131;
+int32_t tqDebugFlag = 135;
 int32_t cqDebugFlag = 131;
 int32_t fsDebugFlag = 135;
 

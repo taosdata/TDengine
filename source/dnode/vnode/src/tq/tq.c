@@ -916,6 +916,11 @@ SArray* tqRetrieveDataBlock(STqReadHandle* pHandle) {
   int32_t numOfCols = pHandle->pSchema->numOfCols;
   int32_t colNumNeed = taosArrayGetSize(pHandle->pColIdList);
 
+  //TODO: stable case
+  if (colNumNeed > pSchemaWrapper->nCols) {
+    colNumNeed = pSchemaWrapper->nCols;
+  }
+
   SArray* pArray = taosArrayInit(colNumNeed, sizeof(SColumnInfoData));
   if (pArray == NULL) {
     return NULL;
@@ -928,7 +933,6 @@ SArray* tqRetrieveDataBlock(STqReadHandle* pHandle) {
       j++;
     }
     SSchema* pColSchema = &pSchemaWrapper->pSchema[j];
-    ASSERT(pColSchema->colId == colId);
     SColumnInfoData colInfo = {0};
     int             sz = numOfRows * pColSchema->bytes;
     colInfo.info.bytes = pColSchema->bytes;
