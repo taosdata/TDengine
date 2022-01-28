@@ -40,7 +40,6 @@ typedef struct STqCfg {
   int32_t reserved;
 } STqCfg;
 
-
 typedef struct SVnodeCfg {
   int32_t  vgId;
   SDnode  *pDnode;
@@ -69,18 +68,18 @@ typedef struct {
 } SVnodeOpt;
 
 typedef struct STqReadHandle {
-  int64_t         ver;
-  uint64_t        tbUid;
-  SHashObj*       tbIdHash;
-  const SSubmitMsg*     pMsg;
-  SSubmitBlk*     pBlock;
-  SSubmitMsgIter  msgIter;
-  SSubmitBlkIter  blkIter;
-  SMeta*          pVnodeMeta;
-  SArray*         pColIdList; //SArray<int32_t>
-  int32_t         sver;
-  SSchemaWrapper* pSchemaWrapper;
-  STSchema*       pSchema;
+  int64_t           ver;
+  uint64_t          tbUid;
+  SHashObj         *tbIdHash;
+  const SSubmitMsg *pMsg;
+  SSubmitBlk       *pBlock;
+  SSubmitMsgIter    msgIter;
+  SSubmitBlkIter    blkIter;
+  SMeta            *pVnodeMeta;
+  SArray           *pColIdList;  // SArray<int32_t>
+  int32_t           sver;
+  SSchemaWrapper   *pSchemaWrapper;
+  STSchema         *pSchema;
 } STqReadHandle;
 
 /* ------------------------ SVnode ------------------------ */
@@ -202,35 +201,34 @@ int32_t vnodeGetLoad(SVnode *pVnode, SVnodeLoad *pLoad);
 
 /* ------------------------- TQ QUERY -------------------------- */
 
-STqReadHandle* tqInitSubmitMsgScanner(SMeta* pMeta);
+STqReadHandle *tqInitSubmitMsgScanner(SMeta *pMeta);
 
-static FORCE_INLINE void tqReadHandleSetColIdList(STqReadHandle* pReadHandle, SArray* pColIdList) {
+static FORCE_INLINE void tqReadHandleSetColIdList(STqReadHandle *pReadHandle, SArray *pColIdList) {
   pReadHandle->pColIdList = pColIdList;
 }
 
-//static FORCE_INLINE void tqReadHandleSetTbUid(STqReadHandle* pHandle, const SArray* pTableIdList) {
-  //pHandle->tbUid = pTableIdList;
+// static FORCE_INLINE void tqReadHandleSetTbUid(STqReadHandle* pHandle, const SArray* pTableIdList) {
+// pHandle->tbUid = pTableIdList;
 //}
 
-static FORCE_INLINE int tqReadHandleSetTbUidList(STqReadHandle* pHandle, const SArray* tbUidList) {
+static FORCE_INLINE int tqReadHandleSetTbUidList(STqReadHandle *pHandle, const SArray *tbUidList) {
   pHandle->tbIdHash = taosHashInit(64, taosGetDefaultHashFunction(TSDB_DATA_TYPE_UBIGINT), true, HASH_NO_LOCK);
   if (pHandle->tbIdHash == NULL) {
     return -1;
   }
   for (int i = 0; i < taosArrayGetSize(tbUidList); i++) {
-    int64_t* pKey = (int64_t*)taosArrayGet(tbUidList, i);
+    int64_t *pKey = (int64_t *)taosArrayGet(tbUidList, i);
     taosHashPut(pHandle->tbIdHash, pKey, sizeof(int64_t), NULL, 0);
-    //pHandle->tbUid = tbUid;
+    // pHandle->tbUid = tbUid;
   }
   return 0;
 }
 
-void           tqReadHandleSetMsg(STqReadHandle* pHandle, SSubmitMsg* pMsg, int64_t ver);
-bool           tqNextDataBlock(STqReadHandle* pHandle);
-int            tqRetrieveDataBlockInfo(STqReadHandle* pHandle, SDataBlockInfo* pBlockInfo);
+void tqReadHandleSetMsg(STqReadHandle *pHandle, SSubmitMsg *pMsg, int64_t ver);
+bool tqNextDataBlock(STqReadHandle *pHandle);
+int  tqRetrieveDataBlockInfo(STqReadHandle *pHandle, SDataBlockInfo *pBlockInfo);
 // return SArray<SColumnInfoData>
-SArray*        tqRetrieveDataBlock(STqReadHandle* pHandle);
-
+SArray *tqRetrieveDataBlock(STqReadHandle *pHandle);
 
 #ifdef __cplusplus
 }

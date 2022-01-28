@@ -30,6 +30,16 @@ extern "C" {
 #include "tmsgtype.h"
 #include "trpc.h"
 #include "query.h"
+#include "parser.h"
+
+#define CHECK_CODE_GOTO(expr, label) \
+  do {                               \
+    int32_t code = expr;             \
+    if (TSDB_CODE_SUCCESS != code) { \
+      terrno = code;                 \
+      goto label;                    \
+    }                                \
+  } while (0)
 
 #define HEARTBEAT_INTERVAL 1500  // ms
 
@@ -218,6 +228,11 @@ TAOS *taos_connect_internal(const char *ip, const char *user, const char *pass, 
 void *doFetchRow(SRequestObj* pRequest);
 
 void  setResultDataPtr(SReqResultInfo* pResultInfo, TAOS_FIELD* pFields, int32_t numOfCols, int32_t numOfRows);
+
+
+int32_t buildRequest(STscObj *pTscObj, const char *sql, int sqlLen, SRequestObj** pRequest);
+
+int32_t parseSql(SRequestObj* pRequest, SQueryNode** pQuery);
 
 // --- heartbeat 
 // global, called by mgmt

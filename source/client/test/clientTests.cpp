@@ -625,7 +625,7 @@ TEST(testCase, tmq_subscribe_ctb_Test) {
 
   tmq_conf_t* conf = tmq_conf_new();
   tmq_conf_set(conf, "group.id", "tg1");
-  tmq_t* tmq = taos_consumer_new(pConn, conf, NULL, 0);
+  tmq_t* tmq = tmq_consumer_new(pConn, conf, NULL, 0);
 
   tmq_list_t* topic_list = tmq_list_new();
   tmq_list_append(topic_list, "test_ctb_topic_1");
@@ -637,6 +637,7 @@ TEST(testCase, tmq_subscribe_ctb_Test) {
     //if (msg == NULL) break;
   }
 }
+#endif
 
 TEST(testCase, tmq_subscribe_stb_Test) {
   TAOS* pConn = taos_connect("localhost", "root", "taosdata", NULL, 0);
@@ -650,7 +651,7 @@ TEST(testCase, tmq_subscribe_stb_Test) {
 
   tmq_conf_t* conf = tmq_conf_new();
   tmq_conf_set(conf, "group.id", "tg2");
-  tmq_t* tmq = taos_consumer_new(pConn, conf, NULL, 0);
+  tmq_t* tmq = tmq_consumer_new(pConn, conf, NULL, 0);
 
   tmq_list_t* topic_list = tmq_list_new();
   tmq_list_append(topic_list, "test_stb_topic_1");
@@ -668,7 +669,6 @@ TEST(testCase, tmq_consume_Test) {
 
 TEST(testCase, tmq_commit_TEST) {
 }
-#endif
 
 #if 0
 TEST(testCase, projection_query_tables) {
