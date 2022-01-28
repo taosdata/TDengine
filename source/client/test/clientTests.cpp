@@ -606,7 +606,7 @@ TEST(testCase, create_topic_stb_Test) {
 
   taos_free_result(pRes);
 
-  char* sql = "select * from st1";
+  char* sql = "select ts, k from st1";
   pRes = taos_create_topic(pConn, "test_stb_topic_1", sql, strlen(sql));
   taos_free_result(pRes);
   taos_close(pConn);
@@ -657,18 +657,18 @@ TEST(testCase, tmq_subscribe_stb_Test) {
   tmq_subscribe(tmq, topic_list);
 
   while (1) {
-    tmq_message_t* msg = tmq_consume_poll(tmq, 1000);
+    tmq_message_t* msg = tmq_consumer_poll(tmq, 1000);
     //printf("get msg\n");
     //if (msg == NULL) break;
   }
 }
-#endif
 
 TEST(testCase, tmq_consume_Test) {
 }
 
 TEST(testCase, tmq_commit_TEST) {
 }
+#endif
 
 #if 0
 TEST(testCase, projection_query_tables) {

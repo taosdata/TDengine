@@ -216,7 +216,8 @@ static SPhyNode* createMultiTableScanNode(SQueryPlanNode* pPlanNode, SQueryTable
   } else if (needSeqScan(pPlanNode)) {
     return createUserTableScanNode(pPlanNode, pTable, OP_TableSeqScan);
   }
-  return createUserTableScanNode(pPlanNode, pTable, OP_DataBlocksOptScan);
+  int32_t type = (pPlanNode->info.type == QNODE_TABLESCAN)? OP_DataBlocksOptScan:OP_StreamScan;
+  return createUserTableScanNode(pPlanNode, pTable, type);
 }
 
 static SSubplan* initSubplan(SPlanContext* pCxt, int32_t type) {

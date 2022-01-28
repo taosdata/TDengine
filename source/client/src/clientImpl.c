@@ -624,14 +624,64 @@ _return:
   return pRequest;
 }
 
-/*typedef SMqConsumeRsp tmq_message_t;*/
+static char *formatTimestamp(char *buf, int64_t val, int precision) {
+  time_t  tt;
+  int32_t ms = 0;
+  if (precision == TSDB_TIME_PRECISION_NANO) {
+    tt = (time_t)(val / 1000000000);
+    ms = val % 1000000000;
+  } else if (precision == TSDB_TIME_PRECISION_MICRO) {
+    tt = (time_t)(val / 1000000);
+    ms = val % 1000000;
+  } else {
+    tt = (time_t)(val / 1000);
+    ms = val % 1000;
+  }
+
+  /* comment out as it make testcases like select_with_tags.sim fail.
+    but in windows, this may cause the call to localtime crash if tt < 0,
+    need to find a better solution.
+    if (tt < 0) {
+      tt = 0;
+    }
+    */
+
+#ifdef WINDOWS
+  if (tt < 0) tt = 0;
+#endif
+  if (tt <= 0 && ms < 0) {
+    tt--;
+    if (precision == TSDB_TIME_PRECISION_NANO) {
+      ms += 1000000000;
+    } else if (precision == TSDB_TIME_PRECISION_MICRO) {
+      ms += 1000000;
+    } else {
+      ms += 1000;
+    }
+  }
+
+  struct tm *ptm = localtime(&tt);
+  size_t     pos = strftime(buf, 35, "%Y-%m-%d %H:%M:%S", ptm);
+
+  if (precision == TSDB_TIME_PRECISION_NANO) {
+    sprintf(buf + pos, ".%09d", ms);
+  } else if (precision == TSDB_TIME_PRECISION_MICRO) {
+    sprintf(buf + pos, ".%06d", ms);
+  } else {
+    sprintf(buf + pos, ".%03d", ms);
+  }
+
+  return buf;
+}
 
 int32_t tmq_poll_cb_inner(void* param, const SDataBuf* pMsg, int32_t code) {
   if (code == -1) {
-    printf("discard\n");
+    printf("msg discard\n");
     return 0;
   }
-  SMqClientVg* pVg = (SMqClientVg*)param;
+  char pBuf[128];
+  SMqConsumeCbParam* pParam = (SMqConsumeCbParam*)param;
+  SMqClientVg* pVg = pParam->pVg;
   SMqConsumeRsp rsp;
   tDecodeSMqConsumeRsp(pMsg->pData, &rsp);
   if (rsp.numOfTopics == 0) {
@@ -644,10 +694,11 @@ int32_t tmq_poll_cb_inner(void* param, const SDataBuf* pMsg, int32_t code) {
   /*printf("-----msg begin----\n");*/
   printf("|");
   for (int32_t i = 0; i < colNum; i++) {
-    printf(" %15s |", rsp.schemas->pSchema[i].name);
+    if (i == 0) printf(" %25s |", rsp.schemas->pSchema[i].name);
+    else printf(" %15s |", rsp.schemas->pSchema[i].name);
   }
   printf("\n");
-  printf("=====================================\n");
+  printf("===============================================\n");
   int32_t sz = taosArrayGetSize(rsp.pBlockData);
   for (int32_t i = 0; i < sz; i++) {
     SSDataBlock* pDataBlock = taosArrayGet(rsp.pBlockData, i);
@@ -659,7 +710,8 @@ int32_t tmq_poll_cb_inner(void* param, const SDataBuf* pMsg, int32_t code) {
         void* var = POINTER_SHIFT(pColInfoData->pData, j * pColInfoData->info.bytes);
         switch(pColInfoData->info.type) {
           case TSDB_DATA_TYPE_TIMESTAMP:
-            printf(" %15lu |", *(uint64_t*)var);
+            formatTimestamp(pBuf, *(uint64_t*)var, TSDB_TIME_PRECISION_MILLI);
+            printf(" %25s |", pBuf);
             break;
           case TSDB_DATA_TYPE_INT:
           case TSDB_DATA_TYPE_UINT:
@@ -789,6 +841,7 @@ SMqConsumeReq* tmqBuildConsumeReqImpl(tmq_t* tmq, int64_t blocking_time, int32_t
   pTopic->nextVgIdx = (pTopic->nextVgIdx + 1 % taosArrayGetSize(pTopic->vgs));
   SMqClientVg* pVg = taosArrayGet(pTopic->vgs, pTopic->nextVgIdx);
   pReq->offset = pVg->currentOffset+1;
+  *ppVg = pVg;
 
   pReq->head.vgId = htonl(pVg->vgId);
   pReq->head.contLen = htonl(sizeof(SMqConsumeReq));
