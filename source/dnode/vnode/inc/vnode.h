@@ -72,7 +72,7 @@ typedef struct STqReadHandle {
   int64_t         ver;
   uint64_t        tbUid;
   SHashObj*       tbIdHash;
-  SSubmitMsg*     pMsg;
+  const SSubmitMsg*     pMsg;
   SSubmitBlk*     pBlock;
   SSubmitMsgIter  msgIter;
   SSubmitBlkIter  blkIter;
@@ -208,9 +208,9 @@ static FORCE_INLINE void tqReadHandleSetColIdList(STqReadHandle* pReadHandle, SA
   pReadHandle->pColIdList = pColIdList;
 }
 
-static FORCE_INLINE void tqReadHandleSetTbUid(STqReadHandle* pHandle, const SArray* pTableIdList) {
-//  pHandle->tbUid = pTableIdList;
-}
+//static FORCE_INLINE void tqReadHandleSetTbUid(STqReadHandle* pHandle, const SArray* pTableIdList) {
+  //pHandle->tbUid = pTableIdList;
+//}
 
 static FORCE_INLINE int tqReadHandleSetTbUidList(STqReadHandle* pHandle, SArray* tbUidList) {
   pHandle->tbIdHash = taosHashInit(64, taosGetDefaultHashFunction(TSDB_DATA_TYPE_UBIGINT), true, HASH_NO_LOCK);
