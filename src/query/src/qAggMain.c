@@ -4956,8 +4956,7 @@ static void unique_function(SQLFunctionCtx *pCtx) {
     }
     UniqueUnit *unique = taosHashGet(pInfo->pSet, pData, pCtx->inputBytes);
     if (unique == NULL || unique->timestamp > k) {
-      UniqueUnit unit;
-      unit.timestamp = k;
+      UniqueUnit unit = {.timestamp = k, .pTags = NULL};
       if (pCtx->tagInfo.numOfTagCols > 0) {
         unit.pTags = calloc(pCtx->tagInfo.tagsLen, 1);
         int32_t offset = 0;
