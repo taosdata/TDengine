@@ -14,3 +14,4 @@ python3 ./test.py -f 2-query/upper_func.py
 python3 ./test.py -f 2-query/ltrim_func.py
 python3 ./test.py -f 2-query/rtrim_func.py
 python3 ./test.py -f 2-query/substr_func.py
+python3 ./test.py -f 2-query/math_funcs.py

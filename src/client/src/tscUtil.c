@@ -4518,6 +4518,7 @@ void tscTryQueryNextClause(SSqlObj* pSql, __async_cb_func_t fp) {
   pRes->final = finalBk;
   pRes->numOfTotal = num;
 
+  pthread_mutex_lock(&pSql->subState.mutex);
   for(int32_t i = 0; i < pSql->subState.numOfSub; ++i) {
     taos_free_result(pSql->pSubs[i]);
   }
@@ -4525,6 +4526,7 @@ void tscTryQueryNextClause(SSqlObj* pSql, __async_cb_func_t fp) {
   tfree(pSql->pSubs);
   tfree(pSql->subState.states);
   pSql->subState.numOfSub = 0;
+  pthread_mutex_unlock(&pSql->subState.mutex);
   pthread_mutex_destroy(&pSql->subState.mutex);
 
   pSql->fp = fp;

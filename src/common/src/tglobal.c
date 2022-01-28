@@ -65,6 +65,7 @@ char    tsLocale[TSDB_LOCALE_LEN] = {0};
 char    tsCharset[TSDB_LOCALE_LEN] = {0};  // default encode string
 int8_t  tsEnableCoreFile = 0;
 int32_t tsMaxBinaryDisplayWidth = 30;
+int32_t tsShortcutFlag = 0;  // shortcut flag to facilitate debugging
 
 /*
  * denote if the server needs to compress response message at the application layer to client, including query rsp,
@@ -1747,6 +1748,17 @@ static void doInitGlobalConfig(void) {
   cfg.maxValue = TSDB_MAX_WAL_FLUSH_SIZE;
   cfg.ptrLength = 0;
   cfg.unitType = TAOS_CFG_UTYPE_MB;
+  taosInitConfigOption(cfg);
+
+  // shortcut flag to facilitate debugging
+  cfg.option = "shortcutFlag";
+  cfg.ptr = &tsShortcutFlag;
+  cfg.valType = TAOS_CFG_VTYPE_INT32;
+  cfg.cfgType = TSDB_CFG_CTYPE_B_CONFIG | TSDB_CFG_CTYPE_B_SHOW | TSDB_CFG_CTYPE_B_CLIENT;
+  cfg.minValue = 0;
+  cfg.maxValue = (1 << 24);
+  cfg.ptrLength = 0;
+  cfg.unitType = TAOS_CFG_UTYPE_NONE;
   taosInitConfigOption(cfg);
 
 #ifdef TD_TSZ

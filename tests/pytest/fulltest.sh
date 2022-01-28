@@ -417,6 +417,7 @@ python3 ./test.py -f insert/flushwhiledrop.py
 python3 ./test.py -f alter/alterColMultiTimes.py
 python3 ./test.py -f query/queryWildcardLength.py
 python3 ./test.py -f query/queryTbnameUpperLower.py
+python3 ./test.py -f alter/alterBackQuoteCol.py
 
 python3 ./test.py -f query/query.py
 python3 ./test.py -f query/queryDiffColsTagsAndOr.py

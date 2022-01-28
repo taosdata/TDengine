@@ -1,7 +1,6 @@
 # TDengine Documentation
 
-TDengine is a highly efficient platform to store, query, and analyze time-series data. It is specially designed and optimized for IoT, Internet of Vehicles, Industrial IoT, IT Infrastructure and Application Monitoring, etc. It works like a relational database, such as MySQL, but you are strongly encouraged to read through the following documentation before you experience it, especially the Data Modeling sections. In addition to this document, you should also download and read the technology white paper. For the older TDengine version 1.6 documentation, please click [here](https://www.taosdata.com/en/documentation16/).
-
+TDengine is a highly efficient platform to store, query, and analyze time-series data. It is specially designed and optimized for IoT, Internet of Vehicles, Industrial IoT, IT Infrastructure and Application Monitoring, etc. It works like a relational database, such as MySQL, but you are strongly encouraged to read through the following documentation before you experience it, especially the Data Modeling sections. In addition to this document, you should also download and read the technology white paper. 
 ## [TDengine Introduction](/evaluation)
 
 * [TDengine Introduction and Features](/evaluation#intro)
@@ -82,11 +81,10 @@ TDengine is a highly efficient platform to store, query, and analyze time-series
 
 ## [Components and Tools](/cn/documentation/)
 
-* [taosAdapter User Manual](/tools/adapter)
-* [TDinsight User Manual](/tools/insight)
-* [taosTools Install Manual](/tools/taos-tools)
-* [taosdump User Manual](/tools/taosdump)
-* [taosbenchmark User Manual](/tools/taosbenchmark)
+* [taosAdapter](/tools/adapter): a bridge/adapter between TDengine cluster and applications.
+* [TDinsight](/tools/insight): monitoring TDengine cluster with Grafana.
+* [taosdump](/tools/taosdump): backup tool for TDengine. Please install `taosTools` package for it.
+* [taosBenchmark](tools/taosbenchmark): stress test tool for TDengine. Please install `taosTools` package for it.
 
 ## [Connections with Other Tools](/connections)
 

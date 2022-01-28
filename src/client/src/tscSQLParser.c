@@ -3458,10 +3458,7 @@ static int16_t doGetColumnIndex(SQueryInfo* pQueryInfo, int32_t index, SStrToken
   strncpy(tmpTokenBuf, pToken->z, pToken->n);
   
   pToken->z = tmpTokenBuf;
-
-  if (pToken->type == TK_ID) {
-    pToken->n = stringProcess(pToken->z, pToken->n);
-  }
+  pToken->n = stringProcess(pToken->z, pToken->n);
 
   for (int16_t i = 0; i < numOfCols; ++i) {
     if (pToken->n != strlen(pSchema[i].name)) {
@@ -3554,7 +3551,10 @@ int32_t getTableIndexImpl(SStrToken* pTableToken, SQueryInfo* pQueryInfo, SColum
 
 int32_t getTableIndexByName(SStrToken* pToken, SQueryInfo* pQueryInfo, SColumnIndex* pIndex) {
   SStrToken tableToken = {0};
-  extractTableNameFromToken(pToken, &tableToken);
+
+  if (pToken->z && (pToken->z[0] != TS_BACKQUOTE_CHAR || pToken->z[pToken->n - 1] != TS_BACKQUOTE_CHAR)) {
+    extractTableNameFromToken(pToken, &tableToken);
+  }
 
   if (getTableIndexImpl(&tableToken, pQueryInfo, pIndex) != TSDB_CODE_SUCCESS) {
     return TSDB_CODE_TSC_INVALID_OPERATION;
@@ -6849,7 +6849,7 @@ int32_t setAlterTableInfo(SSqlObj* pSql, struct SSqlInfo* pInfo) {
     }
 
     SColumnIndex index = COLUMN_INDEX_INITIALIZER;
-    SStrToken    name = {.z = pItem->pVar.pz, .n = pItem->pVar.nLen, .type = TK_STRING};
+    SStrToken    name = {.z = pItem->pVar.pz, .n = pItem->pVar.nLen};
 
     if (getColumnIndexByName(&name, pQueryInfo, &index, tscGetErrorMsgPayload(pCmd)) != TSDB_CODE_SUCCESS) {
       return TSDB_CODE_TSC_INVALID_OPERATION;
@@ -6864,7 +6864,7 @@ int32_t setAlterTableInfo(SSqlObj* pSql, struct SSqlInfo* pInfo) {
 
     char name1[128] = {0};
     strncpy(name1, pItem->pVar.pz, pItem->pVar.nLen);
-
+    stringProcess(name1, (int32_t)strlen(name1));
     TAOS_FIELD f = tscCreateField(TSDB_DATA_TYPE_INT, name1, tDataTypes[TSDB_DATA_TYPE_INT].bytes);
     tscFieldInfoAppend(&pQueryInfo->fieldsInfo, &f);
   } else if (pAlterSQL->type == TSDB_ALTER_TABLE_CHANGE_TAG_COLUMN) {
@@ -6887,12 +6887,12 @@ int32_t setAlterTableInfo(SSqlObj* pSql, struct SSqlInfo* pInfo) {
     SColumnIndex srcIndex = COLUMN_INDEX_INITIALIZER;
     SColumnIndex destIndex = COLUMN_INDEX_INITIALIZER;
 
-    SStrToken srcToken = {.z = pSrcItem->pVar.pz, .n = pSrcItem->pVar.nLen, .type = TK_STRING};
+    SStrToken srcToken = {.z = pSrcItem->pVar.pz, .n = pSrcItem->pVar.nLen};
     if (getColumnIndexByName(&srcToken, pQueryInfo, &srcIndex, tscGetErrorMsgPayload(pCmd)) != TSDB_CODE_SUCCESS) {
       return invalidOperationMsg(pMsg, msg17);
     }
 
-    SStrToken destToken = {.z = pDstItem->pVar.pz, .n = pDstItem->pVar.nLen, .type = TK_STRING};
+    SStrToken destToken = {.z = pDstItem->pVar.pz, .n = pDstItem->pVar.nLen};
     if (getColumnIndexByName(&destToken, pQueryInfo, &destIndex, tscGetErrorMsgPayload(pCmd)) == TSDB_CODE_SUCCESS) {
       return invalidOperationMsg(pMsg, msg19);
     }
@@ -6901,6 +6901,7 @@ int32_t setAlterTableInfo(SSqlObj* pSql, struct SSqlInfo* pInfo) {
 
     char name[TSDB_COL_NAME_LEN] = {0};
     strncpy(name, pItem->pVar.pz, pItem->pVar.nLen);
+    stringProcess(name, (int32_t)strlen(name));
     TAOS_FIELD f = tscCreateField(TSDB_DATA_TYPE_INT, name, tDataTypes[TSDB_DATA_TYPE_INT].bytes);
     tscFieldInfoAppend(&pQueryInfo->fieldsInfo, &f);
 
@@ -6908,6 +6909,7 @@ int32_t setAlterTableInfo(SSqlObj* pSql, struct SSqlInfo* pInfo) {
     memset(name, 0, tListLen(name));
 
     strncpy(name, pItem->pVar.pz, pItem->pVar.nLen);
+    stringProcess(name, (int32_t)strlen(name));
     f = tscCreateField(TSDB_DATA_TYPE_INT, name, tDataTypes[TSDB_DATA_TYPE_INT].bytes);
     tscFieldInfoAppend(&pQueryInfo->fieldsInfo, &f);
   } else if (pAlterSQL->type == TSDB_ALTER_TABLE_UPDATE_TAG_VAL) {
@@ -6920,7 +6922,7 @@ int32_t setAlterTableInfo(SSqlObj* pSql, struct SSqlInfo* pInfo) {
     int16_t       numOfTags = tscGetNumOfTags(pTableMeta);
 
     SColumnIndex columnIndex = COLUMN_INDEX_INITIALIZER;
-    SStrToken    name = {.type = TK_STRING, .z = item->pVar.pz, .n = item->pVar.nLen};
+    SStrToken    name = {.z = item->pVar.pz, .n = item->pVar.nLen};
     if (getColumnIndexByName(&name, pQueryInfo, &columnIndex, tscGetErrorMsgPayload(pCmd)) != TSDB_CODE_SUCCESS) {
       return TSDB_CODE_TSC_INVALID_OPERATION;
     }
@@ -7053,14 +7055,7 @@ int32_t setAlterTableInfo(SSqlObj* pSql, struct SSqlInfo* pInfo) {
     tVariantListItem* pItem = taosArrayGet(pAlterSQL->varList, 0);
 
     SColumnIndex columnIndex = COLUMN_INDEX_INITIALIZER;
-    SStrToken    name = {.type = TK_STRING, .z = pItem->pVar.pz, .n = pItem->pVar.nLen};
-
-    //handle Escape character backstick
-    bool inEscape = false;
-    if (name.z[0] == TS_BACKQUOTE_CHAR && name.z[name.n - 1] == TS_BACKQUOTE_CHAR) {
-      inEscape = true;
-      name.type = TK_ID;
-    }
+    SStrToken    name = {.z = pItem->pVar.pz, .n = pItem->pVar.nLen};
 
     if (getColumnIndexByName(&name, pQueryInfo, &columnIndex, tscGetErrorMsgPayload(pCmd)) != TSDB_CODE_SUCCESS) {
       return invalidOperationMsg(pMsg, msg17);
@@ -7072,12 +7067,7 @@ int32_t setAlterTableInfo(SSqlObj* pSql, struct SSqlInfo* pInfo) {
 
     char name1[TSDB_COL_NAME_LEN] = {0};
     tstrncpy(name1, pItem->pVar.pz, sizeof(name1));
-
-    int32_t nameLen = pItem->pVar.nLen;
-    if (inEscape) {
-      memmove(name1, name1 + 1, nameLen);
-      name1[nameLen - TS_BACKQUOTE_CHAR_SIZE] = '\0';
-    }
+    stringProcess(name1, (int32_t)strlen(name1));
 
     TAOS_FIELD f = tscCreateField(TSDB_DATA_TYPE_INT, name1, tDataTypes[TSDB_DATA_TYPE_INT].bytes);
     tscFieldInfoAppend(&pQueryInfo->fieldsInfo, &f);
@@ -7086,21 +7076,13 @@ int32_t setAlterTableInfo(SSqlObj* pSql, struct SSqlInfo* pInfo) {
       return invalidOperationMsg(pMsg, msg16);
     }
 
-
     TAOS_FIELD* pItem = taosArrayGet(pAlterSQL->pAddColumns, 0);
     if (pItem->type != TSDB_DATA_TYPE_BINARY && pItem->type != TSDB_DATA_TYPE_NCHAR) {
       return invalidOperationMsg(pMsg, msg21);
     }
 
     SColumnIndex columnIndex = COLUMN_INDEX_INITIALIZER;
-    SStrToken    name = {.type = TK_STRING, .z = pItem->name, .n = (uint32_t)strlen(pItem->name)};
-
-    //handle Escape character backstick
-    bool inEscape = false;
-    if (name.z[0] == TS_BACKQUOTE_CHAR && name.z[name.n - 1] == TS_BACKQUOTE_CHAR) {
-      inEscape = true;
-      name.type = TK_ID;
-    }
+    SStrToken    name = {.z = pItem->name, .n = (uint32_t)strlen(pItem->name)};
 
     if (getColumnIndexByName(&name, pQueryInfo, &columnIndex, tscGetErrorMsgPayload(pCmd)) != TSDB_CODE_SUCCESS) {
       return invalidOperationMsg(pMsg, msg17);
@@ -7136,12 +7118,7 @@ int32_t setAlterTableInfo(SSqlObj* pSql, struct SSqlInfo* pInfo) {
       return invalidOperationMsg(pMsg, msg24);
     }
 
-    if (inEscape) {
-      memmove(name.z, name.z + 1, name.n);
-      name.z[name.n - TS_BACKQUOTE_CHAR_SIZE] = '\0';
-      name.n -= TS_BACKQUOTE_CHAR_SIZE;
-    }
-
+    stringProcess(name.z, name.n);
     TAOS_FIELD f = tscCreateField(pColSchema->type, name.z, pItem->bytes);
     tscFieldInfoAppend(&pQueryInfo->fieldsInfo, &f);
   }else if (pAlterSQL->type == TSDB_ALTER_TABLE_MODIFY_TAG_COLUMN) {
@@ -7155,13 +7132,7 @@ int32_t setAlterTableInfo(SSqlObj* pSql, struct SSqlInfo* pInfo) {
     }
 
     SColumnIndex columnIndex = COLUMN_INDEX_INITIALIZER;
-    SStrToken    name = {.type = TK_STRING, .z = pItem->name, .n = (uint32_t)strlen(pItem->name)};
-    //handle Escape character backstick
-    if (name.z[0] == TS_BACKQUOTE_CHAR && name.z[name.n - 1] == TS_BACKQUOTE_CHAR) {
-      memmove(name.z, name.z + 1, name.n);
-      name.z[name.n - TS_BACKQUOTE_CHAR_SIZE] = '\0';
-      name.n -= TS_BACKQUOTE_CHAR_SIZE;
-    }
+    SStrToken    name = {.z = pItem->name, .n = (uint32_t)strlen(pItem->name)};
     if (getColumnIndexByName(&name, pQueryInfo, &columnIndex, tscGetErrorMsgPayload(pCmd)) != TSDB_CODE_SUCCESS) {
       return invalidOperationMsg(pMsg, msg17);
     }
@@ -7201,6 +7172,8 @@ int32_t setAlterTableInfo(SSqlObj* pSql, struct SSqlInfo* pInfo) {
     if (nLen >= TSDB_MAX_TAGS_LEN) {
       return invalidOperationMsg(pMsg, msg24);
     }
+
+    stringProcess(name.z, name.n);
 
     TAOS_FIELD f = tscCreateField(pColSchema->type, name.z, pItem->bytes);
     tscFieldInfoAppend(&pQueryInfo->fieldsInfo, &f);
@@ -7555,9 +7528,8 @@ int32_t validateLimitNode(SSqlCmd* pCmd, SQueryInfo* pQueryInfo, SSqlNode* pSqlN
        */
       if (pQueryInfo->limit.limit > 0) {
         pQueryInfo->vgroupLimit = pQueryInfo->limit.limit + pQueryInfo->limit.offset;
-        pQueryInfo->limit.limit = -1;
+        pQueryInfo->limit.limit += pQueryInfo->limit.offset;
       }
-
       pQueryInfo->limit.offset = 0;
     }
   } else {
