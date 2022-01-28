@@ -292,7 +292,7 @@ static int mndInitUnassignedVg(SMnode *pMnode, SMqTopicObj *pTopic, SArray *unas
       return -1;
     }
 
-    SMqConsumerEp CEp;
+    SMqConsumerEp CEp = {0};
     CEp.status = 0;
     CEp.consumerId = -1;
     CEp.lastConsumerHbTs = CEp.lastVgHbTs = -1;

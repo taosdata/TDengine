@@ -597,7 +597,6 @@ int32_t tmqAsyncAskEp(tmq_t* tmq, bool wait) {
     asyncSendMsgToServer(tmq->pTscObj->pAppInfo->pTransporter, &epSet, &transporterId, sendInfo);
 
 END:
-    tfree(buf);
     if (wait) tsem_wait(&tmq->rspSem);
     return 0;
 }
