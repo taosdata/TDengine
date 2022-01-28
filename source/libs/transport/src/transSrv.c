@@ -22,7 +22,7 @@ typedef struct SSrvConn {
   uv_write_t* pWriter;
   uv_timer_t* pTimer;
 
-  uv_async_t* pWorkerAsync;
+  // uv_async_t* pWorkerAsync;
   queue       queue;
   int         ref;
   int         persist;  // persist connection or not
@@ -50,11 +50,12 @@ typedef struct SSrvMsg {
 } SSrvMsg;
 
 typedef struct SWorkThrdObj {
-  pthread_t       thread;
-  uv_pipe_t*      pipe;
-  int             fd;
-  uv_loop_t*      loop;
-  uv_async_t*     workerAsync;  //
+  pthread_t   thread;
+  uv_pipe_t*  pipe;
+  int         fd;
+  uv_loop_t*  loop;
+  SAsyncPool* asyncPool;
+  // uv_async_t*     workerAsync;  //
   queue           msg;
   pthread_mutex_t msgMtx;
   void*           pTransInst;
@@ -469,7 +470,7 @@ void uvOnConnectionCb(uv_stream_t* q, ssize_t nread, const uv_buf_t* buf) {
   pConn->pTimer->data = pConn;
 
   pConn->hostThrd = pThrd;
-  pConn->pWorkerAsync = pThrd->workerAsync;  // thread safty
+  // pConn->pWorkerAsync = pThrd->workerAsync;  // thread safty
 
   // init client handle
   pConn->pTcp = (uv_tcp_t*)malloc(sizeof(uv_tcp_t));
@@ -512,10 +513,7 @@ static bool addHandleToWorkloop(void* arg) {
   QUEUE_INIT(&pThrd->msg);
   pthread_mutex_init(&pThrd->msgMtx, NULL);
 
-  pThrd->workerAsync = malloc(sizeof(uv_async_t));
-  uv_async_init(pThrd->loop, pThrd->workerAsync, uvWorkerAsyncCb);
-  pThrd->workerAsync->data = pThrd;
-
+  pThrd->asyncPool = transCreateAsyncPool(pThrd->loop, pThrd, uvWorkerAsyncCb);
   uv_read_start((uv_stream_t*)pThrd->pipe, uvAllocConnBufferCb, uvOnConnectionCb);
   return true;
 }
@@ -665,7 +663,9 @@ void destroyWorkThrd(SWorkThrdObj* pThrd) {
   }
   pthread_join(pThrd->thread, NULL);
   free(pThrd->loop);
-  free(pThrd->workerAsync);
+  transDestroyAsyncPool(pThrd->asyncPool);
+
+  // free(pThrd->workerAsync);
   free(pThrd);
 }
 void sendQuitToWorkThrd(SWorkThrdObj* pThrd) {
@@ -676,7 +676,8 @@ void sendQuitToWorkThrd(SWorkThrdObj* pThrd) {
   pthread_mutex_unlock(&pThrd->msgMtx);
   tDebug("send quit msg to work thread");
 
-  uv_async_send(pThrd->workerAsync);
+  transSendAsync(pThrd->asyncPool);
+  // uv_async_send(pThrd->workerAsync);
 }
 
 void taosCloseServer(void* arg) {
@@ -716,8 +717,8 @@ void rpcSendResponse(const SRpcMsg* pMsg) {
   pthread_mutex_unlock(&pThrd->msgMtx);
 
   tDebug("conn %p start to send resp", pConn);
-
-  uv_async_send(pThrd->workerAsync);
+  transSendAsync(pThrd->asyncPool);
+  // uv_async_send(pThrd->workerAsync);
 }
 
 #endif

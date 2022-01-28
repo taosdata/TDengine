@@ -42,9 +42,10 @@ typedef struct SCliMsg {
 } SCliMsg;
 
 typedef struct SCliThrdObj {
-  pthread_t       thread;
-  uv_loop_t*      loop;
-  uv_async_t*     cliAsync;  //
+  pthread_t  thread;
+  uv_loop_t* loop;
+  // uv_async_t*     cliAsync;  //
+  SAsyncPool*     asyncPool;
   uv_timer_t*     timer;
   void*           pool;  // conn pool
   queue           msg;
@@ -379,7 +380,7 @@ static void clientConnCb(uv_connect_t* req, int status) {
 static void clientHandleQuit(SCliMsg* pMsg, SCliThrdObj* pThrd) {
   tDebug("thread %p start to quit", pThrd);
   destroyCmsg(pMsg);
-  uv_close((uv_handle_t*)pThrd->cliAsync, NULL);
+  // transDestroyAsyncPool(pThr) uv_close((uv_handle_t*)pThrd->cliAsync, NULL);
   uv_timer_stop(pThrd->timer);
   pThrd->quit = true;
   // uv__async_stop(pThrd->cliAsync);
@@ -501,6 +502,7 @@ static void destroyCmsg(SCliMsg* pMsg) {
   destroyUserdata(&pMsg->msg);
   free(pMsg);
 }
+
 static SCliThrdObj* createThrdObj() {
   SCliThrdObj* pThrd = (SCliThrdObj*)calloc(1, sizeof(SCliThrdObj));
   QUEUE_INIT(&pThrd->msg);
@@ -509,9 +511,7 @@ static SCliThrdObj* createThrdObj() {
   pThrd->loop = (uv_loop_t*)malloc(sizeof(uv_loop_t));
   uv_loop_init(pThrd->loop);
 
-  pThrd->cliAsync = malloc(sizeof(uv_async_t));
-  uv_async_init(pThrd->loop, pThrd->cliAsync, clientAsyncCb);
-  pThrd->cliAsync->data = pThrd;
+  pThrd->asyncPool = transCreateAsyncPool(pThrd->loop, pThrd, clientAsyncCb);
 
   pThrd->timer = malloc(sizeof(uv_timer_t));
   uv_timer_init(pThrd->loop, pThrd->timer);
@@ -529,7 +529,8 @@ static void destroyThrdObj(SCliThrdObj* pThrd) {
   uv_stop(pThrd->loop);
   pthread_join(pThrd->thread, NULL);
   pthread_mutex_destroy(&pThrd->msgMtx);
-  free(pThrd->cliAsync);
+  transDestroyAsyncPool(pThrd->asyncPool);
+  // free(pThrd->cliAsync);
   free(pThrd->timer);
   free(pThrd->loop);
   free(pThrd);
@@ -551,7 +552,8 @@ static void clientSendQuit(SCliThrdObj* thrd) {
   QUEUE_PUSH(&thrd->msg, &msg->q);
   pthread_mutex_unlock(&thrd->msgMtx);
 
-  uv_async_send(thrd->cliAsync);
+  transSendAsync(thrd->asyncPool);
+  // uv_async_send(thrd->cliAsync);
 }
 void taosCloseClient(void* arg) {
   // impl later
@@ -600,6 +602,10 @@ void rpcSendRequest(void* shandle, const SEpSet* pEpSet, SRpcMsg* pMsg, int64_t*
   QUEUE_PUSH(&thrd->msg, &cliMsg->q);
   pthread_mutex_unlock(&thrd->msgMtx);
 
-  uv_async_send(thrd->cliAsync);
+  int start = taosGetTimestampUs();
+  transSendAsync(thrd->asyncPool);
+  // uv_async_send(thrd->cliAsync);
+  int end = taosGetTimestampUs() - start;
+  // tError("client sent to rpc, time cost: %d", (int)end);
 }
 #endif

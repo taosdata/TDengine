@@ -245,4 +245,36 @@ int transDestroyBuffer(SConnBuffer* buf) {
   }
   transClearBuffer(buf);
 }
+
+SAsyncPool* transCreateAsyncPool(uv_loop_t* loop, void* arg, AsyncCB cb) {
+  static int sz = 20;
+
+  SAsyncPool* pool = calloc(1, sizeof(SAsyncPool));
+  pool->index = 0;
+  pool->nAsync = sz;
+  pool->asyncs = calloc(1, sizeof(uv_async_t) * pool->nAsync);
+
+  for (int i = 0; i < pool->nAsync; i++) {
+    uv_async_t* async = &(pool->asyncs[i]);
+    uv_async_init(loop, async, cb);
+    async->data = arg;
+  }
+  return pool;
+}
+void transDestroyAsyncPool(SAsyncPool* pool) {
+  for (int i = 0; i < pool->nAsync; i++) {
+    uv_async_t* async = &(pool->asyncs[i]);
+  }
+  free(pool->asyncs);
+  free(pool);
+}
+int transSendAsync(SAsyncPool* pool) {
+  int idx = pool->index;
+  idx = idx % pool->nAsync;
+  // no need mutex here
+  if (pool->index++ > pool->nAsync) {
+    pool->index = 0;
+  }
+  return uv_async_send(&(pool->asyncs[idx]));
+}
 #endif
