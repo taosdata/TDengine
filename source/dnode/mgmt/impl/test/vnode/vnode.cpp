@@ -235,20 +235,26 @@ TEST_F(DndTestVnode, 04_ALTER_Stb) {
 }
 
 TEST_F(DndTestVnode, 05_DROP_Stb) {
-#if 0
   {
+    int32_t      contLen = sizeof(SVDropTbReq);
+    SVDropTbReq* pReq = (SVDropTbReq*)rpcMallocCont(contLen);
+    strcpy(pReq->name, "stb1");
+    pReq->suid = 0;
+
+    SMsgHead* pMsgHead = (SMsgHead*)&pReq->head;
+    pMsgHead->contLen = htonl(contLen);
+    pMsgHead->vgId = htonl(2);
+
     for (int i = 0; i < 3; ++i) {
       SRpcMsg* pRsp = test.SendReq(TDMT_VND_DROP_STB, pReq, contLen);
       ASSERT_NE(pRsp, nullptr);
       if (i == 0) {
         ASSERT_EQ(pRsp->code, 0);
-        test.Restart();
-      } else {
-        ASSERT_EQ(pRsp->code, TSDB_CODE_TDB_INVALID_TABLE_ID);
-      }
+      }  // else {
+         // ASSERT_EQ(pRsp->code, TSDB_CODE_TDB_INVALID_TABLE_ID);
+      //}
     }
   }
-#endif
 }
 
 TEST_F(DndTestVnode, 06_DROP_Vnode) {
