@@ -866,18 +866,16 @@ bool tqNextDataBlock(STqReadHandle* pHandle) {
     if (pHandle->pBlock == NULL) return false;
 
     pHandle->pBlock->uid = htobe64(pHandle->pBlock->uid);
-    if (pHandle->tbUid == pHandle->pBlock->uid) {
+    /*if (pHandle->tbUid == pHandle->pBlock->uid) {*/
+    ASSERT(pHandle->tbIdHash);
+    void* ret = taosHashGet(pHandle->tbIdHash, &pHandle->pBlock->uid, sizeof(int64_t));
+    if (ret != NULL) {
       pHandle->pBlock->tid = htonl(pHandle->pBlock->tid);
       pHandle->pBlock->sversion = htonl(pHandle->pBlock->sversion);
       pHandle->pBlock->dataLen = htonl(pHandle->pBlock->dataLen);
       pHandle->pBlock->schemaLen = htonl(pHandle->pBlock->schemaLen);
       pHandle->pBlock->numOfRows = htons(pHandle->pBlock->numOfRows);
       return true;
-    } else if (pHandle->tbIdHash != NULL) {
-      void* ret = taosHashGet(pHandle->tbIdHash, &pHandle->pBlock->uid, sizeof(int64_t));
-      if (ret != NULL) {
-        return  true;
-      }
     }
   }
   return false;

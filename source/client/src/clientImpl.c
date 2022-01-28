@@ -280,23 +280,21 @@ typedef struct SMqClientTopic {
   SArray* vgs;    //SArray<SMqClientVg>
 } SMqClientTopic;
 
-typedef struct tmq_resp_err_t {
+struct tmq_resp_err_t {
   int32_t code;
-} tmq_resp_err_t;
+};
 
-typedef struct tmq_topic_vgroup_t {
+struct tmq_topic_vgroup_t {
   char*   topic;
   int32_t vgId;
   int64_t commitOffset;
-} tmq_topic_vgroup_t;
+};
 
-typedef struct tmq_topic_vgroup_list_t {
+struct tmq_topic_vgroup_list_t {
   int32_t cnt;
   int32_t size;
   tmq_topic_vgroup_t* elems;
-} tmq_topic_vgroup_list_t;
-
-typedef void (tmq_commit_cb(tmq_t*, tmq_resp_err_t, tmq_topic_vgroup_list_t*, void* param));
+};
 
 struct tmq_conf_t {
   char           clientId[256];
@@ -677,8 +675,7 @@ int32_t tmq_ask_ep_cb(void* param, const SDataBuf* pMsg, int32_t code) {
   SMqAskEpCbParam* pParam = (SMqAskEpCbParam*)param;
   tmq_t* tmq = pParam->tmq;
   if (code != 0) {
-
-    printf("exit wait %d\n", pParam->wait);
+    printf("get topic endpoint error, not ready, wait:%d\n", pParam->wait);
     if (pParam->wait) {
       tsem_post(&tmq->rspSem);
     }
@@ -769,7 +766,7 @@ END:
     return 0;
 }
 
-tmq_message_t* tmq_consume_poll(tmq_t* tmq, int64_t blocking_time) {
+tmq_message_t* tmq_consumer_poll(tmq_t* tmq, int64_t blocking_time) {
   int64_t status = atomic_load_64(&tmq->status);
   tmqAsyncAskEp(tmq, status == 0 || taosArrayGetSize(tmq->clientTopics));
 

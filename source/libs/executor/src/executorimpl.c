@@ -5477,7 +5477,7 @@ SOperatorInfo* createStreamScanOperatorInfo(void *streamReadHandle, SArray* pExp
   
   // set the extract column id to streamHandle
   tqReadHandleSetColIdList((STqReadHandle* )streamReadHandle, pColList);
-  tqReadHandleSetTbUid(streamReadHandle, pTableIdList);
+  tqReadHandleSetTbUidList(streamReadHandle, pTableIdList);
 
   pInfo->readerHandle = streamReadHandle;
 
@@ -7776,7 +7776,7 @@ SOperatorInfo* doCreateOperatorTreeNode(SPhyNode* pPhyNode, SExecTaskInfo* pTask
       SScanPhyNode* pScanPhyNode = (SScanPhyNode*)pPhyNode;   // simple child table.
       STableGroupInfo groupInfo = {0};
 
-      int32_t code = doCreateTableGroup(((STqReadHandle*)readerHandle)->pMeta, pScanPhyNode->tableType, pScanPhyNode->uid, &groupInfo, queryId, taskId);
+      int32_t code = doCreateTableGroup(((STqReadHandle*)readerHandle)->pVnodeMeta, pScanPhyNode->tableType, pScanPhyNode->uid, &groupInfo, queryId, taskId);
 
       SArray* pa = taosArrayGetP(groupInfo.pGroupList, 0);
       ASSERT(taosArrayGetSize(groupInfo.pGroupList) == 1);
