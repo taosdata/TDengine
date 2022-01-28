@@ -81,16 +81,15 @@ typedef struct STableMeta {
 } STableMeta;
 
 typedef struct SDBVgroupInfo {
-  SRWLatch  lock;
   uint64_t  dbId;
   int32_t   vgVersion;  
   int8_t    hashMethod;
-  SHashObj *vgInfo;  //key:vgId, value:SVgroupInfo
+  SHashObj *vgHash;  //key:vgId, value:SVgroupInfo
 } SDBVgroupInfo;
 
 typedef struct SUseDbOutput {
-  char db[TSDB_DB_FNAME_LEN];
-  SDBVgroupInfo dbVgroup;
+  char           db[TSDB_DB_FNAME_LEN];
+  SDBVgroupInfo *dbVgroup;
 } SUseDbOutput;
 
 enum {
@@ -103,8 +102,9 @@ enum {
 
 typedef struct STableMetaOutput {
   int32_t     metaType;
-  char        ctbFname[TSDB_TABLE_FNAME_LEN];
-  char        tbFname[TSDB_TABLE_FNAME_LEN];
+  char        dbFName[TSDB_DB_FNAME_LEN];
+  char        ctbName[TSDB_TABLE_NAME_LEN];
+  char        tbName[TSDB_TABLE_NAME_LEN];
   SCTableMeta ctbMeta;
   STableMeta *tbMeta;
 } STableMetaOutput;

@@ -684,20 +684,23 @@ static int32_t mndProcessStbMetaReq(SMnodeMsg *pReq) {
   SMnode        *pMnode = pReq->pMnode;
   STableInfoReq *pInfo = pReq->rpcMsg.pCont;
 
-  mDebug("stb:%s, start to retrieve meta", pInfo->tableFname);
+  char tbFName[TSDB_TABLE_FNAME_LEN] = {0};
+  snprintf(tbFName, sizeof(tbFName), "%s.%s", pInfo->dbFName, pInfo->tbName);
 
-  SDbObj *pDb = mndAcquireDbByStb(pMnode, pInfo->tableFname);
+  mDebug("stb:%s, start to retrieve meta", tbFName);
+
+  SDbObj *pDb = mndAcquireDbByStb(pMnode, tbFName);
   if (pDb == NULL) {
     terrno = TSDB_CODE_MND_DB_NOT_SELECTED;
-    mError("stb:%s, failed to retrieve meta since %s", pInfo->tableFname, terrstr());
+    mError("stb:%s, failed to retrieve meta since %s", tbFName, terrstr());
     return -1;
   }
 
-  SStbObj *pStb = mndAcquireStb(pMnode, pInfo->tableFname);
+  SStbObj *pStb = mndAcquireStb(pMnode, tbFName);
   if (pStb == NULL) {
     mndReleaseDb(pMnode, pDb);
     terrno = TSDB_CODE_MND_INVALID_STB;
-    mError("stb:%s, failed to get meta since %s", pInfo->tableFname, terrstr());
+    mError("stb:%s, failed to get meta since %s", tbFName, terrstr());
     return -1;
   }
 
@@ -711,11 +714,12 @@ static int32_t mndProcessStbMetaReq(SMnodeMsg *pReq) {
     mndReleaseDb(pMnode, pDb);
     mndReleaseStb(pMnode, pStb);
     terrno = TSDB_CODE_OUT_OF_MEMORY;
-    mError("stb:%s, failed to get meta since %s", pInfo->tableFname, terrstr());
+    mError("stb:%s, failed to get meta since %s", tbFName, terrstr());
     return -1;
   }
 
-  memcpy(pMeta->tbFname, pStb->name, TSDB_TABLE_FNAME_LEN);
+  strcpy(pMeta->dbFName, pStb->db);
+  strcpy(pMeta->tbName, pInfo->tbName);
   pMeta->numOfTags = htonl(pStb->numOfTags);
   pMeta->numOfColumns = htonl(pStb->numOfColumns);
   pMeta->precision = pDb->cfg.precision;
@@ -740,7 +744,7 @@ static int32_t mndProcessStbMetaReq(SMnodeMsg *pReq) {
   pReq->pCont = pMeta;
   pReq->contLen = contLen;
 
-  mDebug("stb:%s, meta is retrieved, cols:%d tags:%d", pInfo->tableFname, pStb->numOfColumns, pStb->numOfTags);
+  mDebug("stb:%s, meta is retrieved, cols:%d tags:%d", tbFName, pStb->numOfColumns, pStb->numOfTags);
   return 0;
 }
 
@@ -816,7 +820,7 @@ static int32_t mndGetStbMeta(SMnodeMsg *pReq, SShowObj *pShow, STableMetaRsp *pM
 
   pShow->numOfRows = sdbGetSize(pSdb, SDB_STB);
   pShow->rowSize = pShow->offset[cols - 1] + pShow->bytes[cols - 1];
-  strcpy(pMeta->tbFname, mndShowStr(pShow->type));
+  strcpy(pMeta->tbName, mndShowStr(pShow->type));
 
   return 0;
 }

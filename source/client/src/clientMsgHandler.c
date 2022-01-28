@@ -301,15 +301,12 @@ int32_t processDropDbRsp(void* param, const SDataBuf* pMsg, int32_t code) {
 
   SDropDbRsp *rsp = (SDropDbRsp *)pMsg->pData;
 
-  SDbVgVersion dbVer = {0};
   struct SCatalog *pCatalog = NULL;
-  
-  strncpy(dbVer.dbName, rsp->db, sizeof(dbVer.dbName));
-  dbVer.dbId = be64toh(rsp->uid);
+  rsp->uid = be64toh(rsp->uid);
 
   catalogGetHandle(pRequest->pTscObj->pAppInfo->clusterId, &pCatalog);
   
-  catalogRemoveDBVgroup(pCatalog, &dbVer);
+  catalogRemoveDB(pCatalog, rsp->db, rsp->uid);
 
   tsem_post(&pRequest->body.rspSem);
   return code;

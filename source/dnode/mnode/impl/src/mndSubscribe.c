@@ -646,7 +646,7 @@ static int32_t mndProcessConsumerMetaMsg(SMnodeMsg *pMsg) {
   SMnode        *pMnode = pMsg->pMnode;
   STableInfoReq *pInfo = pMsg->rpcMsg.pCont;
 
-  mDebug("subscribe:%s, start to retrieve meta", pInfo->tableFname);
+  mDebug("subscribe:%s, start to retrieve meta", pInfo->tbName);
 
 #if 0
   SDbObj *pDb = mndAcquireDbByConsumer(pMnode, pInfo->tableFname);
@@ -777,7 +777,7 @@ static int32_t mndGetConsumerMeta(SMnodeMsg *pMsg, SShowObj *pShow, STableMetaRs
 
   pShow->numOfRows = sdbGetSize(pSdb, SDB_CONSUMER);
   pShow->rowSize = pShow->offset[cols - 1] + pShow->bytes[cols - 1];
-  strcpy(pMeta->tbFname, mndShowStr(pShow->type));
+  strcpy(pMeta->tbName, mndShowStr(pShow->type));
 
   return 0;
 }

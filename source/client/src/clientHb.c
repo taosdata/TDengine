@@ -41,19 +41,14 @@ static int32_t hbProcessDBInfoRsp(void *value, int32_t valueLen, struct SCatalog
     tscDebug("hb db rsp, db:%s, vgVersion:%d, uid:%"PRIx64, rsp->db, rsp->vgVersion, rsp->uid);
     
     if (rsp->vgVersion < 0) {
-      SDbVgVersion dbInfo;
-      strcpy(dbInfo.dbName, rsp->db);
-      dbInfo.dbId = rsp->uid;
-      dbInfo.vgVersion = rsp->vgVersion;
-      
-      code = catalogRemoveDBVgroup(pCatalog, &dbInfo);
+      code = catalogRemoveDB(pCatalog, rsp->db, rsp->uid);
     } else {
       SDBVgroupInfo vgInfo = {0};
       vgInfo.dbId = rsp->uid;
       vgInfo.vgVersion = rsp->vgVersion;
       vgInfo.hashMethod = rsp->hashMethod;
-      vgInfo.vgInfo = taosHashInit(rsp->vgNum, taosGetDefaultHashFunction(TSDB_DATA_TYPE_INT), true, HASH_ENTRY_LOCK);
-      if (NULL == vgInfo.vgInfo) {
+      vgInfo.vgHash = taosHashInit(rsp->vgNum, taosGetDefaultHashFunction(TSDB_DATA_TYPE_INT), true, HASH_ENTRY_LOCK);
+      if (NULL == vgInfo.vgHash) {
         tscError("hash init[%d] failed", rsp->vgNum);
         return TSDB_CODE_TSC_OUT_OF_MEMORY;
       }
@@ -67,16 +62,16 @@ static int32_t hbProcessDBInfoRsp(void *value, int32_t valueLen, struct SCatalog
           rsp->vgroupInfo[i].epset.eps[n].port = ntohs(rsp->vgroupInfo[i].epset.eps[n].port);
         }
 
-        if (0 != taosHashPut(vgInfo.vgInfo, &rsp->vgroupInfo[i].vgId, sizeof(rsp->vgroupInfo[i].vgId), &rsp->vgroupInfo[i], sizeof(rsp->vgroupInfo[i]))) {
+        if (0 != taosHashPut(vgInfo.vgHash, &rsp->vgroupInfo[i].vgId, sizeof(rsp->vgroupInfo[i].vgId), &rsp->vgroupInfo[i], sizeof(rsp->vgroupInfo[i]))) {
           tscError("hash push failed, errno:%d", errno);
-          taosHashCleanup(vgInfo.vgInfo);
+          taosHashCleanup(vgInfo.vgHash);
           return TSDB_CODE_TSC_OUT_OF_MEMORY;
         }
       }  
       
       code = catalogUpdateDBVgroup(pCatalog, rsp->db, &vgInfo);
       if (code) {
-        taosHashCleanup(vgInfo.vgInfo);
+        taosHashCleanup(vgInfo.vgHash);
       }
     }
 

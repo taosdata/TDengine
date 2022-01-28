@@ -126,7 +126,8 @@ TEST_F(MndTestStb, 01_Create_Show_Meta_Drop_Restart_Stb) {
     int32_t contLen = sizeof(STableInfoReq);
 
     STableInfoReq* pReq = (STableInfoReq*)rpcMallocCont(contLen);
-    strcpy(pReq->tableFname, "1.d1.stb");
+    strcpy(pReq->dbFName, "1.d1");
+    strcpy(pReq->tbName, "stb");
 
     SRpcMsg* pMsg = test.SendReq(TDMT_MND_STB_META, pReq, contLen);
     ASSERT_NE(pMsg, nullptr);
@@ -146,8 +147,8 @@ TEST_F(MndTestStb, 01_Create_Show_Meta_Drop_Restart_Stb) {
       pSchema->bytes = htonl(pSchema->bytes);
     }
 
-    EXPECT_STREQ(pRsp->tbFname, "1.d1.stb");
-    EXPECT_STREQ(pRsp->stbFname, "");
+    EXPECT_STREQ(pRsp->tbName, "1.d1");
+    EXPECT_STREQ(pRsp->stbName, "stb");
     EXPECT_EQ(pRsp->numOfColumns, 2);
     EXPECT_EQ(pRsp->numOfTags, 3);
     EXPECT_EQ(pRsp->precision, TSDB_TIME_PRECISION_MILLI);

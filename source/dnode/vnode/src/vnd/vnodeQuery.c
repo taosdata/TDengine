@@ -82,7 +82,11 @@ static int vnodeGetTableMeta(SVnode *pVnode, SRpcMsg *pMsg) {
   int             msgLen = 0;
   int32_t         code = TSDB_CODE_VND_APP_ERROR;
 
-  pTbCfg = metaGetTbInfoByName(pVnode->pMeta, pReq->tableFname, &uid);
+  char tbFName[TSDB_TABLE_FNAME_LEN] = {0};
+  snprintf(tbFName, sizeof(tbFName), "%s.%s", pReq->dbFName, pReq->tbName);
+
+
+  pTbCfg = metaGetTbInfoByName(pVnode->pMeta, tbFName, &uid);
   if (pTbCfg == NULL) {
     code = TSDB_CODE_VND_TB_NOT_EXIST;
     goto _exit;
@@ -117,13 +121,13 @@ static int vnodeGetTableMeta(SVnode *pVnode, SRpcMsg *pMsg) {
     goto _exit;
   }
 
-  memcpy(pTbMetaMsg->dbFname, pReq->dbFname, sizeof(pTbMetaMsg->dbFname));
-  strcpy(pTbMetaMsg->tbFname, pTbCfg->name);
+  memcpy(pTbMetaMsg->dbFName, pReq->dbFName, sizeof(pTbMetaMsg->dbFName));
+  strcpy(pTbMetaMsg->tbName, pReq->tbName);
   if (pTbCfg->type == META_CHILD_TABLE) {
-    strcpy(pTbMetaMsg->stbFname, pStbCfg->name);
+    strcpy(pTbMetaMsg->stbName, pStbCfg->name + strlen(pReq->dbFName) + 1);
     pTbMetaMsg->suid = htobe64(pTbCfg->ctbCfg.suid);
   } else if (pTbCfg->type == META_SUPER_TABLE) {
-    strcpy(pTbMetaMsg->stbFname, pTbCfg->name);
+    strcpy(pTbMetaMsg->stbName, pTbCfg->name + strlen(pReq->dbFName) + 1);
     pTbMetaMsg->suid = htobe64(uid);
   }
   pTbMetaMsg->numOfTags = htonl(nTagCols);

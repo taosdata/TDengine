@@ -128,15 +128,11 @@ void ctgTestBuildCTableMetaOutput(STableMetaOutput *output) {
   strcpy(sn.dbname, "db1");
   strcpy(sn.tname, ctgTestSTablename);
 
-  char tbFullName[TSDB_TABLE_FNAME_LEN];
-  tNameExtractFullName(&cn, tbFullName);
-
+  strcpy(output->dbFName, cn.dbname);
   SET_META_TYPE_BOTH_TABLE(output->metaType);
 
-  strcpy(output->ctbFname, tbFullName);
-
-  tNameExtractFullName(&cn, tbFullName);
-  strcpy(output->tbFname, tbFullName);
+  strcpy(output->ctbName, cn.tname);
+  strcpy(output->tbName, sn.tname);
 
   output->ctbMeta.vgId = 9;
   output->ctbMeta.tableType = TSDB_CHILD_TABLE;
@@ -186,7 +182,7 @@ void ctgTestBuildDBVgroup(SDBVgroupInfo *dbVgroup) {
 
   dbVgroup->hashMethod = 0;
   dbVgroup->dbId = ctgTestDbId;
-  dbVgroup->vgInfo = taosHashInit(ctgTestVgNum, taosGetDefaultHashFunction(TSDB_DATA_TYPE_INT), true, HASH_ENTRY_LOCK);
+  dbVgroup->vgHash = taosHashInit(ctgTestVgNum, taosGetDefaultHashFunction(TSDB_DATA_TYPE_INT), true, HASH_ENTRY_LOCK);
 
   vgNum = ctgTestGetVgNumFromVgVersion(dbVgroup->vgVersion);
   uint32_t hashUnit = UINT32_MAX / vgNum;
@@ -203,7 +199,7 @@ void ctgTestBuildDBVgroup(SDBVgroupInfo *dbVgroup) {
       addr->port = htons(n + 22);
     }
 
-    taosHashPut(dbVgroup->vgInfo, &vgInfo.vgId, sizeof(vgInfo.vgId), &vgInfo, sizeof(vgInfo));
+    taosHashPut(dbVgroup->vgHash, &vgInfo.vgId, sizeof(vgInfo.vgId), &vgInfo, sizeof(vgInfo));
   }
 }
 
@@ -250,7 +246,8 @@ void ctgTestPrepareTableMeta(void *shandle, SEpSet *pEpSet, SRpcMsg *pMsg, SRpcM
   pRsp->contLen = sizeof(STableMetaRsp) + (ctgTestColNum + ctgTestTagNum) * sizeof(SSchema);
   pRsp->pCont = calloc(1, pRsp->contLen);
   rspMsg = (STableMetaRsp *)pRsp->pCont;
-  sprintf(rspMsg->tbFname, "%s.%s", ctgTestDbname, ctgTestTablename);
+  strcpy(rspMsg->dbFName, ctgTestDbname);
+  strcpy(rspMsg->tbName, ctgTestTablename);
   rspMsg->numOfTags = 0;
   rspMsg->numOfColumns = htonl(ctgTestColNum);
   rspMsg->precision = 1;
@@ -285,8 +282,9 @@ void ctgTestPrepareCTableMeta(void *shandle, SEpSet *pEpSet, SRpcMsg *pMsg, SRpc
   pRsp->contLen = sizeof(STableMetaRsp) + (ctgTestColNum + ctgTestTagNum) * sizeof(SSchema);
   pRsp->pCont = calloc(1, pRsp->contLen);
   rspMsg = (STableMetaRsp *)pRsp->pCont;
-  sprintf(rspMsg->tbFname, "%s.%s", ctgTestDbname, ctgTestCTablename);
-  sprintf(rspMsg->stbFname, "%s.%s", ctgTestDbname, ctgTestSTablename);
+  strcpy(rspMsg->dbFName, ctgTestDbname);
+  strcpy(rspMsg->tbName, ctgTestCTablename);
+  strcpy(rspMsg->stbName, ctgTestSTablename);
   rspMsg->numOfTags = htonl(ctgTestTagNum);
   rspMsg->numOfColumns = htonl(ctgTestColNum);
   rspMsg->precision = 1;
@@ -327,8 +325,9 @@ void ctgTestPrepareSTableMeta(void *shandle, SEpSet *pEpSet, SRpcMsg *pMsg, SRpc
   pRsp->contLen = sizeof(STableMetaRsp) + (ctgTestColNum + ctgTestTagNum) * sizeof(SSchema);
   pRsp->pCont = calloc(1, pRsp->contLen);
   rspMsg = (STableMetaRsp *)pRsp->pCont;
-  sprintf(rspMsg->tbFname, "%s.%s", ctgTestDbname, ctgTestSTablename);
-  sprintf(rspMsg->stbFname, "%s.%s", ctgTestDbname, ctgTestSTablename);
+  strcpy(rspMsg->dbFName, ctgTestDbname);
+  strcpy(rspMsg->tbName, ctgTestSTablename);  
+  strcpy(rspMsg->stbName, ctgTestSTablename);  
   rspMsg->numOfTags = htonl(ctgTestTagNum);
   rspMsg->numOfColumns = htonl(ctgTestColNum);
   rspMsg->precision = 1;
@@ -370,8 +369,9 @@ void ctgTestPrepareMultiSTableMeta(void *shandle, SEpSet *pEpSet, SRpcMsg *pMsg,
   pRsp->contLen = sizeof(STableMetaRsp) + (ctgTestColNum + ctgTestTagNum) * sizeof(SSchema);
   pRsp->pCont = calloc(1, pRsp->contLen);
   rspMsg = (STableMetaRsp *)pRsp->pCont;
-  sprintf(rspMsg->tbFname, "%s.%s_%d", ctgTestDbname, ctgTestSTablename, idx);
-  sprintf(rspMsg->stbFname, "%s.%s_%d", ctgTestDbname, ctgTestSTablename, idx);
+  strcpy(rspMsg->dbFName, ctgTestDbname);
+  strcpy(rspMsg->tbName, ctgTestSTablename);
+  sprintf(rspMsg->stbName, "%s_%d", ctgTestSTablename, idx);
   rspMsg->numOfTags = htonl(ctgTestTagNum);
   rspMsg->numOfColumns = htonl(ctgTestColNum);
   rspMsg->precision = 1;
