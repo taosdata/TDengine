@@ -126,6 +126,7 @@ typedef struct {
 #define TD_VTYPE_OPTR 3   // TD_VTYPE_PARTS - 1, utilize to get remainder
 
 #define TD_BITMAP_BYTES(cnt) (ceil((double)cnt / TD_VTYPE_PARTS))
+#define TD_BIT_TO_BYTES(cnt) (ceil((double)cnt / 8))
 
 int       tdInitTSchemaBuilder(STSchemaBuilder *pBuilder, int32_t version);
 void      tdDestroyTSchemaBuilder(STSchemaBuilder *pBuilder);
@@ -362,7 +363,7 @@ typedef struct SDataCol {
   int             len;        // column data length
   VarDataOffsetT *dataOff;    // For binary and nchar data, the offset in the data column
   void *          pData;      // Actual data pointer
-  void *          pBitmap;    // Bitmap pointer to support None value
+  void *          pBitmap;    // Bitmap pointer to mark Null/Norm(1 bit for each row)
   TSKEY           ts;         // only used in last NULL column
 } SDataCol;
 
@@ -400,11 +401,11 @@ static FORCE_INLINE int32_t dataColGetNEleLen(SDataCol *pDataCol, int rows) {
 }
 
 typedef struct {
-  int       maxCols;    // max number of columns
+  col_id_t  maxCols;    // max number of columns
+  col_id_t  numOfCols;  // Total number of cols
   int       maxPoints;  // max number of points
   int       numOfRows;
-  int       numOfCols;  // Total number of cols
-  int       sversion;   // TODO: set sversion
+  int       sversion;  // TODO: set sversion
   SDataCol *cols;
 } SDataCols;
 

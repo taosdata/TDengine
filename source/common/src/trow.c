@@ -15,6 +15,34 @@
 
 #include "trow.h"
 
+static void dataColSetNEleNull(SDataCol *pCol, int nEle);
+static void tdMergeTwoDataCols(SDataCols *target, SDataCols *src1, int *iter1, int limit1, SDataCols *src2, int *iter2,
+                               int limit2, int tRows, bool forceSetNull);
+
+static FORCE_INLINE void dataColSetNullAt(SDataCol *pCol, int index) {
+  if (IS_VAR_DATA_TYPE(pCol->type)) {
+    pCol->dataOff[index] = pCol->len;
+    char *ptr = POINTER_SHIFT(pCol->pData, pCol->len);
+    setVardataNull(ptr, pCol->type);
+    pCol->len += varDataTLen(ptr);
+  } else {
+    setNull(POINTER_SHIFT(pCol->pData, TYPE_BYTES[pCol->type] * index), pCol->type, pCol->bytes);
+    pCol->len += TYPE_BYTES[pCol->type];
+  }
+}
+
+static void dataColSetNEleNull(SDataCol *pCol, int nEle) {
+  if (IS_VAR_DATA_TYPE(pCol->type)) {
+    pCol->len = 0;
+    for (int i = 0; i < nEle; i++) {
+      dataColSetNullAt(pCol, i);
+    }
+  } else {
+    setNullN(pCol->pData, pCol->type, pCol->bytes, nEle);
+    pCol->len = TYPE_BYTES[pCol->type] * nEle;
+  }
+}
+
 #if 0
 void trbSetRowInfo(SRowBuilder *pRB, bool del, uint16_t sver) {
   // TODO
@@ -54,31 +82,7 @@ int trbWriteCol(SRowBuilder *pRB, void *pData, col_id_t cid) {
 #include "wchar.h"
 #include "tarray.h"
 
-static void dataColSetNEleNull(SDataCol *pCol, int nEle);
-static void tdMergeTwoDataCols(SDataCols *target, SDataCols *src1, int *iter1, int limit1, SDataCols *src2, int *iter2,
-                               int limit2, int tRows, bool forceSetNull);
 
-int tdAllocMemForCol(SDataCol *pCol, int maxPoints) {
-  int spaceNeeded = pCol->bytes * maxPoints;
-  if(IS_VAR_DATA_TYPE(pCol->type)) {
-    spaceNeeded += sizeof(VarDataOffsetT) * maxPoints;
-  }
-  if(pCol->spaceSize < spaceNeeded) {
-    void* ptr = realloc(pCol->pData, spaceNeeded);
-    if(ptr == NULL) {
-      uDebug("malloc failure, size:%" PRId64 " failed, reason:%s", (int64_t)spaceNeeded,
-             strerror(errno));
-      return -1;
-    } else {
-      pCol->pData = ptr;
-      pCol->spaceSize = spaceNeeded;
-    }
-  }
-  if(IS_VAR_DATA_TYPE(pCol->type)) {
-    pCol->dataOff = POINTER_SHIFT(pCol->pData, pCol->bytes * maxPoints);
-  }
-  return 0;
-}
 
 /**
  * Duplicate the schema and return a new object
@@ -274,38 +278,12 @@ void dataColInit(SDataCol *pDataCol, STColumn *pCol, int maxPoints) {
 
   pDataCol->len = 0;
 }
-// value from timestamp should be TKEY here instead of TSKEY
-int dataColAppendVal(SDataCol *pCol, const void *value, int numOfRows, int maxPoints) {
-  ASSERT(pCol != NULL && value != NULL);
 
-  if (isAllRowsNull(pCol)) {
-    if (isNull(value, pCol->type)) {
-      // all null value yet, just return
-      return 0;
-    }
+#endif
 
-    if(tdAllocMemForCol(pCol, maxPoints) < 0) return -1;
-    if (numOfRows > 0) {
-      // Find the first not null value, fill all previouse values as NULL
-      dataColSetNEleNull(pCol, numOfRows);
-    }
-  }
 
-  if (IS_VAR_DATA_TYPE(pCol->type)) {
-    // set offset
-    pCol->dataOff[numOfRows] = pCol->len;
-    // Copy data
-    memcpy(POINTER_SHIFT(pCol->pData, pCol->len), value, varDataTLen(value));
-    // Update the length
-    pCol->len += varDataTLen(value);
-  } else {
-    ASSERT(pCol->len == TYPE_BYTES[pCol->type] * numOfRows);
-    memcpy(POINTER_SHIFT(pCol->pData, pCol->len), value, pCol->bytes);
-    pCol->len += pCol->bytes;
-  }
-  return 0;
-}
 
+#if 0
 static FORCE_INLINE const void *tdGetColDataOfRowUnsafe(SDataCol *pCol, int row) {
   if (IS_VAR_DATA_TYPE(pCol->type)) {
     return POINTER_SHIFT(pCol->pData, pCol->dataOff[row]);
@@ -322,29 +300,7 @@ bool isNEleNull(SDataCol *pCol, int nEle) {
   return true;
 }
 
-static FORCE_INLINE void dataColSetNullAt(SDataCol *pCol, int index) {
-  if (IS_VAR_DATA_TYPE(pCol->type)) {
-    pCol->dataOff[index] = pCol->len;
-    char *ptr = POINTER_SHIFT(pCol->pData, pCol->len);
-    setVardataNull(ptr, pCol->type);
-    pCol->len += varDataTLen(ptr);
-  } else {
-    setNull(POINTER_SHIFT(pCol->pData, TYPE_BYTES[pCol->type] * index), pCol->type, pCol->bytes);
-    pCol->len += TYPE_BYTES[pCol->type];
-  }
-}
 
-static void dataColSetNEleNull(SDataCol *pCol, int nEle) {
-  if (IS_VAR_DATA_TYPE(pCol->type)) {
-    pCol->len = 0;
-    for (int i = 0; i < nEle; i++) {
-      dataColSetNullAt(pCol, i);
-    }
-  } else {
-    setNullN(pCol->pData, pCol->type, pCol->bytes, nEle);
-    pCol->len = TYPE_BYTES[pCol->type] * nEle;
-  }
-}
 
 void dataColSetOffset(SDataCol *pCol, int nEle) {
   ASSERT(((pCol->type == TSDB_DATA_TYPE_BINARY) || (pCol->type == TSDB_DATA_TYPE_NCHAR)));
@@ -477,33 +433,68 @@ void tdResetDataCols(SDataCols *pCols) {
 }
 #endif
 
+int tdAppendValToDataCol(SDataCol *pCol, TDRowValT valType, const void *val, int numOfRows, int maxPoints) {
+  ASSERT(pCol != NULL);
+
+  if (isAllRowsNull(pCol)) {
+    if (tdValIsNone(valType) || tdValIsNull(valType, val, pCol->type)) {
+      // all Null value yet, just return
+      return 0;
+    }
+
+    if(tdAllocMemForCol(pCol, maxPoints) < 0) return -1;
+    if (numOfRows > 0) {
+      // Find the first not null value, fill all previous values as Null
+      dataColSetNEleNull(pCol, numOfRows);
+    }
+  }
+
+  if (IS_VAR_DATA_TYPE(pCol->type)) {
+    // set offset
+    pCol->dataOff[numOfRows] = pCol->len;
+    // Copy data
+    memcpy(POINTER_SHIFT(pCol->pData, pCol->len), val, varDataTLen(val));
+    // Update the length
+    pCol->len += varDataTLen(val);
+  } else {
+    ASSERT(pCol->len == TYPE_BYTES[pCol->type] * numOfRows);
+    memcpy(POINTER_SHIFT(pCol->pData, pCol->len), val, pCol->bytes);
+    pCol->len += pCol->bytes;
+  }
+  return 0;
+}
+
 static void tdAppendTpRowToDataCol(STSRow *pRow, STSchema *pSchema, SDataCols *pCols, bool forceSetNull) {
   ASSERT(pCols->numOfRows == 0 || dataColsKeyLast(pCols) < TD_ROW_TSKEY(pRow));
 
   int rcol = 0;
   int dcol = 0;
+  void* pBitmap = tdGetBitmapAddrTp(pRow, pSchema->flen);
 
   while (dcol < pCols->numOfCols) {
     bool setCol = 0;
     SDataCol *pDataCol = &(pCols->cols[dcol]);
     if (rcol >= schemaNCols(pSchema)) {
-      dataColAppendVal(pDataCol, getNullValue(pDataCol->type), pCols->numOfRows, pCols->maxPoints);
+      tdAppendValToDataCol(pDataCol, TD_VTYPE_NULL, NULL, pCols->numOfRows, pCols->maxPoints);
       dcol++;
       continue;
     }
 
     STColumn *pRowCol = schemaColAt(pSchema, rcol);
+    SCellVal  sVal = {0};
     if (pRowCol->colId == pDataCol->colId) {
-      void *value = tdGetRowDataOfCol(pRow, pRowCol->type, pRowCol->offset + TD_DATA_ROW_HEAD_SIZE);
+      if(tdGetTpRowValOfCol(&sVal, pRow, pBitmap, pRowCol->type, pRowCol->offset + TD_DATA_ROW_HEAD_SIZE, rcol) < 0){
+
+      }
       if(!isNull(value, pDataCol->type)) setCol = 1;
-      dataColAppendVal(pDataCol, value, pCols->numOfRows, pCols->maxPoints);
+      tdAppendValToDataCol(pDataCol, value, pCols->numOfRows, pCols->maxPoints);
       dcol++;
       rcol++;
     } else if (pRowCol->colId < pDataCol->colId) {
       rcol++;
     } else {
       if(forceSetNull || setCol) {
-        dataColAppendVal(pDataCol, getNullValue(pDataCol->type), pCols->numOfRows, pCols->maxPoints);
+        tdAppendValToDataCol(pDataCol, getNullValue(pDataCol->type), pCols->numOfRows, pCols->maxPoints);
       }
       dcol++;
     }
@@ -514,10 +505,10 @@ static void tdAppendTpRowToDataCol(STSRow *pRow, STSchema *pSchema, SDataCols *p
 static void tdAppendKvRowToDataCol(STSRow *pRow, STSchema *pSchema, SDataCols *pCols, bool forceSetNull) {
   ASSERT(pCols->numOfRows == 0 || dataColsKeyLast(pCols) < TD_ROW_TSKEY(pRow));
 
-  int rcol = 0;
-  int dcol = 0;
-
-  int nRowCols = TD_ROW_NCOLS(pRow);
+  int   rcol = 0;
+  int   dcol = 0;
+  int   nRowCols = TD_ROW_NCOLS(pRow);
+  void *pBitmap = tdGetBitmapAddrKv(pRow, nRowCols);
 
   while (dcol < pCols->numOfCols) {
     bool setCol = 0;
@@ -548,6 +539,14 @@ static void tdAppendKvRowToDataCol(STSRow *pRow, STSchema *pSchema, SDataCols *p
   pCols->numOfRows++;
 }
 
+/**
+ * @brief 
+ * 
+ * @param pRow 
+ * @param pSchema 
+ * @param pCols 
+ * @param forceSetNull 
+ */
 void tdAppendSTSRowToDataCol(STSRow *pRow, STSchema *pSchema, SDataCols *pCols, bool forceSetNull) {
   if (TD_IS_TP_ROW(pRow)) {
     tdAppendTpRowToDataCol(pRow, pSchema, pCols, forceSetNull);

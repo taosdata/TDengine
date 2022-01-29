@@ -50,6 +50,23 @@ typedef struct {
 } SBlock;
 
 typedef struct {
+  int64_t  last : 1;
+  int64_t  offset : 63;
+  int32_t  algorithm : 8;
+  int32_t  numOfRows : 24;
+  uint8_t  reserve0;
+  uint8_t  numOfSubBlocks;
+  int16_t  numOfCols;    // not including timestamp column
+  uint32_t len : 32;     // data block length
+  uint32_t keyLen : 24;  // key column length, keyOffset = offset+sizeof(SBlockData)+sizeof(SBlockCol)*numOfCols
+  uint32_t reserve1 : 8;
+  uint64_t blkVer : 8;
+  uint64_t aggrOffset : 56;
+  TSKEY    keyFirst;
+  TSKEY    keyLast;
+} SBlock_3;
+
+typedef struct {
   int32_t  delimiter;  // For recovery usage
   int32_t  tid;
   uint64_t uid;
@@ -58,6 +75,8 @@ typedef struct {
 
 typedef struct {
   int16_t  colId;
+  int16_t  bitmap : 1;  // 0: no bitmap if all rows not null, 1: has bitmap if has null rows
+  int16_t  reserve : 15;
   int32_t  len;
   uint32_t type : 8;
   uint32_t offset : 24;

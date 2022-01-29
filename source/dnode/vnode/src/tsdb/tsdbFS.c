@@ -98,13 +98,13 @@ static int tsdbEncodeDFileSetArray(void **buf, SArray *pArray) {
 }
 
 static void *tsdbDecodeDFileSetArray(STsdb*pRepo, void *buf, SArray *pArray) {
-  uint64_t  nset;
-  SDFileSet dset;
+  uint64_t  nset = 0;
 
   taosArrayClear(pArray);
 
   buf = taosDecodeFixedU64(buf, &nset);
   for (size_t i = 0; i < nset; i++) {
+    SDFileSet dset = {0};
     buf = tsdbDecodeDFileSet(pRepo, buf, &dset);
     taosArrayPush(pArray, (void *)(&dset));
   }

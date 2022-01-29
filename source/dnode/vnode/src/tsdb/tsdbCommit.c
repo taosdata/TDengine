@@ -89,7 +89,7 @@ int         tsdbWriteBlockIdx(SDFile *pHeadf, SArray *pIdxA, void **ppBuf);
 
 int tsdbApplyRtnOnFSet(STsdb *pRepo, SDFileSet *pSet, SRtn *pRtn) {
   SDiskID   did;
-  SDFileSet nSet;
+  SDFileSet nSet = {0};
   STsdbFS * pfs = REPO_FS(pRepo);
   int       level;
 
