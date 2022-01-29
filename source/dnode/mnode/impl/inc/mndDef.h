@@ -583,19 +583,23 @@ static FORCE_INLINE void tDeleteSMqSubscribeObj(SMqSubscribeObj* pSub) {
     pSub->availConsumer = NULL;
   }
   if (pSub->assigned) {
-    taosArrayDestroyEx(pSub->assigned, (void (*)(void*))tDeleteSMqConsumerEp);
+    //taosArrayDestroyEx(pSub->assigned, (void (*)(void*))tDeleteSMqConsumerEp);
+    taosArrayDestroy(pSub->assigned);
     pSub->assigned = NULL;
   }
   if (pSub->unassignedVg) {
-    taosArrayDestroyEx(pSub->unassignedVg, (void (*)(void*))tDeleteSMqConsumerEp);
+    //taosArrayDestroyEx(pSub->unassignedVg, (void (*)(void*))tDeleteSMqConsumerEp);
+    taosArrayDestroy(pSub->unassignedVg);
     pSub->unassignedVg = NULL;
   }
   if (pSub->idleConsumer) {
-    taosArrayDestroyEx(pSub->idleConsumer, (void (*)(void*))tDeleteSMqConsumerEp);
+    //taosArrayDestroyEx(pSub->idleConsumer, (void (*)(void*))tDeleteSMqConsumerEp);
+    taosArrayDestroy(pSub->idleConsumer);
     pSub->idleConsumer = NULL;
   }
   if (pSub->lostConsumer) {
-    taosArrayDestroyEx(pSub->lostConsumer, (void (*)(void*))tDeleteSMqConsumerEp);
+    //taosArrayDestroyEx(pSub->lostConsumer, (void (*)(void*))tDeleteSMqConsumerEp);
+    taosArrayDestroy(pSub->lostConsumer);
     pSub->lostConsumer = NULL;
   }
 }

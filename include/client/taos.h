@@ -218,6 +218,7 @@ DLL_EXPORT int32_t     tmq_list_append(tmq_list_t *, char *);
 DLL_EXPORT TAOS_RES *tmq_create_topic(TAOS *taos, const char *name, const char *sql, int sqlLen);
 DLL_EXPORT tmq_t    *tmq_consumer_new(void *conn, tmq_conf_t *conf, char *errstr, int32_t errstrLen);
 DLL_EXPORT void tmq_message_destroy(tmq_message_t* tmq_message);
+DLL_EXPORT const char* tmq_err2str(tmq_resp_err_t);
 
 /* ------------------------TMQ CONSUMER INTERFACE------------------------ */
 DLL_EXPORT tmq_resp_err_t tmq_subscribe(tmq_t *tmq, tmq_list_t *topic_list);
@@ -226,8 +227,8 @@ DLL_EXPORT tmq_resp_err_t tmq_unsubscribe(tmq_t* tmq);
 DLL_EXPORT tmq_resp_err_t tmq_subscription(tmq_t* tmq, tmq_topic_vgroup_list_t** topics);
 #endif
 DLL_EXPORT tmq_message_t *tmq_consumer_poll(tmq_t *tmq, int64_t blocking_time);
-#if 0
 DLL_EXPORT tmq_resp_err_t tmq_consumer_close(tmq_t* tmq);
+#if 0
 DLL_EXPORT tmq_resp_err_t tmq_assign(tmq_t* tmq, const tmq_topic_vgroup_list_t* vgroups);
 DLL_EXPORT tmq_resp_err_t tmq_assignment(tmq_t* tmq, tmq_topic_vgroup_list_t** vgroups);
 #endif

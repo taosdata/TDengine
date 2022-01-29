@@ -348,7 +348,7 @@ TAOS_RES* tmq_create_topic(TAOS* taos, const char* topicName, const char* sql, i
     goto _return;
   }
 
-  printf("%s\n", pStr);
+  /*printf("%s\n", pStr);*/
 
   // The topic should be related to a database that the queried table is belonged to.
   SName name = {0};
@@ -501,7 +501,7 @@ int32_t tmqPollCb(void* param, const SDataBuf* pMsg, int32_t code) {
   SMqConsumeCbParam* pParam = (SMqConsumeCbParam*)param;
   SMqClientVg*       pVg = pParam->pVg;
   if (code != 0) {
-    printf("msg discard\n");
+    /*printf("msg discard\n");*/
     tsem_post(&pParam->rspSem);
     return 0;
   }
@@ -512,7 +512,7 @@ int32_t tmqPollCb(void* param, const SDataBuf* pMsg, int32_t code) {
     return -1;
   }
   tDecodeSMqConsumeRsp(pMsg->pData, pRsp);
-  printf("rsp %ld %ld\n", pRsp->committedOffset, pRsp->rspOffset);
+  /*printf("rsp %ld %ld\n", pRsp->committedOffset, pRsp->rspOffset);*/
   if (pRsp->numOfTopics == 0) {
     /*printf("no data\n");*/
     free(pRsp);
@@ -766,6 +766,16 @@ void tmq_message_destroy(tmq_message_t* tmq_message) {
   free(tmq_message);
 }
 
+tmq_resp_err_t tmq_consumer_close(tmq_t* tmq) {
+  return TMQ_RESP_ERR__SUCCESS;
+}
+
+const char* tmq_err2str(tmq_resp_err_t err) {
+  if (err == TMQ_RESP_ERR__SUCCESS) {
+    return "success";
+  }
+  return "fail";
+}
 #if 0
 tmq_t* tmqCreateConsumerImpl(TAOS* conn, tmq_conf_t* conf) {
   tmq_t* pTmq = malloc(sizeof(tmq_t));

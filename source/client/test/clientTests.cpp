@@ -638,6 +638,7 @@ TEST(testCase, tmq_subscribe_ctb_Test) {
     //if (msg == NULL) break;
   }
 }
+#endif
 
 TEST(testCase, tmq_subscribe_stb_Test) {
   TAOS* pConn = taos_connect("localhost", "root", "taosdata", NULL, 0);
@@ -676,7 +677,6 @@ TEST(testCase, tmq_consume_Test) {
 
 TEST(testCase, tmq_commit_TEST) {
 }
-#endif
 
 #if 0
 TEST(testCase, projection_query_tables) {
