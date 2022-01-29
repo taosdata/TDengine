@@ -4971,10 +4971,6 @@ static void unique_function(SQLFunctionCtx *pCtx) {
       }
       taosHashPut(pInfo->pSet, pData, pCtx->inputBytes, &unit, sizeof(UniqueUnit));
     }
-
-//    if (pRes->info.rows >= pInfo->threshold) {
-//      break;
-//    }
   }
   GET_RES_INFO(pCtx)->numOfRes = taosHashGetSize(pInfo->pSet);
 }
@@ -4989,11 +4985,17 @@ static void unique_func_finalizer(SQLFunctionCtx *pCtx) {
   for (int32_t i = 0; i < pCtx->tagInfo.numOfTagCols; ++i) {
     pData[i] = pCtx->tagInfo.pTagCtxList[i]->pOutput;
   }
+  TSKEY *output = pCtx->ptsOutputBuf;
 
   while(unit) {
     void *unique = taosHashGetDataKey(NULL, unit);
     memcpy(pCtx->pOutput + offset, unique, pCtx->inputBytes);
     offset += pCtx->inputBytes;
+
+    // set the output timestamp of each record.
+    if (output != NULL) {
+      *output++ = unit->timestamp;
+    }
 
     for (int32_t j = 0; j < pCtx->tagInfo.numOfTagCols; ++j) {
       memcpy(pData[j], unit->pTags, (size_t)pCtx->tagInfo.pTagCtxList[j]->outputBytes);
