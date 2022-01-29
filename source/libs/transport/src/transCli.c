@@ -432,14 +432,15 @@ static void clientHandleReq(SCliMsg* pMsg, SCliThrdObj* pThrd) {
   }
 }
 static void clientAsyncCb(uv_async_t* handle) {
-  SCliThrdObj* pThrd = handle->data;
+  SAsyncItem*  item = handle->data;
+  SCliThrdObj* pThrd = item->pThrd;
   SCliMsg*     pMsg = NULL;
   queue        wq;
 
   // batch process to avoid to lock/unlock frequently
-  pthread_mutex_lock(&pThrd->msgMtx);
-  QUEUE_MOVE(&pThrd->msg, &wq);
-  pthread_mutex_unlock(&pThrd->msgMtx);
+  pthread_mutex_lock(&item->mtx);
+  QUEUE_MOVE(&item->qmsg, &wq);
+  pthread_mutex_unlock(&item->mtx);
 
   int count = 0;
   while (!QUEUE_IS_EMPTY(&wq)) {
@@ -548,11 +549,11 @@ static void clientSendQuit(SCliThrdObj* thrd) {
   SCliMsg* msg = calloc(1, sizeof(SCliMsg));
   msg->ctx = NULL;  //
 
-  pthread_mutex_lock(&thrd->msgMtx);
-  QUEUE_PUSH(&thrd->msg, &msg->q);
-  pthread_mutex_unlock(&thrd->msgMtx);
+  // pthread_mutex_lock(&thrd->msgMtx);
+  // QUEUE_PUSH(&thrd->msg, &msg->q);
+  // pthread_mutex_unlock(&thrd->msgMtx);
 
-  transSendAsync(thrd->asyncPool);
+  transSendAsync(thrd->asyncPool, &msg->q);
   // uv_async_send(thrd->cliAsync);
 }
 void taosCloseClient(void* arg) {
@@ -598,14 +599,14 @@ void rpcSendRequest(void* shandle, const SEpSet* pEpSet, SRpcMsg* pMsg, int64_t*
 
   SCliThrdObj* thrd = ((SClientObj*)pRpc->tcphandle)->pThreadObj[index % pRpc->numOfThreads];
 
-  pthread_mutex_lock(&thrd->msgMtx);
-  QUEUE_PUSH(&thrd->msg, &cliMsg->q);
-  pthread_mutex_unlock(&thrd->msgMtx);
+  // pthread_mutex_lock(&thrd->msgMtx);
+  // QUEUE_PUSH(&thrd->msg, &cliMsg->q);
+  // pthread_mutex_unlock(&thrd->msgMtx);
 
-  int start = taosGetTimestampUs();
-  transSendAsync(thrd->asyncPool);
+  // int start = taosGetTimestampUs();
+  transSendAsync(thrd->asyncPool, &(cliMsg->q));
   // uv_async_send(thrd->cliAsync);
-  int end = taosGetTimestampUs() - start;
+  // int end = taosGetTimestampUs() - start;
   // tError("client sent to rpc, time cost: %d", (int)end);
 }
 #endif

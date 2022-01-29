@@ -376,13 +376,15 @@ static void destroySmsg(SSrvMsg* smsg) {
   free(smsg);
 }
 void uvWorkerAsyncCb(uv_async_t* handle) {
-  SWorkThrdObj* pThrd = handle->data;
+  SAsyncItem*   item = handle->data;
+  SWorkThrdObj* pThrd = item->pThrd;
   SSrvConn*     conn = NULL;
   queue         wq;
   // batch process to avoid to lock/unlock frequently
-  pthread_mutex_lock(&pThrd->msgMtx);
-  QUEUE_MOVE(&pThrd->msg, &wq);
-  pthread_mutex_unlock(&pThrd->msgMtx);
+  pthread_mutex_lock(&item->mtx);
+  QUEUE_MOVE(&item->qmsg, &wq);
+  pthread_mutex_unlock(&item->mtx);
+  // pthread_mutex_unlock(&mtx);
 
   while (!QUEUE_IS_EMPTY(&wq)) {
     queue* head = QUEUE_HEAD(&wq);
@@ -539,7 +541,7 @@ static bool addHandleToAcceptloop(void* arg) {
     tError("failed to bind: %s", uv_err_name(err));
     return false;
   }
-  if ((err = uv_listen((uv_stream_t*)&srv->server, 128, uvOnAcceptCb)) != 0) {
+  if ((err = uv_listen((uv_stream_t*)&srv->server, 512, uvOnAcceptCb)) != 0) {
     tError("failed to listen: %s", uv_err_name(err));
     return false;
   }
@@ -671,12 +673,12 @@ void destroyWorkThrd(SWorkThrdObj* pThrd) {
 void sendQuitToWorkThrd(SWorkThrdObj* pThrd) {
   SSrvMsg* srvMsg = calloc(1, sizeof(SSrvMsg));
 
-  pthread_mutex_lock(&pThrd->msgMtx);
-  QUEUE_PUSH(&pThrd->msg, &srvMsg->q);
-  pthread_mutex_unlock(&pThrd->msgMtx);
+  // pthread_mutex_lock(&pThrd->msgMtx);
+  // QUEUE_PUSH(&pThrd->msg, &srvMsg->q);
+  // pthread_mutex_unlock(&pThrd->msgMtx);
   tDebug("send quit msg to work thread");
 
-  transSendAsync(pThrd->asyncPool);
+  transSendAsync(pThrd->asyncPool, &srvMsg->q);
   // uv_async_send(pThrd->workerAsync);
 }
 
@@ -712,12 +714,12 @@ void rpcSendResponse(const SRpcMsg* pMsg) {
   srvMsg->pConn = pConn;
   srvMsg->msg = *pMsg;
 
-  pthread_mutex_lock(&pThrd->msgMtx);
-  QUEUE_PUSH(&pThrd->msg, &srvMsg->q);
-  pthread_mutex_unlock(&pThrd->msgMtx);
+  // pthread_mutex_lock(&pThrd->msgMtx);
+  // QUEUE_PUSH(&pThrd->msg, &srvMsg->q);
+  // pthread_mutex_unlock(&pThrd->msgMtx);
 
   tDebug("conn %p start to send resp", pConn);
-  transSendAsync(pThrd->asyncPool);
+  transSendAsync(pThrd->asyncPool, &srvMsg->q);
   // uv_async_send(pThrd->workerAsync);
 }
 
