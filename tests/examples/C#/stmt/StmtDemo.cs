@@ -86,8 +86,8 @@ namespace TDengineDriver
             stmtDemo.ExecuteQuery(createTable);
 
             stmtDemo.StmtInit();
-            string[] tableList = { "stmtdemo" };
-            stmtDemo.loadTableInfo(tableList);
+            // string[] tableList = { "stmtdemo" };
+            // stmtDemo.loadTableInfo(tableList);
 
             stmtDemo.StmtPrepare(stmtSql);
             TAOS_BIND[] binds = stmtDemo.InitBindArr();

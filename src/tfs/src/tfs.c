@@ -498,7 +498,11 @@ static int tfsFormatDir(char *idir, char *odir) {
   }
 
   char tmp[PATH_MAX] = {0};
+#ifdef WINDOWS
+  if (_fullpath(tmp,wep.we_wordv[0], PATH_MAX) == NULL) {
+#else
   if (realpath(wep.we_wordv[0], tmp) == NULL) {
+#endif
     terrno = TAOS_SYSTEM_ERROR(errno);
     wordfree(&wep);
     return -1;

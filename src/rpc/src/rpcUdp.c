@@ -186,9 +186,11 @@ static void *taosRecvUdpData(void *param) {
   SUdpConn          *pConn = param;
   struct sockaddr_in sourceAdd;
   ssize_t            dataLen;
+  int32_t            msgLen;
   unsigned int       addLen;
   uint16_t           port;
   SRecvInfo          recvInfo;
+  SRpcHead          *pHead;
 
   memset(&sourceAdd, 0, sizeof(sourceAdd));
   addLen = sizeof(sourceAdd);
@@ -215,6 +217,13 @@ static void *taosRecvUdpData(void *param) {
 
     if (dataLen < sizeof(SRpcHead)) {
       tError("%s recvfrom failed(%s)", pConn->label, strerror(errno));
+      continue;
+    }
+
+    pHead = (SRpcHead *)msg;
+    msgLen = (int32_t)htonl((uint32_t)pHead->msgLen);
+    if (dataLen < msgLen) {
+      tError("%s recvfrom failed(%s): dataLen: %ld, msgLen: %d", pConn->label, strerror(errno), (long)dataLen, msgLen);
       continue;
     }
 

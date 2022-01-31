@@ -65,6 +65,7 @@ char    tsLocale[TSDB_LOCALE_LEN] = {0};
 char    tsCharset[TSDB_LOCALE_LEN] = {0};  // default encode string
 int8_t  tsEnableCoreFile = 0;
 int32_t tsMaxBinaryDisplayWidth = 30;
+int32_t tsShortcutFlag = 0;  // shortcut flag to facilitate debugging
 
 /*
  * denote if the server needs to compress response message at the application layer to client, including query rsp,
@@ -164,6 +165,7 @@ int32_t tsdbWalFlushSize = TSDB_DEFAULT_WAL_FLUSH_SIZE;  // MB
 int8_t  tsEnableBalance = 1;
 int8_t  tsAlternativeRole = 0;
 int32_t tsBalanceInterval = 300;          // seconds
+int32_t tsOfflineInterval = 3;            // seconds
 int32_t tsOfflineThreshold = 86400 * 10;  // seconds of 10 days
 int32_t tsMnodeEqualVnodeNum = 4;
 int8_t  tsEnableFlowCtrl = 1;
@@ -288,7 +290,7 @@ char     Compressor[32] = "ZSTD_COMPRESSOR";  // ZSTD_COMPRESSOR or GZIP_COMPRES
 #endif
 
 // long query death-lock
-int8_t tsDeadLockKillQuery = 0;
+int8_t tsDeadLockKillQuery = 1;
 
 // default JSON string type
 char tsDefaultJSONStrType[7] = "nchar";
@@ -649,6 +651,16 @@ static void doInitGlobalConfig(void) {
   cfg.cfgType = TSDB_CFG_CTYPE_B_CONFIG | TSDB_CFG_CTYPE_B_SHOW;
   cfg.minValue = 1;
   cfg.maxValue = 30000;
+  cfg.ptrLength = 0;
+  cfg.unitType = TAOS_CFG_UTYPE_NONE;
+  taosInitConfigOption(cfg);
+
+  cfg.option = "offlineInterval";
+  cfg.ptr = &tsOfflineInterval;
+  cfg.valType = TAOS_CFG_VTYPE_INT32;
+  cfg.cfgType = TSDB_CFG_CTYPE_B_CONFIG | TSDB_CFG_CTYPE_B_SHOW;
+  cfg.minValue = 1;
+  cfg.maxValue = 600;
   cfg.ptrLength = 0;
   cfg.unitType = TAOS_CFG_UTYPE_NONE;
   taosInitConfigOption(cfg);
@@ -1736,6 +1748,17 @@ static void doInitGlobalConfig(void) {
   cfg.maxValue = TSDB_MAX_WAL_FLUSH_SIZE;
   cfg.ptrLength = 0;
   cfg.unitType = TAOS_CFG_UTYPE_MB;
+  taosInitConfigOption(cfg);
+
+  // shortcut flag to facilitate debugging
+  cfg.option = "shortcutFlag";
+  cfg.ptr = &tsShortcutFlag;
+  cfg.valType = TAOS_CFG_VTYPE_INT32;
+  cfg.cfgType = TSDB_CFG_CTYPE_B_CONFIG | TSDB_CFG_CTYPE_B_SHOW | TSDB_CFG_CTYPE_B_CLIENT;
+  cfg.minValue = 0;
+  cfg.maxValue = (1 << 24);
+  cfg.ptrLength = 0;
+  cfg.unitType = TAOS_CFG_UTYPE_NONE;
   taosInitConfigOption(cfg);
 
 #ifdef TD_TSZ

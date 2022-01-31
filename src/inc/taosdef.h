@@ -83,33 +83,18 @@ extern const int32_t TYPE_BYTES[16];
 
 #define TSDB_DATA_NULL_STR              "NULL"
 #define TSDB_DATA_NULL_STR_L            "null"
-
 #define TSDB_DEFAULT_USER               "root"
-
-#ifdef _TD_POWER_
-#define TSDB_DEFAULT_PASS               "powerdb"
-#elif (_TD_TQ_ == true)
-#define TSDB_DEFAULT_PASS               "tqueue"
-#elif (_TD_PRO_ == true)
-#define TSDB_DEFAULT_PASS               "prodb"
-#elif (_TD_KH_ == true)
-#define TSDB_DEFAULT_PASS               "khroot"
-#elif (_TD_JH_ == true)
-#define TSDB_DEFAULT_PASS               "jhdata"
-#else
 #define TSDB_DEFAULT_PASS               "taosdata"
-#endif
 
 #define SHELL_MAX_PASSWORD_LEN          20
-
 #define TSDB_TRUE   1
 #define TSDB_FALSE  0
 #define TSDB_OK     0
 #define TSDB_ERR   -1
 
 #define TS_PATH_DELIMITER "."
-#define TS_ESCAPE_CHAR '`'
-#define TS_ESCAPE_CHAR_SIZE 2
+#define TS_BACKQUOTE_CHAR '`'
+#define TS_BACKQUOTE_CHAR_SIZE 2
 
 #define TSDB_TIME_PRECISION_MILLI 0
 #define TSDB_TIME_PRECISION_MICRO 1
@@ -416,6 +401,11 @@ do { \
 #define TSDB_DEFAULT_VGROUPS_HASH_SIZE         100
 #define TSDB_DEFAULT_STABLES_HASH_SIZE         100
 #define TSDB_DEFAULT_CTABLES_HASH_SIZE         20000
+
+#define TSDB_SHORTCUT_RB_RPC_SEND_SUBMIT       0x01u  // RB: return before(global shortcut)
+#define TSDB_SHORTCUT_RA_RPC_RECV_SUBMIT       0x02u  // RA: return after(global shortcut)
+#define TSDB_SHORTCUT_NR_VNODE_WAL_WRITE       0x04u  // NR: no return and go on following actions(local shortcut)
+#define TSDB_SHORTCUT_RB_TSDB_COMMIT           0x08u
 
 #define TSDB_PORT_DNODESHELL                   0
 #define TSDB_PORT_DNODEDNODE                   5
