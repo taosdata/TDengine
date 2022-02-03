@@ -22,9 +22,8 @@ const uint8_t tdVTypeByte[3] = {
 };
 
 static void dataColSetNEleNull(SDataCol *pCol, int nEle);
-static void tdMergeTwoDat 6z, z,
-    zaCols(SDataCols *target, SDataCols *src1, int *iter1, int limit1, SDataCols *src2, int *iter2, int limit2,
-           int tRows, bool forceSetNull);
+static void tdMergeTwoDataCols(SDataCols *target, SDataCols *src1, int *iter1, int limit1, SDataCols *src2, int *iter2,
+                               int limit2, int tRows, bool forceSetNull);
 
 static FORCE_INLINE void dataColSetNullAt(SDataCol *pCol, int index) {
   if (IS_VAR_DATA_TYPE(pCol->type)) {
@@ -560,14 +559,14 @@ static int32_t tdAppendTpRowToDataCol(STSRow *pRow, STSchema *pSchema, SDataCols
   return TSDB_CODE_SUCCESS;
 }
 // internal
-static void tdAppendKvRowToDataCol(STSRow *pRow, STSchema *pSchema, SDataCols *pCols) {
+static int32_t tdAppendKvRowToDataCol(STSRow *pRow, STSchema *pSchema, SDataCols *pCols) {
   ASSERT(pCols->numOfRows == 0 || dataColsKeyLast(pCols) < TD_ROW_TSKEY(pRow));
 
   int   rcol = 0;
   int   dcol = 1;
   int   tRowCols = TD_ROW_NCOLS(pRow) - 1;  // the primary TS key not included in kvRowColIdx part
   int   tSchemaCols = schemaNCols(pSchema) - 1;
-  void *pBitmap = tdGetBitmapAddrKv(pRow, nRowCols);
+  void *pBitmap = tdGetBitmapAddrKv(pRow, TD_ROW_NCOLS(pRow));
 
   SDataCol *pDataCol = &(pCols->cols[0]);
   if (pDataCol->colId == PRIMARYKEY_TIMESTAMP_COL_ID) {
@@ -615,16 +614,16 @@ static void tdAppendKvRowToDataCol(STSRow *pRow, STSchema *pSchema, SDataCols *p
  * @param pCols
  * @param forceSetNull
  */
-void tdAppendSTSRowToDataCol(STSRow *pRow, STSchema *pSchema, SDataCols *pCols, bool forceSetNull) {
+int32_t tdAppendSTSRowToDataCol(STSRow *pRow, STSchema *pSchema, SDataCols *pCols, bool forceSetNull) {
   if (TD_IS_TP_ROW(pRow)) {
-    tdAppendTpRowToDataCol(pRow, pSchema, pCols);
+    return tdAppendTpRowToDataCol(pRow, pSchema, pCols);
   } else if (TD_IS_KV_ROW(pRow)) {
-    tdAppendKvRowToDataCol(pRow, pSchema, pCols);
+    return tdAppendKvRowToDataCol(pRow, pSchema, pCols);
   } else {
     ASSERT(0);
   }
+  return TSDB_CODE_SUCCESS;
 }
-
 
 #if 0
 

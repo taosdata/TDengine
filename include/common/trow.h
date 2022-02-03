@@ -98,7 +98,7 @@ typedef struct {
 
 #pragma pack(push, 1)
 typedef struct {
-  col_id_t cid;
+  col_id_t colId;
   uint32_t offset;
 } SKvRowIdx;
 #pragma pack(pop)
@@ -485,7 +485,7 @@ static FORCE_INLINE int32_t tdAppendColValToTpRow(STSRow *row, void *pBitmap, TD
   // 1. No need to set flen part for Null/None, just use bitmap. When upsert for the same primary TS key, the bitmap should
   // be updated simultaneously if Norm val overwrite Null/None cols.
   // 2. When consume STSRow in memory by taos client/tq, the output of Null/None cols should both be Null.
-  if (tdValIsNorm(valType)) {
+  if (tdValIsNorm(valType, val, colType)) {
     //TODO: The layout of new data types imported since 3.0 like blob/medium blob is the same with binary/nchar.
     if (IS_VAR_DATA_TYPE(colType)) {
       // ts key stored in STSRow.ts
@@ -502,7 +502,7 @@ static FORCE_INLINE int32_t tdAppendColValToTpRow(STSRow *row, void *pBitmap, TD
   // NULL/None value
   else {
     //TODO: Null value for new data types imported since 3.0 need to be defined.
-    void *nullVal = getNullValue(colType);
+    const void *nullVal = getNullValue(colType);
     if (IS_VAR_DATA_TYPE(colType)) {
       // ts key stored in STSRow.ts
       *(VarDataOffsetT *)POINTER_SHIFT(row->data, offset) = TD_ROW_LEN(row);
@@ -540,7 +540,7 @@ static FORCE_INLINE int32_t  tdAppendColValToKvRow(STSRow *row, void *pBitmap, T
 #endif
 
   // No need to store None/Null values.
-  if (tdValIsNorm(valType)) {
+  if (tdValIsNorm(valType, val, colType)) {
     // ts key stored in STSRow.ts
     SKvRowIdx *pColIdx = (SKvRowIdx *)POINTER_SHIFT(row->data, offset);
     char *   ptr = (char *)POINTER_SHIFT(row, TD_ROW_LEN(row));
@@ -548,7 +548,7 @@ static FORCE_INLINE int32_t  tdAppendColValToKvRow(STSRow *row, void *pBitmap, T
     pColIdx->offset = TD_ROW_LEN(row);  // the offset include the TD_ROW_HEAD_LEN
 
     if (IS_VAR_DATA_TYPE(colType)) {
-      if (isCopyValData) {
+      if (isCopyVarData) {
         memcpy(ptr, val, varDataTLen(val));
       }
       TD_ROW_LEN(row) += varDataTLen(val);
@@ -564,10 +564,10 @@ static FORCE_INLINE int32_t  tdAppendColValToKvRow(STSRow *row, void *pBitmap, T
     char *   ptr = (char *)POINTER_SHIFT(row, TD_ROW_LEN(row));
     pColIdx->colId = colId;
     pColIdx->offset = TD_ROW_LEN(row);  // the offset include the TD_ROW_HEAD_LEN
-    void *nullVal = getNullValue(colType);
+    const void *nullVal = getNullValue(colType);
 
     if (IS_VAR_DATA_TYPE(colType)) {
-      if (isCopyValData) {
+      if (isCopyVarData) {
         memcpy(ptr, nullVal, varDataTLen(nullVal));
       }
       TD_ROW_LEN(row) += varDataTLen(nullVal);
@@ -626,9 +626,9 @@ static FORCE_INLINE int32_t tdAppendColValToRow(SRowBuilder *pBuilder, int16_t c
   //                                                    const void *val, int8_t valType, int32_t tOffset, int16_t
   //                                                    colIdx);
   if (TD_IS_TP_ROW(pRow)) {
-    tdAppendColValToTpRow(pRow, pBitmap, val, true, colType, valType, colIdx, offset);
+    tdAppendColValToTpRow(pRow, pBitmap, valType, val, true, colType, colIdx, offset);
   } else {
-    tdAppendColValToKvRow(pRow, pBitmap, val, true, colType, valType, colIdx, offset, colId);
+    tdAppendColValToKvRow(pRow, pBitmap, valType, val, true, colType, colIdx, offset, colId);
   }
   return TSDB_CODE_SUCCESS;
 }
@@ -819,13 +819,13 @@ static FORCE_INLINE bool tdGetKvRowValOfColEx(STSRowIter *pIter, col_id_t colId,
   SKvRowIdx *pKvIdx = NULL;
   bool       colFound = false;
   while (*nIdx < pRow->ncols) {
-    pKvIdx = POINTER_SHIFT(pRow->data, *nIdx * sizeof(SKvRowIdx));
-    if (pKvIdx->cid == colId) {
+    pKvIdx = (SKvRowIdx *)POINTER_SHIFT(pRow->data, *nIdx * sizeof(SKvRowIdx));
+    if (pKvIdx->colId == colId) {
       ++(*nIdx);
       pVal->val = POINTER_SHIFT(pRow, pKvIdx->offset);
       colFound = true;
       break;
-    } else if (pKvIdx->cid > colId) {
+    } else if (pKvIdx->colId > colId) {
       pVal->valType = TD_VTYPE_NONE;
       return true;
     } else {
