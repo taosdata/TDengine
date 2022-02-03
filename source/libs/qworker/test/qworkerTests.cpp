@@ -113,7 +113,8 @@ void qwtBuildQueryReqMsg(SRpcMsg *queryRpc) {
   qwtqueryMsg.queryId = htobe64(atomic_add_fetch_64(&qwtTestQueryId, 1));
   qwtqueryMsg.sId = htobe64(1);
   qwtqueryMsg.taskId = htobe64(1);
-  qwtqueryMsg.contentLen = htonl(100);
+  qwtqueryMsg.phyLen = htonl(100);
+  qwtqueryMsg.sqlLen = 0;
   queryRpc->msgType = TDMT_VND_QUERY;
   queryRpc->pCont = &qwtqueryMsg;
   queryRpc->contLen = sizeof(SSubQueryMsg) + 100;
@@ -1081,7 +1082,7 @@ TEST(rcTest, shortExecshortDelay) {
   qwtTestStop = false;
   qwtTestQuitThreadNum = 0;
 
-  code = qWorkerInit(NODE_TYPE_VNODE, 1, NULL, &mgmt, mockPointer, qwtPutReqToQueue);
+  code = qWorkerInit(NODE_TYPE_VNODE, 1, NULL, &mgmt, mockPointer, qwtPutReqToQueue, NULL);
   ASSERT_EQ(code, 0);
 
   qwtTestMaxExecTaskUsec = 0;
@@ -1162,7 +1163,7 @@ TEST(rcTest, longExecshortDelay) {
   qwtTestStop = false;
   qwtTestQuitThreadNum = 0;
 
-  code = qWorkerInit(NODE_TYPE_VNODE, 1, NULL, &mgmt, mockPointer, qwtPutReqToQueue);
+  code = qWorkerInit(NODE_TYPE_VNODE, 1, NULL, &mgmt, mockPointer, qwtPutReqToQueue, NULL);
   ASSERT_EQ(code, 0);
 
   qwtTestMaxExecTaskUsec = 1000000;
@@ -1245,7 +1246,7 @@ TEST(rcTest, shortExeclongDelay) {
   qwtTestStop = false;
   qwtTestQuitThreadNum = 0;
 
-  code = qWorkerInit(NODE_TYPE_VNODE, 1, NULL, &mgmt, mockPointer, qwtPutReqToQueue);
+  code = qWorkerInit(NODE_TYPE_VNODE, 1, NULL, &mgmt, mockPointer, qwtPutReqToQueue, NULL);
   ASSERT_EQ(code, 0);
 
   qwtTestMaxExecTaskUsec = 0;

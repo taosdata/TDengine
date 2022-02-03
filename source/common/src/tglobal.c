@@ -78,7 +78,6 @@ int32_t tsCompressColData = -1;
 int32_t tsCompatibleModel = 1;
 
 // client
-int32_t tsMaxSQLStringLen = TSDB_MAX_ALLOWED_SQL_LEN;
 int32_t tsMaxWildCardsLen = TSDB_PATTERN_STRING_DEFAULT_LEN;
 int32_t tsMaxRegexStringLen = TSDB_REGEX_STRING_DEFAULT_LEN;
 
@@ -594,16 +593,6 @@ static void doInitGlobalConfig(void) {
   cfg.unitType = TAOS_CFG_UTYPE_NONE;
   taosAddConfigOption(cfg);
 
-  cfg.option = "maxSQLLength";
-  cfg.ptr = &tsMaxSQLStringLen;
-  cfg.valType = TAOS_CFG_VTYPE_INT32;
-  cfg.cfgType = TSDB_CFG_CTYPE_B_CONFIG | TSDB_CFG_CTYPE_B_CLIENT | TSDB_CFG_CTYPE_B_SHOW;
-  cfg.minValue = TSDB_MAX_SQL_LEN;
-  cfg.maxValue = TSDB_MAX_ALLOWED_SQL_LEN;
-  cfg.ptrLength = 0;
-  cfg.unitType = TAOS_CFG_UTYPE_BYTE;
-  taosAddConfigOption(cfg);
-
   cfg.option = "maxWildCardsLength";
   cfg.ptr = &tsMaxWildCardsLen;
   cfg.valType = TAOS_CFG_VTYPE_INT32;
@@ -1080,9 +1069,7 @@ static void doInitGlobalConfig(void) {
 void taosInitGlobalCfg() { pthread_once(&tsInitGlobalCfgOnce, doInitGlobalConfig); }
 
 int32_t taosCheckAndPrintCfg() {
-  char     fqdn[TSDB_FQDN_LEN];
-  uint16_t port;
-
+  SEp ep = {0};
   if (debugFlag & DEBUG_TRACE || debugFlag & DEBUG_DEBUG || debugFlag & DEBUG_DUMP) {
     taosSetAllDebugFlag();
   }
@@ -1097,15 +1084,15 @@ int32_t taosCheckAndPrintCfg() {
   if (tsFirst[0] == 0) {
     strcpy(tsFirst, tsLocalEp);
   } else {
-    taosGetFqdnPortFromEp(tsFirst, fqdn, &port);
-    snprintf(tsFirst, sizeof(tsFirst), "%s:%u", fqdn, port);
+    taosGetFqdnPortFromEp(tsFirst, &ep);
+    snprintf(tsFirst, sizeof(tsFirst), "%s:%u", ep.fqdn, ep.port);
   }
 
   if (tsSecond[0] == 0) {
     strcpy(tsSecond, tsLocalEp);
   } else {
-    taosGetFqdnPortFromEp(tsSecond, fqdn, &port);
-    snprintf(tsSecond, sizeof(tsSecond), "%s:%u", fqdn, port);
+    taosGetFqdnPortFromEp(tsSecond, &ep);
+    snprintf(tsSecond, sizeof(tsSecond), "%s:%u", ep.fqdn, ep.port);
   }
 
   taosCheckDataDirCfg();

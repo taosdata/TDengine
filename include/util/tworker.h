@@ -15,57 +15,61 @@
 
 #ifndef _TD_UTIL_WORKER_H
 #define _TD_UTIL_WORKER_H
-
 #include "tqueue.h"
 
 #ifdef __cplusplus
 extern "C" {
 #endif
 
-typedef struct SWorkerPool  SWorkerPool;
-typedef struct SMWorkerPool SMWorkerPool;
+typedef struct SQWorkerPool SQWorkerPool;
+typedef struct SWWorkerPool SWWorkerPool;
 
-typedef struct SWorker {
-  int32_t      id;      // worker ID
-  pthread_t    thread;  // thread
-  SWorkerPool *pool;
-} SWorker;
+typedef struct SQWorker {
+  int32_t       id;      // worker ID
+  pthread_t     thread;  // thread
+  SQWorkerPool *pool;
+} SQWorker, SFWorker;
 
-typedef struct SWorkerPool {
+typedef struct SQWorkerPool {
   int32_t         max;  // max number of workers
   int32_t         min;  // min number of workers
   int32_t         num;  // current number of workers
-  STaosQset      *qset;
-  const char     *name;
-  SWorker        *workers;
+  STaosQset *     qset;
+  const char *    name;
+  SQWorker *      workers;
   pthread_mutex_t mutex;
-} SWorkerPool;
+} SQWorkerPool, SFWorkerPool;
 
-typedef struct SMWorker {
+typedef struct SWWorker {
   int32_t       id;      // worker id
   pthread_t     thread;  // thread
-  STaosQall    *qall;
-  STaosQset    *qset;  // queue set
-  SMWorkerPool *pool;
-} SMWorker;
+  STaosQall *   qall;
+  STaosQset *   qset;  // queue set
+  SWWorkerPool *pool;
+} SWWorker;
 
-typedef struct SMWorkerPool {
+typedef struct SWWorkerPool {
   int32_t         max;     // max number of workers
   int32_t         nextId;  // from 0 to max-1, cyclic
-  const char     *name;
-  SMWorker       *workers;
+  const char *    name;
+  SWWorker *      workers;
   pthread_mutex_t mutex;
-} SMWorkerPool;
+} SWWorkerPool;
 
-int32_t     tWorkerInit(SWorkerPool *pool);
-void        tWorkerCleanup(SWorkerPool *pool);
-STaosQueue *tWorkerAllocQueue(SWorkerPool *pool, void *ahandle, FProcessItem fp);
-void        tWorkerFreeQueue(SWorkerPool *pool, STaosQueue *queue);
+int32_t     tQWorkerInit(SQWorkerPool *pool);
+void        tQWorkerCleanup(SQWorkerPool *pool);
+STaosQueue *tQWorkerAllocQueue(SQWorkerPool *pool, void *ahandle, FItem fp);
+void        tQWorkerFreeQueue(SQWorkerPool *pool, STaosQueue *queue);
 
-int32_t     tMWorkerInit(SMWorkerPool *pool);
-void        tMWorkerCleanup(SMWorkerPool *pool);
-STaosQueue *tMWorkerAllocQueue(SMWorkerPool *pool, void *ahandle, FProcessItems fp);
-void        tMWorkerFreeQueue(SMWorkerPool *pool, STaosQueue *queue);
+int32_t     tFWorkerInit(SFWorkerPool *pool);
+void        tFWorkerCleanup(SFWorkerPool *pool);
+STaosQueue *tFWorkerAllocQueue(SFWorkerPool *pool, void *ahandle, FItem fp);
+void        tFWorkerFreeQueue(SFWorkerPool *pool, STaosQueue *queue);
+
+int32_t     tWWorkerInit(SWWorkerPool *pool);
+void        tWWorkerCleanup(SWWorkerPool *pool);
+STaosQueue *tWWorkerAllocQueue(SWWorkerPool *pool, void *ahandle, FItems fp);
+void        tWWorkerFreeQueue(SWWorkerPool *pool, STaosQueue *queue);
 
 #ifdef __cplusplus
 }

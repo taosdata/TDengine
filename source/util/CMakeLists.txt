@@ -9,9 +9,7 @@ target_include_directories(
 target_link_libraries(
     util
     PRIVATE os
-    PUBLIC zlib
     PUBLIC lz4_static
-    PUBLIC api
 )
 
 if(${BUILD_TEST})

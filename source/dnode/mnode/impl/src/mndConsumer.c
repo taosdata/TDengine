@@ -30,23 +30,22 @@
 #define MND_CONSUMER_VER_NUMBER 1
 #define MND_CONSUMER_RESERVE_SIZE 64
 
-static int32_t  mndConsumerActionInsert(SSdb *pSdb, SMqConsumerObj *pConsumer);
-static int32_t  mndConsumerActionDelete(SSdb *pSdb, SMqConsumerObj *pConsumer);
-static int32_t  mndConsumerActionUpdate(SSdb *pSdb, SMqConsumerObj *pConsumer, SMqConsumerObj *pNewConsumer);
-static int32_t  mndProcessConsumerMetaMsg(SMnodeMsg *pMsg);
-static int32_t  mndGetConsumerMeta(SMnodeMsg *pMsg, SShowObj *pShow, STableMetaRsp *pMeta);
-static int32_t  mndRetrieveConsumer(SMnodeMsg *pMsg, SShowObj *pShow, char *data, int32_t rows);
-static void     mndCancelGetNextConsumer(SMnode *pMnode, void *pIter);
+static int32_t mndConsumerActionInsert(SSdb *pSdb, SMqConsumerObj *pConsumer);
+static int32_t mndConsumerActionDelete(SSdb *pSdb, SMqConsumerObj *pConsumer);
+static int32_t mndConsumerActionUpdate(SSdb *pSdb, SMqConsumerObj *pConsumer, SMqConsumerObj *pNewConsumer);
+static int32_t mndProcessConsumerMetaMsg(SMnodeMsg *pMsg);
+static int32_t mndGetConsumerMeta(SMnodeMsg *pMsg, SShowObj *pShow, STableMetaRsp *pMeta);
+static int32_t mndRetrieveConsumer(SMnodeMsg *pMsg, SShowObj *pShow, char *data, int32_t rows);
+static void    mndCancelGetNextConsumer(SMnode *pMnode, void *pIter);
 
 int32_t mndInitConsumer(SMnode *pMnode) {
   SSdbTable table = {.sdbType = SDB_CONSUMER,
-                     .keyType = SDB_KEY_BINARY,
+                     .keyType = SDB_KEY_INT64,
                      .encodeFp = (SdbEncodeFp)mndConsumerActionEncode,
                      .decodeFp = (SdbDecodeFp)mndConsumerActionDecode,
                      .insertFp = (SdbInsertFp)mndConsumerActionInsert,
                      .updateFp = (SdbUpdateFp)mndConsumerActionUpdate,
                      .deleteFp = (SdbDeleteFp)mndConsumerActionDelete};
-
 
   return sdbSetTable(pMnode->pSdb, table);
 }
@@ -61,10 +60,10 @@ SSdbRaw *mndConsumerActionEncode(SMqConsumerObj *pConsumer) {
   SSdbRaw *pRaw = sdbAllocRaw(SDB_CONSUMER, MND_CONSUMER_VER_NUMBER, size);
   if (pRaw == NULL) goto CM_ENCODE_OVER;
 
-  void* buf = malloc(tlen);
+  void *buf = malloc(tlen);
   if (buf == NULL) goto CM_ENCODE_OVER;
 
-  void* abuf = buf;
+  void *abuf = buf;
   tEncodeSMqConsumerObj(&abuf, pConsumer);
 
   int32_t dataPos = 0;
@@ -76,6 +75,7 @@ SSdbRaw *mndConsumerActionEncode(SMqConsumerObj *pConsumer) {
   terrno = TSDB_CODE_SUCCESS;
 
 CM_ENCODE_OVER:
+  tfree(buf);
   if (terrno != 0) {
     mError("consumer:%ld, failed to encode to raw:%p since %s", pConsumer->consumerId, pRaw, terrstr());
     sdbFreeRaw(pRaw);
@@ -106,7 +106,7 @@ SSdbRow *mndConsumerActionDecode(SSdbRaw *pRaw) {
   int32_t dataPos = 0;
   int32_t len;
   SDB_GET_INT32(pRaw, dataPos, &len, CM_DECODE_OVER);
-  void* buf = malloc(len);
+  void *buf = malloc(len);
   if (buf == NULL) goto CM_DECODE_OVER;
   SDB_GET_BINARY(pRaw, dataPos, buf, len, CM_DECODE_OVER);
   SDB_GET_RESERVE(pRaw, dataPos, MND_CONSUMER_RESERVE_SIZE, CM_DECODE_OVER);
@@ -118,6 +118,7 @@ SSdbRow *mndConsumerActionDecode(SSdbRaw *pRaw) {
   terrno = TSDB_CODE_SUCCESS;
 
 CM_DECODE_OVER:
+  tfree(buf);
   if (terrno != TSDB_CODE_SUCCESS) {
     mError("consumer:%ld, failed to decode from raw:%p since %s", pConsumer->consumerId, pRaw, terrstr());
     tfree(pRow);
@@ -147,7 +148,7 @@ static int32_t mndConsumerActionUpdate(SSdb *pSdb, SMqConsumerObj *pOldConsumer,
   return 0;
 }
 
-SMqConsumerObj *mndAcquireConsumer(SMnode *pMnode, int32_t consumerId) {
+SMqConsumerObj *mndAcquireConsumer(SMnode *pMnode, int64_t consumerId) {
   SSdb           *pSdb = pMnode->pSdb;
   SMqConsumerObj *pConsumer = sdbAcquire(pSdb, SDB_CONSUMER, &consumerId);
   if (pConsumer == NULL) {

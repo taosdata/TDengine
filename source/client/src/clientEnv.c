@@ -127,6 +127,8 @@ void* openTransporter(const char *user, const char *auth, int32_t numOfThread) {
 void destroyTscObj(void *pObj) {
   STscObj *pTscObj = pObj;
 
+  SClientHbKey connKey = {.connId = pTscObj->connId, .hbType = pTscObj->connType};
+  hbDeregisterConn(pTscObj->pAppInfo->pAppHbMgr, connKey);
   atomic_sub_fetch_64(&pTscObj->pAppInfo->numOfConns, 1);
   tscDebug("connObj 0x%"PRIx64" destroyed, totalConn:%"PRId64, pTscObj->id, pTscObj->pAppInfo->numOfConns);
   pthread_mutex_destroy(&pTscObj->mutex);

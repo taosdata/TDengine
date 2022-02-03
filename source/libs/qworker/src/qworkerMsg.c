@@ -26,11 +26,11 @@ int32_t qwMallocFetchRsp(int32_t length, SRetrieveTableRsp **rsp) {
   return TSDB_CODE_SUCCESS;
 }
 
-void qwBuildFetchRsp(void *msg, SOutputData *input, int32_t len) {
+void qwBuildFetchRsp(void *msg, SOutputData *input, int32_t len, bool qComplete) {
   SRetrieveTableRsp *rsp = (SRetrieveTableRsp *)msg;
   
   rsp->useconds = htobe64(input->useconds);
-  rsp->completed = input->queryEnd;
+  rsp->completed = qComplete;
   rsp->precision = input->precision;
   rsp->compressed = input->compressed;
   rsp->compLen = htonl(len);
@@ -258,12 +258,12 @@ int32_t qwBuildAndSendCQueryMsg(SQWorkerMgmt *mgmt, uint64_t sId, uint64_t qId, 
 
   int32_t code = (*mgmt->putToQueueFp)(mgmt->nodeObj, &pNewMsg);
   if (TSDB_CODE_SUCCESS != code) {
-    QW_SCH_TASK_ELOG("put query continue msg to queue failed, code:%x", code);
+    QW_SCH_TASK_ELOG("put query continue msg to queue failed, vgId:%d, code:%s", mgmt->nodeId, tstrerror(code));
     rpcFreeCont(req);
     QW_ERR_RET(code);
   }
 
-  QW_SCH_TASK_DLOG("put query continue msg to query queue, vgId:%d", mgmt->nodeId);
+  QW_SCH_TASK_DLOG("put task continue exec msg to query queue, vgId:%d", mgmt->nodeId);
 
   return TSDB_CODE_SUCCESS;
 }
@@ -282,18 +282,21 @@ int32_t qWorkerProcessQueryMsg(void *node, void *qWorkerMgmt, SRpcMsg *pMsg) {
     QW_ERR_RET(TSDB_CODE_QRY_INVALID_INPUT);
   }
 
-  msg->sId = be64toh(msg->sId);
+  msg->sId     = be64toh(msg->sId);
   msg->queryId = be64toh(msg->queryId);
-  msg->taskId = be64toh(msg->taskId);
-  msg->contentLen = ntohl(msg->contentLen);
-  
+  msg->taskId  = be64toh(msg->taskId);
+  msg->phyLen  = ntohl(msg->phyLen);
+  msg->sqlLen  = ntohl(msg->sqlLen);
+
   uint64_t sId = msg->sId;
   uint64_t qId = msg->queryId;
   uint64_t tId = msg->taskId;
 
-  SQWMsg qwMsg = {.node = node, .msg = msg->msg, .msgLen = msg->contentLen, .connection = pMsg};
+  SQWMsg qwMsg = {.node = node, .msg = msg->msg + msg->sqlLen, .msgLen = msg->phyLen, .connection = pMsg};
 
-  QW_SCH_TASK_DLOG("processQuery start, node:%p", node);
+  char* sql = strndup(msg->msg, msg->sqlLen);
+  QW_SCH_TASK_DLOG("processQuery start, node:%p, sql:%s", node, sql);
+  tfree(sql);
 
   QW_RET(qwProcessQuery(QW_FPARAMS(), &qwMsg, msg->taskType));
 
@@ -419,6 +422,11 @@ int32_t qWorkerProcessFetchMsg(void *node, void *qWorkerMgmt, SRpcMsg *pMsg) {
   QW_SCH_TASK_DLOG("processFetch end, node:%p", node);
 
   return TSDB_CODE_SUCCESS;  
+}
+
+int32_t qWorkerProcessFetchRsp(void *node, void *qWorkerMgmt, SRpcMsg *pMsg) {
+  qProcessFetchRsp(NULL, pMsg, NULL);
+  return TSDB_CODE_SUCCESS;
 }
 
 int32_t qWorkerProcessCancelMsg(void *node, void *qWorkerMgmt, SRpcMsg *pMsg) {

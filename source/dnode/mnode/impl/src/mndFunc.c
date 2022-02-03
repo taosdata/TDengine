@@ -20,6 +20,7 @@
 #include "mndTrans.h"
 
 #define SDB_FUNC_VER 1
+#define SDB_FUNC_RESERVE_SIZE 64
 
 static SSdbRaw *mndFuncActionEncode(SFuncObj *pFunc);
 static SSdbRow *mndFuncActionDecode(SSdbRaw *pRaw);
@@ -60,7 +61,7 @@ void mndCleanupFunc(SMnode *pMnode) {}
 static SSdbRaw *mndFuncActionEncode(SFuncObj *pFunc) {
   terrno = TSDB_CODE_OUT_OF_MEMORY;
 
-  int32_t  size = pFunc->commentSize + pFunc->codeSize + sizeof(SFuncObj);
+  int32_t  size = pFunc->commentSize + pFunc->codeSize + sizeof(SFuncObj) + SDB_FUNC_RESERVE_SIZE;
   SSdbRaw *pRaw = sdbAllocRaw(SDB_FUNC, SDB_FUNC_VER, size);
   if (pRaw == NULL) goto FUNC_ENCODE_OVER;
 
@@ -78,6 +79,7 @@ static SSdbRaw *mndFuncActionEncode(SFuncObj *pFunc) {
   SDB_SET_INT32(pRaw, dataPos, pFunc->codeSize, FUNC_ENCODE_OVER)
   SDB_SET_BINARY(pRaw, dataPos, pFunc->pComment, pFunc->commentSize, FUNC_ENCODE_OVER)
   SDB_SET_BINARY(pRaw, dataPos, pFunc->pCode, pFunc->codeSize, FUNC_ENCODE_OVER)
+  SDB_SET_RESERVE(pRaw, dataPos, SDB_FUNC_RESERVE_SIZE, FUNC_ENCODE_OVER)
   SDB_SET_DATALEN(pRaw, dataPos, FUNC_ENCODE_OVER);
 
   terrno = 0;
@@ -131,6 +133,7 @@ static SSdbRow *mndFuncActionDecode(SSdbRaw *pRaw) {
 
   SDB_GET_BINARY(pRaw, dataPos, pFunc->pComment, pFunc->commentSize, FUNC_DECODE_OVER)
   SDB_GET_BINARY(pRaw, dataPos, pFunc->pCode, pFunc->codeSize, FUNC_DECODE_OVER)
+  SDB_GET_RESERVE(pRaw, dataPos, SDB_FUNC_RESERVE_SIZE, FUNC_DECODE_OVER)
 
   terrno = 0;
 

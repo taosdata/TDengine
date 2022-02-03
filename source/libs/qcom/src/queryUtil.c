@@ -128,7 +128,7 @@ int32_t asyncSendMsgToServer(void *pTransporter, SEpSet* epSet, int64_t* pTransp
   if (NULL == pMsg) {
     qError("0x%"PRIx64" msg:%s malloc failed", pInfo->requestId, TMSG_INFO(pInfo->msgType));
     terrno = TSDB_CODE_TSC_OUT_OF_MEMORY;
-    return -1;
+    return terrno;
   }
 
   memcpy(pMsg, pInfo->msgInfo.pData, pInfo->msgInfo.len);

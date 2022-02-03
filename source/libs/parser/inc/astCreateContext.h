@@ -13,12 +13,29 @@
  * along with this program. If not, see <http://www.gnu.org/licenses/>.
  */
 
+#ifndef _TD_AST_CREATER_H_
+#define _TD_AST_CREATER_H_
+
+#ifdef __cplusplus
+extern "C" {
+#endif
+
 #include "nodes.h"
+#include "parser.h"
 
-bool isTimeorderQuery(const SNode* pQuery) {
+typedef struct SAstCreateContext {
+  SParseContext* pQueryCxt;
+  bool notSupport;
+  bool valid;
+  SNode* pRootNode;
+  SHashObj* pResourceHash;
+} SAstCreateContext;
 
+int32_t createAstCreateContext(SParseContext* pQueryCxt, SAstCreateContext* pCxt);
+int32_t destroyAstCreateContext(SAstCreateContext* pCxt);
+
+#ifdef __cplusplus
 }
+#endif
 
-bool isTimelineQuery(const SNode* pQuery) {
-
-}
+#endif /*_TD_AST_CREATER_H_*/

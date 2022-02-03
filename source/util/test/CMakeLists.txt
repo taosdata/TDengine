@@ -13,12 +13,12 @@ IF (HEADER_GTEST_INCLUDE_DIR AND (LIB_GTEST_STATIC_DIR OR LIB_GTEST_SHARED_DIR))
 
     LIST(REMOVE_ITEM SOURCE_LIST ${CMAKE_CURRENT_SOURCE_DIR}/trefTest.c)
     ADD_EXECUTABLE(utilTest ${SOURCE_LIST})
-    TARGET_LINK_LIBRARIES(utilTest util common os gtest pthread gcov)
+    TARGET_LINK_LIBRARIES(utilTest util common os gtest pthread)
 
     LIST(REMOVE_ITEM SOURCE_LIST ${CMAKE_CURRENT_SOURCE_DIR}/cacheTest.cpp)
     LIST(APPEND SOURCE_LIST ${CMAKE_CURRENT_SOURCE_DIR}/hashTest.cpp)
     ADD_EXECUTABLE(hashTest ${SOURCE_LIST})
-    TARGET_LINK_LIBRARIES(hashTest util common os gtest pthread gcov)
+    TARGET_LINK_LIBRARIES(hashTest util common os gtest pthread)
     
     LIST(APPEND BIN_SRC ${CMAKE_CURRENT_SOURCE_DIR}/trefTest.c)
     ADD_EXECUTABLE(trefTest ${BIN_SRC})
@@ -45,4 +45,10 @@ target_link_libraries(freelistTest os util gtest gtest_main)
 add_executable(encodeTest "encodeTest.cpp")
 target_link_libraries(encodeTest os util gtest gtest_main)
 
-
+# queueTest
+add_executable(queue_test "queueTest.cpp")
+target_link_libraries(queue_test os util gtest_main)   
+add_test(
+    NAME queue_test
+    COMMAND queue_test
+)

@@ -178,7 +178,7 @@ static int32_t mndVgroupActionUpdate(SSdb *pSdb, SVgObj *pOld, SVgObj *pNew) {
 SVgObj *mndAcquireVgroup(SMnode *pMnode, int32_t vgId) {
   SSdb   *pSdb = pMnode->pSdb;
   SVgObj *pVgroup = sdbAcquire(pSdb, SDB_VGROUP, &vgId);
-  if (pVgroup == NULL) {
+  if (pVgroup == NULL && terrno == TSDB_CODE_SDB_OBJ_NOT_THERE) {
     terrno = TSDB_CODE_MND_VGROUP_NOT_EXIST;
   }
   return pVgroup;
@@ -424,9 +424,7 @@ SEpSet mndGetVgroupEpset(SMnode *pMnode, SVgObj *pVgroup) {
       epset.inUse = epset.numOfEps;
     }
 
-    epset.port[epset.numOfEps] = pDnode->port;
-    memcpy(&epset.fqdn[epset.numOfEps], pDnode->fqdn, TSDB_FQDN_LEN);
-    epset.numOfEps++;
+    addEpIntoEpSet(&epset, pDnode->fqdn, pDnode->port);
     mndReleaseDnode(pMnode, pDnode);
   }
 

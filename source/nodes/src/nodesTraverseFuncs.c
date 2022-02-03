@@ -17,17 +17,17 @@
 
 typedef bool (*FQueryNodeWalker)(SNode* pNode, void* pContext);
 
-bool nodeArrayWalker(SArray* pArray, FQueryNodeWalker walker, void* pContext) {
-    size_t size = taosArrayGetSize(pArray);
-    for (size_t i = 0; i < size; ++i) {
-      if (!nodeTreeWalker((SNode*)taosArrayGetP(pArray, i), walker, pContext)) {
-        return false;
-      }
+bool nodesWalkNodeList(SNodeList* pNodeList, FQueryNodeWalker walker, void* pContext) {
+  SNode* node;
+  FOREACH(node, pNodeList) {
+    if (!nodesWalkNode(node, walker, pContext)) {
+      return false;
     }
-    return true;
+  }
+  return true;
 }
 
-bool nodeTreeWalker(SNode* pNode, FQueryNodeWalker walker, void* pContext) {
+bool nodesWalkNode(SNode* pNode, FQueryNodeWalker walker, void* pContext) {
   if (NULL == pNode) {
     return true;
   }
@@ -39,38 +39,39 @@ bool nodeTreeWalker(SNode* pNode, FQueryNodeWalker walker, void* pContext) {
   switch (nodeType(pNode)) {
     case QUERY_NODE_COLUMN:
     case QUERY_NODE_VALUE:
+    case QUERY_NODE_LIMIT:
       // these node types with no subnodes
       return true;
     case QUERY_NODE_OPERATOR: {
       SOperatorNode* pOpNode = (SOperatorNode*)pNode;
-      if (!nodeTreeWalker(pOpNode->pLeft, walker, pContext)) {
+      if (!nodesWalkNode(pOpNode->pLeft, walker, pContext)) {
         return false;
       }
-      return nodeTreeWalker(pOpNode->pRight, walker, pContext);
+      return nodesWalkNode(pOpNode->pRight, walker, pContext);
     }
     case QUERY_NODE_LOGIC_CONDITION:
-      return nodeArrayWalker(((SLogicConditionNode*)pNode)->pParameterList, walker, pContext);
+      return nodesWalkNodeList(((SLogicConditionNode*)pNode)->pParameterList, walker, pContext);
     case QUERY_NODE_IS_NULL_CONDITION:
-      return nodeTreeWalker(((SIsNullCondNode*)pNode)->pExpr, walker, pContext);
+      return nodesWalkNode(((SIsNullCondNode*)pNode)->pExpr, walker, pContext);
     case QUERY_NODE_FUNCTION:
-      return nodeArrayWalker(((SFunctionNode*)pNode)->pParameterList, walker, pContext);
+      return nodesWalkNodeList(((SFunctionNode*)pNode)->pParameterList, walker, pContext);
     case QUERY_NODE_REAL_TABLE:
     case QUERY_NODE_TEMP_TABLE:
       return true; // todo
     case QUERY_NODE_JOIN_TABLE: {
       SJoinTableNode* pJoinTableNode = (SJoinTableNode*)pNode;
-      if (!nodeTreeWalker(pJoinTableNode->pLeft, walker, pContext)) {
+      if (!nodesWalkNode(pJoinTableNode->pLeft, walker, pContext)) {
         return false;
       }
-      if (!nodeTreeWalker(pJoinTableNode->pRight, walker, pContext)) {
+      if (!nodesWalkNode(pJoinTableNode->pRight, walker, pContext)) {
         return false;
       }
-      return nodeTreeWalker(pJoinTableNode->pOnCond, walker, pContext);
+      return nodesWalkNode(pJoinTableNode->pOnCond, walker, pContext);
     }
     case QUERY_NODE_GROUPING_SET:
-      return nodeArrayWalker(((SGroupingSetNode*)pNode)->pParameterList, walker, pContext);
+      return nodesWalkNodeList(((SGroupingSetNode*)pNode)->pParameterList, walker, pContext);
     case QUERY_NODE_ORDER_BY_EXPR:
-      return nodeTreeWalker(((SOrderByExprNode*)pNode)->pExpr, walker, pContext);
+      return nodesWalkNode(((SOrderByExprNode*)pNode)->pExpr, walker, pContext);
     default:
       break;
   }
@@ -78,6 +79,6 @@ bool nodeTreeWalker(SNode* pNode, FQueryNodeWalker walker, void* pContext) {
   return false;
 }
 
-bool stmtWalker(SNode* pNode, FQueryNodeWalker walker, void* pContext) {
+bool nodesWalkStmt(SNode* pNode, FQueryNodeWalker walker, void* pContext) {
 
 }

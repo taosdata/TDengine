@@ -198,4 +198,83 @@ void transFreeMsg(void* msg) {
   }
   free((char*)msg - sizeof(STransMsgHead));
 }
+
+int transInitBuffer(SConnBuffer* buf) {
+  transClearBuffer(buf);
+  return 0;
+}
+int transClearBuffer(SConnBuffer* buf) {
+  memset(buf, 0, sizeof(*buf));
+  return 0;
+}
+int transAllocBuffer(SConnBuffer* connBuf, uv_buf_t* uvBuf) {
+  /*
+   * formate of data buffer:
+   * |<--------------------------data from socket------------------------------->|
+   * |<------STransMsgHead------->|<-------------------other data--------------->|
+   */
+  static const int CAPACITY = 1024;
+
+  SConnBuffer* p = connBuf;
+  if (p->cap == 0) {
+    p->buf = (char*)calloc(CAPACITY, sizeof(char));
+    p->len = 0;
+    p->cap = CAPACITY;
+    p->left = -1;
+
+    uvBuf->base = p->buf;
+    uvBuf->len = CAPACITY;
+  } else {
+    if (p->len >= p->cap) {
+      if (p->left == -1) {
+        p->cap *= 2;
+        p->buf = realloc(p->buf, p->cap);
+      } else if (p->len + p->left > p->cap) {
+        p->cap = p->len + p->left;
+        p->buf = realloc(p->buf, p->len + p->left);
+      }
+    }
+    uvBuf->base = p->buf + p->len;
+    uvBuf->len = p->cap - p->len;
+  }
+  return 0;
+}
+int transDestroyBuffer(SConnBuffer* buf) {
+  if (buf->cap > 0) {
+    tfree(buf->buf);
+  }
+  transClearBuffer(buf);
+}
+
+SAsyncPool* transCreateAsyncPool(uv_loop_t* loop, void* arg, AsyncCB cb) {
+  static int sz = 20;
+
+  SAsyncPool* pool = calloc(1, sizeof(SAsyncPool));
+  pool->index = 0;
+  pool->nAsync = sz;
+  pool->asyncs = calloc(1, sizeof(uv_async_t) * pool->nAsync);
+
+  for (int i = 0; i < pool->nAsync; i++) {
+    uv_async_t* async = &(pool->asyncs[i]);
+    uv_async_init(loop, async, cb);
+    async->data = arg;
+  }
+  return pool;
+}
+void transDestroyAsyncPool(SAsyncPool* pool) {
+  for (int i = 0; i < pool->nAsync; i++) {
+    uv_async_t* async = &(pool->asyncs[i]);
+  }
+  free(pool->asyncs);
+  free(pool);
+}
+int transSendAsync(SAsyncPool* pool) {
+  int idx = pool->index;
+  idx = idx % pool->nAsync;
+  // no need mutex here
+  if (pool->index++ > pool->nAsync) {
+    pool->index = 0;
+  }
+  return uv_async_send(&(pool->asyncs[idx]));
+}
 #endif

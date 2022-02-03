@@ -202,11 +202,30 @@ bool transDecompressMsg(char* msg, int32_t len, int32_t* flen);
 void transConnCtxDestroy(STransConnCtx* ctx);
 
 void transFreeMsg(void* msg);
+
+//
 typedef struct SConnBuffer {
   char* buf;
   int   len;
   int   cap;
   int   left;
 } SConnBuffer;
+
+typedef void (*AsyncCB)(uv_async_t* handle);
+
+typedef struct {
+  int         index;
+  int         nAsync;
+  uv_async_t* asyncs;
+} SAsyncPool;
+
+SAsyncPool* transCreateAsyncPool(uv_loop_t* loop, void* arg, AsyncCB cb);
+void        transDestroyAsyncPool(SAsyncPool* pool);
+int         transSendAsync(SAsyncPool* pool);
+
+int transInitBuffer(SConnBuffer* buf);
+int transClearBuffer(SConnBuffer* buf);
+int transDestroyBuffer(SConnBuffer* buf);
+int transAllocBuffer(SConnBuffer* connBuf, uv_buf_t* uvBuf);
 
 #endif

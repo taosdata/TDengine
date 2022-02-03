@@ -20,8 +20,20 @@
 extern "C" {
 #endif
 
-#include "tarray.h"
 #include "tdef.h"
+
+#define nodeType(nodeptr) (((const SNode*)(nodeptr))->type)
+#define setNodeType(nodeptr, type) (((SNode*)(nodeptr))->type = (type))
+
+#define LIST_LENGTH(l) (NULL != (l) ? (l)->length : 0)
+
+#define FOREACH(node, list)	\
+  for (SListCell* cell = (NULL != (list) ? (list)->pHead : NULL); (NULL != cell ? (node = cell->pNode, true) : (node = NULL, false)); cell = cell->pNext)
+
+#define FORBOTH(node1, list1, node2, list2) \
+  for (SListCell* cell1 = (NULL != (list1) ? (list1)->pHead : NULL), *cell2 = (NULL != (list2) ? (list2)->pHead : NULL); \
+    (NULL == cell1 ? (node1 = NULL, false) : (node1 = cell1->pNode, true)), (NULL == cell2 ? (node2 = NULL, false) : (node2 = cell2->pNode, true)), (node1 != NULL && node2 != NULL); \
+    cell1 = cell1->pNext, cell2 = cell2->pNext)
 
 typedef enum ENodeType {
   QUERY_NODE_COLUMN = 1,
@@ -35,12 +47,16 @@ typedef enum ENodeType {
   QUERY_NODE_JOIN_TABLE,
   QUERY_NODE_GROUPING_SET,
   QUERY_NODE_ORDER_BY_EXPR,
+  QUERY_NODE_LIMIT,
   QUERY_NODE_STATE_WINDOW,
   QUERY_NODE_SESSION_WINDOW,
   QUERY_NODE_INTERVAL_WINDOW,
+  QUERY_NODE_NODE_LIST,
+  QUERY_NODE_FILL,
 
   QUERY_NODE_SET_OPERATOR,
-  QUERY_NODE_SELECT_STMT
+  QUERY_NODE_SELECT_STMT,
+  QUERY_NODE_SHOW_STMT
 } ENodeType;
 
 /**
@@ -51,7 +67,16 @@ typedef struct SNode {
   ENodeType type;
 } SNode;
 
-#define nodeType(nodeptr) (((const SNode*)(nodeptr))->type)
+typedef struct SListCell {
+  SNode* pNode;
+  struct SListCell* pNext;
+} SListCell;
+
+typedef struct SNodeList {
+  int16_t length;
+  SListCell* pHead;
+  SListCell* pTail;
+} SNodeList;
 
 typedef struct SDataType {
   uint8_t type;
@@ -128,20 +153,25 @@ typedef enum ELogicConditionType {
 typedef struct SLogicConditionNode {
   ENodeType type; // QUERY_NODE_LOGIC_CONDITION
   ELogicConditionType condType;
-  SArray* pParameterList;
+  SNodeList* pParameterList;
 } SLogicConditionNode;
 
 typedef struct SIsNullCondNode {
   ENodeType type; // QUERY_NODE_IS_NULL_CONDITION
   SNode* pExpr;
-  bool isNot;
+  bool isNull;
 } SIsNullCondNode;
+
+typedef struct SNodeListNode {
+  ENodeType type; // QUERY_NODE_NODE_LIST
+  SNodeList* pNodeList;
+} SNodeListNode;
 
 typedef struct SFunctionNode {
   SExprNode type; // QUERY_NODE_FUNCTION
   char functionName[TSDB_FUNC_NAME_LEN];
   int32_t funcId;
-  SArray* pParameterList; // SNode
+  SNodeList* pParameterList;
 } SFunctionNode;
 
 typedef struct STableNode {
@@ -151,12 +181,12 @@ typedef struct STableNode {
 } STableNode;
 
 typedef struct SRealTableNode {
-  STableNode type; // QUERY_NODE_REAL_TABLE
+  STableNode table; // QUERY_NODE_REAL_TABLE
   char dbName[TSDB_DB_NAME_LEN];
 } SRealTableNode;
 
 typedef struct STempTableNode {
-  STableNode type; // QUERY_NODE_TEMP_TABLE
+  STableNode table; // QUERY_NODE_TEMP_TABLE
   SNode* pSubquery;
 } STempTableNode;
 
@@ -165,7 +195,7 @@ typedef enum EJoinType {
 } EJoinType;
 
 typedef struct SJoinTableNode {
-  STableNode type; // QUERY_NODE_JOIN_TABLE
+  STableNode table; // QUERY_NODE_JOIN_TABLE
   EJoinType joinType;
   SNode* pLeft;
   SNode* pRight;
@@ -179,7 +209,7 @@ typedef enum EGroupingSetType {
 typedef struct SGroupingSetNode {
   ENodeType type; // QUERY_NODE_GROUPING_SET
   EGroupingSetType groupingSetType;
-  SArray* pParameterList; 
+  SNodeList* pParameterList; 
 } SGroupingSetNode;
 
 typedef enum EOrder {
@@ -188,7 +218,8 @@ typedef enum EOrder {
 } EOrder;
 
 typedef enum ENullOrder {
-  NULL_ORDER_FIRST = 1,
+  NULL_ORDER_DEFAULT = 1,
+  NULL_ORDER_FIRST,
   NULL_ORDER_LAST
 } ENullOrder;
 
@@ -199,10 +230,11 @@ typedef struct SOrderByExprNode {
   ENullOrder nullOrder;
 } SOrderByExprNode;
 
-typedef struct SLimitInfo {
+typedef struct SLimitNode {
+  ENodeType type; // QUERY_NODE_LIMIT
   uint64_t limit;
   uint64_t offset;
-} SLimitInfo;
+} SLimitNode;
 
 typedef struct SStateWindowNode {
   ENodeType type; // QUERY_NODE_STATE_WINDOW
@@ -217,23 +249,41 @@ typedef struct SSessionWindowNode {
 
 typedef struct SIntervalWindowNode {
   ENodeType type; // QUERY_NODE_INTERVAL_WINDOW
-  int64_t interval;
-  int64_t sliding;
-  int64_t offset;
+  SNode* pInterval; // SValueNode
+  SNode* pOffset;   // SValueNode
+  SNode* pSliding;  // SValueNode
+  SNode* pFill;
 } SIntervalWindowNode;
+
+typedef enum EFillMode {
+  FILL_MODE_NONE = 1,
+  FILL_MODE_VALUE,
+  FILL_MODE_PREV,
+  FILL_MODE_NULL,
+  FILL_MODE_LINEAR,
+  FILL_MODE_NEXT
+} EFillMode;
+
+typedef struct SFillNode {
+  ENodeType type; // QUERY_NODE_FILL
+  EFillMode mode;
+  SNode* pValues; // SNodeListNode
+} SFillNode;
 
 typedef struct SSelectStmt {
   ENodeType type; // QUERY_NODE_SELECT_STMT
   bool isDistinct;
-  SArray* pProjectionList; // SNode
+  bool isStar;
+  SNodeList* pProjectionList; // SNode
   SNode* pFromTable;
-  SNode* pWhereCond;
-  SArray* pPartitionByList; // SNode
-  SNode* pWindowClause;
-  SArray* pGroupByList; // SGroupingSetNode
-  SArray* pOrderByList; // SOrderByExprNode
-  SLimitInfo limit;
-  SLimitInfo slimit;
+  SNode* pWhere;
+  SNodeList* pPartitionByList; // SNode
+  SNode* pWindow;
+  SNodeList* pGroupByList; // SGroupingSetNode
+  SNode* pHaving;
+  SNodeList* pOrderByList; // SOrderByExprNode
+  SNode* pLimit;
+  SNode* pSlimit;
 } SSelectStmt;
 
 typedef enum ESetOperatorType {
@@ -247,22 +297,29 @@ typedef struct SSetOperator {
   SNode* pRight;
 } SSetOperator;
 
+SNode* nodesMakeNode(ENodeType type);
+void nodesDestroyNode(SNode* pNode);
+
+SNodeList* nodesMakeList();
+SNodeList* nodesListAppend(SNodeList* pList, SNode* pNode);
+void nodesDestroyList(SNodeList* pList);
+
 typedef bool (*FQueryNodeWalker)(SNode* pNode, void* pContext);
 
-bool nodeArrayWalker(SArray* pArray, FQueryNodeWalker walker, void* pContext);
-bool nodeTreeWalker(SNode* pNode, FQueryNodeWalker walker, void* pContext);
+bool nodesWalkNode(SNode* pNode, FQueryNodeWalker walker, void* pContext);
+bool nodesWalkList(SNodeList* pList, FQueryNodeWalker walker, void* pContext);
 
-bool stmtWalker(SNode* pNode, FQueryNodeWalker walker, void* pContext);
+bool nodesWalkStmt(SNode* pNode, FQueryNodeWalker walker, void* pContext);
 
-bool nodeEqual(const SNode* a, const SNode* b);
+bool nodesEqualNode(const SNode* a, const SNode* b);
 
-void cloneNode(const SNode* pNode);
+void nodesCloneNode(const SNode* pNode);
 
-int32_t nodeToString(const SNode* pNode, char** pStr, int32_t* pLen);
-int32_t stringToNode(const char* pStr, SNode** pNode);
+int32_t nodesNodeToString(const SNode* pNode, char** pStr, int32_t* pLen);
+int32_t nodesStringToNode(const char* pStr, SNode** pNode);
 
-bool isTimeorderQuery(const SNode* pQuery);
-bool isTimelineQuery(const SNode* pQuery);
+bool nodesIsTimeorderQuery(const SNode* pQuery);
+bool nodesIsTimelineQuery(const SNode* pQuery);
 
 #ifdef __cplusplus
 }

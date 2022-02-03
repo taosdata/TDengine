@@ -237,13 +237,11 @@ void mndGetMnodeEpSet(SMnode *pMnode, SEpSet *pEpSet) {
     if (pIter == NULL) break;
     if (pObj->pDnode == NULL) break;
 
-    pEpSet->port[pEpSet->numOfEps] = htons(pObj->pDnode->port);
-    memcpy(pEpSet->fqdn[pEpSet->numOfEps], pObj->pDnode->fqdn, TSDB_FQDN_LEN);
     if (pObj->role == TAOS_SYNC_STATE_LEADER) {
       pEpSet->inUse = pEpSet->numOfEps;
     }
 
-    pEpSet->numOfEps++;
+    addEpIntoEpSet(pEpSet, pObj->pDnode->fqdn, htons(pObj->pDnode->port));
     sdbRelease(pSdb, pObj);
   }
 }

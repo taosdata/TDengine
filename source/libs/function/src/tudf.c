@@ -121,7 +121,7 @@ void destroyUdfInfo(SUdfInfo* pUdfInfo) {
   tfree(pUdfInfo);
 }
 
-void doInvokeUdf(struct SUdfInfo* pUdfInfo, SQLFunctionCtx *pCtx, int32_t idx, int32_t type) {
+void doInvokeUdf(struct SUdfInfo* pUdfInfo, SqlFunctionCtx *pCtx, int32_t idx, int32_t type) {
   int32_t output = 0;
 
   if (pUdfInfo == NULL || pUdfInfo->funcs[type] == NULL) {

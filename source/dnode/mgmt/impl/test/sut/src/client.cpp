@@ -13,6 +13,7 @@
  * along with this program. If not, see <http://www.gnu.org/licenses/>.
  */
 
+#include "tep.h"
 #include "sut.h"
 
 static void processClientRsp(void* parent, SRpcMsg* pRsp, SEpSet* pEpSet) {
@@ -61,11 +62,7 @@ void TestClient::Cleanup() {
 
 SRpcMsg* TestClient::SendReq(SRpcMsg* pReq) {
   SEpSet epSet = {0};
-  epSet.inUse = 0;
-  epSet.numOfEps = 1;
-  epSet.port[0] = port;
-  memcpy(epSet.fqdn[0], fqdn, TSDB_FQDN_LEN);
-
+  addEpIntoEpSet(&epSet, fqdn, port);
   rpcSendRequest(clientRpc, &epSet, pReq, NULL);
   tsem_wait(&sem);
 

@@ -51,6 +51,12 @@ option(
 )
 
 option(
+    BUILD_WITH_UV_TRANS
+    "If build with libuv_trans " 
+    OFF 
+)
+
+option(
     BUILD_WITH_CRAFT
     "If build with canonical-raft"
     OFF

@@ -28,6 +28,7 @@ endif(${BUILD_TEST})
 add_subdirectory(source)
 add_subdirectory(tools)
 add_subdirectory(tests)
+add_subdirectory(example)
 
 # docs 
 add_subdirectory(docs)

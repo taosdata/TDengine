@@ -40,7 +40,8 @@ void qDestroyQueryDag(struct SQueryDag* pDag) {
   tfree(pDag);
 }
 
-int32_t qCreateQueryDag(const struct SQueryNode* pNode, struct SQueryDag** pDag, SSchema** pResSchema, int32_t* numOfCols, SArray* pNodeList, uint64_t requestId) {
+int32_t qCreateQueryDag(const struct SQueryNode* pNode, struct SQueryDag** pDag, SSchema** pResSchema, int32_t* numOfCols, SArray* pNodeList,
+    uint64_t requestId) {
   SQueryPlanNode* pLogicPlan;
   int32_t code = createQueryPlan(pNode, &pLogicPlan);
   if (TSDB_CODE_SUCCESS != code) {
@@ -49,9 +50,10 @@ int32_t qCreateQueryDag(const struct SQueryNode* pNode, struct SQueryDag** pDag,
   }
 
   if (pLogicPlan->info.type != QNODE_MODIFY) {
-//   char* str = NULL;
-//   queryPlanToString(pLogicPlan, &str);
-//   printf("%s\n", str);
+    char* str = NULL;
+    queryPlanToString(pLogicPlan, &str);
+    qDebug("reqId:0x%"PRIx64": %s", requestId, str);
+    tfree(str);
   }
 
   code = optimizeQueryPlan(pLogicPlan);

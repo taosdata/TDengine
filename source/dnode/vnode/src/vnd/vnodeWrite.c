@@ -16,6 +16,7 @@
 #include "tq.h"
 #include "vnd.h"
 
+#if 0
 int vnodeProcessNoWalWMsgs(SVnode *pVnode, SRpcMsg *pMsg) {
   switch (pMsg->msgType) {
     case TDMT_VND_MQ_SET_CUR:
@@ -26,6 +27,7 @@ int vnodeProcessNoWalWMsgs(SVnode *pVnode, SRpcMsg *pMsg) {
   }
   return 0;
 }
+#endif
 
 int vnodeProcessWMsgs(SVnode *pVnode, SArray *pMsgs) {
   SRpcMsg *pMsg;
@@ -103,7 +105,12 @@ int vnodeApplyWMsg(SVnode *pVnode, SRpcMsg *pMsg, SRpcMsg **pRsp) {
       taosArrayDestroy(vCreateTbBatchReq.pArray);
       break;
 
+    case TDMT_VND_ALTER_STB:
+      vTrace("vgId:%d, process drop stb req", pVnode->vgId);
+      break;
     case TDMT_VND_DROP_STB:
+      vTrace("vgId:%d, process drop stb req", pVnode->vgId);
+      break;
     case TDMT_VND_DROP_TABLE:
       // if (metaDropTable(pVnode->pMeta, vReq.dtReq.uid) < 0) {
       //   // TODO: handle error
@@ -115,7 +122,7 @@ int vnodeApplyWMsg(SVnode *pVnode, SRpcMsg *pMsg, SRpcMsg **pRsp) {
       }
       break;
     case TDMT_VND_MQ_SET_CONN: {
-      if (tqProcessSetConnReq(pVnode->pTq, POINTER_SHIFT(ptr, sizeof(SMsgHead)), NULL) < 0) {
+      if (tqProcessSetConnReq(pVnode->pTq, POINTER_SHIFT(ptr, sizeof(SMsgHead))) < 0) {
         // TODO: handle error
       }
     } break;

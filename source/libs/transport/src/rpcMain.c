@@ -242,11 +242,14 @@ void *rpcOpen(const SRpcInit *pInit) {
   pRpc = (SRpcInfo *)calloc(1, sizeof(SRpcInfo));
   if (pRpc == NULL) return NULL;
 
-  if (pInit->label) tstrncpy(pRpc->label, pInit->label, strlen(pInit->label));
+  if (pInit->label) tstrncpy(pRpc->label, pInit->label, tListLen(pInit->label));
 
   pRpc->connType = pInit->connType;
   if (pRpc->connType == TAOS_CONN_CLIENT) {
     pRpc->numOfThreads = pInit->numOfThreads;
+    if (pRpc->numOfThreads >= 10) {
+      pRpc->numOfThreads = 10;
+    }
   } else {
     pRpc->numOfThreads = pInit->numOfThreads > TSDB_MAX_RPC_THREADS ? TSDB_MAX_RPC_THREADS : pInit->numOfThreads;
   }
@@ -769,8 +772,8 @@ static SRpcConn *rpcAllocateServerConn(SRpcInfo *pRpc, SRecvInfo *pRecv) {
     }
 
     taosHashPut(pRpc->hash, hashstr, size, (char *)&pConn, POINTER_BYTES);
-    tDebug("%s %p server connection is allocated, uid:0x%x sid:%d key:%s spi:%d", pRpc->label, pConn, pConn->linkUid, sid,
-           hashstr, pConn->spi);
+    tDebug("%s %p server connection is allocated, uid:0x%x sid:%d key:%s spi:%d", pRpc->label, pConn, pConn->linkUid,
+           sid, hashstr, pConn->spi);
   }
 
   return pConn;
@@ -811,9 +814,9 @@ static SRpcConn *rpcSetupConnToServer(SRpcReqContext *pContext) {
   SEpSet *  pEpSet = &pContext->epSet;
 
   pConn =
-      rpcGetConnFromCache(pRpc->pCache, pEpSet->fqdn[pEpSet->inUse], pEpSet->port[pEpSet->inUse], pContext->connType);
+      rpcGetConnFromCache(pRpc->pCache, pEpSet->eps[pEpSet->inUse].fqdn, pEpSet->eps[pEpSet->inUse].port, pContext->connType);
   if (pConn == NULL || pConn->user[0] == 0) {
-    pConn = rpcOpenConn(pRpc, pEpSet->fqdn[pEpSet->inUse], pEpSet->port[pEpSet->inUse], pContext->connType);
+    pConn = rpcOpenConn(pRpc, pEpSet->eps[pEpSet->inUse].fqdn, pEpSet->eps[pEpSet->inUse].port, pContext->connType);
   }
 
   if (pConn) {
@@ -1185,7 +1188,7 @@ static void rpcProcessIncomingMsg(SRpcConn *pConn, SRpcHead *pHead, SRpcReqConte
 
     // for UDP, port may be changed by server, the port in epSet shall be used for cache
     if (pHead->code != TSDB_CODE_RPC_TOO_SLOW) {
-      rpcAddConnIntoCache(pRpc->pCache, pConn, pConn->peerFqdn, pContext->epSet.port[pContext->epSet.inUse],
+      rpcAddConnIntoCache(pRpc->pCache, pConn, pConn->peerFqdn, pContext->epSet.eps[pContext->epSet.inUse].port,
                           pConn->connType);
     } else {
       rpcCloseConn(pConn);
@@ -1199,9 +1202,9 @@ static void rpcProcessIncomingMsg(SRpcConn *pConn, SRpcHead *pHead, SRpcReqConte
         tDebug("%s, redirect is received, numOfEps:%d inUse:%d", pConn->info, pContext->epSet.numOfEps,
                pContext->epSet.inUse);
         for (int i = 0; i < pContext->epSet.numOfEps; ++i) {
-          pContext->epSet.port[i] = htons(pContext->epSet.port[i]);
-          tDebug("%s, redirect is received, index:%d ep:%s:%u", pConn->info, i, pContext->epSet.fqdn[i],
-                 pContext->epSet.port[i]);
+          pContext->epSet.eps[i].port = htons(pContext->epSet.eps[i].port);
+          tDebug("%s, redirect is received, index:%d ep:%s:%u", pConn->info, i, pContext->epSet.eps[i].fqdn,
+                 pContext->epSet.eps[i].port);
         }
       }
       rpcSendReqToServer(pRpc, pContext);
@@ -1357,9 +1360,14 @@ static void rpcSendMsgToPeer(SRpcConn *pConn, void *msg, int msgLen) {
     tDebug("%s, %s is sent to %s:%hu, len:%d sig:0x%08x:0x%08x:%d", pConn->info, TMSG_INFO(pHead->msgType),
            pConn->peerFqdn, pConn->peerPort, msgLen, pHead->sourceId, pHead->destId, pHead->tranId);
   } else {
-    if (pHead->code == 0) pConn->secured = 1;  // for success response, set link as secured
-    tDebug("%s, %s is sent to 0x%x:%hu, code:0x%x len:%d sig:0x%08x:0x%08x:%d", pConn->info, TMSG_INFO(pHead->msgType),
-           pConn->peerIp, pConn->peerPort, htonl(pHead->code), msgLen, pHead->sourceId, pHead->destId, pHead->tranId);
+    if (pHead->code == 0) {
+      pConn->secured = 1;  // for success response, set link as secured
+    }
+
+    char ipport[40] = {0};
+    taosIpPort2String(pConn->peerIp, pConn->peerPort, ipport);
+    tDebug("%s, %s is sent to %s, code:0x%x len:%d sig:0x%08x:0x%08x:%d", pConn->info, TMSG_INFO(pHead->msgType),
+           ipport, htonl(pHead->code), msgLen, pHead->sourceId, pHead->destId, pHead->tranId);
   }
 
   // tTrace("connection type is: %d", pConn->connType);
