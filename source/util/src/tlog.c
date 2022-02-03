@@ -19,7 +19,6 @@
 #include "tnote.h"
 #include "tutil.h"
 #include "ulog.h"
-//#include "zlib.h"
 
 #define MAX_LOGLINE_SIZE (1000)
 #define MAX_LOGLINE_BUFFER_SIZE (MAX_LOGLINE_SIZE + 10)

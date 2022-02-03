@@ -36,25 +36,25 @@ extern "C" {
 
 #else
 
-  #define TSWAP(a, b, c)      \
-    do {                     \
-      typeof(a) __tmp = (a); \
-      (a) = (b);             \
-      (b) = __tmp;           \
+  #define TSWAP(a, b, c)       \
+    do {                       \
+      __typeof(a) __tmp = (a); \
+      (a) = (b);               \
+      (b) = __tmp;             \
     } while (0)
 
-  #define TMAX(a, b)            \
-    ({                         \
-      typeof(a) __a = (a);     \
-      typeof(b) __b = (b);     \
-      (__a > __b) ? __a : __b; \
+  #define TMAX(a, b)             \
+    ({                           \
+      __typeof(a) __a = (a);     \
+      __typeof(b) __b = (b);     \
+      (__a > __b) ? __a : __b;   \
     })
 
-  #define TMIN(a, b)            \
-    ({                         \
-      typeof(a) __a = (a);     \
-      typeof(b) __b = (b);     \
-      (__a < __b) ? __a : __b; \
+  #define TMIN(a, b)             \
+    ({                           \
+      __typeof(a) __a = (a);     \
+      __typeof(b) __b = (b);     \
+      (__a < __b) ? __a : __b;   \
     })
 #endif
 

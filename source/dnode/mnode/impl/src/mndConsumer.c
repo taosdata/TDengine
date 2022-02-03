@@ -14,6 +14,7 @@
  */
 
 #define _DEFAULT_SOURCE
+
 #include "mndConsumer.h"
 #include "mndDb.h"
 #include "mndDnode.h"
@@ -54,13 +55,14 @@ void mndCleanupConsumer(SMnode *pMnode) {}
 
 SSdbRaw *mndConsumerActionEncode(SMqConsumerObj *pConsumer) {
   terrno = TSDB_CODE_OUT_OF_MEMORY;
+  void* buf = NULL;
   int32_t tlen = tEncodeSMqConsumerObj(NULL, pConsumer);
   int32_t size = sizeof(int32_t) + tlen + MND_CONSUMER_RESERVE_SIZE;
 
   SSdbRaw *pRaw = sdbAllocRaw(SDB_CONSUMER, MND_CONSUMER_VER_NUMBER, size);
   if (pRaw == NULL) goto CM_ENCODE_OVER;
 
-  void *buf = malloc(tlen);
+  buf = malloc(tlen);
   if (buf == NULL) goto CM_ENCODE_OVER;
 
   void *abuf = buf;
@@ -88,6 +90,7 @@ CM_ENCODE_OVER:
 
 SSdbRow *mndConsumerActionDecode(SSdbRaw *pRaw) {
   terrno = TSDB_CODE_OUT_OF_MEMORY;
+  void* buf = NULL;
 
   int8_t sver = 0;
   if (sdbGetRawSoftVer(pRaw, &sver) != 0) goto CM_DECODE_OVER;
@@ -106,7 +109,7 @@ SSdbRow *mndConsumerActionDecode(SSdbRaw *pRaw) {
   int32_t dataPos = 0;
   int32_t len;
   SDB_GET_INT32(pRaw, dataPos, &len, CM_DECODE_OVER);
-  void *buf = malloc(len);
+  buf = malloc(len);
   if (buf == NULL) goto CM_DECODE_OVER;
   SDB_GET_BINARY(pRaw, dataPos, buf, len, CM_DECODE_OVER);
   SDB_GET_RESERVE(pRaw, dataPos, MND_CONSUMER_RESERVE_SIZE, CM_DECODE_OVER);

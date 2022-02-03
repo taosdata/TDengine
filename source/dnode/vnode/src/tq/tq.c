@@ -12,18 +12,11 @@
  * You should have received a copy of the GNU Affero General Public License
  * along with this program. If not, see <http://www.gnu.org/licenses/>.
  */
+#define _DEFAULT_SOURCE
 
 #include "tcompare.h"
 #include "tqInt.h"
 #include "tqMetaStore.h"
-
-// static
-// read next version data
-//
-// send to fetch queue
-//
-// handle management message
-//
 
 int tqInit() {
   int8_t old = atomic_val_compare_exchange_8(&tqMgmt.inited, 0, 1);
