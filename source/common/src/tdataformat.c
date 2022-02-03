@@ -29,7 +29,7 @@ int tdAllocMemForCol(SDataCol *pCol, int maxPoints) {
     spaceNeeded += sizeof(VarDataOffsetT) * maxPoints;
   }
 #ifdef TD_SUPPORT_BITMAP
-  spaceNeeded += (int)TD_BIT_TO_BYTES(maxPoints);
+  spaceNeeded += (int)TD_BITMAP_BYTES(maxPoints);
 #endif
   if(pCol->spaceSize < spaceNeeded) {
     void* ptr = realloc(pCol->pData, spaceNeeded);

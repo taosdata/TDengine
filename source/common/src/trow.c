@@ -15,9 +15,16 @@
 
 #include "trow.h"
 
+const uint8_t tdVTypeByte[3] = {
+    TD_VTYPE_NORM_BYTE,  // TD_VTYPE_NORM
+    TD_VTYPE_NONE_BYTE,  // TD_VTYPE_NONE
+    TD_VTYPE_NULL_BYTE,  // TD_VTYPE_NULL
+};
+
 static void dataColSetNEleNull(SDataCol *pCol, int nEle);
-static void tdMergeTwoDataCols(SDataCols *target, SDataCols *src1, int *iter1, int limit1, SDataCols *src2, int *iter2,
-                               int limit2, int tRows, bool forceSetNull);
+static void tdMergeTwoDat 6z, z,
+    zaCols(SDataCols *target, SDataCols *src1, int *iter1, int limit1, SDataCols *src2, int *iter2, int limit2,
+           int tRows, bool forceSetNull);
 
 static FORCE_INLINE void dataColSetNullAt(SDataCol *pCol, int index) {
   if (IS_VAR_DATA_TYPE(pCol->type)) {
@@ -41,6 +48,47 @@ static void dataColSetNEleNull(SDataCol *pCol, int nEle) {
     setNullN(pCol->pData, pCol->type, pCol->bytes, nEle);
     pCol->len = TYPE_BYTES[pCol->type] * nEle;
   }
+}
+
+static FORCE_INLINE int32_t tdSetBitmapValTypeN(void *pBitmap, int16_t nEle, TDRowValT valType) {
+  TASSERT(valType <= TD_VTYPE_NULL);
+  int16_t nBytes = nEle / TD_VTYPE_PARTS;
+  for (int i = 0; i < nBytes; ++i) {
+    *(uint8_t *)pBitmap = tdVTypeByte[valType];
+    pBitmap = POINTER_SHIFT(pBitmap, 1);
+  }
+  int16_t nLeft = nEle - nBytes * TD_VTYPE_BITS;
+
+  for (int j = 0; j < nLeft; ++j) {
+    tdSetBitmapValType(pBitmap, j, valType);
+  }
+}
+
+static FORCE_INLINE void dataColSetNoneAt(SDataCol *pCol, int index) {
+  if (IS_VAR_DATA_TYPE(pCol->type)) {
+    pCol->dataOff[index] = pCol->len;
+    char *ptr = POINTER_SHIFT(pCol->pData, pCol->len);
+    setVardataNull(ptr, pCol->type);
+    pCol->len += varDataTLen(ptr);
+  } else {
+    setNull(POINTER_SHIFT(pCol->pData, TYPE_BYTES[pCol->type] * index), pCol->type, pCol->bytes);
+    pCol->len += TYPE_BYTES[pCol->type];
+  }
+}
+
+static void dataColSetNEleNone(SDataCol *pCol, int nEle) {
+  if (IS_VAR_DATA_TYPE(pCol->type)) {
+    pCol->len = 0;
+    for (int i = 0; i < nEle; ++i) {
+      dataColSetNoneAt(pCol, i);
+    }
+  } else {
+    setNullN(pCol->pData, pCol->type, pCol->bytes, nEle);
+    pCol->len = TYPE_BYTES[pCol->type] * nEle;
+  }
+#ifdef TD_SUPPORT_BITMAP
+  tdSetBitmapValTypeN(pCol->pBitmap, nEle, TD_VTYPE_NONE);
+#endif
 }
 
 #if 0
@@ -436,19 +484,22 @@ void tdResetDataCols(SDataCols *pCols) {
 int tdAppendValToDataCol(SDataCol *pCol, TDRowValT valType, const void *val, int numOfRows, int maxPoints) {
   ASSERT(pCol != NULL);
 
-  if (isAllRowsNull(pCol)) {
-    if (tdValIsNone(valType) || tdValIsNull(valType, val, pCol->type)) {
-      // all Null value yet, just return
+  // Assume that, the columns not specified during insert/upsert is None.
+  if (isAllRowsNone(pCol)) {
+    if (tdValIsNone(valType)) {
+      // all None value yet, just return
       return 0;
     }
 
     if(tdAllocMemForCol(pCol, maxPoints) < 0) return -1;
     if (numOfRows > 0) {
-      // Find the first not null value, fill all previous values as Null
-      dataColSetNEleNull(pCol, numOfRows);
+      // Find the first not None value, fill all previous values as None
+      dataColSetNEleNone(pCol, numOfRows);
     }
   }
-
+  if (!tdValTypeIsNorm(valType)) {
+    val = getNullValue(pCol->type);
+  }
   if (IS_VAR_DATA_TYPE(pCol->type)) {
     // set offset
     pCol->dataOff[numOfRows] = pCol->len;
@@ -461,97 +512,114 @@ int tdAppendValToDataCol(SDataCol *pCol, TDRowValT valType, const void *val, int
     memcpy(POINTER_SHIFT(pCol->pData, pCol->len), val, pCol->bytes);
     pCol->len += pCol->bytes;
   }
+#ifdef TD_SUPPORT_BITMAP
+  tdSetBitmapValType(pCol->pBitmap, numOfRows, valType);
+#endif
   return 0;
 }
 
-static void tdAppendTpRowToDataCol(STSRow *pRow, STSchema *pSchema, SDataCols *pCols, bool forceSetNull) {
+// internal
+static int32_t tdAppendTpRowToDataCol(STSRow *pRow, STSchema *pSchema, SDataCols *pCols) {
   ASSERT(pCols->numOfRows == 0 || dataColsKeyLast(pCols) < TD_ROW_TSKEY(pRow));
 
-  int rcol = 0;
-  int dcol = 0;
-  void* pBitmap = tdGetBitmapAddrTp(pRow, pSchema->flen);
+  int   rcol = 1;
+  int   dcol = 1;
+  void *pBitmap = tdGetBitmapAddrTp(pRow, pSchema->flen);
+
+  SDataCol *pDataCol = &(pCols->cols[0]);
+  if (pDataCol->colId == PRIMARYKEY_TIMESTAMP_COL_ID) {
+    tdAppendValToDataCol(pDataCol, pRow->ts, TD_VTYPE_NORM, pCols->numOfRows, pCols->maxPoints);
+  }
 
   while (dcol < pCols->numOfCols) {
-    bool setCol = 0;
-    SDataCol *pDataCol = &(pCols->cols[dcol]);
+    pDataCol = &(pCols->cols[dcol]);
     if (rcol >= schemaNCols(pSchema)) {
       tdAppendValToDataCol(pDataCol, TD_VTYPE_NULL, NULL, pCols->numOfRows, pCols->maxPoints);
-      dcol++;
+      ++dcol;
       continue;
     }
 
     STColumn *pRowCol = schemaColAt(pSchema, rcol);
     SCellVal  sVal = {0};
     if (pRowCol->colId == pDataCol->colId) {
-      if(tdGetTpRowValOfCol(&sVal, pRow, pBitmap, pRowCol->type, pRowCol->offset + TD_DATA_ROW_HEAD_SIZE, rcol) < 0){
-
+      if (tdGetTpRowValOfCol(&sVal, pRow, pBitmap, pRowCol->type, pRowCol->offset - sizeof(TSKEY), rcol - 1) < 0) {
+        return terrno;
       }
-      if(!isNull(value, pDataCol->type)) setCol = 1;
-      tdAppendValToDataCol(pDataCol, value, pCols->numOfRows, pCols->maxPoints);
-      dcol++;
-      rcol++;
+      tdAppendValToDataCol(pDataCol, sVal.valType, sVal.val, pCols->numOfRows, pCols->maxPoints);
+      ++dcol;
+      ++rcol;
     } else if (pRowCol->colId < pDataCol->colId) {
-      rcol++;
+      ++rcol;
     } else {
-      if(forceSetNull || setCol) {
-        tdAppendValToDataCol(pDataCol, getNullValue(pDataCol->type), pCols->numOfRows, pCols->maxPoints);
-      }
-      dcol++;
+      tdAppendValToDataCol(pDataCol, TD_VTYPE_NULL, NULL, pCols->numOfRows, pCols->maxPoints);
+      ++dcol;
     }
   }
-  pCols->numOfRows++;
-}
+  ++pCols->numOfRows;
 
-static void tdAppendKvRowToDataCol(STSRow *pRow, STSchema *pSchema, SDataCols *pCols, bool forceSetNull) {
+  return TSDB_CODE_SUCCESS;
+}
+// internal
+static void tdAppendKvRowToDataCol(STSRow *pRow, STSchema *pSchema, SDataCols *pCols) {
   ASSERT(pCols->numOfRows == 0 || dataColsKeyLast(pCols) < TD_ROW_TSKEY(pRow));
 
   int   rcol = 0;
-  int   dcol = 0;
-  int   nRowCols = TD_ROW_NCOLS(pRow);
+  int   dcol = 1;
+  int   tRowCols = TD_ROW_NCOLS(pRow) - 1;  // the primary TS key not included in kvRowColIdx part
+  int   tSchemaCols = schemaNCols(pSchema) - 1;
   void *pBitmap = tdGetBitmapAddrKv(pRow, nRowCols);
 
+  SDataCol *pDataCol = &(pCols->cols[0]);
+  if (pDataCol->colId == PRIMARYKEY_TIMESTAMP_COL_ID) {
+    tdAppendValToDataCol(pDataCol, pRow->ts, TD_VTYPE_NORM, pCols->numOfRows, pCols->maxPoints);
+  }
+
   while (dcol < pCols->numOfCols) {
-    bool setCol = 0;
-    SDataCol *pDataCol = &(pCols->cols[dcol]);
-    if (rcol >= nRowCols || rcol >= schemaNCols(pSchema)) {
-      dataColAppendVal(pDataCol, getNullValue(pDataCol->type), pCols->numOfRows, pCols->maxPoints);
+    pDataCol = &(pCols->cols[dcol]);
+    if (rcol >= tRowCols || rcol >= tSchemaCols) {
+      tdAppendValToDataCol(pDataCol, TD_VTYPE_NULL, NULL, pCols->numOfRows, pCols->maxPoints);
       ++dcol;
       continue;
     }
 
-    SColIdx *colIdx = NULL;//kvRowColIdxAt(row, rcol);
-
-    if (colIdx->colId == pDataCol->colId) {
-      void *value = NULL; //tdGetKvRowDataOfCol(row, colIdx->offset);
-      if(!isNull(value, pDataCol->type)) setCol = 1;
-      dataColAppendVal(pDataCol, value, pCols->numOfRows, pCols->maxPoints);
+    SKvRowIdx *pIdx = tdKvRowColIdxAt(pRow, rcol);
+    int16_t    colIdx = -1;
+    if (pIdx) {
+      colIdx = POINTER_DISTANCE(pRow->data, pIdx) / sizeof(SKvRowIdx);
+    }
+    SCellVal sVal = {0};
+    if (pIdx->colId == pDataCol->colId) {
+      if (tdGetKvRowValOfCol(&sVal, pRow, pBitmap, pDataCol->type, pIdx->offset, colIdx) < 0) {
+        return terrno;
+      }
+      tdAppendValToDataCol(pDataCol, sVal.valType, sVal.val, pCols->numOfRows, pCols->maxPoints);
       ++dcol;
       ++rcol;
-    } else if (colIdx->colId < pDataCol->colId) {
+    } else if (pIdx->colId < pDataCol->colId) {
       ++rcol;
     } else {
-      if(forceSetNull || setCol) {
-        dataColAppendVal(pDataCol, getNullValue(pDataCol->type), pCols->numOfRows, pCols->maxPoints);
-      }
+      tdAppendValToDataCol(pDataCol, TD_VTYPE_NULL, NULL, pCols->numOfRows, pCols->maxPoints);
       ++dcol;
     }
   }
-  pCols->numOfRows++;
+  ++pCols->numOfRows;
+
+  return TSDB_CODE_SUCCESS;
 }
 
 /**
- * @brief 
- * 
- * @param pRow 
- * @param pSchema 
- * @param pCols 
- * @param forceSetNull 
+ * @brief exposed
+ *
+ * @param pRow
+ * @param pSchema
+ * @param pCols
+ * @param forceSetNull
  */
 void tdAppendSTSRowToDataCol(STSRow *pRow, STSchema *pSchema, SDataCols *pCols, bool forceSetNull) {
   if (TD_IS_TP_ROW(pRow)) {
-    tdAppendTpRowToDataCol(pRow, pSchema, pCols, forceSetNull);
+    tdAppendTpRowToDataCol(pRow, pSchema, pCols);
   } else if (TD_IS_KV_ROW(pRow)) {
-    tdAppendKvRowToDataCol(pRow, pSchema, pCols, forceSetNull);
+    tdAppendKvRowToDataCol(pRow, pSchema, pCols);
   } else {
     ASSERT(0);
   }
