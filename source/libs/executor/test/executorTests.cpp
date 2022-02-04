@@ -33,103 +33,12 @@
 #include "stub.h"
 #include "executor.h"
 
-/**
-{
-	"Id":	{
-		"QueryId":	1.3108161807422521e+19,
-		"TemplateId":	0,
-		"SubplanId":	0
-	},
-	"Node":	{
-		"Name":	"TableScan",
-		"Targets":	[{
-				"Base":	{
-					"Schema":	{
-						"Type":	9,
-						"ColId":	5000,
-						"Bytes":	8
-					},
-					"Columns":	[{
-							"TableId":	1,
-							"Flag":	0,
-							"Info":	{
-								"ColId":	1,
-								"Type":	9,
-								"Bytes":	8
-							}
-						}],
-					"InterBytes":	0
-				},
-				"Expr":	{
-					"Type":	4,
-					"Column":	{
-						"Type":	9,
-						"ColId":	1,
-						"Bytes":	8
-					}
-				}
-			}, {
-				"Base":	{
-					"Schema":	{
-						"Type":	4,
-						"ColId":	5001,
-						"Bytes":	4
-					},
-					"Columns":	[{
-							"TableId":	1,
-							"Flag":	0,
-							"Info":	{
-								"ColId":	2,
-								"Type":	4,
-								"Bytes":	4
-							}
-						}],
-					"InterBytes":	0
-				},
-				"Expr":	{
-					"Type":	4,
-					"Column":	{
-						"Type":	4,
-						"ColId":	2,
-						"Bytes":	4
-					}
-				}
-			}],
-		"InputSchema":	[{
-				"Type":	9,
-				"ColId":	5000,
-				"Bytes":	8
-			}, {
-				"Type":	4,
-				"ColId":	5001,
-				"Bytes":	4
-			}],
-		"TableScan":	{
-			"TableId":	1,
-			"TableType":	2,
-			"Flag":	0,
-			"Window":	{
-				"StartKey":	-9.2233720368547758e+18,
-				"EndKey":	9.2233720368547758e+18
-			}
-		}
-	},
-	"DataSink":	{
-		"Name":	"Dispatch",
-		"Dispatch":	{
-		}
-	}
-}
- */
-
 int main(int argc, char** argv) {
   testing::InitGoogleTest(&argc, argv);
   return RUN_ALL_TESTS();
 }
 
 TEST(testCase, build_executor_tree_Test) {
-
-
   const char* msg = "{\n"
       "\t\"Id\":\t{\n"
       "\t\t\"QueryId\":\t1.3108161807422521e+19,\n"
@@ -219,7 +128,9 @@ TEST(testCase, build_executor_tree_Test) {
 
   SExecTaskInfo* pTaskInfo = nullptr;
   DataSinkHandle sinkHandle = nullptr;
-  int32_t code = qCreateExecTask((void*) 1, 2, 1, NULL, (void**) &pTaskInfo, &sinkHandle);
+  SReadHandle handle = {.reader = NULL, .meta = NULL};
+
+  int32_t code = qCreateExecTask(&handle, 2, 1, NULL, (void**) &pTaskInfo, &sinkHandle);
 }
 
 #pragma GCC diagnostic pop
