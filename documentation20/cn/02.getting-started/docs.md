@@ -12,6 +12,10 @@ TDengine 软件分为服务器、客户端和报警模块三部分，目前 2.0 
 
 暂时不建议生产环境采用 Docker 来部署 TDengine 的客户端或服务端，但在开发环境下或初次尝试时，使用 Docker 方式部署是十分方便的。特别是，利用 Docker，可以方便地在 Mac OS X 和 Windows 环境下尝试 TDengine。
 
+```
+docker run -d -p 6030-6049:6030-6049 -p 6030-6049:6030-6049/udp tdengine/tdengine
+```
+
 详细操作方法请参照 [通过 Docker 快速体验 TDengine](https://www.taosdata.com/cn/documentation/getting-started/docker)。
 
 ### <a class="anchor" id="package-install"></a>通过安装包安装
@@ -25,6 +29,7 @@ TDengine 的安装非常简单，从下载到安装成功仅仅只要几秒钟�
 ### 使用 apt-get 安装
 
 如果使用 Debian 或 Ubuntu 系统，也可以使用 apt-get 从官方仓库安装，设置方法为：
+
 ```
 wget -qO - http://repos.taosdata.com/tdengine.key | sudo apt-key add -
 echo "deb [arch=amd64] http://repos.taosdata.com/tdengine-stable stable main" | sudo tee /etc/apt/sources.list.d/tdengine-stable.list
@@ -44,13 +49,14 @@ $ systemctl start taosd
 ```
 
 检查服务是否正常工作：
+
 ```bash
 $ systemctl status taosd
 ```
 
-如果 TDengine 服务正常工作，那么您可以通过 TDengine 的命令行程序 `taos` 来访问并体验 TDengine。  
+如果 TDengine 服务正常工作，那么您可以通过 TDengine 的命令行程序 `taos` 来访问并体验 TDengine。
 
-**注意：**  
+### 注意：
 
 - systemctl 命令需要 _root_ 权限来运行，如果您非 _root_ 用户，请在命令前添加 sudo 。
 - 为更好的获得产品反馈，改善产品，TDengine 会采集基本的使用信息，但您可以修改系统配置文件 taos.cfg 里的配置参数 telemetryReporting，将其设为 0，就可将其关闭。
@@ -98,7 +104,7 @@ Query OK, 2 row(s) in set (0.003128s)
 
 除执行 SQL 语句外，系统管理员还可以从 TDengine 终端进行检查系统运行状态、添加删除用户账号等操作。
 
-**命令行参数**
+### 命令行参数
 
 您可通过配置命令行参数来改变 TDengine 终端的行为。以下为常用的几个命令行参数：
 
@@ -115,7 +121,7 @@ Query OK, 2 row(s) in set (0.003128s)
 $ taos -h h1.taos.com -s "use db; show tables;"
 ```
 
-**运行 SQL 命令脚本**
+### 运行 SQL 命令脚本
 
 TDengine 终端可以通过 `source` 命令来运行 SQL 命令脚本。
 
@@ -123,7 +129,7 @@ TDengine 终端可以通过 `source` 命令来运行 SQL 命令脚本。
 taos> source <filename>;
 ```
 
-**Shell 小技巧**
+### taos shell 小技巧
 
 - 可以使用上下光标键查看历史输入的指令
 - 修改用户密码：在 shell 中使用 `alter user` 命令，缺省密码为 taosdata
@@ -175,9 +181,10 @@ taos> select avg(current), max(voltage), min(phase) from test.meters where group
 ```mysql
 taos> select avg(current), max(voltage), min(phase) from test.d10 interval(10s);
 ```
+
 ## <a class="anchor" id="taosBenchmark"></a> taosBenchmark 详细功能列表
 
-taosBenchmark 命令本身带有很多选项，配置表的数目、记录条数等等，请执行 `taosBenchmark --help` 详细列出。您可以设置不同参数进行体验。
+taosBenchmark （曾命名 taosdemo）命令本身带有很多选项，配置表的数目、记录条数等等，请执行 `taosBenchmark --help` 详细列出。您可以设置不同参数进行体验。
 taosBenchmark 详细使用方法请参照 [如何使用taosBenchmark对TDengine进行性能测试](https://www.taosdata.com/2021/10/09/3111.html)。
 
 ## 客户端
