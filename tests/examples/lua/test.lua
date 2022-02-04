@@ -37,7 +37,7 @@ else
    print("select db--- pass.")
 end
 
-res = driver.query(conn,"create table m1 (ts timestamp, speed int,owner binary(20))")
+res = driver.query(conn,"create table m1 (ts timestamp, speed int, owner binary(20), mark nchar(30))")
 if res.code ~=0 then
    print("create table---failed: "..res.error)
    return
@@ -45,7 +45,7 @@ else
    print("create table--- pass.")
 end
 
-res = driver.query(conn,"insert into m1 values ('2019-09-01 00:00:00.001',0,'robotspace'), ('2019-09-01 00:00:00.002',1,'Hilink'),('2019-09-01 00:00:00.003',2,'Harmony')")
+res = driver.query(conn,"insert into m1 values ('2019-09-01 00:00:00.001', 0, 'robotspace', '世界人民大团结万岁'), ('2019-09-01 00:00:00.002', 1, 'Hilink', '⾾⾿⿀⿁⿂⿃⿄⿅⿆⿇⿈⿉⿊⿋⿌⿍⿎⿏⿐⿑⿒⿓⿔⿕'),('2019-09-01 00:00:00.003', 2, 'Harmony', '₠₡₢₣₤₥₦₧₨₩₪₫€₭₮₯₰₱₲₳₴₵')")
 if res.code ~=0 then
    print("insert records failed: "..res.error)
    return
@@ -64,7 +64,11 @@ if res.code ~=0 then
    return
 else
     if (#(res.item) == 3) then
-	print("select--- pass")
+        print("select--- pass")
+	print(res.item[1].mark)
+	print(res.item[2].mark)
+	print(res.item[3].mark)
+
     else
 	print("select--- failed: expect 3 affected records, actually received "..#(res.item))
     end

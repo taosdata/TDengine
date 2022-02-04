@@ -50,7 +50,7 @@ SSchema tGetUserSpecifiedColumnSchema(tVariant* pVal, SStrToken* exprStr, const 
   } else {
     size_t tlen = MIN(sizeof(s.name), exprStr->n + 1);
     tstrncpy(s.name, exprStr->z, tlen);
-    strdequote(s.name);
+    stringProcess(s.name, (int32_t)strlen(s.name));
   }
 
   return s;
@@ -163,7 +163,7 @@ char *tableNameGetPosition(SStrToken* pToken, char target) {
       return pToken->z + i;
     }
   
-    if (*(pToken->z + i) == TS_ESCAPE_CHAR) {
+    if (*(pToken->z + i) == TS_BACKQUOTE_CHAR) {
       if (!inQuote) {
         inEscape = !inEscape;
       }
@@ -223,7 +223,7 @@ void extractTableNameFromToken(SStrToken* pToken, SStrToken* pTable) {
   char* r = tableNameGetPosition(pToken, sep);  
 
   if (r != NULL) {  // record the table name token    
-    if (pToken->z[0] == TS_ESCAPE_CHAR && *(r - 1) == TS_ESCAPE_CHAR) {
+    if (pToken->z[0] == TS_BACKQUOTE_CHAR && *(r - 1) == TS_BACKQUOTE_CHAR) {
       pTable->n = (uint32_t)(r - pToken->z - 2);
       pTable->z = pToken->z + 1;
     } else {

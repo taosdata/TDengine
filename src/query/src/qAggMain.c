@@ -204,6 +204,7 @@ typedef struct SElapsedInfo {
 
 typedef struct {
   bool valueAssigned;
+  bool ignoreNegative;
   union {
     int64_t i64Prev;
     double d64Prev;
@@ -1620,33 +1621,65 @@ static bool first_last_function_setup(SQLFunctionCtx *pCtx, SResultRowCellInfo* 
 
 // todo opt for null block
 static void first_function(SQLFunctionCtx *pCtx) {
-  if (pCtx->order == TSDB_ORDER_DESC) {
-    return;
-  }
-  
+  SResultRowCellInfo* pResInfo = GET_RES_INFO(pCtx);
   int32_t notNullElems = 0;
-  
-  // handle the null value
-  for (int32_t i = 0; i < pCtx->size; ++i) {
-    char *data = GET_INPUT_DATA(pCtx, i);
-    if (pCtx->hasNull && isNull(data, pCtx->inputType)) {
-      continue;
-    }
-    
-    memcpy(pCtx->pOutput, data, pCtx->inputBytes);
-    if (pCtx->ptsList != NULL) {
-      TSKEY k = GET_TS_DATA(pCtx, i);
-      DO_UPDATE_TAG_COLUMNS(pCtx, k);
-    }
+  int32_t step = 1;
+  int32_t i = 0;
+  bool inputAsc = true;
 
-    SResultRowCellInfo *pInfo = GET_RES_INFO(pCtx);
-    pInfo->hasResult = DATA_SET_FLAG;
-    pInfo->complete = true;
-    
-    notNullElems++;
-    break;
+  // input data come from sub query, input data order equal to sub query order
+  if(pCtx->numOfParams == 3) {
+    if(pCtx->param[2].nType == TSDB_DATA_TYPE_INT && pCtx->param[2].i64 == TSDB_ORDER_DESC) {
+      step = -1;
+      i = pCtx->size - 1;
+      inputAsc = false;
+    }
+  } else if (pCtx->order == TSDB_ORDER_DESC) {
+    return ;
   }
-  
+
+  if(pCtx->order == TSDB_ORDER_ASC && inputAsc) {
+    for (int32_t m = 0; m < pCtx->size; ++m, i+=step) {
+      char *data = GET_INPUT_DATA(pCtx, i);
+      if (pCtx->hasNull && isNull(data, pCtx->inputType)) {
+        continue;
+      }
+      
+      memcpy(pCtx->pOutput, data, pCtx->inputBytes);
+      if (pCtx->ptsList != NULL) {
+        TSKEY k = GET_TS_DATA(pCtx, i);
+        DO_UPDATE_TAG_COLUMNS(pCtx, k);
+      }
+
+      SResultRowCellInfo *pInfo = GET_RES_INFO(pCtx);
+      pInfo->hasResult = DATA_SET_FLAG;
+      pInfo->complete = true;
+      
+      notNullElems++;
+      break;
+    }
+  } else {  // desc order
+    for (int32_t m = 0; m < pCtx->size; ++m, i+=step) {
+      char *data = GET_INPUT_DATA(pCtx, i);
+      if (pCtx->hasNull && isNull(data, pCtx->inputType) && (!pCtx->requireNull)) {
+        continue;
+      }
+
+      TSKEY ts = pCtx->ptsList ? GET_TS_DATA(pCtx, i) : 0;
+
+      char* buf = GET_ROWCELL_INTERBUF(pResInfo);
+      if (pResInfo->hasResult != DATA_SET_FLAG || (*(TSKEY*)buf) > ts) {
+        pResInfo->hasResult = DATA_SET_FLAG;
+        memcpy(pCtx->pOutput, data, pCtx->inputBytes);
+
+        *(TSKEY*)buf = ts;
+        DO_UPDATE_TAG_COLUMNS(pCtx, ts);
+      }
+
+      notNullElems++;
+      break;
+    }
+  }
   SET_VAL(pCtx, notNullElems, 1);
 }
 
@@ -1730,16 +1763,23 @@ static void first_dist_func_merge(SQLFunctionCtx *pCtx) {
  *    least one data in this block that is not null.(TODO opt for this case)
  */
 static void last_function(SQLFunctionCtx *pCtx) {
-  if (pCtx->order != pCtx->param[0].i64) {
+  SResultRowCellInfo* pResInfo = GET_RES_INFO(pCtx);
+  int32_t notNullElems = 0;
+  int32_t step = -1;
+  int32_t i = pCtx->size - 1;
+
+  // input data come from sub query, input data order equal to sub query order
+  if(pCtx->numOfParams == 3) {
+    if(pCtx->param[2].nType == TSDB_DATA_TYPE_INT && pCtx->param[2].i64 == TSDB_ORDER_DESC) {
+      step = 1;
+      i = 0;
+    }
+  } else if (pCtx->order != pCtx->param[0].i64) {
     return;
   }
 
-  SResultRowCellInfo* pResInfo = GET_RES_INFO(pCtx);
-
-  int32_t notNullElems = 0;
   if (pCtx->order == TSDB_ORDER_DESC) {
-
-    for (int32_t i = pCtx->size - 1; i >= 0; --i) {
+    for (int32_t m = pCtx->size - 1; m >= 0; --m, i += step) {
       char *data = GET_INPUT_DATA(pCtx, i);
       if (pCtx->hasNull && isNull(data, pCtx->inputType) && (!pCtx->requireNull)) {
         continue;
@@ -1756,7 +1796,7 @@ static void last_function(SQLFunctionCtx *pCtx) {
       break;
     }
   } else {  // ascending order
-    for (int32_t i = pCtx->size - 1; i >= 0; --i) {
+    for (int32_t m = pCtx->size - 1; m >= 0; --m, i += step) {
       char *data = GET_INPUT_DATA(pCtx, i);
       if (pCtx->hasNull && isNull(data, pCtx->inputType) && (!pCtx->requireNull)) {
         continue;
@@ -3025,6 +3065,7 @@ static bool diff_function_setup(SQLFunctionCtx *pCtx, SResultRowCellInfo* pResIn
   SDiffFuncInfo* pDiffInfo = GET_ROWCELL_INTERBUF(pResInfo);
   pDiffInfo->valueAssigned = false;
   pDiffInfo->i64Prev = 0;
+  pDiffInfo->ignoreNegative = (pCtx->param[0].i64 == 1) ? true : false;
   return true;
 }
 
@@ -3257,6 +3298,9 @@ static void diff_function(SQLFunctionCtx *pCtx) {
         if (pCtx->hasNull && isNull((const char*) &pData[i], pCtx->inputType)) {
           continue;
         }
+        if ((pDiffInfo->ignoreNegative) && (pData[i] < 0)) {
+          continue;
+        }
 
         if (pDiffInfo->valueAssigned) {
           *pOutput = (int32_t)(pData[i] - pDiffInfo->i64Prev);  // direct previous may be null
@@ -3277,6 +3321,9 @@ static void diff_function(SQLFunctionCtx *pCtx) {
 
       for (; i < pCtx->size && i >= 0; i += step) {
         if (pCtx->hasNull && isNull((const char*) &pData[i], pCtx->inputType)) {
+          continue;
+        }
+        if ((pDiffInfo->ignoreNegative) && (pData[i] < 0)) {
           continue;
         }
 
@@ -3301,6 +3348,9 @@ static void diff_function(SQLFunctionCtx *pCtx) {
         if (pCtx->hasNull && isNull((const char*) &pData[i], pCtx->inputType)) {
           continue;
         }
+        if ((pDiffInfo->ignoreNegative) && (pData[i] < 0)) {
+          continue;
+        }
 
         if (pDiffInfo->valueAssigned) {  // initial value is not set yet
           SET_DOUBLE_VAL(pOutput, pData[i] - pDiffInfo->d64Prev);  // direct previous may be null
@@ -3321,6 +3371,9 @@ static void diff_function(SQLFunctionCtx *pCtx) {
 
       for (; i < pCtx->size && i >= 0; i += step) {
         if (pCtx->hasNull && isNull((const char*) &pData[i], pCtx->inputType)) {
+          continue;
+        }
+        if ((pDiffInfo->ignoreNegative) && (pData[i] < 0)) {
           continue;
         }
 
@@ -3345,6 +3398,9 @@ static void diff_function(SQLFunctionCtx *pCtx) {
         if (pCtx->hasNull && isNull((const char*) &pData[i], pCtx->inputType)) {
           continue;
         }
+        if ((pDiffInfo->ignoreNegative) && (pData[i] < 0)) {
+          continue;
+        }
 
         if (pDiffInfo->valueAssigned) {  // initial value is not set yet
           *pOutput = (int16_t)(pData[i] - pDiffInfo->i64Prev);  // direct previous may be null
@@ -3366,6 +3422,9 @@ static void diff_function(SQLFunctionCtx *pCtx) {
 
       for (; i < pCtx->size && i >= 0; i += step) {
         if (pCtx->hasNull && isNull((char *)&pData[i], pCtx->inputType)) {
+          continue;
+        }
+        if ((pDiffInfo->ignoreNegative) && (pData[i] < 0)) {
           continue;
         }
 
@@ -4579,9 +4638,7 @@ static void mavg_function(SQLFunctionCtx *pCtx) {
     }
   }
 
-  if (notNullElems <= 0) {
-    assert(pCtx->hasNull);
-  } else {
+ {
     for (int t = 0; t < pCtx->tagInfo.numOfTagCols; ++t) {
       SQLFunctionCtx* tagCtx = pCtx->tagInfo.pTagCtxList[t];
       if (tagCtx->functionId == TSDB_FUNC_TAG_DUMMY) {
@@ -5080,7 +5137,7 @@ SAggFunctionInfo aAggs[40] = {{
                               "twa",
                               TSDB_FUNC_TWA,
                               TSDB_FUNC_TWA,
-                              TSDB_BASE_FUNC_SO | TSDB_FUNCSTATE_NEED_TS,
+                              TSDB_FUNCSTATE_SO | TSDB_FUNCSTATE_STABLE | TSDB_FUNCSTATE_NEED_TS,
                               twa_function_setup,
                               twa_function,
                               twa_function_finalizer,
@@ -5356,7 +5413,7 @@ SAggFunctionInfo aAggs[40] = {{
                               "elapsed",
                               TSDB_FUNC_ELAPSED,
                               TSDB_FUNC_ELAPSED,
-                              TSDB_BASE_FUNC_SO,
+                              TSDB_FUNCSTATE_SO | TSDB_FUNCSTATE_STABLE,
                               elapsedSetup,
                               elapsedFunction,
                               elapsedFinalizer,

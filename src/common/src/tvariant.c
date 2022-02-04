@@ -87,7 +87,7 @@ void tVariantCreateExt(tVariant *pVar, SStrToken *token, int32_t optrType, bool 
 
     case TSDB_DATA_TYPE_BINARY: {
       pVar->pz = strndup(token->z, token->n);
-      pVar->nLen = needRmquoteEscape ? strRmquoteEscape(pVar->pz, token->n) : token->n;
+      pVar->nLen = needRmquoteEscape ? stringProcess(pVar->pz, token->n) : token->n;
       break;
     }
     case TSDB_DATA_TYPE_TIMESTAMP: {

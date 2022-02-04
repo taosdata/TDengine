@@ -59,7 +59,7 @@ class TDTestCase:
         tdSql.query("select * from db.t1")
         tdSql.checkRows(insertRows)
         
-        for k in range(0,100):
+        for k in range(0,10):
           tdLog.info("insert %d rows" % (insertRows))
           temp=''
           for i in range (0,insertRows):
@@ -75,6 +75,7 @@ class TDTestCase:
           tdDnodes.start(1)
           tdSql.query("select * from db.t1")
           tdSql.checkRows(insertRows+200*k)
+          insertRows = insertRows * 2
         print("==========step3")
         print("insert into another table ")
         s = 'use db'

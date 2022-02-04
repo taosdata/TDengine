@@ -43,7 +43,7 @@ int writeIntoWal(SWalHead *pHead) {
     char walName[280];
     snprintf(walName, sizeof(walName), "%s/wal/wal.%d", path, walNum);
     (void)remove(walName);
-    dataFd = open(walName, O_CREAT | O_WRONLY, S_IRWXU | S_IRWXG | S_IRWXO);
+    dataFd = open(walName, O_CREAT | O_WRONLY | O_BINARY, S_IRWXU | S_IRWXG | S_IRWXO);
     if (dataFd < 0) {
       uInfo("failed to open wal file:%s(%s)", walName, strerror(errno));
       return -1;
