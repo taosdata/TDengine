@@ -1,3 +1,4 @@
+#include <common.h>
 #include "os.h"
 #include "tutil.h"
 
@@ -268,4 +269,27 @@ SSchema createSchema(uint8_t type, int32_t bytes, int32_t colId, const char* nam
 
   tstrncpy(s.name, name, tListLen(s.name));
   return s;
+}
+
+void* destroySDataBlock(SSDataBlock* pBlock) {
+  if (pBlock == NULL) {
+    return NULL;
+  }
+
+  int32_t numOfOutput = pBlock->info.numOfCols;
+  for(int32_t i = 0; i < numOfOutput; ++i) {
+    SColumnInfoData* pColInfoData = taosArrayGet(pBlock->pDataBlock, i);
+    if (IS_VAR_DATA_TYPE(pColInfoData->info.type)) {
+      tfree(pColInfoData->varmeta.offset);
+    } else {
+      tfree(pColInfoData->nullbitmap);
+    }
+
+    tfree(pColInfoData->pData);
+  }
+
+  taosArrayDestroy(pBlock->pDataBlock);
+  tfree(pBlock->pBlockAgg);
+  tfree(pBlock);
+  return NULL;
 }

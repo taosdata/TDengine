@@ -336,7 +336,7 @@ SSDataBlock* createOutputBuf(SExprInfo* pExpr, int32_t numOfOutput, int32_t numO
   return res;
 }
 
-void* destroyOutputBuf(SSDataBlock* pBlock) {
+void* destroySDataBlock(SSDataBlock* pBlock) {
   if (pBlock == NULL) {
     return NULL;
   }
@@ -5373,7 +5373,7 @@ static void destroyGlobalAggOperatorInfo(void* param, int32_t numOfOutput) {
 static void destroySlimitOperatorInfo(void* param, int32_t numOfOutput) {
   SSLimitOperatorInfo *pInfo = (SSLimitOperatorInfo*) param;
   taosArrayDestroy(pInfo->orderColumnList);
-  pInfo->pRes = destroyOutputBuf(pInfo->pRes);
+  pInfo->pRes = destroySDataBlock(pInfo->pRes);
   tfree(pInfo->prevRow);
 }
 
@@ -6566,7 +6566,7 @@ static void doDestroyBasicInfo(SOptrBasicInfo* pInfo, int32_t numOfOutput) {
   tfree(pInfo->rowCellInfoOffset);
 
   cleanupResultRowInfo(&pInfo->resultRowInfo);
-  pInfo->pRes = destroyOutputBuf(pInfo->pRes);
+  pInfo->pRes = destroySDataBlock(pInfo->pRes);
 }
 
 static void destroyBasicOperatorInfo(void* param, int32_t numOfOutput) {
@@ -6590,7 +6590,7 @@ static void destroySWindowOperatorInfo(void* param, int32_t numOfOutput) {
 static void destroySFillOperatorInfo(void* param, int32_t numOfOutput) {
   SFillOperatorInfo* pInfo = (SFillOperatorInfo*) param;
   pInfo->pFillInfo = taosDestroyFillInfo(pInfo->pFillInfo);
-  pInfo->pRes = destroyOutputBuf(pInfo->pRes);
+  pInfo->pRes = destroySDataBlock(pInfo->pRes);
   tfree(pInfo->p);
 }
 
@@ -6607,12 +6607,12 @@ static void destroyProjectOperatorInfo(void* param, int32_t numOfOutput) {
 
 static void destroyTagScanOperatorInfo(void* param, int32_t numOfOutput) {
   STagScanInfo* pInfo = (STagScanInfo*) param;
-  pInfo->pRes = destroyOutputBuf(pInfo->pRes);
+  pInfo->pRes = destroySDataBlock(pInfo->pRes);
 }
 
 static void destroyOrderOperatorInfo(void* param, int32_t numOfOutput) {
   SOrderOperatorInfo* pInfo = (SOrderOperatorInfo*) param;
-  pInfo->pDataBlock = destroyOutputBuf(pInfo->pDataBlock);
+  pInfo->pDataBlock = destroySDataBlock(pInfo->pDataBlock);
 }
 
 static void destroyConditionOperatorInfo(void* param, int32_t numOfOutput) {
@@ -6625,7 +6625,7 @@ static void destroyDistinctOperatorInfo(void* param, int32_t numOfOutput) {
   taosHashCleanup(pInfo->pSet);
   tfree(pInfo->buf);
   taosArrayDestroy(pInfo->pDistinctDataInfo);
-  pInfo->pRes = destroyOutputBuf(pInfo->pRes);
+  pInfo->pRes = destroySDataBlock(pInfo->pRes);
 }
 
 SOperatorInfo* createMultiTableAggOperatorInfo(SQueryRuntimeEnv* pRuntimeEnv, SOperatorInfo* upstream, SExprInfo* pExpr, int32_t numOfOutput) {
