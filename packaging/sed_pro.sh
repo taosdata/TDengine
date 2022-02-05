@@ -4,6 +4,9 @@ function replace_community_pro() {
   # src/kit/taos-tools/src/CMakeLists.txt
   sed -i "s/taosBenchmark /proBenchmark /g" ${top_dir}/src/kit/taos-tools/src/CMakeLists.txt
   sed -i "s/taosdump /prodump /g" ${top_dir}/src/kit/taos-tools/src/CMakeLists.txt
+  # src/kit/taos-tools/CMakeLists.txt
+  sed -i "s/taosdump/prodump/g" ${top_dir}/src/kit/taos-tools/CMakeLists.txt
+  sed -i "s/taosBenchmark/proBenchmark/g" ${top_dir}/src/kit/taos-tools/CMakeLists.txt
   # cmake/install.inc
   sed -i "s/C:\/TDengine/C:\/ProDB/g" ${top_dir}/cmake/install.inc
   sed -i "s/taos\.cfg/prodb\.cfg/g" ${top_dir}/cmake/install.inc
