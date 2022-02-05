@@ -248,6 +248,7 @@ int32_t ctgGetTableMetaFromCache(struct SCatalog* pCatalog, const SName* pTableN
   tbMeta = *pTableMeta;
 
   if (tbMeta->tableType != TSDB_CHILD_TABLE) {
+    taosHashRelease(pCatalog->dbCache, dbCache);
     ctgDebug("Got tbmeta from cache, type:%d, dbFName:%s, tbName:%s", tbMeta->tableType, db, pTableName->tname);
     return TSDB_CODE_SUCCESS;
   }
@@ -257,6 +258,7 @@ int32_t ctgGetTableMetaFromCache(struct SCatalog* pCatalog, const SName* pTableN
   STableMeta **stbMeta = taosHashGet(dbCache->tbCache.stbCache, &tbMeta->suid, sizeof(tbMeta->suid));
   if (NULL == stbMeta || NULL == *stbMeta) {
     CTG_UNLOCK(CTG_READ, &dbCache->tbCache.stbLock);
+    taosHashRelease(pCatalog->dbCache, dbCache);
     ctgError("stable not in stbCache, suid:%"PRIx64, tbMeta->suid);
     tfree(*pTableMeta);
     *exist = 0;
@@ -265,6 +267,7 @@ int32_t ctgGetTableMetaFromCache(struct SCatalog* pCatalog, const SName* pTableN
 
   if ((*stbMeta)->suid != tbMeta->suid) {    
     CTG_UNLOCK(CTG_READ, &dbCache->tbCache.stbLock);
+    taosHashRelease(pCatalog->dbCache, dbCache);
     tfree(*pTableMeta);
     ctgError("stable suid in stbCache mis-match, expected suid:%"PRIx64 ",actual suid:%"PRIx64, tbMeta->suid, (*stbMeta)->suid);
     CTG_ERR_RET(TSDB_CODE_CTG_INTERNAL_ERROR);
@@ -274,6 +277,7 @@ int32_t ctgGetTableMetaFromCache(struct SCatalog* pCatalog, const SName* pTableN
   *pTableMeta = realloc(*pTableMeta, metaSize);
   if (NULL == *pTableMeta) {    
     CTG_UNLOCK(CTG_READ, &dbCache->tbCache.stbLock);
+    taosHashRelease(pCatalog->dbCache, dbCache);
     ctgError("realloc size[%d] failed", metaSize);
     CTG_ERR_RET(TSDB_CODE_CTG_MEM_ERROR);
   }
@@ -281,6 +285,8 @@ int32_t ctgGetTableMetaFromCache(struct SCatalog* pCatalog, const SName* pTableN
   memcpy(&(*pTableMeta)->sversion, &(*stbMeta)->sversion, metaSize - sizeof(SCTableMeta));
 
   CTG_UNLOCK(CTG_READ, &dbCache->tbCache.stbLock);
+
+  taosHashRelease(pCatalog->dbCache, dbCache);
 
   ctgDebug("Got tbmeta from cache, dbFName:%s, tbName:%s", db, pTableName->tname);
   
@@ -1318,6 +1324,9 @@ int32_t catalogUpdateDBVgroup(struct SCatalog* pCatalog, const char* dbName, SDB
         taosHashCleanup(dbCache->vgInfo->vgHash);
         dbCache->vgInfo->vgHash = NULL;
       }
+
+      tfree(dbCache->vgInfo);
+      dbCache->vgInfo = dbInfo;
     }
 
     CTG_UNLOCK(CTG_WRITE, &dbCache->vgLock);
