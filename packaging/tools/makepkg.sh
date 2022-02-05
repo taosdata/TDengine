@@ -25,6 +25,8 @@ serverName="taosd"
 clientName="taos"
 configFile="taos.cfg"
 tarName="taos.tar.gz"
+dumpName="taosdump"
+benchmarkName="taosBenchmark"
 
 # create compressed install file.
 build_dir="${compile_dir}/build"
@@ -68,8 +70,8 @@ else
       ${script_dir}/startPre.sh \
       ${script_dir}/taosd-dump-cfg.gdb"
 
-  taostools_bin_files=" ${build_dir}/bin/taosdump \
-      ${build_dir}/bin/taosBenchmark"
+  taostools_bin_files=" ${build_dir}/bin/${dumpName} \
+      ${build_dir}/bin/${benchmarkName}"
 fi
 
 lib_files="${build_dir}/lib/libtaos.so.${version}"

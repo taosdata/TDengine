@@ -1,6 +1,9 @@
 #!/bin/bash
 
 function replace_community_pro() {
+  # src/kit/taos-tools/src/CMakeLists.txt
+  sed -i "s/taosBenchmark /proBenchmark /g" ${top_dir}/src/kit/taos-tools/src/CMakeLists.txt
+  sed -i "s/taosdump /prodump /g" ${top_dir}/src/kit/taos-tools/src/CMakeLists.txt
   # cmake/install.inc
   sed -i "s/C:\/TDengine/C:\/ProDB/g" ${top_dir}/cmake/install.inc
   sed -i "s/taos\.cfg/prodb\.cfg/g" ${top_dir}/cmake/install.inc
@@ -59,6 +62,8 @@ function replace_community_pro() {
   sed -i "s/clientName=\"taos\"/clientName=\"prodbc\"/g" ${top_dir}/packaging/tools/makepkg.sh
   sed -i "s/configFile=\"taos\.cfg\"/configFile=\"prodb\.cfg\"/g" ${top_dir}/packaging/tools/makepkg.sh
   sed -i "s/tarName=\"taos\.tar\.gz\"/tarName=\"prodb\.tar\.gz\"/g" ${top_dir}/packaging/tools/makepkg.sh
+  sed -i "s/dumpName=\"taosdump\"/dumpName=\"prodump\"/g" ${top_dir}/packaging/tools/makepkg.sh
+  sed -i "s/benchmarkName=\"taosBenchmark\"/benchmarkName=\"proBenchmark\"/g" ${top_dir}/packaging/tools/makepkg.sh
   # packaging/tools/remove.sh
   sed -i "s/installDir=\"\/usr\/local\/taos\"/installDir=\"\/usr\/local\/ProDB\"/g" ${top_dir}/packaging/tools/remove.sh
   sed -i "s/serverName=\"taosd\"/serverName=\"prodbs\"/g" ${top_dir}/packaging/tools/remove.sh
