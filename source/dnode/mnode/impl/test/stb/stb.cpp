@@ -147,7 +147,8 @@ TEST_F(MndTestStb, 01_Create_Show_Meta_Drop_Restart_Stb) {
       pSchema->bytes = htonl(pSchema->bytes);
     }
 
-    EXPECT_STREQ(pRsp->tbName, "1.d1");
+    EXPECT_STREQ(pRsp->dbFName, "1.d1");
+    EXPECT_STREQ(pRsp->tbName, "stb");
     EXPECT_STREQ(pRsp->stbName, "stb");
     EXPECT_EQ(pRsp->numOfColumns, 2);
     EXPECT_EQ(pRsp->numOfTags, 3);
