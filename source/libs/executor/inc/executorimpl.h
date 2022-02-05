@@ -224,12 +224,12 @@ typedef struct STaskAttr {
 //  SFilterInfo     *pFilters;
   
   void*            tsdb;
-//  SMemRef          memRef;
   STableGroupInfo  tableGroupInfo;       // table <tid, last_key> list  SArray<STableKeyInfo>
   int32_t          vgId;
   SArray          *pUdfInfo;             // no need to free
 } STaskAttr;
 
+typedef int32_t (*__optr_prepare_fn_t)(void* param);
 typedef SSDataBlock* (*__operator_fn_t)(void* param, bool* newgroup);
 typedef void (*__optr_cleanup_fn_t)(void* param, int32_t num);
 
@@ -313,8 +313,9 @@ typedef struct SOperatorInfo {
 
   struct SOperatorInfo **pDownstream;  // downstram pointer list
   int32_t               numOfDownstream; // number of downstream. The value is always ONE expect for join operator
+  __optr_prepare_fn_t   prepareFn;
   __operator_fn_t       exec;
-  __optr_cleanup_fn_t   cleanup;
+  __optr_cleanup_fn_t   cleanupFn;
 } SOperatorInfo;
 
 enum {
@@ -395,7 +396,7 @@ typedef struct STableScanInfo {
   int32_t         current;
   int32_t         reverseTimes; // 0 by default
 
-  SQLFunctionCtx *pCtx;         // next operator query context
+  SqlFunctionCtx *pCtx;         // next operator query context
   SResultRowInfo *pResultRowInfo;
   int32_t        *rowCellInfoOffset;
   SExprInfo      *pExpr;
@@ -425,7 +426,7 @@ typedef struct SStreamBlockScanInfo {
 typedef struct SOptrBasicInfo {
   SResultRowInfo    resultRowInfo;
   int32_t          *rowCellInfoOffset;  // offset value for each row result cell info
-  SQLFunctionCtx   *pCtx;
+  SqlFunctionCtx   *pCtx;
   SSDataBlock      *pRes;
 } SOptrBasicInfo;
 
@@ -564,7 +565,6 @@ typedef struct SOrderOperatorInfo {
 SOperatorInfo* createExchangeOperatorInfo(const SArray* pSources, const SArray* pSchema, SExecTaskInfo* pTaskInfo);
 
 SOperatorInfo* createDataBlocksOptScanInfo(void* pTsdbReadHandle, int32_t order, int32_t numOfOutput, int32_t repeatTime, int32_t reverseTime, SExecTaskInfo* pTaskInfo);
-SOperatorInfo* createTableScanOperatorInfo(void* pTsdbReadHandle, int32_t order, int32_t numOfOutput, int32_t repeatTime, SExecTaskInfo* pTaskInfo);
 SOperatorInfo* createTableSeqScanOperator(void* pTsdbReadHandle, STaskRuntimeEnv* pRuntimeEnv);
 SOperatorInfo* createSubmitBlockScanOperatorInfo(void *pSubmitBlockReadHandle, int32_t numOfOutput, SExecTaskInfo* pTaskInfo);
 
@@ -607,11 +607,11 @@ SSDataBlock* createOutputBuf(SExprInfo* pExpr, int32_t numOfOutput, int32_t numO
 void* destroyOutputBuf(SSDataBlock* pBlock);
 void* doDestroyFilterInfo(SSingleColumnFilterInfo* pFilterInfo, int32_t numOfFilterCols);
 
-void setInputDataBlock(SOperatorInfo* pOperator, SQLFunctionCtx* pCtx, SSDataBlock* pBlock, int32_t order);
-void finalizeQueryResult(SOperatorInfo* pOperator, SQLFunctionCtx* pCtx, SResultRowInfo* pResultRowInfo, int32_t* rowCellInfoOffset);
+void setInputDataBlock(SOperatorInfo* pOperator, SqlFunctionCtx* pCtx, SSDataBlock* pBlock, int32_t order);
+void finalizeQueryResult(SOperatorInfo* pOperator, SqlFunctionCtx* pCtx, SResultRowInfo* pResultRowInfo, int32_t* rowCellInfoOffset);
 void updateOutputBuf(SOptrBasicInfo* pBInfo, int32_t *bufCapacity, int32_t numOfInputRows);
 void clearOutputBuf(SOptrBasicInfo* pBInfo, int32_t *bufCapacity);
-void copyTsColoum(SSDataBlock* pRes, SQLFunctionCtx* pCtx, int32_t numOfOutput);
+void copyTsColoum(SSDataBlock* pRes, SqlFunctionCtx* pCtx, int32_t numOfOutput);
 
 void freeParam(STaskParam *param);
 int32_t createQueryFunc(SQueriedTableInfo* pTableInfo, int32_t numOfOutput, SExprInfo** pExprInfo,
@@ -659,8 +659,8 @@ void freeQueryAttr(STaskAttr *pQuery);
 
 int32_t getMaximumIdleDurationSec();
 
-void doInvokeUdf(struct SUdfInfo* pUdfInfo, SQLFunctionCtx *pCtx, int32_t idx, int32_t type);
+void doInvokeUdf(struct SUdfInfo* pUdfInfo, SqlFunctionCtx *pCtx, int32_t idx, int32_t type);
 void setTaskStatus(SExecTaskInfo *pTaskInfo, int8_t status);
-int32_t createExecTaskInfoImpl(SSubplan* pPlan, SExecTaskInfo** pTaskInfo, void* readerHandle, uint64_t taskId);
+int32_t createExecTaskInfoImpl(SSubplan* pPlan, SExecTaskInfo** pTaskInfo, SReadHandle* pHandle, uint64_t taskId);
 
 #endif  // TDENGINE_EXECUTORIMPL_H

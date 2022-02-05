@@ -107,14 +107,14 @@ typedef struct SPoint1 {
   union{double  val; char* ptr;};
 } SPoint1;
 
-struct SQLFunctionCtx;
+struct SqlFunctionCtx;
 struct SResultRowEntryInfo;
 
 //for selectivity query, the corresponding tag value is assigned if the data is qualified
 typedef struct SExtTagsInfo {
   int16_t                 tagsLen;      // keep the tags data for top/bottom query result
   int16_t                 numOfTagCols;
-  struct SQLFunctionCtx **pTagCtxList;
+  struct SqlFunctionCtx **pTagCtxList;
 } SExtTagsInfo;
 
 typedef struct SResultDataInfo {
@@ -126,18 +126,18 @@ typedef struct SResultDataInfo {
 #define GET_RES_INFO(ctx) ((ctx)->resultInfo)
 
 typedef struct SFunctionFpSet {
-  bool (*init)(struct SQLFunctionCtx *pCtx, struct SResultRowEntryInfo* pResultCellInfo);  // setup the execute environment
-  void (*addInput)(struct SQLFunctionCtx *pCtx);
+  bool (*init)(struct SqlFunctionCtx *pCtx, struct SResultRowEntryInfo* pResultCellInfo);  // setup the execute environment
+  void (*addInput)(struct SqlFunctionCtx *pCtx);
 
   // finalizer must be called after all exec has been executed to generated final result.
-  void (*finalize)(struct SQLFunctionCtx *pCtx);
-  void (*combine)(struct SQLFunctionCtx *pCtx);
+  void (*finalize)(struct SqlFunctionCtx *pCtx);
+  void (*combine)(struct SqlFunctionCtx *pCtx);
 } SFunctionFpSet;
 
 extern SFunctionFpSet fpSet[1];
 
 // sql function runtime context
-typedef struct SQLFunctionCtx {
+typedef struct SqlFunctionCtx {
   int32_t      size;      // number of rows
   void *       pInput;    // input data buffer
   uint32_t     order;     // asc|desc
@@ -167,7 +167,7 @@ typedef struct SQLFunctionCtx {
 
   int32_t      columnIndex;
   SFunctionFpSet* fpSet;
-} SQLFunctionCtx;
+} SqlFunctionCtx;
 
 enum {
   TEXPR_NODE_DUMMY     = 0x0,
@@ -216,14 +216,14 @@ typedef struct SAggFunctionInfo {
   int8_t    sFunctionId;  // Transfer function for super table query
   uint16_t  status;
 
-  bool (*init)(SQLFunctionCtx *pCtx, struct SResultRowEntryInfo* pResultCellInfo);  // setup the execute environment
-  void (*addInput)(SQLFunctionCtx *pCtx);
+  bool (*init)(SqlFunctionCtx *pCtx, struct SResultRowEntryInfo* pResultCellInfo);  // setup the execute environment
+  void (*addInput)(SqlFunctionCtx *pCtx);
 
   // finalizer must be called after all exec has been executed to generated final result.
-  void (*finalize)(SQLFunctionCtx *pCtx);
-  void (*combine)(SQLFunctionCtx *pCtx);
+  void (*finalize)(SqlFunctionCtx *pCtx);
+  void (*combine)(SqlFunctionCtx *pCtx);
 
-  int32_t (*dataReqFunc)(SQLFunctionCtx *pCtx, STimeWindow* w, int32_t colId);
+  int32_t (*dataReqFunc)(SqlFunctionCtx *pCtx, STimeWindow* w, int32_t colId);
 } SAggFunctionInfo;
 
 struct SScalarFuncParam;
@@ -279,9 +279,9 @@ void extractFunctionDesc(SArray* pFunctionIdList, SMultiFunctionsDesc* pDesc);
 
 tExprNode* exprdup(tExprNode* pTree);
 
-void resetResultRowEntryResult(SQLFunctionCtx* pCtx, int32_t num);
+void resetResultRowEntryResult(SqlFunctionCtx* pCtx, int32_t num);
 void cleanupResultRowEntry(struct SResultRowEntryInfo* pCell);
-int32_t getNumOfResult(SQLFunctionCtx* pCtx, int32_t num);
+int32_t getNumOfResult(SqlFunctionCtx* pCtx, int32_t num);
 bool isRowEntryCompleted(struct SResultRowEntryInfo* pEntry);
 bool isRowEntryInitialized(struct SResultRowEntryInfo* pEntry);
 

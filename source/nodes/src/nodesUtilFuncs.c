@@ -15,17 +15,13 @@
 
 #include "nodes.h"
 #include "nodesShowStmts.h"
-
-bool nodesIsTimeorderQuery(const SNode* pQuery) {
-
-}
-
-bool nodesIsTimelineQuery(const SNode* pQuery) {
-
-}
+#include "taoserror.h"
 
 static SNode* makeNode(ENodeType type, size_t size) {
   SNode* p = calloc(1, size);
+  if (NULL == p) {
+    return NULL;
+  }
   setNodeType(p, type);
   return p;
 }
@@ -78,6 +74,42 @@ void nodesDestroyNode(SNode* pNode) {
 
 }
 
-void nodesDestroyNodeList(SNodeList* pList) {
+SNodeList* nodesMakeList() {
+  SNodeList* p = calloc(1, sizeof(SNodeList));
+  if (NULL == p) {
+    return NULL;
+  }
+  return p;
+}
+
+SNodeList* nodesListAppend(SNodeList* pList, SNode* pNode) {
+  if (NULL == pList || NULL == pNode) {
+    return NULL;
+  }
+  SListCell* p = calloc(1, sizeof(SListCell));
+  if (NULL == p) {
+    terrno = TSDB_CODE_TSC_OUT_OF_MEMORY;
+    return pList;
+  }
+  p->pNode = pNode;
+  if (NULL == pList->pHead) {
+    pList->pHead = p;
+  }
+  if (NULL != pList->pTail) {
+    pList->pTail->pNext = p;
+  }
+  pList->pTail = p;
+  return pList;
+}
+
+void nodesDestroyList(SNodeList* pList) {
+
+}
+
+bool nodesIsTimeorderQuery(const SNode* pQuery) {
+
+}
+
+bool nodesIsTimelineQuery(const SNode* pQuery) {
 
 }

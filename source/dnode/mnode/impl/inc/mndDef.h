@@ -393,6 +393,12 @@ static FORCE_INLINE void* tDecodeSMqConsumerEp(void** buf, SMqConsumerEp* pConsu
   return buf;
 }
 
+static FORCE_INLINE void tDeleteSMqConsumerEp(SMqConsumerEp* pConsumerEp) {
+  if (pConsumerEp) {
+    tfree(pConsumerEp->qmsg);
+  }
+}
+
 // unit for rebalance
 typedef struct SMqSubscribeObj {
   char    key[TSDB_SUBSCRIBE_KEY_LEN];
@@ -520,7 +526,7 @@ static FORCE_INLINE void* tDecodeSubscribeObj(void* buf, SMqSubscribeObj* pSub) 
     return NULL;
   }
   for (int32_t i = 0; i < sz; i++) {
-    SMqConsumerEp cEp;
+    SMqConsumerEp cEp = {0};
     buf = tDecodeSMqConsumerEp(buf, &cEp);
     taosArrayPush(pSub->assigned, &cEp);
   }
@@ -533,7 +539,7 @@ static FORCE_INLINE void* tDecodeSubscribeObj(void* buf, SMqSubscribeObj* pSub) 
     return NULL;
   }
   for (int32_t i = 0; i < sz; i++) {
-    SMqConsumerEp cEp;
+    SMqConsumerEp cEp = {0};
     buf = tDecodeSMqConsumerEp(buf, &cEp);
     taosArrayPush(pSub->lostConsumer, &cEp);
   }
@@ -547,7 +553,7 @@ static FORCE_INLINE void* tDecodeSubscribeObj(void* buf, SMqSubscribeObj* pSub) 
     return NULL;
   }
   for (int32_t i = 0; i < sz; i++) {
-    SMqConsumerEp cEp;
+    SMqConsumerEp cEp = {0};
     buf = tDecodeSMqConsumerEp(buf, &cEp);
     taosArrayPush(pSub->idleConsumer, &cEp);
   }
@@ -563,12 +569,39 @@ static FORCE_INLINE void* tDecodeSubscribeObj(void* buf, SMqSubscribeObj* pSub) 
     return NULL;
   }
   for (int32_t i = 0; i < sz; i++) {
-    SMqConsumerEp cEp;
+    SMqConsumerEp cEp = {0};
     buf = tDecodeSMqConsumerEp(buf, &cEp);
     taosArrayPush(pSub->unassignedVg, &cEp);
   }
 
   return buf;
+}
+
+static FORCE_INLINE void tDeleteSMqSubscribeObj(SMqSubscribeObj* pSub) {
+  if (pSub->availConsumer) {
+    taosArrayDestroy(pSub->availConsumer);
+    pSub->availConsumer = NULL;
+  }
+  if (pSub->assigned) {
+    //taosArrayDestroyEx(pSub->assigned, (void (*)(void*))tDeleteSMqConsumerEp);
+    taosArrayDestroy(pSub->assigned);
+    pSub->assigned = NULL;
+  }
+  if (pSub->unassignedVg) {
+    //taosArrayDestroyEx(pSub->unassignedVg, (void (*)(void*))tDeleteSMqConsumerEp);
+    taosArrayDestroy(pSub->unassignedVg);
+    pSub->unassignedVg = NULL;
+  }
+  if (pSub->idleConsumer) {
+    //taosArrayDestroyEx(pSub->idleConsumer, (void (*)(void*))tDeleteSMqConsumerEp);
+    taosArrayDestroy(pSub->idleConsumer);
+    pSub->idleConsumer = NULL;
+  }
+  if (pSub->lostConsumer) {
+    //taosArrayDestroyEx(pSub->lostConsumer, (void (*)(void*))tDeleteSMqConsumerEp);
+    taosArrayDestroy(pSub->lostConsumer);
+    pSub->lostConsumer = NULL;
+  }
 }
 
 typedef struct SMqCGroup {
@@ -604,7 +637,7 @@ typedef struct SMqConsumerTopic {
 } SMqConsumerTopic;
 
 static FORCE_INLINE SMqConsumerTopic* tNewConsumerTopic(int64_t consumerId, SMqTopicObj* pTopic,
-                                                        SMqSubscribeObj* pSub) {
+                                                        SMqSubscribeObj* pSub, int64_t* oldConsumerId) {
   SMqConsumerTopic* pCTopic = malloc(sizeof(SMqConsumerTopic));
   if (pCTopic == NULL) {
     terrno = TSDB_CODE_OUT_OF_MEMORY;
@@ -617,6 +650,7 @@ static FORCE_INLINE SMqConsumerTopic* tNewConsumerTopic(int64_t consumerId, SMqT
   int32_t unassignedVgSz = taosArrayGetSize(pSub->unassignedVg);
   if (unassignedVgSz > 0) {
     SMqConsumerEp* pCEp = taosArrayPop(pSub->unassignedVg);
+    *oldConsumerId = pCEp->consumerId;
     pCEp->consumerId = consumerId;
     taosArrayPush(pCTopic->pVgInfo, &pCEp->vgId);
     taosArrayPush(pSub->assigned, pCEp);
@@ -660,12 +694,17 @@ typedef struct SMqConsumerObj {
   SRWLatch lock;
   char     cgroup[TSDB_CONSUMER_GROUP_LEN];
   SArray*  topics;  // SArray<SMqConsumerTopic>
-  // SHashObj *topicHash; //SHashObj<SMqTopicObj>
+  int64_t  epoch;
+  // stat
+  int64_t  pollCnt;
 } SMqConsumerObj;
 
 static FORCE_INLINE int32_t tEncodeSMqConsumerObj(void** buf, const SMqConsumerObj* pConsumer) {
   int32_t tlen = 0;
   tlen += taosEncodeFixedI64(buf, pConsumer->consumerId);
+  tlen += taosEncodeFixedI64(buf, pConsumer->connId);
+  tlen += taosEncodeFixedI64(buf, pConsumer->epoch);
+  tlen += taosEncodeFixedI64(buf, pConsumer->pollCnt);
   tlen += taosEncodeString(buf, pConsumer->cgroup);
   int32_t sz = taosArrayGetSize(pConsumer->topics);
   tlen += taosEncodeFixedI32(buf, sz);
@@ -678,6 +717,9 @@ static FORCE_INLINE int32_t tEncodeSMqConsumerObj(void** buf, const SMqConsumerO
 
 static FORCE_INLINE void* tDecodeSMqConsumerObj(void* buf, SMqConsumerObj* pConsumer) {
   buf = taosDecodeFixedI64(buf, &pConsumer->consumerId);
+  buf = taosDecodeFixedI64(buf, &pConsumer->connId);
+  buf = taosDecodeFixedI64(buf, &pConsumer->epoch);
+  buf = taosDecodeFixedI64(buf, &pConsumer->pollCnt);
   buf = taosDecodeStringTo(buf, pConsumer->cgroup);
   int32_t sz;
   buf = taosDecodeFixedI32(buf, &sz);

@@ -169,10 +169,17 @@ int32_t walReadWithHandle(SWalReadHandle *pRead, int64_t ver) {
     return -1;
   }
 
-  ASSERT(pRead->pHead->head.version == ver);
+  if (pRead->pHead->head.version != ver) {
+    wError("unexpected wal log version: %ld, read request version:%ld", pRead->pHead->head.version, ver);
+    pRead->curVersion = -1;
+    terrno = TSDB_CODE_WAL_FILE_CORRUPTED;
+    return -1;
+  }
 
   code = walValidBodyCksum(pRead->pHead);
   if (code != 0) {
+    wError("unexpected wal log version: checksum not passed");
+    pRead->curVersion = -1;
     terrno = TSDB_CODE_WAL_FILE_CORRUPTED;
     return -1;
   }

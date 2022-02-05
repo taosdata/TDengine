@@ -584,12 +584,30 @@ int32_t tqHandleDel(STqMetaStore* pMeta, int64_t key) {
   int64_t      bucketKey = key & TQ_BUCKET_MASK;
   STqMetaList* pNode = pMeta->bucket[bucketKey];
   while (pNode) {
-    if (pNode->handle.valueInTxn != TQ_DELETE_TOKEN) {
-      if (pNode->handle.valueInTxn) {
-        pMeta->pDeleter(pNode->handle.valueInTxn);
-      }
+    if (pNode->handle.key == key) {
+      if (pNode->handle.valueInTxn != TQ_DELETE_TOKEN) {
+        if (pNode->handle.valueInTxn) {
+          pMeta->pDeleter(pNode->handle.valueInTxn);
+        }
 
-      pNode->handle.valueInTxn = TQ_DELETE_TOKEN;
+        pNode->handle.valueInTxn = TQ_DELETE_TOKEN;
+        tqLinkUnpersist(pMeta, pNode);
+        return 0;
+      }
+    } else {
+      pNode = pNode->next;
+    }
+  }
+  terrno = TSDB_CODE_TQ_META_NO_SUCH_KEY;
+  return -1;
+}
+
+int32_t tqHandlePurge(STqMetaStore* pMeta, int64_t key) {
+  int64_t      bucketKey = key & TQ_BUCKET_MASK;
+  STqMetaList* pNode = pMeta->bucket[bucketKey];
+  while (pNode) {
+    if (pNode->handle.key == key) {
+      pNode->handle.valueInUse = TQ_DELETE_TOKEN;
       tqLinkUnpersist(pMeta, pNode);
       return 0;
     } else {

@@ -91,7 +91,7 @@ static bool logicConditionNodeEqual(const SLogicConditionNode* a, const SLogicCo
 
 static bool isNullConditionNodeEqual(const SIsNullCondNode* a, const SIsNullCondNode* b) {
   COMPARE_NODE_FIELD(pExpr);
-  COMPARE_SCALAR_FIELD(isNot);
+  COMPARE_SCALAR_FIELD(isNull);
   return true;
 }
 

@@ -38,6 +38,10 @@
 //  int16_t bytes;
 //} SSchema;
 
+#define TMQ_REQ_TYPE_COMMIT_ONLY        0
+#define TMQ_REQ_TYPE_CONSUME_ONLY       1
+#define TMQ_REQ_TYPE_CONSUME_AND_COMMIT 2
+
 typedef struct {
   uint32_t  numOfTables;
   SArray   *pGroupList;
@@ -115,7 +119,7 @@ static FORCE_INLINE void* tDecodeDataBlock(void* buf, SSDataBlock* pBlock) {
   buf = taosDecodeFixedI32(buf, &sz);
   pBlock->pDataBlock = taosArrayInit(sz, sizeof(SColumnInfoData));
   for (int32_t i = 0; i < sz; i++) {
-    SColumnInfoData data;
+    SColumnInfoData data = {0};
     buf = taosDecodeFixedI16(buf, &data.info.colId);
     buf = taosDecodeFixedI16(buf, &data.info.type);
     buf = taosDecodeFixedI16(buf, &data.info.bytes);
@@ -130,6 +134,12 @@ static FORCE_INLINE int32_t tEncodeSMqConsumeRsp(void** buf, const SMqConsumeRsp
   int32_t tlen = 0;
   int32_t sz = 0;
   tlen += taosEncodeFixedI64(buf, pRsp->consumerId);
+  tlen += taosEncodeFixedI64(buf, pRsp->committedOffset);
+  tlen += taosEncodeFixedI64(buf, pRsp->reqOffset);
+  tlen += taosEncodeFixedI64(buf, pRsp->rspOffset);
+  tlen += taosEncodeFixedI32(buf, pRsp->skipLogNum);
+  tlen += taosEncodeFixedI32(buf, pRsp->numOfTopics);
+  if (pRsp->numOfTopics == 0) return tlen;
   tlen += tEncodeSSchemaWrapper(buf, pRsp->schemas);
   if (pRsp->pBlockData) {
     sz = taosArrayGetSize(pRsp->pBlockData);
@@ -145,17 +155,56 @@ static FORCE_INLINE int32_t tEncodeSMqConsumeRsp(void** buf, const SMqConsumeRsp
 static FORCE_INLINE void* tDecodeSMqConsumeRsp(void* buf, SMqConsumeRsp* pRsp) {
   int32_t sz;
   buf = taosDecodeFixedI64(buf, &pRsp->consumerId);
+  buf = taosDecodeFixedI64(buf, &pRsp->committedOffset);
+  buf = taosDecodeFixedI64(buf, &pRsp->reqOffset);
+  buf = taosDecodeFixedI64(buf, &pRsp->rspOffset);
+  buf = taosDecodeFixedI32(buf, &pRsp->skipLogNum);
+  buf = taosDecodeFixedI32(buf, &pRsp->numOfTopics);
+  if (pRsp->numOfTopics == 0) return buf;
   pRsp->schemas = (SSchemaWrapper*)calloc(1, sizeof(SSchemaWrapper));
   if (pRsp->schemas == NULL) return NULL;
   buf = tDecodeSSchemaWrapper(buf, pRsp->schemas);
   buf = taosDecodeFixedI32(buf, &sz);
   pRsp->pBlockData = taosArrayInit(sz, sizeof(SSDataBlock));
   for (int32_t i = 0; i < sz; i++) {
-    SSDataBlock block;
+    SSDataBlock block = {0};
     tDecodeDataBlock(buf, &block);
     taosArrayPush(pRsp->pBlockData, &block);
   }
   return buf;
+}
+
+static FORCE_INLINE void tDeleteSSDataBlock(SSDataBlock* pBlock) {
+  if (pBlock == NULL) {
+    return;
+  }
+
+  //int32_t numOfOutput = pBlock->info.numOfCols;
+  int32_t sz = taosArrayGetSize(pBlock->pDataBlock);
+  for(int32_t i = 0; i < sz; ++i) {
+    SColumnInfoData* pColInfoData = (SColumnInfoData*)taosArrayGet(pBlock->pDataBlock, i);
+    tfree(pColInfoData->pData);
+  }
+
+  taosArrayDestroy(pBlock->pDataBlock);
+  tfree(pBlock->pBlockAgg);
+  //tfree(pBlock);
+}
+
+
+static FORCE_INLINE void tDeleteSMqConsumeRsp(SMqConsumeRsp* pRsp) {
+  if (pRsp->schemas) {
+    if (pRsp->schemas->nCols) {
+      tfree(pRsp->schemas->pSchema);
+    }
+    free(pRsp->schemas);
+  }
+    taosArrayDestroyEx(pRsp->pBlockData, (void(*)(void*))tDeleteSSDataBlock);
+    pRsp->pBlockData = NULL;
+  //for (int i = 0; i < taosArrayGetSize(pRsp->pBlockData); i++) {
+    //SSDataBlock* pDataBlock = (SSDataBlock*)taosArrayGet(pRsp->pBlockData, i);
+    //tDeleteSSDataBlock(pDataBlock);
+  //}
 }
 
 //======================================================================================================================

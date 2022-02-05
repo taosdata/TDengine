@@ -39,7 +39,7 @@ static int32_t doSetStreamBlock(SOperatorInfo* pOperator, void* input, char* id)
   }
 }
 
-int32_t qSetStreamInput(qTaskInfo_t tinfo, void* input) {
+int32_t qSetStreamInput(qTaskInfo_t tinfo, const void* input) {
   if (tinfo == NULL) {
     return TSDB_CODE_QRY_APP_ERROR;
   }
@@ -50,7 +50,7 @@ int32_t qSetStreamInput(qTaskInfo_t tinfo, void* input) {
 
   SExecTaskInfo* pTaskInfo = (SExecTaskInfo*) tinfo;
 
-  int32_t code = doSetStreamBlock(pTaskInfo->pRoot, input, GET_TASKID(pTaskInfo));
+  int32_t code = doSetStreamBlock(pTaskInfo->pRoot, (void*) input, GET_TASKID(pTaskInfo));
   if (code != TSDB_CODE_SUCCESS) {
     qError("%s failed to set the stream block data", GET_TASKID(pTaskInfo));
   } else {

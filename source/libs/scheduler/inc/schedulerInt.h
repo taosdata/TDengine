@@ -128,6 +128,7 @@ typedef struct SSchJob {
   int32_t          errCode;
   void            *res;         //TODO free it or not
   int32_t          resNumOfRows;
+  const char      *sql;
   SQueryProfileSummary summary;
 } SSchJob;
 
@@ -150,11 +151,11 @@ typedef struct SSchJob {
 #define SCH_JOB_DLOG(param, ...) qDebug("QID:0x%" PRIx64 " " param, pJob->queryId, __VA_ARGS__)
 
 #define SCH_TASK_ELOG(param, ...) \
-  qError("QID:0x%" PRIx64 ",TID:%" PRId64 " " param, pJob->queryId, pTask->taskId, __VA_ARGS__)
+  qError("QID:0x%" PRIx64 ",TID:0x%" PRIx64 " " param, pJob->queryId, pTask->taskId, __VA_ARGS__)
 #define SCH_TASK_DLOG(param, ...) \
-  qDebug("QID:0x%" PRIx64 ",TID:%" PRId64 " " param, pJob->queryId, pTask->taskId, __VA_ARGS__)
+  qDebug("QID:0x%" PRIx64 ",TID:0x%" PRIx64 " " param, pJob->queryId, pTask->taskId, __VA_ARGS__)
 #define SCH_TASK_WLOG(param, ...) \
-  qWarn("QID:0x%" PRIx64 ",TID:%" PRId64 " " param, pJob->queryId, pTask->taskId, __VA_ARGS__)
+  qWarn("QID:0x%" PRIx64 ",TID:0x%" PRIx64 " " param, pJob->queryId, pTask->taskId, __VA_ARGS__)
 
 #define SCH_ERR_RET(c) do { int32_t _code = c; if (_code != TSDB_CODE_SUCCESS) { terrno = _code; return _code; } } while (0)
 #define SCH_RET(c) do { int32_t _code = c; if (_code != TSDB_CODE_SUCCESS) { terrno = _code; } return _code; } while (0)

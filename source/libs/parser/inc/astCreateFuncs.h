@@ -25,20 +25,46 @@
 extern "C" {
 #endif
 
-bool checkTableName(const SToken* pTableName);
-SNodeList* addNodeToList(SAstCreateContext* pCxt, SNodeList* pList, SNode* pNode);
-SNode* addOrderByList(SAstCreateContext* pCxt, SNode* pStmt, SNodeList* pOrderByList);
-SNode* addSlimit(SAstCreateContext* pCxt, SNode* pStmt, SNode* pSlimit);
-SNode* addLimit(SAstCreateContext* pCxt, SNode* pStmt, SNode* pLimit);
-SNode* createColumnNode(SAstCreateContext* pCxt, const SToken* pTableName, const SToken* pColumnName);
-SNode* createLimitNode(SAstCreateContext* pCxt, const SToken* pLimit, const SToken* pOffset);
+extern SToken nil_token;
+
 SNodeList* createNodeList(SAstCreateContext* pCxt, SNode* pNode);
+SNodeList* addNodeToList(SAstCreateContext* pCxt, SNodeList* pList, SNode* pNode);
+
+SNode* createColumnNode(SAstCreateContext* pCxt, const SToken* pTableName, const SToken* pColumnName);
+SNode* createValueNode(SAstCreateContext* pCxt, int32_t dataType, const SToken* pLiteral);
+SNode* createDurationValueNode(SAstCreateContext* pCxt, const SToken* pLiteral);
+SNode* addMinusSign(SAstCreateContext* pCxt, SNode* pNode);
+SNode* setProjectionAlias(SAstCreateContext* pCxt, SNode* pNode, const SToken* pAlias);
+SNode* createLogicConditionNode(SAstCreateContext* pCxt, ELogicConditionType type, SNode* pParam1, SNode* pParam2);
+SNode* createOperatorNode(SAstCreateContext* pCxt, EOperatorType type, SNode* pLeft, SNode* pRight);
+SNode* createBetweenAnd(SAstCreateContext* pCxt, SNode* pExpr, SNode* pLeft, SNode* pRight);
+SNode* createNotBetweenAnd(SAstCreateContext* pCxt, SNode* pExpr, SNode* pLeft, SNode* pRight);
+SNode* createIsNullCondNode(SAstCreateContext* pCxt, SNode* pExpr, bool isNull);
+SNode* createFunctionNode(SAstCreateContext* pCxt, const SToken* pFuncName, SNodeList* pParameterList);
+SNode* createNodeListNode(SAstCreateContext* pCxt, SNodeList* pList);
+SNode* createRealTableNode(SAstCreateContext* pCxt, const SToken* pDbName, const SToken* pTableName, const SToken* pTableAlias);
+SNode* createTempTableNode(SAstCreateContext* pCxt, SNode* pSubquery, const SToken* pTableAlias);
+SNode* createJoinTableNode(SAstCreateContext* pCxt, EJoinType type, SNode* pLeft, SNode* pRight, SNode* pJoinCond);
+SNode* createLimitNode(SAstCreateContext* pCxt, const SToken* pLimit, const SToken* pOffset);
 SNode* createOrderByExprNode(SAstCreateContext* pCxt, SNode* pExpr, EOrder order, ENullOrder nullOrder);
-SNode* createRealTableNode(SAstCreateContext* pCxt, const SToken* pDbName, const SToken* pTableName);
+SNode* createSessionWindowNode(SAstCreateContext* pCxt, SNode* pCol, const SToken* pVal);
+SNode* createStateWindowNode(SAstCreateContext* pCxt, SNode* pCol);
+SNode* createIntervalWindowNode(SAstCreateContext* pCxt, SNode* pInterval, SNode* pOffset, SNode* pSliding, SNode* pFill);
+SNode* createFillNode(SAstCreateContext* pCxt, EFillMode mode, SNode* pValues);
+
+SNode* addWhereClause(SAstCreateContext* pCxt, SNode* pStmt, SNode* pWhere);
+SNode* addPartitionByClause(SAstCreateContext* pCxt, SNode* pStmt, SNodeList* pPartitionByList);
+SNode* addWindowClauseClause(SAstCreateContext* pCxt, SNode* pStmt, SNode* pWindow);
+SNode* addGroupByClause(SAstCreateContext* pCxt, SNode* pStmt, SNodeList* pGroupByList);
+SNode* addHavingClause(SAstCreateContext* pCxt, SNode* pStmt, SNode* pHaving);
+SNode* addOrderByClause(SAstCreateContext* pCxt, SNode* pStmt, SNodeList* pOrderByList);
+SNode* addSlimitClause(SAstCreateContext* pCxt, SNode* pStmt, SNode* pSlimit);
+SNode* addLimitClause(SAstCreateContext* pCxt, SNode* pStmt, SNode* pLimit);
 SNode* createSelectStmt(SAstCreateContext* pCxt, bool isDistinct, SNodeList* pProjectionList, SNode* pTable);
 SNode* createSetOperator(SAstCreateContext* pCxt, ESetOperatorType type, SNode* pLeft, SNode* pRight);
+
 SNode* createShowStmt(SAstCreateContext* pCxt, EShowStmtType type);
-SNode* setProjectionAlias(SAstCreateContext* pCxt, SNode* pNode, const SToken* pAlias);
+
 
 #ifdef __cplusplus
 }
