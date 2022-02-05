@@ -7,6 +7,21 @@ function replace_community_pro() {
   # src/kit/taos-tools/CMakeLists.txt
   sed -i "s/taosdump/prodump/g" ${top_dir}/src/kit/taos-tools/CMakeLists.txt
   sed -i "s/taosBenchmark/proBenchmark/g" ${top_dir}/src/kit/taos-tools/CMakeLists.txt
+  # src/kit/taos-tools/src/benchCommandOpt.c
+  sed -i "s/support@taosdata\.com/support@hanatech\.com\.cn/g" ${top_dir}/src/kit/taos-tools/src/benchCommandOpt.c
+  sed -i "s/taosc/prodbc/g" ${top_dir}/src/kit/taos-tools/src/benchCommandOpt.c
+  sed -i "s/default is taosdata/default is prodb/g" ${top_dir}/src/kit/taos-tools/src/benchCommandOpt.c
+  # src/kit/taos-tools/src/taosdump.c
+  sed -i "s/support@taosdata\.com/support@hanatech\.com\.cn/g" ${top_dir}/src/kit/taos-tools/src/taosdump.c
+  sed -i "s/\/etc\/taos/\/etc\/ProDB/g" ${top_dir}/src/kit/taos-tools/src/taosdump.c
+  sed -i "s/taosdata/prodb/g" ${top_dir}/src/kit/taos-tools/src/taosdump.c
+  sed -i "s/taosdump version/prodump version/g" ${top_dir}/src/kit/taos-tools/src/taosdump.c
+  sed -i "s/taosdump --help/prodump --help/g" ${top_dir}/src/kit/taos-tools/src/taosdump.c
+  sed -i "s/taosdump --usage/prodump --usage/g" ${top_dir}/src/kit/taos-tools/src/taosdump.c
+  sed -i "s/\"taosdump\"/\"prodump\"/g" ${top_dir}/src/kit/taos-tools/src/taosdump.c
+  sed -i "s/TDengine/ProDB/g" ${top_dir}/src/kit/taos-tools/src/taosdump.c
+  sed -i "s/taosdump requires/prodump requires/g" ${top_dir}/src/kit/taos-tools/src/taosdump.c
+
   # cmake/install.inc
   sed -i "s/C:\/TDengine/C:\/ProDB/g" ${top_dir}/cmake/install.inc
   sed -i "s/taos\.cfg/prodb\.cfg/g" ${top_dir}/cmake/install.inc
