@@ -1,25 +1,24 @@
-# 806,,pytest,test.py -f update/append_commit_data.py too long time
+113,,pytest,python3 test.py -f update/append_commit_data.py
 # 20,,pytest,insert/retentionpolicy.py change date time
-# ,,pytest,python3 test.py -f tools/taosdemoTestTblAlt.py never quit
 440,,pytest,python3 test.py -f tools/taosdemoTestQuery.py
-# 432,,pytest,python3 test.py -f tools/taosdemoTestLimitOffset.py
-# 431,,pytest,python3 test.py -f tools/taosdemoAllTest/taosdemoTestQueryWithJson.py
+432,,pytest,python3 test.py -f tools/taosdemoTestLimitOffset.py
+431,,pytest,python3 test.py -f tools/taosdemoAllTest/taosdemoTestQueryWithJson.py
 296,,pytest,python3 ./test.py -f update/merge_commit_data.py
 294,,pytest,python3 ./test.py -f update/merge_commit_data-0.py
 258,,script,./test.sh -f general/stream/stream_3.sim
 256,,script,./test.sh -f general/stream/restart_stream.sim
 243,,pytest,python3 ./test.py -f update/merge_commit_data2.py
 232,,pytest,python3 ./test.py -f query/queryNullValueTest.py
-# 218,,pytest,python3 test.py -f tools/taosdemoTestWithoutMetric.py
-# 218,,pytest,python3 test.py -f tools/taosdemoTestSampleData.py
-# 218,,pytest,python3 test.py -f tools/taosdemoTest.py
-# 218,,pytest,python3 test.py -f tools/taosdemoTestInterlace.py
-# 217,,pytest,python3 test.py -f tools/taosdemoTestWithJson.py
-# 217,,pytest,python3 ./test.py -f perfbenchmark/bug3433.py
-# 216,,pytest,python3 test.py -f tools/taosdemoAllTest/taosdemoTestInsertWithJson.py 
-# 216,,pytest,python3 ./test.py -f query/query1970YearsAf.py
+218,,pytest,python3 test.py -f tools/taosdemoTestWithoutMetric.py
+218,,pytest,python3 test.py -f tools/taosdemoTestSampleData.py
+218,,pytest,python3 test.py -f tools/taosdemoTest.py
+218,,pytest,python3 test.py -f tools/taosdemoTestInterlace.py
+217,,pytest,python3 test.py -f tools/taosdemoTestWithJson.py
+217,,pytest,python3 ./test.py -f perfbenchmark/bug3433.py
+216,,pytest,python3 test.py -f tools/taosdemoAllTest/taosdemoTestInsertWithJson.py 
+216,,pytest,python3 ./test.py -f query/query1970YearsAf.py
 215,2,script,./test.sh -f unique/cluster/balance3.sim
-# 215,,pytest,python3 test.py -f tools/taosdemoAllTest/TD-4985/query-limit-offset.py
+215,,pytest,python3 test.py -f tools/taosdemoAllTest/TD-4985/query-limit-offset.py
 204,,pytest,python3 ./test.py -f update/merge_commit_data2_update0.py
 198,,pytest,python3 ./test.py -f stream/stream1.py
 196,,pytest,python3 ./test.py -f update/merge_commit_last.py
@@ -191,6 +190,7 @@
 29,,pytest,python3 ./test.py -f import_merge/importLastT.py
 29,,pytest,python3 ./test.py -f import_merge/importCacheFileTPO.py
 29,,pytest,python3 ./test.py -f import_merge/importCacheFileTO.py
+29,,pytest,python3 test.py -f tools/taosdemoTestTblAlt.py
 28,,script,./test.sh -f unique/arbitrator/sync_replica3_dropTable.sim
 28,,script,./test.sh -f unique/arbitrator/sync_replica3_dropDb.sim
 28,,script,./test.sh -f unique/arbitrator/sync_replica3_alterTable_add.sim
@@ -524,7 +524,7 @@
 13,,pytest,python3 ./test.py -f table/column_num.py
 13,,pytest,python3 ./test.py -f table/column_name.py
 13,,pytest,python3 ./test.py -f table/boundary.py
-# 13,,pytest,python3 test.py -f subscribe/supertable.py
+13,,pytest,python3 test.py -f subscribe/supertable.py
 13,,pytest,python3 test.py -f query/queryFillTest.py
 13,,pytest,python3 ./test.py -f query/isNullTest.py
 13,,pytest,python3 ./test.py -f query/filter.py
@@ -580,7 +580,7 @@
 12,,pytest,python3 ./test.py -f insert/bug3654.py
 12,,pytest,python3 ./test.py -f insert/bigint.py
 12,,pytest,python3 ./test.py -f import_merge/importHRestart.py
-# 12,,pytest,python3 ./test.py -f functions/queryTestCases.py
+12,,pytest,python3 ./test.py -f functions/queryTestCases.py
 12,,pytest,python3 ./test.py -f functions/function_stddev.py -r 1
 12,,pytest,python3 ./test.py -f functions/function_spread.py -r 1
 12,,pytest,python3 ./test.py -f functions/function_percentile.py -r 1
@@ -630,5 +630,5 @@
 7,,pytest,python3 testNoCompress.py
 6,,pytest,python3 client/twoClients.py
 5,,pytest,python3 bug2265.py
-# 4,,pytest,python3 test.py -f subscribe/singlemeter.py
+4,,pytest,python3 test.py -f subscribe/singlemeter.py
 3,,pytest,python3 testMinTablesPerVnode.py
