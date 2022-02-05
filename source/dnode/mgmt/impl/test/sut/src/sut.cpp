@@ -125,7 +125,7 @@ const char* Testbase::GetMetaName(int32_t index) {
 
 int32_t Testbase::GetMetaNum() { return pMeta->numOfColumns; }
 
-const char* Testbase::GetMetaTbName() { return pMeta->tbFname; }
+const char* Testbase::GetMetaTbName() { return pMeta->tbName; }
 
 void Testbase::SendShowRetrieveReq() {
   int32_t contLen = sizeof(SRetrieveTableReq);
@@ -144,7 +144,7 @@ void Testbase::SendShowRetrieveReq() {
   pos = 0;
 }
 
-const char* Testbase::GetShowName() { return pMeta->tbFname; }
+const char* Testbase::GetShowName() { return pMeta->tbName; }
 
 int8_t Testbase::GetShowInt8() {
   int8_t data = *((int8_t*)(pData + pos));
