@@ -728,7 +728,7 @@ static int32_t mndProcessStbMetaReq(SMnodeMsg *pReq) {
 
   mDebug("stb:%s, start to retrieve meta", tbFName);
 
-  SDbObj *pDb = mndAcquireDbByStb(pMnode, tbFName);
+  SDbObj *pDb = mndAcquireDb(pMnode, pInfo->dbFName);
   if (pDb == NULL) {
     terrno = TSDB_CODE_MND_DB_NOT_SELECTED;
     mError("stb:%s, failed to retrieve meta since %s", tbFName, terrstr());
@@ -787,6 +787,109 @@ static int32_t mndProcessStbMetaReq(SMnodeMsg *pReq) {
   mDebug("stb:%s, meta is retrieved, cols:%d tags:%d", tbFName, pStb->numOfColumns, pStb->numOfTags);
   return 0;
 }
+
+int32_t mndValidateStbInfo(SMnode *pMnode, SSTableMetaVersion *stbs, int32_t num, void **rsp, int32_t *rspLen) {
+  SSdb *pSdb = pMnode->pSdb;
+  int32_t bufSize = num * (sizeof(STableMetaRsp) + 4 * sizeof(SSchema));  
+  void *buf = malloc(bufSize);
+  int32_t len = 0;
+  int32_t contLen = 0;
+  STableMetaRsp *pRsp = NULL;
+
+  for (int32_t i = 0; i < num; ++i) {
+    SSTableMetaVersion *stb = &stbs[i];
+    stb->suid = be64toh(stb->suid);
+    stb->sversion = ntohs(stb->sversion);
+    stb->tversion = ntohs(stb->tversion);
+
+    if ((contLen + sizeof(STableMetaRsp)) > bufSize) {
+      bufSize = contLen + (num -i) * (sizeof(STableMetaRsp) + 4 * sizeof(SSchema));
+      buf = realloc(buf, bufSize);
+    }
+
+    pRsp = (STableMetaRsp *)((char *)buf + contLen);
+
+    strcpy(pRsp->dbFName, stb->dbFName);
+    strcpy(pRsp->tbName, stb->stbName);
+    strcpy(pRsp->stbName, stb->stbName);
+    
+    mDebug("start to retrieve meta, db:%s, stb:%s", stb->dbFName, stb->stbName);
+    
+    SDbObj *pDb = mndAcquireDb(pMnode, stb->dbFName);
+    if (pDb == NULL) {
+      pRsp->numOfColumns = -1;
+      pRsp->suid = htobe64(stb->suid);
+      contLen += sizeof(STableMetaRsp);
+      mWarn("db:%s, failed to require db since %s", stb->dbFName, terrstr());
+      continue;
+    }
+
+    char tbFName[TSDB_TABLE_FNAME_LEN] = {0};
+    snprintf(tbFName, sizeof(tbFName), "%s.%s", stb->dbFName, stb->stbName);
+    
+    SStbObj *pStb = mndAcquireStb(pMnode, tbFName);
+    if (pStb == NULL) {
+      mndReleaseDb(pMnode, pDb);
+      pRsp->numOfColumns = -1;
+      pRsp->suid = htobe64(stb->suid);
+      contLen += sizeof(STableMetaRsp);
+      mWarn("stb:%s, failed to get meta since %s", tbFName, terrstr());
+      continue;
+    }
+    
+    taosRLockLatch(&pStb->lock);
+
+    if (stb->suid == pStb->uid && stb->sversion == pStb->version) {
+      taosRUnLockLatch(&pStb->lock);
+      mndReleaseDb(pMnode, pDb);
+      mndReleaseStb(pMnode, pStb);
+      continue;
+    }
+    
+    int32_t totalCols = pStb->numOfColumns + pStb->numOfTags;
+    int32_t len = totalCols * sizeof(SSchema);
+    
+    contLen += sizeof(STableMetaRsp) + len;
+    
+    if (contLen > bufSize) {
+      bufSize = contLen + (num -i - 1) * (sizeof(STableMetaRsp) + 4 * sizeof(SSchema));
+      buf = realloc(buf, bufSize);
+    }
+    
+    pRsp->numOfTags = htonl(pStb->numOfTags);
+    pRsp->numOfColumns = htonl(pStb->numOfColumns);
+    pRsp->precision = pDb->cfg.precision;
+    pRsp->tableType = TSDB_SUPER_TABLE;
+    pRsp->update = pDb->cfg.update;
+    pRsp->sversion = htonl(pStb->version);
+    pRsp->suid = htobe64(pStb->uid);
+    pRsp->tuid = htobe64(pStb->uid);
+    
+    for (int32_t i = 0; i < totalCols; ++i) {
+      SSchema *pSchema = &pRsp->pSchema[i];
+      SSchema *pSrcSchema = &pStb->pSchema[i];
+      memcpy(pSchema->name, pSrcSchema->name, TSDB_COL_NAME_LEN);
+      pSchema->type = pSrcSchema->type;
+      pSchema->colId = htonl(pSrcSchema->colId);
+      pSchema->bytes = htonl(pSrcSchema->bytes);
+    }
+    taosRUnLockLatch(&pStb->lock);
+    mndReleaseDb(pMnode, pDb);
+    mndReleaseStb(pMnode, pStb);
+  }
+
+  if (contLen > 0) {
+    *rsp = buf;
+    *rspLen = contLen;
+  } else {
+    *rsp = NULL;
+    tfree(buf);
+    *rspLen = 0;
+  }
+
+  return 0;
+}
+
 
 static int32_t mndGetNumOfStbs(SMnode *pMnode, char *dbName, int32_t *pNumOfStbs) {
   SSdb *pSdb = pMnode->pSdb;

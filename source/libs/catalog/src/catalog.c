@@ -527,9 +527,9 @@ int32_t ctgGetVgInfoFromHashValue(struct SCatalog *pCatalog, SDBVgroupInfo *dbIn
 }
 
 int32_t ctgSTableVersionCompare(const void* key1, const void* key2) {
-  if (((SSTableMetaVersion*)key1)->suid < ((SSTableMetaVersion*)key2)->suid) {
+  if (*(uint64_t *)key1 < ((SSTableMetaVersion*)key2)->suid) {
     return -1;
-  } else if (((SSTableMetaVersion*)key1)->suid > ((SSTableMetaVersion*)key2)->suid) {
+  } else if (*(uint64_t *)key1 > ((SSTableMetaVersion*)key2)->suid) {
     return 1;
   } else {
     return 0;
@@ -557,7 +557,7 @@ int32_t ctgMetaRentInit(SCtgRentMgmt *mgmt, uint32_t rentSec, int8_t type) {
   mgmt->slots = calloc(1, msgSize);
   if (NULL == mgmt->slots) {
     qError("calloc %d failed", (int32_t)msgSize);
-    return TSDB_CODE_CTG_MEM_ERROR;
+    CTG_ERR_RET(TSDB_CODE_CTG_MEM_ERROR);
   }
 
   qDebug("meta rent initialized, type:%d, slotNum:%d", type, mgmt->slotNum);
@@ -825,6 +825,8 @@ int32_t ctgUpdateTableMetaCache(struct SCatalog *pCatalog, STableMetaOutput *out
   if (TSDB_SUPER_TABLE == output->tbMeta->tableType) {
     bool newAdded = false;
     SSTableMetaVersion metaRent = {.suid = output->tbMeta->suid, .sversion = output->tbMeta->sversion, .tversion = output->tbMeta->tversion};
+    strcpy(metaRent.dbFName, output->dbFName);
+    strcpy(metaRent.stbName, output->tbName);
     
     CTG_LOCK(CTG_WRITE, &dbCache->tbCache.stbLock);
     if (taosHashPut(dbCache->tbCache.cache, output->tbName, strlen(output->tbName), output->tbMeta, tbSize) != 0) {
@@ -951,6 +953,39 @@ int32_t ctgValidateAndRemoveDb(struct SCatalog* pCatalog, const char* dbName, ui
   return TSDB_CODE_SUCCESS;
 }
 
+int32_t ctgValidateAndRemoveStbMeta(struct SCatalog* pCatalog, const char* dbName, const char* stbName, uint64_t suid, bool *removed) {
+  *removed = false;
+
+  SCtgDBCache *dbCache = (SCtgDBCache *)taosHashAcquire(pCatalog->dbCache, dbName, strlen(dbName));
+  if (NULL == dbCache) {
+    ctgInfo("db not exist in dbCache, may be removed, db:%s", dbName);
+    return TSDB_CODE_SUCCESS;
+  }
+
+  CTG_LOCK(CTG_WRITE, &dbCache->tbCache.stbLock);
+  if (taosHashRemove(dbCache->tbCache.stbCache, &suid, sizeof(suid))) {
+    CTG_UNLOCK(CTG_WRITE, &dbCache->tbCache.stbLock);
+    taosHashRelease(pCatalog->dbCache, dbCache);
+    ctgInfo("stb not exist in stbCache, may be removed, db:%s, stb:%s, suid:%"PRIx64, dbName, stbName, suid);
+    return TSDB_CODE_SUCCESS;
+  }
+
+  if (taosHashRemove(dbCache->tbCache.cache, stbName, strlen(stbName))) {
+    CTG_UNLOCK(CTG_WRITE, &dbCache->tbCache.stbLock);
+    taosHashRelease(pCatalog->dbCache, dbCache);
+    ctgError("stb not exist in cache, db:%s, stb:%s, suid:%"PRIx64, dbName, stbName, suid);
+    CTG_ERR_RET(TSDB_CODE_CTG_INTERNAL_ERROR);
+  }
+  CTG_UNLOCK(CTG_WRITE, &dbCache->tbCache.stbLock);
+  
+  taosHashRelease(pCatalog->dbCache, dbCache);
+
+  *removed = true;
+  
+  return TSDB_CODE_SUCCESS;
+}
+
+
 
 int32_t ctgRenewTableMetaImpl(struct SCatalog* pCatalog, void *pTransporter, const SEpSet* pMgmtEps, const SName* pTableName, int32_t isSTable) {
   if (NULL == pCatalog || NULL == pTransporter || NULL == pMgmtEps || NULL == pTableName) {
@@ -1065,7 +1100,7 @@ int32_t ctgGetTableMeta(struct SCatalog* pCatalog, void *pRpc, const SEpSet* pMg
 
 int32_t catalogInit(SCatalogCfg *cfg) {
   if (ctgMgmt.pCluster) {
-    qError("catalog already init");
+    qError("catalog already initialized");
     CTG_ERR_RET(TSDB_CODE_CTG_INVALID_INPUT);
   }
 
@@ -1111,7 +1146,7 @@ int32_t catalogGetHandle(uint64_t clusterId, struct SCatalog** catalogHandle) {
   }
 
   if (NULL == ctgMgmt.pCluster) {
-    qError("cluster cache are not ready, clusterId:%"PRIx64, clusterId);
+    qError("catalog cluster cache are not ready, clusterId:%"PRIx64, clusterId);
     CTG_ERR_RET(TSDB_CODE_CTG_NOT_READY);
   }
 
@@ -1312,7 +1347,7 @@ int32_t catalogUpdateDBVgroup(struct SCatalog* pCatalog, const char* dbName, SDB
         ctgMetaRentRemove(&pCatalog->dbRent, dbCache->vgInfo->dbId, ctgDbVgVersionCompare);
         newAdded = true;
       } else if (dbInfo->vgVersion <= dbCache->vgInfo->vgVersion) {
-        ctgInfo("db vgVersion is not new, db:%s, vgVersion:%d, current:%d", dbName, dbInfo->vgVersion, dbCache->vgInfo->vgVersion);
+        ctgInfo("db vgVersion is old, db:%s, vgVersion:%d, current:%d", dbName, dbInfo->vgVersion, dbCache->vgInfo->vgVersion);
         CTG_UNLOCK(CTG_WRITE, &dbCache->vgLock);
         taosHashRelease(pCatalog->dbCache, dbCache);
         
@@ -1345,7 +1380,7 @@ int32_t catalogUpdateDBVgroup(struct SCatalog* pCatalog, const char* dbName, SDB
 
   dbInfo = NULL;
 
-  strncpy(vgVersion.dbName, dbName, sizeof(vgVersion.dbName));
+  strncpy(vgVersion.dbFName, dbName, sizeof(vgVersion.dbFName));
   
   if (newAdded) {
     CTG_ERR_JRET(ctgMetaRentAdd(&pCatalog->dbRent, &vgVersion, vgVersion.dbId, sizeof(SDbVgVersion)));
@@ -1390,6 +1425,32 @@ int32_t catalogRemoveDB(struct SCatalog* pCatalog, const char* dbName, uint64_t 
   CTG_ERR_RET(ctgMetaRentRemove(&pCatalog->dbRent, dbId, ctgDbVgVersionCompare));
   
   ctgDebug("db removed from rent, db:%s, uid:%"PRIx64, dbName, dbId);
+  
+  CTG_RET(code);
+}
+
+int32_t catalogRemoveSTableMeta(struct SCatalog* pCatalog, const char* dbName, const char* stbName, uint64_t suid) {
+  int32_t code = 0;
+  bool removed = false;
+  
+  if (NULL == pCatalog || NULL == dbName || NULL == stbName) {
+    CTG_ERR_RET(TSDB_CODE_CTG_INVALID_INPUT);
+  }
+
+  if (NULL == pCatalog->dbCache) {
+    return TSDB_CODE_SUCCESS;
+  }
+  
+  CTG_ERR_RET(ctgValidateAndRemoveStbMeta(pCatalog, dbName, stbName, suid, &removed));
+  if (!removed) {
+    return TSDB_CODE_SUCCESS;
+  }
+  
+  ctgInfo("stb removed from cache, db:%s, stbName:%s, suid:%"PRIx64, dbName, stbName, suid);
+
+  CTG_ERR_RET(ctgMetaRentRemove(&pCatalog->stbRent, suid, ctgSTableVersionCompare));
+  
+  ctgDebug("stb removed from rent, db:%s, stbName:%s, suid:%"PRIx64, dbName, stbName, suid);
   
   CTG_RET(code);
 }
