@@ -140,7 +140,7 @@ function build_src() {
         flock -x $lock_file -c "echo \"${hosts[index]} taos-tools build failed\" >>$log_dir/failed.log"
         return
     fi
-    script="cp -rf ${workdirs[index]}/taos-tools/build/build/bin/* ${workdirs[index]}/TDinternal/debug/build/bin/;cp -rf ${workdirs[index]}/taos-tools/build/build/lib/* ${workdirs[index]}/TDinternal/debug/build/lib/;cp -rf ${workdirs[index]}/taos-tools/build/build/lib64/* ${workdirs[index]}/TDinternal/debug/build/lib/;cp -rf ${workdirs[index]}/TDinternal/debug/build/bin/demo ${workdirs[index]}/TDinternal/debug/build/bin/taosdemo"
+    script="cp -rf ${workdirs[index]}/taos-tools/build/build/bin/* ${workdirs[index]}/TDinternal/debug/build/bin/;cp -rf ${workdirs[index]}/taos-tools/build/build/lib/* ${workdirs[index]}/TDinternal/debug/build/lib/;cp -rf ${workdirs[index]}/taos-tools/build/build/lib64/* ${workdirs[index]}/TDinternal/debug/build/lib/;cp -rf ${workdirs[index]}/TDinternal/debug/build/bin/taosBenchmark ${workdirs[index]}/TDinternal/debug/build/bin/taosdemo"
     cmd="${ssh_script} sh -c \"$script\""
     ${cmd}
 }
@@ -150,7 +150,7 @@ function rename_taosdemo() {
     if [ -z ${passwords[index]} ]; then
         ssh_script="ssh -o StrictHostKeyChecking=no ${usernames[index]}@${hosts[index]}"
     fi
-    local script="cp -rf ${workdirs[index]}/TDinternal/debug/build/bin/demo ${workdirs[index]}/TDinternal/debug/build/bin/taosdemo"
+    local script="cp -rf ${workdirs[index]}/TDinternal/debug/build/bin/taosBenchmark ${workdirs[index]}/TDinternal/debug/build/bin/taosdemo 2>/dev/null"
     cmd="${ssh_script} sh -c \"$script\""
     ${cmd}
 }
@@ -182,7 +182,7 @@ function run_thread() {
         fi
         local case_redo_time=`echo "$line"|cut -d, -f2`
         if [ -z "$case_redo_time" ]; then
-            case_redo_time=1
+            case_redo_time=${DEFAULT_RETRY_TIME:-2}
         fi
         local exec_dir=`echo "$line"|cut -d, -f3`
         local case_cmd=`echo "$line"|cut -d, -f4`
@@ -232,6 +232,10 @@ function run_thread() {
             if [ $? -eq 0 ]; then
                 redo=1
             fi
+            grep -q "ssh_exchange_identification: Connection closed by remote host" $log_dir/$case_file.log
+            if [ $? -eq 0 ]; then
+                redo=1
+            fi
             grep -q "kex_exchange_identification: read: Connection reset by peer" $log_dir/$case_file.log
             if [ $? -eq 0 ]; then
                 redo=1
@@ -273,7 +277,7 @@ function run_thread() {
             cat $log_dir/$case_file.log
             echo "====================================================="
             echo -e "\e[34m log file: $log_dir/$case_file.log \e[0m"
-            if [ ! -z $corefile ]; then
+            if [ ! -z "$corefile" ]; then
                 echo -e "\e[34m corefiles: $corefile \e[0m"
             fi
         fi
