@@ -15,68 +15,101 @@
 
 #include "nodes.h"
 
-typedef bool (*FQueryNodeWalker)(SNode* pNode, void* pContext);
+typedef enum ETraversalOrder {
+  TRAVERSAL_PREORDER = 1,
+  TRAVERSAL_POSTORDER
+} ETraversalOrder;
 
-bool nodesWalkNodeList(SNodeList* pNodeList, FQueryNodeWalker walker, void* pContext) {
+static bool walkList(SNodeList* pNodeList, ETraversalOrder order, FQueryNodeWalker walker, void* pContext);
+
+static bool walkNode(SNode* pNode, ETraversalOrder order, FQueryNodeWalker walker, void* pContext) {
+  if (NULL == pNode) {
+    return true;
+  }
+
+  if (TRAVERSAL_PREORDER == order && !walker(pNode, pContext)) {
+    return false;
+  }
+
+  bool res = true;
+  switch (nodeType(pNode)) {
+    case QUERY_NODE_COLUMN:
+    case QUERY_NODE_VALUE:
+    case QUERY_NODE_LIMIT:
+      // these node types with no subnodes
+      break;
+    case QUERY_NODE_OPERATOR: {
+      SOperatorNode* pOpNode = (SOperatorNode*)pNode;
+      res = walkNode(pOpNode->pLeft, order, walker, pContext);
+      if (res) {
+        res = walkNode(pOpNode->pRight, order, walker, pContext);
+      }
+      break;
+    }
+    case QUERY_NODE_LOGIC_CONDITION:
+      res = walkList(((SLogicConditionNode*)pNode)->pParameterList, order, walker, pContext);
+      break;
+    case QUERY_NODE_IS_NULL_CONDITION:
+      res = walkNode(((SIsNullCondNode*)pNode)->pExpr, order, walker, pContext);
+      break;
+    case QUERY_NODE_FUNCTION:
+      res = walkList(((SFunctionNode*)pNode)->pParameterList, order, walker, pContext);
+      break;
+    case QUERY_NODE_REAL_TABLE:
+    case QUERY_NODE_TEMP_TABLE:
+      break; // todo
+    case QUERY_NODE_JOIN_TABLE: {
+      SJoinTableNode* pJoinTableNode = (SJoinTableNode*)pNode;
+      res = walkNode(pJoinTableNode->pLeft, order, walker, pContext);
+      if (res) {
+        res = walkNode(pJoinTableNode->pRight, order, walker, pContext);
+      }
+      if (res) {
+        res = walkNode(pJoinTableNode->pOnCond, order, walker, pContext);
+      }
+      break;
+    }
+    case QUERY_NODE_GROUPING_SET:
+      res = walkList(((SGroupingSetNode*)pNode)->pParameterList, order, walker, pContext);
+      break;
+    case QUERY_NODE_ORDER_BY_EXPR:
+      res = walkNode(((SOrderByExprNode*)pNode)->pExpr, order, walker, pContext);
+      break;
+    default:
+      break;
+  }
+
+  if (res && TRAVERSAL_POSTORDER == order) {
+    res = walker(pNode, pContext);
+  }
+
+  return res;
+}
+
+static bool walkList(SNodeList* pNodeList, ETraversalOrder order, FQueryNodeWalker walker, void* pContext) {
   SNode* node;
   FOREACH(node, pNodeList) {
-    if (!nodesWalkNode(node, walker, pContext)) {
+    if (!walkNode(node, order, walker, pContext)) {
       return false;
     }
   }
   return true;
 }
 
-bool nodesWalkNode(SNode* pNode, FQueryNodeWalker walker, void* pContext) {
-  if (NULL == pNode) {
-    return true;
-  }
+void nodesWalkNode(SNode* pNode, FQueryNodeWalker walker, void* pContext) {
+  (void)walkNode(pNode, TRAVERSAL_PREORDER, walker, pContext);
+}
 
-  if (!walker(pNode, pContext)) {
-    return false;
-  }
+void nodesWalkList(SNodeList* pNodeList, FQueryNodeWalker walker, void* pContext) {
+  (void)walkList(pNodeList, TRAVERSAL_PREORDER, walker, pContext);
+}
 
-  switch (nodeType(pNode)) {
-    case QUERY_NODE_COLUMN:
-    case QUERY_NODE_VALUE:
-    case QUERY_NODE_LIMIT:
-      // these node types with no subnodes
-      return true;
-    case QUERY_NODE_OPERATOR: {
-      SOperatorNode* pOpNode = (SOperatorNode*)pNode;
-      if (!nodesWalkNode(pOpNode->pLeft, walker, pContext)) {
-        return false;
-      }
-      return nodesWalkNode(pOpNode->pRight, walker, pContext);
-    }
-    case QUERY_NODE_LOGIC_CONDITION:
-      return nodesWalkNodeList(((SLogicConditionNode*)pNode)->pParameterList, walker, pContext);
-    case QUERY_NODE_IS_NULL_CONDITION:
-      return nodesWalkNode(((SIsNullCondNode*)pNode)->pExpr, walker, pContext);
-    case QUERY_NODE_FUNCTION:
-      return nodesWalkNodeList(((SFunctionNode*)pNode)->pParameterList, walker, pContext);
-    case QUERY_NODE_REAL_TABLE:
-    case QUERY_NODE_TEMP_TABLE:
-      return true; // todo
-    case QUERY_NODE_JOIN_TABLE: {
-      SJoinTableNode* pJoinTableNode = (SJoinTableNode*)pNode;
-      if (!nodesWalkNode(pJoinTableNode->pLeft, walker, pContext)) {
-        return false;
-      }
-      if (!nodesWalkNode(pJoinTableNode->pRight, walker, pContext)) {
-        return false;
-      }
-      return nodesWalkNode(pJoinTableNode->pOnCond, walker, pContext);
-    }
-    case QUERY_NODE_GROUPING_SET:
-      return nodesWalkNodeList(((SGroupingSetNode*)pNode)->pParameterList, walker, pContext);
-    case QUERY_NODE_ORDER_BY_EXPR:
-      return nodesWalkNode(((SOrderByExprNode*)pNode)->pExpr, walker, pContext);
-    default:
-      break;
-  }
+void nodesWalkNodePostOrder(SNode* pNode, FQueryNodeWalker walker, void* pContext) {
+  (void)walkNode(pNode, TRAVERSAL_POSTORDER, walker, pContext);
+}
 
-  return false;
+void nodesWalkListPostOrder(SNodeList* pList, FQueryNodeWalker walker, void* pContext) {
+  (void)walkList(pList, TRAVERSAL_PREORDER, walker, pContext);
 }
 
 bool nodesWalkStmt(SNode* pNode, FQueryNodeWalker walker, void* pContext) {
