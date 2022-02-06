@@ -1,6 +1,6 @@
-# 806,,pytest,test.py -f update/append_commit_data.py too long time
+113,,pytest,python3 test.py -f update/append_commit_data.py
 # 20,,pytest,insert/retentionpolicy.py change date time
-# 368,,develop-test/3-connectors/java,bash test.sh 
+368,,develop-test/3-connectors/java,bash test.sh 
 299,,pytest,python3 test.py -f update/merge_commit_data-0.py 
 290,,pytest,python3 test.py -f update/merge_commit_data.py 
 263,,script,./test.sh -f general/stream/stream_3.sim 
@@ -103,6 +103,11 @@
 55,,script,./test.sh -f general/db/delete_reusevnode.sim 
 55,,pytest,python3 test.py -f stream/metric_n.py 
 55,,develop-test,python3 ./test.py -f 1-insert/batchInsert.py 
+,,pytest,python3 ./test.py  -f functions/function_elapsed.py
+,,pytest,python3 ./test.py -f alter/alterBackQuoteCol.py
+# ,,pytest,python3 ./test.py -f ../system-test/0-management/1-stable/create_col_tag.py no such file
+# ,,pytest,python3 ./test.py -f ../develop-test/0-management/3-tag/json_tag.py no such file
+,,develop-test,python3 ./test.py -f 2-query/TD-13246.py
 54,,script,./test.sh -f unique/arbitrator/dn3_mn1_vnode_nomaster.sim 
 54,,script,./test.sh -f unique/arbitrator/dn3_mn1_r2_vnode_delDir.sim 
 54,,script,./test.sh -f unique/arbitrator/dn3_mn1_multiCreateDropTable.sim 
@@ -133,9 +138,9 @@
 47,,script,./test.sh -f unique/migrate/mn2_vn2_repl2_rmMnodeDir.sim 
 47,,script,./test.sh -f unique/dnode/monitor.sim 
 47,,script,./test.sh -f unique/big/maxvnodes.sim 
-# 47,,pytest,python3 test.py -f tools/taosdemoAllTest/NanoTestCase/taosdemoTestSupportNanosubscribe.py 
+47,,pytest,python3 test.py -f tools/taosdemoAllTest/NanoTestCase/taosdemoTestSupportNanosubscribe.py 
 45,,script,./test.sh -f unique/mnode/mgmt24.sim 
-# 45,,pytest,python3 test.py -f tools/taosdemoAllTest/TD-5213/insertSigcolumnsNum4096.py 
+45,,pytest,python3 test.py -f tools/taosdemoAllTest/TD-5213/insertSigcolumnsNum4096.py 
 44,,script,./test.sh -f unique/vnode/replica3_vgroup.sim 
 44,,script,./test.sh -f unique/mnode/mgmt33.sim 
 44,,pytest,python3 test.py -f wal/sdbComp.py 
@@ -200,7 +205,7 @@
 32,,script,./test.sh -f general/db/delete_reusevnode2.sim 
 32,,script,./test.sh -f general/compress/compress.sim 
 32,,script,./test.sh -f general/compress/commitlog.sim 
-# 32,,pytest,python3 test.py -f tools/taosdemoAllTest/taosdemoTestInsertAllType.py 
+32,,pytest,python3 test.py -f tools/taosdemoAllTest/taosdemoTestInsertAllType.py 
 31,,script,./test.sh -f general/user/pass_alter.sim 
 31,,script,./test.sh -f general/stable/disk.sim 
 31,,script,./test.sh -f general/parser/lastrow.sim 
@@ -254,7 +259,7 @@
 22,,script,./test.sh -f general/parser/limit.sim 
 22,,script,./test.sh -f general/insert/tcp.sim 
 22,,script,./test.sh -f general/cache/restart_table.sim 
-# 22,,pytest,python3 test.py -f tools/taosdemoAllTest/taosdemoTestInsertShell.py 
+22,,pytest,python3 test.py -f tools/taosdemoAllTest/taosdemoTestInsertShell.py 
 22,,pytest,python3 test.py -f tag_lite/datatype.py 
 22,,pytest,python3 test.py -f import_merge/importDataLastH.py 
 22,,pytest,python3 test.py -f import_merge/importDataHO2.py 
@@ -311,8 +316,8 @@
 17,,script,./test.sh -f general/insert/query_file_memory.sim 
 17,,script,./test.sh -f general/field/binary.sim 
 17,,script,./test.sh -f general/field/4.sim 
-# 17,,pytest,python3 test.py -f subscribe/supertable.py 
-# 17,,pytest,python3 test.py -f query/query1970YearsAf.py 
+17,,pytest,python3 test.py -f subscribe/supertable.py 
+17,,pytest,python3 test.py -f query/query1970YearsAf.py 
 16,,script,./test.sh -f unique/account/account_len.sim 
 16,,script,./test.sh -f general/vector/table_time.sim 
 16,,script,./test.sh -f general/vector/multi.sim 
@@ -414,7 +419,7 @@
 13,,script,./test.sh -f general/compute/min.sim 
 13,,script,./test.sh -f general/compute/last.sim 
 13,,script,./test.sh -f general/compute/bottom.sim 
-# 13,,pytest,python3 test.py -f tools/taosdemoAllTest/NanoTestCase/taosdemoTestSupportNanoQuery.py 
+13,,pytest,python3 test.py -f tools/taosdemoAllTest/NanoTestCase/taosdemoTestSupportNanoQuery.py 
 13,,pytest,python3 test.py -f query/queryInsertValue.py 
 13,,pytest,python3 test.py -f query/queryGroupTbname.py 
 13,,pytest,python3 test.py -f insert/openTsdbTelnetLinesInsert.py 
@@ -455,7 +460,7 @@
 12,,script,./test.sh -f general/table/basic2.sim 
 12,,script,./test.sh -f general/parser/udf.sim 
 12,,script,./test.sh -f general/parser/udf_dll.sim 
-# 12,,script,./test.sh -f general/parser/columnValue.sim 
+12,,script,./test.sh -f general/parser/columnValue.sim 
 12,,script,./test.sh -f general/db/len.sim 
 12,,script,./test.sh -f general/db/basic.sim 
 12,,script,./test.sh -f general/db/basic5.sim 
@@ -522,7 +527,7 @@
 9,,script,./test.sh -f general/parser/alter1.sim 
 9,,script,./test.sh -f general/db/delete.sim 
 9,,pytest,python3 test.py -f tools/taosdemoTestLimitOffset.py 
-# 9,,pytest,python3 test.py -f tools/taosdemoAllTest/NanoTestCase/taosdemoTestSupportNanoInsert.py 
+9,,pytest,python3 test.py -f tools/taosdemoAllTest/NanoTestCase/taosdemoTestSupportNanoInsert.py 
 9,,pytest,python3 test.py -f stream/showStreamExecTimeisNull.py 
 9,,pytest,python3 test.py -f query/bug1876.py 
 9,,pytest,python3 test.py -f alter/alter_table_crash.py 
@@ -533,7 +538,7 @@
 8,,pytest,python3 test.py -f query/unionAllTest.py 
 8,,pytest,python3 test.py -f query/queryFilterTswithDateUnit.py 
 8,,pytest,python3 test.py -f query/queryDiffColsTagsAndOr.py 
-# 8,2,pytest,python3 test.py -f query/nestedQuery/nestedQuery_datacheck.py 
+8,2,pytest,python3 test.py -f query/nestedQuery/nestedQuery_datacheck.py 
 8,,pytest,python3 test.py -f query/bug1874.py 
 8,,pytest,python3 test.py -f functions/function_floor.py 
 8,,develop-test,python3 ./test.py -f 5-taos-tools/taosdump/taosdumpTestTypeUnsignedTinyInt.py 
@@ -546,7 +551,7 @@
 8,,develop-test,python3 ./test.py -f 5-taos-tools/taosbenchmark/sml_interlace.py
 8,,develop-test,python3 ./test.py -f 5-taos-tools/taosbenchmark/subscripe_json.py
 8,,develop-test,python3 ./test.py -f 5-taos-tools/taosbenchmark/invalid_commandline.py
-# 7,,system-test,python3 ./test.py -f 2-query/TD-12191.py 
+## 7,,system-test,python3 ./test.py -f 2-query/TD-12191.py 
 7,,pytest,python3 test.py -f tools/taosdumpTest2.py 
 7,,pytest,python3 test.py -f tools/taosdemoTestdatatype.py 
 7,,pytest,python3 test.py -f tag_lite/unsignedInt.py 
@@ -561,7 +566,7 @@
 7,,develop-test,python3 ./test.py -f 5-taos-tools/taosdump/taosdumpTestTypeBigInt.py 
 7,,develop-test,python3 ./test.py -f 2-query/constant_compare.py
 7,,develop-test,python3 ./test.py -f 5-taos-tools/taosbenchmark/limit_offset_json.py
-# 6,,system-test,python3 ./test.py -f 2-query/TD-11483.py 
+## 6,,system-test,python3 ./test.py -f 2-query/TD-11483.py 
 # 6,,system-test,python3 ./test.py -f 2-query/function_elapsed.py 
 6,,pytest,python3 test.py -f wal/addOldWalTest.py 
 6,,pytest,python3 test.py -f topic/topicQuery.py 
@@ -583,7 +588,7 @@
 6,,pytest,python3 test.py -f query/bug2218.py 
 6,,pytest,python3 test.py -f query/bug2118.py 
 6,,pytest,python3 test.py -f query/bug2117.py 
-# 6,,pytest,python3 test.py -f perfbenchmark/bug3433.py 
+6,,pytest,python3 test.py -f perfbenchmark/bug3433.py 
 6,,pytest,python3 test.py -f insert/insert_before_use_db.py 
 6,,pytest,python3 test.py -f import_merge/importHPORestart.py 
 6,,pytest,python3 test.py -f import_merge/importHORestart.py 
@@ -621,7 +626,7 @@
 5,,pytest,python3 test.py -f table/db_table.py 
 5,,pytest,python3 test.py -f table/create_sensitive.py 
 5,,pytest,python3 test.py -f table/column_num.py 
-# 5,,pytest,python3 test.py -f subscribe/singlemeter.py 
+5,,pytest,python3 test.py -f subscribe/singlemeter.py 
 5,,pytest,python3 test.py -f stable/insert.py 
 5,,pytest,python3 test.py -f query/querySession.py 
 5,,pytest,python3 test.py -f query/querySecondtscolumnTowherenow.py 
@@ -663,7 +668,7 @@
 5,,develop-test,python3 ./test.py -f 2-query/timeline_agg_func_groupby.py 
 5,,develop-test,python3 ./test.py -f 2-query/session_two_stage.py 
 5,,develop-test,python3 ./test.py -f 0-others/TD-12435.py 
-# 5,,develop-test,python3 ./test.py -f 0-others/json_tag.py 
+5,,develop-test,python3 ./test.py -f 0-others/json_tag.py 
 5,,system-test,python3 ./test.py -f 2-query/TD-12909.py
 5,,develop-test,python3 ./test.py -f 2-query/function_mavg.py
 4,,system-test,python3 test.py -f 4-taosAdapter/TD-12163.py 
