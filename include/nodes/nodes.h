@@ -78,6 +78,11 @@ typedef struct SNodeList {
   SListCell* pTail;
 } SNodeList;
 
+typedef struct SNameStr {
+  int32_t len;
+  char* pName;
+} SNameStr;
+
 typedef struct SDataType {
   uint8_t type;
   uint8_t precision;
@@ -89,6 +94,7 @@ typedef struct SExprNode {
   ENodeType nodeType;
   SDataType resType;
   char aliasName[TSDB_COL_NAME_LEN];
+  SNodeList* pAssociationList;
 } SExprNode;
 
 typedef enum EColumnType {
@@ -102,7 +108,9 @@ typedef struct SColumnNode {
   EColumnType colType; // column or tag
   char dbName[TSDB_DB_NAME_LEN];
   char tableName[TSDB_TABLE_NAME_LEN];
+  char tableAlias[TSDB_TABLE_NAME_LEN];
   char colName[TSDB_COL_NAME_LEN];
+  SNode* pProjectRef;
 } SColumnNode;
 
 typedef struct SValueNode {
@@ -176,13 +184,16 @@ typedef struct SFunctionNode {
 
 typedef struct STableNode {
   ENodeType type;
+  char dbName[TSDB_DB_NAME_LEN];
   char tableName[TSDB_TABLE_NAME_LEN];
-  char tableAliasName[TSDB_COL_NAME_LEN];
+  char tableAlias[TSDB_TABLE_NAME_LEN];
 } STableNode;
+
+struct STableMeta;
 
 typedef struct SRealTableNode {
   STableNode table; // QUERY_NODE_REAL_TABLE
-  char dbName[TSDB_DB_NAME_LEN];
+  struct STableMeta* pMeta;
 } SRealTableNode;
 
 typedef struct STempTableNode {
@@ -273,7 +284,6 @@ typedef struct SFillNode {
 typedef struct SSelectStmt {
   ENodeType type; // QUERY_NODE_SELECT_STMT
   bool isDistinct;
-  bool isStar;
   SNodeList* pProjectionList; // SNode
   SNode* pFromTable;
   SNode* pWhere;
@@ -295,6 +305,8 @@ typedef struct SSetOperator {
   ESetOperatorType opType;
   SNode* pLeft;
   SNode* pRight;
+  SNodeList* pOrderByList; // SOrderByExprNode
+  SNode* pLimit;
 } SSetOperator;
 
 SNode* nodesMakeNode(ENodeType type);
@@ -306,8 +318,10 @@ void nodesDestroyList(SNodeList* pList);
 
 typedef bool (*FQueryNodeWalker)(SNode* pNode, void* pContext);
 
-bool nodesWalkNode(SNode* pNode, FQueryNodeWalker walker, void* pContext);
-bool nodesWalkList(SNodeList* pList, FQueryNodeWalker walker, void* pContext);
+void nodesWalkNode(SNode* pNode, FQueryNodeWalker walker, void* pContext);
+void nodesWalkList(SNodeList* pList, FQueryNodeWalker walker, void* pContext);
+void nodesWalkNodePostOrder(SNode* pNode, FQueryNodeWalker walker, void* pContext);
+void nodesWalkListPostOrder(SNodeList* pList, FQueryNodeWalker walker, void* pContext);
 
 bool nodesWalkStmt(SNode* pNode, FQueryNodeWalker walker, void* pContext);
 
