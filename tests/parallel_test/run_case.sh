@@ -43,11 +43,17 @@ fi
 
 go env -w GOPROXY=https://goproxy.cn
 echo "StrictHostKeyChecking no" >>/etc/ssh/ssh_config
-ln -s  $CONTAINER_TESTDIR/debug/build/lib/libtaos.so /usr/lib/libtaos.so
+ln -s  /home/debug/build/lib/libtaos.so /usr/lib/libtaos.so 2>/dev/null
 npm config -g set unsafe-perm
 npm config -g set registry https://registry.npm.taobao.org
 mkdir -p /home/sim/tsim
-
+mkdir -p /var/lib/taos/subscribe
+rm -rf ${CONTAINER_TESTDIR}/src/connector/nodejs/node_modules
+rm -rf ${CONTAINER_TESTDIR}/tests/examples/nodejs/node_modules
+rm -rf ${CONTAINER_TESTDIR}/tests/connectorTest/nodejsTest/nanosupport/node_modules
+# ln -s /home/node_modules ${CONTAINER_TESTDIR}/src/connector/nodejs/
+# ln -s /home/node_modules ${CONTAINER_TESTDIR}/tests/examples/nodejs/
+# ln -s /home/node_modules ${CONTAINER_TESTDIR}/tests/connectorTest/nodejsTest/nanosupport/
 # echo "$cmd"|grep -q "nodejs"
 # if [ $? -eq 0 ]; then
 #     cd $CONTAINER_TESTDIR/src/connector/nodejs
