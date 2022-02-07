@@ -57,6 +57,17 @@ sudo apt-get install -y openjdk-8-jdk
 sudo apt-get install -y  maven
 ```
 
+#### 为 taos-tools 安装编译需要的软件
+taosTools 是用于 TDengine 的辅助工具软件集合。目前它包含 taosBenchmark（曾命名为 taosdemo）和 taosdump 两个软件。
+
+默认 TDengine 编译不包含 taosTools。您可以在编译 TDengine 时使用`cmake .. -DBUILD_TOOLS=true` 来同时编译 taosTools。
+
+为了在 Ubuntu/Debian 系统上编译 [taos-tools](https://github.com/taosdata/taos-tools) 需要安装如下软件：
+
+```bash
+sudo apt install build-essential libjansson-dev libsnappy-dev liblzma-dev libz-dev pkg-config
+```
+
 ### CentOS 7：
 
 ```bash

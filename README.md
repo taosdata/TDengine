@@ -58,16 +58,18 @@ To install Apache Maven:
 sudo apt-get install -y  maven
 ```
 
-#### Install build dependencies for taos-tools 
+#### Install build dependencies for taosTools 
 We provide a few useful tools such as taosBenchmark (was named taosdemo) and taosdump. They were part of TDengine. From TDengine 2.4.0.0, taosBenchmark and taosdump were not released together with TDengine.
-By default, TDengine compiling does not include taos-tools. You can use 'cmake .. -DBUILD_TOOLS=true' to make them be compiled with TDengine.
+By default, TDengine compiling does not include taosTools. You can use 'cmake .. -DBUILD_TOOLS=true' to make them be compiled with TDengine.
 
-To build the [taos-tools](https://github.com/taosdata/taos-tools) on Ubuntu/Debian, the following packages need to be installed.
+To build the [taosTools](https://github.com/taosdata/taos-tools) on Ubuntu/Debian, the following packages need to be installed.
+
 ```bash
-sudo apt install libjansson-dev libsnappy-dev liblzma-dev libz-dev pkg-config
+sudo apt install build-essential libjansson-dev libsnappy-dev liblzma-dev libz-dev pkg-config
 ```
 
 ### CentOS 7:
+
 ```bash
 sudo yum install epel-release
 sudo yum update
@@ -76,41 +78,51 @@ sudo ln -sf /usr/bin/cmake3 /usr/bin/cmake
 ```
 
 To install openjdk-8:
+
 ```bash
 sudo yum install -y java-1.8.0-openjdk
 ```
 
 To install Apache Maven:
+
 ```bash
 sudo yum install -y maven
 ```
 
 ### CentOS 8 & Fedora:
+
 ```bash
 sudo dnf install -y gcc gcc-c++ make cmake epel-release git
 ```
 
 To install openjdk-8:
+
 ```bash
 sudo dnf install -y java-1.8.0-openjdk
 ```
 
 To install Apache Maven:
+
 ```bash
 sudo dnf install -y maven
 ```
 
 #### Install build dependencies for taos-tools 
+
 To build the [taos-tools](https://github.com/taosdata/taos-tools) on CentOS, the following packages need to be installed.
+
 ```bash
 sudo yum install zlib-devel xz-devel snappy-devel jansson-devel pkgconfig libatomic
 ```
+
 Note: Since snappy lacks pkg-config support (refer to [link](https://github.com/google/snappy/pull/86)), it lead a cmake prompt libsnappy not found. But snappy will works well.
 
 ### Setup golang environment
+
 TDengine includes few components developed by Go language. Please refer to golang.org official documentation for golang environment setup.
 
 Please use version 1.14+. For the user in China, we recommend using a proxy to accelerate package downloading.
+
 ```
 go env -w GO111MODULE=on
 go env -w GOPROXY=https://goproxy.cn,direct
@@ -119,6 +131,7 @@ go env -w GOPROXY=https://goproxy.cn,direct
 ## Get the source codes
 
 First of all, you may clone the source codes from github:
+
 ```bash
 git clone https://github.com/taosdata/TDengine.git
 cd TDengine
@@ -126,11 +139,13 @@ cd TDengine
 
 The connectors for go & grafana and some tools have been moved to separated repositories,
 so you should run this command in the TDengine directory to install them:
+
 ```bash
 git submodule update --init --recursive
 ```
 
 You can modify the file ~/.gitconfig to use ssh protocol instead of https for better download speed. You need to upload ssh public key to GitHub first. Please refer to GitHub official documentation for detail.
+
 ```
 [url "git@github.com:"]
     insteadOf = https://github.com/
@@ -146,17 +161,20 @@ cmake .. && cmake --build .
 ```
 
 Note TDengine 2.3.x.0 and later use a component named 'taosAdapter' to play http daemon role by default instead of the http daemon embedded in the early version of TDengine. The taosAdapter is programmed by go language. If you pull TDengine source code to the latest from an existing codebase, please execute 'git submodule update --init --recursive' to pull taosAdapter source code. Please install go language version 1.14 or above for compiling taosAdapter. If you meet difficulties regarding 'go mod', especially you are from China, you can use a proxy to solve the problem.
+
 ```
 go env -w GO111MODULE=on
 go env -w GOPROXY=https://goproxy.cn,direct
 ```
 
 The embedded http daemon still be built from TDengine source code by default. Or you can use the following command to choose to build taosAdapter.
+
 ```
 cmake .. -DBUILD_HTTP=false
 ```
 
 You can use Jemalloc as memory allocator instead of glibc:
+
 ```
 apt install autoconf
 cmake .. -DJEMALLOC_ENABLED=true
@@ -166,16 +184,19 @@ TDengine build script can detect the host machine's architecture on X86-64, X86,
 You can also specify CPUTYPE option like aarch64 or aarch32 too if the detection result is not correct:
 
 aarch64:
+
 ```bash
 cmake .. -DCPUTYPE=aarch64 && cmake --build .
 ```
 
 aarch32:
+
 ```bash
 cmake .. -DCPUTYPE=aarch32 && cmake --build .
 ```
 
 mips64:
+
 ```bash
 cmake .. -DCPUTYPE=mips64 && cmake --build .
 ```
@@ -184,6 +205,7 @@ cmake .. -DCPUTYPE=mips64 && cmake --build .
 
 If you use the Visual Studio 2013, please open a command window by executing "cmd.exe".
 Please specify "amd64" for 64 bits Windows or specify "x86" is for 32 bits Windows when you execute vcvarsall.bat.
+
 ```cmd
 mkdir debug && cd debug
 "C:\Program Files (x86)\Microsoft Visual Studio 12.0\VC\vcvarsall.bat" < amd64 | x86 >
@@ -204,6 +226,7 @@ nmake
 ```
 
 Or, you can simply open a command window by clicking Windows Start -> "Visual Studio < 2019 | 2017 >" folder -> "x64 Native Tools Command Prompt for VS < 2019 | 2017 >" or "x86 Native Tools Command Prompt for VS < 2019 | 2017 >" depends what architecture your Windows is, then execute commands as follows:
+
 ```cmd
 mkdir debug && cd debug
 cmake .. -G "NMake Makefiles"
@@ -222,6 +245,7 @@ cmake .. && cmake --build .
 # Installing
 
 After building successfully, TDengine can be installed by: (On Windows platform, the following command should be `nmake install`)
+
 ```bash
 sudo make install
 ```
@@ -230,11 +254,13 @@ Users can find more information about directories installed on the system in the
 Users can also choose to [install from packages](https://www.taosdata.com/en/getting-started/#Install-from-Package) for it.
 
 To start the service after installation, in a terminal, use:
+
 ```bash
 sudo systemctl start taosd
 ```
 
 Then users can use the [TDengine shell](https://www.taosdata.com/en/getting-started/#TDengine-Shell) to connect the TDengine server. In a terminal, use:
+
 ```bash
 taos
 ```
@@ -257,11 +283,13 @@ sudo apt-get install tdengine
 ## Quick Run
 
 If you don't want to run TDengine as a service, you can run it in current shell. For example, to quickly start a TDengine server after building, run the command below in terminal: (We take Linux as an example, command on Windows will be `taosd.exe`)
+
 ```bash
 ./build/bin/taosd -c test/cfg
 ```
 
 In another terminal, use the TDengine shell to connect the server:
+
 ```bash
 ./build/bin/taos -c test/cfg
 ```
@@ -270,6 +298,7 @@ option "-c test/cfg" specifies the system configuration file directory.
 
 # Try TDengine
 It is easy to run SQL commands from TDengine shell which is the same as other SQL databases.
+
 ```sql
 create database db;
 use db;
