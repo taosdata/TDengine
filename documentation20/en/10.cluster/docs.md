@@ -27,7 +27,7 @@ Please refer to the [video tutorial](https://www.taosdata.com/blog/2020/11/11/19
 1. Execute command `hostname -f` on each physical node, and check and confirm that the hostnames of all nodes are different (the node where the application driver is located does not need to do this check).
 2. Execute `ping host` on each physical node, wherein host is that hostname of other physical node, and see if other physical nodes can be communicated to; if not, you need to check the network settings, or the /etc/hosts file (the default path for Windows systems is C:\ Windows\ system32\ drivers\ etc\ hosts), or the configuration of DNS. If it fails to ping, then we cann't build the cluster. 
 3. From the physical node where the application runs, ping the data node where taosd runs. If the ping fails, the application cannot connect to taosd. Please check the DNS settings or hosts file of the physical node where the application is located;
-4. The End Point of each data node is the output hostname plus the port number, for example, [h1.taosdata.com](http://h1.taosdata.com/): 6030
+4. The End Point of each data node is the output hostname plus the port number, for example, `h1.taosdata.com:6030`
 
 **Step 5:** Modify the TDengine configuration file (the file/etc/taos/taos.cfg for all nodes needs to be modified). Assume that the first data node End Point to be started is [h1.taosdata.com](http://h1.taosdata.com/): 6030, and its parameters related to cluster configuration are as follows:
 

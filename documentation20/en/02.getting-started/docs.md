@@ -12,7 +12,11 @@ Please visit our [TDengine github page](https://github.com/taosdata/TDengine) fo
 
 For the time being, it is not recommended to use Docker to deploy the client or server side of TDengine in production environments, but it is convenient to use Docker to deploy in development environments or when trying it for the first time. In particular, with Docker, it is easy to try TDengine in Mac OS X and Windows environments.
 
-Please refer to the detailed operation in [Quickly experience TDengine through Docker](https://www.taosdata.com/en/documentation/getting-started/docker).
+```
+docker run -d -p 6030-6049:6030-6049 -p 6030-6049:6030-6049/udp tdengine/tdengine
+```
+
+Please refer to [Quickly experience TDengine with Docker](https://www.taosdata.com/en/documentation/getting-started/docker) for the details.
 
 ### <a class="anchor" id="package-install"></a>Install from Package
 
@@ -54,8 +58,8 @@ If the service is running successfully, you can play around through TDengine she
 - The `systemctl` command needs the **root** privilege. Use **sudo** if you are not the **root** user.
 - To get better product feedback and improve our solution, TDengine will collect basic usage information, but you can modify the configuration parameter **telemetryReporting** in the system configuration file taos.cfg, and set it to 0 to turn it off.
 - TDengine uses FQDN (usually hostname) as the node ID. In order to ensure normal operation, you need to set hostname for the server running taosd, and configure DNS service or hosts file for the machine running client application, to ensure the FQDN can be resolved.
-- TDengine supports installation on Linux systems with[ systemd ](https://en.wikipedia.org/wiki/Systemd)as the process service management, and uses `which systemctl` command to detect whether `systemd` packages exist in the system:
-  
+- TDengine supports installation on Linux systems with [systemd](https://en.wikipedia.org/wiki/Systemd) as the process service management, and uses `which systemctl` command to detect whether `systemd` packages exist in the system:
+
   ```bash
   $ which systemctl
   ```
@@ -140,7 +144,7 @@ taos> source <filename>;
 
 After starting the TDengine server, you can execute the command `taosBenchmark` (was named `taosdemo`, please install taosTools package if you use TDengine 2.4 or later version) in the Linux terminal.
 
-```bash 
+```bash
 $ taosBenchmark
 ```
 
@@ -213,7 +217,7 @@ List of platforms supported by TDengine server
 | Allwinner ARM64    |                  |                     | ○               |               |          |              |
 | Actions ARM64      |                  |                     | ○               |               |          |              |
 
-Note: ● has been verified by official tests; ○ has been verified by unofficial tests. 
+Note: ● has been verified by official tests; ○ has been verified by unofficial tests.
 
 List of platforms supported by TDengine client and connectors
 
