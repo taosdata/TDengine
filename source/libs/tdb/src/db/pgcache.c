@@ -122,7 +122,7 @@ int pgCacheClose(SPgCache *pPgCache) {
   return 0;
 }
 
-SPage *pgCacheFetch(SPgCache *pPgCache) {
+SPage *pgCacheFetch(SPgCache *pPgCache, pgid_t pgid) {
   // TODO
   return NULL;
 }

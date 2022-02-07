@@ -14,3 +14,29 @@
  */
 
 #include "tdbInt.h"
+
+int pgFileOpen(const char *fname, SPgCache *pPgCache, SPgFile **ppPgFile) {
+  SPgFile *pPgFile;
+  // TODO
+  return 0;
+}
+
+int pgFileClose(SPgFile *pPgFile) {
+  // TODO
+  return 0;
+}
+
+SPage *pgFileFetch(SPgFile *pPgFile, pgno_t pgno) {
+  // TODO
+  return NULL;
+}
+
+int pgFileRelease(SPage *pPage) {
+  // TODO
+  return 0;
+}
+
+int pgFileWrite(SPage *pPage) {
+  // TODO
+  return 0;
+}

@@ -21,11 +21,21 @@ extern "C" {
 #endif
 
 typedef struct SPgFile SPgFile;
-
 struct SPgFile {
-  char *    fname;     // backend file name
-  SPgCache *pPgCache;  // page cache underline
+  char *    fname;                    // backend file name
+  uint8_t   fileid[TDB_FILE_ID_LEN];  // file id
+  SPgCache *pPgCache;                 // page cache underline
+  int       fd;
+  pgno_t    pgFileSize;
 };
+
+int pgFileOpen(const char *fname, SPgCache *pPgCache, SPgFile **ppPgFile);
+int pgFileClose(SPgFile *pPgFile);
+
+SPage *pgFileFetch(SPgFile *pPgFile, pgno_t pgno);
+int    pgFileRelease(SPage *pPage);
+
+int pgFileWrite(SPage *pPage);
 
 #ifdef __cplusplus
 }
