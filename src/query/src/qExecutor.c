@@ -3719,6 +3719,7 @@ void updateOutputBufForAgg(SOptrBasicInfo* pBInfo, int32_t *bufCapacity, SQueryR
 
     if (functionId == TSDB_FUNC_UNIQUE) {
       len = GET_RES_INFO(&(pBInfo->pCtx[i]))->numOfRes;
+      break;
     }
   }
 
@@ -3751,7 +3752,7 @@ void copyTsColoum(SSDataBlock* pRes, SQLFunctionCtx* pCtx, int32_t numOfOutput) 
     int32_t functionId = pCtx[i].functionId;
     if (functionId == TSDB_FUNC_DIFF || functionId == TSDB_FUNC_DERIVATIVE ||
         functionId == TSDB_FUNC_MAVG || functionId == TSDB_FUNC_CSUM ||
-        functionId == TSDB_FUNC_SAMPLE || functionId == TSDB_FUNC_UNIQUE) {
+        functionId == TSDB_FUNC_SAMPLE) {
       if (i > 0  && pCtx[i-1].functionId == TSDB_FUNC_TS_DUMMY){
         SColumnInfoData* pColRes = taosArrayGet(pRes->pDataBlock, i - 1); // find ts data
         src = pColRes->pData;
@@ -6007,6 +6008,7 @@ static SSDataBlock* doSTableAggregate(void* param, bool* newgroup) {
   closeAllResultRows(&pInfo->resultRowInfo);
 
   if (isUniqueQuery(pOperator, pInfo->pCtx)) { // finalize include the update of result rows
+    updateOutputBufForAgg(pInfo, &pAggInfo->bufCapacity, pOperator->pRuntimeEnv);
     finalizeQueryResult(pOperator, pInfo->pCtx, &pInfo->resultRowInfo, pInfo->rowCellInfoOffset);
   }
   updateNumOfRowsInResultRows(pRuntimeEnv, pInfo->pCtx, pOperator->numOfOutput, &pInfo->resultRowInfo,
@@ -7428,6 +7430,7 @@ SOperatorInfo* createMultiTableAggOperatorInfo(SQueryRuntimeEnv* pRuntimeEnv, SO
 
   size_t tableGroup = GET_NUM_OF_TABLEGROUP(pRuntimeEnv);
 
+  pInfo->bufCapacity = tableGroup;
   pInfo->binfo.pRes = createOutputBuf(pExpr, numOfOutput, (int32_t) tableGroup);
   pInfo->binfo.pCtx = createSQLFunctionCtx(pRuntimeEnv, pExpr, numOfOutput, &pInfo->binfo.rowCellInfoOffset);
   initResultRowInfo(&pInfo->binfo.resultRowInfo, (int32_t)tableGroup, TSDB_DATA_TYPE_INT);
