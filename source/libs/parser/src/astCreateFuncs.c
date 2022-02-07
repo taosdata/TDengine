@@ -150,7 +150,7 @@ SNode* createRealTableNode(SAstCreateContext* pCxt, const SToken* pDbName, const
   SRealTableNode* realTable = (SRealTableNode*)nodesMakeNode(QUERY_NODE_REAL_TABLE);
   CHECK_OUT_OF_MEM(realTable);
   if (NULL != pDbName) {
-    strncpy(realTable->dbName, pDbName->z, pDbName->n);
+    strncpy(realTable->table.dbName, pDbName->z, pDbName->n);
   }
   strncpy(realTable->table.tableName, pTableName->z, pTableName->n);
   return (SNode*)realTable;
@@ -288,9 +288,6 @@ SNode* createSelectStmt(SAstCreateContext* pCxt, bool isDistinct, SNodeList* pPr
   SSelectStmt* select = (SSelectStmt*)nodesMakeNode(QUERY_NODE_SELECT_STMT);
   CHECK_OUT_OF_MEM(select);
   select->isDistinct = isDistinct;
-  if (NULL == pProjectionList) {
-    select->isStar = true;
-  }
   select->pProjectionList = pProjectionList;
   select->pFromTable = pTable;
   return (SNode*)select;
