@@ -19,6 +19,7 @@ struct SPage {
   pgid_t      pgid;      // page id
   frame_id_t  frameid;   // frame id
   SPgListNode freeNode;  // for SPgCache.freeList
+  SPgListNode pghtNode;  // for pght
   uint8_t *   pData;     // real data
 };
 
@@ -35,6 +36,8 @@ struct SPgCache {
     SPgList *buckets;
   } pght;  // page hash table
 };
+
+static void pgCachePinPage(SPage *pPage);
 
 int pgCacheCreate(SPgCache **ppPgCache, pgsize_t pgSize, int32_t npage) {
   SPgCache *pPgCache;
@@ -123,13 +126,37 @@ int pgCacheClose(SPgCache *pPgCache) {
 }
 
 SPage *pgCacheFetch(SPgCache *pPgCache, pgid_t pgid) {
-  SPage *pPage;
+  SPage *  pPage;
+  SPgFile *pPgFile;
+  SPgList *pBucket;
 
-  // 1. Check if the page is cached
+  // 1. Search the page hash table SPgCache.pght
+  pBucket = pPgCache->pght.buckets + ((0 /*TODO*/) % pPgCache->pght.nbucket);
+  pPage = TD_DLIST_HEAD(pBucket);
+  while (pPage && tdbCmprPgId(&(pPage->pgid), &pgid)) {
+    pPage = TD_DLIST_NODE_NEXT_WITH_FIELD(pPage, pghtNode);
+  }
+
+  if (pPage) {
+    // Page is found, pin the page (TODO) and return the page
+    pgCachePinPage(pPage);
+    return pPage;
+  }
+
+  // TODO
+
   return NULL;
 }
 
 int pgCacheRelease(SPage *pPage) {
   // TODO
   return 0;
+}
+
+static void pgCachePinPage(SPage *pPage) {
+  // TODO
+}
+
+static void pgCacheUnpinPage(SPage *pPage) {
+  // TODO
 }

@@ -38,7 +38,27 @@ typedef struct {
   uint8_t fileid[TDB_FILE_ID_LEN];
   pgno_t  pgno;
 } pgid_t;
+
 #define TDB_IVLD_PGID (pgid_t){0, TDB_IVLD_PGNO};
+
+static FORCE_INLINE int tdbCmprPgId(const void *p1, const void *p2) {
+  pgid_t *pgid1 = (pgid_t *)p1;
+  pgid_t *pgid2 = (pgid_t *)p2;
+  int     rcode;
+
+  rcode = memcmp(pgid1->fileid, pgid2->fileid, TDB_FILE_ID_LEN);
+  if (rcode) {
+    return rcode;
+  } else {
+    if (pgid1->pgno > pgid2->pgno) {
+      return 1;
+    } else if (pgid1->pgno < pgid2->pgno) {
+      return -1;
+    } else {
+      return 0;
+    }
+  }
+}
 
 // framd_id_t
 typedef int32_t frame_id_t;
@@ -51,14 +71,14 @@ typedef int32_t pgsize_t;
 #define TDB_IS_PGSIZE_VLD(s) (((s) >= TDB_MIN_PGSIZE) && ((s) <= TDB_MAX_PGSIZE))
 
 // cache
-#define TDB_DEFAULT_CACHE_SIZE (256 * 1024) // 256K
+#define TDB_DEFAULT_CACHE_SIZE (256 * 1024)  // 256K
 
 // tdb_log
 #define tdbError(var)
 
+#include "btree.h"
 #include "pgcache.h"
 #include "pgfile.h"
-#include "btree.h"
 
 // tdb util
 int tdbGnrtFileID(const char *fname, uint8_t *fileid);
