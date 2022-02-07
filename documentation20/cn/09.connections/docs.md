@@ -64,7 +64,7 @@ GF_PLUGINS_ALLOW_LOADING_UNSIGNED_PLUGINS=tdengine-datasource
 
 ![img](../images/connections/add_datasource3.jpg)
 
-* Host： TDengine 集群的中任意一台服务器的 IP 地址与 TDengine RESTful 接口的端口号(6041)，默认 http://localhost:6041 。
+* Host： TDengine 集群的中任意一台服务器的 IP 地址与 TDengine RESTful 接口的端口号(6041)，默认 http://localhost:6041。注意：从 2.4 版本开始 RESTful 服务默认使用独立组件 taosAdapter 提供，请参考相关文档配置部署。
 * User：TDengine 用户名。
 * Password：TDengine 用户密码。
 

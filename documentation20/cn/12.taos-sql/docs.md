@@ -37,7 +37,11 @@ taos> DESCRIBE meters;
 - Epoch Time：时间戳也可以是一个长整数，表示从格林威治时间 1970-01-01 00:00:00.000 (UTC/GMT) 开始的毫秒数（相应地，如果所在 Database 的时间精度设置为“微秒”，则长整型格式的时间戳含义也就对应于从格林威治时间 1970-01-01 00:00:00.000 (UTC/GMT) 开始的微秒数；纳秒精度的逻辑也是类似的。）
 - 时间可以加减，比如 now-2h，表明查询时刻向前推 2 个小时（最近 2 小时）。数字后面的时间单位可以是 b(纳秒)、u(微秒)、a(毫秒)、s(秒)、m(分)、h(小时)、d(天)、w(周)。 比如 `select * from t1 where ts > now-2w and ts <= now-1w`，表示查询两周前整整一周的数据。在指定降采样操作（down sampling）的时间窗口（interval）时，时间单位还可以使用 n(自然月) 和 y(自然年)。
 
-TDengine 缺省的时间戳是毫秒精度，但通过在 CREATE DATABASE 时传递的 PRECISION 参数就可以支持微秒和纳秒。（从 2.1.5.0 版本开始支持纳秒精度）
+TDengine 缺省的时间戳是毫秒精度，但通过在 CREATE DATABASE 时传递的 PRECISION 参数就可以支持微秒和纳秒。（从 2.1.5.0 版本开始支持纳秒精度） 
+
+```mysql
+CREATE DATABASE db_name PRECISION 'ns';
+```
 
 在TDengine中，普通表的数据模型中可使用以下 10 种数据类型。 
 
@@ -601,7 +605,6 @@ SELECT DISTINCT tag_name [, tag_name ...] FROM stb_name;
 SELECT DISTINCT col_name [, col_name ...] FROM tb_name;
 ```
 
-需要注意的是，DISTINCT 目前不支持对超级表中的普通列进行处理。如果需要进行此类操作，那么需要把超级表放在子查询中，再对子查询的计算结果执行 DISTINCT。
 
 说明：
 1. cfg 文件中的配置参数 maxNumOfDistinctRes 将对 DISTINCT 能够输出的数据行数进行限制。其最小值是 100000，最大值是 100000000，默认值是 10000000。如果实际计算结果超出了这个限制，那么会仅输出这个数量范围内的部分。
@@ -1689,7 +1692,10 @@ SELECT function_list FROM stb_name
   [GROUP BY tags]
 ```
 
-- 在聚合查询中，function_list 位置允许使用聚合和选择函数，并要求每个函数仅输出单个结果（例如：COUNT、AVG、SUM、STDDEV、LEASTSQUARES、PERCENTILE、MIN、MAX、FIRST、LAST），而不能使用具有多行输出结果的函数（例如：TOP、BOTTOM、DIFF 以及四则运算）。
+- 在聚合查询中，function_list 位置允许使用聚合和选择函数，并要求每个函数仅输出单个结果（例如：COUNT、AVG、SUM、STDDEV、LEASTSQUARES、PERCENTILE、MIN、MAX、FIRST、LAST），而不能使用具有多行输出结果的函数（例如：DIFF 以及四则运算）。
+- 此外也 LAST_ROW 查询也不能与窗口聚合同时出现。
+- 标量函数（如：CEIL/FLOOR 等）也不能使用在窗口聚合查询中。
+- 
   
 
 - WHERE 语句可以指定查询的起止时间和其他过滤条件。
@@ -1754,10 +1760,10 @@ IS NOT NULL 支持所有类型的列。不为空的表达式为 <>""，仅对非
 
 ## 表(列)名合法性说明
 TDengine 中的表（列）名命名规则如下：
-只能由字母、数字、下划线构成，数字不能在首位，长度不能超过192字节，不区分大小写。
+只能由字母、数字、下划线构成，数字不能在首位，长度不能超过192字节，不区分大小写。这里表名称不包括数据库名的前缀和分隔符。
 
 转移后表（列）名规则：
-为了兼容支持更多形式的表（列）名，TDengine 引入新的转义符  "`"。可用让表名与关键词不冲突，同时不受限于上述表名称合法性约束检查。
+为了兼容支持更多形式的表（列）名，TDengine 引入新的转义符  "`"。可用让表名与关键词不冲突，同时不受限于上述表名称合法性约束检查，转义符不计入表名称的长度。
 转义后的表（列）名同样受到长度限制要求，且长度计算的时候不计算转义符。使用转义字符以后，不再对转义字符中的内容进行大小写统一。
 
 例如：
@@ -1799,9 +1805,9 @@ TDengine 中的表（列）名命名规则如下：
   1. 在where条件中时，支持函数match/nmatch/between and/like/and/or/is null/is no null，不支持in
 
      ```mysql 
-     select * from s1 where info→'k1' match 'v*'; 
+     select * from s1 where info->'k1' match 'v*'; 
 
-     select * from s1 where info→'k1' like 'v%' and info contains 'k2';
+     select * from s1 where info->'k1' like 'v%' and info contains 'k2';
 
      select * from s1 where info is null; 
   
@@ -1813,7 +1819,7 @@ TDengine 中的表（列）名命名规则如下：
   3. 支持distinct操作.
 
      ```mysql 
-     select distinct info→'k1' from s1
+     select distinct info->'k1' from s1
      ```
   
   5. 标签操作
@@ -1844,7 +1850,7 @@ TDengine 中的表（列）名命名规则如下：
   
      比如暂不支持 
      ```mysql 
-     select jtag→'key' from (select jtag from stable)
+     select jtag->'key' from (select jtag from stable)
      ```
   
      不支持 
@@ -1852,7 +1858,7 @@ TDengine 中的表（列）名命名规则如下：
      select jtag->'key' from (select jtag from stable) where jtag->'key'>0
      ```
 ## 转义字符说明
-- 转义字符表
+- 转义字符表 （转义符的功能从 2.4.0.4 版本开始）
 
   | 字符序列    | **代表的字符**  |
     | :--------:     |   -------    |
@@ -1863,7 +1869,7 @@ TDengine 中的表（列）名命名规则如下：
   | \t             |  tab符       |
   | `\\`             |  斜杠\        |
   | `\%`             |  % 规则见下    |
-  | `\%`             |  _ 规则见下    |
+  | `\_`             |  _ 规则见下    |
 
 - 转义字符使用规则
   1. 标识符里有转义字符（数据库名、表名、列名）

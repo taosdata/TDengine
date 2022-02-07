@@ -39,6 +39,9 @@
                     .tid = (_checkInfo)->tableId.tid,                                  \
                     .uid = (_checkInfo)->tableId.uid})
 
+#define IS_END_BLOCK(cur, numOfBlocks, ascTrav) \
+      ((cur->slot == numOfBlocks - 1 && ascTrav) || (cur->slot == 0 && !ascTrav))
+
 // limit offset start optimization for rows read over this value
 #define OFFSET_SKIP_THRESHOLD 5000
 
@@ -153,6 +156,10 @@ typedef struct STsdbQueryHandle {
   SArray        *prev;             // previous row which is before than time window
   SArray        *next;             // next row which is after the query time window
   SIOCostSummary cost;
+  
+  // callback
+  readover_callback readover_cb;
+  void*             param;
 } STsdbQueryHandle;
 
 typedef struct STableGroupSupporter {
@@ -182,6 +189,7 @@ static void*   doFreeColumnInfoData(SArray* pColumnInfoData);
 static void*   destroyTableCheckInfo(SArray* pTableCheckInfo);
 static bool    tsdbGetExternalRow(TsdbQueryHandleT pHandle);
 static int32_t tsdbQueryTableList(STable* pTable, SArray* pRes, void* filterInfo);
+static STableBlockInfo* moveToNextDataBlockInCurrentFile(STsdbQueryHandle* pQueryHandle);
 
 static void tsdbInitDataBlockLoadInfo(SDataBlockLoadInfo* pBlockLoadInfo) {
   pBlockLoadInfo->slot = -1;
@@ -2560,26 +2568,25 @@ static int32_t createDataBlocksInfo(STsdbQueryHandle* pQueryHandle, int32_t numO
 static int32_t getFirstFileDataBlock(STsdbQueryHandle* pQueryHandle, bool* exists);
 
 static int32_t getDataBlockRv(STsdbQueryHandle* pQueryHandle, STableBlockInfo* pNext, bool *exists) {
-  int32_t step = ASCENDING_TRAVERSE(pQueryHandle->order)? 1 : -1;
   SQueryFilePos* cur = &pQueryHandle->cur;
 
-  while(1) {
+  while(pNext) {
     int32_t code = loadFileDataBlock(pQueryHandle, pNext->compBlock, pNext->pTableCheckInfo, exists);
+    // load error or have data, return
     if (code != TSDB_CODE_SUCCESS || *exists) {
       return code;
     }
 
-    if ((cur->slot == pQueryHandle->numOfBlocks - 1 && ASCENDING_TRAVERSE(pQueryHandle->order)) ||
-        (cur->slot == 0 && !ASCENDING_TRAVERSE(pQueryHandle->order))) {
+    // no data, continue to find next block util have data
+    if (IS_END_BLOCK(cur, pQueryHandle->numOfBlocks, ASCENDING_TRAVERSE(pQueryHandle->order))) {
       // all data blocks in current file has been checked already, try next file if exists
       return getFirstFileDataBlock(pQueryHandle, exists);
     } else {  // next block of the same file
-      cur->slot += step;
-      cur->mixBlock = false;
-      cur->blockCompleted = false;
-      pNext = &pQueryHandle->pDataBlockInfo[cur->slot];
+      pNext = moveToNextDataBlockInCurrentFile(pQueryHandle);
     }
   }
+
+  return TSDB_CODE_SUCCESS; // pNext == NULL no other blocks to move to 
 }
 
 static int32_t getFirstFileDataBlock(STsdbQueryHandle* pQueryHandle, bool* exists) {
@@ -2593,6 +2600,15 @@ static int32_t getFirstFileDataBlock(STsdbQueryHandle* pQueryHandle, bool* exist
 
   STsdbCfg* pCfg = &pQueryHandle->pTsdb->config;
   STimeWindow win = TSWINDOW_INITIALIZER;
+
+  // check query scan data is over for limit query
+  if (pQueryHandle->readover_cb && pQueryHandle->readover_cb(pQueryHandle->param, READ_QUERY, -1)) {
+    // query scan data is over , no need read more
+    cur->fid = INT32_MIN;
+    *exists = false;
+    tsdbInfo("%p LIMIT_READ query is over and stop read. tables=%d qId=0x%"PRIx64, pQueryHandle, numOfTables, pQueryHandle->qId);
+    return TSDB_CODE_SUCCESS;
+  }
 
   while (true) {
     tsdbRLockFS(REPO_FS(pQueryHandle->pTsdb));
@@ -2670,20 +2686,52 @@ static int32_t getFirstFileDataBlock(STsdbQueryHandle* pQueryHandle, bool* exist
   return getDataBlockRv(pQueryHandle, pBlockInfo, exists);
 }
 
-static bool isEndFileDataBlock(SQueryFilePos* cur, int32_t numOfBlocks, bool ascTrav) {
-  assert(cur != NULL && numOfBlocks > 0);
-  return (cur->slot == numOfBlocks - 1 && ascTrav) || (cur->slot == 0 && !ascTrav);
-}
-
-static void moveToNextDataBlockInCurrentFile(STsdbQueryHandle* pQueryHandle) {
+static STableBlockInfo* moveToNextDataBlockInCurrentFile(STsdbQueryHandle* pQueryHandle) {
   int32_t step = ASCENDING_TRAVERSE(pQueryHandle->order)? 1 : -1;
 
   SQueryFilePos* cur = &pQueryHandle->cur;
+  if (IS_END_BLOCK(cur, pQueryHandle->numOfBlocks, ASCENDING_TRAVERSE(pQueryHandle->order))) {
+    return NULL;
+  }
   assert(cur->slot < pQueryHandle->numOfBlocks && cur->slot >= 0);
 
   cur->slot += step;
   cur->mixBlock       = false;
   cur->blockCompleted = false;
+
+  // no callback check
+  STableBlockInfo* pBlockInfo = &pQueryHandle->pDataBlockInfo[cur->slot];
+  if(pQueryHandle->readover_cb == NULL) {
+    return pBlockInfo;
+  }
+
+  // have callback check
+  int32_t tid = -1;
+  bool over = false;
+  do {
+    // tid changed, re-get over of tid status
+    if(tid != pBlockInfo->pTableCheckInfo->tableId.tid) {
+      tid = pBlockInfo->pTableCheckInfo->tableId.tid;
+      over = pQueryHandle->readover_cb(pQueryHandle->param, READ_TABLE, pBlockInfo->pTableCheckInfo->tableId.tid);
+      if (!over) // this tid not over
+        return pBlockInfo;
+    }
+      
+    //
+    // this tid is over, skip all blocks of this tid in following
+    //
+
+    // check end
+    if (IS_END_BLOCK(cur, pQueryHandle->numOfBlocks, ASCENDING_TRAVERSE(pQueryHandle->order)))
+      return NULL;
+    // move next
+    cur->slot += step;
+    cur->mixBlock       = false;
+    cur->blockCompleted = false;
+    pBlockInfo = &pQueryHandle->pDataBlockInfo[cur->slot];
+  } while(1);
+
+  return NULL;
 }
 
 int32_t tsdbGetFileBlocksDistInfo(TsdbQueryHandleT* queryHandle, STableBlockDist* pTableBlockInfo) {
@@ -2816,12 +2864,15 @@ static int32_t getDataBlocksInFiles(STsdbQueryHandle* pQueryHandle, bool* exists
 
     // current block is empty, try next block in file
     // all data blocks in current file has been checked already, try next file if exists
-    if (isEndFileDataBlock(cur, pQueryHandle->numOfBlocks, ASCENDING_TRAVERSE(pQueryHandle->order))) {
+    if (IS_END_BLOCK(cur, pQueryHandle->numOfBlocks, ASCENDING_TRAVERSE(pQueryHandle->order))) {
       return getFirstFileDataBlock(pQueryHandle, exists);
     } else {
-      moveToNextDataBlockInCurrentFile(pQueryHandle);
-      STableBlockInfo* pNext = &pQueryHandle->pDataBlockInfo[cur->slot];
-      return getDataBlockRv(pQueryHandle, pNext, exists);
+      // get next block in currentfile. return NULL if no block in current file
+      STableBlockInfo* pNext = moveToNextDataBlockInCurrentFile(pQueryHandle);
+      if (pNext == NULL) // file end
+        return getFirstFileDataBlock(pQueryHandle, exists);
+      else
+        return getDataBlockRv(pQueryHandle, pNext, exists);
     }
   }
 }
@@ -4599,4 +4650,12 @@ int64_t tsdbSkipOffset(TsdbQueryHandleT queryHandle) {
     return pQueryHandle->srows;
   }
   return 0;
+}
+
+// add scan table need callback 
+void tsdbAddScanCallback(TsdbQueryHandleT* queryHandle, readover_callback callback, void* param) {
+  STsdbQueryHandle* pQueryHandle = (STsdbQueryHandle*)queryHandle;
+  pQueryHandle->readover_cb = callback;
+  pQueryHandle->param       = param;
+  return ;
 }

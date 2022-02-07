@@ -103,7 +103,9 @@ int32_t vnodeProcessWrite(void *vparam, void *wparam, int32_t qtype, void *rpara
   }
 
   // write into WAL
-  code = walWrite(pVnode->wal, pHead);
+  if (!(tsShortcutFlag & TSDB_SHORTCUT_NR_VNODE_WAL_WRITE)) {
+    code = walWrite(pVnode->wal, pHead);
+  }
   if (code < 0) {
     if (syncCode > 0) atomic_sub_fetch_32(&pWrite->processedCount, 1);
     vError("vgId:%d, hver:%" PRIu64 " vver:%" PRIu64 " code:0x%x", pVnode->vgId, pHead->version, pVnode->version, code);

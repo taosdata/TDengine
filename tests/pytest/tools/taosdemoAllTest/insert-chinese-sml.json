@@ -84,7 +84,7 @@
             "sample_file": "./sample.csv",
             "tags_file": "",
             "columns": [{"type": "INT"}],
-            "tags": [{"type": "TINYINT", "count":2}]
+            "tags": [{"type": "nchar", "count":2}]
         },
         {
             "name": "stb5",
@@ -111,7 +111,7 @@
             "sample_file": "./sample.csv",
             "tags_file": "",
             "columns": [{"type": "INT"}],
-            "tags": [{"type": "TINYINT"}]
+            "tags": [{"type": "nchar"}]
         }]
     }]
 }

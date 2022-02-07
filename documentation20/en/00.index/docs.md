@@ -1,7 +1,6 @@
 # TDengine Documentation
 
-TDengine is a highly efficient platform to store, query, and analyze time-series data. It is specially designed and optimized for IoT, Internet of Vehicles, Industrial IoT, IT Infrastructure and Application Monitoring, etc. It works like a relational database, such as MySQL, but you are strongly encouraged to read through the following documentation before you experience it, especially the Data Modeling sections. In addition to this document, you should also download and read the technology white paper. For the older TDengine version 1.6 documentation, please click [here](https://www.taosdata.com/en/documentation16/).
-
+TDengine is a highly efficient platform to store, query, and analyze time-series data. It is specially designed and optimized for IoT, Internet of Vehicles, Industrial IoT, IT Infrastructure and Application Monitoring, etc. It works like a relational database, such as MySQL, but you are strongly encouraged to read through the following documentation before you experience it, especially the Data Modeling sections. In addition to this document, you should also download and read the technology white paper. 
 ## [TDengine Introduction](/evaluation)
 
 * [TDengine Introduction and Features](/evaluation#intro)
@@ -35,6 +34,7 @@ TDengine is a highly efficient platform to store, query, and analyze time-series
 ## [Efficient Data Ingestion](/insert)
 
 - [Data Writing via SQL](/insert#sql): write one or multiple records into one or multiple tables via SQL insert command
+- [Data Writing via Schemaless](/insert#schemaless): write one or multiple records with automatic table creation and adaptive table structure maintenance
 - [Data Writing via Prometheus](/insert#prometheus): Configure Prometheus to write data directly without any code
 - [Data Writing via Telegraf](/insert#telegraf): Configure Telegraf to write collected data directly without any code
 - [Data Writing via EMQ X](/insert#emq): Configure EMQ X to write MQTT data directly without any code
@@ -79,11 +79,12 @@ TDengine is a highly efficient platform to store, query, and analyze time-series
 - [Windows Client](https://www.taosdata.com/blog/2019/07/26/514.html): compile your own Windows client, which is required by various connectors on the Windows environment
 - [Rust Connector](/connector/rust): A taosc/RESTful API based TDengine client for Rust
 
-## [Components and Tools](/cn/documentation/)
+## [Components and Tools]
 
-* [taosAdapter User Manual](/tools/adapter)
-* [TDinsight User Manual](/tools/insight)
-* [taos-tools User Manual](/tools/taos-tools)
+* [taosAdapter](/tools/adapter): a bridge/adapter between TDengine cluster and applications.
+* [TDinsight](/tools/insight): monitoring TDengine cluster with Grafana.
+* [taosdump](/tools/taosdump): backup tool for TDengine. Please install `taosTools` package for it.
+* [taosBenchmark](/tools/taosbenchmark): stress test tool for TDengine. Please install `taosTools` package for it.
 
 ## [Connections with Other Tools](/connections)
 
