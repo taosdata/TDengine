@@ -30,7 +30,7 @@ extern SToken nil_token;
 SNodeList* createNodeList(SAstCreateContext* pCxt, SNode* pNode);
 SNodeList* addNodeToList(SAstCreateContext* pCxt, SNodeList* pList, SNode* pNode);
 
-SNode* createColumnNode(SAstCreateContext* pCxt, const SToken* pTableName, const SToken* pColumnName);
+SNode* createColumnNode(SAstCreateContext* pCxt, const SToken* pTableAlias, const SToken* pColumnName);
 SNode* createValueNode(SAstCreateContext* pCxt, int32_t dataType, const SToken* pLiteral);
 SNode* createDurationValueNode(SAstCreateContext* pCxt, const SToken* pLiteral);
 SNode* addMinusSign(SAstCreateContext* pCxt, SNode* pNode);

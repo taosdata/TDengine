@@ -28,6 +28,7 @@ typedef struct SQuery {
 } SQuery;
 
 int32_t doParse(SParseContext* pParseCxt, SQuery* pQuery);
+int32_t doTranslate(SParseContext* pParseCxt, SQuery* pQuery);
 
 #ifdef __cplusplus
 }
