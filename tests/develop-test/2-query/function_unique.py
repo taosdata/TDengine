@@ -43,6 +43,26 @@ class TDTestCase:
         tdSql.execute('insert into D001 values("2021-10-17 00:31:31", 1, 2) ("2022-01-24 00:31:31", 1, 2)')
         tdSql.execute('insert into D002 values("2021-10-17 00:31:31", 1, 2) ("2021-12-24 00:31:31", 2, 2) ("2021-12-24 01:31:31", 19, 2)')
         tdSql.execute('insert into D003 values("2021-10-17 00:31:31", 1, 2) ("2021-12-24 00:31:31", 1, 2) ("2021-12-24 01:31:31", 9, 2)')
+
+        # test normal table
+        tdSql.query('select unique(voltage) from d003')
+        tdSql.checkRows(2)
+        tdSql.checkData(0, 0, 9)
+        tdSql.checkData(1, 0, 1)
+
+        tdSql.query('select ts,unique(voltage),ts,groupid,location from d003')
+        tdSql.checkRows(2)
+        tdSql.checkData(0, 0, "2021-12-24 00:31:31")
+        tdSql.checkData(0, 1, 9)
+        tdSql.checkData(0, 2, "2021-12-24 00:31:31")
+        tdSql.checkData(0, 3, 3)
+        tdSql.checkData(0, 4, "Beijing.Tongzhou")
+        tdSql.checkData(1, 0, "2021-10-17 00:31:31")
+        tdSql.checkData(1, 1, 1)
+        tdSql.checkData(1, 2, "2021-10-17 00:31:31")
+        tdSql.checkData(1, 3, 3)
+        tdSql.checkData(1, 4, "Beijing.Tongzhou")
+
         # tdSql.query('select * from st')
         # tdSql.checkRows(3)
         # tdSql.query('select * from (select * from ste)')

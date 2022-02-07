@@ -4985,23 +4985,19 @@ static void unique_func_finalizer(SQLFunctionCtx *pCtx) {
   for (int32_t i = 0; i < pCtx->tagInfo.numOfTagCols; ++i) {
     pData[i] = pCtx->tagInfo.pTagCtxList[i]->pOutput;
   }
-  TSKEY *output = pCtx->ptsOutputBuf;
 
   while(unit) {
     void *unique = taosHashGetDataKey(NULL, unit);
     memcpy(pCtx->pOutput + offset, unique, pCtx->inputBytes);
     offset += pCtx->inputBytes;
-
-    // set the output timestamp of each record.
-    if (output != NULL) {
-      *output++ = unit->timestamp;
-    }
+    char* tag = unit->pTags;
 
     for (int32_t j = 0; j < pCtx->tagInfo.numOfTagCols; ++j) {
       if(pCtx->tagInfo.pTagCtxList[j]->functionId == TSDB_FUNC_TS_DUMMY){
         *(TSKEY *)pData[j] = unit->timestamp;
       }else{
-        memcpy(pData[j], unit->pTags, (size_t)pCtx->tagInfo.pTagCtxList[j]->outputBytes);
+        memcpy(pData[j], tag, (size_t)pCtx->tagInfo.pTagCtxList[j]->outputBytes);
+        tag += pCtx->tagInfo.pTagCtxList[j]->outputBytes;
       }
 
       pData[j] += pCtx->tagInfo.pTagCtxList[j]->outputBytes;
