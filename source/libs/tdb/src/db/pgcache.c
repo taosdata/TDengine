@@ -123,7 +123,9 @@ int pgCacheClose(SPgCache *pPgCache) {
 }
 
 SPage *pgCacheFetch(SPgCache *pPgCache, pgid_t pgid) {
-  // TODO
+  SPage *pPage;
+
+  // 1. Check if the page is cached
   return NULL;
 }
 

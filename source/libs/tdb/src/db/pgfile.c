@@ -67,12 +67,22 @@ int pgFileClose(SPgFile *pPgFile) {
 }
 
 SPage *pgFileFetch(SPgFile *pPgFile, pgno_t pgno) {
-  // TODO
-  return NULL;
+  SPgCache *pPgCache;
+  SPage *   pPage;
+  pgid_t    pgid;
+
+  pPgCache = pPgFile->pPgCache;
+  pPage = NULL;
+  memcpy(pgid.fileid, pPgFile->fileid, TDB_FILE_ID_LEN);
+  pgid.pgno = pgno;
+
+  pPage = pgCacheFetch(pPgCache, pgid);
+
+  return pPage;
 }
 
 int pgFileRelease(SPage *pPage) {
-  // TODO
+  pgCacheRelease(pPage);
   return 0;
 }
 
