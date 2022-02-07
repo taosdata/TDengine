@@ -13,8 +13,8 @@
  * along with this program. If not, see <http://www.gnu.org/licenses/>.
  */
 
-#ifndef _TD_TDB_INC_H_
-#define _TD_TDB_INC_H_
+#ifndef _TD_TDB_INTERNAL_H_
+#define _TD_TDB_INTERNAL_H_
 
 #include "os.h"
 #include "tlist.h"
@@ -58,4 +58,4 @@ int tdbGnrtFileID(const char *fname, uint8_t *fileid);
 }
 #endif
 
-#endif /*_TD_TDB_INC_H_*/
+#endif /*_TD_TDB_INTERNAL_H_*/

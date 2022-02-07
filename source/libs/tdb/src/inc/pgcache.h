@@ -13,25 +13,34 @@
  * along with this program. If not, see <http://www.gnu.org/licenses/>.
  */
 
-#ifndef _TDB_PAGE_H_
-#define _TDB_PAGE_H_
-
-#include "tdb_inc.h"
+#ifndef _TD_PAGE_CACHE_H_
+#define _TD_PAGE_CACHE_H_
 
 #ifdef __cplusplus
 extern "C" {
 #endif
 
-// Page header
-typedef struct {
-  uint32_t magic;
-  pgno_t   pgno;   // current page number
-  pgno_t   npgno;  // next page number
-  pgno_t   ppgno;  // prev page number
-} SPgHdr;
+typedef struct SPgCache SPgCache;
+typedef struct SPage    SPage;
+
+// SPgCache
+int pgCacheCreate(SPgCache **ppPgCache);
+int pgCacheDestroy(SPgCache *pPgCache);
+int pgCacheOpen(SPgCache *pPgCache);
+int pgCacheClose(SPgCache *pPgCache);
+
+SPage *pgCacheFetch(SPgCache *pPgCache);
+int    pgCacheRelease(SPage *pPage);
+
+// SPage
+
+// Impl
+struct SPgCache {
+  // TODO
+};
 
 #ifdef __cplusplus
 }
 #endif
 
-#endif /*_TDB_PAGE_H_*/
+#endif /*_TD_PAGE_CACHE_H_*/

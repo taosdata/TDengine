@@ -13,21 +13,21 @@
  * along with this program. If not, see <http://www.gnu.org/licenses/>.
  */
 
-#include "tdbInt.h"
+#ifndef _TD_BTREE_H_
+#define _TD_BTREE_H_
 
-int tdbGnrtFileID(const char *fname, uint8_t *fileid) {
-  struct stat statbuf;
+#ifdef __cplusplus
+extern "C" {
+#endif
 
-  if (stat(fname, &statbuf) < 0) {
-    return -1;
-  }
+typedef struct SBTree SBTree;
 
-  memset(fileid, 0, TDB_FILE_ID_LEN);
+struct SBTree {
+  // TODO
+};
 
-  ((uint64_t *)fileid)[0] = (uint64_t)statbuf.st_ino;
-  ((uint64_t *)fileid)[1] = (uint64_t)statbuf.st_dev;
-  ((uint64_t *)fileid)[2] = rand();
-
-  return 0;
+#ifdef __cplusplus
 }
+#endif
 
+#endif /*_TD_BTREE_H_*/

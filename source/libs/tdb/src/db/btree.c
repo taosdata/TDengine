@@ -12,22 +12,3 @@
  * You should have received a copy of the GNU Affero General Public License
  * along with this program. If not, see <http://www.gnu.org/licenses/>.
  */
-
-#ifndef _TDB_BTREE_H_
-#define _TDB_BTREE_H_
-
-#include "tdb_inc.h"
-
-#ifdef __cplusplus
-extern "C" {
-#endif
-
-struct SBTree {
-  pgno_t root; // root page number
-};
-
-#ifdef __cplusplus
-}
-#endif
-
-#endif /*_TDB_BTREE_H_*/

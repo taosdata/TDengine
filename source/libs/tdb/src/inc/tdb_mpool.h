@@ -16,7 +16,7 @@
 #ifndef _TD_TDB_MPOOL_H_
 #define _TD_TDB_MPOOL_H_
 
-#include "tdb_inc.h"
+#include "tdbInt.h"
 
 #ifdef __cplusplus
 extern "C" {
