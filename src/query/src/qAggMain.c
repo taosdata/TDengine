@@ -4998,7 +4998,12 @@ static void unique_func_finalizer(SQLFunctionCtx *pCtx) {
     }
 
     for (int32_t j = 0; j < pCtx->tagInfo.numOfTagCols; ++j) {
-      memcpy(pData[j], unit->pTags, (size_t)pCtx->tagInfo.pTagCtxList[j]->outputBytes);
+      if(pCtx->tagInfo.pTagCtxList[j]->functionId == TSDB_FUNC_TS_DUMMY){
+        *(TSKEY *)pData[j] = unit->timestamp;
+      }else{
+        memcpy(pData[j], unit->pTags, (size_t)pCtx->tagInfo.pTagCtxList[j]->outputBytes);
+      }
+
       pData[j] += pCtx->tagInfo.pTagCtxList[j]->outputBytes;
     }
 

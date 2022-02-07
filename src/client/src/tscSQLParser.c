@@ -7755,7 +7755,7 @@ static void doUpdateSqlFunctionForTagPrj(SQueryInfo* pQueryInfo) {
       pExpr->base.functionId = TSDB_FUNC_TAG_DUMMY;
       tagLength += pExpr->base.resBytes;
     } else if (pExpr->base.functionId == TSDB_FUNC_PRJ && pExpr->base.colInfo.colId == PRIMARYKEY_TIMESTAMP_COL_INDEX) {
-      pExpr->base.functionId = TSDB_FUNC_TS_DUMMY;
+      pExpr->base.functionId = TSDB_FUNC_TS_DUMMY;    // ts_select ts,top(col,2)
       tagLength += pExpr->base.resBytes;
     }
   }
