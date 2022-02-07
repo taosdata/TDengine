@@ -748,7 +748,7 @@ TEST(tableMeta, normalTable) {
     }
 
     if (stbNum) {
-      printf("got expired stb,suid:%" PRId64 "\n", stb->suid);
+      printf("got expired stb,suid:%" PRId64 ",dbFName:%s, stbName:%s\n", stb->suid, stb->dbFName, stb->stbName);
       free(stb);
       stb = NULL;
     } else {
@@ -844,7 +844,7 @@ TEST(tableMeta, childTableCase) {
     }
 
     if (stbNum) {
-      printf("got expired stb,suid:%" PRId64 "\n", stb->suid);
+      printf("got expired stb,suid:%" PRId64 ",dbFName:%s, stbName:%s\n", stb->suid, stb->dbFName, stb->stbName);      
       free(stb);
       stb = NULL;
     } else {
@@ -945,7 +945,8 @@ TEST(tableMeta, superTableCase) {
     }
 
     if (stbNum) {
-      printf("got expired stb,suid:%" PRId64 "\n", stb->suid);
+      printf("got expired stb,suid:%" PRId64 ",dbFName:%s, stbName:%s\n", stb->suid, stb->dbFName, stb->stbName);
+      
       free(stb);
       stb = NULL;
     } else {
@@ -1289,7 +1290,7 @@ TEST(rentTest, allRent) {
     printf("%d - expired stableNum:%d\n", i, num);
     if (stable) {
       for (int32_t n = 0; n < num; ++n) {
-        printf("suid:%" PRId64 ", sversion:%d, tversion:%d\n", stable[n].suid, stable[n].sversion, stable[n].tversion);
+        printf("suid:%" PRId64 ", dbFName:%s, stbName:%s, sversion:%d, tversion:%d\n", stable[n].suid, stable[n].dbFName, stable[n].stbName, stable[n].sversion, stable[n].tversion);
       }
       free(stable);
       stable = NULL;
