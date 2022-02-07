@@ -14,3 +14,54 @@
  */
 
 #include "tdbInt.h"
+
+struct SPage {
+  pgid_t pgid;  // page id
+  // TODO
+};
+
+typedef TD_DLIST(SPage) SPgList;
+
+struct SPgCache {
+  SPage *pages;
+
+  SPgList freeList;
+
+  struct {
+    int32_t nbucket;
+    struct {
+      SRWLatch latch;
+      TD_DLIST(SPage) ht;
+    } * buckets;
+  } pght;  // page hash table
+};
+
+int pgCacheCreate(SPgCache **ppPgCache) {
+  // TODO
+  return 0;
+}
+
+int pgCacheDestroy(SPgCache *pPgCache) {
+  // TODO
+  return 0;
+}
+
+int pgCacheOpen(SPgCache *pPgCache) {
+  // TODO
+  return 0;
+}
+
+int pgCacheClose(SPgCache *pPgCache) {
+  // TODO
+  return 0;
+}
+
+SPage *pgCacheFetch(SPgCache *pPgCache) {
+  // TODO
+  return NULL;
+}
+
+int pgCacheRelease(SPage *pPage) {
+  // TODO
+  return 0;
+}

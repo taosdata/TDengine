@@ -20,11 +20,8 @@
 extern "C" {
 #endif
 
-typedef struct SBTree SBTree;
-
-struct SBTree {
-  // TODO
-};
+typedef struct SBTree    SBTree;
+typedef struct SBtCursor SBtCursor;
 
 #ifdef __cplusplus
 }

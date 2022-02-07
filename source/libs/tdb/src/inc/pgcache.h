@@ -34,11 +34,6 @@ int    pgCacheRelease(SPage *pPage);
 
 // SPage
 
-// Impl
-struct SPgCache {
-  // TODO
-};
-
 #ifdef __cplusplus
 }
 #endif

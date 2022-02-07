@@ -14,3 +14,11 @@
  */
 
 #include "tdbInt.h"
+
+struct SBTree {
+  // TODO
+};
+
+struct SBtCursor {
+  // TODO
+};
