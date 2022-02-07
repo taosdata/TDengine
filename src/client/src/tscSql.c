@@ -201,9 +201,9 @@ TAOS *taos_connect_internal(const char *ip, const char *user, const char *pass, 
     if (pSql->res.code != TSDB_CODE_SUCCESS) {
       terrno = pSql->res.code;
       if (terrno ==TSDB_CODE_RPC_FQDN_ERROR) {
-        printf("taos connect failed, reason: %s\n\n", taos_errstr(pSql));
+        printf("connect failed, reason: %s\n\n", taos_errstr(pSql));
       } else {
-        printf("taos connect failed, reason: %s.\n\n", tstrerror(terrno));
+        printf("connect failed, reason: %s.\n\n", tstrerror(terrno));
       }
       taos_free_result(pSql);
       taos_close(pObj);
