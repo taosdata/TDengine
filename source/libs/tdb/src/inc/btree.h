@@ -23,6 +23,12 @@ extern "C" {
 typedef struct SBTree    SBTree;
 typedef struct SBtCursor SBtCursor;
 
+// SBTree
+int btreeOpen(SBTree **ppBt);
+int btreeClose(SBTree *pBt);
+
+// SBtCursor
+
 #ifdef __cplusplus
 }
 #endif

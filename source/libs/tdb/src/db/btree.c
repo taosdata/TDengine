@@ -16,7 +16,7 @@
 #include "tdbInt.h"
 
 struct SBTree {
-  pgno_t rootPage;
+  pgno_t root;
   // TODO
 };
 

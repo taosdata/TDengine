@@ -125,13 +125,19 @@ int pgCacheClose(SPgCache *pPgCache) {
   return 0;
 }
 
+#define PG_CACHE_HASH(fileid, pgno)       \
+  ({                                      \
+    uint64_t *tmp = (uint64_t *)(fileid); \
+    (tmp[0] + tmp[1] + tmp[2] + (pgno));  \
+  })
+
 SPage *pgCacheFetch(SPgCache *pPgCache, pgid_t pgid) {
   SPage *  pPage;
   SPgFile *pPgFile;
   SPgList *pBucket;
 
   // 1. Search the page hash table SPgCache.pght
-  pBucket = pPgCache->pght.buckets + ((0 /*TODO*/) % pPgCache->pght.nbucket);
+  pBucket = pPgCache->pght.buckets + (PG_CACHE_HASH(pgid.fileid, pgid.pgno) % pPgCache->pght.nbucket);
   pPage = TD_DLIST_HEAD(pBucket);
   while (pPage && tdbCmprPgId(&(pPage->pgid), &pgid)) {
     pPage = TD_DLIST_NODE_NEXT_WITH_FIELD(pPage, pghtNode);

@@ -76,7 +76,11 @@ SPage *pgFileFetch(SPgFile *pPgFile, pgno_t pgno) {
   memcpy(pgid.fileid, pPgFile->fileid, TDB_FILE_ID_LEN);
   pgid.pgno = pgno;
 
-  pPage = pgCacheFetch(pPgCache, pgid);
+  if (pgno > pPgFile->pgFileSize) {
+    // TODO
+  } else {
+    pPage = pgCacheFetch(pPgCache, pgid);
+  }
 
   return pPage;
 }
