@@ -16,7 +16,7 @@ serverName="taosd"
 clientName="taos"
 uninstallScript="rmtaos"
 productName="TDengine"
-
+adapterName="taosadapter"
 
 #install main path
 install_main_dir=${installDir}
@@ -31,7 +31,7 @@ install_nginxd_dir="/usr/local/nginxd"
 
 service_config_dir="/etc/systemd/system"
 taos_service_name=${serverName}
-taosadapter_service_name="taosadapter"
+taosadapter_service_name=${adapterName}
 tarbitrator_service_name="tarbitratord"
 nginx_service_name="nginxd"
 csudo=""
@@ -60,7 +60,7 @@ else
 fi
 
 function kill_taosadapter() {
-  pid=$(ps -ef | grep "taosadapter" | grep -v "grep" | awk '{print $2}')
+  pid=$(ps -ef | grep ${adapterName} | grep -v "grep" | awk '{print $2}')
   if [ -n "$pid" ]; then
     ${csudo}kill -9 $pid || :
   fi
@@ -83,11 +83,11 @@ function clean_bin() {
   # Remove link
   ${csudo}rm -f ${bin_link_dir}/${clientName} || :
   ${csudo}rm -f ${bin_link_dir}/${serverName} || :
-  ${csudo}rm -f ${bin_link_dir}/taosadapter || :
+  ${csudo}rm -f ${bin_link_dir}/${adapterName} || :
   ${csudo}rm -f ${bin_link_dir}/${uninstallScript} || :
   ${csudo}rm -f ${bin_link_dir}/tarbitrator || :
   ${csudo}rm -f ${bin_link_dir}/set_core || :
-  ${csudo}rm -f ${bin_link_dir}/run_taosd_and_taosadapter.sh || :
+  ${csudo}rm -f ${bin_link_dir}/run_taosd_and_${adapterName}.sh || :
 }
 
 function clean_lib() {
@@ -123,9 +123,9 @@ function clean_service_on_systemd() {
   ${csudo}systemctl disable ${taos_service_name} &>/dev/null || echo &>/dev/null
   ${csudo}rm -f ${taosd_service_config}
 
-  taosadapter_service_config="${service_config_dir}/taosadapter.service"
+  taosadapter_service_config="${service_config_dir}/${adapterName}.service"
   if systemctl is-active --quiet ${taosadapter_service_name}; then
-    echo "${productName} taosAdapter is running, stopping it..."
+    echo "${productName} ${adapterName} is running, stopping it..."
     ${csudo}systemctl stop ${taosadapter_service_name} &>/dev/null || echo &>/dev/null
   fi
   ${csudo}systemctl disable ${taosadapter_service_name} &>/dev/null || echo &>/dev/null

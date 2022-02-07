@@ -28,6 +28,8 @@ tarName="taos.tar.gz"
 dumpName="taosdump"
 benchmarkName="taosBenchmark"
 toolsName="taostools"
+adapterName="taosadapter"
+defaultPasswd="taosdata"
 
 # create compressed install file.
 build_dir="${compile_dir}/build"
@@ -104,6 +106,8 @@ if [ -f "${compile_dir}/test/cfg/taosadapter.service" ]; then
   cp ${compile_dir}/test/cfg/taosadapter.service ${install_dir}/cfg || :
 fi
 
+
+
 if [ -f "${cfg_dir}/${serverName}.service" ]; then
   cp ${cfg_dir}/${serverName}.service ${install_dir}/cfg || :
 fi
@@ -121,6 +125,20 @@ mkdir -p ${install_dir}/init.d && cp ${init_file_deb} ${install_dir}/init.d/${se
 mkdir -p ${install_dir}/init.d && cp ${init_file_rpm} ${install_dir}/init.d/${serverName}.rpm
 mkdir -p ${install_dir}/init.d && cp ${init_file_tarbitrator_deb} ${install_dir}/init.d/tarbitratord.deb || :
 mkdir -p ${install_dir}/init.d && cp ${init_file_tarbitrator_rpm} ${install_dir}/init.d/tarbitratord.rpm || :
+
+if [ $adapterName != "taosadapter" ]; then
+  mv ${install_dir}/cfg/taosadapter.toml ${install_dir}/cfg/$adapterName.toml
+  sed -i "s/path = \"\/var\/log\/taos\"/path = \"\/var\/log\/${productName}\"/g" ${install_dir}/cfg/$adapterName.toml
+  sed -i "s/password = \"taosdata\"/password = \"${defaultPasswd}\"/g" ${install_dir}/cfg/$adapterName.toml
+
+  mv ${install_dir}/cfg/taosadapter.service ${install_dir}/cfg/$adapterName.service
+  sed -i "s/TDengine/${productName}/g" ${install_dir}/cfg/$adapterName.service
+  sed -i "s/taosAdapter/${adapterName}/g" ${install_dir}/cfg/$adapterName.service
+  sed -i "s/taosadapter/${adapterName}/g" ${install_dir}/cfg/$adapterName.service
+
+  mv ${install_dir}/bin/taosadapter ${install_dir}/bin/${adapterName}
+  mv ${install_dir}/bin/run_taosd_and_taosadapter.sh ${install_dir}/bin/run_taosd_and_${adapterName}.sh
+fi
 
 if [ -n "${taostools_bin_files}" ]; then
   mkdir -p ${taostools_install_dir} || echo -e "failed to create ${taostools_install_dir}"
