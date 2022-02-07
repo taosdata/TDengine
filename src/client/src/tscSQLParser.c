@@ -3422,7 +3422,7 @@ int32_t addExprAndResultField(SSqlCmd* pCmd, SQueryInfo* pQueryInfo, int32_t col
       }
 
       cJSON *binDesc = cJSON_Parse(pVariant->pz);
-      int32_t counter;
+      int64_t counter;
       int32_t numBins;
       int32_t numOutput;
       double *intervals;
