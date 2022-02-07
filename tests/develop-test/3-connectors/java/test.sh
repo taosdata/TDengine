@@ -14,11 +14,13 @@ function stopTaosd {
 stopTaosd
 rm -rf /var/lib/taos/*
 rm -rf /var/log/taos/*
-nohup taosd -c /etc/taos/ > /dev/null 2>&1 &
-if [ ! -f /etc/taos/taosadapter.toml ]; then
-  mkdir -p /etc/taos && cp ../../../../src/plugins/taosadapter/example/config/taosadapter.toml /etc/taos
-fi
-nohup taosadapter -c /etc/taos/taosadapter.toml > /dev/null 2>&1 &
+
+curDir=$(dirname $(readlink -f "$0"))
+taosdConfig=$curDir/../../../../packaging/cfg
+adapterConfig=$curDir/../../../../src/plugins/taosadapter/example/config/taosadapter.toml
+
+nohup taosd -c ${taosdConfig} > /dev/null 2>&1 &
+nohup taosadapter -c ${adapterConfig} > /dev/null 2>&1 &
 sleep 10
 
 cd ../../../../
