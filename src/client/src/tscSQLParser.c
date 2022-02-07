@@ -3422,7 +3422,7 @@ int32_t addExprAndResultField(SSqlCmd* pCmd, SQueryInfo* pQueryInfo, int32_t col
       }
 
       cJSON *binDesc = cJSON_Parse(pVariant->pz);
-      int64_t counter;
+      int32_t counter;
       int32_t numBins;
       int32_t numOutput;
       double *intervals;
@@ -3454,7 +3454,7 @@ int32_t addExprAndResultField(SSqlCmd* pCmd, SQueryInfo* pQueryInfo, int32_t col
           return invalidOperationMsg(tscGetErrorMsgPayload(pCmd), msg23);
         }
 
-        counter = count->valueint;
+        counter = (int32_t)count->valueint;
         if (infinity->valueint == false) {
           startIndex = 0;
           numBins = counter + 1;
