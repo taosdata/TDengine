@@ -268,7 +268,7 @@ public class RestfulResultSet extends AbstractResultSet implements ResultSet {
 
                 if (precision == TimestampPrecision.MS) {
                     // ms timestamp: yyyy-MM-dd HH:mm:ss.SSS
-                    return row.getTimestamp(colIndex);
+                    return (Timestamp) row.getTimestamp(colIndex);
                 }
                 if (precision == TimestampPrecision.US) {
                     // us timestamp: yyyy-MM-dd HH:mm:ss.SSSSSS
