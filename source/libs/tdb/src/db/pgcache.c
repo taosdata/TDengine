@@ -12,7 +12,6 @@
  * You should have received a copy of the GNU Affero General Public License
  * along with this program. If not, see <http://www.gnu.org/licenses/>.
  */
-
 #include "tdbInt.h"
 
 struct SPage {
@@ -37,12 +36,22 @@ struct SPgCache {
 };
 
 int pgCacheCreate(SPgCache **ppPgCache) {
-  // TODO
+  SPgCache *pPgCache;
+
+  pPgCache = (SPgCache *)calloc(1, sizeof(*pPgCache));
+  if (pPgCache == NULL) {
+    return -1;
+  }
+
+  *ppPgCache = pPgCache;
   return 0;
 }
 
 int pgCacheDestroy(SPgCache *pPgCache) {
-  // TODO
+  if (pPgCache) {
+    free(pPgCache);
+  }
+
   return 0;
 }
 
