@@ -273,12 +273,11 @@
 #define NEW_TK_SOFFSET                         64
 #define NEW_TK_LIMIT                           65
 #define NEW_TK_OFFSET                          66
-#define NEW_TK_NK_LR                           67
-#define NEW_TK_ASC                             68
-#define NEW_TK_DESC                            69
-#define NEW_TK_NULLS                           70
-#define NEW_TK_FIRST                           71
-#define NEW_TK_LAST                            72
+#define NEW_TK_ASC                             67
+#define NEW_TK_DESC                            68
+#define NEW_TK_NULLS                           69
+#define NEW_TK_FIRST                           70
+#define NEW_TK_LAST                            71
 
 #define TK_SPACE                          300
 #define TK_COMMENT                        301
