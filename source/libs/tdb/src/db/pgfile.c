@@ -17,12 +17,52 @@
 
 int pgFileOpen(const char *fname, SPgCache *pPgCache, SPgFile **ppPgFile) {
   SPgFile *pPgFile;
-  // TODO
+
+  *ppPgFile = NULL;
+
+  pPgFile = (SPgFile *)calloc(1, sizeof(*pPgFile));
+  if (pPgFile == NULL) {
+    return -1;
+  }
+
+  pPgFile->fd = -1;
+
+  pPgFile->fname = strdup(fname);
+  if (pPgFile->fname == NULL) {
+    pgFileClose(pPgFile);
+    return -1;
+  }
+
+  pPgFile->pPgCache = pPgCache;
+
+  pPgFile->fd = open(fname, O_RDWR, 0755);
+  if (pPgFile->fd < 0) {
+    pgFileClose(pPgFile);
+    return -1;
+  }
+
+  if (tdbGnrtFileID(fname, pPgFile->fileid) < 0) {
+    pgFileClose(pPgFile);
+    return -1;
+  }
+
+  // TODO: get file size
+  pPgFile->pgFileSize = 0;
+
+  *ppPgFile = pPgFile;
   return 0;
 }
 
 int pgFileClose(SPgFile *pPgFile) {
-  // TODO
+  if (pPgFile) {
+    if (pPgFile->fd >= 0) {
+      close(pPgFile->fd);
+    }
+
+    tfree(pPgFile->fname);
+    free(pPgFile);
+  }
+
   return 0;
 }
 
