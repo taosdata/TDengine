@@ -15,6 +15,8 @@
 
 #include "tdbInt.h"
 
+static int pgFileRead(SPgFile *pPgFile, pgno_t pgno, uint8_t *pData);
+
 int pgFileOpen(const char *fname, SPgCache *pPgCache, SPgFile **ppPgFile) {
   SPgFile *pPgFile;
 
@@ -80,6 +82,14 @@ SPage *pgFileFetch(SPgFile *pPgFile, pgno_t pgno) {
     // TODO
   } else {
     pPage = pgCacheFetch(pPgCache, pgid);
+    if (1 /*Page is cached, no need to load from file*/) {
+      return pPage;
+    } else {
+      if (pgFileRead(pPgFile, pgno, pPage->pData) < 0) {
+        // todoerr
+      }
+      return pPage;
+    }
   }
 
   return pPage;
@@ -91,6 +101,11 @@ int pgFileRelease(SPage *pPage) {
 }
 
 int pgFileWrite(SPage *pPage) {
+  // TODO
+  return 0;
+}
+
+static int pgFileRead(SPgFile *pPgFile, pgno_t pgno, uint8_t *pData) {
   // TODO
   return 0;
 }
