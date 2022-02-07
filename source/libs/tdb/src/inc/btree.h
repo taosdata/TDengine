@@ -16,8 +16,6 @@
 #ifndef _TD_BTREE_H_
 #define _TD_BTREE_H_
 
-#include "tdbInt.h"
-
 #ifdef __cplusplus
 extern "C" {
 #endif

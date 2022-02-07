@@ -54,6 +54,8 @@ typedef int32_t pgsize_t;
 #define tdbError(var)
 
 #include "pgcache.h"
+#include "pgfile.h"
+#include "btree.h"
 
 // tdb util
 int tdbGnrtFileID(const char *fname, uint8_t *fileid);

@@ -16,10 +16,6 @@
 #ifndef _TD_PAGE_FILE_H_
 #define _TD_PAGE_FILE_H_
 
-#include "tdbInt.h"
-
-#include "pgcache.h"
-
 #ifdef __cplusplus
 extern "C" {
 #endif
