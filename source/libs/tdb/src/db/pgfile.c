@@ -106,6 +106,29 @@ int pgFileWrite(SPage *pPage) {
 }
 
 static int pgFileRead(SPgFile *pPgFile, pgno_t pgno, uint8_t *pData) {
-  // TODO
+  pgsize_t pgSize;
+  ssize_t  rsize;
+  uint8_t *pTData;
+  size_t   szToRead;
+
+  // pgSize = ; (TODO)
+  pTData = pData;
+  szToRead = pgSize;
+  for (; szToRead > 0;) {
+    rsize = pread(pPgFile->fd, pTData, szToRead, pgno * pgSize);
+    if (rsize < 0) {
+      if (errno == EINTR) {
+        continue;
+      } else {
+        return -1;
+      }
+    } else if (rsize == 0) {
+      return -1;
+    }
+
+    szToRead -= rsize;
+    pTData += rsize;
+  }
+
   return 0;
 }
