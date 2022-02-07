@@ -28,82 +28,11 @@ extern void NewParseFree(void*, FFree);
 extern void NewParseTrace(FILE*, char*);
 
 static uint32_t toNewTokenId(uint32_t tokenId) {
-// #define                                1
-// #define NEW_TK_AND                              2
-// #define NEW_TK_UNION                            3
-// #define NEW_TK_ALL                              4
-// #define NEW_TK_MINUS                            5
-// #define NEW_TK_EXCEPT                           6
-// #define NEW_TK_INTERSECT                        7
-// #define NEW_TK_NK_PLUS                          8
-// #define NEW_TK_NK_MINUS                         9
-// #define NEW_TK_NK_STAR                         10
-// #define NEW_TK_NK_SLASH                        11
-// #define NEW_TK_NK_REM                          12
-// #define NEW_TK_SHOW                            13
-// #define NEW_TK_DATABASES                       14
-// #define NEW_TK_NK_INTEGER                      15
-// #define NEW_TK_NK_FLOAT                        16
-// #define NEW_TK_NK_STRING                       17
-// #define NEW_TK_NK_BOOL                         18
-// #define NEW_TK_TIMESTAMP                       19
-// #define NEW_TK_NK_VARIABLE                     20
-// #define NEW_TK_NK_COMMA                        21
-// #define NEW_TK_NK_ID                           22
-// #define NEW_TK_NK_LP                           23
-// #define NEW_TK_NK_RP                           24
-// #define NEW_TK_NK_DOT                          25
-// #define NEW_TK_BETWEEN                         26
-// #define NEW_TK_NOT                             27
-// #define NEW_TK_IS                              28
-// #define NEW_TK_NULL                            29
-// #define NEW_TK_NK_LT                           30
-// #define NEW_TK_NK_GT                           31
-// #define NEW_TK_NK_LE                           32
-// #define NEW_TK_NK_GE                           33
-// #define NEW_TK_NK_NE                           34
-// #define                            35
-// #define NEW_TK_LIKE                            36
-// #define NEW_TK_MATCH                           37
-// #define NEW_TK_NMATCH                          38
-// #define NEW_TK_IN                              39
-// #define NEW_TK_FROM                            40
-// #define NEW_TK_AS                              41
-// #define NEW_TK_JOIN                            42
-// #define NEW_TK_ON                              43
-// #define NEW_TK_INNER                           44
-// #define NEW_TK_SELECT                          45
-// #define NEW_TK_DISTINCT                        46
-// #define                            47
-// #define NEW_TK_PARTITION                       48
-// #define NEW_TK_BY                              49
-// #define NEW_TK_SESSION                         50
-// #define NEW_TK_STATE_WINDOW                    51
-// #define NEW_TK_INTERVAL                        52
-// #define NEW_TK_SLIDING                         53
-// #define NEW_TK_FILL                            54
-// #define NEW_TK_VALUE                           55
-// #define NEW_TK_NONE                            56
-// #define NEW_TK_PREV                            57
-// #define NEW_TK_LINEAR                          58
-// #define NEW_TK_NEXT                            59
-// #define NEW_TK_GROUP                           60
-// #define NEW_TK_HAVING                          61
-// #define NEW_TK_ORDER                           62
-// #define NEW_TK_SLIMIT                          63
-// #define NEW_TK_SOFFSET                         64
-// #define NEW_TK_LIMIT                           65
-// #define NEW_TK_OFFSET                          66
-// #define NEW_TK_NK_LR                           67
-// #define NEW_TK_ASC                             68
-// #define NEW_TK_DESC                            69
-// #define NEW_TK_NULLS                           70
-// #define NEW_TK_FIRST                           71
-// #define NEW_TK_LAST                            72
-
   switch (tokenId) {
     case TK_OR:
       return NEW_TK_OR;
+    case TK_AND:
+      return NEW_TK_AND;
     case TK_UNION:
       return NEW_TK_UNION;
     case TK_ALL:
@@ -116,22 +45,62 @@ static uint32_t toNewTokenId(uint32_t tokenId) {
       return NEW_TK_NK_STAR;
     case TK_SLASH:
       return NEW_TK_NK_SLASH;
+    case TK_REM:
+      return NEW_TK_NK_REM;
     case TK_SHOW:
       return NEW_TK_SHOW;
     case TK_DATABASES:
       return NEW_TK_DATABASES;
+    case TK_INTEGER:
+      return NEW_TK_NK_INTEGER;
+    case TK_FLOAT:
+      return NEW_TK_NK_FLOAT;
+    case TK_STRING:
+      return NEW_TK_NK_STRING;
+    case TK_BOOL:
+      return NEW_TK_NK_BOOL;
+    case TK_TIMESTAMP:
+      return NEW_TK_TIMESTAMP;
+    case TK_VARIABLE:
+      return NEW_TK_NK_VARIABLE;
+    case TK_COMMA:
+      return NEW_TK_NK_COMMA;
     case TK_ID:
       return NEW_TK_NK_ID;
     case TK_LP:
       return NEW_TK_NK_LP;
     case TK_RP:
       return NEW_TK_NK_RP;
-    case TK_COMMA:
-      return NEW_TK_NK_COMMA;
     case TK_DOT:
       return NEW_TK_NK_DOT;
+    case TK_BETWEEN:
+      return NEW_TK_BETWEEN;
+    case TK_NOT:
+      return NEW_TK_NOT;
+    case TK_IS:
+      return NEW_TK_IS;
+    case TK_NULL:
+      return NEW_TK_NULL;
+    case TK_LT:
+      return NEW_TK_NK_LT;
+    case TK_GT:
+      return NEW_TK_NK_GT;
+    case TK_LE:
+      return NEW_TK_NK_LE;
+    case TK_GE:
+      return NEW_TK_NK_GE;
+    case TK_NE:
+      return NEW_TK_NK_NE;
     case TK_EQ:
       return NEW_TK_NK_EQ;
+    case TK_LIKE:
+      return NEW_TK_LIKE;
+    case TK_MATCH:
+      return NEW_TK_MATCH;
+    case TK_NMATCH:
+      return NEW_TK_NMATCH;
+    case TK_IN:
+      return NEW_TK_IN;
     case TK_SELECT:
       return NEW_TK_SELECT;
     case TK_DISTINCT:
@@ -142,6 +111,38 @@ static uint32_t toNewTokenId(uint32_t tokenId) {
       return NEW_TK_AS;
     case TK_FROM:
       return NEW_TK_FROM;
+    case TK_JOIN:
+      return NEW_TK_JOIN;
+    // case TK_ON:
+    //   return NEW_TK_ON;
+    // case TK_INNER:
+    //   return NEW_TK_INNER;
+    // case TK_PARTITION:
+    //   return NEW_TK_PARTITION;
+    case TK_SESSION:
+      return NEW_TK_SESSION;
+    case TK_STATE_WINDOW:
+      return NEW_TK_STATE_WINDOW;
+    case TK_INTERVAL:
+      return NEW_TK_INTERVAL;
+    case TK_SLIDING:
+      return NEW_TK_SLIDING;
+    case TK_FILL:
+      return NEW_TK_FILL;
+    // case TK_VALUE:
+    //   return NEW_TK_VALUE;
+    case TK_NONE:
+      return NEW_TK_NONE;
+    case TK_PREV:
+      return NEW_TK_PREV;
+    case TK_LINEAR:
+      return NEW_TK_LINEAR;
+    // case TK_NEXT:
+    //   return NEW_TK_NEXT;
+    case TK_GROUP:
+      return NEW_TK_GROUP;
+    case TK_HAVING:
+      return NEW_TK_HAVING;
     case TK_ORDER:
       return NEW_TK_ORDER;
     case TK_BY:
@@ -150,6 +151,14 @@ static uint32_t toNewTokenId(uint32_t tokenId) {
       return NEW_TK_ASC;
     case TK_DESC:
       return NEW_TK_DESC;
+    case TK_SLIMIT:
+      return NEW_TK_SLIMIT;
+    case TK_SOFFSET:
+      return NEW_TK_SOFFSET;
+    case TK_LIMIT:
+      return NEW_TK_LIMIT;
+    case TK_OFFSET:
+      return NEW_TK_OFFSET;
     case TK_SPACE:
       break;
     default:
@@ -224,14 +233,6 @@ abort_parse:
   return cxt.valid ? TSDB_CODE_SUCCESS : TSDB_CODE_FAILED;
 }
 
-// typedef struct SNamespace {
-//   int16_t level; // todo for correlated subquery
-//   char dbName[TSDB_DB_NAME_LEN];
-//   char tableAlias[TSDB_TABLE_NAME_LEN];
-//   SHashObj* pColHash; // key is colname, value is index of STableMeta.schema
-//   STableMeta* pMeta;
-// } SNamespace;
-
 typedef enum ESqlClause {
   SQL_CLAUSE_FROM = 1,
   SQL_CLAUSE_WHERE
@@ -256,6 +257,8 @@ static char* getSyntaxErrFormat(int32_t errCode) {
       return "Table does not exist : %s";
     case TSDB_CODE_PARSER_AMBIGUOUS_COLUMN:
       return "Column ambiguously defined : %s";
+    case TSDB_CODE_PARSER_WRONG_VALUE_TYPE:
+      return "Invalid value type : %s";
     default:
       return "Unknown error";
   }
@@ -322,7 +325,8 @@ static void setColumnInfoBySchema(const STableNode* pTable, const SSchema* pColS
     strcpy(pCol->node.aliasName, pColSchema->name);
   }
   pCol->colId = pColSchema->colId;
-  pCol->colType = pColSchema->type;
+  // pCol->colType = pColSchema->type;
+  pCol->node.resType.type = pColSchema->type;
   pCol->node.resType.bytes = pColSchema->bytes;
 }
 
@@ -431,6 +435,30 @@ static bool translateValue(STranslateContext* pCxt, SValueNode* pVal) {
 }
 
 static bool translateOperator(STranslateContext* pCxt, SOperatorNode* pOp) {
+  SDataType ldt = ((SExprNode*)(pOp->pLeft))->resType;
+  SDataType rdt = ((SExprNode*)(pOp->pRight))->resType;
+  if (nodesIsArithmeticOp(pOp)) {
+    if (TSDB_DATA_TYPE_JSON == ldt.type || TSDB_DATA_TYPE_BLOB == ldt.type ||
+        TSDB_DATA_TYPE_JSON == rdt.type || TSDB_DATA_TYPE_BLOB == rdt.type) {
+      generateSyntaxErrMsg(pCxt, TSDB_CODE_PARSER_WRONG_VALUE_TYPE, ((SExprNode*)(pOp->pRight))->aliasName);
+      return false;
+    }
+    pOp->node.resType.type = TSDB_DATA_TYPE_DOUBLE;
+    pOp->node.resType.bytes = tDataTypes[TSDB_DATA_TYPE_DOUBLE].bytes;
+    return true;
+  } else if (nodesIsComparisonOp(pOp)) {
+    if (TSDB_DATA_TYPE_JSON == ldt.type || TSDB_DATA_TYPE_BLOB == ldt.type ||
+        TSDB_DATA_TYPE_JSON == rdt.type || TSDB_DATA_TYPE_BLOB == rdt.type) {
+      generateSyntaxErrMsg(pCxt, TSDB_CODE_PARSER_WRONG_VALUE_TYPE, ((SExprNode*)(pOp->pRight))->aliasName);
+      return false;
+    }
+    pOp->node.resType.type = TSDB_DATA_TYPE_BOOL;
+    pOp->node.resType.bytes = tDataTypes[TSDB_DATA_TYPE_BOOL].bytes;
+    return true;
+  } else {
+    // todo json operator
+    return true;
+  }
   return true;
 }
 

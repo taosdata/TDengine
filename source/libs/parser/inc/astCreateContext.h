@@ -28,7 +28,6 @@ typedef struct SAstCreateContext {
   bool notSupport;
   bool valid;
   SNode* pRootNode;
-  SHashObj* pResourceHash;
 } SAstCreateContext;
 
 int32_t createAstCreateContext(SParseContext* pQueryCxt, SAstCreateContext* pCxt);

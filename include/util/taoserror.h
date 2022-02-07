@@ -444,6 +444,7 @@ int32_t* taosGetErrno();
 #define TSDB_CODE_PARSER_INVALID_COLUMN         TAOS_DEF_ERROR_CODE(0, 0x2601)  //invalid column name
 #define TSDB_CODE_PARSER_TABLE_NOT_EXIST        TAOS_DEF_ERROR_CODE(0, 0x2602)  //table not exist
 #define TSDB_CODE_PARSER_AMBIGUOUS_COLUMN       TAOS_DEF_ERROR_CODE(0, 0x2603)  //ambiguous column
+#define TSDB_CODE_PARSER_WRONG_VALUE_TYPE       TAOS_DEF_ERROR_CODE(0, 0x2604)  //wrong value type
 
 #ifdef __cplusplus
 }
