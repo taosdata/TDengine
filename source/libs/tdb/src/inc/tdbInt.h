@@ -20,6 +20,8 @@
 #include "tlist.h"
 #include "tlockfree.h"
 
+#include "tdb.h"
+
 #ifdef __cplusplus
 extern "C" {
 #endif
@@ -50,6 +52,8 @@ typedef int32_t pgsize_t;
 
 // tdb_log
 #define tdbError(var)
+
+#include "pgcache.h"
 
 // tdb util
 int tdbGnrtFileID(const char *fname, uint8_t *fileid);
