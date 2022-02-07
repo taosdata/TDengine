@@ -50,6 +50,9 @@ typedef int32_t pgsize_t;
 #define TDB_DEFAULT_PGSIZE 4096
 #define TDB_IS_PGSIZE_VLD(s) (((s) >= TDB_MIN_PGSIZE) && ((s) <= TDB_MAX_PGSIZE))
 
+// cache
+#define TDB_DEFAULT_CACHE_SIZE (256 * 1024) // 256K
+
 // tdb_log
 #define tdbError(var)
 
