@@ -1,17 +1,19 @@
 #!/bin/bash
 
-function stopTaosd {
-  echo "Stop taosd"
-  sudo systemctl stop taosd || echo 'no sudo or systemctl or stop fail'
-  PID=`ps -ef|grep -w taosd | grep -v grep | awk '{print $2}'`
+function stopProcess {
+  echo "Stop $1"
+  sudo systemctl stop $1 || echo 'no sudo or systemctl or stop fail'
+  PID=`ps -ef|grep -w $1 | grep -v grep | awk '{print $2}'`
   while [ -n "$PID" ]
   do
-    pkill -TERM -x taosd
+    pkill -TERM -x $1
     sleep 1
-    PID=`ps -ef|grep -w taosd | grep -v grep | awk '{print $2}'`
+    PID=`ps -ef|grep -w $1 | grep -v grep | awk '{print $2}'`
   done
 }
-stopTaosd
+
+stopProcess taosadapter
+stopProcess taosd
 rm -rf /var/lib/taos/*
 rm -rf /var/log/taos/*
 
