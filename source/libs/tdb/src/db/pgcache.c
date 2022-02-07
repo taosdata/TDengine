@@ -20,6 +20,7 @@ struct SPage {
   frame_id_t  frameid;   // frame id
   SPgListNode freeNode;  // for SPgCache.freeList
   SPgListNode pghtNode;  // for pght
+  SPgListNode lruNode;   // for LRU
   uint8_t *   pData;     // real data
 };
 
@@ -31,6 +32,7 @@ struct SPgCache {
   int32_t  npage;
   SPage *  pages;
   SPgList  freeList;
+  SPgList  lru;
   struct {
     int32_t  nbucket;
     SPgList *buckets;
@@ -38,6 +40,7 @@ struct SPgCache {
 };
 
 static void pgCachePinPage(SPage *pPage);
+static void pgCacheUnpinPage(SPage *pPage);
 
 int pgCacheCreate(SPgCache **ppPgCache, pgsize_t pgSize, int32_t npage) {
   SPgCache *pPgCache;
@@ -144,12 +147,29 @@ SPage *pgCacheFetch(SPgCache *pPgCache, pgid_t pgid) {
   }
 
   if (pPage) {
-    // Page is found, pin the page (TODO) and return the page
+    // Page is found, pin the page and return the page
     pgCachePinPage(pPage);
     return pPage;
   }
 
-  // TODO
+  // 2. Check the free list
+  pPage = TD_DLIST_HEAD(&(pPgCache->freeList));
+  if (pPage) {
+    TD_DLIST_POP_WITH_FIELD(&(pPgCache->freeList), pPage, freeNode);
+    pgCachePinPage(pPage);
+    return pPage;
+  }
+
+  // 3. Try to recycle a page from the LRU list
+  pPage = TD_DLIST_HEAD(&(pPgCache->lru));
+  if (pPage) {
+    TD_DLIST_POP_WITH_FIELD(&(pPgCache->lru), pPage, lruNode);
+    // TODO: remove from the hash table
+    pgCachePinPage(pPage);
+    return pPage;
+  }
+
+  // 4. If a memory allocator is set, try to allocate from the allocator (TODO)
 
   return NULL;
 }
