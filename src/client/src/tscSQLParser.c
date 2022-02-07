@@ -2681,7 +2681,7 @@ int32_t addExprAndResultField(SSqlCmd* pCmd, SQueryInfo* pQueryInfo, int32_t col
   const char* msg22 = "invalid parameters for bin_desciption";
   const char* msg23 = "parameter/bin out of range [-DBL_MAX, DBL_MAX]";
   const char* msg24 = "width param cannot be 0";
-  const char* msg25 = "count param should be greater than 0";
+  const char* msg25 = "count param should be in range [1, 1000]";
   const char* msg26 = "start param cannot be 0 with 'log_bin'";
   const char* msg27 = "factor param cannot be negative or equal to 0/1";
   const char* msg28 = "the second paramter of diff should be 0 or 1";
@@ -3443,7 +3443,7 @@ int32_t addExprAndResultField(SSqlCmd* pCmd, SQueryInfo* pQueryInfo, int32_t col
           return invalidOperationMsg(tscGetErrorMsgPayload(pCmd), msg22);
         }
 
-        if (count->valueint <= 0) {
+        if (count->valueint <= 0 || count->valueint > 1000) {
           return invalidOperationMsg(tscGetErrorMsgPayload(pCmd), msg25);
         }
 

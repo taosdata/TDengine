@@ -392,8 +392,8 @@ int32_t getResultDataInfo(int32_t dataType, int32_t dataBytes, int32_t functionI
       return TSDB_CODE_SUCCESS;
     } else if (functionId == TSDB_FUNC_HISTOGRAM) {
       *type = TSDB_DATA_TYPE_BINARY;
-      *bytes = (sizeof(SHistogramFuncInfo) + param * sizeof(SHistogramFuncBin));
-      *interBytes = *bytes;
+      *bytes = 512;
+      *interBytes = (sizeof(SHistogramFuncInfo) + param * sizeof(SHistogramFuncBin));
       return TSDB_CODE_SUCCESS;
     }
   }
@@ -501,8 +501,8 @@ int32_t getResultDataInfo(int32_t dataType, int32_t dataBytes, int32_t functionI
     *interBytes = sizeof(SElapsedInfo);
   } else if (functionId == TSDB_FUNC_HISTOGRAM) {
     *type = TSDB_DATA_TYPE_BINARY;
-    *bytes = 1024;
-    *interBytes = *bytes;
+    *bytes = 512;
+    *interBytes = (sizeof(SHistogramFuncInfo) + param * sizeof(SHistogramFuncBin));
   } else {
     return TSDB_CODE_TSC_INVALID_OPERATION;
   }
