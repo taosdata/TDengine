@@ -185,7 +185,6 @@ void ctgTestBuildDBVgroup(SDBVgroupInfo **pdbVgroup) {
   ctgTestCurrentVgVersion = dbVgroup->vgVersion;
 
   dbVgroup->hashMethod = 0;
-  dbVgroup->dbId = ctgTestDbId;
   dbVgroup->vgHash = taosHashInit(ctgTestVgNum, taosGetDefaultHashFunction(TSDB_DATA_TYPE_INT), true, HASH_ENTRY_LOCK);
 
   vgNum = ctgTestGetVgNumFromVgVersion(dbVgroup->vgVersion);
@@ -600,7 +599,7 @@ void *ctgTestSetDbVgroupThread(void *param) {
 
   while (!ctgTestStop) {
     ctgTestBuildDBVgroup(&dbVgroup);
-    code = catalogUpdateDBVgroup(pCtg, ctgTestDbname, dbVgroup);
+    code = catalogUpdateDBVgroup(pCtg, ctgTestDbname, ctgTestDbId, dbVgroup);
     if (code) {
       assert(0);
     }
@@ -1109,7 +1108,7 @@ TEST(dbVgroup, getSetDbVgroupCase) {
   taosArrayDestroy(vgList);
 
   ctgTestBuildDBVgroup(&dbVgroup);
-  code = catalogUpdateDBVgroup(pCtg, ctgTestDbname, dbVgroup);
+  code = catalogUpdateDBVgroup(pCtg, ctgTestDbname, ctgTestDbId, dbVgroup);
   ASSERT_EQ(code, 0);
 
   code = catalogGetTableHashVgroup(pCtg, mockPointer, (const SEpSet *)mockPointer, &n, &vgInfo);

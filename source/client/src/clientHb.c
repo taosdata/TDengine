@@ -44,7 +44,6 @@ static int32_t hbProcessDBInfoRsp(void *value, int32_t valueLen, struct SCatalog
       code = catalogRemoveDB(pCatalog, rsp->db, rsp->uid);
     } else {
       SDBVgroupInfo vgInfo = {0};
-      vgInfo.dbId = rsp->uid;
       vgInfo.vgVersion = rsp->vgVersion;
       vgInfo.hashMethod = rsp->hashMethod;
       vgInfo.vgHash = taosHashInit(rsp->vgNum, taosGetDefaultHashFunction(TSDB_DATA_TYPE_INT), true, HASH_ENTRY_LOCK);
@@ -69,7 +68,7 @@ static int32_t hbProcessDBInfoRsp(void *value, int32_t valueLen, struct SCatalog
         }
       }  
       
-      code = catalogUpdateDBVgroup(pCatalog, rsp->db, &vgInfo);
+      code = catalogUpdateDBVgroup(pCatalog, rsp->db, rsp->uid, &vgInfo);
       if (code) {
         taosHashCleanup(vgInfo.vgHash);
       }

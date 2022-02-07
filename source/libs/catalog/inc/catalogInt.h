@@ -48,18 +48,22 @@ enum {
 };
 
 typedef struct SCtgDebug {
-  int32_t lockDebug;
+  bool     lockDebug;
+  bool     cacheDebug;
+  uint32_t showCachePeriodSec;
 } SCtgDebug;
 
 
 typedef struct SCtgTbMetaCache {
   SRWLatch  stbLock;
-  SHashObj *cache;           //key:tbname, value:STableMeta
+  SRWLatch  metaLock;        // RC between cache destroy and all other operations
+  SHashObj *metaCache;       //key:tbname, value:STableMeta
   SHashObj *stbCache;        //key:suid, value:STableMeta*
 } SCtgTbMetaCache;
 
 typedef struct SCtgDBCache {
   SRWLatch         vgLock;
+  uint64_t         dbId;
   int8_t           deleted;
   SDBVgroupInfo   *vgInfo;  
   SCtgTbMetaCache  tbCache;
@@ -136,7 +140,8 @@ typedef uint32_t (*tableNameHashFp)(const char *, uint32_t);
 #define CTG_RET(c) do { int32_t _code = c; if (_code != TSDB_CODE_SUCCESS) { terrno = _code; } return _code; } while (0)
 #define CTG_ERR_JRET(c) do { code = c; if (code != TSDB_CODE_SUCCESS) { terrno = code; goto _return; } } while (0)
 
-#define CTG_LOCK_DEBUG(...) do { if (gCTGDebug.lockDebug) { qDebug(__VA_ARGS__); } } while (0)
+#define CTG_LOCK_DEBUG(...) do { if (gCTGDebug.lockDebug) { ctgDebug(__VA_ARGS__); } } while (0)
+#define CTG_CACHE_DEBUG(...) do { if (gCTGDebug.cacheDebug) { ctgDebug(__VA_ARGS__); } } while (0)
 
 #define TD_RWLATCH_WRITE_FLAG_COPY 0x40000000
 
@@ -171,6 +176,8 @@ typedef uint32_t (*tableNameHashFp)(const char *, uint32_t);
     assert(atomic_load_32((_lock)) >= 0);  \
   }                                                       \
 } while (0)
+
+
 
 
 #ifdef __cplusplus

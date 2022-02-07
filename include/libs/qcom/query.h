@@ -89,6 +89,7 @@ typedef struct SDBVgroupInfo {
 
 typedef struct SUseDbOutput {
   char           db[TSDB_DB_FNAME_LEN];
+  uint64_t       dbId;
   SDBVgroupInfo *dbVgroup;
 } SUseDbOutput;
 

@@ -119,9 +119,9 @@ int32_t queryProcessUseDBRsp(void* output, char *msg, int32_t msgSize) {
     return TSDB_CODE_TSC_OUT_OF_MEMORY;
   }
 
+  pOut->dbId = pRsp->uid;
   pOut->dbVgroup->vgVersion = pRsp->vgVersion;
   pOut->dbVgroup->hashMethod = pRsp->hashMethod;
-  pOut->dbVgroup->dbId = pRsp->uid;
   pOut->dbVgroup->vgHash = taosHashInit(pRsp->vgNum, taosGetDefaultHashFunction(TSDB_DATA_TYPE_INT), true, HASH_ENTRY_LOCK);
   if (NULL == pOut->dbVgroup->vgHash) {
     qError("taosHashInit %d failed", pRsp->vgNum);
