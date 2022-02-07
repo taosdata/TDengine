@@ -630,14 +630,6 @@ void operateVal(void *dst, void *s1, void *s2, int32_t optr, int32_t type) {
   }
 }
 
-#define TSWAP(a, b, c)        \
-    do {                     \
-      typeof(a) __tmp = (a); \
-      (a) = (b);             \
-      (b) = __tmp;           \
-    } while (0)
-
-
 void tsDataSwap(void *pLeft, void *pRight, int32_t type, int32_t size, void* buf) {
   switch (type) {
     case TSDB_DATA_TYPE_INT:

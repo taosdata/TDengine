@@ -49,17 +49,19 @@ typedef struct SCatalogCfg {
   uint32_t maxTblCacheNum;
   uint32_t maxDBCacheNum;
   uint32_t dbRentSec;
-  uint32_t stableRentSec;
+  uint32_t stbRentSec;
 } SCatalogCfg;
 
 typedef struct SSTableMetaVersion {
+  char     dbFName[TSDB_DB_FNAME_LEN];
+  char     stbName[TSDB_TABLE_NAME_LEN];
   uint64_t suid;
   int16_t  sversion;
   int16_t  tversion;  
 } SSTableMetaVersion;
 
 typedef struct SDbVgVersion {
-  char    dbName[TSDB_DB_FNAME_LEN];
+  char    dbFName[TSDB_DB_FNAME_LEN];
   int64_t dbId;
   int32_t vgVersion;
 } SDbVgVersion;
@@ -99,7 +101,9 @@ int32_t catalogGetDBVgroup(struct SCatalog* pCatalog, void *pTransporter, const 
 
 int32_t catalogUpdateDBVgroup(struct SCatalog* pCatalog, const char* dbName, SDBVgroupInfo* dbInfo);
 
-int32_t catalogRemoveDBVgroup(struct SCatalog* pCatalog, SDbVgVersion* dbInfo);
+int32_t catalogRemoveDB(struct SCatalog* pCatalog, const char* dbName, uint64_t dbId);
+
+int32_t catalogRemoveSTableMeta(struct SCatalog* pCatalog, const char* dbName, const char* stbName, uint64_t suid);
 
 /**
  * Get a table's meta data. 

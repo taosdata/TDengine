@@ -213,7 +213,7 @@ typedef struct tmq_message_t tmq_message_t;
 typedef void(tmq_commit_cb(tmq_t *, tmq_resp_err_t, tmq_topic_vgroup_list_t *, void *param));
 
 DLL_EXPORT tmq_list_t *tmq_list_new();
-DLL_EXPORT int32_t     tmq_list_append(tmq_list_t *, char *);
+DLL_EXPORT int32_t     tmq_list_append(tmq_list_t *, const char *);
 
 DLL_EXPORT TAOS_RES *tmq_create_topic(TAOS *taos, const char *name, const char *sql, int sqlLen);
 DLL_EXPORT tmq_t    *tmq_consumer_new(void *conn, tmq_conf_t *conf, char *errstr, int32_t errstrLen);

@@ -16,6 +16,7 @@
 #include <stdio.h>
 #include <string.h>
 #include <assert.h>
+#include <time.h>
 #include "taos.h"
 
 static int running = 1;
@@ -65,7 +66,7 @@ int32_t init_env() {
   taos_free_result(pRes);
 
 
-  char* sql = "select * from st1";
+  const char* sql = "select * from st1";
   pRes = tmq_create_topic(pConn, "test_stb_topic_1", sql, strlen(sql));
   /*if (taos_errno(pRes) != 0) {*/
     /*printf("failed to create topic test_stb_topic_1, reason:%s\n", taos_errstr(pRes));*/
@@ -112,14 +113,20 @@ void basic_consume_loop(tmq_t *tmq,
     printf("subscribe err\n");
     return;
   }
-
+  int32_t cnt = 0;
+  clock_t startTime = clock();
   while (running) {
-    tmq_message_t *tmqmessage = tmq_consumer_poll(tmq, 500);
-    if (tmq) {
-      msg_process(tmqmessage);
+    tmq_message_t *tmqmessage = tmq_consumer_poll(tmq, 0);
+    if (tmqmessage) {
+      cnt++;
+      /*msg_process(tmqmessage);*/
       tmq_message_destroy(tmqmessage);
+    } else {
+      break;
     }
   }
+  clock_t endTime = clock();
+  printf("log cnt: %d %f s\n", cnt, (double)(endTime - startTime) / CLOCKS_PER_SEC);
 
   err = tmq_consumer_close(tmq);
   if (err)
@@ -163,6 +170,6 @@ int main() {
   code = init_env();
   tmq_t* tmq = build_consumer();
   tmq_list_t* topic_list = build_topic_list();
-  /*basic_consume_loop(tmq, topic_list);*/
-  sync_consume_loop(tmq, topic_list);
+  basic_consume_loop(tmq, topic_list);
+  /*sync_consume_loop(tmq, topic_list);*/
 }

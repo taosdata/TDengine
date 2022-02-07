@@ -18,6 +18,7 @@
 #include "mndProfile.h"
 //#include "mndConsumer.h"
 #include "mndDb.h"
+#include "mndStb.h"
 #include "mndMnode.h"
 #include "mndShow.h"
 //#include "mndTopic.h"
@@ -376,9 +377,16 @@ static int32_t mndProcessHeartBeatReq(SMnodeMsg *pReq) {
             }
             break;
           }
-          case HEARTBEAT_KEY_STBINFO:
-
+          case HEARTBEAT_KEY_STBINFO: {
+            void *rspMsg = NULL;
+            int32_t rspLen = 0;
+            mndValidateStbInfo(pMnode, (SSTableMetaVersion *)kv->value, kv->valueLen/sizeof(SSTableMetaVersion), &rspMsg, &rspLen);
+            if (rspMsg && rspLen > 0) {
+              SKv kv = {.key = HEARTBEAT_KEY_STBINFO, .valueLen = rspLen, .value = rspMsg};
+              taosArrayPush(hbRsp.info, &kv);
+            }
             break;
+          }
           default:
             mError("invalid kv key:%d", kv->key);
             hbRsp.status = TSDB_CODE_MND_APP_ERROR;
@@ -623,7 +631,7 @@ static int32_t mndGetConnsMeta(SMnodeMsg *pReq, SShowObj *pShow, STableMetaRsp *
 
   pShow->numOfRows = taosHashGetSize(pMgmt->cache->pHashTable);
   pShow->rowSize = pShow->offset[cols - 1] + pShow->bytes[cols - 1];
-  strcpy(pMeta->tbFname, mndShowStr(pShow->type));
+  strcpy(pMeta->tbName, mndShowStr(pShow->type));
 
   return 0;
 }
@@ -792,7 +800,7 @@ static int32_t mndGetQueryMeta(SMnodeMsg *pReq, SShowObj *pShow, STableMetaRsp *
 
   pShow->numOfRows = 1000000;
   pShow->rowSize = pShow->offset[cols - 1] + pShow->bytes[cols - 1];
-  strcpy(pMeta->tbFname, mndShowStr(pShow->type));
+  strcpy(pMeta->tbName, mndShowStr(pShow->type));
 
   return 0;
 }

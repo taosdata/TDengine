@@ -338,7 +338,7 @@ static int32_t mndProcessTopicMetaMsg(SMnodeMsg *pMsg) {
   SMnode        *pMnode = pMsg->pMnode;
   STableInfoReq *pInfo = pMsg->rpcMsg.pCont;
 
-  mDebug("topic:%s, start to retrieve meta", pInfo->tableFname);
+  mDebug("topic:%s, start to retrieve meta", pInfo->tbName);
 
 #if 0
   SDbObj *pDb = mndAcquireDbByTopic(pMnode, pInfo->tableFname);
@@ -469,7 +469,7 @@ static int32_t mndGetTopicMeta(SMnodeMsg *pMsg, SShowObj *pShow, STableMetaRsp *
 
   pShow->numOfRows = sdbGetSize(pSdb, SDB_TOPIC);
   pShow->rowSize = pShow->offset[cols - 1] + pShow->bytes[cols - 1];
-  strcpy(pMeta->tbFname, mndShowStr(pShow->type));
+  strcpy(pMeta->tbName, mndShowStr(pShow->type));
 
   return 0;
 }

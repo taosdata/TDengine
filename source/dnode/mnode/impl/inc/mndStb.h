@@ -28,6 +28,9 @@ void    mndCleanupStb(SMnode *pMnode);
 SStbObj *mndAcquireStb(SMnode *pMnode, char *stbName);
 void mndReleaseStb(SMnode *pMnode, SStbObj *pStb);
 
+int32_t mndValidateStbInfo(SMnode *pMnode, SSTableMetaVersion *stbs, int32_t num, void **rsp, int32_t *rspLen);
+
+
 #ifdef __cplusplus
 }
 #endif

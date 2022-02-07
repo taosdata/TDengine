@@ -773,14 +773,14 @@ int32_t schProcessOnTaskSuccess(SSchJob *pJob, SSchTask *pTask) {
     SSchTask *par = *(SSchTask **)taosArrayGet(pTask->parents, i);
     pErrTask = par;
     
-    atomic_add_fetch_32(&par->childReady, 1);
+    int32_t readyNum = atomic_add_fetch_32(&par->childReady, 1);
 
     SCH_LOCK(SCH_WRITE, &par->lock);
     SDownstreamSource source = {.taskId = pTask->taskId, .schedId = schMgmt.sId, .addr = pTask->succeedAddr};
     qSetSubplanExecutionNode(par->plan, pTask->plan->id.templateId, &source);
     SCH_UNLOCK(SCH_WRITE, &par->lock);
     
-    if (SCH_TASK_READY_TO_LUNCH(par)) {
+    if (SCH_TASK_READY_TO_LUNCH(readyNum, par)) {
       SCH_ERR_RET(schLaunchTask(pJob, par));
     }
   }

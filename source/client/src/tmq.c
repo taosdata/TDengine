@@ -13,6 +13,8 @@
  * along with this program. If not, see <http://www.gnu.org/licenses/>.
  */
 
+#define _DEFAULT_SOURCE
+
 #include "clientInt.h"
 #include "clientLog.h"
 #include "parser.h"
@@ -146,7 +148,7 @@ tmq_list_t* tmq_list_new() {
   return ptr;
 }
 
-int32_t tmq_list_append(tmq_list_t* ptr, char* src) {
+int32_t tmq_list_append(tmq_list_t* ptr, const char* src) {
   if (ptr->cnt >= ptr->tot - 1) return -1;
   ptr->elems[ptr->cnt] = strdup(src);
   ptr->cnt++;
@@ -366,7 +368,7 @@ TAOS_RES* tmq_create_topic(TAOS* taos, const char* topicName, const char* sql, i
       .igExists = 1,
       .physicalPlan = (char*)pStr,
       .sql = (char*)sql,
-      .logicalPlan = "no logic plan",
+      .logicalPlan = (char*)"no logic plan",
   };
 
   int   tlen = tSerializeSCMCreateTopicReq(NULL, &req);
@@ -512,7 +514,7 @@ int32_t tmqPollCb(void* param, const SDataBuf* pMsg, int32_t code) {
     return -1;
   }
   tDecodeSMqConsumeRsp(pMsg->pData, pRsp);
-  /*printf("rsp %ld %ld\n", pRsp->committedOffset, pRsp->rspOffset);*/
+  /*printf("rsp %ld %ld %d\n", pRsp->committedOffset, pRsp->rspOffset, pRsp->numOfTopics);*/
   if (pRsp->numOfTopics == 0) {
     /*printf("no data\n");*/
     free(pRsp);

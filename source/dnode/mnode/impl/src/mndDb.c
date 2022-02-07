@@ -907,9 +907,9 @@ int32_t mndValidateDBInfo(SMnode *pMnode, SDbVgVersion *dbs, int32_t num, void *
 
     len = 0;
     
-    SDbObj *pDb = mndAcquireDb(pMnode, db->dbName);
+    SDbObj *pDb = mndAcquireDb(pMnode, db->dbFName);
     if (pDb == NULL) {
-      mInfo("db %s not exist", db->dbName);
+      mInfo("db %s not exist", db->dbFName);
       
       len = sizeof(SUseDbRsp);
     } else if (pDb->uid != db->dbId || db->vgVersion < pDb->vgVersion) {
@@ -929,7 +929,7 @@ int32_t mndValidateDBInfo(SMnode *pMnode, SDbVgVersion *dbs, int32_t num, void *
     }
     
     pRsp = (SUseDbRsp *)((char *)buf + bufOffset);
-    memcpy(pRsp->db, db->dbName, TSDB_DB_FNAME_LEN);
+    memcpy(pRsp->db, db->dbFName, TSDB_DB_FNAME_LEN);
     if (pDb) {
       int32_t vgNum = 0;
       mndBuildDBVgroupInfo(pDb, pMnode, pRsp->vgroupInfo, &vgNum);
@@ -1113,7 +1113,7 @@ static int32_t mndGetDbMeta(SMnodeMsg *pReq, SShowObj *pShow, STableMetaRsp *pMe
 
   pShow->numOfRows = sdbGetSize(pSdb, SDB_DB);
   pShow->rowSize = pShow->offset[cols - 1] + pShow->bytes[cols - 1];
-  strcpy(pMeta->tbFname, mndShowStr(pShow->type));
+  strcpy(pMeta->tbName, mndShowStr(pShow->type));
 
   return 0;
 }

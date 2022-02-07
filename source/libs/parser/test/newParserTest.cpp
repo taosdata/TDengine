@@ -71,8 +71,8 @@ private:
     switch (nodeType(node)) {
       case QUERY_NODE_REAL_TABLE: {
         SRealTableNode* realTable = (SRealTableNode*)table;
-        if ('\0' != realTable->dbName[0]) {
-          sql.append(realTable->dbName);
+        if ('\0' != realTable->table.dbName[0]) {
+          sql.append(realTable->table.dbName);
           sql.append(".");
         }
         sql.append(realTable->table.tableName);
