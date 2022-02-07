@@ -22,26 +22,27 @@ struct SPage {
 typedef TD_DLIST(SPage) SPgList;
 
 struct SPgCache {
-  SPage *pages;
-
-  SPgList freeList;
-
+  SRWLatch mutex;
+  pgsize_t pgsize;
+  SPage *  pages;
+  SPgList  freeList;
   struct {
-    int32_t nbucket;
-    struct {
-      SRWLatch latch;
-      TD_DLIST(SPage) ht;
-    } * buckets;
+    int32_t  nbucket;
+    SPgList *buckets;
   } pght;  // page hash table
 };
 
-int pgCacheCreate(SPgCache **ppPgCache) {
+int pgCacheCreate(SPgCache **ppPgCache, pgsize_t pgsize) {
   SPgCache *pPgCache;
 
   pPgCache = (SPgCache *)calloc(1, sizeof(*pPgCache));
   if (pPgCache == NULL) {
     return -1;
   }
+
+  pPgCache->pgsize = pgsize;
+
+  taosInitRWLatch(&(pPgCache->mutex));
 
   *ppPgCache = pPgCache;
   return 0;

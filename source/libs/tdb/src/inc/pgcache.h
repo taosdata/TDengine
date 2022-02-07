@@ -24,7 +24,7 @@ typedef struct SPgCache SPgCache;
 typedef struct SPage    SPage;
 
 // SPgCache
-int pgCacheCreate(SPgCache **ppPgCache);
+int pgCacheCreate(SPgCache **ppPgCache, pgsize_t pgsize);
 int pgCacheDestroy(SPgCache *pPgCache);
 int pgCacheOpen(SPgCache *pPgCache);
 int pgCacheClose(SPgCache *pPgCache);
