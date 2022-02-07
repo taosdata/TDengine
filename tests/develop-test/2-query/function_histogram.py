@@ -2547,43 +2547,43 @@ class TDTestCase:
         tdSql.checkRows(1)
         tdSql.checkData(0, 1, "(0:10]:10");
 
-        #tdSql.query('select histogram(col_int, "user_input", "[0,10]", 0) from tb session (col_timestamp, 1s);')
-        #tdSql.checkRows(16)
-        #tdSql.checkData(0,  1, "(0:10]:0");
-        #tdSql.checkData(1,  1, "(0:10]:0");
-        #tdSql.checkData(2,  1, "(0:10]:1");
-        #tdSql.checkData(3,  1, "(0:10]:1");
-        #tdSql.checkData(4,  1, "(0:10]:1");
-        #tdSql.checkData(5,  1, "(0:10]:1");
-        #tdSql.checkData(6,  1, "(0:10]:1");
-        #tdSql.checkData(7,  1, "(0:10]:1");
-        #tdSql.checkData(8,  1, "(0:10]:1");
-        #tdSql.checkData(9, 1,  "(0:10]:1");
-        #tdSql.checkData(10, 1,  "(0:10]:1");
-        #tdSql.checkData(11, 1,  "(0:10]:1");
-        #tdSql.checkData(12, 1,  "(0:10]:0");
-        #tdSql.checkData(13, 1,  "(0:10]:0");
-        #tdSql.checkData(14, 1,  "(0:10]:0");
-        #tdSql.checkData(15, 1,  "(0:10]:0");
+        tdSql.query('select histogram(col_int, "user_input", "[0,10]", 0) from tb session (col_timestamp, 1s);')
+        tdSql.checkRows(16)
+        tdSql.checkData(0,  1, "(0:10]:0");
+        tdSql.checkData(1,  1, "(0:10]:0");
+        tdSql.checkData(2,  1, "(0:10]:1");
+        tdSql.checkData(3,  1, "(0:10]:1");
+        tdSql.checkData(4,  1, "(0:10]:1");
+        tdSql.checkData(5,  1, "(0:10]:1");
+        tdSql.checkData(6,  1, "(0:10]:1");
+        tdSql.checkData(7,  1, "(0:10]:1");
+        tdSql.checkData(8,  1, "(0:10]:1");
+        tdSql.checkData(9, 1,  "(0:10]:1");
+        tdSql.checkData(10, 1,  "(0:10]:1");
+        tdSql.checkData(11, 1,  "(0:10]:1");
+        tdSql.checkData(12, 1,  "(0:10]:0");
+        tdSql.checkData(13, 1,  "(0:10]:0");
+        tdSql.checkData(14, 1,  "(0:10]:0");
+        tdSql.checkData(15, 1,  "(0:10]:0");
 
-        #tdSql.query('select histogram(col_int, "user_input", "[0,10]", 0) from tb session (col_timestamp, 1a);')
-        #tdSql.checkRows(16)
-        #tdSql.checkData(0,  1, "(0:10]:0");
-        #tdSql.checkData(1,  1, "(0:10]:0");
-        #tdSql.checkData(2,  1, "(0:10]:1");
-        #tdSql.checkData(3,  1, "(0:10]:1");
-        #tdSql.checkData(4,  1, "(0:10]:1");
-        #tdSql.checkData(5,  1, "(0:10]:1");
-        #tdSql.checkData(6,  1, "(0:10]:1");
-        #tdSql.checkData(7,  1, "(0:10]:1");
-        #tdSql.checkData(8,  1, "(0:10]:1");
-        #tdSql.checkData(9, 1,  "(0:10]:1");
-        #tdSql.checkData(10, 1,  "(0:10]:1");
-        #tdSql.checkData(11, 1,  "(0:10]:1");
-        #tdSql.checkData(12, 1,  "(0:10]:0");
-        #tdSql.checkData(13, 1,  "(0:10]:0");
-        #tdSql.checkData(14, 1,  "(0:10]:0");
-        #tdSql.checkData(15, 1,  "(0:10]:0");
+        tdSql.query('select histogram(col_int, "user_input", "[0,10]", 0) from tb session (col_timestamp, 1a);')
+        tdSql.checkRows(16)
+        tdSql.checkData(0,  1, "(0:10]:0");
+        tdSql.checkData(1,  1, "(0:10]:0");
+        tdSql.checkData(2,  1, "(0:10]:1");
+        tdSql.checkData(3,  1, "(0:10]:1");
+        tdSql.checkData(4,  1, "(0:10]:1");
+        tdSql.checkData(5,  1, "(0:10]:1");
+        tdSql.checkData(6,  1, "(0:10]:1");
+        tdSql.checkData(7,  1, "(0:10]:1");
+        tdSql.checkData(8,  1, "(0:10]:1");
+        tdSql.checkData(9, 1,  "(0:10]:1");
+        tdSql.checkData(10, 1,  "(0:10]:1");
+        tdSql.checkData(11, 1,  "(0:10]:1");
+        tdSql.checkData(12, 1,  "(0:10]:0");
+        tdSql.checkData(13, 1,  "(0:10]:0");
+        tdSql.checkData(14, 1,  "(0:10]:0");
+        tdSql.checkData(15, 1,  "(0:10]:0");
 
         #select state_window
         tdSql.error('select histogram(col_int, "user_input", "[0,10]", 0) from tb state_window(col_timestamp);')
