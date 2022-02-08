@@ -182,6 +182,7 @@ typedef struct {
       case TSDB_DATA_TYPE_USMALLINT:           \
         snprintf(_output, (int32_t)(_outputBytes), "%d", *(uint16_t *)(_input));     \
         break;                                 \
+      case TSDB_DATA_TYPE_TIMESTAMP:           \
       case TSDB_DATA_TYPE_BIGINT:              \
         snprintf(_output, (int32_t)(_outputBytes), "%" PRId64, *(int64_t *)(_input));     \
         break;                                 \
