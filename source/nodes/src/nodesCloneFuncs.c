@@ -15,10 +15,6 @@
 
 #include "nodes.h"
 
-int32_t nodeToString(const SNode* pNode, char** pStr, int32_t* pLen) {
-
-}
-
-int32_t stringToNode(const char* pStr, SNode** pNode) {
+void nodesCloneNode(const SNode* pNode) {
 
 }

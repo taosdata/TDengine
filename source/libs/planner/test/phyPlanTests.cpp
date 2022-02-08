@@ -124,12 +124,10 @@ private:
   }
 
   void copyStorageMeta(SVgroupsInfo** dst, const std::vector<SVgroupInfo>& src) {
-    *dst = (SVgroupsInfo*)myCalloc(1, sizeof(SVgroupsInfo) + sizeof(SVgroupMsg) * src.size());
+    *dst = (SVgroupsInfo*)myCalloc(1, sizeof(SVgroupsInfo) + sizeof(SVgroupInfo) * src.size());
     (*dst)->numOfVgroups = src.size();
     for (int32_t i = 0; i < src.size(); ++i) {
-      (*dst)->vgroups[i].vgId = src[i].vgId;
-      (*dst)->vgroups[i].numOfEps = src[i].numOfEps;
-      memcpy((*dst)->vgroups[i].epAddr, src[i].epAddr, src[i].numOfEps);
+      (*dst)->vgroups[i] = src[i];
     }
   }
 

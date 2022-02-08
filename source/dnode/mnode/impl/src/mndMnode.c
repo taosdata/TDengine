@@ -237,13 +237,11 @@ void mndGetMnodeEpSet(SMnode *pMnode, SEpSet *pEpSet) {
     if (pIter == NULL) break;
     if (pObj->pDnode == NULL) break;
 
-    pEpSet->port[pEpSet->numOfEps] = htons(pObj->pDnode->port);
-    memcpy(pEpSet->fqdn[pEpSet->numOfEps], pObj->pDnode->fqdn, TSDB_FQDN_LEN);
     if (pObj->role == TAOS_SYNC_STATE_LEADER) {
       pEpSet->inUse = pEpSet->numOfEps;
     }
 
-    pEpSet->numOfEps++;
+    addEpIntoEpSet(pEpSet, pObj->pDnode->fqdn, htons(pObj->pDnode->port));
     sdbRelease(pSdb, pObj);
   }
 }
@@ -626,7 +624,7 @@ static int32_t mndGetMnodeMeta(SMnodeMsg *pReq, SShowObj *pShow, STableMetaRsp *
 
   pShow->numOfRows = sdbGetSize(pSdb, SDB_MNODE);
   pShow->rowSize = pShow->offset[cols - 1] + pShow->bytes[cols - 1];
-  strcpy(pMeta->tbFname, mndShowStr(pShow->type));
+  strcpy(pMeta->tbName, mndShowStr(pShow->type));
 
   mndUpdateMnodeRole(pMnode);
   return 0;

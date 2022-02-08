@@ -15,6 +15,7 @@
 
 #include "mockCatalogService.h"
 
+#include "tep.h"
 #include <iomanip>
 #include <iostream>
 #include <map>
@@ -39,7 +40,16 @@ public:
 
   virtual TableBuilder& setVgid(int16_t vgid) {
     schema()->vgId = vgid;
-    meta_->vgs.emplace_back(SVgroupInfo{.vgId = vgid, .hashBegin = 0, .hashEnd = 0, .inUse = 0, .numOfEps = 3, .epAddr = {{"dnode_1", 6030}, {"dnode_2", 6030}, {"dnode_3", 6030}}});
+
+    SVgroupInfo vgroup = {.vgId = vgid, .hashBegin = 0, .hashEnd = 0, };
+
+    vgroup.epset.eps[0] = (SEp){"dnode_1", 6030};
+    vgroup.epset.eps[1] = (SEp){"dnode_2", 6030};
+    vgroup.epset.eps[2] = (SEp){"dnode_3", 6030};
+    vgroup.epset.inUse = 0;
+    vgroup.epset.numOfEps = 3;
+
+    meta_->vgs.emplace_back(vgroup);
     return *this;
   }
 
@@ -112,9 +122,7 @@ public:
   int32_t catalogGetTableHashVgroup(const SName* pTableName, SVgroupInfo* vgInfo) const {
     // todo
     vgInfo->vgId = 1;
-    vgInfo->numOfEps = 1;
-    vgInfo->epAddr[0].port = 6030;
-    strcpy(vgInfo->epAddr[0].fqdn, "node1");
+    addEpIntoEpSet(&vgInfo->epset, "node1", 6030);
     return 0;
   }
 
@@ -133,9 +141,16 @@ public:
     meta_[db][tbname].reset(new MockTableMeta());
     meta_[db][tbname]->schema.reset(table.release());
     meta_[db][tbname]->schema->uid = id_++;
-    meta_[db][tbname]->vgs.emplace_back((SVgroupInfo){.vgId = vgid, .hashBegin = 0, .hashEnd = 0, .inUse = 0, .numOfEps = 3, .epAddr = {{"dnode_1", 6030}, {"dnode_2", 6030}, {"dnode_3", 6030}}});
+
+    SVgroupInfo vgroup = {.vgId = vgid, .hashBegin = 0, .hashEnd = 0,};
+    addEpIntoEpSet(&vgroup.epset, "dnode_1", 6030);
+    addEpIntoEpSet(&vgroup.epset, "dnode_2", 6030);
+    addEpIntoEpSet(&vgroup.epset, "dnode_3", 6030);
+    vgroup.epset.inUse = 0;
+
+    meta_[db][tbname]->vgs.emplace_back(vgroup);
     // super table
-    meta_[db][stbname]->vgs.emplace_back((SVgroupInfo){.vgId = vgid, .hashBegin = 0, .hashEnd = 0, .inUse = 0, .numOfEps = 3, .epAddr = {{"dnode_1", 6030}, {"dnode_2", 6030}, {"dnode_3", 6030}}});
+    meta_[db][stbname]->vgs.emplace_back(vgroup);
   }
 
   void showTables() const {

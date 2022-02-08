@@ -68,6 +68,44 @@ TEST_F(DndTestVnode, 01_Create_Vnode) {
       ASSERT_EQ(pRsp->code, TSDB_CODE_DND_VNODE_ALREADY_DEPLOYED);
     }
   }
+
+  {
+    int32_t contLen = sizeof(SCreateVnodeReq);
+
+    SCreateVnodeReq* pReq = (SCreateVnodeReq*)rpcMallocCont(contLen);
+    pReq->vgId = htonl(2);
+    pReq->dnodeId = htonl(3);
+    strcpy(pReq->db, "1.d1");
+    pReq->dbUid = htobe64(9527);
+    pReq->vgVersion = htonl(1);
+    pReq->cacheBlockSize = htonl(16);
+    pReq->totalBlocks = htonl(10);
+    pReq->daysPerFile = htonl(10);
+    pReq->daysToKeep0 = htonl(3650);
+    pReq->daysToKeep1 = htonl(3650);
+    pReq->daysToKeep2 = htonl(3650);
+    pReq->minRows = htonl(100);
+    pReq->minRows = htonl(4096);
+    pReq->commitTime = htonl(3600);
+    pReq->fsyncPeriod = htonl(3000);
+    pReq->walLevel = 1;
+    pReq->precision = 0;
+    pReq->compression = 2;
+    pReq->replica = 1;
+    pReq->quorum = 1;
+    pReq->update = 0;
+    pReq->cacheLastRow = 0;
+    pReq->selfIndex = 0;
+    for (int r = 0; r < pReq->replica; ++r) {
+      SReplica* pReplica = &pReq->replicas[r];
+      pReplica->id = htonl(1);
+      pReplica->port = htons(9527);
+    }
+
+    SRpcMsg* pRsp = test.SendReq(TDMT_DND_CREATE_VNODE, pReq, contLen);
+    ASSERT_NE(pRsp, nullptr);
+    ASSERT_EQ(pRsp->code, TSDB_CODE_DND_VNODE_INVALID_OPTION);
+  }
 }
 
 TEST_F(DndTestVnode, 02_ALTER_Vnode) {
@@ -161,19 +199,16 @@ TEST_F(DndTestVnode, 03_Create_Stb) {
     req.stbCfg.nTagCols = 3;
     req.stbCfg.pTagSchema = &schemas[2];
 
-    int32_t   bsize = tSerializeSVCreateTbReq(NULL, &req);
-    void*     buf = rpcMallocCont(sizeof(SMsgHead) + bsize);
-    SMsgHead* pMsgHead = (SMsgHead*)buf;
+    int32_t   contLen = tSerializeSVCreateTbReq(NULL, &req) + sizeof(SMsgHead);
+    SMsgHead* pHead = (SMsgHead*)rpcMallocCont(contLen);
 
-    pMsgHead->contLen = htonl(sizeof(SMsgHead) + bsize);
-    pMsgHead->vgId = htonl(2);
+    pHead->contLen = htonl(contLen);
+    pHead->vgId = htonl(2);
 
-    void* pBuf = POINTER_SHIFT(buf, sizeof(SMsgHead));
+    void* pBuf = POINTER_SHIFT(pHead, sizeof(SMsgHead));
     tSerializeSVCreateTbReq(&pBuf, &req);
 
-    int32_t contLen = sizeof(SMsgHead) + bsize;
-
-    SRpcMsg* pRsp = test.SendReq(TDMT_VND_CREATE_STB, buf, contLen);
+    SRpcMsg* pRsp = test.SendReq(TDMT_VND_CREATE_STB, (void*)pHead, contLen);
     ASSERT_NE(pRsp, nullptr);
     if (i == 0) {
       ASSERT_EQ(pRsp->code, 0);
@@ -197,20 +232,28 @@ TEST_F(DndTestVnode, 04_ALTER_Stb) {
 }
 
 TEST_F(DndTestVnode, 05_DROP_Stb) {
-#if 0
   {
     for (int i = 0; i < 3; ++i) {
-      SRpcMsg* pRsp = test.SendReq(TDMT_VND_DROP_STB, pReq, contLen);
+      SVDropTbReq req = {0};
+      req.ver = 0;
+      req.name = (char*)"stb1";
+      req.suid = 9599;
+      req.type = TD_SUPER_TABLE;
+
+      int32_t   contLen = tSerializeSVDropTbReq(NULL, &req) + sizeof(SMsgHead);
+      SMsgHead* pHead = (SMsgHead*)rpcMallocCont(contLen);
+
+      pHead->contLen = htonl(contLen);
+      pHead->vgId = htonl(2);
+
+      void* pBuf = POINTER_SHIFT(pHead, sizeof(SMsgHead));
+      tSerializeSVDropTbReq(&pBuf, &req);
+
+      SRpcMsg* pRsp = test.SendReq(TDMT_VND_DROP_STB, (void*)pHead, contLen);
       ASSERT_NE(pRsp, nullptr);
-      if (i == 0) {
-        ASSERT_EQ(pRsp->code, 0);
-        test.Restart();
-      } else {
-        ASSERT_EQ(pRsp->code, TSDB_CODE_TDB_INVALID_TABLE_ID);
-      }
+      ASSERT_EQ(pRsp->code, 0);
     }
   }
-#endif
 }
 
 TEST_F(DndTestVnode, 06_DROP_Vnode) {

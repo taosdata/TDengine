@@ -81,20 +81,19 @@ typedef struct STableMeta {
 } STableMeta;
 
 typedef struct SDBVgroupInfo {
-  SRWLatch  lock;
-  int64_t   dbId;
+  uint64_t  dbId;
   int32_t   vgVersion;  
   int8_t    hashMethod;
-  SHashObj *vgInfo;  //key:vgId, value:SVgroupInfo
+  SHashObj *vgHash;  //key:vgId, value:SVgroupInfo
 } SDBVgroupInfo;
 
 typedef struct SUseDbOutput {
-  char db[TSDB_DB_FNAME_LEN];
-  SDBVgroupInfo dbVgroup;
+  char           db[TSDB_DB_FNAME_LEN];
+  SDBVgroupInfo *dbVgroup;
 } SUseDbOutput;
 
 enum {
-  META_TYPE_NON_TABLE = 1,
+  META_TYPE_NULL_TABLE = 1,
   META_TYPE_CTABLE,
   META_TYPE_TABLE,
   META_TYPE_BOTH_TABLE
@@ -103,8 +102,9 @@ enum {
 
 typedef struct STableMetaOutput {
   int32_t     metaType;
-  char        ctbFname[TSDB_TABLE_FNAME_LEN];
-  char        tbFname[TSDB_TABLE_FNAME_LEN];
+  char        dbFName[TSDB_DB_FNAME_LEN];
+  char        ctbName[TSDB_TABLE_NAME_LEN];
+  char        tbName[TSDB_TABLE_NAME_LEN];
   SCTableMeta ctbMeta;
   STableMeta *tbMeta;
 } STableMetaOutput;
@@ -128,19 +128,8 @@ typedef struct SMsgSendInfo {
 
 typedef struct SQueryNodeAddr {
   int32_t nodeId;  // vgId or qnodeId
-  int8_t  inUse;
-  int8_t  numOfEps;
-  SEpAddr epAddr[TSDB_MAX_REPLICA];
+  SEpSet  epset;
 } SQueryNodeAddr;
-
-static FORCE_INLINE void tConvertQueryAddrToEpSet(SEpSet* pEpSet, const SQueryNodeAddr* pAddr) {
-  pEpSet->inUse = pAddr->inUse;
-  pEpSet->numOfEps = pAddr->numOfEps;
-  for (int j = 0; j < TSDB_MAX_REPLICA; j++) {
-    pEpSet->port[j] = pAddr->epAddr[j].port;
-    memcpy(pEpSet->fqdn[j], pAddr->epAddr[j].fqdn, TSDB_FQDN_LEN);
-  }
-}
 
 int32_t initTaskQueue();
 int32_t cleanupTaskQueue();
@@ -174,7 +163,7 @@ extern int32_t (*queryBuildMsg[TDMT_MAX])(void* input, char **msg, int32_t msgSi
 extern int32_t (*queryProcessMsgRsp[TDMT_MAX])(void* output, char *msg, int32_t msgSize);
 
 
-#define SET_META_TYPE_NONE(t) (t) = META_TYPE_NON_TABLE
+#define SET_META_TYPE_NULL(t) (t) = META_TYPE_NULL_TABLE
 #define SET_META_TYPE_CTABLE(t) (t) = META_TYPE_CTABLE
 #define SET_META_TYPE_TABLE(t) (t) = META_TYPE_TABLE
 #define SET_META_TYPE_BOTH_TABLE(t) (t) = META_TYPE_BOTH_TABLE

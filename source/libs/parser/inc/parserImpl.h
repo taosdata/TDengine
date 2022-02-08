@@ -14,7 +14,24 @@
  */
 
 #include "nodes.h"
+#include "parser.h"
 
-void cloneNode(const SNode* pNode) {
+#ifndef _TD_AST_CREATE_FUNCS_H_
+#define _TD_AST_CREATE_FUNCS_H_
 
+#ifdef __cplusplus
+extern "C" {
+#endif
+
+typedef struct SQuery {
+  SNode* pRoot;
+} SQuery;
+
+int32_t doParse(SParseContext* pParseCxt, SQuery* pQuery);
+int32_t doTranslate(SParseContext* pParseCxt, SQuery* pQuery);
+
+#ifdef __cplusplus
 }
+#endif
+
+#endif /*_TD_AST_CREATE_FUNCS_H_*/

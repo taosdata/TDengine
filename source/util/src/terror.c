@@ -254,6 +254,9 @@ TAOS_DEFINE_ERROR(TSDB_CODE_MND_INVALID_FUNC_RETRIEVE,     "Invalid func retriev
 TAOS_DEFINE_ERROR(TSDB_CODE_MND_TRANS_ALREADY_EXIST,       "Transaction already exists")
 TAOS_DEFINE_ERROR(TSDB_CODE_MND_TRANS_NOT_EXIST,           "Transaction not exists")
 
+// mnode-topic
+TAOS_DEFINE_ERROR(TSDB_CODE_MND_UNSUPPORTED_TOPIC,         "Topic with STable not supported yet")
+
 // dnode
 TAOS_DEFINE_ERROR(TSDB_CODE_DND_ACTION_IN_PROGRESS,       "Action in progress")
 TAOS_DEFINE_ERROR(TSDB_CODE_DND_OFFLINE,                  "Dnode is offline")
@@ -410,7 +413,7 @@ TAOS_DEFINE_ERROR(TSDB_CODE_FS_INVLD_LEVEL,               "tfs invalid level")
 TAOS_DEFINE_ERROR(TSDB_CODE_FS_NO_VALID_DISK,             "tfs no valid disk")
 
 // catalog
-TAOS_DEFINE_ERROR(TSDB_CODE_CTG_INTERNAL_ERROR,           "catalog interval error")
+TAOS_DEFINE_ERROR(TSDB_CODE_CTG_INTERNAL_ERROR,           "catalog internal error")
 TAOS_DEFINE_ERROR(TSDB_CODE_CTG_INVALID_INPUT,            "invalid catalog input parameters")
 TAOS_DEFINE_ERROR(TSDB_CODE_CTG_NOT_READY,                "catalog is not ready")
 TAOS_DEFINE_ERROR(TSDB_CODE_CTG_MEM_ERROR,                "catalog memory error")

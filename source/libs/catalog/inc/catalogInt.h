@@ -27,11 +27,11 @@ extern "C" {
 #define CTG_DEFAULT_CACHE_CLUSTER_NUMBER 6
 #define CTG_DEFAULT_CACHE_VGROUP_NUMBER 100
 #define CTG_DEFAULT_CACHE_DB_NUMBER 20
-#define CTG_DEFAULT_CACHE_TABLEMETA_NUMBER 100000
+#define CTG_DEFAULT_CACHE_TABLEMETA_NUMBER 10000
 #define CTG_DEFAULT_RENT_SECOND 10
 #define CTG_DEFAULT_RENT_SLOT_SIZE 10
 
-#define CTG_RENT_SLOT_SECOND 2
+#define CTG_RENT_SLOT_SECOND 1.5
 
 #define CTG_DEFAULT_INVALID_VERSION (-1)
 
@@ -47,55 +47,52 @@ enum {
   CTG_RENT_STABLE,
 };
 
-typedef struct SCTGDebug {
+typedef struct SCtgDebug {
   int32_t lockDebug;
-} SCTGDebug;
+} SCtgDebug;
 
 
-typedef struct SVgroupListCache {
-  int32_t vgroupVersion;
-  SHashObj *cache;        // key:vgId, value:SVgroupInfo
-} SVgroupListCache;
+typedef struct SCtgTbMetaCache {
+  SRWLatch  stbLock;
+  SHashObj *cache;           //key:tbname, value:STableMeta
+  SHashObj *stbCache;        //key:suid, value:STableMeta*
+} SCtgTbMetaCache;
 
-typedef struct SDBVgroupCache {
-  SHashObj *cache;      //key:dbname, value:SDBVgroupInfo
-} SDBVgroupCache;
+typedef struct SCtgDBCache {
+  SRWLatch         vgLock;
+  int8_t           deleted;
+  SDBVgroupInfo   *vgInfo;  
+  SCtgTbMetaCache  tbCache;
+} SCtgDBCache;
 
-typedef struct STableMetaCache {
-  SRWLatch  stableLock;
-  SHashObj *cache;           //key:fulltablename, value:STableMeta
-  SHashObj *stableCache;     //key:suid, value:STableMeta*
-} STableMetaCache;
-
-typedef struct SRentSlotInfo {
+typedef struct SCtgRentSlot {
   SRWLatch lock;
   bool     needSort;
   SArray  *meta;  // element is SDbVgVersion or SSTableMetaVersion
-} SRentSlotInfo;
+} SCtgRentSlot;
 
-typedef struct SMetaRentMgmt {
+typedef struct SCtgRentMgmt {
   int8_t         type;
   uint16_t       slotNum;
   uint16_t       slotRIdx;
   int64_t        lastReadMsec;
-  SRentSlotInfo *slots;
-} SMetaRentMgmt;
+  SCtgRentSlot  *slots;
+} SCtgRentMgmt;
 
 typedef struct SCatalog {
-  uint64_t         clusterId;
-  SDBVgroupCache   dbCache;
-  STableMetaCache  tableCache;
-  SMetaRentMgmt    dbRent;
-  SMetaRentMgmt    stableRent;
+  uint64_t         clusterId;  
+  SHashObj        *dbCache;      //key:dbname, value:SCtgDBCache
+  SCtgRentMgmt     dbRent;
+  SCtgRentMgmt     stbRent;
 } SCatalog;
 
 typedef struct SCtgApiStat {
 
 } SCtgApiStat;
 
-typedef struct SCtgResourceStat {
+typedef struct SCtgRuntimeStat {
 
-} SCtgResourceStat;
+} SCtgRuntimeStat;
 
 typedef struct SCtgCacheStat {
 
@@ -103,7 +100,7 @@ typedef struct SCtgCacheStat {
 
 typedef struct SCatalogStat {
   SCtgApiStat      api;
-  SCtgResourceStat resource;
+  SCtgRuntimeStat  runtime;
   SCtgCacheStat    cache;
 } SCatalogStat;
 
@@ -115,7 +112,7 @@ typedef struct SCatalogMgmt {
 
 typedef uint32_t (*tableNameHashFp)(const char *, uint32_t);
 
-#define CTG_IS_META_NONE(type) ((type) == META_TYPE_NON_TABLE)
+#define CTG_IS_META_NULL(type) ((type) == META_TYPE_NULL_TABLE)
 #define CTG_IS_META_CTABLE(type) ((type) == META_TYPE_CTABLE)
 #define CTG_IS_META_TABLE(type) ((type) == META_TYPE_TABLE)
 #define CTG_IS_META_BOTH(type) ((type) == META_TYPE_BOTH_TABLE)

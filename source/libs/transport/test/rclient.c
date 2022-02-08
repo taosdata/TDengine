@@ -12,7 +12,9 @@
  * You should have received a copy of the GNU Affero General Public License
  * along with this program. If not, see <http://www.gnu.org/licenses/>.
  */
+#include <sys/time.h>
 
+#include <tep.h>
 #include "os.h"
 #include "rpcLog.h"
 #include "taoserror.h"
@@ -52,6 +54,12 @@ static void *sendRequest(void *param) {
 
   tDebug("thread:%d, start to send request", pInfo->index);
 
+  tDebug("thread:%d, reqs: %d", pInfo->index, pInfo->numOfReqs);
+  int u100 = 0;
+  int u500 = 0;
+  int u1000 = 0;
+  int u10000 = 0;
+
   while (pInfo->numOfReqs == 0 || pInfo->num < pInfo->numOfReqs) {
     pInfo->num++;
     rpcMsg.pCont = rpcMallocCont(pInfo->msgSize);
@@ -59,14 +67,28 @@ static void *sendRequest(void *param) {
     rpcMsg.ahandle = pInfo;
     rpcMsg.msgType = 1;
     // tDebug("thread:%d, send request, contLen:%d num:%d", pInfo->index, pInfo->msgSize, pInfo->num);
+    int64_t start = taosGetTimestampUs();
     rpcSendRequest(pInfo->pRpc, &pInfo->epSet, &rpcMsg, NULL);
     if (pInfo->num % 20000 == 0) tInfo("thread:%d, %d requests have been sent", pInfo->index, pInfo->num);
     // tsem_wait(&pInfo->rspSem);
     tsem_wait(&pInfo->rspSem);
+    int64_t end = taosGetTimestampUs() - start;
+    if (end <= 100) {
+      u100++;
+    } else if (end > 100 && end <= 500) {
+      u500++;
+    } else if (end > 500 && end < 1000) {
+      u1000++;
+    } else {
+      u10000++;
+    }
+
     tDebug("recv response succefully");
+
     // usleep(100000000);
   }
 
+  tError("send and recv sum: %d, %d, %d, %d", u100, u500, u1000, u10000);
   tDebug("thread:%d, it is over", pInfo->index);
   tcount++;
 
@@ -86,12 +108,9 @@ int main(int argc, char *argv[]) {
   pthread_attr_t thattr;
 
   // server info
-  epSet.numOfEps = 1;
   epSet.inUse = 0;
-  epSet.port[0] = 7000;
-  epSet.port[1] = 7000;
-  strcpy(epSet.fqdn[0], serverIp);
-  strcpy(epSet.fqdn[1], "192.168.0.1");
+  addEpIntoEpSet(&epSet, serverIp, 7000);
+  addEpIntoEpSet(&epSet, "192.168.0.1", 7000);
 
   // client info
   memset(&rpcInit, 0, sizeof(rpcInit));
@@ -109,9 +128,9 @@ int main(int argc, char *argv[]) {
 
   for (int i = 1; i < argc; ++i) {
     if (strcmp(argv[i], "-p") == 0 && i < argc - 1) {
-      epSet.port[0] = atoi(argv[++i]);
+      epSet.eps[0].port = atoi(argv[++i]);
     } else if (strcmp(argv[i], "-i") == 0 && i < argc - 1) {
-      tstrncpy(epSet.fqdn[0], argv[++i], sizeof(epSet.fqdn[0]));
+      tstrncpy(epSet.eps[0].fqdn, argv[++i], sizeof(epSet.eps[0].fqdn));
     } else if (strcmp(argv[i], "-t") == 0 && i < argc - 1) {
       rpcInit.numOfThreads = atoi(argv[++i]);
     } else if (strcmp(argv[i], "-m") == 0 && i < argc - 1) {
@@ -135,7 +154,7 @@ int main(int argc, char *argv[]) {
     } else {
       printf("\nusage: %s [options] \n", argv[0]);
       printf("  [-i ip]: first server IP address, default is:%s\n", serverIp);
-      printf("  [-p port]: server port number, default is:%d\n", epSet.port[0]);
+      printf("  [-p port]: server port number, default is:%d\n", epSet.eps[0].port);
       printf("  [-t threads]: number of rpc threads, default is:%d\n", rpcInit.numOfThreads);
       printf("  [-s sessions]: number of rpc sessions, default is:%d\n", rpcInit.sessions);
       printf("  [-m msgSize]: message body size, default is:%d\n", msgSize);
@@ -162,8 +181,8 @@ int main(int argc, char *argv[]) {
   tInfo("client is initialized");
   tInfo("threads:%d msgSize:%d requests:%d", appThreads, msgSize, numOfReqs);
 
-  // gettimeofday(&systemTime, NULL);
-  // startTime = systemTime.tv_sec * 1000000 + systemTime.tv_usec;
+  gettimeofday(&systemTime, NULL);
+  startTime = systemTime.tv_sec * 1000000 + systemTime.tv_usec;
 
   SInfo *pInfo = (SInfo *)calloc(1, sizeof(SInfo) * appThreads);
 
@@ -185,13 +204,12 @@ int main(int argc, char *argv[]) {
     usleep(1);
   } while (tcount < appThreads);
 
-  // gettimeofday(&systemTime, NULL);
-  // endTime = systemTime.tv_sec * 1000000 + systemTime.tv_usec;
-  // float usedTime = (endTime - startTime) / 1000.0f;  // mseconds
+  gettimeofday(&systemTime, NULL);
+  endTime = systemTime.tv_sec * 1000000 + systemTime.tv_usec;
+  float usedTime = (endTime - startTime) / 1000.0f;  // mseconds
 
-  // tInfo("it takes %.3f mseconds to send %d requests to server", usedTime, numOfReqs * appThreads);
-  // tInfo("Performance: %.3f requests per second, msgSize:%d bytes", 1000.0 * numOfReqs * appThreads / usedTime,
-  // msgSize);
+  tInfo("it takes %.3f mseconds to send %d requests to server", usedTime, numOfReqs * appThreads);
+  tInfo("Performance: %.3f requests per second, msgSize:%d bytes", 1000.0 * numOfReqs * appThreads / usedTime, msgSize);
 
   int ch = getchar();
   UNUSED(ch);

@@ -13,7 +13,7 @@ target_link_libraries(
     PUBLIC util
     PUBLIC common
 )
-if (${BUILD_WITH_UV}) 
+if (${BUILD_WITH_UV_TRANS}) 
   target_include_directories(
     transport    
     PUBLIC "${CMAKE_SOURCE_DIR}/contrib/libuv/include"
@@ -25,7 +25,7 @@ if (${BUILD_WITH_UV})
     PUBLIC uv_a
   )
   add_definitions(-DUSE_UV) 
-endif(${BUILD_WITH_UV})  
+endif(${BUILD_WITH_UV_TRANS})  
 
 if (${BUILD_TEST})
   add_subdirectory(test)

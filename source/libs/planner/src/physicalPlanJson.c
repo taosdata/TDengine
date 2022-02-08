@@ -88,7 +88,6 @@ static const char* jkPnodeType = "Type";
 static int32_t getPnodeTypeSize(cJSON* json) {
   switch (getNumber(json, jkPnodeType)) {
     case OP_StreamScan:
-    case OP_TableScan:
     case OP_DataBlocksOptScan:
     case OP_TableSeqScan:
       return sizeof(STableScanPhyNode);
@@ -736,7 +735,7 @@ static const char* jkEpAddrFqdn = "Fqdn";
 static const char* jkEpAddrPort = "Port";
 
 static bool epAddrToJson(const void* obj, cJSON* json) {
-  const SEpAddr* ep = (const SEpAddr*)obj;
+  const SEp* ep = (const SEp*)obj;
   bool res = cJSON_AddStringToObject(json, jkEpAddrFqdn, ep->fqdn);
   if (res) {
     res = cJSON_AddNumberToObject(json, jkEpAddrPort, ep->port);
@@ -745,7 +744,7 @@ static bool epAddrToJson(const void* obj, cJSON* json) {
 }
 
 static bool epAddrFromJson(const cJSON* json, void* obj) {
-  SEpAddr* ep = (SEpAddr*)obj;
+  SEp* ep = (SEp*)obj;
   copyString(json, jkEpAddrFqdn, ep->fqdn);
   ep->port = getNumber(json, jkEpAddrPort);
   return true;
@@ -763,11 +762,11 @@ static bool queryNodeAddrToJson(const void* obj, cJSON* json) {
   bool res = cJSON_AddNumberToObject(json, jkNodeAddrId, pAddr->nodeId);
 
   if (res) {
-    res = cJSON_AddNumberToObject(json, jkNodeAddrInUse, pAddr->inUse);
+    res = cJSON_AddNumberToObject(json, jkNodeAddrInUse, pAddr->epset.inUse);
   }
 
   if (res) {
-    res = addRawArray(json, jkNodeAddrEpAddrs, epAddrToJson, pAddr->epAddr, sizeof(SEpAddr), pAddr->numOfEps);
+    res = addRawArray(json, jkNodeAddrEpAddrs, epAddrToJson, pAddr->epset.eps, sizeof(SEp), pAddr->epset.numOfEps);
   }
   return res;
 }
@@ -776,11 +775,11 @@ static bool queryNodeAddrFromJson(const cJSON* json, void* obj) {
   SQueryNodeAddr* pAddr = (SQueryNodeAddr*) obj;
 
   pAddr->nodeId = getNumber(json, jkNodeAddrId);
-  pAddr->inUse = getNumber(json, jkNodeAddrInUse);
+  pAddr->epset.inUse = getNumber(json, jkNodeAddrInUse);
 
   int32_t numOfEps = 0;
-  bool res = fromRawArray(json, jkNodeAddrEpAddrs, epAddrFromJson, pAddr->epAddr, sizeof(SEpAddr), &numOfEps);
-  pAddr->numOfEps = numOfEps;
+  bool res = fromRawArray(json, jkNodeAddrEpAddrs, epAddrFromJson, pAddr->epset.eps, sizeof(SEp), &numOfEps);
+  pAddr->epset.numOfEps = numOfEps;
   return res;
 }
 
@@ -831,7 +830,6 @@ static bool specificPhyNodeToJson(const void* obj, cJSON* json) {
   const SPhyNode* phyNode = (const SPhyNode*)obj;
   switch (phyNode->info.type) {
     case OP_StreamScan:
-    case OP_TableScan:
     case OP_DataBlocksOptScan:
     case OP_TableSeqScan:
       return tableScanNodeToJson(obj, json);
@@ -869,7 +867,6 @@ static bool specificPhyNodeToJson(const void* obj, cJSON* json) {
 static bool specificPhyNodeFromJson(const cJSON* json, void* obj) {
   SPhyNode* phyNode = (SPhyNode*)obj;
   switch (phyNode->info.type) {
-    case OP_TableScan:
     case OP_StreamScan:
     case OP_DataBlocksOptScan:
     case OP_TableSeqScan:
@@ -1125,8 +1122,6 @@ int32_t subPlanToString(const SSubplan* subplan, char** str, int32_t* len) {
   *str = cJSON_Print(json);
   cJSON_Delete(json);
 
-//  printf("====Physical plan:====\n");
-//  printf("%s\n", *str);
   *len = strlen(*str) + 1;
   return TSDB_CODE_SUCCESS;
 }

@@ -55,6 +55,7 @@ typedef struct SVnodeMgr {
   // For vnode Mgmt
   SDnode*           pDnode;
   PutReqToVQueryQFp putReqToVQueryQFp;
+  SendReqToDnodeFp  sendReqToDnodeFp;
 } SVnodeMgr;
 
 extern SVnodeMgr vnodeMgr;
@@ -85,6 +86,7 @@ struct SVnode {
 int vnodeScheduleTask(SVnodeTask* task);
 
 int32_t vnodePutReqToVQueryQ(SVnode* pVnode, struct SRpcMsg* pReq);
+void    vnodeSendReqToDnode(SVnode* pVnode, struct SEpSet* epSet, struct SRpcMsg* pReq);
 
 // For Log
 extern int32_t vDebugFlag;

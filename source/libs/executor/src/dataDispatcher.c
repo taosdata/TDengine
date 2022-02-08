@@ -186,6 +186,7 @@ static void getDataLength(SDataSinkHandle* pHandle, int32_t* pLen, bool* pQueryE
   memcpy(&pDispatcher->nextOutput, pBuf, sizeof(SDataDispatchBuf));
   taosFreeQitem(pBuf);
   *pLen = ((SDataCacheEntry*)(pDispatcher->nextOutput.pData))->dataLen;
+  *pQueryEnd = pDispatcher->queryEnd;    
 }
 
 static int32_t getDataBlock(SDataSinkHandle* pHandle, SOutputData* pOutput) {

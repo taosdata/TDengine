@@ -226,10 +226,10 @@ static int32_t mndCheckDbCfg(SMnode *pMnode, SDbCfg *pCfg) {
   if (pCfg->cacheBlockSize < TSDB_MIN_CACHE_BLOCK_SIZE || pCfg->cacheBlockSize > TSDB_MAX_CACHE_BLOCK_SIZE) return -1;
   if (pCfg->totalBlocks < TSDB_MIN_TOTAL_BLOCKS || pCfg->totalBlocks > TSDB_MAX_TOTAL_BLOCKS) return -1;
   if (pCfg->daysPerFile < TSDB_MIN_DAYS_PER_FILE || pCfg->daysPerFile > TSDB_MAX_DAYS_PER_FILE) return -1;
-  if (pCfg->daysToKeep0 < pCfg->daysPerFile) return -1;
   if (pCfg->daysToKeep0 < TSDB_MIN_KEEP || pCfg->daysToKeep0 > TSDB_MAX_KEEP) return -1;
   if (pCfg->daysToKeep1 < TSDB_MIN_KEEP || pCfg->daysToKeep1 > TSDB_MAX_KEEP) return -1;
   if (pCfg->daysToKeep2 < TSDB_MIN_KEEP || pCfg->daysToKeep2 > TSDB_MAX_KEEP) return -1;
+  if (pCfg->daysToKeep0 < pCfg->daysPerFile) return -1;
   if (pCfg->daysToKeep0 > pCfg->daysToKeep1) return -1;
   if (pCfg->daysToKeep1 > pCfg->daysToKeep2) return -1;
   if (pCfg->minRows < TSDB_MIN_MIN_ROW_FBLOCK || pCfg->minRows > TSDB_MAX_MIN_ROW_FBLOCK) return -1;
@@ -498,7 +498,7 @@ static int32_t mndProcessCreateDbReq(SMnodeMsg *pReq) {
   return TSDB_CODE_MND_ACTION_IN_PROGRESS;
 }
 
-static int32_t mndSetDbCfgFromAlterDbMsg(SDbObj *pDb, SAlterDbReq *pAlter) {
+static int32_t mndSetDbCfgFromAlterDbReq(SDbObj *pDb, SAlterDbReq *pAlter) {
   terrno = TSDB_CODE_MND_DB_OPTION_UNCHANGED;
 
   if (pAlter->totalBlocks >= 0 && pAlter->totalBlocks != pDb->cfg.totalBlocks) {
@@ -649,7 +649,7 @@ static int32_t mndProcessAlterDbReq(SMnodeMsg *pReq) {
   SDbObj dbObj = {0};
   memcpy(&dbObj, pDb, sizeof(SDbObj));
 
-  int32_t code = mndSetDbCfgFromAlterDbMsg(&dbObj, pAlter);
+  int32_t code = mndSetDbCfgFromAlterDbReq(&dbObj, pAlter);
   if (code != 0) {
     mndReleaseDb(pMnode, pDb);
     mError("db:%s, failed to alter since %s", pAlter->db, tstrerror(code));
@@ -767,6 +767,14 @@ static int32_t mndDropDb(SMnode *pMnode, SMnodeMsg *pReq, SDbObj *pDb) {
   if (mndSetDropDbRedoLogs(pMnode, pTrans, pDb) != 0) goto DROP_DB_OVER;
   if (mndSetDropDbCommitLogs(pMnode, pTrans, pDb) != 0) goto DROP_DB_OVER;
   if (mndSetDropDbRedoActions(pMnode, pTrans, pDb) != 0) goto DROP_DB_OVER;
+
+  int32_t     rspLen = sizeof(SDropDbRsp);
+  SDropDbRsp *pRsp = rpcMallocCont(rspLen);
+  if (pRsp == NULL) goto DROP_DB_OVER;
+  memcpy(pRsp->db, pDb->name, TSDB_DB_FNAME_LEN);
+  pRsp->uid = htobe64(pDb->uid);
+  mndTransSetRpcRsp(pTrans, pRsp, rspLen);
+
   if (mndTransPrepare(pMnode, pTrans) != 0) goto DROP_DB_OVER;
 
   code = 0;
@@ -805,6 +813,44 @@ static int32_t mndProcessDropDbReq(SMnodeMsg *pReq) {
   return TSDB_CODE_MND_ACTION_IN_PROGRESS;
 }
 
+static void mndBuildDBVgroupInfo(SDbObj *pDb, SMnode *pMnode, SVgroupInfo *vgList, int32_t *vgNum) {
+  int32_t vindex = 0;
+  SSdb *pSdb = pMnode->pSdb;
+
+  void *pIter = NULL;
+  while (vindex < pDb->cfg.numOfVgroups) {
+    SVgObj *pVgroup = NULL;
+    pIter = sdbFetch(pSdb, SDB_VGROUP, pIter, (void **)&pVgroup);
+    if (pIter == NULL) break;
+
+    if (pVgroup->dbUid == pDb->uid) {
+      SVgroupInfo *pInfo = &vgList[vindex];
+      pInfo->vgId = htonl(pVgroup->vgId);
+      pInfo->hashBegin = htonl(pVgroup->hashBegin);
+      pInfo->hashEnd = htonl(pVgroup->hashEnd);
+      pInfo->epset.numOfEps = pVgroup->replica;
+      for (int32_t gid = 0; gid < pVgroup->replica; ++gid) {
+        SVnodeGid  *pVgid = &pVgroup->vnodeGid[gid];
+        SEp *       pEp = &pInfo->epset.eps[gid];
+        SDnodeObj  *pDnode = mndAcquireDnode(pMnode, pVgid->dnodeId);
+        if (pDnode != NULL) {
+          memcpy(pEp->fqdn, pDnode->fqdn, TSDB_FQDN_LEN);
+          pEp->port = htons(pDnode->port);
+        }
+        mndReleaseDnode(pMnode, pDnode);
+        if (pVgid->role == TAOS_SYNC_STATE_LEADER) {
+          pInfo->epset.inUse = gid;
+        }
+      }
+      vindex++;
+    }
+
+    sdbRelease(pSdb, pVgroup);
+  }
+
+  *vgNum = vindex;
+}
+
 static int32_t mndProcessUseDbReq(SMnodeMsg *pReq) {
   SMnode    *pMnode = pReq->pMnode;
   SSdb      *pSdb = pMnode->pSdb;
@@ -826,50 +872,92 @@ static int32_t mndProcessUseDbReq(SMnodeMsg *pReq) {
     return -1;
   }
 
-  int32_t vindex = 0;
+  int32_t vgNum = 0;
 
   if (pUse->vgVersion < pDb->vgVersion) {
-    void *pIter = NULL;
-    while (vindex < pDb->cfg.numOfVgroups) {
-      SVgObj *pVgroup = NULL;
-      pIter = sdbFetch(pSdb, SDB_VGROUP, pIter, (void **)&pVgroup);
-      if (pIter == NULL) break;
-
-      if (pVgroup->dbUid == pDb->uid) {
-        SVgroupInfo *pInfo = &pRsp->vgroupInfo[vindex];
-        pInfo->vgId = htonl(pVgroup->vgId);
-        pInfo->hashBegin = htonl(pVgroup->hashBegin);
-        pInfo->hashEnd = htonl(pVgroup->hashEnd);
-        pInfo->numOfEps = pVgroup->replica;
-        for (int32_t gid = 0; gid < pVgroup->replica; ++gid) {
-          SVnodeGid  *pVgid = &pVgroup->vnodeGid[gid];
-          SEpAddr *pEpArrr = &pInfo->epAddr[gid];
-          SDnodeObj  *pDnode = mndAcquireDnode(pMnode, pVgid->dnodeId);
-          if (pDnode != NULL) {
-            memcpy(pEpArrr->fqdn, pDnode->fqdn, TSDB_FQDN_LEN);
-            pEpArrr->port = htons(pDnode->port);
-          }
-          mndReleaseDnode(pMnode, pDnode);
-          if (pVgid->role == TAOS_SYNC_STATE_LEADER) {
-            pInfo->inUse = gid;
-          }
-        }
-        vindex++;
-      }
-
-      sdbRelease(pSdb, pVgroup);
-    }
+    mndBuildDBVgroupInfo(pDb, pMnode, pRsp->vgroupInfo, &vgNum);
   }
 
   memcpy(pRsp->db, pDb->name, TSDB_DB_FNAME_LEN);
   pRsp->uid = htobe64(pDb->uid);
   pRsp->vgVersion = htonl(pDb->vgVersion);
-  pRsp->vgNum = htonl(vindex);
+  pRsp->vgNum = htonl(vgNum);
   pRsp->hashMethod = pDb->hashMethod;
 
   pReq->pCont = pRsp;
   pReq->contLen = contLen;
   mndReleaseDb(pMnode, pDb);
+
+  return 0;
+}
+
+int32_t mndValidateDBInfo(SMnode *pMnode, SDbVgVersion *dbs, int32_t num, void **rsp, int32_t *rspLen) {
+  SSdb *pSdb = pMnode->pSdb;
+  int32_t bufSize = num * (sizeof(SUseDbRsp) + TSDB_DEFAULT_VN_PER_DB * sizeof(SVgroupInfo));
+  void *buf = malloc(bufSize);
+  int32_t len = 0;
+  int32_t contLen = 0;
+  int32_t bufOffset = 0;
+  SUseDbRsp *pRsp = NULL;
+
+  for (int32_t i = 0; i < num; ++i) {
+    SDbVgVersion *db = &dbs[i];
+    db->dbId = be64toh(db->dbId);
+    db->vgVersion = ntohl(db->vgVersion);
+
+    len = 0;
+    
+    SDbObj *pDb = mndAcquireDb(pMnode, db->dbFName);
+    if (pDb == NULL) {
+      mInfo("db %s not exist", db->dbFName);
+      
+      len = sizeof(SUseDbRsp);
+    } else if (pDb->uid != db->dbId || db->vgVersion < pDb->vgVersion) {
+      len = sizeof(SUseDbRsp) + pDb->cfg.numOfVgroups * sizeof(SVgroupInfo);
+    }
+
+    if (0 == len) {
+      mndReleaseDb(pMnode, pDb);
+      
+      continue;
+    }
+    
+    contLen += len;
+    
+    if (contLen > bufSize) {
+      buf = realloc(buf, contLen);
+    }
+    
+    pRsp = (SUseDbRsp *)((char *)buf + bufOffset);
+    memcpy(pRsp->db, db->dbFName, TSDB_DB_FNAME_LEN);
+    if (pDb) {
+      int32_t vgNum = 0;
+      mndBuildDBVgroupInfo(pDb, pMnode, pRsp->vgroupInfo, &vgNum);
+
+      pRsp->uid = htobe64(pDb->uid);
+      pRsp->vgVersion = htonl(pDb->vgVersion);
+      pRsp->vgNum = htonl(vgNum);
+      pRsp->hashMethod = pDb->hashMethod;
+    } else {
+      pRsp->uid = htobe64(db->dbId);
+      pRsp->vgNum = htonl(0);
+      pRsp->hashMethod = 0;
+      pRsp->vgVersion = htonl(-1);
+    }
+
+    bufOffset += len;
+    
+    mndReleaseDb(pMnode, pDb);
+  }
+
+  if (contLen > 0) {
+    *rsp = buf;
+    *rspLen = contLen;
+  } else {
+    *rsp = NULL;
+    tfree(buf);
+    *rspLen = 0;
+  }
 
   return 0;
 }
@@ -1025,7 +1113,7 @@ static int32_t mndGetDbMeta(SMnodeMsg *pReq, SShowObj *pShow, STableMetaRsp *pMe
 
   pShow->numOfRows = sdbGetSize(pSdb, SDB_DB);
   pShow->rowSize = pShow->offset[cols - 1] + pShow->bytes[cols - 1];
-  strcpy(pMeta->tbFname, mndShowStr(pShow->type));
+  strcpy(pMeta->tbName, mndShowStr(pShow->type));
 
   return 0;
 }
@@ -1143,7 +1231,7 @@ static int32_t mndRetrieveDbs(SMnodeMsg *pReq, SShowObj *pShow, char *data, int3
         prec = TSDB_TIME_PRECISION_NANO_STR;
         break;
       default:
-        assert(false);
+        prec = "none";
         break;
     }
     STR_WITH_SIZE_TO_VARSTR(pWrite, prec, 2);

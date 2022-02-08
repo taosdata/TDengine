@@ -21,17 +21,19 @@ static int     vnodeGetTableMeta(SVnode *pVnode, SRpcMsg *pMsg);
 
 int vnodeQueryOpen(SVnode *pVnode) {
   return qWorkerInit(NODE_TYPE_VNODE, pVnode->vgId, NULL, (void **)&pVnode->pQuery, pVnode,
-                     (putReqToQueryQFp)vnodePutReqToVQueryQ);
+                     (putReqToQueryQFp)vnodePutReqToVQueryQ, (sendReqToDnodeFp)vnodeSendReqToDnode);
 }
 
 int vnodeProcessQueryMsg(SVnode *pVnode, SRpcMsg *pMsg) {
   vTrace("message in query queue is processing");
+  SReadHandle handle = {.reader = pVnode->pTsdb, .meta = pVnode->pMeta};
 
   switch (pMsg->msgType) {
-    case TDMT_VND_QUERY:
-      return qWorkerProcessQueryMsg(pVnode->pTsdb, pVnode->pQuery, pMsg);
+    case TDMT_VND_QUERY:{
+      return qWorkerProcessQueryMsg(&handle, pVnode->pQuery, pMsg);
+    }
     case TDMT_VND_QUERY_CONTINUE:
-      return qWorkerProcessCQueryMsg(pVnode->pTsdb, pVnode->pQuery, pMsg);
+      return qWorkerProcessCQueryMsg(&handle, pVnode->pQuery, pMsg);
     default:
       vError("unknown msg type:%d in query queue", pMsg->msgType);
       return TSDB_CODE_VND_APP_ERROR;
@@ -43,6 +45,8 @@ int vnodeProcessFetchMsg(SVnode *pVnode, SRpcMsg *pMsg) {
   switch (pMsg->msgType) {
     case TDMT_VND_FETCH:
       return qWorkerProcessFetchMsg(pVnode, pVnode->pQuery, pMsg);
+    case TDMT_VND_FETCH_RSP:
+      return qWorkerProcessFetchRsp(pVnode, pVnode->pQuery, pMsg);
     case TDMT_VND_RES_READY:
       return qWorkerProcessReadyMsg(pVnode, pVnode->pQuery, pMsg);
     case TDMT_VND_TASKS_STATUS:
@@ -80,7 +84,7 @@ static int vnodeGetTableMeta(SVnode *pVnode, SRpcMsg *pMsg) {
   int             msgLen = 0;
   int32_t         code = TSDB_CODE_VND_APP_ERROR;
 
-  pTbCfg = metaGetTbInfoByName(pVnode->pMeta, pReq->tableFname, &uid);
+  pTbCfg = metaGetTbInfoByName(pVnode->pMeta, pReq->tbName, &uid);
   if (pTbCfg == NULL) {
     code = TSDB_CODE_VND_TB_NOT_EXIST;
     goto _exit;
@@ -115,13 +119,13 @@ static int vnodeGetTableMeta(SVnode *pVnode, SRpcMsg *pMsg) {
     goto _exit;
   }
 
-  memcpy(pTbMetaMsg->dbFname, pReq->dbFname, sizeof(pTbMetaMsg->dbFname));
-  strcpy(pTbMetaMsg->tbFname, pTbCfg->name);
+  memcpy(pTbMetaMsg->dbFName, pReq->dbFName, sizeof(pTbMetaMsg->dbFName));
+  strcpy(pTbMetaMsg->tbName, pReq->tbName);
   if (pTbCfg->type == META_CHILD_TABLE) {
-    strcpy(pTbMetaMsg->stbFname, pStbCfg->name);
+    strcpy(pTbMetaMsg->stbName, pStbCfg->name);
     pTbMetaMsg->suid = htobe64(pTbCfg->ctbCfg.suid);
   } else if (pTbCfg->type == META_SUPER_TABLE) {
-    strcpy(pTbMetaMsg->stbFname, pTbCfg->name);
+    strcpy(pTbMetaMsg->stbName, pTbCfg->name);
     pTbMetaMsg->suid = htobe64(uid);
   }
   pTbMetaMsg->numOfTags = htonl(nTagCols);

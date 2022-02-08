@@ -74,7 +74,7 @@ int32_t createSelectPlan(const SQueryStmtInfo* pSelect, SQueryPlanNode** pQueryP
 }
 
 int32_t createQueryPlan(const SQueryNode* pNode, SQueryPlanNode** pQueryPlan) {
-  switch (nodeType(pNode)) {
+  switch (queryNodeType(pNode)) {
     case TSDB_SQL_SELECT: {
       return createSelectPlan((const SQueryStmtInfo*)pNode, pQueryPlan);
     }
@@ -395,7 +395,7 @@ SArray* createQueryPlanImpl(const SQueryStmtInfo* pQueryInfo) {
 }
 
 static void doDestroyQueryNode(SQueryPlanNode* pQueryNode) {
-  int32_t type = nodeType(pQueryNode);
+  int32_t type = queryNodeType(pQueryNode);
   if (type == QNODE_MODIFY) {
     SDataPayloadInfo* pInfo = pQueryNode->pExtInfo;
 

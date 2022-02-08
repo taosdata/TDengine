@@ -30,7 +30,8 @@ void* rpcOpen(const SRpcInit* pInit) {
     tstrncpy(pRpc->label, pInit->label, strlen(pInit->label));
   }
   pRpc->cfp = pInit->cfp;
-  pRpc->numOfThreads = pInit->numOfThreads > TSDB_MAX_RPC_THREADS ? TSDB_MAX_RPC_THREADS : pInit->numOfThreads;
+  // pRpc->numOfThreads = pInit->numOfThreads > TSDB_MAX_RPC_THREADS ? TSDB_MAX_RPC_THREADS : pInit->numOfThreads;
+  pRpc->numOfThreads = pInit->numOfThreads;
   pRpc->connType = pInit->connType;
   pRpc->idleTime = pInit->idleTime;
   pRpc->tcphandle = (*taosInitHandle[pRpc->connType])(0, pInit->localPort, pRpc->label, pRpc->numOfThreads, NULL, pRpc);
@@ -55,7 +56,13 @@ void* rpcMallocCont(int contLen) {
   }
   return start + sizeof(STransMsgHead);
 }
-void  rpcFreeCont(void* cont) { return; }
+void rpcFreeCont(void* cont) {
+  // impl
+  if (cont == NULL) {
+    return;
+  }
+  free((char*)cont - TRANS_MSG_OVERHEAD);
+}
 void* rpcReallocCont(void* ptr, int contLen) { return NULL; }
 
 void rpcSendRedirectRsp(void* pConn, const SEpSet* pEpSet) {}

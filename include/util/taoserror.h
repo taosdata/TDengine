@@ -253,6 +253,8 @@ int32_t* taosGetErrno();
 #define TSDB_CODE_MND_INVALID_TOPIC_OPTION      TAOS_DEF_ERROR_CODE(0, 0x03E4)
 #define TSDB_CODE_MND_TOPIC_OPTION_UNCHNAGED    TAOS_DEF_ERROR_CODE(0, 0x03E5)
 #define TSDB_CODE_MND_NAME_CONFLICT_WITH_STB    TAOS_DEF_ERROR_CODE(0, 0x03E6)
+#define TSDB_CODE_MND_CONSUMER_NOT_EXIST        TAOS_DEF_ERROR_CODE(0, 0x03E7)
+#define TSDB_CODE_MND_UNSUPPORTED_TOPIC         TAOS_DEF_ERROR_CODE(0, 0x03E7)
 
 // dnode
 #define TSDB_CODE_DND_ACTION_IN_PROGRESS        TAOS_DEF_ERROR_CODE(0, 0x0400)
@@ -438,7 +440,10 @@ int32_t* taosGetErrno();
 #define TSDB_CODE_SCH_STATUS_ERROR              TAOS_DEF_ERROR_CODE(0, 0x2501)  //scheduler status error
 #define TSDB_CODE_SCH_INTERNAL_ERROR            TAOS_DEF_ERROR_CODE(0, 0x2502)  //scheduler internal error
 
-
+//parser
+#define TSDB_CODE_PARSER_INVALID_COLUMN         TAOS_DEF_ERROR_CODE(0, 0x2601)  //invalid column name
+#define TSDB_CODE_PARSER_TABLE_NOT_EXIST        TAOS_DEF_ERROR_CODE(0, 0x2602)  //table not exist
+#define TSDB_CODE_PARSER_AMBIGUOUS_COLUMN       TAOS_DEF_ERROR_CODE(0, 0x2603)  //ambiguous column
 
 #ifdef __cplusplus
 }

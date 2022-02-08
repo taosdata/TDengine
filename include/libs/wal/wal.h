@@ -19,6 +19,7 @@
 #include "tarray.h"
 #include "tdef.h"
 #include "tlog.h"
+#include "tmsg.h"
 #ifdef __cplusplus
 extern "C" {
 #endif
@@ -159,7 +160,7 @@ int32_t walAlter(SWal *, SWalCfg *pCfg);
 void    walClose(SWal *);
 
 // write
-int64_t walWrite(SWal *, int64_t index, uint8_t msgType, const void *body, int32_t bodyLen);
+int64_t walWrite(SWal *, int64_t index, tmsg_t msgType, const void *body, int32_t bodyLen);
 void    walFsync(SWal *, bool force);
 
 // apis for lifecycle management

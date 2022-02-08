@@ -479,7 +479,6 @@ int32_t qwExecTask(QW_FPARAMS_DEF, SQWTaskCtx *ctx, bool *queryEnd) {
 
     if (NULL == pRes) {
       QW_TASK_DLOG("task query done, useconds:%"PRIu64, useconds);
-      
       dsEndPut(sinkHandle, useconds);
       
       if (TASK_TYPE_TEMP == ctx->taskType) {
@@ -492,6 +491,8 @@ int32_t qwExecTask(QW_FPARAMS_DEF, SQWTaskCtx *ctx, bool *queryEnd) {
       
       break;
     }
+
+    ASSERT(pRes->info.rows > 0);
 
     SInputData inputData = {.pData = pRes, .pTableRetrieveTsMap = NULL};
     code = dsPutDataBlock(sinkHandle, &inputData, &qcontinue);
@@ -560,7 +561,7 @@ int32_t qwGetResFromSink(QW_FPARAMS_DEF, SQWTaskCtx *ctx, int32_t *dataLen, void
       
       QW_ERR_RET(qwUpdateTaskStatus(QW_FPARAMS(), JOB_TASK_STATUS_SUCCEED));
 
-      QW_ERR_RET(qwMallocFetchRsp(len, &rsp));      
+      QW_ERR_RET(qwMallocFetchRsp(len, &rsp));
       *rspMsg = rsp;
       *dataLen = 0;
       
@@ -572,7 +573,7 @@ int32_t qwGetResFromSink(QW_FPARAMS_DEF, SQWTaskCtx *ctx, int32_t *dataLen, void
     QW_TASK_DLOG("no res data in sink, need response later, queryEnd:%d", queryEnd);
 
     return TSDB_CODE_SUCCESS;
-  }  
+  }
 
 
   // Got data from sink
@@ -1100,8 +1101,6 @@ int32_t qwProcessCQuery(QW_FPARAMS_DEF, SQWMsg *qwMsg) {
     atomic_store_8(&ctx->queryInQueue, 0);
     atomic_store_8(&ctx->queryContinue, 0);
 
-    DataSinkHandle  sinkHandle = ctx->sinkHandle;
-
     QW_ERR_JRET(qwExecTask(QW_FPARAMS(), ctx, &queryEnd));
 
     if (QW_IS_EVENT_RECEIVED(ctx, QW_EVENT_FETCH)) {
@@ -1313,12 +1312,13 @@ _return:
   QW_RET(code);
 }
 
-int32_t qWorkerInit(int8_t nodeType, int32_t nodeId, SQWorkerCfg *cfg, void **qWorkerMgmt, void *nodeObj, putReqToQueryQFp fp) {
-  if (NULL == qWorkerMgmt || NULL == nodeObj || NULL == fp) {
+int32_t qWorkerInit(int8_t nodeType, int32_t nodeId, SQWorkerCfg *cfg, void **qWorkerMgmt, void *nodeObj,
+                    putReqToQueryQFp fp1, sendReqToDnodeFp fp2) {
+  if (NULL == qWorkerMgmt || NULL == nodeObj || NULL == fp1 || NULL == fp2) {
     qError("invalid param to init qworker");
     QW_RET(TSDB_CODE_QRY_INVALID_INPUT);
   }
-  
+
   SQWorkerMgmt *mgmt = calloc(1, sizeof(SQWorkerMgmt));
   if (NULL == mgmt) {
     qError("calloc %d failed", (int32_t)sizeof(SQWorkerMgmt));
@@ -1361,7 +1361,8 @@ int32_t qWorkerInit(int8_t nodeType, int32_t nodeId, SQWorkerCfg *cfg, void **qW
   mgmt->nodeType = nodeType;
   mgmt->nodeId = nodeId;
   mgmt->nodeObj = nodeObj;
-  mgmt->putToQueueFp = fp;
+  mgmt->putToQueueFp = fp1;
+  mgmt->sendReqFp = fp2;
 
   *qWorkerMgmt = mgmt;
 

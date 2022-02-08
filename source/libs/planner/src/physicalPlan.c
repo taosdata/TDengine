@@ -216,7 +216,8 @@ static SPhyNode* createMultiTableScanNode(SQueryPlanNode* pPlanNode, SQueryTable
   } else if (needSeqScan(pPlanNode)) {
     return createUserTableScanNode(pPlanNode, pTable, OP_TableSeqScan);
   }
-  return createUserTableScanNode(pPlanNode, pTable, OP_DataBlocksOptScan);
+  int32_t type = (pPlanNode->info.type == QNODE_TABLESCAN)? OP_DataBlocksOptScan:OP_StreamScan;
+  return createUserTableScanNode(pPlanNode, pTable, type);
 }
 
 static SSubplan* initSubplan(SPlanContext* pCxt, int32_t type) {
@@ -251,24 +252,9 @@ static SSubplan* initSubplan(SPlanContext* pCxt, int32_t type) {
   return subplan;
 }
 
-static void vgroupInfoToEpSet(const SVgroupInfo* vg, SQueryNodeAddr* execNode) {
-  execNode->nodeId = vg->vgId;
-  execNode->inUse = vg->inUse;
-  execNode->numOfEps = vg->numOfEps;
-  for (int8_t i = 0; i < vg->numOfEps; ++i) {
-    execNode->epAddr[i] = vg->epAddr[i];
-  }
-  return;
-}
-
-static void vgroupMsgToEpSet(const SVgroupMsg* vg, SQueryNodeAddr* execNode) {
-  execNode->nodeId = vg->vgId;
-  execNode->inUse = 0; // todo
-  execNode->numOfEps = vg->numOfEps;
-  for (int8_t i = 0; i < vg->numOfEps; ++i) {
-    execNode->epAddr[i] = vg->epAddr[i];
-  }
-  return;
+static void vgroupInfoToNodeAddr(const SVgroupInfo* vg, SQueryNodeAddr* pNodeAddr) {
+  pNodeAddr->nodeId = vg->vgId;
+  pNodeAddr->epset  = vg->epset;
 }
 
 static uint64_t splitSubplanByTable(SPlanContext* pCxt, SQueryPlanNode* pPlanNode, SQueryTableInfo* pTableInfo) {
@@ -277,7 +263,8 @@ static uint64_t splitSubplanByTable(SPlanContext* pCxt, SQueryPlanNode* pPlanNod
     STORE_CURRENT_SUBPLAN(pCxt);
     SSubplan* subplan = initSubplan(pCxt, QUERY_TYPE_SCAN);
     subplan->msgType   = TDMT_VND_QUERY;
-    vgroupMsgToEpSet(&(pTableInfo->pMeta->vgroupList->vgroups[i]), &subplan->execNode);
+
+    vgroupInfoToNodeAddr(&(pTableInfo->pMeta->vgroupList->vgroups[i]), &subplan->execNode);
     subplan->pNode = createMultiTableScanNode(pPlanNode, pTableInfo);
     subplan->pDataSink = createDataDispatcher(pCxt, pPlanNode, subplan->pNode);
     RECOVERY_CURRENT_SUBPLAN(pCxt);
@@ -297,11 +284,12 @@ static bool needMultiNodeScan(SQueryTableInfo* pTable) {
   return (TSDB_SUPER_TABLE == pTable->pMeta->pTableMeta->tableType);
 }
 
-static SPhyNode* createSingleTableScanNode(SQueryPlanNode* pPlanNode, SQueryTableInfo* pTable, SSubplan* subplan) {
-  vgroupMsgToEpSet(&(pTable->pMeta->vgroupList->vgroups[0]), &subplan->execNode);
-
-  int32_t type = (pPlanNode->info.type == QNODE_TABLESCAN)? OP_TableScan:OP_StreamScan;
-  return createUserTableScanNode(pPlanNode, pTable, type);
+// TODO: the SVgroupInfo index
+static SPhyNode* createSingleTableScanNode(SQueryPlanNode* pPlanNode, SQueryTableInfo* pTableInfo, SSubplan* subplan) {
+  SVgroupsInfo* pVgroupsInfo = pTableInfo->pMeta->vgroupList;
+  vgroupInfoToNodeAddr(&(pVgroupsInfo->vgroups[0]), &subplan->execNode);
+  int32_t type = (pPlanNode->info.type == QNODE_TABLESCAN)? OP_DataBlocksOptScan:OP_StreamScan;
+  return createUserTableScanNode(pPlanNode, pTableInfo, type);
 }
 
 static SPhyNode* createTableScanNode(SPlanContext* pCxt, SQueryPlanNode* pPlanNode) {
@@ -309,6 +297,7 @@ static SPhyNode* createTableScanNode(SPlanContext* pCxt, SQueryPlanNode* pPlanNo
   if (needMultiNodeScan(pTable)) {
     return createExchangeNode(pCxt, pPlanNode, splitSubplanByTable(pCxt, pPlanNode, pTable));
   }
+
   return createSingleTableScanNode(pPlanNode, pTable, pCxt->pCurrentSubplan);
 }
 
@@ -374,7 +363,7 @@ static void splitModificationOpSubPlan(SPlanContext* pCxt, SQueryPlanNode* pPlan
     SSubplan* subplan = initSubplan(pCxt, QUERY_TYPE_MODIFY);
     SVgDataBlocks* blocks = (SVgDataBlocks*)taosArrayGetP(pPayload->payload, i);
 
-    vgroupInfoToEpSet(&blocks->vg, &subplan->execNode);
+    subplan->execNode.epset = blocks->vg.epset;
     subplan->pDataSink  = createDataInserter(pCxt, blocks, NULL);
     subplan->pNode      = NULL;
     subplan->type       = QUERY_TYPE_MODIFY;
@@ -399,6 +388,33 @@ static void createSubplanByLevel(SPlanContext* pCxt, SQueryPlanNode* pRoot) {
   // todo deal subquery
 }
 
+static void postCreateDag(SQueryPlanNode* pQueryNode, SQueryDag* pDag, SArray* pNodeList) {
+  // The exchange operator is not necessary, in case of the stream scan.
+  // Here we need to remove it from the DAG.
+  if (pQueryNode->info.type == QNODE_STREAMSCAN) {
+    SArray* pRootLevel = taosArrayGetP(pDag->pSubplans, 0);
+    SSubplan *pSubplan = taosArrayGetP(pRootLevel, 0);
+
+    if (pSubplan->pNode->info.type == OP_Exchange) {
+      ASSERT(taosArrayGetSize(pRootLevel) == 1);
+
+      taosArrayRemove(pDag->pSubplans, 0);
+      // And then update the number of the subplans.
+      pDag->numOfSubplans -= 1;
+    }
+  } else {
+    // Traverse the dag again to acquire the execution node.
+    if (pNodeList != NULL) {
+      SArray** pSubLevel = taosArrayGetLast(pDag->pSubplans);
+      size_t   num = taosArrayGetSize(*pSubLevel);
+      for (int32_t j = 0; j < num; ++j) {
+        SSubplan* pPlan = taosArrayGetP(*pSubLevel, j);
+        taosArrayPush(pNodeList, &pPlan->execNode);
+      }
+    }
+  }
+}
+
 int32_t createDag(SQueryPlanNode* pQueryNode, struct SCatalog* pCatalog, SQueryDag** pDag, SArray* pNodeList, uint64_t requestId) {
   TRY(TSDB_MAX_TAG_CONDITIONS) {
     SPlanContext context = {
@@ -420,16 +436,7 @@ int32_t createDag(SQueryPlanNode* pQueryNode, struct SCatalog* pCatalog, SQueryD
     return TSDB_CODE_FAILED;
   } END_TRY
 
-  // traverse the dag again to acquire the execution node.
-  if (pNodeList != NULL) {
-    SArray** pSubLevel = taosArrayGetLast((*pDag)->pSubplans);
-    size_t  num = taosArrayGetSize(*pSubLevel);
-    for (int32_t j = 0; j < num; ++j) {
-      SSubplan* pPlan = taosArrayGetP(*pSubLevel, j);
-      taosArrayPush(pNodeList, &pPlan->execNode);
-    }
-  }
-
+  postCreateDag(pQueryNode, *pDag, pNodeList);
   return TSDB_CODE_SUCCESS;
 }
 
@@ -461,7 +468,7 @@ static void destroyDataSinkNode(SDataSink* pSinkNode) {
     return;
   }
 
-  if (nodeType(pSinkNode) == DSINK_Dispatch) {
+  if (queryNodeType(pSinkNode) == DSINK_Dispatch) {
     SDataDispatcher* pDdSink = (SDataDispatcher*)pSinkNode;
     tfree(pDdSink->sink.schema.pSchema);
   }

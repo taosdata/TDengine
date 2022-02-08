@@ -31,28 +31,28 @@ int32_t dndInitWorker(SDnode *pDnode, SDnodeWorker *pWorker, EWorkerType type, c
   pWorker->pDnode = pDnode;
 
   if (pWorker->type == DND_WORKER_SINGLE) {
-    SWorkerPool *pPool = &pWorker->pool;
+    SQWorkerPool *pPool = &pWorker->pool;
     pPool->name = name;
     pPool->min = minNum;
     pPool->max = maxNum;
-    if (tWorkerInit(pPool) != 0) {
+    if (tQWorkerInit(pPool) != 0) {
       terrno = TSDB_CODE_OUT_OF_MEMORY;
       return -1;
     }
-    pWorker->queue = tWorkerAllocQueue(pPool, pDnode, (FProcessItem)queueFp);
+    pWorker->queue = tQWorkerAllocQueue(pPool, pDnode, (FItem)queueFp);
     if (pWorker->queue == NULL) {
       terrno = TSDB_CODE_OUT_OF_MEMORY;
       return -1;
     }
   } else if (pWorker->type == DND_WORKER_MULTI) {
-    SMWorkerPool *pPool = &pWorker->mpool;
+    SWWorkerPool *pPool = &pWorker->mpool;
     pPool->name = name;
     pPool->max = maxNum;
-    if (tMWorkerInit(pPool) != 0) {
+    if (tWWorkerInit(pPool) != 0) {
       terrno = TSDB_CODE_OUT_OF_MEMORY;
       return -1;
     }
-    pWorker->queue = tMWorkerAllocQueue(pPool, pDnode, (FProcessItems)queueFp);
+    pWorker->queue = tWWorkerAllocQueue(pPool, pDnode, (FItems)queueFp);
     if (pWorker->queue == NULL) {
       terrno = TSDB_CODE_OUT_OF_MEMORY;
       return -1;
@@ -70,11 +70,11 @@ void dndCleanupWorker(SDnodeWorker *pWorker) {
   }
 
   if (pWorker->type == DND_WORKER_SINGLE) {
-    tWorkerCleanup(&pWorker->pool);
-    tWorkerFreeQueue(&pWorker->pool, pWorker->queue);
+    tQWorkerCleanup(&pWorker->pool);
+    tQWorkerFreeQueue(&pWorker->pool, pWorker->queue);
   } else if (pWorker->type == DND_WORKER_MULTI) {
-    tMWorkerCleanup(&pWorker->mpool);
-    tMWorkerFreeQueue(&pWorker->mpool, pWorker->queue);
+    tWWorkerCleanup(&pWorker->mpool);
+    tWWorkerFreeQueue(&pWorker->mpool, pWorker->queue);
   } else {
   }
 }
