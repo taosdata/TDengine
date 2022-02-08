@@ -4517,6 +4517,7 @@ void tscTryQueryNextClause(SSqlObj* pSql, __async_cb_func_t fp) {
   pRes->final = finalBk;
   pRes->numOfTotal = num;
 
+  pthread_mutex_lock(&pSql->subState.mutex);
   for(int32_t i = 0; i < pSql->subState.numOfSub; ++i) {
     taos_free_result(pSql->pSubs[i]);
   }
@@ -4524,6 +4525,7 @@ void tscTryQueryNextClause(SSqlObj* pSql, __async_cb_func_t fp) {
   tfree(pSql->pSubs);
   tfree(pSql->subState.states);
   pSql->subState.numOfSub = 0;
+  pthread_mutex_unlock(&pSql->subState.mutex);
   pthread_mutex_destroy(&pSql->subState.mutex);
 
   pSql->fp = fp;
@@ -5387,7 +5389,7 @@ int parseJsontoTagData(char* json, SKVRowBuilder* kvRowBuilder, char* errMsg, in
   varDataSetLen(nullTypeVal + CHAR_BYTES, INT_BYTES);
   *(uint32_t*)(varDataVal(nullTypeKey)) = jsonNULL;
   tdAddColToKVRow(kvRowBuilder, jsonIndex++, TSDB_DATA_TYPE_NCHAR, nullTypeKey, false);   // add json null type
-  if (!json || strtrim(json) == 0 || strcasecmp(json, "null") == 0){
+  if (!json || strtrim(json) == 0 || strncasecmp(json, "null", 4) == 0){
     *(uint32_t*)(varDataVal(nullTypeVal + CHAR_BYTES)) = jsonNULL;
     tdAddColToKVRow(kvRowBuilder, jsonIndex++, TSDB_DATA_TYPE_NCHAR, nullTypeVal, true);   // add json null value
     return TSDB_CODE_SUCCESS;
