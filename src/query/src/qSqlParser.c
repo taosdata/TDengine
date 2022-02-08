@@ -161,9 +161,13 @@ tSqlExpr *tSqlExprCreateIdValue(SSqlInfo* pInfo, SStrToken *pToken, int32_t optr
     }
     pSqlExpr->tokenId = optrType;
     pSqlExpr->type    = SQL_NODE_VALUE;
-  } else if (optrType == TK_NOW) {
+  } else if (optrType == TK_NOW || optrType == TK_TODAY) {
     // use nanosecond by default TODO set value after getting database precision
-    pSqlExpr->value.i64 = taosGetTimestamp(TSDB_TIME_PRECISION_NANO);
+    if (optrType == TK_NOW) {
+      pSqlExpr->value.i64 = taosGetTimestamp(TSDB_TIME_PRECISION_NANO);
+    } else {
+      pSqlExpr->value.i64 = taosGetTimestampToday() * 1000000000;
+    }
     pSqlExpr->value.nType = TSDB_DATA_TYPE_BIGINT;
     pSqlExpr->tokenId = TK_TIMESTAMP;  // TK_TIMESTAMP used to denote the time value is in microsecond
     pSqlExpr->type    = SQL_NODE_VALUE;

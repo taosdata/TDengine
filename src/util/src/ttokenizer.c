@@ -159,6 +159,7 @@ static SKeyword keywordTable[] = {
     {"SOFFSET",      TK_SOFFSET},
     {"WHERE",        TK_WHERE},
     {"NOW",          TK_NOW},
+    {"TODAY",        TK_TODAY},
     {"INSERT",       TK_INSERT},
     {"INTO",         TK_INTO},
     {"VALUES",       TK_VALUES},

@@ -748,6 +748,7 @@ expr(A) ::= MINUS(X) FLOAT(Y).   { X.n += Y.n; X.type = TK_FLOAT; A = tSqlExprCr
 expr(A) ::= PLUS(X) FLOAT(Y).    { X.n += Y.n; X.type = TK_FLOAT; A = tSqlExprCreateIdValue(pInfo, &X, TK_FLOAT);}
 expr(A) ::= STRING(X).           { A = tSqlExprCreateIdValue(pInfo, &X, TK_STRING);}
 expr(A) ::= NOW(X).              { A = tSqlExprCreateIdValue(pInfo, &X, TK_NOW); }
+expr(A) ::= TODAY(X).            { A = tSqlExprCreateIdValue(pInfo, &X, TK_TODAY); }
 expr(A) ::= VARIABLE(X).         { A = tSqlExprCreateIdValue(pInfo, &X, TK_VARIABLE);}
 expr(A) ::= PLUS(X) VARIABLE(Y).   { X.n += Y.n; X.type = TK_VARIABLE; A = tSqlExprCreateIdValue(pInfo, &X, TK_VARIABLE);}
 expr(A) ::= MINUS(X) VARIABLE(Y).  { X.n += Y.n; X.type = TK_VARIABLE; A = tSqlExprCreateIdValue(pInfo, &X, TK_VARIABLE);}
@@ -972,4 +973,4 @@ cmd ::= KILL QUERY INTEGER(X) COLON(Z) INTEGER(Y).        {X.n += (Z.n + Y.n); s
 %fallback ID ABORT AFTER ASC ATTACH BEFORE BEGIN CASCADE CLUSTER CONFLICT COPY DATABASE DEFERRED
   DELIMITERS DESC DETACH EACH END EXPLAIN FAIL FOR GLOB IGNORE IMMEDIATE INITIALLY INSTEAD
   LIKE MATCH NMATCH KEY OF OFFSET RAISE REPLACE RESTRICT ROW STATEMENT TRIGGER VIEW ALL
-  NOW IPTOKEN SEMI NONE PREV LINEAR IMPORT TBNAME JOIN STABLE NULL INSERT INTO VALUES FILE.
+  NOW TODAY IPTOKEN SEMI NONE PREV LINEAR IMPORT TBNAME JOIN STABLE NULL INSERT INTO VALUES FILE.
