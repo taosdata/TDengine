@@ -118,6 +118,53 @@ private:
     return "Unknown Data Type " + to_string(dt.type);
   }
 
+  void valueNodeToStr(const SValueNode* pVal, string& str, bool isProject) {
+    switch (pVal->node.resType.type) {
+      case TSDB_DATA_TYPE_NULL:
+        str.append("null");
+        break;
+      case TSDB_DATA_TYPE_BOOL:
+        str.append(pVal->datum.b ? "true" : "false");
+        break;
+      case TSDB_DATA_TYPE_TINYINT:
+      case TSDB_DATA_TYPE_SMALLINT:
+      case TSDB_DATA_TYPE_INT:
+      case TSDB_DATA_TYPE_BIGINT:
+        str.append(to_string(pVal->datum.i));
+        break;
+      case TSDB_DATA_TYPE_FLOAT:
+      case TSDB_DATA_TYPE_DOUBLE:
+        str.append(to_string(pVal->datum.d));
+        break;
+      case TSDB_DATA_TYPE_BINARY:
+      case TSDB_DATA_TYPE_NCHAR:
+      case TSDB_DATA_TYPE_VARCHAR:
+      case TSDB_DATA_TYPE_VARBINARY:
+        str.append(pVal->datum.p);
+        break;
+      case TSDB_DATA_TYPE_TIMESTAMP:
+        str.append(to_string(pVal->datum.u));
+        break;
+      case TSDB_DATA_TYPE_UTINYINT:
+      case TSDB_DATA_TYPE_USMALLINT:
+      case TSDB_DATA_TYPE_UINT:
+      case TSDB_DATA_TYPE_UBIGINT:
+        str.append(to_string(pVal->datum.u));
+        break;
+      case TSDB_DATA_TYPE_JSON:
+      case TSDB_DATA_TYPE_DECIMAL:
+      case TSDB_DATA_TYPE_BLOB:
+        str.append("JSON or DECIMAL or BLOB");
+        break;
+      default:
+        break;
+    }
+    str.append(" [" + dataTypeToStr(pVal->node.resType) + "]");
+    if (isProject) {
+      str.append(" AS " + string(pVal->node.aliasName));
+    }
+  }
+
   void nodeToStr(const SNode* node, string& str, bool isProject) {
     if (nullptr == node) {
       return;
@@ -142,12 +189,7 @@ private:
         break;
       }
       case QUERY_NODE_VALUE: {
-        SValueNode* pVal = (SValueNode*)node;
-        str.append(pVal->literal);
-        str.append(" [" + dataTypeToStr(pVal->node.resType) + "]");
-        if (isProject) {
-          str.append(" AS " + string(pVal->node.aliasName));
-        }
+        valueNodeToStr((SValueNode*)node, str, isProject);
         break;
       }
       case QUERY_NODE_OPERATOR: {
@@ -391,10 +433,20 @@ TEST_F(NewParserTest, selectSimple) {
   ASSERT_TRUE(run());
 }
 
+TEST_F(NewParserTest, selectConstant) {
+  setDatabase("root", "test");
+
+  bind("SELECT 123, 20.4, 'abc', \"wxy\", TIMESTAMP '2022-02-09 17:30:20', true, false, 10s FROM t1");
+  ASSERT_TRUE(run());
+
+  bind("SELECT 1234567890123456789012345678901234567890, 20.1234567890123456789012345678901234567890, 'abc', \"wxy\", TIMESTAMP '2022-02-09 17:30:20', true, false, 15s FROM t1");
+  ASSERT_TRUE(run());
+}
+
 TEST_F(NewParserTest, selectExpression) {
   setDatabase("root", "test");
 
-  bind("SELECT c1 + 10, c2 FROM t1");
+  bind("SELECT ts + 10s, c1 + 10, concat(c2, 'abc') FROM t1");
   ASSERT_TRUE(run());
 }
 

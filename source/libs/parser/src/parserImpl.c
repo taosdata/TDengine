@@ -16,7 +16,10 @@
 #include "parserImpl.h"
 
 #include "astCreateContext.h"
+#include "functionMgt.h"
 #include "parserInt.h"
+#include "tglobal.h"
+#include "ttime.h"
 #include "ttoken.h"
 
 typedef void* (*FMalloc)(size_t);
@@ -240,6 +243,7 @@ typedef enum ESqlClause {
 
 typedef struct STranslateContext {
   SParseContext* pParseCxt;
+  FuncMgtHandle fmgt;
   int32_t errCode;
   SMsgBuf msgBuf;
   SArray* pNsLevel; // element is SArray*, the element of this subarray is STableNode*
@@ -251,21 +255,30 @@ static int32_t translateSubquery(STranslateContext* pCxt, SNode* pNode);
 
 static char* getSyntaxErrFormat(int32_t errCode) {
   switch (errCode) {
-    case TSDB_CODE_PARSER_INVALID_COLUMN:
+    case TSDB_CODE_PAR_INVALID_COLUMN:
       return "Invalid column name : %s";
-    case TSDB_CODE_PARSER_TABLE_NOT_EXIST:
+    case TSDB_CODE_PAR_TABLE_NOT_EXIST:
       return "Table does not exist : %s";
-    case TSDB_CODE_PARSER_AMBIGUOUS_COLUMN:
+    case TSDB_CODE_PAR_AMBIGUOUS_COLUMN:
       return "Column ambiguously defined : %s";
-    case TSDB_CODE_PARSER_WRONG_VALUE_TYPE:
+    case TSDB_CODE_PAR_WRONG_VALUE_TYPE:
       return "Invalid value type : %s";
+    case TSDB_CODE_PAR_FUNTION_PARA_NUM:
+      return "Invalid number of arguments : %s";
+    case TSDB_CODE_PAR_FUNTION_PARA_TYPE:
+      return "Inconsistent datatypes : %s";
+    case TSDB_CODE_PAR_ILLEGAL_USE_AGG_FUNCTION:
+      return "There mustn't be aggregation";
     default:
       return "Unknown error";
   }
 }
 
-static int32_t generateSyntaxErrMsg(STranslateContext* pCxt, int32_t errCode, const char* additionalInfo) {
-  snprintf(pCxt->msgBuf.buf, pCxt->msgBuf.len, getSyntaxErrFormat(errCode), additionalInfo);
+static int32_t generateSyntaxErrMsg(STranslateContext* pCxt, int32_t errCode, ...) {
+  va_list vArgList;
+  va_start(vArgList, errCode);
+  vsnprintf(pCxt->msgBuf.buf, pCxt->msgBuf.len, getSyntaxErrFormat(errCode), vArgList);
+  va_end(vArgList);
   pCxt->errCode = errCode;
   return errCode;
 }
@@ -394,7 +407,7 @@ static bool translateColumnWithPrefix(STranslateContext* pCxt, SColumnNode* pCol
       if (findAndSetColumn(pCol, pTable)) {
         break;
       }
-      generateSyntaxErrMsg(pCxt, TSDB_CODE_PARSER_INVALID_COLUMN, pCol->colName);
+      generateSyntaxErrMsg(pCxt, TSDB_CODE_PAR_INVALID_COLUMN, pCol->colName);
       return false;
     }
   }
@@ -409,14 +422,14 @@ static bool translateColumnWithoutPrefix(STranslateContext* pCxt, SColumnNode* p
     STableNode* pTable = taosArrayGetP(pTables, i);
     if (findAndSetColumn(pCol, pTable)) {
       if (found) {
-        generateSyntaxErrMsg(pCxt, TSDB_CODE_PARSER_AMBIGUOUS_COLUMN, pCol->colName);
+        generateSyntaxErrMsg(pCxt, TSDB_CODE_PAR_AMBIGUOUS_COLUMN, pCol->colName);
         return false;
       }
       found = true;
     }
   }
   if (!found) {
-    generateSyntaxErrMsg(pCxt, TSDB_CODE_PARSER_INVALID_COLUMN, pCol->colName);
+    generateSyntaxErrMsg(pCxt, TSDB_CODE_PAR_INVALID_COLUMN, pCol->colName);
     return false;
   }
   return true;
@@ -429,8 +442,72 @@ static bool translateColumn(STranslateContext* pCxt, SColumnNode* pCol) {
   return translateColumnWithoutPrefix(pCxt, pCol);
 }
 
-// check literal format
+static int32_t trimStringCopy(const char* src, int32_t len, char* dst) {
+  // delete escape character: \\, \', \"
+  char delim = src[0];
+  int32_t cnt = 0;
+  int32_t j = 0;
+  for (uint32_t k = 1; k < len - 1; ++k) {
+    if (src[k] == '\\' || (src[k] == delim && src[k + 1] == delim)) {
+      dst[j] = src[k + 1];
+      cnt++;
+      j++;
+      k++;
+      continue;
+    }
+    dst[j] = src[k];
+    j++;
+  }
+  dst[j] = '\0';
+  return j;
+}
+
 static bool translateValue(STranslateContext* pCxt, SValueNode* pVal) {
+  if (pVal->isDuration) {
+    char unit = 0;
+    if (parseAbsoluteDuration(pVal->literal, strlen(pVal->literal), &pVal->datum.i, &unit, pVal->node.resType.precision) != TSDB_CODE_SUCCESS) {
+      generateSyntaxErrMsg(pCxt, TSDB_CODE_PAR_WRONG_VALUE_TYPE, pVal->literal);
+      return false;
+    }
+  } else {
+    switch (pVal->node.resType.type) {
+      case TSDB_DATA_TYPE_NULL:
+        break;
+      case TSDB_DATA_TYPE_BOOL:
+        pVal->datum.b = (0 == strcasecmp(pVal->literal, "true"));
+        break;
+      case TSDB_DATA_TYPE_BIGINT: {
+        char* endPtr = NULL;
+        pVal->datum.i = strtoull(pVal->literal, &endPtr, 10);
+        break;
+      }
+      case TSDB_DATA_TYPE_DOUBLE: {
+        char* endPtr = NULL;
+        pVal->datum.d = strtold(pVal->literal, &endPtr);
+        break;
+      }
+      case TSDB_DATA_TYPE_BINARY: {
+        int32_t n = strlen(pVal->literal);
+        pVal->datum.p = calloc(1, n);
+        trimStringCopy(pVal->literal, n, pVal->datum.p);
+        break;
+      }
+      case TSDB_DATA_TYPE_TIMESTAMP: {
+        int32_t n = strlen(pVal->literal);
+        char* tmp = calloc(1, n);
+        int32_t len = trimStringCopy(pVal->literal, n, tmp);
+        if (taosParseTime(tmp, &pVal->datum.u, len, pVal->node.resType.precision, tsDaylight) != TSDB_CODE_SUCCESS) {
+          tfree(tmp);
+          generateSyntaxErrMsg(pCxt, TSDB_CODE_PAR_WRONG_VALUE_TYPE, pVal->literal);
+          return false;
+        }
+        tfree(tmp);
+        break;
+      }
+      default:
+        break;
+    }
+  }
   return true;
 }
 
@@ -440,7 +517,7 @@ static bool translateOperator(STranslateContext* pCxt, SOperatorNode* pOp) {
   if (nodesIsArithmeticOp(pOp)) {
     if (TSDB_DATA_TYPE_JSON == ldt.type || TSDB_DATA_TYPE_BLOB == ldt.type ||
         TSDB_DATA_TYPE_JSON == rdt.type || TSDB_DATA_TYPE_BLOB == rdt.type) {
-      generateSyntaxErrMsg(pCxt, TSDB_CODE_PARSER_WRONG_VALUE_TYPE, ((SExprNode*)(pOp->pRight))->aliasName);
+      generateSyntaxErrMsg(pCxt, TSDB_CODE_PAR_WRONG_VALUE_TYPE, ((SExprNode*)(pOp->pRight))->aliasName);
       return false;
     }
     pOp->node.resType.type = TSDB_DATA_TYPE_DOUBLE;
@@ -449,7 +526,7 @@ static bool translateOperator(STranslateContext* pCxt, SOperatorNode* pOp) {
   } else if (nodesIsComparisonOp(pOp)) {
     if (TSDB_DATA_TYPE_JSON == ldt.type || TSDB_DATA_TYPE_BLOB == ldt.type ||
         TSDB_DATA_TYPE_JSON == rdt.type || TSDB_DATA_TYPE_BLOB == rdt.type) {
-      generateSyntaxErrMsg(pCxt, TSDB_CODE_PARSER_WRONG_VALUE_TYPE, ((SExprNode*)(pOp->pRight))->aliasName);
+      generateSyntaxErrMsg(pCxt, TSDB_CODE_PAR_WRONG_VALUE_TYPE, ((SExprNode*)(pOp->pRight))->aliasName);
       return false;
     }
     pOp->node.resType.type = TSDB_DATA_TYPE_BOOL;
@@ -463,6 +540,15 @@ static bool translateOperator(STranslateContext* pCxt, SOperatorNode* pOp) {
 }
 
 static bool translateFunction(STranslateContext* pCxt, SFunctionNode* pFunc) {
+  int32_t code = fmGetFuncResultType(pCxt->fmgt, pFunc);
+  if (TSDB_CODE_SUCCESS != code) {
+    generateSyntaxErrMsg(pCxt, code, pFunc->functionName);
+    return false;
+  }
+  if (fmIsAggFunc(pFunc->funcId) && (SQL_CLAUSE_FROM == pCxt->currClause || SQL_CLAUSE_WHERE == pCxt->currClause)) {
+    generateSyntaxErrMsg(pCxt, TSDB_CODE_PAR_ILLEGAL_USE_AGG_FUNCTION);
+    return false;
+  }
   return true;
 }
 
@@ -504,7 +590,7 @@ static int32_t translateTable(STranslateContext* pCxt, SNode* pTable) {
       code = catalogGetTableMeta(pCxt->pParseCxt->pCatalog, pCxt->pParseCxt->pTransporter, &(pCxt->pParseCxt->mgmtEpSet),
           toName(pCxt->pParseCxt->acctId, pRealTable, &name), &(pRealTable->pMeta));
       if (TSDB_CODE_SUCCESS != code) {
-        return generateSyntaxErrMsg(pCxt, TSDB_CODE_PARSER_TABLE_NOT_EXIST, pRealTable->table.tableName);
+        return generateSyntaxErrMsg(pCxt, TSDB_CODE_PAR_TABLE_NOT_EXIST, pRealTable->table.tableName);
       }
       code = addNamespace(pCxt, pRealTable);
       break;
