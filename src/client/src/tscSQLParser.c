@@ -5163,6 +5163,7 @@ static int32_t handleExprInQueryCond(SSqlCmd* pCmd, SQueryInfo* pQueryInfo, tSql
   }else{
     colName = &(pLeft->columnName);
   }
+
   int32_t ret = TSDB_CODE_SUCCESS;
 
   SColumnIndex index = COLUMN_INDEX_INITIALIZER;
@@ -5403,7 +5404,7 @@ int32_t getQueryCondExpr(SSqlCmd* pCmd, SQueryInfo* pQueryInfo, tSqlExpr** pExpr
 
     if (columnLeft && columnRight) {
       setNormalExprToCond(&columnLeft, columnRight, (*pExpr)->tokenId);
-      
+
       *columnExpr = columnLeft;
     } else {
       *columnExpr = columnLeft ? columnLeft : columnRight;
@@ -5411,7 +5412,7 @@ int32_t getQueryCondExpr(SSqlCmd* pCmd, SQueryInfo* pQueryInfo, tSqlExpr** pExpr
 
     if (tsLeft && tsRight) {
       setNormalExprToCond(&tsLeft, tsRight, (*pExpr)->tokenId);
-      
+
       *tsExpr = tsLeft;
     } else {
       *tsExpr = tsLeft ? tsLeft : tsRight;
@@ -5421,7 +5422,7 @@ int32_t getQueryCondExpr(SSqlCmd* pCmd, SQueryInfo* pQueryInfo, tSqlExpr** pExpr
       *type = leftType|rightType;
     }
     *tbIdx = (leftTbIdx == rightTbIdx) ? leftTbIdx : -1;
-    
+
     return TSDB_CODE_SUCCESS;
   }
 
@@ -5437,15 +5438,30 @@ int32_t getQueryCondExpr(SSqlCmd* pCmd, SQueryInfo* pQueryInfo, tSqlExpr** pExpr
     goto err_ret;
   }
 
+  //for now(),today() function used in where clause.
+  if (pRight->tokenId == TK_ID && (strncmp(pRight->exprToken.z, "now()", pRight->exprToken.n) == 0 ||
+                                   strncmp(pRight->exprToken.z, "today()", pRight->exprToken.n) == 0)) {
+    pRight->type = SQL_NODE_VALUE;
+    pRight->tokenId = TK_TIMESTAMP;
+    pRight->exprToken.type = TSDB_DATA_TYPE_TIMESTAMP;
+    if (strncmp(pRight->exprToken.z, "now()", pRight->exprToken.n) == 0) {
+      tVariantCreateExt(&pRight->value, &pRight->exprToken, TK_NOW, false);
+    } else {
+      tVariantCreateExt(&pRight->value, &pRight->exprToken, TK_TODAY, false);
+    }
+    pRight->value.nType = TSDB_DATA_TYPE_BIGINT;
+    pRight->flags |= 1 << EXPR_FLAG_NS_TIMESTAMP;
+  }
+
   ret = handleExprInQueryCond(pCmd, pQueryInfo, pExpr, pCondExpr, type, tbIdx, parentOptr, columnExpr, tsExpr, joinQuery);
   if (ret) {
     goto err_ret;
   }
 
   return TSDB_CODE_SUCCESS;
-  
+
 err_ret:
-  
+
   tSqlExprDestroy(columnLeft);
   tSqlExprDestroy(columnRight);
   tSqlExprDestroy(tsLeft);
@@ -5458,7 +5474,7 @@ static void doExtractExprForSTable(SSqlCmd* pCmd, tSqlExpr** pExpr, SQueryInfo* 
     *pOut = NULL;
     return;
   }
-  
+
   if (tSqlExprIsParentOfLeaf(*pExpr)) {
     tSqlExpr* pLeft = (*pExpr)->pLeft;
 
