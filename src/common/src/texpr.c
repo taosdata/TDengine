@@ -23,6 +23,7 @@
 #include "tarray.h"
 #include "tbuffer.h"
 #include "tcompare.h"
+#include "tglobal.h"
 #include "tsdb.h"
 #include "tskiplist.h"
 #include "texpr.h"
@@ -78,8 +79,9 @@ int32_t exprTreeValidateFunctionNode(char* msgbuf, tExprNode *pExpr) {
     case TSDB_FUNC_SCALAR_CONCAT_WS: {
       return exprValidateStringConcatWsNode(pExpr);
     }
+    case TSDB_FUNC_SCALAR_NOW:
     case TSDB_FUNC_SCALAR_TODAY:
-    case TSDB_FUNC_SCALAR_NOW: {
+    case TSDB_FUNC_SCALAR_TIMEZONE: {
       return exprValidateTimeNode(pExpr);
     }
 
@@ -1195,6 +1197,40 @@ int32_t exprValidateTimeNode(tExprNode *pExpr) {
       pExpr->resultBytes = (int16_t)tDataTypes[pExpr->resultType].bytes;
       break;
     }
+    case TSDB_FUNC_SCALAR_TIMEZONE: {
+      if (pExpr->_func.numChildren != 0 || pExpr->_func.pChildren != NULL) {
+        return TSDB_CODE_TSC_INVALID_OPERATION;
+      }
+      pExpr->_func.numChildren = 1;
+      pExpr->_func.pChildren = (tExprNode**)tcalloc(1, sizeof(tExprNode*));
+      if (!pExpr->_func.pChildren) {
+        return TSDB_CODE_TSC_OUT_OF_MEMORY;
+      }
+
+      pExpr->_func.pChildren[0] = (tExprNode*)tcalloc(1, sizeof(tExprNode));
+      tExprNode* child = pExpr->_func.pChildren[0];
+      if (!child) {
+        return TSDB_CODE_TSC_OUT_OF_MEMORY;
+      }
+      child->nodeType    = TSQL_NODE_VALUE;
+      child->resultType  = TSDB_DATA_TYPE_BINARY;
+      child->resultBytes = TSDB_TIMEZONE_LEN;
+
+      child->pVal = (tVariant *)tcalloc(1, sizeof(tVariant));
+      if (!child->pVal) {
+        return TSDB_CODE_TSC_OUT_OF_MEMORY;
+      }
+      child->pVal->nType = TSDB_DATA_TYPE_BINARY;
+      child->pVal->nLen  = TSDB_TIMEZONE_LEN;
+      child->pVal->pz    = tcalloc(TSDB_TIMEZONE_LEN, sizeof(char));
+      if (!child->pVal->pz) {
+        return TSDB_CODE_TSC_OUT_OF_MEMORY;
+      }
+      memcpy(child->pVal->pz, tsTimezone, TSDB_TIMEZONE_LEN);
+      pExpr->resultType  = TSDB_DATA_TYPE_BINARY;
+      pExpr->resultBytes = TSDB_TIMEZONE_LEN;
+      break;
+    }
     default: {
       assert(false);
       break;
@@ -1825,6 +1861,11 @@ tScalarFunctionInfo aScalarFunctions[] = {
     {
         TSDB_FUNC_SCALAR_TODAY,
         "today",
+        vectorTimeFunc
+    },
+    {
+        TSDB_FUNC_SCALAR_TIMEZONE,
+        "timezone",
         vectorTimeFunc
     },
 };
