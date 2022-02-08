@@ -60,14 +60,14 @@ SNodeList* addNodeToList(SAstCreateContext* pCxt, SNodeList* pList, SNode* pNode
   return nodesListAppend(pList, pNode);
 }
 
-SNode* createColumnNode(SAstCreateContext* pCxt, const SToken* pTableName, const SToken* pColumnName) {
-  if (!checkTableName(pCxt, pTableName) || !checkColumnName(pCxt, pColumnName)) {
+SNode* createColumnNode(SAstCreateContext* pCxt, const SToken* pTableAlias, const SToken* pColumnName) {
+  if (!checkTableName(pCxt, pTableAlias) || !checkColumnName(pCxt, pColumnName)) {
     return NULL;
   }
   SColumnNode* col = (SColumnNode*)nodesMakeNode(QUERY_NODE_COLUMN);
   CHECK_OUT_OF_MEM(col);
-  if (NULL != pTableName) {
-    strncpy(col->tableName, pTableName->z, pTableName->n);
+  if (NULL != pTableAlias) {
+    strncpy(col->tableAlias, pTableAlias->z, pTableAlias->n);
   }
   strncpy(col->colName, pColumnName->z, pColumnName->n);
   return (SNode*)col;
@@ -150,7 +150,14 @@ SNode* createRealTableNode(SAstCreateContext* pCxt, const SToken* pDbName, const
   SRealTableNode* realTable = (SRealTableNode*)nodesMakeNode(QUERY_NODE_REAL_TABLE);
   CHECK_OUT_OF_MEM(realTable);
   if (NULL != pDbName) {
-    strncpy(realTable->dbName, pDbName->z, pDbName->n);
+    strncpy(realTable->table.dbName, pDbName->z, pDbName->n);
+  } else {
+    strcpy(realTable->table.dbName, pCxt->pQueryCxt->db);
+  }
+  if (NULL != pTableAlias && TK_NIL != pTableAlias->type) {
+    strncpy(realTable->table.tableAlias, pTableAlias->z, pTableAlias->n);
+  } else {
+    strncpy(realTable->table.tableAlias, pTableName->z, pTableName->n);
   }
   strncpy(realTable->table.tableName, pTableName->z, pTableName->n);
   return (SNode*)realTable;
@@ -160,6 +167,9 @@ SNode* createTempTableNode(SAstCreateContext* pCxt, SNode* pSubquery, const STok
   STempTableNode* tempTable = (STempTableNode*)nodesMakeNode(QUERY_NODE_TEMP_TABLE);
   CHECK_OUT_OF_MEM(tempTable);
   tempTable->pSubquery = pSubquery;
+  if (NULL != pTableAlias && TK_NIL != pTableAlias->type) {
+    strncpy(tempTable->table.tableAlias, pTableAlias->z, pTableAlias->n);
+  }
   return (SNode*)tempTable;
 }
 
@@ -288,9 +298,6 @@ SNode* createSelectStmt(SAstCreateContext* pCxt, bool isDistinct, SNodeList* pPr
   SSelectStmt* select = (SSelectStmt*)nodesMakeNode(QUERY_NODE_SELECT_STMT);
   CHECK_OUT_OF_MEM(select);
   select->isDistinct = isDistinct;
-  if (NULL == pProjectionList) {
-    select->isStar = true;
-  }
   select->pProjectionList = pProjectionList;
   select->pFromTable = pTable;
   return (SNode*)select;

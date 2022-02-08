@@ -440,7 +440,10 @@ int32_t* taosGetErrno();
 #define TSDB_CODE_SCH_STATUS_ERROR              TAOS_DEF_ERROR_CODE(0, 0x2501)  //scheduler status error
 #define TSDB_CODE_SCH_INTERNAL_ERROR            TAOS_DEF_ERROR_CODE(0, 0x2502)  //scheduler internal error
 
-
+//parser
+#define TSDB_CODE_PARSER_INVALID_COLUMN         TAOS_DEF_ERROR_CODE(0, 0x2601)  //invalid column name
+#define TSDB_CODE_PARSER_TABLE_NOT_EXIST        TAOS_DEF_ERROR_CODE(0, 0x2602)  //table not exist
+#define TSDB_CODE_PARSER_AMBIGUOUS_COLUMN       TAOS_DEF_ERROR_CODE(0, 0x2603)  //ambiguous column
 
 #ifdef __cplusplus
 }

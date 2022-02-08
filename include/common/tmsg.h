@@ -154,8 +154,8 @@ typedef enum _mgmt_table {
 
 typedef struct {
   int32_t vgId;
-  char*   dbName;
-  char*   tableFullName;
+  char*   dbFName;
+  char*   tbName;
 } SBuildTableMetaInput;
 
 typedef struct {
@@ -697,8 +697,8 @@ typedef struct {
 
 typedef struct {
   SMsgHead header;
-  char     dbFname[TSDB_DB_FNAME_LEN];
-  char     tableFname[TSDB_TABLE_FNAME_LEN];
+  char     dbFName[TSDB_DB_FNAME_LEN];
+  char     tbName[TSDB_TABLE_NAME_LEN];
 } STableInfoReq;
 
 typedef struct {
@@ -723,9 +723,9 @@ typedef struct {
 } SVgroupsInfo;
 
 typedef struct {
-  char     tbFname[TSDB_TABLE_FNAME_LEN];  // table full name
-  char     stbFname[TSDB_TABLE_FNAME_LEN];
-  char     dbFname[TSDB_DB_FNAME_LEN];
+  char     tbName[TSDB_TABLE_NAME_LEN];
+  char     stbName[TSDB_TABLE_NAME_LEN];
+  char     dbFName[TSDB_DB_FNAME_LEN];
   int32_t  numOfTags;
   int32_t  numOfColumns;
   int8_t   precision;

@@ -128,15 +128,14 @@ void ctgTestBuildCTableMetaOutput(STableMetaOutput *output) {
   strcpy(sn.dbname, "db1");
   strcpy(sn.tname, ctgTestSTablename);
 
-  char tbFullName[TSDB_TABLE_FNAME_LEN];
-  tNameExtractFullName(&cn, tbFullName);
+  char db[TSDB_DB_FNAME_LEN] = {0};
+  tNameGetFullDbName(&cn, db);
 
+  strcpy(output->dbFName, db);
   SET_META_TYPE_BOTH_TABLE(output->metaType);
 
-  strcpy(output->ctbFname, tbFullName);
-
-  tNameExtractFullName(&cn, tbFullName);
-  strcpy(output->tbFname, tbFullName);
+  strcpy(output->ctbName, cn.tname);
+  strcpy(output->tbName, sn.tname);
 
   output->ctbMeta.vgId = 9;
   output->ctbMeta.tableType = TSDB_CHILD_TABLE;
@@ -175,10 +174,11 @@ void ctgTestBuildCTableMetaOutput(STableMetaOutput *output) {
   strcpy(s->name, "tag1s");
 }
 
-void ctgTestBuildDBVgroup(SDBVgroupInfo *dbVgroup) {
+void ctgTestBuildDBVgroup(SDBVgroupInfo **pdbVgroup) {
   static int32_t vgVersion = ctgTestVgVersion + 1;
   int32_t        vgNum = 0;
   SVgroupInfo    vgInfo = {0};
+  SDBVgroupInfo *dbVgroup = (SDBVgroupInfo *)calloc(1, sizeof(SDBVgroupInfo));
 
   dbVgroup->vgVersion = vgVersion++;
 
@@ -186,7 +186,7 @@ void ctgTestBuildDBVgroup(SDBVgroupInfo *dbVgroup) {
 
   dbVgroup->hashMethod = 0;
   dbVgroup->dbId = ctgTestDbId;
-  dbVgroup->vgInfo = taosHashInit(ctgTestVgNum, taosGetDefaultHashFunction(TSDB_DATA_TYPE_INT), true, HASH_ENTRY_LOCK);
+  dbVgroup->vgHash = taosHashInit(ctgTestVgNum, taosGetDefaultHashFunction(TSDB_DATA_TYPE_INT), true, HASH_ENTRY_LOCK);
 
   vgNum = ctgTestGetVgNumFromVgVersion(dbVgroup->vgVersion);
   uint32_t hashUnit = UINT32_MAX / vgNum;
@@ -203,8 +203,10 @@ void ctgTestBuildDBVgroup(SDBVgroupInfo *dbVgroup) {
       addr->port = htons(n + 22);
     }
 
-    taosHashPut(dbVgroup->vgInfo, &vgInfo.vgId, sizeof(vgInfo.vgId), &vgInfo, sizeof(vgInfo));
+    taosHashPut(dbVgroup->vgHash, &vgInfo.vgId, sizeof(vgInfo.vgId), &vgInfo, sizeof(vgInfo));
   }
+
+  *pdbVgroup = dbVgroup;
 }
 
 void ctgTestPrepareDbVgroups(void *shandle, SEpSet *pEpSet, SRpcMsg *pMsg, SRpcMsg *pRsp) {
@@ -250,7 +252,8 @@ void ctgTestPrepareTableMeta(void *shandle, SEpSet *pEpSet, SRpcMsg *pMsg, SRpcM
   pRsp->contLen = sizeof(STableMetaRsp) + (ctgTestColNum + ctgTestTagNum) * sizeof(SSchema);
   pRsp->pCont = calloc(1, pRsp->contLen);
   rspMsg = (STableMetaRsp *)pRsp->pCont;
-  sprintf(rspMsg->tbFname, "%s.%s", ctgTestDbname, ctgTestTablename);
+  strcpy(rspMsg->dbFName, ctgTestDbname);
+  strcpy(rspMsg->tbName, ctgTestTablename);
   rspMsg->numOfTags = 0;
   rspMsg->numOfColumns = htonl(ctgTestColNum);
   rspMsg->precision = 1;
@@ -285,8 +288,9 @@ void ctgTestPrepareCTableMeta(void *shandle, SEpSet *pEpSet, SRpcMsg *pMsg, SRpc
   pRsp->contLen = sizeof(STableMetaRsp) + (ctgTestColNum + ctgTestTagNum) * sizeof(SSchema);
   pRsp->pCont = calloc(1, pRsp->contLen);
   rspMsg = (STableMetaRsp *)pRsp->pCont;
-  sprintf(rspMsg->tbFname, "%s.%s", ctgTestDbname, ctgTestCTablename);
-  sprintf(rspMsg->stbFname, "%s.%s", ctgTestDbname, ctgTestSTablename);
+  strcpy(rspMsg->dbFName, ctgTestDbname);
+  strcpy(rspMsg->tbName, ctgTestCTablename);
+  strcpy(rspMsg->stbName, ctgTestSTablename);
   rspMsg->numOfTags = htonl(ctgTestTagNum);
   rspMsg->numOfColumns = htonl(ctgTestColNum);
   rspMsg->precision = 1;
@@ -327,8 +331,9 @@ void ctgTestPrepareSTableMeta(void *shandle, SEpSet *pEpSet, SRpcMsg *pMsg, SRpc
   pRsp->contLen = sizeof(STableMetaRsp) + (ctgTestColNum + ctgTestTagNum) * sizeof(SSchema);
   pRsp->pCont = calloc(1, pRsp->contLen);
   rspMsg = (STableMetaRsp *)pRsp->pCont;
-  sprintf(rspMsg->tbFname, "%s.%s", ctgTestDbname, ctgTestSTablename);
-  sprintf(rspMsg->stbFname, "%s.%s", ctgTestDbname, ctgTestSTablename);
+  strcpy(rspMsg->dbFName, ctgTestDbname);
+  strcpy(rspMsg->tbName, ctgTestSTablename);  
+  strcpy(rspMsg->stbName, ctgTestSTablename);  
   rspMsg->numOfTags = htonl(ctgTestTagNum);
   rspMsg->numOfColumns = htonl(ctgTestColNum);
   rspMsg->precision = 1;
@@ -370,8 +375,9 @@ void ctgTestPrepareMultiSTableMeta(void *shandle, SEpSet *pEpSet, SRpcMsg *pMsg,
   pRsp->contLen = sizeof(STableMetaRsp) + (ctgTestColNum + ctgTestTagNum) * sizeof(SSchema);
   pRsp->pCont = calloc(1, pRsp->contLen);
   rspMsg = (STableMetaRsp *)pRsp->pCont;
-  sprintf(rspMsg->tbFname, "%s.%s_%d", ctgTestDbname, ctgTestSTablename, idx);
-  sprintf(rspMsg->stbFname, "%s.%s_%d", ctgTestDbname, ctgTestSTablename, idx);
+  strcpy(rspMsg->dbFName, ctgTestDbname);
+  sprintf(rspMsg->tbName, "%s_%d", ctgTestSTablename, idx);
+  sprintf(rspMsg->stbName, "%s_%d", ctgTestSTablename, idx);
   rspMsg->numOfTags = htonl(ctgTestTagNum);
   rspMsg->numOfColumns = htonl(ctgTestColNum);
   rspMsg->precision = 1;
@@ -589,12 +595,12 @@ void *ctgTestGetDbVgroupThread(void *param) {
 void *ctgTestSetDbVgroupThread(void *param) {
   struct SCatalog *pCtg = (struct SCatalog *)param;
   int32_t          code = 0;
-  SDBVgroupInfo    dbVgroup = {0};
+  SDBVgroupInfo    *dbVgroup = NULL;
   int32_t          n = 0;
 
   while (!ctgTestStop) {
     ctgTestBuildDBVgroup(&dbVgroup);
-    code = catalogUpdateDBVgroup(pCtg, ctgTestDbname, &dbVgroup);
+    code = catalogUpdateDBVgroup(pCtg, ctgTestDbname, dbVgroup);
     if (code) {
       assert(0);
     }
@@ -669,6 +675,7 @@ void *ctgTestSetCtableMetaThread(void *param) {
   return NULL;
 }
 
+
 TEST(tableMeta, normalTable) {
   struct SCatalog *pCtg = NULL;
   void            *mockPointer = (void *)0x1;
@@ -741,7 +748,7 @@ TEST(tableMeta, normalTable) {
     }
 
     if (stbNum) {
-      printf("got expired stb,suid:%" PRId64 "\n", stb->suid);
+      printf("got expired stb,suid:%" PRId64 ",dbFName:%s, stbName:%s\n", stb->suid, stb->dbFName, stb->stbName);
       free(stb);
       stb = NULL;
     } else {
@@ -837,7 +844,7 @@ TEST(tableMeta, childTableCase) {
     }
 
     if (stbNum) {
-      printf("got expired stb,suid:%" PRId64 "\n", stb->suid);
+      printf("got expired stb,suid:%" PRId64 ",dbFName:%s, stbName:%s\n", stb->suid, stb->dbFName, stb->stbName);      
       free(stb);
       stb = NULL;
     } else {
@@ -938,7 +945,8 @@ TEST(tableMeta, superTableCase) {
     }
 
     if (stbNum) {
-      printf("got expired stb,suid:%" PRId64 "\n", stb->suid);
+      printf("got expired stb,suid:%" PRId64 ",dbFName:%s, stbName:%s\n", stb->suid, stb->dbFName, stb->stbName);
+      
       free(stb);
       stb = NULL;
     } else {
@@ -1062,8 +1070,10 @@ TEST(dbVgroup, getSetDbVgroupCase) {
   void            *mockPointer = (void *)0x1;
   SVgroupInfo      vgInfo = {0};
   SVgroupInfo     *pvgInfo = NULL;
-  SDBVgroupInfo    dbVgroup = {0};
+  SDBVgroupInfo    *dbVgroup = NULL;
   SArray          *vgList = NULL;
+
+  ctgTestInitLogFile();
 
   ctgTestSetPrepareDbVgroupsAndNormalMeta();
 
@@ -1099,7 +1109,7 @@ TEST(dbVgroup, getSetDbVgroupCase) {
   taosArrayDestroy(vgList);
 
   ctgTestBuildDBVgroup(&dbVgroup);
-  code = catalogUpdateDBVgroup(pCtg, ctgTestDbname, &dbVgroup);
+  code = catalogUpdateDBVgroup(pCtg, ctgTestDbname, dbVgroup);
   ASSERT_EQ(code, 0);
 
   code = catalogGetTableHashVgroup(pCtg, mockPointer, (const SEpSet *)mockPointer, &n, &vgInfo);
@@ -1169,6 +1179,7 @@ TEST(multiThread, getSetDbVgroupCase) {
   catalogDestroy();
 }
 
+
 TEST(multiThread, ctableMeta) {
   struct SCatalog *pCtg = NULL;
   void            *mockPointer = (void *)0x1;
@@ -1177,6 +1188,8 @@ TEST(multiThread, ctableMeta) {
   SDBVgroupInfo    dbVgroup = {0};
   SArray          *vgList = NULL;
   ctgTestStop = false;
+
+  ctgTestInitLogFile();
 
   ctgTestSetPrepareDbVgroupsAndChildMeta();
 
@@ -1212,10 +1225,12 @@ TEST(multiThread, ctableMeta) {
   }
 
   ctgTestStop = true;
-  sleep(1);
+  sleep(2);
 
   catalogDestroy();
 }
+
+
 
 TEST(rentTest, allRent) {
   struct SCatalog *pCtg = NULL;
@@ -1228,6 +1243,8 @@ TEST(rentTest, allRent) {
   SDbVgVersion       *dbs = NULL;
   SSTableMetaVersion *stable = NULL;
   uint32_t            num = 0;
+
+  ctgTestInitLogFile();
 
   ctgTestSetPrepareDbVgroupsAndMultiSuperMeta();
 
@@ -1273,7 +1290,7 @@ TEST(rentTest, allRent) {
     printf("%d - expired stableNum:%d\n", i, num);
     if (stable) {
       for (int32_t n = 0; n < num; ++n) {
-        printf("suid:%" PRId64 ", sversion:%d, tversion:%d\n", stable[n].suid, stable[n].sversion, stable[n].tversion);
+        printf("suid:%" PRId64 ", dbFName:%s, stbName:%s, sversion:%d, tversion:%d\n", stable[n].suid, stable[n].dbFName, stable[n].stbName, stable[n].sversion, stable[n].tversion);
       }
       free(stable);
       stable = NULL;

@@ -619,7 +619,7 @@ typedef struct SMqTopicObj {
   int64_t  createTime;
   int64_t  updateTime;
   uint64_t uid;
-  uint64_t dbUid;
+  int64_t  dbUid;
   int32_t  version;
   SRWLatch lock;
   int32_t  sqlLen;

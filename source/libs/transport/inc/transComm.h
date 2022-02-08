@@ -214,6 +214,12 @@ typedef struct SConnBuffer {
 typedef void (*AsyncCB)(uv_async_t* handle);
 
 typedef struct {
+  void*           pThrd;
+  queue           qmsg;
+  pthread_mutex_t mtx;  // protect qmsg;
+} SAsyncItem;
+
+typedef struct {
   int         index;
   int         nAsync;
   uv_async_t* asyncs;
@@ -221,7 +227,7 @@ typedef struct {
 
 SAsyncPool* transCreateAsyncPool(uv_loop_t* loop, void* arg, AsyncCB cb);
 void        transDestroyAsyncPool(SAsyncPool* pool);
-int         transSendAsync(SAsyncPool* pool);
+int         transSendAsync(SAsyncPool* pool, queue* mq);
 
 int transInitBuffer(SConnBuffer* buf);
 int transClearBuffer(SConnBuffer* buf);
