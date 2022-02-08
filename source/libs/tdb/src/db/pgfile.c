@@ -36,6 +36,7 @@ int pgFileOpen(const char *fname, SPgCache *pPgCache, SPgFile **ppPgFile) {
   }
 
   pPgFile->pPgCache = pPgCache;
+  // pPgFile->pgSize = ; (TODO)
 
   pPgFile->fd = open(fname, O_RDWR, 0755);
   if (pPgFile->fd < 0) {
