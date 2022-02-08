@@ -97,7 +97,7 @@
 47,,script,./test.sh -f unique/dnode/reason.sim
 46,,script,./test.sh -f unique/mnode/mgmt22.sim
 46,,pytest,python3 ./test.py -f stream/cqSupportBefore1970.py
-# 45,,script,./test.sh -f general/parser/col_arithmetic_operation.sim
+45,,script,./test.sh -f general/parser/col_arithmetic_operation.sim
 44,,script,./test.sh -f unique/big/tcp.sim
 44,,script,./test.sh -f general/parser/topbot.sim
 44,,pytest,python3 ./test.py -f stream/metric_n.py
