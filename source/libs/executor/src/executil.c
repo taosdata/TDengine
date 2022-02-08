@@ -533,7 +533,7 @@ static UNUSED_FUNC int32_t mergeIntoGroupResultImpl(STaskRuntimeEnv *pRuntimeEnv
   int32_t code = TSDB_CODE_SUCCESS;
 
   int32_t *posList = NULL;
-  SLoserTreeInfo *pTree = NULL;
+  SMultiwayMergeTreeInfo *pTree = NULL;
   STableQueryInfo **pTableQueryInfoList = NULL;
 
   size_t size = taosArrayGetSize(pTableList);
@@ -566,7 +566,7 @@ static UNUSED_FUNC int32_t mergeIntoGroupResultImpl(STaskRuntimeEnv *pRuntimeEnv
 
   SCompSupporter cs = {pTableQueryInfoList, posList, pRuntimeEnv->pQueryAttr->order.order};
 
-  int32_t ret = tLoserTreeCreate(&pTree, numOfTables, &cs, tableResultComparFn);
+  int32_t ret = tMergeTreeCreate(&pTree, numOfTables, &cs, tableResultComparFn);
   if (ret != TSDB_CODE_SUCCESS) {
     code = TSDB_CODE_QRY_OUT_OF_MEMORY;
     goto _end;
@@ -576,7 +576,7 @@ static UNUSED_FUNC int32_t mergeIntoGroupResultImpl(STaskRuntimeEnv *pRuntimeEnv
   int64_t startt = taosGetTimestampMs();
 
   while (1) {
-    int32_t tableIndex = pTree->pNode[0].index;
+    int32_t tableIndex = tMergeTreeGetChosenIndex(pTree);
 
     SResultRowInfo *pWindowResInfo = &pTableQueryInfoList[tableIndex]->resInfo;
     SResultRow  *pWindowRes = getResultRow(pWindowResInfo, cs.rowIndex[tableIndex]);
@@ -612,7 +612,7 @@ static UNUSED_FUNC int32_t mergeIntoGroupResultImpl(STaskRuntimeEnv *pRuntimeEnv
       }
     }
 
-    tLoserTreeAdjust(pTree, tableIndex + pTree->numOfEntries);
+    tMergeTreeAdjust(pTree, tMergeTreeAdjustIndex(pTree));
   }
 
   int64_t endt = taosGetTimestampMs();

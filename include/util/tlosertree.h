@@ -22,28 +22,25 @@ extern "C" {
 
 typedef int (*__merge_compare_fn_t)(const void *, const void *, void *param);
 
-typedef struct SLoserTreeNode {
-  int32_t index;
-  void   *pData;  // TODO remove it?
-} SLoserTreeNode;
-
-typedef struct SLoserTreeInfo {
-  int32_t              numOfEntries;
-  int32_t              totalEntries;
+typedef struct SMultiwayMergeTreeInfo {
+  int32_t              numOfSources;
+  int32_t              totalSources;
   __merge_compare_fn_t comparFn;
   void *               param;
-  SLoserTreeNode      *pNode;
-} SLoserTreeInfo;
+  struct STreeNode    *pNode;
+} SMultiwayMergeTreeInfo;
 
-int32_t tLoserTreeCreate(SLoserTreeInfo **pTree, uint32_t numOfEntries, void *param, __merge_compare_fn_t compareFn);
+int32_t tMergeTreeCreate(SMultiwayMergeTreeInfo **pTree, uint32_t numOfEntries, void *param, __merge_compare_fn_t compareFn);
 
-void tLoserTreeInit(SLoserTreeInfo *pTree);
+void tMergeTreeAdjust(SMultiwayMergeTreeInfo *pTree, int32_t idx);
 
-void tLoserTreeAdjust(SLoserTreeInfo *pTree, int32_t idx);
+void tMergeTreeRebuild(SMultiwayMergeTreeInfo *pTree);
 
-void tLoserTreeRebuild(SLoserTreeInfo *pTree);
+void tMergeTreePrint(const SMultiwayMergeTreeInfo *pTree);
 
-void tLoserTreeDisplay(SLoserTreeInfo *pTree);
+int32_t tMergeTreeGetChosenIndex(const SMultiwayMergeTreeInfo* pTree);
+
+int32_t tMergeTreeAdjustIndex(const SMultiwayMergeTreeInfo* pTree);
 
 #ifdef __cplusplus
 }

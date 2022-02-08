@@ -55,7 +55,7 @@ typedef struct SDiskbasedBuf {
   SDiskbasedBufStatis statis;
 } SDiskbasedBuf;
 
-int32_t createDiskbasedResultBuffer(SDiskbasedBuf** pResultBuf, int32_t pagesize, int32_t inMemBufSize, uint64_t qId, const char* dir) {
+int32_t createDiskbasedBuffer(SDiskbasedBuf** pResultBuf, int32_t pagesize, int32_t inMemBufSize, uint64_t qId, const char* dir) {
   *pResultBuf = calloc(1, sizeof(SDiskbasedBuf));
 
   SDiskbasedBuf* pResBuf = *pResultBuf;
@@ -492,13 +492,13 @@ void destroyResultBuf(SDiskbasedBuf* pResultBuf) {
   tfree(pResultBuf);
 }
 
-struct SPageInfo* getLastPageInfo(SIDList pList) {
+SPageInfo* getLastPageInfo(SIDList pList) {
   size_t size = taosArrayGetSize(pList);
   SPageInfo* pPgInfo = taosArrayGetP(pList, size - 1);
   return pPgInfo;
 }
 
-int32_t getPageId(const struct SPageInfo* pPgInfo) {
+int32_t getPageId(const SPageInfo* pPgInfo) {
   ASSERT(pPgInfo != NULL);
   return pPgInfo->pageId;
 }

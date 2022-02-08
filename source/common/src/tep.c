@@ -359,17 +359,16 @@ size_t blockDataGetSize(const SSDataBlock* pBlock) {
 int32_t blockDataSplitRows(SSDataBlock* pBlock, bool hasVarCol, int32_t startIndex, int32_t* stopIndex, int32_t pageSize) {
   ASSERT(pBlock != NULL && stopIndex != NULL);
 
-  int32_t size = 0;
   int32_t numOfCols = pBlock->info.numOfCols;
   int32_t numOfRows = pBlock->info.rows;
 
   size_t headerSize = sizeof(int32_t);
-
+  size_t colHeaderSize = sizeof(int32_t) * numOfCols;
   // TODO speedup by checking if the whole page can fit in firstly.
 
   if (!hasVarCol) {
     size_t rowSize = blockDataGetRowSize(pBlock);
-    int32_t capacity = ((pageSize - headerSize) / (rowSize * 8 + 1)) * 8;
+    int32_t capacity = ((pageSize - headerSize - colHeaderSize) / (rowSize * 8 + 1)) * 8;
     *stopIndex = startIndex + capacity;
 
     if (*stopIndex >= numOfRows) {
@@ -379,7 +378,7 @@ int32_t blockDataSplitRows(SSDataBlock* pBlock, bool hasVarCol, int32_t startInd
     return TSDB_CODE_SUCCESS;
   } else {
     // iterate the rows that can be fit in this buffer page
-    size += headerSize;
+    int32_t size = (headerSize + colHeaderSize);
 
     for(int32_t j = startIndex; j < numOfRows; ++j) {
       for (int32_t i = 0; i < numOfCols; ++i) {
@@ -423,6 +422,10 @@ SSDataBlock* blockDataExtractBlock(SSDataBlock* pBlock, int32_t startIndex, int3
   }
 
   SSDataBlock* pDst = calloc(1, sizeof(SSDataBlock));
+  if (pDst == NULL) {
+    return NULL;
+  }
+
   pDst->info = pBlock->info;
 
   pDst->info.rows = 0;
@@ -472,7 +475,7 @@ SSDataBlock* blockDataExtractBlock(SSDataBlock* pBlock, int32_t startIndex, int3
  * @param pBlock
  * @return
  */
-int32_t blockDataToBuf(char* buf, const SSDataBlock* pBlock) {  // TODO add the column length!!
+int32_t blockDataToBuf(char* buf, const SSDataBlock* pBlock) {
   ASSERT(pBlock != NULL);
 
   // write the number of rows
@@ -516,21 +519,9 @@ int32_t blockDataFromBuf(SSDataBlock* pBlock, const char* buf) {
 
     size_t metaSize = pBlock->info.rows * sizeof(int32_t);
     if (IS_VAR_DATA_TYPE(pCol->info.type)) {
-      char* p = realloc(pCol->varmeta.offset, metaSize);
-      if (p == NULL) {
-        // TODO handle error
-      }
-
-      pCol->varmeta.offset = (int32_t*)p;
       memcpy(pCol->varmeta.offset, pStart, metaSize);
       pStart += metaSize;
     } else {
-      char* p = realloc(pCol->nullbitmap, BitmapLen(pBlock->info.rows));
-      if (p == NULL) {
-        // TODO handle error
-      }
-
-      pCol->nullbitmap = p;
       memcpy(pCol->nullbitmap, pStart, BitmapLen(pBlock->info.rows));
       pStart += BitmapLen(pBlock->info.rows);
     }
@@ -538,13 +529,26 @@ int32_t blockDataFromBuf(SSDataBlock* pBlock, const char* buf) {
     int32_t colLength = *(int32_t*) pStart;
     pStart += sizeof(int32_t);
 
-    if (pCol->pData == NULL) {
-      pCol->pData = malloc(pCol->info.bytes * 4096); // TODO refactor the memory mgmt
+    if (IS_VAR_DATA_TYPE(pCol->info.type)) {
+      if (pCol->varmeta.allocLen < colLength) {
+        char* tmp = realloc(pCol->pData, colLength);
+        if (tmp == NULL) {
+          return TSDB_CODE_OUT_OF_MEMORY;
+        }
+
+        pCol->pData = tmp;
+        pCol->varmeta.allocLen = colLength;
+      }
+
+      pCol->varmeta.length = colLength;
+      ASSERT(pCol->varmeta.length <= pCol->varmeta.allocLen);
     }
 
     memcpy(pCol->pData, pStart, colLength);
     pStart += colLength;
   }
+
+  return TSDB_CODE_SUCCESS;
 }
 
 size_t blockDataGetRowSize(const SSDataBlock* pBlock) {
@@ -758,4 +762,52 @@ int32_t blockDataSort(SSDataBlock* pDataBlock, SArray* pOrderInfo, bool nullFirs
 
   printf("sort:%ld, create:%ld, assign:%ld, copyback:%ld\n", p1-p0, p2 - p1, p3 - p2, p4-p3);
   destroyTupleIndex(index);
+}
+
+void blockDataClearup(SSDataBlock* pDataBlock, bool hasVarCol) {
+  pDataBlock->info.rows = 0;
+
+  if (hasVarCol) {
+    for (int32_t i = 0; i < pDataBlock->info.numOfCols; ++i) {
+      SColumnInfoData* p = taosArrayGet(pDataBlock->pDataBlock, i);
+
+      if (IS_VAR_DATA_TYPE(p->info.type)) {
+        p->varmeta.length = 0;
+      }
+    }
+  }
+}
+
+int32_t blockDataEnsureCapacity(SSDataBlock* pDataBlock, uint32_t numOfRows) {
+  for(int32_t i = 0; i < pDataBlock->info.numOfCols; ++i) {
+    SColumnInfoData* p = taosArrayGet(pDataBlock->pDataBlock, i);
+    if (IS_VAR_DATA_TYPE(p->info.type)) {
+      char* tmp = realloc(p->varmeta.offset, sizeof(int32_t) * numOfRows);
+      if (tmp == NULL) {
+        return TSDB_CODE_OUT_OF_MEMORY;
+      }
+
+      p->varmeta.offset = (int32_t*)tmp;
+      memset(p->varmeta.offset, 0, sizeof(int32_t) * numOfRows);
+
+      p->varmeta.length = 0;
+      p->varmeta.allocLen = 0;
+      tfree(p->pData);
+    } else {
+      char* tmp = realloc(p->nullbitmap, BitmapLen(numOfRows));
+      if (tmp == NULL) {
+        return TSDB_CODE_OUT_OF_MEMORY;
+      }
+
+      p->nullbitmap = tmp;
+      memset(p->nullbitmap, 0, BitmapLen(numOfRows));
+
+      tmp = realloc(p->pData, numOfRows * p->info.bytes);
+      if (tmp == NULL) {
+        return TSDB_CODE_OUT_OF_MEMORY;
+      }
+
+      p->pData = tmp;
+    }
+  }
 }

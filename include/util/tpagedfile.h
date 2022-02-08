@@ -47,7 +47,7 @@ typedef struct SFilePage {
  * @param handle
  * @return
  */
-int32_t createDiskbasedResultBuffer(SDiskbasedBuf** pResultBuf, int32_t pagesize, int32_t inMemBufSize, uint64_t qId, const char* dir);
+int32_t createDiskbasedBuffer(SDiskbasedBuf** pResultBuf, int32_t pagesize, int32_t inMemBufSize, uint64_t qId, const char* dir);
 
 /**
  *
@@ -113,14 +113,14 @@ void destroyResultBuf(SDiskbasedBuf* pResultBuf);
  * @param pList
  * @return
  */
-struct SPageInfo* getLastPageInfo(SIDList pList);
+SPageInfo* getLastPageInfo(SIDList pList);
 
 /**
  *
  * @param pPgInfo
  * @return
  */
-int32_t getPageId(const struct SPageInfo* pPgInfo);
+int32_t getPageId(const SPageInfo* pPgInfo);
 
 /**
  * Return the buffer page size.

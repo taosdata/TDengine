@@ -52,7 +52,11 @@ int32_t blockDataFromBuf(SSDataBlock* pBlock, const char* buf);
 
 size_t blockDataGetSize(const SSDataBlock* pBlock);
 size_t blockDataGetRowSize(const SSDataBlock* pBlock);
+
 int32_t blockDataSort(SSDataBlock* pDataBlock, SArray* pOrderInfo, bool nullFirst);
+
+int32_t blockDataEnsureCapacity(SSDataBlock* pDataBlock, uint32_t numOfRows);
+void    blockDataClearup(SSDataBlock* pDataBlock, bool hasVarCol);
 
 #ifdef __cplusplus
 }

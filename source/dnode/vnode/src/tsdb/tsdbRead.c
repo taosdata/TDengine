@@ -2171,8 +2171,8 @@ static int32_t createDataBlocksInfo(STsdbReadHandle* pTsdbReadHandle, int32_t nu
   assert(cnt <= numOfBlocks && numOfQualTables <= numOfTables);  // the pTableQueryInfo[j]->numOfBlocks may be 0
   sup.numOfTables = numOfQualTables;
 
-  SLoserTreeInfo* pTree = NULL;
-  uint8_t ret = tLoserTreeCreate(&pTree, sup.numOfTables, &sup, dataBlockOrderCompar);
+  SMultiwayMergeTreeInfo* pTree = NULL;
+  uint8_t ret = tMergeTreeCreate(&pTree, sup.numOfTables, &sup, dataBlockOrderCompar);
   if (ret != TSDB_CODE_SUCCESS) {
     cleanBlockOrderSupporter(&sup, numOfTables);
     return TSDB_CODE_TDB_OUT_OF_MEMORY;
@@ -2181,7 +2181,7 @@ static int32_t createDataBlocksInfo(STsdbReadHandle* pTsdbReadHandle, int32_t nu
   int32_t numOfTotal = 0;
 
   while (numOfTotal < cnt) {
-    int32_t pos = pTree->pNode[0].index;
+    int32_t pos = tMergeTreeGetChosenIndex(pTree);
     int32_t index = sup.blockIndexArray[pos]++;
 
     STableBlockInfo* pBlocksInfo = sup.pDataBlockInfo[pos];
@@ -2192,7 +2192,7 @@ static int32_t createDataBlocksInfo(STsdbReadHandle* pTsdbReadHandle, int32_t nu
       sup.blockIndexArray[pos] = sup.numOfBlocksPerTable[pos] + 1;
     }
 
-    tLoserTreeAdjust(pTree, pos + sup.numOfTables);
+    tMergeTreeAdjust(pTree, tMergeTreeAdjustIndex(pTree));
   }
 
   /*
