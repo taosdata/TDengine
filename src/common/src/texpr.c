@@ -100,7 +100,13 @@ int32_t exprTreeValidateExprNode(tExprNode *pExpr) {
     if (!IS_NUMERIC_TYPE(leftType) || !IS_NUMERIC_TYPE(rightType)) {
       return TSDB_CODE_TSC_INVALID_OPERATION;
     }
-    if (leftType == TSDB_DATA_TYPE_TIMESTAMP || rightType == TSDB_DATA_TYPE_TIMESTAMP) {
+    if (IS_TIMESTAMP_TYPE(leftType) || IS_TIMESTAMP_TYPE(rightType)) {
+      //timestamp cannot be used in arithmetic
+      //operation with other data types
+      if (!IS_TIMESTAMP_TYPE(leftType) || !IS_TIMESTAMP_TYPE(rightType) ||
+          (pExpr->_node.optr != TSDB_BINARY_OP_ADD && pExpr->_node.optr != TSDB_BINARY_OP_SUBTRACT)) {
+        return TSDB_CODE_TSC_INVALID_OPERATION;
+      }
       pExpr->resultType = TSDB_DATA_TYPE_TIMESTAMP;
       pExpr->resultBytes = tDataTypes[TSDB_DATA_TYPE_TIMESTAMP].bytes;
     } else {
