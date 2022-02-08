@@ -154,7 +154,7 @@
 48,,script,./test.sh -f unique/dnode/datatrans_3node.sim 
 48,,script,./test.sh -f unique/big/tcp.sim 
 48,,script,./test.sh -f general/parser/nestquery.sim 
-# 48,,script,./test.sh -f general/parser/col_arithmetic_operation.sim 
+48,,script,./test.sh -f general/parser/col_arithmetic_operation.sim 
 48,,pytest,python3 test.py -f query/queryStateWindow.py 
 47,,script,./test.sh -f unique/stable/balance_replica1.sim 
 47,,script,./test.sh -f unique/migrate/mn2_vn2_repl2_rmMnodeVnodeDir.sim 
