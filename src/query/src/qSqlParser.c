@@ -33,6 +33,7 @@ SSqlInfo qSqlParse(const char *pStr) {
   sqlInfo.funcs = taosArrayInit(4, sizeof(SStrToken));
 
   int32_t i = 0;
+  bool inWhere = false;
   while (1) {
     SStrToken t0 = {0};
 
@@ -68,11 +69,23 @@ SSqlInfo qSqlParse(const char *pStr) {
         sqlInfo.valid = false;
         goto abort_parse;
       }
+      case TK_WHERE:{
+        inWhere = true;
+        Parse(pParser, t0.type, t0, &sqlInfo);
+        if (sqlInfo.valid == false) {
+          goto abort_parse;
+        }
+        break;
+      }
       case TK_NOW:
       case TK_TODAY: {
-        //for now(),today() function used in select clause
+        //for now(),today() function used in select/where clause
         if (pStr[i] == '(' && pStr[i + 1] == ')') {
-          t0.type = TK_ID;
+          if (!inWhere) {
+            t0.type = TK_ID;
+          } else {
+            i += 2;
+          }
         }
       }
       default:
