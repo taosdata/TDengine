@@ -14,8 +14,9 @@
  */
 
 #include "os.h"
-#include "tlosertree.h"
 #include "ulog.h"
+#include "tlosertree.h"
+#include "taoserror.h"
 
 typedef struct STreeNode {
   int32_t index;
@@ -39,12 +40,12 @@ int32_t tMergeTreeCreate(SMultiwayMergeTreeInfo** pTree, uint32_t numOfSources, 
   int32_t totalEntries = numOfSources << 1u;
 
   SMultiwayMergeTreeInfo* pTreeInfo = (SMultiwayMergeTreeInfo*)calloc(1, sizeof(SMultiwayMergeTreeInfo) + sizeof(STreeNode) * totalEntries);
-  if ((*pTree) == NULL) {
+  if (pTreeInfo == NULL) {
     uError("allocate memory for loser-tree failed. reason:%s", strerror(errno));
-    return -1;
+    return TAOS_SYSTEM_ERROR(errno);
   }
 
-  pTreeInfo->pNode = (STreeNode*)(((char*)(*pTree)) + sizeof(SMultiwayMergeTreeInfo));
+  pTreeInfo->pNode = (STreeNode*)(((char*)pTreeInfo) + sizeof(SMultiwayMergeTreeInfo));
 
   pTreeInfo->numOfSources = numOfSources;
   pTreeInfo->totalSources = totalEntries;
@@ -71,6 +72,14 @@ int32_t tMergeTreeCreate(SMultiwayMergeTreeInfo** pTree, uint32_t numOfSources, 
 
   *pTree = pTreeInfo;
   return 0;
+}
+
+void tMergeTreeDestroy(SMultiwayMergeTreeInfo* pTree) {
+  if (pTree == NULL) {
+    return;
+  }
+
+  tfree(pTree);
 }
 
 void tMergeTreeAdjust(SMultiwayMergeTreeInfo* pTree, int32_t idx) {

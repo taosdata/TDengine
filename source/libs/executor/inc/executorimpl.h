@@ -557,19 +557,25 @@ typedef struct SMultiwayMergeInfo {
   bool    multiGroupResults;
 } SMultiwayMergeInfo;
 
+typedef struct SMsortComparParam {
+  struct SExternalMemSource **pSources;
+  int32_t       numOfSources;
+  SArray       *orderInfo;   // SArray<SBlockOrderInfo>
+  bool          nullFirst;
+} SMsortComparParam;
+
 typedef struct SOrderOperatorInfo {
   int32_t                 sourceId;
   uint32_t                sortBufSize;  // max buffer size for in-memory sort
-  SArray                 *orderInfo;    // SArray<SBlockOrderInfo>
   SSDataBlock            *pDataBlock;
-  bool                    nullFirst;    // null value is put in the front
   bool                    hasVarCol;    // has variable length column, such as binary/varchar/nchar
-  int32_t                 numOfSources;
   int32_t                 numOfCompleted;
   SDiskbasedBuf          *pSortInternalBuf;
   SMultiwayMergeTreeInfo *pMergeTree;
   SArray                 *pSources;     // SArray<SExternalMemSource*>
   int32_t                 capacity;
+
+  SMsortComparParam       cmpParam;
 } SOrderOperatorInfo;
 
 SOperatorInfo* createExchangeOperatorInfo(const SArray* pSources, const SArray* pSchema, SExecTaskInfo* pTaskInfo);

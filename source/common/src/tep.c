@@ -166,7 +166,7 @@ int32_t colDataAppend(SColumnInfoData* pColumnInfoData, uint32_t currentRow, con
 
       char* buf = realloc(pColumnInfoData->pData, newSize);
       if (buf == NULL) {
-        // TODO handle the malloc failure.
+        return TSDB_CODE_OUT_OF_MEMORY;
       }
 
       pColumnInfoData->pData = buf;
@@ -621,7 +621,8 @@ int32_t dataBlockCompar(const void* p1, const void* p2, const void* param) {
   return 0;
 }
 
-static void doAssignOneTuple(SColumnInfoData* pDstCols, int32_t numOfRows, const SSDataBlock* pSrcBlock, int32_t tupleIndex) {
+static int32_t doAssignOneTuple(SColumnInfoData* pDstCols, int32_t numOfRows, const SSDataBlock* pSrcBlock, int32_t tupleIndex) {
+  int32_t code = 0;
   int32_t numOfCols = pSrcBlock->info.numOfCols;
 
   for (int32_t i = 0; i < numOfCols; ++i) {
@@ -630,18 +631,29 @@ static void doAssignOneTuple(SColumnInfoData* pDstCols, int32_t numOfRows, const
 
     bool isNull = colDataIsNull(pSrc, pSrcBlock->info.rows, tupleIndex, NULL);
     if (isNull) {
-      colDataAppend(pDst, numOfRows, NULL, true);
+      code = colDataAppend(pDst, numOfRows, NULL, true);
+      if (code != TSDB_CODE_SUCCESS) {
+        return code;
+      }
     } else {
       char* p = colDataGet((SColumnInfoData*)pSrc, tupleIndex);
-      colDataAppend(pDst, numOfRows, p, false);
+      code = colDataAppend(pDst, numOfRows, p, false);
+      if (code != TSDB_CODE_SUCCESS) {
+        return code;
+      }
     }
   }
 }
 
-static void blockDataAssign(SColumnInfoData* pCols, const SSDataBlock* pDataBlock, int32_t* index) {
+static int32_t blockDataAssign(SColumnInfoData* pCols, const SSDataBlock* pDataBlock, int32_t* index) {
   for (int32_t i = 0; i < pDataBlock->info.rows; ++i) {
-    doAssignOneTuple(pCols, i, pDataBlock, index[i]);
+    int32_t code = doAssignOneTuple(pCols, i, pDataBlock, index[i]);
+    if (code != TSDB_CODE_SUCCESS) {
+      return code;
+    }
   }
+
+  return TSDB_CODE_SUCCESS;
 }
 
 static SColumnInfoData* createHelpColInfoData(const SSDataBlock* pDataBlock) {
@@ -668,7 +680,7 @@ static SColumnInfoData* createHelpColInfoData(const SSDataBlock* pDataBlock) {
   return pCols;
 }
 
-static int32_t copyBackToBlock(SSDataBlock* pDataBlock, SColumnInfoData* pCols) {
+static void copyBackToBlock(SSDataBlock* pDataBlock, SColumnInfoData* pCols) {
   int32_t numOfCols = pDataBlock->info.numOfCols;
 
   for(int32_t i = 0; i < numOfCols; ++i) {
@@ -742,7 +754,12 @@ int32_t blockDataSort(SSDataBlock* pDataBlock, SArray* pOrderInfo, bool nullFirs
 #endif
   int64_t p2 = taosGetTimestampUs();
 
-  blockDataAssign(pCols, pDataBlock, index);
+  int32_t code = blockDataAssign(pCols, pDataBlock, index);
+  if (code != TSDB_CODE_SUCCESS) {
+    terrno = code;
+    return code;
+  }
+
   int64_t p3 = taosGetTimestampUs();
 
 #if 0
@@ -762,6 +779,8 @@ int32_t blockDataSort(SSDataBlock* pDataBlock, SArray* pOrderInfo, bool nullFirs
 
   printf("sort:%ld, create:%ld, assign:%ld, copyback:%ld\n", p1-p0, p2 - p1, p3 - p2, p4-p3);
   destroyTupleIndex(index);
+
+  return TSDB_CODE_SUCCESS;
 }
 
 void blockDataClearup(SSDataBlock* pDataBlock, bool hasVarCol) {
@@ -810,4 +829,29 @@ int32_t blockDataEnsureCapacity(SSDataBlock* pDataBlock, uint32_t numOfRows) {
       p->pData = tmp;
     }
   }
+
+  return TSDB_CODE_SUCCESS;
+}
+
+void* blockDataDestroy(SSDataBlock* pBlock) {
+  if (pBlock == NULL) {
+    return NULL;
+  }
+
+  int32_t numOfOutput = pBlock->info.numOfCols;
+  for(int32_t i = 0; i < numOfOutput; ++i) {
+    SColumnInfoData* pColInfoData = taosArrayGet(pBlock->pDataBlock, i);
+    if (IS_VAR_DATA_TYPE(pColInfoData->info.type)) {
+      tfree(pColInfoData->varmeta.offset);
+    } else {
+      tfree(pColInfoData->nullbitmap);
+    }
+
+    tfree(pColInfoData->pData);
+  }
+
+  taosArrayDestroy(pBlock->pDataBlock);
+  tfree(pBlock->pBlockAgg);
+  tfree(pBlock);
+  return NULL;
 }

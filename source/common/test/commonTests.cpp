@@ -170,7 +170,7 @@ TEST(testCase, Datablock_test) {
   taosArrayPush(pOrderInfo, &order);
 
   blockDataSort(b, pOrderInfo, true);
-  destroySDataBlock(b);
+  blockDataDestroy(b);
 
   taosArrayDestroy(pOrderInfo);
 }

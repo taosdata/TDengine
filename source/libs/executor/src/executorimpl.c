@@ -5423,7 +5423,7 @@ static void destroyGlobalAggOperatorInfo(void* param, int32_t numOfOutput) {
 static void destroySlimitOperatorInfo(void* param, int32_t numOfOutput) {
   SSLimitOperatorInfo *pInfo = (SSLimitOperatorInfo*) param;
   taosArrayDestroy(pInfo->orderColumnList);
-  pInfo->pRes = destroySDataBlock(pInfo->pRes);
+  pInfo->pRes = blockDataDestroy(pInfo->pRes);
   tfree(pInfo->prevRow);
 }
 
@@ -5542,13 +5542,6 @@ typedef struct SExternalMemSource {
   int32_t        rowIndex;
   SSDataBlock   *pBlock;
 } SExternalMemSource;
-
-typedef struct SMsortComparParam {
-  SExternalMemSource **pSources;
-  int32_t              num;
-  SArray              *orderInfo;   // SArray<SBlockOrderInfo>
-  bool                 nullFirst;
-} SMsortComparParam;
 
 int32_t msortComparFn(const void *pLeft, const void *pRight, void *param) {
   int32_t pLeftIdx  = *(int32_t *)pLeft;
@@ -5692,8 +5685,11 @@ static int32_t doAddNewSource(SOrderOperatorInfo* pInfo, int32_t numOfCols) {
   }
 
   taosArrayPush(pInfo->pSources, &pSource);
-  pInfo->sourceId += 1;
 
+  pInfo->sourceId += 1;
+  pInfo->cmpParam.numOfSources += 1;
+
+  ASSERT(pInfo->cmpParam.numOfSources == taosArrayGetSize(pInfo->pSources));
   return blockDataEnsureCapacity(pSource->pBlock, pInfo->capacity);
 }
 
@@ -5712,6 +5708,7 @@ void addToDiskbasedBuf(SOrderOperatorInfo* pInfo, jmp_buf env) {
     SFilePage* pPage = getNewDataBuf(pInfo->pSortInternalBuf, pInfo->sourceId, &pageId);
     blockDataToBuf(pPage->data, p);
 
+    blockDataDestroy(p);
     start = stop + 1;
   }
 
@@ -5725,12 +5722,9 @@ void addToDiskbasedBuf(SOrderOperatorInfo* pInfo, jmp_buf env) {
 }
 
 static int32_t sortComparInit(SMsortComparParam* cmpParam, const SOrderOperatorInfo* pInfo) {
-  cmpParam->nullFirst = pInfo->nullFirst;
-  cmpParam->orderInfo = pInfo->orderInfo;
-  cmpParam->num       = pInfo->numOfSources;
   cmpParam->pSources  = pInfo->pSources->pData;
 
-  for(int32_t i = 0; i < pInfo->numOfSources; ++i) {
+  for(int32_t i = 0; i < pInfo->cmpParam.numOfSources; ++i) {
     SExternalMemSource* pSource = cmpParam->pSources[i];
     SPageInfo* pPgInfo = *(SPageInfo**)taosArrayGet(pSource->pageIdList, pSource->pageIndex);
 
@@ -5740,6 +5734,34 @@ static int32_t sortComparInit(SMsortComparParam* cmpParam, const SOrderOperatorI
       return code;
     }
   }
+
+  return TSDB_CODE_SUCCESS;
+}
+
+static SSDataBlock* getSortedBlockData(SExecTaskInfo* pTaskInfo, SOrderOperatorInfo* pInfo, SMsortComparParam* cmpParam) {
+  blockDataClearup(pInfo->pDataBlock, pInfo->hasVarCol);
+
+  while(1) {
+    if (pInfo->cmpParam.numOfSources == pInfo->numOfCompleted) {
+      break;
+    }
+
+    int32_t index = tMergeTreeGetChosenIndex(pInfo->pMergeTree);
+
+    SExternalMemSource *pSource = (*cmpParam).pSources[index];
+    appendOneRowToDataBlock(pInfo->pDataBlock, pSource->pBlock, &pSource->rowIndex);
+
+    int32_t code = adjustMergeTreeForNextTuple(pSource, pInfo->pMergeTree, pInfo);
+    if (code != TSDB_CODE_SUCCESS) {
+      longjmp(pTaskInfo->env, code);
+    }
+
+    if (pInfo->pDataBlock->info.rows >= pInfo->capacity) {
+      return pInfo->pDataBlock;
+    }
+  }
+
+  return (pInfo->pDataBlock->info.rows > 0)? pInfo->pDataBlock:NULL;
 }
 
 static SSDataBlock* doSort(void* param, bool* newgroup) {
@@ -5751,6 +5773,10 @@ static SSDataBlock* doSort(void* param, bool* newgroup) {
   SExecTaskInfo* pTaskInfo = pOperator->pTaskInfo;
   SOrderOperatorInfo* pInfo = pOperator->info;
   SSDataBlock* pBlock = NULL;
+
+  if (pOperator->status == OP_RES_TO_RETURN) {
+    return getSortedBlockData(pTaskInfo, pInfo, &pInfo->cmpParam);
+  }
 
   while(1) {
     publishOperatorProfEvent(pOperator->pDownstream[0], QUERY_PROF_BEFORE_OPERATOR_EXEC);
@@ -5771,7 +5797,7 @@ static SSDataBlock* doSort(void* param, bool* newgroup) {
     if (size > pInfo->sortBufSize) {
       // Perform the in-memory sort and then flush data in the buffer into disk.
       int64_t p = taosGetTimestampUs();
-      blockDataSort(pInfo->pDataBlock, pInfo->orderInfo, pInfo->nullFirst);
+      blockDataSort(pInfo->pDataBlock, pInfo->cmpParam.orderInfo, pInfo->cmpParam.nullFirst);
       printf("sort time:%ld\n", taosGetTimestampUs() - p);
 
       addToDiskbasedBuf(pInfo, pTaskInfo->env);
@@ -5779,50 +5805,31 @@ static SSDataBlock* doSort(void* param, bool* newgroup) {
   }
 
   if (pInfo->pDataBlock->info.rows > 0) {
-    pInfo->numOfSources += 1;
-
     // Perform the in-memory sort and then flush data in the buffer into disk.
-    blockDataSort(pInfo->pDataBlock, pInfo->orderInfo, pInfo->nullFirst);
+    blockDataSort(pInfo->pDataBlock, pInfo->cmpParam.orderInfo, pInfo->cmpParam.nullFirst);
 
     // All sorted data are resident in memory, external memory sort is not needed.
     // Return to the upstream operator directly
     if (isAllDataInMemBuf(pInfo->pSortInternalBuf)) {
-      pOperator->status = OP_RES_TO_RETURN;
+      pOperator->status = OP_EXEC_DONE;
       return (pInfo->pDataBlock->info.rows == 0)? NULL:pInfo->pDataBlock;
     }
 
     addToDiskbasedBuf(pInfo, pTaskInfo->env);
   }
 
-  SMsortComparParam cmpParam = {0};
-  int32_t code = sortComparInit(&cmpParam, pInfo);
+  int32_t code = sortComparInit(&pInfo->cmpParam, pInfo);
   if (code != TSDB_CODE_SUCCESS) {
     longjmp(pTaskInfo->env, code);
   }
 
-  code = tMergeTreeCreate(&pInfo->pMergeTree, pInfo->numOfSources, &cmpParam, msortComparFn);
+  code = tMergeTreeCreate(&pInfo->pMergeTree, pInfo->cmpParam.numOfSources, &pInfo->cmpParam, msortComparFn);
   if (code != TSDB_CODE_SUCCESS) {
     longjmp(pTaskInfo->env, code);
   }
 
-  while(1) {
-    if (pInfo->numOfSources == pInfo->numOfCompleted) {
-      break;
-    }
-
-    SExternalMemSource *pSource = cmpParam.pSources[tMergeTreeGetChosenIndex(pInfo->pMergeTree)];
-    appendOneRowToDataBlock(pInfo->pDataBlock, pSource->pBlock, &pSource->rowIndex);
-    code = adjustMergeTreeForNextTuple(pSource, pInfo->pMergeTree, pInfo);
-    if (code != TSDB_CODE_SUCCESS) {
-      longjmp(pTaskInfo->env, code);
-    }
-
-    if (pInfo->pDataBlock->info.rows >= pInfo->capacity) {
-      return pInfo->pDataBlock;
-    }
-  }
-
-  return (pInfo->pDataBlock->info.rows > 0)? pInfo->pDataBlock:NULL;
+  pOperator->status = OP_RES_TO_RETURN;
+  return getSortedBlockData(pTaskInfo, pInfo, &pInfo->cmpParam);
 }
 
 static SArray* createBlockOrder(SArray* pExprInfo, SArray* pOrderVal) {
@@ -5852,10 +5859,10 @@ SOperatorInfo *createOrderOperatorInfo(SOperatorInfo* downstream, SArray* pExprI
   SOrderOperatorInfo* pInfo = calloc(1, sizeof(SOrderOperatorInfo));
 
   pInfo->sortBufSize = 1024 * 1024; // 1MB
-  pInfo->capacity   = 4096;
-  pInfo->pDataBlock = createOutputBuf_rv(pExprInfo, pInfo->capacity);
-  pInfo->orderInfo  = createBlockOrder(pExprInfo, pOrderVal);
-  pInfo->pSources   = taosArrayInit(4, POINTER_BYTES);
+  pInfo->capacity    = 4096;
+  pInfo->pDataBlock  = createOutputBuf_rv(pExprInfo, pInfo->capacity);
+  pInfo->pSources    = taosArrayInit(4, POINTER_BYTES);
+  pInfo->cmpParam.orderInfo  = createBlockOrder(pExprInfo, pOrderVal);
 
   for(int32_t i = 0; i < taosArrayGetSize(pExprInfo); ++i) {
     SExprInfo* pExpr = taosArrayGetP(pExprInfo, i);
@@ -5865,6 +5872,7 @@ SOperatorInfo *createOrderOperatorInfo(SOperatorInfo* downstream, SArray* pExprI
     }
   }
 
+  // TODO check error
   int32_t code = createDiskbasedBuffer(&pInfo->pSortInternalBuf, 4096, 4096*1000, 1, "/tmp/");
 
   SOperatorInfo* pOperator = calloc(1, sizeof(SOperatorInfo));
@@ -6850,7 +6858,7 @@ static void doDestroyBasicInfo(SOptrBasicInfo* pInfo, int32_t numOfOutput) {
   tfree(pInfo->rowCellInfoOffset);
 
   cleanupResultRowInfo(&pInfo->resultRowInfo);
-  pInfo->pRes = destroySDataBlock(pInfo->pRes);
+  pInfo->pRes = blockDataDestroy(pInfo->pRes);
 }
 
 static void destroyBasicOperatorInfo(void* param, int32_t numOfOutput) {
@@ -6874,7 +6882,7 @@ static void destroySWindowOperatorInfo(void* param, int32_t numOfOutput) {
 static void destroySFillOperatorInfo(void* param, int32_t numOfOutput) {
   SFillOperatorInfo* pInfo = (SFillOperatorInfo*) param;
   pInfo->pFillInfo = taosDestroyFillInfo(pInfo->pFillInfo);
-  pInfo->pRes = destroySDataBlock(pInfo->pRes);
+  pInfo->pRes = blockDataDestroy(pInfo->pRes);
   tfree(pInfo->p);
 }
 
@@ -6891,12 +6899,19 @@ static void destroyProjectOperatorInfo(void* param, int32_t numOfOutput) {
 
 static void destroyTagScanOperatorInfo(void* param, int32_t numOfOutput) {
   STagScanInfo* pInfo = (STagScanInfo*) param;
-  pInfo->pRes = destroySDataBlock(pInfo->pRes);
+  pInfo->pRes = blockDataDestroy(pInfo->pRes);
 }
 
 static void destroyOrderOperatorInfo(void* param, int32_t numOfOutput) {
   SOrderOperatorInfo* pInfo = (SOrderOperatorInfo*) param;
-  pInfo->pDataBlock = destroySDataBlock(pInfo->pDataBlock);
+  pInfo->pDataBlock = blockDataDestroy(pInfo->pDataBlock);
+
+  taosArrayDestroy(pInfo->cmpParam.orderInfo);
+  destroyResultBuf(pInfo->pSortInternalBuf);
+
+  tMergeTreeDestroy(pInfo->pMergeTree);
+
+//  for(int32_t i = 0; i < pInfo->cmpParam.pSources)
 }
 
 static void destroyConditionOperatorInfo(void* param, int32_t numOfOutput) {
@@ -6909,7 +6924,7 @@ static void destroyDistinctOperatorInfo(void* param, int32_t numOfOutput) {
   taosHashCleanup(pInfo->pSet);
   tfree(pInfo->buf);
   taosArrayDestroy(pInfo->pDistinctDataInfo);
-  pInfo->pRes = destroySDataBlock(pInfo->pRes);
+  pInfo->pRes = blockDataDestroy(pInfo->pRes);
 }
 
 SOperatorInfo* createMultiTableAggOperatorInfo(STaskRuntimeEnv* pRuntimeEnv, SOperatorInfo* downstream, SExprInfo* pExpr, int32_t numOfOutput) {

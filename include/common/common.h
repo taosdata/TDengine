@@ -136,8 +136,6 @@ typedef struct SSessionWindow {
 
 #define GET_FORWARD_DIRECTION_FACTOR(ord) (((ord) == TSDB_ORDER_ASC) ? QUERY_ASC_FORWARD_STEP : QUERY_DESC_FORWARD_STEP)
 
-void *destroySDataBlock(SSDataBlock *pBlock);
-
 #ifdef __cplusplus
 }
 #endif

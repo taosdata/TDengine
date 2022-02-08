@@ -57,6 +57,7 @@ int32_t blockDataSort(SSDataBlock* pDataBlock, SArray* pOrderInfo, bool nullFirs
 
 int32_t blockDataEnsureCapacity(SSDataBlock* pDataBlock, uint32_t numOfRows);
 void    blockDataClearup(SSDataBlock* pDataBlock, bool hasVarCol);
+void   *blockDataDestroy(SSDataBlock *pBlock);
 
 #ifdef __cplusplus
 }
