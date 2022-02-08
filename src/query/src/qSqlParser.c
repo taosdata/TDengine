@@ -68,8 +68,9 @@ SSqlInfo qSqlParse(const char *pStr) {
         sqlInfo.valid = false;
         goto abort_parse;
       }
-      case TK_NOW: {
-        // for now() function used in select clause
+      case TK_NOW:
+      case TK_TODAY: {
+        //for now(),today() function used in select clause
         if (pStr[i] == '(' && pStr[i + 1] == ')') {
           t0.type = TK_ID;
         }
