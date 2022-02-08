@@ -83,7 +83,8 @@ int32_t exprTreeValidateFunctionNode(char* msgbuf, tExprNode *pExpr) {
     case TSDB_FUNC_SCALAR_TODAY:
     case TSDB_FUNC_SCALAR_TIMEZONE:
     case TSDB_FUNC_SCALAR_TO_ISO8601:
-    case TSDB_FUNC_SCALAR_TO_UNIXTIMESTAMP: {
+    case TSDB_FUNC_SCALAR_TO_UNIXTIMESTAMP:
+    case TSDB_FUNC_SCALAR_TIMETRUNCATE: {
       return exprValidateTimeNode(msgbuf, pExpr);
     }
 
@@ -1348,6 +1349,44 @@ int32_t exprValidateTimeNode(char *msgbuf, tExprNode *pExpr) {
       pExpr->resultBytes = (int16_t)tDataTypes[TSDB_DATA_TYPE_BIGINT].bytes;
       break;
     }
+    case TSDB_FUNC_SCALAR_TIMETRUNCATE: {
+      if (pExpr->_func.numChildren != 2) {
+        return TSDB_CODE_TSC_INVALID_OPERATION;
+      }
+      tExprNode *child0 = pExpr->_func.pChildren[0];
+      tExprNode *child1 = pExpr->_func.pChildren[1];
+
+      if (child0->resultType != TSDB_DATA_TYPE_BIGINT &&
+          child0->resultType != TSDB_DATA_TYPE_TIMESTAMP &&
+          child0->resultType != TSDB_DATA_TYPE_BINARY &&
+          child0->resultType != TSDB_DATA_TYPE_NCHAR) {
+        return TSDB_CODE_TSC_INVALID_OPERATION;
+      }
+      //TODO: check child1 result types
+
+      if (child0->nodeType == TSQL_NODE_VALUE) {
+        if (child0->pVal->nType != TSDB_DATA_TYPE_BIGINT &&
+            child0->pVal->nType != TSDB_DATA_TYPE_BINARY &&
+            child0->pVal->nType != TSDB_DATA_TYPE_NCHAR) {
+          return TSDB_CODE_TSC_INVALID_OPERATION;
+        }
+      } else if (child0->nodeType == TSQL_NODE_COL) {
+        if (child0->pSchema->type != TSDB_DATA_TYPE_TIMESTAMP) {
+          return TSDB_CODE_TSC_INVALID_OPERATION;
+        }
+      } else {
+        return TSDB_CODE_TSC_INVALID_OPERATION;
+      }
+
+      if (child1->nodeType != TSQL_NODE_VALUE &&
+          child1->pVal->nType != TSDB_DATA_TYPE_TIMESTAMP) {
+        return TSDB_CODE_TSC_INVALID_OPERATION;
+      }
+
+      pExpr->resultType = TSDB_DATA_TYPE_TIMESTAMP;
+      pExpr->resultBytes = (int16_t)tDataTypes[TSDB_DATA_TYPE_TIMESTAMP].bytes;
+      break;
+    }
     default: {
       assert(false);
       break;
@@ -1933,6 +1972,25 @@ void vectorTimeFunc(int16_t functionId, tExprOperandInfo *pInputs, int32_t numIn
 
           break;
         }
+        case TSDB_FUNC_SCALAR_TIMETRUNCATE: {
+          assert(numInputs == 2);
+          assert(pInputs[0].type == TSDB_DATA_TYPE_BIGINT ||
+                 pInputs[0].type == TSDB_DATA_TYPE_TIMESTAMP ||
+                 pInputs[0].type == TSDB_DATA_TYPE_BINARY ||
+                 pInputs[0].type == TSDB_DATA_TYPE_NCHAR);
+          assert(pInputs[1].type == TSDB_DATA_TYPE_TIMESTAMP);
+
+          if (pInputs[0].type == TSDB_DATA_TYPE_BINARY ||
+              pInputs[0].type == TSDB_DATA_TYPE_NCHAR) {
+            int64_t timeVal = 0;
+            int64_t timePrec;
+            GET_TYPED_DATA(timePrec, int64_t, pInputs[2].type, inputData[2]);
+            taosParseTime((char *)varDataVal(inputData[0]), &timeVal, pInputs[0].bytes, timePrec, 0);
+            SET_TYPED_DATA(outputData, pOutput->type, timeVal);
+          }
+
+          break;
+        }
         default: {
           assert(false);
           break;
@@ -2064,6 +2122,11 @@ tScalarFunctionInfo aScalarFunctions[] = {
     {
         TSDB_FUNC_SCALAR_TO_UNIXTIMESTAMP,
         "to_unixtimestamp",
+        vectorTimeFunc
+    },
+    {
+        TSDB_FUNC_SCALAR_TIMETRUNCATE,
+        "timetruncate",
         vectorTimeFunc
     },
 };
