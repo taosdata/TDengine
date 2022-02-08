@@ -81,7 +81,8 @@ int32_t exprTreeValidateFunctionNode(char* msgbuf, tExprNode *pExpr) {
     }
     case TSDB_FUNC_SCALAR_NOW:
     case TSDB_FUNC_SCALAR_TODAY:
-    case TSDB_FUNC_SCALAR_TIMEZONE: {
+    case TSDB_FUNC_SCALAR_TIMEZONE:
+    case TSDB_FUNC_SCALAR_TO_ISO8601: {
       return exprValidateTimeNode(pExpr);
     }
 
@@ -1274,6 +1275,19 @@ int32_t exprValidateTimeNode(tExprNode *pExpr) {
       pExpr->resultBytes = TSDB_TIMEZONE_LEN;
       break;
     }
+    case TSDB_FUNC_SCALAR_TO_ISO8601: {
+      if (pExpr->_func.numChildren != 1) {
+        return TSDB_CODE_TSC_INVALID_OPERATION;
+      }
+      tExprNode *child = pExpr->_func.pChildren[0];
+      if (child->resultType != TSDB_DATA_TYPE_BIGINT) {
+        return TSDB_CODE_TSC_INVALID_OPERATION;
+      }
+      pExpr->resultType = TSDB_DATA_TYPE_BINARY;
+      pExpr->resultBytes = 64;//2013-04-12T15:52:01.123000000+0800
+
+      break;
+    }
     default: {
       assert(false);
       break;
@@ -1795,6 +1809,31 @@ void vectorTimeFunc(int16_t functionId, tExprOperandInfo *pInputs, int32_t numIn
           varDataSetLen(outputData, varDataLen(inputData[0]));
           break;
         }
+        case TSDB_FUNC_SCALAR_TO_ISO8601: {
+          assert(numInputs == 1);
+          assert(pInputs[0].type == TSDB_DATA_TYPE_BIGINT);
+
+          char fraction[20] = {0};
+          bool hasFraction = false;
+          NUM_TO_STRING(pInputs[0].type, inputData[0], sizeof(fraction), fraction);
+          int32_t tsDigits = strlen(fraction);
+          if (tsDigits > 10) {
+            hasFraction = true;
+            memmove(fraction, fraction, 10);
+          }
+
+          char buf[64] = {0};
+          int64_t timeVal;
+          GET_TYPED_DATA(timeVal, int64_t, pInputs[0].type, inputData[0]);
+          struct tm *tmInfo = localtime(&timeVal);
+          strftime(buf, sizeof(buf), "%Y-%m-%dT%H:%M:%S%z", tmInfo);
+          int32_t len = (int32_t)strlen(buf);
+
+          memcpy(((char*)varDataVal(outputData)), buf, len);
+          varDataSetLen(outputData, len);
+
+          break;
+        }
         default: {
           assert(false);
           break;
@@ -1916,6 +1955,11 @@ tScalarFunctionInfo aScalarFunctions[] = {
     {
         TSDB_FUNC_SCALAR_TIMEZONE,
         "timezone",
+        vectorTimeFunc
+    },
+    {
+        TSDB_FUNC_SCALAR_TO_ISO8601,
+        "to_iso8601",
         vectorTimeFunc
     },
 };
