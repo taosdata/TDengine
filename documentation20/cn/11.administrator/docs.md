@@ -15,11 +15,13 @@ Database Memory Size = maxVgroupsPerDb * (blocks * cache + 10MB) + numOfTables *
 示例：假设是 4 核机器，cache 是缺省大小 16M, blocks 是缺省值 6，并且一个 DB 中有 10 万张表，标签总长度是 256 字节，则这个 DB 总的内存需求为：4 \* (16 \* 6 + 10) + 100000 \* (0.25 + 0.5) / 1000 = 499M。
 
 在实际的系统运维中，我们通常会更关心 TDengine 服务进程（taosd）会占用的内存量。
+
 ```
 taosd 内存总量 = vnode 内存 + mnode 内存 + 查询内存
 ```
 
 其中：
+
 1. “vnode 内存”指的是集群中所有的 Database 存储分摊到当前 taosd 节点上所占用的内存资源。可以按上文“Database Memory Size”计算公式估算每个 DB 的内存占用量进行加总，再按集群中总共的 TDengine 节点数做平均（如果设置为多副本，则还需要乘以对应的副本倍数）。
 2. “mnode 内存”指的是集群中管理节点所占用的资源。如果一个 taosd 节点上分布有 mnode 管理节点，则内存消耗还需要增加“0.2KB * 集群中数据表总数”。
 3. “查询内存”指的是服务端处理查询请求时所需要占用的内存。单条查询语句至少会占用“0.2KB * 查询涉及的数据表总数”的内存量。
@@ -33,11 +35,13 @@ taosd 内存总量 = vnode 内存 + mnode 内存 + 查询内存
 客户端应用采用 taosc 客户端驱动连接服务端，会有内存需求的开销。
 
 客户端的内存开销主要由写入过程中的 SQL 语句、表的元数据信息缓存、以及结构性开销构成。系统最大容纳的表数量为 N（每个通过超级表创建的表的 meta data 开销约 256 字节），最大并行写入线程数量 T，最大 SQL 语句长度 S（通常是 1 Mbytes）。由此可以进行客户端内存开销的估算（单位 MBytes）：
+
 ```
 M = (T * S * 3 + (N / 4096) + 100)
 ```
 
 举例如下：用户最大并发写入线程数 100，子表数总数 10,000,000，那么客户端的内存最低要求是：
+
 ```
 100 * 3 + (10000000 / 4096) + 100 = 2741 (MBytes)
 ```
@@ -149,7 +153,7 @@ taosd -C
 | 31    | streamCompDelayRatio    |          | **S**    |          | 连续查询的延迟时间计算系数                                   | 0.1-0.9                                                      | 0.1                                                          |                                                              |
 | 32    | maxVgroupsPerDb         |          | **S**    |          | 每个DB中 能够使用的最大vnode个数                             | 0-8192                                                       |                                                              |                                                              |
 | 33    | maxTablesPerVnode       |          | **S**    |          | 每个vnode中能够创建的最大表个数                              |                                                              | 1000000                                                      |                                                              |
-| 34    | minTablesPerVnode       | YES      | **S**    |          | 每个vnode中必须创建的最小表个数                              |                                                              | 100                                                          |                                                              |
+| 34    | minTablesPerVnode       | YES      | **S**    |          | 每个vnode中必须创建的最小表个数                              |                                                              | 1000                                                          |                                                              |
 | 35    | tableIncStepPerVnode    | YES      | **S**    |          | 每个vnode中超过最小表数后递增步长                            |                                                              | 1000                                                         |                                                              |
 | 36    | cache                   |          | **S**    | MB       | 内存块的大小                                                 |                                                              | 16                                                           |                                                              |
 | 37    | blocks                  |          | **S**    |          | 每个vnode（tsdb）中有多少cache大小的内存块。因此一个vnode的用的内存大小粗略为（cache * blocks） |                                                              | 6                                                            |                                                              |
@@ -162,7 +166,7 @@ taosd -C
 | 44    | walLevel                |          | **S**    |          | WAL级别                                                      | 1：写wal, 但不执行fsync; 2：写wal,  而且执行fsync            | 1                                                            |                                                              |
 | 45    | fsync                   |          | **S**    | 毫秒     | 当wal设置为2时，执行fsync的周期                              | 最小为0，表示每次写入，立即执行fsync；最大为180000（三分钟） | 3000                                                         |                                                              |
 | 46    | replica                 |          | **S**    |          | 副本个数                                                     | 1-3                                                          | 1                                                            |                                                              |
-| 47    | mqttHostName            | YES      | **S**    |          | mqtt uri                                                     |                                                              |                                                              | [mqtt://username:password@hostname:1883/taos/](mqtt://username:password@hostname:1883/taos/) |
+| 47    | mqttHostName            | YES      | **S**    |          | mqtt uri                                                     |                                                              |                                                              | mqtt://username:password@hostname:1883/taos/ |
 | 48    | mqttPort                | YES      | **S**    |          | mqtt client name                                             |                                                              |                                                              | 1883                                                         |
 | 49    | mqttTopic               | YES      | **S**    |          |                                                              |                                                              |                                                              | /test                                                        |
 | 50    | compressMsgSize         |          | **S**    | bytes    | 客户端与服务器之间进行消息通讯过程中，对通讯的消息进行压缩的阈值。如果要压缩消息，建议设置为64330字节，即大于64330字节的消息体才进行压缩。 | `0 `表示对所有的消息均进行压缩  >0: 超过该值的消息才进行压缩  -1: 不压缩 | -1                                                           |                                                              |
@@ -310,6 +314,7 @@ ALTER DNODE <dnode_id> <config>
     > debugFlag  < 131 | 135 | 143 > 设置debugFlag为131、135或者143
 
 例如：
+
 ```
     alter dnode 1 debugFlag 135;
 ```
@@ -347,25 +352,33 @@ taos -C  或  taos --dump-config
     如果配置文件中不设置charset，在Linux系统中，taos在启动时候，自动读取系统当前的locale信息，并从locale信息中解析提取charset编码格式。如果自动读取locale信息失败，则尝试读取charset配置，如果读取charset配置也失败，则中断启动过程。
 
     在Linux系统中，locale信息包含了字符编码信息，因此正确设置了Linux系统locale以后可以不用再单独设置charset。例如：
+
     ```
     locale zh_CN.UTF-8
     ```
+
     在Windows系统中，无法从locale获取系统当前编码。如果无法从配置文件中读取字符串编码信息，taos默认设置为字符编码为CP936。其等效在配置文件中添加如下配置：
+
     ```
     charset CP936
     ```
+
     如果需要调整字符编码，请查阅当前操作系统使用的编码，并在配置文件中正确设置。
 
     在Linux系统中，如果用户同时设置了locale和字符集编码charset，并且locale和charset的不一致，后设置的值将覆盖前面设置的值。
+
     ```
     locale zh_CN.UTF-8
     charset GBK
     ```
+
     则charset的有效值是GBK。
+
     ```
     charset GBK
     locale zh_CN.UTF-8
     ```
+
     charset的有效值是UTF-8。
 
     日志的配置参数，与server 的配置参数完全一样。
@@ -373,29 +386,37 @@ taos -C  或  taos --dump-config
 - timezone
 
     默认值：动态获取当前客户端运行系统所在的时区。
-  
+
     为应对多时区的数据写入和查询问题，TDengine 采用 Unix 时间戳(Unix Timestamp)来记录和存储时间戳。Unix 时间戳的特点决定了任一时刻不论在任何时区，产生的时间戳均一致。需要注意的是，Unix时间戳是在客户端完成转换和记录。为了确保客户端其他形式的时间转换为正确的 Unix 时间戳，需要设置正确的时区。
 
     在Linux系统中，客户端会自动读取系统设置的时区信息。用户也可以采用多种方式在配置文件设置时区。例如：
+
     ```
     timezone UTC-8
     timezone GMT-8
     timezone Asia/Shanghai
     ```
+
     均是合法的设置东八区时区的格式。但需注意，Windows 下并不支持 `timezone Asia/Shanghai` 这样的写法，而必须写成 `timezone UTC-8`。
 
     时区的设置对于查询和写入SQL语句中非Unix时间戳的内容（时间戳字符串、关键词now的解析）产生影响。例如：
+
     ```sql
     SELECT count(*) FROM table_name WHERE TS<'2019-04-11 12:01:08';
     ```
+
     在东八区，SQL语句等效于
+
     ```sql
     SELECT count(*) FROM table_name WHERE TS<1554955268000;
     ```
+
     在UTC时区，SQL语句等效于
+
     ```sql
     SELECT count(*) FROM table_name WHERE TS<1554984068000;
     ```
+
     为了避免使用字符串时间格式带来的不确定性，也可以直接使用Unix时间戳。此外，还可以在SQL语句中使用带有时区的时间戳字符串，例如：RFC3339格式的时间戳字符串，2013-04-12T15:52:01.123+08:00或者ISO-8601格式时间戳字符串2013-04-12T15:52:01.123+0800。上述两个字符串转化为Unix时间戳不受系统所在时区的影响。
 
     启动taos时，也可以从命令行指定一个taosd实例的end point，否则就从taos.cfg读取。
@@ -457,6 +478,7 @@ TDengine也支持在shell对已存在的表从CSV文件中进行数据导入。C
 ```mysql
 insert into tb1 file 'path/data.csv';
 ```
+
 **注意：如果CSV文件首行存在描述信息，请手动删除后再导入。如某列为空，填NULL，无引号。**
 
 例如，现在存在一个子表d1001, 其表结构如下：
@@ -472,6 +494,7 @@ taos> DESCRIBE d1001
  location                       | BINARY             |          64 | TAG        |
  groupid                        | INT                |           4 | TAG        |
 ```
+
 要导入的data.csv的格式如下：
 
 ```csv
@@ -485,6 +508,7 @@ taos> DESCRIBE d1001
 '2018-10-11 06:38:05.000',17.30000,219,0.32000
 '2018-10-12 06:38:05.000',18.30000,219,0.31000
 ```
+
 那么可以用如下命令导入数据：
 
 ```mysql
@@ -494,7 +518,7 @@ Query OK, 9 row(s) affected (0.004763s)
 
 **taosdump工具导入**
 
-TDengine提供了方便的数据库导入导出工具taosdump。用户可以将taosdump从一个系统导出的数据，导入到其他系统中。具体使用方法，请参见博客：[TDengine DUMP工具使用指南](https://www.taosdata.com/blog/2020/03/09/1334.html)。
+TDengine提供了方便的数据库导入导出工具taosdump。用户可以将taosdump从一个系统导出的数据，导入到其他系统中。具体使用方法，请参见：[TDengine 数据备份工具: taosdump](/tools/taosdump)。
 
 ## <a class="anchor" id="export"></a>数据导出
 
@@ -578,12 +602,14 @@ chmod +x TDinsight.sh
 准备：
 
 1. TDengine Server 信息：
-    * TDengine RESTful 服务：对本地而言，可以是 http://localhost:6041 ，使用参数 `-a`。
+
+    * TDengine RESTful 服务：对本地而言，可以是 `http://localhost:6041`，使用参数 `-a`。
     * TDengine 用户名和密码，使用 `-u` `-p` 参数设置。
 
 2. Grafana 告警通知
+
    * 使用已经存在的Grafana Notification Channel `uid`，参数 `-E`。该参数可以使用 `curl -u admin:admin localhost:3000/api/alert-notifications |jq` 来获取。
-  
+
         ```bash
         sudo ./TDinsight.sh -a http://localhost:6041 -u root -p taosdata -E <notifier uid>
         ```
@@ -602,7 +628,7 @@ chmod +x TDinsight.sh
           -T '{"alarm_level":"%s","time":"%s","name":"%s","content":"%s"}'
         ```
 
-运行程序并重启 Grafana 服务，打开面板：<http://localhost:3000/d/tdinsight>。
+运行程序并重启 Grafana 服务，打开面板：`http://localhost:3000/d/tdinsight`。
 
 更多使用场景和限制请参考[TDinsight](https://github.com/taosdata/grafanaplugin/blob/master/dashboards/TDinsight.md) 文档。
 
@@ -654,7 +680,7 @@ TDengine 使用 Linux 系统的 systemd/systemctl/service 来管理系统的启�
 
 以 systemctl 为例，命令如下：
 
--    启动服务进程：`systemctl start taosd` 
+-    启动服务进程：`systemctl start taosd`
 
 -    停止服务进程：`systemctl stop taosd`
 
@@ -663,15 +689,17 @@ TDengine 使用 Linux 系统的 systemd/systemctl/service 来管理系统的启�
 -    查看服务状态：`systemctl status taosd`
 
 如果服务进程处于活动状态，则 status 指令会显示如下的相关信息：
+
 ```
 ......
 
-Active: active (running) 
+Active: active (running)
 
 ......
 ```
 
 如果后台服务进程处于停止状态，则 status 指令会显示如下的相关信息：
+
 ```
 ......
 
@@ -681,6 +709,7 @@ Active: inactive (dead)
 ```
 
 卸载 TDengine，只需要执行如下命令：
+
 ```
 rmtaos
 ```
@@ -771,11 +800,12 @@ rmtaos
 | COPY         | IF           | NOW          | STABLES      | WHERE        |
 
 ## 转义字符说明
+
 - 转义字符表（转义符的功能从 2.4.0.4 版本开始）
 
   | 字符序列    | **代表的字符**  |
       | :--------:     |   -------    |
-  | `\'`             |  单引号'      | 
+  | `\'`             |  单引号'      |
   | `\"`             |  双引号"      |
   | \n             |  换行符       |
   | \r             |  回车符       |
@@ -791,6 +821,7 @@ rmtaos
   2. 数据里有转义字符
      1. 遇到上面定义的转义字符会转义（%和_见下面说明），如果没有匹配的转义字符会忽略掉转义符\。
      2. 对于%和_，因为在like里这两个字符是通配符，所以在模式匹配like里用`\%`%和`\_`表示字符里本身的%和_，如果在like模式匹配上下文之外使用`\%`或`\_`，则它们的计算结果为字符串`\%`和`\_`，而不是%和_。
+
 ## 诊断及其他
 
 #### 网络连接诊断
@@ -864,7 +895,7 @@ rmtaos
 
 针对多台服务器组成的集群，当服务启动过程耗时较长时，可通过该命令行来诊断每台服务器的 taosd 实例的启动状态，以准确定位问题。
 
-`taos -n rpc -h <fqdn of server>` 
+`taos -n rpc -h <fqdn of server>`
 
 该命令用来诊断已经启动的 taosd 实例的端口是否可正常访问。如果 taosd 程序异常或者失去响应，可以通过 `taos -n rpc -h <fqdn of server>` 来发起一个与指定 fqdn 的 rpc 通信，看看 taosd 是否能收到，以此来判定是网络问题还是 taosd 程序异常问题。
 
@@ -909,7 +940,9 @@ taosd 服务端日志文件标志位 debugflag 默认为 131，在 debug 时往�
 - taosdlog    服务器端生成的日志，记录taosinfo中全部信息外，还根据设置的日志输出级别，记录DEBUG（日志级别135）、TRACE（日志级别是 143）。
 
 ### 客户端日志
+
 每个独立运行的客户端（一个进程）生成一个独立的客户端日志，其命名方式采用 taoslog+<序号> 的方式命名。文件标志位 debugflag 默认为 131，在 debug 时往往需要将其提升到 135 或 143 。
+
 - taoslog     客户端（driver）生成的日志，默认记录客户端INFO/ERROR/WARNING 级别日志，还根据设置的日志输出级别，记录DEBUG（日志级别135）、TRACE（日志级别是 143）。
 
 其中，日志文件最大长度由 numOfLogLines 来进行配置，一个 taosd 实例最多保留两个文件。

@@ -1171,6 +1171,8 @@ static int32_t offsetSkipBlock(STsdbQueryHandle* q, SBlockInfo* pBlockInfo, int6
             q->frows += pBlock->numOfRows; // maybe have some row in memroy
           }
         } else {
+          // already read rows belong to forbid skip rows -> frows
+          q->frows += pBlock->numOfRows;
           // the remainder be put to pArray
           if(pArray == NULL)
               pArray = taosArrayInit(1, sizeof(SRange));
@@ -1237,22 +1239,24 @@ static int32_t offsetSkipBlock(STsdbQueryHandle* q, SBlockInfo* pBlockInfo, int6
           q->frows += pBlock->numOfRows; // maybe have some row in memroy
         }
       } else {
-          // the remainder be put to pArray
-          if(pArray == NULL)
-              pArray = taosArrayInit(1, sizeof(SRange));
-          if(range.from == -1) {
+        // already read rows belong to forbid skip rows -> frows
+        q->frows += pBlock->numOfRows;
+        // the remainder be put to pArray
+        if(pArray == NULL)
+            pArray = taosArrayInit(1, sizeof(SRange));
+        if(range.from == -1) {
+          range.from = i;
+        } else {
+          if(range.to - 1 != i) {
+            // add the previous
+            taosArrayPush(pArray, &range);
             range.from = i;
-          } else {
-            if(range.to - 1 != i) {
-              // add the previous
-              taosArrayPush(pArray, &range);
-              range.from = i;
-            }
           }
-          range.to = 0;
-          taosArrayPush(pArray, &range);
-          range.from = -1;
-          break;
+        }
+        range.to = 0;
+        taosArrayPush(pArray, &range);
+        range.from = -1;
+        break;
       }
     }
 
@@ -3146,8 +3150,7 @@ static bool loadCachedLast(STsdbQueryHandle* pQueryHandle) {
       }
     
       pData = (char*)pColInfo->pData + numOfRows * pColInfo->info.bytes;
-    
-      if (pTable->lastCols[j].bytes > 0) {        
+      if (pTable->lastCols[j].bytes > 0) {
         void* value = pTable->lastCols[j].pData;
         switch (pColInfo->info.type) {
           case TSDB_DATA_TYPE_BINARY:
@@ -3201,7 +3204,6 @@ static bool loadCachedLast(STsdbQueryHandle* pQueryHandle) {
 
           pColInfo = taosArrayGet(pQueryHandle->pColumns, n);
           pData = (char*)pColInfo->pData + numOfRows * pColInfo->info.bytes;;
-
           if (pColInfo->info.colId == PRIMARYKEY_TIMESTAMP_COL_INDEX) {
             *(TSKEY *)pData = pTable->lastCols[j].ts;
             continue;
@@ -3227,7 +3229,7 @@ static bool loadCachedLast(STsdbQueryHandle* pQueryHandle) {
     if (priKey != TSKEY_INITIAL_VAL) {
       pColInfo = taosArrayGet(pQueryHandle->pColumns, priIdx);
       pData = (char*)pColInfo->pData + numOfRows * pColInfo->info.bytes;
-    
+
       *(TSKEY *)pData = priKey;
 
       for (int32_t n = 0; n < tgNumOfCols; ++n) {
@@ -3237,7 +3239,7 @@ static bool loadCachedLast(STsdbQueryHandle* pQueryHandle) {
       
         pColInfo = taosArrayGet(pQueryHandle->pColumns, n);
         pData = (char*)pColInfo->pData + numOfRows * pColInfo->info.bytes;;
-      
+
         assert (pColInfo->info.colId != PRIMARYKEY_TIMESTAMP_COL_INDEX);
         
         if (pColInfo->info.type == TSDB_DATA_TYPE_BINARY || pColInfo->info.type == TSDB_DATA_TYPE_NCHAR) {
@@ -4284,6 +4286,7 @@ void tsdbDestroyTableGroup(STableGroupInfo *pGroupList) {
   }
 
   taosHashCleanup(pGroupList->map);
+  pGroupList->map = NULL;
   taosArrayDestroy(&pGroupList->pGroupList);
   pGroupList->numOfTables = 0;
 }

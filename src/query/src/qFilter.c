@@ -807,7 +807,8 @@ int32_t filterGetFiledByData(SFilterInfo *info, int32_t type, void *v, int32_t d
   return -1;
 }
 
-
+// In the params, we should use void *data instead of void **data, there is no need to use tfree(*data) to set *data = 0
+// Besides, fields data value is a pointer, so dataLen should be POINTER_BYTES for better.
 int32_t filterAddField(SFilterInfo *info, void *desc, void **data, int32_t type, SFilterFieldId *fid, int32_t dataLen, bool freeIfExists) {
   int32_t idx = -1;
   uint32_t *num;
@@ -1285,7 +1286,7 @@ int32_t filterAddUnitFromUnit(SFilterInfo *dst, SFilterInfo *src, SFilterUnit* u
     void *data = FILTER_UNIT_VAL_DATA(src, u);
     if (IS_VAR_DATA_TYPE(type)) {
       if (FILTER_UNIT_OPTR(u) ==  TSDB_RELATION_IN) {
-        filterAddField(dst, NULL, &data, FLD_TYPE_VALUE, &right, sizeof(SHashObj), false);
+        filterAddField(dst, NULL, &data, FLD_TYPE_VALUE, &right, POINTER_BYTES, false); // POINTER_BYTES should be sizeof(SHashObj), but POINTER_BYTES is also right.
 
         t = FILTER_GET_FIELD(dst, right);
         

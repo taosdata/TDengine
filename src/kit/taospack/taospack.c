@@ -704,7 +704,7 @@ void leakFloat() {
 
 
 void leakTest(){
-  for(int i=0; i< 90000000000000; i++){
+  for(int i=0; i< 90000000; i++){
     if(i%10000==0)
         printf(" ---------- %d ---------------- \n", i);
     leakFloat();

@@ -1,2 +1,0 @@
-deb http://packages.icinga.com/ubuntu icinga-focal main
-deb-src http://packages.icinga.com/ubuntu icinga-focal main

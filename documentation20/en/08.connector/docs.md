@@ -21,7 +21,7 @@ Note: ● stands for that has been verified by official tests; ○ stands for th
 
 Note:
 
-- To access the TDengine database through connectors (except RESTful) in the system without TDengine server software, it is necessary to install the corresponding version of the client installation package to make the application driver (the file name is [libtaos.so](http://libtaos.so/) in Linux system and taos.dll in Windows system) installed in the system, otherwise, the error that the corresponding library file cannot be found will occur.
+- To access the TDengine database through connectors (except RESTful) in the system without TDengine server software, it is necessary to install the corresponding version of the client installation package to make the application driver (the file name is libtaos.so in Linux system and taos.dll in Windows system) installed in the system, otherwise, the error that the corresponding library file cannot be found will occur.
 - All APIs that execute SQL statements, such as `tao_query`, `taos_query_a`, `taos_subscribe` in C/C++ Connector, and APIs corresponding to them in other languages, can only execute one SQL statement at a time. If the actual parameters contain multiple statements, their behavior is undefined.
 - Users upgrading to TDengine 2.0. 8.0 must update the JDBC connection. TDengine must upgrade taos-jdbcdriver to 2.0.12 and above.
 - No matter which programming language connector is selected, TDengine version 2.0 and above recommends that each thread of database application establish an independent connection or establish a connection pool based on threads to avoid mutual interference between threads of "USE statement" state variables in the connection (but query and write operations of the connection are thread-safe).
@@ -164,10 +164,10 @@ The C/C++ API is similar to MySQL's C API. When application use it, it needs to 
 
 Note:
 
-- The TDengine dynamic library needs to be linked at compiling. The library in Linux is [libtaos.so](http://libtaos.so/), which installed at/usr/local/taos/driver. By Windows, it is taos.dll and installed at C:\ TDengine.
+- The TDengine dynamic library needs to be linked at compiling. The library in Linux is *libtaos.so*, which installed at/usr/local/taos/driver. By Windows, it is taos.dll and installed at C:\ TDengine.
 - Unless otherwise specified, when the return value of API is an integer, 0 represents success, others are error codes representing the cause of failure, and when the return value is a pointer, NULL represents failure.
 
-More sample codes for using C/C++ connectors, please visit https://github.com/taosdata/TDengine/tree/develop/tests/examples/c.
+More sample codes for using C/C++ connectors, please visit https://github.com/taosdata/TDengine/tree/develop/examples/c.
 
 ### Basic API
 
@@ -891,7 +891,7 @@ Only some configuration parameters related to RESTful interface are listed below
 ### Example Source Code
 you can find sample code under follow directions:
 * {client_install_directory}/examples/C#
-* [github C# example source code](https://github.com/taosdata/TDengine/tree/develop/tests/examples/C%2523)
+* [github C# example source code](https://github.com/taosdata/TDengine/tree/develop/examples/C%2523)
 
 **Tips:** TDengineTest.cs       One of C# connector's sample code that include basic examples like connection,sql executions and so on.
 
@@ -924,7 +924,7 @@ dotnet add package TDengine.Connector
 ```C#
 using TDengineDriver;
 ```
-* user can reference from[TDengineTest.cs](https://github.com/taosdata/TDengine/tree/develop/tests/examples/C%2523/TDengineTest) and learn how to define database connection,query,insert and other basic data manipulations.
+* user can reference from[TDengineTest.cs](https://github.com/taosdata/TDengine/tree/develop/examples/C%2523/TDengineTest) and learn how to define database connection,query,insert and other basic data manipulations.
 
 **Note:**
 
@@ -951,7 +951,7 @@ https://www.taosdata.com/blog/2020/11/02/1901.html
 
 The TDengine provides the GO driver taosSql. taosSql implements the GO language's built-in interface database/sql/driver. Users can access TDengine in the application by simply importing the package as follows, see https://github.com/taosdata/driver-go/blob/develop/taosSql/driver_test.go for details.
 
-Sample code for using the Go connector can be found in https://github.com/taosdata/TDengine/tree/develop/tests/examples/go .
+Sample code for using the Go connector can be found in https://github.com/taosdata/TDengine/tree/develop/examples/go .
 
 ```Go
 import (
@@ -1067,7 +1067,7 @@ After installing the TDengine client, the nodejsChecker.js program can verify wh
 
 Steps:
 
-1. Create a new installation verification directory, for example: `~/tdengine-test`, copy the nodejsChecker.js source program on github. Download address: （https://github.com/taosdata/TDengine/tree/develop/tests/examples/nodejs/nodejsChecker.js）.
+1. Create a new installation verification directory, for example: `~/tdengine-test`, copy the nodejsChecker.js source program on github. Download address: （https://github.com/taosdata/TDengine/tree/develop/examples/nodejs/nodejsChecker.js）.
 
 2. Execute the following command:
 
@@ -1171,6 +1171,6 @@ promise2.then(function(result) {
 
 ### Example
 
-[node-example.js](https://github.com/taosdata/TDengine/tree/master/tests/examples/nodejs/node-example.js) provides a code example that uses the NodeJS connector to create a table, insert weather data, and query the inserted data.
+[node-example.js](https://github.com/taosdata/tests/tree/master/examples/nodejs/node-example.js) provides a code example that uses the NodeJS connector to create a table, insert weather data, and query the inserted data.
 
-[node-example-raw.js](https://github.com/taosdata/TDengine/tree/master/tests/examples/nodejs/node-example-raw.js) is also a code example that uses the NodeJS connector to create a table, insert weather data, and query the inserted data, but unlike the above, this example only uses cursor.
+[node-example-raw.js](https://github.com/taosdata/tests/tree/master/examples/nodejs/node-example-raw.js) is also a code example that uses the NodeJS connector to create a table, insert weather data, and query the inserted data, but unlike the above, this example only uses cursor.
