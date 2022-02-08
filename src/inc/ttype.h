@@ -206,8 +206,9 @@ typedef struct {
 #define IS_SIGNED_NUMERIC_TYPE(_t)   ((_t) >= TSDB_DATA_TYPE_TINYINT && (_t) <= TSDB_DATA_TYPE_BIGINT)
 #define IS_UNSIGNED_NUMERIC_TYPE(_t) ((_t) >= TSDB_DATA_TYPE_UTINYINT && (_t) <= TSDB_DATA_TYPE_UBIGINT)
 #define IS_FLOAT_TYPE(_t)            ((_t) == TSDB_DATA_TYPE_FLOAT || (_t) == TSDB_DATA_TYPE_DOUBLE)
+#define IS_TIMESTAMP_TYPE(_t)        ((_t) == TSDB_DATA_TYPE_TIMESTAMP)
 
-#define IS_NUMERIC_TYPE(_t) ((IS_SIGNED_NUMERIC_TYPE(_t)) || (IS_UNSIGNED_NUMERIC_TYPE(_t)) || (IS_FLOAT_TYPE(_t)) || (_t) == TSDB_DATA_TYPE_TIMESTAMP)
+#define IS_NUMERIC_TYPE(_t) ((IS_SIGNED_NUMERIC_TYPE(_t)) || (IS_UNSIGNED_NUMERIC_TYPE(_t)) || (IS_FLOAT_TYPE(_t)) || IS_TIMESTAMP_TYPE(_t))
 
 #define IS_VALID_TINYINT(_t)    ((_t) > INT8_MIN  && (_t) <= INT8_MAX)
 #define IS_VALID_SMALLINT(_t)   ((_t) > INT16_MIN && (_t) <= INT16_MAX)
@@ -290,6 +291,7 @@ void* getDataMax(int32_t type);
 int32_t tStrToInteger(const char* z, int16_t type, int32_t n, int64_t* value, bool issigned);
 
 #define SET_DOUBLE_NULL(v) (*(uint64_t *)(v) = TSDB_DATA_DOUBLE_NULL)
+#define SET_TIMESTAMP_NULL(v) (*(uint64_t *)(v) = TSDB_DATA_TIMESTAMP_NULL)
 
 #ifdef __cplusplus
 }

@@ -100,8 +100,13 @@ int32_t exprTreeValidateExprNode(tExprNode *pExpr) {
     if (!IS_NUMERIC_TYPE(leftType) || !IS_NUMERIC_TYPE(rightType)) {
       return TSDB_CODE_TSC_INVALID_OPERATION;
     }
-    pExpr->resultType = TSDB_DATA_TYPE_DOUBLE;
-    pExpr->resultBytes = tDataTypes[TSDB_DATA_TYPE_DOUBLE].bytes;
+    if (leftType == TSDB_DATA_TYPE_TIMESTAMP || rightType == TSDB_DATA_TYPE_TIMESTAMP) {
+      pExpr->resultType = TSDB_DATA_TYPE_TIMESTAMP;
+      pExpr->resultBytes = tDataTypes[TSDB_DATA_TYPE_TIMESTAMP].bytes;
+    } else {
+      pExpr->resultType = TSDB_DATA_TYPE_DOUBLE;
+      pExpr->resultBytes = tDataTypes[TSDB_DATA_TYPE_DOUBLE].bytes;
+    }
     return TSDB_CODE_SUCCESS;
   } else {
     return TSDB_CODE_SUCCESS;
@@ -115,6 +120,11 @@ int32_t exprTreeValidateTree(char* msgbuf, tExprNode *pExpr) {
   }
   if (pExpr->nodeType == TSQL_NODE_VALUE) {
     pExpr->resultType = pExpr->pVal->nType;
+    if (pExpr->pVal->nType == TSDB_DATA_TYPE_TIMESTAMP) {
+      //convert timestamp value according to db precision
+      pExpr->pVal->i64 = convertTimePrecision(pExpr->pVal->i64, TSDB_TIME_PRECISION_NANO,
+                                              pExpr->precision);
+    }
     if (!IS_VAR_DATA_TYPE(pExpr->pVal->nType)) {
       pExpr->resultBytes = tDataTypes[pExpr->pVal->nType].bytes;
     } else {

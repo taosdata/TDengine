@@ -176,7 +176,7 @@ tSqlExpr *tSqlExprCreateIdValue(SSqlInfo* pInfo, SStrToken *pToken, int32_t optr
 
     pSqlExpr->flags  |= 1 << EXPR_FLAG_NS_TIMESTAMP;
     pSqlExpr->flags  |= 1 << EXPR_FLAG_TIMESTAMP_VAR;
-    pSqlExpr->value.nType = TSDB_DATA_TYPE_BIGINT;
+    pSqlExpr->value.nType = TSDB_DATA_TYPE_TIMESTAMP;
     pSqlExpr->tokenId = TK_TIMESTAMP;
     pSqlExpr->type    = SQL_NODE_VALUE;
   } else if (optrType == TK_AS) {
@@ -184,7 +184,7 @@ tSqlExpr *tSqlExprCreateIdValue(SSqlInfo* pInfo, SStrToken *pToken, int32_t optr
     if (pToken != NULL) {
       pSqlExpr->dataType = *(TAOS_FIELD *)pToken;
     }
-  
+
     pSqlExpr->tokenId = optrType;
     pSqlExpr->type    = SQL_NODE_DATA_TYPE;
   } else {
