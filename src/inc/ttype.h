@@ -107,7 +107,7 @@ typedef struct {
       case TSDB_DATA_TYPE_USMALLINT:                 \
         (_v) = (_finalType)GET_UINT16_VAL(_data);    \
         break;                                       \
-      case TSDB_DATA_TYPE_TIMESTAMP:\
+      case TSDB_DATA_TYPE_TIMESTAMP:                 \
       case TSDB_DATA_TYPE_BIGINT:                    \
         (_v) = (_finalType)(GET_INT64_VAL(_data));   \
         break;                                       \
@@ -145,6 +145,7 @@ typedef struct {
       case TSDB_DATA_TYPE_USMALLINT:           \
         *(uint16_t *)(_v) = (uint16_t)(_data); \
         break;                                 \
+      case TSDB_DATA_TYPE_TIMESTAMP:           \
       case TSDB_DATA_TYPE_BIGINT:              \
         *(int64_t *)(_v) = (int64_t)(_data);   \
         break;                                 \
