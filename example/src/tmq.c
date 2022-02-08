@@ -135,30 +135,30 @@ void basic_consume_loop(tmq_t *tmq,
     fprintf(stderr, "%% Consumer closed\n");
 }
 
-void sync_consume_loop(tmq_t *rk,
+void sync_consume_loop(tmq_t *tmq,
                   tmq_list_t *topics) {
   static const int MIN_COMMIT_COUNT = 1000;
 
   int msg_count = 0;
   tmq_resp_err_t err;
 
-  if ((err = tmq_subscribe(rk, topics))) {
+  if ((err = tmq_subscribe(tmq, topics))) {
     fprintf(stderr, "%% Failed to start consuming topics: %s\n", tmq_err2str(err));
     return;
   }
 
   while (running) {
-    tmq_message_t *tmqmessage = tmq_consumer_poll(rk, 500);
+    tmq_message_t *tmqmessage = tmq_consumer_poll(tmq, 500);
     if (tmqmessage) {
       msg_process(tmqmessage);
       tmq_message_destroy(tmqmessage);
 
       if ((++msg_count % MIN_COMMIT_COUNT) == 0)
-        tmq_commit(rk, NULL, 0);
+        tmq_commit(tmq, NULL, 0);
     }
  }
 
-  err = tmq_consumer_close(rk);
+  err = tmq_consumer_close(tmq);
   if (err)
     fprintf(stderr, "%% Failed to close consumer: %s\n", tmq_err2str(err));
   else
