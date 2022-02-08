@@ -84,7 +84,8 @@ int32_t exprTreeValidateFunctionNode(char* msgbuf, tExprNode *pExpr) {
     case TSDB_FUNC_SCALAR_TIMEZONE:
     case TSDB_FUNC_SCALAR_TO_ISO8601:
     case TSDB_FUNC_SCALAR_TO_UNIXTIMESTAMP:
-    case TSDB_FUNC_SCALAR_TIMETRUNCATE: {
+    case TSDB_FUNC_SCALAR_TIMETRUNCATE:
+    case TSDB_FUNC_SCALAR_TIMEDIFF: {
       return exprValidateTimeNode(msgbuf, pExpr);
     }
 
@@ -1424,6 +1425,9 @@ int32_t exprValidateTimeNode(char *msgbuf, tExprNode *pExpr) {
       pExpr->resultBytes = (int16_t)tDataTypes[TSDB_DATA_TYPE_TIMESTAMP].bytes;
       break;
     }
+    case TSDB_FUNC_SCALAR_TIMEDIFF: {
+      break;
+    }
     default: {
       assert(false);
       break;
@@ -2124,6 +2128,9 @@ void vectorTimeFunc(int16_t functionId, tExprOperandInfo *pInputs, int32_t numIn
 
           break;
         }
+        case TSDB_FUNC_SCALAR_TIMEDIFF: {
+          break;
+        }
         default: {
           assert(false);
           break;
@@ -2260,6 +2267,11 @@ tScalarFunctionInfo aScalarFunctions[] = {
     {
         TSDB_FUNC_SCALAR_TIMETRUNCATE,
         "timetruncate",
+        vectorTimeFunc
+    },
+    {
+        TSDB_FUNC_SCALAR_TIMEDIFF,
+        "timediff",
         vectorTimeFunc
     },
 };
