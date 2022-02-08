@@ -135,6 +135,7 @@ int vnodeApplyWMsg(SVnode *pVnode, SRpcMsg *pMsg, SRpcMsg **pRsp) {
 
   // Check if it needs to commit
   if (vnodeShouldCommit(pVnode)) {
+    vInfo("vgId:%d vnodeShouldCommit - true", pVnode->config.vgId);
     // tsem_wait(&(pVnode->canCommit));
     if (vnodeAsyncCommit(pVnode) < 0) {
       // TODO: handle error
