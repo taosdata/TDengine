@@ -1817,17 +1817,43 @@ void vectorTimeFunc(int16_t functionId, tExprOperandInfo *pInputs, int32_t numIn
           bool hasFraction = false;
           NUM_TO_STRING(pInputs[0].type, inputData[0], sizeof(fraction), fraction);
           int32_t tsDigits = strlen(fraction);
-          if (tsDigits > 10) {
-            hasFraction = true;
-            memmove(fraction, fraction, 10);
-          }
 
           char buf[64] = {0};
           int64_t timeVal;
           GET_TYPED_DATA(timeVal, int64_t, pInputs[0].type, inputData[0]);
+          if (tsDigits > TSDB_TIME_PRECISION_SEC_DIGITS) {
+            if (tsDigits == TSDB_TIME_PRECISION_MILLI_DIGITS) {
+              timeVal = timeVal / 1000;
+            } else if (tsDigits == TSDB_TIME_PRECISION_MICRO_DIGITS) {
+              timeVal = timeVal / (1000 * 1000);
+            } else if (tsDigits == TSDB_TIME_PRECISION_NANO_DIGITS) {
+              timeVal = timeVal / (1000 * 1000 * 1000);
+            } else {
+              assert(0);
+            }
+            hasFraction = true;
+            memmove(fraction, fraction + TSDB_TIME_PRECISION_SEC_DIGITS, TSDB_TIME_PRECISION_SEC_DIGITS);
+          }
+
           struct tm *tmInfo = localtime(&timeVal);
           strftime(buf, sizeof(buf), "%Y-%m-%dT%H:%M:%S%z", tmInfo);
           int32_t len = (int32_t)strlen(buf);
+
+          if (hasFraction) {
+            int32_t fracLen = strlen(fraction) + 1;
+            char *tzInfo = strchr(buf, '+');
+            if (tzInfo) {
+              memmove(tzInfo + fracLen, tzInfo, strlen(tzInfo));
+            } else {
+              tzInfo = strchr(buf, '-');
+              memmove(tzInfo + fracLen, tzInfo, strlen(tzInfo));
+            }
+
+            char tmp[32];
+            sprintf(tmp, ".%s", fraction);
+            memcpy(tzInfo, tmp, fracLen);
+            len += fracLen;
+          }
 
           memcpy(((char*)varDataVal(outputData)), buf, len);
           varDataSetLen(outputData, len);
