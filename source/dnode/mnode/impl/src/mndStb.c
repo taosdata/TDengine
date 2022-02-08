@@ -845,11 +845,11 @@ static int32_t mndProcessStbMetaReq(SMnodeMsg *pReq) {
 }
 
 int32_t mndValidateStbInfo(SMnode *pMnode, SSTableMetaVersion *stbs, int32_t num, void **rsp, int32_t *rspLen) {
-  SSdb *pSdb = pMnode->pSdb;
-  int32_t bufSize = num * (sizeof(STableMetaRsp) + 4 * sizeof(SSchema));  
-  void *buf = malloc(bufSize);
-  int32_t len = 0;
-  int32_t contLen = 0;
+  SSdb          *pSdb = pMnode->pSdb;
+  int32_t        bufSize = num * (sizeof(STableMetaRsp) + 4 * sizeof(SSchema));
+  void          *buf = malloc(bufSize);
+  int32_t        len = 0;
+  int32_t        contLen = 0;
   STableMetaRsp *pRsp = NULL;
 
   for (int32_t i = 0; i < num; ++i) {
@@ -859,7 +859,7 @@ int32_t mndValidateStbInfo(SMnode *pMnode, SSTableMetaVersion *stbs, int32_t num
     stb->tversion = ntohs(stb->tversion);
 
     if ((contLen + sizeof(STableMetaRsp)) > bufSize) {
-      bufSize = contLen + (num -i) * (sizeof(STableMetaRsp) + 4 * sizeof(SSchema));
+      bufSize = contLen + (num - i) * (sizeof(STableMetaRsp) + 4 * sizeof(SSchema));
       buf = realloc(buf, bufSize);
     }
 
@@ -868,9 +868,9 @@ int32_t mndValidateStbInfo(SMnode *pMnode, SSTableMetaVersion *stbs, int32_t num
     strcpy(pRsp->dbFName, stb->dbFName);
     strcpy(pRsp->tbName, stb->stbName);
     strcpy(pRsp->stbName, stb->stbName);
-    
+
     mDebug("start to retrieve meta, db:%s, stb:%s", stb->dbFName, stb->stbName);
-    
+
     SDbObj *pDb = mndAcquireDb(pMnode, stb->dbFName);
     if (pDb == NULL) {
       pRsp->numOfColumns = -1;
@@ -882,7 +882,7 @@ int32_t mndValidateStbInfo(SMnode *pMnode, SSTableMetaVersion *stbs, int32_t num
 
     char tbFName[TSDB_TABLE_FNAME_LEN] = {0};
     snprintf(tbFName, sizeof(tbFName), "%s.%s", stb->dbFName, stb->stbName);
-    
+
     SStbObj *pStb = mndAcquireStb(pMnode, tbFName);
     if (pStb == NULL) {
       mndReleaseDb(pMnode, pDb);
@@ -892,7 +892,7 @@ int32_t mndValidateStbInfo(SMnode *pMnode, SSTableMetaVersion *stbs, int32_t num
       mWarn("stb:%s, failed to get meta since %s", tbFName, terrstr());
       continue;
     }
-    
+
     taosRLockLatch(&pStb->lock);
 
     if (stb->suid == pStb->uid && stb->sversion == pStb->version) {
@@ -901,17 +901,17 @@ int32_t mndValidateStbInfo(SMnode *pMnode, SSTableMetaVersion *stbs, int32_t num
       mndReleaseStb(pMnode, pStb);
       continue;
     }
-    
+
     int32_t totalCols = pStb->numOfColumns + pStb->numOfTags;
     int32_t len = totalCols * sizeof(SSchema);
-    
+
     contLen += sizeof(STableMetaRsp) + len;
-    
+
     if (contLen > bufSize) {
-      bufSize = contLen + (num -i - 1) * (sizeof(STableMetaRsp) + 4 * sizeof(SSchema));
+      bufSize = contLen + (num - i - 1) * (sizeof(STableMetaRsp) + 4 * sizeof(SSchema));
       buf = realloc(buf, bufSize);
     }
-    
+
     pRsp->numOfTags = htonl(pStb->numOfTags);
     pRsp->numOfColumns = htonl(pStb->numOfColumns);
     pRsp->precision = pDb->cfg.precision;
@@ -920,15 +920,25 @@ int32_t mndValidateStbInfo(SMnode *pMnode, SSTableMetaVersion *stbs, int32_t num
     pRsp->sversion = htonl(pStb->version);
     pRsp->suid = htobe64(pStb->uid);
     pRsp->tuid = htobe64(pStb->uid);
-    
-    for (int32_t i = 0; i < totalCols; ++i) {
+
+    for (int32_t i = 0; i < pStb->numOfColumns; ++i) {
       SSchema *pSchema = &pRsp->pSchema[i];
-      SSchema *pSrcSchema = &pStb->pSchema[i];
+      SSchema *pSrcSchema = &pStb->pColumns[i];
       memcpy(pSchema->name, pSrcSchema->name, TSDB_COL_NAME_LEN);
       pSchema->type = pSrcSchema->type;
       pSchema->colId = htonl(pSrcSchema->colId);
       pSchema->bytes = htonl(pSrcSchema->bytes);
     }
+
+    for (int32_t i = 0; i < pStb->numOfTags; ++i) {
+      SSchema *pSchema = &pRsp->pSchema[i + pStb->numOfColumns];
+      SSchema *pSrcSchema = &pStb->pTags[i];
+      memcpy(pSchema->name, pSrcSchema->name, TSDB_COL_NAME_LEN);
+      pSchema->type = pSrcSchema->type;
+      pSchema->colId = htonl(pSrcSchema->colId);
+      pSchema->bytes = htonl(pSrcSchema->bytes);
+    }
+
     taosRUnLockLatch(&pStb->lock);
     mndReleaseDb(pMnode, pDb);
     mndReleaseStb(pMnode, pStb);
@@ -945,7 +955,6 @@ int32_t mndValidateStbInfo(SMnode *pMnode, SSTableMetaVersion *stbs, int32_t num
 
   return 0;
 }
-
 
 static int32_t mndGetNumOfStbs(SMnode *pMnode, char *dbName, int32_t *pNumOfStbs) {
   SSdb *pSdb = pMnode->pSdb;
