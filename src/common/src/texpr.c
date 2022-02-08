@@ -1313,11 +1313,36 @@ int32_t exprValidateTimeNode(char *msgbuf, tExprNode *pExpr) {
       if (pExpr->_func.numChildren != 1) {
         return TSDB_CODE_TSC_INVALID_OPERATION;
       }
-      tExprNode *child = pExpr->_func.pChildren[0];
-      if (child->resultType != TSDB_DATA_TYPE_BINARY &&
-          child->resultType != TSDB_DATA_TYPE_NCHAR) {
+      tExprNode *child0 = pExpr->_func.pChildren[0];
+      if (child0->resultType != TSDB_DATA_TYPE_BINARY &&
+          child0->resultType != TSDB_DATA_TYPE_NCHAR) {
         return TSDB_CODE_TSC_INVALID_OPERATION;
       }
+
+      pExpr->_func.numChildren = 2;
+      tExprNode **pChildren = (tExprNode**)trealloc(pExpr->_func.pChildren, pExpr->_func.numChildren * sizeof(tExprNode*));
+      if (!pChildren) {
+        return TSDB_CODE_TSC_OUT_OF_MEMORY;
+      }
+      pExpr->_func.pChildren = pChildren;
+
+      pExpr->_func.pChildren[0] = child0;
+      pExpr->_func.pChildren[1] = (tExprNode*)tcalloc(1, sizeof(tExprNode));
+      tExprNode* child1 = pExpr->_func.pChildren[1];
+      if (!child1) {
+        return TSDB_CODE_TSC_OUT_OF_MEMORY;
+      }
+      child1->nodeType    = TSQL_NODE_VALUE;
+      child1->resultType  = TSDB_DATA_TYPE_BIGINT;
+      child1->resultBytes = tDataTypes[TSDB_DATA_TYPE_BIGINT].bytes;
+
+      child1->pVal = (tVariant *)tcalloc(1, sizeof(tVariant));
+      if (!child1->pVal) {
+        return TSDB_CODE_TSC_OUT_OF_MEMORY;
+      }
+      child1->pVal->nType = TSDB_DATA_TYPE_BIGINT;
+      child1->pVal->nLen  = tDataTypes[TSDB_DATA_TYPE_BIGINT].bytes;
+      child1->pVal->i64   = (int64_t)pExpr->precision;
 
       pExpr->resultType = TSDB_DATA_TYPE_BIGINT;
       pExpr->resultBytes = (int16_t)tDataTypes[TSDB_DATA_TYPE_BIGINT].bytes;
@@ -1896,8 +1921,9 @@ void vectorTimeFunc(int16_t functionId, tExprOperandInfo *pInputs, int32_t numIn
           break;
         }
         case TSDB_FUNC_SCALAR_TO_UNIXTIMESTAMP: {
-          assert(numInputs == 1);
+          assert(numInputs == 2);
           assert(pInputs[0].type == TSDB_DATA_TYPE_BINARY || pInputs[0].type == TSDB_DATA_TYPE_NCHAR);
+          assert(pInputs[1].type == TSDB_DATA_TYPE_BIGINT);
 
           int64_t timeVal = 0;
           taosParseTime((char *)varDataVal(inputData[0]), &timeVal, pInputs[0].bytes, TSDB_TIME_PRECISION_NANO, 0);
