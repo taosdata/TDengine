@@ -1171,6 +1171,8 @@ static int32_t offsetSkipBlock(STsdbQueryHandle* q, SBlockInfo* pBlockInfo, int6
             q->frows += pBlock->numOfRows; // maybe have some row in memroy
           }
         } else {
+          // already read rows belong to forbid skip rows -> frows
+          q->frows += pBlock->numOfRows;
           // the remainder be put to pArray
           if(pArray == NULL)
               pArray = taosArrayInit(1, sizeof(SRange));
@@ -1237,22 +1239,24 @@ static int32_t offsetSkipBlock(STsdbQueryHandle* q, SBlockInfo* pBlockInfo, int6
           q->frows += pBlock->numOfRows; // maybe have some row in memroy
         }
       } else {
-          // the remainder be put to pArray
-          if(pArray == NULL)
-              pArray = taosArrayInit(1, sizeof(SRange));
-          if(range.from == -1) {
+        // already read rows belong to forbid skip rows -> frows
+        q->frows += pBlock->numOfRows;
+        // the remainder be put to pArray
+        if(pArray == NULL)
+            pArray = taosArrayInit(1, sizeof(SRange));
+        if(range.from == -1) {
+          range.from = i;
+        } else {
+          if(range.to - 1 != i) {
+            // add the previous
+            taosArrayPush(pArray, &range);
             range.from = i;
-          } else {
-            if(range.to - 1 != i) {
-              // add the previous
-              taosArrayPush(pArray, &range);
-              range.from = i;
-            }
           }
-          range.to = 0;
-          taosArrayPush(pArray, &range);
-          range.from = -1;
-          break;
+        }
+        range.to = 0;
+        taosArrayPush(pArray, &range);
+        range.from = -1;
+        break;
       }
     }
 
