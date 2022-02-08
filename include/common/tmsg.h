@@ -113,13 +113,13 @@ typedef enum _mgmt_table {
 
 #define TSDB_ALTER_TABLE_ADD_TAG_COLUMN 1
 #define TSDB_ALTER_TABLE_DROP_TAG_COLUMN 2
-#define TSDB_ALTER_TABLE_CHANGE_TAG_COLUMN 3
+#define TSDB_ALTER_TABLE_UPDATE_TAG_NAME 3
 #define TSDB_ALTER_TABLE_UPDATE_TAG_VAL 4
 
 #define TSDB_ALTER_TABLE_ADD_COLUMN 5
 #define TSDB_ALTER_TABLE_DROP_COLUMN 6
-#define TSDB_ALTER_TABLE_CHANGE_COLUMN 7
-#define TSDB_ALTER_TABLE_MODIFY_TAG_COLUMN 8
+#define TSDB_ALTER_TABLE_UPDATE_COLUMN_BYTES 7
+#define TSDB_ALTER_TABLE_UPDATE_TAG_BYTES 8
 
 #define TSDB_FILL_NONE 0
 #define TSDB_FILL_NULL 1
@@ -267,7 +267,7 @@ typedef struct {
   int8_t  alterType;
   int32_t numOfColumns;
   SSchema pSchema[];
-} SMAlterStbReq;
+} SMUpdateStbReq;
 
 typedef struct {
   int32_t pid;
