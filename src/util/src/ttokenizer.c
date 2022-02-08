@@ -667,8 +667,9 @@ SStrToken tStrGetToken(char* str, int32_t* i, bool isPrevOptr) {
 #endif
   }
 
-  //for now() function used in insert clause
-  if (t0.type == TK_NOW && str[t0.n] == '(' && str[t0.n + 1] == ')') {
+  //for now(),today() function used in insert clause
+  if ((t0.type == TK_NOW || t0.type == TK_TODAY) &&
+      str[t0.n] == '(' && str[t0.n + 1] == ')') {
     t0.n += 2;
   }
 
