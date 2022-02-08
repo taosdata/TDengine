@@ -1853,7 +1853,7 @@ static int32_t handleScalarTypeExpr(SSqlCmd* pCmd, SQueryInfo* pQueryInfo, int32
     if (tscGetErrorMsgLength(pCmd) > 0) {
       return ret;
     }
-    
+
     return invalidOperationMsg(tscGetErrorMsgPayload(pCmd), msg2);
   }
 
@@ -1864,7 +1864,7 @@ static int32_t handleScalarTypeExpr(SSqlCmd* pCmd, SQueryInfo* pQueryInfo, int32
     if (TSDB_COL_IS_TAG(pIndex->flag)) {
       tExprTreeDestroy(pNode, NULL);
       taosArrayDestroy(&colList);
-      
+
       return invalidOperationMsg(tscGetErrorMsgPayload(pCmd), msg3);
     }
   }
@@ -1876,7 +1876,7 @@ static int32_t handleScalarTypeExpr(SSqlCmd* pCmd, SQueryInfo* pQueryInfo, int32
     if (tscGetErrorMsgLength(pCmd) > 0) {
       return ret;
     }
-    
+
     return invalidOperationMsg(tscGetErrorMsgPayload(pCmd), msg2);
   }
 

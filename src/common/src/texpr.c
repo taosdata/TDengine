@@ -34,6 +34,7 @@ static int32_t exprValidateStringConcatNode(tExprNode *pExpr);
 static int32_t exprValidateStringConcatWsNode(tExprNode *pExpr);
 static int32_t exprValidateStringLengthNode(tExprNode *pExpr);
 static int32_t exprValidateCastNode(char* msgbuf, tExprNode *pExpr);
+static int32_t exprValidateTimeNode(tExprNode *pExpr);
 
 static int32_t exprInvalidOperationMsg(char *msgbuf, const char *msg) {
   const char* msgFormat = "invalid operation: %s";
@@ -47,7 +48,7 @@ static int32_t exprInvalidOperationMsg(char *msgbuf, const char *msg) {
 
 int32_t exprTreeValidateFunctionNode(char* msgbuf, tExprNode *pExpr) {
   int32_t code = TSDB_CODE_SUCCESS;
-  //TODO: check childs for every function
+  //TODO: check children for every function
   switch (pExpr->_func.functionId) {
     case TSDB_FUNC_SCALAR_POW:
     case TSDB_FUNC_SCALAR_LOG:
@@ -76,6 +77,10 @@ int32_t exprTreeValidateFunctionNode(char* msgbuf, tExprNode *pExpr) {
     }
     case TSDB_FUNC_SCALAR_CONCAT_WS: {
       return exprValidateStringConcatWsNode(pExpr);
+    }
+    case TSDB_FUNC_SCALAR_TODAY:
+    case TSDB_FUNC_SCALAR_NOW: {
+      return exprValidateTimeNode(pExpr);
     }
 
     default:
@@ -1157,6 +1162,25 @@ int32_t exprValidateMathNode(tExprNode *pExpr) {
   return TSDB_CODE_SUCCESS;
 }
 
+int32_t exprValidateTimeNode(tExprNode *pExpr) {
+  switch (pExpr->_func.functionId) {
+    case TSDB_FUNC_SCALAR_NOW:
+    case TSDB_FUNC_SCALAR_TODAY: {
+      if (pExpr->_func.numChildren != 0) {
+        return TSDB_CODE_TSC_INVALID_OPERATION;
+      }
+      pExpr->resultType = TSDB_DATA_TYPE_TIMESTAMP;
+      pExpr->resultBytes = (int16_t)tDataTypes[pExpr->resultType].bytes;
+      break;
+    }
+    default: {
+      assert(false);
+      break;
+    }
+  }
+  return TSDB_CODE_SUCCESS;
+}
+
 void vectorConcat(int16_t functionId, tExprOperandInfo* pInputs, int32_t numInputs, tExprOperandInfo* pOutput, int32_t order) {
   assert(functionId == TSDB_FUNC_SCALAR_CONCAT && numInputs >=2 && order == TSDB_ORDER_ASC);
   for (int i = 0; i < numInputs; ++i) {
@@ -1626,6 +1650,51 @@ void vectorMathFunc(int16_t functionId, tExprOperandInfo *pInputs, int32_t numIn
   free(inputData);
 }
 
+void vectorTimeFunc(int16_t functionId, tExprOperandInfo *pInputs, int32_t numInputs, tExprOperandInfo* pOutput, int32_t order)  {
+  for (int i = 0; i < numInputs; ++i) {
+    assert(pInputs[i].numOfRows == 1 || pInputs[i].numOfRows == pOutput->numOfRows);
+  }
+
+  char* outputData = NULL;
+  char** inputData = calloc(numInputs, sizeof(char*));
+  for (int i = 0; i < pOutput->numOfRows; ++i) {
+    for (int j = 0; j < numInputs; ++j) {
+      if (pInputs[j].numOfRows == 1) {
+        inputData[j] = pInputs[j].data;
+      } else {
+        inputData[j] = pInputs[j].data + i * pInputs[j].bytes;
+      }
+    }
+
+    outputData = pOutput->data + i * pOutput->bytes;
+
+    bool hasNullInputs = false;
+    for (int j = 0; j < numInputs; ++j) {
+      if (isNull(inputData[j], pInputs[j].type)) {
+        hasNullInputs = true;
+        setNull(outputData, pOutput->type, pOutput->bytes);
+      }
+    }
+
+    if (!hasNullInputs) {
+      switch (functionId) {
+        case TSDB_FUNC_SCALAR_NOW:
+        case TSDB_FUNC_SCALAR_TODAY: {
+          assert(numInputs == 0);
+          double result = 345;
+          SET_TYPED_DATA(outputData, pOutput->type, result);
+          break;
+        }
+        default: {
+          assert(false);
+          break;
+        }
+      } // end switch function(id)
+    } // end can produce value, all child has value
+  } // end for each row
+  free(inputData);
+}
+
 _expr_scalar_function_t getExprScalarFunction(uint16_t funcId) {
   assert(TSDB_FUNC_IS_SCALAR(funcId));
   int16_t scalaIdx = TSDB_FUNC_SCALAR_INDEX(funcId);
@@ -1723,5 +1792,15 @@ tScalarFunctionInfo aScalarFunctions[] = {
         TSDB_FUNC_SCALAR_CAST,
         "cast",
         vectorMathFunc
+    },
+    {
+        TSDB_FUNC_SCALAR_NOW,
+        "now",
+        vectorTimeFunc
+    },
+    {
+        TSDB_FUNC_SCALAR_TODAY,
+        "today",
+        vectorTimeFunc
     },
 };
