@@ -26,39 +26,47 @@ TDengine is an open-sourced big data platform under [GNU AGPL v3.0](http://www.g
 - **Zero Management, No Learning Curve**: It takes only seconds to download, install, and run it successfully; there are no other dependencies. Automatic partitioning on tables or DBs. Standard SQL is used, with C/C++, Python, JDBC, Go and RESTful connectors.
 
 # Documentation
+
 For user manual, system design and architecture, engineering blogs, refer to [TDengine Documentation](https://www.taosdata.com/en/documentation/)(中文版请点击[这里](https://www.taosdata.com/cn/documentation20/))
  for details. The documentation from our website can also be downloaded locally from *documentation/tdenginedocs-en* or *documentation/tdenginedocs-cn*.
 
 # Building
+
 At the moment, TDengine only supports building and running on Linux systems. You can choose to [install from packages](https://www.taosdata.com/en/getting-started/#Install-from-Package) or from the source code. This quick guide is for installation from the source only.
 
 To build TDengine, use [CMake](https://cmake.org/) 3.0.2 or higher versions in the project directory.
 
 ## Install build dependencies
 
-### Ubuntu 16.04 and above & Debian:
+### Ubuntu 16.04 and above or Debian
+
 ```bash
 sudo apt-get install -y gcc cmake build-essential git
 ```
 
-### Ubuntu 14.04:
+### Ubuntu 14.04
+
 ```bash
 sudo apt-get install -y gcc cmake3 build-essential git binutils-2.26
 export PATH=/usr/lib/binutils-2.26/bin:$PATH
 ```
 
 To compile and package the JDBC driver source code, you should have a Java jdk-8 or higher and Apache Maven 2.7 or higher installed.
+
 To install openjdk-8:
+
 ```bash
 sudo apt-get install -y openjdk-8-jdk
 ```
 
 To install Apache Maven:
+
 ```bash
-sudo apt-get install -y  maven
+sudo apt-get install -y maven
 ```
 
-#### Install build dependencies for taosTools 
+#### Install build dependencies for taosTools
+
 We provide a few useful tools such as taosBenchmark (was named taosdemo) and taosdump. They were part of TDengine. From TDengine 2.4.0.0, taosBenchmark and taosdump were not released together with TDengine.
 By default, TDengine compiling does not include taosTools. You can use 'cmake .. -DBUILD_TOOLS=true' to make them be compiled with TDengine.
 
@@ -68,7 +76,7 @@ To build the [taosTools](https://github.com/taosdata/taos-tools) on Ubuntu/Debia
 sudo apt install build-essential libjansson-dev libsnappy-dev liblzma-dev libz-dev pkg-config
 ```
 
-### CentOS 7:
+### CentOS 7
 
 ```bash
 sudo yum install epel-release
@@ -89,7 +97,7 @@ To install Apache Maven:
 sudo yum install -y maven
 ```
 
-### CentOS 8 & Fedora:
+### CentOS 8 & Fedora
 
 ```bash
 sudo dnf install -y gcc gcc-c++ make cmake epel-release git
@@ -107,12 +115,12 @@ To install Apache Maven:
 sudo dnf install -y maven
 ```
 
-#### Install build dependencies for taos-tools 
+#### Install build dependencies for taosTools on CentOS
 
-To build the [taos-tools](https://github.com/taosdata/taos-tools) on CentOS, the following packages need to be installed.
+To build the [taosTools](https://github.com/taosdata/taos-tools) on CentOS, the following packages need to be installed.
 
 ```bash
-sudo yum install zlib-devel xz-devel snappy-devel jansson-devel pkgconfig libatomic
+sudo yum install zlib-devel xz-devel snappy-devel jansson-devel pkgconfig libatomic libstdc++-static
 ```
 
 Note: Since snappy lacks pkg-config support (refer to [link](https://github.com/google/snappy/pull/86)), it lead a cmake prompt libsnappy not found. But snappy will works well.
@@ -297,6 +305,7 @@ In another terminal, use the TDengine shell to connect the server:
 option "-c test/cfg" specifies the system configuration file directory.
 
 # Try TDengine
+
 It is easy to run SQL commands from TDengine shell which is the same as other SQL databases.
 
 ```sql
@@ -310,7 +319,8 @@ drop database db;
 ```
 
 # Developing with TDengine
-### Official Connectors
+
+## Official Connectors
 
 TDengine provides abundant developing tools for users to develop on TDengine. Follow the links below to find your desired connectors and relevant documentation.
 
@@ -322,7 +332,7 @@ TDengine provides abundant developing tools for users to develop on TDengine. Fo
 - [Node.js](https://www.taosdata.com/en/documentation/connector#nodejs)
 - [Rust](https://www.taosdata.com/en/documentation/connector/rust)
 
-### Third Party Connectors
+## Third Party Connectors
 
 The TDengine community has also kindly built some of their own connectors! Follow the links below to find the source code for them.
 
@@ -330,11 +340,13 @@ The TDengine community has also kindly built some of their own connectors! Follo
 - [.Net Core Connector](https://github.com/maikebing/Maikebing.EntityFrameworkCore.Taos)
 - [Lua Connector](https://github.com/taosdata/TDengine/tree/develop/tests/examples/lua)
 
-# How to run the test cases and how to add a new test case?
+# How to run the test cases and how to add a new test case
+
   TDengine's test framework and all test cases are fully open source.
   Please refer to [this document](tests/How-To-Run-Test-And-How-To-Add-New-Test-Case.md) for how to run test and develop new test case.
 
 # TDengine Roadmap
+
 - Support event-driven stream computing
 - Support user defined functions
 - Support MQTT connection
