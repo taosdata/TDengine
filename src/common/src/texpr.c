@@ -2297,15 +2297,15 @@ void vectorTimeFunc(int16_t functionId, tExprOperandInfo *pInputs, int32_t numIn
                 break;
               }
               case 60000: { /* 1m */
-                result = result / 60 * 1000000000;
+                result = result / 1000000000 / 60;
                 break;
               }
               case 3600000: { /* 1h */
-                result = result / 3600 * 1000000000;
+                result = result / 1000000000 / 3600;
                 break;
               }
               case 86400000: { /* 1d */
-                result = result / 86400 * 1000000000;
+                result = result / 1000000000 / 86400;
                 break;
               }
               default: {
