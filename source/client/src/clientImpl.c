@@ -105,8 +105,9 @@ TAOS *taos_connect_internal(const char *ip, const char *user, const char *pass, 
   pthread_mutex_lock(&appInfo.mutex);
 
   pInst = taosHashGet(appInfo.pInstMap, key, strlen(key));
+  SAppInstInfo* p = NULL;
   if (pInst == NULL) {
-    SAppInstInfo* p = calloc(1, sizeof(struct SAppInstInfo));
+    p = calloc(1, sizeof(struct SAppInstInfo));
     p->mgmtEp       = epSet;
     p->pTransporter = openTransporter(user, secretEncrypt, tsNumOfCores);
     /*p->pAppHbMgr = appHbMgrInit(p, key);*/
