@@ -1187,6 +1187,7 @@ int32_t exprValidateMathNode(tExprNode *pExpr) {
 
 int32_t exprValidateTimeNode(char *msgbuf, tExprNode *pExpr) {
   const char* msg1 = "invalid timestamp digits";
+
   switch (pExpr->_func.functionId) {
     case TSDB_FUNC_SCALAR_NOW:
     case TSDB_FUNC_SCALAR_TODAY: {
@@ -1281,17 +1282,25 @@ int32_t exprValidateTimeNode(char *msgbuf, tExprNode *pExpr) {
         return TSDB_CODE_TSC_INVALID_OPERATION;
       }
       tExprNode *child = pExpr->_func.pChildren[0];
-      if (child->resultType != TSDB_DATA_TYPE_BIGINT) {
+      if (child->resultType != TSDB_DATA_TYPE_BIGINT &&
+          child->resultType != TSDB_DATA_TYPE_TIMESTAMP) {
         return TSDB_CODE_TSC_INVALID_OPERATION;
       }
-      char fraction[32] = {0};
-      NUM_TO_STRING(child->resultType, &child->pVal->i64, sizeof(fraction), fraction);
-      int32_t tsDigits = strlen(fraction);
-      if (tsDigits > TSDB_TIME_PRECISION_SEC_DIGITS &&
-          tsDigits != TSDB_TIME_PRECISION_MILLI_DIGITS &&
-          tsDigits != TSDB_TIME_PRECISION_MICRO_DIGITS &&
-          tsDigits != TSDB_TIME_PRECISION_NANO_DIGITS) {
-        return exprInvalidOperationMsg(msgbuf, msg1);
+
+      if (child->nodeType == TSQL_NODE_VALUE) {
+        char fraction[32] = {0};
+        NUM_TO_STRING(child->resultType, &child->pVal->i64, sizeof(fraction), fraction);
+        int32_t tsDigits = strlen(fraction);
+        if (tsDigits > TSDB_TIME_PRECISION_SEC_DIGITS &&
+            tsDigits != TSDB_TIME_PRECISION_MILLI_DIGITS &&
+            tsDigits != TSDB_TIME_PRECISION_MICRO_DIGITS &&
+            tsDigits != TSDB_TIME_PRECISION_NANO_DIGITS) {
+          return exprInvalidOperationMsg(msgbuf, msg1);
+        }
+      } else if (child->nodeType == TSQL_NODE_COL) {
+        if (child->pSchema->type != TSDB_DATA_TYPE_TIMESTAMP) {
+          return TSDB_CODE_TSC_INVALID_OPERATION;
+        }
       }
 
       pExpr->resultType = TSDB_DATA_TYPE_BINARY;
@@ -1822,7 +1831,7 @@ void vectorTimeFunc(int16_t functionId, tExprOperandInfo *pInputs, int32_t numIn
         }
         case TSDB_FUNC_SCALAR_TO_ISO8601: {
           assert(numInputs == 1);
-          assert(pInputs[0].type == TSDB_DATA_TYPE_BIGINT);
+          assert(pInputs[0].type == TSDB_DATA_TYPE_BIGINT || pInputs[0].type == TSDB_DATA_TYPE_TIMESTAMP);
 
           char fraction[20] = {0};
           bool hasFraction = false;
