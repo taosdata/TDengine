@@ -2007,13 +2007,84 @@ void vectorTimeFunc(int16_t functionId, tExprOperandInfo *pInputs, int32_t numIn
           assert(pInputs[1].type == TSDB_DATA_TYPE_TIMESTAMP);
           assert(pInputs[2].type == TSDB_DATA_TYPE_BIGINT);
 
-          int64_t timePrec;
+          int64_t timeUnit, timePrec;
+          GET_TYPED_DATA(timeUnit, int64_t, pInputs[1].type, inputData[1]);
           GET_TYPED_DATA(timePrec, int64_t, pInputs[2].type, inputData[2]);
 
           if (pInputs[0].type == TSDB_DATA_TYPE_BINARY ||
               pInputs[0].type == TSDB_DATA_TYPE_NCHAR) {
             int64_t timeVal = 0;
             taosParseTime((char *)varDataVal(inputData[0]), &timeVal, pInputs[0].bytes, timePrec, 0);
+
+            char buf[20] = {0};
+            NUM_TO_STRING(TSDB_DATA_TYPE_BIGINT, &timeVal, sizeof(buf), buf);
+            int32_t tsDigits = strlen(buf);
+            switch (timeUnit) {
+              case 1: { /* 1a */
+                if (tsDigits == TSDB_TIME_PRECISION_MILLI_DIGITS) {
+                  timeVal = timeVal;
+                } else if (tsDigits == TSDB_TIME_PRECISION_MICRO_DIGITS) {
+                  timeVal = timeVal / (1000 * 1000) * (1000 * 1000);
+                } else if (tsDigits == TSDB_TIME_PRECISION_NANO_DIGITS) {
+                  timeVal = timeVal / (1000 * 1000 * 1000) * (1000 * 1000 * 1000);
+                } else {
+                  assert(0);
+                }
+                break;
+              }
+              case 1000: { /* 1s */
+                if (tsDigits == TSDB_TIME_PRECISION_MILLI_DIGITS) {
+                  timeVal = timeVal / 1000 * 1000;
+                } else if (tsDigits == TSDB_TIME_PRECISION_MICRO_DIGITS) {
+                  timeVal = timeVal / (1000 * 1000) * (1000 * 1000);
+                } else if (tsDigits == TSDB_TIME_PRECISION_NANO_DIGITS) {
+                  timeVal = timeVal / (1000 * 1000 * 1000) * (1000 * 1000 * 1000);
+                } else {
+                  assert(0);
+                }
+                break;
+              }
+              case 60000: { /* 1m */
+                if (tsDigits == TSDB_TIME_PRECISION_MILLI_DIGITS) {
+                  timeVal = timeVal / 1000 / 60 * 60 * 1000;
+                } else if (tsDigits == TSDB_TIME_PRECISION_MICRO_DIGITS) {
+                  timeVal = timeVal / (1000 * 1000) / 60 * 60 * (1000 * 1000);
+                } else if (tsDigits == TSDB_TIME_PRECISION_NANO_DIGITS) {
+                  timeVal = timeVal / (1000 * 1000 * 1000) / 60 * 60 * (1000 * 1000 * 1000);
+                } else {
+                  assert(0);
+                }
+                break;
+              }
+              case 3600000: { /* 1h */
+                if (tsDigits == TSDB_TIME_PRECISION_MILLI_DIGITS) {
+                  timeVal = timeVal / 1000 / 3600 * 3600 * 1000;
+                } else if (tsDigits == TSDB_TIME_PRECISION_MICRO_DIGITS) {
+                  timeVal = timeVal / (1000 * 1000) / 3600 * 3600 * (1000 * 1000);
+                } else if (tsDigits == TSDB_TIME_PRECISION_NANO_DIGITS) {
+                  timeVal = timeVal / (1000 * 1000 * 1000) / 3600 * 3600 * (1000 * 1000 * 1000);
+                } else {
+                  assert(0);
+                }
+                break;
+              }
+              case 86400000: { /* 1d */
+                if (tsDigits == TSDB_TIME_PRECISION_MILLI_DIGITS) {
+                  timeVal = timeVal / 1000 / 86400 * 86400 * 1000;
+                } else if (tsDigits == TSDB_TIME_PRECISION_MICRO_DIGITS) {
+                  timeVal = timeVal / (1000 * 1000) / 86400 * 86400 * (1000 * 1000);
+                } else if (tsDigits == TSDB_TIME_PRECISION_NANO_DIGITS) {
+                  timeVal = timeVal / (1000 * 1000 * 1000) / 86400 * 86400 * (1000 * 1000 * 1000);
+                } else {
+                  assert(0);
+                }
+                break;
+              }
+              default: {
+                timeVal = 0;
+                break;
+              }
+            }
             SET_TYPED_DATA(outputData, pOutput->type, timeVal);
           }
 
