@@ -495,9 +495,13 @@ void exprTreeExprNodeTraverse(tExprNode *pExpr, int32_t numOfRows, tExprOperandI
 
   _arithmetic_operator_fn_t OperatorFn = getArithmeticOperatorFn(pExpr->_node.optr);
   OperatorFn(leftIn, leftNum, leftType, rightIn, rightNum, rightType, output->data, fnOrder);
-  
+
   output->numOfRows = MAX(leftNum, rightNum);
-  output->type = TSDB_DATA_TYPE_DOUBLE;
+  if(leftType == TSDB_DATA_TYPE_TIMESTAMP || rightType == TSDB_DATA_TYPE_TIMESTAMP) {
+    output->type = TSDB_DATA_TYPE_BIGINT;
+  } else {
+    output->type = TSDB_DATA_TYPE_DOUBLE;
+  }
   output->bytes = tDataTypes[output->type].bytes;
 
   tfree(ltmp);
@@ -1197,7 +1201,7 @@ int32_t exprValidateTimeNode(tExprNode *pExpr) {
       } else {
         timeValMs = taosGetTimestampToday() * 1000;
       }
-      child->pVal->i64 = convertTimePrecision(timeValMs, TSDB_TIME_PRECISION_MILLI, pExpr->_func.precision);
+      child->pVal->i64 = convertTimePrecision(timeValMs, TSDB_TIME_PRECISION_MILLI, pExpr->precision);
       pExpr->resultType  = TSDB_DATA_TYPE_TIMESTAMP;
       pExpr->resultBytes = (int16_t)tDataTypes[pExpr->resultType].bytes;
       break;

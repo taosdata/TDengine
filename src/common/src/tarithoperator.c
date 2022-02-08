@@ -114,6 +114,8 @@ _arithmetic_getVectorDoubleValue_fn_t getVectorDoubleValueFn(int32_t srcType) {
         p = getVectorDoubleValue_FLOAT;
     }else if(srcType==TSDB_DATA_TYPE_DOUBLE) {
         p = getVectorDoubleValue_DOUBLE;
+    }else if(srcType==TSDB_DATA_TYPE_TIMESTAMP) {
+        p = getVectorDoubleValue_BIGINT;
     }else {
         assert(0);
     }

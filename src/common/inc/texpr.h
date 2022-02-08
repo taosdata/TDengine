@@ -135,13 +135,13 @@ typedef struct tExprNode {
       int16_t functionId;
       int32_t numChildren;
       struct tExprNode **pChildren;
-      int32_t precision;
     } _func;
 
     TAOS_FIELD        *pType;
   };
   int16_t resultType;
   int16_t resultBytes;
+  int32_t precision;
 } tExprNode;
 
 typedef struct SExprTraverseSupp {
