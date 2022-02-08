@@ -67,19 +67,19 @@ cmd ::= SHOW DATABASES.                                                         
 cmd ::= query_expression(A).                                                      { PARSER_TRACE; pCxt->pRootNode = A; }
 
 /************************************************ literal *************************************************************/
-literal(A) ::= NK_INTEGER(B).                                                     { PARSER_TRACE; A = createValueNode(pCxt, TSDB_DATA_TYPE_BIGINT, &B); }
-literal(A) ::= NK_FLOAT(B).                                                       { PARSER_TRACE; A = createValueNode(pCxt, TSDB_DATA_TYPE_DOUBLE, &B); }
-literal(A) ::= NK_STRING(B).                                                      { PARSER_TRACE; A = createValueNode(pCxt, TSDB_DATA_TYPE_BINARY, &B); }
-literal(A) ::= NK_BOOL(B).                                                        { PARSER_TRACE; A = createValueNode(pCxt, TSDB_DATA_TYPE_BOOL, &B); }
-literal(A) ::= TIMESTAMP NK_STRING(B).                                            { PARSER_TRACE; A = createValueNode(pCxt, TSDB_DATA_TYPE_TIMESTAMP, &B); }
+literal(A) ::= NK_INTEGER(B).                                                     { PARSER_TRACE; A = createRawExprNode(pCxt, &B, createValueNode(pCxt, TSDB_DATA_TYPE_BIGINT, &B)); }
+literal(A) ::= NK_FLOAT(B).                                                       { PARSER_TRACE; A = createRawExprNode(pCxt, &B, createValueNode(pCxt, TSDB_DATA_TYPE_DOUBLE, &B)); }
+literal(A) ::= NK_STRING(B).                                                      { PARSER_TRACE; A = createRawExprNode(pCxt, &B, createValueNode(pCxt, TSDB_DATA_TYPE_BINARY, &B)); }
+literal(A) ::= NK_BOOL(B).                                                        { PARSER_TRACE; A = createRawExprNode(pCxt, &B, createValueNode(pCxt, TSDB_DATA_TYPE_BOOL, &B)); }
+literal(A) ::= TIMESTAMP(B) NK_STRING(C).                                         { PARSER_TRACE; A = createRawExprNodeExt(pCxt, &B, &C, createValueNode(pCxt, TSDB_DATA_TYPE_TIMESTAMP, &C)); }
 literal(A) ::= duration_literal(B).                                               { PARSER_TRACE; A = B; }
 
-duration_literal(A) ::= NK_VARIABLE(B).                                           { PARSER_TRACE; A = createDurationValueNode(pCxt, &B); }
+duration_literal(A) ::= NK_VARIABLE(B).                                           { PARSER_TRACE; A = createRawExprNode(pCxt, &B, createDurationValueNode(pCxt, &B)); }
 
 %type literal_list                                                                { SNodeList* }
 %destructor literal_list                                                          { PARSER_DESTRUCTOR_TRACE; nodesDestroyList($$); }
-literal_list(A) ::= literal(B).                                                   { PARSER_TRACE; A = createNodeList(pCxt, B); }
-literal_list(A) ::= literal_list(B) NK_COMMA literal(C).                          { PARSER_TRACE; A = addNodeToList(pCxt, B, C); }
+literal_list(A) ::= literal(B).                                                   { PARSER_TRACE; A = createNodeList(pCxt, releaseRawExprNode(pCxt, B)); }
+literal_list(A) ::= literal_list(B) NK_COMMA literal(C).                          { PARSER_TRACE; A = addNodeToList(pCxt, B, releaseRawExprNode(pCxt, C)); }
 
 /************************************************ names and identifiers ***********************************************/
 %type db_name                                                                     { SToken }
@@ -111,37 +111,70 @@ expression(A) ::= literal(B).                                                   
 //expression(A) ::= NK_QUESTION(B).                                                 { PARSER_TRACE; A = B; }
 //expression(A) ::= pseudo_column(B).                                               { PARSER_TRACE; A = B; }
 expression(A) ::= column_reference(B).                                            { PARSER_TRACE; A = B; }
-expression(A) ::= function_name(B) NK_LP expression_list(C) NK_RP.                { PARSER_TRACE; A = createFunctionNode(pCxt, &B, C); }
+expression(A) ::= function_name(B) NK_LP expression_list(C) NK_RP(D).             { PARSER_TRACE; A = createRawExprNodeExt(pCxt, &B, &D, createFunctionNode(pCxt, &B, C)); }
 //expression(A) ::= cast_expression(B).                                             { PARSER_TRACE; A = B; }
 //expression(A) ::= case_expression(B).                                             { PARSER_TRACE; A = B; }
 expression(A) ::= subquery(B).                                                    { PARSER_TRACE; A = B; }
-expression(A) ::= NK_LP expression(B) NK_RP.                                      { PARSER_TRACE; A = B; }
-expression(A) ::= NK_PLUS expression(B).                                          { PARSER_TRACE; A = B; }
-expression(A) ::= NK_MINUS expression(B).                                         { PARSER_TRACE; A = createOperatorNode(pCxt, OP_TYPE_SUB, B, NULL); }
-expression(A) ::= expression(B) NK_PLUS expression(C).                            { PARSER_TRACE; A = createOperatorNode(pCxt, OP_TYPE_ADD, B, C); }
-expression(A) ::= expression(B) NK_MINUS expression(C).                           { PARSER_TRACE; A = createOperatorNode(pCxt, OP_TYPE_SUB, B, C); }
-expression(A) ::= expression(B) NK_STAR expression(C).                            { PARSER_TRACE; A = createOperatorNode(pCxt, OP_TYPE_MULTI, B, C); }
-expression(A) ::= expression(B) NK_SLASH expression(C).                           { PARSER_TRACE; A = createOperatorNode(pCxt, OP_TYPE_DIV, B, C); }
-expression(A) ::= expression(B) NK_REM expression(C).                             { PARSER_TRACE; A = createOperatorNode(pCxt, OP_TYPE_MOD, B, C); }
+expression(A) ::= NK_LP(B) expression(C) NK_RP(D).                                { PARSER_TRACE; A = createRawExprNodeExt(pCxt, &B, &D, releaseRawExprNode(pCxt, C)); }
+expression(A) ::= NK_PLUS(B) expression(C).                                       {
+                                                                                    PARSER_TRACE;
+                                                                                    SToken t = getTokenFromRawExprNode(pCxt, C);
+                                                                                    A = createRawExprNodeExt(pCxt, &B, &t, releaseRawExprNode(pCxt, C));
+                                                                                  }
+expression(A) ::= NK_MINUS(B) expression(C).                                      {
+                                                                                    PARSER_TRACE;
+                                                                                    SToken t = getTokenFromRawExprNode(pCxt, C);
+                                                                                    A = createRawExprNodeExt(pCxt, &B, &t, createOperatorNode(pCxt, OP_TYPE_SUB, releaseRawExprNode(pCxt, C), NULL));
+                                                                                  }
+expression(A) ::= expression(B) NK_PLUS expression(C).                            {
+                                                                                    PARSER_TRACE; 
+                                                                                    SToken s = getTokenFromRawExprNode(pCxt, B);
+                                                                                    SToken e = getTokenFromRawExprNode(pCxt, C);
+                                                                                    A = createRawExprNodeExt(pCxt, &s, &e, createOperatorNode(pCxt, OP_TYPE_ADD, releaseRawExprNode(pCxt, B), releaseRawExprNode(pCxt, C))); 
+                                                                                  }
+expression(A) ::= expression(B) NK_MINUS expression(C).                           {
+                                                                                    PARSER_TRACE; 
+                                                                                    SToken s = getTokenFromRawExprNode(pCxt, B);
+                                                                                    SToken e = getTokenFromRawExprNode(pCxt, C);
+                                                                                    A = createRawExprNodeExt(pCxt, &s, &e, createOperatorNode(pCxt, OP_TYPE_SUB, releaseRawExprNode(pCxt, B), releaseRawExprNode(pCxt, C))); 
+                                                                                  }
+expression(A) ::= expression(B) NK_STAR expression(C).                            {
+                                                                                    PARSER_TRACE; 
+                                                                                    SToken s = getTokenFromRawExprNode(pCxt, B);
+                                                                                    SToken e = getTokenFromRawExprNode(pCxt, C);
+                                                                                    A = createRawExprNodeExt(pCxt, &s, &e, createOperatorNode(pCxt, OP_TYPE_MULTI, releaseRawExprNode(pCxt, B), releaseRawExprNode(pCxt, C))); 
+                                                                                  }
+expression(A) ::= expression(B) NK_SLASH expression(C).                           {
+                                                                                    PARSER_TRACE; 
+                                                                                    SToken s = getTokenFromRawExprNode(pCxt, B);
+                                                                                    SToken e = getTokenFromRawExprNode(pCxt, C);
+                                                                                    A = createRawExprNodeExt(pCxt, &s, &e, createOperatorNode(pCxt, OP_TYPE_DIV, releaseRawExprNode(pCxt, B), releaseRawExprNode(pCxt, C))); 
+                                                                                  }
+expression(A) ::= expression(B) NK_REM expression(C).                             {
+                                                                                    PARSER_TRACE; 
+                                                                                    SToken s = getTokenFromRawExprNode(pCxt, B);
+                                                                                    SToken e = getTokenFromRawExprNode(pCxt, C);
+                                                                                    A = createRawExprNodeExt(pCxt, &s, &e, createOperatorNode(pCxt, OP_TYPE_MOD, releaseRawExprNode(pCxt, B), releaseRawExprNode(pCxt, C))); 
+                                                                                  }
 
 %type expression_list                                                             { SNodeList* }
 %destructor expression_list                                                       { PARSER_DESTRUCTOR_TRACE; nodesDestroyList($$); }
-expression_list(A) ::= expression(B).                                             { PARSER_TRACE; A = createNodeList(pCxt, B); }
-expression_list(A) ::= expression_list(B) NK_COMMA expression(C).                 { PARSER_TRACE; A = addNodeToList(pCxt, B, C); }
+expression_list(A) ::= expression(B).                                             { PARSER_TRACE; A = createNodeList(pCxt, releaseRawExprNode(pCxt, B)); }
+expression_list(A) ::= expression_list(B) NK_COMMA expression(C).                 { PARSER_TRACE; A = addNodeToList(pCxt, B, releaseRawExprNode(pCxt, C)); }
 
-column_reference(A) ::= column_name(B).                                           { PARSER_TRACE; A = createColumnNode(pCxt, NULL, &B); }
-column_reference(A) ::= table_name(B) NK_DOT column_name(C).                      { PARSER_TRACE; A = createColumnNode(pCxt, &B, &C); }
+column_reference(A) ::= column_name(B).                                           { PARSER_TRACE; A = createRawExprNode(pCxt, &B, createColumnNode(pCxt, NULL, &B)); }
+column_reference(A) ::= table_name(B) NK_DOT column_name(C).                      { PARSER_TRACE; A = createRawExprNodeExt(pCxt, &B, &C, createColumnNode(pCxt, &B, &C)); }
 
 //pseudo_column(A) ::= NK_NOW.                                                      { PARSER_TRACE; A = createFunctionNode(pCxt, NULL, NULL); }
 
 /************************************************ predicate ***********************************************************/
-predicate(A) ::= expression(B) compare_op(C) expression(D).                       { PARSER_TRACE; A = createOperatorNode(pCxt, C, B, D); }
+predicate(A) ::= expression(B) compare_op(C) expression(D).                       { PARSER_TRACE; A = createOperatorNode(pCxt, C, releaseRawExprNode(pCxt, B), releaseRawExprNode(pCxt, D)); }
 //predicate(A) ::= expression(B) compare_op sub_type expression(B).
-predicate(A) ::= expression(B) BETWEEN expression(C) AND expression(D).           { PARSER_TRACE; A = createBetweenAnd(pCxt, B, C, D); }
-predicate(A) ::= expression(B) NOT BETWEEN expression(C) AND expression(D).       { PARSER_TRACE; A = createNotBetweenAnd(pCxt, C, B, D); }
-predicate(A) ::= expression(B) IS NULL.                                           { PARSER_TRACE; A = createIsNullCondNode(pCxt, B, true); }
-predicate(A) ::= expression(B) IS NOT NULL.                                       { PARSER_TRACE; A = createIsNullCondNode(pCxt, B, false); }
-predicate(A) ::= expression(B) in_op(C) in_predicate_value(D).                    { PARSER_TRACE; A = createOperatorNode(pCxt, C, B, D); }
+predicate(A) ::= expression(B) BETWEEN expression(C) AND expression(D).           { PARSER_TRACE; A = createBetweenAnd(pCxt, releaseRawExprNode(pCxt, B), releaseRawExprNode(pCxt, C), releaseRawExprNode(pCxt, D)); }
+predicate(A) ::= expression(B) NOT BETWEEN expression(C) AND expression(D).       { PARSER_TRACE; A = createNotBetweenAnd(pCxt, releaseRawExprNode(pCxt, C), releaseRawExprNode(pCxt, B), releaseRawExprNode(pCxt, D)); }
+predicate(A) ::= expression(B) IS NULL.                                           { PARSER_TRACE; A = createIsNullCondNode(pCxt, releaseRawExprNode(pCxt, B), true); }
+predicate(A) ::= expression(B) IS NOT NULL.                                       { PARSER_TRACE; A = createIsNullCondNode(pCxt, releaseRawExprNode(pCxt, B), false); }
+predicate(A) ::= expression(B) in_op(C) in_predicate_value(D).                    { PARSER_TRACE; A = createOperatorNode(pCxt, C, releaseRawExprNode(pCxt, B), D); }
 
 %type compare_op                                                                  { EOperatorType }
 %destructor compare_op                                                            { PARSER_DESTRUCTOR_TRACE; }
@@ -236,9 +269,13 @@ select_list(A) ::= select_sublist(B).                                           
 select_sublist(A) ::= select_item(B).                                             { PARSER_TRACE; A = createNodeList(pCxt, B); }
 select_sublist(A) ::= select_sublist(B) NK_COMMA select_item(C).                  { PARSER_TRACE; A = addNodeToList(pCxt, B, C); }
 
-select_item(A) ::= expression(B).                                                 { PARSER_TRACE; A = B; }
-select_item(A) ::= expression(B) column_alias(C).                                 { PARSER_TRACE; A = setProjectionAlias(pCxt, B, &C); }
-select_item(A) ::= expression(B) AS column_alias(C).                              { PARSER_TRACE; A = setProjectionAlias(pCxt, B, &C); }
+select_item(A) ::= expression(B).                                                 {
+                                                                                    PARSER_TRACE;
+                                                                                    SToken t = getTokenFromRawExprNode(pCxt, B);
+                                                                                    A = setProjectionAlias(pCxt, releaseRawExprNode(pCxt, B), &t);
+                                                                                  }
+select_item(A) ::= expression(B) column_alias(C).                                 { PARSER_TRACE; A = setProjectionAlias(pCxt, releaseRawExprNode(pCxt, B), &C); }
+select_item(A) ::= expression(B) AS column_alias(C).                              { PARSER_TRACE; A = setProjectionAlias(pCxt, releaseRawExprNode(pCxt, B), &C); }
 select_item(A) ::= table_name(B) NK_DOT NK_STAR(C).                               { PARSER_TRACE; A = createColumnNode(pCxt, &B, &C); }
 
 where_clause_opt(A) ::= .                                                         { PARSER_TRACE; A = NULL; }
@@ -251,8 +288,8 @@ partition_by_clause_opt(A) ::= PARTITION BY expression_list(B).                 
 
 twindow_clause_opt(A) ::= .                                                       { PARSER_TRACE; A = NULL; }
 twindow_clause_opt(A) ::=
-  SESSION NK_LP column_reference(B) NK_COMMA NK_INTEGER(C) NK_RP.                 { PARSER_TRACE; A = createSessionWindowNode(pCxt, B, &C); }
-twindow_clause_opt(A) ::= STATE_WINDOW NK_LP column_reference(B) NK_RP.           { PARSER_TRACE; A = createStateWindowNode(pCxt, B); }
+  SESSION NK_LP column_reference(B) NK_COMMA NK_INTEGER(C) NK_RP.                 { PARSER_TRACE; A = createSessionWindowNode(pCxt, releaseRawExprNode(pCxt, B), &C); }
+twindow_clause_opt(A) ::= STATE_WINDOW NK_LP column_reference(B) NK_RP.           { PARSER_TRACE; A = createStateWindowNode(pCxt, releaseRawExprNode(pCxt, B)); }
 twindow_clause_opt(A) ::=
   INTERVAL NK_LP duration_literal(B) NK_RP sliding_opt(C) fill_opt(D).            { PARSER_TRACE; A = createIntervalWindowNode(pCxt, B, NULL, C, D); }
 twindow_clause_opt(A) ::=
@@ -330,7 +367,7 @@ sort_specification_list(A) ::=
   sort_specification_list(B) NK_COMMA sort_specification(C).                      { PARSER_TRACE; A = addNodeToList(pCxt, B, C); }
 
 sort_specification(A) ::= 
-  expression(B) ordering_specification_opt(C) null_ordering_opt(D).               { PARSER_TRACE; A = createOrderByExprNode(pCxt, B, C, D); }
+  expression(B) ordering_specification_opt(C) null_ordering_opt(D).               { PARSER_TRACE; A = createOrderByExprNode(pCxt, releaseRawExprNode(pCxt, B), C, D); }
 
 %type ordering_specification_opt EOrder
 %destructor ordering_specification_opt                                            { PARSER_DESTRUCTOR_TRACE; }

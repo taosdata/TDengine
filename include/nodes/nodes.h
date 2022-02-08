@@ -55,7 +55,7 @@ typedef enum ENodeType {
   QUERY_NODE_FILL,
 
   // only for parser
-  QUERY_NODE_TARGET_EXPR,
+  QUERY_NODE_RAW_EXPR,
 
   QUERY_NODE_SET_OPERATOR,
   QUERY_NODE_SELECT_STMT,
@@ -80,6 +80,13 @@ typedef struct SNodeList {
   SListCell* pHead;
   SListCell* pTail;
 } SNodeList;
+
+typedef struct SRawExprNode {
+  ENodeType nodeType;
+  char* p;
+  uint32_t n;
+  SNode* pNode;
+} SRawExprNode;
 
 typedef struct SDataType {
   uint8_t type;

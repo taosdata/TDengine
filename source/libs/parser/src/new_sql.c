@@ -1517,23 +1517,24 @@ static YYACTIONTYPE yy_reduce(
 { PARSER_TRACE; pCxt->pRootNode = yymsp[0].minor.yy168; }
         break;
       case 2: /* literal ::= NK_INTEGER */
-{ PARSER_TRACE; yylhsminor.yy168 = createValueNode(pCxt, TSDB_DATA_TYPE_BIGINT, &yymsp[0].minor.yy0); }
+{ PARSER_TRACE; yylhsminor.yy168 = createRawExprNode(pCxt, &yymsp[0].minor.yy0, createValueNode(pCxt, TSDB_DATA_TYPE_BIGINT, &yymsp[0].minor.yy0)); }
   yymsp[0].minor.yy168 = yylhsminor.yy168;
         break;
       case 3: /* literal ::= NK_FLOAT */
-{ PARSER_TRACE; yylhsminor.yy168 = createValueNode(pCxt, TSDB_DATA_TYPE_DOUBLE, &yymsp[0].minor.yy0); }
+{ PARSER_TRACE; yylhsminor.yy168 = createRawExprNode(pCxt, &yymsp[0].minor.yy0, createValueNode(pCxt, TSDB_DATA_TYPE_DOUBLE, &yymsp[0].minor.yy0)); }
   yymsp[0].minor.yy168 = yylhsminor.yy168;
         break;
       case 4: /* literal ::= NK_STRING */
-{ PARSER_TRACE; yylhsminor.yy168 = createValueNode(pCxt, TSDB_DATA_TYPE_BINARY, &yymsp[0].minor.yy0); }
+{ PARSER_TRACE; yylhsminor.yy168 = createRawExprNode(pCxt, &yymsp[0].minor.yy0, createValueNode(pCxt, TSDB_DATA_TYPE_BINARY, &yymsp[0].minor.yy0)); }
   yymsp[0].minor.yy168 = yylhsminor.yy168;
         break;
       case 5: /* literal ::= NK_BOOL */
-{ PARSER_TRACE; yylhsminor.yy168 = createValueNode(pCxt, TSDB_DATA_TYPE_BOOL, &yymsp[0].minor.yy0); }
+{ PARSER_TRACE; yylhsminor.yy168 = createRawExprNode(pCxt, &yymsp[0].minor.yy0, createValueNode(pCxt, TSDB_DATA_TYPE_BOOL, &yymsp[0].minor.yy0)); }
   yymsp[0].minor.yy168 = yylhsminor.yy168;
         break;
       case 6: /* literal ::= TIMESTAMP NK_STRING */
-{ PARSER_TRACE; yymsp[-1].minor.yy168 = createValueNode(pCxt, TSDB_DATA_TYPE_TIMESTAMP, &yymsp[0].minor.yy0); }
+{ PARSER_TRACE; yylhsminor.yy168 = createRawExprNodeExt(pCxt, &yymsp[-1].minor.yy0, &yymsp[0].minor.yy0, createValueNode(pCxt, TSDB_DATA_TYPE_TIMESTAMP, &yymsp[0].minor.yy0)); }
+  yymsp[-1].minor.yy168 = yylhsminor.yy168;
         break;
       case 7: /* literal ::= duration_literal */
       case 17: /* expression ::= literal */ yytestcase(yyruleno==17);
@@ -1545,7 +1546,6 @@ static YYACTIONTYPE yy_reduce(
       case 61: /* table_reference ::= table_primary */ yytestcase(yyruleno==61);
       case 62: /* table_reference ::= joined_table */ yytestcase(yyruleno==62);
       case 66: /* table_primary ::= parenthesized_joined_table */ yytestcase(yyruleno==66);
-      case 82: /* select_item ::= expression */ yytestcase(yyruleno==82);
       case 110: /* query_expression_body ::= query_primary */ yytestcase(yyruleno==110);
       case 112: /* query_primary ::= query_specification */ yytestcase(yyruleno==112);
       case 124: /* search_condition ::= boolean_value_expression */ yytestcase(yyruleno==124);
@@ -1553,21 +1553,17 @@ static YYACTIONTYPE yy_reduce(
   yymsp[0].minor.yy168 = yylhsminor.yy168;
         break;
       case 8: /* duration_literal ::= NK_VARIABLE */
-{ PARSER_TRACE; yylhsminor.yy168 = createDurationValueNode(pCxt, &yymsp[0].minor.yy0); }
+{ PARSER_TRACE; yylhsminor.yy168 = createRawExprNode(pCxt, &yymsp[0].minor.yy0, createDurationValueNode(pCxt, &yymsp[0].minor.yy0)); }
   yymsp[0].minor.yy168 = yylhsminor.yy168;
         break;
       case 9: /* literal_list ::= literal */
       case 29: /* expression_list ::= expression */ yytestcase(yyruleno==29);
-      case 80: /* select_sublist ::= select_item */ yytestcase(yyruleno==80);
-      case 125: /* sort_specification_list ::= sort_specification */ yytestcase(yyruleno==125);
-{ PARSER_TRACE; yylhsminor.yy192 = createNodeList(pCxt, yymsp[0].minor.yy168); }
+{ PARSER_TRACE; yylhsminor.yy192 = createNodeList(pCxt, releaseRawExprNode(pCxt, yymsp[0].minor.yy168)); }
   yymsp[0].minor.yy192 = yylhsminor.yy192;
         break;
       case 10: /* literal_list ::= literal_list NK_COMMA literal */
       case 30: /* expression_list ::= expression_list NK_COMMA expression */ yytestcase(yyruleno==30);
-      case 81: /* select_sublist ::= select_sublist NK_COMMA select_item */ yytestcase(yyruleno==81);
-      case 126: /* sort_specification_list ::= sort_specification_list NK_COMMA sort_specification */ yytestcase(yyruleno==126);
-{ PARSER_TRACE; yylhsminor.yy192 = addNodeToList(pCxt, yymsp[-2].minor.yy192, yymsp[0].minor.yy168); }
+{ PARSER_TRACE; yylhsminor.yy192 = addNodeToList(pCxt, yymsp[-2].minor.yy192, releaseRawExprNode(pCxt, yymsp[0].minor.yy168)); }
   yymsp[-2].minor.yy192 = yylhsminor.yy192;
         break;
       case 11: /* db_name ::= NK_ID */
@@ -1580,73 +1576,105 @@ static YYACTIONTYPE yy_reduce(
   yymsp[0].minor.yy241 = yylhsminor.yy241;
         break;
       case 19: /* expression ::= function_name NK_LP expression_list NK_RP */
-{ PARSER_TRACE; yylhsminor.yy168 = createFunctionNode(pCxt, &yymsp[-3].minor.yy241, yymsp[-1].minor.yy192); }
+{ PARSER_TRACE; yylhsminor.yy168 = createRawExprNodeExt(pCxt, &yymsp[-3].minor.yy241, &yymsp[0].minor.yy0, createFunctionNode(pCxt, &yymsp[-3].minor.yy241, yymsp[-1].minor.yy192)); }
   yymsp[-3].minor.yy168 = yylhsminor.yy168;
         break;
       case 21: /* expression ::= NK_LP expression NK_RP */
-      case 57: /* boolean_primary ::= NK_LP boolean_value_expression NK_RP */ yytestcase(yyruleno==57);
-      case 70: /* parenthesized_joined_table ::= NK_LP joined_table NK_RP */ yytestcase(yyruleno==70);
-      case 71: /* parenthesized_joined_table ::= NK_LP parenthesized_joined_table NK_RP */ yytestcase(yyruleno==71);
-      case 123: /* subquery ::= NK_LP query_expression NK_RP */ yytestcase(yyruleno==123);
-{ PARSER_TRACE; yymsp[-2].minor.yy168 = yymsp[-1].minor.yy168; }
+{ PARSER_TRACE; yylhsminor.yy168 = createRawExprNodeExt(pCxt, &yymsp[-2].minor.yy0, &yymsp[0].minor.yy0, releaseRawExprNode(pCxt, yymsp[-1].minor.yy168)); }
+  yymsp[-2].minor.yy168 = yylhsminor.yy168;
         break;
       case 22: /* expression ::= NK_PLUS expression */
-      case 58: /* from_clause ::= FROM table_reference_list */ yytestcase(yyruleno==58);
-      case 87: /* where_clause_opt ::= WHERE search_condition */ yytestcase(yyruleno==87);
-      case 108: /* having_clause_opt ::= HAVING search_condition */ yytestcase(yyruleno==108);
-{ PARSER_TRACE; yymsp[-1].minor.yy168 = yymsp[0].minor.yy168; }
+{
+                                                                                    PARSER_TRACE;
+                                                                                    SToken t = getTokenFromRawExprNode(pCxt, yymsp[0].minor.yy168);
+                                                                                    yylhsminor.yy168 = createRawExprNodeExt(pCxt, &yymsp[-1].minor.yy0, &t, releaseRawExprNode(pCxt, yymsp[0].minor.yy168));
+                                                                                  }
+  yymsp[-1].minor.yy168 = yylhsminor.yy168;
         break;
       case 23: /* expression ::= NK_MINUS expression */
-{ PARSER_TRACE; yymsp[-1].minor.yy168 = createOperatorNode(pCxt, OP_TYPE_SUB, yymsp[0].minor.yy168, NULL); }
+{
+                                                                                    PARSER_TRACE;
+                                                                                    SToken t = getTokenFromRawExprNode(pCxt, yymsp[0].minor.yy168);
+                                                                                    yylhsminor.yy168 = createRawExprNodeExt(pCxt, &yymsp[-1].minor.yy0, &t, createOperatorNode(pCxt, OP_TYPE_SUB, releaseRawExprNode(pCxt, yymsp[0].minor.yy168), NULL));
+                                                                                  }
+  yymsp[-1].minor.yy168 = yylhsminor.yy168;
         break;
       case 24: /* expression ::= expression NK_PLUS expression */
-{ PARSER_TRACE; yylhsminor.yy168 = createOperatorNode(pCxt, OP_TYPE_ADD, yymsp[-2].minor.yy168, yymsp[0].minor.yy168); }
+{
+                                                                                    PARSER_TRACE; 
+                                                                                    SToken s = getTokenFromRawExprNode(pCxt, yymsp[-2].minor.yy168);
+                                                                                    SToken e = getTokenFromRawExprNode(pCxt, yymsp[0].minor.yy168);
+                                                                                    yylhsminor.yy168 = createRawExprNodeExt(pCxt, &s, &e, createOperatorNode(pCxt, OP_TYPE_ADD, releaseRawExprNode(pCxt, yymsp[-2].minor.yy168), releaseRawExprNode(pCxt, yymsp[0].minor.yy168))); 
+                                                                                  }
   yymsp[-2].minor.yy168 = yylhsminor.yy168;
         break;
       case 25: /* expression ::= expression NK_MINUS expression */
-{ PARSER_TRACE; yylhsminor.yy168 = createOperatorNode(pCxt, OP_TYPE_SUB, yymsp[-2].minor.yy168, yymsp[0].minor.yy168); }
+{
+                                                                                    PARSER_TRACE; 
+                                                                                    SToken s = getTokenFromRawExprNode(pCxt, yymsp[-2].minor.yy168);
+                                                                                    SToken e = getTokenFromRawExprNode(pCxt, yymsp[0].minor.yy168);
+                                                                                    yylhsminor.yy168 = createRawExprNodeExt(pCxt, &s, &e, createOperatorNode(pCxt, OP_TYPE_SUB, releaseRawExprNode(pCxt, yymsp[-2].minor.yy168), releaseRawExprNode(pCxt, yymsp[0].minor.yy168))); 
+                                                                                  }
   yymsp[-2].minor.yy168 = yylhsminor.yy168;
         break;
       case 26: /* expression ::= expression NK_STAR expression */
-{ PARSER_TRACE; yylhsminor.yy168 = createOperatorNode(pCxt, OP_TYPE_MULTI, yymsp[-2].minor.yy168, yymsp[0].minor.yy168); }
+{
+                                                                                    PARSER_TRACE; 
+                                                                                    SToken s = getTokenFromRawExprNode(pCxt, yymsp[-2].minor.yy168);
+                                                                                    SToken e = getTokenFromRawExprNode(pCxt, yymsp[0].minor.yy168);
+                                                                                    yylhsminor.yy168 = createRawExprNodeExt(pCxt, &s, &e, createOperatorNode(pCxt, OP_TYPE_MULTI, releaseRawExprNode(pCxt, yymsp[-2].minor.yy168), releaseRawExprNode(pCxt, yymsp[0].minor.yy168))); 
+                                                                                  }
   yymsp[-2].minor.yy168 = yylhsminor.yy168;
         break;
       case 27: /* expression ::= expression NK_SLASH expression */
-{ PARSER_TRACE; yylhsminor.yy168 = createOperatorNode(pCxt, OP_TYPE_DIV, yymsp[-2].minor.yy168, yymsp[0].minor.yy168); }
+{
+                                                                                    PARSER_TRACE; 
+                                                                                    SToken s = getTokenFromRawExprNode(pCxt, yymsp[-2].minor.yy168);
+                                                                                    SToken e = getTokenFromRawExprNode(pCxt, yymsp[0].minor.yy168);
+                                                                                    yylhsminor.yy168 = createRawExprNodeExt(pCxt, &s, &e, createOperatorNode(pCxt, OP_TYPE_DIV, releaseRawExprNode(pCxt, yymsp[-2].minor.yy168), releaseRawExprNode(pCxt, yymsp[0].minor.yy168))); 
+                                                                                  }
   yymsp[-2].minor.yy168 = yylhsminor.yy168;
         break;
       case 28: /* expression ::= expression NK_REM expression */
-{ PARSER_TRACE; yylhsminor.yy168 = createOperatorNode(pCxt, OP_TYPE_MOD, yymsp[-2].minor.yy168, yymsp[0].minor.yy168); }
+{
+                                                                                    PARSER_TRACE; 
+                                                                                    SToken s = getTokenFromRawExprNode(pCxt, yymsp[-2].minor.yy168);
+                                                                                    SToken e = getTokenFromRawExprNode(pCxt, yymsp[0].minor.yy168);
+                                                                                    yylhsminor.yy168 = createRawExprNodeExt(pCxt, &s, &e, createOperatorNode(pCxt, OP_TYPE_MOD, releaseRawExprNode(pCxt, yymsp[-2].minor.yy168), releaseRawExprNode(pCxt, yymsp[0].minor.yy168))); 
+                                                                                  }
   yymsp[-2].minor.yy168 = yylhsminor.yy168;
         break;
       case 31: /* column_reference ::= column_name */
-{ PARSER_TRACE; yylhsminor.yy168 = createColumnNode(pCxt, NULL, &yymsp[0].minor.yy241); }
+{ PARSER_TRACE; yylhsminor.yy168 = createRawExprNode(pCxt, &yymsp[0].minor.yy241, createColumnNode(pCxt, NULL, &yymsp[0].minor.yy241)); }
   yymsp[0].minor.yy168 = yylhsminor.yy168;
         break;
       case 32: /* column_reference ::= table_name NK_DOT column_name */
-{ PARSER_TRACE; yylhsminor.yy168 = createColumnNode(pCxt, &yymsp[-2].minor.yy241, &yymsp[0].minor.yy241); }
+{ PARSER_TRACE; yylhsminor.yy168 = createRawExprNodeExt(pCxt, &yymsp[-2].minor.yy241, &yymsp[0].minor.yy241, createColumnNode(pCxt, &yymsp[-2].minor.yy241, &yymsp[0].minor.yy241)); }
   yymsp[-2].minor.yy168 = yylhsminor.yy168;
         break;
       case 33: /* predicate ::= expression compare_op expression */
-      case 38: /* predicate ::= expression in_op in_predicate_value */ yytestcase(yyruleno==38);
-{ PARSER_TRACE; yylhsminor.yy168 = createOperatorNode(pCxt, yymsp[-1].minor.yy228, yymsp[-2].minor.yy168, yymsp[0].minor.yy168); }
+{ PARSER_TRACE; yylhsminor.yy168 = createOperatorNode(pCxt, yymsp[-1].minor.yy228, releaseRawExprNode(pCxt, yymsp[-2].minor.yy168), releaseRawExprNode(pCxt, yymsp[0].minor.yy168)); }
   yymsp[-2].minor.yy168 = yylhsminor.yy168;
         break;
       case 34: /* predicate ::= expression BETWEEN expression AND expression */
-{ PARSER_TRACE; yylhsminor.yy168 = createBetweenAnd(pCxt, yymsp[-4].minor.yy168, yymsp[-2].minor.yy168, yymsp[0].minor.yy168); }
+{ PARSER_TRACE; yylhsminor.yy168 = createBetweenAnd(pCxt, releaseRawExprNode(pCxt, yymsp[-4].minor.yy168), releaseRawExprNode(pCxt, yymsp[-2].minor.yy168), releaseRawExprNode(pCxt, yymsp[0].minor.yy168)); }
   yymsp[-4].minor.yy168 = yylhsminor.yy168;
         break;
       case 35: /* predicate ::= expression NOT BETWEEN expression AND expression */
-{ PARSER_TRACE; yylhsminor.yy168 = createNotBetweenAnd(pCxt, yymsp[-2].minor.yy168, yymsp[-5].minor.yy168, yymsp[0].minor.yy168); }
+{ PARSER_TRACE; yylhsminor.yy168 = createNotBetweenAnd(pCxt, releaseRawExprNode(pCxt, yymsp[-2].minor.yy168), releaseRawExprNode(pCxt, yymsp[-5].minor.yy168), releaseRawExprNode(pCxt, yymsp[0].minor.yy168)); }
   yymsp[-5].minor.yy168 = yylhsminor.yy168;
         break;
       case 36: /* predicate ::= expression IS NULL */
-{ PARSER_TRACE; yylhsminor.yy168 = createIsNullCondNode(pCxt, yymsp[-2].minor.yy168, true); }
+{ PARSER_TRACE; yylhsminor.yy168 = createIsNullCondNode(pCxt, releaseRawExprNode(pCxt, yymsp[-2].minor.yy168), true); }
   yymsp[-2].minor.yy168 = yylhsminor.yy168;
         break;
       case 37: /* predicate ::= expression IS NOT NULL */
-{ PARSER_TRACE; yylhsminor.yy168 = createIsNullCondNode(pCxt, yymsp[-3].minor.yy168, false); }
+{ PARSER_TRACE; yylhsminor.yy168 = createIsNullCondNode(pCxt, releaseRawExprNode(pCxt, yymsp[-3].minor.yy168), false); }
   yymsp[-3].minor.yy168 = yylhsminor.yy168;
+        break;
+      case 38: /* predicate ::= expression in_op in_predicate_value */
+{ PARSER_TRACE; yylhsminor.yy168 = createOperatorNode(pCxt, yymsp[-1].minor.yy228, releaseRawExprNode(pCxt, yymsp[-2].minor.yy168), yymsp[0].minor.yy168); }
+  yymsp[-2].minor.yy168 = yylhsminor.yy168;
         break;
       case 39: /* compare_op ::= NK_LT */
 { PARSER_TRACE; yymsp[0].minor.yy228 = OP_TYPE_LOWER_THAN; }
@@ -1697,6 +1725,17 @@ static YYACTIONTYPE yy_reduce(
       case 55: /* boolean_value_expression ::= boolean_value_expression AND boolean_value_expression */
 { PARSER_TRACE; yylhsminor.yy168 = createLogicConditionNode(pCxt, LOGIC_COND_TYPE_AND, yymsp[-2].minor.yy168, yymsp[0].minor.yy168); }
   yymsp[-2].minor.yy168 = yylhsminor.yy168;
+        break;
+      case 57: /* boolean_primary ::= NK_LP boolean_value_expression NK_RP */
+      case 70: /* parenthesized_joined_table ::= NK_LP joined_table NK_RP */ yytestcase(yyruleno==70);
+      case 71: /* parenthesized_joined_table ::= NK_LP parenthesized_joined_table NK_RP */ yytestcase(yyruleno==71);
+      case 123: /* subquery ::= NK_LP query_expression NK_RP */ yytestcase(yyruleno==123);
+{ PARSER_TRACE; yymsp[-2].minor.yy168 = yymsp[-1].minor.yy168; }
+        break;
+      case 58: /* from_clause ::= FROM table_reference_list */
+      case 87: /* where_clause_opt ::= WHERE search_condition */ yytestcase(yyruleno==87);
+      case 108: /* having_clause_opt ::= HAVING search_condition */ yytestcase(yyruleno==108);
+{ PARSER_TRACE; yymsp[-1].minor.yy168 = yymsp[0].minor.yy168; }
         break;
       case 60: /* table_reference_list ::= table_reference_list NK_COMMA table_reference */
 { PARSER_TRACE; yylhsminor.yy168 = createJoinTableNode(pCxt, JOIN_TYPE_INNER, yymsp[-2].minor.yy168, yymsp[0].minor.yy168, NULL); }
@@ -1758,12 +1797,30 @@ static YYACTIONTYPE yy_reduce(
 { PARSER_TRACE; yylhsminor.yy192 = yymsp[0].minor.yy192; }
   yymsp[0].minor.yy192 = yylhsminor.yy192;
         break;
+      case 80: /* select_sublist ::= select_item */
+      case 125: /* sort_specification_list ::= sort_specification */ yytestcase(yyruleno==125);
+{ PARSER_TRACE; yylhsminor.yy192 = createNodeList(pCxt, yymsp[0].minor.yy168); }
+  yymsp[0].minor.yy192 = yylhsminor.yy192;
+        break;
+      case 81: /* select_sublist ::= select_sublist NK_COMMA select_item */
+      case 126: /* sort_specification_list ::= sort_specification_list NK_COMMA sort_specification */ yytestcase(yyruleno==126);
+{ PARSER_TRACE; yylhsminor.yy192 = addNodeToList(pCxt, yymsp[-2].minor.yy192, yymsp[0].minor.yy168); }
+  yymsp[-2].minor.yy192 = yylhsminor.yy192;
+        break;
+      case 82: /* select_item ::= expression */
+{
+                                                                                    PARSER_TRACE;
+                                                                                    SToken t = getTokenFromRawExprNode(pCxt, yymsp[0].minor.yy168);
+                                                                                    yylhsminor.yy168 = setProjectionAlias(pCxt, releaseRawExprNode(pCxt, yymsp[0].minor.yy168), &t);
+                                                                                  }
+  yymsp[0].minor.yy168 = yylhsminor.yy168;
+        break;
       case 83: /* select_item ::= expression column_alias */
-{ PARSER_TRACE; yylhsminor.yy168 = setProjectionAlias(pCxt, yymsp[-1].minor.yy168, &yymsp[0].minor.yy241); }
+{ PARSER_TRACE; yylhsminor.yy168 = setProjectionAlias(pCxt, releaseRawExprNode(pCxt, yymsp[-1].minor.yy168), &yymsp[0].minor.yy241); }
   yymsp[-1].minor.yy168 = yylhsminor.yy168;
         break;
       case 84: /* select_item ::= expression AS column_alias */
-{ PARSER_TRACE; yylhsminor.yy168 = setProjectionAlias(pCxt, yymsp[-2].minor.yy168, &yymsp[0].minor.yy241); }
+{ PARSER_TRACE; yylhsminor.yy168 = setProjectionAlias(pCxt, releaseRawExprNode(pCxt, yymsp[-2].minor.yy168), &yymsp[0].minor.yy241); }
   yymsp[-2].minor.yy168 = yylhsminor.yy168;
         break;
       case 85: /* select_item ::= table_name NK_DOT NK_STAR */
@@ -1790,10 +1847,10 @@ static YYACTIONTYPE yy_reduce(
 { PARSER_TRACE; yymsp[-2].minor.yy192 = yymsp[0].minor.yy192; }
         break;
       case 91: /* twindow_clause_opt ::= SESSION NK_LP column_reference NK_COMMA NK_INTEGER NK_RP */
-{ PARSER_TRACE; yymsp[-5].minor.yy168 = createSessionWindowNode(pCxt, yymsp[-3].minor.yy168, &yymsp[-1].minor.yy0); }
+{ PARSER_TRACE; yymsp[-5].minor.yy168 = createSessionWindowNode(pCxt, releaseRawExprNode(pCxt, yymsp[-3].minor.yy168), &yymsp[-1].minor.yy0); }
         break;
       case 92: /* twindow_clause_opt ::= STATE_WINDOW NK_LP column_reference NK_RP */
-{ PARSER_TRACE; yymsp[-3].minor.yy168 = createStateWindowNode(pCxt, yymsp[-1].minor.yy168); }
+{ PARSER_TRACE; yymsp[-3].minor.yy168 = createStateWindowNode(pCxt, releaseRawExprNode(pCxt, yymsp[-1].minor.yy168)); }
         break;
       case 93: /* twindow_clause_opt ::= INTERVAL NK_LP duration_literal NK_RP sliding_opt fill_opt */
 { PARSER_TRACE; yymsp[-5].minor.yy168 = createIntervalWindowNode(pCxt, yymsp[-3].minor.yy168, NULL, yymsp[-1].minor.yy168, yymsp[0].minor.yy168); }
@@ -1851,7 +1908,7 @@ static YYACTIONTYPE yy_reduce(
 { PARSER_TRACE; yymsp[-3].minor.yy168 = createLimitNode(pCxt, &yymsp[0].minor.yy0, &yymsp[-2].minor.yy0); }
         break;
       case 127: /* sort_specification ::= expression ordering_specification_opt null_ordering_opt */
-{ PARSER_TRACE; yylhsminor.yy168 = createOrderByExprNode(pCxt, yymsp[-2].minor.yy168, yymsp[-1].minor.yy10, yymsp[0].minor.yy177); }
+{ PARSER_TRACE; yylhsminor.yy168 = createOrderByExprNode(pCxt, releaseRawExprNode(pCxt, yymsp[-2].minor.yy168), yymsp[-1].minor.yy10, yymsp[0].minor.yy177); }
   yymsp[-2].minor.yy168 = yylhsminor.yy168;
         break;
       case 128: /* ordering_specification_opt ::= */
