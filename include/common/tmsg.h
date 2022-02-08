@@ -264,10 +264,10 @@ typedef struct {
 
 typedef struct {
   char    name[TSDB_TABLE_FNAME_LEN];
-  int8_t  updateType;
+  int8_t  alterType;
   int32_t numOfSchemas;
   SSchema pSchemas[];
-} SMUpdateStbReq;
+} SMAltertbReq;
 
 typedef struct {
   int32_t pid;
