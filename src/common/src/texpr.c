@@ -2223,7 +2223,7 @@ void vectorTimeFunc(int16_t functionId, tExprOperandInfo *pInputs, int32_t numIn
         case TSDB_FUNC_SCALAR_TIMEDIFF: {
           assert(numInputs == 3 || numInputs == 4);
 
-          int64_t timePrec, timeUnit = 0;
+          int64_t timePrec, timeUnit = -1;
           int64_t timeVal[2] = {0};
           if (numInputs == 3) {
             assert(pInputs[2].type == TSDB_DATA_TYPE_BIGINT);
@@ -2263,7 +2263,8 @@ void vectorTimeFunc(int16_t functionId, tExprOperandInfo *pInputs, int32_t numIn
           }
           int64_t result = (timeVal[0] >= timeVal[1]) ? (timeVal[0] - timeVal[1]) :
                                                         (timeVal[1] - timeVal[0]);
-          if (timeUnit == 0) { // if no time unit given use db precision
+
+          if (timeUnit < 0) { // if no time unit given use db precision
             switch(timePrec) {
               case TSDB_TIME_PRECISION_MILLI: {
                 result = result / 1000000;
@@ -2278,10 +2279,42 @@ void vectorTimeFunc(int16_t functionId, tExprOperandInfo *pInputs, int32_t numIn
                 break;
               }
             }
+          } else {
+            int64_t factor = (timePrec == TSDB_TIME_PRECISION_MILLI) ? 1000 :
+                             (timePrec == TSDB_TIME_PRECISION_MICRO ? 1000000 : 1000000000);
+            timeUnit = timeUnit * 1000 / factor;
+            switch(timeUnit) {
+              case 0: { /* 1u */
+                result = result / 1000;
+                break;
+              }
+              case 1: { /* 1a */
+                result = result / 1000000;
+                break;
+              }
+              case 1000: { /* 1s */
+                result = result / 1000000000;
+                break;
+              }
+              case 60000: { /* 1m */
+                result = result / 60 * 1000000000;
+                break;
+              }
+              case 3600000: { /* 1h */
+                result = result / 3600 * 1000000000;
+                break;
+              }
+              case 86400000: { /* 1d */
+                result = result / 86400 * 1000000000;
+                break;
+              }
+              default: {
+                break;
+              }
+            }
           }
 
           SET_TYPED_DATA(outputData, pOutput->type, result);
-
           break;
         }
         default: {
