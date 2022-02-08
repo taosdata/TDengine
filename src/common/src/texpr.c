@@ -1745,6 +1745,13 @@ void vectorTimeFunc(int16_t functionId, tExprOperandInfo *pInputs, int32_t numIn
           SET_TYPED_DATA(outputData, pOutput->type, result);
           break;
         }
+        case TSDB_FUNC_SCALAR_TIMEZONE: {
+          assert(numInputs == 1);
+
+          memcpy(((char*)varDataVal(outputData)), varDataVal(inputData[0]), varDataLen(inputData[0]));
+          varDataSetLen(outputData, varDataLen(inputData[0]));
+          break;
+        }
         default: {
           assert(false);
           break;
