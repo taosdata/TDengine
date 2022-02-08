@@ -5857,6 +5857,13 @@ static SArray* createBlockOrder(SArray* pExprInfo, SArray* pOrderVal) {
 
 SOperatorInfo *createOrderOperatorInfo(SOperatorInfo* downstream, SArray* pExprInfo, SArray* pOrderVal) {
   SOrderOperatorInfo* pInfo = calloc(1, sizeof(SOrderOperatorInfo));
+  SOperatorInfo* pOperator = calloc(1, sizeof(SOperatorInfo));
+  if (pInfo == NULL || pOperator == NULL) {
+    tfree(pInfo);
+
+    terrno = TSDB_CODE_QRY_OUT_OF_MEMORY;
+    return NULL;
+  }
 
   pInfo->sortBufSize = 1024 * 1024; // 1MB
   pInfo->capacity    = 4096;
@@ -5872,10 +5879,16 @@ SOperatorInfo *createOrderOperatorInfo(SOperatorInfo* downstream, SArray* pExprI
     }
   }
 
-  // TODO check error
   int32_t code = createDiskbasedBuffer(&pInfo->pSortInternalBuf, 4096, 4096*1000, 1, "/tmp/");
+  if (pInfo->pSources == NULL || code != 0 || pInfo->cmpParam.orderInfo == NULL || pInfo->pDataBlock == NULL) {
+    tfree(pOperator);
+    destroyOrderOperatorInfo(pInfo, taosArrayGetSize(pExprInfo));
+    tfree(pInfo);
 
-  SOperatorInfo* pOperator = calloc(1, sizeof(SOperatorInfo));
+    terrno = TSDB_CODE_QRY_OUT_OF_MEMORY;
+    return NULL;
+  }
+
   pOperator->name          = "Order";
   pOperator->operatorType  = OP_Order;
   pOperator->blockingOptr  = true;
@@ -6910,8 +6923,6 @@ static void destroyOrderOperatorInfo(void* param, int32_t numOfOutput) {
   destroyResultBuf(pInfo->pSortInternalBuf);
 
   tMergeTreeDestroy(pInfo->pMergeTree);
-
-//  for(int32_t i = 0; i < pInfo->cmpParam.pSources)
 }
 
 static void destroyConditionOperatorInfo(void* param, int32_t numOfOutput) {
