@@ -1,6 +1,44 @@
 #!/bin/bash
 
 function replace_community_pro() {
+  # src/kit/taos-tools/packaging/tools/install-taostools.sh
+  sed -i "s/demoName=\"taosdemo\"/demoName=\"prodemo\"/g" ${top_dir}/src/kit/taos-tools/packaging/tools/install-taostools.sh
+  sed -i "s/benchmarkName=\"taosBenchmark\"/benchmarkName=\"proBenchmark\"/g" ${top_dir}/src/kit/taos-tools/packaging/tools/install-taostools.sh
+  sed -i "s/dumpName=\"taosdump\"/dumpName=\"prodump\"/g" ${top_dir}/src/kit/taos-tools/packaging/tools/install-taostools.sh
+  sed -i "s/emailName=\"taosdata\.com\"/emailName=\"hanatech\.com\.cn\"/g" ${top_dir}/src/kit/taos-tools/packaging/tools/install-taostools.sh
+  sed -i "s/taosName=\"taos\"/taosName=\"prodb\"/g" ${top_dir}/src/kit/taos-tools/packaging/tools/install-taostools.sh
+  sed -i "s/toolsName=\"taostools\"/toolsName=\"prodbtools\"/g" ${top_dir}/src/kit/taos-tools/packaging/tools/install-taostools.sh
+  cp -f ${top_dir}/src/kit/taos-tools/packaging/tools/install-taostools.sh ${top_dir}/src/kit/taos-tools/packaging/tools/install-prodbtools.sh
+
+  # src/kit/taos-tools/packaging/tools/uninstall-taostools.sh
+  sed -i "s/demoName=\"taosdemo\"/demoName=\"prodemo\"/g" ${top_dir}/src/kit/taos-tools/packaging/tools/uninstall-taostools.sh
+  sed -i "s/benchmarkName=\"taosBenchmark\"/benchmarkName=\"proBenchmark\"/g" ${top_dir}/src/kit/taos-tools/packaging/tools/uninstall-taostools.sh
+  sed -i "s/dumpName=\"taosdump\"/dumpName=\"prodump\"/g" ${top_dir}/src/kit/taos-tools/packaging/tools/uninstall-taostools.sh
+  sed -i "s/taosName=\"taos\"/taosName=\"prodb\"/g" ${top_dir}/src/kit/taos-tools/packaging/tools/uninstall-taostools.sh
+  sed -i "s/toolsName=\"taostools\"/toolsName=\"prodbtools\"/g" ${top_dir}/src/kit/taos-tools/packaging/tools/uninstall-taostools.sh
+  cp -f ${top_dir}/src/kit/taos-tools/packaging/tools/uninstall-taostools.sh ${top_dir}/src/kit/taos-tools/packaging/tools/uninstall-prodbtools.sh
+
+  # src/kit/taos-tools/src/CMakeLists.txt
+  sed -i "s/taosBenchmark /proBenchmark /g" ${top_dir}/src/kit/taos-tools/src/CMakeLists.txt
+  sed -i "s/taosdump /prodump /g" ${top_dir}/src/kit/taos-tools/src/CMakeLists.txt
+  # src/kit/taos-tools/CMakeLists.txt
+  sed -i "s/taosdump/prodump/g" ${top_dir}/src/kit/taos-tools/CMakeLists.txt
+  sed -i "s/taosBenchmark/proBenchmark/g" ${top_dir}/src/kit/taos-tools/CMakeLists.txt
+  # src/kit/taos-tools/src/benchCommandOpt.c
+  sed -i "s/support@taosdata\.com/support@hanatech\.com\.cn/g" ${top_dir}/src/kit/taos-tools/src/benchCommandOpt.c
+  sed -i "s/taosc/prodbc/g" ${top_dir}/src/kit/taos-tools/src/benchCommandOpt.c
+  sed -i "s/default is taosdata/default is prodb/g" ${top_dir}/src/kit/taos-tools/src/benchCommandOpt.c
+  # src/kit/taos-tools/src/taosdump.c
+  sed -i "s/support@taosdata\.com/support@hanatech\.com\.cn/g" ${top_dir}/src/kit/taos-tools/src/taosdump.c
+  sed -i "s/\/etc\/taos/\/etc\/ProDB/g" ${top_dir}/src/kit/taos-tools/src/taosdump.c
+  sed -i "s/taosdata/prodb/g" ${top_dir}/src/kit/taos-tools/src/taosdump.c
+  sed -i "s/taosdump version/prodump version/g" ${top_dir}/src/kit/taos-tools/src/taosdump.c
+  sed -i "s/taosdump --help/prodump --help/g" ${top_dir}/src/kit/taos-tools/src/taosdump.c
+  sed -i "s/taosdump --usage/prodump --usage/g" ${top_dir}/src/kit/taos-tools/src/taosdump.c
+  sed -i "s/\"taosdump\"/\"prodump\"/g" ${top_dir}/src/kit/taos-tools/src/taosdump.c
+  sed -i "s/TDengine/ProDB/g" ${top_dir}/src/kit/taos-tools/src/taosdump.c
+  sed -i "s/taosdump requires/prodump requires/g" ${top_dir}/src/kit/taos-tools/src/taosdump.c
+
   # cmake/install.inc
   sed -i "s/C:\/TDengine/C:\/ProDB/g" ${top_dir}/cmake/install.inc
   sed -i "s/taos\.cfg/prodb\.cfg/g" ${top_dir}/cmake/install.inc
@@ -59,17 +97,26 @@ function replace_community_pro() {
   sed -i "s/clientName=\"taos\"/clientName=\"prodbc\"/g" ${top_dir}/packaging/tools/makepkg.sh
   sed -i "s/configFile=\"taos\.cfg\"/configFile=\"prodb\.cfg\"/g" ${top_dir}/packaging/tools/makepkg.sh
   sed -i "s/tarName=\"taos\.tar\.gz\"/tarName=\"prodb\.tar\.gz\"/g" ${top_dir}/packaging/tools/makepkg.sh
+  sed -i "s/dumpName=\"taosdump\"/dumpName=\"prodump\"/g" ${top_dir}/packaging/tools/makepkg.sh
+  sed -i "s/benchmarkName=\"taosBenchmark\"/benchmarkName=\"proBenchmark\"/g" ${top_dir}/packaging/tools/makepkg.sh
+  sed -i "s/toolsName=\"taostools\"/toolsName=\"prodbtools\"/g" ${top_dir}/packaging/tools/makepkg.sh
+  sed -i "s/adapterName=\"taosadapter\"/adapterName=\"proadapter\"/g" ${top_dir}/packaging/tools/makepkg.sh
+  sed -i "s/defaultPasswd=\"taosdata\"/defaultPasswd=\"prodb\"/g" ${top_dir}/packaging/tools/makepkg.sh
+
   # packaging/tools/remove.sh
   sed -i "s/installDir=\"\/usr\/local\/taos\"/installDir=\"\/usr\/local\/ProDB\"/g" ${top_dir}/packaging/tools/remove.sh
   sed -i "s/serverName=\"taosd\"/serverName=\"prodbs\"/g" ${top_dir}/packaging/tools/remove.sh
   sed -i "s/clientName=\"taos\"/clientName=\"prodbc\"/g" ${top_dir}/packaging/tools/remove.sh
   sed -i "s/uninstallScript=\"rmtaos\"/uninstallScript=\"rmpro\"/g" ${top_dir}/packaging/tools/remove.sh
   sed -i "s/productName=\"TDengine\"/productName=\"ProDB\"/g" ${top_dir}/packaging/tools/remove.sh
+  sed -i "s/adapterName=\"taosadapter\"/adapterName=\"proadapter\"/g" ${top_dir}/packaging/tools/remove.sh
+
   # packaging/tools/startPre.sh
   sed -i "s/serverName=\"taosd\"/serverName=\"prodbs\"/g" ${top_dir}/packaging/tools/startPre.sh
   sed -i "s/logDir=\"\/var\/log\/taos\"/logDir=\"\/var\/log\/ProDB\"/g" ${top_dir}/packaging/tools/startPre.sh
   # packaging/tools/run_taosd_and_taosadapter.sh
   sed -i "s/taosd/prodbs/g" ${top_dir}/packaging/tools/run_taosd_and_taosadapter.sh
+  sed -i "s/taosadapter/proadapter/g" ${top_dir}/packaging/tools/run_taosd_and_taosadapter.sh
   # packaging/tools/install.sh
   sed -i "s/clientName=\"taos\"/clientName=\"prodbc\"/g" ${top_dir}/packaging/tools/install.sh
   sed -i "s/serverName=\"taosd\"/serverName=\"prodbs\"/g" ${top_dir}/packaging/tools/install.sh
@@ -83,6 +130,7 @@ function replace_community_pro() {
   sed -i "s/logDir=\"\/var\/log\/taos\"/logDir=\"\/var\/log\/ProDB\"/g" ${top_dir}/packaging/tools/install.sh
   sed -i "s/configDir=\"\/etc\/taos\"/configDir=\"\/etc\/ProDB\"/g" ${top_dir}/packaging/tools/install.sh
   sed -i "s/installDir=\"\/usr\/local\/taos\"/installDir=\"\/usr\/local\/ProDB\"/g" ${top_dir}/packaging/tools/install.sh
+  sed -i "s/adapterName=\"taosadapter\"/adapterName=\"proadapter\"/g" ${top_dir}/packaging/tools/install.sh
 
   # packaging/tools/makeclient.sh
   sed -i "s/productName=\"TDengine\"/productName=\"ProDB\"/g" ${top_dir}/packaging/tools/makeclient.sh

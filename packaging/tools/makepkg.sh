@@ -25,6 +25,11 @@ serverName="taosd"
 clientName="taos"
 configFile="taos.cfg"
 tarName="taos.tar.gz"
+dumpName="taosdump"
+benchmarkName="taosBenchmark"
+toolsName="taostools"
+adapterName="taosadapter"
+defaultPasswd="taosdata"
 
 # create compressed install file.
 build_dir="${compile_dir}/build"
@@ -68,8 +73,8 @@ else
       ${script_dir}/startPre.sh \
       ${script_dir}/taosd-dump-cfg.gdb"
 
-  taostools_bin_files=" ${build_dir}/bin/taosdump \
-      ${build_dir}/bin/taosBenchmark"
+  taostools_bin_files=" ${build_dir}/bin/${dumpName} \
+      ${build_dir}/bin/${benchmarkName}"
 fi
 
 lib_files="${build_dir}/lib/libtaos.so.${version}"
@@ -101,6 +106,8 @@ if [ -f "${compile_dir}/test/cfg/taosadapter.service" ]; then
   cp ${compile_dir}/test/cfg/taosadapter.service ${install_dir}/cfg || :
 fi
 
+
+
 if [ -f "${cfg_dir}/${serverName}.service" ]; then
   cp ${cfg_dir}/${serverName}.service ${install_dir}/cfg || :
 fi
@@ -119,28 +126,42 @@ mkdir -p ${install_dir}/init.d && cp ${init_file_rpm} ${install_dir}/init.d/${se
 mkdir -p ${install_dir}/init.d && cp ${init_file_tarbitrator_deb} ${install_dir}/init.d/tarbitratord.deb || :
 mkdir -p ${install_dir}/init.d && cp ${init_file_tarbitrator_rpm} ${install_dir}/init.d/tarbitratord.rpm || :
 
+if [ $adapterName != "taosadapter" ]; then
+  mv ${install_dir}/cfg/taosadapter.toml ${install_dir}/cfg/$adapterName.toml
+  sed -i "s/path = \"\/var\/log\/taos\"/path = \"\/var\/log\/${productName}\"/g" ${install_dir}/cfg/$adapterName.toml
+  sed -i "s/password = \"taosdata\"/password = \"${defaultPasswd}\"/g" ${install_dir}/cfg/$adapterName.toml
+
+  mv ${install_dir}/cfg/taosadapter.service ${install_dir}/cfg/$adapterName.service
+  sed -i "s/TDengine/${productName}/g" ${install_dir}/cfg/$adapterName.service
+  sed -i "s/taosAdapter/${adapterName}/g" ${install_dir}/cfg/$adapterName.service
+  sed -i "s/taosadapter/${adapterName}/g" ${install_dir}/cfg/$adapterName.service
+
+  mv ${install_dir}/bin/taosadapter ${install_dir}/bin/${adapterName}
+  mv ${install_dir}/bin/run_taosd_and_taosadapter.sh ${install_dir}/bin/run_taosd_and_${adapterName}.sh
+fi
+
 if [ -n "${taostools_bin_files}" ]; then
   mkdir -p ${taostools_install_dir} || echo -e "failed to create ${taostools_install_dir}"
   mkdir -p ${taostools_install_dir}/bin &&
     cp ${taostools_bin_files} ${taostools_install_dir}/bin &&
     chmod a+x ${taostools_install_dir}/bin/* || :
 
-  if [ -f ${top_dir}/src/kit/taos-tools/packaging/tools/install-taostools.sh ]; then
-    cp ${top_dir}/src/kit/taos-tools/packaging/tools/install-taostools.sh \
+  if [ -f ${top_dir}/src/kit/taos-tools/packaging/tools/install-${toolsName}.sh ]; then
+    cp ${top_dir}/src/kit/taos-tools/packaging/tools/install-${toolsName}.sh \
       ${taostools_install_dir}/ >/dev/null &&
-      chmod a+x ${taostools_install_dir}/install-taostools.sh ||
-      echo -e "failed to copy install-taostools.sh"
+      chmod a+x ${taostools_install_dir}/install-${toolsName}.sh ||
+      echo -e "failed to copy install-${toolsName}.sh"
   else
-    echo -e "install-taostools.sh not found"
+    echo -e "install-${toolsName}.sh not found"
   fi
 
-  if [ -f ${top_dir}/src/kit/taos-tools/packaging/tools/uninstall-taostools.sh ]; then
-    cp ${top_dir}/src/kit/taos-tools/packaging/tools/uninstall-taostools.sh \
+  if [ -f ${top_dir}/src/kit/taos-tools/packaging/tools/uninstall-${toolsName}.sh ]; then
+    cp ${top_dir}/src/kit/taos-tools/packaging/tools/uninstall-${toolsName}.sh \
       ${taostools_install_dir}/ >/dev/null &&
-      chmod a+x ${taostools_install_dir}/uninstall-taostools.sh ||
-      echo -e "failed to copy uninstall-taostools.sh"
+      chmod a+x ${taostools_install_dir}/uninstall-${toolsName}.sh ||
+      echo -e "failed to copy uninstall-${toolsName}.sh"
   else
-    echo -e "uninstall-taostools.sh not found"
+    echo -e "uninstall-${toolsName}.sh not found"
   fi
 
   if [ -f ${build_dir}/lib/libavro.so.23.0.0 ]; then

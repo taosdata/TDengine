@@ -205,6 +205,7 @@ else
   allocator_macro=""
 fi
 
+# 3. replace product info
 if [[ "$dbName" != "taos" ]]; then
   replace_community_$dbName
 fi
