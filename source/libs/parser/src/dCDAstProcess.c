@@ -598,7 +598,7 @@ static int32_t doCheckAndBuildCreateCTableReq(SCreateTableSql* pCreateTable, SPa
 }
 
 static int32_t serializeVgroupTablesBatchImpl(SVgroupTablesBatch* pTbBatch, SArray* pBufArray) {
-  int   tlen = sizeof(SMsgHead) + tSVCreateTbBatchReqSerialize(NULL, &(pTbBatch->req));
+  int   tlen = sizeof(SMsgHead) + tSerializeSVCreateTbBatchReq(NULL, &(pTbBatch->req));
   void* buf = malloc(tlen);
   if (buf == NULL) {
     // TODO: handle error
@@ -608,7 +608,7 @@ static int32_t serializeVgroupTablesBatchImpl(SVgroupTablesBatch* pTbBatch, SArr
   ((SMsgHead*)buf)->contLen = htonl(tlen);
 
   void* pBuf = POINTER_SHIFT(buf, sizeof(SMsgHead));
-  tSVCreateTbBatchReqSerialize(&pBuf, &(pTbBatch->req));
+  tSerializeSVCreateTbBatchReq(&pBuf, &(pTbBatch->req));
 
   SVgDataBlocks* pVgData = calloc(1, sizeof(SVgDataBlocks));
   pVgData->vg    = pTbBatch->info;

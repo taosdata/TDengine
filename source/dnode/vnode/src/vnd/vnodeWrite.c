@@ -83,7 +83,7 @@ int vnodeApplyWMsg(SVnode *pVnode, SRpcMsg *pMsg, SRpcMsg **pRsp) {
       free(vCreateTbReq.name);
       break;
     case TDMT_VND_CREATE_TABLE:
-      tSVCreateTbBatchReqDeserialize(POINTER_SHIFT(pMsg->pCont, sizeof(SMsgHead)), &vCreateTbBatchReq);
+      tDeserializeSVCreateTbBatchReq(POINTER_SHIFT(pMsg->pCont, sizeof(SMsgHead)), &vCreateTbBatchReq);
       for (int i = 0; i < taosArrayGetSize(vCreateTbBatchReq.pArray); i++) {
         SVCreateTbReq *pCreateTbReq = taosArrayGet(vCreateTbBatchReq.pArray, i);
         if (metaCreateTable(pVnode->pMeta, pCreateTbReq) < 0) {
