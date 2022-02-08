@@ -589,6 +589,11 @@ uint32_t tGetToken(char* z, uint32_t* tokenId) {
       for (i = 1; ((z[i] & 0x80) == 0) && isIdChar[(uint8_t) z[i]]; i++) {
       }
       *tokenId = tKeywordCode(z, i);
+
+      //Check for function now()
+      if (*tokenId == TK_NOW && z[i] == '(' && z[i + 1] == ')') {
+        *tokenId = TK_ID;
+      }
       return i;
     }
   }
