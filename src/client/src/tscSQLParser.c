@@ -4784,9 +4784,9 @@ static int32_t validateSQLExprItem(SSqlCmd* pCmd, tSqlExpr* pExpr,
     }
 
     //now allowing now +/- value in select expr
-    if (pExpr->tokenId == TK_TIMESTAMP) {
-      return invalidOperationMsg(tscGetErrorMsgPayload(pCmd), msg3);
-    }
+    //if (pExpr->tokenId == TK_TIMESTAMP) {
+    //  return invalidOperationMsg(tscGetErrorMsgPayload(pCmd), msg3);
+    //}
 
     if (pExpr->type == SQL_NODE_VALUE) {
       *type = SQLEXPR_TYPE_VALUE;

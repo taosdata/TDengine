@@ -176,6 +176,8 @@ _arithmetic_getVectorValueAddr_fn_t getVectorValueAddrFn(int32_t srcType) {
         p = getVectorValueAddr_FLOAT;
     }else if(srcType==TSDB_DATA_TYPE_DOUBLE) {
         p = getVectorValueAddr_DOUBLE;
+    }else if(srcType==TSDB_DATA_TYPE_TIMESTAMP) {
+        p = getVectorValueAddr_BIGINT;
     }else {
         assert(0);
     }
