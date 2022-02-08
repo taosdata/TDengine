@@ -1900,7 +1900,7 @@ void vectorTimeFunc(int16_t functionId, tExprOperandInfo *pInputs, int32_t numIn
           assert(pInputs[0].type == TSDB_DATA_TYPE_BINARY || pInputs[0].type == TSDB_DATA_TYPE_NCHAR);
 
           int64_t timeVal = 0;
-          taosParseTime(inputData[0], &timeVal, pInputs[0].bytes, TSDB_TIME_PRECISION_MILLI, 0);
+          taosParseTime((char *)varDataVal(inputData[0]), &timeVal, pInputs[0].bytes, TSDB_TIME_PRECISION_NANO, 0);
           SET_TYPED_DATA(outputData, pOutput->type, timeVal);
 
           break;
