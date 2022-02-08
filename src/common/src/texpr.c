@@ -1443,6 +1443,7 @@ int32_t exprValidateTimeNode(char *msgbuf, tExprNode *pExpr) {
             child[i]->resultType != TSDB_DATA_TYPE_NCHAR) {
           return TSDB_CODE_TSC_INVALID_OPERATION;
         }
+
         if (child[i]->nodeType == TSQL_NODE_VALUE) { /* datetime format or epoch */
           if (child[i]->pVal->nType != TSDB_DATA_TYPE_BIGINT &&
               child[i]->pVal->nType != TSDB_DATA_TYPE_BINARY &&
@@ -1467,12 +1468,8 @@ int32_t exprValidateTimeNode(char *msgbuf, tExprNode *pExpr) {
         } else {
           return TSDB_CODE_TSC_INVALID_OPERATION;
         }
-
-        if (child[i]->nodeType != TSQL_NODE_VALUE &&
-            child[i]->pVal->nType != TSDB_DATA_TYPE_TIMESTAMP) {
-          return TSDB_CODE_TSC_INVALID_OPERATION;
-        }
       }
+
       //time unit
       if (pExpr->_func.numChildren == 3) {
         if (child[2]->nodeType != TSQL_NODE_VALUE &&
