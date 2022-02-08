@@ -265,7 +265,8 @@ typedef struct {
 typedef struct {
   char    name[TSDB_TABLE_FNAME_LEN];
   int8_t  alterType;
-  SSchema schema;
+  int32_t numOfColumns;
+  SSchema pSchema[];
 } SMAlterStbReq;
 
 typedef struct {
