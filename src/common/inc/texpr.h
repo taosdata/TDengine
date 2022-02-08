@@ -134,6 +134,7 @@ typedef struct tExprNode {
       int16_t functionId;
       int32_t numChildren;
       struct tExprNode **pChildren;
+      int32_t precision;
     } _func;
 
     TAOS_FIELD        *pType;
