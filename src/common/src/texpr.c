@@ -2120,7 +2120,7 @@ void vectorTimeFunc(int16_t functionId, tExprOperandInfo *pInputs, int32_t numIn
 
           if (pInputs[0].type == TSDB_DATA_TYPE_BINARY ||
               pInputs[0].type == TSDB_DATA_TYPE_NCHAR) { /* datetime format strings */
-            taosParseTime((char *)varDataVal(inputData[0]), &timeVal, pInputs[0].bytes, timePrec, 0);
+            taosParseTime((char *)varDataVal(inputData[0]), &timeVal, pInputs[0].bytes, TSDB_TIME_PRECISION_NANO, 0);
           } else if (pInputs[0].type == TSDB_DATA_TYPE_BIGINT ||
                      pInputs[0].type == TSDB_DATA_TYPE_TIMESTAMP) { /* unix timestamp or ts column*/
             GET_TYPED_DATA(timeVal, int64_t, pInputs[0].type, inputData[0]);
@@ -2221,6 +2221,67 @@ void vectorTimeFunc(int16_t functionId, tExprOperandInfo *pInputs, int32_t numIn
           break;
         }
         case TSDB_FUNC_SCALAR_TIMEDIFF: {
+          assert(numInputs == 3 || numInputs == 4);
+
+          int64_t timePrec, timeUnit = 0;
+          int64_t timeVal[2] = {0};
+          if (numInputs == 3) {
+            assert(pInputs[2].type == TSDB_DATA_TYPE_BIGINT);
+            GET_TYPED_DATA(timePrec, int64_t, pInputs[2].type, inputData[2]);
+          } else {
+            assert(pInputs[2].type == TSDB_DATA_TYPE_TIMESTAMP);
+            assert(pInputs[3].type == TSDB_DATA_TYPE_BIGINT);
+            GET_TYPED_DATA(timeUnit, int64_t, pInputs[2].type, inputData[2]);
+            GET_TYPED_DATA(timePrec, int64_t, pInputs[3].type, inputData[3]);
+          }
+
+          for (int32_t j = 0; j < 2; ++j) {
+            assert(pInputs[j].type == TSDB_DATA_TYPE_BIGINT ||
+                   pInputs[j].type == TSDB_DATA_TYPE_TIMESTAMP ||
+                   pInputs[j].type == TSDB_DATA_TYPE_BINARY ||
+                   pInputs[j].type == TSDB_DATA_TYPE_NCHAR);
+
+            if (pInputs[j].type == TSDB_DATA_TYPE_BINARY || /* datetime format strings */
+                pInputs[j].type == TSDB_DATA_TYPE_NCHAR) {
+              taosParseTime((char *)varDataVal(inputData[j]), &timeVal[j], pInputs[j].bytes, timePrec, 0);
+            } else if (pInputs[j].type == TSDB_DATA_TYPE_BIGINT ||
+                       pInputs[j].type == TSDB_DATA_TYPE_TIMESTAMP) { /* unix timestamp or ts column*/
+              GET_TYPED_DATA(timeVal[j], int64_t, pInputs[j].type, inputData[j]);
+              char buf[20] = {0};
+              NUM_TO_STRING(TSDB_DATA_TYPE_BIGINT, &timeVal[j], sizeof(buf), buf);
+              int32_t tsDigits = strlen(buf);
+              if (tsDigits <= TSDB_TIME_PRECISION_SEC_DIGITS) {
+                timeVal[j] = timeVal[j] * 1000000000;
+              } else if (tsDigits == TSDB_TIME_PRECISION_MILLI_DIGITS) {
+                timeVal[j] = timeVal[j] * 1000000;
+              } else if (tsDigits == TSDB_TIME_PRECISION_MICRO_DIGITS) {
+                timeVal[j] = timeVal[j] * 1000;
+              } else if (tsDigits == TSDB_TIME_PRECISION_NANO_DIGITS) {
+                timeVal[j] = timeVal[j];
+              }
+            }
+          }
+          int64_t result = (timeVal[0] >= timeVal[1]) ? (timeVal[0] - timeVal[1]) :
+                                                        (timeVal[1] - timeVal[0]);
+          if (timeUnit == 0) { // if no time unit given use db precision
+            switch(timePrec) {
+              case TSDB_TIME_PRECISION_MILLI: {
+                result = result / 1000000;
+                break;
+              }
+              case TSDB_TIME_PRECISION_MICRO: {
+                result = result / 1000;
+                break;
+              }
+              case TSDB_TIME_PRECISION_NANO: {
+                result = result;
+                break;
+              }
+            }
+          }
+
+          SET_TYPED_DATA(outputData, pOutput->type, result);
+
           break;
         }
         default: {
