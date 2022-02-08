@@ -1389,6 +1389,7 @@ int32_t exprValidateTimeNode(char *msgbuf, tExprNode *pExpr) {
         return TSDB_CODE_TSC_INVALID_OPERATION;
       }
 
+      //time unit
       if (child1->nodeType != TSQL_NODE_VALUE &&
           child1->pVal->nType != TSDB_DATA_TYPE_TIMESTAMP) {
         return TSDB_CODE_TSC_INVALID_OPERATION;
@@ -1426,6 +1427,97 @@ int32_t exprValidateTimeNode(char *msgbuf, tExprNode *pExpr) {
       break;
     }
     case TSDB_FUNC_SCALAR_TIMEDIFF: {
+      if (pExpr->_func.numChildren != 2 && pExpr->_func.numChildren != 3) {
+        return TSDB_CODE_TSC_INVALID_OPERATION;
+      }
+      tExprNode **child = (tExprNode **)tcalloc(pExpr->_func.numChildren, sizeof(tExprNode *));
+      for (int32_t i = 0; i < pExpr->_func.numChildren; ++i) {
+        child[i] = pExpr->_func.pChildren[i];
+      }
+
+      //operands
+      for (int32_t i = 0; i < 2; ++i) {
+        if (child[i]->resultType != TSDB_DATA_TYPE_BIGINT &&
+            child[i]->resultType != TSDB_DATA_TYPE_TIMESTAMP &&
+            child[i]->resultType != TSDB_DATA_TYPE_BINARY &&
+            child[i]->resultType != TSDB_DATA_TYPE_NCHAR) {
+          return TSDB_CODE_TSC_INVALID_OPERATION;
+        }
+        if (child[i]->nodeType == TSQL_NODE_VALUE) { /* datetime format or epoch */
+          if (child[i]->pVal->nType != TSDB_DATA_TYPE_BIGINT &&
+              child[i]->pVal->nType != TSDB_DATA_TYPE_BINARY &&
+              child[i]->pVal->nType != TSDB_DATA_TYPE_NCHAR) {
+            return TSDB_CODE_TSC_INVALID_OPERATION;
+          }
+          if (child[i]->pVal->nType == TSDB_DATA_TYPE_BIGINT) {
+            char fraction[32] = {0};
+            NUM_TO_STRING(child[i]->resultType, &child[i]->pVal->i64, sizeof(fraction), fraction);
+            int32_t tsDigits = strlen(fraction);
+            if (tsDigits > TSDB_TIME_PRECISION_SEC_DIGITS &&
+                tsDigits != TSDB_TIME_PRECISION_MILLI_DIGITS &&
+                tsDigits != TSDB_TIME_PRECISION_MICRO_DIGITS &&
+                tsDigits != TSDB_TIME_PRECISION_NANO_DIGITS) {
+              return exprInvalidOperationMsg(msgbuf, msg1);
+            }
+          }
+        } else if (child[i]->nodeType == TSQL_NODE_COL) { /* ts column */
+          if (child[i]->pSchema->type != TSDB_DATA_TYPE_TIMESTAMP) {
+            return TSDB_CODE_TSC_INVALID_OPERATION;
+          }
+        } else {
+          return TSDB_CODE_TSC_INVALID_OPERATION;
+        }
+
+        if (child[i]->nodeType != TSQL_NODE_VALUE &&
+            child[i]->pVal->nType != TSDB_DATA_TYPE_TIMESTAMP) {
+          return TSDB_CODE_TSC_INVALID_OPERATION;
+        }
+      }
+      //time unit
+      if (pExpr->_func.numChildren == 3) {
+        if (child[2]->nodeType != TSQL_NODE_VALUE &&
+            child[2]->pVal->nType != TSDB_DATA_TYPE_TIMESTAMP) {
+          return TSDB_CODE_TSC_INVALID_OPERATION;
+        }
+      }
+
+      //db precision
+      pExpr->_func.numChildren++;
+      tExprNode **pChildren = (tExprNode**)trealloc(pExpr->_func.pChildren, pExpr->_func.numChildren * sizeof(tExprNode*));
+      if (!pChildren) {
+        return TSDB_CODE_TSC_OUT_OF_MEMORY;
+      }
+      pExpr->_func.pChildren = pChildren;
+      for (int32_t i = 0; i < pExpr->_func.numChildren - 1; ++i) {
+        pExpr->_func.pChildren[i] = child[i];
+      }
+      tExprNode* childPrec;
+      if (pExpr->_func.numChildren == 3) {
+        pExpr->_func.pChildren[2] = (tExprNode*)tcalloc(1, sizeof(tExprNode));
+        childPrec = pExpr->_func.pChildren[2];
+      } else {
+        pExpr->_func.pChildren[3] = (tExprNode*)tcalloc(1, sizeof(tExprNode));
+        childPrec = pExpr->_func.pChildren[3];
+      }
+      if (!childPrec) {
+        return TSDB_CODE_TSC_OUT_OF_MEMORY;
+      }
+      childPrec->nodeType    = TSQL_NODE_VALUE;
+      childPrec->resultType  = TSDB_DATA_TYPE_BIGINT;
+      childPrec->resultBytes = tDataTypes[TSDB_DATA_TYPE_BIGINT].bytes;
+
+      childPrec->pVal = (tVariant *)tcalloc(1, sizeof(tVariant));
+      if (!childPrec->pVal) {
+        return TSDB_CODE_TSC_OUT_OF_MEMORY;
+      }
+      childPrec->pVal->nType = TSDB_DATA_TYPE_BIGINT;
+      childPrec->pVal->nLen  = tDataTypes[TSDB_DATA_TYPE_BIGINT].bytes;
+      childPrec->pVal->i64   = (int64_t)pExpr->precision;
+
+      free(child);
+
+      pExpr->resultType = TSDB_DATA_TYPE_BIGINT;
+      pExpr->resultBytes = (int16_t)tDataTypes[TSDB_DATA_TYPE_BIGINT].bytes;
       break;
     }
     default: {
