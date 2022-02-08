@@ -1166,10 +1166,32 @@ int32_t exprValidateTimeNode(tExprNode *pExpr) {
   switch (pExpr->_func.functionId) {
     case TSDB_FUNC_SCALAR_NOW:
     case TSDB_FUNC_SCALAR_TODAY: {
-      if (pExpr->_func.numChildren != 0) {
+      if (pExpr->_func.numChildren != 0 || pExpr->_func.pChildren != NULL) {
         return TSDB_CODE_TSC_INVALID_OPERATION;
       }
-      pExpr->resultType = TSDB_DATA_TYPE_TIMESTAMP;
+      pExpr->_func.numChildren = 1;
+      pExpr->_func.pChildren = (tExprNode**)tcalloc(1, sizeof(tExprNode*));
+      if (!pExpr->_func.pChildren) {
+        return TSDB_CODE_TSC_OUT_OF_MEMORY;
+      }
+
+      pExpr->_func.pChildren[0] = (tExprNode*)tcalloc(1, sizeof(tExprNode));
+      tExprNode* child = pExpr->_func.pChildren[0];
+      if (!child) {
+        return TSDB_CODE_TSC_OUT_OF_MEMORY;
+      }
+      child->nodeType    = TSQL_NODE_VALUE;
+      child->resultType  = TSDB_DATA_TYPE_TIMESTAMP;
+      child->resultBytes = (int16_t)tDataTypes[child->resultType].bytes;
+
+      child->pVal = (tVariant *)tcalloc(1, sizeof(tVariant));
+      if (!child->pVal) {
+        return TSDB_CODE_TSC_OUT_OF_MEMORY;
+      }
+      child->pVal->nType = TSDB_DATA_TYPE_TIMESTAMP;
+      child->pVal->i64   = taosGetTimestampMs();
+
+      pExpr->resultType  = TSDB_DATA_TYPE_TIMESTAMP;
       pExpr->resultBytes = (int16_t)tDataTypes[pExpr->resultType].bytes;
       break;
     }
