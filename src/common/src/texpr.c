@@ -1702,8 +1702,10 @@ void vectorTimeFunc(int16_t functionId, tExprOperandInfo *pInputs, int32_t numIn
       switch (functionId) {
         case TSDB_FUNC_SCALAR_NOW:
         case TSDB_FUNC_SCALAR_TODAY: {
-          assert(numInputs == 0);
-          double result = 345;
+          assert(numInputs == 1);
+
+          int64_t result;
+          GET_TYPED_DATA(result, int64_t, pInputs[0].type, inputData[0]);
           SET_TYPED_DATA(outputData, pOutput->type, result);
           break;
         }
