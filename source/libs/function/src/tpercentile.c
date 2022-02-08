@@ -35,9 +35,9 @@ static SFilePage *loadDataFromFilePage(tMemBucket *pMemBucket, int32_t slotIdx) 
 
   int32_t offset = 0;
   for(int32_t i = 0; i < list->size; ++i) {
-    SPageInfo* pgInfo = *(SPageInfo**) taosArrayGet(list, i);
+    struct SPageInfo* pgInfo = *(struct SPageInfo**) taosArrayGet(list, i);
 
-    SFilePage* pg = getResBufPage(pMemBucket->pBuffer, pgInfo->pageId);
+    SFilePage* pg = getResBufPage(pMemBucket->pBuffer, getPageId(pgInfo));
     memcpy(buffer->data + offset, pg->data, (size_t)(pg->num * pMemBucket->bytes));
 
     offset += (int32_t)(pg->num * pMemBucket->bytes);
@@ -98,8 +98,8 @@ double findOnlyResult(tMemBucket *pMemBucket) {
     SIDList list = getDataBufPagesIdList(pMemBucket->pBuffer, groupId);
     assert(list->size == 1);
 
-    SPageInfo* pgInfo = (SPageInfo*) taosArrayGetP(list, 0);
-    SFilePage* pPage = getResBufPage(pMemBucket->pBuffer, pgInfo->pageId);
+    struct SPageInfo* pgInfo = (struct SPageInfo*) taosArrayGetP(list, 0);
+    SFilePage* pPage = getResBufPage(pMemBucket->pBuffer, getPageId(pgInfo));
     assert(pPage->num == 1);
 
     double v = 0;
@@ -471,7 +471,7 @@ double getPercentileImpl(tMemBucket *pMemBucket, int32_t count, double fraction)
 
        for (int32_t f = 0; f < list->size; ++f) {
          SPageInfo *pgInfo = *(SPageInfo **)taosArrayGet(list, f);
-         SFilePage *pg = getResBufPage(pMemBucket->pBuffer, pgInfo->pageId);
+         SFilePage *pg = getResBufPage(pMemBucket->pBuffer, getPageId(pgInfo));
 
          tMemBucketPut(pMemBucket, pg->data, (int32_t)pg->num);
          releaseResBufPageInfo(pMemBucket->pBuffer, pgInfo);

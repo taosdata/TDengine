@@ -693,7 +693,7 @@ static STimeWindow getCurrentActiveTimeWindow(SResultRowInfo * pResultRowInfo, i
 }
 
 // a new buffer page for each table. Needs to opt this design
-static int32_t addNewWindowResultBuf(SResultRow *pWindowRes, SDiskbasedResultBuf *pResultBuf, int32_t tid, uint32_t size) {
+static int32_t addNewWindowResultBuf(SResultRow *pWindowRes, SDiskbasedBuf *pResultBuf, int32_t tid, uint32_t size) {
   if (pWindowRes->pageId != -1) {
     return 0;
   }
@@ -708,10 +708,10 @@ static int32_t addNewWindowResultBuf(SResultRow *pWindowRes, SDiskbasedResultBuf
     pData = getNewDataBuf(pResultBuf, tid, &pageId);
   } else {
     SPageInfo* pi = getLastPageInfo(list);
-    pData = getResBufPage(pResultBuf, pi->pageId);
-    pageId = pi->pageId;
+    pData = getResBufPage(pResultBuf, getPageId(pi));
+    pageId = getPageId(pi);
 
-    if (pData->num + size > pResultBuf->pageSize) {
+    if (pData->num + size > getBufPageSize(pResultBuf)) {
       // release current page first, and prepare the next one
       releaseResBufPageInfo(pResultBuf, pi);
       pData = getNewDataBuf(pResultBuf, tid, &pageId);
@@ -748,7 +748,7 @@ static int32_t setResultOutputBufByKey(STaskRuntimeEnv *pRuntimeEnv, SResultRowI
                                        bool masterscan, SResultRow **pResult, int64_t tableGroupId, SqlFunctionCtx* pCtx,
                                        int32_t numOfOutput, int32_t* rowCellInfoOffset) {
   assert(win->skey <= win->ekey);
-  SDiskbasedResultBuf *pResultBuf = pRuntimeEnv->pResultBuf;
+  SDiskbasedBuf *pResultBuf = pRuntimeEnv->pResultBuf;
 
   SResultRow *pResultRow = doSetResultOutBufByKey(pRuntimeEnv, pResultRowInfo, tid, (char *)&win->skey, TSDB_KEYSIZE, masterscan, tableGroupId);
   if (pResultRow == NULL) {
@@ -1755,7 +1755,7 @@ static void setResultRowKey(SResultRow* pResultRow, char* pData, int16_t type) {
 }
 
 static int32_t setGroupResultOutputBuf(STaskRuntimeEnv *pRuntimeEnv, SOptrBasicInfo *binfo, int32_t numOfCols, char *pData, int16_t type, int16_t bytes, int32_t groupIndex) {
-  SDiskbasedResultBuf *pResultBuf = pRuntimeEnv->pResultBuf;
+  SDiskbasedBuf *pResultBuf = pRuntimeEnv->pResultBuf;
 
   int32_t        *rowCellInfoOffset = binfo->rowCellInfoOffset;
   SResultRowInfo *pResultRowInfo    = &binfo->resultRowInfo;
@@ -5535,6 +5535,195 @@ SOperatorInfo *createMultiwaySortOperatorInfo(STaskRuntimeEnv *pRuntimeEnv, SExp
   return pOperator;
 }
 
+typedef struct SExternalMemSource {
+  SArray*        pageIdList;
+  int32_t        pageIndex;
+  int32_t        sourceId;
+  int32_t        rowIndex;
+  SSDataBlock   *pBlock;
+} SExternalMemSource;
+
+typedef struct SCompareParam {
+  SExternalMemSource **pSources;
+  int32_t              num;
+  SArray              *orderInfo;   // SArray<SBlockOrderInfo>
+  bool                 nullFirst;
+} SCompareParam;
+
+int32_t doMergeSortCompar(const void *pLeft, const void *pRight, void *param) {
+  int32_t pLeftIdx  = *(int32_t *)pLeft;
+  int32_t pRightIdx = *(int32_t *)pRight;
+
+  SCompareParam       *pParam = (SCompareParam *)param;
+  SExternalMemSource **pSources = pParam->pSources;
+
+  SArray *pInfo = pParam->orderInfo;
+
+  // this input is exhausted, set the special value to denote this
+  if (pSources[pLeftIdx]->rowIndex == -1) {
+    return 1;
+  }
+
+  if (pSources[pRightIdx]->rowIndex == -1) {
+    return -1;
+  }
+
+  SSDataBlock* pLeftBlock = pSources[pLeftIdx]->pBlock;
+  SSDataBlock* pRightBlock = pSources[pRightIdx]->pBlock;
+
+  size_t num = taosArrayGetSize(pInfo);
+  for(int32_t i = 0; i < num; ++i) {
+    SBlockOrderInfo* pOrder = taosArrayGet(pInfo, i);
+
+    SColumnInfoData* pLeftColInfoData = taosArrayGet(pLeftBlock->pDataBlock, pOrder->colIndex);
+    bool leftNull  = colDataIsNull(pLeftColInfoData, pLeftBlock->info.rows, pSources[pLeftIdx]->rowIndex, pLeftBlock->pBlockAgg);
+
+    SColumnInfoData* pRightColInfoData = taosArrayGet(pRightBlock->pDataBlock, pOrder->colIndex);
+    bool rightNull = colDataIsNull(pRightColInfoData, pRightBlock->info.rows, pSources[pRightIdx]->rowIndex, pRightBlock->pBlockAgg);
+
+    if (leftNull && rightNull) {
+      continue; // continue to next slot
+    }
+
+    if (rightNull) {
+      return pParam->nullFirst? 1:-1;
+    }
+
+    if (leftNull) {
+      return pParam->nullFirst? -1:1;
+    }
+
+    void* left1  = colDataGet(pLeftColInfoData, pSources[pLeftIdx]->rowIndex);
+    void* right1 = colDataGet(pRightColInfoData, pSources[pRightIdx]->rowIndex);
+
+    switch(pLeftColInfoData->info.type) {
+      case TSDB_DATA_TYPE_INT:
+        if (*(int32_t*) left1 == *(int32_t*) right1) {
+          break;
+        } else {
+          if (pOrder->order == TSDB_ORDER_ASC) {
+            return *(int32_t*) left1 <= *(int32_t*) right1? -1:1;
+          } else {
+            return *(int32_t*) left1 <= *(int32_t*) right1? 1:-1;
+          }
+        }
+      default:
+        assert(0);
+    }
+  }
+}
+
+int32_t loadNewDataBlock(SExternalMemSource *pSource, SOrderOperatorInfo* pInfo) {
+  pSource->rowIndex   = 0;
+  pSource->pageIndex += 1;
+
+  if (pSource->pageIndex < taosArrayGetSize(pSource->pageIdList)) {
+    struct SPageInfo* pPgInfo = *(struct SPageInfo**)taosArrayGet(pSource->pageIdList, pSource->pageIndex);
+
+    SFilePage* pPage = getResBufPage(pInfo->pSortInternalBuf, getPageId(pPgInfo));
+    return blockDataFromBuf(pSource->pBlock, pPage->data);
+  } else {
+    pInfo->numOfCompleted += 1;
+    pSource->rowIndex  = -1;
+    pSource->pageIndex = -1;
+
+    return 0;
+  }
+}
+
+void adjustLoserTreeFromNewData(SExternalMemSource *pSource, SLoserTreeInfo *pTree, SOrderOperatorInfo* pInfo) {
+  /*
+   * load a new SDataBlock into memory of a given intermediate data-set source,
+   * since it's last record in buffer has been chosen to be processed, as the winner of loser-tree
+   */
+  if (pSource->rowIndex >= pSource->pBlock->info.rows) {
+    // TODO check if has remain pages.
+    loadNewDataBlock(pSource, pInfo);
+  }
+
+  /*
+   * Adjust loser tree otherwise, according to new candidate data
+   * if the loser tree is rebuild completed, we do not need to adjust
+   */
+    int32_t leafNodeIdx = pTree->pNode[0].index + pInfo->numOfSources;
+
+#ifdef _DEBUG_VIEW
+    printf("before adjust:\t");
+    tLoserTreeDisplay(pTree);
+#endif
+
+    tLoserTreeAdjust(pTree, leafNodeIdx);
+
+#ifdef _DEBUG_VIEW
+    printf("\nafter adjust:\t");
+    tLoserTreeDisplay(pTree);
+    printf("\n");
+#endif
+}
+
+static void appendOneRowToDataBlock(SSDataBlock *pBlock, const SSDataBlock* pSource, int32_t* rowIndex) {
+  for (int32_t i = 0; i < pBlock->info.numOfCols; ++i) {
+    SColumnInfoData* pColInfo = taosArrayGet(pBlock->pDataBlock, i);
+
+    SColumnInfoData* pSrcColInfo = taosArrayGet(pSource->pDataBlock, i);
+    bool isNull = colDataIsNull(pSrcColInfo, pSource->info.rows, *rowIndex, NULL);
+    char* pData = colDataGet(pSrcColInfo, *rowIndex);
+
+    colDataAppend(pColInfo, pBlock->info.rows, pData, isNull);
+  }
+
+  pBlock->info.rows += 1;
+  *rowIndex += 1;
+}
+
+void addToDiskBasedBuf(SOrderOperatorInfo* pInfo) {
+  int32_t start = 0;
+
+  while(start < pInfo->pDataBlock->info.rows) {
+    int32_t stop = 0;
+    blockDataSplitRows(pInfo->pDataBlock, pInfo->hasVarCol, start, &stop, getBufPageSize(pInfo->pSortInternalBuf));
+    SSDataBlock* p = blockDataExtractBlock(pInfo->pDataBlock, start, stop - start + 1);
+
+    int32_t pageId = -1;
+    SFilePage* pPage = getNewDataBuf(pInfo->pSortInternalBuf, pInfo->sourceId, &pageId);
+    blockDataToBuf(pPage->data, p);
+
+    start = stop + 1;
+  }
+
+  int32_t numOfCols = pInfo->pDataBlock->info.numOfCols;
+
+  pInfo->pDataBlock->info.rows = 0;
+  if (pInfo->hasVarCol) {
+    for (int32_t i = 0; i < numOfCols; ++i) {
+      SColumnInfoData* p = taosArrayGet(pInfo->pDataBlock->pDataBlock, i);
+
+      if (IS_VAR_DATA_TYPE(p->info.type)) {
+        p->varmeta.length = 0;
+      }
+    }
+  }
+
+  pInfo->sourceId += 1;
+
+  // TODO extract method
+  SExternalMemSource* pSource = calloc(1, sizeof(SExternalMemSource));
+  pSource->pageIdList = getDataBufPagesIdList(pInfo->pSortInternalBuf, pInfo->sourceId - 1);
+  pSource->sourceId = pInfo->sourceId - 1;
+  pSource->pBlock = calloc(1, sizeof(SSDataBlock));
+  pSource->pBlock->pDataBlock = taosArrayInit(numOfCols, sizeof(SColumnInfoData));
+  pSource->pBlock->info.numOfCols = numOfCols;
+
+  for(int32_t i = 0; i < numOfCols; ++i) {
+    SColumnInfoData colInfo = {0};
+    SColumnInfoData* p = taosArrayGet(pInfo->pDataBlock->pDataBlock, i);
+    colInfo.info = p->info;
+    taosArrayPush(pSource->pBlock->pDataBlock, &colInfo);
+  }
+
+  taosArrayPush(pInfo->pSources, &pSource);
+}
+
 static SSDataBlock* doSort(void* param, bool* newgroup) {
   SOperatorInfo* pOperator = (SOperatorInfo*) param;
   if (pOperator->status == OP_EXEC_DONE) {
@@ -5542,8 +5731,8 @@ static SSDataBlock* doSort(void* param, bool* newgroup) {
   }
 
   SOrderOperatorInfo* pInfo = pOperator->info;
-
   SSDataBlock* pBlock = NULL;
+
   while(1) {
     publishOperatorProfEvent(pOperator->pDownstream[0], QUERY_PROF_BEFORE_OPERATOR_EXEC);
     pBlock = pOperator->pDownstream[0]->exec(pOperator->pDownstream[0], newgroup);
@@ -5551,7 +5740,6 @@ static SSDataBlock* doSort(void* param, bool* newgroup) {
 
     // start to flush data into disk and try do multiway merge sort
     if (pBlock == NULL) {
-      doSetOperatorCompleted(pOperator);
       break;
     }
 
@@ -5563,39 +5751,106 @@ static SSDataBlock* doSort(void* param, bool* newgroup) {
     size_t size = blockDataGetSize(pInfo->pDataBlock);
     if (size > pInfo->sortBufSize) {
       // Perform the in-memory sort and then flush data in the buffer into disk.
+      int64_t p = taosGetTimestampUs();
       blockDataSort(pInfo->pDataBlock, pInfo->orderInfo, pInfo->nullFirst);
+      printf("sort time:%ld\n", taosGetTimestampUs() - p);
 
       // flush to disk
+      addToDiskBasedBuf(pInfo);
     }
   }
 
-//  int32_t numOfCols = pInfo->pDataBlock->info.numOfCols;
-//  void** pCols     = calloc(numOfCols, POINTER_BYTES);
-//  SSchema* pSchema = calloc(numOfCols, sizeof(SSchema));
-//
-//  for(int32_t i = 0; i < numOfCols; ++i) {
-//    SColumnInfoData* p1 = taosArrayGet(pInfo->pDataBlock->pDataBlock, i);
-//    pCols[i] = p1->pData;
-//    pSchema[i].colId = p1->info.colId;
-//    pSchema[i].bytes = p1->info.bytes;
-//    pSchema[i].type  = (uint8_t) p1->info.type;
-//  }
+  if (pInfo->pDataBlock->info.rows > 0) {
+    pInfo->numOfSources += 1;
 
-//  __compar_fn_t  comp = getKeyComparFunc(pSchema[pInfo->colIndex].type, pInfo->order);
-//  taoscQSort(pCols, pInfo->pDataBlock->info.rows, sizeof(int32_t), pInfo, comp);
+    // Perform the in-memory sort and then flush data in the buffer into disk.
+    blockDataSort(pInfo->pDataBlock, pInfo->orderInfo, pInfo->nullFirst);
 
-//  tfree(pCols);
-//  tfree(pSchema);
+    // All sorted data are resident in memory, external memory sort is not needed.
+    // Return to the upstream operator directly
+    if (isAllDataInMemBuf(pInfo->pSortInternalBuf)) {
+      pOperator->status = OP_RES_TO_RETURN;
+      return (pInfo->pDataBlock->info.rows == 0)? NULL:pInfo->pDataBlock;
+    }
+
+    // flush to disk
+    addToDiskBasedBuf(pInfo);
+  }
+
+  SCompareParam cmpParam = {0};
+  cmpParam.nullFirst = pInfo->nullFirst;
+  cmpParam.orderInfo = pInfo->orderInfo;
+  cmpParam.num       = pInfo->numOfSources;
+  cmpParam.pSources  = pInfo->pSources->pData;
+
+  pInfo->numOfSources = taosArrayGetSize(pInfo->pSources);
+  for(int32_t i = 0; i < pInfo->numOfSources; ++i) {
+    SExternalMemSource* pSource = cmpParam.pSources[i];
+    SPageInfo* pPgInfo = *(SPageInfo**)taosArrayGet(pSource->pageIdList, pSource->pageIndex);
+
+    SFilePage* pPage = getResBufPage(pInfo->pSortInternalBuf, getPageId(pPgInfo));
+    int32_t code = blockDataFromBuf(cmpParam.pSources[i]->pBlock, pPage->data);
+  }
+
+  int32_t code = tLoserTreeCreate(&pInfo->pMergeTree, pInfo->numOfSources, &cmpParam, doMergeSortCompar);
+
+  while(1) {
+    if (pInfo->numOfSources == pInfo->numOfCompleted) {
+      break;
+    }
+
+    SExternalMemSource *pSource = cmpParam.pSources[pInfo->pMergeTree->pNode[0].index];
+    appendOneRowToDataBlock(pInfo->pDataBlock, pSource->pBlock, &pSource->rowIndex);
+    adjustLoserTreeFromNewData(pSource, pInfo->pMergeTree, pInfo);
+
+    if (pInfo->pDataBlock->info.rows >= 4096) {
+      return pInfo->pDataBlock;
+    }
+  }
+
   return (pInfo->pDataBlock->info.rows > 0)? pInfo->pDataBlock:NULL;
 }
 
-SOperatorInfo *createOrderOperatorInfo(SOperatorInfo* downstream, SArray* pExprInfo, SOrder* pOrderVal) {
+static SArray* createBlockOrder(SArray* pExprInfo, SArray* pOrderVal) {
+  SArray* pOrderInfo = taosArrayInit(1, sizeof(SBlockOrderInfo));
+
+  size_t numOfOrder = taosArrayGetSize(pOrderVal);
+  for (int32_t j = 0; j < numOfOrder; ++j) {
+    SBlockOrderInfo orderInfo = {0};
+    SOrder*         pOrder = taosArrayGet(pOrderVal, j);
+    orderInfo.order = pOrder->order;
+
+    for (int32_t i = 0; i < taosArrayGetSize(pExprInfo); ++i) {
+      SExprInfo* pExpr = taosArrayGet(pExprInfo, i);
+      if (pExpr->base.resSchema.colId == pOrder->col.info.colId) {
+        orderInfo.colIndex = i;
+        break;
+      }
+    }
+
+    taosArrayPush(pOrderInfo, &orderInfo);
+  }
+
+  return pOrderInfo;
+}
+
+SOperatorInfo *createOrderOperatorInfo(SOperatorInfo* downstream, SArray* pExprInfo, SArray* pOrderVal) {
   SOrderOperatorInfo* pInfo = calloc(1, sizeof(SOrderOperatorInfo));
 
   pInfo->sortBufSize = 1024 * 1024; // 1MB
   pInfo->pDataBlock = createOutputBuf_rv(pExprInfo, 4096);
-  pInfo->orderInfo = taosArrayInit(1, sizeof(SOrder));
-  taosArrayPush(pInfo->orderInfo, pOrderVal);           // todo more than one order column
+  pInfo->orderInfo  = createBlockOrder(pExprInfo, pOrderVal);
+  pInfo->pSources   = taosArrayInit(4, POINTER_BYTES);
+
+  for(int32_t i = 0; i < taosArrayGetSize(pExprInfo); ++i) {
+    SExprInfo* pExpr = taosArrayGetP(pExprInfo, i);
+    if (IS_VAR_DATA_TYPE(pExpr->base.resSchema.type)) {
+      pInfo->hasVarCol = true;
+      break;
+    }
+  }
+
+  int32_t code = createDiskbasedResultBuffer(&pInfo->pSortInternalBuf, 4096, 4096*1000, 1, "/tmp/");
 
   SOperatorInfo* pOperator = calloc(1, sizeof(SOperatorInfo));
   pOperator->name          = "Order";

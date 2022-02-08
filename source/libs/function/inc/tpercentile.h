@@ -63,7 +63,7 @@ typedef struct tMemBucket {
   __compar_fn_t comparFn;
 
   tMemBucketSlot *     pSlots;
-  SDiskbasedResultBuf *pBuffer;
+  SDiskbasedBuf *pBuffer;
   __perc_hash_func_t   hashFunc;
 } tMemBucket;
 

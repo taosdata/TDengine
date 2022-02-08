@@ -7,10 +7,58 @@
 #define GET_DATA_PAYLOAD(_p) ((char *)(_p)->pData + POINTER_BYTES)
 #define NO_IN_MEM_AVAILABLE_PAGES(_b) (listNEles((_b)->lruList) >= (_b)->inMemPages)
 
-int32_t createDiskbasedResultBuffer(SDiskbasedResultBuf** pResultBuf, int32_t pagesize, int32_t inMemBufSize, uint64_t qId, const char* dir) {
-  *pResultBuf = calloc(1, sizeof(SDiskbasedResultBuf));
+typedef struct SFreeListItem {
+  int32_t offset;
+  int32_t len;
+} SFreeListItem;
 
-  SDiskbasedResultBuf* pResBuf = *pResultBuf;
+typedef struct SPageDiskInfo {
+  int32_t offset;
+  int32_t length;
+} SPageDiskInfo;
+
+typedef struct SPageInfo {
+  SListNode*    pn;       // point to list node
+  void*         pData;
+  int32_t       pageId;
+  SPageDiskInfo info;
+  bool          used;     // set current page is in used
+} SPageInfo;
+
+typedef struct SDiskbasedBufStatis {
+  int32_t flushBytes;
+  int32_t loadBytes;
+  int32_t getPages;
+  int32_t releasePages;
+  int32_t flushPages;
+} SDiskbasedBufStatis;
+
+typedef struct SDiskbasedBuf {
+  int32_t   numOfPages;
+  int64_t   totalBufSize;
+  int64_t   fileSize;            // disk file size
+  FILE*     file;
+  int32_t   allocateId;          // allocated page id
+  char*     path;                // file path
+  int32_t   pageSize;            // current used page size
+  int32_t   inMemPages;          // numOfPages that are allocated in memory
+  SHashObj* groupSet;            // id hash table
+  SHashObj* all;
+  SList*    lruList;
+  void*     emptyDummyIdList;    // dummy id list
+  void*     assistBuf;           // assistant buffer for compress/decompress data
+  SArray*   pFree;               // free area in file
+  bool      comp;                // compressed before flushed to disk
+  int32_t   nextPos;             // next page flush position
+
+  uint64_t  qId;                 // for debug purpose
+  SDiskbasedBufStatis statis;
+} SDiskbasedBuf;
+
+int32_t createDiskbasedResultBuffer(SDiskbasedBuf** pResultBuf, int32_t pagesize, int32_t inMemBufSize, uint64_t qId, const char* dir) {
+  *pResultBuf = calloc(1, sizeof(SDiskbasedBuf));
+
+  SDiskbasedBuf* pResBuf = *pResultBuf;
   if (pResBuf == NULL) {
     return TSDB_CODE_OUT_OF_MEMORY;  
   }
@@ -47,7 +95,7 @@ int32_t createDiskbasedResultBuffer(SDiskbasedResultBuf** pResultBuf, int32_t pa
   return TSDB_CODE_SUCCESS;
 }
 
-static int32_t createDiskFile(SDiskbasedResultBuf* pResultBuf) {
+static int32_t createDiskFile(SDiskbasedBuf* pResultBuf) {
   pResultBuf->file = fopen(pResultBuf->path, "wb+");
   if (pResultBuf->file == NULL) {
 //    qError("failed to create tmp file: %s on disk. %s", pResultBuf->path, strerror(errno));
@@ -57,7 +105,7 @@ static int32_t createDiskFile(SDiskbasedResultBuf* pResultBuf) {
   return TSDB_CODE_SUCCESS;
 }
 
-static char* doCompressData(void* data, int32_t srcSize, int32_t *dst, SDiskbasedResultBuf* pResultBuf) { // do nothing
+static char* doCompressData(void* data, int32_t srcSize, int32_t *dst, SDiskbasedBuf* pResultBuf) { // do nothing
   if (!pResultBuf->comp) {
     *dst = srcSize;
     return data;
@@ -69,7 +117,7 @@ static char* doCompressData(void* data, int32_t srcSize, int32_t *dst, SDiskbase
   return data;
 }
 
-static char* doDecompressData(void* data, int32_t srcSize, int32_t *dst, SDiskbasedResultBuf* pResultBuf) { // do nothing
+static char* doDecompressData(void* data, int32_t srcSize, int32_t *dst, SDiskbasedBuf* pResultBuf) { // do nothing
   if (!pResultBuf->comp) {
     *dst = srcSize;
     return data;
@@ -82,7 +130,7 @@ static char* doDecompressData(void* data, int32_t srcSize, int32_t *dst, SDiskba
   return data;
 }
 
-static int32_t allocatePositionInFile(SDiskbasedResultBuf* pResultBuf, size_t size) {
+static int32_t allocatePositionInFile(SDiskbasedBuf* pResultBuf, size_t size) {
   if (pResultBuf->pFree == NULL) {
     return pResultBuf->nextPos;
   } else {
@@ -105,7 +153,7 @@ static int32_t allocatePositionInFile(SDiskbasedResultBuf* pResultBuf, size_t si
   }
 }
 
-static char* doFlushPageToDisk(SDiskbasedResultBuf* pResultBuf, SPageInfo* pg) {
+static char* doFlushPageToDisk(SDiskbasedBuf* pResultBuf, SPageInfo* pg) {
   assert(!pg->used && pg->pData != NULL);
 
   int32_t size = -1;
@@ -163,7 +211,7 @@ static char* doFlushPageToDisk(SDiskbasedResultBuf* pResultBuf, SPageInfo* pg) {
   return ret;
 }
 
-static char* flushPageToDisk(SDiskbasedResultBuf* pResultBuf, SPageInfo* pg) {
+static char* flushPageToDisk(SDiskbasedBuf* pResultBuf, SPageInfo* pg) {
   int32_t ret = TSDB_CODE_SUCCESS;
   assert(((int64_t) pResultBuf->numOfPages * pResultBuf->pageSize) == pResultBuf->totalBufSize && pResultBuf->numOfPages >= pResultBuf->inMemPages);
 
@@ -178,7 +226,7 @@ static char* flushPageToDisk(SDiskbasedResultBuf* pResultBuf, SPageInfo* pg) {
 }
 
 // load file block data in disk
-static char* loadPageFromDisk(SDiskbasedResultBuf* pResultBuf, SPageInfo* pg) {
+static char* loadPageFromDisk(SDiskbasedBuf* pResultBuf, SPageInfo* pg) {
   int32_t ret = fseek(pResultBuf->file, pg->info.offset, SEEK_SET);
   ret = (int32_t)fread(GET_DATA_PAYLOAD(pg), 1, pg->info.length, pResultBuf->file);
   if (ret != pg->info.length) {
@@ -194,7 +242,7 @@ static char* loadPageFromDisk(SDiskbasedResultBuf* pResultBuf, SPageInfo* pg) {
   return (char*)GET_DATA_PAYLOAD(pg);
 }
 
-static SIDList addNewGroup(SDiskbasedResultBuf* pResultBuf, int32_t groupId) {
+static SIDList addNewGroup(SDiskbasedBuf* pResultBuf, int32_t groupId) {
   assert(taosHashGet(pResultBuf->groupSet, (const char*) &groupId, sizeof(int32_t)) == NULL);
 
   SArray* pa = taosArrayInit(1, POINTER_BYTES);
@@ -204,7 +252,7 @@ static SIDList addNewGroup(SDiskbasedResultBuf* pResultBuf, int32_t groupId) {
   return pa;
 }
 
-static SPageInfo* registerPage(SDiskbasedResultBuf* pResultBuf, int32_t groupId, int32_t pageId) {
+static SPageInfo* registerPage(SDiskbasedBuf* pResultBuf, int32_t groupId, int32_t pageId) {
   SIDList list = NULL;
 
   char** p = taosHashGet(pResultBuf->groupSet, (const char*)&groupId, sizeof(int32_t));
@@ -227,7 +275,7 @@ static SPageInfo* registerPage(SDiskbasedResultBuf* pResultBuf, int32_t groupId,
   return *(SPageInfo**) taosArrayPush(list, &ppi);
 }
 
-static SListNode* getEldestUnrefedPage(SDiskbasedResultBuf* pResultBuf) {
+static SListNode* getEldestUnrefedPage(SDiskbasedBuf* pResultBuf) {
   SListIter iter = {0};
   tdListInitIter(pResultBuf->lruList, &iter, TD_LIST_BACKWARD);
 
@@ -246,7 +294,7 @@ static SListNode* getEldestUnrefedPage(SDiskbasedResultBuf* pResultBuf) {
   return pn;
 }
 
-static char* evicOneDataPage(SDiskbasedResultBuf* pResultBuf) {
+static char* evicOneDataPage(SDiskbasedBuf* pResultBuf) {
   char* bufPage = NULL;
   SListNode* pn = getEldestUnrefedPage(pResultBuf);
 
@@ -290,7 +338,7 @@ static FORCE_INLINE size_t getAllocPageSize(int32_t pageSize) {
   return pageSize + POINTER_BYTES + 2 + sizeof(SFilePage);
 }
 
-SFilePage* getNewDataBuf(SDiskbasedResultBuf* pResultBuf, int32_t groupId, int32_t* pageId) {
+SFilePage* getNewDataBuf(SDiskbasedBuf* pResultBuf, int32_t groupId, int32_t* pageId) {
   pResultBuf->statis.getPages += 1;
 
   char* availablePage = NULL;
@@ -327,7 +375,7 @@ SFilePage* getNewDataBuf(SDiskbasedResultBuf* pResultBuf, int32_t groupId, int32
   return (void *)(GET_DATA_PAYLOAD(pi));
 }
 
-SFilePage* getResBufPage(SDiskbasedResultBuf* pResultBuf, int32_t id) {
+SFilePage* getResBufPage(SDiskbasedBuf* pResultBuf, int32_t id) {
   assert(pResultBuf != NULL && id >= 0);
   pResultBuf->statis.getPages += 1;
 
@@ -373,7 +421,7 @@ SFilePage* getResBufPage(SDiskbasedResultBuf* pResultBuf, int32_t id) {
   }
 }
 
-void releaseResBufPage(SDiskbasedResultBuf* pResultBuf, void* page) {
+void releaseResBufPage(SDiskbasedBuf* pResultBuf, void* page) {
   assert(pResultBuf != NULL && page != NULL);
   char* p = (char*) page - POINTER_BYTES;
 
@@ -381,18 +429,18 @@ void releaseResBufPage(SDiskbasedResultBuf* pResultBuf, void* page) {
   releaseResBufPageInfo(pResultBuf, ppi);
 }
 
-void releaseResBufPageInfo(SDiskbasedResultBuf* pResultBuf, SPageInfo* pi) {
+void releaseResBufPageInfo(SDiskbasedBuf* pResultBuf, SPageInfo* pi) {
   assert(pi->pData != NULL && pi->used);
 
   pi->used = false;
   pResultBuf->statis.releasePages += 1;
 }
 
-size_t getNumOfResultBufGroupId(const SDiskbasedResultBuf* pResultBuf) { return taosHashGetSize(pResultBuf->groupSet); }
+size_t getNumOfResultBufGroupId(const SDiskbasedBuf* pResultBuf) { return taosHashGetSize(pResultBuf->groupSet); }
 
-size_t getResBufSize(const SDiskbasedResultBuf* pResultBuf) { return (size_t)pResultBuf->totalBufSize; }
+size_t getResBufSize(const SDiskbasedBuf* pResultBuf) { return (size_t)pResultBuf->totalBufSize; }
 
-SIDList getDataBufPagesIdList(SDiskbasedResultBuf* pResultBuf, int32_t groupId) {
+SIDList getDataBufPagesIdList(SDiskbasedBuf* pResultBuf, int32_t groupId) {
   assert(pResultBuf != NULL);
 
   char** p = taosHashGet(pResultBuf->groupSet, (const char*)&groupId, sizeof(int32_t));
@@ -403,7 +451,7 @@ SIDList getDataBufPagesIdList(SDiskbasedResultBuf* pResultBuf, int32_t groupId) 
   }
 }
 
-void destroyResultBuf(SDiskbasedResultBuf* pResultBuf) {
+void destroyResultBuf(SDiskbasedBuf* pResultBuf) {
   if (pResultBuf == NULL) {
     return;
   }
@@ -444,8 +492,23 @@ void destroyResultBuf(SDiskbasedResultBuf* pResultBuf) {
   tfree(pResultBuf);
 }
 
-SPageInfo* getLastPageInfo(SIDList pList) {
+struct SPageInfo* getLastPageInfo(SIDList pList) {
   size_t size = taosArrayGetSize(pList);
-  return (SPageInfo*) taosArrayGetP(pList, size - 1);
+  SPageInfo* pPgInfo = taosArrayGetP(pList, size - 1);
+  return pPgInfo;
 }
+
+int32_t getPageId(const struct SPageInfo* pPgInfo) {
+  ASSERT(pPgInfo != NULL);
+  return pPgInfo->pageId;
+}
+
+int32_t getBufPageSize(const SDiskbasedBuf* pResultBuf) {
+  return pResultBuf->pageSize;
+}
+
+bool isAllDataInMemBuf(const SDiskbasedBuf* pResultBuf) {
+  return pResultBuf->fileSize == 0;
+}
+
 

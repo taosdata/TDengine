@@ -39,8 +39,8 @@ void tLoserTreeDisplay(SLoserTreeInfo* pTree) {
   printf("\n");
 }
 
-uint32_t tLoserTreeCreate(SLoserTreeInfo** pTree, int32_t numOfEntries, void* param, __merge_compare_fn_t compareFn) {
-  int32_t totalEntries = numOfEntries << 1;
+int32_t tLoserTreeCreate(SLoserTreeInfo** pTree, uint32_t numOfSources, void* param, __merge_compare_fn_t compareFn) {
+  int32_t totalEntries = numOfSources << 1u;
 
   *pTree = (SLoserTreeInfo*)calloc(1, sizeof(SLoserTreeInfo) + sizeof(SLoserTreeNode) * totalEntries);
   if ((*pTree) == NULL) {
@@ -50,7 +50,7 @@ uint32_t tLoserTreeCreate(SLoserTreeInfo** pTree, int32_t numOfEntries, void* pa
 
   (*pTree)->pNode = (SLoserTreeNode*)(((char*)(*pTree)) + sizeof(SLoserTreeInfo));
 
-  (*pTree)->numOfEntries = numOfEntries;
+  (*pTree)->numOfEntries = numOfSources;
   (*pTree)->totalEntries = totalEntries;
   (*pTree)->param = param;
   (*pTree)->comparFn = compareFn;
@@ -63,7 +63,7 @@ uint32_t tLoserTreeCreate(SLoserTreeInfo** pTree, int32_t numOfEntries, void* pa
   tLoserTreeDisplay(*pTree);
 #endif
 
-  for (int32_t i = totalEntries - 1; i >= numOfEntries; i--) {
+  for (int32_t i = totalEntries - 1; i >= numOfSources; i--) {
     tLoserTreeAdjust(*pTree, i);
   }
 

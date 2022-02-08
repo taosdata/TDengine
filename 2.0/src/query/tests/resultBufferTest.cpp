@@ -13,7 +13,7 @@
 namespace {
 // simple test
 void simpleTest() {
-  SDiskbasedResultBuf* pResultBuf = NULL;
+  SDiskbasedBuf* pResultBuf = NULL;
   int32_t ret = createDiskbasedResultBuffer(&pResultBuf, 1024, 4096, 1);
   
   int32_t pageId = 0;
@@ -55,7 +55,7 @@ void simpleTest() {
 }
 
 void writeDownTest() {
-  SDiskbasedResultBuf* pResultBuf = NULL;
+  SDiskbasedBuf* pResultBuf = NULL;
   int32_t ret = createDiskbasedResultBuffer(&pResultBuf, 1024, 4*1024, 1);
 
   int32_t pageId = 0;
@@ -102,7 +102,7 @@ void writeDownTest() {
 }
 
 void recyclePageTest() {
-  SDiskbasedResultBuf* pResultBuf = NULL;
+  SDiskbasedBuf* pResultBuf = NULL;
   int32_t ret = createDiskbasedResultBuffer(&pResultBuf, 1024, 4*1024, 1);
 
   int32_t pageId = 0;

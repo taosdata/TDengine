@@ -141,7 +141,7 @@ void clearResultRow(STaskRuntimeEnv *pRuntimeEnv, SResultRow *pResultRow, int16_
     return;
   }
 
-  // the result does not put into the SDiskbasedResultBuf, ignore it.
+  // the result does not put into the SDiskbasedBuf, ignore it.
   if (pResultRow->pageId >= 0) {
     SFilePage *page = getResBufPage(pRuntimeEnv->pResultBuf, pResultRow->pageId);
 

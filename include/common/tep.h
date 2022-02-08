@@ -45,7 +45,10 @@ size_t colDataGetNumOfRows(const SSDataBlock* pBlock);
 
 int32_t blockDataMerge(SSDataBlock* pDest, const SSDataBlock* pSrc);
 int32_t blockDataSplitRows(SSDataBlock* pBlock, bool hasVarCol, int32_t startIndex, int32_t* stopIndex, int32_t pageSize);
+SSDataBlock* blockDataExtractBlock(SSDataBlock* pBlock, int32_t startIndex, int32_t rowCount);
+
 int32_t blockDataToBuf(char* buf, const SSDataBlock* pBlock);
+int32_t blockDataFromBuf(SSDataBlock* pBlock, const char* buf);
 
 size_t blockDataGetSize(const SSDataBlock* pBlock);
 size_t blockDataGetRowSize(const SSDataBlock* pBlock);
