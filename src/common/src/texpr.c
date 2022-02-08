@@ -1310,6 +1310,17 @@ int32_t exprValidateTimeNode(char *msgbuf, tExprNode *pExpr) {
       break;
     }
     case TSDB_FUNC_SCALAR_TO_UNIXTIMESTAMP: {
+      if (pExpr->_func.numChildren != 1) {
+        return TSDB_CODE_TSC_INVALID_OPERATION;
+      }
+      tExprNode *child = pExpr->_func.pChildren[0];
+      if (child->resultType != TSDB_DATA_TYPE_BINARY &&
+          child->resultType != TSDB_DATA_TYPE_NCHAR) {
+        return TSDB_CODE_TSC_INVALID_OPERATION;
+      }
+
+      pExpr->resultType = TSDB_DATA_TYPE_TIMESTAMP;
+      pExpr->resultBytes = (int16_t)tDataTypes[TSDB_DATA_TYPE_TIMESTAMP].bytes;
       break;
     }
     default: {
@@ -1885,6 +1896,8 @@ void vectorTimeFunc(int16_t functionId, tExprOperandInfo *pInputs, int32_t numIn
           break;
         }
         case TSDB_FUNC_SCALAR_TO_UNIXTIMESTAMP: {
+          assert(numInputs == 1);
+          assert(pInputs[0].type == TSDB_DATA_TYPE_BINARY || pInputs[0].type == TSDB_DATA_TYPE_NCHAR);
           break;
         }
         default: {
