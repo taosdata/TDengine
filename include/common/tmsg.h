@@ -254,7 +254,7 @@ typedef struct {
   int8_t  igExists;
   int32_t numOfTags;
   int32_t numOfColumns;
-  SSchema pSchema[];
+  SSchema pSchemas[];
 } SMCreateStbReq;
 
 typedef struct {
@@ -264,9 +264,9 @@ typedef struct {
 
 typedef struct {
   char    name[TSDB_TABLE_FNAME_LEN];
-  int8_t  alterType;
-  int32_t numOfColumns;
-  SSchema pSchema[];
+  int8_t  updateType;
+  int32_t numOfSchemas;
+  SSchema pSchemas[];
 } SMUpdateStbReq;
 
 typedef struct {

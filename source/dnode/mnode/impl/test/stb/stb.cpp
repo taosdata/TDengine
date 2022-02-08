@@ -67,35 +67,35 @@ TEST_F(MndTestStb, 01_Create_Show_Meta_Drop_Restart_Stb) {
     pReq->numOfColumns = htonl(cols);
 
     {
-      SSchema* pSchema = &pReq->pSchema[0];
+      SSchema* pSchema = &pReq->pSchemas[0];
       pSchema->bytes = htonl(8);
       pSchema->type = TSDB_DATA_TYPE_TIMESTAMP;
       strcpy(pSchema->name, "ts");
     }
 
     {
-      SSchema* pSchema = &pReq->pSchema[1];
+      SSchema* pSchema = &pReq->pSchemas[1];
       pSchema->bytes = htonl(4);
       pSchema->type = TSDB_DATA_TYPE_INT;
       strcpy(pSchema->name, "col1");
     }
 
     {
-      SSchema* pSchema = &pReq->pSchema[2];
+      SSchema* pSchema = &pReq->pSchemas[2];
       pSchema->bytes = htonl(2);
       pSchema->type = TSDB_DATA_TYPE_TINYINT;
       strcpy(pSchema->name, "tag1");
     }
 
     {
-      SSchema* pSchema = &pReq->pSchema[3];
+      SSchema* pSchema = &pReq->pSchemas[3];
       pSchema->bytes = htonl(8);
       pSchema->type = TSDB_DATA_TYPE_BIGINT;
       strcpy(pSchema->name, "tag2");
     }
 
     {
-      SSchema* pSchema = &pReq->pSchema[4];
+      SSchema* pSchema = &pReq->pSchemas[4];
       pSchema->bytes = htonl(16);
       pSchema->type = TSDB_DATA_TYPE_BINARY;
       strcpy(pSchema->name, "tag3");

@@ -33,10 +33,10 @@ static int32_t  mndStbActionInsert(SSdb *pSdb, SStbObj *pStb);
 static int32_t  mndStbActionDelete(SSdb *pSdb, SStbObj *pStb);
 static int32_t  mndStbActionUpdate(SSdb *pSdb, SStbObj *pOld, SStbObj *pNew);
 static int32_t  mndProcessMCreateStbReq(SMnodeMsg *pReq);
-static int32_t  mndProcessMAlterStbReq(SMnodeMsg *pReq);
+static int32_t  mndProcessMUpdateStbReq(SMnodeMsg *pReq);
 static int32_t  mndProcessMDropStbReq(SMnodeMsg *pReq);
 static int32_t  mndProcessVCreateStbRsp(SMnodeMsg *pRsp);
-static int32_t  mndProcessVAlterStbRsp(SMnodeMsg *pRsp);
+static int32_t  mndProcessVUpdateStbRsp(SMnodeMsg *pRsp);
 static int32_t  mndProcessVDropStbRsp(SMnodeMsg *pRsp);
 static int32_t  mndProcessStbMetaReq(SMnodeMsg *pReq);
 static int32_t  mndGetStbMeta(SMnodeMsg *pReq, SShowObj *pShow, STableMetaRsp *pMeta);
@@ -53,10 +53,10 @@ int32_t mndInitStb(SMnode *pMnode) {
                      .deleteFp = (SdbDeleteFp)mndStbActionDelete};
 
   mndSetMsgHandle(pMnode, TDMT_MND_CREATE_STB, mndProcessMCreateStbReq);
-  mndSetMsgHandle(pMnode, TDMT_MND_ALTER_STB, mndProcessMAlterStbReq);
+  mndSetMsgHandle(pMnode, TDMT_MND_ALTER_STB, mndProcessMUpdateStbReq);
   mndSetMsgHandle(pMnode, TDMT_MND_DROP_STB, mndProcessMDropStbReq);
   mndSetMsgHandle(pMnode, TDMT_VND_CREATE_STB_RSP, mndProcessVCreateStbRsp);
-  mndSetMsgHandle(pMnode, TDMT_VND_ALTER_STB_RSP, mndProcessVAlterStbRsp);
+  mndSetMsgHandle(pMnode, TDMT_VND_ALTER_STB_RSP, mndProcessVUpdateStbRsp);
   mndSetMsgHandle(pMnode, TDMT_VND_DROP_STB_RSP, mndProcessVDropStbRsp);
   mndSetMsgHandle(pMnode, TDMT_MND_STB_META, mndProcessStbMetaReq);
 
@@ -325,7 +325,7 @@ static int32_t mndCheckCreateStbReq(SMCreateStbReq *pCreate) {
   pCreate->numOfTags = htonl(pCreate->numOfTags);
   int32_t totalCols = pCreate->numOfColumns + pCreate->numOfTags;
   for (int32_t i = 0; i < totalCols; ++i) {
-    SSchema *pSchema = &pCreate->pSchema[i];
+    SSchema *pSchema = &pCreate->pSchemas[i];
     pSchema->bytes = htonl(pSchema->bytes);
   }
 
@@ -346,7 +346,7 @@ static int32_t mndCheckCreateStbReq(SMCreateStbReq *pCreate) {
 
   int32_t maxColId = (TSDB_MAX_COLUMNS + TSDB_MAX_TAGS);
   for (int32_t i = 0; i < totalCols; ++i) {
-    SSchema *pSchema = &pCreate->pSchema[i];
+    SSchema *pSchema = &pCreate->pSchemas[i];
     if (pSchema->type < 0) {
       terrno = TSDB_CODE_MND_INVALID_STB_OPTION;
       return -1;
@@ -483,8 +483,8 @@ static int32_t mndCreateStb(SMnode *pMnode, SMnodeMsg *pReq, SMCreateStbReq *pCr
     return -1;
   }
 
-  memcpy(stbObj.pColumns, pCreate->pSchema, stbObj.numOfColumns * sizeof(SSchema));
-  memcpy(stbObj.pTags, pCreate->pSchema + stbObj.numOfColumns, stbObj.numOfTags * sizeof(SSchema));
+  memcpy(stbObj.pColumns, pCreate->pSchemas, stbObj.numOfColumns * sizeof(SSchema));
+  memcpy(stbObj.pTags, pCreate->pSchemas + stbObj.numOfColumns, stbObj.numOfTags * sizeof(SSchema));
 
   for (int32_t i = 0; i < stbObj.numOfColumns; ++i) {
     stbObj.pColumns[i].colId = stbObj.nextColId;
@@ -575,11 +575,11 @@ static int32_t mndProcessVCreateStbRsp(SMnodeMsg *pRsp) {
   return 0;
 }
 
-static int32_t mndCheckAlterStbReq(SMUpdateStbReq *pUpdate) {
-  pUpdate->numOfColumns = htonl(pUpdate->numOfColumns);
+static int32_t mndCheckUpdateStbReq(SMUpdateStbReq *pUpdate) {
+  pUpdate->numOfSchemas = htonl(pUpdate->numOfSchemas);
 
-  for (int32_t i = 0; i < pUpdate->numOfColumns; ++i) {
-    SSchema *pSchema = &pUpdate->pSchema[i];
+  for (int32_t i = 0; i < pUpdate->numOfSchemas; ++i) {
+    SSchema *pSchema = &pUpdate->pSchemas[i];
     pSchema->colId = htonl(pSchema->colId);
     pSchema->bytes = htonl(pSchema->bytes);
 
@@ -916,27 +916,27 @@ static int32_t mndUpdateStb(SMnode *pMnode, SMnodeMsg *pReq, const SMUpdateStbRe
 
   int32_t code = -1;
 
-  switch (pUpdate->alterType) {
+  switch (pUpdate->updateType) {
     case TSDB_ALTER_TABLE_ADD_TAG_COLUMN:
-      code = mndAddSuperTableTag(pOld, &stbObj, pUpdate->pSchema, 1);
+      code = mndAddSuperTableTag(pOld, &stbObj, pUpdate->pSchemas, 1);
       break;
     case TSDB_ALTER_TABLE_DROP_TAG_COLUMN:
-      code = mndDropSuperTableTag(pOld, &stbObj, pUpdate->pSchema[0].name);
+      code = mndDropSuperTableTag(pOld, &stbObj, pUpdate->pSchemas[0].name);
       break;
     case TSDB_ALTER_TABLE_UPDATE_TAG_NAME:
-      code = mndUpdateStbTagName(pOld, &stbObj, pUpdate->pSchema[0].name, pUpdate->pSchema[1].name);
+      code = mndUpdateStbTagName(pOld, &stbObj, pUpdate->pSchemas[0].name, pUpdate->pSchemas[1].name);
       break;
     case TSDB_ALTER_TABLE_UPDATE_TAG_BYTES:
-      code = mndUpdateStbTagBytes(pOld, &stbObj, &pUpdate->pSchema[0]);
+      code = mndUpdateStbTagBytes(pOld, &stbObj, &pUpdate->pSchemas[0]);
       break;
     case TSDB_ALTER_TABLE_ADD_COLUMN:
-      code = mndAddSuperTableColumn(pOld, &stbObj, pUpdate->pSchema, 1);
+      code = mndAddSuperTableColumn(pOld, &stbObj, pUpdate->pSchemas, 1);
       break;
     case TSDB_ALTER_TABLE_DROP_COLUMN:
-      code = mndDropSuperTableColumn(pOld, &stbObj, pUpdate->pSchema[0].name);
+      code = mndDropSuperTableColumn(pOld, &stbObj, pUpdate->pSchemas[0].name);
       break;
     case TSDB_ALTER_TABLE_UPDATE_COLUMN_BYTES:
-      code = mndUpdateStbColumnBytes(pOld, &stbObj, &pUpdate->pSchema[0]);
+      code = mndUpdateStbColumnBytes(pOld, &stbObj, &pUpdate->pSchemas[0]);
       break;
     default:
       terrno = TSDB_CODE_MND_INVALID_STB_OPTION;
@@ -965,21 +965,21 @@ UPDATE_STB_OVER:
   return code;
 }
 
-static int32_t mndProcessMAlterStbReq(SMnodeMsg *pReq) {
+static int32_t mndProcessMUpdateStbReq(SMnodeMsg *pReq) {
   SMnode        *pMnode = pReq->pMnode;
   SMUpdateStbReq *pUpdate = pReq->rpcMsg.pCont;
 
-  mDebug("stb:%s, start to alter", pUpdate->name);
+  mDebug("stb:%s, start to update", pUpdate->name);
 
-  if (mndCheckAlterStbReq(pUpdate) != 0) {
-    mError("stb:%s, failed to alter since %s", pUpdate->name, terrstr());
+  if (mndCheckUpdateStbReq(pUpdate) != 0) {
+    mError("stb:%s, failed to update since %s", pUpdate->name, terrstr());
     return -1;
   }
 
   SStbObj *pStb = mndAcquireStb(pMnode, pUpdate->name);
   if (pStb == NULL) {
     terrno = TSDB_CODE_MND_STB_NOT_EXIST;
-    mError("stb:%s, failed to alter since %s", pUpdate->name, terrstr());
+    mError("stb:%s, failed to update since %s", pUpdate->name, terrstr());
     return -1;
   }
 
@@ -995,14 +995,14 @@ static int32_t mndProcessMAlterStbReq(SMnodeMsg *pReq) {
   mndReleaseStb(pMnode, pStb);
 
   if (code != 0) {
-    mError("stb:%s, failed to alter since %s", pUpdate->name, tstrerror(code));
+    mError("stb:%s, failed to update since %s", pUpdate->name, tstrerror(code));
     return code;
   }
 
   return TSDB_CODE_MND_ACTION_IN_PROGRESS;
 }
 
-static int32_t mndProcessVAlterStbRsp(SMnodeMsg *pRsp) {
+static int32_t mndProcessVUpdateStbRsp(SMnodeMsg *pRsp) {
   mndTransProcessRsp(pRsp);
   return 0;
 }
