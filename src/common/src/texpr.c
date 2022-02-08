@@ -1205,13 +1205,31 @@ int32_t exprValidateTimeNode(tExprNode *pExpr) {
         return TSDB_CODE_TSC_OUT_OF_MEMORY;
       }
       child->pVal->nType = TSDB_DATA_TYPE_TIMESTAMP;
-      int64_t timeValMs;
+      int64_t timeVal;
       if (pExpr->_func.functionId == TSDB_FUNC_SCALAR_NOW) {
-        timeValMs = taosGetTimestampMs();
+        switch(pExpr->precision) {
+          case TSDB_TIME_PRECISION_MILLI: {
+            timeVal = taosGetTimestampMs();
+            break;
+          }
+          case TSDB_TIME_PRECISION_MICRO: {
+            timeVal = taosGetTimestampUs();
+            break;
+          }
+          case TSDB_TIME_PRECISION_NANO: {
+            timeVal = taosGetTimestampNs();
+            break;
+          }
+          default: {
+            assert(false);
+            break;
+          }
+        }
+        child->pVal->i64 = timeVal;
       } else {
-        timeValMs = taosGetTimestampToday() * 1000;
+        timeVal = taosGetTimestampToday() * 1000;
+        child->pVal->i64 = convertTimePrecision(timeVal, TSDB_TIME_PRECISION_MILLI, pExpr->precision);
       }
-      child->pVal->i64 = convertTimePrecision(timeValMs, TSDB_TIME_PRECISION_MILLI, pExpr->precision);
       pExpr->resultType  = TSDB_DATA_TYPE_TIMESTAMP;
       pExpr->resultBytes = (int16_t)tDataTypes[pExpr->resultType].bytes;
       break;
