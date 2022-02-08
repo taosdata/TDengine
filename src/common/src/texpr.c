@@ -1319,8 +1319,8 @@ int32_t exprValidateTimeNode(char *msgbuf, tExprNode *pExpr) {
         return TSDB_CODE_TSC_INVALID_OPERATION;
       }
 
-      pExpr->resultType = TSDB_DATA_TYPE_TIMESTAMP;
-      pExpr->resultBytes = (int16_t)tDataTypes[TSDB_DATA_TYPE_TIMESTAMP].bytes;
+      pExpr->resultType = TSDB_DATA_TYPE_BIGINT;
+      pExpr->resultBytes = (int16_t)tDataTypes[TSDB_DATA_TYPE_BIGINT].bytes;
       break;
     }
     default: {
@@ -1898,6 +1898,11 @@ void vectorTimeFunc(int16_t functionId, tExprOperandInfo *pInputs, int32_t numIn
         case TSDB_FUNC_SCALAR_TO_UNIXTIMESTAMP: {
           assert(numInputs == 1);
           assert(pInputs[0].type == TSDB_DATA_TYPE_BINARY || pInputs[0].type == TSDB_DATA_TYPE_NCHAR);
+
+          int64_t timeVal = 0;
+          taosParseTime(inputData[0], &timeVal, pInputs[0].bytes, TSDB_TIME_PRECISION_MILLI, 0);
+          SET_TYPED_DATA(outputData, pOutput->type, timeVal);
+
           break;
         }
         default: {
