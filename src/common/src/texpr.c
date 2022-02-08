@@ -2116,7 +2116,7 @@ void vectorTimeFunc(int16_t functionId, tExprOperandInfo *pInputs, int32_t numIn
               break;
             }
             default: {
-              timeVal = 0;
+              timeVal = timeVal;
               break;
             }
           }
