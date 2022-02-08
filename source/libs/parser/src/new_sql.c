@@ -1729,7 +1729,6 @@ static YYACTIONTYPE yy_reduce(
       case 57: /* boolean_primary ::= NK_LP boolean_value_expression NK_RP */
       case 70: /* parenthesized_joined_table ::= NK_LP joined_table NK_RP */ yytestcase(yyruleno==70);
       case 71: /* parenthesized_joined_table ::= NK_LP parenthesized_joined_table NK_RP */ yytestcase(yyruleno==71);
-      case 123: /* subquery ::= NK_LP query_expression NK_RP */ yytestcase(yyruleno==123);
 { PARSER_TRACE; yymsp[-2].minor.yy168 = yymsp[-1].minor.yy168; }
         break;
       case 58: /* from_clause ::= FROM table_reference_list */
@@ -1750,7 +1749,7 @@ static YYACTIONTYPE yy_reduce(
   yymsp[-3].minor.yy168 = yylhsminor.yy168;
         break;
       case 65: /* table_primary ::= subquery alias_opt */
-{ PARSER_TRACE; yylhsminor.yy168 = createTempTableNode(pCxt, yymsp[-1].minor.yy168, &yymsp[0].minor.yy241); }
+{ PARSER_TRACE; yylhsminor.yy168 = createTempTableNode(pCxt, releaseRawExprNode(pCxt, yymsp[-1].minor.yy168), &yymsp[0].minor.yy241); }
   yymsp[-1].minor.yy168 = yylhsminor.yy168;
         break;
       case 67: /* alias_opt ::= */
@@ -1906,6 +1905,10 @@ static YYACTIONTYPE yy_reduce(
       case 118: /* slimit_clause_opt ::= SLIMIT NK_INTEGER NK_COMMA NK_INTEGER */
       case 122: /* limit_clause_opt ::= LIMIT NK_INTEGER NK_COMMA NK_INTEGER */ yytestcase(yyruleno==122);
 { PARSER_TRACE; yymsp[-3].minor.yy168 = createLimitNode(pCxt, &yymsp[0].minor.yy0, &yymsp[-2].minor.yy0); }
+        break;
+      case 123: /* subquery ::= NK_LP query_expression NK_RP */
+{ PARSER_TRACE; yylhsminor.yy168 = createRawExprNodeExt(pCxt, &yymsp[-2].minor.yy0, &yymsp[0].minor.yy0, yymsp[-1].minor.yy168); }
+  yymsp[-2].minor.yy168 = yylhsminor.yy168;
         break;
       case 127: /* sort_specification ::= expression ordering_specification_opt null_ordering_opt */
 { PARSER_TRACE; yylhsminor.yy168 = createOrderByExprNode(pCxt, releaseRawExprNode(pCxt, yymsp[-2].minor.yy168), yymsp[-1].minor.yy10, yymsp[0].minor.yy177); }

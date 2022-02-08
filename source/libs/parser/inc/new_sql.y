@@ -219,7 +219,7 @@ table_reference(A) ::= joined_table(B).                                         
 
 table_primary(A) ::= table_name(B) alias_opt(C).                                  { PARSER_TRACE; A = createRealTableNode(pCxt, NULL, &B, &C); }
 table_primary(A) ::= db_name(B) NK_DOT table_name(C) alias_opt(D).                { PARSER_TRACE; A = createRealTableNode(pCxt, &B, &C, &D); }
-table_primary(A) ::= subquery(B) alias_opt(C).                                    { PARSER_TRACE; A = createTempTableNode(pCxt, B, &C); }
+table_primary(A) ::= subquery(B) alias_opt(C).                                    { PARSER_TRACE; A = createTempTableNode(pCxt, releaseRawExprNode(pCxt, B), &C); }
 table_primary(A) ::= parenthesized_joined_table(B).                               { PARSER_TRACE; A = B; }
 
 %type alias_opt                                                                   { SToken }
@@ -354,7 +354,7 @@ limit_clause_opt(A) ::= LIMIT NK_INTEGER(B) OFFSET NK_INTEGER(C).               
 limit_clause_opt(A) ::= LIMIT NK_INTEGER(C) NK_COMMA NK_INTEGER(B).               { PARSER_TRACE; A = createLimitNode(pCxt, &B, &C); }
 
 /************************************************ subquery ************************************************************/
-subquery(A) ::= NK_LP query_expression(B) NK_RP.                                  { PARSER_TRACE; A = B; }
+subquery(A) ::= NK_LP(B) query_expression(C) NK_RP(D).                                  { PARSER_TRACE; A = createRawExprNodeExt(pCxt, &B, &D, C); }
 
 /************************************************ search_condition ****************************************************/
 search_condition(A) ::= boolean_value_expression(B).                              { PARSER_TRACE; A = B; }
