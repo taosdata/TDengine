@@ -2243,7 +2243,7 @@ void vectorTimeFunc(int16_t functionId, tExprOperandInfo *pInputs, int32_t numIn
 
             if (pInputs[j].type == TSDB_DATA_TYPE_BINARY || /* datetime format strings */
                 pInputs[j].type == TSDB_DATA_TYPE_NCHAR) {
-              taosParseTime((char *)varDataVal(inputData[j]), &timeVal[j], pInputs[j].bytes, timePrec, 0);
+              taosParseTime((char *)varDataVal(inputData[j]), &timeVal[j], pInputs[j].bytes, TSDB_TIME_PRECISION_NANO, 0);
             } else if (pInputs[j].type == TSDB_DATA_TYPE_BIGINT ||
                        pInputs[j].type == TSDB_DATA_TYPE_TIMESTAMP) { /* unix timestamp or ts column*/
               GET_TYPED_DATA(timeVal[j], int64_t, pInputs[j].type, inputData[j]);
