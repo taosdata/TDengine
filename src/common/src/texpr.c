@@ -1363,13 +1363,24 @@ int32_t exprValidateTimeNode(char *msgbuf, tExprNode *pExpr) {
         return TSDB_CODE_TSC_INVALID_OPERATION;
       }
 
-      if (child0->nodeType == TSQL_NODE_VALUE) {
+      if (child0->nodeType == TSQL_NODE_VALUE) { /* datetime format or epoch */
         if (child0->pVal->nType != TSDB_DATA_TYPE_BIGINT &&
             child0->pVal->nType != TSDB_DATA_TYPE_BINARY &&
             child0->pVal->nType != TSDB_DATA_TYPE_NCHAR) {
           return TSDB_CODE_TSC_INVALID_OPERATION;
         }
-      } else if (child0->nodeType == TSQL_NODE_COL) {
+        if (child0->pVal->nType == TSDB_DATA_TYPE_BIGINT) {
+          char fraction[32] = {0};
+          NUM_TO_STRING(child0->resultType, &child0->pVal->i64, sizeof(fraction), fraction);
+          int32_t tsDigits = strlen(fraction);
+          if (tsDigits > TSDB_TIME_PRECISION_SEC_DIGITS &&
+              tsDigits != TSDB_TIME_PRECISION_MILLI_DIGITS &&
+              tsDigits != TSDB_TIME_PRECISION_MICRO_DIGITS &&
+              tsDigits != TSDB_TIME_PRECISION_NANO_DIGITS) {
+            return exprInvalidOperationMsg(msgbuf, msg1);
+          }
+        }
+      } else if (child0->nodeType == TSQL_NODE_COL) { /* ts column */
         if (child0->pSchema->type != TSDB_DATA_TYPE_TIMESTAMP) {
           return TSDB_CODE_TSC_INVALID_OPERATION;
         }
