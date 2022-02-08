@@ -93,6 +93,8 @@ void tVariantCreateExt(tVariant *pVar, SStrToken *token, int32_t optrType, bool 
     case TSDB_DATA_TYPE_TIMESTAMP: {
       if (optrType == TK_NOW) {
         pVar->i64 = taosGetTimestamp(TSDB_TIME_PRECISION_NANO);
+      } else if (optrType == TK_TODAY) {
+        pVar->i64 = taosGetTimestampToday() * 1000000000;
       } else if (optrType == TK_PLUS || optrType == TK_MINUS) {
         char unit = 0;
         ret = parseAbsoluteDuration(token->z, token->n, &pVar->i64, &unit, TSDB_TIME_PRECISION_NANO);
