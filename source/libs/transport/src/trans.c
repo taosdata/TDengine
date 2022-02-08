@@ -63,17 +63,41 @@ void rpcFreeCont(void* cont) {
   }
   free((char*)cont - TRANS_MSG_OVERHEAD);
 }
-void* rpcReallocCont(void* ptr, int contLen) { return NULL; }
+void* rpcReallocCont(void* ptr, int contLen) {
+  if (ptr == NULL) {
+    return rpcMallocCont(contLen);
+  }
+  char* st = (char*)ptr - TRANS_MSG_OVERHEAD;
+  int   sz = contLen + TRANS_MSG_OVERHEAD;
+  st = realloc(st, sz);
+  if (st == NULL) {
+    return NULL;
+  }
+  return st + TRANS_MSG_OVERHEAD;
+}
 
-void rpcSendRedirectRsp(void* pConn, const SEpSet* pEpSet) {}
-int  rpcGetConnInfo(void* thandle, SRpcConnInfo* pInfo) { return -1; }
-void rpcSendRecv(void* shandle, SEpSet* pEpSet, SRpcMsg* pReq, SRpcMsg* pRsp) { return; }
+void rpcSendRedirectRsp(void* thandle, const SEpSet* pEpSet) {
+  SRpcMsg rpcMsg;
+  memset(&rpcMsg, 0, sizeof(rpcMsg));
+
+  rpcMsg.contLen = sizeof(SEpSet);
+  rpcMsg.pCont = rpcMallocCont(rpcMsg.contLen);
+  if (rpcMsg.pCont == NULL) return;
+
+  memcpy(rpcMsg.pCont, pEpSet, sizeof(SEpSet));
+
+  rpcMsg.code = TSDB_CODE_RPC_REDIRECT;
+  rpcMsg.handle = thandle;
+
+  rpcSendResponse(&rpcMsg);
+}
+
 int  rpcReportProgress(void* pConn, char* pCont, int contLen) { return -1; }
 void rpcCancelRequest(int64_t rid) { return; }
 
 int32_t rpcInit(void) {
   // impl later
-  return -1;
+  return 0;
 }
 
 void rpcCleanup(void) {

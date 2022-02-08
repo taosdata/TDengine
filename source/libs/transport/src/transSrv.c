@@ -33,6 +33,8 @@ typedef struct SSrvConn {
   void*       hostThrd;
   void*       pSrvMsg;
 
+  struct sockaddr peername;
+
   // SRpcMsg sendMsg;
   // del later
   char secured;
@@ -487,7 +489,13 @@ void uvOnConnectionCb(uv_stream_t* q, ssize_t nread, const uv_buf_t* buf) {
     uv_os_fd_t fd;
     uv_fileno((const uv_handle_t*)pConn->pTcp, &fd);
     tDebug("conn %p created, fd: %d", pConn, fd);
-    uv_read_start((uv_stream_t*)(pConn->pTcp), uvAllocReadBufferCb, uvOnReadCb);
+    int namelen = sizeof(pConn->peername);
+    if (0 != uv_tcp_getpeername(pConn->pTcp, &pConn->peername, &namelen)) {
+      tError("failed to get peer name");
+      destroyConn(pConn, true);
+    } else {
+      uv_read_start((uv_stream_t*)(pConn->pTcp), uvAllocReadBufferCb, uvOnReadCb);
+    }
   } else {
     tDebug("failed to create new connection");
     destroyConn(pConn, true);
@@ -496,6 +504,7 @@ void uvOnConnectionCb(uv_stream_t* q, ssize_t nread, const uv_buf_t* buf) {
 
 void* acceptThread(void* arg) {
   // opt
+  setThreadName("trans-accept");
   SServerObj* srv = (SServerObj*)arg;
   uv_run(srv->loop, UV_RUN_DEFAULT);
 }
@@ -548,6 +557,7 @@ static bool addHandleToAcceptloop(void* arg) {
   return true;
 }
 void* workerThread(void* arg) {
+  setThreadName("trans-worker");
   SWorkThrdObj* pThrd = (SWorkThrdObj*)arg;
   uv_run(pThrd->loop, UV_RUN_DEFAULT);
 }
@@ -721,6 +731,18 @@ void rpcSendResponse(const SRpcMsg* pMsg) {
   tDebug("conn %p start to send resp", pConn);
   transSendAsync(pThrd->asyncPool, &srvMsg->q);
   // uv_async_send(pThrd->workerAsync);
+}
+
+int rpcGetConnInfo(void* thandle, SRpcConnInfo* pInfo) {
+  SSrvConn*        pConn = thandle;
+  struct sockaddr* pPeerName = &pConn->peername;
+
+  struct sockaddr_in caddr = *(struct sockaddr_in*)(pPeerName);
+  pInfo->clientIp = (uint32_t)(caddr.sin_addr.s_addr);
+  pInfo->clientPort = ntohs(caddr.sin_port);
+
+  tstrncpy(pInfo->user, pConn->user, sizeof(pInfo->user));
+  return 0;
 }
 
 #endif
