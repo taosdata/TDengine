@@ -1,4 +1,5 @@
 # TDengine Node.js connector
+
 [![minzip](https://img.shields.io/bundlephobia/minzip/td2.0-connector.svg)](https://github.com/taosdata/TDengine/tree/master/src/connector/nodejs) [![NPM](https://img.shields.io/npm/l/td2.0-connector.svg)](https://github.com/taosdata/TDengine/#what-is-tdengine)
 
 This is the Node.js library that lets you connect to [TDengine](https://www.github.com/taosdata/tdengine) 2.0 version. It is built so that you can use as much of it as you want or as little of it as you want through providing an extensive API. If you want the raw data in the form of an array of arrays for the row data retrieved from a table, you can do that. If you want to wrap that data with objects that allow you easily manipulate and display data such as using a prettifier function, you can do that!
@@ -106,6 +107,7 @@ promise.then(function(result) {
 ```
 
 You can also query by binding parameters to a query by filling in the question marks in a string as so. The query will automatically parse what was binded and convert it to the proper format for use with TDengine
+
 ```javascript
 var query = cursor.query('select * from meterinfo.meters where ts <= ? and areaid = ?;').bind(new Date(), 5);
 query.execute().then(function(result) {
@@ -114,6 +116,7 @@ query.execute().then(function(result) {
 ```
 
 The TaosQuery object can also be immediately executed upon creation by passing true as the second argument, returning a promise instead of a TaosQuery.
+
 ```javascript
 var promise = cursor.query('select * from meterinfo.meters where v1 = 30;', true)
 promise.then(function(result) {
@@ -121,7 +124,8 @@ promise.then(function(result) {
 })
 ```
 
-If you want to execute queries without objects being wrapped around the data, use ```cursor.execute()``` directly and ```cursor.fetchall()``` to retrieve data if there is any.
+If you want to execute queries without objects being wrapped around the data, use `cursor.execute()` directly and `cursor.fetchall()` to retrieve data if there is any.
+
 ```javascript
 cursor.execute('select count(*), avg(v1), min(v2) from meterinfo.meters where ts >= \"2019-07-20 00:00:00.000\";');
 var data = cursor.fetchall();
