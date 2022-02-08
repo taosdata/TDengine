@@ -5865,7 +5865,7 @@ SOperatorInfo *createOrderOperatorInfo(SOperatorInfo* downstream, SArray* pExprI
     return NULL;
   }
 
-  pInfo->sortBufSize = 1024 * 1024; // 1MB
+  pInfo->sortBufSize = 1024 * 1024 * 5; // 1MB
   pInfo->capacity    = 4096;
   pInfo->pDataBlock  = createOutputBuf_rv(pExprInfo, pInfo->capacity);
   pInfo->pSources    = taosArrayInit(4, POINTER_BYTES);

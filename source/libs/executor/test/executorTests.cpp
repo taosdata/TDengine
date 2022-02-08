@@ -255,16 +255,36 @@ TEST(testCase, external_sort_Test) {
   exp1->base.resSchema = createSchema(TSDB_DATA_TYPE_BINARY, 40, 2, "res1");
   taosArrayPush(pExprInfo, &exp1);
 
-  SOperatorInfo* pOperator = createOrderOperatorInfo(createDummyOperator(100), pExprInfo, pOrderVal);
+  SOperatorInfo* pOperator = createOrderOperatorInfo(createDummyOperator(500), pExprInfo, pOrderVal);
 
   bool newgroup = false;
-  SSDataBlock* pRes = pOperator->exec(pOperator, &newgroup);
+  SSDataBlock* pRes = NULL;
 
-  SColumnInfoData* pCol1 = static_cast<SColumnInfoData*>(taosArrayGet(pRes->pDataBlock, 0));
-  SColumnInfoData* pCol2 = static_cast<SColumnInfoData*>(taosArrayGet(pRes->pDataBlock, 1));
-  for(int32_t i = 0; i < pRes->info.rows; ++i) {
-    char* p = colDataGet(pCol2, i);
-    printf("%d: %d, %s\n", i, ((int32_t*)pCol1->pData)[i], (char*)varDataVal(p));
-  }
+  int32_t total = 1;
+
+//  while(1) {
+    int64_t s = taosGetTimestampUs();
+    pRes = pOperator->exec(pOperator, &newgroup);
+
+    int64_t e = taosGetTimestampUs();
+    printf("---------------elapsed:%ld\n", e - s);
+
+    if (pRes == NULL) {
+//      break;
+    }
+
+    SColumnInfoData* pCol1 = static_cast<SColumnInfoData*>(taosArrayGet(pRes->pDataBlock, 0));
+    SColumnInfoData* pCol2 = static_cast<SColumnInfoData*>(taosArrayGet(pRes->pDataBlock, 1));
+    for (int32_t i = 0; i < pRes->info.rows; ++i) {
+      char* p = colDataGet(pCol2, i);
+//      printf("%d: %d, %s\n", total++, ((int32_t*)pCol1->pData)[i], (char*)varDataVal(p));
+    }
+//  }
+
+  pOperator->cleanupFn(pOperator->info, 2);
+  tfree(exp);
+  tfree(exp1);
+  taosArrayDestroy(pExprInfo);
+  taosArrayDestroy(pOrderVal);
 }
 #pragma GCC diagnostic pop
