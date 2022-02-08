@@ -3199,7 +3199,7 @@ static void yy_reduce(
       case 285: /* cmd ::= ALTER TABLE ids cpxName MODIFY COLUMN columnlist */
 {
     yymsp[-4].minor.yy0.n += yymsp[-3].minor.yy0.n;
-    SAlterTableInfo* pAlterTable = tSetAlterTableInfo(&yymsp[-4].minor.yy0, yymsp[0].minor.yy165, NULL, TSDB_ALTER_TABLE_CHANGE_COLUMN, -1);
+    SAlterTableInfo* pAlterTable = tSetAlterTableInfo(&yymsp[-4].minor.yy0, yymsp[0].minor.yy165, NULL, TSDB_ALTER_TABLE_UPDATE_COLUMN_BYTES, -1);
     setSqlInfo(pInfo, pAlterTable, NULL, TSDB_SQL_ALTER_TABLE);
 }
         break;
@@ -3231,7 +3231,7 @@ static void yy_reduce(
     toTSDBType(yymsp[0].minor.yy0.type);
     A = tListItemAppendToken(A, &yymsp[0].minor.yy0, -1);
 
-    SAlterTableInfo* pAlterTable = tSetAlterTableInfo(&yymsp[-5].minor.yy0, NULL, A, TSDB_ALTER_TABLE_CHANGE_TAG_COLUMN, -1);
+    SAlterTableInfo* pAlterTable = tSetAlterTableInfo(&yymsp[-5].minor.yy0, NULL, A, TSDB_ALTER_TABLE_UPDATE_TAG_NAME, -1);
     setSqlInfo(pInfo, pAlterTable, NULL, TSDB_SQL_ALTER_TABLE);
 }
         break;
@@ -3250,7 +3250,7 @@ static void yy_reduce(
       case 290: /* cmd ::= ALTER TABLE ids cpxName MODIFY TAG columnlist */
 {
     yymsp[-4].minor.yy0.n += yymsp[-3].minor.yy0.n;
-    SAlterTableInfo* pAlterTable = tSetAlterTableInfo(&yymsp[-4].minor.yy0, yymsp[0].minor.yy165, NULL, TSDB_ALTER_TABLE_MODIFY_TAG_COLUMN, -1);
+    SAlterTableInfo* pAlterTable = tSetAlterTableInfo(&yymsp[-4].minor.yy0, yymsp[0].minor.yy165, NULL, TSDB_ALTER_TABLE_UPDATE_TAG_BYTES, -1);
     setSqlInfo(pInfo, pAlterTable, NULL, TSDB_SQL_ALTER_TABLE);
 }
         break;
@@ -3275,7 +3275,7 @@ static void yy_reduce(
       case 293: /* cmd ::= ALTER STABLE ids cpxName MODIFY COLUMN columnlist */
 {
     yymsp[-4].minor.yy0.n += yymsp[-3].minor.yy0.n;
-    SAlterTableInfo* pAlterTable = tSetAlterTableInfo(&yymsp[-4].minor.yy0, yymsp[0].minor.yy165, NULL, TSDB_ALTER_TABLE_CHANGE_COLUMN, TSDB_SUPER_TABLE);
+    SAlterTableInfo* pAlterTable = tSetAlterTableInfo(&yymsp[-4].minor.yy0, yymsp[0].minor.yy165, NULL, TSDB_ALTER_TABLE_UPDATE_COLUMN_BYTES, TSDB_SUPER_TABLE);
     setSqlInfo(pInfo, pAlterTable, NULL, TSDB_SQL_ALTER_TABLE);
 }
         break;
@@ -3307,7 +3307,7 @@ static void yy_reduce(
     toTSDBType(yymsp[0].minor.yy0.type);
     A = tListItemAppendToken(A, &yymsp[0].minor.yy0, -1);
 
-    SAlterTableInfo* pAlterTable = tSetAlterTableInfo(&yymsp[-5].minor.yy0, NULL, A, TSDB_ALTER_TABLE_CHANGE_TAG_COLUMN, TSDB_SUPER_TABLE);
+    SAlterTableInfo* pAlterTable = tSetAlterTableInfo(&yymsp[-5].minor.yy0, NULL, A, TSDB_ALTER_TABLE_UPDATE_TAG_NAME, TSDB_SUPER_TABLE);
     setSqlInfo(pInfo, pAlterTable, NULL, TSDB_SQL_ALTER_TABLE);
 }
         break;
@@ -3326,7 +3326,7 @@ static void yy_reduce(
       case 298: /* cmd ::= ALTER STABLE ids cpxName MODIFY TAG columnlist */
 {
     yymsp[-4].minor.yy0.n += yymsp[-3].minor.yy0.n;
-    SAlterTableInfo* pAlterTable = tSetAlterTableInfo(&yymsp[-4].minor.yy0, yymsp[0].minor.yy165, NULL, TSDB_ALTER_TABLE_MODIFY_TAG_COLUMN, TSDB_SUPER_TABLE);
+    SAlterTableInfo* pAlterTable = tSetAlterTableInfo(&yymsp[-4].minor.yy0, yymsp[0].minor.yy165, NULL, TSDB_ALTER_TABLE_UPDATE_TAG_BYTES, TSDB_SUPER_TABLE);
     setSqlInfo(pInfo, pAlterTable, NULL, TSDB_SQL_ALTER_TABLE);
 }
         break;
