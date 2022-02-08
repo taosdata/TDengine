@@ -590,10 +590,6 @@ uint32_t tGetToken(char* z, uint32_t* tokenId) {
       }
       *tokenId = tKeywordCode(z, i);
 
-      //Check for function now()
-      if (*tokenId == TK_NOW && z[i] == '(' && z[i + 1] == ')') {
-        *tokenId = TK_ID;
-      }
       return i;
     }
   }
@@ -668,6 +664,11 @@ SStrToken tStrGetToken(char* str, int32_t* i, bool isPrevOptr) {
       break;
     }
 #endif
+  }
+
+  //for now() function used in insert clause
+  if (t0.type == TK_NOW && str[t0.n] == '(' && str[t0.n + 1] == ')') {
+    t0.n += 2;
   }
 
   if (t0.type == TK_SEMI) {
