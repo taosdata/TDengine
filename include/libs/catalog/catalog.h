@@ -32,6 +32,15 @@ extern "C" {
 
 struct SCatalog;
 
+enum {
+  CTG_DBG_DB_NUM = 1,
+  CTG_DBG_META_NUM,
+  CTG_DBG_STB_NUM,
+  CTG_DBG_DB_RENT_NUM,
+  CTG_DBG_STB_RENT_NUM,
+};
+
+
 typedef struct SCatalogReq {
   SArray *pTableName;     // element is SNAME
   SArray *pUdf;           // udf name
@@ -126,6 +135,8 @@ int32_t catalogGetTableMeta(struct SCatalog* pCatalog, void * pTransporter, cons
  * @return error code
  */
 int32_t catalogGetSTableMeta(struct SCatalog* pCatalog, void * pTransporter, const SEpSet* pMgmtEps, const SName* pTableName, STableMeta** pTableMeta);
+
+int32_t catalogUpdateSTableMeta(struct SCatalog* pCatalog, STableMetaRsp *rspMsg);
 
 
 /**

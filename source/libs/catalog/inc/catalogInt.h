@@ -140,8 +140,8 @@ typedef uint32_t (*tableNameHashFp)(const char *, uint32_t);
 #define CTG_RET(c) do { int32_t _code = c; if (_code != TSDB_CODE_SUCCESS) { terrno = _code; } return _code; } while (0)
 #define CTG_ERR_JRET(c) do { code = c; if (code != TSDB_CODE_SUCCESS) { terrno = code; goto _return; } } while (0)
 
-#define CTG_LOCK_DEBUG(...) do { if (gCTGDebug.lockDebug) { ctgDebug(__VA_ARGS__); } } while (0)
-#define CTG_CACHE_DEBUG(...) do { if (gCTGDebug.cacheDebug) { ctgDebug(__VA_ARGS__); } } while (0)
+#define CTG_LOCK_DEBUG(...) do { if (gCTGDebug.lockDebug) { qDebug(__VA_ARGS__); } } while (0)
+#define CTG_CACHE_DEBUG(...) do { if (gCTGDebug.cacheDebug) { qDebug(__VA_ARGS__); } } while (0)
 
 #define TD_RWLATCH_WRITE_FLAG_COPY 0x40000000
 
