@@ -35,7 +35,7 @@ static int32_t exprValidateStringConcatNode(tExprNode *pExpr);
 static int32_t exprValidateStringConcatWsNode(tExprNode *pExpr);
 static int32_t exprValidateStringLengthNode(tExprNode *pExpr);
 static int32_t exprValidateCastNode(char* msgbuf, tExprNode *pExpr);
-static int32_t exprValidateTimeNode(tExprNode *pExpr);
+static int32_t exprValidateTimeNode(char* msgbuf, tExprNode *pExpr);
 
 static int32_t exprInvalidOperationMsg(char *msgbuf, const char *msg) {
   const char* msgFormat = "invalid operation: %s";
@@ -83,7 +83,7 @@ int32_t exprTreeValidateFunctionNode(char* msgbuf, tExprNode *pExpr) {
     case TSDB_FUNC_SCALAR_TODAY:
     case TSDB_FUNC_SCALAR_TIMEZONE:
     case TSDB_FUNC_SCALAR_TO_ISO8601: {
-      return exprValidateTimeNode(pExpr);
+      return exprValidateTimeNode(msgbuf, pExpr);
     }
 
     default:
@@ -1185,7 +1185,8 @@ int32_t exprValidateMathNode(tExprNode *pExpr) {
   return TSDB_CODE_SUCCESS;
 }
 
-int32_t exprValidateTimeNode(tExprNode *pExpr) {
+int32_t exprValidateTimeNode(char *msgbuf, tExprNode *pExpr) {
+  const char* msg1 = "invalid timestamp digits";
   switch (pExpr->_func.functionId) {
     case TSDB_FUNC_SCALAR_NOW:
     case TSDB_FUNC_SCALAR_TODAY: {
@@ -1283,6 +1284,16 @@ int32_t exprValidateTimeNode(tExprNode *pExpr) {
       if (child->resultType != TSDB_DATA_TYPE_BIGINT) {
         return TSDB_CODE_TSC_INVALID_OPERATION;
       }
+      char fraction[32] = {0};
+      NUM_TO_STRING(child->resultType, &child->pVal->i64, sizeof(fraction), fraction);
+      int32_t tsDigits = strlen(fraction);
+      if (tsDigits > TSDB_TIME_PRECISION_SEC_DIGITS &&
+          tsDigits != TSDB_TIME_PRECISION_MILLI_DIGITS &&
+          tsDigits != TSDB_TIME_PRECISION_MICRO_DIGITS &&
+          tsDigits != TSDB_TIME_PRECISION_NANO_DIGITS) {
+        return exprInvalidOperationMsg(msgbuf, msg1);
+      }
+
       pExpr->resultType = TSDB_DATA_TYPE_BINARY;
       pExpr->resultBytes = 64;//2013-04-12T15:52:01.123000000+0800
 
