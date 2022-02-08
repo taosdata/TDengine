@@ -1926,7 +1926,9 @@ void vectorTimeFunc(int16_t functionId, tExprOperandInfo *pInputs, int32_t numIn
           assert(pInputs[1].type == TSDB_DATA_TYPE_BIGINT);
 
           int64_t timeVal = 0;
-          taosParseTime((char *)varDataVal(inputData[0]), &timeVal, pInputs[0].bytes, TSDB_TIME_PRECISION_NANO, 0);
+          int64_t timePrec;
+          GET_TYPED_DATA(timePrec, int64_t, pInputs[1].type, inputData[1]);
+          taosParseTime((char *)varDataVal(inputData[0]), &timeVal, pInputs[0].bytes, timePrec, 0);
           SET_TYPED_DATA(outputData, pOutput->type, timeVal);
 
           break;
