@@ -2063,9 +2063,9 @@ void vectorTimeFunc(int16_t functionId, tExprOperandInfo *pInputs, int32_t numIn
               if (tsDigits == TSDB_TIME_PRECISION_MILLI_DIGITS) {
                 timeVal = timeVal / 1000 * 1000;
               } else if (tsDigits == TSDB_TIME_PRECISION_MICRO_DIGITS) {
-                timeVal = timeVal / (1000000) * (1000000);
+                timeVal = timeVal / 1000000 * 1000000;
               } else if (tsDigits == TSDB_TIME_PRECISION_NANO_DIGITS) {
-                timeVal = timeVal / (1000000000) * (1000000000);
+                timeVal = timeVal / 1000000000 * 1000000000;
               } else if (tsDigits <= TSDB_TIME_PRECISION_SEC_DIGITS) {
                 timeVal = timeVal * factor;
               } else {
@@ -2077,9 +2077,9 @@ void vectorTimeFunc(int16_t functionId, tExprOperandInfo *pInputs, int32_t numIn
               if (tsDigits == TSDB_TIME_PRECISION_MILLI_DIGITS) {
                 timeVal = timeVal / 1000 / 60 * 60 * 1000;
               } else if (tsDigits == TSDB_TIME_PRECISION_MICRO_DIGITS) {
-                timeVal = timeVal / (1000000) / 60 * 60 * (1000000);
+                timeVal = timeVal / 1000000 / 60 * 60 * 1000000;
               } else if (tsDigits == TSDB_TIME_PRECISION_NANO_DIGITS) {
-                timeVal = timeVal / (1000000000) / 60 * 60 * (1000000000);
+                timeVal = timeVal / 1000000000 / 60 * 60 * 1000000000;
               } else if (tsDigits <= TSDB_TIME_PRECISION_SEC_DIGITS) {
                 timeVal = timeVal * factor / factor / 60 * 60 * factor;
               } else {
@@ -2091,9 +2091,9 @@ void vectorTimeFunc(int16_t functionId, tExprOperandInfo *pInputs, int32_t numIn
               if (tsDigits == TSDB_TIME_PRECISION_MILLI_DIGITS) {
                 timeVal = timeVal / 1000 / 3600 * 3600 * 1000;
               } else if (tsDigits == TSDB_TIME_PRECISION_MICRO_DIGITS) {
-                timeVal = timeVal / (1000000) / 3600 * 3600 * (1000000);
+                timeVal = timeVal / 1000000 / 3600 * 3600 * 1000000;
               } else if (tsDigits == TSDB_TIME_PRECISION_NANO_DIGITS) {
-                timeVal = timeVal / (1000000000) / 3600 * 3600 * (1000000000);
+                timeVal = timeVal / 1000000000 / 3600 * 3600 * 1000000000;
               } else if (tsDigits <= TSDB_TIME_PRECISION_SEC_DIGITS) {
                 timeVal = timeVal * factor / factor / 3600 * 3600 * factor;
               } else {
@@ -2105,9 +2105,9 @@ void vectorTimeFunc(int16_t functionId, tExprOperandInfo *pInputs, int32_t numIn
               if (tsDigits == TSDB_TIME_PRECISION_MILLI_DIGITS) {
                 timeVal = timeVal / 1000 / 86400 * 86400 * 1000;
               } else if (tsDigits == TSDB_TIME_PRECISION_MICRO_DIGITS) {
-                timeVal = timeVal / (1000000) / 86400 * 86400 * (1000000);
+                timeVal = timeVal / 1000000 / 86400 * 86400 * 1000000;
               } else if (tsDigits == TSDB_TIME_PRECISION_NANO_DIGITS) {
-                timeVal = timeVal / (1000000000) / 86400 * 86400 * (1000000000);
+                timeVal = timeVal / 1000000000 / 86400 * 86400 * 1000000000;
               } else if (tsDigits <= TSDB_TIME_PRECISION_SEC_DIGITS) {
                 timeVal = timeVal * factor / factor / 86400* 86400 * factor;
               } else {
