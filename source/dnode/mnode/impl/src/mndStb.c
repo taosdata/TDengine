@@ -735,11 +735,6 @@ static int32_t mndAlterStbTagBytes(const SStbObj *pOld, SStbObj *pNew, const SSc
     return -1;
   }
 
-  if (!(pSchema->type == TSDB_DATA_TYPE_BINARY || pSchema->type == TSDB_DATA_TYPE_NCHAR)) {
-    terrno = TSDB_CODE_MND_INVALID_STB_OPTION;
-    return -1;
-  }
-
   if (mndAllocStbSchemas(pOld, pNew) != 0) {
     return -1;
   }
@@ -747,6 +742,11 @@ static int32_t mndAlterStbTagBytes(const SStbObj *pOld, SStbObj *pNew, const SSc
   SSchema *pTag = pNew->pTags + tag;
   if (pSchema->bytes <= pTag->bytes) {
     terrno = TSDB_CODE_MND_INVALID_ROW_BYTES;
+    return -1;
+  }
+
+  if (!(pTag->type == TSDB_DATA_TYPE_BINARY || pTag->type == TSDB_DATA_TYPE_NCHAR)) {
+    terrno = TSDB_CODE_MND_INVALID_STB_OPTION;
     return -1;
   }
 
@@ -819,11 +819,6 @@ static int32_t mndAlterStbColumnBytes(const SStbObj *pOld, SStbObj *pNew, const 
     return -1;
   }
 
-  if (!(pSchema->type == TSDB_DATA_TYPE_BINARY || pSchema->type == TSDB_DATA_TYPE_NCHAR)) {
-    terrno = TSDB_CODE_MND_INVALID_STB_OPTION;
-    return -1;
-  }
-
   uint32_t nLen = 0;
   for (int32_t i = 0; i < pOld->numOfColumns; ++i) {
     nLen += (pOld->pColumns[i].colId == col) ? pSchema->bytes : pOld->pColumns[i].bytes;
@@ -841,6 +836,11 @@ static int32_t mndAlterStbColumnBytes(const SStbObj *pOld, SStbObj *pNew, const 
   SSchema *pCol = pNew->pColumns + col;
   if (pSchema->bytes <= pCol->bytes) {
     terrno = TSDB_CODE_MND_INVALID_ROW_BYTES;
+    return -1;
+  }
+
+  if (!(pCol->type == TSDB_DATA_TYPE_BINARY || pCol->type == TSDB_DATA_TYPE_NCHAR)) {
+    terrno = TSDB_CODE_MND_INVALID_STB_OPTION;
     return -1;
   }
 
