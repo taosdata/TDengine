@@ -307,13 +307,18 @@ size_t blockDataGetSize(const SSDataBlock* pBlock) {
 
   size_t total = 0;
   int32_t numOfCols = pBlock->info.numOfCols;
+
   for(int32_t i = 0; i < numOfCols; ++i) {
     SColumnInfoData* pColInfoData = taosArrayGet(pBlock->pDataBlock, i);
     total += colDataGetSize(pColInfoData, pBlock->info.rows);
+
+    if (IS_VAR_DATA_TYPE(pColInfoData->info.type)) {
+      total += sizeof(int32_t) * pBlock->info.rows;
+    } else {
+      total += BitmapLen(pBlock->info.rows);
+    }
   }
 
-  // bitmap for each column
-  total += BitmapLen(pBlock->info.rows) * numOfCols;
   return total;
 }
 
@@ -325,15 +330,18 @@ int32_t blockDataSplitRows(SSDataBlock* pBlock, bool hasVarCol, int32_t startInd
   int32_t numOfCols = pBlock->info.numOfCols;
   int32_t numOfRows = pBlock->info.rows;
 
-  size_t headerSize = sizeof(int32_t);
-  size_t colHeaderSize = sizeof(int32_t) * numOfCols;
-  // TODO speedup by checking if the whole page can fit in firstly.
+  int32_t bitmapChar = 1;
 
+  size_t headerSize    = sizeof(int32_t);
+  size_t colHeaderSize = sizeof(int32_t) * numOfCols;
+  size_t payloadSize   = pageSize - (headerSize + colHeaderSize);
+
+  // TODO speedup by checking if the whole page can fit in firstly.
   if (!hasVarCol) {
     size_t rowSize = blockDataGetRowSize(pBlock);
-    int32_t capacity = ((pageSize - headerSize - colHeaderSize) / (rowSize * 8 + 1)) * 8;
-    *stopIndex = startIndex + capacity;
+    int32_t capacity = (payloadSize / (rowSize * 8 + bitmapChar * numOfCols)) * 8;
 
+    *stopIndex = startIndex + capacity;
     if (*stopIndex >= numOfRows) {
       *stopIndex = numOfRows - 1;
     }
@@ -345,7 +353,7 @@ int32_t blockDataSplitRows(SSDataBlock* pBlock, bool hasVarCol, int32_t startInd
 
     for(int32_t j = startIndex; j < numOfRows; ++j) {
       for (int32_t i = 0; i < numOfCols; ++i) {
-        SColumnInfoData* pColInfoData = taosArrayGet(pBlock->pDataBlock, i);
+        SColumnInfoData* pColInfoData = TARRAY_GET_ELEM(pBlock->pDataBlock, i);
         if (IS_VAR_DATA_TYPE(pColInfoData->info.type)) {
           bool isNull = colDataIsNull(pColInfoData, numOfRows, j, NULL);
           if (isNull) {
@@ -359,7 +367,7 @@ int32_t blockDataSplitRows(SSDataBlock* pBlock, bool hasVarCol, int32_t startInd
         } else {
           size += pColInfoData->info.bytes;
 
-          if (((j - startIndex) % 8) == 0) {
+          if (((j - startIndex) & 0x07) == 0) {
             size += 1; // the space for null bitmap
           }
         }
@@ -597,14 +605,13 @@ static int32_t doAssignOneTuple(SColumnInfoData* pDstCols, int32_t numOfRows, co
     SColumnInfoData* pDst = &pDstCols[i];
     SColumnInfoData* pSrc = taosArrayGet(pSrcBlock->pDataBlock, i);
 
-    bool isNull = colDataIsNull(pSrc, pSrcBlock->info.rows, tupleIndex, NULL);
-    if (isNull) {
+    if (pSrc->hasNull && colDataIsNull(pSrc, pSrcBlock->info.rows, tupleIndex, pSrcBlock->pBlockAgg)) {
       code = colDataAppend(pDst, numOfRows, NULL, true);
       if (code != TSDB_CODE_SUCCESS) {
         return code;
       }
     } else {
-      char* p = colDataGet((SColumnInfoData*)pSrc, tupleIndex);
+      char* p = colDataGet(pSrc, tupleIndex);
       code = colDataAppend(pDst, numOfRows, p, false);
       if (code != TSDB_CODE_SUCCESS) {
         return code;

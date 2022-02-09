@@ -5706,6 +5706,10 @@ void addToDiskbasedBuf(SOrderOperatorInfo* pInfo, jmp_buf env) {
 
     int32_t pageId = -1;
     SFilePage* pPage = getNewDataBuf(pInfo->pSortInternalBuf, pInfo->sourceId, &pageId);
+
+    int32_t size = blockDataGetSize(p) + sizeof(int32_t)  + p->info.numOfCols * sizeof(int32_t);
+    assert(size <= getBufPageSize(pInfo->pSortInternalBuf));
+
     blockDataToBuf(pPage->data, p);
 
     blockDataDestroy(p);
