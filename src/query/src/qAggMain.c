@@ -2170,6 +2170,10 @@ static void copyTopBotRes(SQLFunctionCtx *pCtx, int32_t type) {
   
   // set the corresponding tag data for each record
   // todo check malloc failure
+  if (pCtx->tagInfo.numOfTagCols == 0) {
+    return ;
+  }
+
   char **pData = calloc(pCtx->tagInfo.numOfTagCols, POINTER_BYTES);
   for (int32_t i = 0; i < pCtx->tagInfo.numOfTagCols; ++i) {
     pData[i] = pCtx->tagInfo.pTagCtxList[i]->pOutput;
@@ -4693,6 +4697,10 @@ static void copySampleFuncRes(SQLFunctionCtx *pCtx, int32_t type) {
     *pTimestamp = *(pRes->timeStamps + i);
     pOutput += pCtx->outputBytes;
     pTimestamp++;
+  }
+  
+  if (pCtx->tagInfo.numOfTagCols == 0) {
+    return ;
   }
 
   char **tagOutputs = calloc(pCtx->tagInfo.numOfTagCols, POINTER_BYTES);
