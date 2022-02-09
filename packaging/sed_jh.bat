@@ -17,20 +17,6 @@ set community_dir=%1
 ::src\util\src\tconfig.c
 %sed% -i "s/taos\.cfg/jh_taos\.cfg/g"  %community_dir%\src\util\src\tconfig.c
 %sed% -i "s/etc\/taos/etc\/jh_taos/g"   %community_dir%\src\util\src\tconfig.c
-::src\kit\taosdemo\CMakeLists.txt
-%sed% -i "s/ADD_EXECUTABLE(taosdemo/ADD_EXECUTABLE(jhdemo/g" %community_dir%\src\kit\taosdemo\CMakeLists.txt
-%sed% -i "s/TARGET_LINK_LIBRARIES(taosdemo/TARGET_LINK_LIBRARIES(jhdemo/g" %community_dir%\src\kit\taosdemo\CMakeLists.txt
-::src\kit\taosdemo\taosdemo.c
-%sed% -i "s/taosdemo --help/jhdemo --help/g" %community_dir%\src\kit\taosdemo\taosdemo.c
-%sed% -i "s/taosdemo --usage/jhdemo --usage/g" %community_dir%\src\kit\taosdemo\taosdemo.c
-%sed% -i "s/Usage: taosdemo/Usage: jhdemo/g" %community_dir%\src\kit\taosdemo\taosdemo.c
-%sed% -i "s/taosdemo is simulating/jhdemo is simulating/g" %community_dir%\src\kit\taosdemo\taosdemo.c
-%sed% -i "s/taosdemo version/jhdemo version/g" %community_dir%\src\kit\taosdemo\taosdemo.c
-%sed% -i "s/\"taosdata\"/\"jhdata\"/g" %community_dir%\src\kit\taosdemo\taosdemo.c
-%sed% -i "s/support@taosdata\.com/jhkj@njsteel\.com\.cn/g" %community_dir%\src\kit\taosdemo\taosdemo.c
-%sed% -i "s/taosc, rest, and stmt/jh_taos, rest, and stmt/g" %community_dir%\src\kit\taosdemo\taosdemo.c
-%sed% -i "s/taosdemo uses/jhdemo uses/g" %community_dir%\src\kit\taosdemo\taosdemo.c
-%sed% -i "s/use 'taosc'/use 'jh_taos'/g" %community_dir%\src\kit\taosdemo\taosdemo.c
 ::src\util\src\tlog.c
 %sed% -i "s/log\/taos/log\/jh_taos/g"   %community_dir%\src\util\src\tlog.c
 ::src\dnode\src\dnodeSystem.c
@@ -44,12 +30,6 @@ set community_dir=%1
 %sed% -i "s/taosinfo/jh_taosinfo/g"  %community_dir%\src\util\src\tnote.c
 ::src\dnode\CMakeLists.txt
 %sed% -i "s/taos\.cfg/jh_taos\.cfg/g"  %community_dir%\src\dnode\CMakeLists.txt
-::src\kit\taosdump\taosdump.c
-%sed% -i "s/support@taosdata\.com/jhkj@njsteel\.com\.cn/g" %community_dir%\src\kit\taosdump\taosdump.c
-%sed% -i "s/Default is taosdata/Default is jhdata/g" %community_dir%\src\kit\taosdump\taosdump.c
-%sed% -i "s/\"taosdata\"/\"jhdata\"/g" %community_dir%\src\kit\taosdump\taosdump.c
-%sed% -i "s/TDengine/jh_iot/g" %community_dir%\src\kit\taosdump\taosdump.c
-%sed% -i "s/taos\/taos\.cfg/jh_taos\/jh_taos\.cfg/g" %community_dir%\src\kit\taosdump\taosdump.c
 ::src\os\src\linux\linuxEnv.c
 %sed% -i "s/etc\/taos/etc\/jh_taos/g" %community_dir%\src\os\src\linux\linuxEnv.c
 %sed% -i "s/lib\/taos/lib\/jh_taos/g" %community_dir%\src\os\src\linux\linuxEnv.c
