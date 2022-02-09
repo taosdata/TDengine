@@ -50,7 +50,7 @@ bool    ctgTestStop = false;
 bool    ctgTestEnableSleep = false;
 bool    ctgTestDeadLoop = false;
 int32_t ctgTestPrintNum = 200000;
-int32_t ctgTestMTRunSec = 30;
+int32_t ctgTestMTRunSec = 5;
 
 int32_t ctgTestCurrentVgVersion = 0;
 int32_t ctgTestVgVersion = 1;
@@ -838,6 +838,8 @@ TEST(tableMeta, childTableCase) {
   struct SCatalog *pCtg = NULL;
   void            *mockPointer = (void *)0x1;
   SVgroupInfo      vgInfo = {0};
+
+  ctgTestInitLogFile();
 
   ctgTestSetPrepareDbVgroupsAndChildMeta();
 
