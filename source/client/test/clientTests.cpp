@@ -562,12 +562,14 @@ TEST(testCase, insert_test) {
   taos_free_result(pRes);
   taos_close(pConn);
 }
+#endif
 
+#if 0
 TEST(testCase, projection_query_tables) {
   TAOS* pConn = taos_connect("localhost", "root", "taosdata", NULL, 0);
   ASSERT_NE(pConn, nullptr);
 
-  TAOS_RES *pRes = taos_query(pConn, "use abc1");
+  TAOS_RES* pRes = taos_query(pConn, "use abc1");
   taos_free_result(pRes);
 
   pRes = taos_query(pConn, "create stable st1 (ts timestamp, k int) tags(a int)");
@@ -582,7 +584,7 @@ TEST(testCase, projection_query_tables) {
   }
   taos_free_result(pRes);
 
-  for (int32_t i = 0; i < 100000; ++i) {
+  for(int32_t i = 0; i < 100000; ++i) {
     char sql[512] = {0};
     sprintf(sql, "insert into tu values(now+%da, %d)", i, i);
     TAOS_RES* p = taos_query(pConn, sql);
