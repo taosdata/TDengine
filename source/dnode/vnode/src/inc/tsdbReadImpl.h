@@ -75,8 +75,8 @@ typedef struct {
 
 typedef struct {
   int16_t  colId;
-  int16_t  bitmap : 1;  // 0: no bitmap if all rows not null, 1: has bitmap if has null rows
-  int16_t  reserve : 15;
+  uint16_t bitmap : 1;  // 0: has bitmap if has NULL/NORM rows, 1: no bitmap if all rows are NORM
+  uint16_t reserve : 15;
   int32_t  len;
   uint32_t type : 8;
   uint32_t offset : 24;

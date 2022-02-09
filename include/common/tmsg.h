@@ -25,7 +25,7 @@ extern "C" {
 #include "taoserror.h"
 #include "tarray.h"
 #include "tcoding.h"
-#include "tdataformat.h"
+#include "trow.h"
 #include "thash.h"
 #include "tlist.h"
 
@@ -212,7 +212,7 @@ typedef struct {
 typedef struct {
   int32_t totalLen;
   int32_t len;
-  SMemRow row;
+  STSRow  *row;
 } SSubmitBlkIter;
 
 typedef struct {
@@ -224,7 +224,7 @@ typedef struct {
 int     tInitSubmitMsgIter(SSubmitMsg* pMsg, SSubmitMsgIter* pIter);
 int     tGetSubmitMsgNext(SSubmitMsgIter* pIter, SSubmitBlk** pPBlock);
 int     tInitSubmitBlkIter(SSubmitBlk* pBlock, SSubmitBlkIter* pIter);
-SMemRow tGetSubmitBlkNext(SSubmitBlkIter* pIter);
+STSRow* tGetSubmitBlkNext(SSubmitBlkIter* pIter);
 
 typedef struct {
   int32_t index;  // index of failed block in submit blocks

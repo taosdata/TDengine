@@ -22,7 +22,7 @@ static void     tsdbFreeTbData(STbData *pTbData);
 static char *   tsdbGetTsTupleKey(const void *data);
 static int      tsdbTbDataComp(const void *arg1, const void *arg2);
 static char *   tsdbTbDataGetUid(const void *arg);
-static int      tsdbAppendTableRowToCols(STable *pTable, SDataCols *pCols, STSchema **ppSchema, SMemRow row);
+static int      tsdbAppendTableRowToCols(STable *pTable, SDataCols *pCols, STSchema **ppSchema, STSRow *row);
 
 STsdbMemTable *tsdbNewMemTable(STsdb *pTsdb) {
   STsdbMemTable *pMemTable = (STsdbMemTable *)calloc(1, sizeof(*pMemTable));
@@ -124,7 +124,7 @@ int tsdbLoadDataFromCache(STable *pTable, SSkipListIterator *pIter, TSKEY maxKey
   TSKEY      fKey = 0;
   bool       isRowDel = false;
   int        filterIter = 0;
-  SMemRow    row = NULL;
+  STSRow *   row = NULL;
   SMergeInfo mInfo;
 
   if (pMergeInfo == NULL) pMergeInfo = &mInfo;
@@ -135,12 +135,12 @@ int tsdbLoadDataFromCache(STable *pTable, SSkipListIterator *pIter, TSKEY maxKey
   if (pCols) tdResetDataCols(pCols);
 
   row = tsdbNextIterRow(pIter);
-  if (row == NULL || memRowKey(row) > maxKey) {
+  if (row == NULL || TD_ROW_KEY(row) > maxKey) {
     rowKey = INT64_MAX;
     isRowDel = false;
   } else {
-    rowKey = memRowKey(row);
-    isRowDel = memRowDeleted(row);
+    rowKey = TD_ROW_KEY(row);
+    isRowDel = TD_ROW_IS_DELETED(row);
   }
 
   if (filterIter >= nFilterKeys) {
@@ -177,12 +177,12 @@ int tsdbLoadDataFromCache(STable *pTable, SSkipListIterator *pIter, TSKEY maxKey
 
       tSkipListIterNext(pIter);
       row = tsdbNextIterRow(pIter);
-      if (row == NULL || memRowKey(row) > maxKey) {
+      if (row == NULL || TD_ROW_KEY(row) > maxKey) {
         rowKey = INT64_MAX;
         isRowDel = false;
       } else {
-        rowKey = memRowKey(row);
-        isRowDel = memRowDeleted(row);
+        rowKey = TD_ROW_KEY(row);
+        isRowDel = TD_ROW_IS_DELETED(row);
       }
     } else {
       if (isRowDel) {
@@ -207,12 +207,12 @@ int tsdbLoadDataFromCache(STable *pTable, SSkipListIterator *pIter, TSKEY maxKey
 
       tSkipListIterNext(pIter);
       row = tsdbNextIterRow(pIter);
-      if (row == NULL || memRowKey(row) > maxKey) {
+      if (row == NULL || TD_ROW_KEY(row) > maxKey) {
         rowKey = INT64_MAX;
         isRowDel = false;
       } else {
-        rowKey = memRowKey(row);
-        isRowDel = memRowDeleted(row);
+        rowKey = TD_ROW_KEY(row);
+        isRowDel = TD_ROW_IS_DELETED(row);
       }
 
       filterIter++;
@@ -233,7 +233,7 @@ static int tsdbScanAndConvertSubmitMsg(STsdb *pTsdb, SSubmitMsg *pMsg) {
   SSubmitMsgIter msgIter = {0};
   SSubmitBlk *   pBlock = NULL;
   SSubmitBlkIter blkIter = {0};
-  SMemRow        row = NULL;
+  STSRow *       row = NULL;
   TSKEY          now = taosGetTimestamp(pTsdb->config.precision);
   TSKEY          minKey = now - tsTickPerDay[pTsdb->config.precision] * pTsdb->config.keep;
   TSKEY          maxKey = now + tsTickPerDay[pTsdb->config.precision] * pTsdb->config.daysPerFile;
@@ -306,7 +306,7 @@ static int tsdbMemTableInsertTbData(STsdb *pTsdb, SSubmitBlk *pBlock, int32_t *p
   STsdbMemTable *pMemTable = pTsdb->mem;
   void *         tptr;
   STbData *      pTbData;
-  SMemRow        row;
+  STSRow *       row;
   TSKEY          keyMin;
   TSKEY          keyMax;
 
@@ -332,12 +332,12 @@ static int tsdbMemTableInsertTbData(STsdb *pTsdb, SSubmitBlk *pBlock, int32_t *p
 
   tInitSubmitBlkIter(pBlock, &blkIter);
   if (blkIter.row == NULL) return 0;
-  keyMin = memRowKey(blkIter.row);
+  keyMin = TD_ROW_KEY(blkIter.row);
 
   tSkipListPutBatchByIter(pTbData->pData, &blkIter, (iter_next_fn_t)tGetSubmitBlkNext);
 
   // Set statistics
-  keyMax = memRowKey(blkIter.row);
+  keyMax = TD_ROW_KEY(blkIter.row);
 
   pTbData->nrows += pBlock->numOfRows;
   if (pTbData->keyMin > keyMin) pTbData->keyMin = keyMin;
@@ -347,7 +347,7 @@ static int tsdbMemTableInsertTbData(STsdb *pTsdb, SSubmitBlk *pBlock, int32_t *p
   if (pMemTable->keyMin > keyMin) pMemTable->keyMin = keyMin;
   if (pMemTable->keyMax < keyMax) pMemTable->keyMax = keyMax;
 
-  // SMemRow lastRow = NULL;
+  // STSRow* lastRow = NULL;
   // int64_t osize = SL_SIZE(pTableData->pData);
   // tsdbSetupSkipListHookFns(pTableData->pData, pRepo, pTable, &points, &lastRow);
   // tSkipListPutBatchByIter(pTableData->pData, &blkIter, (iter_next_fn_t)tsdbGetSubmitBlkNext);
@@ -355,7 +355,7 @@ static int tsdbMemTableInsertTbData(STsdb *pTsdb, SSubmitBlk *pBlock, int32_t *p
   // (*pAffectedRows) += points;
 
   // if(lastRow != NULL) {
-  //   TSKEY lastRowKey = memRowKey(lastRow);
+  //   TSKEY lastRowKey = TD_ROW_KEY(lastRow);
   //   if (pMemTable->keyFirst > firstRowKey) pMemTable->keyFirst = firstRowKey;
   //   pMemTable->numOfRows += dsize;
 
@@ -418,7 +418,7 @@ static void tsdbFreeTbData(STbData *pTbData) {
   }
 }
 
-static char *tsdbGetTsTupleKey(const void *data) { return memRowKeys((SMemRow)data); }
+static char *tsdbGetTsTupleKey(const void *data) { return (char *)TD_ROW_KEY_ADDR((STSRow *)data); }
 
 static int tsdbTbDataComp(const void *arg1, const void *arg2) {
   STbData *pTbData1 = (STbData *)arg1;
@@ -437,17 +437,17 @@ static char *tsdbTbDataGetUid(const void *arg) {
   STbData *pTbData = (STbData *)arg;
   return (char *)(&(pTbData->uid));
 }
-static int tsdbAppendTableRowToCols(STable *pTable, SDataCols *pCols, STSchema **ppSchema, SMemRow row) {
+static int tsdbAppendTableRowToCols(STable *pTable, SDataCols *pCols, STSchema **ppSchema, STSRow *row) {
   if (pCols) {
-    if (*ppSchema == NULL || schemaVersion(*ppSchema) != memRowVersion(row)) {
-      *ppSchema = tsdbGetTableSchemaImpl(pTable, false, false, memRowVersion(row));
+    if (*ppSchema == NULL || schemaVersion(*ppSchema) != TD_ROW_SVER(row)) {
+      *ppSchema = tsdbGetTableSchemaImpl(pTable, false, false, TD_ROW_SVER(row));
       if (*ppSchema == NULL) {
         ASSERT(false);
         return -1;
       }
     }
 
-    tdAppendMemRowToDataCol(row, *ppSchema, pCols, true);
+    tdAppendSTSRowToDataCol(row, *ppSchema, pCols, true);
   }
 
   return 0;
@@ -479,7 +479,7 @@ int tsdbInsertDataToMemTable(STsdbMemTable *pMemTable, SSubmitMsg *pMsg) {
 typedef struct {
   int32_t  totalLen;
   int32_t  len;
-  SMemRow  row;
+  STSRow*  row;
 } SSubmitBlkIter;
 
 typedef struct {
@@ -493,17 +493,17 @@ static void         tsdbFreeMemTable(SMemTable *pMemTable);
 static STableData*  tsdbNewTableData(STsdbCfg *pCfg, STable *pTable);
 static void         tsdbFreeTableData(STableData *pTableData);
 static int          tsdbAdjustMemMaxTables(SMemTable *pMemTable, int maxTables);
-static int          tsdbAppendTableRowToCols(STable *pTable, SDataCols *pCols, STSchema **ppSchema, SMemRow row);
+static int          tsdbAppendTableRowToCols(STable *pTable, SDataCols *pCols, STSchema **ppSchema, STSRow* row);
 static int          tsdbInitSubmitBlkIter(SSubmitBlk *pBlock, SSubmitBlkIter *pIter);
-static SMemRow      tsdbGetSubmitBlkNext(SSubmitBlkIter *pIter);
+static STSRow*      tsdbGetSubmitBlkNext(SSubmitBlkIter *pIter);
 static int          tsdbScanAndConvertSubmitMsg(STsdbRepo *pRepo, SSubmitMsg *pMsg);
 static int          tsdbInsertDataToTable(STsdbRepo *pRepo, SSubmitBlk *pBlock, int32_t *affectedrows);
 static int          tsdbInitSubmitMsgIter(SSubmitMsg *pMsg, SSubmitMsgIter *pIter);
 static int          tsdbGetSubmitMsgNext(SSubmitMsgIter *pIter, SSubmitBlk **pPBlock);
 static int          tsdbCheckTableSchema(STsdbRepo *pRepo, SSubmitBlk *pBlock, STable *pTable);
-static int          tsdbUpdateTableLatestInfo(STsdbRepo *pRepo, STable *pTable, SMemRow row);
+static int          tsdbUpdateTableLatestInfo(STsdbRepo *pRepo, STable *pTable, STSRow* row);
 
-static FORCE_INLINE int tsdbCheckRowRange(STsdbRepo *pRepo, STable *pTable, SMemRow row, TSKEY minKey, TSKEY maxKey,
+static FORCE_INLINE int tsdbCheckRowRange(STsdbRepo *pRepo, STable *pTable, STSRow* row, TSKEY minKey, TSKEY maxKey,
                                           TSKEY now);
 
 
@@ -685,7 +685,7 @@ int tsdbLoadDataFromCache(STable *pTable, SSkipListIterator *pIter, TSKEY maxKey
   TSKEY      fKey = 0;
   bool       isRowDel = false;
   int        filterIter = 0;
-  SMemRow    row = NULL;
+  STSRow*    row = NULL;
   SMergeInfo mInfo;
 
   if (pMergeInfo == NULL) pMergeInfo = &mInfo;
@@ -696,11 +696,11 @@ int tsdbLoadDataFromCache(STable *pTable, SSkipListIterator *pIter, TSKEY maxKey
   if (pCols) tdResetDataCols(pCols);
 
   row = tsdbNextIterRow(pIter);
-  if (row == NULL || memRowKey(row) > maxKey) {
+  if (row == NULL || TD_ROW_KEY(row) > maxKey) {
     rowKey = INT64_MAX;
     isRowDel = false;
   } else {
-    rowKey = memRowKey(row);
+    rowKey = TD_ROW_KEY(row);
     isRowDel = memRowDeleted(row);
   }
 
@@ -738,11 +738,11 @@ int tsdbLoadDataFromCache(STable *pTable, SSkipListIterator *pIter, TSKEY maxKey
 
       tSkipListIterNext(pIter);
       row = tsdbNextIterRow(pIter);
-      if (row == NULL || memRowKey(row) > maxKey) {
+      if (row == NULL || TD_ROW_KEY(row) > maxKey) {
         rowKey = INT64_MAX;
         isRowDel = false;
       } else {
-        rowKey = memRowKey(row);
+        rowKey = TD_ROW_KEY(row);
         isRowDel = memRowDeleted(row);
       }
     } else {
@@ -768,11 +768,11 @@ int tsdbLoadDataFromCache(STable *pTable, SSkipListIterator *pIter, TSKEY maxKey
 
       tSkipListIterNext(pIter);
       row = tsdbNextIterRow(pIter);
-      if (row == NULL || memRowKey(row) > maxKey) {
+      if (row == NULL || TD_ROW_KEY(row) > maxKey) {
         rowKey = INT64_MAX;
         isRowDel = false;
       } else {
-        rowKey = memRowKey(row);
+        rowKey = TD_ROW_KEY(row);
         isRowDel = memRowDeleted(row);
       }
 
@@ -790,9 +790,9 @@ int tsdbLoadDataFromCache(STable *pTable, SSkipListIterator *pIter, TSKEY maxKey
 
 // ---------------- LOCAL FUNCTIONS ----------------
 
-static FORCE_INLINE int tsdbCheckRowRange(STsdbRepo *pRepo, STable *pTable, SMemRow row, TSKEY minKey, TSKEY maxKey,
+static FORCE_INLINE int tsdbCheckRowRange(STsdbRepo *pRepo, STable *pTable, STSRow* row, TSKEY minKey, TSKEY maxKey,
                                           TSKEY now) {
-  TSKEY rowKey = memRowKey(row);
+  TSKEY rowKey = TD_ROW_KEY(row);
   if (rowKey < minKey || rowKey > maxKey) {
     tsdbError("vgId:%d table %s tid %d uid %" PRIu64 " timestamp is out of range! now %" PRId64 " minKey %" PRId64
               " maxKey %" PRId64 " row key %" PRId64,
@@ -807,9 +807,9 @@ static FORCE_INLINE int tsdbCheckRowRange(STsdbRepo *pRepo, STable *pTable, SMem
 
 
 //row1 has higher priority
-static SMemRow tsdbInsertDupKeyMerge(SMemRow row1, SMemRow row2, STsdbRepo* pRepo,
+static STSRow* tsdbInsertDupKeyMerge(STSRow* row1, STSRow* row2, STsdbRepo* pRepo,
                                      STSchema **ppSchema1, STSchema **ppSchema2,
-                                     STable* pTable, int32_t* pPoints, SMemRow* pLastRow) {
+                                     STable* pTable, int32_t* pPoints, STSRow** pLastRow) {
 
   //for compatiblity, duplicate key inserted when update=0 should be also calculated as affected rows!
   if(row1 == NULL && row2 == NULL && pRepo->config.update == TD_ROW_DISCARD_UPDATE) {
@@ -819,10 +819,10 @@ static SMemRow tsdbInsertDupKeyMerge(SMemRow row1, SMemRow row2, STsdbRepo* pRep
 
   tsdbTrace("vgId:%d a row is %s table %s tid %d uid %" PRIu64 " key %" PRIu64, REPO_ID(pRepo),
             "updated in", TABLE_CHAR_NAME(pTable), TABLE_TID(pTable), TABLE_UID(pTable),
-            memRowKey(row1));
+            TD_ROW_KEY(row1));
 
   if(row2 == NULL || pRepo->config.update != TD_ROW_PARTIAL_UPDATE) {
-    void* pMem = tsdbAllocBytes(pRepo, memRowTLen(row1));
+    void* pMem = tsdbAllocBytes(pRepo, TD_ROW_LEN(row1));
     if(pMem == NULL) return NULL;
     memRowCpy(pMem, row1);
     (*pPoints)++;
@@ -853,9 +853,9 @@ static SMemRow tsdbInsertDupKeyMerge(SMemRow row1, SMemRow row2, STsdbRepo* pRep
     }
   }
 
-  SMemRow tmp = tsdbMergeTwoRows(pBuf, row1, row2, pSchema1, pSchema2);
+  STSRow* tmp = tsdbMergeTwoRows(pBuf, row1, row2, pSchema1, pSchema2);
 
-  void* pMem = tsdbAllocBytes(pRepo, memRowTLen(tmp));
+  void* pMem = tsdbAllocBytes(pRepo, TD_ROW_LEN(tmp));
   if(pMem == NULL) return NULL;
   memRowCpy(pMem, tmp);
 
@@ -868,7 +868,7 @@ static void* tsdbInsertDupKeyMergePacked(void** args) {
   return tsdbInsertDupKeyMerge(args[0], args[1], args[2], (STSchema**)&args[3], (STSchema**)&args[4], args[5], args[6], args[7]);
 }
 
-static void tsdbSetupSkipListHookFns(SSkipList* pSkipList, STsdbRepo *pRepo, STable *pTable, int32_t* pPoints, SMemRow* pLastRow) {
+static void tsdbSetupSkipListHookFns(SSkipList* pSkipList, STsdbRepo *pRepo, STable *pTable, int32_t* pPoints, STSRow** pLastRow) {
 
   if(pSkipList->insertHandleFn == NULL) {
     tGenericSavedFunc *dupHandleSavedFunc = genericSavedFuncInit((GenericVaFunc)&tsdbInsertDupKeyMergePacked, 9);
@@ -953,7 +953,7 @@ static int tsdbCheckTableSchema(STsdbRepo *pRepo, SSubmitBlk *pBlock, STable *pT
   return 0;
 }
 
-static void updateTableLatestColumn(STsdbRepo *pRepo, STable *pTable, SMemRow row) {
+static void updateTableLatestColumn(STsdbRepo *pRepo, STable *pTable, STSRow* row) {
   tsdbDebug("vgId:%d updateTableLatestColumn, %s row version:%d", REPO_ID(pRepo), pTable->name->data,
             memRowVersion(row));
 
@@ -1002,30 +1002,30 @@ static void updateTableLatestColumn(STsdbRepo *pRepo, STable *pTable, SMemRow ro
     assert(pTCol->bytes >= bytes);
     memcpy(pDataCol->pData, value, bytes);
     //tsdbInfo("updateTableLatestColumn vgId:%d cache column %d for %d,%s", REPO_ID(pRepo), j, pDataCol->bytes, (char*)pDataCol->pData);
-    pDataCol->ts = memRowKey(row);
+    pDataCol->ts = TD_ROW_KEY(row);
     // unlock
     TSDB_WUNLOCK_TABLE(pTable); 
   }
 }
 
-static int tsdbUpdateTableLatestInfo(STsdbRepo *pRepo, STable *pTable, SMemRow row) {
+static int tsdbUpdateTableLatestInfo(STsdbRepo *pRepo, STable *pTable, STSRow* row) {
   STsdbCfg *pCfg = &pRepo->config;
 
   // if cacheLastRow config has been reset, free the lastRow
   if (!pCfg->cacheLastRow && pTable->lastRow != NULL) {
-    SMemRow cachedLastRow = pTable->lastRow;
+    STSRow* cachedLastRow = pTable->lastRow;
     TSDB_WLOCK_TABLE(pTable);
     pTable->lastRow = NULL;
     TSDB_WUNLOCK_TABLE(pTable);
     taosTZfree(cachedLastRow);
   }
 
-  if (tsdbGetTableLastKeyImpl(pTable) <= memRowKey(row)) {
+  if (tsdbGetTableLastKeyImpl(pTable) <= TD_ROW_KEY(row)) {
     if (CACHE_LAST_ROW(pCfg) || pTable->lastRow != NULL) {
-      SMemRow nrow = pTable->lastRow;
-      if (taosTSizeof(nrow) < memRowTLen(row)) {
-        SMemRow orow = nrow;
-        nrow = taosTMalloc(memRowTLen(row));
+      STSRow* nrow = pTable->lastRow;
+      if (taosTSizeof(nrow) < TD_ROW_LEN(row)) {
+        STSRow* orow = nrow;
+        nrow = taosTMalloc(TD_ROW_LEN(row));
         if (nrow == NULL) {
           terrno = TSDB_CODE_TDB_OUT_OF_MEMORY;
           return -1;
@@ -1033,18 +1033,18 @@ static int tsdbUpdateTableLatestInfo(STsdbRepo *pRepo, STable *pTable, SMemRow r
 
         memRowCpy(nrow, row);
         TSDB_WLOCK_TABLE(pTable);
-        pTable->lastKey = memRowKey(row);
+        pTable->lastKey = TD_ROW_KEY(row);
         pTable->lastRow = nrow;
         TSDB_WUNLOCK_TABLE(pTable);
         taosTZfree(orow);
       } else {
         TSDB_WLOCK_TABLE(pTable);
-        pTable->lastKey = memRowKey(row);
+        pTable->lastKey = TD_ROW_KEY(row);
         memRowCpy(nrow, row);
         TSDB_WUNLOCK_TABLE(pTable);
       }
     } else {
-      pTable->lastKey = memRowKey(row);
+      pTable->lastKey = TD_ROW_KEY(row);
     }
 
     if (CACHE_LAST_NULL_COLUMN(pCfg)) {

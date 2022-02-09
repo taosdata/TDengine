@@ -518,7 +518,7 @@ static void createInputDataFilterInfo(SQueryStmtInfo* px, int32_t numOfCol1, int
 //
 //  if (IS_RAW_PAYLOAD(insertParam->payloadType)) {
 //    for (int32_t i = 0; i < numOfRows; ++i) {
-//      SMemRow memRow = (SMemRow)pDataBlock;
+//      STSRow* memRow = (STSRow*)pDataBlock;
 //      memRowSetType(memRow, SMEM_ROW_DATA);
 //      SDataRow trow = memRowDataBody(memRow);
 //      dataRowSetLen(trow, (uint16_t)(TD_DATA_ROW_HEAD_SIZE + flen));
@@ -531,13 +531,13 @@ static void createInputDataFilterInfo(SQueryStmtInfo* px, int32_t numOfCol1, int
 //        p += pSchema[j].bytes;
 //      }
 //
-//      pDataBlock = (char*)pDataBlock + memRowTLen(memRow);
-//      pBlock->dataLen += memRowTLen(memRow);
+//      pDataBlock = (char*)pDataBlock + TD_ROW_LEN(memRow);
+//      pBlock->dataLen += TD_ROW_LEN(memRow);
 //    }
 //  } else {
 //    for (int32_t i = 0; i < numOfRows; ++i) {
 //       char*      payload = (blkKeyTuple + i)->payloadAddr;
-//       TDRowLenT rowTLen = memRowTLen(payload);
+//       TDRowLenT rowTLen = TD_ROW_LEN(payload);
 //       memcpy(pDataBlock, payload, rowTLen);
 //       pDataBlock = POINTER_SHIFT(pDataBlock, rowTLen);
 //       pBlock->dataLen += rowTLen;

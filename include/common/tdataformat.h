@@ -26,6 +26,7 @@ extern "C" {
 
 // Imported since 3.0 and use bitmap to demonstrate None/Null/Norm, while use Null/Norm below 3.0 without of bitmap.
 #define TD_SUPPORT_BITMAP
+#define TD_SUPPORT_READ2
 #define TD_SUPPORT_BACK2  // suppport back compatibility of 2.0
 
 #define TASSERT(x) ASSERT(x)
@@ -61,7 +62,7 @@ typedef struct {
   int8_t   type;    // Column type
   col_id_t colId;   // column ID(start from PRIMARYKEY_TIMESTAMP_COL_ID(1))
   int16_t  bytes;   // column bytes (restore to int16_t in case of misuse)
-  uint16_t offset;  // point offset in SDataRow after the header part.
+  uint16_t offset;  // point offset in STpRow after the header part.
 } STColumn;
 
 #define colType(col) ((col)->type)
@@ -78,9 +79,9 @@ typedef struct {
 typedef struct {
   int version;    // version
   int numOfCols;  // Number of columns appended
-  int tlen;  // maximum length of a SDataRow without the header part (sizeof(VarDataOffsetT) + sizeof(VarDataLenT) +
-             // (bytes))
-  uint16_t flen;  // First part length in a SDataRow after the header part
+  int tlen;       // maximum length of a STpRow without the header part (sizeof(VarDataOffsetT) + sizeof(VarDataLenT) +
+                  // (bytes))
+  uint16_t flen;  // First part length in a STpRow after the header part
   uint16_t vlen;  // pure value part length, excluded the overhead (bytes only)
   STColumn columns[];
 } STSchema;
@@ -161,19 +162,19 @@ typedef uint64_t TKEY;
 
 #else
 
-typedef uint64_t TKEY;
+// typedef uint64_t TKEY;
+#define TKEY TSKEY
 
 #define TKEY_INVALID UINT64_MAX
 #define TKEY_NULL TKEY_INVALID
 #define TKEY_NEGATIVE_FLAG (((TKEY)1) << 63)
-#define TKEY_DELETE_FLAG (((TKEY)1) << 62)
-#define TKEY_VALUE_FILTER (~(TKEY_NEGATIVE_FLAG | TKEY_DELETE_FLAG))
+#define TKEY_VALUE_FILTER (~(TKEY_NEGATIVE_FLAG))
 
 #define TKEY_IS_NEGATIVE(tkey) (((tkey)&TKEY_NEGATIVE_FLAG) != 0)
-#define TKEY_IS_DELETED(tkey) (((tkey)&TKEY_DELETE_FLAG) != 0)
-#define tdSetTKEYDeleted(tkey) ((tkey) | TKEY_DELETE_FLAG)
-#define tdGetTKEY(key) (((TKEY)TABS(key)) | (TKEY_NEGATIVE_FLAG & (TKEY)(key)))
-#define tdGetKey(tkey) (((TSKEY)((tkey)&TKEY_VALUE_FILTER)) * (TKEY_IS_NEGATIVE(tkey) ? -1 : 1))
+#define TKEY_IS_DELETED(tkey) (false)
+
+#define tdGetTKEY(key) (key)
+#define tdGetKey(tskey) (tskey)
 
 #define MIN_TS_KEY ((TSKEY)0x8000000000000001)
 #define MAX_TS_KEY ((TSKEY)0x7fffffffffffffff)
@@ -206,6 +207,7 @@ static FORCE_INLINE int tkeyComparFn(const void *tkey1, const void *tkey2) {
   }
 }
 
+#if 0
 // ----------------- Data row structure
 
 /* A data row, the format is like below:
@@ -355,10 +357,12 @@ static FORCE_INLINE void tdCopyColOfRowBySchema(SDataRow dst, STSchema *pDstSche
       memcpy(pData, value, pSrcSchema->columns[srcIdx].bytes);
   }
 }
-
+#endif
 // ----------------- Data column structure
 typedef struct SDataCol {
-  int8_t          type;       // column type
+  int8_t          type;        // column type
+  uint8_t         bitmap : 1;  // 0: has bitmap if has NULL/NORM rows, 1: no bitmap if all rows are NORM
+  uint8_t         reserve : 7;
   int16_t         colId;      // column ID
   int             bytes;      // column data bytes defined
   int             offset;     // data offset in a SDataRow (including the header size)
@@ -366,7 +370,7 @@ typedef struct SDataCol {
   int             len;        // column data length
   VarDataOffsetT *dataOff;    // For binary and nchar data, the offset in the data column
   void *          pData;      // Actual data pointer
-  void *          pBitmap;    // Bitmap pointer to mark Null/Norm(1 bit for each row)
+  void *          pBitmap;    // Bitmap pointer
   TSKEY           ts;         // only used in last NULL column
 } SDataCol;
 
@@ -378,10 +382,11 @@ int tdAllocMemForCol(SDataCol *pCol, int maxPoints);
 
 void dataColInit(SDataCol *pDataCol, STColumn *pCol, int maxPoints);
 int  dataColAppendVal(SDataCol *pCol, const void *value, int numOfRows, int maxPoints);
-void dataColSetOffset(SDataCol *pCol, int nEle);
+void *dataColSetOffset(SDataCol *pCol, int nEle);
 
 bool isNEleNull(SDataCol *pCol, int nEle);
 
+#if 0
 // Get the data pointer from a column-wised data
 static FORCE_INLINE const void *tdGetColDataOfRow(SDataCol *pCol, int row) {
   if (isAllRowsNull(pCol)) {
@@ -403,7 +408,7 @@ static FORCE_INLINE int32_t dataColGetNEleLen(SDataCol *pDataCol, int rows) {
     return TYPE_BYTES[pDataCol->type] * rows;
   }
 }
-
+#endif
 typedef struct {
   col_id_t  maxCols;    // max number of columns
   col_id_t  numOfCols;  // Total number of cols
@@ -521,6 +526,7 @@ static FORCE_INLINE void *tdGetKVRowIdxOfCol(SKVRow row, int16_t colId) {
   return taosbsearch(&colId, kvRowColIdx(row), kvRowNCols(row), sizeof(SColIdx), comparTagId, TD_EQ);
 }
 
+#if 0
 // offset here not include kvRow header length
 static FORCE_INLINE int tdAppendKvColVal(SKVRow row, const void *value, bool isCopyValData, int16_t colId, int8_t type,
                                          int32_t offset) {
@@ -567,7 +573,7 @@ static FORCE_INLINE void *tdGetKVRowValOfColEx(SKVRow row, int16_t colId, int32_
   }
   return NULL;
 }
-
+#endif
 // ----------------- K-V data row builder
 typedef struct {
   int16_t  tCols;
@@ -611,7 +617,7 @@ static FORCE_INLINE int tdAddColToKVRow(SKVRowBuilder *pBuilder, int16_t colId, 
 
   return 0;
 }
-
+#if 0
 // ----------------- SMemRow appended with tuple row structure
 /*
  * |---------|------------------------------------------------- len ---------------------------------->|
@@ -770,6 +776,7 @@ static FORCE_INLINE void setSColInfo(SColInfo *colInfo, int16_t colId, uint8_t c
 }
 
 SMemRow mergeTwoMemRows(void *buffer, SMemRow row1, SMemRow row2, STSchema *pSchema1, STSchema *pSchema2);
+#endif
 
 #ifdef __cplusplus
 }
