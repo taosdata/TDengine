@@ -75,6 +75,35 @@ static bool walkNode(SNode* pNode, ETraversalOrder order, FQueryNodeWalker walke
     case QUERY_NODE_ORDER_BY_EXPR:
       res = walkNode(((SOrderByExprNode*)pNode)->pExpr, order, walker, pContext);
       break;
+    case QUERY_NODE_STATE_WINDOW:
+      res = walkNode(((SStateWindowNode*)pNode)->pCol, order, walker, pContext);
+      break;
+    case QUERY_NODE_SESSION_WINDOW:
+      res = walkNode(((SSessionWindowNode*)pNode)->pCol, order, walker, pContext);
+      break;
+    case QUERY_NODE_INTERVAL_WINDOW: {
+      SIntervalWindowNode* pInterval = (SIntervalWindowNode*)pNode;
+      res = walkNode(pInterval->pInterval, order, walker, pContext);
+      if (res) {
+        res = walkNode(pInterval->pOffset, order, walker, pContext);
+      }
+      if (res) {
+        res = walkNode(pInterval->pSliding, order, walker, pContext);
+      }
+      if (res) {
+        res = walkNode(pInterval->pFill, order, walker, pContext);
+      }
+      break;
+    }
+    case QUERY_NODE_NODE_LIST:
+      res = walkList(((SNodeListNode*)pNode)->pNodeList, order, walker, pContext);
+      break;
+    case QUERY_NODE_FILL:
+      res = walkNode(((SFillNode*)pNode)->pValues, order, walker, pContext);
+      break;
+    case QUERY_NODE_RAW_EXPR:
+      res = walkNode(((SRawExprNode*)pNode)->pNode, order, walker, pContext);
+      break;
     default:
       break;
   }
@@ -109,7 +138,7 @@ void nodesWalkNodePostOrder(SNode* pNode, FQueryNodeWalker walker, void* pContex
 }
 
 void nodesWalkListPostOrder(SNodeList* pList, FQueryNodeWalker walker, void* pContext) {
-  (void)walkList(pList, TRAVERSAL_PREORDER, walker, pContext);
+  (void)walkList(pList, TRAVERSAL_POSTORDER, walker, pContext);
 }
 
 bool nodesWalkStmt(SNode* pNode, FQueryNodeWalker walker, void* pContext) {

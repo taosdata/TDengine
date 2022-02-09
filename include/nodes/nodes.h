@@ -54,6 +54,9 @@ typedef enum ENodeType {
   QUERY_NODE_NODE_LIST,
   QUERY_NODE_FILL,
 
+  // only for parser
+  QUERY_NODE_RAW_EXPR,
+
   QUERY_NODE_SET_OPERATOR,
   QUERY_NODE_SELECT_STMT,
   QUERY_NODE_SHOW_STMT
@@ -78,10 +81,12 @@ typedef struct SNodeList {
   SListCell* pTail;
 } SNodeList;
 
-typedef struct SNameStr {
-  int32_t len;
-  char* pName;
-} SNameStr;
+typedef struct SRawExprNode {
+  ENodeType nodeType;
+  char* p;
+  uint32_t n;
+  SNode* pNode;
+} SRawExprNode;
 
 typedef struct SDataType {
   uint8_t type;
@@ -114,7 +119,7 @@ typedef struct SColumnNode {
 } SColumnNode;
 
 typedef struct SValueNode {
-  SExprNode type; // QUERY_NODE_VALUE
+  SExprNode node; // QUERY_NODE_VALUE
   char* literal;
 } SValueNode;
 
@@ -146,7 +151,7 @@ typedef enum EOperatorType {
 } EOperatorType;
 
 typedef struct SOperatorNode {
-  SExprNode type; // QUERY_NODE_OPERATOR
+  SExprNode node; // QUERY_NODE_OPERATOR
   EOperatorType opType;
   SNode* pLeft;
   SNode* pRight;
@@ -331,6 +336,10 @@ void nodesCloneNode(const SNode* pNode);
 
 int32_t nodesNodeToString(const SNode* pNode, char** pStr, int32_t* pLen);
 int32_t nodesStringToNode(const char* pStr, SNode** pNode);
+
+bool nodesIsArithmeticOp(const SOperatorNode* pOp);
+bool nodesIsComparisonOp(const SOperatorNode* pOp);
+bool nodesIsJsonOp(const SOperatorNode* pOp);
 
 bool nodesIsTimeorderQuery(const SNode* pQuery);
 bool nodesIsTimelineQuery(const SNode* pQuery);

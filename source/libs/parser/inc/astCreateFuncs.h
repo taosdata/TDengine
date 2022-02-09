@@ -13,11 +13,6 @@
  * along with this program. If not, see <http://www.gnu.org/licenses/>.
  */
 
-#include "nodes.h"
-#include "nodesShowStmts.h"
-#include "astCreateContext.h"
-#include "ttoken.h"
-
 #ifndef _TD_AST_CREATE_FUNCS_H_
 #define _TD_AST_CREATE_FUNCS_H_
 
@@ -25,7 +20,17 @@
 extern "C" {
 #endif
 
+#include "nodes.h"
+#include "nodesShowStmts.h"
+#include "astCreateContext.h"
+#include "ttoken.h"
+
 extern SToken nil_token;
+
+SNode* createRawExprNode(SAstCreateContext* pCxt, const SToken* pToken, SNode* pNode);
+SNode* createRawExprNodeExt(SAstCreateContext* pCxt, const SToken* pStart, const SToken* pEnd, SNode* pNode);
+SNode* releaseRawExprNode(SAstCreateContext* pCxt, SNode* pNode);
+SToken getTokenFromRawExprNode(SAstCreateContext* pCxt, SNode* pNode);
 
 SNodeList* createNodeList(SAstCreateContext* pCxt, SNode* pNode);
 SNodeList* addNodeToList(SAstCreateContext* pCxt, SNodeList* pList, SNode* pNode);
@@ -33,7 +38,6 @@ SNodeList* addNodeToList(SAstCreateContext* pCxt, SNodeList* pList, SNode* pNode
 SNode* createColumnNode(SAstCreateContext* pCxt, const SToken* pTableAlias, const SToken* pColumnName);
 SNode* createValueNode(SAstCreateContext* pCxt, int32_t dataType, const SToken* pLiteral);
 SNode* createDurationValueNode(SAstCreateContext* pCxt, const SToken* pLiteral);
-SNode* addMinusSign(SAstCreateContext* pCxt, SNode* pNode);
 SNode* setProjectionAlias(SAstCreateContext* pCxt, SNode* pNode, const SToken* pAlias);
 SNode* createLogicConditionNode(SAstCreateContext* pCxt, ELogicConditionType type, SNode* pParam1, SNode* pParam2);
 SNode* createOperatorNode(SAstCreateContext* pCxt, EOperatorType type, SNode* pLeft, SNode* pRight);

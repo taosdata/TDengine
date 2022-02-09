@@ -44,7 +44,6 @@ static int32_t hbProcessDBInfoRsp(void *value, int32_t valueLen, struct SCatalog
       code = catalogRemoveDB(pCatalog, rsp->db, rsp->uid);
     } else {
       SDBVgroupInfo vgInfo = {0};
-      vgInfo.dbId = rsp->uid;
       vgInfo.vgVersion = rsp->vgVersion;
       vgInfo.hashMethod = rsp->hashMethod;
       vgInfo.vgHash = taosHashInit(rsp->vgNum, taosGetDefaultHashFunction(TSDB_DATA_TYPE_INT), true, HASH_ENTRY_LOCK);
@@ -69,7 +68,7 @@ static int32_t hbProcessDBInfoRsp(void *value, int32_t valueLen, struct SCatalog
         }
       }  
       
-      code = catalogUpdateDBVgroup(pCatalog, rsp->db, &vgInfo);
+      code = catalogUpdateDBVgroup(pCatalog, rsp->db, rsp->uid, &vgInfo);
       if (code) {
         taosHashCleanup(vgInfo.vgHash);
       }
@@ -101,50 +100,33 @@ static int32_t hbProcessStbInfoRsp(void *value, int32_t valueLen, struct SCatalo
       
       tscDebug("hb remove stb, db:%s, stb:%s", rsp->dbFName, rsp->stbName);
 
-      code = catalogRemoveSTableMeta(pCatalog, rsp->dbFName, rsp->stbName, rsp->suid);
+      catalogRemoveSTableMeta(pCatalog, rsp->dbFName, rsp->stbName, rsp->suid);
     } else {
+      tscDebug("hb update stb, db:%s, stb:%s", rsp->dbFName, rsp->stbName);
+
       rsp->numOfTags = ntohl(rsp->numOfTags);
+      rsp->sversion = ntohl(rsp->sversion);
+      rsp->tversion = ntohl(rsp->tversion);
+      rsp->tuid = be64toh(rsp->tuid);
+      rsp->vgId = ntohl(rsp->vgId);
+
+      SSchema* pSchema = rsp->pSchema;
       
       schemaNum = rsp->numOfColumns + rsp->numOfTags;
-/*      
-      rsp->vgNum = ntohl(rsp->vgNum);
-      rsp->uid = be64toh(rsp->uid);
 
-      SDBVgroupInfo vgInfo = {0};
-      vgInfo.dbId = rsp->uid;
-      vgInfo.vgVersion = rsp->vgVersion;
-      vgInfo.hashMethod = rsp->hashMethod;
-      vgInfo.vgHash = taosHashInit(rsp->vgNum, taosGetDefaultHashFunction(TSDB_DATA_TYPE_INT), true, HASH_ENTRY_LOCK);
-      if (NULL == vgInfo.vgHash) {
-        tscError("hash init[%d] failed", rsp->vgNum);
-        return TSDB_CODE_TSC_OUT_OF_MEMORY;
+      for (int i = 0; i < schemaNum; ++i) {
+        pSchema->bytes = ntohl(pSchema->bytes);
+        pSchema->colId = ntohl(pSchema->colId);
+
+        pSchema++;
       }
 
-      for (int32_t i = 0; i < rsp->vgNum; ++i) {
-        rsp->vgroupInfo[i].vgId = ntohl(rsp->vgroupInfo[i].vgId);
-        rsp->vgroupInfo[i].hashBegin = ntohl(rsp->vgroupInfo[i].hashBegin);
-        rsp->vgroupInfo[i].hashEnd = ntohl(rsp->vgroupInfo[i].hashEnd);
+      if (rsp->pSchema[0].colId != PRIMARYKEY_TIMESTAMP_COL_ID) {
+        tscError("invalid colId[%d] for the first column in table meta rsp msg", rsp->pSchema[0].colId);
+        return TSDB_CODE_TSC_INVALID_VALUE;
+      }      
 
-        for (int32_t n = 0; n < rsp->vgroupInfo[i].epset.numOfEps; ++n) {
-          rsp->vgroupInfo[i].epset.eps[n].port = ntohs(rsp->vgroupInfo[i].epset.eps[n].port);
-        }
-
-        if (0 != taosHashPut(vgInfo.vgHash, &rsp->vgroupInfo[i].vgId, sizeof(rsp->vgroupInfo[i].vgId), &rsp->vgroupInfo[i], sizeof(rsp->vgroupInfo[i]))) {
-          tscError("hash push failed, errno:%d", errno);
-          taosHashCleanup(vgInfo.vgHash);
-          return TSDB_CODE_TSC_OUT_OF_MEMORY;
-        }
-      }  
-      
-      code = catalogUpdateDBVgroup(pCatalog, rsp->db, &vgInfo);
-      if (code) {
-        taosHashCleanup(vgInfo.vgHash);
-      }
-*/      
-    }
-
-    if (code) {
-      return code;
+      catalogUpdateSTableMeta(pCatalog, rsp);
     }
 
     msgLen += sizeof(STableMetaRsp) + schemaNum * sizeof(SSchema);

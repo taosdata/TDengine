@@ -24,6 +24,14 @@
     } \
   } while (0)
 
+#define CHECK_RAW_EXPR_NODE(node) \
+  do { \
+    if (NULL == (node) || QUERY_NODE_RAW_EXPR != nodeType(node)) { \
+      pCxt->valid = false; \
+      return NULL; \
+    } \
+  } while (0)
+
 SToken nil_token = { .type = TK_NIL, .n = 0, .z = NULL };
 
 static bool checkDbName(SAstCreateContext* pCxt, const SToken* pDbName) {
@@ -48,6 +56,37 @@ static bool checkColumnName(SAstCreateContext* pCxt, const SToken* pColumnName) 
   }
   pCxt->valid = pColumnName->n < TSDB_COL_NAME_LEN ? true : false;
   return pCxt->valid;
+}
+
+SNode* createRawExprNode(SAstCreateContext* pCxt, const SToken* pToken, SNode* pNode) {
+  SRawExprNode* target = (SRawExprNode*)nodesMakeNode(QUERY_NODE_RAW_EXPR);
+  CHECK_OUT_OF_MEM(target);
+  target->p = pToken->z;
+  target->n = pToken->n;
+  target->pNode = pNode;
+  return (SNode*)target;
+}
+
+SNode* createRawExprNodeExt(SAstCreateContext* pCxt, const SToken* pStart, const SToken* pEnd, SNode* pNode) {
+  SRawExprNode* target = (SRawExprNode*)nodesMakeNode(QUERY_NODE_RAW_EXPR);
+  CHECK_OUT_OF_MEM(target);
+  target->p = pStart->z;
+  target->n = (pEnd->z + pEnd->n) - pStart->z;
+  target->pNode = pNode;
+  return (SNode*)target;
+}
+
+SNode* releaseRawExprNode(SAstCreateContext* pCxt, SNode* pNode) {
+  CHECK_RAW_EXPR_NODE(pNode);
+  SNode* tmp = ((SRawExprNode*)pNode)->pNode;
+  tfree(pNode);
+  return tmp;
+}
+
+SToken getTokenFromRawExprNode(SAstCreateContext* pCxt, SNode* pNode) {
+  SRawExprNode* target = (SRawExprNode*)pNode;
+  SToken t = { .type = 0, .z = target->p, .n = target->n};
+  return t;
 }
 
 SNodeList* createNodeList(SAstCreateContext* pCxt, SNode* pNode) {
@@ -76,19 +115,18 @@ SNode* createColumnNode(SAstCreateContext* pCxt, const SToken* pTableAlias, cons
 SNode* createValueNode(SAstCreateContext* pCxt, int32_t dataType, const SToken* pLiteral) {
   SValueNode* val = (SValueNode*)nodesMakeNode(QUERY_NODE_VALUE);
   CHECK_OUT_OF_MEM(val);
-  // todo
+  val->literal = strndup(pLiteral->z, pLiteral->n);
+  CHECK_OUT_OF_MEM(val->literal);
+  val->node.resType.type = dataType;
+  val->node.resType.bytes = tDataTypes[TSDB_DATA_TYPE_BOOL].bytes;
   return (SNode*)val;
 }
 
 SNode* createDurationValueNode(SAstCreateContext* pCxt, const SToken* pLiteral) {
   SValueNode* val = (SValueNode*)nodesMakeNode(QUERY_NODE_VALUE);
   CHECK_OUT_OF_MEM(val);
-  // todo
+  // todo : calc, for example, 10s
   return (SNode*)val;
-}
-
-SNode* addMinusSign(SAstCreateContext* pCxt, SNode* pNode) {
-  // todo
 }
 
 SNode* createLogicConditionNode(SAstCreateContext* pCxt, ELogicConditionType type, SNode* pParam1, SNode* pParam2) {
