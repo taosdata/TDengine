@@ -27,12 +27,10 @@ bool isEpsetEqual(const SEpSet *s1, const SEpSet *s2);
 void   updateEpSet_s(SCorEpSet *pEpSet, SEpSet *pNewEpSet);
 SEpSet getEpSet_s(SCorEpSet *pEpSet);
 
-#define BitPos(_n)        ((_n) & ((1<<NBIT) - 1))
 #define NBIT (3u)
-
-static FORCE_INLINE bool colDataIsNull_f(const char* bitmap, uint32_t row) {
-  return (bitmap[row>>3u] & (1u<<(7u - BitPos(row)))) == (1u<<(7u - BitPos(row)));
-}
+#define BitPos(_n)               ((_n) & ((1 << NBIT) - 1))
+#define BMCharPos(bm_, r_)       (bm_)[(r_) >> NBIT]
+#define colDataIsNull_f(bm_, r_) (BMCharPos(bm_, r_) & (1u << (7u - BitPos(row)))) == (1u << (7u - BitPos(row)))
 
 void colDataSetNull_f(char* bitmap, uint32_t row);
 
@@ -62,14 +60,9 @@ static FORCE_INLINE bool colDataIsNull(const SColumnInfoData* pColumnInfoData, u
   }
 }
 
-static FORCE_INLINE char* colDataGet(SColumnInfoData* pColumnInfoData, uint32_t row) {
-  char* p = pColumnInfoData->pData;
-  if (IS_VAR_DATA_TYPE(pColumnInfoData->info.type)) {
-    return p + pColumnInfoData->varmeta.offset[row];
-  } else {
-    return p + (row * pColumnInfoData->info.bytes);
-  }
-}
+#define colDataGet(p1_, r_)                                                          \
+  ((IS_VAR_DATA_TYPE((p1_)->info.type)) ? (p1_)->pData + (p1_)->varmeta.offset[(r_)] \
+                                        : (p1_)->pData + ((r_) * (p1_)->info.bytes));
 
 int32_t colDataAppend(SColumnInfoData* pColumnInfoData, uint32_t currentRow, const char* pData, bool isNull);
 int32_t colDataMergeCol(SColumnInfoData* pColumnInfoData, uint32_t numOfRow1, const SColumnInfoData* pSource, uint32_t numOfRow2);
