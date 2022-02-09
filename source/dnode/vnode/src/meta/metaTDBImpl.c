@@ -13,16 +13,33 @@
  * along with this program. If not, see <http://www.gnu.org/licenses/>.
  */
 
-#include "meta.h"
+#include "metaDef.h"
 
 #include "tdb.h"
 
 struct SMetaDB {
-  // TODO
+  TENV *pEnv;
+  TDB * pTbDB;
+  TDB * pSchemaDB;
+  TDB * pNameIdx;
+  TDB * pStbIdx;
+  TDB * pNtbIdx;
+  TDB * pCtbIdx;
+  // tag index hash table
+  // suid+colid --> TDB *
+  struct {
+  } tagIdxHt;
 };
 
 int metaOpenDB(SMeta *pMeta) {
-  // TODO
+  SMetaDB *pDb;
+
+  pDb = (SMetaDB *)calloc(1, sizeof(*pDb));
+  if (pDb == NULL) {
+    return -1;
+  }
+
+  pMeta->pDB = pDb;
   return 0;
 }
 

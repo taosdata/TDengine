@@ -27,6 +27,7 @@ typedef struct STDbEnv    TENV;
 typedef struct STDbCurosr TDBC;
 
 // TEVN
+int tdbEnvCreate(TENV **ppEnv);
 int tdbEnvOpen(TENV **ppEnv);
 int tdbEnvClose(TENV *pEnv);
 

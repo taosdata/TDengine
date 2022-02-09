@@ -23,13 +23,22 @@ struct STDbEnv {
   SPgCache pgc;  // page cache
 };
 
+static int tdbEnvDestroy(TENV *pEnv);
+
+int tdbEnvCreate(TENV **ppEnv) {
+  // TODO
+  return 0;
+}
+
 int tdbEnvOpen(TENV **ppEnv) {
   // TODO
   return 0;
 }
 
 int tdbEnvClose(TENV *pEnv) {
-  // TODO
+  if (pEnv == NULL) return 0;
+  /* TODO */
+  tdbEnvDestroy(pEnv);
   return 0;
 }
 
@@ -39,3 +48,8 @@ SPgFile *tdbEnvGetPageFile(TENV *pEnv, const uint8_t fileid[]) {
 }
 
 SPgCache *tdbEnvGetPgCache(TENV *pEnv) { return &(pEnv->pgc); }
+
+static int tdbEnvDestroy(TENV *pEnv) {
+  // TODO
+  return 0;
+}
