@@ -42,14 +42,12 @@
 83,,script,./test.sh -f general/parser/limit1_tblocks100.sim 
 82,,script,./test.sh -f general/parser/limit1.sim 
 82,,pytest,python3 test.py -f query/last_row_cache.py 
-### 81,,develop-test,bash 3-connectors/c#/test.sh 
-80,,system-test,bash 3-connectors/c#/test.sh 
-80,,develop-test,bash 3-connectors/nodejs/test.sh 
+81,,develop-test,timeout 180 bash 3-connectors/c#/test.sh 
+80,,develop-test,timeout 180 bash 3-connectors/nodejs/test.sh 
 79,,script,./test.sh -f general/db/alter_tables_v4.sim 
 79,,pytest,python3 test.py -f insert/verifyMemToDiskCrash.py 
 78,2,script,./test.sh -f unique/dnode/balance3.sim 
 78,,script,./test.sh -f unique/cluster/balance1.sim 
-### 77,,system-test,bash 3-connectors/nodejs/test.sh 
 76,,script,./test.sh -f unique/import/replica3.sim 
 76,,script,./test.sh -f unique/db/replica_add13.sim 
 75,,script,./test.sh -f unique/db/replica_reduce32.sim 
@@ -105,8 +103,6 @@
 55,,develop-test,python3 ./test.py -f 1-insert/batchInsert.py 
 ,,pytest,python3 ./test.py  -f functions/function_elapsed.py
 ,,pytest,python3 ./test.py -f alter/alterBackQuoteCol.py
-# ,,pytest,python3 ./test.py -f ../system-test/0-management/1-stable/create_col_tag.py no such file
-# ,,pytest,python3 ./test.py -f ../develop-test/0-management/3-tag/json_tag.py no such file
 ,,develop-test,python3 ./test.py -f 2-query/TD-13246.py
 54,,script,./test.sh -f unique/arbitrator/dn3_mn1_vnode_nomaster.sim 
 54,,script,./test.sh -f unique/arbitrator/dn3_mn1_r2_vnode_delDir.sim 
@@ -560,7 +556,6 @@
 8,,develop-test,python3 ./test.py -f 5-taos-tools/taosbenchmark/subscripe_json.py
 8,,develop-test,python3 ./test.py -f 5-taos-tools/taosbenchmark/invalid_commandline.py
 7,,system-test,python3 ./test.py -f 5-taos-tools/taosbenchmark/taosdemoTestInsertWithJsonSml-otherPara.py 
-## 7,,system-test,python3 ./test.py -f 2-query/TD-12191.py 
 7,,pytest,python3 test.py -f tools/taosdumpTest2.py 
 7,,pytest,python3 test.py -f tools/taosdemoTestdatatype.py 
 7,,pytest,python3 test.py -f tag_lite/unsignedInt.py 
@@ -575,8 +570,6 @@
 7,,develop-test,python3 ./test.py -f 5-taos-tools/taosdump/taosdumpTestTypeBigInt.py 
 7,,develop-test,python3 ./test.py -f 2-query/constant_compare.py
 7,,develop-test,python3 ./test.py -f 5-taos-tools/taosbenchmark/limit_offset_json.py
-## 6,,system-test,python3 ./test.py -f 2-query/TD-11483.py 
-# 6,,system-test,python3 ./test.py -f 2-query/function_elapsed.py 
 6,,pytest,python3 test.py -f wal/addOldWalTest.py 
 6,,pytest,python3 test.py -f topic/topicQuery.py 
 6,,pytest,python3 test.py -f tools/taosdemoTestWithoutMetric.py 
@@ -750,4 +743,3 @@
 3,,pytest,python3 ./test.py -f query/queryNcharNull.py
 3,,develop-test,python3 ./test.py -f 2-query/ts_hidden_column.py 
 3,,develop-test,python3 ./test.py -f 1-insert/uppercase_in_stmt.py
-#2,,coredump-test,./test.sh
