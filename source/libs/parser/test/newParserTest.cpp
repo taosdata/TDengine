@@ -13,6 +13,9 @@
  * along with this program. If not, see <http://www.gnu.org/licenses/>.
  */
 
+#include <algorithm>
+#include <string>
+
 #include <gtest/gtest.h>
 
 #include "parserImpl.h"
@@ -30,12 +33,11 @@ protected:
   void bind(const char* sql) {
     reset();
     cxt_.acctId = atoi(acctId_.c_str());
-    cxt_.db = (char*) db_.c_str();
-    strcpy(sqlBuf_, sql);
+    cxt_.db = db_.c_str();
+    sqlBuf_ = string(sql);
+    transform(sqlBuf_.begin(), sqlBuf_.end(), sqlBuf_.begin(), ::tolower);
     cxt_.sqlLen = strlen(sql);
-    sqlBuf_[cxt_.sqlLen] = '\0';
-    cxt_.pSql = sqlBuf_;
-
+    cxt_.pSql = sqlBuf_.c_str();
   }
 
   bool run(int32_t parseCode = TSDB_CODE_SUCCESS, int32_t translateCode = TSDB_CODE_SUCCESS) {
@@ -68,7 +70,6 @@ protected:
 
 private:
   static const int max_err_len = 1024;
-  static const int max_sql_len = 1024 * 1024;
 
   string dataTypeToStr(const SDataType& dt) {
     switch (dt.type) {
@@ -409,7 +410,7 @@ private:
   string acctId_;
   string db_;
   char errMagBuf_[max_err_len];
-  char sqlBuf_[max_sql_len];
+  string sqlBuf_;
   SParseContext cxt_;
   SQuery query_;
 };
@@ -450,6 +451,16 @@ TEST_F(NewParserTest, selectExpression) {
   ASSERT_TRUE(run());
 }
 
+TEST_F(NewParserTest, selectClause) {
+  setDatabase("root", "test");
+
+  bind("SELECT count(*) cnt FROM t1 WHERE c1 > 0 GROUP BY c2 ORDER BY cnt");
+  ASSERT_TRUE(run());
+
+  bind("SELECT count(*) cnt FROM t1 WHERE c1 > 0 GROUP BY c2 ORDER BY 1");
+  ASSERT_TRUE(run());
+}
+
 TEST_F(NewParserTest, selectSyntaxError) {
   setDatabase("root", "test");
 
@@ -476,5 +487,8 @@ TEST_F(NewParserTest, selectSemanticError) {
   ASSERT_TRUE(run(TSDB_CODE_SUCCESS, TSDB_CODE_FAILED));
 
   bind("SELECT c2 FROM t1 tt1, t1 tt2 WHERE tt1.c1 = tt2.c1");
+  ASSERT_TRUE(run(TSDB_CODE_SUCCESS, TSDB_CODE_FAILED));
+
+  bind("SELECT c2 FROM t1 where count(*) > 0");
   ASSERT_TRUE(run(TSDB_CODE_SUCCESS, TSDB_CODE_FAILED));
 }
