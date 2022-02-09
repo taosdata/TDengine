@@ -34,20 +34,39 @@ int tdbCreate(TDB **ppDb) {
   return 0;
 }
 
-int tdbDestroy(TDB *pDb) {
+static int tdbDestroy(TDB *pDb) {
   if (pDb) {
     free(pDb);
   }
-  /* TODO */
   return 0;
 }
 
-int tdbOpen(TDB **pDb, const char *fname, const char *dbname) {
-  // TODO
+int tdbOpen(TDB **ppDb, const char *fname, const char *dbname, TENV *pEnv) {
+  TDB *pDb;
+  int  ret;
+
+  // Create DB if DB handle is not created yet
+  if (ppDb == NULL) {
+    if ((ret = tdbCreate(ppDb)) != 0) {
+      return -1;
+    }
+  }
+
+  pDb = *ppDb;
+
+  // Create a default ENV if pEnv is not set
+  if (pEnv == NULL) {
+    // if ((ret = tenvOpen(&pEnv)) != 0) {
+    //   return -1;
+    // }
+  }
+
+  /* TODO */
+
   return 0;
 }
 
 int tdbClose(TDB *pDb) {
-  // TODO
-  return 0;
+  if (pDb == NULL) return 0;
+  return tdbDestroy(pDb);
 }

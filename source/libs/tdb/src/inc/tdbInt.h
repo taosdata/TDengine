@@ -80,9 +80,7 @@ typedef int32_t pgsize_t;
 #include "pgcache.h"
 #include "pgfile.h"
 #include "tdbEnv.h"
-
-// tdb util
-int tdbGnrtFileID(const char *fname, uint8_t *fileid);
+#include "tdbUtil.h"
 
 #ifdef __cplusplus
 }

@@ -13,27 +13,17 @@
  * along with this program. If not, see <http://www.gnu.org/licenses/>.
  */
 
-#ifndef _TD_TDB_H_
-#define _TD_TDB_H_
-
-#include "os.h"
+#ifndef _TDB_UTIL_H_
+#define _TDB_UTIL_H_
 
 #ifdef __cplusplus
 extern "C" {
 #endif
 
-typedef struct STDb    TDB;
-typedef struct STDbEnv TENV;
-
-// TEVN
-
-// TDB
-int tdbCreate(TDB **ppDb);
-int tdbOpen(TDB **ppDb, const char *fname, const char *dbname, TENV *pEnv);
-int tdbClose(TDB *pDb);
+int tdbGnrtFileID(const char *fname, uint8_t *fileid);
 
 #ifdef __cplusplus
 }
 #endif
 
-#endif /*_TD_TDB_H_*/
+#endif /*_TDB_UTIL_H_*/

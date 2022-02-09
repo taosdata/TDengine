@@ -18,5 +18,7 @@
 struct STDbEnv {
   TDB *    dbList;      // TDB list
   SPgFile *pgFileList;  // SPgFile list
-  SPgCache pgc;         // page cache
+  struct {
+  } pgfht;       // page file hash table;
+  SPgCache pgc;  // page cache
 };
