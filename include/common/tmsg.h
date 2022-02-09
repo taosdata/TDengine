@@ -278,9 +278,12 @@ void*   tDeserializeSMDropStbReq(void* buf, SMDropStbReq* pReq);
 typedef struct {
   char    name[TSDB_TABLE_FNAME_LEN];
   int8_t  alterType;
-  int32_t numOfSchemas;
-  SSchema pSchemas[];
+  int32_t numOfFields;
+  SArray* pFields;
 } SMAltertbReq;
+
+int32_t tSerializeSMAlterStbReq(void** buf, SMAltertbReq* pReq);
+void*   tDeserializeSMAlterStbReq(void* buf, SMAltertbReq* pReq);
 
 typedef struct {
   int32_t pid;
