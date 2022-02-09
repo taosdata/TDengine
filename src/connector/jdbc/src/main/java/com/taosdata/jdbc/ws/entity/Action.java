@@ -12,7 +12,7 @@ public enum Action {
     FETCH("fetch", FetchResp.class),
     FETCH_JSON("fetch_json", FetchJsonResp.class),
     // fetch_block's class is meaningless
-    FETCH_BLOCK("fetch_block", Response.class),
+    FETCH_BLOCK("fetch_block", FetchBlockResp.class),
     ;
     private final String action;
     private final Class<? extends Response> clazz;
@@ -35,7 +35,6 @@ public enum Action {
     static {
         for (Action value : Action.values()) {
             actions.put(value.action, value);
-            IdUtil.init(value.action);
         }
     }
 

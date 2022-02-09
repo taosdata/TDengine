@@ -51,8 +51,7 @@ public class WSConnectionTest {
         connection = DriverManager.getConnection(url, properties);
     }
 
-    @Test
-//    @Test(expected = SQLException.class)
+    @Test(expected = SQLException.class)
     @Description("wrong password or user")
     public void wrongUserOrPasswordConection() throws SQLException {
         String url = "jdbc:TAOS-RS://" + host + ":" + port + "/test?user=abc&password=taosdata";

@@ -8,6 +8,7 @@ import com.taosdata.jdbc.ws.InFlightRequest;
 import com.taosdata.jdbc.ws.Transport;
 import com.taosdata.jdbc.ws.WSClient;
 import com.taosdata.jdbc.ws.WSConnection;
+import com.taosdata.jdbc.ws.entity.FetchType;
 
 import java.io.UnsupportedEncodingException;
 import java.net.URI;
@@ -64,8 +65,8 @@ public class RestfulDriver extends AbstractDriver {
         }
         String loginUrl;
         String batchLoad = info.getProperty(TSDBDriver.PROPERTY_KEY_BATCH_LOAD);
-//        if (Boolean.parseBoolean(batchLoad)) {
-        if (false) {
+        if (Boolean.parseBoolean(batchLoad)) {
+//        if (false) {
             loginUrl = "ws://" + props.getProperty(TSDBDriver.PROPERTY_KEY_HOST)
                     + ":" + props.getProperty(TSDBDriver.PROPERTY_KEY_PORT) + "/rest/ws";
             WSClient client;
@@ -80,15 +81,16 @@ public class RestfulDriver extends AbstractDriver {
                 InFlightRequest inFlightRequest = new InFlightRequest(timeout, maxRequest);
                 CountDownLatch latch = new CountDownLatch(1);
                 Map<String, String> httpHeaders = new HashMap<>();
-                client = new WSClient(new URI(loginUrl), user, password, database, inFlightRequest, httpHeaders, latch, maxRequest);
+                client = new WSClient(new URI(loginUrl), user, password, database,
+                        inFlightRequest, httpHeaders, latch, maxRequest);
                 transport = new Transport(client, inFlightRequest);
-                if (!client.connectBlocking()) {
+                if (!client.connectBlocking(timeout, TimeUnit.MILLISECONDS)) {
                     throw new SQLException("can't create connection with server");
                 }
                 if (!latch.await(timeout, TimeUnit.MILLISECONDS)) {
                     throw new SQLException("auth timeout");
                 }
-                if (client.isAuth()) {
+                if (!client.isAuth()) {
                     throw new SQLException("auth failure");
                 }
             } catch (URISyntaxException e) {
@@ -96,7 +98,8 @@ public class RestfulDriver extends AbstractDriver {
             } catch (InterruptedException e) {
                 throw new SQLException("creat websocket connection has been Interrupted ", e);
             }
-            return new WSConnection(url, props, transport, database, true);
+            // TODO fetch Type from config
+            return new WSConnection(url, props, transport, database, FetchType.BLOCK);
         }
         loginUrl = "http://" + props.getProperty(TSDBDriver.PROPERTY_KEY_HOST) + ":" + props.getProperty(TSDBDriver.PROPERTY_KEY_PORT) + "/rest/login/" + user + "/" + password + "";
         int poolSize = Integer.parseInt(props.getProperty("httpPoolSize", HttpClientPoolUtil.DEFAULT_MAX_PER_ROUTE));
