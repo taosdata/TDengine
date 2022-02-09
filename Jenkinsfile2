@@ -45,6 +45,7 @@ def sync_source() {
         git checkout -qf FETCH_HEAD
         git clean -dfx
         git submodule update --init --recursive --remote
+        git submodule update --init --recursive
         cd ${WK}
         git reset --hard HEAD~10
     '''
