@@ -561,7 +561,7 @@ int32_t qwGetResFromSink(QW_FPARAMS_DEF, SQWTaskCtx *ctx, int32_t *dataLen, void
       
       QW_ERR_RET(qwUpdateTaskStatus(QW_FPARAMS(), JOB_TASK_STATUS_SUCCEED));
 
-      QW_ERR_RET(qwMallocFetchRsp(len, &rsp));      
+      QW_ERR_RET(qwMallocFetchRsp(len, &rsp));
       *rspMsg = rsp;
       *dataLen = 0;
       
@@ -573,7 +573,7 @@ int32_t qwGetResFromSink(QW_FPARAMS_DEF, SQWTaskCtx *ctx, int32_t *dataLen, void
     QW_TASK_DLOG("no res data in sink, need response later, queryEnd:%d", queryEnd);
 
     return TSDB_CODE_SUCCESS;
-  }  
+  }
 
 
   // Got data from sink

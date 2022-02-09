@@ -123,9 +123,14 @@ static void clientHandleResp(SCliConn* conn) {
   rpcMsg.code = pHead->code;
   rpcMsg.msgType = pHead->msgType;
   rpcMsg.ahandle = pCtx->ahandle;
-
-  tDebug("conn %p handle resp", conn);
-  (pRpc->cfp)(NULL, &rpcMsg, NULL);
+  if (pCtx->pSem == NULL) {
+    tDebug("conn %p handle resp", conn);
+    (pRpc->cfp)(NULL, &rpcMsg, NULL);
+  } else {
+    tDebug("conn %p handle resp", conn);
+    memcpy((char*)pCtx->pRsp, (char*)&rpcMsg, sizeof(rpcMsg));
+    tsem_post(pCtx->pSem);
+  }
   conn->notifyCount += 1;
 
   // buf's mem alread translated to rpcMsg.pCont
@@ -159,14 +164,20 @@ static void clientHandleExcept(SCliConn* pConn) {
   SRpcMsg rpcMsg = {0};
   rpcMsg.ahandle = pCtx->ahandle;
   rpcMsg.code = TSDB_CODE_RPC_NETWORK_UNAVAIL;
-  // SRpcInfo* pRpc = pMsg->ctx->pRpc;
-  (pCtx->pTransInst->cfp)(NULL, &rpcMsg, NULL);
-  pConn->notifyCount += 1;
+  if (pCtx->pSem == NULL) {
+    // SRpcInfo* pRpc = pMsg->ctx->pRpc;
+    (pCtx->pTransInst->cfp)(NULL, &rpcMsg, NULL);
+  } else {
+    memcpy((char*)(pCtx->pRsp), (char*)(&rpcMsg), sizeof(rpcMsg));
+    // SRpcMsg rpcMsg
+    tsem_post(pCtx->pSem);
+  }
 
   destroyCmsg(pMsg);
   pConn->data = NULL;
   // transDestroyConnCtx(pCtx);
   clientConnDestroy(pConn, true);
+  pConn->notifyCount += 1;
 }
 
 static void clientTimeoutCb(uv_timer_t* handle) {
@@ -432,14 +443,15 @@ static void clientHandleReq(SCliMsg* pMsg, SCliThrdObj* pThrd) {
   }
 }
 static void clientAsyncCb(uv_async_t* handle) {
-  SCliThrdObj* pThrd = handle->data;
+  SAsyncItem*  item = handle->data;
+  SCliThrdObj* pThrd = item->pThrd;
   SCliMsg*     pMsg = NULL;
   queue        wq;
 
   // batch process to avoid to lock/unlock frequently
-  pthread_mutex_lock(&pThrd->msgMtx);
-  QUEUE_MOVE(&pThrd->msg, &wq);
-  pthread_mutex_unlock(&pThrd->msgMtx);
+  pthread_mutex_lock(&item->mtx);
+  QUEUE_MOVE(&item->qmsg, &wq);
+  pthread_mutex_unlock(&item->mtx);
 
   int count = 0;
   while (!QUEUE_IS_EMPTY(&wq)) {
@@ -462,6 +474,7 @@ static void clientAsyncCb(uv_async_t* handle) {
 
 static void* clientThread(void* arg) {
   SCliThrdObj* pThrd = (SCliThrdObj*)arg;
+  setThreadName("trans-client-work");
   uv_run(pThrd->loop, UV_RUN_DEFAULT);
 }
 
@@ -548,11 +561,11 @@ static void clientSendQuit(SCliThrdObj* thrd) {
   SCliMsg* msg = calloc(1, sizeof(SCliMsg));
   msg->ctx = NULL;  //
 
-  pthread_mutex_lock(&thrd->msgMtx);
-  QUEUE_PUSH(&thrd->msg, &msg->q);
-  pthread_mutex_unlock(&thrd->msgMtx);
+  // pthread_mutex_lock(&thrd->msgMtx);
+  // QUEUE_PUSH(&thrd->msg, &msg->q);
+  // pthread_mutex_unlock(&thrd->msgMtx);
 
-  transSendAsync(thrd->asyncPool);
+  transSendAsync(thrd->asyncPool, &msg->q);
   // uv_async_send(thrd->cliAsync);
 }
 void taosCloseClient(void* arg) {
@@ -567,8 +580,8 @@ void taosCloseClient(void* arg) {
 }
 void rpcSendRequest(void* shandle, const SEpSet* pEpSet, SRpcMsg* pMsg, int64_t* pRid) {
   // impl later
-  char*    ip = (char*)(pEpSet->fqdn[pEpSet->inUse]);
-  uint32_t port = pEpSet->port[pEpSet->inUse];
+  char*    ip = (char*)(pEpSet->eps[pEpSet->inUse].fqdn);
+  uint32_t port = pEpSet->eps[pEpSet->inUse].port;
 
   SRpcInfo* pRpc = (SRpcInfo*)shandle;
 
@@ -598,14 +611,55 @@ void rpcSendRequest(void* shandle, const SEpSet* pEpSet, SRpcMsg* pMsg, int64_t*
 
   SCliThrdObj* thrd = ((SClientObj*)pRpc->tcphandle)->pThreadObj[index % pRpc->numOfThreads];
 
-  pthread_mutex_lock(&thrd->msgMtx);
-  QUEUE_PUSH(&thrd->msg, &cliMsg->q);
-  pthread_mutex_unlock(&thrd->msgMtx);
+  // pthread_mutex_lock(&thrd->msgMtx);
+  // QUEUE_PUSH(&thrd->msg, &cliMsg->q);
+  // pthread_mutex_unlock(&thrd->msgMtx);
 
-  int start = taosGetTimestampUs();
-  transSendAsync(thrd->asyncPool);
+  // int start = taosGetTimestampUs();
+  transSendAsync(thrd->asyncPool, &(cliMsg->q));
   // uv_async_send(thrd->cliAsync);
-  int end = taosGetTimestampUs() - start;
+  // int end = taosGetTimestampUs() - start;
   // tError("client sent to rpc, time cost: %d", (int)end);
+}
+void rpcSendRecv(void* shandle, SEpSet* pEpSet, SRpcMsg* pReq, SRpcMsg* pRsp) {
+  char*    ip = (char*)(pEpSet->eps[pEpSet->inUse].fqdn);
+  uint32_t port = pEpSet->eps[pEpSet->inUse].port;
+
+  SRpcInfo* pRpc = (SRpcInfo*)shandle;
+
+  STransConnCtx* pCtx = calloc(1, sizeof(STransConnCtx));
+  pCtx->pTransInst = (SRpcInfo*)shandle;
+  pCtx->ahandle = pReq->ahandle;
+  pCtx->msgType = pReq->msgType;
+  pCtx->ip = strdup(ip);
+  pCtx->port = port;
+  pCtx->pSem = calloc(1, sizeof(tsem_t));
+  pCtx->pRsp = pRsp;
+  tsem_init(pCtx->pSem, 0, 0);
+
+  int64_t index = pRpc->index;
+  if (pRpc->index++ >= pRpc->numOfThreads) {
+    pRpc->index = 0;
+  }
+  SCliMsg* cliMsg = malloc(sizeof(SCliMsg));
+  cliMsg->ctx = pCtx;
+  cliMsg->msg = *pReq;
+  cliMsg->st = taosGetTimestampUs();
+
+  SCliThrdObj* thrd = ((SClientObj*)pRpc->tcphandle)->pThreadObj[index % pRpc->numOfThreads];
+
+  // pthread_mutex_lock(&thrd->msgMtx);
+  // QUEUE_PUSH(&thrd->msg, &cliMsg->q);
+  // pthread_mutex_unlock(&thrd->msgMtx);
+
+  // int start = taosGetTimestampUs();
+  transSendAsync(thrd->asyncPool, &(cliMsg->q));
+
+  tsem_t* pSem = pCtx->pSem;
+  tsem_wait(pSem);
+  tsem_destroy(pSem);
+  free(pSem);
+
+  return;
 }
 #endif

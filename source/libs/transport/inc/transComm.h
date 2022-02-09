@@ -134,10 +134,12 @@ typedef struct {
   // int16_t  numOfTry;  // number of try for different servers
   // int8_t   oldInUse;  // server EP inUse passed by app
   // int8_t   redirect;  // flag to indicate redirect
-  int8_t   connType;  // connection type
-  int64_t  rid;       // refId returned by taosAddRef
-  SRpcMsg* pRsp;      // for synchronous API
-  tsem_t*  pSem;      // for synchronous API
+  int8_t  connType;  // connection type
+  int64_t rid;       // refId returned by taosAddRef
+
+  SRpcMsg* pRsp;  // for synchronous API
+  tsem_t*  pSem;  // for synchronous API
+
   char*    ip;
   uint32_t port;
   // SEpSet*          pSet;      // for synchronous API
@@ -214,6 +216,12 @@ typedef struct SConnBuffer {
 typedef void (*AsyncCB)(uv_async_t* handle);
 
 typedef struct {
+  void*           pThrd;
+  queue           qmsg;
+  pthread_mutex_t mtx;  // protect qmsg;
+} SAsyncItem;
+
+typedef struct {
   int         index;
   int         nAsync;
   uv_async_t* asyncs;
@@ -221,7 +229,7 @@ typedef struct {
 
 SAsyncPool* transCreateAsyncPool(uv_loop_t* loop, void* arg, AsyncCB cb);
 void        transDestroyAsyncPool(SAsyncPool* pool);
-int         transSendAsync(SAsyncPool* pool);
+int         transSendAsync(SAsyncPool* pool, queue* mq);
 
 int transInitBuffer(SConnBuffer* buf);
 int transClearBuffer(SConnBuffer* buf);

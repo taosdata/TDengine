@@ -187,7 +187,7 @@ table_reference(A) ::= joined_table(B).                                         
 table_primary(A) ::= table_name(B) alias_opt(C).                                  { PARSER_TRACE; A = createRealTableNode(pCxt, NULL, &B, &C); }
 table_primary(A) ::= db_name(B) NK_DOT table_name(C) alias_opt(D).                { PARSER_TRACE; A = createRealTableNode(pCxt, &B, &C, &D); }
 table_primary(A) ::= subquery(B) alias_opt(C).                                    { PARSER_TRACE; A = createTempTableNode(pCxt, B, &C); }
-table_primary ::= parenthesized_joined_table.
+table_primary(A) ::= parenthesized_joined_table(B).                               { PARSER_TRACE; A = B; }
 
 %type alias_opt                                                                   { SToken }
 %destructor alias_opt                                                             { PARSER_DESTRUCTOR_TRACE; }
@@ -297,9 +297,9 @@ query_expression_body(A) ::=
   query_expression_body(B) UNION ALL query_expression_body(D).                    { PARSER_TRACE; A = createSetOperator(pCxt, SET_OP_TYPE_UNION_ALL, B, D); }
 
 query_primary(A) ::= query_specification(B).                                      { PARSER_TRACE; A = B; }
-query_primary(A) ::=
-  NK_LP query_expression_body(B) 
-    order_by_clause_opt limit_clause_opt slimit_clause_opt NK_RP.                 { PARSER_TRACE; A = B;}
+//query_primary(A) ::=
+//  NK_LP query_expression_body(B) 
+//    order_by_clause_opt slimit_clause_opt limit_clause_opt NK_RP.                 { PARSER_TRACE; A = B;}
 
 %type order_by_clause_opt                                                         { SNodeList* }
 %destructor order_by_clause_opt                                                   { PARSER_DESTRUCTOR_TRACE; nodesDestroyList($$); }
@@ -317,7 +317,7 @@ limit_clause_opt(A) ::= LIMIT NK_INTEGER(B) OFFSET NK_INTEGER(C).               
 limit_clause_opt(A) ::= LIMIT NK_INTEGER(C) NK_COMMA NK_INTEGER(B).               { PARSER_TRACE; A = createLimitNode(pCxt, &B, &C); }
 
 /************************************************ subquery ************************************************************/
-subquery(A) ::= NK_LR query_expression(B) NK_RP.                                  { PARSER_TRACE; A = B; }
+subquery(A) ::= NK_LP query_expression(B) NK_RP.                                  { PARSER_TRACE; A = B; }
 
 /************************************************ search_condition ****************************************************/
 search_condition(A) ::= boolean_value_expression(B).                              { PARSER_TRACE; A = B; }

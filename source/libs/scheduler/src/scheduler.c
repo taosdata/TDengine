@@ -1409,7 +1409,7 @@ int32_t schedulerAsyncExecJob(void *transport, SArray *pNodeList, SQueryDag* pDa
 }
 
 int32_t schedulerConvertDagToTaskList(SQueryDag* pDag, SArray **pTasks) {
-  if (NULL == pDag || pDag->numOfSubplans <= 0 || taosArrayGetSize(pDag->pSubplans) <= 0) {
+  if (NULL == pDag || pDag->numOfSubplans <= 0 || taosArrayGetSize(pDag->pSubplans) == 0) {
     SCH_ERR_RET(TSDB_CODE_QRY_INVALID_INPUT);
   }
 
@@ -1454,7 +1454,6 @@ int32_t schedulerConvertDagToTaskList(SQueryDag* pDag, SArray **pTasks) {
     }
     
     SSubQueryMsg* pMsg = calloc(1, msgSize);
-    memcpy(pMsg->msg, msg, msgLen);
     
     pMsg->header.vgId = tInfo.addr.nodeId;
     
@@ -1464,6 +1463,7 @@ int32_t schedulerConvertDagToTaskList(SQueryDag* pDag, SArray **pTasks) {
     pMsg->taskType = TASK_TYPE_PERSISTENT;
     pMsg->phyLen   = msgLen;
     pMsg->sqlLen   = 0;
+    memcpy(pMsg->msg, msg, msgLen);
     /*memcpy(pMsg->msg, ((SSubQueryMsg*)msg)->msg, msgLen);*/
 
     tInfo.msg = pMsg;

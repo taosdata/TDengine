@@ -236,9 +236,9 @@ TAOS_DEFINE_ERROR(TSDB_CODE_MND_TOO_MANY_TAGS,            "Too many tags")
 TAOS_DEFINE_ERROR(TSDB_CODE_MND_TAG_ALREAY_EXIST,         "Tag already exists")
 TAOS_DEFINE_ERROR(TSDB_CODE_MND_TAG_NOT_EXIST,            "Tag does not exist")
 TAOS_DEFINE_ERROR(TSDB_CODE_MND_TOO_MANY_COLUMNS,         "Too many columns")
-TAOS_DEFINE_ERROR(TSDB_CODE_MND_COLUMN_ALREAY_EXIST,       "Column already exists")
-TAOS_DEFINE_ERROR(TSDB_CODE_MND_COLUMN_NOT_EXIST,          "Column does not exist")
-TAOS_DEFINE_ERROR(TSDB_CODE_MND_EXCEED_MAX_ROW_BYTES,     "Exceed max row bytes")
+TAOS_DEFINE_ERROR(TSDB_CODE_MND_COLUMN_ALREAY_EXIST,      "Column already exists")
+TAOS_DEFINE_ERROR(TSDB_CODE_MND_COLUMN_NOT_EXIST,         "Column does not exist")
+TAOS_DEFINE_ERROR(TSDB_CODE_MND_INVALID_ROW_BYTES,        "Invalid row bytes")
 
 // mnode-func
 TAOS_DEFINE_ERROR(TSDB_CODE_MND_FUNC_ALREADY_EXIST,       "Func already exists")

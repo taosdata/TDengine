@@ -54,11 +54,11 @@ static void *sendRequest(void *param) {
   tDebug("thread:%d, start to send request", pInfo->index);
 
   tDebug("thread:%d, reqs: %d", pInfo->index, pInfo->numOfReqs);
-  int u100 = 0;
-  int u500 = 0;
-  int u1000 = 0;
-  int u10000 = 0;
-
+  int     u100 = 0;
+  int     u500 = 0;
+  int     u1000 = 0;
+  int     u10000 = 0;
+  SRpcMsg respMsg = {0};
   while (pInfo->numOfReqs == 0 || pInfo->num < pInfo->numOfReqs) {
     pInfo->num++;
     rpcMsg.pCont = rpcMallocCont(pInfo->msgSize);
@@ -67,10 +67,11 @@ static void *sendRequest(void *param) {
     rpcMsg.msgType = 1;
     // tDebug("thread:%d, send request, contLen:%d num:%d", pInfo->index, pInfo->msgSize, pInfo->num);
     int64_t start = taosGetTimestampUs();
-    rpcSendRequest(pInfo->pRpc, &pInfo->epSet, &rpcMsg, NULL);
+    rpcSendRecv(pInfo->pRpc, &pInfo->epSet, &rpcMsg, &respMsg);
+    // rpcSendRequest(pInfo->pRpc, &pInfo->epSet, &rpcMsg, NULL);
     if (pInfo->num % 20000 == 0) tInfo("thread:%d, %d requests have been sent", pInfo->index, pInfo->num);
     // tsem_wait(&pInfo->rspSem);
-    tsem_wait(&pInfo->rspSem);
+    // wtsem_wait(&pInfo->rspSem);
     int64_t end = taosGetTimestampUs() - start;
     if (end <= 100) {
       u100++;
@@ -96,7 +97,7 @@ static void *sendRequest(void *param) {
 
 int main(int argc, char *argv[]) {
   SRpcInit       rpcInit;
-  SEpSet         epSet;
+  SEpSet         epSet = {0};
   int            msgSize = 128;
   int            numOfReqs = 0;
   int            appThreads = 1;

@@ -60,14 +60,14 @@ SNodeList* addNodeToList(SAstCreateContext* pCxt, SNodeList* pList, SNode* pNode
   return nodesListAppend(pList, pNode);
 }
 
-SNode* createColumnNode(SAstCreateContext* pCxt, const SToken* pTableName, const SToken* pColumnName) {
-  if (!checkTableName(pCxt, pTableName) || !checkColumnName(pCxt, pColumnName)) {
+SNode* createColumnNode(SAstCreateContext* pCxt, const SToken* pTableAlias, const SToken* pColumnName) {
+  if (!checkTableName(pCxt, pTableAlias) || !checkColumnName(pCxt, pColumnName)) {
     return NULL;
   }
   SColumnNode* col = (SColumnNode*)nodesMakeNode(QUERY_NODE_COLUMN);
   CHECK_OUT_OF_MEM(col);
-  if (NULL != pTableName) {
-    strncpy(col->tableName, pTableName->z, pTableName->n);
+  if (NULL != pTableAlias) {
+    strncpy(col->tableAlias, pTableAlias->z, pTableAlias->n);
   }
   strncpy(col->colName, pColumnName->z, pColumnName->n);
   return (SNode*)col;
@@ -76,7 +76,10 @@ SNode* createColumnNode(SAstCreateContext* pCxt, const SToken* pTableName, const
 SNode* createValueNode(SAstCreateContext* pCxt, int32_t dataType, const SToken* pLiteral) {
   SValueNode* val = (SValueNode*)nodesMakeNode(QUERY_NODE_VALUE);
   CHECK_OUT_OF_MEM(val);
-  // todo
+  val->literal = strndup(pLiteral->z, pLiteral->n);
+  CHECK_OUT_OF_MEM(val->literal);
+  val->node.resType.type = dataType;
+  val->node.resType.bytes = tDataTypes[TSDB_DATA_TYPE_BOOL].bytes;
   return (SNode*)val;
 }
 
@@ -85,10 +88,6 @@ SNode* createDurationValueNode(SAstCreateContext* pCxt, const SToken* pLiteral) 
   CHECK_OUT_OF_MEM(val);
   // todo
   return (SNode*)val;
-}
-
-SNode* addMinusSign(SAstCreateContext* pCxt, SNode* pNode) {
-  // todo
 }
 
 SNode* createLogicConditionNode(SAstCreateContext* pCxt, ELogicConditionType type, SNode* pParam1, SNode* pParam2) {
@@ -151,6 +150,13 @@ SNode* createRealTableNode(SAstCreateContext* pCxt, const SToken* pDbName, const
   CHECK_OUT_OF_MEM(realTable);
   if (NULL != pDbName) {
     strncpy(realTable->table.dbName, pDbName->z, pDbName->n);
+  } else {
+    strcpy(realTable->table.dbName, pCxt->pQueryCxt->db);
+  }
+  if (NULL != pTableAlias && TK_NIL != pTableAlias->type) {
+    strncpy(realTable->table.tableAlias, pTableAlias->z, pTableAlias->n);
+  } else {
+    strncpy(realTable->table.tableAlias, pTableName->z, pTableName->n);
   }
   strncpy(realTable->table.tableName, pTableName->z, pTableName->n);
   return (SNode*)realTable;
@@ -160,6 +166,9 @@ SNode* createTempTableNode(SAstCreateContext* pCxt, SNode* pSubquery, const STok
   STempTableNode* tempTable = (STempTableNode*)nodesMakeNode(QUERY_NODE_TEMP_TABLE);
   CHECK_OUT_OF_MEM(tempTable);
   tempTable->pSubquery = pSubquery;
+  if (NULL != pTableAlias && TK_NIL != pTableAlias->type) {
+    strncpy(tempTable->table.tableAlias, pTableAlias->z, pTableAlias->n);
+  }
   return (SNode*)tempTable;
 }
 

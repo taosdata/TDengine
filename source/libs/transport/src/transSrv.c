@@ -33,6 +33,8 @@ typedef struct SSrvConn {
   void*       hostThrd;
   void*       pSrvMsg;
 
+  struct sockaddr peername;
+
   // SRpcMsg sendMsg;
   // del later
   char secured;
@@ -376,13 +378,15 @@ static void destroySmsg(SSrvMsg* smsg) {
   free(smsg);
 }
 void uvWorkerAsyncCb(uv_async_t* handle) {
-  SWorkThrdObj* pThrd = handle->data;
+  SAsyncItem*   item = handle->data;
+  SWorkThrdObj* pThrd = item->pThrd;
   SSrvConn*     conn = NULL;
   queue         wq;
   // batch process to avoid to lock/unlock frequently
-  pthread_mutex_lock(&pThrd->msgMtx);
-  QUEUE_MOVE(&pThrd->msg, &wq);
-  pthread_mutex_unlock(&pThrd->msgMtx);
+  pthread_mutex_lock(&item->mtx);
+  QUEUE_MOVE(&item->qmsg, &wq);
+  pthread_mutex_unlock(&item->mtx);
+  // pthread_mutex_unlock(&mtx);
 
   while (!QUEUE_IS_EMPTY(&wq)) {
     queue* head = QUEUE_HEAD(&wq);
@@ -485,7 +489,13 @@ void uvOnConnectionCb(uv_stream_t* q, ssize_t nread, const uv_buf_t* buf) {
     uv_os_fd_t fd;
     uv_fileno((const uv_handle_t*)pConn->pTcp, &fd);
     tDebug("conn %p created, fd: %d", pConn, fd);
-    uv_read_start((uv_stream_t*)(pConn->pTcp), uvAllocReadBufferCb, uvOnReadCb);
+    int namelen = sizeof(pConn->peername);
+    if (0 != uv_tcp_getpeername(pConn->pTcp, &pConn->peername, &namelen)) {
+      tError("failed to get peer name");
+      destroyConn(pConn, true);
+    } else {
+      uv_read_start((uv_stream_t*)(pConn->pTcp), uvAllocReadBufferCb, uvOnReadCb);
+    }
   } else {
     tDebug("failed to create new connection");
     destroyConn(pConn, true);
@@ -494,6 +504,7 @@ void uvOnConnectionCb(uv_stream_t* q, ssize_t nread, const uv_buf_t* buf) {
 
 void* acceptThread(void* arg) {
   // opt
+  setThreadName("trans-accept");
   SServerObj* srv = (SServerObj*)arg;
   uv_run(srv->loop, UV_RUN_DEFAULT);
 }
@@ -539,13 +550,14 @@ static bool addHandleToAcceptloop(void* arg) {
     tError("failed to bind: %s", uv_err_name(err));
     return false;
   }
-  if ((err = uv_listen((uv_stream_t*)&srv->server, 128, uvOnAcceptCb)) != 0) {
+  if ((err = uv_listen((uv_stream_t*)&srv->server, 512, uvOnAcceptCb)) != 0) {
     tError("failed to listen: %s", uv_err_name(err));
     return false;
   }
   return true;
 }
 void* workerThread(void* arg) {
+  setThreadName("trans-worker");
   SWorkThrdObj* pThrd = (SWorkThrdObj*)arg;
   uv_run(pThrd->loop, UV_RUN_DEFAULT);
 }
@@ -671,12 +683,12 @@ void destroyWorkThrd(SWorkThrdObj* pThrd) {
 void sendQuitToWorkThrd(SWorkThrdObj* pThrd) {
   SSrvMsg* srvMsg = calloc(1, sizeof(SSrvMsg));
 
-  pthread_mutex_lock(&pThrd->msgMtx);
-  QUEUE_PUSH(&pThrd->msg, &srvMsg->q);
-  pthread_mutex_unlock(&pThrd->msgMtx);
+  // pthread_mutex_lock(&pThrd->msgMtx);
+  // QUEUE_PUSH(&pThrd->msg, &srvMsg->q);
+  // pthread_mutex_unlock(&pThrd->msgMtx);
   tDebug("send quit msg to work thread");
 
-  transSendAsync(pThrd->asyncPool);
+  transSendAsync(pThrd->asyncPool, &srvMsg->q);
   // uv_async_send(pThrd->workerAsync);
 }
 
@@ -712,13 +724,25 @@ void rpcSendResponse(const SRpcMsg* pMsg) {
   srvMsg->pConn = pConn;
   srvMsg->msg = *pMsg;
 
-  pthread_mutex_lock(&pThrd->msgMtx);
-  QUEUE_PUSH(&pThrd->msg, &srvMsg->q);
-  pthread_mutex_unlock(&pThrd->msgMtx);
+  // pthread_mutex_lock(&pThrd->msgMtx);
+  // QUEUE_PUSH(&pThrd->msg, &srvMsg->q);
+  // pthread_mutex_unlock(&pThrd->msgMtx);
 
   tDebug("conn %p start to send resp", pConn);
-  transSendAsync(pThrd->asyncPool);
+  transSendAsync(pThrd->asyncPool, &srvMsg->q);
   // uv_async_send(pThrd->workerAsync);
+}
+
+int rpcGetConnInfo(void* thandle, SRpcConnInfo* pInfo) {
+  SSrvConn*        pConn = thandle;
+  struct sockaddr* pPeerName = &pConn->peername;
+
+  struct sockaddr_in caddr = *(struct sockaddr_in*)(pPeerName);
+  pInfo->clientIp = (uint32_t)(caddr.sin_addr.s_addr);
+  pInfo->clientPort = ntohs(caddr.sin_port);
+
+  tstrncpy(pInfo->user, pConn->user, sizeof(pInfo->user));
+  return 0;
 }
 
 #endif
