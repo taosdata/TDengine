@@ -119,7 +119,6 @@
 53,,script,./test.sh -f unique/mnode/mgmt23.sim 
 53,,script,./test.sh -f unique/mnode/mgmt22.sim 
 53,,script,./test.sh -f unique/db/replica_add12.sim 
-# 53,,pytest,python3 test.py -f tools/taosdemoAllTest/taosdemoTestInsertWithJsonSml.py 
 52,,script,./test.sh -f unique/account/pass_alter.sim 
 52,,script,./test.sh -f general/parser/topbot.sim 
 52,,script,./test.sh -f general/parser/join_manyblocks.sim 
@@ -141,6 +140,7 @@
 47,,script,./test.sh -f unique/dnode/monitor.sim 
 47,,script,./test.sh -f unique/big/maxvnodes.sim 
 47,,pytest,python3 test.py -f tools/taosdemoAllTest/NanoTestCase/taosdemoTestSupportNanosubscribe.py 
+46,,system-test,python3 ./test.py  -f  5-taos-tools/taosbenchmark/taosdemoTestQueryWithJson.py
 45,,script,./test.sh -f unique/mnode/mgmt24.sim 
 45,,pytest,python3 test.py -f tools/taosdemoAllTest/TD-5213/insertSigcolumnsNum4096.py 
 44,,script,./test.sh -f unique/vnode/replica3_vgroup.sim 
@@ -158,7 +158,6 @@
 41,,script,./test.sh -f unique/arbitrator/sync_replica3_dropDb.sim 
 41,,script,./test.sh -f unique/arbitrator/sync_replica2_alterTable_drop.sim 
 41,,script,./test.sh -f general/alter/count.sim 
-# 41,,pytest,python3 test.py -f tools/taosdemoAllTest/taosdemoTestQueryWithJson.py 
 41,,pytest,python3 test.py -f import_merge/import_update_0.py 
 40,,script,./test.sh -f unique/arbitrator/sync_replica3_dropTable.sim 
 40,,script,./test.sh -f unique/arbitrator/sync_replica3_alterTable_add.sim 
@@ -168,7 +167,6 @@
 39,,script,./test.sh -f general/wal/kill.sim 
 39,,script,./test.sh -f general/db/alter_vgroups.sim 
 39,,pytest,python3 test.py -f update/allow_update.py 
-# 39,,pytest,python3 test.py -f tools/taosdemoAllTest/taosdemoTestInsertWithJsonStmt.py 
 39,,pytest,python3 test.py -f query/last_cache.py 
 38,,script,./test.sh -f unique/dnode/offline3.sim 
 38,,script,./test.sh -f unique/arbitrator/sync_replica2_dropDb.sim 
