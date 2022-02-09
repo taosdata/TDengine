@@ -163,6 +163,12 @@ typedef struct {
   int32_t vgVersion;
 } SBuildUseDBInput;
 
+typedef struct SField {
+  char    name[TSDB_COL_NAME_LEN];
+  uint8_t type;
+  int32_t bytes;
+} SField;
+
 #pragma pack(push, 1)
 
 // null-terminated string instead of char array to avoid too many memory consumption in case of more than 1M tableMeta
@@ -248,12 +254,6 @@ typedef struct SSchema {
   int32_t bytes;
   char    name[TSDB_COL_NAME_LEN];
 } SSchema;
-
-typedef struct SField {
-  char    name[TSDB_COL_NAME_LEN];
-  uint8_t type;
-  int32_t bytes;
-} SField;
 
 typedef struct {
   char    name[TSDB_TABLE_FNAME_LEN];

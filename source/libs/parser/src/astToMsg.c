@@ -277,6 +277,7 @@ SMCreateStbReq* buildCreateStbMsg(SCreateTableSql* pCreateTableSql, int32_t* len
 
   void *buf = req;
   tSerializeSMCreateStbReq(&buf, &createReq);
+  *len = tlen;
   return req;
 }
 
