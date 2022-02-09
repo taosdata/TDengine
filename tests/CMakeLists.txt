@@ -1,4 +1,0 @@
-#ADD_SUBDIRECTORY(examples/c)
-ADD_SUBDIRECTORY(tsim)
-ADD_SUBDIRECTORY(test/c)
-#ADD_SUBDIRECTORY(comparisonTest/tdengine)
