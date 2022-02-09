@@ -740,13 +740,14 @@ static int32_t mndAlterStbTagBytes(const SStbObj *pOld, SStbObj *pNew, const SSc
   }
 
   SSchema *pTag = pNew->pTags + tag;
-  if (pSchema->bytes <= pTag->bytes) {
-    terrno = TSDB_CODE_MND_INVALID_ROW_BYTES;
-    return -1;
-  }
 
   if (!(pTag->type == TSDB_DATA_TYPE_BINARY || pTag->type == TSDB_DATA_TYPE_NCHAR)) {
     terrno = TSDB_CODE_MND_INVALID_STB_OPTION;
+    return -1;
+  }
+
+  if (pSchema->bytes <= pTag->bytes) {
+    terrno = TSDB_CODE_MND_INVALID_ROW_BYTES;
     return -1;
   }
 
@@ -765,12 +766,12 @@ static int32_t mndAddSuperTableColumn(const SStbObj *pOld, SStbObj *pNew, const 
 
   for (int32_t i = 0; i < ncols; i++) {
     if (mndFindSuperTableColumnIndex(pOld, pSchemas[i].name) > 0) {
-      terrno = TSDB_CODE_MND_TAG_ALREADY_EXIST;
+      terrno = TSDB_CODE_MND_COLUMN_ALREADY_EXIST;
       return -1;
     }
 
     if (mndFindSuperTableTagIndex(pOld, pSchemas[i].name) > 0) {
-      terrno = TSDB_CODE_MND_COLUMN_ALREADY_EXIST;
+      terrno = TSDB_CODE_MND_TAG_ALREADY_EXIST;
       return -1;
     }
   }
@@ -795,8 +796,18 @@ static int32_t mndAddSuperTableColumn(const SStbObj *pOld, SStbObj *pNew, const 
 
 static int32_t mndDropSuperTableColumn(const SStbObj *pOld, SStbObj *pNew, const char *colName) {
   int32_t col = mndFindSuperTableColumnIndex(pOld, colName);
-  if (col <= 0) {
+  if (col < 0) {
     terrno = TSDB_CODE_MND_COLUMN_NOT_EXIST;
+    return -1;
+  }
+
+  if (col == 0) {
+    terrno = TSDB_CODE_MND_INVALID_STB_ALTER_OPTION;
+    return -1;
+  }
+
+  if (pOld->numOfColumns == 2) {
+    terrno = TSDB_CODE_MND_INVALID_STB_ALTER_OPTION;
     return -1;
   }
 
@@ -834,13 +845,13 @@ static int32_t mndAlterStbColumnBytes(const SStbObj *pOld, SStbObj *pNew, const 
   }
 
   SSchema *pCol = pNew->pColumns + col;
-  if (pSchema->bytes <= pCol->bytes) {
-    terrno = TSDB_CODE_MND_INVALID_ROW_BYTES;
+  if (!(pCol->type == TSDB_DATA_TYPE_BINARY || pCol->type == TSDB_DATA_TYPE_NCHAR)) {
+    terrno = TSDB_CODE_MND_INVALID_STB_OPTION;
     return -1;
   }
 
-  if (!(pCol->type == TSDB_DATA_TYPE_BINARY || pCol->type == TSDB_DATA_TYPE_NCHAR)) {
-    terrno = TSDB_CODE_MND_INVALID_STB_OPTION;
+  if (pSchema->bytes <= pCol->bytes) {
+    terrno = TSDB_CODE_MND_INVALID_ROW_BYTES;
     return -1;
   }
 

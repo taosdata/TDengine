@@ -23,13 +23,18 @@ class MndTestStb : public ::testing::Test {
   void TearDown() override {}
 
   SCreateDbReq*   BuildCreateDbReq(const char* dbname, int32_t* pContLen);
+  SDropDbReq*     BuildDropDbReq(const char* dbname, int32_t* pContLen);
   SMCreateStbReq* BuildCreateStbReq(const char* stbname, int32_t* pContLen);
   SMAltertbReq*   BuildAlterStbAddTagReq(const char* stbname, const char* tagname, int32_t* pContLen);
   SMAltertbReq*   BuildAlterStbDropTagReq(const char* stbname, const char* tagname, int32_t* pContLen);
   SMAltertbReq*   BuildAlterStbUpdateTagNameReq(const char* stbname, const char* tagname, const char* newtagname,
                                                 int32_t* pContLen);
   SMAltertbReq*   BuildAlterStbUpdateTagBytesReq(const char* stbname, const char* tagname, int32_t bytes,
-                                                  int32_t* pContLen);
+                                                 int32_t* pContLen);
+  SMAltertbReq*   BuildAlterStbAddColumnReq(const char* stbname, const char* colname, int32_t* pContLen);
+  SMAltertbReq*   BuildAlterStbDropColumnReq(const char* stbname, const char* colname, int32_t* pContLen);
+  SMAltertbReq*   BuildAlterStbUpdateColumnBytesReq(const char* stbname, const char* colname, int32_t bytes,
+                                                    int32_t* pContLen);
 };
 
 Testbase MndTestStb::test;
@@ -63,6 +68,16 @@ SCreateDbReq* MndTestStb::BuildCreateDbReq(const char* dbname, int32_t* pContLen
   return pReq;
 }
 
+SDropDbReq* MndTestStb::BuildDropDbReq(const char* dbname, int32_t* pContLen) {
+  int32_t contLen = sizeof(SDropDbReq);
+
+  SDropDbReq* pReq = (SDropDbReq*)rpcMallocCont(contLen);
+  strcpy(pReq->db, dbname);
+
+  *pContLen = contLen;
+  return pReq;
+}
+
 SMCreateStbReq* MndTestStb::BuildCreateStbReq(const char* stbname, int32_t* pContLen) {
   int32_t cols = 2;
   int32_t tags = 3;
@@ -82,8 +97,8 @@ SMCreateStbReq* MndTestStb::BuildCreateStbReq(const char* stbname, int32_t* pCon
 
   {
     SSchema* pSchema = &pReq->pSchemas[1];
-    pSchema->bytes = htonl(4);
-    pSchema->type = TSDB_DATA_TYPE_INT;
+    pSchema->bytes = htonl(12);
+    pSchema->type = TSDB_DATA_TYPE_BINARY;
     strcpy(pSchema->name, "col1");
   }
 
@@ -107,6 +122,126 @@ SMCreateStbReq* MndTestStb::BuildCreateStbReq(const char* stbname, int32_t* pCon
     pSchema->type = TSDB_DATA_TYPE_BINARY;
     strcpy(pSchema->name, "tag3");
   }
+
+  *pContLen = contLen;
+  return pReq;
+}
+
+SMAltertbReq* MndTestStb::BuildAlterStbAddTagReq(const char* stbname, const char* tagname, int32_t* pContLen) {
+  int32_t       contLen = sizeof(SMAltertbReq) + sizeof(SSchema);
+  SMAltertbReq* pReq = (SMAltertbReq*)rpcMallocCont(contLen);
+  strcpy(pReq->name, stbname);
+  pReq->numOfSchemas = htonl(1);
+  pReq->alterType = TSDB_ALTER_TABLE_ADD_TAG;
+
+  SSchema* pSchema = &pReq->pSchemas[0];
+  pSchema->bytes = htonl(12);
+  pSchema->type = TSDB_DATA_TYPE_BINARY;
+  strcpy(pSchema->name, tagname);
+
+  *pContLen = contLen;
+  return pReq;
+}
+
+SMAltertbReq* MndTestStb::BuildAlterStbDropTagReq(const char* stbname, const char* tagname, int32_t* pContLen) {
+  int32_t       contLen = sizeof(SMAltertbReq) + sizeof(SSchema);
+  SMAltertbReq* pReq = (SMAltertbReq*)rpcMallocCont(contLen);
+  strcpy(pReq->name, stbname);
+  pReq->numOfSchemas = htonl(1);
+  pReq->alterType = TSDB_ALTER_TABLE_DROP_TAG;
+
+  SSchema* pSchema = &pReq->pSchemas[0];
+  pSchema->bytes = htonl(12);
+  pSchema->type = TSDB_DATA_TYPE_BINARY;
+  strcpy(pSchema->name, tagname);
+
+  *pContLen = contLen;
+  return pReq;
+}
+
+SMAltertbReq* MndTestStb::BuildAlterStbUpdateTagNameReq(const char* stbname, const char* tagname,
+                                                        const char* newtagname, int32_t* pContLen) {
+  int32_t       contLen = sizeof(SMAltertbReq) + 2 * sizeof(SSchema);
+  SMAltertbReq* pReq = (SMAltertbReq*)rpcMallocCont(contLen);
+  strcpy(pReq->name, stbname);
+  pReq->numOfSchemas = htonl(1);
+  pReq->alterType = TSDB_ALTER_TABLE_UPDATE_TAG_NAME;
+
+  SSchema* pSchema = &pReq->pSchemas[0];
+  pSchema->bytes = htonl(12);
+  pSchema->type = TSDB_DATA_TYPE_BINARY;
+  strcpy(pSchema->name, tagname);
+
+  pSchema = &pReq->pSchemas[1];
+  pSchema->bytes = htonl(12);
+  pSchema->type = TSDB_DATA_TYPE_BINARY;
+  strcpy(pSchema->name, newtagname);
+
+  *pContLen = contLen;
+  return pReq;
+}
+
+SMAltertbReq* MndTestStb::BuildAlterStbUpdateTagBytesReq(const char* stbname, const char* tagname, int32_t bytes,
+                                                         int32_t* pContLen) {
+  int32_t       contLen = sizeof(SMAltertbReq) + sizeof(SSchema);
+  SMAltertbReq* pReq = (SMAltertbReq*)rpcMallocCont(contLen);
+  strcpy(pReq->name, stbname);
+  pReq->numOfSchemas = htonl(1);
+  pReq->alterType = TSDB_ALTER_TABLE_UPDATE_TAG_BYTES;
+
+  SSchema* pSchema = &pReq->pSchemas[0];
+  pSchema->bytes = htonl(bytes);
+  pSchema->type = TSDB_DATA_TYPE_BINARY;
+  strcpy(pSchema->name, tagname);
+
+  *pContLen = contLen;
+  return pReq;
+}
+
+SMAltertbReq* MndTestStb::BuildAlterStbAddColumnReq(const char* stbname, const char* colname, int32_t* pContLen) {
+  int32_t       contLen = sizeof(SMAltertbReq) + sizeof(SSchema);
+  SMAltertbReq* pReq = (SMAltertbReq*)rpcMallocCont(contLen);
+  strcpy(pReq->name, stbname);
+  pReq->numOfSchemas = htonl(1);
+  pReq->alterType = TSDB_ALTER_TABLE_ADD_COLUMN;
+
+  SSchema* pSchema = &pReq->pSchemas[0];
+  pSchema->bytes = htonl(12);
+  pSchema->type = TSDB_DATA_TYPE_BINARY;
+  strcpy(pSchema->name, colname);
+
+  *pContLen = contLen;
+  return pReq;
+}
+
+SMAltertbReq* MndTestStb::BuildAlterStbDropColumnReq(const char* stbname, const char* colname, int32_t* pContLen) {
+  int32_t       contLen = sizeof(SMAltertbReq) + sizeof(SSchema);
+  SMAltertbReq* pReq = (SMAltertbReq*)rpcMallocCont(contLen);
+  strcpy(pReq->name, stbname);
+  pReq->numOfSchemas = htonl(1);
+  pReq->alterType = TSDB_ALTER_TABLE_DROP_COLUMN;
+
+  SSchema* pSchema = &pReq->pSchemas[0];
+  pSchema->bytes = htonl(12);
+  pSchema->type = TSDB_DATA_TYPE_BINARY;
+  strcpy(pSchema->name, colname);
+
+  *pContLen = contLen;
+  return pReq;
+}
+
+SMAltertbReq* MndTestStb::BuildAlterStbUpdateColumnBytesReq(const char* stbname, const char* colname, int32_t bytes,
+                                                            int32_t* pContLen) {
+  int32_t       contLen = sizeof(SMAltertbReq) + sizeof(SSchema);
+  SMAltertbReq* pReq = (SMAltertbReq*)rpcMallocCont(contLen);
+  strcpy(pReq->name, stbname);
+  pReq->numOfSchemas = htonl(1);
+  pReq->alterType = TSDB_ALTER_TABLE_UPDATE_COLUMN_BYTES;
+
+  SSchema* pSchema = &pReq->pSchemas[0];
+  pSchema->bytes = htonl(bytes);
+  pSchema->type = TSDB_DATA_TYPE_BINARY;
+  strcpy(pSchema->name, colname);
 
   *pContLen = contLen;
   return pReq;
@@ -197,9 +332,9 @@ TEST_F(MndTestStb, 01_Create_Show_Meta_Drop_Restart_Stb) {
 
     {
       SSchema* pSchema = &pRsp->pSchema[1];
-      EXPECT_EQ(pSchema->type, TSDB_DATA_TYPE_INT);
+      EXPECT_EQ(pSchema->type, TSDB_DATA_TYPE_BINARY);
       EXPECT_EQ(pSchema->colId, 2);
-      EXPECT_EQ(pSchema->bytes, 4);
+      EXPECT_EQ(pSchema->bytes, 12);
       EXPECT_STREQ(pSchema->name, "col1");
     }
 
@@ -254,89 +389,28 @@ TEST_F(MndTestStb, 01_Create_Show_Meta_Drop_Restart_Stb) {
     ASSERT_EQ(pRsp->code, 0);
   }
 
-  test.SendShowMetaReq(TSDB_MGMT_TABLE_STB, dbname);
-  CHECK_META("show stables", 4);
-  test.SendShowRetrieveReq();
-  EXPECT_EQ(test.GetShowRows(), 0);
-}
+  {
+    test.SendShowMetaReq(TSDB_MGMT_TABLE_STB, dbname);
+    CHECK_META("show stables", 4);
+    test.SendShowRetrieveReq();
+    EXPECT_EQ(test.GetShowRows(), 0);
+  }
 
-SMAltertbReq* MndTestStb::BuildAlterStbAddTagReq(const char* stbname, const char* tagname, int32_t* pContLen) {
-  int32_t       contLen = sizeof(SMAltertbReq) + sizeof(SSchema);
-  SMAltertbReq* pReq = (SMAltertbReq*)rpcMallocCont(contLen);
-  strcpy(pReq->name, stbname);
-  pReq->numOfSchemas = htonl(1);
-  pReq->alterType = TSDB_ALTER_TABLE_ADD_TAG;
-
-  SSchema* pSchema = &pReq->pSchemas[0];
-  pSchema->bytes = htonl(12);
-  pSchema->type = TSDB_DATA_TYPE_BINARY;
-  strcpy(pSchema->name, tagname);
-
-  *pContLen = contLen;
-  return pReq;
-}
-
-SMAltertbReq* MndTestStb::BuildAlterStbDropTagReq(const char* stbname, const char* tagname, int32_t* pContLen) {
-  int32_t       contLen = sizeof(SMAltertbReq) + sizeof(SSchema);
-  SMAltertbReq* pReq = (SMAltertbReq*)rpcMallocCont(contLen);
-  strcpy(pReq->name, stbname);
-  pReq->numOfSchemas = htonl(1);
-  pReq->alterType = TSDB_ALTER_TABLE_DROP_TAG;
-
-  SSchema* pSchema = &pReq->pSchemas[0];
-  pSchema->bytes = htonl(12);
-  pSchema->type = TSDB_DATA_TYPE_BINARY;
-  strcpy(pSchema->name, tagname);
-
-  *pContLen = contLen;
-  return pReq;
-}
-
-SMAltertbReq* MndTestStb::BuildAlterStbUpdateTagNameReq(const char* stbname, const char* tagname,
-                                                        const char* newtagname, int32_t* pContLen) {
-  int32_t       contLen = sizeof(SMAltertbReq) + 2 * sizeof(SSchema);
-  SMAltertbReq* pReq = (SMAltertbReq*)rpcMallocCont(contLen);
-  strcpy(pReq->name, stbname);
-  pReq->numOfSchemas = htonl(1);
-  pReq->alterType = TSDB_ALTER_TABLE_UPDATE_TAG_NAME;
-
-  SSchema* pSchema = &pReq->pSchemas[0];
-  pSchema->bytes = htonl(12);
-  pSchema->type = TSDB_DATA_TYPE_BINARY;
-  strcpy(pSchema->name, tagname);
-
-  pSchema = &pReq->pSchemas[1];
-  pSchema->bytes = htonl(12);
-  pSchema->type = TSDB_DATA_TYPE_BINARY;
-  strcpy(pSchema->name, newtagname);
-
-  *pContLen = contLen;
-  return pReq;
-}
-
-SMAltertbReq* MndTestStb::BuildAlterStbUpdateTagBytesReq(const char* stbname, const char* tagname, int32_t bytes,
-                                                          int32_t* pContLen) {
-  int32_t       contLen = sizeof(SMAltertbReq) + sizeof(SSchema);
-  SMAltertbReq* pReq = (SMAltertbReq*)rpcMallocCont(contLen);
-  strcpy(pReq->name, stbname);
-  pReq->numOfSchemas = htonl(1);
-  pReq->alterType = TSDB_ALTER_TABLE_UPDATE_TAG_BYTES;
-
-  SSchema* pSchema = &pReq->pSchemas[0];
-  pSchema->bytes = htonl(bytes);
-  pSchema->type = TSDB_DATA_TYPE_BINARY;
-  strcpy(pSchema->name, tagname);
-
-  *pContLen = contLen;
-  return pReq;
+  {
+    int32_t     contLen = 0;
+    SDropDbReq* pReq = BuildDropDbReq(dbname, &contLen);
+    SRpcMsg*    pRsp = test.SendReq(TDMT_MND_DROP_DB, pReq, contLen);
+    ASSERT_NE(pRsp, nullptr);
+    ASSERT_EQ(pRsp->code, 0);
+  }
 }
 
 TEST_F(MndTestStb, 02_Alter_Stb_AddTag) {
   const char* dbname = "1.d2";
   const char* stbname = "1.d2.stb";
+  int32_t     contLen = 0;
 
   {
-    int32_t       contLen = 0;
     SCreateDbReq* pReq = BuildCreateDbReq(dbname, &contLen);
     SRpcMsg*      pRsp = test.SendReq(TDMT_MND_CREATE_DB, pReq, contLen);
     ASSERT_NE(pRsp, nullptr);
@@ -344,14 +418,11 @@ TEST_F(MndTestStb, 02_Alter_Stb_AddTag) {
   }
 
   {
-    int32_t         contLen = 0;
     SMCreateStbReq* pReq = BuildCreateStbReq(stbname, &contLen);
     SRpcMsg*        pRsp = test.SendReq(TDMT_MND_CREATE_STB, pReq, contLen);
     ASSERT_NE(pRsp, nullptr);
     ASSERT_EQ(pRsp->code, 0);
   }
-
-  int32_t contLen = 0;
 
   {
     SMAltertbReq* pReq = BuildAlterStbAddTagReq("1.d3.stb", "tag4", &contLen);
@@ -391,6 +462,13 @@ TEST_F(MndTestStb, 02_Alter_Stb_AddTag) {
     CheckInt32(2);
     CheckInt32(4);
   }
+
+  {
+    SDropDbReq* pReq = BuildDropDbReq(dbname, &contLen);
+    SRpcMsg*    pRsp = test.SendReq(TDMT_MND_DROP_DB, pReq, contLen);
+    ASSERT_NE(pRsp, nullptr);
+    ASSERT_EQ(pRsp->code, 0);
+  }
 }
 
 TEST_F(MndTestStb, 03_Alter_Stb_DropTag) {
@@ -429,6 +507,13 @@ TEST_F(MndTestStb, 03_Alter_Stb_DropTag) {
     CheckTimestamp();
     CheckInt32(2);
     CheckInt32(2);
+  }
+
+  {
+    SDropDbReq* pReq = BuildDropDbReq(dbname, &contLen);
+    SRpcMsg*    pRsp = test.SendReq(TDMT_MND_DROP_DB, pReq, contLen);
+    ASSERT_NE(pRsp, nullptr);
+    ASSERT_EQ(pRsp->code, 0);
   }
 }
 
@@ -492,10 +577,16 @@ TEST_F(MndTestStb, 04_Alter_Stb_AlterTagName) {
     CheckInt32(2);
     CheckInt32(3);
   }
+
+  {
+    SDropDbReq* pReq = BuildDropDbReq(dbname, &contLen);
+    SRpcMsg*    pRsp = test.SendReq(TDMT_MND_DROP_DB, pReq, contLen);
+    ASSERT_NE(pRsp, nullptr);
+    ASSERT_EQ(pRsp->code, 0);
+  }
 }
 
-
-TEST_F(MndTestStb, 04_Alter_Stb_AlterTagBytes) {
+TEST_F(MndTestStb, 05_Alter_Stb_AlterTagBytes) {
   const char* dbname = "1.d5";
   const char* stbname = "1.d5.stb";
   int32_t     contLen = 0;
@@ -534,7 +625,7 @@ TEST_F(MndTestStb, 04_Alter_Stb_AlterTagBytes) {
     SMAltertbReq* pReq = BuildAlterStbUpdateTagBytesReq(stbname, "tag3", 20, &contLen);
     SRpcMsg*      pRsp = test.SendReq(TDMT_MND_ALTER_STB, pReq, contLen);
     ASSERT_EQ(pRsp->code, 0);
- 
+
     test.SendShowMetaReq(TSDB_MGMT_TABLE_STB, dbname);
     test.SendShowRetrieveReq();
     EXPECT_EQ(test.GetShowRows(), 1);
@@ -542,5 +633,206 @@ TEST_F(MndTestStb, 04_Alter_Stb_AlterTagBytes) {
     CheckTimestamp();
     CheckInt32(2);
     CheckInt32(3);
+  }
+
+  {
+    SDropDbReq* pReq = BuildDropDbReq(dbname, &contLen);
+    SRpcMsg*    pRsp = test.SendReq(TDMT_MND_DROP_DB, pReq, contLen);
+    ASSERT_NE(pRsp, nullptr);
+    ASSERT_EQ(pRsp->code, 0);
+  }
+}
+
+TEST_F(MndTestStb, 06_Alter_Stb_AddColumn) {
+  const char* dbname = "1.d6";
+  const char* stbname = "1.d6.stb";
+  int32_t     contLen = 0;
+
+  {
+    SCreateDbReq* pReq = BuildCreateDbReq(dbname, &contLen);
+    SRpcMsg*      pRsp = test.SendReq(TDMT_MND_CREATE_DB, pReq, contLen);
+    ASSERT_NE(pRsp, nullptr);
+    ASSERT_EQ(pRsp->code, 0);
+  }
+
+  {
+    SMCreateStbReq* pReq = BuildCreateStbReq(stbname, &contLen);
+    SRpcMsg*        pRsp = test.SendReq(TDMT_MND_CREATE_STB, pReq, contLen);
+    ASSERT_NE(pRsp, nullptr);
+    ASSERT_EQ(pRsp->code, 0);
+  }
+
+  {
+    SMAltertbReq* pReq = BuildAlterStbAddColumnReq("1.d7.stb", "tag4", &contLen);
+    SRpcMsg*      pRsp = test.SendReq(TDMT_MND_ALTER_STB, pReq, contLen);
+    ASSERT_EQ(pRsp->code, TSDB_CODE_MND_INVALID_DB);
+  }
+
+  {
+    SMAltertbReq* pReq = BuildAlterStbAddColumnReq("1.d6.stb3", "tag4", &contLen);
+    SRpcMsg*      pRsp = test.SendReq(TDMT_MND_ALTER_STB, pReq, contLen);
+    ASSERT_EQ(pRsp->code, TSDB_CODE_MND_STB_NOT_EXIST);
+  }
+
+  {
+    SMAltertbReq* pReq = BuildAlterStbAddColumnReq(stbname, "tag3", &contLen);
+    SRpcMsg*      pRsp = test.SendReq(TDMT_MND_ALTER_STB, pReq, contLen);
+    ASSERT_EQ(pRsp->code, TSDB_CODE_MND_TAG_ALREADY_EXIST);
+  }
+
+  {
+    SMAltertbReq* pReq = BuildAlterStbAddColumnReq(stbname, "col1", &contLen);
+    SRpcMsg*      pRsp = test.SendReq(TDMT_MND_ALTER_STB, pReq, contLen);
+    ASSERT_EQ(pRsp->code, TSDB_CODE_MND_COLUMN_ALREADY_EXIST);
+  }
+
+  {
+    SMAltertbReq* pReq = BuildAlterStbAddColumnReq(stbname, "col2", &contLen);
+    SRpcMsg*      pRsp = test.SendReq(TDMT_MND_ALTER_STB, pReq, contLen);
+    ASSERT_NE(pRsp, nullptr);
+    ASSERT_EQ(pRsp->code, 0);
+
+    test.SendShowMetaReq(TSDB_MGMT_TABLE_STB, dbname);
+    test.SendShowRetrieveReq();
+    EXPECT_EQ(test.GetShowRows(), 1);
+    CheckBinary("stb", TSDB_TABLE_NAME_LEN);
+    CheckTimestamp();
+    CheckInt32(3);
+    CheckInt32(3);
+  }
+
+  {
+    SDropDbReq* pReq = BuildDropDbReq(dbname, &contLen);
+    SRpcMsg*    pRsp = test.SendReq(TDMT_MND_DROP_DB, pReq, contLen);
+    ASSERT_NE(pRsp, nullptr);
+    ASSERT_EQ(pRsp->code, 0);
+  }
+}
+
+TEST_F(MndTestStb, 07_Alter_Stb_DropColumn) {
+  const char* dbname = "1.d7";
+  const char* stbname = "1.d7.stb";
+  int32_t     contLen = 0;
+
+  {
+    SCreateDbReq* pReq = BuildCreateDbReq(dbname, &contLen);
+    SRpcMsg*      pRsp = test.SendReq(TDMT_MND_CREATE_DB, pReq, contLen);
+    ASSERT_EQ(pRsp->code, 0);
+  }
+
+  {
+    SMCreateStbReq* pReq = BuildCreateStbReq(stbname, &contLen);
+    SRpcMsg*        pRsp = test.SendReq(TDMT_MND_CREATE_STB, pReq, contLen);
+    ASSERT_EQ(pRsp->code, 0);
+  }
+
+  {
+    SMAltertbReq* pReq = BuildAlterStbDropColumnReq(stbname, "col4", &contLen);
+    SRpcMsg*      pRsp = test.SendReq(TDMT_MND_ALTER_STB, pReq, contLen);
+    ASSERT_EQ(pRsp->code, TSDB_CODE_MND_COLUMN_NOT_EXIST);
+  }
+
+  {
+    SMAltertbReq* pReq = BuildAlterStbDropColumnReq(stbname, "col1", &contLen);
+    SRpcMsg*      pRsp = test.SendReq(TDMT_MND_ALTER_STB, pReq, contLen);
+    ASSERT_EQ(pRsp->code, TSDB_CODE_MND_INVALID_STB_ALTER_OPTION);
+  }
+
+  {
+    SMAltertbReq* pReq = BuildAlterStbDropColumnReq(stbname, "ts", &contLen);
+    SRpcMsg*      pRsp = test.SendReq(TDMT_MND_ALTER_STB, pReq, contLen);
+    ASSERT_EQ(pRsp->code, TSDB_CODE_MND_INVALID_STB_ALTER_OPTION);
+  }
+
+  {
+    SMAltertbReq* pReq = BuildAlterStbAddColumnReq(stbname, "col2", &contLen);
+    SRpcMsg*      pRsp = test.SendReq(TDMT_MND_ALTER_STB, pReq, contLen);
+    ASSERT_NE(pRsp, nullptr);
+    ASSERT_EQ(pRsp->code, 0);
+  }
+
+  {
+    SMAltertbReq* pReq = BuildAlterStbDropColumnReq(stbname, "col1", &contLen);
+    SRpcMsg*      pRsp = test.SendReq(TDMT_MND_ALTER_STB, pReq, contLen);
+    ASSERT_NE(pRsp, nullptr);
+    ASSERT_EQ(pRsp->code, 0);
+
+    test.SendShowMetaReq(TSDB_MGMT_TABLE_STB, dbname);
+    test.SendShowRetrieveReq();
+    EXPECT_EQ(test.GetShowRows(), 1);
+    CheckBinary("stb", TSDB_TABLE_NAME_LEN);
+    CheckTimestamp();
+    CheckInt32(2);
+    CheckInt32(3);
+  }
+
+  {
+    SDropDbReq* pReq = BuildDropDbReq(dbname, &contLen);
+    SRpcMsg*    pRsp = test.SendReq(TDMT_MND_DROP_DB, pReq, contLen);
+    ASSERT_NE(pRsp, nullptr);
+    ASSERT_EQ(pRsp->code, 0);
+  }
+}
+
+TEST_F(MndTestStb, 08_Alter_Stb_AlterTagBytes) {
+  const char* dbname = "1.d8";
+  const char* stbname = "1.d8.stb";
+  int32_t     contLen = 0;
+
+  {
+    SCreateDbReq* pReq = BuildCreateDbReq(dbname, &contLen);
+    SRpcMsg*      pRsp = test.SendReq(TDMT_MND_CREATE_DB, pReq, contLen);
+    ASSERT_EQ(pRsp->code, 0);
+  }
+
+  {
+    SMCreateStbReq* pReq = BuildCreateStbReq(stbname, &contLen);
+    SRpcMsg*        pRsp = test.SendReq(TDMT_MND_CREATE_STB, pReq, contLen);
+    ASSERT_EQ(pRsp->code, 0);
+  }
+
+  {
+    SMAltertbReq* pReq = BuildAlterStbUpdateColumnBytesReq(stbname, "col5", 12, &contLen);
+    SRpcMsg*      pRsp = test.SendReq(TDMT_MND_ALTER_STB, pReq, contLen);
+    ASSERT_EQ(pRsp->code, TSDB_CODE_MND_COLUMN_NOT_EXIST);
+  }
+
+  {
+    SMAltertbReq* pReq = BuildAlterStbUpdateColumnBytesReq(stbname, "ts", 8, &contLen);
+    SRpcMsg*      pRsp = test.SendReq(TDMT_MND_ALTER_STB, pReq, contLen);
+    ASSERT_EQ(pRsp->code, TSDB_CODE_MND_INVALID_STB_OPTION);
+  }
+
+  {
+    SMAltertbReq* pReq = BuildAlterStbUpdateColumnBytesReq(stbname, "col1", 8, &contLen);
+    SRpcMsg*      pRsp = test.SendReq(TDMT_MND_ALTER_STB, pReq, contLen);
+    ASSERT_EQ(pRsp->code, TSDB_CODE_MND_INVALID_ROW_BYTES);
+  }
+
+  {
+    SMAltertbReq* pReq = BuildAlterStbUpdateColumnBytesReq(stbname, "col1", TSDB_MAX_BYTES_PER_ROW, &contLen);
+    SRpcMsg*      pRsp = test.SendReq(TDMT_MND_ALTER_STB, pReq, contLen);
+    ASSERT_EQ(pRsp->code, TSDB_CODE_MND_INVALID_ROW_BYTES);
+  }
+
+  {
+    SMAltertbReq* pReq = BuildAlterStbUpdateColumnBytesReq(stbname, "col1", 20, &contLen);
+    SRpcMsg*      pRsp = test.SendReq(TDMT_MND_ALTER_STB, pReq, contLen);
+    ASSERT_EQ(pRsp->code, 0);
+
+    test.SendShowMetaReq(TSDB_MGMT_TABLE_STB, dbname);
+    test.SendShowRetrieveReq();
+    EXPECT_EQ(test.GetShowRows(), 1);
+    CheckBinary("stb", TSDB_TABLE_NAME_LEN);
+    CheckTimestamp();
+    CheckInt32(2);
+    CheckInt32(3);
+  }
+
+  {
+    SDropDbReq* pReq = BuildDropDbReq(dbname, &contLen);
+    SRpcMsg*    pRsp = test.SendReq(TDMT_MND_DROP_DB, pReq, contLen);
+    ASSERT_NE(pRsp, nullptr);
+    ASSERT_EQ(pRsp->code, 0);
   }
 }
