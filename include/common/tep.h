@@ -27,10 +27,10 @@ bool isEpsetEqual(const SEpSet *s1, const SEpSet *s2);
 void   updateEpSet_s(SCorEpSet *pEpSet, SEpSet *pNewEpSet);
 SEpSet getEpSet_s(SCorEpSet *pEpSet);
 
-#define NBIT (3u)
+#define NBIT                     (3u)
 #define BitPos(_n)               ((_n) & ((1 << NBIT) - 1))
-#define BMCharPos(bm_, r_)       (bm_)[(r_) >> NBIT]
-#define colDataIsNull_f(bm_, r_) (BMCharPos(bm_, r_) & (1u << (7u - BitPos(row)))) == (1u << (7u - BitPos(row)))
+#define BMCharPos(bm_, r_)       ((bm_)[(r_) >> NBIT])
+#define colDataIsNull_f(bm_, r_) ((BMCharPos(bm_, r_) & (1u << (7u - BitPos(r_)))) == (1u << (7u - BitPos(r_))))
 
 void colDataSetNull_f(char* bitmap, uint32_t row);
 
