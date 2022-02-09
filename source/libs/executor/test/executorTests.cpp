@@ -78,7 +78,7 @@ SSDataBlock* getDummyBlock(void* param, bool* newgroup) {
   char buf[128] = {0};
   char b1[128] = {0};
   for(int32_t i = 0; i < numOfRows; ++i) {
-    SColumnInfoData* pColInfo = static_cast<SColumnInfoData*>(taosArrayGet(pBlock->pDataBlock, 0));
+    SColumnInfoData* pColInfo = static_cast<SColumnInfoData*>(TARRAY_GET_ELEM(pBlock->pDataBlock, 0));
 
     int32_t v = (--pInfo->startVal);
     colDataAppend(pColInfo, i, reinterpret_cast<const char*>(&v), false);
@@ -86,7 +86,7 @@ SSDataBlock* getDummyBlock(void* param, bool* newgroup) {
     sprintf(buf, "this is %d row", i);
     STR_TO_VARSTR(b1, buf);
 
-    SColumnInfoData* pColInfo2 = static_cast<SColumnInfoData*>(taosArrayGet(pBlock->pDataBlock, 1));
+    SColumnInfoData* pColInfo2 = static_cast<SColumnInfoData*>(TARRAY_GET_ELEM(pBlock->pDataBlock, 1));
     colDataAppend(pColInfo2, i, b1, false);
   }
 

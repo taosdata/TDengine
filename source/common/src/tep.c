@@ -538,18 +538,18 @@ int32_t dataBlockCompar(const void* p1, const void* p2, const void* param) {
 
   SSDataBlock* pDataBlock = pHelper->pDataBlock;
 
-  int32_t* left  = (int32_t*) p1;
-  int32_t* right = (int32_t*) p2;
+  int32_t left  = *(int32_t*) p1;
+  int32_t right = *(int32_t*) p2;
 
   SArray* pInfo = pHelper->orderInfo;
 
   for(int32_t i = 0; i < pInfo->size; ++i) {
-    SBlockOrderInfo* pOrder = taosArrayGet(pInfo, i);
+    SBlockOrderInfo* pOrder = TARRAY_GET_ELEM(pInfo, i);
     SColumnInfoData* pColInfoData = TARRAY_GET_ELEM(pDataBlock->pDataBlock, pOrder->colIndex);
 
     if (pColInfoData->hasNull) {
-      bool leftNull  = colDataIsNull(pColInfoData, pDataBlock->info.rows, *left, pDataBlock->pBlockAgg);
-      bool rightNull = colDataIsNull(pColInfoData, pDataBlock->info.rows, *right, pDataBlock->pBlockAgg);
+      bool leftNull  = colDataIsNull(pColInfoData, pDataBlock->info.rows, left, pDataBlock->pBlockAgg);
+      bool rightNull = colDataIsNull(pColInfoData, pDataBlock->info.rows, right, pDataBlock->pBlockAgg);
       if (leftNull && rightNull) {
         continue; // continue to next slot
       }
@@ -563,8 +563,8 @@ int32_t dataBlockCompar(const void* p1, const void* p2, const void* param) {
       }
     }
 
-    void* left1  = colDataGet(pColInfoData, *left);
-    void* right1 = colDataGet(pColInfoData, *right);
+    void* left1  = colDataGet(pColInfoData, left);
+    void* right1 = colDataGet(pColInfoData, right);
 
     switch(pColInfoData->info.type) {
       case TSDB_DATA_TYPE_INT: {
@@ -575,9 +575,9 @@ int32_t dataBlockCompar(const void* p1, const void* p2, const void* param) {
           break;
         } else {
           if (pOrder->order == TSDB_ORDER_ASC) {
-            return (leftx <= rightx)? -1:1;
+            return (leftx < rightx)? -1:1;
           } else {
-            return (leftx <= rightx)? 1:-1;
+            return (leftx < rightx)? 1:-1;
           }
         }
       }
