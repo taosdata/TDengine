@@ -16,8 +16,8 @@
 #include "tdbInt.h"
 
 struct STDb {
-  // TODO
-  SBTree *pBt;
+  SBTree   btree;    // current access method
+  SPgFile *pPgFile;  // backend page file this DB is using
 };
 
 int tdbCreate(TDB **ppDb) {
@@ -41,7 +41,7 @@ int tdbDestroy(TDB *pDb) {
   return 0;
 }
 
-int tdbOpen(TDB **pDb) {
+int tdbOpen(TDB **pDb, const char *fname, const char *dbname) {
   // TODO
   return 0;
 }

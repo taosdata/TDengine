@@ -15,11 +15,6 @@
 
 #include "tdbInt.h"
 
-struct SBTree {
-  pgno_t root;
-  // TODO
-};
-
 struct SBtCursor {
   // TODO
 };

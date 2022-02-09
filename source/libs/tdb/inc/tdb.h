@@ -23,10 +23,11 @@ extern "C" {
 #endif
 
 typedef struct STDb TDB;
+typedef struct STDbEnv TENV;
 
 int tdbCreate(TDB **ppDb);
 int tdbDestroy(TDB *pDb);
-int tdbOpen(TDB **pDb);
+int tdbOpen(TDB **pDb, const char *fname, const char *dbname);
 int tdbClose(TDB *pDb);
 
 #ifdef __cplusplus

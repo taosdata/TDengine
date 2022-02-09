@@ -13,31 +13,9 @@
  * along with this program. If not, see <http://www.gnu.org/licenses/>.
  */
 
-#ifndef _TD_BTREE_H_
-#define _TD_BTREE_H_
+#include "tdbInt.h"
 
-#ifdef __cplusplus
-extern "C" {
-#endif
-
-typedef struct SBTree    SBTree;
-typedef struct SBtCursor SBtCursor;
-
-// SBTree
-int btreeOpen(SBTree **ppBt);
-int btreeClose(SBTree *pBt);
-
-// SBtCursor
-int btreeCursorOpen(SBtCursor *pBtCur, SBTree *pBt);
-int btreeCursorClose(SBtCursor *pBtCur);
-int btreeCursorMoveTo(SBtCursor *pBtCur);
-
-struct SBTree {
-  pgno_t root;
+struct STDbEnv {
+  TDB *    dbList;      // TDB list
+  SPgFile *pgFileList;  // SPgFile list
 };
-
-#ifdef __cplusplus
-}
-#endif
-
-#endif /*_TD_BTREE_H_*/
