@@ -422,6 +422,7 @@ static void dumpFieldToFile(FILE* fp, const char* val, TAOS_FIELD* field, int32_
     return;
   }
 
+  int  n;
   char buf[TSDB_MAX_BYTES_PER_ROW];
   switch (field->type) {
     case TSDB_DATA_TYPE_BOOL:
@@ -455,7 +456,12 @@ static void dumpFieldToFile(FILE* fp, const char* val, TAOS_FIELD* field, int32_
       fprintf(fp, "%.5f", GET_FLOAT_VAL(val));
       break;
     case TSDB_DATA_TYPE_DOUBLE:
-      fprintf(fp, "%.9f", GET_DOUBLE_VAL(val));
+      n = snprintf(buf, TSDB_MAX_BYTES_PER_ROW, "%*.9f", length, GET_DOUBLE_VAL(val));
+      if (n > MAX(25, length)) {
+        fprintf(fp, "%*.15e", length, GET_DOUBLE_VAL(val));
+      } else {
+        fprintf(fp, "%s", buf);
+      }
       break;
     case TSDB_DATA_TYPE_BINARY:
     case TSDB_DATA_TYPE_NCHAR:
@@ -611,6 +617,7 @@ static void printField(const char* val, TAOS_FIELD* field, int width, int32_t le
     return;
   }
 
+  int  n;
   char buf[TSDB_MAX_BYTES_PER_ROW];
   switch (field->type) {
     case TSDB_DATA_TYPE_BOOL:
@@ -644,7 +651,12 @@ static void printField(const char* val, TAOS_FIELD* field, int width, int32_t le
       printf("%*.5f", width, GET_FLOAT_VAL(val));
       break;
     case TSDB_DATA_TYPE_DOUBLE:
-      printf("%*.9f", width, GET_DOUBLE_VAL(val));
+      n = snprintf(buf, TSDB_MAX_BYTES_PER_ROW, "%*.9f", width, GET_DOUBLE_VAL(val));
+      if (n > MAX(25, width)) {
+        printf("%*.15e", width, GET_DOUBLE_VAL(val));
+      } else {
+        printf("%s", buf);
+      }
       break;
     case TSDB_DATA_TYPE_BINARY:
     case TSDB_DATA_TYPE_NCHAR:
