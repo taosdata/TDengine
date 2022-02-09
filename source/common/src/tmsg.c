@@ -293,7 +293,7 @@ void *tDeserializeSVCreateTbReq(void *buf, SVCreateTbReq *pReq) {
   return buf;
 }
 
-int tSVCreateTbBatchReqSerialize(void **buf, SVCreateTbBatchReq *pReq) {
+int tSerializeSVCreateTbBatchReq(void **buf, SVCreateTbBatchReq *pReq) {
   int tlen = 0;
 
   tlen += taosEncodeFixedU64(buf, pReq->ver);
@@ -306,7 +306,7 @@ int tSVCreateTbBatchReqSerialize(void **buf, SVCreateTbBatchReq *pReq) {
   return tlen;
 }
 
-void *tSVCreateTbBatchReqDeserialize(void *buf, SVCreateTbBatchReq *pReq) {
+void *tDeserializeSVCreateTbBatchReq(void *buf, SVCreateTbBatchReq *pReq) {
   uint32_t nsize = 0;
 
   buf = taosDecodeFixedU64(buf, &pReq->ver);

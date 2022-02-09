@@ -310,7 +310,7 @@ SMCreateStbReq* buildCreateStbMsg(SCreateTableSql* pCreateTableSql, int32_t* len
     pCreateStbMsg->numOfColumns = htonl(numOfCols);
     pCreateStbMsg->numOfTags    = htonl(numOfTags);
 
-    pSchema = (SSchema*)pCreateStbMsg->pSchema;
+    pSchema = (SSchema*)pCreateStbMsg->pSchemas;
     for (int i = 0; i < numOfCols; ++i) {
       SField* pField = taosArrayGet(pCreateTableSql->colInfo.pColumns, i);
       pSchema->type  = pField->type;

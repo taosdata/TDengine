@@ -1330,7 +1330,7 @@ static int tsdbMergeMemData(SCommitH *pCommith, SCommitIter *pIter, int bidx) {
   int        nBlocks = pCommith->readh.pBlkIdx->numOfBlocks;
   SBlock *   pBlock = pCommith->readh.pBlkInfo->blocks + bidx;
   TSKEY      keyLimit;
-  int16_t    colId = 0;
+  int16_t    colId = PRIMARYKEY_TIMESTAMP_COL_ID;
   SMergeInfo mInfo;
   SBlock     subBlocks[TSDB_MAX_SUBBLOCKS];
   SBlock     block, supBlock;

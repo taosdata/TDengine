@@ -76,7 +76,10 @@ SNode* createColumnNode(SAstCreateContext* pCxt, const SToken* pTableAlias, cons
 SNode* createValueNode(SAstCreateContext* pCxt, int32_t dataType, const SToken* pLiteral) {
   SValueNode* val = (SValueNode*)nodesMakeNode(QUERY_NODE_VALUE);
   CHECK_OUT_OF_MEM(val);
-  // todo
+  val->literal = strndup(pLiteral->z, pLiteral->n);
+  CHECK_OUT_OF_MEM(val->literal);
+  val->node.resType.type = dataType;
+  val->node.resType.bytes = tDataTypes[TSDB_DATA_TYPE_BOOL].bytes;
   return (SNode*)val;
 }
 
@@ -85,10 +88,6 @@ SNode* createDurationValueNode(SAstCreateContext* pCxt, const SToken* pLiteral) 
   CHECK_OUT_OF_MEM(val);
   // todo
   return (SNode*)val;
-}
-
-SNode* addMinusSign(SAstCreateContext* pCxt, SNode* pNode) {
-  // todo
 }
 
 SNode* createLogicConditionNode(SAstCreateContext* pCxt, ELogicConditionType type, SNode* pParam1, SNode* pParam2) {

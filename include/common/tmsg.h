@@ -113,13 +113,13 @@ typedef enum _mgmt_table {
 
 #define TSDB_ALTER_TABLE_ADD_TAG_COLUMN 1
 #define TSDB_ALTER_TABLE_DROP_TAG_COLUMN 2
-#define TSDB_ALTER_TABLE_CHANGE_TAG_COLUMN 3
+#define TSDB_ALTER_TABLE_UPDATE_TAG_NAME 3
 #define TSDB_ALTER_TABLE_UPDATE_TAG_VAL 4
 
 #define TSDB_ALTER_TABLE_ADD_COLUMN 5
 #define TSDB_ALTER_TABLE_DROP_COLUMN 6
-#define TSDB_ALTER_TABLE_CHANGE_COLUMN 7
-#define TSDB_ALTER_TABLE_MODIFY_TAG_COLUMN 8
+#define TSDB_ALTER_TABLE_UPDATE_COLUMN_BYTES 7
+#define TSDB_ALTER_TABLE_UPDATE_TAG_BYTES 8
 
 #define TSDB_FILL_NONE 0
 #define TSDB_FILL_NULL 1
@@ -254,7 +254,7 @@ typedef struct {
   int8_t  igExists;
   int32_t numOfTags;
   int32_t numOfColumns;
-  SSchema pSchema[];
+  SSchema pSchemas[];
 } SMCreateStbReq;
 
 typedef struct {
@@ -265,8 +265,9 @@ typedef struct {
 typedef struct {
   char    name[TSDB_TABLE_FNAME_LEN];
   int8_t  alterType;
-  SSchema schema;
-} SMAlterStbReq;
+  int32_t numOfSchemas;
+  SSchema pSchemas[];
+} SMAltertbReq;
 
 typedef struct {
   int32_t pid;
@@ -1177,31 +1178,28 @@ typedef struct SVCreateTbReq {
       SSchema* pSchema;
     } ntbCfg;
   };
-} SVCreateTbReq;
+} SVCreateTbReq, SVUpdateTbReq;
+
+typedef struct {
+} SVCreateTbRsp, SVUpdateTbRsp;
+
+int32_t tSerializeSVCreateTbReq(void** buf, SVCreateTbReq* pReq);
+void*   tDeserializeSVCreateTbReq(void* buf, SVCreateTbReq* pReq);
+int32_t tSerializeSVCreateTbRsp(void** buf, SVCreateTbRsp* pRsp);
+void*   tDeserializeSVCreateTbRsp(void* buf, SVCreateTbRsp* pRsp);
 
 typedef struct {
   uint64_t ver;  // use a general definition
   SArray*  pArray;
 } SVCreateTbBatchReq;
 
-int   tSerializeSVCreateTbReq(void** buf, SVCreateTbReq* pReq);
-void* tDeserializeSVCreateTbReq(void* buf, SVCreateTbReq* pReq);
-int   tSVCreateTbBatchReqSerialize(void** buf, SVCreateTbBatchReq* pReq);
-void* tSVCreateTbBatchReqDeserialize(void* buf, SVCreateTbBatchReq* pReq);
-
 typedef struct {
-  SMsgHead head;
-} SVCreateTbRsp;
+} SVCreateTbBatchRsp;
 
-typedef struct {
-  SMsgHead head;
-  char     name[TSDB_TABLE_FNAME_LEN];
-  int8_t   ignoreNotExists;
-} SVAlterTbReq;
-
-typedef struct {
-  SMsgHead head;
-} SVAlterTbRsp;
+int32_t tSerializeSVCreateTbBatchReq(void** buf, SVCreateTbBatchReq* pReq);
+void*   tDeserializeSVCreateTbBatchReq(void* buf, SVCreateTbBatchReq* pReq);
+int32_t tSerializeSVCreateTbBatchReqp(void** buf, SVCreateTbBatchReq* pRsp);
+void*   tDeserializeSVCreateTbBatchReq(void* buf, SVCreateTbBatchReq* pRsp);
 
 typedef struct {
   uint64_t ver;

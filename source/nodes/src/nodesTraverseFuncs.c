@@ -109,7 +109,7 @@ void nodesWalkNodePostOrder(SNode* pNode, FQueryNodeWalker walker, void* pContex
 }
 
 void nodesWalkListPostOrder(SNodeList* pList, FQueryNodeWalker walker, void* pContext) {
-  (void)walkList(pList, TRAVERSAL_PREORDER, walker, pContext);
+  (void)walkList(pList, TRAVERSAL_POSTORDER, walker, pContext);
 }
 
 bool nodesWalkStmt(SNode* pNode, FQueryNodeWalker walker, void* pContext) {
