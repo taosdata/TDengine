@@ -722,6 +722,8 @@ int32_t getMaximumIdleDurationSec();
 void doInvokeUdf(SUdfInfo* pUdfInfo, SQLFunctionCtx *pCtx, int32_t idx, int32_t type);
 int32_t getColumnDataFromId(void *param, int32_t id, void **data);
 bool isUniqueQuery(SOperatorInfo* pOperator, SQLFunctionCtx* pCtx);
+void finalizeUniqueResultOne(SOperatorInfo* pOperator, SQLFunctionCtx* pCtx);
+void finalizeUniqueResultMulti(SOperatorInfo* pOperator, SQLFunctionCtx* pCtx, SResultRowInfo* pResultRowInfo, int32_t* rowCellInfoOffset);
 
-    void qInfoLogSSDataBlock(SSDataBlock* block, char* location);
+void qInfoLogSSDataBlock(SSDataBlock* block, char* location);
 #endif  // TDENGINE_QEXECUTOR_H
