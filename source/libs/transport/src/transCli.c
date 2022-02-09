@@ -123,11 +123,13 @@ static void clientHandleResp(SCliConn* conn) {
   rpcMsg.code = pHead->code;
   rpcMsg.msgType = pHead->msgType;
   rpcMsg.ahandle = pCtx->ahandle;
+
+  tDebug("client conn %p %s received from %s:%d", conn, TMSG_INFO(pHead->msgType), pMsg->ctx->ip, pMsg->ctx->port);
   if (pCtx->pSem == NULL) {
-    tDebug("client conn %p handle resp, ", conn);
+    tTrace("client conn(sync) %p handle resp", conn);
     (pRpc->cfp)(pRpc->parent, &rpcMsg, NULL);
   } else {
-    tDebug("client conn(sync) %p handle resp", conn);
+    tTrace("client conn(sync) %p handle resp", conn);
     memcpy((char*)pCtx->pRsp, (char*)&rpcMsg, sizeof(rpcMsg));
     tsem_post(pCtx->pSem);
   }
@@ -370,7 +372,7 @@ static void clientWrite(SCliConn* pConn) {
   pHead->msgLen = (int32_t)htonl((uint32_t)msgLen);
 
   uv_buf_t wb = uv_buf_init((char*)pHead, msgLen);
-  tDebug("client conn %p data write out, msgType : %s, len: %d", pConn, TMSG_INFO(pHead->msgType), msgLen);
+  tDebug("conn %p %s is send to %s:%d", pConn, TMSG_INFO(pHead->msgType), pCliMsg->ctx->ip, pCliMsg->ctx->port);
   uv_write(pConn->writeReq, (uv_stream_t*)pConn->stream, &wb, 1, clientWriteCb);
 }
 static void clientConnCb(uv_connect_t* req, int status) {
