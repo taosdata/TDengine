@@ -5835,6 +5835,8 @@ static SSDataBlock* doSort(void* param, bool* newgroup) {
     addToDiskbasedBuf(pInfo, pTaskInfo->env);
   }
 
+  blockDataEnsureCapacity(pInfo->pDataBlock, pInfo->capacity);
+
   int32_t code = sortComparInit(&pInfo->cmpParam, pInfo);
   if (code != TSDB_CODE_SUCCESS) {
     longjmp(pTaskInfo->env, code);
@@ -5883,7 +5885,7 @@ SOperatorInfo *createOrderOperatorInfo(SOperatorInfo* downstream, SArray* pExprI
   }
 
   pInfo->sortBufSize = 1024 * 1024 * 5; // 1MB
-  pInfo->capacity    = 4096;
+  pInfo->capacity    = 64*1024;
   pInfo->pDataBlock  = createOutputBuf_rv(pExprInfo, pInfo->capacity);
   pInfo->pSources    = taosArrayInit(4, POINTER_BYTES);
   pInfo->cmpParam.orderInfo  = createBlockOrder(pExprInfo, pOrderVal);
@@ -5896,7 +5898,7 @@ SOperatorInfo *createOrderOperatorInfo(SOperatorInfo* downstream, SArray* pExprI
     }
   }
 
-  int32_t code = createDiskbasedBuffer(&pInfo->pSortInternalBuf, 4096, 4096*1000, 1, "/tmp/");
+  int32_t code = createDiskbasedBuffer(&pInfo->pSortInternalBuf, pInfo->capacity, pInfo->capacity*1000, 1, "/tmp/");
   if (pInfo->pSources == NULL || code != 0 || pInfo->cmpParam.orderInfo == NULL || pInfo->pDataBlock == NULL) {
     tfree(pOperator);
     destroyOrderOperatorInfo(pInfo, taosArrayGetSize(pExprInfo));
