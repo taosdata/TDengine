@@ -14,21 +14,6 @@
  */
 #include "tdbInt.h"
 
-typedef TD_DLIST(SPage) SPgList;
-
-struct SPgCache {
-  SRWLatch mutex;
-  pgsize_t pgsize;
-  int32_t  npage;
-  SPage *  pages;
-  SPgList  freeList;
-  SPgList  lru;
-  struct {
-    int32_t  nbucket;
-    SPgList *buckets;
-  } pght;  // page hash table
-};
-
 static void pgCachePinPage(SPage *pPage);
 static void pgCacheUnpinPage(SPage *pPage);
 

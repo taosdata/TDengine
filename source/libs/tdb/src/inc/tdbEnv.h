@@ -13,10 +13,15 @@
  * along with this program. If not, see <http://www.gnu.org/licenses/>.
  */
 
-#include "tdbInt.h"
+#ifndef _TDB_ENV_H_
+#define _TDB_ENV_H_
 
-struct STDbEnv {
-  TDB *    dbList;      // TDB list
-  SPgFile *pgFileList;  // SPgFile list
-  SPgCache pgc;         // page cache
-};
+#ifdef __cplusplus
+extern "C" {
+#endif
+
+#ifdef __cplusplus
+}
+#endif
+
+#endif /*_TDB_ENV_H_*/

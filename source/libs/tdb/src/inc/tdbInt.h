@@ -79,6 +79,7 @@ typedef int32_t pgsize_t;
 #include "btree.h"
 #include "pgcache.h"
 #include "pgfile.h"
+#include "tdbEnv.h"
 
 // tdb util
 int tdbGnrtFileID(const char *fname, uint8_t *fileid);
