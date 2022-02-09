@@ -28,6 +28,7 @@ function replace_community_pro() {
   sed -i "s/support@taosdata\.com/support@hanatech\.com\.cn/g" ${top_dir}/src/kit/taos-tools/src/benchCommandOpt.c
   sed -i "s/taosc/prodbc/g" ${top_dir}/src/kit/taos-tools/src/benchCommandOpt.c
   sed -i "s/default is taosdata/default is prodb/g" ${top_dir}/src/kit/taos-tools/src/benchCommandOpt.c
+  sed -i "s/TDengine/ProDB/g" ${top_dir}/src/kit/taos-tools/src/benchCommandOpt.c
   # src/kit/taos-tools/src/taosdump.c
   sed -i "s/support@taosdata\.com/support@hanatech\.com\.cn/g" ${top_dir}/src/kit/taos-tools/src/taosdump.c
   sed -i "s/\/etc\/taos/\/etc\/ProDB/g" ${top_dir}/src/kit/taos-tools/src/taosdump.c
@@ -52,7 +53,7 @@ function replace_community_pro() {
   # src/util/src/tconfig.c
   sed -i "s/taos\.cfg/prodb\.cfg/g" ${top_dir}/src/util/src/tconfig.c
   sed -i "s/etc\/taos/etc\/ProDB/g" ${top_dir}/src/util/src/tconfig.c
-  sed -i "s/taos config/prodb config/g"  ${top_dir}/src/util/src/tconfig.c
+  sed -i "s/taos config/prodb config/g" ${top_dir}/src/util/src/tconfig.c
   # src/util/src/tlog.c
   sed -i "s/log\/taos/log\/ProDB/g" ${top_dir}/src/util/src/tlog.c
   # src/dnode/src/dnodeSystem.c

@@ -1,6 +1,45 @@
 #!/bin/bash
 
 function replace_community_kh() {
+  # src/kit/taos-tools/packaging/tools/install-taostools.sh
+  sed -i "s/demoName=\"taosdemo\"/demoName=\"khdemo\"/g" ${top_dir}/src/kit/taos-tools/packaging/tools/install-taostools.sh
+  sed -i "s/benchmarkName=\"taosBenchmark\"/benchmarkName=\"khBenchmark\"/g" ${top_dir}/src/kit/taos-tools/packaging/tools/install-taostools.sh
+  sed -i "s/dumpName=\"taosdump\"/dumpName=\"khdump\"/g" ${top_dir}/src/kit/taos-tools/packaging/tools/install-taostools.sh
+  sed -i "s/emailName=\"taosdata\.com\"/emailName=\"wellintech\.com\"/g" ${top_dir}/src/kit/taos-tools/packaging/tools/install-taostools.sh
+  sed -i "s/taosName=\"taos\"/taosName=\"kinghistorian\"/g" ${top_dir}/src/kit/taos-tools/packaging/tools/install-taostools.sh
+  sed -i "s/toolsName=\"taostools\"/toolsName=\"khtools\"/g" ${top_dir}/src/kit/taos-tools/packaging/tools/install-taostools.sh
+  cp -f ${top_dir}/src/kit/taos-tools/packaging/tools/install-taostools.sh ${top_dir}/src/kit/taos-tools/packaging/tools/install-khtools.sh
+
+  # src/kit/taos-tools/packaging/tools/uninstall-taostools.sh
+  sed -i "s/demoName=\"taosdemo\"/demoName=\"khdemo\"/g" ${top_dir}/src/kit/taos-tools/packaging/tools/uninstall-taostools.sh
+  sed -i "s/benchmarkName=\"taosBenchmark\"/benchmarkName=\"khBenchmark\"/g" ${top_dir}/src/kit/taos-tools/packaging/tools/uninstall-taostools.sh
+  sed -i "s/dumpName=\"taosdump\"/dumpName=\"khdump\"/g" ${top_dir}/src/kit/taos-tools/packaging/tools/uninstall-taostools.sh
+  sed -i "s/taosName=\"taos\"/taosName=\"kinghistorian\"/g" ${top_dir}/src/kit/taos-tools/packaging/tools/uninstall-taostools.sh
+  sed -i "s/toolsName=\"taostools\"/toolsName=\"khtools\"/g" ${top_dir}/src/kit/taos-tools/packaging/tools/uninstall-taostools.sh
+  cp -f ${top_dir}/src/kit/taos-tools/packaging/tools/uninstall-taostools.sh ${top_dir}/src/kit/taos-tools/packaging/tools/uninstall-khtools.sh
+
+  # src/kit/taos-tools/src/CMakeLists.txt
+  sed -i "s/taosBenchmark /khBenchmark /g" ${top_dir}/src/kit/taos-tools/src/CMakeLists.txt
+  sed -i "s/taosdump /khdump /g" ${top_dir}/src/kit/taos-tools/src/CMakeLists.txt
+  # src/kit/taos-tools/CMakeLists.txt
+  sed -i "s/taosdump/khdump/g" ${top_dir}/src/kit/taos-tools/CMakeLists.txt
+  sed -i "s/taosBenchmark/khBenchmark/g" ${top_dir}/src/kit/taos-tools/CMakeLists.txt
+  # src/kit/taos-tools/src/benchCommandOpt.c
+  sed -i "s/support@taosdata\.com/support@wellintech\.com/g" ${top_dir}/src/kit/taos-tools/src/benchCommandOpt.c
+  sed -i "s/taosc/khclient/g" ${top_dir}/src/kit/taos-tools/src/benchCommandOpt.c
+  sed -i "s/default is taosdata/default is khroot/g" ${top_dir}/src/kit/taos-tools/src/benchCommandOpt.c
+  sed -i "s/TDengine/KingHistorian/g" ${top_dir}/src/kit/taos-tools/src/benchCommandOpt.c
+  # src/kit/taos-tools/src/taosdump.c
+  sed -i "s/support@taosdata\.com/support@wellintech\.com/g" ${top_dir}/src/kit/taos-tools/src/taosdump.c
+  sed -i "s/\/etc\/taos/\/etc\/kinghistorian/g" ${top_dir}/src/kit/taos-tools/src/taosdump.c
+  sed -i "s/taosdata/khroot/g" ${top_dir}/src/kit/taos-tools/src/taosdump.c
+  sed -i "s/taosdump version/khdump version/g" ${top_dir}/src/kit/taos-tools/src/taosdump.c
+  sed -i "s/taosdump --help/khdump --help/g" ${top_dir}/src/kit/taos-tools/src/taosdump.c
+  sed -i "s/taosdump --usage/khdump --usage/g" ${top_dir}/src/kit/taos-tools/src/taosdump.c
+  sed -i "s/\"taosdump\"/\"khdump\"/g" ${top_dir}/src/kit/taos-tools/src/taosdump.c
+  sed -i "s/TDengine/KingHistorian/g" ${top_dir}/src/kit/taos-tools/src/taosdump.c
+  sed -i "s/taosdump requires/khdump requires/g" ${top_dir}/src/kit/taos-tools/src/taosdump.c
+
   # cmake/install.inc
   sed -i "s/C:\/TDengine/C:\/KingHistorian/g" ${top_dir}/cmake/install.inc
   sed -i "s/taos\.cfg/kinghistorian\.cfg/g" ${top_dir}/cmake/install.inc
@@ -59,17 +98,27 @@ function replace_community_kh() {
   sed -i "s/clientName=\"taos\"/clientName=\"khclient\"/g" ${top_dir}/packaging/tools/makepkg.sh
   sed -i "s/configFile=\"taos\.cfg\"/configFile=\"kinghistorian\.cfg\"/g" ${top_dir}/packaging/tools/makepkg.sh
   sed -i "s/tarName=\"taos\.tar\.gz\"/tarName=\"kinghistorian\.tar\.gz\"/g" ${top_dir}/packaging/tools/makepkg.sh
+  sed -i "s/dumpName=\"taosdump\"/dumpName=\"khdump\"/g" ${top_dir}/packaging/tools/makepkg.sh
+  sed -i "s/benchmarkName=\"taosBenchmark\"/benchmarkName=\"khBenchmark\"/g" ${top_dir}/packaging/tools/makepkg.sh
+  sed -i "s/toolsName=\"taostools\"/toolsName=\"khtools\"/g" ${top_dir}/packaging/tools/makepkg.sh
+  sed -i "s/adapterName=\"taosadapter\"/adapterName=\"khadapter\"/g" ${top_dir}/packaging/tools/makepkg.sh
+  sed -i "s/defaultPasswd=\"taosdata\"/defaultPasswd=\"khroot\"/g" ${top_dir}/packaging/tools/makepkg.sh
+
   # packaging/tools/remove.sh
   sed -i "s/installDir=\"\/usr\/local\/taos\"/installDir=\"\/usr\/local\/kinghistorian\"/g" ${top_dir}/packaging/tools/remove.sh
   sed -i "s/serverName=\"taosd\"/serverName=\"khserver\"/g" ${top_dir}/packaging/tools/remove.sh
   sed -i "s/clientName=\"taos\"/clientName=\"khclient\"/g" ${top_dir}/packaging/tools/remove.sh
   sed -i "s/uninstallScript=\"rmtaos\"/uninstallScript=\"rmkh\"/g" ${top_dir}/packaging/tools/remove.sh
   sed -i "s/productName=\"TDengine\"/productName=\"KingHistorian\"/g" ${top_dir}/packaging/tools/remove.sh
+  sed -i "s/adapterName=\"taosadapter\"/adapterName=\"khadapter\"/g" ${top_dir}/packaging/tools/remove.sh
+
   # packaging/tools/startPre.sh
   sed -i "s/serverName=\"taosd\"/serverName=\"khserver\"/g" ${top_dir}/packaging/tools/startPre.sh
   sed -i "s/logDir=\"\/var\/log\/taos\"/logDir=\"\/var\/log\/kinghistorian\"/g" ${top_dir}/packaging/tools/startPre.sh
   # packaging/tools/run_taosd_and_taosadapter.sh
   sed -i "s/taosd/khserver/g" ${top_dir}/packaging/tools/run_taosd_and_taosadapter.sh
+  sed -i "s/taosadapter/khadapter/g" ${top_dir}/packaging/tools/run_taosd_and_taosadapter.sh
+
   # packaging/tools/install.sh
   sed -i "s/clientName=\"taos\"/clientName=\"khclient\"/g" ${top_dir}/packaging/tools/install.sh
   sed -i "s/serverName=\"taosd\"/serverName=\"khserver\"/g" ${top_dir}/packaging/tools/install.sh
@@ -83,6 +132,7 @@ function replace_community_kh() {
   sed -i "s/logDir=\"\/var\/log\/taos\"/logDir=\"\/var\/log\/kinghistorian\"/g" ${top_dir}/packaging/tools/install.sh
   sed -i "s/configDir=\"\/etc\/taos\"/configDir=\"\/etc\/kinghistorian\"/g" ${top_dir}/packaging/tools/install.sh
   sed -i "s/installDir=\"\/usr\/local\/taos\"/installDir=\"\/usr\/local\/kinghistorian\"/g" ${top_dir}/packaging/tools/install.sh
+  sed -i "s/adapterName=\"taosadapter\"/adapterName=\"khadapter\"/g" ${top_dir}/packaging/tools/install.sh
 
   # packaging/tools/makeclient.sh
   sed -i "s/productName=\"TDengine\"/productName=\"KingHistorian\"/g" ${top_dir}/packaging/tools/makeclient.sh
