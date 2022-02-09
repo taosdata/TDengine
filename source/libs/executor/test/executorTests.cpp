@@ -263,14 +263,16 @@ TEST(testCase, external_sort_Test) {
   int32_t total = 1;
 
   int64_t s1 = taosGetTimestampUs();
-
+  int32_t t = 1;
 
   while(1) {
     int64_t s = taosGetTimestampUs();
     pRes = pOperator->exec(pOperator, &newgroup);
 
     int64_t e = taosGetTimestampUs();
-    printf("---------------elapsed:%ld\n", e - s);
+    if (t++ == 1) {
+      printf("---------------elapsed:%ld\n", e - s);
+    }
 
     if (pRes == NULL) {
       break;
