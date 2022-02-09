@@ -336,3 +336,66 @@ void *tDeserializeSVDropTbReq(void *buf, SVDropTbReq *pReq) {
   buf = taosDecodeFixedU8(buf, &pReq->type);
   return buf;
 }
+
+int32_t tSerializeSMCreateStbReq(void **buf, SMCreateStbReq *pReq) {
+  int32_t tlen = 0;
+
+  tlen += taosEncodeString(buf, pReq->name);
+  tlen += taosEncodeFixedI8(buf, pReq->igExists);
+  tlen += taosEncodeFixedI32(buf, pReq->numOfColumns);
+  tlen += taosEncodeFixedI32(buf, pReq->numOfTags);
+
+  for (int32_t i = 0; i < pReq->numOfColumns; ++i) {
+    SField *pField = taosArrayGet(pReq->pColumns, i);
+    tlen += taosEncodeFixedI8(buf, pField->type);
+    tlen += taosEncodeFixedI32(buf, pField->bytes);
+    tlen += taosEncodeString(buf, pField->name);
+  }
+
+  for (int32_t i = 0; i < pReq->numOfTags; ++i) {
+    SField *pField = taosArrayGet(pReq->pTags, i);
+    tlen += taosEncodeFixedI8(buf, pField->type);
+    tlen += taosEncodeFixedI32(buf, pField->bytes);
+    tlen += taosEncodeString(buf, pField->name);
+  }
+
+  return tlen;
+}
+
+void *tDeserializeSMCreateStbReq(void *buf, SMCreateStbReq *pReq) {
+  buf = taosDecodeStringTo(buf, pReq->name);
+  buf = taosDecodeFixedI8(buf, &pReq->igExists);
+  buf = taosDecodeFixedI32(buf, &pReq->numOfColumns);
+  buf = taosDecodeFixedI32(buf, &pReq->numOfTags);
+
+  pReq->pColumns = taosArrayInit(pReq->numOfColumns, sizeof(SField));
+  pReq->pTags = taosArrayInit(pReq->numOfTags, sizeof(SField));
+  if (pReq->pColumns == NULL || pReq->pTags == NULL) {
+    terrno = TSDB_CODE_OUT_OF_MEMORY;
+    return NULL;
+  }
+
+  for (int32_t i = 0; i < pReq->numOfColumns; ++i) {
+    SField field = {0};
+    buf = taosDecodeFixedI8(buf, &field.type);
+    buf = taosDecodeFixedI32(buf, &field.bytes);
+    buf = taosDecodeStringTo(buf, field.name);
+    if (taosArrayPush(pReq->pColumns, &field) == NULL) {
+      terrno = TSDB_CODE_OUT_OF_MEMORY;
+      return NULL;
+    }
+  }
+
+  for (int32_t i = 0; i < pReq->numOfTags; ++i) {
+    SField field = {0};
+    buf = taosDecodeFixedI8(buf, &field.type);
+    buf = taosDecodeFixedI32(buf, &field.bytes);
+    buf = taosDecodeStringTo(buf, field.name);
+    if (taosArrayPush(pReq->pTags, &field) == NULL) {
+      terrno = TSDB_CODE_OUT_OF_MEMORY;
+      return NULL;
+    }
+  }
+
+  return buf;
+}

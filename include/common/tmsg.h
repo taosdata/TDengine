@@ -249,13 +249,23 @@ typedef struct SSchema {
   char    name[TSDB_COL_NAME_LEN];
 } SSchema;
 
+typedef struct SField {
+  char    name[TSDB_COL_NAME_LEN];
+  uint8_t type;
+  int32_t bytes;
+} SField;
+
 typedef struct {
   char    name[TSDB_TABLE_FNAME_LEN];
   int8_t  igExists;
-  int32_t numOfTags;
   int32_t numOfColumns;
-  SSchema pSchemas[];
+  int32_t numOfTags;
+  SArray* pColumns;
+  SArray* pTags;
 } SMCreateStbReq;
+
+int32_t tSerializeSMCreateStbReq(void** buf, SMCreateStbReq* pReq);
+void*   tDeserializeSMCreateStbReq(void* buf, SMCreateStbReq* pReq);
 
 typedef struct {
   char   name[TSDB_TABLE_FNAME_LEN];
