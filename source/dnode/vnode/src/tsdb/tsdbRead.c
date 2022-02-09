@@ -2192,7 +2192,7 @@ static int32_t createDataBlocksInfo(STsdbReadHandle* pTsdbReadHandle, int32_t nu
       sup.blockIndexArray[pos] = sup.numOfBlocksPerTable[pos] + 1;
     }
 
-    tMergeTreeAdjust(pTree, tMergeTreeAdjustIndex(pTree));
+    tMergeTreeAdjust(pTree, tMergeTreeGetAdjustIndex(pTree));
   }
 
   /*

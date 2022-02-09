@@ -22,6 +22,11 @@ extern "C" {
 
 typedef int (*__merge_compare_fn_t)(const void *, const void *, void *param);
 
+typedef struct STreeNode {
+  int32_t index;
+  void   *pData;  // TODO remove it?
+} STreeNode;
+
 typedef struct SMultiwayMergeTreeInfo {
   int32_t              numOfSources;
   int32_t              totalSources;
@@ -29,6 +34,9 @@ typedef struct SMultiwayMergeTreeInfo {
   void *               param;
   struct STreeNode    *pNode;
 } SMultiwayMergeTreeInfo;
+
+#define tMergeTreeGetChosenIndex(t_) ((t_)->pNode[0].index)
+#define tMergeTreeGetAdjustIndex(t_) (tMergeTreeGetChosenIndex(t_) + (t_)->numOfSources)
 
 int32_t tMergeTreeCreate(SMultiwayMergeTreeInfo **pTree, uint32_t numOfEntries, void *param, __merge_compare_fn_t compareFn);
 
@@ -39,10 +47,6 @@ void tMergeTreeAdjust(SMultiwayMergeTreeInfo *pTree, int32_t idx);
 void tMergeTreeRebuild(SMultiwayMergeTreeInfo *pTree);
 
 void tMergeTreePrint(const SMultiwayMergeTreeInfo *pTree);
-
-int32_t tMergeTreeGetChosenIndex(const SMultiwayMergeTreeInfo* pTree);
-
-int32_t tMergeTreeAdjustIndex(const SMultiwayMergeTreeInfo* pTree);
 
 #ifdef __cplusplus
 }

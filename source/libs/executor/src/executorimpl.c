@@ -5548,31 +5548,39 @@ int32_t msortComparFn(const void *pLeft, const void *pRight, void *param) {
   int32_t pRightIdx = *(int32_t *)pRight;
 
   SMsortComparParam   *pParam = (SMsortComparParam *)param;
-  SExternalMemSource **pSources = pParam->pSources;
 
   SArray *pInfo = pParam->orderInfo;
 
+  SExternalMemSource* pLeftSource  = pParam->pSources[pLeftIdx];
+  SExternalMemSource* pRightSource = pParam->pSources[pRightIdx];
+
   // this input is exhausted, set the special value to denote this
-  if (pSources[pLeftIdx]->rowIndex == -1) {
+  if (pLeftSource->rowIndex == -1) {
     return 1;
   }
 
-  if (pSources[pRightIdx]->rowIndex == -1) {
+  if (pRightSource->rowIndex == -1) {
     return -1;
   }
 
-  SSDataBlock* pLeftBlock = pSources[pLeftIdx]->pBlock;
-  SSDataBlock* pRightBlock = pSources[pRightIdx]->pBlock;
+  SSDataBlock* pLeftBlock = pLeftSource->pBlock;
+  SSDataBlock* pRightBlock = pRightSource->pBlock;
 
-  size_t num = taosArrayGetSize(pInfo);
-  for(int32_t i = 0; i < num; ++i) {
-    SBlockOrderInfo* pOrder = taosArrayGet(pInfo, i);
+  for(int32_t i = 0; i < pInfo->size; ++i) {
+    SBlockOrderInfo* pOrder = TARRAY_GET_ELEM(pInfo, i);
 
-    SColumnInfoData* pLeftColInfoData = taosArrayGet(pLeftBlock->pDataBlock, pOrder->colIndex);
-    bool leftNull  = colDataIsNull(pLeftColInfoData, pLeftBlock->info.rows, pSources[pLeftIdx]->rowIndex, pLeftBlock->pBlockAgg);
+    SColumnInfoData* pLeftColInfoData = TARRAY_GET_ELEM(pLeftBlock->pDataBlock, pOrder->colIndex);
 
-    SColumnInfoData* pRightColInfoData = taosArrayGet(pRightBlock->pDataBlock, pOrder->colIndex);
-    bool rightNull = colDataIsNull(pRightColInfoData, pRightBlock->info.rows, pSources[pRightIdx]->rowIndex, pRightBlock->pBlockAgg);
+    bool leftNull  = false;
+    if (pLeftColInfoData->hasNull) {
+      leftNull = colDataIsNull(pLeftColInfoData, pLeftBlock->info.rows, pLeftSource->rowIndex, pLeftBlock->pBlockAgg);
+    }
+
+    SColumnInfoData* pRightColInfoData = TARRAY_GET_ELEM(pRightBlock->pDataBlock, pOrder->colIndex);
+    bool rightNull = false;
+    if (pRightColInfoData->hasNull) {
+      rightNull = colDataIsNull(pRightColInfoData, pRightBlock->info.rows, pRightSource->rowIndex, pRightBlock->pBlockAgg);
+    }
 
     if (leftNull && rightNull) {
       continue; // continue to next slot
@@ -5586,20 +5594,24 @@ int32_t msortComparFn(const void *pLeft, const void *pRight, void *param) {
       return pParam->nullFirst? -1:1;
     }
 
-    void* left1  = colDataGet(pLeftColInfoData, pSources[pLeftIdx]->rowIndex);
-    void* right1 = colDataGet(pRightColInfoData, pSources[pRightIdx]->rowIndex);
+    void* left1  = colDataGet(pLeftColInfoData, pLeftSource->rowIndex);
+    void* right1 = colDataGet(pRightColInfoData, pRightSource->rowIndex);
 
     switch(pLeftColInfoData->info.type) {
-      case TSDB_DATA_TYPE_INT:
-        if (*(int32_t*) left1 == *(int32_t*) right1) {
+      case TSDB_DATA_TYPE_INT: {
+        int32_t leftv = *(int32_t*)left1;
+        int32_t rightv = *(int32_t*)right1;
+
+        if (leftv == rightv) {
           break;
         } else {
           if (pOrder->order == TSDB_ORDER_ASC) {
-            return *(int32_t*) left1 <= *(int32_t*) right1? -1:1;
+            return leftv < rightv? -1 : 1;
           } else {
-            return *(int32_t*) left1 <= *(int32_t*) right1? 1:-1;
+            return leftv < rightv? 1 : -1;
           }
         }
+      }
       default:
         assert(0);
     }
@@ -5634,7 +5646,7 @@ static int32_t adjustMergeTreeForNextTuple(SExternalMemSource *pSource, SMultiwa
    * Adjust loser tree otherwise, according to new candidate data
    * if the loser tree is rebuild completed, we do not need to adjust
    */
-  int32_t leafNodeIndex = tMergeTreeAdjustIndex(pTree);
+  int32_t leafNodeIndex = tMergeTreeGetAdjustIndex(pTree);
 
 #ifdef _DEBUG_VIEW
   printf("before adjust:\t");

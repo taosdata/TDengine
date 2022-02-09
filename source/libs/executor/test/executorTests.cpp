@@ -262,6 +262,9 @@ TEST(testCase, external_sort_Test) {
 
   int32_t total = 1;
 
+  int64_t s1 = taosGetTimestampUs();
+
+
   while(1) {
     int64_t s = taosGetTimestampUs();
     pRes = pOperator->exec(pOperator, &newgroup);
@@ -280,6 +283,10 @@ TEST(testCase, external_sort_Test) {
 //      printf("%d: %d, %s\n", total++, ((int32_t*)pCol1->pData)[i], (char*)varDataVal(p));
 //    }
   }
+
+  int64_t s2 = taosGetTimestampUs();
+  printf("total:%ld\n", s2 - s1);
+
 
   pOperator->cleanupFn(pOperator->info, 2);
   tfree(exp);

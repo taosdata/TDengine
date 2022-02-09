@@ -612,7 +612,7 @@ static UNUSED_FUNC int32_t mergeIntoGroupResultImpl(STaskRuntimeEnv *pRuntimeEnv
       }
     }
 
-    tMergeTreeAdjust(pTree, tMergeTreeAdjustIndex(pTree));
+    tMergeTreeAdjust(pTree, tMergeTreeGetAdjustIndex(pTree));
   }
 
   int64_t endt = taosGetTimestampMs();

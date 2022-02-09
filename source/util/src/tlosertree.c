@@ -18,10 +18,7 @@
 #include "tlosertree.h"
 #include "taoserror.h"
 
-typedef struct STreeNode {
-  int32_t index;
-  void   *pData;  // TODO remove it?
-} STreeNode;
+
 
 // Set the initial value of the multiway merge tree.
 static void tMergeTreeInit(SMultiwayMergeTreeInfo* pTree) {
@@ -136,12 +133,4 @@ void tMergeTreePrint(const SMultiwayMergeTreeInfo* pTree) {
   }
 
   printf("\n");
-}
-
-int32_t tMergeTreeGetChosenIndex(const SMultiwayMergeTreeInfo* pTree) {
-  return pTree->pNode[0].index;
-}
-
-int32_t tMergeTreeAdjustIndex(const SMultiwayMergeTreeInfo* pTree) {
-  return tMergeTreeGetChosenIndex(pTree) + pTree->numOfSources;
 }
