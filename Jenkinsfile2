@@ -44,7 +44,7 @@ def sync_source() {
         git fetch origin +refs/pull/${CHANGE_ID}/merge
         git checkout -qf FETCH_HEAD
         git clean -dfx
-        git submodule update --init --recursive
+        git submodule update --init --recursive --remote
         cd ${WK}
         git reset --hard HEAD~10
     '''
