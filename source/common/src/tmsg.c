@@ -399,3 +399,19 @@ void *tDeserializeSMCreateStbReq(void *buf, SMCreateStbReq *pReq) {
 
   return buf;
 }
+
+int32_t tSerializeSMDropStbReq(void **buf, SMDropStbReq *pReq) {
+  int32_t tlen = 0;
+
+  tlen += taosEncodeString(buf, pReq->name);
+  tlen += taosEncodeFixedI8(buf, pReq->igNotExists);
+
+  return tlen;
+}
+
+void *tDeserializeSMDropStbReq(void *buf, SMDropStbReq *pReq) {
+  buf = taosDecodeStringTo(buf, pReq->name);
+  buf = taosDecodeFixedI8(buf, &pReq->igNotExists);
+
+  return buf;
+}

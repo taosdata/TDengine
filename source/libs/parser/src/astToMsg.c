@@ -249,8 +249,7 @@ SCreateDbReq* buildCreateDbMsg(SCreateDbInfo* pCreateDbInfo, SParseContext *pCtx
   return pCreateMsg;
 }
 
-SMCreateStbReq* buildCreateStbMsg(SCreateTableSql* pCreateTableSql, int32_t* len, SParseContext* pParseCtx,
-                                  SMsgBuf* pMsgBuf) {
+char* buildCreateStbReq(SCreateTableSql* pCreateTableSql, int32_t* len, SParseContext* pParseCtx, SMsgBuf* pMsgBuf) {
   SMCreateStbReq createReq = {0};
   createReq.igExists = pCreateTableSql->existCheck ? 1 : 0;
   createReq.pColumns = pCreateTableSql->colInfo.pColumns;
@@ -275,30 +274,39 @@ SMCreateStbReq* buildCreateStbMsg(SCreateTableSql* pCreateTableSql, int32_t* len
     return NULL;
   }
 
-  void *buf = req;
+  void* buf = req;
   tSerializeSMCreateStbReq(&buf, &createReq);
   *len = tlen;
   return req;
 }
 
-SMDropStbReq* buildDropStableMsg(SSqlInfo* pInfo, int32_t* len, SParseContext* pParseCtx, SMsgBuf* pMsgBuf) {
+char* buildDropStableReq(SSqlInfo* pInfo, int32_t* len, SParseContext* pParseCtx, SMsgBuf* pMsgBuf) {
   SToken* tableName = taosArrayGet(pInfo->pMiscInfo->a, 0);
 
-  SName name = {0};
+  SName   name = {0};
   int32_t code = createSName(&name, tableName, pParseCtx, pMsgBuf);
   if (code != TSDB_CODE_SUCCESS) {
     terrno = buildInvalidOperationMsg(pMsgBuf, "invalid table name");
     return NULL;
   }
 
-  SMDropStbReq *pDropTableMsg = (SMDropStbReq*) calloc(1, sizeof(SMDropStbReq));
+  SMDropStbReq dropReq = {0};
+  code = tNameExtractFullName(&name, dropReq.name);
 
-  code = tNameExtractFullName(&name, pDropTableMsg->name);
   assert(code == TSDB_CODE_SUCCESS && name.type == TSDB_TABLE_NAME_T);
+  dropReq.igNotExists = pInfo->pMiscInfo->existsCheck ? 1 : 0;
 
-  pDropTableMsg->igNotExists = pInfo->pMiscInfo->existsCheck ? 1 : 0;
-  *len = sizeof(SMDropStbReq);
-  return pDropTableMsg;
+  int32_t tlen = tSerializeSMDropStbReq(NULL, &dropReq);
+  void*   req = malloc(tlen);
+  if (req == NULL) {
+    terrno = TSDB_CODE_OUT_OF_MEMORY;
+    return NULL;
+  }
+
+  void* buf = req;
+  tSerializeSMDropStbReq(&buf, &dropReq);
+  *len = tlen;
+  return req;
 }
 
 SCreateDnodeReq *buildCreateDnodeMsg(SSqlInfo* pInfo, int32_t* len, SMsgBuf* pMsgBuf) {

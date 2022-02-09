@@ -272,6 +272,9 @@ typedef struct {
   int8_t igNotExists;
 } SMDropStbReq;
 
+int32_t tSerializeSMDropStbReq(void** buf, SMDropStbReq* pReq);
+void*   tDeserializeSMDropStbReq(void* buf, SMDropStbReq* pReq);
+
 typedef struct {
   char    name[TSDB_TABLE_FNAME_LEN];
   int8_t  alterType;
