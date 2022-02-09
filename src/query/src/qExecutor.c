@@ -3711,19 +3711,10 @@ void updateOutputBuf(SOptrBasicInfo* pBInfo, int32_t *bufCapacity, int32_t numOf
   }
 }
 
-void updateOutputBufForAgg(SOptrBasicInfo* pBInfo, SQueryRuntimeEnv* runtimeEnv) {
-  SSDataBlock* pDataBlock = pBInfo->pRes;
-  int32_t len = 0;
-  for(int32_t i = 0; i < pDataBlock->info.numOfCols; ++i) {
-    int32_t functionId = pBInfo->pCtx[i].functionId;
-
-    if (functionId == TSDB_FUNC_UNIQUE) {
-      len = GET_RES_INFO(&(pBInfo->pCtx[i]))->numOfRes;
-      break;
-    }
-  }
-
+void updateOutputBufForAgg(SOptrBasicInfo* pBInfo, SQueryRuntimeEnv* runtimeEnv, int32_t len) {
   if(len == 0){ return; }
+  SSDataBlock* pDataBlock = pBInfo->pRes;
+
   for(int32_t i = 0; i < pDataBlock->info.numOfCols; ++i) {
     SColumnInfoData *pColInfo = taosArrayGet(pDataBlock->pDataBlock, i);
 
@@ -5893,6 +5884,28 @@ static bool allCtxCompleted(SOperatorInfo* pOperator, SQLFunctionCtx* pCtx) {
   return true;
 }
 
+static int32_t getTotalRowsForUnique2(SOptrBasicInfo* pBInfo){
+  SSDataBlock* pDataBlock = pBInfo->pRes;
+  for(int32_t j = 0; j < pDataBlock->info.numOfCols; ++j) {
+    int32_t functionId = pBInfo->pCtx[j].functionId;
+
+    if (functionId == TSDB_FUNC_UNIQUE) {
+      return GET_RES_INFO(&(pBInfo->pCtx[j]))->numOfRes;
+    }
+  }
+  return 0;
+}
+
+static int32_t getTotalRowsForUnique1(SResultRowInfo* pResultRowInfo){
+  int32_t totalRows = 0;
+  for (int32_t i = 0; i < pResultRowInfo->size; ++i) {
+    SResultRow *buf = pResultRowInfo->pResult[i];
+
+    totalRows += buf->numOfRows;
+  }
+  return totalRows;
+}
+
 // this is a blocking operator
 static SSDataBlock* doAggregate(void* param, bool* newgroup) {
   SOperatorInfo* pOperator = (SOperatorInfo*) param;
@@ -5938,7 +5951,7 @@ static SSDataBlock* doAggregate(void* param, bool* newgroup) {
 
   doSetOperatorCompleted(pOperator);
   if (isUniqueQuery(pOperator, pInfo->pCtx)) {
-    updateOutputBufForAgg(pInfo, pOperator->pRuntimeEnv);
+    updateOutputBufForAgg(pInfo, pOperator->pRuntimeEnv, getTotalRowsForUnique2(pInfo));
   }
   finalizeQueryResult(pOperator, pInfo->pCtx, &pInfo->resultRowInfo, pInfo->rowCellInfoOffset);
   pInfo->pRes->info.rows = getNumOfResult(pRuntimeEnv, pInfo->pCtx, pOperator->numOfOutput);
@@ -6008,7 +6021,7 @@ static SSDataBlock* doSTableAggregate(void* param, bool* newgroup) {
   closeAllResultRows(&pInfo->resultRowInfo);
 
   if (isUniqueQuery(pOperator, pInfo->pCtx)) { // update output buffer for unique
-    updateOutputBufForAgg(pInfo, pOperator->pRuntimeEnv);
+    updateOutputBufForAgg(pInfo, pOperator->pRuntimeEnv, getTotalRowsForUnique2(pInfo));
     finalizeQueryResult(pOperator, pInfo->pCtx, &pInfo->resultRowInfo, pInfo->rowCellInfoOffset);
     pInfo->pRes->info.rows = getNumOfResult(pRuntimeEnv, pInfo->pCtx, pOperator->numOfOutput);
   }else{
@@ -7096,9 +7109,8 @@ static SSDataBlock* hashGroupbyAggregate(void* param, bool* newgroup) {
   if (!pRuntimeEnv->pQueryAttr->stableQuery) { // finalize include the update of result rows
     finalizeQueryResult(pOperator, pInfo->binfo.pCtx, &pInfo->binfo.resultRowInfo, pInfo->binfo.rowCellInfoOffset);
   } else if(pRuntimeEnv->pQueryAttr->stableQuery && isUniqueQuery(pOperator, pInfo->binfo.pCtx)){
-    updateOutputBufForAgg(&pInfo->binfo, pOperator->pRuntimeEnv);
     finalizeQueryResult(pOperator, pInfo->binfo.pCtx, &pInfo->binfo.resultRowInfo, pInfo->binfo.rowCellInfoOffset);
-    pInfo->binfo.pRes->info.rows = getNumOfResult(pRuntimeEnv, pInfo->binfo.pCtx, pOperator->numOfOutput);
+    updateOutputBufForAgg(&pInfo->binfo, pOperator->pRuntimeEnv, getTotalRowsForUnique1(&pInfo->binfo.resultRowInfo));
   } else {
     updateNumOfRowsInResultRows(pRuntimeEnv, pInfo->binfo.pCtx, pOperator->numOfOutput, &pInfo->binfo.resultRowInfo, pInfo->binfo.rowCellInfoOffset);
   }
