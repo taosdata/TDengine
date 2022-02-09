@@ -228,17 +228,19 @@ TAOS_DEFINE_ERROR(TSDB_CODE_MND_VGROUP_NOT_EXIST,         "VGroup does not exist
 // mnode-stable
 TAOS_DEFINE_ERROR(TSDB_CODE_MND_STB_ALREADY_EXIST,        "Stable already exists")
 TAOS_DEFINE_ERROR(TSDB_CODE_MND_STB_NOT_EXIST,            "Stable not exist")
+TAOS_DEFINE_ERROR(TSDB_CODE_MND_NAME_CONFLICT_WITH_TOPIC, "Stable confilct with topic")
 TAOS_DEFINE_ERROR(TSDB_CODE_MND_TOO_MANY_STBS,            "Too many stables")
 TAOS_DEFINE_ERROR(TSDB_CODE_MND_INVALID_STB,              "Invalid stable name")
 TAOS_DEFINE_ERROR(TSDB_CODE_MND_INVALID_STB_OPTION,       "Invalid stable options")
-TAOS_DEFINE_ERROR(TSDB_CODE_MND_STB_OPTION_UNCHNAGED,     "Stable options not changed")
+TAOS_DEFINE_ERROR(TSDB_CODE_MND_INVALID_STB_ALTER_OPTION, "Invalid stable alter options")
+TAOS_DEFINE_ERROR(TSDB_CODE_MND_STB_OPTION_UNCHNAGED,     "Stable option unchanged")
+TAOS_DEFINE_ERROR(TSDB_CODE_MND_INVALID_ROW_BYTES,        "Invalid row bytes")
 TAOS_DEFINE_ERROR(TSDB_CODE_MND_TOO_MANY_TAGS,            "Too many tags")
-TAOS_DEFINE_ERROR(TSDB_CODE_MND_TAG_ALREAY_EXIST,         "Tag already exists")
+TAOS_DEFINE_ERROR(TSDB_CODE_MND_TAG_ALREADY_EXIST,        "Tag already exists")
 TAOS_DEFINE_ERROR(TSDB_CODE_MND_TAG_NOT_EXIST,            "Tag does not exist")
 TAOS_DEFINE_ERROR(TSDB_CODE_MND_TOO_MANY_COLUMNS,         "Too many columns")
-TAOS_DEFINE_ERROR(TSDB_CODE_MND_COLUMN_ALREAY_EXIST,      "Column already exists")
+TAOS_DEFINE_ERROR(TSDB_CODE_MND_COLUMN_ALREADY_EXIST,     "Column already exists")
 TAOS_DEFINE_ERROR(TSDB_CODE_MND_COLUMN_NOT_EXIST,         "Column does not exist")
-TAOS_DEFINE_ERROR(TSDB_CODE_MND_INVALID_ROW_BYTES,        "Invalid row bytes")
 
 // mnode-func
 TAOS_DEFINE_ERROR(TSDB_CODE_MND_FUNC_ALREADY_EXIST,       "Func already exists")

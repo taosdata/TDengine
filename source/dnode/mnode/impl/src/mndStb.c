@@ -652,12 +652,12 @@ static int32_t mndAddSuperTableTag(const SStbObj *pOld, SStbObj *pNew, const SSc
 
   for (int32_t i = 0; i < ntags; i++) {
     if (mndFindSuperTableColumnIndex(pOld, pSchemas[i].name) > 0) {
-      terrno = TSDB_CODE_MND_TAG_ALREAY_EXIST;
+      terrno = TSDB_CODE_MND_COLUMN_ALREADY_EXIST;
       return -1;
     }
 
     if (mndFindSuperTableTagIndex(pOld, pSchemas[i].name) > 0) {
-      terrno = TSDB_CODE_MND_COLUMN_ALREAY_EXIST;
+      terrno = TSDB_CODE_MND_TAG_ALREADY_EXIST;
       return -1;
     }
   }
@@ -692,6 +692,7 @@ static int32_t mndDropSuperTableTag(const SStbObj *pOld, SStbObj *pNew, const ch
   }
 
   memmove(pNew->pTags + tag, pNew->pTags + tag + 1, sizeof(SSchema) * (pNew->numOfTags - tag - 1));
+  pNew->numOfTags--;
 
   pNew->version++;
   mDebug("stb:%s, start to drop tag %s", pNew->name, tagName);
@@ -706,13 +707,12 @@ static int32_t mndAlterStbTagName(const SStbObj *pOld, SStbObj *pNew, const char
   }
 
   if (mndFindSuperTableTagIndex(pOld, newTagName) >= 0) {
-    terrno = TSDB_CODE_MND_TAG_ALREAY_EXIST;
+    terrno = TSDB_CODE_MND_TAG_ALREADY_EXIST;
     return -1;
   }
 
-  int32_t len = (int32_t)strlen(newTagName);
-  if (len >= TSDB_COL_NAME_LEN) {
-    terrno = TSDB_CODE_MND_INVALID_STB_OPTION;
+  if (mndFindSuperTableColumnIndex(pOld, newTagName) >= 0) {
+    terrno = TSDB_CODE_MND_COLUMN_ALREADY_EXIST;
     return -1;
   }
 
@@ -735,16 +735,17 @@ static int32_t mndAlterStbTagBytes(const SStbObj *pOld, SStbObj *pNew, const SSc
     return -1;
   }
 
-  if (!(pSchema->type == TSDB_DATA_TYPE_BINARY || pSchema->type == TSDB_DATA_TYPE_NCHAR)) {
-    terrno = TSDB_CODE_MND_INVALID_STB_OPTION;
-    return -1;
-  }
-
   if (mndAllocStbSchemas(pOld, pNew) != 0) {
     return -1;
   }
 
   SSchema *pTag = pNew->pTags + tag;
+
+  if (!(pTag->type == TSDB_DATA_TYPE_BINARY || pTag->type == TSDB_DATA_TYPE_NCHAR)) {
+    terrno = TSDB_CODE_MND_INVALID_STB_OPTION;
+    return -1;
+  }
+
   if (pSchema->bytes <= pTag->bytes) {
     terrno = TSDB_CODE_MND_INVALID_ROW_BYTES;
     return -1;
@@ -765,12 +766,12 @@ static int32_t mndAddSuperTableColumn(const SStbObj *pOld, SStbObj *pNew, const 
 
   for (int32_t i = 0; i < ncols; i++) {
     if (mndFindSuperTableColumnIndex(pOld, pSchemas[i].name) > 0) {
-      terrno = TSDB_CODE_MND_TAG_ALREAY_EXIST;
+      terrno = TSDB_CODE_MND_COLUMN_ALREADY_EXIST;
       return -1;
     }
 
     if (mndFindSuperTableTagIndex(pOld, pSchemas[i].name) > 0) {
-      terrno = TSDB_CODE_MND_COLUMN_ALREAY_EXIST;
+      terrno = TSDB_CODE_MND_TAG_ALREADY_EXIST;
       return -1;
     }
   }
@@ -795,8 +796,18 @@ static int32_t mndAddSuperTableColumn(const SStbObj *pOld, SStbObj *pNew, const 
 
 static int32_t mndDropSuperTableColumn(const SStbObj *pOld, SStbObj *pNew, const char *colName) {
   int32_t col = mndFindSuperTableColumnIndex(pOld, colName);
-  if (col <= 0) {
+  if (col < 0) {
     terrno = TSDB_CODE_MND_COLUMN_NOT_EXIST;
+    return -1;
+  }
+
+  if (col == 0) {
+    terrno = TSDB_CODE_MND_INVALID_STB_ALTER_OPTION;
+    return -1;
+  }
+
+  if (pOld->numOfColumns == 2) {
+    terrno = TSDB_CODE_MND_INVALID_STB_ALTER_OPTION;
     return -1;
   }
 
@@ -805,6 +816,7 @@ static int32_t mndDropSuperTableColumn(const SStbObj *pOld, SStbObj *pNew, const
   }
 
   memmove(pNew->pColumns + col, pNew->pColumns + col + 1, sizeof(SSchema) * (pNew->numOfColumns - col - 1));
+  pNew->numOfColumns--;
 
   pNew->version++;
   mDebug("stb:%s, start to drop col %s", pNew->name, colName);
@@ -815,11 +827,6 @@ static int32_t mndAlterStbColumnBytes(const SStbObj *pOld, SStbObj *pNew, const 
   int32_t col = mndFindSuperTableColumnIndex(pOld, pSchema->name);
   if (col < 0) {
     terrno = TSDB_CODE_MND_COLUMN_NOT_EXIST;
-    return -1;
-  }
-
-  if (!(pSchema->type == TSDB_DATA_TYPE_BINARY || pSchema->type == TSDB_DATA_TYPE_NCHAR)) {
-    terrno = TSDB_CODE_MND_INVALID_STB_OPTION;
     return -1;
   }
 
@@ -838,6 +845,11 @@ static int32_t mndAlterStbColumnBytes(const SStbObj *pOld, SStbObj *pNew, const 
   }
 
   SSchema *pCol = pNew->pColumns + col;
+  if (!(pCol->type == TSDB_DATA_TYPE_BINARY || pCol->type == TSDB_DATA_TYPE_NCHAR)) {
+    terrno = TSDB_CODE_MND_INVALID_STB_OPTION;
+    return -1;
+  }
+
   if (pSchema->bytes <= pCol->bytes) {
     terrno = TSDB_CODE_MND_INVALID_ROW_BYTES;
     return -1;
@@ -914,12 +926,13 @@ static int32_t mndAlterStb(SMnode *pMnode, SMnodeMsg *pReq, const SMAltertbReq *
   taosRUnLockLatch(&pOld->lock);
 
   int32_t code = -1;
+  STrans *pTrans = NULL;
 
   switch (pAlter->alterType) {
-    case TSDB_ALTER_TABLE_ADD_TAG_COLUMN:
+    case TSDB_ALTER_TABLE_ADD_TAG:
       code = mndAddSuperTableTag(pOld, &stbObj, pAlter->pSchemas, 1);
       break;
-    case TSDB_ALTER_TABLE_DROP_TAG_COLUMN:
+    case TSDB_ALTER_TABLE_DROP_TAG:
       code = mndDropSuperTableTag(pOld, &stbObj, pAlter->pSchemas[0].name);
       break;
     case TSDB_ALTER_TABLE_UPDATE_TAG_NAME:
@@ -945,7 +958,7 @@ static int32_t mndAlterStb(SMnode *pMnode, SMnodeMsg *pReq, const SMAltertbReq *
   if (code != 0) goto ALTER_STB_OVER;
 
   code = -1;
-  STrans *pTrans = mndTransCreate(pMnode, TRN_POLICY_RETRY, &pReq->rpcMsg);
+  pTrans = mndTransCreate(pMnode, TRN_POLICY_RETRY, &pReq->rpcMsg);
   if (pTrans == NULL) goto ALTER_STB_OVER;
 
   mDebug("trans:%d, used to alter stb:%s", pTrans->id, pAlter->name);
@@ -975,17 +988,17 @@ static int32_t mndProcessMAlterStbReq(SMnodeMsg *pReq) {
     return -1;
   }
 
-  SStbObj *pStb = mndAcquireStb(pMnode, pAlter->name);
-  if (pStb == NULL) {
-    terrno = TSDB_CODE_MND_STB_NOT_EXIST;
+  SDbObj *pDb = mndAcquireDbByStb(pMnode, pAlter->name);
+  if (pDb == NULL) {
+    terrno = TSDB_CODE_MND_INVALID_DB;
     mError("stb:%s, failed to alter since %s", pAlter->name, terrstr());
     return -1;
   }
 
-  SDbObj *pDb = mndAcquireDbByStb(pMnode, pAlter->name);
-  if (pDb == NULL) {
-    mndReleaseStb(pMnode, pStb);
-    terrno = TSDB_CODE_MND_DB_NOT_SELECTED;
+  SStbObj *pStb = mndAcquireStb(pMnode, pAlter->name);
+  if (pStb == NULL) {
+    mndReleaseDb(pMnode, pDb);
+    terrno = TSDB_CODE_MND_STB_NOT_EXIST;
     mError("stb:%s, failed to alter since %s", pAlter->name, terrstr());
     return -1;
   }
@@ -994,7 +1007,7 @@ static int32_t mndProcessMAlterStbReq(SMnodeMsg *pReq) {
   mndReleaseStb(pMnode, pStb);
 
   if (code != 0) {
-    mError("stb:%s, failed to alter since %s", pAlter->name, tstrerror(code));
+    mError("stb:%s, failed to alter since %s", pAlter->name, terrstr());
     return code;
   }
 
