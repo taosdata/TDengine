@@ -262,7 +262,7 @@ static SDbObj *mndAcquireDbByStb(SMnode *pMnode, const char *stbName) {
   return mndAcquireDb(pMnode, db);
 }
 
-static void *mndBuildCreateStbReq(SMnode *pMnode, SVgObj *pVgroup, SStbObj *pStb, int32_t *pContLen) {
+static void *mndBuildVCreateStbReq(SMnode *pMnode, SVgObj *pVgroup, SStbObj *pStb, int32_t *pContLen) {
   SName name = {0};
   tNameFromString(&name, pStb->name, T_NAME_ACCT | T_NAME_DB | T_NAME_TABLE);
 
@@ -295,7 +295,7 @@ static void *mndBuildCreateStbReq(SMnode *pMnode, SVgObj *pVgroup, SStbObj *pStb
   return pHead;
 }
 
-static void *mndBuildDropStbReq(SMnode *pMnode, SVgObj *pVgroup, SStbObj *pStb, int32_t *pContLen) {
+static void *mndBuildVDropStbReq(SMnode *pMnode, SVgObj *pVgroup, SStbObj *pStb, int32_t *pContLen) {
   SName name = {0};
   tNameFromString(&name, pStb->name, T_NAME_ACCT | T_NAME_DB | T_NAME_TABLE);
 
@@ -323,14 +323,6 @@ static void *mndBuildDropStbReq(SMnode *pMnode, SVgObj *pVgroup, SStbObj *pStb, 
 }
 
 static int32_t mndCheckCreateStbReq(SMCreateStbReq *pCreate) {
-  pCreate->numOfColumns = htonl(pCreate->numOfColumns);
-  pCreate->numOfTags = htonl(pCreate->numOfTags);
-  int32_t totalCols = pCreate->numOfColumns + pCreate->numOfTags;
-  for (int32_t i = 0; i < totalCols; ++i) {
-    SSchema *pSchema = &pCreate->pSchemas[i];
-    pSchema->bytes = htonl(pSchema->bytes);
-  }
-
   if (pCreate->igExists < 0 || pCreate->igExists > 1) {
     terrno = TSDB_CODE_MND_INVALID_STB_OPTION;
     return -1;
@@ -346,18 +338,39 @@ static int32_t mndCheckCreateStbReq(SMCreateStbReq *pCreate) {
     return -1;
   }
 
-  int32_t maxColId = (TSDB_MAX_COLUMNS + TSDB_MAX_TAGS);
-  for (int32_t i = 0; i < totalCols; ++i) {
-    SSchema *pSchema = &pCreate->pSchemas[i];
-    if (pSchema->type < 0) {
+  SField *pField = taosArrayGet(pCreate->pColumns, 0) ;
+  if (pField->type != TSDB_DATA_TYPE_TIMESTAMP) {
+    terrno = TSDB_CODE_MND_INVALID_STB_OPTION;
+    return -1;
+  }
+
+  for (int32_t i = 0; i < pCreate->numOfColumns; ++i) {
+    SField *pField = taosArrayGet(pCreate->pColumns, i);
+    if (pField->type < 0) {
       terrno = TSDB_CODE_MND_INVALID_STB_OPTION;
       return -1;
     }
-    if (pSchema->bytes <= 0) {
+    if (pField->bytes <= 0) {
       terrno = TSDB_CODE_MND_INVALID_STB_OPTION;
       return -1;
     }
-    if (pSchema->name[0] == 0) {
+    if (pField->name[0] == 0) {
+      terrno = TSDB_CODE_MND_INVALID_STB_OPTION;
+      return -1;
+    }
+  }
+
+  for (int32_t i = 0; i < pCreate->numOfTags; ++i) {
+    SField *pField = taosArrayGet(pCreate->pTags, i);
+    if (pField->type < 0) {
+      terrno = TSDB_CODE_MND_INVALID_STB_OPTION;
+      return -1;
+    }
+    if (pField->bytes <= 0) {
+      terrno = TSDB_CODE_MND_INVALID_STB_OPTION;
+      return -1;
+    }
+    if (pField->name[0] == 0) {
       terrno = TSDB_CODE_MND_INVALID_STB_OPTION;
       return -1;
     }
@@ -404,7 +417,7 @@ static int32_t mndSetCreateStbRedoActions(SMnode *pMnode, STrans *pTrans, SDbObj
     if (pIter == NULL) break;
     if (pVgroup->dbUid != pDb->uid) continue;
 
-    void *pReq = mndBuildCreateStbReq(pMnode, pVgroup, pStb, &contLen);
+    void *pReq = mndBuildVCreateStbReq(pMnode, pVgroup, pStb, &contLen);
     if (pReq == NULL) {
       sdbCancelFetch(pSdb, pIter);
       sdbRelease(pSdb, pVgroup);
@@ -440,7 +453,7 @@ static int32_t mndSetCreateStbUndoActions(SMnode *pMnode, STrans *pTrans, SDbObj
     if (pVgroup->dbUid != pDb->uid) continue;
 
     int32_t contLen = 0;
-    void   *pReq = mndBuildDropStbReq(pMnode, pVgroup, pStb, &contLen);
+    void   *pReq = mndBuildVDropStbReq(pMnode, pVgroup, pStb, &contLen);
     if (pReq == NULL) {
       sdbCancelFetch(pSdb, pIter);
       sdbRelease(pSdb, pVgroup);
@@ -485,16 +498,23 @@ static int32_t mndCreateStb(SMnode *pMnode, SMnodeMsg *pReq, SMCreateStbReq *pCr
     return -1;
   }
 
-  memcpy(stbObj.pColumns, pCreate->pSchemas, stbObj.numOfColumns * sizeof(SSchema));
-  memcpy(stbObj.pTags, pCreate->pSchemas + stbObj.numOfColumns, stbObj.numOfTags * sizeof(SSchema));
-
   for (int32_t i = 0; i < stbObj.numOfColumns; ++i) {
-    stbObj.pColumns[i].colId = stbObj.nextColId;
+    SField  *pField = taosArrayGet(pCreate->pColumns, i);
+    SSchema *pSchema = &stbObj.pColumns[i];
+    pSchema->type = pField->type;
+    pSchema->bytes = pField->bytes;
+    memcpy(pSchema->name, pField->name, TSDB_COL_NAME_LEN);
+    pSchema->colId = stbObj.nextColId;
     stbObj.nextColId++;
   }
 
   for (int32_t i = 0; i < stbObj.numOfTags; ++i) {
-    stbObj.pTags[i].colId = stbObj.nextColId;
+    SField  *pField = taosArrayGet(pCreate->pTags, i);
+    SSchema *pSchema = &stbObj.pTags[i];
+    pSchema->type = pField->type;
+    pSchema->bytes = pField->bytes;
+    memcpy(pSchema->name, pField->name, TSDB_COL_NAME_LEN);
+    pSchema->colId = stbObj.nextColId;
     stbObj.nextColId++;
   }
 
@@ -519,57 +539,60 @@ CREATE_STB_OVER:
 }
 
 static int32_t mndProcessMCreateStbReq(SMnodeMsg *pReq) {
-  SMnode         *pMnode = pReq->pMnode;
-  SMCreateStbReq *pCreate = pReq->rpcMsg.pCont;
+  SMnode        *pMnode = pReq->pMnode;
+  int32_t        code = -1;
+  SStbObj       *pTopicStb = NULL;
+  SStbObj       *pStb = NULL;
+  SDbObj        *pDb = NULL;
+  SMCreateStbReq createReq = {0};
 
-  mDebug("stb:%s, start to create", pCreate->name);
+  if (tDeserializeSMCreateStbReq(pReq->rpcMsg.pCont, &createReq) == NULL) goto CREATE_STB_OVER;
 
-  if (mndCheckCreateStbReq(pCreate) != 0) {
-    mError("stb:%s, failed to create since %s", pCreate->name, terrstr());
-    return -1;
-  }
+  mDebug("stb:%s, start to create", createReq.name);
+  if (mndCheckCreateStbReq(&createReq) != 0) goto CREATE_STB_OVER;
 
-  SStbObj *pStb = mndAcquireStb(pMnode, pCreate->name);
+  pStb = mndAcquireStb(pMnode, createReq.name);
   if (pStb != NULL) {
-    mndReleaseStb(pMnode, pStb);
-    if (pCreate->igExists) {
-      mDebug("stb:%s, already exist, ignore exist is set", pCreate->name);
-      return 0;
+    if (createReq.igExists) {
+      mDebug("stb:%s, already exist, ignore exist is set", createReq.name);
+      code = 0;
+      goto CREATE_STB_OVER;
     } else {
       terrno = TSDB_CODE_MND_STB_ALREADY_EXIST;
-      mError("stb:%s, failed to create since %s", pCreate->name, terrstr());
-      return -1;
+      goto CREATE_STB_OVER;
     }
   } else if (terrno != TSDB_CODE_MND_STB_NOT_EXIST) {
-    mError("stb:%s, failed to create since %s", pCreate->name, terrstr());
-    return -1;
+    goto CREATE_STB_OVER;
   }
 
-  // topic should have different name with stb
-  SStbObj *pTopicStb = mndAcquireStb(pMnode, pCreate->name);
+  pTopicStb = mndAcquireStb(pMnode, createReq.name);
   if (pTopicStb != NULL) {
-    mndReleaseStb(pMnode, pTopicStb);
     terrno = TSDB_CODE_MND_NAME_CONFLICT_WITH_TOPIC;
-    mError("stb:%s, failed to create since %s", pCreate->name, terrstr());
-    return -1;
+    goto CREATE_STB_OVER;
   }
 
-  SDbObj *pDb = mndAcquireDbByStb(pMnode, pCreate->name);
+  pDb = mndAcquireDbByStb(pMnode, createReq.name);
   if (pDb == NULL) {
     terrno = TSDB_CODE_MND_DB_NOT_SELECTED;
-    mError("stb:%s, failed to create since %s", pCreate->name, terrstr());
-    return -1;
+    goto CREATE_STB_OVER;
   }
 
-  int32_t code = mndCreateStb(pMnode, pReq, pCreate, pDb);
-  mndReleaseDb(pMnode, pDb);
+  code = mndCreateStb(pMnode, pReq, &createReq, pDb);
 
+CREATE_STB_OVER:
   if (code != 0) {
-    mError("stb:%s, failed to create since %s", pCreate->name, terrstr());
-    return -1;
+    mError("stb:%s, failed to create since %s", createReq.name, terrstr());
+  } else {
+    code = TSDB_CODE_MND_ACTION_IN_PROGRESS;
   }
 
-  return TSDB_CODE_MND_ACTION_IN_PROGRESS;
+  mndReleaseStb(pMnode, pStb);
+  mndReleaseStb(pMnode, pTopicStb);
+  mndReleaseDb(pMnode, pDb);
+  taosArrayClear(createReq.pColumns);
+  taosArrayClear(createReq.pTags);
+
+  return code;
 }
 
 static int32_t mndProcessVCreateStbRsp(SMnodeMsg *pRsp) {
@@ -891,7 +914,7 @@ static int32_t mndSetAlterStbRedoActions(SMnode *pMnode, STrans *pTrans, SDbObj 
     if (pIter == NULL) break;
     if (pVgroup->dbUid != pDb->uid) continue;
 
-    void *pReq = mndBuildCreateStbReq(pMnode, pVgroup, pStb, &contLen);
+    void *pReq = mndBuildVCreateStbReq(pMnode, pVgroup, pStb, &contLen);
     if (pReq == NULL) {
       sdbCancelFetch(pSdb, pIter);
       sdbRelease(pSdb, pVgroup);
@@ -1049,7 +1072,7 @@ static int32_t mndSetDropStbRedoActions(SMnode *pMnode, STrans *pTrans, SDbObj *
     if (pVgroup->dbUid != pDb->uid) continue;
 
     int32_t contLen = 0;
-    void   *pReq = mndBuildDropStbReq(pMnode, pVgroup, pStb, &contLen);
+    void   *pReq = mndBuildVDropStbReq(pMnode, pVgroup, pStb, &contLen);
     if (pReq == NULL) {
       sdbCancelFetch(pSdb, pIter);
       sdbRelease(pSdb, pVgroup);
@@ -1095,28 +1118,30 @@ DROP_STB_OVER:
 }
 
 static int32_t mndProcessMDropStbReq(SMnodeMsg *pReq) {
-  SMnode       *pMnode = pReq->pMnode;
-  SMDropStbReq *pDrop = pReq->rpcMsg.pCont;
+  SMnode *pMnode = pReq->pMnode;
 
-  mDebug("stb:%s, start to drop", pDrop->name);
+  SMDropStbReq dropReq = {0};
+  tDeserializeSMDropStbReq(pReq->rpcMsg.pCont, &dropReq);
 
-  SStbObj *pStb = mndAcquireStb(pMnode, pDrop->name);
+  mDebug("stb:%s, start to drop", dropReq.name);
+
+  SStbObj *pStb = mndAcquireStb(pMnode, dropReq.name);
   if (pStb == NULL) {
-    if (pDrop->igNotExists) {
-      mDebug("stb:%s, not exist, ignore not exist is set", pDrop->name);
+    if (dropReq.igNotExists) {
+      mDebug("stb:%s, not exist, ignore not exist is set", dropReq.name);
       return 0;
     } else {
       terrno = TSDB_CODE_MND_STB_NOT_EXIST;
-      mError("stb:%s, failed to drop since %s", pDrop->name, terrstr());
+      mError("stb:%s, failed to drop since %s", dropReq.name, terrstr());
       return -1;
     }
   }
 
-  SDbObj *pDb = mndAcquireDbByStb(pMnode, pDrop->name);
+  SDbObj *pDb = mndAcquireDbByStb(pMnode, dropReq.name);
   if (pDb == NULL) {
     mndReleaseStb(pMnode, pStb);
     terrno = TSDB_CODE_MND_DB_NOT_SELECTED;
-    mError("stb:%s, failed to drop since %s", pDrop->name, terrstr());
+    mError("stb:%s, failed to drop since %s", dropReq.name, terrstr());
     return -1;
   }
 
@@ -1125,7 +1150,7 @@ static int32_t mndProcessMDropStbReq(SMnodeMsg *pReq) {
   mndReleaseStb(pMnode, pStb);
 
   if (code != 0) {
-    mError("stb:%s, failed to drop since %s", pDrop->name, terrstr());
+    mError("stb:%s, failed to drop since %s", dropReq.name, terrstr());
     return -1;
   }
 

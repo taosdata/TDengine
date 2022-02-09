@@ -266,6 +266,7 @@ static void uvHandleReq(SSrvConn* pConn) {
 
   transClearBuffer(&pConn->readBuf);
   pConn->ref++;
+  tDebug("%s received on %p", TMSG_INFO(rpcMsg.msgType), pConn);
   (*(pRpc->cfp))(pRpc->parent, &rpcMsg, NULL);
   // uv_timer_start(pConn->pTimer, uvHandleActivityTimeout, pRpc->idleTime * 10000, 0);
   // auth
@@ -278,7 +279,7 @@ void uvOnReadCb(uv_stream_t* cli, ssize_t nread, const uv_buf_t* buf) {
   SConnBuffer* pBuf = &conn->readBuf;
   if (nread > 0) {
     pBuf->len += nread;
-    tDebug("conn %p read summroy, total read: %d, current read: %d", conn, pBuf->len, (int)nread);
+    tDebug("conn %p read summary, total read: %d, current read: %d", conn, pBuf->len, (int)nread);
     if (readComplete(pBuf)) {
       tDebug("conn %p alread read complete packet", conn);
       uvHandleReq(conn);
@@ -717,6 +718,9 @@ void taosCloseServer(void* arg) {
 }
 
 void rpcSendResponse(const SRpcMsg* pMsg) {
+  if (pMsg->handle == NULL) {
+    return;
+  }
   SSrvConn*     pConn = pMsg->handle;
   SWorkThrdObj* pThrd = pConn->hostThrd;
 
