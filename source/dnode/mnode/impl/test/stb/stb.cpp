@@ -22,19 +22,19 @@ class MndTestStb : public ::testing::Test {
   void SetUp() override {}
   void TearDown() override {}
 
-  SCreateDbReq*   BuildCreateDbReq(const char* dbname, int32_t* pContLen);
-  SDropDbReq*     BuildDropDbReq(const char* dbname, int32_t* pContLen);
-  SMCreateStbReq* BuildCreateStbReq(const char* stbname, int32_t* pContLen);
-  SMAltertbReq*   BuildAlterStbAddTagReq(const char* stbname, const char* tagname, int32_t* pContLen);
-  SMAltertbReq*   BuildAlterStbDropTagReq(const char* stbname, const char* tagname, int32_t* pContLen);
-  SMAltertbReq*   BuildAlterStbUpdateTagNameReq(const char* stbname, const char* tagname, const char* newtagname,
-                                                int32_t* pContLen);
-  SMAltertbReq*   BuildAlterStbUpdateTagBytesReq(const char* stbname, const char* tagname, int32_t bytes,
-                                                 int32_t* pContLen);
-  SMAltertbReq*   BuildAlterStbAddColumnReq(const char* stbname, const char* colname, int32_t* pContLen);
-  SMAltertbReq*   BuildAlterStbDropColumnReq(const char* stbname, const char* colname, int32_t* pContLen);
-  SMAltertbReq*   BuildAlterStbUpdateColumnBytesReq(const char* stbname, const char* colname, int32_t bytes,
-                                                    int32_t* pContLen);
+  SCreateDbReq* BuildCreateDbReq(const char* dbname, int32_t* pContLen);
+  SDropDbReq*   BuildDropDbReq(const char* dbname, int32_t* pContLen);
+  void*         BuildCreateStbReq(const char* stbname, int32_t* pContLen);
+  SMAltertbReq* BuildAlterStbAddTagReq(const char* stbname, const char* tagname, int32_t* pContLen);
+  SMAltertbReq* BuildAlterStbDropTagReq(const char* stbname, const char* tagname, int32_t* pContLen);
+  SMAltertbReq* BuildAlterStbUpdateTagNameReq(const char* stbname, const char* tagname, const char* newtagname,
+                                              int32_t* pContLen);
+  SMAltertbReq* BuildAlterStbUpdateTagBytesReq(const char* stbname, const char* tagname, int32_t bytes,
+                                               int32_t* pContLen);
+  SMAltertbReq* BuildAlterStbAddColumnReq(const char* stbname, const char* colname, int32_t* pContLen);
+  SMAltertbReq* BuildAlterStbDropColumnReq(const char* stbname, const char* colname, int32_t* pContLen);
+  SMAltertbReq* BuildAlterStbUpdateColumnBytesReq(const char* stbname, const char* colname, int32_t bytes,
+                                                  int32_t* pContLen);
 };
 
 Testbase MndTestStb::test;
@@ -78,53 +78,62 @@ SDropDbReq* MndTestStb::BuildDropDbReq(const char* dbname, int32_t* pContLen) {
   return pReq;
 }
 
-SMCreateStbReq* MndTestStb::BuildCreateStbReq(const char* stbname, int32_t* pContLen) {
-  int32_t cols = 2;
-  int32_t tags = 3;
-  int32_t contLen = (tags + cols) * sizeof(SSchema) + sizeof(SMCreateStbReq);
-
-  SMCreateStbReq* pReq = (SMCreateStbReq*)rpcMallocCont(contLen);
-  strcpy(pReq->name, stbname);
-  pReq->numOfTags = htonl(tags);
-  pReq->numOfColumns = htonl(cols);
+void* MndTestStb::BuildCreateStbReq(const char* stbname, int32_t* pContLen) {
+  SMCreateStbReq createReq = {0};
+  createReq.numOfColumns = 2;
+  createReq.numOfTags = 3;
+  createReq.igExists = 0;
+  createReq.pColumns = taosArrayInit(createReq.numOfColumns, sizeof(SField));
+  createReq.pTags = taosArrayInit(createReq.numOfTags, sizeof(SField));
+  strcpy(createReq.name, stbname);
 
   {
-    SSchema* pSchema = &pReq->pSchemas[0];
-    pSchema->bytes = htonl(8);
-    pSchema->type = TSDB_DATA_TYPE_TIMESTAMP;
-    strcpy(pSchema->name, "ts");
+    SField field = {0};
+    field.bytes = 8;
+    field.type = TSDB_DATA_TYPE_TIMESTAMP;
+    strcpy(field.name, "ts");
+    taosArrayPush(createReq.pColumns, &field);
   }
 
   {
-    SSchema* pSchema = &pReq->pSchemas[1];
-    pSchema->bytes = htonl(12);
-    pSchema->type = TSDB_DATA_TYPE_BINARY;
-    strcpy(pSchema->name, "col1");
+    SField field = {0};
+    field.bytes = 12;
+    field.type = TSDB_DATA_TYPE_BINARY;
+    strcpy(field.name, "col1");
+    taosArrayPush(createReq.pColumns, &field);
   }
 
   {
-    SSchema* pSchema = &pReq->pSchemas[2];
-    pSchema->bytes = htonl(2);
-    pSchema->type = TSDB_DATA_TYPE_TINYINT;
-    strcpy(pSchema->name, "tag1");
+    SField field = {0};
+    field.bytes = 2;
+    field.type = TSDB_DATA_TYPE_TINYINT;
+    strcpy(field.name, "tag1");
+    taosArrayPush(createReq.pTags, &field);
   }
 
   {
-    SSchema* pSchema = &pReq->pSchemas[3];
-    pSchema->bytes = htonl(8);
-    pSchema->type = TSDB_DATA_TYPE_BIGINT;
-    strcpy(pSchema->name, "tag2");
+    SField field = {0};
+    field.bytes = 8;
+    field.type = TSDB_DATA_TYPE_BIGINT;
+    strcpy(field.name, "tag2");
+    taosArrayPush(createReq.pTags, &field);
   }
 
   {
-    SSchema* pSchema = &pReq->pSchemas[4];
-    pSchema->bytes = htonl(16);
-    pSchema->type = TSDB_DATA_TYPE_BINARY;
-    strcpy(pSchema->name, "tag3");
+    SField field = {0};
+    field.bytes = 16;
+    field.type = TSDB_DATA_TYPE_BINARY;
+    strcpy(field.name, "tag3");
+    taosArrayPush(createReq.pTags, &field);
   }
 
-  *pContLen = contLen;
-  return pReq;
+  int32_t tlen = tSerializeSMCreateStbReq(NULL, &createReq);
+  void*   pHead = rpcMallocCont(tlen);
+
+  void* pBuf = pHead;
+  tSerializeSMCreateStbReq(&pBuf, &createReq);
+  *pContLen = tlen;
+  return pHead;
 }
 
 SMAltertbReq* MndTestStb::BuildAlterStbAddTagReq(const char* stbname, const char* tagname, int32_t* pContLen) {
@@ -260,9 +269,9 @@ TEST_F(MndTestStb, 01_Create_Show_Meta_Drop_Restart_Stb) {
   }
 
   {
-    int32_t         contLen = 0;
-    SMCreateStbReq* pReq = BuildCreateStbReq(stbname, &contLen);
-    SRpcMsg*        pRsp = test.SendReq(TDMT_MND_CREATE_STB, pReq, contLen);
+    int32_t  contLen = 0;
+    void*    pReq = BuildCreateStbReq(stbname, &contLen);
+    SRpcMsg* pRsp = test.SendReq(TDMT_MND_CREATE_STB, pReq, contLen);
     ASSERT_NE(pRsp, nullptr);
     ASSERT_EQ(pRsp->code, 0);
   }
@@ -418,8 +427,8 @@ TEST_F(MndTestStb, 02_Alter_Stb_AddTag) {
   }
 
   {
-    SMCreateStbReq* pReq = BuildCreateStbReq(stbname, &contLen);
-    SRpcMsg*        pRsp = test.SendReq(TDMT_MND_CREATE_STB, pReq, contLen);
+    void*    pReq = BuildCreateStbReq(stbname, &contLen);
+    SRpcMsg* pRsp = test.SendReq(TDMT_MND_CREATE_STB, pReq, contLen);
     ASSERT_NE(pRsp, nullptr);
     ASSERT_EQ(pRsp->code, 0);
   }
@@ -483,8 +492,8 @@ TEST_F(MndTestStb, 03_Alter_Stb_DropTag) {
   }
 
   {
-    SMCreateStbReq* pReq = BuildCreateStbReq(stbname, &contLen);
-    SRpcMsg*        pRsp = test.SendReq(TDMT_MND_CREATE_STB, pReq, contLen);
+    void*    pReq = BuildCreateStbReq(stbname, &contLen);
+    SRpcMsg* pRsp = test.SendReq(TDMT_MND_CREATE_STB, pReq, contLen);
     ASSERT_EQ(pRsp->code, 0);
   }
 
@@ -529,8 +538,8 @@ TEST_F(MndTestStb, 04_Alter_Stb_AlterTagName) {
   }
 
   {
-    SMCreateStbReq* pReq = BuildCreateStbReq(stbname, &contLen);
-    SRpcMsg*        pRsp = test.SendReq(TDMT_MND_CREATE_STB, pReq, contLen);
+    void*    pReq = BuildCreateStbReq(stbname, &contLen);
+    SRpcMsg* pRsp = test.SendReq(TDMT_MND_CREATE_STB, pReq, contLen);
     ASSERT_EQ(pRsp->code, 0);
   }
 
@@ -598,8 +607,8 @@ TEST_F(MndTestStb, 05_Alter_Stb_AlterTagBytes) {
   }
 
   {
-    SMCreateStbReq* pReq = BuildCreateStbReq(stbname, &contLen);
-    SRpcMsg*        pRsp = test.SendReq(TDMT_MND_CREATE_STB, pReq, contLen);
+    void*    pReq = BuildCreateStbReq(stbname, &contLen);
+    SRpcMsg* pRsp = test.SendReq(TDMT_MND_CREATE_STB, pReq, contLen);
     ASSERT_EQ(pRsp->code, 0);
   }
 
@@ -656,8 +665,8 @@ TEST_F(MndTestStb, 06_Alter_Stb_AddColumn) {
   }
 
   {
-    SMCreateStbReq* pReq = BuildCreateStbReq(stbname, &contLen);
-    SRpcMsg*        pRsp = test.SendReq(TDMT_MND_CREATE_STB, pReq, contLen);
+    void*    pReq = BuildCreateStbReq(stbname, &contLen);
+    SRpcMsg* pRsp = test.SendReq(TDMT_MND_CREATE_STB, pReq, contLen);
     ASSERT_NE(pRsp, nullptr);
     ASSERT_EQ(pRsp->code, 0);
   }
@@ -721,8 +730,8 @@ TEST_F(MndTestStb, 07_Alter_Stb_DropColumn) {
   }
 
   {
-    SMCreateStbReq* pReq = BuildCreateStbReq(stbname, &contLen);
-    SRpcMsg*        pRsp = test.SendReq(TDMT_MND_CREATE_STB, pReq, contLen);
+    void*    pReq = BuildCreateStbReq(stbname, &contLen);
+    SRpcMsg* pRsp = test.SendReq(TDMT_MND_CREATE_STB, pReq, contLen);
     ASSERT_EQ(pRsp->code, 0);
   }
 
@@ -786,8 +795,8 @@ TEST_F(MndTestStb, 08_Alter_Stb_AlterTagBytes) {
   }
 
   {
-    SMCreateStbReq* pReq = BuildCreateStbReq(stbname, &contLen);
-    SRpcMsg*        pRsp = test.SendReq(TDMT_MND_CREATE_STB, pReq, contLen);
+    void*    pReq = BuildCreateStbReq(stbname, &contLen);
+    SRpcMsg* pRsp = test.SendReq(TDMT_MND_CREATE_STB, pReq, contLen);
     ASSERT_EQ(pRsp->code, 0);
   }
 

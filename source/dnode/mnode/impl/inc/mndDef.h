@@ -304,8 +304,8 @@ typedef struct {
   int32_t  nextColId;
   int32_t  numOfColumns;
   int32_t  numOfTags;
-  SSchema* pTags;
   SSchema* pColumns;
+  SSchema* pTags;
   SRWLatch lock;
 } SStbObj;
 
