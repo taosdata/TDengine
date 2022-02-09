@@ -6024,7 +6024,9 @@ static SSDataBlock* doSTableAggregate(void* param, bool* newgroup) {
     updateOutputBufForAgg(pInfo, pOperator->pRuntimeEnv, getTotalRowsForUnique2(pInfo));
     finalizeQueryResult(pOperator, pInfo->pCtx, &pInfo->resultRowInfo, pInfo->rowCellInfoOffset);
     pInfo->pRes->info.rows = getNumOfResult(pRuntimeEnv, pInfo->pCtx, pOperator->numOfOutput);
-  }else{
+  }
+
+  if(!isUniqueQuery(pOperator, pInfo->pCtx) || pInfo->resultRowInfo.size > 1){
     updateNumOfRowsInResultRows(pRuntimeEnv, pInfo->pCtx, pOperator->numOfOutput, &pInfo->resultRowInfo,
                                 pInfo->rowCellInfoOffset);
     initGroupResInfo(&pRuntimeEnv->groupResInfo, &pInfo->resultRowInfo);

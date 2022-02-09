@@ -101,9 +101,14 @@ class TDTestCase:
         tdSql.checkData(3, 4, "Beijing.Chaoyang")
         tdSql.checkData(3, 5, "d001")
 
-        # tdSql.query('select * from st')
-        # tdSql.checkRows(3)
-        # tdSql.query('select * from (select * from ste)')
+        # test group by
+        tdSql.query('select ts,unique(num) from d003 group by voltage')
+        tdSql.checkRows(2)
+        tdSql.query('select ts,unique(num) from unique group by voltage')
+        tdSql.checkRows(4)
+        tdSql.query('select ts,unique(num) from unique group by tbname')
+        tdSql.checkRows(3)
+
         # tdSql.checkRows(0)
         # tdSql.query('select * from st union all select * from ste')
         # tdSql.checkRows(3)
