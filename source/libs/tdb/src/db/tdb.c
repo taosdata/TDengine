@@ -19,3 +19,34 @@ struct STDb {
   // TODO
   SBTree *pBt;
 };
+
+int tdbCreate(TDB **ppDb) {
+  TDB *pDb;
+
+  pDb = (TDB *)calloc(1, sizeof(*pDb));
+  if (pDb == NULL) {
+    return -1;
+  }
+
+  /* TODO */
+
+  return 0;
+}
+
+int tdbDestroy(TDB *pDb) {
+  if (pDb) {
+    free(pDb);
+  }
+  /* TODO */
+  return 0;
+}
+
+int tdbOpen(TDB **pDb) {
+  // TODO
+  return 0;
+}
+
+int tdbClose(TDB *pDb) {
+  // TODO
+  return 0;
+}

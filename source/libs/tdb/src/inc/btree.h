@@ -28,6 +28,9 @@ int btreeOpen(SBTree **ppBt);
 int btreeClose(SBTree *pBt);
 
 // SBtCursor
+int btreeCursorOpen(SBtCursor *pBtCur, SBTree *pBt);
+int btreeCursorClose(SBtCursor *pBtCur);
+int btreeCursorMoveTo(SBtCursor *pBtCur);
 
 #ifdef __cplusplus
 }
