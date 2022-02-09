@@ -725,6 +725,7 @@ typedef struct {
   char     tbName[TSDB_TABLE_NAME_LEN];
   char     stbName[TSDB_TABLE_NAME_LEN];
   char     dbFName[TSDB_DB_FNAME_LEN];
+  uint64_t dbId;
   int32_t  numOfTags;
   int32_t  numOfColumns;
   int8_t   precision;

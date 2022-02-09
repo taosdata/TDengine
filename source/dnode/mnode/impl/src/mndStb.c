@@ -760,6 +760,7 @@ static int32_t mndProcessStbMetaReq(SMnodeMsg *pReq) {
   strcpy(pMeta->dbFName, pStb->db);
   strcpy(pMeta->tbName, pInfo->tbName);
   strcpy(pMeta->stbName, pInfo->tbName);
+  pMeta->dbId = htobe64(pDb->uid);
   pMeta->numOfTags = htonl(pStb->numOfTags);
   pMeta->numOfColumns = htonl(pStb->numOfColumns);
   pMeta->precision = pDb->cfg.precision;

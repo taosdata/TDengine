@@ -435,6 +435,8 @@ int32_t* taosGetErrno();
 #define TSDB_CODE_CTG_NOT_READY                 TAOS_DEF_ERROR_CODE(0, 0x2402)  //catalog is not ready
 #define TSDB_CODE_CTG_MEM_ERROR                 TAOS_DEF_ERROR_CODE(0, 0x2403)  //catalog memory error
 #define TSDB_CODE_CTG_SYS_ERROR                 TAOS_DEF_ERROR_CODE(0, 0x2404)  //catalog system error
+#define TSDB_CODE_CTG_DB_DROPPED                TAOS_DEF_ERROR_CODE(0, 0x2405)  //Database is dropped
+#define TSDB_CODE_CTG_OUT_OF_SERVICE            TAOS_DEF_ERROR_CODE(0, 0x2406)  //catalog is out of service
 
 //scheduler
 #define TSDB_CODE_SCH_STATUS_ERROR              TAOS_DEF_ERROR_CODE(0, 0x2501)  //scheduler status error
@@ -450,4 +452,3 @@ int32_t* taosGetErrno();
 #endif
 
 #endif /*_TD_COMMON_TAOS_ERROR_H_*/
-                                                                                                      

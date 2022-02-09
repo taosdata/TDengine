@@ -159,6 +159,7 @@ _return:
 }
 
 static int32_t queryConvertTableMetaMsg(STableMetaRsp* pMetaMsg) {
+  pMetaMsg->dbId = be64toh(pMetaMsg->dbId);
   pMetaMsg->numOfTags = ntohl(pMetaMsg->numOfTags);
   pMetaMsg->numOfColumns = ntohl(pMetaMsg->numOfColumns);
   pMetaMsg->sversion = ntohl(pMetaMsg->sversion);
@@ -258,6 +259,8 @@ int32_t queryProcessTableMetaRsp(void* output, char *msg, int32_t msgSize) {
   }
 
   strcpy(pOut->dbFName, pMetaMsg->dbFName);
+  
+  pOut->dbId = pMetaMsg->dbId;
 
   if (pMetaMsg->tableType == TSDB_CHILD_TABLE) {
     SET_META_TYPE_BOTH_TABLE(pOut->metaType);

@@ -108,6 +108,7 @@ void ctgTestInitLogFile() {
   const int32_t maxLogFileNum = 10;
 
   tsAsyncLog = 0;
+  qDebugFlag = 159;
 
   char temp[128] = {0};
   sprintf(temp, "%s/%s", tsLogDir, defaultLogFileNamePrefix);
@@ -631,7 +632,7 @@ void *ctgTestGetDbVgroupThread(void *param) {
   return NULL;
 }
 
-void *ctgTestSetDbVgroupThread(void *param) {
+void *ctgTestSetSameDbVgroupThread(void *param) {
   struct SCatalog *pCtg = (struct SCatalog *)param;
   int32_t          code = 0;
   SDBVgroupInfo    *dbVgroup = NULL;
@@ -654,6 +655,32 @@ void *ctgTestSetDbVgroupThread(void *param) {
 
   return NULL;
 }
+
+
+void *ctgTestSetDiffDbVgroupThread(void *param) {
+  struct SCatalog *pCtg = (struct SCatalog *)param;
+  int32_t          code = 0;
+  SDBVgroupInfo    *dbVgroup = NULL;
+  int32_t          n = 0;
+
+  while (!ctgTestStop) {
+    ctgTestBuildDBVgroup(&dbVgroup);
+    code = catalogUpdateDBVgroup(pCtg, ctgTestDbname, ctgTestDbId++, dbVgroup);
+    if (code) {
+      assert(0);
+    }
+
+    if (ctgTestEnableSleep) {
+      usleep(rand() % 5);
+    }
+    if (++n % ctgTestPrintNum == 0) {
+      printf("Set:%d\n", n);
+    }
+  }
+
+  return NULL;
+}
+
 
 void *ctgTestGetCtableMetaThread(void *param) {
   struct SCatalog *pCtg = (struct SCatalog *)param;
@@ -719,6 +746,8 @@ TEST(tableMeta, normalTable) {
   struct SCatalog *pCtg = NULL;
   void            *mockPointer = (void *)0x1;
   SVgroupInfo      vgInfo = {0};
+
+  ctgTestInitLogFile();
 
   ctgTestSetPrepareDbVgroups();
 
@@ -1285,7 +1314,7 @@ TEST(dbVgroup, getSetDbVgroupCase) {
   catalogDestroy();
 }
 
-TEST(multiThread, getSetDbVgroupCase) {
+TEST(multiThread, getSetRmSameDbVgroup) {
   struct SCatalog *pCtg = NULL;
   void            *mockPointer = (void *)0x1;
   SVgroupInfo      vgInfo = {0};
@@ -1316,10 +1345,10 @@ TEST(multiThread, getSetDbVgroupCase) {
   pthread_attr_init(&thattr);
 
   pthread_t thread1, thread2;
-  pthread_create(&(thread1), &thattr, ctgTestSetDbVgroupThread, pCtg);
+  pthread_create(&(thread1), &thattr, ctgTestSetSameDbVgroupThread, pCtg);
 
   sleep(1);
-  pthread_create(&(thread1), &thattr, ctgTestGetDbVgroupThread, pCtg);
+  pthread_create(&(thread2), &thattr, ctgTestGetDbVgroupThread, pCtg);
 
   while (true) {
     if (ctgTestDeadLoop) {
@@ -1335,6 +1364,58 @@ TEST(multiThread, getSetDbVgroupCase) {
 
   catalogDestroy();
 }
+
+TEST(multiThread, getSetRmDiffDbVgroup) {
+  struct SCatalog *pCtg = NULL;
+  void            *mockPointer = (void *)0x1;
+  SVgroupInfo      vgInfo = {0};
+  SVgroupInfo     *pvgInfo = NULL;
+  SDBVgroupInfo    dbVgroup = {0};
+  SArray          *vgList = NULL;
+  ctgTestStop = false;
+
+  ctgTestInitLogFile();
+
+  ctgTestSetPrepareDbVgroups();
+
+  initQueryModuleMsgHandle();
+
+  // sendCreateDbMsg(pConn->pTransporter, &pConn->pAppInfo->mgmtEp.epSet);
+
+  int32_t code = catalogInit(NULL);
+  ASSERT_EQ(code, 0);
+
+  code = catalogGetHandle(ctgTestClusterId, &pCtg);
+  ASSERT_EQ(code, 0);
+
+  SName n = {.type = TSDB_TABLE_NAME_T, .acctId = 1};
+  strcpy(n.dbname, "db1");
+  strcpy(n.tname, ctgTestTablename);
+
+  pthread_attr_t thattr;
+  pthread_attr_init(&thattr);
+
+  pthread_t thread1, thread2;
+  pthread_create(&(thread1), &thattr, ctgTestSetDiffDbVgroupThread, pCtg);
+
+  sleep(1);
+  pthread_create(&(thread2), &thattr, ctgTestGetDbVgroupThread, pCtg);
+
+  while (true) {
+    if (ctgTestDeadLoop) {
+      sleep(1);
+    } else {
+      sleep(ctgTestMTRunSec);
+      break;
+    }
+  }
+
+  ctgTestStop = true;
+  sleep(1);
+
+  catalogDestroy();
+}
+
 
 
 TEST(multiThread, ctableMeta) {
