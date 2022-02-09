@@ -18,6 +18,7 @@
 struct STDb {
   SBTree   btree;    // current access method
   SPgFile *pPgFile;  // backend page file this DB is using
+  TENV *   pEnv;     // TENV containing the DB
 };
 
 int tdbCreate(TDB **ppDb) {
