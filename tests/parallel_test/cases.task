@@ -41,14 +41,12 @@
 83,,script,./test.sh -f general/parser/limit1_tblocks100.sim 
 82,,script,./test.sh -f general/parser/limit1.sim 
 82,,pytest,python3 test.py -f query/last_row_cache.py 
-# 81,,develop-test,bash 3-connectors/c#/test.sh 
-80,,system-test,bash 3-connectors/c#/test.sh 
-80,,develop-test,bash 3-connectors/nodejs/test.sh 
+81,,develop-test,timeout 180 bash 3-connectors/c#/test.sh 
+80,,develop-test,timeout 180 bash 3-connectors/nodejs/test.sh 
 79,,script,./test.sh -f general/db/alter_tables_v4.sim 
 79,,pytest,python3 test.py -f insert/verifyMemToDiskCrash.py 
 78,2,script,./test.sh -f unique/dnode/balance3.sim 
 78,,script,./test.sh -f unique/cluster/balance1.sim 
-# 77,,system-test,bash 3-connectors/nodejs/test.sh 
 76,,script,./test.sh -f unique/import/replica3.sim 
 76,,script,./test.sh -f unique/db/replica_add13.sim 
 75,,script,./test.sh -f unique/db/replica_reduce32.sim 
@@ -105,8 +103,6 @@
 ,,pytest,python3 ./test.py -f query/queryNcharNull.py
 ,,pytest,python3 ./test.py -f alter/alterBackQuoteCol.py
 ,,pytest,python3 ./test.py -f tsdb/tsdbComp.py
-# ,,system-test,python3 ./test.py -f 0-management/1-stable/create_col_tag.py no such file
-# ,,develop-test,python3 ./test.py -f 0-management/3-tag/json_tag.py no such file
 ,,system-test,python3 ./test.py -f 2-query/TD-11389.py
 ,,system-test,python3 ./test.py -f 2-query/TD-12909.py
 ,,system-test,python3 ./test.py -f 2-query/TD-12427.py
@@ -579,7 +575,6 @@
 8,,develop-test,python3 ./test.py -f 5-taos-tools/taosdump/taosdumpTestTypeInt.py 
 8,,develop-test,python3 ./test.py -f 5-taos-tools/taosdump/taosdumpTestTypeDouble.py 
 7,,system-test,python3 ./test.py -f 5-taos-tools/taosbenchmark/taosdemoTestInsertWithJsonSml-otherPara.py 
-## 7,,system-test,python3 ./test.py -f 2-query/TD-12191.py 
 7,,pytest,python3 test.py -f tools/taosdumpTest2.py 
 7,,pytest,python3 test.py -f tools/taosdemoTestdatatype.py 
 7,,pytest,python3 test.py -f tag_lite/unsignedInt.py 
@@ -594,7 +589,6 @@
 7,,develop-test,python3 ./test.py -f 5-taos-tools/taosdump/taosdumpTestTypeBigInt.py 
 6,,system-test,python3 ./test.py -f 2-query/TD-12229.py 
 6,,system-test,python3 ./test.py -f 2-query/TD-11943.py 
-## 6,,system-test,python3 ./test.py -f 2-query/TD-11483.py 
 6,,system-test,python3 ./test.py -f 2-query/function_elapsed.py 
 6,,pytest,python3 test.py -f wal/addOldWalTest.py 
 6,,pytest,python3 test.py -f topic/topicQuery.py 
@@ -774,4 +768,3 @@
 3,,pytest,python3 test.py -f tag_lite/binary.py 
 3,,pytest,python3 test.py -f query/filterAllIntTypes.py 
 3,,develop-test,python3 ./test.py -f 2-query/ts_hidden_column.py 
-#2,,coredump-test,./test.sh
