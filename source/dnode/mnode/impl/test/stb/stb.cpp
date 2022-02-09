@@ -388,12 +388,15 @@ TEST_F(MndTestStb, 01_Create_Show_Meta_Drop_Restart_Stb) {
   }
 
   {
-    int32_t contLen = sizeof(SMDropStbReq);
+    SMDropStbReq dropReq = {0};
+    strcpy(dropReq.name, stbname);
 
-    SMDropStbReq* pReq = (SMDropStbReq*)rpcMallocCont(contLen);
-    strcpy(pReq->name, stbname);
+    int32_t contLen = tSerializeSMDropStbReq(NULL, &dropReq);
+    void*   pHead = rpcMallocCont(contLen);
+    void*   pBuf = pHead;
+    tSerializeSMDropStbReq(&pBuf, &dropReq);
 
-    SRpcMsg* pRsp = test.SendReq(TDMT_MND_DROP_STB, pReq, contLen);
+    SRpcMsg* pRsp = test.SendReq(TDMT_MND_DROP_STB, pHead, contLen);
     ASSERT_NE(pRsp, nullptr);
     ASSERT_EQ(pRsp->code, 0);
   }

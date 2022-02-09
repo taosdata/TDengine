@@ -1118,28 +1118,30 @@ DROP_STB_OVER:
 }
 
 static int32_t mndProcessMDropStbReq(SMnodeMsg *pReq) {
-  SMnode       *pMnode = pReq->pMnode;
-  SMDropStbReq *pDrop = pReq->rpcMsg.pCont;
+  SMnode *pMnode = pReq->pMnode;
 
-  mDebug("stb:%s, start to drop", pDrop->name);
+  SMDropStbReq dropReq = {0};
+  tDeserializeSMDropStbReq(pReq->rpcMsg.pCont, &dropReq);
 
-  SStbObj *pStb = mndAcquireStb(pMnode, pDrop->name);
+  mDebug("stb:%s, start to drop", dropReq.name);
+
+  SStbObj *pStb = mndAcquireStb(pMnode, dropReq.name);
   if (pStb == NULL) {
-    if (pDrop->igNotExists) {
-      mDebug("stb:%s, not exist, ignore not exist is set", pDrop->name);
+    if (dropReq.igNotExists) {
+      mDebug("stb:%s, not exist, ignore not exist is set", dropReq.name);
       return 0;
     } else {
       terrno = TSDB_CODE_MND_STB_NOT_EXIST;
-      mError("stb:%s, failed to drop since %s", pDrop->name, terrstr());
+      mError("stb:%s, failed to drop since %s", dropReq.name, terrstr());
       return -1;
     }
   }
 
-  SDbObj *pDb = mndAcquireDbByStb(pMnode, pDrop->name);
+  SDbObj *pDb = mndAcquireDbByStb(pMnode, dropReq.name);
   if (pDb == NULL) {
     mndReleaseStb(pMnode, pStb);
     terrno = TSDB_CODE_MND_DB_NOT_SELECTED;
-    mError("stb:%s, failed to drop since %s", pDrop->name, terrstr());
+    mError("stb:%s, failed to drop since %s", dropReq.name, terrstr());
     return -1;
   }
 
@@ -1148,7 +1150,7 @@ static int32_t mndProcessMDropStbReq(SMnodeMsg *pReq) {
   mndReleaseStb(pMnode, pStb);
 
   if (code != 0) {
-    mError("stb:%s, failed to drop since %s", pDrop->name, terrstr());
+    mError("stb:%s, failed to drop since %s", dropReq.name, terrstr());
     return -1;
   }
 
