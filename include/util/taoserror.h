@@ -455,6 +455,8 @@ int32_t* taosGetErrno();
 #define TSDB_CODE_PAR_ILLEGAL_USE_AGG_FUNCTION  TAOS_DEF_ERROR_CODE(0, 0x2608)  //There mustn't be aggregation
 #define TSDB_CODE_PAR_WRONG_NUMBER_OF_SELECT    TAOS_DEF_ERROR_CODE(0, 0x2609)  //ORDER BY item must be the number of a SELECT-list expression
 #define TSDB_CODE_PAR_GROUPBY_LACK_EXPRESSION   TAOS_DEF_ERROR_CODE(0, 0x260A)  //Not a GROUP BY expression
+#define TSDB_CODE_PAR_NOT_SELECTED_EXPRESSION   TAOS_DEF_ERROR_CODE(0, 0x260B)  //Not SELECTed expression
+#define TSDB_CODE_PAR_NOT_SINGLE_GROUP          TAOS_DEF_ERROR_CODE(0, 0x260C)  //Not a single-group group function
 
 #ifdef __cplusplus
 }
