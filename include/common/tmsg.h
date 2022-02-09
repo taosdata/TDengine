@@ -264,10 +264,10 @@ typedef struct {
 
 typedef struct {
   char    name[TSDB_TABLE_FNAME_LEN];
-  int8_t  updateType;
+  int8_t  alterType;
   int32_t numOfSchemas;
   SSchema pSchemas[];
-} SMUpdateStbReq;
+} SMAltertbReq;
 
 typedef struct {
   int32_t pid;
@@ -1178,31 +1178,28 @@ typedef struct SVCreateTbReq {
       SSchema* pSchema;
     } ntbCfg;
   };
-} SVCreateTbReq;
+} SVCreateTbReq, SVUpdateTbReq;
+
+typedef struct {
+} SVCreateTbRsp, SVUpdateTbRsp;
+
+int32_t tSerializeSVCreateTbReq(void** buf, SVCreateTbReq* pReq);
+void*   tDeserializeSVCreateTbReq(void* buf, SVCreateTbReq* pReq);
+int32_t tSerializeSVCreateTbRsp(void** buf, SVCreateTbRsp* pRsp);
+void*   tDeserializeSVCreateTbRsp(void* buf, SVCreateTbRsp* pRsp);
 
 typedef struct {
   uint64_t ver;  // use a general definition
   SArray*  pArray;
 } SVCreateTbBatchReq;
 
-int   tSerializeSVCreateTbReq(void** buf, SVCreateTbReq* pReq);
-void* tDeserializeSVCreateTbReq(void* buf, SVCreateTbReq* pReq);
-int   tSVCreateTbBatchReqSerialize(void** buf, SVCreateTbBatchReq* pReq);
-void* tSVCreateTbBatchReqDeserialize(void* buf, SVCreateTbBatchReq* pReq);
-
 typedef struct {
-  SMsgHead head;
-} SVCreateTbRsp;
+} SVCreateTbBatchRsp;
 
-typedef struct {
-  SMsgHead head;
-  char     name[TSDB_TABLE_FNAME_LEN];
-  int8_t   ignoreNotExists;
-} SVAlterTbReq;
-
-typedef struct {
-  SMsgHead head;
-} SVAlterTbRsp;
+int32_t tSerializeSVCreateTbBatchReq(void** buf, SVCreateTbBatchReq* pReq);
+void*   tDeserializeSVCreateTbBatchReq(void* buf, SVCreateTbBatchReq* pReq);
+int32_t tSerializeSVCreateTbBatchReqp(void** buf, SVCreateTbBatchReq* pRsp);
+void*   tDeserializeSVCreateTbBatchReq(void* buf, SVCreateTbBatchReq* pRsp);
 
 typedef struct {
   uint64_t ver;

@@ -2,6 +2,7 @@ add_executable(transportTest "")
 add_executable(client "")
 add_executable(server "")
 add_executable(transUT "")
+add_executable(syncClient "")
 
 target_sources(transUT
   PRIVATE
@@ -19,6 +20,10 @@ target_sources (client
 target_sources (server
   PRIVATE
   "rserver.c" 
+)   
+target_sources (syncClient
+  PRIVATE
+  "syncClient.c" 
 )   
 
 target_include_directories(transportTest 
@@ -67,7 +72,6 @@ target_include_directories(transUT
   "${CMAKE_CURRENT_SOURCE_DIR}/../inc"
 ) 
 
-
 target_link_libraries (server
   os  
   util
@@ -75,4 +79,17 @@ target_link_libraries (server
   gtest_main
   transport 
 )
+target_include_directories(syncClient
+  PUBLIC
+  "${CMAKE_SOURCE_DIR}/include/libs/transport" 
+  "${CMAKE_CURRENT_SOURCE_DIR}/../inc"
+) 
+target_link_libraries (syncClient
+  os  
+  util
+  common
+  gtest_main
+  transport 
+)
+
 
