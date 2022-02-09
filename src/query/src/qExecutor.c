@@ -6048,8 +6048,8 @@ static SSDataBlock* doSTableAggregate(void* param, bool* newgroup) {
     finalizeUniqueResultOne(pOperator, pInfo->pCtx);
     pInfo->pRes->info.rows = getNumOfResult(pRuntimeEnv, pInfo->pCtx, pOperator->numOfOutput);
   }else if(isUniqueQuery(pOperator, pInfo->pCtx) && pInfo->resultRowInfo.size > 1){
-    updateOutputBufForAgg(pInfo, pOperator->pRuntimeEnv, getTotalRowsForUnique1(&pInfo->resultRowInfo));
     finalizeUniqueResultMulti(pOperator, pInfo->pCtx, &pInfo->resultRowInfo, pInfo->rowCellInfoOffset);
+    updateOutputBufForAgg(pInfo, pOperator->pRuntimeEnv, getTotalRowsForUnique1(&pInfo->resultRowInfo));
   }
 
   if(!isUniqueQuery(pOperator, pInfo->pCtx) || pInfo->resultRowInfo.size > 1){
