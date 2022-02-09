@@ -39,6 +39,7 @@ namespace {
 extern "C" int32_t ctgGetTableMetaFromCache(struct SCatalog *pCatalog, const SName *pTableName, STableMeta **pTableMeta,
                                             int32_t *exist);
 extern "C" int32_t ctgUpdateTableMetaCache(struct SCatalog *pCatalog, STableMetaOutput *output);
+extern "C" int32_t ctgDbgGetClusterCacheNum(struct SCatalog* pCatalog, int32_t type);
 
 void ctgTestSetPrepareTableMeta();
 void ctgTestSetPrepareCTableMeta();
@@ -49,7 +50,7 @@ bool    ctgTestStop = false;
 bool    ctgTestEnableSleep = false;
 bool    ctgTestDeadLoop = false;
 int32_t ctgTestPrintNum = 200000;
-int32_t ctgTestMTRunSec = 30;
+int32_t ctgTestMTRunSec = 5;
 
 int32_t ctgTestCurrentVgVersion = 0;
 int32_t ctgTestVgVersion = 1;
@@ -107,6 +108,7 @@ void ctgTestInitLogFile() {
   const int32_t maxLogFileNum = 10;
 
   tsAsyncLog = 0;
+  qDebugFlag = 159;
 
   char temp[128] = {0};
   sprintf(temp, "%s/%s", tsLogDir, defaultLogFileNamePrefix);
@@ -185,7 +187,6 @@ void ctgTestBuildDBVgroup(SDBVgroupInfo **pdbVgroup) {
   ctgTestCurrentVgVersion = dbVgroup->vgVersion;
 
   dbVgroup->hashMethod = 0;
-  dbVgroup->dbId = ctgTestDbId;
   dbVgroup->vgHash = taosHashInit(ctgTestVgNum, taosGetDefaultHashFunction(TSDB_DATA_TYPE_INT), true, HASH_ENTRY_LOCK);
 
   vgNum = ctgTestGetVgNumFromVgVersion(dbVgroup->vgVersion);
@@ -208,6 +209,45 @@ void ctgTestBuildDBVgroup(SDBVgroupInfo **pdbVgroup) {
 
   *pdbVgroup = dbVgroup;
 }
+
+
+void ctgTestBuildSTableMetaRsp(STableMetaRsp *rspMsg) {
+  strcpy(rspMsg->dbFName, ctgTestDbname);
+  sprintf(rspMsg->tbName, "%s", ctgTestSTablename);
+  sprintf(rspMsg->stbName, "%s", ctgTestSTablename);
+  rspMsg->numOfTags = ctgTestTagNum;
+  rspMsg->numOfColumns = ctgTestColNum;
+  rspMsg->precision = 1 + 1;
+  rspMsg->tableType = TSDB_SUPER_TABLE;
+  rspMsg->update = 1 + 1;
+  rspMsg->sversion = ctgTestSVersion + 1;
+  rspMsg->tversion = ctgTestTVersion + 1;
+  rspMsg->suid = ctgTestSuid + 1;
+  rspMsg->tuid = ctgTestSuid + 1;
+  rspMsg->vgId = 1;
+
+  SSchema *s = NULL;
+  s = &rspMsg->pSchema[0];
+  s->type = TSDB_DATA_TYPE_TIMESTAMP;
+  s->colId = 1;
+  s->bytes = 8;
+  strcpy(s->name, "ts");
+
+  s = &rspMsg->pSchema[1];
+  s->type = TSDB_DATA_TYPE_INT;
+  s->colId = 2;
+  s->bytes = 4;
+  strcpy(s->name, "col1s");
+
+  s = &rspMsg->pSchema[2];
+  s->type = TSDB_DATA_TYPE_BINARY;
+  s->colId = 3;
+  s->bytes = 12 + 1;
+  strcpy(s->name, "tag1s");
+
+  return;
+}
+
 
 void ctgTestPrepareDbVgroups(void *shandle, SEpSet *pEpSet, SRpcMsg *pMsg, SRpcMsg *pRsp) {
   SUseDbRsp *rspMsg = NULL;  // todo
@@ -592,7 +632,7 @@ void *ctgTestGetDbVgroupThread(void *param) {
   return NULL;
 }
 
-void *ctgTestSetDbVgroupThread(void *param) {
+void *ctgTestSetSameDbVgroupThread(void *param) {
   struct SCatalog *pCtg = (struct SCatalog *)param;
   int32_t          code = 0;
   SDBVgroupInfo    *dbVgroup = NULL;
@@ -600,7 +640,7 @@ void *ctgTestSetDbVgroupThread(void *param) {
 
   while (!ctgTestStop) {
     ctgTestBuildDBVgroup(&dbVgroup);
-    code = catalogUpdateDBVgroup(pCtg, ctgTestDbname, dbVgroup);
+    code = catalogUpdateDBVgroup(pCtg, ctgTestDbname, ctgTestDbId, dbVgroup);
     if (code) {
       assert(0);
     }
@@ -615,6 +655,32 @@ void *ctgTestSetDbVgroupThread(void *param) {
 
   return NULL;
 }
+
+
+void *ctgTestSetDiffDbVgroupThread(void *param) {
+  struct SCatalog *pCtg = (struct SCatalog *)param;
+  int32_t          code = 0;
+  SDBVgroupInfo    *dbVgroup = NULL;
+  int32_t          n = 0;
+
+  while (!ctgTestStop) {
+    ctgTestBuildDBVgroup(&dbVgroup);
+    code = catalogUpdateDBVgroup(pCtg, ctgTestDbname, ctgTestDbId++, dbVgroup);
+    if (code) {
+      assert(0);
+    }
+
+    if (ctgTestEnableSleep) {
+      usleep(rand() % 5);
+    }
+    if (++n % ctgTestPrintNum == 0) {
+      printf("Set:%d\n", n);
+    }
+  }
+
+  return NULL;
+}
+
 
 void *ctgTestGetCtableMetaThread(void *param) {
   struct SCatalog *pCtg = (struct SCatalog *)param;
@@ -680,6 +746,8 @@ TEST(tableMeta, normalTable) {
   struct SCatalog *pCtg = NULL;
   void            *mockPointer = (void *)0x1;
   SVgroupInfo      vgInfo = {0};
+
+  ctgTestInitLogFile();
 
   ctgTestSetPrepareDbVgroups();
 
@@ -770,6 +838,8 @@ TEST(tableMeta, childTableCase) {
   struct SCatalog *pCtg = NULL;
   void            *mockPointer = (void *)0x1;
   SVgroupInfo      vgInfo = {0};
+
+  ctgTestInitLogFile();
 
   ctgTestSetPrepareDbVgroupsAndChildMeta();
 
@@ -964,6 +1034,124 @@ TEST(tableMeta, superTableCase) {
   catalogDestroy();
 }
 
+TEST(tableMeta, rmStbMeta) {
+  struct SCatalog *pCtg = NULL;
+  void            *mockPointer = (void *)0x1;
+  SVgroupInfo      vgInfo = {0};
+
+  ctgTestInitLogFile();
+
+  ctgTestSetPrepareDbVgroupsAndSuperMeta();
+
+  initQueryModuleMsgHandle();
+
+  int32_t code = catalogInit(NULL);
+  ASSERT_EQ(code, 0);
+
+  // sendCreateDbMsg(pConn->pTransporter, &pConn->pAppInfo->mgmtEp.epSet);
+  code = catalogGetHandle(ctgTestClusterId, &pCtg);
+  ASSERT_EQ(code, 0);
+
+  SName n = {.type = TSDB_TABLE_NAME_T, .acctId = 1};
+  strcpy(n.dbname, "db1");
+  strcpy(n.tname, ctgTestSTablename);
+
+  STableMeta *tableMeta = NULL;
+  code = catalogGetTableMeta(pCtg, mockPointer, (const SEpSet *)mockPointer, &n, &tableMeta);
+  ASSERT_EQ(code, 0);
+  ASSERT_EQ(tableMeta->vgId, 0);
+  ASSERT_EQ(tableMeta->tableType, TSDB_SUPER_TABLE);
+  ASSERT_EQ(tableMeta->sversion, ctgTestSVersion);
+  ASSERT_EQ(tableMeta->tversion, ctgTestTVersion);
+  ASSERT_EQ(tableMeta->uid, ctgTestSuid);
+  ASSERT_EQ(tableMeta->suid, ctgTestSuid);
+  ASSERT_EQ(tableMeta->tableInfo.numOfColumns, ctgTestColNum);
+  ASSERT_EQ(tableMeta->tableInfo.numOfTags, ctgTestTagNum);
+  ASSERT_EQ(tableMeta->tableInfo.precision, 1);
+  ASSERT_EQ(tableMeta->tableInfo.rowSize, 12);
+
+  code = catalogRemoveSTableMeta(pCtg, "1.db1", ctgTestSTablename, ctgTestSuid);
+  ASSERT_EQ(code, 0);
+
+  ASSERT_EQ(ctgDbgGetClusterCacheNum(pCtg, CTG_DBG_DB_NUM), 1);
+  ASSERT_EQ(ctgDbgGetClusterCacheNum(pCtg, CTG_DBG_META_NUM), 0);
+  ASSERT_EQ(ctgDbgGetClusterCacheNum(pCtg, CTG_DBG_STB_NUM), 0);
+  ASSERT_EQ(ctgDbgGetClusterCacheNum(pCtg, CTG_DBG_DB_RENT_NUM), 1);
+  ASSERT_EQ(ctgDbgGetClusterCacheNum(pCtg, CTG_DBG_STB_RENT_NUM), 0);
+  
+  catalogDestroy();
+}
+
+TEST(tableMeta, updateStbMeta) {
+  struct SCatalog *pCtg = NULL;
+  void            *mockPointer = (void *)0x1;
+  SVgroupInfo      vgInfo = {0};
+
+  ctgTestInitLogFile();
+
+  ctgTestSetPrepareDbVgroupsAndSuperMeta();
+
+  initQueryModuleMsgHandle();
+
+  int32_t code = catalogInit(NULL);
+  ASSERT_EQ(code, 0);
+
+  // sendCreateDbMsg(pConn->pTransporter, &pConn->pAppInfo->mgmtEp.epSet);
+  code = catalogGetHandle(ctgTestClusterId, &pCtg);
+  ASSERT_EQ(code, 0);
+
+  SName n = {.type = TSDB_TABLE_NAME_T, .acctId = 1};
+  strcpy(n.dbname, "db1");
+  strcpy(n.tname, ctgTestSTablename);
+
+  STableMeta *tableMeta = NULL;
+  code = catalogGetTableMeta(pCtg, mockPointer, (const SEpSet *)mockPointer, &n, &tableMeta);
+  ASSERT_EQ(code, 0);
+  ASSERT_EQ(tableMeta->vgId, 0);
+  ASSERT_EQ(tableMeta->tableType, TSDB_SUPER_TABLE);
+  ASSERT_EQ(tableMeta->sversion, ctgTestSVersion);
+  ASSERT_EQ(tableMeta->tversion, ctgTestTVersion);
+  ASSERT_EQ(tableMeta->uid, ctgTestSuid);
+  ASSERT_EQ(tableMeta->suid, ctgTestSuid);
+  ASSERT_EQ(tableMeta->tableInfo.numOfColumns, ctgTestColNum);
+  ASSERT_EQ(tableMeta->tableInfo.numOfTags, ctgTestTagNum);
+  ASSERT_EQ(tableMeta->tableInfo.precision, 1);
+  ASSERT_EQ(tableMeta->tableInfo.rowSize, 12);
+
+  tfree(tableMeta);
+
+  STableMetaRsp rsp = {0};
+  ctgTestBuildSTableMetaRsp(&rsp);
+
+  code = catalogUpdateSTableMeta(pCtg, &rsp);
+  ASSERT_EQ(code, 0);
+
+  ASSERT_EQ(ctgDbgGetClusterCacheNum(pCtg, CTG_DBG_DB_NUM), 1);
+  ASSERT_EQ(ctgDbgGetClusterCacheNum(pCtg, CTG_DBG_META_NUM), 1);
+  ASSERT_EQ(ctgDbgGetClusterCacheNum(pCtg, CTG_DBG_STB_NUM), 1);
+  ASSERT_EQ(ctgDbgGetClusterCacheNum(pCtg, CTG_DBG_DB_RENT_NUM), 1);
+  ASSERT_EQ(ctgDbgGetClusterCacheNum(pCtg, CTG_DBG_STB_RENT_NUM), 1);
+
+  code = catalogGetTableMeta(pCtg, mockPointer, (const SEpSet *)mockPointer, &n, &tableMeta);
+  ASSERT_EQ(code, 0);
+  ASSERT_EQ(tableMeta->vgId, 0);
+  ASSERT_EQ(tableMeta->tableType, TSDB_SUPER_TABLE);
+  ASSERT_EQ(tableMeta->sversion, ctgTestSVersion + 1);
+  ASSERT_EQ(tableMeta->tversion, ctgTestTVersion + 1);
+  ASSERT_EQ(tableMeta->uid, ctgTestSuid + 1);
+  ASSERT_EQ(tableMeta->suid, ctgTestSuid + 1);
+  ASSERT_EQ(tableMeta->tableInfo.numOfColumns, ctgTestColNum);
+  ASSERT_EQ(tableMeta->tableInfo.numOfTags, ctgTestTagNum);
+  ASSERT_EQ(tableMeta->tableInfo.precision, 1 + 1);
+  ASSERT_EQ(tableMeta->tableInfo.rowSize, 12);
+
+  tfree(tableMeta);
+  
+  catalogDestroy();
+}
+
+
+
 TEST(tableDistVgroup, normalTable) {
   struct SCatalog *pCtg = NULL;
   void            *mockPointer = (void *)0x1;
@@ -1109,7 +1297,7 @@ TEST(dbVgroup, getSetDbVgroupCase) {
   taosArrayDestroy(vgList);
 
   ctgTestBuildDBVgroup(&dbVgroup);
-  code = catalogUpdateDBVgroup(pCtg, ctgTestDbname, dbVgroup);
+  code = catalogUpdateDBVgroup(pCtg, ctgTestDbname, ctgTestDbId, dbVgroup);
   ASSERT_EQ(code, 0);
 
   code = catalogGetTableHashVgroup(pCtg, mockPointer, (const SEpSet *)mockPointer, &n, &vgInfo);
@@ -1128,7 +1316,7 @@ TEST(dbVgroup, getSetDbVgroupCase) {
   catalogDestroy();
 }
 
-TEST(multiThread, getSetDbVgroupCase) {
+TEST(multiThread, getSetRmSameDbVgroup) {
   struct SCatalog *pCtg = NULL;
   void            *mockPointer = (void *)0x1;
   SVgroupInfo      vgInfo = {0};
@@ -1159,10 +1347,10 @@ TEST(multiThread, getSetDbVgroupCase) {
   pthread_attr_init(&thattr);
 
   pthread_t thread1, thread2;
-  pthread_create(&(thread1), &thattr, ctgTestSetDbVgroupThread, pCtg);
+  pthread_create(&(thread1), &thattr, ctgTestSetSameDbVgroupThread, pCtg);
 
   sleep(1);
-  pthread_create(&(thread1), &thattr, ctgTestGetDbVgroupThread, pCtg);
+  pthread_create(&(thread2), &thattr, ctgTestGetDbVgroupThread, pCtg);
 
   while (true) {
     if (ctgTestDeadLoop) {
@@ -1178,6 +1366,58 @@ TEST(multiThread, getSetDbVgroupCase) {
 
   catalogDestroy();
 }
+
+TEST(multiThread, getSetRmDiffDbVgroup) {
+  struct SCatalog *pCtg = NULL;
+  void            *mockPointer = (void *)0x1;
+  SVgroupInfo      vgInfo = {0};
+  SVgroupInfo     *pvgInfo = NULL;
+  SDBVgroupInfo    dbVgroup = {0};
+  SArray          *vgList = NULL;
+  ctgTestStop = false;
+
+  ctgTestInitLogFile();
+
+  ctgTestSetPrepareDbVgroups();
+
+  initQueryModuleMsgHandle();
+
+  // sendCreateDbMsg(pConn->pTransporter, &pConn->pAppInfo->mgmtEp.epSet);
+
+  int32_t code = catalogInit(NULL);
+  ASSERT_EQ(code, 0);
+
+  code = catalogGetHandle(ctgTestClusterId, &pCtg);
+  ASSERT_EQ(code, 0);
+
+  SName n = {.type = TSDB_TABLE_NAME_T, .acctId = 1};
+  strcpy(n.dbname, "db1");
+  strcpy(n.tname, ctgTestTablename);
+
+  pthread_attr_t thattr;
+  pthread_attr_init(&thattr);
+
+  pthread_t thread1, thread2;
+  pthread_create(&(thread1), &thattr, ctgTestSetDiffDbVgroupThread, pCtg);
+
+  sleep(1);
+  pthread_create(&(thread2), &thattr, ctgTestGetDbVgroupThread, pCtg);
+
+  while (true) {
+    if (ctgTestDeadLoop) {
+      sleep(1);
+    } else {
+      sleep(ctgTestMTRunSec);
+      break;
+    }
+  }
+
+  ctgTestStop = true;
+  sleep(1);
+
+  catalogDestroy();
+}
+
 
 
 TEST(multiThread, ctableMeta) {
