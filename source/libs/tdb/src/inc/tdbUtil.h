@@ -20,6 +20,8 @@
 extern "C" {
 #endif
 
+#define TDB_ROUND8(x) (((x) + 7) & ~7)
+
 int tdbGnrtFileID(const char *fname, uint8_t *fileid);
 
 #ifdef __cplusplus
