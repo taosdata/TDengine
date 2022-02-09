@@ -564,6 +564,7 @@ TEST(testCase, insert_test) {
 }
 #endif
 
+
 #if 0
 TEST(testCase, projection_query_tables) {
   TAOS* pConn = taos_connect("localhost", "root", "taosdata", NULL, 0);
