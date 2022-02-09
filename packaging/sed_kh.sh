@@ -28,6 +28,7 @@ function replace_community_kh() {
   sed -i "s/support@taosdata\.com/support@wellintech\.com/g" ${top_dir}/src/kit/taos-tools/src/benchCommandOpt.c
   sed -i "s/taosc/khclient/g" ${top_dir}/src/kit/taos-tools/src/benchCommandOpt.c
   sed -i "s/default is taosdata/default is khroot/g" ${top_dir}/src/kit/taos-tools/src/benchCommandOpt.c
+  sed -i "s/TDengine/KingHistorian/g" ${top_dir}/src/kit/taos-tools/src/benchCommandOpt.c
   # src/kit/taos-tools/src/taosdump.c
   sed -i "s/support@taosdata\.com/support@wellintech\.com/g" ${top_dir}/src/kit/taos-tools/src/taosdump.c
   sed -i "s/\/etc\/taos/\/etc\/kinghistorian/g" ${top_dir}/src/kit/taos-tools/src/taosdump.c
