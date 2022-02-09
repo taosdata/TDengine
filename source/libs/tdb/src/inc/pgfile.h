@@ -30,7 +30,7 @@ struct SPgFile {
   pgno_t    pgFileSize;
 };
 
-int pgFileOpen(const char *fname, SPgCache *pPgCache, SPgFile **ppPgFile);
+int pgFileOpen(SPgFile **ppPgFile, const char *fname, SPgCache *pPgCache);
 int pgFileClose(SPgFile *pPgFile);
 
 SPage *pgFileFetch(SPgFile *pPgFile, pgno_t pgno);

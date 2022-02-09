@@ -22,3 +22,20 @@ struct STDbEnv {
   } pgfht;       // page file hash table;
   SPgCache pgc;  // page cache
 };
+
+int tdbEnvOpen(TENV **ppEnv) {
+  // TODO
+  return 0;
+}
+
+int tdbEnvClose(TENV *pEnv) {
+  // TODO
+  return 0;
+}
+
+SPgFile *tdbEnvGetPageFile(TENV *pEnv, const uint8_t fileid[]) {
+  // TODO
+  return NULL;
+}
+
+SPgCache *tdbEnvGetPgCache(TENV *pEnv) { return &(pEnv->pgc); }

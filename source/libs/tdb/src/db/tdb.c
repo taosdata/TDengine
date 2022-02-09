@@ -42,8 +42,11 @@ static int tdbDestroy(TDB *pDb) {
 }
 
 int tdbOpen(TDB **ppDb, const char *fname, const char *dbname, TENV *pEnv) {
-  TDB *pDb;
-  int  ret;
+  TDB *     pDb;
+  int       ret;
+  uint8_t   fileid[TDB_FILE_ID_LEN];
+  SPgFile * pPgFile;
+  SPgCache *pPgCache;
 
   // Create DB if DB handle is not created yet
   if (ppDb == NULL) {
@@ -56,12 +59,31 @@ int tdbOpen(TDB **ppDb, const char *fname, const char *dbname, TENV *pEnv) {
 
   // Create a default ENV if pEnv is not set
   if (pEnv == NULL) {
-    // if ((ret = tenvOpen(&pEnv)) != 0) {
-    //   return -1;
-    // }
+    if ((ret = tdbEnvOpen(&pEnv)) != 0) {
+      return -1;
+    }
   }
 
-  /* TODO */
+  pDb->pEnv = pEnv;
+
+  // register DB to ENV
+
+  ASSERT(fname != NULL);
+
+  // Check if file exists (TODO)
+
+  // Check if the SPgFile already opened
+  pPgFile = tdbEnvGetPageFile(pEnv, fileid);
+  if (pPgFile == NULL) {
+    pPgCache = tdbEnvGetPgCache(pEnv);
+    if ((ret = pgFileOpen(&pPgFile, fname, pPgCache)) != 0) {
+      return -1;
+    }
+  }
+
+  pDb->pPgFile = pPgFile;
+
+  // open the access method (TODO)
 
   return 0;
 }
