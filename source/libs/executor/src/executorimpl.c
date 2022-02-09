@@ -5718,6 +5718,10 @@ void addToDiskbasedBuf(SOrderOperatorInfo* pInfo, jmp_buf env) {
 
     int32_t pageId = -1;
     SFilePage* pPage = getNewDataBuf(pInfo->pSortInternalBuf, pInfo->sourceId, &pageId);
+    if (pPage == NULL) {
+      assert(0);
+      longjmp(env, terrno);
+    }
 
     int32_t size = blockDataGetSize(p) + sizeof(int32_t)  + p->info.numOfCols * sizeof(int32_t);
     assert(size <= getBufPageSize(pInfo->pSortInternalBuf));
@@ -5884,7 +5888,7 @@ SOperatorInfo *createOrderOperatorInfo(SOperatorInfo* downstream, SArray* pExprI
     return NULL;
   }
 
-  pInfo->sortBufSize = 1024 * 1024 * 5; // 1MB
+  pInfo->sortBufSize = 1024 * 1024 * 50; // 1MB
   pInfo->capacity    = 64*1024;
   pInfo->pDataBlock  = createOutputBuf_rv(pExprInfo, pInfo->capacity);
   pInfo->pSources    = taosArrayInit(4, POINTER_BYTES);
