@@ -472,7 +472,7 @@ static int tsdbLoadBlockDataImpl(SReadH *pReadh, SBlock *pBlock, SDataCols *pDat
       continue;
     }
 
-    int16_t  tcolId = 0;
+    int16_t  tcolId = PRIMARYKEY_TIMESTAMP_COL_ID;
     uint32_t toffset = TSDB_KEY_COL_OFFSET;
     int32_t  tlen = pBlock->keyLen;
 
