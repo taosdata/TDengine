@@ -5711,6 +5711,7 @@ void addToDiskbasedBuf(SOrderOperatorInfo* pInfo, jmp_buf env) {
     assert(size <= getBufPageSize(pInfo->pSortInternalBuf));
 
     blockDataToBuf(pPage->data, p);
+    releaseResBufPage(pInfo->pSortInternalBuf, pPage);
 
     blockDataDestroy(p);
     start = stop + 1;
