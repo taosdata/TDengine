@@ -60,47 +60,10 @@ SEpSet getEpSet_s(SCorEpSet *pEpSet) {
   return ep;
 }
 
-bool colDataIsNull(const SColumnInfoData* pColumnInfoData, uint32_t totalRows, uint32_t row, SColumnDataAgg* pColAgg) {
-  if (pColAgg != NULL) {
-    if (pColAgg->numOfNull == totalRows) {
-      ASSERT(pColumnInfoData->nullbitmap == NULL);
-      return true;
-    } else if (pColAgg->numOfNull == 0) {
-      ASSERT(pColumnInfoData->nullbitmap == NULL);
-      return false;
-    }
-  }
-
-  if (IS_VAR_DATA_TYPE(pColumnInfoData->info.type)) {
-    return pColumnInfoData->varmeta.offset[row] == -1;
-  } else {
-    if (pColumnInfoData->nullbitmap == NULL) {
-      return false;
-    }
-
-    return colDataIsNull_f(pColumnInfoData->nullbitmap, row);
-  }
-}
-
-#define NBIT (3u)
 #define BitmapLen(_n)     (((_n) + ((1<<NBIT)-1)) >> NBIT)
-#define BitPos(_n)        ((_n) & ((1<<NBIT) - 1))
-
-bool colDataIsNull_f(const char* bitmap, uint32_t row) {
-  return (bitmap[row>>3u] & (1u<<(7u - BitPos(row)))) == (1u<<(7u - BitPos(row)));
-}
 
 void colDataSetNull_f(char* bitmap, uint32_t row) {
   bitmap[row>>3u] |= (1u << (7u - BitPos(row)));
-}
-
-char* colDataGet(SColumnInfoData* pColumnInfoData, uint32_t row) {
-  char* p = pColumnInfoData->pData;
-  if (IS_VAR_DATA_TYPE(pColumnInfoData->info.type)) {
-    return p + pColumnInfoData->varmeta.offset[row];
-  } else {
-    return p + (row * pColumnInfoData->info.bytes);
-  }
 }
 
 static int32_t ensureBitmapSize(SColumnInfoData* pColumnInfoData, uint32_t size) {
@@ -579,37 +542,42 @@ int32_t dataBlockCompar(const void* p1, const void* p2, const void* param) {
   int32_t* right = (int32_t*) p2;
 
   SArray* pInfo = pHelper->orderInfo;
-  size_t num = taosArrayGetSize(pInfo);
-  for(int32_t i = 0; i < num; ++i) {
+
+  for(int32_t i = 0; i < pInfo->size; ++i) {
     SBlockOrderInfo* pOrder = taosArrayGet(pInfo, i);
-    SColumnInfoData* pColInfoData = taosArrayGet(pDataBlock->pDataBlock, pOrder->colIndex);
+    SColumnInfoData* pColInfoData = TARRAY_GET_ELEM(pDataBlock->pDataBlock, pOrder->colIndex);
 
-    bool leftNull  = colDataIsNull(pColInfoData, pDataBlock->info.rows, *left, pDataBlock->pBlockAgg);
-    bool rightNull = colDataIsNull(pColInfoData, pDataBlock->info.rows, *right, pDataBlock->pBlockAgg);
-    if (leftNull && rightNull) {
-      continue; // continue to next slot
+    if (pColInfoData->hasNull) {
+      bool leftNull  = colDataIsNull(pColInfoData, pDataBlock->info.rows, *left, pDataBlock->pBlockAgg);
+      bool rightNull = colDataIsNull(pColInfoData, pDataBlock->info.rows, *right, pDataBlock->pBlockAgg);
+      if (leftNull && rightNull) {
+        continue; // continue to next slot
+      }
+
+      if (rightNull) {
+        return pHelper->nullFirst? 1:-1;
+      }
+
+      if (leftNull) {
+        return pHelper->nullFirst? -1:1;
+      }
     }
 
-    if (rightNull) {
-      return pHelper->nullFirst? 1:-1;
-    }
-
-    if (leftNull) {
-      return pHelper->nullFirst? -1:1;
-    }
-
-    void* left1 = colDataGet(pColInfoData, *left);
+    void* left1  = colDataGet(pColInfoData, *left);
     void* right1 = colDataGet(pColInfoData, *right);
 
     switch(pColInfoData->info.type) {
       case TSDB_DATA_TYPE_INT: {
-        if (*(int32_t*) left1 == *(int32_t*) right1) {
+        int32_t leftx  = *(int32_t*) left1;
+        int32_t rightx = *(int32_t*) right1;
+
+        if (leftx == rightx) {
           break;
         } else {
           if (pOrder->order == TSDB_ORDER_ASC) {
-            return (*(int32_t*) left1 <= *(int32_t*) right1)? -1:1;
+            return (leftx <= rightx)? -1:1;
           } else {
-            return (*(int32_t*) left1 <= *(int32_t*) right1)? 1:-1;
+            return (leftx <= rightx)? 1:-1;
           }
         }
       }

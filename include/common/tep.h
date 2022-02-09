@@ -27,12 +27,50 @@ bool isEpsetEqual(const SEpSet *s1, const SEpSet *s2);
 void   updateEpSet_s(SCorEpSet *pEpSet, SEpSet *pNewEpSet);
 SEpSet getEpSet_s(SCorEpSet *pEpSet);
 
-bool colDataIsNull_f(const char* bitmap, uint32_t row);
+#define BitPos(_n)        ((_n) & ((1<<NBIT) - 1))
+#define NBIT (3u)
+
+static FORCE_INLINE bool colDataIsNull_f(const char* bitmap, uint32_t row) {
+  return (bitmap[row>>3u] & (1u<<(7u - BitPos(row)))) == (1u<<(7u - BitPos(row)));
+}
+
 void colDataSetNull_f(char* bitmap, uint32_t row);
 
-bool colDataIsNull(const SColumnInfoData* pColumnInfoData, uint32_t totalRows, uint32_t row, SColumnDataAgg* pColAgg);
+static FORCE_INLINE bool colDataIsNull(const SColumnInfoData* pColumnInfoData, uint32_t totalRows, uint32_t row, SColumnDataAgg* pColAgg) {
+  if (!pColumnInfoData->hasNull) {
+    return false;
+  }
 
-char* colDataGet(SColumnInfoData* pColumnInfoData, uint32_t row);
+  if (pColAgg != NULL) {
+    if (pColAgg->numOfNull == totalRows) {
+      ASSERT(pColumnInfoData->nullbitmap == NULL);
+      return true;
+    } else if (pColAgg->numOfNull == 0) {
+      ASSERT(pColumnInfoData->nullbitmap == NULL);
+      return false;
+    }
+  }
+
+  if (IS_VAR_DATA_TYPE(pColumnInfoData->info.type)) {
+    return pColumnInfoData->varmeta.offset[row] == -1;
+  } else {
+    if (pColumnInfoData->nullbitmap == NULL) {
+      return false;
+    }
+
+    return colDataIsNull_f(pColumnInfoData->nullbitmap, row);
+  }
+}
+
+static FORCE_INLINE char* colDataGet(SColumnInfoData* pColumnInfoData, uint32_t row) {
+  char* p = pColumnInfoData->pData;
+  if (IS_VAR_DATA_TYPE(pColumnInfoData->info.type)) {
+    return p + pColumnInfoData->varmeta.offset[row];
+  } else {
+    return p + (row * pColumnInfoData->info.bytes);
+  }
+}
+
 int32_t colDataAppend(SColumnInfoData* pColumnInfoData, uint32_t currentRow, const char* pData, bool isNull);
 int32_t colDataMergeCol(SColumnInfoData* pColumnInfoData, uint32_t numOfRow1, const SColumnInfoData* pSource, uint32_t numOfRow2);
 int32_t colDataUpdateTsWindow(SSDataBlock* pDataBlock);

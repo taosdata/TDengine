@@ -74,6 +74,7 @@ typedef struct SVarColAttr {
 // pBlockAgg->numOfNull == 0, no data are null.
 typedef struct SColumnInfoData {
   SColumnInfo info;   // TODO filter info needs to be removed
+  bool        hasNull;// if current column data has null value.
   char       *pData;  // the corresponding block data in memory
   union {
     char       *nullbitmap;  // bitmap, one bit for each item in the list
