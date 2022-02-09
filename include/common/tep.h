@@ -15,8 +15,9 @@ typedef struct SCorEpSet {
 } SCorEpSet;
 
 typedef struct SBlockOrderInfo {
-  int32_t order;
-  int32_t colIndex;
+  int32_t          order;
+  int32_t          colIndex;
+  SColumnInfoData *pColData;
 } SBlockOrderInfo;
 
 int  taosGetFqdnPortFromEp(const char *ep, SEp *pEp);
@@ -32,7 +33,10 @@ SEpSet getEpSet_s(SCorEpSet *pEpSet);
 #define BMCharPos(bm_, r_)       ((bm_)[(r_) >> NBIT])
 #define colDataIsNull_f(bm_, r_) ((BMCharPos(bm_, r_) & (1u << (7u - BitPos(r_)))) == (1u << (7u - BitPos(r_))))
 
-void colDataSetNull_f(char* bitmap, uint32_t row);
+#define colDataSetNull_f(bm_, r_)                    \
+  do {                                               \
+    BMCharPos(bm_, r_) |= (1u << (7u - BitPos(r_))); \
+  } while (0)
 
 static FORCE_INLINE bool colDataIsNull(const SColumnInfoData* pColumnInfoData, uint32_t totalRows, uint32_t row, SColumnDataAgg* pColAgg) {
   if (!pColumnInfoData->hasNull) {

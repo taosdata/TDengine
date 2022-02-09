@@ -39,6 +39,7 @@ typedef struct SDummyInputInfo {
   int32_t max;
   int32_t current;
   int32_t startVal;
+  SSDataBlock* pBlock;
 } SDummyInputInfo;
 
 SSDataBlock* getDummyBlock(void* param, bool* newgroup) {
@@ -48,32 +49,37 @@ SSDataBlock* getDummyBlock(void* param, bool* newgroup) {
     return NULL;
   }
 
-  SSDataBlock* pBlock = static_cast<SSDataBlock*>(calloc(1, sizeof(SSDataBlock)));
-  assert(pBlock != NULL);
-
-  pBlock->pDataBlock = taosArrayInit(4, sizeof(SColumnInfoData));
-
   int32_t numOfRows = 1000;
 
-  SColumnInfoData colInfo = {0};
-  colInfo.info.type = TSDB_DATA_TYPE_INT;
-  colInfo.info.bytes = sizeof(int32_t);
-  colInfo.info.colId = 1;
-  colInfo.pData = static_cast<char*>(calloc(numOfRows, sizeof(int32_t)));
-  colInfo.nullbitmap = static_cast<char*>(calloc(1, (numOfRows + 7) / 8));
+  if (pInfo->pBlock == NULL) {
+    pInfo->pBlock = static_cast<SSDataBlock*>(calloc(1, sizeof(SSDataBlock)));
 
-  taosArrayPush(pBlock->pDataBlock, &colInfo);
+    pInfo->pBlock->pDataBlock = taosArrayInit(4, sizeof(SColumnInfoData));
 
-  SColumnInfoData colInfo1 = {0};
-  colInfo1.info.type = TSDB_DATA_TYPE_BINARY;
-  colInfo1.info.bytes = 40;
-  colInfo1.info.colId = 2;
+    SColumnInfoData colInfo = {0};
+    colInfo.info.type = TSDB_DATA_TYPE_INT;
+    colInfo.info.bytes = sizeof(int32_t);
+    colInfo.info.colId = 1;
+    colInfo.pData = static_cast<char*>(calloc(numOfRows, sizeof(int32_t)));
+    colInfo.nullbitmap = static_cast<char*>(calloc(1, (numOfRows + 7) / 8));
 
-  colInfo1.varmeta.allocLen = 0;//numOfRows * sizeof(int32_t);
-  colInfo1.varmeta.length = 0;
-  colInfo1.varmeta.offset = static_cast<int32_t*>(calloc(1, numOfRows * sizeof(int32_t)));
+    taosArrayPush(pInfo->pBlock->pDataBlock, &colInfo);
 
-  taosArrayPush(pBlock->pDataBlock, &colInfo1);
+    SColumnInfoData colInfo1 = {0};
+    colInfo1.info.type = TSDB_DATA_TYPE_BINARY;
+    colInfo1.info.bytes = 40;
+    colInfo1.info.colId = 2;
+
+    colInfo1.varmeta.allocLen = 0;//numOfRows * sizeof(int32_t);
+    colInfo1.varmeta.length = 0;
+    colInfo1.varmeta.offset = static_cast<int32_t*>(calloc(1, numOfRows * sizeof(int32_t)));
+
+    taosArrayPush(pInfo->pBlock->pDataBlock, &colInfo1);
+  } else {
+    blockDataClearup(pInfo->pBlock, true);
+  }
+
+  SSDataBlock* pBlock = pInfo->pBlock;
 
   char buf[128] = {0};
   char b1[128] = {0};
@@ -104,7 +110,7 @@ SOperatorInfo* createDummyOperator(int32_t numOfBlocks) {
 
   SDummyInputInfo *pInfo = (SDummyInputInfo*) calloc(1, sizeof(SDummyInputInfo));
   pInfo->max = numOfBlocks;
-  pInfo->startVal = 100000;
+  pInfo->startVal = 5000000;
 
   pOperator->info = pInfo;
   return pOperator;
@@ -241,7 +247,8 @@ TEST(testCase, build_executor_tree_Test) {
 
 TEST(testCase, external_sort_Test) {
   SArray* pOrderVal = taosArrayInit(4, sizeof(SOrder));
-  SOrder o = {.order = TSDB_ORDER_ASC};
+  SOrder o = {0};
+  o.order = TSDB_ORDER_ASC;
   o.col.info.colId = 1;
   o.col.info.type = TSDB_DATA_TYPE_INT;
   taosArrayPush(pOrderVal, &o);
@@ -288,7 +295,6 @@ TEST(testCase, external_sort_Test) {
 
   int64_t s2 = taosGetTimestampUs();
   printf("total:%ld\n", s2 - s1);
-
 
   pOperator->cleanupFn(pOperator->info, 2);
   tfree(exp);

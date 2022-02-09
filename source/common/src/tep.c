@@ -62,31 +62,6 @@ SEpSet getEpSet_s(SCorEpSet *pEpSet) {
 
 #define BitmapLen(_n)     (((_n) + ((1<<NBIT)-1)) >> NBIT)
 
-void colDataSetNull_f(char* bitmap, uint32_t row) {
-  bitmap[row>>3u] |= (1u << (7u - BitPos(row)));
-}
-
-static int32_t ensureBitmapSize(SColumnInfoData* pColumnInfoData, uint32_t size) {
-#if 0
-  ASSERT(pColumnInfoData != NULL);
-  if (pColumnInfoData->bitmapLen * 8 < size) {
-    int32_t inc = pColumnInfoData->bitmapLen * 1.25;
-    if (inc < 8) {
-      inc = 8;
-    }
-
-    char* tmp = realloc(pColumnInfoData->nullbitmap, inc + pColumnInfoData->bitmapLen);
-    if (tmp == NULL) {
-      return TSDB_CODE_OUT_OF_MEMORY;
-    }
-
-    pColumnInfoData->nullbitmap = tmp;
-    memset(pColumnInfoData->nullbitmap + pColumnInfoData->bitmapLen, 0, inc);
-  }
-#endif
-  return TSDB_CODE_SUCCESS;
-}
-
 int32_t colDataGetSize(const SColumnInfoData* pColumnInfoData, int32_t numOfRows) {
   ASSERT(pColumnInfoData != NULL);
   if (IS_VAR_DATA_TYPE(pColumnInfoData->info.type)) {
@@ -553,7 +528,7 @@ int32_t dataBlockCompar(const void* p1, const void* p2, const void* param) {
 
   for(int32_t i = 0; i < pInfo->size; ++i) {
     SBlockOrderInfo* pOrder = TARRAY_GET_ELEM(pInfo, i);
-    SColumnInfoData* pColInfoData = TARRAY_GET_ELEM(pDataBlock->pDataBlock, pOrder->colIndex);
+    SColumnInfoData* pColInfoData = pOrder->pColData;//TARRAY_GET_ELEM(pDataBlock->pDataBlock, pOrder->colIndex);
 
     if (pColInfoData->hasNull) {
       bool leftNull  = colDataIsNull(pColInfoData, pDataBlock->info.rows, left, pDataBlock->pBlockAgg);
@@ -623,13 +598,85 @@ static int32_t doAssignOneTuple(SColumnInfoData* pDstCols, int32_t numOfRows, co
 }
 
 static int32_t blockDataAssign(SColumnInfoData* pCols, const SSDataBlock* pDataBlock, int32_t* index) {
+#if 0
   for (int32_t i = 0; i < pDataBlock->info.rows; ++i) {
     int32_t code = doAssignOneTuple(pCols, i, pDataBlock, index[i]);
     if (code != TSDB_CODE_SUCCESS) {
       return code;
     }
   }
+#else
+  for(int32_t i = 0; i < pDataBlock->info.numOfCols; ++i) {
+    SColumnInfoData* pDst = &pCols[i];
+    SColumnInfoData* pSrc = taosArrayGet(pDataBlock->pDataBlock, i);
 
+    if (IS_VAR_DATA_TYPE(pSrc->info.type)) {
+     memcpy(pDst->pData, pSrc->pData, pSrc->varmeta.length);
+     pDst->varmeta.length = pSrc->varmeta.length;
+
+     for(int32_t j = 0; j < pDataBlock->info.rows; ++j) {
+       pDst->varmeta.offset[j] = pSrc->varmeta.offset[index[j]];
+     }
+    } else {
+      switch (pSrc->info.type) {
+        case TSDB_DATA_TYPE_UINT:
+        case TSDB_DATA_TYPE_INT: {
+          for (int32_t j = 0; j < pDataBlock->info.rows; ++j) {
+            int32_t* p = (int32_t*)pDst->pData;
+            int32_t* srclist = (int32_t*)pSrc->pData;
+
+            p[j] = srclist[index[j]];
+            if (colDataIsNull_f(pSrc->nullbitmap, index[j])) {
+              colDataSetNull_f(pDst->nullbitmap, j);
+            }
+          }
+          break;
+        }
+        case TSDB_DATA_TYPE_UTINYINT:
+        case TSDB_DATA_TYPE_TINYINT: {
+          for (int32_t j = 0; j < pDataBlock->info.rows; ++j) {
+            int32_t* p = (int32_t*)pDst->pData;
+            int32_t* srclist = (int32_t*)pSrc->pData;
+
+            p[j] = srclist[index[j]];
+            if (colDataIsNull_f(pSrc->nullbitmap, index[j])) {
+              colDataSetNull_f(pDst->nullbitmap, j);
+            }
+          }
+          break;
+        }
+        case TSDB_DATA_TYPE_USMALLINT:
+        case TSDB_DATA_TYPE_SMALLINT: {
+          for (int32_t j = 0; j < pDataBlock->info.rows; ++j) {
+            int32_t* p = (int32_t*)pDst->pData;
+            int32_t* srclist = (int32_t*)pSrc->pData;
+
+            p[j] = srclist[index[j]];
+            if (colDataIsNull_f(pSrc->nullbitmap, index[j])) {
+              colDataSetNull_f(pDst->nullbitmap, j);
+            }
+          }
+          break;
+        }
+        case TSDB_DATA_TYPE_UBIGINT:
+        case TSDB_DATA_TYPE_BIGINT: {
+          for (int32_t j = 0; j < pDataBlock->info.rows; ++j) {
+            int32_t* p = (int32_t*)pDst->pData;
+            int32_t* srclist = (int32_t*)pSrc->pData;
+
+            p[j] = srclist[index[j]];
+            if (colDataIsNull_f(pSrc->nullbitmap, index[j])) {
+              colDataSetNull_f(pDst->nullbitmap, j);
+            }
+          }
+          break;
+        }
+        default:
+          assert(0);
+      }
+    }
+  }
+#endif
   return TSDB_CODE_SUCCESS;
 }
 
@@ -648,6 +695,10 @@ static SColumnInfoData* createHelpColInfoData(const SSDataBlock* pDataBlock) {
 
     if (IS_VAR_DATA_TYPE(pCols[i].info.type)) {
       pCols[i].varmeta.offset = calloc(rows, sizeof(int32_t));
+      pCols[i].pData = calloc(1, pColInfoData->varmeta.length);
+
+      pCols[i].varmeta.length = pColInfoData->varmeta.length;
+      pCols[i].varmeta.allocLen = pCols[i].varmeta.length;
     } else {
       pCols[i].nullbitmap = calloc(1, BitmapLen(rows));
       pCols[i].pData = calloc(rows, pCols[i].info.bytes);
@@ -713,6 +764,11 @@ int32_t blockDataSort(SSDataBlock* pDataBlock, SArray* pOrderInfo, bool nullFirs
   int64_t p0 = taosGetTimestampUs();
 
   SSDataBlockSortHelper helper = {.nullFirst = nullFirst, .pDataBlock = pDataBlock, .orderInfo = pOrderInfo};
+  for(int32_t i = 0; i < taosArrayGetSize(helper.orderInfo); ++i) {
+    struct SBlockOrderInfo* pInfo = taosArrayGet(helper.orderInfo, i);
+    pInfo->pColData = taosArrayGet(pDataBlock->pDataBlock, pInfo->colIndex);
+  }
+
   taosqsort(index, rows, sizeof(int32_t), &helper, dataBlockCompar);
 
   int64_t p1 = taosGetTimestampUs();
