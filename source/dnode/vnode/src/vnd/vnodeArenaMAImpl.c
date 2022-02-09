@@ -91,14 +91,8 @@ void vmaFree(SVMemAllocator *pVMA, void *ptr) {
 bool vmaIsFull(SVMemAllocator *pVMA) {
   SVArenaNode *pNode = TD_SLIST_HEAD(&(pVMA->nlist));
 
-  // return (TD_SLIST_NELES(&(pVMA->nlist)) > 1) ||
-  //        (pNode->size < POINTER_DISTANCE(pNode->ptr, pNode->data) + pVMA->lsize);
-
-  int  n = TD_SLIST_NELES(&(pVMA->nlist));
-  int  b1 = n > 1;
-  int  distance = POINTER_DISTANCE(pNode->ptr, pNode->data);
-  bool b2 = (pNode->size < distance + pVMA->lsize);
-  return (b1 || b2);
+  return (TD_SLIST_NELES(&(pVMA->nlist)) > 1) ||
+         (pNode->size < POINTER_DISTANCE(pNode->ptr, pNode->data) + pVMA->lsize);
 }
 
 /* ------------------------ STATIC METHODS ------------------------ */
