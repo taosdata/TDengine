@@ -480,7 +480,6 @@ typedef struct SOptrBasicInfo STableIntervalOperatorInfo;
 
 typedef struct SAggOperatorInfo {
   SOptrBasicInfo binfo;
-  int32_t        bufCapacity;
   uint32_t       seed;
 } SAggOperatorInfo;
 
@@ -665,7 +664,7 @@ void setInputDataBlock(SOperatorInfo* pOperator, SQLFunctionCtx* pCtx, SSDataBlo
 int32_t getNumOfResult(SQueryRuntimeEnv *pRuntimeEnv, SQLFunctionCtx* pCtx, int32_t numOfOutput);
 void finalizeQueryResult(SOperatorInfo* pOperator, SQLFunctionCtx* pCtx, SResultRowInfo* pResultRowInfo, int32_t* rowCellInfoOffset);
 void updateOutputBuf(SOptrBasicInfo* pBInfo, int32_t *bufCapacity, int32_t numOfInputRows, SQueryRuntimeEnv* runtimeEnv);
-void updateOutputBufForAgg(SOptrBasicInfo* pBInfo, int32_t *bufCapacity, SQueryRuntimeEnv* runtimeEnv);
+void updateOutputBufForAgg(SOptrBasicInfo* pBInfo, SQueryRuntimeEnv* runtimeEnv);
 void clearOutputBuf(SOptrBasicInfo* pBInfo, int32_t *bufCapacity);
 void copyTsColoum(SSDataBlock* pRes, SQLFunctionCtx* pCtx, int32_t numOfOutput);
 

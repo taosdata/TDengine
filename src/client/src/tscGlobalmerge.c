@@ -594,8 +594,18 @@ static void setTagValueForMultipleRows(SQLFunctionCtx* pCtx, int32_t numOfOutput
 }
 
 static void doMergeResultImpl(SMultiwayMergeInfo* pInfo, SQLFunctionCtx *pCtx, int32_t numOfExpr, int32_t rowIndex, char** pDataPtr) {
+  int64_t* tsPtr = NULL;
+  for (int32_t j = 0; j < numOfExpr; ++j) {
+    if (pCtx[j].functionId == TSDB_FUNC_TS_DUMMY && pCtx[j].inputType == TSDB_DATA_TYPE_TIMESTAMP) {
+      tsPtr = (int64_t*) (pDataPtr[j] + pCtx[j].inputBytes * rowIndex);
+      break;
+    }
+  }
   for (int32_t j = 0; j < numOfExpr; ++j) {
     pCtx[j].pInput = pDataPtr[j] + pCtx[j].inputBytes * rowIndex;
+    if (tsPtr) {
+      pCtx[j].ptsList = tsPtr;
+    }
   }
 
   for (int32_t j = 0; j < numOfExpr; ++j) {

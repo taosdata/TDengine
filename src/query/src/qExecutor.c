@@ -3711,7 +3711,7 @@ void updateOutputBuf(SOptrBasicInfo* pBInfo, int32_t *bufCapacity, int32_t numOf
   }
 }
 
-void updateOutputBufForAgg(SOptrBasicInfo* pBInfo, int32_t *bufCapacity, SQueryRuntimeEnv* runtimeEnv) {
+void updateOutputBufForAgg(SOptrBasicInfo* pBInfo, SQueryRuntimeEnv* runtimeEnv) {
   SSDataBlock* pDataBlock = pBInfo->pRes;
   int32_t len = 0;
   for(int32_t i = 0; i < pDataBlock->info.numOfCols; ++i) {
@@ -3723,23 +3723,21 @@ void updateOutputBufForAgg(SOptrBasicInfo* pBInfo, int32_t *bufCapacity, SQueryR
     }
   }
 
-  if ((*bufCapacity) < len) {
-    for(int32_t i = 0; i < pDataBlock->info.numOfCols; ++i) {
-      SColumnInfoData *pColInfo = taosArrayGet(pDataBlock->pDataBlock, i);
+  if(len == 0){ return; }
+  for(int32_t i = 0; i < pDataBlock->info.numOfCols; ++i) {
+    SColumnInfoData *pColInfo = taosArrayGet(pDataBlock->pDataBlock, i);
 
-      char* p = realloc(pColInfo->pData, ((size_t)len) * pColInfo->info.bytes);
-      if (p != NULL) {
-        pColInfo->pData = p;
+    char* p = realloc(pColInfo->pData, ((size_t)len) * pColInfo->info.bytes);
+    if (p != NULL) {
+      pColInfo->pData = p;
 
-        // it starts from the tail of the previously generated results.
-        pBInfo->pCtx[i].pOutput = pColInfo->pData;
-        (*bufCapacity) = len;
-      } else {
-        size_t allocateSize = ((size_t)(len)) * pColInfo->info.bytes;
-        qError("can not allocate %zu bytes for output. Rows: %d, colBytes %d",
-               allocateSize, len, pColInfo->info.bytes);
-        longjmp(runtimeEnv->env, TSDB_CODE_QRY_OUT_OF_MEMORY);
-      }
+      // it starts from the tail of the previously generated results.
+      pBInfo->pCtx[i].pOutput = pColInfo->pData;
+    } else {
+      size_t allocateSize = ((size_t)(len)) * pColInfo->info.bytes;
+      qError("can not allocate %zu bytes for output. Rows: %d, colBytes %d",
+             allocateSize, len, pColInfo->info.bytes);
+      longjmp(runtimeEnv->env, TSDB_CODE_QRY_OUT_OF_MEMORY);
     }
   }
 }
@@ -5939,7 +5937,9 @@ static SSDataBlock* doAggregate(void* param, bool* newgroup) {
   }
 
   doSetOperatorCompleted(pOperator);
-  updateOutputBufForAgg(pInfo, &pAggInfo->bufCapacity, pOperator->pRuntimeEnv);
+  if (isUniqueQuery(pOperator, pInfo->pCtx)) {
+    updateOutputBufForAgg(pInfo, pOperator->pRuntimeEnv);
+  }
   finalizeQueryResult(pOperator, pInfo->pCtx, &pInfo->resultRowInfo, pInfo->rowCellInfoOffset);
   pInfo->pRes->info.rows = getNumOfResult(pRuntimeEnv, pInfo->pCtx, pOperator->numOfOutput);
 
@@ -6007,16 +6007,17 @@ static SSDataBlock* doSTableAggregate(void* param, bool* newgroup) {
   pOperator->status = OP_RES_TO_RETURN;
   closeAllResultRows(&pInfo->resultRowInfo);
 
-  if (isUniqueQuery(pOperator, pInfo->pCtx)) { // finalize include the update of result rows
-    updateOutputBufForAgg(pInfo, &pAggInfo->bufCapacity, pOperator->pRuntimeEnv);
+  if (isUniqueQuery(pOperator, pInfo->pCtx)) { // update output buffer for unique
+    updateOutputBufForAgg(pInfo, pOperator->pRuntimeEnv);
     finalizeQueryResult(pOperator, pInfo->pCtx, &pInfo->resultRowInfo, pInfo->rowCellInfoOffset);
+    pInfo->pRes->info.rows = getNumOfResult(pRuntimeEnv, pInfo->pCtx, pOperator->numOfOutput);
+  }else{
+    updateNumOfRowsInResultRows(pRuntimeEnv, pInfo->pCtx, pOperator->numOfOutput, &pInfo->resultRowInfo,
+                                pInfo->rowCellInfoOffset);
+    initGroupResInfo(&pRuntimeEnv->groupResInfo, &pInfo->resultRowInfo);
+    toSSDataBlock(&pRuntimeEnv->groupResInfo, pRuntimeEnv, pInfo->pRes);
   }
-  updateNumOfRowsInResultRows(pRuntimeEnv, pInfo->pCtx, pOperator->numOfOutput, &pInfo->resultRowInfo,
-                             pInfo->rowCellInfoOffset);
 
-  initGroupResInfo(&pRuntimeEnv->groupResInfo, &pInfo->resultRowInfo);
-
-  toSSDataBlock(&pRuntimeEnv->groupResInfo, pRuntimeEnv, pInfo->pRes);
   if (pInfo->pRes->info.rows == 0 || !hasRemainDataInCurrentGroup(&pRuntimeEnv->groupResInfo)) {
     doSetOperatorCompleted(pOperator);
   }
@@ -7094,6 +7095,10 @@ static SSDataBlock* hashGroupbyAggregate(void* param, bool* newgroup) {
 
   if (!pRuntimeEnv->pQueryAttr->stableQuery) { // finalize include the update of result rows
     finalizeQueryResult(pOperator, pInfo->binfo.pCtx, &pInfo->binfo.resultRowInfo, pInfo->binfo.rowCellInfoOffset);
+  } else if(pRuntimeEnv->pQueryAttr->stableQuery && isUniqueQuery(pOperator, pInfo->binfo.pCtx)){
+    updateOutputBufForAgg(&pInfo->binfo, pOperator->pRuntimeEnv);
+    finalizeQueryResult(pOperator, pInfo->binfo.pCtx, &pInfo->binfo.resultRowInfo, pInfo->binfo.rowCellInfoOffset);
+    pInfo->binfo.pRes->info.rows = getNumOfResult(pRuntimeEnv, pInfo->binfo.pCtx, pOperator->numOfOutput);
   } else {
     updateNumOfRowsInResultRows(pRuntimeEnv, pInfo->binfo.pCtx, pOperator->numOfOutput, &pInfo->binfo.resultRowInfo, pInfo->binfo.rowCellInfoOffset);
   }
@@ -7257,7 +7262,6 @@ SOperatorInfo* createAggregateOperatorInfo(SQueryRuntimeEnv* pRuntimeEnv, SOpera
   SQueryAttr* pQueryAttr = pRuntimeEnv->pQueryAttr;
   int32_t numOfRows = (int32_t)(getRowNumForMultioutput(pQueryAttr, pQueryAttr->topBotQuery, pQueryAttr->stableQuery));
 
-  pInfo->bufCapacity = numOfRows;
   pInfo->binfo.pRes = createOutputBuf(pExpr, numOfOutput, numOfRows);
   pInfo->binfo.pCtx = createSQLFunctionCtx(pRuntimeEnv, pExpr, numOfOutput, &pInfo->binfo.rowCellInfoOffset);
 
@@ -7430,7 +7434,6 @@ SOperatorInfo* createMultiTableAggOperatorInfo(SQueryRuntimeEnv* pRuntimeEnv, SO
 
   size_t tableGroup = GET_NUM_OF_TABLEGROUP(pRuntimeEnv);
 
-  pInfo->bufCapacity = tableGroup;
   pInfo->binfo.pRes = createOutputBuf(pExpr, numOfOutput, (int32_t) tableGroup);
   pInfo->binfo.pCtx = createSQLFunctionCtx(pRuntimeEnv, pExpr, numOfOutput, &pInfo->binfo.rowCellInfoOffset);
   initResultRowInfo(&pInfo->binfo.resultRowInfo, (int32_t)tableGroup, TSDB_DATA_TYPE_INT);
