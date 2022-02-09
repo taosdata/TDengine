@@ -108,7 +108,7 @@ TEST_F(DndTestVnode, 01_Create_Vnode) {
   }
 }
 
-TEST_F(DndTestVnode, 02_ALTER_Vnode) {
+TEST_F(DndTestVnode, 02_Alter_Vnode) {
   for (int i = 0; i < 3; ++i) {
     int32_t contLen = sizeof(SAlterVnodeReq);
 
@@ -219,7 +219,7 @@ TEST_F(DndTestVnode, 03_Create_Stb) {
   }
 }
 
-TEST_F(DndTestVnode, 04_ALTER_Stb) {
+TEST_F(DndTestVnode, 04_Alter_Stb) {
   for (int i = 0; i < 1; ++i) {
     SVCreateTbReq req = {0};
     req.ver = 0;
@@ -310,7 +310,7 @@ TEST_F(DndTestVnode, 05_DROP_Stb) {
   }
 }
 
-TEST_F(DndTestVnode, 06_DROP_Vnode) {
+TEST_F(DndTestVnode, 06_Drop_Vnode) {
   for (int i = 0; i < 3; ++i) {
     int32_t contLen = sizeof(SDropVnodeReq);
 

@@ -111,8 +111,8 @@ typedef enum _mgmt_table {
   TSDB_MGMT_TABLE_MAX,
 } EShowType;
 
-#define TSDB_ALTER_TABLE_ADD_TAG_COLUMN 1
-#define TSDB_ALTER_TABLE_DROP_TAG_COLUMN 2
+#define TSDB_ALTER_TABLE_ADD_TAG 1
+#define TSDB_ALTER_TABLE_DROP_TAG 2
 #define TSDB_ALTER_TABLE_UPDATE_TAG_NAME 3
 #define TSDB_ALTER_TABLE_UPDATE_TAG_VAL 4
 
@@ -726,6 +726,7 @@ typedef struct {
   char     tbName[TSDB_TABLE_NAME_LEN];
   char     stbName[TSDB_TABLE_NAME_LEN];
   char     dbFName[TSDB_DB_FNAME_LEN];
+  uint64_t dbId;
   int32_t  numOfTags;
   int32_t  numOfColumns;
   int8_t   precision;
@@ -1198,8 +1199,8 @@ typedef struct {
 
 int32_t tSerializeSVCreateTbBatchReq(void** buf, SVCreateTbBatchReq* pReq);
 void*   tDeserializeSVCreateTbBatchReq(void* buf, SVCreateTbBatchReq* pReq);
-int32_t tSerializeSVCreateTbBatchReqp(void** buf, SVCreateTbBatchReq* pRsp);
-void*   tDeserializeSVCreateTbBatchReq(void* buf, SVCreateTbBatchReq* pRsp);
+int32_t tSerializeSVCreateTbBatchRsp(void** buf, SVCreateTbBatchRsp* pRsp);
+void*   tDeserializeSVCreateTbBatchRsp(void* buf, SVCreateTbBatchRsp* pRsp);
 
 typedef struct {
   uint64_t ver;
@@ -1209,7 +1210,6 @@ typedef struct {
 } SVDropTbReq;
 
 typedef struct {
-  uint64_t ver;
 } SVDropTbRsp;
 
 int32_t tSerializeSVDropTbReq(void** buf, SVDropTbReq* pReq);
