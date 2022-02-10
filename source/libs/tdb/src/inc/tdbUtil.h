@@ -22,7 +22,12 @@ extern "C" {
 
 #define TDB_ROUND8(x) (((x) + 7) & ~7)
 
-int tdbGnrtFileID(const char *fname, uint8_t *fileid);
+int tdbGnrtFileID(const char *fname, uint8_t *fileid, bool unique);
+
+#define TDB_F_OK 0x1
+#define TDB_R_OK 0x2
+#define TDB_W_OK 0x4
+int tdbCheckFileAccess(const char *pathname, int mode);
 
 #ifdef __cplusplus
 }

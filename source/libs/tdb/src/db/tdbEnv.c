@@ -57,6 +57,8 @@ int tdbEnvOpen(TENV **ppEnv) {
   pEnv = *ppEnv;
 
   TERR_A(ret, pgCacheCreate(&pPgCache, pEnv->pgSize, pEnv->cacheSize / pEnv->pgSize), _err);
+  TERR_A(ret, pgCacheOpen(&pPgCache), _err);
+
   pEnv->pPgCache = pPgCache;
 
   return 0;
@@ -71,6 +73,22 @@ int tdbEnvClose(TENV *pEnv) {
   tdbEnvDestroy(pEnv);
   return 0;
 }
+
+int tdbEnvSetPageSize(TENV *pEnv, pgsize_t szPage) {
+  /* TODO */
+  pEnv->pgSize = szPage;
+  return 0;
+}
+
+int tdbEnvSetCacheSize(TENV *pEnv, cachesz_t szCache) {
+  /* TODO */
+  pEnv->cacheSize = szCache;
+  return 0;
+}
+
+pgsize_t tdbEnvGetPageSize(TENV *pEnv) { return pEnv->pgSize; }
+
+cachesz_t tdbEnvGetCacheSize(TENV *pEnv) { return pEnv->cacheSize; }
 
 SPgFile *tdbEnvGetPageFile(TENV *pEnv, const uint8_t fileid[]) {
   // TODO

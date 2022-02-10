@@ -119,7 +119,7 @@ int tdbMPoolFileOpen(TDB_MPFILE **mpfp, const char *fname, TDB_MPOOL *mp) {
     goto _err;
   }
 
-  if (tdbGnrtFileID(fname, mpf->fileid) < 0) {
+  if (tdbGnrtFileID(fname, mpf->fileid, false) < 0) {
     goto _err;
   }
 

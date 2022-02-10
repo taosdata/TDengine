@@ -70,7 +70,12 @@ int tdbOpen(TDB **ppDb, const char *fname, const char *dbname, TENV *pEnv) {
 
   ASSERT(fname != NULL);
 
-  // Check if file exists (TODO)
+  // Check if file exists
+  if (tdbCheckFileAccess(fname, TDB_F_OK) != 0) {
+    if (1) {
+      // create the file
+    }
+  }
 
   // Check if the SPgFile already opened
   pPgFile = tdbEnvGetPageFile(pEnv, fileid);

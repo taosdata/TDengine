@@ -54,6 +54,11 @@ int metaOpenDB(SMeta *pMeta) {
 
   // Create and open the ENV
   A((tdbEnvCreate(&pEnv)), _err);
+#if 0
+  // Set options of the environment
+  A(tdbEnvSetPageSize(pEnv, 8192), _err);
+  A(tdbEnvSetCacheSize(pEnv, 16 * 1024 * 1024), _err);
+#endif
   A((tdbEnvOpen(&pEnv)), _err);
 
   // Create and open each DB

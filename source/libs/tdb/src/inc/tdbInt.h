@@ -16,7 +16,6 @@
 #ifndef _TD_TDB_INTERNAL_H_
 #define _TD_TDB_INTERNAL_H_
 
-#include "os.h"
 #include "tlist.h"
 #include "tlockfree.h"
 
@@ -64,14 +63,12 @@ static FORCE_INLINE int tdbCmprPgId(const void *p1, const void *p2) {
 typedef int32_t frame_id_t;
 
 // pgsize_t
-typedef int32_t pgsize_t;
 #define TDB_MIN_PGSIZE 512
 #define TDB_MAX_PGSIZE 16384
 #define TDB_DEFAULT_PGSIZE 4096
 #define TDB_IS_PGSIZE_VLD(s) (((s) >= TDB_MIN_PGSIZE) && ((s) <= TDB_MAX_PGSIZE))
 
 // cache
-typedef int32_t cachesz_t;
 #define TDB_DEFAULT_CACHE_SIZE (256 * 1024)  // 256K
 
 // tdb_log

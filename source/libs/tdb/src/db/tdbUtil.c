@@ -15,7 +15,7 @@
 
 #include "tdbInt.h"
 
-int tdbGnrtFileID(const char *fname, uint8_t *fileid) {
+int tdbGnrtFileID(const char *fname, uint8_t *fileid, bool unique) {
   struct stat statbuf;
 
   if (stat(fname, &statbuf) < 0) {
@@ -26,8 +26,27 @@ int tdbGnrtFileID(const char *fname, uint8_t *fileid) {
 
   ((uint64_t *)fileid)[0] = (uint64_t)statbuf.st_ino;
   ((uint64_t *)fileid)[1] = (uint64_t)statbuf.st_dev;
-  ((uint64_t *)fileid)[2] = rand();
+  if (unique) {
+    ((uint64_t *)fileid)[2] = rand();
+  }
 
   return 0;
 }
 
+int tdbCheckFileAccess(const char *pathname, int mode) {
+  int flags = 0;
+
+  if (mode & TDB_F_OK) {
+    flags |= F_OK;
+  }
+
+  if (mode & TDB_R_OK) {
+    flags |= R_OK;
+  }
+
+  if (mode & TDB_W_OK) {
+    flags |= W_OK;
+  }
+
+  return access(pathname, flags);
+}

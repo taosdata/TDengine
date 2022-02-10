@@ -44,7 +44,7 @@ int pgFileOpen(SPgFile **ppPgFile, const char *fname, SPgCache *pPgCache) {
     return -1;
   }
 
-  if (tdbGnrtFileID(fname, pPgFile->fileid) < 0) {
+  if (tdbGnrtFileID(fname, pPgFile->fileid, false) < 0) {
     pgFileClose(pPgFile);
     return -1;
   }
