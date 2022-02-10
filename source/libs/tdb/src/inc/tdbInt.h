@@ -71,10 +71,28 @@ typedef int32_t pgsize_t;
 #define TDB_IS_PGSIZE_VLD(s) (((s) >= TDB_MIN_PGSIZE) && ((s) <= TDB_MAX_PGSIZE))
 
 // cache
+typedef int32_t cachesz_t;
 #define TDB_DEFAULT_CACHE_SIZE (256 * 1024)  // 256K
 
 // tdb_log
 #define tdbError(var)
+
+typedef TD_DLIST(STDb) STDbList;
+typedef TD_DLIST(SPgFile) SPgFileList;
+
+#define TERR_A(val, op, flag)  \
+  do {                         \
+    if (((val) = (op)) != 0) { \
+      goto flag;               \
+    }                          \
+  } while (0)
+
+#define TERR_B(val, op, flag)     \
+  do {                            \
+    if (((val) = (op)) == NULL) { \
+      goto flag;                  \
+    }                             \
+  } while (0)
 
 #include "btree.h"
 #include "pgcache.h"

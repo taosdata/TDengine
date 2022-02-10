@@ -16,23 +16,53 @@
 #include "tdbInt.h"
 
 struct STDbEnv {
-  TDB *    dbList;      // TDB list
-  SPgFile *pgFileList;  // SPgFile list
+  pgsize_t    pgSize;     // Page size
+  cachesz_t   cacheSize;  // Total cache size
+  STDbList    dbList;     // TDB List
+  SPgFileList pgfList;    // SPgFile List
+  SPgCache *  pPgCache;   // page cache
   struct {
-  } pgfht;       // page file hash table;
-  SPgCache pgc;  // page cache
+  } pgfht;  // page file hash table;
 };
 
 static int tdbEnvDestroy(TENV *pEnv);
 
 int tdbEnvCreate(TENV **ppEnv) {
+  TENV *pEnv;
+
+  pEnv = (TENV *)calloc(1, sizeof(*pEnv));
+  if (pEnv == NULL) {
+    return -1;
+  }
+
+  pEnv->pgSize = TDB_DEFAULT_PGSIZE;
+  pEnv->cacheSize = TDB_DEFAULT_CACHE_SIZE;
+
+  TD_DLIST_INIT(&(pEnv->dbList));
+  TD_DLIST_INIT(&(pEnv->pgfList));
   // TODO
   return 0;
 }
 
 int tdbEnvOpen(TENV **ppEnv) {
-  // TODO
+  TENV *    pEnv;
+  SPgCache *pPgCache;
+  int       ret;
+
+  // Create the ENV with default setting
+  if (ppEnv == NULL) {
+    TERR_A(ret, tdbEnvCreate(&pEnv), _err);
+  }
+
+  pEnv = *ppEnv;
+
+  TERR_A(ret, pgCacheCreate(&pPgCache, pEnv->pgSize, pEnv->cacheSize / pEnv->pgSize), _err);
+  pEnv->pPgCache = pPgCache;
+
   return 0;
+
+_err:
+  return -1;
 }
 
 int tdbEnvClose(TENV *pEnv) {
@@ -47,7 +77,7 @@ SPgFile *tdbEnvGetPageFile(TENV *pEnv, const uint8_t fileid[]) {
   return NULL;
 }
 
-SPgCache *tdbEnvGetPgCache(TENV *pEnv) { return &(pEnv->pgc); }
+SPgCache *tdbEnvGetPgCache(TENV *pEnv) { return pEnv->pPgCache; }
 
 static int tdbEnvDestroy(TENV *pEnv) {
   // TODO
