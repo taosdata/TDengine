@@ -16,11 +16,14 @@
 #include "tdbInt.h"
 
 struct SBtCursor {
-  // TODO
+  SBTree *pBtree;
+  pgno_t  pgno;
+  SPage * pPage;  // current page traversing
 };
 
 static int btreeCreate(SBTree **pBt);
 static int btreeDestroy(SBTree *pBt);
+static int btreeCursorMoveToChild(SBtCursor *pBtCur, pgno_t pgno);
 
 int btreeOpen(SBTree **ppBt, SPgFile *pPgFile) {
   SBTree *pBt;
@@ -46,6 +49,43 @@ static int btreeCreate(SBTree **pBt) {
 }
 
 static int btreeDestroy(SBTree *pBt) {
+  // TODO
+  return 0;
+}
+
+int btreeCursorOpen(SBtCursor *pBtCur, SBTree *pBt) {
+  // TODO
+  return 0;
+}
+
+int btreeCursorClose(SBtCursor *pBtCur) {
+  // TODO
+  return 0;
+}
+
+int btreeCursorMoveTo(SBtCursor *pBtCur) {
+  SPage *pPage;
+  pgno_t childPgno;
+
+  // 1. Move the cursor to the root page
+
+  // 2. Loop to search over the whole tree
+  for (;;) {
+    pPage = pBtCur->pPage;
+
+    // Loop to search in current page
+    for (;;) {
+      /* code */
+    }
+
+    btreeCursorMoveToChild(pBtCur, childPgno);
+  }
+
+  return 0;
+}
+
+static int btreeCursorMoveToChild(SBtCursor *pBtCur, pgno_t pgno) {
+  SPgFile *pPgFile;
   // TODO
   return 0;
 }

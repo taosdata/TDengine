@@ -50,3 +50,8 @@ int tdbCheckFileAccess(const char *pathname, int mode) {
 
   return access(pathname, flags);
 }
+
+int64_t tdbGetFileSize(const char *fname) {
+  // TODO
+  return 0;
+}
