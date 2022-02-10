@@ -13,3 +13,7 @@
 [submodule "deps/jemalloc"]
 	path = deps/jemalloc
 	url = https://github.com/jemalloc/jemalloc
+[submodule "tests"]
+	path = tests
+	url = https://github.com/taosdata/tests
+	branch = 2.0
