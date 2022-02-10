@@ -104,6 +104,7 @@ static SSdbRaw *mndStbActionEncode(SStbObj *pStb) {
     SDB_SET_BINARY(pRaw, dataPos, pSchema->name, TSDB_COL_NAME_LEN, STB_ENCODE_OVER)
   }
 
+  SDB_SET_BINARY(pRaw, dataPos, pStb->comment, TSDB_STB_COMMENT_LEN, STB_ENCODE_OVER)
   SDB_SET_RESERVE(pRaw, dataPos, TSDB_STB_RESERVE_SIZE, STB_ENCODE_OVER)
   SDB_SET_DATALEN(pRaw, dataPos, STB_ENCODE_OVER)
 
@@ -171,6 +172,7 @@ static SSdbRow *mndStbActionDecode(SSdbRaw *pRaw) {
     SDB_GET_BINARY(pRaw, dataPos, pSchema->name, TSDB_COL_NAME_LEN, STB_DECODE_OVER)
   }
 
+  SDB_GET_BINARY(pRaw, dataPos, pStb->comment, TSDB_STB_COMMENT_LEN, STB_DECODE_OVER)
   SDB_GET_RESERVE(pRaw, dataPos, TSDB_STB_RESERVE_SIZE, STB_DECODE_OVER)
 
   terrno = 0;
@@ -234,6 +236,7 @@ static int32_t mndStbActionUpdate(SSdb *pSdb, SStbObj *pOld, SStbObj *pNew) {
   pOld->numOfTags = pNew->numOfTags;
   memcpy(pOld->pColumns, pNew->pColumns, pOld->numOfColumns * sizeof(SSchema));
   memcpy(pOld->pTags, pNew->pTags, pOld->numOfTags * sizeof(SSchema));
+  memcpy(pOld->comment, pNew->comment, TSDB_STB_COMMENT_LEN);
   taosWUnLockLatch(&pOld->lock);
   return 0;
 }
