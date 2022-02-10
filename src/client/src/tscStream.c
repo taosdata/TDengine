@@ -180,13 +180,13 @@ static void tscProcessStreamTimer(void *handle, void *tmrId) {
       if (pStream->interval.intervalUnit == 'y' || pStream->interval.intervalUnit == 'n') {
         timer = 86400 * 1000l;
       } else {
-        int64_t next_time = 0; 
+        int32_t loop = 10000;
+        int64_t next_time = pStream->stime; 
         while(1) {
           // get next time
-          next_time = taosTimeAdd(pStream->stime, pStream->interval.sliding, pStream->interval.intervalUnit, TSDB_TIME_PRECISION_MILLI);
-          next_time = taosTimeTruncate(next_time, &pStream->interval, pStream->precision);
+          next_time = taosTimeAdd(next_time, pStream->interval.sliding, pStream->interval.intervalUnit, TSDB_TIME_PRECISION_MILLI);
           timer = next_time - taosGetTimestamp(pStream->precision); // next time - now()
-          if(timer < 0 ) {
+          if(timer < 0 && --loop > 0 ) {
             //tscDebug("CQ next time < now so loop add sliding. next_time=%" PRId64, next_time);
             continue;
           }
