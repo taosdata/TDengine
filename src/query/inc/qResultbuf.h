@@ -77,6 +77,7 @@ typedef struct SDiskbasedResultBuf {
 } SDiskbasedResultBuf;
 
 #define DEFAULT_INTERN_BUF_PAGE_SIZE  (1024L)                          // in bytes
+#define MAX_UNIQUE_RESULT_SIZE  (1000000)
 #define PAGE_INFO_INITIALIZER         (SPageDiskInfo){-1, -1}
 
 /**

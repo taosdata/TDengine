@@ -68,7 +68,7 @@ static FORCE_INLINE SResultRow *getResultRow(SResultRowInfo *pResultRowInfo, int
 
 static FORCE_INLINE char* getPosInResultPage(SQueryAttr* pQueryAttr, tFilePage* page, const SResultRow *pResultRow,
                                              int32_t offset) {
-  return ((char *)page->data) + pResultRow->offset + offset * pResultRow->totalRows;
+  return ((char *)page->data) + pResultRow->offset + offset * pResultRow->unitRows;
 }
 
 bool isNullOperator(SColumnFilterElem *pFilter, const char* minval, const char* maxval, int16_t type);

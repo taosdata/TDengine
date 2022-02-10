@@ -564,9 +564,14 @@ static SResultRow* doSetResultOutBufByKey(SQueryRuntimeEnv* pRuntimeEnv, SResult
     if (p1 == NULL) {
       pResult = getNewResultRow(pRuntimeEnv->pool);
       int32_t ret = initResultRow(pResult);
-      pResult->totalRows = (int32_t)getRowNumForMultioutput(pRuntimeEnv->pQueryAttr, pRuntimeEnv->pQueryAttr->topBotQuery, pRuntimeEnv->pQueryAttr->stableQuery);
       if (ret != TSDB_CODE_SUCCESS) {
         longjmp(pRuntimeEnv->env, TSDB_CODE_QRY_OUT_OF_MEMORY);
+      }
+      if(pRuntimeEnv->pQueryAttr->uniqueQuery){
+        pResult->unitRows = pRuntimeEnv->pQueryAttr->maxUniqueResult;
+      }else {
+        pResult->unitRows = (int32_t)getRowNumForMultioutput(
+            pRuntimeEnv->pQueryAttr, pRuntimeEnv->pQueryAttr->topBotQuery, pRuntimeEnv->pQueryAttr->stableQuery);
       }
 
       // add a new result set for a new group
@@ -1005,6 +1010,12 @@ static void doApplyFunctions(SQueryRuntimeEnv* pRuntimeEnv, SQLFunctionCtx* pCtx
       }
     }
 
+    if (functionId == TSDB_FUNC_UNIQUE && GET_RES_INFO(&(pCtx[k]))->numOfRes > pQueryAttr->maxUniqueResult){
+      qError("Unique result num is too large. num: %d, limit: %d",
+             GET_RES_INFO(&(pCtx[k]))->numOfRes, pQueryAttr->maxUniqueResult);
+      aAggs[functionId].xFinalize(&pCtx[k]);
+      longjmp(pRuntimeEnv->env, TSDB_CODE_QRY_UNIQUE_RESULT_TOO_LARGE);
+    }
     // restore it
     pCtx[k].preAggVals.isSet = hasAggregates;
     pCtx[k].pInput = start;
@@ -1263,6 +1274,13 @@ static void doAggregateImpl(SOperatorInfo* pOperator, TSKEY startTs, SQLFunction
         aAggs[functionId].xFunction(&pCtx[k]);
       } else {
         assert(0);
+      }
+      SQueryAttr* pQueryAttr = pRuntimeEnv->pQueryAttr;
+      if (functionId == TSDB_FUNC_UNIQUE && GET_RES_INFO(&(pCtx[k]))->numOfRes > pQueryAttr->maxUniqueResult){
+        qError("Unique result num is too large. num: %d, limit: %d",
+               GET_RES_INFO(&(pCtx[k]))->numOfRes, pQueryAttr->maxUniqueResult);
+        aAggs[functionId].xFinalize(&pCtx[k]);
+        longjmp(pRuntimeEnv->env, TSDB_CODE_QRY_UNIQUE_RESULT_TOO_LARGE);
       }
     }
   }
@@ -2739,7 +2757,17 @@ static void getIntermediateBufInfo(SQueryRuntimeEnv* pRuntimeEnv, int32_t* ps, i
   SQueryAttr* pQueryAttr = pRuntimeEnv->pQueryAttr;
   int32_t MIN_ROWS_PER_PAGE = 4;
 
+
   *rowsize = (int32_t)(pQueryAttr->resultRowSize * getRowNumForMultioutput(pQueryAttr, pQueryAttr->topBotQuery, pQueryAttr->stableQuery));
+
+  if (pQueryAttr->uniqueQuery) {
+    pQueryAttr->maxUniqueResult = MAX_UNIQUE_RESULT_SIZE;
+    int64_t rowSize = pQueryAttr->resultRowSize;
+    while(rowSize*pQueryAttr->maxUniqueResult > 1024*1024*100){
+      pQueryAttr->maxUniqueResult = pQueryAttr->maxUniqueResult >> 1u;
+    }
+    *rowsize = (int32_t)(rowSize*pQueryAttr->maxUniqueResult);
+  }
   int32_t overhead = sizeof(tFilePage);
 
   // one page contains at least two rows
@@ -3711,7 +3739,7 @@ void updateOutputBuf(SOptrBasicInfo* pBInfo, int32_t *bufCapacity, int32_t numOf
   }
 }
 
-void updateOutputBufForAgg(SOptrBasicInfo* pBInfo, SQueryRuntimeEnv* runtimeEnv, int32_t len) {
+void updateOutputBufForUnique(SOptrBasicInfo* pBInfo, SQueryRuntimeEnv* runtimeEnv, int32_t len) {
   if(len == 0){ return; }
   SSDataBlock* pDataBlock = pBInfo->pRes;
 
@@ -3722,8 +3750,9 @@ void updateOutputBufForAgg(SOptrBasicInfo* pBInfo, SQueryRuntimeEnv* runtimeEnv,
     if (p != NULL) {
       pColInfo->pData = p;
 
-      // it starts from the tail of the previously generated results.
-      pBInfo->pCtx[i].pOutput = pColInfo->pData;
+      if(!runtimeEnv->pQueryAttr->stableQuery){
+        pBInfo->pCtx[i].pOutput = pColInfo->pData;
+      }
     } else {
       size_t allocateSize = ((size_t)(len)) * pColInfo->info.bytes;
       qError("can not allocate %zu bytes for output. Rows: %d, colBytes %d",
@@ -3829,28 +3858,46 @@ static void setupEnvForReverseScan(SQueryRuntimeEnv *pRuntimeEnv, SResultRowInfo
   setupQueryRangeForReverseScan(pRuntimeEnv);
 }
 
-void finalizeUniqueResultMulti(SOperatorInfo* pOperator, SQLFunctionCtx* pCtx, SResultRowInfo* pResultRowInfo, int32_t* rowCellInfoOffset) {
+void finalizeUniqueResult(SOperatorInfo* pOperator, SQLFunctionCtx* pCtx, SResultRowInfo* pResultRowInfo, int32_t* rowCellInfoOffset) {
   SQueryRuntimeEnv *pRuntimeEnv = pOperator->pRuntimeEnv;
   int32_t numOfOutput = pOperator->numOfOutput;
+  SAggOperatorInfo* pAggInfo = pOperator->info;
+  SOptrBasicInfo* pInfo = &pAggInfo->binfo;
+
+  int32_t totalRows = 0;
+  for (int32_t i = 0; i < pResultRowInfo->size; ++i) {
+    SResultRow *buf = pResultRowInfo->pResult[i];
+    for (int32_t j = 0; j < numOfOutput; ++j) {
+      int32_t functionId = pCtx[j].functionId;
+      if (functionId == TSDB_FUNC_UNIQUE) {
+        int32_t row = getResultCell(buf, j, rowCellInfoOffset)->numOfRes;
+        totalRows += row;
+        buf->numOfRows = row;
+        break;
+      }
+    }
+  }
+
+  updateOutputBufForUnique(pInfo, pOperator->pRuntimeEnv, totalRows);
 
   for (int32_t i = 0; i < pResultRowInfo->size; ++i) {
     SResultRow *buf = pResultRowInfo->pResult[i];
+
     setResultOutputBuf(pRuntimeEnv, buf, pCtx, numOfOutput, rowCellInfoOffset);
+
     for (int32_t j = 0; j < numOfOutput; ++j) {
       pCtx[j].startTs  = buf->win.skey;
-      aAggs[pCtx[j].functionId].xFinalize(&pCtx[j]);
+      if (pCtx[j].functionId < 0) {
+        doInvokeUdf(pRuntimeEnv->pUdfInfo, &pCtx[j], 0, TSDB_UDF_FUNC_FINALIZE);
+      } else if (!TSDB_FUNC_IS_SCALAR(pCtx[j].functionId)) {
+        aAggs[pCtx[j].functionId].xFinalize(&pCtx[j]);
+      } else {
+        assert(0);
+      }
     }
     buf->numOfRows = (uint16_t)getNumOfResult(pRuntimeEnv, pCtx, numOfOutput);
   }
 }
-
-void finalizeUniqueResultOne(SOperatorInfo* pOperator, SQLFunctionCtx* pCtx) {
-  int32_t numOfOutput = pOperator->numOfOutput;
-  for (int32_t j = 0; j < numOfOutput; ++j) {
-      aAggs[pCtx[j].functionId].xFinalize(&pCtx[j]);
-  }
-}
-
 
 void finalizeQueryResult(SOperatorInfo* pOperator, SQLFunctionCtx* pCtx, SResultRowInfo* pResultRowInfo, int32_t* rowCellInfoOffset) {
   SQueryRuntimeEnv *pRuntimeEnv = pOperator->pRuntimeEnv;
@@ -3885,7 +3932,7 @@ void finalizeQueryResult(SOperatorInfo* pOperator, SQLFunctionCtx* pCtx, SResult
 
       /*
        * set the number of output results for group by normal columns, the number of output rows usually is 1 except
-       * the top and bottom query and unique query
+       * the top and bottom query
        */
       buf->numOfRows = (uint16_t)getNumOfResult(pRuntimeEnv, pCtx, numOfOutput);
     }
@@ -3903,11 +3950,9 @@ void finalizeQueryResult(SOperatorInfo* pOperator, SQLFunctionCtx* pCtx, SResult
   }
 }
 
-bool isUniqueQuery(SOperatorInfo* pOperator, SQLFunctionCtx* pCtx) {
-  int32_t numOfOutput = pOperator->numOfOutput;
-
-  for (int32_t j = 0; j < numOfOutput; ++j) {
-    if (pCtx[j].functionId == TSDB_FUNC_UNIQUE) {
+bool isUniqueQuery(int32_t numOfOutput, SExprInfo* pExprs) {
+  for (int32_t i = 0; i < numOfOutput; ++i) {
+    if (pExprs[i].base.functionId == TSDB_FUNC_UNIQUE) {
       return true;
     }
   }
@@ -5907,7 +5952,7 @@ static bool allCtxCompleted(SOperatorInfo* pOperator, SQLFunctionCtx* pCtx) {
   return true;
 }
 
-static int32_t getTotalRowsForUnique2(SOptrBasicInfo* pBInfo){
+static int32_t getTotalRowsForUnique(SOptrBasicInfo* pBInfo){
   SSDataBlock* pDataBlock = pBInfo->pRes;
   for(int32_t j = 0; j < pDataBlock->info.numOfCols; ++j) {
     int32_t functionId = pBInfo->pCtx[j].functionId;
@@ -5917,16 +5962,6 @@ static int32_t getTotalRowsForUnique2(SOptrBasicInfo* pBInfo){
     }
   }
   return 0;
-}
-
-static int32_t getTotalRowsForUnique1(SResultRowInfo* pResultRowInfo){
-  int32_t totalRows = 0;
-  for (int32_t i = 0; i < pResultRowInfo->size; ++i) {
-    SResultRow *buf = pResultRowInfo->pResult[i];
-
-    totalRows += buf->numOfRows;
-  }
-  return totalRows;
 }
 
 // this is a blocking operator
@@ -5967,14 +6002,14 @@ static SSDataBlock* doAggregate(void* param, bool* newgroup) {
     // the pDataBlock are always the same one, no need to call this again
     setInputDataBlock(pOperator, pInfo->pCtx, pBlock, order);
     doAggregateImpl(pOperator, pQueryAttr->window.skey, pInfo->pCtx, pBlock);
-    // if all pCtx is completed, then query should be over
+      // if all pCtx is completed, then query should be over
     if(allCtxCompleted(pOperator, pInfo->pCtx))
       break;    
   }
 
   doSetOperatorCompleted(pOperator);
-  if (isUniqueQuery(pOperator, pInfo->pCtx)) {
-    updateOutputBufForAgg(pInfo, pOperator->pRuntimeEnv, getTotalRowsForUnique2(pInfo));
+  if (pQueryAttr->uniqueQuery) {
+    updateOutputBufForUnique(pInfo, pOperator->pRuntimeEnv, getTotalRowsForUnique(pInfo));
   }
   finalizeQueryResult(pOperator, pInfo->pCtx, &pInfo->resultRowInfo, pInfo->rowCellInfoOffset);
   pInfo->pRes->info.rows = getNumOfResult(pRuntimeEnv, pInfo->pCtx, pOperator->numOfOutput);
@@ -6043,21 +6078,14 @@ static SSDataBlock* doSTableAggregate(void* param, bool* newgroup) {
   pOperator->status = OP_RES_TO_RETURN;
   closeAllResultRows(&pInfo->resultRowInfo);
 
-  if (isUniqueQuery(pOperator, pInfo->pCtx) && pInfo->resultRowInfo.size == 1) { // update output buffer for unique
-    updateOutputBufForAgg(pInfo, pOperator->pRuntimeEnv, getTotalRowsForUnique2(pInfo));
-    finalizeUniqueResultOne(pOperator, pInfo->pCtx);
-    pInfo->pRes->info.rows = getNumOfResult(pRuntimeEnv, pInfo->pCtx, pOperator->numOfOutput);
-  }else if(isUniqueQuery(pOperator, pInfo->pCtx) && pInfo->resultRowInfo.size > 1){
-    finalizeUniqueResultMulti(pOperator, pInfo->pCtx, &pInfo->resultRowInfo, pInfo->rowCellInfoOffset);
-    updateOutputBufForAgg(pInfo, pOperator->pRuntimeEnv, getTotalRowsForUnique1(&pInfo->resultRowInfo));
+  if(pQueryAttr->uniqueQuery){
+    finalizeUniqueResult(pOperator, pInfo->pCtx, &pInfo->resultRowInfo, pInfo->rowCellInfoOffset);
   }
 
-  if(!isUniqueQuery(pOperator, pInfo->pCtx) || pInfo->resultRowInfo.size > 1){
-    updateNumOfRowsInResultRows(pRuntimeEnv, pInfo->pCtx, pOperator->numOfOutput, &pInfo->resultRowInfo,
-                                pInfo->rowCellInfoOffset);
-    initGroupResInfo(&pRuntimeEnv->groupResInfo, &pInfo->resultRowInfo);
-    toSSDataBlock(&pRuntimeEnv->groupResInfo, pRuntimeEnv, pInfo->pRes);
-  }
+  updateNumOfRowsInResultRows(pRuntimeEnv, pInfo->pCtx, pOperator->numOfOutput, &pInfo->resultRowInfo,
+                              pInfo->rowCellInfoOffset);
+  initGroupResInfo(&pRuntimeEnv->groupResInfo, &pInfo->resultRowInfo);
+  toSSDataBlock(&pRuntimeEnv->groupResInfo, pRuntimeEnv, pInfo->pRes);
 
   if (pInfo->pRes->info.rows == 0 || !hasRemainDataInCurrentGroup(&pRuntimeEnv->groupResInfo)) {
     doSetOperatorCompleted(pOperator);
@@ -7136,9 +7164,8 @@ static SSDataBlock* hashGroupbyAggregate(void* param, bool* newgroup) {
 
   if (!pRuntimeEnv->pQueryAttr->stableQuery) { // finalize include the update of result rows
     finalizeQueryResult(pOperator, pInfo->binfo.pCtx, &pInfo->binfo.resultRowInfo, pInfo->binfo.rowCellInfoOffset);
-  } else if(pRuntimeEnv->pQueryAttr->stableQuery && isUniqueQuery(pOperator, pInfo->binfo.pCtx)){
-    finalizeUniqueResultMulti(pOperator, pInfo->binfo.pCtx, &pInfo->binfo.resultRowInfo, pInfo->binfo.rowCellInfoOffset);
-    updateOutputBufForAgg(&pInfo->binfo, pOperator->pRuntimeEnv, getTotalRowsForUnique1(&pInfo->binfo.resultRowInfo));
+  } else if(pRuntimeEnv->pQueryAttr->stableQuery && pRuntimeEnv->pQueryAttr->uniqueQuery){
+    finalizeUniqueResult(pOperator, pInfo->binfo.pCtx, &pInfo->binfo.resultRowInfo, pInfo->binfo.rowCellInfoOffset);
   } else {
     updateNumOfRowsInResultRows(pRuntimeEnv, pInfo->binfo.pCtx, pOperator->numOfOutput, &pInfo->binfo.resultRowInfo, pInfo->binfo.rowCellInfoOffset);
   }
@@ -9578,6 +9605,7 @@ SQInfo* createQInfoImpl(SQueryTableMsg* pQueryMsg, SGroupbyExpr* pGroupbyExpr, S
   pQueryAttr->vgId            = vgId;
   pQueryAttr->pFilters        = pFilters;
   pQueryAttr->range           = pQueryMsg->range;
+  pQueryAttr->uniqueQuery     = isUniqueQuery(numOfOutput, pExprs);
   
   pQueryAttr->tableCols = calloc(numOfCols, sizeof(SSingleColumnFilterInfo));
   if (pQueryAttr->tableCols == NULL) {

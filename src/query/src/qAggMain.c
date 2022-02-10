@@ -4977,7 +4977,6 @@ static void unique_function(SQLFunctionCtx *pCtx) {
 
 static void unique_func_finalizer(SQLFunctionCtx *pCtx) {
   SUniqueFuncInfo *pInfo = GET_ROWCELL_INTERBUF(GET_RES_INFO(pCtx));
-
   UniqueUnit *unit = taosHashIterate(pInfo->pSet, NULL);
   int32_t offset = 0;
 

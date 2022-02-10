@@ -20,7 +20,7 @@ int32_t createDiskbasedResultBuffer(SDiskbasedResultBuf** pResultBuf, int32_t pa
   pResBuf->pageSize     = pagesize;
   pResBuf->numOfPages   = 0;                        // all pages are in buffer in the first place
   pResBuf->totalBufSize = 0;
-  pResBuf->inMemPages   = inMemBufSize/pagesize;    // maximum allowed pages, it is a soft limit.
+  pResBuf->inMemPages   = inMemBufSize/pagesize + 1;    // maximum allowed pages, it is a soft limit.
   pResBuf->allocateId   = -1;
   pResBuf->comp         = true;
   pResBuf->file         = NULL;
@@ -28,7 +28,7 @@ int32_t createDiskbasedResultBuffer(SDiskbasedResultBuf** pResultBuf, int32_t pa
   pResBuf->fileSize     = 0;
 
   // at least more than 2 pages must be in memory
-  assert(inMemBufSize >= pagesize * 2);
+  // assert(inMemBufSize >= pagesize * 2);
 
   pResBuf->lruList = tdListNew(POINTER_BYTES);
 

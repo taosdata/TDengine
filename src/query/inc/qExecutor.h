@@ -87,7 +87,7 @@ typedef struct SResultRow {
   bool          endInterp;   // the time window end timestamp has done the interpolation already.
   bool          closed;      // this result status: closed or opened
   uint32_t      numOfRows;   // number of rows of current time window
-  uint32_t      totalRows;   // total number of rows
+  uint32_t      unitRows;    // unit number of rows, top(col,3) -> 3, others 1
   SResultRowCellInfo*  pCellInfo;  // For each result column, there is a resultInfo
   STimeWindow   win;
   char         *key;               // start key of current result row
@@ -222,6 +222,7 @@ typedef struct SQueryAttr {
 
   bool             stableQuery;      // super table query or not
   bool             topBotQuery;      // TODO used bitwise flag
+  bool             uniqueQuery;      // TODO used bitwise flag
   bool             groupbyColumn;    // denote if this is a groupby normal column query
   bool             hasTagResults;    // if there are tag values in final result or not
   bool             timeWindowInterpo;// if the time window start/end required interpolation
@@ -282,6 +283,7 @@ typedef struct SQueryAttr {
   STableGroupInfo  tableGroupInfo;       // table <tid, last_key> list  SArray<STableKeyInfo>
   int32_t          vgId;
   SArray          *pUdfInfo;             // no need to free
+  int32_t          maxUniqueResult;
 } SQueryAttr;
 
 typedef SSDataBlock* (*__operator_fn_t)(void* param, bool* newgroup);
@@ -664,7 +666,7 @@ void setInputDataBlock(SOperatorInfo* pOperator, SQLFunctionCtx* pCtx, SSDataBlo
 int32_t getNumOfResult(SQueryRuntimeEnv *pRuntimeEnv, SQLFunctionCtx* pCtx, int32_t numOfOutput);
 void finalizeQueryResult(SOperatorInfo* pOperator, SQLFunctionCtx* pCtx, SResultRowInfo* pResultRowInfo, int32_t* rowCellInfoOffset);
 void updateOutputBuf(SOptrBasicInfo* pBInfo, int32_t *bufCapacity, int32_t numOfInputRows, SQueryRuntimeEnv* runtimeEnv);
-void updateOutputBufForAgg(SOptrBasicInfo* pBInfo, SQueryRuntimeEnv* runtimeEnv, int32_t len);
+void updateOutputBufForUnique(SOptrBasicInfo* pBInfo, SQueryRuntimeEnv* runtimeEnv, int32_t len);
 void clearOutputBuf(SOptrBasicInfo* pBInfo, int32_t *bufCapacity);
 void copyTsColoum(SSDataBlock* pRes, SQLFunctionCtx* pCtx, int32_t numOfOutput);
 
@@ -721,9 +723,8 @@ int32_t getMaximumIdleDurationSec();
 
 void doInvokeUdf(SUdfInfo* pUdfInfo, SQLFunctionCtx *pCtx, int32_t idx, int32_t type);
 int32_t getColumnDataFromId(void *param, int32_t id, void **data);
-bool isUniqueQuery(SOperatorInfo* pOperator, SQLFunctionCtx* pCtx);
-void finalizeUniqueResultOne(SOperatorInfo* pOperator, SQLFunctionCtx* pCtx);
-void finalizeUniqueResultMulti(SOperatorInfo* pOperator, SQLFunctionCtx* pCtx, SResultRowInfo* pResultRowInfo, int32_t* rowCellInfoOffset);
+bool isUniqueQuery(int32_t numOfOutput, SExprInfo* pExprs);
+void finalizeUniqueResult(SOperatorInfo* pOperator, SQLFunctionCtx* pCtx, SResultRowInfo* pResultRowInfo, int32_t* rowCellInfoOffset);
 
 void qInfoLogSSDataBlock(SSDataBlock* block, char* location);
 #endif  // TDENGINE_QEXECUTOR_H
