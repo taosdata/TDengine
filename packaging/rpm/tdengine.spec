@@ -77,7 +77,7 @@ cp -r %{_compiledir}/../src/connector/python        %{buildroot}%{homepath}/conn
 cp -r %{_compiledir}/../src/connector/go            %{buildroot}%{homepath}/connector
 cp -r %{_compiledir}/../src/connector/nodejs        %{buildroot}%{homepath}/connector
 cp %{_compiledir}/build/lib/taos-jdbcdriver*.*      %{buildroot}%{homepath}/connector ||:
-cp -r %{_compiledir}/../tests/examples/*            %{buildroot}%{homepath}/examples
+cp -r %{_compiledir}/../examples/*                  %{buildroot}%{homepath}/examples
 
 
 if [ -f %{_compiledir}/build/bin/jemalloc-config ]; then

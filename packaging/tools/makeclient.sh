@@ -127,7 +127,7 @@ chmod a+x ${install_dir}/install_client.sh
 
 # Copy example code
 mkdir -p ${install_dir}/examples
-examples_dir="${top_dir}/tests/examples"
+examples_dir="${top_dir}/examples"
 cp -r ${examples_dir}/c      ${install_dir}/examples
 if [[ "$pagMode" != "lite" ]] && [[ "$cpuType" != "aarch32" ]]; then
   cp -r ${examples_dir}/JDBC   ${install_dir}/examples

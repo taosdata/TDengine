@@ -57,7 +57,7 @@ cp ${compile_dir}/build/bin/taos                    ${pkg_dir}${install_home_pat
 cp ${compile_dir}/build/lib/${libfile}              ${pkg_dir}${install_home_path}/driver
 cp ${compile_dir}/../src/inc/taos.h                 ${pkg_dir}${install_home_path}/include
 cp ${compile_dir}/../src/inc/taoserror.h            ${pkg_dir}${install_home_path}/include
-cp -r ${top_dir}/tests/examples/*                   ${pkg_dir}${install_home_path}/examples
+cp -r ${top_dir}/examples/*                         ${pkg_dir}${install_home_path}/examples
 if [ -d "${top_dir}/src/connector/grafanaplugin/dist" ]; then
   cp -r ${top_dir}/src/connector/grafanaplugin/dist   ${pkg_dir}${install_home_path}/connector/grafanaplugin
 else

@@ -311,7 +311,7 @@ function install_connector() {
 }
 
 function install_examples() {
-    ${csudo} cp -rf ${source_dir}/tests/examples/* ${install_main_dir}/examples
+    ${csudo} cp -rf ${source_dir}/examples/* ${install_main_dir}/examples
 }
 
 function clean_service_on_sysvinit() {
