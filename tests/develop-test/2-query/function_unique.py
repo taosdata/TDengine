@@ -106,8 +106,8 @@ class TDTestCase:
         tdSql.checkRows(2)
         tdSql.query('select ts,unique(num) from unique group by voltage')
         tdSql.checkRows(4)
-        tdSql.query('select ts,unique(num) from unique group by tbname')
-        tdSql.checkRows(3)
+        tdSql.query('select ts,unique(voltage) from unique group by tbname')
+        tdSql.checkRows(5)
 
         # tdSql.checkRows(0)
         # tdSql.query('select * from st union all select * from ste')

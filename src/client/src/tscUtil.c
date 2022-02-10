@@ -74,7 +74,7 @@ int32_t converToStr(char *str, int type, void *buf, int32_t bufSize, int32_t *le
       break;
 
     case TSDB_DATA_TYPE_UINT:
-      n = sprintf(str, "%d", *(uint32_t*)buf);
+      n = sprintf(str, "%u", *(uint32_t*)buf);
       break;
 
     case TSDB_DATA_TYPE_UBIGINT:

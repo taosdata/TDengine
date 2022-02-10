@@ -257,7 +257,7 @@ static char* evicOneDataPage(SDiskbasedResultBuf* pResultBuf) {
     int32_t prev = pResultBuf->inMemPages;
 
     // increase by 50% of previous mem pages
-    pResultBuf->inMemPages = (int32_t)(pResultBuf->inMemPages * 1.5f);
+    pResultBuf->inMemPages = (int32_t)(pResultBuf->inMemPages * 1.5f) + 1; // if pResultBuf->inMemPages == 1, *1.5 always == 1
 
     qWarn("%p in memory buf page not sufficient, expand from %d to %d, page size:%d", pResultBuf, prev,
           pResultBuf->inMemPages, pResultBuf->pageSize);
