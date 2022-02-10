@@ -213,9 +213,9 @@ static int32_t tdAppendKvRowToDataCol(STSRow *pRow, STSchema *pSchema, SDataCols
 
   int   rcol = 0;
   int   dcol = 1;
-  int   tRowCols = TD_ROW_NCOLS(pRow) - 1;  // the primary TS key not included in kvRowColIdx part
+  int   tRowCols = tdRowGetNCols(pRow) - 1;  // the primary TS key not included in kvRowColIdx part
   int   tSchemaCols = schemaNCols(pSchema) - 1;
-  void *pBitmap = tdGetBitmapAddrKv(pRow, TD_ROW_NCOLS(pRow));
+  void *pBitmap = tdGetBitmapAddrKv(pRow, tdRowGetNCols(pRow));
 
   SDataCol *pDataCol = &(pCols->cols[0]);
   if (pDataCol->colId == PRIMARYKEY_TIMESTAMP_COL_ID) {
@@ -237,7 +237,7 @@ static int32_t tdAppendKvRowToDataCol(STSRow *pRow, STSchema *pSchema, SDataCols
     }
     SCellVal sVal = {0};
     if (pIdx->colId == pDataCol->colId) {
-      if (tdGetKvRowValOfCol(&sVal, pRow, pBitmap, pDataCol->type, pIdx->offset, colIdx) < 0) {
+      if (tdGetKvRowValOfCol(&sVal, pRow, pBitmap, pIdx->offset, colIdx) < 0) {
         return terrno;
       }
       tdAppendValToDataCol(pDataCol, sVal.valType, sVal.val, pCols->numOfRows, pCols->maxPoints);

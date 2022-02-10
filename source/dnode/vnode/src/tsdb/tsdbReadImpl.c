@@ -487,12 +487,12 @@ static int tsdbLoadBlockDataImpl(SReadH *pReadh, SBlock *pBlock, SDataCols *pDat
       pDataCol->bitmap = pBlockCol->bitmap;
     } else {
       ASSERT(pDataCol->colId == tcolId);
-      pDataCol->bitmap = 1;
+      TD_SET_COL_ROWS_NORM(pDataCol);
     }
 
     int32_t tBitmaps = 0;
     int32_t tLenBitmap = 0;
-    if ((dcol != 0) && (pBlockCol->bitmap == 0)) {
+    if ((dcol != 0) && !TD_COL_ROWS_NORM(pBlockCol)) {
       if (IS_VAR_DATA_TYPE(pDataCol->type)) {
         tBitmaps = nBitmaps;
         tLenBitmap = tBitmaps;
@@ -622,7 +622,7 @@ static int tsdbLoadBlockDataColsImpl(SReadH *pReadh, SBlock *pBlock, SDataCols *
 
     if (colId == PRIMARYKEY_TIMESTAMP_COL_ID) {  // load the key row
       blockCol.colId = colId;
-      blockCol.bitmap = 0;  // default is NORM for the primary key column
+      TD_SET_COL_ROWS_NORM(&blockCol);  // default is NORM for the primary key column
       blockCol.len = pBlock->keyLen;
       blockCol.type = pDataCol->type;
       blockCol.offset = TSDB_KEY_COL_OFFSET;
@@ -670,7 +670,7 @@ static int tsdbLoadColData(SReadH *pReadh, SDFile *pDFile, SBlock *pBlock, SBloc
   int32_t tBitmaps = 0;
   int32_t tLenBitmap = 0;
 
-  if (pBlockCol->bitmap == 0) {
+  if (!TD_COL_ROWS_NORM(pBlockCol)) {
     if (IS_VAR_DATA_TYPE(pDataCol->type)) {
       tBitmaps = nBitmaps;
       tLenBitmap = tBitmaps;

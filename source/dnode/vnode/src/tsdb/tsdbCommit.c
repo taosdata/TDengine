@@ -1163,12 +1163,12 @@ int tsdbWriteBlockImpl(STsdb *pRepo, STable *pTable, SDFile *pDFile, SDataCols *
                                                &(pBlockCol->sum), &(pBlockCol->minIndex), &(pBlockCol->maxIndex),
                                                &(pBlockCol->numOfNull));
       if (pBlockCol->numOfNull == 0) {
-        pBlockCol->bitmap = 1;
+        TD_SET_COL_ROWS_NORM(pBlockCol);
       } else {
-        pBlockCol->bitmap = 0;
+        TD_SET_COL_ROWS_MISC(pBlockCol);
       }
     } else {
-      pBlockCol->bitmap = 0;
+      TD_SET_COL_ROWS_MISC(pBlockCol);
     }
     nColsNotAllNull++;
   }
@@ -1198,7 +1198,7 @@ int tsdbWriteBlockImpl(STsdb *pRepo, STable *pTable, SDFile *pDFile, SDataCols *
 
 #ifdef TD_SUPPORT_BITMAP
     int32_t tBitmaps = 0;
-    if ((ncol != 0) && (pBlockCol->bitmap == 0)) {
+    if ((ncol != 0) && !TD_COL_ROWS_NORM(pBlockCol)) {
       if (IS_VAR_DATA_TYPE(pDataCol->type)) {
         tBitmaps = nBitmaps;
         tlen += tBitmaps;

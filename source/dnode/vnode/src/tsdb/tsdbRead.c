@@ -1476,42 +1476,42 @@ static int32_t doCopyRowsFromFileBlock(STsdbReadHandle* pTsdbReadHandle, int32_t
 static void mergeTwoRowFromMem(STsdbReadHandle* pTsdbReadHandle, int32_t capacity, int32_t numOfRows, STSRow* row1,
                                STSRow* row2, int32_t numOfCols, uint64_t uid, STSchema* pSchema1, STSchema* pSchema2,
                                bool forceSetNull) {
-#if 0
-  char* pData = NULL;
-  STSchema* pSchema;
-  STSRow*   row;
-  int16_t colId;
-  int16_t offset;
+#if 1
+  char*       pData = NULL;
+  STSchema*   pSchema;
+  STSRow*     row;
+  int16_t     colId;
+  int16_t     offset;
 
   bool isRow1DataRow = TD_IS_TP_ROW(row1);
   bool isRow2DataRow;
   bool isChosenRowDataRow;
   int32_t chosen_itr;
-  void *value;
+  SCellVal sVal = {0};
 
-  // the schema version info is embeded in SDataRow
+  // the schema version info is embeded in STSRow
   int32_t numOfColsOfRow1 = 0;
 
   if (pSchema1 == NULL) {
-    pSchema1 = metaGetTbTSchema(pTsdbReadHandle->pTsdb->pMeta, uid, 0);
+    pSchema1 = metaGetTbTSchema(pTsdbReadHandle->pTsdb->pMeta, uid, TD_ROW_SVER(row1));
   }
 
   if(isRow1DataRow) {
     numOfColsOfRow1 = schemaNCols(pSchema1);
   } else {
-    numOfColsOfRow1 = TD_ROW_NCOLS(row1);
+    numOfColsOfRow1 = tdRowGetNCols(row1);
   }
 
   int32_t numOfColsOfRow2 = 0;
   if(row2) {
     isRow2DataRow = TD_IS_TP_ROW(row2);
     if (pSchema2 == NULL) {
-      pSchema2 = metaGetTbTSchema(pTsdbReadHandle->pTsdb->pMeta, uid, 0);
+      pSchema2 = metaGetTbTSchema(pTsdbReadHandle->pTsdb->pMeta, uid, TD_ROW_SVER(row2));
     }
     if(isRow2DataRow) {
       numOfColsOfRow2 = schemaNCols(pSchema2);
     } else {
-      numOfColsOfRow2 = TD_ROW_NCOLS(row2);
+      numOfColsOfRow2 = tdRowGetNCols(row2);
     }
   }
 
@@ -1532,8 +1532,7 @@ static void mergeTwoRowFromMem(STsdbReadHandle* pTsdbReadHandle, int32_t capacit
     } else if(isRow1DataRow) {
       colIdOfRow1 = pSchema1->columns[j].colId;
     } else {
-      void *rowBody = memRowKvBody(row1);
-      SColIdx *pColIdx = kvRowColIdxAt(rowBody, j);
+      SKvRowIdx *pColIdx = tdKvRowColIdxAt(row1, j);
       colIdOfRow1 = pColIdx->colId;
     }
 
@@ -1543,8 +1542,7 @@ static void mergeTwoRowFromMem(STsdbReadHandle* pTsdbReadHandle, int32_t capacit
     } else if(isRow2DataRow) {
       colIdOfRow2 = pSchema2->columns[k].colId;
     } else {
-      void *rowBody = memRowKvBody(row2);
-      SColIdx *pColIdx = kvRowColIdxAt(rowBody, k);
+      SKvRowIdx *pColIdx = tdKvRowColIdxAt(row2, k);
       colIdOfRow2 = pColIdx->colId;
     }
 
@@ -1580,60 +1578,57 @@ static void mergeTwoRowFromMem(STsdbReadHandle* pTsdbReadHandle, int32_t capacit
     if(isChosenRowDataRow) {
       colId = pSchema->columns[chosen_itr].colId;
       offset = pSchema->columns[chosen_itr].offset;
-      void *rowBody = memRowDataBody(row);
-      value = tdGetRowDataOfCol(rowBody, (int8_t)pColInfo->info.type, TD_DATA_ROW_HEAD_SIZE + offset);
+      tdSTpRowGetVal(row, colId, pSchema->columns[chosen_itr].type, pSchema->flen, offset, chosen_itr, &sVal);
     } else {
-      void *rowBody = memRowKvBody(row);
-      SColIdx *pColIdx = kvRowColIdxAt(rowBody, chosen_itr);
+      SKvRowIdx *pColIdx = tdKvRowColIdxAt(row, chosen_itr);
       colId = pColIdx->colId;
       offset = pColIdx->offset;
-      value = tdGetKvRowDataOfCol(rowBody, pColIdx->offset);
+      tdSKvRowGetVal(row, colId, offset, chosen_itr, &sVal);
     }
 
 
     if (colId == pColInfo->info.colId) {
-      if(forceSetNull || (!isNull(value, (int8_t)pColInfo->info.type))) {
+      if (tdValTypeIsNorm(sVal.valType)) {
         switch (pColInfo->info.type) {
           case TSDB_DATA_TYPE_BINARY:
           case TSDB_DATA_TYPE_NCHAR:
-            memcpy(pData, value, varDataTLen(value));
+            memcpy(pData, sVal.val, varDataTLen(sVal.val));
             break;
           case TSDB_DATA_TYPE_NULL:
           case TSDB_DATA_TYPE_BOOL:
           case TSDB_DATA_TYPE_TINYINT:
           case TSDB_DATA_TYPE_UTINYINT:
-            *(uint8_t *)pData = *(uint8_t *)value;
+            *(uint8_t *)pData = *(uint8_t *)sVal.val;
             break;
           case TSDB_DATA_TYPE_SMALLINT:
           case TSDB_DATA_TYPE_USMALLINT:
-            *(uint16_t *)pData = *(uint16_t *)value;
+            *(uint16_t *)pData = *(uint16_t *)sVal.val;
             break;
           case TSDB_DATA_TYPE_INT:
           case TSDB_DATA_TYPE_UINT:
-            *(uint32_t *)pData = *(uint32_t *)value;
+            *(uint32_t *)pData = *(uint32_t *)sVal.val;
             break;
           case TSDB_DATA_TYPE_BIGINT:
           case TSDB_DATA_TYPE_UBIGINT:
-            *(uint64_t *)pData = *(uint64_t *)value;
+            *(uint64_t *)pData = *(uint64_t *)sVal.val;
             break;
           case TSDB_DATA_TYPE_FLOAT:
-            SET_FLOAT_PTR(pData, value);
+            SET_FLOAT_PTR(pData, sVal.val);
             break;
           case TSDB_DATA_TYPE_DOUBLE:
-            SET_DOUBLE_PTR(pData, value);
+            SET_DOUBLE_PTR(pData, sVal.val);
             break;
           case TSDB_DATA_TYPE_TIMESTAMP:
-#if 0  // only TSKEY supported since 3.0
-            if (pColInfo->info.colId == PRIMARYKEY_TIMESTAMP_COL_ID) {
-              *(TSKEY *)pData = tdGetKey(*(TKEY *)value);
-            } else {
-              *(TSKEY *)pData = *(TSKEY *)value;
-            }
-#endif
-            *(TSKEY*)pData = *(TSKEY*)value;
+            *(TSKEY*)pData = *(TSKEY*)sVal.val;
             break;
           default:
-            memcpy(pData, value, pColInfo->info.bytes);
+            memcpy(pData, sVal.val, pColInfo->info.bytes);
+        }
+      } else if (forceSetNull) {
+        if (pColInfo->info.type == TSDB_DATA_TYPE_BINARY || pColInfo->info.type == TSDB_DATA_TYPE_NCHAR) {
+          setVardataNull(pData, pColInfo->info.type);
+        } else {
+          setNull(pData, pColInfo->info.type, pColInfo->info.bytes);
         }
       }
       i++;
