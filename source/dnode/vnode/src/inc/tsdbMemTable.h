@@ -58,20 +58,20 @@ int            tsdbMemTableInsert(STsdb *pTsdb, STsdbMemTable *pMemTable, SSubmi
 int tsdbLoadDataFromCache(STable *pTable, SSkipListIterator *pIter, TSKEY maxKey, int maxRowsToRead, SDataCols *pCols,
                           TKEY *filterKeys, int nFilterKeys, bool keepDup, SMergeInfo *pMergeInfo);
 
-static FORCE_INLINE SMemRow tsdbNextIterRow(SSkipListIterator *pIter) {
+static FORCE_INLINE STSRow *tsdbNextIterRow(SSkipListIterator *pIter) {
   if (pIter == NULL) return NULL;
 
   SSkipListNode *node = tSkipListIterGet(pIter);
   if (node == NULL) return NULL;
 
-  return (SMemRow)SL_GET_NODE_DATA(node);
+  return (STSRow *)SL_GET_NODE_DATA(node);
 }
 
 static FORCE_INLINE TSKEY tsdbNextIterKey(SSkipListIterator *pIter) {
-  SMemRow row = tsdbNextIterRow(pIter);
+  STSRow *row = tsdbNextIterRow(pIter);
   if (row == NULL) return TSDB_DATA_TIMESTAMP_NULL;
 
-  return memRowKey(row);
+  return TD_ROW_KEY(row);
 }
 
 #ifdef __cplusplus

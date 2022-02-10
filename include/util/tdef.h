@@ -321,6 +321,7 @@ do { \
 #define TSDB_MAX_BINARY_LEN            (TSDB_MAX_FIELD_LEN-TSDB_KEYSIZE) // keep 16384
 #define TSDB_MAX_NCHAR_LEN             (TSDB_MAX_FIELD_LEN-TSDB_KEYSIZE) // keep 16384
 #define PRIMARYKEY_TIMESTAMP_COL_ID     1
+#define COL_REACH_END(colId, maxColId)  ((colId) > (maxColId))
 
 #define TSDB_MAX_RPC_THREADS            5
 

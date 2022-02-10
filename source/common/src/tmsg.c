@@ -67,19 +67,19 @@ int32_t tInitSubmitBlkIter(SSubmitBlk *pBlock, SSubmitBlkIter *pIter) {
   if (pBlock->dataLen <= 0) return -1;
   pIter->totalLen = pBlock->dataLen;
   pIter->len = 0;
-  pIter->row = (SMemRow)(pBlock->data + pBlock->schemaLen);
+  pIter->row = (STSRow *)(pBlock->data + pBlock->schemaLen);
   return 0;
 }
 
-SMemRow tGetSubmitBlkNext(SSubmitBlkIter *pIter) {
-  SMemRow row = pIter->row;
+STSRow *tGetSubmitBlkNext(SSubmitBlkIter *pIter) {
+  STSRow *row = pIter->row;
 
   if (pIter->len >= pIter->totalLen) {
     return NULL;
   } else {
-    pIter->len += memRowTLen(row);
+    pIter->len += TD_ROW_LEN(row);
     if (pIter->len < pIter->totalLen) {
-      pIter->row = POINTER_SHIFT(row, memRowTLen(row));
+      pIter->row = POINTER_SHIFT(row, TD_ROW_LEN(row));
     }
     return row;
   }

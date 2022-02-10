@@ -18,12 +18,11 @@
 
 #include "os.h"
 #include "tarray.h"
+#include "ttypes.h"
 
 #ifdef __cplusplus
 extern "C" {
 #endif
-
-typedef uint16_t col_id_t;
 
 #if 0
 typedef struct STColumn {
