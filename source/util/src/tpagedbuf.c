@@ -1,8 +1,8 @@
-#include "tpagedfile.h"
-#include "thash.h"
+#include "tpagedbuf.h"
 #include "stddef.h"
 #include "taoserror.h"
 #include "tcompression.h"
+#include "thash.h"
 
 #define GET_DATA_PAYLOAD(_p) ((char *)(_p)->pData + POINTER_BYTES)
 #define NO_IN_MEM_AVAILABLE_PAGES(_b) (listNEles((_b)->lruList) >= (_b)->inMemPages)

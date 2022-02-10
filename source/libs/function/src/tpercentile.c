@@ -15,10 +15,10 @@
 #include <tglobal.h>
 #include "os.h"
 
-#include "tpercentile.h"
-#include "tpagedfile.h"
 #include "taosdef.h"
 #include "tcompare.h"
+#include "tpagedbuf.h"
+#include "tpercentile.h"
 #include "ttypes.h"
 
 #define DEFAULT_NUM_OF_SLOT 1024

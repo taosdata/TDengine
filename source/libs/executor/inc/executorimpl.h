@@ -27,14 +27,14 @@ extern "C" {
 
 #include "dataSinkMgt.h"
 #include "executil.h"
+#include "executor.h"
 #include "planner.h"
 #include "taosdef.h"
 #include "tarray.h"
 #include "tfilter.h"
 #include "thash.h"
 #include "tlockfree.h"
-#include "tpagedfile.h"
-#include "executor.h"
+#include "tpagedbuf.h"
 
 struct SColumnFilterElem;
 

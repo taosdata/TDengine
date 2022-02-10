@@ -20,7 +20,7 @@
 extern "C" {
 #endif
 
-#include "tpagedfile.h"
+#include "tpagedbuf.h"
 #include "ttszip.h"
 
 typedef struct MinMaxEntry {

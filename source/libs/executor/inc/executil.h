@@ -16,8 +16,8 @@
 #define TDENGINE_QUERYUTIL_H
 
 #include "common.h"
-#include "tpagedfile.h"
 #include "tbuffer.h"
+#include "tpagedbuf.h"
 
 #define SET_RES_WINDOW_KEY(_k, _ori, _len, _uid)     \
   do {                                               \
