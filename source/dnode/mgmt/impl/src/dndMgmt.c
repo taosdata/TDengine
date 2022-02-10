@@ -355,40 +355,38 @@ static int32_t dndWriteDnodes(SDnode *pDnode) {
 }
 
 void dndSendStatusReq(SDnode *pDnode) {
-  int32_t contLen = sizeof(SStatusReq) + TSDB_MAX_VNODES * sizeof(SVnodeLoad);
-
-  SStatusReq *pStatus = rpcMallocCont(contLen);
-  if (pStatus == NULL) {
-    dError("failed to malloc status message");
-    return;
-  }
+  SStatusReq req = {0};
 
   SDnodeMgmt *pMgmt = &pDnode->dmgmt;
   taosRLockLatch(&pMgmt->latch);
-  pStatus->sver = htonl(pDnode->env.sver);
-  pStatus->dver = htobe64(pMgmt->dver);
-  pStatus->dnodeId = htonl(pMgmt->dnodeId);
-  pStatus->clusterId = htobe64(pMgmt->clusterId);
-  pStatus->rebootTime = htobe64(pMgmt->rebootTime);
-  pStatus->updateTime = htobe64(pMgmt->updateTime);
-  pStatus->numOfCores = htonl(pDnode->env.numOfCores);
-  pStatus->numOfSupportVnodes = htonl(pDnode->cfg.numOfSupportVnodes);
-  tstrncpy(pStatus->dnodeEp, pDnode->cfg.localEp, TSDB_EP_LEN);
+  req.sver = pDnode->env.sver;
+  req.dver = pMgmt->dver;
+  req.dnodeId = pMgmt->dnodeId;
+  req.clusterId = pMgmt->clusterId;
+  req.rebootTime = pMgmt->rebootTime;
+  req.updateTime = pMgmt->updateTime;
+  req.numOfCores = pDnode->env.numOfCores;
+  req.numOfSupportVnodes = pDnode->cfg.numOfSupportVnodes;
+  memcpy(req.dnodeEp, pDnode->cfg.localEp, TSDB_EP_LEN);
 
-  pStatus->clusterCfg.statusInterval = htonl(pDnode->cfg.statusInterval);
-  pStatus->clusterCfg.checkTime = 0;
+  req.clusterCfg.statusInterval = pDnode->cfg.statusInterval;
+  req.clusterCfg.checkTime = 0;
   char timestr[32] = "1970-01-01 00:00:00.00";
-  (void)taosParseTime(timestr, &pStatus->clusterCfg.checkTime, (int32_t)strlen(timestr), TSDB_TIME_PRECISION_MILLI, 0);
-  pStatus->clusterCfg.checkTime = htonl(pStatus->clusterCfg.checkTime);
-  tstrncpy(pStatus->clusterCfg.timezone, pDnode->env.timezone, TSDB_TIMEZONE_LEN);
-  tstrncpy(pStatus->clusterCfg.locale, pDnode->env.locale, TSDB_LOCALE_LEN);
-  tstrncpy(pStatus->clusterCfg.charset, pDnode->env.charset, TSDB_LOCALE_LEN);
+  (void)taosParseTime(timestr, &req.clusterCfg.checkTime, (int32_t)strlen(timestr), TSDB_TIME_PRECISION_MILLI, 0);
+  memcpy(req.clusterCfg.timezone, pDnode->env.timezone, TSDB_TIMEZONE_LEN);
+  memcpy(req.clusterCfg.locale, pDnode->env.locale, TSDB_LOCALE_LEN);
+  memcpy(req.clusterCfg.charset, pDnode->env.charset, TSDB_LOCALE_LEN);
   taosRUnLockLatch(&pMgmt->latch);
 
-  dndGetVnodeLoads(pDnode, &pStatus->vnodeLoads);
-  contLen = sizeof(SStatusReq) + pStatus->vnodeLoads.num * sizeof(SVnodeLoad);
+  req.pVloads = taosArrayInit(TSDB_MAX_VNODES, sizeof(SVnodeLoad));
+  dndGetVnodeLoads(pDnode, req.pVloads);
 
-  SRpcMsg rpcMsg = {.pCont = pStatus, .contLen = contLen, .msgType = TDMT_MND_STATUS, .ahandle = (void *)9527};
+  int32_t contLen = tSerializeSStatusReq(NULL, &req);
+  void   *pHead = rpcMallocCont(contLen);
+  void   *pBuf = pHead;
+  tSerializeSStatusReq(&pBuf, &req);
+
+  SRpcMsg rpcMsg = {.pCont = pHead, .contLen = contLen, .msgType = TDMT_MND_STATUS, .ahandle = (void *)9527};
   pMgmt->statusSent = 1;
 
   dTrace("pDnode:%p, send status req to mnode", pDnode);

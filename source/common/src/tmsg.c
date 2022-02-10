@@ -459,3 +459,87 @@ void *tDeserializeSMAlterStbReq(void *buf, SMAltertbReq *pReq) {
 
   return buf;
 }
+
+int32_t tSerializeSStatusReq(void **buf, SStatusReq *pReq) {
+  int32_t tlen = 0;
+
+  // status
+  tlen += taosEncodeFixedI32(buf, pReq->mver);
+  tlen += taosEncodeFixedI32(buf, pReq->sver);
+  tlen += taosEncodeFixedI64(buf, pReq->dver);
+  tlen += taosEncodeFixedI32(buf, pReq->dnodeId);
+  tlen += taosEncodeFixedI64(buf, pReq->clusterId);
+  tlen += taosEncodeFixedI64(buf, pReq->rebootTime);
+  tlen += taosEncodeFixedI64(buf, pReq->updateTime);
+  tlen += taosEncodeFixedI32(buf, pReq->numOfCores);
+  tlen += taosEncodeFixedI32(buf, pReq->numOfSupportVnodes);
+  tlen += taosEncodeString(buf, pReq->dnodeEp);
+
+  // cluster cfg
+  tlen += taosEncodeFixedI32(buf, pReq->clusterCfg.statusInterval);
+  tlen += taosEncodeFixedI64(buf, pReq->clusterCfg.checkTime);
+  tlen += taosEncodeString(buf, pReq->clusterCfg.timezone);
+  tlen += taosEncodeString(buf, pReq->clusterCfg.locale);
+  tlen += taosEncodeString(buf, pReq->clusterCfg.charset);
+
+  // vnode loads
+  int32_t vlen = (int32_t)taosArrayGetSize(pReq->pVloads);
+  tlen += taosEncodeFixedI32(buf, vlen);
+  for (int32_t i = 0; i < vlen; ++i) {
+    SVnodeLoad *pload = taosArrayGet(pReq->pVloads, i);
+    tlen += taosEncodeFixedI32(buf, pload->vgId);
+    tlen += taosEncodeFixedI8(buf, pload->role);
+    tlen += taosEncodeFixedI64(buf, pload->totalStorage);
+    tlen += taosEncodeFixedI64(buf, pload->compStorage);
+    tlen += taosEncodeFixedI64(buf, pload->pointsWritten);
+    tlen += taosEncodeFixedI64(buf, pload->tablesNum);
+  }
+
+  return tlen;
+}
+
+void *tDeserializeSStatusReq(void *buf, SStatusReq *pReq) {
+  // status
+  buf = taosDecodeFixedI32(buf, &pReq->mver);
+  buf = taosDecodeFixedI32(buf, &pReq->sver);
+  buf = taosDecodeFixedI64(buf, &pReq->dver);
+  buf = taosDecodeFixedI32(buf, &pReq->dnodeId);
+  buf = taosDecodeFixedI64(buf, &pReq->clusterId);
+  buf = taosDecodeFixedI64(buf, &pReq->rebootTime);
+  buf = taosDecodeFixedI64(buf, &pReq->updateTime);
+  buf = taosDecodeFixedI32(buf, &pReq->numOfCores);
+  buf = taosDecodeFixedI32(buf, &pReq->numOfSupportVnodes);
+  buf = taosDecodeStringTo(buf, pReq->dnodeEp);
+
+  // cluster cfg
+  buf = taosDecodeFixedI32(buf, &pReq->clusterCfg.statusInterval);
+  buf = taosDecodeFixedI64(buf, &pReq->clusterCfg.checkTime);
+  buf = taosDecodeStringTo(buf, pReq->clusterCfg.timezone);
+  buf = taosDecodeStringTo(buf, pReq->clusterCfg.locale);
+  buf = taosDecodeStringTo(buf, pReq->clusterCfg.charset);
+
+  // vnode loads
+  int32_t vlen = 0;
+  buf = taosDecodeFixedI32(buf, &vlen);
+  pReq->pVloads = taosArrayInit(vlen, sizeof(SVnodeLoad));
+  if (pReq->pVloads == NULL) {
+    terrno = TSDB_CODE_OUT_OF_MEMORY;
+    return NULL;
+  }
+
+  for (int32_t i = 0; i < vlen; ++i) {
+    SVnodeLoad vload = {0};
+    buf = taosDecodeFixedI32(buf, &vload.vgId);
+    buf = taosDecodeFixedI8(buf, &vload.role);
+    buf = taosDecodeFixedI64(buf, &vload.totalStorage);
+    buf = taosDecodeFixedI64(buf, &vload.compStorage);
+    buf = taosDecodeFixedI64(buf, &vload.pointsWritten);
+    buf = taosDecodeFixedI64(buf, &vload.tablesNum);
+    if (taosArrayPush(pReq->pVloads, &vload) == NULL) {
+      terrno = TSDB_CODE_OUT_OF_MEMORY;
+      return NULL;
+    }
+  }
+
+  return buf;
+}

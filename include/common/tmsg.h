@@ -614,7 +614,6 @@ typedef struct {
 typedef struct {
   int32_t vgId;
   int8_t  role;
-  int8_t  align[3];
   int64_t totalStorage;
   int64_t compStorage;
   int64_t pointsWritten;
@@ -622,23 +621,22 @@ typedef struct {
 } SVnodeLoad;
 
 typedef struct {
-  int32_t    num;
-  SVnodeLoad data[];
-} SVnodeLoads;
-
-typedef struct {
-  int32_t     sver;
+  int32_t     mver;  // msg version
+  int32_t     sver;  // software version
+  int64_t     dver;  // dnode table version in sdb
   int32_t     dnodeId;
   int64_t     clusterId;
-  int64_t     dver;
   int64_t     rebootTime;
   int64_t     updateTime;
   int32_t     numOfCores;
   int32_t     numOfSupportVnodes;
   char        dnodeEp[TSDB_EP_LEN];
   SClusterCfg clusterCfg;
-  SVnodeLoads vnodeLoads;
+  SArray*     pVloads;  // array of SVnodeLoad
 } SStatusReq;
+
+int32_t tSerializeSStatusReq(void** buf, SStatusReq* pReq);
+void*   tDeserializeSStatusReq(void* buf, SStatusReq* pReq);
 
 typedef struct {
   int32_t reserved;
