@@ -13,16 +13,18 @@ typedef struct SFreeListItem {
 } SFreeListItem;
 
 typedef struct SPageDiskInfo {
-  uint64_t offset;
+  int64_t  offset;
   int32_t  length;
 } SPageDiskInfo;
 
 typedef struct SPageInfo {
   SListNode*    pn;       // point to list node
   void*         pData;
+  int64_t       offset;
   int32_t       pageId;
-  SPageDiskInfo info;
-  bool          used;     // set current page is in used
+  int32_t       length:30;
+  bool          used:1;     // set current page is in used
+  bool          dirty:1;    // set current buffer page is dirty or not
 } SPageInfo;
 
 typedef struct SDiskbasedBufStatis {
@@ -160,11 +162,11 @@ static char* doFlushPageToDisk(SDiskbasedBuf* pResultBuf, SPageInfo* pg) {
   char* t = doCompressData(GET_DATA_PAYLOAD(pg), pResultBuf->pageSize, &size, pResultBuf);
 
   // this page is flushed to disk for the first time
-  if (pg->info.offset == -1) {
-    pg->info.offset = allocatePositionInFile(pResultBuf, size);
+  if (pg->offset == -1) {
+    pg->offset = allocatePositionInFile(pResultBuf, size);
     pResultBuf->nextPos += size;
 
-    int32_t ret = fseek(pResultBuf->file, pg->info.offset, SEEK_SET);
+    int32_t ret = fseek(pResultBuf->file, pg->offset, SEEK_SET);
     if (ret != 0) {
       terrno = TAOS_SYSTEM_ERROR(errno);
       return NULL;
@@ -176,35 +178,36 @@ static char* doFlushPageToDisk(SDiskbasedBuf* pResultBuf, SPageInfo* pg) {
       return NULL;
     }
 
-    if (pResultBuf->fileSize < pg->info.offset + pg->info.length) {
-      pResultBuf->fileSize = pg->info.offset + pg->info.length;
+    if (pResultBuf->fileSize < pg->offset + size) {
+      pResultBuf->fileSize = pg->offset + size;
     }
   } else {
     // length becomes greater, current space is not enough, allocate new place, otherwise, do nothing
-    if (pg->info.length < size) {
+    if (pg->length < size) {
       // 1. add current space to free list
-      taosArrayPush(pResultBuf->pFree, &pg->info);
+      SPageDiskInfo dinfo = {.length = pg->length, .offset = pg->offset};
+      taosArrayPush(pResultBuf->pFree, &dinfo);
 
       // 2. allocate new position, and update the info
-      pg->info.offset = allocatePositionInFile(pResultBuf, size);
+      pg->offset = allocatePositionInFile(pResultBuf, size);
       pResultBuf->nextPos += size;
     }
 
     //3. write to disk.
-    int32_t ret = fseek(pResultBuf->file, pg->info.offset, SEEK_SET);
+    int32_t ret = fseek(pResultBuf->file, pg->offset, SEEK_SET);
     if (ret != 0) {
       terrno = TAOS_SYSTEM_ERROR(errno);
       return NULL;
     }
 
-    ret = (int32_t)fwrite(t, size, 1, pResultBuf->file);
+    ret = (int32_t)fwrite(t, 1, size, pResultBuf->file);
     if (ret != size) {
       terrno = TAOS_SYSTEM_ERROR(errno);
       return NULL;
     }
 
-    if (pResultBuf->fileSize < pg->info.offset + pg->info.length) {
-      pResultBuf->fileSize = pg->info.offset + pg->info.length;
+    if (pResultBuf->fileSize < pg->offset + size) {
+      pResultBuf->fileSize = pg->offset + size;
     }
   }
 
@@ -212,9 +215,9 @@ static char* doFlushPageToDisk(SDiskbasedBuf* pResultBuf, SPageInfo* pg) {
   memset(ret, 0, pResultBuf->pageSize);
 
   pg->pData = NULL;
-  pg->info.length = size;
+  pg->length = size;
 
-  pResultBuf->statis.flushBytes += pg->info.length;
+  pResultBuf->statis.flushBytes += pg->length;
   return ret;
 }
 
@@ -234,17 +237,17 @@ static char* flushPageToDisk(SDiskbasedBuf* pResultBuf, SPageInfo* pg) {
 
 // load file block data in disk
 static char* loadPageFromDisk(SDiskbasedBuf* pResultBuf, SPageInfo* pg) {
-  int32_t ret = fseek(pResultBuf->file, pg->info.offset, SEEK_SET);
-  ret = (int32_t)fread(GET_DATA_PAYLOAD(pg), 1, pg->info.length, pResultBuf->file);
-  if (ret != pg->info.length) {
+  int32_t ret = fseek(pResultBuf->file, pg->offset, SEEK_SET);
+  ret = (int32_t)fread(GET_DATA_PAYLOAD(pg), 1, pg->length, pResultBuf->file);
+  if (ret != pg->length) {
     terrno = errno;
     return NULL;
   }
 
-  pResultBuf->statis.loadBytes += pg->info.length;
+  pResultBuf->statis.loadBytes += pg->length;
 
   int32_t fullSize = 0;
-  doDecompressData(GET_DATA_PAYLOAD(pg), pg->info.length, &fullSize, pResultBuf);
+  doDecompressData(GET_DATA_PAYLOAD(pg), pg->length, &fullSize, pResultBuf);
 
   return (char*)GET_DATA_PAYLOAD(pg);
 }
@@ -275,7 +278,8 @@ static SPageInfo* registerPage(SDiskbasedBuf* pResultBuf, int32_t groupId, int32
 
   ppi->pageId = pageId;
   ppi->pData  = NULL;
-  ppi->info   = PAGE_INFO_INITIALIZER;
+  ppi->offset = -1;
+  ppi->length = -1;
   ppi->used   = true;
   ppi->pn     = NULL;
 
@@ -307,6 +311,7 @@ static char* evicOneDataPage(SDiskbasedBuf* pResultBuf) {
 
   // all pages are referenced by user, try to allocate new space
   if (pn == NULL) {
+    assert(0);
     int32_t prev = pResultBuf->inMemPages;
 
     // increase by 50% of previous mem pages
@@ -351,11 +356,11 @@ SFilePage* getNewDataBuf(SDiskbasedBuf* pResultBuf, int32_t groupId, int32_t* pa
   char* availablePage = NULL;
   if (NO_IN_MEM_AVAILABLE_PAGES(pResultBuf)) {
     availablePage = evicOneDataPage(pResultBuf);
-  }
 
-  // Failed to allocate a new buffer page, and there is an error occurs.
-  if (availablePage == NULL && terrno != 0) {
-    return NULL;
+    // Failed to allocate a new buffer page, and there is an error occurs.
+    if (availablePage == NULL) {
+      return NULL;
+    }
   }
 
   // register new id in this group
@@ -409,11 +414,14 @@ SFilePage* getResBufPage(SDiskbasedBuf* pResultBuf, int32_t id) {
     return (void *)(GET_DATA_PAYLOAD(*pi));
 
   } else { // not in memory
-    assert((*pi)->pData == NULL && (*pi)->pn == NULL && (*pi)->info.length >= 0 && (*pi)->info.offset >= 0);
+    assert((*pi)->pData == NULL && (*pi)->pn == NULL && (*pi)->length >= 0 && (*pi)->offset >= 0);
 
     char* availablePage = NULL;
     if (NO_IN_MEM_AVAILABLE_PAGES(pResultBuf)) {
       availablePage = evicOneDataPage(pResultBuf);
+      if (availablePage == NULL) {
+        return NULL;
+      }
     }
 
     if (availablePage == NULL) {

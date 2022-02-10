@@ -262,7 +262,7 @@ TEST(testCase, external_sort_Test) {
   exp1->base.resSchema = createSchema(TSDB_DATA_TYPE_BINARY, 40, 2, "res1");
   taosArrayPush(pExprInfo, &exp1);
 
-  SOperatorInfo* pOperator = createOrderOperatorInfo(createDummyOperator(500000), pExprInfo, pOrderVal);
+  SOperatorInfo* pOperator = createOrderOperatorInfo(createDummyOperator(100000), pExprInfo, pOrderVal);
 
   bool newgroup = false;
   SSDataBlock* pRes = NULL;

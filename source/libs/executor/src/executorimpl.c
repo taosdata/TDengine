@@ -5639,6 +5639,8 @@ static int32_t adjustMergeTreeForNextTuple(SExternalMemSource *pSource, SMultiwa
       if (code != TSDB_CODE_SUCCESS) {
         return code;
       }
+
+      releaseResBufPage(pInfo->pSortInternalBuf, pPage);
     }
   }
 
@@ -5754,6 +5756,8 @@ static int32_t sortComparInit(SMsortComparParam* cmpParam, const SOrderOperatorI
     if (code != TSDB_CODE_SUCCESS) {
       return code;
     }
+
+    releaseResBufPage(pInfo->pSortInternalBuf, pPage);
   }
 
   return TSDB_CODE_SUCCESS;

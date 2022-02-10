@@ -30,7 +30,6 @@ typedef struct SPageInfo SPageInfo;
 typedef struct SDiskbasedBuf SDiskbasedBuf;
 
 #define DEFAULT_INTERN_BUF_PAGE_SIZE  (1024L)                          // in bytes
-#define PAGE_INFO_INITIALIZER         (SPageDiskInfo){-1, -1}
 #define DEFAULT_PAGE_SIZE             (16384L)
 
 typedef struct SFilePage {
