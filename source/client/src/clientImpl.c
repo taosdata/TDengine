@@ -110,7 +110,7 @@ TAOS *taos_connect_internal(const char *ip, const char *user, const char *pass, 
     p = calloc(1, sizeof(struct SAppInstInfo));
     p->mgmtEp       = epSet;
     p->pTransporter = openTransporter(user, secretEncrypt, tsNumOfCores);
-    /*p->pAppHbMgr = appHbMgrInit(p, key);*/
+    p->pAppHbMgr = appHbMgrInit(p, key);
     taosHashPut(appInfo.pInstMap, key, strlen(key), &p, POINTER_BYTES);
 
     pInst = &p;
@@ -540,8 +540,12 @@ void* doFetchRow(SRequestObj* pRequest) {
       tsem_wait(&pRequest->body.rspSem);
 
       pRequest->type = TDMT_VND_SHOW_TABLES_FETCH;
-    } else if (pRequest->type == TDMT_MND_SHOW_RETRIEVE && pResultInfo->pData != NULL) {
-      return NULL;
+    } else if (pRequest->type == TDMT_MND_SHOW_RETRIEVE) {      
+      epSet = getEpSet_s(&pRequest->pTscObj->pAppInfo->mgmtEp);
+      
+      if (pResultInfo->completed) {
+        return NULL;
+      }
     }
 
     SMsgSendInfo* body = buildMsgInfoImpl(pRequest);

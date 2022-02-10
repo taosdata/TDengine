@@ -301,10 +301,12 @@ typedef struct {
   uint64_t uid;
   uint64_t dbUid;
   int32_t  version;
+  int32_t  nextColId;
   int32_t  numOfColumns;
   int32_t  numOfTags;
+  SSchema* pColumns;
+  SSchema* pTags;
   SRWLatch lock;
-  SSchema* pSchema;
 } SStbObj;
 
 typedef struct {

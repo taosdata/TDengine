@@ -16,25 +16,14 @@
 #include "ttoken.h"
 #include "astCreateContext.h"
 
-void* acquireRaii(SAstCreateContext* pCxt, void* p) {
-  if (NULL == p) {
-    return NULL;
-  }
-  return p;
+int32_t createAstCreateContext(SParseContext* pQueryCxt, SAstCreateContext* pCxt) {
+  pCxt->pQueryCxt = pQueryCxt;
+  pCxt->notSupport = false;
+  pCxt->valid = true;
+  pCxt->pRootNode = NULL;
+  return TSDB_CODE_SUCCESS;
 }
 
-void* releaseRaii(SAstCreateContext* pCxt, void* p) {
-  if (NULL == p) {
-    return NULL;
-  }
-  return p;
+int32_t destroyAstCreateContext(SAstCreateContext* pCxt) {
+  return TSDB_CODE_SUCCESS;
 }
-
-int32_t createAstCreater(const SParseContext* pQueryCxt, SAstCreateContext* pCxt) {
-
-}
-
-int32_t destroyAstCreater(SAstCreateContext* pCxt) {
-
-}
-

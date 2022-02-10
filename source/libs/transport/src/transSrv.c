@@ -22,7 +22,7 @@ typedef struct SSrvConn {
   uv_write_t* pWriter;
   uv_timer_t* pTimer;
 
-  uv_async_t* pWorkerAsync;
+  // uv_async_t* pWorkerAsync;
   queue       queue;
   int         ref;
   int         persist;  // persist connection or not
@@ -32,6 +32,8 @@ typedef struct SSrvConn {
   void*       ahandle;     //
   void*       hostThrd;
   void*       pSrvMsg;
+
+  struct sockaddr_in addr;
 
   // SRpcMsg sendMsg;
   // del later
@@ -50,11 +52,12 @@ typedef struct SSrvMsg {
 } SSrvMsg;
 
 typedef struct SWorkThrdObj {
-  pthread_t       thread;
-  uv_pipe_t*      pipe;
-  int             fd;
-  uv_loop_t*      loop;
-  uv_async_t*     workerAsync;  //
+  pthread_t   thread;
+  uv_pipe_t*  pipe;
+  int         fd;
+  uv_loop_t*  loop;
+  SAsyncPool* asyncPool;
+  // uv_async_t*     workerAsync;  //
   queue           msg;
   pthread_mutex_t msgMtx;
   void*           pTransInst;
@@ -233,14 +236,6 @@ static void uvHandleReq(SSrvConn* pConn) {
   assert(transIsReq(pHead->msgType));
 
   SRpcInfo* pRpc = (SRpcInfo*)p->shandle;
-  // auth here
-  // auth should not do in rpc thread
-
-  // int8_t code = uvAuthMsg(pConn, (char*)pHead, p->msgLen);
-  // if (code != 0) {
-  //  terrno = code;
-  //  return;
-  //}
   pHead->code = htonl(pHead->code);
 
   int32_t dlen = 0;
@@ -263,6 +258,8 @@ static void uvHandleReq(SSrvConn* pConn) {
 
   transClearBuffer(&pConn->readBuf);
   pConn->ref++;
+  tDebug("%p %s received from %s:%d", pConn, TMSG_INFO(rpcMsg.msgType), inet_ntoa(pConn->addr.sin_addr),
+         ntohs(pConn->addr.sin_port));
   (*(pRpc->cfp))(pRpc->parent, &rpcMsg, NULL);
   // uv_timer_start(pConn->pTimer, uvHandleActivityTimeout, pRpc->idleTime * 10000, 0);
   // auth
@@ -275,12 +272,12 @@ void uvOnReadCb(uv_stream_t* cli, ssize_t nread, const uv_buf_t* buf) {
   SConnBuffer* pBuf = &conn->readBuf;
   if (nread > 0) {
     pBuf->len += nread;
-    tDebug("conn %p read summroy, total read: %d, current read: %d", conn, pBuf->len, (int)nread);
+    tTrace("conn %p read summary, total read: %d, current read: %d", conn, pBuf->len, (int)nread);
     if (readComplete(pBuf)) {
-      tDebug("conn %p alread read complete packet", conn);
+      tTrace("conn %p alread read complete packet", conn);
       uvHandleReq(conn);
     } else {
-      tDebug("conn %p read partial packet, continue to read", conn);
+      tTrace("conn %p read partial packet, continue to read", conn);
     }
     return;
   }
@@ -334,7 +331,8 @@ static void uvOnPipeWriteCb(uv_write_t* req, int status) {
 static void uvPrepareSendData(SSrvMsg* smsg, uv_buf_t* wb) {
   // impl later;
   tDebug("conn %p prepare to send resp", smsg->pConn);
-  SRpcMsg* pMsg = &smsg->msg;
+  SRpcMsg*  pMsg = &smsg->msg;
+  SSrvConn* pConn = smsg->pConn;
   if (pMsg->pCont == 0) {
     pMsg->pCont = (void*)rpcMallocCont(0);
     pMsg->contLen = 0;
@@ -347,6 +345,9 @@ static void uvPrepareSendData(SSrvMsg* smsg, uv_buf_t* wb) {
   if (transCompressMsg(msg, len, NULL)) {
     // impl later
   }
+  tDebug("%p start to send %s to %s:%d", pConn, TMSG_INFO(pHead->msgType), inet_ntoa(pConn->addr.sin_addr),
+         ntohs(pConn->addr.sin_port));
+
   pHead->msgLen = htonl(len);
   wb->base = msg;
   wb->len = len;
@@ -375,13 +376,15 @@ static void destroySmsg(SSrvMsg* smsg) {
   free(smsg);
 }
 void uvWorkerAsyncCb(uv_async_t* handle) {
-  SWorkThrdObj* pThrd = handle->data;
+  SAsyncItem*   item = handle->data;
+  SWorkThrdObj* pThrd = item->pThrd;
   SSrvConn*     conn = NULL;
   queue         wq;
   // batch process to avoid to lock/unlock frequently
-  pthread_mutex_lock(&pThrd->msgMtx);
-  QUEUE_MOVE(&pThrd->msg, &wq);
-  pthread_mutex_unlock(&pThrd->msgMtx);
+  pthread_mutex_lock(&item->mtx);
+  QUEUE_MOVE(&item->qmsg, &wq);
+  pthread_mutex_unlock(&item->mtx);
+  // pthread_mutex_unlock(&mtx);
 
   while (!QUEUE_IS_EMPTY(&wq)) {
     queue* head = QUEUE_HEAD(&wq);
@@ -469,7 +472,7 @@ void uvOnConnectionCb(uv_stream_t* q, ssize_t nread, const uv_buf_t* buf) {
   pConn->pTimer->data = pConn;
 
   pConn->hostThrd = pThrd;
-  pConn->pWorkerAsync = pThrd->workerAsync;  // thread safty
+  // pConn->pWorkerAsync = pThrd->workerAsync;  // thread safty
 
   // init client handle
   pConn->pTcp = (uv_tcp_t*)malloc(sizeof(uv_tcp_t));
@@ -484,7 +487,13 @@ void uvOnConnectionCb(uv_stream_t* q, ssize_t nread, const uv_buf_t* buf) {
     uv_os_fd_t fd;
     uv_fileno((const uv_handle_t*)pConn->pTcp, &fd);
     tDebug("conn %p created, fd: %d", pConn, fd);
-    uv_read_start((uv_stream_t*)(pConn->pTcp), uvAllocReadBufferCb, uvOnReadCb);
+    int addrlen = sizeof(pConn->addr);
+    if (0 != uv_tcp_getpeername(pConn->pTcp, (struct sockaddr*)&pConn->addr, &addrlen)) {
+      tError("failed to get peer name");
+      destroyConn(pConn, true);
+    } else {
+      uv_read_start((uv_stream_t*)(pConn->pTcp), uvAllocReadBufferCb, uvOnReadCb);
+    }
   } else {
     tDebug("failed to create new connection");
     destroyConn(pConn, true);
@@ -493,6 +502,7 @@ void uvOnConnectionCb(uv_stream_t* q, ssize_t nread, const uv_buf_t* buf) {
 
 void* acceptThread(void* arg) {
   // opt
+  setThreadName("trans-accept");
   SServerObj* srv = (SServerObj*)arg;
   uv_run(srv->loop, UV_RUN_DEFAULT);
 }
@@ -512,10 +522,7 @@ static bool addHandleToWorkloop(void* arg) {
   QUEUE_INIT(&pThrd->msg);
   pthread_mutex_init(&pThrd->msgMtx, NULL);
 
-  pThrd->workerAsync = malloc(sizeof(uv_async_t));
-  uv_async_init(pThrd->loop, pThrd->workerAsync, uvWorkerAsyncCb);
-  pThrd->workerAsync->data = pThrd;
-
+  pThrd->asyncPool = transCreateAsyncPool(pThrd->loop, pThrd, uvWorkerAsyncCb);
   uv_read_start((uv_stream_t*)pThrd->pipe, uvAllocConnBufferCb, uvOnConnectionCb);
   return true;
 }
@@ -541,13 +548,14 @@ static bool addHandleToAcceptloop(void* arg) {
     tError("failed to bind: %s", uv_err_name(err));
     return false;
   }
-  if ((err = uv_listen((uv_stream_t*)&srv->server, 128, uvOnAcceptCb)) != 0) {
+  if ((err = uv_listen((uv_stream_t*)&srv->server, 512, uvOnAcceptCb)) != 0) {
     tError("failed to listen: %s", uv_err_name(err));
     return false;
   }
   return true;
 }
 void* workerThread(void* arg) {
+  setThreadName("trans-worker");
   SWorkThrdObj* pThrd = (SWorkThrdObj*)arg;
   uv_run(pThrd->loop, UV_RUN_DEFAULT);
 }
@@ -665,18 +673,21 @@ void destroyWorkThrd(SWorkThrdObj* pThrd) {
   }
   pthread_join(pThrd->thread, NULL);
   free(pThrd->loop);
-  free(pThrd->workerAsync);
+  transDestroyAsyncPool(pThrd->asyncPool);
+
+  // free(pThrd->workerAsync);
   free(pThrd);
 }
 void sendQuitToWorkThrd(SWorkThrdObj* pThrd) {
   SSrvMsg* srvMsg = calloc(1, sizeof(SSrvMsg));
 
-  pthread_mutex_lock(&pThrd->msgMtx);
-  QUEUE_PUSH(&pThrd->msg, &srvMsg->q);
-  pthread_mutex_unlock(&pThrd->msgMtx);
+  // pthread_mutex_lock(&pThrd->msgMtx);
+  // QUEUE_PUSH(&pThrd->msg, &srvMsg->q);
+  // pthread_mutex_unlock(&pThrd->msgMtx);
   tDebug("send quit msg to work thread");
 
-  uv_async_send(pThrd->workerAsync);
+  transSendAsync(pThrd->asyncPool, &srvMsg->q);
+  // uv_async_send(pThrd->workerAsync);
 }
 
 void taosCloseServer(void* arg) {
@@ -704,6 +715,9 @@ void taosCloseServer(void* arg) {
 }
 
 void rpcSendResponse(const SRpcMsg* pMsg) {
+  if (pMsg->handle == NULL) {
+    return;
+  }
   SSrvConn*     pConn = pMsg->handle;
   SWorkThrdObj* pThrd = pConn->hostThrd;
 
@@ -711,13 +725,25 @@ void rpcSendResponse(const SRpcMsg* pMsg) {
   srvMsg->pConn = pConn;
   srvMsg->msg = *pMsg;
 
-  pthread_mutex_lock(&pThrd->msgMtx);
-  QUEUE_PUSH(&pThrd->msg, &srvMsg->q);
-  pthread_mutex_unlock(&pThrd->msgMtx);
+  // pthread_mutex_lock(&pThrd->msgMtx);
+  // QUEUE_PUSH(&pThrd->msg, &srvMsg->q);
+  // pthread_mutex_unlock(&pThrd->msgMtx);
 
-  tDebug("conn %p start to send resp", pConn);
+  tTrace("conn %p start to send resp", pConn);
+  transSendAsync(pThrd->asyncPool, &srvMsg->q);
+  // uv_async_send(pThrd->workerAsync);
+}
 
-  uv_async_send(pThrd->workerAsync);
+int rpcGetConnInfo(void* thandle, SRpcConnInfo* pInfo) {
+  SSrvConn* pConn = thandle;
+  // struct sockaddr* pPeerName = &pConn->peername;
+
+  struct sockaddr_in addr = pConn->addr;
+  pInfo->clientIp = (uint32_t)(addr.sin_addr.s_addr);
+  pInfo->clientPort = ntohs(addr.sin_port);
+
+  tstrncpy(pInfo->user, pConn->user, sizeof(pInfo->user));
+  return 0;
 }
 
 #endif

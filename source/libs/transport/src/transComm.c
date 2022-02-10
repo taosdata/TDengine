@@ -245,4 +245,58 @@ int transDestroyBuffer(SConnBuffer* buf) {
   }
   transClearBuffer(buf);
 }
+
+SAsyncPool* transCreateAsyncPool(uv_loop_t* loop, void* arg, AsyncCB cb) {
+  static int sz = 10;
+
+  SAsyncPool* pool = calloc(1, sizeof(SAsyncPool));
+  pool->index = 0;
+  pool->nAsync = sz;
+  pool->asyncs = calloc(1, sizeof(uv_async_t) * pool->nAsync);
+
+  for (int i = 0; i < pool->nAsync; i++) {
+    uv_async_t* async = &(pool->asyncs[i]);
+    uv_async_init(loop, async, cb);
+
+    SAsyncItem* item = calloc(1, sizeof(SAsyncItem));
+    item->pThrd = arg;
+    QUEUE_INIT(&item->qmsg);
+    pthread_mutex_init(&item->mtx, NULL);
+
+    async->data = item;
+  }
+  return pool;
+}
+void transDestroyAsyncPool(SAsyncPool* pool) {
+  for (int i = 0; i < pool->nAsync; i++) {
+    uv_async_t* async = &(pool->asyncs[i]);
+
+    SAsyncItem* item = async->data;
+    pthread_mutex_destroy(&item->mtx);
+    free(item);
+  }
+  free(pool->asyncs);
+  free(pool);
+}
+int transSendAsync(SAsyncPool* pool, queue* q) {
+  int idx = pool->index;
+  idx = idx % pool->nAsync;
+  // no need mutex here
+  if (pool->index++ > pool->nAsync) {
+    pool->index = 0;
+  }
+  uv_async_t* async = &(pool->asyncs[idx]);
+  SAsyncItem* item = async->data;
+
+  int64_t st = taosGetTimestampUs();
+  pthread_mutex_lock(&item->mtx);
+  QUEUE_PUSH(&item->qmsg, q);
+  pthread_mutex_unlock(&item->mtx);
+  int64_t el = taosGetTimestampUs() - st;
+  if (el > 50) {
+    // tInfo("lock and unlock cost: %d", (int)el);
+  }
+
+  return uv_async_send(async);
+}
 #endif

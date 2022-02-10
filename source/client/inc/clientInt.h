@@ -242,7 +242,7 @@ int  hbHandleRsp(SClientHbBatchRsp* hbRsp);
 
 // cluster level
 SAppHbMgr* appHbMgrInit(SAppInstInfo* pAppInstInfo, char *key);
-void appHbMgrCleanup(SAppHbMgr* pAppHbMgr);
+void appHbMgrCleanup(void);
 
 // conn level
 int  hbRegisterConn(SAppHbMgr* pAppHbMgr, int32_t connId, int64_t clusterId, int32_t hbType);

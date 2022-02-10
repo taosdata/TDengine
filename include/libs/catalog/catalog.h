@@ -32,6 +32,15 @@ extern "C" {
 
 struct SCatalog;
 
+enum {
+  CTG_DBG_DB_NUM = 1,
+  CTG_DBG_META_NUM,
+  CTG_DBG_STB_NUM,
+  CTG_DBG_DB_RENT_NUM,
+  CTG_DBG_STB_RENT_NUM,
+};
+
+
 typedef struct SCatalogReq {
   SArray *pTableName;     // element is SNAME
   SArray *pUdf;           // udf name
@@ -49,17 +58,19 @@ typedef struct SCatalogCfg {
   uint32_t maxTblCacheNum;
   uint32_t maxDBCacheNum;
   uint32_t dbRentSec;
-  uint32_t stableRentSec;
+  uint32_t stbRentSec;
 } SCatalogCfg;
 
 typedef struct SSTableMetaVersion {
+  char     dbFName[TSDB_DB_FNAME_LEN];
+  char     stbName[TSDB_TABLE_NAME_LEN];
   uint64_t suid;
   int16_t  sversion;
   int16_t  tversion;  
 } SSTableMetaVersion;
 
 typedef struct SDbVgVersion {
-  char    dbName[TSDB_DB_FNAME_LEN];
+  char    dbFName[TSDB_DB_FNAME_LEN];
   int64_t dbId;
   int32_t vgVersion;
 } SDbVgVersion;
@@ -97,9 +108,11 @@ int32_t catalogGetDBVgroupVersion(struct SCatalog* pCatalog, const char* dbName,
  */
 int32_t catalogGetDBVgroup(struct SCatalog* pCatalog, void *pTransporter, const SEpSet* pMgmtEps, const char* pDBName, bool forceUpdate, SArray** pVgroupList);
 
-int32_t catalogUpdateDBVgroup(struct SCatalog* pCatalog, const char* dbName, SDBVgroupInfo* dbInfo);
+int32_t catalogUpdateDBVgroup(struct SCatalog* pCatalog, const char* dbName, uint64_t dbId, SDBVgroupInfo* dbInfo);
 
-int32_t catalogRemoveDBVgroup(struct SCatalog* pCatalog, SDbVgVersion* dbInfo);
+int32_t catalogRemoveDB(struct SCatalog* pCatalog, const char* dbName, uint64_t dbId);
+
+int32_t catalogRemoveSTableMeta(struct SCatalog* pCatalog, const char* dbName, const char* stbName, uint64_t suid);
 
 /**
  * Get a table's meta data. 
@@ -122,6 +135,8 @@ int32_t catalogGetTableMeta(struct SCatalog* pCatalog, void * pTransporter, cons
  * @return error code
  */
 int32_t catalogGetSTableMeta(struct SCatalog* pCatalog, void * pTransporter, const SEpSet* pMgmtEps, const SName* pTableName, STableMeta** pTableMeta);
+
+int32_t catalogUpdateSTableMeta(struct SCatalog* pCatalog, STableMetaRsp *rspMsg);
 
 
 /**

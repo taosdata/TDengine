@@ -15,6 +15,7 @@
 #include <gtest/gtest.h>
 #include <cstdio>
 #include <cstring>
+#include "tep.h"
 #include "trpc.h"
 using namespace std;
 
@@ -50,6 +51,25 @@ class TransObj {
     trans = rpcOpen(&rpcInit);
     return trans != NULL ? true : false;
   }
+
+  bool sendAndRecv() {
+    SEpSet epSet = {0};
+    epSet.inUse = 0;
+    addEpIntoEpSet(&epSet, "192.168.1.1", 7000);
+    addEpIntoEpSet(&epSet, "192.168.0.1", 7000);
+
+    if (trans == NULL) {
+      return false;
+    }
+    SRpcMsg rpcMsg = {0}, reqMsg = {0};
+    reqMsg.pCont = rpcMallocCont(10);
+    reqMsg.contLen = 10;
+    reqMsg.ahandle = NULL;
+    rpcSendRecv(trans, &epSet, &reqMsg, &rpcMsg);
+    int code = rpcMsg.code;
+    std::cout << tstrerror(code) << std::endl;
+    return true;
+  }
   bool stop() {
     rpcClose(trans);
     trans = NULL;
@@ -75,6 +95,7 @@ class TransEnv : public ::testing::Test {
 };
 TEST_F(TransEnv, test_start_stop) {
   assert(tr->startCli());
+  assert(tr->sendAndRecv());
   assert(tr->stop());
 
   assert(tr->startSrv());

@@ -76,7 +76,7 @@ int processConnectRsp(void* param, const SDataBuf* pMsg, int32_t code) {
 
   pTscObj->connType = HEARTBEAT_TYPE_QUERY;
 
-  /*hbRegisterConn(pTscObj->pAppInfo->pAppHbMgr, pConnect->connId, pConnect->clusterId, HEARTBEAT_TYPE_QUERY);*/
+  hbRegisterConn(pTscObj->pAppInfo->pAppHbMgr, pConnect->connId, pConnect->clusterId, HEARTBEAT_TYPE_QUERY);
 
   //  pRequest->body.resInfo.pRspMsg = pMsg->pData;
   tscDebug("0x%" PRIx64 " clusterId:%" PRId64 ", totalConn:%" PRId64, pRequest->requestId, pConnect->clusterId,
@@ -201,6 +201,7 @@ int32_t processRetrieveMnodeRsp(void* param, const SDataBuf* pMsg, int32_t code)
   pResInfo->pRspMsg   = pMsg->pData;
   pResInfo->numOfRows = pRetrieve->numOfRows;
   pResInfo->pData     = pRetrieve->data;
+  pResInfo->completed = pRetrieve->completed;
 
   pResInfo->current = 0;
   setResultDataPtr(pResInfo, pResInfo->fields, pResInfo->numOfCols, pResInfo->numOfRows);
@@ -301,15 +302,12 @@ int32_t processDropDbRsp(void* param, const SDataBuf* pMsg, int32_t code) {
 
   SDropDbRsp *rsp = (SDropDbRsp *)pMsg->pData;
 
-  SDbVgVersion dbVer = {0};
   struct SCatalog *pCatalog = NULL;
-  
-  strncpy(dbVer.dbName, rsp->db, sizeof(dbVer.dbName));
-  dbVer.dbId = be64toh(rsp->uid);
+  rsp->uid = be64toh(rsp->uid);
 
   catalogGetHandle(pRequest->pTscObj->pAppInfo->clusterId, &pCatalog);
   
-  catalogRemoveDBVgroup(pCatalog, &dbVer);
+  catalogRemoveDB(pCatalog, rsp->db, rsp->uid);
 
   tsem_post(&pRequest->body.rspSem);
   return code;

@@ -111,15 +111,15 @@ typedef enum _mgmt_table {
   TSDB_MGMT_TABLE_MAX,
 } EShowType;
 
-#define TSDB_ALTER_TABLE_ADD_TAG_COLUMN 1
-#define TSDB_ALTER_TABLE_DROP_TAG_COLUMN 2
-#define TSDB_ALTER_TABLE_CHANGE_TAG_COLUMN 3
+#define TSDB_ALTER_TABLE_ADD_TAG 1
+#define TSDB_ALTER_TABLE_DROP_TAG 2
+#define TSDB_ALTER_TABLE_UPDATE_TAG_NAME 3
 #define TSDB_ALTER_TABLE_UPDATE_TAG_VAL 4
 
 #define TSDB_ALTER_TABLE_ADD_COLUMN 5
 #define TSDB_ALTER_TABLE_DROP_COLUMN 6
-#define TSDB_ALTER_TABLE_CHANGE_COLUMN 7
-#define TSDB_ALTER_TABLE_MODIFY_TAG_COLUMN 8
+#define TSDB_ALTER_TABLE_UPDATE_COLUMN_BYTES 7
+#define TSDB_ALTER_TABLE_UPDATE_TAG_BYTES 8
 
 #define TSDB_FILL_NONE 0
 #define TSDB_FILL_NULL 1
@@ -147,16 +147,27 @@ typedef enum _mgmt_table {
 #define TSDB_COL_IS_NORMAL_COL(f) ((f & (~(TSDB_COL_NULL))) == TSDB_COL_NORMAL)
 #define TSDB_COL_IS_UD_COL(f) ((f & (~(TSDB_COL_NULL))) == TSDB_COL_UDC)
 #define TSDB_COL_REQ_NULL(f) (((f)&TSDB_COL_NULL) != 0)
+
+#define TD_SUPER_TABLE TSDB_SUPER_TABLE
+#define TD_CHILD_TABLE TSDB_CHILD_TABLE
+#define TD_NORMAL_TABLE TSDB_NORMAL_TABLE
+
 typedef struct {
   int32_t vgId;
-  char*   dbName;
-  char*   tableFullName;
+  char*   dbFName;
+  char*   tbName;
 } SBuildTableMetaInput;
 
 typedef struct {
   char    db[TSDB_DB_FNAME_LEN];
   int32_t vgVersion;
 } SBuildUseDBInput;
+
+typedef struct SField {
+  char    name[TSDB_COL_NAME_LEN];
+  uint8_t type;
+  int32_t bytes;
+} SField;
 
 #pragma pack(push, 1)
 
@@ -247,21 +258,32 @@ typedef struct SSchema {
 typedef struct {
   char    name[TSDB_TABLE_FNAME_LEN];
   int8_t  igExists;
-  int32_t numOfTags;
   int32_t numOfColumns;
-  SSchema pSchema[];
+  int32_t numOfTags;
+  SArray* pColumns;
+  SArray* pTags;
 } SMCreateStbReq;
+
+int32_t tSerializeSMCreateStbReq(void** buf, SMCreateStbReq* pReq);
+void*   tDeserializeSMCreateStbReq(void* buf, SMCreateStbReq* pReq);
 
 typedef struct {
   char   name[TSDB_TABLE_FNAME_LEN];
   int8_t igNotExists;
 } SMDropStbReq;
 
+int32_t tSerializeSMDropStbReq(void** buf, SMDropStbReq* pReq);
+void*   tDeserializeSMDropStbReq(void* buf, SMDropStbReq* pReq);
+
 typedef struct {
   char    name[TSDB_TABLE_FNAME_LEN];
   int8_t  alterType;
-  SSchema schema;
-} SMAlterStbReq;
+  int32_t numOfFields;
+  SArray* pFields;
+} SMAltertbReq;
+
+int32_t tSerializeSMAlterStbReq(void** buf, SMAltertbReq* pReq);
+void*   tDeserializeSMAlterStbReq(void* buf, SMAltertbReq* pReq);
 
 typedef struct {
   int32_t pid;
@@ -691,8 +713,8 @@ typedef struct {
 
 typedef struct {
   SMsgHead header;
-  char     dbFname[TSDB_DB_FNAME_LEN];
-  char     tableFname[TSDB_TABLE_FNAME_LEN];
+  char     dbFName[TSDB_DB_FNAME_LEN];
+  char     tbName[TSDB_TABLE_NAME_LEN];
 } STableInfoReq;
 
 typedef struct {
@@ -717,9 +739,10 @@ typedef struct {
 } SVgroupsInfo;
 
 typedef struct {
-  char     tbFname[TSDB_TABLE_FNAME_LEN];  // table full name
-  char     stbFname[TSDB_TABLE_FNAME_LEN];
-  char     dbFname[TSDB_DB_FNAME_LEN];
+  char     tbName[TSDB_TABLE_NAME_LEN];
+  char     stbName[TSDB_TABLE_NAME_LEN];
+  char     dbFName[TSDB_DB_FNAME_LEN];
+  uint64_t dbId;
   int32_t  numOfTags;
   int32_t  numOfColumns;
   int8_t   precision;
@@ -1158,10 +1181,7 @@ typedef struct SVCreateTbReq {
   char*    name;
   uint32_t ttl;
   uint32_t keep;
-#define TD_SUPER_TABLE TSDB_SUPER_TABLE
-#define TD_CHILD_TABLE TSDB_CHILD_TABLE
-#define TD_NORMAL_TABLE TSDB_NORMAL_TABLE
-  uint8_t type;
+  uint8_t  type;
   union {
     struct {
       tb_uid_t suid;
@@ -1179,41 +1199,43 @@ typedef struct SVCreateTbReq {
       SSchema* pSchema;
     } ntbCfg;
   };
-} SVCreateTbReq;
+} SVCreateTbReq, SVUpdateTbReq;
+
+typedef struct {
+} SVCreateTbRsp, SVUpdateTbRsp;
+
+int32_t tSerializeSVCreateTbReq(void** buf, SVCreateTbReq* pReq);
+void*   tDeserializeSVCreateTbReq(void* buf, SVCreateTbReq* pReq);
+int32_t tSerializeSVCreateTbRsp(void** buf, SVCreateTbRsp* pRsp);
+void*   tDeserializeSVCreateTbRsp(void* buf, SVCreateTbRsp* pRsp);
 
 typedef struct {
   uint64_t ver;  // use a general definition
   SArray*  pArray;
 } SVCreateTbBatchReq;
 
-int   tSerializeSVCreateTbReq(void** buf, SVCreateTbReq* pReq);
-void* tDeserializeSVCreateTbReq(void* buf, SVCreateTbReq* pReq);
-int   tSVCreateTbBatchReqSerialize(void** buf, SVCreateTbBatchReq* pReq);
-void* tSVCreateTbBatchReqDeserialize(void* buf, SVCreateTbBatchReq* pReq);
+typedef struct {
+} SVCreateTbBatchRsp;
+
+int32_t tSerializeSVCreateTbBatchReq(void** buf, SVCreateTbBatchReq* pReq);
+void*   tDeserializeSVCreateTbBatchReq(void* buf, SVCreateTbBatchReq* pReq);
+int32_t tSerializeSVCreateTbBatchRsp(void** buf, SVCreateTbBatchRsp* pRsp);
+void*   tDeserializeSVCreateTbBatchRsp(void* buf, SVCreateTbBatchRsp* pRsp);
 
 typedef struct {
-  SMsgHead head;
-} SVCreateTbRsp;
-
-typedef struct {
-  SMsgHead head;
-  char     name[TSDB_TABLE_FNAME_LEN];
-  int8_t   ignoreNotExists;
-} SVAlterTbReq;
-
-typedef struct {
-  SMsgHead head;
-} SVAlterTbRsp;
-
-typedef struct {
-  SMsgHead head;
-  char     name[TSDB_TABLE_FNAME_LEN];
-  int64_t  suid;
+  uint64_t ver;
+  char*    name;
+  uint8_t  type;
+  tb_uid_t suid;
 } SVDropTbReq;
 
 typedef struct {
-  SMsgHead head;
 } SVDropTbRsp;
+
+int32_t tSerializeSVDropTbReq(void** buf, SVDropTbReq* pReq);
+void*   tDeserializeSVDropTbReq(void* buf, SVDropTbReq* pReq);
+int32_t tSerializeSVDropTbRsp(void** buf, SVDropTbRsp* pRsp);
+void*   tDeserializeSVDropTbRsp(void* buf, SVDropTbRsp* pRsp);
 
 typedef struct {
   SMsgHead head;
