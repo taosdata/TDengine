@@ -28,9 +28,6 @@ void    mndCleanupSubscribe(SMnode *pMnode);
 SMqSubscribeObj *mndAcquireSubscribe(SMnode *pMnode, char *CGroup, char *topicName);
 void             mndReleaseSubscribe(SMnode *pMnode, SMqSubscribeObj *pSub);
 
-SSdbRaw *mndSubscribeActionEncode(SMqSubscribeObj *pSub);
-SSdbRow *mndSubscribeActionDecode(SSdbRaw *pRaw);
-
 #ifdef __cplusplus
 }
 #endif
