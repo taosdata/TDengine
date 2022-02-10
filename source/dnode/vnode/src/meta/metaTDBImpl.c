@@ -31,16 +31,50 @@ struct SMetaDB {
   } tagIdxHt;
 };
 
+#define A(op, flag)                 \
+  do {                              \
+    if ((ret = op) != 0) goto flag; \
+  } while (0)
+
 int metaOpenDB(SMeta *pMeta) {
   SMetaDB *pDb;
+  TENV *   pEnv;
+  TDB *    pTbDB;
+  TDB *    pSchemaDB;
+  TDB *    pNameIdx;
+  TDB *    pStbIdx;
+  TDB *    pNtbIdx;
+  TDB *    pCtbIdx;
+  int      ret;
 
   pDb = (SMetaDB *)calloc(1, sizeof(*pDb));
   if (pDb == NULL) {
     return -1;
   }
 
+  // Create and open the ENV
+  A((tdbEnvCreate(&pEnv)), _err);
+  A((tdbEnvOpen(&pEnv)), _err);
+
+  // Create and open each DB
+  A(tdbCreate(&pTbDB), _err);
+  A(tdbOpen(&pTbDB, "table.db", NULL, pEnv), _err);
+
+  A(tdbCreate(&pSchemaDB), _err);
+  A(tdbOpen(&pSchemaDB, "schema.db", NULL, pEnv), _err);
+
+  A(tdbCreate(&pNameIdx), _err);
+  A(tdbOpen(&pNameIdx, "name.db", NULL, pEnv), _err);
+  // tdbAssociate();
+
+  pDb->pEnv = pEnv;
+  pDb->pTbDB = pTbDB;
+  pDb->pSchemaDB = pSchemaDB;
   pMeta->pDB = pDb;
   return 0;
+
+_err:
+  return -1;
 }
 
 void metaCloseDB(SMeta *pMeta) {
