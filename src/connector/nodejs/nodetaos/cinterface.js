@@ -340,6 +340,49 @@ function CTaosInterface(config = null, pass = false) {
     // 'taos_schemaless_insert': [ref.types.void_ptr, [ref.types.void_ptr, ref.types.char_ptr, ref.types.int, ref.types.int, ref.types.int]]
     'taos_schemaless_insert': [ref.types.void_ptr, [ref.types.void_ptr, smlLine, 'int', 'int', 'int']]
 
+    //stmt APIs
+    // TAOS_STMT* taos_stmt_init(TAOS *taos)
+    , 'taos_stmt_init': [ref.types.void_ptr, [ref.types.void_ptr]]
+
+    // int taos_stmt_prepare(TAOS_STMT *stmt, const char *sql, unsigned long length)
+    , 'taos_stmt_prepare': [ref.types.int, [ref.types.void_ptr, ref.types.char_ptr, ref.types.ulong]]
+
+    // int taos_stmt_set_tbname(TAOS_STMT* stmt, const char* name)
+    , 'taos_stmt_set_tbname': [ref.types.int, [ref.types.void_ptr, ref.types.char_ptr]]
+
+    // int taos_stmt_set_tbname_tags(TAOS_STMT* stmt, const char* name, TAOS_BIND* tags)
+    , 'taos_stmt_set_tbname_tags': [ref.types.int, [ref.types.void_ptr, ref.types.char_ptr, ref.types.void_ptr]]
+
+    // int taos_stmt_set_sub_tbname(TAOS_STMT* stmt, const char* name)
+    , 'taos_stmt_set_sub_tbname': [ref.types.int, [ref.types.void_ptr, ref.types.char_ptr]]
+
+    // int taos_stmt_bind_param(TAOS_STMT *stmt, TAOS_BIND *bind)
+    // , 'taos_stmt_bind_param': [ref.types.int, [ref.types.void_ptr, ref.refType(TAOS_BIND)]]
+    , 'taos_stmt_bind_param': [ref.types.int, [ref.types.void_ptr, ref.types.void_ptr]]
+
+
+    // int taos_stmt_bind_single_param_batch(TAOS_STMT* stmt, TAOS_MULTI_BIND* bind, int colIdx)  
+    , 'taos_stmt_bind_single_param_batch': [ref.types.int, [ref.types.void_ptr, ref.types.void_ptr, ref.types.int]]
+    // int taos_stmt_bind_param_batch(TAOS_STMT* stmt, TAOS_MULTI_BIND* bind) 
+    , 'taos_stmt_bind_param_batch': [ref.types.int, [ref.types.void_ptr, ref.types.void_ptr]]
+
+    // int taos_stmt_add_batch(TAOS_STMT *stmt)
+    , 'taos_stmt_add_batch': [ref.types.int, [ref.types.void_ptr]]
+
+    // int taos_stmt_execute(TAOS_STMT *stmt) 
+    , 'taos_stmt_execute': [ref.types.int, [ref.types.void_ptr]]
+
+    // TAOS_RES* taos_stmt_use_result(TAOS_STMT *stmt)  
+    , 'taos_stmt_use_result': [ref.types.int, [ref.types.void_ptr]]
+
+    // int taos_stmt_close(TAOS_STMT *stmt) 
+    , 'taos_stmt_close': [ref.types.int, [ref.types.void_ptr]]
+
+    // char * taos_stmt_errstr(TAOS_STMT *stmt)
+    , 'taos_stmt_errstr': [ref.types.char_ptr, [ref.types.void_ptr]]
+
+    // int taos_load_table_info(TAOS *taos, const char* tableNameList)
+    , 'taos_load_table_info': [ref.types.int, [ref.types.void_ptr, ref.types.char_ptr]]
   });
 
   if (pass == false) {
@@ -753,4 +796,162 @@ CTaosInterface.prototype.schemalessInsert = function schemalessInsert(connection
     throw new errors.InterfaceError("Unsupport lines input")
   }
   return this.libtaos.taos_schemaless_insert(connection, _lines, _numLines, protocal, precision);
+}
+
+//stmt APIs
+
+/**
+ * init a TAOS_STMT object for later use.it should be freed with stmtClose.
+ * @param {*} connection valid taos connection 
+ * @returns  Not NULL returned for success, and NULL for failure. 
+ * 
+ */
+CTaosInterface.prototype.stmtInit = function stmtInit(connection) {
+  return this.libtaos.taos_stmt_init(connection)
+}
+
+/**
+ * prepare a sql statement,'sql' should be a valid INSERT/SELECT statement, 'length' is not used.
+ * @param {*} stmt 
+ * @param {string} sql  a valid INSERT/SELECT statement
+ * @param {ulong} length not used
+ * @returns 	0 for success, non-zero for failure.
+ */
+CTaosInterface.prototype.stmtPrepare = function stmtPrepare(stmt, sql, length) {
+  return this.libtaos.taos_stmt_prepare(stmt, ref.allocCString(sql), 0);
+}
+
+/**
+ * For INSERT only. Used to bind table name as a parmeter for the input stmt object.
+ * @param {*} stmt could be the value returned by 'stmtInit', 
+ *            that may be a valid object or NULL.
+ * @param {TaosBind} tableName target table name you want to  bind
+ * @returns 0 for success, non-zero for failure.
+ */
+CTaosInterface.prototype.stmtSetTbname = function stmtSetTbname(stmt, tableName) {
+  return this.libtaos.taos_stmt_set_tbname(stmt, ref.allocCString(tableName));
+}
+
+/**
+ * For INSERT only. 
+ * Set a table name for binding table name as parameter and tag values for all  tag parameters. 
+ * @param {*} stmt could be the value returned by 'stmtInit', that may be a valid object or NULL.
+ * @param {*} tableName use to set target table name
+ * @param {TaosMultiBind} tags use to set tag value for target table. 
+ * @returns 
+ */
+CTaosInterface.prototype.stmtSetTbnameTags = function stmtSetTbnameTags(stmt, tableName, tags) {
+  return this.libtaos.taos_stmt_set_tbname_tags(stmt, ref.allocCString(tableName), tags);
+}
+
+/**
+ * For INSERT only. 
+ * Set a table name for binding table name as parameter. Only used for binding all tables
+ * in one stable, user application must call 'loadTableInfo' API to load all table
+ * meta before calling this API. If the table meta is not cached locally, it will return error.
+ * @param {*} stmt could be the value returned by 'StmtInit', that may be a valid object or NULL.
+ * @param {*} subTableName table name which is belong to an stable
+ * @returns 0 for success, non-zero for failure.
+ */
+CTaosInterface.prototype.stmtSetSubTbname = function stmtSetSubTbname(stmt, subTableName) {
+  return this.libtaos.taos_stmt_set_sub_tbname(stmt, subTableName);
+}
+
+/**
+ * bind a whole line data, for both INSERT and SELECT. The parameter 'bind' points to an array 
+ * contains the whole line data. Each item in array represents a column's value, the item 
+ * number and sequence should keep consistence with columns in sql statement. The usage of 
+ * structure TAOS_BIND is the same with MYSQL_BIND in MySQL.
+ * @param {*} stmt could be the value returned by 'stmtInit', that may be a valid object or NULL.
+ * @param {*} binds points to an array contains the whole line data.
+ * @returns 	0 for success, non-zero for failure.
+ */
+CTaosInterface.prototype.bindParam = function bindParam(stmt, binds) {
+  return this.libtaos.taos_stmt_bind_param(stmt, binds);
+}
+
+/**
+ * Bind a single column's data, INTERNAL used and for INSERT only. 
+ * @param {*} stmt could be the value returned by 'stmtInit', that may be a valid object or NULL.
+ * @param {TaosMultiBind} mbind points to a column's data which could be the one or more lines. 
+ * @param {*} colIndex the column's index in prepared sql statement, it starts from 0.
+ * @returns 0 for success, non-zero for failure.
+ */
+CTaosInterface.prototype.stmtBindSingleParamBatch = function stmtBindSingleParamBatch(stmt, mbind, colIndex) {
+  return this.libtaos.taos_stmt_bind_single_param_batch(stmt, mbind.ref(), colIndex);
+}
+
+/**
+ * For INSERT only.
+ * Bind one or multiple lines data.
+ * @param {*} stmt could be the value returned by 'stmtInit',
+ *            that may be a valid object or NULL.
+ * @param {*} mbinds Points to an array contains one or more lines data.The item 
+ *            number and sequence should keep consistence with columns
+ *            n sql statement. 
+ * @returns  0 for success, non-zero for failure.
+ */
+CTaosInterface.prototype.stmtBindParamBatch = function stmtBindParamBatch(stmt, mbinds) {
+  return this.libtaos.taos_stmt_bind_param_batch(stmt, mbinds);
+}
+/**
+ * add all current bound parameters to batch process, for INSERT only.
+ * Must be called after each call to bindParam/bindSingleParamBatch, 
+ * or all columns binds for one or more lines with bindSingleParamBatch. User 
+ * application can call any bind parameter API again to bind more data lines after calling
+ * to this API.
+ * @param {*} stmt 
+ * @returns 	0 for success, non-zero for failure.
+ */
+CTaosInterface.prototype.addBatch = function addBatch(stmt) {
+  return this.libtaos.taos_stmt_add_batch(stmt);
+}
+/**
+ * actually execute the INSERT/SELECT sql statement. User application can continue
+ * to bind new data after calling to this API.
+ * @param {*} stmt 
+ * @returns 	0 for success, non-zero for failure.
+ */
+CTaosInterface.prototype.stmtExecute = function stmtExecute(stmt) {
+  return this.libtaos.taos_stmt_execute(stmt);
+}
+
+/**
+ * For SELECT only,getting the query result. 
+ * User application should free it with API 'FreeResult' at the end.
+ * @param {*} stmt could be the value returned by 'stmtInit', that may be a valid object or NULL.
+ * @returns Not NULL for success, NULL for failure.
+ */
+CTaosInterface.prototype.stmtUseResult = function stmtUseResult(stmt) {
+  return this.libtaos.taos_stmt_use_result(stmt);
+}
+
+/**
+ * user application call this API to load all tables meta info.
+ * This method must be called before stmtSetSubTbname(IntPtr stmt, string name);
+ * @param {*} taos taos connection
+ * @param {*} tableList tables need to load meta info are form in an array
+ * @returns 0 for success, non-zero for failure.
+ */
+CTaosInterface.prototype.loadTableInfo = function loadTableInfo(taos, tableList) {
+  return this.libtaos.taos_load_table_info(taos, tableList)
+}
+
+/**
+ * Close STMT object and free resources.
+ * @param {*} stmt could be the value returned by 'stmtInit', that may be a valid object or NULL.
+ * @returns 0 for success, non-zero for failure.
+ */
+CTaosInterface.prototype.closeStmt = function closeStmt(stmt) {
+  return this.libtaos.taos_stmt_close(stmt);
+}
+
+/**
+ * Get detail error message when got failure for any stmt API call. 
+ * If not failure, the result returned by this API is unknown.
+ * @param {*} stmt Could be the value returned by 'stmtInit', that may be a valid object or NULL.
+ * @returns error string
+ */
+CTaosInterface.prototype.stmtErrStr = function stmtErrStr(stmt) {
+  return ref.readCString(this.libtaos.taos_stmt_errstr(stmt));
 }
