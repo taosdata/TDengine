@@ -614,10 +614,11 @@ typedef struct {
 typedef struct {
   int32_t vgId;
   int8_t  role;
+  int64_t numOfTables;
+  int64_t numOfTimeSeries;
   int64_t totalStorage;
   int64_t compStorage;
   int64_t pointsWritten;
-  int64_t tablesNum;
 } SVnodeLoad;
 
 typedef struct {

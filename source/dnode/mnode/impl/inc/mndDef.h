@@ -283,8 +283,8 @@ typedef struct {
   uint32_t  hashEnd;
   char      dbName[TSDB_DB_FNAME_LEN];
   int64_t   dbUid;
-  int32_t   numOfTables;
-  int32_t   numOfTimeSeries;
+  int64_t   numOfTables;
+  int64_t   numOfTimeSeries;
   int64_t   totalStorage;
   int64_t   compStorage;
   int64_t   pointsWritten;

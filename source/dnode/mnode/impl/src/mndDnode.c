@@ -374,6 +374,27 @@ static int32_t mndProcessStatusReq(SMnodeMsg *pReq) {
     pDnode->numOfCores = statusReq.numOfCores;
     pDnode->numOfSupportVnodes = statusReq.numOfSupportVnodes;
 
+    int32_t numOfVloads = (int32_t)taosArrayGetSize(statusReq.pVloads);
+    for (int32_t v = 0; v < numOfVloads; ++v) {
+      SVnodeLoad *pVload = taosArrayGet(statusReq.pVloads, v);
+
+      SVgObj *pVgroup = mndAcquireVgroup(pMnode, pVload->vgId);
+      if (pVgroup != NULL) {
+        if (pVload->role == TAOS_SYNC_STATE_LEADER) {
+          pVgroup->numOfTables = pVload->numOfTables;
+          pVgroup->numOfTimeSeries = pVload->numOfTimeSeries;
+          pVgroup->totalStorage = pVload->totalStorage;
+          pVgroup->compStorage = pVload->compStorage;
+          pVgroup->pointsWritten = pVload->pointsWritten;
+        }
+        for (int32_t vg = 0; vg < pVgroup->replica; ++vg) {
+          pVgroup->vnodeGid[vg].role = pVload->role;
+        }
+      }
+
+      mndReleaseVgroup(pMnode, pVgroup);
+    }
+
     SStatusRsp statusRsp = {0};
     statusRsp.dver = sdbGetTableVer(pMnode->pSdb, SDB_DNODE);
     statusRsp.dnodeCfg.dnodeId = pDnode->id;

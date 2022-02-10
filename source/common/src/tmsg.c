@@ -489,10 +489,11 @@ int32_t tSerializeSStatusReq(void **buf, SStatusReq *pReq) {
     SVnodeLoad *pload = taosArrayGet(pReq->pVloads, i);
     tlen += taosEncodeFixedI32(buf, pload->vgId);
     tlen += taosEncodeFixedI8(buf, pload->role);
+    tlen += taosEncodeFixedI64(buf, pload->numOfTables);
+    tlen += taosEncodeFixedI64(buf, pload->numOfTimeSeries);
     tlen += taosEncodeFixedI64(buf, pload->totalStorage);
     tlen += taosEncodeFixedI64(buf, pload->compStorage);
     tlen += taosEncodeFixedI64(buf, pload->pointsWritten);
-    tlen += taosEncodeFixedI64(buf, pload->tablesNum);
   }
 
   return tlen;
@@ -531,10 +532,11 @@ void *tDeserializeSStatusReq(void *buf, SStatusReq *pReq) {
     SVnodeLoad vload = {0};
     buf = taosDecodeFixedI32(buf, &vload.vgId);
     buf = taosDecodeFixedI8(buf, &vload.role);
+    buf = taosDecodeFixedI64(buf, &vload.numOfTables);
+    buf = taosDecodeFixedI64(buf, &vload.numOfTimeSeries);
     buf = taosDecodeFixedI64(buf, &vload.totalStorage);
     buf = taosDecodeFixedI64(buf, &vload.compStorage);
     buf = taosDecodeFixedI64(buf, &vload.pointsWritten);
-    buf = taosDecodeFixedI64(buf, &vload.tablesNum);
     if (taosArrayPush(pReq->pVloads, &vload) == NULL) {
       terrno = TSDB_CODE_OUT_OF_MEMORY;
       return NULL;
