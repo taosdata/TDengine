@@ -53,6 +53,19 @@ int32_t mndInitConsumer(SMnode *pMnode) {
 
 void mndCleanupConsumer(SMnode *pMnode) {}
 
+SMqConsumerObj* mndCreateConsumer(int64_t consumerId, const char* cgroup) {
+  SMqConsumerObj* pConsumer = malloc(sizeof(SMqConsumerObj));
+  if (pConsumer == NULL) {
+    terrno = TSDB_CODE_OUT_OF_MEMORY;
+    return NULL;
+  }
+  pConsumer->epoch = 1;
+  pConsumer->consumerId = consumerId;
+  strcpy(pConsumer->cgroup, cgroup);
+  taosInitRWLatch(&pConsumer->lock);
+  return pConsumer;
+}
+
 SSdbRaw *mndConsumerActionEncode(SMqConsumerObj *pConsumer) {
   terrno = TSDB_CODE_OUT_OF_MEMORY;
   void* buf = NULL;
@@ -164,148 +177,3 @@ void mndReleaseConsumer(SMnode *pMnode, SMqConsumerObj *pConsumer) {
   SSdb *pSdb = pMnode->pSdb;
   sdbRelease(pSdb, pConsumer);
 }
-
-#if 0
-static int32_t mndProcessConsumerMetaMsg(SMnodeMsg *pMsg) {
-  SMnode        *pMnode = pMsg->pMnode;
-  STableInfoReq *pInfo = pMsg->rpcMsg.pCont;
-
-  mDebug("consumer:%s, start to retrieve meta", pInfo->tableFname);
-
-  SDbObj *pDb = mndAcquireDbByConsumer(pMnode, pInfo->tableFname);
-  if (pDb == NULL) {
-    terrno = TSDB_CODE_MND_DB_NOT_SELECTED;
-    mError("consumer:%s, failed to retrieve meta since %s", pInfo->tableFname, terrstr());
-    return -1;
-  }
-
-  SConsumerObj *pConsumer = mndAcquireConsumer(pMnode, pInfo->tableFname);
-  if (pConsumer == NULL) {
-    mndReleaseDb(pMnode, pDb);
-    terrno = TSDB_CODE_MND_INVALID_CONSUMER;
-    mError("consumer:%s, failed to get meta since %s", pInfo->tableFname, terrstr());
-    return -1;
-  }
-
-  taosRLockLatch(&pConsumer->lock);
-  int32_t totalCols = pConsumer->numOfColumns + pConsumer->numOfTags;
-  int32_t contLen = sizeof(STableMetaRsp) + totalCols * sizeof(SSchema);
-
-  STableMetaRsp *pMeta = rpcMallocCont(contLen);
-  if (pMeta == NULL) {
-    taosRUnLockLatch(&pConsumer->lock);
-    mndReleaseDb(pMnode, pDb);
-    mndReleaseConsumer(pMnode, pConsumer);
-    terrno = TSDB_CODE_OUT_OF_MEMORY;
-    mError("consumer:%s, failed to get meta since %s", pInfo->tableFname, terrstr());
-    return -1;
-  }
-
-  memcpy(pMeta->consumerFname, pConsumer->name, TSDB_TABLE_FNAME_LEN);
-  pMeta->numOfTags = htonl(pConsumer->numOfTags);
-  pMeta->numOfColumns = htonl(pConsumer->numOfColumns);
-  pMeta->precision = pDb->cfg.precision;
-  pMeta->tableType = TSDB_SUPER_TABLE;
-  pMeta->update = pDb->cfg.update;
-  pMeta->sversion = htonl(pConsumer->version);
-  pMeta->tuid = htonl(pConsumer->uid);
-
-  for (int32_t i = 0; i < totalCols; ++i) {
-    SSchema *pSchema = &pMeta->pSchema[i];
-    SSchema *pSrcSchema = &pConsumer->pSchema[i];
-    memcpy(pSchema->name, pSrcSchema->name, TSDB_COL_NAME_LEN);
-    pSchema->type = pSrcSchema->type;
-    pSchema->colId = htonl(pSrcSchema->colId);
-    pSchema->bytes = htonl(pSrcSchema->bytes);
-  }
-  taosRUnLockLatch(&pConsumer->lock);
-  mndReleaseDb(pMnode, pDb);
-  mndReleaseConsumer(pMnode, pConsumer);
-
-  pMsg->pCont = pMeta;
-  pMsg->contLen = contLen;
-
-  mDebug("consumer:%s, meta is retrieved, cols:%d tags:%d", pInfo->tableFname, pConsumer->numOfColumns, pConsumer->numOfTags);
-  return 0;
-}
-
-static int32_t mndGetNumOfConsumers(SMnode *pMnode, char *dbName, int32_t *pNumOfConsumers) {
-  SSdb *pSdb = pMnode->pSdb;
-
-  SDbObj *pDb = mndAcquireDb(pMnode, dbName);
-  if (pDb == NULL) {
-    terrno = TSDB_CODE_MND_DB_NOT_SELECTED;
-    return -1;
-  }
-
-  int32_t numOfConsumers = 0;
-  void   *pIter = NULL;
-  while (1) {
-    SMqConsumerObj *pConsumer = NULL;
-    pIter = sdbFetch(pSdb, SDB_CONSUMER, pIter, (void **)&pConsumer);
-    if (pIter == NULL) break;
-
-    numOfConsumers++;
-
-    sdbRelease(pSdb, pConsumer);
-  }
-
-  *pNumOfConsumers = numOfConsumers;
-  return 0;
-}
-
-static int32_t mndGetConsumerMeta(SMnodeMsg *pMsg, SShowObj *pShow, STableMetaRsp *pMeta) {
-  SMnode *pMnode = pMsg->pMnode;
-  SSdb   *pSdb = pMnode->pSdb;
-
-  if (mndGetNumOfConsumers(pMnode, pShow->db, &pShow->numOfRows) != 0) {
-    return -1;
-  }
-
-  int32_t  cols = 0;
-  SSchema *pSchema = pMeta->pSchema;
-
-  pShow->bytes[cols] = TSDB_TABLE_NAME_LEN + VARSTR_HEADER_SIZE;
-  pSchema[cols].type = TSDB_DATA_TYPE_BINARY;
-  strcpy(pSchema[cols].name, "name");
-  pSchema[cols].bytes = htonl(pShow->bytes[cols]);
-  cols++;
-
-  pShow->bytes[cols] = 8;
-  pSchema[cols].type = TSDB_DATA_TYPE_TIMESTAMP;
-  strcpy(pSchema[cols].name, "create_time");
-  pSchema[cols].bytes = htonl(pShow->bytes[cols]);
-  cols++;
-
-  pShow->bytes[cols] = 4;
-  pSchema[cols].type = TSDB_DATA_TYPE_INT;
-  strcpy(pSchema[cols].name, "columns");
-  pSchema[cols].bytes = htonl(pShow->bytes[cols]);
-  cols++;
-
-  pShow->bytes[cols] = 4;
-  pSchema[cols].type = TSDB_DATA_TYPE_INT;
-  strcpy(pSchema[cols].name, "tags");
-  pSchema[cols].bytes = htonl(pShow->bytes[cols]);
-  cols++;
-
-  pMeta->numOfColumns = htonl(cols);
-  pShow->numOfColumns = cols;
-
-  pShow->offset[0] = 0;
-  for (int32_t i = 1; i < cols; ++i) {
-    pShow->offset[i] = pShow->offset[i - 1] + pShow->bytes[i - 1];
-  }
-
-  pShow->numOfRows = sdbGetSize(pSdb, SDB_CONSUMER);
-  pShow->rowSize = pShow->offset[cols - 1] + pShow->bytes[cols - 1];
-  strcpy(pMeta->tbFname, mndShowStr(pShow->type));
-
-  return 0;
-}
-
-static void mndCancelGetNextConsumer(SMnode *pMnode, void *pIter) {
-  SSdb *pSdb = pMnode->pSdb;
-  sdbCancelFetch(pSdb, pIter);
-}
-#endif

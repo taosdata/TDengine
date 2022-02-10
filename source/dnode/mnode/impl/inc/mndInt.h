@@ -96,6 +96,7 @@ typedef struct SMnode {
   SendReqToMnodeFp  sendReqToMnodeFp;
   SendRedirectRspFp sendRedirectRspFp;
   PutReqToMWriteQFp putReqToMWriteQFp;
+  PutReqToMReadQFp  putReqToMReadQFp;
 } SMnode;
 
 int32_t mndSendReqToDnode(SMnode *pMnode, SEpSet *pEpSet, SRpcMsg *rpcMsg);

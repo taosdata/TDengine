@@ -1104,9 +1104,13 @@ static FORCE_INLINE void* tDeserializeSMVSubscribeReq(void* buf, SMVSubscribeReq
   return buf;
 }
 
-typedef struct SMqTmrMsg {
+typedef struct {
   int32_t reserved;
 } SMqTmrMsg;
+
+typedef struct {
+  int64_t consumerId;
+} SMqDoRebalanceMsg;
 
 typedef struct {
   int64_t status;
@@ -1685,13 +1689,13 @@ static FORCE_INLINE void* tDecodeSSchemaWrapper(void* buf, SSchemaWrapper* pSW) 
   return buf;
 }
 
-typedef struct SMqTbData {
+typedef struct {
   int64_t    uid;
   int32_t    numOfRows;
   char*      colData;
 } SMqTbData;
 
-typedef struct SMqTopicBlk {
+typedef struct {
   char       topicName[TSDB_TOPIC_FNAME_LEN];
   int64_t    committedOffset;
   int64_t    reqOffset;
@@ -1702,7 +1706,7 @@ typedef struct SMqTopicBlk {
   SMqTbData* tbData;
 } SMqTopicData;
 
-typedef struct SMqConsumeRsp {
+typedef struct {
   int64_t         consumerId;
   SSchemaWrapper* schemas;
   int64_t         committedOffset;
@@ -1714,7 +1718,7 @@ typedef struct SMqConsumeRsp {
 } SMqConsumeRsp;
 
 // one req for one vg+topic
-typedef struct SMqConsumeReq {
+typedef struct {
   SMsgHead       head;
   //0: commit only, current offset
   //1: consume only, poll next offset
@@ -1730,17 +1734,17 @@ typedef struct SMqConsumeReq {
   char           topic[TSDB_TOPIC_FNAME_LEN];
 } SMqConsumeReq;
 
-typedef struct SMqSubVgEp {
+typedef struct {
   int32_t vgId;
   SEpSet  epSet;
 } SMqSubVgEp;
 
-typedef struct SMqSubTopicEp {
+typedef struct {
   char    topic[TSDB_TOPIC_FNAME_LEN];
   SArray* vgs;   // SArray<SMqSubVgEp>
 } SMqSubTopicEp;
 
-typedef struct SMqCMGetSubEpRsp {
+typedef struct {
   int64_t consumerId;
   int64_t epoch;
   char    cgroup[TSDB_CONSUMER_GROUP_LEN];

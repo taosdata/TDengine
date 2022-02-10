@@ -341,42 +341,22 @@ typedef struct {
   char    payload[];
 } SShowObj;
 
-#if 0
-typedef struct SConsumerObj {
-  uint64_t uid;
-  int64_t  createTime;
-  int64_t  updateTime;
-  //uint64_t dbUid;
-  int32_t  version;
-  SRWLatch lock;
-  SArray*   topics;
-} SConsumerObj;
-
-typedef struct SMqTopicConsumer {
-  int64_t consumerId;
-  SList*  topicList;
-} SMqTopicConsumer;
-#endif
-
-typedef struct SMqConsumerEp {
-  int32_t      vgId;  // -1 for unassigned
-  int32_t      status;
-  SEpSet       epSet;
-  int64_t      consumerId;  // -1 for unassigned
-  int64_t      lastConsumerHbTs;
-  int64_t      lastVgHbTs;
-  char*        qmsg;
+typedef struct {
+  int32_t vgId;  // -1 for unassigned
+  int32_t status;
+  SEpSet  epSet;
+  int64_t oldConsumerId;
+  int64_t consumerId;  // -1 for unassigned
+  char*   qmsg;
 } SMqConsumerEp;
 
-static FORCE_INLINE int32_t tEncodeSMqConsumerEp(void** buf, SMqConsumerEp* pConsumerEp) {
+static FORCE_INLINE int32_t tEncodeSMqConsumerEp(void** buf, const SMqConsumerEp* pConsumerEp) {
   int32_t tlen = 0;
   tlen += taosEncodeFixedI32(buf, pConsumerEp->vgId);
   tlen += taosEncodeFixedI32(buf, pConsumerEp->status);
   tlen += taosEncodeSEpSet(buf, &pConsumerEp->epSet);
+  tlen += taosEncodeFixedI64(buf, pConsumerEp->oldConsumerId);
   tlen += taosEncodeFixedI64(buf, pConsumerEp->consumerId);
-  tlen += taosEncodeFixedI64(buf, pConsumerEp->lastConsumerHbTs);
-  tlen += taosEncodeFixedI64(buf, pConsumerEp->lastVgHbTs);
-  //tlen += tEncodeSSubQueryMsg(buf, &pConsumerEp->qExec);
   tlen += taosEncodeString(buf, pConsumerEp->qmsg);
   return tlen;
 }
@@ -385,10 +365,8 @@ static FORCE_INLINE void* tDecodeSMqConsumerEp(void** buf, SMqConsumerEp* pConsu
   buf = taosDecodeFixedI32(buf, &pConsumerEp->vgId);
   buf = taosDecodeFixedI32(buf, &pConsumerEp->status);
   buf = taosDecodeSEpSet(buf, &pConsumerEp->epSet);
+  buf = taosDecodeFixedI64(buf, &pConsumerEp->oldConsumerId);
   buf = taosDecodeFixedI64(buf, &pConsumerEp->consumerId);
-  buf = taosDecodeFixedI64(buf, &pConsumerEp->lastConsumerHbTs);
-  buf = taosDecodeFixedI64(buf, &pConsumerEp->lastVgHbTs);
-  //buf = tDecodeSSubQueryMsg(buf, &pConsumerEp->qExec);
   buf = taosDecodeString(buf, &pConsumerEp->qmsg);
   return buf;
 }
@@ -399,97 +377,89 @@ static FORCE_INLINE void tDeleteSMqConsumerEp(SMqConsumerEp* pConsumerEp) {
   }
 }
 
-// unit for rebalance
-typedef struct SMqSubscribeObj {
+typedef struct {
+  int64_t consumerId;
+  SArray* vgInfo;  // SArray<SMqConsumerEp>
+} SMqSubConsumer;
+
+static FORCE_INLINE int32_t tEncodeSMqSubConsumer(void** buf, const SMqSubConsumer* pConsumer) {
+  int32_t tlen = 0;
+  tlen += taosEncodeFixedI64(buf, pConsumer->consumerId);
+  int32_t sz = taosArrayGetSize(pConsumer->vgInfo);
+  for (int32_t i = 0; i < sz; i++) {
+    SMqConsumerEp* pCEp = taosArrayGet(pConsumer->vgInfo, i);
+    tlen += tEncodeSMqConsumerEp(buf, pCEp);
+  }
+  return tlen;
+}
+
+static FORCE_INLINE void* tDecodeSMqSubConsumer(void** buf, SMqSubConsumer* pConsumer) {
+  int32_t sz;
+  buf = taosDecodeFixedI64(buf, &pConsumer->consumerId);
+  buf = taosDecodeFixedI32(buf, &sz);
+  pConsumer->vgInfo = taosArrayInit(sz, sizeof(SMqConsumerEp));
+  for (int32_t i = 0; i < sz; i++) {
+    SMqConsumerEp consumerEp;
+    buf = tDecodeSMqConsumerEp(buf, &consumerEp);
+    taosArrayPush(pConsumer->vgInfo, &consumerEp);
+  }
+  return buf;
+}
+
+static FORCE_INLINE void tDeleteSMqSubConsumer(SMqSubConsumer* pSubConsumer) {
+  if (pSubConsumer->vgInfo) {
+    taosArrayDestroyEx(pSubConsumer->vgInfo, (void (*)(void*))tDeleteSMqConsumerEp);
+    pSubConsumer->vgInfo = NULL;
+  }
+}
+
+typedef struct {
   char    key[TSDB_SUBSCRIBE_KEY_LEN];
-  int32_t epoch;
-  // TODO: replace with priority queue
-  int32_t nextConsumerIdx;
-  SArray* availConsumer;  // SArray<int64_t> (consumerId)
-  SArray* assigned;       // SArray<SMqConsumerEp>
-  SArray* idleConsumer;   // SArray<SMqConsumerEp>
-  SArray* lostConsumer;   // SArray<SMqConsumerEp>
-  SArray* unassignedVg;   // SArray<SMqConsumerEp>
+  int32_t status;
+  int32_t vgNum;
+  SArray* consumers;     // SArray<SMqSubConsumer>
+  SArray* unassignedVg;  // SArray<SMqConsumerEp>
 } SMqSubscribeObj;
 
 static FORCE_INLINE SMqSubscribeObj* tNewSubscribeObj() {
-  SMqSubscribeObj* pSub = malloc(sizeof(SMqSubscribeObj));
+  SMqSubscribeObj* pSub = calloc(1, sizeof(SMqSubscribeObj));
   if (pSub == NULL) {
     return NULL;
   }
-  pSub->key[0] = 0;
-  pSub->epoch = 0;
-
-  pSub->availConsumer = taosArrayInit(0, sizeof(int64_t));
-  if (pSub->availConsumer == NULL) {
-    free(pSub);
-    return NULL;
-  }
-  pSub->assigned = taosArrayInit(0, sizeof(SMqConsumerEp));
-  if (pSub->assigned == NULL) {
-    taosArrayDestroy(pSub->availConsumer);
-    free(pSub);
-    return NULL;
-  }
-  pSub->lostConsumer = taosArrayInit(0, sizeof(SMqConsumerEp));
-  if (pSub->lostConsumer == NULL) {
-    taosArrayDestroy(pSub->availConsumer);
-    taosArrayDestroy(pSub->assigned);
-    free(pSub);
-    return NULL;
-  }
-  pSub->idleConsumer = taosArrayInit(0, sizeof(SMqConsumerEp));
-  if (pSub->idleConsumer == NULL) {
-    taosArrayDestroy(pSub->availConsumer);
-    taosArrayDestroy(pSub->assigned);
-    taosArrayDestroy(pSub->lostConsumer);
-    free(pSub);
-    return NULL;
+  pSub->consumers = taosArrayInit(0, sizeof(SMqSubConsumer));
+  if (pSub->consumers == NULL) {
+    goto _err;
   }
   pSub->unassignedVg = taosArrayInit(0, sizeof(SMqConsumerEp));
   if (pSub->unassignedVg == NULL) {
-    taosArrayDestroy(pSub->availConsumer);
-    taosArrayDestroy(pSub->assigned);
-    taosArrayDestroy(pSub->lostConsumer);
-    taosArrayDestroy(pSub->idleConsumer);
-    free(pSub);
-    return NULL;
+    goto _err;
   }
+
+  pSub->key[0] = 0;
+  pSub->vgNum = 0;
+  pSub->status = 0;
+
   return pSub;
+
+_err:
+  tfree(pSub->unassignedVg);
+  tfree(pSub->consumers);
+  tfree(pSub);
+  return NULL;
 }
 
 static FORCE_INLINE int32_t tEncodeSubscribeObj(void** buf, const SMqSubscribeObj* pSub) {
   int32_t tlen = 0;
   tlen += taosEncodeString(buf, pSub->key);
-  tlen += taosEncodeFixedI32(buf, pSub->epoch);
+  tlen += taosEncodeFixedI32(buf, pSub->vgNum);
+  tlen += taosEncodeFixedI32(buf, pSub->status);
   int32_t sz;
 
-  sz = taosArrayGetSize(pSub->availConsumer);
+  sz = taosArrayGetSize(pSub->consumers);
   tlen += taosEncodeFixedI32(buf, sz);
   for (int32_t i = 0; i < sz; i++) {
-    int64_t* pConsumerId = taosArrayGet(pSub->availConsumer, i);
-    tlen += taosEncodeFixedI64(buf, *pConsumerId);
-  }
-
-  sz = taosArrayGetSize(pSub->assigned);
-  tlen += taosEncodeFixedI32(buf, sz);
-  for (int32_t i = 0; i < sz; i++) {
-    SMqConsumerEp* pCEp = taosArrayGet(pSub->assigned, i);
-    tlen += tEncodeSMqConsumerEp(buf, pCEp);
-  }
-
-  sz = taosArrayGetSize(pSub->lostConsumer);
-  tlen += taosEncodeFixedI32(buf, sz);
-  for (int32_t i = 0; i < sz; i++) {
-    SMqConsumerEp* pCEp = taosArrayGet(pSub->lostConsumer, i);
-    tlen += tEncodeSMqConsumerEp(buf, pCEp);
-  }
-
-  sz = taosArrayGetSize(pSub->idleConsumer);
-  tlen += taosEncodeFixedI32(buf, sz);
-  for (int32_t i = 0; i < sz; i++) {
-    SMqConsumerEp* pCEp = taosArrayGet(pSub->idleConsumer, i);
-    tlen += tEncodeSMqConsumerEp(buf, pCEp);
+    SMqSubConsumer* pSubConsumer = taosArrayGet(pSub->consumers, i);
+    tlen += tEncodeSMqSubConsumer(buf, pSubConsumer);
   }
 
   sz = taosArrayGetSize(pSub->unassignedVg);
@@ -504,68 +474,25 @@ static FORCE_INLINE int32_t tEncodeSubscribeObj(void** buf, const SMqSubscribeOb
 
 static FORCE_INLINE void* tDecodeSubscribeObj(void* buf, SMqSubscribeObj* pSub) {
   buf = taosDecodeStringTo(buf, pSub->key);
-  buf = taosDecodeFixedI32(buf, &pSub->epoch);
+  buf = taosDecodeFixedI32(buf, &pSub->vgNum);
+  buf = taosDecodeFixedI32(buf, &pSub->status);
 
   int32_t sz;
 
   buf = taosDecodeFixedI32(buf, &sz);
-  pSub->availConsumer = taosArrayInit(sz, sizeof(int64_t));
-  if (pSub->availConsumer == NULL) {
+  pSub->consumers = taosArrayInit(sz, sizeof(SMqSubConsumer));
+  if (pSub->consumers == NULL) {
     return NULL;
   }
   for (int32_t i = 0; i < sz; i++) {
-    int64_t consumerId;
-    buf = taosDecodeFixedI64(buf, &consumerId);
-    taosArrayPush(pSub->availConsumer, &consumerId);
+    SMqSubConsumer subConsumer = {0};
+    buf = tDecodeSMqSubConsumer(buf, &subConsumer);
+    taosArrayPush(pSub->consumers, &subConsumer);
   }
-
-  buf = taosDecodeFixedI32(buf, &sz);
-  pSub->assigned = taosArrayInit(sz, sizeof(SMqConsumerEp));
-  if (pSub->assigned == NULL) {
-    taosArrayDestroy(pSub->availConsumer);
-    return NULL;
-  }
-  for (int32_t i = 0; i < sz; i++) {
-    SMqConsumerEp cEp = {0};
-    buf = tDecodeSMqConsumerEp(buf, &cEp);
-    taosArrayPush(pSub->assigned, &cEp);
-  }
-
-  buf = taosDecodeFixedI32(buf, &sz);
-  pSub->lostConsumer = taosArrayInit(sz, sizeof(SMqConsumerEp));
-  if (pSub->lostConsumer == NULL) {
-    taosArrayDestroy(pSub->availConsumer);
-    taosArrayDestroy(pSub->assigned);
-    return NULL;
-  }
-  for (int32_t i = 0; i < sz; i++) {
-    SMqConsumerEp cEp = {0};
-    buf = tDecodeSMqConsumerEp(buf, &cEp);
-    taosArrayPush(pSub->lostConsumer, &cEp);
-  }
-
-  buf = taosDecodeFixedI32(buf, &sz);
-  pSub->idleConsumer = taosArrayInit(sz, sizeof(SMqConsumerEp));
-  if (pSub->idleConsumer == NULL) {
-    taosArrayDestroy(pSub->availConsumer);
-    taosArrayDestroy(pSub->assigned);
-    taosArrayDestroy(pSub->lostConsumer);
-    return NULL;
-  }
-  for (int32_t i = 0; i < sz; i++) {
-    SMqConsumerEp cEp = {0};
-    buf = tDecodeSMqConsumerEp(buf, &cEp);
-    taosArrayPush(pSub->idleConsumer, &cEp);
-  }
-
 
   buf = taosDecodeFixedI32(buf, &sz);
   pSub->unassignedVg = taosArrayInit(sz, sizeof(SMqConsumerEp));
   if (pSub->unassignedVg == NULL) {
-    taosArrayDestroy(pSub->availConsumer);
-    taosArrayDestroy(pSub->assigned);
-    taosArrayDestroy(pSub->lostConsumer);
-    taosArrayDestroy(pSub->idleConsumer);
     return NULL;
   }
   for (int32_t i = 0; i < sz; i++) {
@@ -573,176 +500,24 @@ static FORCE_INLINE void* tDecodeSubscribeObj(void* buf, SMqSubscribeObj* pSub) 
     buf = tDecodeSMqConsumerEp(buf, &cEp);
     taosArrayPush(pSub->unassignedVg, &cEp);
   }
-
   return buf;
 }
 
 static FORCE_INLINE void tDeleteSMqSubscribeObj(SMqSubscribeObj* pSub) {
-  if (pSub->availConsumer) {
-    taosArrayDestroy(pSub->availConsumer);
-    pSub->availConsumer = NULL;
+  if (pSub->consumers) {
+    taosArrayDestroyEx(pSub->consumers, (void (*)(void*))tDeleteSMqSubConsumer);
+    //taosArrayDestroy(pSub->consumers);
+    pSub->consumers = NULL;
   }
-  if (pSub->assigned) {
-    //taosArrayDestroyEx(pSub->assigned, (void (*)(void*))tDeleteSMqConsumerEp);
-    taosArrayDestroy(pSub->assigned);
-    pSub->assigned = NULL;
-  }
+
   if (pSub->unassignedVg) {
-    //taosArrayDestroyEx(pSub->unassignedVg, (void (*)(void*))tDeleteSMqConsumerEp);
-    taosArrayDestroy(pSub->unassignedVg);
+    taosArrayDestroyEx(pSub->unassignedVg, (void (*)(void*))tDeleteSMqConsumerEp);
+    //taosArrayDestroy(pSub->unassignedVg);
     pSub->unassignedVg = NULL;
   }
-  if (pSub->idleConsumer) {
-    //taosArrayDestroyEx(pSub->idleConsumer, (void (*)(void*))tDeleteSMqConsumerEp);
-    taosArrayDestroy(pSub->idleConsumer);
-    pSub->idleConsumer = NULL;
-  }
-  if (pSub->lostConsumer) {
-    //taosArrayDestroyEx(pSub->lostConsumer, (void (*)(void*))tDeleteSMqConsumerEp);
-    taosArrayDestroy(pSub->lostConsumer);
-    pSub->lostConsumer = NULL;
-  }
 }
 
-typedef struct SMqCGroup {
-  char    name[TSDB_CONSUMER_GROUP_LEN];
-  int32_t status;       // 0 - uninitialized, 1 - wait rebalance, 2- normal
-  SList*  consumerIds;  // SList<int64_t>
-  SList*  idleVGroups;  // SList<int32_t>
-} SMqCGroup;
-
-typedef struct SMqTopicObj {
-  char     name[TSDB_TOPIC_FNAME_LEN];
-  char     db[TSDB_DB_FNAME_LEN];
-  int64_t  createTime;
-  int64_t  updateTime;
-  uint64_t uid;
-  int64_t  dbUid;
-  int32_t  version;
-  SRWLatch lock;
-  int32_t  sqlLen;
-  char*    sql;
-  char*    logicalPlan;
-  char*    physicalPlan;
-  // SHashObj *cgroups;  // SHashObj<SMqCGroup>
-  // SHashObj *consumers;  // SHashObj<SMqConsumerObj>
-} SMqTopicObj;
-
-// TODO: add cache and change name to id
-typedef struct SMqConsumerTopic {
-  char    name[TSDB_TOPIC_FNAME_LEN];
-  int32_t epoch;
-  // vg assigned to the consumer on the topic
-  SArray* pVgInfo;  // SArray<int32_t>
-} SMqConsumerTopic;
-
-static FORCE_INLINE SMqConsumerTopic* tNewConsumerTopic(int64_t consumerId, SMqTopicObj* pTopic,
-                                                        SMqSubscribeObj* pSub, int64_t* oldConsumerId) {
-  SMqConsumerTopic* pCTopic = malloc(sizeof(SMqConsumerTopic));
-  if (pCTopic == NULL) {
-    terrno = TSDB_CODE_OUT_OF_MEMORY;
-    return NULL;
-  }
-  strcpy(pCTopic->name, pTopic->name);
-  pCTopic->epoch = 0;
-  pCTopic->pVgInfo = taosArrayInit(0, sizeof(int32_t));
-
-  int32_t unassignedVgSz = taosArrayGetSize(pSub->unassignedVg);
-  if (unassignedVgSz > 0) {
-    SMqConsumerEp* pCEp = taosArrayPop(pSub->unassignedVg);
-    *oldConsumerId = pCEp->consumerId;
-    pCEp->consumerId = consumerId;
-    taosArrayPush(pCTopic->pVgInfo, &pCEp->vgId);
-    taosArrayPush(pSub->assigned, pCEp);
-  }
-  return pCTopic;
-}
-
-static FORCE_INLINE int32_t tEncodeSMqConsumerTopic(void** buf, SMqConsumerTopic* pConsumerTopic) {
-  int32_t tlen = 0;
-  tlen += taosEncodeString(buf, pConsumerTopic->name);
-  tlen += taosEncodeFixedI32(buf, pConsumerTopic->epoch);
-  int32_t sz = 0;
-  if (pConsumerTopic->pVgInfo != NULL) {
-    sz = taosArrayGetSize(pConsumerTopic->pVgInfo);
-  }
-  tlen += taosEncodeFixedI32(buf, sz);
-  for (int32_t i = 0; i < sz; i++) {
-    int32_t* pVgInfo = taosArrayGet(pConsumerTopic->pVgInfo, i);
-    tlen += taosEncodeFixedI32(buf, *pVgInfo);
-  }
-  return tlen;
-}
-
-static FORCE_INLINE void* tDecodeSMqConsumerTopic(void* buf, SMqConsumerTopic* pConsumerTopic) {
-  buf = taosDecodeStringTo(buf, pConsumerTopic->name);
-  buf = taosDecodeFixedI32(buf, &pConsumerTopic->epoch);
-  int32_t sz;
-  buf = taosDecodeFixedI32(buf, &sz);
-  pConsumerTopic->pVgInfo = taosArrayInit(sz, sizeof(SMqConsumerTopic));
-  for (int32_t i = 0; i < sz; i++) {
-    int32_t vgInfo;
-    buf = taosDecodeFixedI32(buf, &vgInfo);
-    taosArrayPush(pConsumerTopic->pVgInfo, &vgInfo);
-  }
-  return buf;
-}
-
-typedef struct SMqConsumerObj {
-  int64_t  consumerId;
-  int64_t  connId;
-  SRWLatch lock;
-  char     cgroup[TSDB_CONSUMER_GROUP_LEN];
-  SArray*  topics;  // SArray<SMqConsumerTopic>
-  int64_t  epoch;
-  // stat
-  int64_t  pollCnt;
-} SMqConsumerObj;
-
-static FORCE_INLINE int32_t tEncodeSMqConsumerObj(void** buf, const SMqConsumerObj* pConsumer) {
-  int32_t tlen = 0;
-  tlen += taosEncodeFixedI64(buf, pConsumer->consumerId);
-  tlen += taosEncodeFixedI64(buf, pConsumer->connId);
-  tlen += taosEncodeFixedI64(buf, pConsumer->epoch);
-  tlen += taosEncodeFixedI64(buf, pConsumer->pollCnt);
-  tlen += taosEncodeString(buf, pConsumer->cgroup);
-  int32_t sz = taosArrayGetSize(pConsumer->topics);
-  tlen += taosEncodeFixedI32(buf, sz);
-  for (int32_t i = 0; i < sz; i++) {
-    SMqConsumerTopic* pConsumerTopic = taosArrayGet(pConsumer->topics, i);
-    tlen += tEncodeSMqConsumerTopic(buf, pConsumerTopic);
-  }
-  return tlen;
-}
-
-static FORCE_INLINE void* tDecodeSMqConsumerObj(void* buf, SMqConsumerObj* pConsumer) {
-  buf = taosDecodeFixedI64(buf, &pConsumer->consumerId);
-  buf = taosDecodeFixedI64(buf, &pConsumer->connId);
-  buf = taosDecodeFixedI64(buf, &pConsumer->epoch);
-  buf = taosDecodeFixedI64(buf, &pConsumer->pollCnt);
-  buf = taosDecodeStringTo(buf, pConsumer->cgroup);
-  int32_t sz;
-  buf = taosDecodeFixedI32(buf, &sz);
-  pConsumer->topics = taosArrayInit(sz, sizeof(SMqConsumerObj));
-  for (int32_t i = 0; i < sz; i++) {
-    SMqConsumerTopic cTopic;
-    buf = tDecodeSMqConsumerTopic(buf, &cTopic);
-    taosArrayPush(pConsumer->topics, &cTopic);
-  }
-  return buf;
-}
-
-typedef struct SMqSubConsumerObj {
-  int64_t consumerUid;  // if -1, unassigned
-  SList*  vgId;         // SList<int32_t>
-} SMqSubConsumerObj;
-
-typedef struct SMqSubCGroupObj {
-  char   name[TSDB_CONSUMER_GROUP_LEN];
-  SList* consumers;  // SList<SMqConsumerObj>
-} SMqSubCGroupObj;
-
-typedef struct SMqSubTopicObj {
+typedef struct {
   char     name[TSDB_TOPIC_FNAME_LEN];
   char     db[TSDB_DB_FNAME_LEN];
   int64_t  createTime;
@@ -755,41 +530,57 @@ typedef struct SMqSubTopicObj {
   char*    sql;
   char*    logicalPlan;
   char*    physicalPlan;
-  SList*   cgroups;  // SList<SMqSubCGroupObj>
-} SMqSubTopicObj;
+} SMqTopicObj;
 
-typedef struct SMqConsumerSubObj {
-  int64_t topicUid;
-  SList*  vgIds;  // SList<int64_t>
-} SMqConsumerSubObj;
-
-typedef struct SMqConsumerHbObj {
-  int64_t consumerId;
-  SList*  consumerSubs;  // SList<SMqConsumerSubObj>
-} SMqConsumerHbObj;
-
-typedef struct SMqVGroupSubObj {
-  int64_t topicUid;
-  SList*  consumerIds;  // SList<int64_t>
-} SMqVGroupSubObj;
-
-typedef struct SMqVGroupHbObj {
-  int64_t vgId;
-  SList*  vgSubs;  // SList<SMqVGroupSubObj>
-} SMqVGroupHbObj;
-
-#if 0
-typedef struct SCGroupObj {
-  char     name[TSDB_TOPIC_NAME_LEN];
-  int64_t  createTime;
-  int64_t  updateTime;
-  uint64_t uid;
-  //uint64_t dbUid;
-  int32_t  version;
+typedef struct {
+  int64_t  consumerId;
+  int64_t  connId;
   SRWLatch lock;
-  SList*   consumerIds;
-} SCGroupObj;
-#endif
+  char     cgroup[TSDB_CONSUMER_GROUP_LEN];
+  SArray*  topics;  // SArray<char*>
+  int64_t  epoch;
+  // stat
+  int64_t pollCnt;
+  // status
+  int32_t status;
+  // heartbeat from the consumer reset hbStatus to 0
+  // each checkConsumerAlive msg add hbStatus by 1
+  // if checkConsumerAlive > CONSUMER_REBALANCE_CNT, mask to lost
+  int32_t hbStatus;
+} SMqConsumerObj;
+
+static FORCE_INLINE int32_t tEncodeSMqConsumerObj(void** buf, const SMqConsumerObj* pConsumer) {
+  int32_t tlen = 0;
+  tlen += taosEncodeFixedI64(buf, pConsumer->consumerId);
+  tlen += taosEncodeFixedI64(buf, pConsumer->connId);
+  tlen += taosEncodeFixedI64(buf, pConsumer->epoch);
+  tlen += taosEncodeFixedI64(buf, pConsumer->pollCnt);
+  tlen += taosEncodeString(buf, pConsumer->cgroup);
+  int32_t sz = taosArrayGetSize(pConsumer->topics);
+  tlen += taosEncodeFixedI32(buf, sz);
+  for (int32_t i = 0; i < sz; i++) {
+    char* topic = taosArrayGetP(pConsumer->topics, i);
+    tlen += taosEncodeString(buf, topic);
+  }
+  return tlen;
+}
+
+static FORCE_INLINE void* tDecodeSMqConsumerObj(void* buf, SMqConsumerObj* pConsumer) {
+  int32_t sz;
+  buf = taosDecodeFixedI64(buf, &pConsumer->consumerId);
+  buf = taosDecodeFixedI64(buf, &pConsumer->connId);
+  buf = taosDecodeFixedI64(buf, &pConsumer->epoch);
+  buf = taosDecodeFixedI64(buf, &pConsumer->pollCnt);
+  buf = taosDecodeStringTo(buf, pConsumer->cgroup);
+  buf = taosDecodeFixedI32(buf, &sz);
+  pConsumer->topics = taosArrayInit(sz, sizeof(SMqConsumerObj));
+  for (int32_t i = 0; i < sz; i++) {
+    char* topic;
+    buf = taosDecodeString(buf, &topic);
+    taosArrayPush(pConsumer->topics, &topic);
+  }
+  return buf;
+}
 
 typedef struct SMnodeMsg {
   char    user[TSDB_USER_LEN];
