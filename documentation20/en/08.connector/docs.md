@@ -164,7 +164,7 @@ The C/C++ API is similar to MySQL's C API. When application use it, it needs to 
 
 Note:
 
-- The TDengine dynamic library needs to be linked at compiling. The library in Linux is [libtaos.so](http://libtaos.so/), which installed at/usr/local/taos/driver. By Windows, it is taos.dll and installed at C:\ TDengine.
+- The TDengine dynamic library needs to be linked at compiling. The library in Linux is *libtaos.so*, which installed at/usr/local/taos/driver. By Windows, it is taos.dll and installed at C:\ TDengine.
 - Unless otherwise specified, when the return value of API is an integer, 0 represents success, others are error codes representing the cause of failure, and when the return value is a pointer, NULL represents failure.
 
 More sample codes for using C/C++ connectors, please visit https://github.com/taosdata/TDengine/tree/develop/tests/examples/c.
