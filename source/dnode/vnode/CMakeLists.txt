@@ -28,6 +28,7 @@ target_link_libraries(
     PUBLIC scheduler
     PUBLIC executor
     PUBLIC qworker
+    PUBLIC sync
 )
 
 if(${BUILD_TEST})

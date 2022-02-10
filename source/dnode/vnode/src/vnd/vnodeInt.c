@@ -15,6 +15,7 @@
 
 #define _DEFAULT_SOURCE
 #include "vnd.h"
+#include "sync.h"
 // #include "vnodeInt.h"
 
 int32_t vnodeAlter(SVnode *pVnode, const SVnodeCfg *pCfg) { return 0; }
@@ -23,7 +24,16 @@ int32_t vnodeCompact(SVnode *pVnode) { return 0; }
 
 int32_t vnodeSync(SVnode *pVnode) { return 0; }
 
-int32_t vnodeGetLoad(SVnode *pVnode, SVnodeLoad *pLoad) { return 0; }
+int32_t vnodeGetLoad(SVnode *pVnode, SVnodeLoad *pLoad) {
+  pLoad->vgId = pVnode->vgId;
+  pLoad->role = TAOS_SYNC_STATE_LEADER;
+  pLoad->numOfTables = 500;
+  pLoad->numOfTimeSeries = 400;
+  pLoad->totalStorage = 300;
+  pLoad->compStorage = 200;
+  pLoad->pointsWritten = 100;
+  return 0;
+}
 
 int vnodeProcessSyncReq(SVnode *pVnode, SRpcMsg *pMsg, SRpcMsg **pRsp) {
   vInfo("sync message is processed");

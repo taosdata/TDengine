@@ -419,7 +419,7 @@ void rpcSendRequest(void *shandle, const SEpSet *pEpSet, SRpcMsg *pMsg, int64_t 
 }
 
 void rpcSendResponse(const SRpcMsg *pRsp) {
-  if (pRsp->handle == NULL) return;
+  ASSERT(pRsp->handle != NULL);
 
   int       msgLen = 0;
   SRpcConn *pConn = (SRpcConn *)pRsp->handle;
