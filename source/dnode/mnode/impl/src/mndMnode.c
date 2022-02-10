@@ -604,13 +604,13 @@ static int32_t mndGetMnodeMeta(SMnodeMsg *pReq, SShowObj *pShow, STableMetaRsp *
 
   pShow->bytes[cols] = 8;
   pSchema[cols].type = TSDB_DATA_TYPE_TIMESTAMP;
-  strcpy(pSchema[cols].name, "role_time");
+  strcpy(pSchema[cols].name, "create_time");
   pSchema[cols].bytes = htonl(pShow->bytes[cols]);
   cols++;
 
   pShow->bytes[cols] = 8;
   pSchema[cols].type = TSDB_DATA_TYPE_TIMESTAMP;
-  strcpy(pSchema[cols].name, "create_time");
+  strcpy(pSchema[cols].name, "role_time");
   pSchema[cols].bytes = htonl(pShow->bytes[cols]);
   cols++;
 
@@ -659,11 +659,11 @@ static int32_t mndRetrieveMnodes(SMnodeMsg *pReq, SShowObj *pShow, char *data, i
     cols++;
 
     pWrite = data + pShow->offset[cols] * rows + pShow->bytes[cols] * numOfRows;
-    *(int64_t *)pWrite = pObj->roleTime;
+    *(int64_t *)pWrite = pObj->createdTime;
     cols++;
 
     pWrite = data + pShow->offset[cols] * rows + pShow->bytes[cols] * numOfRows;
-    *(int64_t *)pWrite = pObj->createdTime;
+    *(int64_t *)pWrite = pObj->roleTime;
     cols++;
 
     numOfRows++;
