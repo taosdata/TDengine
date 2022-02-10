@@ -133,7 +133,7 @@ static void clientHandleResp(SCliConn* conn) {
   tDebug("client conn %p %s received from %s:%d", conn, TMSG_INFO(pHead->msgType), inet_ntoa(conn->addr.sin_addr),
          ntohs(conn->addr.sin_port));
 
-  if (conn->push != NULL) {
+  if (conn->push != NULL && conn->notifyCount != 0) {
     (*conn->push->callback)(conn->push->arg, &rpcMsg);
   } else {
     if (pCtx->pSem == NULL) {
@@ -174,15 +174,13 @@ static void clientHandleExcept(SCliConn* pConn) {
   tTrace("client conn %p start to destroy", pConn);
   SCliMsg* pMsg = pConn->data;
 
-  destroyUserdata(&pMsg->msg);
-
   STransConnCtx* pCtx = pMsg->ctx;
 
   SRpcMsg rpcMsg = {0};
   rpcMsg.ahandle = pCtx->ahandle;
   rpcMsg.code = TSDB_CODE_RPC_NETWORK_UNAVAIL;
 
-  if (pConn->push != NULL) {
+  if (pConn->push != NULL && pConn->notifyCount != 0) {
     (*pConn->push->callback)(pConn->push->arg, &rpcMsg);
   } else {
     if (pCtx->pSem == NULL) {
@@ -191,6 +189,9 @@ static void clientHandleExcept(SCliConn* pConn) {
       memcpy((char*)(pCtx->pRsp), (char*)(&rpcMsg), sizeof(rpcMsg));
       // SRpcMsg rpcMsg
       tsem_post(pCtx->pSem);
+    }
+    if (pConn->push != NULL) {
+      (*pConn->push->callback)(pConn->push->arg, &rpcMsg);
     }
   }
 
