@@ -1008,27 +1008,21 @@ void dndCleanupVnodes(SDnode *pDnode) {
   dInfo("dnode-vnodes is cleaned up");
 }
 
-void dndGetVnodeLoads(SDnode *pDnode, SVnodeLoads *pLoads) {
+void dndGetVnodeLoads(SDnode *pDnode, SArray *pLoads) {
   SVnodesMgmt *pMgmt = &pDnode->vmgmt;
 
   taosRLockLatch(&pMgmt->latch);
-  pLoads->num = taosHashGetSize(pMgmt->hash);
 
   int32_t v = 0;
-  void *  pIter = taosHashIterate(pMgmt->hash, NULL);
+  void   *pIter = taosHashIterate(pMgmt->hash, NULL);
   while (pIter) {
     SVnodeObj **ppVnode = pIter;
     if (ppVnode == NULL || *ppVnode == NULL) continue;
 
-    SVnodeObj * pVnode = *ppVnode;
-    SVnodeLoad *pLoad = &pLoads->data[v++];
-
-    vnodeGetLoad(pVnode->pImpl, pLoad);
-    pLoad->vgId = htonl(pLoad->vgId);
-    pLoad->totalStorage = htobe64(pLoad->totalStorage);
-    pLoad->compStorage = htobe64(pLoad->compStorage);
-    pLoad->pointsWritten = htobe64(pLoad->pointsWritten);
-    pLoad->tablesNum = htobe64(pLoad->tablesNum);
+    SVnodeObj *pVnode = *ppVnode;
+    SVnodeLoad vload = {0};
+    vnodeGetLoad(pVnode->pImpl, &vload);
+    taosArrayPush(pLoads, &vload);
 
     pIter = taosHashIterate(pMgmt->hash, pIter);
   }
