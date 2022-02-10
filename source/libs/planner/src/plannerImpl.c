@@ -13,26 +13,7 @@
  * along with this program. If not, see <http://www.gnu.org/licenses/>.
  */
 
-#include "querynodes.h"
-#include "parser.h"
 
-#ifndef _TD_AST_CREATE_FUNCS_H_
-#define _TD_AST_CREATE_FUNCS_H_
+int32_t getPlan(SNode* pRoot, SQueryPlanNode** pQueryPlan) {
 
-#ifdef __cplusplus
-extern "C" {
-#endif
-
-typedef struct SQuery {
-  SNode* pRoot;
-  // todo reslut meta
-} SQuery;
-
-int32_t doParse(SParseContext* pParseCxt, SQuery* pQuery);
-int32_t doTranslate(SParseContext* pParseCxt, SQuery* pQuery);
-
-#ifdef __cplusplus
 }
-#endif
-
-#endif /*_TD_AST_CREATE_FUNCS_H_*/
