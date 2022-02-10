@@ -14,6 +14,6 @@
  */
 
 
-int32_t getPlan(SNode* pRoot, SQueryPlanNode** pQueryPlan) {
+// int32_t getPlan(SNode* pRoot, SQueryPlanNode** pQueryPlan) {
 
-}
+// }
