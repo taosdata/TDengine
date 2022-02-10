@@ -293,6 +293,8 @@ TEST(testCase, external_sort_Test) {
 //    }
   }
 
+  printStatisBeforeClose(((SOrderOperatorInfo*) pOperator->info)->pSortInternalBuf);
+
   int64_t s2 = taosGetTimestampUs();
   printf("total:%ld\n", s2 - s1);
 

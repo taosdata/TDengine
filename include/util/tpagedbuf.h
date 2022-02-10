@@ -39,73 +39,73 @@ typedef struct SFilePage {
 
 /**
  * create disk-based result buffer
- * @param pResultBuf
+ * @param pBuf
  * @param rowSize
  * @param pagesize
  * @param inMemPages
  * @param handle
  * @return
  */
-int32_t createDiskbasedBuffer(SDiskbasedBuf** pResultBuf, int32_t pagesize, int32_t inMemBufSize, uint64_t qId, const char* dir);
+int32_t createDiskbasedBuffer(SDiskbasedBuf** pBuf, int32_t pagesize, int32_t inMemBufSize, uint64_t qId, const char* dir);
 
 /**
  *
- * @param pResultBuf
+ * @param pBuf
  * @param groupId
  * @param pageId
  * @return
  */
-SFilePage* getNewDataBuf(SDiskbasedBuf* pResultBuf, int32_t groupId, int32_t* pageId);
+SFilePage* getNewDataBuf(SDiskbasedBuf* pBuf, int32_t groupId, int32_t* pageId);
 
 /**
  *
- * @param pResultBuf
+ * @param pBuf
  * @param groupId
  * @return
  */
-SIDList getDataBufPagesIdList(SDiskbasedBuf* pResultBuf, int32_t groupId);
+SIDList getDataBufPagesIdList(SDiskbasedBuf* pBuf, int32_t groupId);
 
 /**
  * get the specified buffer page by id
- * @param pResultBuf
+ * @param pBuf
  * @param id
  * @return
  */
-SFilePage* getBufPage(SDiskbasedBuf* pResultBuf, int32_t id);
+SFilePage* getBufPage(SDiskbasedBuf* pBuf, int32_t id);
 
 /**
  * release the referenced buf pages
- * @param pResultBuf
+ * @param pBuf
  * @param page
  */
-void releaseBufPage(SDiskbasedBuf* pResultBuf, void* page);
+void releaseBufPage(SDiskbasedBuf* pBuf, void* page);
 
 /**
  *
- * @param pResultBuf
+ * @param pBuf
  * @param pi
  */
-void releaseBufPageInfo(SDiskbasedBuf* pResultBuf, struct SPageInfo* pi);
+void releaseBufPageInfo(SDiskbasedBuf* pBuf, struct SPageInfo* pi);
 
 /**
  * get the total buffer size in the format of disk file
- * @param pResultBuf
+ * @param pBuf
  * @return
  */
-size_t getTotalBufSize(const SDiskbasedBuf* pResultBuf);
+size_t getTotalBufSize(const SDiskbasedBuf* pBuf);
 
 /**
  * get the number of groups in the result buffer
- * @param pResultBuf
+ * @param pBuf
  * @return
  */
-size_t getNumOfResultBufGroupId(const SDiskbasedBuf* pResultBuf);
+size_t getNumOfResultBufGroupId(const SDiskbasedBuf* pBuf);
 
 /**
  * destroy result buffer
- * @param pResultBuf
+ * @param pBuf
  */
-void destroyResultBuf(SDiskbasedBuf* pResultBuf);
+void destroyResultBuf(SDiskbasedBuf* pBuf);
 
 /**
  *
@@ -123,24 +123,30 @@ int32_t getPageId(const SPageInfo* pPgInfo);
 
 /**
  * Return the buffer page size.
- * @param pResultBuf
+ * @param pBuf
  * @return
  */
-int32_t getBufPageSize(const SDiskbasedBuf* pResultBuf);
+int32_t getBufPageSize(const SDiskbasedBuf* pBuf);
 
 /**
  *
- * @param pResultBuf
+ * @param pBuf
  * @return
  */
-bool isAllDataInMemBuf(const SDiskbasedBuf* pResultBuf);
+bool isAllDataInMemBuf(const SDiskbasedBuf* pBuf);
 
 /**
  * Set the buffer page is dirty, and needs to be flushed to disk when swap out.
  * @param pPageInfo
  * @param dirty
  */
-void setBufPageDirty(SPageInfo* pPageInfo, bool dirty);
+void setBufPageDirty(SFilePage* pPageInfo, bool dirty);
+
+/**
+ * Print the statistics when closing this buffer
+ * @param pBuf
+ */
+void printStatisBeforeClose(SDiskbasedBuf* pBuf);
 
 #ifdef __cplusplus
 }
