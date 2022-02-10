@@ -760,7 +760,7 @@ static int tsdbRestoreLastColumns(STsdbRepo *pRepo, STable *pTable, SReadH* pRea
   int numColumns;
   int32_t blockIdx;
   SDataStatis* pBlockStatis = NULL;
-  SMemRow      row = NULL;
+  STSRow*      row = NULL;
   // restore last column data with last schema
   
   int err = 0;
@@ -866,7 +866,7 @@ static int tsdbRestoreLastColumns(STsdbRepo *pRepo, STable *pTable, SReadH* pRea
         pDataCol = pReadh->pDCols[0]->cols + 0;
         pCol = schemaColAt(pSchema, 0);
         tdAppendColVal(memRowDataBody(row), tdGetColDataOfRow(pDataCol, rowId), pCol->type, pCol->offset);
-        pLastCol->ts = memRowKey(row);
+        pLastCol->ts = TD_ROW_KEY(row);
 
         pTable->restoreColumnNum += 1;
 

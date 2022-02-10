@@ -581,19 +581,18 @@ static int32_t mndProcessMCreateStbReq(SMnodeMsg *pReq) {
   }
 
   code = mndCreateStb(pMnode, pReq, &createReq, pDb);
+  if (code == 0) code = TSDB_CODE_MND_ACTION_IN_PROGRESS;
 
 CREATE_STB_OVER:
-  if (code != 0) {
+  if (code != 0 && code != TSDB_CODE_MND_ACTION_IN_PROGRESS) {
     mError("stb:%s, failed to create since %s", createReq.name, terrstr());
-  } else {
-    code = TSDB_CODE_MND_ACTION_IN_PROGRESS;
   }
 
   mndReleaseStb(pMnode, pStb);
   mndReleaseStb(pMnode, pTopicStb);
   mndReleaseDb(pMnode, pDb);
-  taosArrayClear(createReq.pColumns);
-  taosArrayClear(createReq.pTags);
+  taosArrayDestroy(createReq.pColumns);
+  taosArrayDestroy(createReq.pTags);
 
   return code;
 }
@@ -1039,17 +1038,16 @@ static int32_t mndProcessMAlterStbReq(SMnodeMsg *pReq) {
   }
 
   code = mndAlterStb(pMnode, pReq, &alterReq, pDb, pStb);
+  if (code == 0) code = TSDB_CODE_MND_ACTION_IN_PROGRESS;
 
 ALTER_STB_OVER:
-  if (code != 0) {
+  if (code != 0 && code != TSDB_CODE_MND_ACTION_IN_PROGRESS) {
     mError("stb:%s, failed to alter since %s", alterReq.name, terrstr());
-  } else {
-    code = TSDB_CODE_MND_ACTION_IN_PROGRESS;
   }
 
   mndReleaseStb(pMnode, pStb);
   mndReleaseDb(pMnode, pDb);
-  taosArrayClear(alterReq.pFields);
+  taosArrayDestroy(alterReq.pFields);
 
   return code;
 }

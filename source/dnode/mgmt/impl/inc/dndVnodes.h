@@ -23,7 +23,7 @@ extern "C" {
 
 int32_t dndInitVnodes(SDnode *pDnode);
 void    dndCleanupVnodes(SDnode *pDnode);
-void    dndGetVnodeLoads(SDnode *pDnode, SVnodeLoads *pVloads);
+void    dndGetVnodeLoads(SDnode *pDnode, SArray *pLoads);
 void    dndProcessVnodeWriteMsg(SDnode *pDnode, SRpcMsg *pMsg, SEpSet *pEpSet);
 void    dndProcessVnodeSyncMsg(SDnode *pDnode, SRpcMsg *pMsg, SEpSet *pEpSet);
 void    dndProcessVnodeQueryMsg(SDnode *pDnode, SRpcMsg *pMsg, SEpSet *pEpSet);

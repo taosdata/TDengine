@@ -419,7 +419,7 @@ void rpcSendRequest(void *shandle, const SEpSet *pEpSet, SRpcMsg *pMsg, int64_t 
 }
 
 void rpcSendResponse(const SRpcMsg *pRsp) {
-  if (pRsp->handle == NULL) return;
+  ASSERT(pRsp->handle != NULL);
 
   int       msgLen = 0;
   SRpcConn *pConn = (SRpcConn *)pRsp->handle;
@@ -1383,7 +1383,7 @@ static void rpcSendMsgToPeer(SRpcConn *pConn, void *msg, int msgLen) {
 static void rpcProcessConnError(void *param, void *id) {
   SRpcReqContext *pContext = (SRpcReqContext *)param;
   SRpcInfo *      pRpc = pContext->pRpc;
-  SRpcMsg         rpcMsg;
+  SRpcMsg         rpcMsg = {0};
 
   if (pRpc == NULL) {
     return;

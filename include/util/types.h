@@ -72,14 +72,13 @@ static FORCE_INLINE double taos_align_get_double(const char *pBuf) {
   #define SET_DOUBLE_PTR(x, y) { (*(double *)(x)) = (*(double *)(y)); }
 // #endif
 
-typedef int16_t  VarDataLenT;  // maxVarDataLen: 32767
+typedef uint16_t  VarDataLenT;  // maxVarDataLen: 32767
 #define VARSTR_HEADER_SIZE  sizeof(VarDataLenT)
 
 #define varDataLen(v) ((VarDataLenT *)(v))[0]
 #define varDataVal(v) ((void *)((char *)v + VARSTR_HEADER_SIZE))
 
 typedef int32_t VarDataOffsetT;
-typedef int16_t VarDataLenT;  // maxVarDataLen: 32767
 
 #ifdef __cplusplus
 }

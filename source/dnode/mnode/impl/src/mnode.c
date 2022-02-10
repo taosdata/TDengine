@@ -462,6 +462,8 @@ void mndProcessMsg(SMnodeMsg *pMsg) {
 
 PROCESS_RPC_END:
   if (isReq) {
+    if (pMsg->rpcMsg.handle == NULL) return;
+
     if (code == TSDB_CODE_APP_NOT_READY) {
       mndSendRedirectRsp(pMnode, &pMsg->rpcMsg);
     } else if (code != 0) {
