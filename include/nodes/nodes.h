@@ -55,7 +55,7 @@ typedef enum ENodeType {
   QUERY_NODE_FILL,
 
   // only for parser
-  QUERY_NODE_TARGET_EXPR,
+  QUERY_NODE_RAW_EXPR,
 
   QUERY_NODE_SET_OPERATOR,
   QUERY_NODE_SELECT_STMT,
@@ -80,6 +80,13 @@ typedef struct SNodeList {
   SListCell* pHead;
   SListCell* pTail;
 } SNodeList;
+
+typedef struct SRawExprNode {
+  ENodeType nodeType;
+  char* p;
+  uint32_t n;
+  SNode* pNode;
+} SRawExprNode;
 
 typedef struct SDataType {
   uint8_t type;
@@ -114,6 +121,14 @@ typedef struct SColumnNode {
 typedef struct SValueNode {
   SExprNode node; // QUERY_NODE_VALUE
   char* literal;
+  bool isDuration;
+  union {
+    bool b;
+    int64_t i;
+    uint64_t u;
+    double d;
+    char* p;
+  } datum;
 } SValueNode;
 
 typedef enum EOperatorType {
@@ -174,7 +189,7 @@ typedef struct SNodeListNode {
 } SNodeListNode;
 
 typedef struct SFunctionNode {
-  SExprNode type; // QUERY_NODE_FUNCTION
+  SExprNode node; // QUERY_NODE_FUNCTION
   char functionName[TSDB_FUNC_NAME_LEN];
   int32_t funcId;
   SNodeList* pParameterList;

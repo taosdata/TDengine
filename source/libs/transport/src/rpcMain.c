@@ -1383,7 +1383,7 @@ static void rpcSendMsgToPeer(SRpcConn *pConn, void *msg, int msgLen) {
 static void rpcProcessConnError(void *param, void *id) {
   SRpcReqContext *pContext = (SRpcReqContext *)param;
   SRpcInfo *      pRpc = pContext->pRpc;
-  SRpcMsg         rpcMsg;
+  SRpcMsg         rpcMsg = {0};
 
   if (pRpc == NULL) {
     return;

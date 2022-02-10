@@ -58,6 +58,12 @@ SNode* nodesMakeNode(ENodeType type) {
       return makeNode(type, sizeof(SSessionWindowNode));
     case QUERY_NODE_INTERVAL_WINDOW:
       return makeNode(type, sizeof(SIntervalWindowNode));
+    case QUERY_NODE_NODE_LIST:
+      return makeNode(type, sizeof(SNodeListNode));
+    case QUERY_NODE_FILL:
+      return makeNode(type, sizeof(SFillNode));
+    case QUERY_NODE_RAW_EXPR:
+      return makeNode(type, sizeof(SRawExprNode));
     case QUERY_NODE_SET_OPERATOR:
       return makeNode(type, sizeof(SSetOperator));
     case QUERY_NODE_SELECT_STMT:
@@ -74,7 +80,7 @@ static bool destroyNode(SNode* pNode, void* pContext) {
   switch (nodeType(pNode)) {
     case QUERY_NODE_VALUE:
       tfree(((SValueNode*)pNode)->literal);
-      break;    
+      break;
     default:
       break;
   }

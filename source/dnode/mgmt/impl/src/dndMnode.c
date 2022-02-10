@@ -256,6 +256,12 @@ static bool dndNeedDeployMnode(SDnode *pDnode) {
 
 static int32_t dndPutMsgToMWriteQ(SDnode *pDnode, SRpcMsg *pRpcMsg) {
   dndWriteMnodeMsgToWorker(pDnode, &pDnode->mmgmt.writeWorker, pRpcMsg);
+  return 0;
+}
+
+static int32_t dndPutMsgToMReadQ(SDnode *pDnode, SRpcMsg* pRpcMsg) {
+  dndWriteMnodeMsgToWorker(pDnode, &pDnode->mmgmt.readWorker, pRpcMsg);
+  return 0;
 }
 
 static void dndInitMnodeOption(SDnode *pDnode, SMnodeOpt *pOption) {
@@ -264,6 +270,7 @@ static void dndInitMnodeOption(SDnode *pDnode, SMnodeOpt *pOption) {
   pOption->sendReqToMnodeFp = dndSendReqToMnode;
   pOption->sendRedirectRspFp = dndSendRedirectRsp;
   pOption->putReqToMWriteQFp = dndPutMsgToMWriteQ;
+  pOption->putReqToMReadQFp = dndPutMsgToMReadQ;
   pOption->dnodeId = dndGetDnodeId(pDnode);
   pOption->clusterId = dndGetClusterId(pDnode);
   pOption->cfg.sver = pDnode->env.sver;

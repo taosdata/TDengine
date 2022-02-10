@@ -186,8 +186,8 @@ do { \
 #define TSDB_MAX_SQL_SHOW_LEN     1024
 #define TSDB_MAX_ALLOWED_SQL_LEN  (1*1024*1024u)          // sql length should be less than 1mb
 
-#define TSDB_APP_NAME_LEN          TSDB_UNI_LEN
-
+#define TSDB_APP_NAME_LEN         TSDB_UNI_LEN
+#define TSDB_STB_COMMENT_LEN      1024
   /**
    *  In some scenarios uint16_t (0~65535) is used to store the row len.
    *  - Firstly, we use 65531(65535 - 4), as the SDataRow/SKVRow contains 4 bits header.

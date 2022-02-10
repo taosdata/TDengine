@@ -272,7 +272,7 @@ int tsdbLoadBlockData(SReadH *pReadh, SBlock *pBlock, SBlockInfo *pBlkInfo) {
   return 0;
 }
 
-int tsdbLoadBlockDataCols(SReadH *pReadh, SBlock *pBlock, SBlockInfo *pBlkInfo, int16_t *colIds, int numOfColsIds) {
+int tsdbLoadBlockDataCols(SReadH *pReadh, SBlock *pBlock, SBlockInfo *pBlkInfo, const int16_t *colIds, int numOfColsIds) {
   ASSERT(pBlock->numOfSubBlocks > 0);
   int8_t update = pReadh->pRepo->config.update;
 
@@ -580,7 +580,7 @@ static int tsdbCheckAndDecodeColumnData(SDataCol *pDataCol, void *content, int32
   return 0;
 }
 
-static int tsdbLoadBlockDataColsImpl(SReadH *pReadh, SBlock *pBlock, SDataCols *pDataCols, int16_t *colIds,
+static int tsdbLoadBlockDataColsImpl(SReadH *pReadh, SBlock *pBlock, SDataCols *pDataCols, const int16_t *colIds,
                                      int numOfColIds) {
   ASSERT(pBlock->numOfSubBlocks == 0 || pBlock->numOfSubBlocks == 1);
   ASSERT(colIds[0] == PRIMARYKEY_TIMESTAMP_COL_ID);

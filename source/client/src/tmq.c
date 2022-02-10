@@ -209,6 +209,9 @@ tmq_resp_err_t tmq_subscribe(tmq_t* tmq, tmq_list_t* topic_list) {
 
     SName name = {0};
     char* dbName = getDbOfConnection(tmq->pTscObj);
+    if (dbName == NULL) {
+      return TMQ_RESP_ERR__FAIL;
+    }
     tNameSetDbName(&name, tmq->pTscObj->acctId, dbName, strlen(dbName));
     tNameFromString(&name, topicName, T_NAME_TABLE);
 

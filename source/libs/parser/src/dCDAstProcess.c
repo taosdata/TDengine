@@ -924,13 +924,13 @@ SDclStmtInfo* qParserValidateDclSqlNode(SSqlInfo* pInfo, SParseContext* pCtx, ch
         goto _error;
       }
 
-      pDcl->pMsg = (char*)buildCreateStbMsg(pCreateTable, &pDcl->msgLen, pCtx, pMsgBuf);
+      pDcl->pMsg = buildCreateStbReq(pCreateTable, &pDcl->msgLen, pCtx, pMsgBuf);
       pDcl->msgType = TDMT_MND_CREATE_STB;
       break;
     }
 
     case TSDB_SQL_DROP_TABLE: {
-      pDcl->pMsg = (char*)buildDropStableMsg(pInfo, &pDcl->msgLen, pCtx, pMsgBuf);
+      pDcl->pMsg = buildDropStableReq(pInfo, &pDcl->msgLen, pCtx, pMsgBuf);
       if (pDcl->pMsg == NULL) {
         goto _error;
       }

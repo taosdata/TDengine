@@ -27,12 +27,10 @@ extern "C" {
 
 extern SToken nil_token;
 
-typedef struct STargetExprNode {
-  ENodeType nodeType;
-  char* p;
-  uint32_t n;
-  SNode* pNode;
-} STargetExprNode;
+SNode* createRawExprNode(SAstCreateContext* pCxt, const SToken* pToken, SNode* pNode);
+SNode* createRawExprNodeExt(SAstCreateContext* pCxt, const SToken* pStart, const SToken* pEnd, SNode* pNode);
+SNode* releaseRawExprNode(SAstCreateContext* pCxt, SNode* pNode);
+SToken getTokenFromRawExprNode(SAstCreateContext* pCxt, SNode* pNode);
 
 SNodeList* createNodeList(SAstCreateContext* pCxt, SNode* pNode);
 SNodeList* addNodeToList(SAstCreateContext* pCxt, SNodeList* pList, SNode* pNode);
