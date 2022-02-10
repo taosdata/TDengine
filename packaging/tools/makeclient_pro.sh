@@ -142,7 +142,7 @@ chmod a+x ${install_dir}/install_client_pro.sh
 
 # Copy example code
 mkdir -p ${install_dir}/examples
-examples_dir="${top_dir}/tests/examples"
+examples_dir="${top_dir}/examples"
 cp -r ${examples_dir}/c      ${install_dir}/examples
 sed -i '/passwd/ {s/taosdata/prodb/g}'  ${install_dir}/examples/c/*.c
 sed -i '/root/   {s/taosdata/prodb/g}'  ${install_dir}/examples/c/*.c
