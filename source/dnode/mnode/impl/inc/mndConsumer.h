@@ -28,6 +28,8 @@ void    mndCleanupConsumer(SMnode *pMnode);
 SMqConsumerObj *mndAcquireConsumer(SMnode *pMnode, int64_t consumerId);
 void            mndReleaseConsumer(SMnode *pMnode, SMqConsumerObj *pConsumer);
 
+SMqConsumerObj* mndCreateConsumer(int64_t consumerId, const char* cgroup);
+
 SSdbRaw *mndConsumerActionEncode(SMqConsumerObj *pConsumer);
 SSdbRow *mndConsumerActionDecode(SSdbRaw *pRaw);
 

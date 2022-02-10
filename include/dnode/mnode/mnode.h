@@ -27,6 +27,7 @@ typedef struct SMnodeMsg SMnodeMsg;
 typedef int32_t (*SendReqToDnodeFp)(SDnode *pDnode, struct SEpSet *epSet, struct SRpcMsg *rpcMsg);
 typedef int32_t (*SendReqToMnodeFp)(SDnode *pDnode, struct SRpcMsg *rpcMsg);
 typedef int32_t (*PutReqToMWriteQFp)(SDnode *pDnode, struct SRpcMsg *rpcMsg);
+typedef int32_t (*PutReqToMReadQFp)(SDnode *pDnode, struct SRpcMsg *rpcMsg);
 typedef void (*SendRedirectRspFp)(SDnode *pDnode, struct SRpcMsg *rpcMsg);
 
 typedef struct SMnodeLoad {
@@ -64,6 +65,7 @@ typedef struct {
   SMnodeCfg         cfg;
   SDnode           *pDnode;
   PutReqToMWriteQFp putReqToMWriteQFp;
+  PutReqToMReadQFp  putReqToMReadQFp;
   SendReqToDnodeFp  sendReqToDnodeFp;
   SendReqToMnodeFp  sendReqToMnodeFp;
   SendRedirectRspFp sendRedirectRspFp;
