@@ -415,3 +415,45 @@ void *tDeserializeSMDropStbReq(void *buf, SMDropStbReq *pReq) {
 
   return buf;
 }
+
+int32_t tSerializeSMAlterStbReq(void **buf, SMAltertbReq *pReq) {
+  int32_t tlen = 0;
+
+  tlen += taosEncodeString(buf, pReq->name);
+  tlen += taosEncodeFixedI8(buf, pReq->alterType);
+  tlen += taosEncodeFixedI32(buf, pReq->numOfFields);
+
+  for (int32_t i = 0; i < pReq->numOfFields; ++i) {
+    SField *pField = taosArrayGet(pReq->pFields, i);
+    tlen += taosEncodeFixedU8(buf, pField->type);
+    tlen += taosEncodeFixedI32(buf, pField->bytes);
+    tlen += taosEncodeString(buf, pField->name);
+  }
+
+  return tlen;
+}
+
+void *tDeserializeSMAlterStbReq(void *buf, SMAltertbReq *pReq) {
+  buf = taosDecodeStringTo(buf, pReq->name);
+  buf = taosDecodeFixedI8(buf, &pReq->alterType);
+  buf = taosDecodeFixedI32(buf, &pReq->numOfFields);
+
+  pReq->pFields = taosArrayInit(pReq->numOfFields, sizeof(SField));
+  if (pReq->pFields == NULL) {
+    terrno = TSDB_CODE_OUT_OF_MEMORY;
+    return NULL;
+  }
+
+  for (int32_t i = 0; i < pReq->numOfFields; ++i) {
+    SField field = {0};
+    buf = taosDecodeFixedU8(buf, &field.type);
+    buf = taosDecodeFixedI32(buf, &field.bytes);
+    buf = taosDecodeStringTo(buf, field.name);
+    if (taosArrayPush(pReq->pFields, &field) == NULL) {
+      terrno = TSDB_CODE_OUT_OF_MEMORY;
+      return NULL;
+    }
+  }
+
+  return buf;
+}

@@ -33,7 +33,7 @@ typedef struct SSrvConn {
   void*       hostThrd;
   void*       pSrvMsg;
 
-  struct sockaddr peername;
+  struct sockaddr_in addr;
 
   // SRpcMsg sendMsg;
   // del later
@@ -236,14 +236,6 @@ static void uvHandleReq(SSrvConn* pConn) {
   assert(transIsReq(pHead->msgType));
 
   SRpcInfo* pRpc = (SRpcInfo*)p->shandle;
-  // auth here
-  // auth should not do in rpc thread
-
-  // int8_t code = uvAuthMsg(pConn, (char*)pHead, p->msgLen);
-  // if (code != 0) {
-  //  terrno = code;
-  //  return;
-  //}
   pHead->code = htonl(pHead->code);
 
   int32_t dlen = 0;
@@ -266,7 +258,8 @@ static void uvHandleReq(SSrvConn* pConn) {
 
   transClearBuffer(&pConn->readBuf);
   pConn->ref++;
-  tDebug("%s received on %p", TMSG_INFO(rpcMsg.msgType), pConn);
+  tDebug("%p %s received from %s:%d", pConn, TMSG_INFO(rpcMsg.msgType), inet_ntoa(pConn->addr.sin_addr),
+         ntohs(pConn->addr.sin_port));
   (*(pRpc->cfp))(pRpc->parent, &rpcMsg, NULL);
   // uv_timer_start(pConn->pTimer, uvHandleActivityTimeout, pRpc->idleTime * 10000, 0);
   // auth
@@ -279,12 +272,12 @@ void uvOnReadCb(uv_stream_t* cli, ssize_t nread, const uv_buf_t* buf) {
   SConnBuffer* pBuf = &conn->readBuf;
   if (nread > 0) {
     pBuf->len += nread;
-    tDebug("conn %p read summary, total read: %d, current read: %d", conn, pBuf->len, (int)nread);
+    tTrace("conn %p read summary, total read: %d, current read: %d", conn, pBuf->len, (int)nread);
     if (readComplete(pBuf)) {
-      tDebug("conn %p alread read complete packet", conn);
+      tTrace("conn %p alread read complete packet", conn);
       uvHandleReq(conn);
     } else {
-      tDebug("conn %p read partial packet, continue to read", conn);
+      tTrace("conn %p read partial packet, continue to read", conn);
     }
     return;
   }
@@ -338,7 +331,8 @@ static void uvOnPipeWriteCb(uv_write_t* req, int status) {
 static void uvPrepareSendData(SSrvMsg* smsg, uv_buf_t* wb) {
   // impl later;
   tDebug("conn %p prepare to send resp", smsg->pConn);
-  SRpcMsg* pMsg = &smsg->msg;
+  SRpcMsg*  pMsg = &smsg->msg;
+  SSrvConn* pConn = smsg->pConn;
   if (pMsg->pCont == 0) {
     pMsg->pCont = (void*)rpcMallocCont(0);
     pMsg->contLen = 0;
@@ -351,6 +345,9 @@ static void uvPrepareSendData(SSrvMsg* smsg, uv_buf_t* wb) {
   if (transCompressMsg(msg, len, NULL)) {
     // impl later
   }
+  tDebug("%p start to send %s to %s:%d", pConn, TMSG_INFO(pHead->msgType), inet_ntoa(pConn->addr.sin_addr),
+         ntohs(pConn->addr.sin_port));
+
   pHead->msgLen = htonl(len);
   wb->base = msg;
   wb->len = len;
@@ -490,8 +487,8 @@ void uvOnConnectionCb(uv_stream_t* q, ssize_t nread, const uv_buf_t* buf) {
     uv_os_fd_t fd;
     uv_fileno((const uv_handle_t*)pConn->pTcp, &fd);
     tDebug("conn %p created, fd: %d", pConn, fd);
-    int namelen = sizeof(pConn->peername);
-    if (0 != uv_tcp_getpeername(pConn->pTcp, &pConn->peername, &namelen)) {
+    int addrlen = sizeof(pConn->addr);
+    if (0 != uv_tcp_getpeername(pConn->pTcp, (struct sockaddr*)&pConn->addr, &addrlen)) {
       tError("failed to get peer name");
       destroyConn(pConn, true);
     } else {
@@ -732,18 +729,18 @@ void rpcSendResponse(const SRpcMsg* pMsg) {
   // QUEUE_PUSH(&pThrd->msg, &srvMsg->q);
   // pthread_mutex_unlock(&pThrd->msgMtx);
 
-  tDebug("conn %p start to send resp", pConn);
+  tTrace("conn %p start to send resp", pConn);
   transSendAsync(pThrd->asyncPool, &srvMsg->q);
   // uv_async_send(pThrd->workerAsync);
 }
 
 int rpcGetConnInfo(void* thandle, SRpcConnInfo* pInfo) {
-  SSrvConn*        pConn = thandle;
-  struct sockaddr* pPeerName = &pConn->peername;
+  SSrvConn* pConn = thandle;
+  // struct sockaddr* pPeerName = &pConn->peername;
 
-  struct sockaddr_in caddr = *(struct sockaddr_in*)(pPeerName);
-  pInfo->clientIp = (uint32_t)(caddr.sin_addr.s_addr);
-  pInfo->clientPort = ntohs(caddr.sin_port);
+  struct sockaddr_in addr = pConn->addr;
+  pInfo->clientIp = (uint32_t)(addr.sin_addr.s_addr);
+  pInfo->clientPort = ntohs(addr.sin_port);
 
   tstrncpy(pInfo->user, pConn->user, sizeof(pInfo->user));
   return 0;

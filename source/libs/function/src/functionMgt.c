@@ -78,3 +78,11 @@ FuncDef setExecFuncs(FuncDef def, FExecGetEnv getEnv, FExecInit init, FExecProce
 int32_t registerFunc(FuncDef func) {
 
 }
+
+int32_t fmGetFuncResultType(FuncMgtHandle handle, SFunctionNode* pFunc) {
+  return TSDB_CODE_SUCCESS;
+}
+
+bool fmIsAggFunc(int32_t funcId) {
+  return false;
+}
