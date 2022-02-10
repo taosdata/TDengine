@@ -32,6 +32,8 @@ typedef struct SCliConn {
   uint64_t     expireTime;
   int8_t       notifyCount;  // timers already notify to client
   int32_t      ref;
+
+  struct sockaddr_in addr;
 } SCliConn;
 
 typedef struct SCliMsg {
@@ -124,7 +126,8 @@ static void clientHandleResp(SCliConn* conn) {
   rpcMsg.msgType = pHead->msgType;
   rpcMsg.ahandle = pCtx->ahandle;
 
-  tDebug("client conn %p %s received from %s:%d", conn, TMSG_INFO(pHead->msgType), pMsg->ctx->ip, pMsg->ctx->port);
+  tDebug("client conn %p %s received from %s:%d", conn, TMSG_INFO(pHead->msgType), inet_ntoa(conn->addr.sin_addr),
+         ntohs(conn->addr.sin_port));
   if (pCtx->pSem == NULL) {
     tTrace("client conn(sync) %p handle resp", conn);
     (pRpc->cfp)(pRpc->parent, &rpcMsg, NULL);
@@ -156,7 +159,7 @@ static void clientHandleExcept(SCliConn* pConn) {
     clientConnDestroy(pConn, true);
     return;
   }
-  tDebug("client conn %p start to destroy", pConn);
+  tTrace("client conn %p start to destroy", pConn);
   SCliMsg* pMsg = pConn->data;
 
   destroyUserdata(&pMsg->msg);
@@ -186,7 +189,7 @@ static void clientTimeoutCb(uv_timer_t* handle) {
   SCliThrdObj* pThrd = handle->data;
   SRpcInfo*    pRpc = pThrd->pTransInst;
   int64_t      currentTime = pThrd->nextTimeout;
-  tDebug("client conn timeout, try to remove expire conn from conn pool");
+  tTrace("client conn timeout, try to remove expire conn from conn pool");
 
   SConnList* p = taosHashIterate((SHashObj*)pThrd->pool, NULL);
   while (p != NULL) {
@@ -255,7 +258,7 @@ static void addConnToPool(void* pool, char* ip, uint32_t port, SCliConn* conn) {
 
   tstrncpy(key, ip, strlen(ip));
   tstrncpy(key + strlen(key), (char*)(&port), sizeof(port));
-  tDebug("client conn %p added to conn pool, read buf cap: %d", conn, conn->readBuf.cap);
+  tTrace("client conn %p added to conn pool, read buf cap: %d", conn, conn->readBuf.cap);
 
   SRpcInfo* pRpc = ((SCliThrdObj*)conn->hostThrd)->pTransInst;
 
@@ -296,10 +299,10 @@ static void clientReadCb(uv_stream_t* handle, ssize_t nread, const uv_buf_t* buf
     pBuf->len += nread;
     if (clientReadComplete(pBuf)) {
       uv_read_stop((uv_stream_t*)conn->stream);
-      tDebug("client conn %p read complete", conn);
+      tTrace("client conn %p read complete", conn);
       clientHandleResp(conn);
     } else {
-      tDebug("client conn %p read partial packet, continue to read", conn);
+      tTrace("client conn %p read partial packet, continue to read", conn);
     }
     return;
   }
@@ -322,9 +325,8 @@ static void clientConnDestroy(SCliConn* conn, bool clear) {
   //
   conn->ref--;
   if (conn->ref == 0) {
-    tDebug("client conn %p remove from conn pool", conn);
+    tTrace("client conn %p remove from conn pool", conn);
     QUEUE_REMOVE(&conn->conn);
-    tDebug("client conn %p remove from conn pool successfully", conn);
     if (clear) {
       uv_close((uv_handle_t*)conn->stream, clientDestroy);
     }
@@ -336,7 +338,7 @@ static void clientDestroy(uv_handle_t* handle) {
 
   free(conn->stream);
   free(conn->writeReq);
-  tDebug("client conn %p destroy successfully", conn);
+  tTrace("client conn %p destroy successfully", conn);
   free(conn);
 
   // clientConnDestroy(conn, false);
@@ -345,7 +347,7 @@ static void clientDestroy(uv_handle_t* handle) {
 static void clientWriteCb(uv_write_t* req, int status) {
   SCliConn* pConn = req->data;
   if (status == 0) {
-    tDebug("client conn %p data already was written out", pConn);
+    tTrace("client conn %p data already was written out", pConn);
     SCliMsg* pMsg = pConn->data;
     if (pMsg == NULL) {
       // handle
@@ -372,7 +374,8 @@ static void clientWrite(SCliConn* pConn) {
   pHead->msgLen = (int32_t)htonl((uint32_t)msgLen);
 
   uv_buf_t wb = uv_buf_init((char*)pHead, msgLen);
-  tDebug("conn %p %s is send to %s:%d", pConn, TMSG_INFO(pHead->msgType), pCliMsg->ctx->ip, pCliMsg->ctx->port);
+  tDebug("client conn %p %s is send to %s:%d", pConn, TMSG_INFO(pHead->msgType), inet_ntoa(pConn->addr.sin_addr),
+         ntohs(pConn->addr.sin_port));
   uv_write(pConn->writeReq, (uv_stream_t*)pConn->stream, &wb, 1, clientWriteCb);
 }
 static void clientConnCb(uv_connect_t* req, int status) {
@@ -384,14 +387,17 @@ static void clientConnCb(uv_connect_t* req, int status) {
     clientHandleExcept(pConn);
     return;
   }
-  tDebug("client conn %p create", pConn);
+  int addrlen = sizeof(pConn->addr);
+  uv_tcp_getpeername((uv_tcp_t*)pConn->stream, (struct sockaddr*)&pConn->addr, &addrlen);
+
+  tTrace("client conn %p create", pConn);
 
   assert(pConn->stream == req->handle);
   clientWrite(pConn);
 }
 
 static void clientHandleQuit(SCliMsg* pMsg, SCliThrdObj* pThrd) {
-  tDebug("thread %p start to quit", pThrd);
+  tDebug("client work thread %p start to quit", pThrd);
   destroyCmsg(pMsg);
   // transDestroyAsyncPool(pThr) uv_close((uv_handle_t*)pThrd->cliAsync, NULL);
   uv_timer_stop(pThrd->timer);
@@ -402,14 +408,14 @@ static void clientHandleQuit(SCliMsg* pMsg, SCliThrdObj* pThrd) {
 static void clientHandleReq(SCliMsg* pMsg, SCliThrdObj* pThrd) {
   uint64_t et = taosGetTimestampUs();
   uint64_t el = et - pMsg->st;
-  tDebug("client msg tran time cost: %" PRIu64 "", el);
+  tTrace("client msg tran time cost: %" PRIu64 "", el);
   et = taosGetTimestampUs();
 
   STransConnCtx* pCtx = pMsg->ctx;
   SCliConn*      conn = getConnFromPool(pThrd->pool, pCtx->ip, pCtx->port);
   if (conn != NULL) {
     // impl later
-    tDebug("client get conn %p from pool", conn);
+    tTrace("client get conn %p from pool", conn);
     conn->data = pMsg;
     conn->writeReq->data = conn;
     transDestroyBuffer(&conn->readBuf);
@@ -470,7 +476,7 @@ static void clientAsyncCb(uv_async_t* handle) {
     count++;
   }
   if (count >= 2) {
-    tDebug("already process batch size: %d", count);
+    tTrace("client process batch size: %d", count);
   }
 }
 
@@ -532,7 +538,7 @@ static SCliThrdObj* createThrdObj() {
   uv_timer_init(pThrd->loop, pThrd->timer);
   pThrd->timer->data = pThrd;
 
-  pThrd->pool = creatConnPool(1);
+  pThrd->pool = creatConnPool(4);
 
   pThrd->quit = false;
   return pThrd;
