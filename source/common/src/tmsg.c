@@ -359,6 +359,7 @@ int32_t tSerializeSMCreateStbReq(void **buf, SMCreateStbReq *pReq) {
     tlen += taosEncodeString(buf, pField->name);
   }
 
+  tlen += taosEncodeString(buf, pReq->comment);
   return tlen;
 }
 
@@ -397,6 +398,7 @@ void *tDeserializeSMCreateStbReq(void *buf, SMCreateStbReq *pReq) {
     }
   }
 
+  buf = taosDecodeStringTo(buf, pReq->comment);
   return buf;
 }
 

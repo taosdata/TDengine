@@ -307,6 +307,7 @@ typedef struct {
   SSchema* pColumns;
   SSchema* pTags;
   SRWLatch lock;
+  char     comment[TSDB_STB_COMMENT_LEN];
 } SStbObj;
 
 typedef struct {

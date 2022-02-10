@@ -262,6 +262,7 @@ typedef struct {
   int32_t numOfTags;
   SArray* pColumns;
   SArray* pTags;
+  char    comment[TSDB_STB_COMMENT_LEN];
 } SMCreateStbReq;
 
 int32_t tSerializeSMCreateStbReq(void** buf, SMCreateStbReq* pReq);
