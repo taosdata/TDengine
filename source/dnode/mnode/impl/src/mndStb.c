@@ -592,8 +592,8 @@ CREATE_STB_OVER:
   mndReleaseStb(pMnode, pStb);
   mndReleaseStb(pMnode, pTopicStb);
   mndReleaseDb(pMnode, pDb);
-  taosArrayClear(createReq.pColumns);
-  taosArrayClear(createReq.pTags);
+  taosArrayDestroy(createReq.pColumns);
+  taosArrayDestroy(createReq.pTags);
 
   return code;
 }
@@ -1049,7 +1049,7 @@ ALTER_STB_OVER:
 
   mndReleaseStb(pMnode, pStb);
   mndReleaseDb(pMnode, pDb);
-  taosArrayClear(alterReq.pFields);
+  taosArrayDestroy(alterReq.pFields);
 
   return code;
 }

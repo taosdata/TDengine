@@ -543,3 +543,61 @@ void *tDeserializeSStatusReq(void *buf, SStatusReq *pReq) {
 
   return buf;
 }
+
+int32_t tSerializeSStatusRsp(void **buf, SStatusRsp *pRsp) {
+  int32_t tlen = 0;
+
+  // status
+  tlen += taosEncodeFixedI32(buf, pRsp->mver);
+  tlen += taosEncodeFixedI64(buf, pRsp->dver);
+
+  // dnode cfg
+  tlen += taosEncodeFixedI32(buf, pRsp->dnodeCfg.dnodeId);
+  tlen += taosEncodeFixedI64(buf, pRsp->dnodeCfg.clusterId);
+
+  // dnode eps
+  int32_t dlen = (int32_t)taosArrayGetSize(pRsp->pDnodeEps);
+  tlen += taosEncodeFixedI32(buf, dlen);
+  for (int32_t i = 0; i < dlen; ++i) {
+    SDnodeEp *pDnodeEp = taosArrayGet(pRsp->pDnodeEps, i);
+    tlen += taosEncodeFixedI32(buf, pDnodeEp->id);
+    tlen += taosEncodeFixedI8(buf, pDnodeEp->isMnode);
+    tlen += taosEncodeString(buf, pDnodeEp->ep.fqdn);
+    tlen += taosEncodeFixedU16(buf, pDnodeEp->ep.port);
+  }
+
+  return tlen;
+}
+
+void *tDeserializeSStatusRsp(void *buf, SStatusRsp *pRsp) {
+  // status
+  buf = taosDecodeFixedI32(buf, &pRsp->mver);
+  buf = taosDecodeFixedI64(buf, &pRsp->dver);
+
+  // cluster cfg
+  buf = taosDecodeFixedI32(buf, &pRsp->dnodeCfg.dnodeId);
+  buf = taosDecodeFixedI64(buf, &pRsp->dnodeCfg.clusterId);
+
+  // dnode eps
+  int32_t dlen = 0;
+  buf = taosDecodeFixedI32(buf, &dlen);
+  pRsp->pDnodeEps = taosArrayInit(dlen, sizeof(SDnodeEp));
+  if (pRsp->pDnodeEps == NULL) {
+    terrno = TSDB_CODE_OUT_OF_MEMORY;
+    return NULL;
+  }
+
+  for (int32_t i = 0; i < dlen; ++i) {
+    SDnodeEp dnodeEp = {0};
+    buf = taosDecodeFixedI32(buf, &dnodeEp.id);
+    buf = taosDecodeFixedI8(buf, &dnodeEp.isMnode);
+    buf = taosDecodeStringTo(buf, dnodeEp.ep.fqdn);
+    buf = taosDecodeFixedU16(buf, &dnodeEp.ep.port);
+    if (taosArrayPush(pRsp->pDnodeEps, &dnodeEp) == NULL) {
+      terrno = TSDB_CODE_OUT_OF_MEMORY;
+      return NULL;
+    }
+  }
+
+  return buf;
+}

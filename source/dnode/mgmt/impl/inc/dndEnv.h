@@ -55,7 +55,7 @@ typedef struct {
   SEpSet       mnodeEpSet;
   char        *file;
   SHashObj    *dnodeHash;
-  SDnodeEps   *dnodeEps;
+  SArray      *pDnodeEps;
   pthread_t   *threadId;
   SRWLatch     latch;
   SDnodeWorker mgmtWorker;

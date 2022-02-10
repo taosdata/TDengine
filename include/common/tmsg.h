@@ -639,10 +639,6 @@ int32_t tSerializeSStatusReq(void** buf, SStatusReq* pReq);
 void*   tDeserializeSStatusReq(void* buf, SStatusReq* pReq);
 
 typedef struct {
-  int32_t reserved;
-} STransReq;
-
-typedef struct {
   int32_t dnodeId;
   int64_t clusterId;
 } SDnodeCfg;
@@ -650,20 +646,22 @@ typedef struct {
 typedef struct {
   int32_t  id;
   int8_t   isMnode;
-  int8_t   align;
   SEp      ep;
 } SDnodeEp;
 
 typedef struct {
-  int32_t  num;
-  SDnodeEp eps[];
-} SDnodeEps;
-
-typedef struct {
+  int32_t   mver;
   int64_t   dver;
   SDnodeCfg dnodeCfg;
-  SDnodeEps dnodeEps;
+  SArray*   pDnodeEps;  // Array of SDnodeEp
 } SStatusRsp;
+
+int32_t tSerializeSStatusRsp(void** buf, SStatusRsp* pRsp);
+void*   tDeserializeSStatusRsp(void* buf, SStatusRsp* pRsp);
+
+typedef struct {
+  int32_t mver;
+} STransReq;
 
 typedef struct {
   int32_t  id;
@@ -1201,8 +1199,6 @@ typedef struct {
 
 int32_t tSerializeSVCreateTbReq(void** buf, SVCreateTbReq* pReq);
 void*   tDeserializeSVCreateTbReq(void* buf, SVCreateTbReq* pReq);
-int32_t tSerializeSVCreateTbRsp(void** buf, SVCreateTbRsp* pRsp);
-void*   tDeserializeSVCreateTbRsp(void* buf, SVCreateTbRsp* pRsp);
 
 typedef struct {
   uint64_t ver;  // use a general definition
@@ -1214,8 +1210,6 @@ typedef struct {
 
 int32_t tSerializeSVCreateTbBatchReq(void** buf, SVCreateTbBatchReq* pReq);
 void*   tDeserializeSVCreateTbBatchReq(void* buf, SVCreateTbBatchReq* pReq);
-int32_t tSerializeSVCreateTbBatchRsp(void** buf, SVCreateTbBatchRsp* pRsp);
-void*   tDeserializeSVCreateTbBatchRsp(void* buf, SVCreateTbBatchRsp* pRsp);
 
 typedef struct {
   uint64_t ver;
@@ -1229,8 +1223,6 @@ typedef struct {
 
 int32_t tSerializeSVDropTbReq(void** buf, SVDropTbReq* pReq);
 void*   tDeserializeSVDropTbReq(void* buf, SVDropTbReq* pReq);
-int32_t tSerializeSVDropTbRsp(void** buf, SVDropTbRsp* pRsp);
-void*   tDeserializeSVDropTbRsp(void* buf, SVDropTbRsp* pRsp);
 
 typedef struct {
   SMsgHead head;

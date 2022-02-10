@@ -276,6 +276,8 @@ char* buildCreateStbReq(SCreateTableSql* pCreateTableSql, int32_t* len, SParseCo
 
   void* buf = req;
   tSerializeSMCreateStbReq(&buf, &createReq);
+  taosArrayDestroy(createReq.pColumns);
+  taosArrayDestroy(createReq.pTags);
   *len = tlen;
   return req;
 }
