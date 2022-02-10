@@ -377,9 +377,9 @@ static int32_t mndProcessDoRebalanceMsg(SMnodeMsg *pMsg) {
 
       // send msg to vnode
       // log rebalance statistics
-      /*SSdbRaw *pSubRaw = mndSubscribeActionEncode(pSub);*/
-      /*sdbSetRawStatus(pSubRaw, SDB_STATUS_READY);*/
-      /*mndTransAppendRedolog(pTrans, pSubRaw);*/
+      SSdbRaw *pSubRaw = mndSubActionEncode(pSub);
+      sdbSetRawStatus(pSubRaw, SDB_STATUS_READY);
+      mndTransAppendRedolog(pTrans, pSubRaw);
     }
     mndReleaseSubscribe(pMnode, pSub);
   }
