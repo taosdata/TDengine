@@ -909,10 +909,18 @@ static int32_t dndPutMsgIntoVnodeApplyQueue(SDnode *pDnode, int32_t vgId, SRpcMs
 static int32_t dndInitVnodeWorkers(SDnode *pDnode) {
   SVnodesMgmt *pMgmt = &pDnode->vmgmt;
 
+#if 0
   int32_t maxFetchThreads = 4;
   int32_t minFetchThreads = TMIN(maxFetchThreads, pDnode->env.numOfCores);
   int32_t minQueryThreads = TMAX((int32_t)(pDnode->env.numOfCores * pDnode->cfg.ratioOfQueryCores), 1);
   int32_t maxQueryThreads = minQueryThreads;
+#else
+  int32_t maxFetchThreads = 1;
+  int32_t minFetchThreads = 1;
+  int32_t minQueryThreads = 1;
+  int32_t maxQueryThreads = 1;
+#endif
+
   int32_t maxWriteThreads = TMAX(pDnode->env.numOfCores, 1);
   int32_t maxSyncThreads = TMAX(pDnode->env.numOfCores / 2, 1);
 
