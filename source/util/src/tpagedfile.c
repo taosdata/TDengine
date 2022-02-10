@@ -305,7 +305,7 @@ static SListNode* getEldestUnrefedPage(SDiskbasedBuf* pResultBuf) {
   return pn;
 }
 
-static char* evicOneDataPage(SDiskbasedBuf* pResultBuf) {
+static char* evacOneDataPage(SDiskbasedBuf* pResultBuf) {
   char* bufPage = NULL;
   SListNode* pn = getEldestUnrefedPage(pResultBuf);
 
@@ -355,7 +355,7 @@ SFilePage* getNewDataBuf(SDiskbasedBuf* pResultBuf, int32_t groupId, int32_t* pa
 
   char* availablePage = NULL;
   if (NO_IN_MEM_AVAILABLE_PAGES(pResultBuf)) {
-    availablePage = evicOneDataPage(pResultBuf);
+    availablePage = evacOneDataPage(pResultBuf);
 
     // Failed to allocate a new buffer page, and there is an error occurs.
     if (availablePage == NULL) {
@@ -391,7 +391,7 @@ SFilePage* getNewDataBuf(SDiskbasedBuf* pResultBuf, int32_t groupId, int32_t* pa
   return (void *)(GET_DATA_PAYLOAD(pi));
 }
 
-SFilePage* getResBufPage(SDiskbasedBuf* pResultBuf, int32_t id) {
+SFilePage* getBufPage(SDiskbasedBuf* pResultBuf, int32_t id) {
   assert(pResultBuf != NULL && id >= 0);
   pResultBuf->statis.getPages += 1;
 
@@ -418,7 +418,7 @@ SFilePage* getResBufPage(SDiskbasedBuf* pResultBuf, int32_t id) {
 
     char* availablePage = NULL;
     if (NO_IN_MEM_AVAILABLE_PAGES(pResultBuf)) {
-      availablePage = evicOneDataPage(pResultBuf);
+      availablePage = evacOneDataPage(pResultBuf);
       if (availablePage == NULL) {
         return NULL;
       }
@@ -440,15 +440,15 @@ SFilePage* getResBufPage(SDiskbasedBuf* pResultBuf, int32_t id) {
   }
 }
 
-void releaseResBufPage(SDiskbasedBuf* pResultBuf, void* page) {
+void releaseBufPage(SDiskbasedBuf* pResultBuf, void* page) {
   assert(pResultBuf != NULL && page != NULL);
   char* p = (char*) page - POINTER_BYTES;
 
   SPageInfo* ppi = ((SPageInfo**) p)[0];
-  releaseResBufPageInfo(pResultBuf, ppi);
+  releaseBufPageInfo(pResultBuf, ppi);
 }
 
-void releaseResBufPageInfo(SDiskbasedBuf* pResultBuf, SPageInfo* pi) {
+void releaseBufPageInfo(SDiskbasedBuf* pResultBuf, SPageInfo* pi) {
   assert(pi->pData != NULL && pi->used);
 
   pi->used = false;
@@ -457,7 +457,7 @@ void releaseResBufPageInfo(SDiskbasedBuf* pResultBuf, SPageInfo* pi) {
 
 size_t getNumOfResultBufGroupId(const SDiskbasedBuf* pResultBuf) { return taosHashGetSize(pResultBuf->groupSet); }
 
-size_t getResBufSize(const SDiskbasedBuf* pResultBuf) { return (size_t)pResultBuf->totalBufSize; }
+size_t getTotalBufSize(const SDiskbasedBuf* pResultBuf) { return (size_t)pResultBuf->totalBufSize; }
 
 SIDList getDataBufPagesIdList(SDiskbasedBuf* pResultBuf, int32_t groupId) {
   assert(pResultBuf != NULL);
@@ -528,4 +528,8 @@ int32_t getBufPageSize(const SDiskbasedBuf* pResultBuf) {
 
 bool isAllDataInMemBuf(const SDiskbasedBuf* pResultBuf) {
   return pResultBuf->fileSize == 0;
+}
+
+void setBufPageDirty(SPageInfo* pPageInfo, bool dirty) {
+  pPageInfo->dirty = dirty;
 }

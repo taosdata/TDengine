@@ -143,7 +143,7 @@ void clearResultRow(STaskRuntimeEnv *pRuntimeEnv, SResultRow *pResultRow, int16_
 
   // the result does not put into the SDiskbasedBuf, ignore it.
   if (pResultRow->pageId >= 0) {
-    SFilePage *page = getResBufPage(pRuntimeEnv->pResultBuf, pResultRow->pageId);
+    SFilePage *page = getBufPage(pRuntimeEnv->pResultBuf, pResultRow->pageId);
 
     int16_t offset = 0;
     for (int32_t i = 0; i < pRuntimeEnv->pQueryAttr->numOfOutput; ++i) {

@@ -245,8 +245,8 @@ static int compareRowData(const void *a, const void *b, const void *userData) {
   SRowCompSupporter *supporter  = (SRowCompSupporter *)userData;
   STaskRuntimeEnv* pRuntimeEnv =  supporter->pRuntimeEnv;
 
-  SFilePage *page1 = getResBufPage(pRuntimeEnv->pResultBuf, pRow1->pageId);
-  SFilePage *page2 = getResBufPage(pRuntimeEnv->pResultBuf, pRow2->pageId);
+  SFilePage *page1 = getBufPage(pRuntimeEnv->pResultBuf, pRow1->pageId);
+  SFilePage *page2 = getBufPage(pRuntimeEnv->pResultBuf, pRow2->pageId);
 
   int16_t offset = supporter->dataOffset;
   char *in1  = getPosInResultPage(pRuntimeEnv->pQueryAttr, page1, pRow1->offset, offset);
@@ -708,12 +708,12 @@ static int32_t addNewWindowResultBuf(SResultRow *pWindowRes, SDiskbasedBuf *pRes
     pData = getNewDataBuf(pResultBuf, tid, &pageId);
   } else {
     SPageInfo* pi = getLastPageInfo(list);
-    pData = getResBufPage(pResultBuf, getPageId(pi));
+    pData = getBufPage(pResultBuf, getPageId(pi));
     pageId = getPageId(pi);
 
     if (pData->num + size > getBufPageSize(pResultBuf)) {
       // release current page first, and prepare the next one
-      releaseResBufPageInfo(pResultBuf, pi);
+      releaseBufPageInfo(pResultBuf, pi);
       pData = getNewDataBuf(pResultBuf, tid, &pageId);
       if (pData != NULL) {
         assert(pData->num == 0);  // number of elements must be 0 for new allocated buffer
@@ -3651,7 +3651,7 @@ void destroyTableQueryInfoImpl(STableQueryInfo *pTableQueryInfo) {
 void setResultRowOutputBufInitCtx(STaskRuntimeEnv *pRuntimeEnv, SResultRow *pResult, SqlFunctionCtx* pCtx,
     int32_t numOfOutput, int32_t* rowCellInfoOffset) {
   // Note: pResult->pos[i]->num == 0, there is only fixed number of results for each group
-  SFilePage* bufPage = getResBufPage(pRuntimeEnv->pResultBuf, pResult->pageId);
+  SFilePage* bufPage = getBufPage(pRuntimeEnv->pResultBuf, pResult->pageId);
 
   int32_t offset = 0;
   for (int32_t i = 0; i < numOfOutput; ++i) {
@@ -3724,7 +3724,7 @@ void setExecutionContext(STaskRuntimeEnv* pRuntimeEnv, SOptrBasicInfo* pInfo, in
 void setResultOutputBuf(STaskRuntimeEnv *pRuntimeEnv, SResultRow *pResult, SqlFunctionCtx* pCtx,
     int32_t numOfCols, int32_t* rowCellInfoOffset) {
   // Note: pResult->pos[i]->num == 0, there is only fixed number of results for each group
-  SFilePage *page = getResBufPage(pRuntimeEnv->pResultBuf, pResult->pageId);
+  SFilePage *page = getBufPage(pRuntimeEnv->pResultBuf, pResult->pageId);
 
   int16_t offset = 0;
   for (int32_t i = 0; i < numOfCols; ++i) {
@@ -3967,7 +3967,7 @@ static int32_t doCopyToSDataBlock(STaskRuntimeEnv* pRuntimeEnv, SGroupResInfo* p
 
     pGroupResInfo->index += 1;
 
-    SFilePage *page = getResBufPage(pRuntimeEnv->pResultBuf, pRow->pageId);
+    SFilePage *page = getBufPage(pRuntimeEnv->pResultBuf, pRow->pageId);
 
     int32_t offset = 0;
     for (int32_t j = 0; j < pBlock->info.numOfCols; ++j) {
@@ -5634,13 +5634,13 @@ static int32_t adjustMergeTreeForNextTuple(SExternalMemSource *pSource, SMultiwa
     } else {
       SPageInfo* pPgInfo = *(SPageInfo**)taosArrayGet(pSource->pageIdList, pSource->pageIndex);
 
-      SFilePage* pPage = getResBufPage(pInfo->pSortInternalBuf, getPageId(pPgInfo));
+      SFilePage* pPage = getBufPage(pInfo->pSortInternalBuf, getPageId(pPgInfo));
       int32_t code = blockDataFromBuf(pSource->pBlock, pPage->data);
       if (code != TSDB_CODE_SUCCESS) {
         return code;
       }
 
-      releaseResBufPage(pInfo->pSortInternalBuf, pPage);
+      releaseBufPage(pInfo->pSortInternalBuf, pPage);
     }
   }
 
@@ -5729,7 +5729,7 @@ void addToDiskbasedBuf(SOrderOperatorInfo* pInfo, jmp_buf env) {
     assert(size <= getBufPageSize(pInfo->pSortInternalBuf));
 
     blockDataToBuf(pPage->data, p);
-    releaseResBufPage(pInfo->pSortInternalBuf, pPage);
+    releaseBufPage(pInfo->pSortInternalBuf, pPage);
 
     blockDataDestroy(p);
     start = stop + 1;
@@ -5751,13 +5751,13 @@ static int32_t sortComparInit(SMsortComparParam* cmpParam, const SOrderOperatorI
     SExternalMemSource* pSource = cmpParam->pSources[i];
     SPageInfo* pPgInfo = *(SPageInfo**)taosArrayGet(pSource->pageIdList, pSource->pageIndex);
 
-    SFilePage* pPage = getResBufPage(pInfo->pSortInternalBuf, getPageId(pPgInfo));
+    SFilePage* pPage = getBufPage(pInfo->pSortInternalBuf, getPageId(pPgInfo));
     int32_t code = blockDataFromBuf(cmpParam->pSources[i]->pBlock, pPage->data);
     if (code != TSDB_CODE_SUCCESS) {
       return code;
     }
 
-    releaseResBufPage(pInfo->pSortInternalBuf, pPage);
+    releaseBufPage(pInfo->pSortInternalBuf, pPage);
   }
 
   return TSDB_CODE_SUCCESS;

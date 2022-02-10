@@ -71,28 +71,28 @@ SIDList getDataBufPagesIdList(SDiskbasedBuf* pResultBuf, int32_t groupId);
  * @param id
  * @return
  */
-SFilePage* getResBufPage(SDiskbasedBuf* pResultBuf, int32_t id);
+SFilePage* getBufPage(SDiskbasedBuf* pResultBuf, int32_t id);
 
 /**
  * release the referenced buf pages
  * @param pResultBuf
  * @param page
  */
-void releaseResBufPage(SDiskbasedBuf* pResultBuf, void* page);
+void releaseBufPage(SDiskbasedBuf* pResultBuf, void* page);
 
 /**
  *
  * @param pResultBuf
  * @param pi
  */
-void releaseResBufPageInfo(SDiskbasedBuf* pResultBuf, struct SPageInfo* pi);
+void releaseBufPageInfo(SDiskbasedBuf* pResultBuf, struct SPageInfo* pi);
 
 /**
  * get the total buffer size in the format of disk file
  * @param pResultBuf
  * @return
  */
-size_t getResBufSize(const SDiskbasedBuf* pResultBuf);
+size_t getTotalBufSize(const SDiskbasedBuf* pResultBuf);
 
 /**
  * get the number of groups in the result buffer
@@ -134,6 +134,13 @@ int32_t getBufPageSize(const SDiskbasedBuf* pResultBuf);
  * @return
  */
 bool isAllDataInMemBuf(const SDiskbasedBuf* pResultBuf);
+
+/**
+ * Set the buffer page is dirty, and needs to be flushed to disk when swap out.
+ * @param pPageInfo
+ * @param dirty
+ */
+void setBufPageDirty(SPageInfo* pPageInfo, bool dirty);
 
 #ifdef __cplusplus
 }
