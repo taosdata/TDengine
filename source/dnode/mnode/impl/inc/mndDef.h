@@ -233,7 +233,8 @@ typedef struct {
   int64_t   updateTime;
   int8_t    superUser;
   int32_t   acctId;
-  SHashObj* prohibitDbHash;
+  SHashObj* readDbs;
+  SHashObj* writeDbs;
 } SUserObj;
 
 typedef struct {
@@ -260,6 +261,7 @@ typedef struct {
 typedef struct {
   char     name[TSDB_DB_FNAME_LEN];
   char     acct[TSDB_USER_LEN];
+  char     createdUser[TSDB_USER_LEN];
   int64_t  createdTime;
   int64_t  updateTime;
   uint64_t uid;
