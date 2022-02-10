@@ -11,7 +11,8 @@ def sync_source() {
     sh '''
         cd ${WKC}
         [ -f src/connector/grafanaplugin/README.md ] && rm -f src/connector/grafanaplugin/README.md > /dev/null || echo "failed to remove grafanaplugin README.md"
-        git reset --hard HEAD~10 >/dev/null
+        rm -rf .git/modules/tests tests
+        git reset --hard >/dev/null
     '''
     script {
         if (env.CHANGE_TARGET == 'master') {
@@ -38,16 +39,19 @@ def sync_source() {
     }
     sh '''
         cd ${WKC}
+        git reset --hard
         git remote prune origin
         [ -f src/connector/grafanaplugin/README.md ] && rm -f src/connector/grafanaplugin/README.md > /dev/null || echo "failed to remove grafanaplugin README.md"
         git pull >/dev/null
         git fetch origin +refs/pull/${CHANGE_ID}/merge
+        rm -rf .git/modules/tests tests
         git checkout -qf FETCH_HEAD
+        git reset --hard
         git clean -dfx
         git submodule update --init --recursive --remote
         git submodule update --init --recursive
         cd ${WK}
-        git reset --hard HEAD~10
+        git reset --hard
     '''
     sh '''
         cd ${WKCT}
