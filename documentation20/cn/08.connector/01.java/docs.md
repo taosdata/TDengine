@@ -792,8 +792,8 @@ Query OK, 1 row(s) in set (0.000141s)
 
 ## 在框架中使用
 
-* Spring JdbcTemplate 中使用 taos-jdbcdriver，可参考 [SpringJdbcTemplate](https://github.com/taosdata/TDengine/tree/develop/tests/examples/JDBC/SpringJdbcTemplate)
-* Springboot + Mybatis 中使用，可参考 [springbootdemo](https://github.com/taosdata/TDengine/tree/develop/tests/examples/JDBC/springbootdemo)
+* Spring JdbcTemplate 中使用 taos-jdbcdriver，可参考 [SpringJdbcTemplate](https://github.com/taosdata/tests/tree/develop/examples/JDBC/SpringJdbcTemplate)
+* Springboot + Mybatis 中使用，可参考 [springbootdemo](https://github.com/taosdata/tests/tree/develop/examples/JDBC/springbootdemo)
 
 ## 示例程序
 
@@ -803,7 +803,7 @@ Query OK, 1 row(s) in set (0.000141s)
 * Springbootdemo：springboot示例源程序
 * SpringJdbcTemplate：SpringJDBC模板
 
-请参考：[JDBC example](https://github.com/taosdata/TDengine/tree/develop/tests/examples/JDBC)
+请参考：[JDBC example](https://github.com/taosdata/tests/tree/develop/examples/JDBC)
 
 ## 常见问题
 * 使用Statement的addBatch和executeBatch来执行“批量写入/更行”，为什么没有带来性能上的提升？
