@@ -162,7 +162,7 @@ taosd -C
 | 44    | walLevel                |          | **S**    |          | WAL级别                                                      | 1：写wal, 但不执行fsync; 2：写wal,  而且执行fsync            | 1                                                            |                                                              |
 | 45    | fsync                   |          | **S**    | 毫秒     | 当wal设置为2时，执行fsync的周期                              | 最小为0，表示每次写入，立即执行fsync；最大为180000（三分钟） | 3000                                                         |                                                              |
 | 46    | replica                 |          | **S**    |          | 副本个数                                                     | 1-3                                                          | 1                                                            |                                                              |
-| 47    | mqttHostName            | YES      | **S**    |          | mqtt uri                                                     |                                                              |                                                              | [mqtt://username:password@hostname:1883/taos/](mqtt://username:password@hostname:1883/taos/) |
+| 47    | mqttHostName            | YES      | **S**    |          | mqtt uri                                                     |                                                              |                                                              | mqtt://username:password@hostname:1883/taos/ |
 | 48    | mqttPort                | YES      | **S**    |          | mqtt client name                                             |                                                              |                                                              | 1883                                                         |
 | 49    | mqttTopic               | YES      | **S**    |          |                                                              |                                                              |                                                              | /test                                                        |
 | 50    | compressMsgSize         |          | **S**    | bytes    | 客户端与服务器之间进行消息通讯过程中，对通讯的消息进行压缩的阈值。如果要压缩消息，建议设置为64330字节，即大于64330字节的消息体才进行压缩。 | `0 `表示对所有的消息均进行压缩  >0: 超过该值的消息才进行压缩  -1: 不压缩 | -1                                                           |                                                              |
@@ -602,7 +602,7 @@ chmod +x TDinsight.sh
           -T '{"alarm_level":"%s","time":"%s","name":"%s","content":"%s"}'
         ```
 
-运行程序并重启 Grafana 服务，打开面板：<http://localhost:3000/d/tdinsight>。
+运行程序并重启 Grafana 服务，打开面板：http://localhost:3000/d/tdinsight。
 
 更多使用场景和限制请参考[TDinsight](https://github.com/taosdata/grafanaplugin/blob/master/dashboards/TDinsight.md) 文档。
 

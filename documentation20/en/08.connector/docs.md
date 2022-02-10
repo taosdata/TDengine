@@ -167,7 +167,7 @@ Note:
 - The TDengine dynamic library needs to be linked at compiling. The library in Linux is *libtaos.so*, which installed at/usr/local/taos/driver. By Windows, it is taos.dll and installed at C:\ TDengine.
 - Unless otherwise specified, when the return value of API is an integer, 0 represents success, others are error codes representing the cause of failure, and when the return value is a pointer, NULL represents failure.
 
-More sample codes for using C/C++ connectors, please visit https://github.com/taosdata/tests/tree/develop/examples/c.
+More sample codes for using C/C++ connectors, please visit https://github.com/taosdata/TDengine/tree/develop/examples/c.
 
 ### Basic API
 
@@ -891,7 +891,7 @@ Only some configuration parameters related to RESTful interface are listed below
 ### Example Source Code
 you can find sample code under follow directions:
 * {client_install_directory}/examples/C#
-* [github C# example source code](https://github.com/taosdata/tests/tree/develop/examples/C%2523)
+* [github C# example source code](https://github.com/taosdata/TDengine/tree/develop/examples/C%2523)
 
 **Tips:** TDengineTest.cs       One of C# connector's sample code that include basic examples like connection,sql executions and so on.
 
@@ -924,7 +924,7 @@ dotnet add package TDengine.Connector
 ```C#
 using TDengineDriver;
 ```
-* user can reference from[TDengineTest.cs](https://github.com/taosdata/tests/tree/develop/examples/C%2523/TDengineTest) and learn how to define database connection,query,insert and other basic data manipulations.
+* user can reference from[TDengineTest.cs](https://github.com/taosdata/TDengine/tree/develop/examples/C%2523/TDengineTest) and learn how to define database connection,query,insert and other basic data manipulations.
 
 **Note:**
 
@@ -951,7 +951,7 @@ https://www.taosdata.com/blog/2020/11/02/1901.html
 
 The TDengine provides the GO driver taosSql. taosSql implements the GO language's built-in interface database/sql/driver. Users can access TDengine in the application by simply importing the package as follows, see https://github.com/taosdata/driver-go/blob/develop/taosSql/driver_test.go for details.
 
-Sample code for using the Go connector can be found in https://github.com/taosdata/tests/tree/develop/examples/go .
+Sample code for using the Go connector can be found in https://github.com/taosdata/TDengine/tree/develop/examples/go .
 
 ```Go
 import (
@@ -1067,7 +1067,7 @@ After installing the TDengine client, the nodejsChecker.js program can verify wh
 
 Steps:
 
-1. Create a new installation verification directory, for example: `~/tdengine-test`, copy the nodejsChecker.js source program on github. Download address: （https://github.com/taosdata/tests/tree/develop/examples/nodejs/nodejsChecker.js）.
+1. Create a new installation verification directory, for example: `~/tdengine-test`, copy the nodejsChecker.js source program on github. Download address: （https://github.com/taosdata/TDengine/tree/develop/examples/nodejs/nodejsChecker.js）.
 
 2. Execute the following command:
 
