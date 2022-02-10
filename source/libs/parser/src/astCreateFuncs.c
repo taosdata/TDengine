@@ -118,14 +118,22 @@ SNode* createValueNode(SAstCreateContext* pCxt, int32_t dataType, const SToken* 
   val->literal = strndup(pLiteral->z, pLiteral->n);
   CHECK_OUT_OF_MEM(val->literal);
   val->node.resType.type = dataType;
-  val->node.resType.bytes = tDataTypes[TSDB_DATA_TYPE_BOOL].bytes;
+  val->node.resType.bytes = tDataTypes[dataType].bytes;
+  if (TSDB_DATA_TYPE_TIMESTAMP == dataType) {
+    val->node.resType.precision = TSDB_TIME_PRECISION_MILLI;
+  }
   return (SNode*)val;
 }
 
 SNode* createDurationValueNode(SAstCreateContext* pCxt, const SToken* pLiteral) {
   SValueNode* val = (SValueNode*)nodesMakeNode(QUERY_NODE_VALUE);
   CHECK_OUT_OF_MEM(val);
-  // todo : calc, for example, 10s
+  val->literal = strndup(pLiteral->z, pLiteral->n);
+  CHECK_OUT_OF_MEM(val->literal);
+  val->isDuration = true;
+  val->node.resType.type = TSDB_DATA_TYPE_BIGINT;
+  val->node.resType.bytes = tDataTypes[TSDB_DATA_TYPE_BIGINT].bytes;
+  val->node.resType.precision = TSDB_TIME_PRECISION_MILLI;
   return (SNode*)val;
 }
 

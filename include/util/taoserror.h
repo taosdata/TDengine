@@ -444,10 +444,13 @@ int32_t* taosGetErrno();
 #define TSDB_CODE_SCH_INTERNAL_ERROR            TAOS_DEF_ERROR_CODE(0, 0x2502)  //scheduler internal error
 
 //parser
-#define TSDB_CODE_PARSER_INVALID_COLUMN         TAOS_DEF_ERROR_CODE(0, 0x2601)  //invalid column name
-#define TSDB_CODE_PARSER_TABLE_NOT_EXIST        TAOS_DEF_ERROR_CODE(0, 0x2602)  //table not exist
-#define TSDB_CODE_PARSER_AMBIGUOUS_COLUMN       TAOS_DEF_ERROR_CODE(0, 0x2603)  //ambiguous column
-#define TSDB_CODE_PARSER_WRONG_VALUE_TYPE       TAOS_DEF_ERROR_CODE(0, 0x2604)  //wrong value type
+#define TSDB_CODE_PAR_INVALID_COLUMN            TAOS_DEF_ERROR_CODE(0, 0x2601)  //invalid column name
+#define TSDB_CODE_PAR_TABLE_NOT_EXIST           TAOS_DEF_ERROR_CODE(0, 0x2602)  //table not exist
+#define TSDB_CODE_PAR_AMBIGUOUS_COLUMN          TAOS_DEF_ERROR_CODE(0, 0x2603)  //ambiguous column
+#define TSDB_CODE_PAR_WRONG_VALUE_TYPE          TAOS_DEF_ERROR_CODE(0, 0x2604)  //wrong value type
+#define TSDB_CODE_PAR_FUNTION_PARA_NUM          TAOS_DEF_ERROR_CODE(0, 0x2605)  //invalid number of arguments
+#define TSDB_CODE_PAR_FUNTION_PARA_TYPE         TAOS_DEF_ERROR_CODE(0, 0x2606)  //inconsistent datatypes
+#define TSDB_CODE_PAR_ILLEGAL_USE_AGG_FUNCTION  TAOS_DEF_ERROR_CODE(0, 0x2607)  //there mustn't be aggregation
 
 #ifdef __cplusplus
 }
