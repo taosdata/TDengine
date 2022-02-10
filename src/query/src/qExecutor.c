@@ -3898,6 +3898,20 @@ void finalizeUniqueResult(SOperatorInfo* pOperator, SQLFunctionCtx* pCtx, SResul
       }
     }
     buf->numOfRows = (uint16_t)getNumOfResult(pRuntimeEnv, pCtx, numOfOutput);
+    for (int32_t k = 0; k < numOfOutput; ++k) {
+      if (pCtx[k].functionId != TSDB_FUNC_TAG) {
+        continue;
+      }
+
+      char* src  = pCtx[k].pOutput;
+      char* dst = pCtx[k].pOutput + pCtx[k].outputBytes;
+
+      // Let's start from the second row, as the first row has result value already.
+      for (int32_t m = 1; m < buf->numOfRows; ++m) {
+        memcpy(dst, src, (size_t)pCtx[k].outputBytes);
+        dst += pCtx[k].outputBytes;
+      }
+    }
   }
 }
 
