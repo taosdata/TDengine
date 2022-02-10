@@ -20,7 +20,6 @@
 extern "C" {
 #endif
 
-typedef struct SPgFile SPgFile;
 struct SPgFile {
   char *    fname;                    // backend file name
   uint8_t   fileid[TDB_FILE_ID_LEN];  // file id

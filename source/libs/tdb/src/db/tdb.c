@@ -16,7 +16,7 @@
 #include "tdbInt.h"
 
 struct STDb {
-  SBTree   btree;    // current access method
+  SBTree * pBt;      // current access method
   SPgFile *pPgFile;  // backend page file this DB is using
   TENV *   pEnv;     // TENV containing the DB
 };
@@ -47,6 +47,7 @@ int tdbOpen(TDB **ppDb, const char *fname, const char *dbname, TENV *pEnv) {
   uint8_t   fileid[TDB_FILE_ID_LEN];
   SPgFile * pPgFile;
   SPgCache *pPgCache;
+  SBTree *  pBt;
 
   // Create DB if DB handle is not created yet
   if (ppDb == NULL) {
@@ -78,6 +79,7 @@ int tdbOpen(TDB **ppDb, const char *fname, const char *dbname, TENV *pEnv) {
   }
 
   // Check if the SPgFile already opened
+  tdbGnrtFileID(fname, fileid, false);
   pPgFile = tdbEnvGetPageFile(pEnv, fileid);
   if (pPgFile == NULL) {
     pPgCache = tdbEnvGetPgCache(pEnv);
@@ -89,6 +91,11 @@ int tdbOpen(TDB **ppDb, const char *fname, const char *dbname, TENV *pEnv) {
   pDb->pPgFile = pPgFile;
 
   // open the access method (TODO)
+  if (btreeOpen(&pBt, pPgFile) != 0) {
+    return -1;
+  }
+
+  pDb->pBt = pBt;
 
   return 0;
 }

@@ -25,6 +25,8 @@
 extern "C" {
 #endif
 
+typedef struct SPgFile SPgFile;
+
 // pgno_t
 typedef int32_t pgno_t;
 #define TDB_IVLD_PGNO ((pgno_t)-1)

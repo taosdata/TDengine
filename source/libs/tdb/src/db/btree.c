@@ -18,3 +18,34 @@
 struct SBtCursor {
   // TODO
 };
+
+static int btreeCreate(SBTree **pBt);
+static int btreeDestroy(SBTree *pBt);
+
+int btreeOpen(SBTree **ppBt, SPgFile *pPgFile) {
+  SBTree *pBt;
+  int     ret;
+
+  ret = btreeCreate(&pBt);
+  if (ret != 0) {
+    return -1;
+  }
+
+  *ppBt = pBt;
+  return 0;
+}
+
+int btreeClose(SBTree *pBt) {
+  // TODO
+  return 0;
+}
+
+static int btreeCreate(SBTree **pBt) {
+  // TODO
+  return 0;
+}
+
+static int btreeDestroy(SBTree *pBt) {
+  // TODO
+  return 0;
+}

@@ -24,7 +24,7 @@ typedef struct SBTree    SBTree;
 typedef struct SBtCursor SBtCursor;
 
 // SBTree
-int btreeOpen(SBTree **ppBt);
+int btreeOpen(SBTree **ppBt, SPgFile *pPgFile);
 int btreeClose(SBTree *pBt);
 
 // SBtCursor
