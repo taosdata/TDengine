@@ -552,8 +552,12 @@ static void dndWriteMnodeMsgToWorker(SDnode *pDnode, SDnodeWorker *pWorker, SRpc
 
   if (code != 0) {
     if (pRpcMsg->msgType & 1u) {
-      SRpcMsg rsp = {.handle = pRpcMsg->handle, .ahandle = pRpcMsg->ahandle, .code = code};
-      rpcSendResponse(&rsp);
+      if (code == TSDB_CODE_DND_MNODE_NOT_DEPLOYED || code == TSDB_CODE_APP_NOT_READY) {
+        dndSendRedirectRsp(pDnode, pRpcMsg);
+      } else {
+        SRpcMsg rsp = {.handle = pRpcMsg->handle, .ahandle = pRpcMsg->ahandle, .code = code};
+        rpcSendResponse(&rsp);
+      }
     }
     rpcFreeCont(pRpcMsg->pCont);
   }
