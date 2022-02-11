@@ -13,13 +13,14 @@ import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.ExecutionException;
 
 public class WSStatement extends AbstractStatement {
-    private boolean closed;
     private final Transport transport;
-    private WSResultSet resultSet;
     private final String database;
     private final FetchType fetchType;
     private final Connection connection;
     private final RequestFactory factory;
+
+    private boolean closed;
+    private ResultSet resultSet;
 
     public WSStatement(Transport transport, String database, FetchType fetchType, Connection connection, RequestFactory factory) {
         this.transport = transport;
@@ -53,10 +54,8 @@ public class WSStatement extends AbstractStatement {
 
     @Override
     public void close() throws SQLException {
-        synchronized (WSStatement.class) {
-            if (!isClosed())
-                this.closed = true;
-        }
+        if (!isClosed())
+            this.closed = true;
     }
 
     @Override
@@ -79,7 +78,11 @@ public class WSStatement extends AbstractStatement {
                 this.affectedRows = queryResp.getAffectedRows();
                 return false;
             } else {
-                this.resultSet = new WSResultSet(this, queryResp, this.database, this.transport, this.fetchType, factory);
+                if (fetchType == FetchType.JSON) {
+                    this.resultSet = new JSONResultSet(this, this.transport, this.factory, queryResp, this.database);
+                } else {
+                    this.resultSet = new BlockResultSet(this, this.transport, this.factory, queryResp, this.database);
+                }
                 this.affectedRows = -1;
                 return true;
             }

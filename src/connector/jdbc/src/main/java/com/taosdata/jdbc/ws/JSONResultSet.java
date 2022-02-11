@@ -1,4 +1,4 @@
-package com.taosdata.jdbc.rs;
+package com.taosdata.jdbc.ws;
 
 import com.alibaba.fastjson.JSON;
 import com.alibaba.fastjson.JSONArray;
@@ -7,159 +7,52 @@ import com.alibaba.fastjson.serializer.SerializerFeature;
 import com.google.common.primitives.Ints;
 import com.google.common.primitives.Longs;
 import com.google.common.primitives.Shorts;
-import com.taosdata.jdbc.*;
-import com.taosdata.jdbc.enums.TimestampPrecision;
+import com.taosdata.jdbc.TSDBConstants;
+import com.taosdata.jdbc.TSDBDriver;
+import com.taosdata.jdbc.TSDBError;
+import com.taosdata.jdbc.TSDBErrorNumbers;
 import com.taosdata.jdbc.enums.TimestampFormat;
+import com.taosdata.jdbc.enums.TimestampPrecision;
 import com.taosdata.jdbc.utils.Utils;
+import com.taosdata.jdbc.ws.entity.*;
 
 import java.math.BigDecimal;
 import java.sql.*;
 import java.time.Instant;
 import java.time.ZoneOffset;
 import java.time.ZonedDateTime;
-import java.time.chrono.IsoChronology;
-import java.time.format.DateTimeFormatter;
-import java.time.format.DateTimeFormatterBuilder;
 import java.time.format.DateTimeParseException;
-import java.time.format.ResolverStyle;
-import java.time.temporal.ChronoField;
 import java.util.ArrayList;
 import java.util.Calendar;
 import java.util.List;
+import java.util.concurrent.CompletableFuture;
+import java.util.concurrent.ExecutionException;
 
-public class RestfulResultSet extends AbstractResultSet implements ResultSet {
+public class JSONResultSet extends AbstractWSResultSet {
 
-    public static DateTimeFormatter rfc3339Parser = null;
-
-    {
-        rfc3339Parser = new DateTimeFormatterBuilder()
-                .parseCaseInsensitive()
-                .appendValue(ChronoField.YEAR, 4)
-                .appendLiteral('-')
-                .appendValue(ChronoField.MONTH_OF_YEAR, 2)
-                .appendLiteral('-')
-                .appendValue(ChronoField.DAY_OF_MONTH, 2)
-                .appendLiteral('T')
-                .appendValue(ChronoField.HOUR_OF_DAY, 2)
-                .appendLiteral(':')
-                .appendValue(ChronoField.MINUTE_OF_HOUR, 2)
-                .appendLiteral(':')
-                .appendValue(ChronoField.SECOND_OF_MINUTE, 2)
-                .optionalStart()
-                .appendFraction(ChronoField.NANO_OF_SECOND, 2, 9, true)
-                .optionalEnd()
-                .appendOffset("+HH:MM", "Z").toFormatter()
-                .withResolverStyle(ResolverStyle.STRICT)
-                .withChronology(IsoChronology.INSTANCE);
+    public JSONResultSet(Statement statement, Transport transport, RequestFactory factory,
+                         QueryResp response, String database) throws SQLException {
+        super(statement, transport, factory, response, database);
     }
 
-    private final Statement statement;
-    // data
-    private final List<List<Object>> resultSet = new ArrayList<>();
-    // meta
-    private final List<String> columnNames = new ArrayList<>();
-    private final List<Field> columns = new ArrayList<>();
-    private final RestfulResultSetMetaData metaData;
-
-    private volatile boolean isClosed;
-    private int pos = -1;
-
-    /**
-     * 由一个result的Json构造结果集，对应执行show databases, show tables等这些语句，返回结果集，但无法获取结果集对应的meta，统一当成String处理
-     *
-     * @param resultJson: 包含data信息的结果集，有sql返回的结果集
-     ***/
-    public RestfulResultSet(String database, Statement statement, JSONObject resultJson) throws SQLException {
-        this.statement = statement;
-
-        // get head
-        JSONArray head = resultJson.getJSONArray("head");
-        // get column metadata
-        JSONArray columnMeta = resultJson.getJSONArray("column_meta");
-        // get row data
-        JSONArray data = resultJson.getJSONArray("data");
-        // get rows
-        Integer rows = resultJson.getInteger("rows");
-
-        // parse column_meta
-        if (columnMeta != null) {
-            parseColumnMeta_new(columnMeta);
-        } else {
-            parseColumnMeta_old(head, data, rows);
-        }
-        this.metaData = new RestfulResultSetMetaData(database, columns, this);
-
-        if (data == null || data.isEmpty())
-            return;
-        // parse row data
-        for (int rowIndex = 0; rowIndex < data.size(); rowIndex++) {
-            List<Object> row = new ArrayList<>();
-            JSONArray jsonRow = data.getJSONArray(rowIndex);
-            for (int colIndex = 0; colIndex < this.metaData.getColumnCount(); colIndex++) {
-                row.add(parseColumnData(jsonRow, colIndex, columns.get(colIndex).taos_type));
+    @Override
+    public List<List<Object>> fetchJsonData() throws SQLException, ExecutionException, InterruptedException {
+        Request jsonRequest = factory.generateFetchJson(queryId);
+        CompletableFuture<Response> fetchFuture = transport.send(jsonRequest);
+        FetchJsonResp resp = (FetchJsonResp) fetchFuture.get();
+        if (resp.getData() != null) {
+            List<List<Object>> list = new ArrayList<>();
+            for (int rowIndex = 0; rowIndex < resp.getData().size(); rowIndex++) {
+                List<Object> row = new ArrayList<>();
+                JSONArray array = resp.getData().getJSONArray(rowIndex);
+                for (int colIndex = 0; colIndex < this.metaData.getColumnCount(); colIndex++) {
+                    row.add(parseColumnData(array, colIndex, fields.get(colIndex).getTaosType()));
+                }
+                list.add(row);
             }
-            resultSet.add(row);
+            return list;
         }
-    }
-
-    /***
-     * use this method after TDengine-2.0.18.0 to parse column meta, restful add column_meta in resultSet
-     * @Param columnMeta
-     */
-    private void parseColumnMeta_new(JSONArray columnMeta) throws SQLException {
-        columnNames.clear();
-        columns.clear();
-        for (int colIndex = 0; colIndex < columnMeta.size(); colIndex++) {
-            JSONArray col = columnMeta.getJSONArray(colIndex);
-            String col_name = col.getString(0);
-            int taos_type = col.getInteger(1);
-            int col_type = TSDBConstants.taosType2JdbcType(taos_type);
-            int col_length = col.getInteger(2);
-            columnNames.add(col_name);
-            columns.add(new Field(col_name, col_type, col_length, "", taos_type));
-        }
-    }
-
-    /**
-     * use this method before TDengine-2.0.18.0 to parse column meta
-     */
-    private void parseColumnMeta_old(JSONArray head, JSONArray data, int rows) {
-        columnNames.clear();
-        columns.clear();
-        for (int colIndex = 0; colIndex < head.size(); colIndex++) {
-            String col_name = head.getString(colIndex);
-            columnNames.add(col_name);
-
-            int col_type = Types.NULL;
-            int col_length = 0;
-            int taos_type = TSDBConstants.TSDB_DATA_TYPE_NULL;
-
-            JSONArray row0Json = data.getJSONArray(0);
-            if (colIndex < row0Json.size()) {
-                Object value = row0Json.get(colIndex);
-                if (value instanceof Boolean) {
-                    col_type = Types.BOOLEAN;
-                    col_length = 1;
-                    taos_type = TSDBConstants.TSDB_DATA_TYPE_BOOL;
-                }
-                if (value instanceof Byte || value instanceof Short || value instanceof Integer || value instanceof Long) {
-                    col_type = Types.BIGINT;
-                    col_length = 8;
-                    taos_type = TSDBConstants.TSDB_DATA_TYPE_BIGINT;
-                }
-                if (value instanceof Float || value instanceof Double || value instanceof BigDecimal) {
-                    col_type = Types.DOUBLE;
-                    col_length = 8;
-                    taos_type = TSDBConstants.TSDB_DATA_TYPE_DOUBLE;
-                }
-                if (value instanceof String) {
-                    col_type = Types.NCHAR;
-                    col_length = ((String) value).length();
-                    taos_type = TSDBConstants.TSDB_DATA_TYPE_NCHAR;
-                }
-            }
-            columns.add(new Field(col_name, col_type, col_length, "", taos_type));
-        }
+        return null;
     }
 
     private Object parseColumnData(JSONArray row, int colIndex, int taosType) throws SQLException {
@@ -287,46 +180,11 @@ public class RestfulResultSet extends AbstractResultSet implements ResultSet {
         }
     }
 
-    public static class Field {
-        String name;
-        int type;
-        int length;
-        String note;
-        int taos_type;
-
-        public Field(String name, int type, int length, String note, int taos_type) {
-            this.name = name;
-            this.type = type;
-            this.length = length;
-            this.note = note;
-            this.taos_type = taos_type;
-        }
-
-        public int getTaosType() {
-            return taos_type;
-        }
-    }
-
-    @Override
-    public boolean next() throws SQLException {
-        if (isClosed())
-            throw TSDBError.createSQLException(TSDBErrorNumbers.ERROR_RESULTSET_CLOSED);
-        pos++;
-        return pos <= resultSet.size() - 1;
-    }
-
-    @Override
-    public void close() throws SQLException {
-        synchronized (RestfulResultSet.class) {
-            this.isClosed = true;
-        }
-    }
-
     @Override
     public String getString(int columnIndex) throws SQLException {
-        checkAvailability(columnIndex, resultSet.get(pos).size());
+        checkAvailability(columnIndex, result.get(rowIndex).size());
 
-        Object value = resultSet.get(pos).get(columnIndex - 1);
+        Object value = result.get(rowIndex).get(columnIndex - 1);
         wasNull = value == null;
         if (value == null)
             return null;
@@ -337,9 +195,9 @@ public class RestfulResultSet extends AbstractResultSet implements ResultSet {
 
     @Override
     public boolean getBoolean(int columnIndex) throws SQLException {
-        checkAvailability(columnIndex, resultSet.get(pos).size());
+        checkAvailability(columnIndex, result.get(rowIndex).size());
 
-        Object value = resultSet.get(pos).get(columnIndex - 1);
+        Object value = result.get(rowIndex).get(columnIndex - 1);
         wasNull = value == null;
         if (value == null)
             return false;
@@ -350,9 +208,9 @@ public class RestfulResultSet extends AbstractResultSet implements ResultSet {
 
     @Override
     public byte getByte(int columnIndex) throws SQLException {
-        checkAvailability(columnIndex, resultSet.get(pos).size());
+        checkAvailability(columnIndex, result.get(rowIndex).size());
 
-        Object value = resultSet.get(pos).get(columnIndex - 1);
+        Object value = result.get(rowIndex).get(columnIndex - 1);
         wasNull = value == null;
         if (value == null)
             return 0;
@@ -372,9 +230,9 @@ public class RestfulResultSet extends AbstractResultSet implements ResultSet {
 
     @Override
     public short getShort(int columnIndex) throws SQLException {
-        checkAvailability(columnIndex, resultSet.get(pos).size());
+        checkAvailability(columnIndex, result.get(rowIndex).size());
 
-        Object value = resultSet.get(pos).get(columnIndex - 1);
+        Object value = result.get(rowIndex).get(columnIndex - 1);
         wasNull = value == null;
         if (value == null)
             return 0;
@@ -388,9 +246,9 @@ public class RestfulResultSet extends AbstractResultSet implements ResultSet {
 
     @Override
     public int getInt(int columnIndex) throws SQLException {
-        checkAvailability(columnIndex, resultSet.get(pos).size());
+        checkAvailability(columnIndex, result.get(rowIndex).size());
 
-        Object value = resultSet.get(pos).get(columnIndex - 1);
+        Object value = result.get(rowIndex).get(columnIndex - 1);
         wasNull = value == null;
         if (value == null)
             return 0;
@@ -404,9 +262,9 @@ public class RestfulResultSet extends AbstractResultSet implements ResultSet {
 
     @Override
     public long getLong(int columnIndex) throws SQLException {
-        checkAvailability(columnIndex, resultSet.get(pos).size());
+        checkAvailability(columnIndex, result.get(rowIndex).size());
 
-        Object value = resultSet.get(pos).get(columnIndex - 1);
+        Object value = result.get(rowIndex).get(columnIndex - 1);
         wasNull = value == null;
         if (value == null)
             return 0;
@@ -435,9 +293,9 @@ public class RestfulResultSet extends AbstractResultSet implements ResultSet {
 
     @Override
     public float getFloat(int columnIndex) throws SQLException {
-        checkAvailability(columnIndex, resultSet.get(pos).size());
+        checkAvailability(columnIndex, result.get(rowIndex).size());
 
-        Object value = resultSet.get(pos).get(columnIndex - 1);
+        Object value = result.get(rowIndex).get(columnIndex - 1);
         wasNull = value == null;
         if (value == null)
             return 0;
@@ -450,9 +308,9 @@ public class RestfulResultSet extends AbstractResultSet implements ResultSet {
 
     @Override
     public double getDouble(int columnIndex) throws SQLException {
-        checkAvailability(columnIndex, resultSet.get(pos).size());
+        checkAvailability(columnIndex, result.get(rowIndex).size());
 
-        Object value = resultSet.get(pos).get(columnIndex - 1);
+        Object value = result.get(rowIndex).get(columnIndex - 1);
         wasNull = value == null;
         if (value == null) {
             return 0;
@@ -464,9 +322,9 @@ public class RestfulResultSet extends AbstractResultSet implements ResultSet {
 
     @Override
     public byte[] getBytes(int columnIndex) throws SQLException {
-        checkAvailability(columnIndex, resultSet.get(pos).size());
+        checkAvailability(columnIndex, result.get(rowIndex).size());
 
-        Object value = resultSet.get(pos).get(columnIndex - 1);
+        Object value = result.get(rowIndex).get(columnIndex - 1);
         wasNull = value == null;
         if (value == null)
             return null;
@@ -491,9 +349,9 @@ public class RestfulResultSet extends AbstractResultSet implements ResultSet {
 
     @Override
     public Date getDate(int columnIndex) throws SQLException {
-        checkAvailability(columnIndex, resultSet.get(pos).size());
+        checkAvailability(columnIndex, result.get(rowIndex).size());
 
-        Object value = resultSet.get(pos).get(columnIndex - 1);
+        Object value = result.get(rowIndex).get(columnIndex - 1);
         wasNull = value == null;
         if (value == null)
             return null;
@@ -504,9 +362,9 @@ public class RestfulResultSet extends AbstractResultSet implements ResultSet {
 
     @Override
     public Time getTime(int columnIndex) throws SQLException {
-        checkAvailability(columnIndex, resultSet.get(pos).size());
+        checkAvailability(columnIndex, result.get(rowIndex).size());
 
-        Object value = resultSet.get(pos).get(columnIndex - 1);
+        Object value = result.get(rowIndex).get(columnIndex - 1);
         wasNull = value == null;
         if (value == null)
             return null;
@@ -522,9 +380,9 @@ public class RestfulResultSet extends AbstractResultSet implements ResultSet {
 
     @Override
     public Timestamp getTimestamp(int columnIndex) throws SQLException {
-        checkAvailability(columnIndex, resultSet.get(pos).size());
+        checkAvailability(columnIndex, result.get(rowIndex).size());
 
-        Object value = resultSet.get(pos).get(columnIndex - 1);
+        Object value = result.get(rowIndex).get(columnIndex - 1);
         wasNull = value == null;
         if (value == null)
             return null;
@@ -556,9 +414,9 @@ public class RestfulResultSet extends AbstractResultSet implements ResultSet {
 
     @Override
     public Object getObject(int columnIndex) throws SQLException {
-        checkAvailability(columnIndex, resultSet.get(pos).size());
+        checkAvailability(columnIndex, result.get(rowIndex).size());
 
-        Object value = resultSet.get(pos).get(columnIndex - 1);
+        Object value = result.get(rowIndex).get(columnIndex - 1);
         wasNull = value == null;
         return value;
     }
@@ -570,15 +428,15 @@ public class RestfulResultSet extends AbstractResultSet implements ResultSet {
 
         int columnIndex = columnNames.indexOf(columnLabel);
         if (columnIndex == -1)
-            throw new SQLException("cannot find Column in resultSet");
+            throw new SQLException("cannot find Column in result");
         return columnIndex + 1;
     }
 
     @Override
     public BigDecimal getBigDecimal(int columnIndex) throws SQLException {
-        checkAvailability(columnIndex, resultSet.get(pos).size());
+        checkAvailability(columnIndex, result.get(rowIndex).size());
 
-        Object value = resultSet.get(pos).get(columnIndex - 1);
+        Object value = result.get(rowIndex).get(columnIndex - 1);
         wasNull = value == null;
         if (value == null)
             return null;
@@ -601,7 +459,7 @@ public class RestfulResultSet extends AbstractResultSet implements ResultSet {
     public boolean isBeforeFirst() throws SQLException {
         if (isClosed())
             throw TSDBError.createSQLException(TSDBErrorNumbers.ERROR_RESULTSET_CLOSED);
-        return this.pos == -1 && this.resultSet.size() != 0;
+        return this.rowIndex == -1 && this.result.size() != 0;
     }
 
     @Override
@@ -609,23 +467,23 @@ public class RestfulResultSet extends AbstractResultSet implements ResultSet {
         if (isClosed())
             throw TSDBError.createSQLException(TSDBErrorNumbers.ERROR_RESULTSET_CLOSED);
 
-        return this.pos >= resultSet.size() && this.resultSet.size() != 0;
+        return this.rowIndex >= result.size() && this.result.size() != 0;
     }
 
     @Override
     public boolean isFirst() throws SQLException {
         if (isClosed())
             throw TSDBError.createSQLException(TSDBErrorNumbers.ERROR_RESULTSET_CLOSED);
-        return this.pos == 0;
+        return this.rowIndex == 0;
     }
 
     @Override
     public boolean isLast() throws SQLException {
         if (isClosed())
             throw TSDBError.createSQLException(TSDBErrorNumbers.ERROR_RESULTSET_CLOSED);
-        if (this.resultSet.size() == 0)
+        if (this.result.size() == 0)
             return false;
-        return this.pos == (this.resultSet.size() - 1);
+        return this.rowIndex == (this.result.size() - 1);
     }
 
     @Override
@@ -634,8 +492,8 @@ public class RestfulResultSet extends AbstractResultSet implements ResultSet {
             throw TSDBError.createSQLException(TSDBErrorNumbers.ERROR_RESULTSET_CLOSED);
 
         synchronized (this) {
-            if (this.resultSet.size() > 0) {
-                this.pos = -1;
+            if (this.result.size() > 0) {
+                this.rowIndex = -1;
             }
         }
     }
@@ -645,8 +503,8 @@ public class RestfulResultSet extends AbstractResultSet implements ResultSet {
         if (isClosed())
             throw TSDBError.createSQLException(TSDBErrorNumbers.ERROR_RESULTSET_CLOSED);
         synchronized (this) {
-            if (this.resultSet.size() > 0) {
-                this.pos = this.resultSet.size();
+            if (this.result.size() > 0) {
+                this.rowIndex = this.result.size();
             }
         }
     }
@@ -656,11 +514,11 @@ public class RestfulResultSet extends AbstractResultSet implements ResultSet {
         if (isClosed())
             throw TSDBError.createSQLException(TSDBErrorNumbers.ERROR_RESULTSET_CLOSED);
 
-        if (this.resultSet.size() == 0)
+        if (this.result.size() == 0)
             return false;
 
         synchronized (this) {
-            this.pos = 0;
+            this.rowIndex = 0;
         }
         return true;
     }
@@ -669,10 +527,10 @@ public class RestfulResultSet extends AbstractResultSet implements ResultSet {
     public boolean last() throws SQLException {
         if (isClosed())
             throw TSDBError.createSQLException(TSDBErrorNumbers.ERROR_RESULTSET_CLOSED);
-        if (this.resultSet.size() == 0)
+        if (this.result.size() == 0)
             return false;
         synchronized (this) {
-            this.pos = this.resultSet.size() - 1;
+            this.rowIndex = this.result.size() - 1;
         }
         return true;
     }
@@ -683,9 +541,9 @@ public class RestfulResultSet extends AbstractResultSet implements ResultSet {
             throw TSDBError.createSQLException(TSDBErrorNumbers.ERROR_RESULTSET_CLOSED);
         int row;
         synchronized (this) {
-            if (this.pos < 0 || this.pos >= this.resultSet.size())
+            if (this.rowIndex < 0 || this.rowIndex >= this.result.size())
                 return 0;
-            row = this.pos + 1;
+            row = this.rowIndex + 1;
         }
         return row;
     }
@@ -732,10 +590,4 @@ public class RestfulResultSet extends AbstractResultSet implements ResultSet {
         //TODO：did not use the specified timezone in cal
         return getTimestamp(columnIndex);
     }
-
-    @Override
-    public boolean isClosed() throws SQLException {
-        return isClosed;
-    }
-
 }
