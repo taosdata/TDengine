@@ -77,6 +77,7 @@ void setBoundColumnInfo(SParsedDataColInfo* pColList, SSchema* pSchema, int32_t 
     pColList->boundedColumns[i] = pSchema[i].colId;
   }
   pColList->allNullLen += pColList->flen;
+  pColList->boundNullLen = pColList->allNullLen;  // default set allNullLen
   pColList->extendedVarLen = (uint16_t)(nVar * sizeof(VarDataOffsetT));
 }
 
