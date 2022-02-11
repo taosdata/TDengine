@@ -27,12 +27,16 @@ typedef struct SCliConn {
   SConnBuffer  readBuf;
   void*        data;
   queue        conn;
-  char         spi;
-  char         secured;
   uint64_t     expireTime;
   int8_t       notifyCount;  // timers already notify to client
-  int32_t      ref;
 
+  SRpcPush* push;
+  int       persist;  //
+  // spi configure
+  char    spi;
+  char    secured;
+  int32_t ref;
+  // debug and log info
   struct sockaddr_in addr;
 } SCliConn;
 
@@ -128,13 +132,18 @@ static void clientHandleResp(SCliConn* conn) {
 
   tDebug("client conn %p %s received from %s:%d", conn, TMSG_INFO(pHead->msgType), inet_ntoa(conn->addr.sin_addr),
          ntohs(conn->addr.sin_port));
-  if (pCtx->pSem == NULL) {
-    tTrace("client conn(sync) %p handle resp", conn);
-    (pRpc->cfp)(pRpc->parent, &rpcMsg, NULL);
+
+  if (conn->push != NULL && conn->notifyCount != 0) {
+    (*conn->push->callback)(conn->push->arg, &rpcMsg);
   } else {
-    tTrace("client conn(sync) %p handle resp", conn);
-    memcpy((char*)pCtx->pRsp, (char*)&rpcMsg, sizeof(rpcMsg));
-    tsem_post(pCtx->pSem);
+    if (pCtx->pSem == NULL) {
+      tTrace("client conn(sync) %p handle resp", conn);
+      (pRpc->cfp)(pRpc->parent, &rpcMsg, NULL);
+    } else {
+      tTrace("client conn(sync) %p handle resp", conn);
+      memcpy((char*)pCtx->pRsp, (char*)&rpcMsg, sizeof(rpcMsg));
+      tsem_post(pCtx->pSem);
+    }
   }
   conn->notifyCount += 1;
 
@@ -144,7 +153,10 @@ static void clientHandleResp(SCliConn* conn) {
   uv_read_start((uv_stream_t*)conn->stream, clientAllocBufferCb, clientReadCb);
 
   SCliThrdObj* pThrd = conn->hostThrd;
-  addConnToPool(pThrd->pool, pCtx->ip, pCtx->port, conn);
+  // user owns conn->persist = 1
+  if (conn->push != NULL) {
+    addConnToPool(pThrd->pool, pCtx->ip, pCtx->port, conn);
+  }
 
   destroyCmsg(pMsg);
   conn->data = NULL;
@@ -154,7 +166,7 @@ static void clientHandleResp(SCliConn* conn) {
   }
 }
 static void clientHandleExcept(SCliConn* pConn) {
-  if (pConn->data == NULL) {
+  if (pConn->data == NULL && pConn->push == NULL) {
     // handle conn except in conn pool
     clientConnDestroy(pConn, true);
     return;
@@ -162,20 +174,25 @@ static void clientHandleExcept(SCliConn* pConn) {
   tTrace("client conn %p start to destroy", pConn);
   SCliMsg* pMsg = pConn->data;
 
-  destroyUserdata(&pMsg->msg);
-
   STransConnCtx* pCtx = pMsg->ctx;
 
   SRpcMsg rpcMsg = {0};
   rpcMsg.ahandle = pCtx->ahandle;
   rpcMsg.code = TSDB_CODE_RPC_NETWORK_UNAVAIL;
-  if (pCtx->pSem == NULL) {
-    // SRpcInfo* pRpc = pMsg->ctx->pRpc;
-    (pCtx->pTransInst->cfp)(pCtx->pTransInst->parent, &rpcMsg, NULL);
+
+  if (pConn->push != NULL && pConn->notifyCount != 0) {
+    (*pConn->push->callback)(pConn->push->arg, &rpcMsg);
   } else {
-    memcpy((char*)(pCtx->pRsp), (char*)(&rpcMsg), sizeof(rpcMsg));
-    // SRpcMsg rpcMsg
-    tsem_post(pCtx->pSem);
+    if (pCtx->pSem == NULL) {
+      (pCtx->pTransInst->cfp)(pCtx->pTransInst->parent, &rpcMsg, NULL);
+    } else {
+      memcpy((char*)(pCtx->pRsp), (char*)(&rpcMsg), sizeof(rpcMsg));
+      // SRpcMsg rpcMsg
+      tsem_post(pCtx->pSem);
+    }
+    if (pConn->push != NULL) {
+      (*pConn->push->callback)(pConn->push->arg, &rpcMsg);
+    }
   }
 
   destroyCmsg(pMsg);
@@ -411,6 +428,10 @@ static void clientHandleReq(SCliMsg* pMsg, SCliThrdObj* pThrd) {
   tTrace("client msg tran time cost: %" PRIu64 "", el);
   et = taosGetTimestampUs();
 
+  // if (pMsg->msg.handle != NULL) {
+  //  // handle
+  //}
+
   STransConnCtx* pCtx = pMsg->ctx;
   SCliConn*      conn = getConnFromPool(pThrd->pool, pCtx->ip, pCtx->port);
   if (conn != NULL) {
@@ -425,6 +446,8 @@ static void clientHandleReq(SCliMsg* pMsg, SCliThrdObj* pThrd) {
       return;
     }
     clientWrite(conn);
+
+    conn->push = pMsg->msg.push;
 
   } else {
     SCliConn* conn = calloc(1, sizeof(SCliConn));
@@ -443,6 +466,8 @@ static void clientHandleReq(SCliMsg* pMsg, SCliThrdObj* pThrd) {
     conn->connReq.data = conn;
     conn->data = pMsg;
     conn->hostThrd = pThrd;
+
+    conn->push = pMsg->msg.push;
 
     struct sockaddr_in addr;
     uv_ip4_addr(pMsg->ctx->ip, pMsg->ctx->port, &addr);
