@@ -20,18 +20,22 @@ typedef enum ETraversalOrder {
   TRAVERSAL_POSTORDER
 } ETraversalOrder;
 
-static bool walkList(SNodeList* pNodeList, ETraversalOrder order, FQueryNodeWalker walker, void* pContext);
+static EDealRes walkList(SNodeList* pNodeList, ETraversalOrder order, FQueryNodeWalker walker, void* pContext);
 
-static bool walkNode(SNode* pNode, ETraversalOrder order, FQueryNodeWalker walker, void* pContext) {
+static EDealRes walkNode(SNode* pNode, ETraversalOrder order, FQueryNodeWalker walker, void* pContext) {
   if (NULL == pNode) {
-    return true;
+    return DEAL_RES_CONTINUE;
   }
 
-  if (TRAVERSAL_PREORDER == order && !walker(pNode, pContext)) {
-    return false;
+  EDealRes res = DEAL_RES_CONTINUE;
+
+  if (TRAVERSAL_PREORDER == order) {
+    res = walker(pNode, pContext);
+    if (DEAL_RES_CONTINUE != res) {
+      return res;
+    }
   }
 
-  bool res = true;
   switch (nodeType(pNode)) {
     case QUERY_NODE_COLUMN:
     case QUERY_NODE_VALUE:
@@ -41,7 +45,7 @@ static bool walkNode(SNode* pNode, ETraversalOrder order, FQueryNodeWalker walke
     case QUERY_NODE_OPERATOR: {
       SOperatorNode* pOpNode = (SOperatorNode*)pNode;
       res = walkNode(pOpNode->pLeft, order, walker, pContext);
-      if (res) {
+      if (DEAL_RES_ERROR != res) {
         res = walkNode(pOpNode->pRight, order, walker, pContext);
       }
       break;
@@ -61,10 +65,10 @@ static bool walkNode(SNode* pNode, ETraversalOrder order, FQueryNodeWalker walke
     case QUERY_NODE_JOIN_TABLE: {
       SJoinTableNode* pJoinTableNode = (SJoinTableNode*)pNode;
       res = walkNode(pJoinTableNode->pLeft, order, walker, pContext);
-      if (res) {
+      if (DEAL_RES_ERROR != res) {
         res = walkNode(pJoinTableNode->pRight, order, walker, pContext);
       }
-      if (res) {
+      if (DEAL_RES_ERROR != res) {
         res = walkNode(pJoinTableNode->pOnCond, order, walker, pContext);
       }
       break;
@@ -84,13 +88,13 @@ static bool walkNode(SNode* pNode, ETraversalOrder order, FQueryNodeWalker walke
     case QUERY_NODE_INTERVAL_WINDOW: {
       SIntervalWindowNode* pInterval = (SIntervalWindowNode*)pNode;
       res = walkNode(pInterval->pInterval, order, walker, pContext);
-      if (res) {
+      if (DEAL_RES_ERROR != res) {
         res = walkNode(pInterval->pOffset, order, walker, pContext);
       }
-      if (res) {
+      if (DEAL_RES_ERROR != res) {
         res = walkNode(pInterval->pSliding, order, walker, pContext);
       }
-      if (res) {
+      if (DEAL_RES_ERROR != res) {
         res = walkNode(pInterval->pFill, order, walker, pContext);
       }
       break;
@@ -108,21 +112,21 @@ static bool walkNode(SNode* pNode, ETraversalOrder order, FQueryNodeWalker walke
       break;
   }
 
-  if (res && TRAVERSAL_POSTORDER == order) {
+  if (DEAL_RES_ERROR != res && TRAVERSAL_POSTORDER == order) {
     res = walker(pNode, pContext);
   }
 
   return res;
 }
 
-static bool walkList(SNodeList* pNodeList, ETraversalOrder order, FQueryNodeWalker walker, void* pContext) {
+static EDealRes walkList(SNodeList* pNodeList, ETraversalOrder order, FQueryNodeWalker walker, void* pContext) {
   SNode* node;
   FOREACH(node, pNodeList) {
-    if (!walkNode(node, order, walker, pContext)) {
-      return false;
+    if (DEAL_RES_ERROR == walkNode(node, order, walker, pContext)) {
+      return DEAL_RES_ERROR;
     }
   }
-  return true;
+  return DEAL_RES_CONTINUE;
 }
 
 void nodesWalkNode(SNode* pNode, FQueryNodeWalker walker, void* pContext) {
@@ -139,8 +143,4 @@ void nodesWalkNodePostOrder(SNode* pNode, FQueryNodeWalker walker, void* pContex
 
 void nodesWalkListPostOrder(SNodeList* pList, FQueryNodeWalker walker, void* pContext) {
   (void)walkList(pList, TRAVERSAL_POSTORDER, walker, pContext);
-}
-
-bool nodesWalkStmt(SNode* pNode, FQueryNodeWalker walker, void* pContext) {
-
 }
