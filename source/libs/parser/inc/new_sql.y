@@ -112,6 +112,7 @@ expression(A) ::= literal(B).                                                   
 //expression(A) ::= pseudo_column(B).                                               { PARSER_TRACE; A = B; }
 expression(A) ::= column_reference(B).                                            { PARSER_TRACE; A = B; }
 expression(A) ::= function_name(B) NK_LP expression_list(C) NK_RP(D).             { PARSER_TRACE; A = createRawExprNodeExt(pCxt, &B, &D, createFunctionNode(pCxt, &B, C)); }
+expression(A) ::= function_name(B) NK_LP NK_STAR(C) NK_RP(D).                     { PARSER_TRACE; A = createRawExprNodeExt(pCxt, &B, &D, createFunctionNode(pCxt, &B, createNodeList(pCxt, createColumnNode(pCxt, NULL, &C)))); }
 //expression(A) ::= cast_expression(B).                                             { PARSER_TRACE; A = B; }
 //expression(A) ::= case_expression(B).                                             { PARSER_TRACE; A = B; }
 expression(A) ::= subquery(B).                                                    { PARSER_TRACE; A = B; }

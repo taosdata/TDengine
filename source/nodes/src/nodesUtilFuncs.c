@@ -119,6 +119,16 @@ SNodeList* nodesListAppend(SNodeList* pList, SNode* pNode) {
   return pList;
 }
 
+SNode* nodesListGetNode(SNodeList* pList, int32_t index) {
+  SNode* node;
+  FOREACH(node, pList) {
+    if (0 == index--) {
+      return node;
+    }
+  }
+  return NULL;
+}
+
 void nodesDestroyList(SNodeList* pList) {
   SNode* node;
   FOREACH(node, pList) {

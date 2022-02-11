@@ -30,6 +30,20 @@ extern "C" {
 #define FOREACH(node, list)	\
   for (SListCell* cell = (NULL != (list) ? (list)->pHead : NULL); (NULL != cell ? (node = cell->pNode, true) : (node = NULL, false)); cell = cell->pNext)
 
+// only be use in FOREACH
+#define ERASE_NODE(list) \
+  if (NULL == cell->pPrev) { \
+    (list)->pHead = cell->pNext; \
+  } else { \
+    cell->pPrev->pNext = cell->pNext; \
+    cell->pNext->pPrev = cell->pPrev; \
+  } \
+  SListCell* tmp = cell; \
+  cell = cell->pNext; \
+  tfree(tmp);
+
+#define REPLACE_NODE(newNode) cell->pNode = (SNode*)(newNode)
+
 #define FORBOTH(node1, list1, node2, list2) \
   for (SListCell* cell1 = (NULL != (list1) ? (list1)->pHead : NULL), *cell2 = (NULL != (list2) ? (list2)->pHead : NULL); \
     (NULL == cell1 ? (node1 = NULL, false) : (node1 = cell1->pNode, true)), (NULL == cell2 ? (node2 = NULL, false) : (node2 = cell2->pNode, true)), (node1 != NULL && node2 != NULL); \
@@ -71,8 +85,9 @@ typedef struct SNode {
 } SNode;
 
 typedef struct SListCell {
-  SNode* pNode;
+  struct SListCell* pPrev;
   struct SListCell* pNext;
+  SNode* pNode;
 } SListCell;
 
 typedef struct SNodeList {
@@ -192,6 +207,7 @@ typedef struct SFunctionNode {
   SExprNode node; // QUERY_NODE_FUNCTION
   char functionName[TSDB_FUNC_NAME_LEN];
   int32_t funcId;
+  int32_t funcType;
   SNodeList* pParameterList;
 } SFunctionNode;
 
@@ -327,6 +343,7 @@ void nodesDestroyNode(SNode* pNode);
 
 SNodeList* nodesMakeList();
 SNodeList* nodesListAppend(SNodeList* pList, SNode* pNode);
+SNode* nodesListGetNode(SNodeList* pList, int32_t index);
 void nodesDestroyList(SNodeList* pList);
 
 typedef bool (*FQueryNodeWalker)(SNode* pNode, void* pContext);
