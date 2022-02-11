@@ -2657,7 +2657,7 @@ int32_t addExprAndResultField(SSqlCmd* pCmd, SQueryInfo* pQueryInfo, int32_t col
   STableMetaInfo* pTableMetaInfo = NULL;
   int32_t functionId = pItem->pNode->functionId;
 
-  const char* msg1 = "not support column types";
+  const char* msg1 = "unsupported column types";
   const char* msg2 = "invalid parameters";
   const char* msg3 = "illegal column name";
   const char* msg4 = "invalid table name";
@@ -2675,7 +2675,16 @@ int32_t addExprAndResultField(SSqlCmd* pCmd, SQueryInfo* pQueryInfo, int32_t col
   const char* msg16 = "elapsed duration should be greater than or equal to database precision";
   const char* msg17 = "elapsed/twa should not be used in nested query if inner query has group by clause";
   const char* msg18 = "the second parameter is not an integer";
-  const char* msg19 = "the second paramter of diff should be 0 or 1";
+  const char* msg19 = "histogram function requires four parameters";
+  const char* msg20 = "second parameter must be 'user_input', 'linear_bin' or 'log_bin'";
+  const char* msg21 = "third parameter must be in JSON format";
+  const char* msg22 = "invalid parameters for bin_desciption";
+  const char* msg23 = "parameter/bin out of range [-DBL_MAX, DBL_MAX]";
+  const char* msg24 = "width param cannot be 0";
+  const char* msg25 = "count param should be in range [1, 1000]";
+  const char* msg26 = "start param cannot be 0 with 'log_bin'";
+  const char* msg27 = "factor param cannot be negative or equal to 0/1";
+  const char* msg28 = "the second paramter of diff should be 0 or 1";
 
 
   switch (functionId) {
@@ -2923,7 +2932,7 @@ int32_t addExprAndResultField(SSqlCmd* pCmd, SQueryInfo* pQueryInfo, int32_t col
 
           int64_t ignoreNegative = GET_INT64_VAL(val);
           if (ignoreNegative != 0 && ignoreNegative != 1) {
-            return invalidOperationMsg(tscGetErrorMsgPayload(pCmd), msg19);
+            return invalidOperationMsg(tscGetErrorMsgPayload(pCmd), msg28);
           }
         }
         tscExprAddParams(&pExpr->base, val, TSDB_DATA_TYPE_BIGINT, sizeof(int64_t));
@@ -2943,7 +2952,7 @@ int32_t addExprAndResultField(SSqlCmd* pCmd, SQueryInfo* pQueryInfo, int32_t col
         tscColumnListInsert(pQueryInfo->colList, ids.ids[0].columnIndex, pExpr->base.uid, pSchema);
       }
       tscInsertPrimaryTsSourceColumn(pQueryInfo, pExpr->base.uid);
-        
+
       return TSDB_CODE_SUCCESS;
     }
 
@@ -3350,6 +3359,237 @@ int32_t addExprAndResultField(SSqlCmd* pCmd, SQueryInfo* pQueryInfo, int32_t col
 
       return TSDB_CODE_SUCCESS;
     }
+
+    case TSDB_FUNC_HISTOGRAM: {
+      // check params
+      if (taosArrayGetSize(pItem->pNode->Expr.paramList) != 4) {
+        return invalidOperationMsg(tscGetErrorMsgPayload(pCmd), msg19);
+      }
+
+      tSqlExprItem* pParamElem = taosArrayGet(pItem->pNode->Expr.paramList, 0);
+      if (pParamElem->pNode->tokenId != TK_ID) {
+        return invalidOperationMsg(tscGetErrorMsgPayload(pCmd), msg2);
+      }
+
+      SColumnIndex index = COLUMN_INDEX_INITIALIZER;
+      if (getColumnIndexByName(&pParamElem->pNode->columnName, pQueryInfo, &index, tscGetErrorMsgPayload(pCmd)) != TSDB_CODE_SUCCESS) {
+        return invalidOperationMsg(tscGetErrorMsgPayload(pCmd), msg3);
+      }
+
+      if (index.columnIndex == TSDB_TBNAME_COLUMN_INDEX) {
+        return invalidOperationMsg(tscGetErrorMsgPayload(pCmd), msg6);
+      }
+
+      pTableMetaInfo = tscGetMetaInfo(pQueryInfo, index.tableIndex);
+      SSchema* pSchema = tscGetTableColumnSchema(pTableMetaInfo->pTableMeta, index.columnIndex);
+
+      if (!IS_NUMERIC_TYPE(pSchema->type)) {
+        return invalidOperationMsg(tscGetErrorMsgPayload(pCmd), msg1);
+      }
+
+      //bin_type param
+      if (pParamElem[1].pNode->tokenId == TK_ID) {
+        return invalidOperationMsg(tscGetErrorMsgPayload(pCmd), msg2);
+      }
+
+      tVariant *pVariant = &pParamElem[1].pNode->value;
+      if (pVariant == NULL || pVariant->nType != TSDB_DATA_TYPE_BINARY) {
+        return invalidOperationMsg(tscGetErrorMsgPayload(pCmd), msg2);
+      }
+
+#define USER_INPUT_BIN 0
+#define LINEAR_BIN     1
+#define LOG_BIN        2
+
+      int8_t binType;
+      if (strcasecmp(pVariant->pz, "user_input") == 0) {
+        binType = USER_INPUT_BIN;
+      } else if (strcasecmp(pVariant->pz, "linear_bin") == 0) {
+        binType = LINEAR_BIN;
+      } else if (strcasecmp(pVariant->pz, "log_bin") == 0) {
+        binType = LOG_BIN;
+      } else {
+        return invalidOperationMsg(tscGetErrorMsgPayload(pCmd), msg20);
+      }
+      //bin_description param in JSON format
+      if (pParamElem[2].pNode->tokenId == TK_ID) {
+        return invalidOperationMsg(tscGetErrorMsgPayload(pCmd), msg2);
+      }
+
+      pVariant = &pParamElem[2].pNode->value;
+      if (pVariant == NULL && pVariant->nType != TSDB_DATA_TYPE_BINARY) {
+        return invalidOperationMsg(tscGetErrorMsgPayload(pCmd), msg2);
+      }
+
+      cJSON *binDesc = cJSON_Parse(pVariant->pz);
+      int32_t counter;
+      int32_t numBins;
+      int32_t numOutput;
+      double *intervals;
+      if (cJSON_IsObject(binDesc)) { /* linaer/log bins */
+        int32_t numOfParams = cJSON_GetArraySize(binDesc);
+        int32_t startIndex;
+        if (numOfParams != 4) {
+          return invalidOperationMsg(tscGetErrorMsgPayload(pCmd), msg22);
+        }
+
+        cJSON *start = cJSON_GetObjectItem(binDesc, "start");
+        cJSON *factor = cJSON_GetObjectItem(binDesc, "factor");
+        cJSON *width = cJSON_GetObjectItem(binDesc, "width");
+        cJSON *count = cJSON_GetObjectItem(binDesc, "count");
+        cJSON *infinity = cJSON_GetObjectItem(binDesc, "infinity");
+
+        if (!cJSON_IsNumber(start) || !cJSON_IsNumber(count) || !cJSON_IsBool(infinity)) {
+          return invalidOperationMsg(tscGetErrorMsgPayload(pCmd), msg22);
+        }
+
+        if (count->valueint <= 0 || count->valueint > 1000) {
+          return invalidOperationMsg(tscGetErrorMsgPayload(pCmd), msg25);
+        }
+
+        if (isinf(start->valuedouble) ||
+            (width != NULL && isinf(width->valuedouble)) ||
+            (factor != NULL && isinf(factor->valuedouble)) ||
+            (count != NULL && isinf(count->valuedouble))) {
+          return invalidOperationMsg(tscGetErrorMsgPayload(pCmd), msg23);
+        }
+
+        counter = (int32_t)count->valueint;
+        if (infinity->valueint == false) {
+          startIndex = 0;
+          numBins = counter + 1;
+        } else {
+          startIndex = 1;
+          numBins = counter + 3;
+        }
+
+        intervals = tcalloc(numBins, sizeof(double));
+        if (cJSON_IsNumber(width) && factor == NULL && binType == LINEAR_BIN) {
+          //linear bin process
+          if (width->valuedouble == 0) {
+            tfree(intervals);
+            return invalidOperationMsg(tscGetErrorMsgPayload(pCmd), msg24);
+          }
+          for (int i = 0; i < counter + 1; ++i) {
+            intervals[startIndex] = start->valuedouble + i * width->valuedouble;
+            if (isinf(intervals[startIndex])) {
+              tfree(intervals);
+              return invalidOperationMsg(tscGetErrorMsgPayload(pCmd), msg23);
+            }
+            startIndex++;
+          }
+        } else if (cJSON_IsNumber(factor) && width == NULL && binType == LOG_BIN) {
+          //log bin process
+          if (start->valuedouble == 0) {
+            tfree(intervals);
+            return invalidOperationMsg(tscGetErrorMsgPayload(pCmd), msg26);
+          }
+          if (factor->valuedouble < 0 || factor->valuedouble == 0 || factor->valuedouble == 1) {
+            tfree(intervals);
+            return invalidOperationMsg(tscGetErrorMsgPayload(pCmd), msg27);
+          }
+          for (int i = 0; i < counter + 1; ++i) {
+            intervals[startIndex] = start->valuedouble * pow(factor->valuedouble, i * 1.0);
+            if (isinf(intervals[startIndex])) {
+              tfree(intervals);
+              return invalidOperationMsg(tscGetErrorMsgPayload(pCmd), msg23);
+            }
+            startIndex++;
+          }
+        } else {
+          tfree(intervals);
+          return invalidOperationMsg(tscGetErrorMsgPayload(pCmd), msg22);
+        }
+
+        if (infinity->valueint == true) {
+          intervals[0] = -DBL_MAX;
+          intervals[numBins - 1] = DBL_MAX;
+          if (isinf(intervals[0]) || isinf(intervals[numBins - 1])) {
+            tfree(intervals);
+            return invalidOperationMsg(tscGetErrorMsgPayload(pCmd), msg23);
+          }
+          //in case of desc bin orders, -inf/inf should be swapped
+          assert(numBins >= 4);
+          if (intervals[1] > intervals[numBins - 2]) {
+            SWAP(intervals[0], intervals[numBins - 1], double);
+          }
+        }
+
+      } else if (cJSON_IsArray(binDesc)) { /* user input bins */
+        if (binType != USER_INPUT_BIN) {
+          return invalidOperationMsg(tscGetErrorMsgPayload(pCmd), msg22);
+        }
+        counter = numBins = cJSON_GetArraySize(binDesc);
+        intervals = tcalloc(numBins, sizeof(double));
+        cJSON *bin = binDesc->child;
+        if (bin == NULL) {
+          tfree(intervals);
+          return invalidOperationMsg(tscGetErrorMsgPayload(pCmd), msg22);
+        }
+        int i = 0;
+        while (bin) {
+          intervals[i] = bin->valuedouble;
+          if (!cJSON_IsNumber(bin)) {
+            tfree(intervals);
+            return invalidOperationMsg(tscGetErrorMsgPayload(pCmd), msg22);
+          }
+          if (i != 0 && intervals[i] <= intervals[i - 1]) {
+            tfree(intervals);
+            return invalidOperationMsg(tscGetErrorMsgPayload(pCmd), msg22);
+          }
+          bin = bin->next;
+          i++;
+        }
+      } else {
+        return invalidOperationMsg(tscGetErrorMsgPayload(pCmd), msg21);
+      }
+
+      int16_t resultType = pSchema->type;
+      int32_t resultSize = pSchema->bytes;
+      int32_t interResult = 0;
+      getResultDataInfo(pSchema->type, pSchema->bytes, functionId, counter, &resultType, &resultSize, &interResult, 0, false,
+                        pUdfInfo);
+      SExprInfo* pExpr = NULL;
+      pExpr = tscExprAppend(pQueryInfo, functionId, &index, resultType, resultSize, getNewResColId(pCmd), interResult, false);
+      numOutput = numBins - 1;
+      tscExprAddParams(&pExpr->base, (char*)&numOutput, TSDB_DATA_TYPE_INT, sizeof(int32_t));
+      tscExprAddParams(&pExpr->base, (char*)intervals, TSDB_DATA_TYPE_BINARY, sizeof(double) * numBins);
+      tfree(intervals);
+
+      //normalized param
+      char val[8] = {0};
+      if (pParamElem[3].pNode->tokenId == TK_ID) {
+        return invalidOperationMsg(tscGetErrorMsgPayload(pCmd), msg2);
+      }
+
+      pVariant = &pParamElem[3].pNode->value;
+      if (pVariant == NULL || pVariant->nType != TSDB_DATA_TYPE_BIGINT ||
+          (pVariant->i64 != 0 && pVariant->i64 != 1)) {
+        return invalidOperationMsg(tscGetErrorMsgPayload(pCmd), msg2);
+      }
+
+      if (tVariantDump(pVariant, val, TSDB_DATA_TYPE_BIGINT, true) < 0) {
+        return TSDB_CODE_TSC_INVALID_OPERATION;
+      }
+
+      tscExprAddParams(&pExpr->base, val, TSDB_DATA_TYPE_BIGINT, LONG_BYTES);
+
+      memset(pExpr->base.aliasName, 0, tListLen(pExpr->base.aliasName));
+      getColumnName(pItem, pExpr->base.aliasName, pExpr->base.token, sizeof(pExpr->base.aliasName) - 1);
+      // todo refactor: tscColumnListInsert part
+      SColumnList ids = createColumnList(1, index.tableIndex, index.columnIndex);
+
+      if (finalResult) {
+        insertResultField(pQueryInfo, colIndex, &ids, resultSize, (int8_t)resultType, pExpr->base.aliasName, pExpr);
+      } else {
+        assert(ids.num == 1);
+        tscColumnListInsert(pQueryInfo->colList, ids.ids[0].columnIndex, pExpr->base.uid, pSchema);
+      }
+
+      tscInsertPrimaryTsSourceColumn(pQueryInfo, pExpr->base.uid);
+      return TSDB_CODE_SUCCESS;
+    }
+
     default: {
       assert(!TSDB_FUNC_IS_SCALAR(functionId));
       pUdfInfo = isValidUdf(pQueryInfo->pUdfInfo, pItem->pNode->Expr.operand.z, pItem->pNode->Expr.operand.n);
@@ -3358,9 +3598,9 @@ int32_t addExprAndResultField(SSqlCmd* pCmd, SQueryInfo* pQueryInfo, int32_t col
       }
 
       if (pItem->pNode->Expr.paramList == NULL || taosArrayGetSize(pItem->pNode->Expr.paramList) <= 0) {
-        return invalidOperationMsg(tscGetErrorMsgPayload(pCmd), msg13);        
+        return invalidOperationMsg(tscGetErrorMsgPayload(pCmd), msg13);
       }
-      
+
       tSqlExprItem* pParamElem = taosArrayGet(pItem->pNode->Expr.paramList, 0);;
       if (pParamElem->pNode->tokenId != TK_ID) {
         return invalidOperationMsg(tscGetErrorMsgPayload(pCmd), msg2);
@@ -3722,7 +3962,8 @@ int32_t tscTansformFuncForSTableQuery(SQueryInfo* pQueryInfo) {
     if ((functionId >= TSDB_FUNC_SUM && functionId <= TSDB_FUNC_TWA) ||
         (functionId >= TSDB_FUNC_FIRST_DST && functionId <= TSDB_FUNC_STDDEV_DST) ||
         (functionId >= TSDB_FUNC_RATE && functionId <= TSDB_FUNC_IRATE) ||
-        (functionId == TSDB_FUNC_SAMPLE) || (functionId == TSDB_FUNC_ELAPSED)) {
+        (functionId == TSDB_FUNC_SAMPLE) ||
+        (functionId == TSDB_FUNC_ELAPSED) || (functionId == TSDB_FUNC_HISTOGRAM)) {
       if (getResultDataInfo(pSrcSchema->type, pSrcSchema->bytes, functionId, (int32_t)pExpr->base.param[0].i64, &type, &bytes,
                             &interBytes, 0, true, NULL) != TSDB_CODE_SUCCESS) {
         return TSDB_CODE_TSC_INVALID_OPERATION;
@@ -6198,7 +6439,7 @@ int32_t validateFillNode(SSqlCmd* pCmd, SQueryInfo* pQueryInfo, SSqlNode* pSqlNo
 
   const char* msg1 = "value is expected";
   const char* msg2 = "invalid fill option";
-  const char* msg3 = "top/bottom/sample not support fill";
+  const char* msg3 = "top/bottom/sample/histogram not support fill";
   const char* msg4 = "illegal value or data overflow";
   const char* msg5 = "fill only available for interval query";
   const char* msg7 = "join query not supported fill operation";
@@ -6308,7 +6549,7 @@ int32_t validateFillNode(SSqlCmd* pCmd, SQueryInfo* pQueryInfo, SSqlNode* pSqlNo
   for(int32_t i = 0; i < numOfExprs; ++i) {
     SExprInfo* pExpr = tscExprGet(pQueryInfo, i);
     if (pExpr->base.functionId == TSDB_FUNC_TOP || pExpr->base.functionId == TSDB_FUNC_BOTTOM
-        || pExpr->base.functionId == TSDB_FUNC_SAMPLE) {
+        || pExpr->base.functionId == TSDB_FUNC_SAMPLE || pExpr->base.functionId == TSDB_FUNC_HISTOGRAM) {
       return invalidOperationMsg(tscGetErrorMsgPayload(pCmd), msg3);
     }
   }
