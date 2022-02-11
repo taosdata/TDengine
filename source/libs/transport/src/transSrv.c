@@ -231,6 +231,10 @@ static void uvHandleReq(SSrvConn* pConn) {
   p->chandle = NULL;
 
   STransMsgHead* pHead = (STransMsgHead*)p->msg;
+  if (pHead->secured == 0) {
+    STransUserMsg* uMsg = (p->msg + p->msgLen - sizeof(STransUserMsg));
+    memcpy(pConn->user, uMsg->user, tListLen(uMsg->user));
+  }
 
   pConn->inType = pHead->msgType;
   assert(transIsReq(pHead->msgType));
@@ -339,6 +343,7 @@ static void uvPrepareSendData(SSrvMsg* smsg, uv_buf_t* wb) {
   }
   STransMsgHead* pHead = transHeadFromCont(pMsg->pCont);
   pHead->msgType = smsg->pConn->inType + 1;
+  pHead->code = htonl(pMsg->code);
   // add more info
   char*   msg = (char*)pHead;
   int32_t len = transMsgLenFromCont(pMsg->contLen);

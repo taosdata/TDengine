@@ -154,7 +154,7 @@ static void clientHandleResp(SCliConn* conn) {
 
   SCliThrdObj* pThrd = conn->hostThrd;
   // user owns conn->persist = 1
-  if (conn->push != NULL) {
+  if (conn->push == NULL) {
     addConnToPool(pThrd->pool, pCtx->ip, pCtx->port, conn);
   }
 
@@ -382,10 +382,32 @@ static void clientWriteCb(uv_write_t* req, int status) {
 
 static void clientWrite(SCliConn* pConn) {
   SCliMsg*       pCliMsg = pConn->data;
-  SRpcMsg*       pMsg = (SRpcMsg*)(&pCliMsg->msg);
-  STransMsgHead* pHead = transHeadFromCont(pMsg->pCont);
+  STransConnCtx* pCtx = pCliMsg->ctx;
 
-  int msgLen = transMsgLenFromCont(pMsg->contLen);
+  SRpcMsg* pMsg = (SRpcMsg*)(&pCliMsg->msg);
+
+  STransMsgHead* pHead = transHeadFromCont(pMsg->pCont);
+  int            msgLen = transMsgLenFromCont(pMsg->contLen);
+
+  if (!pConn->secured) {
+    char* buf = calloc(1, msgLen + sizeof(STransUserMsg));
+    memcpy(buf, (char*)pHead, msgLen);
+
+    STransUserMsg* uMsg = (STransUserMsg*)(buf + msgLen);
+    memcpy(uMsg->user, pCtx->pTransInst->user, tListLen(uMsg->user));
+
+    // to avoid mem leak
+    destroyUserdata(pMsg);
+
+    pMsg->pCont = (char*)buf + sizeof(STransMsgHead);
+    pMsg->contLen = msgLen + sizeof(STransUserMsg) - sizeof(STransMsgHead);
+
+    pConn->secured = 1;  // del later
+
+    pHead = (STransMsgHead*)buf;
+    pHead->secured = 0;
+    msgLen += sizeof(STransUserMsg);
+  }
 
   pHead->msgType = pMsg->msgType;
   pHead->msgLen = (int32_t)htonl((uint32_t)msgLen);

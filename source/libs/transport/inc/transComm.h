@@ -151,7 +151,8 @@ typedef struct {
   char version : 4;  // RPC version
   char comp : 4;     // compression algorithm, 0:no compression 1:lz4
   char resflag : 2;  // reserved bits
-  char spi : 3;      // security parameter index
+  char spi : 1;      // security parameter index
+  char secured : 2;
   char encrypt : 3;  // encrypt algorithm, 0: no encryption
 
   uint32_t code;  // del later
@@ -169,6 +170,10 @@ typedef struct {
   uint32_t timeStamp;
   uint8_t  auth[TSDB_AUTH_LEN];
 } STransDigestMsg;
+
+typedef struct {
+  uint8_t user[TSDB_UNI_LEN];
+} STransUserMsg;
 
 #pragma pack(pop)
 
@@ -235,5 +240,9 @@ int transInitBuffer(SConnBuffer* buf);
 int transClearBuffer(SConnBuffer* buf);
 int transDestroyBuffer(SConnBuffer* buf);
 int transAllocBuffer(SConnBuffer* connBuf, uv_buf_t* uvBuf);
+
+// int transPackMsg(SRpcMsg *rpcMsg, bool sercured, bool auth, char **msg, int32_t *msgLen);
+
+// int transUnpackMsg(char *msg, SRpcMsg *pMsg, bool );
 
 #endif
