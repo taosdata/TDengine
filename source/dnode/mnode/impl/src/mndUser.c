@@ -34,6 +34,7 @@ static int32_t  mndCreateUser(SMnode *pMnode, char *acct, SCreateUserReq *pCreat
 static int32_t  mndProcessCreateUserReq(SMnodeMsg *pReq);
 static int32_t  mndProcessAlterUserReq(SMnodeMsg *pReq);
 static int32_t  mndProcessDropUserReq(SMnodeMsg *pReq);
+static int32_t  mndProcessGetUserAuthReq(SMnodeMsg *pReq);
 static int32_t  mndGetUserMeta(SMnodeMsg *pReq, SShowObj *pShow, STableMetaRsp *pMeta);
 static int32_t  mndRetrieveUsers(SMnodeMsg *pReq, SShowObj *pShow, char *data, int32_t rows);
 static void     mndCancelGetNextUser(SMnode *pMnode, void *pIter);
@@ -51,6 +52,7 @@ int32_t mndInitUser(SMnode *pMnode) {
   mndSetMsgHandle(pMnode, TDMT_MND_CREATE_USER, mndProcessCreateUserReq);
   mndSetMsgHandle(pMnode, TDMT_MND_ALTER_USER, mndProcessAlterUserReq);
   mndSetMsgHandle(pMnode, TDMT_MND_DROP_USER, mndProcessDropUserReq);
+  mndSetMsgHandle(pMnode, TDMT_MND_GET_USER_AUTH, mndProcessGetUserAuthReq);
 
   mndAddShowMetaHandle(pMnode, TSDB_MGMT_TABLE_USER, mndGetUserMeta);
   mndAddShowRetrieveHandle(pMnode, TSDB_MGMT_TABLE_USER, mndRetrieveUsers);
@@ -570,6 +572,66 @@ DROP_USER_OVER:
 
   mndReleaseUser(pMnode, pOperUser);
   mndReleaseUser(pMnode, pUser);
+
+  return code;
+}
+
+static int32_t mndProcessGetUserAuthReq(SMnodeMsg *pReq) {
+  SMnode         *pMnode = pReq->pMnode;
+  int32_t         code = -1;
+  SUserObj       *pUser = NULL;
+  SGetUserAuthReq authReq = {0};
+  SGetUserAuthRsp authRsp = {0};
+
+  if (tDeserializeSGetUserAuthReq(pReq->rpcMsg.pCont, &authReq) == NULL) goto GET_AUTH_OVER;
+
+  mTrace("user:%s, start to get auth", authReq.user);
+
+  pUser = mndAcquireUser(pMnode, authReq.user);
+  if (pUser == NULL) {
+    terrno = TSDB_CODE_MND_USER_NOT_EXIST;
+    goto GET_AUTH_OVER;
+  }
+
+  memcpy(authRsp.user, pUser->user, TSDB_USER_LEN);
+  authRsp.superAuth = pUser->superUser;
+  authRsp.readDbs = mndDupDbHash(pUser->readDbs);
+  authRsp.writeDbs = mndDupDbHash(pUser->writeDbs);
+
+  SSdb *pSdb = pMnode->pSdb;
+  void *pIter = NULL;
+  while (1) {
+    SDbObj *pDb = NULL;
+    pIter = sdbFetch(pSdb, SDB_DB, pIter, (void **)&pDb);
+    if (pIter == NULL) break;
+
+    if (strcmp(pDb->createUser, pUser->user) == 0) {
+      int32_t len = strlen(pDb->name) + 1;
+      taosHashPut(authRsp.readDbs, pDb->name, len, pDb->name, len);
+      taosHashPut(authRsp.writeDbs, pDb->name, len, pDb->name, len);
+    }
+
+    sdbRelease(pSdb, pDb);
+  }
+
+  int32_t contLen = tSerializeSGetUserAuthRsp(NULL, &authRsp);
+  void   *pRsp = rpcMallocCont(contLen);
+  if (pRsp == NULL) {
+    terrno = TSDB_CODE_OUT_OF_MEMORY;
+    goto GET_AUTH_OVER;
+  }
+
+  void *pBuf = pRsp;
+  tSerializeSGetUserAuthRsp(&pBuf, &authRsp);
+
+  pReq->pCont = pRsp;
+  pReq->contLen = contLen;
+  code = 0;
+
+GET_AUTH_OVER:
+  mndReleaseUser(pMnode, pUser);
+  taosHashCleanup(authRsp.readDbs);
+  taosHashCleanup(authRsp.writeDbs);
 
   return code;
 }

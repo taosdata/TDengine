@@ -371,14 +371,31 @@ void*   tDeserializeSCreateUserReq(void* buf, SCreateUserReq* pReq);
 
 typedef struct {
   int8_t alterType;
+  int8_t superUser;
   char   user[TSDB_USER_LEN];
   char   pass[TSDB_PASSWORD_LEN];
   char   dbname[TSDB_DB_FNAME_LEN];
-  int8_t superUser;
 } SAlterUserReq;
 
 int32_t tSerializeSAlterUserReq(void** buf, SAlterUserReq* pReq);
 void*   tDeserializeSAlterUserReq(void* buf, SAlterUserReq* pReq);
+
+typedef struct {
+  char user[TSDB_USER_LEN];
+} SGetUserAuthReq;
+
+int32_t tSerializeSGetUserAuthReq(void** buf, SGetUserAuthReq* pReq);
+void*   tDeserializeSGetUserAuthReq(void* buf, SGetUserAuthReq* pReq);
+
+typedef struct {
+  char      user[TSDB_USER_LEN];
+  int8_t    superAuth;
+  SHashObj* readDbs;
+  SHashObj* writeDbs;
+} SGetUserAuthRsp;
+
+int32_t tSerializeSGetUserAuthRsp(void** buf, SGetUserAuthRsp* pReq);
+void*   tDeserializeSGetUserAuthRsp(void* buf, SGetUserAuthRsp* pReq);
 
 typedef struct {
   int16_t colId;     // column id

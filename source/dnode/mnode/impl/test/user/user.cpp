@@ -399,6 +399,34 @@ TEST_F(MndTestUser, 03_Alter_User) {
   }
 
   {
+    SGetUserAuthReq authReq = {0};
+    strcpy(authReq.user, "u3");
+    int32_t contLen = tSerializeSGetUserAuthReq(NULL, &authReq);
+    void*   pReq = rpcMallocCont(contLen);
+    void*   pBuf = pReq;
+    tSerializeSGetUserAuthReq(&pBuf, &authReq);
+
+    SRpcMsg* pRsp = test.SendReq(TDMT_MND_GET_USER_AUTH, pReq, contLen);
+    ASSERT_NE(pRsp, nullptr);
+    ASSERT_EQ(pRsp->code, 0);
+
+    SGetUserAuthRsp authRsp = {0};
+    tDeserializeSGetUserAuthRsp(pRsp->pCont, &authRsp);
+    EXPECT_STREQ(authRsp.user, "u3");
+    EXPECT_EQ(authRsp.superAuth, 1);
+    int32_t numOfReadDbs = taosHashGetSize(authRsp.readDbs);
+    int32_t numOfWriteDbs = taosHashGetSize(authRsp.writeDbs);
+    EXPECT_EQ(numOfReadDbs, 1);
+    EXPECT_EQ(numOfWriteDbs, 0);
+
+    char* dbname = (char*)taosHashGet(authRsp.readDbs, "1.d2", 5);
+    EXPECT_STREQ(dbname, "1.d2");
+
+    taosHashCleanup(authRsp.readDbs);
+    taosHashCleanup(authRsp.writeDbs);
+  }
+
+  {
     SAlterUserReq alterReq = {0};
     alterReq.alterType = TSDB_ALTER_USER_REMOVE_READ_DB;
     strcpy(alterReq.user, "u3");

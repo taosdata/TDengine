@@ -671,3 +671,71 @@ void *tDeserializeSAlterUserReq(void *buf, SAlterUserReq *pReq) {
   buf = taosDecodeFixedI8(buf, &pReq->superUser);
   return buf;
 }
+
+int32_t tSerializeSGetUserAuthReq(void **buf, SGetUserAuthReq *pReq) {
+  int32_t tlen = 0;
+  tlen += taosEncodeString(buf, pReq->user);
+  return tlen;
+}
+
+void *tDeserializeSGetUserAuthReq(void *buf, SGetUserAuthReq *pReq) {
+  buf = taosDecodeStringTo(buf, pReq->user);
+  return buf;
+}
+
+int32_t tSerializeSGetUserAuthRsp(void **buf, SGetUserAuthRsp *pReq) {
+  int32_t tlen = 0;
+  tlen += taosEncodeString(buf, pReq->user);
+  tlen += taosEncodeFixedI8(buf, pReq->superAuth);
+
+  int32_t numOfReadDbs = taosHashGetSize(pReq->readDbs);
+  int32_t numOfWriteDbs = taosHashGetSize(pReq->writeDbs);
+  tlen += taosEncodeFixedI32(buf, numOfReadDbs);
+  tlen += taosEncodeFixedI32(buf, numOfWriteDbs);
+
+  char *db = taosHashIterate(pReq->readDbs, NULL);
+  while (db != NULL) {
+    tlen += taosEncodeString(buf, db);
+    db = taosHashIterate(pReq->readDbs, db);
+  }
+
+  db = taosHashIterate(pReq->writeDbs, NULL);
+  while (db != NULL) {
+    tlen += taosEncodeString(buf, db);
+    db = taosHashIterate(pReq->writeDbs, db);
+  }
+
+  return tlen;
+}
+
+void *tDeserializeSGetUserAuthRsp(void *buf, SGetUserAuthRsp *pReq) {
+  buf = taosDecodeStringTo(buf, pReq->user);
+  buf = taosDecodeFixedI8(buf, &pReq->superAuth);
+
+  pReq->readDbs = taosHashInit(4, taosGetDefaultHashFunction(TSDB_DATA_TYPE_BINARY), true, false);
+  pReq->writeDbs = taosHashInit(4, taosGetDefaultHashFunction(TSDB_DATA_TYPE_BINARY), true, false);
+  if (pReq->readDbs == NULL || pReq->writeDbs == NULL) {
+    return NULL;
+  }
+
+  int32_t numOfReadDbs = 0;
+  int32_t numOfWriteDbs = 0;
+  buf = taosDecodeFixedI32(buf, &numOfReadDbs);
+  buf = taosDecodeFixedI32(buf, &numOfWriteDbs);
+
+  for (int32_t i = 0; i < numOfReadDbs; ++i) {
+    char db[TSDB_DB_FNAME_LEN] = {0};
+    buf = taosDecodeStringTo(buf, db);
+    int32_t len = strlen(db) + 1;
+    taosHashPut(pReq->readDbs, db, len, db, len);
+  }
+
+  for (int32_t i = 0; i < numOfWriteDbs; ++i) {
+    char db[TSDB_DB_FNAME_LEN] = {0};
+    buf = taosDecodeStringTo(buf, db);
+    int32_t len = strlen(db) + 1;
+    taosHashPut(pReq->writeDbs, db, len, db, len);
+  }
+
+  return buf;
+}
