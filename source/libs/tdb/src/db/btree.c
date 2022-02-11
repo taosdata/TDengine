@@ -26,6 +26,14 @@ typedef struct {
   pgsz_t offset;
 } SBtIdx;
 
+// Btree page header definition
+typedef struct {
+  uint8_t  flags;
+  uint16_t ncells;
+  pgsz_t   pldOffset;  // payload offset
+  /* TODO */
+} SBtPgHdr;
+
 static int btreeCreate(SBTree **pBt);
 static int btreeDestroy(SBTree *pBt);
 static int btreeCursorMoveToChild(SBtCursor *pBtCur, pgno_t pgno);
@@ -69,9 +77,10 @@ int btreeCursorClose(SBtCursor *pBtCur) {
 }
 
 int btreeCursorMoveTo(SBtCursor *pBtCur, int kLen, const void *pKey) {
-  SPage *pPage;
-  pgno_t childPgno;
-  int    idx;
+  SPage *   pPage;
+  SBtPgHdr *pBtPgHdr;
+  pgno_t    childPgno;
+  int       idx;
 
   // 1. Move the cursor to the root page
 

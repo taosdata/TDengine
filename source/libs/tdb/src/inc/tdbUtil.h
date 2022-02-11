@@ -20,6 +20,12 @@
 extern "C" {
 #endif
 
+#if __STDC_VERSION__ >= 201112L
+#define TD_STATIC_ASSERT(op, info) static_assert(op, info)
+#else
+#define TD_STATIC_ASSERT(op, info)
+#endif
+
 #define TDB_ROUND8(x) (((x) + 7) & ~7)
 
 int tdbGnrtFileID(const char *fname, uint8_t *fileid, bool unique);
