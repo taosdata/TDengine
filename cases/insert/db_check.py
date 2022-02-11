@@ -97,9 +97,9 @@ class TestDB(TDCase):
         
     def desc(self) -> str:
         case_description = '''
-            dbname_length_check <jayden>: [test/td-13419] : db name length check (max 32);\n
-            dbname_backquote_unsupport_check <jayden>: [test/td-13419] : unsupport backquote;\n
-            upper_lower_dbname_check <jayden>: [test/td-13419] : case insensitive;\n
-            illegal_dbsql_check <jayden>: [test/td-13419] : illegal dbname check
+            dbname_length_check <jayden>: [TD-13419] : db name length check (max 32);\n
+            dbname_backquote_unsupport_check <jayden>: [TD-13419] : unsupport backquote;\n
+            upper_lower_dbname_check <jayden>: [TD-13419] : case insensitive;\n
+            illegal_dbsql_check <jayden>: [TD-13419] : illegal dbname check;
         '''
         return case_description

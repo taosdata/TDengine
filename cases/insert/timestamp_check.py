@@ -191,12 +191,12 @@ class TestTimestamp(TDCase):
         
     def desc(self) -> str:
         case_description = '''
-            ms_us_ns_db_check <jayden>: [test/td-13419] : check db ms/us/ns precision;\n
-            h_m_s_check <jayden>: [test/td-13419] : check ts second-level >= 60;\n
-            human_date_check <jayden>: [test/td-13419] : human date check;\n
-            now_check <jayden>: [test/td-13419] : now check;\n
-            epoch_check <jayden>: [test/td-13419] : epoch check;\n
-            error_check <jayden>: [test/td-13419] : erro check;
+            ms_us_ns_db_check <jayden>: [TD-13419] : check db ms/us/ns precision;\n
+            h_m_s_check <jayden>: [TD-13419] : check ts second-level >= 60;\n
+            human_date_check <jayden>: [TD-13419] : human date check;\n
+            now_check <jayden>: [TD-13419] : now check;\n
+            epoch_check <jayden>: [TD-13419] : epoch check;\n
+            error_check <jayden>: [TD-13419] : erro check;
         '''
         return case_description
 
