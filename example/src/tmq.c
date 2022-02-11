@@ -44,11 +44,11 @@ int32_t init_env() {
   }
   taos_free_result(pRes);
 
-  pRes = taos_query(pConn, "create stable if not exists st1 (ts timestamp, k int) tags(a int)");
-  if (taos_errno(pRes) != 0) {
-    printf("failed to create super table 123_$^), reason:%s\n", taos_errstr(pRes));
-    return -1;
-  }
+  pRes = taos_query(pConn, "create stable st1 (ts timestamp, k int) tags(a int)");
+  /*if (taos_errno(pRes) != 0) {*/
+    /*printf("failed to create super table 123_$^), reason:%s\n", taos_errstr(pRes));*/
+    /*return -1;*/
+  /*}*/
   taos_free_result(pRes);
 
   pRes = taos_query(pConn, "create table tu using st1 tags(1)");
@@ -114,19 +114,19 @@ void basic_consume_loop(tmq_t *tmq,
     return;
   }
   int32_t cnt = 0;
-  clock_t startTime = clock();
+  /*clock_t startTime = clock();*/
   while (running) {
     tmq_message_t *tmqmessage = tmq_consumer_poll(tmq, 0);
     if (tmqmessage) {
       cnt++;
-      /*msg_process(tmqmessage);*/
+      msg_process(tmqmessage);
       tmq_message_destroy(tmqmessage);
-    } else {
-      break;
+    /*} else {*/
+      /*break;*/
     }
   }
-  clock_t endTime = clock();
-  printf("log cnt: %d %f s\n", cnt, (double)(endTime - startTime) / CLOCKS_PER_SEC);
+  /*clock_t endTime = clock();*/
+  /*printf("log cnt: %d %f s\n", cnt, (double)(endTime - startTime) / CLOCKS_PER_SEC);*/
 
   err = tmq_consumer_close(tmq);
   if (err)

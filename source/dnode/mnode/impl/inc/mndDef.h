@@ -388,6 +388,7 @@ static FORCE_INLINE int32_t tEncodeSMqSubConsumer(void** buf, const SMqSubConsum
   int32_t tlen = 0;
   tlen += taosEncodeFixedI64(buf, pConsumer->consumerId);
   int32_t sz = taosArrayGetSize(pConsumer->vgInfo);
+  tlen += taosEncodeFixedI32(buf, sz);
   for (int32_t i = 0; i < sz; i++) {
     SMqConsumerEp* pCEp = taosArrayGet(pConsumer->vgInfo, i);
     tlen += tEncodeSMqConsumerEp(buf, pCEp);
@@ -498,9 +499,9 @@ static FORCE_INLINE void* tDecodeSubscribeObj(void* buf, SMqSubscribeObj* pSub) 
     return NULL;
   }
   for (int32_t i = 0; i < sz; i++) {
-    SMqConsumerEp cEp = {0};
-    buf = tDecodeSMqConsumerEp(buf, &cEp);
-    taosArrayPush(pSub->unassignedVg, &cEp);
+    SMqConsumerEp consumerEp = {0};
+    buf = tDecodeSMqConsumerEp(buf, &consumerEp);
+    taosArrayPush(pSub->unassignedVg, &consumerEp);
   }
   return buf;
 }
@@ -539,7 +540,8 @@ typedef struct {
   int64_t  connId;
   SRWLatch lock;
   char     cgroup[TSDB_CONSUMER_GROUP_LEN];
-  SArray*  topics;  // SArray<char*>
+  SArray*  currentTopics;  // SArray<char*>
+  SArray*  recentRemovedTopics;   // SArray<char*>
   int64_t  epoch;
   // stat
   int64_t pollCnt;
@@ -552,16 +554,25 @@ typedef struct {
 } SMqConsumerObj;
 
 static FORCE_INLINE int32_t tEncodeSMqConsumerObj(void** buf, const SMqConsumerObj* pConsumer) {
+  int32_t sz;
   int32_t tlen = 0;
   tlen += taosEncodeFixedI64(buf, pConsumer->consumerId);
   tlen += taosEncodeFixedI64(buf, pConsumer->connId);
   tlen += taosEncodeFixedI64(buf, pConsumer->epoch);
   tlen += taosEncodeFixedI64(buf, pConsumer->pollCnt);
   tlen += taosEncodeString(buf, pConsumer->cgroup);
-  int32_t sz = taosArrayGetSize(pConsumer->topics);
+
+  sz = taosArrayGetSize(pConsumer->currentTopics);
   tlen += taosEncodeFixedI32(buf, sz);
   for (int32_t i = 0; i < sz; i++) {
-    char* topic = taosArrayGetP(pConsumer->topics, i);
+    char* topic = taosArrayGetP(pConsumer->currentTopics, i);
+    tlen += taosEncodeString(buf, topic);
+  }
+
+  sz = taosArrayGetSize(pConsumer->recentRemovedTopics);
+  tlen += taosEncodeFixedI32(buf, sz);
+  for (int32_t i = 0; i < sz; i++) {
+    char* topic = taosArrayGetP(pConsumer->recentRemovedTopics, i);
     tlen += taosEncodeString(buf, topic);
   }
   return tlen;
@@ -574,12 +585,21 @@ static FORCE_INLINE void* tDecodeSMqConsumerObj(void* buf, SMqConsumerObj* pCons
   buf = taosDecodeFixedI64(buf, &pConsumer->epoch);
   buf = taosDecodeFixedI64(buf, &pConsumer->pollCnt);
   buf = taosDecodeStringTo(buf, pConsumer->cgroup);
+
   buf = taosDecodeFixedI32(buf, &sz);
-  pConsumer->topics = taosArrayInit(sz, sizeof(SMqConsumerObj));
+  pConsumer->currentTopics = taosArrayInit(sz, sizeof(SMqConsumerObj));
   for (int32_t i = 0; i < sz; i++) {
     char* topic;
     buf = taosDecodeString(buf, &topic);
-    taosArrayPush(pConsumer->topics, &topic);
+    taosArrayPush(pConsumer->currentTopics, &topic);
+  }
+
+  buf = taosDecodeFixedI32(buf, &sz);
+  pConsumer->recentRemovedTopics = taosArrayInit(sz, sizeof(SMqConsumerObj));
+  for (int32_t i = 0; i < sz; i++) {
+    char* topic;
+    buf = taosDecodeString(buf, &topic);
+    taosArrayPush(pConsumer->recentRemovedTopics, &topic);
   }
   return buf;
 }

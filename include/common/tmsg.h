@@ -1055,7 +1055,7 @@ static FORCE_INLINE void* tDeserializeSCMSubscribeReq(void* buf, SCMSubscribeReq
   buf = taosDecodeString(buf, &pReq->consumerGroup);
   pReq->topicNames = taosArrayInit(pReq->topicNum, sizeof(void*));
   for (int i = 0; i < pReq->topicNum; i++) {
-    char* name = NULL;
+    char* name;
     buf = taosDecodeString(buf, &name);
     taosArrayPush(pReq->topicNames, &name);
   }
@@ -1132,8 +1132,59 @@ typedef struct {
 } SMqTmrMsg;
 
 typedef struct {
-  int64_t consumerId;
+  const char*   key;
+  SArray* lostConsumers;      //SArray<int64_t>
+  SArray* removedConsumers;   //SArray<int64_t>
+  SArray* newConsumers;       //SArray<int64_t>
+} SMqRebSubscribe;
+
+static FORCE_INLINE SMqRebSubscribe* tNewSMqRebSubscribe(const char* key) {
+  SMqRebSubscribe* pRebSub = (SMqRebSubscribe*)calloc(1, sizeof(SMqRebSubscribe));
+  if (pRebSub == NULL) {
+    goto _err;
+  }
+  pRebSub->key = key;
+  pRebSub->lostConsumers = taosArrayInit(0, sizeof(int64_t));
+  if (pRebSub->lostConsumers == NULL) {
+    goto _err;
+  }
+  pRebSub->removedConsumers = taosArrayInit(0, sizeof(int64_t));
+  if (pRebSub->removedConsumers == NULL) {
+    goto _err;
+  }
+  pRebSub->newConsumers = taosArrayInit(0, sizeof(int64_t));
+  if (pRebSub->newConsumers == NULL) {
+    goto _err;
+  }
+  return pRebSub;
+_err:
+  taosArrayDestroy(pRebSub->lostConsumers);
+  taosArrayDestroy(pRebSub->removedConsumers);
+  taosArrayDestroy(pRebSub->newConsumers);
+  tfree(pRebSub);
+  return NULL;
+}
+
+// this message is sent from mnode to mnode(read thread to write thread), so there is no need for serialization / deserialization
+typedef struct {
+  //SArray* rebSubscribes;     //SArray<SMqRebSubscribe>
+  SHashObj* rebSubHash;      // SHashObj<key, SMqRebSubscribe>
 } SMqDoRebalanceMsg;
+
+#if 0
+static FORCE_INLINE SMqDoRebalanceMsg* tNewSMqDoRebalanceMsg() {
+  SMqDoRebalanceMsg *pMsg = malloc(sizeof(SMqDoRebalanceMsg));
+  if (pMsg == NULL) {
+    return NULL;
+  }
+  pMsg->rebSubscribes = taosArrayInit(0, sizeof(SMqRebSubscribe));
+  if (pMsg->rebSubscribes == NULL) {
+    free(pMsg);
+    return NULL;
+  }
+  return pMsg;
+}
+#endif
 
 typedef struct {
   int64_t status;
