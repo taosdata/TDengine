@@ -302,7 +302,7 @@ static int32_t mndProcessCreateUserReq(SMnodeMsg *pReq) {
   SUserObj      *pOperUser = NULL;
   SCreateUserReq createReq = {0};
 
-  if (tDeserializeSCreateUserReq(pReq->rpcMsg.pCont, &createReq) == NULL) goto CREATE_USER_OVER;
+  if (tDeserializeSCreateUserReq(pReq->rpcMsg.pCont, pReq->rpcMsg.contLen, &createReq) != 0) goto CREATE_USER_OVER;
 
   mDebug("user:%s, start to create", createReq.user);
 
@@ -402,7 +402,7 @@ static int32_t mndProcessAlterUserReq(SMnodeMsg *pReq) {
   SUserObj      newUser = {0};
   SAlterUserReq alterReq = {0};
 
-  if (tDeserializeSAlterUserReq(pReq->rpcMsg.pCont, &alterReq) == NULL) goto ALTER_USER_OVER;
+  if (tDeserializeSAlterUserReq(pReq->rpcMsg.pCont, pReq->rpcMsg.contLen, &alterReq) != 0) goto ALTER_USER_OVER;
 
   mDebug("user:%s, start to alter", alterReq.user);
 
@@ -537,7 +537,7 @@ static int32_t mndProcessDropUserReq(SMnodeMsg *pReq) {
   SUserObj    *pOperUser = NULL;
   SDropUserReq dropReq = {0};
 
-  if (tDeserializeSDropUserReq(pReq->rpcMsg.pCont, &dropReq) == NULL) goto DROP_USER_OVER;
+  if (tDeserializeSDropUserReq(pReq->rpcMsg.pCont, pReq->rpcMsg.contLen, &dropReq) != 0) goto DROP_USER_OVER;
 
   mDebug("user:%s, start to drop", dropReq.user);
 
@@ -583,7 +583,7 @@ static int32_t mndProcessGetUserAuthReq(SMnodeMsg *pReq) {
   SGetUserAuthReq authReq = {0};
   SGetUserAuthRsp authRsp = {0};
 
-  if (tDeserializeSGetUserAuthReq(pReq->rpcMsg.pCont, &authReq) == NULL) goto GET_AUTH_OVER;
+  if (tDeserializeSGetUserAuthReq(pReq->rpcMsg.pCont, pReq->rpcMsg.contLen, &authReq) != 0) goto GET_AUTH_OVER;
 
   mTrace("user:%s, start to get auth", authReq.user);
 
@@ -614,15 +614,14 @@ static int32_t mndProcessGetUserAuthReq(SMnodeMsg *pReq) {
     sdbRelease(pSdb, pDb);
   }
 
-  int32_t contLen = tSerializeSGetUserAuthRsp(NULL, &authRsp);
+  int32_t contLen = tSerializeSGetUserAuthRsp(NULL, 0, &authRsp);
   void   *pRsp = rpcMallocCont(contLen);
   if (pRsp == NULL) {
     terrno = TSDB_CODE_OUT_OF_MEMORY;
     goto GET_AUTH_OVER;
   }
 
-  void *pBuf = pRsp;
-  tSerializeSGetUserAuthRsp(&pBuf, &authRsp);
+  tSerializeSGetUserAuthRsp(pRsp, contLen, &authRsp);
 
   pReq->pCont = pRsp;
   pReq->contLen = contLen;

@@ -67,10 +67,9 @@ TEST_F(MndTestTrans, 01_Create_User_Crash) {
     strcpy(createReq.user, "u1");
     strcpy(createReq.pass, "p1");
 
-    int32_t contLen = tSerializeSCreateUserReq(NULL, &createReq);
+    int32_t contLen = tSerializeSCreateUserReq(NULL, 0, &createReq);
     void*   pReq = rpcMallocCont(contLen);
-    void*   pBuf = pReq;
-    tSerializeSCreateUserReq(&pBuf, &createReq);
+    tSerializeSCreateUserReq(pReq, contLen, &createReq);
 
     SRpcMsg* pRsp = test.SendReq(TDMT_MND_CREATE_USER, pReq, contLen);
     ASSERT_NE(pRsp, nullptr);

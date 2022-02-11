@@ -16,15 +16,14 @@ char* buildUserManipulationMsg(SSqlInfo* pInfo, int32_t* outputLen, int64_t id, 
     strncpy(createReq.pass, pUser->passwd.z, pUser->passwd.n);
   }
 
-  int32_t tlen = tSerializeSCreateUserReq(NULL, &createReq);
+  int32_t tlen = tSerializeSCreateUserReq(NULL, 0, &createReq);
   void*   pReq = malloc(tlen);
   if (pReq == NULL) {
     terrno = TSDB_CODE_OUT_OF_MEMORY;
     return NULL;
   }
 
-  void* pBuf = pReq;
-  tSerializeSCreateUserReq(&pBuf, &createReq);
+  tSerializeSCreateUserReq(pReq, tlen, &createReq);
   *outputLen = tlen;
   return pReq;
 }
@@ -63,15 +62,14 @@ char* buildAcctManipulationMsg(SSqlInfo* pInfo, int32_t* outputLen, int64_t id, 
     }
   }
 
-  int32_t tlen = tSerializeSCreateAcctReq(NULL, &createReq);
+  int32_t tlen = tSerializeSCreateAcctReq(NULL, 0, &createReq);
   void*   pReq = malloc(tlen);
   if (pReq == NULL) {
     terrno = TSDB_CODE_OUT_OF_MEMORY;
     return NULL;
   }
 
-  void* pBuf = pReq;
-  tSerializeSCreateAcctReq(&pBuf, &createReq);
+  tSerializeSCreateAcctReq(pReq, tlen, &createReq);
   *outputLen = tlen;
   return pReq;
 }
@@ -86,15 +84,14 @@ char* buildDropUserMsg(SSqlInfo* pInfo, int32_t* msgLen, int64_t id, char* msgBu
 
   strncpy(dropReq.user, pName->z, pName->n);
 
-  int32_t tlen = tSerializeSDropUserReq(NULL, &dropReq);
+  int32_t tlen = tSerializeSDropUserReq(NULL, 0, &dropReq);
   void*   pReq = malloc(tlen);
   if (pReq == NULL) {
     terrno = TSDB_CODE_OUT_OF_MEMORY;
     return NULL;
   }
 
-  void* pBuf = pReq;
-  tSerializeSDropUserReq(&pBuf, &dropReq);
+  tSerializeSDropUserReq(pReq, tlen, &dropReq);
   *msgLen = tlen;
   return pReq;
 }
