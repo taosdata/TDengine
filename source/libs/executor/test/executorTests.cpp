@@ -65,16 +65,16 @@ SSDataBlock* getDummyBlock(void* param, bool* newgroup) {
 
     taosArrayPush(pInfo->pBlock->pDataBlock, &colInfo);
 
-    SColumnInfoData colInfo1 = {0};
-    colInfo1.info.type = TSDB_DATA_TYPE_BINARY;
-    colInfo1.info.bytes = 40;
-    colInfo1.info.colId = 2;
-
-    colInfo1.varmeta.allocLen = 0;//numOfRows * sizeof(int32_t);
-    colInfo1.varmeta.length = 0;
-    colInfo1.varmeta.offset = static_cast<int32_t*>(calloc(1, numOfRows * sizeof(int32_t)));
-
-    taosArrayPush(pInfo->pBlock->pDataBlock, &colInfo1);
+//    SColumnInfoData colInfo1 = {0};
+//    colInfo1.info.type = TSDB_DATA_TYPE_BINARY;
+//    colInfo1.info.bytes = 40;
+//    colInfo1.info.colId = 2;
+//
+//    colInfo1.varmeta.allocLen = 0;//numOfRows * sizeof(int32_t);
+//    colInfo1.varmeta.length = 0;
+//    colInfo1.varmeta.offset = static_cast<int32_t*>(calloc(1, numOfRows * sizeof(int32_t)));
+//
+//    taosArrayPush(pInfo->pBlock->pDataBlock, &colInfo1);
   } else {
     blockDataClearup(pInfo->pBlock, true);
   }
@@ -86,18 +86,18 @@ SSDataBlock* getDummyBlock(void* param, bool* newgroup) {
   for(int32_t i = 0; i < numOfRows; ++i) {
     SColumnInfoData* pColInfo = static_cast<SColumnInfoData*>(TARRAY_GET_ELEM(pBlock->pDataBlock, 0));
 
-    int32_t v = (--pInfo->startVal);
+    int32_t v = rand();//(++pInfo->startVal);
     colDataAppend(pColInfo, i, reinterpret_cast<const char*>(&v), false);
 
-    sprintf(buf, "this is %d row", i);
-    STR_TO_VARSTR(b1, buf);
-
-    SColumnInfoData* pColInfo2 = static_cast<SColumnInfoData*>(TARRAY_GET_ELEM(pBlock->pDataBlock, 1));
-    colDataAppend(pColInfo2, i, b1, false);
+//    sprintf(buf, "this is %d row", i);
+//    STR_TO_VARSTR(b1, buf);
+//
+//    SColumnInfoData* pColInfo2 = static_cast<SColumnInfoData*>(TARRAY_GET_ELEM(pBlock->pDataBlock, 1));
+//    colDataAppend(pColInfo2, i, b1, false);
   }
 
   pBlock->info.rows = numOfRows;
-  pBlock->info.numOfCols = 2;
+  pBlock->info.numOfCols = 1;
 
   pInfo->current += 1;
   return pBlock;
@@ -245,7 +245,43 @@ TEST(testCase, build_executor_tree_Test) {
 //  }
 //}
 
+typedef struct su {
+  int32_t v;
+  char   *c;
+} su;
+
+int32_t cmp(const void* p1, const void* p2) {
+  su* v1 = (su*) p1;
+  su* v2 = (su*) p2;
+
+  int32_t x1 = *(int32_t*) v1->c;
+  int32_t x2 = *(int32_t*) v2->c;
+  if (x1 == x2) {
+    return 0;
+  } else {
+    return x1 < x2? -1:1;
+  }
+}
+
 TEST(testCase, external_sort_Test) {
+#if 0
+  su* v = static_cast<su*>(calloc(1000000, sizeof(su)));
+  for(int32_t i = 0; i < 1000000; ++i) {
+    v[i].v = rand();
+    v[i].c = static_cast<char*>(malloc(4));
+    *(int32_t*) v[i].c = i;
+  }
+
+  qsort(v, 1000000, sizeof(su), cmp);
+//  for(int32_t i = 0; i < 1000; ++i) {
+//    printf("%d ", v[i]);
+//  }
+//  printf("\n");
+  return;
+#endif
+
+  srand(time(NULL));
+
   SArray* pOrderVal = taosArrayInit(4, sizeof(SOrder));
   SOrder o = {0};
   o.order = TSDB_ORDER_ASC;
@@ -260,9 +296,9 @@ TEST(testCase, external_sort_Test) {
 
   SExprInfo *exp1 = static_cast<SExprInfo*>(calloc(1, sizeof(SExprInfo)));
   exp1->base.resSchema = createSchema(TSDB_DATA_TYPE_BINARY, 40, 2, "res1");
-  taosArrayPush(pExprInfo, &exp1);
+//  taosArrayPush(pExprInfo, &exp1);
 
-  SOperatorInfo* pOperator = createOrderOperatorInfo(createDummyOperator(100000), pExprInfo, pOrderVal);
+  SOperatorInfo* pOperator = createOrderOperatorInfo(createDummyOperator(50000), pExprInfo, pOrderVal);
 
   bool newgroup = false;
   SSDataBlock* pRes = NULL;

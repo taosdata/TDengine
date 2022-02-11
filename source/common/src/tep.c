@@ -1,4 +1,5 @@
 #include "tep.h"
+#include <compare.h>
 #include "common.h"
 #include "tglobal.h"
 #include "tlockfree.h"
@@ -86,6 +87,7 @@ int32_t colDataAppend(SColumnInfoData* pColumnInfoData, uint32_t currentRow, con
       colDataSetNull_f(pColumnInfoData->nullbitmap, currentRow);
     }
 
+    pColumnInfoData->hasNull = true;
     return 0;
   }
 
@@ -747,6 +749,23 @@ static void destroyTupleIndex(int32_t* index) {
   tfree(index);
 }
 
+static __compar_fn_t getComparFn(int32_t type, int32_t order) {
+  switch(type) {
+    case TSDB_DATA_TYPE_TINYINT:  return order == TSDB_ORDER_ASC? compareInt8Val:compareInt8ValDesc;
+    case TSDB_DATA_TYPE_SMALLINT: return order == TSDB_ORDER_ASC? compareInt16Val:compareInt16ValDesc;
+    case TSDB_DATA_TYPE_INT:      return order == TSDB_ORDER_ASC? compareInt32Val:compareInt32ValDesc;
+    case TSDB_DATA_TYPE_BIGINT:   return order == TSDB_ORDER_ASC? compareInt64Val:compareInt64ValDesc;
+    case TSDB_DATA_TYPE_FLOAT:    return order == TSDB_ORDER_ASC? compareFloatVal:compareFloatValDesc;
+    case TSDB_DATA_TYPE_DOUBLE:   return order == TSDB_ORDER_ASC? compareDoubleVal:compareDoubleValDesc;
+    case TSDB_DATA_TYPE_UTINYINT: return order == TSDB_ORDER_ASC? compareUint8Val:compareUint8ValDesc;
+    case TSDB_DATA_TYPE_USMALLINT:return order == TSDB_ORDER_ASC? compareUint16Val:compareUint16ValDesc;
+    case TSDB_DATA_TYPE_UINT:     return order == TSDB_ORDER_ASC? compareUint32Val:compareUint32ValDesc;
+    case TSDB_DATA_TYPE_UBIGINT:  return order == TSDB_ORDER_ASC? compareUint64Val:compareUint64ValDesc;
+    default:
+      return order == TSDB_ORDER_ASC? compareInt32Val:compareInt32ValDesc;
+  }
+}
+
 int32_t blockDataSort(SSDataBlock* pDataBlock, SArray* pOrderInfo, bool nullFirst) {
   ASSERT(pDataBlock != NULL && pOrderInfo != NULL);
   if (pDataBlock->info.rows <= 1) {
@@ -755,6 +774,46 @@ int32_t blockDataSort(SSDataBlock* pDataBlock, SArray* pOrderInfo, bool nullFirs
 
   // Allocate the additional buffer.
   uint32_t rows = pDataBlock->info.rows;
+
+  bool sortColumnHasNull = false;
+  bool varTypeSort = false;
+
+  for (int32_t i = 0; i < taosArrayGetSize(pOrderInfo); ++i) {
+    SBlockOrderInfo* pInfo = taosArrayGet(pOrderInfo, i);
+
+    SColumnInfoData* pColInfoData = taosArrayGet(pDataBlock->pDataBlock, pInfo->colIndex);
+    if (pColInfoData->hasNull) {
+      sortColumnHasNull = true;
+    }
+
+    if (IS_VAR_DATA_TYPE(pColInfoData->info.type)) {
+      varTypeSort = true;
+    }
+  }
+
+  if (taosArrayGetSize(pOrderInfo) == 1 && (!sortColumnHasNull)) {
+    if (pDataBlock->info.numOfCols == 1) {
+      if (!varTypeSort) {
+        SColumnInfoData* pColInfoData = taosArrayGet(pDataBlock->pDataBlock, 0);
+        SBlockOrderInfo* pOrder = taosArrayGet(pOrderInfo, 0);
+
+        int64_t p0 = taosGetTimestampUs();
+
+        __compar_fn_t fn = getComparFn(pColInfoData->info.type, pOrder->order);
+        qsort(pColInfoData->pData, pDataBlock->info.rows, pColInfoData->info.bytes, fn);
+
+        int64_t p1 = taosGetTimestampUs();
+        printf("sort:%ld, rows:%d\n", p1 - p0, pDataBlock->info.rows);
+
+        return TSDB_CODE_SUCCESS;
+      } else {  // var data type
+
+      }
+    } else if (pDataBlock->info.numOfCols == 2) {
+
+    }
+  }
+
   int32_t* index = createTupleIndex(rows);
   if (index == NULL) {
     terrno = TSDB_CODE_OUT_OF_MEMORY;
@@ -779,12 +838,6 @@ int32_t blockDataSort(SSDataBlock* pDataBlock, SArray* pOrderInfo, bool nullFirs
     return terrno;
   }
 
-#if 0
-  SColumnInfoData* px = taosArrayGet(pDataBlock->pDataBlock, 0);
-  for(int32_t i = 0; i < pDataBlock->info.rows; ++i) {
-    printf("%d, %d, %d\n", index[i], ((int32_t*)px->pData)[i], ((int32_t*)px->pData)[index[i]]);
-  }
-#endif
   int64_t p2 = taosGetTimestampUs();
 
   int32_t code = blockDataAssign(pCols, pDataBlock, index);
@@ -795,18 +848,6 @@ int32_t blockDataSort(SSDataBlock* pDataBlock, SArray* pOrderInfo, bool nullFirs
 
   int64_t p3 = taosGetTimestampUs();
 
-#if 0
-  for(int32_t i = 0; i < pDataBlock->info.rows; ++i) {
-    if (colDataIsNull(&pCols[0], rows, i, NULL)) {
-      printf("0\t");
-    } else {
-      printf("%d\t", ((int32_t*)pCols[0].pData)[i]);
-    }
-  }
-
-  printf("end\n");
-#endif
-
   copyBackToBlock(pDataBlock, pCols);
   int64_t p4 = taosGetTimestampUs();
 
@@ -814,6 +855,147 @@ int32_t blockDataSort(SSDataBlock* pDataBlock, SArray* pOrderInfo, bool nullFirs
   destroyTupleIndex(index);
 
   return TSDB_CODE_SUCCESS;
+}
+
+typedef struct SHelper {
+  int32_t index;
+  union {char *pData; int64_t i64; double d64;};
+} SHelper;
+
+SHelper* createTupleIndex_rv(int32_t numOfRows, SArray* pOrderInfo, SSDataBlock* pBlock) {
+  int32_t sortValLengthPerRow = 0;
+  int32_t numOfCols = taosArrayGetSize(pOrderInfo);
+
+  for(int32_t i = 0; i < numOfCols; ++i) {
+    SBlockOrderInfo* pInfo = taosArrayGet(pOrderInfo, i);
+    SColumnInfoData* pColInfo = taosArrayGet(pBlock->pDataBlock, pInfo->colIndex);
+    pInfo->pColData = pColInfo;
+    sortValLengthPerRow += pColInfo->info.bytes;
+  }
+
+  size_t len = sortValLengthPerRow * pBlock->info.rows;
+
+  char* buf = calloc(1, len);
+  SHelper* phelper = calloc(numOfRows, sizeof(SHelper));
+  for(int32_t i = 0; i < numOfRows; ++i) {
+    phelper[i].index = i;
+    phelper[i].pData = buf + sortValLengthPerRow * i;
+  }
+
+  int32_t offset = 0;
+  for(int32_t i = 0; i < numOfCols; ++i) {
+    SBlockOrderInfo* pInfo = taosArrayGet(pOrderInfo, i);
+    for(int32_t j = 0; j < numOfRows; ++j) {
+      phelper[j].i64 = *(int32_t*) pInfo->pColData->pData + pInfo->pColData->info.bytes * j;
+//      memcpy(phelper[j].pData + offset, pInfo->pColData->pData + pInfo->pColData->info.bytes * j, pInfo->pColData->info.bytes);
+    }
+
+    offset += pInfo->pColData->info.bytes;
+  }
+
+  return phelper;
+}
+
+int32_t dataBlockCompar_rv(const void* p1, const void* p2, const void* param) {
+  const SSDataBlockSortHelper* pHelper = (const SSDataBlockSortHelper*) param;
+
+//  SSDataBlock* pDataBlock = pHelper->pDataBlock;
+
+  SHelper* left  = (SHelper*) p1;
+  SHelper* right = (SHelper*) p2;
+
+  SArray* pInfo = pHelper->orderInfo;
+
+  int32_t offset = 0;
+//  for(int32_t i = 0; i < pInfo->size; ++i) {
+//    SBlockOrderInfo* pOrder = TARRAY_GET_ELEM(pInfo, 0);
+//    SColumnInfoData* pColInfoData = pOrder->pColData;//TARRAY_GET_ELEM(pDataBlock->pDataBlock, pOrder->colIndex);
+
+//    if (pColInfoData->hasNull) {
+//      bool leftNull  = colDataIsNull(pColInfoData, pDataBlock->info.rows, left, pDataBlock->pBlockAgg);
+//      bool rightNull = colDataIsNull(pColInfoData, pDataBlock->info.rows, right, pDataBlock->pBlockAgg);
+//      if (leftNull && rightNull) {
+//        continue; // continue to next slot
+//      }
+//
+//      if (rightNull) {
+//        return pHelper->nullFirst? 1:-1;
+//      }
+//
+//      if (leftNull) {
+//        return pHelper->nullFirst? -1:1;
+//      }
+//    }
+
+//    void* left1  = colDataGet(pColInfoData, left);
+//    void* right1 = colDataGet(pColInfoData, right);
+
+//    switch(pColInfoData->info.type) {
+//      case TSDB_DATA_TYPE_INT: {
+        int32_t leftx  = *(int32_t*)left->pData;//*(int32_t*)(left->pData + offset);
+        int32_t rightx = *(int32_t*)right->pData;//*(int32_t*)(right->pData + offset);
+
+//        offset += pColInfoData->info.bytes;
+        if (leftx == rightx) {
+//          break;
+          return 0;
+        } else {
+//          if (pOrder->order == TSDB_ORDER_ASC) {
+            return (leftx < rightx)? -1:1;
+//          } else {
+//            return (leftx < rightx)? 1:-1;
+//          }
+        }
+//      }
+//      default:
+//        assert(0);
+//    }
+//  }
+
+  return 0;
+}
+
+int32_t varColSort(SColumnInfoData* pColumnInfoData, SBlockOrderInfo* pOrder) {
+
+}
+
+int32_t blockDataSort_rv(SSDataBlock* pDataBlock, SArray* pOrderInfo, bool nullFirst) {
+// Allocate the additional buffer.
+  int64_t p0 = taosGetTimestampUs();
+
+  SSDataBlockSortHelper helper = {.nullFirst = nullFirst, .pDataBlock = pDataBlock, .orderInfo = pOrderInfo};
+
+  uint32_t rows = pDataBlock->info.rows;
+  SHelper* index = createTupleIndex_rv(rows, helper.orderInfo, pDataBlock);
+  if (index == NULL) {
+    terrno = TSDB_CODE_OUT_OF_MEMORY;
+    return terrno;
+  }
+
+  taosqsort(index, rows, sizeof(SHelper), &helper, dataBlockCompar_rv);
+
+  int64_t p1 = taosGetTimestampUs();
+  SColumnInfoData* pCols = createHelpColInfoData(pDataBlock);
+  if (pCols == NULL) {
+    terrno = TSDB_CODE_OUT_OF_MEMORY;
+    return terrno;
+  }
+
+  int64_t p2 = taosGetTimestampUs();
+
+  //  int32_t code = blockDataAssign(pCols, pDataBlock, index);
+  //  if (code != TSDB_CODE_SUCCESS) {
+  //    terrno = code;
+  //    return code;
+  //  }
+
+  int64_t p3 = taosGetTimestampUs();
+
+  copyBackToBlock(pDataBlock, pCols);
+  int64_t p4 = taosGetTimestampUs();
+
+  printf("sort:%ld, create:%ld, assign:%ld, copyback:%ld, rows:%d\n", p1 - p0, p2 - p1, p3 - p2, p4 - p3, rows);
+  //  destroyTupleIndex(index);
 }
 
 void blockDataClearup(SSDataBlock* pDataBlock, bool hasVarCol) {

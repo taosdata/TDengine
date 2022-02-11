@@ -103,7 +103,7 @@ SShowReq* buildShowMsg(SShowInfo* pShowInfo, SParseContext *pCtx, SMsgBuf* pMsgB
     SToken* pEpAddr = &pShowInfo->prefix;
     assert(pEpAddr->n > 0 && pEpAddr->type > 0);
 
-    strncpy(pShowMsg->payload, pEpAddr->z, pEpAddr->n);
+    tstrncpy(pShowMsg->payload, pEpAddr->z, pEpAddr->n + 1);
     pShowMsg->payloadLen = htons(pEpAddr->n);
   }
 
