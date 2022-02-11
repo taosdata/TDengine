@@ -80,16 +80,16 @@ typedef struct STableMeta {
   SSchema        schema[];
 } STableMeta;
 
-typedef struct SDBVgroupInfo {
+typedef struct SDBVgInfo {
   int32_t   vgVersion;  
   int8_t    hashMethod;
   SHashObj *vgHash;  //key:vgId, value:SVgroupInfo
-} SDBVgroupInfo;
+} SDBVgInfo;
 
 typedef struct SUseDbOutput {
   char           db[TSDB_DB_FNAME_LEN];
   uint64_t       dbId;
-  SDBVgroupInfo *dbVgroup;
+  SDBVgInfo     *dbVgroup;
 } SUseDbOutput;
 
 enum {

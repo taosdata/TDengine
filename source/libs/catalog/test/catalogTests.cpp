@@ -38,7 +38,6 @@ namespace {
 
 extern "C" int32_t ctgGetTableMetaFromCache(struct SCatalog *pCatalog, const SName *pTableName, STableMeta **pTableMeta,
                                             int32_t *exist);
-extern "C" int32_t ctgUpdateTableMetaCache(struct SCatalog *pCatalog, STableMetaOutput *output);
 extern "C" int32_t ctgDbgGetClusterCacheNum(struct SCatalog* pCatalog, int32_t type);
 
 void ctgTestSetPrepareTableMeta();
@@ -176,11 +175,11 @@ void ctgTestBuildCTableMetaOutput(STableMetaOutput *output) {
   strcpy(s->name, "tag1s");
 }
 
-void ctgTestBuildDBVgroup(SDBVgroupInfo **pdbVgroup) {
+void ctgTestBuildDBVgroup(SDBVgInfo **pdbVgroup) {
   static int32_t vgVersion = ctgTestVgVersion + 1;
   int32_t        vgNum = 0;
   SVgroupInfo    vgInfo = {0};
-  SDBVgroupInfo *dbVgroup = (SDBVgroupInfo *)calloc(1, sizeof(SDBVgroupInfo));
+  SDBVgInfo *dbVgroup = (SDBVgInfo *)calloc(1, sizeof(SDBVgInfo));
 
   dbVgroup->vgVersion = vgVersion++;
 
@@ -612,7 +611,7 @@ void *ctgTestGetDbVgroupThread(void *param) {
   int32_t          n = 0;
 
   while (!ctgTestStop) {
-    code = catalogGetDBVgroup(pCtg, mockPointer, (const SEpSet *)mockPointer, ctgTestDbname, false, &vgList);
+    code = catalogGetDBVgInfo(pCtg, mockPointer, (const SEpSet *)mockPointer, ctgTestDbname, false, &vgList);
     if (code) {
       assert(0);
     }
@@ -635,12 +634,12 @@ void *ctgTestGetDbVgroupThread(void *param) {
 void *ctgTestSetSameDbVgroupThread(void *param) {
   struct SCatalog *pCtg = (struct SCatalog *)param;
   int32_t          code = 0;
-  SDBVgroupInfo    *dbVgroup = NULL;
+  SDBVgInfo       *dbVgroup = NULL;
   int32_t          n = 0;
 
   while (!ctgTestStop) {
     ctgTestBuildDBVgroup(&dbVgroup);
-    code = catalogUpdateDBVgroup(pCtg, ctgTestDbname, ctgTestDbId, dbVgroup);
+    code = catalogUpdateDBVgInfo(pCtg, ctgTestDbname, ctgTestDbId, dbVgroup);
     if (code) {
       assert(0);
     }
@@ -660,12 +659,12 @@ void *ctgTestSetSameDbVgroupThread(void *param) {
 void *ctgTestSetDiffDbVgroupThread(void *param) {
   struct SCatalog *pCtg = (struct SCatalog *)param;
   int32_t          code = 0;
-  SDBVgroupInfo    *dbVgroup = NULL;
+  SDBVgInfo    *dbVgroup = NULL;
   int32_t          n = 0;
 
   while (!ctgTestStop) {
     ctgTestBuildDBVgroup(&dbVgroup);
-    code = catalogUpdateDBVgroup(pCtg, ctgTestDbname, ctgTestDbId++, dbVgroup);
+    code = catalogUpdateDBVgInfo(pCtg, ctgTestDbname, ctgTestDbId++, dbVgroup);
     if (code) {
       assert(0);
     }
@@ -716,14 +715,22 @@ void *ctgTestGetCtableMetaThread(void *param) {
 void *ctgTestSetCtableMetaThread(void *param) {
   struct SCatalog *pCtg = (struct SCatalog *)param;
   int32_t          code = 0;
-  SDBVgroupInfo    dbVgroup = {0};
+  SDBVgInfo    dbVgroup = {0};
   int32_t          n = 0;
   STableMetaOutput output = {0};
 
   ctgTestBuildCTableMetaOutput(&output);
+  SCtgMetaAction action = {0};
+  
+  action.act = CTG_ACT_UPDATE_TBL;
 
   while (!ctgTestStop) {
-    code = ctgUpdateTableMetaCache(pCtg, &output);
+    SCtgUpdateTblMsg *msg = malloc(sizeof(SCtgUpdateTblMsg));
+    msg->pCtg = pCtg;
+    msg->output = output;
+    action.data = msg;
+
+    code = ctgActUpdateTbl(&action);
     if (code) {
       assert(0);
     }
@@ -984,7 +991,7 @@ TEST(tableMeta, superTableCase) {
   ASSERT_EQ(tableMeta->tableInfo.rowSize, 12);
 
   tableMeta = NULL;
-  code = catalogRenewAndGetTableMeta(pCtg, mockPointer, (const SEpSet *)mockPointer, &n, &tableMeta, 0);
+  code = catalogRefreshGetTableMeta(pCtg, mockPointer, (const SEpSet *)mockPointer, &n, &tableMeta, 0);
   ASSERT_EQ(code, 0);
   ASSERT_EQ(tableMeta->vgId, 9);
   ASSERT_EQ(tableMeta->tableType, TSDB_CHILD_TABLE);
@@ -1174,7 +1181,7 @@ TEST(tableDistVgroup, normalTable) {
   strcpy(n.dbname, "db1");
   strcpy(n.tname, ctgTestTablename);
 
-  code = catalogGetTableDistVgroup(pCtg, mockPointer, (const SEpSet *)mockPointer, &n, &vgList);
+  code = catalogGetTableDistVgInfo(pCtg, mockPointer, (const SEpSet *)mockPointer, &n, &vgList);
   ASSERT_EQ(code, 0);
   ASSERT_EQ(taosArrayGetSize((const SArray *)vgList), 1);
   vgInfo = (SVgroupInfo *)taosArrayGet(vgList, 0);
@@ -1206,7 +1213,7 @@ TEST(tableDistVgroup, childTableCase) {
   strcpy(n.dbname, "db1");
   strcpy(n.tname, ctgTestCTablename);
 
-  code = catalogGetTableDistVgroup(pCtg, mockPointer, (const SEpSet *)mockPointer, &n, &vgList);
+  code = catalogGetTableDistVgInfo(pCtg, mockPointer, (const SEpSet *)mockPointer, &n, &vgList);
   ASSERT_EQ(code, 0);
   ASSERT_EQ(taosArrayGetSize((const SArray *)vgList), 1);
   vgInfo = (SVgroupInfo *)taosArrayGet(vgList, 0);
@@ -1237,7 +1244,7 @@ TEST(tableDistVgroup, superTableCase) {
   strcpy(n.dbname, "db1");
   strcpy(n.tname, ctgTestSTablename);
 
-  code = catalogGetTableDistVgroup(pCtg, mockPointer, (const SEpSet *)mockPointer, &n, &vgList);
+  code = catalogGetTableDistVgInfo(pCtg, mockPointer, (const SEpSet *)mockPointer, &n, &vgList);
   ASSERT_EQ(code, 0);
   ASSERT_EQ(taosArrayGetSize((const SArray *)vgList), 10);
   vgInfo = (SVgroupInfo *)taosArrayGet(vgList, 0);
@@ -1258,7 +1265,7 @@ TEST(dbVgroup, getSetDbVgroupCase) {
   void            *mockPointer = (void *)0x1;
   SVgroupInfo      vgInfo = {0};
   SVgroupInfo     *pvgInfo = NULL;
-  SDBVgroupInfo    *dbVgroup = NULL;
+  SDBVgInfo    *dbVgroup = NULL;
   SArray          *vgList = NULL;
 
   ctgTestInitLogFile();
@@ -1279,7 +1286,7 @@ TEST(dbVgroup, getSetDbVgroupCase) {
   strcpy(n.dbname, "db1");
   strcpy(n.tname, ctgTestTablename);
 
-  code = catalogGetDBVgroup(pCtg, mockPointer, (const SEpSet *)mockPointer, ctgTestDbname, false, &vgList);
+  code = catalogGetDBVgInfo(pCtg, mockPointer, (const SEpSet *)mockPointer, ctgTestDbname, false, &vgList);
   ASSERT_EQ(code, 0);
   ASSERT_EQ(taosArrayGetSize((const SArray *)vgList), ctgTestVgNum);
 
@@ -1288,7 +1295,7 @@ TEST(dbVgroup, getSetDbVgroupCase) {
   ASSERT_EQ(vgInfo.vgId, 8);
   ASSERT_EQ(vgInfo.epset.numOfEps, 3);
 
-  code = catalogGetTableDistVgroup(pCtg, mockPointer, (const SEpSet *)mockPointer, &n, &vgList);
+  code = catalogGetTableDistVgInfo(pCtg, mockPointer, (const SEpSet *)mockPointer, &n, &vgList);
   ASSERT_EQ(code, 0);
   ASSERT_EQ(taosArrayGetSize((const SArray *)vgList), 1);
   pvgInfo = (SVgroupInfo *)taosArrayGet(vgList, 0);
@@ -1297,7 +1304,7 @@ TEST(dbVgroup, getSetDbVgroupCase) {
   taosArrayDestroy(vgList);
 
   ctgTestBuildDBVgroup(&dbVgroup);
-  code = catalogUpdateDBVgroup(pCtg, ctgTestDbname, ctgTestDbId, dbVgroup);
+  code = catalogUpdateDBVgInfo(pCtg, ctgTestDbname, ctgTestDbId, dbVgroup);
   ASSERT_EQ(code, 0);
 
   code = catalogGetTableHashVgroup(pCtg, mockPointer, (const SEpSet *)mockPointer, &n, &vgInfo);
@@ -1305,7 +1312,7 @@ TEST(dbVgroup, getSetDbVgroupCase) {
   ASSERT_EQ(vgInfo.vgId, 7);
   ASSERT_EQ(vgInfo.epset.numOfEps, 2);
 
-  code = catalogGetTableDistVgroup(pCtg, mockPointer, (const SEpSet *)mockPointer, &n, &vgList);
+  code = catalogGetTableDistVgInfo(pCtg, mockPointer, (const SEpSet *)mockPointer, &n, &vgList);
   ASSERT_EQ(code, 0);
   ASSERT_EQ(taosArrayGetSize((const SArray *)vgList), 1);
   pvgInfo = (SVgroupInfo *)taosArrayGet(vgList, 0);
@@ -1321,7 +1328,7 @@ TEST(multiThread, getSetRmSameDbVgroup) {
   void            *mockPointer = (void *)0x1;
   SVgroupInfo      vgInfo = {0};
   SVgroupInfo     *pvgInfo = NULL;
-  SDBVgroupInfo    dbVgroup = {0};
+  SDBVgInfo    dbVgroup = {0};
   SArray          *vgList = NULL;
   ctgTestStop = false;
 
@@ -1372,7 +1379,7 @@ TEST(multiThread, getSetRmDiffDbVgroup) {
   void            *mockPointer = (void *)0x1;
   SVgroupInfo      vgInfo = {0};
   SVgroupInfo     *pvgInfo = NULL;
-  SDBVgroupInfo    dbVgroup = {0};
+  SDBVgInfo    dbVgroup = {0};
   SArray          *vgList = NULL;
   ctgTestStop = false;
 
@@ -1425,7 +1432,7 @@ TEST(multiThread, ctableMeta) {
   void            *mockPointer = (void *)0x1;
   SVgroupInfo      vgInfo = {0};
   SVgroupInfo     *pvgInfo = NULL;
-  SDBVgroupInfo    dbVgroup = {0};
+  SDBVgInfo    dbVgroup = {0};
   SArray          *vgList = NULL;
   ctgTestStop = false;
 
@@ -1477,7 +1484,7 @@ TEST(rentTest, allRent) {
   void            *mockPointer = (void *)0x1;
   SVgroupInfo      vgInfo = {0};
   SVgroupInfo     *pvgInfo = NULL;
-  SDBVgroupInfo    dbVgroup = {0};
+  SDBVgInfo    dbVgroup = {0};
   SArray          *vgList = NULL;
   ctgTestStop = false;
   SDbVgVersion       *dbs = NULL;

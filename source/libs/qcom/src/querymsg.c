@@ -113,9 +113,9 @@ int32_t queryProcessUseDBRsp(void* output, char *msg, int32_t msgSize) {
     return TSDB_CODE_TSC_VALUE_OUT_OF_RANGE;
   }
 
-  pOut->dbVgroup = calloc(1, sizeof(SDBVgroupInfo));
+  pOut->dbVgroup = calloc(1, sizeof(SDBVgInfo));
   if (NULL == pOut->dbVgroup) {
-    qError("calloc %d failed", (int32_t)sizeof(SDBVgroupInfo));
+    qError("calloc %d failed", (int32_t)sizeof(SDBVgInfo));
     return TSDB_CODE_TSC_OUT_OF_MEMORY;
   }
 
