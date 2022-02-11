@@ -204,7 +204,12 @@ void* taosArrayGetLast(const SArray* pArray) {
   return TARRAY_GET_ELEM(pArray, pArray->size - 1);
 }
 
-size_t taosArrayGetSize(const SArray* pArray) { return pArray->size; }
+size_t taosArrayGetSize(const SArray* pArray) {
+  if (pArray == NULL) {
+    return 0;
+  }
+  return pArray->size;
+}
 
 void taosArraySetSize(SArray* pArray, size_t size) {
   assert(size <= pArray->capacity);
@@ -296,7 +301,7 @@ SArray* taosArrayDup(const SArray* pSrc) {
 }
 
 void taosArrayClear(SArray* pArray) {
-  assert( pArray != NULL );
+  if (pArray == NULL) return;
   pArray->size = 0;
 }
 

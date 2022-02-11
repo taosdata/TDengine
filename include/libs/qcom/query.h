@@ -81,20 +81,19 @@ typedef struct STableMeta {
 } STableMeta;
 
 typedef struct SDBVgroupInfo {
-  SRWLatch  lock;
-  int64_t   dbId;
   int32_t   vgVersion;  
   int8_t    hashMethod;
-  SHashObj *vgInfo;  //key:vgId, value:SVgroupInfo
+  SHashObj *vgHash;  //key:vgId, value:SVgroupInfo
 } SDBVgroupInfo;
 
 typedef struct SUseDbOutput {
-  char db[TSDB_DB_FNAME_LEN];
-  SDBVgroupInfo dbVgroup;
+  char           db[TSDB_DB_FNAME_LEN];
+  uint64_t       dbId;
+  SDBVgroupInfo *dbVgroup;
 } SUseDbOutput;
 
 enum {
-  META_TYPE_NON_TABLE = 1,
+  META_TYPE_NULL_TABLE = 1,
   META_TYPE_CTABLE,
   META_TYPE_TABLE,
   META_TYPE_BOTH_TABLE
@@ -103,8 +102,10 @@ enum {
 
 typedef struct STableMetaOutput {
   int32_t     metaType;
-  char        ctbFname[TSDB_TABLE_FNAME_LEN];
-  char        tbFname[TSDB_TABLE_FNAME_LEN];
+  uint64_t    dbId;
+  char        dbFName[TSDB_DB_FNAME_LEN];
+  char        ctbName[TSDB_TABLE_NAME_LEN];
+  char        tbName[TSDB_TABLE_NAME_LEN];
   SCTableMeta ctbMeta;
   STableMeta *tbMeta;
 } STableMetaOutput;
@@ -159,11 +160,13 @@ void initQueryModuleMsgHandle();
 const SSchema* tGetTbnameColumnSchema();
 bool tIsValidSchema(struct SSchema* pSchema, int32_t numOfCols, int32_t numOfTags);
 
+int32_t queryCreateTableMetaFromMsg(STableMetaRsp* msg, bool isSuperTable, STableMeta **pMeta);
+
 extern int32_t (*queryBuildMsg[TDMT_MAX])(void* input, char **msg, int32_t msgSize, int32_t *msgLen);
 extern int32_t (*queryProcessMsgRsp[TDMT_MAX])(void* output, char *msg, int32_t msgSize);
 
 
-#define SET_META_TYPE_NONE(t) (t) = META_TYPE_NON_TABLE
+#define SET_META_TYPE_NULL(t) (t) = META_TYPE_NULL_TABLE
 #define SET_META_TYPE_CTABLE(t) (t) = META_TYPE_CTABLE
 #define SET_META_TYPE_TABLE(t) (t) = META_TYPE_TABLE
 #define SET_META_TYPE_BOTH_TABLE(t) (t) = META_TYPE_BOTH_TABLE

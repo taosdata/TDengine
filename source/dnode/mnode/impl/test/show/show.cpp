@@ -64,7 +64,7 @@ TEST_F(MndTestShow, 03_ShowMsg_Conn) {
   test.SendShowMetaReq(TSDB_MGMT_TABLE_CONNS, "");
 
   STableMetaRsp* pMeta = test.GetShowMeta();
-  EXPECT_STREQ(pMeta->tbFname, "show connections");
+  EXPECT_STREQ(pMeta->tbName, "show connections");
   EXPECT_EQ(pMeta->numOfTags, 0);
   EXPECT_EQ(pMeta->numOfColumns, 7);
   EXPECT_EQ(pMeta->precision, 0);

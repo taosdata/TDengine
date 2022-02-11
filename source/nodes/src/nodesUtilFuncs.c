@@ -15,17 +15,13 @@
 
 #include "nodes.h"
 #include "nodesShowStmts.h"
-
-bool nodesIsTimeorderQuery(const SNode* pQuery) {
-
-}
-
-bool nodesIsTimelineQuery(const SNode* pQuery) {
-
-}
+#include "taoserror.h"
 
 static SNode* makeNode(ENodeType type, size_t size) {
   SNode* p = calloc(1, size);
+  if (NULL == p) {
+    return NULL;
+  }
   setNodeType(p, type);
   return p;
 }
@@ -62,6 +58,12 @@ SNode* nodesMakeNode(ENodeType type) {
       return makeNode(type, sizeof(SSessionWindowNode));
     case QUERY_NODE_INTERVAL_WINDOW:
       return makeNode(type, sizeof(SIntervalWindowNode));
+    case QUERY_NODE_NODE_LIST:
+      return makeNode(type, sizeof(SNodeListNode));
+    case QUERY_NODE_FILL:
+      return makeNode(type, sizeof(SFillNode));
+    case QUERY_NODE_RAW_EXPR:
+      return makeNode(type, sizeof(SRawExprNode));
     case QUERY_NODE_SET_OPERATOR:
       return makeNode(type, sizeof(SSetOperator));
     case QUERY_NODE_SELECT_STMT:
@@ -74,10 +76,117 @@ SNode* nodesMakeNode(ENodeType type) {
   return NULL;
 }
 
-void nodesDestroyNode(SNode* pNode) {
-
+static bool destroyNode(SNode* pNode, void* pContext) {
+  switch (nodeType(pNode)) {
+    case QUERY_NODE_VALUE:
+      tfree(((SValueNode*)pNode)->literal);
+      break;
+    default:
+      break;
+  }
+  tfree(pNode);
 }
 
-void nodesDestroyNodeList(SNodeList* pList) {
+void nodesDestroyNode(SNode* pNode) {
+  nodesWalkNodePostOrder(pNode, destroyNode, NULL);
+}
 
+SNodeList* nodesMakeList() {
+  SNodeList* p = calloc(1, sizeof(SNodeList));
+  if (NULL == p) {
+    return NULL;
+  }
+  return p;
+}
+
+SNodeList* nodesListAppend(SNodeList* pList, SNode* pNode) {
+  if (NULL == pList || NULL == pNode) {
+    return NULL;
+  }
+  SListCell* p = calloc(1, sizeof(SListCell));
+  if (NULL == p) {
+    terrno = TSDB_CODE_TSC_OUT_OF_MEMORY;
+    return pList;
+  }
+  p->pNode = pNode;
+  if (NULL == pList->pHead) {
+    pList->pHead = p;
+  }
+  if (NULL != pList->pTail) {
+    pList->pTail->pNext = p;
+  }
+  pList->pTail = p;
+  return pList;
+}
+
+SNode* nodesListGetNode(SNodeList* pList, int32_t index) {
+  SNode* node;
+  FOREACH(node, pList) {
+    if (0 == index--) {
+      return node;
+    }
+  }
+  return NULL;
+}
+
+void nodesDestroyList(SNodeList* pList) {
+  SNode* node;
+  FOREACH(node, pList) {
+    nodesDestroyNode(node);
+  }
+  tfree(pList);
+}
+
+bool nodesIsArithmeticOp(const SOperatorNode* pOp) {
+  switch (pOp->opType) {
+    case OP_TYPE_ADD:
+    case OP_TYPE_SUB:
+    case OP_TYPE_MULTI:
+    case OP_TYPE_DIV:
+    case OP_TYPE_MOD:
+      return true;
+    default:
+      break;
+  }
+  return false;
+}
+
+bool nodesIsComparisonOp(const SOperatorNode* pOp) {
+  switch (pOp->opType) {
+    case OP_TYPE_GREATER_THAN:
+    case OP_TYPE_GREATER_EQUAL:
+    case OP_TYPE_LOWER_THAN:
+    case OP_TYPE_LOWER_EQUAL:
+    case OP_TYPE_EQUAL:
+    case OP_TYPE_NOT_EQUAL:
+    case OP_TYPE_IN:
+    case OP_TYPE_NOT_IN:
+    case OP_TYPE_LIKE:
+    case OP_TYPE_NOT_LIKE:
+    case OP_TYPE_MATCH:
+    case OP_TYPE_NMATCH:
+      return true;
+    default:
+      break;
+  }
+  return false;
+}
+
+bool nodesIsJsonOp(const SOperatorNode* pOp) {
+  switch (pOp->opType) {
+    case OP_TYPE_JSON_GET_VALUE:
+    case OP_TYPE_JSON_CONTAINS:
+      return true;
+    default:
+      break;
+  }
+  return false;
+}
+
+bool nodesIsTimeorderQuery(const SNode* pQuery) {
+  return false;
+}
+
+bool nodesIsTimelineQuery(const SNode* pQuery) {
+  return false;
 }

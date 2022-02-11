@@ -45,11 +45,11 @@ int32_t queryBuildTableMetaReqMsg(void* input, char **msg, int32_t msgSize, int3
 
   bMsg->header.vgId = htonl(bInput->vgId);
 
-  if (bInput->dbName) {
-    tstrncpy(bMsg->dbFname, bInput->dbName, tListLen(bMsg->dbFname));
+  if (bInput->dbFName) {
+    tstrncpy(bMsg->dbFName, bInput->dbFName, tListLen(bMsg->dbFName));
   }
 
-  tstrncpy(bMsg->tableFname, bInput->tableFullName, tListLen(bMsg->tableFname));
+  tstrncpy(bMsg->tbName, bInput->tbName, tListLen(bMsg->tbName));
 
   *msgLen = (int32_t)sizeof(*bMsg);
   return TSDB_CODE_SUCCESS;
@@ -113,12 +113,19 @@ int32_t queryProcessUseDBRsp(void* output, char *msg, int32_t msgSize) {
     return TSDB_CODE_TSC_VALUE_OUT_OF_RANGE;
   }
 
-  pOut->dbVgroup.vgVersion = pRsp->vgVersion;
-  pOut->dbVgroup.hashMethod = pRsp->hashMethod;
-  pOut->dbVgroup.dbId = pRsp->uid;
-  pOut->dbVgroup.vgInfo = taosHashInit(pRsp->vgNum, taosGetDefaultHashFunction(TSDB_DATA_TYPE_INT), true, HASH_ENTRY_LOCK);
-  if (NULL == pOut->dbVgroup.vgInfo) {
-    qError("hash init[%d] failed", pRsp->vgNum);
+  pOut->dbVgroup = calloc(1, sizeof(SDBVgroupInfo));
+  if (NULL == pOut->dbVgroup) {
+    qError("calloc %d failed", (int32_t)sizeof(SDBVgroupInfo));
+    return TSDB_CODE_TSC_OUT_OF_MEMORY;
+  }
+
+  pOut->dbId = pRsp->uid;
+  pOut->dbVgroup->vgVersion = pRsp->vgVersion;
+  pOut->dbVgroup->hashMethod = pRsp->hashMethod;
+  pOut->dbVgroup->vgHash = taosHashInit(pRsp->vgNum, taosGetDefaultHashFunction(TSDB_DATA_TYPE_INT), true, HASH_ENTRY_LOCK);
+  if (NULL == pOut->dbVgroup->vgHash) {
+    qError("taosHashInit %d failed", pRsp->vgNum);
+    tfree(pOut->dbVgroup);
     return TSDB_CODE_TSC_OUT_OF_MEMORY;
   }
 
@@ -131,8 +138,8 @@ int32_t queryProcessUseDBRsp(void* output, char *msg, int32_t msgSize) {
       pRsp->vgroupInfo[i].epset.eps[n].port = ntohs(pRsp->vgroupInfo[i].epset.eps[n].port);
     }
 
-    if (0 != taosHashPut(pOut->dbVgroup.vgInfo, &pRsp->vgroupInfo[i].vgId, sizeof(pRsp->vgroupInfo[i].vgId), &pRsp->vgroupInfo[i], sizeof(pRsp->vgroupInfo[i]))) {
-      qError("hash push failed");
+    if (0 != taosHashPut(pOut->dbVgroup->vgHash, &pRsp->vgroupInfo[i].vgId, sizeof(pRsp->vgroupInfo[i].vgId), &pRsp->vgroupInfo[i], sizeof(pRsp->vgroupInfo[i]))) {
+      qError("taosHashPut failed");
       goto _return;
     }
   }
@@ -142,14 +149,17 @@ int32_t queryProcessUseDBRsp(void* output, char *msg, int32_t msgSize) {
   return code;
 
 _return:
+
   if (pOut) {
-    tfree(pOut->dbVgroup.vgInfo);
+    taosHashCleanup(pOut->dbVgroup->vgHash);
+    tfree(pOut->dbVgroup);
   }
   
   return code;
 }
 
 static int32_t queryConvertTableMetaMsg(STableMetaRsp* pMetaMsg) {
+  pMetaMsg->dbId = be64toh(pMetaMsg->dbId);
   pMetaMsg->numOfTags = ntohl(pMetaMsg->numOfTags);
   pMetaMsg->numOfColumns = ntohl(pMetaMsg->numOfColumns);
   pMetaMsg->sversion = ntohl(pMetaMsg->sversion);
@@ -248,16 +258,15 @@ int32_t queryProcessTableMetaRsp(void* output, char *msg, int32_t msgSize) {
     return TSDB_CODE_TSC_INVALID_VALUE;
   }
 
+  strcpy(pOut->dbFName, pMetaMsg->dbFName);
+  
+  pOut->dbId = pMetaMsg->dbId;
+
   if (pMetaMsg->tableType == TSDB_CHILD_TABLE) {
     SET_META_TYPE_BOTH_TABLE(pOut->metaType);
 
-    if (pMetaMsg->dbFname[0]) {
-      snprintf(pOut->ctbFname, sizeof(pOut->ctbFname), "%s.%s", pMetaMsg->dbFname, pMetaMsg->tbFname);
-      snprintf(pOut->tbFname, sizeof(pOut->tbFname), "%s.%s", pMetaMsg->dbFname, pMetaMsg->stbFname);
-    } else {
-      memcpy(pOut->ctbFname, pMetaMsg->tbFname, sizeof(pOut->ctbFname));
-      memcpy(pOut->tbFname, pMetaMsg->stbFname, sizeof(pOut->tbFname));
-    }
+    strcpy(pOut->ctbName, pMetaMsg->tbName);
+    strcpy(pOut->tbName, pMetaMsg->stbName);
     
     pOut->ctbMeta.vgId = pMetaMsg->vgId;
     pOut->ctbMeta.tableType = pMetaMsg->tableType;
@@ -268,11 +277,7 @@ int32_t queryProcessTableMetaRsp(void* output, char *msg, int32_t msgSize) {
   } else {
     SET_META_TYPE_TABLE(pOut->metaType);
     
-    if (pMetaMsg->dbFname[0]) {
-      snprintf(pOut->tbFname, sizeof(pOut->tbFname), "%s.%s", pMetaMsg->dbFname, pMetaMsg->tbFname);
-    } else {
-      memcpy(pOut->tbFname, pMetaMsg->tbFname, sizeof(pOut->tbFname));
-    }
+    strcpy(pOut->tbName, pMetaMsg->tbName);
     
     code = queryCreateTableMetaFromMsg(pMetaMsg, (pMetaMsg->tableType == TSDB_SUPER_TABLE), &pOut->tbMeta);
   }

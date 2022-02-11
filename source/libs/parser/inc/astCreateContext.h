@@ -30,11 +30,8 @@ typedef struct SAstCreateContext {
   SNode* pRootNode;
 } SAstCreateContext;
 
-int32_t createAstCreateContext(const SParseContext* pQueryCxt, SAstCreateContext* pCxt);
+int32_t createAstCreateContext(SParseContext* pQueryCxt, SAstCreateContext* pCxt);
 int32_t destroyAstCreateContext(SAstCreateContext* pCxt);
-
-void* acquireRaii(SAstCreateContext* pCxt, void* p);
-void* releaseRaii(SAstCreateContext* pCxt, void* p);
 
 #ifdef __cplusplus
 }

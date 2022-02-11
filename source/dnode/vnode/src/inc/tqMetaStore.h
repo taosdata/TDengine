@@ -40,6 +40,7 @@ int32_t tqHandleCopyPut(STqMetaStore*, int64_t key, void* value, size_t vsize);
 // delete committed kv pair
 // notice that a delete action still needs to be committed
 int32_t tqHandleDel(STqMetaStore*, int64_t key);
+int32_t tqHandlePurge(STqMetaStore*, int64_t key);
 int32_t tqHandleCommit(STqMetaStore*, int64_t key);
 int32_t tqHandleAbort(STqMetaStore*, int64_t key);
 

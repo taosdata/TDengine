@@ -2,87 +2,101 @@
 #include "astGenerator.h"
 #include "parserUtil.h"
 
-SCreateUserReq* buildUserManipulationMsg(SSqlInfo* pInfo, int32_t* outputLen, int64_t id, char* msgBuf, int32_t msgLen) {
-  SCreateUserReq* pMsg = (SCreateUserReq*)calloc(1, sizeof(SCreateUserReq));
-  if (pMsg == NULL) {
-    //    tscError("0x%" PRIx64 " failed to malloc for query msg", id);
-    terrno = TSDB_CODE_TSC_OUT_OF_MEMORY;
-    return NULL;
-  }
+char* buildUserManipulationMsg(SSqlInfo* pInfo, int32_t* outputLen, int64_t id, char* msgBuf, int32_t msgLen) {
+  SCreateUserReq createReq = {0};
 
   SUserInfo* pUser = &pInfo->pMiscInfo->user;
-  strncpy(pMsg->user, pUser->user.z, pUser->user.n);
-  pMsg->type = pUser->type;
-  pMsg->superUser = (int8_t)pUser->type;
+  strncpy(createReq.user, pUser->user.z, pUser->user.n);
+  createReq.createType = pUser->type;
+  createReq.superUser = (int8_t)pUser->type;
 
   if (pUser->type == TSDB_ALTER_USER_PRIVILEGES) {
     //    pMsg->privilege = (char)pCmd->count;
   } else {
-    strncpy(pMsg->pass, pUser->passwd.z, pUser->passwd.n);
+    strncpy(createReq.pass, pUser->passwd.z, pUser->passwd.n);
   }
 
-  *outputLen = sizeof(SUserInfo);
-  return pMsg;
-}
-
-SCreateAcctReq* buildAcctManipulationMsg(SSqlInfo* pInfo, int32_t* outputLen, int64_t id, char* msgBuf, int32_t msgLen) {
-  SCreateAcctReq *pCreateMsg = (SCreateAcctReq *) calloc(1, sizeof(SCreateAcctReq));
-  if (pCreateMsg == NULL) {
-    qError("0x%" PRIx64 " failed to malloc for query msg", id);
-    terrno = TSDB_CODE_QRY_OUT_OF_MEMORY;
+  int32_t tlen = tSerializeSCreateUserReq(NULL, &createReq);
+  void*   pReq = malloc(tlen);
+  if (pReq == NULL) {
+    terrno = TSDB_CODE_OUT_OF_MEMORY;
     return NULL;
   }
 
-  SToken *pName = &pInfo->pMiscInfo->user.user;
-  SToken *pPwd = &pInfo->pMiscInfo->user.passwd;
+  void* pBuf = pReq;
+  tSerializeSCreateUserReq(&pBuf, &createReq);
+  *outputLen = tlen;
+  return pReq;
+}
 
-  strncpy(pCreateMsg->user, pName->z, pName->n);
-  strncpy(pCreateMsg->pass, pPwd->z, pPwd->n);
+char* buildAcctManipulationMsg(SSqlInfo* pInfo, int32_t* outputLen, int64_t id, char* msgBuf, int32_t msgLen) {
+  SCreateAcctReq createReq = {0};
 
-  SCreateAcctInfo *pAcctOpt = &pInfo->pMiscInfo->acctOpt;
+  SToken* pName = &pInfo->pMiscInfo->user.user;
+  SToken* pPwd = &pInfo->pMiscInfo->user.passwd;
 
-  pCreateMsg->maxUsers = htonl(pAcctOpt->maxUsers);
-  pCreateMsg->maxDbs = htonl(pAcctOpt->maxDbs);
-  pCreateMsg->maxTimeSeries = htonl(pAcctOpt->maxTimeSeries);
-  pCreateMsg->maxStreams = htonl(pAcctOpt->maxStreams);
-//  pCreateMsg->maxPointsPerSecond = htonl(pAcctOpt->maxPointsPerSecond);
-  pCreateMsg->maxStorage = htobe64(pAcctOpt->maxStorage);
-//  pCreateMsg->maxQueryTime = htobe64(pAcctOpt->maxQueryTime);
-//  pCreateMsg->maxConnections = htonl(pAcctOpt->maxConnections);
+  strncpy(createReq.user, pName->z, pName->n);
+  strncpy(createReq.pass, pPwd->z, pPwd->n);
+
+  SCreateAcctInfo* pAcctOpt = &pInfo->pMiscInfo->acctOpt;
+
+  createReq.maxUsers = htonl(pAcctOpt->maxUsers);
+  createReq.maxDbs = htonl(pAcctOpt->maxDbs);
+  createReq.maxTimeSeries = htonl(pAcctOpt->maxTimeSeries);
+  createReq.maxStreams = htonl(pAcctOpt->maxStreams);
+  //  createReq.maxPointsPerSecond = htonl(pAcctOpt->maxPointsPerSecond);
+  createReq.maxStorage = htobe64(pAcctOpt->maxStorage);
+  //  createReq.maxQueryTime = htobe64(pAcctOpt->maxQueryTime);
+  //  createReq.maxConnections = htonl(pAcctOpt->maxConnections);
 
   if (pAcctOpt->stat.n == 0) {
-    pCreateMsg->accessState = -1;
+    createReq.accessState = -1;
   } else {
     if (pAcctOpt->stat.z[0] == 'r' && pAcctOpt->stat.n == 1) {
-      pCreateMsg->accessState = TSDB_VN_READ_ACCCESS;
+      createReq.accessState = TSDB_VN_READ_ACCCESS;
     } else if (pAcctOpt->stat.z[0] == 'w' && pAcctOpt->stat.n == 1) {
-      pCreateMsg->accessState = TSDB_VN_WRITE_ACCCESS;
+      createReq.accessState = TSDB_VN_WRITE_ACCCESS;
     } else if (strncmp(pAcctOpt->stat.z, "all", 3) == 0 && pAcctOpt->stat.n == 3) {
-      pCreateMsg->accessState = TSDB_VN_ALL_ACCCESS;
+      createReq.accessState = TSDB_VN_ALL_ACCCESS;
     } else if (strncmp(pAcctOpt->stat.z, "no", 2) == 0 && pAcctOpt->stat.n == 2) {
-      pCreateMsg->accessState = 0;
+      createReq.accessState = 0;
     }
   }
 
-  *outputLen = sizeof(SCreateAcctReq);
-  return pCreateMsg;
+  int32_t tlen = tSerializeSCreateAcctReq(NULL, &createReq);
+  void*   pReq = malloc(tlen);
+  if (pReq == NULL) {
+    terrno = TSDB_CODE_OUT_OF_MEMORY;
+    return NULL;
+  }
+
+  void* pBuf = pReq;
+  tSerializeSCreateAcctReq(&pBuf, &createReq);
+  *outputLen = tlen;
+  return pReq;
 }
 
-SDropUserReq* buildDropUserMsg(SSqlInfo* pInfo, int32_t *msgLen, int64_t id, char* msgBuf, int32_t msgBufLen) {
+char* buildDropUserMsg(SSqlInfo* pInfo, int32_t* msgLen, int64_t id, char* msgBuf, int32_t msgBufLen) {
+  SDropUserReq dropReq = {0};
+
   SToken* pName = taosArrayGet(pInfo->pMiscInfo->a, 0);
   if (pName->n >= TSDB_USER_LEN) {
     return NULL;
   }
 
-  SDropUserReq* pMsg = calloc(1, sizeof(SDropUserReq));
-  if (pMsg == NULL) {
-    terrno = TSDB_CODE_QRY_OUT_OF_MEMORY;
+  strncpy(dropReq.user, pName->z, pName->n);
+
+  int32_t tlen = tSerializeSDropUserReq(NULL, &dropReq);
+  void*   pReq = malloc(tlen);
+  if (pReq == NULL) {
+    terrno = TSDB_CODE_OUT_OF_MEMORY;
     return NULL;
   }
 
-  strncpy(pMsg->user, pName->z, pName->n);
-  *msgLen = sizeof(SDropUserReq);
-  return pMsg;
+  void* pBuf = pReq;
+  tSerializeSDropUserReq(&pBuf, &dropReq);
+  *msgLen = tlen;
+  return pReq;
 }
 
 SShowReq* buildShowMsg(SShowInfo* pShowInfo, SParseContext *pCtx, SMsgBuf* pMsgBuf) {
@@ -249,112 +263,64 @@ SCreateDbReq* buildCreateDbMsg(SCreateDbInfo* pCreateDbInfo, SParseContext *pCtx
   return pCreateMsg;
 }
 
-SMCreateStbReq* buildCreateStbMsg(SCreateTableSql* pCreateTableSql, int32_t* len, SParseContext* pParseCtx, SMsgBuf* pMsgBuf) {
-  SSchema* pSchema;
+char* buildCreateStbReq(SCreateTableSql* pCreateTableSql, int32_t* len, SParseContext* pParseCtx, SMsgBuf* pMsgBuf) {
+  SMCreateStbReq createReq = {0};
+  createReq.igExists = pCreateTableSql->existCheck ? 1 : 0;
+  createReq.pColumns = pCreateTableSql->colInfo.pColumns;
+  createReq.pTags = pCreateTableSql->colInfo.pTagColumns;
+  createReq.numOfColumns = (int32_t)taosArrayGetSize(pCreateTableSql->colInfo.pColumns);
+  createReq.numOfTags = (int32_t)taosArrayGetSize(pCreateTableSql->colInfo.pTagColumns);
 
-  int32_t numOfTags = 0;
-  int32_t numOfCols = (int32_t) taosArrayGetSize(pCreateTableSql->colInfo.pColumns);
-  if (pCreateTableSql->colInfo.pTagColumns != NULL) {
-    numOfTags = (int32_t) taosArrayGetSize(pCreateTableSql->colInfo.pTagColumns);
-  }
-
-  SMCreateStbReq* pCreateStbMsg = (SMCreateStbReq*)calloc(1, sizeof(SMCreateStbReq) + (numOfCols + numOfTags) * sizeof(SSchema));
-  if (pCreateStbMsg == NULL) {
+  SName n = {0};
+  if (createSName(&n, &pCreateTableSql->name, pParseCtx, pMsgBuf) != 0) {
     return NULL;
   }
 
-  char* pMsg = NULL;
-#if 0
-  int32_t tableType = pCreateTableSql->type;
-  if (tableType != TSQL_CREATE_TABLE && tableType != TSQL_CREATE_STABLE) {  // create by using super table, tags value
-    SArray* list = pInfo->pCreateTableInfo->childTableInfo;
+  if (tNameExtractFullName(&n, createReq.name) != 0) {
+    buildInvalidOperationMsg(pMsgBuf, "invalid table name or database not specified");
+    return NULL;
+  }
 
-    int32_t numOfTables = (int32_t)taosArrayGetSize(list);
-    pCreateStbMsg->numOfTables = htonl(numOfTables);
+  int32_t tlen = tSerializeSMCreateStbReq(NULL, &createReq);
+  void*   pReq = malloc(tlen);
+  if (pReq == NULL) {
+    terrno = TSDB_CODE_OUT_OF_MEMORY;
+    return NULL;
+  }
 
-    pMsg = (char*)pCreateMsg;
-    for (int32_t i = 0; i < numOfTables; ++i) {
-      SCreateTableMsg* pCreate = (SCreateTableMsg*)pMsg;
-
-      pCreate->numOfColumns = htons(pCmd->numOfCols);
-      pCreate->numOfTags = htons(pCmd->count);
-      pMsg += sizeof(SCreateTableMsg);
-
-      SCreatedTableInfo* p = taosArrayGet(list, i);
-      strcpy(pCreate->tableName, p->fullname);
-      pCreate->igExists = (p->igExist) ? 1 : 0;
-
-      // use dbinfo from table id without modifying current db info
-      pMsg = serializeTagData(&p->tagdata, pMsg);
-
-      int32_t len = (int32_t)(pMsg - (char*)pCreate);
-      pCreate->len = htonl(len);
-    }
-
-  } else {
-#endif
-    // create (super) table
-    SName n = {0};
-    int32_t code = createSName(&n, &pCreateTableSql->name, pParseCtx, pMsgBuf);
-    if (code != 0) {
-      return NULL;
-    }
-
-    code = tNameExtractFullName(&n, pCreateStbMsg->name);
-    if (code != 0) {
-      buildInvalidOperationMsg(pMsgBuf, "invalid table name or database not specified");
-      return NULL;
-    }
-
-    pCreateStbMsg->igExists     = pCreateTableSql->existCheck ? 1 : 0;
-    pCreateStbMsg->numOfColumns = htonl(numOfCols);
-    pCreateStbMsg->numOfTags    = htonl(numOfTags);
-
-    pSchema = (SSchema*)pCreateStbMsg->pSchema;
-    for (int i = 0; i < numOfCols; ++i) {
-      SField* pField = taosArrayGet(pCreateTableSql->colInfo.pColumns, i);
-      pSchema->type  = pField->type;
-      pSchema->bytes = htonl(pField->bytes);
-      strcpy(pSchema->name, pField->name);
-
-      pSchema++;
-    }
-
-    for(int32_t i = 0; i < numOfTags; ++i) {
-      SField* pField = taosArrayGet(pCreateTableSql->colInfo.pTagColumns, i);
-      pSchema->type  = pField->type;
-      pSchema->bytes = htonl(pField->bytes);
-      strcpy(pSchema->name, pField->name);
-
-      pSchema++;
-    }
-
-    pMsg = (char*)pSchema;
-
-  int32_t msgLen = (int32_t)(pMsg - (char*)pCreateStbMsg);
-  *len = msgLen;
-
-  return pCreateStbMsg;
+  void* pBuf = pReq;
+  tSerializeSMCreateStbReq(&pBuf, &createReq);
+  *len = tlen;
+  return pReq;
 }
 
-SMDropStbReq* buildDropStableMsg(SSqlInfo* pInfo, int32_t* len, SParseContext* pParseCtx, SMsgBuf* pMsgBuf) {
+char* buildDropStableReq(SSqlInfo* pInfo, int32_t* len, SParseContext* pParseCtx, SMsgBuf* pMsgBuf) {
   SToken* tableName = taosArrayGet(pInfo->pMiscInfo->a, 0);
 
-  SName name = {0};
+  SName   name = {0};
   int32_t code = createSName(&name, tableName, pParseCtx, pMsgBuf);
   if (code != TSDB_CODE_SUCCESS) {
     terrno = buildInvalidOperationMsg(pMsgBuf, "invalid table name");
     return NULL;
   }
 
-  SMDropStbReq *pDropTableMsg = (SMDropStbReq*) calloc(1, sizeof(SMDropStbReq));
+  SMDropStbReq dropReq = {0};
+  code = tNameExtractFullName(&name, dropReq.name);
 
-  code = tNameExtractFullName(&name, pDropTableMsg->name);
   assert(code == TSDB_CODE_SUCCESS && name.type == TSDB_TABLE_NAME_T);
+  dropReq.igNotExists = pInfo->pMiscInfo->existsCheck ? 1 : 0;
 
-  pDropTableMsg->igNotExists = pInfo->pMiscInfo->existsCheck ? 1 : 0;
-  *len = sizeof(SMDropStbReq);
-  return pDropTableMsg;
+  int32_t tlen = tSerializeSMDropStbReq(NULL, &dropReq);
+  void*   pReq = malloc(tlen);
+  if (pReq == NULL) {
+    terrno = TSDB_CODE_OUT_OF_MEMORY;
+    return NULL;
+  }
+
+  void* pBuf = pReq;
+  tSerializeSMDropStbReq(&pBuf, &dropReq);
+  *len = tlen;
+  return pReq;
 }
 
 SCreateDnodeReq *buildCreateDnodeMsg(SSqlInfo* pInfo, int32_t* len, SMsgBuf* pMsgBuf) {

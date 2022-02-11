@@ -5432,7 +5432,7 @@ SOperatorInfo* createStreamScanOperatorInfo(void *streamReadHandle, SArray* pExp
   
   // set the extract column id to streamHandle
   tqReadHandleSetColIdList((STqReadHandle* )streamReadHandle, pColList);
-  tqReadHandleSetTbUid(streamReadHandle, pTableIdList);
+  tqReadHandleSetTbUidList(streamReadHandle, pTableIdList);
 
   pInfo->readerHandle = streamReadHandle;
 

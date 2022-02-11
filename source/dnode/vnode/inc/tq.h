@@ -35,70 +35,7 @@
 extern "C" {
 #endif
 
-typedef struct STqMsgHead {
-  int32_t protoVer;
-  int32_t msgType;
-  int64_t cgId;
-  int64_t clientId;
-} STqMsgHead;
-
-typedef struct STqOneAck {
-  int64_t topicId;
-  int64_t consumeOffset;
-} STqOneAck;
-
-typedef struct STqAcks {
-  int32_t ackNum;
-  // should be sorted
-  STqOneAck acks[];
-} STqAcks;
-
-typedef struct STqSetCurReq {
-  STqMsgHead head;
-  int64_t    topicId;
-  int64_t    offset;
-} STqSetCurReq;
-
-typedef struct STqConsumeReq {
-  STqMsgHead head;
-  int64_t    blockingTime;  // milisec
-  STqAcks    acks;
-} STqConsumeReq;
-
-typedef struct STqMsgContent {
-  int64_t topicId;
-  int64_t msgLen;
-  char    msg[];
-} STqMsgContent;
-
-typedef struct STqConsumeRsp {
-  STqMsgHead    head;
-  int64_t       bodySize;
-  STqMsgContent msgs[];
-} STqConsumeRsp;
-
-typedef struct STqSubscribeReq {
-  STqMsgHead head;
-  int32_t    topicNum;
-  int64_t    topic[];
-} STqSubscribeReq;
-
-typedef struct STqHeartbeatReq {
-} STqHeartbeatReq;
-
-typedef struct STqHeartbeatRsp {
-} STqHeartbeatRsp;
-
 #define TQ_BUFFER_SIZE 8
-
-typedef struct STqExec {
-  void* runtimeEnv;
-  SSDataBlock* (*exec)(void* runtimeEnv);
-  void* (*assign)(void* runtimeEnv, void* inputData);
-  void (*clear)(void* runtimeEnv);
-  char* (*serialize)(struct STqExec*);
-  struct STqExec* (*deserialize)(char*);
-} STqExec;
 
 typedef struct STqRspHandle {
   void* handle;
@@ -107,53 +44,13 @@ typedef struct STqRspHandle {
 
 typedef enum { TQ_ITEM_READY, TQ_ITEM_PROCESS, TQ_ITEM_EMPTY } STqItemStatus;
 
-typedef struct STqTopic STqTopic;
-
-typedef struct STqBufferItem {
-  int64_t offset;
-  // executors are identical but not concurrent
-  // so there must be a copy in each item
-  STqExec*  executor;
-  int32_t   status;
-  int64_t   size;
-  void*     content;
-  STqTopic* pTopic;
-} STqMsgItem;
-
-struct STqTopic {
-  // char* topic; //c style, end with '\0'
-  // int64_t cgId;
-  // void* ahandle;
-  // int32_t    head;
-  // int32_t    tail;
-  int64_t    nextConsumeOffset;
-  int64_t    floatingCursor;
-  int64_t    topicId;
-  void*      logReader;
-  STqMsgItem buffer[TQ_BUFFER_SIZE];
-};
-
-typedef struct STqListHandle {
-  STqTopic              topic;
-  struct STqListHandle* next;
-} STqList;
-
-typedef struct STqGroup {
-  int64_t      clientId;
-  int64_t      cgId;
-  void*        ahandle;
-  int32_t      topicNum;
-  STqList*     head;
-  SList*       topicList;  // SList<STqTopic>
-  STqRspHandle rspHandle;
-} STqGroup;
-
 typedef struct STqTaskItem {
-  int8_t        status;
-  int64_t       offset;
-  void*         dst;
-  qTaskInfo_t   task;
-  SSubQueryMsg* pQueryMsg;
+  int8_t         status;
+  int64_t        offset;
+  void*          dst;
+  qTaskInfo_t    task;
+  STqReadHandle* pReadHandle;
+  SSubQueryMsg*  pQueryMsg;
 } STqTaskItem;
 
 // new version
@@ -180,11 +77,6 @@ typedef struct STqConsumerHandle {
   char    cgroup[TSDB_TOPIC_FNAME_LEN];
   SArray* topics;  // SArray<STqClientTopic>
 } STqConsumerHandle;
-
-typedef struct STqQueryMsg {
-  STqMsgItem*         item;
-  struct STqQueryMsg* next;
-} STqQueryMsg;
 
 typedef struct STqMemRef {
   SMemAllocatorFactory* pAllocatorFactory;
@@ -303,20 +195,6 @@ void tqClose(STQ*);
 // void* will be replace by a msg type
 int tqPushMsg(STQ*, void* msg, int64_t version);
 int tqCommit(STQ*);
-
-int tqSetCursor(STQ*, STqSetCurReq* pMsg);
-
-#if 0
-int tqConsume(STQ*, SRpcMsg* pReq, SRpcMsg** pRsp);
-int tqSetCursor(STQ*, STqSetCurReq* pMsg);
-int tqBufferSetOffset(STqTopic*, int64_t offset);
-STqTopic* tqFindTopic(STqGroup*, int64_t topicId);
-STqGroup* tqGetGroup(STQ*, int64_t clientId);
-STqGroup* tqOpenGroup(STQ*, int64_t topicId, int64_t cgId, int64_t cId);
-int       tqCloseGroup(STQ*, int64_t topicId, int64_t cgId, int64_t cId);
-int       tqRegisterContext(STqGroup*, void* ahandle);
-int       tqSendLaunchQuery(STqMsgItem*, int64_t offset);
-#endif
 
 int32_t tqProcessConsumeReq(STQ* pTq, SRpcMsg* pMsg);
 int32_t tqProcessSetConnReq(STQ* pTq, char* msg);

@@ -185,6 +185,7 @@ static void vBufPoolDestroyMA(SMemAllocatorFactory *pMAF, SMemAllocator *pMA) {
   free(pMA);
   if (--pVMA->_ref.val == 0) {
     TD_DLIST_POP(&(pVnode->pBufPool->incycle), pVMA);
+    vmaReset(pVMA);
     TD_DLIST_APPEND(&(pVnode->pBufPool->free), pVMA);
   }
 }

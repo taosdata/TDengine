@@ -428,7 +428,7 @@ static int32_t mndGetSnodeMeta(SMnodeMsg *pReq, SShowObj *pShow, STableMetaRsp *
 
   pShow->numOfRows = sdbGetSize(pSdb, SDB_SNODE);
   pShow->rowSize = pShow->offset[cols - 1] + pShow->bytes[cols - 1];
-  strcpy(pMeta->tbFname, mndShowStr(pShow->type));
+  strcpy(pMeta->tbName, mndShowStr(pShow->type));
 
   return 0;
 }

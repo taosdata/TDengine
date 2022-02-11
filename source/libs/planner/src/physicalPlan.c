@@ -216,7 +216,6 @@ static SPhyNode* createMultiTableScanNode(SQueryPlanNode* pPlanNode, SQueryTable
   } else if (needSeqScan(pPlanNode)) {
     return createUserTableScanNode(pPlanNode, pTable, OP_TableSeqScan);
   }
-
   int32_t type = (pPlanNode->info.type == QNODE_TABLESCAN)? OP_DataBlocksOptScan:OP_StreamScan;
   return createUserTableScanNode(pPlanNode, pTable, type);
 }

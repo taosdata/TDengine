@@ -16,6 +16,7 @@
 #include "tq.h"
 #include "vnd.h"
 
+#if 0
 int vnodeProcessNoWalWMsgs(SVnode *pVnode, SRpcMsg *pMsg) {
   switch (pMsg->msgType) {
     case TDMT_VND_MQ_SET_CUR:
@@ -26,6 +27,7 @@ int vnodeProcessNoWalWMsgs(SVnode *pVnode, SRpcMsg *pMsg) {
   }
   return 0;
 }
+#endif
 
 int vnodeProcessWMsgs(SVnode *pVnode, SArray *pMsgs) {
   SRpcMsg *pMsg;
@@ -81,7 +83,7 @@ int vnodeApplyWMsg(SVnode *pVnode, SRpcMsg *pMsg, SRpcMsg **pRsp) {
       free(vCreateTbReq.name);
       break;
     case TDMT_VND_CREATE_TABLE:
-      tSVCreateTbBatchReqDeserialize(POINTER_SHIFT(pMsg->pCont, sizeof(SMsgHead)), &vCreateTbBatchReq);
+      tDeserializeSVCreateTbBatchReq(POINTER_SHIFT(pMsg->pCont, sizeof(SMsgHead)), &vCreateTbBatchReq);
       for (int i = 0; i < taosArrayGetSize(vCreateTbBatchReq.pArray); i++) {
         SVCreateTbReq *pCreateTbReq = taosArrayGet(vCreateTbBatchReq.pArray, i);
         if (metaCreateTable(pVnode->pMeta, pCreateTbReq) < 0) {
@@ -103,7 +105,16 @@ int vnodeApplyWMsg(SVnode *pVnode, SRpcMsg *pMsg, SRpcMsg **pRsp) {
       taosArrayDestroy(vCreateTbBatchReq.pArray);
       break;
 
+    case TDMT_VND_ALTER_STB:
+      vTrace("vgId:%d, process alter stb req", pVnode->vgId);
+      tDeserializeSVCreateTbReq(POINTER_SHIFT(pMsg->pCont, sizeof(SMsgHead)), &vCreateTbReq);
+      free(vCreateTbReq.stbCfg.pSchema);
+      free(vCreateTbReq.stbCfg.pTagSchema);
+      free(vCreateTbReq.name);
+      break;
     case TDMT_VND_DROP_STB:
+      vTrace("vgId:%d, process drop stb req", pVnode->vgId);
+      break;
     case TDMT_VND_DROP_TABLE:
       // if (metaDropTable(pVnode->pMeta, vReq.dtReq.uid) < 0) {
       //   // TODO: handle error

@@ -76,7 +76,7 @@ static void mndCalMqRebalance(void *param, void *tmrId) {
   if (mndIsMaster(pMnode)) {
     SMqTmrMsg *pMsg = rpcMallocCont(sizeof(SMqTmrMsg));
     SRpcMsg    rpcMsg = {.msgType = TDMT_MND_MQ_TIMER, .pCont = pMsg, .contLen = sizeof(SMqTmrMsg)};
-    pMnode->putReqToMWriteQFp(pMnode->pDnode, &rpcMsg);
+    pMnode->putReqToMReadQFp(pMnode->pDnode, &rpcMsg);
   }
 
   taosTmrReset(mndCalMqRebalance, 3000, pMnode, pMnode->timer, &pMnode->mqTimer);
@@ -249,6 +249,7 @@ static int32_t mndSetOptions(SMnode *pMnode, const SMnodeOpt *pOption) {
   memcpy(&pMnode->replicas, pOption->replicas, sizeof(SReplica) * TSDB_MAX_REPLICA);
   pMnode->pDnode = pOption->pDnode;
   pMnode->putReqToMWriteQFp = pOption->putReqToMWriteQFp;
+  pMnode->putReqToMReadQFp = pOption->putReqToMReadQFp;
   pMnode->sendReqToDnodeFp = pOption->sendReqToDnodeFp;
   pMnode->sendReqToMnodeFp = pOption->sendReqToMnodeFp;
   pMnode->sendRedirectRspFp = pOption->sendRedirectRspFp;
@@ -461,6 +462,8 @@ void mndProcessMsg(SMnodeMsg *pMsg) {
 
 PROCESS_RPC_END:
   if (isReq) {
+    if (pMsg->rpcMsg.handle == NULL) return;
+
     if (code == TSDB_CODE_APP_NOT_READY) {
       mndSendRedirectRsp(pMnode, &pMsg->rpcMsg);
     } else if (code != 0) {

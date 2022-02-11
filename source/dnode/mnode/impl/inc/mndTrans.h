@@ -36,16 +36,17 @@ typedef struct {
 int32_t mndInitTrans(SMnode *pMnode);
 void    mndCleanupTrans(SMnode *pMnode);
 
-STrans *mndTransCreate(SMnode *pMnode, ETrnPolicy policy, SRpcMsg *pMsg);
+STrans *mndTransCreate(SMnode *pMnode, ETrnPolicy policy, const SRpcMsg *pReq);
 void    mndTransDrop(STrans *pTrans);
 int32_t mndTransAppendRedolog(STrans *pTrans, SSdbRaw *pRaw);
 int32_t mndTransAppendUndolog(STrans *pTrans, SSdbRaw *pRaw);
 int32_t mndTransAppendCommitlog(STrans *pTrans, SSdbRaw *pRaw);
 int32_t mndTransAppendRedoAction(STrans *pTrans, STransAction *pAction);
 int32_t mndTransAppendUndoAction(STrans *pTrans, STransAction *pAction);
+void    mndTransSetRpcRsp(STrans *pTrans, void *pCont, int32_t contLen);
 
 int32_t mndTransPrepare(SMnode *pMnode, STrans *pTrans);
-void    mndTransProcessRsp(SMnodeMsg *pMsg);
+void    mndTransProcessRsp(SMnodeMsg *pRsp);
 void    mndTransPullup(SMnode *pMnode);
 
 #ifdef __cplusplus

@@ -19,7 +19,6 @@
 #include "tnote.h"
 #include "tutil.h"
 #include "ulog.h"
-//#include "zlib.h"
 
 #define MAX_LOGLINE_SIZE (1000)
 #define MAX_LOGLINE_BUFFER_SIZE (MAX_LOGLINE_SIZE + 10)
@@ -92,7 +91,7 @@ int32_t debugFlag = 0;
 int32_t sDebugFlag = 135;
 int32_t wDebugFlag = 135;
 int32_t tsdbDebugFlag = 131;
-int32_t tqDebugFlag = 131;
+int32_t tqDebugFlag = 135;
 int32_t cqDebugFlag = 131;
 int32_t fsDebugFlag = 135;
 

@@ -102,11 +102,10 @@ TEST_F(MndTestProfile, 04_HeartBeatMsg) {
   req.connKey = {.connId = 123, .hbType = HEARTBEAT_TYPE_MQ};
   req.info = taosHashInit(64, hbKeyHashFunc, 1, HASH_ENTRY_LOCK);
   SKv kv;
-  kv.key = (void*)"abc";
-  kv.keyLen = 4;
+  kv.key = 123;
   kv.value = (void*)"bcd";
   kv.valueLen = 4;
-  taosHashPut(req.info, kv.key, kv.keyLen, kv.value, kv.valueLen);
+  taosHashPut(req.info, &kv.key, sizeof(kv.key), &kv, sizeof(kv));
   taosArrayPush(batchReq.reqs, &req);
 
   int32_t tlen = tSerializeSClientHbBatchReq(NULL, &batchReq);

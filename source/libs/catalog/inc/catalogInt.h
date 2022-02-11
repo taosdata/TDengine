@@ -27,11 +27,11 @@ extern "C" {
 #define CTG_DEFAULT_CACHE_CLUSTER_NUMBER 6
 #define CTG_DEFAULT_CACHE_VGROUP_NUMBER 100
 #define CTG_DEFAULT_CACHE_DB_NUMBER 20
-#define CTG_DEFAULT_CACHE_TABLEMETA_NUMBER 100000
+#define CTG_DEFAULT_CACHE_TABLEMETA_NUMBER 10000
 #define CTG_DEFAULT_RENT_SECOND 10
 #define CTG_DEFAULT_RENT_SLOT_SIZE 10
 
-#define CTG_RENT_SLOT_SECOND 2
+#define CTG_RENT_SLOT_SECOND 1.5
 
 #define CTG_DEFAULT_INVALID_VERSION (-1)
 
@@ -47,55 +47,57 @@ enum {
   CTG_RENT_STABLE,
 };
 
-typedef struct SCTGDebug {
-  int32_t lockDebug;
-} SCTGDebug;
+typedef struct SCtgDebug {
+  bool     lockDebug;
+  bool     cacheDebug;
+  uint32_t showCachePeriodSec;
+} SCtgDebug;
 
 
-typedef struct SVgroupListCache {
-  int32_t vgroupVersion;
-  SHashObj *cache;        // key:vgId, value:SVgroupInfo
-} SVgroupListCache;
+typedef struct SCtgTbMetaCache {
+  SRWLatch  stbLock;
+  SRWLatch  metaLock;        // RC between cache destroy and all other operations
+  SHashObj *metaCache;       //key:tbname, value:STableMeta
+  SHashObj *stbCache;        //key:suid, value:STableMeta*
+} SCtgTbMetaCache;
 
-typedef struct SDBVgroupCache {
-  SHashObj *cache;      //key:dbname, value:SDBVgroupInfo
-} SDBVgroupCache;
+typedef struct SCtgDBCache {
+  SRWLatch         vgLock;
+  uint64_t         dbId;
+  int8_t           deleted;
+  SDBVgroupInfo   *vgInfo;  
+  SCtgTbMetaCache  tbCache;
+} SCtgDBCache;
 
-typedef struct STableMetaCache {
-  SRWLatch  stableLock;
-  SHashObj *cache;           //key:fulltablename, value:STableMeta
-  SHashObj *stableCache;     //key:suid, value:STableMeta*
-} STableMetaCache;
-
-typedef struct SRentSlotInfo {
+typedef struct SCtgRentSlot {
   SRWLatch lock;
   bool     needSort;
   SArray  *meta;  // element is SDbVgVersion or SSTableMetaVersion
-} SRentSlotInfo;
+} SCtgRentSlot;
 
-typedef struct SMetaRentMgmt {
+typedef struct SCtgRentMgmt {
   int8_t         type;
   uint16_t       slotNum;
   uint16_t       slotRIdx;
   int64_t        lastReadMsec;
-  SRentSlotInfo *slots;
-} SMetaRentMgmt;
+  SCtgRentSlot  *slots;
+} SCtgRentMgmt;
 
 typedef struct SCatalog {
-  uint64_t         clusterId;
-  SDBVgroupCache   dbCache;
-  STableMetaCache  tableCache;
-  SMetaRentMgmt    dbRent;
-  SMetaRentMgmt    stableRent;
+  uint64_t         clusterId;  
+  SRWLatch         dbLock;
+  SHashObj        *dbCache;      //key:dbname, value:SCtgDBCache
+  SCtgRentMgmt     dbRent;
+  SCtgRentMgmt     stbRent;
 } SCatalog;
 
 typedef struct SCtgApiStat {
 
 } SCtgApiStat;
 
-typedef struct SCtgResourceStat {
+typedef struct SCtgRuntimeStat {
 
-} SCtgResourceStat;
+} SCtgRuntimeStat;
 
 typedef struct SCtgCacheStat {
 
@@ -103,11 +105,13 @@ typedef struct SCtgCacheStat {
 
 typedef struct SCatalogStat {
   SCtgApiStat      api;
-  SCtgResourceStat resource;
+  SCtgRuntimeStat  runtime;
   SCtgCacheStat    cache;
 } SCatalogStat;
 
 typedef struct SCatalogMgmt {
+  bool                  exit;
+  SRWLatch              lock;
   SHashObj             *pCluster;     //key: clusterId, value: SCatalog*
   SCatalogStat          stat;
   SCatalogCfg           cfg;
@@ -115,7 +119,7 @@ typedef struct SCatalogMgmt {
 
 typedef uint32_t (*tableNameHashFp)(const char *, uint32_t);
 
-#define CTG_IS_META_NONE(type) ((type) == META_TYPE_NON_TABLE)
+#define CTG_IS_META_NULL(type) ((type) == META_TYPE_NULL_TABLE)
 #define CTG_IS_META_CTABLE(type) ((type) == META_TYPE_CTABLE)
 #define CTG_IS_META_TABLE(type) ((type) == META_TYPE_TABLE)
 #define CTG_IS_META_BOTH(type) ((type) == META_TYPE_BOTH_TABLE)
@@ -135,11 +139,8 @@ typedef uint32_t (*tableNameHashFp)(const char *, uint32_t);
 #define ctgDebug(param, ...)  qDebug("CTG:%p " param, pCatalog, __VA_ARGS__)
 #define ctgTrace(param, ...)  qTrace("CTG:%p " param, pCatalog, __VA_ARGS__)
 
-#define CTG_ERR_RET(c) do { int32_t _code = c; if (_code != TSDB_CODE_SUCCESS) { terrno = _code; return _code; } } while (0)
-#define CTG_RET(c) do { int32_t _code = c; if (_code != TSDB_CODE_SUCCESS) { terrno = _code; } return _code; } while (0)
-#define CTG_ERR_JRET(c) do { code = c; if (code != TSDB_CODE_SUCCESS) { terrno = code; goto _return; } } while (0)
-
 #define CTG_LOCK_DEBUG(...) do { if (gCTGDebug.lockDebug) { qDebug(__VA_ARGS__); } } while (0)
+#define CTG_CACHE_DEBUG(...) do { if (gCTGDebug.cacheDebug) { qDebug(__VA_ARGS__); } } while (0)
 
 #define TD_RWLATCH_WRITE_FLAG_COPY 0x40000000
 
@@ -174,6 +175,15 @@ typedef uint32_t (*tableNameHashFp)(const char *, uint32_t);
     assert(atomic_load_32((_lock)) >= 0);  \
   }                                                       \
 } while (0)
+
+  
+#define CTG_ERR_RET(c) do { int32_t _code = c; if (_code != TSDB_CODE_SUCCESS) { terrno = _code; return _code; } } while (0)
+#define CTG_RET(c) do { int32_t _code = c; if (_code != TSDB_CODE_SUCCESS) { terrno = _code; } return _code; } while (0)
+#define CTG_ERR_JRET(c) do { code = c; if (code != TSDB_CODE_SUCCESS) { terrno = code; goto _return; } } while (0)
+
+#define CTG_API_ENTER() do { CTG_LOCK(CTG_READ, &ctgMgmt.lock); if (atomic_load_8(&ctgMgmt.exit)) { CTG_RET(TSDB_CODE_CTG_OUT_OF_SERVICE); }  } while (0)
+#define CTG_API_LEAVE(c) do { int32_t __code = c; CTG_UNLOCK(CTG_READ, &ctgMgmt.lock); CTG_RET(__code); } while (0)
+
 
 
 #ifdef __cplusplus
