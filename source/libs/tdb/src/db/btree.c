@@ -28,10 +28,13 @@ typedef struct {
 
 // Btree page header definition
 typedef struct __attribute__((__packed__)) {
-  uint8_t  flags;
-  uint16_t ncells;
-  pgsz_t   pldOffset;  // payload offset
-  /* TODO */
+  uint8_t  flag;        // page flag
+  int32_t  vlen;        // value length of current page, TDB_VARIANT_LEN for variant length
+  uint16_t nPayloads;   // number of total payloads
+  pgoff_t  freeOff;     // free payload offset
+  pgsz_t   fragSize;    // total fragment size
+  pgoff_t  offPayload;  // payload offset
+  pgno_t   rChildPgno;  // right most child page number
 } SBtPgHdr;
 
 typedef int (*BtreeCmprFn)(const void *, const void *);
@@ -88,7 +91,7 @@ int btreeCursorMoveTo(SBtCursor *pBtCur, int kLen, const void *pKey) {
   SPgFile *   pPgFile;
   pgno_t      childPgno;
   pgno_t      rootPgno;
-  int         nPayload;
+  int         nPayloads;
   void *      pPayload;
   BtreeCmprFn cmpFn;
 
@@ -109,11 +112,11 @@ int btreeCursorMoveTo(SBtCursor *pBtCur, int kLen, const void *pKey) {
 
     pPage = pBtCur->pPage;
     pBtPgHdr = BTREE_PAGE_HDR(pPage);
-    nPayload = pBtPgHdr->ncells;
+    nPayloads = pBtPgHdr->nPayloads;
 
     // Binary search the page
     lidx = 0;
-    ridx = nPayload - 1;
+    ridx = nPayloads - 1;
     midx = (lidx + ridx) >> 1;
     for (;;) {
       // get the payload ptr at midx

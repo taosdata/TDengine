@@ -70,6 +70,9 @@ typedef int32_t frame_id_t;
 #define TDB_DEFAULT_PGSIZE 4096
 #define TDB_IS_PGSIZE_VLD(s) (((s) >= TDB_MIN_PGSIZE) && ((s) <= TDB_MAX_PGSIZE))
 
+// pgoff_t
+typedef pgsz_t pgoff_t;
+
 // cache
 #define TDB_DEFAULT_CACHE_SIZE (256 * 1024)  // 256K
 
@@ -93,15 +96,17 @@ typedef TD_DLIST(SPgFile) SPgFileList;
     }                             \
   } while (0)
 
-#define TDB_VARIANT_LEN -1
+#define TDB_VARIANT_LEN (int32_t) - 1
 
+// page payload format
+// <keyLen> + <valLen> + [key] + [value]
 #define TDB_DECODE_PAYLOAD(pPayload, keyLen, pKey, valLen, pVal) \
   do {                                                           \
     if ((keyLen) == TDB_VARIANT_LEN) {                           \
-      /* TODO */                                                 \
+      /* TODO: decode the keyLen */                              \
     }                                                            \
     if ((valLen) == TDB_VARIANT_LEN) {                           \
-      /* TODO */                                                 \
+      /* TODO: decode the valLen */                              \
     }                                                            \
     /* TODO */                                                   \
   } while (0)
