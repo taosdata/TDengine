@@ -93,6 +93,19 @@ typedef TD_DLIST(SPgFile) SPgFileList;
     }                             \
   } while (0)
 
+#define TDB_VARIANT_LEN -1
+
+#define TDB_DECODE_PAYLOAD(pPayload, keyLen, pKey, valLen, pVal) \
+  do {                                                           \
+    if ((keyLen) == TDB_VARIANT_LEN) {                           \
+      /* TODO */                                                 \
+    }                                                            \
+    if ((valLen) == TDB_VARIANT_LEN) {                           \
+      /* TODO */                                                 \
+    }                                                            \
+    /* TODO */                                                   \
+  } while (0)
+
 #include "tdbUtil.h"
 
 #include "btree.h"

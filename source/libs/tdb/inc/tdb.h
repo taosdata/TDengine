@@ -34,6 +34,8 @@ int tdbEnvCreate(TENV **ppEnv);
 int tdbEnvOpen(TENV **ppEnv);
 int tdbEnvClose(TENV *pEnv);
 
+int tdbEnvCommit(TENV *pEnv);
+
 int       tdbEnvSetPageSize(TENV *pEnv, pgsz_t szPage);
 int       tdbEnvSetCacheSize(TENV *pEnv, cachesz_t szCache);
 pgsz_t    tdbEnvGetPageSize(TENV *pEnv);
@@ -43,6 +45,14 @@ cachesz_t tdbEnvGetCacheSize(TENV *pEnv);
 int tdbCreate(TDB **ppDb);
 int tdbOpen(TDB **ppDb, const char *fname, const char *dbname, TENV *pEnv);
 int tdbClose(TDB *pDb);
+
+int tdbSetKeyLen(TDB *pDb, int klen);
+int tdbSetValLen(TDB *pDb, int vlen);
+int tdbSetDup(TDB *pDb, int dup);
+
+int tdbGetKeyLen(TDB *pDb, int *pklen);
+int tdbGetValLen(TDB *pDb, int *pvlen);
+int tdbGetDup(TDB *pDb, int *pdup);
 
 // TDBC
 
