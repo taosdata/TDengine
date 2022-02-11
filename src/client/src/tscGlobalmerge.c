@@ -456,7 +456,7 @@ int32_t tscCreateGlobalMergerEnv(SQueryInfo *pQueryInfo, tExtMemBuffer ***pMemBu
 
   int32_t pg = DEFAULT_PAGE_SIZE;
   int32_t overhead = sizeof(tFilePage);
-  while((pg - overhead) < pModel->rowSize * 2) {
+  while((pg - overhead) < rlen * 2) {
     pg *= 2;
   }
 

@@ -304,7 +304,7 @@ bool tscNonOrderedProjectionQueryOnSTable(SQueryInfo* pQueryInfo, int32_t tableI
     return false;
   }
 
-  // order by columnIndex exists, not a non-ordered projection query
+  // order by columnIndex not exists, not a ordered projection query
   return pQueryInfo->order.orderColId < 0;
 }
 
@@ -313,7 +313,7 @@ bool tscOrderedProjectionQueryOnSTable(SQueryInfo* pQueryInfo, int32_t tableInde
     return false;
   }
 
-  // order by columnIndex exists, a non-ordered projection query
+  // order by columnIndex exists, a ordered projection query
   return pQueryInfo->order.orderColId >= 0;
 }
 

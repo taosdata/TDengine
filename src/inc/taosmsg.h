@@ -503,8 +503,8 @@ typedef struct {
   uint32_t    tagCondLen;       // tag length in current query
   int32_t    colCondLen;       // column length in current query
   int16_t     numOfGroupCols;   // num of group by columns
-  int16_t     orderByIdx;
-  int16_t     orderType;        // used in group by xx order by xxx
+  int16_t     orderByIdx;       // useless
+  int16_t     groupOrderType;   // used for group order
   int64_t     vgroupLimit;      // limit the number of rows for each table, used in order by + limit in stable projection query.
   int16_t     prjOrder;         // global order in super table projection query.
   int64_t     limit;

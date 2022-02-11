@@ -1065,13 +1065,14 @@ int32_t tscValidateSqlInfo(SSqlObj* pSql, struct SSqlInfo* pInfo) {
  * if the top/bottom exists, only tags columns, tbname column, and primary timestamp column
  * are available.
  */
-static bool isTopBottomQuery(SQueryInfo* pQueryInfo) {
+static bool isTopBottomUniqueQuery(SQueryInfo* pQueryInfo) {
   size_t size = tscNumOfExprs(pQueryInfo);
   
   for (int32_t i = 0; i < size; ++i) {
     int32_t functionId = tscExprGet(pQueryInfo, i)->base.functionId;
 
-    if (functionId == TSDB_FUNC_TOP || functionId == TSDB_FUNC_BOTTOM) {
+    if (functionId == TSDB_FUNC_TOP || functionId == TSDB_FUNC_BOTTOM
+        || functionId == TSDB_FUNC_UNIQUE) {
       return true;
     }
   }
@@ -1114,7 +1115,7 @@ static int32_t checkInvalidExprForTimeWindow(SSqlCmd* pCmd, SQueryInfo* pQueryIn
   const char* msg2 = "top/bottom query does not support order by value in time window query";
 
   // for top/bottom + interval query, we do not add additional timestamp column in the front
-  if (isTopBottomQuery(pQueryInfo)) {
+  if (isTopBottomUniqueQuery(pQueryInfo)) {
 
     // invalid sql:
     // top(col, k) from table_name [interval(1d)|session(ts, 1d)] order by k asc
@@ -6380,7 +6381,7 @@ static void setDefaultOrderInfo(SQueryInfo* pQueryInfo) {
   STableMetaInfo* pTableMetaInfo = tscGetMetaInfo(pQueryInfo, 0);
 
   pQueryInfo->order.order = TSDB_ORDER_ASC;
-  if (isTopBottomQuery(pQueryInfo)) {
+  if (isTopBottomUniqueQuery(pQueryInfo)) {
     pQueryInfo->order.orderColId = PRIMARYKEY_TIMESTAMP_COL_INDEX;
   } else { // in case of select tbname from super_table, the default order column can not be the primary ts column
     pQueryInfo->order.orderColId = INT32_MIN;  // todo define a macro
@@ -6536,7 +6537,7 @@ int32_t validateOrderbyNode(SSqlCmd* pCmd, SQueryInfo* pQueryInfo, SSqlNode* pSq
       }
     }
 
-    if (!(orderByTags || orderByTS || orderByGroupbyCol) && !isTopBottomQuery(pQueryInfo)) {
+    if (!(orderByTags || orderByTS || orderByGroupbyCol) && !isTopBottomUniqueQuery(pQueryInfo)) {
       return invalidOperationMsg(pMsgBuf, msg3);
     }
 
@@ -6546,7 +6547,7 @@ int32_t validateOrderbyNode(SSqlCmd* pCmd, SQueryInfo* pQueryInfo, SSqlNode* pSq
         if (tscIsDiffDerivLikeQuery(pQueryInfo)) {
           return invalidOperationMsg(pMsgBuf, msg12);
         }
-        pQueryInfo->groupbyExpr.orderIndex = index.columnIndex - tscGetNumOfColumns(pTableMetaInfo->pTableMeta);
+        //pQueryInfo->groupbyExpr.orderIndex = index.columnIndex - tscGetNumOfColumns(pTableMetaInfo->pTableMeta);
 
         CommonItem* p1 = taosArrayGet(pSqlNode->pSortOrder, 0);
         pQueryInfo->groupbyExpr.orderType = p1->sortOrder;
@@ -6558,7 +6559,7 @@ int32_t validateOrderbyNode(SSqlCmd* pCmd, SQueryInfo* pQueryInfo, SSqlNode* pSq
         if (udf) {
           return invalidOperationMsg(pMsgBuf, msg11);
         }
-      } else if (isTopBottomQuery(pQueryInfo)) {
+      } else if (isTopBottomUniqueQuery(pQueryInfo)) {
         /* order of top/bottom query in interval is not valid  */
 
         int32_t pos = tscExprTopBottomIndex(pQueryInfo);
@@ -6605,7 +6606,7 @@ int32_t validateOrderbyNode(SSqlCmd* pCmd, SQueryInfo* pQueryInfo, SSqlNode* pSq
     } else {
       pItem = taosArrayGet(pSqlNode->pSortOrder, 0);
       if (orderByTags) {
-        pQueryInfo->groupbyExpr.orderIndex = index.columnIndex - tscGetNumOfColumns(pTableMetaInfo->pTableMeta);
+        //pQueryInfo->groupbyExpr.orderIndex = index.columnIndex - tscGetNumOfColumns(pTableMetaInfo->pTableMeta);
         pQueryInfo->groupbyExpr.orderType = pItem->sortOrder;
       } else if (orderByGroupbyCol){
         pQueryInfo->order.order = pItem->sortOrder;
@@ -6650,7 +6651,7 @@ int32_t validateOrderbyNode(SSqlCmd* pCmd, SQueryInfo* pQueryInfo, SSqlNode* pSq
       return invalidOperationMsg(pMsgBuf, msg1);
     }
 
-    if (index.columnIndex != PRIMARYKEY_TIMESTAMP_COL_INDEX && !isTopBottomQuery(pQueryInfo)) {
+    if (index.columnIndex != PRIMARYKEY_TIMESTAMP_COL_INDEX && !isTopBottomUniqueQuery(pQueryInfo)) {
       bool validOrder = false;
       SArray *columnInfo = pQueryInfo->groupbyExpr.columnInfo;
       if (columnInfo != NULL && taosArrayGetSize(columnInfo) > 0) {
@@ -6671,11 +6672,11 @@ int32_t validateOrderbyNode(SSqlCmd* pCmd, SQueryInfo* pQueryInfo, SSqlNode* pSq
       }
 
       CommonItem* p1 = taosArrayGet(pSqlNode->pSortOrder, 0);
-      pQueryInfo->groupbyExpr.orderIndex = pSchema[index.columnIndex].colId;
+      //pQueryInfo->groupbyExpr.orderIndex = pSchema[index.columnIndex].colId;
       pQueryInfo->groupbyExpr.orderType = p1->sortOrder;
     }
 
-    if (isTopBottomQuery(pQueryInfo)) {
+    if (isTopBottomUniqueQuery(pQueryInfo)) {
       SArray *columnInfo = pQueryInfo->groupbyExpr.columnInfo;
       if (columnInfo != NULL && taosArrayGetSize(columnInfo) > 0) {
         SColIndex* pColIndex = taosArrayGet(columnInfo, 0);
