@@ -1443,6 +1443,7 @@ int32_t tscSetTableFullName(SName* pName, SStrToken* pTableName, SSqlObj* pSql, 
   const char* msg3 = "no acctId";
   const char* msg4 = "db name too long";
   const char* msg5 = "table name too long";
+  const char* msg6 = "table name empty";
 
   SSqlCmd* pCmd = &pSql->cmd;
   int32_t  code = TSDB_CODE_SUCCESS;
@@ -1494,6 +1495,8 @@ int32_t tscSetTableFullName(SName* pName, SStrToken* pTableName, SSqlObj* pSql, 
 
     if (pTableName->n >= TSDB_TABLE_NAME_LEN) {
       return invalidOperationMsg(tscGetErrorMsgPayload(pCmd), msg1);
+    } else if(pTableName->n == 0) {
+      return invalidOperationMsg(tscGetErrorMsgPayload(pCmd), msg6);
     }
 
     char name[TSDB_TABLE_FNAME_LEN] = {0};
@@ -9080,6 +9083,18 @@ int32_t doCheckForStream(SSqlObj* pSql, SSqlInfo* pInfo) {
 
   if (tscValidateName(pName, true, &dbIncluded1) != TSDB_CODE_SUCCESS) {
     return invalidOperationMsg(tscGetErrorMsgPayload(pCmd), msg1);
+  }
+  
+  // check to valid and create to name
+  if(pInfo->pCreateTableInfo->to.n > 0) {
+    bool dbInclude = false;
+    if (tscValidateName(&pInfo->pCreateTableInfo->to, false, &dbInclude) != TSDB_CODE_SUCCESS) {
+      return invalidOperationMsg(tscGetErrorMsgPayload(pCmd), msg1);
+    }
+    int32_t code = tscSetTableFullName(&pInfo->pCreateTableInfo->toSName, &pInfo->pCreateTableInfo->to, pSql, dbInclude);
+    if(code != TSDB_CODE_SUCCESS) {
+      return code;
+    }
   }
 
   SRelationInfo* pFromInfo = pInfo->pCreateTableInfo->pSelect->from;
