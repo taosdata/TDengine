@@ -3783,26 +3783,29 @@ void updateOutputBuf(SOptrBasicInfo* pBInfo, int32_t *bufCapacity, int32_t numOf
 }
 
 void updateOutputBufForUnique(SOptrBasicInfo* pBInfo, SQueryRuntimeEnv* runtimeEnv, int32_t len) {
-  if(len == 0){ return; }
+  if (len == 0) {
+    return;
+  }
   SSDataBlock* pDataBlock = pBInfo->pRes;
 
-  for(int32_t i = 0; i < pDataBlock->info.numOfCols; ++i) {
-    SColumnInfoData *pColInfo = taosArrayGet(pDataBlock->pDataBlock, i);
+  for (int32_t i = 0; i < pDataBlock->info.numOfCols; ++i) {
+    SColumnInfoData* pColInfo = taosArrayGet(pDataBlock->pDataBlock, i);
 
     char* p = realloc(pColInfo->pData, ((size_t)len) * pColInfo->info.bytes);
     if (p != NULL) {
       pColInfo->pData = p;
 
-      if(!runtimeEnv->pQueryAttr->stableQuery){
+      if (!runtimeEnv->pQueryAttr->stableQuery) {
         pBInfo->pCtx[i].pOutput = pColInfo->pData;
       }
     } else {
       size_t allocateSize = ((size_t)(len)) * pColInfo->info.bytes;
-      qError("can not allocate %zu bytes for output. Rows: %d, colBytes %d",
-             allocateSize, len, pColInfo->info.bytes);
+      qError("can not allocate %zu bytes for output. Rows: %d, colBytes %d", allocateSize, len, pColInfo->info.bytes);
       longjmp(runtimeEnv->env, TSDB_CODE_QRY_OUT_OF_MEMORY);
     }
   }
+}
+
 // shrink pBInfo->pRes memory
 void shrinkOutputBuf(SOptrBasicInfo* pBInfo, int32_t *bufCapacity) {
   SSDataBlock* pDataBlock = pBInfo->pRes;
