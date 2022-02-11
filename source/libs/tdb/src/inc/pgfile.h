@@ -30,7 +30,7 @@ typedef struct __attribute__((__packed__)) {
 
 #define TDB_PG_FILE_HDR_SIZE 128
 
-TD_STATIC_ASSERT(sizeof(SPgFileHdr) == TDB_PG_FILE_HDR_SIZE, "Page file header size if not 128");
+TDB_STATIC_ASSERT(sizeof(SPgFileHdr) == TDB_PG_FILE_HDR_SIZE, "Page file header size if not 128");
 
 struct SPgFile {
   char *    fname;                    // backend file name
