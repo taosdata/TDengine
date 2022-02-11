@@ -21,6 +21,11 @@ struct SBtCursor {
   SPage * pPage;  // current page traversing
 };
 
+typedef struct {
+  pgno_t   pgno;
+  pgsize_t offset;
+} SBtIdx;
+
 static int btreeCreate(SBTree **pBt);
 static int btreeDestroy(SBTree *pBt);
 static int btreeCursorMoveToChild(SBtCursor *pBtCur, pgno_t pgno);
@@ -63,9 +68,10 @@ int btreeCursorClose(SBtCursor *pBtCur) {
   return 0;
 }
 
-int btreeCursorMoveTo(SBtCursor *pBtCur) {
+int btreeCursorMoveTo(SBtCursor *pBtCur, int kLen, const void *pKey) {
   SPage *pPage;
   pgno_t childPgno;
+  int    idx;
 
   // 1. Move the cursor to the root page
 

@@ -30,7 +30,7 @@ int btreeClose(SBTree *pBt);
 // SBtCursor
 int btreeCursorOpen(SBtCursor *pBtCur, SBTree *pBt);
 int btreeCursorClose(SBtCursor *pBtCur);
-int btreeCursorMoveTo(SBtCursor *pBtCur);
+int btreeCursorMoveTo(SBtCursor *pBtCur, int kLen, const void *pKey);
 
 struct SBTree {
   pgno_t root;
