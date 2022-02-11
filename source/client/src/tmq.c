@@ -58,7 +58,7 @@ struct tmq_t {
   char           clientId[256];
   SRWLatch       lock;
   int64_t        consumerId;
-  int64_t        epoch;
+  int32_t        epoch;
   int64_t        status;
   tsem_t         rspSem;
   STscObj*       pTscObj;
@@ -592,6 +592,7 @@ int32_t tmqAsyncAskEp(tmq_t* tmq, bool wait) {
     goto END;
   }
   buf->consumerId = htobe64(tmq->consumerId);
+  buf->epoch = htonl(tmq->epoch);
   strcpy(buf->cgroup, tmq->groupId);
 
   SRequestObj* pRequest = createRequest(tmq->pTscObj, NULL, NULL, TDMT_MND_GET_SUB_EP);
