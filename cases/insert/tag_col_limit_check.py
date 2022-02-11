@@ -62,7 +62,8 @@ class TestTagColLimit(TDCase):
             self.tdSql.execute(f'create stable if not exists {dbname}.stb (Col_ts timestamp, CC1 {test_type}(16), Cc2 {test_type}(16), `3Cc%3` {test_type}(16)) tags (`1Tag_ts^` timestamp, TT1 {test_type}(16), Tt2 {test_type}(16), `3Tt%3` {test_type}(16))')
             self.tdSql.execute(f'create table if not exists {dbname}.tb using {dbname}.stb tags (now, "TT1", "Tt2", "3Tt%3")')
             self.tdSql.execute(f'insert into {dbname}.tb values (now, "TT1", "Tt2", "3Tt%3")')
-            col_key_list = self.tdSql.getColNameList(f'select * from {dbname}.stb', True)[0]
+            self.tdSql.query(f"describe {dbname}.stb")
+            col_key_list = self.tdSql.getColNameList(True)[0]
             self.tdSql.checkEqual(col_key_list, ['col_ts', 'cc1', 'cc2', '3Cc%3', '1Tag_ts^', 'tt1', 'tt2', '3Tt%3'])
             self.tdSql.query(f'select * from {dbname}.stb')
             lres = list(self.tdSql.query_data[0])
@@ -84,7 +85,8 @@ class TestTagColLimit(TDCase):
         self.tdSql.execute(f'create stable if not exists {dbname}.stb (col_ts timestamp, {col_key_name} int) tags ({tag_key_name} int)')
         self.tdSql.execute(f'create table if not exists {dbname}.tb using {dbname}.stb tags (1)')
         self.tdSql.execute(f'insert into {dbname}.tb values (now, 1)')
-        col_key_list = self.tdSql.getColNameList(f'select * from {dbname}.stb', True)[0]
+        self.tdSql.query(f"describe {dbname}.stb")
+        col_key_list = self.tdSql.getColNameList(True)[0]
         self.tdSql.checkEqual(col_key_list, ['col_ts', col_key_name, tag_key_name])
 
     def run(self):
