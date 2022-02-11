@@ -15,6 +15,7 @@
 
 #define _DEFAULT_SOURCE
 #include "mndUser.h"
+#include "mndDb.h"
 #include "mndShow.h"
 #include "mndTrans.h"
 #include "tkey.h"
@@ -206,7 +207,7 @@ USER_DECODE_OVER:
 
 static int32_t mndUserActionInsert(SSdb *pSdb, SUserObj *pUser) {
   mTrace("user:%s, perform insert action, row:%p", pUser->user, pUser);
-  
+
   SAcctObj *pAcct = sdbAcquire(pSdb, SDB_ACCT, pUser->acct);
   if (pAcct == NULL) {
     terrno = TSDB_CODE_MND_ACCT_NOT_EXIST;
@@ -291,47 +292,50 @@ static int32_t mndCreateUser(SMnode *pMnode, char *acct, char *user, char *pass,
 }
 
 static int32_t mndProcessCreateUserReq(SMnodeMsg *pReq) {
-  SMnode         *pMnode = pReq->pMnode;
-  SCreateUserReq *pCreate = pReq->rpcMsg.pCont;
+  SMnode        *pMnode = pReq->pMnode;
+  int32_t        code = -1;
+  SUserObj      *pUser = NULL;
+  SUserObj      *pOperUser = NULL;
+  SCreateUserReq createReq = {0};
 
-  mDebug("user:%s, start to create", pCreate->user);
+  if (tDeserializeSCreateUserReq(pReq->rpcMsg.pCont, &createReq) == NULL) goto CREATE_USER_OVER;
 
-  if (pCreate->user[0] == 0) {
+  mDebug("user:%s, start to create", createReq.user);
+
+  if (createReq.user[0] == 0) {
     terrno = TSDB_CODE_MND_INVALID_USER_FORMAT;
-    mError("user:%s, failed to create since %s", pCreate->user, terrstr());
-    return -1;
+    goto CREATE_USER_OVER;
   }
 
-  if (pCreate->pass[0] == 0) {
+  if (createReq.pass[0] == 0) {
     terrno = TSDB_CODE_MND_INVALID_PASS_FORMAT;
-    mError("user:%s, failed to create since %s", pCreate->user, terrstr());
-    return -1;
+    goto CREATE_USER_OVER;
   }
 
-  SUserObj *pUser = mndAcquireUser(pMnode, pCreate->user);
+  pUser = mndAcquireUser(pMnode, createReq.user);
   if (pUser != NULL) {
-    mndReleaseUser(pMnode, pUser);
     terrno = TSDB_CODE_MND_USER_ALREADY_EXIST;
-    mError("user:%s, failed to create since %s", pCreate->user, terrstr());
-    return -1;
+    goto CREATE_USER_OVER;
   }
 
-  SUserObj *pOperUser = mndAcquireUser(pMnode, pReq->user);
+  pOperUser = mndAcquireUser(pMnode, pReq->user);
   if (pOperUser == NULL) {
     terrno = TSDB_CODE_MND_NO_USER_FROM_CONN;
-    mError("user:%s, failed to create since %s", pCreate->user, terrstr());
-    return -1;
+    goto CREATE_USER_OVER;
   }
 
-  int32_t code = mndCreateUser(pMnode, pOperUser->acct, pCreate->user, pCreate->pass, pReq);
+  code = mndCreateUser(pMnode, pOperUser->acct, createReq.user, createReq.pass, pReq);
+  if (code == 0) code = TSDB_CODE_MND_ACTION_IN_PROGRESS;
+
+CREATE_USER_OVER:
+  if (code != 0 && code != TSDB_CODE_MND_ACTION_IN_PROGRESS) {
+    mError("user:%s, failed to create since %s", createReq.user, terrstr());
+  }
+
+  mndReleaseUser(pMnode, pUser);
   mndReleaseUser(pMnode, pOperUser);
 
-  if (code != 0) {
-    mError("user:%s, failed to create since %s", pCreate->user, terrstr());
-    return -1;
-  }
-
-  return TSDB_CODE_MND_ACTION_IN_PROGRESS;
+  return code;
 }
 
 static int32_t mndUpdateUser(SMnode *pMnode, SUserObj *pOld, SUserObj *pNew, SMnodeMsg *pReq) {
@@ -360,56 +364,131 @@ static int32_t mndUpdateUser(SMnode *pMnode, SUserObj *pOld, SUserObj *pNew, SMn
   return 0;
 }
 
+static SHashObj *mndDupDbHash(SHashObj *pOld) {
+  SHashObj *pNew = taosHashInit(4, taosGetDefaultHashFunction(TSDB_DATA_TYPE_BINARY), true, true);
+  if (pNew == NULL) {
+    terrno = TSDB_CODE_OUT_OF_MEMORY;
+    return NULL;
+  }
+
+  char *db = taosHashIterate(pOld, NULL);
+  while (db != NULL) {
+    int32_t len = strlen(db) + 1;
+    if (taosHashPut(pNew, db, len, db, TSDB_DB_FNAME_LEN) != 0) {
+      taosHashCancelIterate(pOld, db);
+      terrno = TSDB_CODE_OUT_OF_MEMORY;
+      taosHashCleanup(pNew);
+      return NULL;
+    }
+    db = taosHashIterate(pOld, db);
+  }
+
+  return pNew;
+}
+
 static int32_t mndProcessAlterUserReq(SMnodeMsg *pReq) {
-  SMnode        *pMnode = pReq->pMnode;
-  SAlterUserReq *pAlter = pReq->rpcMsg.pCont;
+  SMnode       *pMnode = pReq->pMnode;
+  int32_t       code = -1;
+  SUserObj     *pUser = NULL;
+  SUserObj     *pOperUser = NULL;
+  SAlterUserReq alterReq = {0};
 
-  mDebug("user:%s, start to alter", pAlter->user);
+  if (tDeserializeSAlterUserReq(pReq->rpcMsg.pCont, &alterReq) == NULL) goto ALTER_USER_OVER;
 
-  if (pAlter->user[0] == 0) {
+  mDebug("user:%s, start to alter", alterReq.user);
+
+  if (alterReq.user[0] == 0) {
     terrno = TSDB_CODE_MND_INVALID_USER_FORMAT;
-    mError("user:%s, failed to alter since %s", pAlter->user, terrstr());
-    return -1;
+    goto ALTER_USER_OVER;
   }
 
-  if (pAlter->pass[0] == 0) {
+  if (alterReq.pass[0] == 0) {
     terrno = TSDB_CODE_MND_INVALID_PASS_FORMAT;
-    mError("user:%s, failed to alter since %s", pAlter->user, terrstr());
-    return -1;
+    goto ALTER_USER_OVER;
   }
 
-  SUserObj *pUser = mndAcquireUser(pMnode, pAlter->user);
+  pUser = mndAcquireUser(pMnode, alterReq.user);
   if (pUser == NULL) {
     terrno = TSDB_CODE_MND_USER_NOT_EXIST;
-    mError("user:%s, failed to alter since %s", pAlter->user, terrstr());
-    return -1;
+    goto ALTER_USER_OVER;
   }
 
-  SUserObj *pOperUser = mndAcquireUser(pMnode, pReq->user);
+  pOperUser = mndAcquireUser(pMnode, pReq->user);
   if (pOperUser == NULL) {
-    mndReleaseUser(pMnode, pUser);
     terrno = TSDB_CODE_MND_NO_USER_FROM_CONN;
-    mError("user:%s, failed to alter since %s", pAlter->user, terrstr());
-    return -1;
+    goto ALTER_USER_OVER;
   }
 
   SUserObj newUser = {0};
   memcpy(&newUser, pUser, sizeof(SUserObj));
-  char pass[TSDB_PASSWORD_LEN + 1] = {0};
-  taosEncryptPass_c((uint8_t *)pAlter->pass, strlen(pAlter->pass), pass);
-  memcpy(pUser->pass, pass, TSDB_PASSWORD_LEN);
+  newUser.readDbs = mndDupDbHash(pUser->readDbs);
+  newUser.writeDbs = mndDupDbHash(pUser->writeDbs);
+  if (newUser.readDbs == NULL || newUser.writeDbs == NULL) {
+    goto ALTER_USER_OVER;
+  }
+
+  int32_t len = strlen(alterReq.dbname) + 1;
+  SDbObj *pDb = mndAcquireDb(pMnode, alterReq.dbname);
+  mndReleaseDb(pMnode, pDb);
+
+  if (alterReq.alterType == TSDB_ALTER_USER_PASSWD) {
+    char pass[TSDB_PASSWORD_LEN + 1] = {0};
+    taosEncryptPass_c((uint8_t *)alterReq.pass, strlen(alterReq.pass), pass);
+    memcpy(pUser->pass, pass, TSDB_PASSWORD_LEN);
+  } else if (alterReq.alterType == TSDB_ALTER_USER_SUPERUSER) { 
+    newUser.superUser = alterReq.superUser;
+  } else if (alterReq.alterType == TSDB_ALTER_USER_ADD_READ_DB) { 
+    if (pDb == NULL) {
+      terrno = TSDB_CODE_MND_DB_NOT_EXIST;
+      goto ALTER_USER_OVER;
+    }
+    if (taosHashPut(newUser.readDbs, alterReq.dbname, len, alterReq.dbname, TSDB_DB_FNAME_LEN) != 0) {
+      terrno = TSDB_CODE_OUT_OF_MEMORY;
+      goto ALTER_USER_OVER;
+    }
+  } else if (alterReq.alterType == TSDB_ALTER_USER_REMOVE_READ_DB) { 
+    if (taosHashRemove(newUser.readDbs, alterReq.dbname, len) != 0) {
+      terrno = TSDB_CODE_MND_DB_NOT_EXIST;
+      goto ALTER_USER_OVER;
+    }
+  } else if (alterReq.alterType == TSDB_ALTER_USER_CLEAR_READ_DB) { 
+    taosHashClear(newUser.readDbs);
+  } else if (alterReq.alterType == TSDB_ALTER_USER_ADD_WRITE_DB) {
+    if (pDb == NULL) {
+      terrno = TSDB_CODE_MND_DB_NOT_EXIST;
+      goto ALTER_USER_OVER;
+    }
+    if (taosHashPut(newUser.writeDbs, alterReq.dbname, len, alterReq.dbname, TSDB_DB_FNAME_LEN) != 0) {
+      terrno = TSDB_CODE_OUT_OF_MEMORY;
+      goto ALTER_USER_OVER;
+    }
+  } else if (alterReq.alterType == TSDB_ALTER_USER_REMOVE_WRITE_DB) {
+    if (taosHashRemove(newUser.writeDbs, alterReq.dbname, len) != 0) {
+      terrno = TSDB_CODE_MND_DB_NOT_EXIST;
+      goto ALTER_USER_OVER;
+    }
+  } else if (alterReq.alterType == TSDB_ALTER_USER_CLEAR_WRITE_DB) { 
+    taosHashClear(newUser.writeDbs);
+  } else {
+    terrno = TSDB_CODE_MND_INVALID_ALTER_OPER;
+    goto ALTER_USER_OVER;
+  }
+
   newUser.updateTime = taosGetTimestampMs();
 
-  int32_t code = mndUpdateUser(pMnode, pUser, &newUser, pReq);
+  code = mndUpdateUser(pMnode, pUser, &newUser, pReq);
+  if (code == 0) code = TSDB_CODE_MND_ACTION_IN_PROGRESS;
+
+ALTER_USER_OVER:
+
+  if (code != 0 && code != TSDB_CODE_MND_ACTION_IN_PROGRESS) {
+    mError("user:%s, failed to alter since %s", alterReq.user, terrstr());
+  }
+
   mndReleaseUser(pMnode, pOperUser);
   mndReleaseUser(pMnode, pUser);
 
-  if (code != 0) {
-    mError("user:%s, failed to alter since %s", pAlter->user, terrstr());
-    return -1;
-  }
-
-  return TSDB_CODE_MND_ACTION_IN_PROGRESS;
+  return code;
 }
 
 static int32_t mndDropUser(SMnode *pMnode, SMnodeMsg *pReq, SUserObj *pUser) {
@@ -439,42 +518,45 @@ static int32_t mndDropUser(SMnode *pMnode, SMnodeMsg *pReq, SUserObj *pUser) {
 }
 
 static int32_t mndProcessDropUserReq(SMnodeMsg *pReq) {
-  SMnode       *pMnode = pReq->pMnode;
-  SDropUserReq *pDrop = pReq->rpcMsg.pCont;
+  SMnode      *pMnode = pReq->pMnode;
+  int32_t      code = -1;
+  SUserObj    *pUser = NULL;
+  SUserObj    *pOperUser = NULL;
+  SDropUserReq dropReq = {0};
 
-  mDebug("user:%s, start to drop", pDrop->user);
+  if (tDeserializeSDropUserReq(pReq->rpcMsg.pCont, &dropReq) == NULL) goto DROP_USER_OVER;
 
-  if (pDrop->user[0] == 0) {
+  mDebug("user:%s, start to drop", dropReq.user);
+
+  if (dropReq.user[0] == 0) {
     terrno = TSDB_CODE_MND_INVALID_USER_FORMAT;
-    mError("user:%s, failed to drop since %s", pDrop->user, terrstr());
-    return -1;
+    goto DROP_USER_OVER;
   }
 
-  SUserObj *pUser = mndAcquireUser(pMnode, pDrop->user);
+  pUser = mndAcquireUser(pMnode, dropReq.user);
   if (pUser == NULL) {
     terrno = TSDB_CODE_MND_USER_NOT_EXIST;
-    mError("user:%s, failed to drop since %s", pDrop->user, terrstr());
-    return -1;
+    goto DROP_USER_OVER;
   }
 
-  SUserObj *pOperUser = mndAcquireUser(pMnode, pReq->user);
+  pOperUser = mndAcquireUser(pMnode, pReq->user);
   if (pOperUser == NULL) {
-    mndReleaseUser(pMnode, pUser);
     terrno = TSDB_CODE_MND_NO_USER_FROM_CONN;
-    mError("user:%s, failed to drop since %s", pDrop->user, terrstr());
-    return -1;
+    goto DROP_USER_OVER;
   }
 
-  int32_t code = mndDropUser(pMnode, pReq, pUser);
+  code = mndDropUser(pMnode, pReq, pUser);
+  if (code == 0) code = TSDB_CODE_MND_ACTION_IN_PROGRESS;
+
+DROP_USER_OVER:
+  if (code != 0 && code != TSDB_CODE_MND_ACTION_IN_PROGRESS) {
+    mError("user:%s, failed to drop since %s", dropReq.user, terrstr());
+  }
+
   mndReleaseUser(pMnode, pOperUser);
   mndReleaseUser(pMnode, pUser);
 
-  if (code != 0) {
-    mError("user:%s, failed to drop since %s", pDrop->user, terrstr());
-    return -1;
-  }
-
-  return TSDB_CODE_MND_ACTION_IN_PROGRESS;
+  return code;
 }
 
 static int32_t mndGetUserMeta(SMnodeMsg *pReq, SShowObj *pShow, STableMetaRsp *pMeta) {

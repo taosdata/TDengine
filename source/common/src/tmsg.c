@@ -464,7 +464,6 @@ int32_t tSerializeSStatusReq(void **buf, SStatusReq *pReq) {
   int32_t tlen = 0;
 
   // status
-  tlen += taosEncodeFixedI32(buf, pReq->mver);
   tlen += taosEncodeFixedI32(buf, pReq->sver);
   tlen += taosEncodeFixedI64(buf, pReq->dver);
   tlen += taosEncodeFixedI32(buf, pReq->dnodeId);
@@ -501,7 +500,6 @@ int32_t tSerializeSStatusReq(void **buf, SStatusReq *pReq) {
 
 void *tDeserializeSStatusReq(void *buf, SStatusReq *pReq) {
   // status
-  buf = taosDecodeFixedI32(buf, &pReq->mver);
   buf = taosDecodeFixedI32(buf, &pReq->sver);
   buf = taosDecodeFixedI64(buf, &pReq->dver);
   buf = taosDecodeFixedI32(buf, &pReq->dnodeId);
@@ -549,8 +547,7 @@ void *tDeserializeSStatusReq(void *buf, SStatusReq *pReq) {
 int32_t tSerializeSStatusRsp(void **buf, SStatusRsp *pRsp) {
   int32_t tlen = 0;
 
-  // status
-  tlen += taosEncodeFixedI32(buf, pRsp->mver);
+  // status;
   tlen += taosEncodeFixedI64(buf, pRsp->dver);
 
   // dnode cfg
@@ -573,7 +570,6 @@ int32_t tSerializeSStatusRsp(void **buf, SStatusRsp *pRsp) {
 
 void *tDeserializeSStatusRsp(void *buf, SStatusRsp *pRsp) {
   // status
-  buf = taosDecodeFixedI32(buf, &pRsp->mver);
   buf = taosDecodeFixedI64(buf, &pRsp->dver);
 
   // cluster cfg
@@ -601,5 +597,77 @@ void *tDeserializeSStatusRsp(void *buf, SStatusRsp *pRsp) {
     }
   }
 
+  return buf;
+}
+
+int32_t tSerializeSCreateAcctReq(void **buf, SCreateAcctReq *pReq) {
+  int32_t tlen = 0;
+  tlen += taosEncodeString(buf, pReq->user);
+  tlen += taosEncodeString(buf, pReq->pass);
+  tlen += taosEncodeFixedI32(buf, pReq->maxUsers);
+  tlen += taosEncodeFixedI32(buf, pReq->maxDbs);
+  tlen += taosEncodeFixedI32(buf, pReq->maxTimeSeries);
+  tlen += taosEncodeFixedI32(buf, pReq->maxStreams);
+  tlen += taosEncodeFixedI32(buf, pReq->accessState);
+  tlen += taosEncodeFixedI64(buf, pReq->maxStorage);
+  return tlen;
+}
+
+void *tDeserializeSCreateAcctReq(void *buf, SCreateAcctReq *pReq) {
+  buf = taosDecodeStringTo(buf, pReq->user);
+  buf = taosDecodeStringTo(buf, pReq->pass);
+  buf = taosDecodeFixedI32(buf, &pReq->maxUsers);
+  buf = taosDecodeFixedI32(buf, &pReq->maxDbs);
+  buf = taosDecodeFixedI32(buf, &pReq->maxTimeSeries);
+  buf = taosDecodeFixedI32(buf, &pReq->maxStreams);
+  buf = taosDecodeFixedI32(buf, &pReq->accessState);
+  buf = taosDecodeFixedI64(buf, &pReq->maxStorage);
+  return buf;
+}
+
+int32_t tSerializeSDropUserReq(void **buf, SDropUserReq *pReq) {
+  int32_t tlen = 0;
+  tlen += taosEncodeString(buf, pReq->user);
+  return tlen;
+}
+
+void *tDeserializeSDropUserReq(void *buf, SDropUserReq *pReq) {
+  buf = taosDecodeStringTo(buf, pReq->user);
+  return buf;
+}
+
+int32_t tSerializeSCreateUserReq(void **buf, SCreateUserReq *pReq) {
+  int32_t tlen = 0;
+  tlen += taosEncodeFixedI8(buf, pReq->createType);
+  tlen += taosEncodeFixedI8(buf, pReq->superUser);
+  tlen += taosEncodeString(buf, pReq->user);
+  tlen += taosEncodeString(buf, pReq->pass);
+  return tlen;
+}
+
+void *tDeserializeSCreateUserReq(void *buf, SCreateUserReq *pReq) {
+  buf = taosDecodeFixedI8(buf, &pReq->createType);
+  buf = taosDecodeFixedI8(buf, &pReq->superUser);
+  buf = taosDecodeStringTo(buf, pReq->user);
+  buf = taosDecodeStringTo(buf, pReq->pass);
+  return buf;
+}
+
+int32_t tSerializeSAlterUserReq(void **buf, SAlterUserReq *pReq) {
+  int32_t tlen = 0;
+  tlen += taosEncodeFixedI8(buf, pReq->alterType);
+  tlen += taosEncodeString(buf, pReq->user);
+  tlen += taosEncodeString(buf, pReq->pass);
+  tlen += taosEncodeString(buf, pReq->dbname);
+  tlen += taosEncodeFixedI8(buf, pReq->superUser);
+  return tlen;
+}
+
+void *tDeserializeSAlterUserReq(void *buf, SAlterUserReq *pReq) {
+  buf = taosDecodeFixedI8(buf, &pReq->alterType);
+  buf = taosDecodeStringTo(buf, pReq->user);
+  buf = taosDecodeStringTo(buf, pReq->pass);
+  buf = taosDecodeStringTo(buf, pReq->dbname);
+  buf = taosDecodeFixedI8(buf, &pReq->superUser);
   return buf;
 }
