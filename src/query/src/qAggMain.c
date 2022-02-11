@@ -204,6 +204,7 @@ typedef struct SElapsedInfo {
 
 typedef struct {
   bool valueAssigned;
+  bool ignoreNegative;
   union {
     int64_t i64Prev;
     double d64Prev;
@@ -2185,6 +2186,10 @@ static void copyTopBotRes(SQLFunctionCtx *pCtx, int32_t type) {
   
   // set the corresponding tag data for each record
   // todo check malloc failure
+  if (pCtx->tagInfo.numOfTagCols == 0) {
+    return ;
+  }
+
   char **pData = calloc(pCtx->tagInfo.numOfTagCols, POINTER_BYTES);
   for (int32_t i = 0; i < pCtx->tagInfo.numOfTagCols; ++i) {
     pData[i] = pCtx->tagInfo.pTagCtxList[i]->pOutput;
@@ -3079,6 +3084,7 @@ static bool diff_function_setup(SQLFunctionCtx *pCtx, SResultRowCellInfo* pResIn
   SDiffFuncInfo* pDiffInfo = GET_ROWCELL_INTERBUF(pResInfo);
   pDiffInfo->valueAssigned = false;
   pDiffInfo->i64Prev = 0;
+  pDiffInfo->ignoreNegative = (pCtx->param[0].i64 == 1) ? true : false;
   return true;
 }
 
@@ -3311,6 +3317,9 @@ static void diff_function(SQLFunctionCtx *pCtx) {
         if (pCtx->hasNull && isNull((const char*) &pData[i], pCtx->inputType)) {
           continue;
         }
+        if ((pDiffInfo->ignoreNegative) && (pData[i] < 0)) {
+          continue;
+        }
 
         if (pDiffInfo->valueAssigned) {
           *pOutput = (int32_t)(pData[i] - pDiffInfo->i64Prev);  // direct previous may be null
@@ -3331,6 +3340,9 @@ static void diff_function(SQLFunctionCtx *pCtx) {
 
       for (; i < pCtx->size && i >= 0; i += step) {
         if (pCtx->hasNull && isNull((const char*) &pData[i], pCtx->inputType)) {
+          continue;
+        }
+        if ((pDiffInfo->ignoreNegative) && (pData[i] < 0)) {
           continue;
         }
 
@@ -3355,6 +3367,9 @@ static void diff_function(SQLFunctionCtx *pCtx) {
         if (pCtx->hasNull && isNull((const char*) &pData[i], pCtx->inputType)) {
           continue;
         }
+        if ((pDiffInfo->ignoreNegative) && (pData[i] < 0)) {
+          continue;
+        }
 
         if (pDiffInfo->valueAssigned) {  // initial value is not set yet
           SET_DOUBLE_VAL(pOutput, pData[i] - pDiffInfo->d64Prev);  // direct previous may be null
@@ -3375,6 +3390,9 @@ static void diff_function(SQLFunctionCtx *pCtx) {
 
       for (; i < pCtx->size && i >= 0; i += step) {
         if (pCtx->hasNull && isNull((const char*) &pData[i], pCtx->inputType)) {
+          continue;
+        }
+        if ((pDiffInfo->ignoreNegative) && (pData[i] < 0)) {
           continue;
         }
 
@@ -3399,6 +3417,9 @@ static void diff_function(SQLFunctionCtx *pCtx) {
         if (pCtx->hasNull && isNull((const char*) &pData[i], pCtx->inputType)) {
           continue;
         }
+        if ((pDiffInfo->ignoreNegative) && (pData[i] < 0)) {
+          continue;
+        }
 
         if (pDiffInfo->valueAssigned) {  // initial value is not set yet
           *pOutput = (int16_t)(pData[i] - pDiffInfo->i64Prev);  // direct previous may be null
@@ -3420,6 +3441,9 @@ static void diff_function(SQLFunctionCtx *pCtx) {
 
       for (; i < pCtx->size && i >= 0; i += step) {
         if (pCtx->hasNull && isNull((char *)&pData[i], pCtx->inputType)) {
+          continue;
+        }
+        if ((pDiffInfo->ignoreNegative) && (pData[i] < 0)) {
           continue;
         }
 
@@ -4708,6 +4732,10 @@ static void copySampleFuncRes(SQLFunctionCtx *pCtx, int32_t type) {
     *pTimestamp = *(pRes->timeStamps + i);
     pOutput += pCtx->outputBytes;
     pTimestamp++;
+  }
+
+  if (pCtx->tagInfo.numOfTagCols == 0) {
+    return ;
   }
 
   char **tagOutputs = calloc(pCtx->tagInfo.numOfTagCols, POINTER_BYTES);

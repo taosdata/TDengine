@@ -335,8 +335,8 @@ typedef struct {
 
 typedef struct {
   int8_t  extend;
-  char    clientVersion[TSDB_VERSION_LEN];
-  char    msgVersion[TSDB_VERSION_LEN];
+  char    clientVersion[TSDB_VERSION_LEN];  // useless
+  char    msgVersion[TSDB_VERSION_LEN];     // useless
   char    db[TSDB_TABLE_FNAME_LEN];
   char    appName[TSDB_APPNAME_LEN];
   int32_t pid;
@@ -920,7 +920,7 @@ typedef struct {
 
 typedef struct {
   int8_t   extend;
-  char     clientVer[TSDB_VERSION_LEN];
+  char     clientVer[TSDB_VERSION_LEN];   // useless
   uint32_t connId;
   int32_t  pid;
   int32_t  numOfQueries;

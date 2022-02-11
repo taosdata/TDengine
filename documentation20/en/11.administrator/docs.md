@@ -92,8 +92,8 @@ Only some important configuration parameters are listed below. For more paramete
 - fqdn: FQDN of the data node, which defaults to the first hostname configured by the operating system. If you want to access via IP address directly, you can set it to the IP address of the node.
 - serverPort: the port number of the external service after taosd started, the default value is 6030.
 - httpPort: the port number used by the RESTful service to which all HTTP requests (TCP) require a query/write request. The default value is 6041. Note 2.4 and later version use a stand-alone software, taosAdapter to provide RESTFul interface.
-- dataDir: the data file directory to which all data files will be written. [Default:/var/lib/taos](http://default/var/lib/taos).
-- logDir: the log file directory to which the running log files of the client and server will be written. [Default:/var/log/taos](http://default/var/log/taos).
+- dataDir: the data file directory to which all data files will be written. `Default:/var/lib/taos`.
+- logDir: the log file directory to which the running log files of the client and server will be written. `Default:/var/log/taos`.
 - arbitrator: the end point of the arbitrator in the system; the default value is null.
 - role: optional role for dnode. 0-any; it can be used as an mnode and to allocate vnodes; 1-mgmt; It can only be an mnode, but not to allocate vnodes; 2-dnode; cannot be an mnode, only vnode can be allocated
 - debugFlage: run the log switch. 131 (output error and warning logs), 135 (output error, warning, and debug logs), 143 (output error, warning, debug, and trace logs). Default value: 131 or 135 (different modules have different default values).
@@ -447,7 +447,7 @@ Some CLI options are needed to use the script:
           -T '{"alarm_level":"%s","time":"%s","name":"%s","content":"%s"}'
         ```
 
-Follow the usage of the script and then restart grafana-server service, here we go <http://localhost:3000/d/tdinsight>.
+Follow the usage of the script and then restart grafana-server service, here we go http://localhost:3000/d/tdinsight.
 
 Refer to [TDinsight](https://github.com/taosdata/grafanaplugin/blob/master/dashboards/TDinsight.md) README for more scenario and limitations of the script, and the metrics descriptions for all of the TDinsight.
 

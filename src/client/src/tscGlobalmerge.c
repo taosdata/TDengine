@@ -912,7 +912,7 @@ SSDataBlock* doGlobalAggregate(void* param, bool* newgroup) {
 
       // not belongs to the same group, return the result of current group;
       setInputDataBlock(pOperator, pAggInfo->binfo.pCtx, pAggInfo->pExistBlock, TSDB_ORDER_ASC);
-      updateOutputBuf(&pAggInfo->binfo, &pAggInfo->bufCapacity, pAggInfo->pExistBlock->info.rows, pOperator->pRuntimeEnv);
+      updateOutputBuf(&pAggInfo->binfo, &pAggInfo->bufCapacity, pAggInfo->pExistBlock->info.rows, pOperator->pRuntimeEnv, true);
 
       { // reset output buffer
         for(int32_t j = 0; j < pOperator->numOfOutput; ++j) {
@@ -964,7 +964,7 @@ SSDataBlock* doGlobalAggregate(void* param, bool* newgroup) {
 
     // not belongs to the same group, return the result of current group
     setInputDataBlock(pOperator, pAggInfo->binfo.pCtx, pBlock, TSDB_ORDER_ASC);
-    updateOutputBuf(&pAggInfo->binfo, &pAggInfo->bufCapacity, pBlock->info.rows * pAggInfo->resultRowFactor, pOperator->pRuntimeEnv);
+    updateOutputBuf(&pAggInfo->binfo, &pAggInfo->bufCapacity, pBlock->info.rows * pAggInfo->resultRowFactor, pOperator->pRuntimeEnv, true);
 
     doExecuteFinalMerge(pOperator, pOperator->numOfOutput, pBlock);
     savePrevOrderColumns(pAggInfo->currentGroupColData, pAggInfo->groupColumnList, pBlock, 0, &pAggInfo->hasGroupColData);
@@ -995,6 +995,8 @@ SSDataBlock* doGlobalAggregate(void* param, bool* newgroup) {
     }
   }
 
+  // shrink output memory on end
+  shrinkOutputBuf(&pAggInfo->binfo, &pAggInfo->bufCapacity);
   return (pRes->info.rows != 0)? pRes:NULL;
 }
 

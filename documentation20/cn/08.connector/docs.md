@@ -164,7 +164,7 @@ C/C++的API类似于MySQL的C API。应用程序使用时，需要包含TDengine
 
 ### 示例程序
 
-使用C/C++连接器的示例代码请参见 https://github.com/taosdata/TDengine/tree/develop/tests/examples/c 。
+使用C/C++连接器的示例代码请参见 https://github.com/taosdata/TDengine/tree/develop/examples/c 。
 
 示例程序源码也可以在安装目录下的 examples/c 路径下找到：
 
@@ -822,7 +822,7 @@ k1 = conn.query("select info->'k1' as k1 from s1").fetch_all_into_dict()
 
 为支持各种不同类型平台的开发，TDengine 提供符合 REST 设计标准的 API，即 RESTful API。为最大程度降低学习成本，不同于其他数据库 RESTful API 的设计方法，TDengine 直接通过 HTTP POST 请求 BODY 中包含的 SQL 语句来操作数据库，仅需要一个 URL。RESTful 连接器的使用参见[视频教程](https://www.taosdata.com/blog/2020/11/11/1965.html)。
 
-注意：与标准连接器的一个区别是，RESTful 接口是无状态的，因此 `USE db_name` 指令没有效果，所有对表名、超级表名的引用都需要指定数据库名前缀。（从 2.2.0.0 版本开始，支持在 RESTful url 中指定 db_name，这时如果 SQL 语句中没有指定数据库名前缀的话，会使用 url 中指定的这个 db_name。）
+注意：与原生连接器的一个区别是，RESTful 接口是无状态的，因此 `USE db_name` 指令没有效果，所有对表名、超级表名的引用都需要指定数据库名前缀。（从 2.2.0.0 版本开始，支持在 RESTful url 中指定 db_name，这时如果 SQL 语句中没有指定数据库名前缀的话，会使用 url 中指定的这个 db_name。从 2.4.0.0 版本开始，RESTful 默认有 taosAdapter 提供，要求必须在 url 中指定 db_name。）
 
 ### 安装
 
@@ -1080,7 +1080,7 @@ HTTP 请求 URL 采用 `sqlutc` 时，返回结果集的时间戳将采用 UTC �
 
 示例程序源码位于
 * {client_install_directory}/examples/C#
-* [github C# example source code](https://github.com/taosdata/TDengine/tree/develop/tests/examples/C%2523)
+* [github C# example source code](https://github.com/taosdata/TDengine/tree/develop/examples/C%2523)
 
 **注意:** TDengineTest.cs       C#示例源程序,包含了数据库连接参数，以及如何执行数据插入、查询等操作。
 
@@ -1112,7 +1112,7 @@ dotnet add package TDengine.Connector
 ```c# 
 using TDengineDriver;
 ```
-* 用户可以参考[TDengineTest.cs](https://github.com/taosdata/TDengine/tree/develop/tests/examples/C%2523/TDengineTest)来定义数据库连接参数，以及如何执行数据插入、查询等操作。
+* 用户可以参考[TDengineTest.cs](https://github.com/taosdata/TDengine/tree/develop/examples/C%2523/TDengineTest)来定义数据库连接参数，以及如何执行数据插入、查询等操作。
 
 
 **注意：**
@@ -1150,7 +1150,7 @@ Go连接器支持的系统有：
 
 ### 示例程序
 
-使用 Go 连接器的示例代码请参考 https://github.com/taosdata/TDengine/tree/develop/tests/examples/go 以及[视频教程](https://www.taosdata.com/blog/2020/11/11/1951.html)。
+使用 Go 连接器的示例代码请参考 https://github.com/taosdata/TDengine/tree/develop/examples/go 以及[视频教程](https://www.taosdata.com/blog/2020/11/11/1951.html)。
 
 示例程序源码也位于安装目录下的 examples/go/taosdemo.go 文件中。
 
@@ -1285,7 +1285,7 @@ Node-example-raw.js
 
 验证方法：
 
-1. 新建安装验证目录，例如：`~/tdengine-test`，拷贝github上nodejsChecker.js源程序。下载地址：（https://github.com/taosdata/TDengine/tree/develop/tests/examples/nodejs/nodejsChecker.js）。
+1. 新建安装验证目录，例如：`~/tdengine-test`，拷贝github上nodejsChecker.js源程序。下载地址：（https://github.com/taosdata/TDengine/tree/develop/examples/nodejs/nodejsChecker.js）。
 
 2. 在命令行中执行以下命令：
 
@@ -1389,6 +1389,6 @@ promise2.then(function(result) {
 
 ### 示例
 
-[node-example.js](https://github.com/taosdata/TDengine/tree/master/tests/examples/nodejs/node-example.js)提供了一个使用NodeJS 连接器建表，插入天气数据并查询插入的数据的代码示例。
+[node-example.js](https://github.com/taosdata/tests/tree/master/examples/nodejs/node-example.js)提供了一个使用NodeJS 连接器建表，插入天气数据并查询插入的数据的代码示例。
 
-[node-example-raw.js](https://github.com/taosdata/TDengine/tree/master/tests/examples/nodejs/node-example-raw.js)同样是一个使用NodeJS 连接器建表，插入天气数据并查询插入的数据的代码示例，但和上面不同的是，该示例只使用`cursor`。
+[node-example-raw.js](https://github.com/taosdata/tests/tree/master/examples/nodejs/node-example-raw.js)同样是一个使用NodeJS 连接器建表，插入天气数据并查询插入的数据的代码示例，但和上面不同的是，该示例只使用`cursor`。

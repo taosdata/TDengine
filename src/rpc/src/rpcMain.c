@@ -1165,6 +1165,19 @@ static void rpcProcessIncomingMsg(SRpcConn *pConn, SRpcHead *pHead, SRpcReqConte
     rpcMsg.handle = pConn;
     rpcAddRef(pRpc);  // add the refCount for requests
 
+    switch (rpcMsg.msgType) {
+      case TSDB_MSG_TYPE_SUBMIT:
+        if (tsShortcutFlag & TSDB_SHORTCUT_RA_RPC_RECV_SUBMIT) {
+          SRpcMsg rMsg = {.handle = rpcMsg.handle, .pCont = NULL, .contLen = 0};
+          rpcSendResponse(&rMsg);
+          rpcFreeCont(rpcMsg.pCont);
+          return;
+        }
+        break;
+      default:
+        break;
+    }
+
     // notify the server app
     (*(pRpc->cfp))(&rpcMsg, NULL);
   } else {

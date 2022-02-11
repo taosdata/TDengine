@@ -1,5 +1,0 @@
-../src/connector/python
-numpy
-fabric2
-psutil
-pandas

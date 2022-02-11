@@ -7,21 +7,21 @@ TDengine provides many connectors for development, including C/C++, JAVA, Python
 At present, TDengine connectors support a wide range of platforms, including hardware platforms such as X64/X86/ARM64/ARM32/MIPS/Alpha, and development environments such as Linux/Win64/Win32. The comparison matrix is as follows:
 
 | **CPU**     | **X64 64bit** | **X64 64bit** | **X64 64bit** | **X86 32bit** | **ARM64** | **ARM32** | **MIPS Godson** | **Alpha Sunway** | **X64 TimecomTech** |
-| ----------- | ------------- | ------------- | ------------- | ------------- | --------- | --------- | --------------- | ----------------- | ------------------- |
-| **OS**      | **Linux**     | **Win64**     | **Win32**     | **Win32**     | **Linux** | **Linux** | **Linux**       | **Linux**         | **Linux**           |
-| **C/C++**   | ●             | ●             | ●             | ○             | ●         | ●         | ○               | ○                 | ○                   |
-| **JDBC**    | ●             | ●             | ●             | ○             | ●         | ●         | ○               | ○                 | ○                   |
-| **Python**  | ●             | ●             | ●             | ○             | ●         | ●         | ○               | --                | ○                   |
-| **Go**      | ●             | ●             | ●             | ○             | ●         | ●         | ○               | --                | --                  |
-| **NodeJs**  | ●             | ●             | ○             | ○             | ●         | ●         | ○               | --                | --                  |
-| **C#**      | ○             | ●             | ●             | ○             | ○         | ○         | ○               | --                | --                  |
-| **RESTful** | ●             | ●             | ●             | ●             | ●         | ●         | ○               | ○                 | ○                   |
+| ----------- | ------------- | ------------- | ------------- | ------------- | --------- | --------- | --------------- | ---------------- | ------------------- |
+| **OS**      | **Linux**     | **Win64**     | **Win32**     | **Win32**     | **Linux** | **Linux** | **Linux**       | **Linux**        | **Linux**           |
+| **C/C++**   | ●             | ●             | ●             | ○             | ●         | ●         | ○               | ○                | ○                   |
+| **JDBC**    | ●             | ●             | ●             | ○             | ●         | ●         | ○               | ○                | ○                   |
+| **Python**  | ●             | ●             | ●             | ○             | ●         | ●         | ○               | --               | ○                   |
+| **Go**      | ●             | ●             | ●             | ○             | ●         | ●         | ○               | --               | --                  |
+| **NodeJs**  | ●             | ●             | ○             | ○             | ●         | ●         | ○               | --               | --                  |
+| **C#**      | ○             | ●             | ●             | ○             | ○         | ○         | ○               | --               | --                  |
+| **RESTful** | ●             | ●             | ●             | ●             | ●         | ●         | ○               | ○                | ○                   |
 
 Note: ● stands for that has been verified by official tests; ○ stands for that has been verified by unofficial tests. 
 
 Note:
 
-- To access the TDengine database through connectors (except RESTful) in the system without TDengine server software, it is necessary to install the corresponding version of the client installation package to make the application driver (the file name is [libtaos.so](http://libtaos.so/) in Linux system and taos.dll in Windows system) installed in the system, otherwise, the error that the corresponding library file cannot be found will occur.
+- To access the TDengine database through connectors (except RESTful) in the system without TDengine server software, it is necessary to install the corresponding version of the client installation package to make the application driver (the file name is libtaos.so in Linux system and taos.dll in Windows system) installed in the system, otherwise, the error that the corresponding library file cannot be found will occur.
 - All APIs that execute SQL statements, such as `tao_query`, `taos_query_a`, `taos_subscribe` in C/C++ Connector, and APIs corresponding to them in other languages, can only execute one SQL statement at a time. If the actual parameters contain multiple statements, their behavior is undefined.
 - Users upgrading to TDengine 2.0. 8.0 must update the JDBC connection. TDengine must upgrade taos-jdbcdriver to 2.0.12 and above.
 - No matter which programming language connector is selected, TDengine version 2.0 and above recommends that each thread of database application establish an independent connection or establish a connection pool based on threads to avoid mutual interference between threads of "USE statement" state variables in the connection (but query and write operations of the connection are thread-safe).
@@ -151,10 +151,10 @@ Under cmd, enter the c:\TDengine directory and directly execute taos.exe, and yo
 
 **Systems supported by C/C++ connectors as follows:**
 
-| **CPU Type**         | **x64****（****64bit****）** |         |         | **ARM64** | **ARM32**          |
-| -------------------- | ---------------------------- | ------- | ------- | --------- | ------------------ |
-| **OS Type**          | Linux                        | Win64   | Win32   | Linux     | Linux              |
-| **Supported or Not** | Yes                          | **Yes** | **Yes** | **Yes**   | **Yes** |
+| **CPU Type**         | **x64****（****64bit****）** |         |         | **ARM64** | **ARM32** |
+| -------------------- | ---------------------------- | ------- | ------- | --------- | --------- |
+| **OS Type**          | Linux                        | Win64   | Win32   | Linux     | Linux     |
+| **Supported or Not** | Yes                          | **Yes** | **Yes** | **Yes**   | **Yes**   |
 
 The C/C++ API is similar to MySQL's C API. When application use it, it needs to include the TDengine header file taos.h (after installed, it is located in/usr/local/taos/include):
 
@@ -164,10 +164,10 @@ The C/C++ API is similar to MySQL's C API. When application use it, it needs to 
 
 Note:
 
-- The TDengine dynamic library needs to be linked at compiling. The library in Linux is [libtaos.so](http://libtaos.so/), which installed at/usr/local/taos/driver. By Windows, it is taos.dll and installed at C:\ TDengine.
+- The TDengine dynamic library needs to be linked at compiling. The library in Linux is *libtaos.so*, which installed at/usr/local/taos/driver. By Windows, it is taos.dll and installed at C:\ TDengine.
 - Unless otherwise specified, when the return value of API is an integer, 0 represents success, others are error codes representing the cause of failure, and when the return value is a pointer, NULL represents failure.
 
-More sample codes for using C/C++ connectors, please visit https://github.com/taosdata/TDengine/tree/develop/tests/examples/c.
+More sample codes for using C/C++ connectors, please visit https://github.com/taosdata/TDengine/tree/develop/examples/c.
 
 ### Basic API
 
@@ -661,6 +661,8 @@ In tests/examples/python, we provide a sample Python program read_example. py to
 
 To support the development of various types of platforms, TDengine provides an API that conforms to REST design standards, that is, RESTful API. In order to minimize the learning cost, different from other designs of database RESTful APIs, TDengine directly requests SQL statements contained in BODY through HTTP POST to operate the database, and only needs a URL. See the [video tutorial](https://www.taosdata.com/blog/2020/11/11/1965.html) for the use of RESTful connectors.
 
+Note: One difference from the native connector is that the RESTful interface is stateless, so the `USE db_name` command has no effect and all references to table names and super table names require the database name to be specified. (Starting from version 2.2.0.0, we support specifying db_name in the RESTful url, in which case if the database name prefix is not specified in the SQL statement. Since version 2.4.0.0, RESTful service is provided by taosAdapter by default, which requires that db_name must be specified in the url.)
+
 ###  HTTP request format
 
 ```
@@ -672,7 +674,7 @@ Parameter description:
 - IP: Any host in the cluster
 - PORT: httpPort configuration item in the configuration file, defaulting to 6041
 
-For example: [http://192.168.0.1](http://192.168.0.1/): 6041/rest/sql is a URL that points to an IP address of 192.168. 0.1.
+For example: http://192.168.0.1:6041/rest/sql is a URL that points to an IP address of 192.168.0.1.
 
 The header of HTTP request needs to carry identity authentication information. TDengine supports Basic authentication and custom authentication. Subsequent versions will provide standard and secure digital signature mechanism for identity authentication.
 
@@ -889,7 +891,7 @@ Only some configuration parameters related to RESTful interface are listed below
 ### Example Source Code
 you can find sample code under follow directions:
 * {client_install_directory}/examples/C#
-* [github C# example source code](https://github.com/taosdata/TDengine/tree/develop/tests/examples/C%2523)
+* [github C# example source code](https://github.com/taosdata/TDengine/tree/develop/examples/C%2523)
 
 **Tips:** TDengineTest.cs       One of C# connector's sample code that include basic examples like connection,sql executions and so on.
 
@@ -922,7 +924,7 @@ dotnet add package TDengine.Connector
 ```C#
 using TDengineDriver;
 ```
-* user can reference from[TDengineTest.cs](https://github.com/taosdata/TDengine/tree/develop/tests/examples/C%2523/TDengineTest) and learn how to define database connection,query,insert and other basic data manipulations.
+* user can reference from[TDengineTest.cs](https://github.com/taosdata/TDengine/tree/develop/examples/C%2523/TDengineTest) and learn how to define database connection,query,insert and other basic data manipulations.
 
 **Note:**
 
@@ -949,7 +951,7 @@ https://www.taosdata.com/blog/2020/11/02/1901.html
 
 The TDengine provides the GO driver taosSql. taosSql implements the GO language's built-in interface database/sql/driver. Users can access TDengine in the application by simply importing the package as follows, see https://github.com/taosdata/driver-go/blob/develop/taosSql/driver_test.go for details.
 
-Sample code for using the Go connector can be found in https://github.com/taosdata/TDengine/tree/develop/tests/examples/go .
+Sample code for using the Go connector can be found in https://github.com/taosdata/TDengine/tree/develop/examples/go .
 
 ```Go
 import (
@@ -1003,10 +1005,10 @@ This API is used to open DB and return an object of type \* DB. Generally, DRIVE
 
 The Node.js connector supports the following systems:
 
-| **CPU Type**         | x64(64bit）                  |         |         |   aarch64   |   aarch32   |
-| -------------------- | ---------------------------- | ------- | ------- | ----------- | ----------- |
-| **OS Type**          | Linux                        | Win64   | Win32   | Linux       | Linux       |
-| **Supported or Not** | **Yes**                      | **Yes** | **Yes** | **Yes**     | **Yes**     |
+| **CPU Type**         | x64(64bit） |         |         | aarch64 | aarch32 |
+| -------------------- | ----------- | ------- | ------- | ------- | ------- |
+| **OS Type**          | Linux       | Win64   | Win32   | Linux   | Linux   |
+| **Supported or Not** | **Yes**     | **Yes** | **Yes** | **Yes** | **Yes** |
 
 See the [video tutorial](https://www.taosdata.com/blog/2020/11/11/1957.html) for use of the Node.js connector.
 
@@ -1065,7 +1067,7 @@ After installing the TDengine client, the nodejsChecker.js program can verify wh
 
 Steps:
 
-1. Create a new installation verification directory, for example: `~/tdengine-test`, copy the nodejsChecker.js source program on github. Download address: （https://github.com/taosdata/TDengine/tree/develop/tests/examples/nodejs/nodejsChecker.js）.
+1. Create a new installation verification directory, for example: `~/tdengine-test`, copy the nodejsChecker.js source program on github. Download address: （https://github.com/taosdata/TDengine/tree/develop/examples/nodejs/nodejsChecker.js）.
 
 2. Execute the following command:
 
@@ -1169,6 +1171,6 @@ promise2.then(function(result) {
 
 ### Example
 
-[node-example.js](https://github.com/taosdata/TDengine/tree/master/tests/examples/nodejs/node-example.js) provides a code example that uses the NodeJS connector to create a table, insert weather data, and query the inserted data.
+[node-example.js](https://github.com/taosdata/tests/tree/master/examples/nodejs/node-example.js) provides a code example that uses the NodeJS connector to create a table, insert weather data, and query the inserted data.
 
-[node-example-raw.js](https://github.com/taosdata/TDengine/tree/master/tests/examples/nodejs/node-example-raw.js) is also a code example that uses the NodeJS connector to create a table, insert weather data, and query the inserted data, but unlike the above, this example only uses cursor.
+[node-example-raw.js](https://github.com/taosdata/tests/tree/master/examples/nodejs/node-example-raw.js) is also a code example that uses the NodeJS connector to create a table, insert weather data, and query the inserted data, but unlike the above, this example only uses cursor.

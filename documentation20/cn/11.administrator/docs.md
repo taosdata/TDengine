@@ -149,7 +149,7 @@ taosd -C
 | 31    | streamCompDelayRatio    |          | **S**    |          | 连续查询的延迟时间计算系数                                   | 0.1-0.9                                                      | 0.1                                                          |                                                              |
 | 32    | maxVgroupsPerDb         |          | **S**    |          | 每个DB中 能够使用的最大vnode个数                             | 0-8192                                                       |                                                              |                                                              |
 | 33    | maxTablesPerVnode       |          | **S**    |          | 每个vnode中能够创建的最大表个数                              |                                                              | 1000000                                                      |                                                              |
-| 34    | minTablesPerVnode       | YES      | **S**    |          | 每个vnode中必须创建的最小表个数                              |                                                              | 100                                                          |                                                              |
+| 34    | minTablesPerVnode       | YES      | **S**    |          | 每个vnode中必须创建的最小表个数                              |                                                              | 1000                                                          |                                                              |
 | 35    | tableIncStepPerVnode    | YES      | **S**    |          | 每个vnode中超过最小表数后递增步长                            |                                                              | 1000                                                         |                                                              |
 | 36    | cache                   |          | **S**    | MB       | 内存块的大小                                                 |                                                              | 16                                                           |                                                              |
 | 37    | blocks                  |          | **S**    |          | 每个vnode（tsdb）中有多少cache大小的内存块。因此一个vnode的用的内存大小粗略为（cache * blocks） |                                                              | 6                                                            |                                                              |
@@ -162,7 +162,7 @@ taosd -C
 | 44    | walLevel                |          | **S**    |          | WAL级别                                                      | 1：写wal, 但不执行fsync; 2：写wal,  而且执行fsync            | 1                                                            |                                                              |
 | 45    | fsync                   |          | **S**    | 毫秒     | 当wal设置为2时，执行fsync的周期                              | 最小为0，表示每次写入，立即执行fsync；最大为180000（三分钟） | 3000                                                         |                                                              |
 | 46    | replica                 |          | **S**    |          | 副本个数                                                     | 1-3                                                          | 1                                                            |                                                              |
-| 47    | mqttHostName            | YES      | **S**    |          | mqtt uri                                                     |                                                              |                                                              | [mqtt://username:password@hostname:1883/taos/](mqtt://username:password@hostname:1883/taos/) |
+| 47    | mqttHostName            | YES      | **S**    |          | mqtt uri                                                     |                                                              |                                                              | mqtt://username:password@hostname:1883/taos/ |
 | 48    | mqttPort                | YES      | **S**    |          | mqtt client name                                             |                                                              |                                                              | 1883                                                         |
 | 49    | mqttTopic               | YES      | **S**    |          |                                                              |                                                              |                                                              | /test                                                        |
 | 50    | compressMsgSize         |          | **S**    | bytes    | 客户端与服务器之间进行消息通讯过程中，对通讯的消息进行压缩的阈值。如果要压缩消息，建议设置为64330字节，即大于64330字节的消息体才进行压缩。 | `0 `表示对所有的消息均进行压缩  >0: 超过该值的消息才进行压缩  -1: 不压缩 | -1                                                           |                                                              |
@@ -602,7 +602,7 @@ chmod +x TDinsight.sh
           -T '{"alarm_level":"%s","time":"%s","name":"%s","content":"%s"}'
         ```
 
-运行程序并重启 Grafana 服务，打开面板：<http://localhost:3000/d/tdinsight>。
+运行程序并重启 Grafana 服务，打开面板：http://localhost:3000/d/tdinsight。
 
 更多使用场景和限制请参考[TDinsight](https://github.com/taosdata/grafanaplugin/blob/master/dashboards/TDinsight.md) 文档。
 
@@ -694,6 +694,13 @@ rmtaos
 1. 合法字符：英文字符、数字和下划线
 2. 允许英文字符或下划线开头，不允许以数字开头
 3. 不区分大小写
+4. 转义后表（列）名规则：
+   为了兼容支持更多形式的表（列）名，TDengine 引入新的转义符  "`"。可用让表名与关键词不冲突，同时不受限于上述表名称合法性约束检查。
+   转义后的表（列）名同样受到长度限制要求，且长度计算的时候不计算转义符。使用转义字符以后，不再对转义字符中的内容进行大小写统一。
+
+   例如：\`aBc\` 和 \`abc\` 是不同的表（列）名，但是 abc 和 aBc 是相同的表（列）名。
+   需要注意的是转义字符中的内容必须是可打印字符。
+   支持转义符的功能从 2.3.0.1 版本开始。
 
 **密码合法字符集**
 
@@ -763,6 +770,27 @@ rmtaos
 | CONNS        | ID           | NOTNULL      | STABLE       | WAL          |
 | COPY         | IF           | NOW          | STABLES      | WHERE        |
 
+## 转义字符说明
+- 转义字符表（转义符的功能从 2.4.0.4 版本开始）
+
+  | 字符序列    | **代表的字符**  |
+      | :--------:     |   -------    |
+  | `\'`             |  单引号'      | 
+  | `\"`             |  双引号"      |
+  | \n             |  换行符       |
+  | \r             |  回车符       |
+  | \t             |  tab符       |
+  | `\\`             |  斜杠\        |
+  | `\%`             |  % 规则见下    |
+  | `\_`             |  _ 规则见下    |
+
+- 转义字符使用规则
+  1. 标识符里有转义字符（数据库名、表名、列名）
+     1. 普通标识符：    直接提示错误的标识符，因为标识符规定必须是数字、字母和下划线，并且不能以数字开头。
+     2. 反引号``标识符： 保持原样，不转义
+  2. 数据里有转义字符
+     1. 遇到上面定义的转义字符会转义（%和_见下面说明），如果没有匹配的转义字符会忽略掉转义符\。
+     2. 对于%和_，因为在like里这两个字符是通配符，所以在模式匹配like里用`\%`%和`\_`表示字符里本身的%和_，如果在like模式匹配上下文之外使用`\%`或`\_`，则它们的计算结果为字符串`\%`和`\_`，而不是%和_。
 ## 诊断及其他
 
 #### 网络连接诊断

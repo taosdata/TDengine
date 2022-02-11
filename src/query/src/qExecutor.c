@@ -764,7 +764,7 @@ static bool resultRowInterpolated(SResultRow* pResult, SResultTsInterpType type)
   }
 }
 
-static FORCE_INLINE int32_t getForwardStepsInBlock(int32_t numOfRows, __block_search_fn_t searchFn, TSKEY ekey, int16_t pos,
+static FORCE_INLINE int32_t getForwardStepsInBlock(int32_t numOfRows, __block_search_fn_t searchFn, TSKEY ekey, int32_t pos,
                                       int16_t order, int64_t *pData) {
   int32_t forwardStep = 0;
 
@@ -2075,6 +2075,22 @@ static int32_t setupQueryRuntimeEnv(SQueryRuntimeEnv *pRuntimeEnv, int32_t numOf
 
   pRuntimeEnv->prevRow = malloc(POINTER_BYTES * pQueryAttr->numOfCols + pQueryAttr->srcRowSize);
   pRuntimeEnv->tagVal  = malloc(pQueryAttr->tagLen);
+
+  // malloc pTablesRead value if super table  && project query and && has order by && limit is true
+  if( pRuntimeEnv->pQueryHandle &&  // client merge no tsdb query, so pQueryHandle is NULL, except client merge case in here 
+      pQueryAttr->limit.limit > 0 &&
+      pQueryAttr->limit.offset == 0 && // if have offset, ignore limit optimization 
+      pQueryAttr->stableQuery &&
+      isProjQuery(pQueryAttr) &&
+      pQueryAttr->order.orderColId != -1 ) {
+        // can be optimizate limit 
+        pRuntimeEnv->pTablesRead = taosHashInit(numOfTables, taosGetDefaultHashFunction(TSDB_DATA_TYPE_INT), true, HASH_NO_LOCK);
+        if (pRuntimeEnv->pTablesRead) // must malloc ok, set callback to tsdb
+          tsdbAddScanCallback(pRuntimeEnv->pQueryHandle, qReadOverCB, pRuntimeEnv);
+  } else {
+    pRuntimeEnv->pTablesRead = NULL;
+  }
+  pRuntimeEnv->cntTableReadOver= 0;
 
   // NOTE: pTableCheckInfo need to update the query time range and the lastKey info
   pRuntimeEnv->pTableRetrieveTsMap = taosHashInit(numOfTables, taosGetDefaultHashFunction(TSDB_DATA_TYPE_INT), false, HASH_NO_LOCK);
@@ -3697,30 +3713,55 @@ void setDefaultOutputBuf(SQueryRuntimeEnv *pRuntimeEnv, SOptrBasicInfo *pInfo, i
   initCtxOutputBuffer(pCtx, pDataBlock->info.numOfCols);
 }
 
-void updateOutputBuf(SOptrBasicInfo* pBInfo, int32_t *bufCapacity, int32_t numOfInputRows, SQueryRuntimeEnv* runtimeEnv) {
+// extend doulbe newSize to bufCapacity
+bool extendColCapacity(SColumnInfoData* pColInfo, int32_t newSize, SQLFunctionCtx* pCtx, int32_t *bufCapacity, bool extendLarge) {
+  char* p = NULL;
+  int32_t newCapacity = 0;
+  if (extendLarge) {
+    // doulbe newSize
+    newCapacity = newSize * 2;
+    p = realloc(pColInfo->pData, (size_t)newCapacity * pColInfo->info.bytes);
+  }
+
+  if (p == NULL) {
+    // failed then newSize
+    newCapacity = newSize;
+    p = realloc(pColInfo->pData, (size_t)newCapacity * pColInfo->info.bytes);
+    if(p == NULL) {
+      taosMsleep(1000);
+      p = realloc(pColInfo->pData, (size_t)newCapacity * pColInfo->info.bytes);
+      qInfo("MEM realloc memory size %d failed, sleep 1s to try, p=%p", newSize * pColInfo->info.bytes, p);
+    }
+  }
+
+  if (p != NULL) {
+    // save new pointer
+    pColInfo->pData = p;
+    pCtx->pOutput   = p;
+    (*bufCapacity)  = newCapacity;
+    return true;
+  }
+
+  return false;
+}
+
+void updateOutputBuf(SOptrBasicInfo* pBInfo, int32_t *bufCapacity, int32_t numOfInputRows, SQueryRuntimeEnv* runtimeEnv, bool extendLarge) {
   SSDataBlock* pDataBlock = pBInfo->pRes;
 
   int32_t newSize = pDataBlock->info.rows + numOfInputRows + 5; // extra output buffer
   if ((*bufCapacity) < newSize) {
     for(int32_t i = 0; i < pDataBlock->info.numOfCols; ++i) {
       SColumnInfoData *pColInfo = taosArrayGet(pDataBlock->pDataBlock, i);
-
-      char* p = realloc(pColInfo->pData, ((size_t)newSize) * pColInfo->info.bytes);
-      if (p != NULL) {
-        pColInfo->pData = p;
-
-        // it starts from the tail of the previously generated results.
-        pBInfo->pCtx[i].pOutput = pColInfo->pData;
-        (*bufCapacity) = newSize;
-      } else {
+      if (!extendColCapacity(pColInfo, newSize, &pBInfo->pCtx[i], bufCapacity, extendLarge)) {
+        // error throw except
         size_t allocateSize = ((size_t)(newSize)) * pColInfo->info.bytes;
-        qError("can not allocate %zu bytes for output. Rows: %d, colBytes %d", 
+        qError("can not allocate %zu bytes for output. Rows: %d, colBytes %d",
                         allocateSize, newSize, pColInfo->info.bytes);
         longjmp(runtimeEnv->env, TSDB_CODE_QRY_OUT_OF_MEMORY);
+        return ;
       }
     }
   }
-
 
   for (int32_t i = 0; i < pDataBlock->info.numOfCols; ++i) {
     SColumnInfoData *pColInfo = taosArrayGet(pDataBlock->pDataBlock, i);
@@ -3762,6 +3803,24 @@ void updateOutputBufForUnique(SOptrBasicInfo* pBInfo, SQueryRuntimeEnv* runtimeE
       longjmp(runtimeEnv->env, TSDB_CODE_QRY_OUT_OF_MEMORY);
     }
   }
+// shrink pBInfo->pRes memory
+void shrinkOutputBuf(SOptrBasicInfo* pBInfo, int32_t *bufCapacity) {
+  SSDataBlock* pDataBlock = pBInfo->pRes;
+  int32_t rows = pDataBlock->info.rows + 5; // remain 5 buffer
+
+  // shrink if only too large blank space
+  if (*bufCapacity - rows <= 200) {
+    return ; // no need shrink
+  }
+
+  // bufCapcaity shrink to rows
+  for(int32_t i = 0; i < pDataBlock->info.numOfCols; ++i) {
+    SColumnInfoData *pColInfo = taosArrayGet(pDataBlock->pDataBlock, i);
+    void* pNew = realloc(pColInfo->pData, rows * pColInfo->info.bytes);
+    if (pNew)
+      pColInfo->pData = pNew;
+  }
+  *bufCapacity = rows;
 }
 
 void copyTsColoum(SSDataBlock* pRes, SQLFunctionCtx* pCtx, int32_t numOfOutput) {
@@ -6126,6 +6185,9 @@ static SSDataBlock* doProjectOperation(void* param, bool* newgroup) {
     STableQueryInfo* pTableQueryInfo = pRuntimeEnv->current;
 
     SSDataBlock* pBlock = pProjectInfo->existDataBlock;
+    // record table read rows
+    addTableReadRows(pRuntimeEnv, pBlock->info.tid,  pBlock->info.rows);
+
     pProjectInfo->existDataBlock = NULL;
     *newgroup = true;
 
@@ -6136,7 +6198,7 @@ static SSDataBlock* doProjectOperation(void* param, bool* newgroup) {
 
     // the pDataBlock are always the same one, no need to call this again
     setInputDataBlock(pOperator, pInfo->pCtx, pBlock, order);
-    updateOutputBuf(&pProjectInfo->binfo, &pProjectInfo->bufCapacity, pBlock->info.rows, pOperator->pRuntimeEnv);
+    updateOutputBuf(&pProjectInfo->binfo, &pProjectInfo->bufCapacity, pBlock->info.rows, pOperator->pRuntimeEnv,false);
 
     projectApplyFunctions(pRuntimeEnv, pInfo->pCtx, pOperator->numOfOutput);
     if (pTableQueryInfo != NULL) {
@@ -6171,6 +6233,9 @@ static SSDataBlock* doProjectOperation(void* param, bool* newgroup) {
       doSetOperatorCompleted(pOperator);
       break;
     }
+    
+    // record table read rows
+    addTableReadRows(pRuntimeEnv, pBlock->info.tid,  pBlock->info.rows);
 
     // Return result of the previous group in the firstly.
     if (*newgroup) {
@@ -6202,7 +6267,7 @@ static SSDataBlock* doProjectOperation(void* param, bool* newgroup) {
 
     // the pDataBlock are always the same one, no need to call this again
     setInputDataBlock(pOperator, pInfo->pCtx, pBlock, order);
-    updateOutputBuf(&pProjectInfo->binfo, &pProjectInfo->bufCapacity, pBlock->info.rows, pOperator->pRuntimeEnv);
+    updateOutputBuf(&pProjectInfo->binfo, &pProjectInfo->bufCapacity, pBlock->info.rows, pOperator->pRuntimeEnv,false);
 
     projectApplyFunctions(pRuntimeEnv, pInfo->pCtx, pOperator->numOfOutput);
     if (pTableQueryInfo != NULL) {
@@ -6717,7 +6782,7 @@ static void doTimeEveryImpl(SOperatorInfo* pOperator, SQLFunctionCtx *pCtx, SSDa
         break;
       }
       
-      updateOutputBuf(&pEveryInfo->binfo, &pEveryInfo->bufCapacity, 0, pOperator->pRuntimeEnv);
+      updateOutputBuf(&pEveryInfo->binfo, &pEveryInfo->bufCapacity, 0, pOperator->pRuntimeEnv,false);
     }
   }
 }
@@ -6737,7 +6802,7 @@ static SSDataBlock* doTimeEvery(void* param, bool* newgroup) {
   pRes->info.rows = 0;
 
   if (!pEveryInfo->groupDone) {
-    updateOutputBuf(&pEveryInfo->binfo, &pEveryInfo->bufCapacity, 0, pOperator->pRuntimeEnv);
+    updateOutputBuf(&pEveryInfo->binfo, &pEveryInfo->bufCapacity, 0, pOperator->pRuntimeEnv,false);
     doTimeEveryImpl(pOperator, pInfo->pCtx, pEveryInfo->lastBlock, false);
     if (pRes->info.rows >= pRuntimeEnv->resultInfo.threshold) {
       copyTsColoum(pRes, pInfo->pCtx, pOperator->numOfOutput);
@@ -6773,7 +6838,7 @@ static SSDataBlock* doTimeEvery(void* param, bool* newgroup) {
 
     // the pDataBlock are always the same one, no need to call this again
     setInputDataBlock(pOperator, pInfo->pCtx, pBlock, order);
-    updateOutputBuf(&pEveryInfo->binfo, &pEveryInfo->bufCapacity, pBlock->info.rows, pOperator->pRuntimeEnv);
+    updateOutputBuf(&pEveryInfo->binfo, &pEveryInfo->bufCapacity, pBlock->info.rows, pOperator->pRuntimeEnv, false);
 
     doTimeEveryImpl(pOperator, pInfo->pCtx, pBlock, *newgroup);
     if (pEveryInfo->groupDone && pOperator->upstream[0]->notify) {
@@ -6799,7 +6864,7 @@ static SSDataBlock* doTimeEvery(void* param, bool* newgroup) {
       if (!pEveryInfo->groupDone) {
         pEveryInfo->allDone = true;
 
-        updateOutputBuf(&pEveryInfo->binfo, &pEveryInfo->bufCapacity, 0, pOperator->pRuntimeEnv);
+        updateOutputBuf(&pEveryInfo->binfo, &pEveryInfo->bufCapacity, 0, pOperator->pRuntimeEnv,false);
         doTimeEveryImpl(pOperator, pInfo->pCtx, NULL, false);
         if (pRes->info.rows >= pRuntimeEnv->resultInfo.threshold) {
           break;
@@ -6820,7 +6885,7 @@ static SSDataBlock* doTimeEvery(void* param, bool* newgroup) {
     // Return result of the previous group in the firstly.
     if (*newgroup) {
       if (!pEveryInfo->groupDone) {
-        updateOutputBuf(&pEveryInfo->binfo, &pEveryInfo->bufCapacity, 0, pOperator->pRuntimeEnv);
+        updateOutputBuf(&pEveryInfo->binfo, &pEveryInfo->bufCapacity, 0, pOperator->pRuntimeEnv,false);
         doTimeEveryImpl(pOperator, pInfo->pCtx, NULL, false);
         if (pRes->info.rows >= pRuntimeEnv->resultInfo.threshold) {
           pEveryInfo->existDataBlock = pBlock;
@@ -6856,7 +6921,7 @@ static SSDataBlock* doTimeEvery(void* param, bool* newgroup) {
 
     // the pDataBlock are always the same one, no need to call this again
     setInputDataBlock(pOperator, pInfo->pCtx, pBlock, order);
-    updateOutputBuf(&pEveryInfo->binfo, &pEveryInfo->bufCapacity, pBlock->info.rows, pOperator->pRuntimeEnv);
+    updateOutputBuf(&pEveryInfo->binfo, &pEveryInfo->bufCapacity, pBlock->info.rows, pOperator->pRuntimeEnv, false);
 
     pEveryInfo->groupDone = false;
 
@@ -8609,10 +8674,6 @@ static int32_t deserializeColFilterInfo(SColumnFilterInfo* pColFilters, int16_t 
 int32_t convertQueryMsg(SQueryTableMsg *pQueryMsg, SQueryParam* param) {
   int32_t code = TSDB_CODE_SUCCESS;
 
-  if (taosCheckVersion(pQueryMsg->version, version, 3) != 0) {
-    return TSDB_CODE_QRY_INVALID_MSG;
-  }
-
   pQueryMsg->numOfTables = htonl(pQueryMsg->numOfTables);
   pQueryMsg->window.skey = htobe64(pQueryMsg->window.skey);
   pQueryMsg->window.ekey = htobe64(pQueryMsg->window.ekey);
@@ -9641,7 +9702,6 @@ SQInfo* createQInfoImpl(SQueryTableMsg* pQueryMsg, SGroupbyExpr* pGroupbyExpr, S
   }
 
   for (int16_t col = 0; col < numOfOutput; ++col) {
-    assert(pExprs[col].base.resBytes > 0);
     pQueryAttr->resultRowSize += pExprs[col].base.resBytes;
 
     // keep the tag length
@@ -10161,4 +10221,70 @@ void freeQueryAttr(SQueryAttr* pQueryAttr) {
 
     filterFreeInfo(pQueryAttr->pFilters);
   }
+}
+
+// add table read rows count. pHashTables must not be NULL
+void addTableReadRows(SQueryRuntimeEnv* pEnv, int32_t tid, int32_t rows) {
+  SHashObj* pHashObj = pEnv->pTablesRead;
+  int32_t limit = (int32_t)pEnv->pQueryAttr->limit.limit;
+  if (pHashObj == NULL) {
+    return ;
+  }
+
+  // read old value
+  int32_t v = 0;
+  int32_t* pv = (int32_t* )taosHashGet(pHashObj, &tid, sizeof(int32_t));
+  if (pv && *pv > 0) {
+    v = *pv;
+  }
+
+  bool over = v >= limit;
+  // add new and save
+  v += rows;
+  taosHashPut(pHashObj, &tid, sizeof(int32_t), &rows, sizeof(int32_t));
+
+  // update read table over cnt 
+  if (!over && v >= limit) {
+    pEnv->cntTableReadOver += 1;
+  }
+}
+
+// tsdb scan table callback table or query is over. param is SQueryRuntimeEnv*
+bool qReadOverCB(void* param, int8_t type, int32_t tid) {
+  SQueryRuntimeEnv* pEnv = (SQueryRuntimeEnv* )param;
+  if (pEnv->pTablesRead == NULL) {
+    return false;
+  }
+
+  // check query is over
+  if (pEnv->cntTableReadOver >= pEnv->pQueryAttr->tableGroupInfo.numOfTables) {
+    return true;
+  }
+
+  // if type is read_query can return
+  if (type == READ_QUERY) {
+    return false;
+  }
+ 
+  // read tid value
+  int32_t* pv = (int32_t* )taosHashGet(pEnv->pTablesRead, &tid, sizeof(int32_t));
+  if (pv == NULL) {
+    return false;
+  }
+
+  // compare
+  if (pEnv->pQueryAttr->limit.limit > 0 && *pv >= pEnv->pQueryAttr->limit.limit ) {
+    return true; // need data is read ok
+  }
+
+  return false;
+}
+
+// check query read is over, retur true over. param is SQueryRuntimeEnv*
+bool queryReadOverCB(void* param) {
+  SQueryRuntimeEnv* pEnv = (SQueryRuntimeEnv* )param;
+  if (pEnv->cntTableReadOver >= pEnv->pQueryAttr->tableGroupInfo.numOfTables) {
+    return true;
+  }
+  return false;
 }
