@@ -130,6 +130,11 @@ int vnodeApplyWMsg(SVnode *pVnode, SRpcMsg *pMsg, SRpcMsg **pRsp) {
         // TODO: handle error
       }
     } break;
+    case TDMT_VND_MQ_REB: {
+      if (tqProcessRebReq(pVnode->pTq, POINTER_SHIFT(ptr, sizeof(SMsgHead))) < 0) {
+
+      }
+    } break;
     default:
       ASSERT(0);
       break;

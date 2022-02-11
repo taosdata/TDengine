@@ -116,7 +116,7 @@ void basic_consume_loop(tmq_t *tmq,
   int32_t cnt = 0;
   /*clock_t startTime = clock();*/
   while (running) {
-    tmq_message_t *tmqmessage = tmq_consumer_poll(tmq, 0);
+    tmq_message_t *tmqmessage = tmq_consumer_poll(tmq, 500);
     if (tmqmessage) {
       cnt++;
       msg_process(tmqmessage);

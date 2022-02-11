@@ -281,6 +281,19 @@ int32_t tqProcessConsumeReq(STQ* pTq, SRpcMsg* pMsg) {
   return 0;
 }
 
+int32_t tqProcessRebReq(STQ* pTq, char* msg) {
+  SMqMVRebReq req = {0};
+  tDecodeSMqMVRebReq(msg, &req);
+
+  STqConsumerHandle* pConsumer = tqHandleGet(pTq->tqMeta, req.oldConsumerId);
+  ASSERT(pConsumer);
+  tqHandleMovePut(pTq->tqMeta, req.newConsumerId, pConsumer);
+  tqHandleCommit(pTq->tqMeta, req.newConsumerId);
+  tqHandlePurge(pTq->tqMeta, req.oldConsumerId);
+  terrno = TSDB_CODE_SUCCESS;
+  return 0;
+}
+
 int32_t tqProcessSetConnReq(STQ* pTq, char* msg) {
   SMqSetCVgReq req = {0};
   tDecodeSMqSetCVgReq(msg, &req);

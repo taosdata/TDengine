@@ -198,6 +198,7 @@ int tqCommit(STQ*);
 
 int32_t tqProcessConsumeReq(STQ* pTq, SRpcMsg* pMsg);
 int32_t tqProcessSetConnReq(STQ* pTq, char* msg);
+int32_t tqProcessRebReq(STQ* pTq, char* msg);
 
 #ifdef __cplusplus
 }
