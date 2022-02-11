@@ -73,6 +73,7 @@ static SSdbRaw *mndDbActionEncode(SDbObj *pDb) {
   int32_t dataPos = 0;
   SDB_SET_BINARY(pRaw, dataPos, pDb->name, TSDB_DB_FNAME_LEN, DB_ENCODE_OVER)
   SDB_SET_BINARY(pRaw, dataPos, pDb->acct, TSDB_USER_LEN, DB_ENCODE_OVER)
+  SDB_SET_BINARY(pRaw, dataPos, pDb->createdUser, TSDB_USER_LEN, DB_ENCODE_OVER)
   SDB_SET_INT64(pRaw, dataPos, pDb->createdTime, DB_ENCODE_OVER)
   SDB_SET_INT64(pRaw, dataPos, pDb->updateTime, DB_ENCODE_OVER)
   SDB_SET_INT64(pRaw, dataPos, pDb->uid, DB_ENCODE_OVER)
@@ -133,6 +134,7 @@ static SSdbRow *mndDbActionDecode(SSdbRaw *pRaw) {
   int32_t dataPos = 0;
   SDB_GET_BINARY(pRaw, dataPos, pDb->name, TSDB_DB_FNAME_LEN, DB_DECODE_OVER)
   SDB_GET_BINARY(pRaw, dataPos, pDb->acct, TSDB_USER_LEN, DB_DECODE_OVER)
+  SDB_GET_BINARY(pRaw, dataPos, pDb->createdUser, TSDB_USER_LEN, DB_DECODE_OVER)
   SDB_GET_INT64(pRaw, dataPos, &pDb->createdTime, DB_DECODE_OVER)
   SDB_GET_INT64(pRaw, dataPos, &pDb->updateTime, DB_DECODE_OVER)
   SDB_GET_INT64(pRaw, dataPos, &pDb->uid, DB_DECODE_OVER)

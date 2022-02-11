@@ -129,6 +129,14 @@ typedef enum _mgmt_table {
 #define TSDB_FILL_NEXT 5
 
 #define TSDB_ALTER_USER_PASSWD 0x1
+#define TSDB_ALTER_USER_SUPERUSER 0x2
+#define TSDB_ALTER_USER_ADD_READ_DB 0x3
+#define TSDB_ALTER_USER_REMOVE_READ_DB 0x4
+#define TSDB_ALTER_USER_CLEAR_READ_DB 0x5
+#define TSDB_ALTER_USER_ADD_WRITE_DB 0x6
+#define TSDB_ALTER_USER_REMOVE_WRITE_DB 0x7
+#define TSDB_ALTER_USER_CLEAR_WRITE_DB 0x7
+
 #define TSDB_ALTER_USER_PRIVILEGES 0x2
 
 #define TSDB_KILL_MSG_LEN 30
@@ -341,16 +349,36 @@ typedef struct {
   int64_t maxStorage;   // In unit of GB
 } SCreateAcctReq, SAlterAcctReq;
 
+int32_t tSerializeSCreateAcctReq(void** buf, SCreateAcctReq* pReq);
+void*   tDeserializeSCreateAcctReq(void* buf, SCreateAcctReq* pReq);
+
 typedef struct {
   char user[TSDB_USER_LEN];
 } SDropUserReq, SDropAcctReq;
 
+int32_t tSerializeSDropUserReq(void** buf, SDropUserReq* pReq);
+void*   tDeserializeSDropUserReq(void* buf, SDropUserReq* pReq);
+
 typedef struct {
-  int8_t type;
+  int8_t createType;
+  int8_t superUser;  // denote if it is a super user or not
   char   user[TSDB_USER_LEN];
   char   pass[TSDB_PASSWORD_LEN];
-  int8_t superUser;  // denote if it is a super user or not
-} SCreateUserReq, SAlterUserReq;
+} SCreateUserReq;
+
+int32_t tSerializeSCreateUserReq(void** buf, SCreateUserReq* pReq);
+void*   tDeserializeSCreateUserReq(void* buf, SCreateUserReq* pReq);
+
+typedef struct {
+  int8_t alterType;
+  char   user[TSDB_USER_LEN];
+  char   pass[TSDB_PASSWORD_LEN];
+  char   dbname[TSDB_DB_FNAME_LEN];
+  int8_t superUser;
+} SAlterUserReq;
+
+int32_t tSerializeSAlterUserReq(void** buf, SAlterUserReq* pReq);
+void*   tDeserializeSAlterUserReq(void* buf, SAlterUserReq* pReq);
 
 typedef struct {
   int16_t colId;     // column id
@@ -622,7 +650,6 @@ typedef struct {
 } SVnodeLoad;
 
 typedef struct {
-  int32_t     mver;  // msg version
   int32_t     sver;  // software version
   int64_t     dver;  // dnode table version in sdb
   int32_t     dnodeId;
@@ -651,7 +678,6 @@ typedef struct {
 } SDnodeEp;
 
 typedef struct {
-  int32_t   mver;
   int64_t   dver;
   SDnodeCfg dnodeCfg;
   SArray*   pDnodeEps;  // Array of SDnodeEp
@@ -661,7 +687,7 @@ int32_t tSerializeSStatusRsp(void** buf, SStatusRsp* pRsp);
 void*   tDeserializeSStatusRsp(void* buf, SStatusRsp* pRsp);
 
 typedef struct {
-  int32_t mver;
+  int32_t reserve;
 } STransReq;
 
 typedef struct {

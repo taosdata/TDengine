@@ -180,6 +180,8 @@ static SSdbRow *mndStbActionDecode(SSdbRaw *pRaw) {
 STB_DECODE_OVER:
   if (terrno != 0) {
     mError("stb:%s, failed to decode from raw:%p since %s", pStb->name, pRaw, terrstr());
+    tfree(pStb->pColumns);
+    tfree(pStb->pTags);
     tfree(pRow);
     return NULL;
   }

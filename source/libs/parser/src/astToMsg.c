@@ -2,87 +2,101 @@
 #include "astGenerator.h"
 #include "parserUtil.h"
 
-SCreateUserReq* buildUserManipulationMsg(SSqlInfo* pInfo, int32_t* outputLen, int64_t id, char* msgBuf, int32_t msgLen) {
-  SCreateUserReq* pMsg = (SCreateUserReq*)calloc(1, sizeof(SCreateUserReq));
-  if (pMsg == NULL) {
-    //    tscError("0x%" PRIx64 " failed to malloc for query msg", id);
-    terrno = TSDB_CODE_TSC_OUT_OF_MEMORY;
-    return NULL;
-  }
+char* buildUserManipulationMsg(SSqlInfo* pInfo, int32_t* outputLen, int64_t id, char* msgBuf, int32_t msgLen) {
+  SCreateUserReq createReq = {0};
 
   SUserInfo* pUser = &pInfo->pMiscInfo->user;
-  strncpy(pMsg->user, pUser->user.z, pUser->user.n);
-  pMsg->type = pUser->type;
-  pMsg->superUser = (int8_t)pUser->type;
+  strncpy(createReq.user, pUser->user.z, pUser->user.n);
+  createReq.createType = pUser->type;
+  createReq.superUser = (int8_t)pUser->type;
 
   if (pUser->type == TSDB_ALTER_USER_PRIVILEGES) {
     //    pMsg->privilege = (char)pCmd->count;
   } else {
-    strncpy(pMsg->pass, pUser->passwd.z, pUser->passwd.n);
+    strncpy(createReq.pass, pUser->passwd.z, pUser->passwd.n);
   }
 
-  *outputLen = sizeof(SUserInfo);
-  return pMsg;
-}
-
-SCreateAcctReq* buildAcctManipulationMsg(SSqlInfo* pInfo, int32_t* outputLen, int64_t id, char* msgBuf, int32_t msgLen) {
-  SCreateAcctReq *pCreateMsg = (SCreateAcctReq *) calloc(1, sizeof(SCreateAcctReq));
-  if (pCreateMsg == NULL) {
-    qError("0x%" PRIx64 " failed to malloc for query msg", id);
-    terrno = TSDB_CODE_QRY_OUT_OF_MEMORY;
+  int32_t tlen = tSerializeSCreateUserReq(NULL, &createReq);
+  void*   pReq = malloc(tlen);
+  if (pReq == NULL) {
+    terrno = TSDB_CODE_OUT_OF_MEMORY;
     return NULL;
   }
 
-  SToken *pName = &pInfo->pMiscInfo->user.user;
-  SToken *pPwd = &pInfo->pMiscInfo->user.passwd;
+  void* pBuf = pReq;
+  tSerializeSCreateUserReq(&pBuf, &createReq);
+  *outputLen = tlen;
+  return pReq;
+}
 
-  strncpy(pCreateMsg->user, pName->z, pName->n);
-  strncpy(pCreateMsg->pass, pPwd->z, pPwd->n);
+char* buildAcctManipulationMsg(SSqlInfo* pInfo, int32_t* outputLen, int64_t id, char* msgBuf, int32_t msgLen) {
+  SCreateAcctReq createReq = {0};
 
-  SCreateAcctInfo *pAcctOpt = &pInfo->pMiscInfo->acctOpt;
+  SToken* pName = &pInfo->pMiscInfo->user.user;
+  SToken* pPwd = &pInfo->pMiscInfo->user.passwd;
 
-  pCreateMsg->maxUsers = htonl(pAcctOpt->maxUsers);
-  pCreateMsg->maxDbs = htonl(pAcctOpt->maxDbs);
-  pCreateMsg->maxTimeSeries = htonl(pAcctOpt->maxTimeSeries);
-  pCreateMsg->maxStreams = htonl(pAcctOpt->maxStreams);
-//  pCreateMsg->maxPointsPerSecond = htonl(pAcctOpt->maxPointsPerSecond);
-  pCreateMsg->maxStorage = htobe64(pAcctOpt->maxStorage);
-//  pCreateMsg->maxQueryTime = htobe64(pAcctOpt->maxQueryTime);
-//  pCreateMsg->maxConnections = htonl(pAcctOpt->maxConnections);
+  strncpy(createReq.user, pName->z, pName->n);
+  strncpy(createReq.pass, pPwd->z, pPwd->n);
+
+  SCreateAcctInfo* pAcctOpt = &pInfo->pMiscInfo->acctOpt;
+
+  createReq.maxUsers = htonl(pAcctOpt->maxUsers);
+  createReq.maxDbs = htonl(pAcctOpt->maxDbs);
+  createReq.maxTimeSeries = htonl(pAcctOpt->maxTimeSeries);
+  createReq.maxStreams = htonl(pAcctOpt->maxStreams);
+  //  createReq.maxPointsPerSecond = htonl(pAcctOpt->maxPointsPerSecond);
+  createReq.maxStorage = htobe64(pAcctOpt->maxStorage);
+  //  createReq.maxQueryTime = htobe64(pAcctOpt->maxQueryTime);
+  //  createReq.maxConnections = htonl(pAcctOpt->maxConnections);
 
   if (pAcctOpt->stat.n == 0) {
-    pCreateMsg->accessState = -1;
+    createReq.accessState = -1;
   } else {
     if (pAcctOpt->stat.z[0] == 'r' && pAcctOpt->stat.n == 1) {
-      pCreateMsg->accessState = TSDB_VN_READ_ACCCESS;
+      createReq.accessState = TSDB_VN_READ_ACCCESS;
     } else if (pAcctOpt->stat.z[0] == 'w' && pAcctOpt->stat.n == 1) {
-      pCreateMsg->accessState = TSDB_VN_WRITE_ACCCESS;
+      createReq.accessState = TSDB_VN_WRITE_ACCCESS;
     } else if (strncmp(pAcctOpt->stat.z, "all", 3) == 0 && pAcctOpt->stat.n == 3) {
-      pCreateMsg->accessState = TSDB_VN_ALL_ACCCESS;
+      createReq.accessState = TSDB_VN_ALL_ACCCESS;
     } else if (strncmp(pAcctOpt->stat.z, "no", 2) == 0 && pAcctOpt->stat.n == 2) {
-      pCreateMsg->accessState = 0;
+      createReq.accessState = 0;
     }
   }
 
-  *outputLen = sizeof(SCreateAcctReq);
-  return pCreateMsg;
+  int32_t tlen = tSerializeSCreateAcctReq(NULL, &createReq);
+  void*   pReq = malloc(tlen);
+  if (pReq == NULL) {
+    terrno = TSDB_CODE_OUT_OF_MEMORY;
+    return NULL;
+  }
+
+  void* pBuf = pReq;
+  tSerializeSCreateAcctReq(&pBuf, &createReq);
+  *outputLen = tlen;
+  return pReq;
 }
 
-SDropUserReq* buildDropUserMsg(SSqlInfo* pInfo, int32_t *msgLen, int64_t id, char* msgBuf, int32_t msgBufLen) {
+char* buildDropUserMsg(SSqlInfo* pInfo, int32_t* msgLen, int64_t id, char* msgBuf, int32_t msgBufLen) {
+  SDropUserReq dropReq = {0};
+
   SToken* pName = taosArrayGet(pInfo->pMiscInfo->a, 0);
   if (pName->n >= TSDB_USER_LEN) {
     return NULL;
   }
 
-  SDropUserReq* pMsg = calloc(1, sizeof(SDropUserReq));
-  if (pMsg == NULL) {
-    terrno = TSDB_CODE_QRY_OUT_OF_MEMORY;
+  strncpy(dropReq.user, pName->z, pName->n);
+
+  int32_t tlen = tSerializeSDropUserReq(NULL, &dropReq);
+  void*   pReq = malloc(tlen);
+  if (pReq == NULL) {
+    terrno = TSDB_CODE_OUT_OF_MEMORY;
     return NULL;
   }
 
-  strncpy(pMsg->user, pName->z, pName->n);
-  *msgLen = sizeof(SDropUserReq);
-  return pMsg;
+  void* pBuf = pReq;
+  tSerializeSDropUserReq(&pBuf, &dropReq);
+  *msgLen = tlen;
+  return pReq;
 }
 
 SShowReq* buildShowMsg(SShowInfo* pShowInfo, SParseContext *pCtx, SMsgBuf* pMsgBuf) {
@@ -268,16 +282,16 @@ char* buildCreateStbReq(SCreateTableSql* pCreateTableSql, int32_t* len, SParseCo
   }
 
   int32_t tlen = tSerializeSMCreateStbReq(NULL, &createReq);
-  void*   req = malloc(tlen);
-  if (req == NULL) {
+  void*   pReq = malloc(tlen);
+  if (pReq == NULL) {
     terrno = TSDB_CODE_OUT_OF_MEMORY;
     return NULL;
   }
 
-  void* buf = req;
-  tSerializeSMCreateStbReq(&buf, &createReq);
+  void* pBuf = pReq;
+  tSerializeSMCreateStbReq(&pBuf, &createReq);
   *len = tlen;
-  return req;
+  return pReq;
 }
 
 char* buildDropStableReq(SSqlInfo* pInfo, int32_t* len, SParseContext* pParseCtx, SMsgBuf* pMsgBuf) {
@@ -297,16 +311,16 @@ char* buildDropStableReq(SSqlInfo* pInfo, int32_t* len, SParseContext* pParseCtx
   dropReq.igNotExists = pInfo->pMiscInfo->existsCheck ? 1 : 0;
 
   int32_t tlen = tSerializeSMDropStbReq(NULL, &dropReq);
-  void*   req = malloc(tlen);
-  if (req == NULL) {
+  void*   pReq = malloc(tlen);
+  if (pReq == NULL) {
     terrno = TSDB_CODE_OUT_OF_MEMORY;
     return NULL;
   }
 
-  void* buf = req;
-  tSerializeSMDropStbReq(&buf, &dropReq);
+  void* pBuf = pReq;
+  tSerializeSMDropStbReq(&pBuf, &dropReq);
   *len = tlen;
-  return req;
+  return pReq;
 }
 
 SCreateDnodeReq *buildCreateDnodeMsg(SSqlInfo* pInfo, int32_t* len, SMsgBuf* pMsgBuf) {
