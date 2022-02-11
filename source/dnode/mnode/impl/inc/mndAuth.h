@@ -25,6 +25,10 @@ extern "C" {
 int32_t mndInitAuth(SMnode *pMnode);
 void    mndCleanupAuth(SMnode *pMnode);
 
+int32_t mndCheckCreateUserAuth(SUserObj *pOperUser);
+int32_t mndCheckAlterUserAuth(SUserObj *pOperUser, SUserObj *pUser, SDbObj *pDb, SAlterUserReq *pAlter);
+int32_t mndCheckDropUserAuth(SUserObj *pOperUser);
+
 #ifdef __cplusplus
 }
 #endif
