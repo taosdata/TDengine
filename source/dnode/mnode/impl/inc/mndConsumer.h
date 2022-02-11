@@ -22,6 +22,16 @@
 extern "C" {
 #endif
 
+
+enum {
+  MQ_CONSUMER_STATUS__INIT = 1,
+  MQ_CONSUMER_STATUS__IDLE,
+  MQ_CONSUMER_STATUS__ACTIVE,
+  MQ_CONSUMER_STATUS__LOST,
+  MQ_CONSUMER_STATUS__MODIFY
+};
+
+
 int32_t mndInitConsumer(SMnode *pMnode);
 void    mndCleanupConsumer(SMnode *pMnode);
 

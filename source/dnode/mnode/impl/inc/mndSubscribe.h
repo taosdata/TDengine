@@ -25,7 +25,8 @@ extern "C" {
 int32_t mndInitSubscribe(SMnode *pMnode);
 void    mndCleanupSubscribe(SMnode *pMnode);
 
-SMqSubscribeObj *mndAcquireSubscribe(SMnode *pMnode, char *CGroup, char *topicName);
+SMqSubscribeObj *mndAcquireSubscribe(SMnode *pMnode, const char *CGroup, const char *topicName);
+SMqSubscribeObj *mndAcquireSubscribeByKey(SMnode *pMnode, const char* key);
 void             mndReleaseSubscribe(SMnode *pMnode, SMqSubscribeObj *pSub);
 
 #ifdef __cplusplus
