@@ -85,6 +85,10 @@ typedef enum EOperatorType {
   OP_TYPE_DIV,
   OP_TYPE_MOD,
 
+  // bit operator
+  OP_TYPE_BIT_AND,
+  OP_TYPE_BIT_OR,
+
   // comparison operator
   OP_TYPE_GREATER_THAN,
   OP_TYPE_GREATER_EQUAL,
