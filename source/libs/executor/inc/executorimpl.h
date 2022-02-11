@@ -371,18 +371,31 @@ typedef struct STaskParam {
   struct SUdfInfo* pUdfInfo;
 } STaskParam;
 
+enum {
+  DATA_NOT_READY = 0x1,
+  DATA_READY     = 0x2,
+  DATA_EXHAUSTED = 0x3,
+};
+
+typedef struct SSourceDataInfo {
+  struct SExchangeInfo *pEx;
+  int32_t            index;
+  SRetrieveTableRsp *pRsp;
+  uint64_t           totalRows;
+  int32_t            status;
+} SSourceDataInfo;
+
 typedef struct SExchangeInfo {
   SArray*            pSources;
+  SArray*            pSourceDataInfo;
   tsem_t             ready;
   void*              pTransporter;
-  SRetrieveTableRsp* pRsp;
   SSDataBlock*       pResult;
+  bool               seqLoadData;
   int32_t            current;
-  uint64_t           rowsOfCurrentSource;
-
-  uint64_t totalSize;     // total load bytes from remote
-  uint64_t totalRows;     // total number of rows
-  uint64_t totalElapsed;  // total elapsed time
+  uint64_t           totalSize;     // total load bytes from remote
+  uint64_t           totalRows;     // total number of rows
+  uint64_t           totalElapsed;  // total elapsed time
 } SExchangeInfo;
 
 typedef struct STableScanInfo {
