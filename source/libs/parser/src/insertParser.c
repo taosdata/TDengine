@@ -462,7 +462,7 @@ static int parseOneRow(SInsertParseContext* pCxt, STableDataBlocks* pDataBlocks,
     }
   }
 
-  *len = pBuilder->extendedRowSize;
+  // *len = pBuilder->extendedRowSize;
   return TSDB_CODE_SUCCESS;
 }
 
@@ -492,7 +492,7 @@ static int32_t parseValues(SInsertParseContext* pCxt, STableDataBlocks* pDataBlo
 
     int32_t len = 0;
     CHECK_CODE(parseOneRow(pCxt, pDataBlock, tinfo.precision, &len, tmpTokenBuf));
-    pDataBlock->size += len;
+    pDataBlock->size += extendedRowSize; //len;
 
     NEXT_TOKEN(pCxt->pSql, sToken);
     if (TK_RP != sToken.type) {
