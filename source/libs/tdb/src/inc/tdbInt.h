@@ -64,9 +64,9 @@ static FORCE_INLINE int tdbCmprPgId(const void *p1, const void *p2) {
 // framd_id_t
 typedef int32_t frame_id_t;
 
-// pgsize_t
+// pgsz_t
 #define TDB_MIN_PGSIZE 512
-#define TDB_MAX_PGSIZE 16384
+#define TDB_MAX_PGSIZE 65536
 #define TDB_DEFAULT_PGSIZE 4096
 #define TDB_IS_PGSIZE_VLD(s) (((s) >= TDB_MIN_PGSIZE) && ((s) <= TDB_MAX_PGSIZE))
 

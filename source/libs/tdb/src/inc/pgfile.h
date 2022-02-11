@@ -24,7 +24,7 @@ struct SPgFile {
   char *    fname;                    // backend file name
   uint8_t   fileid[TDB_FILE_ID_LEN];  // file id
   SPgCache *pPgCache;                 // page cache underline
-  pgsize_t  pgSize;
+  pgsz_t    pgSize;
   int       fd;
   pgno_t    pgFileSize;
 };

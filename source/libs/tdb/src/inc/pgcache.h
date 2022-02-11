@@ -24,7 +24,7 @@ typedef struct SPgCache SPgCache;
 typedef struct SPage    SPage;
 
 // SPgCache
-int pgCacheCreate(SPgCache **ppPgCache, pgsize_t pgSize, int32_t npage);
+int pgCacheCreate(SPgCache **ppPgCache, pgsz_t pgSize, int32_t npage);
 int pgCacheDestroy(SPgCache *pPgCache);
 int pgCacheOpen(SPgCache **ppPgCache);
 int pgCacheClose(SPgCache *pPgCache);
@@ -46,9 +46,9 @@ struct SPage {
 
 typedef TD_DLIST(SPage) SPgList;
 struct SPgCache {
-  TENV *   pEnv; // TENV containing this page cache
+  TENV *   pEnv;  // TENV containing this page cache
   SRWLatch mutex;
-  pgsize_t pgsize;
+  pgsz_t   pgsize;
   int32_t  npage;
   SPage *  pages;
   SPgList  freeList;

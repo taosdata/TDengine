@@ -22,7 +22,7 @@ static int         tdbMPoolFileReadPage(TDB_MPFILE *mpf, pgno_t pgno, void *p);
 static int         tdbMPoolFileWritePage(TDB_MPFILE *mpf, pgno_t pgno, const void *p);
 static void        tdbMPoolClockEvictPage(TDB_MPOOL *mp, pg_t **pagepp);
 
-int tdbMPoolOpen(TDB_MPOOL **mpp, uint64_t cachesize, pgsize_t pgsize) {
+int tdbMPoolOpen(TDB_MPOOL **mpp, uint64_t cachesize, pgsz_t pgsize) {
   TDB_MPOOL *mp = NULL;
   size_t     tsize;
   pg_t *     pagep;
@@ -300,7 +300,7 @@ static void tdbMPoolUnregFile(TDB_MPOOL *mp, TDB_MPFILE *mpf) {
 }
 
 static int tdbMPoolFileReadPage(TDB_MPFILE *mpf, pgno_t pgno, void *p) {
-  pgsize_t   pgsize;
+  pgsz_t     pgsize;
   TDB_MPOOL *mp;
   off_t      offset;
   size_t     rsize;
@@ -317,7 +317,7 @@ static int tdbMPoolFileReadPage(TDB_MPFILE *mpf, pgno_t pgno, void *p) {
 }
 
 static int tdbMPoolFileWritePage(TDB_MPFILE *mpf, pgno_t pgno, const void *p) {
-  pgsize_t   pgsize;
+  pgsz_t     pgsize;
   TDB_MPOOL *mp;
   off_t      offset;
 

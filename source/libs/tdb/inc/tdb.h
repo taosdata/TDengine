@@ -26,7 +26,7 @@ typedef struct STDb       TDB;
 typedef struct STDbEnv    TENV;
 typedef struct STDbCurosr TDBC;
 
-typedef int32_t pgsize_t;
+typedef int32_t pgsz_t;
 typedef int32_t cachesz_t;
 
 // TEVN
@@ -34,9 +34,9 @@ int tdbEnvCreate(TENV **ppEnv);
 int tdbEnvOpen(TENV **ppEnv);
 int tdbEnvClose(TENV *pEnv);
 
-int       tdbEnvSetPageSize(TENV *pEnv, pgsize_t szPage);
+int       tdbEnvSetPageSize(TENV *pEnv, pgsz_t szPage);
 int       tdbEnvSetCacheSize(TENV *pEnv, cachesz_t szCache);
-pgsize_t  tdbEnvGetPageSize(TENV *pEnv);
+pgsz_t    tdbEnvGetPageSize(TENV *pEnv);
 cachesz_t tdbEnvGetCacheSize(TENV *pEnv);
 
 // TDB

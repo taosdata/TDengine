@@ -17,7 +17,7 @@
 static void pgCachePinPage(SPage *pPage);
 static void pgCacheUnpinPage(SPage *pPage);
 
-int pgCacheCreate(SPgCache **ppPgCache, pgsize_t pgSize, int32_t npage) {
+int pgCacheCreate(SPgCache **ppPgCache, pgsz_t pgSize, int32_t npage) {
   SPgCache *pPgCache;
   SPage *   pPage;
 

@@ -22,8 +22,8 @@ struct SBtCursor {
 };
 
 typedef struct {
-  pgno_t   pgno;
-  pgsize_t offset;
+  pgno_t pgno;
+  pgsz_t offset;
 } SBtIdx;
 
 static int btreeCreate(SBTree **pBt);

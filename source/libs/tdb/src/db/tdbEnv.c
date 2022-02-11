@@ -16,7 +16,7 @@
 #include "tdbInt.h"
 
 struct STDbEnv {
-  pgsize_t    pgSize;     // Page size
+  pgsz_t      pgSize;     // Page size
   cachesz_t   cacheSize;  // Total cache size
   STDbList    dbList;     // TDB List
   SPgFileList pgfList;    // SPgFile List
@@ -74,7 +74,7 @@ int tdbEnvClose(TENV *pEnv) {
   return 0;
 }
 
-int tdbEnvSetPageSize(TENV *pEnv, pgsize_t szPage) {
+int tdbEnvSetPageSize(TENV *pEnv, pgsz_t szPage) {
   /* TODO */
   pEnv->pgSize = szPage;
   return 0;
@@ -86,7 +86,7 @@ int tdbEnvSetCacheSize(TENV *pEnv, cachesz_t szCache) {
   return 0;
 }
 
-pgsize_t tdbEnvGetPageSize(TENV *pEnv) { return pEnv->pgSize; }
+pgsz_t tdbEnvGetPageSize(TENV *pEnv) { return pEnv->pgSize; }
 
 cachesz_t tdbEnvGetCacheSize(TENV *pEnv) { return pEnv->cacheSize; }
 

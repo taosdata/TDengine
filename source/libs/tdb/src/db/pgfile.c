@@ -107,7 +107,7 @@ int pgFileWrite(SPage *pPage) {
 }
 
 static int pgFileRead(SPgFile *pPgFile, pgno_t pgno, uint8_t *pData) {
-  pgsize_t pgSize;
+  pgsz_t   pgSize;
   ssize_t  rsize;
   uint8_t *pTData;
   size_t   szToRead;

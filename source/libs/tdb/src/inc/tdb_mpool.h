@@ -46,7 +46,7 @@ typedef struct {
 } mpf_bucket_t;
 struct TDB_MPOOL {
   int64_t    cachesize;
-  pgsize_t   pgsize;
+  pgsz_t     pgsize;
   int32_t    npages;
   pg_t *     pages;
   pg_list_t  freeList;
@@ -74,7 +74,7 @@ struct TDB_MPFILE {
 
 /*=================================================== Exposed apis ==================================================*/
 // TDB_MPOOL
-int tdbMPoolOpen(TDB_MPOOL **mpp, uint64_t cachesize, pgsize_t pgsize);
+int tdbMPoolOpen(TDB_MPOOL **mpp, uint64_t cachesize, pgsz_t pgsize);
 int tdbMPoolClose(TDB_MPOOL *mp);
 int tdbMPoolSync(TDB_MPOOL *mp);
 
