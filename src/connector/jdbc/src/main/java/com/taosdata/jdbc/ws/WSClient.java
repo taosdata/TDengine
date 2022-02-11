@@ -117,7 +117,6 @@ public class WSClient extends WebSocketClient implements AutoCloseable {
     public void close() {
         super.close();
         executor.shutdown();
-        inFlightRequest.close();
     }
 
     static class ConnectReq extends Payload {

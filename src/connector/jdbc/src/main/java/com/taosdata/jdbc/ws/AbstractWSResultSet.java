@@ -56,6 +56,7 @@ public abstract class AbstractWSResultSet extends AbstractResultSet {
 
     private int numOfRows = 0;
     protected int rowIndex = 0;
+    private boolean isCompleted;
 
     public AbstractWSResultSet(Statement statement, Transport transport, RequestFactory factory,
                                QueryResp response, String database) throws SQLException {
@@ -123,7 +124,10 @@ public abstract class AbstractWSResultSet extends AbstractResultSet {
     @Override
     public void close() throws SQLException {
         this.isClosed = true;
-        // TODO call taosadapter release resource
+        if (result != null && !result.isEmpty() && !isCompleted) {
+            FetchReq fetchReq = new FetchReq(queryId, queryId);
+            transport.sendWithoutRep(new Request(Action.FREE_RESULT.getAction(), fetchReq));
+        }
     }
 
     @Override

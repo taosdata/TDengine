@@ -13,14 +13,14 @@ import java.util.concurrent.ExecutionException;
 
 public class BlockResultSet extends AbstractWSResultSet {
 
-    public BlockResultSet(Statement statement, Transport transport, RequestFactory factory, QueryResp response, String database) throws SQLException {
+    public BlockResultSet(Statement statement, Transport transport, RequestFactory factory,
+                          QueryResp response, String database) throws SQLException {
         super(statement, transport, factory, response, database);
     }
 
     @Override
     public List<List<Object>> fetchJsonData() throws SQLException, ExecutionException, InterruptedException {
-        FetchReq fetchReq = new FetchReq(queryId, queryId);
-        Request blockRequest = new Request(Action.FETCH_BLOCK.getAction(), fetchReq);
+        Request blockRequest = factory.generateFetchBlock(queryId);
         CompletableFuture<Response> fetchFuture = transport.send(blockRequest);
         Response resp = fetchFuture.get();
         FetchBlockResp blockResp = (FetchBlockResp) resp;

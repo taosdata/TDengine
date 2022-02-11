@@ -9,7 +9,7 @@ import java.util.concurrent.*;
 /**
  * Unfinished execution
  */
-public class InFlightRequest implements AutoCloseable {
+public class InFlightRequest {
     private final int timeoutSec;
     private final Semaphore semaphore;
     private final Map<String, ConcurrentHashMap<Long, ResponseFuture>> futureMap = new HashMap<>();
@@ -19,13 +19,13 @@ public class InFlightRequest implements AutoCloseable {
         t.setName("timer-" + t.getId());
         return t;
     });
-    private final ScheduledFuture<?> scheduledFuture;
 
     public InFlightRequest(int timeoutSec, int concurrentNum) {
         this.timeoutSec = timeoutSec;
         this.semaphore = new Semaphore(concurrentNum);
-        this.scheduledFuture = scheduledExecutorService.scheduleAtFixedRate(this::removeTimeoutFuture,
+        scheduledExecutorService.scheduleWithFixedDelay(this::removeTimeoutFuture,
                 timeoutSec, timeoutSec, TimeUnit.MILLISECONDS);
+        Runtime.getRuntime().addShutdownHook(new Thread(scheduledExecutorService::shutdown));
         for (Action value : Action.values()) {
             String action = value.getAction();
             if (Action.CONN.getAction().equals(action))
@@ -69,11 +69,5 @@ public class InFlightRequest implements AutoCloseable {
                 }
             }
         });
-    }
-
-    @Override
-    public void close() {
-        scheduledFuture.cancel(true);
-        scheduledExecutorService.shutdown();
     }
 }

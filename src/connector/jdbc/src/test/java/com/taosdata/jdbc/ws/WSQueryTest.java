@@ -9,8 +9,10 @@ import org.junit.runner.RunWith;
 
 import java.sql.*;
 import java.util.Properties;
+import java.util.concurrent.TimeUnit;
+import java.util.stream.IntStream;
 
-@Ignore
+//@Ignore
 @RunWith(CatalogRunner.class)
 @TestTarget(alias = "query test", author = "huolibo", version = "2.0.38")
 @FixMethodOrder
@@ -24,13 +26,24 @@ public class WSQueryTest {
 
     @Description("query")
     @Test
-    public void queryBlock() throws SQLException {
-        Statement statement = connection.createStatement();
-        statement.execute("insert into " + databaseName + "." + tableName + " values(now+100s, 100)");
-        ResultSet resultSet = statement.executeQuery("select * from " + databaseName + "." + tableName);
-        resultSet.next();
-        Assert.assertEquals(100, resultSet.getInt(2));
-        statement.close();
+    public void queryBlock() throws SQLException, InterruptedException {
+        IntStream.range(1, 100).limit(1000).parallel().forEach(x -> {
+            try {
+                Statement statement = connection.createStatement();
+
+                statement.execute("insert into " + databaseName + "." + tableName + " values(now+100s, 100)");
+
+                ResultSet resultSet = statement.executeQuery("select * from " + databaseName + "." + tableName);
+                resultSet.next();
+                Assert.assertEquals(100, resultSet.getInt(2));
+                statement.close();
+                TimeUnit.SECONDS.sleep(10);
+            } catch (SQLException e) {
+                e.printStackTrace();
+            } catch (InterruptedException e) {
+                e.printStackTrace();
+            }
+        });
     }
 
     @Before
