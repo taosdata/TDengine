@@ -447,7 +447,7 @@ Some CLI options are needed to use the script:
           -T '{"alarm_level":"%s","time":"%s","name":"%s","content":"%s"}'
         ```
 
-Follow the usage of the script and then restart grafana-server service, here we go `http://localhost:3000/d/tdinsight`.
+Follow the usage of the script and then restart grafana-server service, here we go http://localhost:3000/d/tdinsight.
 
 Refer to [TDinsight](https://github.com/taosdata/grafanaplugin/blob/master/dashboards/TDinsight.md) README for more scenario and limitations of the script, and the metrics descriptions for all of the TDinsight.
 

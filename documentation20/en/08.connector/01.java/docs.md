@@ -753,12 +753,12 @@ Query OK, 1 row(s) in set (0.000141s)
 
 ## Integrated with framework
 
-- Please refer to [SpringJdbcTemplate](https://github.com/taosdata/tests/tree/develop/examples/JDBC/SpringJdbcTemplate) if using taos-jdbcdriver in Spring JdbcTemplate.
-- Please refer to [springbootdemo](https://github.com/taosdata/tests/tree/develop/examples/JDBC/springbootdemo) if using taos-jdbcdriver in Spring JdbcTemplate.
+- Please refer to [SpringJdbcTemplate](https://github.com/taosdata/TDengine/tree/develop/examples/JDBC/SpringJdbcTemplate) if using taos-jdbcdriver in Spring JdbcTemplate.
+- Please refer to [springbootdemo](https://github.com/taosdata/TDengine/tree/develop/examples/JDBC/springbootdemo) if using taos-jdbcdriver in Spring JdbcTemplate.
 
 ## Example Codes
 
-you see sample code here: [JDBC example](https://github.com/taosdata/tests/tree/develop/examples/JDBC)
+you see sample code here: [JDBC example](https://github.com/taosdata/TDengine/tree/develop/examples/JDBC)
 
 ## FAQ
 - Why does not addBatch and executeBatch provide a performance benefit for executing "batch writes/updates"?
