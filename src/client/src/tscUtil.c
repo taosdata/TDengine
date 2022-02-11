@@ -78,7 +78,7 @@ int32_t converToStr(char *str, int type, void *buf, int32_t bufSize, int32_t *le
       break;
 
     case TSDB_DATA_TYPE_UBIGINT:
-      n = sprintf(str, "%" PRId64, *(uint64_t*)buf);
+      n = sprintf(str, "%" PRIu64, *(uint64_t*)buf);
       break;
 
     case TSDB_DATA_TYPE_FLOAT:
