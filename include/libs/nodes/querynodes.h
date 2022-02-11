@@ -37,7 +37,7 @@ typedef struct SDataType {
 } SDataType;
 
 typedef struct SExprNode {
-  ENodeType nodeType;
+  ENodeType type;
   SDataType resType;
   char aliasName[TSDB_COL_NAME_LEN];
   SNodeList* pAssociationList;
@@ -58,6 +58,11 @@ typedef struct SColumnNode {
   char colName[TSDB_COL_NAME_LEN];
   SNode* pProjectRef;
 } SColumnNode;
+
+typedef struct SColumnRef {
+  ENodeType type;
+  int32_t slotId;
+} SColumnRef;
 
 typedef struct SValueNode {
   SExprNode node; // QUERY_NODE_VALUE
@@ -93,6 +98,8 @@ typedef enum EOperatorType {
   OP_TYPE_NOT_LIKE,
   OP_TYPE_MATCH,
   OP_TYPE_NMATCH,
+  OP_TYPE_IS_NULL,
+  OP_TYPE_IS_NOT_NULL,
 
   // json operator
   OP_TYPE_JSON_GET_VALUE,
@@ -118,12 +125,6 @@ typedef struct SLogicConditionNode {
   SNodeList* pParameterList;
 } SLogicConditionNode;
 
-typedef struct SIsNullCondNode {
-  SExprNode node; // QUERY_NODE_IS_NULL_CONDITION
-  SNode* pExpr;
-  bool isNull;
-} SIsNullCondNode;
-
 typedef struct SNodeListNode {
   ENodeType type; // QUERY_NODE_NODE_LIST
   SNodeList* pNodeList;
@@ -138,7 +139,7 @@ typedef struct SFunctionNode {
 } SFunctionNode;
 
 typedef struct STableNode {
-  ENodeType type;
+  SExprNode node;
   char dbName[TSDB_DB_NAME_LEN];
   char tableName[TSDB_TABLE_NAME_LEN];
   char tableAlias[TSDB_TABLE_NAME_LEN];

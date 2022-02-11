@@ -40,14 +40,8 @@ int32_t fmFuncMgtInit() {
   return TSDB_CODE_SUCCESS;
 }
 
-int32_t fmGetHandle(FuncMgtHandle* pHandle) {
-  *pHandle = &gFunMgtService;
-  return TSDB_CODE_SUCCESS;
-}
-
-int32_t fmGetFuncInfo(FuncMgtHandle handle, const char* pFuncName, int32_t* pFuncId, int32_t* pFuncType) {
-  SFuncMgtService* pService = (SFuncMgtService*)handle;
-  void* pVal = taosHashGet(pService->pFuncNameHashTable, pFuncName, strlen(pFuncName));
+int32_t fmGetFuncInfo(const char* pFuncName, int32_t* pFuncId, int32_t* pFuncType) {
+  void* pVal = taosHashGet(gFunMgtService.pFuncNameHashTable, pFuncName, strlen(pFuncName));
   if (NULL == pVal) {
     return TSDB_CODE_FAILED;
   }
@@ -64,6 +58,17 @@ int32_t fmGetFuncResultType(SFunctionNode* pFunc) {
     return TSDB_CODE_FAILED;
   }
   return funcMgtBuiltins[pFunc->funcId].checkFunc(pFunc);
+}
+
+int32_t fmGetFuncExecFuncs(int32_t funcId, SFuncExecFuncs* pFpSet) {
+  if (funcId < 0 || funcId >= funcMgtBuiltinsNum) {
+    return TSDB_CODE_FAILED;
+  }
+  pFpSet->getEnv = funcMgtBuiltins[funcId].getEnvFunc;
+  pFpSet->init = funcMgtBuiltins[funcId].initFunc;
+  pFpSet->process = funcMgtBuiltins[funcId].processFunc;
+  pFpSet->finalize = funcMgtBuiltins[funcId].finalizeFunc;
+  return TSDB_CODE_SUCCESS;
 }
 
 bool fmIsAggFunc(int32_t funcId) {

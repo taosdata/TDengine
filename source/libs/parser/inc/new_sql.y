@@ -192,12 +192,12 @@ predicate(A) ::= expression(B) NOT BETWEEN expression(C) AND expression(D).     
 predicate(A) ::= expression(B) IS NULL(C).                                        {
                                                                                     PARSER_TRACE;
                                                                                     SToken s = getTokenFromRawExprNode(pCxt, B);
-                                                                                    A = createRawExprNodeExt(pCxt, &s, &C, createIsNullCondNode(pCxt, releaseRawExprNode(pCxt, B), true));
+                                                                                    A = createRawExprNodeExt(pCxt, &s, &C, createOperatorNode(pCxt, OP_TYPE_IS_NULL, releaseRawExprNode(pCxt, B), NULL));
                                                                                   }
 predicate(A) ::= expression(B) IS NOT NULL(C).                                    {
                                                                                     PARSER_TRACE;
                                                                                     SToken s = getTokenFromRawExprNode(pCxt, B);
-                                                                                    A = createRawExprNodeExt(pCxt, &s, &C, createIsNullCondNode(pCxt, releaseRawExprNode(pCxt, B), false));
+                                                                                    A = createRawExprNodeExt(pCxt, &s, &C, createOperatorNode(pCxt, OP_TYPE_IS_NOT_NULL, releaseRawExprNode(pCxt, B), NULL));
                                                                                   }
 predicate(A) ::= expression(B) in_op(C) in_predicate_value(D).                    {
                                                                                     PARSER_TRACE;

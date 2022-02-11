@@ -21,7 +21,6 @@ int32_t nodesNodeToString(const SNode* pNode, char** pStr, int32_t* pLen) {
     case QUERY_NODE_VALUE:
     case QUERY_NODE_OPERATOR:
     case QUERY_NODE_LOGIC_CONDITION:
-    case QUERY_NODE_IS_NULL_CONDITION:
     case QUERY_NODE_FUNCTION:
     case QUERY_NODE_REAL_TABLE:
     case QUERY_NODE_TEMP_TABLE:

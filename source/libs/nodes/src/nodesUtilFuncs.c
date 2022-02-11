@@ -36,8 +36,6 @@ SNode* nodesMakeNode(ENodeType type) {
       return makeNode(type, sizeof(SOperatorNode));
     case QUERY_NODE_LOGIC_CONDITION:
       return makeNode(type, sizeof(SLogicConditionNode));
-    case QUERY_NODE_IS_NULL_CONDITION:
-      return makeNode(type, sizeof(SIsNullCondNode));
     case QUERY_NODE_FUNCTION:
       return makeNode(type, sizeof(SFunctionNode));
     case QUERY_NODE_REAL_TABLE:

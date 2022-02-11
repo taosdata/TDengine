@@ -89,12 +89,6 @@ static bool logicConditionNodeEqual(const SLogicConditionNode* a, const SLogicCo
   return true;
 }
 
-static bool isNullConditionNodeEqual(const SIsNullCondNode* a, const SIsNullCondNode* b) {
-  COMPARE_NODE_FIELD(pExpr);
-  COMPARE_SCALAR_FIELD(isNull);
-  return true;
-}
-
 static bool functionNodeEqual(const SFunctionNode* a, const SFunctionNode* b) {
   COMPARE_SCALAR_FIELD(funcId);
   COMPARE_NODE_LIST_FIELD(pParameterList);
@@ -123,8 +117,6 @@ bool nodesEqualNode(const SNode* a, const SNode* b) {
       return operatorNodeEqual((const SOperatorNode*)a, (const SOperatorNode*)b);
     case QUERY_NODE_LOGIC_CONDITION:
       return logicConditionNodeEqual((const SLogicConditionNode*)a, (const SLogicConditionNode*)b);
-    case QUERY_NODE_IS_NULL_CONDITION:
-      return isNullConditionNodeEqual((const SIsNullCondNode*)a, (const SIsNullCondNode*)b);
     case QUERY_NODE_FUNCTION:
       return functionNodeEqual((const SFunctionNode*)a, (const SFunctionNode*)b);
     case QUERY_NODE_REAL_TABLE:
