@@ -261,7 +261,7 @@ typedef struct {
 typedef struct {
   char     name[TSDB_DB_FNAME_LEN];
   char     acct[TSDB_USER_LEN];
-  char     createdUser[TSDB_USER_LEN];
+  char     createUser[TSDB_USER_LEN];
   int64_t  createdTime;
   int64_t  updateTime;
   uint64_t uid;
