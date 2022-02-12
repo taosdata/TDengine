@@ -102,11 +102,13 @@ TEST_F(MndTestQnode, 02_Create_Qnode) {
 
 TEST_F(MndTestQnode, 03_Drop_Qnode) {
   {
-    int32_t contLen = sizeof(SCreateDnodeReq);
+    SCreateDnodeReq createReq = {0};
+    strcpy(createReq.fqdn, "localhost");
+    createReq.port = 9015;
 
-    SCreateDnodeReq* pReq = (SCreateDnodeReq*)rpcMallocCont(contLen);
-    strcpy(pReq->fqdn, "localhost");
-    pReq->port = htonl(9015);
+    int32_t contLen = tSerializeSCreateDnodeReq(NULL, 0, &createReq);
+    void*   pReq = rpcMallocCont(contLen);
+    tSerializeSCreateDnodeReq(pReq, contLen, &createReq);
 
     SRpcMsg* pRsp = test.SendReq(TDMT_MND_CREATE_DNODE, pReq, contLen);
     ASSERT_NE(pRsp, nullptr);
