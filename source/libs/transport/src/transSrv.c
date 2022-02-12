@@ -231,7 +231,7 @@ static void uvHandleReq(SSrvConn* pConn) {
   p->chandle = NULL;
 
   STransMsgHead* pHead = (STransMsgHead*)p->msg;
-  if (pHead->secured == 0) {
+  if (pHead->secured == 1) {
     STransUserMsg* uMsg = (p->msg + p->msgLen - sizeof(STransUserMsg));
     memcpy(pConn->user, uMsg->user, tListLen(uMsg->user));
   }

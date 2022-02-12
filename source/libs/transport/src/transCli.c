@@ -405,7 +405,7 @@ static void clientWrite(SCliConn* pConn) {
     pConn->secured = 1;  // del later
 
     pHead = (STransMsgHead*)buf;
-    pHead->secured = 0;
+    pHead->secured = 1;
     msgLen += sizeof(STransUserMsg);
   }
 
