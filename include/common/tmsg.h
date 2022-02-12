@@ -1840,4 +1840,3 @@ static FORCE_INLINE void* tDecodeSMqCMGetSubEpRsp(void* buf, SMqCMGetSubEpRsp* p
 #endif
 
 #endif /*_TD_COMMON_TAOS_MSG_H_*/
-                   

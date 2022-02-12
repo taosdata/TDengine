@@ -18,6 +18,12 @@
 #include "tname.h"
 #include "catalogInt.h"
 
+int32_t ctgActUpdateVg(SCtgMetaAction *action);
+int32_t ctgActUpdateTbl(SCtgMetaAction *action);
+int32_t ctgActRemoveDB(SCtgMetaAction *action);
+int32_t ctgActRemoveStb(SCtgMetaAction *action);
+int32_t ctgActRemoveTbl(SCtgMetaAction *action);
+
 SCatalogMgmt ctgMgmt = {0};
 
 SCtgDebug gCTGDebug = {0};
@@ -239,6 +245,44 @@ void ctgReleaseVgInfo(SCtgDBCache *dbCache) {
 
 void ctgWReleaseVgInfo(SCtgDBCache *dbCache) {
   CTG_UNLOCK(CTG_WRITE, &dbCache->vgLock);
+}
+
+
+int32_t ctgAcquireDBCacheImpl(SCatalog* pCtg, const char *dbFName, SCtgDBCache **pCache, bool acquire) {
+  SCtgDBCache *dbCache = NULL;
+  if (acquire) {
+    dbCache = (SCtgDBCache *)taosHashAcquire(pCtg->dbCache, dbFName, strlen(dbFName));
+  } else {
+    dbCache = (SCtgDBCache *)taosHashGet(pCtg->dbCache, dbFName, strlen(dbFName));
+  }
+  
+  if (NULL == dbCache) {
+    *pCache = NULL;
+    ctgDebug("db not in cache, dbFName:%s", dbFName);
+    return TSDB_CODE_SUCCESS;
+  }
+
+  if (dbCache->deleted) {
+    if (acquire) {
+      ctgReleaseDBCache(pCtg, dbCache);
+    }    
+    
+    *pCache = NULL;
+    ctgDebug("db is removing from cache, dbFName:%s", dbFName);
+    return TSDB_CODE_SUCCESS;
+  }
+
+  *pCache = dbCache;
+    
+  return TSDB_CODE_SUCCESS;
+}
+
+int32_t ctgAcquireDBCache(SCatalog* pCtg, const char *dbFName, SCtgDBCache **pCache) {
+  CTG_RET(ctgAcquireDBCacheImpl(pCtg, dbFName, pCache, true));
+}
+
+int32_t ctgGetDBCache(SCatalog* pCtg, const char *dbFName, SCtgDBCache **pCache) {
+  CTG_RET(ctgAcquireDBCacheImpl(pCtg, dbFName, pCache, false));
 }
 
 
@@ -978,43 +1022,6 @@ int32_t ctgRemoveDB(SCatalog* pCtg, SCtgDBCache *dbCache, const char* dbFName) {
   return TSDB_CODE_SUCCESS;
 }
 
-int32_t ctgAcquireDBCacheImpl(SCatalog* pCtg, const char *dbFName, SCtgDBCache **pCache, bool acquire) {
-  SCtgDBCache *dbCache = NULL;
-  if (acquire) {
-    dbCache = (SCtgDBCache *)taosHashAcquire(pCtg->dbCache, dbFName, strlen(dbFName));
-  } else {
-    dbCache = (SCtgDBCache *)taosHashGet(pCtg->dbCache, dbFName, strlen(dbFName));
-  }
-  
-  if (NULL == dbCache) {
-    *pCache = NULL;
-    ctgDebug("db not in cache, dbFName:%s", dbFName);
-    return TSDB_CODE_SUCCESS;
-  }
-
-  if (dbCache->deleted) {
-    if (acquire) {
-      ctgReleaseDBCache(pCtg, dbCache);
-    }    
-    
-    *pCache = NULL;
-    ctgDebug("db is removing from cache, dbFName:%s", dbFName);
-    return TSDB_CODE_SUCCESS;
-  }
-
-  *pCache = dbCache;
-    
-  return TSDB_CODE_SUCCESS;
-}
-
-int32_t ctgAcquireDBCache(SCatalog* pCtg, const char *dbFName, SCtgDBCache **pCache) {
-  CTG_RET(ctgAcquireDBCacheImpl(pCtg, dbFName, pCache, true));
-}
-
-int32_t ctgGetDBCache(SCatalog* pCtg, const char *dbFName, SCtgDBCache **pCache) {
-  CTG_RET(ctgAcquireDBCacheImpl(pCtg, dbFName, pCache, false));
-}
-
 
 int32_t ctgGetAddDBCache(SCatalog* pCtg, const char *dbFName, uint64_t dbId, SCtgDBCache **pCache) {
   int32_t code = 0;
@@ -1235,7 +1242,7 @@ int32_t ctgCloneMetaOutput(STableMetaOutput *output, STableMetaOutput **pOutput)
     int32_t metaSize = CTG_META_SIZE(output->tbMeta);
     (*pOutput)->tbMeta = malloc(metaSize);
     if (NULL == (*pOutput)->tbMeta) {
-      qError("malloc %d failed", sizeof(STableMetaOutput));
+      qError("malloc %d failed", (int32_t)sizeof(STableMetaOutput));
       tfree(*pOutput);
       CTG_ERR_RET(TSDB_CODE_CTG_MEM_ERROR);
     }

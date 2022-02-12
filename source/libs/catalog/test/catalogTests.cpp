@@ -33,12 +33,14 @@
 #include "tep.h"
 #include "trpc.h"
 #include "tvariant.h"
+#include "catalogInt.h"
 
 namespace {
 
 extern "C" int32_t ctgGetTableMetaFromCache(struct SCatalog *pCatalog, const SName *pTableName, STableMeta **pTableMeta,
                                             int32_t *exist);
 extern "C" int32_t ctgDbgGetClusterCacheNum(struct SCatalog* pCatalog, int32_t type);
+extern "C" int32_t ctgActUpdateTbl(SCtgMetaAction *action);
 
 void ctgTestSetPrepareTableMeta();
 void ctgTestSetPrepareCTableMeta();
@@ -725,9 +727,9 @@ void *ctgTestSetCtableMetaThread(void *param) {
   action.act = CTG_ACT_UPDATE_TBL;
 
   while (!ctgTestStop) {
-    SCtgUpdateTblMsg *msg = malloc(sizeof(SCtgUpdateTblMsg));
+    SCtgUpdateTblMsg *msg = (SCtgUpdateTblMsg *)malloc(sizeof(SCtgUpdateTblMsg));
     msg->pCtg = pCtg;
-    msg->output = output;
+    msg->output = &output;
     action.data = msg;
 
     code = ctgActUpdateTbl(&action);
@@ -1077,7 +1079,7 @@ TEST(tableMeta, rmStbMeta) {
   ASSERT_EQ(tableMeta->tableInfo.precision, 1);
   ASSERT_EQ(tableMeta->tableInfo.rowSize, 12);
 
-  code = catalogRemoveSTableMeta(pCtg, "1.db1", ctgTestSTablename, ctgTestSuid);
+  code = catalogRemoveStbMeta(pCtg, "1.db1", ctgTestDbId, ctgTestSTablename, ctgTestSuid);
   ASSERT_EQ(code, 0);
 
   ASSERT_EQ(ctgDbgGetClusterCacheNum(pCtg, CTG_DBG_DB_NUM), 1);
