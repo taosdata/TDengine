@@ -15,6 +15,7 @@
 
 #define _DEFAULT_SOURCE
 #include "mndDb.h"
+#include "mndAuth.h"
 #include "mndDnode.h"
 #include "mndShow.h"
 #include "mndTrans.h"
@@ -369,7 +370,7 @@ static int32_t mndSetCreateDbUndoActions(SMnode *pMnode, STrans *pTrans, SDbObj 
       action.pCont = pReq;
       action.contLen = sizeof(SDropVnodeReq);
       action.msgType = TDMT_DND_DROP_VNODE;
-       action.acceptableCode = TSDB_CODE_DND_VNODE_NOT_DEPLOYED;
+      action.acceptableCode = TSDB_CODE_DND_VNODE_NOT_DEPLOYED;
       if (mndTransAppendUndoAction(pTrans, &action) != 0) {
         free(pReq);
         return -1;
@@ -451,54 +452,54 @@ CREATE_DB_OVER:
 }
 
 static int32_t mndProcessCreateDbReq(SMnodeMsg *pReq) {
-  SMnode       *pMnode = pReq->pMnode;
-  SCreateDbReq *pCreate = pReq->rpcMsg.pCont;
+  SMnode      *pMnode = pReq->pMnode;
+  int32_t      code = -1;
+  SDbObj      *pDb = NULL;
+  SUserObj    *pUser = NULL;
+  SCreateDbReq createReq = {0};
 
-  pCreate->numOfVgroups = htonl(pCreate->numOfVgroups);
-  pCreate->cacheBlockSize = htonl(pCreate->cacheBlockSize);
-  pCreate->totalBlocks = htonl(pCreate->totalBlocks);
-  pCreate->daysPerFile = htonl(pCreate->daysPerFile);
-  pCreate->daysToKeep0 = htonl(pCreate->daysToKeep0);
-  pCreate->daysToKeep1 = htonl(pCreate->daysToKeep1);
-  pCreate->daysToKeep2 = htonl(pCreate->daysToKeep2);
-  pCreate->minRows = htonl(pCreate->minRows);
-  pCreate->maxRows = htonl(pCreate->maxRows);
-  pCreate->commitTime = htonl(pCreate->commitTime);
-  pCreate->fsyncPeriod = htonl(pCreate->fsyncPeriod);
+  if (tDeserializeSCreateDbReq(pReq->rpcMsg.pCont, pReq->rpcMsg.contLen, &createReq) != 0) {
+    terrno = TSDB_CODE_INVALID_MSG;
+    goto CREATE_DB_OVER;
+  }
 
-  mDebug("db:%s, start to create, vgroups:%d", pCreate->db, pCreate->numOfVgroups);
+  mDebug("db:%s, start to create, vgroups:%d", createReq.db, createReq.numOfVgroups);
 
-  SDbObj *pDb = mndAcquireDb(pMnode, pCreate->db);
+  pDb = mndAcquireDb(pMnode, createReq.db);
   if (pDb != NULL) {
-    mndReleaseDb(pMnode, pDb);
-    if (pCreate->ignoreExist) {
-      mDebug("db:%s, already exist, ignore exist is set", pCreate->db);
-      return 0;
+    if (createReq.ignoreExist) {
+      mDebug("db:%s, already exist, ignore exist is set", createReq.db);
+      code = 0;
+      goto CREATE_DB_OVER;
     } else {
       terrno = TSDB_CODE_MND_DB_ALREADY_EXIST;
-      mError("db:%s, failed to create since %s", pCreate->db, terrstr());
-      return -1;
+      goto CREATE_DB_OVER;
     }
   } else if (terrno != TSDB_CODE_MND_DB_NOT_EXIST) {
-    mError("db:%s, failed to create since %s", pCreate->db, terrstr());
-    return -1;
+    goto CREATE_DB_OVER;
   }
 
-  SUserObj *pOperUser = mndAcquireUser(pMnode, pReq->user);
-  if (pOperUser == NULL) {
-    mError("db:%s, failed to create since %s", pCreate->db, terrstr());
-    return -1;
+  pUser = mndAcquireUser(pMnode, pReq->user);
+  if (pUser == NULL) {
+    goto CREATE_DB_OVER;
   }
 
-  int32_t code = mndCreateDb(pMnode, pReq, pCreate, pOperUser);
-  mndReleaseUser(pMnode, pOperUser);
-
-  if (code != 0) {
-    mError("db:%s, failed to create since %s", pCreate->db, terrstr());
-    return -1;
+  if (mndCheckCreateDbAuth(pUser) != 0) {
+    goto CREATE_DB_OVER;
   }
 
-  return TSDB_CODE_MND_ACTION_IN_PROGRESS;
+  code = mndCreateDb(pMnode, pReq, &createReq, pUser);
+  if (code == 0) code = TSDB_CODE_MND_ACTION_IN_PROGRESS;
+
+CREATE_DB_OVER:
+  if (code != 0 && code != TSDB_CODE_MND_ACTION_IN_PROGRESS) {
+    mError("db:%s, failed to create since %s", createReq.db, terrstr());
+  }
+
+  mndReleaseDb(pMnode, pDb);
+  mndReleaseUser(pMnode, pUser);
+
+  return code;
 }
 
 static int32_t mndSetDbCfgFromAlterDbReq(SDbObj *pDb, SAlterDbReq *pAlter) {
@@ -818,7 +819,7 @@ static int32_t mndProcessDropDbReq(SMnodeMsg *pReq) {
 
 static void mndBuildDBVgroupInfo(SDbObj *pDb, SMnode *pMnode, SVgroupInfo *vgList, int32_t *vgNum) {
   int32_t vindex = 0;
-  SSdb *pSdb = pMnode->pSdb;
+  SSdb   *pSdb = pMnode->pSdb;
 
   void *pIter = NULL;
   while (vindex < pDb->cfg.numOfVgroups) {
@@ -833,9 +834,9 @@ static void mndBuildDBVgroupInfo(SDbObj *pDb, SMnode *pMnode, SVgroupInfo *vgLis
       pInfo->hashEnd = htonl(pVgroup->hashEnd);
       pInfo->epset.numOfEps = pVgroup->replica;
       for (int32_t gid = 0; gid < pVgroup->replica; ++gid) {
-        SVnodeGid  *pVgid = &pVgroup->vnodeGid[gid];
-        SEp *       pEp = &pInfo->epset.eps[gid];
-        SDnodeObj  *pDnode = mndAcquireDnode(pMnode, pVgid->dnodeId);
+        SVnodeGid *pVgid = &pVgroup->vnodeGid[gid];
+        SEp       *pEp = &pInfo->epset.eps[gid];
+        SDnodeObj *pDnode = mndAcquireDnode(pMnode, pVgid->dnodeId);
         if (pDnode != NULL) {
           memcpy(pEp->fqdn, pDnode->fqdn, TSDB_FQDN_LEN);
           pEp->port = htons(pDnode->port);
@@ -895,12 +896,12 @@ static int32_t mndProcessUseDbReq(SMnodeMsg *pReq) {
 }
 
 int32_t mndValidateDBInfo(SMnode *pMnode, SDbVgVersion *dbs, int32_t num, void **rsp, int32_t *rspLen) {
-  SSdb *pSdb = pMnode->pSdb;
-  int32_t bufSize = num * (sizeof(SUseDbRsp) + TSDB_DEFAULT_VN_PER_DB * sizeof(SVgroupInfo));
-  void *buf = malloc(bufSize);
-  int32_t len = 0;
-  int32_t contLen = 0;
-  int32_t bufOffset = 0;
+  SSdb      *pSdb = pMnode->pSdb;
+  int32_t    bufSize = num * (sizeof(SUseDbRsp) + TSDB_DEFAULT_VN_PER_DB * sizeof(SVgroupInfo));
+  void      *buf = malloc(bufSize);
+  int32_t    len = 0;
+  int32_t    contLen = 0;
+  int32_t    bufOffset = 0;
   SUseDbRsp *pRsp = NULL;
 
   for (int32_t i = 0; i < num; ++i) {
@@ -909,11 +910,11 @@ int32_t mndValidateDBInfo(SMnode *pMnode, SDbVgVersion *dbs, int32_t num, void *
     db->vgVersion = ntohl(db->vgVersion);
 
     len = 0;
-    
+
     SDbObj *pDb = mndAcquireDb(pMnode, db->dbFName);
     if (pDb == NULL) {
       mInfo("db %s not exist", db->dbFName);
-      
+
       len = sizeof(SUseDbRsp);
     } else if (pDb->uid != db->dbId || db->vgVersion < pDb->vgVersion) {
       len = sizeof(SUseDbRsp) + pDb->cfg.numOfVgroups * sizeof(SVgroupInfo);
@@ -921,16 +922,16 @@ int32_t mndValidateDBInfo(SMnode *pMnode, SDbVgVersion *dbs, int32_t num, void *
 
     if (0 == len) {
       mndReleaseDb(pMnode, pDb);
-      
+
       continue;
     }
-    
+
     contLen += len;
-    
+
     if (contLen > bufSize) {
       buf = realloc(buf, contLen);
     }
-    
+
     pRsp = (SUseDbRsp *)((char *)buf + bufOffset);
     memcpy(pRsp->db, db->dbFName, TSDB_DB_FNAME_LEN);
     if (pDb) {
@@ -949,7 +950,7 @@ int32_t mndValidateDBInfo(SMnode *pMnode, SDbVgVersion *dbs, int32_t num, void *
     }
 
     bufOffset += len;
-    
+
     mndReleaseDb(pMnode, pDb);
   }
 
