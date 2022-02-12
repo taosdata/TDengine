@@ -61,6 +61,7 @@ SMqConsumerObj* mndCreateConsumer(int64_t consumerId, const char* cgroup) {
   }
   pConsumer->epoch = 1;
   pConsumer->consumerId = consumerId;
+  atomic_store_32(&pConsumer->status, MQ_CONSUMER_STATUS__INIT);
   strcpy(pConsumer->cgroup, cgroup);
   taosInitRWLatch(&pConsumer->lock);
   return pConsumer;

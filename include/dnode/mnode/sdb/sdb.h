@@ -222,7 +222,7 @@ int32_t sdbWriteNotFree(SSdb *pSdb, SSdbRaw *pRaw);
  * @param pKey The key value of the row.
  * @return void* The object of the row.
  */
-void *sdbAcquire(SSdb *pSdb, ESdbType type, void *pKey);
+void *sdbAcquire(SSdb *pSdb, ESdbType type, const void *pKey);
 
 /**
  * @brief Release a row from sdb.

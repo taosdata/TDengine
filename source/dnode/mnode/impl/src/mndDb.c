@@ -73,7 +73,7 @@ static SSdbRaw *mndDbActionEncode(SDbObj *pDb) {
   int32_t dataPos = 0;
   SDB_SET_BINARY(pRaw, dataPos, pDb->name, TSDB_DB_FNAME_LEN, DB_ENCODE_OVER)
   SDB_SET_BINARY(pRaw, dataPos, pDb->acct, TSDB_USER_LEN, DB_ENCODE_OVER)
-  SDB_SET_BINARY(pRaw, dataPos, pDb->createdUser, TSDB_USER_LEN, DB_ENCODE_OVER)
+  SDB_SET_BINARY(pRaw, dataPos, pDb->createUser, TSDB_USER_LEN, DB_ENCODE_OVER)
   SDB_SET_INT64(pRaw, dataPos, pDb->createdTime, DB_ENCODE_OVER)
   SDB_SET_INT64(pRaw, dataPos, pDb->updateTime, DB_ENCODE_OVER)
   SDB_SET_INT64(pRaw, dataPos, pDb->uid, DB_ENCODE_OVER)
@@ -134,7 +134,7 @@ static SSdbRow *mndDbActionDecode(SSdbRaw *pRaw) {
   int32_t dataPos = 0;
   SDB_GET_BINARY(pRaw, dataPos, pDb->name, TSDB_DB_FNAME_LEN, DB_DECODE_OVER)
   SDB_GET_BINARY(pRaw, dataPos, pDb->acct, TSDB_USER_LEN, DB_DECODE_OVER)
-  SDB_GET_BINARY(pRaw, dataPos, pDb->createdUser, TSDB_USER_LEN, DB_DECODE_OVER)
+  SDB_GET_BINARY(pRaw, dataPos, pDb->createUser, TSDB_USER_LEN, DB_DECODE_OVER)
   SDB_GET_INT64(pRaw, dataPos, &pDb->createdTime, DB_DECODE_OVER)
   SDB_GET_INT64(pRaw, dataPos, &pDb->updateTime, DB_DECODE_OVER)
   SDB_GET_INT64(pRaw, dataPos, &pDb->uid, DB_DECODE_OVER)
@@ -390,6 +390,7 @@ static int32_t mndCreateDb(SMnode *pMnode, SMnodeMsg *pReq, SCreateDbReq *pCreat
   dbObj.cfgVersion = 1;
   dbObj.vgVersion = 1;
   dbObj.hashMethod = 1;
+  memcpy(dbObj.createUser, pUser->user, TSDB_USER_LEN);
   dbObj.cfg = (SDbCfg){.numOfVgroups = pCreate->numOfVgroups,
                        .cacheBlockSize = pCreate->cacheBlockSize,
                        .totalBlocks = pCreate->totalBlocks,

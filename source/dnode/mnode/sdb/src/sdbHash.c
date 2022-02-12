@@ -107,7 +107,7 @@ static SHashObj *sdbGetHash(SSdb *pSdb, int32_t type) {
   return hash;
 }
 
-static int32_t sdbGetkeySize(SSdb *pSdb, ESdbType type, void *pKey) {
+static int32_t sdbGetkeySize(SSdb *pSdb, ESdbType type, const void *pKey) {
   int32_t  keySize;
   EKeyType keyType = pSdb->keyTypes[type];
 
@@ -263,7 +263,7 @@ int32_t sdbWrite(SSdb *pSdb, SSdbRaw *pRaw) {
   return code;
 }
 
-void *sdbAcquire(SSdb *pSdb, ESdbType type, void *pKey) {
+void *sdbAcquire(SSdb *pSdb, ESdbType type, const void *pKey) {
   terrno = 0;
 
   SHashObj *hash = sdbGetHash(pSdb, type);
