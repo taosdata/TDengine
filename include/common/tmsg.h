@@ -524,6 +524,7 @@ typedef struct {
   int8_t  update;
   int8_t  cacheLastRow;
   int8_t  ignoreExist;
+  int8_t  streamMode;
 } SCreateDbReq;
 
 int32_t tSerializeSCreateDbReq(void* buf, int32_t bufLen, SCreateDbReq* pReq);

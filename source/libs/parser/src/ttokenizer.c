@@ -230,6 +230,7 @@ static SKeyword keywordTable[] = {
     {"PORT",         TK_PORT},
     {"INNER",        NEW_TK_INNER},
     {"ON",           NEW_TK_ON},
+    {"MODE",         TK_MODE},
 };
 
 static const char isIdChar[] = {

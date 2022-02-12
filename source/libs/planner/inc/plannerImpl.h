@@ -38,6 +38,12 @@ typedef struct SScanLogicNode {
   struct STableMeta* pMeta;
 } SScanLogicNode;
 
+typedef struct SJoinLogicNode {
+  SLogicNode node;
+  EJoinType joinType;
+  SNode* pOnConditions;
+} SJoinLogicNode;
+
 typedef struct SFilterLogicNode {
   SLogicNode node;
 } SFilterLogicNode;
@@ -47,6 +53,10 @@ typedef struct SAggLogicNode {
   SNodeList* pGroupKeys;
   SNodeList* pAggFuncs;
 } SAggLogicNode;
+
+typedef struct SProjectLogicNode {
+  SLogicNode node;
+} SProjectLogicNode;
 
 #ifdef __cplusplus
 }

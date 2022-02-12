@@ -282,6 +282,7 @@ update(Y)  ::= UPDATE INTEGER(X).             { Y = X; }
 cachelast(Y) ::= CACHELAST INTEGER(X).        { Y = X; }
 vgroups(Y) ::= VGROUPS INTEGER(X).            { Y = X; }
 //partitions(Y) ::= PARTITIONS INTEGER(X).      { Y = X; }
+stream_mode(Y) ::= STREAM MODE INTEGER(X).    { Y = X; }
 
 %type db_optr {SCreateDbInfo}
 db_optr(Y) ::= . {setDefaultCreateDbOption(&Y);}
@@ -302,6 +303,7 @@ db_optr(Y) ::= db_optr(Z) keep(X).           { Y = Z; Y.keep = X; }
 db_optr(Y) ::= db_optr(Z) update(X).         { Y = Z; Y.update = strtol(X.z, NULL, 10); }
 db_optr(Y) ::= db_optr(Z) cachelast(X).      { Y = Z; Y.cachelast = strtol(X.z, NULL, 10); }
 db_optr(Y) ::= db_optr(Z) vgroups(X).        { Y = Z; Y.numOfVgroups = strtol(X.z, NULL, 10); }
+db_optr(Y) ::= db_optr(Z) stream_mode(X).    { Y = Z; Y.streamMode = strtol(X.z, NULL, 10); }
 
 //%type topic_optr {SCreateDbInfo}
 //
