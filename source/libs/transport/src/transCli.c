@@ -135,9 +135,10 @@ static void clientHandleResp(SCliConn* conn) {
 
   if (conn->push != NULL && conn->notifyCount != 0) {
     (*conn->push->callback)(conn->push->arg, &rpcMsg);
+    conn->push = NULL;
   } else {
     if (pCtx->pSem == NULL) {
-      tTrace("client conn(sync) %p handle resp", conn);
+      tTrace("client conn%p handle resp", conn);
       (pRpc->cfp)(pRpc->parent, &rpcMsg, NULL);
     } else {
       tTrace("client conn(sync) %p handle resp", conn);
@@ -146,6 +147,7 @@ static void clientHandleResp(SCliConn* conn) {
     }
   }
   conn->notifyCount += 1;
+  conn->secured = pHead->secured;
 
   // buf's mem alread translated to rpcMsg.pCont
   transClearBuffer(&conn->readBuf);
@@ -156,10 +158,10 @@ static void clientHandleResp(SCliConn* conn) {
   // user owns conn->persist = 1
   if (conn->push == NULL) {
     addConnToPool(pThrd->pool, pCtx->ip, pCtx->port, conn);
-  }
 
-  destroyCmsg(pMsg);
-  conn->data = NULL;
+    destroyCmsg(conn->data);
+    conn->data = NULL;
+  }
   // start thread's timer of conn pool if not active
   if (!uv_is_active((uv_handle_t*)pThrd->timer) && pRpc->idleTime > 0) {
     uv_timer_start((uv_timer_t*)pThrd->timer, clientTimeoutCb, CONN_PERSIST_TIME(pRpc->idleTime) / 2, 0);
@@ -182,21 +184,23 @@ static void clientHandleExcept(SCliConn* pConn) {
 
   if (pConn->push != NULL && pConn->notifyCount != 0) {
     (*pConn->push->callback)(pConn->push->arg, &rpcMsg);
+    pConn->push = NULL;
   } else {
     if (pCtx->pSem == NULL) {
       (pCtx->pTransInst->cfp)(pCtx->pTransInst->parent, &rpcMsg, NULL);
     } else {
       memcpy((char*)(pCtx->pRsp), (char*)(&rpcMsg), sizeof(rpcMsg));
-      // SRpcMsg rpcMsg
       tsem_post(pCtx->pSem);
     }
     if (pConn->push != NULL) {
       (*pConn->push->callback)(pConn->push->arg, &rpcMsg);
     }
+    pConn->push = NULL;
   }
-
-  destroyCmsg(pMsg);
-  pConn->data = NULL;
+  if (pConn->push == NULL) {
+    destroyCmsg(pConn->data);
+    pConn->data = NULL;
+  }
   // transDestroyConnCtx(pCtx);
   clientConnDestroy(pConn, true);
   pConn->notifyCount += 1;
@@ -383,6 +387,7 @@ static void clientWriteCb(uv_write_t* req, int status) {
 static void clientWrite(SCliConn* pConn) {
   SCliMsg*       pCliMsg = pConn->data;
   STransConnCtx* pCtx = pCliMsg->ctx;
+  SRpcInfo*      pTransInst = pCtx->pTransInst;
 
   SRpcMsg* pMsg = (SRpcMsg*)(&pCliMsg->msg);
 
@@ -394,15 +399,14 @@ static void clientWrite(SCliConn* pConn) {
     memcpy(buf, (char*)pHead, msgLen);
 
     STransUserMsg* uMsg = (STransUserMsg*)(buf + msgLen);
-    memcpy(uMsg->user, pCtx->pTransInst->user, tListLen(uMsg->user));
+    memcpy(uMsg->user, pTransInst->user, tListLen(uMsg->user));
+    memcpy(uMsg->secret, pTransInst->secret, tListLen(uMsg->secret));
 
     // to avoid mem leak
     destroyUserdata(pMsg);
 
     pMsg->pCont = (char*)buf + sizeof(STransMsgHead);
     pMsg->contLen = msgLen + sizeof(STransUserMsg) - sizeof(STransMsgHead);
-
-    pConn->secured = 1;  // del later
 
     pHead = (STransMsgHead*)buf;
     pHead->secured = 1;
@@ -449,10 +453,6 @@ static void clientHandleReq(SCliMsg* pMsg, SCliThrdObj* pThrd) {
   uint64_t el = et - pMsg->st;
   tTrace("client msg tran time cost: %" PRIu64 "", el);
   et = taosGetTimestampUs();
-
-  // if (pMsg->msg.handle != NULL) {
-  //  // handle
-  //}
 
   STransConnCtx* pCtx = pMsg->ctx;
   SCliConn*      conn = getConnFromPool(pThrd->pool, pCtx->ip, pCtx->port);
