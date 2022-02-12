@@ -1097,3 +1097,213 @@ int32_t tDeserializeSRetrieveFuncRsp(void *buf, int32_t bufLen, SRetrieveFuncRsp
   tCoderClear(&decoder);
   return 0;
 }
+
+int32_t tSerializeSCreateDbReq(void *buf, int32_t bufLen, SCreateDbReq *pReq) {
+  SCoder encoder = {0};
+  tCoderInit(&encoder, TD_LITTLE_ENDIAN, buf, bufLen, TD_ENCODER);
+
+  if (tStartEncode(&encoder) < 0) return -1;
+  if (tEncodeCStr(&encoder, pReq->db) < 0) return -1;
+  if (tEncodeI32(&encoder, pReq->numOfVgroups) < 0) return -1;
+  if (tEncodeI32(&encoder, pReq->cacheBlockSize) < 0) return -1;
+  if (tEncodeI32(&encoder, pReq->totalBlocks) < 0) return -1;
+  if (tEncodeI32(&encoder, pReq->daysPerFile) < 0) return -1;
+  if (tEncodeI32(&encoder, pReq->daysToKeep0) < 0) return -1;
+  if (tEncodeI32(&encoder, pReq->daysToKeep1) < 0) return -1;
+  if (tEncodeI32(&encoder, pReq->daysToKeep2) < 0) return -1;
+  if (tEncodeI32(&encoder, pReq->minRows) < 0) return -1;
+  if (tEncodeI32(&encoder, pReq->maxRows) < 0) return -1;
+  if (tEncodeI32(&encoder, pReq->commitTime) < 0) return -1;
+  if (tEncodeI32(&encoder, pReq->fsyncPeriod) < 0) return -1;
+  if (tEncodeI8(&encoder, pReq->walLevel) < 0) return -1;
+  if (tEncodeI8(&encoder, pReq->precision) < 0) return -1;
+  if (tEncodeI8(&encoder, pReq->compression) < 0) return -1;
+  if (tEncodeI8(&encoder, pReq->replications) < 0) return -1;
+  if (tEncodeI8(&encoder, pReq->quorum) < 0) return -1;
+  if (tEncodeI8(&encoder, pReq->update) < 0) return -1;
+  if (tEncodeI8(&encoder, pReq->cacheLastRow) < 0) return -1;
+  if (tEncodeI8(&encoder, pReq->ignoreExist) < 0) return -1;
+  tEndEncode(&encoder);
+
+  int32_t tlen = encoder.pos;
+  tCoderClear(&encoder);
+  return tlen;
+}
+
+int32_t tDeserializeSCreateDbReq(void *buf, int32_t bufLen, SCreateDbReq *pReq) {
+  SCoder decoder = {0};
+  tCoderInit(&decoder, TD_LITTLE_ENDIAN, buf, bufLen, TD_DECODER);
+
+  if (tStartDecode(&decoder) < 0) return -1;
+  if (tDecodeCStrTo(&decoder, pReq->db) < 0) return -1;
+  if (tDecodeI32(&decoder, &pReq->numOfVgroups) < 0) return -1;
+  if (tDecodeI32(&decoder, &pReq->cacheBlockSize) < 0) return -1;
+  if (tDecodeI32(&decoder, &pReq->totalBlocks) < 0) return -1;
+  if (tDecodeI32(&decoder, &pReq->daysPerFile) < 0) return -1;
+  if (tDecodeI32(&decoder, &pReq->daysToKeep0) < 0) return -1;
+  if (tDecodeI32(&decoder, &pReq->daysToKeep1) < 0) return -1;
+  if (tDecodeI32(&decoder, &pReq->daysToKeep2) < 0) return -1;
+  if (tDecodeI32(&decoder, &pReq->minRows) < 0) return -1;
+  if (tDecodeI32(&decoder, &pReq->maxRows) < 0) return -1;
+  if (tDecodeI32(&decoder, &pReq->commitTime) < 0) return -1;
+  if (tDecodeI32(&decoder, &pReq->fsyncPeriod) < 0) return -1;
+  if (tDecodeI8(&decoder, &pReq->walLevel) < 0) return -1;
+  if (tDecodeI8(&decoder, &pReq->precision) < 0) return -1;
+  if (tDecodeI8(&decoder, &pReq->compression) < 0) return -1;
+  if (tDecodeI8(&decoder, &pReq->replications) < 0) return -1;
+  if (tDecodeI8(&decoder, &pReq->quorum) < 0) return -1;
+  if (tDecodeI8(&decoder, &pReq->update) < 0) return -1;
+  if (tDecodeI8(&decoder, &pReq->cacheLastRow) < 0) return -1;
+  if (tDecodeI8(&decoder, &pReq->ignoreExist) < 0) return -1;
+  tEndDecode(&decoder);
+
+  tCoderClear(&decoder);
+  return 0;
+}
+
+int32_t tSerializeSAlterDbReq(void *buf, int32_t bufLen, SAlterDbReq *pReq) {
+  SCoder encoder = {0};
+  tCoderInit(&encoder, TD_LITTLE_ENDIAN, buf, bufLen, TD_ENCODER);
+
+  if (tStartEncode(&encoder) < 0) return -1;
+  if (tEncodeCStr(&encoder, pReq->db) < 0) return -1;
+  if (tEncodeI32(&encoder, pReq->totalBlocks) < 0) return -1;
+  if (tEncodeI32(&encoder, pReq->daysToKeep0) < 0) return -1;
+  if (tEncodeI32(&encoder, pReq->daysToKeep1) < 0) return -1;
+  if (tEncodeI32(&encoder, pReq->daysToKeep2) < 0) return -1;
+  if (tEncodeI32(&encoder, pReq->fsyncPeriod) < 0) return -1;
+  if (tEncodeI8(&encoder, pReq->walLevel) < 0) return -1;
+  if (tEncodeI8(&encoder, pReq->quorum) < 0) return -1;
+  if (tEncodeI8(&encoder, pReq->cacheLastRow) < 0) return -1;
+  tEndEncode(&encoder);
+
+  int32_t tlen = encoder.pos;
+  tCoderClear(&encoder);
+  return tlen;
+}
+
+int32_t tDeserializeSAlterDbReq(void *buf, int32_t bufLen, SAlterDbReq *pReq) {
+  SCoder decoder = {0};
+  tCoderInit(&decoder, TD_LITTLE_ENDIAN, buf, bufLen, TD_DECODER);
+
+  if (tStartDecode(&decoder) < 0) return -1;
+  if (tDecodeCStrTo(&decoder, pReq->db) < 0) return -1;
+  if (tDecodeI32(&decoder, &pReq->totalBlocks) < 0) return -1;
+  if (tDecodeI32(&decoder, &pReq->daysToKeep0) < 0) return -1;
+  if (tDecodeI32(&decoder, &pReq->daysToKeep1) < 0) return -1;
+  if (tDecodeI32(&decoder, &pReq->daysToKeep2) < 0) return -1;
+  if (tDecodeI32(&decoder, &pReq->fsyncPeriod) < 0) return -1;
+  if (tDecodeI8(&decoder, &pReq->walLevel) < 0) return -1;
+  if (tDecodeI8(&decoder, &pReq->quorum) < 0) return -1;
+  if (tDecodeI8(&decoder, &pReq->cacheLastRow) < 0) return -1;
+  tEndDecode(&decoder);
+
+  tCoderClear(&decoder);
+  return 0;
+}
+
+int32_t tSerializeSDropDbReq(void *buf, int32_t bufLen, SDropDbReq *pReq) {
+  SCoder encoder = {0};
+  tCoderInit(&encoder, TD_LITTLE_ENDIAN, buf, bufLen, TD_ENCODER);
+
+  if (tStartEncode(&encoder) < 0) return -1;
+  if (tEncodeCStr(&encoder, pReq->db) < 0) return -1;
+  if (tEncodeI8(&encoder, pReq->ignoreNotExists) < 0) return -1;
+  tEndEncode(&encoder);
+
+  int32_t tlen = encoder.pos;
+  tCoderClear(&encoder);
+  return tlen;
+}
+
+int32_t tDeserializeSDropDbReq(void *buf, int32_t bufLen, SDropDbReq *pReq) {
+  SCoder decoder = {0};
+  tCoderInit(&decoder, TD_LITTLE_ENDIAN, buf, bufLen, TD_DECODER);
+
+  if (tStartDecode(&decoder) < 0) return -1;
+  if (tDecodeCStrTo(&decoder, pReq->db) < 0) return -1;
+  if (tDecodeI8(&decoder, &pReq->ignoreNotExists) < 0) return -1;
+  tEndDecode(&decoder);
+
+  tCoderClear(&decoder);
+  return 0;
+}
+
+int32_t tSerializeSDropDbRsp(void *buf, int32_t bufLen, SDropDbRsp *pRsp) {
+  SCoder encoder = {0};
+  tCoderInit(&encoder, TD_LITTLE_ENDIAN, buf, bufLen, TD_ENCODER);
+
+  if (tStartEncode(&encoder) < 0) return -1;
+  if (tEncodeCStr(&encoder, pRsp->db) < 0) return -1;
+  if (tEncodeU64(&encoder, pRsp->uid) < 0) return -1;
+  tEndEncode(&encoder);
+
+  int32_t tlen = encoder.pos;
+  tCoderClear(&encoder);
+  return tlen;
+}
+
+int32_t tDeserializeSDropDbRsp(void *buf, int32_t bufLen, SDropDbRsp *pRsp) {
+  SCoder decoder = {0};
+  tCoderInit(&decoder, TD_LITTLE_ENDIAN, buf, bufLen, TD_DECODER);
+
+  if (tStartDecode(&decoder) < 0) return -1;
+  if (tDecodeCStrTo(&decoder, pRsp->db) < 0) return -1;
+  if (tDecodeU64(&decoder, &pRsp->uid) < 0) return -1;
+  tEndDecode(&decoder);
+
+  tCoderClear(&decoder);
+  return 0;
+}
+
+int32_t tSerializeSUseDbReq(void *buf, int32_t bufLen, SUseDbReq *pReq) {
+  SCoder encoder = {0};
+  tCoderInit(&encoder, TD_LITTLE_ENDIAN, buf, bufLen, TD_ENCODER);
+
+  if (tStartEncode(&encoder) < 0) return -1;
+  if (tEncodeCStr(&encoder, pReq->db) < 0) return -1;
+  if (tEncodeI32(&encoder, pReq->vgVersion) < 0) return -1;
+  tEndEncode(&encoder);
+
+  int32_t tlen = encoder.pos;
+  tCoderClear(&encoder);
+  return tlen;
+}
+
+int32_t tDeserializeSUseDbReq(void *buf, int32_t bufLen, SUseDbReq *pReq) {
+  SCoder decoder = {0};
+  tCoderInit(&decoder, TD_LITTLE_ENDIAN, buf, bufLen, TD_DECODER);
+
+  if (tStartDecode(&decoder) < 0) return -1;
+  if (tDecodeCStrTo(&decoder, pReq->db) < 0) return -1;
+  if (tDecodeI32(&decoder, &pReq->vgVersion) < 0) return -1;
+  tEndDecode(&decoder);
+
+  tCoderClear(&decoder);
+  return 0;
+}
+
+int32_t tSerializeSSyncDbReq(void *buf, int32_t bufLen, SSyncDbReq *pReq) {
+  SCoder encoder = {0};
+  tCoderInit(&encoder, TD_LITTLE_ENDIAN, buf, bufLen, TD_ENCODER);
+
+  if (tStartEncode(&encoder) < 0) return -1;
+  if (tEncodeCStr(&encoder, pReq->db) < 0) return -1;
+  tEndEncode(&encoder);
+
+  int32_t tlen = encoder.pos;
+  tCoderClear(&encoder);
+  return tlen;
+}
+
+int32_t tDeserializeSSyncDbReq(void *buf, int32_t bufLen, SSyncDbReq *pReq) {
+  SCoder decoder = {0};
+  tCoderInit(&decoder, TD_LITTLE_ENDIAN, buf, bufLen, TD_DECODER);
+
+  if (tStartDecode(&decoder) < 0) return -1;
+  if (tDecodeCStrTo(&decoder, pReq->db) < 0) return -1;
+  tEndDecode(&decoder);
+
+  tCoderClear(&decoder);
+  return 0;
+}

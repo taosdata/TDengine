@@ -293,7 +293,7 @@ static int32_t mndProcessCreateQnodeReq(SMnodeMsg *pReq) {
     goto CREATE_QNODE_OVER;
   }
 
-  if (mndCheckOperateNodeAuth(pUser)) {
+  if (mndCheckNodeAuth(pUser)) {
     goto CREATE_QNODE_OVER;
   }
 
@@ -400,7 +400,7 @@ static int32_t mndProcessDropQnodeReq(SMnodeMsg *pReq) {
     goto DROP_QNODE_OVER;
   }
 
-  if (mndCheckOperateNodeAuth(pUser)) {
+  if (mndCheckNodeAuth(pUser)) {
     goto DROP_QNODE_OVER;
   }
 

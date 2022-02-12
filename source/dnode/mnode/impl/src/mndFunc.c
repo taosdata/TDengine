@@ -321,7 +321,7 @@ static int32_t mndProcessCreateFuncReq(SMnodeMsg *pReq) {
     goto CREATE_FUNC_OVER;
   }
 
-  if (mndCheckOperateFuncAuth(pUser)) {
+  if (mndCheckFuncAuth(pUser)) {
     goto CREATE_FUNC_OVER;
   }
 
@@ -376,7 +376,7 @@ static int32_t mndProcessDropFuncReq(SMnodeMsg *pReq) {
     goto DROP_FUNC_OVER;
   }
 
-  if (mndCheckOperateFuncAuth(pUser)) {
+  if (mndCheckFuncAuth(pUser)) {
     goto DROP_FUNC_OVER;
   }
 

@@ -294,7 +294,7 @@ static int32_t mndProcessCreateSnodeReq(SMnodeMsg *pReq) {
     goto CREATE_SNODE_OVER;
   }
 
-  if (mndCheckOperateNodeAuth(pUser)) {
+  if (mndCheckNodeAuth(pUser)) {
     goto CREATE_SNODE_OVER;
   }
 
@@ -403,7 +403,7 @@ static int32_t mndProcessDropSnodeReq(SMnodeMsg *pReq) {
     goto DROP_SNODE_OVER;
   }
 
-  if (mndCheckOperateNodeAuth(pUser)) {
+  if (mndCheckNodeAuth(pUser)) {
     goto DROP_SNODE_OVER;
   }
 
