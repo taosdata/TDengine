@@ -105,7 +105,8 @@ typedef struct SCtgApiStat {
 } SCtgApiStat;
 
 typedef struct SCtgRuntimeStat {
-
+  uint64_t qNum;
+  uint64_t qDoneNum;
 } SCtgRuntimeStat;
 
 typedef struct SCtgCacheStat {
@@ -161,6 +162,7 @@ typedef struct SCatalogMgmt {
   SCtgQNode            *head;
   SCtgQNode            *tail;
   tsem_t                sem;  
+  uint64_t              qRemainNum;
   pthread_t             updateThread;  
   SHashObj             *pCluster;     //key: clusterId, value: SCatalog*
   SCatalogStat          stat;
@@ -169,6 +171,18 @@ typedef struct SCatalogMgmt {
 
 typedef uint32_t (*tableNameHashFp)(const char *, uint32_t);
 typedef int32_t (*ctgActFunc)(SCtgMetaAction *);
+
+typedef struct SCtgAction {
+  int32_t    actId;
+  char       name[32];
+  ctgActFunc func;
+} SCtgAction;
+
+#define CTG_QUEUE_ADD() atomic_add_fetch_64(&gCtgMgmt.qRemainNum, 1)
+#define CTG_QUEUE_SUB() atomic_sub_fetch_64(&gCtgMgmt.qRemainNum, 1)
+
+#define CTG_STAT_ADD(n) qError("done:%" PRId64, atomic_add_fetch_64(&(n), 1))
+#define CTG_STAT_SUB(n) atomic_sub_fetch_64(&(n), 1)
 
 #define CTG_IS_META_NULL(type) ((type) == META_TYPE_NULL_TABLE)
 #define CTG_IS_META_CTABLE(type) ((type) == META_TYPE_CTABLE)
@@ -236,8 +250,8 @@ typedef int32_t (*ctgActFunc)(SCtgMetaAction *);
 #define CTG_RET(c) do { int32_t _code = c; if (_code != TSDB_CODE_SUCCESS) { terrno = _code; } return _code; } while (0)
 #define CTG_ERR_JRET(c) do { code = c; if (code != TSDB_CODE_SUCCESS) { terrno = code; goto _return; } } while (0)
 
-#define CTG_API_ENTER() do { CTG_API_DEBUG("enter %s", __FUNCTION__); CTG_LOCK(CTG_READ, &ctgMgmt.lock); if (atomic_load_8(&ctgMgmt.exit)) { CTG_UNLOCK(CTG_READ, &ctgMgmt.lock); CTG_RET(TSDB_CODE_CTG_OUT_OF_SERVICE); }  } while (0)
-#define CTG_API_LEAVE(c) do { int32_t __code = c; CTG_UNLOCK(CTG_READ, &ctgMgmt.lock); CTG_API_DEBUG("leave %s", __FUNCTION__); CTG_RET(__code); } while (0)
+#define CTG_API_LEAVE(c) do { int32_t __code = c; CTG_UNLOCK(CTG_READ, &gCtgMgmt.lock); CTG_API_DEBUG("CTG API leave %s", __FUNCTION__); CTG_RET(__code); } while (0)
+#define CTG_API_ENTER() do { CTG_API_DEBUG("CTG API enter %s", __FUNCTION__); CTG_LOCK(CTG_READ, &gCtgMgmt.lock); if (atomic_load_8(&gCtgMgmt.exit)) { CTG_API_LEAVE(TSDB_CODE_CTG_OUT_OF_SERVICE); }  } while (0)
 
 
 
