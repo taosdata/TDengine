@@ -110,3 +110,16 @@ int32_t mndCheckDropUserAuth(SUserObj *pOperUser) {
   terrno = TSDB_CODE_MND_NO_RIGHTS;
   return -1;
 }
+
+int32_t mndCheckCreateNodeAuth(SUserObj *pOperUser) {
+  if (pOperUser->superUser) {
+    return 0;
+  }
+
+  terrno = TSDB_CODE_MND_NO_RIGHTS;
+  return -1;
+}
+
+int32_t mndCheckDropNodeAuth(SUserObj *pOperUser) { return mndCheckCreateNodeAuth(pOperUser); }
+
+int32_t mndCheckAlterNodeAuth(SUserObj *pOperUser) { return mndCheckCreateNodeAuth(pOperUser); }

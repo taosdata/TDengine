@@ -872,15 +872,11 @@ typedef struct {
 
 typedef struct {
   int32_t dnodeId;
-} SMCreateQnodeReq, SMDropQnodeReq, SDCreateQnodeReq, SDDropQnodeReq;
+} SMCreateQnodeReq, SMDropQnodeReq, SDCreateQnodeReq, SDDropQnodeReq, SMCreateSnodeReq, SMDropSnodeReq,
+    SDCreateSnodeReq, SDDropSnodeReq, SMCreateBnodeReq, SMDropBnodeReq, SDCreateBnodeReq, SDDropBnodeReq;
 
-typedef struct {
-  int32_t dnodeId;
-} SMCreateSnodeReq, SMDropSnodeReq, SDCreateSnodeReq, SDDropSnodeReq;
-
-typedef struct {
-  int32_t dnodeId;
-} SMCreateBnodeReq, SMDropBnodeReq, SDCreateBnodeReq, SDDropBnodeReq;
+int32_t tSerializeSMCreateDropQSBNodeReq(void* buf, int32_t bufLen, SMCreateQnodeReq* pReq);
+int32_t tDeserializeSMCreateDropQSBNodeReq(void* buf, int32_t bufLen, SMCreateQnodeReq* pReq);
 
 typedef struct {
   char    sql[TSDB_SHOW_SQL_LEN];

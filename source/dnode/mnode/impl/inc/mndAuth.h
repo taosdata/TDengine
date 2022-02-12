@@ -29,6 +29,10 @@ int32_t mndCheckCreateUserAuth(SUserObj *pOperUser);
 int32_t mndCheckAlterUserAuth(SUserObj *pOperUser, SUserObj *pUser, SDbObj *pDb, SAlterUserReq *pAlter);
 int32_t mndCheckDropUserAuth(SUserObj *pOperUser);
 
+int32_t mndCheckCreateNodeAuth(SUserObj *pOperUser);
+int32_t mndCheckDropNodeAuth(SUserObj *pOperUser);
+int32_t mndCheckAlterNodeAuth(SUserObj *pOperUser);
+
 #ifdef __cplusplus
 }
 #endif
