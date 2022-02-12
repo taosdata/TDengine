@@ -173,6 +173,7 @@ typedef struct {
 
 typedef struct {
   uint8_t user[TSDB_UNI_LEN];
+  uint8_t secret[TSDB_PASSWORD_LEN];
 } STransUserMsg;
 
 #pragma pack(pop)

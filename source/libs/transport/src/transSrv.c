@@ -231,9 +231,10 @@ static void uvHandleReq(SSrvConn* pConn) {
   p->chandle = NULL;
 
   STransMsgHead* pHead = (STransMsgHead*)p->msg;
-  if (pHead->secured == 0) {
+  if (pHead->secured == 1) {
     STransUserMsg* uMsg = (p->msg + p->msgLen - sizeof(STransUserMsg));
     memcpy(pConn->user, uMsg->user, tListLen(uMsg->user));
+    memcpy(pConn->secret, uMsg->secret, tListLen(uMsg->secret));
   }
 
   pConn->inType = pHead->msgType;
@@ -335,13 +336,16 @@ static void uvOnPipeWriteCb(uv_write_t* req, int status) {
 static void uvPrepareSendData(SSrvMsg* smsg, uv_buf_t* wb) {
   // impl later;
   tTrace("server conn %p prepare to send resp", smsg->pConn);
-  SRpcMsg*  pMsg = &smsg->msg;
+
   SSrvConn* pConn = smsg->pConn;
+  SRpcMsg*  pMsg = &smsg->msg;
   if (pMsg->pCont == 0) {
     pMsg->pCont = (void*)rpcMallocCont(0);
     pMsg->contLen = 0;
   }
   STransMsgHead* pHead = transHeadFromCont(pMsg->pCont);
+
+  pHead->secured = pMsg->code == 0 ? 1 : 0;  //
   pHead->msgType = smsg->pConn->inType + 1;
   pHead->code = htonl(pMsg->code);
   // add more info
