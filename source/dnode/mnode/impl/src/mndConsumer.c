@@ -59,6 +59,7 @@ SMqConsumerObj* mndCreateConsumer(int64_t consumerId, const char* cgroup) {
     terrno = TSDB_CODE_OUT_OF_MEMORY;
     return NULL;
   }
+  pConsumer->recentRemovedTopics = taosArrayInit(0, sizeof(char*));
   pConsumer->epoch = 1;
   pConsumer->consumerId = consumerId;
   atomic_store_32(&pConsumer->status, MQ_CONSUMER_STATUS__INIT);
@@ -169,7 +170,7 @@ SMqConsumerObj *mndAcquireConsumer(SMnode *pMnode, int64_t consumerId) {
   SSdb           *pSdb = pMnode->pSdb;
   SMqConsumerObj *pConsumer = sdbAcquire(pSdb, SDB_CONSUMER, &consumerId);
   if (pConsumer == NULL) {
-    /*terrno = TSDB_CODE_MND_CONSUMER_NOT_EXIST;*/
+    terrno = TSDB_CODE_MND_CONSUMER_NOT_EXIST;
   }
   return pConsumer;
 }

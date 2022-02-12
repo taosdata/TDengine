@@ -506,7 +506,7 @@ int32_t tmqPollCb(void* param, const SDataBuf* pMsg, int32_t code) {
   SMqConsumeCbParam* pParam = (SMqConsumeCbParam*)param;
   SMqClientVg*       pVg = pParam->pVg;
   if (code != 0) {
-    /*printf("msg discard\n");*/
+    printf("msg discard\n");
     tsem_post(&pParam->rspSem);
     return 0;
   }
@@ -517,7 +517,7 @@ int32_t tmqPollCb(void* param, const SDataBuf* pMsg, int32_t code) {
     return -1;
   }
   tDecodeSMqConsumeRsp(pMsg->pData, pRsp);
-  /*printf("rsp %ld %ld %d\n", pRsp->committedOffset, pRsp->rspOffset, pRsp->numOfTopics);*/
+  /*printf("rsp commit off:%ld rsp off:%ld has data:%d\n", pRsp->committedOffset, pRsp->rspOffset, pRsp->numOfTopics);*/
   if (pRsp->numOfTopics == 0) {
     /*printf("no data\n");*/
     free(pRsp);
@@ -671,16 +671,19 @@ tmq_message_t* tmq_consumer_poll(tmq_t* tmq, int64_t blocking_time) {
   }
 
   tmq->nextTopicIdx = (tmq->nextTopicIdx + 1) % taosArrayGetSize(tmq->clientTopics);
-  pTopic->nextVgIdx = (pTopic->nextVgIdx + 1 % taosArrayGetSize(pTopic->vgs));
+  pTopic->nextVgIdx = (pTopic->nextVgIdx + 1) % taosArrayGetSize(pTopic->vgs);
   SMqClientVg* pVg = taosArrayGet(pTopic->vgs, pTopic->nextVgIdx);
+  /*printf("consume vg %d, offset %ld\n", pVg->vgId, pVg->currentOffset);*/
   SMqConsumeReq* pReq = tmqBuildConsumeReqImpl(tmq, blocking_time, TMQ_REQ_TYPE_CONSUME_ONLY, pTopic, pVg);
   if (pReq == NULL) {
+    ASSERT(false);
     usleep(blocking_time * 1000);
     return NULL;
   }
 
   SMqConsumeCbParam* param = malloc(sizeof(SMqConsumeCbParam));
   if (param == NULL) {
+    ASSERT(false);
     usleep(blocking_time * 1000);
     return NULL;
   }

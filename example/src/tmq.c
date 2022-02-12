@@ -44,35 +44,35 @@ int32_t init_env() {
   }
   taos_free_result(pRes);
 
-  pRes = taos_query(pConn, "create stable st1 (ts timestamp, k int) tags(a int)");
+  /*pRes = taos_query(pConn, "create stable if not exists st1 (ts timestamp, k int) tags(a int)");*/
   /*if (taos_errno(pRes) != 0) {*/
     /*printf("failed to create super table 123_$^), reason:%s\n", taos_errstr(pRes));*/
     /*return -1;*/
   /*}*/
-  taos_free_result(pRes);
+  /*taos_free_result(pRes);*/
 
-  pRes = taos_query(pConn, "create table tu using st1 tags(1)");
-  if (taos_errno(pRes) != 0) {
-    printf("failed to create child table tu, reason:%s\n", taos_errstr(pRes));
-    return -1;
-  }
-  taos_free_result(pRes);
+  /*pRes = taos_query(pConn, "create table if not exists tu using st1 tags(1)");*/
+  /*if (taos_errno(pRes) != 0) {*/
+    /*printf("failed to create child table tu, reason:%s\n", taos_errstr(pRes));*/
+    /*return -1;*/
+  /*}*/
+  /*taos_free_result(pRes);*/
 
-  pRes = taos_query(pConn, "create table tu2 using st1 tags(2)");
-  if (taos_errno(pRes) != 0) {
-    printf("failed to create child table tu2, reason:%s\n", taos_errstr(pRes));
-    return -1;
-  }
-  taos_free_result(pRes);
+  /*pRes = taos_query(pConn, "create table if not exists tu2 using st1 tags(2)");*/
+  /*if (taos_errno(pRes) != 0) {*/
+    /*printf("failed to create child table tu2, reason:%s\n", taos_errstr(pRes));*/
+    /*return -1;*/
+  /*}*/
+  /*taos_free_result(pRes);*/
 
 
   const char* sql = "select * from st1";
   pRes = tmq_create_topic(pConn, "test_stb_topic_1", sql, strlen(sql));
-  /*if (taos_errno(pRes) != 0) {*/
-    /*printf("failed to create topic test_stb_topic_1, reason:%s\n", taos_errstr(pRes));*/
-    /*return -1;*/
-  /*}*/
-  /*taos_free_result(pRes);*/
+  if (taos_errno(pRes) != 0) {
+    printf("failed to create topic test_stb_topic_1, reason:%s\n", taos_errstr(pRes));
+    return -1;
+  }
+  taos_free_result(pRes);
   taos_close(pConn);
   return 0;
 }
