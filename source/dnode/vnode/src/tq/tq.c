@@ -134,7 +134,6 @@ const void* tqDeserializeConsumer(const STqSerializedHead* pHead, STqConsumerHan
   return NULL;
 }
 
-
 int32_t tqProcessConsumeReq(STQ* pTq, SRpcMsg* pMsg) {
   SMqConsumeReq* pReq = pMsg->pCont;
   int64_t        reqId = pReq->reqId;
@@ -160,7 +159,7 @@ int32_t tqProcessConsumeReq(STQ* pTq, SRpcMsg* pMsg) {
     STqTopicHandle* pTopic = taosArrayGet(pConsumer->topics, i);
     // TODO: support multiple topic in one req
     if (strcmp(pTopic->topicName, pReq->topic) != 0) {
-      ASSERT(false);
+      /*ASSERT(false);*/
       continue;
     }
 
@@ -174,7 +173,7 @@ int32_t tqProcessConsumeReq(STQ* pTq, SRpcMsg* pMsg) {
     }
 
     if (pReq->reqType == TMQ_REQ_TYPE_CONSUME_AND_COMMIT) {
-      pTopic->committedOffset = pReq->offset-1; 
+      pTopic->committedOffset = pReq->offset - 1;
     }
 
     rsp.committedOffset = pTopic->committedOffset;
@@ -235,7 +234,7 @@ int32_t tqProcessConsumeReq(STQ* pTq, SRpcMsg* pMsg) {
         break;
       }
     }
-    //TODO copy
+    // TODO copy
     rsp.schemas = pTopic->buffer.output[pos].pReadHandle->pSchemaWrapper;
     rsp.rspOffset = fetchOffset;
 
@@ -270,11 +269,11 @@ int32_t tqProcessConsumeReq(STQ* pTq, SRpcMsg* pMsg) {
   void* abuf = buf;
   tEncodeSMqConsumeRsp(&abuf, &rsp);
   if (rsp.pBlockData) {
-    taosArrayDestroyEx(rsp.pBlockData, (void(*)(void*))tDeleteSSDataBlock);
+    taosArrayDestroyEx(rsp.pBlockData, (void (*)(void*))tDeleteSSDataBlock);
     rsp.pBlockData = NULL;
     /*for (int i = 0; i < taosArrayGetSize(rsp.pBlockData); i++) {*/
-      /*SSDataBlock* pBlock = taosArrayGet(rsp.pBlockData, i);*/
-      /*tDeleteSSDataBlock(pBlock);*/
+    /*SSDataBlock* pBlock = taosArrayGet(rsp.pBlockData, i);*/
+    /*tDeleteSSDataBlock(pBlock);*/
     /*}*/
     /*taosArrayDestroy(rsp.pBlockData);*/
   }
@@ -301,23 +300,20 @@ int32_t tqProcessRebReq(STQ* pTq, char* msg) {
 int32_t tqProcessSetConnReq(STQ* pTq, char* msg) {
   SMqSetCVgReq req = {0};
   tDecodeSMqSetCVgReq(msg, &req);
-  ASSERT(req.oldConsumerId == -1);
-  
-  STqConsumerHandle* pConsumer = tqHandleGet(pTq->tqMeta, req.oldConsumerId);
+
   /*printf("vg %d set to consumer from %ld to %ld\n", req.vgId, req.oldConsumerId, req.newConsumerId);*/
+  STqConsumerHandle* pConsumer = calloc(1, sizeof(STqConsumerHandle));
   if (pConsumer == NULL) {
-    pConsumer = calloc(sizeof(STqConsumerHandle), 1);
-    if (pConsumer == NULL) {
-      terrno = TSDB_CODE_TQ_OUT_OF_MEMORY;
-      return -1;
-    }
+    terrno = TSDB_CODE_TQ_OUT_OF_MEMORY;
+    return -1;
   }
+
   strcpy(pConsumer->cgroup, req.cgroup);
   pConsumer->topics = taosArrayInit(0, sizeof(STqTopicHandle));
-  pConsumer->consumerId = req.newConsumerId;
+  pConsumer->consumerId = req.consumerId;
   pConsumer->epoch = 0;
 
-  STqTopicHandle* pTopic = calloc(sizeof(STqTopicHandle), 1);
+  STqTopicHandle* pTopic = calloc(1, sizeof(STqTopicHandle));
   if (pTopic == NULL) {
     free(pConsumer);
     return -1;
@@ -337,13 +333,13 @@ int32_t tqProcessSetConnReq(STQ* pTq, char* msg) {
   for (int i = 0; i < TQ_BUFFER_SIZE; i++) {
     pTopic->buffer.output[i].status = 0;
     STqReadHandle* pReadHandle = tqInitSubmitMsgScanner(pTq->pMeta);
-    SReadHandle handle = { .reader = pReadHandle, .meta = pTq->pMeta };
+    SReadHandle    handle = {.reader = pReadHandle, .meta = pTq->pMeta};
     pTopic->buffer.output[i].pReadHandle = pReadHandle;
     pTopic->buffer.output[i].task = qCreateStreamExecTaskInfo(req.qmsg, &handle);
   }
   taosArrayPush(pConsumer->topics, pTopic);
-  tqHandleMovePut(pTq->tqMeta, req.newConsumerId, pConsumer);
-  tqHandleCommit(pTq->tqMeta, req.newConsumerId);
+  tqHandleMovePut(pTq->tqMeta, req.consumerId, pConsumer);
+  tqHandleCommit(pTq->tqMeta, req.consumerId);
   terrno = TSDB_CODE_SUCCESS;
   return 0;
 }
@@ -429,7 +425,7 @@ SArray* tqRetrieveDataBlock(STqReadHandle* pHandle) {
   int32_t numOfCols = pHandle->pSchema->numOfCols;
   int32_t colNumNeed = taosArrayGetSize(pHandle->pColIdList);
 
-  //TODO: stable case
+  // TODO: stable case
   if (colNumNeed > pSchemaWrapper->nCols) {
     colNumNeed = pSchemaWrapper->nCols;
   }
@@ -445,7 +441,7 @@ SArray* tqRetrieveDataBlock(STqReadHandle* pHandle) {
     while (j < pSchemaWrapper->nCols && pSchemaWrapper->pSchema[j].colId < colId) {
       j++;
     }
-    SSchema* pColSchema = &pSchemaWrapper->pSchema[j];
+    SSchema*        pColSchema = &pSchemaWrapper->pSchema[j];
     SColumnInfoData colInfo = {0};
     int             sz = numOfRows * pColSchema->bytes;
     colInfo.info.bytes = pColSchema->bytes;

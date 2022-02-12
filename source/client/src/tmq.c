@@ -671,50 +671,57 @@ tmq_message_t* tmq_consumer_poll(tmq_t* tmq, int64_t blocking_time) {
   }
 
   tmq->nextTopicIdx = (tmq->nextTopicIdx + 1) % taosArrayGetSize(tmq->clientTopics);
-  pTopic->nextVgIdx = (pTopic->nextVgIdx + 1) % taosArrayGetSize(pTopic->vgs);
-  SMqClientVg* pVg = taosArrayGet(pTopic->vgs, pTopic->nextVgIdx);
-  /*printf("consume vg %d, offset %ld\n", pVg->vgId, pVg->currentOffset);*/
-  SMqConsumeReq* pReq = tmqBuildConsumeReqImpl(tmq, blocking_time, TMQ_REQ_TYPE_CONSUME_ONLY, pTopic, pVg);
-  if (pReq == NULL) {
-    ASSERT(false);
-    usleep(blocking_time * 1000);
-    return NULL;
+  int32_t beginVgIdx = pTopic->nextVgIdx;
+  while(1) {
+    pTopic->nextVgIdx = (pTopic->nextVgIdx + 1) % taosArrayGetSize(pTopic->vgs);
+    SMqClientVg* pVg = taosArrayGet(pTopic->vgs, pTopic->nextVgIdx);
+    /*printf("consume vg %d, offset %ld\n", pVg->vgId, pVg->currentOffset);*/
+    SMqConsumeReq* pReq = tmqBuildConsumeReqImpl(tmq, blocking_time, TMQ_REQ_TYPE_CONSUME_ONLY, pTopic, pVg);
+    if (pReq == NULL) {
+      ASSERT(false);
+      usleep(blocking_time * 1000);
+      return NULL;
+    }
+
+    SMqConsumeCbParam* param = malloc(sizeof(SMqConsumeCbParam));
+    if (param == NULL) {
+      ASSERT(false);
+      usleep(blocking_time * 1000);
+      return NULL;
+    }
+    param->tmq = tmq;
+    param->retMsg = &tmq_message;
+    param->pVg = pVg;
+    tsem_init(&param->rspSem, 0, 0);
+
+    SRequestObj* pRequest = createRequest(tmq->pTscObj, NULL, NULL, TDMT_VND_CONSUME);
+    pRequest->body.requestMsg = (SDataBuf){.pData = pReq, .len = sizeof(SMqConsumeReq)};
+
+    SMsgSendInfo* sendInfo = buildMsgInfoImpl(pRequest);
+    sendInfo->requestObjRefId = 0;
+    sendInfo->param = param;
+    sendInfo->fp = tmqPollCb;
+
+    /*printf("req offset: %ld\n", pReq->offset);*/
+
+    int64_t transporterId = 0;
+    asyncSendMsgToServer(tmq->pTscObj->pAppInfo->pTransporter, &pVg->epSet, &transporterId, sendInfo);
+    tmq->pollCnt++;
+
+    tsem_wait(&param->rspSem);
+    tsem_destroy(&param->rspSem);
+    free(param);
+
+    if (tmq_message == NULL) {
+      if (beginVgIdx == pTopic->nextVgIdx) {
+        usleep(blocking_time * 1000);
+      } else {
+        continue;
+      }
+    }
+
+    return tmq_message;
   }
-
-  SMqConsumeCbParam* param = malloc(sizeof(SMqConsumeCbParam));
-  if (param == NULL) {
-    ASSERT(false);
-    usleep(blocking_time * 1000);
-    return NULL;
-  }
-  param->tmq = tmq;
-  param->retMsg = &tmq_message;
-  param->pVg = pVg;
-  tsem_init(&param->rspSem, 0, 0);
-
-  SRequestObj* pRequest = createRequest(tmq->pTscObj, NULL, NULL, TDMT_VND_CONSUME);
-  pRequest->body.requestMsg = (SDataBuf){.pData = pReq, .len = sizeof(SMqConsumeReq)};
-
-  SMsgSendInfo* sendInfo = buildMsgInfoImpl(pRequest);
-  sendInfo->requestObjRefId = 0;
-  sendInfo->param = param;
-  sendInfo->fp = tmqPollCb;
-
-  /*printf("req offset: %ld\n", pReq->offset);*/
-
-  int64_t transporterId = 0;
-  asyncSendMsgToServer(tmq->pTscObj->pAppInfo->pTransporter, &pVg->epSet, &transporterId, sendInfo);
-  tmq->pollCnt++;
-
-  tsem_wait(&param->rspSem);
-  tsem_destroy(&param->rspSem);
-  free(param);
-
-  if (tmq_message == NULL) {
-    usleep(blocking_time * 1000);
-  }
-
-  return tmq_message;
 
   /*tsem_wait(&pRequest->body.rspSem);*/
 
