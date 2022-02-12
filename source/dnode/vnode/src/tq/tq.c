@@ -144,6 +144,8 @@ int32_t tqProcessConsumeReq(STQ* pTq, SRpcMsg* pMsg) {
 
   SMqConsumeRsp rsp = {.consumerId = consumerId, .numOfTopics = 0, .pBlockData = NULL};
 
+  /*printf("vg %d get consume req\n", pReq->head.vgId);*/
+
   STqConsumerHandle* pConsumer = tqHandleGet(pTq->tqMeta, consumerId);
   if (pConsumer == NULL) {
     pMsg->pCont = NULL;
@@ -158,6 +160,7 @@ int32_t tqProcessConsumeReq(STQ* pTq, SRpcMsg* pMsg) {
     STqTopicHandle* pTopic = taosArrayGet(pConsumer->topics, i);
     // TODO: support multiple topic in one req
     if (strcmp(pTopic->topicName, pReq->topic) != 0) {
+      ASSERT(false);
       continue;
     }
 
@@ -181,6 +184,7 @@ int32_t tqProcessConsumeReq(STQ* pTq, SRpcMsg* pMsg) {
     if (fetchOffset <= pTopic->committedOffset) {
       fetchOffset = pTopic->committedOffset + 1;
     }
+    /*printf("vg %d fetch Offset %ld\n", pReq->head.vgId, fetchOffset);*/
     int8_t    pos;
     int8_t    skip = 0;
     SWalHead* pHead;
@@ -297,20 +301,16 @@ int32_t tqProcessRebReq(STQ* pTq, char* msg) {
 int32_t tqProcessSetConnReq(STQ* pTq, char* msg) {
   SMqSetCVgReq req = {0};
   tDecodeSMqSetCVgReq(msg, &req);
+  ASSERT(req.oldConsumerId == -1);
   
   STqConsumerHandle* pConsumer = tqHandleGet(pTq->tqMeta, req.oldConsumerId);
+  /*printf("vg %d set to consumer from %ld to %ld\n", req.vgId, req.oldConsumerId, req.newConsumerId);*/
   if (pConsumer == NULL) {
     pConsumer = calloc(sizeof(STqConsumerHandle), 1);
     if (pConsumer == NULL) {
       terrno = TSDB_CODE_TQ_OUT_OF_MEMORY;
       return -1;
     }
-  } else {
-    tqHandleMovePut(pTq->tqMeta, req.newConsumerId, pConsumer);
-    tqHandleCommit(pTq->tqMeta, req.newConsumerId);
-    tqHandlePurge(pTq->tqMeta, req.oldConsumerId);
-    terrno = TSDB_CODE_SUCCESS;
-    return 0;
   }
   strcpy(pConsumer->cgroup, req.cgroup);
   pConsumer->topics = taosArrayInit(0, sizeof(STqTopicHandle));
