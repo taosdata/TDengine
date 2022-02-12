@@ -43,123 +43,147 @@ TEST_F(MndTestFunc, 01_Show_Func) {
 
 TEST_F(MndTestFunc, 02_Create_Func) {
   {
-    int32_t contLen = sizeof(SCreateFuncReq);
+    SCreateFuncReq createReq = {0};
+    strcpy(createReq.name, "");
 
-    SCreateFuncReq* pReq = (SCreateFuncReq*)rpcMallocCont(contLen);
-    strcpy(pReq->name, "");
+    int32_t contLen = tSerializeSCreateFuncReq(NULL, 0, &createReq);
+    void*   pReq = rpcMallocCont(contLen);
+    tSerializeSCreateFuncReq(pReq, contLen, &createReq);
+
     SRpcMsg* pRsp = test.SendReq(TDMT_MND_CREATE_FUNC, pReq, contLen);
     ASSERT_NE(pRsp, nullptr);
     ASSERT_EQ(pRsp->code, TSDB_CODE_MND_INVALID_FUNC_NAME);
   }
 
   {
-    int32_t contLen = sizeof(SCreateFuncReq);
+    SCreateFuncReq createReq = {0};
+    strcpy(createReq.name, "f1");
 
-    SCreateFuncReq* pReq = (SCreateFuncReq*)rpcMallocCont(contLen);
-    strcpy(pReq->name, "f1");
+    int32_t contLen = tSerializeSCreateFuncReq(NULL, 0, &createReq);
+    void*   pReq = rpcMallocCont(contLen);
+    tSerializeSCreateFuncReq(pReq, contLen, &createReq);
+
     SRpcMsg* pRsp = test.SendReq(TDMT_MND_CREATE_FUNC, pReq, contLen);
     ASSERT_NE(pRsp, nullptr);
     ASSERT_EQ(pRsp->code, TSDB_CODE_MND_INVALID_FUNC_COMMENT);
   }
 
   {
-    int32_t contLen = sizeof(SCreateFuncReq);
+    SCreateFuncReq createReq = {0};
+    strcpy(createReq.name, "f1");
+    createReq.commentSize = TSDB_FUNC_COMMENT_LEN + 1;
 
-    SCreateFuncReq* pReq = (SCreateFuncReq*)rpcMallocCont(contLen);
-    strcpy(pReq->name, "f1");
-    pReq->commentSize = htonl(TSDB_FUNC_COMMENT_LEN + 1);
+    int32_t contLen = tSerializeSCreateFuncReq(NULL, 0, &createReq);
+    void*   pReq = rpcMallocCont(contLen);
+    tSerializeSCreateFuncReq(pReq, contLen, &createReq);
+
     SRpcMsg* pRsp = test.SendReq(TDMT_MND_CREATE_FUNC, pReq, contLen);
     ASSERT_NE(pRsp, nullptr);
     ASSERT_EQ(pRsp->code, TSDB_CODE_MND_INVALID_FUNC_COMMENT);
   }
 
   {
-    int32_t contLen = sizeof(SCreateFuncReq);
+    SCreateFuncReq createReq = {0};
+    strcpy(createReq.name, "f1");
+    createReq.commentSize = TSDB_FUNC_COMMENT_LEN;
 
-    SCreateFuncReq* pReq = (SCreateFuncReq*)rpcMallocCont(contLen);
-    strcpy(pReq->name, "f1");
-    pReq->commentSize = htonl(TSDB_FUNC_COMMENT_LEN);
+    int32_t contLen = tSerializeSCreateFuncReq(NULL, 0, &createReq);
+    void*   pReq = rpcMallocCont(contLen);
+    tSerializeSCreateFuncReq(pReq, contLen, &createReq);
+
     SRpcMsg* pRsp = test.SendReq(TDMT_MND_CREATE_FUNC, pReq, contLen);
     ASSERT_NE(pRsp, nullptr);
     ASSERT_EQ(pRsp->code, TSDB_CODE_MND_INVALID_FUNC_CODE);
   }
 
   {
-    int32_t contLen = sizeof(SCreateFuncReq);
+    SCreateFuncReq createReq = {0};
+    strcpy(createReq.name, "f1");
+    createReq.commentSize = TSDB_FUNC_COMMENT_LEN;
+    createReq.codeSize = TSDB_FUNC_CODE_LEN + 1;
 
-    SCreateFuncReq* pReq = (SCreateFuncReq*)rpcMallocCont(contLen);
-    strcpy(pReq->name, "f1");
-    pReq->commentSize = htonl(TSDB_FUNC_COMMENT_LEN);
-    pReq->codeSize = htonl(TSDB_FUNC_CODE_LEN - 1);
+    int32_t contLen = tSerializeSCreateFuncReq(NULL, 0, &createReq);
+    void*   pReq = rpcMallocCont(contLen);
+    tSerializeSCreateFuncReq(pReq, contLen, &createReq);
+
     SRpcMsg* pRsp = test.SendReq(TDMT_MND_CREATE_FUNC, pReq, contLen);
     ASSERT_NE(pRsp, nullptr);
     ASSERT_EQ(pRsp->code, TSDB_CODE_MND_INVALID_FUNC_CODE);
   }
 
   {
-    int32_t contLen = sizeof(SCreateFuncReq) + 24;
+    SCreateFuncReq createReq = {0};
+    strcpy(createReq.name, "f1");
+    createReq.commentSize = TSDB_FUNC_COMMENT_LEN;
+    createReq.codeSize = TSDB_FUNC_CODE_LEN;
 
-    SCreateFuncReq* pReq = (SCreateFuncReq*)rpcMallocCont(contLen);
-    strcpy(pReq->name, "f1");
-    pReq->commentSize = htonl(TSDB_FUNC_COMMENT_LEN);
-    pReq->codeSize = htonl(TSDB_FUNC_CODE_LEN);
-    pReq->pCont[0] = 0;
+    int32_t contLen = tSerializeSCreateFuncReq(NULL, 0, &createReq);
+    void*   pReq = rpcMallocCont(contLen);
+    tSerializeSCreateFuncReq(pReq, contLen, &createReq);
+
     SRpcMsg* pRsp = test.SendReq(TDMT_MND_CREATE_FUNC, pReq, contLen);
     ASSERT_NE(pRsp, nullptr);
     ASSERT_EQ(pRsp->code, TSDB_CODE_MND_INVALID_FUNC_CODE);
   }
 
   {
-    int32_t contLen = sizeof(SCreateFuncReq) + 24;
+    SCreateFuncReq createReq = {0};
+    strcpy(createReq.name, "f1");
+    createReq.commentSize = TSDB_FUNC_COMMENT_LEN;
+    createReq.codeSize = TSDB_FUNC_CODE_LEN;
+    createReq.pCode[0] = 'a';
 
-    SCreateFuncReq* pReq = (SCreateFuncReq*)rpcMallocCont(contLen);
-    strcpy(pReq->name, "f1");
-    pReq->commentSize = htonl(TSDB_FUNC_COMMENT_LEN);
-    pReq->codeSize = htonl(TSDB_FUNC_CODE_LEN);
-    pReq->pCont[0] = 'a';
+    int32_t contLen = tSerializeSCreateFuncReq(NULL, 0, &createReq);
+    void*   pReq = rpcMallocCont(contLen);
+    tSerializeSCreateFuncReq(pReq, contLen, &createReq);
+
     SRpcMsg* pRsp = test.SendReq(TDMT_MND_CREATE_FUNC, pReq, contLen);
     ASSERT_NE(pRsp, nullptr);
     ASSERT_EQ(pRsp->code, TSDB_CODE_MND_INVALID_FUNC_BUFSIZE);
   }
 
   {
-    int32_t contLen = sizeof(SCreateFuncReq) + 24;
+    SCreateFuncReq createReq = {0};
+    strcpy(createReq.name, "f1");
+    createReq.commentSize = TSDB_FUNC_COMMENT_LEN;
+    createReq.codeSize = TSDB_FUNC_CODE_LEN;
+    createReq.pCode[0] = 'a';
+    createReq.bufSize = TSDB_FUNC_BUF_SIZE + 1;
 
-    SCreateFuncReq* pReq = (SCreateFuncReq*)rpcMallocCont(contLen);
-    strcpy(pReq->name, "f1");
-    pReq->commentSize = htonl(TSDB_FUNC_COMMENT_LEN);
-    pReq->codeSize = htonl(TSDB_FUNC_CODE_LEN);
-    pReq->pCont[0] = 'a';
-    pReq->bufSize = htonl(TSDB_FUNC_BUF_SIZE + 1);
+    int32_t contLen = tSerializeSCreateFuncReq(NULL, 0, &createReq);
+    void*   pReq = rpcMallocCont(contLen);
+    tSerializeSCreateFuncReq(pReq, contLen, &createReq);
+
     SRpcMsg* pRsp = test.SendReq(TDMT_MND_CREATE_FUNC, pReq, contLen);
     ASSERT_NE(pRsp, nullptr);
     ASSERT_EQ(pRsp->code, TSDB_CODE_MND_INVALID_FUNC_BUFSIZE);
   }
 
   for (int32_t i = 0; i < 3; ++i) {
-    int32_t contLen = sizeof(SCreateFuncReq);
-    int32_t commentSize = TSDB_FUNC_COMMENT_LEN;
-    int32_t codeSize = TSDB_FUNC_CODE_LEN;
-    contLen = (contLen + codeSize + commentSize);
+    SCreateFuncReq createReq = {0};
+    strcpy(createReq.name, "f1");
+    createReq.commentSize = TSDB_FUNC_COMMENT_LEN;
+    createReq.codeSize = TSDB_FUNC_CODE_LEN;
+    createReq.pCode[0] = 'a';
+    createReq.bufSize = TSDB_FUNC_BUF_SIZE + 1;
+    createReq.igExists = 0;
+    if (i == 2) createReq.igExists = 1;
+    createReq.funcType = 1;
+    createReq.scriptType = 2;
+    createReq.outputType = TSDB_DATA_TYPE_SMALLINT;
+    createReq.outputLen = 12;
+    createReq.bufSize = 4;
+    createReq.signature = 5;
+    for (int32_t i = 0; i < createReq.commentSize - 1; ++i) {
+      createReq.pComment[i] = 'm';
+    }
+    for (int32_t i = 0; i < createReq.codeSize - 1; ++i) {
+      createReq.pCode[i] = 'd';
+    }
 
-    SCreateFuncReq* pReq = (SCreateFuncReq*)rpcMallocCont(contLen);
-    strcpy(pReq->name, "f1");
-    pReq->igExists = 0;
-    if (i == 2) pReq->igExists = 1;
-    pReq->funcType = 1;
-    pReq->scriptType = 2;
-    pReq->outputType = TSDB_DATA_TYPE_SMALLINT;
-    pReq->outputLen = htonl(12);
-    pReq->bufSize = htonl(4);
-    pReq->signature = htobe64(5);
-    pReq->commentSize = htonl(commentSize);
-    pReq->codeSize = htonl(codeSize);
-    for (int32_t i = 0; i < commentSize - 1; ++i) {
-      pReq->pCont[i] = 'm';
-    }
-    for (int32_t i = commentSize; i < commentSize + codeSize - 1; ++i) {
-      pReq->pCont[i] = 'd';
-    }
+    int32_t contLen = tSerializeSCreateFuncReq(NULL, 0, &createReq);
+    void*   pReq = rpcMallocCont(contLen);
+    tSerializeSCreateFuncReq(pReq, contLen, &createReq);
 
     SRpcMsg* pRsp = test.SendReq(TDMT_MND_CREATE_FUNC, pReq, contLen);
     ASSERT_NE(pRsp, nullptr);
@@ -187,27 +211,26 @@ TEST_F(MndTestFunc, 02_Create_Func) {
 
 TEST_F(MndTestFunc, 03_Retrieve_Func) {
   {
-    int32_t contLen = sizeof(SRetrieveFuncReq);
-    int32_t numOfFuncs = 1;
-    contLen = (contLen + numOfFuncs * TSDB_FUNC_NAME_LEN);
+    SRetrieveFuncReq retrieveReq = {0};
+    retrieveReq.numOfFuncs = 1;
+    retrieveReq.pFuncNames = taosArrayInit(1, TSDB_FUNC_NAME_LEN);
+    taosArrayPush(retrieveReq.pFuncNames, "f1");
 
-    SRetrieveFuncReq* pReq = (SRetrieveFuncReq*)rpcMallocCont(contLen);
-    pReq->numOfFuncs = htonl(1);
-    strcpy(pReq->pFuncNames, "f1");
+    int32_t contLen = tSerializeSRetrieveFuncReq(NULL, 0, &retrieveReq);
+    void*   pReq = rpcMallocCont(contLen);
+    tSerializeSRetrieveFuncReq(pReq, contLen, &retrieveReq);
+    taosArrayDestroy(retrieveReq.pFuncNames);
 
     SRpcMsg* pRsp = test.SendReq(TDMT_MND_RETRIEVE_FUNC, pReq, contLen);
     ASSERT_NE(pRsp, nullptr);
     ASSERT_EQ(pRsp->code, 0);
 
-    SRetrieveFuncRsp* pRetrieveRsp = (SRetrieveFuncRsp*)pRsp->pCont;
-    pRetrieveRsp->numOfFuncs = htonl(pRetrieveRsp->numOfFuncs);
+    SRetrieveFuncRsp retrieveRsp = {0};
+    tDeserializeSRetrieveFuncRsp(pRsp->pCont, pRsp->contLen, &retrieveRsp);
+    EXPECT_EQ(retrieveRsp.numOfFuncs, 1);
+    EXPECT_EQ(retrieveRsp.numOfFuncs, (int32_t)taosArrayGetSize(retrieveRsp.pFuncInfos));
 
-    SFuncInfo* pFuncInfo = (SFuncInfo*)(pRetrieveRsp->pFuncInfos);
-    pFuncInfo->outputLen = htonl(pFuncInfo->outputLen);
-    pFuncInfo->bufSize = htonl(pFuncInfo->bufSize);
-    pFuncInfo->signature = htobe64(pFuncInfo->signature);
-    pFuncInfo->commentSize = htonl(pFuncInfo->commentSize);
-    pFuncInfo->codeSize = htonl(pFuncInfo->codeSize);
+    SFuncInfo* pFuncInfo = (SFuncInfo*)taosArrayGet(retrieveRsp.pFuncInfos, 0);
 
     EXPECT_STREQ(pFuncInfo->name, "f1");
     EXPECT_EQ(pFuncInfo->funcType, 1);
@@ -219,9 +242,7 @@ TEST_F(MndTestFunc, 03_Retrieve_Func) {
     EXPECT_EQ(pFuncInfo->commentSize, TSDB_FUNC_COMMENT_LEN);
     EXPECT_EQ(pFuncInfo->codeSize, TSDB_FUNC_CODE_LEN);
 
-    char* pComment = pFuncInfo->pCont;
-    char* pCode = pFuncInfo->pCont + pFuncInfo->commentSize;
-    char  comments[TSDB_FUNC_COMMENT_LEN] = {0};
+    char comments[TSDB_FUNC_COMMENT_LEN] = {0};
     for (int32_t i = 0; i < TSDB_FUNC_COMMENT_LEN - 1; ++i) {
       comments[i] = 'm';
     }
@@ -229,17 +250,20 @@ TEST_F(MndTestFunc, 03_Retrieve_Func) {
     for (int32_t i = 0; i < TSDB_FUNC_CODE_LEN - 1; ++i) {
       codes[i] = 'd';
     }
-    EXPECT_STREQ(pComment, comments);
-    EXPECT_STREQ(pCode, codes);
+    EXPECT_STREQ(comments, pFuncInfo->pComment);
+    EXPECT_STREQ(codes, pFuncInfo->pCode);
+    taosArrayDestroy(retrieveRsp.pFuncInfos);
   }
 
   {
-    int32_t contLen = sizeof(SRetrieveFuncReq);
-    int32_t numOfFuncs = 0;
-    contLen = (contLen + numOfFuncs * TSDB_FUNC_NAME_LEN);
+    SRetrieveFuncReq retrieveReq = {0};
+    retrieveReq.numOfFuncs = 0;
+    retrieveReq.pFuncNames = taosArrayInit(1, TSDB_FUNC_NAME_LEN);
 
-    SRetrieveFuncReq* pReq = (SRetrieveFuncReq*)rpcMallocCont(contLen);
-    pReq->numOfFuncs = htonl(numOfFuncs);
+    int32_t contLen = tSerializeSRetrieveFuncReq(NULL, 0, &retrieveReq);
+    void*   pReq = rpcMallocCont(contLen);
+    tSerializeSRetrieveFuncReq(pReq, contLen, &retrieveReq);
+    taosArrayDestroy(retrieveReq.pFuncNames);
 
     SRpcMsg* pRsp = test.SendReq(TDMT_MND_RETRIEVE_FUNC, pReq, contLen);
     ASSERT_NE(pRsp, nullptr);
@@ -247,12 +271,17 @@ TEST_F(MndTestFunc, 03_Retrieve_Func) {
   }
 
   {
-    int32_t contLen = sizeof(SRetrieveFuncReq);
-    int32_t numOfFuncs = TSDB_FUNC_MAX_RETRIEVE + 1;
-    contLen = (contLen + numOfFuncs * TSDB_FUNC_NAME_LEN);
+    SRetrieveFuncReq retrieveReq = {0};
+    retrieveReq.numOfFuncs = TSDB_FUNC_MAX_RETRIEVE + 1;
+    retrieveReq.pFuncNames = taosArrayInit(TSDB_FUNC_MAX_RETRIEVE + 1, TSDB_FUNC_NAME_LEN);
+    for (int32_t i = 0; i < TSDB_FUNC_MAX_RETRIEVE + 1; ++i) {
+      taosArrayPush(retrieveReq.pFuncNames, "1");
+    }
 
-    SRetrieveFuncReq* pReq = (SRetrieveFuncReq*)rpcMallocCont(contLen);
-    pReq->numOfFuncs = htonl(numOfFuncs);
+    int32_t contLen = tSerializeSRetrieveFuncReq(NULL, 0, &retrieveReq);
+    void*   pReq = rpcMallocCont(contLen);
+    tSerializeSRetrieveFuncReq(pReq, contLen, &retrieveReq);
+    taosArrayDestroy(retrieveReq.pFuncNames);
 
     SRpcMsg* pRsp = test.SendReq(TDMT_MND_RETRIEVE_FUNC, pReq, contLen);
     ASSERT_NE(pRsp, nullptr);
@@ -260,13 +289,15 @@ TEST_F(MndTestFunc, 03_Retrieve_Func) {
   }
 
   {
-    int32_t contLen = sizeof(SRetrieveFuncReq);
-    int32_t numOfFuncs = 1;
-    contLen = (contLen + numOfFuncs * TSDB_FUNC_NAME_LEN);
+    SRetrieveFuncReq retrieveReq = {0};
+    retrieveReq.numOfFuncs = 1;
+    retrieveReq.pFuncNames = taosArrayInit(1, TSDB_FUNC_NAME_LEN);
+    taosArrayPush(retrieveReq.pFuncNames, "f2");
 
-    SRetrieveFuncReq* pReq = (SRetrieveFuncReq*)rpcMallocCont(contLen);
-    pReq->numOfFuncs = htonl(numOfFuncs);
-    strcpy(pReq->pFuncNames, "f2");
+    int32_t contLen = tSerializeSRetrieveFuncReq(NULL, 0, &retrieveReq);
+    void*   pReq = rpcMallocCont(contLen);
+    tSerializeSRetrieveFuncReq(pReq, contLen, &retrieveReq);
+    taosArrayDestroy(retrieveReq.pFuncNames);
 
     SRpcMsg* pRsp = test.SendReq(TDMT_MND_RETRIEVE_FUNC, pReq, contLen);
     ASSERT_NE(pRsp, nullptr);
@@ -274,28 +305,27 @@ TEST_F(MndTestFunc, 03_Retrieve_Func) {
   }
 
   {
-    int32_t contLen = sizeof(SCreateFuncReq);
-    int32_t commentSize = 1024;
-    int32_t codeSize = 9527;
-    contLen = (contLen + codeSize + commentSize);
+    SCreateFuncReq createReq = {0};
+    strcpy(createReq.name, "f2");
+    createReq.commentSize = 1024;
+    createReq.codeSize = 9527;
+    createReq.igExists = 1;
+    createReq.funcType = 2;
+    createReq.scriptType = 3;
+    createReq.outputType = TSDB_DATA_TYPE_BINARY;
+    createReq.outputLen = 24;
+    createReq.bufSize = 6;
+    createReq.signature = 18;
+    for (int32_t i = 0; i < createReq.commentSize - 1; ++i) {
+      createReq.pComment[i] = 'p';
+    }
+    for (int32_t i = 0; i < createReq.codeSize - 1; ++i) {
+      createReq.pCode[i] = 'q';
+    }
 
-    SCreateFuncReq* pReq = (SCreateFuncReq*)rpcMallocCont(contLen);
-    strcpy(pReq->name, "f2");
-    pReq->igExists = 1;
-    pReq->funcType = 2;
-    pReq->scriptType = 3;
-    pReq->outputType = TSDB_DATA_TYPE_BINARY;
-    pReq->outputLen = htonl(24);
-    pReq->bufSize = htonl(6);
-    pReq->signature = htobe64(18);
-    pReq->commentSize = htonl(commentSize);
-    pReq->codeSize = htonl(codeSize);
-    for (int32_t i = 0; i < commentSize - 1; ++i) {
-      pReq->pCont[i] = 'p';
-    }
-    for (int32_t i = commentSize; i < commentSize + codeSize - 1; ++i) {
-      pReq->pCont[i] = 'q';
-    }
+    int32_t contLen = tSerializeSCreateFuncReq(NULL, 0, &createReq);
+    void*   pReq = rpcMallocCont(contLen);
+    tSerializeSCreateFuncReq(pReq, contLen, &createReq);
 
     SRpcMsg* pRsp = test.SendReq(TDMT_MND_CREATE_FUNC, pReq, contLen);
     ASSERT_NE(pRsp, nullptr);
@@ -309,27 +339,26 @@ TEST_F(MndTestFunc, 03_Retrieve_Func) {
   }
 
   {
-    int32_t contLen = sizeof(SRetrieveFuncReq);
-    int32_t numOfFuncs = 1;
-    contLen = (contLen + numOfFuncs * TSDB_FUNC_NAME_LEN);
+    SRetrieveFuncReq retrieveReq = {0};
+    retrieveReq.numOfFuncs = 1;
+    retrieveReq.pFuncNames = taosArrayInit(1, TSDB_FUNC_NAME_LEN);
+    taosArrayPush(retrieveReq.pFuncNames, "f2");
 
-    SRetrieveFuncReq* pReq = (SRetrieveFuncReq*)rpcMallocCont(contLen);
-    pReq->numOfFuncs = htonl(1);
-    strcpy(pReq->pFuncNames, "f2");
+    int32_t contLen = tSerializeSRetrieveFuncReq(NULL, 0, &retrieveReq);
+    void*   pReq = rpcMallocCont(contLen);
+    tSerializeSRetrieveFuncReq(pReq, contLen, &retrieveReq);
+    taosArrayDestroy(retrieveReq.pFuncNames);
 
     SRpcMsg* pRsp = test.SendReq(TDMT_MND_RETRIEVE_FUNC, pReq, contLen);
     ASSERT_NE(pRsp, nullptr);
     ASSERT_EQ(pRsp->code, 0);
 
-    SRetrieveFuncRsp* pRetrieveRsp = (SRetrieveFuncRsp*)pRsp->pCont;
-    pRetrieveRsp->numOfFuncs = htonl(pRetrieveRsp->numOfFuncs);
+    SRetrieveFuncRsp retrieveRsp = {0};
+    tDeserializeSRetrieveFuncRsp(pRsp->pCont, pRsp->contLen, &retrieveRsp);
+    EXPECT_EQ(retrieveRsp.numOfFuncs, 1);
+    EXPECT_EQ(retrieveRsp.numOfFuncs, (int32_t)taosArrayGetSize(retrieveRsp.pFuncInfos));
 
-    SFuncInfo* pFuncInfo = (SFuncInfo*)(pRetrieveRsp->pFuncInfos);
-    pFuncInfo->outputLen = htonl(pFuncInfo->outputLen);
-    pFuncInfo->bufSize = htonl(pFuncInfo->bufSize);
-    pFuncInfo->signature = htobe64(pFuncInfo->signature);
-    pFuncInfo->commentSize = htonl(pFuncInfo->commentSize);
-    pFuncInfo->codeSize = htonl(pFuncInfo->codeSize);
+    SFuncInfo* pFuncInfo = (SFuncInfo*)taosArrayGet(retrieveRsp.pFuncInfos, 0);
 
     EXPECT_STREQ(pFuncInfo->name, "f2");
     EXPECT_EQ(pFuncInfo->funcType, 2);
@@ -341,47 +370,43 @@ TEST_F(MndTestFunc, 03_Retrieve_Func) {
     EXPECT_EQ(pFuncInfo->commentSize, 1024);
     EXPECT_EQ(pFuncInfo->codeSize, 9527);
 
-    char* pComment = pFuncInfo->pCont;
-    char* pCode = pFuncInfo->pCont + pFuncInfo->commentSize;
-    char* comments = (char*)calloc(1, 1024);
+    char comments[TSDB_FUNC_COMMENT_LEN] = {0};
     for (int32_t i = 0; i < 1024 - 1; ++i) {
       comments[i] = 'p';
     }
-    char* codes = (char*)calloc(1, 9527);
+    char codes[TSDB_FUNC_CODE_LEN] = {0};
     for (int32_t i = 0; i < 9527 - 1; ++i) {
       codes[i] = 'q';
     }
-    EXPECT_STREQ(pComment, comments);
-    EXPECT_STREQ(pCode, codes);
-    free(comments);
-    free(codes);
+
+    EXPECT_STREQ(comments, pFuncInfo->pComment);
+    EXPECT_STREQ(codes, pFuncInfo->pCode);
+    taosArrayDestroy(retrieveRsp.pFuncInfos);
   }
 
   {
-    int32_t contLen = sizeof(SRetrieveFuncReq);
-    int32_t numOfFuncs = 2;
-    contLen = (contLen + numOfFuncs * TSDB_FUNC_NAME_LEN);
+    SRetrieveFuncReq retrieveReq = {0};
+    retrieveReq.numOfFuncs = 2;
+    retrieveReq.pFuncNames = taosArrayInit(1, TSDB_FUNC_NAME_LEN);
+    taosArrayPush(retrieveReq.pFuncNames, "f2");
+    taosArrayPush(retrieveReq.pFuncNames, "f1");
 
-    SRetrieveFuncReq* pReq = (SRetrieveFuncReq*)rpcMallocCont(contLen);
-    pReq->numOfFuncs = htonl(numOfFuncs);
-    strcpy(pReq->pFuncNames, "f2");
-    strcpy((char*)pReq->pFuncNames + TSDB_FUNC_NAME_LEN, "f1");
+    int32_t contLen = tSerializeSRetrieveFuncReq(NULL, 0, &retrieveReq);
+    void*   pReq = rpcMallocCont(contLen);
+    tSerializeSRetrieveFuncReq(pReq, contLen, &retrieveReq);
+    taosArrayDestroy(retrieveReq.pFuncNames);
 
     SRpcMsg* pRsp = test.SendReq(TDMT_MND_RETRIEVE_FUNC, pReq, contLen);
     ASSERT_NE(pRsp, nullptr);
     ASSERT_EQ(pRsp->code, 0);
 
-    SRetrieveFuncRsp* pRetrieveRsp = (SRetrieveFuncRsp*)pRsp->pCont;
-    pRetrieveRsp->numOfFuncs = htonl(pRetrieveRsp->numOfFuncs);
+    SRetrieveFuncRsp retrieveRsp = {0};
+    tDeserializeSRetrieveFuncRsp(pRsp->pCont, pRsp->contLen, &retrieveRsp);
+    EXPECT_EQ(retrieveRsp.numOfFuncs, 2);
+    EXPECT_EQ(retrieveRsp.numOfFuncs, (int32_t)taosArrayGetSize(retrieveRsp.pFuncInfos));
 
     {
-      SFuncInfo* pFuncInfo = (SFuncInfo*)(pRetrieveRsp->pFuncInfos);
-      pFuncInfo->outputLen = htonl(pFuncInfo->outputLen);
-      pFuncInfo->bufSize = htonl(pFuncInfo->bufSize);
-      pFuncInfo->signature = htobe64(pFuncInfo->signature);
-      pFuncInfo->commentSize = htonl(pFuncInfo->commentSize);
-      pFuncInfo->codeSize = htonl(pFuncInfo->codeSize);
-
+      SFuncInfo* pFuncInfo = (SFuncInfo*)taosArrayGet(retrieveRsp.pFuncInfos, 0);
       EXPECT_STREQ(pFuncInfo->name, "f2");
       EXPECT_EQ(pFuncInfo->funcType, 2);
       EXPECT_EQ(pFuncInfo->scriptType, 3);
@@ -392,29 +417,21 @@ TEST_F(MndTestFunc, 03_Retrieve_Func) {
       EXPECT_EQ(pFuncInfo->commentSize, 1024);
       EXPECT_EQ(pFuncInfo->codeSize, 9527);
 
-      char* pComment = pFuncInfo->pCont;
-      char* pCode = pFuncInfo->pCont + pFuncInfo->commentSize;
-      char* comments = (char*)calloc(1, 1024);
+      char comments[TSDB_FUNC_COMMENT_LEN] = {0};
       for (int32_t i = 0; i < 1024 - 1; ++i) {
         comments[i] = 'p';
       }
-      char* codes = (char*)calloc(1, 9527);
+      char codes[TSDB_FUNC_CODE_LEN] = {0};
       for (int32_t i = 0; i < 9527 - 1; ++i) {
         codes[i] = 'q';
       }
-      EXPECT_STREQ(pComment, comments);
-      EXPECT_STREQ(pCode, codes);
-      free(comments);
-      free(codes);
+
+      EXPECT_STREQ(comments, pFuncInfo->pComment);
+      EXPECT_STREQ(codes, pFuncInfo->pCode);
     }
 
     {
-      SFuncInfo* pFuncInfo = (SFuncInfo*)(pRetrieveRsp->pFuncInfos + sizeof(SFuncInfo) + 1024 + 9527);
-      pFuncInfo->outputLen = htonl(pFuncInfo->outputLen);
-      pFuncInfo->bufSize = htonl(pFuncInfo->bufSize);
-      pFuncInfo->signature = htobe64(pFuncInfo->signature);
-      pFuncInfo->commentSize = htonl(pFuncInfo->commentSize);
-      pFuncInfo->codeSize = htonl(pFuncInfo->codeSize);
+      SFuncInfo* pFuncInfo = (SFuncInfo*)taosArrayGet(retrieveRsp.pFuncInfos, 1);
       EXPECT_STREQ(pFuncInfo->name, "f1");
       EXPECT_EQ(pFuncInfo->funcType, 1);
       EXPECT_EQ(pFuncInfo->scriptType, 2);
@@ -425,9 +442,7 @@ TEST_F(MndTestFunc, 03_Retrieve_Func) {
       EXPECT_EQ(pFuncInfo->commentSize, TSDB_FUNC_COMMENT_LEN);
       EXPECT_EQ(pFuncInfo->codeSize, TSDB_FUNC_CODE_LEN);
 
-      char* pComment = pFuncInfo->pCont;
-      char* pCode = pFuncInfo->pCont + pFuncInfo->commentSize;
-      char  comments[TSDB_FUNC_COMMENT_LEN] = {0};
+      char comments[TSDB_FUNC_COMMENT_LEN] = {0};
       for (int32_t i = 0; i < TSDB_FUNC_COMMENT_LEN - 1; ++i) {
         comments[i] = 'm';
       }
@@ -435,33 +450,38 @@ TEST_F(MndTestFunc, 03_Retrieve_Func) {
       for (int32_t i = 0; i < TSDB_FUNC_CODE_LEN - 1; ++i) {
         codes[i] = 'd';
       }
-      EXPECT_STREQ(pComment, comments);
-      EXPECT_STREQ(pCode, codes);
+      EXPECT_STREQ(comments, pFuncInfo->pComment);
+      EXPECT_STREQ(codes, pFuncInfo->pCode);
     }
+    taosArrayDestroy(retrieveRsp.pFuncInfos);
   }
 
-    {
-    int32_t contLen = sizeof(SRetrieveFuncReq);
-    int32_t numOfFuncs = 2;
-    contLen = (contLen + numOfFuncs * TSDB_FUNC_NAME_LEN);
+  {
+    SRetrieveFuncReq retrieveReq = {0};
+    retrieveReq.numOfFuncs = 2;
+    retrieveReq.pFuncNames = taosArrayInit(1, TSDB_FUNC_NAME_LEN);
+    taosArrayPush(retrieveReq.pFuncNames, "f2");
+    taosArrayPush(retrieveReq.pFuncNames, "f3");
 
-    SRetrieveFuncReq* pReq = (SRetrieveFuncReq*)rpcMallocCont(contLen);
-    pReq->numOfFuncs = htonl(numOfFuncs);
-    strcpy(pReq->pFuncNames, "f2");
-    strcpy((char*)pReq->pFuncNames + TSDB_FUNC_NAME_LEN, "f3");
+    int32_t contLen = tSerializeSRetrieveFuncReq(NULL, 0, &retrieveReq);
+    void*   pReq = rpcMallocCont(contLen);
+    tSerializeSRetrieveFuncReq(pReq, contLen, &retrieveReq);
+    taosArrayDestroy(retrieveReq.pFuncNames);
 
     SRpcMsg* pRsp = test.SendReq(TDMT_MND_RETRIEVE_FUNC, pReq, contLen);
     ASSERT_NE(pRsp, nullptr);
     ASSERT_EQ(pRsp->code, TSDB_CODE_MND_INVALID_FUNC);
-    }
+  }
 }
 
 TEST_F(MndTestFunc, 04_Drop_Func) {
   {
-    int32_t contLen = sizeof(SDropFuncReq);
+    SDropFuncReq dropReq = {0};
+    strcpy(dropReq.name, "");
 
-    SDropFuncReq* pReq = (SDropFuncReq*)rpcMallocCont(contLen);
-    strcpy(pReq->name, "");
+    int32_t contLen = tSerializeSDropFuncReq(NULL, 0, &dropReq);
+    void*   pReq = rpcMallocCont(contLen);
+    tSerializeSDropFuncReq(pReq, contLen, &dropReq);
 
     SRpcMsg* pRsp = test.SendReq(TDMT_MND_DROP_FUNC, pReq, contLen);
     ASSERT_NE(pRsp, nullptr);
@@ -469,10 +489,12 @@ TEST_F(MndTestFunc, 04_Drop_Func) {
   }
 
   {
-    int32_t contLen = sizeof(SDropFuncReq);
+    SDropFuncReq dropReq = {0};
+    strcpy(dropReq.name, "f3");
 
-    SDropFuncReq* pReq = (SDropFuncReq*)rpcMallocCont(contLen);
-    strcpy(pReq->name, "f3");
+    int32_t contLen = tSerializeSDropFuncReq(NULL, 0, &dropReq);
+    void*   pReq = rpcMallocCont(contLen);
+    tSerializeSDropFuncReq(pReq, contLen, &dropReq);
 
     SRpcMsg* pRsp = test.SendReq(TDMT_MND_DROP_FUNC, pReq, contLen);
     ASSERT_NE(pRsp, nullptr);
@@ -480,11 +502,13 @@ TEST_F(MndTestFunc, 04_Drop_Func) {
   }
 
   {
-    int32_t contLen = sizeof(SDropFuncReq);
+    SDropFuncReq dropReq = {0};
+    strcpy(dropReq.name, "f3");
+    dropReq.igNotExists = 1;
 
-    SDropFuncReq* pReq = (SDropFuncReq*)rpcMallocCont(contLen);
-    strcpy(pReq->name, "f3");
-    pReq->igNotExists = 1;
+    int32_t contLen = tSerializeSDropFuncReq(NULL, 0, &dropReq);
+    void*   pReq = rpcMallocCont(contLen);
+    tSerializeSDropFuncReq(pReq, contLen, &dropReq);
 
     SRpcMsg* pRsp = test.SendReq(TDMT_MND_DROP_FUNC, pReq, contLen);
     ASSERT_NE(pRsp, nullptr);
@@ -492,10 +516,13 @@ TEST_F(MndTestFunc, 04_Drop_Func) {
   }
 
   {
-    int32_t contLen = sizeof(SDropFuncReq);
+    SDropFuncReq dropReq = {0};
+    strcpy(dropReq.name, "f1");
+    dropReq.igNotExists = 1;
 
-    SDropFuncReq* pReq = (SDropFuncReq*)rpcMallocCont(contLen);
-    strcpy(pReq->name, "f1");
+    int32_t contLen = tSerializeSDropFuncReq(NULL, 0, &dropReq);
+    void*   pReq = rpcMallocCont(contLen);
+    tSerializeSDropFuncReq(pReq, contLen, &dropReq);
 
     SRpcMsg* pRsp = test.SendReq(TDMT_MND_DROP_FUNC, pReq, contLen);
     ASSERT_NE(pRsp, nullptr);
@@ -517,5 +544,5 @@ TEST_F(MndTestFunc, 04_Drop_Func) {
   test.SendShowRetrieveReq();
   EXPECT_EQ(test.GetShowRows(), 1);
 
-   CheckBinary("f2", TSDB_FUNC_NAME_LEN);
+  CheckBinary("f2", TSDB_FUNC_NAME_LEN);
 }

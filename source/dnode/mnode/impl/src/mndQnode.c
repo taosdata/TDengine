@@ -293,7 +293,7 @@ static int32_t mndProcessCreateQnodeReq(SMnodeMsg *pReq) {
     goto CREATE_QNODE_OVER;
   }
 
-  if (mndCheckDropNodeAuth(pUser)) {
+  if (mndCheckOperateNodeAuth(pUser)) {
     goto CREATE_QNODE_OVER;
   }
 
@@ -303,7 +303,6 @@ static int32_t mndProcessCreateQnodeReq(SMnodeMsg *pReq) {
 CREATE_QNODE_OVER:
   if (code != 0 && code != TSDB_CODE_MND_ACTION_IN_PROGRESS) {
     mError("qnode:%d, failed to create since %s", createReq.dnodeId, terrstr());
-    return -1;
   }
 
   mndReleaseQnode(pMnode, pObj);
@@ -401,7 +400,7 @@ static int32_t mndProcessDropQnodeReq(SMnodeMsg *pReq) {
     goto DROP_QNODE_OVER;
   }
 
-  if (mndCheckCreateNodeAuth(pUser)) {
+  if (mndCheckOperateNodeAuth(pUser)) {
     goto DROP_QNODE_OVER;
   }
 
@@ -411,7 +410,6 @@ static int32_t mndProcessDropQnodeReq(SMnodeMsg *pReq) {
 DROP_QNODE_OVER:
   if (code != 0 && code != TSDB_CODE_MND_ACTION_IN_PROGRESS) {
     mError("qnode:%d, failed to drop since %s", pMnode->dnodeId, terrstr());
-    return -1;
   }
 
   mndReleaseQnode(pMnode, pObj);

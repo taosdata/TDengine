@@ -293,7 +293,7 @@ static int32_t mndProcessCreateBnodeReq(SMnodeMsg *pReq) {
     goto CREATE_BNODE_OVER;
   }
 
-  if (mndCheckDropNodeAuth(pUser)) {
+  if (mndCheckOperateNodeAuth(pUser)) {
     goto CREATE_BNODE_OVER;
   }
 
@@ -400,7 +400,7 @@ static int32_t mndProcessDropBnodeReq(SMnodeMsg *pReq) {
     goto DROP_BNODE_OVER;
   }
 
-  if (mndCheckCreateNodeAuth(pUser)) {
+  if (mndCheckOperateNodeAuth(pUser)) {
     goto DROP_BNODE_OVER;
   }
 

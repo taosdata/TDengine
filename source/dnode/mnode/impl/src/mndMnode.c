@@ -415,7 +415,7 @@ static int32_t mndProcessCreateMnodeReq(SMnodeMsg *pReq) {
     goto CREATE_MNODE_OVER;
   }
 
-  if (mndCheckDropNodeAuth(pUser)) {
+  if (mndCheckOperateNodeAuth(pUser)) {
     goto CREATE_MNODE_OVER;
   }
 
@@ -425,7 +425,6 @@ static int32_t mndProcessCreateMnodeReq(SMnodeMsg *pReq) {
 CREATE_MNODE_OVER:
   if (code != 0 && code != TSDB_CODE_MND_ACTION_IN_PROGRESS) {
     mError("mnode:%d, failed to create since %s", createReq.dnodeId, terrstr());
-    return -1;
   }
 
   mndReleaseMnode(pMnode, pObj);
@@ -583,7 +582,7 @@ static int32_t mndProcessDropMnodeReq(SMnodeMsg *pReq) {
     goto DROP_MNODE_OVER;
   }
 
-  if (mndCheckCreateNodeAuth(pUser)) {
+  if (mndCheckOperateNodeAuth(pUser)) {
     goto DROP_MNODE_OVER;
   }
 

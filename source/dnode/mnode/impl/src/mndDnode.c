@@ -496,7 +496,7 @@ static int32_t mndProcessCreateDnodeReq(SMnodeMsg *pReq) {
     goto CREATE_DNODE_OVER;
   }
 
-  if (mndCheckDropNodeAuth(pUser)) {
+  if (mndCheckOperateNodeAuth(pUser)) {
     goto CREATE_DNODE_OVER;
   }
 
@@ -506,7 +506,6 @@ static int32_t mndProcessCreateDnodeReq(SMnodeMsg *pReq) {
 CREATE_DNODE_OVER:
   if (code != 0 && code != TSDB_CODE_MND_ACTION_IN_PROGRESS) {
     mError("dnode:%s:%d, failed to create since %s", createReq.fqdn, createReq.port, terrstr());
-    return -1;
   }
 
   mndReleaseDnode(pMnode, pDnode);
@@ -571,7 +570,7 @@ static int32_t mndProcessDropDnodeReq(SMnodeMsg *pReq) {
     goto DROP_DNODE_OVER;
   }
 
-  if (mndCheckCreateNodeAuth(pUser)) {
+  if (mndCheckOperateNodeAuth(pUser)) {
     goto DROP_DNODE_OVER;
   }
 
@@ -581,7 +580,6 @@ static int32_t mndProcessDropDnodeReq(SMnodeMsg *pReq) {
 DROP_DNODE_OVER:
   if (code != 0 && code != TSDB_CODE_MND_ACTION_IN_PROGRESS) {
     mError("dnode:%d, failed to drop since %s", dropReq.dnodeId, terrstr());
-    return -1;
   }
 
   mndReleaseDnode(pMnode, pDnode);

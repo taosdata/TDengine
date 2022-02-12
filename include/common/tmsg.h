@@ -394,8 +394,8 @@ typedef struct {
   SHashObj* writeDbs;
 } SGetUserAuthRsp;
 
-int32_t tSerializeSGetUserAuthRsp(void* buf, int32_t bufLen, SGetUserAuthRsp* pReq);
-int32_t tDeserializeSGetUserAuthRsp(void* buf, int32_t bufLen, SGetUserAuthRsp* pReq);
+int32_t tSerializeSGetUserAuthRsp(void* buf, int32_t bufLen, SGetUserAuthRsp* pRsp);
+int32_t tDeserializeSGetUserAuthRsp(void* buf, int32_t bufLen, SGetUserAuthRsp* pRsp);
 
 typedef struct {
   int16_t colId;     // column id
@@ -616,22 +616,31 @@ typedef struct {
   int64_t signature;
   int32_t commentSize;
   int32_t codeSize;
-  char    pCont[];
+  char    pComment[TSDB_FUNC_COMMENT_LEN];
+  char    pCode[TSDB_FUNC_CODE_LEN];
 } SCreateFuncReq;
+
+int32_t tSerializeSCreateFuncReq(void* buf, int32_t bufLen, SCreateFuncReq* pReq);
+int32_t tDeserializeSCreateFuncReq(void* buf, int32_t bufLen, SCreateFuncReq* pReq);
 
 typedef struct {
   char   name[TSDB_FUNC_NAME_LEN];
   int8_t igNotExists;
 } SDropFuncReq;
 
+int32_t tSerializeSDropFuncReq(void* buf, int32_t bufLen, SDropFuncReq* pReq);
+int32_t tDeserializeSDropFuncReq(void* buf, int32_t bufLen, SDropFuncReq* pReq);
+
 typedef struct {
   int32_t numOfFuncs;
-  char    pFuncNames[];
+  SArray* pFuncNames;
 } SRetrieveFuncReq;
+
+int32_t tSerializeSRetrieveFuncReq(void* buf, int32_t bufLen, SRetrieveFuncReq* pReq);
+int32_t tDeserializeSRetrieveFuncReq(void* buf, int32_t bufLen, SRetrieveFuncReq* pReq);
 
 typedef struct {
   char    name[TSDB_FUNC_NAME_LEN];
-  int8_t  align;
   int8_t  funcType;
   int8_t  scriptType;
   int8_t  outputType;
@@ -640,13 +649,17 @@ typedef struct {
   int64_t signature;
   int32_t commentSize;
   int32_t codeSize;
-  char    pCont[];
+  char    pComment[TSDB_FUNC_COMMENT_LEN];
+  char    pCode[TSDB_FUNC_CODE_LEN];
 } SFuncInfo;
 
 typedef struct {
   int32_t numOfFuncs;
-  char    pFuncInfos[];
+  SArray* pFuncInfos;
 } SRetrieveFuncRsp;
+
+int32_t tSerializeSRetrieveFuncRsp(void* buf, int32_t bufLen, SRetrieveFuncRsp* pRsp);
+int32_t tDeserializeSRetrieveFuncRsp(void* buf, int32_t bufLen, SRetrieveFuncRsp* pRsp);
 
 typedef struct {
   int32_t statusInterval;
