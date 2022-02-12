@@ -211,7 +211,8 @@ int transAllocBuffer(SConnBuffer* connBuf, uv_buf_t* uvBuf) {
   /*
    * formate of data buffer:
    * |<--------------------------data from socket------------------------------->|
-   * |<------STransMsgHead------->|<-------------------other data--------------->|
+   * |<------STransMsgHead------->|<-------------------userdata--------------->|<-----auth data----->|<----user
+   * info--->|
    */
   static const int CAPACITY = 1024;
 
@@ -239,6 +240,9 @@ int transAllocBuffer(SConnBuffer* connBuf, uv_buf_t* uvBuf) {
   }
   return 0;
 }
+int transPackMsg(STransMsgHead* msgHead, bool sercured, bool auth) {}
+
+int transUnpackMsg(STransMsgHead* msgHead) {}
 int transDestroyBuffer(SConnBuffer* buf) {
   if (buf->cap > 0) {
     tfree(buf->buf);

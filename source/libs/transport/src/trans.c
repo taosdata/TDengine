@@ -36,6 +36,9 @@ void* rpcOpen(const SRpcInit* pInit) {
   pRpc->idleTime = pInit->idleTime;
   pRpc->tcphandle = (*taosInitHandle[pRpc->connType])(0, pInit->localPort, pRpc->label, pRpc->numOfThreads, NULL, pRpc);
   pRpc->parent = pInit->parent;
+  if (pInit->user) {
+    memcpy(pRpc->user, pInit->user, strlen(pInit->user));
+  }
 
   return pRpc;
 }
