@@ -15,9 +15,11 @@
 
 #define _DEFAULT_SOURCE
 #include "mndFunc.h"
+#include "mndAuth.h"
 #include "mndShow.h"
 #include "mndSync.h"
 #include "mndTrans.h"
+#include "mndUser.h"
 
 #define SDB_FUNC_VER 1
 #define SDB_FUNC_RESERVE_SIZE 64
@@ -201,8 +203,8 @@ static int32_t mndCreateFunc(SMnode *pMnode, SMnodeMsg *pReq, SCreateFuncReq *pC
     goto CREATE_FUNC_OVER;
   }
 
-  memcpy(func.pComment, pCreate->pCont, pCreate->commentSize);
-  memcpy(func.pCode, pCreate->pCont + pCreate->commentSize, func.codeSize);
+  memcpy(func.pComment, pCreate->pComment, pCreate->commentSize);
+  memcpy(func.pCode, pCreate->pCode, func.codeSize);
 
   pTrans = mndTransCreate(pMnode, TRN_POLICY_ROLLBACK, &pReq->rpcMsg);
   if (pTrans == NULL) goto CREATE_FUNC_OVER;
@@ -261,164 +263,202 @@ DROP_FUNC_OVER:
 }
 
 static int32_t mndProcessCreateFuncReq(SMnodeMsg *pReq) {
-  SMnode *pMnode = pReq->pMnode;
+  SMnode        *pMnode = pReq->pMnode;
+  int32_t        code = -1;
+  SUserObj      *pUser = NULL;
+  SFuncObj      *pFunc = NULL;
+  SCreateFuncReq createReq = {0};
 
-  SCreateFuncReq *pCreate = pReq->rpcMsg.pCont;
-  pCreate->outputLen = htonl(pCreate->outputLen);
-  pCreate->bufSize = htonl(pCreate->bufSize);
-  pCreate->signature = htobe64(pCreate->signature);
-  pCreate->commentSize = htonl(pCreate->commentSize);
-  pCreate->codeSize = htonl(pCreate->codeSize);
+  if (tDeserializeSCreateFuncReq(pReq->rpcMsg.pCont, pReq->rpcMsg.contLen, &createReq) != 0) {
+    terrno = TSDB_CODE_INVALID_MSG;
+    goto CREATE_FUNC_OVER;
+  }
 
-  mDebug("func:%s, start to create", pCreate->name);
+  mDebug("func:%s, start to create", createReq.name);
 
-  SFuncObj *pFunc = mndAcquireFunc(pMnode, pCreate->name);
+  pFunc = mndAcquireFunc(pMnode, createReq.name);
   if (pFunc != NULL) {
-    mndReleaseFunc(pMnode, pFunc);
-    if (pCreate->igExists) {
-      mDebug("stb:%s, already exist, ignore exist is set", pCreate->name);
-      return 0;
+    if (createReq.igExists) {
+      mDebug("func:%s, already exist, ignore exist is set", createReq.name);
+      code = 0;
+      goto CREATE_FUNC_OVER;
     } else {
       terrno = TSDB_CODE_MND_FUNC_ALREADY_EXIST;
-      mError("func:%s, failed to create since %s", pCreate->name, terrstr());
-      return -1;
+      goto CREATE_FUNC_OVER;
     }
   } else if (terrno == TSDB_CODE_MND_FUNC_ALREADY_EXIST) {
-    mError("stb:%s, failed to create since %s", pCreate->name, terrstr());
-    return -1;
+    goto CREATE_FUNC_OVER;
   }
 
-  if (pCreate->name[0] == 0) {
+  if (createReq.name[0] == 0) {
     terrno = TSDB_CODE_MND_INVALID_FUNC_NAME;
-    mError("func:%s, failed to create since %s", pCreate->name, terrstr());
-    return -1;
+    goto CREATE_FUNC_OVER;
   }
 
-  if (pCreate->commentSize <= 0 || pCreate->commentSize > TSDB_FUNC_COMMENT_LEN) {
+  if (createReq.commentSize <= 0 || createReq.commentSize > TSDB_FUNC_COMMENT_LEN) {
     terrno = TSDB_CODE_MND_INVALID_FUNC_COMMENT;
-    mError("func:%s, failed to create since %s", pCreate->name, terrstr());
-    return -1;
+    goto CREATE_FUNC_OVER;
   }
 
-  if (pCreate->codeSize <= 0 || pCreate->codeSize > TSDB_FUNC_CODE_LEN) {
+  if (createReq.codeSize <= 0 || createReq.codeSize > TSDB_FUNC_CODE_LEN) {
     terrno = TSDB_CODE_MND_INVALID_FUNC_CODE;
-    mError("func:%s, failed to create since %s", pCreate->name, terrstr());
-    return -1;
+    goto CREATE_FUNC_OVER;
   }
 
-  if (pCreate->pCont[0] == 0) {
+  if (createReq.pCode[0] == 0) {
     terrno = TSDB_CODE_MND_INVALID_FUNC_CODE;
-    mError("func:%s, failed to create since %s", pCreate->name, terrstr());
-    return -1;
+    goto CREATE_FUNC_OVER;
   }
 
-  if (pCreate->bufSize <= 0 || pCreate->bufSize > TSDB_FUNC_BUF_SIZE) {
+  if (createReq.bufSize <= 0 || createReq.bufSize > TSDB_FUNC_BUF_SIZE) {
     terrno = TSDB_CODE_MND_INVALID_FUNC_BUFSIZE;
-    mError("func:%s, failed to create since %s", pCreate->name, terrstr());
-    return -1;
+    goto CREATE_FUNC_OVER;
   }
 
-  int32_t code = mndCreateFunc(pMnode, pReq, pCreate);
-  if (code != 0) {
-    mError("func:%s, failed to create since %s", pCreate->name, terrstr());
-    return -1;
+  pUser = mndAcquireUser(pMnode, pReq->user);
+  if (pUser == NULL) {
+    terrno = TSDB_CODE_MND_NO_USER_FROM_CONN;
+    goto CREATE_FUNC_OVER;
   }
 
-  return TSDB_CODE_MND_ACTION_IN_PROGRESS;
+  if (mndCheckFuncAuth(pUser)) {
+    goto CREATE_FUNC_OVER;
+  }
+
+  code = mndCreateFunc(pMnode, pReq, &createReq);
+  if (code == 0) code = TSDB_CODE_MND_ACTION_IN_PROGRESS;
+
+CREATE_FUNC_OVER:
+  if (code != 0 && code != TSDB_CODE_MND_ACTION_IN_PROGRESS) {
+    mError("func:%s, failed to create since %s", createReq.name, terrstr());
+  }
+
+  mndReleaseFunc(pMnode, pFunc);
+  mndReleaseUser(pMnode, pUser);
+
+  return code;
 }
 
 static int32_t mndProcessDropFuncReq(SMnodeMsg *pReq) {
-  SMnode       *pMnode = pReq->pMnode;
-  SDropFuncReq *pDrop = pReq->rpcMsg.pCont;
+  SMnode      *pMnode = pReq->pMnode;
+  int32_t      code = -1;
+  SUserObj    *pUser = NULL;
+  SFuncObj    *pFunc = NULL;
+  SDropFuncReq dropReq = {0};
 
-  mDebug("func:%s, start to drop", pDrop->name);
-
-  if (pDrop->name[0] == 0) {
-    terrno = TSDB_CODE_MND_INVALID_FUNC_NAME;
-    mError("func:%s, failed to drop since %s", pDrop->name, terrstr());
-    return -1;
+  if (tDeserializeSDropFuncReq(pReq->rpcMsg.pCont, pReq->rpcMsg.contLen, &dropReq) != 0) {
+    terrno = TSDB_CODE_INVALID_MSG;
+    goto DROP_FUNC_OVER;
   }
 
-  SFuncObj *pFunc = mndAcquireFunc(pMnode, pDrop->name);
+  mDebug("func:%s, start to drop", dropReq.name);
+
+  if (dropReq.name[0] == 0) {
+    terrno = TSDB_CODE_MND_INVALID_FUNC_NAME;
+    goto DROP_FUNC_OVER;
+  }
+
+  pFunc = mndAcquireFunc(pMnode, dropReq.name);
   if (pFunc == NULL) {
-    if (pDrop->igNotExists) {
-      mDebug("func:%s, not exist, ignore not exist is set", pDrop->name);
-      return 0;
+    if (dropReq.igNotExists) {
+      mDebug("func:%s, not exist, ignore not exist is set", dropReq.name);
+      code = 0;
+      goto DROP_FUNC_OVER;
     } else {
       terrno = TSDB_CODE_MND_FUNC_NOT_EXIST;
-      mError("func:%s, failed to drop since %s", pDrop->name, terrstr());
-      return -1;
+      goto DROP_FUNC_OVER;
     }
   }
 
-  int32_t code = mndDropFunc(pMnode, pReq, pFunc);
-  mndReleaseFunc(pMnode, pFunc);
-
-  if (code != 0) {
-    mError("func:%s, failed to drop since %s", pDrop->name, terrstr());
-    return -1;
+  pUser = mndAcquireUser(pMnode, pReq->user);
+  if (pUser == NULL) {
+    terrno = TSDB_CODE_MND_NO_USER_FROM_CONN;
+    goto DROP_FUNC_OVER;
   }
 
-  return TSDB_CODE_MND_ACTION_IN_PROGRESS;
+  if (mndCheckFuncAuth(pUser)) {
+    goto DROP_FUNC_OVER;
+  }
+
+  code = mndDropFunc(pMnode, pReq, pFunc);
+  if (code == 0) code = TSDB_CODE_MND_ACTION_IN_PROGRESS;
+
+DROP_FUNC_OVER:
+  if (code != 0 && code != TSDB_CODE_MND_ACTION_IN_PROGRESS) {
+    mError("func:%s, failed to drop since %s", dropReq.name, terrstr());
+  }
+
+  mndReleaseFunc(pMnode, pFunc);
+  mndReleaseUser(pMnode, pUser);
+
+  return code;
 }
 
 static int32_t mndProcessRetrieveFuncReq(SMnodeMsg *pReq) {
-  int32_t code = -1;
-  SMnode *pMnode = pReq->pMnode;
+  SMnode          *pMnode = pReq->pMnode;
+  int32_t          code = -1;
+  SRetrieveFuncReq retrieveReq = {0};
+  SRetrieveFuncRsp retrieveRsp = {0};
 
-  SRetrieveFuncReq *pRetrieve = pReq->rpcMsg.pCont;
-  pRetrieve->numOfFuncs = htonl(pRetrieve->numOfFuncs);
-  if (pRetrieve->numOfFuncs <= 0 || pRetrieve->numOfFuncs > TSDB_FUNC_MAX_RETRIEVE) {
+  if (tDeserializeSRetrieveFuncReq(pReq->rpcMsg.pCont, pReq->rpcMsg.contLen, &retrieveReq) != 0) {
+    terrno = TSDB_CODE_INVALID_MSG;
+    goto RETRIEVE_FUNC_OVER;
+  }
+
+  if (retrieveReq.numOfFuncs <= 0 || retrieveReq.numOfFuncs > TSDB_FUNC_MAX_RETRIEVE) {
     terrno = TSDB_CODE_MND_INVALID_FUNC_RETRIEVE;
-    return -1;
+    goto RETRIEVE_FUNC_OVER;
   }
 
-  int32_t fsize = sizeof(SFuncInfo) + TSDB_FUNC_CODE_LEN + TSDB_FUNC_COMMENT_LEN;
-  int32_t size = sizeof(SRetrieveFuncRsp) + fsize * pRetrieve->numOfFuncs;
-
-  SRetrieveFuncRsp *pRetrieveRsp = rpcMallocCont(size);
-  if (pRetrieveRsp == NULL) {
+  retrieveRsp.numOfFuncs = retrieveReq.numOfFuncs;
+  retrieveRsp.pFuncInfos = taosArrayInit(retrieveReq.numOfFuncs, sizeof(SFuncInfo));
+  if (retrieveRsp.pFuncInfos == NULL) {
     terrno = TSDB_CODE_OUT_OF_MEMORY;
-    goto FUNC_RETRIEVE_OVER;
+    goto RETRIEVE_FUNC_OVER;
   }
 
-  pRetrieveRsp->numOfFuncs = htonl(pRetrieve->numOfFuncs);
-  char *pOutput = pRetrieveRsp->pFuncInfos;
-
-  for (int32_t i = 0; i < pRetrieve->numOfFuncs; ++i) {
-    char funcName[TSDB_FUNC_NAME_LEN] = {0};
-    memcpy(funcName, pRetrieve->pFuncNames + i * TSDB_FUNC_NAME_LEN, TSDB_FUNC_NAME_LEN);
+  for (int32_t i = 0; i < retrieveReq.numOfFuncs; ++i) {
+    char *funcName = taosArrayGet(retrieveReq.pFuncNames, i);
 
     SFuncObj *pFunc = mndAcquireFunc(pMnode, funcName);
     if (pFunc == NULL) {
       terrno = TSDB_CODE_MND_INVALID_FUNC;
-      mError("func:%s, failed to retrieve since %s", funcName, terrstr());
-      goto FUNC_RETRIEVE_OVER;
+      goto RETRIEVE_FUNC_OVER;
     }
 
-    SFuncInfo *pFuncInfo = (SFuncInfo *)pOutput;
-    memcpy(pFuncInfo->name, pFunc->name, TSDB_FUNC_NAME_LEN);
-    pFuncInfo->funcType = pFunc->funcType;
-    pFuncInfo->scriptType = pFunc->scriptType;
-    pFuncInfo->outputType = pFunc->outputType;
-    pFuncInfo->outputLen = htonl(pFunc->outputLen);
-    pFuncInfo->bufSize = htonl(pFunc->bufSize);
-    pFuncInfo->signature = htobe64(pFunc->signature);
-    pFuncInfo->commentSize = htonl(pFunc->commentSize);
-    pFuncInfo->codeSize = htonl(pFunc->codeSize);
-    memcpy(pFuncInfo->pCont, pFunc->pComment, pFunc->commentSize);
-    memcpy(pFuncInfo->pCont + pFunc->commentSize, pFunc->pCode, pFunc->codeSize);
-    pOutput += (sizeof(SFuncInfo) + pFunc->commentSize + pFunc->codeSize);
+    SFuncInfo funcInfo = {0};
+    memcpy(funcInfo.name, pFunc->name, TSDB_FUNC_NAME_LEN);
+    funcInfo.funcType = pFunc->funcType;
+    funcInfo.scriptType = pFunc->scriptType;
+    funcInfo.outputType = pFunc->outputType;
+    funcInfo.outputLen = pFunc->outputLen;
+    funcInfo.bufSize = pFunc->bufSize;
+    funcInfo.signature = pFunc->signature;
+    funcInfo.commentSize = pFunc->commentSize;
+    funcInfo.codeSize = pFunc->codeSize;
+    memcpy(funcInfo.pComment, pFunc->pComment, pFunc->commentSize);
+    memcpy(funcInfo.pCode, pFunc->pCode, pFunc->codeSize);
+    taosArrayPush(retrieveRsp.pFuncInfos, &funcInfo);
     mndReleaseFunc(pMnode, pFunc);
   }
 
-  pReq->pCont = pRetrieveRsp;
-  pReq->contLen = (int32_t)(pOutput - (char *)pRetrieveRsp);
+  int32_t contLen = tSerializeSRetrieveFuncRsp(NULL, 0, &retrieveRsp);
+  void   *pRsp = rpcMallocCont(contLen);
+  if (pRsp == NULL) {
+    terrno = TSDB_CODE_OUT_OF_MEMORY;
+    goto RETRIEVE_FUNC_OVER;
+  }
+
+  tSerializeSRetrieveFuncRsp(pRsp, contLen, &retrieveRsp);
+
+  pReq->pCont = pRsp;
+  pReq->contLen = contLen;
 
   code = 0;
 
-FUNC_RETRIEVE_OVER:
-  if (code != 0) rpcFreeCont(pRetrieveRsp);
+RETRIEVE_FUNC_OVER:
+  taosArrayDestroy(retrieveReq.pFuncNames);
+  taosArrayDestroy(retrieveRsp.pFuncInfos);
 
   return code;
 }

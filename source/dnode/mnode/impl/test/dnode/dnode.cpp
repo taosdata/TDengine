@@ -75,11 +75,14 @@ TEST_F(MndTestDnode, 01_ShowDnode) {
 }
 
 TEST_F(MndTestDnode, 02_ConfigDnode) {
-  int32_t contLen = sizeof(SMCfgDnodeReq);
+  SMCfgDnodeReq cfgReq = {0};
+  cfgReq.dnodeId = 1;
+  strcpy(cfgReq.config, "ddebugflag");
+  strcpy(cfgReq.value, "131");
 
-  SMCfgDnodeReq* pReq = (SMCfgDnodeReq*)rpcMallocCont(contLen);
-  pReq->dnodeId = htonl(1);
-  strcpy(pReq->config, "ddebugflag 131");
+  int32_t contLen = tSerializeSMCfgDnodeReq(NULL, 0, &cfgReq);
+  void*   pReq = rpcMallocCont(contLen);
+  tSerializeSMCfgDnodeReq(pReq, contLen, &cfgReq);
 
   SRpcMsg* pRsp = test.SendReq(TDMT_MND_CONFIG_DNODE, pReq, contLen);
   ASSERT_NE(pRsp, nullptr);

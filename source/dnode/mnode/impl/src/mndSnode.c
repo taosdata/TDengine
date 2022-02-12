@@ -294,7 +294,7 @@ static int32_t mndProcessCreateSnodeReq(SMnodeMsg *pReq) {
     goto CREATE_SNODE_OVER;
   }
 
-  if (mndCheckDropNodeAuth(pUser)) {
+  if (mndCheckNodeAuth(pUser)) {
     goto CREATE_SNODE_OVER;
   }
 
@@ -403,7 +403,7 @@ static int32_t mndProcessDropSnodeReq(SMnodeMsg *pReq) {
     goto DROP_SNODE_OVER;
   }
 
-  if (mndCheckCreateNodeAuth(pUser)) {
+  if (mndCheckNodeAuth(pUser)) {
     goto DROP_SNODE_OVER;
   }
 
@@ -413,7 +413,6 @@ static int32_t mndProcessDropSnodeReq(SMnodeMsg *pReq) {
 DROP_SNODE_OVER:
   if (code != 0 && code != TSDB_CODE_MND_ACTION_IN_PROGRESS) {
     mError("snode:%d, failed to drop since %s", pMnode->dnodeId, terrstr());
-    return -1;
   }
 
   mndReleaseSnode(pMnode, pObj);
