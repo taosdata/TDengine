@@ -241,17 +241,6 @@ abort_parse:
   return cxt.valid ? TSDB_CODE_SUCCESS : TSDB_CODE_FAILED;
 }
 
-typedef enum ESqlClause {
-  SQL_CLAUSE_FROM = 1,
-  SQL_CLAUSE_WHERE,
-  SQL_CLAUSE_PARTITION_BY,
-  SQL_CLAUSE_WINDOW,
-  SQL_CLAUSE_GROUP_BY,
-  SQL_CLAUSE_HAVING,
-  SQL_CLAUSE_SELECT,
-  SQL_CLAUSE_ORDER_BY
-} ESqlClause;
-
 static bool afterGroupBy(ESqlClause clause) {
   return clause > SQL_CLAUSE_GROUP_BY;
 }
@@ -298,7 +287,7 @@ static char* getSyntaxErrFormat(int32_t errCode) {
       return "Not SELECTed expression";
     case TSDB_CODE_PAR_NOT_SINGLE_GROUP:
       return "Not a single-group group function";
-    case TSDB_CODE_PAR_OUT_OF_MEMORY:
+    case TSDB_CODE_OUT_OF_MEMORY:
       return "Out of memory";
     default:
       return "Unknown error";
@@ -376,7 +365,7 @@ static void setColumnInfoBySchema(const STableNode* pTable, const SSchema* pColS
 
 static void setColumnInfoByExpr(const STableNode* pTable, SExprNode* pExpr, SColumnNode* pCol) {
   pCol->pProjectRef = (SNode*)pExpr;
-  pExpr->pAssociationList = nodesListAppend(pExpr->pAssociationList, (SNode*)pCol);
+  nodesListAppend(pExpr->pAssociationList, (SNode*)pCol);
   if (NULL != pTable) {
     strcpy(pCol->tableAlias, pTable->tableAlias);
   }
@@ -391,7 +380,7 @@ static int32_t createColumnNodeByTable(STranslateContext* pCxt, const STableNode
     for (int32_t i = 0; i < nums; ++i) {
       SColumnNode* pCol = (SColumnNode*)nodesMakeNode(QUERY_NODE_COLUMN);
       if (NULL == pCol) {
-        return generateSyntaxErrMsg(pCxt, TSDB_CODE_PAR_OUT_OF_MEMORY);
+        return generateSyntaxErrMsg(pCxt, TSDB_CODE_OUT_OF_MEMORY);
       }
       setColumnInfoBySchema(pTable, pMeta->schema + i, pCol);
       nodesListAppend(pList, (SNode*)pCol);
@@ -402,7 +391,7 @@ static int32_t createColumnNodeByTable(STranslateContext* pCxt, const STableNode
     FOREACH(pNode, pProjectList) {
       SColumnNode* pCol = (SColumnNode*)nodesMakeNode(QUERY_NODE_COLUMN);
       if (NULL == pCol) {
-        return generateSyntaxErrMsg(pCxt, TSDB_CODE_PAR_OUT_OF_MEMORY);
+        return generateSyntaxErrMsg(pCxt, TSDB_CODE_OUT_OF_MEMORY);
       }
       setColumnInfoByExpr(pTable, (SExprNode*)pNode, pCol);
       nodesListAppend(pList, (SNode*)pCol);
@@ -572,7 +561,7 @@ static EDealRes translateValue(STranslateContext* pCxt, SValueNode* pVal) {
         int32_t n = strlen(pVal->literal);
         pVal->datum.p = calloc(1, n);
         if (NULL == pVal->datum.p) {
-          generateSyntaxErrMsg(pCxt, TSDB_CODE_PAR_OUT_OF_MEMORY);
+          generateSyntaxErrMsg(pCxt, TSDB_CODE_OUT_OF_MEMORY);
           return DEAL_RES_ERROR;
         }
         trimStringCopy(pVal->literal, n, pVal->datum.p);
@@ -582,7 +571,7 @@ static EDealRes translateValue(STranslateContext* pCxt, SValueNode* pVal) {
         int32_t n = strlen(pVal->literal);
         char* tmp = calloc(1, n);
         if (NULL == tmp) {
-          generateSyntaxErrMsg(pCxt, TSDB_CODE_PAR_OUT_OF_MEMORY);
+          generateSyntaxErrMsg(pCxt, TSDB_CODE_OUT_OF_MEMORY);
           return DEAL_RES_ERROR;
         }
         int32_t len = trimStringCopy(pVal->literal, n, tmp);
@@ -830,7 +819,7 @@ static int32_t translateStar(STranslateContext* pCxt, SSelectStmt* pSelect, bool
     size_t nums = taosArrayGetSize(pTables);
     pSelect->pProjectionList = nodesMakeList();
     if (NULL == pSelect->pProjectionList) {
-      return generateSyntaxErrMsg(pCxt, TSDB_CODE_PAR_OUT_OF_MEMORY);
+      return generateSyntaxErrMsg(pCxt, TSDB_CODE_OUT_OF_MEMORY);
     }
     for (size_t i = 0; i < nums; ++i) {
       STableNode* pTable = taosArrayGetP(pTables, i);
@@ -897,7 +886,7 @@ static int32_t translateOrderByPosition(STranslateContext* pCxt, SNodeList* pPro
       } else {
         SColumnNode* pCol = (SColumnNode*)nodesMakeNode(QUERY_NODE_COLUMN);
         if (NULL == pCol) {
-          return generateSyntaxErrMsg(pCxt, TSDB_CODE_PAR_OUT_OF_MEMORY);
+          return generateSyntaxErrMsg(pCxt, TSDB_CODE_OUT_OF_MEMORY);
         }
         setColumnInfoByExpr(NULL, (SExprNode*)nodesListGetNode(pProjectionList, pos - 1), pCol);
         ((SOrderByExprNode*)pNode)->pExpr = (SNode*)pCol;
@@ -1036,7 +1025,7 @@ int32_t setReslutSchema(STranslateContext* pCxt, SQuery* pQuery) {
     pQuery->numOfResCols = LIST_LENGTH(pSelect->pProjectionList);
     pQuery->pResSchema = calloc(pQuery->numOfResCols, sizeof(SSchema));
     if (NULL == pQuery->pResSchema) {
-      return generateSyntaxErrMsg(pCxt, TSDB_CODE_PAR_OUT_OF_MEMORY);
+      return generateSyntaxErrMsg(pCxt, TSDB_CODE_OUT_OF_MEMORY);
     }
     SNode* pNode;
     int32_t index = 0;
