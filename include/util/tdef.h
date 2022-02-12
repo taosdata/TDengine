@@ -219,6 +219,7 @@ do { \
 
 #define TSDB_ERROR_MSG_LEN        1024
 #define TSDB_DNODE_CONFIG_LEN     128
+#define TSDB_DNODE_VALUE_LEN      256
 
 #define TSDB_MQTT_HOSTNAME_LEN    64
 #define TSDB_MQTT_PORT_LEN        8

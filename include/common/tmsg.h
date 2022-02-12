@@ -851,18 +851,31 @@ typedef struct {
   int32_t port;
 } SCreateDnodeReq;
 
+int32_t tSerializeSCreateDnodeReq(void* buf, int32_t bufLen, SCreateDnodeReq* pReq);
+int32_t tDeserializeSCreateDnodeReq(void* buf, int32_t bufLen, SCreateDnodeReq* pReq);
+
 typedef struct {
   int32_t dnodeId;
 } SDropDnodeReq;
 
+int32_t tSerializeSDropDnodeReq(void* buf, int32_t bufLen, SDropDnodeReq* pReq);
+int32_t tDeserializeSDropDnodeReq(void* buf, int32_t bufLen, SDropDnodeReq* pReq);
+
 typedef struct {
   int32_t dnodeId;
   char    config[TSDB_DNODE_CONFIG_LEN];
+  char    value[TSDB_DNODE_VALUE_LEN];
 } SMCfgDnodeReq, SDCfgDnodeReq;
+
+int32_t tSerializeSMCfgDnodeReq(void* buf, int32_t bufLen, SMCfgDnodeReq* pReq);
+int32_t tDeserializeSMCfgDnodeReq(void* buf, int32_t bufLen, SMCfgDnodeReq* pReq);
 
 typedef struct {
   int32_t dnodeId;
 } SMCreateMnodeReq, SMDropMnodeReq, SDDropMnodeReq;
+
+int32_t tSerializeSMCreateDropMnodeReq(void* buf, int32_t bufLen, SMCreateMnodeReq* pReq);
+int32_t tDeserializeSMCreateDropMnodeReq(void* buf, int32_t bufLen, SMCreateMnodeReq* pReq);
 
 typedef struct {
   int32_t  dnodeId;
