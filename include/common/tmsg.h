@@ -349,15 +349,15 @@ typedef struct {
   int64_t maxStorage;   // In unit of GB
 } SCreateAcctReq, SAlterAcctReq;
 
-int32_t tSerializeSCreateAcctReq(void** buf, SCreateAcctReq* pReq);
-void*   tDeserializeSCreateAcctReq(void* buf, SCreateAcctReq* pReq);
+int32_t tSerializeSCreateAcctReq(void* buf, int32_t bufLen, SCreateAcctReq* pReq);
+int32_t tDeserializeSCreateAcctReq(void* buf, int32_t bufLen, SCreateAcctReq* pReq);
 
 typedef struct {
   char user[TSDB_USER_LEN];
 } SDropUserReq, SDropAcctReq;
 
-int32_t tSerializeSDropUserReq(void** buf, SDropUserReq* pReq);
-void*   tDeserializeSDropUserReq(void* buf, SDropUserReq* pReq);
+int32_t tSerializeSDropUserReq(void* buf, int32_t bufLen, SDropUserReq* pReq);
+int32_t tDeserializeSDropUserReq(void* buf, int32_t bufLen, SDropUserReq* pReq);
 
 typedef struct {
   int8_t createType;
@@ -366,8 +366,8 @@ typedef struct {
   char   pass[TSDB_PASSWORD_LEN];
 } SCreateUserReq;
 
-int32_t tSerializeSCreateUserReq(void** buf, SCreateUserReq* pReq);
-void*   tDeserializeSCreateUserReq(void* buf, SCreateUserReq* pReq);
+int32_t tSerializeSCreateUserReq(void* buf, int32_t bufLen, SCreateUserReq* pReq);
+int32_t tDeserializeSCreateUserReq(void* buf, int32_t bufLen, SCreateUserReq* pReq);
 
 typedef struct {
   int8_t alterType;
@@ -377,15 +377,15 @@ typedef struct {
   char   dbname[TSDB_DB_FNAME_LEN];
 } SAlterUserReq;
 
-int32_t tSerializeSAlterUserReq(void** buf, SAlterUserReq* pReq);
-void*   tDeserializeSAlterUserReq(void* buf, SAlterUserReq* pReq);
+int32_t tSerializeSAlterUserReq(void* buf, int32_t bufLen, SAlterUserReq* pReq);
+int32_t tDeserializeSAlterUserReq(void* buf, int32_t bufLen, SAlterUserReq* pReq);
 
 typedef struct {
   char user[TSDB_USER_LEN];
 } SGetUserAuthReq;
 
-int32_t tSerializeSGetUserAuthReq(void** buf, SGetUserAuthReq* pReq);
-void*   tDeserializeSGetUserAuthReq(void* buf, SGetUserAuthReq* pReq);
+int32_t tSerializeSGetUserAuthReq(void* buf, int32_t bufLen, SGetUserAuthReq* pReq);
+int32_t tDeserializeSGetUserAuthReq(void* buf, int32_t bufLen, SGetUserAuthReq* pReq);
 
 typedef struct {
   char      user[TSDB_USER_LEN];
@@ -394,8 +394,8 @@ typedef struct {
   SHashObj* writeDbs;
 } SGetUserAuthRsp;
 
-int32_t tSerializeSGetUserAuthRsp(void** buf, SGetUserAuthRsp* pReq);
-void*   tDeserializeSGetUserAuthRsp(void* buf, SGetUserAuthRsp* pReq);
+int32_t tSerializeSGetUserAuthRsp(void* buf, int32_t bufLen, SGetUserAuthRsp* pReq);
+int32_t tDeserializeSGetUserAuthRsp(void* buf, int32_t bufLen, SGetUserAuthRsp* pReq);
 
 typedef struct {
   int16_t colId;     // column id
@@ -851,18 +851,31 @@ typedef struct {
   int32_t port;
 } SCreateDnodeReq;
 
+int32_t tSerializeSCreateDnodeReq(void* buf, int32_t bufLen, SCreateDnodeReq* pReq);
+int32_t tDeserializeSCreateDnodeReq(void* buf, int32_t bufLen, SCreateDnodeReq* pReq);
+
 typedef struct {
   int32_t dnodeId;
 } SDropDnodeReq;
 
+int32_t tSerializeSDropDnodeReq(void* buf, int32_t bufLen, SDropDnodeReq* pReq);
+int32_t tDeserializeSDropDnodeReq(void* buf, int32_t bufLen, SDropDnodeReq* pReq);
+
 typedef struct {
   int32_t dnodeId;
   char    config[TSDB_DNODE_CONFIG_LEN];
+  char    value[TSDB_DNODE_VALUE_LEN];
 } SMCfgDnodeReq, SDCfgDnodeReq;
+
+int32_t tSerializeSMCfgDnodeReq(void* buf, int32_t bufLen, SMCfgDnodeReq* pReq);
+int32_t tDeserializeSMCfgDnodeReq(void* buf, int32_t bufLen, SMCfgDnodeReq* pReq);
 
 typedef struct {
   int32_t dnodeId;
 } SMCreateMnodeReq, SMDropMnodeReq, SDDropMnodeReq;
+
+int32_t tSerializeSMCreateDropMnodeReq(void* buf, int32_t bufLen, SMCreateMnodeReq* pReq);
+int32_t tDeserializeSMCreateDropMnodeReq(void* buf, int32_t bufLen, SMCreateMnodeReq* pReq);
 
 typedef struct {
   int32_t  dnodeId;
@@ -872,15 +885,11 @@ typedef struct {
 
 typedef struct {
   int32_t dnodeId;
-} SMCreateQnodeReq, SMDropQnodeReq, SDCreateQnodeReq, SDDropQnodeReq;
+} SMCreateQnodeReq, SMDropQnodeReq, SDCreateQnodeReq, SDDropQnodeReq, SMCreateSnodeReq, SMDropSnodeReq,
+    SDCreateSnodeReq, SDDropSnodeReq, SMCreateBnodeReq, SMDropBnodeReq, SDCreateBnodeReq, SDDropBnodeReq;
 
-typedef struct {
-  int32_t dnodeId;
-} SMCreateSnodeReq, SMDropSnodeReq, SDCreateSnodeReq, SDDropSnodeReq;
-
-typedef struct {
-  int32_t dnodeId;
-} SMCreateBnodeReq, SMDropBnodeReq, SDCreateBnodeReq, SDDropBnodeReq;
+int32_t tSerializeSMCreateDropQSBNodeReq(void* buf, int32_t bufLen, SMCreateQnodeReq* pReq);
+int32_t tDeserializeSMCreateDropQSBNodeReq(void* buf, int32_t bufLen, SMCreateQnodeReq* pReq);
 
 typedef struct {
   char    sql[TSDB_SHOW_SQL_LEN];

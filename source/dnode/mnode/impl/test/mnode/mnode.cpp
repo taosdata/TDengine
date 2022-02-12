@@ -87,11 +87,13 @@ TEST_F(MndTestMnode, 03_Create_Mnode_Invalid_Id) {
 TEST_F(MndTestMnode, 04_Create_Mnode) {
   {
     // create dnode
-    int32_t contLen = sizeof(SCreateDnodeReq);
+    SCreateDnodeReq createReq = {0};
+    strcpy(createReq.fqdn, "localhost");
+    createReq.port = 9029;
 
-    SCreateDnodeReq* pReq = (SCreateDnodeReq*)rpcMallocCont(contLen);
-    strcpy(pReq->fqdn, "localhost");
-    pReq->port = htonl(9029);
+    int32_t contLen = tSerializeSCreateDnodeReq(NULL, 0, &createReq);
+    void*   pReq = rpcMallocCont(contLen);
+    tSerializeSCreateDnodeReq(pReq, contLen, &createReq);
 
     SRpcMsg* pRsp = test.SendReq(TDMT_MND_CREATE_DNODE, pReq, contLen);
     ASSERT_NE(pRsp, nullptr);
