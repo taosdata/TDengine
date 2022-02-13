@@ -20,14 +20,23 @@
 #include "tarray.h"
 
 static void dataColSetNEleNull(SDataCol *pCol, int nEle);
+#if 0
 static void tdMergeTwoDataCols(SDataCols *target, SDataCols *src1, int *iter1, int limit1, SDataCols *src2, int *iter2,
                                int limit2, int tRows, bool forceSetNull);
-
+#endif
 int tdAllocMemForCol(SDataCol *pCol, int maxPoints) {
   int spaceNeeded = pCol->bytes * maxPoints;
   if(IS_VAR_DATA_TYPE(pCol->type)) {
     spaceNeeded += sizeof(VarDataOffsetT) * maxPoints;
   }
+#ifdef TD_SUPPORT_BITMAP
+  int32_t nBitmapBytes = (int32_t)TD_BITMAP_BYTES(maxPoints);
+  spaceNeeded += (int)nBitmapBytes;
+  // TODO: Currently, the compression of bitmap parts is affiliated to the column data parts, thus allocate 1 more
+  // TYPE_BYTES as to comprise complete TYPE_BYTES. Otherwise, invalid read/write would be triggered.
+  spaceNeeded += TYPE_BYTES[pCol->type];
+#endif
+
   if(pCol->spaceSize < spaceNeeded) {
     void* ptr = realloc(pCol->pData, spaceNeeded);
     if(ptr == NULL) {
@@ -39,9 +48,18 @@ int tdAllocMemForCol(SDataCol *pCol, int maxPoints) {
       pCol->spaceSize = spaceNeeded;
     }
   }
-  if(IS_VAR_DATA_TYPE(pCol->type)) {
+#ifdef TD_SUPPORT_BITMAP
+  if (IS_VAR_DATA_TYPE(pCol->type)) {
+    pCol->pBitmap = POINTER_SHIFT(pCol->pData, pCol->bytes * maxPoints);
+    pCol->dataOff = POINTER_SHIFT(pCol->pBitmap, nBitmapBytes);
+  } else {
+    pCol->pBitmap = POINTER_SHIFT(pCol->pData, pCol->bytes * maxPoints);
+  }
+#else
+  if (IS_VAR_DATA_TYPE(pCol->type)) {
     pCol->dataOff = POINTER_SHIFT(pCol->pData, pCol->bytes * maxPoints);
   }
+#endif
   return 0;
 }
 
@@ -185,11 +203,16 @@ STSchema *tdGetSchemaFromBuilder(STSchemaBuilder *pBuilder) {
   schemaFLen(pSchema) = pBuilder->flen;
   schemaVLen(pSchema) = pBuilder->vlen;
 
+#ifdef TD_SUPPORT_BITMAP
+  schemaTLen(pSchema) += (int)TD_BITMAP_BYTES(schemaNCols(pSchema));
+#endif
+
   memcpy(schemaColAt(pSchema, 0), pBuilder->columns, sizeof(STColumn) * pBuilder->nCols);
 
   return pSchema;
 }
 
+#if 0
 /**
  * Initialize a data row
  */
@@ -230,12 +253,13 @@ SMemRow tdMemRowDup(SMemRow row) {
   memRowCpy(trow, row);
   return trow;
 }
+#endif
 
 void dataColInit(SDataCol *pDataCol, STColumn *pCol, int maxPoints) {
   pDataCol->type = colType(pCol);
   pDataCol->colId = colColId(pCol);
   pDataCol->bytes = colBytes(pCol);
-  pDataCol->offset = colOffset(pCol) + TD_DATA_ROW_HEAD_SIZE;
+  pDataCol->offset = colOffset(pCol) + 0; //TD_DATA_ROW_HEAD_SIZE;
 
   pDataCol->len = 0;
 }
@@ -311,7 +335,7 @@ static void dataColSetNEleNull(SDataCol *pCol, int nEle) {
   }
 }
 
-void dataColSetOffset(SDataCol *pCol, int nEle) {
+void *dataColSetOffset(SDataCol *pCol, int nEle) {
   ASSERT(((pCol->type == TSDB_DATA_TYPE_BINARY) || (pCol->type == TSDB_DATA_TYPE_NCHAR)));
 
   void *tptr = pCol->pData;
@@ -323,6 +347,7 @@ void dataColSetOffset(SDataCol *pCol, int nEle) {
     offset += varDataTLen(tptr);
     tptr = POINTER_SHIFT(tptr, varDataTLen(tptr));
   }
+  return POINTER_SHIFT(tptr, varDataTLen(tptr));
 }
 
 SDataCols *tdNewDataCols(int maxCols, int maxRows) {
@@ -440,7 +465,7 @@ void tdResetDataCols(SDataCols *pCols) {
     }
   }
 }
-
+#if 0
 static void tdAppendDataRowToDataCol(SDataRow row, STSchema *pSchema, SDataCols *pCols, bool forceSetNull) {
   ASSERT(pCols->numOfRows == 0 || dataColsKeyLast(pCols) < dataRowKey(row));
 
@@ -475,7 +500,7 @@ static void tdAppendDataRowToDataCol(SDataRow row, STSchema *pSchema, SDataCols 
   pCols->numOfRows++;
 }
 
-static void tdAppendKvRowToDataCol(SKVRow row, STSchema *pSchema, SDataCols *pCols, bool forceSetNull) {
+static void tdAppendKVRowToDataCol(SKVRow row, STSchema *pSchema, SDataCols *pCols, bool forceSetNull) {
   ASSERT(pCols->numOfRows == 0 || dataColsKeyLast(pCols) < kvRowKey(row));
 
   int rcol = 0;
@@ -516,7 +541,7 @@ void tdAppendMemRowToDataCol(SMemRow row, STSchema *pSchema, SDataCols *pCols, b
   if (isDataRow(row)) {
     tdAppendDataRowToDataCol(memRowDataBody(row), pSchema, pCols, forceSetNull);
   } else if (isKvRow(row)) {
-    tdAppendKvRowToDataCol(memRowKvBody(row), pSchema, pCols, forceSetNull);
+    tdAppendKVRowToDataCol(memRowKvBody(row), pSchema, pCols, forceSetNull);
   } else {
     ASSERT(0);
   }
@@ -613,6 +638,7 @@ static void tdMergeTwoDataCols(SDataCols *target, SDataCols *src1, int *iter1, i
     ASSERT(target->numOfRows <= target->maxPoints);
   }
 }
+#endif
 
 SKVRow tdKVRowDup(SKVRow row) {
   SKVRow trow = malloc(kvRowLen(row));
@@ -772,7 +798,7 @@ SKVRow tdGetKVRowFromBuilder(SKVRowBuilder *pBuilder) {
 
   return row;
 }
-
+#if 0
 SMemRow mergeTwoMemRows(void *buffer, SMemRow row1, SMemRow row2, STSchema *pSchema1, STSchema *pSchema2) {
 #if 0
   ASSERT(memRowKey(row1) == memRowKey(row2));
@@ -792,7 +818,7 @@ SMemRow mergeTwoMemRows(void *buffer, SMemRow row1, SMemRow row2, STSchema *pSch
   dataRowSetVersion(dataRow, schemaVersion(pSchema1));  // use latest schema version
   dataRowSetLen(dataRow, (TDRowLenT)(TD_DATA_ROW_HEAD_SIZE + pSchema1->flen));
 
-  TDRowTLenT dataLen = 0, kvLen = TD_MEM_ROW_KV_HEAD_SIZE;
+  TDRowLenT dataLen = 0, kvLen = TD_MEM_ROW_KV_HEAD_SIZE;
 
   int32_t  i = 0;  // row1
   int32_t  j = 0;  // row2
@@ -866,3 +892,4 @@ SMemRow mergeTwoMemRows(void *buffer, SMemRow row1, SMemRow row2, STSchema *pSch
   taosArrayDestroy(stashRow);
   return buffer;
 }
+#endif

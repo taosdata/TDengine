@@ -448,19 +448,27 @@ SArray* tqRetrieveDataBlock(STqReadHandle* pHandle) {
     taosArrayPush(pArray, &colInfo);
   }
 
-  SMemRow row;
-  int32_t kvIdx = 0;
+  STSRowIter iter = {0};
+  tdSTSRowIterInit(&iter, pTschema);
+  STSRow* row;
+  // int32_t kvIdx = 0;
   int32_t curRow = 0;
   tInitSubmitBlkIter(pHandle->pBlock, &pHandle->blkIter);
   while ((row = tGetSubmitBlkNext(&pHandle->blkIter)) != NULL) {
+    tdSTSRowIterReset(&iter, row);
     // get all wanted col of that block
     for (int32_t i = 0; i < colNumNeed; i++) {
       SColumnInfoData* pColData = taosArrayGet(pArray, i);
       STColumn*        pCol = schemaColAt(pTschema, i);
       // TODO
       ASSERT(pCol->colId == pColData->info.colId);
-      void* val = tdGetMemRowDataOfColEx(row, pCol->colId, pCol->type, TD_DATA_ROW_HEAD_SIZE + pCol->offset, &kvIdx);
-      memcpy(POINTER_SHIFT(pColData->pData, curRow * pCol->bytes), val, pCol->bytes);
+      // void* val = tdGetMemRowDataOfColEx(row, pCol->colId, pCol->type, TD_DATA_ROW_HEAD_SIZE + pCol->offset, &kvIdx);
+      SCellVal sVal = {0};
+      if (!tdSTSRowIterNext(&iter, pCol->colId, pCol->type, &sVal)) {
+        // TODO: reach end
+        break;
+      }
+      memcpy(POINTER_SHIFT(pColData->pData, curRow * pCol->bytes), sVal.val, pCol->bytes);
     }
     curRow++;
   }

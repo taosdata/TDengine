@@ -108,7 +108,7 @@ TEST_F(DndTestVnode, 01_Create_Vnode) {
   }
 }
 
-TEST_F(DndTestVnode, 02_ALTER_Vnode) {
+TEST_F(DndTestVnode, 02_Alter_Vnode) {
   for (int i = 0; i < 3; ++i) {
     int32_t contLen = sizeof(SAlterVnodeReq);
 
@@ -219,16 +219,70 @@ TEST_F(DndTestVnode, 03_Create_Stb) {
   }
 }
 
-TEST_F(DndTestVnode, 04_ALTER_Stb) {
-#if 0
-  {
-    for (int i = 0; i < 3; ++i) {
-      SRpcMsg* pRsp = test.SendReq(TDMT_VND_ALTER_STB, pReq, contLen);
-      ASSERT_NE(pRsp, nullptr);
-      ASSERT_EQ(pRsp->code, 0);
+TEST_F(DndTestVnode, 04_Alter_Stb) {
+  for (int i = 0; i < 1; ++i) {
+    SVCreateTbReq req = {0};
+    req.ver = 0;
+    req.name = (char*)"stb1";
+    req.ttl = 0;
+    req.keep = 0;
+    req.type = TD_SUPER_TABLE;
+
+    SSchema schemas[5] = {0};
+    {
+      SSchema* pSchema = &schemas[0];
+      pSchema->bytes = htonl(8);
+      pSchema->type = TSDB_DATA_TYPE_TIMESTAMP;
+      strcpy(pSchema->name, "ts");
     }
+
+    {
+      SSchema* pSchema = &schemas[1];
+      pSchema->bytes = htonl(4);
+      pSchema->type = TSDB_DATA_TYPE_INT;
+      strcpy(pSchema->name, "col1");
+    }
+
+    {
+      SSchema* pSchema = &schemas[2];
+      pSchema->bytes = htonl(2);
+      pSchema->type = TSDB_DATA_TYPE_TINYINT;
+      strcpy(pSchema->name, "_tag1");
+    }
+
+    {
+      SSchema* pSchema = &schemas[3];
+      pSchema->bytes = htonl(8);
+      pSchema->type = TSDB_DATA_TYPE_BIGINT;
+      strcpy(pSchema->name, "_tag2");
+    }
+
+    {
+      SSchema* pSchema = &schemas[4];
+      pSchema->bytes = htonl(16);
+      pSchema->type = TSDB_DATA_TYPE_BINARY;
+      strcpy(pSchema->name, "_tag3");
+    }
+
+    req.stbCfg.suid = 9527;
+    req.stbCfg.nCols = 2;
+    req.stbCfg.pSchema = &schemas[0];
+    req.stbCfg.nTagCols = 3;
+    req.stbCfg.pTagSchema = &schemas[2];
+
+    int32_t   contLen = tSerializeSVCreateTbReq(NULL, &req) + sizeof(SMsgHead);
+    SMsgHead* pHead = (SMsgHead*)rpcMallocCont(contLen);
+
+    pHead->contLen = htonl(contLen);
+    pHead->vgId = htonl(2);
+
+    void* pBuf = POINTER_SHIFT(pHead, sizeof(SMsgHead));
+    tSerializeSVCreateTbReq(&pBuf, &req);
+
+    SRpcMsg* pRsp = test.SendReq(TDMT_VND_ALTER_STB, (void*)pHead, contLen);
+    ASSERT_NE(pRsp, nullptr);
+    ASSERT_EQ(pRsp->code, 0);
   }
-#endif
 }
 
 TEST_F(DndTestVnode, 05_DROP_Stb) {
@@ -256,7 +310,7 @@ TEST_F(DndTestVnode, 05_DROP_Stb) {
   }
 }
 
-TEST_F(DndTestVnode, 06_DROP_Vnode) {
+TEST_F(DndTestVnode, 06_Drop_Vnode) {
   for (int i = 0; i < 3; ++i) {
     int32_t contLen = sizeof(SDropVnodeReq);
 

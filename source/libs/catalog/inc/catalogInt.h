@@ -48,18 +48,22 @@ enum {
 };
 
 typedef struct SCtgDebug {
-  int32_t lockDebug;
+  bool     lockDebug;
+  bool     cacheDebug;
+  uint32_t showCachePeriodSec;
 } SCtgDebug;
 
 
 typedef struct SCtgTbMetaCache {
   SRWLatch  stbLock;
-  SHashObj *cache;           //key:tbname, value:STableMeta
+  SRWLatch  metaLock;        // RC between cache destroy and all other operations
+  SHashObj *metaCache;       //key:tbname, value:STableMeta
   SHashObj *stbCache;        //key:suid, value:STableMeta*
 } SCtgTbMetaCache;
 
 typedef struct SCtgDBCache {
   SRWLatch         vgLock;
+  uint64_t         dbId;
   int8_t           deleted;
   SDBVgroupInfo   *vgInfo;  
   SCtgTbMetaCache  tbCache;
@@ -81,6 +85,7 @@ typedef struct SCtgRentMgmt {
 
 typedef struct SCatalog {
   uint64_t         clusterId;  
+  SRWLatch         dbLock;
   SHashObj        *dbCache;      //key:dbname, value:SCtgDBCache
   SCtgRentMgmt     dbRent;
   SCtgRentMgmt     stbRent;
@@ -105,6 +110,8 @@ typedef struct SCatalogStat {
 } SCatalogStat;
 
 typedef struct SCatalogMgmt {
+  bool                  exit;
+  SRWLatch              lock;
   SHashObj             *pCluster;     //key: clusterId, value: SCatalog*
   SCatalogStat          stat;
   SCatalogCfg           cfg;
@@ -132,11 +139,8 @@ typedef uint32_t (*tableNameHashFp)(const char *, uint32_t);
 #define ctgDebug(param, ...)  qDebug("CTG:%p " param, pCatalog, __VA_ARGS__)
 #define ctgTrace(param, ...)  qTrace("CTG:%p " param, pCatalog, __VA_ARGS__)
 
-#define CTG_ERR_RET(c) do { int32_t _code = c; if (_code != TSDB_CODE_SUCCESS) { terrno = _code; return _code; } } while (0)
-#define CTG_RET(c) do { int32_t _code = c; if (_code != TSDB_CODE_SUCCESS) { terrno = _code; } return _code; } while (0)
-#define CTG_ERR_JRET(c) do { code = c; if (code != TSDB_CODE_SUCCESS) { terrno = code; goto _return; } } while (0)
-
 #define CTG_LOCK_DEBUG(...) do { if (gCTGDebug.lockDebug) { qDebug(__VA_ARGS__); } } while (0)
+#define CTG_CACHE_DEBUG(...) do { if (gCTGDebug.cacheDebug) { qDebug(__VA_ARGS__); } } while (0)
 
 #define TD_RWLATCH_WRITE_FLAG_COPY 0x40000000
 
@@ -171,6 +175,15 @@ typedef uint32_t (*tableNameHashFp)(const char *, uint32_t);
     assert(atomic_load_32((_lock)) >= 0);  \
   }                                                       \
 } while (0)
+
+  
+#define CTG_ERR_RET(c) do { int32_t _code = c; if (_code != TSDB_CODE_SUCCESS) { terrno = _code; return _code; } } while (0)
+#define CTG_RET(c) do { int32_t _code = c; if (_code != TSDB_CODE_SUCCESS) { terrno = _code; } return _code; } while (0)
+#define CTG_ERR_JRET(c) do { code = c; if (code != TSDB_CODE_SUCCESS) { terrno = code; goto _return; } } while (0)
+
+#define CTG_API_ENTER() do { CTG_LOCK(CTG_READ, &ctgMgmt.lock); if (atomic_load_8(&ctgMgmt.exit)) { CTG_RET(TSDB_CODE_CTG_OUT_OF_SERVICE); }  } while (0)
+#define CTG_API_LEAVE(c) do { int32_t __code = c; CTG_UNLOCK(CTG_READ, &ctgMgmt.lock); CTG_RET(__code); } while (0)
+
 
 
 #ifdef __cplusplus

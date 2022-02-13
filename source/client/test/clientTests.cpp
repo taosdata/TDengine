@@ -565,12 +565,17 @@ TEST(testCase, insert_test) {
 #endif
 
 
-#if 0
 TEST(testCase, projection_query_tables) {
   TAOS* pConn = taos_connect("localhost", "root", "taosdata", NULL, 0);
   ASSERT_NE(pConn, nullptr);
 
-  TAOS_RES* pRes = taos_query(pConn, "use abc1");
+  TAOS_RES* pRes = taos_query(pConn, "create database if not exists abc1 vgroups 2");
+  if (taos_errno(pRes) != 0) {
+    printf("error in create db, reason:%s\n", taos_errstr(pRes));
+  }
+  taos_free_result(pRes);
+
+  pRes = taos_query(pConn, "use abc1");
   taos_free_result(pRes);
 
   pRes = taos_query(pConn, "create stable st1 (ts timestamp, k int) tags(a int)");
@@ -585,7 +590,7 @@ TEST(testCase, projection_query_tables) {
   }
   taos_free_result(pRes);
 
-  for(int32_t i = 0; i < 100000; ++i) {
+  for(int32_t i = 0; i < 10000000; ++i) {
     char sql[512] = {0};
     sprintf(sql, "insert into tu values(now+%da, %d)", i, i);
     TAOS_RES* p = taos_query(pConn, sql);
@@ -616,6 +621,7 @@ TEST(testCase, projection_query_tables) {
   taos_free_result(pRes);
   taos_close(pConn);
 }
+#if 0
 
 TEST(testCase, projection_query_stables) {
   TAOS* pConn = taos_connect("localhost", "root", "taosdata", NULL, 0);

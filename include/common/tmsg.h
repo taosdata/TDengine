@@ -25,7 +25,7 @@ extern "C" {
 #include "taoserror.h"
 #include "tarray.h"
 #include "tcoding.h"
-#include "tdataformat.h"
+#include "trow.h"
 #include "thash.h"
 #include "tlist.h"
 
@@ -111,8 +111,8 @@ typedef enum _mgmt_table {
   TSDB_MGMT_TABLE_MAX,
 } EShowType;
 
-#define TSDB_ALTER_TABLE_ADD_TAG_COLUMN 1
-#define TSDB_ALTER_TABLE_DROP_TAG_COLUMN 2
+#define TSDB_ALTER_TABLE_ADD_TAG 1
+#define TSDB_ALTER_TABLE_DROP_TAG 2
 #define TSDB_ALTER_TABLE_UPDATE_TAG_NAME 3
 #define TSDB_ALTER_TABLE_UPDATE_TAG_VAL 4
 
@@ -163,6 +163,12 @@ typedef struct {
   int32_t vgVersion;
 } SBuildUseDBInput;
 
+typedef struct SField {
+  char    name[TSDB_COL_NAME_LEN];
+  uint8_t type;
+  int32_t bytes;
+} SField;
+
 #pragma pack(push, 1)
 
 // null-terminated string instead of char array to avoid too many memory consumption in case of more than 1M tableMeta
@@ -212,7 +218,7 @@ typedef struct {
 typedef struct {
   int32_t totalLen;
   int32_t len;
-  SMemRow row;
+  STSRow  *row;
 } SSubmitBlkIter;
 
 typedef struct {
@@ -224,7 +230,7 @@ typedef struct {
 int     tInitSubmitMsgIter(SSubmitMsg* pMsg, SSubmitMsgIter* pIter);
 int     tGetSubmitMsgNext(SSubmitMsgIter* pIter, SSubmitBlk** pPBlock);
 int     tInitSubmitBlkIter(SSubmitBlk* pBlock, SSubmitBlkIter* pIter);
-SMemRow tGetSubmitBlkNext(SSubmitBlkIter* pIter);
+STSRow* tGetSubmitBlkNext(SSubmitBlkIter* pIter);
 
 typedef struct {
   int32_t index;  // index of failed block in submit blocks
@@ -252,22 +258,33 @@ typedef struct SSchema {
 typedef struct {
   char    name[TSDB_TABLE_FNAME_LEN];
   int8_t  igExists;
-  int32_t numOfTags;
   int32_t numOfColumns;
-  SSchema pSchemas[];
+  int32_t numOfTags;
+  SArray* pColumns;
+  SArray* pTags;
+  char    comment[TSDB_STB_COMMENT_LEN];
 } SMCreateStbReq;
+
+int32_t tSerializeSMCreateStbReq(void** buf, SMCreateStbReq* pReq);
+void*   tDeserializeSMCreateStbReq(void* buf, SMCreateStbReq* pReq);
 
 typedef struct {
   char   name[TSDB_TABLE_FNAME_LEN];
   int8_t igNotExists;
 } SMDropStbReq;
 
+int32_t tSerializeSMDropStbReq(void** buf, SMDropStbReq* pReq);
+void*   tDeserializeSMDropStbReq(void* buf, SMDropStbReq* pReq);
+
 typedef struct {
   char    name[TSDB_TABLE_FNAME_LEN];
-  int8_t  updateType;
-  int32_t numOfSchemas;
-  SSchema pSchemas[];
-} SMUpdateStbReq;
+  int8_t  alterType;
+  int32_t numOfFields;
+  SArray* pFields;
+} SMAltertbReq;
+
+int32_t tSerializeSMAlterStbReq(void** buf, SMAltertbReq* pReq);
+void*   tDeserializeSMAlterStbReq(void* buf, SMAltertbReq* pReq);
 
 typedef struct {
   int32_t pid;
@@ -597,35 +614,30 @@ typedef struct {
 typedef struct {
   int32_t vgId;
   int8_t  role;
-  int8_t  align[3];
+  int64_t numOfTables;
+  int64_t numOfTimeSeries;
   int64_t totalStorage;
   int64_t compStorage;
   int64_t pointsWritten;
-  int64_t tablesNum;
 } SVnodeLoad;
 
 typedef struct {
-  int32_t    num;
-  SVnodeLoad data[];
-} SVnodeLoads;
-
-typedef struct {
-  int32_t     sver;
+  int32_t     mver;  // msg version
+  int32_t     sver;  // software version
+  int64_t     dver;  // dnode table version in sdb
   int32_t     dnodeId;
   int64_t     clusterId;
-  int64_t     dver;
   int64_t     rebootTime;
   int64_t     updateTime;
   int32_t     numOfCores;
   int32_t     numOfSupportVnodes;
   char        dnodeEp[TSDB_EP_LEN];
   SClusterCfg clusterCfg;
-  SVnodeLoads vnodeLoads;
+  SArray*     pVloads;  // array of SVnodeLoad
 } SStatusReq;
 
-typedef struct {
-  int32_t reserved;
-} STransReq;
+int32_t tSerializeSStatusReq(void** buf, SStatusReq* pReq);
+void*   tDeserializeSStatusReq(void* buf, SStatusReq* pReq);
 
 typedef struct {
   int32_t dnodeId;
@@ -635,20 +647,22 @@ typedef struct {
 typedef struct {
   int32_t  id;
   int8_t   isMnode;
-  int8_t   align;
   SEp      ep;
 } SDnodeEp;
 
 typedef struct {
-  int32_t  num;
-  SDnodeEp eps[];
-} SDnodeEps;
-
-typedef struct {
+  int32_t   mver;
   int64_t   dver;
   SDnodeCfg dnodeCfg;
-  SDnodeEps dnodeEps;
+  SArray*   pDnodeEps;  // Array of SDnodeEp
 } SStatusRsp;
+
+int32_t tSerializeSStatusRsp(void** buf, SStatusRsp* pRsp);
+void*   tDeserializeSStatusRsp(void* buf, SStatusRsp* pRsp);
+
+typedef struct {
+  int32_t mver;
+} STransReq;
 
 typedef struct {
   int32_t  id;
@@ -726,6 +740,7 @@ typedef struct {
   char     tbName[TSDB_TABLE_NAME_LEN];
   char     stbName[TSDB_TABLE_NAME_LEN];
   char     dbFName[TSDB_DB_FNAME_LEN];
+  uint64_t dbId;
   int32_t  numOfTags;
   int32_t  numOfColumns;
   int8_t   precision;
@@ -1110,9 +1125,13 @@ static FORCE_INLINE void* tDeserializeSMVSubscribeReq(void* buf, SMVSubscribeReq
   return buf;
 }
 
-typedef struct SMqTmrMsg {
+typedef struct {
   int32_t reserved;
 } SMqTmrMsg;
+
+typedef struct {
+  int64_t consumerId;
+} SMqDoRebalanceMsg;
 
 typedef struct {
   int64_t status;
@@ -1178,31 +1197,24 @@ typedef struct SVCreateTbReq {
       SSchema* pSchema;
     } ntbCfg;
   };
-} SVCreateTbReq;
+} SVCreateTbReq, SVUpdateTbReq;
+
+typedef struct {
+} SVCreateTbRsp, SVUpdateTbRsp;
+
+int32_t tSerializeSVCreateTbReq(void** buf, SVCreateTbReq* pReq);
+void*   tDeserializeSVCreateTbReq(void* buf, SVCreateTbReq* pReq);
 
 typedef struct {
   uint64_t ver;  // use a general definition
   SArray*  pArray;
 } SVCreateTbBatchReq;
 
-int   tSerializeSVCreateTbReq(void** buf, SVCreateTbReq* pReq);
-void* tDeserializeSVCreateTbReq(void* buf, SVCreateTbReq* pReq);
-int   tSVCreateTbBatchReqSerialize(void** buf, SVCreateTbBatchReq* pReq);
-void* tSVCreateTbBatchReqDeserialize(void* buf, SVCreateTbBatchReq* pReq);
-
 typedef struct {
-  SMsgHead head;
-} SVCreateTbRsp;
+} SVCreateTbBatchRsp;
 
-typedef struct {
-  SMsgHead head;
-  char     name[TSDB_TABLE_FNAME_LEN];
-  int8_t   ignoreNotExists;
-} SVAlterTbReq;
-
-typedef struct {
-  SMsgHead head;
-} SVAlterTbRsp;
+int32_t tSerializeSVCreateTbBatchReq(void** buf, SVCreateTbBatchReq* pReq);
+void*   tDeserializeSVCreateTbBatchReq(void* buf, SVCreateTbBatchReq* pReq);
 
 typedef struct {
   uint64_t ver;
@@ -1212,13 +1224,10 @@ typedef struct {
 } SVDropTbReq;
 
 typedef struct {
-  uint64_t ver;
 } SVDropTbRsp;
 
 int32_t tSerializeSVDropTbReq(void** buf, SVDropTbReq* pReq);
 void*   tDeserializeSVDropTbReq(void* buf, SVDropTbReq* pReq);
-int32_t tSerializeSVDropTbRsp(void** buf, SVDropTbRsp* pRsp);
-void*   tDeserializeSVDropTbRsp(void* buf, SVDropTbRsp* pRsp);
 
 typedef struct {
   SMsgHead head;
@@ -1694,13 +1703,13 @@ static FORCE_INLINE void* tDecodeSSchemaWrapper(void* buf, SSchemaWrapper* pSW) 
   return buf;
 }
 
-typedef struct SMqTbData {
+typedef struct {
   int64_t    uid;
   int32_t    numOfRows;
   char*      colData;
 } SMqTbData;
 
-typedef struct SMqTopicBlk {
+typedef struct {
   char       topicName[TSDB_TOPIC_FNAME_LEN];
   int64_t    committedOffset;
   int64_t    reqOffset;
@@ -1711,7 +1720,7 @@ typedef struct SMqTopicBlk {
   SMqTbData* tbData;
 } SMqTopicData;
 
-typedef struct SMqConsumeRsp {
+typedef struct {
   int64_t         consumerId;
   SSchemaWrapper* schemas;
   int64_t         committedOffset;
@@ -1723,7 +1732,7 @@ typedef struct SMqConsumeRsp {
 } SMqConsumeRsp;
 
 // one req for one vg+topic
-typedef struct SMqConsumeReq {
+typedef struct {
   SMsgHead       head;
   //0: commit only, current offset
   //1: consume only, poll next offset
@@ -1739,17 +1748,17 @@ typedef struct SMqConsumeReq {
   char           topic[TSDB_TOPIC_FNAME_LEN];
 } SMqConsumeReq;
 
-typedef struct SMqSubVgEp {
+typedef struct {
   int32_t vgId;
   SEpSet  epSet;
 } SMqSubVgEp;
 
-typedef struct SMqSubTopicEp {
+typedef struct {
   char    topic[TSDB_TOPIC_FNAME_LEN];
   SArray* vgs;   // SArray<SMqSubVgEp>
 } SMqSubTopicEp;
 
-typedef struct SMqCMGetSubEpRsp {
+typedef struct {
   int64_t consumerId;
   int64_t epoch;
   char    cgroup[TSDB_CONSUMER_GROUP_LEN];
