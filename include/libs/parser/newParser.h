@@ -13,20 +13,31 @@
  * along with this program. If not, see <http://www.gnu.org/licenses/>.
  */
 
-#ifndef _TD_PLANNER_IMPL_H_
-#define _TD_PLANNER_IMPL_H_
+#ifndef _TD_NEW_PARSER_H_
+#define _TD_NEW_PARSER_H_
 
 #ifdef __cplusplus
 extern "C" {
 #endif
 
-#include "plannodes.h"
-#include "planner.h"
+#include "parser.h"
 
-int32_t createLogicPlan(SNode* pNode, SLogicNode** pLogicNode);
+typedef enum EStmtType {
+  STMT_TYPE_CMD = 1,
+  STMT_TYPE_QUERY
+} EStmtType;
+
+typedef struct SQuery {
+  EStmtType stmtType;
+  SNode* pRoot;
+  int32_t numOfResCols;
+  SSchema* pResSchema;
+} SQuery;
+
+int32_t parser(SParseContext* pParseCxt, SQuery* pQuery);
 
 #ifdef __cplusplus
 }
 #endif
 
-#endif /*_TD_PLANNER_IMPL_H_*/
+#endif /*_TD_NEW_PARSER_H_*/

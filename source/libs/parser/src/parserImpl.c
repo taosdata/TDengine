@@ -880,7 +880,6 @@ static int32_t translateOrderByPosition(STranslateContext* pCxt, SNodeList* pPro
       int32_t pos = getPositionValue(pVal);
       if (pos < 0) {
         ERASE_NODE(pOrderByList);
-        nodesDestroyNode(pNode);
         continue;
       } else if (0 == pos || pos > LIST_LENGTH(pProjectionList)) {
         return generateSyntaxErrMsg(pCxt, TSDB_CODE_PAR_WRONG_NUMBER_OF_SELECT);
@@ -1055,6 +1054,14 @@ int32_t doTranslate(SParseContext* pParseCxt, SQuery* pQuery) {
   }
   if (TSDB_CODE_SUCCESS == code && STMT_TYPE_QUERY == pQuery->stmtType) {
     code = setReslutSchema(&cxt, pQuery);
+  }
+  return code;
+}
+
+int32_t parser(SParseContext* pParseCxt, SQuery* pQuery) {
+  int32_t code = doParse(pParseCxt, pQuery);
+  if (TSDB_CODE_SUCCESS == code) {
+    code = doTranslate(pParseCxt, pQuery);
   }
   return code;
 }
