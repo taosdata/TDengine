@@ -557,6 +557,10 @@ int32_t getBufPageSize(const SDiskbasedBuf* pBuf) {
   return pBuf->pageSize;
 }
 
+int32_t getNumOfInMemBufPages(const SDiskbasedBuf* pBuf) {
+    return pBuf->inMemPages;
+}
+
 bool isAllDataInMemBuf(const SDiskbasedBuf* pBuf) {
   return pBuf->fileSize == 0;
 }

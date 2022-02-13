@@ -25,7 +25,7 @@
 #include "tglobal.h"
 #include "tmsgtype.h"
 #include "tnote.h"
-#include "tpagedfile.h"
+#include "tpagedbuf.h"
 #include "tref.h"
 
 struct tmq_list_t {

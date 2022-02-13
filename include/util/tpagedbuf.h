@@ -128,6 +128,8 @@ int32_t getPageId(const SPageInfo* pPgInfo);
  */
 int32_t getBufPageSize(const SDiskbasedBuf* pBuf);
 
+int32_t getNumOfInMemBufPages(const SDiskbasedBuf* pBuf);
+
 /**
  *
  * @param pBuf

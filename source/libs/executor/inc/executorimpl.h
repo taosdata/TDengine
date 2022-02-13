@@ -100,9 +100,9 @@ typedef struct STableQueryInfo {
   TSKEY          lastKey;
   int32_t        groupIndex;  // group id in table list
   SVariant       tag;
-  STimeWindow    win;  // todo remove it later
-  STSCursor      cur;
-  void*          pTable;  // for retrieve the page id list
+//  STimeWindow    win;  // todo remove it later
+//  STSCursor      cur;
+//  void*          pTable;  // for retrieve the page id list
   SResultRowInfo resInfo;
 } STableQueryInfo;
 
@@ -454,8 +454,7 @@ typedef struct SAggOperatorInfo {
   SHashObj*            pResultRowListSet;    // used to check if current ResultRowInfo has ResultRow object or not
   SArray*              pResultRowArrayList;  // The array list that contains the Result rows
   char*                keyBuf;               // window key buffer
-  SResultRowPool*
-                   pool;  // The window result objects pool, all the resultRow Objects are allocated and managed by this object.
+  SResultRowPool      *pool;  // The window result objects pool, all the resultRow Objects are allocated and managed by this object.
   STableQueryInfo* current;
 } SAggOperatorInfo;
 
@@ -586,7 +585,8 @@ typedef struct SOrderOperatorInfo {
   SDiskbasedBuf          *pSortInternalBuf;
   SMultiwayMergeTreeInfo *pMergeTree;
   SArray                 *pSources;     // SArray<SExternalMemSource*>
-  int32_t                 capacity;
+  int32_t                 bufPageSize;
+  int32_t                 numOfRowsInRes;
 
   SMsortComparParam       cmpParam;
 } SOrderOperatorInfo;
@@ -596,6 +596,7 @@ SOperatorInfo* createDataBlocksOptScanInfo(void* pTsdbReadHandle, int32_t order,
                                            int32_t repeatTime, int32_t reverseTime, SExecTaskInfo* pTaskInfo);
 SOperatorInfo* createTableSeqScanOperator(void* pTsdbReadHandle, STaskRuntimeEnv* pRuntimeEnv);
 SOperatorInfo* createAggregateOperatorInfo(SOperatorInfo* downstream, SArray* pExprInfo, SExecTaskInfo* pTaskInfo);
+SOperatorInfo* createMultiTableAggOperatorInfo(SOperatorInfo* downstream, SArray* pExprInfo, SExecTaskInfo* pTaskInfo);
 SOperatorInfo* createProjectOperatorInfo(STaskRuntimeEnv* pRuntimeEnv, SOperatorInfo* downstream, SExprInfo* pExpr,
                                          int32_t numOfOutput);
 SOperatorInfo* createLimitOperatorInfo(STaskRuntimeEnv* pRuntimeEnv, SOperatorInfo* downstream);
@@ -609,8 +610,7 @@ SOperatorInfo* createFillOperatorInfo(STaskRuntimeEnv* pRuntimeEnv, SOperatorInf
                                       int32_t numOfOutput, bool multigroupResult);
 SOperatorInfo* createGroupbyOperatorInfo(STaskRuntimeEnv* pRuntimeEnv, SOperatorInfo* downstream, SExprInfo* pExpr,
                                          int32_t numOfOutput);
-SOperatorInfo* createMultiTableAggOperatorInfo(STaskRuntimeEnv* pRuntimeEnv, SOperatorInfo* downstream,
-                                               SExprInfo* pExpr, int32_t numOfOutput);
+
 SOperatorInfo* createMultiTableTimeIntervalOperatorInfo(STaskRuntimeEnv* pRuntimeEnv, SOperatorInfo* downstream,
                                                         SExprInfo* pExpr, int32_t numOfOutput);
 SOperatorInfo* createAllMultiTableTimeIntervalOperatorInfo(STaskRuntimeEnv* pRuntimeEnv, SOperatorInfo* downstream,
