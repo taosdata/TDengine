@@ -217,7 +217,7 @@ int32_t ctgPushAction(SCtgMetaAction *action) {
   CTG_UNLOCK(CTG_WRITE, &gCtgMgmt.qlock);
 
   CTG_QUEUE_ADD();
-  //CTG_STAT_ADD(gCtgMgmt.stat.runtime.qNum);
+  CTG_STAT_ADD(gCtgMgmt.stat.runtime.qNum);
 
   tsem_post(&gCtgMgmt.sem);
 

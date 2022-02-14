@@ -181,7 +181,7 @@ typedef struct SCtgAction {
 #define CTG_QUEUE_ADD() atomic_add_fetch_64(&gCtgMgmt.qRemainNum, 1)
 #define CTG_QUEUE_SUB() atomic_sub_fetch_64(&gCtgMgmt.qRemainNum, 1)
 
-#define CTG_STAT_ADD(n) qError("done:%" PRId64, atomic_add_fetch_64(&(n), 1))
+#define CTG_STAT_ADD(n) atomic_add_fetch_64(&(n), 1)
 #define CTG_STAT_SUB(n) atomic_sub_fetch_64(&(n), 1)
 
 #define CTG_IS_META_NULL(type) ((type) == META_TYPE_NULL_TABLE)
