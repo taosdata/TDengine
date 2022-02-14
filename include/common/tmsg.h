@@ -546,28 +546,6 @@ typedef struct {
   int32_t code;
 } SQueryTableRsp;
 
-// todo: the show handle should be replaced with id
-typedef struct {
-  SMsgHead header;
-  union {
-    int64_t showId;
-    int64_t qhandle;
-    int64_t qId;
-  };  // query handle
-  int8_t free;
-} SRetrieveTableReq;
-
-typedef struct {
-  int64_t useconds;
-  int8_t  completed;  // all results are returned to client
-  int8_t  precision;
-  int8_t  compressed;
-  int32_t compLen;
-
-  int32_t numOfRows;
-  char    data[];
-} SRetrieveTableRsp;
-
 typedef struct {
   char    db[TSDB_DB_FNAME_LEN];
   int32_t numOfVgroups;
@@ -909,6 +887,26 @@ typedef struct {
   int64_t       showId;
   STableMetaRsp tableMeta;
 } SShowRsp;
+
+// todo: the show handle should be replaced with id
+typedef struct {
+  int64_t showId;
+  int8_t  free;
+} SRetrieveTableReq;
+
+int32_t tSerializeSRetrieveTableReq(void* buf, int32_t bufLen, SRetrieveTableReq* pReq);
+int32_t tDeserializeSRetrieveTableReq(void* buf, int32_t bufLen, SRetrieveTableReq* pReq);
+
+typedef struct {
+  int64_t useconds;
+  int8_t  completed;  // all results are returned to client
+  int8_t  precision;
+  int8_t  compressed;
+  int32_t compLen;
+
+  int32_t numOfRows;
+  char    data[];
+} SRetrieveTableRsp;
 
 typedef struct {
   char    fqdn[TSDB_FQDN_LEN];  // end point, hostname:port

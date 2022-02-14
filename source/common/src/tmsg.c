@@ -1514,3 +1514,30 @@ int32_t tDeserializeSShowReq(void *buf, int32_t bufLen, SShowReq *pReq) {
 }
 
 void tFreeSShowReq(SShowReq *pReq) { free(pReq->payload); }
+
+int32_t tSerializeSRetrieveTableReq(void *buf, int32_t bufLen, SRetrieveTableReq *pReq) {
+  SCoder encoder = {0};
+  tCoderInit(&encoder, TD_LITTLE_ENDIAN, buf, bufLen, TD_ENCODER);
+
+  if (tStartEncode(&encoder) < 0) return -1;
+  if (tEncodeI64(&encoder, pReq->showId) < 0) return -1;
+  if (tEncodeI8(&encoder, pReq->free) < 0) return -1;
+  tEndEncode(&encoder);
+
+  int32_t tlen = encoder.pos;
+  tCoderClear(&encoder);
+  return tlen;
+}
+
+int32_t tDeserializeSRetrieveTableReq(void *buf, int32_t bufLen, SRetrieveTableReq *pReq) {
+  SCoder decoder = {0};
+  tCoderInit(&decoder, TD_LITTLE_ENDIAN, buf, bufLen, TD_DECODER);
+
+  if (tStartDecode(&decoder) < 0) return -1;
+  if (tDecodeI64(&decoder, &pReq->showId) < 0) return -1;
+  if (tDecodeI8(&decoder, &pReq->free) < 0) return -1;
+
+  tEndDecode(&decoder);
+  tCoderClear(&decoder);
+  return 0;
+}

@@ -13,16 +13,16 @@
  * along with this program. If not, see <http://www.gnu.org/licenses/>.
  */
 
-#include "nodes.h"
+#include "querynodes.h"
 
 typedef enum ETraversalOrder {
   TRAVERSAL_PREORDER = 1,
   TRAVERSAL_POSTORDER
 } ETraversalOrder;
 
-static EDealRes walkList(SNodeList* pNodeList, ETraversalOrder order, FQueryNodeWalker walker, void* pContext);
+static EDealRes walkList(SNodeList* pNodeList, ETraversalOrder order, FNodeWalker walker, void* pContext);
 
-static EDealRes walkNode(SNode* pNode, ETraversalOrder order, FQueryNodeWalker walker, void* pContext) {
+static EDealRes walkNode(SNode* pNode, ETraversalOrder order, FNodeWalker walker, void* pContext) {
   if (NULL == pNode) {
     return DEAL_RES_CONTINUE;
   }
@@ -119,7 +119,7 @@ static EDealRes walkNode(SNode* pNode, ETraversalOrder order, FQueryNodeWalker w
   return res;
 }
 
-static EDealRes walkList(SNodeList* pNodeList, ETraversalOrder order, FQueryNodeWalker walker, void* pContext) {
+static EDealRes walkList(SNodeList* pNodeList, ETraversalOrder order, FNodeWalker walker, void* pContext) {
   SNode* node;
   FOREACH(node, pNodeList) {
     if (DEAL_RES_ERROR == walkNode(node, order, walker, pContext)) {
@@ -129,18 +129,144 @@ static EDealRes walkList(SNodeList* pNodeList, ETraversalOrder order, FQueryNode
   return DEAL_RES_CONTINUE;
 }
 
-void nodesWalkNode(SNode* pNode, FQueryNodeWalker walker, void* pContext) {
+void nodesWalkNode(SNode* pNode, FNodeWalker walker, void* pContext) {
   (void)walkNode(pNode, TRAVERSAL_PREORDER, walker, pContext);
 }
 
-void nodesWalkList(SNodeList* pNodeList, FQueryNodeWalker walker, void* pContext) {
+void nodesWalkList(SNodeList* pNodeList, FNodeWalker walker, void* pContext) {
   (void)walkList(pNodeList, TRAVERSAL_PREORDER, walker, pContext);
 }
 
-void nodesWalkNodePostOrder(SNode* pNode, FQueryNodeWalker walker, void* pContext) {
+void nodesWalkNodePostOrder(SNode* pNode, FNodeWalker walker, void* pContext) {
   (void)walkNode(pNode, TRAVERSAL_POSTORDER, walker, pContext);
 }
 
-void nodesWalkListPostOrder(SNodeList* pList, FQueryNodeWalker walker, void* pContext) {
+void nodesWalkListPostOrder(SNodeList* pList, FNodeWalker walker, void* pContext) {
   (void)walkList(pList, TRAVERSAL_POSTORDER, walker, pContext);
+}
+
+static EDealRes rewriteList(SNodeList* pNodeList, ETraversalOrder order, FNodeRewriter rewriter, void* pContext);
+
+static EDealRes rewriteNode(SNode** pRawNode, ETraversalOrder order, FNodeRewriter rewriter, void* pContext) {
+  if (NULL == pRawNode || NULL == *pRawNode) {
+    return DEAL_RES_CONTINUE;
+  }
+
+  EDealRes res = DEAL_RES_CONTINUE;
+
+  if (TRAVERSAL_PREORDER == order) {
+    res = rewriter(pRawNode, pContext);
+    if (DEAL_RES_CONTINUE != res) {
+      return res;
+    }
+  }
+
+  SNode* pNode = *pRawNode;
+  switch (nodeType(pNode)) {
+    case QUERY_NODE_COLUMN:
+    case QUERY_NODE_VALUE:
+    case QUERY_NODE_LIMIT:
+      // these node types with no subnodes
+      break;
+    case QUERY_NODE_OPERATOR: {
+      SOperatorNode* pOpNode = (SOperatorNode*)pNode;
+      res = rewriteNode(&(pOpNode->pLeft), order, rewriter, pContext);
+      if (DEAL_RES_ERROR != res) {
+        res = rewriteNode(&(pOpNode->pRight), order, rewriter, pContext);
+      }
+      break;
+    }
+    case QUERY_NODE_LOGIC_CONDITION:
+      res = rewriteList(((SLogicConditionNode*)pNode)->pParameterList, order, rewriter, pContext);
+      break;
+    case QUERY_NODE_IS_NULL_CONDITION:
+      res = rewriteNode(&(((SIsNullCondNode*)pNode)->pExpr), order, rewriter, pContext);
+      break;
+    case QUERY_NODE_FUNCTION:
+      res = rewriteList(((SFunctionNode*)pNode)->pParameterList, order, rewriter, pContext);
+      break;
+    case QUERY_NODE_REAL_TABLE:
+    case QUERY_NODE_TEMP_TABLE:
+      break; // todo
+    case QUERY_NODE_JOIN_TABLE: {
+      SJoinTableNode* pJoinTableNode = (SJoinTableNode*)pNode;
+      res = rewriteNode(&(pJoinTableNode->pLeft), order, rewriter, pContext);
+      if (DEAL_RES_ERROR != res) {
+        res = rewriteNode(&(pJoinTableNode->pRight), order, rewriter, pContext);
+      }
+      if (DEAL_RES_ERROR != res) {
+        res = rewriteNode(&(pJoinTableNode->pOnCond), order, rewriter, pContext);
+      }
+      break;
+    }
+    case QUERY_NODE_GROUPING_SET:
+      res = rewriteList(((SGroupingSetNode*)pNode)->pParameterList, order, rewriter, pContext);
+      break;
+    case QUERY_NODE_ORDER_BY_EXPR:
+      res = rewriteNode(&(((SOrderByExprNode*)pNode)->pExpr), order, rewriter, pContext);
+      break;
+    case QUERY_NODE_STATE_WINDOW:
+      res = rewriteNode(&(((SStateWindowNode*)pNode)->pCol), order, rewriter, pContext);
+      break;
+    case QUERY_NODE_SESSION_WINDOW:
+      res = rewriteNode(&(((SSessionWindowNode*)pNode)->pCol), order, rewriter, pContext);
+      break;
+    case QUERY_NODE_INTERVAL_WINDOW: {
+      SIntervalWindowNode* pInterval = (SIntervalWindowNode*)pNode;
+      res = rewriteNode(&(pInterval->pInterval), order, rewriter, pContext);
+      if (DEAL_RES_ERROR != res) {
+        res = rewriteNode(&(pInterval->pOffset), order, rewriter, pContext);
+      }
+      if (DEAL_RES_ERROR != res) {
+        res = rewriteNode(&(pInterval->pSliding), order, rewriter, pContext);
+      }
+      if (DEAL_RES_ERROR != res) {
+        res = rewriteNode(&(pInterval->pFill), order, rewriter, pContext);
+      }
+      break;
+    }
+    case QUERY_NODE_NODE_LIST:
+      res = rewriteList(((SNodeListNode*)pNode)->pNodeList, order, rewriter, pContext);
+      break;
+    case QUERY_NODE_FILL:
+      res = rewriteNode(&(((SFillNode*)pNode)->pValues), order, rewriter, pContext);
+      break;
+    case QUERY_NODE_RAW_EXPR:
+      res = rewriteNode(&(((SRawExprNode*)pNode)->pNode), order, rewriter, pContext);
+      break;
+    default:
+      break;
+  }
+
+  if (DEAL_RES_ERROR != res && TRAVERSAL_POSTORDER == order) {
+    res = rewriter(pRawNode, pContext);
+  }
+
+  return res;
+}
+
+static EDealRes rewriteList(SNodeList* pNodeList, ETraversalOrder order, FNodeRewriter rewriter, void* pContext) {
+  SNode** pNode;
+  FOREACH_FOR_REWRITE(pNode, pNodeList) {
+    if (DEAL_RES_ERROR == rewriteNode(pNode, order, rewriter, pContext)) {
+      return DEAL_RES_ERROR;
+    }
+  }
+  return DEAL_RES_CONTINUE;
+}
+
+void nodesRewriteNode(SNode** pNode, FNodeRewriter rewriter, void* pContext) {
+  (void)rewriteNode(pNode, TRAVERSAL_PREORDER, rewriter, pContext);
+}
+
+void nodesRewriteList(SNodeList* pList, FNodeRewriter rewriter, void* pContext) {
+  (void)rewriteList(pList, TRAVERSAL_PREORDER, rewriter, pContext);
+}
+
+void nodesRewriteNodePostOrder(SNode** pNode, FNodeRewriter rewriter, void* pContext) {
+  (void)rewriteNode(pNode, TRAVERSAL_POSTORDER, rewriter, pContext);
+}
+
+void nodesRewriteListPostOrder(SNodeList* pList, FNodeRewriter rewriter, void* pContext) {
+  (void)rewriteList(pList, TRAVERSAL_POSTORDER, rewriter, pContext);
 }
