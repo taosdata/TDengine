@@ -16,19 +16,6 @@
 #include "tq.h"
 #include "vnd.h"
 
-#if 0
-int vnodeProcessNoWalWMsgs(SVnode *pVnode, SRpcMsg *pMsg) {
-  switch (pMsg->msgType) {
-    case TDMT_VND_MQ_SET_CUR:
-      if (tqSetCursor(pVnode->pTq, pMsg->pCont) < 0) {
-        // TODO: handle error
-      }
-      break;
-  }
-  return 0;
-}
-#endif
-
 int vnodeProcessWMsgs(SVnode *pVnode, SArray *pMsgs) {
   SRpcMsg *pMsg;
 
@@ -36,9 +23,9 @@ int vnodeProcessWMsgs(SVnode *pVnode, SArray *pMsgs) {
     pMsg = *(SRpcMsg **)taosArrayGet(pMsgs, i);
 
     // ser request version
-    void *  pBuf = POINTER_SHIFT(pMsg->pCont, sizeof(SMsgHead));
+    void   *pBuf = POINTER_SHIFT(pMsg->pCont, sizeof(SMsgHead));
     int64_t ver = pVnode->state.processed++;
-    taosEncodeFixedU64(&pBuf, ver);
+    taosEncodeFixedI64(&pBuf, ver);
 
     if (walWrite(pVnode->pWal, ver, pMsg->msgType, pMsg->pCont, pMsg->contLen) < 0) {
       // TODO: handle error
@@ -55,7 +42,7 @@ int vnodeProcessWMsgs(SVnode *pVnode, SArray *pMsgs) {
 int vnodeApplyWMsg(SVnode *pVnode, SRpcMsg *pMsg, SRpcMsg **pRsp) {
   SVCreateTbReq      vCreateTbReq;
   SVCreateTbBatchReq vCreateTbBatchReq;
-  void *             ptr = vnodeMalloc(pVnode, pMsg->contLen);
+  void              *ptr = vnodeMalloc(pVnode, pMsg->contLen);
   if (ptr == NULL) {
     // TODO: handle error
   }
@@ -64,8 +51,8 @@ int vnodeApplyWMsg(SVnode *pVnode, SRpcMsg *pMsg, SRpcMsg **pRsp) {
   memcpy(ptr, pMsg->pCont, pMsg->contLen);
 
   // todo: change the interface here
-  uint64_t ver;
-  taosDecodeFixedU64(POINTER_SHIFT(pMsg->pCont, sizeof(SMsgHead)), &ver);
+  int64_t ver;
+  taosDecodeFixedI64(POINTER_SHIFT(pMsg->pCont, sizeof(SMsgHead)), &ver);
   if (tqPushMsg(pVnode->pTq, ptr, ver) < 0) {
     // TODO: handle error
   }
@@ -132,7 +119,6 @@ int vnodeApplyWMsg(SVnode *pVnode, SRpcMsg *pMsg, SRpcMsg **pRsp) {
     } break;
     case TDMT_VND_MQ_REB: {
       if (tqProcessRebReq(pVnode->pTq, POINTER_SHIFT(ptr, sizeof(SMsgHead))) < 0) {
-
       }
     } break;
     default:
