@@ -712,7 +712,6 @@ void rpcSendRecv(void* shandle, SEpSet* pEpSet, SRpcMsg* pReq, SRpcMsg* pRsp) {
   // pthread_mutex_lock(&thrd->msgMtx);
   // QUEUE_PUSH(&thrd->msg, &cliMsg->q);
   // pthread_mutex_unlock(&thrd->msgMtx);
-
   // int start = taosGetTimestampUs();
   transSendAsync(thrd->asyncPool, &(cliMsg->q));
 
