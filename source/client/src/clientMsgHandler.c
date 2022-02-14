@@ -97,14 +97,15 @@ SMsgSendInfo* buildMsgInfoImpl(SRequestObj *pRequest) {
 
   if (pRequest->type == TDMT_MND_SHOW_RETRIEVE || pRequest->type == TDMT_VND_SHOW_TABLES_FETCH) {
     if (pRequest->type == TDMT_MND_SHOW_RETRIEVE) {
-      SRetrieveTableReq* pRetrieveMsg = calloc(1, sizeof(SRetrieveTableReq));
-      if (pRetrieveMsg == NULL) {
-        return NULL;
-      }
+      SRetrieveTableReq retrieveReq = {0};
+      retrieveReq.showId = pRequest->body.showInfo.execId;
 
-      pRetrieveMsg->showId = htobe64(pRequest->body.showInfo.execId);
-      pMsgSendInfo->msgInfo.pData = pRetrieveMsg;
-      pMsgSendInfo->msgInfo.len = sizeof(SRetrieveTableReq);
+      int32_t contLen = tSerializeSRetrieveTableReq(NULL, 0, &retrieveReq);
+      void*   pReq = malloc(contLen);
+      tSerializeSRetrieveTableReq(pReq, contLen, &retrieveReq);
+
+      pMsgSendInfo->msgInfo.pData = pReq;
+      pMsgSendInfo->msgInfo.len = contLen;
     } else {
       SVShowTablesFetchReq* pFetchMsg = calloc(1, sizeof(SVShowTablesFetchReq));
       if (pFetchMsg == NULL) {

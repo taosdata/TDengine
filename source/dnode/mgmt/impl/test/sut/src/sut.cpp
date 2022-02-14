@@ -132,13 +132,15 @@ int32_t Testbase::GetMetaNum() { return pMeta->numOfColumns; }
 const char* Testbase::GetMetaTbName() { return pMeta->tbName; }
 
 void Testbase::SendShowRetrieveReq() {
-  int32_t contLen = sizeof(SRetrieveTableReq);
+  SRetrieveTableReq retrieveReq = {0};
+  retrieveReq.showId = showId;
+  retrieveReq.free = 0;
 
-  SRetrieveTableReq* pRetrieve = (SRetrieveTableReq*)rpcMallocCont(contLen);
-  pRetrieve->showId = htobe64(showId);
-  pRetrieve->free = 0;
+  int32_t contLen = tSerializeSRetrieveTableReq(NULL, 0, &retrieveReq);
+  void*   pReq = rpcMallocCont(contLen);
+  tSerializeSRetrieveTableReq(pReq, contLen, &retrieveReq);
 
-  SRpcMsg* pRsp = SendReq(TDMT_MND_SHOW_RETRIEVE, pRetrieve, contLen);
+  SRpcMsg* pRsp = SendReq(TDMT_MND_SHOW_RETRIEVE, pReq, contLen);
   pRetrieveRsp = (SRetrieveTableRsp*)pRsp->pCont;
   pRetrieveRsp->numOfRows = htonl(pRetrieveRsp->numOfRows);
   pRetrieveRsp->useconds = htobe64(pRetrieveRsp->useconds);

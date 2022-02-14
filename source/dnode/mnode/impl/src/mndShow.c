@@ -180,10 +180,13 @@ static int32_t mndProcessRetrieveReq(SMnodeMsg *pReq) {
   int32_t    size = 0;
   int32_t    rowsRead = 0;
 
-  SRetrieveTableReq *pRetrieve = pReq->rpcMsg.pCont;
-  int64_t            showId = htobe64(pRetrieve->showId);
+  SRetrieveTableReq retrieveReq = {0};
+  if (tDeserializeSRetrieveTableReq(pReq->rpcMsg.pCont, pReq->rpcMsg.contLen, &retrieveReq) != 0) {
+    terrno = TSDB_CODE_INVALID_MSG;
+    return -1;
+  }
 
-  SShowObj *pShow = mndAcquireShowObj(pMnode, showId);
+  SShowObj *pShow = mndAcquireShowObj(pMnode, retrieveReq.showId);
   if (pShow == NULL) {
     terrno = TSDB_CODE_MND_INVALID_SHOWOBJ;
     mError("failed to process show-retrieve req:%p since %s", pShow, terrstr());
@@ -207,7 +210,7 @@ static int32_t mndProcessRetrieveReq(SMnodeMsg *pReq) {
     pShow->numOfReads = pShow->numOfRows;
   }
 
-  if ((pRetrieve->free & TSDB_QUERY_TYPE_FREE_RESOURCE) != TSDB_QUERY_TYPE_FREE_RESOURCE) {
+  if ((retrieveReq.free & TSDB_QUERY_TYPE_FREE_RESOURCE) != TSDB_QUERY_TYPE_FREE_RESOURCE) {
     rowsToRead = pShow->numOfRows - pShow->numOfReads;
   }
 
@@ -231,7 +234,7 @@ static int32_t mndProcessRetrieveReq(SMnodeMsg *pReq) {
   }
 
   // if free flag is set, client wants to clean the resources
-  if ((pRetrieve->free & TSDB_QUERY_TYPE_FREE_RESOURCE) != TSDB_QUERY_TYPE_FREE_RESOURCE) {
+  if ((retrieveReq.free & TSDB_QUERY_TYPE_FREE_RESOURCE) != TSDB_QUERY_TYPE_FREE_RESOURCE) {
     rowsRead = (*retrieveFp)(pReq, pShow, pRsp->data, rowsToRead);
   }
 
