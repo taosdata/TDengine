@@ -440,6 +440,11 @@ void *tDeserializeSMCreateStbReq(void *buf, SMCreateStbReq *pReq) {
   return buf;
 }
 
+void tFreeSMCreateStbReq(SMCreateStbReq *pReq) {
+  taosArrayDestroy(pReq->pColumns);
+  taosArrayDestroy(pReq->pTags);
+}
+
 int32_t tSerializeSMDropStbReq(void **buf, SMDropStbReq *pReq) {
   int32_t tlen = 0;
 
@@ -1470,3 +1475,42 @@ void tFreeSUseDbBatchRsp(SUseDbBatchRsp *pRsp) {
 
   taosArrayDestroy(pRsp->pArray);
 }
+
+int32_t tSerializeSShowReq(void *buf, int32_t bufLen, SShowReq *pReq) {
+  SCoder encoder = {0};
+  tCoderInit(&encoder, TD_LITTLE_ENDIAN, buf, bufLen, TD_ENCODER);
+
+  if (tStartEncode(&encoder) < 0) return -1;
+  if (tEncodeI32(&encoder, pReq->type) < 0) return -1;
+  if (tEncodeCStr(&encoder, pReq->db) < 0) return -1;
+  if (tEncodeI32(&encoder, pReq->payloadLen) < 0) return -1;
+  if (pReq->payloadLen > 0) {
+    if (tEncodeCStr(&encoder, pReq->payload) < 0) return -1;
+  }
+  tEndEncode(&encoder);
+
+  int32_t tlen = encoder.pos;
+  tCoderClear(&encoder);
+  return tlen;
+}
+
+int32_t tDeserializeSShowReq(void *buf, int32_t bufLen, SShowReq *pReq) {
+  SCoder decoder = {0};
+  tCoderInit(&decoder, TD_LITTLE_ENDIAN, buf, bufLen, TD_DECODER);
+
+  if (tStartDecode(&decoder) < 0) return -1;
+  if (tDecodeI32(&decoder, &pReq->type) < 0) return -1;
+  if (tDecodeCStrTo(&decoder, pReq->db) < 0) return -1;
+  if (tDecodeI32(&decoder, &pReq->payloadLen) < 0) return -1;
+  if (pReq->payloadLen > 0) {
+    pReq->payload = malloc(pReq->payloadLen);
+    if (pReq->payload == NULL) return -1;
+    if (tDecodeCStrTo(&decoder, pReq->payload) < 0) return -1;
+  }
+
+  tEndDecode(&decoder);
+  tCoderClear(&decoder);
+  return 0;
+}
+
+void tFreeSShowReq(SShowReq *pReq) { free(pReq->payload); }

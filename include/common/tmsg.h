@@ -275,6 +275,7 @@ typedef struct {
 
 int32_t tSerializeSMCreateStbReq(void** buf, SMCreateStbReq* pReq);
 void*   tDeserializeSMCreateStbReq(void* buf, SMCreateStbReq* pReq);
+void    tFreeSMCreateStbReq(SMCreateStbReq* pReq);
 
 typedef struct {
   char   name[TSDB_TABLE_FNAME_LEN];
@@ -888,11 +889,15 @@ typedef struct {
  * payloadLen is the length of payload
  */
 typedef struct {
-  int8_t  type;
+  int32_t  type;
   char    db[TSDB_DB_FNAME_LEN];
-  int16_t payloadLen;
-  char    payload[];
+  int32_t payloadLen;
+  char*   payload;
 } SShowReq;
+
+int32_t tSerializeSShowReq(void* buf, int32_t bufLen, SShowReq* pReq);
+int32_t tDeserializeSShowReq(void* buf, int32_t bufLen, SShowReq* pReq);
+void    tFreeSShowReq(SShowReq* pReq);
 
 typedef struct {
   char    db[TSDB_DB_FNAME_LEN];

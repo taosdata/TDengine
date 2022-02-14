@@ -1,3 +1,18 @@
+/*
+ * Copyright (c) 2019 TAOS Data, Inc. <jhtao@taosdata.com>
+ *
+ * This program is free software: you can use, redistribute, and/or modify
+ * it under the terms of the GNU Affero General Public License, version 3
+ * or later ("AGPL"), as published by the Free Software Foundation.
+ *
+ * This program is distributed in the hope that it will be useful, but WITHOUT
+ * ANY WARRANTY; without even the implied warranty of MERCHANTABILITY or
+ * FITNESS FOR A PARTICULAR PURPOSE.
+ *
+ * You should have received a copy of the GNU Affero General Public License
+ * along with this program. If not, see <http://www.gnu.org/licenses/>.
+ */
+
 #include "astGenerator.h"
 #include "parserInt.h"
 #include "parserUtil.h"
@@ -11,7 +26,7 @@ char* buildUserManipulationMsg(SSqlInfo* pInfo, int32_t* outputLen, int64_t id, 
   createReq.superUser = (int8_t)pUser->type;
 
   if (pUser->type == TSDB_ALTER_USER_PRIVILEGES) {
-    //    pMsg->privilege = (char)pCmd->count;
+    // pMsg->privilege = (char)pCmd->count;
   } else {
     strncpy(createReq.pass, pUser->passwd.z, pUser->passwd.n);
   }
@@ -71,7 +86,7 @@ char* buildAcctManipulationMsg(SSqlInfo* pInfo, int32_t* outputLen, int64_t id, 
   return pReq;
 }
 
-char* buildDropUserMsg(SSqlInfo* pInfo, int32_t* msgLen, int64_t id, char* msgBuf, int32_t msgBufLen) {
+char* buildDropUserMsg(SSqlInfo* pInfo, int32_t* outputLen, int64_t id, char* msgBuf, int32_t msgBufLen) {
   SDropUserReq dropReq = {0};
 
   SToken* pName = taosArrayGet(pInfo->pMiscInfo->a, 0);
@@ -89,30 +104,26 @@ char* buildDropUserMsg(SSqlInfo* pInfo, int32_t* msgLen, int64_t id, char* msgBu
   }
 
   tSerializeSDropUserReq(pReq, tlen, &dropReq);
-  *msgLen = tlen;
+  *outputLen = tlen;
   return pReq;
 }
 
-SShowReq* buildShowMsg(SShowInfo* pShowInfo, SParseContext* pCtx, SMsgBuf* pMsgBuf) {
-  SShowReq* pShowMsg = calloc(1, sizeof(SShowReq));
-  if (pShowMsg == NULL) {
-    terrno = TSDB_CODE_OUT_OF_MEMORY;
-    return pShowMsg;
-  }
+char* buildShowMsg(SShowInfo* pShowInfo, int32_t* outputLen, SParseContext* pCtx, SMsgBuf* pMsgBuf) {
+  SShowReq showReq = {.type = pShowInfo->showType};
 
-  pShowMsg->type = pShowInfo->showType;
   if (pShowInfo->showType != TSDB_MGMT_TABLE_VNODES) {
     SToken* pPattern = &pShowInfo->pattern;
     if (pPattern->type > 0) {  // only show tables support wildcard query
-      strncpy(pShowMsg->payload, pPattern->z, pPattern->n);
-      pShowMsg->payloadLen = htons(pPattern->n);
+      showReq.payloadLen = pPattern->n;
+      showReq.payload = malloc(showReq.payloadLen);
+      strncpy(showReq.payload, pPattern->z, pPattern->n);
     }
   } else {
     SToken* pEpAddr = &pShowInfo->prefix;
     assert(pEpAddr->n > 0 && pEpAddr->type > 0);
-
-    strncpy(pShowMsg->payload, pEpAddr->z, pEpAddr->n);
-    pShowMsg->payloadLen = htons(pEpAddr->n);
+    showReq.payloadLen = pEpAddr->n;
+    showReq.payload = malloc(showReq.payloadLen);
+    strncpy(showReq.payload, pEpAddr->z, pEpAddr->n);
   }
 
   if (pShowInfo->showType == TSDB_MGMT_TABLE_STB || pShowInfo->showType == TSDB_MGMT_TABLE_VGROUP) {
@@ -121,22 +132,32 @@ SShowReq* buildShowMsg(SShowInfo* pShowInfo, SParseContext* pCtx, SMsgBuf* pMsgB
     if (pShowInfo->prefix.n > 0) {
       if (pShowInfo->prefix.n >= TSDB_DB_FNAME_LEN) {
         terrno = buildInvalidOperationMsg(pMsgBuf, "prefix name is too long");
-        tfree(pShowMsg);
+        tFreeSShowReq(&showReq);
         return NULL;
       }
       tNameSetDbName(&n, pCtx->acctId, pShowInfo->prefix.z, pShowInfo->prefix.n);
     } else if (pCtx->db == NULL || strlen(pCtx->db) == 0) {
       terrno = buildInvalidOperationMsg(pMsgBuf, "database is not specified");
-      tfree(pShowMsg);
+      tFreeSShowReq(&showReq);
       return NULL;
     } else {
       tNameSetDbName(&n, pCtx->acctId, pCtx->db, strlen(pCtx->db));
     }
 
-    tNameGetFullDbName(&n, pShowMsg->db);
+    tNameGetFullDbName(&n, showReq.db);
   }
 
-  return pShowMsg;
+  int32_t tlen = tSerializeSShowReq(NULL, 0, &showReq);
+  void*   pReq = malloc(tlen);
+  if (pReq == NULL) {
+    terrno = TSDB_CODE_OUT_OF_MEMORY;
+    return NULL;
+  }
+
+  tSerializeSShowReq(pReq, tlen, &showReq);
+  tFreeSShowReq(&showReq);
+  *outputLen = tlen;
+  return pReq;
 }
 
 static int32_t setKeepOption(SCreateDbReq* pMsg, const SCreateDbInfo* pCreateDb, SMsgBuf* pMsgBuf) {
@@ -330,7 +351,7 @@ static int32_t doCheckDbOptions(SCreateDbReq* pCreate, SMsgBuf* pMsgBuf) {
   return TSDB_CODE_SUCCESS;
 }
 
-char* buildCreateDbMsg(SCreateDbInfo* pCreateDbInfo, int32_t* len, SParseContext* pCtx, SMsgBuf* pMsgBuf) {
+char* buildCreateDbMsg(SCreateDbInfo* pCreateDbInfo, int32_t* outputLen, SParseContext* pCtx, SMsgBuf* pMsgBuf) {
   SCreateDbReq createReq = {0};
 
   if (setDbOptions(&createReq, pCreateDbInfo, pMsgBuf) != TSDB_CODE_SUCCESS) {
@@ -360,11 +381,12 @@ char* buildCreateDbMsg(SCreateDbInfo* pCreateDbInfo, int32_t* len, SParseContext
   }
 
   tSerializeSCreateDbReq(pReq, tlen, &createReq);
-  *len = tlen;
+  *outputLen = tlen;
   return pReq;
 }
 
-char* buildCreateStbReq(SCreateTableSql* pCreateTableSql, int32_t* len, SParseContext* pParseCtx, SMsgBuf* pMsgBuf) {
+char* buildCreateStbReq(SCreateTableSql* pCreateTableSql, int32_t* outputLen, SParseContext* pParseCtx,
+                        SMsgBuf* pMsgBuf) {
   SMCreateStbReq createReq = {0};
   createReq.igExists = pCreateTableSql->existCheck ? 1 : 0;
   createReq.pColumns = pCreateTableSql->colInfo.pColumns;
@@ -374,11 +396,13 @@ char* buildCreateStbReq(SCreateTableSql* pCreateTableSql, int32_t* len, SParseCo
 
   SName n = {0};
   if (createSName(&n, &pCreateTableSql->name, pParseCtx, pMsgBuf) != 0) {
+    tFreeSMCreateStbReq(&createReq);
     return NULL;
   }
 
   if (tNameExtractFullName(&n, createReq.name) != 0) {
     buildInvalidOperationMsg(pMsgBuf, "invalid table name or database not specified");
+    tFreeSMCreateStbReq(&createReq);
     return NULL;
   }
 
@@ -391,11 +415,12 @@ char* buildCreateStbReq(SCreateTableSql* pCreateTableSql, int32_t* len, SParseCo
 
   void* pBuf = pReq;
   tSerializeSMCreateStbReq(&pBuf, &createReq);
-  *len = tlen;
+  tFreeSMCreateStbReq(&createReq);
+  *outputLen = tlen;
   return pReq;
 }
 
-char* buildDropStableReq(SSqlInfo* pInfo, int32_t* len, SParseContext* pParseCtx, SMsgBuf* pMsgBuf) {
+char* buildDropStableReq(SSqlInfo* pInfo, int32_t* outputLen, SParseContext* pParseCtx, SMsgBuf* pMsgBuf) {
   SToken* tableName = taosArrayGet(pInfo->pMiscInfo->a, 0);
 
   SName   name = {0};
@@ -420,11 +445,11 @@ char* buildDropStableReq(SSqlInfo* pInfo, int32_t* len, SParseContext* pParseCtx
 
   void* pBuf = pReq;
   tSerializeSMDropStbReq(&pBuf, &dropReq);
-  *len = tlen;
+  *outputLen = tlen;
   return pReq;
 }
 
-char* buildCreateDnodeMsg(SSqlInfo* pInfo, int32_t* len, SMsgBuf* pMsgBuf) {
+char* buildCreateDnodeMsg(SSqlInfo* pInfo, int32_t* outputLen, SMsgBuf* pMsgBuf) {
   const char* msg1 = "invalid host name (name too long, maximum length 128)";
   const char* msg2 = "dnode name can not be string";
   const char* msg3 = "port should be an integer that is less than 65535 and greater than 0";
@@ -469,11 +494,11 @@ char* buildCreateDnodeMsg(SSqlInfo* pInfo, int32_t* len, SMsgBuf* pMsgBuf) {
   }
 
   tSerializeSCreateDnodeReq(pReq, tlen, &createReq);
-  *len = tlen;
+  *outputLen = tlen;
   return pReq;
 }
 
-char* buildDropDnodeMsg(SSqlInfo* pInfo, int32_t* len, SMsgBuf* pMsgBuf) {
+char* buildDropDnodeMsg(SSqlInfo* pInfo, int32_t* outputLen, SMsgBuf* pMsgBuf) {
   SDropDnodeReq dropReq = {0};
 
   SToken* pzName = taosArrayGet(pInfo->pMiscInfo->a, 0);
@@ -494,6 +519,6 @@ char* buildDropDnodeMsg(SSqlInfo* pInfo, int32_t* len, SMsgBuf* pMsgBuf) {
   }
 
   tSerializeSDropDnodeReq(pReq, tlen, &dropReq);
-  *len = tlen;
+  *outputLen = tlen;
   return pReq;
 }

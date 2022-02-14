@@ -118,27 +118,28 @@ static void mndReleaseShowObj(SShowObj *pShow, bool forceRemove) {
 static int32_t mndProcessShowReq(SMnodeMsg *pReq) {
   SMnode    *pMnode = pReq->pMnode;
   SShowMgmt *pMgmt = &pMnode->showMgmt;
-  SShowReq  *pShowReq = pReq->rpcMsg.pCont;
-  int8_t     type = pShowReq->type;
-  int16_t    payloadLen = htonl(pShowReq->payloadLen);
+  int32_t    code = -1;
+  SShowReq   showReq = {0};
 
-  if (type <= TSDB_MGMT_TABLE_START || type >= TSDB_MGMT_TABLE_MAX) {
-    terrno = TSDB_CODE_MND_INVALID_MSG_TYPE;
-    mError("failed to process show-meta req since %s", terrstr());
-    return -1;
+  if (tDeserializeSShowReq(pReq->rpcMsg.pCont, pReq->rpcMsg.contLen, &showReq) != 0) {
+    terrno = TSDB_CODE_INVALID_MSG;
+    goto SHOW_OVER;
   }
 
-  ShowMetaFp metaFp = pMgmt->metaFps[type];
+  if (showReq.type <= TSDB_MGMT_TABLE_START || showReq.type >= TSDB_MGMT_TABLE_MAX) {
+    terrno = TSDB_CODE_MND_INVALID_MSG_TYPE;
+    goto SHOW_OVER;
+  }
+
+  ShowMetaFp metaFp = pMgmt->metaFps[showReq.type];
   if (metaFp == NULL) {
     terrno = TSDB_CODE_MND_INVALID_MSG_TYPE;
-    mError("failed to process show-meta req:%s since %s", mndShowStr(type), terrstr());
-    return -1;
+    goto SHOW_OVER;
   }
 
-  SShowObj *pShow = mndCreateShowObj(pMnode, pShowReq);
+  SShowObj *pShow = mndCreateShowObj(pMnode, &showReq);
   if (pShow == NULL) {
-    mError("failed to process show-meta req:%s since %s", mndShowStr(type), terrstr());
-    return -1;
+    goto SHOW_OVER;
   }
 
   int32_t   size = sizeof(SShowRsp) + sizeof(SSchema) * TSDB_MAX_COLUMNS + TSDB_EXTRA_PAYLOAD_SIZE;
@@ -146,26 +147,30 @@ static int32_t mndProcessShowReq(SMnodeMsg *pReq) {
   if (pRsp == NULL) {
     mndReleaseShowObj(pShow, true);
     terrno = TSDB_CODE_OUT_OF_MEMORY;
-    mError("show:0x%" PRIx64 ", failed to process show-meta req:%s since malloc rsp error", pShow->id,
-           mndShowStr(type));
-    return -1;
+    goto SHOW_OVER;
   }
 
-  int32_t code = (*metaFp)(pReq, pShow, &pRsp->tableMeta);
-  mDebug("show:0x%" PRIx64 ", get meta finished, numOfRows:%d cols:%d type:%s, result:%s", pShow->id, pShow->numOfRows,
-         pShow->numOfColumns, mndShowStr(type), tstrerror(code));
+  code = (*metaFp)(pReq, pShow, &pRsp->tableMeta);
+  mDebug("show:0x%" PRIx64 ", get meta finished, numOfRows:%d cols:%d showReq.type:%s, result:%s", pShow->id,
+         pShow->numOfRows, pShow->numOfColumns, mndShowStr(showReq.type), tstrerror(code));
 
   if (code == TSDB_CODE_SUCCESS) {
     pReq->contLen = sizeof(SShowRsp) + sizeof(SSchema) * pShow->numOfColumns;
     pReq->pCont = pRsp;
     pRsp->showId = htobe64(pShow->id);
     mndReleaseShowObj(pShow, false);
-    return TSDB_CODE_SUCCESS;
   } else {
     rpcFreeCont(pRsp);
     mndReleaseShowObj(pShow, true);
-    return code;
   }
+
+SHOW_OVER:
+  if (code != 0) {
+    mError("failed to process show-meta req since %s", terrstr());
+  }
+
+  tFreeSShowReq(&showReq);
+  return code;
 }
 
 static int32_t mndProcessRetrieveReq(SMnodeMsg *pReq) {

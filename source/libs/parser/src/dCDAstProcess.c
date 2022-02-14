@@ -114,12 +114,10 @@ static int32_t setShowInfo(SShowInfo* pShowInfo, SParseContext* pCtx, void** out
     }
 
     *pEpSet = pCtx->mgmtEpSet;
-    *output = buildShowMsg(pShowInfo, pCtx, pMsgBuf);
+    *output = buildShowMsg(pShowInfo, outputLen, pCtx, pMsgBuf);
     if (*output == NULL) {
       return terrno;
     }
-
-    *outputLen = sizeof(SShowReq) /* + htons(pShowMsg->payloadLen)*/;
   }
 
   return TSDB_CODE_SUCCESS;
