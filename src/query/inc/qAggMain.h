@@ -78,8 +78,9 @@ extern "C" {
 
 #define TSDB_FUNC_ELAPSED      37
 #define TSDB_FUNC_HISTOGRAM    38
+#define TSDB_FUNC_UNIQUE       39
 
-#define TSDB_FUNC_MAX_NUM    39
+#define TSDB_FUNC_MAX_NUM    40
 
 #define TSDB_FUNCSTATE_SO           0x1u    // single output
 #define TSDB_FUNCSTATE_MO           0x2u    // dynamic number of output, not multinumber of output e.g., TOP/BOTTOM
@@ -200,6 +201,8 @@ typedef struct SQLFunctionCtx {
   SExtTagsInfo tagInfo;
   SPoint1      start;
   SPoint1      end;
+
+  int32_t      maxUniqueResult;
 } SQLFunctionCtx;
 
 typedef struct SAggFunctionInfo {
@@ -249,7 +252,7 @@ void blockDistInfoToBinary(STableBlockDist* pDist, struct SBufferWriter* bw);
 void blockDistInfoFromBinary(const char* data, int32_t len, STableBlockDist* pDist);
 
 /* global sql function array */
-extern struct SAggFunctionInfo aAggs[40];
+extern struct SAggFunctionInfo aAggs[TSDB_FUNC_MAX_NUM];
 
 extern int32_t functionCompatList[]; // compatible check array list
 

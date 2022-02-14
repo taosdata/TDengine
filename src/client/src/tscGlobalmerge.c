@@ -447,7 +447,7 @@ int32_t tscCreateGlobalMergerEnv(SQueryInfo *pQueryInfo, tExtMemBuffer ***pMemBu
     }
     capacity = (*nBufferSizes) / rlen;
   }
-  
+
   pModel = createColumnModel(pSchema, (int32_t)size, capacity);
   tfree(pSchema);
   if (pModel == NULL){
@@ -456,7 +456,7 @@ int32_t tscCreateGlobalMergerEnv(SQueryInfo *pQueryInfo, tExtMemBuffer ***pMemBu
 
   int32_t pg = DEFAULT_PAGE_SIZE;
   int32_t overhead = sizeof(tFilePage);
-  while((pg - overhead) < pModel->rowSize * 2) {
+  while((pg - overhead) < rlen * 2) {
     pg *= 2;
   }
 
@@ -656,7 +656,7 @@ static void doExecuteFinalMerge(SOperatorInfo* pOperator, int32_t numOfExpr, SSD
         for(int32_t j = 0; j < numOfExpr; ++j) {
           pCtx[j].pOutput += (pCtx[j].outputBytes * numOfRows);
           if (pCtx[j].functionId == TSDB_FUNC_TOP || pCtx[j].functionId == TSDB_FUNC_BOTTOM ||
-              pCtx[j].functionId == TSDB_FUNC_SAMPLE) {
+              pCtx[j].functionId == TSDB_FUNC_SAMPLE || pCtx[j].functionId == TSDB_FUNC_UNIQUE) {
             if(j > 0) pCtx[j].ptsOutputBuf = pCtx[j - 1].pOutput;
           }
         }

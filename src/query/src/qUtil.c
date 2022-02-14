@@ -44,6 +44,9 @@ int32_t getRowNumForMultioutput(SQueryAttr* pQueryAttr, bool topBottomQuery, boo
     }
   }
 
+  if (pQueryAttr->uniqueQuery){
+    return pQueryAttr->maxUniqueResult;
+  }
   return 1;
 }
 
@@ -154,7 +157,7 @@ void clearResultRow(SQueryRuntimeEnv *pRuntimeEnv, SResultRow *pResultRow, int16
     for (int32_t i = 0; i < pRuntimeEnv->pQueryAttr->numOfOutput; ++i) {
       SResultRowCellInfo *pResultInfo = &pResultRow->pCellInfo[i];
 
-      int16_t size = pRuntimeEnv->pQueryAttr->pExpr1[i].base.resType;
+      int16_t size = pRuntimeEnv->pQueryAttr->pExpr1[i].base.resBytes;
       char * s = getPosInResultPage(pRuntimeEnv->pQueryAttr, page, pResultRow->offset, offset);
       memset(s, 0, size);
 
@@ -217,7 +220,6 @@ SResultRow* getNewResultRow(SResultRowPool* p) {
   }
 
   p->position.pos = (p->position.pos + 1)%p->numOfElemPerBlock;
-  initResultRow(ptr);
 
   return ptr;
 }
@@ -451,9 +453,7 @@ int32_t tsDescOrder(const void* p1, const void* p2) {
   }
 }
 
-void
-
-orderTheResultRows(SQueryRuntimeEnv* pRuntimeEnv) {
+void orderTheResultRows(SQueryRuntimeEnv* pRuntimeEnv) {
   __compar_fn_t  fn = NULL;
   if (pRuntimeEnv->pQueryAttr->order.order == TSDB_ORDER_ASC) {
     fn = tsAscOrder;

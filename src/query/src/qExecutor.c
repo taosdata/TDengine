@@ -289,9 +289,8 @@ static int compareRowData(const void *a, const void *b, const void *userData) {
 }
 
 static void sortGroupResByOrderList(SGroupResInfo *pGroupResInfo, SQueryRuntimeEnv *pRuntimeEnv, SSDataBlock* pDataBlock, SQLFunctionCtx *pCtx) {
-  SArray *columnOrderList = getOrderCheckColumns(pRuntimeEnv->pQueryAttr);
-  size_t size = taosArrayGetSize(columnOrderList);
-  taosArrayDestroy(&columnOrderList);
+  int32_t size = pRuntimeEnv->pQueryAttr->pGroupbyExpr == NULL? 0: pRuntimeEnv->pQueryAttr->pGroupbyExpr->numOfGroupCols;
+  if (pRuntimeEnv->pQueryAttr->interval.interval > 0) size++;
 
   if (size <= 0) {
     return;
@@ -1004,6 +1003,13 @@ static void doApplyFunctions(SQueryRuntimeEnv* pRuntimeEnv, SQLFunctionCtx* pCtx
       }
     }
 
+    if (functionId == TSDB_FUNC_UNIQUE && GET_RES_INFO(&(pCtx[k]))->numOfRes > pQueryAttr->maxUniqueResult){
+      qError("Unique result num is too large. num: %d, limit: %d",
+             GET_RES_INFO(&(pCtx[k]))->numOfRes, pQueryAttr->maxUniqueResult);
+      aAggs[functionId].xFinalize(&pCtx[k]);
+      longjmp(pRuntimeEnv->env, TSDB_CODE_QRY_UNIQUE_RESULT_TOO_LARGE);
+    }
+
     // restore it
     pCtx[k].preAggVals.isSet = hasAggregates;
     pCtx[k].pInput = start;
@@ -1262,6 +1268,14 @@ static void doAggregateImpl(SOperatorInfo* pOperator, TSKEY startTs, SQLFunction
         aAggs[functionId].xFunction(&pCtx[k]);
       } else {
         assert(0);
+      }
+
+      SQueryAttr* pQueryAttr = pRuntimeEnv->pQueryAttr;
+      if (functionId == TSDB_FUNC_UNIQUE && GET_RES_INFO(&(pCtx[k]))->numOfRes > pQueryAttr->maxUniqueResult){
+        qError("Unique result num is too large. num: %d, limit: %d",
+               GET_RES_INFO(&(pCtx[k]))->numOfRes, pQueryAttr->maxUniqueResult);
+        aAggs[functionId].xFinalize(&pCtx[k]);
+        longjmp(pRuntimeEnv->env, TSDB_CODE_QRY_UNIQUE_RESULT_TOO_LARGE);
       }
     }
   }
@@ -1893,7 +1907,7 @@ static int32_t setCtxTagColumnInfo(SQLFunctionCtx *pCtx, int32_t numOfOutput) {
       continue;
     }
 
-    if (functionId == TSDB_FUNC_TAG_DUMMY || functionId == TSDB_FUNC_TS_DUMMY) {
+    if (functionId == TSDB_FUNC_TAG_DUMMY || functionId == TSDB_FUNC_TS_DUMMY) { //ts_select ts,top(col,2)
       tagLen += pCtx[i].outputBytes;
       pTagCtx[num++] = &pCtx[i];
     } else if ((aAggs[functionId].status & TSDB_FUNCSTATE_SELECTIVITY) != 0) {
@@ -1962,6 +1976,9 @@ static SQLFunctionCtx* createSQLFunctionCtx(SQueryRuntimeEnv* pRuntimeEnv, SExpr
     pCtx->end.key      = INT64_MIN;
     pCtx->startTs      = INT64_MIN;
 
+    if (pCtx->functionId == TSDB_FUNC_UNIQUE){
+      pCtx->maxUniqueResult = pQueryAttr->maxUniqueResult;
+    }
     pCtx->numOfParams  = pSqlExpr->numOfParams;
     for (int32_t j = 0; j < pCtx->numOfParams; ++j) {
       int16_t type = pSqlExpr->param[j].nType;
@@ -2754,7 +2771,15 @@ static void getIntermediateBufInfo(SQueryRuntimeEnv* pRuntimeEnv, int32_t* ps, i
   SQueryAttr* pQueryAttr = pRuntimeEnv->pQueryAttr;
   int32_t MIN_ROWS_PER_PAGE = 4;
 
-  *rowsize = (int32_t)(pQueryAttr->resultRowSize * getRowNumForMultioutput(pQueryAttr, pQueryAttr->topBotQuery, pQueryAttr->stableQuery));
+  if (pQueryAttr->uniqueQuery) {
+    int64_t rowSize = pQueryAttr->resultRowSize;
+    while(rowSize*pQueryAttr->maxUniqueResult > 1024*1024*100){
+      pQueryAttr->maxUniqueResult = pQueryAttr->maxUniqueResult >> 1u;
+    }
+    *rowsize = (int32_t)(rowSize*pQueryAttr->maxUniqueResult);
+  }else{
+    *rowsize = (int32_t)(pQueryAttr->resultRowSize * getRowNumForMultioutput(pQueryAttr, pQueryAttr->topBotQuery, pQueryAttr->stableQuery));
+  }
   int32_t overhead = sizeof(tFilePage);
 
   // one page contains at least two rows
@@ -3177,7 +3202,7 @@ int32_t loadDataBlockOnDemand(SQueryRuntimeEnv* pRuntimeEnv, STableScanInfo* pTa
                                   pTableScanInfo->rowCellInfoOffset) != TSDB_CODE_SUCCESS) {
         longjmp(pRuntimeEnv->env, TSDB_CODE_QRY_OUT_OF_MEMORY);
       }
-    } else if (pQueryAttr->stableQuery && (!pQueryAttr->tsCompQuery) && (!pQueryAttr->diffQuery) && (!pQueryAttr->pointInterpQuery)) { // stable aggregate, not interval aggregate or normal column aggregate
+    } else if (pQueryAttr->stableQuery && (!pQueryAttr->tsCompQuery) && (!pQueryAttr->diffQuery) && (!pQueryAttr->pointInterpQuery) && (!pQueryAttr->uniqueQuery)) { // stable aggregate, not interval aggregate or normal column aggregate
       doSetTableGroupOutputBuf(pRuntimeEnv, pTableScanInfo->pResultRowInfo, pTableScanInfo->pCtx,
                                pTableScanInfo->rowCellInfoOffset, pTableScanInfo->numOfOutput,
                                pRuntimeEnv->current->groupIndex);
@@ -3671,7 +3696,7 @@ void setDefaultOutputBuf(SQueryRuntimeEnv *pRuntimeEnv, SOptrBasicInfo *pInfo, i
     // set the timestamp output buffer for top/bottom/diff query
     int32_t fid = pCtx[i].functionId;
     if (fid == TSDB_FUNC_TOP || fid == TSDB_FUNC_BOTTOM || fid == TSDB_FUNC_DIFF || fid == TSDB_FUNC_DERIVATIVE ||
-        fid == TSDB_FUNC_SAMPLE || fid == TSDB_FUNC_MAVG || fid == TSDB_FUNC_CSUM) {
+        fid == TSDB_FUNC_SAMPLE || fid == TSDB_FUNC_MAVG || fid == TSDB_FUNC_CSUM || fid == TSDB_FUNC_UNIQUE) {
       if (i > 0) pCtx[i].ptsOutputBuf = pCtx[i-1].pOutput;
     } else if (fid == TSDB_FUNC_INTERP) {
       assert(pCtx[0].functionId == TSDB_FUNC_TS_DUMMY || pCtx[0].functionId == TSDB_FUNC_TS);
@@ -3742,7 +3767,7 @@ void updateOutputBuf(SOptrBasicInfo* pBInfo, int32_t *bufCapacity, int32_t numOf
     if (functionId == TSDB_FUNC_TOP || functionId == TSDB_FUNC_BOTTOM ||
         functionId == TSDB_FUNC_DIFF || functionId == TSDB_FUNC_DERIVATIVE ||
         functionId == TSDB_FUNC_CSUM || functionId == TSDB_FUNC_MAVG ||
-        functionId == TSDB_FUNC_SAMPLE ) {
+        functionId == TSDB_FUNC_SAMPLE || functionId == TSDB_FUNC_UNIQUE) {
       if (i > 0) pBInfo->pCtx[i].ptsOutputBuf = pBInfo->pCtx[i-1].pOutput;
     } else if (functionId == TSDB_FUNC_INTERP) {
       assert(pBInfo->pCtx[0].functionId == TSDB_FUNC_TS_DUMMY || pBInfo->pCtx[0].functionId == TSDB_FUNC_TS);
@@ -3918,6 +3943,15 @@ void finalizeQueryResult(SOperatorInfo* pOperator, SQLFunctionCtx* pCtx, SResult
   }
 }
 
+bool isUniqueQuery(int32_t numOfOutput, SExprInfo* pExprs) {
+  for (int32_t i = 0; i < numOfOutput; ++i) {
+    if (pExprs[i].base.functionId == TSDB_FUNC_UNIQUE) {
+      return true;
+    }
+  }
+  return false;
+}
+
 static bool hasMainOutput(SQueryAttr *pQueryAttr) {
   for (int32_t i = 0; i < pQueryAttr->numOfOutput; ++i) {
     int32_t functionId = pQueryAttr->pExpr1[i].base.functionId;
@@ -4002,7 +4036,8 @@ void setResultRowOutputBufInitCtx(SQueryRuntimeEnv *pRuntimeEnv, SResultRow *pRe
     int32_t functionId = pCtx[i].functionId;
 
     if (functionId == TSDB_FUNC_TOP || functionId == TSDB_FUNC_BOTTOM || functionId == TSDB_FUNC_DIFF ||
-        functionId == TSDB_FUNC_CSUM || functionId == TSDB_FUNC_MAVG || functionId == TSDB_FUNC_SAMPLE) {
+        functionId == TSDB_FUNC_CSUM || functionId == TSDB_FUNC_MAVG || functionId == TSDB_FUNC_SAMPLE ||
+        functionId == TSDB_FUNC_UNIQUE) {
       if(i > 0) pCtx[i].ptsOutputBuf = pCtx[i-1].pOutput;
     }
 
@@ -4071,7 +4106,8 @@ void setResultOutputBuf(SQueryRuntimeEnv *pRuntimeEnv, SResultRow *pResult, SQLF
     int32_t functionId = pCtx[i].functionId;
     if (functionId == TSDB_FUNC_TOP || functionId == TSDB_FUNC_BOTTOM ||
         functionId == TSDB_FUNC_DIFF || functionId == TSDB_FUNC_DERIVATIVE ||
-        functionId == TSDB_FUNC_SAMPLE || functionId == TSDB_FUNC_MAVG || functionId == TSDB_FUNC_CSUM) {
+        functionId == TSDB_FUNC_SAMPLE || functionId == TSDB_FUNC_MAVG ||
+        functionId == TSDB_FUNC_CSUM || functionId == TSDB_FUNC_UNIQUE) {
       if(i > 0) pCtx[i].ptsOutputBuf = pCtx[i-1].pOutput;
     }
 
@@ -5511,10 +5547,6 @@ SArray* getOrderCheckColumns(SQueryAttr* pQuery) {
   }
 
   if (pQuery->interval.interval > 0) {
-    if (pOrderColumns == NULL) {
-      pOrderColumns = taosArrayInit(1, sizeof(SColIndex));
-    }
-
     SColIndex colIndex = {.colIndex = 0, .colId = 0, .flag = TSDB_COL_NORMAL};
     taosArrayPush(pOrderColumns, &colIndex);
   }
@@ -8753,8 +8785,8 @@ int32_t convertQueryMsg(SQueryTableMsg *pQueryMsg, SQueryParam* param) {
       pMsg += tListLen(param->pGroupColIndex[i].name);
     }
 
-    pQueryMsg->orderByIdx = htons(pQueryMsg->orderByIdx);
-    pQueryMsg->orderType = htons(pQueryMsg->orderType);
+    //pQueryMsg->orderByIdx = htons(pQueryMsg->orderByIdx);
+    pQueryMsg->groupOrderType = htons(pQueryMsg->groupOrderType);
   }
 
   pQueryMsg->fillType = htons(pQueryMsg->fillType);
@@ -9331,8 +9363,8 @@ SGroupbyExpr *createGroupbyExprFromMsg(SQueryTableMsg *pQueryMsg, SColIndex *pCo
   }
 
   pGroupbyExpr->numOfGroupCols = pQueryMsg->numOfGroupCols;
-  pGroupbyExpr->orderType = pQueryMsg->orderType;
-  pGroupbyExpr->orderIndex = pQueryMsg->orderByIdx;
+  pGroupbyExpr->orderType = pQueryMsg->groupOrderType;
+  //pGroupbyExpr->orderIndex = pQueryMsg->orderByIdx;
 
   pGroupbyExpr->columnInfo = taosArrayInit(pQueryMsg->numOfGroupCols, sizeof(SColIndex));
   for(int32_t i = 0; i < pQueryMsg->numOfGroupCols; ++i) {
@@ -9547,7 +9579,9 @@ SQInfo* createQInfoImpl(SQueryTableMsg* pQueryMsg, SGroupbyExpr* pGroupbyExpr, S
   pQueryAttr->vgId            = vgId;
   pQueryAttr->pFilters        = pFilters;
   pQueryAttr->range           = pQueryMsg->range;
-  
+  pQueryAttr->uniqueQuery     = isUniqueQuery(numOfOutput, pExprs);
+  pQueryAttr->maxUniqueResult = MAX_UNIQUE_RESULT_SIZE;
+
   pQueryAttr->tableCols = calloc(numOfCols, sizeof(SSingleColumnFilterInfo));
   if (pQueryAttr->tableCols == NULL) {
     goto _cleanup;

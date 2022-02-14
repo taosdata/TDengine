@@ -77,7 +77,7 @@ static SQueryNode* createQueryNode(int32_t type, const char* name, SQueryNode** 
 
       pGroupbyExpr->tableIndex = p->tableIndex;
       pGroupbyExpr->orderType  = p->orderType;
-      pGroupbyExpr->orderIndex = p->orderIndex;
+      //pGroupbyExpr->orderIndex = p->orderIndex;
       pGroupbyExpr->numOfGroupCols = p->numOfGroupCols;
       pGroupbyExpr->columnInfo = taosArrayDup(p->columnInfo);
       pNode->pExtInfo = pGroupbyExpr;
