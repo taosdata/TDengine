@@ -82,7 +82,7 @@ SRpcMsg* Testbase::SendReq(tmsg_t msgType, void* pCont, int32_t contLen) {
 void Testbase::SendShowMetaReq(int8_t showType, const char* db) {
   SShowReq showReq = {0};
   showReq.type = showType;
-  //strcpy(showReq.db, db);
+  strcpy(showReq.db, db);
 
   int32_t contLen = tSerializeSShowReq(NULL, 0, &showReq);
   char*   pReq = (char*)rpcMallocCont(contLen);
