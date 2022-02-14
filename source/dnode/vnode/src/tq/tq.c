@@ -322,6 +322,7 @@ int32_t tqProcessSetConnReq(STQ* pTq, char* msg) {
   pTopic->sql = req.sql;
   pTopic->logicalPlan = req.logicalPlan;
   pTopic->physicalPlan = req.physicalPlan;
+  pTopic->qmsg = req.qmsg;
   pTopic->committedOffset = -1;
   pTopic->currentOffset = -1;
 
