@@ -70,7 +70,7 @@ struct SSchema;
 #define TSDB_FUNC_SCALAR_LTRIM        (TSDB_FUNC_FLAG_SCALAR | 0x0014)
 #define TSDB_FUNC_SCALAR_RTRIM        (TSDB_FUNC_FLAG_SCALAR | 0x0015)
 #define TSDB_FUNC_SCALAR_SUBSTR       (TSDB_FUNC_FLAG_SCALAR | 0x0016)
-#define TSDB_FUNC_SCALAR_MAX_NUM      23
+#define TSDB_FUNC_SCALAR_NUM_FUNCTIONS 23
 
 #define TSDB_FUNC_SCALAR_NAME_MAX_LEN 16
 
@@ -92,7 +92,7 @@ typedef struct tScalarFunctionInfo{
 } tScalarFunctionInfo;
 
 /* global scalar sql functions array */
-extern struct tScalarFunctionInfo aScalarFunctions[TSDB_FUNC_SCALAR_MAX_NUM];
+extern struct tScalarFunctionInfo aScalarFunctions[TSDB_FUNC_SCALAR_NUM_FUNCTIONS];
 
 
 typedef bool (*__result_filter_fn_t)(const void *, void *);

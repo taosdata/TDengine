@@ -1854,7 +1854,7 @@ void vectorMathFunc(int16_t functionId, tExprOperandInfo *pInputs, int32_t numIn
 _expr_scalar_function_t getExprScalarFunction(uint16_t funcId) {
   assert(TSDB_FUNC_IS_SCALAR(funcId));
   int16_t scalaIdx = TSDB_FUNC_SCALAR_INDEX(funcId);
-  assert(scalaIdx>=0 && scalaIdx <= TSDB_FUNC_SCALAR_MAX_NUM);
+  assert(scalaIdx>=0 && scalaIdx <= TSDB_FUNC_SCALAR_NUM_FUNCTIONS);
   return aScalarFunctions[scalaIdx].scalarFunc;
 }
 
