@@ -5278,7 +5278,7 @@ SOperatorInfo* createTableScanOperatorInfo(void* pTsdbQueryHandle, SQueryRuntime
   pInfo->order          = pRuntimeEnv->pQueryAttr->order.order;
 
   SOperatorInfo* pOptr = calloc(1, sizeof(SOperatorInfo));
-  pOptr->name          = "DataBlocksOptimizedScanOperator";
+  pOptr->name          = "TableScanOperator";
   pOptr->operatorType  = OP_DataBlocksOptScan;
   pOptr->pRuntimeEnv   = pRuntimeEnv;
   pOptr->blockingOptr  = false;

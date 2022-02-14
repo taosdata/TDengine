@@ -5290,7 +5290,6 @@ SOperatorInfo* createExchangeOperatorInfo(const SArray* pSources, const SArray* 
   pOperator->status       = OP_IN_EXECUTING;
   pOperator->info         = pInfo;
   pOperator->numOfOutput  = size;
-  pOperator->pRuntimeEnv  = NULL;
   pOperator->exec         = doLoadRemoteData;
   pOperator->pTaskInfo    = pTaskInfo;
 
@@ -5365,7 +5364,7 @@ SOperatorInfo* createTableScanOperatorInfo(void* pTsdbReadHandle, int32_t order,
   pInfo->current      = 0;
   pInfo->scanFlag     = MAIN_SCAN;
 
-  pOperator->name          = "DataBlocksOptimizedScanOperator";
+  pOperator->name          = "TableScanOperator";
   pOperator->operatorType  = OP_TableScan;
   pOperator->blockingOptr  = false;
   pOperator->status        = OP_IN_EXECUTING;
@@ -6181,9 +6180,9 @@ static SSDataBlock* doMultiTableAggregate(void* param, bool* newgroup) {
   SExecTaskInfo* pTaskInfo = pOperator->pTaskInfo;
 
   if (pOperator->status == OP_RES_TO_RETURN) {
-    toSDatablock(pAggInfo->pGroupResInfo, pAggInfo->pResultBuf, pInfo->pRes, pAggInfo->binfo.capacity);
+    toSDatablock(&pAggInfo->groupResInfo, pAggInfo->pResultBuf, pInfo->pRes, pAggInfo->binfo.capacity);
 
-    if (pInfo->pRes->info.rows == 0 /*|| !hasRemainDataInCurrentGroup(&pRuntimeEnv->groupResInfo)*/) {
+    if (pInfo->pRes->info.rows == 0 || !hasRemainDataInCurrentGroup(&pAggInfo->groupResInfo)) {
       pOperator->status = OP_EXEC_DONE;
     }
 
@@ -7061,7 +7060,7 @@ static int32_t initAggInfo(SAggOperatorInfo* pInfo, SArray* pExprInfo, int32_t n
     for(int32_t j = 0; j < taosArrayGetSize(pa); ++j) {
       STableKeyInfo* pk = taosArrayGet(pa, j);
 
-      STableQueryInfo* pTQueryInfo = &pInfo->pTableQueryInfo[index];
+      STableQueryInfo* pTQueryInfo = &pInfo->pTableQueryInfo[index++];
       pTQueryInfo->uid        = pk->uid;
       pTQueryInfo->lastKey    = pk->lastKey;
       pTQueryInfo->groupIndex = i;
@@ -7093,9 +7092,6 @@ SOperatorInfo* createAggregateOperatorInfo(SOperatorInfo* downstream, SArray* pE
 
   initAggInfo(pInfo, pExprInfo, numOfRows, pTableGroupInfo);
   setDefaultOutputBuf_rv(pInfo, MAIN_SCAN, pTaskInfo);
-  size_t numOfOutput = taosArrayGetSize(pExprInfo);
-
-  SExprInfo* p = exprArrayDup(pExprInfo);
 
   SOperatorInfo* pOperator = calloc(1, sizeof(SOperatorInfo));
   pOperator->name         = "TableAggregate";
@@ -7103,8 +7099,8 @@ SOperatorInfo* createAggregateOperatorInfo(SOperatorInfo* downstream, SArray* pE
   pOperator->blockingOptr = true;
   pOperator->status       = OP_IN_EXECUTING;
   pOperator->info         = pInfo;
-  pOperator->pExpr        = p;
-  pOperator->numOfOutput  = numOfOutput;
+  pOperator->pExpr        = exprArrayDup(pExprInfo);
+  pOperator->numOfOutput  = taosArrayGetSize(pExprInfo);
 
   pOperator->pTaskInfo    = pTaskInfo;
   pOperator->exec         = doAggregate;

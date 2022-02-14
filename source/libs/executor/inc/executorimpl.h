@@ -456,7 +456,7 @@ typedef struct SAggOperatorInfo {
   SResultRowPool      *pool;  // The window result objects pool, all the resultRow Objects are allocated and managed by this object.
   STableQueryInfo     *current;
   uint32_t             groupId;
-  SGroupResInfo       *pGroupResInfo;
+  SGroupResInfo        groupResInfo;
   STableQueryInfo     *pTableQueryInfo;
 } SAggOperatorInfo;
 
