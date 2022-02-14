@@ -69,10 +69,12 @@ void* MndTestStb::BuildCreateDbReq(const char* dbname, int32_t* pContLen) {
 }
 
 void* MndTestStb::BuildDropDbReq(const char* dbname, int32_t* pContLen) {
-  int32_t contLen = sizeof(SDropDbReq);
+  SDropDbReq dropdbReq = {0};
+  strcpy(dropdbReq.db, dbname);
 
-  SDropDbReq* pReq = (SDropDbReq*)rpcMallocCont(contLen);
-  strcpy(pReq->db, dbname);
+  int32_t contLen = tSerializeSDropDbReq(NULL, 0, &dropdbReq);
+  void*   pReq = rpcMallocCont(contLen);
+  tSerializeSDropDbReq(pReq, contLen, &dropdbReq);
 
   *pContLen = contLen;
   return pReq;

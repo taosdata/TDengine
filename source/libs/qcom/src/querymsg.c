@@ -55,32 +55,26 @@ int32_t queryBuildTableMetaReqMsg(void* input, char **msg, int32_t msgSize, int3
   return TSDB_CODE_SUCCESS;
 }
 
-int32_t queryBuildUseDbMsg(void* input, char **msg, int32_t msgSize, int32_t *msgLen) {
+int32_t queryBuildUseDbMsg(void *input, char **msg, int32_t msgSize, int32_t *msgLen) {
   if (NULL == input || NULL == msg || NULL == msgLen) {
     return TSDB_CODE_TSC_INVALID_INPUT;
   }
 
-  SBuildUseDBInput* bInput = (SBuildUseDBInput *)input;
+  SBuildUseDBInput *bInput = input;
 
-  int32_t estimateSize = sizeof(SUseDbReq);
-  if (NULL == *msg || msgSize < estimateSize) {
-    tfree(*msg);
-    *msg = rpcMallocCont(estimateSize);
-    if (NULL == *msg) {
-      return TSDB_CODE_TSC_OUT_OF_MEMORY;
-    }
-  }
+  SUseDbReq usedbReq = {0};
+  strncpy(usedbReq.db, bInput->db, sizeof(usedbReq.db));
+  usedbReq.db[sizeof(usedbReq.db) - 1] = 0;
+  usedbReq.vgVersion = bInput->vgVersion;
 
-  SUseDbReq *bMsg = (SUseDbReq *)*msg;
+  int32_t bufLen = tSerializeSUseDbReq(NULL, 0, &usedbReq);
+  void   *pBuf = rpcMallocCont(bufLen);
+  tSerializeSUseDbReq(pBuf, bufLen, &usedbReq);
 
-  strncpy(bMsg->db, bInput->db, sizeof(bMsg->db));
-  bMsg->db[sizeof(bMsg->db) - 1] = 0;
+  *msg = pBuf;
+  *msgLen = bufLen;
 
-  bMsg->vgVersion = bInput->vgVersion;
-
-  *msgLen = (int32_t)sizeof(*bMsg);
-
-  return TSDB_CODE_SUCCESS;  
+  return TSDB_CODE_SUCCESS;
 }
 
 int32_t queryProcessUseDBRsp(void *output, char *msg, int32_t msgSize) {
@@ -133,7 +127,7 @@ int32_t queryProcessUseDBRsp(void *output, char *msg, int32_t msgSize) {
   return code;
 
 _return:
-  taosArrayDestroy(usedbRsp.pVgroupInfos);
+  tFreeSUsedbRsp(&usedbRsp);
 
   if (pOut) {
     taosHashCleanup(pOut->dbVgroup->vgHash);

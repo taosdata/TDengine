@@ -28,7 +28,6 @@ static int32_t hbMqHbRspHandle(struct SAppHbMgr *pAppHbMgr, SClientHbRsp* pRsp) 
 }
 
 static int32_t hbProcessDBInfoRsp(void *value, int32_t valueLen, struct SCatalog *pCatalog) {
-  int32_t msgLen = 0;
   int32_t code = 0;
 
   SUseDbBatchRsp batchUseRsp = {0};
@@ -72,8 +71,6 @@ static int32_t hbProcessDBInfoRsp(void *value, int32_t valueLen, struct SCatalog
     if (code) {
       return code;
     }
-
-    msgLen += sizeof(SUseDbRsp) + rsp->vgNum * sizeof(SVgroupInfo);
   }
 
   return TSDB_CODE_SUCCESS;

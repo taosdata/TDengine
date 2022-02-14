@@ -975,30 +975,37 @@ int32_t mndValidateDbInfo(SMnode *pMnode, SDbVgVersion *pDbs, int32_t numOfDbs, 
     pDbVgVersion->dbId = htobe64(pDbVgVersion->dbId);
     pDbVgVersion->vgVersion = htonl(pDbVgVersion->vgVersion);
 
-    SDbObj *pDb = mndAcquireDb(pMnode, pDbVgVersion->dbFName);
-    if (pDb == NULL || pDbVgVersion->vgVersion >= pDb->vgVersion) {
-      mndReleaseDb(pMnode, pDb);
-      mDebug("db:%s, no need to use db", pDbVgVersion->dbFName);
-      continue;
-    }
-
     SUseDbRsp usedbRsp = {0};
-    usedbRsp.pVgroupInfos = taosArrayInit(pDb->cfg.numOfVgroups, sizeof(SVgroupInfo));
-    if (usedbRsp.pVgroupInfos == NULL) {
+
+    SDbObj *pDb = mndAcquireDb(pMnode, pDbVgVersion->dbFName);
+    if (pDb == NULL) {
+      mDebug("db:%s, no exist", pDbVgVersion->dbFName);
+      memcpy(usedbRsp.db, pDbVgVersion->dbFName, TSDB_DB_FNAME_LEN);
+      usedbRsp.uid = pDbVgVersion->dbId;
+      usedbRsp.vgVersion = -1;
+      taosArrayPush(batchUseRsp.pArray, &usedbRsp);
+    } else if (pDbVgVersion->vgVersion >= pDb->vgVersion) {
+      mDebug("db:%s, version not changed", pDbVgVersion->dbFName);
       mndReleaseDb(pMnode, pDb);
-      mError("db:%s, failed to malloc usedb response", pDb->name);
       continue;
+    } else {
+      usedbRsp.pVgroupInfos = taosArrayInit(pDb->cfg.numOfVgroups, sizeof(SVgroupInfo));
+      if (usedbRsp.pVgroupInfos == NULL) {
+        mndReleaseDb(pMnode, pDb);
+        mError("db:%s, failed to malloc usedb response", pDb->name);
+        continue;
+      }
+
+      mndBuildDBVgroupInfo(pDb, pMnode, usedbRsp.pVgroupInfos);
+      memcpy(usedbRsp.db, pDb->name, TSDB_DB_FNAME_LEN);
+      usedbRsp.uid = pDb->uid;
+      usedbRsp.vgVersion = pDb->vgVersion;
+      usedbRsp.vgNum = (int32_t)taosArrayGetSize(usedbRsp.pVgroupInfos);
+      usedbRsp.hashMethod = pDb->hashMethod;
+
+      taosArrayPush(batchUseRsp.pArray, &usedbRsp);
+      mndReleaseDb(pMnode, pDb);
     }
-
-    mndBuildDBVgroupInfo(pDb, pMnode, usedbRsp.pVgroupInfos);
-    memcpy(usedbRsp.db, pDb->name, TSDB_DB_FNAME_LEN);
-    usedbRsp.uid = pDb->uid;
-    usedbRsp.vgVersion = pDb->vgVersion;
-    usedbRsp.vgNum = (int32_t)taosArrayGetSize(usedbRsp.pVgroupInfos);
-    usedbRsp.hashMethod = pDb->hashMethod;
-
-    taosArrayPush(batchUseRsp.pArray, &usedbRsp);
-    mndReleaseDb(pMnode, pDb);
   }
 
   int32_t rspLen = tSerializeSUseDbBatchRsp(NULL, 0, &batchUseRsp);

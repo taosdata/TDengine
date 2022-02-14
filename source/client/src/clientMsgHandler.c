@@ -264,9 +264,13 @@ int32_t processUseDbRsp(void* param, const SDataBuf* pMsg, int32_t code) {
     return code;
   }
 
-  SUseDbRsp* pUseDbRsp = (SUseDbRsp*) pMsg->pData;
+  SUseDbRsp usedbRsp = {0};
+  tDeserializeSUseDbRsp(pMsg->pData, pMsg->len, &usedbRsp);
+
   SName name = {0};
-  tNameFromString(&name, pUseDbRsp->db, T_NAME_ACCT|T_NAME_DB);
+  tNameFromString(&name, usedbRsp.db, T_NAME_ACCT|T_NAME_DB);
+
+  tFreeSUsedbRsp(&usedbRsp);
 
   char db[TSDB_DB_NAME_LEN] = {0};
   tNameGetDbName(&name, db);
@@ -300,14 +304,12 @@ int32_t processDropDbRsp(void* param, const SDataBuf* pMsg, int32_t code) {
     return code;
   }
 
-  SDropDbRsp *rsp = (SDropDbRsp *)pMsg->pData;
+  SDropDbRsp dropdbRsp = {0};
+  tDeserializeSDropDbRsp(pMsg->pData, pMsg->len, &dropdbRsp);
 
-  struct SCatalog *pCatalog = NULL;
-  rsp->uid = be64toh(rsp->uid);
-
+  struct SCatalog* pCatalog = NULL;
   catalogGetHandle(pRequest->pTscObj->pAppInfo->clusterId, &pCatalog);
-  
-  catalogRemoveDB(pCatalog, rsp->db, rsp->uid);
+  catalogRemoveDB(pCatalog, dropdbRsp.db, dropdbRsp.uid);
 
   tsem_post(&pRequest->body.rspSem);
   return code;
