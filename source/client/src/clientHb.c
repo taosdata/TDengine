@@ -43,7 +43,7 @@ static int32_t hbProcessDBInfoRsp(void *value, int32_t valueLen, struct SCatalog
     if (rsp->vgVersion < 0) {
       code = catalogRemoveDB(pCatalog, rsp->db, rsp->uid);
     } else {
-      SDBVgroupInfo vgInfo = {0};
+      SDBVgInfo vgInfo = {0};
       vgInfo.vgVersion = rsp->vgVersion;
       vgInfo.hashMethod = rsp->hashMethod;
       vgInfo.vgHash = taosHashInit(rsp->vgNum, taosGetDefaultHashFunction(TSDB_DATA_TYPE_INT), true, HASH_ENTRY_LOCK);
@@ -68,10 +68,7 @@ static int32_t hbProcessDBInfoRsp(void *value, int32_t valueLen, struct SCatalog
         }
       }  
       
-      code = catalogUpdateDBVgroup(pCatalog, rsp->db, rsp->uid, &vgInfo);
-      if (code) {
-        taosHashCleanup(vgInfo.vgHash);
-      }
+      catalogUpdateDBVgInfo(pCatalog, rsp->db, rsp->uid, &vgInfo);
     }
 
     if (code) {
@@ -94,13 +91,14 @@ static int32_t hbProcessStbInfoRsp(void *value, int32_t valueLen, struct SCatalo
 
     rsp->numOfColumns = ntohl(rsp->numOfColumns);
     rsp->suid = be64toh(rsp->suid);
+    rsp->dbId = be64toh(rsp->dbId);
     
     if (rsp->numOfColumns < 0) {
       schemaNum = 0;
       
       tscDebug("hb remove stb, db:%s, stb:%s", rsp->dbFName, rsp->stbName);
 
-      catalogRemoveSTableMeta(pCatalog, rsp->dbFName, rsp->stbName, rsp->suid);
+      catalogRemoveStbMeta(pCatalog, rsp->dbFName, rsp->dbId, rsp->stbName, rsp->suid);
     } else {
       tscDebug("hb update stb, db:%s, stb:%s", rsp->dbFName, rsp->stbName);
 
