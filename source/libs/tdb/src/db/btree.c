@@ -43,7 +43,7 @@ typedef int (*BtreeCmprFn)(const void *, const void *);
 #define BTREE_PAGE_PAYLOAD_AT(pPage, idx) NULL /*TODO*/
 #define BTREE_PAGE_IS_LEAF(pPage) 0            /* TODO */
 
-static int btreeCreate(SBTree **pBt);
+static int btreeCreate(SBTree **ppBt);
 static int btreeDestroy(SBTree *pBt);
 static int btreeCursorMoveToChild(SBtCursor *pBtCur, pgno_t pgno);
 
@@ -65,7 +65,7 @@ int btreeClose(SBTree *pBt) {
   return 0;
 }
 
-static int btreeCreate(SBTree **pBt) {
+static int btreeCreate(SBTree **ppBt) {
   SBTree *pBt;
 
   pBt = (SBTree *)calloc(1, sizeof(*pBt));

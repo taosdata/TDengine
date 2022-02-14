@@ -34,6 +34,7 @@ int tdbEnvCreate(TENV **ppEnv);
 int tdbEnvOpen(TENV **ppEnv);
 int tdbEnvClose(TENV *pEnv);
 
+int tdbEnvBeginTxn(TENV *pEnv);
 int tdbEnvCommit(TENV *pEnv);
 
 int       tdbEnvSetPageSize(TENV *pEnv, pgsz_t szPage);
