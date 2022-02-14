@@ -35,6 +35,7 @@ typedef struct SSrvConn {
   // void*       pSrvMsg;
 
   struct sockaddr_in addr;
+  struct sockaddr_in locaddr;
 
   // SRpcMsg sendMsg;
   // del later
@@ -265,8 +266,9 @@ static void uvHandleReq(SSrvConn* pConn) {
 
   transClearBuffer(&pConn->readBuf);
   pConn->ref++;
-  tDebug("server conn %p %s received from %s:%d", pConn, TMSG_INFO(rpcMsg.msgType), inet_ntoa(pConn->addr.sin_addr),
-         ntohs(pConn->addr.sin_port));
+  tDebug("server conn %p %s received from %s:%d, local info: %s:%d", pConn, TMSG_INFO(rpcMsg.msgType),
+         inet_ntoa(pConn->addr.sin_addr), ntohs(pConn->addr.sin_port), inet_ntoa(pConn->locaddr.sin_addr),
+         ntohs(pConn->locaddr.sin_port));
   (*(pRpc->cfp))(pRpc->parent, &rpcMsg, NULL);
   // uv_timer_start(pConn->pTimer, uvHandleActivityTimeout, pRpc->idleTime * 10000, 0);
   // auth
@@ -361,8 +363,9 @@ static void uvPrepareSendData(SSrvMsg* smsg, uv_buf_t* wb) {
   if (transCompressMsg(msg, len, NULL)) {
     // impl later
   }
-  tDebug("server conn %p %s is sent to %s:%d", pConn, TMSG_INFO(pHead->msgType), inet_ntoa(pConn->addr.sin_addr),
-         ntohs(pConn->addr.sin_port));
+  tDebug("server conn %p %s is sent to %s:%d, local info: %s:%d", pConn, TMSG_INFO(pHead->msgType),
+         inet_ntoa(pConn->addr.sin_addr), ntohs(pConn->addr.sin_port), inet_ntoa(pConn->locaddr.sin_addr),
+         ntohs(pConn->locaddr.sin_port));
 
   pHead->msgLen = htonl(len);
   wb->base = msg;
@@ -384,8 +387,8 @@ static void uvStartSendResp(SSrvMsg* smsg) {
   // impl
   SSrvConn* pConn = smsg->pConn;
   if (taosArrayGetSize(pConn->srvMsgs) > 0) {
-    tDebug("server conn %p push data to client %s:%d", pConn, inet_ntoa(pConn->addr.sin_addr),
-           ntohs(pConn->addr.sin_port));
+    tDebug("server conn %p push data to client %s:%d, local info: %s:%d", pConn, inet_ntoa(pConn->addr.sin_addr),
+           ntohs(pConn->addr.sin_port), inet_ntoa(pConn->locaddr.sin_addr), ntohs(pConn->locaddr.sin_port));
     taosArrayPush(pConn->srvMsgs, &smsg);
     return;
   }
@@ -512,13 +515,23 @@ void uvOnConnectionCb(uv_stream_t* q, ssize_t nread, const uv_buf_t* buf) {
     uv_os_fd_t fd;
     uv_fileno((const uv_handle_t*)pConn->pTcp, &fd);
     tTrace("server conn %p created, fd: %d", pConn, fd);
+
     int addrlen = sizeof(pConn->addr);
     if (0 != uv_tcp_getpeername(pConn->pTcp, (struct sockaddr*)&pConn->addr, &addrlen)) {
       tError("server conn %p failed to get peer info", pConn);
       destroyConn(pConn, true);
-    } else {
-      uv_read_start((uv_stream_t*)(pConn->pTcp), uvAllocReadBufferCb, uvOnReadCb);
+      return;
     }
+
+    addrlen = sizeof(pConn->locaddr);
+    if (0 != uv_tcp_getsockname(pConn->pTcp, (struct sockaddr*)&pConn->locaddr, &addrlen)) {
+      tError("server conn %p failed to get local info", pConn);
+      destroyConn(pConn, true);
+      return;
+    }
+
+    uv_read_start((uv_stream_t*)(pConn->pTcp), uvAllocReadBufferCb, uvOnReadCb);
+
   } else {
     tDebug("failed to create new connection");
     destroyConn(pConn, true);
