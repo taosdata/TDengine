@@ -809,6 +809,7 @@ void *ctgTestSetCtableMetaThread(void *param) {
   return NULL;
 }
 
+#if 0
 
 TEST(tableMeta, normalTable) {
   struct SCatalog *pCtg = NULL;
@@ -1763,6 +1764,8 @@ TEST(rentTest, allRent) {
   catalogDestroy();
   memset(&gCtgMgmt, 0, sizeof(gCtgMgmt));
 }
+
+#endif
 
 int main(int argc, char **argv) {
   testing::InitGoogleTest(&argc, argv);
