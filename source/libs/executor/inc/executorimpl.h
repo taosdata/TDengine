@@ -99,10 +99,7 @@ typedef struct SSingleColumnFilterInfo {
 typedef struct STableQueryInfo {
   TSKEY          lastKey;
   int32_t        groupIndex;  // group id in table list
-  SVariant       tag;
-//  STimeWindow    win;  // todo remove it later
-//  STSCursor      cur;
-//  void*          pTable;  // for retrieve the page id list
+//  SVariant       tag;
   SResultRowInfo resInfo;
 } STableQueryInfo;
 
@@ -442,6 +439,7 @@ typedef struct SOptrBasicInfo {
   int32_t*        rowCellInfoOffset;  // offset value for each row result cell info
   SqlFunctionCtx* pCtx;
   SSDataBlock*    pRes;
+  uint32_t        resRowSize;
 } SOptrBasicInfo;
 
 typedef struct SOptrBasicInfo STableIntervalOperatorInfo;
@@ -449,13 +447,14 @@ typedef struct SOptrBasicInfo STableIntervalOperatorInfo;
 typedef struct SAggOperatorInfo {
   SOptrBasicInfo       binfo;
   uint32_t             seed;
-  SDiskbasedBuf* pResultBuf;           // query result buffer based on blocked-wised disk file
+  SDiskbasedBuf       *pResultBuf;           // query result buffer based on blocked-wised disk file
   SHashObj*            pResultRowHashTable;  // quick locate the window object for each result
   SHashObj*            pResultRowListSet;    // used to check if current ResultRowInfo has ResultRow object or not
   SArray*              pResultRowArrayList;  // The array list that contains the Result rows
   char*                keyBuf;               // window key buffer
   SResultRowPool      *pool;  // The window result objects pool, all the resultRow Objects are allocated and managed by this object.
-  STableQueryInfo* current;
+  STableQueryInfo     *current;
+  uint32_t             groupId;
 } SAggOperatorInfo;
 
 typedef struct SProjectOperatorInfo {

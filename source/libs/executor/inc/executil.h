@@ -126,6 +126,13 @@ static FORCE_INLINE char* getPosInResultPage(struct STaskAttr* pQueryAttr, SFile
 //  return ((char *)page->data) + rowOffset + offset * numOfRows;
 }
 
+static FORCE_INLINE char* getPosInResultPage_rv(SFilePage* page, int32_t rowOffset, int32_t offset) {
+  assert(rowOffset >= 0);
+
+  int32_t numOfRows = 1;//(int32_t)getRowNumForMultioutput(pQueryAttr, pQueryAttr->topBotQuery, pQueryAttr->stableQuery);
+  return ((char *)page->data) + rowOffset + offset * numOfRows;
+}
+
 //bool isNullOperator(SColumnFilterElem *pFilter, const char* minval, const char* maxval, int16_t type);
 //bool notNullOperator(SColumnFilterElem *pFilter, const char* minval, const char* maxval, int16_t type);
 
