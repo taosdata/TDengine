@@ -273,6 +273,7 @@ bool isStringOp(int32_t op) {
   return op == TSDB_BINARY_OP_CONCAT;
 }
 
+#if 0
 int32_t evaluateExprNodeTree(tExprNode* pExprs, int32_t numOfRows, SScalarFuncParam* pOutput, void* param,
                           char* (*getSourceDataBlock)(void*, const char*, int32_t)) {
   if (pExprs == NULL) {
@@ -361,6 +362,8 @@ int32_t evaluateExprNodeTree(tExprNode* pExprs, int32_t numOfRows, SScalarFuncPa
 
   return 0;
 }
+#endif
+
 
 SScalarFunctionInfo scalarFunc[8] = {
     {"ceil",   FUNCTION_TYPE_SCALAR, FUNCTION_CEIL,   tceil},

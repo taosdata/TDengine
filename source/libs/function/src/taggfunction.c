@@ -3243,7 +3243,7 @@ static void arithmetic_function(SqlFunctionCtx *pCtx) {
   SScalarFuncParam output = {0};
   output.data = pCtx->pOutput;
 
-  evaluateExprNodeTree(pSup->pExprInfo->pExpr, pCtx->size, &output, pSup, getArithColumnData);
+  //evaluateExprNodeTree(pSup->pExprInfo->pExpr, pCtx->size, &output, pSup, getArithColumnData);
 }
 
 #define LIST_MINMAX_N(ctx, minOutput, maxOutput, elemCnt, data, type, tsdbType, numOfNotNullElem) \

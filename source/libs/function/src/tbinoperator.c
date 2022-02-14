@@ -465,18 +465,16 @@ void vectorConcat(SScalarFuncParam* pLeft, SScalarFuncParam* pRight, void *out, 
 
 _bin_scalar_fn_t getBinScalarOperatorFn(int32_t binFunctionId) {
   switch (binFunctionId) {
-    case TSDB_BINARY_OP_ADD:
+    case OP_TYPE_ADD:
       return vectorAdd;
-    case TSDB_BINARY_OP_SUBTRACT:
+    case OP_TYPE_SUB:
       return vectorSub;
-    case TSDB_BINARY_OP_MULTIPLY:
+    case OP_TYPE_MULTI:
       return vectorMultiply;
-    case TSDB_BINARY_OP_DIVIDE:
+    case OP_TYPE_DIV:
       return vectorDivide;
-    case TSDB_BINARY_OP_REMAINDER:
+    case OP_TYPE_MOD:
       return vectorRemainder;
-    case TSDB_BINARY_OP_CONCAT:
-      return vectorConcat;
     default:
       assert(0);
       return NULL;

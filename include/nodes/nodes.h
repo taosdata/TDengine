@@ -337,6 +337,7 @@ SNodeList* nodesListAppend(SNodeList* pList, SNode* pNode);
 SListCell* nodesListErase(SNodeList* pList, SListCell* pCell);
 SNode* nodesListGetNode(SNodeList* pList, int32_t index);
 void nodesDestroyList(SNodeList* pList);
+void *nodesGetValueFromNode(SValueNode *pNode);
 
 typedef enum EDealRes {
   DEAL_RES_CONTINUE = 1,
