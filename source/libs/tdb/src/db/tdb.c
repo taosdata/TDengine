@@ -21,6 +21,10 @@ struct STDb {
   TENV *   pEnv;     // TENV containing the DB
 };
 
+struct STDbCurosr {
+  SBtCursor *pBtCur;
+};
+
 int tdbCreate(TDB **ppDb) {
   TDB *pDb;
 

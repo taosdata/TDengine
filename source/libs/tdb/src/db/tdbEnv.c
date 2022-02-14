@@ -23,6 +23,7 @@ struct STDbEnv {
   SPgCache *  pPgCache;   // page cache
   struct {
   } pgfht;  // page file hash table;
+  SJournal *pJournal;
 };
 
 static int tdbEnvDestroy(TENV *pEnv);

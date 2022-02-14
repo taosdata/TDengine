@@ -39,6 +39,7 @@ struct SPgFile {
   pgsz_t    pgSize;
   int       fd;
   pgno_t    pgFileSize;
+  TDB *     pDb;  // For a SPgFile for multiple databases, this is the <dbname, pgno> mapping DB.
 };
 
 int pgFileOpen(SPgFile **ppPgFile, const char *fname, SPgCache *pPgCache);

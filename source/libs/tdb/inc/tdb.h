@@ -50,10 +50,11 @@ int tdbClose(TDB *pDb);
 int tdbSetKeyLen(TDB *pDb, int klen);
 int tdbSetValLen(TDB *pDb, int vlen);
 int tdbSetDup(TDB *pDb, int dup);
-
 int tdbGetKeyLen(TDB *pDb, int *pklen);
 int tdbGetValLen(TDB *pDb, int *pvlen);
 int tdbGetDup(TDB *pDb, int *pdup);
+
+int tdbInsert(TDB *pDb, const void *pKey, int nKey, const void *pData, int nData);
 
 // TDBC
 
