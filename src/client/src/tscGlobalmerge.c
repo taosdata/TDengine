@@ -772,9 +772,56 @@ static void appendOneRowToDataBlock(SSDataBlock *pBlock, char *buf, SColumnModel
     SColumnInfoData* pColInfo = taosArrayGet(pBlock->pDataBlock, i);
     char* p = pColInfo->pData + pBlock->info.rows * pColInfo->info.bytes;
 
-    char *src = COLMODEL_GET_VAL(buf, pModel, rowIndex, i);
-    memmove(p, src, pColInfo->info.bytes);
+    char *val = COLMODEL_GET_VAL(buf, pModel, rowIndex, i);
+    memmove(p, val, pColInfo->info.bytes);
+
+
+    printf("type:%d\t", pColInfo->info.type);
+    switch (pColInfo->info.type) {
+      case TSDB_DATA_TYPE_BIGINT:
+        printf("%" PRId64 "\t", *(int64_t *)val);
+        break;
+      case TSDB_DATA_TYPE_INT:
+        printf("%d\t", *(int32_t *)val);
+        break;
+      case TSDB_DATA_TYPE_NCHAR: {
+        char buf1[128] = {0};
+        int32_t len = taosUcs4ToMbs(val, pColInfo->info.bytes, buf1);
+        if (len < 0){
+          printf("castConvert1 taosUcs4ToMbs error");
+        }
+        printf("%s\t", buf1);
+        break;
+      }
+      case TSDB_DATA_TYPE_BINARY: {
+        //printBinaryDataEx(val, pModel->pFields[j].field.bytes, &param[j]);
+        printf("%s\t", val+2);
+        break;
+      }
+      case TSDB_DATA_TYPE_DOUBLE:
+        printf("%lf\t", *(double *)val);
+        break;
+      case TSDB_DATA_TYPE_TIMESTAMP:
+        printf("%" PRId64 "\t", *(int64_t *)val);
+        break;
+      case TSDB_DATA_TYPE_TINYINT:
+        printf("%d\t", *(int8_t *)val);
+        break;
+      case TSDB_DATA_TYPE_SMALLINT:
+        printf("%d\t", *(int16_t *)val);
+        break;
+      case TSDB_DATA_TYPE_BOOL:
+        printf("%d\t", *(int8_t *)val);
+        break;
+      case TSDB_DATA_TYPE_FLOAT:
+        printf("%f\t", *(float *)val);
+        break;
+      default:
+        assert(false);
+    }
   }
+  printf("\n");
+
 
   pBlock->info.rows += 1;
 }
@@ -856,7 +903,7 @@ SSDataBlock* doMultiwayMergeSort(void* param, bool* newgroup) {
 #if defined(_DEBUG_VIEW)
     printf("chosen row:\t");
     SSrcColumnInfo colInfo[256] = {0};
-    tscGetSrcColumnInfo(colInfo, pQueryInfo);
+    stscGetSrcColumnInfo(colInfo, pQueryInfo);
 
     tColModelDisplayEx(pModel, tmpBuffer->data, tmpBuffer->num, pModel->capacity, colInfo);
 #endif

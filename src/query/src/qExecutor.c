@@ -435,7 +435,7 @@ static bool isSelectivityWithTagsQuery(SQLFunctionCtx *pCtx, int32_t numOfOutput
       continue;
     }
 
-    if (functId == TSDB_FUNC_TAG_DUMMY || functId == TSDB_FUNC_TS_DUMMY) {
+    if (functId == TSDB_FUNC_TAG_DUMMY || functId == TSDB_FUNC_TAG || functId == TSDB_FUNC_TS_DUMMY) {
       hasTags = true;
       continue;
     }
@@ -3960,7 +3960,7 @@ void finalizeUniqueResult(SOperatorInfo* pOperator, SQLFunctionCtx* pCtx, SResul
     }
     buf->numOfRows = (uint16_t)getNumOfResult(pRuntimeEnv, pCtx, numOfOutput);
     for (int32_t k = 0; k < numOfOutput; ++k) {
-      if (pCtx[k].functionId != TSDB_FUNC_TAG) {
+      if (pCtx[k].functionId != TSDB_FUNC_TAG && pCtx[k].functionId != TSDB_FUNC_PRJ) {
         continue;
       }
 
