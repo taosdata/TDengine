@@ -47,10 +47,11 @@ int32_t fmGetHandle(FuncMgtHandle* pHandle) {
 
 int32_t fmGetFuncInfo(FuncMgtHandle handle, const char* pFuncName, int32_t* pFuncId, int32_t* pFuncType) {
   SFuncMgtService* pService = (SFuncMgtService*)handle;
-  pFuncId = taosHashGet(pService->pFuncNameHashTable, pFuncName, strlen(pFuncName));
-  if (NULL == pFuncId) {
+  void* pVal = taosHashGet(pService->pFuncNameHashTable, pFuncName, strlen(pFuncName));
+  if (NULL == pVal) {
     return TSDB_CODE_FAILED;
   }
+  *pFuncId = *(int32_t*)pVal;
   if (*pFuncId < 0 || *pFuncId >= funcMgtBuiltinsNum) {
     return TSDB_CODE_FAILED;
   }

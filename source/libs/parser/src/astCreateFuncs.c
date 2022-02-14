@@ -242,6 +242,9 @@ SNode* createOrderByExprNode(SAstCreateContext* pCxt, SNode* pExpr, EOrder order
   CHECK_OUT_OF_MEM(orderByExpr);
   orderByExpr->pExpr = pExpr;
   orderByExpr->order = order;
+  if (NULL_ORDER_DEFAULT == nullOrder) {
+    nullOrder = (ORDER_ASC == order ? NULL_ORDER_FIRST : NULL_ORDER_LAST);
+  }
   orderByExpr->nullOrder = nullOrder;
   return (SNode*)orderByExpr;
 }
@@ -277,6 +280,15 @@ SNode* createFillNode(SAstCreateContext* pCxt, EFillMode mode, SNode* pValues) {
   fill->mode = mode;
   fill->pValues = pValues;
   return (SNode*)fill;
+}
+
+SNode* createGroupingSetNode(SAstCreateContext* pCxt, SNode* pNode) {
+  SGroupingSetNode* groupingSet = (SGroupingSetNode*)nodesMakeNode(QUERY_NODE_GROUPING_SET);
+  CHECK_OUT_OF_MEM(groupingSet);
+  groupingSet->groupingSetType = GP_TYPE_NORMAL;
+  groupingSet->pParameterList = nodesMakeList();
+  nodesListAppend(groupingSet->pParameterList, pNode);
+  return (SNode*)groupingSet;
 }
 
 SNode* setProjectionAlias(SAstCreateContext* pCxt, SNode* pNode, const SToken* pAlias) {

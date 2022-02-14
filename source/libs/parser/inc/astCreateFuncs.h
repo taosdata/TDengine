@@ -55,6 +55,7 @@ SNode* createSessionWindowNode(SAstCreateContext* pCxt, SNode* pCol, const SToke
 SNode* createStateWindowNode(SAstCreateContext* pCxt, SNode* pCol);
 SNode* createIntervalWindowNode(SAstCreateContext* pCxt, SNode* pInterval, SNode* pOffset, SNode* pSliding, SNode* pFill);
 SNode* createFillNode(SAstCreateContext* pCxt, EFillMode mode, SNode* pValues);
+SNode* createGroupingSetNode(SAstCreateContext* pCxt, SNode* pNode);
 
 SNode* addWhereClause(SAstCreateContext* pCxt, SNode* pStmt, SNode* pWhere);
 SNode* addPartitionByClause(SAstCreateContext* pCxt, SNode* pStmt, SNodeList* pPartitionByList);

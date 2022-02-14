@@ -289,7 +289,6 @@ int32_t tqStoreDelete(STqMetaStore* pMeta) {
   return 0;
 }
 
-// TODO: wrap in tfile
 int32_t tqStorePersist(STqMetaStore* pMeta) {
   STqIdxPageBuf      idxBuf;
   int64_t*           bufPtr = (int64_t*)idxBuf.buffer;

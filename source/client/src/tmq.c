@@ -58,7 +58,7 @@ struct tmq_t {
   char           clientId[256];
   SRWLatch       lock;
   int64_t        consumerId;
-  int64_t        epoch;
+  int32_t        epoch;
   int64_t        status;
   tsem_t         rspSem;
   STscObj*       pTscObj;
@@ -113,10 +113,10 @@ typedef struct SMqConsumeCbParam {
 } SMqConsumeCbParam;
 
 typedef struct SMqCommitCbParam {
-  tmq_t*         tmq;
-  SMqClientVg*   pVg;
-  int32_t        async;
-  tsem_t         rspSem;
+  tmq_t*       tmq;
+  SMqClientVg* pVg;
+  int32_t      async;
+  tsem_t       rspSem;
 } SMqCommitCbParam;
 
 tmq_conf_t* tmq_conf_new() {
@@ -163,8 +163,8 @@ int32_t tmqSubscribeCb(void* param, const SDataBuf* pMsg, int32_t code) {
 }
 
 int32_t tmqCommitCb(void* param, const SDataBuf* pMsg, int32_t code) {
-  SMqCommitCbParam* pParam = (SMqCommitCbParam*) param;
-  tmq_resp_err_t rspErr = code == 0 ? TMQ_RESP_ERR__SUCCESS : TMQ_RESP_ERR__FAIL;
+  SMqCommitCbParam* pParam = (SMqCommitCbParam*)param;
+  tmq_resp_err_t    rspErr = code == 0 ? TMQ_RESP_ERR__SUCCESS : TMQ_RESP_ERR__FAIL;
   if (pParam->tmq->commit_cb) {
     pParam->tmq->commit_cb(pParam->tmq, rspErr, NULL, NULL);
   }
@@ -221,13 +221,7 @@ tmq_resp_err_t tmq_subscribe(tmq_t* tmq, tmq_list_t* topic_list) {
     tNameExtractFullName(&name, topicFname);
     tscDebug("subscribe topic: %s", topicFname);
     SMqClientTopic topic = {
-        .nextVgIdx = 0,
-        .sql = NULL,
-        .sqlLen = 0,
-        .topicId = 0,
-        .topicName = topicFname,
-        .vgs = NULL
-    };
+        .nextVgIdx = 0, .sql = NULL, .sqlLen = 0, .topicId = 0, .topicName = topicFname, .vgs = NULL};
     topic.vgs = taosArrayInit(0, sizeof(SMqClientVg));
     taosArrayPush(tmq->clientTopics, &topic);
     /*SMqClientTopic topic = {*/
@@ -461,10 +455,10 @@ static char* formatTimestamp(char* buf, int64_t val, int precision) {
 void tmqShowMsg(tmq_message_t* tmq_message) {
   if (tmq_message == NULL) return;
 
-  static bool        noPrintSchema;
-  char               pBuf[128];
+  static bool    noPrintSchema;
+  char           pBuf[128];
   SMqConsumeRsp* pRsp = (SMqConsumeRsp*)tmq_message;
-  int32_t colNum = pRsp->schemas->nCols;
+  int32_t        colNum = pRsp->schemas->nCols;
   if (!noPrintSchema) {
     printf("|");
     for (int32_t i = 0; i < colNum; i++) {
@@ -506,7 +500,7 @@ int32_t tmqPollCb(void* param, const SDataBuf* pMsg, int32_t code) {
   SMqConsumeCbParam* pParam = (SMqConsumeCbParam*)param;
   SMqClientVg*       pVg = pParam->pVg;
   if (code != 0) {
-    /*printf("msg discard\n");*/
+    printf("msg discard\n");
     tsem_post(&pParam->rspSem);
     return 0;
   }
@@ -517,7 +511,7 @@ int32_t tmqPollCb(void* param, const SDataBuf* pMsg, int32_t code) {
     return -1;
   }
   tDecodeSMqConsumeRsp(pMsg->pData, pRsp);
-  /*printf("rsp %ld %ld %d\n", pRsp->committedOffset, pRsp->rspOffset, pRsp->numOfTopics);*/
+  /*printf("rsp commit off:%ld rsp off:%ld has data:%d\n", pRsp->committedOffset, pRsp->rspOffset, pRsp->numOfTopics);*/
   if (pRsp->numOfTopics == 0) {
     /*printf("no data\n");*/
     free(pRsp);
@@ -584,7 +578,7 @@ int32_t tmqAskEpCb(void* param, const SDataBuf* pMsg, int32_t code) {
   return 0;
 }
 
-int32_t tmqAsyncAskEp(tmq_t* tmq, bool wait) {
+int32_t tmqAskEp(tmq_t* tmq, bool wait) {
   int32_t           tlen = sizeof(SMqCMGetSubEpReq);
   SMqCMGetSubEpReq* buf = malloc(tlen);
   if (buf == NULL) {
@@ -592,6 +586,7 @@ int32_t tmqAsyncAskEp(tmq_t* tmq, bool wait) {
     goto END;
   }
   buf->consumerId = htobe64(tmq->consumerId);
+  buf->epoch = htonl(tmq->epoch);
   strcpy(buf->cgroup, tmq->groupId);
 
   SRequestObj* pRequest = createRequest(tmq->pTscObj, NULL, NULL, TDMT_MND_GET_SUB_EP);
@@ -602,7 +597,7 @@ int32_t tmqAsyncAskEp(tmq_t* tmq, bool wait) {
 
   pRequest->body.requestMsg = (SDataBuf){.pData = buf, .len = tlen};
 
-  SMqAskEpCbParam *pParam = malloc(sizeof(SMqAskEpCbParam));
+  SMqAskEpCbParam* pParam = malloc(sizeof(SMqAskEpCbParam));
   if (pParam == NULL) {
     tscError("failed to malloc subscribe param");
     goto END;
@@ -652,7 +647,7 @@ tmq_message_t* tmq_consumer_poll(tmq_t* tmq, int64_t blocking_time) {
   tmq_message_t* tmq_message = NULL;
 
   int64_t status = atomic_load_64(&tmq->status);
-  tmqAsyncAskEp(tmq, status == 0);
+  tmqAskEp(tmq, status == 0);
 
   if (blocking_time < 0) blocking_time = 1;
   if (blocking_time > 1000) blocking_time = 1000;
@@ -670,47 +665,57 @@ tmq_message_t* tmq_consumer_poll(tmq_t* tmq, int64_t blocking_time) {
   }
 
   tmq->nextTopicIdx = (tmq->nextTopicIdx + 1) % taosArrayGetSize(tmq->clientTopics);
-  pTopic->nextVgIdx = (pTopic->nextVgIdx + 1 % taosArrayGetSize(pTopic->vgs));
-  SMqClientVg* pVg = taosArrayGet(pTopic->vgs, pTopic->nextVgIdx);
-  SMqConsumeReq* pReq = tmqBuildConsumeReqImpl(tmq, blocking_time, TMQ_REQ_TYPE_CONSUME_ONLY, pTopic, pVg);
-  if (pReq == NULL) {
-    usleep(blocking_time * 1000);
-    return NULL;
+  int32_t beginVgIdx = pTopic->nextVgIdx;
+  while (1) {
+    pTopic->nextVgIdx = (pTopic->nextVgIdx + 1) % taosArrayGetSize(pTopic->vgs);
+    SMqClientVg* pVg = taosArrayGet(pTopic->vgs, pTopic->nextVgIdx);
+    /*printf("consume vg %d, offset %ld\n", pVg->vgId, pVg->currentOffset);*/
+    SMqConsumeReq* pReq = tmqBuildConsumeReqImpl(tmq, blocking_time, TMQ_REQ_TYPE_CONSUME_ONLY, pTopic, pVg);
+    if (pReq == NULL) {
+      ASSERT(false);
+      usleep(blocking_time * 1000);
+      return NULL;
+    }
+
+    SMqConsumeCbParam* param = malloc(sizeof(SMqConsumeCbParam));
+    if (param == NULL) {
+      ASSERT(false);
+      usleep(blocking_time * 1000);
+      return NULL;
+    }
+    param->tmq = tmq;
+    param->retMsg = &tmq_message;
+    param->pVg = pVg;
+    tsem_init(&param->rspSem, 0, 0);
+
+    SRequestObj* pRequest = createRequest(tmq->pTscObj, NULL, NULL, TDMT_VND_CONSUME);
+    pRequest->body.requestMsg = (SDataBuf){.pData = pReq, .len = sizeof(SMqConsumeReq)};
+
+    SMsgSendInfo* sendInfo = buildMsgInfoImpl(pRequest);
+    sendInfo->requestObjRefId = 0;
+    sendInfo->param = param;
+    sendInfo->fp = tmqPollCb;
+
+    /*printf("req offset: %ld\n", pReq->offset);*/
+
+    int64_t transporterId = 0;
+    asyncSendMsgToServer(tmq->pTscObj->pAppInfo->pTransporter, &pVg->epSet, &transporterId, sendInfo);
+    tmq->pollCnt++;
+
+    tsem_wait(&param->rspSem);
+    tsem_destroy(&param->rspSem);
+    free(param);
+
+    if (tmq_message == NULL) {
+      if (beginVgIdx == pTopic->nextVgIdx) {
+        usleep(blocking_time * 1000);
+      } else {
+        continue;
+      }
+    }
+
+    return tmq_message;
   }
-
-  SMqConsumeCbParam* param = malloc(sizeof(SMqConsumeCbParam));
-  if (param == NULL) {
-    usleep(blocking_time * 1000);
-    return NULL;
-  }
-  param->tmq = tmq;
-  param->retMsg = &tmq_message;
-  param->pVg = pVg;
-  tsem_init(&param->rspSem, 0, 0);
-
-  SRequestObj* pRequest = createRequest(tmq->pTscObj, NULL, NULL, TDMT_VND_CONSUME);
-  pRequest->body.requestMsg = (SDataBuf){.pData = pReq, .len = sizeof(SMqConsumeReq)};
-
-  SMsgSendInfo* sendInfo = buildMsgInfoImpl(pRequest);
-  sendInfo->requestObjRefId = 0;
-  sendInfo->param = param;
-  sendInfo->fp = tmqPollCb;
-
-  /*printf("req offset: %ld\n", pReq->offset);*/
-
-  int64_t transporterId = 0;
-  asyncSendMsgToServer(tmq->pTscObj->pAppInfo->pTransporter, &pVg->epSet, &transporterId, sendInfo);
-  tmq->pollCnt++;
-
-  tsem_wait(&param->rspSem);
-  tsem_destroy(&param->rspSem);
-  free(param);
-
-  if (tmq_message == NULL) {
-    usleep(blocking_time * 1000);
-  }
-
-  return tmq_message;
 
   /*tsem_wait(&pRequest->body.rspSem);*/
 
@@ -726,21 +731,20 @@ tmq_message_t* tmq_consumer_poll(tmq_t* tmq, int64_t blocking_time) {
 }
 
 tmq_resp_err_t tmq_commit(tmq_t* tmq, const tmq_topic_vgroup_list_t* tmq_topic_vgroup_list, int32_t async) {
-
   if (tmq_topic_vgroup_list != NULL) {
-    //TODO
+    // TODO
   }
 
-  //TODO: change semaphore to gate
+  // TODO: change semaphore to gate
   for (int i = 0; i < taosArrayGetSize(tmq->clientTopics); i++) {
     SMqClientTopic* pTopic = taosArrayGet(tmq->clientTopics, i);
     for (int j = 0; j < taosArrayGetSize(pTopic->vgs); j++) {
-      SMqClientVg* pVg = taosArrayGet(pTopic->vgs, j);
+      SMqClientVg*   pVg = taosArrayGet(pTopic->vgs, j);
       SMqConsumeReq* pReq = tmqBuildConsumeReqImpl(tmq, 0, TMQ_REQ_TYPE_COMMIT_ONLY, pTopic, pVg);
-      
+
       SRequestObj* pRequest = createRequest(tmq->pTscObj, NULL, NULL, TDMT_VND_CONSUME);
       pRequest->body.requestMsg = (SDataBuf){.pData = pReq, .len = sizeof(SMqConsumeReq)};
-      SMqCommitCbParam *pParam = malloc(sizeof(SMqCommitCbParam));
+      SMqCommitCbParam* pParam = malloc(sizeof(SMqCommitCbParam));
       if (pParam == NULL) {
         continue;
       }
@@ -771,9 +775,7 @@ void tmq_message_destroy(tmq_message_t* tmq_message) {
   free(tmq_message);
 }
 
-tmq_resp_err_t tmq_consumer_close(tmq_t* tmq) {
-  return TMQ_RESP_ERR__SUCCESS;
-}
+tmq_resp_err_t tmq_consumer_close(tmq_t* tmq) { return TMQ_RESP_ERR__SUCCESS; }
 
 const char* tmq_err2str(tmq_resp_err_t err) {
   if (err == TMQ_RESP_ERR__SUCCESS) {

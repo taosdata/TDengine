@@ -31,16 +31,7 @@ extern "C" {
   for (SListCell* cell = (NULL != (list) ? (list)->pHead : NULL); (NULL != cell ? (node = cell->pNode, true) : (node = NULL, false)); cell = cell->pNext)
 
 // only be use in FOREACH
-#define ERASE_NODE(list) \
-  if (NULL == cell->pPrev) { \
-    (list)->pHead = cell->pNext; \
-  } else { \
-    cell->pPrev->pNext = cell->pNext; \
-    cell->pNext->pPrev = cell->pPrev; \
-  } \
-  SListCell* tmp = cell; \
-  cell = cell->pNext; \
-  tfree(tmp);
+#define ERASE_NODE(list) cell = nodesListErase(list, cell);
 
 #define REPLACE_NODE(newNode) cell->pNode = (SNode*)(newNode)
 
@@ -343,17 +334,21 @@ void nodesDestroyNode(SNode* pNode);
 
 SNodeList* nodesMakeList();
 SNodeList* nodesListAppend(SNodeList* pList, SNode* pNode);
+SListCell* nodesListErase(SNodeList* pList, SListCell* pCell);
 SNode* nodesListGetNode(SNodeList* pList, int32_t index);
 void nodesDestroyList(SNodeList* pList);
 
-typedef bool (*FQueryNodeWalker)(SNode* pNode, void* pContext);
+typedef enum EDealRes {
+  DEAL_RES_CONTINUE = 1,
+  DEAL_RES_IGNORE_CHILD,
+  DEAL_RES_ERROR,
+} EDealRes;
+typedef EDealRes (*FQueryNodeWalker)(SNode* pNode, void* pContext);
 
 void nodesWalkNode(SNode* pNode, FQueryNodeWalker walker, void* pContext);
 void nodesWalkList(SNodeList* pList, FQueryNodeWalker walker, void* pContext);
 void nodesWalkNodePostOrder(SNode* pNode, FQueryNodeWalker walker, void* pContext);
 void nodesWalkListPostOrder(SNodeList* pList, FQueryNodeWalker walker, void* pContext);
-
-bool nodesWalkStmt(SNode* pNode, FQueryNodeWalker walker, void* pContext);
 
 bool nodesEqualNode(const SNode* a, const SNode* b);
 
@@ -361,6 +356,8 @@ void nodesCloneNode(const SNode* pNode);
 
 int32_t nodesNodeToString(const SNode* pNode, char** pStr, int32_t* pLen);
 int32_t nodesStringToNode(const char* pStr, SNode** pNode);
+
+bool nodesIsExprNode(const SNode* pNode);
 
 bool nodesIsArithmeticOp(const SOperatorNode* pOp);
 bool nodesIsComparisonOp(const SOperatorNode* pOp);

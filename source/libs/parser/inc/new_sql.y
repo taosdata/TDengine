@@ -238,6 +238,7 @@ joined_table(A) ::=
 
 %type join_type                                                                   { EJoinType }
 %destructor join_type                                                             { PARSER_DESTRUCTOR_TRACE; }
+join_type(A) ::= .                                                                { PARSER_TRACE; A = JOIN_TYPE_INNER; }
 join_type(A) ::= INNER.                                                           { PARSER_TRACE; A = JOIN_TYPE_INNER; }
 
 /************************************************ query_specification *************************************************/
@@ -315,7 +316,12 @@ fill_mode(A) ::= NEXT.                                                          
 %type group_by_clause_opt                                                         { SNodeList* }
 %destructor group_by_clause_opt                                                   { PARSER_DESTRUCTOR_TRACE; nodesDestroyList($$); }
 group_by_clause_opt(A) ::= .                                                      { PARSER_TRACE; A = NULL; }
-group_by_clause_opt(A) ::= GROUP BY expression_list(B).                           { PARSER_TRACE; A = B; }
+group_by_clause_opt(A) ::= GROUP BY group_by_list(B).                             { PARSER_TRACE; A = B; }
+
+%type group_by_list                                                             { SNodeList* }
+%destructor group_by_list                                                       { PARSER_DESTRUCTOR_TRACE; nodesDestroyList($$); }
+group_by_list(A) ::= expression(B).                                             { PARSER_TRACE; A = createNodeList(pCxt, createGroupingSetNode(pCxt, releaseRawExprNode(pCxt, B))); }
+group_by_list(A) ::= group_by_list(B) NK_COMMA expression(C).                   { PARSER_TRACE; A = addNodeToList(pCxt, B, createGroupingSetNode(pCxt, releaseRawExprNode(pCxt, C))); }
 
 having_clause_opt(A) ::= .                                                        { PARSER_TRACE; A = NULL; }
 having_clause_opt(A) ::= HAVING search_condition(B).                              { PARSER_TRACE; A = B; }

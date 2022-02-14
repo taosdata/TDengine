@@ -93,6 +93,7 @@ static int vnodeGetTableMeta(SVnode *pVnode, SRpcMsg *pMsg) {
   if (pTbCfg->type == META_CHILD_TABLE) {
     pStbCfg = metaGetTbInfoByUid(pVnode->pMeta, pTbCfg->ctbCfg.suid);
     if (pStbCfg == NULL) {
+      code = TSDB_CODE_VND_TB_NOT_EXIST;
       goto _exit;
     }
 
@@ -116,9 +117,11 @@ static int vnodeGetTableMeta(SVnode *pVnode, SRpcMsg *pMsg) {
   msgLen = sizeof(STableMetaRsp) + sizeof(SSchema) * (nCols + nTagCols);
   pTbMetaMsg = (STableMetaRsp *)rpcMallocCont(msgLen);
   if (pTbMetaMsg == NULL) {
+    code = TSDB_CODE_VND_OUT_OF_MEMORY;
     goto _exit;
   }
 
+  pTbMetaMsg->dbId = htobe64(pVnode->config.dbId);
   memcpy(pTbMetaMsg->dbFName, pReq->dbFName, sizeof(pTbMetaMsg->dbFName));
   strcpy(pTbMetaMsg->tbName, pReq->tbName);
   if (pTbCfg->type == META_CHILD_TABLE) {
