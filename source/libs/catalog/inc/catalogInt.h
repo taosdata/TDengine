@@ -213,6 +213,8 @@ typedef struct SCtgAction {
 
 #define TD_RWLATCH_WRITE_FLAG_COPY 0x40000000
 
+#define CTG_IS_LOCKED(_lock) atomic_load_32((_lock))
+
 #define CTG_LOCK(type, _lock) do {   \
   if (CTG_READ == (type)) {          \
     assert(atomic_load_32((_lock)) >= 0);  \
