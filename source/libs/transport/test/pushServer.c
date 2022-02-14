@@ -77,7 +77,7 @@ void processShellMsg() {
       taosFreeQitem(pRpcMsg);
 
       {
-        sleep(1);
+        // sleep(1);
         SRpcMsg nRpcMsg = {0};
         nRpcMsg.pCont = rpcMallocCont(msgSize);
         nRpcMsg.contLen = msgSize;
