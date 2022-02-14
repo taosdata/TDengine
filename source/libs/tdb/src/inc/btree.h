@@ -34,7 +34,7 @@ int btreeCursorMoveTo(SBtCursor *pBtCur, int kLen, const void *pKey);
 int btreeCursorNext(SBtCursor *pBtCur);
 
 struct SBTree {
-  pgno_t root;
+  pgno_t   root;
 };
 
 #ifdef __cplusplus

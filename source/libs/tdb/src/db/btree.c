@@ -66,12 +66,21 @@ int btreeClose(SBTree *pBt) {
 }
 
 static int btreeCreate(SBTree **pBt) {
+  SBTree *pBt;
+
+  pBt = (SBTree *)calloc(1, sizeof(*pBt));
+  if (pBt == NULL) {
+    return -1;
+  }
+
   // TODO
   return 0;
 }
 
 static int btreeDestroy(SBTree *pBt) {
-  // TODO
+  if (pBt) {
+    free(pBt);
+  }
   return 0;
 }
 
