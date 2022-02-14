@@ -231,7 +231,9 @@ static SKeyword keywordTable[] = {
     {"AGGREGATE",    TK_AGGREGATE},
     {"BUFSIZE",      TK_BUFSIZE},
     {"RANGE",        TK_RANGE},
-    {"CONTAINS",     TK_CONTAINS}
+    {"CONTAINS",     TK_CONTAINS},
+    {"TO",           TK_TO},
+    {"SPLIT",        TK_SPLIT}   
 };
 
 static const char isIdChar[] = {
@@ -702,6 +704,18 @@ SStrToken tStrGetToken(char* str, int32_t* i, bool isPrevOptr) {
   *i += t0.n;
 
   return t0;
+}
+
+/**
+ * strcpy implement source from SStrToken
+ *
+ * @param dst  copy to 
+ * @param srcToken copy from
+ * @return size of copy successful bytes
+ */
+int32_t tStrNCpy(char *dst, SStrToken* srcToken) {
+  strncpy(dst, srcToken->z, srcToken->n);
+  return srcToken->n;
 }
 
 bool taosIsKeyWordToken(const char* z, int32_t len) {
