@@ -37,7 +37,7 @@ extern "C" {
 
 typedef struct STQ STQ;
 
-// memory allocator supported by vnode
+// memory allocator provided by vnode
 typedef struct STqMemRef {
   SMemAllocatorFactory* pAllocatorFactory;
   SMemAllocator*        pAllocator;
@@ -51,7 +51,7 @@ void tqCleanUp();
 STQ* tqOpen(const char* path, SWal* pWal, SMeta* pMeta, STqCfg* tqConfig, SMemAllocatorFactory* allocFac);
 void tqClose(STQ*);
 
-// void* will be replace by a msg type
+// required by vnode
 int tqPushMsg(STQ*, void* msg, int64_t version);
 int tqCommit(STQ*);
 
