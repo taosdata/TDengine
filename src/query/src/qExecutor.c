@@ -2772,16 +2772,14 @@ static void getIntermediateBufInfo(SQueryRuntimeEnv* pRuntimeEnv, int32_t* ps, i
   SQueryAttr* pQueryAttr = pRuntimeEnv->pQueryAttr;
   int32_t MIN_ROWS_PER_PAGE = 4;
 
-
-  *rowsize = (int32_t)(pQueryAttr->resultRowSize * getRowNumForMultioutput(pQueryAttr, pQueryAttr->topBotQuery, pQueryAttr->stableQuery));
-
   if (pQueryAttr->uniqueQuery) {
-    pQueryAttr->maxUniqueResult = MAX_UNIQUE_RESULT_SIZE;
     int64_t rowSize = pQueryAttr->resultRowSize;
     while(rowSize*pQueryAttr->maxUniqueResult > 1024*1024*100){
       pQueryAttr->maxUniqueResult = pQueryAttr->maxUniqueResult >> 1u;
     }
     *rowsize = (int32_t)(rowSize*pQueryAttr->maxUniqueResult);
+  }else{
+    *rowsize = (int32_t)(pQueryAttr->resultRowSize * getRowNumForMultioutput(pQueryAttr, pQueryAttr->topBotQuery, pQueryAttr->stableQuery));
   }
   int32_t overhead = sizeof(tFilePage);
 
@@ -9681,7 +9679,8 @@ SQInfo* createQInfoImpl(SQueryTableMsg* pQueryMsg, SGroupbyExpr* pGroupbyExpr, S
   pQueryAttr->pFilters        = pFilters;
   pQueryAttr->range           = pQueryMsg->range;
   pQueryAttr->uniqueQuery     = isUniqueQuery(numOfOutput, pExprs);
-  
+  pQueryAttr->maxUniqueResult = MAX_UNIQUE_RESULT_SIZE;
+
   pQueryAttr->tableCols = calloc(numOfCols, sizeof(SSingleColumnFilterInfo));
   if (pQueryAttr->tableCols == NULL) {
     goto _cleanup;

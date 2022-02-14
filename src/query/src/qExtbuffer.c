@@ -969,59 +969,59 @@ static void printBinaryData(char *data, int32_t len) {
 }
 
 // todo cast to struct to extract data
-//static void printBinaryDataEx(char *data, int32_t len, SSrcColumnInfo *param) {
-//  if (param->functionId == TSDB_FUNC_LAST_DST) {
-//    switch (param->type) {
-//      case TSDB_DATA_TYPE_TINYINT:printf("%" PRId64 ",%d\t", *(int64_t *) data, *(int8_t *) (data + TSDB_KEYSIZE + 1));
-//        break;
-//      case TSDB_DATA_TYPE_SMALLINT:printf("%" PRId64 ",%d\t", *(int64_t *) data, *(int16_t *) (data + TSDB_KEYSIZE + 1));
-//        break;
-//      case TSDB_DATA_TYPE_TIMESTAMP:
-//      case TSDB_DATA_TYPE_BIGINT:printf("%" PRId64 ",%" PRId64 "\t", *(int64_t *) data, *(int64_t *) (data + TSDB_KEYSIZE + 1));
-//        break;
-//      case TSDB_DATA_TYPE_FLOAT:printf("%" PRId64 ",%f\t", *(int64_t *) data, *(float *) (data + TSDB_KEYSIZE + 1));
-//        break;
-//      case TSDB_DATA_TYPE_DOUBLE:printf("%" PRId64 ",%f\t", *(int64_t *) data, *(double *) (data + TSDB_KEYSIZE + 1));
-//        break;
-//      case TSDB_DATA_TYPE_BINARY:printf("%" PRId64 ",%s\t", *(int64_t *) data, (data + TSDB_KEYSIZE + 1));
-//        break;
-//
-//      case TSDB_DATA_TYPE_INT:
-//      default:printf("%" PRId64 ",%d\t", *(int64_t *) data, *(int32_t *) (data + TSDB_KEYSIZE + 1));
-//        break;
-//    }
-//  } else if (param->functionId == TSDB_FUNC_AVG) {
-//      printf("%f,%" PRId64 "\t", *(double *) data, *(int64_t *) (data + sizeof(double) + 1));
-//  } else {
-//    // functionId == TSDB_FUNC_MAX_DST | TSDB_FUNC_TAG
-//    switch (param->type) {
-//      case TSDB_DATA_TYPE_TINYINT:
-//        printf("%d\t", *(int8_t *)data);
-//        break;
-//      case TSDB_DATA_TYPE_SMALLINT:
-//        printf("%d\t", *(int16_t *)data);
-//        break;
-//      case TSDB_DATA_TYPE_TIMESTAMP:
-//      case TSDB_DATA_TYPE_BIGINT:
-//        printf("%" PRId64 "\t", *(int64_t *)data);
-//        break;
-//      case TSDB_DATA_TYPE_FLOAT:
-//        printf("%f\t", *(float *)data);
-//        break;
-//      case TSDB_DATA_TYPE_DOUBLE:
-//        printf("%f\t", *(double *)data);
-//        break;
-//      case TSDB_DATA_TYPE_BINARY:
-//        printf("%s\t", data);
-//        break;
-//
-//      case TSDB_DATA_TYPE_INT:
-//      default:
-//        printf("%f\t", *(double *)data);
-//        break;
-//    }
-//  }
-//}
+static void printBinaryDataEx(char *data, int32_t len, SSrcColumnInfo *param) {
+  if (param->functionId == TSDB_FUNC_LAST_DST) {
+    switch (param->type) {
+      case TSDB_DATA_TYPE_TINYINT:printf("%" PRId64 ",%d\t", *(int64_t *) data, *(int8_t *) (data + TSDB_KEYSIZE + 1));
+        break;
+      case TSDB_DATA_TYPE_SMALLINT:printf("%" PRId64 ",%d\t", *(int64_t *) data, *(int16_t *) (data + TSDB_KEYSIZE + 1));
+        break;
+      case TSDB_DATA_TYPE_TIMESTAMP:
+      case TSDB_DATA_TYPE_BIGINT:printf("%" PRId64 ",%" PRId64 "\t", *(int64_t *) data, *(int64_t *) (data + TSDB_KEYSIZE + 1));
+        break;
+      case TSDB_DATA_TYPE_FLOAT:printf("%" PRId64 ",%f\t", *(int64_t *) data, *(float *) (data + TSDB_KEYSIZE + 1));
+        break;
+      case TSDB_DATA_TYPE_DOUBLE:printf("%" PRId64 ",%f\t", *(int64_t *) data, *(double *) (data + TSDB_KEYSIZE + 1));
+        break;
+      case TSDB_DATA_TYPE_BINARY:printf("%" PRId64 ",%s\t", *(int64_t *) data, (data + TSDB_KEYSIZE + 1));
+        break;
+
+      case TSDB_DATA_TYPE_INT:
+      default:printf("%" PRId64 ",%d\t", *(int64_t *) data, *(int32_t *) (data + TSDB_KEYSIZE + 1));
+        break;
+    }
+  } else if (param->functionId == TSDB_FUNC_AVG) {
+      printf("%f,%" PRId64 "\t", *(double *) data, *(int64_t *) (data + sizeof(double) + 1));
+  } else {
+    // functionId == TSDB_FUNC_MAX_DST | TSDB_FUNC_TAG
+    switch (param->type) {
+      case TSDB_DATA_TYPE_TINYINT:
+        printf("%d\t", *(int8_t *)data);
+        break;
+      case TSDB_DATA_TYPE_SMALLINT:
+        printf("%d\t", *(int16_t *)data);
+        break;
+      case TSDB_DATA_TYPE_TIMESTAMP:
+      case TSDB_DATA_TYPE_BIGINT:
+        printf("%" PRId64 "\t", *(int64_t *)data);
+        break;
+      case TSDB_DATA_TYPE_FLOAT:
+        printf("%f\t", *(float *)data);
+        break;
+      case TSDB_DATA_TYPE_DOUBLE:
+        printf("%f\t", *(double *)data);
+        break;
+      case TSDB_DATA_TYPE_BINARY:
+        printf("%s\t", data);
+        break;
+
+      case TSDB_DATA_TYPE_INT:
+      default:
+        printf("%f\t", *(double *)data);
+        break;
+    }
+  }
+}
 
 void tColModelDisplay(SColumnModel *pModel, void *pData, int32_t numOfRows, int32_t totalCapacity) {
   for (int32_t i = 0; i < numOfRows; ++i) {
@@ -1103,8 +1103,7 @@ void tColModelDisplayEx(SColumnModel *pModel, void *pData, int32_t numOfRows, in
           break;
         }
         case TSDB_DATA_TYPE_BINARY: {
-          //printBinaryDataEx(val, pModel->pFields[j].field.bytes, &param[j]);
-          printf("%s\t", val+2);
+          printBinaryDataEx(val, pModel->pFields[j].field.bytes, &param[j]);
           break;
         }
         case TSDB_DATA_TYPE_DOUBLE:
