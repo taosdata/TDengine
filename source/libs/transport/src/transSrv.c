@@ -31,7 +31,8 @@ typedef struct SSrvConn {
   void*       pTransInst;  // rpc init
   void*       ahandle;     //
   void*       hostThrd;
-  void*       pSrvMsg;
+  SArray*     srvMsgs;
+  // void*       pSrvMsg;
 
   struct sockaddr_in addr;
 
@@ -94,6 +95,7 @@ static void uvOnConnectionCb(uv_stream_t* q, ssize_t nread, const uv_buf_t* buf)
 static void uvWorkerAsyncCb(uv_async_t* handle);
 static void uvAcceptAsyncCb(uv_async_t* handle);
 
+static void uvStartSendRespInternal(SSrvMsg* smsg);
 static void uvPrepareSendData(SSrvMsg* msg, uv_buf_t* wb);
 static void uvStartSendResp(SSrvMsg* msg);
 
@@ -310,14 +312,19 @@ void uvOnTimeoutCb(uv_timer_t* handle) {
 
 void uvOnWriteCb(uv_write_t* req, int status) {
   SSrvConn* conn = req->data;
-
-  SSrvMsg* smsg = conn->pSrvMsg;
-  destroySmsg(smsg);
-  conn->pSrvMsg = NULL;
-
   transClearBuffer(&conn->readBuf);
   if (status == 0) {
     tTrace("server conn %p data already was written on stream", conn);
+    assert(taosArrayGetSize(conn->srvMsgs) >= 1);
+    SSrvMsg* msg = taosArrayGetP(conn->srvMsgs, 0);
+    taosArrayRemove(conn->srvMsgs, 0);
+    destroySmsg(msg);
+
+    // send second data, just use for push
+    if (taosArrayGetSize(conn->srvMsgs) > 0) {
+      msg = (SSrvMsg*)taosArrayGetP(conn->srvMsgs, 0);
+      uvStartSendRespInternal(msg);
+    }
   } else {
     tError("server conn %p failed to write data, %s", conn, uv_err_name(status));
     //
@@ -361,20 +368,29 @@ static void uvPrepareSendData(SSrvMsg* smsg, uv_buf_t* wb) {
   wb->base = msg;
   wb->len = len;
 }
-static void uvStartSendResp(SSrvMsg* smsg) {
-  // impl
+
+static void uvStartSendRespInternal(SSrvMsg* smsg) {
   uv_buf_t wb;
   uvPrepareSendData(smsg, &wb);
 
   SSrvConn* pConn = smsg->pConn;
   uv_timer_stop(pConn->pTimer);
 
-  pConn->pSrvMsg = smsg;
+  // pConn->pSrvMsg = smsg;
   // conn->pWriter->data = smsg;
   uv_write(pConn->pWriter, (uv_stream_t*)pConn->pTcp, &wb, 1, uvOnWriteCb);
-
-  // SRpcMsg* rpcMsg = smsg->msg;
-
+}
+static void uvStartSendResp(SSrvMsg* smsg) {
+  // impl
+  SSrvConn* pConn = smsg->pConn;
+  if (taosArrayGetSize(pConn->srvMsgs) > 0) {
+    tDebug("server conn %p push data to client %s:%d", pConn, inet_ntoa(pConn->addr.sin_addr),
+           ntohs(pConn->addr.sin_port));
+    taosArrayPush(pConn->srvMsgs, &smsg);
+    return;
+  }
+  taosArrayPush(pConn->srvMsgs, &smsg);
+  uvStartSendRespInternal(smsg);
   return;
 }
 static void destroySmsg(SSrvMsg* smsg) {
@@ -531,7 +547,7 @@ static bool addHandleToWorkloop(void* arg) {
   QUEUE_INIT(&pThrd->msg);
   pthread_mutex_init(&pThrd->msgMtx, NULL);
 
-  pThrd->asyncPool = transCreateAsyncPool(pThrd->loop, pThrd, uvWorkerAsyncCb);
+  pThrd->asyncPool = transCreateAsyncPool(pThrd->loop, 4, pThrd, uvWorkerAsyncCb);
   uv_read_start((uv_stream_t*)pThrd->pipe, uvAllocConnBufferCb, uvOnConnectionCb);
   return true;
 }
@@ -571,6 +587,7 @@ void* workerThread(void* arg) {
 
 static SSrvConn* createConn() {
   SSrvConn* pConn = (SSrvConn*)calloc(1, sizeof(SSrvConn));
+  pConn->srvMsgs = taosArrayInit(2, sizeof(void*));  //
   tTrace("conn %p created", pConn);
   ++pConn->ref;
   return pConn;
@@ -585,8 +602,15 @@ static void destroyConn(SSrvConn* conn, bool clear) {
     return;
   }
   transDestroyBuffer(&conn->readBuf);
-  destroySmsg(conn->pSrvMsg);
-  conn->pSrvMsg = NULL;
+
+  for (int i = 0; i < taosArrayGetSize(conn->srvMsgs); i++) {
+    SSrvMsg* msg = taosArrayGetP(conn->srvMsgs, i);
+    destroySmsg(msg);
+  }
+  taosArrayDestroy(conn->srvMsgs);
+
+  // destroySmsg(conn->pSrvMsg);
+  // conn->pSrvMsg = NULL;
 
   if (clear) {
     uv_close((uv_handle_t*)conn->pTcp, uvDestroyConn);

@@ -250,9 +250,7 @@ int transDestroyBuffer(SConnBuffer* buf) {
   transClearBuffer(buf);
 }
 
-SAsyncPool* transCreateAsyncPool(uv_loop_t* loop, void* arg, AsyncCB cb) {
-  static int sz = 10;
-
+SAsyncPool* transCreateAsyncPool(uv_loop_t* loop, int sz, void* arg, AsyncCB cb) {
   SAsyncPool* pool = calloc(1, sizeof(SAsyncPool));
   pool->index = 0;
   pool->nAsync = sz;

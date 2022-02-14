@@ -38,6 +38,7 @@ typedef struct SCliConn {
   int32_t ref;
   // debug and log info
   struct sockaddr_in addr;
+  struct sockaddr_in locaddr;
 } SCliConn;
 
 typedef struct SCliMsg {
@@ -130,8 +131,9 @@ static void clientHandleResp(SCliConn* conn) {
   rpcMsg.msgType = pHead->msgType;
   rpcMsg.ahandle = pCtx->ahandle;
 
-  tDebug("client conn %p %s received from %s:%d", conn, TMSG_INFO(pHead->msgType), inet_ntoa(conn->addr.sin_addr),
-         ntohs(conn->addr.sin_port));
+  tDebug("client conn %p %s received from %s:%d, local info: %s:%d", conn, TMSG_INFO(pHead->msgType),
+         inet_ntoa(conn->addr.sin_addr), ntohs(conn->addr.sin_port), inet_ntoa(conn->locaddr.sin_addr),
+         ntohs(conn->locaddr.sin_port));
 
   if (conn->push != NULL && conn->notifyCount != 0) {
     (*conn->push->callback)(conn->push->arg, &rpcMsg);
@@ -417,8 +419,9 @@ static void clientWrite(SCliConn* pConn) {
   pHead->msgLen = (int32_t)htonl((uint32_t)msgLen);
 
   uv_buf_t wb = uv_buf_init((char*)pHead, msgLen);
-  tDebug("client conn %p %s is send to %s:%d", pConn, TMSG_INFO(pHead->msgType), inet_ntoa(pConn->addr.sin_addr),
-         ntohs(pConn->addr.sin_port));
+  tDebug("client conn %p %s is send to %s:%d, local info %s:%d", pConn, TMSG_INFO(pHead->msgType),
+         inet_ntoa(pConn->addr.sin_addr), ntohs(pConn->addr.sin_port), inet_ntoa(pConn->locaddr.sin_addr),
+         ntohs(pConn->locaddr.sin_port));
   uv_write(pConn->writeReq, (uv_stream_t*)pConn->stream, &wb, 1, clientWriteCb);
 }
 static void clientConnCb(uv_connect_t* req, int status) {
@@ -432,6 +435,9 @@ static void clientConnCb(uv_connect_t* req, int status) {
   }
   int addrlen = sizeof(pConn->addr);
   uv_tcp_getpeername((uv_tcp_t*)pConn->stream, (struct sockaddr*)&pConn->addr, &addrlen);
+
+  addrlen = sizeof(pConn->locaddr);
+  uv_tcp_getsockname((uv_tcp_t*)pConn->stream, (struct sockaddr*)&pConn->locaddr, &addrlen);
 
   tTrace("client conn %p create", pConn);
 
@@ -579,7 +585,7 @@ static SCliThrdObj* createThrdObj() {
   pThrd->loop = (uv_loop_t*)malloc(sizeof(uv_loop_t));
   uv_loop_init(pThrd->loop);
 
-  pThrd->asyncPool = transCreateAsyncPool(pThrd->loop, pThrd, clientAsyncCb);
+  pThrd->asyncPool = transCreateAsyncPool(pThrd->loop, 5, pThrd, clientAsyncCb);
 
   pThrd->timer = malloc(sizeof(uv_timer_t));
   uv_timer_init(pThrd->loop, pThrd->timer);
