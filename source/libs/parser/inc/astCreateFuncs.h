@@ -20,7 +20,7 @@
 extern "C" {
 #endif
 
-#include "nodes.h"
+#include "querynodes.h"
 #include "nodesShowStmts.h"
 #include "astCreateContext.h"
 #include "ttoken.h"
