@@ -396,13 +396,11 @@ char* buildCreateStbReq(SCreateTableSql* pCreateTableSql, int32_t* outputLen, SP
 
   SName n = {0};
   if (createSName(&n, &pCreateTableSql->name, pParseCtx, pMsgBuf) != 0) {
-    tFreeSMCreateStbReq(&createReq);
     return NULL;
   }
 
   if (tNameExtractFullName(&n, createReq.name) != 0) {
     buildInvalidOperationMsg(pMsgBuf, "invalid table name or database not specified");
-    tFreeSMCreateStbReq(&createReq);
     return NULL;
   }
 
@@ -415,7 +413,6 @@ char* buildCreateStbReq(SCreateTableSql* pCreateTableSql, int32_t* outputLen, SP
 
   void* pBuf = pReq;
   tSerializeSMCreateStbReq(&pBuf, &createReq);
-  tFreeSMCreateStbReq(&createReq);
   *outputLen = tlen;
   return pReq;
 }
