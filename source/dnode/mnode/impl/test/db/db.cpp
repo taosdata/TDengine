@@ -127,18 +127,20 @@ TEST_F(MndTestDb, 02_Create_Alter_Drop_Db) {
   CheckBinary("master", 9);
 
   {
-    int32_t contLen = sizeof(SAlterDbReq);
+    SAlterDbReq alterdbReq = {0};
+    strcpy(alterdbReq.db, "1.d1");
+    alterdbReq.totalBlocks = 12;
+    alterdbReq.daysToKeep0 = 300;
+    alterdbReq.daysToKeep1 = 400;
+    alterdbReq.daysToKeep2 = 500;
+    alterdbReq.fsyncPeriod = 4000;
+    alterdbReq.walLevel = 2;
+    alterdbReq.quorum = 2;
+    alterdbReq.cacheLastRow = 1;
 
-    SAlterDbReq* pReq = (SAlterDbReq*)rpcMallocCont(contLen);
-    strcpy(pReq->db, "1.d1");
-    pReq->totalBlocks = htonl(12);
-    pReq->daysToKeep0 = htonl(300);
-    pReq->daysToKeep1 = htonl(400);
-    pReq->daysToKeep2 = htonl(500);
-    pReq->fsyncPeriod = htonl(4000);
-    pReq->walLevel = 2;
-    pReq->quorum = 2;
-    pReq->cacheLastRow = 1;
+    int32_t contLen = tSerializeSAlterDbReq(NULL, 0, &alterdbReq);
+    void*   pReq = rpcMallocCont(contLen);
+    tSerializeSAlterDbReq(pReq, contLen, &alterdbReq);
 
     SRpcMsg* pRsp = test.SendReq(TDMT_MND_ALTER_DB, pReq, contLen);
     ASSERT_NE(pRsp, nullptr);
@@ -196,18 +198,20 @@ TEST_F(MndTestDb, 02_Create_Alter_Drop_Db) {
   CheckInt8(0);                    // update
 
   {
-    int32_t contLen = sizeof(SDropDbReq);
+    SDropDbReq dropdbReq = {0};
+    strcpy(dropdbReq.db, "1.d1");
 
-    SDropDbReq* pReq = (SDropDbReq*)rpcMallocCont(contLen);
-    strcpy(pReq->db, "1.d1");
+    int32_t contLen = tSerializeSDropDbReq(NULL, 0, &dropdbReq);
+    void*   pReq = rpcMallocCont(contLen);
+    tSerializeSDropDbReq(pReq, contLen, &dropdbReq);
 
     SRpcMsg* pRsp = test.SendReq(TDMT_MND_DROP_DB, pReq, contLen);
     ASSERT_NE(pRsp, nullptr);
     ASSERT_EQ(pRsp->code, 0);
 
-    SDropDbRsp* pDrop = (SDropDbRsp*)pRsp->pCont;
-    pDrop->uid = htobe64(pDrop->uid);
-    EXPECT_STREQ(pDrop->db, "1.d1");
+    SDropDbRsp dropdbRsp = {0};
+    tDeserializeSDropDbRsp(pRsp->pCont, pRsp->contLen, &dropdbRsp);
+    EXPECT_STREQ(dropdbRsp.db, "1.d1");
   }
 
   test.SendShowMetaReq(TSDB_MGMT_TABLE_DB, "");
@@ -260,73 +264,74 @@ TEST_F(MndTestDb, 03_Create_Use_Restart_Use_Db) {
   uint64_t d2_uid = 0;
 
   {
-    int32_t contLen = sizeof(SUseDbReq);
+    SUseDbReq usedbReq = {0};
+    strcpy(usedbReq.db, "1.d2");
+    usedbReq.vgVersion = -1;
 
-    SUseDbReq* pReq = (SUseDbReq*)rpcMallocCont(contLen);
-    strcpy(pReq->db, "1.d2");
-    pReq->vgVersion = htonl(-1);
+    int32_t contLen = tSerializeSUseDbReq(NULL, 0, &usedbReq);
+    void*   pReq = rpcMallocCont(contLen);
+    tSerializeSUseDbReq(pReq, contLen, &usedbReq);
 
     SRpcMsg* pMsg = test.SendReq(TDMT_MND_USE_DB, pReq, contLen);
     ASSERT_NE(pMsg, nullptr);
     ASSERT_EQ(pMsg->code, 0);
 
-    SUseDbRsp* pRsp = (SUseDbRsp*)pMsg->pCont;
-    EXPECT_STREQ(pRsp->db, "1.d2");
-    pRsp->uid = htobe64(pRsp->uid);
-    d2_uid = pRsp->uid;
-    pRsp->vgVersion = htonl(pRsp->vgVersion);
-    pRsp->vgNum = htonl(pRsp->vgNum);
-    pRsp->hashMethod = pRsp->hashMethod;
-    EXPECT_EQ(pRsp->vgVersion, 1);
-    EXPECT_EQ(pRsp->vgNum, 2);
-    EXPECT_EQ(pRsp->hashMethod, 1);
+    SUseDbRsp usedbRsp = {0};
+    tDeserializeSUseDbRsp(pMsg->pCont, pMsg->contLen, &usedbRsp);
+    EXPECT_STREQ(usedbRsp.db, "1.d2");
+    EXPECT_EQ(usedbRsp.vgVersion, 1);
+    EXPECT_EQ(usedbRsp.vgNum, 2);
+    EXPECT_EQ(usedbRsp.hashMethod, 1);
+    d2_uid = usedbRsp.uid;
 
     {
-      SVgroupInfo* pInfo = &pRsp->vgroupInfo[0];
-      pInfo->vgId = htonl(pInfo->vgId);
-      pInfo->hashBegin = htonl(pInfo->hashBegin);
-      pInfo->hashEnd = htonl(pInfo->hashEnd);
+      SVgroupInfo* pInfo = (SVgroupInfo*)taosArrayGet(usedbRsp.pVgroupInfos, 0);
+      pInfo->vgId = pInfo->vgId;
+      pInfo->hashBegin = pInfo->hashBegin;
+      pInfo->hashEnd = pInfo->hashEnd;
       EXPECT_GT(pInfo->vgId, 0);
       EXPECT_EQ(pInfo->hashBegin, 0);
       EXPECT_EQ(pInfo->hashEnd, UINT32_MAX / 2 - 1);
       EXPECT_EQ(pInfo->epset.inUse, 0);
       EXPECT_EQ(pInfo->epset.numOfEps, 1);
       SEp* pAddr = &pInfo->epset.eps[0];
-      pAddr->port = htons(pAddr->port);
       EXPECT_EQ(pAddr->port, 9030);
       EXPECT_STREQ(pAddr->fqdn, "localhost");
     }
 
     {
-      SVgroupInfo* pInfo = &pRsp->vgroupInfo[1];
-      pInfo->vgId = htonl(pInfo->vgId);
-      pInfo->hashBegin = htonl(pInfo->hashBegin);
-      pInfo->hashEnd = htonl(pInfo->hashEnd);
+      SVgroupInfo* pInfo = (SVgroupInfo*)taosArrayGet(usedbRsp.pVgroupInfos, 1);
+      pInfo->vgId = pInfo->vgId;
+      pInfo->hashBegin = pInfo->hashBegin;
+      pInfo->hashEnd = pInfo->hashEnd;
       EXPECT_GT(pInfo->vgId, 0);
       EXPECT_EQ(pInfo->hashBegin, UINT32_MAX / 2);
       EXPECT_EQ(pInfo->hashEnd, UINT32_MAX);
       EXPECT_EQ(pInfo->epset.inUse, 0);
       EXPECT_EQ(pInfo->epset.numOfEps, 1);
       SEp* pAddr = &pInfo->epset.eps[0];
-      pAddr->port = htons(pAddr->port);
       EXPECT_EQ(pAddr->port, 9030);
       EXPECT_STREQ(pAddr->fqdn, "localhost");
     }
+
+    tFreeSUsedbRsp(&usedbRsp);
   }
 
   {
-    int32_t contLen = sizeof(SDropDbReq);
+    SDropDbReq dropdbReq = {0};
+    strcpy(dropdbReq.db, "1.d2");
 
-    SDropDbReq* pReq = (SDropDbReq*)rpcMallocCont(contLen);
-    strcpy(pReq->db, "1.d2");
+    int32_t contLen = tSerializeSDropDbReq(NULL, 0, &dropdbReq);
+    void*   pReq = rpcMallocCont(contLen);
+    tSerializeSDropDbReq(pReq, contLen, &dropdbReq);
 
     SRpcMsg* pRsp = test.SendReq(TDMT_MND_DROP_DB, pReq, contLen);
     ASSERT_NE(pRsp, nullptr);
     ASSERT_EQ(pRsp->code, 0);
 
-    SDropDbRsp* pDrop = (SDropDbRsp*)pRsp->pCont;
-    pDrop->uid = htobe64(pDrop->uid);
-    EXPECT_STREQ(pDrop->db, "1.d2");
-    EXPECT_EQ(pDrop->uid, d2_uid);
+    SDropDbRsp dropdbRsp = {0};
+    tDeserializeSDropDbRsp(pRsp->pCont, pRsp->contLen, &dropdbRsp);
+    EXPECT_STREQ(dropdbRsp.db, "1.d2");
+    EXPECT_EQ(dropdbRsp.uid, d2_uid);
   }
 }

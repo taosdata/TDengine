@@ -83,34 +83,23 @@ int32_t queryBuildUseDbMsg(void* input, char **msg, int32_t msgSize, int32_t *ms
   return TSDB_CODE_SUCCESS;  
 }
 
-
-int32_t queryProcessUseDBRsp(void* output, char *msg, int32_t msgSize) {
+int32_t queryProcessUseDBRsp(void *output, char *msg, int32_t msgSize) {
   if (NULL == output || NULL == msg || msgSize <= 0) {
     return TSDB_CODE_TSC_INVALID_INPUT;
   }
 
-  SUseDbRsp *pRsp = (SUseDbRsp *)msg;
   SUseDbOutput *pOut = (SUseDbOutput *)output;
-  int32_t code = 0;
+  int32_t       code = 0;
 
-  if (msgSize <= sizeof(*pRsp)) {
-    qError("invalid use db rsp msg size, msgSize:%d", msgSize);
-    return TSDB_CODE_TSC_VALUE_OUT_OF_RANGE;
+  SUseDbRsp usedbRsp = {0};
+  if (tDeserializeSUseDbRsp(msg, msgSize, &usedbRsp) != 0) {
+    qError("invalid use db rsp msg, msgSize:%d", msgSize);
+    return TSDB_CODE_INVALID_MSG;
   }
-  
-  pRsp->vgVersion = ntohl(pRsp->vgVersion);
-  pRsp->vgNum = ntohl(pRsp->vgNum);
-  pRsp->uid = be64toh(pRsp->uid);
 
-  if (pRsp->vgNum < 0) {
-    qError("invalid db[%s] vgroup number[%d]", pRsp->db, pRsp->vgNum);
+  if (usedbRsp.vgNum < 0) {
+    qError("invalid db[%s] vgroup number[%d]", usedbRsp.db, usedbRsp.vgNum);
     return TSDB_CODE_TSC_INVALID_VALUE;
-  }
-
-  int32_t expectSize = pRsp->vgNum * sizeof(pRsp->vgroupInfo[0]) + sizeof(*pRsp);
-  if (msgSize != expectSize) {
-    qError("use db rsp size mis-match, msgSize:%d, expected:%d, vgnumber:%d", msgSize, expectSize, pRsp->vgNum);
-    return TSDB_CODE_TSC_VALUE_OUT_OF_RANGE;
   }
 
   pOut->dbVgroup = calloc(1, sizeof(SDBVgroupInfo));
@@ -119,42 +108,38 @@ int32_t queryProcessUseDBRsp(void* output, char *msg, int32_t msgSize) {
     return TSDB_CODE_TSC_OUT_OF_MEMORY;
   }
 
-  pOut->dbId = pRsp->uid;
-  pOut->dbVgroup->vgVersion = pRsp->vgVersion;
-  pOut->dbVgroup->hashMethod = pRsp->hashMethod;
-  pOut->dbVgroup->vgHash = taosHashInit(pRsp->vgNum, taosGetDefaultHashFunction(TSDB_DATA_TYPE_INT), true, HASH_ENTRY_LOCK);
+  pOut->dbId = usedbRsp.uid;
+  pOut->dbVgroup->vgVersion = usedbRsp.vgVersion;
+  pOut->dbVgroup->hashMethod = usedbRsp.hashMethod;
+  pOut->dbVgroup->vgHash =
+      taosHashInit(usedbRsp.vgNum, taosGetDefaultHashFunction(TSDB_DATA_TYPE_INT), true, HASH_ENTRY_LOCK);
   if (NULL == pOut->dbVgroup->vgHash) {
-    qError("taosHashInit %d failed", pRsp->vgNum);
+    qError("taosHashInit %d failed", usedbRsp.vgNum);
     tfree(pOut->dbVgroup);
     return TSDB_CODE_TSC_OUT_OF_MEMORY;
   }
 
-  for (int32_t i = 0; i < pRsp->vgNum; ++i) {
-    pRsp->vgroupInfo[i].vgId = ntohl(pRsp->vgroupInfo[i].vgId);
-    pRsp->vgroupInfo[i].hashBegin = ntohl(pRsp->vgroupInfo[i].hashBegin);
-    pRsp->vgroupInfo[i].hashEnd = ntohl(pRsp->vgroupInfo[i].hashEnd);
+  for (int32_t i = 0; i < usedbRsp.vgNum; ++i) {
+    SVgroupInfo *pVgInfo = taosArrayGet(usedbRsp.pVgroupInfos, i);
 
-    for (int32_t n = 0; n < pRsp->vgroupInfo[i].epset.numOfEps; ++n) {
-      pRsp->vgroupInfo[i].epset.eps[n].port = ntohs(pRsp->vgroupInfo[i].epset.eps[n].port);
-    }
-
-    if (0 != taosHashPut(pOut->dbVgroup->vgHash, &pRsp->vgroupInfo[i].vgId, sizeof(pRsp->vgroupInfo[i].vgId), &pRsp->vgroupInfo[i], sizeof(pRsp->vgroupInfo[i]))) {
+    if (0 != taosHashPut(pOut->dbVgroup->vgHash, &pVgInfo->vgId, sizeof(int32_t), pVgInfo, sizeof(SVgroupInfo))) {
       qError("taosHashPut failed");
       goto _return;
     }
   }
 
-  memcpy(pOut->db, pRsp->db, sizeof(pOut->db));
+  memcpy(pOut->db, usedbRsp.db, TSDB_DB_FNAME_LEN);
 
   return code;
 
 _return:
+  taosArrayDestroy(usedbRsp.pVgroupInfos);
 
   if (pOut) {
     taosHashCleanup(pOut->dbVgroup->vgHash);
     tfree(pOut->dbVgroup);
   }
-  
+
   return code;
 }
 

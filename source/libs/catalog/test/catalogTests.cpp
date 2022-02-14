@@ -101,7 +101,6 @@ void sendCreateDbMsg(void *shandle, SEpSet *pEpSet) {
   rpcMsg.msgType = TDMT_MND_CREATE_DB;
 
   SRpcMsg rpcRsp = {0};
-
   rpcSendRecv(shandle, pEpSet, &rpcMsg, &rpcRsp);
 
   ASSERT_EQ(rpcRsp.code, 0);
@@ -252,39 +251,43 @@ void ctgTestBuildSTableMetaRsp(STableMetaRsp *rspMsg) {
 }
 
 void ctgTestPrepareDbVgroups(void *shandle, SEpSet *pEpSet, SRpcMsg *pMsg, SRpcMsg *pRsp) {
-  SUseDbRsp *rspMsg = NULL;  // todo
-
-  pRsp->code = 0;
-  pRsp->contLen = sizeof(SUseDbRsp) + ctgTestVgNum * sizeof(SVgroupInfo);
-  pRsp->pCont = calloc(1, pRsp->contLen);
-  rspMsg = (SUseDbRsp *)pRsp->pCont;
-  strcpy(rspMsg->db, ctgTestDbname);
-  rspMsg->vgVersion = htonl(ctgTestVgVersion);
+  SUseDbRsp usedbRsp = {0};
+  strcpy(usedbRsp.db, ctgTestDbname);
+  usedbRsp.vgVersion = ctgTestVgVersion;
   ctgTestCurrentVgVersion = ctgTestVgVersion;
-  rspMsg->vgNum = htonl(ctgTestVgNum);
-  rspMsg->hashMethod = 0;
-  rspMsg->uid = htobe64(ctgTestDbId);
+  usedbRsp.vgNum = ctgTestVgNum;
+  usedbRsp.hashMethod = 0;
+  usedbRsp.uid = ctgTestDbId;
+  usedbRsp.pVgroupInfos = taosArrayInit(usedbRsp.vgNum, sizeof(SVgroupInfo));
 
-  SVgroupInfo *vg = NULL;
-  uint32_t     hashUnit = UINT32_MAX / ctgTestVgNum;
+  uint32_t hashUnit = UINT32_MAX / ctgTestVgNum;
   for (int32_t i = 0; i < ctgTestVgNum; ++i) {
-    vg = &rspMsg->vgroupInfo[i];
-
-    vg->vgId = htonl(i + 1);
-    vg->hashBegin = htonl(i * hashUnit);
-    vg->hashEnd = htonl(hashUnit * (i + 1) - 1);
-    vg->epset.numOfEps = i % TSDB_MAX_REPLICA + 1;
-    vg->epset.inUse = i % vg->epset.numOfEps;
-    for (int32_t n = 0; n < vg->epset.numOfEps; ++n) {
-      SEp *addr = &vg->epset.eps[n];
-      strcpy(addr->fqdn, "a0");
-      addr->port = htons(n + 22);
+    SVgroupInfo vg = {0};
+    vg.vgId = i + 1;
+    vg.hashBegin = i * hashUnit;
+    vg.hashEnd = hashUnit * (i + 1) - 1;
+    if (i == ctgTestVgNum - 1) {
+      vg.hashEnd = htonl(UINT32_MAX);
     }
+
+    vg.epset.numOfEps = i % TSDB_MAX_REPLICA + 1;
+    vg.epset.inUse = i % vg.epset.numOfEps;
+    for (int32_t n = 0; n < vg.epset.numOfEps; ++n) {
+      SEp *addr = &vg.epset.eps[n];
+      strcpy(addr->fqdn, "a0");
+      addr->port = n + 22;
+    }
+
+    taosArrayPush(usedbRsp.pVgroupInfos, &vg);
   }
 
-  vg->hashEnd = htonl(UINT32_MAX);
+  int32_t contLen = tSerializeSUseDbRsp(NULL, 0, &usedbRsp);
+  void   *pReq = rpcMallocCont(contLen);
+  tSerializeSUseDbRsp(pReq, contLen, &usedbRsp);
 
-  return;
+  pRsp->code = 0;
+  pRsp->contLen = contLen;
+  pRsp->pCont = pReq;
 }
 
 void ctgTestPrepareTableMeta(void *shandle, SEpSet *pEpSet, SRpcMsg *pMsg, SRpcMsg *pRsp) {
