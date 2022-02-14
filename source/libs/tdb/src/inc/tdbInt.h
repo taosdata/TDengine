@@ -113,11 +113,13 @@ typedef TD_DLIST(SPgFile) SPgFileList;
 
 #include "tdbUtil.h"
 
-#include "btree.h"
+#include "tdbBtree.h"
 
-#include "pgcache.h"
+#include "tdbPgCache.h"
 
-#include "pgfile.h"
+#include "tdbPgFile.h"
+
+#include "tdbJournal.h"
 
 #include "tdbEnv.h"
 

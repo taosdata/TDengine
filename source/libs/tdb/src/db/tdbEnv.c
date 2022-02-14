@@ -101,3 +101,13 @@ static int tdbEnvDestroy(TENV *pEnv) {
   // TODO
   return 0;
 }
+
+int tdbEnvBeginTxn(TENV *pEnv) {
+  // TODO
+  return 0;
+}
+
+int tdbEnvCommit(TENV *pEnv) {
+  // TODO
+  return 0;
+}
