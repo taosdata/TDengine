@@ -661,8 +661,12 @@ static bool isAliasColumn(SColumnNode* pCol) {
   return ('\0' == pCol->tableAlias[0]);
 }
 
+static bool isDistinctOrderBy(STranslateContext* pCxt) {
+  return (SQL_CLAUSE_ORDER_BY == pCxt->currClause && pCxt->pCurrStmt->isDistinct);
+}
+
 static SNodeList* getGroupByList(STranslateContext* pCxt) {
-  if (SQL_CLAUSE_ORDER_BY == pCxt->currClause && pCxt->pCurrStmt->isDistinct) {
+  if (isDistinctOrderBy(pCxt)) {
     return pCxt->pCurrStmt->pProjectionList;
   }
   return pCxt->pCurrStmt->pGroupByList;
@@ -676,7 +680,7 @@ static SNode* getGroupByNode(SNode* pNode) {
 }
 
 static int32_t getGroupByErrorCode(STranslateContext* pCxt) {
-  if (SQL_CLAUSE_ORDER_BY == pCxt->currClause && pCxt->pCurrStmt->isDistinct) {
+  if (isDistinctOrderBy(pCxt)) {
     return TSDB_CODE_PAR_NOT_SELECTED_EXPRESSION;
   }
   return TSDB_CODE_PAR_GROUPBY_LACK_EXPRESSION;
@@ -687,7 +691,7 @@ static EDealRes doCheckExprForGroupBy(SNode* pNode, void* pContext) {
   if (!nodesIsExprNode(pNode) || (QUERY_NODE_COLUMN == nodeType(pNode) && isAliasColumn((SColumnNode*)pNode))) {
     return DEAL_RES_CONTINUE;
   }
-  if (QUERY_NODE_FUNCTION == nodeType(pNode) && fmIsAggFunc(((SFunctionNode*)pNode)->funcId)) {
+  if (QUERY_NODE_FUNCTION == nodeType(pNode) && fmIsAggFunc(((SFunctionNode*)pNode)->funcId) && !isDistinctOrderBy(pCxt)) {
     return DEAL_RES_IGNORE_CHILD;
   }
   SNode* pGroupNode;
@@ -696,7 +700,8 @@ static EDealRes doCheckExprForGroupBy(SNode* pNode, void* pContext) {
       return DEAL_RES_IGNORE_CHILD;
     }
   }
-  if (QUERY_NODE_COLUMN == nodeType(pNode)) {
+  if (QUERY_NODE_COLUMN == nodeType(pNode) ||
+      (QUERY_NODE_FUNCTION == nodeType(pNode) && fmIsAggFunc(((SFunctionNode*)pNode)->funcId) && isDistinctOrderBy(pCxt))) {
     generateSyntaxErrMsg(pCxt, getGroupByErrorCode(pCxt));
     return DEAL_RES_ERROR;
   }
