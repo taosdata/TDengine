@@ -1,3 +1,18 @@
+/*
+ * Copyright (c) 2019 TAOS Data, Inc. <jhtao@taosdata.com>
+ *
+ * This program is free software: you can use, redistribute, and/or modify
+ * it under the terms of the GNU Affero General Public License, version 3
+ * or later ("AGPL"), as published by the Free Software Foundation.
+ *
+ * This program is distributed in the hope that it will be useful, but WITHOUT
+ * ANY WARRANTY; without even the implied warranty of MERCHANTABILITY or
+ * FITNESS FOR A PARTICULAR PURPOSE.
+ *
+ * You should have received a copy of the GNU Affero General Public License
+ * along with this program. If not, see <http://www.gnu.org/licenses/>.
+ */
+
 #include "astGenerator.h"
 #include "parserInt.h"
 #include "parserUtil.h"
@@ -11,7 +26,7 @@ char* buildUserManipulationMsg(SSqlInfo* pInfo, int32_t* outputLen, int64_t id, 
   createReq.superUser = (int8_t)pUser->type;
 
   if (pUser->type == TSDB_ALTER_USER_PRIVILEGES) {
-    //    pMsg->privilege = (char)pCmd->count;
+    // pMsg->privilege = (char)pCmd->count;
   } else {
     strncpy(createReq.pass, pUser->passwd.z, pUser->passwd.n);
   }
@@ -39,14 +54,11 @@ char* buildAcctManipulationMsg(SSqlInfo* pInfo, int32_t* outputLen, int64_t id, 
 
   SCreateAcctInfo* pAcctOpt = &pInfo->pMiscInfo->acctOpt;
 
-  createReq.maxUsers = htonl(pAcctOpt->maxUsers);
-  createReq.maxDbs = htonl(pAcctOpt->maxDbs);
-  createReq.maxTimeSeries = htonl(pAcctOpt->maxTimeSeries);
-  createReq.maxStreams = htonl(pAcctOpt->maxStreams);
-  //  createReq.maxPointsPerSecond = htonl(pAcctOpt->maxPointsPerSecond);
-  createReq.maxStorage = htobe64(pAcctOpt->maxStorage);
-  //  createReq.maxQueryTime = htobe64(pAcctOpt->maxQueryTime);
-  //  createReq.maxConnections = htonl(pAcctOpt->maxConnections);
+  createReq.maxUsers = pAcctOpt->maxUsers;
+  createReq.maxDbs = pAcctOpt->maxDbs;
+  createReq.maxTimeSeries = pAcctOpt->maxTimeSeries;
+  createReq.maxStreams = pAcctOpt->maxStreams;
+  createReq.maxStorage = pAcctOpt->maxStorage;
 
   if (pAcctOpt->stat.n == 0) {
     createReq.accessState = -1;
@@ -74,7 +86,7 @@ char* buildAcctManipulationMsg(SSqlInfo* pInfo, int32_t* outputLen, int64_t id, 
   return pReq;
 }
 
-char* buildDropUserMsg(SSqlInfo* pInfo, int32_t* msgLen, int64_t id, char* msgBuf, int32_t msgBufLen) {
+char* buildDropUserMsg(SSqlInfo* pInfo, int32_t* outputLen, int64_t id, char* msgBuf, int32_t msgBufLen) {
   SDropUserReq dropReq = {0};
 
   SToken* pName = taosArrayGet(pInfo->pMiscInfo->a, 0);
@@ -92,30 +104,26 @@ char* buildDropUserMsg(SSqlInfo* pInfo, int32_t* msgLen, int64_t id, char* msgBu
   }
 
   tSerializeSDropUserReq(pReq, tlen, &dropReq);
-  *msgLen = tlen;
+  *outputLen = tlen;
   return pReq;
 }
 
-SShowReq* buildShowMsg(SShowInfo* pShowInfo, SParseContext* pCtx, SMsgBuf* pMsgBuf) {
-  SShowReq* pShowMsg = calloc(1, sizeof(SShowReq));
-  if (pShowMsg == NULL) {
-    terrno = TSDB_CODE_OUT_OF_MEMORY;
-    return pShowMsg;
-  }
+char* buildShowMsg(SShowInfo* pShowInfo, int32_t* outputLen, SParseContext* pCtx, SMsgBuf* pMsgBuf) {
+  SShowReq showReq = {.type = pShowInfo->showType};
 
-  pShowMsg->type = pShowInfo->showType;
   if (pShowInfo->showType != TSDB_MGMT_TABLE_VNODES) {
     SToken* pPattern = &pShowInfo->pattern;
     if (pPattern->type > 0) {  // only show tables support wildcard query
-      strncpy(pShowMsg->payload, pPattern->z, pPattern->n);
-      pShowMsg->payloadLen = htons(pPattern->n);
+      showReq.payloadLen = pPattern->n;
+      showReq.payload = malloc(showReq.payloadLen);
+      strncpy(showReq.payload, pPattern->z, pPattern->n);
     }
   } else {
     SToken* pEpAddr = &pShowInfo->prefix;
     assert(pEpAddr->n > 0 && pEpAddr->type > 0);
-
-    strncpy(pShowMsg->payload, pEpAddr->z, pEpAddr->n);
-    pShowMsg->payloadLen = htons(pEpAddr->n);
+    showReq.payloadLen = pEpAddr->n;
+    showReq.payload = malloc(showReq.payloadLen);
+    strncpy(showReq.payload, pEpAddr->z, pEpAddr->n);
   }
 
   if (pShowInfo->showType == TSDB_MGMT_TABLE_STB || pShowInfo->showType == TSDB_MGMT_TABLE_VGROUP) {
@@ -124,22 +132,32 @@ SShowReq* buildShowMsg(SShowInfo* pShowInfo, SParseContext* pCtx, SMsgBuf* pMsgB
     if (pShowInfo->prefix.n > 0) {
       if (pShowInfo->prefix.n >= TSDB_DB_FNAME_LEN) {
         terrno = buildInvalidOperationMsg(pMsgBuf, "prefix name is too long");
-        tfree(pShowMsg);
+        tFreeSShowReq(&showReq);
         return NULL;
       }
       tNameSetDbName(&n, pCtx->acctId, pShowInfo->prefix.z, pShowInfo->prefix.n);
     } else if (pCtx->db == NULL || strlen(pCtx->db) == 0) {
       terrno = buildInvalidOperationMsg(pMsgBuf, "database is not specified");
-      tfree(pShowMsg);
+      tFreeSShowReq(&showReq);
       return NULL;
     } else {
       tNameSetDbName(&n, pCtx->acctId, pCtx->db, strlen(pCtx->db));
     }
 
-    tNameGetFullDbName(&n, pShowMsg->db);
+    tNameGetFullDbName(&n, showReq.db);
   }
 
-  return pShowMsg;
+  int32_t tlen = tSerializeSShowReq(NULL, 0, &showReq);
+  void*   pReq = malloc(tlen);
+  if (pReq == NULL) {
+    terrno = TSDB_CODE_OUT_OF_MEMORY;
+    return NULL;
+  }
+
+  tSerializeSShowReq(pReq, tlen, &showReq);
+  tFreeSShowReq(&showReq);
+  *outputLen = tlen;
+  return pReq;
 }
 
 static int32_t setKeepOption(SCreateDbReq* pMsg, const SCreateDbInfo* pCreateDb, SMsgBuf* pMsgBuf) {
@@ -147,9 +165,9 @@ static int32_t setKeepOption(SCreateDbReq* pMsg, const SCreateDbInfo* pCreateDb,
   const char* msg2 = "invalid keep value";
   const char* msg3 = "invalid keep value, should be keep0 <= keep1 <= keep2";
 
-  pMsg->daysToKeep0 = htonl(-1);
-  pMsg->daysToKeep1 = htonl(-1);
-  pMsg->daysToKeep2 = htonl(-1);
+  pMsg->daysToKeep0 = -1;
+  pMsg->daysToKeep1 = -1;
+  pMsg->daysToKeep2 = -1;
 
   SArray* pKeep = pCreateDb->keep;
   if (pKeep != NULL) {
@@ -209,13 +227,13 @@ static int32_t setTimePrecision(SCreateDbReq* pMsg, const SCreateDbInfo* pCreate
 }
 
 static void doSetDbOptions(SCreateDbReq* pMsg, const SCreateDbInfo* pCreateDb) {
-  pMsg->cacheBlockSize = htonl(pCreateDb->cacheBlockSize);
-  pMsg->totalBlocks = htonl(pCreateDb->numOfBlocks);
-  pMsg->daysPerFile = htonl(pCreateDb->daysPerFile);
-  pMsg->commitTime = htonl((int32_t)pCreateDb->commitTime);
-  pMsg->minRows = htonl(pCreateDb->minRowsPerBlock);
-  pMsg->maxRows = htonl(pCreateDb->maxRowsPerBlock);
-  pMsg->fsyncPeriod = htonl(pCreateDb->fsyncPeriod);
+  pMsg->cacheBlockSize = pCreateDb->cacheBlockSize;
+  pMsg->totalBlocks = pCreateDb->numOfBlocks;
+  pMsg->daysPerFile = pCreateDb->daysPerFile;
+  pMsg->commitTime = (int32_t)pCreateDb->commitTime;
+  pMsg->minRows = pCreateDb->minRowsPerBlock;
+  pMsg->maxRows = pCreateDb->maxRowsPerBlock;
+  pMsg->fsyncPeriod = pCreateDb->fsyncPeriod;
   pMsg->compression = (int8_t)pCreateDb->compressionLevel;
   pMsg->walLevel = (char)pCreateDb->walLevel;
   pMsg->replications = pCreateDb->replica;
@@ -223,7 +241,7 @@ static void doSetDbOptions(SCreateDbReq* pMsg, const SCreateDbInfo* pCreateDb) {
   pMsg->ignoreExist = pCreateDb->ignoreExists;
   pMsg->update = pCreateDb->update;
   pMsg->cacheLastRow = pCreateDb->cachelast;
-  pMsg->numOfVgroups = htonl(pCreateDb->numOfVgroups);
+  pMsg->numOfVgroups = pCreateDb->numOfVgroups;
 }
 
 int32_t setDbOptions(SCreateDbReq* pCreateDbMsg, const SCreateDbInfo* pCreateDbSql, SMsgBuf* pMsgBuf) {
@@ -240,12 +258,104 @@ int32_t setDbOptions(SCreateDbReq* pCreateDbMsg, const SCreateDbInfo* pCreateDbS
   return TSDB_CODE_SUCCESS;
 }
 
-SCreateDbReq* buildCreateDbMsg(SCreateDbInfo* pCreateDbInfo, SParseContext* pCtx, SMsgBuf* pMsgBuf) {
-  SCreateDbReq* pCreateMsg = calloc(1, sizeof(SCreateDbReq));
-  if (setDbOptions(pCreateMsg, pCreateDbInfo, pMsgBuf) != TSDB_CODE_SUCCESS) {
-    tfree(pCreateMsg);
-    terrno = TSDB_CODE_TSC_INVALID_OPERATION;
+// can only perform the parameters based on the macro definitation
+static int32_t doCheckDbOptions(SCreateDbReq* pCreate, SMsgBuf* pMsgBuf) {
+  char msg[512] = {0};
 
+  if (pCreate->walLevel != -1 && (pCreate->walLevel < TSDB_MIN_WAL_LEVEL || pCreate->walLevel > TSDB_MAX_WAL_LEVEL)) {
+    snprintf(msg, tListLen(msg), "invalid db option walLevel: %d, only 1-2 allowed", pCreate->walLevel);
+    return buildInvalidOperationMsg(pMsgBuf, msg);
+  }
+
+  if (pCreate->replications != -1 &&
+      (pCreate->replications < TSDB_MIN_DB_REPLICA_OPTION || pCreate->replications > TSDB_MAX_DB_REPLICA_OPTION)) {
+    snprintf(msg, tListLen(msg), "invalid db option replications: %d valid range: [%d, %d]", pCreate->replications,
+             TSDB_MIN_DB_REPLICA_OPTION, TSDB_MAX_DB_REPLICA_OPTION);
+    return buildInvalidOperationMsg(pMsgBuf, msg);
+  }
+
+  int32_t blocks = pCreate->totalBlocks;
+  if (blocks != -1 && (blocks < TSDB_MIN_TOTAL_BLOCKS || blocks > TSDB_MAX_TOTAL_BLOCKS)) {
+    snprintf(msg, tListLen(msg), "invalid db option totalBlocks: %d valid range: [%d, %d]", blocks,
+             TSDB_MIN_TOTAL_BLOCKS, TSDB_MAX_TOTAL_BLOCKS);
+    return buildInvalidOperationMsg(pMsgBuf, msg);
+  }
+
+  if (pCreate->quorum != -1 &&
+      (pCreate->quorum < TSDB_MIN_DB_QUORUM_OPTION || pCreate->quorum > TSDB_MAX_DB_QUORUM_OPTION)) {
+    snprintf(msg, tListLen(msg), "invalid db option quorum: %d valid range: [%d, %d]", pCreate->quorum,
+             TSDB_MIN_DB_QUORUM_OPTION, TSDB_MAX_DB_QUORUM_OPTION);
+    return buildInvalidOperationMsg(pMsgBuf, msg);
+  }
+
+  int32_t val = pCreate->daysPerFile;
+  if (val != -1 && (val < TSDB_MIN_DAYS_PER_FILE || val > TSDB_MAX_DAYS_PER_FILE)) {
+    snprintf(msg, tListLen(msg), "invalid db option daysPerFile: %d valid range: [%d, %d]", val, TSDB_MIN_DAYS_PER_FILE,
+             TSDB_MAX_DAYS_PER_FILE);
+    return buildInvalidOperationMsg(pMsgBuf, msg);
+  }
+
+  val = pCreate->cacheBlockSize;
+  if (val != -1 && (val < TSDB_MIN_CACHE_BLOCK_SIZE || val > TSDB_MAX_CACHE_BLOCK_SIZE)) {
+    snprintf(msg, tListLen(msg), "invalid db option cacheBlockSize: %d valid range: [%d, %d]", val,
+             TSDB_MIN_CACHE_BLOCK_SIZE, TSDB_MAX_CACHE_BLOCK_SIZE);
+    return buildInvalidOperationMsg(pMsgBuf, msg);
+  }
+
+  if (pCreate->precision != TSDB_TIME_PRECISION_MILLI && pCreate->precision != TSDB_TIME_PRECISION_MICRO &&
+      pCreate->precision != TSDB_TIME_PRECISION_NANO) {
+    snprintf(msg, tListLen(msg), "invalid db option timePrecision: %d valid value: [%d, %d, %d]", pCreate->precision,
+             TSDB_TIME_PRECISION_MILLI, TSDB_TIME_PRECISION_MICRO, TSDB_TIME_PRECISION_NANO);
+    return buildInvalidOperationMsg(pMsgBuf, msg);
+  }
+
+  val = pCreate->commitTime;
+  if (val != -1 && (val < TSDB_MIN_COMMIT_TIME || val > TSDB_MAX_COMMIT_TIME)) {
+    snprintf(msg, tListLen(msg), "invalid db option commitTime: %d valid range: [%d, %d]", val, TSDB_MIN_COMMIT_TIME,
+             TSDB_MAX_COMMIT_TIME);
+    return buildInvalidOperationMsg(pMsgBuf, msg);
+  }
+
+  val = pCreate->fsyncPeriod;
+  if (val != -1 && (val < TSDB_MIN_FSYNC_PERIOD || val > TSDB_MAX_FSYNC_PERIOD)) {
+    snprintf(msg, tListLen(msg), "invalid db option fsyncPeriod: %d valid range: [%d, %d]", val, TSDB_MIN_FSYNC_PERIOD,
+             TSDB_MAX_FSYNC_PERIOD);
+    return buildInvalidOperationMsg(pMsgBuf, msg);
+  }
+
+  if (pCreate->compression != -1 &&
+      (pCreate->compression < TSDB_MIN_COMP_LEVEL || pCreate->compression > TSDB_MAX_COMP_LEVEL)) {
+    snprintf(msg, tListLen(msg), "invalid db option compression: %d valid range: [%d, %d]", pCreate->compression,
+             TSDB_MIN_COMP_LEVEL, TSDB_MAX_COMP_LEVEL);
+    return buildInvalidOperationMsg(pMsgBuf, msg);
+  }
+
+  val = pCreate->numOfVgroups;
+  if (val < TSDB_MIN_VNODES_PER_DB || val > TSDB_MAX_VNODES_PER_DB) {
+    snprintf(msg, tListLen(msg), "invalid number of vgroups for DB:%d valid range: [%d, %d]", val,
+             TSDB_MIN_VNODES_PER_DB, TSDB_MAX_VNODES_PER_DB);
+  }
+
+  val = pCreate->maxRows;
+  if (val < TSDB_MIN_MAX_ROW_FBLOCK || val > TSDB_MAX_MAX_ROW_FBLOCK) {
+    snprintf(msg, tListLen(msg), "invalid number of max rows in file block for DB:%d valid range: [%d, %d]", val,
+             TSDB_MIN_MAX_ROW_FBLOCK, TSDB_MAX_MAX_ROW_FBLOCK);
+  }
+
+  val = pCreate->minRows;
+  if (val < TSDB_MIN_MIN_ROW_FBLOCK || val > TSDB_MAX_MIN_ROW_FBLOCK) {
+    snprintf(msg, tListLen(msg), "invalid number of min rows in file block for DB:%d valid range: [%d, %d]", val,
+             TSDB_MIN_MIN_ROW_FBLOCK, TSDB_MAX_MIN_ROW_FBLOCK);
+  }
+
+  return TSDB_CODE_SUCCESS;
+}
+
+char* buildCreateDbMsg(SCreateDbInfo* pCreateDbInfo, int32_t* outputLen, SParseContext* pCtx, SMsgBuf* pMsgBuf) {
+  SCreateDbReq createReq = {0};
+
+  if (setDbOptions(&createReq, pCreateDbInfo, pMsgBuf) != TSDB_CODE_SUCCESS) {
+    terrno = TSDB_CODE_TSC_INVALID_OPERATION;
     return NULL;
   }
 
@@ -256,11 +366,27 @@ SCreateDbReq* buildCreateDbMsg(SCreateDbInfo* pCreateDbInfo, SParseContext* pCtx
     return NULL;
   }
 
-  tNameGetFullDbName(&name, pCreateMsg->db);
-  return pCreateMsg;
+  tNameGetFullDbName(&name, createReq.db);
+
+  if (doCheckDbOptions(&createReq, pMsgBuf) != TSDB_CODE_SUCCESS) {
+    terrno = TSDB_CODE_TSC_INVALID_OPERATION;
+    return NULL;
+  }
+
+  int32_t tlen = tSerializeSCreateDbReq(NULL, 0, &createReq);
+  void*   pReq = malloc(tlen);
+  if (pReq == NULL) {
+    terrno = TSDB_CODE_OUT_OF_MEMORY;
+    return NULL;
+  }
+
+  tSerializeSCreateDbReq(pReq, tlen, &createReq);
+  *outputLen = tlen;
+  return pReq;
 }
 
-char* buildCreateStbReq(SCreateTableSql* pCreateTableSql, int32_t* len, SParseContext* pParseCtx, SMsgBuf* pMsgBuf) {
+char* buildCreateStbReq(SCreateTableSql* pCreateTableSql, int32_t* outputLen, SParseContext* pParseCtx,
+                        SMsgBuf* pMsgBuf) {
   SMCreateStbReq createReq = {0};
   createReq.igExists = pCreateTableSql->existCheck ? 1 : 0;
   createReq.pColumns = pCreateTableSql->colInfo.pColumns;
@@ -287,11 +413,11 @@ char* buildCreateStbReq(SCreateTableSql* pCreateTableSql, int32_t* len, SParseCo
 
   void* pBuf = pReq;
   tSerializeSMCreateStbReq(&pBuf, &createReq);
-  *len = tlen;
+  *outputLen = tlen;
   return pReq;
 }
 
-char* buildDropStableReq(SSqlInfo* pInfo, int32_t* len, SParseContext* pParseCtx, SMsgBuf* pMsgBuf) {
+char* buildDropStableReq(SSqlInfo* pInfo, int32_t* outputLen, SParseContext* pParseCtx, SMsgBuf* pMsgBuf) {
   SToken* tableName = taosArrayGet(pInfo->pMiscInfo->a, 0);
 
   SName   name = {0};
@@ -316,11 +442,11 @@ char* buildDropStableReq(SSqlInfo* pInfo, int32_t* len, SParseContext* pParseCtx
 
   void* pBuf = pReq;
   tSerializeSMDropStbReq(&pBuf, &dropReq);
-  *len = tlen;
+  *outputLen = tlen;
   return pReq;
 }
 
-char* buildCreateDnodeMsg(SSqlInfo* pInfo, int32_t* len, SMsgBuf* pMsgBuf) {
+char* buildCreateDnodeMsg(SSqlInfo* pInfo, int32_t* outputLen, SMsgBuf* pMsgBuf) {
   const char* msg1 = "invalid host name (name too long, maximum length 128)";
   const char* msg2 = "dnode name can not be string";
   const char* msg3 = "port should be an integer that is less than 65535 and greater than 0";
@@ -365,11 +491,11 @@ char* buildCreateDnodeMsg(SSqlInfo* pInfo, int32_t* len, SMsgBuf* pMsgBuf) {
   }
 
   tSerializeSCreateDnodeReq(pReq, tlen, &createReq);
-  *len = tlen;
+  *outputLen = tlen;
   return pReq;
 }
 
-char* buildDropDnodeMsg(SSqlInfo* pInfo, int32_t* len, SMsgBuf* pMsgBuf) {
+char* buildDropDnodeMsg(SSqlInfo* pInfo, int32_t* outputLen, SMsgBuf* pMsgBuf) {
   SDropDnodeReq dropReq = {0};
 
   SToken* pzName = taosArrayGet(pInfo->pMiscInfo->a, 0);
@@ -390,6 +516,6 @@ char* buildDropDnodeMsg(SSqlInfo* pInfo, int32_t* len, SMsgBuf* pMsgBuf) {
   }
 
   tSerializeSDropDnodeReq(pReq, tlen, &dropReq);
-  *len = tlen;
+  *outputLen = tlen;
   return pReq;
 }

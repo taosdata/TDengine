@@ -65,14 +65,14 @@ bool    ctgTestDeadLoop = false;
 int32_t ctgTestPrintNum = 200000;
 int32_t ctgTestMTRunSec = 5;
 
-int32_t ctgTestCurrentVgVersion = 0;
-int32_t ctgTestVgVersion = 1;
-int32_t ctgTestVgNum = 10;
-int32_t ctgTestColNum = 2;
-int32_t ctgTestTagNum = 1;
-int32_t ctgTestSVersion = 1;
-int32_t ctgTestTVersion = 1;
-int32_t ctgTestSuid = 2;
+int32_t  ctgTestCurrentVgVersion = 0;
+int32_t  ctgTestVgVersion = 1;
+int32_t  ctgTestVgNum = 10;
+int32_t  ctgTestColNum = 2;
+int32_t  ctgTestTagNum = 1;
+int32_t  ctgTestSVersion = 1;
+int32_t  ctgTestTVersion = 1;
+int32_t  ctgTestSuid = 2;
 uint64_t ctgTestDbId = 33;
 
 uint64_t ctgTestClusterId = 0x1;
@@ -85,35 +85,38 @@ int32_t ctgTestRspFunc[10] = {0};
 int32_t ctgTestRspIdx = 0;
 
 void sendCreateDbMsg(void *shandle, SEpSet *pEpSet) {
-  SCreateDbReq *pReq = (SCreateDbReq *)rpcMallocCont(sizeof(SCreateDbReq));
-  strcpy(pReq->db, "1.db1");
-  pReq->numOfVgroups = htonl(2);
-  pReq->cacheBlockSize = htonl(16);
-  pReq->totalBlocks = htonl(10);
-  pReq->daysPerFile = htonl(10);
-  pReq->daysToKeep0 = htonl(3650);
-  pReq->daysToKeep1 = htonl(3650);
-  pReq->daysToKeep2 = htonl(3650);
-  pReq->minRows = htonl(100);
-  pReq->maxRows = htonl(4096);
-  pReq->commitTime = htonl(3600);
-  pReq->fsyncPeriod = htonl(3000);
-  pReq->walLevel = 1;
-  pReq->precision = 0;
-  pReq->compression = 2;
-  pReq->replications = 1;
-  pReq->quorum = 1;
-  pReq->update = 0;
-  pReq->cacheLastRow = 0;
-  pReq->ignoreExist = 1;
+  SCreateDbReq createReq = {0};
+  strcpy(createReq.db, "1.db1");
+  createReq.numOfVgroups = 2;
+  createReq.cacheBlockSize = 16;
+  createReq.totalBlocks = 10;
+  createReq.daysPerFile = 10;
+  createReq.daysToKeep0 = 3650;
+  createReq.daysToKeep1 = 3650;
+  createReq.daysToKeep2 = 3650;
+  createReq.minRows = 100;
+  createReq.maxRows = 4096;
+  createReq.commitTime = 3600;
+  createReq.fsyncPeriod = 3000;
+  createReq.walLevel = 1;
+  createReq.precision = 0;
+  createReq.compression = 2;
+  createReq.replications = 1;
+  createReq.quorum = 1;
+  createReq.update = 0;
+  createReq.cacheLastRow = 0;
+  createReq.ignoreExist = 1;
+
+  int32_t contLen = tSerializeSCreateDbReq(NULL, 0, &createReq);
+  void   *pReq = rpcMallocCont(contLen);
+  tSerializeSCreateDbReq(pReq, contLen, &createReq);
 
   SRpcMsg rpcMsg = {0};
   rpcMsg.pCont = pReq;
-  rpcMsg.contLen = sizeof(SCreateDbReq);
+  rpcMsg.contLen = contLen;
   rpcMsg.msgType = TDMT_MND_CREATE_DB;
 
   SRpcMsg rpcRsp = {0};
-
   rpcSendRecv(shandle, pEpSet, &rpcMsg, &rpcRsp);
 
   ASSERT_EQ(rpcRsp.code, 0);
@@ -228,7 +231,6 @@ void ctgTestBuildDBVgroup(SDBVgInfo **pdbVgroup) {
   *pdbVgroup = dbVgroup;
 }
 
-
 void ctgTestBuildSTableMetaRsp(STableMetaRsp *rspMsg) {
   strcpy(rspMsg->dbFName, ctgTestDbname);
   sprintf(rspMsg->tbName, "%s", ctgTestSTablename);
@@ -266,41 +268,44 @@ void ctgTestBuildSTableMetaRsp(STableMetaRsp *rspMsg) {
   return;
 }
 
-
 void ctgTestRspDbVgroups(void *shandle, SEpSet *pEpSet, SRpcMsg *pMsg, SRpcMsg *pRsp) {
-  SUseDbRsp *rspMsg = NULL;  // todo
-
-  pRsp->code = 0;
-  pRsp->contLen = sizeof(SUseDbRsp) + ctgTestVgNum * sizeof(SVgroupInfo);
-  pRsp->pCont = calloc(1, pRsp->contLen);
-  rspMsg = (SUseDbRsp *)pRsp->pCont;
-  strcpy(rspMsg->db, ctgTestDbname);
-  rspMsg->vgVersion = htonl(ctgTestVgVersion);
+  SUseDbRsp usedbRsp = {0};
+  strcpy(usedbRsp.db, ctgTestDbname);
+  usedbRsp.vgVersion = ctgTestVgVersion;
   ctgTestCurrentVgVersion = ctgTestVgVersion;
-  rspMsg->vgNum = htonl(ctgTestVgNum);
-  rspMsg->hashMethod = 0;
-  rspMsg->uid = htobe64(ctgTestDbId);
+  usedbRsp.vgNum = ctgTestVgNum;
+  usedbRsp.hashMethod = 0;
+  usedbRsp.uid = ctgTestDbId;
+  usedbRsp.pVgroupInfos = taosArrayInit(usedbRsp.vgNum, sizeof(SVgroupInfo));
 
-  SVgroupInfo *vg = NULL;
-  uint32_t     hashUnit = UINT32_MAX / ctgTestVgNum;
+  uint32_t hashUnit = UINT32_MAX / ctgTestVgNum;
   for (int32_t i = 0; i < ctgTestVgNum; ++i) {
-    vg = &rspMsg->vgroupInfo[i];
-
-    vg->vgId = htonl(i + 1);
-    vg->hashBegin = htonl(i * hashUnit);
-    vg->hashEnd = htonl(hashUnit * (i + 1) - 1);
-    vg->epset.numOfEps = i % TSDB_MAX_REPLICA + 1;
-    vg->epset.inUse = i % vg->epset.numOfEps;
-    for (int32_t n = 0; n < vg->epset.numOfEps; ++n) {
-      SEp *addr = &vg->epset.eps[n];
-      strcpy(addr->fqdn, "a0");
-      addr->port = htons(n + 22);
+    SVgroupInfo vg = {0};
+    vg.vgId = i + 1;
+    vg.hashBegin = i * hashUnit;
+    vg.hashEnd = hashUnit * (i + 1) - 1;
+    if (i == ctgTestVgNum - 1) {
+      vg.hashEnd = htonl(UINT32_MAX);
     }
+
+    vg.epset.numOfEps = i % TSDB_MAX_REPLICA + 1;
+    vg.epset.inUse = i % vg.epset.numOfEps;
+    for (int32_t n = 0; n < vg.epset.numOfEps; ++n) {
+      SEp *addr = &vg.epset.eps[n];
+      strcpy(addr->fqdn, "a0");
+      addr->port = n + 22;
+    }
+
+    taosArrayPush(usedbRsp.pVgroupInfos, &vg);
   }
 
-  vg->hashEnd = htonl(UINT32_MAX);
+  int32_t contLen = tSerializeSUseDbRsp(NULL, 0, &usedbRsp);
+  void   *pReq = rpcMallocCont(contLen);
+  tSerializeSUseDbRsp(pReq, contLen, &usedbRsp);
 
-  return;
+  pRsp->code = 0;
+  pRsp->contLen = contLen;
+  pRsp->pCont = pReq;
 }
 
 void ctgTestRspTableMeta(void *shandle, SEpSet *pEpSet, SRpcMsg *pMsg, SRpcMsg *pRsp) {
@@ -390,8 +395,8 @@ void ctgTestRspSTableMeta(void *shandle, SEpSet *pEpSet, SRpcMsg *pMsg, SRpcMsg 
   pRsp->pCont = calloc(1, pRsp->contLen);
   rspMsg = (STableMetaRsp *)pRsp->pCont;
   strcpy(rspMsg->dbFName, ctgTestDbname);
-  strcpy(rspMsg->tbName, ctgTestSTablename);  
-  strcpy(rspMsg->stbName, ctgTestSTablename);  
+  strcpy(rspMsg->tbName, ctgTestSTablename);
+  strcpy(rspMsg->stbName, ctgTestSTablename);
   rspMsg->numOfTags = htonl(ctgTestTagNum);
   rspMsg->numOfColumns = htonl(ctgTestColNum);
   rspMsg->precision = 1;
@@ -716,7 +721,6 @@ void *ctgTestSetSameDbVgroupThread(void *param) {
   return NULL;
 }
 
-
 void *ctgTestSetDiffDbVgroupThread(void *param) {
   struct SCatalog *pCtg = (struct SCatalog *)param;
   int32_t          code = 0;
@@ -740,7 +744,6 @@ void *ctgTestSetDiffDbVgroupThread(void *param) {
 
   return NULL;
 }
-
 
 void *ctgTestGetCtableMetaThread(void *param) {
   struct SCatalog *pCtg = (struct SCatalog *)param;
@@ -1008,7 +1011,7 @@ TEST(tableMeta, childTableCase) {
     }
 
     if (stbNum) {
-      printf("got expired stb,suid:%" PRId64 ",dbFName:%s, stbName:%s\n", stb->suid, stb->dbFName, stb->stbName);      
+      printf("got expired stb,suid:%" PRId64 ",dbFName:%s, stbName:%s\n", stb->suid, stb->dbFName, stb->stbName);
       free(stb);
       stb = NULL;
     } else {
@@ -1131,7 +1134,7 @@ TEST(tableMeta, superTableCase) {
 
     if (stbNum) {
       printf("got expired stb,suid:%" PRId64 ",dbFName:%s, stbName:%s\n", stb->suid, stb->dbFName, stb->stbName);
-      
+
       free(stb);
       stb = NULL;
     } else {
@@ -1215,7 +1218,7 @@ TEST(tableMeta, rmStbMeta) {
   ASSERT_EQ(ctgDbgGetClusterCacheNum(pCtg, CTG_DBG_STB_NUM), 0);
   ASSERT_EQ(ctgDbgGetClusterCacheNum(pCtg, CTG_DBG_DB_RENT_NUM), 1);
   ASSERT_EQ(ctgDbgGetClusterCacheNum(pCtg, CTG_DBG_STB_RENT_NUM), 0);
-  
+
   catalogDestroy();
   memset(&gCtgMgmt, 0, sizeof(gCtgMgmt));
 }
@@ -1304,12 +1307,10 @@ TEST(tableMeta, updateStbMeta) {
   ASSERT_EQ(tableMeta->tableInfo.rowSize, 12);
 
   tfree(tableMeta);
-  
+
   catalogDestroy();
   memset(&gCtgMgmt.stat, 0, sizeof(gCtgMgmt.stat));
 }
-
-
 
 TEST(tableDistVgroup, normalTable) {
   struct SCatalog *pCtg = NULL;
@@ -1448,7 +1449,7 @@ TEST(dbVgroup, getSetDbVgroupCase) {
   void            *mockPointer = (void *)0x1;
   SVgroupInfo      vgInfo = {0};
   SVgroupInfo     *pvgInfo = NULL;
-  SDBVgInfo    *dbVgroup = NULL;
+  SDBVgInfo       *dbVgroup = NULL;
   SArray          *vgList = NULL;
 
   ctgTestInitLogFile();
@@ -1634,8 +1635,6 @@ TEST(multiThread, getSetRmDiffDbVgroup) {
   memset(&gCtgMgmt, 0, sizeof(gCtgMgmt));
 }
 
-
-
 TEST(multiThread, ctableMeta) {
   struct SCatalog *pCtg = NULL;
   void            *mockPointer = (void *)0x1;
@@ -1686,8 +1685,6 @@ TEST(multiThread, ctableMeta) {
   catalogDestroy();
   memset(&gCtgMgmt, 0, sizeof(gCtgMgmt));
 }
-
-
 
 TEST(rentTest, allRent) {
   struct SCatalog *pCtg = NULL;
@@ -1751,7 +1748,8 @@ TEST(rentTest, allRent) {
     printf("%d - expired stableNum:%d\n", i, num);
     if (stable) {
       for (int32_t n = 0; n < num; ++n) {
-        printf("suid:%" PRId64 ", dbFName:%s, stbName:%s, sversion:%d, tversion:%d\n", stable[n].suid, stable[n].dbFName, stable[n].stbName, stable[n].sversion, stable[n].tversion);
+        printf("suid:%" PRId64 ", dbFName:%s, stbName:%s, sversion:%d, tversion:%d\n", stable[n].suid,
+               stable[n].dbFName, stable[n].stbName, stable[n].sversion, stable[n].tversion);
       }
       free(stable);
       stable = NULL;

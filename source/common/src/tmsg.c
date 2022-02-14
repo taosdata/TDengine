@@ -85,118 +85,156 @@ STSRow *tGetSubmitBlkNext(SSubmitBlkIter *pIter) {
   }
 }
 
-int32_t tSerializeSClientHbReq(void **buf, const SClientHbReq *pReq) {
-  int32_t tlen = 0;
-  tlen += taosEncodeSClientHbKey(buf, &pReq->connKey);
+static int32_t tSerializeSClientHbReq(SCoder *pEncoder, const SClientHbReq *pReq) {
+  if (tEncodeSClientHbKey(pEncoder, &pReq->connKey) < 0) return -1;
 
   int32_t kvNum = taosHashGetSize(pReq->info);
-  tlen += taosEncodeFixedI32(buf, kvNum);
-  SKv  *kv;
+  if (tEncodeI32(pEncoder, kvNum) < 0) return -1;
   void *pIter = taosHashIterate(pReq->info, NULL);
   while (pIter != NULL) {
-    kv = pIter;
-    tlen += taosEncodeSKv(buf, kv);
-
+    SKv *kv = pIter;
+    if (tEncodeSKv(pEncoder, kv) < 0) return -1;
     pIter = taosHashIterate(pReq->info, pIter);
   }
-  return tlen;
+
+  return 0;
 }
 
-void *tDeserializeSClientHbReq(void *buf, SClientHbReq *pReq) {
-  buf = taosDecodeSClientHbKey(buf, &pReq->connKey);
+static int32_t tDeserializeSClientHbReq(SCoder *pDecoder, SClientHbReq *pReq) {
+  if (tDecodeSClientHbKey(pDecoder, &pReq->connKey) < 0) return -1;
 
-  // TODO: error handling
-  int32_t kvNum;
-  buf = taosDecodeFixedI32(buf, &kvNum);
+  int32_t kvNum = 0;
+  if (tDecodeI32(pDecoder, &kvNum) < 0) return -1;
   if (pReq->info == NULL) {
     pReq->info = taosHashInit(kvNum, taosGetDefaultHashFunction(TSDB_DATA_TYPE_BINARY), true, HASH_NO_LOCK);
   }
+  if (pReq->info == NULL) return -1;
   for (int32_t i = 0; i < kvNum; i++) {
-    SKv kv;
-    buf = taosDecodeSKv(buf, &kv);
+    SKv kv = {0};
+    if (tDecodeSKv(pDecoder, &kv) < 0) return -1;
     taosHashPut(pReq->info, &kv.key, sizeof(kv.key), &kv, sizeof(kv));
   }
 
-  return buf;
+  return 0;
 }
 
-int32_t tSerializeSClientHbRsp(void **buf, const SClientHbRsp *pRsp) {
-  int32_t tlen = 0;
+static int32_t tSerializeSClientHbRsp(SCoder *pEncoder, const SClientHbRsp *pRsp) {
+  if (tEncodeSClientHbKey(pEncoder, &pRsp->connKey) < 0) return -1;
+  if (tEncodeI32(pEncoder, pRsp->status) < 0) return -1;
+
   int32_t kvNum = taosArrayGetSize(pRsp->info);
-  tlen += taosEncodeSClientHbKey(buf, &pRsp->connKey);
-  tlen += taosEncodeFixedI32(buf, pRsp->status);
-  tlen += taosEncodeFixedI32(buf, kvNum);
+  if (tEncodeI32(pEncoder, kvNum) < 0) return -1;
   for (int32_t i = 0; i < kvNum; i++) {
-    SKv *kv = (SKv *)taosArrayGet(pRsp->info, i);
-    tlen += taosEncodeSKv(buf, kv);
+    SKv *kv = taosArrayGet(pRsp->info, i);
+    if (tEncodeSKv(pEncoder, kv) < 0) return -1;
   }
-  return tlen;
+
+  return 0;
 }
 
-void *tDeserializeSClientHbRsp(void *buf, SClientHbRsp *pRsp) {
+static int32_t tDeserializeSClientHbRsp(SCoder *pDecoder, SClientHbRsp *pRsp) {
+  if (tDecodeSClientHbKey(pDecoder, &pRsp->connKey) < 0) return -1;
+  if (tDecodeI32(pDecoder, &pRsp->status) < 0) return -1;
+
   int32_t kvNum = 0;
-  buf = taosDecodeSClientHbKey(buf, &pRsp->connKey);
-  buf = taosDecodeFixedI32(buf, &pRsp->status);
-  buf = taosDecodeFixedI32(buf, &kvNum);
+  if (tDecodeI32(pDecoder, &kvNum) < 0) return -1;
   pRsp->info = taosArrayInit(kvNum, sizeof(SKv));
+  if (pRsp->info == NULL) return -1;
   for (int32_t i = 0; i < kvNum; i++) {
     SKv kv = {0};
-    buf = taosDecodeSKv(buf, &kv);
+    tDecodeSKv(pDecoder, &kv);
     taosArrayPush(pRsp->info, &kv);
   }
 
-  return buf;
+  return 0;
 }
 
-int32_t tSerializeSClientHbBatchReq(void **buf, const SClientHbBatchReq *pBatchReq) {
-  int32_t tlen = 0;
-  tlen += taosEncodeFixedI64(buf, pBatchReq->reqId);
+int32_t tSerializeSClientHbBatchReq(void *buf, int32_t bufLen, const SClientHbBatchReq *pBatchReq) {
+  SCoder encoder = {0};
+  tCoderInit(&encoder, TD_LITTLE_ENDIAN, buf, bufLen, TD_ENCODER);
+
+  if (tStartEncode(&encoder) < 0) return -1;
+  if (tEncodeI64(&encoder, pBatchReq->reqId) < 0) return -1;
+
   int32_t reqNum = taosArrayGetSize(pBatchReq->reqs);
-  tlen += taosEncodeFixedI32(buf, reqNum);
+  if (tEncodeI32(&encoder, reqNum) < 0) return -1;
   for (int32_t i = 0; i < reqNum; i++) {
     SClientHbReq *pReq = taosArrayGet(pBatchReq->reqs, i);
-    tlen += tSerializeSClientHbReq(buf, pReq);
+    if (tSerializeSClientHbReq(&encoder, pReq) < 0) return -1;
   }
+  tEndEncode(&encoder);
+
+  int32_t tlen = encoder.pos;
+  tCoderClear(&encoder);
   return tlen;
 }
 
-void *tDeserializeSClientHbBatchReq(void *buf, SClientHbBatchReq *pBatchReq) {
-  buf = taosDecodeFixedI64(buf, &pBatchReq->reqId);
-  if (pBatchReq->reqs == NULL) {
-    pBatchReq->reqs = taosArrayInit(0, sizeof(SClientHbReq));
-  }
+int32_t tDeserializeSClientHbBatchReq(void *buf, int32_t bufLen, SClientHbBatchReq *pBatchReq) {
+  SCoder decoder = {0};
+  tCoderInit(&decoder, TD_LITTLE_ENDIAN, buf, bufLen, TD_DECODER);
 
-  int32_t reqNum;
-  buf = taosDecodeFixedI32(buf, &reqNum);
+  if (tStartDecode(&decoder) < 0) return -1;
+  if (tDecodeI64(&decoder, &pBatchReq->reqId) < 0) return -1;
+
+  int32_t reqNum = 0;
+  if (tDecodeI32(&decoder, &reqNum) < 0) return -1;
+  if (pBatchReq->reqs == NULL) {
+    pBatchReq->reqs = taosArrayInit(reqNum, sizeof(SClientHbReq));
+  }
   for (int32_t i = 0; i < reqNum; i++) {
     SClientHbReq req = {0};
-    buf = tDeserializeSClientHbReq(buf, &req);
+    tDeserializeSClientHbReq(&decoder, &req);
     taosArrayPush(pBatchReq->reqs, &req);
   }
-  return buf;
+
+  tEndDecode(&decoder);
+  tCoderClear(&decoder);
+  return 0;
 }
 
-int32_t tSerializeSClientHbBatchRsp(void **buf, const SClientHbBatchRsp *pBatchRsp) {
-  int32_t tlen = 0;
-  int32_t sz = taosArrayGetSize(pBatchRsp->rsps);
-  tlen += taosEncodeFixedI32(buf, sz);
-  for (int32_t i = 0; i < sz; i++) {
+int32_t tSerializeSClientHbBatchRsp(void *buf, int32_t bufLen, const SClientHbBatchRsp *pBatchRsp) {
+  SCoder encoder = {0};
+  tCoderInit(&encoder, TD_LITTLE_ENDIAN, buf, bufLen, TD_ENCODER);
+
+  if (tStartEncode(&encoder) < 0) return -1;
+  if (tEncodeI64(&encoder, pBatchRsp->reqId) < 0) return -1;
+  if (tEncodeI64(&encoder, pBatchRsp->rspId) < 0) return -1;
+
+  int32_t rspNum = taosArrayGetSize(pBatchRsp->rsps);
+  if (tEncodeI32(&encoder, rspNum) < 0) return -1;
+  for (int32_t i = 0; i < rspNum; i++) {
     SClientHbRsp *pRsp = taosArrayGet(pBatchRsp->rsps, i);
-    tlen += tSerializeSClientHbRsp(buf, pRsp);
+    if (tSerializeSClientHbRsp(&encoder, pRsp) < 0) return -1;
   }
+  tEndEncode(&encoder);
+
+  int32_t tlen = encoder.pos;
+  tCoderClear(&encoder);
   return tlen;
 }
 
-void *tDeserializeSClientHbBatchRsp(void *buf, SClientHbBatchRsp *pBatchRsp) {
-  int32_t sz;
-  buf = taosDecodeFixedI32(buf, &sz);
-  pBatchRsp->rsps = taosArrayInit(sz, sizeof(SClientHbRsp));
-  for (int32_t i = 0; i < sz; i++) {
+int32_t tDeserializeSClientHbBatchRsp(void *buf, int32_t bufLen, SClientHbBatchRsp *pBatchRsp) {
+  SCoder decoder = {0};
+  tCoderInit(&decoder, TD_LITTLE_ENDIAN, buf, bufLen, TD_DECODER);
+
+  if (tStartDecode(&decoder) < 0) return -1;
+  if (tDecodeI64(&decoder, &pBatchRsp->reqId) < 0) return -1;
+  if (tDecodeI64(&decoder, &pBatchRsp->rspId) < 0) return -1;
+
+  int32_t rspNum = 0;
+  if (tDecodeI32(&decoder, &rspNum) < 0) return -1;
+  if (pBatchRsp->rsps == NULL) {
+    pBatchRsp->rsps = taosArrayInit(rspNum, sizeof(SClientHbReq));
+  }
+  for (int32_t i = 0; i < rspNum; i++) {
     SClientHbRsp rsp = {0};
-    buf = tDeserializeSClientHbRsp(buf, &rsp);
+    tDeserializeSClientHbRsp(&decoder, &rsp);
     taosArrayPush(pBatchRsp->rsps, &rsp);
   }
-  return buf;
+
+  tEndDecode(&decoder);
+  tCoderClear(&decoder);
+  return 0;
 }
 
 int32_t tSerializeSVCreateTbReq(void **buf, SVCreateTbReq *pReq) {
@@ -400,6 +438,11 @@ void *tDeserializeSMCreateStbReq(void *buf, SMCreateStbReq *pReq) {
 
   buf = taosDecodeStringTo(buf, pReq->comment);
   return buf;
+}
+
+void tFreeSMCreateStbReq(SMCreateStbReq *pReq) {
+  taosArrayDestroy(pReq->pColumns);
+  taosArrayDestroy(pReq->pTags);
 }
 
 int32_t tSerializeSMDropStbReq(void **buf, SMDropStbReq *pReq) {
@@ -1304,6 +1347,197 @@ int32_t tDeserializeSSyncDbReq(void *buf, int32_t bufLen, SSyncDbReq *pReq) {
   if (tDecodeCStrTo(&decoder, pReq->db) < 0) return -1;
   tEndDecode(&decoder);
 
+  tCoderClear(&decoder);
+  return 0;
+}
+
+static int32_t tSerializeSUseDbRspImp(SCoder *pEncoder, SUseDbRsp *pRsp) {
+  if (tEncodeCStr(pEncoder, pRsp->db) < 0) return -1;
+  if (tEncodeU64(pEncoder, pRsp->uid) < 0) return -1;
+  if (tEncodeI32(pEncoder, pRsp->vgVersion) < 0) return -1;
+  if (tEncodeI32(pEncoder, pRsp->vgNum) < 0) return -1;
+  if (tEncodeI8(pEncoder, pRsp->hashMethod) < 0) return -1;
+
+  for (int32_t i = 0; i < pRsp->vgNum; ++i) {
+    SVgroupInfo *pVgInfo = taosArrayGet(pRsp->pVgroupInfos, i);
+    if (tEncodeI32(pEncoder, pVgInfo->vgId) < 0) return -1;
+    if (tEncodeU32(pEncoder, pVgInfo->hashBegin) < 0) return -1;
+    if (tEncodeU32(pEncoder, pVgInfo->hashEnd) < 0) return -1;
+    if (tEncodeSEpSet(pEncoder, &pVgInfo->epset) < 0) return -1;
+  }
+
+  return 0;
+}
+
+int32_t tSerializeSUseDbRsp(void *buf, int32_t bufLen, SUseDbRsp *pRsp) {
+  SCoder encoder = {0};
+  tCoderInit(&encoder, TD_LITTLE_ENDIAN, buf, bufLen, TD_ENCODER);
+
+  if (tStartEncode(&encoder) < 0) return -1;
+  if (tSerializeSUseDbRspImp(&encoder, pRsp) < 0) return -1;
+  tEndEncode(&encoder);
+
+  int32_t tlen = encoder.pos;
+  tCoderClear(&encoder);
+  return tlen;
+}
+
+int32_t tSerializeSUseDbBatchRsp(void *buf, int32_t bufLen, SUseDbBatchRsp *pRsp) {
+  SCoder encoder = {0};
+  tCoderInit(&encoder, TD_LITTLE_ENDIAN, buf, bufLen, TD_ENCODER);
+
+  if (tStartEncode(&encoder) < 0) return -1;
+
+  int32_t numOfBatch = taosArrayGetSize(pRsp->pArray);
+  if (tEncodeI32(&encoder, numOfBatch) < 0) return -1;
+  for (int32_t i = 0; i < numOfBatch; ++i) {
+    SUseDbRsp *pUsedbRsp = taosArrayGet(pRsp->pArray, i);
+    if (tSerializeSUseDbRspImp(&encoder, pUsedbRsp) < 0) return -1;
+  }
+  tEndEncode(&encoder);
+
+  int32_t tlen = encoder.pos;
+  tCoderClear(&encoder);
+  return tlen;
+}
+
+int32_t tDeserializeSUseDbRspImp(SCoder *pDecoder, SUseDbRsp *pRsp) {
+  if (tDecodeCStrTo(pDecoder, pRsp->db) < 0) return -1;
+  if (tDecodeU64(pDecoder, &pRsp->uid) < 0) return -1;
+  if (tDecodeI32(pDecoder, &pRsp->vgVersion) < 0) return -1;
+  if (tDecodeI32(pDecoder, &pRsp->vgNum) < 0) return -1;
+  if (tDecodeI8(pDecoder, &pRsp->hashMethod) < 0) return -1;
+
+  pRsp->pVgroupInfos = taosArrayInit(pRsp->vgNum, sizeof(SVgroupInfo));
+  if (pRsp->pVgroupInfos == NULL) {
+    terrno = TSDB_CODE_OUT_OF_MEMORY;
+    return -1;
+  }
+
+  for (int32_t i = 0; i < pRsp->vgNum; ++i) {
+    SVgroupInfo vgInfo = {0};
+    if (tDecodeI32(pDecoder, &vgInfo.vgId) < 0) return -1;
+    if (tDecodeU32(pDecoder, &vgInfo.hashBegin) < 0) return -1;
+    if (tDecodeU32(pDecoder, &vgInfo.hashEnd) < 0) return -1;
+    if (tDecodeSEpSet(pDecoder, &vgInfo.epset) < 0) return -1;
+    taosArrayPush(pRsp->pVgroupInfos, &vgInfo);
+  }
+
+  return 0;
+}
+
+int32_t tDeserializeSUseDbRsp(void *buf, int32_t bufLen, SUseDbRsp *pRsp) {
+  SCoder decoder = {0};
+  tCoderInit(&decoder, TD_LITTLE_ENDIAN, buf, bufLen, TD_DECODER);
+
+  if (tStartDecode(&decoder) < 0) return -1;
+  if (tDeserializeSUseDbRspImp(&decoder, pRsp) < 0) return -1;
+  tEndDecode(&decoder);
+
+  tCoderClear(&decoder);
+  return 0;
+}
+
+int32_t tDeserializeSUseDbBatchRsp(void *buf, int32_t bufLen, SUseDbBatchRsp *pRsp) {
+  SCoder decoder = {0};
+  tCoderInit(&decoder, TD_LITTLE_ENDIAN, buf, bufLen, TD_DECODER);
+
+  if (tStartDecode(&decoder) < 0) return -1;
+
+  int32_t numOfBatch = taosArrayGetSize(pRsp->pArray);
+  if (tDecodeI32(&decoder, &numOfBatch) < 0) return -1;
+
+  pRsp->pArray = taosArrayInit(numOfBatch, sizeof(SUseDbBatchRsp));
+  if (pRsp->pArray == NULL) {
+    terrno = TSDB_CODE_OUT_OF_MEMORY;
+    return -1;
+  }
+
+  for (int32_t i = 0; i < numOfBatch; ++i) {
+    SUseDbRsp usedbRsp = {0};
+    if (tDeserializeSUseDbRspImp(&decoder, &usedbRsp) < 0) return -1;
+    taosArrayPush(pRsp->pArray, &usedbRsp);
+  }
+  tEndDecode(&decoder);
+
+  tCoderClear(&decoder);
+  return 0;
+}
+
+void tFreeSUsedbRsp(SUseDbRsp *pRsp) { taosArrayDestroy(pRsp->pVgroupInfos); }
+
+void tFreeSUseDbBatchRsp(SUseDbBatchRsp *pRsp) {
+  int32_t numOfBatch = taosArrayGetSize(pRsp->pArray);
+  for (int32_t i = 0; i < numOfBatch; ++i) {
+    SUseDbRsp *pUsedbRsp = taosArrayGet(pRsp->pArray, i);
+    tFreeSUsedbRsp(pUsedbRsp);
+  }
+
+  taosArrayDestroy(pRsp->pArray);
+}
+
+int32_t tSerializeSShowReq(void *buf, int32_t bufLen, SShowReq *pReq) {
+  SCoder encoder = {0};
+  tCoderInit(&encoder, TD_LITTLE_ENDIAN, buf, bufLen, TD_ENCODER);
+
+  if (tStartEncode(&encoder) < 0) return -1;
+  if (tEncodeI32(&encoder, pReq->type) < 0) return -1;
+  if (tEncodeCStr(&encoder, pReq->db) < 0) return -1;
+  if (tEncodeI32(&encoder, pReq->payloadLen) < 0) return -1;
+  if (pReq->payloadLen > 0) {
+    if (tEncodeCStr(&encoder, pReq->payload) < 0) return -1;
+  }
+  tEndEncode(&encoder);
+
+  int32_t tlen = encoder.pos;
+  tCoderClear(&encoder);
+  return tlen;
+}
+
+int32_t tDeserializeSShowReq(void *buf, int32_t bufLen, SShowReq *pReq) {
+  SCoder decoder = {0};
+  tCoderInit(&decoder, TD_LITTLE_ENDIAN, buf, bufLen, TD_DECODER);
+
+  if (tStartDecode(&decoder) < 0) return -1;
+  if (tDecodeI32(&decoder, &pReq->type) < 0) return -1;
+  if (tDecodeCStrTo(&decoder, pReq->db) < 0) return -1;
+  if (tDecodeI32(&decoder, &pReq->payloadLen) < 0) return -1;
+  if (pReq->payloadLen > 0) {
+    pReq->payload = malloc(pReq->payloadLen);
+    if (pReq->payload == NULL) return -1;
+    if (tDecodeCStrTo(&decoder, pReq->payload) < 0) return -1;
+  }
+
+  tEndDecode(&decoder);
+  tCoderClear(&decoder);
+  return 0;
+}
+
+void tFreeSShowReq(SShowReq *pReq) { free(pReq->payload); }
+
+int32_t tSerializeSRetrieveTableReq(void *buf, int32_t bufLen, SRetrieveTableReq *pReq) {
+  SCoder encoder = {0};
+  tCoderInit(&encoder, TD_LITTLE_ENDIAN, buf, bufLen, TD_ENCODER);
+
+  if (tStartEncode(&encoder) < 0) return -1;
+  if (tEncodeI64(&encoder, pReq->showId) < 0) return -1;
+  if (tEncodeI8(&encoder, pReq->free) < 0) return -1;
+  tEndEncode(&encoder);
+
+  int32_t tlen = encoder.pos;
+  tCoderClear(&encoder);
+  return tlen;
+}
+
+int32_t tDeserializeSRetrieveTableReq(void *buf, int32_t bufLen, SRetrieveTableReq *pReq) {
+  SCoder decoder = {0};
+  tCoderInit(&decoder, TD_LITTLE_ENDIAN, buf, bufLen, TD_DECODER);
+
+  if (tStartDecode(&decoder) < 0) return -1;
+  if (tDecodeI64(&decoder, &pReq->showId) < 0) return -1;
+  if (tDecodeI8(&decoder, &pReq->free) < 0) return -1;
+
+  tEndDecode(&decoder);
   tCoderClear(&decoder);
   return 0;
 }
