@@ -352,6 +352,18 @@ TAOS_RES* taos_query_c(TAOS *taos, const char *sqlstr, uint32_t sqlLen, int64_t*
     return NULL;
   }
 
+  char *sql = calloc(1, sqlLen + 1);
+  if (sql == NULL) {
+    tscError("taos_query_c: failed to allocate memory for process escape");
+    terrno = TSDB_CODE_TSC_OUT_OF_MEMORY;
+    return NULL;
+  }
+
+  memmove(sql, sqlstr, sqlLen);
+  sqlstr = tscProcessEscape(sql);
+
+  sqlLen = (int32_t)strlen(sqlstr);
+
   nPrintTsc("%s", sqlstr);
 
   SSqlObj* pSql = calloc(1, sizeof(SSqlObj));
@@ -897,13 +909,13 @@ int taos_print_row_ex(char *str, TAOS_ROW row, TAOS_FIELD *fields, int num_field
         } else {
           assert(charLen <= fields[i].bytes * TSDB_NCHAR_SIZE && charLen >= 0);
         }
-        
+
         // add pre quotaion if require
         if(addQuota) {
           *(str + len) = '\'';
           len += 1;
         }
-
+ 
         // copy content
         memcpy(str + len, row[i], charLen);
         len += charLen;
