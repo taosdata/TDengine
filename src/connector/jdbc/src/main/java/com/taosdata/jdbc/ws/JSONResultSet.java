@@ -78,7 +78,7 @@ public class JSONResultSet extends AbstractWSResultSet {
             case TSDBConstants.TSDB_DATA_TYPE_BINARY:
                 return row.getString(colIndex) == null ? null : row.getString(colIndex).getBytes();
             case TSDBConstants.TSDB_DATA_TYPE_NCHAR:
-                return row.getString(colIndex) == null ? null : row.getString(colIndex);
+                return row.getString(colIndex);
             case TSDBConstants.TSDB_DATA_TYPE_JSON:
                 //  all json tag or just a json tag value
                 return row.get(colIndex) != null && (row.get(colIndex) instanceof String || row.get(colIndex) instanceof JSONObject)
