@@ -839,7 +839,7 @@ TEST(tableMeta, normalTable) {
   ASSERT_EQ(vgInfo.epset.numOfEps, 3);
 
   while (0 == ctgDbgGetClusterCacheNum(pCtg, CTG_DBG_DB_NUM)) {
-    usleep(100);
+    usleep(10000);
   }
   
   ctgTestSetRspTableMeta();
@@ -856,8 +856,13 @@ TEST(tableMeta, normalTable) {
   ASSERT_EQ(tableMeta->tableInfo.precision, 1);
   ASSERT_EQ(tableMeta->tableInfo.rowSize, 12);
 
-  while (0 == ctgDbgGetClusterCacheNum(pCtg, CTG_DBG_META_NUM)) {
-    usleep(100);
+  while (true) {
+    uint32_t n = ctgDbgGetClusterCacheNum(pCtg, CTG_DBG_META_NUM);
+    if (0 == n) {
+      usleep(10000);
+    } else {
+      break;
+    }
   }
 
   
@@ -946,9 +951,15 @@ TEST(tableMeta, childTableCase) {
   ASSERT_EQ(tableMeta->tableInfo.precision, 1);
   ASSERT_EQ(tableMeta->tableInfo.rowSize, 12);
 
-  while (0 == ctgDbgGetClusterCacheNum(pCtg, CTG_DBG_META_NUM)) {
-    usleep(100);
+  while (true) {
+    uint32_t n = ctgDbgGetClusterCacheNum(pCtg, CTG_DBG_META_NUM);
+    if (0 == n) {
+      usleep(10000);
+    } else {
+      break;
+    }
   }
+
 
   tableMeta = NULL;
   code = catalogGetTableMeta(pCtg, mockPointer, (const SEpSet *)mockPointer, &n, &tableMeta);
@@ -1049,9 +1060,15 @@ TEST(tableMeta, superTableCase) {
   ASSERT_EQ(tableMeta->tableInfo.precision, 1);
   ASSERT_EQ(tableMeta->tableInfo.rowSize, 12);
 
-  while (0 == ctgDbgGetClusterCacheNum(pCtg, CTG_DBG_META_NUM)) {
-    usleep(100);
+  while (true) {
+    uint32_t n = ctgDbgGetClusterCacheNum(pCtg, CTG_DBG_META_NUM);
+    if (0 == n) {
+      usleep(10000);
+    } else {
+      break;
+    }
   }
+
 
   ctgTestSetRspCTableMeta();
 
@@ -1070,9 +1087,15 @@ TEST(tableMeta, superTableCase) {
   ASSERT_EQ(tableMeta->tableInfo.precision, 1);
   ASSERT_EQ(tableMeta->tableInfo.rowSize, 12);
 
-  while (2 != ctgDbgGetClusterCacheNum(pCtg, CTG_DBG_META_NUM)) {
-    usleep(100);
+  while (true) {
+    uint32_t n = ctgDbgGetClusterCacheNum(pCtg, CTG_DBG_META_NUM);
+    if (2 != n) {
+      usleep(10000);
+    } else {
+      break;
+    }
   }
+
 
   tableMeta = NULL;
   code = catalogRefreshGetTableMeta(pCtg, mockPointer, (const SEpSet *)mockPointer, &n, &tableMeta, 0);
@@ -1162,16 +1185,29 @@ TEST(tableMeta, rmStbMeta) {
   ASSERT_EQ(tableMeta->tableInfo.precision, 1);
   ASSERT_EQ(tableMeta->tableInfo.rowSize, 12);
 
-  while (0 == ctgDbgGetClusterCacheNum(pCtg, CTG_DBG_META_NUM)) {
-    usleep(100);
+  while (true) {
+    uint32_t n = ctgDbgGetClusterCacheNum(pCtg, CTG_DBG_META_NUM);
+    if (0 == n) {
+      usleep(10000);
+    } else {
+      break;
+    }
   }
+
 
   code = catalogRemoveStbMeta(pCtg, "1.db1", ctgTestDbId, ctgTestSTablename, ctgTestSuid);
   ASSERT_EQ(code, 0);
 
-  while (ctgDbgGetClusterCacheNum(pCtg, CTG_DBG_META_NUM) || ctgDbgGetClusterCacheNum(pCtg, CTG_DBG_STB_RENT_NUM)) {
-    usleep(100);
+  while (true) {
+    int32_t n = ctgDbgGetClusterCacheNum(pCtg, CTG_DBG_META_NUM);
+    int32_t m = ctgDbgGetClusterCacheNum(pCtg, CTG_DBG_STB_RENT_NUM);
+    if (n || m) {
+      usleep(10000);
+    } else {
+      break;
+    }
   }
+
 
   ASSERT_EQ(ctgDbgGetClusterCacheNum(pCtg, CTG_DBG_DB_NUM), 1);
   ASSERT_EQ(ctgDbgGetClusterCacheNum(pCtg, CTG_DBG_META_NUM), 0);
@@ -1219,9 +1255,15 @@ TEST(tableMeta, updateStbMeta) {
   ASSERT_EQ(tableMeta->tableInfo.precision, 1);
   ASSERT_EQ(tableMeta->tableInfo.rowSize, 12);
 
-  while (0 == ctgDbgGetClusterCacheNum(pCtg, CTG_DBG_META_NUM)) {
-    usleep(100);
+  while (true) {
+    uint32_t n = ctgDbgGetClusterCacheNum(pCtg, CTG_DBG_META_NUM);
+    if (0 == n) {
+      usleep(10000);
+    } else {
+      break;
+    }
   }
+
 
   tfree(tableMeta);
 
@@ -1235,7 +1277,7 @@ TEST(tableMeta, updateStbMeta) {
     uint64_t n = 0;
     ctgDbgGetStatNum("runtime.qDoneNum", (void *)&n);
     if (n != 3) {
-      usleep(100);
+      usleep(10000);
     } else {
       break;
     }
@@ -1438,7 +1480,7 @@ TEST(dbVgroup, getSetDbVgroupCase) {
   ASSERT_EQ(taosArrayGetSize((const SArray *)vgList), ctgTestVgNum);
 
   while (0 == ctgDbgGetClusterCacheNum(pCtg, CTG_DBG_DB_NUM)) {
-    usleep(100);
+    usleep(10000);
   }
 
 
@@ -1463,7 +1505,7 @@ TEST(dbVgroup, getSetDbVgroupCase) {
     uint64_t n = 0;
     ctgDbgGetStatNum("runtime.qDoneNum", (void *)&n);
     if (n != 3) {
-      usleep(100);
+      usleep(10000);
     } else {
       break;
     }
@@ -1691,7 +1733,7 @@ TEST(rentTest, allRent) {
     ASSERT_EQ(tableMeta->tableInfo.rowSize, 12);
 
     while (ctgDbgGetClusterCacheNum(pCtg, CTG_DBG_META_NUM) < i) {
-      usleep(100);
+      usleep(10000);
     }
 
     code = catalogGetExpiredDBs(pCtg, &dbs, &num);
