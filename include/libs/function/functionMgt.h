@@ -20,7 +20,7 @@
 extern "C" {
 #endif
 
-#include "nodes.h"
+#include "querynodes.h"
 
 typedef enum EFunctionType {
   // aggregate function

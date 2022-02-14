@@ -533,7 +533,7 @@ static EDealRes translateValue(STranslateContext* pCxt, SValueNode* pVal) {
       case TSDB_DATA_TYPE_INT:
       case TSDB_DATA_TYPE_BIGINT: {
         char* endPtr = NULL;
-        pVal->datum.i = strtoull(pVal->literal, &endPtr, 10);
+        pVal->datum.i = strtoll(pVal->literal, &endPtr, 10);
         break;
       }
       case TSDB_DATA_TYPE_UTINYINT:
@@ -563,7 +563,7 @@ static EDealRes translateValue(STranslateContext* pCxt, SValueNode* pVal) {
         int32_t n = strlen(pVal->literal);
         char* tmp = calloc(1, n);
         int32_t len = trimStringCopy(pVal->literal, n, tmp);
-        if (taosParseTime(tmp, &pVal->datum.u, len, pVal->node.resType.precision, tsDaylight) != TSDB_CODE_SUCCESS) {
+        if (taosParseTime(tmp, &pVal->datum.i, len, pVal->node.resType.precision, tsDaylight) != TSDB_CODE_SUCCESS) {
           tfree(tmp);
           generateSyntaxErrMsg(pCxt, TSDB_CODE_PAR_WRONG_VALUE_TYPE, pVal->literal);
           return DEAL_RES_ERROR;

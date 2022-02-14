@@ -13,7 +13,7 @@
  * along with this program. If not, see <http://www.gnu.org/licenses/>.
  */
 
-#include "nodes.h"
+#include "querynodes.h"
 
 #define COMPARE_SCALAR_FIELD(fldname) \
 	do { \
