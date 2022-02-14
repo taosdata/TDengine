@@ -274,9 +274,9 @@ typedef struct STaskRuntimeEnv {
   SHashObj*            pResultRowListSet;    // used to check if current ResultRowInfo has ResultRow object or not
   SArray*              pResultRowArrayList;  // The array list that contains the Result rows
   char*                keyBuf;               // window key buffer
-  SResultRowPool*
-         pool;  // The window result objects pool, all the resultRow Objects are allocated and managed by this object.
+  // The window result objects pool, all the resultRow Objects are allocated and managed by this object.
   char** prevRow;
+  SResultRowPool* pool;
 
   SArray*   prevResult;  // intermediate result, SArray<SInterResult>
   STSBuf*   pTsBuf;      // timestamp filter list
@@ -440,13 +440,13 @@ typedef struct SOptrBasicInfo {
   SqlFunctionCtx* pCtx;
   SSDataBlock*    pRes;
   uint32_t        resRowSize;
+  int32_t         capacity;
 } SOptrBasicInfo;
 
 typedef struct SOptrBasicInfo STableIntervalOperatorInfo;
 
 typedef struct SAggOperatorInfo {
   SOptrBasicInfo       binfo;
-  uint32_t             seed;
   SDiskbasedBuf       *pResultBuf;           // query result buffer based on blocked-wised disk file
   SHashObj*            pResultRowHashTable;  // quick locate the window object for each result
   SHashObj*            pResultRowListSet;    // used to check if current ResultRowInfo has ResultRow object or not
@@ -455,6 +455,8 @@ typedef struct SAggOperatorInfo {
   SResultRowPool      *pool;  // The window result objects pool, all the resultRow Objects are allocated and managed by this object.
   STableQueryInfo     *current;
   uint32_t             groupId;
+  SGroupResInfo       *pGroupResInfo;
+  STableQueryInfo     *pTableQueryInfo;
 } SAggOperatorInfo;
 
 typedef struct SProjectOperatorInfo {
@@ -591,9 +593,9 @@ typedef struct SOrderOperatorInfo {
 } SOrderOperatorInfo;
 
 SOperatorInfo* createExchangeOperatorInfo(const SArray* pSources, const SArray* pSchema, SExecTaskInfo* pTaskInfo);
-SOperatorInfo* createDataBlocksOptScanInfo(void* pTsdbReadHandle, int32_t order, int32_t numOfOutput,
+SOperatorInfo* createTableScanOperatorInfo(void* pTsdbReadHandle, int32_t order, int32_t numOfOutput,
                                            int32_t repeatTime, int32_t reverseTime, SExecTaskInfo* pTaskInfo);
-SOperatorInfo* createTableSeqScanOperator(void* pTsdbReadHandle, STaskRuntimeEnv* pRuntimeEnv);
+SOperatorInfo* createTableSeqScanOperatorInfo(void* pTsdbReadHandle, STaskRuntimeEnv* pRuntimeEnv);
 SOperatorInfo* createAggregateOperatorInfo(SOperatorInfo* downstream, SArray* pExprInfo, SExecTaskInfo* pTaskInfo);
 SOperatorInfo* createMultiTableAggOperatorInfo(SOperatorInfo* downstream, SArray* pExprInfo, SExecTaskInfo* pTaskInfo);
 SOperatorInfo* createProjectOperatorInfo(STaskRuntimeEnv* pRuntimeEnv, SOperatorInfo* downstream, SExprInfo* pExpr,
@@ -672,8 +674,7 @@ int32_t initQInfo(STsBufInfo* pTsBufInfo, void* tsdb, void* sourceOptr, SQInfo* 
 int32_t createFilterInfo(STaskAttr* pQueryAttr, uint64_t qId);
 void    freeColumnFilterInfo(SColumnFilterInfo* pFilter, int32_t numOfFilters);
 
-STableQueryInfo* createTableQueryInfo(STaskAttr* pQueryAttr, void* pTable, bool groupbyColumn, STimeWindow win,
-                                      void* buf);
+STableQueryInfo* createTableQueryInfo(void* buf, bool groupbyColumn, STimeWindow win);
 STableQueryInfo* createTmpTableQueryInfo(STimeWindow win);
 
 int32_t buildArithmeticExprFromMsg(SExprInfo* pArithExprInfo, void* pQueryMsg);
