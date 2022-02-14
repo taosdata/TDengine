@@ -209,10 +209,10 @@ TAOS *taos_connect_internal(const char *ip, const char *user, const char *pass, 
       taos_close(pObj);
       return NULL;
     }
-    
+
     tscDebug("%p DB connection is opening, rpcObj: %p, dnodeConn:%p", pObj, pObj->pRpcObj, pObj->pRpcObj->pDnodeConn);
     taos_free_result(pSql);
-  
+
     // version compare only requires the first 1 segments of the version string
     int code = taosCheckVersion(version, taos_get_server_info(pObj), 1);
     if (code != 0) {
@@ -339,6 +339,18 @@ TAOS_RES* taos_query_c(TAOS *taos, const char *sqlstr, uint32_t sqlLen, int64_t*
     terrno = TSDB_CODE_TSC_EXCEED_SQL_LIMIT;
     return NULL;
   }
+
+  char *sql = calloc(1, sqlLen + 1);
+  if (sql == NULL) {
+    tscError("taos_query_c: failed to allocate memory for process escape");
+    terrno = TSDB_CODE_TSC_OUT_OF_MEMORY;
+    return NULL;
+  }
+
+  memmove(sql, sqlstr, sqlLen);
+  sqlstr = tscProcessEscape(sql);
+
+  sqlLen = (int32_t)strlen(sqlstr);
 
   nPrintTsc("%s", sqlstr);
 

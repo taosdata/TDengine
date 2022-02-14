@@ -87,6 +87,73 @@ void taos_query_a(TAOS *taos, const char *sqlstr, __async_cb_func_t fp, void *pa
   taos_query_ra(taos, sqlstr, fp, param);
 }
 
+char *tscProcessEscape(char *sqlstr) {
+  bool esc = false;
+  char quote = 0, *cmd = sqlstr, *p = sqlstr;
+  for (char c = *sqlstr++; c != 0; c = *sqlstr++) {
+    if (esc) {
+      switch (c) {
+        case 'a':
+          c = '\a';
+          break;
+        case 'b':
+          c = '\b';
+          break;
+        case 'f':
+          c = '\f';
+          break;
+        case 'n':
+          c = '\n';
+          break;
+        case 'r':
+          c = '\r';
+          break;
+        case 't':
+          c = '\t';
+          break;
+        case 'v':
+          c = '\v';
+          break;
+        case 'G':
+          *p++ = '\\';
+          break;
+        case '\'':
+        case '"':
+        case '`':
+          if (quote) {
+            *p++ = '\\';
+          }
+          break;
+      }
+      *p++ = c;
+      esc = false;
+      continue;
+    }
+
+    if (c == '\\') {
+      if (quote == 0 || (*sqlstr != '_' && *sqlstr != '%' && *sqlstr != '\\')) {
+        esc = true;
+        continue;
+      }
+    }
+
+    if (quote == c) {
+      quote = 0;
+    } else if (quote == 0 && (c == '\'' || c == '"' || c == '`')) {
+      quote = c;
+    }
+
+    *p++ = c;
+    if (c == ';' && quote == 0) {
+      break;
+    }
+  }
+
+  *p = 0;
+
+  return cmd;
+}
+
 TAOS_RES * taos_query_ra(TAOS *taos, const char *sqlstr, __async_cb_func_t fp, void *param) {
   STscObj *pObj = (STscObj *)taos;
   if (pObj == NULL || pObj->signature != pObj) {
@@ -103,6 +170,19 @@ TAOS_RES * taos_query_ra(TAOS *taos, const char *sqlstr, __async_cb_func_t fp, v
     tscQueueAsyncError(fp, param, terrno);
     return NULL;
   }
+
+  char *sql = calloc(1, sqlLen + 1);
+  if (sql == NULL) {
+    tscError("taos_query_ra: failed to allocate memory for process escape");
+    terrno = TSDB_CODE_TSC_OUT_OF_MEMORY;
+    tscQueueAsyncError(fp, param, terrno);
+    return NULL;
+  }
+
+  memmove(sql, sqlstr, sqlLen);
+  sqlstr = tscProcessEscape(sql);
+
+  sqlLen = (int32_t)strlen(sqlstr);
   
   nPrintTsc("%s", sqlstr);
   

@@ -487,6 +487,7 @@ TAOS_RES * taos_query_ra(TAOS *taos, const char *sqlstr, __async_cb_func_t fp, v
 
 void waitForQueryRsp(void *param, TAOS_RES *tres, int code);
 
+char *tscProcessEscape(char *sqlstr);
 void doAsyncQuery(STscObj *pObj, SSqlObj *pSql, __async_cb_func_t fp, void *param, const char *sqlstr, size_t sqlLen);
 
 void tscImportDataFromFile(SSqlObj *pSql);
