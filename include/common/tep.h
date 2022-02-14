@@ -73,7 +73,7 @@ static FORCE_INLINE bool colDataIsNull(const SColumnInfoData* pColumnInfoData, u
 
 int32_t colDataAppend(SColumnInfoData* pColumnInfoData, uint32_t currentRow, const char* pData, bool isNull);
 int32_t colDataMergeCol(SColumnInfoData* pColumnInfoData, uint32_t numOfRow1, const SColumnInfoData* pSource, uint32_t numOfRow2);
-int32_t colDataUpdateTsWindow(SSDataBlock* pDataBlock);
+int32_t blockDataUpdateTsWindow(SSDataBlock* pDataBlock);
 
 int32_t colDataGetSize(const SColumnInfoData* pColumnInfoData, int32_t numOfRows);
 void colDataTrim(SColumnInfoData* pColumnInfoData);

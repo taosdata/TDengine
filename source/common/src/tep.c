@@ -234,7 +234,7 @@ size_t colDataGetNumOfRows(const SSDataBlock* pBlock) {
   return pBlock->info.rows;
 }
 
-int32_t colDataUpdateTsWindow(SSDataBlock* pDataBlock) {
+int32_t blockDataUpdateTsWindow(SSDataBlock* pDataBlock) {
   if (pDataBlock == NULL || pDataBlock->info.rows <= 0) {
     return 0;
   }

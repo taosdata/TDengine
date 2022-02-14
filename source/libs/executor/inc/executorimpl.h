@@ -97,10 +97,11 @@ typedef struct SSingleColumnFilterInfo {
 } SSingleColumnFilterInfo;
 
 typedef struct STableQueryInfo {
-  TSKEY          lastKey;
+  TSKEY          lastKey;     // last check ts
+  uint64_t       uid;         // table uid
   int32_t        groupIndex;  // group id in table list
 //  SVariant       tag;
-  SResultRowInfo resInfo;
+  SResultRowInfo resInfo;     // result info
 } STableQueryInfo;
 
 typedef enum {
@@ -596,8 +597,8 @@ SOperatorInfo* createExchangeOperatorInfo(const SArray* pSources, const SArray* 
 SOperatorInfo* createTableScanOperatorInfo(void* pTsdbReadHandle, int32_t order, int32_t numOfOutput,
                                            int32_t repeatTime, int32_t reverseTime, SExecTaskInfo* pTaskInfo);
 SOperatorInfo* createTableSeqScanOperatorInfo(void* pTsdbReadHandle, STaskRuntimeEnv* pRuntimeEnv);
-SOperatorInfo* createAggregateOperatorInfo(SOperatorInfo* downstream, SArray* pExprInfo, SExecTaskInfo* pTaskInfo);
-SOperatorInfo* createMultiTableAggOperatorInfo(SOperatorInfo* downstream, SArray* pExprInfo, SExecTaskInfo* pTaskInfo);
+SOperatorInfo* createAggregateOperatorInfo(SOperatorInfo* downstream, SArray* pExprInfo, SExecTaskInfo* pTaskInfo, const STableGroupInfo* pTableGroupInfo);
+SOperatorInfo* createMultiTableAggOperatorInfo(SOperatorInfo* downstream, SArray* pExprInfo, SExecTaskInfo* pTaskInfo, const STableGroupInfo* pTableGroupInfo);
 SOperatorInfo* createProjectOperatorInfo(STaskRuntimeEnv* pRuntimeEnv, SOperatorInfo* downstream, SExprInfo* pExpr,
                                          int32_t numOfOutput);
 SOperatorInfo* createLimitOperatorInfo(STaskRuntimeEnv* pRuntimeEnv, SOperatorInfo* downstream);
