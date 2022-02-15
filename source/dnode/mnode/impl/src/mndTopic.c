@@ -34,7 +34,7 @@ static int32_t mndTopicActionUpdate(SSdb *pSdb, SMqTopicObj *pTopic, SMqTopicObj
 static int32_t mndProcessCreateTopicMsg(SMnodeMsg *pMsg);
 static int32_t mndProcessDropTopicMsg(SMnodeMsg *pMsg);
 static int32_t mndProcessDropTopicInRsp(SMnodeMsg *pMsg);
-static int32_t mndProcessTopicMetaMsg(SMnodeMsg *pMsg);
+static int32_t mndProcessTopicMetaMsg(SMnodeMsg *pReq);
 static int32_t mndGetTopicMeta(SMnodeMsg *pMsg, SShowObj *pShow, STableMetaRsp *pMeta);
 static int32_t mndRetrieveTopic(SMnodeMsg *pMsg, SShowObj *pShow, char *data, int32_t rows);
 static void    mndCancelGetNextTopic(SMnode *pMnode, void *pIter);
@@ -343,11 +343,16 @@ static int32_t mndProcessDropTopicInRsp(SMnodeMsg *pMsg) {
   return 0;
 }
 
-static int32_t mndProcessTopicMetaMsg(SMnodeMsg *pMsg) {
-  SMnode        *pMnode = pMsg->pMnode;
-  STableInfoReq *pInfo = pMsg->rpcMsg.pCont;
+static int32_t mndProcessTopicMetaMsg(SMnodeMsg *pReq) {
+  SMnode       *pMnode = pReq->pMnode;
+  STableInfoReq infoReq = {0};
 
-  mDebug("topic:%s, start to retrieve meta", pInfo->tbName);
+  if (tSerializeSTableInfoReq(pReq->rpcMsg.pCont, pReq->rpcMsg.contLen, &infoReq) != 0) {
+    terrno = TSDB_CODE_INVALID_MSG;
+    return -1;
+  }
+
+  mDebug("topic:%s, start to retrieve meta", infoReq.tbName);
 
 #if 0
   SDbObj *pDb = mndAcquireDbByTopic(pMnode, pInfo->tableFname);
@@ -389,7 +394,7 @@ static int32_t mndProcessTopicMetaMsg(SMnodeMsg *pMsg) {
   pMeta->tuid = htonl(pTopic->uid);
 
   for (int32_t i = 0; i < totalCols; ++i) {
-    SSchema *pSchema = &pMeta->pSchema[i];
+    SSchema *pSchema = &pMeta->pSchemas[i];
     SSchema *pSrcSchema = &pTopic->pSchema[i];
     memcpy(pSchema->name, pSrcSchema->name, TSDB_COL_NAME_LEN);
     pSchema->type = pSrcSchema->type;
@@ -442,33 +447,33 @@ static int32_t mndGetTopicMeta(SMnodeMsg *pMsg, SShowObj *pShow, STableMetaRsp *
   }
 
   int32_t  cols = 0;
-  SSchema *pSchema = pMeta->pSchema;
+  SSchema *pSchema = pMeta->pSchemas;
 
   pShow->bytes[cols] = TSDB_TABLE_NAME_LEN + VARSTR_HEADER_SIZE;
   pSchema[cols].type = TSDB_DATA_TYPE_BINARY;
   strcpy(pSchema[cols].name, "name");
-  pSchema[cols].bytes = htonl(pShow->bytes[cols]);
+  pSchema[cols].bytes = pShow->bytes[cols];
   cols++;
 
   pShow->bytes[cols] = 8;
   pSchema[cols].type = TSDB_DATA_TYPE_TIMESTAMP;
   strcpy(pSchema[cols].name, "create_time");
-  pSchema[cols].bytes = htonl(pShow->bytes[cols]);
+  pSchema[cols].bytes = pShow->bytes[cols];
   cols++;
 
   pShow->bytes[cols] = 4;
   pSchema[cols].type = TSDB_DATA_TYPE_INT;
   strcpy(pSchema[cols].name, "columns");
-  pSchema[cols].bytes = htonl(pShow->bytes[cols]);
+  pSchema[cols].bytes = pShow->bytes[cols];
   cols++;
 
   pShow->bytes[cols] = 4;
   pSchema[cols].type = TSDB_DATA_TYPE_INT;
   strcpy(pSchema[cols].name, "tags");
-  pSchema[cols].bytes = htonl(pShow->bytes[cols]);
+  pSchema[cols].bytes = pShow->bytes[cols];
   cols++;
 
-  pMeta->numOfColumns = htonl(cols);
+  pMeta->numOfColumns = cols;
   pShow->numOfColumns = cols;
 
   pShow->offset[0] = 0;

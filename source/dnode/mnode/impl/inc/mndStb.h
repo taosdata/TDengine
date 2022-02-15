@@ -22,14 +22,12 @@
 extern "C" {
 #endif
 
-int32_t mndInitStb(SMnode *pMnode);
-void    mndCleanupStb(SMnode *pMnode);
-
+int32_t  mndInitStb(SMnode *pMnode);
+void     mndCleanupStb(SMnode *pMnode);
 SStbObj *mndAcquireStb(SMnode *pMnode, char *stbName);
-void mndReleaseStb(SMnode *pMnode, SStbObj *pStb);
-
-int32_t mndValidateStbInfo(SMnode *pMnode, SSTableMetaVersion *stbs, int32_t num, void **rsp, int32_t *rspLen);
-
+void     mndReleaseStb(SMnode *pMnode, SStbObj *pStb);
+int32_t  mndValidateStbInfo(SMnode *pMnode, SSTableMetaVersion *pStbs, int32_t numOfStbs, void **ppRsp,
+                            int32_t *pRspLen);
 
 #ifdef __cplusplus
 }
