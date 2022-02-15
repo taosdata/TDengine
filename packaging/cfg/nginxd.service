@@ -1,0 +1,22 @@
+[Unit]
+Description=Nginx For TDengine Service
+After=network-online.target
+Wants=network-online.target
+
+[Service]
+Type=forking
+PIDFile=/usr/local/nginxd/logs/nginx.pid
+ExecStart=/usr/local/nginxd/sbin/nginx
+ExecStop=/usr/local/nginxd/sbin/nginx -s stop
+TimeoutStopSec=1000000s
+LimitNOFILE=infinity
+LimitNPROC=infinity
+LimitCORE=infinity
+TimeoutStartSec=0
+StandardOutput=null
+Restart=always
+StartLimitBurst=3
+StartLimitInterval=60s
+
+[Install]
+WantedBy=multi-user.target

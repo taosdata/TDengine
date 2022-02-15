@@ -15,7 +15,7 @@ corePath=$1
 
 csudo=""
 if command -v sudo > /dev/null; then
-  csudo="sudo"
+  csudo="sudo "
 fi
 
 if [[ ! -n ${corePath} ]]; then
@@ -31,10 +31,10 @@ if [[ ! -n ${corePath} ]]; then
 fi
 
 ulimit -c unlimited
-${csudo} sed -i '/ulimit -c unlimited/d' /etc/profile ||:
-${csudo} sed -i '$a\ulimit -c unlimited' /etc/profile ||:
+${csudo}sed -i '/ulimit -c unlimited/d' /etc/profile ||:
+${csudo}sed -i '$a\ulimit -c unlimited' /etc/profile ||:
 source /etc/profile
 
-${csudo} mkdir -p ${corePath}  ||:
-${csudo} sysctl -w kernel.core_pattern=${corePath}/core-%e-%p  ||:
-${csudo} echo "${corePath}/core-%e-%p" | ${csudo} tee /proc/sys/kernel/core_pattern  ||:
+${csudo}mkdir -p ${corePath}  ||:
+${csudo}sysctl -w kernel.core_pattern=${corePath}/core-%e-%p  ||:
+${csudo}echo "${corePath}/core-%e-%p" | ${csudo}tee /proc/sys/kernel/core_pattern  ||:

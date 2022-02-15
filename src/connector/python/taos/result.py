@@ -3,6 +3,8 @@ from .cinterface import *
 # from .connection import TaosConnection
 from .error import *
 
+from ctypes import c_void_p
+
 
 class TaosResult(object):
     """TDengine result interface"""
@@ -12,7 +14,11 @@ class TaosResult(object):
         # to make the __del__ order right
         self._conn = conn
         self._close_after = close_after
-        self._result = result
+        if isinstance(result, c_void_p):
+            self._result = result
+        else:
+            self._result = c_void_p(result)
+
         self._fields = None
         self._field_count = None
         self._precision = None
@@ -35,7 +41,7 @@ class TaosResult(object):
         if self._result is None or self.fields is None:
             raise OperationalError("Invalid use of fetch iterator")
 
-        if self._block == None or self._block_iter >= self._block_length:
+        if self._block is None or self._block_iter >= self._block_length:
             self._block, self._block_length = self.fetch_block()
             self._block_iter = 0
             # self._row_count += self._block_length
@@ -49,7 +55,7 @@ class TaosResult(object):
         """fields definitions of the current result"""
         if self._result is None:
             raise ResultError("no result object setted")
-        if self._fields == None:
+        if self._fields is None:
             self._fields = taos_fetch_fields(self._result)
 
         return self._fields
@@ -66,7 +72,7 @@ class TaosResult(object):
 
     @property
     def precision(self):
-        if self._precision == None:
+        if self._precision is None:
             self._precision = taos_result_precision(self._result)
         return self._precision
 
@@ -108,7 +114,7 @@ class TaosResult(object):
         if self._result is None:
             raise OperationalError("Invalid use of fetchall")
 
-        if self._fields == None:
+        if self._fields is None:
             self._fields = taos_fetch_fields(self._result)
         buffer = [[] for i in range(len(self._fields))]
         self._row_count = 0
@@ -144,7 +150,7 @@ class TaosResult(object):
         return taos_errstr(self._result)
 
     def check_error(self, errno=None, close=True):
-        if errno == None:
+        if errno is None:
             errno = self.errno()
         if errno != 0:
             msg = self.errstr()

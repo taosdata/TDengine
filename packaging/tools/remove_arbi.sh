@@ -20,7 +20,7 @@ service_config_dir="/etc/systemd/system"
 tarbitrator_service_name="tarbitratord"
 csudo=""
 if command -v sudo > /dev/null; then
-    csudo="sudo"
+    csudo="sudo "
 fi
 
 initd_mod=0
@@ -46,23 +46,24 @@ fi
 function kill_tarbitrator() {
   pid=$(ps -ef | grep "tarbitrator" | grep -v "grep" | awk '{print $2}')
   if [ -n "$pid" ]; then
-    ${csudo} kill -9 $pid   || :
+    ${csudo}kill -9 $pid   || :
   fi
 }
 function clean_bin() {
     # Remove link
-    ${csudo} rm -f ${bin_link_dir}/tarbitrator      || :
+    ${csudo}rm -f ${bin_link_dir}/tarbitrator      || :
 }
 
 function clean_header() {
     # Remove link
-    ${csudo} rm -f ${inc_link_dir}/taos.h       || :
-    ${csudo} rm -f ${inc_link_dir}/taoserror.h  || :
+    ${csudo}rm -f ${inc_link_dir}/taos.h       || :
+    ${csudo}rm -f ${inc_link_dir}/taosdef.h    || :
+    ${csudo}rm -f ${inc_link_dir}/taoserror.h  || :
 }
 
 function clean_log() {
     # Remove link
-    ${csudo} rm -rf /arbitrator.log    || :
+    ${csudo}rm -rf /arbitrator.log    || :
 }
 
 function clean_service_on_systemd() {
@@ -70,37 +71,37 @@ function clean_service_on_systemd() {
 
   if systemctl is-active --quiet ${tarbitrator_service_name}; then
       echo "TDengine tarbitrator is running, stopping it..."
-      ${csudo} systemctl stop ${tarbitrator_service_name} &> /dev/null || echo &> /dev/null
+      ${csudo}systemctl stop ${tarbitrator_service_name} &> /dev/null || echo &> /dev/null
   fi
-  ${csudo} systemctl disable ${tarbitrator_service_name} &> /dev/null || echo &> /dev/null
+  ${csudo}systemctl disable ${tarbitrator_service_name} &> /dev/null || echo &> /dev/null
 
-  ${csudo} rm -f ${tarbitratord_service_config}
+  ${csudo}rm -f ${tarbitratord_service_config}
 }
 
 function clean_service_on_sysvinit() {
     if pidof tarbitrator &> /dev/null; then
         echo "TDengine's tarbitrator is running, stopping it..."
-        ${csudo} service tarbitratord stop || :
+        ${csudo}service tarbitratord stop || :
     fi
     
     if ((${initd_mod}==1)); then    
       if [ -e ${service_config_dir}/tarbitratord ]; then 
-        ${csudo} chkconfig --del tarbitratord || :
+        ${csudo}chkconfig --del tarbitratord || :
       fi
     elif ((${initd_mod}==2)); then   
       if [ -e ${service_config_dir}/tarbitratord ]; then 
-        ${csudo} insserv -r tarbitratord || :
+        ${csudo}insserv -r tarbitratord || :
       fi
     elif ((${initd_mod}==3)); then  
       if [ -e ${service_config_dir}/tarbitratord ]; then 
-        ${csudo} update-rc.d -f tarbitratord remove || :
+        ${csudo}update-rc.d -f tarbitratord remove || :
       fi
     fi
 
-    ${csudo} rm -f ${service_config_dir}/tarbitratord || :
+    ${csudo}rm -f ${service_config_dir}/tarbitratord || :
    
     if $(which init &> /dev/null); then
-        ${csudo} init q || :
+        ${csudo}init q || :
     fi
 }
 
@@ -124,6 +125,6 @@ clean_bin
 # Remove log file
 clean_log
 
-${csudo} rm -rf ${install_main_dir}
+${csudo}rm -rf ${install_main_dir}
 
 echo -e "${GREEN}TDengine's arbitrator is removed successfully!${NC}"

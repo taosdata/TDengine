@@ -572,11 +572,14 @@ public class SQLTest {
 
     @BeforeClass
     public static void before() throws SQLException {
-        connection = DriverManager.getConnection("jdbc:TAOS-RS://" + host + ":6041/restful_test?user=root&password=taosdata");
+        connection = DriverManager.getConnection("jdbc:TAOS-RS://" + host + ":6041/?user=root&password=taosdata");
     }
 
     @AfterClass
     public static void after() throws SQLException {
+        Statement stmt = connection.createStatement();
+        stmt.execute("drop database if exists restful_test");
+        stmt.close();
         connection.close();
     }
 

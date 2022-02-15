@@ -192,7 +192,7 @@ void largeDataTest() {
 void qsortTest() {
   printf("running : %s\n", __FUNCTION__);
 
-  SSchema field[1] = {
+  SSchema1 field[1] = {
       {TSDB_DATA_TYPE_INT, "k", sizeof(int32_t)},
   };
 

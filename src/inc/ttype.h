@@ -166,6 +166,42 @@ typedef struct {
     }                                          \
   } while (0)
 
+#define NUM_TO_STRING(_inputType, _input, _outputBytes, _output)     \
+  do {                                         \
+    switch (_inputType) {                           \
+      case TSDB_DATA_TYPE_TINYINT:             \
+        snprintf(_output, (int32_t)(_outputBytes), "%d", *(int8_t *)(_input));     \
+        break;                                 \
+      case TSDB_DATA_TYPE_UTINYINT:            \
+        snprintf(_output, (int32_t)(_outputBytes), "%d", *(uint8_t *)(_input));     \
+        break;                                 \
+      case TSDB_DATA_TYPE_SMALLINT:            \
+        snprintf(_output, (int32_t)(_outputBytes), "%d", *(int16_t *)(_input));     \
+        break;                                 \
+      case TSDB_DATA_TYPE_USMALLINT:           \
+        snprintf(_output, (int32_t)(_outputBytes), "%d", *(uint16_t *)(_input));     \
+        break;                                 \
+      case TSDB_DATA_TYPE_BIGINT:              \
+        snprintf(_output, (int32_t)(_outputBytes), "%" PRId64, *(int64_t *)(_input));     \
+        break;                                 \
+      case TSDB_DATA_TYPE_UBIGINT:             \
+        snprintf(_output, (int32_t)(_outputBytes), "%" PRIu64, *(uint64_t *)(_input));     \
+        break;                                 \
+      case TSDB_DATA_TYPE_FLOAT:               \
+        snprintf(_output, (int32_t)(_outputBytes), "%f", *(float *)(_input));     \
+        break;                                 \
+      case TSDB_DATA_TYPE_DOUBLE:              \
+        snprintf(_output, (int32_t)(_outputBytes), "%f", *(double *)(_input));     \
+        break;                                 \
+      case TSDB_DATA_TYPE_UINT:                \
+        snprintf(_output, (int32_t)(_outputBytes), "%u", *(uint32_t *)(_input));     \
+        break;                                 \
+      default:                                 \
+        snprintf(_output, (int32_t)(_outputBytes), "%d", *(int32_t *)(_input));     \
+        break;                                 \
+    }                                          \
+  } while (0)
+
 #define IS_SIGNED_NUMERIC_TYPE(_t)   ((_t) >= TSDB_DATA_TYPE_TINYINT && (_t) <= TSDB_DATA_TYPE_BIGINT)
 #define IS_UNSIGNED_NUMERIC_TYPE(_t) ((_t) >= TSDB_DATA_TYPE_UTINYINT && (_t) <= TSDB_DATA_TYPE_UBIGINT)
 #define IS_FLOAT_TYPE(_t)            ((_t) == TSDB_DATA_TYPE_FLOAT || (_t) == TSDB_DATA_TYPE_DOUBLE)
@@ -200,6 +236,8 @@ static FORCE_INLINE bool isNull(const void *val, int32_t type) {
       return *(uint32_t *)val == TSDB_DATA_FLOAT_NULL;
     case TSDB_DATA_TYPE_DOUBLE:
       return *(uint64_t *)val == TSDB_DATA_DOUBLE_NULL;
+    case TSDB_DATA_TYPE_JSON:
+      return varDataLen(val) == sizeof(int32_t) && *(uint32_t *) varDataVal(val) == TSDB_DATA_JSON_NULL;
     case TSDB_DATA_TYPE_NCHAR:
       return varDataLen(val) == sizeof(int32_t) && *(uint32_t*) varDataVal(val) == TSDB_DATA_NCHAR_NULL;
     case TSDB_DATA_TYPE_BINARY:
@@ -230,10 +268,10 @@ typedef struct tDataTypeDescriptor {
   int (*decompFunc)(const char *const input, int compressedSize, const int nelements, char *const output,
                     int outputSize, char algorithm, char *const buffer, int bufferSize);
   void (*statisFunc)(const void *pData, int32_t numofrow, int64_t *min, int64_t *max, int64_t *sum,
-                        int16_t *minindex, int16_t *maxindex, int16_t *numofnull);
+                     int16_t *minindex, int16_t *maxindex, int16_t *numofnull);
 } tDataTypeDescriptor;
 
-extern tDataTypeDescriptor tDataTypes[15];
+extern tDataTypeDescriptor tDataTypes[16];
 
 bool isValidDataType(int32_t type);
 

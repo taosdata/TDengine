@@ -45,7 +45,11 @@ public class BadLocaleSettingTest {
 
     @AfterClass
     public static void afterClass() throws SQLException {
-        if (conn != null)
+        if (conn != null) {
+            Statement statement = conn.createStatement();
+            statement.execute("drop database " + dbName);
+            statement.close();
             conn.close();
+        }
     }
 }

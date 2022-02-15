@@ -23,6 +23,12 @@ extern "C" {
 #include "twal.h"
 
 typedef struct {
+  int64_t submitReqSucNum;
+  int64_t submitRowNum;
+  int64_t submitRowSucNum;
+} SVnodeStatisInfo;
+
+typedef struct {
   int32_t len;
   void *  rsp;
   void *  qhandle;  // used by query and retrieve msg
@@ -62,7 +68,7 @@ int32_t vnodeOpen(int32_t vgId);
 int32_t vnodeAlter(void *pVnode, SCreateVnodeMsg *pVnodeCfg);
 int32_t vnodeSync(int32_t vgId);
 int32_t vnodeClose(int32_t vgId);
-int32_t vnodeCompact(int32_t vgId); 
+int32_t vnodeCompact(int32_t vgId);
 
 // vnodeMgmt
 int32_t vnodeInitMgmt();
@@ -79,6 +85,8 @@ void    vnodeSetAccess(SVgroupAccess *pAccess, int32_t numOfVnodes);
 int32_t vnodeWriteToWQueue(void *pVnode, void *pHead, int32_t qtype, void *pRpcMsg);
 void    vnodeFreeFromWQueue(void *pVnode, SVWriteMsg *pWrite);
 int32_t vnodeProcessWrite(void *pVnode, void *pHead, int32_t qtype, void *pRspRet);
+
+SVnodeStatisInfo vnodeGetStatisInfo();
 
 // vnodeSync
 void    vnodeConfirmForward(void *pVnode, uint64_t version, int32_t code, bool force);

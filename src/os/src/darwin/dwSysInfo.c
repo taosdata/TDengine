@@ -191,15 +191,19 @@ void taosGetSystemInfo() {
   taosGetSystemLocale();
 }
 
-bool taosReadProcIO(int64_t *rchars, int64_t *wchars) {
+bool taosReadProcIO(int64_t *rchars, int64_t *wchars, int64_t *rbytes, int64_t *wbytes) {
   if (rchars) *rchars = 0;
   if (wchars) *wchars = 0;
+  if (rbytes) *rbytes = 0;
+  if (wbytes) *wbytes = 0;
   return true;
 }
 
-bool taosGetProcIO(float *readKB, float *writeKB) {
-  *readKB = 0;
-  *writeKB = 0;
+bool taosGetProcIO(float *rcharKB, float *wcharKB, float *rbyteKB, float *wbyteKB) {
+  *rcharKB = 0;
+  *wcharKB = 0;
+  *rbyteKB = 0;
+  *wbyteKB = 0;
   return true;
 }
 
@@ -212,6 +216,12 @@ bool taosGetCardInfo(int64_t *bytes, int64_t *rbytes, int64_t *tbytes) {
 
 bool taosGetBandSpeed(float *bandSpeedKb) {
   *bandSpeedKb = 0;
+  return true;
+}
+
+bool taosGetNetworkIO(float *netInKb, float *netOutKb) {
+  *netInKb = 0;
+  *netOutKb = 0;
   return true;
 }
 

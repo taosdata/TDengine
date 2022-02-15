@@ -233,7 +233,7 @@ static int32_t tscFlushTmpBufferImpl(tExtMemBuffer *pMemoryBuf, tOrderDescriptor
 
   // sort before flush to disk, the data must be consecutively put on tFilePage.
   if (pDesc->orderInfo.numOfCols > 0) {
-    tColDataQSort(pDesc, (int32_t)pPage->num, 0, (int32_t)pPage->num - 1, pPage->data, orderType);
+    tColDataMergeSort(pDesc, (int32_t)pPage->num, 0, (int32_t)pPage->num - 1, pPage->data, orderType);
   }
 
 #ifdef _DEBUG_VIEW
@@ -364,7 +364,9 @@ static int32_t createOrderDescriptor(tOrderDescriptor **pOrderDesc, SQueryInfo* 
           SExprInfo* pExprInfo = tscExprGet(pQueryInfo, j);
 
           int32_t functionId = pExprInfo->base.functionId;
-          if (pColIndex->colId == pExprInfo->base.colInfo.colId && (functionId == TSDB_FUNC_PRJ || functionId == TSDB_FUNC_TAG)) {
+
+          if (pColIndex->colId == pExprInfo->base.colInfo.colId && (functionId == TSDB_FUNC_PRJ || functionId == TSDB_FUNC_TAG || functionId == TSDB_FUNC_TAGPRJ)) {
+
             orderColIndexList[i] = j;
             break;
           }
@@ -407,8 +409,8 @@ static int32_t createOrderDescriptor(tOrderDescriptor **pOrderDesc, SQueryInfo* 
 }
 
 int32_t tscCreateGlobalMergerEnv(SQueryInfo *pQueryInfo, tExtMemBuffer ***pMemBuffer, int32_t numOfSub,
-                                 tOrderDescriptor **pOrderDesc, uint32_t nBufferSizes, int64_t id) {
-  SSchema      *pSchema = NULL;
+                                 tOrderDescriptor **pOrderDesc, uint32_t* nBufferSizes, int64_t id) {
+  SSchema1     *pSchema = NULL;
   SColumnModel *pModel = NULL;
 
   STableMetaInfo *pTableMetaInfo = tscGetMetaInfo(pQueryInfo, 0);
@@ -421,7 +423,7 @@ int32_t tscCreateGlobalMergerEnv(SQueryInfo *pQueryInfo, tExtMemBuffer ***pMemBu
   
   size_t size = tscNumOfExprs(pQueryInfo);
   
-  pSchema = (SSchema *)calloc(1, sizeof(SSchema) * size);
+  pSchema = (SSchema1 *)calloc(1, sizeof(SSchema1) * size);
   if (pSchema == NULL) {
     tscError("0x%"PRIx64" failed to allocate memory", id);
     return TSDB_CODE_TSC_OUT_OF_MEMORY;
@@ -440,7 +442,10 @@ int32_t tscCreateGlobalMergerEnv(SQueryInfo *pQueryInfo, tExtMemBuffer ***pMemBu
 
   int32_t capacity = 0;
   if (rlen != 0) {
-    capacity = nBufferSizes / rlen;
+    if ((*nBufferSizes) < rlen) {
+      (*nBufferSizes) = rlen * 2;
+    }
+    capacity = (*nBufferSizes) / rlen;
   }
   
   pModel = createColumnModel(pSchema, (int32_t)size, capacity);
@@ -457,7 +462,7 @@ int32_t tscCreateGlobalMergerEnv(SQueryInfo *pQueryInfo, tExtMemBuffer ***pMemBu
 
   assert(numOfSub <= pTableMetaInfo->vgroupList->numOfVgroups);
   for (int32_t i = 0; i < numOfSub; ++i) {
-    (*pMemBuffer)[i] = createExtMemBuffer(nBufferSizes, rlen, pg, pModel);
+    (*pMemBuffer)[i] = createExtMemBuffer(*nBufferSizes, rlen, pg, pModel);
     (*pMemBuffer)[i]->flushModel = MULTIPLE_APPEND_MODEL;
   }
 
@@ -603,6 +608,7 @@ static void doMergeResultImpl(SMultiwayMergeInfo* pInfo, SQLFunctionCtx *pCtx, i
       SUdfInfo* pUdfInfo = taosArrayGet(pInfo->udfInfo, -1 * functionId - 1);
       doInvokeUdf(pUdfInfo, &pCtx[j], 0, TSDB_UDF_FUNC_MERGE);
     } else {
+      assert(!TSDB_FUNC_IS_SCALAR(functionId));
       aAggs[functionId].mergeFunc(&pCtx[j]);
     }
   }
@@ -619,6 +625,7 @@ static void doFinalizeResultImpl(SMultiwayMergeInfo* pInfo, SQLFunctionCtx *pCtx
       SUdfInfo* pUdfInfo = taosArrayGet(pInfo->udfInfo, -1 * functionId - 1);
       doInvokeUdf(pUdfInfo, &pCtx[j], 0, TSDB_UDF_FUNC_FINALIZE);
     } else {
+      assert(!TSDB_FUNC_IS_SCALAR(functionId));
       aAggs[functionId].xFinalize(&pCtx[j]);
     }
   }
@@ -658,8 +665,10 @@ static void doExecuteFinalMerge(SOperatorInfo* pOperator, int32_t numOfExpr, SSD
           if (pCtx[j].functionId < 0) {
             continue;
           }
-
-          aAggs[pCtx[j].functionId].init(&pCtx[j], pCtx[j].resultInfo);
+          {
+            assert(!TSDB_FUNC_IS_SCALAR(pCtx[j].functionId));
+            aAggs[pCtx[j].functionId].init(&pCtx[j], pCtx[j].resultInfo);
+          }
         }
 
         doMergeResultImpl(pInfo, pCtx, numOfExpr, i, addrPtr);
@@ -701,12 +710,12 @@ SGlobalMerger* tscInitResObjForLocalQuery(int32_t numOfRes, int32_t rowLen, uint
 }
 
 // todo remove it
-int32_t doArithmeticCalculate(SQueryInfo* pQueryInfo, tFilePage* pOutput, int32_t rowSize, int32_t finalRowSize) {
+int32_t doScalarExprCalculate(SQueryInfo* pQueryInfo, tFilePage* pOutput, int32_t rowSize, int32_t finalRowSize) {
   int32_t maxRowSize = MAX(rowSize, finalRowSize);
   char* pbuf = calloc(1, (size_t)(pOutput->num * maxRowSize));
 
   size_t size = tscNumOfFields(pQueryInfo);
-  SArithmeticSupport arithSup = {0};
+  SScalarExprSupport arithSup = {0};
 
   // todo refactor
   arithSup.offset     = 0;
@@ -727,7 +736,10 @@ int32_t doArithmeticCalculate(SQueryInfo* pQueryInfo, tFilePage* pOutput, int32_
     // calculate the result from several other columns
     if (pSup->pExpr->pExpr != NULL) {
       arithSup.pExprInfo = pSup->pExpr;
-      arithmeticTreeTraverse(arithSup.pExprInfo->pExpr, (int32_t) pOutput->num, pbuf + pOutput->num*offset, &arithSup, TSDB_ORDER_ASC, getArithmeticInputSrc);
+      tExprOperandInfo output;
+      output.data = pbuf + pOutput->num*offset;
+      exprTreeNodeTraverse(arithSup.pExprInfo->pExpr, (int32_t)pOutput->num, &output, &arithSup, TSDB_ORDER_ASC,
+                           getScalarExprInputSrc);
     } else {
       SExprInfo* pExpr = pSup->pExpr;
       memcpy(pbuf + pOutput->num * offset, pExpr->base.offset * pOutput->num + pOutput->data, (size_t)(pExpr->base.resBytes * pOutput->num));
@@ -890,7 +902,7 @@ SSDataBlock* doGlobalAggregate(void* param, bool* newgroup) {
 
       // not belongs to the same group, return the result of current group;
       setInputDataBlock(pOperator, pAggInfo->binfo.pCtx, pAggInfo->pExistBlock, TSDB_ORDER_ASC);
-      updateOutputBuf(&pAggInfo->binfo, &pAggInfo->bufCapacity, pAggInfo->pExistBlock->info.rows);
+      updateOutputBuf(&pAggInfo->binfo, &pAggInfo->bufCapacity, pAggInfo->pExistBlock->info.rows, pOperator->pRuntimeEnv, true);
 
       { // reset output buffer
         for(int32_t j = 0; j < pOperator->numOfOutput; ++j) {
@@ -899,8 +911,10 @@ SSDataBlock* doGlobalAggregate(void* param, bool* newgroup) {
             clearOutputBuf(&pAggInfo->binfo, &pAggInfo->bufCapacity);
             continue;
           }
-
-          aAggs[pCtx->functionId].init(pCtx, pCtx->resultInfo);
+          {
+            assert(!TSDB_FUNC_IS_SCALAR(pCtx->functionId));
+            aAggs[pCtx->functionId].init(pCtx, pCtx->resultInfo);
+          }
         }
       }
 
@@ -940,7 +954,7 @@ SSDataBlock* doGlobalAggregate(void* param, bool* newgroup) {
 
     // not belongs to the same group, return the result of current group
     setInputDataBlock(pOperator, pAggInfo->binfo.pCtx, pBlock, TSDB_ORDER_ASC);
-    updateOutputBuf(&pAggInfo->binfo, &pAggInfo->bufCapacity, pBlock->info.rows * pAggInfo->resultRowFactor);
+    updateOutputBuf(&pAggInfo->binfo, &pAggInfo->bufCapacity, pBlock->info.rows * pAggInfo->resultRowFactor, pOperator->pRuntimeEnv, true);
 
     doExecuteFinalMerge(pOperator, pOperator->numOfOutput, pBlock);
     savePrevOrderColumns(pAggInfo->currentGroupColData, pAggInfo->groupColumnList, pBlock, 0, &pAggInfo->hasGroupColData);
@@ -971,6 +985,8 @@ SSDataBlock* doGlobalAggregate(void* param, bool* newgroup) {
     }
   }
 
+  // shrink output memory on end
+  shrinkOutputBuf(&pAggInfo->binfo, &pAggInfo->bufCapacity);
   return (pRes->info.rows != 0)? pRes:NULL;
 }
 

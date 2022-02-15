@@ -110,7 +110,7 @@ _libtaos.taos_get_client_info.restype = c_char_p
 def taos_get_client_info():
     # type: () -> str
     """Get client version info."""
-    return _libtaos.taos_get_client_info().decode()
+    return _libtaos.taos_get_client_info().decode("utf-8")
 
 
 _libtaos.taos_get_server_info.restype = c_char_p
@@ -120,7 +120,7 @@ _libtaos.taos_get_server_info.argtypes = (c_void_p,)
 def taos_get_server_info(connection):
     # type: (c_void_p) -> str
     """Get server version as string."""
-    return _libtaos.taos_get_server_info(connection).decode()
+    return _libtaos.taos_get_server_info(connection).decode("utf-8")
 
 
 _libtaos.taos_close.restype = None
@@ -308,16 +308,14 @@ def taos_subscribe(connection, restart, topic, sql, interval, callback=None, par
     """
     if callback != None:
         callback = subscribe_callback_type(callback)
-    if param != None:
-        param = c_void_p(param)
     return c_void_p(
         _libtaos.taos_subscribe(
             connection,
             1 if restart else 0,
             c_char_p(topic.encode("utf-8")),
             c_char_p(sql.encode("utf-8")),
-            callback or None,
-            param,
+            callback,
+            c_void_p(param),
             interval,
         )
     )
@@ -375,9 +373,9 @@ def taos_fetch_block(result, fields=None, field_count=None):
     if num_of_rows == 0:
         return None, 0
     precision = taos_result_precision(result)
-    if fields == None:
+    if fields is None:
         fields = taos_fetch_fields(result)
-    if field_count == None:
+    if field_count is None:
         field_count = taos_field_count(result)
     blocks = [None] * field_count
     fieldLen = taos_fetch_lengths(result, field_count)
@@ -468,7 +466,7 @@ def taos_fetch_lengths(result, field_count=None):
     # type: (c_void_p, int) -> Array[int]
     """Make sure to call taos_fetch_row or taos_fetch_block before fetch_lengths"""
     lens = _libtaos.taos_fetch_lengths(result)
-    if field_count == None:
+    if field_count is None:
         field_count = taos_field_count(result)
     if not lens:
         raise OperationalError("field length empty, use taos_fetch_row/block before it")
@@ -825,7 +823,7 @@ def taos_stmt_use_result(stmt):
     @stmt: TAOS_STMT*
     """
     result = c_void_p(_libtaos.taos_stmt_use_result(stmt))
-    if result == None:
+    if result is None:
         raise StatementError(taos_stmt_errstr(stmt))
     return result
 

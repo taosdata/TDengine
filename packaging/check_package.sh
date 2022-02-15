@@ -50,7 +50,7 @@ NC='\033[0m'
 
 csudo=""
 if command -v sudo > /dev/null; then
-    csudo="sudo"
+    csudo="sudo "
 fi
 
 # =============================  get input parameters =================================================
@@ -85,7 +85,7 @@ done
 function kill_process() {
   pid=$(ps -ef | grep "$1" | grep -v "grep" | awk '{print $2}')
   if [ -n "$pid" ]; then
-    ${csudo} kill -9 $pid   || :
+    ${csudo}kill -9 $pid   || :
   fi
 }
 
@@ -142,11 +142,11 @@ function check_main_path() {
 
 function check_bin_path() {
     # check install bin dir and all sub dir
-    bin_dir=("taos" "taosd" "taosadapter" "taosdemo" "taosdump" "remove.sh" "tarbitrator" "set_core.sh")
+    bin_dir=("taos" "taosd" "taosadapter" "taosdemo" "remove.sh" "tarbitrator" "set_core.sh")
     for i in "${bin_dir[@]}";do
         check_file ${sbin_dir} $i
     done
-    lbin_dir=("taos" "taosd" "taosadapter" "taosdemo" "taosdump" "rmtaos" "tarbitrator" "set_core")
+    lbin_dir=("taos" "taosd" "taosadapter" "taosdemo" "rmtaos" "tarbitrator" "set_core")
     for i in "${lbin_dir[@]}";do
         check_link ${bin_link_dir}/$i
     done
@@ -170,7 +170,7 @@ function check_lib_path() {
 
 function check_header_path() {
 	# check all header
-	header_dir=("taos.h" "taoserror.h")
+	header_dir=("taos.h" "taosdef.h" "taoserror.h")
     for i in "${header_dir[@]}";do
         check_link ${inc_link_dir}/$i
     done

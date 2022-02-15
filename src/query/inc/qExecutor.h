@@ -230,12 +230,14 @@ typedef struct SQueryAttr {
   bool             diffQuery;        // is diff query
   bool             simpleAgg;
   bool             pointInterpQuery; // point interpolation query
+  bool             needTableSeqScan; // need scan table by table
   bool             needReverseScan;  // need reverse scan
   bool             distinct;         // distinct  query or not
   bool             stateWindow;       // window State on sub/normal table
   bool             createFilterOperator; // if filter operator is needed
   bool             multigroupResult; // multigroup result can exist in one SSDataBlock
   bool             needSort;         // need sort rowRes
+  bool             skipOffset;       // can skip offset if true 
   int32_t          interBufSize;     // intermediate buffer sizse
 
   int32_t          havingNum;        // having expr number
@@ -310,7 +312,7 @@ typedef struct SQueryRuntimeEnv {
   STSCursor             cur;
 
   char*                 tagVal;           // tag value of current data block
-  SArithmeticSupport   *sasArray;
+  SScalarExprSupport*sasArray;
 
   SSDataBlock          *outputBuf;
   STableGroupInfo       tableqinfoGroupInfo;  // this is a group array list, including SArray<STableQueryInfo*> structure
@@ -323,6 +325,8 @@ typedef struct SQueryRuntimeEnv {
   SHashObj             *pTableRetrieveTsMap;
   SUdfInfo             *pUdfInfo;  
   bool                  udfIsCopy;
+  SHashObj             *pTablesRead;    // record child tables already read rows by tid hash
+  int32_t              cntTableReadOver; // read table over count  
 } SQueryRuntimeEnv;
 
 enum {
@@ -426,6 +430,8 @@ typedef struct SQueryParam {
   int32_t          tableScanOperator;
   SArray          *pOperator;
   SUdfInfo        *pUdfInfo;
+  int16_t         schemaVersion;
+  int16_t         tagVersion;
 } SQueryParam;
 
 typedef struct SColumnDataParam{
@@ -658,7 +664,8 @@ void* doDestroyFilterInfo(SSingleColumnFilterInfo* pFilterInfo, int32_t numOfFil
 void setInputDataBlock(SOperatorInfo* pOperator, SQLFunctionCtx* pCtx, SSDataBlock* pBlock, int32_t order);
 int32_t getNumOfResult(SQueryRuntimeEnv *pRuntimeEnv, SQLFunctionCtx* pCtx, int32_t numOfOutput);
 void finalizeQueryResult(SOperatorInfo* pOperator, SQLFunctionCtx* pCtx, SResultRowInfo* pResultRowInfo, int32_t* rowCellInfoOffset);
-void updateOutputBuf(SOptrBasicInfo* pBInfo, int32_t *bufCapacity, int32_t numOfInputRows);
+void updateOutputBuf(SOptrBasicInfo* pBInfo, int32_t *bufCapacity, int32_t numOfInputRows, SQueryRuntimeEnv* runtimeEnv, bool extendLarge);
+void shrinkOutputBuf(SOptrBasicInfo* pBInfo, int32_t *bufCapacity);
 void clearOutputBuf(SOptrBasicInfo* pBInfo, int32_t *bufCapacity);
 void copyTsColoum(SSDataBlock* pRes, SQLFunctionCtx* pCtx, int32_t numOfOutput);
 
@@ -685,7 +692,7 @@ void freeColumnFilterInfo(SColumnFilterInfo* pFilter, int32_t numOfFilters);
 STableQueryInfo *createTableQueryInfo(SQueryAttr* pQueryAttr, void* pTable, bool groupbyColumn, STimeWindow win, void* buf);
 STableQueryInfo* createTmpTableQueryInfo(STimeWindow win);
 
-int32_t buildArithmeticExprFromMsg(SExprInfo *pArithExprInfo, void *pQueryMsg);
+int32_t buildScalarExprFromMsg(SExprInfo * pExprInfo, void *pQueryMsg);
 
 bool isQueryKilled(SQInfo *pQInfo);
 int32_t checkForQueryBuf(size_t numOfTables);
@@ -715,5 +722,12 @@ int32_t getMaximumIdleDurationSec();
 
 void doInvokeUdf(SUdfInfo* pUdfInfo, SQLFunctionCtx *pCtx, int32_t idx, int32_t type);
 int32_t getColumnDataFromId(void *param, int32_t id, void **data);
+
+void qInfoLogSSDataBlock(SSDataBlock* block, char* location);
+
+// add table read rows count. pHashTables must not be NULL
+void addTableReadRows(SQueryRuntimeEnv* pEnv, int32_t tid, int32_t rows);
+// tsdb scan table callback table or query is over. param is SQueryRuntimeEnv*
+bool qReadOverCB(void* param, int8_t type, int32_t tid);
 
 #endif  // TDENGINE_QEXECUTOR_H

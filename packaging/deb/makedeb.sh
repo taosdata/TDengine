@@ -36,11 +36,11 @@ install_home_path="/usr/local/taos"
 mkdir -p ${pkg_dir}${install_home_path}
 mkdir -p ${pkg_dir}${install_home_path}/bin
 mkdir -p ${pkg_dir}${install_home_path}/cfg
-mkdir -p ${pkg_dir}${install_home_path}/connector
+#mkdir -p ${pkg_dir}${install_home_path}/connector
 mkdir -p ${pkg_dir}${install_home_path}/driver
 mkdir -p ${pkg_dir}${install_home_path}/examples
 mkdir -p ${pkg_dir}${install_home_path}/include
-mkdir -p ${pkg_dir}${install_home_path}/init.d
+#mkdir -p ${pkg_dir}${install_home_path}/init.d
 mkdir -p ${pkg_dir}${install_home_path}/script
 
 cp ${compile_dir}/../packaging/cfg/taos.cfg         ${pkg_dir}${install_home_path}/cfg
@@ -51,15 +51,13 @@ if [ -f "${compile_dir}/test/cfg/taosadapter.service" ]; then
     cp ${compile_dir}/test/cfg/taosadapter.service	${pkg_dir}${install_home_path}/cfg || :
 fi
 
-cp ${compile_dir}/../packaging/deb/taosd            ${pkg_dir}${install_home_path}/init.d
+#cp ${compile_dir}/../packaging/deb/taosd            ${pkg_dir}${install_home_path}/init.d
 cp ${compile_dir}/../packaging/tools/post.sh        ${pkg_dir}${install_home_path}/script
 cp ${compile_dir}/../packaging/tools/preun.sh       ${pkg_dir}${install_home_path}/script
 cp ${compile_dir}/../packaging/tools/startPre.sh    ${pkg_dir}${install_home_path}/bin
 cp ${compile_dir}/../packaging/tools/set_core.sh    ${pkg_dir}${install_home_path}/bin
 cp ${compile_dir}/../packaging/tools/taosd-dump-cfg.gdb    ${pkg_dir}${install_home_path}/bin
 
-cp ${compile_dir}/build/bin/taosdemo                ${pkg_dir}${install_home_path}/bin
-cp ${compile_dir}/build/bin/taosdump                ${pkg_dir}${install_home_path}/bin
 cp ${compile_dir}/build/bin/taosd                   ${pkg_dir}${install_home_path}/bin
 
 if [ -f "${compile_dir}/build/bin/taosadapter" ]; then
@@ -69,24 +67,15 @@ fi
 cp ${compile_dir}/build/bin/taos                    ${pkg_dir}${install_home_path}/bin
 cp ${compile_dir}/build/lib/${libfile}              ${pkg_dir}${install_home_path}/driver
 cp ${compile_dir}/../src/inc/taos.h                 ${pkg_dir}${install_home_path}/include
+cp ${compile_dir}/../src/inc/taosdef.h              ${pkg_dir}${install_home_path}/include
 cp ${compile_dir}/../src/inc/taoserror.h            ${pkg_dir}${install_home_path}/include
-cp -r ${top_dir}/tests/examples/*                   ${pkg_dir}${install_home_path}/examples
-cp -r ${top_dir}/src/connector/python               ${pkg_dir}${install_home_path}/connector
-cp -r ${top_dir}/src/connector/go                   ${pkg_dir}${install_home_path}/connector
-cp -r ${top_dir}/src/connector/nodejs               ${pkg_dir}${install_home_path}/connector
-cp ${compile_dir}/build/lib/taos-jdbcdriver*.*  ${pkg_dir}${install_home_path}/connector ||:
+cp -r ${top_dir}/examples/*                         ${pkg_dir}${install_home_path}/examples
+#cp -r ${top_dir}/src/connector/python               ${pkg_dir}${install_home_path}/connector
+#cp -r ${top_dir}/src/connector/go                   ${pkg_dir}${install_home_path}/connector
+#cp -r ${top_dir}/src/connector/nodejs               ${pkg_dir}${install_home_path}/connector
+#cp ${compile_dir}/build/lib/taos-jdbcdriver*.*  ${pkg_dir}${install_home_path}/connector ||:
 
 install_user_local_path="/usr/local"
-
-if [ -f ${compile_dir}/build/lib/libavro.so.23.0.0 ]; then
-    mkdir -p ${pkg_dir}${install_user_local_path}/lib
-    cp ${compile_dir}/build/lib/libavro.so.23.0.0 ${pkg_dir}${install_user_local_path}/lib/
-    ln -sf libavro.so.23.0.0 ${pkg_dir}${install_user_local_path}/lib/libavro.so.23
-    ln -sf libavro.so.23 ${pkg_dir}${install_user_local_path}/lib/libavro.so
-fi
-if [ -f ${compile_dir}/build/lib/libavro.a ]; then
-    cp ${compile_dir}/build/lib/libavro.a ${pkg_dir}${install_user_local_path}/lib/
-fi
 
 if [ -f ${compile_dir}/build/bin/jemalloc-config ]; then
     mkdir -p ${pkg_dir}${install_user_local_path}/{bin,lib,lib/pkgconfig,include/jemalloc,share/doc/jemalloc,share/man/man3}
@@ -128,13 +117,7 @@ chmod 755 ${pkg_dir}/DEBIAN/*
 debver="Version: "$tdengine_ver
 sed -i "2c$debver" ${pkg_dir}/DEBIAN/control
 
-if [ -f ${compile_dir}/build/lib/libavro.so.23.0.0 ]; then
-    sed -i.bak "s/#Depends: no/Depends: libjansson4, libsnappy1v5/g" ${pkg_dir}/DEBIAN/control
-fi
-
 #get taos version, then set deb name
-
-
 if [ "$verMode" == "cluster" ]; then
   debname="TDengine-server-"${tdengine_ver}-${osType}-${cpuType}
 elif [ "$verMode" == "edge" ]; then
@@ -153,13 +136,11 @@ else
   exit 1
 fi
 
-
-
 # make deb package
 dpkg -b ${pkg_dir} $debname
 echo "make deb package success!"
 
 cp ${pkg_dir}/*.deb ${output_dir}
 
-# clean tmep dir
+# clean temp dir
 rm -rf ${pkg_dir}

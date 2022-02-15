@@ -334,8 +334,9 @@ bool taosReadConfigOption(const char *option, char *value, char *value2, char *v
         if (taosReadDirectoryConfig(cfg, value)) {
            taosReadDataDirCfg(value, value2, value3);
            ret = true;
+        } else {
+           ret = false;  
         }
-        ret = false;
         break;
       default:
         uError("config option:%s, input value:%s, can't be recognized", option, value);
@@ -373,19 +374,8 @@ void taosReadGlobalLogCfg() {
     }
     strcpy(configDir, full_path.we_wordv[0]);
   } else {
-    #ifdef _TD_POWER_
-    printf("configDir:%s not there, use default value: /etc/power", configDir);
-    strcpy(configDir, "/etc/power");
-	#elif (_TD_TQ_ == true)
-    printf("configDir:%s not there, use default value: /etc/tq", configDir);
-    strcpy(configDir, "/etc/tq");
-	#elif (_TD_PRO_ == true)
-    printf("configDir:%s not there, use default value: /etc/ProDB", configDir);
-    strcpy(configDir, "/etc/ProDB");
-    #else
     printf("configDir:%s not there, use default value: /etc/taos", configDir);
     strcpy(configDir, "/etc/taos");
-    #endif
   }
   wordfree(&full_path);
 
@@ -584,7 +574,7 @@ static void taosDumpCfg(SGlobalCfg *cfg) {
 }
 
 void taosDumpGlobalCfg() {
-  printf("taos global config:\n");
+  printf("     global config:\n");
   printf("==================================\n");
   for (int i = 0; i < tsGlobalConfigNum; ++i) {
     SGlobalCfg *cfg = tsGlobalConfig + i;
@@ -595,7 +585,7 @@ void taosDumpGlobalCfg() {
     taosDumpCfg(cfg);
   }
 
-  printf("\ntaos local config:\n");
+  printf("\n     local config:\n");
   printf("==================================\n");
 
   for (int i = 0; i < tsGlobalConfigNum; ++i) {

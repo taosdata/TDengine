@@ -265,7 +265,10 @@ int tfsMkdirRecurAt(const char *rname, int level, int id) {
     if (errno == ENOENT) {
       // Try to create upper
       char *s = strdup(rname);
-
+      if (strcmp(s, ".") == 0){     // TD-12238, if mkdir failed, rname will be ".", it will be always failed, so need to jump recursion
+        free(s);
+        return -1;
+      }
       // Make a copy of dirname(s) because the implementation of 'dirname' differs on different platforms.
       // Some platform may modify the contents of the string passed into dirname(). Others may return a pointer to
       // internal static storage space that will be overwritten by next call. For case like that, we should not use
@@ -495,7 +498,11 @@ static int tfsFormatDir(char *idir, char *odir) {
   }
 
   char tmp[PATH_MAX] = {0};
+#ifdef WINDOWS
+  if (_fullpath(tmp,wep.we_wordv[0], PATH_MAX) == NULL) {
+#else
   if (realpath(wep.we_wordv[0], tmp) == NULL) {
+#endif
     terrno = TAOS_SYSTEM_ERROR(errno);
     wordfree(&wep);
     return -1;

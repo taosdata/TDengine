@@ -32,15 +32,15 @@ IT 运维监测数据通常都是对时间特性比较敏感的数据，例如�
 ### 复制 TDengine 插件到 grafana 插件目录
 
 ```bash
-1. wget -c https://github.com/taosdata/grafanaplugin/releases/download/v3.1.1/tdengine-datasource-3.1.1.zip
-2. sudo unzip tdengine-datasource-3.1.1.zip -d /var/lib/grafana/plugins/
+1. wget -c https://github.com/taosdata/grafanaplugin/releases/download/v3.1.3/tdengine-datasource-3.1.3.zip
+2. sudo unzip tdengine-datasource-3.1.3.zip -d /var/lib/grafana/plugins/
 3. sudo chown grafana:grafana -R /var/lib/grafana/plugins/tdengine
 4. echo -e "[plugins]\nallow_loading_unsigned_plugins = tdengine-datasource\n" | sudo tee -a /etc/grafana/grafana.ini
 5. sudo systemctl restart grafana-server.service
 ```
 
 ### 配置 collectd
-在 /etc/collectd/collectd.conf 文件中增加如下内容，其中 host 和 port 请填写 TDengine 和 Taos Adapter 配置的实际值：
+在 /etc/collectd/collectd.conf 文件中增加如下内容，其中 host 和 port 请填写 TDengine 和 taosAdapter 配置的实际值：
 ```
 LoadPlugin network
 <Plugin network>
@@ -51,7 +51,7 @@ sudo systemctl start collectd
 ```
 
 ### 配置 StatsD
-在 config.js 文件中增加如下内容后启动 StatsD，其中 host 和 port 请填写 TDengine 和 Taos Adapter 配置的实际值：
+在 config.js 文件中增加如下内容后启动 StatsD，其中 host 和 port 请填写 TDengine 和 taosAdapter 配置的实际值：
 ```
 backends 部分添加 "./backends/repeater"
 repeater 部分添加 { host:'<TDengine server/cluster host>', port: <port for StatsD>}

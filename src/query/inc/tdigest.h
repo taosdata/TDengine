@@ -29,7 +29,7 @@
 #define DOUBLE_MAX 1.79e+308
 
 #define ADDITION_CENTROID_NUM 2
-#define COMPRESSION 400
+#define COMPRESSION 300
 #define GET_CENTROID(compression)  (ceil(compression * M_PI / 2) + 1 + ADDITION_CENTROID_NUM)
 #define GET_THRESHOLD(compression) (7.5 + 0.37 * compression - 2e-4 * pow(compression, 2))
 #define TDIGEST_SIZE(compression)  (sizeof(TDigest) + sizeof(SCentroid)*GET_CENTROID(compression) + sizeof(SPt)*GET_THRESHOLD(compression))

@@ -11,7 +11,7 @@ TDengine uses SQL as the query language. Applications can send SQL statements th
 - Time stamp aligned join query (implicit join) operations
 - Multiple aggregation/calculation functions: count, max, min, avg, sum, twa, stddev, leastsquares, top, bottom, first, last, percentile, apercentile, last_row, spread, diff, etc
 
-For example, in TAOS shell, the records with vlotage > 215 are queried from table d1001, sorted in descending order by timestamps, and only two records are outputted.
+For example, in TAOS shell, the records with voltage > 215 are queried from table d1001, sorted in descending order by timestamps, and only two records are outputted.
 
 ```mysql
 taos> select * from d1001 where voltage > 215 order by ts desc limit 2;

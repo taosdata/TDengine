@@ -21,6 +21,7 @@
 #include "httpResp.h"
 #include "httpJson.h"
 #include "httpContext.h"
+#include "monitor.h"
 
 const char *httpKeepAliveStr[] = {"", "Connection: Keep-Alive\r\n", "Connection: Close\r\n"};
 
@@ -151,6 +152,13 @@ void httpSendErrorResp(HttpContext *pContext, int32_t errNo) {
 
   if (pContext->parser && pContext->parser->httpCode != 0) {
     httpCode = pContext->parser->httpCode;
+  }
+
+  HttpServer *pServer = &tsHttpServer;
+  SMonHttpStatus *httpStatus = monGetHttpStatusHashTableEntry(httpCode);
+  // FIXME(@huolinhe): I don't known why the errors index is overflowed, but fix it by index check
+  if (httpStatus->index < HTTP_STATUS_CODE_NUM) {
+    pServer->statusCodeErrs[httpStatus->index] += 1;
   }
 
   pContext->error = true;

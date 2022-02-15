@@ -30,6 +30,7 @@ typedef struct {
   int32_t * vnodeList;
 } SOpenVnodeThread;
 
+extern bool     dnodeExit;
 extern void *   tsDnodeTmr;
 static void *   tsStatusTimer = NULL;
 static uint32_t tsRebootTime = 0;
@@ -127,9 +128,20 @@ int32_t dnodeInitVnodes() {
   int32_t threadNum = tsNumOfCores;
   int32_t vnodesPerThread = numOfVnodes / threadNum + 1;
   SOpenVnodeThread *threads = calloc(threadNum, sizeof(SOpenVnodeThread));
+
+  if (threads == NULL) {
+    return TSDB_CODE_DND_OUT_OF_MEMORY;
+  }
+
   for (int32_t t = 0; t < threadNum; ++t) {
     threads[t].threadIndex = t;
     threads[t].vnodeList = calloc(vnodesPerThread, sizeof(int32_t));
+
+    if (threads[t].vnodeList == NULL) {
+      dError("vnodeList allocation failed");
+      status = TSDB_CODE_DND_OUT_OF_MEMORY;
+      goto DNODE_INIT_VNODES_OUT;
+    }
   }
 
   for (int32_t v = 0; v < numOfVnodes; ++v) {
@@ -163,18 +175,24 @@ int32_t dnodeInitVnodes() {
     }
     openVnodes += pThread->opened;
     failedVnodes += pThread->failed;
-    free(pThread->vnodeList);
   }
 
-  free(threads);
   dInfo("there are total vnodes:%d, opened:%d", numOfVnodes, openVnodes);
 
   if (failedVnodes != 0) {
     dError("there are total vnodes:%d, failed:%d", numOfVnodes, failedVnodes);
-    return -1;
+    status = TSDB_CODE_DND_VNODE_OPEN_FAILED;
   }
 
-  return TSDB_CODE_SUCCESS;
+DNODE_INIT_VNODES_OUT:
+
+  for (int32_t t = 0; t < threadNum; ++t) {
+    SOpenVnodeThread *pThread = &threads[t];
+    free(pThread->vnodeList);
+  }
+  free(threads);
+
+  return status;
 }
 
 void dnodeCleanupVnodes() {
@@ -205,6 +223,22 @@ static void dnodeProcessStatusRsp(SRpcMsg *pMsg) {
       if (clusterId[0] != '\0') {
         dnodeSetDropped();
         dError("exit zombie dropped dnode");
+
+        // warning: only for k8s!
+        while (tsDnodeNopLoop) {
+          if (dnodeExit) {
+            dInfo("Break loop");
+            return;
+          }
+
+          dInfo("Nop loop");
+#ifdef WINDOWS
+          Sleep(100);
+#else
+          usleep(100000);
+#endif
+        }
+
         exit(EXIT_FAILURE);
       }
     }
@@ -253,7 +287,7 @@ static void dnodeSendStatusMsg(void *handle, void *tmrId) {
 
   dnodeGetCfg(&pStatus->dnodeId, pStatus->clusterId);
   pStatus->dnodeId          = htonl(dnodeGetDnodeId());
-  pStatus->version          = htonl(tsVersion);
+  pStatus->version          = htonl(tsVersion >> 8);
   pStatus->lastReboot       = htonl(tsRebootTime);
   pStatus->numOfCores       = htons((uint16_t) tsNumOfCores);
   pStatus->diskAvailable    = tsAvailDataDirGB;

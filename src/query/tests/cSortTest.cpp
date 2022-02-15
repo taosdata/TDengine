@@ -97,7 +97,7 @@ TEST(testCase, colunmnwise_sort_test) {
 }
 
 TEST(testCase, columnsort_test) {
-  SSchema field[1] = {
+  SSchema1 field[1] = {
       {TSDB_DATA_TYPE_INT, "k", sizeof(int32_t)},
   };
 

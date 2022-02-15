@@ -433,12 +433,12 @@ void destroyResultBuf(SDiskbasedResultBuf* pResultBuf) {
       tfree(pi);
     }
 
-    taosArrayDestroy(*p);
+    taosArrayDestroy(p);
     p = taosHashIterate(pResultBuf->groupSet, p);
   }
 
   tdListFree(pResultBuf->lruList);
-  taosArrayDestroy(pResultBuf->emptyDummyIdList);
+  taosArrayDestroy(&pResultBuf->emptyDummyIdList);
   taosHashCleanup(pResultBuf->groupSet);
   taosHashCleanup(pResultBuf->all);
 

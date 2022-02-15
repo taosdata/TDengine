@@ -23,13 +23,16 @@ extern "C" {
 #include "trpc.h"
 #include "taosmsg.h"
 
+#define MAX_HTTP_STATUS_CODE_NUM 63
 typedef struct {
-  int32_t queryReqNum;
-  int32_t submitReqNum;
-  int32_t httpReqNum;
-} SStatisInfo;
+  int64_t queryReqNum;
+  int64_t submitReqNum;
+  int64_t httpReqNum;
+} SDnodeStatisInfo;
 
-SStatisInfo dnodeGetStatisInfo();
+SDnodeStatisInfo dnodeGetStatisInfo();
+int32_t          dnodeGetHttpStatusInfo(int32_t index);
+void             dnodeClearHttpStatusInfo();
 
 bool    dnodeIsFirstDeploy();
 bool    dnodeIsMasterEp(char *ep);
@@ -37,6 +40,8 @@ void    dnodeGetEpSetForPeer(SRpcEpSet *epSet);
 void    dnodeGetEpSetForShell(SRpcEpSet *epSet);
 int32_t dnodeGetDnodeId();
 void    dnodeGetClusterId(char *clusterId);
+int64_t dnodeGetDnodeError();
+void    dnodeIncDnodeError();
 
 void    dnodeUpdateEp(int32_t dnodeId, char *ep, char *fqdn, uint16_t *port);
 bool    dnodeCheckEpChanged(int32_t dnodeId, char *epstr);

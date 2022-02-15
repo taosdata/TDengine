@@ -6,8 +6,8 @@
 
 [![TDengine](TDenginelogo.png)](https://www.taosdata.com)
 
-简体中文 | [English](./README.md) 
-很多职位正在热招中，请看[这里](https://www.taosdata.com/cn/careers/) 
+简体中文 | [English](./README.md)
+很多职位正在热招中，请看[这里](https://www.taosdata.com/cn/careers/)
 
 # TDengine 简介
 
@@ -57,6 +57,18 @@ sudo apt-get install -y openjdk-8-jdk
 sudo apt-get install -y  maven
 ```
 
+#### 为 taos-tools 安装编译需要的软件
+
+taosTools 是用于 TDengine 的辅助工具软件集合。目前它包含 taosBenchmark（曾命名为 taosdemo）和 taosdump 两个软件。
+
+默认 TDengine 编译不包含 taosTools。您可以在编译 TDengine 时使用`cmake .. -DBUILD_TOOLS=true` 来同时编译 taosTools。
+
+为了在 Ubuntu/Debian 系统上编译 [taos-tools](https://github.com/taosdata/taos-tools) 需要安装如下软件：
+
+```bash
+sudo apt install build-essential libjansson-dev libsnappy-dev liblzma-dev libz-dev pkg-config
+```
+
 ### CentOS 7：
 
 ```bash
@@ -75,7 +87,7 @@ sudo yum install -y java-1.8.0-openjdk
 sudo yum install -y maven
 ```
 
-### CentOS 8 & Fedora:
+### CentOS 8 & Fedora
 
 ```bash
 sudo dnf install -y gcc gcc-c++ make cmake epel-release git
@@ -93,6 +105,18 @@ sudo dnf install -y java-1.8.0-openjdk
 sudo dnf install -y maven
 ```
 
+#### 在 CentOS 上构建 taosTools 安装依赖软件
+
+为了在 CentOS 上构建 [taosTools](https://github.com/taosdata/taos-tools) 需要安装如下依赖软件
+
+```bash
+sudo yum install zlib-devel xz-devel snappy-devel jansson-devel pkgconfig libatomic libstdc++-static
+```
+
+注意：由于 snappy 缺乏 pkg-config 支持
+（参考 [链接](https://github.com/google/snappy/pull/86)），会导致
+ cmake 提示无法发现 libsnappy，实际上工作正常。
+
 ## 获取源码
 
 首先，你需要从 GitHub 克隆源码：
@@ -109,6 +133,7 @@ git submodule update --init --recursive
 ```
 
 如果使用 https 协议下载比较慢，可以通过修改 ~/.gitconfig 文件添加以下两行设置使用 ssh 协议下载。需要首先上传 ssh 密钥到 GitHub，详细方法请参考 GitHub 官方文档。
+
 ```
 [url "git@github.com:"]
     insteadOf = https://github.com/
@@ -123,7 +148,8 @@ mkdir debug && cd debug
 cmake .. && cmake --build .
 ```
 
-您可以选择使用 Jemalloc 作为内存分配器，替代默认的 glibc：
+您可以选择使用 jemalloc 作为内存分配器，替代默认的 glibc：
+
 ```bash
 apt install autoconf
 cmake .. -DJEMALLOC_ENABLED=true
@@ -254,23 +280,25 @@ Query OK, 2 row(s) in set (0.001700s)
 
 TDengine 提供了丰富的应用程序开发接口，其中包括C/C++、Java、Python、Go、Node.js、C# 、RESTful 等，便于用户快速开发应用：
 
-- Java
+- [Java](https://www.taosdata.com/cn/documentation/connector/java)
 
-- C/C++
+- [C/C++](https://www.taosdata.com/cn/documentation/connector#c-cpp)
 
-- Python
+- [Python](https://www.taosdata.com/cn/documentation/connector#python)
 
-- Go
+- [Go](https://www.taosdata.com/cn/documentation/connector#go)
 
-- RESTful API
+- [RESTful API](https://www.taosdata.com/cn/documentation/connector#restful)
 
-- Node.js
+- [Node.js](https://www.taosdata.com/cn/documentation/connector#nodejs)
+
+- [Rust](https://www.taosdata.com/cn/documentation/connector/rust)
 
 ## 第三方连接器
 
 TDengine 社区生态中也有一些非常友好的第三方连接器，可以通过以下链接访问它们的源码。
 
-- [Rust Connector](https://github.com/taosdata/TDengine/tree/master/tests/examples/rust)
+- [Rust Bindings](https://github.com/songtianyi/tdengine-rust-bindings/tree/master/examples)
 - [.Net Core Connector](https://github.com/maikebing/Maikebing.EntityFrameworkCore.Taos)
 - [Lua Connector](https://github.com/taosdata/TDengine/tree/develop/tests/examples/lua)
 
@@ -290,4 +318,4 @@ TDengine 官方社群「物联网大数据群」对外开放，欢迎您加入�
 
 # [谁在使用TDengine](https://github.com/taosdata/TDengine/issues/2432)
 
-欢迎所有 TDengine 用户及贡献者在 [这里](https://github.com/taosdata/TDengine/issues/2432) 分享您在当前工作中开发/使用 TDengine 的故事。 
+欢迎所有 TDengine 用户及贡献者在 [这里](https://github.com/taosdata/TDengine/issues/2432) 分享您在当前工作中开发/使用 TDengine 的故事。

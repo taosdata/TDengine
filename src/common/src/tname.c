@@ -4,6 +4,7 @@
 #include "tname.h"
 #include "ttoken.h"
 #include "tvariant.h"
+#include "tglobal.h"
 
 #define VALIDNUMOFCOLS(x)  ((x) >= TSDB_MIN_COLUMNS && (x) <= TSDB_MAX_COLUMNS)
 #define VALIDNUMOFTAGS(x)  ((x) >= 0 && (x) <= TSDB_MAX_TAGS)
@@ -49,7 +50,7 @@ SSchema tGetUserSpecifiedColumnSchema(tVariant* pVal, SStrToken* exprStr, const 
   } else {
     size_t tlen = MIN(sizeof(s.name), exprStr->n + 1);
     tstrncpy(s.name, exprStr->z, tlen);
-    strdequote(s.name);
+    stringProcess(s.name, (int32_t)strlen(s.name));
   }
 
   return s;
@@ -162,7 +163,7 @@ char *tableNameGetPosition(SStrToken* pToken, char target) {
       return pToken->z + i;
     }
   
-    if (*(pToken->z + i) == TS_ESCAPE_CHAR) {
+    if (*(pToken->z + i) == TS_BACKQUOTE_CHAR) {
       if (!inQuote) {
         inEscape = !inEscape;
       }
@@ -222,7 +223,7 @@ void extractTableNameFromToken(SStrToken* pToken, SStrToken* pTable) {
   char* r = tableNameGetPosition(pToken, sep);  
 
   if (r != NULL) {  // record the table name token    
-    if (pToken->z[0] == TS_ESCAPE_CHAR && *(r - 1) == TS_ESCAPE_CHAR) {
+    if (pToken->z[0] == TS_BACKQUOTE_CHAR && *(r - 1) == TS_BACKQUOTE_CHAR) {
       pTable->n = (uint32_t)(r - pToken->z - 2);
       pTable->z = pToken->z + 1;
     } else {
@@ -251,6 +252,9 @@ static bool doValidateSchema(SSchema* pSchema, int32_t numOfCols, int32_t maxLen
   int32_t rowLen = 0;
 
   for (int32_t i = 0; i < numOfCols; ++i) {
+    if (pSchema[i].type == TSDB_DATA_TYPE_JSON && numOfCols != 1){
+      return false;
+    }
     // 1. valid types
     if (!isValidDataType(pSchema[i].type)) {
       return false;
@@ -301,8 +305,12 @@ bool tIsValidSchema(struct SSchema* pSchema, int32_t numOfCols, int32_t numOfTag
   if (!doValidateSchema(pSchema, numOfCols, TSDB_MAX_BYTES_PER_ROW)) {
     return false;
   }
+  int32_t maxTagLen = TSDB_MAX_TAGS_LEN;
+  if (numOfTags == 1 && pSchema[numOfCols].type == TSDB_DATA_TYPE_JSON){
+    maxTagLen = TSDB_MAX_JSON_TAGS_LEN;
+  }
 
-  if (!doValidateSchema(&pSchema[numOfCols], numOfTags, TSDB_MAX_TAGS_LEN)) {
+  if (!doValidateSchema(&pSchema[numOfCols], numOfTags, maxTagLen)) {
     return false;
   }
 

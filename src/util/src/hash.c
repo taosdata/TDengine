@@ -289,6 +289,12 @@ SHashObj *taosHashInit(size_t capacity, _hash_fn_t fn, bool update, SHashLockTyp
 void taosHashSetEqualFp(SHashObj *pHashObj, _equal_fn_t fp) {
   if (pHashObj != NULL && fp != NULL) {
     pHashObj->equalFp = fp;
+  } 
+}
+
+void taosHashSetFreeFp(SHashObj *pHashObj, _hash_free_fn_t fp) {
+  if (pHashObj != NULL && fp != NULL) {
+    pHashObj->freeFp = fp;
   }
 }
 
@@ -626,6 +632,7 @@ void taosHashClear(SHashObj *pHashObj) {
   taosHashWUnlock(pHashObj);
 }
 
+// the input paras should be SHashObj **, so the origin input will be set by tfree(*pHashObj)
 void taosHashCleanup(SHashObj *pHashObj) {
   if (pHashObj == NULL) {
     return;
@@ -641,8 +648,7 @@ void taosHashCleanup(SHashObj *pHashObj) {
     tfree(p);
   }
 
-  taosArrayDestroy(pHashObj->pMemBlock);
-
+  taosArrayDestroy(&pHashObj->pMemBlock);
   free(pHashObj);
 }
 

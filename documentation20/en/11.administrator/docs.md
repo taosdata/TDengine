@@ -91,9 +91,9 @@ Only some important configuration parameters are listed below. For more paramete
 - firstEp: end point of the first dnode which will be connected in the cluster when taosd starts, the default value is localhost: 6030.
 - fqdn: FQDN of the data node, which defaults to the first hostname configured by the operating system. If you want to access via IP address directly, you can set it to the IP address of the node.
 - serverPort: the port number of the external service after taosd started, the default value is 6030.
-- httpPort: the port number used by the RESTful service to which all HTTP requests (TCP) require a query/write request. The default value is 6041.
-- dataDir: the data file directory to which all data files will be written. [Default:/var/lib/taos](http://default/var/lib/taos).
-- logDir: the log file directory to which the running log files of the client and server will be written. [Default:/var/log/taos](http://default/var/log/taos).
+- httpPort: the port number used by the RESTful service to which all HTTP requests (TCP) require a query/write request. The default value is 6041. Note 2.4 and later version use a stand-alone software, taosAdapter to provide RESTFul interface.
+- dataDir: the data file directory to which all data files will be written. `Default:/var/lib/taos`.
+- logDir: the log file directory to which the running log files of the client and server will be written. `Default:/var/log/taos`.
 - arbitrator: the end point of the arbitrator in the system; the default value is null.
 - role: optional role for dnode. 0-any; it can be used as an mnode and to allocate vnodes; 1-mgmt; It can only be an mnode, but not to allocate vnodes; 2-dnode; cannot be an mnode, only vnode can be allocated
 - debugFlage: run the log switch. 131 (output error and warning logs), 135 (output error, warning, and debug logs), 143 (output error, warning, debug, and trace logs). Default value: 131 or 135 (different modules have different default values).
@@ -400,11 +400,56 @@ KILL STREAM <stream-id>;
 
 Force to turn off the stream computing, in which stream-id is the connection-id: stream-no string displayed in SHOW STREAMS, such as 103: 2, copy and paste it.
 
-## System Monitoring
+## <a class="anchor" id="monitoring"></a>System Monitoring
 
 After TDengine is started, it will automatically create a monitoring database log and write the server's CPU, memory, hard disk space, bandwidth, number of requests, disk read-write speed, slow query and other information into the database regularly. TDengine also records important system operations (such as logging in, creating, deleting databases, etc.) logs and various error alarm information and stores them in the log database. The system administrator can view the database directly from CLI or view the monitoring information through GUI on WEB.
 
-The collection of these monitoring metrics is turned on by default, but you can modify option enableMonitor in the configuration file to turn it off or on.
+The collection of these monitoring metrics is turned on by default, but you can modify option monitor in the configuration file to turn it off or on.
+
+### TDinsight - Monitor TDengine with Grafana + Data Source
+
+Starting from v2.3.3.0, TDengine's log database provides more metrics for resources and status monitoring. Here we introduce a zero-dependency monitoring solution - we call it TDinsight - with Grafana. You can find the documentation from [GitHub](https://github.com/taosdata/grafanaplugin/blob/master/dashboards/TDinsight.md).
+
+We provide an automation shell script [`TDinsight.sh`](https://github.com/taosdata/grafanaplugin/blob/master/dashboards/TDinsight.sh) as a shortcut to help setup TDinsight on the Grafana server.
+
+First, download `TDinsight.sh` from GitHub：
+
+```bash
+wget https://github.com/taosdata/grafanaplugin/raw/master/dashboards/TDinsight.sh
+chmod +x TDinsight.sh
+```
+
+Some CLI options are needed to use the script:
+
+1. TDengine server informations:
+
+    - TDengine RESTful endpoint, like `http://localhost:6041`, will be used with option `-a`.
+    - TDengine user `-u` (`root` by default), and password with `-p` (`taosdata` by default).
+
+2. Grafana alerting notifications. There's two ways to setup this:
+   1. To use existing Grafana notification channel with `uid`, option `-E`. The `uid` could be retrieved with `curl -u admin:admin localhost:3000/api/alert-notifications |'.[]| .uid + "," + .name' -r`, then use it like this:
+  
+        ```bash
+        sudo ./TDinsight.sh -a http://localhost:6041 -u root -p taosdata -E <notifier uid>
+        ```
+
+   2. Use TDengine data source plugin's builtin [Aliyun SMS](https://www.aliyun.com/product/sms) alerting support with `-s` flag, and input these options：
+        1. Access key id with option `-I`
+        2. Access key secret with option `K`
+        3. Access key sign name with option `-S`
+        4. Message template code with option `-C`
+        5. Message template params in JSON format with option `-T`, eg. `{"alarm_level":"%s","time":"%s","name":"%s","content":"%s"}`.
+        6. `,`-separated phone numbers list with option `-B`
+
+        ```bash
+        sudo ./TDinsight.sh -a http://localhost:6041 -u root -p taosdata -s \
+          -I XXXXXXX -K XXXXXXXX -S taosdata -C SMS_1111111 -B 18900000000 \
+          -T '{"alarm_level":"%s","time":"%s","name":"%s","content":"%s"}'
+        ```
+
+Follow the usage of the script and then restart grafana-server service, here we go http://localhost:3000/d/tdinsight.
+
+Refer to [TDinsight](https://github.com/taosdata/grafanaplugin/blob/master/dashboards/TDinsight.md) README for more scenario and limitations of the script, and the metrics descriptions for all of the TDinsight.
 
 ## <a class="anchor" id="directories"></a> File Directory Structure
 

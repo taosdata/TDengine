@@ -44,6 +44,7 @@ static SKeyword keywordTable[] = {
     {"TIMESTAMP",    TK_TIMESTAMP},
     {"BINARY",       TK_BINARY},
     {"NCHAR",        TK_NCHAR},
+    {"JSON",         TK_JSON},
     {"OR",           TK_OR},
     {"AND",          TK_AND},
     {"NOT",          TK_NOT},
@@ -72,7 +73,6 @@ static SKeyword keywordTable[] = {
     {"STAR",         TK_STAR},
     {"SLASH",        TK_SLASH},
     {"REM ",         TK_REM},
-    {"CONCAT",       TK_CONCAT},
     {"UMINUS",       TK_UMINUS},
     {"UPLUS",        TK_UPLUS},
     {"BITNOT",       TK_BITNOT},
@@ -230,7 +230,10 @@ static SKeyword keywordTable[] = {
     {"OUTPUTTYPE",   TK_OUTPUTTYPE},
     {"AGGREGATE",    TK_AGGREGATE},
     {"BUFSIZE",      TK_BUFSIZE},
-    {"RANGE",        TK_RANGE}
+    {"RANGE",        TK_RANGE},
+    {"CONTAINS",     TK_CONTAINS},
+    {"TO",           TK_TO},
+    {"SPLIT",        TK_SPLIT}   
 };
 
 static const char isIdChar[] = {
@@ -311,6 +314,10 @@ uint32_t tGetToken(char* z, uint32_t* tokenId) {
         }
         *tokenId = TK_COMMENT;
         return i;
+      }
+      if (z[1] == '>') {
+        *tokenId = TK_ARROW;
+        return 2;
       }
       *tokenId = TK_MINUS;
       return 1;
@@ -394,9 +401,6 @@ uint32_t tGetToken(char* z, uint32_t* tokenId) {
       if (z[1] != '|') {
         *tokenId = TK_BITOR;
         return 1;
-      } else {
-        *tokenId = TK_CONCAT;
-        return 2;
       }
     }
     case ',': {
@@ -446,6 +450,13 @@ uint32_t tGetToken(char* z, uint32_t* tokenId) {
     }
     case '`': {
       for (i = 1; z[i]; i++) {
+//        if(isprint(z[i]) == 0){
+//          break;
+//        }
+//        if (z[i] == '`' && z[i+1] == '`') {
+//          i++;
+//          continue;
+//        }
         if (z[i] == '`') {
           i++;
           *tokenId = TK_ID;
@@ -693,6 +704,18 @@ SStrToken tStrGetToken(char* str, int32_t* i, bool isPrevOptr) {
   *i += t0.n;
 
   return t0;
+}
+
+/**
+ * strcpy implement source from SStrToken
+ *
+ * @param dst  copy to 
+ * @param srcToken copy from
+ * @return size of copy successful bytes
+ */
+int32_t tStrNCpy(char *dst, SStrToken* srcToken) {
+  strncpy(dst, srcToken->z, srcToken->n);
+  return srcToken->n;
 }
 
 bool taosIsKeyWordToken(const char* z, int32_t len) {

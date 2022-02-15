@@ -1,19 +1,3 @@
-/**
- * *************************************************************************
- * Copyright (c) 2019 TAOS Data, Inc. <jhtao@taosdata.com>
- * <p>
- * This program is free software: you can use, redistribute, and/or modify
- * it under the terms of the GNU Affero General Public License, version 3
- * or later ("AGPL"), as published by the Free Software Foundation.
- * <p>
- * This program is distributed in the hope that it will be useful, but WITHOUT
- * ANY WARRANTY; without even the implied warranty of MERCHANTABILITY or
- * FITNESS FOR A PARTICULAR PURPOSE.
- * <p>
- * You should have received a copy of the GNU Affero General Public License
- * along with this program. If not, see <http://www.gnu.org/licenses/>.
- * ***************************************************************************
- */
 package com.taosdata.jdbc;
 
 import com.alibaba.fastjson.JSONObject;
@@ -44,6 +28,8 @@ public class TSDBJNIConnector {
         System.loadLibrary("taos");
     }
 
+    /***********************************************************************/
+    //NOTE: JDBC
     public static void init(Properties props) throws SQLWarning {
         synchronized (LOCK) {
             if (!isInitialized) {
@@ -258,11 +244,14 @@ public class TSDBJNIConnector {
 
     private native int closeConnectionImp(long connection);
 
+    /*****************************************************************************************/
+    // NOTE: subscribe
+
     /**
      * Create a subscription
      */
-    long subscribe(String topic, String sql, boolean restart, int period) {
-        return subscribeImp(this.taos, restart, topic, sql, period);
+    long subscribe(String topic, String sql, boolean restart) {
+        return subscribeImp(this.taos, restart, topic, sql, 0);
     }
 
     private native long subscribeImp(long connection, boolean restart, String topic, String sql, int period);
@@ -285,16 +274,8 @@ public class TSDBJNIConnector {
 
     private native void unsubscribeImp(long subscription, boolean isKeep);
 
-    /**
-     * Validate if a <I>create table</I> SQL statement is correct without actually creating that table
-     */
-    public boolean validateCreateTableSql(String sql) {
-        int res = validateCreateTableSqlImp(taos, sql.getBytes());
-        return res == 0;
-    }
-
-    private native int validateCreateTableSqlImp(long connection, byte[] sqlBytes);
-
+    /******************************************************************************************************/
+    // NOTE: parameter binding
     public long prepareStmt(String sql) throws SQLException {
         long stmt = prepareStmtImp(sql.getBytes(), this.taos);
 
@@ -319,16 +300,19 @@ public class TSDBJNIConnector {
     public void setBindTableName(long stmt, String tableName) throws SQLException {
         int code = setBindTableNameImp(stmt, tableName, this.taos);
         if (code != TSDBConstants.JNI_SUCCESS) {
-            throw TSDBError.createSQLException(TSDBErrorNumbers.ERROR_UNKNOWN, "failed to set table name");
+            throw TSDBError.createSQLException(TSDBErrorNumbers.ERROR_UNKNOWN,
+                    "failed to set table name, reason: " + stmtErrorMsgImp(stmt, this.taos));
         }
     }
 
     private native int setBindTableNameImp(long stmt, String name, long conn);
 
-    public void setBindTableNameAndTags(long stmt, String tableName, int numOfTags, ByteBuffer tags, ByteBuffer typeList, ByteBuffer lengthList, ByteBuffer nullList) throws SQLException {
+    public void setBindTableNameAndTags(long stmt, String tableName, int numOfTags, ByteBuffer tags,
+                                        ByteBuffer typeList, ByteBuffer lengthList, ByteBuffer nullList) throws SQLException {
         int code = setTableNameTagsImp(stmt, tableName, numOfTags, tags.array(), typeList.array(), lengthList.array(), nullList.array(), this.taos);
         if (code != TSDBConstants.JNI_SUCCESS) {
-            throw TSDBError.createSQLException(TSDBErrorNumbers.ERROR_UNKNOWN, "failed to bind table name and corresponding tags");
+            throw TSDBError.createSQLException(TSDBErrorNumbers.ERROR_UNKNOWN,
+                    "failed to bind table name and corresponding tags, reason: " + stmtErrorMsgImp(stmt, this.taos));
         }
     }
 
@@ -337,7 +321,8 @@ public class TSDBJNIConnector {
     public void bindColumnDataArray(long stmt, ByteBuffer colDataList, ByteBuffer lengthList, ByteBuffer isNullList, int type, int bytes, int numOfRows, int columnIndex) throws SQLException {
         int code = bindColDataImp(stmt, colDataList.array(), lengthList.array(), isNullList.array(), type, bytes, numOfRows, columnIndex, this.taos);
         if (code != TSDBConstants.JNI_SUCCESS) {
-            throw TSDBError.createSQLException(TSDBErrorNumbers.ERROR_UNKNOWN, "failed to bind column data");
+            throw TSDBError.createSQLException(TSDBErrorNumbers.ERROR_UNKNOWN,
+                    "failed to bind column data, reason: " + stmtErrorMsgImp(stmt, this.taos));
         }
     }
 
@@ -346,9 +331,19 @@ public class TSDBJNIConnector {
     public void executeBatch(long stmt) throws SQLException {
         int code = executeBatchImp(stmt, this.taos);
         if (code != TSDBConstants.JNI_SUCCESS) {
-            throw TSDBError.createSQLException(TSDBErrorNumbers.ERROR_UNKNOWN, "failed to execute batch bind");
+            throw TSDBError.createSQLException(TSDBErrorNumbers.ERROR_UNKNOWN,
+                    "failed to execute batch bind, reason: " + stmtErrorMsgImp(stmt, this.taos));
         }
     }
+
+    public void addBatch(long stmt) throws SQLException {
+        int code = addBatchImp(stmt, this.taos);
+        if (code != TSDBConstants.JNI_SUCCESS){
+            throw TSDBError.createSQLException(TSDBErrorNumbers.ERROR_UNKNOWN, stmtErrorMsgImp(stmt, this.taos));
+        }
+    }
+
+    private native int addBatchImp(long stmt, long con);
 
     private native int executeBatchImp(long stmt, long con);
 
@@ -361,6 +356,10 @@ public class TSDBJNIConnector {
 
     private native int closeStmt(long stmt, long con);
 
+    private native String stmtErrorMsgImp(long stmt, long con);
+
+    /*************************************************************************************************/
+    // NOTE: schemaless-lines
     public void insertLines(String[] lines, SchemalessProtocolType protocolType, SchemalessTimestampType timestampType) throws SQLException {
         int code = insertLinesImp(lines, this.taos, protocolType.ordinal(), timestampType.ordinal());
         if (code != TSDBConstants.JNI_SUCCESS) {

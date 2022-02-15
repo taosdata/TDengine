@@ -15,7 +15,7 @@
 
 #ifndef TDENGINE_QSCRIPT_H
 #define TDENGINE_QSCRIPT_H
-
+#ifdef LUA_EMBEDDED
 #include <lua.h>
 #include <lauxlib.h>
 #include <lualib.h>
@@ -25,10 +25,11 @@
 #include "tlist.h"
 #include "qUdf.h"
 
-#define MAX_FUNC_NAME 64
 
 #define USER_FUNC_NAME "funcName" 
 #define USER_FUNC_NAME_LIMIT 48
+/* define in this way to let others know that these two macros are logically related */
+#define MAX_FUNC_NAME (USER_FUNC_NAME_LIMIT + 16)
 
 enum ScriptState {
   SCRIPT_STATE_INIT,
@@ -44,7 +45,9 @@ typedef struct {
 } ScriptEnv;   
 
 typedef struct ScriptCtx {
-  char        funcName[USER_FUNC_NAME_LIMIT]; 
+  // one-more-space-for-null-terminator to support function name
+  // at most USER_FUNC_NAME_LIMIT bytes long actually
+  char        funcName[USER_FUNC_NAME_LIMIT+1];
   int8_t      state; 
   ScriptEnv  *pEnv;
   int8_t      isAgg; // agg function or not
@@ -78,5 +81,5 @@ void       destroyScriptCtx(void *pScriptCtx);
 int32_t scriptEnvPoolInit();
 void    scriptEnvPoolCleanup();
 bool    isValidScript(char *script, int32_t len);
-
+#endif //LUA_EMBEDDED
 #endif //TDENGINE_QSCRIPT_H 

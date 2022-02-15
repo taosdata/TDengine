@@ -103,11 +103,11 @@ int32_t tscAcquireRpc(const char *key, const char *user, const char *secretEncry
 
   SRpcObj rpcObj;
   memset(&rpcObj, 0, sizeof(rpcObj));
-  strncpy(rpcObj.key, key, strlen(key));
+  tstrncpy(rpcObj.key, key, sizeof(rpcObj.key));
   rpcObj.pDnodeConn = rpcOpen(&rpcInit);
   if (rpcObj.pDnodeConn == NULL) {
     pthread_mutex_unlock(&rpcObjMutex);
-    tscError("failed to init connection to TDengine");
+    tscError("failed to init connection to server");
     return -1;
   }
 
@@ -133,8 +133,8 @@ void tscClusterInfoDestroy(SClusterInfo *pObj) {
 
 void *tscAcquireClusterInfo(const char *clusterId) {
   pthread_mutex_lock(&clusterMutex);
-  
   size_t len = strlen(clusterId);
+
   SClusterInfo *pObj   = NULL;
   SClusterInfo **ppObj = taosHashGet(tscClusterMap, clusterId, len); 
   if (ppObj == NULL || *ppObj == NULL) {
@@ -210,10 +210,10 @@ void taos_init_imp(void) {
     taosInitNotes();
 
     rpcInit();
-
+#ifdef LUA_EMBEDDED
     scriptEnvPoolInit();
-
-    tscDebug("starting to initialize TAOS client ...");
+#endif
+    tscDebug("starting to initialize client ...");
     tscDebug("Local End Point is:%s", tsLocalEp);
   }
 
@@ -276,7 +276,9 @@ void taos_cleanup(void) {
   }
 
   if (tscEmbedded == 0) {
+    #ifdef LUA_EMBEDDED
     scriptEnvPoolCleanup();
+    #endif
   }
 
   int32_t id = tscObjRef;
@@ -385,6 +387,10 @@ static int taos_options_imp(TSDB_OPTION option, const char *pStr) {
           cfg->cfgStatus = TAOS_CFG_CSTATUS_OPTION;
         } else { // set the user specified locale failed, use default LC_CTYPE as current locale
           locale = setlocale(LC_CTYPE, tsLocale);
+          if (locale == NULL) {
+            tscError("failed to set locale:%s failed, neither default LC_CTYPE: %s", pStr, tsLocale);
+            return -1;
+          }
           tscInfo("failed to set locale:%s, current locale:%s", pStr, tsLocale);
         }
 

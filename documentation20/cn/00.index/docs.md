@@ -1,6 +1,6 @@
 # TDengine文档
 
-TDengine是一个高效的存储、查询、分析时序大数据的平台，专为物联网、车联网、工业互联网、运维监测等优化而设计。您可以像使用关系型数据库MySQL一样来使用它，但建议您在使用前仔细阅读一遍下面的文档，特别是 [数据模型](/architecture) 与 [数据建模](/model)。除本文档之外，欢迎 [下载产品白皮书](https://www.taosdata.com/downloads/TDengine%20White%20Paper.pdf)。如需查阅TDengine 1.6 文档，请点击 [这里](https://www.taosdata.com/cn/documentation16/) 访问。
+TDengine是一个高效的存储、查询、分析时序大数据的平台，专为物联网、车联网、工业互联网、运维监测等优化而设计。您可以像使用关系型数据库MySQL一样来使用它，但建议您在使用前仔细阅读一遍下面的文档，特别是 [数据模型](/architecture) 与 [数据建模](/model)。除本文档之外，欢迎 [下载产品白皮书](https://www.taosdata.com/downloads/TDengine%20White%20Paper.pdf)。
 
 ## [TDengine介绍](/evaluation)
 
@@ -69,7 +69,6 @@ TDengine是一个高效的存储、查询、分析时序大数据的平台，专
 * [连续查询(Continuous Query)](/advanced-features#continuous-query)：基于滑动窗口，定时自动的对数据流进行查询计算
 * [数据订阅(Publisher/Subscriber)](/advanced-features#subscribe)：类似典型的消息队列，应用可订阅接收到的最新数据
 * [缓存(Cache)](/advanced-features#cache)：每个设备最新的数据都会缓存在内存中，可快速获取
-* [报警监测](/advanced-features#alert)：根据配置规则，自动监测超限行为数据，并主动推送
 
 ## [连接器](/connector)
 
@@ -83,11 +82,16 @@ TDengine是一个高效的存储、查询、分析时序大数据的平台，专
 * [Windows客户端](https://www.taosdata.com/blog/2019/07/26/514.html)：自行编译windows客户端，Windows环境的各种连接器都需要它
 * [Rust Connector](/connector/rust): Rust语言下通过libtaos客户端或RESTful接口，连接TDengine服务器。
 
+## TDengine 组件与工具
+
+* [taosAdapter](/tools/adapter): TDengine 集群和应用之间的 RESTful 接口适配服务。
+* [TDinsight](/tools/insight): 监控 TDengine 集群的 Grafana 面板集合。
+* [taosdump](/tools/taosdump): TDengine 数据备份工具。使用 taosdump 请安装 taosTools。
+* [taosBenchmark](/tools/taosbenchmark): TDengine 压力测试工具。使用 taosBenchmark 请安装 taosTools。
+
 ## [与其他工具的连接](/connections)
 
 * [Grafana](/connections#grafana)：获取并可视化保存在TDengine的数据
-* [MATLAB](/connections#matlab)：通过配置MATLAB的JDBC数据源访问保存在TDengine的数据
-* [R](/connections#r)：通过配置R的JDBC数据源访问保存在TDengine的数据
 * [IDEA Database](https://www.taosdata.com/blog/2020/08/27/1767.html)：通过IDEA 数据库管理工具可视化使用 TDengine
 
 ## [TDengine集群的安装、管理](/cluster)
@@ -110,7 +114,8 @@ TDengine是一个高效的存储、查询、分析时序大数据的平台，专
 * [用户管理](/administrator#user)：添加、删除TDengine用户，修改用户密码
 * [数据导入](/administrator#import)：可按脚本文件导入，也可按数据文件导入
 * [数据导出](/administrator#export)：从shell按表导出，也可用taosdump工具做各种导出
-* [系统监控](/administrator#status)：检查系统现有的连接、查询、流式计算，日志和事件等
+* [系统连接、任务查询管理](/administrator#status)：检查系统现有的连接、查询、流式计算，日志和事件等
+* [系统监控](/administrator#monitoring)：系统监控，使用TDinsight进行集群监控等
 * [性能优化](/administrator#optimize)：对长期运行的系统进行维护优化，保障性能表现
 * [文件目录结构](/administrator#directories)：TDengine数据文件、配置文件等所在目录
 * [参数限制与保留关键字](/administrator#keywords)：TDengine的参数限制与保留关键字列表

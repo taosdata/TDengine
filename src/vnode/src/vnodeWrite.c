@@ -27,6 +27,10 @@
 #define MAX_QUEUED_MSG_NUM 100000
 #define MAX_QUEUED_MSG_SIZE 1024*1024*1024  //1GB
 
+static int64_t tsSubmitReqSucNum = 0;
+static int64_t tsSubmitRowNum = 0;
+static int64_t tsSubmitRowSucNum = 0;
+
 extern void *  tsDnodeTmr;
 static int32_t (*vnodeProcessWriteMsgFp[TSDB_MSG_TYPE_MAX])(SVnodeObj *, void *pCont, SRspRet *);
 static int32_t vnodeProcessSubmitMsg(SVnodeObj *pVnode, void *pCont, SRspRet *);
@@ -99,7 +103,9 @@ int32_t vnodeProcessWrite(void *vparam, void *wparam, int32_t qtype, void *rpara
   }
 
   // write into WAL
-  code = walWrite(pVnode->wal, pHead);
+  if (!(tsShortcutFlag & TSDB_SHORTCUT_NR_VNODE_WAL_WRITE)) {
+    code = walWrite(pVnode->wal, pHead);
+  }
   if (code < 0) {
     if (syncCode > 0) atomic_sub_fetch_32(&pWrite->processedCount, 1);
     vError("vgId:%d, hver:%" PRIu64 " vver:%" PRIu64 " code:0x%x", pVnode->vgId, pHead->version, pVnode->version, code);
@@ -163,7 +169,16 @@ static int32_t vnodeProcessSubmitMsg(SVnodeObj *pVnode, void *pCont, SRspRet *pR
     pRsp = pRet->rsp;
   }
 
-  if (tsdbInsertData(pVnode->tsdb, pCont, pRsp) < 0) code = terrno;
+  if (tsdbInsertData(pVnode->tsdb, pCont, pRsp) < 0) {
+    code = terrno;
+  } else {
+    if (pRsp != NULL) atomic_fetch_add_64(&tsSubmitReqSucNum, 1);
+  }
+
+  if (pRsp) {
+    atomic_fetch_add_64(&tsSubmitRowNum, ntohl(pRsp->numOfRows));
+    atomic_fetch_add_64(&tsSubmitRowSucNum, ntohl(pRsp->affectedRows));
+  }
 
   return code;
 }
@@ -424,4 +439,13 @@ void vnodeWaitWriteCompleted(SVnodeObj *pVnode) {
 
   if (extraSleep)
     taosMsleep(900);
+}
+
+SVnodeStatisInfo vnodeGetStatisInfo() {
+  SVnodeStatisInfo info = {0};
+  info.submitReqSucNum = atomic_exchange_64(&tsSubmitReqSucNum, 0);
+  info.submitRowNum = atomic_exchange_64(&tsSubmitRowNum, 0);
+  info.submitRowSucNum = atomic_exchange_64(&tsSubmitRowSucNum, 0);
+
+  return info;
 }

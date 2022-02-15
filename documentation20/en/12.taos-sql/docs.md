@@ -53,13 +53,14 @@ In TDengine, the following 10 data types can be used in data model of an ordinar
 | 8    | TINYINT       | 1         | A nullable integer type with a range of [-127, 127]          |
 | 9    | BOOL          | 1         | Boolean type，{true, false}                                  |
 | 10   | NCHAR         | Custom    | Used to record non-ASCII strings, such as Chinese characters. Each nchar character takes up 4 bytes of storage space. Single quotation marks are used at both ends of the string, and escape characters are required for single quotation marks in the string, that is \’. When nchar is used, the string size must be specified. A column of type nchar (10) indicates that the string of this column stores up to 10 nchar characters, which will take up 40 bytes of space. If the length of the user string exceeds the declared length, an error will be reported. |
-
+| 11   | JSON          |           | Json type，only support for tag                                  |
 
 
 **Tips**:
 
 1. TDengine is case-insensitive to English characters in SQL statements and automatically converts them to lowercase for execution. Therefore, the user's case-sensitive strings and passwords need to be enclosed in single quotation marks.
 2. Avoid using BINARY type to save non-ASCII type strings, which will easily lead to errors such as garbled data. The correct way is to use NCHAR type to save Chinese characters.
+3. The numerical values in SQL statements are treated as floating or integer numbers, depends on if the value contains decimal point or is in scientific notation format. Therefore, caution is needed since overflow might happen for corresponding data types. E.g., 9999999999999999999 is overflowed as the number is greater than the largest integer number. However, 9999999999999999999.0 is treated as a valid floating number. 
 
 ## <a class="anchor" id="management"></a>Database Management
 
@@ -228,7 +229,7 @@ Note: In 2.0.15.0 and later versions, STABLE reserved words are supported. That 
     ```mysql
     CREATE STABLE [IF NOT EXISTS] stb_name (timestamp_field_name TIMESTAMP, field1_name data_type1 [, field2_name data_type2 ...]) TAGS (tag1_name tag_type1, tag2_name tag_type2 [, tag3_name tag_type3]);
     ```
-    Similiar to a standard table creation SQL, but you need to specify name and type of TAGS field.
+    Similar to a standard table creation SQL, but you need to specify name and type of TAGS field.
     
     Note:
     
@@ -673,7 +674,7 @@ Query OK, 1 row(s) in set (0.001091s)
     SELECT * FROM tb1 WHERE ts >= NOW - 1h;
     ```
 
-- Look up table tb1 from 2018-06-01 08:00:00. 000 to 2018-06-02 08:00:00. 000, and col3 string is a record ending in'nny ', and the result is in descending order of timestamp:
+- Look up table tb1 from 2018-06-01 08:00:00. 000 to 2018-06-02 08:00:00. 000, and col3 string is a record ending in 'nny ', and the result is in descending order of timestamp:
 
     ```mysql
     SELECT * FROM tb1 WHERE ts > '2018-06-01 08:00:00.000' AND ts <= '2018-06-02 08:00:00.000' AND col3 LIKE '%nny' ORDER BY ts DESC;
@@ -782,7 +783,7 @@ TDengine supports aggregations over data, they are listed below:
   
   Function: return the sum of a statistics/STable.
   
-  Return Data Type: long integer INMT64 and Double.
+  Return Data Type: INT64 and Double.
   
   Applicable Fields: All types except timestamp, binary, nchar, bool.
   
@@ -1196,7 +1197,7 @@ SELECT function_list FROM stb_name
 
 - FILL statement specifies a filling mode when data missed in a certain interval. Applicable filling modes include the following:
   
-  1. Do not fill: NONE (default filingl mode).
+  1. Do not fill: NONE (default filing mode).
   2. VALUE filling: Fixed value filling, where the filled value needs to be specified. For example: fill (VALUE, 1.23).
   3. NULL filling: Fill the data with NULL. For example: fill (NULL).
   4. PREV filling: Filling data with the previous non-NULL value. For example: fill (PREV).
@@ -1245,3 +1246,113 @@ TAOS SQL supports join columns of two tables by Primary Key timestamp between th
 **Availability of is no null**
 
 Is not null supports all types of columns. Non-null expression is < > "" and only applies to columns of non-numeric types.
+
+**Restrictions on order by**
+
+- A non super table can only have one order by.
+- The super table can have at most two order by expression, and the second must be ts.
+- Order by tag must be the same tag as group by tag. TBNAME is as logical as tag.
+- Order by ordinary column must be the same ordinary column as group by or top/bottom. If both group by and top / bottom exist, order by must be in the same column as group by.
+- There are both order by and group by. The internal of the group is sorted by ts
+- Order by ts.
+
+## JSON type instructions
+- Syntax description
+
+  1. Create JSON type tag
+
+     ```mysql
+     create stable s1 (ts timestamp, v1 int) tags (info json)
+
+     create table s1_1 using s1 tags ('{"k1": "v1"}')
+     ```
+  3. JSON value operator(->)
+
+     ```mysql   
+     select * from s1 where info->'k1' = 'v1'
+
+     select info->'k1' from s1 
+     ```
+  4. JSON key existence operator(contains)
+
+     ```mysql
+     select * from s1 where info contains 'k2'
+    
+     select * from s1 where info contains 'k1'
+     ```
+
+- Supported operations
+
+  1. In where condition，support match/nmatch/between and/like/and/or/is null/is no null，in operator is not support.
+
+     ```mysql 
+     select * from s1 where info→'k1' match 'v*'; 
+
+     select * from s1 where info→'k1' like 'v%' and info contains 'k2';
+
+     select * from s1 where info is null; 
+  
+     select * from s1 where info->'k1' is not null
+     ```
+
+  2. JSON tag is supported in group by、order by、join clause、union all and subquery，like group by json->'key'
+
+  3. Support distinct operator.
+
+     ```mysql 
+     select distinct info→'k1' from s1
+     ```
+
+  5. Tag
+
+     Support change JSON tag（full coverage）
+
+     Support change the name of JSON tag
+
+     Not support add JSON tag, delete JSON tag
+
+- Other constraints
+
+  1. Only tag columns can use JSON type. If JSON tag is used, there can only be one tag column.
+
+  2. Length limit:The length of the key in JSON cannot exceed 256, and the key must be printable ASCII characters; The total length of JSON string does not exceed 4096 bytes.
+
+  3. JSON format restrictions:
+
+    1. JSON input string can be empty (""," ","\t" or null) or object, and cannot be nonempty string, boolean or array.
+    2. Object can be {}, if the object is {}, the whole JSON string is marked as empty. The key can be "", if the key is "", the K-V pair will be ignored in the JSON string.
+    3. Value can be a number (int/double) or string, bool or null, not an array. Nesting is not allowed.
+    4. If two identical keys appear in the JSON string, the first one will take effect.
+    5. Escape is not supported in JSON string.
+
+  4. Null is returned when querying the key that does not exist in JSON.
+
+  5. When JSON tag is used as the sub query result, parsing and querying the JSON string in the sub query is no longer supported in the upper level query.
+
+     The following query is not supported:
+     ```mysql 
+     select jtag→'key' from (select jtag from stable)
+      
+     select jtag->'key' from (select jtag from stable) where jtag->'key'>0
+     ```
+## Escape character description
+- Special Character Escape Sequences (since version 2.4.0.4)
+
+  | Escape Sequence    | **Character Represented by Sequence**  |
+      | :--------:     |   -------------------   |
+  | `\'`             |  A single quote (') character    | 
+  | `\"`             |  A double quote (") character      |
+  | \n             |  A newline (linefeed) character       |
+  | \r             |  A carriage return character       |
+  | \t             |  A tab character       |
+  | `\\`             |  A backslash (\) character        |
+  | `\%`            |  A % character; see note following the table    |
+  | `\_`             |  A _ character; see note following the table    |
+
+- Escape character usage rules
+  - The escape characters that in a identifier (database name, table name, column name)
+    1. Normal identifier：    The wrong identifier is prompted directly, because the identifier must be numbers, letters and underscores, and cannot start with a number.
+    2. Backquote`` identifier： Keep it as it is.
+  - The escape characters that in a data
+    3. The escape character defined above will be escaped (% and _ see the description below). If there is no matching escape character, the escape character will be ignored.
+    4. The `\%` and `\_` sequences are used to search for literal instances of % and _ in pattern-matching contexts where they would otherwise be interpreted as wildcard characters.If you use `\%` or `\_` outside of pattern-matching contexts, they evaluate to the strings `\%` and `\_`, not to % and _.

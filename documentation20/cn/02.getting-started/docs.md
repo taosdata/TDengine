@@ -2,7 +2,7 @@
 
 ## <a class="anchor" id="install"></a>快捷安装
 
-TDengine 软件分为服务器、客户端和报警模块三部分，目前 2.0 版服务器仅能在 Linux 系统上安装和运行，后续会支持 Windows、Mac OS 等系统。客户端可以在 Windows 或 Linux 上安装和运行。任何 OS 的应用也可以选择 RESTful 接口连接服务器 taosd。CPU 支持 X64/ARM64/MIPS64/Alpha64，后续会支持 ARM32、RISC-V 等 CPU 架构。用户可根据需求选择通过 [源码](https://www.taosdata.com/cn/getting-started/#通过源码安装) 或者 [安装包](https://www.taosdata.com/cn/getting-started/#通过安装包安装) 来安装。
+TDengine 软件分为服务器、客户端和报警模块三部分，目前 2.0 版服务器仅能在 Linux 系统上安装和运行，后续会支持 Windows、Mac OS 等系统。客户端可以在 Windows 或 Linux 上安装和运行。任何 OS 的应用也可以选择 RESTful 接口连接服务器 taosd，其中 2.4 之后版本默认使用单独运行的独立组件 taosAdapter 提供 http 服务，之前版本使用内置 http 服务。CPU 支持 X64/ARM64/MIPS64/Alpha64，后续会支持 ARM32、RISC-V 等 CPU 架构。用户可根据需求选择通过 [源码](https://www.taosdata.com/cn/getting-started/#通过源码安装) 或者 [安装包](https://www.taosdata.com/cn/getting-started/#通过安装包安装) 来安装。
 
 ### <a class="anchor" id="source-install"></a>通过源码安装
 
@@ -12,25 +12,55 @@ TDengine 软件分为服务器、客户端和报警模块三部分，目前 2.0 
 
 暂时不建议生产环境采用 Docker 来部署 TDengine 的客户端或服务端，但在开发环境下或初次尝试时，使用 Docker 方式部署是十分方便的。特别是，利用 Docker，可以方便地在 Mac OS X 和 Windows 环境下尝试 TDengine。
 
+```
+docker run -d -p 6030-6049:6030-6049 -p 6030-6049:6030-6049/udp tdengine/tdengine
+```
+
 详细操作方法请参照 [通过 Docker 快速体验 TDengine](https://www.taosdata.com/cn/documentation/getting-started/docker)。
 
 ### <a class="anchor" id="package-install"></a>通过安装包安装
 
-TDengine 的安装非常简单，从下载到安装成功仅仅只要几秒钟。服务端安装包包含客户端和连接器，我们提供三种安装包，您可以根据需要选择：
+TDengine 的安装非常简单，从下载到安装成功仅仅只要几秒钟。为方便使用，标准的服务端安装包包含了客户端程序、各种编程语言的连接器和示例代码；如果您只需要用到服务端程序和客户端连接的 C/C++ 语言支持，那么也可以仅下载 lite 版本的安装包。在安装包格式上，我们提供 rpm、deb、tar.gz 三种，以方便在特定操作系统上使用。版本还分稳定版和Beta版，Beta版含有更多新功能，正式上线或测试，建议安装稳定版。您可以根据需要选择下载：
 
-安装包下载在 [这里](https://www.taosdata.com/cn/getting-started/#通过安装包安装)。
+<ul id="server-packageList" class="package-list"></ul>
 
 具体的安装过程，请参见 [TDengine 多种安装包的安装和卸载](https://www.taosdata.com/blog/2019/08/09/566.html) 以及 [视频教程](https://www.taosdata.com/blog/2020/11/11/1941.html)。
+  
+## <a class="anchor" id="taosBenchmark"></a> taosBenchmark 详细功能列表
 
-### 使用 apt-get 安装
+taosBenchmark （曾命名 taosdemo）命令本身带有很多选项，配置表的数目、记录条数等等，请执行 `taosBenchmark --help` 详细列出。您可以设置不同参数进行体验。
+taosBenchmark 详细使用方法请参照 [如何使用taosBenchmark对TDengine进行性能测试](https://www.taosdata.com/2021/10/09/3111.html)。
+
+## 客户端
+
+如果客户端和服务端运行在不同的电脑上，可以单独安装客户端。下载时请注意，所选择的客户端版本号应该和在上面下载的服务端版本号精确匹配。Linux 和 Windows 安装包如下（其中 lite 版本的安装包仅带有 C/C++ 语言的连接支持，而标准版本的安装包还包含 Java、Python、Go、Node.js 等编程语言的连接器支持和示例代码）：
+  
+<ul id="client-packagelist" class="package-list"></ul>
+  
+## taosTools
+ 
+taosTools 是多个用于 TDengine 的辅助工具软件集合。
+
+推荐下载 deb 或 rpm 安装包，方便安装依赖软件。如果使用 tar.gz 格式安装包，需要自行安装依赖包。其中：
+
+* Debian/Ubuntu 系统需要安装 libjansson4 和 libsnappy1v5
+* CentOS/RHEL 系统需要安装 jansson 和 snappy
+  
+以及 TDengine server 或 TDengine client 安装包
+
+<ul id="taos-tools" class="package-list"></ul>
+
+
+## 使用 apt-get 安装
 
 如果使用 Debian 或 Ubuntu 系统，也可以使用 apt-get 从官方仓库安装，设置方法为：
+
 ```
 wget -qO - http://repos.taosdata.com/tdengine.key | sudo apt-key add -
 echo "deb [arch=amd64] http://repos.taosdata.com/tdengine-stable stable main" | sudo tee /etc/apt/sources.list.d/tdengine-stable.list
 [ beta 版安装包仓库为可选安装项 ] echo "deb [arch=amd64] http://repos.taosdata.com/tdengine-beta beta main" | sudo tee /etc/apt/sources.list.d/tdengine-beta.list
 sudo apt-get update
-apt-get policy tdengine
+apt-cache policy tdengine
 sudo apt-get install tdengine
 ```
 
@@ -44,13 +74,14 @@ $ systemctl start taosd
 ```
 
 检查服务是否正常工作：
+
 ```bash
 $ systemctl status taosd
 ```
 
-如果 TDengine 服务正常工作，那么您可以通过 TDengine 的命令行程序 `taos` 来访问并体验 TDengine。  
+如果 TDengine 服务正常工作，那么您可以通过 TDengine 的命令行程序 `taos` 来访问并体验 TDengine。
 
-**注意：**  
+### 注意：
 
 - systemctl 命令需要 _root_ 权限来运行，如果您非 _root_ 用户，请在命令前添加 sudo 。
 - 为更好的获得产品反馈，改善产品，TDengine 会采集基本的使用信息，但您可以修改系统配置文件 taos.cfg 里的配置参数 telemetryReporting，将其设为 0，就可将其关闭。
@@ -98,7 +129,7 @@ Query OK, 2 row(s) in set (0.003128s)
 
 除执行 SQL 语句外，系统管理员还可以从 TDengine 终端进行检查系统运行状态、添加删除用户账号等操作。
 
-**命令行参数**
+### 命令行参数
 
 您可通过配置命令行参数来改变 TDengine 终端的行为。以下为常用的几个命令行参数：
 
@@ -115,7 +146,7 @@ Query OK, 2 row(s) in set (0.003128s)
 $ taos -h h1.taos.com -s "use db; show tables;"
 ```
 
-**运行 SQL 命令脚本**
+### 运行 SQL 命令脚本
 
 TDengine 终端可以通过 `source` 命令来运行 SQL 命令脚本。
 
@@ -123,7 +154,7 @@ TDengine 终端可以通过 `source` 命令来运行 SQL 命令脚本。
 taos> source <filename>;
 ```
 
-**Shell 小技巧**
+### taos shell 小技巧
 
 - 可以使用上下光标键查看历史输入的指令
 - 修改用户密码：在 shell 中使用 `alter user` 命令，缺省密码为 taosdata
@@ -134,10 +165,10 @@ taos> source <filename>;
 
 ## <a class="anchor" id="demo"></a>TDengine 极速体验
 
-启动 TDengine 的服务，在 Linux 终端执行 taosdemo
+启动 TDengine 的服务，在 Linux 终端执行 taosBenchmark （曾命名为 taosdemo，在 2.4 之后的版本请按照独立的 taosTools 软件包）：
 
 ```bash
-$ taosdemo
+$ taosBenchmark
 ```
 
 该命令将在数据库 test 下面自动创建一张超级表 meters，该超级表下有 1 万张表，表名为 "d0" 到 "d9999"，每张表有 1 万条记录，每条记录有 (ts, current, voltage, phase) 四个字段，时间戳从 "2017-07-14 10:40:00 000" 到 "2017-07-14 10:40:09 999"，每张表带有标签 location 和 groupId，groupId 被设置为 1 到 10， location 被设置为 "beijing" 或者 "shanghai"。
@@ -175,22 +206,13 @@ taos> select avg(current), max(voltage), min(phase) from test.meters where group
 ```mysql
 taos> select avg(current), max(voltage), min(phase) from test.d10 interval(10s);
 ```
-## <a class="anchor" id="taosdemo"></a> taosdemo 详细功能列表
-
-taosdemo 命令本身带有很多选项，配置表的数目、记录条数等等，请执行 `taosdemo --help` 详细列出。您可以设置不同参数进行体验。
-taosdemo 详细使用方法请参照 [如何使用taosdemo对TDengine进行性能测试？](https://www.taosdata.com/cn/documentation/getting-started/taosdemo )。
-
-## 客户端和报警模块
-
-如果客户端和服务端运行在不同的电脑上，可以单独安装客户端。Linux 和 Windows 安装包可以在 [这里](https://www.taosdata.com/cn/getting-started/#客户端) 下载。
-
-报警模块的 Linux 和 Windows 安装包请在 [所有下载链接](https://www.taosdata.com/cn/all-downloads/) 页面搜索“TDengine Alert Linux”章节或“TDengine Alert Windows”章节进行下载。使用方法请参考 [报警模块的使用方法](https://github.com/taosdata/TDengine/blob/master/alert/README_cn.md)。
+  
 
 ## <a class="anchor" id="platforms"></a>支持平台列表
 
 ### TDengine 服务器支持的平台列表
 
-|                | **CentOS 6/7/8** | **Ubuntu 16/18/20** | **Other Linux** | **统信 UOS** | **银河/中标麒麟** | **凝思 V60/V80** | **华为 EulerOS** |
+|                | **CentOS 7/8** | **Ubuntu 16/18/20** | **Other Linux** | **统信 UOS** | **银河/中标麒麟** | **凝思 V60/V80** | **华为 EulerOS** |
 | -------------- | --------------------- | ------------------------ | --------------- | --------------- | ------------------------- | --------------------- | --------------------- |
 | X64            | ●                     | ●                        |                 | ○               | ●                         | ●                     | ●                     |
 | 龙芯 MIPS64     |                       |                          | ●               |                 |                           |                       |                       |
