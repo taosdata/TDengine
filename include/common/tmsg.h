@@ -272,8 +272,8 @@ typedef struct {
   char    comment[TSDB_STB_COMMENT_LEN];
 } SMCreateStbReq;
 
-int32_t tSerializeSMCreateStbReq(void** buf, SMCreateStbReq* pReq);
-void*   tDeserializeSMCreateStbReq(void* buf, SMCreateStbReq* pReq);
+int32_t tSerializeSMCreateStbReq(void* buf, int32_t bufLen, SMCreateStbReq* pReq);
+int32_t tDeserializeSMCreateStbReq(void* buf, int32_t bufLen, SMCreateStbReq* pReq);
 void    tFreeSMCreateStbReq(SMCreateStbReq* pReq);
 
 typedef struct {
@@ -281,8 +281,8 @@ typedef struct {
   int8_t igNotExists;
 } SMDropStbReq;
 
-int32_t tSerializeSMDropStbReq(void** buf, SMDropStbReq* pReq);
-void*   tDeserializeSMDropStbReq(void* buf, SMDropStbReq* pReq);
+int32_t tSerializeSMDropStbReq(void* buf, int32_t bufLen, SMDropStbReq* pReq);
+int32_t tDeserializeSMDropStbReq(void* buf, int32_t bufLen, SMDropStbReq* pReq);
 
 typedef struct {
   char    name[TSDB_TABLE_FNAME_LEN];
@@ -291,8 +291,9 @@ typedef struct {
   SArray* pFields;
 } SMAltertbReq;
 
-int32_t tSerializeSMAlterStbReq(void** buf, SMAltertbReq* pReq);
-void*   tDeserializeSMAlterStbReq(void* buf, SMAltertbReq* pReq);
+int32_t tSerializeSMAlterStbReq(void* buf, int32_t bufLen, SMAltertbReq* pReq);
+int32_t tDeserializeSMAlterStbReq(void* buf, int32_t bufLen, SMAltertbReq* pReq);
+void    tFreeSMAltertbReq(SMAltertbReq* pReq);
 
 typedef struct {
   int32_t pid;

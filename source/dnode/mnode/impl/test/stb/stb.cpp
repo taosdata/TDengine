@@ -129,11 +129,10 @@ void* MndTestStb::BuildCreateStbReq(const char* stbname, int32_t* pContLen) {
     taosArrayPush(createReq.pTags, &field);
   }
 
-  int32_t tlen = tSerializeSMCreateStbReq(NULL, &createReq);
+  int32_t tlen = tSerializeSMCreateStbReq(NULL, 0, &createReq);
   void*   pHead = rpcMallocCont(tlen);
-
-  void* pBuf = pHead;
-  tSerializeSMCreateStbReq(&pBuf, &createReq);
+  tSerializeSMCreateStbReq(pHead, tlen, &createReq);
+  tFreeSMCreateStbReq(&createReq);
   *pContLen = tlen;
   return pHead;
 }
@@ -151,10 +150,9 @@ void* MndTestStb::BuildAlterStbAddTagReq(const char* stbname, const char* tagnam
   strcpy(field.name, tagname);
   taosArrayPush(req.pFields, &field);
 
-  int32_t contLen = tSerializeSMAlterStbReq(NULL, &req);
+  int32_t contLen = tSerializeSMAlterStbReq(NULL, 0, &req);
   void*   pHead = rpcMallocCont(contLen);
-  void*   pBuf = pHead;
-  tSerializeSMAlterStbReq(&pBuf, &req);
+  tSerializeSMAlterStbReq(pHead, contLen, &req);
 
   *pContLen = contLen;
   return pHead;
@@ -173,10 +171,9 @@ void* MndTestStb::BuildAlterStbDropTagReq(const char* stbname, const char* tagna
   strcpy(field.name, tagname);
   taosArrayPush(req.pFields, &field);
 
-  int32_t contLen = tSerializeSMAlterStbReq(NULL, &req);
+  int32_t contLen = tSerializeSMAlterStbReq(NULL, 0, &req);
   void*   pHead = rpcMallocCont(contLen);
-  void*   pBuf = pHead;
-  tSerializeSMAlterStbReq(&pBuf, &req);
+  tSerializeSMAlterStbReq(pHead, contLen, &req);
 
   *pContLen = contLen;
   return pHead;
@@ -202,10 +199,9 @@ void* MndTestStb::BuildAlterStbUpdateTagNameReq(const char* stbname, const char*
   strcpy(field2.name, newtagname);
   taosArrayPush(req.pFields, &field2);
 
-  int32_t contLen = tSerializeSMAlterStbReq(NULL, &req);
+  int32_t contLen = tSerializeSMAlterStbReq(NULL, 0, &req);
   void*   pHead = rpcMallocCont(contLen);
-  void*   pBuf = pHead;
-  tSerializeSMAlterStbReq(&pBuf, &req);
+  tSerializeSMAlterStbReq(pHead, contLen, &req);
 
   *pContLen = contLen;
   return pHead;
@@ -225,10 +221,9 @@ void* MndTestStb::BuildAlterStbUpdateTagBytesReq(const char* stbname, const char
   strcpy(field.name, tagname);
   taosArrayPush(req.pFields, &field);
 
-  int32_t contLen = tSerializeSMAlterStbReq(NULL, &req);
+  int32_t contLen = tSerializeSMAlterStbReq(NULL, 0, &req);
   void*   pHead = rpcMallocCont(contLen);
-  void*   pBuf = pHead;
-  tSerializeSMAlterStbReq(&pBuf, &req);
+  tSerializeSMAlterStbReq(pHead, contLen, &req);
 
   *pContLen = contLen;
   return pHead;
@@ -247,10 +242,9 @@ void* MndTestStb::BuildAlterStbAddColumnReq(const char* stbname, const char* col
   strcpy(field.name, colname);
   taosArrayPush(req.pFields, &field);
 
-  int32_t contLen = tSerializeSMAlterStbReq(NULL, &req);
+  int32_t contLen = tSerializeSMAlterStbReq(NULL, 0, &req);
   void*   pHead = rpcMallocCont(contLen);
-  void*   pBuf = pHead;
-  tSerializeSMAlterStbReq(&pBuf, &req);
+  tSerializeSMAlterStbReq(pHead, contLen, &req);
 
   *pContLen = contLen;
   return pHead;
@@ -269,10 +263,9 @@ void* MndTestStb::BuildAlterStbDropColumnReq(const char* stbname, const char* co
   strcpy(field.name, colname);
   taosArrayPush(req.pFields, &field);
 
-  int32_t contLen = tSerializeSMAlterStbReq(NULL, &req);
+  int32_t contLen = tSerializeSMAlterStbReq(NULL, 0, &req);
   void*   pHead = rpcMallocCont(contLen);
-  void*   pBuf = pHead;
-  tSerializeSMAlterStbReq(&pBuf, &req);
+  tSerializeSMAlterStbReq(pHead, contLen, &req);
 
   *pContLen = contLen;
   return pHead;
@@ -292,10 +285,9 @@ void* MndTestStb::BuildAlterStbUpdateColumnBytesReq(const char* stbname, const c
   strcpy(field.name, colname);
   taosArrayPush(req.pFields, &field);
 
-  int32_t contLen = tSerializeSMAlterStbReq(NULL, &req);
+  int32_t contLen = tSerializeSMAlterStbReq(NULL, 0, &req);
   void*   pHead = rpcMallocCont(contLen);
-  void*   pBuf = pHead;
-  tSerializeSMAlterStbReq(&pBuf, &req);
+  tSerializeSMAlterStbReq(pHead, contLen, &req);
 
   *pContLen = contLen;
   return pHead;
@@ -430,10 +422,9 @@ TEST_F(MndTestStb, 01_Create_Show_Meta_Drop_Restart_Stb) {
     SMDropStbReq dropReq = {0};
     strcpy(dropReq.name, stbname);
 
-    int32_t contLen = tSerializeSMDropStbReq(NULL, &dropReq);
+    int32_t contLen = tSerializeSMDropStbReq(NULL, 0, &dropReq);
     void*   pHead = rpcMallocCont(contLen);
-    void*   pBuf = pHead;
-    tSerializeSMDropStbReq(&pBuf, &dropReq);
+    tSerializeSMDropStbReq(pHead, contLen, &dropReq);
 
     SRpcMsg* pRsp = test.SendReq(TDMT_MND_DROP_STB, pHead, contLen);
     ASSERT_NE(pRsp, nullptr);

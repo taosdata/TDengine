@@ -552,7 +552,10 @@ static int32_t mndProcessMCreateStbReq(SMnodeMsg *pReq) {
   SUserObj      *pUser = NULL;
   SMCreateStbReq createReq = {0};
 
-  if (tDeserializeSMCreateStbReq(pReq->rpcMsg.pCont, &createReq) == NULL) goto CREATE_STB_OVER;
+  if (tDeserializeSMCreateStbReq(pReq->rpcMsg.pCont, pReq->rpcMsg.contLen, &createReq) != 0) {
+    terrno = TSDB_CODE_INVALID_MSG;
+    goto CREATE_STB_OVER;
+  }
 
   mDebug("stb:%s, start to create", createReq.name);
   if (mndCheckCreateStbReq(&createReq) != 0) {
@@ -1036,7 +1039,7 @@ static int32_t mndProcessMAlterStbReq(SMnodeMsg *pReq) {
   SUserObj    *pUser = NULL;
   SMAltertbReq alterReq = {0};
 
-  if (tDeserializeSMAlterStbReq(pReq->rpcMsg.pCont, &alterReq) == NULL) {
+  if (tDeserializeSMAlterStbReq(pReq->rpcMsg.pCont, pReq->rpcMsg.contLen, &alterReq) != 0) {
     terrno = TSDB_CODE_INVALID_MSG;
     goto ALTER_STB_OVER;
   }
@@ -1169,7 +1172,7 @@ static int32_t mndProcessMDropStbReq(SMnodeMsg *pReq) {
   SStbObj     *pStb = NULL;
   SMDropStbReq dropReq = {0};
 
-  if (tDeserializeSMDropStbReq(pReq->rpcMsg.pCont, &dropReq) != 0) {
+  if (tDeserializeSMDropStbReq(pReq->rpcMsg.pCont, pReq->rpcMsg.contLen, &dropReq) != 0) {
     terrno = TSDB_CODE_INVALID_MSG;
     goto DROP_STB_OVER;
   }
