@@ -25,9 +25,17 @@ TEST(tdb_test, simple_test) {
 
   GTEST_ASSERT_EQ(tdbSetKeyLen(pDb1, 8), 0);
 
+  GTEST_ASSERT_EQ(tdbGetKeyLen(pDb1), 8);
+
   // GTEST_ASSERT_EQ(tdbSetValLen(pDb1, 3), 0);
 
-  // GTEST_ASSERT_EQ(tdbSetDup(pDb1, 3), 0);
+  // GTEST_ASSERT_EQ(tdbGetValLen(pDb1), 3);
+
+  // GTEST_ASSERT_EQ(tdbSetDup(pDb1, 1), 0);
+
+  // GTEST_ASSERT_EQ(tdbGetDup(pDb1), 1);
+
+  // GTEST_ASSERT_EQ(tdbSetCmprFunc(pDb1, NULL), 0);
 
   GTEST_ASSERT_EQ(tdbOpen(pDb1, "db.db", "db1", pEnv), 0);
 

@@ -30,6 +30,8 @@ struct STDbCurosr {
   SBtCursor *pBtCur;
 };
 
+static int tdbDefaultKeyCmprFn(int keyLen1, const void *pKey1, int keyLen2, const void *pKey2);
+
 int tdbCreate(TDB **ppDb) {
   TDB *pDb;
 
@@ -42,7 +44,7 @@ int tdbCreate(TDB **ppDb) {
   pDb->klen = TDB_VARIANT_LEN;
   pDb->vlen = TDB_VARIANT_LEN;
   pDb->dup = false;
-  pDb->cFn = NULL /*TODO*/;
+  pDb->cFn = tdbDefaultKeyCmprFn;
 
   *ppDb = pDb;
   return 0;
@@ -151,4 +153,24 @@ int tdbGetDup(TDB *pDb) {
   } else {
     return 0;
   }
+}
+
+static int tdbDefaultKeyCmprFn(int keyLen1, const void *pKey1, int keyLen2, const void *pKey2) {
+  int mlen;
+  int cret;
+
+  ASSERT(keyLen1 > 0 && keyLen2 > 0 && pKey1 != NULL && pKey2 != NULL);
+
+  mlen = keyLen1 < keyLen2 ? keyLen1 : keyLen2;
+  cret = memcmp(pKey1, pKey2, mlen);
+  if (cret == 0) {
+    if (keyLen1 < keyLen2) {
+      cret = -1;
+    } else if (keyLen1 > keyLen2) {
+      cret = 1;
+    } else {
+      cret = 0;
+    }
+  }
+  return cret;
 }
