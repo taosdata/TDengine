@@ -88,21 +88,6 @@ int pgCacheDestroy(SPgCache *pPgCache) {
   return 0;
 }
 
-int pgCacheOpen(SPgCache **ppPgCache) {
-  if (*ppPgCache == NULL) {
-    if (pgCacheCreate(ppPgCache, TDB_DEFAULT_PGSIZE, TDB_DEFAULT_CACHE_SIZE / TDB_DEFAULT_PGSIZE) < 0) {
-      return -1;
-    }
-  }
-  // TODO
-  return 0;
-}
-
-int pgCacheClose(SPgCache *pPgCache) {
-  // TODO
-  return 0;
-}
-
 #define PG_CACHE_HASH(fileid, pgno)       \
   ({                                      \
     uint64_t *tmp = (uint64_t *)(fileid); \

@@ -63,8 +63,15 @@ int tdbEnvOpen(TENV *pEnv) {
 
   ASSERT(pEnv != NULL);
 
-  TERR_A(ret, pgCacheCreate(&pPgCache, pEnv->pgSize, pEnv->cacheSize / pEnv->pgSize), _err);
-  TERR_A(ret, pgCacheOpen(&pPgCache), _err);
+  /* TODO: here we do not need to create the root directory, more
+   * work should be done here
+   */
+  mkdir(pEnv->rootDir, 0755);
+
+  ret = pgCacheCreate(&pPgCache, pEnv->pgSize, pEnv->cacheSize / pEnv->pgSize);
+  if (ret != 0) {
+    goto _err;
+  }
 
   pEnv->pPgCache = pPgCache;
 
