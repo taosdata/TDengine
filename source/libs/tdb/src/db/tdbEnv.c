@@ -59,8 +59,6 @@ int tdbEnvCreate(TENV **ppEnv, const char *rootDir) {
 
 int tdbEnvOpen(TENV *pEnv) {
   SPgCache *pPgCache;
-  pgsz_t    pgSize;
-  int       npage;
   int       ret;
 
   ASSERT(pEnv != NULL);
@@ -70,8 +68,6 @@ int tdbEnvOpen(TENV *pEnv) {
    */
   mkdir(pEnv->rootDir, 0755);
 
-  pgSize = pEnv->pgSize;
-  npage = pEnv->cacheSize / pEnv->pgSize;
   ret = pgCacheOpen(&pPgCache, pEnv);
   if (ret != 0) {
     goto _err;
