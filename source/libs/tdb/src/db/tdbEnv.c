@@ -131,10 +131,18 @@ int tdbEnvCommit(TENV *pEnv) {
 
 const char *tdbEnvGetRootDir(TENV *pEnv) { return pEnv->rootDir; }
 
+#define TDB_ENV_PGF_HASH(fileid)        \
+  ({                                    \
+    uint8_t *tmp = (uint8_t *)(fileid); \
+    tmp[0] + tmp[1] + tmp[2];           \
+  })
+
 int tdbEnvRgstPageFile(TENV *pEnv, SPgFile *pPgFile) {
   SPgFileList *pBucket;
 
-  pBucket = pEnv->pgfht.buckets + (0 % TDB_ENV_PGF_HASH_BUCKETS);  // TODO
+  TD_DLIST_APPEND_WITH_FIELD(&(pEnv->pgfList), pPgFile, envPgfList);
+
+  pBucket = pEnv->pgfht.buckets + (TDB_ENV_PGF_HASH(pPgFile->fileid) % TDB_ENV_PGF_HASH_BUCKETS);  // TODO
   TD_DLIST_APPEND_WITH_FIELD(pBucket, pPgFile, envHash);
 
   return 0;

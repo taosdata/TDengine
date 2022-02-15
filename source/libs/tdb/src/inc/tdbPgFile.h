@@ -38,6 +38,7 @@ struct SPgFile {
   uint8_t         fileid[TDB_FILE_ID_LEN];  // file id
   int             fd;
   SPgFileListNode envHash;
+  SPgFileListNode envPgfList;
   // TDB *   pDb;  // For a SPgFile for multiple databases, this is the <dbname, pgno> mapping DB.
 };
 
