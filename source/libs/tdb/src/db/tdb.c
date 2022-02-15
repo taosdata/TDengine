@@ -86,7 +86,7 @@ int tdbOpen(TDB *pDb, const char *fname, const char *dbname, TENV *pEnv) {
 
   pDb->dbname[dbNameLen] = '\0';
 
-  // open pPgFile or get from the env
+  // get page file from the env, if not opened yet, open it
   pPgFile = NULL;
   snprintf(dbfname, 128, "%s/%s", tdbEnvGetRootDir(pEnv), fname);
   fileExist = (tdbCheckFileAccess(fname, TDB_F_OK) == 0);
@@ -103,39 +103,11 @@ int tdbOpen(TDB *pDb, const char *fname, const char *dbname, TENV *pEnv) {
     }
   }
 
-#if 0
-  pDb->pEnv = pEnv;
-
-  // register DB to ENV
-
-  ASSERT(fname != NULL);
-
-  // Check if file exists
-  if (tdbCheckFileAccess(fname, TDB_F_OK) != 0) {
-    if (1) {
-      // create the file
-    }
-  }
-
-  // Check if the SPgFile already opened
-  tdbGnrtFileID(fname, fileid, false);
-  pPgFile = tdbEnvGetPageFile(pEnv, fileid);
-  if (pPgFile == NULL) {
-    pPgCache = tdbEnvGetPgCache(pEnv);
-    if ((ret = pgFileOpen(&pPgFile, fname, pPgCache)) != 0) {
-      return -1;
-    }
-  }
+  // TODO: open the database (an existing or a new one)
 
   pDb->pPgFile = pPgFile;
-
-  // open the access method (TODO)
-  if (btreeOpen(&pBt, pPgFile) != 0) {
-    return -1;
-  }
-
-  pDb->pBt = pBt;
-#endif
+  tdbEnvRgstDB(pEnv, pDb);
+  pDb->pEnv = pEnv;
 
   return 0;
 }

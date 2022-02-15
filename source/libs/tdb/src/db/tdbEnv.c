@@ -29,6 +29,12 @@ struct STDbEnv {
   SJournal *pJournal;
 };
 
+#define TDB_ENV_PGF_HASH(fileid)        \
+  ({                                    \
+    uint8_t *tmp = (uint8_t *)(fileid); \
+    tmp[0] + tmp[1] + tmp[2];           \
+  })
+
 static int tdbEnvDestroy(TENV *pEnv);
 
 int tdbEnvCreate(TENV **ppEnv, const char *rootDir) {
@@ -108,8 +114,15 @@ pgsz_t tdbEnvGetPageSize(TENV *pEnv) { return pEnv->pgSize; }
 cachesz_t tdbEnvGetCacheSize(TENV *pEnv) { return pEnv->cacheSize; }
 
 SPgFile *tdbEnvGetPageFile(TENV *pEnv, const uint8_t fileid[]) {
-  // TODO
-  return NULL;
+  SPgFileList *pBucket;
+  SPgFile *    pPgFile;
+
+  pBucket = pEnv->pgfht.buckets + (TDB_ENV_PGF_HASH(fileid) % TDB_ENV_PGF_HASH_BUCKETS);  // TODO
+  for (pPgFile = TD_DLIST_HEAD(pBucket); pPgFile != NULL; pPgFile = TD_DLIST_NODE_NEXT_WITH_FIELD(pPgFile, envHash)) {
+    if (memcmp(fileid, pPgFile->fileid, TDB_FILE_ID_LEN) == 0) break;
+  };
+
+  return pPgFile;
 }
 
 SPgCache *tdbEnvGetPgCache(TENV *pEnv) { return pEnv->pPgCache; }
@@ -131,12 +144,6 @@ int tdbEnvCommit(TENV *pEnv) {
 
 const char *tdbEnvGetRootDir(TENV *pEnv) { return pEnv->rootDir; }
 
-#define TDB_ENV_PGF_HASH(fileid)        \
-  ({                                    \
-    uint8_t *tmp = (uint8_t *)(fileid); \
-    tmp[0] + tmp[1] + tmp[2];           \
-  })
-
 int tdbEnvRgstPageFile(TENV *pEnv, SPgFile *pPgFile) {
   SPgFileList *pBucket;
 
@@ -145,5 +152,10 @@ int tdbEnvRgstPageFile(TENV *pEnv, SPgFile *pPgFile) {
   pBucket = pEnv->pgfht.buckets + (TDB_ENV_PGF_HASH(pPgFile->fileid) % TDB_ENV_PGF_HASH_BUCKETS);  // TODO
   TD_DLIST_APPEND_WITH_FIELD(pBucket, pPgFile, envHash);
 
+  return 0;
+}
+
+int tdbEnvRgstDB(TENV *pEnv, TDB *pDb) {
+  // TODO
   return 0;
 }
