@@ -14,7 +14,7 @@
  */
 #define _DEFAULT_SOURCE
 
-#include "tqInt.h"
+#include "vnode.h"
 
 STqReadHandle* tqInitSubmitMsgScanner(SMeta* pMeta) {
   STqReadHandle* pReadHandle = malloc(sizeof(STqReadHandle));

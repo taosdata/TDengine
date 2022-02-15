@@ -28,6 +28,7 @@ int vnodeProcessWMsgs(SVnode *pVnode, SArray *pMsgs) {
     taosEncodeFixedI64(&pBuf, ver);
 
     if (walWrite(pVnode->pWal, ver, pMsg->msgType, pMsg->pCont, pMsg->contLen) < 0) {
+      /*ASSERT(false);*/
       // TODO: handle error
     }
   }
