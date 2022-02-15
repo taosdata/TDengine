@@ -16,9 +16,14 @@
 #include "tdbInt.h"
 
 struct STDb {
-  SBTree * pBt;      // current access method
-  SPgFile *pPgFile;  // backend page file this DB is using
-  TENV *   pEnv;     // TENV containing the DB
+  char *       dbname;   // dbname;
+  SBTree *     pBt;      // current access method (may extend)
+  SPgFile *    pPgFile;  // backend page file this DB is using
+  TENV *       pEnv;     // TENV containing the DB
+  int          klen;     // key length if know
+  int          vlen;     // value length if know
+  bool         dup;      // dup mode
+  TdbKeyCmprFn cFn;      // compare function
 };
 
 struct STDbCurosr {
@@ -28,13 +33,18 @@ struct STDbCurosr {
 int tdbCreate(TDB **ppDb) {
   TDB *pDb;
 
+  // create the handle
   pDb = (TDB *)calloc(1, sizeof(*pDb));
   if (pDb == NULL) {
     return -1;
   }
 
-  /* TODO */
+  pDb->klen = TDB_VARIANT_LEN;
+  pDb->vlen = TDB_VARIANT_LEN;
+  pDb->dup = false;
+  pDb->cFn = NULL /*TODO*/;
 
+  *ppDb = pDb;
   return 0;
 }
 
@@ -45,22 +55,14 @@ static int tdbDestroy(TDB *pDb) {
   return 0;
 }
 
-int tdbOpen(TDB **ppDb, const char *fname, const char *dbname, TENV *pEnv) {
-  TDB *     pDb;
+int tdbOpen(TDB *pDb, const char *fname, const char *dbname, TENV *pEnv) {
   int       ret;
   uint8_t   fileid[TDB_FILE_ID_LEN];
   SPgFile * pPgFile;
   SPgCache *pPgCache;
   SBTree *  pBt;
 
-  // Create DB if DB handle is not created yet
-  if (ppDb == NULL) {
-    if ((ret = tdbCreate(ppDb)) != 0) {
-      return -1;
-    }
-  }
-
-  pDb = *ppDb;
+  ASSERT(pDb != NULL);
 
   // Create a default ENV if pEnv is not set
   if (pEnv == NULL) {
@@ -107,4 +109,46 @@ int tdbOpen(TDB **ppDb, const char *fname, const char *dbname, TENV *pEnv) {
 int tdbClose(TDB *pDb) {
   if (pDb == NULL) return 0;
   return tdbDestroy(pDb);
+}
+
+int tdbSetKeyLen(TDB *pDb, int klen) {
+  // TODO: check `klen`
+  pDb->klen = klen;
+  return 0;
+}
+
+int tdbSetValLen(TDB *pDb, int vlen) {
+  // TODO: check `vlen`
+  pDb->vlen = vlen;
+  return 0;
+}
+
+int tdbSetDup(TDB *pDb, int dup) {
+  if (dup) {
+    pDb->dup = true;
+  } else {
+    pDb->dup = false;
+  }
+  return 0;
+}
+
+int tdbSetCmprFunc(TDB *pDb, TdbKeyCmprFn fn) {
+  if (fn == NULL) {
+    return -1;
+  } else {
+    pDb->cFn = fn;
+  }
+  return 0;
+}
+
+int tdbGetKeyLen(TDB *pDb) { return pDb->klen; }
+
+int tdbGetValLen(TDB *pDb) { return pDb->vlen; }
+
+int tdbGetDup(TDB *pDb) {
+  if (pDb->dup) {
+    return 1;
+  } else {
+    return 0;
+  }
 }

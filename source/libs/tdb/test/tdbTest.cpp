@@ -19,12 +19,19 @@ TEST(tdb_test, simple_test) {
 
   GTEST_ASSERT_EQ(tdbEnvOpen(pEnv), 0);
 
-#if 0
+#if 1
   // DB
-  tdbOpen(&pDb1, "db.db", "db1", pEnv);
-  tdbOpen(&pDb2, "db.db", "db2", pEnv);
-  tdbOpen(&pDb3, "index.db", NULL, pEnv);
+  GTEST_ASSERT_EQ(tdbCreate(&pDb1), 0);
 
+  GTEST_ASSERT_EQ(tdbSetKeyLen(pDb1, 8), 0);
+
+  // GTEST_ASSERT_EQ(tdbSetValLen(pDb1, 3), 0);
+
+  // GTEST_ASSERT_EQ(tdbSetDup(pDb1, 3), 0);
+
+  GTEST_ASSERT_EQ(tdbOpen(pDb1, "db.db", "db1", pEnv), 0);
+
+#if 0
   // Insert
 
   // Query
@@ -32,10 +39,13 @@ TEST(tdb_test, simple_test) {
   // Delete
 
   // Query
+#endif
 
-  // Close
+  // GTEST_ASSERT_EQ(tdbOpen(&pDb2, "db.db", "db2", pEnv), 0);
+  // GTEST_ASSERT_EQ(tdbOpen(&pDb3, "index.db", NULL, pEnv), 0);
+  // tdbClose(pDb3);
+  // tdbClose(pDb2);
   tdbClose(pDb1);
-  tdbClose(pDb2);
 #endif
 
   tdbEnvClose(pEnv);
