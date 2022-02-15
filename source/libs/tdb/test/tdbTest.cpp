@@ -2,13 +2,32 @@
 
 #include "tdb.h"
 
-TEST(tdb_api_test, tdb_create_open_close_db_test) {
-  // int  ret;
-  // TDB *dbp;
+#define A_ASSERT(op) GTEST_ASSERT_EQ(op, 0)
 
-  // tdbCreateDB(&dbp, TDB_BTREE_T);
+TEST(tdb_test, simple_test) {
+  TENV *pEnv;
+  TDB * pDb1, *pDb2;
 
-  // tdbOpenDB(dbp, 0);
+  // ENV
+  tdbEnvCreate(&pEnv);
+  tdbEnvSetPageSize(pEnv, 1024);
+  tdbEnvSetCacheSize(pEnv, 10240);
+  tdbEnvOpen(&pEnv);
 
-  // tdbCloseDB(dbp, 0);
+  // DB
+  tdbOpen(&pDb1, "db.db", "db1", pEnv);
+  tdbOpen(&pDb2, "db.db", "db2", pEnv);
+
+  // Insert
+
+  // Query
+
+  // Delete
+
+  // Query
+
+  // Close
+  tdbClose(pDb1);
+  tdbClose(pDb2);
+  tdbEnvClose(pEnv);
 }
