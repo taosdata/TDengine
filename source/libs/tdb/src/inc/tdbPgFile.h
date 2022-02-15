@@ -42,7 +42,7 @@ struct SPgFile {
   TDB *     pDb;  // For a SPgFile for multiple databases, this is the <dbname, pgno> mapping DB.
 };
 
-int pgFileOpen(SPgFile **ppPgFile, const char *fname, SPgCache *pPgCache);
+int pgFileOpen(SPgFile **ppPgFile, const char *fname, TENV *pEnv);
 int pgFileClose(SPgFile *pPgFile);
 
 SPage *pgFileFetch(SPgFile *pPgFile, pgno_t pgno);

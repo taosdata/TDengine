@@ -125,3 +125,5 @@ int tdbEnvCommit(TENV *pEnv) {
   // TODO
   return 0;
 }
+
+const char *tdbEnvGetRootDir(TENV *pEnv) { return pEnv->rootDir; }

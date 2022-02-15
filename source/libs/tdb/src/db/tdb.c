@@ -16,7 +16,7 @@
 #include "tdbInt.h"
 
 struct STDb {
-  char *       dbname;   // dbname;
+  char         dbname[TDB_MAX_DBNAME_LEN];
   SBTree *     pBt;      // current access method (may extend)
   SPgFile *    pPgFile;  // backend page file this DB is using
   TENV *       pEnv;     // TENV containing the DB
@@ -63,16 +63,44 @@ int tdbOpen(TDB *pDb, const char *fname, const char *dbname, TENV *pEnv) {
   SPgFile * pPgFile;
   SPgCache *pPgCache;
   SBTree *  pBt;
+  bool      fileExist;
+  size_t    dbNameLen;
+  char      dbfname[128];  // TODO: make this as a macro or malloc on the heap
 
   ASSERT(pDb != NULL);
+  ASSERT(fname != NULL);
+  // TODO: Here we simply put an assert here. In the future, make `pEnv`
+  // can be set as NULL.
+  ASSERT(pEnv != NULL);
 
-  // Create a default ENV if pEnv is not set
-  if (pEnv == NULL) {
-    // if ((ret = tdbEnvOpen(&pEnv)) != 0) {
-    //   return -1;
-    // }
+  // check the DB name
+  dbNameLen = 0;
+  if (dbname) {
+    dbNameLen = strlen(dbname);
+    if (dbNameLen >= TDB_MAX_DBNAME_LEN) {
+      return -1;
+    }
+
+    memcpy(pDb->dbname, dbname, dbNameLen);
   }
 
+  pDb->dbname[dbNameLen] = '\0';
+
+  // open pPgFile or get from the env
+  snprintf(dbfname, 128, "%s/%s", tdbEnvGetRootDir(pEnv), fname);
+  fileExist = (tdbCheckFileAccess(fname, TDB_F_OK) == 0);
+  if (fileExist) {
+    // TODO
+  } else {
+    ret = pgFileOpen(&pPgFile, dbfname, pEnv);
+    if (ret != 0) {
+      // TODO: handle error
+      return -1;
+    }
+    // Create and open the page file
+  }
+
+#if 0
   pDb->pEnv = pEnv;
 
   // register DB to ENV
@@ -104,6 +132,7 @@ int tdbOpen(TDB *pDb, const char *fname, const char *dbname, TENV *pEnv) {
   }
 
   pDb->pBt = pBt;
+#endif
 
   return 0;
 }

@@ -17,8 +17,9 @@
 
 static int pgFileRead(SPgFile *pPgFile, pgno_t pgno, uint8_t *pData);
 
-int pgFileOpen(SPgFile **ppPgFile, const char *fname, SPgCache *pPgCache) {
-  SPgFile *pPgFile;
+int pgFileOpen(SPgFile **ppPgFile, const char *fname, TENV *pEnv) {
+  SPgFile * pPgFile;
+  SPgCache *pPgCache;
 
   *ppPgFile = NULL;
 

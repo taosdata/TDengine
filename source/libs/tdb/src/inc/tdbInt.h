@@ -76,6 +76,9 @@ typedef pgsz_t pgoff_t;
 // cache
 #define TDB_DEFAULT_CACHE_SIZE (256 * 4096)  // 1M
 
+// dbname
+#define TDB_MAX_DBNAME_LEN 24
+
 // tdb_log
 #define tdbError(var)
 
