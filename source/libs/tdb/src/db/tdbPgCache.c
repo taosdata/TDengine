@@ -17,7 +17,7 @@
 static void pgCachePinPage(SPage *pPage);
 static void pgCacheUnpinPage(SPage *pPage);
 
-int pgCacheOpen(SPgCache **ppPgCache, pgsz_t pgSize, int32_t npage) {
+int pgCacheOpen(SPgCache **ppPgCache, pgsz_t pgSize, int32_t npage, TENV *pEnv) {
   SPgCache *pPgCache;
   SPage *   pPage;
 
@@ -146,8 +146,6 @@ static void pgCachePinPage(SPage *pPage) {
 static void pgCacheUnpinPage(SPage *pPage) {
   // TODO
 }
-
-
 
 #if 0
 // Exposed handle

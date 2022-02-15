@@ -37,5 +37,6 @@ TEST(tdb_test, simple_test) {
   tdbClose(pDb1);
   tdbClose(pDb2);
 #endif
+
   tdbEnvClose(pEnv);
 }
