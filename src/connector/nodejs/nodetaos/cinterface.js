@@ -923,15 +923,7 @@ CTaosInterface.prototype.stmtExecute = function stmtExecute(stmt) {
  * @returns Not NULL for success, NULL for failure.
  */
 CTaosInterface.prototype.stmtUseResult = function stmtUseResult(stmt) {
-  let _tableListBuf = Buffer.alloc(ref.sizeof.pointer);
-  let _listStr = tableList.toString();
-
-  if ((_.isString(tableList)) || (_.isArray(tableList))) {
-    ref.set(_tableListBuf, 0, ref.allocCString(_listStr), ref.types.char_ptr);
-    return this.libtaos.taos_load_table_info(taos, _tableListBuf);
-  } else {
-    throw new errors.InterfaceError("Unspport tableLis input");
-  }
+  return this.libtaos.taos_stmt_use_result(stmt);
 }
 
 /**
@@ -942,7 +934,15 @@ CTaosInterface.prototype.stmtUseResult = function stmtUseResult(stmt) {
  * @returns 0 for success, non-zero for failure.
  */
 CTaosInterface.prototype.loadTableInfo = function loadTableInfo(taos, tableList) {
-  return this.libtaos.taos_load_table_info(taos, tableList)
+  let _tableListBuf = Buffer.alloc(ref.sizeof.pointer);
+  let _listStr = tableList.toString();
+
+  if ((_.isString(tableList) )|| (_.isArray(tableList))) {
+    ref.set(_tableListBuf, 0, ref.allocCString(_listStr), ref.types.char_ptr);
+    return this.libtaos.taos_load_table_info(taos, _tableListBuf);
+  } else {
+    throw new errors.InterfaceError("Unspport tableLis input");
+  }
 }
 
 /**

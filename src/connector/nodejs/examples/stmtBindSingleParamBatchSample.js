@@ -93,7 +93,7 @@ function stmtSingleParaBatchSample() {
     cursor.stmtClose();
 
     executeQuery(querySql);
-    // executeUpdate(dropDB);
+    executeUpdate(dropDB);
 }
 
 stmtSingleParaBatchSample();
