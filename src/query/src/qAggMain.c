@@ -225,18 +225,13 @@ typedef struct{
 
 typedef struct {
   int64_t  timestamp;
-  char *   pTags;
+  char     data[];
 } UniqueUnit;
 
 typedef struct {
-  SHashObj     *pSet;
   int32_t      num;
   char         res[];
 } SUniqueFuncInfo;
-
-void freeUniqueUnit(void* unit){
-  tfree(((UniqueUnit *)unit)->pTags);
-}
 
 int32_t getResultDataInfo(int32_t dataType, int32_t dataBytes, int32_t functionId, int32_t param, int16_t *type,
                           int32_t *bytes, int32_t *interBytes, int16_t extLength, bool isSuperTable, SUdfInfo* pUdfInfo) {
@@ -371,7 +366,13 @@ int32_t getResultDataInfo(int32_t dataType, int32_t dataBytes, int32_t functionI
       return TSDB_CODE_SUCCESS;
     } else if (functionId == TSDB_FUNC_UNIQUE) {
       *type = TSDB_DATA_TYPE_BINARY;
-      *bytes = (sizeof(SUniqueFuncInfo) + (sizeof(tValuePair) + POINTER_BYTES + extLength) * param);
+      int64_t size = sizeof(UniqueUnit) + dataBytes + extLength;
+      size *= param;
+      size += sizeof(SUniqueFuncInfo);
+      if (size > MAX_UNIQUE_RESULT_SIZE){
+        size = MAX_UNIQUE_RESULT_SIZE;
+      }
+      *bytes = size;
       *interBytes = *bytes;
 
       return TSDB_CODE_SUCCESS;
@@ -498,17 +499,19 @@ int32_t getResultDataInfo(int32_t dataType, int32_t dataBytes, int32_t functionI
     *type = (int16_t)dataType;
     *bytes = dataBytes;
 
-    size_t size = sizeof(STopBotInfo) + (sizeof(tValuePair) + POINTER_BYTES + extLength) * param;
+    size_t size = sizeof(STopBotInfo) + (sizeof(tValuePair) + extLength) * param;
 
     // the output column may be larger than sizeof(STopBotInfo)
     *interBytes = (int32_t)size;
   } else if (functionId == TSDB_FUNC_UNIQUE) {
     *type = (int16_t)dataType;
     *bytes = dataBytes;
-
-    size_t size = sizeof(SUniqueFuncInfo) + (sizeof(tValuePair) + POINTER_BYTES + extLength) * param;
-
-    // the output column may be larger than sizeof(STopBotInfo)
+    int64_t size = sizeof(UniqueUnit) + dataBytes + extLength;
+    size *= param;
+    size += sizeof(SUniqueFuncInfo);
+    if (size > MAX_UNIQUE_RESULT_SIZE){
+      size = MAX_UNIQUE_RESULT_SIZE;
+    }
     *interBytes = (int32_t)size;
   } else if (functionId == TSDB_FUNC_SAMPLE) {
       *type = (int16_t)dataType;
@@ -5143,87 +5146,19 @@ static void copyUniqueRes(SQLFunctionCtx *pCtx, int32_t type) {
   SResultRowCellInfo *pResInfo = GET_RES_INFO(pCtx);
   SUniqueFuncInfo *pRes = GET_ROWCELL_INTERBUF(pResInfo);
 
-  size_t size = sizeof(tValuePair) + pCtx->tagInfo.tagsLen;
+  size_t size = sizeof(UniqueUnit) + pCtx->inputBytes + pCtx->tagInfo.tagsLen;
   char *tvp = pRes->res;
 
   int32_t len = (int32_t)(GET_RES_INFO(pCtx)->numOfRes);
 
-  switch (type) {
-    case TSDB_DATA_TYPE_UINT:
-    case TSDB_DATA_TYPE_INT: {
-      int32_t *output = (int32_t *)pCtx->pOutput;
-      for (int32_t i = 0; i < len; ++i, output ++) {
-        *output = ((tValuePair *)tvp)->v.i64;
-        tvp += size;
-      }
-      break;
-    }
-    case TSDB_DATA_TYPE_UBIGINT:
-    case TSDB_DATA_TYPE_BIGINT:
-    case TSDB_DATA_TYPE_TIMESTAMP:{
-      int64_t *output = (int64_t *)pCtx->pOutput;
-      for (int32_t i = 0; i < len; ++i, output ++) {
-        *output = ((tValuePair *)tvp)->v.i64;
-        tvp += size;
-      }
-      break;
-    }
-    case TSDB_DATA_TYPE_DOUBLE: {
-      double *output = (double *)pCtx->pOutput;
-      for (int32_t i = 0; i < len; ++i, output ++) {
-        *output = ((tValuePair *)tvp)->v.dKey;
-        tvp += size;
-      }
-      break;
-    }
-    case TSDB_DATA_TYPE_FLOAT: {
-      float *output = (float *)pCtx->pOutput;
-      for (int32_t i = 0; i < len; ++i, output ++) {
-        *output = ((tValuePair *)tvp)->v.dKey;
-        tvp += size;
-      }
-      break;
-    }
-    case TSDB_DATA_TYPE_USMALLINT:
-    case TSDB_DATA_TYPE_SMALLINT: {
-      int16_t *output = (int16_t *)pCtx->pOutput;
-      for (int32_t i = 0; i < len; ++i, output ++) {
-        *output = ((tValuePair *)tvp)->v.i64;
-        tvp += size;
-      }
-      break;
-    }
-    case TSDB_DATA_TYPE_UTINYINT:
-    case TSDB_DATA_TYPE_TINYINT:
-    case TSDB_DATA_TYPE_BOOL:{
-      int8_t *output = (int8_t *)pCtx->pOutput;
-      for (int32_t i = 0; i < len; ++i, output ++) {
-        *output = ((tValuePair *)tvp)->v.i64;
-        tvp += size;
-      }
-      break;
-    }
-    case TSDB_DATA_TYPE_BINARY:
-    case TSDB_DATA_TYPE_NCHAR: {
-      char *output = pCtx->pOutput;
-      for (int32_t i = 0; i < len; ++i, output += pCtx->outputBytes) {
-        *output = ((tValuePair *)tvp)->v.i64;
-        memcpy(output, ((tValuePair *)tvp)->v.pz, ((tValuePair *)tvp)->v.nLen);
-        tvp += size;
-      }
-      break;
-    }
-    default: {
-      qError("unique function not support data type:%d", pCtx->inputType);
-      return;
-    }
-  }
-
-  // set the output timestamp of each record.
-  TSKEY *output = pCtx->ptsOutputBuf;
-  for (int32_t i = 0; i < len; ++i, output ++) {
-    *output = ((tValuePair *)tvp)->timestamp;
+  char *tsOutput = pCtx->ptsOutputBuf;
+  char *output = pCtx->pOutput;
+  for (int32_t i = 0; i < len; ++i) {
+    memcpy(tsOutput, tvp, sizeof(int64_t));
+    memcpy(output, tvp + sizeof(UniqueUnit), pCtx->inputBytes);
     tvp += size;
+    tsOutput += sizeof(int64_t);
+    output += pCtx->inputBytes;
   }
 
   // set the corresponding tag data for each record
@@ -5237,14 +5172,15 @@ static void copyUniqueRes(SQLFunctionCtx *pCtx, int32_t type) {
     pData[i] = pCtx->tagInfo.pTagCtxList[i]->pOutput;
   }
 
-  for (int32_t i = 0; i < len; ++i, output ++) {
-    int16_t offset = 0;
+  tvp = pRes->res;
+  for (int32_t i = 0; i < len; ++i) {
+    int16_t offset = sizeof(UniqueUnit) + pCtx->inputBytes;
     for (int32_t j = 0; j < pCtx->tagInfo.numOfTagCols; ++j) {
-      memcpy(pData[j], ((tValuePair *)tvp)->pTags + offset, (size_t)pCtx->tagInfo.pTagCtxList[j]->outputBytes);
+      memcpy(pData[j], tvp + offset, (size_t)pCtx->tagInfo.pTagCtxList[j]->outputBytes);
       offset += pCtx->tagInfo.pTagCtxList[j]->outputBytes;
       pData[j] += pCtx->tagInfo.pTagCtxList[j]->outputBytes;
-      tvp += size;
     }
+    tvp += size;
   }
 
   tfree(pData);
@@ -5254,12 +5190,39 @@ static bool unique_function_setup(SQLFunctionCtx *pCtx, SResultRowCellInfo* pRes
   if (!function_setup(pCtx, pResInfo)) {
     return false;
   }
-
   SUniqueFuncInfo *uniqueInfo = getUniqueOutputInfo(pCtx);
-  uniqueInfo->pSet = taosHashInit(64, taosGetDefaultHashFunction(TSDB_DATA_TYPE_BINARY), true, HASH_NO_LOCK);
-  taosHashSetFreeFp(uniqueInfo->pSet, freeUniqueUnit);
-
   return true;
+}
+
+static void do_unique_function(SQLFunctionCtx *pCtx, SUniqueFuncInfo *pInfo, TSKEY timestamp, char *pData, char *tag){
+  tValuePair *unique = taosHashGet(pCtx->pUniqueSet, pData, pCtx->inputBytes);
+  if (unique == NULL) {
+    size_t size = sizeof(UniqueUnit) + pCtx->inputBytes + pCtx->tagInfo.tagsLen;
+    char *tmp = pInfo->res + pInfo->num * size;
+    ((UniqueUnit*)tmp)->timestamp = timestamp;
+    char *data = tmp + sizeof(UniqueUnit);
+    char *tags = tmp + sizeof(UniqueUnit) + pCtx->inputBytes;
+    memcpy(data, pData, pCtx->inputBytes);
+
+    if (pCtx->currentStage == MERGE_STAGE && tag != NULL) {
+      memcpy(tags, tag, (size_t)pCtx->tagInfo.tagsLen);
+    }else{
+      int32_t offset = 0;
+      for (int32_t j = 0; j < pCtx->tagInfo.numOfTagCols; ++j) {
+        SQLFunctionCtx *tagCtx = pCtx->tagInfo.pTagCtxList[j];
+        if (tagCtx->functionId == TSDB_FUNC_TAG_DUMMY) {
+          aAggs[TSDB_FUNC_TAG].xFunction(tagCtx);
+          memcpy(tags + offset, tagCtx->pOutput, tagCtx->outputBytes);
+          offset += tagCtx->outputBytes;
+        }
+      }
+    }
+
+    taosHashPut(pCtx->pUniqueSet, pData, pCtx->inputBytes, &tmp, sizeof(tValuePair*));
+    pInfo->num++;
+  }else if(unique->timestamp > timestamp){
+    unique->timestamp = timestamp;
+  }
 }
 
 static void unique_function(SQLFunctionCtx *pCtx) {
@@ -5271,52 +5234,35 @@ static void unique_function(SQLFunctionCtx *pCtx) {
     if (pCtx->ptsList != NULL) {
       k = GET_TS_DATA(pCtx, i);
     }
-    tValuePair *unique = taosHashGet(pInfo->pSet, pData, pCtx->inputBytes);
-    if (unique == NULL) {
-      size_t size = sizeof(tValuePair) + pCtx->tagInfo.tagsLen;
-      tValuePair *tmp = (tValuePair *)(pInfo->res + pInfo->num * size);
-      if (pCtx->inputType == TSDB_DATA_TYPE_BINARY || pCtx->inputType == TSDB_DATA_TYPE_NCHAR) {
-        tVariantCreateFromBinary(&tmp->v, varDataVal(pData), varDataLen(pData), pCtx->inputType);
-      }else{
-        tVariantCreateFromBinary(&tmp->v, pData, 0, pCtx->inputType);
-      }
-      tmp->timestamp = k;
+    do_unique_function(pCtx, pInfo, k, pData, NULL);
 
-      int32_t offset = 0;
-      for (int32_t j = 0; j < pCtx->tagInfo.numOfTagCols; ++j) {
-        SQLFunctionCtx *tagCtx = pCtx->tagInfo.pTagCtxList[j];
-        if (tagCtx->functionId == TSDB_FUNC_TAG_DUMMY) {
-          aAggs[TSDB_FUNC_TAG].xFunction(tagCtx);
-          memcpy(tmp->pTags + offset, tagCtx->pOutput, tagCtx->outputBytes);
-          offset += tagCtx->outputBytes;
-        }
-      }
-
-      taosHashPut(pInfo->pSet, pData, pCtx->inputBytes, &tmp, sizeof(tValuePair*));
-      pInfo->num++;
-    }else if(unique->timestamp > k){
-      unique->timestamp = k;
+    if (sizeof(SUniqueFuncInfo) + pInfo->num * (sizeof(UniqueUnit) + pCtx->inputBytes + pCtx->tagInfo.tagsLen) >= MAX_UNIQUE_RESULT_SIZE){
+      GET_RES_INFO(pCtx)->numOfRes = -1;    // mark out of memory
+      return;
     }
   }
 
+  GET_RES_INFO(pCtx)->numOfRes = 1;
 }
 
 static void unique_function_merge(SQLFunctionCtx *pCtx) {
-  //SUniqueFuncInfo *pInput = (SUniqueFuncInfo *)GET_INPUT_DATA_LIST(pCtx);
-  //SUniqueFuncInfo *pOutput = getUniqueOutputInfo(pCtx);
-  // the intermediate result is binary, we only use the output data type
-//  for (int32_t i = 0; i < pInput->num; ++i) {
-//    int16_t type = (pCtx->outputType == TSDB_DATA_TYPE_FLOAT)? TSDB_DATA_TYPE_DOUBLE:pCtx->outputType;
-//    do_top_function_add(pOutput, (int32_t)pCtx->param[0].i64, &pInput->res[i]->v.i64, pInput->res[i]->timestamp,
-//                        type, &pCtx->tagInfo, pInput->res[i]->pTags, pCtx->currentStage);
-//  }
-//
-//  SET_VAL(pCtx, pInput->num, pOutput->num);
-//
-//  if (pOutput->num > 0) {
-//    SResultRowCellInfo *pResInfo = GET_RES_INFO(pCtx);
-//    pResInfo->hasResult = DATA_SET_FLAG;
-//  }
+  SUniqueFuncInfo *pInput = (SUniqueFuncInfo *)GET_INPUT_DATA_LIST(pCtx);
+  SUniqueFuncInfo *pOutput = getUniqueOutputInfo(pCtx);
+  size_t size = sizeof(UniqueUnit) + pCtx->inputBytes + pCtx->tagInfo.tagsLen;
+  for (int32_t i = 0; i < pInput->num; ++i) {
+    char *tmp = pInput->res + i* size;
+    TSKEY timestamp = ((UniqueUnit*)tmp)->timestamp;
+    char *data = tmp + sizeof(UniqueUnit);
+    char *tags = tmp + sizeof(UniqueUnit) + pCtx->inputBytes;
+    do_unique_function(pCtx, pOutput, timestamp, data, tags);
+
+    if (sizeof(SUniqueFuncInfo) + pOutput->num * (sizeof(UniqueUnit) + pCtx->inputBytes + pCtx->tagInfo.tagsLen) >= MAX_UNIQUE_RESULT_SIZE){
+      GET_RES_INFO(pCtx)->numOfRes = -1;    // mark out of memory
+      return;
+    }
+  }
+
+  GET_RES_INFO(pCtx)->numOfRes = pOutput->num;
 }
 
 static void unique_func_finalizer(SQLFunctionCtx *pCtx) {
@@ -5327,7 +5273,6 @@ static void unique_func_finalizer(SQLFunctionCtx *pCtx) {
   copyUniqueRes(pCtx, type);
   doFinalizer(pCtx);
 }
-
 
 /////////////////////////////////////////////////////////////////////////////////////////////
 /*

@@ -356,7 +356,13 @@ SSDataBlock* createOutputBuf(SExprInfo* pExpr, int32_t numOfOutput, int32_t numO
     idata.info.bytes = pExpr[i].base.resBytes;
     idata.info.colId = pExpr[i].base.resColId;
 
-    int32_t size = MAX(idata.info.bytes * numOfRows, minSize);
+    int64_t tmp = idata.info.bytes;
+    tmp *= numOfRows;
+    if (tmp >= 1024*1024*1024) {   // 1G
+      qError("size is too large, failed to allocate column buffer for output buffer");
+      goto _clean;
+    }
+    int32_t size = MAX(tmp, minSize);
     idata.pData = calloc(1, size);  // at least to hold a pointer on x64 platform
     if (idata.pData == NULL) {
       qError("failed to allocate column buffer for output buffer");
@@ -1003,10 +1009,10 @@ static void doApplyFunctions(SQueryRuntimeEnv* pRuntimeEnv, SQLFunctionCtx* pCtx
       }
     }
 
-    if (functionId == TSDB_FUNC_UNIQUE && GET_RES_INFO(&(pCtx[k]))->numOfRes > pQueryAttr->maxUniqueResult){
+    if (functionId == TSDB_FUNC_UNIQUE &&
+        (GET_RES_INFO(&(pCtx[k]))->numOfRes > MAX_UNIQUE_RESULT_ROWS || GET_RES_INFO(&(pCtx[k]))->numOfRes == -1)){
       qError("Unique result num is too large. num: %d, limit: %d",
-             GET_RES_INFO(&(pCtx[k]))->numOfRes, pQueryAttr->maxUniqueResult);
-      aAggs[functionId].xFinalize(&pCtx[k]);
+             GET_RES_INFO(&(pCtx[k]))->numOfRes, MAX_UNIQUE_RESULT_ROWS);
       longjmp(pRuntimeEnv->env, TSDB_CODE_QRY_UNIQUE_RESULT_TOO_LARGE);
     }
 
@@ -1271,10 +1277,10 @@ static void doAggregateImpl(SOperatorInfo* pOperator, TSKEY startTs, SQLFunction
       }
 
       SQueryAttr* pQueryAttr = pRuntimeEnv->pQueryAttr;
-      if (functionId == TSDB_FUNC_UNIQUE && GET_RES_INFO(&(pCtx[k]))->numOfRes > pQueryAttr->maxUniqueResult){
+      if (functionId == TSDB_FUNC_UNIQUE &&
+          (GET_RES_INFO(&(pCtx[k]))->numOfRes > MAX_UNIQUE_RESULT_ROWS || GET_RES_INFO(&(pCtx[k]))->numOfRes == -1)){
         qError("Unique result num is too large. num: %d, limit: %d",
-               GET_RES_INFO(&(pCtx[k]))->numOfRes, pQueryAttr->maxUniqueResult);
-        aAggs[functionId].xFinalize(&pCtx[k]);
+               GET_RES_INFO(&(pCtx[k]))->numOfRes, MAX_UNIQUE_RESULT_ROWS);
         longjmp(pRuntimeEnv->env, TSDB_CODE_QRY_UNIQUE_RESULT_TOO_LARGE);
       }
     }
@@ -1976,9 +1982,6 @@ static SQLFunctionCtx* createSQLFunctionCtx(SQueryRuntimeEnv* pRuntimeEnv, SExpr
     pCtx->end.key      = INT64_MIN;
     pCtx->startTs      = INT64_MIN;
 
-    if (pCtx->functionId == TSDB_FUNC_UNIQUE){
-      pCtx->maxUniqueResult = pQueryAttr->maxUniqueResult;
-    }
     pCtx->numOfParams  = pSqlExpr->numOfParams;
     for (int32_t j = 0; j < pCtx->numOfParams; ++j) {
       int16_t type = pSqlExpr->param[j].nType;
@@ -2028,6 +2031,8 @@ static SQLFunctionCtx* createSQLFunctionCtx(SQueryRuntimeEnv* pRuntimeEnv, SExpr
       pCtx->param[2].nType = TSDB_DATA_TYPE_BIGINT;
     } else if (functionId == TSDB_FUNC_SCALAR_EXPR) {
       pCtx->param[1].pz = (char*) &pRuntimeEnv->sasArray[i];
+    } else if (functionId == TSDB_FUNC_UNIQUE){
+      pCtx->pUniqueSet = taosHashInit(64, taosGetDefaultHashFunction(TSDB_DATA_TYPE_BINARY), true, HASH_NO_LOCK);
     }
   }
 
@@ -2052,6 +2057,9 @@ static void* destroySQLFunctionCtx(SQLFunctionCtx* pCtx, int32_t numOfOutput) {
 
     tVariantDestroy(&pCtx[i].tag);
     tfree(pCtx[i].tagInfo.pTagCtxList);
+    if (pCtx[i].functionId == TSDB_FUNC_UNIQUE){
+      taosHashClear(pCtx[i].pUniqueSet);
+    }
   }
 
   tfree(pCtx);
@@ -2771,15 +2779,7 @@ static void getIntermediateBufInfo(SQueryRuntimeEnv* pRuntimeEnv, int32_t* ps, i
   SQueryAttr* pQueryAttr = pRuntimeEnv->pQueryAttr;
   int32_t MIN_ROWS_PER_PAGE = 4;
 
-  if (pQueryAttr->uniqueQuery) {
-    int64_t rowSize = pQueryAttr->resultRowSize;
-    while(rowSize*pQueryAttr->maxUniqueResult > 1024*1024*100){
-      pQueryAttr->maxUniqueResult = pQueryAttr->maxUniqueResult >> 1u;
-    }
-    *rowsize = (int32_t)(rowSize*pQueryAttr->maxUniqueResult);
-  }else{
-    *rowsize = (int32_t)(pQueryAttr->resultRowSize * getRowNumForMultioutput(pQueryAttr, pQueryAttr->topBotQuery, pQueryAttr->stableQuery));
-  }
+  *rowsize = (int32_t)(pQueryAttr->resultRowSize * getRowNumForMultioutput(pQueryAttr, pQueryAttr->topBotQuery, pQueryAttr->stableQuery));
   int32_t overhead = sizeof(tFilePage);
 
   // one page contains at least two rows
@@ -8994,7 +8994,7 @@ static int32_t updateOutputBufForTopBotQuery(SQueriedTableInfo* pTableInfo, SCol
   for (int32_t i = 0; i < numOfOutput; ++i) {
     int16_t functId = pExprs[i].base.functionId;
 
-    if (functId == TSDB_FUNC_TOP || functId == TSDB_FUNC_BOTTOM || functId == TSDB_FUNC_SAMPLE) {
+    if (functId == TSDB_FUNC_TOP || functId == TSDB_FUNC_BOTTOM || functId == TSDB_FUNC_SAMPLE || funcIf == TSDB_FUNC_UNIQUE) {
       int32_t j = getColumnIndexInSource(pTableInfo, &pExprs[i].base, pTagCols);
       if (j < 0 || j >= pTableInfo->numOfCols) {
         return TSDB_CODE_QRY_INVALID_MSG;
@@ -9580,7 +9580,6 @@ SQInfo* createQInfoImpl(SQueryTableMsg* pQueryMsg, SGroupbyExpr* pGroupbyExpr, S
   pQueryAttr->pFilters        = pFilters;
   pQueryAttr->range           = pQueryMsg->range;
   pQueryAttr->uniqueQuery     = isUniqueQuery(numOfOutput, pExprs);
-  pQueryAttr->maxUniqueResult = MAX_UNIQUE_RESULT_SIZE;
 
   pQueryAttr->tableCols = calloc(numOfCols, sizeof(SSingleColumnFilterInfo));
   if (pQueryAttr->tableCols == NULL) {

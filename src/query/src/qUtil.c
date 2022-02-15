@@ -45,7 +45,7 @@ int32_t getRowNumForMultioutput(SQueryAttr* pQueryAttr, bool topBottomQuery, boo
   }
 
   if (pQueryAttr->uniqueQuery){
-    return pQueryAttr->maxUniqueResult;
+    return MAX_UNIQUE_RESULT_ROWS;
   }
   return 1;
 }

@@ -202,7 +202,7 @@ typedef struct SQLFunctionCtx {
   SPoint1      start;
   SPoint1      end;
 
-  int32_t      maxUniqueResult;
+  SHashObj     *pUniqueSet;   // for unique function
 } SQLFunctionCtx;
 
 typedef struct SAggFunctionInfo {
