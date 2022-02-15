@@ -23,6 +23,8 @@ struct STDbEnv {
   SPgFileList pgfList;    // SPgFile List
   SPgCache *  pPgCache;   // page cache
   struct {
+#define TDB_ENV_PGF_HASH_BUCKETS 17
+    SPgFileList buckets[TDB_ENV_PGF_HASH_BUCKETS];
   } pgfht;  // page file hash table;
   SJournal *pJournal;
 };
@@ -128,3 +130,12 @@ int tdbEnvCommit(TENV *pEnv) {
 }
 
 const char *tdbEnvGetRootDir(TENV *pEnv) { return pEnv->rootDir; }
+
+int tdbEnvRgstPageFile(TENV *pEnv, SPgFile *pPgFile) {
+  SPgFileList *pBucket;
+
+  pBucket = pEnv->pgfht.buckets + (0 % TDB_ENV_PGF_HASH_BUCKETS);  // TODO
+  TD_DLIST_APPEND_WITH_FIELD(pBucket, pPgFile, envHash);
+
+  return 0;
+}

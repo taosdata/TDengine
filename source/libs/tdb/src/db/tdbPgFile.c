@@ -34,7 +34,6 @@ int pgFileOpen(SPgFile **ppPgFile, const char *fname, TENV *pEnv) {
   ASSERT(pEnv != NULL);
 
   // init the handle
-  pPgFile->pEnv = pEnv;
   pPgFile->fname = (char *)(&(pPgFile[1]));
   memcpy(pPgFile->fname, fname, fnameLen);
   pPgFile->fname[fnameLen] = '\0';
@@ -48,7 +47,11 @@ int pgFileOpen(SPgFile **ppPgFile, const char *fname, TENV *pEnv) {
 
   tdbGnrtFileID(fname, pPgFile->fileid, false);
 
-  /* TODO */
+  /* TODO: other open operations */
+
+  // add the page file to the environment
+  tdbEnvRgstPageFile(pEnv, pPgFile);
+  pPgFile->pEnv = pEnv;
 
   *ppPgFile = pPgFile;
   return 0;

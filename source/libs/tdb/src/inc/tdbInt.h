@@ -84,6 +84,7 @@ typedef pgsz_t pgoff_t;
 
 typedef TD_DLIST(STDb) STDbList;
 typedef TD_DLIST(SPgFile) SPgFileList;
+typedef TD_DLIST_NODE(SPgFile) SPgFileListNode;
 
 #define TERR_A(val, op, flag)  \
   do {                         \

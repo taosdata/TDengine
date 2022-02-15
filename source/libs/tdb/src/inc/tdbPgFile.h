@@ -33,10 +33,11 @@ typedef struct __attribute__((__packed__)) {
 TDB_STATIC_ASSERT(sizeof(SPgFileHdr) == TDB_PG_FILE_HDR_SIZE, "Page file header size if not 128");
 
 struct SPgFile {
-  TENV *  pEnv;                     // env containing this page file
-  char *  fname;                    // backend file name
-  uint8_t fileid[TDB_FILE_ID_LEN];  // file id
-  int     fd;
+  TENV *          pEnv;                     // env containing this page file
+  char *          fname;                    // backend file name
+  uint8_t         fileid[TDB_FILE_ID_LEN];  // file id
+  int             fd;
+  SPgFileListNode envHash;
   // TDB *   pDb;  // For a SPgFile for multiple databases, this is the <dbname, pgno> mapping DB.
 };
 
