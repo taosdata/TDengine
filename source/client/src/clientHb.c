@@ -70,6 +70,7 @@ static int32_t hbProcessDBInfoRsp(void *value, int32_t valueLen, struct SCatalog
     }
   }
 
+  tFreeSUseDbBatchRsp(&batchUseRsp);
   return TSDB_CODE_SUCCESS;
 }
 
@@ -101,6 +102,7 @@ static int32_t hbProcessStbInfoRsp(void *value, int32_t valueLen, struct SCatalo
     }
   }
 
+  tFreeSTableMetaBatchRsp(&batchMetaRsp);
   return TSDB_CODE_SUCCESS;
 }
 

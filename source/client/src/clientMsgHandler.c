@@ -20,14 +20,14 @@
 #include "clientLog.h"
 #include "catalog.h"
 
-int (*handleRequestRspFp[TDMT_MAX])(void*, const SDataBuf* pMsg, int32_t code);
+int32_t (*handleRequestRspFp[TDMT_MAX])(void*, const SDataBuf* pMsg, int32_t code);
 
 static void setErrno(SRequestObj* pRequest, int32_t code) {
   pRequest->code = code;
   terrno = code;
 }
 
-int genericRspCallback(void* param, const SDataBuf* pMsg, int32_t code) {
+int32_t genericRspCallback(void* param, const SDataBuf* pMsg, int32_t code) {
   SRequestObj* pRequest = param;
   setErrno(pRequest, code);
 
@@ -36,7 +36,7 @@ int genericRspCallback(void* param, const SDataBuf* pMsg, int32_t code) {
   return code;
 }
 
-int processConnectRsp(void* param, const SDataBuf* pMsg, int32_t code) {
+int32_t processConnectRsp(void* param, const SDataBuf* pMsg, int32_t code) {
   SRequestObj* pRequest = param;
   if (code != TSDB_CODE_SUCCESS) {
     free(pMsg->pData);
@@ -61,9 +61,9 @@ int processConnectRsp(void* param, const SDataBuf* pMsg, int32_t code) {
     updateEpSet_s(&pTscObj->pAppInfo->mgmtEp, &pConnect->epSet);
   }
 
-  for (int i = 0; i < pConnect->epSet.numOfEps; ++i) {
-    tscDebug("0x%" PRIx64 " epSet.fqdn[%d]:%s port:%d, connObj:0x%"PRIx64, pRequest->requestId, i, pConnect->epSet.eps[i].fqdn,
-        pConnect->epSet.eps[i].port, pTscObj->id);
+  for (int32_t i = 0; i < pConnect->epSet.numOfEps; ++i) {
+    tscDebug("0x%" PRIx64 " epSet.fqdn[%d]:%s port:%d, connObj:0x%" PRIx64, pRequest->requestId, i,
+             pConnect->epSet.eps[i].fqdn, pConnect->epSet.eps[i].port, pTscObj->id);
   }
 
   pTscObj->connId = pConnect->connId;
