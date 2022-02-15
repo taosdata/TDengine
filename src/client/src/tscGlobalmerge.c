@@ -612,7 +612,6 @@ static void doMergeResultImpl(SOperatorInfo* pInfo, SQLFunctionCtx *pCtx, int32_
       aAggs[functionId].mergeFunc(&pCtx[j]);
     }
 
-    SQueryAttr* pQueryAttr = pInfo->pRuntimeEnv->pQueryAttr;
     if (functionId == TSDB_FUNC_UNIQUE &&
         (GET_RES_INFO(&(pCtx[j]))->numOfRes > MAX_UNIQUE_RESULT_ROWS || GET_RES_INFO(&(pCtx[j]))->numOfRes == -1)){
       tscError("Unique result num is too large. num: %d, limit: %d",

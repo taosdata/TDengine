@@ -5190,7 +5190,6 @@ static bool unique_function_setup(SQLFunctionCtx *pCtx, SResultRowCellInfo* pRes
   if (!function_setup(pCtx, pResInfo)) {
     return false;
   }
-  SUniqueFuncInfo *uniqueInfo = getUniqueOutputInfo(pCtx);
   return true;
 }
 

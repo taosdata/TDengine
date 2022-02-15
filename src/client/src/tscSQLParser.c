@@ -3248,7 +3248,7 @@ int32_t addExprAndResultField(SSqlCmd* pCmd, SQueryInfo* pQueryInfo, int32_t col
         tVariantDump(pVariant, val, TSDB_DATA_TYPE_BIGINT, true);
 
         int64_t numRowsSelected = GET_INT32_VAL(val);
-        if (numRowsSelected <= 0 || numRowsSelected > 100) {  // todo use macro
+        if (functionId != TSDB_FUNC_UNIQUE && (numRowsSelected <= 0 || numRowsSelected > 100)) {  // todo use macro
           return invalidOperationMsg(tscGetErrorMsgPayload(pCmd), msg12);
         }
 
