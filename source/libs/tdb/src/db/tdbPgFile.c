@@ -86,7 +86,8 @@ SPage *pgFileFetch(SPgFile *pPgFile, pgno_t pgno) {
     if (1 /*Page is cached, no need to load from file*/) {
       return pPage;
     } else {
-      if (pgFileRead(pPgFile, pgno, pPage->pData) < 0) {
+      // TODO: handle error
+      if (pgFileRead(pPgFile, pgno, (void *)pPage) < 0) {
         // todoerr
       }
       return pPage;
