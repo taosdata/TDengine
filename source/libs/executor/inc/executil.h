@@ -16,8 +16,8 @@
 #define TDENGINE_QUERYUTIL_H
 
 #include "common.h"
-#include "tpagedfile.h"
 #include "tbuffer.h"
+#include "tpagedbuf.h"
 
 #define SET_RES_WINDOW_KEY(_k, _ori, _len, _uid)     \
   do {                                               \
@@ -124,6 +124,13 @@ static FORCE_INLINE char* getPosInResultPage(struct STaskAttr* pQueryAttr, SFile
 
 //  int32_t numOfRows = (int32_t)getRowNumForMultioutput(pQueryAttr, pQueryAttr->topBotQuery, pQueryAttr->stableQuery);
 //  return ((char *)page->data) + rowOffset + offset * numOfRows;
+}
+
+static FORCE_INLINE char* getPosInResultPage_rv(SFilePage* page, int32_t rowOffset, int32_t offset) {
+  assert(rowOffset >= 0);
+
+  int32_t numOfRows = 1;//(int32_t)getRowNumForMultioutput(pQueryAttr, pQueryAttr->topBotQuery, pQueryAttr->stableQuery);
+  return ((char *)page->data) + rowOffset + offset * numOfRows;
 }
 
 //bool isNullOperator(SColumnFilterElem *pFilter, const char* minval, const char* maxval, int16_t type);

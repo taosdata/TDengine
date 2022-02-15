@@ -344,8 +344,8 @@ STSBlock* readDataFromDisk(STSBuf* pTSBuf, int32_t order, bool decomp) {
     UNUSED(ret);
   }
 
-  fread(&pBlock->tag.nType, sizeof(pBlock->tag.nType), 1, pTSBuf->f);
-  fread(&pBlock->tag.nLen, sizeof(pBlock->tag.nLen), 1, pTSBuf->f);
+  int32_t ret = fread(&pBlock->tag.nType, sizeof(pBlock->tag.nType), 1, pTSBuf->f);
+  ret = fread(&pBlock->tag.nLen, sizeof(pBlock->tag.nLen), 1, pTSBuf->f);
 
   // NOTE: mix types tags are not supported
   size_t sz = 0;

@@ -2,9 +2,8 @@
 #include <cassert>
 #include <iostream>
 
-#include "qResultbuf.h"
 #include "taos.h"
-#include "tsdb.h"
+#include "tpagedbuf.h"
 
 #pragma GCC diagnostic push
 #pragma GCC diagnostic ignored "-Wunused-function"
@@ -14,12 +13,12 @@ namespace {
 // simple test
 void simpleTest() {
   SDiskbasedBuf* pResultBuf = NULL;
-  int32_t ret = createDiskbasedResultBuffer(&pResultBuf, 1024, 4096, 1);
+  int32_t ret = createDiskbasedBuffer(&pResultBuf, 1024, 4096, 1, "/tmp/");
   
   int32_t pageId = 0;
   int32_t groupId = 0;
   
-  tFilePage* pBufPage = getNewDataBuf(pResultBuf, groupId, &pageId);
+  SFilePage* pBufPage = getNewDataBuf(pResultBuf, groupId, &pageId);
   ASSERT_TRUE(pBufPage != NULL);
   
   ASSERT_EQ(getTotalBufSize(pResultBuf), 1024);
@@ -30,25 +29,25 @@ void simpleTest() {
 
   releaseBufPage(pResultBuf, pBufPage);
 
-  tFilePage* pBufPage1 = getNewDataBuf(pResultBuf, groupId, &pageId);
+  SFilePage* pBufPage1 = getNewDataBuf(pResultBuf, groupId, &pageId);
 
-  tFilePage* t = getBufPage(pResultBuf, pageId);
+  SFilePage* t = getBufPage(pResultBuf, pageId);
   ASSERT_TRUE(t == pBufPage1);
 
-  tFilePage* pBufPage2 = getNewDataBuf(pResultBuf, groupId, &pageId);
-  tFilePage* t1 = getBufPage(pResultBuf, pageId);
+  SFilePage* pBufPage2 = getNewDataBuf(pResultBuf, groupId, &pageId);
+  SFilePage* t1 = getBufPage(pResultBuf, pageId);
   ASSERT_TRUE(t1 == pBufPage2);
 
-  tFilePage* pBufPage3 = getNewDataBuf(pResultBuf, groupId, &pageId);
-  tFilePage* t2 = getBufPage(pResultBuf, pageId);
+  SFilePage* pBufPage3 = getNewDataBuf(pResultBuf, groupId, &pageId);
+  SFilePage* t2 = getBufPage(pResultBuf, pageId);
   ASSERT_TRUE(t2 == pBufPage3);
 
-  tFilePage* pBufPage4 = getNewDataBuf(pResultBuf, groupId, &pageId);
-  tFilePage* t3 = getBufPage(pResultBuf, pageId);
+  SFilePage* pBufPage4 = getNewDataBuf(pResultBuf, groupId, &pageId);
+  SFilePage* t3 = getBufPage(pResultBuf, pageId);
   ASSERT_TRUE(t3 == pBufPage4);
 
-  tFilePage* pBufPage5 = getNewDataBuf(pResultBuf, groupId, &pageId);
-  tFilePage* t4 = getBufPage(pResultBuf, pageId);
+  SFilePage* pBufPage5 = getNewDataBuf(pResultBuf, groupId, &pageId);
+  SFilePage* t4 = getBufPage(pResultBuf, pageId);
   ASSERT_TRUE(t4 == pBufPage5);
 
   destroyResultBuf(pResultBuf);
@@ -56,43 +55,43 @@ void simpleTest() {
 
 void writeDownTest() {
   SDiskbasedBuf* pResultBuf = NULL;
-  int32_t ret = createDiskbasedResultBuffer(&pResultBuf, 1024, 4*1024, 1);
+  int32_t ret = createDiskbasedBuffer(&pResultBuf, 1024, 4*1024, 1, "/tmp/");
 
   int32_t pageId = 0;
   int32_t writePageId = 0;
   int32_t groupId = 0;
   int32_t nx = 12345;
 
-  tFilePage* pBufPage = getNewDataBuf(pResultBuf, groupId, &pageId);
+  SFilePage* pBufPage = getNewDataBuf(pResultBuf, groupId, &pageId);
   ASSERT_TRUE(pBufPage != NULL);
 
   *(int32_t*)(pBufPage->data) = nx;
   writePageId = pageId;
   releaseBufPage(pResultBuf, pBufPage);
 
-  tFilePage* pBufPage1 = getNewDataBuf(pResultBuf, groupId, &pageId);
-  tFilePage* t1 = getBufPage(pResultBuf, pageId);
+  SFilePage* pBufPage1 = getNewDataBuf(pResultBuf, groupId, &pageId);
+  SFilePage* t1 = getBufPage(pResultBuf, pageId);
   ASSERT_TRUE(t1 == pBufPage1);
   ASSERT_TRUE(pageId == 1);
 
-  tFilePage* pBufPage2 = getNewDataBuf(pResultBuf, groupId, &pageId);
-  tFilePage* t2 = getBufPage(pResultBuf, pageId);
+  SFilePage* pBufPage2 = getNewDataBuf(pResultBuf, groupId, &pageId);
+  SFilePage* t2 = getBufPage(pResultBuf, pageId);
   ASSERT_TRUE(t2 == pBufPage2);
   ASSERT_TRUE(pageId == 2);
 
-  tFilePage* pBufPage3 = getNewDataBuf(pResultBuf, groupId, &pageId);
-  tFilePage* t3 = getBufPage(pResultBuf, pageId);
+  SFilePage* pBufPage3 = getNewDataBuf(pResultBuf, groupId, &pageId);
+  SFilePage* t3 = getBufPage(pResultBuf, pageId);
   ASSERT_TRUE(t3 == pBufPage3);
   ASSERT_TRUE(pageId == 3);
 
-  tFilePage* pBufPage4 = getNewDataBuf(pResultBuf, groupId, &pageId);
-  tFilePage* t4 = getBufPage(pResultBuf, pageId);
+  SFilePage* pBufPage4 = getNewDataBuf(pResultBuf, groupId, &pageId);
+  SFilePage* t4 = getBufPage(pResultBuf, pageId);
   ASSERT_TRUE(t4 == pBufPage4);
   ASSERT_TRUE(pageId == 4);
   releaseBufPage(pResultBuf, t4);
 
   // flush the written page to disk, and read it out again
-  tFilePage* pBufPagex = getBufPage(pResultBuf, writePageId);
+  SFilePage* pBufPagex = getBufPage(pResultBuf, writePageId);
   ASSERT_EQ(*(int32_t*)pBufPagex->data, nx);
 
   SArray* pa = getDataBufPagesIdList(pResultBuf, groupId);
@@ -103,50 +102,50 @@ void writeDownTest() {
 
 void recyclePageTest() {
   SDiskbasedBuf* pResultBuf = NULL;
-  int32_t ret = createDiskbasedResultBuffer(&pResultBuf, 1024, 4*1024, 1);
+  int32_t ret = createDiskbasedBuffer(&pResultBuf, 1024, 4*1024, 1, "/tmp/");
 
   int32_t pageId = 0;
   int32_t writePageId = 0;
   int32_t groupId = 0;
   int32_t nx = 12345;
 
-  tFilePage* pBufPage = getNewDataBuf(pResultBuf, groupId, &pageId);
+  SFilePage* pBufPage = getNewDataBuf(pResultBuf, groupId, &pageId);
   ASSERT_TRUE(pBufPage != NULL);
   releaseBufPage(pResultBuf, pBufPage);
 
-  tFilePage* pBufPage1 = getNewDataBuf(pResultBuf, groupId, &pageId);
-  tFilePage* t1 = getBufPage(pResultBuf, pageId);
+  SFilePage* pBufPage1 = getNewDataBuf(pResultBuf, groupId, &pageId);
+  SFilePage* t1 = getBufPage(pResultBuf, pageId);
   ASSERT_TRUE(t1 == pBufPage1);
   ASSERT_TRUE(pageId == 1);
 
-  tFilePage* pBufPage2 = getNewDataBuf(pResultBuf, groupId, &pageId);
-  tFilePage* t2 = getBufPage(pResultBuf, pageId);
+  SFilePage* pBufPage2 = getNewDataBuf(pResultBuf, groupId, &pageId);
+  SFilePage* t2 = getBufPage(pResultBuf, pageId);
   ASSERT_TRUE(t2 == pBufPage2);
   ASSERT_TRUE(pageId == 2);
 
-  tFilePage* pBufPage3 = getNewDataBuf(pResultBuf, groupId, &pageId);
-  tFilePage* t3 = getBufPage(pResultBuf, pageId);
+  SFilePage* pBufPage3 = getNewDataBuf(pResultBuf, groupId, &pageId);
+  SFilePage* t3 = getBufPage(pResultBuf, pageId);
   ASSERT_TRUE(t3 == pBufPage3);
   ASSERT_TRUE(pageId == 3);
 
-  tFilePage* pBufPage4 = getNewDataBuf(pResultBuf, groupId, &pageId);
-  tFilePage* t4 = getBufPage(pResultBuf, pageId);
+  SFilePage* pBufPage4 = getNewDataBuf(pResultBuf, groupId, &pageId);
+  SFilePage* t4 = getBufPage(pResultBuf, pageId);
   ASSERT_TRUE(t4 == pBufPage4);
   ASSERT_TRUE(pageId == 4);
   releaseBufPage(pResultBuf, t4);
 
-  tFilePage* pBufPage5 = getNewDataBuf(pResultBuf, groupId, &pageId);
-  tFilePage* t5 = getBufPage(pResultBuf, pageId);
+  SFilePage* pBufPage5 = getNewDataBuf(pResultBuf, groupId, &pageId);
+  SFilePage* t5 = getBufPage(pResultBuf, pageId);
   ASSERT_TRUE(t5 == pBufPage5);
   ASSERT_TRUE(pageId == 5);
 
   // flush the written page to disk, and read it out again
-  tFilePage* pBufPagex = getBufPage(pResultBuf, writePageId);
+  SFilePage* pBufPagex = getBufPage(pResultBuf, writePageId);
   *(int32_t*)(pBufPagex->data) = nx;
   writePageId = pageId;   // update the data
   releaseBufPage(pResultBuf, pBufPagex);
 
-  tFilePage* pBufPagex1 = getBufPage(pResultBuf, 1);
+  SFilePage* pBufPagex1 = getBufPage(pResultBuf, 1);
 
   SArray* pa = getDataBufPagesIdList(pResultBuf, groupId);
   ASSERT_EQ(taosArrayGetSize(pa), 6);

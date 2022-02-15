@@ -9,7 +9,7 @@
 #include "tglobal.h"
 #include "tmsgtype.h"
 #include "tnote.h"
-#include "tpagedfile.h"
+#include "tpagedbuf.h"
 #include "tref.h"
 
 static int32_t initEpSetFromCfg(const char *firstEp, const char *secondEp, SCorEpSet *pEpSet);

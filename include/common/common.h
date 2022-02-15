@@ -16,6 +16,11 @@
 #ifndef TDENGINE_COMMON_H
 #define TDENGINE_COMMON_H
 
+
+#ifdef __cplusplus
+extern "C" {
+#endif
+
 #include "taosdef.h"
 #include "tarray.h"
 #include "tmsg.h"
@@ -44,8 +49,8 @@
 
 typedef struct {
   uint32_t  numOfTables;
-  SArray*   pGroupList;
-  SHashObj* map;  // speedup acquire the tableQueryInfo by table uid
+  SArray   *pGroupList;
+  SHashObj *map;  // speedup acquire the tableQueryInfo by table uid
 } STableGroupInfo;
 
 typedef struct SColumnDataAgg {
@@ -74,18 +79,28 @@ typedef struct SConstantItem {
 
 // info.numOfCols = taosArrayGetSize(pDataBlock) + taosArrayGetSize(pConstantList);
 typedef struct SSDataBlock {
-  SColumnDataAgg* pBlockAgg;
-  SArray*         pDataBlock;  // SArray<SColumnInfoData>
-  SArray* pConstantList;       // SArray<SConstantItem>, it is a constant/tags value of the corresponding result value.
-  SDataBlockInfo info;
+  SColumnDataAgg *pBlockAgg;
+  SArray         *pDataBlock;    // SArray<SColumnInfoData>
+  SArray         *pConstantList; // SArray<SConstantItem>, it is a constant/tags value of the corresponding result value.
+  SDataBlockInfo  info;
 } SSDataBlock;
+
+typedef struct SVarColAttr {
+  int32_t *offset;    // start position for each entry in the list
+  uint32_t length;    // used buffer size that contain the valid data
+  uint32_t allocLen;  // allocated buffer size
+} SVarColAttr;
 
 // pBlockAgg->numOfNull == info.rows, all data are null
 // pBlockAgg->numOfNull == 0, no data are null.
 typedef struct SColumnInfoData {
-  SColumnInfo info;        // TODO filter info needs to be removed
-  char*       nullbitmap;  //
-  char*       pData;       // the corresponding block data in memory
+  SColumnInfo info;   // TODO filter info needs to be removed
+  bool        hasNull;// if current column data has null value.
+  char       *pData;  // the corresponding block data in memory
+  union {
+    char       *nullbitmap;  // bitmap, one bit for each item in the list
+    SVarColAttr varmeta;
+  };
 } SColumnInfoData;
 
 static FORCE_INLINE int32_t tEncodeDataBlock(void** buf, const SSDataBlock* pBlock) {
@@ -235,11 +250,11 @@ typedef struct SSqlExpr {
   char    token[TSDB_COL_NAME_LEN];  // original token
   SSchema resSchema;
 
-  int32_t  numOfCols;
-  SColumn* pColumns;     // data columns that are required by query
-  int32_t  interBytes;   // inter result buffer size
-  int16_t  numOfParams;  // argument value of each function
-  SVariant param[3];     // parameters are not more than 3
+  int32_t   numOfCols;
+  SColumn*  pColumns;       // data columns that are required by query
+  int32_t   interBytes;     // inter result buffer size
+  int16_t   numOfParams;    // argument value of each function
+  SVariant  param[3];       // parameters are not more than 3
 } SSqlExpr;
 
 typedef struct SExprInfo {
@@ -260,5 +275,9 @@ typedef struct SSessionWindow {
 #define QUERY_DESC_FORWARD_STEP -1
 
 #define GET_FORWARD_DIRECTION_FACTOR(ord) (((ord) == TSDB_ORDER_ASC) ? QUERY_ASC_FORWARD_STEP : QUERY_DESC_FORWARD_STEP)
+
+#ifdef __cplusplus
+}
+#endif
 
 #endif  // TDENGINE_COMMON_H
