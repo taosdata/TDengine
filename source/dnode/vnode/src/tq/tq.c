@@ -206,6 +206,117 @@ int32_t tqDeserializeConsumer(STQ* pTq, const STqSerializedHead* pHead, STqConsu
 
 int32_t tqProcessConsumeReq(STQ* pTq, SRpcMsg* pMsg) {
   SMqConsumeReq* pReq = pMsg->pCont;
+  int64_t        consumerId = pReq->consumerId;
+  int64_t        fetchOffset = pReq->offset;
+  /*int64_t        blockingTime = pReq->blockingTime;*/
+
+  SMqConsumeRsp rsp = {.consumerId = consumerId, .numOfTopics = 0, .pBlockData = NULL};
+
+  STqConsumer* pConsumer = tqHandleGet(pTq->tqMeta, consumerId);
+  if (pConsumer == NULL) {
+    pMsg->pCont = NULL;
+    pMsg->contLen = 0;
+    pMsg->code = -1;
+    rpcSendResponse(pMsg);
+    return 0;
+  }
+  int sz = taosArrayGetSize(pConsumer->topics);
+  ASSERT(sz == 1);
+  STqTopic* pTopic = taosArrayGet(pConsumer->topics, 0);
+  ASSERT(strcmp(pTopic->topicName, pReq->topic) == 0);
+  ASSERT(pConsumer->consumerId == consumerId);
+
+  if (pReq->reqType == TMQ_REQ_TYPE_COMMIT_ONLY) {
+    pTopic->committedOffset = pReq->offset;
+    pMsg->pCont = NULL;
+    pMsg->contLen = 0;
+    pMsg->code = 0;
+    rpcSendResponse(pMsg);
+    return 0;
+  }
+
+  if (pReq->reqType == TMQ_REQ_TYPE_CONSUME_AND_COMMIT) {
+    pTopic->committedOffset = pReq->offset - 1;
+  }
+
+  rsp.committedOffset = pTopic->committedOffset;
+  rsp.reqOffset = pReq->offset;
+  rsp.skipLogNum = 0;
+
+  SWalHead* pHead;
+  while (1) {
+    int8_t pos = fetchOffset % TQ_BUFFER_SIZE;
+    if (walReadWithHandle(pTopic->pReadhandle, fetchOffset) < 0) {
+      break;
+    }
+    pHead = pTopic->pReadhandle->pHead;
+    if (pHead->head.msgType == TDMT_VND_SUBMIT) {
+      SSubmitMsg* pCont = (SSubmitMsg*)&pHead->head.body;
+      qTaskInfo_t task = pTopic->buffer.output[pos].task;
+      qSetStreamInput(task, pCont);
+      SArray* pRes = taosArrayInit(0, sizeof(SSDataBlock));
+      while (1) {
+        SSDataBlock* pDataBlock;
+        uint64_t     ts;
+        if (qExecTask(task, &pDataBlock, &ts) < 0) {
+          ASSERT(false);
+        }
+        if (pDataBlock == NULL) {
+          fetchOffset++;
+          rsp.skipLogNum++;
+          break;
+        }
+
+        taosArrayPush(pRes, pDataBlock);
+        rsp.schemas = pTopic->buffer.output[pos].pReadHandle->pSchemaWrapper;
+        rsp.rspOffset = fetchOffset;
+        pTopic->currentOffset = fetchOffset;
+
+        rsp.numOfTopics = 1;
+        rsp.pBlockData = pRes;
+
+        int32_t tlen = tEncodeSMqConsumeRsp(NULL, &rsp);
+        void*   buf = rpcMallocCont(tlen);
+        if (buf == NULL) {
+          pMsg->code = -1;
+          return -1;
+        }
+
+        void* abuf = buf;
+        tEncodeSMqConsumeRsp(&abuf, &rsp);
+        taosArrayDestroyEx(rsp.pBlockData, (void (*)(void*))tDeleteSSDataBlock);
+        pMsg->pCont = buf;
+        pMsg->contLen = tlen;
+        pMsg->code = 0;
+        rpcSendResponse(pMsg);
+        return 0;
+      }
+    } else {
+      fetchOffset++;
+      rsp.skipLogNum++;
+    }
+  }
+
+  int32_t tlen = tEncodeSMqConsumeRsp(NULL, &rsp);
+  void*   buf = rpcMallocCont(tlen);
+  if (buf == NULL) {
+    pMsg->code = -1;
+    return -1;
+  }
+
+  void* abuf = buf;
+  tEncodeSMqConsumeRsp(&abuf, &rsp);
+  rsp.pBlockData = NULL;
+  pMsg->pCont = buf;
+  pMsg->contLen = tlen;
+  pMsg->code = 0;
+  rpcSendResponse(pMsg);
+  return 0;
+}
+
+#if 0
+int32_t tqProcessConsumeReqV0(STQ* pTq, SRpcMsg* pMsg) {
+  SMqConsumeReq* pReq = pMsg->pCont;
   int64_t        reqId = pReq->reqId;
   int64_t        consumerId = pReq->consumerId;
   int64_t        fetchOffset = pReq->offset;
@@ -265,6 +376,7 @@ int32_t tqProcessConsumeReq(STQ* pTq, SRpcMsg* pMsg) {
         break;
       }
       if (walReadWithHandle(pTopic->pReadhandle, fetchOffset) < 0) {
+        printf("read offset %ld\n", fetchOffset);
         // check err
         atomic_store_8(&pTopic->buffer.output[pos].status, 0);
         skip = 1;
@@ -273,10 +385,10 @@ int32_t tqProcessConsumeReq(STQ* pTq, SRpcMsg* pMsg) {
       // read until find TDMT_VND_SUBMIT
       pHead = pTopic->pReadhandle->pHead;
       if (pHead->head.msgType == TDMT_VND_SUBMIT) {
-        break;
       }
       rsp.skipLogNum++;
       if (walReadWithHandle(pTopic->pReadhandle, fetchOffset) < 0) {
+        printf("read offset %ld\n", fetchOffset);
         atomic_store_8(&pTopic->buffer.output[pos].status, 0);
         skip = 1;
         break;
@@ -288,6 +400,7 @@ int32_t tqProcessConsumeReq(STQ* pTq, SRpcMsg* pMsg) {
     SSubmitMsg* pCont = (SSubmitMsg*)&pHead->head.body;
     qTaskInfo_t task = pTopic->buffer.output[pos].task;
 
+    printf("current fetch offset %ld\n", fetchOffset);
     qSetStreamInput(task, pCont);
 
     // SArray<SSDataBlock>
@@ -307,6 +420,7 @@ int32_t tqProcessConsumeReq(STQ* pTq, SRpcMsg* pMsg) {
     // TODO copy
     rsp.schemas = pTopic->buffer.output[pos].pReadHandle->pSchemaWrapper;
     rsp.rspOffset = fetchOffset;
+    pTopic->currentOffset = fetchOffset;
 
     atomic_store_8(&pTopic->buffer.output[pos].status, 0);
 
@@ -350,6 +464,7 @@ int32_t tqProcessConsumeReq(STQ* pTq, SRpcMsg* pMsg) {
   rpcSendResponse(pMsg);
   return 0;
 }
+#endif
 
 int32_t tqProcessRebReq(STQ* pTq, char* msg) {
   SMqMVRebReq req = {0};
