@@ -20,6 +20,7 @@
 #include "tlog.h"
 #include "tq.h"
 #include "trpc.h"
+
 #ifdef __cplusplus
 extern "C" {
 #endif
@@ -110,10 +111,11 @@ typedef struct {
   char    content[];
 } STqSerializedHead;
 
-typedef int (*FTqSerialize)(const void* pObj, STqSerializedHead** ppHead);
-typedef const void* (*FTqDeserialize)(const STqSerializedHead* pHead, void** ppObj);
+typedef int32_t (*FTqSerialize)(const void* pObj, STqSerializedHead** ppHead);
+typedef int32_t (*FTqDeserialize)(void* self, const STqSerializedHead* pHead, void** ppObj);
 typedef void (*FTqDelete)(void*);
-typedef struct STqMetaHandle {
+
+typedef struct {
   int64_t key;
   int64_t offset;
   int64_t serializedSize;
@@ -131,6 +133,7 @@ typedef struct STqMetaList {
 } STqMetaList;
 
 typedef struct {
+  STQ*         pTq;
   STqMetaList* bucket[TQ_BUCKET_SIZE];
   // a table head
   STqMetaList* unpersistHead;
@@ -187,21 +190,22 @@ typedef struct {
   char*           logicalPlan;
   char*           physicalPlan;
   char*           qmsg;
+  int64_t         persistedOffset;
   int64_t         committedOffset;
   int64_t         currentOffset;
   STqBuffer       buffer;
   SWalReadHandle* pReadhandle;
-} STqTopicHandle;
+} STqTopic;
 
 typedef struct {
   int64_t consumerId;
   int64_t epoch;
   char    cgroup[TSDB_TOPIC_FNAME_LEN];
-  SArray* topics;  // SArray<STqClientTopic>
-} STqConsumerHandle;
+  SArray* topics;  // SArray<STqTopicHandle>
+} STqConsumer;
 
-int         tqSerializeConsumer(const STqConsumerHandle*, STqSerializedHead**);
-const void* tqDeserializeConsumer(const STqSerializedHead* pHead, STqConsumerHandle**);
+int32_t tqSerializeConsumer(const STqConsumer*, STqSerializedHead**);
+int32_t tqDeserializeConsumer(STQ*, const STqSerializedHead*, STqConsumer**);
 
 static int FORCE_INLINE tqQueryExecuting(int32_t status) { return status; }
 

@@ -452,6 +452,12 @@ static char* formatTimestamp(char* buf, int64_t val, int precision) {
   return buf;
 }
 
+int32_t tmqGetSkipLogNum(tmq_message_t* tmq_message) {
+  if (tmq_message == NULL) return 0;
+  SMqConsumeRsp* pRsp = (SMqConsumeRsp*)tmq_message;
+  return pRsp->skipLogNum;
+}
+
 void tmqShowMsg(tmq_message_t* tmq_message) {
   if (tmq_message == NULL) return;
 
