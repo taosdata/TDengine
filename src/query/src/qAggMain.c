@@ -5142,11 +5142,11 @@ static SUniqueFuncInfo *getUniqueOutputInfo(SQLFunctionCtx *pCtx) {
 }
 
 // unique
-static void copyUniqueRes(SQLFunctionCtx *pCtx, int32_t type) {
+static void copyUniqueRes(SQLFunctionCtx *pCtx, int32_t bytes) {
   SResultRowCellInfo *pResInfo = GET_RES_INFO(pCtx);
   SUniqueFuncInfo *pRes = GET_ROWCELL_INTERBUF(pResInfo);
 
-  size_t size = sizeof(UniqueUnit) + pCtx->inputBytes + pCtx->tagInfo.tagsLen;
+  size_t size = sizeof(UniqueUnit) + bytes + pCtx->tagInfo.tagsLen;
   char *tvp = pRes->res;
 
   int32_t len = (int32_t)(GET_RES_INFO(pCtx)->numOfRes);
@@ -5155,10 +5155,10 @@ static void copyUniqueRes(SQLFunctionCtx *pCtx, int32_t type) {
   char *output = pCtx->pOutput;
   for (int32_t i = 0; i < len; ++i) {
     memcpy(tsOutput, tvp, sizeof(int64_t));
-    memcpy(output, tvp + sizeof(UniqueUnit), pCtx->inputBytes);
+    memcpy(output, tvp + sizeof(UniqueUnit), bytes);
     tvp += size;
     tsOutput += sizeof(int64_t);
-    output += pCtx->inputBytes;
+    output += bytes;
   }
 
   // set the corresponding tag data for each record
@@ -5174,7 +5174,7 @@ static void copyUniqueRes(SQLFunctionCtx *pCtx, int32_t type) {
 
   tvp = pRes->res;
   for (int32_t i = 0; i < len; ++i) {
-    int16_t offset = sizeof(UniqueUnit) + pCtx->inputBytes;
+    int16_t offset = sizeof(UniqueUnit) + bytes;
     for (int32_t j = 0; j < pCtx->tagInfo.numOfTagCols; ++j) {
       memcpy(pData[j], tvp + offset, (size_t)pCtx->tagInfo.pTagCtxList[j]->outputBytes);
       offset += pCtx->tagInfo.pTagCtxList[j]->outputBytes;
@@ -5271,8 +5271,14 @@ static void unique_func_finalizer(SQLFunctionCtx *pCtx) {
   SUniqueFuncInfo *pInfo = getUniqueOutputInfo(pCtx);
 
   GET_RES_INFO(pCtx)->numOfRes = pInfo->num;
-  GET_TRUE_DATA_TYPE();
-  copyUniqueRes(pCtx, type);
+  int32_t bytes = 0;
+  if (pCtx->currentStage == MERGE_STAGE) {
+    bytes = pCtx->outputBytes;
+    assert(pCtx->inputType == TSDB_DATA_TYPE_BINARY);
+  } else {
+    bytes = pCtx->inputBytes;
+  }
+  copyUniqueRes(pCtx, bytes);
   doFinalizer(pCtx);
 }
 
