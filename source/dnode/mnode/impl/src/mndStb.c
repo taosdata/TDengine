@@ -28,7 +28,6 @@
 #define TSDB_STB_VER_NUMBER 1
 #define TSDB_STB_RESERVE_SIZE 64
 
-static SSdbRaw *mndStbActionEncode(SStbObj *pStb);
 static SSdbRow *mndStbActionDecode(SSdbRaw *pRaw);
 static int32_t  mndStbActionInsert(SSdb *pSdb, SStbObj *pStb);
 static int32_t  mndStbActionDelete(SSdb *pSdb, SStbObj *pStb);
@@ -70,7 +69,7 @@ int32_t mndInitStb(SMnode *pMnode) {
 
 void mndCleanupStb(SMnode *pMnode) {}
 
-static SSdbRaw *mndStbActionEncode(SStbObj *pStb) {
+SSdbRaw *mndStbActionEncode(SStbObj *pStb) {
   terrno = TSDB_CODE_OUT_OF_MEMORY;
 
   int32_t  size = sizeof(SStbObj) + (pStb->numOfColumns + pStb->numOfTags) * sizeof(SSchema) + TSDB_STB_RESERVE_SIZE;

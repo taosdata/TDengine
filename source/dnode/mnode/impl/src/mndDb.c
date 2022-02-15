@@ -18,6 +18,7 @@
 #include "mndAuth.h"
 #include "mndDnode.h"
 #include "mndShow.h"
+#include "mndStb.h"
 #include "mndTrans.h"
 #include "mndUser.h"
 #include "mndVgroup.h"
@@ -720,6 +721,24 @@ static int32_t mndSetDropDbCommitLogs(SMnode *pMnode, STrans *pTrans, SDbObj *pD
     }
 
     sdbRelease(pSdb, pVgroup);
+  }
+
+  while (1) {
+    SStbObj *pStb = NULL;
+    pIter = sdbFetch(pSdb, SDB_STB, pIter, (void **)&pStb);
+    if (pIter == NULL) break;
+
+    if (pStb->dbUid == pDb->uid) {
+      SSdbRaw *pStbRaw = mndStbActionEncode(pStb);
+      if (pStbRaw == NULL || mndTransAppendCommitlog(pTrans, pStbRaw) != 0) {
+        sdbCancelFetch(pSdb, pIter);
+        sdbRelease(pSdb, pStbRaw);
+        return -1;
+      }
+      sdbSetRawStatus(pStbRaw, SDB_STATUS_DROPPED);
+    }
+
+    sdbRelease(pSdb, pStb);
   }
 
   return 0;
