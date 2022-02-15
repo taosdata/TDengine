@@ -1485,7 +1485,7 @@ int32_t tSerializeSShowReq(void *buf, int32_t bufLen, SShowReq *pReq) {
   if (tEncodeCStr(&encoder, pReq->db) < 0) return -1;
   if (tEncodeI32(&encoder, pReq->payloadLen) < 0) return -1;
   if (pReq->payloadLen > 0) {
-    if (tEncodeCStr(&encoder, pReq->payload) < 0) return -1;
+    if (tEncodeBinary(&encoder, pReq->payload, pReq->payloadLen) < 0) return -1;
   }
   tEndEncode(&encoder);
 
@@ -1706,12 +1706,13 @@ void tFreeSShowRsp(SShowRsp *pRsp) { tFreeSTableMetaRsp(&pRsp->tableMeta); }
 
 int32_t tSerializeSTableInfoReq(void *buf, int32_t bufLen, STableInfoReq *pReq) {
   int32_t headLen = sizeof(SMsgHead);
-  SCoder  encoder = {0};
-  tCoderInit(&encoder, TD_LITTLE_ENDIAN, (char *)buf + headLen, bufLen - headLen, TD_ENCODER);
+  if (buf != NULL) {
+    buf = (char *)buf + headLen;
+    bufLen -= headLen;
+  }
 
-  SMsgHead *pHead = &pReq->header;
-  pHead->vgId = htonl(pHead->vgId);
-  pHead->contLen = htonl(pHead->vgId);
+  SCoder encoder = {0};
+  tCoderInit(&encoder, TD_LITTLE_ENDIAN, buf, bufLen, TD_ENCODER);
 
   if (tStartEncode(&encoder) < 0) return -1;
   if (tEncodeCStr(&encoder, pReq->dbFName) < 0) return -1;
@@ -1720,16 +1721,25 @@ int32_t tSerializeSTableInfoReq(void *buf, int32_t bufLen, STableInfoReq *pReq) 
 
   int32_t tlen = encoder.pos;
   tCoderClear(&encoder);
-  return tlen;
+
+  if (buf != NULL) {
+    SMsgHead *pHead = (SMsgHead *)((char *)buf - headLen);
+    pHead->vgId = htonl(pReq->header.vgId);
+    pHead->contLen = htonl(tlen + headLen);
+  }
+
+  return tlen + headLen;
 }
 
 int32_t tDeserializeSTableInfoReq(void *buf, int32_t bufLen, STableInfoReq *pReq) {
-  SMsgHead *pHead = &pReq->header;
-  pHead->vgId = htonl(pHead->vgId);
-  pHead->contLen = htonl(pHead->vgId);
+  int32_t headLen = sizeof(SMsgHead);
+
+  SMsgHead *pHead = buf;
+  pHead->vgId = pReq->header.vgId;
+  pHead->contLen = pReq->header.contLen;
 
   SCoder decoder = {0};
-  tCoderInit(&decoder, TD_LITTLE_ENDIAN, buf, bufLen, TD_DECODER);
+  tCoderInit(&decoder, TD_LITTLE_ENDIAN, (char *)buf + headLen, bufLen - headLen, TD_DECODER);
 
   if (tStartDecode(&decoder) < 0) return -1;
   if (tDecodeCStrTo(&decoder, pReq->dbFName) < 0) return -1;

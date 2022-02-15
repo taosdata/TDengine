@@ -895,7 +895,7 @@ void    tFreeSShowReq(SShowReq* pReq);
 typedef struct {
   int64_t       showId;
   STableMetaRsp tableMeta;
-} SShowRsp;
+} SShowRsp, SVShowTablesRsp;
 
 int32_t tSerializeSShowRsp(void* buf, int32_t bufLen, SShowRsp* pRsp);
 int32_t tDeserializeSShowRsp(void* buf, int32_t bufLen, SShowRsp* pRsp);
@@ -1429,11 +1429,6 @@ typedef struct {
 } SVShowTablesReq;
 
 typedef struct {
-  int64_t       id;
-  STableMetaRsp metaInfo;
-} SVShowTablesRsp;
-
-typedef struct {
   SMsgHead head;
   int32_t  id;
 } SVShowTablesFetchReq;
@@ -1637,7 +1632,7 @@ int32_t tDeserializeSClientHbBatchRsp(void* buf, int32_t bufLen, SClientHbBatchR
 static FORCE_INLINE int32_t tEncodeSKv(SCoder* pEncoder, const SKv* pKv) {
   if (tEncodeI32(pEncoder, pKv->key) < 0) return -1;
   if (tEncodeI32(pEncoder, pKv->valueLen) < 0) return -1;
-  if (tEncodeCStrWithLen(pEncoder, (const char*)pKv->value, pKv->valueLen) < 0) return -1;
+  if (tEncodeBinary(pEncoder, (const char*)pKv->value, pKv->valueLen) < 0) return -1;
   return 0;
 }
 

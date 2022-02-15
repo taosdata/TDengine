@@ -30,40 +30,33 @@ int32_t queryBuildTableMetaReqMsg(void *input, char **msg, int32_t msgSize, int3
     return TSDB_CODE_TSC_INVALID_INPUT;
   }
 
-  int32_t estimateSize = sizeof(STableInfoReq);
-  if (NULL == *msg || msgSize < estimateSize) {
-    tfree(*msg);
-    *msg = rpcMallocCont(estimateSize);
-    if (NULL == *msg) {
-      return TSDB_CODE_TSC_OUT_OF_MEMORY;
-    }
-  }
-
-  STableInfoReq *bMsg = (STableInfoReq *)*msg;
-
-  bMsg->header.vgId = htonl(pInput->vgId);
-
+  STableInfoReq infoReq = {0};
+  infoReq.header.vgId = pInput->vgId;
   if (pInput->dbFName) {
-    tstrncpy(bMsg->dbFName, pInput->dbFName, tListLen(bMsg->dbFName));
+    tstrncpy(infoReq.dbFName, pInput->dbFName, TSDB_DB_FNAME_LEN);
   }
+  tstrncpy(infoReq.tbName, pInput->tbName, TSDB_TABLE_NAME_LEN);
 
-  tstrncpy(bMsg->tbName, pInput->tbName, tListLen(bMsg->tbName));
+  int32_t bufLen = tSerializeSTableInfoReq(NULL, 0, &infoReq);
+  void   *pBuf = rpcMallocCont(bufLen);
+  tSerializeSTableInfoReq(pBuf, bufLen, &infoReq);
 
-  *msgLen = (int32_t)sizeof(*bMsg);
+  *msg = pBuf;
+  *msgLen = bufLen;
+
   return TSDB_CODE_SUCCESS;
 }
 
 int32_t queryBuildUseDbMsg(void *input, char **msg, int32_t msgSize, int32_t *msgLen) {
-  if (NULL == input || NULL == msg || NULL == msgLen) {
+  SBuildUseDBInput *pInput = input;
+  if (NULL == pInput || NULL == msg || NULL == msgLen) {
     return TSDB_CODE_TSC_INVALID_INPUT;
   }
 
-  SBuildUseDBInput *bInput = input;
-
   SUseDbReq usedbReq = {0};
-  strncpy(usedbReq.db, bInput->db, sizeof(usedbReq.db));
+  strncpy(usedbReq.db, pInput->db, sizeof(usedbReq.db));
   usedbReq.db[sizeof(usedbReq.db) - 1] = 0;
-  usedbReq.vgVersion = bInput->vgVersion;
+  usedbReq.vgVersion = pInput->vgVersion;
 
   int32_t bufLen = tSerializeSUseDbReq(NULL, 0, &usedbReq);
   void   *pBuf = rpcMallocCont(bufLen);
@@ -99,15 +92,14 @@ int32_t queryProcessUseDBRsp(void *output, char *msg, int32_t msgSize) {
 
   memcpy(pOut->db, usedbRsp.db, TSDB_DB_FNAME_LEN);
   pOut->dbId = usedbRsp.uid;
-  pOut->dbVgroup->vgVersion = usedbRsp.vgVersion;
-  pOut->dbVgroup->hashMethod = usedbRsp.hashMethod;
-
   pOut->dbVgroup = calloc(1, sizeof(SDBVgInfo));
   if (NULL == pOut->dbVgroup) {
     code = TSDB_CODE_TSC_OUT_OF_MEMORY;
     goto PROCESS_USEDB_OVER;
   }
 
+  pOut->dbVgroup->vgVersion = usedbRsp.vgVersion;
+  pOut->dbVgroup->hashMethod = usedbRsp.hashMethod;
   pOut->dbVgroup->vgHash =
       taosHashInit(usedbRsp.vgNum, taosGetDefaultHashFunction(TSDB_DATA_TYPE_INT), true, HASH_ENTRY_LOCK);
   if (NULL == pOut->dbVgroup->vgHash) {

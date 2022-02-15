@@ -339,10 +339,13 @@ TEST_F(MndTestStb, 01_Create_Show_Meta_Drop_Restart_Stb) {
 
   // ----- meta ------
   {
-    int32_t        contLen = sizeof(STableInfoReq);
-    STableInfoReq* pReq = (STableInfoReq*)rpcMallocCont(contLen);
-    strcpy(pReq->dbFName, dbname);
-    strcpy(pReq->tbName, "stb");
+    STableInfoReq infoReq = {0};
+    strcpy(infoReq.dbFName, dbname);
+    strcpy(infoReq.tbName, "stb");
+
+    int32_t contLen = tSerializeSTableInfoReq(NULL, 0, &infoReq);
+    void*   pReq = rpcMallocCont(contLen);
+    tSerializeSTableInfoReq(pReq, contLen, &infoReq);
 
     SRpcMsg* pMsg = test.SendReq(TDMT_MND_STB_META, pReq, contLen);
     ASSERT_NE(pMsg, nullptr);

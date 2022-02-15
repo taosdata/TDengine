@@ -34,7 +34,7 @@ static int32_t mndTopicActionUpdate(SSdb *pSdb, SMqTopicObj *pTopic, SMqTopicObj
 static int32_t mndProcessCreateTopicMsg(SMnodeMsg *pMsg);
 static int32_t mndProcessDropTopicMsg(SMnodeMsg *pMsg);
 static int32_t mndProcessDropTopicInRsp(SMnodeMsg *pMsg);
-static int32_t mndProcessTopicMetaMsg(SMnodeMsg *pMsg);
+static int32_t mndProcessTopicMetaMsg(SMnodeMsg *pReq);
 static int32_t mndGetTopicMeta(SMnodeMsg *pMsg, SShowObj *pShow, STableMetaRsp *pMeta);
 static int32_t mndRetrieveTopic(SMnodeMsg *pMsg, SShowObj *pShow, char *data, int32_t rows);
 static void    mndCancelGetNextTopic(SMnode *pMnode, void *pIter);
@@ -334,11 +334,16 @@ static int32_t mndProcessDropTopicInRsp(SMnodeMsg *pMsg) {
   return 0;
 }
 
-static int32_t mndProcessTopicMetaMsg(SMnodeMsg *pMsg) {
-  SMnode        *pMnode = pMsg->pMnode;
-  STableInfoReq *pInfo = pMsg->rpcMsg.pCont;
+static int32_t mndProcessTopicMetaMsg(SMnodeMsg *pReq) {
+  SMnode       *pMnode = pReq->pMnode;
+  STableInfoReq infoReq = {0};
 
-  mDebug("topic:%s, start to retrieve meta", pInfo->tbName);
+  if (tSerializeSTableInfoReq(pReq->rpcMsg.pCont, pReq->rpcMsg.contLen, &infoReq) != 0) {
+    terrno = TSDB_CODE_INVALID_MSG;
+    return -1;
+  }
+
+  mDebug("topic:%s, start to retrieve meta", infoReq.tbName);
 
 #if 0
   SDbObj *pDb = mndAcquireDbByTopic(pMnode, pInfo->tableFname);

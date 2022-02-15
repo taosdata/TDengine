@@ -120,6 +120,7 @@ static int32_t mndProcessShowReq(SMnodeMsg *pReq) {
   SShowMgmt *pMgmt = &pMnode->showMgmt;
   int32_t    code = -1;
   SShowReq   showReq = {0};
+  SShowRsp   showRsp = {0};
 
   if (tDeserializeSShowReq(pReq->rpcMsg.pCont, pReq->rpcMsg.contLen, &showReq) != 0) {
     terrno = TSDB_CODE_INVALID_MSG;
@@ -142,7 +143,6 @@ static int32_t mndProcessShowReq(SMnodeMsg *pReq) {
     goto SHOW_OVER;
   }
 
-  SShowRsp showRsp = {0};
   showRsp.showId = pShow->id;
   showRsp.tableMeta.pSchemas = calloc(TSDB_MAX_COLUMNS, sizeof(SSchema));
   if (showRsp.tableMeta.pSchemas == NULL) {

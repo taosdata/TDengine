@@ -1183,7 +1183,7 @@ static int32_t mndBuildStbSchemaImp(SDbObj *pDb, SStbObj *pStb, const char *tbNa
   taosRLockLatch(&pStb->lock);
 
   int32_t totalCols = pStb->numOfColumns + pStb->numOfTags;
-  pRsp->pSchemas = malloc(totalCols * sizeof(SSchema));
+  pRsp->pSchemas = calloc(totalCols, sizeof(SSchema));
   if (pRsp->pSchemas == NULL) {
     taosRUnLockLatch(&pStb->lock);
     terrno = TSDB_CODE_OUT_OF_MEMORY;
@@ -1222,6 +1222,7 @@ static int32_t mndBuildStbSchemaImp(SDbObj *pDb, SStbObj *pStb, const char *tbNa
   }
 
   taosRUnLockLatch(&pStb->lock);
+  return 0;
 }
 
 static int32_t mndBuildStbSchema(SMnode *pMnode, const char *dbFName, const char *tbName, STableMetaRsp *pRsp) {
@@ -1253,7 +1254,7 @@ static int32_t mndProcessStbMetaReq(SMnodeMsg *pReq) {
   STableInfoReq infoReq = {0};
   STableMetaRsp metaRsp = {0};
 
-  if (tSerializeSTableInfoReq(pReq->rpcMsg.pCont, pReq->rpcMsg.contLen, &infoReq) != 0) {
+  if (tDeserializeSTableInfoReq(pReq->rpcMsg.pCont, pReq->rpcMsg.contLen, &infoReq) != 0) {
     terrno = TSDB_CODE_INVALID_MSG;
     goto RETRIEVE_META_OVER;
   }
@@ -1269,7 +1270,7 @@ static int32_t mndProcessStbMetaReq(SMnodeMsg *pReq) {
     goto RETRIEVE_META_OVER;
   }
 
-  void *pRsp = malloc(rspLen);
+  void *pRsp = rpcMallocCont(rspLen);
   if (pRsp == NULL) {
     terrno = TSDB_CODE_OUT_OF_MEMORY;
     goto RETRIEVE_META_OVER;

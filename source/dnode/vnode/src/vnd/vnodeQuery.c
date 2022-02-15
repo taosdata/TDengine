@@ -71,7 +71,6 @@ int vnodeProcessFetchMsg(SVnode *pVnode, SRpcMsg *pMsg) {
 }
 
 static int vnodeGetTableMeta(SVnode *pVnode, SRpcMsg *pMsg) {
-  STableInfoReq * pReq = (STableInfoReq *)(pMsg->pCont);
   STbCfg *        pTbCfg = NULL;
   STbCfg *        pStbCfg = NULL;
   tb_uid_t        uid;
@@ -79,12 +78,19 @@ static int vnodeGetTableMeta(SVnode *pVnode, SRpcMsg *pMsg) {
   int32_t         nTagCols;
   SSchemaWrapper *pSW = NULL;
   STableMetaRsp  *pTbMetaMsg = NULL;
-  SSchema *       pTagSchema;
+  STableMetaRsp   metaRsp = {0};
+  SSchema        *pTagSchema;
   SRpcMsg         rpcMsg;
   int             msgLen = 0;
   int32_t         code = TSDB_CODE_VND_APP_ERROR;
 
-  pTbCfg = metaGetTbInfoByName(pVnode->pMeta, pReq->tbName, &uid);
+  STableInfoReq infoReq = {0};
+  if (tDeserializeSTableInfoReq(pMsg->pCont, pMsg->contLen, &infoReq) != 0) {
+    terrno = TSDB_CODE_INVALID_MSG;
+    goto _exit;
+  }
+
+  pTbCfg = metaGetTbInfoByName(pVnode->pMeta, infoReq.tbName, &uid);
   if (pTbCfg == NULL) {
     code = TSDB_CODE_VND_TB_NOT_EXIST;
     goto _exit;
@@ -114,16 +120,15 @@ static int vnodeGetTableMeta(SVnode *pVnode, SRpcMsg *pMsg) {
     pTagSchema = NULL;
   }
 
-  STableMetaRsp metaRsp = {0};
-  metaRsp.pSchemas = malloc( sizeof(SSchema) * (nCols + nTagCols));
+  metaRsp.pSchemas = calloc(nCols + nTagCols, sizeof(SSchema));
   if (metaRsp.pSchemas == NULL) {
     code = TSDB_CODE_VND_OUT_OF_MEMORY;
     goto _exit;
   }
 
   metaRsp.dbId = htobe64(pVnode->config.dbId);
-  memcpy(metaRsp.dbFName, pReq->dbFName, sizeof(metaRsp.dbFName));
-  strcpy(metaRsp.tbName, pReq->tbName);
+  memcpy(metaRsp.dbFName, infoReq.dbFName, sizeof(metaRsp.dbFName));
+  strcpy(metaRsp.tbName, infoReq.tbName);
   if (pTbCfg->type == META_CHILD_TABLE) {
     strcpy(metaRsp.stbName, pStbCfg->name);
     metaRsp.suid = pTbCfg->ctbCfg.suid;
@@ -148,11 +153,12 @@ static int vnodeGetTableMeta(SVnode *pVnode, SRpcMsg *pMsg) {
     goto _exit;
   }
 
-  void *pRsp = malloc(rspLen);
+  void *pRsp = rpcMallocCont(rspLen);
   if (pRsp == NULL) {
     code = TSDB_CODE_OUT_OF_MEMORY;
     goto _exit;
   }
+  tSerializeSTableMetaRsp(pRsp, rspLen, &metaRsp);
 
   code = 0;
 
