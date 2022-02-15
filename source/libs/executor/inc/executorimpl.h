@@ -389,7 +389,7 @@ typedef struct SExchangeInfo {
   tsem_t             ready;
   void*              pTransporter;
   SSDataBlock*       pResult;
-  bool               seqLoadData;
+  bool               seqLoadData;   // sequential load data or not, false by default
   int32_t            current;
   uint64_t           totalSize;     // total load bytes from remote
   uint64_t           totalRows;     // total number of rows
@@ -591,6 +591,12 @@ typedef struct SOrderOperatorInfo {
   int32_t                 numOfRowsInRes;
 
   SMsortComparParam       cmpParam;
+
+  int64_t                 startTs;       // sort start time
+  uint64_t                sortElapsed;   // sort elapsed time, time to flush to disk not included.
+  uint64_t                totalSize;     // total load bytes from remote
+  uint64_t                totalRows;     // total number of rows
+  uint64_t                totalElapsed;  // total elapsed time
 } SOrderOperatorInfo;
 
 SOperatorInfo* createExchangeOperatorInfo(const SArray* pSources, const SArray* pSchema, SExecTaskInfo* pTaskInfo);

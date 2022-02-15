@@ -28,15 +28,6 @@ typedef struct SPageInfo {
   bool          dirty:1;    // set current buffer page is dirty or not
 } SPageInfo;
 
-typedef struct SDiskbasedBufStatis {
-  int64_t flushBytes;
-  int64_t loadBytes;
-  int32_t loadPages;
-  int32_t getPages;
-  int32_t releasePages;
-  int32_t flushPages;
-} SDiskbasedBufStatis;
-
 typedef struct SDiskbasedBuf {
   int32_t   numOfPages;
   int64_t   totalBufSize;
@@ -56,8 +47,8 @@ typedef struct SDiskbasedBuf {
   uint64_t  nextPos;             // next page flush position
 
   uint64_t  qId;                 // for debug purpose
-  SDiskbasedBufStatis statis;
   bool      printStatis;         // Print statistics info when closing this buffer.
+  SDiskbasedBufStatis statis;
 } SDiskbasedBuf;
 
 static void printStatisData(const SDiskbasedBuf* pBuf);
@@ -130,7 +121,7 @@ static char* doDecompressData(void* data, int32_t srcSize, int32_t *dst, SDiskba
     return data;
   }
 
-  *dst = tsDecompressString(data, srcSize, 1, pBuf->assistBuf, pBuf->pageSize, ONE_STAGE_COMP, NULL, 0);
+  *dst = tsDecompressString(data, srcSize, 1, pBuf->assistBuf, pBuf->pageSize+sizeof(SFilePage), ONE_STAGE_COMP, NULL, 0);
   if (*dst > 0) {
     memcpy(data, pBuf->assistBuf, *dst);
   }
@@ -164,7 +155,11 @@ static char* doFlushPageToDisk(SDiskbasedBuf* pBuf, SPageInfo* pg) {
   assert(!pg->used && pg->pData != NULL);
 
   int32_t size = -1;
-  char* t = doCompressData(GET_DATA_PAYLOAD(pg), pBuf->pageSize, &size, pBuf);
+  char*   t = NULL;
+  if (pg->offset == -1 || pg->dirty) {
+    SFilePage* pPage = (SFilePage*) GET_DATA_PAYLOAD(pg);
+    t = doCompressData(pPage->data, pBuf->pageSize, &size, pBuf);
+  }
 
   // this page is flushed to disk for the first time
   if (pg->offset == -1) {
@@ -225,7 +220,7 @@ static char* doFlushPageToDisk(SDiskbasedBuf* pBuf, SPageInfo* pg) {
   }
 
   char* pDataBuf = pg->pData;
-  memset(pDataBuf, 0, pBuf->pageSize);
+  memset(pDataBuf, 0, pBuf->pageSize + sizeof(SFilePage));
 
   pg->pData  = NULL;  // this means the data is not in buffer
   pg->length = size;
@@ -256,7 +251,8 @@ static int32_t loadPageFromDisk(SDiskbasedBuf* pBuf, SPageInfo* pg) {
     return ret;
   }
 
-  ret = (int32_t)fread(GET_DATA_PAYLOAD(pg), 1, pg->length, pBuf->file);
+  SFilePage* pPage = (SFilePage*) GET_DATA_PAYLOAD(pg);
+  ret = (int32_t)fread(pPage->data, 1, pg->length, pBuf->file);
   if (ret != pg->length) {
     ret = TAOS_SYSTEM_ERROR(errno);
     return ret;
@@ -266,7 +262,7 @@ static int32_t loadPageFromDisk(SDiskbasedBuf* pBuf, SPageInfo* pg) {
   pBuf->statis.loadPages += 1;
 
   int32_t fullSize = 0;
-  doDecompressData(GET_DATA_PAYLOAD(pg), pg->length, &fullSize, pBuf);
+  doDecompressData(pPage->data, pg->length, &fullSize, pBuf);
   return 0;
 }
 
@@ -558,7 +554,7 @@ int32_t getBufPageSize(const SDiskbasedBuf* pBuf) {
 }
 
 int32_t getNumOfInMemBufPages(const SDiskbasedBuf* pBuf) {
-    return pBuf->inMemPages;
+  return pBuf->inMemPages;
 }
 
 bool isAllDataInMemBuf(const SDiskbasedBuf* pBuf) {
@@ -575,6 +571,10 @@ void setBufPageDirty(SFilePage* pPage, bool dirty) {
 
 void printStatisBeforeClose(SDiskbasedBuf* pBuf) {
   pBuf->printStatis = true;
+}
+
+SDiskbasedBufStatis getDBufStatis(const SDiskbasedBuf* pBuf) {
+  return pBuf->statis;
 }
 
 void printStatisData(const SDiskbasedBuf* pBuf) {

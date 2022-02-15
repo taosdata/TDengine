@@ -37,6 +37,15 @@ typedef struct SFilePage {
   char    data[];
 } SFilePage;
 
+typedef struct SDiskbasedBufStatis {
+  int64_t flushBytes;
+  int64_t loadBytes;
+  int32_t loadPages;
+  int32_t getPages;
+  int32_t releasePages;
+  int32_t flushPages;
+} SDiskbasedBufStatis;
+
 /**
  * create disk-based result buffer
  * @param pBuf
@@ -149,6 +158,11 @@ void setBufPageDirty(SFilePage* pPageInfo, bool dirty);
  * @param pBuf
  */
 void printStatisBeforeClose(SDiskbasedBuf* pBuf);
+
+/**
+ * return buf statistics.
+ */
+SDiskbasedBufStatis getDBufStatis(const SDiskbasedBuf* pBuf);
 
 #ifdef __cplusplus
 }

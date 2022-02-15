@@ -86,7 +86,7 @@ SSDataBlock* getDummyBlock(void* param, bool* newgroup) {
   for(int32_t i = 0; i < numOfRows; ++i) {
     SColumnInfoData* pColInfo = static_cast<SColumnInfoData*>(TARRAY_GET_ELEM(pBlock->pDataBlock, 0));
 
-    int32_t v = rand();//(++pInfo->startVal);
+    int32_t v = (--pInfo->startVal);
     colDataAppend(pColInfo, i, reinterpret_cast<const char*>(&v), false);
 
 //    sprintf(buf, "this is %d row", i);
@@ -110,7 +110,7 @@ SOperatorInfo* createDummyOperator(int32_t numOfBlocks) {
 
   SDummyInputInfo *pInfo = (SDummyInputInfo*) calloc(1, sizeof(SDummyInputInfo));
   pInfo->max = numOfBlocks;
-  pInfo->startVal = 5000000;
+  pInfo->startVal = 1500000;
 
   pOperator->info = pInfo;
   return pOperator;
@@ -298,7 +298,7 @@ TEST(testCase, external_sort_Test) {
   exp1->base.resSchema = createSchema(TSDB_DATA_TYPE_BINARY, 40, 2, "res1");
 //  taosArrayPush(pExprInfo, &exp1);
 
-  SOperatorInfo* pOperator = createOrderOperatorInfo(createDummyOperator(50000), pExprInfo, pOrderVal);
+  SOperatorInfo* pOperator = createOrderOperatorInfo(createDummyOperator(1500), pExprInfo, pOrderVal);
 
   bool newgroup = false;
   SSDataBlock* pRes = NULL;
@@ -321,12 +321,13 @@ TEST(testCase, external_sort_Test) {
       break;
     }
 
-//    SColumnInfoData* pCol1 = static_cast<SColumnInfoData*>(taosArrayGet(pRes->pDataBlock, 0));
+    SColumnInfoData* pCol1 = static_cast<SColumnInfoData*>(taosArrayGet(pRes->pDataBlock, 0));
 //    SColumnInfoData* pCol2 = static_cast<SColumnInfoData*>(taosArrayGet(pRes->pDataBlock, 1));
-//    for (int32_t i = 0; i < pRes->info.rows; ++i) {
+    for (int32_t i = 0; i < pRes->info.rows; ++i) {
 //      char* p = colDataGet(pCol2, i);
+      printf("%d: %d\n", total++, ((int32_t*)pCol1->pData)[i]);
 //      printf("%d: %d, %s\n", total++, ((int32_t*)pCol1->pData)[i], (char*)varDataVal(p));
-//    }
+    }
   }
 
   printStatisBeforeClose(((SOrderOperatorInfo*) pOperator->info)->pSortInternalBuf);

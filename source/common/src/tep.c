@@ -512,6 +512,35 @@ size_t blockDataGetRowSize(const SSDataBlock* pBlock) {
   return rowSize;
 }
 
+/**
+ * @refitem blockDataToBuf for the meta size
+ *
+ * @param pBlock
+ * @return
+ */
+size_t blockDataGetSerialMetaSize(const SSDataBlock* pBlock) {
+  return sizeof(int32_t) + pBlock->info.numOfCols * sizeof(int32_t);
+}
+
+double blockDataGetSerialRowSize(const SSDataBlock* pBlock) {
+  ASSERT(pBlock != NULL);
+  double rowSize = 0;
+
+  size_t numOfCols = pBlock->info.numOfCols;
+  for(int32_t i = 0; i < numOfCols; ++i) {
+    SColumnInfoData* pColInfo = taosArrayGet(pBlock->pDataBlock, i);
+    rowSize += pColInfo->info.bytes;
+
+    if (IS_VAR_DATA_TYPE(pColInfo->info.type)) {
+      rowSize += sizeof(int32_t);
+    } else {
+      rowSize += 1/8.0;
+    }
+  }
+
+  return rowSize;
+}
+
 typedef struct SSDataBlockSortHelper {
   SArray      *orderInfo;   // SArray<SBlockOrderInfo>
   SSDataBlock *pDataBlock;

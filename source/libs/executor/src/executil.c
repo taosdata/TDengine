@@ -358,7 +358,6 @@ void initGroupResInfo(SGroupResInfo* pGroupResInfo, SResultRowInfo* pResultInfo)
 
   pGroupResInfo->pRows = taosArrayFromList(pResultInfo->pResult, pResultInfo->size, POINTER_BYTES);
   pGroupResInfo->index = 0;
-
   assert(pGroupResInfo->index <= getNumOfTotalRes(pGroupResInfo));
 }
 

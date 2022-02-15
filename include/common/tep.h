@@ -90,6 +90,10 @@ int32_t blockDataFromBuf(SSDataBlock* pBlock, const char* buf);
 
 size_t blockDataGetSize(const SSDataBlock* pBlock);
 size_t blockDataGetRowSize(const SSDataBlock* pBlock);
+double blockDataGetSerialRowSize(const SSDataBlock* pBlock);
+size_t blockDataGetSerialMetaSize(const SSDataBlock* pBlock);
+
+size_t blockDataNumOfRowsForSerialize(const SSDataBlock* pBlock, int32_t blockSize);
 
 int32_t blockDataSort(SSDataBlock* pDataBlock, SArray* pOrderInfo, bool nullFirst);
 int32_t blockDataSort_rv(SSDataBlock* pDataBlock, SArray* pOrderInfo, bool nullFirst);
