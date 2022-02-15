@@ -1440,7 +1440,7 @@ int32_t ctgRefreshTblMeta(SCatalog* pCtg, void *pTransporter, const SEpSet* pMgm
 
   SCtgUpdateTblMsg *msg = NULL;
   STableMetaOutput  moutput = {0};
-  STableMetaOutput *output = malloc(sizeof(STableMetaOutput));
+  STableMetaOutput *output = calloc(1, sizeof(STableMetaOutput));
   if (NULL == output) {
     ctgError("malloc %d failed", (int32_t)sizeof(STableMetaOutput));
     CTG_ERR_RET(TSDB_CODE_CTG_MEM_ERROR);
