@@ -52,12 +52,15 @@ bool tqNextDataBlock(STqReadHandle* pHandle) {
     ASSERT(pHandle->tbIdHash);
     void* ret = taosHashGet(pHandle->tbIdHash, &pHandle->pBlock->uid, sizeof(int64_t));
     if (ret != NULL) {
+      /*printf("retrieve one tb %ld\n", pHandle->pBlock->uid);*/
       pHandle->pBlock->tid = htonl(pHandle->pBlock->tid);
       pHandle->pBlock->sversion = htonl(pHandle->pBlock->sversion);
       pHandle->pBlock->dataLen = htonl(pHandle->pBlock->dataLen);
       pHandle->pBlock->schemaLen = htonl(pHandle->pBlock->schemaLen);
       pHandle->pBlock->numOfRows = htons(pHandle->pBlock->numOfRows);
       return true;
+    } else {
+      /*printf("skip one tb %ld\n", pHandle->pBlock->uid);*/
     }
   }
   return false;
