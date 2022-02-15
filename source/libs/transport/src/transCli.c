@@ -140,7 +140,7 @@ static void clientHandleResp(SCliConn* conn) {
     conn->push = NULL;
   } else {
     if (pCtx->pSem == NULL) {
-      tTrace("client conn%p handle resp", conn);
+      tTrace("client conn %p handle resp", conn);
       (pRpc->cfp)(pRpc->parent, &rpcMsg, NULL);
     } else {
       tTrace("client conn(sync) %p handle resp", conn);
@@ -178,11 +178,16 @@ static void clientHandleExcept(SCliConn* pConn) {
   tTrace("client conn %p start to destroy", pConn);
   SCliMsg* pMsg = pConn->data;
 
+  tmsg_t msgType = TDMT_MND_CONNECT;
+  if (pMsg != NULL) {
+    msgType = pMsg->msg.msgType;
+  }
   STransConnCtx* pCtx = pMsg->ctx;
 
   SRpcMsg rpcMsg = {0};
   rpcMsg.ahandle = pCtx->ahandle;
   rpcMsg.code = TSDB_CODE_RPC_NETWORK_UNAVAIL;
+  rpcMsg.msgType = msgType + 1;
 
   if (pConn->push != NULL && pConn->notifyCount != 0) {
     (*pConn->push->callback)(pConn->push->arg, &rpcMsg);
