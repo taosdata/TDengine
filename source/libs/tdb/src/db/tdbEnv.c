@@ -16,8 +16,9 @@
 #include "tdbInt.h"
 
 struct STDbEnv {
-  pgsz_t      pgSize;     // Page size
-  cachesz_t   cacheSize;  // Total cache size
+  char *      rootDir;    // root directory of the environment
+  pgsz_t      pgSize;     // page size
+  cachesz_t   cacheSize;  // total cache size
   STDbList    dbList;     // TDB List
   SPgFileList pgfList;    // SPgFile List
   SPgCache *  pPgCache;   // page cache
@@ -28,34 +29,39 @@ struct STDbEnv {
 
 static int tdbEnvDestroy(TENV *pEnv);
 
-int tdbEnvCreate(TENV **ppEnv) {
-  TENV *pEnv;
+int tdbEnvCreate(TENV **ppEnv, const char *rootDir) {
+  TENV * pEnv;
+  size_t slen;
 
-  pEnv = (TENV *)calloc(1, sizeof(*pEnv));
+  ASSERT(rootDir != NULL);
+
+  *ppEnv = NULL;
+  slen = strlen(rootDir);
+  pEnv = (TENV *)calloc(1, sizeof(*pEnv) + slen + 1);
   if (pEnv == NULL) {
     return -1;
   }
 
+  pEnv->rootDir = (char *)(&pEnv[1]);
   pEnv->pgSize = TDB_DEFAULT_PGSIZE;
   pEnv->cacheSize = TDB_DEFAULT_CACHE_SIZE;
 
+  memcpy(pEnv->rootDir, rootDir, slen);
+
   TD_DLIST_INIT(&(pEnv->dbList));
   TD_DLIST_INIT(&(pEnv->pgfList));
-  // TODO
+
+  /* TODO */
+
+  *ppEnv = pEnv;
   return 0;
 }
 
-int tdbEnvOpen(TENV **ppEnv) {
-  TENV *    pEnv;
+int tdbEnvOpen(TENV *pEnv) {
   SPgCache *pPgCache;
   int       ret;
 
-  // Create the ENV with default setting
-  if (ppEnv == NULL) {
-    TERR_A(ret, tdbEnvCreate(&pEnv), _err);
-  }
-
-  pEnv = *ppEnv;
+  ASSERT(pEnv != NULL);
 
   TERR_A(ret, pgCacheCreate(&pPgCache, pEnv->pgSize, pEnv->cacheSize / pEnv->pgSize), _err);
   TERR_A(ret, pgCacheOpen(&pPgCache), _err);
@@ -75,15 +81,16 @@ int tdbEnvClose(TENV *pEnv) {
   return 0;
 }
 
-int tdbEnvSetPageSize(TENV *pEnv, pgsz_t szPage) {
-  /* TODO */
-  pEnv->pgSize = szPage;
-  return 0;
-}
+int tdbEnvSetCache(TENV *pEnv, pgsz_t pgSize, cachesz_t cacheSize) {
+  if (!TDB_IS_PGSIZE_VLD(pgSize) || cacheSize / pgSize < 10) {
+    return -1;
+  }
 
-int tdbEnvSetCacheSize(TENV *pEnv, cachesz_t szCache) {
   /* TODO */
-  pEnv->cacheSize = szCache;
+
+  pEnv->pgSize = pgSize;
+  pEnv->cacheSize = cacheSize;
+
   return 0;
 }
 

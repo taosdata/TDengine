@@ -74,7 +74,7 @@ typedef int32_t frame_id_t;
 typedef pgsz_t pgoff_t;
 
 // cache
-#define TDB_DEFAULT_CACHE_SIZE (256 * 1024)  // 256K
+#define TDB_DEFAULT_CACHE_SIZE (256 * 4096)  // 1M
 
 // tdb_log
 #define tdbError(var)

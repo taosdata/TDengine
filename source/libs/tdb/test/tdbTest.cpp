@@ -2,21 +2,28 @@
 
 #include "tdb.h"
 
-#define A_ASSERT(op) GTEST_ASSERT_EQ(op, 0)
-
 TEST(tdb_test, simple_test) {
-  TENV *pEnv;
-  TDB * pDb1, *pDb2;
+  TENV*     pEnv;
+  TDB *     pDb1, *pDb2, *pDb3;
+  pgsz_t    pgSize = 1024;
+  cachesz_t cacheSize = 10240;
 
   // ENV
-  tdbEnvCreate(&pEnv);
-  tdbEnvSetPageSize(pEnv, 1024);
-  tdbEnvSetCacheSize(pEnv, 10240);
-  tdbEnvOpen(&pEnv);
+  GTEST_ASSERT_EQ(tdbEnvCreate(&pEnv, "./tdbtest"), 0);
 
+  GTEST_ASSERT_EQ(tdbEnvSetCache(pEnv, pgSize, cacheSize), 0);
+
+  GTEST_ASSERT_EQ(tdbEnvGetCacheSize(pEnv), cacheSize);
+
+  GTEST_ASSERT_EQ(tdbEnvGetPageSize(pEnv), pgSize);
+
+  GTEST_ASSERT_EQ(tdbEnvOpen(pEnv), 0);
+
+#if 0
   // DB
   tdbOpen(&pDb1, "db.db", "db1", pEnv);
   tdbOpen(&pDb2, "db.db", "db2", pEnv);
+  tdbOpen(&pDb3, "index.db", NULL, pEnv);
 
   // Insert
 
@@ -29,5 +36,6 @@ TEST(tdb_test, simple_test) {
   // Close
   tdbClose(pDb1);
   tdbClose(pDb2);
+#endif
   tdbEnvClose(pEnv);
 }

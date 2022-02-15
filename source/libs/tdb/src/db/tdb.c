@@ -64,9 +64,9 @@ int tdbOpen(TDB **ppDb, const char *fname, const char *dbname, TENV *pEnv) {
 
   // Create a default ENV if pEnv is not set
   if (pEnv == NULL) {
-    if ((ret = tdbEnvOpen(&pEnv)) != 0) {
-      return -1;
-    }
+    // if ((ret = tdbEnvOpen(&pEnv)) != 0) {
+    //   return -1;
+    // }
   }
 
   pDb->pEnv = pEnv;

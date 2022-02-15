@@ -30,15 +30,14 @@ typedef int32_t pgsz_t;
 typedef int32_t cachesz_t;
 
 // TEVN
-int tdbEnvCreate(TENV **ppEnv);
-int tdbEnvOpen(TENV **ppEnv);
+int tdbEnvCreate(TENV **ppEnv, const char *rootDir);
+int tdbEnvOpen(TENV *ppEnv);
 int tdbEnvClose(TENV *pEnv);
 
 int tdbEnvBeginTxn(TENV *pEnv);
 int tdbEnvCommit(TENV *pEnv);
 
-int       tdbEnvSetPageSize(TENV *pEnv, pgsz_t szPage);
-int       tdbEnvSetCacheSize(TENV *pEnv, cachesz_t szCache);
+int       tdbEnvSetCache(TENV *pEnv, pgsz_t pgSize, cachesz_t cacheSize);
 pgsz_t    tdbEnvGetPageSize(TENV *pEnv);
 cachesz_t tdbEnvGetCacheSize(TENV *pEnv);
 
