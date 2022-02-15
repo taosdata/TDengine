@@ -82,7 +82,6 @@ enum {
   HEARTBEAT_KEY_MQ_TMP,
 };
 
-
 typedef enum _mgmt_table {
   TSDB_MGMT_TABLE_START,
   TSDB_MGMT_TABLE_ACCT,
@@ -327,6 +326,25 @@ static FORCE_INLINE void* taosDecodeSEpSet(void* buf, SEpSet* pEp) {
     buf = taosDecodeStringTo(buf, pEp->eps[i].fqdn);
   }
   return buf;
+}
+static FORCE_INLINE int32_t tEncodeSEpSet(SCoder* pEncoder, const SEpSet* pEp) {
+  if (tEncodeI8(pEncoder, pEp->inUse) < 0) return -1;
+  if (tEncodeI8(pEncoder, pEp->numOfEps) < 0) return -1;
+  for (int i = 0; i < TSDB_MAX_REPLICA; i++) {
+    if (tEncodeU16(pEncoder, pEp->eps[i].port) < 0) return -1;
+    if (tEncodeCStr(pEncoder, pEp->eps[i].fqdn) < 0) return -1;
+  }
+  return 0;
+}
+
+static FORCE_INLINE int32_t tDecodeSEpSet(SCoder* pDecoder, SEpSet* pEp) {
+  if (tDecodeI8(pDecoder, &pEp->inUse) < 0) return -1;
+  if (tDecodeI8(pDecoder, &pEp->numOfEps) < 0) return -1;
+  for (int i = 0; i < TSDB_MAX_REPLICA; i++) {
+    if (tDecodeU16(pDecoder, &pEp->eps[i].port) < 0) return -1;
+    if (tDecodeCStrTo(pDecoder, pEp->eps[i].fqdn) < 0) return -1;
+  }
+  return 0;
 }
 
 typedef struct {
@@ -847,7 +865,7 @@ typedef struct {
  * payloadLen is the length of payload
  */
 typedef struct {
-  int32_t  type;
+  int32_t type;
   char    db[TSDB_DB_FNAME_LEN];
   int32_t payloadLen;
   char*   payload;
@@ -1593,7 +1611,6 @@ static FORCE_INLINE void tFreeClientHbRsp(void* pRsp) {
   SClientHbRsp* rsp = (SClientHbRsp*)pRsp;
   if (rsp->info) taosArrayDestroyEx(rsp->info, tFreeClientKv);
 }
-
 
 static FORCE_INLINE void tFreeClientHbBatchRsp(void* pRsp) {
   SClientHbBatchRsp* rsp = (SClientHbBatchRsp*)pRsp;
