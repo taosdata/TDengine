@@ -26,11 +26,13 @@ class MndTestShow : public ::testing::Test {
 Testbase MndTestShow::test;
 
 TEST_F(MndTestShow, 01_ShowMsg_InvalidMsgMax) {
-  int32_t contLen = sizeof(SShowReq);
+  SShowReq showReq = {0};
+  showReq.type = TSDB_MGMT_TABLE_MAX;
 
-  SShowReq* pReq = (SShowReq*)rpcMallocCont(contLen);
-  pReq->type = TSDB_MGMT_TABLE_MAX;
-  strcpy(pReq->db, "");
+  int32_t contLen = tSerializeSShowReq(NULL, 0, &showReq);
+  void*   pReq = rpcMallocCont(contLen);
+  tSerializeSShowReq(pReq, contLen, &showReq);
+  tFreeSShowReq(&showReq);
 
   SRpcMsg* pRsp = test.SendReq(TDMT_MND_SHOW, pReq, contLen);
   ASSERT_NE(pRsp, nullptr);
@@ -38,11 +40,13 @@ TEST_F(MndTestShow, 01_ShowMsg_InvalidMsgMax) {
 }
 
 TEST_F(MndTestShow, 02_ShowMsg_InvalidMsgStart) {
-  int32_t contLen = sizeof(SShowReq);
+  SShowReq showReq = {0};
+  showReq.type = TSDB_MGMT_TABLE_START;
 
-  SShowReq* pReq = (SShowReq*)rpcMallocCont(sizeof(SShowReq));
-  pReq->type = TSDB_MGMT_TABLE_START;
-  strcpy(pReq->db, "");
+  int32_t contLen = tSerializeSShowReq(NULL, 0, &showReq);
+  void*   pReq = rpcMallocCont(contLen);
+  tSerializeSShowReq(pReq, contLen, &showReq);
+  tFreeSShowReq(&showReq);
 
   SRpcMsg* pRsp = test.SendReq(TDMT_MND_SHOW, pReq, contLen);
   ASSERT_NE(pRsp, nullptr);

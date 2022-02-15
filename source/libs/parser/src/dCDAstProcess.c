@@ -50,7 +50,7 @@ static int32_t setShowInfo(SShowInfo* pShowInfo, SParseContext* pCtx, void** out
     char dbFname[TSDB_DB_FNAME_LEN] = {0};
     tNameGetFullDbName(&name, dbFname);
 
-    int32_t code = catalogGetDBVgroup(pCtx->pCatalog, pCtx->pTransporter, &pCtx->mgmtEpSet, dbFname, false, &array);
+    int32_t code = catalogGetDBVgInfo(pCtx->pCatalog, pCtx->pTransporter, &pCtx->mgmtEpSet, dbFname, false, &array);
     if (code != TSDB_CODE_SUCCESS) {
       terrno = code;
       return code;
@@ -114,105 +114,10 @@ static int32_t setShowInfo(SShowInfo* pShowInfo, SParseContext* pCtx, void** out
     }
 
     *pEpSet = pCtx->mgmtEpSet;
-    *output = buildShowMsg(pShowInfo, pCtx, pMsgBuf);
+    *output = buildShowMsg(pShowInfo, outputLen, pCtx, pMsgBuf);
     if (*output == NULL) {
       return terrno;
     }
-
-    *outputLen = sizeof(SShowReq) /* + htons(pShowMsg->payloadLen)*/;
-  }
-
-  return TSDB_CODE_SUCCESS;
-}
-
-// can only perform the parameters based on the macro definitation
-static int32_t doCheckDbOptions(SCreateDbReq* pCreate, SMsgBuf* pMsgBuf) {
-  char msg[512] = {0};
-
-  if (pCreate->walLevel != -1 && (pCreate->walLevel < TSDB_MIN_WAL_LEVEL || pCreate->walLevel > TSDB_MAX_WAL_LEVEL)) {
-    snprintf(msg, tListLen(msg), "invalid db option walLevel: %d, only 1-2 allowed", pCreate->walLevel);
-    return buildInvalidOperationMsg(pMsgBuf, msg);
-  }
-
-  if (pCreate->replications != -1 &&
-      (pCreate->replications < TSDB_MIN_DB_REPLICA_OPTION || pCreate->replications > TSDB_MAX_DB_REPLICA_OPTION)) {
-    snprintf(msg, tListLen(msg), "invalid db option replications: %d valid range: [%d, %d]", pCreate->replications,
-             TSDB_MIN_DB_REPLICA_OPTION, TSDB_MAX_DB_REPLICA_OPTION);
-    return buildInvalidOperationMsg(pMsgBuf, msg);
-  }
-
-  int32_t blocks = ntohl(pCreate->totalBlocks);
-  if (blocks != -1 && (blocks < TSDB_MIN_TOTAL_BLOCKS || blocks > TSDB_MAX_TOTAL_BLOCKS)) {
-    snprintf(msg, tListLen(msg), "invalid db option totalBlocks: %d valid range: [%d, %d]", blocks,
-             TSDB_MIN_TOTAL_BLOCKS, TSDB_MAX_TOTAL_BLOCKS);
-    return buildInvalidOperationMsg(pMsgBuf, msg);
-  }
-
-  if (pCreate->quorum != -1 &&
-      (pCreate->quorum < TSDB_MIN_DB_QUORUM_OPTION || pCreate->quorum > TSDB_MAX_DB_QUORUM_OPTION)) {
-    snprintf(msg, tListLen(msg), "invalid db option quorum: %d valid range: [%d, %d]", pCreate->quorum,
-             TSDB_MIN_DB_QUORUM_OPTION, TSDB_MAX_DB_QUORUM_OPTION);
-    return buildInvalidOperationMsg(pMsgBuf, msg);
-  }
-
-  int32_t val = htonl(pCreate->daysPerFile);
-  if (val != -1 && (val < TSDB_MIN_DAYS_PER_FILE || val > TSDB_MAX_DAYS_PER_FILE)) {
-    snprintf(msg, tListLen(msg), "invalid db option daysPerFile: %d valid range: [%d, %d]", val, TSDB_MIN_DAYS_PER_FILE,
-             TSDB_MAX_DAYS_PER_FILE);
-    return buildInvalidOperationMsg(pMsgBuf, msg);
-  }
-
-  val = htonl(pCreate->cacheBlockSize);
-  if (val != -1 && (val < TSDB_MIN_CACHE_BLOCK_SIZE || val > TSDB_MAX_CACHE_BLOCK_SIZE)) {
-    snprintf(msg, tListLen(msg), "invalid db option cacheBlockSize: %d valid range: [%d, %d]", val,
-             TSDB_MIN_CACHE_BLOCK_SIZE, TSDB_MAX_CACHE_BLOCK_SIZE);
-    return buildInvalidOperationMsg(pMsgBuf, msg);
-  }
-
-  if (pCreate->precision != TSDB_TIME_PRECISION_MILLI && pCreate->precision != TSDB_TIME_PRECISION_MICRO &&
-      pCreate->precision != TSDB_TIME_PRECISION_NANO) {
-    snprintf(msg, tListLen(msg), "invalid db option timePrecision: %d valid value: [%d, %d, %d]", pCreate->precision,
-             TSDB_TIME_PRECISION_MILLI, TSDB_TIME_PRECISION_MICRO, TSDB_TIME_PRECISION_NANO);
-    return buildInvalidOperationMsg(pMsgBuf, msg);
-  }
-
-  val = htonl(pCreate->commitTime);
-  if (val != -1 && (val < TSDB_MIN_COMMIT_TIME || val > TSDB_MAX_COMMIT_TIME)) {
-    snprintf(msg, tListLen(msg), "invalid db option commitTime: %d valid range: [%d, %d]", val, TSDB_MIN_COMMIT_TIME,
-             TSDB_MAX_COMMIT_TIME);
-    return buildInvalidOperationMsg(pMsgBuf, msg);
-  }
-
-  val = htonl(pCreate->fsyncPeriod);
-  if (val != -1 && (val < TSDB_MIN_FSYNC_PERIOD || val > TSDB_MAX_FSYNC_PERIOD)) {
-    snprintf(msg, tListLen(msg), "invalid db option fsyncPeriod: %d valid range: [%d, %d]", val, TSDB_MIN_FSYNC_PERIOD,
-             TSDB_MAX_FSYNC_PERIOD);
-    return buildInvalidOperationMsg(pMsgBuf, msg);
-  }
-
-  if (pCreate->compression != -1 &&
-      (pCreate->compression < TSDB_MIN_COMP_LEVEL || pCreate->compression > TSDB_MAX_COMP_LEVEL)) {
-    snprintf(msg, tListLen(msg), "invalid db option compression: %d valid range: [%d, %d]", pCreate->compression,
-             TSDB_MIN_COMP_LEVEL, TSDB_MAX_COMP_LEVEL);
-    return buildInvalidOperationMsg(pMsgBuf, msg);
-  }
-
-  val = htonl(pCreate->numOfVgroups);
-  if (val < TSDB_MIN_VNODES_PER_DB || val > TSDB_MAX_VNODES_PER_DB) {
-    snprintf(msg, tListLen(msg), "invalid number of vgroups for DB:%d valid range: [%d, %d]", val,
-             TSDB_MIN_VNODES_PER_DB, TSDB_MAX_VNODES_PER_DB);
-  }
-
-  val = htonl(pCreate->maxRows);
-  if (val < TSDB_MIN_MAX_ROW_FBLOCK || val > TSDB_MAX_MAX_ROW_FBLOCK) {
-    snprintf(msg, tListLen(msg), "invalid number of max rows in file block for DB:%d valid range: [%d, %d]", val,
-             TSDB_MIN_MAX_ROW_FBLOCK, TSDB_MAX_MAX_ROW_FBLOCK);
-  }
-
-  val = htonl(pCreate->minRows);
-  if (val < TSDB_MIN_MIN_ROW_FBLOCK || val > TSDB_MAX_MIN_ROW_FBLOCK) {
-    snprintf(msg, tListLen(msg), "invalid number of min rows in file block for DB:%d valid range: [%d, %d]", val,
-             TSDB_MIN_MIN_ROW_FBLOCK, TSDB_MAX_MIN_ROW_FBLOCK);
   }
 
   return TSDB_CODE_SUCCESS;
@@ -852,11 +757,15 @@ SDclStmtInfo* qParserValidateDclSqlNode(SSqlInfo* pInfo, SParseContext* pCtx, ch
         goto _error;
       }
 
-      SUseDbReq* pUseDbMsg = (SUseDbReq*)calloc(1, sizeof(SUseDbReq));
-      tNameExtractFullName(&n, pUseDbMsg->db);
+      SUseDbReq usedbReq = {0};
+      tNameExtractFullName(&n, usedbReq.db);
 
-      pDcl->pMsg = (char*)pUseDbMsg;
-      pDcl->msgLen = sizeof(SUseDbReq);
+      int32_t bufLen = tSerializeSUseDbReq(NULL, 0, &usedbReq);
+      void*   pBuf = malloc(bufLen);
+      tSerializeSUseDbReq(pBuf, bufLen, &usedbReq);
+
+      pDcl->pMsg = pBuf;
+      pDcl->msgLen = bufLen;
       pDcl->msgType = TDMT_MND_USE_DB;
       break;
     }
@@ -880,14 +789,11 @@ SDclStmtInfo* qParserValidateDclSqlNode(SSqlInfo* pInfo, SParseContext* pCtx, ch
         goto _error;
       }
 
-      SCreateDbReq* pCreateMsg = buildCreateDbMsg(pCreateDB, pCtx, pMsgBuf);
-      if (doCheckDbOptions(pCreateMsg, pMsgBuf) != TSDB_CODE_SUCCESS) {
-        code = TSDB_CODE_TSC_INVALID_OPERATION;
-        goto _error;
-      }
+      int32_t bufLen = 0;
+      char*   pBuf = buildCreateDbMsg(pCreateDB, &bufLen, pCtx, pMsgBuf);
 
-      pDcl->pMsg = (char*)pCreateMsg;
-      pDcl->msgLen = sizeof(SCreateDbReq);
+      pDcl->pMsg = pBuf;
+      pDcl->msgLen = bufLen;
       pDcl->msgType = (pInfo->type == TSDB_SQL_CREATE_DB) ? TDMT_MND_CREATE_DB : TDMT_MND_ALTER_DB;
       break;
     }
@@ -905,15 +811,18 @@ SDclStmtInfo* qParserValidateDclSqlNode(SSqlInfo* pInfo, SParseContext* pCtx, ch
         goto _error;
       }
 
-      SDropDbReq* pDropDbMsg = (SDropDbReq*)calloc(1, sizeof(SDropDbReq));
-
-      code = tNameExtractFullName(&name, pDropDbMsg->db);
-      pDropDbMsg->ignoreNotExists = pInfo->pMiscInfo->existsCheck ? 1 : 0;
+      SDropDbReq dropdbReq = {0};
+      code = tNameExtractFullName(&name, dropdbReq.db);
+      dropdbReq.ignoreNotExists = pInfo->pMiscInfo->existsCheck ? 1 : 0;
       assert(code == TSDB_CODE_SUCCESS && name.type == TSDB_DB_NAME_T);
 
+      int32_t bufLen = tSerializeSDropDbReq(NULL, 0, &dropdbReq);
+      void*   pBuf = malloc(bufLen);
+      tSerializeSDropDbReq(pBuf, bufLen, &dropdbReq);
+
       pDcl->msgType = TDMT_MND_DROP_DB;
-      pDcl->msgLen = sizeof(SDropDbReq);
-      pDcl->pMsg = (char*)pDropDbMsg;
+      pDcl->msgLen = bufLen;
+      pDcl->pMsg = pBuf;
       break;
     }
 

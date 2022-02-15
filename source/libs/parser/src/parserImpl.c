@@ -288,6 +288,10 @@ static char* getSyntaxErrFormat(int32_t errCode) {
       return "ORDER BY item must be the number of a SELECT-list expression";
     case TSDB_CODE_PAR_GROUPBY_LACK_EXPRESSION:
       return "Not a GROUP BY expression";
+    case TSDB_CODE_PAR_NOT_SELECTED_EXPRESSION:
+      return "Not SELECTed expression";
+    case TSDB_CODE_PAR_NOT_SINGLE_GROUP:
+      return "Not a single-group group function";
     default:
       return "Unknown error";
   }
@@ -333,7 +337,7 @@ static bool belongTable(const char* currentDb, const SColumnNode* pCol, const ST
   if ('\0' != pCol->dbName[0]) {
     cmp = strcmp(pCol->dbName, pTable->dbName);
   } else {
-    cmp = strcmp(currentDb, pTable->dbName);
+    cmp = (QUERY_NODE_REAL_TABLE == nodeType(pTable) ? strcmp(currentDb, pTable->dbName) : 0);
   }
   if (0 == cmp) {
     cmp = strcmp(pCol->tableAlias, pTable->tableAlias);
@@ -422,15 +426,21 @@ static bool findAndSetColumn(SColumnNode* pCol, const STableNode* pTable) {
 static EDealRes translateColumnWithPrefix(STranslateContext* pCxt, SColumnNode* pCol) {
   SArray* pTables = taosArrayGetP(pCxt->pNsLevel, pCxt->currLevel);
   size_t nums = taosArrayGetSize(pTables);
+  bool foundTable = false;
   for (size_t i = 0; i < nums; ++i) {
     STableNode* pTable = taosArrayGetP(pTables, i);
     if (belongTable(pCxt->pParseCxt->db, pCol, pTable)) {
+      foundTable = true;
       if (findAndSetColumn(pCol, pTable)) {
         break;
       }
       generateSyntaxErrMsg(pCxt, TSDB_CODE_PAR_INVALID_COLUMN, pCol->colName);
       return DEAL_RES_ERROR;
     }
+  }
+  if (!foundTable) {
+    generateSyntaxErrMsg(pCxt, TSDB_CODE_PAR_TABLE_NOT_EXIST, pCol->tableAlias);
+    return DEAL_RES_ERROR;
   }
   return DEAL_RES_CONTINUE;
 }
@@ -523,7 +533,7 @@ static EDealRes translateValue(STranslateContext* pCxt, SValueNode* pVal) {
       case TSDB_DATA_TYPE_INT:
       case TSDB_DATA_TYPE_BIGINT: {
         char* endPtr = NULL;
-        pVal->datum.i = strtoull(pVal->literal, &endPtr, 10);
+        pVal->datum.i = strtoll(pVal->literal, &endPtr, 10);
         break;
       }
       case TSDB_DATA_TYPE_UTINYINT:
@@ -553,7 +563,7 @@ static EDealRes translateValue(STranslateContext* pCxt, SValueNode* pVal) {
         int32_t n = strlen(pVal->literal);
         char* tmp = calloc(1, n);
         int32_t len = trimStringCopy(pVal->literal, n, tmp);
-        if (taosParseTime(tmp, &pVal->datum.u, len, pVal->node.resType.precision, tsDaylight) != TSDB_CODE_SUCCESS) {
+        if (taosParseTime(tmp, &pVal->datum.i, len, pVal->node.resType.precision, tsDaylight) != TSDB_CODE_SUCCESS) {
           tfree(tmp);
           generateSyntaxErrMsg(pCxt, TSDB_CODE_PAR_WRONG_VALUE_TYPE, pVal->literal);
           return DEAL_RES_ERROR;
@@ -651,35 +661,97 @@ static bool isAliasColumn(SColumnNode* pCol) {
   return ('\0' == pCol->tableAlias[0]);
 }
 
-static EDealRes doCheckkExprForGroupBy(SNode* pNode, void* pContext) {
+static bool isDistinctOrderBy(STranslateContext* pCxt) {
+  return (SQL_CLAUSE_ORDER_BY == pCxt->currClause && pCxt->pCurrStmt->isDistinct);
+}
+
+static SNodeList* getGroupByList(STranslateContext* pCxt) {
+  if (isDistinctOrderBy(pCxt)) {
+    return pCxt->pCurrStmt->pProjectionList;
+  }
+  return pCxt->pCurrStmt->pGroupByList;
+}
+
+static SNode* getGroupByNode(SNode* pNode) {
+  if (QUERY_NODE_GROUPING_SET == nodeType(pNode)) {
+    return nodesListGetNode(((SGroupingSetNode*)pNode)->pParameterList, 0);
+  }
+  return pNode;
+}
+
+static int32_t getGroupByErrorCode(STranslateContext* pCxt) {
+  if (isDistinctOrderBy(pCxt)) {
+    return TSDB_CODE_PAR_NOT_SELECTED_EXPRESSION;
+  }
+  return TSDB_CODE_PAR_GROUPBY_LACK_EXPRESSION;
+}
+
+static EDealRes doCheckExprForGroupBy(SNode* pNode, void* pContext) {
   STranslateContext* pCxt = (STranslateContext*)pContext;
   if (!nodesIsExprNode(pNode) || (QUERY_NODE_COLUMN == nodeType(pNode) && isAliasColumn((SColumnNode*)pNode))) {
     return DEAL_RES_CONTINUE;
   }
-  if (QUERY_NODE_FUNCTION == nodeType(pNode) && fmIsAggFunc(((SFunctionNode*)pNode)->funcId)) {
+  if (QUERY_NODE_FUNCTION == nodeType(pNode) && fmIsAggFunc(((SFunctionNode*)pNode)->funcId) && !isDistinctOrderBy(pCxt)) {
     return DEAL_RES_IGNORE_CHILD;
   }
   SNode* pGroupNode;
-  FOREACH(pGroupNode, pCxt->pCurrStmt->pGroupByList) {
-    if (nodesEqualNode(nodesListGetNode(((SGroupingSetNode*)pGroupNode)->pParameterList, 0), pNode)) {
+  FOREACH(pGroupNode, getGroupByList(pCxt)) {
+    if (nodesEqualNode(getGroupByNode(pGroupNode), pNode)) {
       return DEAL_RES_IGNORE_CHILD;
     }
   }
-  if (QUERY_NODE_COLUMN == nodeType(pNode)) {
-    generateSyntaxErrMsg(pCxt, TSDB_CODE_PAR_GROUPBY_LACK_EXPRESSION);
+  if (QUERY_NODE_COLUMN == nodeType(pNode) ||
+      (QUERY_NODE_FUNCTION == nodeType(pNode) && fmIsAggFunc(((SFunctionNode*)pNode)->funcId) && isDistinctOrderBy(pCxt))) {
+    generateSyntaxErrMsg(pCxt, getGroupByErrorCode(pCxt));
     return DEAL_RES_ERROR;
   }
   return DEAL_RES_CONTINUE;
 }
 
 static int32_t checkExprForGroupBy(STranslateContext* pCxt, SNode* pNode) {
-  nodesWalkNode(pNode, doCheckkExprForGroupBy, pCxt);
+  nodesWalkNode(pNode, doCheckExprForGroupBy, pCxt);
   return pCxt->errCode;
 }
 
 static int32_t checkExprListForGroupBy(STranslateContext* pCxt, SNodeList* pList) {
-  nodesWalkList(pList, doCheckkExprForGroupBy, pCxt);
+  if (NULL == getGroupByList(pCxt)) {
+    return TSDB_CODE_SUCCESS;
+  }
+  nodesWalkList(pList, doCheckExprForGroupBy, pCxt);
   return pCxt->errCode;
+}
+
+typedef struct CheckAggColCoexistCxt {
+  STranslateContext* pTranslateCxt;
+  bool existAggFunc;
+  bool existCol;
+} CheckAggColCoexistCxt;
+
+static EDealRes doCheckAggColCoexist(SNode* pNode, void* pContext) {
+  CheckAggColCoexistCxt* pCxt = (CheckAggColCoexistCxt*)pContext;
+  if (QUERY_NODE_FUNCTION == nodeType(pNode) && fmIsAggFunc(((SFunctionNode*)pNode)->funcId)) {
+    pCxt->existAggFunc = true;
+    return DEAL_RES_IGNORE_CHILD;
+  }
+  if (QUERY_NODE_COLUMN == nodeType(pNode)) {
+    pCxt->existCol = true;
+  }
+  return DEAL_RES_CONTINUE;
+}
+
+static int32_t checkAggColCoexist(STranslateContext* pCxt, SSelectStmt* pSelect) {
+  if (NULL != pSelect->pGroupByList) {
+    return TSDB_CODE_SUCCESS;
+  }
+  CheckAggColCoexistCxt cxt = { .pTranslateCxt = pCxt, .existAggFunc = false, .existCol = false };
+  nodesWalkList(pSelect->pProjectionList, doCheckAggColCoexist, &cxt);
+  if (!pSelect->isDistinct) {
+    nodesWalkList(pSelect->pOrderByList, doCheckAggColCoexist, &cxt);
+  }
+  if (cxt.existAggFunc && cxt.existCol) {
+    return generateSyntaxErrMsg(pCxt, TSDB_CODE_PAR_NOT_SINGLE_GROUP);
+  }
+  return TSDB_CODE_SUCCESS;
 }
 
 static int32_t translateTable(STranslateContext* pCxt, SNode* pTable) {
@@ -809,7 +881,7 @@ static int32_t translateOrderBy(STranslateContext* pCxt, SSelectStmt* pSelect) {
   }
   pCxt->currClause = SQL_CLAUSE_ORDER_BY;
   int32_t code = translateExprList(pCxt, pSelect->pOrderByList);
-  if (TSDB_CODE_SUCCESS == code && NULL != pSelect->pGroupByList) {
+  if (TSDB_CODE_SUCCESS == code) {
     code = checkExprListForGroupBy(pCxt, pSelect->pOrderByList);
   }
   return code;
@@ -822,7 +894,7 @@ static int32_t translateSelectList(STranslateContext* pCxt, SSelectStmt* pSelect
     pCxt->currClause = SQL_CLAUSE_SELECT;
     code = translateExprList(pCxt, pSelect->pProjectionList);
   }
-  if (TSDB_CODE_SUCCESS == code && NULL != pSelect->pGroupByList) {
+  if (TSDB_CODE_SUCCESS == code) {
     code = checkExprListForGroupBy(pCxt, pSelect->pProjectionList);
   }
   return code;
@@ -894,6 +966,9 @@ static int32_t translateSelect(STranslateContext* pCxt, SSelectStmt* pSelect) {
   }
   if (TSDB_CODE_SUCCESS == code) {
     code = translateOrderBy(pCxt, pSelect);
+  }
+  if (TSDB_CODE_SUCCESS == code) {
+    code = checkAggColCoexist(pCxt, pSelect);
   }
   return code;
 }

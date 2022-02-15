@@ -343,17 +343,21 @@ static SClientHbRsp* mndMqHbBuildRsp(SMnode* pMnode, SClientHbReq* pReq) {
 
 static int32_t mndProcessHeartBeatReq(SMnodeMsg *pReq) {
   SMnode *pMnode = pReq->pMnode;
-  char *batchReqStr = pReq->rpcMsg.pCont;
+
   SClientHbBatchReq batchReq = {0};
-  tDeserializeSClientHbBatchReq(batchReqStr, &batchReq);
+  if (tDeserializeSClientHbBatchReq(pReq->rpcMsg.pCont, pReq->rpcMsg.contLen, &batchReq) != 0) {
+    terrno = TSDB_CODE_INVALID_MSG;
+    return -1;
+  }
+
   SArray *pArray = batchReq.reqs;
-  int sz = taosArrayGetSize(pArray);
+  int32_t sz = taosArrayGetSize(pArray);
 
   SClientHbBatchRsp batchRsp = {0};
   batchRsp.rsps = taosArrayInit(0, sizeof(SClientHbRsp));
 
   for (int i = 0; i < sz; i++) {
-    SClientHbReq* pHbReq = taosArrayGet(pArray, i);
+    SClientHbReq *pHbReq = taosArrayGet(pArray, i);
     if (pHbReq->connKey.hbType == HEARTBEAT_TYPE_QUERY) {
       int32_t kvNum = taosHashGetSize(pHbReq->info);
       if (NULL == pHbReq->info || kvNum <= 0) {
@@ -364,13 +368,13 @@ static int32_t mndProcessHeartBeatReq(SMnodeMsg *pReq) {
 
       void *pIter = taosHashIterate(pHbReq->info, NULL);
       while (pIter != NULL) {
-        SKv* kv = pIter;
-      
+        SKv *kv = pIter;
+
         switch (kv->key) {
           case HEARTBEAT_KEY_DBINFO: {
-            void *rspMsg = NULL;
+            void   *rspMsg = NULL;
             int32_t rspLen = 0;
-            mndValidateDBInfo(pMnode, (SDbVgVersion *)kv->value, kv->valueLen/sizeof(SDbVgVersion), &rspMsg, &rspLen);
+            mndValidateDbInfo(pMnode, kv->value, kv->valueLen / sizeof(SDbVgVersion), &rspMsg, &rspLen);
             if (rspMsg && rspLen > 0) {
               SKv kv = {.key = HEARTBEAT_KEY_DBINFO, .valueLen = rspLen, .value = rspMsg};
               taosArrayPush(hbRsp.info, &kv);
@@ -378,9 +382,9 @@ static int32_t mndProcessHeartBeatReq(SMnodeMsg *pReq) {
             break;
           }
           case HEARTBEAT_KEY_STBINFO: {
-            void *rspMsg = NULL;
+            void   *rspMsg = NULL;
             int32_t rspLen = 0;
-            mndValidateStbInfo(pMnode, (SSTableMetaVersion *)kv->value, kv->valueLen/sizeof(SSTableMetaVersion), &rspMsg, &rspLen);
+            mndValidateStbInfo(pMnode, kv->value, kv->valueLen / sizeof(SSTableMetaVersion), &rspMsg, &rspLen);
             if (rspMsg && rspLen > 0) {
               SKv kv = {.key = HEARTBEAT_KEY_STBINFO, .valueLen = rspLen, .value = rspMsg};
               taosArrayPush(hbRsp.info, &kv);
@@ -392,7 +396,7 @@ static int32_t mndProcessHeartBeatReq(SMnodeMsg *pReq) {
             hbRsp.status = TSDB_CODE_MND_APP_ERROR;
             break;
         }
-              
+
         pIter = taosHashIterate(pHbReq->info, pIter);
       }
 
@@ -407,15 +411,14 @@ static int32_t mndProcessHeartBeatReq(SMnodeMsg *pReq) {
   }
   taosArrayDestroyEx(pArray, tFreeClientHbReq);
 
-  int32_t tlen = tSerializeSClientHbBatchRsp(NULL, &batchRsp);
-  void* buf = rpcMallocCont(tlen);
-  void* abuf = buf;
-  tSerializeSClientHbBatchRsp(&abuf, &batchRsp);
-  
+  int32_t tlen = tSerializeSClientHbBatchRsp(NULL, 0, &batchRsp);
+  void   *buf = rpcMallocCont(tlen);
+  tSerializeSClientHbBatchRsp(buf, tlen, &batchRsp);
+
   int32_t rspNum = (int32_t)taosArrayGetSize(batchRsp.rsps);
   for (int32_t i = 0; i < rspNum; ++i) {
     SClientHbRsp *rsp = taosArrayGet(batchRsp.rsps, i);
-    int32_t kvNum = (rsp->info) ? taosArrayGetSize(rsp->info): 0;
+    int32_t       kvNum = (rsp->info) ? taosArrayGetSize(rsp->info) : 0;
     for (int32_t n = 0; n < kvNum; ++n) {
       SKv *kv = taosArrayGet(rsp->info, n);
       tfree(kv->value);

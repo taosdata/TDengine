@@ -173,6 +173,7 @@ typedef struct {
 
 typedef struct {
   uint8_t user[TSDB_UNI_LEN];
+  uint8_t secret[TSDB_PASSWORD_LEN];
 } STransUserMsg;
 
 #pragma pack(pop)
@@ -232,7 +233,7 @@ typedef struct {
   uv_async_t* asyncs;
 } SAsyncPool;
 
-SAsyncPool* transCreateAsyncPool(uv_loop_t* loop, void* arg, AsyncCB cb);
+SAsyncPool* transCreateAsyncPool(uv_loop_t* loop, int sz, void* arg, AsyncCB cb);
 void        transDestroyAsyncPool(SAsyncPool* pool);
 int         transSendAsync(SAsyncPool* pool, queue* mq);
 

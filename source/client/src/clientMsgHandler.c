@@ -97,14 +97,15 @@ SMsgSendInfo* buildMsgInfoImpl(SRequestObj *pRequest) {
 
   if (pRequest->type == TDMT_MND_SHOW_RETRIEVE || pRequest->type == TDMT_VND_SHOW_TABLES_FETCH) {
     if (pRequest->type == TDMT_MND_SHOW_RETRIEVE) {
-      SRetrieveTableReq* pRetrieveMsg = calloc(1, sizeof(SRetrieveTableReq));
-      if (pRetrieveMsg == NULL) {
-        return NULL;
-      }
+      SRetrieveTableReq retrieveReq = {0};
+      retrieveReq.showId = pRequest->body.showInfo.execId;
 
-      pRetrieveMsg->showId = htobe64(pRequest->body.showInfo.execId);
-      pMsgSendInfo->msgInfo.pData = pRetrieveMsg;
-      pMsgSendInfo->msgInfo.len = sizeof(SRetrieveTableReq);
+      int32_t contLen = tSerializeSRetrieveTableReq(NULL, 0, &retrieveReq);
+      void*   pReq = malloc(contLen);
+      tSerializeSRetrieveTableReq(pReq, contLen, &retrieveReq);
+
+      pMsgSendInfo->msgInfo.pData = pReq;
+      pMsgSendInfo->msgInfo.len = contLen;
     } else {
       SVShowTablesFetchReq* pFetchMsg = calloc(1, sizeof(SVShowTablesFetchReq));
       if (pFetchMsg == NULL) {
@@ -264,9 +265,13 @@ int32_t processUseDbRsp(void* param, const SDataBuf* pMsg, int32_t code) {
     return code;
   }
 
-  SUseDbRsp* pUseDbRsp = (SUseDbRsp*) pMsg->pData;
+  SUseDbRsp usedbRsp = {0};
+  tDeserializeSUseDbRsp(pMsg->pData, pMsg->len, &usedbRsp);
+
   SName name = {0};
-  tNameFromString(&name, pUseDbRsp->db, T_NAME_ACCT|T_NAME_DB);
+  tNameFromString(&name, usedbRsp.db, T_NAME_ACCT|T_NAME_DB);
+
+  tFreeSUsedbRsp(&usedbRsp);
 
   char db[TSDB_DB_NAME_LEN] = {0};
   tNameGetDbName(&name, db);
@@ -300,14 +305,12 @@ int32_t processDropDbRsp(void* param, const SDataBuf* pMsg, int32_t code) {
     return code;
   }
 
-  SDropDbRsp *rsp = (SDropDbRsp *)pMsg->pData;
+  SDropDbRsp dropdbRsp = {0};
+  tDeserializeSDropDbRsp(pMsg->pData, pMsg->len, &dropdbRsp);
 
-  struct SCatalog *pCatalog = NULL;
-  rsp->uid = be64toh(rsp->uid);
-
+  struct SCatalog* pCatalog = NULL;
   catalogGetHandle(pRequest->pTscObj->pAppInfo->clusterId, &pCatalog);
-  
-  catalogRemoveDB(pCatalog, rsp->db, rsp->uid);
+  catalogRemoveDB(pCatalog, dropdbRsp.db, dropdbRsp.uid);
 
   tsem_post(&pRequest->body.rspSem);
   return code;

@@ -27,7 +27,7 @@ extern "C" {
 #define CTG_DEFAULT_CACHE_CLUSTER_NUMBER 6
 #define CTG_DEFAULT_CACHE_VGROUP_NUMBER 100
 #define CTG_DEFAULT_CACHE_DB_NUMBER 20
-#define CTG_DEFAULT_CACHE_TABLEMETA_NUMBER 10000
+#define CTG_DEFAULT_CACHE_TBLMETA_NUMBER 1000
 #define CTG_DEFAULT_RENT_SECOND 10
 #define CTG_DEFAULT_RENT_SLOT_SIZE 10
 
@@ -47,9 +47,19 @@ enum {
   CTG_RENT_STABLE,
 };
 
+enum {
+  CTG_ACT_UPDATE_VG = 0,
+  CTG_ACT_UPDATE_TBL,
+  CTG_ACT_REMOVE_DB,
+  CTG_ACT_REMOVE_STB,
+  CTG_ACT_REMOVE_TBL,
+  CTG_ACT_MAX
+};
+
 typedef struct SCtgDebug {
   bool     lockDebug;
   bool     cacheDebug;
+  bool     apiDebug;
   uint32_t showCachePeriodSec;
 } SCtgDebug;
 
@@ -65,7 +75,7 @@ typedef struct SCtgDBCache {
   SRWLatch         vgLock;
   uint64_t         dbId;
   int8_t           deleted;
-  SDBVgroupInfo   *vgInfo;  
+  SDBVgInfo       *vgInfo;  
   SCtgTbMetaCache  tbCache;
 } SCtgDBCache;
 
@@ -85,7 +95,6 @@ typedef struct SCtgRentMgmt {
 
 typedef struct SCatalog {
   uint64_t         clusterId;  
-  SRWLatch         dbLock;
   SHashObj        *dbCache;      //key:dbname, value:SCtgDBCache
   SCtgRentMgmt     dbRent;
   SCtgRentMgmt     stbRent;
@@ -96,7 +105,8 @@ typedef struct SCtgApiStat {
 } SCtgApiStat;
 
 typedef struct SCtgRuntimeStat {
-
+  uint64_t qNum;
+  uint64_t qDoneNum;
 } SCtgRuntimeStat;
 
 typedef struct SCtgCacheStat {
@@ -109,15 +119,70 @@ typedef struct SCatalogStat {
   SCtgCacheStat    cache;
 } SCatalogStat;
 
+typedef struct SCtgUpdateVgMsg {
+  SCatalog* pCtg;
+  char  dbFName[TSDB_DB_FNAME_LEN];
+  uint64_t dbId;
+  SDBVgInfo* dbInfo;
+} SCtgUpdateVgMsg;
+
+typedef struct SCtgUpdateTblMsg {
+  SCatalog* pCtg;
+  STableMetaOutput* output;
+} SCtgUpdateTblMsg;
+
+typedef struct SCtgRemoveDBMsg {
+  SCatalog* pCtg;
+  char  dbFName[TSDB_DB_FNAME_LEN];
+  uint64_t dbId;
+} SCtgRemoveDBMsg;
+
+typedef struct SCtgRemoveStbMsg {
+  SCatalog* pCtg;
+  char  dbFName[TSDB_DB_FNAME_LEN];
+  char  stbName[TSDB_TABLE_NAME_LEN];
+  uint64_t dbId;
+  uint64_t suid;
+} SCtgRemoveStbMsg;
+
+typedef struct SCtgMetaAction {
+  int32_t act;
+  void   *data;
+} SCtgMetaAction;
+
+typedef struct SCtgQNode {
+  SCtgMetaAction         action;
+  struct SCtgQNode      *next;
+} SCtgQNode;
+
 typedef struct SCatalogMgmt {
   bool                  exit;
   SRWLatch              lock;
+  SRWLatch              qlock;
+  SCtgQNode            *head;
+  SCtgQNode            *tail;
+  tsem_t                sem;  
+  uint64_t              qRemainNum;
+  pthread_t             updateThread;  
   SHashObj             *pCluster;     //key: clusterId, value: SCatalog*
   SCatalogStat          stat;
   SCatalogCfg           cfg;
 } SCatalogMgmt;
 
 typedef uint32_t (*tableNameHashFp)(const char *, uint32_t);
+typedef int32_t (*ctgActFunc)(SCtgMetaAction *);
+
+typedef struct SCtgAction {
+  int32_t    actId;
+  char       name[32];
+  ctgActFunc func;
+} SCtgAction;
+
+#define CTG_QUEUE_ADD() atomic_add_fetch_64(&gCtgMgmt.qRemainNum, 1)
+#define CTG_QUEUE_SUB() atomic_sub_fetch_64(&gCtgMgmt.qRemainNum, 1)
+
+#define CTG_STAT_ADD(n) atomic_add_fetch_64(&(n), 1)
+#define CTG_STAT_SUB(n) atomic_sub_fetch_64(&(n), 1)
 
 #define CTG_IS_META_NULL(type) ((type) == META_TYPE_NULL_TABLE)
 #define CTG_IS_META_CTABLE(type) ((type) == META_TYPE_CTABLE)
@@ -130,19 +195,25 @@ typedef uint32_t (*tableNameHashFp)(const char *, uint32_t);
 #define CTG_SET_STABLE(isSTable, tbType) do { (isSTable) = ((tbType) == TSDB_SUPER_TABLE) ? 1 : ((tbType) > TSDB_SUPER_TABLE ? 0 : -1); } while (0)
 #define CTG_TBTYPE_MATCH(isSTable, tbType) (CTG_IS_UNKNOWN_STABLE(isSTable) || (CTG_IS_STABLE(isSTable) && (tbType) == TSDB_SUPER_TABLE) || (CTG_IS_NOT_STABLE(isSTable) && (tbType) != TSDB_SUPER_TABLE))
 
-#define CTG_TABLE_NOT_EXIST(code) (code == CTG_ERR_CODE_TABLE_NOT_EXIST) 
+#define CTG_META_SIZE(pMeta) (sizeof(STableMeta) + ((pMeta)->tableInfo.numOfTags + (pMeta)->tableInfo.numOfColumns) * sizeof(SSchema))
 
-#define ctgFatal(param, ...)  qFatal("CTG:%p " param, pCatalog, __VA_ARGS__)
-#define ctgError(param, ...)  qError("CTG:%p " param, pCatalog, __VA_ARGS__)
-#define ctgWarn(param, ...)   qWarn("CTG:%p " param, pCatalog, __VA_ARGS__)
-#define ctgInfo(param, ...)   qInfo("CTG:%p " param, pCatalog, __VA_ARGS__)
-#define ctgDebug(param, ...)  qDebug("CTG:%p " param, pCatalog, __VA_ARGS__)
-#define ctgTrace(param, ...)  qTrace("CTG:%p " param, pCatalog, __VA_ARGS__)
+#define CTG_TABLE_NOT_EXIST(code) (code == CTG_ERR_CODE_TABLE_NOT_EXIST) 
+#define CTG_DB_NOT_EXIST(code) (code == TSDB_CODE_MND_DB_NOT_EXIST) 
+
+#define ctgFatal(param, ...)  qFatal("CTG:%p " param, pCtg, __VA_ARGS__)
+#define ctgError(param, ...)  qError("CTG:%p " param, pCtg, __VA_ARGS__)
+#define ctgWarn(param, ...)   qWarn("CTG:%p " param, pCtg, __VA_ARGS__)
+#define ctgInfo(param, ...)   qInfo("CTG:%p " param, pCtg, __VA_ARGS__)
+#define ctgDebug(param, ...)  qDebug("CTG:%p " param, pCtg, __VA_ARGS__)
+#define ctgTrace(param, ...)  qTrace("CTG:%p " param, pCtg, __VA_ARGS__)
 
 #define CTG_LOCK_DEBUG(...) do { if (gCTGDebug.lockDebug) { qDebug(__VA_ARGS__); } } while (0)
 #define CTG_CACHE_DEBUG(...) do { if (gCTGDebug.cacheDebug) { qDebug(__VA_ARGS__); } } while (0)
+#define CTG_API_DEBUG(...) do { if (gCTGDebug.apiDebug) { qDebug(__VA_ARGS__); } } while (0)
 
 #define TD_RWLATCH_WRITE_FLAG_COPY 0x40000000
+
+#define CTG_IS_LOCKED(_lock) atomic_load_32((_lock))
 
 #define CTG_LOCK(type, _lock) do {   \
   if (CTG_READ == (type)) {          \
@@ -181,8 +252,8 @@ typedef uint32_t (*tableNameHashFp)(const char *, uint32_t);
 #define CTG_RET(c) do { int32_t _code = c; if (_code != TSDB_CODE_SUCCESS) { terrno = _code; } return _code; } while (0)
 #define CTG_ERR_JRET(c) do { code = c; if (code != TSDB_CODE_SUCCESS) { terrno = code; goto _return; } } while (0)
 
-#define CTG_API_ENTER() do { CTG_LOCK(CTG_READ, &ctgMgmt.lock); if (atomic_load_8(&ctgMgmt.exit)) { CTG_RET(TSDB_CODE_CTG_OUT_OF_SERVICE); }  } while (0)
-#define CTG_API_LEAVE(c) do { int32_t __code = c; CTG_UNLOCK(CTG_READ, &ctgMgmt.lock); CTG_RET(__code); } while (0)
+#define CTG_API_LEAVE(c) do { int32_t __code = c; CTG_UNLOCK(CTG_READ, &gCtgMgmt.lock); CTG_API_DEBUG("CTG API leave %s", __FUNCTION__); CTG_RET(__code); } while (0)
+#define CTG_API_ENTER() do { CTG_API_DEBUG("CTG API enter %s", __FUNCTION__); CTG_LOCK(CTG_READ, &gCtgMgmt.lock); if (atomic_load_8(&gCtgMgmt.exit)) { CTG_API_LEAVE(TSDB_CODE_CTG_OUT_OF_SERVICE); }  } while (0)
 
 
 

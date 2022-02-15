@@ -26,7 +26,7 @@ int32_t mndInitDb(SMnode *pMnode);
 void    mndCleanupDb(SMnode *pMnode);
 SDbObj *mndAcquireDb(SMnode *pMnode, char *db);
 void    mndReleaseDb(SMnode *pMnode, SDbObj *pDb);
-int32_t mndValidateDBInfo(SMnode *pMnode, SDbVgVersion *dbs, int32_t num, void **rsp, int32_t *rspLen);
+int32_t mndValidateDbInfo(SMnode *pMnode, SDbVgVersion *pDbs, int32_t numOfDbs, void **ppRsp, int32_t *pRspLen);
 
 #ifdef __cplusplus
 }

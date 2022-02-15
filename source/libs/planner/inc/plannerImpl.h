@@ -13,13 +13,15 @@
  * along with this program. If not, see <http://www.gnu.org/licenses/>.
  */
 
-#include <gtest/gtest.h>
+#ifndef _TD_PLANNER_IMPL_H_
+#define _TD_PLANNER_IMPL_H_
 
-TEST(NodesTest, traverseTest) {
-  // todo
-}
+#ifdef __cplusplus
+extern "C" {
+#endif
 
-int main(int argc, char* argv[]) {
-	testing::InitGoogleTest(&argc, argv);
-	return RUN_ALL_TESTS();
+#ifdef __cplusplus
 }
+#endif
+
+#endif /*_TD_PLANNER_IMPL_H_*/

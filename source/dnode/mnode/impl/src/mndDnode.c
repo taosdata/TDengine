@@ -496,7 +496,7 @@ static int32_t mndProcessCreateDnodeReq(SMnodeMsg *pReq) {
     goto CREATE_DNODE_OVER;
   }
 
-  if (mndCheckDropNodeAuth(pUser)) {
+  if (mndCheckNodeAuth(pUser)) {
     goto CREATE_DNODE_OVER;
   }
 
@@ -506,7 +506,6 @@ static int32_t mndProcessCreateDnodeReq(SMnodeMsg *pReq) {
 CREATE_DNODE_OVER:
   if (code != 0 && code != TSDB_CODE_MND_ACTION_IN_PROGRESS) {
     mError("dnode:%s:%d, failed to create since %s", createReq.fqdn, createReq.port, terrstr());
-    return -1;
   }
 
   mndReleaseDnode(pMnode, pDnode);
@@ -541,13 +540,13 @@ static int32_t mndDropDnode(SMnode *pMnode, SMnodeMsg *pReq, SDnodeObj *pDnode) 
 }
 
 static int32_t mndProcessDropDnodeReq(SMnodeMsg *pReq) {
-  SMnode       *pMnode = pReq->pMnode;
-  int32_t       code = -1;
-  SUserObj     *pUser = NULL;
-  SDnodeObj    *pDnode = NULL;
-  SDropDnodeReq dropReq = {0};
+  SMnode        *pMnode = pReq->pMnode;
+  int32_t        code = -1;
+  SUserObj      *pUser = NULL;
+  SDnodeObj     *pDnode = NULL;
+  SMDropMnodeReq dropReq = {0};
 
-  if (tDeserializeSDropDnodeReq(pReq->rpcMsg.pCont, pReq->rpcMsg.contLen, &dropReq) != 0) {
+  if (tDeserializeSMCreateDropMnodeReq(pReq->rpcMsg.pCont, pReq->rpcMsg.contLen, &dropReq) != 0) {
     terrno = TSDB_CODE_INVALID_MSG;
     goto DROP_DNODE_OVER;
   }
@@ -571,7 +570,7 @@ static int32_t mndProcessDropDnodeReq(SMnodeMsg *pReq) {
     goto DROP_DNODE_OVER;
   }
 
-  if (mndCheckCreateNodeAuth(pUser)) {
+  if (mndCheckNodeAuth(pUser)) {
     goto DROP_DNODE_OVER;
   }
 
@@ -581,7 +580,6 @@ static int32_t mndProcessDropDnodeReq(SMnodeMsg *pReq) {
 DROP_DNODE_OVER:
   if (code != 0 && code != TSDB_CODE_MND_ACTION_IN_PROGRESS) {
     mError("dnode:%d, failed to drop since %s", dropReq.dnodeId, terrstr());
-    return -1;
   }
 
   mndReleaseDnode(pMnode, pDnode);
@@ -591,14 +589,18 @@ DROP_DNODE_OVER:
 }
 
 static int32_t mndProcessConfigDnodeReq(SMnodeMsg *pReq) {
-  SMnode        *pMnode = pReq->pMnode;
-  SMCfgDnodeReq *pCfg = pReq->rpcMsg.pCont;
-  pCfg->dnodeId = htonl(pCfg->dnodeId);
+  SMnode *pMnode = pReq->pMnode;
 
-  SDnodeObj *pDnode = mndAcquireDnode(pMnode, pCfg->dnodeId);
+  SMCfgDnodeReq cfgReq = {0};
+  if (tDeserializeSMCfgDnodeReq(pReq->rpcMsg.pCont, pReq->rpcMsg.contLen, &cfgReq) != 0) {
+    terrno = TSDB_CODE_INVALID_MSG;
+    return -1;
+  }
+
+  SDnodeObj *pDnode = mndAcquireDnode(pMnode, cfgReq.dnodeId);
   if (pDnode == NULL) {
     terrno = TSDB_CODE_MND_DNODE_NOT_EXIST;
-    mError("dnode:%d, failed to config since %s ", pCfg->dnodeId, terrstr());
+    mError("dnode:%d, failed to config since %s ", cfgReq.dnodeId, terrstr());
     return -1;
   }
 
@@ -606,15 +608,15 @@ static int32_t mndProcessConfigDnodeReq(SMnodeMsg *pReq) {
   mndReleaseDnode(pMnode, pDnode);
 
   SDCfgDnodeReq *pCfgDnode = rpcMallocCont(sizeof(SDCfgDnodeReq));
-  pCfgDnode->dnodeId = htonl(pCfg->dnodeId);
-  memcpy(pCfgDnode->config, pCfg->config, TSDB_DNODE_CONFIG_LEN);
+  pCfgDnode->dnodeId = htonl(cfgReq.dnodeId);
+  memcpy(pCfgDnode->config, cfgReq.config, TSDB_DNODE_CONFIG_LEN);
 
   SRpcMsg rpcMsg = {.msgType = TDMT_DND_CONFIG_DNODE,
                     .pCont = pCfgDnode,
                     .contLen = sizeof(SDCfgDnodeReq),
                     .ahandle = pReq->rpcMsg.ahandle};
 
-  mInfo("dnode:%d, app:%p config:%s req send to dnode", pCfg->dnodeId, rpcMsg.ahandle, pCfg->config);
+  mInfo("dnode:%d, app:%p config:%s req send to dnode", cfgReq.dnodeId, rpcMsg.ahandle, cfgReq.config);
   mndSendReqToDnode(pMnode, &epSet, &rpcMsg);
 
   return 0;

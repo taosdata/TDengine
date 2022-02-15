@@ -96,35 +96,35 @@ TEST_F(MndTestProfile, 03_ConnectMsg_Show) {
 }
 
 TEST_F(MndTestProfile, 04_HeartBeatMsg) {
-  SClientHbBatchReq batchReq;
+  SClientHbBatchReq batchReq = {0};
   batchReq.reqs = taosArrayInit(0, sizeof(SClientHbReq));
   SClientHbReq req = {0};
   req.connKey = {.connId = 123, .hbType = HEARTBEAT_TYPE_MQ};
   req.info = taosHashInit(64, hbKeyHashFunc, 1, HASH_ENTRY_LOCK);
-  SKv kv;
+  SKv kv = {0};
   kv.key = 123;
   kv.value = (void*)"bcd";
   kv.valueLen = 4;
   taosHashPut(req.info, &kv.key, sizeof(kv.key), &kv, sizeof(kv));
   taosArrayPush(batchReq.reqs, &req);
 
-  int32_t tlen = tSerializeSClientHbBatchReq(NULL, &batchReq);
-  
-  void* buf = (SClientHbBatchReq*)rpcMallocCont(tlen);
-  void* bufCopy = buf;
-  tSerializeSClientHbBatchReq(&bufCopy, &batchReq);
+  int32_t tlen = tSerializeSClientHbBatchReq(NULL, 0, &batchReq);
+  void*   buf = (SClientHbBatchReq*)rpcMallocCont(tlen);
+  tSerializeSClientHbBatchReq(buf, tlen, &batchReq);
+
   SRpcMsg* pMsg = test.SendReq(TDMT_MND_HEARTBEAT, buf, tlen);
   ASSERT_NE(pMsg, nullptr);
   ASSERT_EQ(pMsg->code, 0);
-  char* pRspChar = (char*)pMsg->pCont;
+
   SClientHbBatchRsp rsp = {0};
-  tDeserializeSClientHbBatchRsp(pRspChar, &rsp);
+  tDeserializeSClientHbBatchRsp(pMsg->pCont, pMsg->contLen, &rsp);
   int sz = taosArrayGetSize(rsp.rsps);
   ASSERT_EQ(sz, 0);
-  //SClientHbRsp* pRsp = (SClientHbRsp*) taosArrayGet(rsp.rsps, 0);
-  //EXPECT_EQ(pRsp->connKey.connId, 123);
-  //EXPECT_EQ(pRsp->connKey.hbType, HEARTBEAT_TYPE_MQ);
-  //EXPECT_EQ(pRsp->status, 0);
+
+  // SClientHbRsp* pRsp = (SClientHbRsp*) taosArrayGet(rsp.rsps, 0);
+  // EXPECT_EQ(pRsp->connKey.connId, 123);
+  // EXPECT_EQ(pRsp->connKey.hbType, HEARTBEAT_TYPE_MQ);
+  // EXPECT_EQ(pRsp->status, 0);
 
 #if 0
   int32_t contLen = sizeof(SHeartBeatReq);

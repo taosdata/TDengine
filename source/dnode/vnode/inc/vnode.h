@@ -42,6 +42,7 @@ typedef struct {
 
 typedef struct {
   int32_t  vgId;
+  uint64_t dbId;
   SDnode  *pDnode;
   STfs    *pTfs;
   uint64_t wsize;
