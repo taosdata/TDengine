@@ -5194,7 +5194,7 @@ static bool unique_function_setup(SQLFunctionCtx *pCtx, SResultRowCellInfo* pRes
 }
 
 static void do_unique_function(SQLFunctionCtx *pCtx, SUniqueFuncInfo *pInfo, TSKEY timestamp, char *pData, char *tag){
-  tValuePair *unique = taosHashGet(pCtx->pUniqueSet, pData, pCtx->inputBytes);
+  UniqueUnit *unique = taosHashGet(pCtx->pUniqueSet, pData, pCtx->inputBytes);
   if (unique == NULL) {
     size_t size = sizeof(UniqueUnit) + pCtx->inputBytes + pCtx->tagInfo.tagsLen;
     char *tmp = pInfo->res + pInfo->num * size;
