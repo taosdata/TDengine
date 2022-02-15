@@ -17,7 +17,7 @@
 static void pgCachePinPage(SPage *pPage);
 static void pgCacheUnpinPage(SPage *pPage);
 
-int pgCacheCreate(SPgCache **ppPgCache, pgsz_t pgSize, int32_t npage) {
+int pgCacheOpen(SPgCache **ppPgCache, pgsz_t pgSize, int32_t npage) {
   SPgCache *pPgCache;
   SPage *   pPage;
 
@@ -38,7 +38,7 @@ int pgCacheCreate(SPgCache **ppPgCache, pgsz_t pgSize, int32_t npage) {
 
   pPgCache->pages = (SPage *)calloc(npage, sizeof(SPage));
   if (pPgCache->pages == NULL) {
-    pgCacheDestroy(pPgCache);
+    pgCacheClose(pPgCache);
     return -1;
   }
 
@@ -52,14 +52,14 @@ int pgCacheCreate(SPgCache **ppPgCache, pgsz_t pgSize, int32_t npage) {
 
     pPage->pData = (uint8_t *)calloc(1, pgSize);
     if (pPage->pData == NULL) {
-      pgCacheDestroy(pPgCache);
+      pgCacheClose(pPgCache);
       return -1;
     }
 
     pPgCache->pght.nbucket = npage;
     pPgCache->pght.buckets = (SPgList *)calloc(pPgCache->pght.nbucket, sizeof(SPgList));
     if (pPgCache->pght.buckets == NULL) {
-      pgCacheDestroy(pPgCache);
+      pgCacheClose(pPgCache);
       return -1;
     }
 
@@ -70,7 +70,7 @@ int pgCacheCreate(SPgCache **ppPgCache, pgsz_t pgSize, int32_t npage) {
   return 0;
 }
 
-int pgCacheDestroy(SPgCache *pPgCache) {
+int pgCacheClose(SPgCache *pPgCache) {
   SPage *pPage;
   if (pPgCache) {
     tfree(pPgCache->pght.buckets);

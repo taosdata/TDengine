@@ -68,7 +68,7 @@ int tdbEnvOpen(TENV *pEnv) {
    */
   mkdir(pEnv->rootDir, 0755);
 
-  ret = pgCacheCreate(&pPgCache, pEnv->pgSize, pEnv->cacheSize / pEnv->pgSize);
+  ret = pgCacheOpen(&pPgCache, pEnv->pgSize, pEnv->cacheSize / pEnv->pgSize);
   if (ret != 0) {
     goto _err;
   }
