@@ -348,36 +348,25 @@ TEST_F(MndTestStb, 01_Create_Show_Meta_Drop_Restart_Stb) {
     ASSERT_NE(pMsg, nullptr);
     ASSERT_EQ(pMsg->code, 0);
 
-    STableMetaRsp* pRsp = (STableMetaRsp*)pMsg->pCont;
-    pRsp->numOfTags = htonl(pRsp->numOfTags);
-    pRsp->numOfColumns = htonl(pRsp->numOfColumns);
-    pRsp->sversion = htonl(pRsp->sversion);
-    pRsp->tversion = htonl(pRsp->tversion);
-    pRsp->suid = be64toh(pRsp->suid);
-    pRsp->tuid = be64toh(pRsp->tuid);
-    pRsp->vgId = be64toh(pRsp->vgId);
-    for (int32_t i = 0; i < pRsp->numOfTags + pRsp->numOfColumns; ++i) {
-      SSchema* pSchema = &pRsp->pSchema[i];
-      pSchema->colId = htonl(pSchema->colId);
-      pSchema->bytes = htonl(pSchema->bytes);
-    }
+    STableMetaRsp metaRsp = {0};
+    tDeserializeSTableMetaRsp(pMsg->pCont, pMsg->contLen, &metaRsp);
 
-    EXPECT_STREQ(pRsp->dbFName, dbname);
-    EXPECT_STREQ(pRsp->tbName, "stb");
-    EXPECT_STREQ(pRsp->stbName, "stb");
-    EXPECT_EQ(pRsp->numOfColumns, 2);
-    EXPECT_EQ(pRsp->numOfTags, 3);
-    EXPECT_EQ(pRsp->precision, TSDB_TIME_PRECISION_MILLI);
-    EXPECT_EQ(pRsp->tableType, TSDB_SUPER_TABLE);
-    EXPECT_EQ(pRsp->update, 0);
-    EXPECT_EQ(pRsp->sversion, 1);
-    EXPECT_EQ(pRsp->tversion, 0);
-    EXPECT_GT(pRsp->suid, 0);
-    EXPECT_GT(pRsp->tuid, 0);
-    EXPECT_EQ(pRsp->vgId, 0);
+    EXPECT_STREQ(metaRsp.dbFName, dbname);
+    EXPECT_STREQ(metaRsp.tbName, "stb");
+    EXPECT_STREQ(metaRsp.stbName, "stb");
+    EXPECT_EQ(metaRsp.numOfColumns, 2);
+    EXPECT_EQ(metaRsp.numOfTags, 3);
+    EXPECT_EQ(metaRsp.precision, TSDB_TIME_PRECISION_MILLI);
+    EXPECT_EQ(metaRsp.tableType, TSDB_SUPER_TABLE);
+    EXPECT_EQ(metaRsp.update, 0);
+    EXPECT_EQ(metaRsp.sversion, 1);
+    EXPECT_EQ(metaRsp.tversion, 0);
+    EXPECT_GT(metaRsp.suid, 0);
+    EXPECT_GT(metaRsp.tuid, 0);
+    EXPECT_EQ(metaRsp.vgId, 0);
 
     {
-      SSchema* pSchema = &pRsp->pSchema[0];
+      SSchema* pSchema = &metaRsp.pSchemas[0];
       EXPECT_EQ(pSchema->type, TSDB_DATA_TYPE_TIMESTAMP);
       EXPECT_EQ(pSchema->colId, 1);
       EXPECT_EQ(pSchema->bytes, 8);
@@ -385,7 +374,7 @@ TEST_F(MndTestStb, 01_Create_Show_Meta_Drop_Restart_Stb) {
     }
 
     {
-      SSchema* pSchema = &pRsp->pSchema[1];
+      SSchema* pSchema = &metaRsp.pSchemas[1];
       EXPECT_EQ(pSchema->type, TSDB_DATA_TYPE_BINARY);
       EXPECT_EQ(pSchema->colId, 2);
       EXPECT_EQ(pSchema->bytes, 12);
@@ -393,7 +382,7 @@ TEST_F(MndTestStb, 01_Create_Show_Meta_Drop_Restart_Stb) {
     }
 
     {
-      SSchema* pSchema = &pRsp->pSchema[2];
+      SSchema* pSchema = &metaRsp.pSchemas[2];
       EXPECT_EQ(pSchema->type, TSDB_DATA_TYPE_TINYINT);
       EXPECT_EQ(pSchema->colId, 3);
       EXPECT_EQ(pSchema->bytes, 2);
@@ -401,7 +390,7 @@ TEST_F(MndTestStb, 01_Create_Show_Meta_Drop_Restart_Stb) {
     }
 
     {
-      SSchema* pSchema = &pRsp->pSchema[3];
+      SSchema* pSchema = &metaRsp.pSchemas[3];
       EXPECT_EQ(pSchema->type, TSDB_DATA_TYPE_BIGINT);
       EXPECT_EQ(pSchema->colId, 4);
       EXPECT_EQ(pSchema->bytes, 8);
@@ -409,12 +398,14 @@ TEST_F(MndTestStb, 01_Create_Show_Meta_Drop_Restart_Stb) {
     }
 
     {
-      SSchema* pSchema = &pRsp->pSchema[4];
+      SSchema* pSchema = &metaRsp.pSchemas[4];
       EXPECT_EQ(pSchema->type, TSDB_DATA_TYPE_BINARY);
       EXPECT_EQ(pSchema->colId, 5);
       EXPECT_EQ(pSchema->bytes, 16);
       EXPECT_STREQ(pSchema->name, "tag3");
     }
+
+    tFreeSTableMetaRsp(&metaRsp);
   }
 
   // restart

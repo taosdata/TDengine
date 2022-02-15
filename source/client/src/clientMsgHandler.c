@@ -135,39 +135,29 @@ int32_t processShowRsp(void* param, const SDataBuf* pMsg, int32_t code) {
     return code;
   }
 
-  SShowRsp* pShow = (SShowRsp *)pMsg->pData;
-  pShow->showId   = htobe64(pShow->showId);
+  SShowRsp showRsp = {0};
+  tDeserializeSShowRsp(pMsg->pData, pMsg->len, &showRsp);
+  STableMetaRsp *pMetaMsg = &showRsp.tableMeta;
 
-  STableMetaRsp *pMetaMsg = &(pShow->tableMeta);
-  pMetaMsg->numOfColumns = htonl(pMetaMsg->numOfColumns);
-
-  SSchema* pSchema = pMetaMsg->pSchema;
-  pMetaMsg->tuid = htobe64(pMetaMsg->tuid);
-  for (int i = 0; i < pMetaMsg->numOfColumns; ++i) {
-    pSchema->bytes = htonl(pSchema->bytes);
-    pSchema->colId = htonl(pSchema->colId);
-    pSchema++;
-  }
-
-  pSchema = pMetaMsg->pSchema;
   tfree(pRequest->body.resInfo.pRspMsg);
-
   pRequest->body.resInfo.pRspMsg = pMsg->pData;
   SReqResultInfo* pResInfo = &pRequest->body.resInfo;
 
   if (pResInfo->fields == NULL) {
     TAOS_FIELD* pFields = calloc(pMetaMsg->numOfColumns, sizeof(TAOS_FIELD));
     for (int32_t i = 0; i < pMetaMsg->numOfColumns; ++i) {
-      tstrncpy(pFields[i].name, pSchema[i].name, tListLen(pFields[i].name));
-      pFields[i].type = pSchema[i].type;
-      pFields[i].bytes = pSchema[i].bytes;
+      SSchema* pSchema = &pMetaMsg->pSchemas[i];
+      tstrncpy(pFields[i].name, pSchema->name, tListLen(pFields[i].name));
+      pFields[i].type = pSchema->type;
+      pFields[i].bytes = pSchema->bytes;
     }
 
     pResInfo->fields = pFields;
   }
 
   pResInfo->numOfCols = pMetaMsg->numOfColumns;
-  pRequest->body.showInfo.execId = pShow->showId;
+  pRequest->body.showInfo.execId = showRsp.showId;
+  tFreeSShowRsp(&showRsp);
 
   // todo
   if (pRequest->type == TDMT_VND_SHOW_TABLES) {

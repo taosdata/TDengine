@@ -114,44 +114,51 @@ static int vnodeGetTableMeta(SVnode *pVnode, SRpcMsg *pMsg) {
     pTagSchema = NULL;
   }
 
-  msgLen = sizeof(STableMetaRsp) + sizeof(SSchema) * (nCols + nTagCols);
-  pTbMetaMsg = (STableMetaRsp *)rpcMallocCont(msgLen);
-  if (pTbMetaMsg == NULL) {
+  STableMetaRsp metaRsp = {0};
+  metaRsp.pSchemas = malloc( sizeof(SSchema) * (nCols + nTagCols));
+  if (metaRsp.pSchemas == NULL) {
     code = TSDB_CODE_VND_OUT_OF_MEMORY;
     goto _exit;
   }
 
-  pTbMetaMsg->dbId = htobe64(pVnode->config.dbId);
-  memcpy(pTbMetaMsg->dbFName, pReq->dbFName, sizeof(pTbMetaMsg->dbFName));
-  strcpy(pTbMetaMsg->tbName, pReq->tbName);
+  metaRsp.dbId = htobe64(pVnode->config.dbId);
+  memcpy(metaRsp.dbFName, pReq->dbFName, sizeof(metaRsp.dbFName));
+  strcpy(metaRsp.tbName, pReq->tbName);
   if (pTbCfg->type == META_CHILD_TABLE) {
-    strcpy(pTbMetaMsg->stbName, pStbCfg->name);
-    pTbMetaMsg->suid = htobe64(pTbCfg->ctbCfg.suid);
+    strcpy(metaRsp.stbName, pStbCfg->name);
+    metaRsp.suid = pTbCfg->ctbCfg.suid;
   } else if (pTbCfg->type == META_SUPER_TABLE) {
-    strcpy(pTbMetaMsg->stbName, pTbCfg->name);
-    pTbMetaMsg->suid = htobe64(uid);
+    strcpy(metaRsp.stbName, pTbCfg->name);
+    metaRsp.suid = uid;
   }
-  pTbMetaMsg->numOfTags = htonl(nTagCols);
-  pTbMetaMsg->numOfColumns = htonl(nCols);
-  pTbMetaMsg->tableType = pTbCfg->type;
-  pTbMetaMsg->tuid = htobe64(uid);
-  pTbMetaMsg->vgId = htonl(pVnode->vgId);
+  metaRsp.numOfTags = nTagCols;
+  metaRsp.numOfColumns = nCols;
+  metaRsp.tableType = pTbCfg->type;
+  metaRsp.tuid = uid;
+  metaRsp.vgId = pVnode->vgId;
 
-  memcpy(pTbMetaMsg->pSchema, pSW->pSchema, sizeof(SSchema) * pSW->nCols);
+  memcpy(metaRsp.pSchemas, pSW->pSchema, sizeof(SSchema) * pSW->nCols);
   if (nTagCols) {
-    memcpy(POINTER_SHIFT(pTbMetaMsg->pSchema, sizeof(SSchema) * pSW->nCols), pTagSchema, sizeof(SSchema) * nTagCols);
+    memcpy(POINTER_SHIFT(metaRsp.pSchemas, sizeof(SSchema) * pSW->nCols), pTagSchema, sizeof(SSchema) * nTagCols);
   }
 
-  for (int i = 0; i < nCols + nTagCols; i++) {
-    SSchema *pSch = pTbMetaMsg->pSchema + i;
-    pSch->colId = htonl(pSch->colId);
-    pSch->bytes = htonl(pSch->bytes);
+  int32_t rspLen = tSerializeSTableMetaRsp(NULL, 0, &metaRsp);
+  if (rspLen < 0) {
+    code = TSDB_CODE_INVALID_MSG;
+    goto _exit;
+  }
+
+  void *pRsp = malloc(rspLen);
+  if (pRsp == NULL) {
+    code = TSDB_CODE_OUT_OF_MEMORY;
+    goto _exit;
   }
 
   code = 0;
 
 _exit:
 
+  tFreeSTableMetaRsp(&metaRsp);
   if (pSW != NULL) {
     tfree(pSW->pSchema);
     tfree(pSW);
@@ -170,13 +177,13 @@ _exit:
 
   rpcMsg.handle = pMsg->handle;
   rpcMsg.ahandle = pMsg->ahandle;
-  rpcMsg.pCont = pTbMetaMsg;
-  rpcMsg.contLen = msgLen;
+  rpcMsg.pCont = pRsp;
+  rpcMsg.contLen = rspLen;
   rpcMsg.code = code;
 
   rpcSendResponse(&rpcMsg);
 
-  return 0;
+  return code;
 }
 
 static void freeItemHelper(void *pItem) {

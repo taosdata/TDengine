@@ -74,57 +74,35 @@ static int32_t hbProcessDBInfoRsp(void *value, int32_t valueLen, struct SCatalog
 }
 
 static int32_t hbProcessStbInfoRsp(void *value, int32_t valueLen, struct SCatalog *pCatalog) {
-  int32_t msgLen = 0;
   int32_t code = 0;
-  int32_t schemaNum = 0;
-  
-  while (msgLen < valueLen) {
-    STableMetaRsp *rsp = (STableMetaRsp *)((char *)value + msgLen);
 
-    rsp->numOfColumns = ntohl(rsp->numOfColumns);
-    rsp->suid = be64toh(rsp->suid);
-    rsp->dbId = be64toh(rsp->dbId);
-    
+  STableMetaBatchRsp batchMetaRsp = {0};
+  if (tDeserializeSTableMetaBatchRsp(value, valueLen, &batchMetaRsp) != 0) {
+    terrno = TSDB_CODE_INVALID_MSG;
+    return -1;
+  }
+
+  int32_t numOfBatchs = taosArrayGetSize(batchMetaRsp.pArray);
+  for (int32_t i = 0; i < numOfBatchs; ++i) {
+    STableMetaRsp *rsp = taosArrayGet(batchMetaRsp.pArray, i);
+
     if (rsp->numOfColumns < 0) {
-      schemaNum = 0;
-      
       tscDebug("hb remove stb, db:%s, stb:%s", rsp->dbFName, rsp->stbName);
-
       catalogRemoveStbMeta(pCatalog, rsp->dbFName, rsp->dbId, rsp->stbName, rsp->suid);
     } else {
       tscDebug("hb update stb, db:%s, stb:%s", rsp->dbFName, rsp->stbName);
-
-      rsp->numOfTags = ntohl(rsp->numOfTags);
-      rsp->sversion = ntohl(rsp->sversion);
-      rsp->tversion = ntohl(rsp->tversion);
-      rsp->tuid = be64toh(rsp->tuid);
-      rsp->vgId = ntohl(rsp->vgId);
-
-      SSchema* pSchema = rsp->pSchema;
-      
-      schemaNum = rsp->numOfColumns + rsp->numOfTags;
-
-      for (int i = 0; i < schemaNum; ++i) {
-        pSchema->bytes = ntohl(pSchema->bytes);
-        pSchema->colId = ntohl(pSchema->colId);
-
-        pSchema++;
-      }
-
-      if (rsp->pSchema[0].colId != PRIMARYKEY_TIMESTAMP_COL_ID) {
-        tscError("invalid colId[%d] for the first column in table meta rsp msg", rsp->pSchema[0].colId);
+      if (rsp->pSchemas[0].colId != PRIMARYKEY_TIMESTAMP_COL_ID) {
+        tscError("invalid colId[%d] for the first column in table meta rsp msg", rsp->pSchemas[0].colId);
+        tFreeSTableMetaBatchRsp(&batchMetaRsp);
         return TSDB_CODE_TSC_INVALID_VALUE;
-      }      
+      }
 
       catalogUpdateSTableMeta(pCatalog, rsp);
     }
-
-    msgLen += sizeof(STableMetaRsp) + schemaNum * sizeof(SSchema);
   }
 
   return TSDB_CODE_SUCCESS;
 }
-
 
 static int32_t hbQueryHbRspHandle(struct SAppHbMgr *pAppHbMgr, SClientHbRsp* pRsp) {
   SHbConnInfo * info = taosHashGet(pAppHbMgr->connInfo, &pRsp->connKey, sizeof(SClientHbKey));

@@ -805,6 +805,9 @@ typedef struct {
   char     tbName[TSDB_TABLE_NAME_LEN];
 } STableInfoReq;
 
+int32_t tSerializeSTableInfoReq(void* buf, int32_t bufLen, STableInfoReq* pReq);
+int32_t tDeserializeSTableInfoReq(void* buf, int32_t bufLen, STableInfoReq* pReq);
+
 typedef struct {
   int8_t  metaClone;  // create local clone of the cached table meta
   int32_t numOfVgroups;
@@ -841,8 +844,20 @@ typedef struct {
   uint64_t suid;
   uint64_t tuid;
   int32_t  vgId;
-  SSchema  pSchema[];
+  SSchema* pSchemas;
 } STableMetaRsp;
+
+int32_t tSerializeSTableMetaRsp(void* buf, int32_t bufLen, STableMetaRsp* pRsp);
+int32_t tDeserializeSTableMetaRsp(void* buf, int32_t bufLen, STableMetaRsp* pRsp);
+void    tFreeSTableMetaRsp(STableMetaRsp* pRsp);
+
+typedef struct {
+  SArray* pArray;  // Array of STableMetaRsp
+} STableMetaBatchRsp;
+
+int32_t tSerializeSTableMetaBatchRsp(void* buf, int32_t bufLen, STableMetaBatchRsp* pRsp);
+int32_t tDeserializeSTableMetaBatchRsp(void* buf, int32_t bufLen, STableMetaBatchRsp* pRsp);
+void    tFreeSTableMetaBatchRsp(STableMetaBatchRsp* pRsp);
 
 typedef struct {
   int32_t numOfTables;
@@ -867,7 +882,7 @@ typedef struct {
  * payloadLen is the length of payload
  */
 typedef struct {
-  int32_t  type;
+  int32_t type;
   char    db[TSDB_DB_FNAME_LEN];
   int32_t payloadLen;
   char*   payload;
@@ -878,17 +893,14 @@ int32_t tDeserializeSShowReq(void* buf, int32_t bufLen, SShowReq* pReq);
 void    tFreeSShowReq(SShowReq* pReq);
 
 typedef struct {
-  char    db[TSDB_DB_FNAME_LEN];
-  int32_t numOfVgroup;
-  int32_t vgid[];
-} SCompactReq;
-
-typedef struct {
   int64_t       showId;
   STableMetaRsp tableMeta;
 } SShowRsp;
 
-// todo: the show handle should be replaced with id
+int32_t tSerializeSShowRsp(void* buf, int32_t bufLen, SShowRsp* pRsp);
+int32_t tDeserializeSShowRsp(void* buf, int32_t bufLen, SShowRsp* pRsp);
+void    tFreeSShowRsp(SShowRsp* pRsp);
+
 typedef struct {
   int64_t showId;
   int8_t  free;
@@ -1841,7 +1853,7 @@ typedef struct {
   SSchema *pSchema;
 } SSchemaWrapper;
 
-static FORCE_INLINE int32_t tEncodeSSchema(void** buf, const SSchema* pSchema) {
+static FORCE_INLINE int32_t taosEncodeSSchema(void** buf, const SSchema* pSchema) {
   int32_t tlen = 0;
   tlen += taosEncodeFixedI8(buf, pSchema->type);
   tlen += taosEncodeFixedI32(buf, pSchema->bytes);
@@ -1850,7 +1862,7 @@ static FORCE_INLINE int32_t tEncodeSSchema(void** buf, const SSchema* pSchema) {
   return tlen;
 }
 
-static FORCE_INLINE void* tDecodeSSchema(void* buf, SSchema* pSchema) {
+static FORCE_INLINE void* taosDecodeSSchema(void* buf, SSchema* pSchema) {
   buf = taosDecodeFixedI8(buf, &pSchema->type);
   buf = taosDecodeFixedI32(buf, &pSchema->bytes);
   buf = taosDecodeFixedI32(buf, &pSchema->colId);
@@ -1858,11 +1870,27 @@ static FORCE_INLINE void* tDecodeSSchema(void* buf, SSchema* pSchema) {
   return buf;
 }
 
+static FORCE_INLINE int32_t tEncodeSSchema(SCoder* pEncoder, const SSchema* pSchema) {
+  if (tEncodeI8(pEncoder, pSchema->type) < 0) return -1;
+  if (tEncodeI32(pEncoder, pSchema->bytes) < 0) return -1;
+  if (tEncodeI32(pEncoder, pSchema->colId) < 0) return -1;
+  if (tEncodeCStr(pEncoder, pSchema->name) < 0) return -1;
+  return 0;
+}
+
+static FORCE_INLINE int32_t tDecodeSSchema(SCoder* pDecoder, SSchema* pSchema) {
+  if (tDecodeI8(pDecoder, &pSchema->type) < 0) return -1;
+  if (tDecodeI32(pDecoder, &pSchema->bytes) < 0) return -1;
+  if (tDecodeI32(pDecoder, &pSchema->colId) < 0) return -1;
+  if (tDecodeCStrTo(pDecoder, pSchema->name) < 0) return -1;
+  return 0;
+}
+
 static FORCE_INLINE int32_t tEncodeSSchemaWrapper(void** buf, const SSchemaWrapper* pSW) {
   int32_t tlen = 0;
   tlen += taosEncodeFixedU32(buf, pSW->nCols);
   for (int32_t i = 0; i < pSW->nCols; i ++) {
-    tlen += tEncodeSSchema(buf, &pSW->pSchema[i]);
+    tlen += taosEncodeSSchema(buf, &pSW->pSchema[i]);
   }
   return tlen;
 }
@@ -1874,7 +1902,7 @@ static FORCE_INLINE void* tDecodeSSchemaWrapper(void* buf, SSchemaWrapper* pSW) 
     return NULL;
   }
   for (int32_t i = 0; i < pSW->nCols; i ++) {
-    buf = tDecodeSSchema(buf, &pSW->pSchema[i]);
+    buf = taosDecodeSSchema(buf, &pSW->pSchema[i]);
   }
   return buf;
 }

@@ -302,7 +302,10 @@ static int32_t mndProcessCreateUserReq(SMnodeMsg *pReq) {
   SUserObj      *pOperUser = NULL;
   SCreateUserReq createReq = {0};
 
-  if (tDeserializeSCreateUserReq(pReq->rpcMsg.pCont, pReq->rpcMsg.contLen, &createReq) != 0) goto CREATE_USER_OVER;
+  if (tDeserializeSCreateUserReq(pReq->rpcMsg.pCont, pReq->rpcMsg.contLen, &createReq) != 0) {
+    terrno = TSDB_CODE_INVALID_MSG;
+    goto CREATE_USER_OVER;
+  }
 
   mDebug("user:%s, start to create", createReq.user);
 
@@ -402,7 +405,10 @@ static int32_t mndProcessAlterUserReq(SMnodeMsg *pReq) {
   SUserObj      newUser = {0};
   SAlterUserReq alterReq = {0};
 
-  if (tDeserializeSAlterUserReq(pReq->rpcMsg.pCont, pReq->rpcMsg.contLen, &alterReq) != 0) goto ALTER_USER_OVER;
+  if (tDeserializeSAlterUserReq(pReq->rpcMsg.pCont, pReq->rpcMsg.contLen, &alterReq) != 0) {
+    terrno = TSDB_CODE_INVALID_MSG;
+    goto ALTER_USER_OVER;
+  }
 
   mDebug("user:%s, start to alter", alterReq.user);
 
@@ -537,7 +543,10 @@ static int32_t mndProcessDropUserReq(SMnodeMsg *pReq) {
   SUserObj    *pOperUser = NULL;
   SDropUserReq dropReq = {0};
 
-  if (tDeserializeSDropUserReq(pReq->rpcMsg.pCont, pReq->rpcMsg.contLen, &dropReq) != 0) goto DROP_USER_OVER;
+  if (tDeserializeSDropUserReq(pReq->rpcMsg.pCont, pReq->rpcMsg.contLen, &dropReq) != 0) {
+    terrno = TSDB_CODE_INVALID_MSG;
+    goto DROP_USER_OVER;
+  }
 
   mDebug("user:%s, start to drop", dropReq.user);
 
@@ -583,7 +592,10 @@ static int32_t mndProcessGetUserAuthReq(SMnodeMsg *pReq) {
   SGetUserAuthReq authReq = {0};
   SGetUserAuthRsp authRsp = {0};
 
-  if (tDeserializeSGetUserAuthReq(pReq->rpcMsg.pCont, pReq->rpcMsg.contLen, &authReq) != 0) goto GET_AUTH_OVER;
+  if (tDeserializeSGetUserAuthReq(pReq->rpcMsg.pCont, pReq->rpcMsg.contLen, &authReq) != 0) {
+    terrno = TSDB_CODE_INVALID_MSG;
+    goto GET_AUTH_OVER;
+  }
 
   mTrace("user:%s, start to get auth", authReq.user);
 
@@ -640,33 +652,33 @@ static int32_t mndGetUserMeta(SMnodeMsg *pReq, SShowObj *pShow, STableMetaRsp *p
   SSdb   *pSdb = pMnode->pSdb;
 
   int32_t  cols = 0;
-  SSchema *pSchema = pMeta->pSchema;
+  SSchema *pSchema = pMeta->pSchemas;
 
   pShow->bytes[cols] = TSDB_USER_LEN + VARSTR_HEADER_SIZE;
   pSchema[cols].type = TSDB_DATA_TYPE_BINARY;
   strcpy(pSchema[cols].name, "name");
-  pSchema[cols].bytes = htonl(pShow->bytes[cols]);
+  pSchema[cols].bytes = pShow->bytes[cols];
   cols++;
 
   pShow->bytes[cols] = 10 + VARSTR_HEADER_SIZE;
   pSchema[cols].type = TSDB_DATA_TYPE_BINARY;
   strcpy(pSchema[cols].name, "privilege");
-  pSchema[cols].bytes = htonl(pShow->bytes[cols]);
+  pSchema[cols].bytes = pShow->bytes[cols];
   cols++;
 
   pShow->bytes[cols] = 8;
   pSchema[cols].type = TSDB_DATA_TYPE_TIMESTAMP;
   strcpy(pSchema[cols].name, "create_time");
-  pSchema[cols].bytes = htonl(pShow->bytes[cols]);
+  pSchema[cols].bytes = pShow->bytes[cols];
   cols++;
 
   pShow->bytes[cols] = TSDB_USER_LEN + VARSTR_HEADER_SIZE;
   pSchema[cols].type = TSDB_DATA_TYPE_BINARY;
   strcpy(pSchema[cols].name, "account");
-  pSchema[cols].bytes = htonl(pShow->bytes[cols]);
+  pSchema[cols].bytes = pShow->bytes[cols];
   cols++;
 
-  pMeta->numOfColumns = htonl(cols);
+  pMeta->numOfColumns = cols;
   pShow->numOfColumns = cols;
 
   pShow->offset[0] = 0;

@@ -178,7 +178,7 @@ int32_t qwBuildAndSendShowRsp(SRpcMsg *pMsg, int32_t code) {
   SVShowTablesRsp *pRsp = (SVShowTablesRsp *)rpcMallocCont(msgSize);
 
   int32_t  cols = 0;
-  SSchema *pSchema = pRsp->metaInfo.pSchema;
+  SSchema *pSchema = pRsp->metaInfo.pSchemas;
 
   const SSchema *s = tGetTbnameColumnSchema();
   *pSchema = createSchema(s->type, htonl(s->bytes), htonl(++cols), "name");
