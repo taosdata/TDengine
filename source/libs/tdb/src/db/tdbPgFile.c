@@ -20,38 +20,35 @@ static int pgFileRead(SPgFile *pPgFile, pgno_t pgno, uint8_t *pData);
 int pgFileOpen(SPgFile **ppPgFile, const char *fname, TENV *pEnv) {
   SPgFile * pPgFile;
   SPgCache *pPgCache;
+  size_t    fnameLen;
 
   *ppPgFile = NULL;
 
-  pPgFile = (SPgFile *)calloc(1, sizeof(*pPgFile));
+  // create the handle
+  fnameLen = strlen(fname);
+  pPgFile = (SPgFile *)calloc(1, sizeof(*pPgFile) + fnameLen + 1);
   if (pPgFile == NULL) {
     return -1;
   }
 
+  ASSERT(pEnv != NULL);
+
+  // init the handle
+  pPgFile->pEnv = pEnv;
+  pPgFile->fname = (char *)(&(pPgFile[1]));
+  memcpy(pPgFile->fname, fname, fnameLen);
+  pPgFile->fname[fnameLen] = '\0';
   pPgFile->fd = -1;
 
-  pPgFile->fname = strdup(fname);
-  if (pPgFile->fname == NULL) {
-    pgFileClose(pPgFile);
-    return -1;
-  }
-
-  pPgFile->pPgCache = pPgCache;
-  // pPgFile->pgSize = ; (TODO)
-
-  pPgFile->fd = open(fname, O_RDWR, 0755);
+  pPgFile->fd = open(fname, O_CREAT | O_RDWR, 0755);
   if (pPgFile->fd < 0) {
-    pgFileClose(pPgFile);
+    // TODO: handle error
     return -1;
   }
 
-  if (tdbGnrtFileID(fname, pPgFile->fileid, false) < 0) {
-    pgFileClose(pPgFile);
-    return -1;
-  }
+  tdbGnrtFileID(fname, pPgFile->fileid, false);
 
-  // TODO: get file size
-  pPgFile->pgFileSize = 0;
+  /* TODO */
 
   *ppPgFile = pPgFile;
   return 0;
@@ -75,6 +72,7 @@ SPage *pgFileFetch(SPgFile *pPgFile, pgno_t pgno) {
   SPage *   pPage;
   pgid_t    pgid;
 
+#if 0
   pPgCache = pPgFile->pPgCache;
   pPage = NULL;
   memcpy(pgid.fileid, pPgFile->fileid, TDB_FILE_ID_LEN);
@@ -94,6 +92,7 @@ SPage *pgFileFetch(SPgFile *pPgFile, pgno_t pgno) {
       return pPage;
     }
   }
+#endif
 
   return pPage;
 }
@@ -114,6 +113,8 @@ static int pgFileRead(SPgFile *pPgFile, pgno_t pgno, uint8_t *pData) {
   uint8_t *pTData;
   size_t   szToRead;
 
+#if 0
+
   // pgSize = ; (TODO)
   pTData = pData;
   szToRead = pgSize;
@@ -132,6 +133,7 @@ static int pgFileRead(SPgFile *pPgFile, pgno_t pgno, uint8_t *pData) {
     szToRead -= rsize;
     pTData += rsize;
   }
+#endif
 
   return 0;
 }

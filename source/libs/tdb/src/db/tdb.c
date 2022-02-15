@@ -87,17 +87,20 @@ int tdbOpen(TDB *pDb, const char *fname, const char *dbname, TENV *pEnv) {
   pDb->dbname[dbNameLen] = '\0';
 
   // open pPgFile or get from the env
+  pPgFile = NULL;
   snprintf(dbfname, 128, "%s/%s", tdbEnvGetRootDir(pEnv), fname);
   fileExist = (tdbCheckFileAccess(fname, TDB_F_OK) == 0);
   if (fileExist) {
-    // TODO
-  } else {
+    tdbGnrtFileID(dbfname, fileid, false);
+    pPgFile = tdbEnvGetPageFile(pEnv, fileid);
+  }
+
+  if (pPgFile == NULL) {
     ret = pgFileOpen(&pPgFile, dbfname, pEnv);
     if (ret != 0) {
       // TODO: handle error
       return -1;
     }
-    // Create and open the page file
   }
 
 #if 0

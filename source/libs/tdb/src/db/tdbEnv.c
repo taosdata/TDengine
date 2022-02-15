@@ -47,6 +47,7 @@ int tdbEnvCreate(TENV **ppEnv, const char *rootDir) {
   pEnv->cacheSize = TDB_DEFAULT_CACHE_SIZE;
 
   memcpy(pEnv->rootDir, rootDir, slen);
+  pEnv->rootDir[slen] = '\0';
 
   TD_DLIST_INIT(&(pEnv->dbList));
   TD_DLIST_INIT(&(pEnv->pgfList));
