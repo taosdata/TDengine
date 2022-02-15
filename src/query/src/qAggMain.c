@@ -5146,23 +5146,23 @@ static void copyUniqueRes(SQLFunctionCtx *pCtx, int32_t type) {
   size_t size = sizeof(tValuePair) + pCtx->tagInfo.tagsLen;
   char *tvp = pRes->res;
 
-  int32_t step = QUERY_ASC_FORWARD_STEP;
   int32_t len = (int32_t)(GET_RES_INFO(pCtx)->numOfRes);
 
   switch (type) {
     case TSDB_DATA_TYPE_UINT:
     case TSDB_DATA_TYPE_INT: {
       int32_t *output = (int32_t *)pCtx->pOutput;
-      for (int32_t i = 0; i < len; ++i, output += step) {
+      for (int32_t i = 0; i < len; ++i, output ++) {
         *output = ((tValuePair *)tvp)->v.i64;
         tvp += size;
       }
       break;
     }
     case TSDB_DATA_TYPE_UBIGINT:
-    case TSDB_DATA_TYPE_BIGINT: {
+    case TSDB_DATA_TYPE_BIGINT:
+    case TSDB_DATA_TYPE_TIMESTAMP:{
       int64_t *output = (int64_t *)pCtx->pOutput;
-      for (int32_t i = 0; i < len; ++i, output += step) {
+      for (int32_t i = 0; i < len; ++i, output ++) {
         *output = ((tValuePair *)tvp)->v.i64;
         tvp += size;
       }
@@ -5170,7 +5170,7 @@ static void copyUniqueRes(SQLFunctionCtx *pCtx, int32_t type) {
     }
     case TSDB_DATA_TYPE_DOUBLE: {
       double *output = (double *)pCtx->pOutput;
-      for (int32_t i = 0; i < len; ++i, output += step) {
+      for (int32_t i = 0; i < len; ++i, output ++) {
         *output = ((tValuePair *)tvp)->v.dKey;
         tvp += size;
       }
@@ -5178,7 +5178,7 @@ static void copyUniqueRes(SQLFunctionCtx *pCtx, int32_t type) {
     }
     case TSDB_DATA_TYPE_FLOAT: {
       float *output = (float *)pCtx->pOutput;
-      for (int32_t i = 0; i < len; ++i, output += step) {
+      for (int32_t i = 0; i < len; ++i, output ++) {
         *output = ((tValuePair *)tvp)->v.dKey;
         tvp += size;
       }
@@ -5187,38 +5187,41 @@ static void copyUniqueRes(SQLFunctionCtx *pCtx, int32_t type) {
     case TSDB_DATA_TYPE_USMALLINT:
     case TSDB_DATA_TYPE_SMALLINT: {
       int16_t *output = (int16_t *)pCtx->pOutput;
-      for (int32_t i = 0; i < len; ++i, output += step) {
+      for (int32_t i = 0; i < len; ++i, output ++) {
         *output = ((tValuePair *)tvp)->v.i64;
         tvp += size;
       }
       break;
     }
     case TSDB_DATA_TYPE_UTINYINT:
-    case TSDB_DATA_TYPE_TINYINT: {
+    case TSDB_DATA_TYPE_TINYINT:
+    case TSDB_DATA_TYPE_BOOL:{
       int8_t *output = (int8_t *)pCtx->pOutput;
-      for (int32_t i = 0; i < len; ++i, output += step) {
+      for (int32_t i = 0; i < len; ++i, output ++) {
         *output = ((tValuePair *)tvp)->v.i64;
         tvp += size;
       }
       break;
     }
     case TSDB_DATA_TYPE_BINARY:
-    {
-
-    }
-    case TSDB_DATA_TYPE_NCHAR:
-    {
-
+    case TSDB_DATA_TYPE_NCHAR: {
+      char *output = pCtx->pOutput;
+      for (int32_t i = 0; i < len; ++i, output += pCtx->outputBytes) {
+        *output = ((tValuePair *)tvp)->v.i64;
+        memcpy(output, ((tValuePair *)tvp)->v.pz, ((tValuePair *)tvp)->v.nLen);
+        tvp += size;
+      }
+      break;
     }
     default: {
-      qError("top/bottom function not support data type:%d", pCtx->inputType);
+      qError("unique function not support data type:%d", pCtx->inputType);
       return;
     }
   }
 
   // set the output timestamp of each record.
   TSKEY *output = pCtx->ptsOutputBuf;
-  for (int32_t i = 0; i < len; ++i, output += step) {
+  for (int32_t i = 0; i < len; ++i, output ++) {
     *output = ((tValuePair *)tvp)->timestamp;
     tvp += size;
   }
@@ -5234,7 +5237,7 @@ static void copyUniqueRes(SQLFunctionCtx *pCtx, int32_t type) {
     pData[i] = pCtx->tagInfo.pTagCtxList[i]->pOutput;
   }
 
-  for (int32_t i = 0; i < len; ++i, output += step) {
+  for (int32_t i = 0; i < len; ++i, output ++) {
     int16_t offset = 0;
     for (int32_t j = 0; j < pCtx->tagInfo.numOfTagCols; ++j) {
       memcpy(pData[j], ((tValuePair *)tvp)->pTags + offset, (size_t)pCtx->tagInfo.pTagCtxList[j]->outputBytes);
