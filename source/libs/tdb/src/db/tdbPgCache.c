@@ -18,10 +18,10 @@ typedef TD_DLIST_NODE(SPage) SPgListNode;
 struct SPage {
   pgid_t      pgid;      // page id
   frame_id_t  frameid;   // frame id
+  uint8_t *   pData;     // real data
   SPgListNode freeNode;  // for SPgCache.freeList
   SPgListNode pghtNode;  // for pght
   SPgListNode lruNode;   // for LRU
-  uint8_t *   pData;     // real data
 };
 
 typedef TD_DLIST(SPage) SPgList;
@@ -29,7 +29,7 @@ struct SPgCache {
   TENV *  pEnv;  // TENV containing this page cache
   pgsz_t  pgsize;
   int32_t npage;
-  SPage * pages;
+  SPage **pages;
   SPgList freeList;
   SPgList lru;
   struct {
@@ -44,58 +44,57 @@ static void pgCacheUnpinPage(SPage *pPage);
 int pgCacheOpen(SPgCache **ppPgCache, TENV *pEnv) {
   SPgCache *pPgCache;
   SPage *   pPage;
+  void *    pData;
   pgsz_t    pgSize;
   cachesz_t cacheSize;
   int32_t   npage;
+  int32_t   nbucket;
+  size_t    msize;
 
   *ppPgCache = NULL;
   pgSize = tdbEnvGetPageSize(pEnv);
   cacheSize = tdbEnvGetCacheSize(pEnv);
   npage = cacheSize / pgSize;
+  nbucket = npage;
+  msize = sizeof(*pPgCache) + sizeof(SPage *) * npage + sizeof(SPgList) * nbucket;
 
   // Allocate the handle
-  pPgCache = (SPgCache *)calloc(1, sizeof(*pPgCache));
+  pPgCache = (SPgCache *)calloc(1, msize);
   if (pPgCache == NULL) {
     return -1;
   }
 
+  // Init the handle
   pPgCache->pEnv = pEnv;
   pPgCache->pgsize = pgSize;
   pPgCache->npage = npage;
-
-  for (int32_t i = 0; i < npage; i++) {
-    /* code */
-  }
-
-#if 0
-  pPgCache->pages = (SPage *)calloc(npage, sizeof(SPage));
-  if (pPgCache->pages == NULL) {
-    pgCacheClose(pPgCache);
-    return -1;
-  }
+  pPgCache->pages = (SPage **)(&pPgCache[1]);
+  pPgCache->pght.nbucket = nbucket;
+  pPgCache->pght.buckets = (SPgList *)(&(pPgCache->pages[npage]));
 
   TD_DLIST_INIT(&(pPgCache->freeList));
 
   for (int32_t i = 0; i < npage; i++) {
-    pPage = pPgCache->pages + i;
+    pData = malloc(pgSize + sizeof(SPage));
+    if (pData == NULL) {
+      return -1;
+      // TODO: handle error
+    }
+
+    pPage = POINTER_SHIFT(pData, pgSize);
 
     pPage->pgid = TDB_IVLD_PGID;
     pPage->frameid = i;
+    pPage->pData = pData;
 
-    pPage->pData = (uint8_t *)calloc(1, pgSize);
-    if (pPage->pData == NULL) {
-      pgCacheClose(pPgCache);
-      return -1;
-    }
-
-    pPgCache->pght.nbucket = npage;
-    pPgCache->pght.buckets = (SPgList *)calloc(pPgCache->pght.nbucket, sizeof(SPgList));
-    if (pPgCache->pght.buckets == NULL) {
-      pgCacheClose(pPgCache);
-      return -1;
-    }
-
+    // add current page to the page cache
+    pPgCache->pages[i] = pPage;
     TD_DLIST_APPEND_WITH_FIELD(&(pPgCache->freeList), pPage, freeNode);
+  }
+
+#if 0
+  for (int32_t i = 0; i < nbucket; i++) {
+    TD_DLIST_INIT(pPgCache->pght.buckets + i);
   }
 #endif
 
@@ -106,15 +105,11 @@ int pgCacheOpen(SPgCache **ppPgCache, TENV *pEnv) {
 int pgCacheClose(SPgCache *pPgCache) {
   SPage *pPage;
   if (pPgCache) {
-    tfree(pPgCache->pght.buckets);
-    if (pPgCache->pages) {
-      for (int32_t i = 0; i < pPgCache->npage; i++) {
-        pPage = pPgCache->pages + i;
-        tfree(pPage->pData);
-      }
-
-      free(pPgCache->pages);
+    for (int32_t i = 0; i < pPgCache->npage; i++) {
+      pPage = pPgCache->pages[i];
+      tfree(pPage->pData);
     }
+
     free(pPgCache);
   }
 
