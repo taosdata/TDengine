@@ -76,7 +76,8 @@ private:
     case QUERY_NODE_COLUMN:
     case QUERY_NODE_VALUE:
     case QUERY_NODE_OPERATOR:
-    case QUERY_NODE_FUNCTION: {
+    case QUERY_NODE_FUNCTION:
+    case QUERY_NODE_LOGIC_CONDITION: {
       SExprNode* pExpr = (SExprNode*)node;
       str.append(" [" + dataTypeToStr(pExpr->resType) + "]");
       if (isProject) {
@@ -215,6 +216,34 @@ private:
     str.append((NULL_ORDER_FIRST == pOrderBy->nullOrder ? " NULLS FIRST" : " NULLS LAST"));
   }
 
+  string logicConditionTypeToStr(ELogicConditionType type) {
+    switch (type) {
+      case LOGIC_COND_TYPE_AND:
+        return "AND";    
+      case LOGIC_COND_TYPE_OR:
+        return "OR";
+      case LOGIC_COND_TYPE_NOT:
+        return "NOT";
+      default:
+        break;
+    }
+    return "Unknown logic cond type";
+  }
+
+  void logicCondToStr(SLogicConditionNode* pCond, string& str) {
+    SNode* node = nullptr;
+    bool first = true;
+    FOREACH(node, pCond->pParameterList) {
+      if (first && LOGIC_COND_TYPE_NOT == pCond->condType) {
+        str.append(logicConditionTypeToStr(pCond->condType) + " ");
+      } else if (!first && LOGIC_COND_TYPE_NOT != pCond->condType) {
+        str.append(" " + logicConditionTypeToStr(pCond->condType) + " ");
+      }
+      first = false;
+      nodeToStr(node, str, false);
+    }
+  }
+
   void nodeToStr(const SNode* node, string& str, bool isProject) {
     if (nullptr == node) {
       return;
@@ -235,6 +264,10 @@ private:
       }
       case QUERY_NODE_FUNCTION: {
         functionToStr((SFunctionNode*)node, str);
+        break;
+      }
+      case QUERY_NODE_LOGIC_CONDITION: {
+        logicCondToStr((SLogicConditionNode*)node, str);
         break;
       }
       case QUERY_NODE_GROUPING_SET: {
@@ -510,6 +543,12 @@ TEST_F(NewParserTest, selectExpression) {
   setDatabase("root", "test");
 
   bind("SELECT ts + 10s, c1 + 10, concat(c2, 'abc') FROM t1");
+  ASSERT_TRUE(run());
+
+  bind("SELECT ts > 0, c1 < 20 AND c2 = 'qaz' FROM t1");
+  ASSERT_TRUE(run());
+
+  bind("SELECT ts > 0, c1 BETWEEN 10 AND 20 AND c2 = 'qaz' FROM t1");
   ASSERT_TRUE(run());
 }
 

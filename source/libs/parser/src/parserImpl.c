@@ -628,6 +628,12 @@ static EDealRes translateExprSubquery(STranslateContext* pCxt, SNode* pNode) {
   return (TSDB_CODE_SUCCESS == translateSubquery(pCxt, pNode) ? DEAL_RES_CONTINUE : DEAL_RES_ERROR);
 }
 
+static EDealRes translateLogicCond(STranslateContext* pCxt, SLogicConditionNode* pCond) {
+  pCond->node.resType.type = TSDB_DATA_TYPE_BOOL;
+  pCond->node.resType.bytes = tDataTypes[TSDB_DATA_TYPE_BOOL].bytes;
+  return DEAL_RES_CONTINUE;
+}
+
 static EDealRes doTranslateExpr(SNode* pNode, void* pContext) {
   STranslateContext* pCxt = (STranslateContext*)pContext;
   switch (nodeType(pNode)) {
@@ -639,6 +645,8 @@ static EDealRes doTranslateExpr(SNode* pNode, void* pContext) {
       return translateOperator(pCxt, (SOperatorNode*)pNode);
     case QUERY_NODE_FUNCTION:
       return translateFunction(pCxt, (SFunctionNode*)pNode);
+    case QUERY_NODE_LOGIC_CONDITION:
+      return translateLogicCond(pCxt, (SLogicConditionNode*)pNode);
     case QUERY_NODE_TEMP_TABLE:
       return translateExprSubquery(pCxt, ((STempTableNode*)pNode)->pSubquery);
     default:

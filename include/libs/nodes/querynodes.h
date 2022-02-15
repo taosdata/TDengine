@@ -113,13 +113,13 @@ typedef enum ELogicConditionType {
 } ELogicConditionType;
 
 typedef struct SLogicConditionNode {
-  ENodeType type; // QUERY_NODE_LOGIC_CONDITION
+  SExprNode node; // QUERY_NODE_LOGIC_CONDITION
   ELogicConditionType condType;
   SNodeList* pParameterList;
 } SLogicConditionNode;
 
 typedef struct SIsNullCondNode {
-  ENodeType type; // QUERY_NODE_IS_NULL_CONDITION
+  SExprNode node; // QUERY_NODE_IS_NULL_CONDITION
   SNode* pExpr;
   bool isNull;
 } SIsNullCondNode;
