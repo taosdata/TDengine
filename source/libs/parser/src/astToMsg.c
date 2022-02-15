@@ -404,15 +404,14 @@ char* buildCreateStbReq(SCreateTableSql* pCreateTableSql, int32_t* outputLen, SP
     return NULL;
   }
 
-  int32_t tlen = tSerializeSMCreateStbReq(NULL, &createReq);
+  int32_t tlen = tSerializeSMCreateStbReq(NULL, 0, &createReq);
   void*   pReq = malloc(tlen);
   if (pReq == NULL) {
     terrno = TSDB_CODE_OUT_OF_MEMORY;
     return NULL;
   }
 
-  void* pBuf = pReq;
-  tSerializeSMCreateStbReq(&pBuf, &createReq);
+  tSerializeSMCreateStbReq(pReq, tlen, &createReq);
   *outputLen = tlen;
   return pReq;
 }
@@ -433,15 +432,14 @@ char* buildDropStableReq(SSqlInfo* pInfo, int32_t* outputLen, SParseContext* pPa
   assert(code == TSDB_CODE_SUCCESS && name.type == TSDB_TABLE_NAME_T);
   dropReq.igNotExists = pInfo->pMiscInfo->existsCheck ? 1 : 0;
 
-  int32_t tlen = tSerializeSMDropStbReq(NULL, &dropReq);
+  int32_t tlen = tSerializeSMDropStbReq(NULL, 0, &dropReq);
   void*   pReq = malloc(tlen);
   if (pReq == NULL) {
     terrno = TSDB_CODE_OUT_OF_MEMORY;
     return NULL;
   }
 
-  void* pBuf = pReq;
-  tSerializeSMDropStbReq(&pBuf, &dropReq);
+  tSerializeSMDropStbReq(pReq, tlen, &dropReq);
   *outputLen = tlen;
   return pReq;
 }

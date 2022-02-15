@@ -15,6 +15,7 @@
 
 #define _DEFAULT_SOURCE
 #include "mndStb.h"
+#include "mndAuth.h"
 #include "mndDb.h"
 #include "mndDnode.h"
 #include "mndMnode.h"
@@ -27,7 +28,6 @@
 #define TSDB_STB_VER_NUMBER 1
 #define TSDB_STB_RESERVE_SIZE 64
 
-static SSdbRaw *mndStbActionEncode(SStbObj *pStb);
 static SSdbRow *mndStbActionDecode(SSdbRaw *pRaw);
 static int32_t  mndStbActionInsert(SSdb *pSdb, SStbObj *pStb);
 static int32_t  mndStbActionDelete(SSdb *pSdb, SStbObj *pStb);
@@ -69,7 +69,7 @@ int32_t mndInitStb(SMnode *pMnode) {
 
 void mndCleanupStb(SMnode *pMnode) {}
 
-static SSdbRaw *mndStbActionEncode(SStbObj *pStb) {
+SSdbRaw *mndStbActionEncode(SStbObj *pStb) {
   terrno = TSDB_CODE_OUT_OF_MEMORY;
 
   int32_t  size = sizeof(SStbObj) + (pStb->numOfColumns + pStb->numOfTags) * sizeof(SSchema) + TSDB_STB_RESERVE_SIZE;
@@ -343,7 +343,7 @@ static int32_t mndCheckCreateStbReq(SMCreateStbReq *pCreate) {
     return -1;
   }
 
-  SField *pField = taosArrayGet(pCreate->pColumns, 0) ;
+  SField *pField = taosArrayGet(pCreate->pColumns, 0);
   if (pField->type != TSDB_DATA_TYPE_TIMESTAMP) {
     terrno = TSDB_CODE_MND_INVALID_STB_OPTION;
     return -1;
@@ -549,12 +549,19 @@ static int32_t mndProcessMCreateStbReq(SMnodeMsg *pReq) {
   SStbObj       *pTopicStb = NULL;
   SStbObj       *pStb = NULL;
   SDbObj        *pDb = NULL;
+  SUserObj      *pUser = NULL;
   SMCreateStbReq createReq = {0};
 
-  if (tDeserializeSMCreateStbReq(pReq->rpcMsg.pCont, &createReq) == NULL) goto CREATE_STB_OVER;
+  if (tDeserializeSMCreateStbReq(pReq->rpcMsg.pCont, pReq->rpcMsg.contLen, &createReq) != 0) {
+    terrno = TSDB_CODE_INVALID_MSG;
+    goto CREATE_STB_OVER;
+  }
 
   mDebug("stb:%s, start to create", createReq.name);
-  if (mndCheckCreateStbReq(&createReq) != 0) goto CREATE_STB_OVER;
+  if (mndCheckCreateStbReq(&createReq) != 0) {
+    terrno = TSDB_CODE_INVALID_MSG;
+    goto CREATE_STB_OVER;
+  }
 
   pStb = mndAcquireStb(pMnode, createReq.name);
   if (pStb != NULL) {
@@ -582,6 +589,15 @@ static int32_t mndProcessMCreateStbReq(SMnodeMsg *pReq) {
     goto CREATE_STB_OVER;
   }
 
+  pUser = mndAcquireUser(pMnode, pReq->user);
+  if (pUser == NULL) {
+    goto CREATE_STB_OVER;
+  }
+
+  if (mndCheckWriteAuth(pUser, pDb) != 0) {
+    goto CREATE_STB_OVER;
+  }
+
   code = mndCreateStb(pMnode, pReq, &createReq, pDb);
   if (code == 0) code = TSDB_CODE_MND_ACTION_IN_PROGRESS;
 
@@ -593,8 +609,8 @@ CREATE_STB_OVER:
   mndReleaseStb(pMnode, pStb);
   mndReleaseStb(pMnode, pTopicStb);
   mndReleaseDb(pMnode, pDb);
-  taosArrayDestroy(createReq.pColumns);
-  taosArrayDestroy(createReq.pTags);
+  mndReleaseUser(pMnode, pUser);
+  tFreeSMCreateStbReq(&createReq);
 
   return code;
 }
@@ -965,7 +981,7 @@ static int32_t mndAlterStb(SMnode *pMnode, SMnodeMsg *pReq, const SMAltertbReq *
   int32_t code = -1;
   STrans *pTrans = NULL;
   SField *pField0 = taosArrayGet(pAlter->pFields, 0);
-      
+
   switch (pAlter->alterType) {
     case TSDB_ALTER_TABLE_ADD_TAG:
       code = mndAddSuperTableTag(pOld, &stbObj, pAlter->pFields, pAlter->numOfFields);
@@ -1020,9 +1036,13 @@ static int32_t mndProcessMAlterStbReq(SMnodeMsg *pReq) {
   int32_t      code = -1;
   SDbObj      *pDb = NULL;
   SStbObj     *pStb = NULL;
+  SUserObj    *pUser = NULL;
   SMAltertbReq alterReq = {0};
 
-  if (tDeserializeSMAlterStbReq(pReq->rpcMsg.pCont, &alterReq) == NULL) goto ALTER_STB_OVER;
+  if (tDeserializeSMAlterStbReq(pReq->rpcMsg.pCont, pReq->rpcMsg.contLen, &alterReq) != 0) {
+    terrno = TSDB_CODE_INVALID_MSG;
+    goto ALTER_STB_OVER;
+  }
 
   mDebug("stb:%s, start to alter", alterReq.name);
   if (mndCheckAlterStbReq(&alterReq) != 0) goto ALTER_STB_OVER;
@@ -1039,6 +1059,15 @@ static int32_t mndProcessMAlterStbReq(SMnodeMsg *pReq) {
     goto ALTER_STB_OVER;
   }
 
+  pUser = mndAcquireUser(pMnode, pReq->user);
+  if (pUser == NULL) {
+    goto ALTER_STB_OVER;
+  }
+
+  if (mndCheckWriteAuth(pUser, pDb) != 0) {
+    goto ALTER_STB_OVER;
+  }
+
   code = mndAlterStb(pMnode, pReq, &alterReq, pDb, pStb);
   if (code == 0) code = TSDB_CODE_MND_ACTION_IN_PROGRESS;
 
@@ -1049,6 +1078,7 @@ ALTER_STB_OVER:
 
   mndReleaseStb(pMnode, pStb);
   mndReleaseDb(pMnode, pDb);
+  mndReleaseUser(pMnode, pUser);
   taosArrayDestroy(alterReq.pFields);
 
   return code;
@@ -1135,43 +1165,60 @@ DROP_STB_OVER:
 }
 
 static int32_t mndProcessMDropStbReq(SMnodeMsg *pReq) {
-  SMnode *pMnode = pReq->pMnode;
-
+  SMnode      *pMnode = pReq->pMnode;
+  int32_t      code = -1;
+  SUserObj    *pUser = NULL;
+  SDbObj      *pDb = NULL;
+  SStbObj     *pStb = NULL;
   SMDropStbReq dropReq = {0};
-  tDeserializeSMDropStbReq(pReq->rpcMsg.pCont, &dropReq);
+
+  if (tDeserializeSMDropStbReq(pReq->rpcMsg.pCont, pReq->rpcMsg.contLen, &dropReq) != 0) {
+    terrno = TSDB_CODE_INVALID_MSG;
+    goto DROP_STB_OVER;
+  }
 
   mDebug("stb:%s, start to drop", dropReq.name);
 
-  SStbObj *pStb = mndAcquireStb(pMnode, dropReq.name);
+  pStb = mndAcquireStb(pMnode, dropReq.name);
   if (pStb == NULL) {
     if (dropReq.igNotExists) {
       mDebug("stb:%s, not exist, ignore not exist is set", dropReq.name);
-      return 0;
+      code = 0;
+      goto DROP_STB_OVER;
     } else {
       terrno = TSDB_CODE_MND_STB_NOT_EXIST;
-      mError("stb:%s, failed to drop since %s", dropReq.name, terrstr());
-      return -1;
+      goto DROP_STB_OVER;
     }
   }
 
-  SDbObj *pDb = mndAcquireDbByStb(pMnode, dropReq.name);
+  pDb = mndAcquireDbByStb(pMnode, dropReq.name);
   if (pDb == NULL) {
-    mndReleaseStb(pMnode, pStb);
     terrno = TSDB_CODE_MND_DB_NOT_SELECTED;
-    mError("stb:%s, failed to drop since %s", dropReq.name, terrstr());
-    return -1;
+    goto DROP_STB_OVER;
   }
 
-  int32_t code = mndDropStb(pMnode, pReq, pDb, pStb);
+  pUser = mndAcquireUser(pMnode, pReq->user);
+  if (pUser == NULL) {
+    goto DROP_STB_OVER;
+  }
+
+  if (mndCheckWriteAuth(pUser, pDb) != 0) {
+    goto DROP_STB_OVER;
+  }
+
+  code = mndDropStb(pMnode, pReq, pDb, pStb);
+  if (code == 0) code = TSDB_CODE_MND_ACTION_IN_PROGRESS;
+
+DROP_STB_OVER:
+  if (code != 0 && code != TSDB_CODE_MND_ACTION_IN_PROGRESS) {
+    mError("stb:%s, failed to drop since %s", dropReq.name, terrstr());
+  }
+
   mndReleaseDb(pMnode, pDb);
   mndReleaseStb(pMnode, pStb);
+  mndReleaseUser(pMnode, pUser);
 
-  if (code != 0) {
-    mError("stb:%s, failed to drop since %s", dropReq.name, terrstr());
-    return -1;
-  }
-
-  return TSDB_CODE_MND_ACTION_IN_PROGRESS;
+  return code;
 }
 
 static int32_t mndProcessVDropStbRsp(SMnodeMsg *pRsp) {

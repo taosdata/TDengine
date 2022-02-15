@@ -141,3 +141,29 @@ int32_t mndCheckAlterDropCompactSyncDbAuth(SUserObj *pOperUser, SDbObj *pDb) {
 }
 
 int32_t mndCheckUseDbAuth(SUserObj *pOperUser, SDbObj *pDb) { return 0; }
+
+int32_t mndCheckWriteAuth(SUserObj *pOperUser, SDbObj *pDb) {
+  if (pOperUser->superUser || strcmp(pOperUser->user, pDb->createUser) == 0) {
+    return 0;
+  }
+
+  if (taosHashGet(pOperUser->writeDbs, pDb->name, strlen(pDb->name) + 1) != NULL) {
+    return 0;
+  }
+
+  terrno = TSDB_CODE_MND_NO_RIGHTS;
+  return -1;
+}
+
+int32_t mndCheckReadAuth(SUserObj *pOperUser, SDbObj *pDb) {
+  if (pOperUser->superUser || strcmp(pOperUser->user, pDb->createUser) == 0) {
+    return 0;
+  }
+
+  if (taosHashGet(pOperUser->readDbs, pDb->name, strlen(pDb->name) + 1) != NULL) {
+    return 0;
+  }
+
+  terrno = TSDB_CODE_MND_NO_RIGHTS;
+  return -1;
+}
