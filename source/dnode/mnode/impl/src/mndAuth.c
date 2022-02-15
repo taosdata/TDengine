@@ -110,3 +110,34 @@ int32_t mndCheckDropUserAuth(SUserObj *pOperUser) {
   terrno = TSDB_CODE_MND_NO_RIGHTS;
   return -1;
 }
+
+int32_t mndCheckNodeAuth(SUserObj *pOperUser) {
+  if (pOperUser->superUser) {
+    return 0;
+  }
+
+  terrno = TSDB_CODE_MND_NO_RIGHTS;
+  return -1;
+}
+
+int32_t mndCheckFuncAuth(SUserObj *pOperUser) {
+  if (pOperUser->superUser) {
+    return 0;
+  }
+
+  terrno = TSDB_CODE_MND_NO_RIGHTS;
+  return -1;
+}
+
+int32_t mndCheckCreateDbAuth(SUserObj *pOperUser) { return 0; }
+
+int32_t mndCheckAlterDropCompactSyncDbAuth(SUserObj *pOperUser, SDbObj *pDb) {
+  if (pOperUser->superUser || strcmp(pOperUser->user, pDb->createUser) == 0) {
+    return 0;
+  }
+
+  terrno = TSDB_CODE_MND_NO_RIGHTS;
+  return -1;
+}
+
+int32_t mndCheckUseDbAuth(SUserObj *pOperUser, SDbObj *pDb) { return 0; }

@@ -75,11 +75,14 @@ TEST_F(MndTestDnode, 01_ShowDnode) {
 }
 
 TEST_F(MndTestDnode, 02_ConfigDnode) {
-  int32_t contLen = sizeof(SMCfgDnodeReq);
+  SMCfgDnodeReq cfgReq = {0};
+  cfgReq.dnodeId = 1;
+  strcpy(cfgReq.config, "ddebugflag");
+  strcpy(cfgReq.value, "131");
 
-  SMCfgDnodeReq* pReq = (SMCfgDnodeReq*)rpcMallocCont(contLen);
-  pReq->dnodeId = htonl(1);
-  strcpy(pReq->config, "ddebugflag 131");
+  int32_t contLen = tSerializeSMCfgDnodeReq(NULL, 0, &cfgReq);
+  void*   pReq = rpcMallocCont(contLen);
+  tSerializeSMCfgDnodeReq(pReq, contLen, &cfgReq);
 
   SRpcMsg* pRsp = test.SendReq(TDMT_MND_CONFIG_DNODE, pReq, contLen);
   ASSERT_NE(pRsp, nullptr);
@@ -88,23 +91,13 @@ TEST_F(MndTestDnode, 02_ConfigDnode) {
 
 TEST_F(MndTestDnode, 03_Create_Dnode) {
   {
-    int32_t contLen = sizeof(SCreateDnodeReq);
+    SCreateDnodeReq createReq = {0};
+    strcpy(createReq.fqdn, "");
+    createReq.port = 9024;
 
-    SCreateDnodeReq* pReq = (SCreateDnodeReq*)rpcMallocCont(contLen);
-    strcpy(pReq->fqdn, "");
-    pReq->port = htonl(9024);
-
-    SRpcMsg* pRsp = test.SendReq(TDMT_MND_CREATE_DNODE, pReq, contLen);
-    ASSERT_NE(pRsp, nullptr);
-    ASSERT_EQ(pRsp->code, TSDB_CODE_MND_INVALID_DNODE_EP);
-  }
-
-  {
-    int32_t contLen = sizeof(SCreateDnodeReq);
-
-    SCreateDnodeReq* pReq = (SCreateDnodeReq*)rpcMallocCont(contLen);
-    strcpy(pReq->fqdn, "localhost");
-    pReq->port = htonl(-1);
+    int32_t contLen = tSerializeSCreateDnodeReq(NULL, 0, &createReq);
+    void*   pReq = rpcMallocCont(contLen);
+    tSerializeSCreateDnodeReq(pReq, contLen, &createReq);
 
     SRpcMsg* pRsp = test.SendReq(TDMT_MND_CREATE_DNODE, pReq, contLen);
     ASSERT_NE(pRsp, nullptr);
@@ -112,11 +105,13 @@ TEST_F(MndTestDnode, 03_Create_Dnode) {
   }
 
   {
-    int32_t contLen = sizeof(SCreateDnodeReq);
+    SCreateDnodeReq createReq = {0};
+    strcpy(createReq.fqdn, "localhost");
+    createReq.port = -1;
 
-    SCreateDnodeReq* pReq = (SCreateDnodeReq*)rpcMallocCont(contLen);
-    strcpy(pReq->fqdn, "localhost");
-    pReq->port = htonl(123456);
+    int32_t contLen = tSerializeSCreateDnodeReq(NULL, 0, &createReq);
+    void*   pReq = rpcMallocCont(contLen);
+    tSerializeSCreateDnodeReq(pReq, contLen, &createReq);
 
     SRpcMsg* pRsp = test.SendReq(TDMT_MND_CREATE_DNODE, pReq, contLen);
     ASSERT_NE(pRsp, nullptr);
@@ -124,11 +119,27 @@ TEST_F(MndTestDnode, 03_Create_Dnode) {
   }
 
   {
-    int32_t contLen = sizeof(SCreateDnodeReq);
+    SCreateDnodeReq createReq = {0};
+    strcpy(createReq.fqdn, "localhost");
+    createReq.port = 123456;
 
-    SCreateDnodeReq* pReq = (SCreateDnodeReq*)rpcMallocCont(contLen);
-    strcpy(pReq->fqdn, "localhost");
-    pReq->port = htonl(9024);
+    int32_t contLen = tSerializeSCreateDnodeReq(NULL, 0, &createReq);
+    void*   pReq = rpcMallocCont(contLen);
+    tSerializeSCreateDnodeReq(pReq, contLen, &createReq);
+
+    SRpcMsg* pRsp = test.SendReq(TDMT_MND_CREATE_DNODE, pReq, contLen);
+    ASSERT_NE(pRsp, nullptr);
+    ASSERT_EQ(pRsp->code, TSDB_CODE_MND_INVALID_DNODE_EP);
+  }
+
+  {
+    SCreateDnodeReq createReq = {0};
+    strcpy(createReq.fqdn, "localhost");
+    createReq.port = 9024;
+
+    int32_t contLen = tSerializeSCreateDnodeReq(NULL, 0, &createReq);
+    void*   pReq = rpcMallocCont(contLen);
+    tSerializeSCreateDnodeReq(pReq, contLen, &createReq);
 
     SRpcMsg* pRsp = test.SendReq(TDMT_MND_CREATE_DNODE, pReq, contLen);
     ASSERT_NE(pRsp, nullptr);
@@ -136,11 +147,13 @@ TEST_F(MndTestDnode, 03_Create_Dnode) {
   }
 
   {
-    int32_t contLen = sizeof(SCreateDnodeReq);
+    SCreateDnodeReq createReq = {0};
+    strcpy(createReq.fqdn, "localhost");
+    createReq.port = 9024;
 
-    SCreateDnodeReq* pReq = (SCreateDnodeReq*)rpcMallocCont(contLen);
-    strcpy(pReq->fqdn, "localhost");
-    pReq->port = htonl(9024);
+    int32_t contLen = tSerializeSCreateDnodeReq(NULL, 0, &createReq);
+    void*   pReq = rpcMallocCont(contLen);
+    tSerializeSCreateDnodeReq(pReq, contLen, &createReq);
 
     SRpcMsg* pRsp = test.SendReq(TDMT_MND_CREATE_DNODE, pReq, contLen);
     ASSERT_NE(pRsp, nullptr);
@@ -172,10 +185,12 @@ TEST_F(MndTestDnode, 03_Create_Dnode) {
 
 TEST_F(MndTestDnode, 04_Drop_Dnode) {
   {
-    int32_t contLen = sizeof(SDropDnodeReq);
+    SDropDnodeReq dropReq = {0};
+    dropReq.dnodeId = -3;
 
-    SDropDnodeReq* pReq = (SDropDnodeReq*)rpcMallocCont(contLen);
-    pReq->dnodeId = htonl(-3);
+    int32_t contLen = tSerializeSDropDnodeReq(NULL, 0, &dropReq);
+    void*   pReq = rpcMallocCont(contLen);
+    tSerializeSDropDnodeReq(pReq, contLen, &dropReq);
 
     SRpcMsg* pRsp = test.SendReq(TDMT_MND_DROP_DNODE, pReq, contLen);
     ASSERT_NE(pRsp, nullptr);
@@ -183,10 +198,12 @@ TEST_F(MndTestDnode, 04_Drop_Dnode) {
   }
 
   {
-    int32_t contLen = sizeof(SDropDnodeReq);
+    SDropDnodeReq dropReq = {0};
+    dropReq.dnodeId = 5;
 
-    SDropDnodeReq* pReq = (SDropDnodeReq*)rpcMallocCont(contLen);
-    pReq->dnodeId = htonl(5);
+    int32_t contLen = tSerializeSDropDnodeReq(NULL, 0, &dropReq);
+    void*   pReq = rpcMallocCont(contLen);
+    tSerializeSDropDnodeReq(pReq, contLen, &dropReq);
 
     SRpcMsg* pRsp = test.SendReq(TDMT_MND_DROP_DNODE, pReq, contLen);
     ASSERT_NE(pRsp, nullptr);
@@ -194,10 +211,12 @@ TEST_F(MndTestDnode, 04_Drop_Dnode) {
   }
 
   {
-    int32_t contLen = sizeof(SDropDnodeReq);
+    SDropDnodeReq dropReq = {0};
+    dropReq.dnodeId = 2;
 
-    SDropDnodeReq* pReq = (SDropDnodeReq*)rpcMallocCont(contLen);
-    pReq->dnodeId = htonl(2);
+    int32_t contLen = tSerializeSDropDnodeReq(NULL, 0, &dropReq);
+    void*   pReq = rpcMallocCont(contLen);
+    tSerializeSDropDnodeReq(pReq, contLen, &dropReq);
 
     SRpcMsg* pRsp = test.SendReq(TDMT_MND_DROP_DNODE, pReq, contLen);
     ASSERT_NE(pRsp, nullptr);
@@ -205,10 +224,12 @@ TEST_F(MndTestDnode, 04_Drop_Dnode) {
   }
 
   {
-    int32_t contLen = sizeof(SDropDnodeReq);
+    SDropDnodeReq dropReq = {0};
+    dropReq.dnodeId = 2;
 
-    SDropDnodeReq* pReq = (SDropDnodeReq*)rpcMallocCont(contLen);
-    pReq->dnodeId = htonl(2);
+    int32_t contLen = tSerializeSDropDnodeReq(NULL, 0, &dropReq);
+    void*   pReq = rpcMallocCont(contLen);
+    tSerializeSDropDnodeReq(pReq, contLen, &dropReq);
 
     SRpcMsg* pRsp = test.SendReq(TDMT_MND_DROP_DNODE, pReq, contLen);
     ASSERT_NE(pRsp, nullptr);
@@ -235,23 +256,13 @@ TEST_F(MndTestDnode, 04_Drop_Dnode) {
 
 TEST_F(MndTestDnode, 05_Create_Drop_Restart_Dnode) {
   {
-    int32_t contLen = sizeof(SCreateDnodeReq);
+    SCreateDnodeReq createReq = {0};
+    strcpy(createReq.fqdn, "localhost");
+    createReq.port = 9025;
 
-    SCreateDnodeReq* pReq = (SCreateDnodeReq*)rpcMallocCont(contLen);
-    strcpy(pReq->fqdn, "localhost");
-    pReq->port = htonl(9025);
-
-    SRpcMsg* pRsp = test.SendReq(TDMT_MND_CREATE_DNODE, pReq, contLen);
-    ASSERT_NE(pRsp, nullptr);
-    ASSERT_EQ(pRsp->code, 0);
-  }
-
-  {
-    int32_t contLen = sizeof(SCreateDnodeReq);
-
-    SCreateDnodeReq* pReq = (SCreateDnodeReq*)rpcMallocCont(contLen);
-    strcpy(pReq->fqdn, "localhost");
-    pReq->port = htonl(9026);
+    int32_t contLen = tSerializeSCreateDnodeReq(NULL, 0, &createReq);
+    void*   pReq = rpcMallocCont(contLen);
+    tSerializeSCreateDnodeReq(pReq, contLen, &createReq);
 
     SRpcMsg* pRsp = test.SendReq(TDMT_MND_CREATE_DNODE, pReq, contLen);
     ASSERT_NE(pRsp, nullptr);
@@ -259,11 +270,27 @@ TEST_F(MndTestDnode, 05_Create_Drop_Restart_Dnode) {
   }
 
   {
-    int32_t contLen = sizeof(SCreateDnodeReq);
+    SCreateDnodeReq createReq = {0};
+    strcpy(createReq.fqdn, "localhost");
+    createReq.port = 9026;
 
-    SCreateDnodeReq* pReq = (SCreateDnodeReq*)rpcMallocCont(contLen);
-    strcpy(pReq->fqdn, "localhost");
-    pReq->port = htonl(9027);
+    int32_t contLen = tSerializeSCreateDnodeReq(NULL, 0, &createReq);
+    void*   pReq = rpcMallocCont(contLen);
+    tSerializeSCreateDnodeReq(pReq, contLen, &createReq);
+
+    SRpcMsg* pRsp = test.SendReq(TDMT_MND_CREATE_DNODE, pReq, contLen);
+    ASSERT_NE(pRsp, nullptr);
+    ASSERT_EQ(pRsp->code, 0);
+  }
+
+  {
+    SCreateDnodeReq createReq = {0};
+    strcpy(createReq.fqdn, "localhost");
+    createReq.port = 9027;
+
+    int32_t contLen = tSerializeSCreateDnodeReq(NULL, 0, &createReq);
+    void*   pReq = rpcMallocCont(contLen);
+    tSerializeSCreateDnodeReq(pReq, contLen, &createReq);
 
     SRpcMsg* pRsp = test.SendReq(TDMT_MND_CREATE_DNODE, pReq, contLen);
     ASSERT_NE(pRsp, nullptr);

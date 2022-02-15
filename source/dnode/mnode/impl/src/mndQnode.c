@@ -15,9 +15,11 @@
 
 #define _DEFAULT_SOURCE
 #include "mndQnode.h"
+#include "mndAuth.h"
 #include "mndDnode.h"
 #include "mndShow.h"
 #include "mndTrans.h"
+#include "mndUser.h"
 
 #define TSDB_QNODE_VER_NUMBER 1
 #define TSDB_QNODE_RESERVE_SIZE 64
@@ -257,40 +259,57 @@ CREATE_QNODE_OVER:
 }
 
 static int32_t mndProcessCreateQnodeReq(SMnodeMsg *pReq) {
-  SMnode           *pMnode = pReq->pMnode;
-  SMCreateQnodeReq *pCreate = pReq->rpcMsg.pCont;
+  SMnode          *pMnode = pReq->pMnode;
+  int32_t          code = -1;
+  SQnodeObj       *pObj = NULL;
+  SDnodeObj       *pDnode = NULL;
+  SUserObj        *pUser = NULL;
+  SMCreateQnodeReq createReq = {0};
 
-  pCreate->dnodeId = htonl(pCreate->dnodeId);
+  if (tDeserializeSMCreateDropQSBNodeReq(pReq->rpcMsg.pCont, pReq->rpcMsg.contLen, &createReq) != 0) {
+    terrno = TSDB_CODE_INVALID_MSG;
+    goto CREATE_QNODE_OVER;
+  }
 
-  mDebug("qnode:%d, start to create", pCreate->dnodeId);
+  mDebug("qnode:%d, start to create", createReq.dnodeId);
 
-  SQnodeObj *pObj = mndAcquireQnode(pMnode, pCreate->dnodeId);
+  pObj = mndAcquireQnode(pMnode, createReq.dnodeId);
   if (pObj != NULL) {
-    mError("qnode:%d, qnode already exist", pObj->id);
     terrno = TSDB_CODE_MND_QNODE_ALREADY_EXIST;
-    mndReleaseQnode(pMnode, pObj);
-    return -1;
+    goto CREATE_QNODE_OVER;
   } else if (terrno != TSDB_CODE_MND_QNODE_NOT_EXIST) {
-    mError("qnode:%d, failed to create qnode since %s", pCreate->dnodeId, terrstr());
-    return -1;
+    goto CREATE_QNODE_OVER;
   }
 
-  SDnodeObj *pDnode = mndAcquireDnode(pMnode, pCreate->dnodeId);
+  pDnode = mndAcquireDnode(pMnode, createReq.dnodeId);
   if (pDnode == NULL) {
-    mError("qnode:%d, dnode not exist", pCreate->dnodeId);
     terrno = TSDB_CODE_MND_DNODE_NOT_EXIST;
-    return -1;
+    goto CREATE_QNODE_OVER;
   }
 
-  int32_t code = mndCreateQnode(pMnode, pReq, pDnode, pCreate);
+  pUser = mndAcquireUser(pMnode, pReq->user);
+  if (pUser == NULL) {
+    terrno = TSDB_CODE_MND_NO_USER_FROM_CONN;
+    goto CREATE_QNODE_OVER;
+  }
+
+  if (mndCheckNodeAuth(pUser)) {
+    goto CREATE_QNODE_OVER;
+  }
+
+  code = mndCreateQnode(pMnode, pReq, pDnode, &createReq);
+  if (code == 0) code = TSDB_CODE_MND_ACTION_IN_PROGRESS;
+
+CREATE_QNODE_OVER:
+  if (code != 0 && code != TSDB_CODE_MND_ACTION_IN_PROGRESS) {
+    mError("qnode:%d, failed to create since %s", createReq.dnodeId, terrstr());
+  }
+
+  mndReleaseQnode(pMnode, pObj);
   mndReleaseDnode(pMnode, pDnode);
+  mndReleaseUser(pMnode, pUser);
 
-  if (code != 0) {
-    mError("qnode:%d, failed to create since %s", pCreate->dnodeId, terrstr());
-    return -1;
-  }
-
-  return TSDB_CODE_MND_ACTION_IN_PROGRESS;
+  return code;
 }
 
 static int32_t mndSetDropQnodeRedoLogs(STrans *pTrans, SQnodeObj *pObj) {
@@ -352,33 +371,51 @@ DROP_QNODE_OVER:
 }
 
 static int32_t mndProcessDropQnodeReq(SMnodeMsg *pReq) {
-  SMnode         *pMnode = pReq->pMnode;
-  SMDropQnodeReq *pDrop = pReq->rpcMsg.pCont;
-  pDrop->dnodeId = htonl(pDrop->dnodeId);
+  SMnode        *pMnode = pReq->pMnode;
+  int32_t        code = -1;
+  SUserObj      *pUser = NULL;
+  SQnodeObj     *pObj = NULL;
+  SMDropQnodeReq dropReq = {0};
 
-  mDebug("qnode:%d, start to drop", pDrop->dnodeId);
+  if (tDeserializeSMCreateDropQSBNodeReq(pReq->rpcMsg.pCont, pReq->rpcMsg.contLen, &dropReq) != 0) {
+    terrno = TSDB_CODE_INVALID_MSG;
+    goto DROP_QNODE_OVER;
+  }
 
-  if (pDrop->dnodeId <= 0) {
+  mDebug("qnode:%d, start to drop", dropReq.dnodeId);
+
+  if (dropReq.dnodeId <= 0) {
     terrno = TSDB_CODE_SDB_APP_ERROR;
-    mError("qnode:%d, failed to drop since %s", pDrop->dnodeId, terrstr());
-    return -1;
+    goto DROP_QNODE_OVER;
   }
 
-  SQnodeObj *pObj = mndAcquireQnode(pMnode, pDrop->dnodeId);
+  pObj = mndAcquireQnode(pMnode, dropReq.dnodeId);
   if (pObj == NULL) {
-    mError("qnode:%d, failed to drop since %s", pDrop->dnodeId, terrstr());
-    return -1;
+    goto DROP_QNODE_OVER;
   }
 
-  int32_t code = mndDropQnode(pMnode, pReq, pObj);
-  if (code != 0) {
-    sdbRelease(pMnode->pSdb, pObj);
+  pUser = mndAcquireUser(pMnode, pReq->user);
+  if (pUser == NULL) {
+    terrno = TSDB_CODE_MND_NO_USER_FROM_CONN;
+    goto DROP_QNODE_OVER;
+  }
+
+  if (mndCheckNodeAuth(pUser)) {
+    goto DROP_QNODE_OVER;
+  }
+
+  code = mndDropQnode(pMnode, pReq, pObj);
+  if (code == 0) code = TSDB_CODE_MND_ACTION_IN_PROGRESS;
+
+DROP_QNODE_OVER:
+  if (code != 0 && code != TSDB_CODE_MND_ACTION_IN_PROGRESS) {
     mError("qnode:%d, failed to drop since %s", pMnode->dnodeId, terrstr());
-    return -1;
   }
 
-  sdbRelease(pMnode->pSdb, pObj);
-  return TSDB_CODE_MND_ACTION_IN_PROGRESS;
+  mndReleaseQnode(pMnode, pObj);
+  mndReleaseUser(pMnode, pUser);
+
+  return code;
 }
 
 static int32_t mndProcessCreateQnodeRsp(SMnodeMsg *pRsp) {

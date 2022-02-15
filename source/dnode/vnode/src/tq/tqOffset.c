@@ -12,27 +12,31 @@
  * You should have received a copy of the GNU Affero General Public License
  * along with this program. If not, see <http://www.gnu.org/licenses/>.
  */
+#define _DEFAULT_SOURCE
 
-#include "querynodes.h"
-#include "parser.h"
+#include "tqOffset.h"
 
-#ifndef _TD_AST_CREATE_FUNCS_H_
-#define _TD_AST_CREATE_FUNCS_H_
+enum ETqOffsetPersist {
+  TQ_OFFSET_PERSIST__LAZY = 1,
+  TQ_OFFSET_PERSIST__EAGER,
+};
 
-#ifdef __cplusplus
-extern "C" {
-#endif
+struct STqOffsetCfg {
+  int8_t persistPolicy;
+};
 
-typedef struct SQuery {
-  SNode* pRoot;
-  // todo reslut meta
-} SQuery;
+struct STqOffsetStore {
+  STqOffsetCfg cfg;
+  SHashObj*    pHash;  // SHashObj<subscribeKey, offset>
+};
 
-int32_t doParse(SParseContext* pParseCxt, SQuery* pQuery);
-int32_t doTranslate(SParseContext* pParseCxt, SQuery* pQuery);
-
-#ifdef __cplusplus
+STqOffsetStore* STqOffsetOpen(STqOffsetCfg* pCfg) {
+  STqOffsetStore* pStore = malloc(sizeof(STqOffsetStore));
+  if (pStore == NULL) {
+    return NULL;
+  }
+  memcpy(&pStore->cfg, pCfg, sizeof(STqOffsetCfg));
+  pStore->pHash = taosHashInit(64, MurmurHash3_32, true, HASH_NO_LOCK);
+  return pStore;
 }
-#endif
 
-#endif /*_TD_AST_CREATE_FUNCS_H_*/

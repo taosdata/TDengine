@@ -22,21 +22,34 @@ extern "C" {
 #endif
 
 #include "taosdef.h"
-#include "tmsg.h"
 #include "tarray.h"
+#include "tmsg.h"
 #include "tvariant.h"
+// typedef struct STimeWindow {
+//   TSKEY skey;
+//   TSKEY ekey;
+// } STimeWindow;
 
-#define TMQ_REQ_TYPE_COMMIT_ONLY        0
-#define TMQ_REQ_TYPE_CONSUME_ONLY       1
-#define TMQ_REQ_TYPE_CONSUME_AND_COMMIT 2
+// typedef struct {
+//   int32_t dataLen;
+//   char    name[TSDB_TABLE_FNAME_LEN];
+//   char   *data;
+// } STagData;
 
-#define TMQ_REQ_TYPE_COMMIT_ONLY        0
-#define TMQ_REQ_TYPE_CONSUME_ONLY       1
+// typedef struct SSchema {
+//   uint8_t type;
+//   char    name[TSDB_COL_NAME_LEN];
+//   int16_t colId;
+//   int16_t bytes;
+// } SSchema;
+
+#define TMQ_REQ_TYPE_COMMIT_ONLY 0
+#define TMQ_REQ_TYPE_CONSUME_ONLY 1
 #define TMQ_REQ_TYPE_CONSUME_AND_COMMIT 2
 
 typedef struct {
   uint32_t  numOfTables;
-  SArray *  pGroupList;
+  SArray   *pGroupList;
   SHashObj *map;  // speedup acquire the tableQueryInfo by table uid
 } STableGroupInfo;
 
@@ -67,9 +80,9 @@ typedef struct SConstantItem {
 // info.numOfCols = taosArrayGetSize(pDataBlock) + taosArrayGetSize(pConstantList);
 typedef struct SSDataBlock {
   SColumnDataAgg *pBlockAgg;
-  SArray *        pDataBlock;  // SArray<SColumnInfoData>
-  SArray *pConstantList;       // SArray<SConstantItem>, it is a constant/tags value of the corresponding result value.
-  SDataBlockInfo info;
+  SArray         *pDataBlock;    // SArray<SColumnInfoData>
+  SArray         *pConstantList; // SArray<SConstantItem>, it is a constant/tags value of the corresponding result value.
+  SDataBlockInfo  info;
 } SSDataBlock;
 
 typedef struct SVarColAttr {
@@ -112,7 +125,7 @@ static FORCE_INLINE int32_t tEncodeDataBlock(void** buf, const SSDataBlock* pBlo
   return tlen;
 }
 
-static FORCE_INLINE void* tDecodeDataBlock(void* buf, SSDataBlock* pBlock) {
+static FORCE_INLINE void* tDecodeDataBlock(const void* buf, SSDataBlock* pBlock) {
   int32_t sz;
 
   buf = taosDecodeFixedI64(buf, &pBlock->info.uid);
@@ -129,7 +142,7 @@ static FORCE_INLINE void* tDecodeDataBlock(void* buf, SSDataBlock* pBlock) {
     buf = taosDecodeBinary(buf, (void**)&data.pData, colSz);
     taosArrayPush(pBlock->pDataBlock, &data);
   }
-  return buf;
+  return (void*)buf;
 }
 
 static FORCE_INLINE int32_t tEncodeSMqConsumeRsp(void** buf, const SMqConsumeRsp* pRsp) {
@@ -148,7 +161,7 @@ static FORCE_INLINE int32_t tEncodeSMqConsumeRsp(void** buf, const SMqConsumeRsp
   }
   tlen += taosEncodeFixedI32(buf, sz);
   for (int32_t i = 0; i < sz; i++) {
-    SSDataBlock* pBlock = (SSDataBlock*) taosArrayGet(pRsp->pBlockData, i);
+    SSDataBlock* pBlock = (SSDataBlock*)taosArrayGet(pRsp->pBlockData, i);
     tlen += tEncodeDataBlock(buf, pBlock);
   }
   return tlen;
@@ -181,18 +194,17 @@ static FORCE_INLINE void tDeleteSSDataBlock(SSDataBlock* pBlock) {
     return;
   }
 
-  //int32_t numOfOutput = pBlock->info.numOfCols;
+  // int32_t numOfOutput = pBlock->info.numOfCols;
   int32_t sz = taosArrayGetSize(pBlock->pDataBlock);
-  for(int32_t i = 0; i < sz; ++i) {
+  for (int32_t i = 0; i < sz; ++i) {
     SColumnInfoData* pColInfoData = (SColumnInfoData*)taosArrayGet(pBlock->pDataBlock, i);
     tfree(pColInfoData->pData);
   }
 
   taosArrayDestroy(pBlock->pDataBlock);
   tfree(pBlock->pBlockAgg);
-  //tfree(pBlock);
+  // tfree(pBlock);
 }
-
 
 static FORCE_INLINE void tDeleteSMqConsumeRsp(SMqConsumeRsp* pRsp) {
   if (pRsp->schemas) {
@@ -201,11 +213,11 @@ static FORCE_INLINE void tDeleteSMqConsumeRsp(SMqConsumeRsp* pRsp) {
     }
     free(pRsp->schemas);
   }
-    taosArrayDestroyEx(pRsp->pBlockData, (void(*)(void*))tDeleteSSDataBlock);
-    pRsp->pBlockData = NULL;
-  //for (int i = 0; i < taosArrayGetSize(pRsp->pBlockData); i++) {
-    //SSDataBlock* pDataBlock = (SSDataBlock*)taosArrayGet(pRsp->pBlockData, i);
-    //tDeleteSSDataBlock(pDataBlock);
+  taosArrayDestroyEx(pRsp->pBlockData, (void (*)(void*))tDeleteSSDataBlock);
+  pRsp->pBlockData = NULL;
+  // for (int i = 0; i < taosArrayGetSize(pRsp->pBlockData); i++) {
+  // SSDataBlock* pDataBlock = (SSDataBlock*)taosArrayGet(pRsp->pBlockData, i);
+  // tDeleteSSDataBlock(pDataBlock);
   //}
 }
 
@@ -229,7 +241,7 @@ typedef struct SOrder {
 } SOrder;
 
 typedef struct SGroupbyExpr {
-  SArray *columnInfo;  // SArray<SColIndex>, group by columns information
+  SArray* columnInfo;  // SArray<SColIndex>, group by columns information
   bool    groupbyTag;  // group by tag or column
 } SGroupbyExpr;
 
@@ -238,16 +250,16 @@ typedef struct SSqlExpr {
   char    token[TSDB_COL_NAME_LEN];  // original token
   SSchema resSchema;
 
-  int32_t  numOfCols;
-  SColumn *pColumns;     // data columns that are required by query
-  int32_t  interBytes;   // inter result buffer size
-  int16_t  numOfParams;  // argument value of each function
-  SVariant param[3];     // parameters are not more than 3
+  int32_t   numOfCols;
+  SColumn*  pColumns;       // data columns that are required by query
+  int32_t   interBytes;     // inter result buffer size
+  int16_t   numOfParams;    // argument value of each function
+  SVariant  param[3];       // parameters are not more than 3
 } SSqlExpr;
 
 typedef struct SExprInfo {
   struct SSqlExpr   base;
-  struct tExprNode *pExpr;
+  struct tExprNode* pExpr;
 } SExprInfo;
 
 typedef struct SStateWindow {

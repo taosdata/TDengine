@@ -30,7 +30,7 @@ extern "C" {
 #include "tmsg.h"
 #include "transport.h"
 
-struct SCatalog;
+typedef struct SCatalog SCatalog;
 
 enum {
   CTG_DBG_DB_NUM = 1,
@@ -64,6 +64,7 @@ typedef struct SCatalogCfg {
 typedef struct SSTableMetaVersion {
   char     dbFName[TSDB_DB_FNAME_LEN];
   char     stbName[TSDB_TABLE_NAME_LEN];
+  uint64_t dbId;
   uint64_t suid;
   int16_t  sversion;
   int16_t  tversion;  
@@ -84,7 +85,7 @@ int32_t catalogInit(SCatalogCfg *cfg);
  * @param catalogHandle (output, NO need to free it)
  * @return error code
  */
-int32_t catalogGetHandle(uint64_t clusterId, struct SCatalog** catalogHandle);
+int32_t catalogGetHandle(uint64_t clusterId, SCatalog** catalogHandle);
 
 /**
  * Free a cluster's all catalog info, usually it's not necessary, until the application is closing. 
@@ -92,9 +93,9 @@ int32_t catalogGetHandle(uint64_t clusterId, struct SCatalog** catalogHandle);
  * @param pCatalog (input, NO more usage)
  * @return error code
  */
-void catalogFreeHandle(struct SCatalog* pCatalog);
+void catalogFreeHandle(SCatalog* pCatalog);
 
-int32_t catalogGetDBVgroupVersion(struct SCatalog* pCatalog, const char* dbName, int32_t* version);
+int32_t catalogGetDBVgVersion(SCatalog* pCatalog, const char* dbName, int32_t* version);
 
 /**
  * Get a DB's all vgroup info.
@@ -106,13 +107,13 @@ int32_t catalogGetDBVgroupVersion(struct SCatalog* pCatalog, const char* dbName,
  * @param pVgroupList (output, vgroup info list, element is SVgroupInfo, NEED to simply free the array by caller)
  * @return error code
  */
-int32_t catalogGetDBVgroup(struct SCatalog* pCatalog, void *pTransporter, const SEpSet* pMgmtEps, const char* pDBName, bool forceUpdate, SArray** pVgroupList);
+int32_t catalogGetDBVgInfo(SCatalog* pCatalog, void *pTransporter, const SEpSet* pMgmtEps, const char* pDBName, bool forceUpdate, SArray** pVgroupList);
 
-int32_t catalogUpdateDBVgroup(struct SCatalog* pCatalog, const char* dbName, uint64_t dbId, SDBVgroupInfo* dbInfo);
+int32_t catalogUpdateDBVgInfo(SCatalog* pCatalog, const char* dbName, uint64_t dbId, SDBVgInfo* dbInfo);
 
-int32_t catalogRemoveDB(struct SCatalog* pCatalog, const char* dbName, uint64_t dbId);
+int32_t catalogRemoveDB(SCatalog* pCatalog, const char* dbName, uint64_t dbId);
 
-int32_t catalogRemoveSTableMeta(struct SCatalog* pCatalog, const char* dbName, const char* stbName, uint64_t suid);
+int32_t catalogRemoveStbMeta(SCatalog* pCtg, const char* dbFName, uint64_t dbId, const char* stbName, uint64_t suid);
 
 /**
  * Get a table's meta data. 
@@ -123,7 +124,7 @@ int32_t catalogRemoveSTableMeta(struct SCatalog* pCatalog, const char* dbName, c
  * @param pTableMeta(output, table meta data, NEED to free it by calller)
  * @return error code
  */
-int32_t catalogGetTableMeta(struct SCatalog* pCatalog, void * pTransporter, const SEpSet* pMgmtEps, const SName* pTableName, STableMeta** pTableMeta);
+int32_t catalogGetTableMeta(SCatalog* pCatalog, void * pTransporter, const SEpSet* pMgmtEps, const SName* pTableName, STableMeta** pTableMeta);
 
 /**
  * Get a super table's meta data. 
@@ -134,13 +135,13 @@ int32_t catalogGetTableMeta(struct SCatalog* pCatalog, void * pTransporter, cons
  * @param pTableMeta(output, table meta data, NEED to free it by calller)
  * @return error code
  */
-int32_t catalogGetSTableMeta(struct SCatalog* pCatalog, void * pTransporter, const SEpSet* pMgmtEps, const SName* pTableName, STableMeta** pTableMeta);
+int32_t catalogGetSTableMeta(SCatalog* pCatalog, void * pTransporter, const SEpSet* pMgmtEps, const SName* pTableName, STableMeta** pTableMeta);
 
-int32_t catalogUpdateSTableMeta(struct SCatalog* pCatalog, STableMetaRsp *rspMsg);
+int32_t catalogUpdateSTableMeta(SCatalog* pCatalog, STableMetaRsp *rspMsg);
 
 
 /**
- * Force renew a table's local cached meta data. 
+ * Force refresh a table's local cached meta data. 
  * @param pCatalog (input, got with catalogGetHandle)
  * @param pTransporter (input, rpc object)
  * @param pMgmtEps (input, mnode EPs)
@@ -148,10 +149,10 @@ int32_t catalogUpdateSTableMeta(struct SCatalog* pCatalog, STableMetaRsp *rspMsg
  * @param isSTable (input, is super table or not, 1:supposed to be stable, 0: supposed not to be stable, -1:not sure) 
  * @return error code
  */
-  int32_t catalogRenewTableMeta(struct SCatalog* pCatalog, void *pTransporter, const SEpSet* pMgmtEps, const SName* pTableName, int32_t isSTable);
+  int32_t catalogRefreshTableMeta(SCatalog* pCatalog, void *pTransporter, const SEpSet* pMgmtEps, const SName* pTableName, int32_t isSTable);
 
 /**
- * Force renew a table's local cached meta data and get the new one. 
+ * Force refresh a table's local cached meta data and get the new one. 
  * @param pCatalog (input, got with catalogGetHandle)
  * @param pTransporter (input, rpc object)
  * @param pMgmtEps (input, mnode EPs)
@@ -160,7 +161,7 @@ int32_t catalogUpdateSTableMeta(struct SCatalog* pCatalog, STableMetaRsp *rspMsg
  * @param isSTable (input, is super table or not, 1:supposed to be stable, 0: supposed not to be stable, -1:not sure) 
  * @return error code
  */
-  int32_t catalogRenewAndGetTableMeta(struct SCatalog* pCatalog, void *pTransporter, const SEpSet* pMgmtEps, const SName* pTableName, STableMeta** pTableMeta, int32_t isSTable);
+  int32_t catalogRefreshGetTableMeta(SCatalog* pCatalog, void *pTransporter, const SEpSet* pMgmtEps, const SName* pTableName, STableMeta** pTableMeta, int32_t isSTable);
 
 
 
@@ -173,7 +174,7 @@ int32_t catalogUpdateSTableMeta(struct SCatalog* pCatalog, STableMetaRsp *rspMsg
  * @param pVgroupList (output, vgroup info list, element is SVgroupInfo, NEED to simply free the array by caller)
  * @return error code
  */
-int32_t catalogGetTableDistVgroup(struct SCatalog* pCatalog, void *pTransporter, const SEpSet* pMgmtEps, const SName* pTableName, SArray** pVgroupList);
+int32_t catalogGetTableDistVgInfo(SCatalog* pCatalog, void *pTransporter, const SEpSet* pMgmtEps, const SName* pTableName, SArray** pVgroupList);
 
 /**
  * Get a table's vgroup from its name's hash value.
@@ -184,7 +185,7 @@ int32_t catalogGetTableDistVgroup(struct SCatalog* pCatalog, void *pTransporter,
  * @param vgInfo (output, vgroup info)
  * @return error code
  */
-int32_t catalogGetTableHashVgroup(struct SCatalog* pCatalog, void * pTransporter, const SEpSet* pMgmtEps, const SName* pName, SVgroupInfo* vgInfo);
+int32_t catalogGetTableHashVgroup(SCatalog* pCatalog, void * pTransporter, const SEpSet* pMgmtEps, const SName* pName, SVgroupInfo* vgInfo);
 
 
 /**
@@ -196,14 +197,14 @@ int32_t catalogGetTableHashVgroup(struct SCatalog* pCatalog, void * pTransporter
  * @param pRsp (output, response data)
  * @return error code 
  */
-int32_t catalogGetAllMeta(struct SCatalog* pCatalog, void *pTransporter, const SEpSet* pMgmtEps, const SCatalogReq* pReq, SMetaData* pRsp);
+int32_t catalogGetAllMeta(SCatalog* pCatalog, void *pTransporter, const SEpSet* pMgmtEps, const SCatalogReq* pReq, SMetaData* pRsp);
 
 
-int32_t catalogGetQnodeList(struct SCatalog* pCatalog, void *pTransporter, const SEpSet* pMgmtEps, SArray* pQnodeList);
+int32_t catalogGetQnodeList(SCatalog* pCatalog, void *pTransporter, const SEpSet* pMgmtEps, SArray* pQnodeList);
 
-int32_t catalogGetExpiredSTables(struct SCatalog* pCatalog, SSTableMetaVersion **stables, uint32_t *num);
+int32_t catalogGetExpiredSTables(SCatalog* pCatalog, SSTableMetaVersion **stables, uint32_t *num);
 
-int32_t catalogGetExpiredDBs(struct SCatalog* pCatalog, SDbVgVersion **dbs, uint32_t *num);
+int32_t catalogGetExpiredDBs(SCatalog* pCatalog, SDbVgVersion **dbs, uint32_t *num);
 
 
 /**

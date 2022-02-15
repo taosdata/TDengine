@@ -49,9 +49,8 @@ static int tcount = 0;
 
 typedef struct SPushArg {
   tsem_t sem;
-
 } SPushArg;
-
+// ping
 int pushCallback(void *arg, SRpcMsg *msg) {
   SPushArg *push = arg;
   tsem_post(&push->sem);
@@ -59,7 +58,8 @@ int pushCallback(void *arg, SRpcMsg *msg) {
 SRpcPush *createPushArg() {
   SRpcPush *push = calloc(1, sizeof(SRpcPush));
   push->arg = calloc(1, sizeof(SPushArg));
-  tsem_init(&push->arg->sem, 0, 0);
+
+  tsem_init(&(((SPushArg *)push->arg)->sem), 0, 0);
   push->callback = pushCallback;
   return push;
 }
@@ -83,14 +83,17 @@ static void *sendRequest(void *param) {
     rpcMsg.ahandle = pInfo;
     rpcMsg.msgType = 1;
     rpcMsg.push = push;
-    ;
     // tDebug("thread:%d, send request, contLen:%d num:%d", pInfo->index, pInfo->msgSize, pInfo->num);
     int64_t start = taosGetTimestampUs();
     rpcSendRequest(pInfo->pRpc, &pInfo->epSet, &rpcMsg, NULL);
     if (pInfo->num % 20000 == 0) tInfo("thread:%d, %d requests have been sent", pInfo->index, pInfo->num);
-    tsem_wait(&pInfo->rspSem);
+    tsem_wait(&pInfo->rspSem);  // ping->pong
     // tsem_wait(&pInfo->rspSem);
-    tsem_wait(&push->sem);
+    SPushArg *arg = push->arg;
+    /// e
+    tsem_wait(&arg->sem);  // push callback
+
+    // query_fetch(client->h)
     int64_t end = taosGetTimestampUs() - start;
     if (end <= 100) {
       u100++;

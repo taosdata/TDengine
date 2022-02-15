@@ -13,26 +13,28 @@
  * along with this program. If not, see <http://www.gnu.org/licenses/>.
  */
 
-#include "querynodes.h"
-#include "parser.h"
+#ifndef _TD_TQ_OFFSET_H_
+#define _TD_TQ_OFFSET_H_
 
-#ifndef _TD_AST_CREATE_FUNCS_H_
-#define _TD_AST_CREATE_FUNCS_H_
+#include "tqInt.h"
 
 #ifdef __cplusplus
 extern "C" {
 #endif
 
-typedef struct SQuery {
-  SNode* pRoot;
-  // todo reslut meta
-} SQuery;
+typedef struct STqOffsetCfg   STqOffsetCfg;
+typedef struct STqOffsetStore STqOffsetStore;
 
-int32_t doParse(SParseContext* pParseCxt, SQuery* pQuery);
-int32_t doTranslate(SParseContext* pParseCxt, SQuery* pQuery);
+STqOffsetStore* STqOffsetOpen(STqOffsetCfg*);
+void            STqOffsetClose(STqOffsetStore*);
+
+int64_t tqOffsetFetch(STqOffsetStore* pStore, const char* subscribeKey);
+int32_t tqOffsetCommit(STqOffsetStore* pStore, const char* subscribeKey, int64_t offset);
+int32_t tqOffsetPersist(STqOffsetStore* pStore, const char* subscribeKey);
+int32_t tqOffsetPersistAll(STqOffsetStore* pStore);
 
 #ifdef __cplusplus
 }
 #endif
 
-#endif /*_TD_AST_CREATE_FUNCS_H_*/
+#endif /*_TD_TQ_OFFSET_H_*/

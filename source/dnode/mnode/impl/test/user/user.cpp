@@ -49,10 +49,9 @@ TEST_F(MndTestUser, 02_Create_User) {
     strcpy(createReq.user, "");
     strcpy(createReq.pass, "p1");
 
-    int32_t contLen = tSerializeSCreateUserReq(NULL, &createReq);
+    int32_t contLen = tSerializeSCreateUserReq(NULL, 0, &createReq);
     void*   pReq = rpcMallocCont(contLen);
-    void*   pBuf = pReq;
-    tSerializeSCreateUserReq(&pBuf, &createReq);
+    tSerializeSCreateUserReq(pReq, contLen, &createReq);
 
     SRpcMsg* pRsp = test.SendReq(TDMT_MND_CREATE_USER, pReq, contLen);
     ASSERT_NE(pRsp, nullptr);
@@ -64,10 +63,9 @@ TEST_F(MndTestUser, 02_Create_User) {
     strcpy(createReq.user, "u1");
     strcpy(createReq.pass, "");
 
-    int32_t contLen = tSerializeSCreateUserReq(NULL, &createReq);
+    int32_t contLen = tSerializeSCreateUserReq(NULL, 0, &createReq);
     void*   pReq = rpcMallocCont(contLen);
-    void*   pBuf = pReq;
-    tSerializeSCreateUserReq(&pBuf, &createReq);
+    tSerializeSCreateUserReq(pReq, contLen, &createReq);
 
     SRpcMsg* pRsp = test.SendReq(TDMT_MND_CREATE_USER, pReq, contLen);
     ASSERT_NE(pRsp, nullptr);
@@ -79,10 +77,9 @@ TEST_F(MndTestUser, 02_Create_User) {
     strcpy(createReq.user, "root");
     strcpy(createReq.pass, "1");
 
-    int32_t contLen = tSerializeSCreateUserReq(NULL, &createReq);
+    int32_t contLen = tSerializeSCreateUserReq(NULL, 0, &createReq);
     void*   pReq = rpcMallocCont(contLen);
-    void*   pBuf = pReq;
-    tSerializeSCreateUserReq(&pBuf, &createReq);
+    tSerializeSCreateUserReq(pReq, contLen, &createReq);
 
     SRpcMsg* pRsp = test.SendReq(TDMT_MND_CREATE_USER, pReq, contLen);
     ASSERT_NE(pRsp, nullptr);
@@ -94,10 +91,9 @@ TEST_F(MndTestUser, 02_Create_User) {
     strcpy(createReq.user, "u1");
     strcpy(createReq.pass, "p1");
 
-    int32_t contLen = tSerializeSCreateUserReq(NULL, &createReq);
+    int32_t contLen = tSerializeSCreateUserReq(NULL, 0, &createReq);
     void*   pReq = rpcMallocCont(contLen);
-    void*   pBuf = pReq;
-    tSerializeSCreateUserReq(&pBuf, &createReq);
+    tSerializeSCreateUserReq(pReq, contLen, &createReq);
 
     SRpcMsg* pRsp = test.SendReq(TDMT_MND_CREATE_USER, pReq, contLen);
     ASSERT_NE(pRsp, nullptr);
@@ -121,10 +117,9 @@ TEST_F(MndTestUser, 02_Create_User) {
     SDropUserReq dropReq = {0};
     strcpy(dropReq.user, "u1");
 
-    int32_t contLen = tSerializeSDropUserReq(NULL, &dropReq);
+    int32_t contLen = tSerializeSDropUserReq(NULL, 0, &dropReq);
     void*   pReq = rpcMallocCont(contLen);
-    void*   pBuf = pReq;
-    tSerializeSDropUserReq(&pBuf, &dropReq);
+    tSerializeSDropUserReq(pReq, contLen, &dropReq);
 
     SRpcMsg* pRsp = test.SendReq(TDMT_MND_DROP_USER, pReq, contLen);
     ASSERT_NE(pRsp, nullptr);
@@ -141,10 +136,9 @@ TEST_F(MndTestUser, 02_Create_User) {
     strcpy(createReq.pass, "p1");
     createReq.superUser = 1;
 
-    int32_t contLen = tSerializeSCreateUserReq(NULL, &createReq);
+    int32_t contLen = tSerializeSCreateUserReq(NULL, 0, &createReq);
     void*   pReq = rpcMallocCont(contLen);
-    void*   pBuf = pReq;
-    tSerializeSCreateUserReq(&pBuf, &createReq);
+    tSerializeSCreateUserReq(pReq, contLen, &createReq);
 
     SRpcMsg* pRsp = test.SendReq(TDMT_MND_CREATE_USER, pReq, contLen);
     ASSERT_NE(pRsp, nullptr);
@@ -168,10 +162,9 @@ TEST_F(MndTestUser, 02_Create_User) {
     SDropUserReq dropReq = {0};
     strcpy(dropReq.user, "u2");
 
-    int32_t contLen = tSerializeSDropUserReq(NULL, &dropReq);
+    int32_t contLen = tSerializeSDropUserReq(NULL, 0, &dropReq);
     void*   pReq = rpcMallocCont(contLen);
-    void*   pBuf = pReq;
-    tSerializeSDropUserReq(&pBuf, &dropReq);
+    tSerializeSDropUserReq(pReq, contLen, &dropReq);
 
     SRpcMsg* pRsp = test.SendReq(TDMT_MND_DROP_USER, pReq, contLen);
     ASSERT_NE(pRsp, nullptr);
@@ -190,10 +183,9 @@ TEST_F(MndTestUser, 03_Alter_User) {
     strcpy(createReq.pass, "p1");
     createReq.superUser = 1;
 
-    int32_t contLen = tSerializeSCreateUserReq(NULL, &createReq);
+    int32_t contLen = tSerializeSCreateUserReq(NULL, 0, &createReq);
     void*   pReq = rpcMallocCont(contLen);
-    void*   pBuf = pReq;
-    tSerializeSCreateUserReq(&pBuf, &createReq);
+    tSerializeSCreateUserReq(pReq, contLen, &createReq);
 
     SRpcMsg* pRsp = test.SendReq(TDMT_MND_CREATE_USER, pReq, contLen);
     ASSERT_NE(pRsp, nullptr);
@@ -210,10 +202,9 @@ TEST_F(MndTestUser, 03_Alter_User) {
     strcpy(alterReq.user, "");
     strcpy(alterReq.pass, "p1");
 
-    int32_t contLen = tSerializeSAlterUserReq(NULL, &alterReq);
+    int32_t contLen = tSerializeSAlterUserReq(NULL, 0, &alterReq);
     void*   pReq = rpcMallocCont(contLen);
-    void*   pBuf = pReq;
-    tSerializeSAlterUserReq(&pBuf, &alterReq);
+    tSerializeSAlterUserReq(pReq, contLen, &alterReq);
 
     SRpcMsg* pRsp = test.SendReq(TDMT_MND_ALTER_USER, pReq, contLen);
     ASSERT_NE(pRsp, nullptr);
@@ -226,10 +217,9 @@ TEST_F(MndTestUser, 03_Alter_User) {
     strcpy(alterReq.user, "u3");
     strcpy(alterReq.pass, "");
 
-    int32_t contLen = tSerializeSAlterUserReq(NULL, &alterReq);
+    int32_t contLen = tSerializeSAlterUserReq(NULL, 0, &alterReq);
     void*   pReq = rpcMallocCont(contLen);
-    void*   pBuf = pReq;
-    tSerializeSAlterUserReq(&pBuf, &alterReq);
+    tSerializeSAlterUserReq(pReq, contLen, &alterReq);
 
     SRpcMsg* pRsp = test.SendReq(TDMT_MND_ALTER_USER, pReq, contLen);
     ASSERT_NE(pRsp, nullptr);
@@ -242,10 +232,9 @@ TEST_F(MndTestUser, 03_Alter_User) {
     strcpy(alterReq.user, "u4");
     strcpy(alterReq.pass, "1");
 
-    int32_t contLen = tSerializeSAlterUserReq(NULL, &alterReq);
+    int32_t contLen = tSerializeSAlterUserReq(NULL, 0, &alterReq);
     void*   pReq = rpcMallocCont(contLen);
-    void*   pBuf = pReq;
-    tSerializeSAlterUserReq(&pBuf, &alterReq);
+    tSerializeSAlterUserReq(pReq, contLen, &alterReq);
 
     SRpcMsg* pRsp = test.SendReq(TDMT_MND_ALTER_USER, pReq, contLen);
     ASSERT_NE(pRsp, nullptr);
@@ -258,10 +247,9 @@ TEST_F(MndTestUser, 03_Alter_User) {
     strcpy(alterReq.user, "u3");
     strcpy(alterReq.pass, "1");
 
-    int32_t contLen = tSerializeSAlterUserReq(NULL, &alterReq);
+    int32_t contLen = tSerializeSAlterUserReq(NULL, 0, &alterReq);
     void*   pReq = rpcMallocCont(contLen);
-    void*   pBuf = pReq;
-    tSerializeSAlterUserReq(&pBuf, &alterReq);
+    tSerializeSAlterUserReq(pReq, contLen, &alterReq);
 
     SRpcMsg* pRsp = test.SendReq(TDMT_MND_ALTER_USER, pReq, contLen);
     ASSERT_NE(pRsp, nullptr);
@@ -275,10 +263,9 @@ TEST_F(MndTestUser, 03_Alter_User) {
     strcpy(alterReq.pass, "1");
     alterReq.superUser = 1;
 
-    int32_t contLen = tSerializeSAlterUserReq(NULL, &alterReq);
+    int32_t contLen = tSerializeSAlterUserReq(NULL, 0, &alterReq);
     void*   pReq = rpcMallocCont(contLen);
-    void*   pBuf = pReq;
-    tSerializeSAlterUserReq(&pBuf, &alterReq);
+    tSerializeSAlterUserReq(pReq, contLen, &alterReq);
 
     SRpcMsg* pRsp = test.SendReq(TDMT_MND_ALTER_USER, pReq, contLen);
     ASSERT_NE(pRsp, nullptr);
@@ -291,10 +278,9 @@ TEST_F(MndTestUser, 03_Alter_User) {
     strcpy(alterReq.user, "u3");
     strcpy(alterReq.pass, "1");
 
-    int32_t contLen = tSerializeSAlterUserReq(NULL, &alterReq);
+    int32_t contLen = tSerializeSAlterUserReq(NULL, 0, &alterReq);
     void*   pReq = rpcMallocCont(contLen);
-    void*   pBuf = pReq;
-    tSerializeSAlterUserReq(&pBuf, &alterReq);
+    tSerializeSAlterUserReq(pReq, contLen, &alterReq);
 
     SRpcMsg* pRsp = test.SendReq(TDMT_MND_ALTER_USER, pReq, contLen);
     ASSERT_NE(pRsp, nullptr);
@@ -307,10 +293,9 @@ TEST_F(MndTestUser, 03_Alter_User) {
     strcpy(alterReq.user, "u3");
     strcpy(alterReq.pass, "1");
 
-    int32_t contLen = tSerializeSAlterUserReq(NULL, &alterReq);
+    int32_t contLen = tSerializeSAlterUserReq(NULL, 0, &alterReq);
     void*   pReq = rpcMallocCont(contLen);
-    void*   pBuf = pReq;
-    tSerializeSAlterUserReq(&pBuf, &alterReq);
+    tSerializeSAlterUserReq(pReq, contLen, &alterReq);
 
     SRpcMsg* pRsp = test.SendReq(TDMT_MND_ALTER_USER, pReq, contLen);
     ASSERT_NE(pRsp, nullptr);
@@ -324,10 +309,9 @@ TEST_F(MndTestUser, 03_Alter_User) {
     strcpy(alterReq.pass, "1");
     strcpy(alterReq.dbname, "d1");
 
-    int32_t contLen = tSerializeSAlterUserReq(NULL, &alterReq);
+    int32_t contLen = tSerializeSAlterUserReq(NULL, 0, &alterReq);
     void*   pReq = rpcMallocCont(contLen);
-    void*   pBuf = pReq;
-    tSerializeSAlterUserReq(&pBuf, &alterReq);
+    tSerializeSAlterUserReq(pReq, contLen, &alterReq);
 
     SRpcMsg* pRsp = test.SendReq(TDMT_MND_ALTER_USER, pReq, contLen);
     ASSERT_NE(pRsp, nullptr);
@@ -335,29 +319,31 @@ TEST_F(MndTestUser, 03_Alter_User) {
   }
 
   {
-    int32_t contLen = sizeof(SCreateDbReq);
+    SCreateDbReq createReq = {0};
+    strcpy(createReq.db, "1.d2");
+    createReq.numOfVgroups = 2;
+    createReq.cacheBlockSize = 16;
+    createReq.totalBlocks = 10;
+    createReq.daysPerFile = 10;
+    createReq.daysToKeep0 = 3650;
+    createReq.daysToKeep1 = 3650;
+    createReq.daysToKeep2 = 3650;
+    createReq.minRows = 100;
+    createReq.maxRows = 4096;
+    createReq.commitTime = 3600;
+    createReq.fsyncPeriod = 3000;
+    createReq.walLevel = 1;
+    createReq.precision = 0;
+    createReq.compression = 2;
+    createReq.replications = 1;
+    createReq.quorum = 1;
+    createReq.update = 0;
+    createReq.cacheLastRow = 0;
+    createReq.ignoreExist = 1;
 
-    SCreateDbReq* pReq = (SCreateDbReq*)rpcMallocCont(contLen);
-    strcpy(pReq->db, "1.d2");
-    pReq->numOfVgroups = htonl(2);
-    pReq->cacheBlockSize = htonl(16);
-    pReq->totalBlocks = htonl(10);
-    pReq->daysPerFile = htonl(10);
-    pReq->daysToKeep0 = htonl(3650);
-    pReq->daysToKeep1 = htonl(3650);
-    pReq->daysToKeep2 = htonl(3650);
-    pReq->minRows = htonl(100);
-    pReq->maxRows = htonl(4096);
-    pReq->commitTime = htonl(3600);
-    pReq->fsyncPeriod = htonl(3000);
-    pReq->walLevel = 1;
-    pReq->precision = 0;
-    pReq->compression = 2;
-    pReq->replications = 1;
-    pReq->quorum = 1;
-    pReq->update = 0;
-    pReq->cacheLastRow = 0;
-    pReq->ignoreExist = 1;
+    int32_t contLen = tSerializeSCreateDbReq(NULL, 0, &createReq);
+    void*   pReq = rpcMallocCont(contLen);
+    tSerializeSCreateDbReq(pReq, contLen, &createReq);
 
     SRpcMsg* pRsp = test.SendReq(TDMT_MND_CREATE_DB, pReq, contLen);
     ASSERT_NE(pRsp, nullptr);
@@ -371,10 +357,9 @@ TEST_F(MndTestUser, 03_Alter_User) {
     strcpy(alterReq.pass, "1");
     strcpy(alterReq.dbname, "1.d2");
 
-    int32_t contLen = tSerializeSAlterUserReq(NULL, &alterReq);
+    int32_t contLen = tSerializeSAlterUserReq(NULL, 0, &alterReq);
     void*   pReq = rpcMallocCont(contLen);
-    void*   pBuf = pReq;
-    tSerializeSAlterUserReq(&pBuf, &alterReq);
+    tSerializeSAlterUserReq(pReq, contLen, &alterReq);
 
     SRpcMsg* pRsp = test.SendReq(TDMT_MND_ALTER_USER, pReq, contLen);
     ASSERT_NE(pRsp, nullptr);
@@ -388,10 +373,9 @@ TEST_F(MndTestUser, 03_Alter_User) {
     strcpy(alterReq.pass, "1");
     strcpy(alterReq.dbname, "1.d2");
 
-    int32_t contLen = tSerializeSAlterUserReq(NULL, &alterReq);
+    int32_t contLen = tSerializeSAlterUserReq(NULL, 0, &alterReq);
     void*   pReq = rpcMallocCont(contLen);
-    void*   pBuf = pReq;
-    tSerializeSAlterUserReq(&pBuf, &alterReq);
+    tSerializeSAlterUserReq(pReq, contLen, &alterReq);
 
     SRpcMsg* pRsp = test.SendReq(TDMT_MND_ALTER_USER, pReq, contLen);
     ASSERT_NE(pRsp, nullptr);
@@ -401,17 +385,16 @@ TEST_F(MndTestUser, 03_Alter_User) {
   {
     SGetUserAuthReq authReq = {0};
     strcpy(authReq.user, "u3");
-    int32_t contLen = tSerializeSGetUserAuthReq(NULL, &authReq);
+    int32_t contLen = tSerializeSGetUserAuthReq(NULL, 0, &authReq);
     void*   pReq = rpcMallocCont(contLen);
-    void*   pBuf = pReq;
-    tSerializeSGetUserAuthReq(&pBuf, &authReq);
+    tSerializeSGetUserAuthReq(pReq, contLen, &authReq);
 
     SRpcMsg* pRsp = test.SendReq(TDMT_MND_GET_USER_AUTH, pReq, contLen);
     ASSERT_NE(pRsp, nullptr);
     ASSERT_EQ(pRsp->code, 0);
 
     SGetUserAuthRsp authRsp = {0};
-    tDeserializeSGetUserAuthRsp(pRsp->pCont, &authRsp);
+    tDeserializeSGetUserAuthRsp(pRsp->pCont, pRsp->contLen, &authRsp);
     EXPECT_STREQ(authRsp.user, "u3");
     EXPECT_EQ(authRsp.superAuth, 1);
     int32_t numOfReadDbs = taosHashGetSize(authRsp.readDbs);
@@ -433,10 +416,9 @@ TEST_F(MndTestUser, 03_Alter_User) {
     strcpy(alterReq.pass, "1");
     strcpy(alterReq.dbname, "1.d2");
 
-    int32_t contLen = tSerializeSAlterUserReq(NULL, &alterReq);
+    int32_t contLen = tSerializeSAlterUserReq(NULL, 0, &alterReq);
     void*   pReq = rpcMallocCont(contLen);
-    void*   pBuf = pReq;
-    tSerializeSAlterUserReq(&pBuf, &alterReq);
+    tSerializeSAlterUserReq(pReq, contLen, &alterReq);
 
     SRpcMsg* pRsp = test.SendReq(TDMT_MND_ALTER_USER, pReq, contLen);
     ASSERT_NE(pRsp, nullptr);
@@ -447,10 +429,9 @@ TEST_F(MndTestUser, 03_Alter_User) {
     SDropUserReq dropReq = {0};
     strcpy(dropReq.user, "u3");
 
-    int32_t contLen = tSerializeSDropUserReq(NULL, &dropReq);
+    int32_t contLen = tSerializeSDropUserReq(NULL, 0, &dropReq);
     void*   pReq = rpcMallocCont(contLen);
-    void*   pBuf = pReq;
-    tSerializeSDropUserReq(&pBuf, &dropReq);
+    tSerializeSDropUserReq(pReq, contLen, &dropReq);
 
     SRpcMsg* pRsp = test.SendReq(TDMT_MND_DROP_USER, pReq, contLen);
     ASSERT_NE(pRsp, nullptr);
@@ -467,10 +448,9 @@ TEST_F(MndTestUser, 05_Drop_User) {
     SDropUserReq dropReq = {0};
     strcpy(dropReq.user, "");
 
-    int32_t contLen = tSerializeSDropUserReq(NULL, &dropReq);
+    int32_t contLen = tSerializeSDropUserReq(NULL, 0, &dropReq);
     void*   pReq = rpcMallocCont(contLen);
-    void*   pBuf = pReq;
-    tSerializeSDropUserReq(&pBuf, &dropReq);
+    tSerializeSDropUserReq(pReq, contLen, &dropReq);
 
     SRpcMsg* pRsp = test.SendReq(TDMT_MND_DROP_USER, pReq, contLen);
     ASSERT_NE(pRsp, nullptr);
@@ -481,10 +461,9 @@ TEST_F(MndTestUser, 05_Drop_User) {
     SDropUserReq dropReq = {0};
     strcpy(dropReq.user, "u4");
 
-    int32_t contLen = tSerializeSDropUserReq(NULL, &dropReq);
+    int32_t contLen = tSerializeSDropUserReq(NULL, 0, &dropReq);
     void*   pReq = rpcMallocCont(contLen);
-    void*   pBuf = pReq;
-    tSerializeSDropUserReq(&pBuf, &dropReq);
+    tSerializeSDropUserReq(pReq, contLen, &dropReq);
 
     SRpcMsg* pRsp = test.SendReq(TDMT_MND_DROP_USER, pReq, contLen);
     ASSERT_NE(pRsp, nullptr);
@@ -496,10 +475,9 @@ TEST_F(MndTestUser, 05_Drop_User) {
     strcpy(createReq.user, "u1");
     strcpy(createReq.pass, "p1");
 
-    int32_t contLen = tSerializeSCreateUserReq(NULL, &createReq);
+    int32_t contLen = tSerializeSCreateUserReq(NULL, 0, &createReq);
     void*   pReq = rpcMallocCont(contLen);
-    void*   pBuf = pReq;
-    tSerializeSCreateUserReq(&pBuf, &createReq);
+    tSerializeSCreateUserReq(pReq, contLen, &createReq);
 
     SRpcMsg* pRsp = test.SendReq(TDMT_MND_CREATE_USER, pReq, contLen);
     ASSERT_NE(pRsp, nullptr);
@@ -510,10 +488,9 @@ TEST_F(MndTestUser, 05_Drop_User) {
     SDropUserReq dropReq = {0};
     strcpy(dropReq.user, "u1");
 
-    int32_t contLen = tSerializeSDropUserReq(NULL, &dropReq);
+    int32_t contLen = tSerializeSDropUserReq(NULL, 0, &dropReq);
     void*   pReq = rpcMallocCont(contLen);
-    void*   pBuf = pReq;
-    tSerializeSDropUserReq(&pBuf, &dropReq);
+    tSerializeSDropUserReq(pReq, contLen, &dropReq);
 
     SRpcMsg* pRsp = test.SendReq(TDMT_MND_DROP_USER, pReq, contLen);
     ASSERT_NE(pRsp, nullptr);
@@ -533,10 +510,9 @@ TEST_F(MndTestUser, 06_Create_Drop_Alter_User) {
     strcpy(createReq.user, "u1");
     strcpy(createReq.pass, "p1");
 
-    int32_t contLen = tSerializeSCreateUserReq(NULL, &createReq);
+    int32_t contLen = tSerializeSCreateUserReq(NULL, 0, &createReq);
     void*   pReq = rpcMallocCont(contLen);
-    void*   pBuf = pReq;
-    tSerializeSCreateUserReq(&pBuf, &createReq);
+    tSerializeSCreateUserReq(pReq, contLen, &createReq);
 
     SRpcMsg* pRsp = test.SendReq(TDMT_MND_CREATE_USER, pReq, contLen);
     ASSERT_NE(pRsp, nullptr);
@@ -548,10 +524,9 @@ TEST_F(MndTestUser, 06_Create_Drop_Alter_User) {
     strcpy(createReq.user, "u2");
     strcpy(createReq.pass, "p2");
 
-    int32_t contLen = tSerializeSCreateUserReq(NULL, &createReq);
+    int32_t contLen = tSerializeSCreateUserReq(NULL, 0, &createReq);
     void*   pReq = rpcMallocCont(contLen);
-    void*   pBuf = pReq;
-    tSerializeSCreateUserReq(&pBuf, &createReq);
+    tSerializeSCreateUserReq(pReq, contLen, &createReq);
 
     SRpcMsg* pRsp = test.SendReq(TDMT_MND_CREATE_USER, pReq, contLen);
     ASSERT_NE(pRsp, nullptr);
@@ -583,10 +558,9 @@ TEST_F(MndTestUser, 06_Create_Drop_Alter_User) {
     strcpy(alterReq.user, "u1");
     strcpy(alterReq.pass, "p2");
 
-    int32_t contLen = tSerializeSAlterUserReq(NULL, &alterReq);
+    int32_t contLen = tSerializeSAlterUserReq(NULL, 0, &alterReq);
     void*   pReq = rpcMallocCont(contLen);
-    void*   pBuf = pReq;
-    tSerializeSAlterUserReq(&pBuf, &alterReq);
+    tSerializeSAlterUserReq(pReq, contLen, &alterReq);
 
     SRpcMsg* pRsp = test.SendReq(TDMT_MND_ALTER_USER, pReq, contLen);
     ASSERT_NE(pRsp, nullptr);
@@ -616,10 +590,9 @@ TEST_F(MndTestUser, 06_Create_Drop_Alter_User) {
     SDropUserReq dropReq = {0};
     strcpy(dropReq.user, "u1");
 
-    int32_t contLen = tSerializeSDropUserReq(NULL, &dropReq);
+    int32_t contLen = tSerializeSDropUserReq(NULL, 0, &dropReq);
     void*   pReq = rpcMallocCont(contLen);
-    void*   pBuf = pReq;
-    tSerializeSDropUserReq(&pBuf, &dropReq);
+    tSerializeSDropUserReq(pReq, contLen, &dropReq);
 
     SRpcMsg* pRsp = test.SendReq(TDMT_MND_DROP_USER, pReq, contLen);
     ASSERT_NE(pRsp, nullptr);

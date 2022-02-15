@@ -211,7 +211,8 @@ int transAllocBuffer(SConnBuffer* connBuf, uv_buf_t* uvBuf) {
   /*
    * formate of data buffer:
    * |<--------------------------data from socket------------------------------->|
-   * |<------STransMsgHead------->|<-------------------other data--------------->|
+   * |<------STransMsgHead------->|<-------------------userdata--------------->|<-----auth data----->|<----user
+   * info--->|
    */
   static const int CAPACITY = 1024;
 
@@ -239,6 +240,9 @@ int transAllocBuffer(SConnBuffer* connBuf, uv_buf_t* uvBuf) {
   }
   return 0;
 }
+int transPackMsg(STransMsgHead* msgHead, bool sercured, bool auth) {}
+
+int transUnpackMsg(STransMsgHead* msgHead) {}
 int transDestroyBuffer(SConnBuffer* buf) {
   if (buf->cap > 0) {
     tfree(buf->buf);
@@ -246,9 +250,7 @@ int transDestroyBuffer(SConnBuffer* buf) {
   transClearBuffer(buf);
 }
 
-SAsyncPool* transCreateAsyncPool(uv_loop_t* loop, void* arg, AsyncCB cb) {
-  static int sz = 10;
-
+SAsyncPool* transCreateAsyncPool(uv_loop_t* loop, int sz, void* arg, AsyncCB cb) {
   SAsyncPool* pool = calloc(1, sizeof(SAsyncPool));
   pool->index = 0;
   pool->nAsync = sz;

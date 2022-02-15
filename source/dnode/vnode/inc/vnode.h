@@ -35,13 +35,14 @@ typedef struct SDnode SDnode;
 typedef int32_t (*PutReqToVQueryQFp)(SDnode *pDnode, struct SRpcMsg *pReq);
 typedef int32_t (*SendReqToDnodeFp)(SDnode *pDnode, struct SEpSet *epSet, struct SRpcMsg *rpcMsg);
 
-typedef struct STqCfg {
+typedef struct {
   // TODO
   int32_t reserved;
 } STqCfg;
 
-typedef struct SVnodeCfg {
+typedef struct {
   int32_t  vgId;
+  uint64_t dbId;
   SDnode  *pDnode;
   STfs    *pTfs;
   uint64_t wsize;
@@ -67,9 +68,9 @@ typedef struct {
   SendReqToDnodeFp  sendReqToDnodeFp;
 } SVnodeOpt;
 
-typedef struct STqReadHandle {
+typedef struct {
   int64_t           ver;
-  uint64_t          tbUid;
+  int64_t           tbUid;
   SHashObj         *tbIdHash;
   const SSubmitMsg *pMsg;
   SSubmitBlk       *pBlock;
@@ -199,7 +200,7 @@ int32_t vnodeCompact(SVnode *pVnode);
 int32_t vnodeSync(SVnode *pVnode);
 int32_t vnodeGetLoad(SVnode *pVnode, SVnodeLoad *pLoad);
 
-/* ------------------------- TQ QUERY -------------------------- */
+/* ------------------------- TQ READ --------------------------- */
 
 STqReadHandle *tqInitSubmitMsgScanner(SMeta *pMeta);
 
@@ -207,12 +208,12 @@ static FORCE_INLINE void tqReadHandleSetColIdList(STqReadHandle *pReadHandle, SA
   pReadHandle->pColIdList = pColIdList;
 }
 
-// static FORCE_INLINE void tqReadHandleSetTbUid(STqReadHandle* pHandle, const SArray* pTableIdList) {
-// pHandle->tbUid = pTableIdList;
+// static FORCE_INLINE void tqReadHandleSetTbUid(STqReadHandle* pHandle, int64_t tbUid) {
+// pHandle->tbUid = tbUid;
 //}
 
 static FORCE_INLINE int tqReadHandleSetTbUidList(STqReadHandle *pHandle, const SArray *tbUidList) {
-  pHandle->tbIdHash = taosHashInit(64, taosGetDefaultHashFunction(TSDB_DATA_TYPE_UBIGINT), true, HASH_NO_LOCK);
+  pHandle->tbIdHash = taosHashInit(64, taosGetDefaultHashFunction(TSDB_DATA_TYPE_BIGINT), true, HASH_NO_LOCK);
   if (pHandle->tbIdHash == NULL) {
     return -1;
   }

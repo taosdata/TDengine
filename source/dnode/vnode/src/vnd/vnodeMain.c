@@ -29,6 +29,7 @@ SVnode *vnodeOpen(const char *path, const SVnodeCfg *pVnodeCfg) {
     cfg.vgId = pVnodeCfg->vgId;
     cfg.pDnode = pVnodeCfg->pDnode;
     cfg.pTfs = pVnodeCfg->pTfs;
+    cfg.dbId = pVnodeCfg->dbId;
   }
 
   // Validate options

@@ -37,7 +37,7 @@ static FORCE_INLINE int taosEncodeFixedU8(void **buf, uint8_t value) {
   return (int)sizeof(value);
 }
 
-static FORCE_INLINE void *taosDecodeFixedU8(void *buf, uint8_t *value) {
+static FORCE_INLINE void *taosDecodeFixedU8(const void *buf, uint8_t *value) {
   *value = ((uint8_t *)buf)[0];
   return POINTER_SHIFT(buf, sizeof(*value));
 }
@@ -51,7 +51,7 @@ static FORCE_INLINE int taosEncodeFixedI8(void **buf, int8_t value) {
   return (int)sizeof(value);
 }
 
-static FORCE_INLINE void *taosDecodeFixedI8(void *buf, int8_t *value) {
+static FORCE_INLINE void *taosDecodeFixedI8(const void *buf, int8_t *value) {
   *value = ((int8_t *)buf)[0];
   return POINTER_SHIFT(buf, sizeof(*value));
 }
@@ -71,7 +71,7 @@ static FORCE_INLINE int taosEncodeFixedU16(void **buf, uint16_t value) {
   return (int)sizeof(value);
 }
 
-static FORCE_INLINE void *taosDecodeFixedU16(void *buf, uint16_t *value) {
+static FORCE_INLINE void *taosDecodeFixedU16(const void *buf, uint16_t *value) {
   if (IS_LITTLE_ENDIAN()) {
     memcpy(value, buf, sizeof(*value));
   } else {
@@ -87,9 +87,9 @@ static FORCE_INLINE int taosEncodeFixedI16(void **buf, int16_t value) {
   return taosEncodeFixedU16(buf, ZIGZAGE(int16_t, value));
 }
 
-static FORCE_INLINE void *taosDecodeFixedI16(void *buf, int16_t *value) {
+static FORCE_INLINE void *taosDecodeFixedI16(const void *buf, int16_t *value) {
   uint16_t tvalue = 0;
-  void *   ret = taosDecodeFixedU16(buf, &tvalue);
+  void    *ret = taosDecodeFixedU16(buf, &tvalue);
   *value = ZIGZAGD(int16_t, tvalue);
   return ret;
 }
@@ -111,7 +111,7 @@ static FORCE_INLINE int taosEncodeFixedU32(void **buf, uint32_t value) {
   return (int)sizeof(value);
 }
 
-static FORCE_INLINE void *taosDecodeFixedU32(void *buf, uint32_t *value) {
+static FORCE_INLINE void *taosDecodeFixedU32(const void *buf, uint32_t *value) {
   if (IS_LITTLE_ENDIAN()) {
     memcpy(value, buf, sizeof(*value));
   } else {
@@ -129,9 +129,9 @@ static FORCE_INLINE int taosEncodeFixedI32(void **buf, int32_t value) {
   return taosEncodeFixedU32(buf, ZIGZAGE(int32_t, value));
 }
 
-static FORCE_INLINE void *taosDecodeFixedI32(void *buf, int32_t *value) {
+static FORCE_INLINE void *taosDecodeFixedI32(const void *buf, int32_t *value) {
   uint32_t tvalue = 0;
-  void *   ret = taosDecodeFixedU32(buf, &tvalue);
+  void    *ret = taosDecodeFixedU32(buf, &tvalue);
   *value = ZIGZAGD(int32_t, tvalue);
   return ret;
 }
@@ -158,7 +158,7 @@ static FORCE_INLINE int taosEncodeFixedU64(void **buf, uint64_t value) {
   return (int)sizeof(value);
 }
 
-static FORCE_INLINE void *taosDecodeFixedU64(void *buf, uint64_t *value) {
+static FORCE_INLINE void *taosDecodeFixedU64(const void *buf, uint64_t *value) {
   if (IS_LITTLE_ENDIAN()) {
     memcpy(value, buf, sizeof(*value));
   } else {
@@ -180,9 +180,9 @@ static FORCE_INLINE int taosEncodeFixedI64(void **buf, int64_t value) {
   return taosEncodeFixedU64(buf, ZIGZAGE(int64_t, value));
 }
 
-static FORCE_INLINE void *taosDecodeFixedI64(void *buf, int64_t *value) {
+static FORCE_INLINE void *taosDecodeFixedI64(const void *buf, int64_t *value) {
   uint64_t tvalue = 0;
-  void *   ret = taosDecodeFixedU64(buf, &tvalue);
+  void    *ret = taosDecodeFixedU64(buf, &tvalue);
   *value = ZIGZAGD(int64_t, tvalue);
   return ret;
 }
@@ -205,7 +205,7 @@ static FORCE_INLINE int taosEncodeVariantU16(void **buf, uint16_t value) {
   return i + 1;
 }
 
-static FORCE_INLINE void *taosDecodeVariantU16(void *buf, uint16_t *value) {
+static FORCE_INLINE void *taosDecodeVariantU16(const void *buf, uint16_t *value) {
   int      i = 0;
   uint16_t tval = 0;
   *value = 0;
@@ -228,9 +228,9 @@ static FORCE_INLINE int taosEncodeVariantI16(void **buf, int16_t value) {
   return taosEncodeVariantU16(buf, ZIGZAGE(int16_t, value));
 }
 
-static FORCE_INLINE void *taosDecodeVariantI16(void *buf, int16_t *value) {
+static FORCE_INLINE void *taosDecodeVariantI16(const void *buf, int16_t *value) {
   uint16_t tvalue = 0;
-  void *   ret = taosDecodeVariantU16(buf, &tvalue);
+  void    *ret = taosDecodeVariantU16(buf, &tvalue);
   *value = ZIGZAGD(int16_t, tvalue);
   return ret;
 }
@@ -253,7 +253,7 @@ static FORCE_INLINE int taosEncodeVariantU32(void **buf, uint32_t value) {
   return i + 1;
 }
 
-static FORCE_INLINE void *taosDecodeVariantU32(void *buf, uint32_t *value) {
+static FORCE_INLINE void *taosDecodeVariantU32(const void *buf, uint32_t *value) {
   int      i = 0;
   uint32_t tval = 0;
   *value = 0;
@@ -276,9 +276,9 @@ static FORCE_INLINE int taosEncodeVariantI32(void **buf, int32_t value) {
   return taosEncodeVariantU32(buf, ZIGZAGE(int32_t, value));
 }
 
-static FORCE_INLINE void *taosDecodeVariantI32(void *buf, int32_t *value) {
+static FORCE_INLINE void *taosDecodeVariantI32(const void *buf, int32_t *value) {
   uint32_t tvalue = 0;
-  void *   ret = taosDecodeVariantU32(buf, &tvalue);
+  void    *ret = taosDecodeVariantU32(buf, &tvalue);
   *value = ZIGZAGD(int32_t, tvalue);
   return ret;
 }
@@ -301,7 +301,7 @@ static FORCE_INLINE int taosEncodeVariantU64(void **buf, uint64_t value) {
   return i + 1;
 }
 
-static FORCE_INLINE void *taosDecodeVariantU64(void *buf, uint64_t *value) {
+static FORCE_INLINE void *taosDecodeVariantU64(const void *buf, uint64_t *value) {
   int      i = 0;
   uint64_t tval = 0;
   *value = 0;
@@ -324,9 +324,9 @@ static FORCE_INLINE int taosEncodeVariantI64(void **buf, int64_t value) {
   return taosEncodeVariantU64(buf, ZIGZAGE(int64_t, value));
 }
 
-static FORCE_INLINE void *taosDecodeVariantI64(void *buf, int64_t *value) {
+static FORCE_INLINE void *taosDecodeVariantI64(const void *buf, int64_t *value) {
   uint64_t tvalue = 0;
-  void *   ret = taosDecodeVariantU64(buf, &tvalue);
+  void    *ret = taosDecodeVariantU64(buf, &tvalue);
   *value = ZIGZAGD(int64_t, tvalue);
   return ret;
 }
@@ -346,7 +346,7 @@ static FORCE_INLINE int taosEncodeString(void **buf, const char *value) {
   return tlen;
 }
 
-static FORCE_INLINE void *taosDecodeString(void *buf, char **value) {
+static FORCE_INLINE void *taosDecodeString(const void *buf, char **value) {
   uint64_t size = 0;
 
   buf = taosDecodeVariantU64(buf, &size);
@@ -360,7 +360,7 @@ static FORCE_INLINE void *taosDecodeString(void *buf, char **value) {
   return POINTER_SHIFT(buf, size);
 }
 
-static FORCE_INLINE void *taosDecodeStringTo(void *buf, char *value) {
+static FORCE_INLINE void *taosDecodeStringTo(const void *buf, char *value) {
   uint64_t size = 0;
 
   buf = taosDecodeVariantU64(buf, &size);
@@ -373,7 +373,7 @@ static FORCE_INLINE void *taosDecodeStringTo(void *buf, char *value) {
 
 // ---- binary
 static FORCE_INLINE int taosEncodeBinary(void **buf, const void *value, int32_t valueLen) {
-  int    tlen = 0;
+  int tlen = 0;
 
   if (buf != NULL) {
     memcpy(*buf, value, valueLen);
@@ -384,8 +384,7 @@ static FORCE_INLINE int taosEncodeBinary(void **buf, const void *value, int32_t 
   return tlen;
 }
 
-static FORCE_INLINE void *taosDecodeBinary(void *buf, void **value, int32_t valueLen) {
-
+static FORCE_INLINE void *taosDecodeBinary(const void *buf, void **value, int32_t valueLen) {
   *value = malloc((size_t)valueLen);
   if (*value == NULL) return NULL;
   memcpy(*value, buf, (size_t)valueLen);
@@ -393,8 +392,7 @@ static FORCE_INLINE void *taosDecodeBinary(void *buf, void **value, int32_t valu
   return POINTER_SHIFT(buf, valueLen);
 }
 
-static FORCE_INLINE void *taosDecodeBinaryTo(void *buf, void *value, int32_t valueLen) {
-
+static FORCE_INLINE void *taosDecodeBinaryTo(const void *buf, void *value, int32_t valueLen) {
   memcpy(value, buf, (size_t)valueLen);
   return POINTER_SHIFT(buf, valueLen);
 }
