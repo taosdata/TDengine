@@ -242,7 +242,7 @@ SExprInfo* tscExprAppend(SQueryInfo* pQueryInfo, int16_t functionId, SColumnInde
                            int16_t size, int16_t resColId, int16_t interSize, bool isTagCol);
 
 SExprInfo* tscExprUpdate(SQueryInfo* pQueryInfo, int32_t index, int16_t functionId, int16_t srcColumnIndex, int16_t type,
-                           int16_t size);
+                           int32_t size);
 
 size_t     tscNumOfExprs(SQueryInfo* pQueryInfo);
 int32_t     tscExprTopBottomIndex(SQueryInfo* pQueryInfo);

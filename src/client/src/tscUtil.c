@@ -2615,7 +2615,7 @@ SExprInfo* tscExprAppend(SQueryInfo* pQueryInfo, int16_t functionId, SColumnInde
 }
 
 SExprInfo* tscExprUpdate(SQueryInfo* pQueryInfo, int32_t index, int16_t functionId, int16_t srcColumnIndex,
-                           int16_t type, int16_t size) {
+                           int16_t type, int32_t size) {
   STableMetaInfo* pTableMetaInfo = tscGetMetaInfo(pQueryInfo, 0);
   SExprInfo* pExpr = tscExprGet(pQueryInfo, index);
   if (pExpr == NULL) {

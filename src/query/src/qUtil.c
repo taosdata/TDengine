@@ -33,7 +33,7 @@ typedef struct SCompSupporter {
 } SCompSupporter;
 
 int32_t getRowNumForMultioutput(SQueryAttr* pQueryAttr, bool topBottomQuery, bool stable) {
-  if (pQueryAttr && (!stable)) {
+  if (pQueryAttr && (!stable)) {  // if table is stable, no need return more than 1 no in merge stage
     for (int16_t i = 0; i < pQueryAttr->numOfOutput; ++i) {
       if (pQueryAttr->pExpr1[i].base.functionId == TSDB_FUNC_TOP ||
           pQueryAttr->pExpr1[i].base.functionId == TSDB_FUNC_BOTTOM ||
@@ -42,11 +42,11 @@ int32_t getRowNumForMultioutput(SQueryAttr* pQueryAttr, bool topBottomQuery, boo
         return (int32_t)pQueryAttr->pExpr1[i].base.param[0].i64;
       }
     }
+    if (pQueryAttr->uniqueQuery){
+      return MAX_UNIQUE_RESULT_ROWS;
+    }
   }
 
-  if (pQueryAttr->uniqueQuery){
-    return MAX_UNIQUE_RESULT_ROWS;
-  }
   return 1;
 }
 
