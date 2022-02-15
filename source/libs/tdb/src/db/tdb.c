@@ -104,6 +104,9 @@ int tdbOpen(TDB *pDb, const char *fname, const char *dbname, TENV *pEnv) {
   }
 
   // TODO: open the database (an existing or a new one)
+  // Search the page file master DB to check if the db exists
+  // If DB exists, get the root page number
+  // If DB not exists, create a new DB
 
   pDb->pPgFile = pPgFile;
   tdbEnvRgstDB(pEnv, pDb);
