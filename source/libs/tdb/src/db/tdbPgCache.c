@@ -26,42 +26,48 @@ struct SPage {
 
 typedef TD_DLIST(SPage) SPgList;
 struct SPgCache {
-  TENV *   pEnv;  // TENV containing this page cache
-  SRWLatch mutex;
-  pgsz_t   pgsize;
-  int32_t  npage;
-  SPage *  pages;
-  SPgList  freeList;
-  SPgList  lru;
+  TENV *  pEnv;  // TENV containing this page cache
+  pgsz_t  pgsize;
+  int32_t npage;
+  SPage * pages;
+  SPgList freeList;
+  SPgList lru;
   struct {
     int32_t  nbucket;
     SPgList *buckets;
   } pght;  // page hash table
 };
 
-
 static void pgCachePinPage(SPage *pPage);
 static void pgCacheUnpinPage(SPage *pPage);
 
-int pgCacheOpen(SPgCache **ppPgCache, pgsz_t pgSize, int32_t npage, TENV *pEnv) {
+int pgCacheOpen(SPgCache **ppPgCache, TENV *pEnv) {
   SPgCache *pPgCache;
   SPage *   pPage;
+  pgsz_t    pgSize;
+  cachesz_t cacheSize;
+  int32_t   npage;
 
   *ppPgCache = NULL;
+  pgSize = tdbEnvGetPageSize(pEnv);
+  cacheSize = tdbEnvGetCacheSize(pEnv);
+  npage = cacheSize / pgSize;
 
-  if (!TDB_IS_PGSIZE_VLD(pgSize)) {
-    return -1;
-  }
-
+  // Allocate the handle
   pPgCache = (SPgCache *)calloc(1, sizeof(*pPgCache));
   if (pPgCache == NULL) {
     return -1;
   }
 
-  taosInitRWLatch(&(pPgCache->mutex));
+  pPgCache->pEnv = pEnv;
   pPgCache->pgsize = pgSize;
   pPgCache->npage = npage;
 
+  for (int32_t i = 0; i < npage; i++) {
+    /* code */
+  }
+
+#if 0
   pPgCache->pages = (SPage *)calloc(npage, sizeof(SPage));
   if (pPgCache->pages == NULL) {
     pgCacheClose(pPgCache);
@@ -91,6 +97,7 @@ int pgCacheOpen(SPgCache **ppPgCache, pgsz_t pgSize, int32_t npage, TENV *pEnv) 
 
     TD_DLIST_APPEND_WITH_FIELD(&(pPgCache->freeList), pPage, freeNode);
   }
+#endif
 
   *ppPgCache = pPgCache;
   return 0;

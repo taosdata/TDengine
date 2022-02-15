@@ -72,7 +72,7 @@ int tdbEnvOpen(TENV *pEnv) {
 
   pgSize = pEnv->pgSize;
   npage = pEnv->cacheSize / pEnv->pgSize;
-  ret = pgCacheOpen(&pPgCache, pgSize, npage, pEnv);
+  ret = pgCacheOpen(&pPgCache, pEnv);
   if (ret != 0) {
     goto _err;
   }
