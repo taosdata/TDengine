@@ -95,7 +95,6 @@ function stmtSingleParaBatchSample() {
     executeQuery(querySql);
     executeUpdate(dropDB);
 }
-
 stmtSingleParaBatchSample();
 setTimeout(() => {
     conn.close();
