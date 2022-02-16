@@ -2,7 +2,7 @@
 
 ## <a class="anchor" id="install"></a>快捷安装
 
-TDengine 软件分为服务器、客户端，目前 2.0 版服务器仅能在 Linux 系统上安装和运行，后续会支持 Windows、Mac OS 等系统。客户端可以在 Windows 或 Linux 上安装和运行。任何 OS 的应用也可以选择 RESTful 接口连接服务器 taosd，其中 2.4 之后版本默认使用单独运行的独立组件 taosAdapter 提供 http 服务，之前版本使用内置 http 服务。CPU 支持 X64/ARM64/MIPS64/Alpha64，后续会支持 ARM32、RISC-V 等 CPU 架构。用户可根据需求选择通过 [源码](https://www.taosdata.com/getting-started/#source-install) 或者 [安装包](https://www.taosdata.com/getting-started/#package-install) 来安装。
+TDengine 软件分为服务器、客户端，目前 2.0 版服务器仅能在 Linux 系统上安装和运行，后续会支持 Windows、Mac OS 等系统。客户端可以在 Windows 或 Linux 上安装和运行。任何 OS 的应用也可以选择 RESTful 接口连接服务器 taosd，其中 2.4 之后版本默认使用单独运行的独立组件 taosAdapter 提供 http 服务，之前版本使用内置 http 服务。支持 X64/ARM64/MIPS64/Alpha64，后续会支持 ARM32、RISC-V 等 CPU 架构。用户可根据需求选择通过 [源码](https://www.taosdata.com/getting-started/#source-install) 或者 [安装包](https://www.taosdata.com/getting-started/#package-install) 来安装。
 
 * 查看完整的Release notes，请点击[这里](https://github.com/taosdata/TDengine/releases)。
 * 下载其他组件、最新beta版及之前版本的安装包，请点击[这里](https://www.taosdata.com/cn/all-downloads/)。
