@@ -65,6 +65,7 @@ int tdbOpen(TDB *pDb, const char *fname, const char *dbname, TENV *pEnv) {
   SBTree *  pBt;
   bool      fileExist;
   size_t    dbNameLen;
+  pgno_t    dbRootPgno;
   char      dbfname[128];  // TODO: make this as a macro or malloc on the heap
 
   ASSERT(pDb != NULL);
@@ -104,10 +105,19 @@ int tdbOpen(TDB *pDb, const char *fname, const char *dbname, TENV *pEnv) {
   }
 
   // TODO: open the database (an existing or a new one)
-  // Search the page file master DB to check if the db exists
-  // If DB exists, get the root page number
-  // If DB not exists, create a new DB
+  if (0) {
+    // Search the page file master DB to check if the db exists
+    // If exists, run this branch (TODO)
+  } else {
+    ret = pgFileAllocatePage(pPgFile, &dbRootPgno);
+    if (ret != 0) {
+      // TODO: handle error
+    }
+  }
 
+  pDb->pBt->root = dbRootPgno;
+
+  // register
   pDb->pPgFile = pPgFile;
   tdbEnvRgstDB(pEnv, pDb);
   pDb->pEnv = pEnv;

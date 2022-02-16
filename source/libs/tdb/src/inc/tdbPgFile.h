@@ -46,10 +46,12 @@ struct SPgFile {
 int pgFileOpen(SPgFile **ppPgFile, const char *fname, TENV *pEnv);
 int pgFileClose(SPgFile *pPgFile);
 
+
 SPage *pgFileFetch(SPgFile *pPgFile, pgno_t pgno);
 int    pgFileRelease(SPage *pPage);
 
 int pgFileWrite(SPage *pPage);
+int pgFileAllocatePage(SPgFile *pPgFile, pgno_t *pPgno);
 
 #ifdef __cplusplus
 }

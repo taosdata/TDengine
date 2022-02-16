@@ -110,6 +110,19 @@ int pgFileWrite(SPage *pPage) {
   return 0;
 }
 
+int pgFileAllocatePage(SPgFile *pPgFile, pgno_t *pPgno) {
+  pgno_t pgno;
+
+  if (0) {
+    // TODO: allocate from the free list
+  } else {
+    pgno = ++pPgFile->dbNewSize;
+  }
+
+  *pPgno = pgno;
+  return 0;
+}
+
 static int pgFileRead(SPgFile *pPgFile, pgno_t pgno, uint8_t *pData) {
   pgsz_t   pgSize;
   ssize_t  rsize;
