@@ -28,7 +28,7 @@
 #include "tcompare.h"
 #include "tname.h"
 
-#define MND_SUBSCRIBE_VER_NUMBER 1
+#define MND_SUBSCRIBE_VER_NUMBER   1
 #define MND_SUBSCRIBE_RESERVE_SIZE 64
 
 #define MND_SUBSCRIBE_REBALANCE_CNT 3

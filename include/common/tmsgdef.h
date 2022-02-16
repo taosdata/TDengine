@@ -13,6 +13,8 @@
  * along with this program. If not, see <http://www.gnu.org/licenses/>.
  */
 
+// clang-format off
+
 #if 0
 #undef TD_MSG_INFO_
 #undef TD_MSG_NUMBER_
@@ -191,3 +193,4 @@ enum {
   TDMT_MAX
 #endif
 };
+// clang-format on

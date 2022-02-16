@@ -248,7 +248,7 @@ int32_t tSerializeSVCreateTbReq(void **buf, SVCreateTbReq *pReq) {
 
   switch (pReq->type) {
     case TD_SUPER_TABLE:
-      tlen += taosEncodeFixedU64(buf, pReq->stbCfg.suid);
+      tlen += taosEncodeFixedI64(buf, pReq->stbCfg.suid);
       tlen += taosEncodeFixedU32(buf, pReq->stbCfg.nCols);
       for (uint32_t i = 0; i < pReq->stbCfg.nCols; i++) {
         tlen += taosEncodeFixedI8(buf, pReq->stbCfg.pSchema[i].type);
@@ -265,7 +265,7 @@ int32_t tSerializeSVCreateTbReq(void **buf, SVCreateTbReq *pReq) {
       }
       break;
     case TD_CHILD_TABLE:
-      tlen += taosEncodeFixedU64(buf, pReq->ctbCfg.suid);
+      tlen += taosEncodeFixedI64(buf, pReq->ctbCfg.suid);
       tlen += tdEncodeKVRow(buf, pReq->ctbCfg.pTag);
       break;
     case TD_NORMAL_TABLE:
@@ -293,7 +293,7 @@ void *tDeserializeSVCreateTbReq(void *buf, SVCreateTbReq *pReq) {
 
   switch (pReq->type) {
     case TD_SUPER_TABLE:
-      buf = taosDecodeFixedU64(buf, &(pReq->stbCfg.suid));
+      buf = taosDecodeFixedI64(buf, &(pReq->stbCfg.suid));
       buf = taosDecodeFixedU32(buf, &(pReq->stbCfg.nCols));
       pReq->stbCfg.pSchema = (SSchema *)malloc(pReq->stbCfg.nCols * sizeof(SSchema));
       for (uint32_t i = 0; i < pReq->stbCfg.nCols; i++) {
@@ -312,7 +312,7 @@ void *tDeserializeSVCreateTbReq(void *buf, SVCreateTbReq *pReq) {
       }
       break;
     case TD_CHILD_TABLE:
-      buf = taosDecodeFixedU64(buf, &pReq->ctbCfg.suid);
+      buf = taosDecodeFixedI64(buf, &pReq->ctbCfg.suid);
       buf = tdDecodeKVRow(buf, &pReq->ctbCfg.pTag);
       break;
     case TD_NORMAL_TABLE:
@@ -385,14 +385,14 @@ int32_t tSerializeSMCreateStbReq(void **buf, SMCreateStbReq *pReq) {
 
   for (int32_t i = 0; i < pReq->numOfColumns; ++i) {
     SField *pField = taosArrayGet(pReq->pColumns, i);
-    tlen += taosEncodeFixedI8(buf, pField->type);
+    tlen += taosEncodeFixedU8(buf, pField->type);
     tlen += taosEncodeFixedI32(buf, pField->bytes);
     tlen += taosEncodeString(buf, pField->name);
   }
 
   for (int32_t i = 0; i < pReq->numOfTags; ++i) {
     SField *pField = taosArrayGet(pReq->pTags, i);
-    tlen += taosEncodeFixedI8(buf, pField->type);
+    tlen += taosEncodeFixedU8(buf, pField->type);
     tlen += taosEncodeFixedI32(buf, pField->bytes);
     tlen += taosEncodeString(buf, pField->name);
   }
@@ -416,7 +416,7 @@ void *tDeserializeSMCreateStbReq(void *buf, SMCreateStbReq *pReq) {
 
   for (int32_t i = 0; i < pReq->numOfColumns; ++i) {
     SField field = {0};
-    buf = taosDecodeFixedI8(buf, &field.type);
+    buf = taosDecodeFixedU8(buf, &field.type);
     buf = taosDecodeFixedI32(buf, &field.bytes);
     buf = taosDecodeStringTo(buf, field.name);
     if (taosArrayPush(pReq->pColumns, &field) == NULL) {
@@ -427,7 +427,7 @@ void *tDeserializeSMCreateStbReq(void *buf, SMCreateStbReq *pReq) {
 
   for (int32_t i = 0; i < pReq->numOfTags; ++i) {
     SField field = {0};
-    buf = taosDecodeFixedI8(buf, &field.type);
+    buf = taosDecodeFixedU8(buf, &field.type);
     buf = taosDecodeFixedI32(buf, &field.bytes);
     buf = taosDecodeStringTo(buf, field.name);
     if (taosArrayPush(pReq->pTags, &field) == NULL) {

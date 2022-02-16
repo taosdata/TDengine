@@ -88,11 +88,6 @@ tmq_t* build_consumer() {
   tmq_conf_set(conf, "group.id", "tg2");
   tmq_t* tmq = tmq_consumer_new(pConn, conf, NULL, 0);
   return tmq;
-
-  tmq_list_t* topic_list = tmq_list_new();
-  tmq_list_append(topic_list, "test_stb_topic_1");
-  tmq_subscribe(tmq, topic_list);
-  return NULL;
 }
 
 tmq_list_t* build_topic_list() {
@@ -109,12 +104,12 @@ void basic_consume_loop(tmq_t* tmq, tmq_list_t* topics) {
     printf("subscribe err\n");
     return;
   }
-  int32_t cnt = 0;
+  /*int32_t cnt = 0;*/
   /*clock_t startTime = clock();*/
   while (running) {
     tmq_message_t* tmqmessage = tmq_consumer_poll(tmq, 500);
     if (tmqmessage) {
-      cnt++;
+      /*cnt++;*/
       msg_process(tmqmessage);
       tmq_message_destroy(tmqmessage);
       /*} else {*/
@@ -192,12 +187,15 @@ void perf_loop(tmq_t* tmq, tmq_list_t* topics) {
     fprintf(stderr, "%% Consumer closed\n");
 }
 
-int main() {
+int main(int argc, char* argv[]) {
   int code;
-  code = init_env();
+  if (argc > 1) {
+    printf("env init\n");
+    code = init_env();
+  }
   tmq_t*      tmq = build_consumer();
   tmq_list_t* topic_list = build_topic_list();
-  perf_loop(tmq, topic_list);
-  /*basic_consume_loop(tmq, topic_list);*/
+  /*perf_loop(tmq, topic_list);*/
+  basic_consume_loop(tmq, topic_list);
   /*sync_consume_loop(tmq, topic_list);*/
 }
