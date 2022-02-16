@@ -322,7 +322,7 @@ static int32_t parseBoundColumns(SInsertParseContext* pCxt, SParsedDataColInfo* 
     }
     lastColIdx = index;
     pColList->cols[index].valStat = VAL_STAT_HAS;
-    pColList->boundedColumns[pColList->numOfBound] = index;
+    pColList->boundedColumns[pColList->numOfBound] = index + PRIMARYKEY_TIMESTAMP_COL_ID;
     ++pColList->numOfBound;
     switch (pSchema[t].type) {
       case TSDB_DATA_TYPE_BINARY:

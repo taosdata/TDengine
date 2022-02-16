@@ -94,7 +94,7 @@ static FORCE_INLINE void getMemRowAppendInfo(SSchema *pSchema, uint8_t rowType, 
                                                 int32_t idx, int32_t *toffset, int32_t *colIdx) {
   int32_t schemaIdx = 0;
   if (IS_DATA_COL_ORDERED(spd)) {
-    schemaIdx = spd->boundedColumns[idx] - 1;
+    schemaIdx = spd->boundedColumns[idx] - PRIMARYKEY_TIMESTAMP_COL_ID;
     if (TD_IS_TP_ROW_T(rowType)) {
       *toffset = (spd->cols + schemaIdx)->toffset;  // the offset of firstPart
       *colIdx = schemaIdx;
@@ -104,7 +104,7 @@ static FORCE_INLINE void getMemRowAppendInfo(SSchema *pSchema, uint8_t rowType, 
     }
   } else {
     ASSERT(idx == (spd->colIdxInfo + idx)->boundIdx);
-    schemaIdx = (spd->colIdxInfo + idx)->schemaColIdx;
+    schemaIdx = (spd->colIdxInfo + idx)->schemaColIdx - PRIMARYKEY_TIMESTAMP_COL_ID;
     if (TD_IS_TP_ROW_T(rowType)) {
       *toffset = (spd->cols + schemaIdx)->toffset;
       *colIdx = schemaIdx;
