@@ -99,6 +99,8 @@ void Testbase::SendShowMetaReq(int8_t showType, const char* db) {
   SRpcMsg* pRsp = SendReq(TDMT_MND_SHOW, pReq, contLen);
   ASSERT(pRsp->pCont != nullptr);
 
+  if (pRsp->contLen == 0) return;
+
   SShowRsp showRsp = {0};
   tDeserializeSShowRsp(pRsp->pCont, pRsp->contLen, &showRsp);
   tFreeSTableMetaRsp(&metaRsp);

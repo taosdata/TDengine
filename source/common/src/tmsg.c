@@ -1859,7 +1859,7 @@ int32_t tDeserializeSTableInfoReq(void *buf, int32_t bufLen, STableInfoReq *pReq
   return 0;
 }
 
-int32_t tSerializeSMDropTopicReqq(void *buf, int32_t bufLen, SMDropTopicReq *pReq) {
+int32_t tSerializeSMDropTopicReq(void *buf, int32_t bufLen, SMDropTopicReq *pReq) {
   SCoder encoder = {0};
   tCoderInit(&encoder, TD_LITTLE_ENDIAN, buf, bufLen, TD_ENCODER);
 
@@ -1886,23 +1886,67 @@ int32_t tDeserializeSMDropTopicReq(void *buf, int32_t bufLen, SMDropTopicReq *pR
   return 0;
 }
 
-int32_t tSerializeMCreateTopicReq(void **buf, const SMCreateTopicReq *pReq) {
-  int32_t tlen = 0;
-  tlen += taosEncodeFixedI8(buf, pReq->igExists);
-  tlen += taosEncodeString(buf, pReq->name);
-  tlen += taosEncodeString(buf, pReq->sql);
-  tlen += taosEncodeString(buf, pReq->physicalPlan);
-  tlen += taosEncodeString(buf, pReq->logicalPlan);
+int32_t tSerializeMCreateTopicReq(void *buf, int32_t bufLen, const SMCreateTopicReq *pReq) {
+  int32_t sqlLen = 0;
+  int32_t physicalPlanLen = 0;
+  int32_t logicalPlanLen = 0;
+  if (pReq->sql != NULL) sqlLen = (int32_t)strlen(pReq->sql);
+  if (pReq->physicalPlan != NULL) physicalPlanLen = (int32_t)strlen(pReq->physicalPlan);
+  if (pReq->logicalPlan != NULL) logicalPlanLen = (int32_t)strlen(pReq->logicalPlan);
+
+  SCoder encoder = {0};
+  tCoderInit(&encoder, TD_LITTLE_ENDIAN, buf, bufLen, TD_ENCODER);
+
+  if (tStartEncode(&encoder) < 0) return -1;
+  if (tEncodeCStr(&encoder, pReq->name) < 0) return -1;
+  if (tEncodeI8(&encoder, pReq->igExists) < 0) return -1;
+  if (tEncodeI32(&encoder, sqlLen) < 0) return -1;
+  if (tEncodeI32(&encoder, physicalPlanLen) < 0) return -1;
+  if (tEncodeI32(&encoder, logicalPlanLen) < 0) return -1;
+  if (tEncodeCStr(&encoder, pReq->sql) < 0) return -1;
+  if (tEncodeCStr(&encoder, pReq->physicalPlan) < 0) return -1;
+  if (tEncodeCStr(&encoder, pReq->logicalPlan) < 0) return -1;
+
+  tEndEncode(&encoder);
+
+  int32_t tlen = encoder.pos;
+  tCoderClear(&encoder);
   return tlen;
 }
 
-void *tDeserializeSMCreateTopicReq(void *buf, SMCreateTopicReq *pReq) {
-  buf = taosDecodeFixedI8(buf, &(pReq->igExists));
-  buf = taosDecodeString(buf, &(pReq->name));
-  buf = taosDecodeString(buf, &(pReq->sql));
-  buf = taosDecodeString(buf, &(pReq->physicalPlan));
-  buf = taosDecodeString(buf, &(pReq->logicalPlan));
-  return buf;
+int32_t tDeserializeSMCreateTopicReq(void *buf, int32_t bufLen, SMCreateTopicReq *pReq) {
+  int32_t sqlLen = 0;
+  int32_t physicalPlanLen = 0;
+  int32_t logicalPlanLen = 0;
+
+  SCoder decoder = {0};
+  tCoderInit(&decoder, TD_LITTLE_ENDIAN, buf, bufLen, TD_DECODER);
+
+  if (tStartDecode(&decoder) < 0) return -1;
+  if (tDecodeCStrTo(&decoder, pReq->name) < 0) return -1;
+  if (tDecodeI8(&decoder, &pReq->igExists) < 0) return -1;
+  if (tDecodeI32(&decoder, &sqlLen) < 0) return -1;
+  if (tDecodeI32(&decoder, &physicalPlanLen) < 0) return -1;
+  if (tDecodeI32(&decoder, &logicalPlanLen) < 0) return -1;
+
+  pReq->sql = calloc(1, sqlLen + 1);
+  pReq->physicalPlan = calloc(1, physicalPlanLen + 1);
+  pReq->logicalPlan = calloc(1, logicalPlanLen + 1);
+  if (pReq->sql == NULL || pReq->physicalPlan == NULL || pReq->logicalPlan == NULL) return -1;
+
+  if (tDecodeCStrTo(&decoder, pReq->sql) < 0) return -1;
+  if (tDecodeCStrTo(&decoder, pReq->physicalPlan) < 0) return -1;
+  if (tDecodeCStrTo(&decoder, pReq->logicalPlan) < 0) return -1;
+  tEndDecode(&decoder);
+
+  tCoderClear(&decoder);
+  return 0;
+}
+
+void tFreeSMCreateTopicReq(SMCreateTopicReq *pReq) {
+  tfree(pReq->sql);
+  tfree(pReq->physicalPlan);
+  tfree(pReq->logicalPlan);
 }
 
 int32_t tSerializeSMCreateTopicRsp(void *buf, int32_t bufLen, const SMCreateTopicRsp *pRsp) {

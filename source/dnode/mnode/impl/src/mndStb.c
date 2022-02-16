@@ -1387,8 +1387,7 @@ int32_t mndValidateStbInfo(SMnode *pMnode, SSTableMetaVersion *pStbVersions, int
 }
 
 static int32_t mndGetNumOfStbs(SMnode *pMnode, char *dbName, int32_t *pNumOfStbs) {
-  SSdb *pSdb = pMnode->pSdb;
-
+  SSdb   *pSdb = pMnode->pSdb;
   SDbObj *pDb = mndAcquireDb(pMnode, dbName);
   if (pDb == NULL) {
     terrno = TSDB_CODE_MND_DB_NOT_SELECTED;
@@ -1402,7 +1401,7 @@ static int32_t mndGetNumOfStbs(SMnode *pMnode, char *dbName, int32_t *pNumOfStbs
     pIter = sdbFetch(pSdb, SDB_STB, pIter, (void **)&pStb);
     if (pIter == NULL) break;
 
-    if (strcmp(pStb->db, dbName) == 0) {
+    if (pStb->dbUid == pDb->uid) {
       numOfStbs++;
     }
 
@@ -1410,6 +1409,7 @@ static int32_t mndGetNumOfStbs(SMnode *pMnode, char *dbName, int32_t *pNumOfStbs
   }
 
   *pNumOfStbs = numOfStbs;
+  mndReleaseDb(pMnode, pDb);
   return 0;
 }
 

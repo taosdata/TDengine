@@ -1083,15 +1083,16 @@ typedef struct {
 } STaskDropRsp;
 
 typedef struct {
-  int8_t igExists;
-  char*  name;
-  char*  sql;
-  char*  physicalPlan;
-  char*  logicalPlan;
+  char    name[TSDB_TOPIC_FNAME_LEN];
+  int8_t  igExists;
+  char*   sql;
+  char*   physicalPlan;
+  char*   logicalPlan;
 } SMCreateTopicReq;
 
-int32_t tSerializeMCreateTopicReq(void** buf, const SMCreateTopicReq* pReq);
-void*   tDeserializeSMCreateTopicReq(void* buf, SMCreateTopicReq* pReq);
+int32_t tSerializeMCreateTopicReq(void* buf, int32_t bufLen, const SMCreateTopicReq* pReq);
+int32_t tDeserializeSMCreateTopicReq(void* buf, int32_t bufLen, SMCreateTopicReq* pReq);
+void    tFreeSMCreateTopicReq(SMCreateTopicReq* pReq);
 
 typedef struct {
   int64_t topicId;
@@ -1246,7 +1247,7 @@ typedef struct {
   int8_t igNotExists;
 } SMDropTopicReq;
 
-int32_t tSerializeSMDropTopicReqq(void* buf, int32_t bufLen, SMDropTopicReq* pReq);
+int32_t tSerializeSMDropTopicReq(void* buf, int32_t bufLen, SMDropTopicReq* pReq);
 int32_t tDeserializeSMDropTopicReq(void* buf, int32_t bufLen, SMDropTopicReq* pReq);
 
 typedef struct {

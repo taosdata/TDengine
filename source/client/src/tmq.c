@@ -388,21 +388,20 @@ TAOS_RES* tmq_create_topic(TAOS* taos, const char* topicName, const char* sql, i
   tNameExtractFullName(&name, topicFname);
 
   SMCreateTopicReq req = {
-      .name = (char*)topicFname,
       .igExists = 1,
       .physicalPlan = (char*)pStr,
       .sql = (char*)sql,
       .logicalPlan = (char*)"no logic plan",
   };
+  memcpy(req.name, topicName, TSDB_TOPIC_FNAME_LEN);
 
-  int   tlen = tSerializeMCreateTopicReq(NULL, &req);
+  int   tlen = tSerializeMCreateTopicReq(NULL, 0, &req);
   void* buf = malloc(tlen);
   if (buf == NULL) {
     goto _return;
   }
 
-  void* abuf = buf;
-  tSerializeMCreateTopicReq(&abuf, &req);
+  tSerializeMCreateTopicReq(buf, tlen, &req);
   /*printf("formatted: %s\n", dagStr);*/
 
   pRequest->body.requestMsg = (SDataBuf){.pData = buf, .len = tlen};
