@@ -223,8 +223,8 @@ void *mndBuildCreateVnodeReq(SMnode *pMnode, SDnodeObj *pDnode, SDbObj *pDb, SVg
       return NULL;
     }
 
-    pReplica->id = htonl(pVgidDnode->id);
-    pReplica->port = htons(pVgidDnode->port);
+    pReplica->id = pVgidDnode->id;
+    pReplica->port = pVgidDnode->port;
     memcpy(pReplica->fqdn, pVgidDnode->fqdn, TSDB_FQDN_LEN);
     mndReleaseDnode(pMnode, pVgidDnode);
 

@@ -609,14 +609,12 @@ static int32_t mndProcessConfigDnodeReq(SMnodeMsg *pReq) {
   SEpSet epSet = mndGetDnodeEpset(pDnode);
   mndReleaseDnode(pMnode, pDnode);
 
-  SDCfgDnodeReq *pCfgDnode = rpcMallocCont(sizeof(SDCfgDnodeReq));
-  pCfgDnode->dnodeId = htonl(cfgReq.dnodeId);
-  memcpy(pCfgDnode->config, cfgReq.config, TSDB_DNODE_CONFIG_LEN);
+  int32_t bufLen = tSerializeSMCfgDnodeReq(NULL, 0, &cfgReq);
+  void   *pBuf = rpcMallocCont(bufLen);
+  tSerializeSMCfgDnodeReq(pBuf, bufLen, &cfgReq);
 
-  SRpcMsg rpcMsg = {.msgType = TDMT_DND_CONFIG_DNODE,
-                    .pCont = pCfgDnode,
-                    .contLen = sizeof(SDCfgDnodeReq),
-                    .ahandle = pReq->rpcMsg.ahandle};
+  SRpcMsg rpcMsg = {
+      .msgType = TDMT_DND_CONFIG_DNODE, .pCont = pBuf, .contLen = bufLen, .ahandle = pReq->rpcMsg.ahandle};
 
   mInfo("dnode:%d, app:%p config:%s req send to dnode", cfgReq.dnodeId, rpcMsg.ahandle, cfgReq.config);
   mndSendReqToDnode(pMnode, &epSet, &rpcMsg);
