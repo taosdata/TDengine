@@ -22,6 +22,10 @@ typedef struct SPage1 {
   uint32_t nFree;        // number of free pages
 } SPage1;
 
+typedef struct SFreePage {
+  /* TODO */
+} SFreePage;
+
 TDB_STATIC_ASSERT(sizeof(SPage1) <= TDB_MIN_PGSIZE, "TDB Page1 definition too large");
 
 static int pgFileRead(SPgFile *pPgFile, pgno_t pgno, uint8_t *pData);

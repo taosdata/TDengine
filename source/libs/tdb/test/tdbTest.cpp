@@ -3,7 +3,7 @@
 #include "tdb.h"
 
 TEST(tdb_test, simple_test) {
-  TENV*     pEnv;
+  TENV *    pEnv;
   TDB *     pDb1, *pDb2, *pDb3;
   pgsz_t    pgSize = 1024;
   cachesz_t cacheSize = 10240;
@@ -20,14 +20,12 @@ TEST(tdb_test, simple_test) {
   GTEST_ASSERT_EQ(tdbEnvOpen(pEnv), 0);
 
 #if 1
-
-  tdbEnvBeginTxn(pEnv);
   // DB
   GTEST_ASSERT_EQ(tdbCreate(&pDb1), 0);
 
-  GTEST_ASSERT_EQ(tdbSetKeyLen(pDb1, 8), 0);
+  // GTEST_ASSERT_EQ(tdbSetKeyLen(pDb1, 8), 0);
 
-  GTEST_ASSERT_EQ(tdbGetKeyLen(pDb1), 8);
+  // GTEST_ASSERT_EQ(tdbGetKeyLen(pDb1), 8);
 
   // GTEST_ASSERT_EQ(tdbSetValLen(pDb1, 3), 0);
 
@@ -39,7 +37,13 @@ TEST(tdb_test, simple_test) {
 
   // GTEST_ASSERT_EQ(tdbSetCmprFunc(pDb1, NULL), 0);
 
+  tdbEnvBeginTxn(pEnv);
+
   GTEST_ASSERT_EQ(tdbOpen(pDb1, "db.db", "db1", pEnv), 0);
+
+  // char *key = "key1";
+  // char *val = "value1";
+  // tdbInsert(pDb1, (void *)key, strlen(key), (void *)val, strlen(val));
 
   tdbEnvCommit(pEnv);
 

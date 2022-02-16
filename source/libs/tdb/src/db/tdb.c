@@ -172,6 +172,11 @@ int tdbGetDup(TDB *pDb) {
   }
 }
 
+int tdbInsert(TDB *pDb, const void *pKey, int nKey, const void *pData, int nData) {
+  // TODO
+  return 0;
+}
+
 static int tdbDefaultKeyCmprFn(int keyLen1, const void *pKey1, int keyLen2, const void *pKey2) {
   int mlen;
   int cret;
