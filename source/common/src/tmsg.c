@@ -289,7 +289,7 @@ int32_t tSerializeSVCreateTbReq(void **buf, SVCreateTbReq *pReq) {
 
   switch (pReq->type) {
     case TD_SUPER_TABLE:
-      tlen += taosEncodeFixedU64(buf, pReq->stbCfg.suid);
+      tlen += taosEncodeFixedI64(buf, pReq->stbCfg.suid);
       tlen += taosEncodeFixedU32(buf, pReq->stbCfg.nCols);
       for (uint32_t i = 0; i < pReq->stbCfg.nCols; i++) {
         tlen += taosEncodeFixedI8(buf, pReq->stbCfg.pSchema[i].type);
@@ -306,7 +306,7 @@ int32_t tSerializeSVCreateTbReq(void **buf, SVCreateTbReq *pReq) {
       }
       break;
     case TD_CHILD_TABLE:
-      tlen += taosEncodeFixedU64(buf, pReq->ctbCfg.suid);
+      tlen += taosEncodeFixedI64(buf, pReq->ctbCfg.suid);
       tlen += tdEncodeKVRow(buf, pReq->ctbCfg.pTag);
       break;
     case TD_NORMAL_TABLE:
@@ -334,7 +334,7 @@ void *tDeserializeSVCreateTbReq(void *buf, SVCreateTbReq *pReq) {
 
   switch (pReq->type) {
     case TD_SUPER_TABLE:
-      buf = taosDecodeFixedU64(buf, &(pReq->stbCfg.suid));
+      buf = taosDecodeFixedI64(buf, &(pReq->stbCfg.suid));
       buf = taosDecodeFixedU32(buf, &(pReq->stbCfg.nCols));
       pReq->stbCfg.pSchema = (SSchema *)malloc(pReq->stbCfg.nCols * sizeof(SSchema));
       for (uint32_t i = 0; i < pReq->stbCfg.nCols; i++) {
@@ -353,7 +353,7 @@ void *tDeserializeSVCreateTbReq(void *buf, SVCreateTbReq *pReq) {
       }
       break;
     case TD_CHILD_TABLE:
-      buf = taosDecodeFixedU64(buf, &pReq->ctbCfg.suid);
+      buf = taosDecodeFixedI64(buf, &pReq->ctbCfg.suid);
       buf = tdDecodeKVRow(buf, &pReq->ctbCfg.pTag);
       break;
     case TD_NORMAL_TABLE:
@@ -562,6 +562,7 @@ int32_t tDeserializeSMAlterStbReq(void *buf, int32_t bufLen, SMAltertbReq *pReq)
     terrno = TSDB_CODE_OUT_OF_MEMORY;
     return -1;
   }
+
   for (int32_t i = 0; i < pReq->numOfFields; ++i) {
     SField field = {0};
     if (tDecodeI8(&decoder, &field.type) < 0) return -1;

@@ -228,6 +228,7 @@ int32_t tqProcessConsumeReq(STQ* pTq, SRpcMsg* pMsg) {
 
   if (pReq->reqType == TMQ_REQ_TYPE_COMMIT_ONLY) {
     pTopic->committedOffset = pReq->offset;
+    /*printf("offset %ld committed\n", pTopic->committedOffset);*/
     pMsg->pCont = NULL;
     pMsg->contLen = 0;
     pMsg->code = 0;
@@ -236,17 +237,27 @@ int32_t tqProcessConsumeReq(STQ* pTq, SRpcMsg* pMsg) {
   }
 
   if (pReq->reqType == TMQ_REQ_TYPE_CONSUME_AND_COMMIT) {
-    pTopic->committedOffset = pReq->offset - 1;
+    if (pTopic->committedOffset < pReq->offset - 1) {
+      pTopic->committedOffset = pReq->offset - 1;
+      /*printf("offset %ld committed\n", pTopic->committedOffset);*/
+    }
   }
 
   rsp.committedOffset = pTopic->committedOffset;
   rsp.reqOffset = pReq->offset;
   rsp.skipLogNum = 0;
 
+  if (fetchOffset <= pTopic->committedOffset) {
+    fetchOffset = pTopic->committedOffset + 1;
+  }
+
   SWalHead* pHead;
   while (1) {
     int8_t pos = fetchOffset % TQ_BUFFER_SIZE;
     if (walReadWithHandle(pTopic->pReadhandle, fetchOffset) < 0) {
+      // TODO: no more log, set timer to wait blocking time
+      // if data inserted during waiting, launch query and
+      // rsponse to user
       break;
     }
     pHead = pTopic->pReadhandle->pHead;
@@ -263,6 +274,7 @@ int32_t tqProcessConsumeReq(STQ* pTq, SRpcMsg* pMsg) {
         }
         if (pDataBlock == NULL) {
           fetchOffset++;
+          pos = fetchOffset % TQ_BUFFER_SIZE;
           rsp.skipLogNum++;
           break;
         }

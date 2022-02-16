@@ -1233,27 +1233,11 @@ _err:
   return NULL;
 }
 
-// this message is sent from mnode to mnode(read thread to write thread), so there is no need for serialization /
+// this message is sent from mnode to mnode(read thread to write thread), so there is no need for serialization or
 // deserialization
 typedef struct {
-  // SArray* rebSubscribes;     //SArray<SMqRebSubscribe>
   SHashObj* rebSubHash;  // SHashObj<key, SMqRebSubscribe>
 } SMqDoRebalanceMsg;
-
-#if 0
-static FORCE_INLINE SMqDoRebalanceMsg* tNewSMqDoRebalanceMsg() {
-  SMqDoRebalanceMsg *pMsg = malloc(sizeof(SMqDoRebalanceMsg));
-  if (pMsg == NULL) {
-    return NULL;
-  }
-  pMsg->rebSubscribes = taosArrayInit(0, sizeof(SMqRebSubscribe));
-  if (pMsg->rebSubscribes == NULL) {
-    free(pMsg);
-    return NULL;
-  }
-  return pMsg;
-}
-#endif
 
 typedef struct {
   int64_t status;
@@ -1727,12 +1711,6 @@ typedef struct {
   int32_t vgId;
   int64_t oldConsumerId;
   int64_t newConsumerId;
-  // char     topicName[TSDB_TOPIC_FNAME_LEN];
-  // char     cgroup[TSDB_CONSUMER_GROUP_LEN];
-  // char*    sql;
-  // char*    logicalPlan;
-  // char*    physicalPlan;
-  // char*    qmsg;
 } SMqMVRebReq;
 
 static FORCE_INLINE int32_t tEncodeSMqMVRebReq(void** buf, const SMqMVRebReq* pReq) {
@@ -1741,13 +1719,6 @@ static FORCE_INLINE int32_t tEncodeSMqMVRebReq(void** buf, const SMqMVRebReq* pR
   tlen += taosEncodeFixedI32(buf, pReq->vgId);
   tlen += taosEncodeFixedI64(buf, pReq->oldConsumerId);
   tlen += taosEncodeFixedI64(buf, pReq->newConsumerId);
-  // tlen += taosEncodeString(buf, pReq->topicName);
-  // tlen += taosEncodeString(buf, pReq->cgroup);
-  // tlen += taosEncodeString(buf, pReq->sql);
-  // tlen += taosEncodeString(buf, pReq->logicalPlan);
-  // tlen += taosEncodeString(buf, pReq->physicalPlan);
-  // tlen += taosEncodeString(buf, pReq->qmsg);
-  // tlen += tEncodeSSubQueryMsg(buf, &pReq->msg);
   return tlen;
 }
 
@@ -1756,13 +1727,6 @@ static FORCE_INLINE void* tDecodeSMqMVRebReq(void* buf, SMqMVRebReq* pReq) {
   buf = taosDecodeFixedI32(buf, &pReq->vgId);
   buf = taosDecodeFixedI64(buf, &pReq->oldConsumerId);
   buf = taosDecodeFixedI64(buf, &pReq->newConsumerId);
-  // buf = taosDecodeStringTo(buf, pReq->topicName);
-  // buf = taosDecodeStringTo(buf, pReq->cgroup);
-  // buf = taosDecodeString(buf, &pReq->sql);
-  // buf = taosDecodeString(buf, &pReq->logicalPlan);
-  // buf = taosDecodeString(buf, &pReq->physicalPlan);
-  // buf = taosDecodeString(buf, &pReq->qmsg);
-  // buf = tDecodeSSubQueryMsg(buf, &pReq->msg);
   return buf;
 }
 
