@@ -964,9 +964,15 @@ typedef struct {
   int32_t queryId;
 } SKillQueryReq;
 
+int32_t tSerializeSKillQueryReq(void* buf, int32_t bufLen, SKillQueryReq* pReq);
+int32_t tDeserializeSKillQueryReq(void* buf, int32_t bufLen, SKillQueryReq* pReq);
+
 typedef struct {
   int32_t connId;
 } SKillConnReq;
+
+int32_t tSerializeSKillConnReq(void* buf, int32_t bufLen, SKillConnReq* pReq);
+int32_t tDeserializeSKillConnReq(void* buf, int32_t bufLen, SKillConnReq* pReq);
 
 typedef struct {
   char user[TSDB_USER_LEN];
@@ -1365,7 +1371,6 @@ typedef struct {
   int8_t  precision;
   int8_t  compressed;
   int32_t compLen;
-
   int32_t numOfRows;
   char    data[];
 } SVShowTablesFetchRsp;
