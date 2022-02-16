@@ -323,12 +323,14 @@ static int32_t dndRetrieveUserAuthInfo(void *parent, char *user, char *spi, char
     terrno = rpcRsp.code;
     dError("user:%s, failed to get user auth from other mnodes since %s", user, terrstr());
   } else {
-    SAuthRsp *pRsp = rpcRsp.pCont;
-    memcpy(secret, pRsp->secret, TSDB_PASSWORD_LEN);
-    memcpy(ckey, pRsp->ckey, TSDB_PASSWORD_LEN);
-    *spi = pRsp->spi;
-    *encrypt = pRsp->encrypt;
-    dTrace("user:%s, success to get user auth from other mnodes, spi:%d encrypt:%d", user, pRsp->spi, pRsp->encrypt);
+    SAuthRsp authRsp = {0};
+    tDeserializeSAuthReq(rpcRsp.pCont, rpcRsp.contLen, &authRsp);
+    memcpy(secret, authRsp.secret, TSDB_PASSWORD_LEN);
+    memcpy(ckey, authRsp.ckey, TSDB_PASSWORD_LEN);
+    *spi = authRsp.spi;
+    *encrypt = authRsp.encrypt;
+    dTrace("user:%s, success to get user auth from other mnodes, spi:%d encrypt:%d", user, authRsp.spi,
+           authRsp.encrypt);
   }
 
   rpcFreeCont(rpcRsp.pCont);
