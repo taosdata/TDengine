@@ -45,41 +45,35 @@ int32_t processConnectRsp(void* param, const SDataBuf* pMsg, int32_t code) {
     return code;
   }
 
-  STscObj *pTscObj = pRequest->pTscObj;
+  STscObj* pTscObj = pRequest->pTscObj;
 
-  SConnectRsp *pConnect = (SConnectRsp *)pMsg->pData;
-  pConnect->acctId    = htonl(pConnect->acctId);
-  pConnect->connId    = htonl(pConnect->connId);
-  pConnect->clusterId = htobe64(pConnect->clusterId);
+  SConnectRsp connectRsp = {0};
+  tDeserializeSConnectRsp(pMsg->pData, pMsg->len, &connectRsp);
+  assert(connectRsp.epSet.numOfEps > 0);
 
-  assert(pConnect->epSet.numOfEps > 0);
-  for(int32_t i = 0; i < pConnect->epSet.numOfEps; ++i) {
-    pConnect->epSet.eps[i].port = htons(pConnect->epSet.eps[i].port);
+  if (!isEpsetEqual(&pTscObj->pAppInfo->mgmtEp.epSet, &connectRsp.epSet)) {
+    updateEpSet_s(&pTscObj->pAppInfo->mgmtEp, &connectRsp.epSet);
   }
 
-  if (!isEpsetEqual(&pTscObj->pAppInfo->mgmtEp.epSet, &pConnect->epSet)) {
-    updateEpSet_s(&pTscObj->pAppInfo->mgmtEp, &pConnect->epSet);
-  }
-
-  for (int32_t i = 0; i < pConnect->epSet.numOfEps; ++i) {
+  for (int32_t i = 0; i < connectRsp.epSet.numOfEps; ++i) {
     tscDebug("0x%" PRIx64 " epSet.fqdn[%d]:%s port:%d, connObj:0x%" PRIx64, pRequest->requestId, i,
-             pConnect->epSet.eps[i].fqdn, pConnect->epSet.eps[i].port, pTscObj->id);
+             connectRsp.epSet.eps[i].fqdn, connectRsp.epSet.eps[i].port, pTscObj->id);
   }
 
-  pTscObj->connId = pConnect->connId;
-  pTscObj->acctId = pConnect->acctId;
-  tstrncpy(pTscObj->ver, pConnect->sVersion, tListLen(pTscObj->ver));
+  pTscObj->connId = connectRsp.connId;
+  pTscObj->acctId = connectRsp.acctId;
+  tstrncpy(pTscObj->ver, connectRsp.sVersion, tListLen(pTscObj->ver));
 
   // update the appInstInfo
-  pTscObj->pAppInfo->clusterId = pConnect->clusterId;
+  pTscObj->pAppInfo->clusterId = connectRsp.clusterId;
   atomic_add_fetch_64(&pTscObj->pAppInfo->numOfConns, 1);
 
   pTscObj->connType = HEARTBEAT_TYPE_QUERY;
 
-  hbRegisterConn(pTscObj->pAppInfo->pAppHbMgr, pConnect->connId, pConnect->clusterId, HEARTBEAT_TYPE_QUERY);
+  hbRegisterConn(pTscObj->pAppInfo->pAppHbMgr, connectRsp.connId, connectRsp.clusterId, HEARTBEAT_TYPE_QUERY);
 
   //  pRequest->body.resInfo.pRspMsg = pMsg->pData;
-  tscDebug("0x%" PRIx64 " clusterId:%" PRId64 ", totalConn:%" PRId64, pRequest->requestId, pConnect->clusterId,
+  tscDebug("0x%" PRIx64 " clusterId:%" PRId64 ", totalConn:%" PRId64, pRequest->requestId, connectRsp.clusterId,
            pTscObj->pAppInfo->numOfConns);
 
   free(pMsg->pData);
