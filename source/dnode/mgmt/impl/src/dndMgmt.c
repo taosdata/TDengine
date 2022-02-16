@@ -652,9 +652,6 @@ static void dndProcessMgmtQueue(SDnode *pDnode, SRpcMsg *pMsg) {
     case TDMT_DND_DROP_VNODE:
       code = dndProcessDropVnodeReq(pDnode, pMsg);
       break;
-    case TDMT_DND_AUTH_VNODE:
-      code = dndProcessAuthVnodeReq(pDnode, pMsg);
-      break;
     case TDMT_DND_SYNC_VNODE:
       code = dndProcessSyncVnodeReq(pDnode, pMsg);
       break;

@@ -759,6 +759,9 @@ typedef struct {
   SReplica replicas[TSDB_MAX_REPLICA];
 } SCreateVnodeReq, SAlterVnodeReq;
 
+int32_t tSerializeSCreateVnodeReq(void* buf, int32_t bufLen, SCreateVnodeReq* pReq);
+int32_t tDeserializeSCreateVnodeReq(void* buf, int32_t bufLen, SCreateVnodeReq* pReq);
+
 typedef struct {
   int32_t  vgId;
   int32_t  dnodeId;
@@ -766,10 +769,8 @@ typedef struct {
   char     db[TSDB_DB_FNAME_LEN];
 } SDropVnodeReq, SSyncVnodeReq, SCompactVnodeReq;
 
-typedef struct {
-  int32_t vgId;
-  int8_t  accessState;
-} SAuthVnodeReq;
+int32_t tSerializeSDropVnodeReq(void* buf, int32_t bufLen, SDropVnodeReq* pReq);
+int32_t tDeserializeSDropVnodeReq(void* buf, int32_t bufLen, SDropVnodeReq* pReq);
 
 typedef struct {
   SMsgHead header;

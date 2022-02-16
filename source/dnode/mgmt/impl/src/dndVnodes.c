@@ -562,12 +562,6 @@ static SDropVnodeReq *dndParseDropVnodeReq(SRpcMsg *pReq) {
   return pDrop;
 }
 
-static SAuthVnodeReq *dndParseAuthVnodeReq(SRpcMsg *pReq) {
-  SAuthVnodeReq *pAuth = pReq->pCont;
-  pAuth->vgId = htonl(pAuth->vgId);
-  return pAuth;
-}
-
 int32_t dndProcessCreateVnodeReq(SDnode *pDnode, SRpcMsg *pReq) {
   SCreateVnodeReq *pCreate = dndParseCreateVnodeReq(pReq);
   dDebug("vgId:%d, create vnode req is received", pCreate->vgId);
@@ -680,23 +674,6 @@ int32_t dndProcessDropVnodeReq(SDnode *pDnode, SRpcMsg *pReq) {
   dndCloseVnode(pDnode, pVnode);
   dndWriteVnodesToFile(pDnode);
 
-  return 0;
-}
-
-int32_t dndProcessAuthVnodeReq(SDnode *pDnode, SRpcMsg *pReq) {
-  SAuthVnodeReq *pAuth = (SAuthVnodeReq *)dndParseAuthVnodeReq(pReq);
-
-  int32_t vgId = pAuth->vgId;
-  dDebug("vgId:%d, auth vnode req is received", vgId);
-
-  SVnodeObj *pVnode = dndAcquireVnode(pDnode, vgId);
-  if (pVnode == NULL) {
-    dDebug("vgId:%d, failed to auth since %s", vgId, terrstr());
-    return -1;
-  }
-
-  pVnode->accessState = pAuth->accessState;
-  dndReleaseVnode(pDnode, pVnode);
   return 0;
 }
 

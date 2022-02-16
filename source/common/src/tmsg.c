@@ -1984,7 +1984,7 @@ int32_t tDeserializeSConnectRsp(void *buf, int32_t bufLen, SConnectRsp *pRsp) {
 
   if (tStartDecode(&decoder) < 0) return -1;
   if (tDecodeI32(&decoder, &pRsp->acctId) < 0) return -1;
-    if (tDecodeI64(&decoder, &pRsp->clusterId) < 0) return -1;
+  if (tDecodeI64(&decoder, &pRsp->clusterId) < 0) return -1;
   if (tDecodeI32(&decoder, &pRsp->connId) < 0) return -1;
   if (tDecodeI8(&decoder, &pRsp->superUser) < 0) return -1;
   if (tDecodeSEpSet(&decoder, &pRsp->epSet) < 0) return -1;
