@@ -20,7 +20,7 @@
 extern "C" {
 #endif
 
-#include "tpagedfile.h"
+#include "tpagedbuf.h"
 #include "ttszip.h"
 
 typedef struct MinMaxEntry {
@@ -63,7 +63,7 @@ typedef struct tMemBucket {
   __compar_fn_t comparFn;
 
   tMemBucketSlot *     pSlots;
-  SDiskbasedResultBuf *pBuffer;
+  SDiskbasedBuf *pBuffer;
   __perc_hash_func_t   hashFunc;
 } tMemBucket;
 

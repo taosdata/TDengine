@@ -199,6 +199,7 @@ int32_t* taosGetErrno();
 #define TSDB_CODE_MND_INVALID_USER_FORMAT       TAOS_DEF_ERROR_CODE(0, 0x0373)
 #define TSDB_CODE_MND_INVALID_PASS_FORMAT       TAOS_DEF_ERROR_CODE(0, 0x0374)
 #define TSDB_CODE_MND_NO_USER_FROM_CONN         TAOS_DEF_ERROR_CODE(0, 0x0375)
+#define TSDB_CODE_MND_INVALID_ALTER_OPER        TAOS_DEF_ERROR_CODE(0, 0x0376)
 
 // mnode-db
 #define TSDB_CODE_MND_DB_ALREADY_EXIST          TAOS_DEF_ERROR_CODE(0, 0x0380)
@@ -246,7 +247,7 @@ int32_t* taosGetErrno();
 #define TSDB_CODE_MND_TRANS_ALREADY_EXIST       TAOS_DEF_ERROR_CODE(0, 0x03D0)
 #define TSDB_CODE_MND_TRANS_NOT_EXIST           TAOS_DEF_ERROR_CODE(0, 0x03D1)
 
-// mnode-topic
+// mnode-mq
 #define TSDB_CODE_MND_TOPIC_ALREADY_EXIST       TAOS_DEF_ERROR_CODE(0, 0x03E0)
 #define TSDB_CODE_MND_TOPIC_NOT_EXIST           TAOS_DEF_ERROR_CODE(0, 0x03E1)
 #define TSDB_CODE_MND_TOO_MANY_TOPICS           TAOS_DEF_ERROR_CODE(0, 0x03E2)
@@ -255,7 +256,9 @@ int32_t* taosGetErrno();
 #define TSDB_CODE_MND_TOPIC_OPTION_UNCHNAGED    TAOS_DEF_ERROR_CODE(0, 0x03E5)
 #define TSDB_CODE_MND_NAME_CONFLICT_WITH_STB    TAOS_DEF_ERROR_CODE(0, 0x03E6)
 #define TSDB_CODE_MND_CONSUMER_NOT_EXIST        TAOS_DEF_ERROR_CODE(0, 0x03E7)
-#define TSDB_CODE_MND_UNSUPPORTED_TOPIC         TAOS_DEF_ERROR_CODE(0, 0x03E7)
+#define TSDB_CODE_MND_UNSUPPORTED_TOPIC         TAOS_DEF_ERROR_CODE(0, 0x03E8)
+#define TSDB_CODE_MND_SUBSCRIBE_NOT_EXIST       TAOS_DEF_ERROR_CODE(0, 0x03E9)
+#define TSDB_CODE_MND_MQ_PLACEHOLDER            TAOS_DEF_ERROR_CODE(0, 0x03F0)
 
 // dnode
 #define TSDB_CODE_DND_ACTION_IN_PROGRESS        TAOS_DEF_ERROR_CODE(0, 0x0400)
@@ -444,13 +447,18 @@ int32_t* taosGetErrno();
 #define TSDB_CODE_SCH_INTERNAL_ERROR            TAOS_DEF_ERROR_CODE(0, 0x2502)  //scheduler internal error
 
 //parser
-#define TSDB_CODE_PAR_INVALID_COLUMN            TAOS_DEF_ERROR_CODE(0, 0x2601)  //invalid column name
-#define TSDB_CODE_PAR_TABLE_NOT_EXIST           TAOS_DEF_ERROR_CODE(0, 0x2602)  //table not exist
-#define TSDB_CODE_PAR_AMBIGUOUS_COLUMN          TAOS_DEF_ERROR_CODE(0, 0x2603)  //ambiguous column
-#define TSDB_CODE_PAR_WRONG_VALUE_TYPE          TAOS_DEF_ERROR_CODE(0, 0x2604)  //wrong value type
-#define TSDB_CODE_PAR_FUNTION_PARA_NUM          TAOS_DEF_ERROR_CODE(0, 0x2605)  //invalid number of arguments
-#define TSDB_CODE_PAR_FUNTION_PARA_TYPE         TAOS_DEF_ERROR_CODE(0, 0x2606)  //inconsistent datatypes
-#define TSDB_CODE_PAR_ILLEGAL_USE_AGG_FUNCTION  TAOS_DEF_ERROR_CODE(0, 0x2607)  //there mustn't be aggregation
+#define TSDB_CODE_PAR_INVALID_COLUMN            TAOS_DEF_ERROR_CODE(0, 0x2601)  //Invalid column name
+#define TSDB_CODE_PAR_TABLE_NOT_EXIST           TAOS_DEF_ERROR_CODE(0, 0x2602)  //Table does not exist
+#define TSDB_CODE_PAR_AMBIGUOUS_COLUMN          TAOS_DEF_ERROR_CODE(0, 0x2603)  //Column ambiguously defined
+#define TSDB_CODE_PAR_WRONG_VALUE_TYPE          TAOS_DEF_ERROR_CODE(0, 0x2604)  //Invalid value type
+#define TSDB_CODE_PAR_INVALID_FUNTION           TAOS_DEF_ERROR_CODE(0, 0x2605)  //Invalid function name
+#define TSDB_CODE_PAR_FUNTION_PARA_NUM          TAOS_DEF_ERROR_CODE(0, 0x2606)  //Invalid number of arguments
+#define TSDB_CODE_PAR_FUNTION_PARA_TYPE         TAOS_DEF_ERROR_CODE(0, 0x2607)  //Inconsistent datatypes
+#define TSDB_CODE_PAR_ILLEGAL_USE_AGG_FUNCTION  TAOS_DEF_ERROR_CODE(0, 0x2608)  //There mustn't be aggregation
+#define TSDB_CODE_PAR_WRONG_NUMBER_OF_SELECT    TAOS_DEF_ERROR_CODE(0, 0x2609)  //ORDER BY item must be the number of a SELECT-list expression
+#define TSDB_CODE_PAR_GROUPBY_LACK_EXPRESSION   TAOS_DEF_ERROR_CODE(0, 0x260A)  //Not a GROUP BY expression
+#define TSDB_CODE_PAR_NOT_SELECTED_EXPRESSION   TAOS_DEF_ERROR_CODE(0, 0x260B)  //Not SELECTed expression
+#define TSDB_CODE_PAR_NOT_SINGLE_GROUP          TAOS_DEF_ERROR_CODE(0, 0x260C)  //Not a single-group group function
 
 #ifdef __cplusplus
 }

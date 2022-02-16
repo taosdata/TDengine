@@ -19,6 +19,7 @@
 #include "taos.h"
 #include "taoserror.h"
 #include "thash.h"
+#include "builtins.h"
 
 typedef struct SFuncMgtService {
   SHashObj* pFuncNameHashTable;
@@ -27,62 +28,47 @@ typedef struct SFuncMgtService {
 static SFuncMgtService gFunMgtService;
 
 int32_t fmFuncMgtInit() {
-  gFunMgtService.pFuncNameHashTable = taosHashInit(128, taosGetDefaultHashFunction(TSDB_DATA_TYPE_BINARY), true, HASH_NO_LOCK);
+  gFunMgtService.pFuncNameHashTable = taosHashInit(funcMgtBuiltinsNum, taosGetDefaultHashFunction(TSDB_DATA_TYPE_BINARY), true, HASH_NO_LOCK);
   if (NULL == gFunMgtService.pFuncNameHashTable) {
     return TSDB_CODE_FAILED;
   }
-  return TSDB_CODE_SUCCESS;
-}
-
-typedef struct SFuncDef {
-  char name[TSDB_FUNC_NAME_LEN];
-  int32_t maxNumOfParams;
-  SFuncExecFuncs execFuncs;
-} SFuncDef ;
-
-FuncDef createFuncDef(const char* name, int32_t maxNumOfParams) {
-  SFuncDef* pDef = calloc(1, sizeof(SFuncDef));
-  if (NULL == pDef) {
-    return NULL;
+  for (int32_t i = 0; i < funcMgtBuiltinsNum; ++i) {
+    if (TSDB_CODE_SUCCESS != taosHashPut(gFunMgtService.pFuncNameHashTable, funcMgtBuiltins[i].name, strlen(funcMgtBuiltins[i].name), &i, sizeof(int32_t))) {
+      return TSDB_CODE_FAILED;
+    }
   }
-  strcpy(pDef->name, name);
-  pDef->maxNumOfParams = maxNumOfParams;
-  return pDef;
-}
-
-FuncDef setOneParamSignature(FuncDef def, int64_t resDataType, int64_t paramDataType) {
-  // todo
-}
-
-FuncDef setTwoParamsSignature(FuncDef def, int64_t resDataType, int64_t p1DataType, int64_t p2DataType) {
-  // todo
-}
-
-FuncDef setFollowParamSignature(FuncDef def, int64_t paramDataType) {
-  // todo
-}
-
-FuncDef setFollowParamsSignature(FuncDef def, int64_t p1DataType, int64_t p2DataType, int32_t followNo) {
-  // todo
-}
-
-FuncDef setExecFuncs(FuncDef def, FExecGetEnv getEnv, FExecInit init, FExecProcess process, FExecFinalize finalize) {
-  SFuncDef* pDef = (SFuncDef*)def;
-  pDef->execFuncs.getEnv = getEnv;
-  pDef->execFuncs.init = init;
-  pDef->execFuncs.process = process;
-  pDef->execFuncs.finalize = finalize;
-  return def;
-}
-
-int32_t registerFunc(FuncDef func) {
-
-}
-
-int32_t fmGetFuncResultType(FuncMgtHandle handle, SFunctionNode* pFunc) {
   return TSDB_CODE_SUCCESS;
+}
+
+int32_t fmGetHandle(FuncMgtHandle* pHandle) {
+  *pHandle = &gFunMgtService;
+  return TSDB_CODE_SUCCESS;
+}
+
+int32_t fmGetFuncInfo(FuncMgtHandle handle, const char* pFuncName, int32_t* pFuncId, int32_t* pFuncType) {
+  SFuncMgtService* pService = (SFuncMgtService*)handle;
+  void* pVal = taosHashGet(pService->pFuncNameHashTable, pFuncName, strlen(pFuncName));
+  if (NULL == pVal) {
+    return TSDB_CODE_FAILED;
+  }
+  *pFuncId = *(int32_t*)pVal;
+  if (*pFuncId < 0 || *pFuncId >= funcMgtBuiltinsNum) {
+    return TSDB_CODE_FAILED;
+  }
+  *pFuncType = funcMgtBuiltins[*pFuncId].type;
+  return TSDB_CODE_SUCCESS;
+}
+
+int32_t fmGetFuncResultType(SFunctionNode* pFunc) {
+  if (pFunc->funcId < 0 || pFunc->funcId >= funcMgtBuiltinsNum) {
+    return TSDB_CODE_FAILED;
+  }
+  return funcMgtBuiltins[pFunc->funcId].checkFunc(pFunc);
 }
 
 bool fmIsAggFunc(int32_t funcId) {
-  return false;
+  if (funcId < 0 || funcId >= funcMgtBuiltinsNum) {
+    return false;
+  }
+  return FUNC_MGT_TEST_MASK(funcMgtBuiltins[funcId].classification, FUNC_MGT_AGG_FUNC);
 }

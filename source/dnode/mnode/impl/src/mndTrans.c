@@ -542,12 +542,18 @@ static void mndTransSendRpcRsp(STrans *pTrans) {
   }
 
   if (sendRsp && pTrans->rpcHandle != NULL) {
+    void *rpcCont = rpcMallocCont(pTrans->rpcRspLen);
+    if (rpcCont != NULL) {
+      memcpy(rpcCont, pTrans->rpcRsp, pTrans->rpcRspLen);
+    }
+    free(pTrans->rpcRsp);
+
     mDebug("trans:%d, send rsp, code:0x%x stage:%d app:%p", pTrans->id, pTrans->code & 0xFFFF, pTrans->stage,
            pTrans->rpcAHandle);
     SRpcMsg rspMsg = {.handle = pTrans->rpcHandle,
                       .code = pTrans->code,
                       .ahandle = pTrans->rpcAHandle,
-                      .pCont = pTrans->rpcRsp,
+                      .pCont = rpcCont,
                       .contLen = pTrans->rpcRspLen};
     rpcSendResponse(&rspMsg);
     pTrans->rpcHandle = NULL;

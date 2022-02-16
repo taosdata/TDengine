@@ -13,7 +13,7 @@
  * along with this program. If not, see <http://www.gnu.org/licenses/>.
  */
 
-#include "nodes.h"
+#include "querynodes.h"
 #include "parser.h"
 
 #ifndef _TD_AST_CREATE_FUNCS_H_
@@ -25,6 +25,7 @@ extern "C" {
 
 typedef struct SQuery {
   SNode* pRoot;
+  // todo reslut meta
 } SQuery;
 
 int32_t doParse(SParseContext* pParseCxt, SQuery* pQuery);

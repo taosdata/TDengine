@@ -56,10 +56,13 @@ TEST_F(MndTestAcct, 03_Drop_Acct) {
 }
 
 TEST_F(MndTestAcct, 04_Show_Acct) {
-  int32_t contLen = sizeof(SShowReq);
+  SShowReq showReq = {0};
+  showReq.type = TSDB_MGMT_TABLE_ACCT;
 
-  SShowReq* pReq = (SShowReq*)rpcMallocCont(contLen);
-  pReq->type = TSDB_MGMT_TABLE_ACCT;
+  int32_t contLen = tSerializeSShowReq(NULL, 0, &showReq);
+  void*   pReq = rpcMallocCont(contLen);
+  tSerializeSShowReq(pReq, contLen, &showReq);
+  tFreeSShowReq(&showReq);
 
   SRpcMsg* pRsp = test.SendReq(TDMT_MND_SHOW, pReq, contLen);
   ASSERT_NE(pRsp, nullptr);

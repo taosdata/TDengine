@@ -14,82 +14,85 @@
  */
 
 #include "os.h"
-#include "tlosertree.h"
 #include "ulog.h"
+#include "tlosertree.h"
+#include "taoserror.h"
 
-// set initial value for loser tree
-void tLoserTreeInit(SLoserTreeInfo* pTree) {
-  assert((pTree->totalEntries & 0x01) == 0 && (pTree->numOfEntries << 1 == pTree->totalEntries));
 
-  for (int32_t i = 0; i < pTree->totalEntries; ++i) {
-    if (i < pTree->numOfEntries) {
+
+// Set the initial value of the multiway merge tree.
+static void tMergeTreeInit(SMultiwayMergeTreeInfo* pTree) {
+  assert((pTree->totalSources & 0x01) == 0 && (pTree->numOfSources << 1 == pTree->totalSources));
+
+  for (int32_t i = 0; i < pTree->totalSources; ++i) {
+    if (i < pTree->numOfSources) {
       pTree->pNode[i].index = -1;
     } else {
-      pTree->pNode[i].index = i - pTree->numOfEntries;
+      pTree->pNode[i].index = i - pTree->numOfSources;
     }
   }
 }
 
-/*
- * display whole loser tree on screen for debug purpose only.
- */
-void tLoserTreeDisplay(SLoserTreeInfo* pTree) {
-  printf("the value of loser tree:\t");
-  for (int32_t i = 0; i < pTree->totalEntries; ++i) printf("%d\t", pTree->pNode[i].index);
-  printf("\n");
-}
+int32_t tMergeTreeCreate(SMultiwayMergeTreeInfo** pTree, uint32_t numOfSources, void* param, __merge_compare_fn_t compareFn) {
+  int32_t totalEntries = numOfSources << 1u;
 
-uint32_t tLoserTreeCreate(SLoserTreeInfo** pTree, int32_t numOfEntries, void* param, __merge_compare_fn_t compareFn) {
-  int32_t totalEntries = numOfEntries << 1;
-
-  *pTree = (SLoserTreeInfo*)calloc(1, sizeof(SLoserTreeInfo) + sizeof(SLoserTreeNode) * totalEntries);
-  if ((*pTree) == NULL) {
+  SMultiwayMergeTreeInfo* pTreeInfo = (SMultiwayMergeTreeInfo*)calloc(1, sizeof(SMultiwayMergeTreeInfo) + sizeof(STreeNode) * totalEntries);
+  if (pTreeInfo == NULL) {
     uError("allocate memory for loser-tree failed. reason:%s", strerror(errno));
-    return -1;
+    return TAOS_SYSTEM_ERROR(errno);
   }
 
-  (*pTree)->pNode = (SLoserTreeNode*)(((char*)(*pTree)) + sizeof(SLoserTreeInfo));
+  pTreeInfo->pNode = (STreeNode*)(((char*)pTreeInfo) + sizeof(SMultiwayMergeTreeInfo));
 
-  (*pTree)->numOfEntries = numOfEntries;
-  (*pTree)->totalEntries = totalEntries;
-  (*pTree)->param = param;
-  (*pTree)->comparFn = compareFn;
+  pTreeInfo->numOfSources = numOfSources;
+  pTreeInfo->totalSources = totalEntries;
+  pTreeInfo->param = param;
+  pTreeInfo->comparFn = compareFn;
 
   // set initial value for loser tree
-  tLoserTreeInit(*pTree);
+  tMergeTreeInit(pTreeInfo);
 
 #ifdef _DEBUG_VIEW
   printf("the initial value of loser tree:\n");
-  tLoserTreeDisplay(*pTree);
+  tLoserTreeDisplaypTreeInfo;
 #endif
 
-  for (int32_t i = totalEntries - 1; i >= numOfEntries; i--) {
-    tLoserTreeAdjust(*pTree, i);
+  for (int32_t i = totalEntries - 1; i >= numOfSources; i--) {
+    tMergeTreeAdjust(pTreeInfo, i);
   }
 
 #if defined(_DEBUG_VIEW)
   printf("after adjust:\n");
-  tLoserTreeDisplay(*pTree);
+  tLoserTreeDisplaypTreeInfo;
   printf("initialize local reducer completed!\n");
 #endif
 
+  *pTree = pTreeInfo;
   return 0;
 }
 
-void tLoserTreeAdjust(SLoserTreeInfo* pTree, int32_t idx) {
-  assert(idx <= pTree->totalEntries - 1 && idx >= pTree->numOfEntries && pTree->totalEntries >= 2);
+void tMergeTreeDestroy(SMultiwayMergeTreeInfo* pTree) {
+  if (pTree == NULL) {
+    return;
+  }
 
-  if (pTree->totalEntries == 2) {
+  tfree(pTree);
+}
+
+void tMergeTreeAdjust(SMultiwayMergeTreeInfo* pTree, int32_t idx) {
+  assert(idx <= pTree->totalSources - 1 && idx >= pTree->numOfSources && pTree->totalSources >= 2);
+
+  if (pTree->totalSources == 2) {
     pTree->pNode[0].index = 0;
     pTree->pNode[1].index = 0;
     return;
   }
 
   int32_t        parentId = idx >> 1;
-  SLoserTreeNode kLeaf = pTree->pNode[idx];
+  STreeNode kLeaf = pTree->pNode[idx];
 
   while (parentId > 0) {
-    SLoserTreeNode* pCur = &pTree->pNode[parentId];
+    STreeNode* pCur = &pTree->pNode[parentId];
     if (pCur->index == -1) {
       pTree->pNode[parentId] = kLeaf;
       return;
@@ -97,7 +100,7 @@ void tLoserTreeAdjust(SLoserTreeInfo* pTree, int32_t idx) {
 
     int32_t ret = pTree->comparFn(pCur, &kLeaf, pTree->param);
     if (ret < 0) {
-      SLoserTreeNode t = pTree->pNode[parentId];
+      STreeNode t = pTree->pNode[parentId];
       pTree->pNode[parentId] = kLeaf;
       kLeaf = t;
     }
@@ -111,11 +114,23 @@ void tLoserTreeAdjust(SLoserTreeInfo* pTree, int32_t idx) {
   }
 }
 
-void tLoserTreeRebuild(SLoserTreeInfo* pTree) {
-  assert((pTree->totalEntries & 0x1) == 0);
+void tMergeTreeRebuild(SMultiwayMergeTreeInfo* pTree) {
+  assert((pTree->totalSources & 0x1) == 0);
 
-  tLoserTreeInit(pTree);
-  for (int32_t i = pTree->totalEntries - 1; i >= pTree->numOfEntries; i--) {
-    tLoserTreeAdjust(pTree, i);
+  tMergeTreeInit(pTree);
+  for (int32_t i = pTree->totalSources - 1; i >= pTree->numOfSources; i--) {
+    tMergeTreeAdjust(pTree, i);
   }
+}
+
+/*
+ * display whole loser tree on screen for debug purpose only.
+ */
+void tMergeTreePrint(const SMultiwayMergeTreeInfo* pTree) {
+  printf("the value of loser tree:\t");
+  for (int32_t i = 0; i < pTree->totalSources; ++i) {
+    printf("%d\t", pTree->pNode[i].index);
+  }
+
+  printf("\n");
 }

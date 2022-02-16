@@ -57,3 +57,113 @@ static int32_t mndProcessAuthReq(SMnodeMsg *pReq) {
   mTrace("user:%s, auth req received, spi:%d encrypt:%d ruser:%s", pReq->user, pAuth->spi, pAuth->encrypt, pAuth->user);
   return code;
 }
+
+int32_t mndCheckCreateUserAuth(SUserObj *pOperUser) {
+  if (pOperUser->superUser) {
+    return 0;
+  }
+
+  terrno = TSDB_CODE_MND_NO_RIGHTS;
+  return -1;
+}
+
+int32_t mndCheckAlterUserAuth(SUserObj *pOperUser, SUserObj *pUser, SDbObj *pDb, SAlterUserReq *pAlter) {
+  if (pAlter->alterType == TSDB_ALTER_USER_PASSWD) {
+    if (pOperUser->superUser || strcmp(pUser->user, pOperUser->user) == 0) {
+      return 0;
+    }
+  }
+
+  if (pAlter->alterType == TSDB_ALTER_USER_SUPERUSER) {
+    if (strcmp(pUser->user, TSDB_DEFAULT_USER) == 0) {
+      terrno = TSDB_CODE_MND_NO_RIGHTS;
+      return -1;
+    }
+
+    if (pOperUser->superUser) {
+      return 0;
+    }
+  }
+
+    if (pAlter->alterType == TSDB_ALTER_USER_CLEAR_WRITE_DB || pAlter->alterType == TSDB_ALTER_USER_CLEAR_READ_DB) {
+      if (pOperUser->superUser) {
+        return 0;
+      }
+    }
+
+  if (pAlter->alterType == TSDB_ALTER_USER_ADD_READ_DB || pAlter->alterType == TSDB_ALTER_USER_REMOVE_READ_DB ||
+      pAlter->alterType == TSDB_ALTER_USER_ADD_WRITE_DB || pAlter->alterType == TSDB_ALTER_USER_REMOVE_WRITE_DB) {
+    if (pOperUser->superUser || strcmp(pUser->user, pDb->createUser) == 0) {
+      return 0;
+    }
+  }
+
+  terrno = TSDB_CODE_MND_NO_RIGHTS;
+  return -1;
+}
+
+int32_t mndCheckDropUserAuth(SUserObj *pOperUser) {
+  if (pOperUser->superUser) {
+    return 0;
+  }
+
+  terrno = TSDB_CODE_MND_NO_RIGHTS;
+  return -1;
+}
+
+int32_t mndCheckNodeAuth(SUserObj *pOperUser) {
+  if (pOperUser->superUser) {
+    return 0;
+  }
+
+  terrno = TSDB_CODE_MND_NO_RIGHTS;
+  return -1;
+}
+
+int32_t mndCheckFuncAuth(SUserObj *pOperUser) {
+  if (pOperUser->superUser) {
+    return 0;
+  }
+
+  terrno = TSDB_CODE_MND_NO_RIGHTS;
+  return -1;
+}
+
+int32_t mndCheckCreateDbAuth(SUserObj *pOperUser) { return 0; }
+
+int32_t mndCheckAlterDropCompactSyncDbAuth(SUserObj *pOperUser, SDbObj *pDb) {
+  if (pOperUser->superUser || strcmp(pOperUser->user, pDb->createUser) == 0) {
+    return 0;
+  }
+
+  terrno = TSDB_CODE_MND_NO_RIGHTS;
+  return -1;
+}
+
+int32_t mndCheckUseDbAuth(SUserObj *pOperUser, SDbObj *pDb) { return 0; }
+
+int32_t mndCheckWriteAuth(SUserObj *pOperUser, SDbObj *pDb) {
+  if (pOperUser->superUser || strcmp(pOperUser->user, pDb->createUser) == 0) {
+    return 0;
+  }
+
+  if (taosHashGet(pOperUser->writeDbs, pDb->name, strlen(pDb->name) + 1) != NULL) {
+    return 0;
+  }
+
+  terrno = TSDB_CODE_MND_NO_RIGHTS;
+  return -1;
+}
+
+int32_t mndCheckReadAuth(SUserObj *pOperUser, SDbObj *pDb) {
+  if (pOperUser->superUser || strcmp(pOperUser->user, pDb->createUser) == 0) {
+    return 0;
+  }
+
+  if (taosHashGet(pOperUser->readDbs, pDb->name, strlen(pDb->name) + 1) != NULL) {
+    return 0;
+  }
+
+  terrno = TSDB_CODE_MND_NO_RIGHTS;
+  return -1;
+}

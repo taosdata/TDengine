@@ -89,10 +89,6 @@ static FORCE_INLINE void initResultRowEntry(SResultRowEntryInfo *pResInfo, int32
   memset(GET_ROWCELL_INTERBUF(pResInfo), 0, bufLen);
 }
 
-#include "functionMgtInt.h"
-
-FuncDef defineCount();
-
 #ifdef __cplusplus
 }
 #endif

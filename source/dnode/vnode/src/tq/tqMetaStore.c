@@ -68,20 +68,21 @@ static inline int tqReadLastPage(int fd, STqIdxPageBuf* pBuf) {
   return lseek(fd, offset, SEEK_SET);
 }
 
-STqMetaStore* tqStoreOpen(const char* path, FTqSerialize serializer, FTqDeserialize deserializer, FTqDelete deleter,
-                          int32_t tqConfigFlag) {
-  STqMetaStore* pMeta = malloc(sizeof(STqMetaStore));
+STqMetaStore* tqStoreOpen(STQ* pTq, const char* path, FTqSerialize serializer, FTqDeserialize deserializer,
+                          FTqDelete deleter, int32_t tqConfigFlag) {
+  STqMetaStore* pMeta = calloc(1, sizeof(STqMetaStore));
   if (pMeta == NULL) {
     terrno = TSDB_CODE_TQ_OUT_OF_MEMORY;
     return NULL;
   }
-  memset(pMeta, 0, sizeof(STqMetaStore));
+  pMeta->pTq = pTq;
 
   // concat data file name and index file name
   size_t pathLen = strlen(path);
   pMeta->dirPath = malloc(pathLen + 1);
   if (pMeta->dirPath == NULL) {
     terrno = TSDB_CODE_TQ_OUT_OF_MEMORY;
+    free(pMeta);
     return NULL;
   }
   strcpy(pMeta->dirPath, path);
@@ -103,12 +104,11 @@ STqMetaStore* tqStoreOpen(const char* path, FTqSerialize serializer, FTqDeserial
   }
 
   pMeta->idxFd = idxFd;
-  pMeta->unpersistHead = malloc(sizeof(STqMetaList));
+  pMeta->unpersistHead = calloc(1, sizeof(STqMetaList));
   if (pMeta->unpersistHead == NULL) {
     terrno = TSDB_CODE_TQ_OUT_OF_MEMORY;
     return NULL;
   }
-  memset(pMeta->unpersistHead, 0, sizeof(STqMetaList));
   pMeta->unpersistHead->unpersistNext = pMeta->unpersistHead->unpersistPrev = pMeta->unpersistHead;
 
   strcpy(name, path);
@@ -145,12 +145,11 @@ STqMetaStore* tqStoreOpen(const char* path, FTqSerialize serializer, FTqDeserial
     ASSERT(idxBuf.head.writeOffset == idxRead);
     // loop read every entry
     for (int i = 0; i < idxBuf.head.writeOffset - TQ_IDX_PAGE_HEAD_SIZE; i += TQ_IDX_SIZE) {
-      STqMetaList* pNode = malloc(sizeof(STqMetaList));
+      STqMetaList* pNode = calloc(1, sizeof(STqMetaList));
       if (pNode == NULL) {
         terrno = TSDB_CODE_TQ_OUT_OF_MEMORY;
         // TODO: free memory
       }
-      memset(pNode, 0, sizeof(STqMetaList));
       memcpy(&pNode->handle, &idxBuf.buffer[i], TQ_IDX_SIZE);
 
       lseek(fileFd, pNode->handle.offset, SEEK_SET);
@@ -169,25 +168,25 @@ STqMetaStore* tqStoreOpen(const char* path, FTqSerialize serializer, FTqDeserial
       }
       if (serializedObj->action == TQ_ACTION_INUSE) {
         if (serializedObj->ssize != sizeof(STqSerializedHead)) {
-          pMeta->pDeserializer(serializedObj, &pNode->handle.valueInUse);
+          pMeta->pDeserializer(pTq, serializedObj, &pNode->handle.valueInUse);
         } else {
           pNode->handle.valueInUse = TQ_DELETE_TOKEN;
         }
       } else if (serializedObj->action == TQ_ACTION_INTXN) {
         if (serializedObj->ssize != sizeof(STqSerializedHead)) {
-          pMeta->pDeserializer(serializedObj, &pNode->handle.valueInTxn);
+          pMeta->pDeserializer(pTq, serializedObj, &pNode->handle.valueInTxn);
         } else {
           pNode->handle.valueInTxn = TQ_DELETE_TOKEN;
         }
       } else if (serializedObj->action == TQ_ACTION_INUSE_CONT) {
         if (serializedObj->ssize != sizeof(STqSerializedHead)) {
-          pMeta->pDeserializer(serializedObj, &pNode->handle.valueInUse);
+          pMeta->pDeserializer(pTq, serializedObj, &pNode->handle.valueInUse);
         } else {
           pNode->handle.valueInUse = TQ_DELETE_TOKEN;
         }
         STqSerializedHead* ptr = POINTER_SHIFT(serializedObj, serializedObj->ssize);
         if (ptr->ssize != sizeof(STqSerializedHead)) {
-          pMeta->pDeserializer(ptr, &pNode->handle.valueInTxn);
+          pMeta->pDeserializer(pTq, ptr, &pNode->handle.valueInTxn);
         } else {
           pNode->handle.valueInTxn = TQ_DELETE_TOKEN;
         }
@@ -289,7 +288,6 @@ int32_t tqStoreDelete(STqMetaStore* pMeta) {
   return 0;
 }
 
-// TODO: wrap in tfile
 int32_t tqStorePersist(STqMetaStore* pMeta) {
   STqIdxPageBuf      idxBuf;
   int64_t*           bufPtr = (int64_t*)idxBuf.buffer;
@@ -303,7 +301,7 @@ int32_t tqStorePersist(STqMetaStore* pMeta) {
   pSHead->ver = TQ_SVER;
   pSHead->checksum = 0;
   pSHead->ssize = sizeof(STqSerializedHead);
-  int allocatedSize = sizeof(STqSerializedHead);
+  /*int allocatedSize = sizeof(STqSerializedHead);*/
   int offset = lseek(pMeta->fileFd, 0, SEEK_CUR);
 
   tqReadLastPage(pMeta->idxFd, &idxBuf);
@@ -418,14 +416,14 @@ static int32_t tqHandlePutCommitted(STqMetaStore* pMeta, int64_t key, void* valu
       pNode = pNode->next;
     }
   }
-  STqMetaList* pNewNode = malloc(sizeof(STqMetaList));
+  STqMetaList* pNewNode = calloc(1, sizeof(STqMetaList));
   if (pNewNode == NULL) {
     terrno = TSDB_CODE_TQ_OUT_OF_MEMORY;
     return -1;
   }
-  memset(pNewNode, 0, sizeof(STqMetaList));
   pNewNode->handle.key = key;
   pNewNode->handle.valueInUse = value;
+  pNewNode->next = pMeta->bucket[bucketKey];
   // put into unpersist list
   pNewNode->unpersistPrev = pMeta->unpersistHead;
   pNewNode->unpersistNext = pMeta->unpersistHead->unpersistNext;
@@ -490,12 +488,11 @@ static inline int32_t tqHandlePutImpl(STqMetaStore* pMeta, int64_t key, void* va
       pNode = pNode->next;
     }
   }
-  STqMetaList* pNewNode = malloc(sizeof(STqMetaList));
+  STqMetaList* pNewNode = calloc(1, sizeof(STqMetaList));
   if (pNewNode == NULL) {
     terrno = TSDB_CODE_TQ_OUT_OF_MEMORY;
     return -1;
   }
-  memset(pNewNode, 0, sizeof(STqMetaList));
   pNewNode->handle.key = key;
   pNewNode->handle.valueInTxn = value;
   pNewNode->next = pMeta->bucket[bucketKey];

@@ -423,8 +423,16 @@ static FORCE_INLINE int32_t tdSRowSetInfo(SRowBuilder *pBuilder, int32_t nCols, 
  */
 static FORCE_INLINE int32_t tdSRowSetExtendedInfo(SRowBuilder *pBuilder, int32_t nCols, int32_t nBoundCols,
                                                   int32_t flen, int32_t allNullLen, int32_t boundNullLen) {
-  if ((boundNullLen > 0) && (allNullLen > 0) && isSelectKVRow(boundNullLen, allNullLen)) {
-    pBuilder->rowType = TD_ROW_KV;
+  if ((boundNullLen > 0) && (allNullLen > 0) && (nBoundCols > 0)) {
+    uint32_t tpLen = allNullLen;
+    uint32_t kvLen = sizeof(col_id_t) + sizeof(SKvRowIdx) * nBoundCols + boundNullLen;
+    if (isSelectKVRow(kvLen, tpLen)) {
+      pBuilder->rowType = TD_ROW_KV;
+    } else {
+      pBuilder->rowType = TD_ROW_TP;
+    }
+
+
   } else {
     pBuilder->rowType = TD_ROW_TP;
   }
@@ -465,7 +473,7 @@ static int32_t tdSRowResetBuf(SRowBuilder *pBuilder, void *pBuf) {
     terrno = TSDB_CODE_INVALID_PARA;
     return terrno;
   }
-  
+
   TD_ROW_SET_TYPE(pBuilder->pBuf, pBuilder->rowType);
 
   uint32_t len = 0;

@@ -13,7 +13,7 @@
  * along with this program. If not, see <http://www.gnu.org/licenses/>.
  */
 
-#include "nodes.h"
+#include "querynodes.h"
 #include "nodesShowStmts.h"
 #include "taoserror.h"
 
@@ -76,7 +76,7 @@ SNode* nodesMakeNode(ENodeType type) {
   return NULL;
 }
 
-static bool destroyNode(SNode* pNode, void* pContext) {
+static EDealRes destroyNode(SNode* pNode, void* pContext) {
   switch (nodeType(pNode)) {
     case QUERY_NODE_VALUE:
       tfree(((SValueNode*)pNode)->literal);
@@ -85,6 +85,7 @@ static bool destroyNode(SNode* pNode, void* pContext) {
       break;
   }
   tfree(pNode);
+  return DEAL_RES_CONTINUE;
 }
 
 void nodesDestroyNode(SNode* pNode) {
@@ -116,7 +117,31 @@ SNodeList* nodesListAppend(SNodeList* pList, SNode* pNode) {
     pList->pTail->pNext = p;
   }
   pList->pTail = p;
+  ++(pList->length);
   return pList;
+}
+
+SListCell* nodesListErase(SNodeList* pList, SListCell* pCell) {
+  if (NULL == pCell->pPrev) {
+    pList->pHead = pCell->pNext;
+  } else {
+    pCell->pPrev->pNext = pCell->pNext;
+    pCell->pNext->pPrev = pCell->pPrev;
+  }
+  SListCell* pNext = pCell->pNext;
+  tfree(pCell);
+  --(pList->length);
+  return pNext;
+}
+
+SNode* nodesListGetNode(SNodeList* pList, int32_t index) {
+  SNode* node;
+  FOREACH(node, pList) {
+    if (0 == index--) {
+      return node;
+    }
+  }
+  return NULL;
 }
 
 void nodesDestroyList(SNodeList* pList) {
@@ -125,6 +150,11 @@ void nodesDestroyList(SNodeList* pList) {
     nodesDestroyNode(node);
   }
   tfree(pList);
+}
+
+bool nodesIsExprNode(const SNode* pNode) {
+  ENodeType type = nodeType(pNode);
+  return (QUERY_NODE_COLUMN == type || QUERY_NODE_VALUE == type || QUERY_NODE_OPERATOR == type || QUERY_NODE_FUNCTION == type);
 }
 
 bool nodesIsArithmeticOp(const SOperatorNode* pOp) {

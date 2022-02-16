@@ -12,10 +12,31 @@
  * You should have received a copy of the GNU Affero General Public License
  * along with this program. If not, see <http://www.gnu.org/licenses/>.
  */
+#define _DEFAULT_SOURCE
 
-#include "functionMgtInt.h"
-#include "taggfunction.h"
+#include "tqOffset.h"
 
-const SFuncElement gBuiltinFuncs[] = {
-  {.defineFunc = defineCount}
+enum ETqOffsetPersist {
+  TQ_OFFSET_PERSIST__LAZY = 1,
+  TQ_OFFSET_PERSIST__EAGER,
 };
+
+struct STqOffsetCfg {
+  int8_t persistPolicy;
+};
+
+struct STqOffsetStore {
+  STqOffsetCfg cfg;
+  SHashObj*    pHash;  // SHashObj<subscribeKey, offset>
+};
+
+STqOffsetStore* STqOffsetOpen(STqOffsetCfg* pCfg) {
+  STqOffsetStore* pStore = malloc(sizeof(STqOffsetStore));
+  if (pStore == NULL) {
+    return NULL;
+  }
+  memcpy(&pStore->cfg, pCfg, sizeof(STqOffsetCfg));
+  pStore->pHash = taosHashInit(64, MurmurHash3_32, true, HASH_NO_LOCK);
+  return pStore;
+}
+
