@@ -720,8 +720,11 @@ int32_t tSerializeSStatusRsp(void* buf, int32_t bufLen, SStatusRsp* pRsp);
 int32_t tDeserializeSStatusRsp(void* buf, int32_t bufLen, SStatusRsp* pRsp);
 
 typedef struct {
-  int32_t reserve;
-} STransReq;
+  int32_t reserved;
+} SMTimerReq;
+
+int32_t tSerializeSMTimerMsg(void* buf, int32_t bufLen, SMTimerReq* pReq);
+int32_t tDeserializeSMTimerMsg(void* buf, int32_t bufLen, SMTimerReq* pReq);
 
 typedef struct {
   int32_t  id;
@@ -1194,10 +1197,6 @@ static FORCE_INLINE void* tDeserializeSMVSubscribeReq(void* buf, SMVSubscribeReq
   buf = taosDecodeString(buf, &pReq->physicalPlan);
   return buf;
 }
-
-typedef struct {
-  int32_t reserved;
-} SMqTmrMsg;
 
 typedef struct {
   const char* key;
