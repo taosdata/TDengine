@@ -1717,7 +1717,7 @@ static YYACTIONTYPE yy_reduce(
 {
                                                                                     PARSER_TRACE;
                                                                                     SToken s = getTokenFromRawExprNode(pCxt, yymsp[-2].minor.yy56);
-                                                                                    yylhsminor.yy56 = createRawExprNodeExt(pCxt, &s, &yymsp[0].minor.yy0, createIsNullCondNode(pCxt, releaseRawExprNode(pCxt, yymsp[-2].minor.yy56), true));
+                                                                                    yylhsminor.yy56 = createRawExprNodeExt(pCxt, &s, &yymsp[0].minor.yy0, createOperatorNode(pCxt, OP_TYPE_IS_NULL, releaseRawExprNode(pCxt, yymsp[-2].minor.yy56), NULL));
                                                                                   }
   yymsp[-2].minor.yy56 = yylhsminor.yy56;
         break;
@@ -1725,7 +1725,7 @@ static YYACTIONTYPE yy_reduce(
 {
                                                                                     PARSER_TRACE;
                                                                                     SToken s = getTokenFromRawExprNode(pCxt, yymsp[-3].minor.yy56);
-                                                                                    yylhsminor.yy56 = createRawExprNodeExt(pCxt, &s, &yymsp[0].minor.yy0, createIsNullCondNode(pCxt, releaseRawExprNode(pCxt, yymsp[-3].minor.yy56), false));
+                                                                                    yylhsminor.yy56 = createRawExprNodeExt(pCxt, &s, &yymsp[0].minor.yy0, createOperatorNode(pCxt, OP_TYPE_IS_NOT_NULL, releaseRawExprNode(pCxt, yymsp[-3].minor.yy56), NULL));
                                                                                   }
   yymsp[-3].minor.yy56 = yylhsminor.yy56;
         break;
