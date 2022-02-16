@@ -1116,9 +1116,9 @@ typedef struct {
   char*  sql;
   char*  physicalPlan;
   char*  logicalPlan;
-} SCMCreateTopicReq;
+} SMCreateTopicReq;
 
-static FORCE_INLINE int tSerializeSCMCreateTopicReq(void** buf, const SCMCreateTopicReq* pReq) {
+static FORCE_INLINE int tSerializeSMCreateTopicReq(void** buf, const SMCreateTopicReq* pReq) {
   int tlen = 0;
   tlen += taosEncodeFixedI8(buf, pReq->igExists);
   tlen += taosEncodeString(buf, pReq->name);
@@ -1128,7 +1128,7 @@ static FORCE_INLINE int tSerializeSCMCreateTopicReq(void** buf, const SCMCreateT
   return tlen;
 }
 
-static FORCE_INLINE void* tDeserializeSCMCreateTopicReq(void* buf, SCMCreateTopicReq* pReq) {
+static FORCE_INLINE void* tDeserializeSCMCreateTopicReq(void* buf, SMCreateTopicReq* pReq) {
   buf = taosDecodeFixedI8(buf, &(pReq->igExists));
   buf = taosDecodeString(buf, &(pReq->name));
   buf = taosDecodeString(buf, &(pReq->sql));
