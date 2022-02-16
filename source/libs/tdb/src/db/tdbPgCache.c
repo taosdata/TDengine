@@ -14,16 +14,6 @@
  */
 #include "tdbInt.h"
 
-typedef TD_DLIST_NODE(SPage) SPgListNode;
-struct SPage {
-  pgid_t      pgid;      // page id
-  frame_id_t  frameid;   // frame id
-  uint8_t *   pData;     // real data
-  SPgListNode freeNode;  // for SPgCache.freeList
-  SPgListNode pghtNode;  // for pght
-  SPgListNode lruNode;   // for LRU
-};
-
 typedef TD_DLIST(SPage) SPgList;
 struct SPgCache {
   TENV *  pEnv;  // TENV containing this page cache
