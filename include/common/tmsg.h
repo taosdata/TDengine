@@ -696,8 +696,8 @@ typedef struct {
   SArray*     pVloads;  // array of SVnodeLoad
 } SStatusReq;
 
-int32_t tSerializeSStatusReq(void** buf, SStatusReq* pReq);
-void*   tDeserializeSStatusReq(void* buf, SStatusReq* pReq);
+int32_t tSerializeSStatusReq(void* buf, int32_t bufLen, SStatusReq* pReq);
+int32_t tDeserializeSStatusReq(void* buf, int32_t bufLen, SStatusReq* pReq);
 
 typedef struct {
   int32_t dnodeId;
@@ -716,8 +716,8 @@ typedef struct {
   SArray*   pDnodeEps;  // Array of SDnodeEp
 } SStatusRsp;
 
-int32_t tSerializeSStatusRsp(void** buf, SStatusRsp* pRsp);
-void*   tDeserializeSStatusRsp(void* buf, SStatusRsp* pRsp);
+int32_t tSerializeSStatusRsp(void* buf, int32_t bufLen, SStatusRsp* pRsp);
+int32_t tDeserializeSStatusRsp(void* buf, int32_t bufLen, SStatusRsp* pRsp);
 
 typedef struct {
   int32_t reserve;
