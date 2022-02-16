@@ -335,11 +335,12 @@ static int32_t mndSetCreateDbRedoActions(SMnode *pMnode, STrans *pTrans, SDbObj 
       action.epSet = mndGetDnodeEpset(pDnode);
       mndReleaseDnode(pMnode, pDnode);
 
-      SCreateVnodeReq *pReq = mndBuildCreateVnodeReq(pMnode, pDnode, pDb, pVgroup);
+      int32_t contLen = 0;
+      void   *pReq = mndBuildCreateVnodeReq(pMnode, pDnode, pDb, pVgroup, &contLen);
       if (pReq == NULL) return -1;
 
       action.pCont = pReq;
-      action.contLen = sizeof(SCreateVnodeReq);
+      action.contLen = contLen;
       action.msgType = TDMT_DND_CREATE_VNODE;
       action.acceptableCode = TSDB_CODE_DND_VNODE_ALREADY_DEPLOYED;
       if (mndTransAppendRedoAction(pTrans, &action) != 0) {
@@ -365,8 +366,8 @@ static int32_t mndSetCreateDbUndoActions(SMnode *pMnode, STrans *pTrans, SDbObj 
       action.epSet = mndGetDnodeEpset(pDnode);
       mndReleaseDnode(pMnode, pDnode);
 
-      int32_t        contLen = 0;
-      SDropVnodeReq *pReq = mndBuildDropVnodeReq(pMnode, pDnode, pDb, pVgroup, &contLen);
+      int32_t contLen = 0;
+      void   *pReq = mndBuildDropVnodeReq(pMnode, pDnode, pDb, pVgroup, &contLen);
       if (pReq == NULL) return -1;
 
       action.pCont = pReq;
@@ -578,11 +579,12 @@ static int32_t mndBuildUpdateVgroupAction(SMnode *pMnode, STrans *pTrans, SDbObj
     action.epSet = mndGetDnodeEpset(pDnode);
     mndReleaseDnode(pMnode, pDnode);
 
-    SAlterVnodeReq *pReq = (SAlterVnodeReq *)mndBuildCreateVnodeReq(pMnode, pDnode, pDb, pVgroup);
+    int32_t contLen = 0;
+    void   *pReq = mndBuildCreateVnodeReq(pMnode, pDnode, pDb, pVgroup, &contLen);
     if (pReq == NULL) return -1;
 
     action.pCont = pReq;
-    action.contLen = sizeof(SAlterVnodeReq);
+    action.contLen = contLen;
     action.msgType = TDMT_DND_ALTER_VNODE;
     if (mndTransAppendRedoAction(pTrans, &action) != 0) {
       free(pReq);
@@ -755,8 +757,8 @@ static int32_t mndBuildDropVgroupAction(SMnode *pMnode, STrans *pTrans, SDbObj *
     action.epSet = mndGetDnodeEpset(pDnode);
     mndReleaseDnode(pMnode, pDnode);
 
-    int32_t        contLen = 0;
-    SDropVnodeReq *pReq = mndBuildDropVnodeReq(pMnode, pDnode, pDb, pVgroup, &contLen);
+    int32_t contLen = 0;
+    void   *pReq = mndBuildDropVnodeReq(pMnode, pDnode, pDb, pVgroup, &contLen);
     if (pReq == NULL) return -1;
 
     action.pCont = pReq;
