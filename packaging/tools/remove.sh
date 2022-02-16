@@ -59,26 +59,13 @@ else
   service_mod=2
 fi
 
-function kill_taosadapter() {
-  pid=$(ps -ef | grep ${adapterName} | grep -v "grep" | awk '{print $2}')
+function kill_process() {
+  pid=$(ps -ef | grep "$1" | grep -v "grep" | awk '{print $2}')
   if [ -n "$pid" ]; then
     ${csudo}kill -9 $pid || :
   fi
 }
 
-function kill_taosd() {
-  pid=$(ps -ef | grep "${serverName}" | grep -v "grep" | awk '{print $2}')
-  if [ -n "$pid" ]; then
-    ${csudo}kill -9 $pid || :
-  fi
-}
-
-function kill_tarbitrator() {
-  pid=$(ps -ef | grep "tarbitrator" | grep -v "grep" | awk '{print $2}')
-  if [ -n "$pid" ]; then
-    ${csudo}kill -9 $pid || :
-  fi
-}
 function clean_bin() {
   # Remove link
   ${csudo}rm -f ${bin_link_dir}/${clientName} || :
@@ -87,7 +74,7 @@ function clean_bin() {
   ${csudo}rm -f ${bin_link_dir}/${uninstallScript} || :
   ${csudo}rm -f ${bin_link_dir}/tarbitrator || :
   ${csudo}rm -f ${bin_link_dir}/set_core || :
-  ${csudo}rm -f ${bin_link_dir}/run_taosd_and_${adapterName}.sh || :
+  ${csudo}rm -f ${bin_link_dir}/run_${serverName}_and_${adapterName}.sh || :
 }
 
 function clean_lib() {
@@ -200,9 +187,9 @@ function clean_service() {
   elif ((${service_mod} == 1)); then
     clean_service_on_sysvinit
   else
-    kill_taosadapter
-    kill_taosd
-    kill_tarbitrator
+    kill_process ${adapterName}
+    kill_process ${serverName}
+    kill_process "tarbitrator"
   fi
 }
 
