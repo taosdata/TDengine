@@ -107,6 +107,21 @@ SPage *pgFileFetch(SPgFile *pPgFile, pgno_t pgno) {
   SPage *   pPage;
   pgid_t    pgid;
 
+  // 1. Fetch from the page cache
+  // pgCacheFetch(pPgCache, pgid);
+
+  // 2. If only get a page frame, no content, maybe
+  // need to load from the file
+  if (1 /*page not initialized*/) {
+    if (pgno < pPgFile->fsize) {
+      // load the page content from the disk
+      // ?? How about the freed pages ??
+    } else {
+      // zero the page, make the page as a empty
+      // page with zero records.
+    }
+  }
+
 #if 0
   pPgCache = pPgFile->pPgCache;
   pPage = NULL;
