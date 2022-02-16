@@ -917,6 +917,9 @@ typedef struct {
   SReplica replicas[TSDB_MAX_REPLICA];
 } SDCreateMnodeReq, SDAlterMnodeReq;
 
+int32_t tSerializeSDCreateMnodeReq(void* buf, int32_t bufLen, SDCreateMnodeReq* pReq);
+int32_t tDeserializeSDCreateMnodeReq(void* buf, int32_t bufLen, SDCreateMnodeReq* pReq);
+
 typedef struct {
   int32_t dnodeId;
 } SMCreateQnodeReq, SMDropQnodeReq, SDCreateQnodeReq, SDDropQnodeReq, SMCreateSnodeReq, SMDropSnodeReq,
@@ -982,9 +985,11 @@ typedef struct {
   char ckey[TSDB_PASSWORD_LEN];
 } SAuthReq, SAuthRsp;
 
+int32_t tSerializeSAuthReq(void* buf, int32_t bufLen, SAuthReq* pReq);
+int32_t tDeserializeSAuthReq(void* buf, int32_t bufLen, SAuthReq* pReq);
+
 typedef struct {
   int8_t finished;
-  int8_t align[7];
   char   name[TSDB_STEP_NAME_LEN];
   char   desc[TSDB_STEP_DESC_LEN];
 } SStartupReq;

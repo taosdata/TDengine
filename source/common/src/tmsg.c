@@ -2020,6 +2020,20 @@ int32_t tDeserializeSMTimerMsg(void *buf, int32_t bufLen, SMTimerReq *pReq) {
   return 0;
 }
 
+int32_t tEncodeSReplica(SCoder *pEncoder, SReplica *pReplica) {
+  if (tEncodeI32(pEncoder, pReplica->id) < 0) return -1;
+  if (tEncodeU16(pEncoder, pReplica->port) < 0) return -1;
+  if (tEncodeCStr(pEncoder, pReplica->fqdn) < 0) return -1;
+  return 0;
+}
+
+int32_t tDecodeSReplica(SCoder *pDecoder, SReplica *pReplica) {
+  if (tDecodeI32(pDecoder, &pReplica->id) < 0) return -1;
+  if (tDecodeU16(pDecoder, &pReplica->port) < 0) return -1;
+  if (tDecodeCStrTo(pDecoder, pReplica->fqdn) < 0) return -1;
+  return 0;
+}
+
 int32_t tSerializeSCreateVnodeReq(void *buf, int32_t bufLen, SCreateVnodeReq *pReq) {
   SCoder encoder = {0};
   tCoderInit(&encoder, TD_LITTLE_ENDIAN, buf, bufLen, TD_ENCODER);
@@ -2050,9 +2064,7 @@ int32_t tSerializeSCreateVnodeReq(void *buf, int32_t bufLen, SCreateVnodeReq *pR
   if (tEncodeI8(&encoder, pReq->selfIndex) < 0) return -1;
   for (int32_t i = 0; i < TSDB_MAX_REPLICA; ++i) {
     SReplica *pReplica = &pReq->replicas[i];
-    if (tEncodeI32(&encoder, pReplica->id) < 0) return -1;
-    if (tEncodeU16(&encoder, pReplica->port) < 0) return -1;
-    if (tEncodeCStr(&encoder, pReplica->fqdn) < 0) return -1;
+    if (tEncodeSReplica(&encoder, pReplica) < 0) return -1;
   }
   tEndEncode(&encoder);
 
@@ -2091,9 +2103,7 @@ int32_t tDeserializeSCreateVnodeReq(void *buf, int32_t bufLen, SCreateVnodeReq *
   if (tDecodeI8(&decoder, &pReq->selfIndex) < 0) return -1;
   for (int32_t i = 0; i < TSDB_MAX_REPLICA; ++i) {
     SReplica *pReplica = &pReq->replicas[i];
-    if (tDecodeI32(&decoder, &pReplica->id) < 0) return -1;
-    if (tDecodeU16(&decoder, &pReplica->port) < 0) return -1;
-    if (tDecodeCStrTo(&decoder, pReplica->fqdn) < 0) return -1;
+    if (tDecodeSReplica(&decoder, pReplica) < 0) return -1;
   }
 
   tEndDecode(&decoder);
@@ -2178,6 +2188,74 @@ int32_t tDeserializeSKillConnReq(void *buf, int32_t bufLen, SKillConnReq *pReq) 
 
   if (tStartDecode(&decoder) < 0) return -1;
   if (tDecodeI32(&decoder, &pReq->connId) < 0) return -1;
+  tEndDecode(&decoder);
+
+  tCoderClear(&decoder);
+  return 0;
+}
+
+int32_t tSerializeSDCreateMnodeReq(void *buf, int32_t bufLen, SDCreateMnodeReq *pReq) {
+  SCoder encoder = {0};
+  tCoderInit(&encoder, TD_LITTLE_ENDIAN, buf, bufLen, TD_ENCODER);
+
+  if (tStartEncode(&encoder) < 0) return -1;
+  if (tEncodeI32(&encoder, pReq->dnodeId) < 0) return -1;
+  if (tEncodeI8(&encoder, pReq->replica) < 0) return -1;
+  for (int32_t i = 0; i < TSDB_MAX_REPLICA; ++i) {
+    SReplica *pReplica = &pReq->replicas[i];
+    if (tEncodeSReplica(&encoder, pReplica) < 0) return -1;
+  }
+  tEndEncode(&encoder);
+
+  int32_t tlen = encoder.pos;
+  tCoderClear(&encoder);
+  return tlen;
+}
+
+int32_t tDeserializeSDCreateMnodeReq(void *buf, int32_t bufLen, SDCreateMnodeReq *pReq) {
+  SCoder decoder = {0};
+  tCoderInit(&decoder, TD_LITTLE_ENDIAN, buf, bufLen, TD_DECODER);
+
+  if (tStartDecode(&decoder) < 0) return -1;
+  if (tDecodeI32(&decoder, &pReq->dnodeId) < 0) return -1;
+  if (tDecodeI8(&decoder, &pReq->replica) < 0) return -1;
+  for (int32_t i = 0; i < TSDB_MAX_REPLICA; ++i) {
+    SReplica *pReplica = &pReq->replicas[i];
+    if (tDecodeSReplica(&decoder, pReplica) < 0) return -1;
+  }
+  tEndDecode(&decoder);
+
+  tCoderClear(&decoder);
+  return 0;
+}
+
+int32_t tSerializeSAuthReq(void *buf, int32_t bufLen, SAuthReq *pReq) {
+  SCoder encoder = {0};
+  tCoderInit(&encoder, TD_LITTLE_ENDIAN, buf, bufLen, TD_ENCODER);
+
+  if (tStartEncode(&encoder) < 0) return -1;
+  if (tEncodeCStr(&encoder, pReq->user) < 0) return -1;
+  if (tEncodeI8(&encoder, pReq->spi) < 0) return -1;
+  if (tEncodeI8(&encoder, pReq->encrypt) < 0) return -1;
+  if (tEncodeBinary(&encoder, pReq->secret, TSDB_PASSWORD_LEN) < 0) return -1;
+  if (tEncodeBinary(&encoder, pReq->ckey, TSDB_PASSWORD_LEN) < 0) return -1;
+  tEndEncode(&encoder);
+
+  int32_t tlen = encoder.pos;
+  tCoderClear(&encoder);
+  return tlen;
+}
+
+int32_t tDeserializeSAuthReq(void *buf, int32_t bufLen, SAuthReq *pReq) {
+  SCoder decoder = {0};
+  tCoderInit(&decoder, TD_LITTLE_ENDIAN, buf, bufLen, TD_DECODER);
+
+  if (tStartDecode(&decoder) < 0) return -1;
+  if (tDecodeCStrTo(&decoder, pReq->user) < 0) return -1;
+  if (tDecodeI8(&decoder, &pReq->spi) < 0) return -1;
+  if (tDecodeI8(&decoder, &pReq->encrypt) < 0) return -1;
+  if (tDecodeCStrTo(&decoder, pReq->secret) < 0) return -1;
+  if (tDecodeCStrTo(&decoder, pReq->ckey) < 0) return -1;
   tEndDecode(&decoder);
 
   tCoderClear(&decoder);

@@ -284,8 +284,8 @@ static int32_t mndSetCreateMnodeRedoActions(SMnode *pMnode, STrans *pTrans, SDno
     if (pIter == NULL) break;
 
     SReplica *pReplica = &createReq.replicas[numOfReplicas];
-    pReplica->id = htonl(pMObj->id);
-    pReplica->port = htons(pMObj->pDnode->port);
+    pReplica->id = pMObj->id;
+    pReplica->port = pMObj->pDnode->port;
     memcpy(pReplica->fqdn, pMObj->pDnode->fqdn, TSDB_FQDN_LEN);
     numOfReplicas++;
 
@@ -293,8 +293,8 @@ static int32_t mndSetCreateMnodeRedoActions(SMnode *pMnode, STrans *pTrans, SDno
   }
 
   SReplica *pReplica = &createReq.replicas[numOfReplicas];
-  pReplica->id = htonl(pDnode->id);
-  pReplica->port = htons(pDnode->port);
+  pReplica->id = pDnode->id;
+  pReplica->port = pDnode->port;
   memcpy(pReplica->fqdn, pDnode->fqdn, TSDB_FQDN_LEN);
   numOfReplicas++;
 
@@ -307,18 +307,14 @@ static int32_t mndSetCreateMnodeRedoActions(SMnode *pMnode, STrans *pTrans, SDno
 
     STransAction action = {0};
 
-    SDAlterMnodeReq *pReq = malloc(sizeof(SDAlterMnodeReq));
-    if (pReq == NULL) {
-      sdbCancelFetch(pSdb, pIter);
-      sdbRelease(pSdb, pMObj);
-      return -1;
-    }
-    memcpy(pReq, &createReq, sizeof(SDAlterMnodeReq));
+    createReq.dnodeId = pMObj->id;
+    int32_t contLen = tSerializeSDCreateMnodeReq(NULL, 0, &createReq);
+    void   *pReq = malloc(contLen);
+    tSerializeSDCreateMnodeReq(pReq, contLen, &createReq);
 
-    pReq->dnodeId = htonl(pMObj->id);
     action.epSet = mndGetDnodeEpset(pMObj->pDnode);
     action.pCont = pReq;
-    action.contLen = sizeof(SDAlterMnodeReq);
+    action.contLen = contLen;
     action.msgType = TDMT_DND_ALTER_MNODE;
     action.acceptableCode = TSDB_CODE_DND_MNODE_ALREADY_DEPLOYED;
 
@@ -336,14 +332,14 @@ static int32_t mndSetCreateMnodeRedoActions(SMnode *pMnode, STrans *pTrans, SDno
     STransAction action = {0};
     action.epSet = mndGetDnodeEpset(pDnode);
 
-    SDCreateMnodeReq *pReq = malloc(sizeof(SDCreateMnodeReq));
-    if (pReq == NULL) return -1;
-    memcpy(pReq, &createReq, sizeof(SDAlterMnodeReq));
-    pReq->dnodeId = htonl(pObj->id);
+    createReq.dnodeId = pObj->id;
+    int32_t contLen = tSerializeSDCreateMnodeReq(NULL, 0, &createReq);
+    void   *pReq = malloc(contLen);
+    tSerializeSDCreateMnodeReq(pReq, contLen, &createReq);
 
     action.epSet = mndGetDnodeEpset(pDnode);
     action.pCont = pReq;
-    action.contLen = sizeof(SDCreateMnodeReq);
+    action.contLen = contLen;
     action.msgType = TDMT_DND_CREATE_MNODE;
     action.acceptableCode = TSDB_CODE_DND_MNODE_ALREADY_DEPLOYED;
     if (mndTransAppendRedoAction(pTrans, &action) != 0) {
@@ -463,8 +459,8 @@ static int32_t mndSetDropMnodeRedoActions(SMnode *pMnode, STrans *pTrans, SDnode
 
     if (pMObj->id != pObj->id) {
       SReplica *pReplica = &alterReq.replicas[numOfReplicas];
-      pReplica->id = htonl(pMObj->id);
-      pReplica->port = htons(pMObj->pDnode->port);
+      pReplica->id = pMObj->id;
+      pReplica->port = pMObj->pDnode->port;
       memcpy(pReplica->fqdn, pMObj->pDnode->fqdn, TSDB_FQDN_LEN);
       numOfReplicas++;
     }
@@ -481,18 +477,14 @@ static int32_t mndSetDropMnodeRedoActions(SMnode *pMnode, STrans *pTrans, SDnode
     if (pMObj->id != pObj->id) {
       STransAction action = {0};
 
-      SDAlterMnodeReq *pReq = malloc(sizeof(SDAlterMnodeReq));
-      if (pReq == NULL) {
-        sdbCancelFetch(pSdb, pIter);
-        sdbRelease(pSdb, pMObj);
-        return -1;
-      }
-      memcpy(pReq, &alterReq, sizeof(SDAlterMnodeReq));
+      alterReq.dnodeId = pMObj->id;
+      int32_t contLen = tSerializeSDCreateMnodeReq(NULL, 0, &alterReq);
+      void   *pReq = malloc(contLen);
+      tSerializeSDCreateMnodeReq(pReq, contLen, &alterReq);
 
-      pReq->dnodeId = htonl(pMObj->id);
       action.epSet = mndGetDnodeEpset(pMObj->pDnode);
       action.pCont = pReq;
-      action.contLen = sizeof(SDAlterMnodeReq);
+      action.contLen = contLen;
       action.msgType = TDMT_DND_ALTER_MNODE;
       action.acceptableCode = TSDB_CODE_DND_MNODE_ALREADY_DEPLOYED;
 
@@ -511,16 +503,15 @@ static int32_t mndSetDropMnodeRedoActions(SMnode *pMnode, STrans *pTrans, SDnode
     STransAction action = {0};
     action.epSet = mndGetDnodeEpset(pDnode);
 
-    SDDropMnodeReq *pReq = malloc(sizeof(SDDropMnodeReq));
-    if (pReq == NULL) {
-      terrno = TSDB_CODE_OUT_OF_MEMORY;
-      return -1;
-    }
-    pReq->dnodeId = htonl(pObj->id);
+    SDDropMnodeReq dropReq = {0};
+    dropReq.dnodeId = pObj->id;
+    int32_t contLen = tSerializeSMCreateDropMnodeReq(NULL, 0, &dropReq);
+    void   *pReq = malloc(contLen);
+    tSerializeSMCreateDropMnodeReq(pReq, contLen, &dropReq);
 
     action.epSet = mndGetDnodeEpset(pDnode);
     action.pCont = pReq;
-    action.contLen = sizeof(SDDropMnodeReq);
+    action.contLen = contLen;
     action.msgType = TDMT_DND_DROP_MNODE;
     action.acceptableCode = TSDB_CODE_DND_MNODE_NOT_DEPLOYED;
     if (mndTransAppendRedoAction(pTrans, &action) != 0) {
