@@ -115,6 +115,8 @@ typedef TD_DLIST_NODE(SPgFile) SPgFileListNode;
     /* TODO */                                                   \
   } while (0)
 
+#define TDB_JOURNAL_NAME "tdb.journal"
+
 #include "tdbUtil.h"
 
 #include "tdbBtree.h"
@@ -122,8 +124,6 @@ typedef TD_DLIST_NODE(SPgFile) SPgFileListNode;
 #include "tdbPgCache.h"
 
 #include "tdbPgFile.h"
-
-#include "tdbJournal.h"
 
 #include "tdbEnv.h"
 

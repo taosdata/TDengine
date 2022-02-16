@@ -104,16 +104,18 @@ int tdbOpen(TDB *pDb, const char *fname, const char *dbname, TENV *pEnv) {
     }
   }
 
-  // TODO: open the database (an existing or a new one)
-  if (0) {
-    // Search the page file master DB to check if the db exists
-    // If exists, run this branch (TODO)
-  } else {
+  // TODO: get the root page number from the master DB of the page file
+  // tdbGet(&dbRootPgno);
+  if (dbRootPgno == 0) {
+    // DB not exist, create one
     ret = pgFileAllocatePage(pPgFile, &dbRootPgno);
     if (ret != 0) {
       // TODO: handle error
     }
+    // tdbInsert(pPgFile->pMasterDB, dbname, strlen(dbname), &dbRootPgno, sizeof(dbRootPgno));
   }
+
+  ASSERT(dbRootPgno > 1);
 
   // pDb->pBt->root = dbRootPgno;
 

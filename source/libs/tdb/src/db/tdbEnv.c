@@ -17,6 +17,8 @@
 
 struct STDbEnv {
   char *      rootDir;    // root directory of the environment
+  char *      jname;      // journal file name
+  int         jfd;        // journal file fd
   pgsz_t      pgSize;     // page size
   cachesz_t   cacheSize;  // total cache size
   STDbList    dbList;     // TDB List
@@ -26,7 +28,6 @@ struct STDbEnv {
 #define TDB_ENV_PGF_HASH_BUCKETS 17
     SPgFileList buckets[TDB_ENV_PGF_HASH_BUCKETS];
   } pgfht;  // page file hash table;
-  SJournal *pJournal;
 };
 
 #define TDB_ENV_PGF_HASH(fileid)        \
@@ -40,22 +41,27 @@ static int tdbEnvDestroy(TENV *pEnv);
 int tdbEnvCreate(TENV **ppEnv, const char *rootDir) {
   TENV * pEnv;
   size_t slen;
+  size_t jlen;
 
   ASSERT(rootDir != NULL);
 
   *ppEnv = NULL;
   slen = strlen(rootDir);
-  pEnv = (TENV *)calloc(1, sizeof(*pEnv) + sizeof(SJournal) + slen + 1);
+  jlen = slen + strlen(TDB_JOURNAL_NAME) + 1;
+  pEnv = (TENV *)calloc(1, sizeof(*pEnv) + slen + 1 + jlen + 1);
   if (pEnv == NULL) {
     return -1;
   }
 
-  pEnv->rootDir = (char *)(&pEnv[1]) + sizeof(SJournal);
+  pEnv->rootDir = (char *)(&pEnv[1]);
+  pEnv->jname = pEnv->rootDir + slen + 1;
+  pEnv->jfd = -1;
   pEnv->pgSize = TDB_DEFAULT_PGSIZE;
   pEnv->cacheSize = TDB_DEFAULT_CACHE_SIZE;
 
   memcpy(pEnv->rootDir, rootDir, slen);
   pEnv->rootDir[slen] = '\0';
+  sprintf(pEnv->jname, "%s/%s", rootDir, TDB_JOURNAL_NAME);
 
   TD_DLIST_INIT(&(pEnv->dbList));
   TD_DLIST_INIT(&(pEnv->pgfList));
@@ -133,30 +139,18 @@ static int tdbEnvDestroy(TENV *pEnv) {
 }
 
 int tdbEnvBeginTxn(TENV *pEnv) {
-  SJournal *pJournal;
-  int       ret;
-
-  ASSERT(pEnv->pJournal == NULL);
-
-  pJournal = (SJournal *)(&(pEnv[1]));
-  ret = tdbOpenJournal(pJournal);
-  if (ret < 0) {
-    // TODO: handle error
+  pEnv->jfd = open(pEnv->jname, O_CREAT | O_RDWR, 0755);
+  if (pEnv->jfd < 0) {
     return -1;
   }
 
-  pEnv->pJournal = pJournal;
   return 0;
 }
 
 int tdbEnvCommit(TENV *pEnv) {
-  SJournal *pJournal;
-
-  ASSERT(pEnv->pJournal != NULL);
-
-  pJournal = pEnv->pJournal;
-  tdbCloseJournal(pJournal);
   /* TODO */
+  close(pEnv->jfd);
+  pEnv->jfd = -1;
   return 0;
 }
 
