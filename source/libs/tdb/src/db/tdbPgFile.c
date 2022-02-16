@@ -162,13 +162,24 @@ int pgFileWrite(SPage *pPage) {
 }
 
 int pgFileAllocatePage(SPgFile *pPgFile, pgno_t *pPgno) {
-  pgno_t pgno;
+  pgno_t    pgno;
+  SPage1 *  pPage1;
+  SPgCache *pPgCache;
+  pgid_t    pgid;
+  SPage *   pPage;
 
   if (pPgFile->lsize == 0) {
     pgno = ++(pPgFile->lsize);
   } else {
     if (0) {
       // TODO: allocate from the free list
+      pPage = pgCacheFetch(pPgCache, pgid);
+
+      if (pPage1->nFree > 0) {
+        // TODO
+      } else {
+        pgno = ++(pPgFile->lsize);
+      }
     } else {
       pgno = ++(pPgFile->lsize);
     }

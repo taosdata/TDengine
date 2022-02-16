@@ -9,7 +9,7 @@ TEST(tdb_test, simple_test) {
   cachesz_t cacheSize = 10240;
 
   // ENV
-  GTEST_ASSERT_EQ(tdbEnvCreate(&pEnv, "./tdbtest"), 0);
+  GTEST_ASSERT_EQ(tdbEnvCreate(&pEnv, "./testtdb"), 0);
 
   GTEST_ASSERT_EQ(tdbEnvSetCache(pEnv, pgSize, cacheSize), 0);
 
