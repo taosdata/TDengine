@@ -201,18 +201,6 @@ typedef struct SSubmitBlk {
   char    data[];
 } SSubmitBlk;
 
-typedef struct {
-  /* data */
-} SSubmitReq;
-
-typedef struct {
-  /* data */
-} SSubmitRsp;
-
-typedef struct {
-  /* data */
-} SSubmitReqReader;
-
 // Submit message for this TSDB
 typedef struct {
   SMsgHead header;
@@ -220,7 +208,7 @@ typedef struct {
   int32_t  length;
   int32_t  numOfBlocks;
   char     blocks[];
-} SSubmitMsg;
+} SSubmitReq;
 
 typedef struct {
   int32_t totalLen;
@@ -234,7 +222,7 @@ typedef struct {
   void*   pMsg;
 } SSubmitMsgIter;
 
-int32_t tInitSubmitMsgIter(SSubmitMsg* pMsg, SSubmitMsgIter* pIter);
+int32_t tInitSubmitMsgIter(SSubmitReq* pMsg, SSubmitMsgIter* pIter);
 int32_t tGetSubmitMsgNext(SSubmitMsgIter* pIter, SSubmitBlk** pPBlock);
 int32_t tInitSubmitBlkIter(SSubmitBlk* pBlock, SSubmitBlkIter* pIter);
 STSRow* tGetSubmitBlkNext(SSubmitBlkIter* pIter);
@@ -244,16 +232,16 @@ typedef struct {
   int32_t vnode;  // vnode index of failed block
   int32_t sid;    // table index of failed block
   int32_t code;   // errorcode while write data to vnode, such as not created, dropped, no space, invalid table
-} SShellSubmitRspBlock;
+} SSubmitRspBlock;
 
 typedef struct {
-  int32_t              code;          // 0-success, > 0 error code
-  int32_t              numOfRows;     // number of records the client is trying to write
-  int32_t              affectedRows;  // number of records actually written
-  int32_t              failedRows;    // number of failed records (exclude duplicate records)
-  int32_t              numOfFailedBlocks;
-  SShellSubmitRspBlock failedBlocks[];
-} SShellSubmitRsp;
+  int32_t         code;          // 0-success, > 0 error code
+  int32_t         numOfRows;     // number of records the client is trying to write
+  int32_t         affectedRows;  // number of records actually written
+  int32_t         failedRows;    // number of failed records (exclude duplicate records)
+  int32_t         numOfFailedBlocks;
+  SSubmitRspBlock failedBlocks[];
+} SSubmitRsp;
 
 typedef struct SSchema {
   int8_t  type;
@@ -696,8 +684,8 @@ typedef struct {
   SArray*     pVloads;  // array of SVnodeLoad
 } SStatusReq;
 
-int32_t tSerializeSStatusReq(void** buf, SStatusReq* pReq);
-void*   tDeserializeSStatusReq(void* buf, SStatusReq* pReq);
+int32_t tSerializeSStatusReq(void* buf, int32_t bufLen, SStatusReq* pReq);
+int32_t tDeserializeSStatusReq(void* buf, int32_t bufLen, SStatusReq* pReq);
 
 typedef struct {
   int32_t dnodeId;
@@ -716,12 +704,15 @@ typedef struct {
   SArray*   pDnodeEps;  // Array of SDnodeEp
 } SStatusRsp;
 
-int32_t tSerializeSStatusRsp(void** buf, SStatusRsp* pRsp);
-void*   tDeserializeSStatusRsp(void* buf, SStatusRsp* pRsp);
+int32_t tSerializeSStatusRsp(void* buf, int32_t bufLen, SStatusRsp* pRsp);
+int32_t tDeserializeSStatusRsp(void* buf, int32_t bufLen, SStatusRsp* pRsp);
 
 typedef struct {
-  int32_t reserve;
-} STransReq;
+  int32_t reserved;
+} SMTimerReq;
+
+int32_t tSerializeSMTimerMsg(void* buf, int32_t bufLen, SMTimerReq* pReq);
+int32_t tDeserializeSMTimerMsg(void* buf, int32_t bufLen, SMTimerReq* pReq);
 
 typedef struct {
   int32_t  id;
@@ -756,6 +747,9 @@ typedef struct {
   SReplica replicas[TSDB_MAX_REPLICA];
 } SCreateVnodeReq, SAlterVnodeReq;
 
+int32_t tSerializeSCreateVnodeReq(void* buf, int32_t bufLen, SCreateVnodeReq* pReq);
+int32_t tDeserializeSCreateVnodeReq(void* buf, int32_t bufLen, SCreateVnodeReq* pReq);
+
 typedef struct {
   int32_t  vgId;
   int32_t  dnodeId;
@@ -763,10 +757,8 @@ typedef struct {
   char     db[TSDB_DB_FNAME_LEN];
 } SDropVnodeReq, SSyncVnodeReq, SCompactVnodeReq;
 
-typedef struct {
-  int32_t vgId;
-  int8_t  accessState;
-} SAuthVnodeReq;
+int32_t tSerializeSDropVnodeReq(void* buf, int32_t bufLen, SDropVnodeReq* pReq);
+int32_t tDeserializeSDropVnodeReq(void* buf, int32_t bufLen, SDropVnodeReq* pReq);
 
 typedef struct {
   SMsgHead header;
@@ -884,7 +876,6 @@ typedef struct {
   int8_t  precision;
   int8_t  compressed;
   int32_t compLen;
-
   int32_t numOfRows;
   char    data[];
 } SRetrieveTableRsp;
@@ -925,6 +916,9 @@ typedef struct {
   int8_t   replica;
   SReplica replicas[TSDB_MAX_REPLICA];
 } SDCreateMnodeReq, SDAlterMnodeReq;
+
+int32_t tSerializeSDCreateMnodeReq(void* buf, int32_t bufLen, SDCreateMnodeReq* pReq);
+int32_t tDeserializeSDCreateMnodeReq(void* buf, int32_t bufLen, SDCreateMnodeReq* pReq);
 
 typedef struct {
   int32_t dnodeId;
@@ -973,9 +967,15 @@ typedef struct {
   int32_t queryId;
 } SKillQueryReq;
 
+int32_t tSerializeSKillQueryReq(void* buf, int32_t bufLen, SKillQueryReq* pReq);
+int32_t tDeserializeSKillQueryReq(void* buf, int32_t bufLen, SKillQueryReq* pReq);
+
 typedef struct {
   int32_t connId;
 } SKillConnReq;
+
+int32_t tSerializeSKillConnReq(void* buf, int32_t bufLen, SKillConnReq* pReq);
+int32_t tDeserializeSKillConnReq(void* buf, int32_t bufLen, SKillConnReq* pReq);
 
 typedef struct {
   char user[TSDB_USER_LEN];
@@ -985,9 +985,11 @@ typedef struct {
   char ckey[TSDB_PASSWORD_LEN];
 } SAuthReq, SAuthRsp;
 
+int32_t tSerializeSAuthReq(void* buf, int32_t bufLen, SAuthReq* pReq);
+int32_t tDeserializeSAuthReq(void* buf, int32_t bufLen, SAuthReq* pReq);
+
 typedef struct {
   int8_t finished;
-  int8_t align[7];
   char   name[TSDB_STEP_NAME_LEN];
   char   desc[TSDB_STEP_DESC_LEN];
 } SStartupReq;
@@ -1196,10 +1198,6 @@ static FORCE_INLINE void* tDeserializeSMVSubscribeReq(void* buf, SMVSubscribeReq
 }
 
 typedef struct {
-  int32_t reserved;
-} SMqTmrMsg;
-
-typedef struct {
   const char* key;
   SArray*     lostConsumers;     // SArray<int64_t>
   SArray*     removedConsumers;  // SArray<int64_t>
@@ -1362,7 +1360,6 @@ typedef struct {
   int8_t  precision;
   int8_t  compressed;
   int32_t compLen;
-
   int32_t numOfRows;
   char    data[];
 } SVShowTablesFetchRsp;

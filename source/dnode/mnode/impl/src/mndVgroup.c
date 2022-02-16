@@ -189,78 +189,95 @@ void mndReleaseVgroup(SMnode *pMnode, SVgObj *pVgroup) {
   sdbRelease(pSdb, pVgroup);
 }
 
-SCreateVnodeReq *mndBuildCreateVnodeReq(SMnode *pMnode, SDnodeObj *pDnode, SDbObj *pDb, SVgObj *pVgroup) {
-  SCreateVnodeReq *pCreate = calloc(1, sizeof(SCreateVnodeReq));
-  if (pCreate == NULL) {
-    terrno = TSDB_CODE_OUT_OF_MEMORY;
-    return NULL;
-  }
-
-  pCreate->vgId = htonl(pVgroup->vgId);
-  pCreate->dnodeId = htonl(pDnode->id);
-  memcpy(pCreate->db, pDb->name, TSDB_DB_FNAME_LEN);
-  pCreate->dbUid = htobe64(pDb->uid);
-  pCreate->vgVersion = htonl(pVgroup->version);
-  pCreate->cacheBlockSize = htonl(pDb->cfg.cacheBlockSize);
-  pCreate->totalBlocks = htonl(pDb->cfg.totalBlocks);
-  pCreate->daysPerFile = htonl(pDb->cfg.daysPerFile);
-  pCreate->daysToKeep0 = htonl(pDb->cfg.daysToKeep0);
-  pCreate->daysToKeep1 = htonl(pDb->cfg.daysToKeep1);
-  pCreate->daysToKeep2 = htonl(pDb->cfg.daysToKeep2);
-  pCreate->minRows = htonl(pDb->cfg.minRows);
-  pCreate->maxRows = htonl(pDb->cfg.maxRows);
-  pCreate->commitTime = htonl(pDb->cfg.commitTime);
-  pCreate->fsyncPeriod = htonl(pDb->cfg.fsyncPeriod);
-  pCreate->walLevel = pDb->cfg.walLevel;
-  pCreate->precision = pDb->cfg.precision;
-  pCreate->compression = pDb->cfg.compression;
-  pCreate->quorum = pDb->cfg.quorum;
-  pCreate->update = pDb->cfg.update;
-  pCreate->cacheLastRow = pDb->cfg.cacheLastRow;
-  pCreate->replica = pVgroup->replica;
-  pCreate->selfIndex = -1;
+void *mndBuildCreateVnodeReq(SMnode *pMnode, SDnodeObj *pDnode, SDbObj *pDb, SVgObj *pVgroup, int32_t *pContLen) {
+  SCreateVnodeReq createReq = {0};
+  createReq.vgId = pVgroup->vgId;
+  createReq.dnodeId = pDnode->id;
+  memcpy(createReq.db, pDb->name, TSDB_DB_FNAME_LEN);
+  createReq.dbUid = pDb->uid;
+  createReq.vgVersion = pVgroup->version;
+  createReq.cacheBlockSize = pDb->cfg.cacheBlockSize;
+  createReq.totalBlocks = pDb->cfg.totalBlocks;
+  createReq.daysPerFile = pDb->cfg.daysPerFile;
+  createReq.daysToKeep0 = pDb->cfg.daysToKeep0;
+  createReq.daysToKeep1 = pDb->cfg.daysToKeep1;
+  createReq.daysToKeep2 = pDb->cfg.daysToKeep2;
+  createReq.minRows = pDb->cfg.minRows;
+  createReq.maxRows = pDb->cfg.maxRows;
+  createReq.commitTime = pDb->cfg.commitTime;
+  createReq.fsyncPeriod = pDb->cfg.fsyncPeriod;
+  createReq.walLevel = pDb->cfg.walLevel;
+  createReq.precision = pDb->cfg.precision;
+  createReq.compression = pDb->cfg.compression;
+  createReq.quorum = pDb->cfg.quorum;
+  createReq.update = pDb->cfg.update;
+  createReq.cacheLastRow = pDb->cfg.cacheLastRow;
+  createReq.replica = pVgroup->replica;
+  createReq.selfIndex = -1;
 
   for (int32_t v = 0; v < pVgroup->replica; ++v) {
-    SReplica  *pReplica = &pCreate->replicas[v];
+    SReplica  *pReplica = &createReq.replicas[v];
     SVnodeGid *pVgid = &pVgroup->vnodeGid[v];
     SDnodeObj *pVgidDnode = mndAcquireDnode(pMnode, pVgid->dnodeId);
     if (pVgidDnode == NULL) {
-      free(pCreate);
       return NULL;
     }
 
-    pReplica->id = htonl(pVgidDnode->id);
-    pReplica->port = htons(pVgidDnode->port);
+    pReplica->id = pVgidDnode->id;
+    pReplica->port = pVgidDnode->port;
     memcpy(pReplica->fqdn, pVgidDnode->fqdn, TSDB_FQDN_LEN);
     mndReleaseDnode(pMnode, pVgidDnode);
 
     if (pDnode->id == pVgid->dnodeId) {
-      pCreate->selfIndex = v;
+      createReq.selfIndex = v;
     }
   }
 
-  if (pCreate->selfIndex == -1) {
-    free(pCreate);
+  if (createReq.selfIndex == -1) {
     terrno = TSDB_CODE_MND_APP_ERROR;
     return NULL;
   }
 
-  return pCreate;
-}
-
-SDropVnodeReq *mndBuildDropVnodeReq(SMnode *pMnode, SDnodeObj *pDnode, SDbObj *pDb, SVgObj *pVgroup) {
-  SDropVnodeReq *pDrop = calloc(1, sizeof(SDropVnodeReq));
-  if (pDrop == NULL) {
+  int32_t contLen = tSerializeSCreateVnodeReq(NULL, 0, &createReq);
+  if (contLen < 0) {
     terrno = TSDB_CODE_OUT_OF_MEMORY;
     return NULL;
   }
 
-  pDrop->dnodeId = htonl(pDnode->id);
-  pDrop->vgId = htonl(pVgroup->vgId);
-  memcpy(pDrop->db, pDb->name, TSDB_DB_FNAME_LEN);
-  pDrop->dbUid = htobe64(pDb->uid);
+  void *pReq = malloc(contLen);
+  if (pReq == NULL) {
+    terrno = TSDB_CODE_OUT_OF_MEMORY;
+    return NULL;
+  }
 
-  return pDrop;
+  tSerializeSCreateVnodeReq(pReq, contLen, &createReq);
+  *pContLen = contLen;
+  return pReq;
+}
+
+void *mndBuildDropVnodeReq(SMnode *pMnode, SDnodeObj *pDnode, SDbObj *pDb, SVgObj *pVgroup,
+                                    int32_t *pContLen) {
+  SDropVnodeReq dropReq = {0};
+  dropReq.dnodeId = pDnode->id;
+  dropReq.vgId = pVgroup->vgId;
+  memcpy(dropReq.db, pDb->name, TSDB_DB_FNAME_LEN);
+  dropReq.dbUid = pDb->uid;
+
+  int32_t contLen = tSerializeSDropVnodeReq(NULL, 0, &dropReq);
+  if (contLen < 0) {
+    terrno = TSDB_CODE_OUT_OF_MEMORY;
+    return NULL;
+  }
+
+  void *pReq = malloc(contLen);
+  if (pReq == NULL) {
+    terrno = TSDB_CODE_OUT_OF_MEMORY;
+    return NULL;
+  }
+
+  tSerializeSDropVnodeReq(pReq, contLen, &dropReq);
+  *pContLen = contLen;
+  return pReq;
 }
 
 static bool mndResetDnodesArrayFp(SMnode *pMnode, void *pObj, void *p1, void *p2, void *p3) {

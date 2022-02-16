@@ -14,16 +14,13 @@
  */
 
 #define _DEFAULT_SOURCE
-#include "tglobal.h"
 #include "mndProfile.h"
-//#include "mndConsumer.h"
 #include "mndDb.h"
-#include "mndStb.h"
 #include "mndMnode.h"
 #include "mndShow.h"
-//#include "mndTopic.h"
+#include "mndStb.h"
 #include "mndUser.h"
-//#include "mndVgroup.h"
+#include "tglobal.h"
 
 #define QUERY_ID_SIZE 20
 #define QUERY_OBJ_ID_SIZE 18
@@ -279,7 +276,7 @@ static int32_t mndSaveQueryStreamList(SConnObj *pConn, SHeartBeatReq *pReq) {
   return TSDB_CODE_SUCCESS;
 }
 
-static SClientHbRsp* mndMqHbBuildRsp(SMnode* pMnode, SClientHbReq* pReq) {
+static SClientHbRsp *mndMqHbBuildRsp(SMnode *pMnode, SClientHbReq *pReq) {
 #if 0
   SClientHbRsp* pRsp = malloc(sizeof(SClientHbRsp));
   if (pRsp == NULL) {
@@ -353,14 +350,13 @@ static int32_t mndProcessHeartBeatReq(SMnodeMsg *pReq) {
     return -1;
   }
 
-  SArray *pArray = batchReq.reqs;
-  int32_t sz = taosArrayGetSize(pArray);
-
+  
   SClientHbBatchRsp batchRsp = {0};
   batchRsp.rsps = taosArrayInit(0, sizeof(SClientHbRsp));
 
+  int32_t sz = taosArrayGetSize(batchReq.reqs);
   for (int i = 0; i < sz; i++) {
-    SClientHbReq *pHbReq = taosArrayGet(pArray, i);
+    SClientHbReq *pHbReq = taosArrayGet(batchReq.reqs, i);
     if (pHbReq->connKey.hbType == HEARTBEAT_TYPE_QUERY) {
       int32_t kvNum = taosHashGetSize(pHbReq->info);
       if (NULL == pHbReq->info || kvNum <= 0) {
@@ -412,7 +408,7 @@ static int32_t mndProcessHeartBeatReq(SMnodeMsg *pReq) {
       }
     }
   }
-  taosArrayDestroyEx(pArray, tFreeClientHbReq);
+  taosArrayDestroyEx(batchReq.reqs, tFreeClientHbReq);
 
   int32_t tlen = tSerializeSClientHbBatchRsp(NULL, 0, &batchRsp);
   void   *buf = rpcMallocCont(tlen);
@@ -520,19 +516,22 @@ static int32_t mndProcessKillQueryReq(SMnodeMsg *pReq) {
   }
   mndReleaseUser(pMnode, pUser);
 
-  SKillQueryReq *pKill = pReq->rpcMsg.pCont;
-  int32_t        connId = htonl(pKill->connId);
-  int32_t        queryId = htonl(pKill->queryId);
-  mInfo("kill query msg is received, queryId:%d", pKill->queryId);
+  SKillQueryReq killReq = {0};
+  if (tDeserializeSKillQueryReq(pReq->rpcMsg.pCont, pReq->rpcMsg.contLen, &killReq) != 0) {
+    terrno = TSDB_CODE_INVALID_MSG;
+    return -1;
+  }
 
-  SConnObj *pConn = taosCacheAcquireByKey(pMgmt->cache, &connId, sizeof(int32_t));
+  mInfo("kill query msg is received, queryId:%d", killReq.queryId);
+
+  SConnObj *pConn = taosCacheAcquireByKey(pMgmt->cache, &killReq.connId, sizeof(int32_t));
   if (pConn == NULL) {
-    mError("connId:%d, failed to kill queryId:%d, conn not exist", connId, queryId);
+    mError("connId:%d, failed to kill queryId:%d, conn not exist", killReq.connId, killReq.queryId);
     terrno = TSDB_CODE_MND_INVALID_CONN_ID;
     return -1;
   } else {
-    mInfo("connId:%d, queryId:%d is killed by user:%s", connId, queryId, pReq->user);
-    pConn->queryId = queryId;
+    mInfo("connId:%d, queryId:%d is killed by user:%s", killReq.connId, killReq.queryId, pReq->user);
+    pConn->queryId = killReq.queryId;
     taosCacheRelease(pMgmt->cache, (void **)&pConn, false);
     return 0;
   }
@@ -551,16 +550,19 @@ static int32_t mndProcessKillConnReq(SMnodeMsg *pReq) {
   }
   mndReleaseUser(pMnode, pUser);
 
-  SKillConnReq *pKill = pReq->rpcMsg.pCont;
-  int32_t       connId = htonl(pKill->connId);
+  SKillConnReq killReq = {0};
+  if (tDeserializeSKillConnReq(pReq->rpcMsg.pCont, pReq->rpcMsg.contLen, &killReq) != 0) {
+    terrno = TSDB_CODE_INVALID_MSG;
+    return -1;
+  }
 
-  SConnObj *pConn = taosCacheAcquireByKey(pMgmt->cache, &connId, sizeof(int32_t));
+  SConnObj *pConn = taosCacheAcquireByKey(pMgmt->cache, &killReq.connId, sizeof(int32_t));
   if (pConn == NULL) {
-    mError("connId:%d, failed to kill connection, conn not exist", connId);
+    mError("connId:%d, failed to kill connection, conn not exist", killReq.connId);
     terrno = TSDB_CODE_MND_INVALID_CONN_ID;
     return -1;
   } else {
-    mInfo("connId:%d, is killed by user:%s", connId, pReq->user);
+    mInfo("connId:%d, is killed by user:%s", killReq.connId, pReq->user);
     pConn->killed = 1;
     taosCacheRelease(pMgmt->cache, (void **)&pConn, false);
     return TSDB_CODE_SUCCESS;

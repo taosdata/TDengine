@@ -379,10 +379,9 @@ void dndSendStatusReq(SDnode *pDnode) {
   req.pVloads = taosArrayInit(TSDB_MAX_VNODES, sizeof(SVnodeLoad));
   dndGetVnodeLoads(pDnode, req.pVloads);
 
-  int32_t contLen = tSerializeSStatusReq(NULL, &req);
+  int32_t contLen = tSerializeSStatusReq(NULL, 0, &req);
   void   *pHead = rpcMallocCont(contLen);
-  void   *pBuf = pHead;
-  tSerializeSStatusReq(&pBuf, &req);
+  tSerializeSStatusReq(pHead, contLen, &req);
   taosArrayDestroy(req.pVloads);
 
   SRpcMsg rpcMsg = {.pCont = pHead, .contLen = contLen, .msgType = TDMT_MND_STATUS, .ahandle = (void *)9527};
@@ -395,7 +394,7 @@ void dndSendStatusReq(SDnode *pDnode) {
 static void dndUpdateDnodeCfg(SDnode *pDnode, SDnodeCfg *pCfg) {
   SDnodeMgmt *pMgmt = &pDnode->dmgmt;
   if (pMgmt->dnodeId == 0) {
-    dInfo("set dnodeId:%d clusterId:0x%" PRId64, pCfg->dnodeId, pCfg->clusterId);
+    dInfo("set dnodeId:%d clusterId:%" PRId64, pCfg->dnodeId, pCfg->clusterId);
     taosWLockLatch(&pMgmt->latch);
     pMgmt->dnodeId = pCfg->dnodeId;
     pMgmt->clusterId = pCfg->clusterId;
@@ -437,7 +436,8 @@ static void dndProcessStatusRsp(SDnode *pDnode, SRpcMsg *pRsp) {
     }
   } else {
     SStatusRsp statusRsp = {0};
-    if (pRsp->pCont != NULL && pRsp->contLen != 0 && tDeserializeSStatusRsp(pRsp->pCont, &statusRsp) != NULL) {
+    if (pRsp->pCont != NULL && pRsp->contLen != 0 &&
+        tDeserializeSStatusRsp(pRsp->pCont, pRsp->contLen, &statusRsp) == 0) {
       pMgmt->dver = statusRsp.dver;
       dndUpdateDnodeCfg(pDnode, &statusRsp.dnodeCfg);
       dndUpdateDnodeEps(pDnode, statusRsp.pDnodeEps);
@@ -651,9 +651,6 @@ static void dndProcessMgmtQueue(SDnode *pDnode, SRpcMsg *pMsg) {
       break;
     case TDMT_DND_DROP_VNODE:
       code = dndProcessDropVnodeReq(pDnode, pMsg);
-      break;
-    case TDMT_DND_AUTH_VNODE:
-      code = dndProcessAuthVnodeReq(pDnode, pMsg);
       break;
     case TDMT_DND_SYNC_VNODE:
       code = dndProcessSyncVnodeReq(pDnode, pMsg);

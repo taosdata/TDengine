@@ -302,7 +302,10 @@ static int32_t mndProcessStatusReq(SMnodeMsg *pReq) {
   SDnodeObj *pDnode = NULL;
   int32_t    code = -1;
 
-  if (tDeserializeSStatusReq(pReq->rpcMsg.pCont, &statusReq) == NULL) goto PROCESS_STATUS_MSG_OVER;
+  if (tDeserializeSStatusReq(pReq->rpcMsg.pCont, pReq->rpcMsg.contLen, &statusReq) != 0) {
+    terrno = TSDB_CODE_INVALID_MSG;
+    goto PROCESS_STATUS_MSG_OVER;
+  }
 
   if (statusReq.dnodeId == 0) {
     pDnode = mndAcquireDnodeByEp(pMnode, statusReq.dnodeEp);
@@ -410,10 +413,9 @@ static int32_t mndProcessStatusReq(SMnodeMsg *pReq) {
 
     mndGetDnodeData(pMnode, statusRsp.pDnodeEps);
 
-    int32_t contLen = tSerializeSStatusRsp(NULL, &statusRsp);
+    int32_t contLen = tSerializeSStatusRsp(NULL, 0, &statusRsp);
     void   *pHead = rpcMallocCont(contLen);
-    void   *pBuf = pHead;
-    tSerializeSStatusRsp(&pBuf, &statusRsp);
+    tSerializeSStatusRsp(pHead, contLen, &statusRsp);
     taosArrayDestroy(statusRsp.pDnodeEps);
 
     pReq->contLen = contLen;
@@ -607,14 +609,12 @@ static int32_t mndProcessConfigDnodeReq(SMnodeMsg *pReq) {
   SEpSet epSet = mndGetDnodeEpset(pDnode);
   mndReleaseDnode(pMnode, pDnode);
 
-  SDCfgDnodeReq *pCfgDnode = rpcMallocCont(sizeof(SDCfgDnodeReq));
-  pCfgDnode->dnodeId = htonl(cfgReq.dnodeId);
-  memcpy(pCfgDnode->config, cfgReq.config, TSDB_DNODE_CONFIG_LEN);
+  int32_t bufLen = tSerializeSMCfgDnodeReq(NULL, 0, &cfgReq);
+  void   *pBuf = rpcMallocCont(bufLen);
+  tSerializeSMCfgDnodeReq(pBuf, bufLen, &cfgReq);
 
-  SRpcMsg rpcMsg = {.msgType = TDMT_DND_CONFIG_DNODE,
-                    .pCont = pCfgDnode,
-                    .contLen = sizeof(SDCfgDnodeReq),
-                    .ahandle = pReq->rpcMsg.ahandle};
+  SRpcMsg rpcMsg = {
+      .msgType = TDMT_DND_CONFIG_DNODE, .pCont = pBuf, .contLen = bufLen, .ahandle = pReq->rpcMsg.ahandle};
 
   mInfo("dnode:%d, app:%p config:%s req send to dnode", cfgReq.dnodeId, rpcMsg.ahandle, cfgReq.config);
   mndSendReqToDnode(pMnode, &epSet, &rpcMsg);
