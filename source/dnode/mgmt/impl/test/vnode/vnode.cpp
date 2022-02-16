@@ -312,17 +312,19 @@ TEST_F(DndTestVnode, 05_DROP_Stb) {
 
 TEST_F(DndTestVnode, 06_Drop_Vnode) {
   for (int i = 0; i < 3; ++i) {
-    int32_t contLen = sizeof(SDropVnodeReq);
+    SDropVnodeReq dropReq = {0};
+    dropReq.vgId = 2;
+    dropReq.dnodeId = 1;
+    strcpy(dropReq.db, "1.d1");
+    dropReq.dbUid = 9527;
 
-    SDropVnodeReq* pReq = (SDropVnodeReq*)rpcMallocCont(contLen);
-    pReq->vgId = htonl(2);
-    pReq->dnodeId = htonl(1);
-    strcpy(pReq->db, "1.d1");
-    pReq->dbUid = htobe64(9527);
+    int32_t contLen = tSerializeSDropVnodeReq(NULL, 0, &dropReq);
+    void*   pReq = rpcMallocCont(contLen);
+    tSerializeSDropVnodeReq(pReq, contLen, &dropReq);
 
     SRpcMsg rpcMsg = {0};
     rpcMsg.pCont = pReq;
-    rpcMsg.contLen = sizeof(SDropVnodeReq);
+    rpcMsg.contLen = contLen;
     rpcMsg.msgType = TDMT_DND_DROP_VNODE;
 
     SRpcMsg* pRsp = test.SendReq(TDMT_DND_DROP_VNODE, pReq, contLen);

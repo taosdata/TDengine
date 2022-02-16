@@ -248,19 +248,29 @@ SCreateVnodeReq *mndBuildCreateVnodeReq(SMnode *pMnode, SDnodeObj *pDnode, SDbOb
   return pCreate;
 }
 
-SDropVnodeReq *mndBuildDropVnodeReq(SMnode *pMnode, SDnodeObj *pDnode, SDbObj *pDb, SVgObj *pVgroup) {
-  SDropVnodeReq *pDrop = calloc(1, sizeof(SDropVnodeReq));
-  if (pDrop == NULL) {
+SDropVnodeReq *mndBuildDropVnodeReq(SMnode *pMnode, SDnodeObj *pDnode, SDbObj *pDb, SVgObj *pVgroup,
+                                    int32_t *pContLen) {
+  SDropVnodeReq dropReq = {0};
+  dropReq.dnodeId = pDnode->id;
+  dropReq.vgId = pVgroup->vgId;
+  memcpy(dropReq.db, pDb->name, TSDB_DB_FNAME_LEN);
+  dropReq.dbUid = pDb->uid;
+
+  int32_t contLen = tSerializeSDropVnodeReq(NULL, 0, &dropReq);
+  if (contLen < 0) {
     terrno = TSDB_CODE_OUT_OF_MEMORY;
     return NULL;
   }
 
-  pDrop->dnodeId = htonl(pDnode->id);
-  pDrop->vgId = htonl(pVgroup->vgId);
-  memcpy(pDrop->db, pDb->name, TSDB_DB_FNAME_LEN);
-  pDrop->dbUid = htobe64(pDb->uid);
+  void *pReq = malloc(contLen);
+  if (pReq == NULL) {
+    terrno = TSDB_CODE_OUT_OF_MEMORY;
+    return NULL;
+  }
 
-  return pDrop;
+  tSerializeSDropVnodeReq(pReq, contLen, &dropReq);
+  *pContLen = contLen;
+  return pReq;
 }
 
 static bool mndResetDnodesArrayFp(SMnode *pMnode, void *pObj, void *p1, void *p2, void *p3) {

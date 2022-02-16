@@ -365,11 +365,12 @@ static int32_t mndSetCreateDbUndoActions(SMnode *pMnode, STrans *pTrans, SDbObj 
       action.epSet = mndGetDnodeEpset(pDnode);
       mndReleaseDnode(pMnode, pDnode);
 
-      SDropVnodeReq *pReq = mndBuildDropVnodeReq(pMnode, pDnode, pDb, pVgroup);
+      int32_t        contLen = 0;
+      SDropVnodeReq *pReq = mndBuildDropVnodeReq(pMnode, pDnode, pDb, pVgroup, &contLen);
       if (pReq == NULL) return -1;
 
       action.pCont = pReq;
-      action.contLen = sizeof(SDropVnodeReq);
+      action.contLen = contLen;
       action.msgType = TDMT_DND_DROP_VNODE;
       action.acceptableCode = TSDB_CODE_DND_VNODE_NOT_DEPLOYED;
       if (mndTransAppendUndoAction(pTrans, &action) != 0) {
@@ -754,11 +755,12 @@ static int32_t mndBuildDropVgroupAction(SMnode *pMnode, STrans *pTrans, SDbObj *
     action.epSet = mndGetDnodeEpset(pDnode);
     mndReleaseDnode(pMnode, pDnode);
 
-    SDropVnodeReq *pReq = mndBuildDropVnodeReq(pMnode, pDnode, pDb, pVgroup);
+    int32_t        contLen = 0;
+    SDropVnodeReq *pReq = mndBuildDropVnodeReq(pMnode, pDnode, pDb, pVgroup, &contLen);
     if (pReq == NULL) return -1;
 
     action.pCont = pReq;
-    action.contLen = sizeof(SDropVnodeReq);
+    action.contLen = contLen;
     action.msgType = TDMT_DND_DROP_VNODE;
     action.acceptableCode = TSDB_CODE_DND_VNODE_NOT_DEPLOYED;
     if (mndTransAppendRedoAction(pTrans, &action) != 0) {

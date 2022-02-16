@@ -556,12 +556,6 @@ static void dndGenerateWrapperCfg(SDnode *pDnode, SCreateVnodeReq *pCreate, SWra
   pCfg->vgVersion = pCreate->vgVersion;
 }
 
-static SDropVnodeReq *dndParseDropVnodeReq(SRpcMsg *pReq) {
-  SDropVnodeReq *pDrop = pReq->pCont;
-  pDrop->vgId = htonl(pDrop->vgId);
-  return pDrop;
-}
-
 int32_t dndProcessCreateVnodeReq(SDnode *pDnode, SRpcMsg *pReq) {
   SCreateVnodeReq *pCreate = dndParseCreateVnodeReq(pReq);
   dDebug("vgId:%d, create vnode req is received", pCreate->vgId);
@@ -652,9 +646,10 @@ int32_t dndProcessAlterVnodeReq(SDnode *pDnode, SRpcMsg *pReq) {
 }
 
 int32_t dndProcessDropVnodeReq(SDnode *pDnode, SRpcMsg *pReq) {
-  SDropVnodeReq *pDrop = dndParseDropVnodeReq(pReq);
+  SDropVnodeReq dropReq = {0};
+  tDeserializeSDropVnodeReq(pReq->pCont, pReq->contLen, &dropReq);
 
-  int32_t vgId = pDrop->vgId;
+  int32_t vgId = dropReq.vgId;
   dDebug("vgId:%d, drop vnode req is received", vgId);
 
   SVnodeObj *pVnode = dndAcquireVnode(pDnode, vgId);
@@ -678,9 +673,10 @@ int32_t dndProcessDropVnodeReq(SDnode *pDnode, SRpcMsg *pReq) {
 }
 
 int32_t dndProcessSyncVnodeReq(SDnode *pDnode, SRpcMsg *pReq) {
-  SSyncVnodeReq *pSync = (SSyncVnodeReq *)dndParseDropVnodeReq(pReq);
+  SSyncVnodeReq syncReq = {0};
+  tDeserializeSDropVnodeReq(pReq->pCont, pReq->contLen, &syncReq);
 
-  int32_t vgId = pSync->vgId;
+  int32_t vgId = syncReq.vgId;
   dDebug("vgId:%d, sync vnode req is received", vgId);
 
   SVnodeObj *pVnode = dndAcquireVnode(pDnode, vgId);
@@ -700,9 +696,10 @@ int32_t dndProcessSyncVnodeReq(SDnode *pDnode, SRpcMsg *pReq) {
 }
 
 int32_t dndProcessCompactVnodeReq(SDnode *pDnode, SRpcMsg *pReq) {
-  SCompactVnodeReq *pCompact = (SCompactVnodeReq *)dndParseDropVnodeReq(pReq);
+  SCompactVnodeReq compatcReq = {0};
+  tDeserializeSDropVnodeReq(pReq->pCont, pReq->contLen, &compatcReq);
 
-  int32_t vgId = pCompact->vgId;
+  int32_t vgId = compatcReq.vgId;
   dDebug("vgId:%d, compact vnode req is received", vgId);
 
   SVnodeObj *pVnode = dndAcquireVnode(pDnode, vgId);
