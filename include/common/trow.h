@@ -473,7 +473,7 @@ static int32_t tdSRowResetBuf(SRowBuilder *pBuilder, void *pBuf) {
     terrno = TSDB_CODE_INVALID_PARA;
     return terrno;
   }
-  
+
   TD_ROW_SET_TYPE(pBuilder->pBuf, pBuilder->rowType);
 
   uint32_t len = 0;

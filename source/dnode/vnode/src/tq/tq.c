@@ -228,7 +228,7 @@ int32_t tqProcessConsumeReq(STQ* pTq, SRpcMsg* pMsg) {
 
   if (pReq->reqType == TMQ_REQ_TYPE_COMMIT_ONLY) {
     pTopic->committedOffset = pReq->offset;
-    printf("offset %ld committed\n", pTopic->committedOffset);
+    /*printf("offset %ld committed\n", pTopic->committedOffset);*/
     pMsg->pCont = NULL;
     pMsg->contLen = 0;
     pMsg->code = 0;
@@ -239,7 +239,7 @@ int32_t tqProcessConsumeReq(STQ* pTq, SRpcMsg* pMsg) {
   if (pReq->reqType == TMQ_REQ_TYPE_CONSUME_AND_COMMIT) {
     if (pTopic->committedOffset < pReq->offset - 1) {
       pTopic->committedOffset = pReq->offset - 1;
-      printf("offset %ld committed\n", pTopic->committedOffset);
+      /*printf("offset %ld committed\n", pTopic->committedOffset);*/
     }
   }
 

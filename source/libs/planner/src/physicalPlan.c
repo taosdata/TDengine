@@ -216,7 +216,7 @@ static SPhyNode* createMultiTableScanNode(SQueryPlanNode* pPlanNode, SQueryTable
   } else if (needSeqScan(pPlanNode)) {
     return createUserTableScanNode(pPlanNode, pTable, OP_TableSeqScan);
   }
-  int32_t type = (pPlanNode->info.type == QNODE_TABLESCAN)? OP_DataBlocksOptScan:OP_StreamScan;
+  int32_t type = (pPlanNode->info.type == QNODE_TABLESCAN)? OP_TableScan:OP_StreamScan;
   return createUserTableScanNode(pPlanNode, pTable, type);
 }
 
@@ -288,7 +288,7 @@ static bool needMultiNodeScan(SQueryTableInfo* pTable) {
 static SPhyNode* createSingleTableScanNode(SQueryPlanNode* pPlanNode, SQueryTableInfo* pTableInfo, SSubplan* subplan) {
   SVgroupsInfo* pVgroupsInfo = pTableInfo->pMeta->vgroupList;
   vgroupInfoToNodeAddr(&(pVgroupsInfo->vgroups[0]), &subplan->execNode);
-  int32_t type = (pPlanNode->info.type == QNODE_TABLESCAN)? OP_DataBlocksOptScan:OP_StreamScan;
+  int32_t type = (pPlanNode->info.type == QNODE_TABLESCAN)? OP_TableScan:OP_StreamScan;
   return createUserTableScanNode(pPlanNode, pTableInfo, type);
 }
 

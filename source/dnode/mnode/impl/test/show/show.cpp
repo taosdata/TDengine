@@ -54,12 +54,14 @@ TEST_F(MndTestShow, 02_ShowMsg_InvalidMsgStart) {
 }
 
 TEST_F(MndTestShow, 03_ShowMsg_Conn) {
-  int32_t contLen = sizeof(SConnectReq);
+  SConnectReq connectReq = {0};
+  connectReq.pid = 1234;
+  strcpy(connectReq.app, "mnode_test_show");
+  strcpy(connectReq.db, "");
 
-  SConnectReq* pReq = (SConnectReq*)rpcMallocCont(contLen);
-  pReq->pid = htonl(1234);
-  strcpy(pReq->app, "mnode_test_show");
-  strcpy(pReq->db, "");
+  int32_t contLen = tSerializeSConnectReq(NULL, 0, &connectReq);
+  void*   pReq = rpcMallocCont(contLen);
+  tSerializeSConnectReq(pReq, contLen, &connectReq);
 
   SRpcMsg* pRsp = test.SendReq(TDMT_MND_CONNECT, pReq, contLen);
   ASSERT_NE(pRsp, nullptr);

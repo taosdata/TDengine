@@ -36,6 +36,9 @@ int32_t mndCheckCreateDbAuth(SUserObj *pOperUser);
 int32_t mndCheckAlterDropCompactSyncDbAuth(SUserObj *pOperUser, SDbObj *pDb);
 int32_t mndCheckUseDbAuth(SUserObj *pOperUser, SDbObj *pDb);
 
+int32_t mndCheckWriteAuth(SUserObj *pOperUser, SDbObj *pDb);
+int32_t mndCheckReadAuth(SUserObj *pOperUser, SDbObj *pDb);
+
 #ifdef __cplusplus
 }
 #endif

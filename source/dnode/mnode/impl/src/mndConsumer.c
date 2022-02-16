@@ -14,8 +14,8 @@
  */
 
 #define _DEFAULT_SOURCE
-
 #include "mndConsumer.h"
+#include "mndAuth.h"
 #include "mndDb.h"
 #include "mndDnode.h"
 #include "mndMnode.h"
@@ -53,13 +53,14 @@ int32_t mndInitConsumer(SMnode *pMnode) {
 
 void mndCleanupConsumer(SMnode *pMnode) {}
 
-SMqConsumerObj* mndCreateConsumer(int64_t consumerId, const char* cgroup) {
-  SMqConsumerObj* pConsumer = malloc(sizeof(SMqConsumerObj));
+SMqConsumerObj *mndCreateConsumer(int64_t consumerId, const char *cgroup) {
+  SMqConsumerObj *pConsumer = calloc(1, sizeof(SMqConsumerObj));
   if (pConsumer == NULL) {
     terrno = TSDB_CODE_OUT_OF_MEMORY;
     return NULL;
   }
-  pConsumer->recentRemovedTopics = taosArrayInit(0, sizeof(char*));
+
+  pConsumer->recentRemovedTopics = taosArrayInit(1, sizeof(char *));
   pConsumer->epoch = 1;
   pConsumer->consumerId = consumerId;
   atomic_store_32(&pConsumer->status, MQ_CONSUMER_STATUS__INIT);
@@ -70,7 +71,8 @@ SMqConsumerObj* mndCreateConsumer(int64_t consumerId, const char* cgroup) {
 
 SSdbRaw *mndConsumerActionEncode(SMqConsumerObj *pConsumer) {
   terrno = TSDB_CODE_OUT_OF_MEMORY;
-  void* buf = NULL;
+
+  void   *buf = NULL;
   int32_t tlen = tEncodeSMqConsumerObj(NULL, pConsumer);
   int32_t size = sizeof(int32_t) + tlen + MND_CONSUMER_RESERVE_SIZE;
 
@@ -105,7 +107,7 @@ CM_ENCODE_OVER:
 
 SSdbRow *mndConsumerActionDecode(SSdbRaw *pRaw) {
   terrno = TSDB_CODE_OUT_OF_MEMORY;
-  void* buf = NULL;
+  void *buf = NULL;
 
   int8_t sver = 0;
   if (sdbGetRawSoftVer(pRaw, &sver) != 0) goto CM_DECODE_OVER;
