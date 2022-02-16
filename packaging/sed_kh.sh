@@ -83,7 +83,7 @@ function replace_community_kh() {
   sed -i "s/\"   -> \"/\"       -> \"/g" ${top_dir}/src/kit/shell/src/shellEngine.c
   sed -i "s/prompt_size = 6/prompt_size = 10/g" ${top_dir}/src/kit/shell/src/shellEngine.c
   # src/kit/shell/src/shellImport.c
-  sed -i "s/TDengine/KingHistorian/g" ${top}/src/kit/shell/src/shellImport.c
+  sed -i "s/TDengine/KingHistorian/g" ${top_dir}/src/kit/shell/src/shellImport.c
   # src/kit/shell/src/shellLinux.c
   sed -i "s/support@taosdata\.com/support@wellintech\.com/g" ${top_dir}/src/kit/shell/src/shellLinux.c
   sed -i "s/TDengine/KingHistorian/g" ${top_dir}/src/kit/shell/src/shellLinux.c
