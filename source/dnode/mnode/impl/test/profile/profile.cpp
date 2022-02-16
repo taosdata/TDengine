@@ -167,10 +167,12 @@ TEST_F(MndTestProfile, 05_KillConnMsg) {
   // temporary remove since kill will use new heartbeat msg
 #if 0
   {
-    int32_t contLen = sizeof(SKillConnReq);
+    SKillConnReq killReq = {0};
+    killReq.connId = connId;
 
-    SKillConnReq* pReq = (SKillConnReq*)rpcMallocCont(contLen);
-    pReq->connId = htonl(connId);
+    int32_t contLen = tSerializeSKillConnReq(NULL, 0, &killReq);
+    void*   pReq = rpcMallocCont(contLen);
+    tSerializeSKillConnReq(pReq, contLen, &killReq);
 
     SRpcMsg* pRsp = test.SendReq(TDMT_MND_KILL_CONN, pReq, contLen);
     ASSERT_NE(pRsp, nullptr);
@@ -226,10 +228,12 @@ TEST_F(MndTestProfile, 05_KillConnMsg) {
 }
 
 TEST_F(MndTestProfile, 06_KillConnMsg_InvalidConn) {
-  int32_t contLen = sizeof(SKillConnReq);
+  SKillConnReq killReq = {0};
+  killReq.connId = 2345;
 
-  SKillConnReq* pReq = (SKillConnReq*)rpcMallocCont(contLen);
-  pReq->connId = htonl(2345);
+  int32_t contLen = tSerializeSKillConnReq(NULL, 0, &killReq);
+  void*   pReq = rpcMallocCont(contLen);
+  tSerializeSKillConnReq(pReq, contLen, &killReq);
 
   SRpcMsg* pRsp = test.SendReq(TDMT_MND_KILL_CONN, pReq, contLen);
   ASSERT_NE(pRsp, nullptr);
@@ -240,11 +244,13 @@ TEST_F(MndTestProfile, 07_KillQueryMsg) {
   // temporary remove since kill will use new heartbeat msg
 #if 0
   {
-    int32_t contLen = sizeof(SKillQueryReq);
+    SKillQueryReq killReq = {0};
+    killReq.connId = connId;
+    killReq.queryId = 1234;
 
-    SKillQueryReq* pReq = (SKillQueryReq*)rpcMallocCont(contLen);
-    pReq->connId = htonl(connId);
-    pReq->queryId = htonl(1234);
+    int32_t contLen = tSerializeSKillQueryReq(NULL, 0, &killReq);
+    void*   pReq = rpcMallocCont(contLen);
+    tSerializeSKillQueryReq(pReq, contLen, &killReq);
 
     SRpcMsg* pRsp = test.SendReq(TDMT_MND_KILL_QUERY, pReq, contLen);
     ASSERT_NE(pRsp, nullptr);
@@ -291,11 +297,13 @@ TEST_F(MndTestProfile, 07_KillQueryMsg) {
 }
 
 TEST_F(MndTestProfile, 08_KillQueryMsg_InvalidConn) {
-  int32_t contLen = sizeof(SKillQueryReq);
+  SKillQueryReq killReq = {0};
+  killReq.connId = 2345;
+  killReq.queryId = 2345;
 
-  SKillQueryReq* pReq = (SKillQueryReq*)rpcMallocCont(contLen);
-  pReq->connId = htonl(2345);
-  pReq->queryId = htonl(1234);
+  int32_t contLen = tSerializeSKillQueryReq(NULL, 0, &killReq);
+  void*   pReq = rpcMallocCont(contLen);
+  tSerializeSKillQueryReq(pReq, contLen, &killReq);
 
   SRpcMsg* pRsp = test.SendReq(TDMT_MND_KILL_QUERY, pReq, contLen);
   ASSERT_NE(pRsp, nullptr);

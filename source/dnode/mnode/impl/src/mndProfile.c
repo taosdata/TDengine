@@ -517,7 +517,7 @@ static int32_t mndProcessKillQueryReq(SMnodeMsg *pReq) {
   mndReleaseUser(pMnode, pUser);
 
   SKillQueryReq killReq = {0};
-  if (tDeserializeSKillQueryReq(pReq->pCont, pReq->contLen, &killReq) != 0) {
+  if (tDeserializeSKillQueryReq(pReq->rpcMsg.pCont, pReq->rpcMsg.contLen, &killReq) != 0) {
     terrno = TSDB_CODE_INVALID_MSG;
     return -1;
   }
@@ -551,7 +551,7 @@ static int32_t mndProcessKillConnReq(SMnodeMsg *pReq) {
   mndReleaseUser(pMnode, pUser);
 
   SKillConnReq killReq = {0};
-  if (tDeserializeSKillConnReq(pReq->pCont, pReq->contLen, &killReq) != 0) {
+  if (tDeserializeSKillConnReq(pReq->rpcMsg.pCont, pReq->rpcMsg.contLen, &killReq) != 0) {
     terrno = TSDB_CODE_INVALID_MSG;
     return -1;
   }

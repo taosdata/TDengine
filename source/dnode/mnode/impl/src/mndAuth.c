@@ -47,7 +47,7 @@ int32_t mndRetriveAuth(SMnode *pMnode, char *user, char *spi, char *encrypt, cha
 
 static int32_t mndProcessAuthReq(SMnodeMsg *pReq) {
   SAuthReq authReq = {0};
-  if (tDeserializeSAuthReq(pReq->pCont, pReq->contLen, &authReq) != 0) {
+  if (tDeserializeSAuthReq(pReq->rpcMsg.pCont, pReq->rpcMsg.contLen, &authReq) != 0) {
     terrno = TSDB_CODE_INVALID_MSG;
     return -1;
   }

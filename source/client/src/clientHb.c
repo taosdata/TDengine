@@ -315,7 +315,7 @@ void hbFreeReq(void *req) {
 
 
 SClientHbBatchReq* hbGatherAllInfo(SAppHbMgr *pAppHbMgr) {
-  SClientHbBatchReq* pBatchReq = malloc(sizeof(SClientHbBatchReq));
+  SClientHbBatchReq* pBatchReq = calloc(1, sizeof(SClientHbBatchReq));
   if (pBatchReq == NULL) {
     terrno = TSDB_CODE_TSC_OUT_OF_MEMORY;
     return NULL;
