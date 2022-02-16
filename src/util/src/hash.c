@@ -53,6 +53,7 @@ typedef struct SHashObj {
   size_t          size;         // number of elements in hash table
   _hash_fn_t      hashFp;       // hash function
   _equal_fn_t     equalFp;      // equal function
+  _hash_free_fn_t freeFp;       // hash node free callback function
   SRWLatch        lock;         // read-write spin lock
   SHashLockTypeE  type;         // lock type
   bool            enableUpdate; // enable update
