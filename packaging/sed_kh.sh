@@ -139,6 +139,7 @@ function replace_community_kh() {
   sed -i "s/configDir=\"\/etc\/taos\"/configDir=\"\/etc\/kinghistorian\"/g" ${top_dir}/packaging/tools/install.sh
   sed -i "s/installDir=\"\/usr\/local\/taos\"/installDir=\"\/usr\/local\/kinghistorian\"/g" ${top_dir}/packaging/tools/install.sh
   sed -i "s/adapterName=\"taosadapter\"/adapterName=\"khadapter\"/g" ${top_dir}/packaging/tools/install.sh
+  sed -i "s/\${csudo}mkdir -p \${install_main_dir}\/examples/#\${csudo}mkdir -p \${install_main_dir}\/examples/g" ${top_dir}/packaging/tools/install.sh
 
   # packaging/tools/makeclient.sh
   sed -i "s/productName=\"TDengine\"/productName=\"KingHistorian\"/g" ${top_dir}/packaging/tools/makeclient.sh

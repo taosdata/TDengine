@@ -173,9 +173,7 @@ function install_main_path() {
   ${csudo}mkdir -p ${install_main_dir}/bin
   #  ${csudo}mkdir -p ${install_main_dir}/connector
   ${csudo}mkdir -p ${install_main_dir}/driver
-  if [ $productName == "TDengine" ]; then
-    ${csudo}mkdir -p ${install_main_dir}/examples
-  fi
+  ${csudo}mkdir -p ${install_main_dir}/examples
   ${csudo}mkdir -p ${install_main_dir}/include
   #  ${csudo}mkdir -p ${install_main_dir}/init.d
   if [ "$verMode" == "cluster" ]; then
@@ -502,7 +500,6 @@ function install_config() {
 
   local_fqdn_check
 
-  # first full-qualified domain name (FQDN) for TDengine cluster system
   echo
   echo -e -n "${GREEN}Enter FQDN:port (like h1.${emailName}:6030) of an existing ${productName} cluster node to join${NC}"
   echo
@@ -772,7 +769,7 @@ function updateProduct() {
   tar -zxf ${tarName}
   install_jemalloc
 
-  echo -e "${GREEN}Start to update TDengine...${NC}"
+  echo -e "${GREEN}Start to update ${productName}...${NC}"
   # Stop the service if running
   if pidof ${serverName} &>/dev/null; then
     if ((${service_mod} == 0)); then
@@ -830,13 +827,13 @@ function updateProduct() {
 
     echo
     echo -e "${GREEN_DARK}To configure ${productName} ${NC}: edit ${cfg_install_dir}/${configFile}"
-    echo -e "${GREEN_DARK}To configure Taos Adapter (if has) ${NC}: edit ${cfg_install_dir}/${adapterName}.toml"
+    echo -e "${GREEN_DARK}To configure Adapter (if has) ${NC}: edit ${cfg_install_dir}/${adapterName}.toml"
     if ((${service_mod} == 0)); then
       echo -e "${GREEN_DARK}To start ${productName}     ${NC}: ${csudo}systemctl start ${serverName}${NC}"
     elif ((${service_mod} == 1)); then
       echo -e "${GREEN_DARK}To start ${productName}     ${NC}: ${csudo}service ${serverName} start${NC}"
     else
-      echo -e "${GREEN_DARK}To start Taos Adapter (if has)${NC}: ${adapterName} &${NC}"
+      echo -e "${GREEN_DARK}To start Adapter (if has)${NC}: ${adapterName} &${NC}"
       echo -e "${GREEN_DARK}To start ${productName}     ${NC}: ./${serverName}${NC}"
     fi
 
@@ -922,7 +919,7 @@ function installProduct() {
     elif ((${service_mod} == 1)); then
       echo -e "${GREEN_DARK}To start ${productName}     ${NC}: ${csudo}service ${serverName} start${NC}"
     else
-      echo -e "${GREEN_DARK}To start Taos Adapter (if has)${NC}: ${adapterName} &${NC}"
+      echo -e "${GREEN_DARK}To start Adapter (if has)${NC}: ${adapterName} &${NC}"
       echo -e "${GREEN_DARK}To start ${productName}     ${NC}: ${serverName}${NC}"
     fi
 
