@@ -36,16 +36,15 @@ struct SPgFile {
   TENV *          pEnv;                     // env containing this page file
   char *          fname;                    // backend file name
   uint8_t         fileid[TDB_FILE_ID_LEN];  // file id
+  pgno_t          lsize;                    // page file logical size (for count)
+  pgno_t          fsize;                    // real file size on disk (for rollback)
   int             fd;
-  pgno_t          dbSize;
-  pgno_t          dbNewSize;
   SPgFileListNode envHash;
   SPgFileListNode envPgfList;
 };
 
 int pgFileOpen(SPgFile **ppPgFile, const char *fname, TENV *pEnv);
 int pgFileClose(SPgFile *pPgFile);
-
 
 SPage *pgFileFetch(SPgFile *pPgFile, pgno_t pgno);
 int    pgFileRelease(SPage *pPage);

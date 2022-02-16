@@ -15,6 +15,15 @@
 
 #include "tdbInt.h"
 
+typedef struct SPage1 {
+  char     magic[64];
+  pgno_t   mdbRootPgno;  // master DB root page number
+  pgno_t   freePgno;     // free list page number
+  uint32_t nFree;        // number of free pages
+} SPage1;
+
+TDB_STATIC_ASSERT(sizeof(SPage1) <= TDB_MIN_PGSIZE, "TDB Page1 definition too large");
+
 static int pgFileRead(SPgFile *pPgFile, pgno_t pgno, uint8_t *pData);
 
 int pgFileOpen(SPgFile **ppPgFile, const char *fname, TENV *pEnv) {
@@ -116,7 +125,7 @@ int pgFileAllocatePage(SPgFile *pPgFile, pgno_t *pPgno) {
   if (0) {
     // TODO: allocate from the free list
   } else {
-    pgno = ++pPgFile->dbNewSize;
+    pgno = ++(pPgFile->lsize);
   }
 
   *pPgno = pgno;
