@@ -28,44 +28,44 @@ Testbase MndTestProfile::test;
 int32_t  MndTestProfile::connId;
 
 TEST_F(MndTestProfile, 01_ConnectMsg) {
-  int32_t contLen = sizeof(SConnectReq);
+  SConnectReq connectReq = {0};
+  connectReq.pid = 1234;
+  strcpy(connectReq.app, "mnode_test_profile");
+  strcpy(connectReq.db, "");
 
-  SConnectReq* pReq = (SConnectReq*)rpcMallocCont(contLen);
-  pReq->pid = htonl(1234);
-  strcpy(pReq->app, "mnode_test_profile");
-  strcpy(pReq->db, "");
+  int32_t contLen = tSerializeSConnectReq(NULL, 0, &connectReq);
+  void*   pReq = rpcMallocCont(contLen);
+  tSerializeSConnectReq(pReq, contLen, &connectReq);
 
   SRpcMsg* pMsg = test.SendReq(TDMT_MND_CONNECT, pReq, contLen);
   ASSERT_NE(pMsg, nullptr);
   ASSERT_EQ(pMsg->code, 0);
 
-  SConnectRsp* pRsp = (SConnectRsp*)pMsg->pCont;
-  ASSERT_NE(pRsp, nullptr);
-  pRsp->acctId = htonl(pRsp->acctId);
-  pRsp->clusterId = htobe64(pRsp->clusterId);
-  pRsp->connId = htonl(pRsp->connId);
-  pRsp->epSet.eps[0].port = htons(pRsp->epSet.eps[0].port);
+  SConnectRsp connectRsp = {0};
+  tDeserializeSConnectRsp(pMsg->pCont, pMsg->contLen, &connectRsp);
 
-  EXPECT_EQ(pRsp->acctId, 1);
-  EXPECT_GT(pRsp->clusterId, 0);
-  EXPECT_EQ(pRsp->connId, 1);
-  EXPECT_EQ(pRsp->superUser, 1);
+  EXPECT_EQ(connectRsp.acctId, 1);
+  EXPECT_GT(connectRsp.clusterId, 0);
+  EXPECT_EQ(connectRsp.connId, 1);
+  EXPECT_EQ(connectRsp.superUser, 1);
 
-  EXPECT_EQ(pRsp->epSet.inUse, 0);
-  EXPECT_EQ(pRsp->epSet.numOfEps, 1);
-  EXPECT_EQ(pRsp->epSet.eps[0].port, 9031);
-  EXPECT_STREQ(pRsp->epSet.eps[0].fqdn, "localhost");
+  EXPECT_EQ(connectRsp.epSet.inUse, 0);
+  EXPECT_EQ(connectRsp.epSet.numOfEps, 1);
+  EXPECT_EQ(connectRsp.epSet.eps[0].port, 9031);
+  EXPECT_STREQ(connectRsp.epSet.eps[0].fqdn, "localhost");
 
-  connId = pRsp->connId;
+  connId = connectRsp.connId;
 }
 
 TEST_F(MndTestProfile, 02_ConnectMsg_InvalidDB) {
-  int32_t contLen = sizeof(SConnectReq);
+  SConnectReq connectReq = {0};
+  connectReq.pid = 1234;
+  strcpy(connectReq.app, "mnode_test_profile");
+  strcpy(connectReq.db, "invalid_db");
 
-  SConnectReq* pReq = (SConnectReq*)rpcMallocCont(contLen);
-  pReq->pid = htonl(1234);
-  strcpy(pReq->app, "mnode_test_profile");
-  strcpy(pReq->db, "invalid_db");
+  int32_t contLen = tSerializeSConnectReq(NULL, 0, &connectReq);
+  void*   pReq = rpcMallocCont(contLen);
+  tSerializeSConnectReq(pReq, contLen, &connectReq);
 
   SRpcMsg* pRsp = test.SendReq(TDMT_MND_CONNECT, pReq, contLen);
   ASSERT_NE(pRsp, nullptr);
@@ -194,35 +194,33 @@ TEST_F(MndTestProfile, 05_KillConnMsg) {
   }
 
   {
-    int32_t contLen = sizeof(SConnectReq);
+    SConnectReq connectReq = {0};
+    connectReq.pid = 1234;
+    strcpy(connectReq.app, "mnode_test_profile");
+    strcpy(connectReq.db, "invalid_db");
 
-    SConnectReq* pReq = (SConnectReq*)rpcMallocCont(contLen);
-    pReq->pid = htonl(1234);
-    strcpy(pReq->app, "mnode_test_profile");
-    strcpy(pReq->db, "");
+    int32_t contLen = tSerializeSConnectReq(NULL, 0, &connectReq);
+    void*   pReq = rpcMallocCont(contLen);
+    tSerializeSConnectReq(pReq, contLen, &connectReq);
 
     SRpcMsg* pMsg = test.SendReq(TDMT_MND_CONNECT, pReq, contLen);
     ASSERT_NE(pMsg, nullptr);
     ASSERT_EQ(pMsg->code, 0);
 
-    SConnectRsp* pRsp = (SConnectRsp*)pMsg->pCont;
-    ASSERT_NE(pRsp, nullptr);
-    pRsp->acctId = htonl(pRsp->acctId);
-    pRsp->clusterId = htobe64(pRsp->clusterId);
-    pRsp->connId = htonl(pRsp->connId);
-    pRsp->epSet.port[0] = htons(pRsp->epSet.port[0]);
+    SConnectRsp connectRsp = {0};
+    tDeserializeSConnectRsp(pMsg->pCont, pMsg->contLen, &connectRsp);
 
-    EXPECT_EQ(pRsp->acctId, 1);
-    EXPECT_GT(pRsp->clusterId, 0);
-    EXPECT_GT(pRsp->connId, connId);
-    EXPECT_EQ(pRsp->superUser, 1);
+    EXPECT_EQ(connectRsp.acctId, 1);
+    EXPECT_GT(connectRsp.clusterId, 0);
+    EXPECT_GT(connectRsp.connId, connId);
+    EXPECT_EQ(connectRsp.superUser, 1);
 
-    EXPECT_EQ(pRsp->epSet.inUse, 0);
-    EXPECT_EQ(pRsp->epSet.numOfEps, 1);
-    EXPECT_EQ(pRsp->epSet.port[0], 9031);
-    EXPECT_STREQ(pRsp->epSet.fqdn[0], "localhost");
+    EXPECT_EQ(connectRsp.epSet.inUse, 0);
+    EXPECT_EQ(connectRsp.epSet.numOfEps, 1);
+    EXPECT_EQ(connectRsp.epSet.port[0], 9031);
+    EXPECT_STREQ(connectRsp.epSet.fqdn[0], "localhost");
 
-    connId = pRsp->connId;
+    connId = connectRsp.connId;
   }
 #endif
 }

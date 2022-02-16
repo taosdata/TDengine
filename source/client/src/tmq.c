@@ -360,7 +360,7 @@ TAOS_RES* tmq_create_topic(TAOS* taos, const char* topicName, const char* sql, i
   char topicFname[TSDB_TOPIC_FNAME_LEN] = {0};
   tNameExtractFullName(&name, topicFname);
 
-  SCMCreateTopicReq req = {
+  SMCreateTopicReq req = {
       .name = (char*)topicFname,
       .igExists = 1,
       .physicalPlan = (char*)pStr,
@@ -368,14 +368,14 @@ TAOS_RES* tmq_create_topic(TAOS* taos, const char* topicName, const char* sql, i
       .logicalPlan = (char*)"no logic plan",
   };
 
-  int   tlen = tSerializeSCMCreateTopicReq(NULL, &req);
+  int   tlen = tSerializeMCreateTopicReq(NULL, &req);
   void* buf = malloc(tlen);
   if (buf == NULL) {
     goto _return;
   }
 
   void* abuf = buf;
-  tSerializeSCMCreateTopicReq(&abuf, &req);
+  tSerializeMCreateTopicReq(&abuf, &req);
   /*printf("formatted: %s\n", dagStr);*/
 
   pRequest->body.requestMsg = (SDataBuf){.pData = buf, .len = tlen};
