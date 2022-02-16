@@ -384,16 +384,13 @@ TAOS_RES* tmq_create_topic(TAOS* taos, const char* topicName, const char* sql, i
   tNameFromString(&name, dbName, T_NAME_ACCT | T_NAME_DB);
   tNameFromString(&name, topicName, T_NAME_TABLE);
 
-  char topicFname[TSDB_TOPIC_FNAME_LEN] = {0};
-  tNameExtractFullName(&name, topicFname);
-
   SMCreateTopicReq req = {
       .igExists = 1,
       .physicalPlan = (char*)pStr,
       .sql = (char*)sql,
       .logicalPlan = (char*)"no logic plan",
   };
-  memcpy(req.name, topicName, TSDB_TOPIC_FNAME_LEN);
+  tNameExtractFullName(&name, req.name);
 
   int   tlen = tSerializeMCreateTopicReq(NULL, 0, &req);
   void* buf = malloc(tlen);
