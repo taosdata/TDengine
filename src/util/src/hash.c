@@ -271,7 +271,7 @@ SHashObj *taosHashInit(size_t capacity, _hash_fn_t fn, bool update, SHashLockTyp
 
   void *p = calloc(pHashObj->capacity, sizeof(SHashEntry));
   if (p == NULL) {
-     taosArrayDestroy(pHashObj->pMemBlock);
+     taosArrayDestroy(&pHashObj->pMemBlock);
      free(pHashObj->hashList);
      free(pHashObj);
      uError("failed to allocate memory, reason:%s", strerror(errno));
