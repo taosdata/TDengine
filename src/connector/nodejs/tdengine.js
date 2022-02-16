@@ -2,6 +2,7 @@ var TDengineConnection = require('./nodetaos/connection.js')
 const TDengineConstant = require('./nodetaos/constants.js')
 const TaosBind = require('./nodetaos/taosBind')
 const { TaosMultiBind } = require('./nodetaos/taosMultiBind')
+const TaosMultiBindArr = require('./nodetaos/taosMultiBindArr')
 
 module.exports = {
   connect: function (connection = {}) {
@@ -11,4 +12,5 @@ module.exports = {
   SCHEMALESS_PRECISION: TDengineConstant.SCHEMALESS_PRECISION,
   TaosBind,
   TaosMultiBind,
+  TaosMultiBindArr,
 }
