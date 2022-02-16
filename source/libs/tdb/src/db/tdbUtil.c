@@ -51,7 +51,17 @@ int tdbCheckFileAccess(const char *pathname, int mode) {
   return access(pathname, flags);
 }
 
-int64_t tdbGetFileSize(const char *fname) {
-  // TODO
+int tdbGetFileSize(const char *fname, pgsz_t pgSize, pgno_t *pSize) {
+  struct stat st;
+  int         ret;
+
+  ret = stat(fname, &st);
+  if (ret != 0) {
+    return -1;
+  }
+
+  ASSERT(st.st_size % pgSize == 0);
+
+  *pSize = st.st_size / pgSize;
   return 0;
 }

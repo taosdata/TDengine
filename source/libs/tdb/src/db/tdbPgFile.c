@@ -30,6 +30,7 @@ int pgFileOpen(SPgFile **ppPgFile, const char *fname, TENV *pEnv) {
   SPgFile * pPgFile;
   SPgCache *pPgCache;
   size_t    fnameLen;
+  pgno_t    fsize;
 
   *ppPgFile = NULL;
 
@@ -55,6 +56,28 @@ int pgFileOpen(SPgFile **ppPgFile, const char *fname, TENV *pEnv) {
   }
 
   tdbGnrtFileID(fname, pPgFile->fileid, false);
+  tdbGetFileSize(fname, tdbEnvGetPageSize(pEnv), &fsize);
+
+  pPgFile->fsize = fsize;
+  pPgFile->lsize = fsize;
+
+  if (pPgFile->fsize == 0) {
+    // A created file
+    pgno_t pgno;
+    pgid_t pgid;
+
+    pgFileAllocatePage(pPgFile, &pgno);
+
+    ASSERT(pgno == 1);
+
+    memcpy(pgid.fileid, pPgFile->fileid, TDB_FILE_ID_LEN);
+    pgid.pgno = pgno;
+
+    pgCacheFetch(pPgCache, pgid);
+    // Need to allocate the first page as a description page
+  } else {
+    // An existing file
+  }
 
   /* TODO: other open operations */
 
@@ -122,10 +145,14 @@ int pgFileWrite(SPage *pPage) {
 int pgFileAllocatePage(SPgFile *pPgFile, pgno_t *pPgno) {
   pgno_t pgno;
 
-  if (0) {
-    // TODO: allocate from the free list
-  } else {
+  if (pPgFile->lsize == 0) {
     pgno = ++(pPgFile->lsize);
+  } else {
+    if (0) {
+      // TODO: allocate from the free list
+    } else {
+      pgno = ++(pPgFile->lsize);
+    }
   }
 
   *pPgno = pgno;

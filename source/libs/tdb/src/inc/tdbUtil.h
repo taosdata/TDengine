@@ -35,7 +35,7 @@ int tdbGnrtFileID(const char *fname, uint8_t *fileid, bool unique);
 #define TDB_W_OK 0x4
 int tdbCheckFileAccess(const char *pathname, int mode);
 
-int64_t tdbGetFileSize(const char *fname);
+int tdbGetFileSize(const char *fname, pgsz_t pgSize, pgno_t *pSize);
 
 #ifdef __cplusplus
 }

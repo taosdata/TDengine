@@ -115,7 +115,7 @@ int tdbOpen(TDB *pDb, const char *fname, const char *dbname, TENV *pEnv) {
     }
   }
 
-  pDb->pBt->root = dbRootPgno;
+  // pDb->pBt->root = dbRootPgno;
 
   // register
   pDb->pPgFile = pPgFile;
