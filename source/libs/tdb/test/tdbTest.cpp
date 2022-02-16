@@ -20,6 +20,8 @@ TEST(tdb_test, simple_test) {
   GTEST_ASSERT_EQ(tdbEnvOpen(pEnv), 0);
 
 #if 1
+
+  tdbEnvBeginTxn(pEnv);
   // DB
   GTEST_ASSERT_EQ(tdbCreate(&pDb1), 0);
 
@@ -38,6 +40,8 @@ TEST(tdb_test, simple_test) {
   // GTEST_ASSERT_EQ(tdbSetCmprFunc(pDb1, NULL), 0);
 
   GTEST_ASSERT_EQ(tdbOpen(pDb1, "db.db", "db1", pEnv), 0);
+
+  tdbEnvCommit(pEnv);
 
 #if 0
   // Insert

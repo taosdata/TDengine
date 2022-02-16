@@ -45,12 +45,12 @@ int tdbEnvCreate(TENV **ppEnv, const char *rootDir) {
 
   *ppEnv = NULL;
   slen = strlen(rootDir);
-  pEnv = (TENV *)calloc(1, sizeof(*pEnv) + slen + 1);
+  pEnv = (TENV *)calloc(1, sizeof(*pEnv) + sizeof(SJournal) + slen + 1);
   if (pEnv == NULL) {
     return -1;
   }
 
-  pEnv->rootDir = (char *)(&pEnv[1]);
+  pEnv->rootDir = (char *)(&pEnv[1]) + sizeof(SJournal);
   pEnv->pgSize = TDB_DEFAULT_PGSIZE;
   pEnv->cacheSize = TDB_DEFAULT_CACHE_SIZE;
 

@@ -16,11 +16,15 @@
 #include "tdbInt.h"
 
 int tdbOpenJournal(SJournal *pJournal) {
-  // pJournal->fd = open();
+  TENV *pEnv;
+  char *jname;
+
+  pJournal->fd = open(jname, O_CREAT | O_RDWR, 0755);
   if (pJournal->fd < 0) {
     // TODO: handle error
     return -1;
   }
+
   return 0;
 }
 
