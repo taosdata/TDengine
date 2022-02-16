@@ -140,6 +140,7 @@ typedef struct {
   SRpcMsg* pRsp;  // for synchronous API
   tsem_t*  pSem;  // for synchronous API
 
+  int      hThrdIdx;
   char*    ip;
   uint32_t port;
   // SEpSet*          pSet;      // for synchronous API
