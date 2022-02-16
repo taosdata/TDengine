@@ -1036,6 +1036,7 @@ static int32_t mndProcessSubscribeReq(SMnodeMsg *pMsg) {
       taosArrayPush(pSub->consumers, &mqSubConsumer);
 
       // if have un assigned vg, assign one to the consumer
+#if 0
       if (taosArrayGetSize(pSub->unassignedVg) > 0) {
         SMqConsumerEp *pConsumerEp = taosArrayPop(pSub->unassignedVg);
         pConsumerEp->oldConsumerId = pConsumerEp->consumerId;
@@ -1049,6 +1050,7 @@ static int32_t mndProcessSubscribeReq(SMnodeMsg *pMsg) {
         // do not set status active to trigger rebalance
         /*atomic_store_32(&pConsumer->status, MQ_CONSUMER_STATUS__ACTIVE);*/
       }
+#endif
 
       SSdbRaw *pRaw = mndSubActionEncode(pSub);
       sdbSetRawStatus(pRaw, SDB_STATUS_READY);
