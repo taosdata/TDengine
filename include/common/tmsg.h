@@ -1314,18 +1314,12 @@ typedef struct {
 } SMVSubscribeRsp;
 
 typedef struct {
-  char    name[TSDB_TOPIC_NAME_LEN];
-  int8_t  igExists;
-  int32_t execLen;
-  void*   executor;
-  int32_t sqlLen;
-  char*   sql;
-} SCreateTopicReq;
-
-typedef struct {
   char   name[TSDB_TABLE_FNAME_LEN];
   int8_t igNotExists;
-} SDropTopicReq;
+} SMDropTopicReq;
+
+int32_t tSerializeSMDropTopicReqq(void* buf, int32_t bufLen, SMDropTopicReq* pReq);
+int32_t tDeserializeSMDropTopicReq(void* buf, int32_t bufLen, SMDropTopicReq* pReq);
 
 typedef struct {
   char    name[TSDB_TABLE_FNAME_LEN];
