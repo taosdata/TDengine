@@ -695,11 +695,13 @@ tmq_message_t* tmq_consumer_poll(tmq_t* tmq, int64_t blocking_time) {
 
   if (taosArrayGetSize(tmq->clientTopics) == 0) {
     tscDebug("consumer:%ld poll but not assigned", tmq->consumerId);
+    printf("over1\n");
     usleep(blocking_time * 1000);
     return NULL;
   }
   SMqClientTopic* pTopic = taosArrayGet(tmq->clientTopics, tmq->nextTopicIdx);
   if (taosArrayGetSize(pTopic->vgs) == 0) {
+    printf("over2\n");
     usleep(blocking_time * 1000);
     return NULL;
   }

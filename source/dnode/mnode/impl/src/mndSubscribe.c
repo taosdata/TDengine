@@ -424,7 +424,9 @@ static int32_t mndProcessDoRebalanceMsg(SMnodeMsg *pMsg) {
         if (vgThisConsumerAfterRb != vgThisConsumerBeforeRb ||
             (vgThisConsumerAfterRb != 0 && status != MQ_CONSUMER_STATUS__ACTIVE) ||
             (vgThisConsumerAfterRb == 0 && status != MQ_CONSUMER_STATUS__LOST)) {
-          pRebConsumer->epoch++;
+          if (vgThisConsumerAfterRb != vgThisConsumerBeforeRb) {
+            pRebConsumer->epoch++;
+          }
           if (vgThisConsumerAfterRb != 0) {
             atomic_store_32(&pRebConsumer->status, MQ_CONSUMER_STATUS__ACTIVE);
           } else {
@@ -1036,7 +1038,6 @@ static int32_t mndProcessSubscribeReq(SMnodeMsg *pMsg) {
       taosArrayPush(pSub->consumers, &mqSubConsumer);
 
       // if have un assigned vg, assign one to the consumer
-#if 0
       if (taosArrayGetSize(pSub->unassignedVg) > 0) {
         SMqConsumerEp *pConsumerEp = taosArrayPop(pSub->unassignedVg);
         pConsumerEp->oldConsumerId = pConsumerEp->consumerId;
@@ -1047,10 +1048,9 @@ static int32_t mndProcessSubscribeReq(SMnodeMsg *pMsg) {
         } else {
           mndPersistRebalanceMsg(pMnode, pTrans, pConsumerEp);
         }
-        // do not set status active to trigger rebalance
+        // to trigger rebalance at once, do not set status active
         /*atomic_store_32(&pConsumer->status, MQ_CONSUMER_STATUS__ACTIVE);*/
       }
-#endif
 
       SSdbRaw *pRaw = mndSubActionEncode(pSub);
       sdbSetRawStatus(pRaw, SDB_STATUS_READY);
