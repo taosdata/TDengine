@@ -201,18 +201,6 @@ typedef struct SSubmitBlk {
   char    data[];
 } SSubmitBlk;
 
-typedef struct {
-  /* data */
-} SSubmitReq;
-
-typedef struct {
-  /* data */
-} SSubmitRsp;
-
-typedef struct {
-  /* data */
-} SSubmitReqReader;
-
 // Submit message for this TSDB
 typedef struct {
   SMsgHead header;
@@ -220,7 +208,7 @@ typedef struct {
   int32_t  length;
   int32_t  numOfBlocks;
   char     blocks[];
-} SSubmitMsg;
+} SSubmitReq;
 
 typedef struct {
   int32_t totalLen;
@@ -234,7 +222,7 @@ typedef struct {
   void*   pMsg;
 } SSubmitMsgIter;
 
-int32_t tInitSubmitMsgIter(SSubmitMsg* pMsg, SSubmitMsgIter* pIter);
+int32_t tInitSubmitMsgIter(SSubmitReq* pMsg, SSubmitMsgIter* pIter);
 int32_t tGetSubmitMsgNext(SSubmitMsgIter* pIter, SSubmitBlk** pPBlock);
 int32_t tInitSubmitBlkIter(SSubmitBlk* pBlock, SSubmitBlkIter* pIter);
 STSRow* tGetSubmitBlkNext(SSubmitBlkIter* pIter);
@@ -244,16 +232,16 @@ typedef struct {
   int32_t vnode;  // vnode index of failed block
   int32_t sid;    // table index of failed block
   int32_t code;   // errorcode while write data to vnode, such as not created, dropped, no space, invalid table
-} SShellSubmitRspBlock;
+} SSubmitRspBlock;
 
 typedef struct {
-  int32_t              code;          // 0-success, > 0 error code
-  int32_t              numOfRows;     // number of records the client is trying to write
-  int32_t              affectedRows;  // number of records actually written
-  int32_t              failedRows;    // number of failed records (exclude duplicate records)
-  int32_t              numOfFailedBlocks;
-  SShellSubmitRspBlock failedBlocks[];
-} SShellSubmitRsp;
+  int32_t         code;          // 0-success, > 0 error code
+  int32_t         numOfRows;     // number of records the client is trying to write
+  int32_t         affectedRows;  // number of records actually written
+  int32_t         failedRows;    // number of failed records (exclude duplicate records)
+  int32_t         numOfFailedBlocks;
+  SSubmitRspBlock failedBlocks[];
+} SSubmitRsp;
 
 typedef struct SSchema {
   int8_t  type;
@@ -888,7 +876,6 @@ typedef struct {
   int8_t  precision;
   int8_t  compressed;
   int32_t compLen;
-
   int32_t numOfRows;
   char    data[];
 } SRetrieveTableRsp;

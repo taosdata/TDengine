@@ -15,7 +15,7 @@
 
 #include "tsdbDef.h"
 
-int tsdbInsertData(STsdb *pTsdb, SSubmitMsg *pMsg, SSubmitRsp *pRsp) {
+int tsdbInsertData(STsdb *pTsdb, SSubmitReq *pMsg, SSubmitRsp *pRsp) {
   // Check if mem is there. If not, create one.
   if (pTsdb->mem == NULL) {
     pTsdb->mem = tsdbNewMemTable(pTsdb);

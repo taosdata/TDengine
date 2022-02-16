@@ -16,14 +16,11 @@
 #define _DEFAULT_SOURCE
 #include "tglobal.h"
 #include "mndProfile.h"
-//#include "mndConsumer.h"
 #include "mndDb.h"
 #include "mndStb.h"
 #include "mndMnode.h"
 #include "mndShow.h"
-//#include "mndTopic.h"
 #include "mndUser.h"
-//#include "mndVgroup.h"
 
 #define QUERY_ID_SIZE 20
 #define QUERY_OBJ_ID_SIZE 18

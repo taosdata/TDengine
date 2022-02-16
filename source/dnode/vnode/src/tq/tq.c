@@ -251,7 +251,7 @@ int32_t tqProcessConsumeReq(STQ* pTq, SRpcMsg* pMsg) {
     }
     pHead = pTopic->pReadhandle->pHead;
     if (pHead->head.msgType == TDMT_VND_SUBMIT) {
-      SSubmitMsg* pCont = (SSubmitMsg*)&pHead->head.body;
+      SSubmitReq* pCont = (SSubmitReq*)&pHead->head.body;
       qTaskInfo_t task = pTopic->buffer.output[pos].task;
       qSetStreamInput(task, pCont);
       SArray* pRes = taosArrayInit(0, sizeof(SSDataBlock));
@@ -397,7 +397,7 @@ int32_t tqProcessConsumeReqV0(STQ* pTq, SRpcMsg* pMsg) {
       fetchOffset++;
     }
     if (skip == 1) continue;
-    SSubmitMsg* pCont = (SSubmitMsg*)&pHead->head.body;
+    SSubmitReq* pCont = (SSubmitReq*)&pHead->head.body;
     qTaskInfo_t task = pTopic->buffer.output[pos].task;
 
     printf("current fetch offset %ld\n", fetchOffset);

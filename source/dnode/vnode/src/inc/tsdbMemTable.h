@@ -54,7 +54,7 @@ typedef struct STsdbMemTable {
 
 STsdbMemTable *tsdbNewMemTable(STsdb *pTsdb);
 void           tsdbFreeMemTable(STsdb *pTsdb, STsdbMemTable *pMemTable);
-int            tsdbMemTableInsert(STsdb *pTsdb, STsdbMemTable *pMemTable, SSubmitMsg *pMsg, SShellSubmitRsp *pRsp);
+int            tsdbMemTableInsert(STsdb *pTsdb, STsdbMemTable *pMemTable, SSubmitReq *pMsg, SSubmitRsp *pRsp);
 int tsdbLoadDataFromCache(STable *pTable, SSkipListIterator *pIter, TSKEY maxKey, int maxRowsToRead, SDataCols *pCols,
                           TKEY *filterKeys, int nFilterKeys, bool keepDup, SMergeInfo *pMergeInfo);
 

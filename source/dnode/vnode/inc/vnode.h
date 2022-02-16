@@ -72,7 +72,7 @@ typedef struct {
   int64_t           ver;
   int64_t           tbUid;
   SHashObj         *tbIdHash;
-  const SSubmitMsg *pMsg;
+  const SSubmitReq *pMsg;
   SSubmitBlk       *pBlock;
   SSubmitMsgIter    msgIter;
   SSubmitBlkIter    blkIter;
@@ -225,7 +225,7 @@ static FORCE_INLINE int tqReadHandleSetTbUidList(STqReadHandle *pHandle, const S
   return 0;
 }
 
-void tqReadHandleSetMsg(STqReadHandle *pHandle, SSubmitMsg *pMsg, int64_t ver);
+void tqReadHandleSetMsg(STqReadHandle *pHandle, SSubmitReq *pMsg, int64_t ver);
 bool tqNextDataBlock(STqReadHandle *pHandle);
 int  tqRetrieveDataBlockInfo(STqReadHandle *pHandle, SDataBlockInfo *pBlockInfo);
 // return SArray<SColumnInfoData>
