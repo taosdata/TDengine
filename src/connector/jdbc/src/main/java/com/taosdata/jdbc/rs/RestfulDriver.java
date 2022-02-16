@@ -9,7 +9,6 @@ import com.taosdata.jdbc.ws.InFlightRequest;
 import com.taosdata.jdbc.ws.Transport;
 import com.taosdata.jdbc.ws.WSClient;
 import com.taosdata.jdbc.ws.WSConnection;
-import com.taosdata.jdbc.ws.entity.FetchType;
 
 import java.io.UnsupportedEncodingException;
 import java.net.URI;
@@ -66,8 +65,8 @@ public class RestfulDriver extends AbstractDriver {
         }
         String loginUrl;
         String batchLoad = info.getProperty(TSDBDriver.PROPERTY_KEY_BATCH_LOAD);
-        if (Boolean.parseBoolean(batchLoad)) {
-//        if (false) {
+//        if (Boolean.parseBoolean(batchLoad)) {
+        if (false) {
             loginUrl = "ws://" + props.getProperty(TSDBDriver.PROPERTY_KEY_HOST)
                     + ":" + props.getProperty(TSDBDriver.PROPERTY_KEY_PORT) + "/rest/ws";
             WSClient client;
@@ -102,7 +101,7 @@ public class RestfulDriver extends AbstractDriver {
             }
             // TODO fetch Type from config
             props.setProperty(TSDBDriver.PROPERTY_KEY_TIMESTAMP_FORMAT, String.valueOf(TimestampFormat.TIMESTAMP));
-            return new WSConnection(url, props, transport, database, FetchType.JSON);
+            return new WSConnection(url, props, transport, database);
         }
         loginUrl = "http://" + props.getProperty(TSDBDriver.PROPERTY_KEY_HOST) + ":" + props.getProperty(TSDBDriver.PROPERTY_KEY_PORT) + "/rest/login/" + user + "/" + password + "";
         int poolSize = Integer.parseInt(props.getProperty("httpPoolSize", HttpClientPoolUtil.DEFAULT_MAX_PER_ROUTE));

@@ -15,17 +15,15 @@ import java.util.concurrent.ExecutionException;
 public class WSStatement extends AbstractStatement {
     private final Transport transport;
     private final String database;
-    private final FetchType fetchType;
     private final Connection connection;
     private final RequestFactory factory;
 
     private boolean closed;
     private ResultSet resultSet;
 
-    public WSStatement(Transport transport, String database, FetchType fetchType, Connection connection, RequestFactory factory) {
+    public WSStatement(Transport transport, String database, Connection connection, RequestFactory factory) {
         this.transport = transport;
         this.database = database;
-        this.fetchType = fetchType;
         this.connection = connection;
         this.factory = factory;
     }
@@ -78,11 +76,7 @@ public class WSStatement extends AbstractStatement {
                 this.affectedRows = queryResp.getAffectedRows();
                 return false;
             } else {
-                if (fetchType == FetchType.JSON) {
-                    this.resultSet = new JSONResultSet(this, this.transport, this.factory, queryResp, this.database);
-                } else {
-                    this.resultSet = new BlockResultSet(this, this.transport, this.factory, queryResp, this.database);
-                }
+                this.resultSet = new BlockResultSet(this, this.transport, this.factory, queryResp, this.database);
                 this.affectedRows = -1;
                 return true;
             }

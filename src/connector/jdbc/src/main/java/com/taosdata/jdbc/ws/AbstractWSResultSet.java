@@ -40,7 +40,6 @@ public abstract class AbstractWSResultSet extends AbstractResultSet {
             .withResolverStyle(ResolverStyle.STRICT)
             .withChronology(IsoChronology.INSTANCE);
 
-
     protected final Statement statement;
     protected final Transport transport;
     protected final RequestFactory factory;
@@ -51,10 +50,11 @@ public abstract class AbstractWSResultSet extends AbstractResultSet {
     protected final ResultSetMetaData metaData;
     protected final List<RestfulResultSet.Field> fields = new ArrayList<>();
     protected final List<String> columnNames;
+    protected List<Integer> fieldLength;
     // data
     protected List<List<Object>> result = new ArrayList<>();
 
-    private int numOfRows = 0;
+    protected int numOfRows = 0;
     protected int rowIndex = 0;
     private boolean isCompleted;
 
@@ -73,7 +73,7 @@ public abstract class AbstractWSResultSet extends AbstractResultSet {
             fields.add(new RestfulResultSet.Field(colName, jdbcType, length, "", taosType));
         }
         this.metaData = new RestfulResultSetMetaData(database, fields, null);
-
+        this.timestampPrecision = response.getPrecision();
     }
 
     private boolean forward() {
@@ -109,8 +109,10 @@ public abstract class AbstractWSResultSet extends AbstractResultSet {
             }
             this.reset();
             if (fetchResp.isCompleted()) {
+                this.isCompleted = true;
                 return false;
             }
+            fieldLength = Arrays.asList(fetchResp.getLengths());
             this.numOfRows = fetchResp.getRows();
             this.result = fetchJsonData();
             return true;

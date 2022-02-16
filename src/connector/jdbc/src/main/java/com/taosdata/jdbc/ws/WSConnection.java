@@ -5,7 +5,6 @@ import com.taosdata.jdbc.TSDBDriver;
 import com.taosdata.jdbc.TSDBError;
 import com.taosdata.jdbc.TSDBErrorNumbers;
 import com.taosdata.jdbc.rs.RestfulDatabaseMetaData;
-import com.taosdata.jdbc.ws.entity.FetchType;
 import com.taosdata.jdbc.ws.entity.RequestFactory;
 
 import java.sql.DatabaseMetaData;
@@ -18,14 +17,12 @@ public class WSConnection extends AbstractConnection {
     private final Transport transport;
     private final DatabaseMetaData metaData;
     private final String database;
-    private final FetchType fetchType;
     private final RequestFactory factory;
 
-    public WSConnection(String url, Properties properties, Transport transport, String database, FetchType fetchType) {
+    public WSConnection(String url, Properties properties, Transport transport, String database) {
         super(properties);
         this.transport = transport;
         this.database = database;
-        this.fetchType = fetchType;
         this.metaData = new RestfulDatabaseMetaData(url, properties.getProperty(TSDBDriver.PROPERTY_KEY_USER), this);
         this.factory = new RequestFactory();
     }
@@ -35,7 +32,7 @@ public class WSConnection extends AbstractConnection {
         if (isClosed())
             throw TSDBError.createSQLException(TSDBErrorNumbers.ERROR_CONNECTION_CLOSED);
 
-        return new WSStatement(transport, database , fetchType, this, factory);
+        return new WSStatement(transport, database, this, factory);
     }
 
     @Override

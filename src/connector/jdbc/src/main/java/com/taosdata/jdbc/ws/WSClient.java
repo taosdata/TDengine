@@ -8,6 +8,7 @@ import org.java_websocket.handshake.ServerHandshake;
 import java.net.URI;
 import java.nio.ByteBuffer;
 import java.nio.ByteOrder;
+import java.nio.charset.StandardCharsets;
 import java.util.Map;
 import java.util.concurrent.*;
 
@@ -94,7 +95,8 @@ public class WSClient extends WebSocketClient implements AutoCloseable {
         long id = bytes.getLong();
         ResponseFuture remove = inFlightRequest.remove(Action.FETCH_BLOCK.getAction(), id);
         if (null != remove) {
-            FetchBlockResp fetchBlockResp = new FetchBlockResp(id, bytes.slice());
+//            FetchBlockResp fetchBlockResp = new FetchBlockResp(id, bytes.slice());
+            FetchBlockResp fetchBlockResp = new FetchBlockResp(id, bytes);
             remove.getFuture().complete(fetchBlockResp);
         }
     }
