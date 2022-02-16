@@ -265,7 +265,7 @@ static int32_t mndProcessCreateTopicReq(SMnodeMsg *pReq) {
   char   *msgStr = pReq->rpcMsg.pCont;
 
   SMCreateTopicReq createTopicReq = {0};
-  tDeserializeSCMCreateTopicReq(msgStr, &createTopicReq);
+  tDeserializeSMCreateTopicReq(msgStr, &createTopicReq);
 
   mDebug("topic:%s, start to create, sql:%s", createTopicReq.name, createTopicReq.sql);
 

@@ -1118,39 +1118,15 @@ typedef struct {
   char*  logicalPlan;
 } SMCreateTopicReq;
 
-static FORCE_INLINE int tSerializeSMCreateTopicReq(void** buf, const SMCreateTopicReq* pReq) {
-  int tlen = 0;
-  tlen += taosEncodeFixedI8(buf, pReq->igExists);
-  tlen += taosEncodeString(buf, pReq->name);
-  tlen += taosEncodeString(buf, pReq->sql);
-  tlen += taosEncodeString(buf, pReq->physicalPlan);
-  tlen += taosEncodeString(buf, pReq->logicalPlan);
-  return tlen;
-}
-
-static FORCE_INLINE void* tDeserializeSCMCreateTopicReq(void* buf, SMCreateTopicReq* pReq) {
-  buf = taosDecodeFixedI8(buf, &(pReq->igExists));
-  buf = taosDecodeString(buf, &(pReq->name));
-  buf = taosDecodeString(buf, &(pReq->sql));
-  buf = taosDecodeString(buf, &(pReq->physicalPlan));
-  buf = taosDecodeString(buf, &(pReq->logicalPlan));
-  return buf;
-}
+int32_t tSerializeMCreateTopicReq(void** buf, const SMCreateTopicReq* pReq);
+void*   tDeserializeSMCreateTopicReq(void* buf, SMCreateTopicReq* pReq);
 
 typedef struct {
   int64_t topicId;
-} SCMCreateTopicRsp;
+} SMCreateTopicRsp;
 
-static FORCE_INLINE int tSerializeSCMCreateTopicRsp(void** buf, const SCMCreateTopicRsp* pRsp) {
-  int tlen = 0;
-  tlen += taosEncodeFixedI64(buf, pRsp->topicId);
-  return tlen;
-}
-
-static FORCE_INLINE void* tDeserializeSCMCreateTopicRsp(void* buf, SCMCreateTopicRsp* pRsp) {
-  buf = taosDecodeFixedI64(buf, &pRsp->topicId);
-  return buf;
-}
+int32_t tSerializeSMCreateTopicRsp(void* buf, int32_t bufLen, const SMCreateTopicRsp* pRsp);
+int32_t tDeserializeSMCreateTopicRsp(void* buf, int32_t bufLen, SMCreateTopicRsp* pRsp);
 
 typedef struct {
   int32_t topicNum;

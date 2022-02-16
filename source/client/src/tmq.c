@@ -368,14 +368,14 @@ TAOS_RES* tmq_create_topic(TAOS* taos, const char* topicName, const char* sql, i
       .logicalPlan = (char*)"no logic plan",
   };
 
-  int   tlen = tSerializeSMCreateTopicReq(NULL, &req);
+  int   tlen = tSerializeMCreateTopicReq(NULL, &req);
   void* buf = malloc(tlen);
   if (buf == NULL) {
     goto _return;
   }
 
   void* abuf = buf;
-  tSerializeSMCreateTopicReq(&abuf, &req);
+  tSerializeMCreateTopicReq(&abuf, &req);
   /*printf("formatted: %s\n", dagStr);*/
 
   pRequest->body.requestMsg = (SDataBuf){.pData = buf, .len = tlen};
