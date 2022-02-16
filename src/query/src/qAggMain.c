@@ -5190,11 +5190,13 @@ static bool unique_function_setup(SQLFunctionCtx *pCtx, SResultRowCellInfo* pRes
   if (!function_setup(pCtx, pResInfo)) {
     return false;
   }
+  *pCtx->pUniqueSet = taosHashInit(64, taosGetDefaultHashFunction(TSDB_DATA_TYPE_BINARY), true, HASH_NO_LOCK);
+
   return true;
 }
 
 static void do_unique_function(SQLFunctionCtx *pCtx, SUniqueFuncInfo *pInfo, TSKEY timestamp, char *pData, char *tag, int32_t bytes){
-  UniqueUnit *unique = taosHashGet(pCtx->pUniqueSet, pData, bytes);
+  UniqueUnit *unique = taosHashGet(*pCtx->pUniqueSet, pData, bytes);
   if (unique == NULL) {
     size_t size = sizeof(UniqueUnit) + bytes + pCtx->tagInfo.tagsLen;
     char *tmp = pInfo->res + pInfo->num * size;
@@ -5220,7 +5222,7 @@ static void do_unique_function(SQLFunctionCtx *pCtx, SUniqueFuncInfo *pInfo, TSK
       }
     }
 
-    taosHashPut(pCtx->pUniqueSet, pData, bytes, &tmp, sizeof(UniqueUnit*));
+    taosHashPut(*pCtx->pUniqueSet, pData, bytes, &tmp, sizeof(UniqueUnit*));
     pInfo->num++;
   }else if(unique->timestamp > timestamp){
     unique->timestamp = timestamp;

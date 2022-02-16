@@ -175,7 +175,7 @@ typedef struct SQLFunctionCtx {
   void *       pInput;    // input data buffer
   uint32_t     order;     // asc|desc
   int16_t      inputType;
-  int16_t      inputBytes;
+  int32_t      inputBytes;
   
   int16_t      outputType;
   int32_t      outputBytes;   // size of results, determined by function and input column data type
@@ -202,7 +202,7 @@ typedef struct SQLFunctionCtx {
   SPoint1      start;
   SPoint1      end;
 
-  SHashObj     *pUniqueSet;   // for unique function
+  SHashObj     **pUniqueSet;   // for unique function
 } SQLFunctionCtx;
 
 typedef struct SAggFunctionInfo {

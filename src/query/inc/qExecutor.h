@@ -90,6 +90,7 @@ typedef struct SResultRow {
   SResultRowCellInfo*  pCellInfo;  // For each result column, there is a resultInfo
   STimeWindow   win;
   char         *key;               // start key of current result row
+  SHashObj     *uniqueHash;  // for unique function
 } SResultRow;
 
 typedef struct SResultRowCell {
@@ -282,7 +283,7 @@ typedef struct SQueryAttr {
   STableGroupInfo  tableGroupInfo;       // table <tid, last_key> list  SArray<STableKeyInfo>
   int32_t          vgId;
   SArray          *pUdfInfo;             // no need to free
-  int32_t          maxUniqueResult;
+  int32_t          interBytesForGlobal;
 } SQueryAttr;
 
 typedef SSDataBlock* (*__operator_fn_t)(void* param, bool* newgroup);

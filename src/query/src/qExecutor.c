@@ -281,7 +281,7 @@ static int compareRowData(const void *a, const void *b, const void *userData) {
   tFilePage *page1 = getResBufPage(pRuntimeEnv->pResultBuf, pRow1->pageId);
   tFilePage *page2 = getResBufPage(pRuntimeEnv->pResultBuf, pRow2->pageId);
 
-  int16_t offset = supporter->dataOffset;
+  int32_t offset = supporter->dataOffset;
   char *in1  = getPosInResultPage(pRuntimeEnv->pQueryAttr, page1, pRow1->offset, offset);
   char *in2  = getPosInResultPage(pRuntimeEnv->pQueryAttr, page2, pRow2->offset, offset);
 
@@ -1964,8 +1964,12 @@ static SQLFunctionCtx* createSQLFunctionCtx(SQueryRuntimeEnv* pRuntimeEnv, SExpr
       pCtx->requireNull = false;
     }
 
-    pCtx->inputBytes = pSqlExpr->colBytes;
     pCtx->inputType  = pSqlExpr->colType;
+    if (pRuntimeEnv->pQueryAttr->interBytesForGlobal > INT16_MAX && pSqlExpr->functionId == TSDB_FUNC_UNIQUE){
+      pCtx->inputBytes  = pRuntimeEnv->pQueryAttr->interBytesForGlobal;
+    }else{
+      pCtx->inputBytes = pSqlExpr->colBytes;
+    }
 
     pCtx->ptsOutputBuf = NULL;
 
@@ -2030,8 +2034,6 @@ static SQLFunctionCtx* createSQLFunctionCtx(SQueryRuntimeEnv* pRuntimeEnv, SExpr
       pCtx->param[2].nType = TSDB_DATA_TYPE_BIGINT;
     } else if (functionId == TSDB_FUNC_SCALAR_EXPR) {
       pCtx->param[1].pz = (char*) &pRuntimeEnv->sasArray[i];
-    } else if (functionId == TSDB_FUNC_UNIQUE){
-      pCtx->pUniqueSet = taosHashInit(64, taosGetDefaultHashFunction(TSDB_DATA_TYPE_BINARY), true, HASH_NO_LOCK);
     }
   }
 
@@ -2056,9 +2058,6 @@ static void* destroySQLFunctionCtx(SQLFunctionCtx* pCtx, int32_t numOfOutput) {
 
     tVariantDestroy(&pCtx[i].tag);
     tfree(pCtx[i].tagInfo.pTagCtxList);
-    if (pCtx[i].functionId == TSDB_FUNC_UNIQUE){
-      taosHashClear(pCtx[i].pUniqueSet);
-    }
   }
 
   tfree(pCtx);
@@ -3688,6 +3687,7 @@ void setDefaultOutputBuf(SQueryRuntimeEnv *pRuntimeEnv, SOptrBasicInfo *pInfo, i
     RESET_RESULT_INFO(pCellInfo);
 
     pCtx[i].resultInfo   = pCellInfo;
+    pCtx[i].pUniqueSet   = &pRow->uniqueHash;
     pCtx[i].pOutput      = pData->pData;
     pCtx[i].currentStage = stage;
     assert(pCtx[i].pOutput != NULL);
@@ -4022,6 +4022,7 @@ void setResultRowOutputBufInitCtx(SQueryRuntimeEnv *pRuntimeEnv, SResultRow *pRe
   int32_t offset = 0;
   for (int32_t i = 0; i < numOfOutput; ++i) {
     pCtx[i].resultInfo = getResultCell(pResult, i, rowCellInfoOffset);
+    pCtx[i].pUniqueSet = &pResult->uniqueHash;
 
     SResultRowCellInfo* pResInfo = pCtx[i].resultInfo;
     if (pResInfo->initialized && pResInfo->complete) {
@@ -4097,7 +4098,7 @@ void setResultOutputBuf(SQueryRuntimeEnv *pRuntimeEnv, SResultRow *pResult, SQLF
   // Note: pResult->pos[i]->num == 0, there is only fixed number of results for each group
   tFilePage *page = getResBufPage(pRuntimeEnv->pResultBuf, pResult->pageId);
 
-  int16_t offset = 0;
+  int32_t offset = 0;
   for (int32_t i = 0; i < numOfCols; ++i) {
     pCtx[i].pOutput = getPosInResultPage(pRuntimeEnv->pQueryAttr, page, pResult->offset, offset);
     offset += pCtx[i].outputBytes;
@@ -4115,6 +4116,7 @@ void setResultOutputBuf(SQueryRuntimeEnv *pRuntimeEnv, SResultRow *pResult, SQLF
      * not all queries require the interResultBuf, such as COUNT
      */
     pCtx[i].resultInfo = getResultCell(pResult, i, rowCellInfoOffset);
+    pCtx[i].pUniqueSet = &pResult->uniqueHash;
   }
 }
 

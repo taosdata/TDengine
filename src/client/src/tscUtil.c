@@ -4938,7 +4938,11 @@ static int32_t createGlobalAggregateExpr(SQueryAttr* pQueryAttr, SQueryInfo* pQu
     pse->colInfo.colIndex = i;
 
     pse->colType = pExpr->base.resType;
-    pse->colBytes = pExpr->base.resBytes;
+    if(pExpr->base.resBytes > INT16_MAX && pExpr->base.functionId == TSDB_FUNC_UNIQUE){
+      pQueryAttr->interBytesForGlobal = pExpr->base.resBytes;
+    }else{
+      pse->colBytes = pExpr->base.resBytes;
+    }
   }
 
   {

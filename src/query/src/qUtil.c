@@ -88,6 +88,9 @@ void cleanupResultRowInfo(SResultRowInfo *pResultRowInfo) {
   for(int32_t i = 0; i < pResultRowInfo->size; ++i) {
     if (pResultRowInfo->pResult[i]) {
       tfree(pResultRowInfo->pResult[i]->key);
+      if (pResultRowInfo->pResult[i]->uniqueHash){
+        taosHashCleanup(pResultRowInfo->pResult[i]->uniqueHash);
+      }
     }
   }
   
@@ -153,11 +156,11 @@ void clearResultRow(SQueryRuntimeEnv *pRuntimeEnv, SResultRow *pResultRow, int16
   if (pResultRow->pageId >= 0) {
     tFilePage *page = getResBufPage(pRuntimeEnv->pResultBuf, pResultRow->pageId);
 
-    int16_t offset = 0;
+    int32_t offset = 0;
     for (int32_t i = 0; i < pRuntimeEnv->pQueryAttr->numOfOutput; ++i) {
       SResultRowCellInfo *pResultInfo = &pResultRow->pCellInfo[i];
 
-      int16_t size = pRuntimeEnv->pQueryAttr->pExpr1[i].base.resBytes;
+      int32_t size = pRuntimeEnv->pQueryAttr->pExpr1[i].base.resBytes;
       char * s = getPosInResultPage(pRuntimeEnv->pQueryAttr, page, pResultRow->offset, offset);
       memset(s, 0, size);
 

@@ -440,6 +440,15 @@ int32_t tscCreateGlobalMergerEnv(SQueryInfo *pQueryInfo, tExtMemBuffer ***pMemBu
     rlen += pExpr->base.resBytes;
   }
 
+  int32_t pg = DEFAULT_PAGE_SIZE;
+  int32_t overhead = sizeof(tFilePage);
+  while((pg - overhead) < rlen * 2) {
+    pg *= 2;
+  }
+
+  if (*nBufferSizes < pg){
+    *nBufferSizes = 2 * pg;
+  }
   int32_t capacity = 0;
   if (rlen != 0) {
     if ((*nBufferSizes) < rlen) {
@@ -452,12 +461,6 @@ int32_t tscCreateGlobalMergerEnv(SQueryInfo *pQueryInfo, tExtMemBuffer ***pMemBu
   tfree(pSchema);
   if (pModel == NULL){
     return TSDB_CODE_TSC_OUT_OF_MEMORY;
-  }
-
-  int32_t pg = DEFAULT_PAGE_SIZE;
-  int32_t overhead = sizeof(tFilePage);
-  while((pg - overhead) < rlen * 2) {
-    pg *= 2;
   }
 
   assert(numOfSub <= pTableMetaInfo->vgroupList->numOfVgroups);
