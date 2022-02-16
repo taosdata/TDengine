@@ -96,7 +96,7 @@ static void *sendRequest(void *param) {
 
 int main(int argc, char *argv[]) {
   SRpcInit       rpcInit;
-  SEpSet         epSet;
+  SEpSet         epSet = {0};
   int            msgSize = 128;
   int            numOfReqs = 0;
   int            appThreads = 1;
