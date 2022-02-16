@@ -21,6 +21,13 @@ extern "C" {
 #endif
 
 typedef struct SJournal SJournal;
+struct SJournal {
+  char jname[64];
+  int  fd;
+};
+
+int tdbOpenJournal(SJournal *pJournal);
+int tdbCloseJournal(SJournal *pJournal);
 
 #ifdef __cplusplus
 }

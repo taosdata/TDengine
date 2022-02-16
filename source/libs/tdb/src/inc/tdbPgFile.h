@@ -37,9 +37,10 @@ struct SPgFile {
   char *          fname;                    // backend file name
   uint8_t         fileid[TDB_FILE_ID_LEN];  // file id
   int             fd;
+  pgno_t          dbSize;
+  pgno_t          dbNewSize;
   SPgFileListNode envHash;
   SPgFileListNode envPgfList;
-  // TDB *   pDb;  // For a SPgFile for multiple databases, this is the <dbname, pgno> mapping DB.
 };
 
 int pgFileOpen(SPgFile **ppPgFile, const char *fname, TENV *pEnv);

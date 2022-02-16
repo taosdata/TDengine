@@ -133,12 +133,30 @@ static int tdbEnvDestroy(TENV *pEnv) {
 }
 
 int tdbEnvBeginTxn(TENV *pEnv) {
-  // TODO
+  SJournal *pJournal;
+  int       ret;
+
+  ASSERT(pEnv->pJournal == NULL);
+
+  pJournal = (SJournal *)(&(pEnv[1]));
+  ret = tdbOpenJournal(pJournal);
+  if (ret < 0) {
+    // TODO: handle error
+    return -1;
+  }
+
+  pEnv->pJournal = pJournal;
   return 0;
 }
 
 int tdbEnvCommit(TENV *pEnv) {
-  // TODO
+  SJournal *pJournal;
+
+  ASSERT(pEnv->pJournal != NULL);
+
+  pJournal = pEnv->pJournal;
+  tdbCloseJournal(pJournal);
+  /* TODO */
   return 0;
 }
 

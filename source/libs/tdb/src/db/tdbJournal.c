@@ -13,7 +13,18 @@
  * along with this program. If not, see <http://www.gnu.org/licenses/>.
  */
 
-struct SJournal {
-  char *jname;
-  int   fd;
-};
+#include "tdbInt.h"
+
+int tdbOpenJournal(SJournal *pJournal) {
+  // pJournal->fd = open();
+  if (pJournal->fd < 0) {
+    // TODO: handle error
+    return -1;
+  }
+  return 0;
+}
+
+int tdbCloseJournal(SJournal *pJournal) {
+  // TODO
+  return 0;
+}
