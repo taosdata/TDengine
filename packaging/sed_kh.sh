@@ -71,15 +71,10 @@ function replace_community_kh() {
   sed -i "s/etc\/taos/etc\/kinghistorian/g" ${top_dir}/src/os/src/linux/linuxEnv.c
   sed -i "s/lib\/taos/lib\/kinghistorian/g" ${top_dir}/src/os/src/linux/linuxEnv.c
   sed -i "s/log\/taos/log\/kinghistorian/g" ${top_dir}/src/os/src/linux/linuxEnv.c
+
   # src/kit/shell/src/shellDarwin.c
   sed -i "s/TDengine shell/KingHistorian shell/g" ${top_dir}/src/kit/shell/src/shellDarwin.c
   sed -i "s/2020 by TAOS Data/2021 by Wellintech/g" ${top_dir}/src/kit/shell/src/shellDarwin.c
-  # src/kit/shell/src/shellLinux.c
-  sed -i "s/support@taosdata\.com/support@wellintech\.com/g" ${top_dir}/src/kit/shell/src/shellLinux.c
-  sed -i "s/TDengine/KingHistorian/g" ${top_dir}/src/kit/shell/src/shellLinux.c
-  sed -i "s/2020 by TAOS Data/2021 by Wellintech/g" ${top_dir}/src/kit/shell/src/shellLinux.c
-  # src/os/src/windows/wEnv.c
-  sed -i "s/C:\/TDengine/C:\/KingHistorian/g" ${top_dir}/src/os/src/windows/wEnv.c
   # src/kit/shell/src/shellEngine.c
   sed -i "s/TDengine shell/KingHistorian shell/g" ${top_dir}/src/kit/shell/src/shellEngine.c
   sed -i "s/2020 by TAOS Data, Inc/2021 by Wellintech, Inc/g" ${top_dir}/src/kit/shell/src/shellEngine.c
@@ -88,9 +83,16 @@ function replace_community_kh() {
   sed -i "s/\"   -> \"/\"       -> \"/g" ${top_dir}/src/kit/shell/src/shellEngine.c
   sed -i "s/prompt_size = 6/prompt_size = 10/g" ${top_dir}/src/kit/shell/src/shellEngine.c
   # src/kit/shell/src/shellImport.c
-  sed -i "s/TDengine/KingHistorian/g" ${top_dir}/src/kit/shell/src/shellImport.c
+  sed -i "s/TDengine/KingHistorian/g" ${top}/src/kit/shell/src/shellImport.c
+  # src/kit/shell/src/shellLinux.c
+  sed -i "s/support@taosdata\.com/support@wellintech\.com/g" ${top_dir}/src/kit/shell/src/shellLinux.c
+  sed -i "s/TDengine/KingHistorian/g" ${top_dir}/src/kit/shell/src/shellLinux.c
+  sed -i "s/2020 by TAOS Data/2021 by Wellintech/g" ${top_dir}/src/kit/shell/src/shellLinux.c
   # src/kit/shell/src/shellMain.c
   sed -i "s/TDengine/KingHistorian/g" ${top_dir}/src/kit/shell/src/shellMain.c
+
+  # src/os/src/windows/wEnv.c
+  sed -i "s/C:\/TDengine/C:\/KingHistorian/g" ${top_dir}/src/os/src/windows/wEnv.c
   # src/rpc/src/rpcMain.c
   sed -i "s/taos connections/kh connections/g" ${top_dir}/src/rpc/src/rpcMain.c
   # src/plugins/monitor/src/monMain.c
