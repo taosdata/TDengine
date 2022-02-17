@@ -354,7 +354,7 @@ static void mndTransDropData(STrans *pTrans) {
   mndTransDropActions(pTrans->redoActions);
   mndTransDropActions(pTrans->undoActions);
   if (pTrans->rpcRsp != NULL) {
-    rpcFreeCont(pTrans->rpcRsp);
+    free(pTrans->rpcRsp);
     pTrans->rpcRsp = NULL;
     pTrans->rpcRspLen = 0;
   }
