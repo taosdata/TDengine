@@ -1881,18 +1881,11 @@ static int trimDataBlock(void* pDataBlock, STableDataBlocks* pTableDataBlock, SI
     }
   } else {
     for (int32_t i = 0; i < numOfRows; ++i) {
-      char* payload = (blkKeyTuple + i)->payloadAddr;
-      if (isNeedConvertRow(payload)) {
-        convertSMemRow(pDataBlock, payload, pTableDataBlock);
-        TDRowTLenT rowTLen = memRowTLen(pDataBlock);
-        pDataBlock = POINTER_SHIFT(pDataBlock, rowTLen);
-        pBlock->dataLen += rowTLen;
-      } else {
-        TDRowTLenT rowTLen = memRowTLen(payload);
-        memcpy(pDataBlock, payload, rowTLen);
-        pDataBlock = POINTER_SHIFT(pDataBlock, rowTLen);
-        pBlock->dataLen += rowTLen;
-      }
+      char*      payload = (blkKeyTuple + i)->payloadAddr;
+      TDRowLenT rowTLen = memRowTLen(payload);
+      memcpy(pDataBlock, payload, rowTLen);
+      pDataBlock = POINTER_SHIFT(pDataBlock, rowTLen);
+      pBlock->dataLen += rowTLen;
     }
   }
 

@@ -186,8 +186,8 @@ do { \
 #define TSDB_MAX_SQL_SHOW_LEN     1024
 #define TSDB_MAX_ALLOWED_SQL_LEN  (1*1024*1024u)          // sql length should be less than 1mb
 
-#define TSDB_APP_NAME_LEN          TSDB_UNI_LEN
-
+#define TSDB_APP_NAME_LEN         TSDB_UNI_LEN
+#define TSDB_STB_COMMENT_LEN      1024
   /**
    *  In some scenarios uint16_t (0~65535) is used to store the row len.
    *  - Firstly, we use 65531(65535 - 4), as the SDataRow/SKVRow contains 4 bits header.
@@ -214,11 +214,16 @@ do { \
 #define TSDB_SHOW_SUBQUERY_LEN    1000
 #define TSDB_SLOW_QUERY_SQL_LEN   512
 
+#define TSDB_TRANS_STAGE_LEN      12
+#define TSDB_TRANS_DESC_LEN       16
+#define TSDB_TRANS_ERROR_LEN      128
+
 #define TSDB_STEP_NAME_LEN        32
 #define TSDB_STEP_DESC_LEN        128
 
 #define TSDB_ERROR_MSG_LEN        1024
 #define TSDB_DNODE_CONFIG_LEN     128
+#define TSDB_DNODE_VALUE_LEN      256
 
 #define TSDB_MQTT_HOSTNAME_LEN    64
 #define TSDB_MQTT_PORT_LEN        8
@@ -321,6 +326,7 @@ do { \
 #define TSDB_MAX_BINARY_LEN            (TSDB_MAX_FIELD_LEN-TSDB_KEYSIZE) // keep 16384
 #define TSDB_MAX_NCHAR_LEN             (TSDB_MAX_FIELD_LEN-TSDB_KEYSIZE) // keep 16384
 #define PRIMARYKEY_TIMESTAMP_COL_ID     1
+#define COL_REACH_END(colId, maxColId)  ((colId) > (maxColId))
 
 #define TSDB_MAX_RPC_THREADS            5
 

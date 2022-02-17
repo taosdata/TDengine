@@ -2262,7 +2262,7 @@ static void yy_reduce(
 { setShowOptions(pInfo, TSDB_MGMT_TABLE_VARIABLES, 0, 0);  }
         break;
       case 13: /* cmd ::= SHOW SCORES */
-{ setShowOptions(pInfo, TSDB_MGMT_TABLE_SCORES, 0, 0);   }
+{ setShowOptions(pInfo, TSDB_MGMT_TABLE_TRANS, 0, 0);   }
         break;
       case 14: /* cmd ::= SHOW GRANTS */
 { setShowOptions(pInfo, TSDB_MGMT_TABLE_GRANTS, 0, 0);   }
@@ -3206,7 +3206,7 @@ static void yy_reduce(
       case 286: /* cmd ::= ALTER TABLE ids cpxName ADD TAG columnlist */
 {
     yymsp[-4].minor.yy0.n += yymsp[-3].minor.yy0.n;
-    SAlterTableInfo* pAlterTable = tSetAlterTableInfo(&yymsp[-4].minor.yy0, yymsp[0].minor.yy165, NULL, TSDB_ALTER_TABLE_ADD_TAG_COLUMN, -1);
+    SAlterTableInfo* pAlterTable = tSetAlterTableInfo(&yymsp[-4].minor.yy0, yymsp[0].minor.yy165, NULL, TSDB_ALTER_TABLE_ADD_TAG, -1);
     setSqlInfo(pInfo, pAlterTable, NULL, TSDB_SQL_ALTER_TABLE);
 }
         break;
@@ -3217,7 +3217,7 @@ static void yy_reduce(
     toTSDBType(yymsp[0].minor.yy0.type);
     SArray* A = tListItemAppendToken(NULL, &yymsp[0].minor.yy0, -1);
 
-    SAlterTableInfo* pAlterTable = tSetAlterTableInfo(&yymsp[-4].minor.yy0, NULL, A, TSDB_ALTER_TABLE_DROP_TAG_COLUMN, -1);
+    SAlterTableInfo* pAlterTable = tSetAlterTableInfo(&yymsp[-4].minor.yy0, NULL, A, TSDB_ALTER_TABLE_DROP_TAG, -1);
     setSqlInfo(pInfo, pAlterTable, NULL, TSDB_SQL_ALTER_TABLE);
 }
         break;
@@ -3282,7 +3282,7 @@ static void yy_reduce(
       case 294: /* cmd ::= ALTER STABLE ids cpxName ADD TAG columnlist */
 {
     yymsp[-4].minor.yy0.n += yymsp[-3].minor.yy0.n;
-    SAlterTableInfo* pAlterTable = tSetAlterTableInfo(&yymsp[-4].minor.yy0, yymsp[0].minor.yy165, NULL, TSDB_ALTER_TABLE_ADD_TAG_COLUMN, TSDB_SUPER_TABLE);
+    SAlterTableInfo* pAlterTable = tSetAlterTableInfo(&yymsp[-4].minor.yy0, yymsp[0].minor.yy165, NULL, TSDB_ALTER_TABLE_ADD_TAG, TSDB_SUPER_TABLE);
     setSqlInfo(pInfo, pAlterTable, NULL, TSDB_SQL_ALTER_TABLE);
 }
         break;
@@ -3293,7 +3293,7 @@ static void yy_reduce(
     toTSDBType(yymsp[0].minor.yy0.type);
     SArray* A = tListItemAppendToken(NULL, &yymsp[0].minor.yy0, -1);
 
-    SAlterTableInfo* pAlterTable = tSetAlterTableInfo(&yymsp[-4].minor.yy0, NULL, A, TSDB_ALTER_TABLE_DROP_TAG_COLUMN, TSDB_SUPER_TABLE);
+    SAlterTableInfo* pAlterTable = tSetAlterTableInfo(&yymsp[-4].minor.yy0, NULL, A, TSDB_ALTER_TABLE_DROP_TAG, TSDB_SUPER_TABLE);
     setSqlInfo(pInfo, pAlterTable, NULL, TSDB_SQL_ALTER_TABLE);
 }
         break;

@@ -121,7 +121,7 @@ static int32_t findCol(SToken* pColname, int32_t start, int32_t end, SSchema* pS
 }
 
 static void buildMsgHeader(SVgDataBlocks* blocks) {
-    SSubmitMsg* submit = (SSubmitMsg*)blocks->pData;
+    SSubmitReq* submit = (SSubmitReq*)blocks->pData;
     submit->header.vgId    = htonl(blocks->vg.vgId);
     submit->header.contLen = htonl(blocks->size);
     submit->length         = submit->header.contLen;
@@ -259,31 +259,30 @@ static int parseTime(char **end, SToken *pToken, int16_t timePrec, int64_t *time
 }
 
 typedef struct SMemParam {
-  SMemRow row;
+  SRowBuilder* rb;
   SSchema* schema;
   int32_t toffset;
-  uint8_t compareStat;
-  int32_t dataLen;
-  int32_t kvLen;
+  int32_t      colIdx;
 } SMemParam;
 
-static FORCE_INLINE int32_t MemRowAppend(const void *value, int32_t len, void *param) {
-  SMemParam* pa = (SMemParam*)param;
+static FORCE_INLINE int32_t MemRowAppend(const void* value, int32_t len, void* param) {
+  SMemParam*   pa = (SMemParam*)param;
+  SRowBuilder* rb = pa->rb;
   if (TSDB_DATA_TYPE_BINARY == pa->schema->type) {
-    char *rowEnd = memRowEnd(pa->row);
+    const char* rowEnd = tdRowEnd(rb->pBuf);
     STR_WITH_SIZE_TO_VARSTR(rowEnd, value, len);
-    appendMemRowColValEx(pa->row, rowEnd, true, pa->schema->colId, pa->schema->type, pa->toffset, &pa->dataLen, &pa->kvLen, pa->compareStat);
+    tdAppendColValToRow(rb, pa->schema->colId, pa->schema->type, TD_VTYPE_NORM, rowEnd, false, pa->toffset, pa->colIdx);
   } else if (TSDB_DATA_TYPE_NCHAR == pa->schema->type) {
     // if the converted output len is over than pColumnModel->bytes, return error: 'Argument list too long'
-    int32_t output = 0;
-    char *  rowEnd = memRowEnd(pa->row);
-    if (!taosMbsToUcs4(value, len, (char *)varDataVal(rowEnd), pa->schema->bytes - VARSTR_HEADER_SIZE, &output)) {
+    int32_t     output = 0;
+    const char* rowEnd = tdRowEnd(rb->pBuf);
+    if (!taosMbsToUcs4(value, len, (char*)varDataVal(rowEnd), pa->schema->bytes - VARSTR_HEADER_SIZE, &output)) {
       return TSDB_CODE_TSC_SQL_SYNTAX_ERROR;
     }
     varDataSetLen(rowEnd, output);
-    appendMemRowColValEx(pa->row, rowEnd, false, pa->schema->colId, pa->schema->type, pa->toffset, &pa->dataLen, &pa->kvLen, pa->compareStat);
+    tdAppendColValToRow(rb, pa->schema->colId, pa->schema->type, TD_VTYPE_NORM, rowEnd, false, pa->toffset, pa->colIdx);
   } else {
-    appendMemRowColValEx(pa->row, value, true, pa->schema->colId, pa->schema->type, pa->toffset, &pa->dataLen, &pa->kvLen, pa->compareStat);
+    tdAppendColValToRow(rb, pa->schema->colId, pa->schema->type, TD_VTYPE_NORM, value, true, pa->toffset, pa->colIdx);
   }
   return TSDB_CODE_SUCCESS;
 }
@@ -293,6 +292,7 @@ static int32_t parseBoundColumns(SInsertParseContext* pCxt, SParsedDataColInfo* 
   int32_t nCols = pColList->numOfCols;
 
   pColList->numOfBound = 0; 
+  pColList->boundNullLen = 0;
   memset(pColList->boundedColumns, 0, sizeof(int32_t) * nCols);
   for (int32_t i = 0; i < nCols; ++i) {
     pColList->cols[i].valStat = VAL_STAT_NONE;
@@ -322,8 +322,19 @@ static int32_t parseBoundColumns(SInsertParseContext* pCxt, SParsedDataColInfo* 
     }
     lastColIdx = index;
     pColList->cols[index].valStat = VAL_STAT_HAS;
-    pColList->boundedColumns[pColList->numOfBound] = index;
+    pColList->boundedColumns[pColList->numOfBound] = index + PRIMARYKEY_TIMESTAMP_COL_ID;
     ++pColList->numOfBound;
+    switch (pSchema[t].type) {
+      case TSDB_DATA_TYPE_BINARY:
+        pColList->boundNullLen += (sizeof(VarDataOffsetT) + VARSTR_HEADER_SIZE + CHAR_BYTES);
+        break;
+      case TSDB_DATA_TYPE_NCHAR:
+        pColList->boundNullLen += (sizeof(VarDataOffsetT) + VARSTR_HEADER_SIZE + TSDB_NCHAR_SIZE);
+        break;
+      default:
+        pColList->boundNullLen += TYPE_BYTES[pSchema[t].type];
+        break;
+    }
   }
 
   pColList->orderStatus = isOrdered ? ORDER_STATUS_ORDERED : ORDER_STATUS_DISORDERED;
@@ -411,27 +422,27 @@ static int32_t parseUsingClause(SInsertParseContext* pCxt, SToken* pTbnameToken)
   return TSDB_CODE_SUCCESS;
 }
 
-static int parseOneRow(SInsertParseContext* pCxt, STableDataBlocks* pDataBlocks, int16_t timePrec, int32_t* len, char* tmpTokenBuf) {  
+static int parseOneRow(SInsertParseContext* pCxt, STableDataBlocks* pDataBlocks, int16_t timePrec, int32_t* len, char* tmpTokenBuf) {
   SParsedDataColInfo* spd = &pDataBlocks->boundColumnInfo;
-  SMemRowBuilder* pBuilder = &pDataBlocks->rowBuilder;
-  char *row = pDataBlocks->pData + pDataBlocks->size;  // skip the SSubmitBlk header
-  initSMemRow(row, pBuilder->memRowType, pDataBlocks, spd->numOfBound);
+  SRowBuilder*        pBuilder = &pDataBlocks->rowBuilder;
+  STSRow*             row = (STSRow*)(pDataBlocks->pData + pDataBlocks->size);  // skip the SSubmitBlk header
+
+  tdSRowResetBuf(pBuilder, row);
 
   bool isParseBindParam = false;
   SSchema* schema = getTableColumnSchema(pDataBlocks->pTableMeta);
-  SMemParam param = {.row = row};
+  SMemParam param = {.rb = pBuilder};
   SToken sToken = {0};
   // 1. set the parsed value from sql string
   for (int i = 0; i < spd->numOfBound; ++i) {
     NEXT_TOKEN(pCxt->pSql, sToken);
     SSchema *pSchema = &schema[spd->boundedColumns[i] - 1];
     param.schema = pSchema;
-    param.compareStat = pBuilder->compareStat;
-    getMemRowAppendInfo(schema, pBuilder->memRowType, spd, i, &param.toffset);
+    getMemRowAppendInfo(schema, pBuilder->rowType, spd, i, &param.toffset, &param.colIdx);
     CHECK_CODE(parseValueToken(&pCxt->pSql, &sToken, pSchema, timePrec, tmpTokenBuf, MemRowAppend, &param, &pCxt->msg));
 
     if (PRIMARYKEY_TIMESTAMP_COL_ID == pSchema->colId) {
-      TSKEY tsKey = memRowKey(row);
+      TSKEY tsKey = TD_ROW_KEY(row);
       if (checkTimestamp(pDataBlocks, (const char *)&tsKey) != TSDB_CODE_SUCCESS) {
         buildSyntaxErrMsg(&pCxt->msg, "client time/server time can not be mixed up", sToken.z);
         return TSDB_CODE_TSC_INVALID_TIME_STAMP;
@@ -440,23 +451,18 @@ static int parseOneRow(SInsertParseContext* pCxt, STableDataBlocks* pDataBlocks,
   }
 
   if (!isParseBindParam) {
-    // 2. check and set convert flag
-    if (pBuilder->compareStat == ROW_COMPARE_NEED) {
-      convertMemRow(row, spd->allNullLen + TD_MEM_ROW_DATA_HEAD_SIZE, pBuilder->kvRowInitLen);
-    }
-
-    // 3. set the null value for the columns that do not assign values
-    if ((spd->numOfBound < spd->numOfCols) && isDataRow(row) && !isNeedConvertRow(row)) {
-      SDataRow dataRow = memRowDataBody(row);
+    // set the null value for the columns that do not assign values
+    if ((spd->numOfBound < spd->numOfCols) && TD_IS_TP_ROW(row)) {
       for (int32_t i = 0; i < spd->numOfCols; ++i) {
-        if (spd->cols[i].valStat == VAL_STAT_NONE) {
-          tdAppendDataColVal(dataRow, getNullValue(schema[i].type), true, schema[i].type, spd->cols[i].toffset);
+        if (spd->cols[i].valStat == VAL_STAT_NONE) {  // the primary TS key is not VAL_STAT_NONE
+          tdAppendColValToTpRow(pBuilder, TD_VTYPE_NONE, getNullValue(schema[i].type), true, schema[i].type, i,
+                                spd->cols[i].toffset);
         }
       }
     }
   }
 
-  *len = getExtendedRowSize(pDataBlocks);
+  // *len = pBuilder->extendedRowSize;
   return TSDB_CODE_SUCCESS;
 }
 
@@ -464,7 +470,7 @@ static int parseOneRow(SInsertParseContext* pCxt, STableDataBlocks* pDataBlocks,
 static int32_t parseValues(SInsertParseContext* pCxt, STableDataBlocks* pDataBlock, int maxRows, int32_t* numOfRows) {
   STableComInfo tinfo = getTableInfo(pDataBlock->pTableMeta);
   int32_t extendedRowSize = getExtendedRowSize(pDataBlock);
-  CHECK_CODE(initMemRowBuilder(&pDataBlock->rowBuilder, 0, tinfo.numOfColumns, pDataBlock->boundColumnInfo.numOfBound, pDataBlock->boundColumnInfo.allNullLen));
+  CHECK_CODE(initRowBuilder(&pDataBlock->rowBuilder, pDataBlock->pTableMeta->sversion, &pDataBlock->boundColumnInfo));
 
   (*numOfRows) = 0;
   char tmpTokenBuf[TSDB_MAX_BYTES_PER_ROW] = {0};  // used for deleting Escape character: \\, \', \"
@@ -486,7 +492,7 @@ static int32_t parseValues(SInsertParseContext* pCxt, STableDataBlocks* pDataBlo
 
     int32_t len = 0;
     CHECK_CODE(parseOneRow(pCxt, pDataBlock, tinfo.precision, &len, tmpTokenBuf));
-    pDataBlock->size += len;
+    pDataBlock->size += extendedRowSize; //len;
 
     NEXT_TOKEN(pCxt->pSql, sToken);
     if (TK_RP != sToken.type) {

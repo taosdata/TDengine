@@ -49,7 +49,7 @@ typedef struct SHistogramInfo {
   SHistBin* elems;
 #else
   tSkipList*      pList;
-  SLoserTreeInfo* pLoserTree;
+  SMultiwayMergeTreeInfo* pLoserTree;
   int32_t         maxIndex;
   bool            ordered;
 #endif

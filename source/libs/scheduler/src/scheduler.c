@@ -827,7 +827,7 @@ int32_t schHandleResponseMsg(SSchJob *pJob, SSchTask *pTask, int32_t msgType, ch
           SCH_ERR_RET(schProcessOnTaskFailure(pJob, pTask, rspCode));
         }
 
-        SShellSubmitRsp *rsp = (SShellSubmitRsp *)msg;
+        SSubmitRsp *rsp = (SSubmitRsp *)msg;
         if (rsp) {
           pJob->resNumOfRows += rsp->affectedRows;
         }

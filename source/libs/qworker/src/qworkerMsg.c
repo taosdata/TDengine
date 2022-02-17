@@ -172,45 +172,54 @@ int32_t qwBuildAndSendDropRsp(void *connection, int32_t code) {
 }
 
 int32_t qwBuildAndSendShowRsp(SRpcMsg *pMsg, int32_t code) {
-  int32_t numOfCols = 6;
-  int32_t msgSize = sizeof(SVShowTablesRsp) + sizeof(SSchema) * numOfCols;
+  int32_t         numOfCols = 6;
+  SVShowTablesRsp showRsp = {0};
 
-  SVShowTablesRsp *pRsp = (SVShowTablesRsp *)rpcMallocCont(msgSize);
+  // showRsp.showId = 1;
+  showRsp.tableMeta.pSchemas = calloc(numOfCols, sizeof(SSchema));
+  if (showRsp.tableMeta.pSchemas == NULL) {
+    terrno = TSDB_CODE_OUT_OF_MEMORY;
+    return -1;
+  }
 
   int32_t  cols = 0;
-  SSchema *pSchema = pRsp->metaInfo.pSchema;
+  SSchema *pSchema = showRsp.tableMeta.pSchemas;
 
   const SSchema *s = tGetTbnameColumnSchema();
-  *pSchema = createSchema(s->type, htonl(s->bytes), htonl(++cols), "name");
+  *pSchema = createSchema(s->type, s->bytes, ++cols, "name");
   pSchema++;
 
   int32_t type = TSDB_DATA_TYPE_TIMESTAMP;
-  *pSchema = createSchema(type, htonl(tDataTypes[type].bytes), htonl(++cols), "created");
+  *pSchema = createSchema(type, tDataTypes[type].bytes, ++cols, "created");
   pSchema++;
 
   type = TSDB_DATA_TYPE_SMALLINT;
-  *pSchema = createSchema(type, htonl(tDataTypes[type].bytes), htonl(++cols), "columns");
+  *pSchema = createSchema(type, tDataTypes[type].bytes, ++cols, "columns");
   pSchema++;
 
-  *pSchema = createSchema(s->type, htonl(s->bytes), htonl(++cols), "stable");
+  *pSchema = createSchema(s->type, s->bytes, ++cols, "stable");
   pSchema++;
 
   type = TSDB_DATA_TYPE_BIGINT;
-  *pSchema = createSchema(type, htonl(tDataTypes[type].bytes), htonl(++cols), "uid");
+  *pSchema = createSchema(type, tDataTypes[type].bytes, ++cols, "uid");
   pSchema++;
 
   type = TSDB_DATA_TYPE_INT;
-  *pSchema = createSchema(type, htonl(tDataTypes[type].bytes), htonl(++cols), "vgId");
+  *pSchema = createSchema(type, tDataTypes[type].bytes, ++cols, "vgId");
 
   assert(cols == numOfCols);
-  pRsp->metaInfo.numOfColumns = htonl(cols);
+  showRsp.tableMeta.numOfColumns = cols;
+
+  int32_t bufLen = tSerializeSShowRsp(NULL, 0, &showRsp);
+  void   *pBuf = rpcMallocCont(bufLen);
+  tSerializeSShowRsp(pBuf, bufLen, &showRsp);
 
   SRpcMsg rpcMsg = {
-      .handle  = pMsg->handle,
+      .handle = pMsg->handle,
       .ahandle = pMsg->ahandle,
-      .pCont   = pRsp,
-      .contLen = msgSize,
-      .code    = code,
+      .pCont = pBuf,
+      .contLen = bufLen,
+      .code = code,
   };
 
   rpcSendResponse(&rpcMsg);

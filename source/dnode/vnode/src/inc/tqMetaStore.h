@@ -23,8 +23,8 @@
 extern "C" {
 #endif
 
-STqMetaStore* tqStoreOpen(const char* path, FTqSerialize pSerializer, FTqDeserialize pDeserializer, FTqDelete pDeleter,
-                          int32_t tqConfigFlag);
+STqMetaStore* tqStoreOpen(STQ* pTq, const char* path, FTqSerialize pSerializer, FTqDeserialize pDeserializer,
+                          FTqDelete pDeleter, int32_t tqConfigFlag);
 int32_t       tqStoreClose(STqMetaStore*);
 // int32_t       tqStoreDelete(TqMetaStore*);
 // int32_t       tqStoreCommitAll(TqMetaStore*);

@@ -22,11 +22,23 @@
 extern "C" {
 #endif
 
+
+enum {
+  MQ_CONSUMER_STATUS__INIT = 1,
+  MQ_CONSUMER_STATUS__IDLE,
+  MQ_CONSUMER_STATUS__ACTIVE,
+  MQ_CONSUMER_STATUS__LOST,
+  MQ_CONSUMER_STATUS__MODIFY
+};
+
+
 int32_t mndInitConsumer(SMnode *pMnode);
 void    mndCleanupConsumer(SMnode *pMnode);
 
 SMqConsumerObj *mndAcquireConsumer(SMnode *pMnode, int64_t consumerId);
 void            mndReleaseConsumer(SMnode *pMnode, SMqConsumerObj *pConsumer);
+
+SMqConsumerObj* mndCreateConsumer(int64_t consumerId, const char* cgroup);
 
 SSdbRaw *mndConsumerActionEncode(SMqConsumerObj *pConsumer);
 SSdbRow *mndConsumerActionDecode(SSdbRaw *pRaw);

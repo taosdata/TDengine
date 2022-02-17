@@ -37,12 +37,6 @@ typedef struct SQueryNode {
 
 #define queryNodeType(nodeptr) (((const SQueryNode*)(nodeptr))->type)
 
-typedef struct SField {
-  char     name[TSDB_COL_NAME_LEN];
-  uint8_t  type;
-  int32_t  bytes;
-} SField;
-
 typedef struct SFieldInfo {
   int16_t     numOfOutput;   // number of column in result
   SField     *final;
@@ -141,7 +135,7 @@ typedef struct SVgDataBlocks {
   SVgroupInfo vg;
   int32_t     numOfTables;  // number of tables in current submit block
   uint32_t    size;
-  char       *pData;        // SMsgDesc + SSubmitMsg + SSubmitBlk + ...
+  char       *pData;        // SMsgDesc + SSubmitReq + SSubmitBlk + ...
 } SVgDataBlocks;
 
 typedef struct SVnodeModifOpStmtInfo {

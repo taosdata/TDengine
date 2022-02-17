@@ -264,11 +264,14 @@ static int32_t dndDropQnode(SDnode *pDnode) {
   return 0;
 }
 
-int32_t dndProcessCreateQnodeReq(SDnode *pDnode, SRpcMsg *pRpcMsg) {
-  SDCreateQnodeReq *pMsg = pRpcMsg->pCont;
-  pMsg->dnodeId = htonl(pMsg->dnodeId);
+int32_t dndProcessCreateQnodeReq(SDnode *pDnode, SRpcMsg *pReq) {
+  SDCreateQnodeReq createReq = {0};
+  if (tDeserializeSMCreateDropQSBNodeReq(pReq->pCont, pReq->contLen, &createReq) != 0) {
+    terrno = TSDB_CODE_INVALID_MSG;
+    return -1;
+  }
 
-  if (pMsg->dnodeId != dndGetDnodeId(pDnode)) {
+  if (createReq.dnodeId != dndGetDnodeId(pDnode)) {
     terrno = TSDB_CODE_DND_QNODE_INVALID_OPTION;
     dError("failed to create qnode since %s", terrstr());
     return -1;
@@ -277,11 +280,14 @@ int32_t dndProcessCreateQnodeReq(SDnode *pDnode, SRpcMsg *pRpcMsg) {
   }
 }
 
-int32_t dndProcessDropQnodeReq(SDnode *pDnode, SRpcMsg *pRpcMsg) {
-  SDDropQnodeReq *pMsg = pRpcMsg->pCont;
-  pMsg->dnodeId = htonl(pMsg->dnodeId);
+int32_t dndProcessDropQnodeReq(SDnode *pDnode, SRpcMsg *pReq) {
+  SDDropQnodeReq dropReq = {0};
+  if (tDeserializeSMCreateDropQSBNodeReq(pReq->pCont, pReq->contLen, &dropReq) != 0) {
+    terrno = TSDB_CODE_INVALID_MSG;
+    return -1;
+  }
 
-  if (pMsg->dnodeId != dndGetDnodeId(pDnode)) {
+  if (dropReq.dnodeId != dndGetDnodeId(pDnode)) {
     terrno = TSDB_CODE_DND_QNODE_INVALID_OPTION;
     dError("failed to drop qnode since %s", terrstr());
     return -1;

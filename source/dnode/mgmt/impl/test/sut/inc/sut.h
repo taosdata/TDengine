@@ -74,7 +74,7 @@ class Testbase {
 
  private:
   int64_t            showId;
-  STableMetaRsp*     pMeta;
+  STableMetaRsp      metaRsp;
   SRetrieveTableRsp* pRetrieveRsp;
   char*              pData;
   int32_t            pos;

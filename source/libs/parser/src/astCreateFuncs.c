@@ -24,6 +24,14 @@
     } \
   } while (0)
 
+#define CHECK_RAW_EXPR_NODE(node) \
+  do { \
+    if (NULL == (node) || QUERY_NODE_RAW_EXPR != nodeType(node)) { \
+      pCxt->valid = false; \
+      return NULL; \
+    } \
+  } while (0)
+
 SToken nil_token = { .type = TK_NIL, .n = 0, .z = NULL };
 
 static bool checkDbName(SAstCreateContext* pCxt, const SToken* pDbName) {
@@ -50,14 +58,55 @@ static bool checkColumnName(SAstCreateContext* pCxt, const SToken* pColumnName) 
   return pCxt->valid;
 }
 
+SNode* createRawExprNode(SAstCreateContext* pCxt, const SToken* pToken, SNode* pNode) {
+  SRawExprNode* target = (SRawExprNode*)nodesMakeNode(QUERY_NODE_RAW_EXPR);
+  CHECK_OUT_OF_MEM(target);
+  target->p = pToken->z;
+  target->n = pToken->n;
+  target->pNode = pNode;
+  return (SNode*)target;
+}
+
+SNode* createRawExprNodeExt(SAstCreateContext* pCxt, const SToken* pStart, const SToken* pEnd, SNode* pNode) {
+  SRawExprNode* target = (SRawExprNode*)nodesMakeNode(QUERY_NODE_RAW_EXPR);
+  CHECK_OUT_OF_MEM(target);
+  target->p = pStart->z;
+  target->n = (pEnd->z + pEnd->n) - pStart->z;
+  target->pNode = pNode;
+  return (SNode*)target;
+}
+
+SNode* releaseRawExprNode(SAstCreateContext* pCxt, SNode* pNode) {
+  CHECK_RAW_EXPR_NODE(pNode);
+  SNode* tmp = ((SRawExprNode*)pNode)->pNode;
+  tfree(pNode);
+  return tmp;
+}
+
+SToken getTokenFromRawExprNode(SAstCreateContext* pCxt, SNode* pNode) {
+  if (NULL == pNode || QUERY_NODE_RAW_EXPR != nodeType(pNode)) {
+    pCxt->valid = false;
+    return nil_token;
+  }
+  SRawExprNode* target = (SRawExprNode*)pNode;
+  SToken t = { .type = 0, .z = target->p, .n = target->n};
+  return t;
+}
+
 SNodeList* createNodeList(SAstCreateContext* pCxt, SNode* pNode) {
   SNodeList* list = nodesMakeList();
   CHECK_OUT_OF_MEM(list);
-  return nodesListAppend(list, pNode);
+  if (TSDB_CODE_SUCCESS != nodesListAppend(list, pNode)) {
+    pCxt->valid = false;
+  }
+  return list;
 }
 
 SNodeList* addNodeToList(SAstCreateContext* pCxt, SNodeList* pList, SNode* pNode) {
-  return nodesListAppend(pList, pNode);
+  if (TSDB_CODE_SUCCESS != nodesListAppend(pList, pNode)) {
+    pCxt->valid = false;
+  }
+  return pList;
 }
 
 SNode* createColumnNode(SAstCreateContext* pCxt, const SToken* pTableAlias, const SToken* pColumnName) {
@@ -79,14 +128,22 @@ SNode* createValueNode(SAstCreateContext* pCxt, int32_t dataType, const SToken* 
   val->literal = strndup(pLiteral->z, pLiteral->n);
   CHECK_OUT_OF_MEM(val->literal);
   val->node.resType.type = dataType;
-  val->node.resType.bytes = tDataTypes[TSDB_DATA_TYPE_BOOL].bytes;
+  val->node.resType.bytes = tDataTypes[dataType].bytes;
+  if (TSDB_DATA_TYPE_TIMESTAMP == dataType) {
+    val->node.resType.precision = TSDB_TIME_PRECISION_MILLI;
+  }
   return (SNode*)val;
 }
 
 SNode* createDurationValueNode(SAstCreateContext* pCxt, const SToken* pLiteral) {
   SValueNode* val = (SValueNode*)nodesMakeNode(QUERY_NODE_VALUE);
   CHECK_OUT_OF_MEM(val);
-  // todo
+  val->literal = strndup(pLiteral->z, pLiteral->n);
+  CHECK_OUT_OF_MEM(val->literal);
+  val->isDuration = true;
+  val->node.resType.type = TSDB_DATA_TYPE_BIGINT;
+  val->node.resType.bytes = tDataTypes[TSDB_DATA_TYPE_BIGINT].bytes;
+  val->node.resType.precision = TSDB_TIME_PRECISION_MILLI;
   return (SNode*)val;
 }
 
@@ -117,14 +174,6 @@ SNode* createBetweenAnd(SAstCreateContext* pCxt, SNode* pExpr, SNode* pLeft, SNo
 SNode* createNotBetweenAnd(SAstCreateContext* pCxt, SNode* pExpr, SNode* pLeft, SNode* pRight) {
   return createLogicConditionNode(pCxt, LOGIC_COND_TYPE_OR,
       createOperatorNode(pCxt, OP_TYPE_LOWER_THAN, pExpr, pLeft), createOperatorNode(pCxt, OP_TYPE_GREATER_THAN, pExpr, pRight));
-}
-
-SNode* createIsNullCondNode(SAstCreateContext* pCxt, SNode* pExpr, bool isNull) {
-  SIsNullCondNode* cond = (SIsNullCondNode*)nodesMakeNode(QUERY_NODE_IS_NULL_CONDITION);
-  CHECK_OUT_OF_MEM(cond);
-  cond->pExpr = pExpr;
-  cond->isNull = isNull;
-  return (SNode*)cond;
 }
 
 SNode* createFunctionNode(SAstCreateContext* pCxt, const SToken* pFuncName, SNodeList* pParameterList) {
@@ -195,6 +244,9 @@ SNode* createOrderByExprNode(SAstCreateContext* pCxt, SNode* pExpr, EOrder order
   CHECK_OUT_OF_MEM(orderByExpr);
   orderByExpr->pExpr = pExpr;
   orderByExpr->order = order;
+  if (NULL_ORDER_DEFAULT == nullOrder) {
+    nullOrder = (ORDER_ASC == order ? NULL_ORDER_FIRST : NULL_ORDER_LAST);
+  }
   orderByExpr->nullOrder = nullOrder;
   return (SNode*)orderByExpr;
 }
@@ -232,8 +284,21 @@ SNode* createFillNode(SAstCreateContext* pCxt, EFillMode mode, SNode* pValues) {
   return (SNode*)fill;
 }
 
+SNode* createGroupingSetNode(SAstCreateContext* pCxt, SNode* pNode) {
+  SGroupingSetNode* groupingSet = (SGroupingSetNode*)nodesMakeNode(QUERY_NODE_GROUPING_SET);
+  CHECK_OUT_OF_MEM(groupingSet);
+  groupingSet->groupingSetType = GP_TYPE_NORMAL;
+  groupingSet->pParameterList = nodesMakeList();
+  nodesListAppend(groupingSet->pParameterList, pNode);
+  return (SNode*)groupingSet;
+}
+
 SNode* setProjectionAlias(SAstCreateContext* pCxt, SNode* pNode, const SToken* pAlias) {
-  strncpy(((SExprNode*)pNode)->aliasName, pAlias->z, pAlias->n);
+  if (NULL == pNode || !pCxt->valid) {
+    return pNode;
+  }
+  uint32_t maxLen = sizeof(((SExprNode*)pNode)->aliasName);
+  strncpy(((SExprNode*)pNode)->aliasName, pAlias->z, pAlias->n > maxLen ? maxLen : pAlias->n);
   return pNode;
 }
 

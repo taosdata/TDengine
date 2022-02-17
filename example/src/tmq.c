@@ -13,16 +13,14 @@
  * along with this program. If not, see <http://www.gnu.org/licenses/>.
  */
 
+#include <assert.h>
 #include <stdio.h>
 #include <string.h>
-#include <assert.h>
 #include <time.h>
 #include "taos.h"
 
-static int running = 1;
-static void msg_process(tmq_message_t* message) {
-  tmqShowMsg(message);
-}
+static int  running = 1;
+static void msg_process(tmq_message_t* message) { tmqShowMsg(message); }
 
 int32_t init_env() {
   TAOS* pConn = taos_connect("localhost", "root", "taosdata", NULL, 0);
@@ -30,7 +28,7 @@ int32_t init_env() {
     return -1;
   }
 
-  TAOS_RES* pRes = taos_query(pConn, "create database if not exists abc1 vgroups 1");
+  TAOS_RES* pRes = taos_query(pConn, "create database if not exists abc1 vgroups 2");
   if (taos_errno(pRes) != 0) {
     printf("error in create db, reason:%s\n", taos_errstr(pRes));
     return -1;
@@ -51,28 +49,27 @@ int32_t init_env() {
   }
   taos_free_result(pRes);
 
-  pRes = taos_query(pConn, "create table tu using st1 tags(1)");
+  pRes = taos_query(pConn, "create table if not exists tu1 using st1 tags(1)");
   if (taos_errno(pRes) != 0) {
-    printf("failed to create child table tu, reason:%s\n", taos_errstr(pRes));
+    printf("failed to create child table tu1, reason:%s\n", taos_errstr(pRes));
     return -1;
   }
   taos_free_result(pRes);
 
-  pRes = taos_query(pConn, "create table tu2 using st1 tags(2)");
+  pRes = taos_query(pConn, "create table if not exists tu2 using st1 tags(2)");
   if (taos_errno(pRes) != 0) {
     printf("failed to create child table tu2, reason:%s\n", taos_errstr(pRes));
     return -1;
   }
   taos_free_result(pRes);
 
-
-  const char* sql = "select * from st1";
+  const char* sql = "select * from tu1";
   pRes = tmq_create_topic(pConn, "test_stb_topic_1", sql, strlen(sql));
-  /*if (taos_errno(pRes) != 0) {*/
-    /*printf("failed to create topic test_stb_topic_1, reason:%s\n", taos_errstr(pRes));*/
-    /*return -1;*/
-  /*}*/
-  /*taos_free_result(pRes);*/
+  if (taos_errno(pRes) != 0) {
+    printf("failed to create topic test_stb_topic_1, reason:%s\n", taos_errstr(pRes));
+    return -1;
+  }
+  taos_free_result(pRes);
   taos_close(pConn);
   return 0;
 }
@@ -91,11 +88,6 @@ tmq_t* build_consumer() {
   tmq_conf_set(conf, "group.id", "tg2");
   tmq_t* tmq = tmq_consumer_new(pConn, conf, NULL, 0);
   return tmq;
-
-  tmq_list_t* topic_list = tmq_list_new();
-  tmq_list_append(topic_list, "test_stb_topic_1");
-  tmq_subscribe(tmq, topic_list);
-  return NULL; 
 }
 
 tmq_list_t* build_topic_list() {
@@ -104,8 +96,7 @@ tmq_list_t* build_topic_list() {
   return topic_list;
 }
 
-void basic_consume_loop(tmq_t *tmq,
-                        tmq_list_t *topics) {
+void basic_consume_loop(tmq_t* tmq, tmq_list_t* topics) {
   tmq_resp_err_t err;
 
   if ((err = tmq_subscribe(tmq, topics))) {
@@ -113,20 +104,20 @@ void basic_consume_loop(tmq_t *tmq,
     printf("subscribe err\n");
     return;
   }
-  int32_t cnt = 0;
-  clock_t startTime = clock();
+  /*int32_t cnt = 0;*/
+  /*clock_t startTime = clock();*/
   while (running) {
-    tmq_message_t *tmqmessage = tmq_consumer_poll(tmq, 0);
+    tmq_message_t* tmqmessage = tmq_consumer_poll(tmq, 500);
     if (tmqmessage) {
-      cnt++;
-      /*msg_process(tmqmessage);*/
+      /*cnt++;*/
+      msg_process(tmqmessage);
       tmq_message_destroy(tmqmessage);
-    } else {
-      break;
+      /*} else {*/
+      /*break;*/
     }
   }
-  clock_t endTime = clock();
-  printf("log cnt: %d %f s\n", cnt, (double)(endTime - startTime) / CLOCKS_PER_SEC);
+  /*clock_t endTime = clock();*/
+  /*printf("log cnt: %d %f s\n", cnt, (double)(endTime - startTime) / CLOCKS_PER_SEC);*/
 
   err = tmq_consumer_close(tmq);
   if (err)
@@ -135,11 +126,10 @@ void basic_consume_loop(tmq_t *tmq,
     fprintf(stderr, "%% Consumer closed\n");
 }
 
-void sync_consume_loop(tmq_t *tmq,
-                  tmq_list_t *topics) {
+void sync_consume_loop(tmq_t* tmq, tmq_list_t* topics) {
   static const int MIN_COMMIT_COUNT = 1000;
 
-  int msg_count = 0;
+  int            msg_count = 0;
   tmq_resp_err_t err;
 
   if ((err = tmq_subscribe(tmq, topics))) {
@@ -148,15 +138,14 @@ void sync_consume_loop(tmq_t *tmq,
   }
 
   while (running) {
-    tmq_message_t *tmqmessage = tmq_consumer_poll(tmq, 500);
+    tmq_message_t* tmqmessage = tmq_consumer_poll(tmq, 500);
     if (tmqmessage) {
       msg_process(tmqmessage);
       tmq_message_destroy(tmqmessage);
 
-      if ((++msg_count % MIN_COMMIT_COUNT) == 0)
-        tmq_commit(tmq, NULL, 0);
+      if ((++msg_count % MIN_COMMIT_COUNT) == 0) tmq_commit(tmq, NULL, 0);
     }
- }
+  }
 
   err = tmq_consumer_close(tmq);
   if (err)
@@ -165,11 +154,48 @@ void sync_consume_loop(tmq_t *tmq,
     fprintf(stderr, "%% Consumer closed\n");
 }
 
-int main() {
+void perf_loop(tmq_t* tmq, tmq_list_t* topics) {
+  tmq_resp_err_t err;
+
+  if ((err = tmq_subscribe(tmq, topics))) {
+    fprintf(stderr, "%% Failed to start consuming topics: %s\n", tmq_err2str(err));
+    printf("subscribe err\n");
+    return;
+  }
+  int32_t batchCnt = 0;
+  int32_t skipLogNum = 0;
+  clock_t startTime = clock();
+  while (running) {
+    tmq_message_t* tmqmessage = tmq_consumer_poll(tmq, 500);
+    if (tmqmessage) {
+      batchCnt++;
+      skipLogNum += tmqGetSkipLogNum(tmqmessage);
+      /*msg_process(tmqmessage);*/
+      tmq_message_destroy(tmqmessage);
+    } else {
+      break;
+    }
+  }
+  clock_t endTime = clock();
+  printf("log batch cnt: %d, skip log cnt: %d, time used:%f s\n", batchCnt, skipLogNum,
+         (double)(endTime - startTime) / CLOCKS_PER_SEC);
+
+  err = tmq_consumer_close(tmq);
+  if (err)
+    fprintf(stderr, "%% Failed to close consumer: %s\n", tmq_err2str(err));
+  else
+    fprintf(stderr, "%% Consumer closed\n");
+}
+
+int main(int argc, char* argv[]) {
   int code;
-  code = init_env();
-  tmq_t* tmq = build_consumer();
+  if (argc > 1) {
+    printf("env init\n");
+    code = init_env();
+  }
+  tmq_t*      tmq = build_consumer();
   tmq_list_t* topic_list = build_topic_list();
+  /*perf_loop(tmq, topic_list);*/
   basic_consume_loop(tmq, topic_list);
   /*sync_consume_loop(tmq, topic_list);*/
 }

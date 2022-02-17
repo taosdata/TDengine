@@ -117,14 +117,14 @@ int32_t tHistogramAdd(SHistogramInfo** pHisto, double val) {
 
       if ((*pHisto)->ordered) {
         int32_t         lastIndex = (*pHisto)->maxIndex;
-        SLoserTreeInfo* pTree = (*pHisto)->pLoserTree;
+        SMultiwayMergeTreeInfo* pTree = (*pHisto)->pLoserTree;
 
         (*pHisto)->pLoserTree->pNode[lastIndex + pTree->numOfEntries].pData = pResNode;
         pEntry1->index = (*pHisto)->pLoserTree->pNode[lastIndex + pTree->numOfEntries].index;
 
         // update the loser tree
         if ((*pHisto)->ordered) {
-          tLoserTreeAdjust(pTree, pEntry1->index + pTree->numOfEntries);
+          tMergeTreeAdjust(pTree, pEntry1->index + pTree->numOfEntries);
         }
 
         tSkipListKey kx =
@@ -142,10 +142,10 @@ int32_t tHistogramAdd(SHistogramInfo** pHisto, double val) {
       SHistBin* pPrevEntry = (SHistBin*)pResNode->pBackward[0]->pData;
       pPrevEntry->delta = val - pPrevEntry->val;
 
-      SLoserTreeInfo* pTree = (*pHisto)->pLoserTree;
+      SMultiwayMergeTreeInfo* pTree = (*pHisto)->pLoserTree;
       if ((*pHisto)->ordered) {
-        tLoserTreeAdjust(pTree, pPrevEntry->index + pTree->numOfEntries);
-        tLoserTreeDisplay(pTree);
+        tMergeTreeAdjust(pTree, pPrevEntry->index + pTree->numOfEntries);
+        tMergeTreePrint(pTree);
       }
     }
 
@@ -155,7 +155,7 @@ int32_t tHistogramAdd(SHistogramInfo** pHisto, double val) {
       if (!(*pHisto)->ordered) {
         SSkipListPrint((*pHisto)->pList, 1);
 
-        SLoserTreeInfo* pTree = (*pHisto)->pLoserTree;
+        SMultiwayMergeTreeInfo* pTree = (*pHisto)->pLoserTree;
         tSkipListNode*  pHead = (*pHisto)->pList->pHead.pForward[0];
 
         tSkipListNode* p1 = pHead;
@@ -183,13 +183,13 @@ int32_t tHistogramAdd(SHistogramInfo** pHisto, double val) {
           pTree->pNode[i].index = -1;
         }
 
-        tLoserTreeDisplay(pTree);
+        tMergeTreePrint(pTree);
 
         for (int32_t i = pTree->totalEntries - 1; i >= pTree->numOfEntries; i--) {
-          tLoserTreeAdjust(pTree, i);
+          tMergeTreeAdjust(pTree, i);
         }
 
-        tLoserTreeDisplay(pTree);
+        tMergeTreePrint(pTree);
         (*pHisto)->ordered = true;
       }
 
@@ -219,7 +219,7 @@ int32_t tHistogramAdd(SHistogramInfo** pHisto, double val) {
         pPrevEntry->delta = pEntry->val - pPrevEntry->val;
       }
 
-      SLoserTreeInfo* pTree = (*pHisto)->pLoserTree;
+      SMultiwayMergeTreeInfo* pTree = (*pHisto)->pLoserTree;
       if (pNextEntry->index != -1) {
         (*pHisto)->maxIndex = pNextEntry->index;
 
@@ -230,12 +230,12 @@ int32_t tHistogramAdd(SHistogramInfo** pHisto, double val) {
         printf("disappear index is:%d\n", f);
       }
 
-      tLoserTreeAdjust(pTree, pEntry->index + pTree->numOfEntries);
+      tMergeTreeAdjust(pTree, pEntry->index + pTree->numOfEntries);
       // remove the next node in skiplist
       tSkipListRemoveNode((*pHisto)->pList, pNext);
       SSkipListPrint((*pHisto)->pList, 1);
 
-      tLoserTreeDisplay((*pHisto)->pLoserTree);
+      tMergeTreePrint((*pHisto)->pLoserTree);
     } else {  // add to heap
       if (pResNode->pForward[0] != NULL) {
         pEntry1->delta = ((SHistBin*)pResNode->pForward[0]->pData)->val - val;

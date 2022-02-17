@@ -34,11 +34,6 @@ typedef enum EValStat {
   VAL_STAT_NONE = 0x01,  // 1 means no val
 } EValStat;
 
-typedef enum ERowCompareStat {
-  ROW_COMPARE_NO_NEED = 0,
-  ROW_COMPARE_NEED = 1,
-} ERowCompareStat;
-
 typedef struct SBoundColumn {
   int32_t offset;   // all column offset value
   int32_t toffset;  // first part offset for SDataRow TODO: get offset from STSchema on future
@@ -55,24 +50,18 @@ typedef struct SParsedDataColInfo {
   int16_t        numOfCols;
   int16_t        numOfBound;
   uint16_t       flen;        // TODO: get from STSchema
-  uint16_t       allNullLen;  // TODO: get from STSchema
+  uint16_t       allNullLen;  // TODO: get from STSchema(base on SDataRow)
   uint16_t       extendedVarLen;
-  int32_t        *boundedColumns;  // bound column idx according to schema
-  SBoundColumn   *cols;
-  SBoundIdxInfo  *colIdxInfo;
+  uint16_t       boundNullLen;    // bound column len with all NULL value(without VarDataOffsetT/SColIdx part)
+  int32_t *      boundedColumns;  // bound column idx according to schema
+  SBoundColumn * cols;
+  SBoundIdxInfo *colIdxInfo;
   int8_t         orderStatus;  // bound columns
 } SParsedDataColInfo;
 
-typedef struct SMemRowInfo {
-  int32_t dataLen;  // len of SDataRow
-  int32_t kvLen;    // len of SKVRow
-} SMemRowInfo;
-
 typedef struct {
-  uint8_t      memRowType;   // default is 0, that is SDataRow 
-  uint8_t      compareStat;  // 0 no need, 1 need compare
-  TDRowTLenT   kvRowInitLen;
-  SMemRowInfo *rowInfo;
+  uint8_t memRowType;  // default is 0, that is SDataRow
+  int32_t rowSize;
 } SMemRowBuilder;
 
 typedef struct STableDataBlocks {
@@ -91,65 +80,38 @@ typedef struct STableDataBlocks {
   STagData    tagData; 
   
   SParsedDataColInfo boundColumnInfo;
-  SMemRowBuilder rowBuilder;
+  SRowBuilder        rowBuilder;
 } STableDataBlocks;
 
-static FORCE_INLINE void initSMemRow(SMemRow row, uint8_t memRowType, STableDataBlocks *pBlock, int16_t nBoundCols) {
-  memRowSetType(row, memRowType);
-  if (isDataRowT(memRowType)) {
-    dataRowSetVersion(memRowDataBody(row), pBlock->pTableMeta->sversion);
-    dataRowSetLen(memRowDataBody(row), (TDRowLenT)(TD_DATA_ROW_HEAD_SIZE + pBlock->boundColumnInfo.flen));
-  } else {
-    ASSERT(nBoundCols > 0);
-    memRowSetKvVersion(row, pBlock->pTableMeta->sversion);
-    kvRowSetNCols(memRowKvBody(row), nBoundCols);
-    kvRowSetLen(memRowKvBody(row), (TDRowLenT)(TD_KV_ROW_HEAD_SIZE + sizeof(SColIdx) * nBoundCols));
-  }
-}
-
 static FORCE_INLINE int32_t getExtendedRowSize(STableDataBlocks *pBlock) {
-  ASSERT(pBlock->rowSize == pBlock->pTableMeta->tableInfo.rowSize);
-  return pBlock->rowSize + TD_MEM_ROW_DATA_HEAD_SIZE + pBlock->boundColumnInfo.extendedVarLen;
+  STableComInfo *pTableInfo = &pBlock->pTableMeta->tableInfo;
+  ASSERT(pBlock->rowSize == pTableInfo->rowSize);
+  return pBlock->rowSize + TD_ROW_HEAD_LEN - sizeof(TSKEY) + pBlock->boundColumnInfo.extendedVarLen +
+         (int32_t)TD_BITMAP_BYTES(pTableInfo->numOfColumns - 1);
 }
 
-// Applicable to consume by one row
-static FORCE_INLINE void appendMemRowColValEx(SMemRow row, const void *value, bool isCopyVarData, int16_t colId,
-                                                 int8_t colType, int32_t toffset, int32_t *dataLen, int32_t *kvLen,
-                                                 uint8_t compareStat) {
-  tdAppendMemRowColVal(row, value, isCopyVarData, colId, colType, toffset);
-  if (compareStat == ROW_COMPARE_NEED) {
-    tdGetColAppendDeltaLen(value, colType, dataLen, kvLen);
-  }
-}
-
-static FORCE_INLINE void getMemRowAppendInfo(SSchema *pSchema, uint8_t memRowType, SParsedDataColInfo *spd,
-                                                int32_t idx, int32_t *toffset) {
+static FORCE_INLINE void getMemRowAppendInfo(SSchema *pSchema, uint8_t rowType, SParsedDataColInfo *spd,
+                                                int32_t idx, int32_t *toffset, int32_t *colIdx) {
   int32_t schemaIdx = 0;
   if (IS_DATA_COL_ORDERED(spd)) {
-    schemaIdx = spd->boundedColumns[idx] - 1;
-    if (isDataRowT(memRowType)) {
+    schemaIdx = spd->boundedColumns[idx] - PRIMARYKEY_TIMESTAMP_COL_ID;
+    if (TD_IS_TP_ROW_T(rowType)) {
       *toffset = (spd->cols + schemaIdx)->toffset;  // the offset of firstPart
+      *colIdx = schemaIdx;
     } else {
       *toffset = idx * sizeof(SColIdx);  // the offset of SColIdx
+      *colIdx = idx;
     }
   } else {
     ASSERT(idx == (spd->colIdxInfo + idx)->boundIdx);
-    schemaIdx = (spd->colIdxInfo + idx)->schemaColIdx;
-    if (isDataRowT(memRowType)) {
+    schemaIdx = (spd->colIdxInfo + idx)->schemaColIdx - PRIMARYKEY_TIMESTAMP_COL_ID;
+    if (TD_IS_TP_ROW_T(rowType)) {
       *toffset = (spd->cols + schemaIdx)->toffset;
+      *colIdx = schemaIdx;
     } else {
       *toffset = ((spd->colIdxInfo + idx)->finalIdx) * sizeof(SColIdx);
+      *colIdx = (spd->colIdxInfo + idx)->finalIdx;
     }
-  }
-}
-
-static FORCE_INLINE void convertMemRow(SMemRow row, int32_t dataLen, int32_t kvLen) {
-  if (isDataRow(row)) {
-    if (kvLen < (dataLen * KVRatioConvert)) {
-      memRowSetConvert(row);
-    }
-  } else if (kvLen > dataLen) {
-    memRowSetConvert(row);
   }
 }
 
@@ -172,8 +134,7 @@ void setBoundColumnInfo(SParsedDataColInfo* pColList, SSchema* pSchema, int32_t 
 void destroyBoundColumnInfo(SParsedDataColInfo* pColList);
 void destroyBlockArrayList(SArray* pDataBlockList);
 void destroyBlockHashmap(SHashObj* pDataBlockHash);
-
-int32_t initMemRowBuilder(SMemRowBuilder *pBuilder, uint32_t nRows, uint32_t nCols, uint32_t nBoundCols, int32_t allNullLen);
+int  initRowBuilder(SRowBuilder *pBuilder, int16_t schemaVer, SParsedDataColInfo *pColInfo);
 int32_t allocateMemIfNeed(STableDataBlocks *pDataBlock, int32_t rowSize, int32_t * numOfRows);
 int32_t getDataBlockFromList(SHashObj* pHashList, int64_t id, int32_t size, int32_t startOffset, int32_t rowSize,
     const STableMeta* pTableMeta, STableDataBlocks** dataBlocks, SArray* pBlockList);
