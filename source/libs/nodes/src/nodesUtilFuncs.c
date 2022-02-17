@@ -16,6 +16,7 @@
 #include "querynodes.h"
 #include "nodesShowStmts.h"
 #include "taoserror.h"
+#include "taos.h"
 
 static SNode* makeNode(ENodeType type, size_t size) {
   SNode* p = calloc(1, size);

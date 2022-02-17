@@ -12,21 +12,25 @@
  * You should have received a copy of the GNU Affero General Public License
  * along with this program. If not, see <http://www.gnu.org/licenses/>.
  */
-
-#ifndef _TD_COMMON_UNARY_SCALAR_OPERATOR_H_
-#define _TD_COMMON_UNARY_SCALAR_OPERATOR_H_
+#ifndef TDENGINE_SCALAR_H
+#define TDENGINE_SCALAR_H
 
 #ifdef __cplusplus
 extern "C" {
 #endif
 
-//#include "tscalarfunction.h"
+#include "function.h"
+#include "nodes.h"
 
-//typedef void (*_unary_scalar_fn_t)(SScalarParam *pLeft, SScalarParam* pOutput);
-//_unary_scalar_fn_t getUnaryScalarOperatorFn(int32_t binOperator);
+typedef struct SFilterInfo SFilterInfo;
+
+
+int32_t scalarCalculateConstants(SNode *pNode, SNode **pRes);
+int32_t scalarCalculate(SNode *pNode, SSDataBlock *pSrc, SScalarParam *pDst);
+
 
 #ifdef __cplusplus
 }
 #endif
 
-#endif  /*_TD_COMMON_BIN_SCALAR_OPERATOR_H_*/
+#endif  // TDENGINE_SCALAR_H

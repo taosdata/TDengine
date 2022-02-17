@@ -22,7 +22,9 @@ extern "C" {
 
 #include "thash.h"
 #include "tname.h"
-#include "function.h"
+#include "common.h"
+#include "scalar.h"
+#include "querynodes.h"
 
 #define FILTER_DEFAULT_GROUP_SIZE 4
 #define FILTER_DEFAULT_UNIT_SIZE 4
@@ -322,7 +324,7 @@ typedef struct SFilterInfo {
 #define FILTER_ALL_RES(i) FILTER_GET_FLAG((i)->status, FI_STATUS_ALL)
 #define FILTER_EMPTY_RES(i) FILTER_GET_FLAG((i)->status, FI_STATUS_EMPTY)
 
-
+#if 0
 extern int32_t filterInitFromTree(tExprNode* tree, SFilterInfo **pinfo, uint32_t options);
 extern bool filterExecute(SFilterInfo *info, int32_t numOfRows, int8_t** p, SColumnDataAgg *statis, int16_t numOfCols);
 extern int32_t filterSetColFieldData(SFilterInfo *info, int32_t numOfCols, SArray* pDataBlock);
@@ -331,6 +333,12 @@ extern int32_t filterConverNcharColumns(SFilterInfo* pFilterInfo, int32_t rows, 
 extern int32_t filterFreeNcharColumns(SFilterInfo* pFilterInfo);
 extern void filterFreeInfo(SFilterInfo *info);
 extern bool filterRangeExecute(SFilterInfo *info, SColumnDataAgg *pDataStatis, int32_t numOfCols, int32_t numOfRows);
+#else
+//REMOVE THESE!!!!!!!!!!!!!!!!!!!!
+#include "function.h"
+#endif
+extern bool filterDoCompare(__compar_fn_t func, uint8_t optr, void *left, void *right);
+extern __compar_fn_t filterGetCompFunc(int32_t type, int32_t optr);
 
 #ifdef __cplusplus
 }

@@ -16,8 +16,11 @@
 #include "os.h"
 
 #include "ttypes.h"
-#include "tbinoperator.h"
+#include "sclvector.h"
 #include "tcompare.h"
+#include "querynodes.h"
+#include "filter.h"
+#include "query.h"
 
 //GET_TYPED_DATA(v, double, pRight->type, (char *)&((right)[i]));                                
 
@@ -152,8 +155,8 @@ int64_t getVectorBigintValue_FLOAT(void *src, int32_t index) {
 int64_t getVectorBigintValue_DOUBLE(void *src, int32_t index) {
   return (int64_t)*((double *)src + index);
 }
-_getDoubleValue_fn_t getVectorBigintValueFn(int32_t srcType) {
-    _getDoubleValue_fn_t p = NULL;
+_getBigintValue_fn_t getVectorBigintValueFn(int32_t srcType) {
+    _getBigintValue_fn_t p = NULL;
     if(srcType==TSDB_DATA_TYPE_TINYINT) {
         p = getVectorBigintValue_TINYINT;
     }else if(srcType==TSDB_DATA_TYPE_UTINYINT) {
@@ -325,7 +328,7 @@ int32_t vectorConvertImpl(SScalarParam* pIn, SScalarParam* pOut) {
           if (len < 0){
             qError("castConvert taosUcs4ToMbs error 1");
             tfree(tmp);
-            return;
+            return TSDB_CODE_QRY_APP_ERROR;
           }
           
           tmp[len] = 0;
@@ -391,7 +394,7 @@ int32_t vectorConvertImpl(SScalarParam* pIn, SScalarParam* pOut) {
           if (len < 0){
             qError("castConvert taosUcs4ToMbs error 1");
             tfree(tmp);
-            return;
+            return TSDB_CODE_QRY_APP_ERROR;
           }
           
           tmp[len] = 0;
@@ -457,7 +460,7 @@ int32_t vectorConvertImpl(SScalarParam* pIn, SScalarParam* pOut) {
           if (len < 0){
             qError("castConvert taosUcs4ToMbs error 1");
             tfree(tmp);
-            return;
+            return TSDB_CODE_QRY_APP_ERROR;
           }
           
           tmp[len] = 0;
@@ -560,13 +563,13 @@ int32_t vectorConvert(SScalarParam* pLeft, SScalarParam* pRight, SScalarParam* p
     paramOut2->num = param2->num;
     paramOut2->data = malloc(paramOut2->num * tDataTypes[paramOut2->type].bytes);
     if (NULL == paramOut2->data) {
-      tfree(paramOut1->data)
+      tfree(paramOut1->data);
       return TSDB_CODE_QRY_OUT_OF_MEMORY;
     }
     
     code = vectorConvertImpl(param2, paramOut2);
     if (code) {
-      tfree(paramOut1->data)
+      tfree(paramOut1->data);
       tfree(paramOut2->data);
       return code;
     }
@@ -941,8 +944,7 @@ void vectorBitOr(SScalarParam* pLeft, SScalarParam* pRight, void *out, int32_t _
 void vectorCompareImpl(SScalarParam* pLeft, SScalarParam* pRight, void *out, int32_t _ord, int32_t optr) {
   int32_t i = ((_ord) == TSDB_ORDER_ASC) ? 0 : TMAX(pLeft->num, pRight->num) - 1;
   int32_t step = ((_ord) == TSDB_ORDER_ASC) ? 1 : -1;
-  int8_t funcIdx = filterGetCompFuncIdx(pLeft->type, optr);  
-  __compar_fn_t fp = gDataCompare[funcIdx];
+  __compar_fn_t fp = filterGetCompFunc(pLeft->type, optr);
   bool res = false;
   
   bool *output=(bool *)out;
@@ -1003,19 +1005,19 @@ void vectorCompare(SScalarParam* pLeft, SScalarParam* pRight, void *out, int32_t
   SScalarParam *param2 = NULL;
 
   int32_t type = 0;
-  if (pLeftOut->type) {
+  if (pLeftOut.type) {
     param1 = &pLeftOut;
   } else {
     param1 = pLeft;
   }
 
-  if (pRightOut->type) {
+  if (pRightOut.type) {
     param2 = &pRightOut;
   } else {
     param2 = pRight;
   }
 
-  vectorCompareImpl(pLeftOut, pRightOut, out, _ord, TSDB_RELATION_GREATER);
+  vectorCompareImpl(param1, param2, out, _ord, TSDB_RELATION_GREATER);
 }
 
 void vectorGreater(SScalarParam* pLeft, SScalarParam* pRight, void *out, int32_t _ord) {
@@ -1091,7 +1093,7 @@ void vectorNotNull(SScalarParam* pLeft, SScalarParam* pRight, void *out, int32_t
   int32_t step = ((_ord) == TSDB_ORDER_ASC) ? 1 : -1;
   bool res = false;
   
-  bool *output=(bool *)out;
+  bool *output = (bool *)out;
   _getValueAddr_fn_t getVectorValueAddrFnLeft = getVectorValueAddrFn(pLeft->type);
 
   for (; i >= 0 && i < pLeft->num; i += step, output += 1) {

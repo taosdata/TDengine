@@ -12,12 +12,15 @@
  * You should have received a copy of the GNU Affero General Public License
  * along with this program. If not, see <http://www.gnu.org/licenses/>.
  */
-#ifndef TDENGINE_SCALAR_H
-#define TDENGINE_SCALAR_H
+#ifndef TDENGINE_SCALARINT_H
+#define TDENGINE_SCALARINT_H
 
 #ifdef __cplusplus
 extern "C" {
 #endif
+#include "common.h"
+#include "thash.h"
+#include "query.h"
 
 typedef struct SScalarCtx {
   int32_t      code;
@@ -45,4 +48,4 @@ typedef struct SScalarCtx {
 }
 #endif
 
-#endif  // TDENGINE_SCALAR_H
+#endif  // TDENGINE_SCALARINT_H

@@ -21,6 +21,7 @@ extern "C" {
 #endif
 
 #include "querynodes.h"
+#include "function.h"
 
 typedef enum EFunctionType {
   // aggregate function

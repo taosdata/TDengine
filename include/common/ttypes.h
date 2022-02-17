@@ -122,8 +122,6 @@ typedef struct {
         *(int32_t *)(_v) = (int32_t)(_data);   \
         break;                                 \
       default:                                 \
-        (void *)(_v) = (void *)(_data);        \
-        (void *)(_data) = NULL;                \
         break;                                 \
     }                                          \
   } while (0)

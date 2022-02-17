@@ -20,13 +20,7 @@ extern "C" {
 #endif
 
 #include "function.h"
-
-typedef struct SScalarParam {
-  void*   data;
-  int32_t num;
-  int32_t type;
-  int32_t bytes;
-} SScalarParam;
+#include "scalar.h"
 
 typedef struct SScalarFunctionSupport {
   struct SExprInfo   *pExprInfo;

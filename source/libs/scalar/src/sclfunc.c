@@ -1,6 +1,5 @@
-#include "tscalarfunction.h"
-#include "tbinoperator.h"
-#include "tunaryoperator.h"
+#include "sclfunc.h"
+#include "sclvector.h"
 
 static void assignBasicParaInfo(struct SScalarParam* dst, const struct SScalarParam* src) {
   dst->type = src->type;

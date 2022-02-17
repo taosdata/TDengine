@@ -17,7 +17,7 @@
 #include "thash.h"
 //#include "queryLog.h"
 #include "tcompare.h"
-#include "tfilter.h"
+#include "filter.h"
 
 OptrStr gOptrStr[] = {
   {TSDB_RELATION_INVALID,                  "invalid"},
@@ -271,6 +271,10 @@ int8_t filterGetCompFuncIdx(int32_t type, int32_t optr) {
   }
   
   return comparFn;
+}
+
+__compar_fn_t filterGetCompFunc(int32_t type, int32_t optr) {
+  return gDataCompare[filterGetCompFuncIdx(type, optr)];
 }
 
 

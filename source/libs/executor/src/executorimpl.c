@@ -2148,7 +2148,7 @@ static int32_t setupQueryRuntimeEnv(STaskRuntimeEnv *pRuntimeEnv, int32_t numOfT
   // NOTE: pTableCheckInfo need to update the query time range and the lastKey info
   pRuntimeEnv->pTableRetrieveTsMap = taosHashInit(numOfTables, taosGetDefaultHashFunction(TSDB_DATA_TYPE_INT), false, HASH_NO_LOCK);
 
-  pRuntimeEnv->scalarSup = createScalarFuncSupport(pQueryAttr->numOfOutput);
+  //pRuntimeEnv->scalarSup = createScalarFuncSupport(pQueryAttr->numOfOutput);
 
   if (pRuntimeEnv->scalarSup == NULL || pRuntimeEnv->pResultRowHashTable == NULL || pRuntimeEnv->keyBuf == NULL ||
       pRuntimeEnv->prevRow == NULL  || pRuntimeEnv->tagVal == NULL) {
@@ -2174,7 +2174,7 @@ static int32_t setupQueryRuntimeEnv(STaskRuntimeEnv *pRuntimeEnv, int32_t numOfT
   return TSDB_CODE_SUCCESS;
 
 _clean:
-  destroyScalarFuncSupport(pRuntimeEnv->scalarSup, pRuntimeEnv->pQueryAttr->numOfOutput);
+  //destroyScalarFuncSupport(pRuntimeEnv->scalarSup, pRuntimeEnv->pQueryAttr->numOfOutput);
   tfree(pRuntimeEnv->pResultRowHashTable);
   tfree(pRuntimeEnv->keyBuf);
   tfree(pRuntimeEnv->prevRow);
@@ -2212,7 +2212,7 @@ static void teardownQueryRuntimeEnv(STaskRuntimeEnv *pRuntimeEnv) {
 
   //qDebug("QInfo:0x%"PRIx64" teardown runtime env", pQInfo->qId);
 
-  destroyScalarFuncSupport(pRuntimeEnv->scalarSup, pQueryAttr->numOfOutput);
+  //destroyScalarFuncSupport(pRuntimeEnv->scalarSup, pQueryAttr->numOfOutput);
 //  destroyUdfInfo(pRuntimeEnv->pUdfInfo);
   destroyResultBuf(pRuntimeEnv->pResultBuf);
   doFreeQueryHandle(pRuntimeEnv);
