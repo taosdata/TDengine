@@ -46,7 +46,7 @@ qTaskInfo_t qCreateStreamExecTaskInfo(void *msg, void* streamReadHandle);
  * @param input
  * @return
  */
-int32_t     qSetStreamInput(qTaskInfo_t tinfo, const void* input);
+int32_t qSetStreamInput(qTaskInfo_t tinfo, const void* input);
 
 /**
  * Update the table id list, add or remove.
@@ -56,7 +56,7 @@ int32_t     qSetStreamInput(qTaskInfo_t tinfo, const void* input);
  * @param isAdd
  * @return
  */
-int32_t qUpdateTQualifiedTableId(qTaskInfo_t tinfo, SArray* tableIdList, bool isAdd);
+int32_t qUpdateQualifiedTableId(qTaskInfo_t tinfo, SArray* tableIdList, bool isAdd);
 
  /**
   * Create the exec task object according to task json
