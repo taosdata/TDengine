@@ -345,6 +345,14 @@ static int32_t mndProcessMqTimerMsg(SMnodeMsg *pMsg) {
           taosArrayPush(pRebSub->removedConsumers, &pConsumer->consumerId);
         }
       }
+      if (status == MQ_CONSUMER_STATUS__MODIFY) {
+        int32_t removeSz = taosArrayGetSize(pConsumer->recentRemovedTopics);
+        for (int32_t i = 0; i < removeSz; i++) {
+          char *topicName = taosArrayGet(pConsumer->recentRemovedTopics, i);
+          free(topicName);
+        }
+        taosArrayClear(pConsumer->recentRemovedTopics);
+      }
     }
   }
   if (taosHashGetSize(pRebMsg->rebSubHash) != 0) {
@@ -1013,6 +1021,8 @@ static int32_t mndProcessSubscribeReq(SMnodeMsg *pMsg) {
           break;
         }
       }
+      char *oldTopicNameDup = strdup(oldTopicName);
+      taosArrayPush(pConsumer->recentRemovedTopics, &oldTopicNameDup);
       atomic_store_32(&pConsumer->status, MQ_CONSUMER_STATUS__MODIFY);
       /*pSub->status = MQ_SUBSCRIBE_STATUS__DELETED;*/
     } else if (newTopicName != NULL) {
