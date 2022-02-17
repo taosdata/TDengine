@@ -100,7 +100,7 @@ SNode* nodesMakeNode(ENodeType type);
 void nodesDestroyNode(SNode* pNode);
 
 SNodeList* nodesMakeList();
-SNodeList* nodesListAppend(SNodeList* pList, SNode* pNode);
+int32_t nodesListAppend(SNodeList* pList, SNode* pNode);
 SListCell* nodesListErase(SNodeList* pList, SListCell* pCell);
 SNode* nodesListGetNode(SNodeList* pList, int32_t index);
 void nodesDestroyList(SNodeList* pList);

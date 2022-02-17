@@ -25,6 +25,7 @@ extern "C" {
 
 typedef struct SLogicNode {
   ENodeType type;
+  int32_t id;
   SNodeList* pTargets;
   SNode* pConditions;
   SNodeList* pChildren;

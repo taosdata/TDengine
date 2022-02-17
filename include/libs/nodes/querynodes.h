@@ -50,6 +50,7 @@ typedef enum EColumnType {
 
 typedef struct SColumnNode {
   SExprNode node; // QUERY_NODE_COLUMN
+  uint64_t tableId;
   int16_t colId;
   EColumnType colType; // column or tag
   char dbName[TSDB_DB_NAME_LEN];
@@ -59,10 +60,11 @@ typedef struct SColumnNode {
   SNode* pProjectRef;
 } SColumnNode;
 
-typedef struct SColumnRef {
+typedef struct SColumnRefNode {
   ENodeType type;
+  int32_t tupleId;
   int32_t slotId;
-} SColumnRef;
+} SColumnRefNode;
 
 typedef struct SValueNode {
   SExprNode node; // QUERY_NODE_VALUE
@@ -268,6 +270,25 @@ typedef struct SSetOperator {
   SNodeList* pOrderByList; // SOrderByExprNode
   SNode* pLimit;
 } SSetOperator;
+
+typedef enum ESqlClause {
+  SQL_CLAUSE_FROM = 1,
+  SQL_CLAUSE_WHERE,
+  SQL_CLAUSE_PARTITION_BY,
+  SQL_CLAUSE_WINDOW,
+  SQL_CLAUSE_GROUP_BY,
+  SQL_CLAUSE_HAVING,
+  SQL_CLAUSE_SELECT,
+  SQL_CLAUSE_ORDER_BY
+} ESqlClause;
+
+void nodesWalkSelectStmt(SSelectStmt* pSelect, ESqlClause clause, FNodeWalker walker, void* pContext);
+void nodesRewriteSelectStmt(SSelectStmt* pSelect, ESqlClause clause, FNodeRewriter rewriter, void* pContext);
+
+int32_t nodesCollectColumns(SSelectStmt* pSelect, ESqlClause clause, uint64_t tableId, bool realCol, SNodeList** pCols);
+
+typedef bool (*FFuncClassifier)(int32_t funcId);
+int32_t nodesCollectFuncs(SSelectStmt* pSelect, FFuncClassifier classifier, SNodeList** pFuncs);
 
 bool nodesIsExprNode(const SNode* pNode);
 
