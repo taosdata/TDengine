@@ -14,3 +14,6 @@
 	path = tests
 	url = https://github.com/taosdata/tests
 	branch = 3.0
+[submodule "examples/rust"]
+	path = examples/rust
+	url = https://github.com/songtianyi/tdengine-rust-bindings.git
