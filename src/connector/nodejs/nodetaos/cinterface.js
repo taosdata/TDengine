@@ -373,7 +373,7 @@ function CTaosInterface(config = null, pass = false) {
     , 'taos_stmt_execute': [ref.types.int, [ref.types.void_ptr]]
 
     // TAOS_RES* taos_stmt_use_result(TAOS_STMT *stmt)  
-    , 'taos_stmt_use_result': [ref.types.int, [ref.types.void_ptr]]
+    , 'taos_stmt_use_result': [ref.types.void_ptr, [ref.types.void_ptr]]
 
     // int taos_stmt_close(TAOS_STMT *stmt) 
     , 'taos_stmt_close': [ref.types.int, [ref.types.void_ptr]]
@@ -934,7 +934,15 @@ CTaosInterface.prototype.stmtUseResult = function stmtUseResult(stmt) {
  * @returns 0 for success, non-zero for failure.
  */
 CTaosInterface.prototype.loadTableInfo = function loadTableInfo(taos, tableList) {
-  return this.libtaos.taos_load_table_info(taos, tableList)
+  let _tableListBuf = Buffer.alloc(ref.sizeof.pointer);
+  let _listStr = tableList.toString();
+
+  if ((_.isString(tableList) )|| (_.isArray(tableList))) {
+    ref.set(_tableListBuf, 0, ref.allocCString(_listStr), ref.types.char_ptr);
+    return this.libtaos.taos_load_table_info(taos, _tableListBuf);
+  } else {
+    throw new errors.InterfaceError("Unspport tableLis input");
+  }
 }
 
 /**
