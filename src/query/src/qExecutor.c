@@ -6388,6 +6388,7 @@ static bool doEveryInterpolation(SOperatorInfo* pOperatorInfo, SSDataBlock* pBlo
   for (int32_t i = 1; i < pOperatorInfo->numOfOutput; ++i) {
     assert(pEveryInfo->binfo.pCtx[i].functionId == TSDB_FUNC_INTERP 
         || pEveryInfo->binfo.pCtx[i].functionId == TSDB_FUNC_TS_DUMMY
+        || pEveryInfo->binfo.pCtx[i].functionId == TSDB_FUNC_TAG
         || pEveryInfo->binfo.pCtx[i].functionId == TSDB_FUNC_TAG_DUMMY);
 
     if (pEveryInfo->binfo.pCtx[i].functionId == TSDB_FUNC_INTERP) {

@@ -164,7 +164,7 @@ C/C++的API类似于MySQL的C API。应用程序使用时，需要包含TDengine
 
 ### 示例程序
 
-使用C/C++连接器的示例代码请参见 https://github.com/taosdata/tests/tree/develop/examples/c 。
+使用C/C++连接器的示例代码请参见 https://github.com/taosdata/TDengine/tree/develop/examples/c 。
 
 示例程序源码也可以在安装目录下的 examples/c 路径下找到：
 
@@ -330,7 +330,7 @@ TDengine的异步API均采用非阻塞调用模式。应用程序可以用多线
 
 除 C/C++ 语言外，TDengine 的 Java 语言 JNI Connector 也提供参数绑定接口支持，具体请另外参见：[参数绑定接口的 Java 用法](https://www.taosdata.com/cn/documentation/connector/java#stmt-java)。
 
-接口相关的具体函数如下（也可以参考 [prepare.c](https://github.com/taosdata/TDengine/blob/develop/tests/examples/c/prepare.c) 文件中使用对应函数的方式）：
+接口相关的具体函数如下（也可以参考 [prepare.c](https://github.com/taosdata/TDengine/blob/develop/examples/c/prepare.c) 文件中使用对应函数的方式）：
 
 - `TAOS_STMT* taos_stmt_init(TAOS *taos)`
 
@@ -1080,7 +1080,7 @@ HTTP 请求 URL 采用 `sqlutc` 时，返回结果集的时间戳将采用 UTC �
 
 示例程序源码位于
 * {client_install_directory}/examples/C#
-* [github C# example source code](https://github.com/taosdata/tests/tree/develop/examples/C%2523)
+* [github C# example source code](https://github.com/taosdata/TDengine/tree/develop/examples/C%2523)
 
 **注意:** TDengineTest.cs       C#示例源程序,包含了数据库连接参数，以及如何执行数据插入、查询等操作。
 
@@ -1112,7 +1112,7 @@ dotnet add package TDengine.Connector
 ```c# 
 using TDengineDriver;
 ```
-* 用户可以参考[TDengineTest.cs](https://github.com/taosdata/tests/tree/develop/examples/C%2523/TDengineTest)来定义数据库连接参数，以及如何执行数据插入、查询等操作。
+* 用户可以参考[TDengineTest.cs](https://github.com/taosdata/TDengine/tree/develop/examples/C%2523/TDengineTest)来定义数据库连接参数，以及如何执行数据插入、查询等操作。
 
 
 **注意：**
@@ -1150,7 +1150,7 @@ Go连接器支持的系统有：
 
 ### 示例程序
 
-使用 Go 连接器的示例代码请参考 https://github.com/taosdata/tests/tree/develop/examples/go 以及[视频教程](https://www.taosdata.com/blog/2020/11/11/1951.html)。
+使用 Go 连接器的示例代码请参考 https://github.com/taosdata/TDengine/tree/develop/examples/go 以及[视频教程](https://www.taosdata.com/blog/2020/11/11/1951.html)。
 
 示例程序源码也位于安装目录下的 examples/go/taosdemo.go 文件中。
 
@@ -1285,7 +1285,7 @@ Node-example-raw.js
 
 验证方法：
 
-1. 新建安装验证目录，例如：`~/tdengine-test`，拷贝github上nodejsChecker.js源程序。下载地址：（https://github.com/taosdata/tests/tree/develop/examples/nodejs/nodejsChecker.js）。
+1. 新建安装验证目录，例如：`~/tdengine-test`，拷贝github上nodejsChecker.js源程序。下载地址：（https://github.com/taosdata/TDengine/tree/develop/examples/nodejs/nodejsChecker.js）。
 
 2. 在命令行中执行以下命令：
 
