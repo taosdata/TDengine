@@ -978,6 +978,13 @@ int32_t tSerializeSKillConnReq(void* buf, int32_t bufLen, SKillConnReq* pReq);
 int32_t tDeserializeSKillConnReq(void* buf, int32_t bufLen, SKillConnReq* pReq);
 
 typedef struct {
+  int32_t transId;
+} SKillTransReq;
+
+int32_t tSerializeSKillTransReq(void* buf, int32_t bufLen, SKillTransReq* pReq);
+int32_t tDeserializeSKillTransReq(void* buf, int32_t bufLen, SKillTransReq* pReq);
+
+typedef struct {
   char user[TSDB_USER_LEN];
   char spi;
   char encrypt;

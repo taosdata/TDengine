@@ -54,7 +54,8 @@ static bool    mndTransPerfromFinishedStage(SMnode *pMnode, STrans *pTrans);
 
 static void    mndTransExecute(SMnode *pMnode, STrans *pTrans);
 static void    mndTransSendRpcRsp(STrans *pTrans);
-static int32_t mndProcessTransReq(SMnodeMsg *pMsg);
+static int32_t mndProcessTransReq(SMnodeMsg *pReq);
+static int32_t mndProcessKillTransReq(SMnodeMsg *pReq);
 
 static int32_t mndGetTransMeta(SMnodeMsg *pReq, SShowObj *pShow, STableMetaRsp *pMeta);
 static int32_t mndRetrieveTrans(SMnodeMsg *pReq, SShowObj *pShow, char *data, int32_t rows);
@@ -70,6 +71,7 @@ int32_t mndInitTrans(SMnode *pMnode) {
                      .deleteFp = (SdbDeleteFp)mndTransActionDelete};
 
   mndSetMsgHandle(pMnode, TDMT_MND_TRANS, mndProcessTransReq);
+  mndSetMsgHandle(pMnode, TDMT_MND_TRANS, mndProcessKillTransReq);
 
   mndAddShowMetaHandle(pMnode, TSDB_MGMT_TABLE_TRANS, mndGetTransMeta);
   mndAddShowRetrieveHandle(pMnode, TSDB_MGMT_TABLE_TRANS, mndRetrieveTrans);
@@ -999,6 +1001,44 @@ static void mndTransExecute(SMnode *pMnode, STrans *pTrans) {
 
 static int32_t mndProcessTransReq(SMnodeMsg *pReq) {
   mndTransPullup(pReq->pMnode);
+  return 0;
+}
+
+static int32_t mndProcessKillTransReq(SMnodeMsg *pReq) {
+  SMnode *pMnode = pReq->pMnode;
+
+  SKillTransReq killReq = {0};
+  if (tDeserializeSKillTransReq(pReq->rpcMsg.pCont, pReq->rpcMsg.contLen, &killReq) != 0) {
+    terrno = TSDB_CODE_INVALID_MSG;
+    mError("trans:%d, failed to kill since %s", killReq.transId, terrstr());
+    return -1;
+  }
+
+  mInfo("trans:%d, start to kill", killReq.transId);
+
+  SUserObj *pUser = mndAcquireUser(pMnode, pReq->user);
+  if (pUser == NULL) {
+    mError("trans:%d, failed to kill since %s", killReq.transId, terrstr());
+    return -1;
+  }
+
+  if (!pUser->superUser) {
+    mndReleaseUser(pMnode, pUser);
+    terrno = TSDB_CODE_MND_NO_RIGHTS;
+    mError("trans:%d, failed to kill since %s", killReq.transId, terrstr());
+    return -1;
+  }
+  mndReleaseUser(pMnode, pUser);
+
+  STrans *pTrans = mndAcquireTrans(pMnode, killReq.transId);
+  if (pTrans == NULL) {
+    terrno = TSDB_CODE_MND_TRANS_NOT_EXIST;
+    mError("trans:%d, failed to kill since %s", killReq.transId, terrstr());
+    return -1;
+  }
+
+  // mndTransDrop(pTrans);
+  mndReleaseTrans(pMnode, pTrans);
   return 0;
 }
 
