@@ -2,13 +2,13 @@
 #include "tbinoperator.h"
 #include "tunaryoperator.h"
 
-static void assignBasicParaInfo(struct SScalarFuncParam* dst, const struct SScalarFuncParam* src) {
+static void assignBasicParaInfo(struct SScalarParam* dst, const struct SScalarParam* src) {
   dst->type = src->type;
   dst->bytes = src->bytes;
   dst->num = src->num;
 }
 
-static void tceil(SScalarFuncParam* pOutput, size_t numOfInput, const SScalarFuncParam *pLeft) {
+static void tceil(SScalarParam* pOutput, size_t numOfInput, const SScalarParam *pLeft) {
   assignBasicParaInfo(pOutput, pLeft);
   assert(numOfInput == 1);
 
@@ -34,7 +34,7 @@ static void tceil(SScalarFuncParam* pOutput, size_t numOfInput, const SScalarFun
   }
 }
 
-static void tfloor(SScalarFuncParam* pOutput, size_t numOfInput, const SScalarFuncParam *pLeft) {
+static void tfloor(SScalarParam* pOutput, size_t numOfInput, const SScalarParam *pLeft) {
   assignBasicParaInfo(pOutput, pLeft);
   assert(numOfInput == 1);
 
@@ -62,7 +62,7 @@ static void tfloor(SScalarFuncParam* pOutput, size_t numOfInput, const SScalarFu
   }
 }
 
-static void _tabs(SScalarFuncParam* pOutput, size_t numOfInput, const SScalarFuncParam *pLeft) {
+static void _tabs(SScalarParam* pOutput, size_t numOfInput, const SScalarParam *pLeft) {
   assignBasicParaInfo(pOutput, pLeft);
   assert(numOfInput == 1);
 
@@ -120,7 +120,7 @@ static void _tabs(SScalarFuncParam* pOutput, size_t numOfInput, const SScalarFun
   }
 }
 
-static void tround(SScalarFuncParam* pOutput, size_t numOfInput, const SScalarFuncParam *pLeft) {
+static void tround(SScalarParam* pOutput, size_t numOfInput, const SScalarParam *pLeft) {
   assignBasicParaInfo(pOutput, pLeft);
   assert(numOfInput == 1);
 
@@ -146,7 +146,7 @@ static void tround(SScalarFuncParam* pOutput, size_t numOfInput, const SScalarFu
   }
 }
 
-static void tlength(SScalarFuncParam* pOutput, size_t numOfInput, const SScalarFuncParam *pLeft) {
+static void tlength(SScalarParam* pOutput, size_t numOfInput, const SScalarParam *pLeft) {
   assert(numOfInput == 1);
 
   int64_t* out = (int64_t*) pOutput->data;
@@ -157,7 +157,7 @@ static void tlength(SScalarFuncParam* pOutput, size_t numOfInput, const SScalarF
   }
 }
 
-static void tconcat(SScalarFuncParam* pOutput, size_t numOfInput, const SScalarFuncParam *pLeft) {
+static void tconcat(SScalarParam* pOutput, size_t numOfInput, const SScalarParam *pLeft) {
   assert(numOfInput > 0);
 
   int32_t rowLen = 0;
@@ -189,11 +189,11 @@ static void tconcat(SScalarFuncParam* pOutput, size_t numOfInput, const SScalarF
   }
 }
 
-static void tltrim(SScalarFuncParam* pOutput, size_t numOfInput, const SScalarFuncParam *pLeft) {
+static void tltrim(SScalarParam* pOutput, size_t numOfInput, const SScalarParam *pLeft) {
 
 }
 
-static void trtrim(SScalarFuncParam* pOutput, size_t numOfInput, const SScalarFuncParam *pLeft) {
+static void trtrim(SScalarParam* pOutput, size_t numOfInput, const SScalarParam *pLeft) {
 
 }
 
@@ -262,7 +262,7 @@ static void reverseCopy(char* dest, const char* src, int16_t type, int32_t numOf
   }
 }
 
-static void setScalarFuncParam(SScalarFuncParam* param, int32_t type, int32_t bytes, void* pInput, int32_t numOfRows) {
+static void setScalarFuncParam(SScalarParam* param, int32_t type, int32_t bytes, void* pInput, int32_t numOfRows) {
   param->bytes = bytes;
   param->type = type;
   param->num  = numOfRows;

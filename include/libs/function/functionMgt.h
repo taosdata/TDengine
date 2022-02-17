@@ -117,7 +117,7 @@ typedef struct SFuncExecFuncs {
   FExecFinalize finalize;
 } SFuncExecFuncs;
 
-typedef int32_t (*FScalarExecProcess)(SScalarFuncParam *pInput, int32_t inputNum, SScalarFuncParam *pOutput);
+typedef int32_t (*FScalarExecProcess)(SScalarParam *pInput, int32_t inputNum, SScalarParam *pOutput);
 
 typedef struct SScalarFuncExecFuncs {
   FScalarExecProcess process;

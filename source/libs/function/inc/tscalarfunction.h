@@ -21,12 +21,12 @@ extern "C" {
 
 #include "function.h"
 
-typedef struct SScalarFuncParam {
+typedef struct SScalarParam {
   void*   data;
   int32_t num;
   int32_t type;
   int32_t bytes;
-} SScalarFuncParam;
+} SScalarParam;
 
 typedef struct SScalarFunctionSupport {
   struct SExprInfo   *pExprInfo;
@@ -39,7 +39,7 @@ typedef struct SScalarFunctionSupport {
 
 extern struct SScalarFunctionInfo scalarFunc[8];
 
-int32_t evaluateExprNodeTree(tExprNode* pExprs, int32_t numOfRows, SScalarFuncParam* pOutput,
+int32_t evaluateExprNodeTree(tExprNode* pExprs, int32_t numOfRows, SScalarParam* pOutput,
                           void* param, char* (*getSourceDataBlock)(void*, const char*, int32_t));
 
 

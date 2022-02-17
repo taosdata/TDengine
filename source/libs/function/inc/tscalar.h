@@ -19,9 +19,13 @@
 extern "C" {
 #endif
 
-typedef struct SScalarCalcContext {
+typedef struct SScalarCtx {
+  int32_t      code;
+  SSDataBlock *pSrc; 
+  SHashObj    *pRes;  /* element is SScalarParam */
+} SScalarCtx;
 
-} SScalarCalcContext;
+#define SCL_DEFAULT_OP_NUM 10
 
 #define sclFatal(...)  qFatal(__VA_ARGS__)
 #define sclError(...)  qError(__VA_ARGS__)

@@ -3240,7 +3240,7 @@ static void arithmetic_function(SqlFunctionCtx *pCtx) {
   GET_RES_INFO(pCtx)->numOfRes += pCtx->size;
   SScalarFunctionSupport *pSup = (SScalarFunctionSupport *)pCtx->param[1].pz;
 
-  SScalarFuncParam output = {0};
+  SScalarParam output = {0};
   output.data = pCtx->pOutput;
 
   //evaluateExprNodeTree(pSup->pExprInfo->pExpr, pCtx->size, &output, pSup, getArithColumnData);

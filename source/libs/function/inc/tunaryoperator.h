@@ -22,7 +22,7 @@ extern "C" {
 
 #include "tscalarfunction.h"
 
-typedef void (*_unary_scalar_fn_t)(SScalarFuncParam *pLeft, SScalarFuncParam* pOutput);
+typedef void (*_unary_scalar_fn_t)(SScalarParam *pLeft, SScalarParam* pOutput);
 _unary_scalar_fn_t getUnaryScalarOperatorFn(int32_t binOperator);
 
 #ifdef __cplusplus

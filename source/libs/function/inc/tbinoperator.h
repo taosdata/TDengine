@@ -22,7 +22,7 @@ extern "C" {
 
 #include "tscalarfunction.h"
 
-typedef void (*_bin_scalar_fn_t)(SScalarFuncParam* pLeft, SScalarFuncParam* pRight, void *output, int32_t order);
+typedef void (*_bin_scalar_fn_t)(SScalarParam* pLeft, SScalarParam* pRight, void *output, int32_t order);
 _bin_scalar_fn_t getBinScalarOperatorFn(int32_t binOperator);
 bool isBinaryStringOp(int32_t op);
 

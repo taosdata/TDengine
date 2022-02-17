@@ -104,8 +104,6 @@ typedef enum EOperatorType {
   OP_TYPE_NMATCH,
   OP_TYPE_IS_NULL,
   OP_TYPE_IS_NOT_NULL,
-  OP_TYPE_BIT_AND,
-  OP_TYPE_BIT_OR,
 
   // json operator
   OP_TYPE_JSON_GET_VALUE,

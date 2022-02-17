@@ -245,7 +245,7 @@ _getValueAddr_fn_t getVectorValueAddrFn(int32_t srcType) {
 }
 
 
-int32_t vectorConvertImpl(SScalarFuncParam* pIn, SScalarFuncParam* pOut) {
+int32_t vectorConvertImpl(SScalarParam* pIn, SScalarParam* pOut) {
   int16_t inType = pIn->type; 
   int16_t inBytes = pIn->bytes;
   char *input = pIn->data; 
@@ -512,13 +512,13 @@ int8_t gConvertTypes[TSDB_DATA_TYPE_BLOB+1][TSDB_DATA_TYPE_BLOB+1] = {
 /*BLOB*/   0,   0,   0,   0,   0,   0,   0,   0,   0,   0,   0,   0,   0,   0,   0,   0,   0,   0,   0,   0
 };
 
-int32_t vectorConvert(SScalarFuncParam* pLeft, SScalarFuncParam* pRight, SScalarFuncParam* pLeftOut, SScalarFuncParam* pRightOut) {
+int32_t vectorConvert(SScalarParam* pLeft, SScalarParam* pRight, SScalarParam* pLeftOut, SScalarParam* pRightOut) {
   if (pLeft->type == pRight->type) {
     return TSDB_CODE_SUCCESS;
   }
 
-  SScalarFuncParam *param1 = NULL, *paramOut1 = NULL; 
-  SScalarFuncParam *param2 = NULL, *paramOut2 = NULL;
+  SScalarParam *param1 = NULL, *paramOut1 = NULL; 
+  SScalarParam *param2 = NULL, *paramOut2 = NULL;
   int32_t code = 0;
   
   if (pLeft->type < pRight->type) {
@@ -575,7 +575,7 @@ int32_t vectorConvert(SScalarFuncParam* pLeft, SScalarFuncParam* pRight, SScalar
   return TSDB_CODE_SUCCESS;
 }
 
-void vectorAdd(SScalarFuncParam* pLeft, SScalarFuncParam* pRight, void *out, int32_t _ord) {
+void vectorAdd(SScalarParam* pLeft, SScalarParam* pRight, void *out, int32_t _ord) {
   int32_t i = ((_ord) == TSDB_ORDER_ASC) ? 0 : TMAX(pLeft->num, pRight->num) - 1;
   int32_t step = ((_ord) == TSDB_ORDER_ASC) ? 1 : -1;
 
@@ -614,7 +614,7 @@ void vectorAdd(SScalarFuncParam* pLeft, SScalarFuncParam* pRight, void *out, int
   }
 }
 
-void vectorSub(SScalarFuncParam* pLeft, SScalarFuncParam* pRight, void *out, int32_t _ord) {
+void vectorSub(SScalarParam* pLeft, SScalarParam* pRight, void *out, int32_t _ord) {
   int32_t i = ((_ord) == TSDB_ORDER_ASC) ? 0 : TMAX(pLeft->num, pRight->num) - 1;
   int32_t step = ((_ord) == TSDB_ORDER_ASC) ? 1 : -1;
 
@@ -651,7 +651,7 @@ void vectorSub(SScalarFuncParam* pLeft, SScalarFuncParam* pRight, void *out, int
     }
   }
 }
-void vectorMultiply(SScalarFuncParam* pLeft, SScalarFuncParam* pRight, void *out, int32_t _ord) {
+void vectorMultiply(SScalarParam* pLeft, SScalarParam* pRight, void *out, int32_t _ord) {
   int32_t i = ((_ord) == TSDB_ORDER_ASC) ? 0 : TMAX(pLeft->num, pRight->num) - 1;
   int32_t step = ((_ord) == TSDB_ORDER_ASC) ? 1 : -1;
 
@@ -690,7 +690,7 @@ void vectorMultiply(SScalarFuncParam* pLeft, SScalarFuncParam* pRight, void *out
   }                                                                                                 
 }
 
-void vectorDivide(SScalarFuncParam* pLeft, SScalarFuncParam* pRight, void *out, int32_t _ord) {
+void vectorDivide(SScalarParam* pLeft, SScalarParam* pRight, void *out, int32_t _ord) {
   int32_t i = ((_ord) == TSDB_ORDER_ASC) ? 0 : TMAX(pLeft->num, pRight->num) - 1;
   int32_t step = ((_ord) == TSDB_ORDER_ASC) ? 1 : -1;
 
@@ -736,7 +736,7 @@ void vectorDivide(SScalarFuncParam* pLeft, SScalarFuncParam* pRight, void *out, 
   }
 }
 
-void vectorRemainder(SScalarFuncParam* pLeft, SScalarFuncParam* pRight, void *out, int32_t _ord) {
+void vectorRemainder(SScalarParam* pLeft, SScalarParam* pRight, void *out, int32_t _ord) {
   int32_t i = ((_ord) == TSDB_ORDER_ASC) ? 0 : TMAX(pLeft->num, pRight->num) - 1;
   int32_t step = ((_ord) == TSDB_ORDER_ASC) ? 1 : -1;
 
@@ -808,7 +808,7 @@ void vectorRemainder(SScalarFuncParam* pLeft, SScalarFuncParam* pRight, void *ou
   }                                                                                                 
 }
 
-void vectorConcat(SScalarFuncParam* pLeft, SScalarFuncParam* pRight, void *out, int32_t _ord) {
+void vectorConcat(SScalarParam* pLeft, SScalarParam* pRight, void *out, int32_t _ord) {
   int32_t len = pLeft->bytes + pRight->bytes;
 
   int32_t i = ((_ord) == TSDB_ORDER_ASC) ? 0 : TMAX(pLeft->num, pRight->num) - 1;
@@ -859,7 +859,7 @@ void vectorConcat(SScalarFuncParam* pLeft, SScalarFuncParam* pRight, void *out, 
 }
 
 
-void vectorBitAnd(SScalarFuncParam* pLeft, SScalarFuncParam* pRight, void *out, int32_t _ord) {
+void vectorBitAnd(SScalarParam* pLeft, SScalarParam* pRight, void *out, int32_t _ord) {
   int32_t i = ((_ord) == TSDB_ORDER_ASC) ? 0 : TMAX(pLeft->num, pRight->num) - 1;
   int32_t step = ((_ord) == TSDB_ORDER_ASC) ? 1 : -1;
 
@@ -898,7 +898,7 @@ void vectorBitAnd(SScalarFuncParam* pLeft, SScalarFuncParam* pRight, void *out, 
   }
 }
 
-void vectorBitOr(SScalarFuncParam* pLeft, SScalarFuncParam* pRight, void *out, int32_t _ord) {
+void vectorBitOr(SScalarParam* pLeft, SScalarParam* pRight, void *out, int32_t _ord) {
   int32_t i = ((_ord) == TSDB_ORDER_ASC) ? 0 : TMAX(pLeft->num, pRight->num) - 1;
   int32_t step = ((_ord) == TSDB_ORDER_ASC) ? 1 : -1;
 
@@ -938,7 +938,7 @@ void vectorBitOr(SScalarFuncParam* pLeft, SScalarFuncParam* pRight, void *out, i
 }
 
 
-void vectorCompareImpl(SScalarFuncParam* pLeft, SScalarFuncParam* pRight, void *out, int32_t _ord, int32_t optr) {
+void vectorCompareImpl(SScalarParam* pLeft, SScalarParam* pRight, void *out, int32_t _ord, int32_t optr) {
   int32_t i = ((_ord) == TSDB_ORDER_ASC) ? 0 : TMAX(pLeft->num, pRight->num) - 1;
   int32_t step = ((_ord) == TSDB_ORDER_ASC) ? 1 : -1;
   int8_t funcIdx = filterGetCompFuncIdx(pLeft->type, optr);  
@@ -993,14 +993,14 @@ void vectorCompareImpl(SScalarFuncParam* pLeft, SScalarFuncParam* pRight, void *
   }
 }
 
-void vectorCompare(SScalarFuncParam* pLeft, SScalarFuncParam* pRight, void *out, int32_t _ord, int32_t optr) {
-  SScalarFuncParam pLeftOut = {0}; 
-  SScalarFuncParam pRightOut = {0};
+void vectorCompare(SScalarParam* pLeft, SScalarParam* pRight, void *out, int32_t _ord, int32_t optr) {
+  SScalarParam pLeftOut = {0}; 
+  SScalarParam pRightOut = {0};
   
   vectorConvert(pLeft, pRight, &pLeftOut, &pRightOut);
 
-  SScalarFuncParam *param1 = NULL; 
-  SScalarFuncParam *param2 = NULL;
+  SScalarParam *param1 = NULL; 
+  SScalarParam *param2 = NULL;
 
   int32_t type = 0;
   if (pLeftOut->type) {
@@ -1018,55 +1018,55 @@ void vectorCompare(SScalarFuncParam* pLeft, SScalarFuncParam* pRight, void *out,
   vectorCompareImpl(pLeftOut, pRightOut, out, _ord, TSDB_RELATION_GREATER);
 }
 
-void vectorGreater(SScalarFuncParam* pLeft, SScalarFuncParam* pRight, void *out, int32_t _ord) {
+void vectorGreater(SScalarParam* pLeft, SScalarParam* pRight, void *out, int32_t _ord) {
   vectorCompare(pLeft, pRight, out, _ord, TSDB_RELATION_GREATER);
 }
 
-void vectorGreaterEqual(SScalarFuncParam* pLeft, SScalarFuncParam* pRight, void *out, int32_t _ord) {
+void vectorGreaterEqual(SScalarParam* pLeft, SScalarParam* pRight, void *out, int32_t _ord) {
   vectorCompare(pLeft, pRight, out, _ord, TSDB_RELATION_GREATER_EQUAL);
 }
 
-void vectorLower(SScalarFuncParam* pLeft, SScalarFuncParam* pRight, void *out, int32_t _ord) {
+void vectorLower(SScalarParam* pLeft, SScalarParam* pRight, void *out, int32_t _ord) {
   vectorCompare(pLeft, pRight, out, _ord, TSDB_RELATION_LESS);
 }
 
-void vectorLowerEqual(SScalarFuncParam* pLeft, SScalarFuncParam* pRight, void *out, int32_t _ord) {
+void vectorLowerEqual(SScalarParam* pLeft, SScalarParam* pRight, void *out, int32_t _ord) {
   vectorCompare(pLeft, pRight, out, _ord, TSDB_RELATION_LESS_EQUAL);
 }
 
-void vectorEqual(SScalarFuncParam* pLeft, SScalarFuncParam* pRight, void *out, int32_t _ord) {
+void vectorEqual(SScalarParam* pLeft, SScalarParam* pRight, void *out, int32_t _ord) {
   vectorCompare(pLeft, pRight, out, _ord, TSDB_RELATION_EQUAL);
 }
 
-void vectorNotEqual(SScalarFuncParam* pLeft, SScalarFuncParam* pRight, void *out, int32_t _ord) {
+void vectorNotEqual(SScalarParam* pLeft, SScalarParam* pRight, void *out, int32_t _ord) {
   vectorCompare(pLeft, pRight, out, _ord, TSDB_RELATION_NOT_EQUAL);
 }
 
-void vectorIn(SScalarFuncParam* pLeft, SScalarFuncParam* pRight, void *out, int32_t _ord) {
+void vectorIn(SScalarParam* pLeft, SScalarParam* pRight, void *out, int32_t _ord) {
   vectorCompare(pLeft, pRight, out, _ord, TSDB_RELATION_IN);
 }
 
-void vectorNotIn(SScalarFuncParam* pLeft, SScalarFuncParam* pRight, void *out, int32_t _ord) {
+void vectorNotIn(SScalarParam* pLeft, SScalarParam* pRight, void *out, int32_t _ord) {
   vectorCompare(pLeft, pRight, out, _ord, TSDB_RELATION_NOT_IN);
 }
 
-void vectorLike(SScalarFuncParam* pLeft, SScalarFuncParam* pRight, void *out, int32_t _ord) {
+void vectorLike(SScalarParam* pLeft, SScalarParam* pRight, void *out, int32_t _ord) {
   vectorCompare(pLeft, pRight, out, _ord, TSDB_RELATION_LIKE);
 }
 
-void vectorNotLike(SScalarFuncParam* pLeft, SScalarFuncParam* pRight, void *out, int32_t _ord) {
+void vectorNotLike(SScalarParam* pLeft, SScalarParam* pRight, void *out, int32_t _ord) {
   vectorCompare(pLeft, pRight, out, _ord, TSDB_RELATION_NOT_LIKE);
 }
 
-void vectorMatch(SScalarFuncParam* pLeft, SScalarFuncParam* pRight, void *out, int32_t _ord) {
+void vectorMatch(SScalarParam* pLeft, SScalarParam* pRight, void *out, int32_t _ord) {
   vectorCompare(pLeft, pRight, out, _ord, TSDB_RELATION_MATCH);
 }
 
-void vectorNotMatch(SScalarFuncParam* pLeft, SScalarFuncParam* pRight, void *out, int32_t _ord) {
+void vectorNotMatch(SScalarParam* pLeft, SScalarParam* pRight, void *out, int32_t _ord) {
   vectorCompare(pLeft, pRight, out, _ord, TSDB_RELATION_NMATCH);
 }
 
-void vectorIsNull(SScalarFuncParam* pLeft, SScalarFuncParam* pRight, void *out, int32_t _ord) {
+void vectorIsNull(SScalarParam* pLeft, SScalarParam* pRight, void *out, int32_t _ord) {
   int32_t i = ((_ord) == TSDB_ORDER_ASC) ? 0 : TMAX(pLeft->num, pRight->num) - 1;
   int32_t step = ((_ord) == TSDB_ORDER_ASC) ? 1 : -1;
   bool res = false;
@@ -1086,7 +1086,7 @@ void vectorIsNull(SScalarFuncParam* pLeft, SScalarFuncParam* pRight, void *out, 
   }
 }
 
-void vectorNotNull(SScalarFuncParam* pLeft, SScalarFuncParam* pRight, void *out, int32_t _ord) {
+void vectorNotNull(SScalarParam* pLeft, SScalarParam* pRight, void *out, int32_t _ord) {
   int32_t i = ((_ord) == TSDB_ORDER_ASC) ? 0 : TMAX(pLeft->num, pRight->num) - 1;
   int32_t step = ((_ord) == TSDB_ORDER_ASC) ? 1 : -1;
   bool res = false;
@@ -1143,9 +1143,9 @@ _bin_scalar_fn_t getBinScalarOperatorFn(int32_t binFunctionId) {
       return vectorMatch;
     case OP_TYPE_NMATCH:
       return vectorNotMatch;
-    case OP_TYPE_ISNULL:
+    case OP_TYPE_IS_NULL:
       return vectorIsNull;
-    case OP_TYPE_NOTNULL:
+    case OP_TYPE_IS_NOT_NULL:
       return vectorNotNull;
     case OP_TYPE_BIT_AND:
       return vectorBitAnd;
