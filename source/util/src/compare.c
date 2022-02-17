@@ -24,21 +24,47 @@
 #include "types.h"
 #include "ulog.h"
 
-int32_t setCompareBytes1(const void *pLeft, const void *pRight) {
+int32_t setChkInBytes1(const void *pLeft, const void *pRight) {
   return NULL != taosHashGet((SHashObj *)pRight, pLeft, 1) ? 1 : 0;
 }
 
-int32_t setCompareBytes2(const void *pLeft, const void *pRight) {
+int32_t setChkInBytes2(const void *pLeft, const void *pRight) {
   return NULL != taosHashGet((SHashObj *)pRight, pLeft, 2) ? 1 : 0;
 }
 
-int32_t setCompareBytes4(const void *pLeft, const void *pRight) {
+int32_t setChkInBytes4(const void *pLeft, const void *pRight) {
   return NULL != taosHashGet((SHashObj *)pRight, pLeft, 4) ? 1 : 0;
 }
 
-int32_t setCompareBytes8(const void *pLeft, const void *pRight) {
+int32_t setChkInBytes8(const void *pLeft, const void *pRight) {
   return NULL != taosHashGet((SHashObj *)pRight, pLeft, 8) ? 1 : 0;
 }
+
+int32_t setChkNotInBytes1(const void *pLeft, const void *pRight) {
+  return NULL == taosHashGet((SHashObj *)pRight, pLeft, 1) ? 1 : 0;
+}
+
+int32_t setChkNotInBytes2(const void *pLeft, const void *pRight) {
+  return NULL == taosHashGet((SHashObj *)pRight, pLeft, 2) ? 1 : 0;
+}
+
+int32_t setChkNotInBytes4(const void *pLeft, const void *pRight) {
+  return NULL == taosHashGet((SHashObj *)pRight, pLeft, 4) ? 1 : 0;
+}
+
+int32_t setChkNotInBytes8(const void *pLeft, const void *pRight) {
+  return NULL == taosHashGet((SHashObj *)pRight, pLeft, 8) ? 1 : 0;
+}
+
+
+int32_t compareChkInString(const void *pLeft, const void* pRight)  {
+  return NULL != taosHashGet((SHashObj *)pRight, varDataVal(pLeft), varDataLen(pLeft)) ? 1 : 0;
+}
+
+int32_t compareChkNotInString(const void *pLeft, const void* pRight)  {
+  return NULL == taosHashGet((SHashObj *)pRight, varDataVal(pLeft), varDataLen(pLeft)) ? 1 : 0;
+}
+
 
 int32_t compareInt8Val(const void *pLeft, const void *pRight) {
   int8_t left = GET_INT8_VAL(pLeft), right = GET_INT8_VAL(pRight);
@@ -391,8 +417,4 @@ int32_t taosArrayCompareString(const void* a, const void* b) {
   const char* y = *(const char**)b;
 
   return compareLenPrefixedStr(x, y);
-}
-
-int32_t compareFindItemInSet(const void *pLeft, const void* pRight)  {
-  return NULL != taosHashGet((SHashObj *)pRight, varDataVal(pLeft), varDataLen(pLeft)) ? 1 : 0;
 }

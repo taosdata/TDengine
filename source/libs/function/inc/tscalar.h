@@ -19,6 +19,9 @@
 extern "C" {
 #endif
 
+typedef struct SScalarCalcContext {
+
+} SScalarCalcContext;
 
 #define sclFatal(...)  qFatal(__VA_ARGS__)
 #define sclError(...)  qError(__VA_ARGS__)

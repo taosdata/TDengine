@@ -156,9 +156,11 @@ int8_t filterGetRangeCompFuncFromOptrs(uint8_t optr, uint8_t optr2) {
 }
 
 __compar_fn_t gDataCompare[] = {compareInt32Val, compareInt8Val, compareInt16Val, compareInt64Val, compareFloatVal,
-  compareDoubleVal, compareLenPrefixedStr, compareStrPatternComp, compareFindItemInSet, compareWStrPatternComp, 
+  compareDoubleVal, compareLenPrefixedStr, compareStrPatternMatch, compareChkInString, compareWStrPatternMatch, 
   compareLenPrefixedWStr, compareUint8Val, compareUint16Val, compareUint32Val, compareUint64Val,
-  setCompareBytes1, setCompareBytes2, setCompareBytes4, setCompareBytes8, compareStrRegexCompMatch, compareStrRegexCompNMatch
+  setChkInBytes1, setChkInBytes2, setChkInBytes4, setChkInBytes8, compareStrRegexCompMatch, 
+  compareStrRegexCompNMatch, setChkNotInBytes1, setChkNotInBytes2, setChkNotInBytes4, setChkNotInBytes8,
+  compareChkNotInString, compareStrPatternNotMatch, compareWStrPatternNotMatch
 };
 
 int8_t filterGetCompFuncIdx(int32_t type, int32_t optr) {
@@ -186,6 +188,29 @@ int8_t filterGetCompFuncIdx(int32_t type, int32_t optr) {
         assert(0);
     }
   }
+
+  if (optr == TSDB_RELATION_NOT_IN && (type != TSDB_DATA_TYPE_BINARY && type != TSDB_DATA_TYPE_NCHAR)) {
+    switch (type) {
+      case TSDB_DATA_TYPE_BOOL:
+      case TSDB_DATA_TYPE_TINYINT:  
+      case TSDB_DATA_TYPE_UTINYINT:  
+        return 21;
+      case TSDB_DATA_TYPE_SMALLINT:
+      case TSDB_DATA_TYPE_USMALLINT:
+        return 22;
+      case TSDB_DATA_TYPE_INT:
+      case TSDB_DATA_TYPE_UINT:
+      case TSDB_DATA_TYPE_FLOAT:        
+        return 23;
+      case TSDB_DATA_TYPE_BIGINT:        
+      case TSDB_DATA_TYPE_UBIGINT:        
+      case TSDB_DATA_TYPE_DOUBLE:        
+      case TSDB_DATA_TYPE_TIMESTAMP:        
+        return 24;
+      default:
+        assert(0);
+    }
+  }
   
   switch (type) {
     case TSDB_DATA_TYPE_BOOL:
@@ -203,8 +228,12 @@ int8_t filterGetCompFuncIdx(int32_t type, int32_t optr) {
         comparFn = 20;
       } else if (optr == TSDB_RELATION_LIKE) { /* wildcard query using like operator */
         comparFn = 7;
+      } else if (optr == TSDB_RELATION_NOT_LIKE) { /* wildcard query using like operator */
+        comparFn = 26;
       } else if (optr == TSDB_RELATION_IN) {
         comparFn = 8;
+      } else if (optr == TSDB_RELATION_NOT_IN) {
+        comparFn = 25;
       } else { /* normal relational comparFn */
         comparFn = 6;
       }
@@ -219,8 +248,12 @@ int8_t filterGetCompFuncIdx(int32_t type, int32_t optr) {
         comparFn = 20;
       } else if (optr == TSDB_RELATION_LIKE) {
         comparFn = 9;
+      } else if (optr == TSDB_RELATION_LIKE) {
+        comparFn = 27;
       } else if (optr == TSDB_RELATION_IN) {
         comparFn = 8;
+      } else if (optr == TSDB_RELATION_NOT_IN) {
+        comparFn = 25;
       } else {
         comparFn = 10;
       }

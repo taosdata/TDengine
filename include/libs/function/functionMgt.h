@@ -118,6 +118,13 @@ typedef struct SFuncExecFuncs {
   FExecFinalize finalize;
 } SFuncExecFuncs;
 
+typedef int32_t (*FScalarExecProcess)(SScalarFuncParam *pInput, int32_t inputNum, SScalarFuncParam *pOutput);
+
+typedef struct SScalarFuncExecFuncs {
+  FScalarExecProcess process;
+} SScalarFuncExecFuncs;
+
+
 int32_t fmFuncMgtInit();
 
 int32_t fmGetHandle(FuncMgtHandle* pHandle);
@@ -136,7 +143,8 @@ bool fmIsTimeorderFunc(int32_t funcId);
 
 int32_t fmFuncScanType(int32_t funcId);
 
-int32_t fmGetFuncExecFuncs(FuncMgtHandle handle, int32_t funcId, SFuncExecFuncs* pFpSet);
+int32_t fmGetFuncExecFuncs(int32_t funcId, SFuncExecFuncs* pFpSet);
+int32_t fmGetScalarFuncExecFuncs(int32_t funcId, SScalarFuncExecFuncs* pFpSet);
 
 #ifdef __cplusplus
 }

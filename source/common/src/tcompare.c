@@ -15,7 +15,7 @@
 
 #include "tcompare.h"
 
-int32_t compareStrPatternComp(const void* pLeft, const void* pRight) {
+int32_t compareStrPatternMatch(const void* pLeft, const void* pRight) {
   SPatternCompareInfo pInfo = {'%', '_'};
 
   assert(varDataLen(pRight) <= TSDB_MAX_FIELD_LEN);
@@ -33,7 +33,11 @@ int32_t compareStrPatternComp(const void* pLeft, const void* pRight) {
   return (ret == TSDB_PATTERN_MATCH) ? 0 : 1;
 }
 
-int32_t compareWStrPatternComp(const void* pLeft, const void* pRight) {
+int32_t compareStrPatternNotMatch(const void* pLeft, const void* pRight) {
+  return compareStrPatternMatch(pLeft, pRight) ? 0 : 1;
+}
+
+int32_t compareWStrPatternMatch(const void* pLeft, const void* pRight) {
   SPatternCompareInfo pInfo = {'%', '_'};
 
   assert(varDataLen(pRight) <= TSDB_MAX_FIELD_LEN * TSDB_NCHAR_SIZE);
@@ -47,6 +51,10 @@ int32_t compareWStrPatternComp(const void* pLeft, const void* pRight) {
   return (ret == TSDB_PATTERN_MATCH) ? 0 : 1;
 }
 
+int32_t compareWStrPatternNotMatch(const void* pLeft, const void* pRight) {
+  return compareWStrPatternMatch(pLeft, pRight) ? 0 : 1;
+}
+
 __compar_fn_t getComparFunc(int32_t type, int32_t optr) {
   __compar_fn_t comparFn = NULL;
 
@@ -55,19 +63,42 @@ __compar_fn_t getComparFunc(int32_t type, int32_t optr) {
       case TSDB_DATA_TYPE_BOOL:
       case TSDB_DATA_TYPE_TINYINT:
       case TSDB_DATA_TYPE_UTINYINT:
-        return setCompareBytes1;
+        return setChkInBytes1;
       case TSDB_DATA_TYPE_SMALLINT:
       case TSDB_DATA_TYPE_USMALLINT:
-        return setCompareBytes2;
+        return setChkInBytes2;
       case TSDB_DATA_TYPE_INT:
       case TSDB_DATA_TYPE_UINT:
       case TSDB_DATA_TYPE_FLOAT:
-        return setCompareBytes4;
+        return setChkInBytes4;
       case TSDB_DATA_TYPE_BIGINT:
       case TSDB_DATA_TYPE_UBIGINT:
       case TSDB_DATA_TYPE_DOUBLE:
       case TSDB_DATA_TYPE_TIMESTAMP:
-        return setCompareBytes8;
+        return setChkInBytes8;
+      default:
+        assert(0);
+    }
+  }
+
+  if (optr == TSDB_RELATION_NOT_IN && (type != TSDB_DATA_TYPE_BINARY && type != TSDB_DATA_TYPE_NCHAR)) {
+    switch (type) {
+      case TSDB_DATA_TYPE_BOOL:
+      case TSDB_DATA_TYPE_TINYINT:
+      case TSDB_DATA_TYPE_UTINYINT:
+        return setChkNotInBytes1;
+      case TSDB_DATA_TYPE_SMALLINT:
+      case TSDB_DATA_TYPE_USMALLINT:
+        return setChkNotInBytes2;
+      case TSDB_DATA_TYPE_INT:
+      case TSDB_DATA_TYPE_UINT:
+      case TSDB_DATA_TYPE_FLOAT:
+        return setChkNotInBytes4;
+      case TSDB_DATA_TYPE_BIGINT:
+      case TSDB_DATA_TYPE_UBIGINT:
+      case TSDB_DATA_TYPE_DOUBLE:
+      case TSDB_DATA_TYPE_TIMESTAMP:
+        return setChkNotInBytes8;
       default:
         assert(0);
     }
@@ -88,9 +119,13 @@ __compar_fn_t getComparFunc(int32_t type, int32_t optr) {
       } else if (optr == TSDB_RELATION_NMATCH) {
         comparFn = compareStrRegexCompNMatch;
       } else if (optr == TSDB_RELATION_LIKE) { /* wildcard query using like operator */
-        comparFn = compareStrPatternComp;
+        comparFn = compareStrPatternMatch;
+      } else if (optr == TSDB_RELATION_NOT_LIKE) { /* wildcard query using like operator */
+        comparFn = compareStrPatternNotMatch;
       } else if (optr == TSDB_RELATION_IN) {
-        comparFn = compareFindItemInSet;
+        comparFn = compareChkInString;
+      } else if (optr == TSDB_RELATION_NOT_IN) {
+        comparFn = compareChkNotInString;
       } else { /* normal relational comparFn */
         comparFn = compareLenPrefixedStr;
       }
@@ -104,9 +139,13 @@ __compar_fn_t getComparFunc(int32_t type, int32_t optr) {
       } else if (optr == TSDB_RELATION_NMATCH) {
         comparFn = compareStrRegexCompNMatch;
       } else if (optr == TSDB_RELATION_LIKE) {
-        comparFn = compareWStrPatternComp;
+        comparFn = compareWStrPatternMatch;
+      } else if (optr == TSDB_RELATION_NOT_LIKE) {
+        comparFn = compareWStrPatternNotMatch;
       } else if (optr == TSDB_RELATION_IN) {
-        comparFn = compareFindItemInSet;
+        comparFn = compareChkInString;
+      } else if (optr == TSDB_RELATION_NOT_IN) {
+        comparFn = compareChkNotInString;
       } else {
         comparFn = compareLenPrefixedWStr;
       }
