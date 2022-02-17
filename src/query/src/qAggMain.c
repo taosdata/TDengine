@@ -2162,7 +2162,7 @@ static void copyTopBotRes(SQLFunctionCtx *pCtx, int32_t type) {
   
   int32_t step = QUERY_ASC_FORWARD_STEP;
   int32_t len = (int32_t)(GET_RES_INFO(pCtx)->numOfRes);
-  
+
   switch (type) {
     case TSDB_DATA_TYPE_UINT:
     case TSDB_DATA_TYPE_INT: {
@@ -5147,16 +5147,16 @@ static void copyUniqueRes(SQLFunctionCtx *pCtx, int32_t bytes) {
   SUniqueFuncInfo *pRes = GET_ROWCELL_INTERBUF(pResInfo);
 
   size_t size = sizeof(UniqueUnit) + bytes + pCtx->tagInfo.tagsLen;
-  char *tvp = pRes->res;
-
   int32_t len = (int32_t)(GET_RES_INFO(pCtx)->numOfRes);
 
   char *tsOutput = pCtx->ptsOutputBuf;
   char *output = pCtx->pOutput;
+  int32_t step = GET_FORWARD_DIRECTION_FACTOR(pCtx->param[2].i64);
+  char *tvp = pRes->res + (size * ((pCtx->param[2].i64 == TSDB_ORDER_ASC) ? 0 : len -1));
   for (int32_t i = 0; i < len; ++i) {
     memcpy(tsOutput, tvp, sizeof(int64_t));
     memcpy(output, tvp + sizeof(UniqueUnit), bytes);
-    tvp += size;
+    tvp += (step * size);
     tsOutput += sizeof(int64_t);
     output += bytes;
   }
@@ -5172,7 +5172,7 @@ static void copyUniqueRes(SQLFunctionCtx *pCtx, int32_t bytes) {
     pData[i] = pCtx->tagInfo.pTagCtxList[i]->pOutput;
   }
 
-  tvp = pRes->res;
+  tvp = pRes->res + (size * ((pCtx->param[2].i64 == TSDB_ORDER_ASC) ? 0 : len -1));
   for (int32_t i = 0; i < len; ++i) {
     int16_t offset = sizeof(UniqueUnit) + bytes;
     for (int32_t j = 0; j < pCtx->tagInfo.numOfTagCols; ++j) {
@@ -5180,7 +5180,7 @@ static void copyUniqueRes(SQLFunctionCtx *pCtx, int32_t bytes) {
       offset += pCtx->tagInfo.pTagCtxList[j]->outputBytes;
       pData[j] += pCtx->tagInfo.pTagCtxList[j]->outputBytes;
     }
-    tvp += size;
+    tvp += (step * size);
   }
 
   tfree(pData);
@@ -5269,17 +5269,42 @@ static void unique_function_merge(SQLFunctionCtx *pCtx) {
   GET_RES_INFO(pCtx)->numOfRes = pOutput->num;
 }
 
+typedef struct{
+  int32_t dataOffset;
+  __compar_fn_t comparFn;
+} UiqueSupporter;
+
+static int32_t uniqueCompareFn(const void *p1, const void *p2, const void *param) {
+  UiqueSupporter *support = (UiqueSupporter *)param;
+  return support->comparFn(p1 + support->dataOffset, p2 + support->dataOffset);
+}
+
 static void unique_func_finalizer(SQLFunctionCtx *pCtx) {
   SUniqueFuncInfo *pInfo = getUniqueOutputInfo(pCtx);
 
   GET_RES_INFO(pCtx)->numOfRes = pInfo->num;
   int32_t bytes = 0;
+  int32_t type = 0;
   if (pCtx->currentStage == MERGE_STAGE) {
     bytes = pCtx->outputBytes;
+    type = pCtx->outputType;
     assert(pCtx->inputType == TSDB_DATA_TYPE_BINARY);
   } else {
     bytes = pCtx->inputBytes;
+    type = pCtx->inputType;
   }
+  UiqueSupporter support = {0};
+  // user specify the order of output by sort the result according to timestamp
+  if (pCtx->param[1].i64 == PRIMARYKEY_TIMESTAMP_COL_INDEX) {
+    support.dataOffset = 0;
+    support.comparFn = compareInt64Val;
+  } else{
+    support.dataOffset = sizeof(UniqueUnit);
+    support.comparFn = getComparFunc(type, 0);
+  }
+
+  size_t size = sizeof(UniqueUnit) + bytes + pCtx->tagInfo.tagsLen;
+  taosqsort(pInfo->res, (size_t)GET_RES_INFO(pCtx)->numOfRes, size, &support, uniqueCompareFn);
   copyUniqueRes(pCtx, bytes);
   doFinalizer(pCtx);
 }

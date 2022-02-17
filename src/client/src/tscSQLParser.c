@@ -1113,6 +1113,7 @@ static int32_t addPrimaryTsColumnForTimeWindowQuery(SQueryInfo* pQueryInfo, SSql
 static int32_t checkInvalidExprForTimeWindow(SSqlCmd* pCmd, SQueryInfo* pQueryInfo) {
   const char* msg1 = "invalid query expression";
   const char* msg2 = "top/bottom query does not support order by value in time window query";
+  const char* msg3 = "unique function does not supportted in time window query";
 
   // for top/bottom + interval query, we do not add additional timestamp column in the front
   if (isTopBottomUniqueQuery(pQueryInfo)) {
@@ -1137,6 +1138,9 @@ static int32_t checkInvalidExprForTimeWindow(SSqlCmd* pCmd, SQueryInfo* pQueryIn
     SExprInfo* pExpr = tscExprGet(pQueryInfo, i);
     if (pExpr->base.functionId == TSDB_FUNC_COUNT && TSDB_COL_IS_TAG(pExpr->base.colInfo.flag)) {
       return invalidOperationMsg(tscGetErrorMsgPayload(pCmd), msg1);
+    }
+    if (pExpr->base.functionId == TSDB_FUNC_UNIQUE) {
+      return invalidOperationMsg(tscGetErrorMsgPayload(pCmd), msg3);
     }
   }
 
@@ -2689,6 +2693,7 @@ int32_t addExprAndResultField(SSqlCmd* pCmd, SQueryInfo* pQueryInfo, int32_t col
   const char* msg26 = "start param cannot be 0 with 'log_bin'";
   const char* msg27 = "factor param cannot be negative or equal to 0/1";
   const char* msg28 = "the second paramter of diff should be 0 or 1";
+  const char* msg29 = "key timestamp column cannot be used to unique function";
 
   switch (functionId) {
     case TSDB_FUNC_COUNT: {
@@ -3127,6 +3132,9 @@ int32_t addExprAndResultField(SSqlCmd* pCmd, SQueryInfo* pQueryInfo, int32_t col
 
       if (index.columnIndex == TSDB_TBNAME_COLUMN_INDEX) {
         return invalidOperationMsg(tscGetErrorMsgPayload(pCmd), msg6);
+      }
+      if (index.columnIndex == PRIMARYKEY_TIMESTAMP_COL_INDEX && functionId == TSDB_FUNC_UNIQUE) {
+        return invalidOperationMsg(tscGetErrorMsgPayload(pCmd), msg29);
       }
 
       pTableMetaInfo = tscGetMetaInfo(pQueryInfo, index.tableIndex);
@@ -8376,6 +8384,7 @@ int32_t doFunctionsCompatibleCheck(SSqlCmd* pCmd, SQueryInfo* pQueryInfo, char* 
   const char* msg4 = "retrieve tags not compatible with group by or interval query";
   const char* msg5 = "functions can not be mixed up";
   const char* msg6 = "TWA/Diff/Derivative/Irate/CSum/MAvg/Elapsed only support group by tbname";
+  const char* msg7 = "unique function does not supportted in state window query";
 
   // only retrieve tags, group by is not supportted
   if (tscQueryTags(pQueryInfo)) {
@@ -8453,6 +8462,10 @@ int32_t doFunctionsCompatibleCheck(SSqlCmd* pCmd, SQueryInfo* pQueryInfo, char* 
             return invalidOperationMsg(msg, msg6);
           }
         }
+      }
+
+      if (pQueryInfo->stateWindow && f == TSDB_FUNC_UNIQUE){
+        return invalidOperationMsg(msg, msg7);
       }
 
       if (IS_MULTIOUTPUT(aAggs[f].status) && f != TSDB_FUNC_TOP && f != TSDB_FUNC_BOTTOM && f != TSDB_FUNC_DIFF &&

@@ -2003,7 +2003,8 @@ static SQLFunctionCtx* createSQLFunctionCtx(SQueryRuntimeEnv* pRuntimeEnv, SExpr
     // set the order information for top/bottom query
     int32_t functionId = pCtx->functionId;
 
-    if (functionId == TSDB_FUNC_TOP || functionId == TSDB_FUNC_BOTTOM || functionId == TSDB_FUNC_DIFF) {
+    if (functionId == TSDB_FUNC_TOP || functionId == TSDB_FUNC_BOTTOM
+        || functionId == TSDB_FUNC_DIFF || functionId == TSDB_FUNC_UNIQUE) {
       int32_t f = pExpr[i-1].base.functionId;
       assert(f == TSDB_FUNC_TS || f == TSDB_FUNC_TS_DUMMY);
 
