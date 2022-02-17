@@ -84,6 +84,10 @@ SNode* releaseRawExprNode(SAstCreateContext* pCxt, SNode* pNode) {
 }
 
 SToken getTokenFromRawExprNode(SAstCreateContext* pCxt, SNode* pNode) {
+  if (NULL == pNode || QUERY_NODE_RAW_EXPR != nodeType(pNode)) {
+    pCxt->valid = false;
+    return nil_token;
+  }
   SRawExprNode* target = (SRawExprNode*)pNode;
   SToken t = { .type = 0, .z = target->p, .n = target->n};
   return t;
@@ -166,14 +170,6 @@ SNode* createNotBetweenAnd(SAstCreateContext* pCxt, SNode* pExpr, SNode* pLeft, 
       createOperatorNode(pCxt, OP_TYPE_LOWER_THAN, pExpr, pLeft), createOperatorNode(pCxt, OP_TYPE_GREATER_THAN, pExpr, pRight));
 }
 
-SNode* createIsNullCondNode(SAstCreateContext* pCxt, SNode* pExpr, bool isNull) {
-  SIsNullCondNode* cond = (SIsNullCondNode*)nodesMakeNode(QUERY_NODE_IS_NULL_CONDITION);
-  CHECK_OUT_OF_MEM(cond);
-  cond->pExpr = pExpr;
-  cond->isNull = isNull;
-  return (SNode*)cond;
-}
-
 SNode* createFunctionNode(SAstCreateContext* pCxt, const SToken* pFuncName, SNodeList* pParameterList) {
   SFunctionNode* func = (SFunctionNode*)nodesMakeNode(QUERY_NODE_FUNCTION);
   CHECK_OUT_OF_MEM(func);
@@ -242,6 +238,9 @@ SNode* createOrderByExprNode(SAstCreateContext* pCxt, SNode* pExpr, EOrder order
   CHECK_OUT_OF_MEM(orderByExpr);
   orderByExpr->pExpr = pExpr;
   orderByExpr->order = order;
+  if (NULL_ORDER_DEFAULT == nullOrder) {
+    nullOrder = (ORDER_ASC == order ? NULL_ORDER_FIRST : NULL_ORDER_LAST);
+  }
   orderByExpr->nullOrder = nullOrder;
   return (SNode*)orderByExpr;
 }
@@ -279,8 +278,21 @@ SNode* createFillNode(SAstCreateContext* pCxt, EFillMode mode, SNode* pValues) {
   return (SNode*)fill;
 }
 
+SNode* createGroupingSetNode(SAstCreateContext* pCxt, SNode* pNode) {
+  SGroupingSetNode* groupingSet = (SGroupingSetNode*)nodesMakeNode(QUERY_NODE_GROUPING_SET);
+  CHECK_OUT_OF_MEM(groupingSet);
+  groupingSet->groupingSetType = GP_TYPE_NORMAL;
+  groupingSet->pParameterList = nodesMakeList();
+  nodesListAppend(groupingSet->pParameterList, pNode);
+  return (SNode*)groupingSet;
+}
+
 SNode* setProjectionAlias(SAstCreateContext* pCxt, SNode* pNode, const SToken* pAlias) {
-  strncpy(((SExprNode*)pNode)->aliasName, pAlias->z, pAlias->n);
+  if (NULL == pNode || !pCxt->valid) {
+    return pNode;
+  }
+  uint32_t maxLen = sizeof(((SExprNode*)pNode)->aliasName);
+  strncpy(((SExprNode*)pNode)->aliasName, pAlias->z, pAlias->n > maxLen ? maxLen : pAlias->n);
   return pNode;
 }
 

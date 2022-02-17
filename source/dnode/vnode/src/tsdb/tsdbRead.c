@@ -2174,8 +2174,8 @@ static int32_t createDataBlocksInfo(STsdbReadHandle* pTsdbReadHandle, int32_t nu
   assert(cnt <= numOfBlocks && numOfQualTables <= numOfTables);  // the pTableQueryInfo[j]->numOfBlocks may be 0
   sup.numOfTables = numOfQualTables;
 
-  SLoserTreeInfo* pTree = NULL;
-  uint8_t ret = tLoserTreeCreate(&pTree, sup.numOfTables, &sup, dataBlockOrderCompar);
+  SMultiwayMergeTreeInfo* pTree = NULL;
+  uint8_t ret = tMergeTreeCreate(&pTree, sup.numOfTables, &sup, dataBlockOrderCompar);
   if (ret != TSDB_CODE_SUCCESS) {
     cleanBlockOrderSupporter(&sup, numOfTables);
     return TSDB_CODE_TDB_OUT_OF_MEMORY;
@@ -2184,7 +2184,7 @@ static int32_t createDataBlocksInfo(STsdbReadHandle* pTsdbReadHandle, int32_t nu
   int32_t numOfTotal = 0;
 
   while (numOfTotal < cnt) {
-    int32_t pos = pTree->pNode[0].index;
+    int32_t pos = tMergeTreeGetChosenIndex(pTree);
     int32_t index = sup.blockIndexArray[pos]++;
 
     STableBlockInfo* pBlocksInfo = sup.pDataBlockInfo[pos];
@@ -2195,7 +2195,7 @@ static int32_t createDataBlocksInfo(STsdbReadHandle* pTsdbReadHandle, int32_t nu
       sup.blockIndexArray[pos] = sup.numOfBlocksPerTable[pos] + 1;
     }
 
-    tLoserTreeAdjust(pTree, pos + sup.numOfTables);
+    tMergeTreeAdjust(pTree, tMergeTreeGetAdjustIndex(pTree));
   }
 
   /*
@@ -3643,13 +3643,13 @@ int32_t tsdbQuerySTableByTagCond(void* pMeta, uint64_t uid, TSKEY skey, const ch
                                  SColIndex* pColIndex, int32_t numOfCols, uint64_t reqId, uint64_t taskId) {
   STbCfg* pTbCfg = metaGetTbInfoByUid(pMeta, uid);
   if (pTbCfg == NULL) {
-//    tsdbError("%p failed to get stable, uid:%"PRIu64", TID:0x%"PRIx64" QID:0x%"PRIx64, tsdb, uid, taskId, reqId);
+    tsdbError("%p failed to get stable, uid:%"PRIu64", TID:0x%"PRIx64" QID:0x%"PRIx64, pMeta, uid, taskId, reqId);
     terrno = TSDB_CODE_TDB_INVALID_TABLE_ID;
     goto _error;
   }
 
   if (pTbCfg->type != META_SUPER_TABLE) {
-//    tsdbError("%p query normal tag not allowed, uid:%" PRIu64 ", TID:0x%"PRIx64" QID:0x%"PRIx64, tsdb, uid, taskId, reqId);
+    tsdbError("%p query normal tag not allowed, uid:%" PRIu64 ", TID:0x%"PRIx64" QID:0x%"PRIx64, pMeta, uid, taskId, reqId);
     terrno = TSDB_CODE_OPS_NOT_SUPPORT; //basically, this error is caused by invalid sql issued by client
     goto _error;
   }
@@ -3668,8 +3668,8 @@ int32_t tsdbQuerySTableByTagCond(void* pMeta, uint64_t uid, TSKEY skey, const ch
     pGroupInfo->numOfTables = (uint32_t) taosArrayGetSize(res);
     pGroupInfo->pGroupList  = createTableGroup(res, pTagSchema, pColIndex, numOfCols, skey);
 
-//    tsdbDebug("%p no table name/tag condition, all tables qualified, numOfTables:%u, group:%zu, TID:0x%"PRIx64" QID:0x%"PRIx64, tsdb,
-//              pGroupInfo->numOfTables, taosArrayGetSize(pGroupInfo->pGroupList), taskId, reqId);
+    tsdbDebug("%p no table name/tag condition, all tables qualified, numOfTables:%u, group:%zu, TID:0x%"PRIx64" QID:0x%"PRIx64, pMeta,
+              pGroupInfo->numOfTables, taosArrayGetSize(pGroupInfo->pGroupList), taskId, reqId);
 
     taosArrayDestroy(res);
     return ret;

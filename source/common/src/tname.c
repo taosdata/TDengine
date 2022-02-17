@@ -1,3 +1,4 @@
+#include <common.h>
 #include "os.h"
 #include "tutil.h"
 
@@ -269,3 +270,4 @@ SSchema createSchema(uint8_t type, int32_t bytes, int32_t colId, const char* nam
   tstrncpy(s.name, name, tListLen(s.name));
   return s;
 }
+

@@ -3,12 +3,13 @@ add_executable(client "")
 add_executable(server "")
 add_executable(transUT "")
 add_executable(syncClient "")
+add_executable(pushClient "")
+add_executable(pushServer "")
 
 target_sources(transUT
   PRIVATE
   "transUT.cc"
 )  
-
 target_sources(transportTest 
   PRIVATE
   "transportTests.cc"
@@ -25,6 +26,15 @@ target_sources (syncClient
   PRIVATE
   "syncClient.c" 
 )   
+
+target_sources(pushClient
+  PRIVATE
+  "pushClient.c"
+)
+target_sources(pushServer
+  PRIVATE
+  "pushServer.c"
+)
 
 target_include_directories(transportTest 
   PUBLIC
@@ -92,4 +102,29 @@ target_link_libraries (syncClient
   transport 
 )
 
+target_include_directories(pushClient
+  PUBLIC
+  "${CMAKE_SOURCE_DIR}/include/libs/transport" 
+  "${CMAKE_CURRENT_SOURCE_DIR}/../inc"
+) 
+target_link_libraries (pushClient
+  os  
+  util
+  common
+  gtest_main
+  transport 
+)
+
+target_include_directories(pushServer
+  PUBLIC
+  "${CMAKE_SOURCE_DIR}/include/libs/transport" 
+  "${CMAKE_CURRENT_SOURCE_DIR}/../inc"
+) 
+target_link_libraries (pushServer
+  os  
+  util
+  common
+  gtest_main
+  transport 
+)
 

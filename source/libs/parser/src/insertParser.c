@@ -121,7 +121,7 @@ static int32_t findCol(SToken* pColname, int32_t start, int32_t end, SSchema* pS
 }
 
 static void buildMsgHeader(SVgDataBlocks* blocks) {
-    SSubmitMsg* submit = (SSubmitMsg*)blocks->pData;
+    SSubmitReq* submit = (SSubmitReq*)blocks->pData;
     submit->header.vgId    = htonl(blocks->vg.vgId);
     submit->header.contLen = htonl(blocks->size);
     submit->length         = submit->header.contLen;
@@ -292,6 +292,7 @@ static int32_t parseBoundColumns(SInsertParseContext* pCxt, SParsedDataColInfo* 
   int32_t nCols = pColList->numOfCols;
 
   pColList->numOfBound = 0; 
+  pColList->boundNullLen = 0;
   memset(pColList->boundedColumns, 0, sizeof(int32_t) * nCols);
   for (int32_t i = 0; i < nCols; ++i) {
     pColList->cols[i].valStat = VAL_STAT_NONE;
@@ -321,8 +322,19 @@ static int32_t parseBoundColumns(SInsertParseContext* pCxt, SParsedDataColInfo* 
     }
     lastColIdx = index;
     pColList->cols[index].valStat = VAL_STAT_HAS;
-    pColList->boundedColumns[pColList->numOfBound] = index;
+    pColList->boundedColumns[pColList->numOfBound] = index + PRIMARYKEY_TIMESTAMP_COL_ID;
     ++pColList->numOfBound;
+    switch (pSchema[t].type) {
+      case TSDB_DATA_TYPE_BINARY:
+        pColList->boundNullLen += (sizeof(VarDataOffsetT) + VARSTR_HEADER_SIZE + CHAR_BYTES);
+        break;
+      case TSDB_DATA_TYPE_NCHAR:
+        pColList->boundNullLen += (sizeof(VarDataOffsetT) + VARSTR_HEADER_SIZE + TSDB_NCHAR_SIZE);
+        break;
+      default:
+        pColList->boundNullLen += TYPE_BYTES[pSchema[t].type];
+        break;
+    }
   }
 
   pColList->orderStatus = isOrdered ? ORDER_STATUS_ORDERED : ORDER_STATUS_DISORDERED;
@@ -450,7 +462,7 @@ static int parseOneRow(SInsertParseContext* pCxt, STableDataBlocks* pDataBlocks,
     }
   }
 
-  *len = pBuilder->extendedRowSize;
+  // *len = pBuilder->extendedRowSize;
   return TSDB_CODE_SUCCESS;
 }
 
@@ -480,7 +492,7 @@ static int32_t parseValues(SInsertParseContext* pCxt, STableDataBlocks* pDataBlo
 
     int32_t len = 0;
     CHECK_CODE(parseOneRow(pCxt, pDataBlock, tinfo.precision, &len, tmpTokenBuf));
-    pDataBlock->size += len;
+    pDataBlock->size += extendedRowSize; //len;
 
     NEXT_TOKEN(pCxt->pSql, sToken);
     if (TK_RP != sToken.type) {

@@ -28,44 +28,44 @@ Testbase MndTestProfile::test;
 int32_t  MndTestProfile::connId;
 
 TEST_F(MndTestProfile, 01_ConnectMsg) {
-  int32_t contLen = sizeof(SConnectReq);
+  SConnectReq connectReq = {0};
+  connectReq.pid = 1234;
+  strcpy(connectReq.app, "mnode_test_profile");
+  strcpy(connectReq.db, "");
 
-  SConnectReq* pReq = (SConnectReq*)rpcMallocCont(contLen);
-  pReq->pid = htonl(1234);
-  strcpy(pReq->app, "mnode_test_profile");
-  strcpy(pReq->db, "");
+  int32_t contLen = tSerializeSConnectReq(NULL, 0, &connectReq);
+  void*   pReq = rpcMallocCont(contLen);
+  tSerializeSConnectReq(pReq, contLen, &connectReq);
 
   SRpcMsg* pMsg = test.SendReq(TDMT_MND_CONNECT, pReq, contLen);
   ASSERT_NE(pMsg, nullptr);
   ASSERT_EQ(pMsg->code, 0);
 
-  SConnectRsp* pRsp = (SConnectRsp*)pMsg->pCont;
-  ASSERT_NE(pRsp, nullptr);
-  pRsp->acctId = htonl(pRsp->acctId);
-  pRsp->clusterId = htobe64(pRsp->clusterId);
-  pRsp->connId = htonl(pRsp->connId);
-  pRsp->epSet.eps[0].port = htons(pRsp->epSet.eps[0].port);
+  SConnectRsp connectRsp = {0};
+  tDeserializeSConnectRsp(pMsg->pCont, pMsg->contLen, &connectRsp);
 
-  EXPECT_EQ(pRsp->acctId, 1);
-  EXPECT_GT(pRsp->clusterId, 0);
-  EXPECT_EQ(pRsp->connId, 1);
-  EXPECT_EQ(pRsp->superUser, 1);
+  EXPECT_EQ(connectRsp.acctId, 1);
+  EXPECT_GT(connectRsp.clusterId, 0);
+  EXPECT_EQ(connectRsp.connId, 1);
+  EXPECT_EQ(connectRsp.superUser, 1);
 
-  EXPECT_EQ(pRsp->epSet.inUse, 0);
-  EXPECT_EQ(pRsp->epSet.numOfEps, 1);
-  EXPECT_EQ(pRsp->epSet.eps[0].port, 9031);
-  EXPECT_STREQ(pRsp->epSet.eps[0].fqdn, "localhost");
+  EXPECT_EQ(connectRsp.epSet.inUse, 0);
+  EXPECT_EQ(connectRsp.epSet.numOfEps, 1);
+  EXPECT_EQ(connectRsp.epSet.eps[0].port, 9031);
+  EXPECT_STREQ(connectRsp.epSet.eps[0].fqdn, "localhost");
 
-  connId = pRsp->connId;
+  connId = connectRsp.connId;
 }
 
 TEST_F(MndTestProfile, 02_ConnectMsg_InvalidDB) {
-  int32_t contLen = sizeof(SConnectReq);
+  SConnectReq connectReq = {0};
+  connectReq.pid = 1234;
+  strcpy(connectReq.app, "mnode_test_profile");
+  strcpy(connectReq.db, "invalid_db");
 
-  SConnectReq* pReq = (SConnectReq*)rpcMallocCont(contLen);
-  pReq->pid = htonl(1234);
-  strcpy(pReq->app, "mnode_test_profile");
-  strcpy(pReq->db, "invalid_db");
+  int32_t contLen = tSerializeSConnectReq(NULL, 0, &connectReq);
+  void*   pReq = rpcMallocCont(contLen);
+  tSerializeSConnectReq(pReq, contLen, &connectReq);
 
   SRpcMsg* pRsp = test.SendReq(TDMT_MND_CONNECT, pReq, contLen);
   ASSERT_NE(pRsp, nullptr);
@@ -96,35 +96,35 @@ TEST_F(MndTestProfile, 03_ConnectMsg_Show) {
 }
 
 TEST_F(MndTestProfile, 04_HeartBeatMsg) {
-  SClientHbBatchReq batchReq;
+  SClientHbBatchReq batchReq = {0};
   batchReq.reqs = taosArrayInit(0, sizeof(SClientHbReq));
   SClientHbReq req = {0};
   req.connKey = {.connId = 123, .hbType = HEARTBEAT_TYPE_MQ};
   req.info = taosHashInit(64, hbKeyHashFunc, 1, HASH_ENTRY_LOCK);
-  SKv kv;
+  SKv kv = {0};
   kv.key = 123;
   kv.value = (void*)"bcd";
   kv.valueLen = 4;
   taosHashPut(req.info, &kv.key, sizeof(kv.key), &kv, sizeof(kv));
   taosArrayPush(batchReq.reqs, &req);
 
-  int32_t tlen = tSerializeSClientHbBatchReq(NULL, &batchReq);
-  
-  void* buf = (SClientHbBatchReq*)rpcMallocCont(tlen);
-  void* bufCopy = buf;
-  tSerializeSClientHbBatchReq(&bufCopy, &batchReq);
+  int32_t tlen = tSerializeSClientHbBatchReq(NULL, 0, &batchReq);
+  void*   buf = (SClientHbBatchReq*)rpcMallocCont(tlen);
+  tSerializeSClientHbBatchReq(buf, tlen, &batchReq);
+
   SRpcMsg* pMsg = test.SendReq(TDMT_MND_HEARTBEAT, buf, tlen);
   ASSERT_NE(pMsg, nullptr);
   ASSERT_EQ(pMsg->code, 0);
-  char* pRspChar = (char*)pMsg->pCont;
+
   SClientHbBatchRsp rsp = {0};
-  tDeserializeSClientHbBatchRsp(pRspChar, &rsp);
+  tDeserializeSClientHbBatchRsp(pMsg->pCont, pMsg->contLen, &rsp);
   int sz = taosArrayGetSize(rsp.rsps);
   ASSERT_EQ(sz, 0);
-  //SClientHbRsp* pRsp = (SClientHbRsp*) taosArrayGet(rsp.rsps, 0);
-  //EXPECT_EQ(pRsp->connKey.connId, 123);
-  //EXPECT_EQ(pRsp->connKey.hbType, HEARTBEAT_TYPE_MQ);
-  //EXPECT_EQ(pRsp->status, 0);
+
+  // SClientHbRsp* pRsp = (SClientHbRsp*) taosArrayGet(rsp.rsps, 0);
+  // EXPECT_EQ(pRsp->connKey.connId, 123);
+  // EXPECT_EQ(pRsp->connKey.hbType, HEARTBEAT_TYPE_MQ);
+  // EXPECT_EQ(pRsp->status, 0);
 
 #if 0
   int32_t contLen = sizeof(SHeartBeatReq);
@@ -167,10 +167,12 @@ TEST_F(MndTestProfile, 05_KillConnMsg) {
   // temporary remove since kill will use new heartbeat msg
 #if 0
   {
-    int32_t contLen = sizeof(SKillConnReq);
+    SKillConnReq killReq = {0};
+    killReq.connId = connId;
 
-    SKillConnReq* pReq = (SKillConnReq*)rpcMallocCont(contLen);
-    pReq->connId = htonl(connId);
+    int32_t contLen = tSerializeSKillConnReq(NULL, 0, &killReq);
+    void*   pReq = rpcMallocCont(contLen);
+    tSerializeSKillConnReq(pReq, contLen, &killReq);
 
     SRpcMsg* pRsp = test.SendReq(TDMT_MND_KILL_CONN, pReq, contLen);
     ASSERT_NE(pRsp, nullptr);
@@ -194,44 +196,44 @@ TEST_F(MndTestProfile, 05_KillConnMsg) {
   }
 
   {
-    int32_t contLen = sizeof(SConnectReq);
+    SConnectReq connectReq = {0};
+    connectReq.pid = 1234;
+    strcpy(connectReq.app, "mnode_test_profile");
+    strcpy(connectReq.db, "invalid_db");
 
-    SConnectReq* pReq = (SConnectReq*)rpcMallocCont(contLen);
-    pReq->pid = htonl(1234);
-    strcpy(pReq->app, "mnode_test_profile");
-    strcpy(pReq->db, "");
+    int32_t contLen = tSerializeSConnectReq(NULL, 0, &connectReq);
+    void*   pReq = rpcMallocCont(contLen);
+    tSerializeSConnectReq(pReq, contLen, &connectReq);
 
     SRpcMsg* pMsg = test.SendReq(TDMT_MND_CONNECT, pReq, contLen);
     ASSERT_NE(pMsg, nullptr);
     ASSERT_EQ(pMsg->code, 0);
 
-    SConnectRsp* pRsp = (SConnectRsp*)pMsg->pCont;
-    ASSERT_NE(pRsp, nullptr);
-    pRsp->acctId = htonl(pRsp->acctId);
-    pRsp->clusterId = htobe64(pRsp->clusterId);
-    pRsp->connId = htonl(pRsp->connId);
-    pRsp->epSet.port[0] = htons(pRsp->epSet.port[0]);
+    SConnectRsp connectRsp = {0};
+    tDeserializeSConnectRsp(pMsg->pCont, pMsg->contLen, &connectRsp);
 
-    EXPECT_EQ(pRsp->acctId, 1);
-    EXPECT_GT(pRsp->clusterId, 0);
-    EXPECT_GT(pRsp->connId, connId);
-    EXPECT_EQ(pRsp->superUser, 1);
+    EXPECT_EQ(connectRsp.acctId, 1);
+    EXPECT_GT(connectRsp.clusterId, 0);
+    EXPECT_GT(connectRsp.connId, connId);
+    EXPECT_EQ(connectRsp.superUser, 1);
 
-    EXPECT_EQ(pRsp->epSet.inUse, 0);
-    EXPECT_EQ(pRsp->epSet.numOfEps, 1);
-    EXPECT_EQ(pRsp->epSet.port[0], 9031);
-    EXPECT_STREQ(pRsp->epSet.fqdn[0], "localhost");
+    EXPECT_EQ(connectRsp.epSet.inUse, 0);
+    EXPECT_EQ(connectRsp.epSet.numOfEps, 1);
+    EXPECT_EQ(connectRsp.epSet.port[0], 9031);
+    EXPECT_STREQ(connectRsp.epSet.fqdn[0], "localhost");
 
-    connId = pRsp->connId;
+    connId = connectRsp.connId;
   }
 #endif
 }
 
 TEST_F(MndTestProfile, 06_KillConnMsg_InvalidConn) {
-  int32_t contLen = sizeof(SKillConnReq);
+  SKillConnReq killReq = {0};
+  killReq.connId = 2345;
 
-  SKillConnReq* pReq = (SKillConnReq*)rpcMallocCont(contLen);
-  pReq->connId = htonl(2345);
+  int32_t contLen = tSerializeSKillConnReq(NULL, 0, &killReq);
+  void*   pReq = rpcMallocCont(contLen);
+  tSerializeSKillConnReq(pReq, contLen, &killReq);
 
   SRpcMsg* pRsp = test.SendReq(TDMT_MND_KILL_CONN, pReq, contLen);
   ASSERT_NE(pRsp, nullptr);
@@ -242,11 +244,13 @@ TEST_F(MndTestProfile, 07_KillQueryMsg) {
   // temporary remove since kill will use new heartbeat msg
 #if 0
   {
-    int32_t contLen = sizeof(SKillQueryReq);
+    SKillQueryReq killReq = {0};
+    killReq.connId = connId;
+    killReq.queryId = 1234;
 
-    SKillQueryReq* pReq = (SKillQueryReq*)rpcMallocCont(contLen);
-    pReq->connId = htonl(connId);
-    pReq->queryId = htonl(1234);
+    int32_t contLen = tSerializeSKillQueryReq(NULL, 0, &killReq);
+    void*   pReq = rpcMallocCont(contLen);
+    tSerializeSKillQueryReq(pReq, contLen, &killReq);
 
     SRpcMsg* pRsp = test.SendReq(TDMT_MND_KILL_QUERY, pReq, contLen);
     ASSERT_NE(pRsp, nullptr);
@@ -293,11 +297,13 @@ TEST_F(MndTestProfile, 07_KillQueryMsg) {
 }
 
 TEST_F(MndTestProfile, 08_KillQueryMsg_InvalidConn) {
-  int32_t contLen = sizeof(SKillQueryReq);
+  SKillQueryReq killReq = {0};
+  killReq.connId = 2345;
+  killReq.queryId = 2345;
 
-  SKillQueryReq* pReq = (SKillQueryReq*)rpcMallocCont(contLen);
-  pReq->connId = htonl(2345);
-  pReq->queryId = htonl(1234);
+  int32_t contLen = tSerializeSKillQueryReq(NULL, 0, &killReq);
+  void*   pReq = rpcMallocCont(contLen);
+  tSerializeSKillQueryReq(pReq, contLen, &killReq);
 
   SRpcMsg* pRsp = test.SendReq(TDMT_MND_KILL_QUERY, pReq, contLen);
   ASSERT_NE(pRsp, nullptr);

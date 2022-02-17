@@ -20,7 +20,7 @@
 extern "C" {
 #endif
 
-#include "nodes.h"
+#include "querynodes.h"
 #include "nodesShowStmts.h"
 #include "astCreateContext.h"
 #include "ttoken.h"
@@ -43,7 +43,6 @@ SNode* createLogicConditionNode(SAstCreateContext* pCxt, ELogicConditionType typ
 SNode* createOperatorNode(SAstCreateContext* pCxt, EOperatorType type, SNode* pLeft, SNode* pRight);
 SNode* createBetweenAnd(SAstCreateContext* pCxt, SNode* pExpr, SNode* pLeft, SNode* pRight);
 SNode* createNotBetweenAnd(SAstCreateContext* pCxt, SNode* pExpr, SNode* pLeft, SNode* pRight);
-SNode* createIsNullCondNode(SAstCreateContext* pCxt, SNode* pExpr, bool isNull);
 SNode* createFunctionNode(SAstCreateContext* pCxt, const SToken* pFuncName, SNodeList* pParameterList);
 SNode* createNodeListNode(SAstCreateContext* pCxt, SNodeList* pList);
 SNode* createRealTableNode(SAstCreateContext* pCxt, const SToken* pDbName, const SToken* pTableName, const SToken* pTableAlias);
@@ -55,6 +54,7 @@ SNode* createSessionWindowNode(SAstCreateContext* pCxt, SNode* pCol, const SToke
 SNode* createStateWindowNode(SAstCreateContext* pCxt, SNode* pCol);
 SNode* createIntervalWindowNode(SAstCreateContext* pCxt, SNode* pInterval, SNode* pOffset, SNode* pSliding, SNode* pFill);
 SNode* createFillNode(SAstCreateContext* pCxt, EFillMode mode, SNode* pValues);
+SNode* createGroupingSetNode(SAstCreateContext* pCxt, SNode* pNode);
 
 SNode* addWhereClause(SAstCreateContext* pCxt, SNode* pStmt, SNode* pWhere);
 SNode* addPartitionByClause(SAstCreateContext* pCxt, SNode* pStmt, SNodeList* pPartitionByList);

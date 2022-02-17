@@ -13,73 +13,14 @@
  * along with this program. If not, see <http://www.gnu.org/licenses/>.
  */
 
-#ifndef _TD_NODES_H_
-#define _TD_NODES_H_
+#ifndef _TD_QUERY_NODES_H_
+#define _TD_QUERY_NODES_H_
 
 #ifdef __cplusplus
 extern "C" {
 #endif
 
-#include "tdef.h"
-
-#define nodeType(nodeptr) (((const SNode*)(nodeptr))->type)
-#define setNodeType(nodeptr, type) (((SNode*)(nodeptr))->type = (type))
-
-#define LIST_LENGTH(l) (NULL != (l) ? (l)->length : 0)
-
-#define FOREACH(node, list)	\
-  for (SListCell* cell = (NULL != (list) ? (list)->pHead : NULL); (NULL != cell ? (node = cell->pNode, true) : (node = NULL, false)); cell = cell->pNext)
-
-#define FORBOTH(node1, list1, node2, list2) \
-  for (SListCell* cell1 = (NULL != (list1) ? (list1)->pHead : NULL), *cell2 = (NULL != (list2) ? (list2)->pHead : NULL); \
-    (NULL == cell1 ? (node1 = NULL, false) : (node1 = cell1->pNode, true)), (NULL == cell2 ? (node2 = NULL, false) : (node2 = cell2->pNode, true)), (node1 != NULL && node2 != NULL); \
-    cell1 = cell1->pNext, cell2 = cell2->pNext)
-
-typedef enum ENodeType {
-  QUERY_NODE_COLUMN = 1,
-  QUERY_NODE_VALUE,
-  QUERY_NODE_OPERATOR,
-  QUERY_NODE_LOGIC_CONDITION,
-  QUERY_NODE_IS_NULL_CONDITION,
-  QUERY_NODE_FUNCTION,
-  QUERY_NODE_REAL_TABLE,
-  QUERY_NODE_TEMP_TABLE,
-  QUERY_NODE_JOIN_TABLE,
-  QUERY_NODE_GROUPING_SET,
-  QUERY_NODE_ORDER_BY_EXPR,
-  QUERY_NODE_LIMIT,
-  QUERY_NODE_STATE_WINDOW,
-  QUERY_NODE_SESSION_WINDOW,
-  QUERY_NODE_INTERVAL_WINDOW,
-  QUERY_NODE_NODE_LIST,
-  QUERY_NODE_FILL,
-
-  // only for parser
-  QUERY_NODE_RAW_EXPR,
-
-  QUERY_NODE_SET_OPERATOR,
-  QUERY_NODE_SELECT_STMT,
-  QUERY_NODE_SHOW_STMT
-} ENodeType;
-
-/**
- * The first field of a node of any type is guaranteed to be the ENodeType.
- * Hence the type of any node can be gotten by casting it to SNode. 
- */
-typedef struct SNode {
-  ENodeType type;
-} SNode;
-
-typedef struct SListCell {
-  SNode* pNode;
-  struct SListCell* pNext;
-} SListCell;
-
-typedef struct SNodeList {
-  int16_t length;
-  SListCell* pHead;
-  SListCell* pTail;
-} SNodeList;
+#include "nodes.h"
 
 typedef struct SRawExprNode {
   ENodeType nodeType;
@@ -96,7 +37,7 @@ typedef struct SDataType {
 } SDataType;
 
 typedef struct SExprNode {
-  ENodeType nodeType;
+  ENodeType type;
   SDataType resType;
   char aliasName[TSDB_COL_NAME_LEN];
   SNodeList* pAssociationList;
@@ -117,6 +58,11 @@ typedef struct SColumnNode {
   char colName[TSDB_COL_NAME_LEN];
   SNode* pProjectRef;
 } SColumnNode;
+
+typedef struct SColumnRef {
+  ENodeType type;
+  int32_t slotId;
+} SColumnRef;
 
 typedef struct SValueNode {
   SExprNode node; // QUERY_NODE_VALUE
@@ -139,6 +85,10 @@ typedef enum EOperatorType {
   OP_TYPE_DIV,
   OP_TYPE_MOD,
 
+  // bit operator
+  OP_TYPE_BIT_AND,
+  OP_TYPE_BIT_OR,
+
   // comparison operator
   OP_TYPE_GREATER_THAN,
   OP_TYPE_GREATER_EQUAL,
@@ -152,6 +102,8 @@ typedef enum EOperatorType {
   OP_TYPE_NOT_LIKE,
   OP_TYPE_MATCH,
   OP_TYPE_NMATCH,
+  OP_TYPE_IS_NULL,
+  OP_TYPE_IS_NOT_NULL,
 
   // json operator
   OP_TYPE_JSON_GET_VALUE,
@@ -172,16 +124,10 @@ typedef enum ELogicConditionType {
 } ELogicConditionType;
 
 typedef struct SLogicConditionNode {
-  ENodeType type; // QUERY_NODE_LOGIC_CONDITION
+  SExprNode node; // QUERY_NODE_LOGIC_CONDITION
   ELogicConditionType condType;
   SNodeList* pParameterList;
 } SLogicConditionNode;
-
-typedef struct SIsNullCondNode {
-  ENodeType type; // QUERY_NODE_IS_NULL_CONDITION
-  SNode* pExpr;
-  bool isNull;
-} SIsNullCondNode;
 
 typedef struct SNodeListNode {
   ENodeType type; // QUERY_NODE_NODE_LIST
@@ -192,11 +138,12 @@ typedef struct SFunctionNode {
   SExprNode node; // QUERY_NODE_FUNCTION
   char functionName[TSDB_FUNC_NAME_LEN];
   int32_t funcId;
+  int32_t funcType;
   SNodeList* pParameterList;
 } SFunctionNode;
 
 typedef struct STableNode {
-  ENodeType type;
+  SExprNode node;
   char dbName[TSDB_DB_NAME_LEN];
   char tableName[TSDB_TABLE_NAME_LEN];
   char tableAlias[TSDB_TABLE_NAME_LEN];
@@ -322,28 +269,7 @@ typedef struct SSetOperator {
   SNode* pLimit;
 } SSetOperator;
 
-SNode* nodesMakeNode(ENodeType type);
-void nodesDestroyNode(SNode* pNode);
-
-SNodeList* nodesMakeList();
-SNodeList* nodesListAppend(SNodeList* pList, SNode* pNode);
-void nodesDestroyList(SNodeList* pList);
-
-typedef bool (*FQueryNodeWalker)(SNode* pNode, void* pContext);
-
-void nodesWalkNode(SNode* pNode, FQueryNodeWalker walker, void* pContext);
-void nodesWalkList(SNodeList* pList, FQueryNodeWalker walker, void* pContext);
-void nodesWalkNodePostOrder(SNode* pNode, FQueryNodeWalker walker, void* pContext);
-void nodesWalkListPostOrder(SNodeList* pList, FQueryNodeWalker walker, void* pContext);
-
-bool nodesWalkStmt(SNode* pNode, FQueryNodeWalker walker, void* pContext);
-
-bool nodesEqualNode(const SNode* a, const SNode* b);
-
-void nodesCloneNode(const SNode* pNode);
-
-int32_t nodesNodeToString(const SNode* pNode, char** pStr, int32_t* pLen);
-int32_t nodesStringToNode(const char* pStr, SNode** pNode);
+bool nodesIsExprNode(const SNode* pNode);
 
 bool nodesIsArithmeticOp(const SOperatorNode* pOp);
 bool nodesIsComparisonOp(const SOperatorNode* pOp);
@@ -356,4 +282,4 @@ bool nodesIsTimelineQuery(const SNode* pQuery);
 }
 #endif
 
-#endif /*_TD_NODES_H_*/
+#endif /*_TD_QUERY_NODES_H_*/

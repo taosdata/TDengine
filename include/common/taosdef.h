@@ -23,7 +23,7 @@ extern "C" {
 #include "taos.h"
 #include "tdef.h"
 
-typedef uint64_t tb_uid_t;
+typedef int64_t tb_uid_t;
 
 #define TSWINDOW_INITIALIZER ((STimeWindow){INT64_MIN, INT64_MAX})
 #define TSWINDOW_DESC_INITIALIZER ((STimeWindow){INT64_MAX, INT64_MIN})
@@ -38,12 +38,12 @@ typedef enum {
 } EQType;
 
 typedef enum {
-  TSDB_SUPER_TABLE  = 1,    // super table
-  TSDB_CHILD_TABLE  = 2,    // table created from super table
-  TSDB_NORMAL_TABLE = 3,    // ordinary table
-  TSDB_STREAM_TABLE = 4,    // table created from stream computing
-  TSDB_TEMP_TABLE   = 5,    // temp table created by nest query
-  TSDB_TABLE_MAX    = 6
+  TSDB_SUPER_TABLE = 1,   // super table
+  TSDB_CHILD_TABLE = 2,   // table created from super table
+  TSDB_NORMAL_TABLE = 3,  // ordinary table
+  TSDB_STREAM_TABLE = 4,  // table created from stream computing
+  TSDB_TEMP_TABLE = 5,    // temp table created by nest query
+  TSDB_TABLE_MAX = 6
 } ETableType;
 
 typedef enum {

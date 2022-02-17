@@ -9,7 +9,7 @@
 #include "tglobal.h"
 #include "tmsgtype.h"
 #include "tnote.h"
-#include "tpagedfile.h"
+#include "tpagedbuf.h"
 #include "tref.h"
 
 static int32_t initEpSetFromCfg(const char *firstEp, const char *secondEp, SCorEpSet *pEpSet);
@@ -357,40 +357,38 @@ STscObj* taosConnectImpl(const char *user, const char *auth, const char *db, __t
   return pTscObj;
 }
 
-static SMsgSendInfo* buildConnectMsg(SRequestObj *pRequest) {
-  SMsgSendInfo *pMsgSendInfo = calloc(1, sizeof(SMsgSendInfo));
+static SMsgSendInfo* buildConnectMsg(SRequestObj* pRequest) {
+  SMsgSendInfo* pMsgSendInfo = calloc(1, sizeof(SMsgSendInfo));
   if (pMsgSendInfo == NULL) {
     terrno = TSDB_CODE_TSC_OUT_OF_MEMORY;
     return NULL;
   }
 
-  pMsgSendInfo->msgType         = TDMT_MND_CONNECT;
-  pMsgSendInfo->msgInfo.len     = sizeof(SConnectReq);
+  pMsgSendInfo->msgType = TDMT_MND_CONNECT;
   pMsgSendInfo->requestObjRefId = pRequest->self;
-  pMsgSendInfo->requestId       = pRequest->requestId;
-  pMsgSendInfo->fp              = handleRequestRspFp[TMSG_INDEX(pMsgSendInfo->msgType)];
-  pMsgSendInfo->param           = pRequest;
+  pMsgSendInfo->requestId = pRequest->requestId;
+  pMsgSendInfo->fp = handleRequestRspFp[TMSG_INDEX(pMsgSendInfo->msgType)];
+  pMsgSendInfo->param = pRequest;
 
-  SConnectReq *pConnect = calloc(1, sizeof(SConnectReq));
-  if (pConnect == NULL) {
-    tfree(pMsgSendInfo);
-    terrno = TSDB_CODE_TSC_OUT_OF_MEMORY;
-    return NULL;
-  }
-
-  STscObj *pObj = pRequest->pTscObj;
+  SConnectReq connectReq = {0};
+  STscObj*    pObj = pRequest->pTscObj;
 
   char* db = getDbOfConnection(pObj);
   if (db != NULL) {
-    tstrncpy(pConnect->db, db, sizeof(pConnect->db));
+    tstrncpy(connectReq.db, db, sizeof(connectReq.db));
   }
   tfree(db);
 
-  pConnect->pid = htonl(appInfo.pid);
-  pConnect->startTime = htobe64(appInfo.startTime);
-  tstrncpy(pConnect->app, appInfo.appName, tListLen(pConnect->app));
+  connectReq.pid = htonl(appInfo.pid);
+  connectReq.startTime = htobe64(appInfo.startTime);
+  tstrncpy(connectReq.app, appInfo.appName, sizeof(connectReq.app));
 
-  pMsgSendInfo->msgInfo.pData = pConnect;
+  int32_t contLen = tSerializeSConnectReq(NULL, 0, &connectReq);
+  void*   pReq = malloc(contLen);
+  tSerializeSConnectReq(pReq, contLen, &connectReq);
+
+  pMsgSendInfo->msgInfo.len = contLen;
+  pMsgSendInfo->msgInfo.pData = pReq;
   return pMsgSendInfo;
 }
 

@@ -53,29 +53,31 @@ TEST_F(MndTestDb, 01_ShowDb) {
 
 TEST_F(MndTestDb, 02_Create_Alter_Drop_Db) {
   {
-    int32_t contLen = sizeof(SCreateDbReq);
+    SCreateDbReq createReq = {0};
+    strcpy(createReq.db, "1.d1");
+    createReq.numOfVgroups = 2;
+    createReq.cacheBlockSize = 16;
+    createReq.totalBlocks = 10;
+    createReq.daysPerFile = 10;
+    createReq.daysToKeep0 = 3650;
+    createReq.daysToKeep1 = 3650;
+    createReq.daysToKeep2 = 3650;
+    createReq.minRows = 100;
+    createReq.maxRows = 4096;
+    createReq.commitTime = 3600;
+    createReq.fsyncPeriod = 3000;
+    createReq.walLevel = 1;
+    createReq.precision = 0;
+    createReq.compression = 2;
+    createReq.replications = 1;
+    createReq.quorum = 1;
+    createReq.update = 0;
+    createReq.cacheLastRow = 0;
+    createReq.ignoreExist = 1;
 
-    SCreateDbReq* pReq = (SCreateDbReq*)rpcMallocCont(contLen);
-    strcpy(pReq->db, "1.d1");
-    pReq->numOfVgroups = htonl(2);
-    pReq->cacheBlockSize = htonl(16);
-    pReq->totalBlocks = htonl(10);
-    pReq->daysPerFile = htonl(10);
-    pReq->daysToKeep0 = htonl(3650);
-    pReq->daysToKeep1 = htonl(3650);
-    pReq->daysToKeep2 = htonl(3650);
-    pReq->minRows = htonl(100);
-    pReq->maxRows = htonl(4096);
-    pReq->commitTime = htonl(3600);
-    pReq->fsyncPeriod = htonl(3000);
-    pReq->walLevel = 1;
-    pReq->precision = 0;
-    pReq->compression = 2;
-    pReq->replications = 1;
-    pReq->quorum = 1;
-    pReq->update = 0;
-    pReq->cacheLastRow = 0;
-    pReq->ignoreExist = 1;
+    int32_t contLen = tSerializeSCreateDbReq(NULL, 0, &createReq);
+    void*   pReq = rpcMallocCont(contLen);
+    tSerializeSCreateDbReq(pReq, contLen, &createReq);
 
     SRpcMsg* pRsp = test.SendReq(TDMT_MND_CREATE_DB, pReq, contLen);
     ASSERT_NE(pRsp, nullptr);
@@ -125,18 +127,20 @@ TEST_F(MndTestDb, 02_Create_Alter_Drop_Db) {
   CheckBinary("master", 9);
 
   {
-    int32_t contLen = sizeof(SAlterDbReq);
+    SAlterDbReq alterdbReq = {0};
+    strcpy(alterdbReq.db, "1.d1");
+    alterdbReq.totalBlocks = 12;
+    alterdbReq.daysToKeep0 = 300;
+    alterdbReq.daysToKeep1 = 400;
+    alterdbReq.daysToKeep2 = 500;
+    alterdbReq.fsyncPeriod = 4000;
+    alterdbReq.walLevel = 2;
+    alterdbReq.quorum = 2;
+    alterdbReq.cacheLastRow = 1;
 
-    SAlterDbReq* pReq = (SAlterDbReq*)rpcMallocCont(contLen);
-    strcpy(pReq->db, "1.d1");
-    pReq->totalBlocks = htonl(12);
-    pReq->daysToKeep0 = htonl(300);
-    pReq->daysToKeep1 = htonl(400);
-    pReq->daysToKeep2 = htonl(500);
-    pReq->fsyncPeriod = htonl(4000);
-    pReq->walLevel = 2;
-    pReq->quorum = 2;
-    pReq->cacheLastRow = 1;
+    int32_t contLen = tSerializeSAlterDbReq(NULL, 0, &alterdbReq);
+    void*   pReq = rpcMallocCont(contLen);
+    tSerializeSAlterDbReq(pReq, contLen, &alterdbReq);
 
     SRpcMsg* pRsp = test.SendReq(TDMT_MND_ALTER_DB, pReq, contLen);
     ASSERT_NE(pRsp, nullptr);
@@ -194,18 +198,20 @@ TEST_F(MndTestDb, 02_Create_Alter_Drop_Db) {
   CheckInt8(0);                    // update
 
   {
-    int32_t contLen = sizeof(SDropDbReq);
+    SDropDbReq dropdbReq = {0};
+    strcpy(dropdbReq.db, "1.d1");
 
-    SDropDbReq* pReq = (SDropDbReq*)rpcMallocCont(contLen);
-    strcpy(pReq->db, "1.d1");
+    int32_t contLen = tSerializeSDropDbReq(NULL, 0, &dropdbReq);
+    void*   pReq = rpcMallocCont(contLen);
+    tSerializeSDropDbReq(pReq, contLen, &dropdbReq);
 
     SRpcMsg* pRsp = test.SendReq(TDMT_MND_DROP_DB, pReq, contLen);
     ASSERT_NE(pRsp, nullptr);
     ASSERT_EQ(pRsp->code, 0);
 
-    SDropDbRsp* pDrop = (SDropDbRsp*)pRsp->pCont;
-    pDrop->uid = htobe64(pDrop->uid);
-    EXPECT_STREQ(pDrop->db, "1.d1");
+    SDropDbRsp dropdbRsp = {0};
+    tDeserializeSDropDbRsp(pRsp->pCont, pRsp->contLen, &dropdbRsp);
+    EXPECT_STREQ(dropdbRsp.db, "1.d1");
   }
 
   test.SendShowMetaReq(TSDB_MGMT_TABLE_DB, "");
@@ -217,29 +223,31 @@ TEST_F(MndTestDb, 02_Create_Alter_Drop_Db) {
 
 TEST_F(MndTestDb, 03_Create_Use_Restart_Use_Db) {
   {
-    int32_t contLen = sizeof(SCreateDbReq);
+    SCreateDbReq createReq = {0};
+    strcpy(createReq.db, "1.d2");
+    createReq.numOfVgroups = 2;
+    createReq.cacheBlockSize = 16;
+    createReq.totalBlocks = 10;
+    createReq.daysPerFile = 10;
+    createReq.daysToKeep0 = 3650;
+    createReq.daysToKeep1 = 3650;
+    createReq.daysToKeep2 = 3650;
+    createReq.minRows = 100;
+    createReq.maxRows = 4096;
+    createReq.commitTime = 3600;
+    createReq.fsyncPeriod = 3000;
+    createReq.walLevel = 1;
+    createReq.precision = 0;
+    createReq.compression = 2;
+    createReq.replications = 1;
+    createReq.quorum = 1;
+    createReq.update = 0;
+    createReq.cacheLastRow = 0;
+    createReq.ignoreExist = 1;
 
-    SCreateDbReq* pReq = (SCreateDbReq*)rpcMallocCont(contLen);
-    strcpy(pReq->db, "1.d2");
-    pReq->numOfVgroups = htonl(2);
-    pReq->cacheBlockSize = htonl(16);
-    pReq->totalBlocks = htonl(10);
-    pReq->daysPerFile = htonl(10);
-    pReq->daysToKeep0 = htonl(3650);
-    pReq->daysToKeep1 = htonl(3650);
-    pReq->daysToKeep2 = htonl(3650);
-    pReq->minRows = htonl(100);
-    pReq->maxRows = htonl(4096);
-    pReq->commitTime = htonl(3600);
-    pReq->fsyncPeriod = htonl(3000);
-    pReq->walLevel = 1;
-    pReq->precision = 0;
-    pReq->compression = 2;
-    pReq->replications = 1;
-    pReq->quorum = 1;
-    pReq->update = 0;
-    pReq->cacheLastRow = 0;
-    pReq->ignoreExist = 1;
+    int32_t contLen = tSerializeSCreateDbReq(NULL, 0, &createReq);
+    void*   pReq = rpcMallocCont(contLen);
+    tSerializeSCreateDbReq(pReq, contLen, &createReq);
 
     SRpcMsg* pRsp = test.SendReq(TDMT_MND_CREATE_DB, pReq, contLen);
     ASSERT_NE(pRsp, nullptr);
@@ -256,73 +264,74 @@ TEST_F(MndTestDb, 03_Create_Use_Restart_Use_Db) {
   uint64_t d2_uid = 0;
 
   {
-    int32_t contLen = sizeof(SUseDbReq);
+    SUseDbReq usedbReq = {0};
+    strcpy(usedbReq.db, "1.d2");
+    usedbReq.vgVersion = -1;
 
-    SUseDbReq* pReq = (SUseDbReq*)rpcMallocCont(contLen);
-    strcpy(pReq->db, "1.d2");
-    pReq->vgVersion = htonl(-1);
+    int32_t contLen = tSerializeSUseDbReq(NULL, 0, &usedbReq);
+    void*   pReq = rpcMallocCont(contLen);
+    tSerializeSUseDbReq(pReq, contLen, &usedbReq);
 
     SRpcMsg* pMsg = test.SendReq(TDMT_MND_USE_DB, pReq, contLen);
     ASSERT_NE(pMsg, nullptr);
     ASSERT_EQ(pMsg->code, 0);
 
-    SUseDbRsp* pRsp = (SUseDbRsp*)pMsg->pCont;
-    EXPECT_STREQ(pRsp->db, "1.d2");
-    pRsp->uid = htobe64(pRsp->uid);
-    d2_uid = pRsp->uid;
-    pRsp->vgVersion = htonl(pRsp->vgVersion);
-    pRsp->vgNum = htonl(pRsp->vgNum);
-    pRsp->hashMethod = pRsp->hashMethod;
-    EXPECT_EQ(pRsp->vgVersion, 1);
-    EXPECT_EQ(pRsp->vgNum, 2);
-    EXPECT_EQ(pRsp->hashMethod, 1);
+    SUseDbRsp usedbRsp = {0};
+    tDeserializeSUseDbRsp(pMsg->pCont, pMsg->contLen, &usedbRsp);
+    EXPECT_STREQ(usedbRsp.db, "1.d2");
+    EXPECT_EQ(usedbRsp.vgVersion, 1);
+    EXPECT_EQ(usedbRsp.vgNum, 2);
+    EXPECT_EQ(usedbRsp.hashMethod, 1);
+    d2_uid = usedbRsp.uid;
 
     {
-      SVgroupInfo* pInfo = &pRsp->vgroupInfo[0];
-      pInfo->vgId = htonl(pInfo->vgId);
-      pInfo->hashBegin = htonl(pInfo->hashBegin);
-      pInfo->hashEnd = htonl(pInfo->hashEnd);
+      SVgroupInfo* pInfo = (SVgroupInfo*)taosArrayGet(usedbRsp.pVgroupInfos, 0);
+      pInfo->vgId = pInfo->vgId;
+      pInfo->hashBegin = pInfo->hashBegin;
+      pInfo->hashEnd = pInfo->hashEnd;
       EXPECT_GT(pInfo->vgId, 0);
       EXPECT_EQ(pInfo->hashBegin, 0);
       EXPECT_EQ(pInfo->hashEnd, UINT32_MAX / 2 - 1);
       EXPECT_EQ(pInfo->epset.inUse, 0);
       EXPECT_EQ(pInfo->epset.numOfEps, 1);
       SEp* pAddr = &pInfo->epset.eps[0];
-      pAddr->port = htons(pAddr->port);
       EXPECT_EQ(pAddr->port, 9030);
       EXPECT_STREQ(pAddr->fqdn, "localhost");
     }
 
     {
-      SVgroupInfo* pInfo = &pRsp->vgroupInfo[1];
-      pInfo->vgId = htonl(pInfo->vgId);
-      pInfo->hashBegin = htonl(pInfo->hashBegin);
-      pInfo->hashEnd = htonl(pInfo->hashEnd);
+      SVgroupInfo* pInfo = (SVgroupInfo*)taosArrayGet(usedbRsp.pVgroupInfos, 1);
+      pInfo->vgId = pInfo->vgId;
+      pInfo->hashBegin = pInfo->hashBegin;
+      pInfo->hashEnd = pInfo->hashEnd;
       EXPECT_GT(pInfo->vgId, 0);
       EXPECT_EQ(pInfo->hashBegin, UINT32_MAX / 2);
       EXPECT_EQ(pInfo->hashEnd, UINT32_MAX);
       EXPECT_EQ(pInfo->epset.inUse, 0);
       EXPECT_EQ(pInfo->epset.numOfEps, 1);
       SEp* pAddr = &pInfo->epset.eps[0];
-      pAddr->port = htons(pAddr->port);
       EXPECT_EQ(pAddr->port, 9030);
       EXPECT_STREQ(pAddr->fqdn, "localhost");
     }
+
+    tFreeSUsedbRsp(&usedbRsp);
   }
 
   {
-    int32_t contLen = sizeof(SDropDbReq);
+    SDropDbReq dropdbReq = {0};
+    strcpy(dropdbReq.db, "1.d2");
 
-    SDropDbReq* pReq = (SDropDbReq*)rpcMallocCont(contLen);
-    strcpy(pReq->db, "1.d2");
+    int32_t contLen = tSerializeSDropDbReq(NULL, 0, &dropdbReq);
+    void*   pReq = rpcMallocCont(contLen);
+    tSerializeSDropDbReq(pReq, contLen, &dropdbReq);
 
     SRpcMsg* pRsp = test.SendReq(TDMT_MND_DROP_DB, pReq, contLen);
     ASSERT_NE(pRsp, nullptr);
     ASSERT_EQ(pRsp->code, 0);
 
-    SDropDbRsp* pDrop = (SDropDbRsp*)pRsp->pCont;
-    pDrop->uid = htobe64(pDrop->uid);
-    EXPECT_STREQ(pDrop->db, "1.d2");
-    EXPECT_EQ(pDrop->uid, d2_uid);
+    SDropDbRsp dropdbRsp = {0};
+    tDeserializeSDropDbRsp(pRsp->pCont, pRsp->contLen, &dropdbRsp);
+    EXPECT_STREQ(dropdbRsp.db, "1.d2");
+    EXPECT_EQ(dropdbRsp.uid, d2_uid);
   }
 }

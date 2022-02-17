@@ -29,6 +29,8 @@ extern "C" {
 
 extern int tsRpcHeadSize;
 
+typedef struct SRpcPush SRpcPush;
+
 typedef struct SRpcConnInfo {
   uint32_t clientIp;
   uint16_t clientPort;
@@ -43,7 +45,16 @@ typedef struct SRpcMsg {
   int32_t code;
   void *  handle;   // rpc handle returned to app
   void *  ahandle;  // app handle set by client
+  int     persist;  // keep handle or not, default 0
+
+  SRpcPush *push;
+
 } SRpcMsg;
+
+typedef struct SRpcPush {
+  void *arg;
+  int (*callback)(void *arg, SRpcMsg *rpcMsg);
+} SRpcPush;
 
 typedef struct SRpcInit {
   uint16_t localPort;     // local port
@@ -83,6 +94,7 @@ int     rpcGetConnInfo(void *thandle, SRpcConnInfo *pInfo);
 void    rpcSendRecv(void *shandle, SEpSet *pEpSet, SRpcMsg *pReq, SRpcMsg *pRsp);
 int     rpcReportProgress(void *pConn, char *pCont, int contLen);
 void    rpcCancelRequest(int64_t rid);
+
 #ifdef __cplusplus
 }
 #endif

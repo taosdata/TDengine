@@ -140,6 +140,7 @@ typedef struct {
   SRpcMsg* pRsp;  // for synchronous API
   tsem_t*  pSem;  // for synchronous API
 
+  int      hThrdIdx;
   char*    ip;
   uint32_t port;
   // SEpSet*          pSet;      // for synchronous API
@@ -151,7 +152,8 @@ typedef struct {
   char version : 4;  // RPC version
   char comp : 4;     // compression algorithm, 0:no compression 1:lz4
   char resflag : 2;  // reserved bits
-  char spi : 3;      // security parameter index
+  char spi : 1;      // security parameter index
+  char secured : 2;
   char encrypt : 3;  // encrypt algorithm, 0: no encryption
 
   uint32_t code;  // del later
@@ -169,6 +171,11 @@ typedef struct {
   uint32_t timeStamp;
   uint8_t  auth[TSDB_AUTH_LEN];
 } STransDigestMsg;
+
+typedef struct {
+  uint8_t user[TSDB_UNI_LEN];
+  uint8_t secret[TSDB_PASSWORD_LEN];
+} STransUserMsg;
 
 #pragma pack(pop)
 
@@ -227,7 +234,7 @@ typedef struct {
   uv_async_t* asyncs;
 } SAsyncPool;
 
-SAsyncPool* transCreateAsyncPool(uv_loop_t* loop, void* arg, AsyncCB cb);
+SAsyncPool* transCreateAsyncPool(uv_loop_t* loop, int sz, void* arg, AsyncCB cb);
 void        transDestroyAsyncPool(SAsyncPool* pool);
 int         transSendAsync(SAsyncPool* pool, queue* mq);
 
@@ -235,5 +242,9 @@ int transInitBuffer(SConnBuffer* buf);
 int transClearBuffer(SConnBuffer* buf);
 int transDestroyBuffer(SConnBuffer* buf);
 int transAllocBuffer(SConnBuffer* connBuf, uv_buf_t* uvBuf);
+
+// int transPackMsg(SRpcMsg *rpcMsg, bool sercured, bool auth, char **msg, int32_t *msgLen);
+
+// int transUnpackMsg(char *msg, SRpcMsg *pMsg, bool );
 
 #endif

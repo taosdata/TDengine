@@ -28,22 +28,23 @@ static int32_t hbMqHbRspHandle(struct SAppHbMgr *pAppHbMgr, SClientHbRsp* pRsp) 
 }
 
 static int32_t hbProcessDBInfoRsp(void *value, int32_t valueLen, struct SCatalog *pCatalog) {
-  int32_t msgLen = 0;
   int32_t code = 0;
-  
-  while (msgLen < valueLen) {
-    SUseDbRsp *rsp = (SUseDbRsp *)((char *)value + msgLen);
 
-    rsp->vgVersion = ntohl(rsp->vgVersion);
-    rsp->vgNum = ntohl(rsp->vgNum);
-    rsp->uid = be64toh(rsp->uid);
+  SUseDbBatchRsp batchUseRsp = {0};
+  if (tDeserializeSUseDbBatchRsp(value, valueLen, &batchUseRsp) != 0) {
+    terrno = TSDB_CODE_INVALID_MSG;
+    return -1;
+  }
 
+  int32_t numOfBatchs = taosArrayGetSize(batchUseRsp.pArray);
+  for (int32_t i = 0; i < numOfBatchs; ++i) {
+    SUseDbRsp *rsp = taosArrayGet(batchUseRsp.pArray, i);
     tscDebug("hb db rsp, db:%s, vgVersion:%d, uid:%"PRIx64, rsp->db, rsp->vgVersion, rsp->uid);
     
     if (rsp->vgVersion < 0) {
       code = catalogRemoveDB(pCatalog, rsp->db, rsp->uid);
     } else {
-      SDBVgroupInfo vgInfo = {0};
+      SDBVgInfo vgInfo = {0};
       vgInfo.vgVersion = rsp->vgVersion;
       vgInfo.hashMethod = rsp->hashMethod;
       vgInfo.vgHash = taosHashInit(rsp->vgNum, taosGetDefaultHashFunction(TSDB_DATA_TYPE_INT), true, HASH_ENTRY_LOCK);
@@ -52,89 +53,58 @@ static int32_t hbProcessDBInfoRsp(void *value, int32_t valueLen, struct SCatalog
         return TSDB_CODE_TSC_OUT_OF_MEMORY;
       }
 
-      for (int32_t i = 0; i < rsp->vgNum; ++i) {
-        rsp->vgroupInfo[i].vgId = ntohl(rsp->vgroupInfo[i].vgId);
-        rsp->vgroupInfo[i].hashBegin = ntohl(rsp->vgroupInfo[i].hashBegin);
-        rsp->vgroupInfo[i].hashEnd = ntohl(rsp->vgroupInfo[i].hashEnd);
-
-        for (int32_t n = 0; n < rsp->vgroupInfo[i].epset.numOfEps; ++n) {
-          rsp->vgroupInfo[i].epset.eps[n].port = ntohs(rsp->vgroupInfo[i].epset.eps[n].port);
-        }
-
-        if (0 != taosHashPut(vgInfo.vgHash, &rsp->vgroupInfo[i].vgId, sizeof(rsp->vgroupInfo[i].vgId), &rsp->vgroupInfo[i], sizeof(rsp->vgroupInfo[i]))) {
+      for (int32_t j = 0; j < rsp->vgNum; ++j) {
+        SVgroupInfo *pInfo = taosArrayGet(rsp->pVgroupInfos, j);
+        if (taosHashPut(vgInfo.vgHash, &pInfo->vgId, sizeof(int32_t), pInfo, sizeof(SVgroupInfo)) != 0) {
           tscError("hash push failed, errno:%d", errno);
           taosHashCleanup(vgInfo.vgHash);
           return TSDB_CODE_TSC_OUT_OF_MEMORY;
         }
       }  
       
-      code = catalogUpdateDBVgroup(pCatalog, rsp->db, rsp->uid, &vgInfo);
-      if (code) {
-        taosHashCleanup(vgInfo.vgHash);
-      }
+      catalogUpdateDBVgInfo(pCatalog, rsp->db, rsp->uid, &vgInfo);
     }
 
     if (code) {
       return code;
     }
-
-    msgLen += sizeof(SUseDbRsp) + rsp->vgNum * sizeof(SVgroupInfo);
   }
 
+  tFreeSUseDbBatchRsp(&batchUseRsp);
   return TSDB_CODE_SUCCESS;
 }
 
 static int32_t hbProcessStbInfoRsp(void *value, int32_t valueLen, struct SCatalog *pCatalog) {
-  int32_t msgLen = 0;
   int32_t code = 0;
-  int32_t schemaNum = 0;
-  
-  while (msgLen < valueLen) {
-    STableMetaRsp *rsp = (STableMetaRsp *)((char *)value + msgLen);
 
-    rsp->numOfColumns = ntohl(rsp->numOfColumns);
-    rsp->suid = be64toh(rsp->suid);
-    
+  STableMetaBatchRsp batchMetaRsp = {0};
+  if (tDeserializeSTableMetaBatchRsp(value, valueLen, &batchMetaRsp) != 0) {
+    terrno = TSDB_CODE_INVALID_MSG;
+    return -1;
+  }
+
+  int32_t numOfBatchs = taosArrayGetSize(batchMetaRsp.pArray);
+  for (int32_t i = 0; i < numOfBatchs; ++i) {
+    STableMetaRsp *rsp = taosArrayGet(batchMetaRsp.pArray, i);
+
     if (rsp->numOfColumns < 0) {
-      schemaNum = 0;
-      
       tscDebug("hb remove stb, db:%s, stb:%s", rsp->dbFName, rsp->stbName);
-
-      catalogRemoveSTableMeta(pCatalog, rsp->dbFName, rsp->stbName, rsp->suid);
+      catalogRemoveStbMeta(pCatalog, rsp->dbFName, rsp->dbId, rsp->stbName, rsp->suid);
     } else {
       tscDebug("hb update stb, db:%s, stb:%s", rsp->dbFName, rsp->stbName);
-
-      rsp->numOfTags = ntohl(rsp->numOfTags);
-      rsp->sversion = ntohl(rsp->sversion);
-      rsp->tversion = ntohl(rsp->tversion);
-      rsp->tuid = be64toh(rsp->tuid);
-      rsp->vgId = ntohl(rsp->vgId);
-
-      SSchema* pSchema = rsp->pSchema;
-      
-      schemaNum = rsp->numOfColumns + rsp->numOfTags;
-
-      for (int i = 0; i < schemaNum; ++i) {
-        pSchema->bytes = ntohl(pSchema->bytes);
-        pSchema->colId = ntohl(pSchema->colId);
-
-        pSchema++;
-      }
-
-      if (rsp->pSchema[0].colId != PRIMARYKEY_TIMESTAMP_COL_ID) {
-        tscError("invalid colId[%d] for the first column in table meta rsp msg", rsp->pSchema[0].colId);
+      if (rsp->pSchemas[0].colId != PRIMARYKEY_TIMESTAMP_COL_ID) {
+        tscError("invalid colId[%d] for the first column in table meta rsp msg", rsp->pSchemas[0].colId);
+        tFreeSTableMetaBatchRsp(&batchMetaRsp);
         return TSDB_CODE_TSC_INVALID_VALUE;
-      }      
+      }
 
       catalogUpdateSTableMeta(pCatalog, rsp);
     }
-
-    msgLen += sizeof(STableMetaRsp) + schemaNum * sizeof(SSchema);
   }
 
+  tFreeSTableMetaBatchRsp(&batchMetaRsp);
   return TSDB_CODE_SUCCESS;
 }
-
 
 static int32_t hbQueryHbRspHandle(struct SAppHbMgr *pAppHbMgr, SClientHbRsp* pRsp) {
   SHbConnInfo * info = taosHashGet(pAppHbMgr->connInfo, &pRsp->connKey, sizeof(SClientHbKey));
@@ -201,9 +171,10 @@ static int32_t hbMqAsyncCallBack(void* param, const SDataBuf* pMsg, int32_t code
     tfree(param);
     return -1;
   }
+
   char *key = (char *)param;
   SClientHbBatchRsp pRsp = {0};
-  tDeserializeSClientHbBatchRsp(pMsg->pData, &pRsp);
+  tDeserializeSClientHbBatchRsp(pMsg->pData, pMsg->len, &pRsp);
   
   int32_t rspNum = taosArrayGetSize(pRsp.rsps);
 
@@ -344,7 +315,7 @@ void hbFreeReq(void *req) {
 
 
 SClientHbBatchReq* hbGatherAllInfo(SAppHbMgr *pAppHbMgr) {
-  SClientHbBatchReq* pBatchReq = malloc(sizeof(SClientHbBatchReq));
+  SClientHbBatchReq* pBatchReq = calloc(1, sizeof(SClientHbBatchReq));
   if (pBatchReq == NULL) {
     terrno = TSDB_CODE_TSC_OUT_OF_MEMORY;
     return NULL;
@@ -416,7 +387,7 @@ static void* hbThreadFunc(void* param) {
       if (pReq == NULL) {
         continue;
       }
-      int tlen = tSerializeSClientHbBatchReq(NULL, pReq);
+      int tlen = tSerializeSClientHbBatchReq(NULL, 0, pReq);
       void *buf = malloc(tlen);
       if (buf == NULL) {
         terrno = TSDB_CODE_TSC_OUT_OF_MEMORY;
@@ -424,8 +395,7 @@ static void* hbThreadFunc(void* param) {
         hbClearReqInfo(pAppHbMgr);
         break;
       }
-      void *abuf = buf;
-      tSerializeSClientHbBatchReq(&abuf, pReq);
+      tSerializeSClientHbBatchReq(buf, tlen, pReq);
       SMsgSendInfo *pInfo = malloc(sizeof(SMsgSendInfo));
       if (pInfo == NULL) {
         terrno = TSDB_CODE_TSC_OUT_OF_MEMORY;

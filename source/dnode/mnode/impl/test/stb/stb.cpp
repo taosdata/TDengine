@@ -38,39 +38,43 @@ class MndTestStb : public ::testing::Test {
 Testbase MndTestStb::test;
 
 void* MndTestStb::BuildCreateDbReq(const char* dbname, int32_t* pContLen) {
-  int32_t contLen = sizeof(SCreateDbReq);
+  SCreateDbReq createReq = {0};
+  strcpy(createReq.db, dbname);
+  createReq.numOfVgroups = 2;
+  createReq.cacheBlockSize = 16;
+  createReq.totalBlocks = 10;
+  createReq.daysPerFile = 10;
+  createReq.daysToKeep0 = 3650;
+  createReq.daysToKeep1 = 3650;
+  createReq.daysToKeep2 = 3650;
+  createReq.minRows = 100;
+  createReq.maxRows = 4096;
+  createReq.commitTime = 3600;
+  createReq.fsyncPeriod = 3000;
+  createReq.walLevel = 1;
+  createReq.precision = 0;
+  createReq.compression = 2;
+  createReq.replications = 1;
+  createReq.quorum = 1;
+  createReq.update = 0;
+  createReq.cacheLastRow = 0;
+  createReq.ignoreExist = 1;
 
-  SCreateDbReq* pReq = (SCreateDbReq*)rpcMallocCont(contLen);
-  strcpy(pReq->db, dbname);
-  pReq->numOfVgroups = htonl(2);
-  pReq->cacheBlockSize = htonl(16);
-  pReq->totalBlocks = htonl(10);
-  pReq->daysPerFile = htonl(10);
-  pReq->daysToKeep0 = htonl(3650);
-  pReq->daysToKeep1 = htonl(3650);
-  pReq->daysToKeep2 = htonl(3650);
-  pReq->minRows = htonl(100);
-  pReq->maxRows = htonl(4096);
-  pReq->commitTime = htonl(3600);
-  pReq->fsyncPeriod = htonl(3000);
-  pReq->walLevel = 1;
-  pReq->precision = 0;
-  pReq->compression = 2;
-  pReq->replications = 1;
-  pReq->quorum = 1;
-  pReq->update = 0;
-  pReq->cacheLastRow = 0;
-  pReq->ignoreExist = 1;
+  int32_t contLen = tSerializeSCreateDbReq(NULL, 0, &createReq);
+  void*   pReq = rpcMallocCont(contLen);
+  tSerializeSCreateDbReq(pReq, contLen, &createReq);
 
   *pContLen = contLen;
   return pReq;
 }
 
 void* MndTestStb::BuildDropDbReq(const char* dbname, int32_t* pContLen) {
-  int32_t contLen = sizeof(SDropDbReq);
+  SDropDbReq dropdbReq = {0};
+  strcpy(dropdbReq.db, dbname);
 
-  SDropDbReq* pReq = (SDropDbReq*)rpcMallocCont(contLen);
-  strcpy(pReq->db, dbname);
+  int32_t contLen = tSerializeSDropDbReq(NULL, 0, &dropdbReq);
+  void*   pReq = rpcMallocCont(contLen);
+  tSerializeSDropDbReq(pReq, contLen, &dropdbReq);
 
   *pContLen = contLen;
   return pReq;
@@ -125,11 +129,10 @@ void* MndTestStb::BuildCreateStbReq(const char* stbname, int32_t* pContLen) {
     taosArrayPush(createReq.pTags, &field);
   }
 
-  int32_t tlen = tSerializeSMCreateStbReq(NULL, &createReq);
+  int32_t tlen = tSerializeSMCreateStbReq(NULL, 0, &createReq);
   void*   pHead = rpcMallocCont(tlen);
-
-  void* pBuf = pHead;
-  tSerializeSMCreateStbReq(&pBuf, &createReq);
+  tSerializeSMCreateStbReq(pHead, tlen, &createReq);
+  tFreeSMCreateStbReq(&createReq);
   *pContLen = tlen;
   return pHead;
 }
@@ -147,10 +150,9 @@ void* MndTestStb::BuildAlterStbAddTagReq(const char* stbname, const char* tagnam
   strcpy(field.name, tagname);
   taosArrayPush(req.pFields, &field);
 
-  int32_t contLen = tSerializeSMAlterStbReq(NULL, &req);
+  int32_t contLen = tSerializeSMAlterStbReq(NULL, 0, &req);
   void*   pHead = rpcMallocCont(contLen);
-  void*   pBuf = pHead;
-  tSerializeSMAlterStbReq(&pBuf, &req);
+  tSerializeSMAlterStbReq(pHead, contLen, &req);
 
   *pContLen = contLen;
   return pHead;
@@ -169,10 +171,9 @@ void* MndTestStb::BuildAlterStbDropTagReq(const char* stbname, const char* tagna
   strcpy(field.name, tagname);
   taosArrayPush(req.pFields, &field);
 
-  int32_t contLen = tSerializeSMAlterStbReq(NULL, &req);
+  int32_t contLen = tSerializeSMAlterStbReq(NULL, 0, &req);
   void*   pHead = rpcMallocCont(contLen);
-  void*   pBuf = pHead;
-  tSerializeSMAlterStbReq(&pBuf, &req);
+  tSerializeSMAlterStbReq(pHead, contLen, &req);
 
   *pContLen = contLen;
   return pHead;
@@ -198,10 +199,9 @@ void* MndTestStb::BuildAlterStbUpdateTagNameReq(const char* stbname, const char*
   strcpy(field2.name, newtagname);
   taosArrayPush(req.pFields, &field2);
 
-  int32_t contLen = tSerializeSMAlterStbReq(NULL, &req);
+  int32_t contLen = tSerializeSMAlterStbReq(NULL, 0, &req);
   void*   pHead = rpcMallocCont(contLen);
-  void*   pBuf = pHead;
-  tSerializeSMAlterStbReq(&pBuf, &req);
+  tSerializeSMAlterStbReq(pHead, contLen, &req);
 
   *pContLen = contLen;
   return pHead;
@@ -221,10 +221,9 @@ void* MndTestStb::BuildAlterStbUpdateTagBytesReq(const char* stbname, const char
   strcpy(field.name, tagname);
   taosArrayPush(req.pFields, &field);
 
-  int32_t contLen = tSerializeSMAlterStbReq(NULL, &req);
+  int32_t contLen = tSerializeSMAlterStbReq(NULL, 0, &req);
   void*   pHead = rpcMallocCont(contLen);
-  void*   pBuf = pHead;
-  tSerializeSMAlterStbReq(&pBuf, &req);
+  tSerializeSMAlterStbReq(pHead, contLen, &req);
 
   *pContLen = contLen;
   return pHead;
@@ -243,10 +242,9 @@ void* MndTestStb::BuildAlterStbAddColumnReq(const char* stbname, const char* col
   strcpy(field.name, colname);
   taosArrayPush(req.pFields, &field);
 
-  int32_t contLen = tSerializeSMAlterStbReq(NULL, &req);
+  int32_t contLen = tSerializeSMAlterStbReq(NULL, 0, &req);
   void*   pHead = rpcMallocCont(contLen);
-  void*   pBuf = pHead;
-  tSerializeSMAlterStbReq(&pBuf, &req);
+  tSerializeSMAlterStbReq(pHead, contLen, &req);
 
   *pContLen = contLen;
   return pHead;
@@ -265,10 +263,9 @@ void* MndTestStb::BuildAlterStbDropColumnReq(const char* stbname, const char* co
   strcpy(field.name, colname);
   taosArrayPush(req.pFields, &field);
 
-  int32_t contLen = tSerializeSMAlterStbReq(NULL, &req);
+  int32_t contLen = tSerializeSMAlterStbReq(NULL, 0, &req);
   void*   pHead = rpcMallocCont(contLen);
-  void*   pBuf = pHead;
-  tSerializeSMAlterStbReq(&pBuf, &req);
+  tSerializeSMAlterStbReq(pHead, contLen, &req);
 
   *pContLen = contLen;
   return pHead;
@@ -288,10 +285,9 @@ void* MndTestStb::BuildAlterStbUpdateColumnBytesReq(const char* stbname, const c
   strcpy(field.name, colname);
   taosArrayPush(req.pFields, &field);
 
-  int32_t contLen = tSerializeSMAlterStbReq(NULL, &req);
+  int32_t contLen = tSerializeSMAlterStbReq(NULL, 0, &req);
   void*   pHead = rpcMallocCont(contLen);
-  void*   pBuf = pHead;
-  tSerializeSMAlterStbReq(&pBuf, &req);
+  tSerializeSMAlterStbReq(pHead, contLen, &req);
 
   *pContLen = contLen;
   return pHead;
@@ -335,45 +331,37 @@ TEST_F(MndTestStb, 01_Create_Show_Meta_Drop_Restart_Stb) {
 
   // ----- meta ------
   {
-    int32_t        contLen = sizeof(STableInfoReq);
-    STableInfoReq* pReq = (STableInfoReq*)rpcMallocCont(contLen);
-    strcpy(pReq->dbFName, dbname);
-    strcpy(pReq->tbName, "stb");
+    STableInfoReq infoReq = {0};
+    strcpy(infoReq.dbFName, dbname);
+    strcpy(infoReq.tbName, "stb");
+
+    int32_t contLen = tSerializeSTableInfoReq(NULL, 0, &infoReq);
+    void*   pReq = rpcMallocCont(contLen);
+    tSerializeSTableInfoReq(pReq, contLen, &infoReq);
 
     SRpcMsg* pMsg = test.SendReq(TDMT_MND_STB_META, pReq, contLen);
     ASSERT_NE(pMsg, nullptr);
     ASSERT_EQ(pMsg->code, 0);
 
-    STableMetaRsp* pRsp = (STableMetaRsp*)pMsg->pCont;
-    pRsp->numOfTags = htonl(pRsp->numOfTags);
-    pRsp->numOfColumns = htonl(pRsp->numOfColumns);
-    pRsp->sversion = htonl(pRsp->sversion);
-    pRsp->tversion = htonl(pRsp->tversion);
-    pRsp->suid = be64toh(pRsp->suid);
-    pRsp->tuid = be64toh(pRsp->tuid);
-    pRsp->vgId = be64toh(pRsp->vgId);
-    for (int32_t i = 0; i < pRsp->numOfTags + pRsp->numOfColumns; ++i) {
-      SSchema* pSchema = &pRsp->pSchema[i];
-      pSchema->colId = htonl(pSchema->colId);
-      pSchema->bytes = htonl(pSchema->bytes);
-    }
+    STableMetaRsp metaRsp = {0};
+    tDeserializeSTableMetaRsp(pMsg->pCont, pMsg->contLen, &metaRsp);
 
-    EXPECT_STREQ(pRsp->dbFName, dbname);
-    EXPECT_STREQ(pRsp->tbName, "stb");
-    EXPECT_STREQ(pRsp->stbName, "stb");
-    EXPECT_EQ(pRsp->numOfColumns, 2);
-    EXPECT_EQ(pRsp->numOfTags, 3);
-    EXPECT_EQ(pRsp->precision, TSDB_TIME_PRECISION_MILLI);
-    EXPECT_EQ(pRsp->tableType, TSDB_SUPER_TABLE);
-    EXPECT_EQ(pRsp->update, 0);
-    EXPECT_EQ(pRsp->sversion, 1);
-    EXPECT_EQ(pRsp->tversion, 0);
-    EXPECT_GT(pRsp->suid, 0);
-    EXPECT_GT(pRsp->tuid, 0);
-    EXPECT_EQ(pRsp->vgId, 0);
+    EXPECT_STREQ(metaRsp.dbFName, dbname);
+    EXPECT_STREQ(metaRsp.tbName, "stb");
+    EXPECT_STREQ(metaRsp.stbName, "stb");
+    EXPECT_EQ(metaRsp.numOfColumns, 2);
+    EXPECT_EQ(metaRsp.numOfTags, 3);
+    EXPECT_EQ(metaRsp.precision, TSDB_TIME_PRECISION_MILLI);
+    EXPECT_EQ(metaRsp.tableType, TSDB_SUPER_TABLE);
+    EXPECT_EQ(metaRsp.update, 0);
+    EXPECT_EQ(metaRsp.sversion, 1);
+    EXPECT_EQ(metaRsp.tversion, 0);
+    EXPECT_GT(metaRsp.suid, 0);
+    EXPECT_GT(metaRsp.tuid, 0);
+    EXPECT_EQ(metaRsp.vgId, 0);
 
     {
-      SSchema* pSchema = &pRsp->pSchema[0];
+      SSchema* pSchema = &metaRsp.pSchemas[0];
       EXPECT_EQ(pSchema->type, TSDB_DATA_TYPE_TIMESTAMP);
       EXPECT_EQ(pSchema->colId, 1);
       EXPECT_EQ(pSchema->bytes, 8);
@@ -381,7 +369,7 @@ TEST_F(MndTestStb, 01_Create_Show_Meta_Drop_Restart_Stb) {
     }
 
     {
-      SSchema* pSchema = &pRsp->pSchema[1];
+      SSchema* pSchema = &metaRsp.pSchemas[1];
       EXPECT_EQ(pSchema->type, TSDB_DATA_TYPE_BINARY);
       EXPECT_EQ(pSchema->colId, 2);
       EXPECT_EQ(pSchema->bytes, 12);
@@ -389,7 +377,7 @@ TEST_F(MndTestStb, 01_Create_Show_Meta_Drop_Restart_Stb) {
     }
 
     {
-      SSchema* pSchema = &pRsp->pSchema[2];
+      SSchema* pSchema = &metaRsp.pSchemas[2];
       EXPECT_EQ(pSchema->type, TSDB_DATA_TYPE_TINYINT);
       EXPECT_EQ(pSchema->colId, 3);
       EXPECT_EQ(pSchema->bytes, 2);
@@ -397,7 +385,7 @@ TEST_F(MndTestStb, 01_Create_Show_Meta_Drop_Restart_Stb) {
     }
 
     {
-      SSchema* pSchema = &pRsp->pSchema[3];
+      SSchema* pSchema = &metaRsp.pSchemas[3];
       EXPECT_EQ(pSchema->type, TSDB_DATA_TYPE_BIGINT);
       EXPECT_EQ(pSchema->colId, 4);
       EXPECT_EQ(pSchema->bytes, 8);
@@ -405,12 +393,14 @@ TEST_F(MndTestStb, 01_Create_Show_Meta_Drop_Restart_Stb) {
     }
 
     {
-      SSchema* pSchema = &pRsp->pSchema[4];
+      SSchema* pSchema = &metaRsp.pSchemas[4];
       EXPECT_EQ(pSchema->type, TSDB_DATA_TYPE_BINARY);
       EXPECT_EQ(pSchema->colId, 5);
       EXPECT_EQ(pSchema->bytes, 16);
       EXPECT_STREQ(pSchema->name, "tag3");
     }
+
+    tFreeSTableMetaRsp(&metaRsp);
   }
 
   // restart
@@ -432,10 +422,9 @@ TEST_F(MndTestStb, 01_Create_Show_Meta_Drop_Restart_Stb) {
     SMDropStbReq dropReq = {0};
     strcpy(dropReq.name, stbname);
 
-    int32_t contLen = tSerializeSMDropStbReq(NULL, &dropReq);
+    int32_t contLen = tSerializeSMDropStbReq(NULL, 0, &dropReq);
     void*   pHead = rpcMallocCont(contLen);
-    void*   pBuf = pHead;
-    tSerializeSMDropStbReq(&pBuf, &dropReq);
+    tSerializeSMDropStbReq(pHead, contLen, &dropReq);
 
     SRpcMsg* pRsp = test.SendReq(TDMT_MND_DROP_STB, pHead, contLen);
     ASSERT_NE(pRsp, nullptr);

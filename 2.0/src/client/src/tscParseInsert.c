@@ -1209,10 +1209,10 @@ static int32_t parseBoundColumns(SInsertStatementParam *pInsertParam, SParsedDat
         ++pColInfo->numOfBound;
         switch (pSchema[t].type) {
           case TSDB_DATA_TYPE_BINARY:
-            pColInfo->boundNullLen += (VARSTR_HEADER_SIZE + CHAR_BYTES);
+            pColInfo->boundNullLen += (sizeof(VarDataOffsetT) + VARSTR_HEADER_SIZE + CHAR_BYTES);
             break;
           case TSDB_DATA_TYPE_NCHAR:
-            pColInfo->boundNullLen += (VARSTR_HEADER_SIZE + TSDB_NCHAR_SIZE);
+            pColInfo->boundNullLen += (sizeof(VarDataOffsetT) + VARSTR_HEADER_SIZE + TSDB_NCHAR_SIZE);
             break;
           default:
             pColInfo->boundNullLen += TYPE_BYTES[pSchema[t].type];
@@ -1243,10 +1243,10 @@ static int32_t parseBoundColumns(SInsertStatementParam *pInsertParam, SParsedDat
           ++pColInfo->numOfBound;
           switch (pSchema[t].type) {
             case TSDB_DATA_TYPE_BINARY:
-              pColInfo->boundNullLen += (VARSTR_HEADER_SIZE + CHAR_BYTES);
+              pColInfo->boundNullLen += (sizeof(VarDataOffsetT) + VARSTR_HEADER_SIZE + CHAR_BYTES);
               break;
             case TSDB_DATA_TYPE_NCHAR:
-              pColInfo->boundNullLen += (VARSTR_HEADER_SIZE + TSDB_NCHAR_SIZE);
+              pColInfo->boundNullLen += (sizeof(VarDataOffsetT) + VARSTR_HEADER_SIZE + TSDB_NCHAR_SIZE);
               break;
             default:
               pColInfo->boundNullLen += TYPE_BYTES[pSchema[t].type];
