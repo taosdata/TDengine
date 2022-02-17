@@ -71,10 +71,14 @@ function clean_bin() {
   ${csudo}rm -f ${bin_link_dir}/${clientName} || :
   ${csudo}rm -f ${bin_link_dir}/${serverName} || :
   ${csudo}rm -f ${bin_link_dir}/${adapterName} || :
+  ${csudo}rm -f ${bin_link_dir}/taosBenchmark || :
+  ${csudo}rm -f ${bin_link_dir}/taosdemo || :
+  ${csudo}rm -f ${bin_link_dir}/taosdump || :
   ${csudo}rm -f ${bin_link_dir}/${uninstallScript} || :
   ${csudo}rm -f ${bin_link_dir}/tarbitrator || :
   ${csudo}rm -f ${bin_link_dir}/set_core || :
   ${csudo}rm -f ${bin_link_dir}/run_${serverName}_and_${adapterName}.sh || :
+  ${csudo}rm -f ${bin_link_dir}/TDinsight.sh || :
 }
 
 function clean_lib() {

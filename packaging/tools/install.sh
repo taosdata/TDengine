@@ -201,6 +201,9 @@ function install_bin() {
   [ -x ${install_main_dir}/bin/${clientName} ] && ${csudo}ln -s ${install_main_dir}/bin/${clientName} ${bin_link_dir}/${clientName} || :
   [ -x ${install_main_dir}/bin/${serverName} ] && ${csudo}ln -s ${install_main_dir}/bin/${serverName} ${bin_link_dir}/${serverName} || :
   [ -x ${install_main_dir}/bin/${adapterName} ] && ${csudo}ln -s ${install_main_dir}/bin/${adapterName} ${bin_link_dir}/${adapterName} || :
+  [ -x ${install_main_dir}/bin/taosBenchmark ] && ${csudo}ln -s ${install_main_dir}/bin/taosBenchmark ${bin_link_dir}/taosdemo || :
+  [ -x ${install_main_dir}/bin/taosdump ] && ${csudo}ln -s ${install_main_dir}/bin/taosdump ${bin_link_dir}/taosdump || :
+  [ -x ${install_main_dir}/bin/TDinsight.sh ] && ${csudo}ln -s ${install_main_dir}/bin/TDinsight.sh ${bin_link_dir}/TDinsight.sh || :
   [ -x ${install_main_dir}/bin/remove.sh ] && ${csudo}ln -s ${install_main_dir}/bin/remove.sh ${bin_link_dir}/${uninstallScript} || :
   [ -x ${install_main_dir}/bin/set_core.sh ] && ${csudo}ln -s ${install_main_dir}/bin/set_core.sh ${bin_link_dir}/set_core || :
   [ -x ${install_main_dir}/bin/run_${serverName}_and_${adapterName}.sh ] && ${csudo}ln -s ${install_main_dir}/bin/run_${serverName}_and_${adapterName}.sh ${bin_link_dir}/run_${serverName}_and_${adapterName}.sh || :
@@ -800,9 +803,15 @@ function updateProduct() {
   install_log
   install_header
   install_lib
+<<<<<<< HEAD
   #  if [ "$pagMode" != "lite" ]; then
   #    install_connector
   #  fi
+=======
+#  if [ "$pagMode" != "lite" ]; then
+#    install_connector
+#  fi
+>>>>>>> d65ac3b56... [TD-13440]<fix>: move taosBenchmark back in TDengine package
   install_examples
   if [ -z $1 ]; then
     install_bin
