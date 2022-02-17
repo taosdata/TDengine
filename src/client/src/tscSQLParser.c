@@ -1115,20 +1115,6 @@ static int32_t checkInvalidExprForTimeWindow(SSqlCmd* pCmd, SQueryInfo* pQueryIn
   const char* msg2 = "top/bottom query does not support order by value in time window query";
   const char* msg3 = "unique function does not supportted in time window query";
 
-  // for top/bottom + interval query, we do not add additional timestamp column in the front
-  if (isTopBottomUniqueQuery(pQueryInfo)) {
-
-    // invalid sql:
-    // top(col, k) from table_name [interval(1d)|session(ts, 1d)] order by k asc
-    // order by normal column is not supported
-    int32_t colId = pQueryInfo->order.orderColId;
-    if (isTimeWindowQuery(pQueryInfo) && colId != PRIMARYKEY_TIMESTAMP_COL_INDEX) {
-      return invalidOperationMsg(tscGetErrorMsgPayload(pCmd), msg2);
-    }
-
-    return TSDB_CODE_SUCCESS;
-  }
-
   /*
    * invalid sql:
    * select count(tbname)/count(tag1)/count(tag2) from super_table_name [interval(1d)|session(ts, 1d)];
@@ -1150,6 +1136,20 @@ static int32_t checkInvalidExprForTimeWindow(SSqlCmd* pCmd, SQueryInfo* pQueryIn
    */
   if (tscQueryTags(pQueryInfo) && isTimeWindowQuery(pQueryInfo)) {
     return invalidOperationMsg(tscGetErrorMsgPayload(pCmd), msg1);
+  }
+
+  // for top/bottom + interval query, we do not add additional timestamp column in the front
+  if (isTopBottomUniqueQuery(pQueryInfo)) {
+
+    // invalid sql:
+    // top(col, k) from table_name [interval(1d)|session(ts, 1d)] order by k asc
+    // order by normal column is not supported
+    int32_t colId = pQueryInfo->order.orderColId;
+    if (isTimeWindowQuery(pQueryInfo) && colId != PRIMARYKEY_TIMESTAMP_COL_INDEX) {
+      return invalidOperationMsg(tscGetErrorMsgPayload(pCmd), msg2);
+    }
+
+    return TSDB_CODE_SUCCESS;
   }
 
   return addPrimaryTsColumnForTimeWindowQuery(pQueryInfo, pCmd);
@@ -1230,7 +1230,7 @@ static int32_t validateStateWindowNode(SSqlCmd* pCmd, SQueryInfo* pQueryInfo, SS
   const char* msg1 = "invalid column name";
   const char* msg2 = "invalid column type";
   const char* msg3 = "not support state_window with group by ";
-  const char* msg4 = "function not support for super table query";
+  const char* msg4 = "state_window not support for super table query";
   const char* msg5 = "not support state_window on tag column";
   const char* msg6 = "function not support for state_window";
 
