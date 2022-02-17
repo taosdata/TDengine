@@ -105,6 +105,7 @@ SMsgSendInfo* buildMsgInfoImpl(SRequestObj *pRequest) {
       pRetrieveMsg->showId = htobe64(pRequest->body.showInfo.execId);
       pMsgSendInfo->msgInfo.pData = pRetrieveMsg;
       pMsgSendInfo->msgInfo.len = sizeof(SRetrieveTableReq);
+      pMsgSendInfo->msgInfo.handle = NULL;
     } else {
       SVShowTablesFetchReq* pFetchMsg = calloc(1, sizeof(SVShowTablesFetchReq));
       if (pFetchMsg == NULL) {
@@ -116,6 +117,7 @@ SMsgSendInfo* buildMsgInfoImpl(SRequestObj *pRequest) {
 
       pMsgSendInfo->msgInfo.pData = pFetchMsg;
       pMsgSendInfo->msgInfo.len = sizeof(SVShowTablesFetchReq);
+      pMsgSendInfo->msgInfo.handle = NULL;
     }
   } else {
     assert(pRequest != NULL);

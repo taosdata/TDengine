@@ -137,7 +137,7 @@ int32_t asyncSendMsgToServer(void *pTransporter, SEpSet* epSet, int64_t* pTransp
       .pCont   = pMsg,
       .contLen = pInfo->msgInfo.len,
       .ahandle = (void*) pInfo,
-      .handle  = NULL,
+      .handle  = pInfo->msgInfo.handle,
       .code    = 0
   };
 

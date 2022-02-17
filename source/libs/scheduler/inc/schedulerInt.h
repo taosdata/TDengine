@@ -95,6 +95,7 @@ typedef struct SSchTask {
   int32_t              childReady;     // child task ready number
   SArray              *children;       // the datasource tasks,from which to fetch the result, element is SQueryTask*
   SArray              *parents;        // the data destination tasks, get data from current task, element is SQueryTask*
+  void*               handle;          // task send handle 
 } SSchTask;
 
 typedef struct SSchJobAttr {

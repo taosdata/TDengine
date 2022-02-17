@@ -133,15 +133,18 @@ static void clientHandleResp(SCliConn* conn) {
   rpcMsg.msgType = pHead->msgType;
   rpcMsg.ahandle = pCtx->ahandle;
 
-  if (rpcMsg.msgType == TDMT_VND_QUERY_RSP || rpcMsg.msgType == TDMT_VND_FETCH_RSP) {
+  if (rpcMsg.msgType == TDMT_VND_QUERY_RSP || rpcMsg.msgType == TDMT_VND_FETCH_RSP ||
+      rpcMsg.msgType == TDMT_VND_RES_READY) {
     rpcMsg.handle = conn;
     conn->persist = 1;
+    tDebug("client conn %p persist by app", conn);
   }
 
   tDebug("client conn %p %s received from %s:%d, local info: %s:%d", conn, TMSG_INFO(pHead->msgType),
          inet_ntoa(conn->addr.sin_addr), ntohs(conn->addr.sin_port), inet_ntoa(conn->locaddr.sin_addr),
          ntohs(conn->locaddr.sin_port));
 
+  conn->secured = pHead->secured;
   if (conn->push != NULL && conn->ctnRdCnt != 0) {
     (*conn->push->callback)(conn->push->arg, &rpcMsg);
     conn->push = NULL;
@@ -156,7 +159,6 @@ static void clientHandleResp(SCliConn* conn) {
     }
   }
   conn->ctnRdCnt += 1;
-  conn->secured = pHead->secured;
 
   // buf's mem alread translated to rpcMsg.pCont
   transClearBuffer(&conn->readBuf);
@@ -166,16 +168,14 @@ static void clientHandleResp(SCliConn* conn) {
   SCliThrdObj* pThrd = conn->hostThrd;
 
   // user owns conn->persist = 1
-  if (conn->push == NULL || conn->persist == 0) {
+  if (conn->push == NULL && conn->persist == 0) {
     addConnToPool(pThrd->pool, pCtx->ip, pCtx->port, conn);
-
-    destroyCmsg(conn->data);
-    conn->data = NULL;
   }
-
+  destroyCmsg(conn->data);
+  conn->data = NULL;
   // start thread's timer of conn pool if not active
   if (!uv_is_active((uv_handle_t*)pThrd->timer) && pRpc->idleTime > 0) {
-    uv_timer_start((uv_timer_t*)pThrd->timer, clientTimeoutCb, CONN_PERSIST_TIME(pRpc->idleTime) / 2, 0);
+    // uv_timer_start((uv_timer_t*)pThrd->timer, clientTimeoutCb, CONN_PERSIST_TIME(pRpc->idleTime) / 2, 0);
   }
 }
 static void clientHandleExcept(SCliConn* pConn) {
@@ -330,6 +330,9 @@ static void clientAllocBufferCb(uv_handle_t* handle, size_t suggested_size, uv_b
 }
 static void clientReadCb(uv_stream_t* handle, ssize_t nread, const uv_buf_t* buf) {
   // impl later
+  if (handle->data == NULL) {
+    return;
+  }
   SCliConn*    conn = handle->data;
   SConnBuffer* pBuf = &conn->readBuf;
   if (nread > 0) {

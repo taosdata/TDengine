@@ -444,7 +444,7 @@ static void* hbThreadFunc(void* param) {
       }
       void *abuf = buf;
       tSerializeSClientHbBatchReq(&abuf, pReq);
-      SMsgSendInfo *pInfo = malloc(sizeof(SMsgSendInfo));
+      SMsgSendInfo *pInfo = calloc(1, sizeof(SMsgSendInfo));
       if (pInfo == NULL) {
         terrno = TSDB_CODE_TSC_OUT_OF_MEMORY;
         tFreeClientHbBatchReq(pReq, false);
