@@ -424,28 +424,22 @@ static int32_t dndDropMnode(SDnode *pDnode) {
   return 0;
 }
 
-static SDCreateMnodeReq *dndParseCreateMnodeReq(SRpcMsg *pReq) {
-  SDCreateMnodeReq *pCreate = pReq->pCont;
-  pCreate->dnodeId = htonl(pCreate->dnodeId);
-  for (int32_t i = 0; i < pCreate->replica; ++i) {
-    pCreate->replicas[i].id = htonl(pCreate->replicas[i].id);
-    pCreate->replicas[i].port = htons(pCreate->replicas[i].port);
-  }
-
-  return pCreate;
-}
 
 int32_t dndProcessCreateMnodeReq(SDnode *pDnode, SRpcMsg *pReq) {
-  SDCreateMnodeReq *pCreate = dndParseCreateMnodeReq(pReq);
+  SDCreateMnodeReq createReq = {0};
+  if (tDeserializeSDCreateMnodeReq(pReq->pCont, pReq->contLen, &createReq) != 0) {
+    terrno = TSDB_CODE_INVALID_MSG;
+    return -1;
+  }
 
-  if (pCreate->replica <= 1 || pCreate->dnodeId != dndGetDnodeId(pDnode)) {
+  if (createReq.replica <= 1 || createReq.dnodeId != dndGetDnodeId(pDnode)) {
     terrno = TSDB_CODE_DND_MNODE_INVALID_OPTION;
     dError("failed to create mnode since %s", terrstr());
     return -1;
   }
 
   SMnodeOpt option = {0};
-  if (dndBuildMnodeOptionFromReq(pDnode, &option, pCreate) != 0) {
+  if (dndBuildMnodeOptionFromReq(pDnode, &option, &createReq) != 0) {
     terrno = TSDB_CODE_DND_MNODE_INVALID_OPTION;
     dError("failed to create mnode since %s", terrstr());
     return -1;
@@ -464,16 +458,20 @@ int32_t dndProcessCreateMnodeReq(SDnode *pDnode, SRpcMsg *pReq) {
 }
 
 int32_t dndProcessAlterMnodeReq(SDnode *pDnode, SRpcMsg *pReq) {
-  SDAlterMnodeReq *pAlter = dndParseCreateMnodeReq(pReq);
+  SDAlterMnodeReq alterReq = {0};
+  if (tDeserializeSDCreateMnodeReq(pReq->pCont, pReq->contLen, &alterReq) != 0) {
+    terrno = TSDB_CODE_INVALID_MSG;
+    return -1;
+  }
 
-  if (pAlter->dnodeId != dndGetDnodeId(pDnode)) {
+  if (alterReq.dnodeId != dndGetDnodeId(pDnode)) {
     terrno = TSDB_CODE_DND_MNODE_INVALID_OPTION;
     dError("failed to alter mnode since %s", terrstr());
     return -1;
   }
 
   SMnodeOpt option = {0};
-  if (dndBuildMnodeOptionFromReq(pDnode, &option, pAlter) != 0) {
+  if (dndBuildMnodeOptionFromReq(pDnode, &option, &alterReq) != 0) {
     terrno = TSDB_CODE_DND_MNODE_INVALID_OPTION;
     dError("failed to alter mnode since %s", terrstr());
     return -1;
@@ -494,10 +492,13 @@ int32_t dndProcessAlterMnodeReq(SDnode *pDnode, SRpcMsg *pReq) {
 }
 
 int32_t dndProcessDropMnodeReq(SDnode *pDnode, SRpcMsg *pReq) {
-  SDDropMnodeReq *pDrop = pReq->pCont;
-  pDrop->dnodeId = htonl(pDrop->dnodeId);
+  SDDropMnodeReq dropReq = {0};
+  if (tDeserializeSMCreateDropMnodeReq(pReq->pCont, pReq->contLen, &dropReq) != 0) {
+    terrno = TSDB_CODE_INVALID_MSG;
+    return -1;
+  }
 
-  if (pDrop->dnodeId != dndGetDnodeId(pDnode)) {
+  if (dropReq.dnodeId != dndGetDnodeId(pDnode)) {
     terrno = TSDB_CODE_DND_MNODE_INVALID_OPTION;
     dError("failed to drop mnode since %s", terrstr());
     return -1;

@@ -15,7 +15,7 @@
 
 #include "tsdbDef.h"
 
-static int      tsdbScanAndConvertSubmitMsg(STsdb *pTsdb, SSubmitMsg *pMsg);
+static int      tsdbScanAndConvertSubmitMsg(STsdb *pTsdb, SSubmitReq *pMsg);
 static int      tsdbMemTableInsertTbData(STsdb *pRepo, SSubmitBlk *pBlock, int32_t *pAffectedRows);
 static STbData *tsdbNewTbData(tb_uid_t uid);
 static void     tsdbFreeTbData(STbData *pTbData);
@@ -73,7 +73,7 @@ void tsdbFreeMemTable(STsdb *pTsdb, STsdbMemTable *pMemTable) {
   }
 }
 
-int tsdbMemTableInsert(STsdb *pTsdb, STsdbMemTable *pMemTable, SSubmitMsg *pMsg, SShellSubmitRsp *pRsp) {
+int tsdbMemTableInsert(STsdb *pTsdb, STsdbMemTable *pMemTable, SSubmitReq *pMsg, SSubmitRsp *pRsp) {
   SSubmitBlk *   pBlock = NULL;
   SSubmitMsgIter msgIter = {0};
   int32_t        affectedrows = 0, numOfRows = 0;
@@ -227,7 +227,7 @@ int tsdbLoadDataFromCache(STable *pTable, SSkipListIterator *pIter, TSKEY maxKey
   return 0;
 }
 
-static int tsdbScanAndConvertSubmitMsg(STsdb *pTsdb, SSubmitMsg *pMsg) {
+static int tsdbScanAndConvertSubmitMsg(STsdb *pTsdb, SSubmitReq *pMsg) {
   ASSERT(pMsg != NULL);
   // STsdbMeta *    pMeta = pTsdb->tsdbMeta;
   SSubmitMsgIter msgIter = {0};
@@ -455,7 +455,7 @@ static int tsdbAppendTableRowToCols(STable *pTable, SDataCols *pCols, STSchema *
 
 /* ------------------------ REFACTORING ------------------------ */
 #if 0
-int tsdbInsertDataToMemTable(STsdbMemTable *pMemTable, SSubmitMsg *pMsg) {
+int tsdbInsertDataToMemTable(STsdbMemTable *pMemTable, SSubmitReq *pMsg) {
   SMemAllocator *pMA = pMemTable->pMA;
   STbData *      pTbData = (STbData *)TD_MA_MALLOC(pMA, sizeof(*pTbData));
   if (pTbData == NULL) {
@@ -496,9 +496,9 @@ static int          tsdbAdjustMemMaxTables(SMemTable *pMemTable, int maxTables);
 static int          tsdbAppendTableRowToCols(STable *pTable, SDataCols *pCols, STSchema **ppSchema, STSRow* row);
 static int          tsdbInitSubmitBlkIter(SSubmitBlk *pBlock, SSubmitBlkIter *pIter);
 static STSRow*      tsdbGetSubmitBlkNext(SSubmitBlkIter *pIter);
-static int          tsdbScanAndConvertSubmitMsg(STsdbRepo *pRepo, SSubmitMsg *pMsg);
+static int          tsdbScanAndConvertSubmitMsg(STsdbRepo *pRepo, SSubmitReq *pMsg);
 static int          tsdbInsertDataToTable(STsdbRepo *pRepo, SSubmitBlk *pBlock, int32_t *affectedrows);
-static int          tsdbInitSubmitMsgIter(SSubmitMsg *pMsg, SSubmitMsgIter *pIter);
+static int          tsdbInitSubmitMsgIter(SSubmitReq *pMsg, SSubmitMsgIter *pIter);
 static int          tsdbGetSubmitMsgNext(SSubmitMsgIter *pIter, SSubmitBlk **pPBlock);
 static int          tsdbCheckTableSchema(STsdbRepo *pRepo, SSubmitBlk *pBlock, STable *pTable);
 static int          tsdbUpdateTableLatestInfo(STsdbRepo *pRepo, STable *pTable, STSRow* row);

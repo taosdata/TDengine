@@ -57,8 +57,6 @@ static void dndInitMsgFp(STransMgmt *pMgmt) {
   pMgmt->msgFp[TMSG_INDEX(TDMT_DND_DROP_VNODE_RSP)] = dndProcessMnodeWriteMsg;
   pMgmt->msgFp[TMSG_INDEX(TDMT_DND_SYNC_VNODE)] = dndProcessMgmtMsg;
   pMgmt->msgFp[TMSG_INDEX(TDMT_DND_SYNC_VNODE_RSP)] = dndProcessMnodeWriteMsg;
-  pMgmt->msgFp[TMSG_INDEX(TDMT_DND_AUTH_VNODE)] = dndProcessMgmtMsg;
-  pMgmt->msgFp[TMSG_INDEX(TDMT_DND_AUTH_VNODE_RSP)] = dndProcessMnodeWriteMsg;
   pMgmt->msgFp[TMSG_INDEX(TDMT_DND_COMPACT_VNODE)] = dndProcessMgmtMsg;
   pMgmt->msgFp[TMSG_INDEX(TDMT_DND_COMPACT_VNODE_RSP)] = dndProcessMnodeWriteMsg;
   pMgmt->msgFp[TMSG_INDEX(TDMT_DND_CONFIG_DNODE)] = dndProcessMgmtMsg;
@@ -310,24 +308,29 @@ static int32_t dndRetrieveUserAuthInfo(void *parent, char *user, char *spi, char
     return -1;
   }
 
-  SAuthReq *pReq = rpcMallocCont(sizeof(SAuthReq));
-  tstrncpy(pReq->user, user, TSDB_USER_LEN);
+  SAuthReq authReq = {0};
+  tstrncpy(authReq.user, user, TSDB_USER_LEN);
+  int32_t contLen = tSerializeSAuthReq(NULL, 0, &authReq);
+  void   *pReq = rpcMallocCont(contLen);
+  tSerializeSAuthReq(pReq, contLen, &authReq);
 
-  SRpcMsg rpcMsg = {.pCont = pReq, .contLen = sizeof(SAuthReq), .msgType = TDMT_MND_AUTH, .ahandle = (void *)9528};
+  SRpcMsg rpcMsg = {.pCont = pReq, .contLen = contLen, .msgType = TDMT_MND_AUTH, .ahandle = (void *)9528};
   SRpcMsg rpcRsp = {0};
-  dTrace("user:%s, send user auth req to other mnodes, spi:%d encrypt:%d", user, pReq->spi, pReq->encrypt);
+  dTrace("user:%s, send user auth req to other mnodes, spi:%d encrypt:%d", user, authReq.spi, authReq.encrypt);
   dndSendMsgToMnodeRecv(pDnode, &rpcMsg, &rpcRsp);
 
   if (rpcRsp.code != 0) {
     terrno = rpcRsp.code;
     dError("user:%s, failed to get user auth from other mnodes since %s", user, terrstr());
   } else {
-    SAuthRsp *pRsp = rpcRsp.pCont;
-    memcpy(secret, pRsp->secret, TSDB_PASSWORD_LEN);
-    memcpy(ckey, pRsp->ckey, TSDB_PASSWORD_LEN);
-    *spi = pRsp->spi;
-    *encrypt = pRsp->encrypt;
-    dTrace("user:%s, success to get user auth from other mnodes, spi:%d encrypt:%d", user, pRsp->spi, pRsp->encrypt);
+    SAuthRsp authRsp = {0};
+    tDeserializeSAuthReq(rpcRsp.pCont, rpcRsp.contLen, &authRsp);
+    memcpy(secret, authRsp.secret, TSDB_PASSWORD_LEN);
+    memcpy(ckey, authRsp.ckey, TSDB_PASSWORD_LEN);
+    *spi = authRsp.spi;
+    *encrypt = authRsp.encrypt;
+    dTrace("user:%s, success to get user auth from other mnodes, spi:%d encrypt:%d", user, authRsp.spi,
+           authRsp.encrypt);
   }
 
   rpcFreeCont(rpcRsp.pCont);

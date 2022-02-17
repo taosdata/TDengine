@@ -55,6 +55,7 @@
 
 %left OR.
 %left AND.
+//%right NOT.
 %left UNION ALL MINUS EXCEPT INTERSECT.
 //%left BITAND BITOR LSHIFT RSHIFT.
 %left NK_PLUS NK_MINUS.
@@ -169,13 +170,41 @@ column_reference(A) ::= table_name(B) NK_DOT column_name(C).                    
 //pseudo_column(A) ::= NK_NOW.                                                      { PARSER_TRACE; A = createFunctionNode(pCxt, NULL, NULL); }
 
 /************************************************ predicate ***********************************************************/
-predicate(A) ::= expression(B) compare_op(C) expression(D).                       { PARSER_TRACE; A = createOperatorNode(pCxt, C, releaseRawExprNode(pCxt, B), releaseRawExprNode(pCxt, D)); }
+predicate(A) ::= expression(B) compare_op(C) expression(D).                       {
+                                                                                    PARSER_TRACE;
+                                                                                    SToken s = getTokenFromRawExprNode(pCxt, B);
+                                                                                    SToken e = getTokenFromRawExprNode(pCxt, D);
+                                                                                    A = createRawExprNodeExt(pCxt, &s, &e, createOperatorNode(pCxt, C, releaseRawExprNode(pCxt, B), releaseRawExprNode(pCxt, D)));
+                                                                                  }
 //predicate(A) ::= expression(B) compare_op sub_type expression(B).
-predicate(A) ::= expression(B) BETWEEN expression(C) AND expression(D).           { PARSER_TRACE; A = createBetweenAnd(pCxt, releaseRawExprNode(pCxt, B), releaseRawExprNode(pCxt, C), releaseRawExprNode(pCxt, D)); }
-predicate(A) ::= expression(B) NOT BETWEEN expression(C) AND expression(D).       { PARSER_TRACE; A = createNotBetweenAnd(pCxt, releaseRawExprNode(pCxt, C), releaseRawExprNode(pCxt, B), releaseRawExprNode(pCxt, D)); }
-predicate(A) ::= expression(B) IS NULL.                                           { PARSER_TRACE; A = createIsNullCondNode(pCxt, releaseRawExprNode(pCxt, B), true); }
-predicate(A) ::= expression(B) IS NOT NULL.                                       { PARSER_TRACE; A = createIsNullCondNode(pCxt, releaseRawExprNode(pCxt, B), false); }
-predicate(A) ::= expression(B) in_op(C) in_predicate_value(D).                    { PARSER_TRACE; A = createOperatorNode(pCxt, C, releaseRawExprNode(pCxt, B), D); }
+predicate(A) ::= expression(B) BETWEEN expression(C) AND expression(D).           {
+                                                                                    PARSER_TRACE;
+                                                                                    SToken s = getTokenFromRawExprNode(pCxt, B);
+                                                                                    SToken e = getTokenFromRawExprNode(pCxt, D);
+                                                                                    A = createRawExprNodeExt(pCxt, &s, &e, createBetweenAnd(pCxt, releaseRawExprNode(pCxt, B), releaseRawExprNode(pCxt, C), releaseRawExprNode(pCxt, D)));
+                                                                                  }
+predicate(A) ::= expression(B) NOT BETWEEN expression(C) AND expression(D).       {
+                                                                                    PARSER_TRACE;
+                                                                                    SToken s = getTokenFromRawExprNode(pCxt, B);
+                                                                                    SToken e = getTokenFromRawExprNode(pCxt, D);
+                                                                                    A = createRawExprNodeExt(pCxt, &s, &e, createNotBetweenAnd(pCxt, releaseRawExprNode(pCxt, C), releaseRawExprNode(pCxt, B), releaseRawExprNode(pCxt, D)));
+                                                                                  }
+predicate(A) ::= expression(B) IS NULL(C).                                        {
+                                                                                    PARSER_TRACE;
+                                                                                    SToken s = getTokenFromRawExprNode(pCxt, B);
+                                                                                    A = createRawExprNodeExt(pCxt, &s, &C, createOperatorNode(pCxt, OP_TYPE_IS_NULL, releaseRawExprNode(pCxt, B), NULL));
+                                                                                  }
+predicate(A) ::= expression(B) IS NOT NULL(C).                                    {
+                                                                                    PARSER_TRACE;
+                                                                                    SToken s = getTokenFromRawExprNode(pCxt, B);
+                                                                                    A = createRawExprNodeExt(pCxt, &s, &C, createOperatorNode(pCxt, OP_TYPE_IS_NOT_NULL, releaseRawExprNode(pCxt, B), NULL));
+                                                                                  }
+predicate(A) ::= expression(B) in_op(C) in_predicate_value(D).                    {
+                                                                                    PARSER_TRACE;
+                                                                                    SToken s = getTokenFromRawExprNode(pCxt, B);
+                                                                                    SToken e = getTokenFromRawExprNode(pCxt, D);
+                                                                                    A = createRawExprNodeExt(pCxt, &s, &e, createOperatorNode(pCxt, C, releaseRawExprNode(pCxt, B), releaseRawExprNode(pCxt, D)));
+                                                                                  }
 
 %type compare_op                                                                  { EOperatorType }
 %destructor compare_op                                                            { PARSER_DESTRUCTOR_TRACE; }
@@ -195,18 +224,36 @@ compare_op(A) ::= NMATCH.                                                       
 in_op(A) ::= IN.                                                                  { PARSER_TRACE; A = OP_TYPE_IN; }
 in_op(A) ::= NOT IN.                                                              { PARSER_TRACE; A = OP_TYPE_NOT_IN; }
 
-in_predicate_value(A) ::= NK_LP expression_list(B) NK_RP.                         { PARSER_TRACE; A = createNodeListNode(pCxt, B); }
+in_predicate_value(A) ::= NK_LP(C) expression_list(B) NK_RP(D).                   { PARSER_TRACE; A = createRawExprNodeExt(pCxt, &C, &D, createNodeListNode(pCxt, B)); }
 
 /************************************************ boolean_value_expression ********************************************/
 boolean_value_expression(A) ::= boolean_primary(B).                               { PARSER_TRACE; A = B; }
-boolean_value_expression(A) ::= NOT boolean_primary(B).                           { PARSER_TRACE; A = createLogicConditionNode(pCxt, LOGIC_COND_TYPE_NOT, B, NULL); }
+boolean_value_expression(A) ::= NOT(C) boolean_primary(B).                        {
+                                                                                    PARSER_TRACE;
+                                                                                    SToken e = getTokenFromRawExprNode(pCxt, B);
+                                                                                    A = createRawExprNodeExt(pCxt, &C, &e, createLogicConditionNode(pCxt, LOGIC_COND_TYPE_NOT, releaseRawExprNode(pCxt, B), NULL));
+                                                                                  }
 boolean_value_expression(A) ::=
-  boolean_value_expression(B) OR boolean_value_expression(C).                     { PARSER_TRACE; A = createLogicConditionNode(pCxt, LOGIC_COND_TYPE_OR, B, C); }
+  boolean_value_expression(B) OR boolean_value_expression(C).                     {
+                                                                                    PARSER_TRACE;
+                                                                                    SToken s = getTokenFromRawExprNode(pCxt, B);
+                                                                                    SToken e = getTokenFromRawExprNode(pCxt, C);
+                                                                                    A = createRawExprNodeExt(pCxt, &s, &e, createLogicConditionNode(pCxt, LOGIC_COND_TYPE_OR, releaseRawExprNode(pCxt, B), releaseRawExprNode(pCxt, C)));
+                                                                                  }
 boolean_value_expression(A) ::=
-  boolean_value_expression(B) AND boolean_value_expression(C).                    { PARSER_TRACE; A = createLogicConditionNode(pCxt, LOGIC_COND_TYPE_AND, B, C); }
+  boolean_value_expression(B) AND boolean_value_expression(C).                    {
+                                                                                    PARSER_TRACE;
+                                                                                    SToken s = getTokenFromRawExprNode(pCxt, B);
+                                                                                    SToken e = getTokenFromRawExprNode(pCxt, C);
+                                                                                    A = createRawExprNodeExt(pCxt, &s, &e, createLogicConditionNode(pCxt, LOGIC_COND_TYPE_AND, releaseRawExprNode(pCxt, B), releaseRawExprNode(pCxt, C)));
+                                                                                  }
 
 boolean_primary(A) ::= predicate(B).                                              { PARSER_TRACE; A = B; }
-boolean_primary(A) ::= NK_LP boolean_value_expression(B) NK_RP.                   { PARSER_TRACE; A = B; }
+boolean_primary(A) ::= NK_LP(C) boolean_value_expression(B) NK_RP(D).             { PARSER_TRACE; A = createRawExprNodeExt(pCxt, &C, &D, releaseRawExprNode(pCxt, B)); }
+
+/************************************************ common_expression ********************************************/
+common_expression(A) ::= expression(B).                                           { A = B; }
+common_expression(A) ::= boolean_value_expression(B).                             { A = B; }
 
 /************************************************ from_clause *********************************************************/
 from_clause(A) ::= FROM table_reference_list(B).                                  { PARSER_TRACE; A = B; }
@@ -271,13 +318,13 @@ select_list(A) ::= select_sublist(B).                                           
 select_sublist(A) ::= select_item(B).                                             { PARSER_TRACE; A = createNodeList(pCxt, B); }
 select_sublist(A) ::= select_sublist(B) NK_COMMA select_item(C).                  { PARSER_TRACE; A = addNodeToList(pCxt, B, C); }
 
-select_item(A) ::= expression(B).                                                 {
+select_item(A) ::= common_expression(B).                                          {
                                                                                     PARSER_TRACE;
                                                                                     SToken t = getTokenFromRawExprNode(pCxt, B);
                                                                                     A = setProjectionAlias(pCxt, releaseRawExprNode(pCxt, B), &t);
                                                                                   }
-select_item(A) ::= expression(B) column_alias(C).                                 { PARSER_TRACE; A = setProjectionAlias(pCxt, releaseRawExprNode(pCxt, B), &C); }
-select_item(A) ::= expression(B) AS column_alias(C).                              { PARSER_TRACE; A = setProjectionAlias(pCxt, releaseRawExprNode(pCxt, B), &C); }
+select_item(A) ::= common_expression(B) column_alias(C).                          { PARSER_TRACE; A = setProjectionAlias(pCxt, releaseRawExprNode(pCxt, B), &C); }
+select_item(A) ::= common_expression(B) AS column_alias(C).                       { PARSER_TRACE; A = setProjectionAlias(pCxt, releaseRawExprNode(pCxt, B), &C); }
 select_item(A) ::= table_name(B) NK_DOT NK_STAR(C).                               { PARSER_TRACE; A = createColumnNode(pCxt, &B, &C); }
 
 where_clause_opt(A) ::= .                                                         { PARSER_TRACE; A = NULL; }
@@ -364,7 +411,7 @@ limit_clause_opt(A) ::= LIMIT NK_INTEGER(C) NK_COMMA NK_INTEGER(B).             
 subquery(A) ::= NK_LP(B) query_expression(C) NK_RP(D).                                  { PARSER_TRACE; A = createRawExprNodeExt(pCxt, &B, &D, C); }
 
 /************************************************ search_condition ****************************************************/
-search_condition(A) ::= boolean_value_expression(B).                              { PARSER_TRACE; A = B; }
+search_condition(A) ::= common_expression(B).                              { PARSER_TRACE; A = releaseRawExprNode(pCxt, B); }
 
 /************************************************ sort_specification_list *********************************************/
 %type sort_specification_list                                                     { SNodeList* }

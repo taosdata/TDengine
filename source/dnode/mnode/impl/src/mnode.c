@@ -60,11 +60,25 @@ void mndSendRedirectRsp(SMnode *pMnode, SRpcMsg *pMsg) {
   }
 }
 
+static void *mndBuildTimerMsg(int32_t *pContLen) {
+  SMTimerReq timerReq = {0};
+
+  int32_t contLen = tSerializeSMTimerMsg(NULL, 0, &timerReq);
+  if (contLen <= 0) return NULL;
+  void *pReq = rpcMallocCont(contLen);
+  if (pReq == NULL) return NULL;
+
+  tSerializeSMTimerMsg(pReq, contLen, &timerReq);
+  *pContLen = contLen;
+  return pReq;
+}
+
 static void mndTransReExecute(void *param, void *tmrId) {
   SMnode *pMnode = param;
   if (mndIsMaster(pMnode)) {
-    STransReq *pMsg = rpcMallocCont(sizeof(STransReq));
-    SRpcMsg    rpcMsg = {.msgType = TDMT_MND_TRANS, .pCont = pMsg, .contLen = sizeof(STransReq)};
+    int32_t contLen = 0;
+    void   *pReq = mndBuildTimerMsg(&contLen);
+    SRpcMsg rpcMsg = {.msgType = TDMT_MND_TRANS, .pCont = pReq, .contLen = contLen};
     pMnode->putReqToMWriteQFp(pMnode->pDnode, &rpcMsg);
   }
 
@@ -74,8 +88,9 @@ static void mndTransReExecute(void *param, void *tmrId) {
 static void mndCalMqRebalance(void *param, void *tmrId) {
   SMnode *pMnode = param;
   if (mndIsMaster(pMnode)) {
-    SMqTmrMsg *pMsg = rpcMallocCont(sizeof(SMqTmrMsg));
-    SRpcMsg    rpcMsg = {.msgType = TDMT_MND_MQ_TIMER, .pCont = pMsg, .contLen = sizeof(SMqTmrMsg)};
+    int32_t contLen = 0;
+    void   *pReq = mndBuildTimerMsg(&contLen);
+    SRpcMsg rpcMsg = {.msgType = TDMT_MND_MQ_TIMER, .pCont = pReq, .contLen = contLen};
     pMnode->putReqToMReadQFp(pMnode->pDnode, &rpcMsg);
   }
 

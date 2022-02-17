@@ -70,7 +70,7 @@ protected:
     for (size_t i = 0; i < num; ++i) {
       SVgDataBlocks* vg = (SVgDataBlocks*)taosArrayGetP(res_->pDataBlocks, i);
       cout << "vgId:" << vg->vg.vgId << ", numOfTables:" << vg->numOfTables << ", dataSize:" << vg->size << endl;
-      SSubmitMsg* submit = (SSubmitMsg*)vg->pData;
+      SSubmitReq* submit = (SSubmitReq*)vg->pData;
       cout << "length:" << ntohl(submit->length) << ", numOfBlocks:" << ntohl(submit->numOfBlocks) << endl;
       int32_t numOfBlocks = ntohl(submit->numOfBlocks);
       SSubmitBlk* blk = (SSubmitBlk*)(submit + 1);
@@ -93,7 +93,7 @@ protected:
       SVgDataBlocks* vg = (SVgDataBlocks*)taosArrayGetP(res_->pDataBlocks, i);
       ASSERT_EQ(vg->numOfTables, numOfTables);
       ASSERT_GE(vg->size, 0);
-      SSubmitMsg* submit = (SSubmitMsg*)vg->pData;
+      SSubmitReq* submit = (SSubmitReq*)vg->pData;
       ASSERT_GE(ntohl(submit->length), 0);
       ASSERT_GE(ntohl(submit->numOfBlocks), 0);
       int32_t numOfBlocks = ntohl(submit->numOfBlocks);

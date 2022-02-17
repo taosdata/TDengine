@@ -468,51 +468,51 @@ static int32_t mndGetFuncMeta(SMnodeMsg *pReq, SShowObj *pShow, STableMetaRsp *p
   SSdb   *pSdb = pMnode->pSdb;
 
   int32_t  cols = 0;
-  SSchema *pSchema = pMeta->pSchema;
+  SSchema *pSchema = pMeta->pSchemas;
 
   pShow->bytes[cols] = TSDB_FUNC_NAME_LEN + VARSTR_HEADER_SIZE;
   pSchema[cols].type = TSDB_DATA_TYPE_BINARY;
   strcpy(pSchema[cols].name, "name");
-  pSchema[cols].bytes = htonl(pShow->bytes[cols]);
+  pSchema[cols].bytes = pShow->bytes[cols];
   cols++;
 
   pShow->bytes[cols] = PATH_MAX + VARSTR_HEADER_SIZE;
   pSchema[cols].type = TSDB_DATA_TYPE_BINARY;
   strcpy(pSchema[cols].name, "comment");
-  pSchema[cols].bytes = htonl(pShow->bytes[cols]);
+  pSchema[cols].bytes = pShow->bytes[cols];
   cols++;
 
   pShow->bytes[cols] = 4;
   pSchema[cols].type = TSDB_DATA_TYPE_INT;
   strcpy(pSchema[cols].name, "aggregate");
-  pSchema[cols].bytes = htonl(pShow->bytes[cols]);
+  pSchema[cols].bytes = pShow->bytes[cols];
   cols++;
 
   pShow->bytes[cols] = TSDB_TYPE_STR_MAX_LEN + VARSTR_HEADER_SIZE;
   pSchema[cols].type = TSDB_DATA_TYPE_BINARY;
   strcpy(pSchema[cols].name, "outputtype");
-  pSchema[cols].bytes = htonl(pShow->bytes[cols]);
+  pSchema[cols].bytes = pShow->bytes[cols];
   cols++;
 
   pShow->bytes[cols] = 8;
   pSchema[cols].type = TSDB_DATA_TYPE_TIMESTAMP;
   strcpy(pSchema[cols].name, "create_time");
-  pSchema[cols].bytes = htonl(pShow->bytes[cols]);
+  pSchema[cols].bytes = pShow->bytes[cols];
   cols++;
 
   pShow->bytes[cols] = 4;
   pSchema[cols].type = TSDB_DATA_TYPE_INT;
   strcpy(pSchema[cols].name, "code_len");
-  pSchema[cols].bytes = htonl(pShow->bytes[cols]);
+  pSchema[cols].bytes = pShow->bytes[cols];
   cols++;
 
   pShow->bytes[cols] = 4;
   pSchema[cols].type = TSDB_DATA_TYPE_INT;
   strcpy(pSchema[cols].name, "bufsize");
-  pSchema[cols].bytes = htonl(pShow->bytes[cols]);
+  pSchema[cols].bytes = pShow->bytes[cols];
   cols++;
 
-  pMeta->numOfColumns = htonl(cols);
+  pMeta->numOfColumns = cols;
   pShow->numOfColumns = cols;
 
   pShow->offset[0] = 0;

@@ -53,9 +53,6 @@ static EDealRes walkNode(SNode* pNode, ETraversalOrder order, FNodeWalker walker
     case QUERY_NODE_LOGIC_CONDITION:
       res = walkList(((SLogicConditionNode*)pNode)->pParameterList, order, walker, pContext);
       break;
-    case QUERY_NODE_IS_NULL_CONDITION:
-      res = walkNode(((SIsNullCondNode*)pNode)->pExpr, order, walker, pContext);
-      break;
     case QUERY_NODE_FUNCTION:
       res = walkList(((SFunctionNode*)pNode)->pParameterList, order, walker, pContext);
       break;
@@ -178,9 +175,6 @@ static EDealRes rewriteNode(SNode** pRawNode, ETraversalOrder order, FNodeRewrit
     }
     case QUERY_NODE_LOGIC_CONDITION:
       res = rewriteList(((SLogicConditionNode*)pNode)->pParameterList, order, rewriter, pContext);
-      break;
-    case QUERY_NODE_IS_NULL_CONDITION:
-      res = rewriteNode(&(((SIsNullCondNode*)pNode)->pExpr), order, rewriter, pContext);
       break;
     case QUERY_NODE_FUNCTION:
       res = rewriteList(((SFunctionNode*)pNode)->pParameterList, order, rewriter, pContext);

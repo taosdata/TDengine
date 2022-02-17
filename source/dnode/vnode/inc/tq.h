@@ -38,7 +38,7 @@ extern "C" {
 typedef struct STQ STQ;
 
 // memory allocator provided by vnode
-typedef struct STqMemRef {
+typedef struct {
   SMemAllocatorFactory* pAllocatorFactory;
   SMemAllocator*        pAllocator;
 } STqMemRef;

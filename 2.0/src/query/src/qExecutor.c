@@ -336,7 +336,7 @@ SSDataBlock* createOutputBuf(SExprInfo* pExpr, int32_t numOfOutput, int32_t numO
   return res;
 }
 
-void* destroyOutputBuf(SSDataBlock* pBlock) {
+void* blockDataDestroy(SSDataBlock* pBlock) {
   if (pBlock == NULL) {
     return NULL;
   }
@@ -4835,11 +4835,11 @@ int32_t doInitQInfo(SQInfo* pQInfo, STSBuf* pTsBuf, void* tsdb, void* sourceOptr
       break;
     }
     case OP_TableSeqScan: {
-      pRuntimeEnv->proot = createTableSeqScanOperator(pRuntimeEnv->pTsdbReadHandle, pRuntimeEnv);
+      pRuntimeEnv->proot = createTableSeqScanOperatorInfo(pRuntimeEnv->pTsdbReadHandle, pRuntimeEnv);
       break;
     }
     case OP_DataBlocksOptScan: {
-      pRuntimeEnv->proot = createDataBlocksOptScanInfo(pRuntimeEnv->pTsdbReadHandle, pRuntimeEnv, getNumOfScanTimes(pQueryAttr), pQueryAttr->needReverseScan? 1:0);
+      pRuntimeEnv->proot = createTableScanOperatorInfo(pRuntimeEnv->pTsdbReadHandle, pRuntimeEnv, getNumOfScanTimes(pQueryAttr), pQueryAttr->needReverseScan? 1:0);
       break;
     }
     case OP_TableScan: {
@@ -5162,7 +5162,7 @@ SOperatorInfo* createTableScanOperator(void* pTsdbQueryHandle, SQueryRuntimeEnv*
   return pOperator;
 }
 
-SOperatorInfo* createTableSeqScanOperator(void* pTsdbQueryHandle, SQueryRuntimeEnv* pRuntimeEnv) {
+SOperatorInfo* createTableSeqScanOperatorInfo(void* pTsdbQueryHandle, SQueryRuntimeEnv* pRuntimeEnv) {
   STableScanInfo* pInfo = calloc(1, sizeof(STableScanInfo));
 
   pInfo->pTsdbReadHandle     = pTsdbQueryHandle;
@@ -5267,7 +5267,7 @@ void setTableScanFilterOperatorInfo(STableScanInfo* pTableScanInfo, SOperatorInf
   }
 }
 
-SOperatorInfo* createDataBlocksOptScanInfo(void* pTsdbQueryHandle, SQueryRuntimeEnv* pRuntimeEnv, int32_t repeatTime, int32_t reverseTime) {
+SOperatorInfo* createTableScanOperatorInfo(void* pTsdbQueryHandle, SQueryRuntimeEnv* pRuntimeEnv, int32_t repeatTime, int32_t reverseTime) {
   assert(repeatTime > 0);
 
   STableScanInfo* pInfo = calloc(1, sizeof(STableScanInfo));
@@ -5278,7 +5278,7 @@ SOperatorInfo* createDataBlocksOptScanInfo(void* pTsdbQueryHandle, SQueryRuntime
   pInfo->order          = pRuntimeEnv->pQueryAttr->order.order;
 
   SOperatorInfo* pOptr = calloc(1, sizeof(SOperatorInfo));
-  pOptr->name          = "DataBlocksOptimizedScanOperator";
+  pOptr->name          = "TableScanOperator";
   pOptr->operatorType  = OP_DataBlocksOptScan;
   pOptr->pRuntimeEnv   = pRuntimeEnv;
   pOptr->blockingOptr  = false;
@@ -5373,7 +5373,7 @@ static void destroyGlobalAggOperatorInfo(void* param, int32_t numOfOutput) {
 static void destroySlimitOperatorInfo(void* param, int32_t numOfOutput) {
   SSLimitOperatorInfo *pInfo = (SSLimitOperatorInfo*) param;
   taosArrayDestroy(pInfo->orderColumnList);
-  pInfo->pRes = destroyOutputBuf(pInfo->pRes);
+  pInfo->pRes = blockDataDestroy(pInfo->pRes);
   tfree(pInfo->prevRow);
 }
 
@@ -6566,7 +6566,7 @@ static void doDestroyBasicInfo(SOptrBasicInfo* pInfo, int32_t numOfOutput) {
   tfree(pInfo->rowCellInfoOffset);
 
   cleanupResultRowInfo(&pInfo->resultRowInfo);
-  pInfo->pRes = destroyOutputBuf(pInfo->pRes);
+  pInfo->pRes = blockDataDestroy(pInfo->pRes);
 }
 
 static void destroyBasicOperatorInfo(void* param, int32_t numOfOutput) {
@@ -6590,7 +6590,7 @@ static void destroySWindowOperatorInfo(void* param, int32_t numOfOutput) {
 static void destroySFillOperatorInfo(void* param, int32_t numOfOutput) {
   SFillOperatorInfo* pInfo = (SFillOperatorInfo*) param;
   pInfo->pFillInfo = taosDestroyFillInfo(pInfo->pFillInfo);
-  pInfo->pRes = destroyOutputBuf(pInfo->pRes);
+  pInfo->pRes = blockDataDestroy(pInfo->pRes);
   tfree(pInfo->p);
 }
 
@@ -6607,12 +6607,12 @@ static void destroyProjectOperatorInfo(void* param, int32_t numOfOutput) {
 
 static void destroyTagScanOperatorInfo(void* param, int32_t numOfOutput) {
   STagScanInfo* pInfo = (STagScanInfo*) param;
-  pInfo->pRes = destroyOutputBuf(pInfo->pRes);
+  pInfo->pRes = blockDataDestroy(pInfo->pRes);
 }
 
 static void destroyOrderOperatorInfo(void* param, int32_t numOfOutput) {
   SOrderOperatorInfo* pInfo = (SOrderOperatorInfo*) param;
-  pInfo->pDataBlock = destroyOutputBuf(pInfo->pDataBlock);
+  pInfo->pDataBlock = blockDataDestroy(pInfo->pDataBlock);
 }
 
 static void destroyConditionOperatorInfo(void* param, int32_t numOfOutput) {
@@ -6625,7 +6625,7 @@ static void destroyDistinctOperatorInfo(void* param, int32_t numOfOutput) {
   taosHashCleanup(pInfo->pSet);
   tfree(pInfo->buf);
   taosArrayDestroy(pInfo->pDistinctDataInfo);
-  pInfo->pRes = destroyOutputBuf(pInfo->pRes);
+  pInfo->pRes = blockDataDestroy(pInfo->pRes);
 }
 
 SOperatorInfo* createMultiTableAggOperatorInfo(SQueryRuntimeEnv* pRuntimeEnv, SOperatorInfo* upstream, SExprInfo* pExpr, int32_t numOfOutput) {

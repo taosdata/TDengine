@@ -187,17 +187,21 @@ static int32_t mndSetCreateBnodeCommitLogs(STrans *pTrans, SBnodeObj *pObj) {
 }
 
 static int32_t mndSetCreateBnodeRedoActions(STrans *pTrans, SDnodeObj *pDnode, SBnodeObj *pObj) {
-  SDCreateBnodeReq *pReq = malloc(sizeof(SDCreateBnodeReq));
+  SDCreateBnodeReq createReq = {0};
+  createReq.dnodeId = pDnode->id;
+
+  int32_t contLen = tSerializeSMCreateDropQSBNodeReq(NULL, 0, &createReq);
+  void   *pReq = malloc(contLen);
   if (pReq == NULL) {
     terrno = TSDB_CODE_OUT_OF_MEMORY;
     return -1;
   }
-  pReq->dnodeId = htonl(pDnode->id);
+  tSerializeSMCreateDropQSBNodeReq(pReq, contLen, &createReq);
 
   STransAction action = {0};
   action.epSet = mndGetDnodeEpset(pDnode);
   action.pCont = pReq;
-  action.contLen = sizeof(SDCreateBnodeReq);
+  action.contLen = contLen;
   action.msgType = TDMT_DND_CREATE_BNODE;
   action.acceptableCode = TSDB_CODE_DND_BNODE_ALREADY_DEPLOYED;
 
@@ -210,17 +214,21 @@ static int32_t mndSetCreateBnodeRedoActions(STrans *pTrans, SDnodeObj *pDnode, S
 }
 
 static int32_t mndSetCreateBnodeUndoActions(STrans *pTrans, SDnodeObj *pDnode, SBnodeObj *pObj) {
-  SDDropBnodeReq *pReq = malloc(sizeof(SDDropBnodeReq));
+  SDDropBnodeReq dropReq = {0};
+  dropReq.dnodeId = pDnode->id;
+
+  int32_t contLen = tSerializeSMCreateDropQSBNodeReq(NULL, 0, &dropReq);
+  void   *pReq = malloc(contLen);
   if (pReq == NULL) {
     terrno = TSDB_CODE_OUT_OF_MEMORY;
     return -1;
   }
-  pReq->dnodeId = htonl(pDnode->id);
+  tSerializeSMCreateDropQSBNodeReq(pReq, contLen, &dropReq);
 
   STransAction action = {0};
   action.epSet = mndGetDnodeEpset(pDnode);
   action.pCont = pReq;
-  action.contLen = sizeof(SDDropBnodeReq);
+  action.contLen = contLen;
   action.msgType = TDMT_DND_DROP_BNODE;
   action.acceptableCode = TSDB_CODE_DND_BNODE_NOT_DEPLOYED;
 
@@ -329,17 +337,21 @@ static int32_t mndSetDropBnodeCommitLogs(STrans *pTrans, SBnodeObj *pObj) {
 }
 
 static int32_t mndSetDropBnodeRedoActions(STrans *pTrans, SDnodeObj *pDnode, SBnodeObj *pObj) {
-  SDDropBnodeReq *pReq = malloc(sizeof(SDDropBnodeReq));
+  SDDropBnodeReq dropReq = {0};
+  dropReq.dnodeId = pDnode->id;
+
+  int32_t contLen = tSerializeSMCreateDropQSBNodeReq(NULL, 0, &dropReq);
+  void   *pReq = malloc(contLen);
   if (pReq == NULL) {
     terrno = TSDB_CODE_OUT_OF_MEMORY;
     return -1;
   }
-  pReq->dnodeId = htonl(pDnode->id);
+  tSerializeSMCreateDropQSBNodeReq(pReq, contLen, &dropReq);
 
   STransAction action = {0};
   action.epSet = mndGetDnodeEpset(pDnode);
   action.pCont = pReq;
-  action.contLen = sizeof(SDDropBnodeReq);
+  action.contLen = contLen;
   action.msgType = TDMT_DND_DROP_BNODE;
   action.acceptableCode = TSDB_CODE_DND_BNODE_NOT_DEPLOYED;
 
@@ -433,27 +445,27 @@ static int32_t mndGetBnodeMeta(SMnodeMsg *pReq, SShowObj *pShow, STableMetaRsp *
   SSdb   *pSdb = pMnode->pSdb;
 
   int32_t  cols = 0;
-  SSchema *pSchema = pMeta->pSchema;
+  SSchema *pSchema = pMeta->pSchemas;
 
   pShow->bytes[cols] = 2;
   pSchema[cols].type = TSDB_DATA_TYPE_SMALLINT;
   strcpy(pSchema[cols].name, "id");
-  pSchema[cols].bytes = htonl(pShow->bytes[cols]);
+  pSchema[cols].bytes = pShow->bytes[cols];
   cols++;
 
   pShow->bytes[cols] = TSDB_EP_LEN + VARSTR_HEADER_SIZE;
   pSchema[cols].type = TSDB_DATA_TYPE_BINARY;
   strcpy(pSchema[cols].name, "endpoint");
-  pSchema[cols].bytes = htonl(pShow->bytes[cols]);
+  pSchema[cols].bytes = pShow->bytes[cols];
   cols++;
 
   pShow->bytes[cols] = 8;
   pSchema[cols].type = TSDB_DATA_TYPE_TIMESTAMP;
   strcpy(pSchema[cols].name, "create_time");
-  pSchema[cols].bytes = htonl(pShow->bytes[cols]);
+  pSchema[cols].bytes = pShow->bytes[cols];
   cols++;
 
-  pMeta->numOfColumns = htonl(cols);
+  pMeta->numOfColumns = cols;
   pShow->numOfColumns = cols;
 
   pShow->offset[0] = 0;

@@ -43,7 +43,6 @@ SNode* createLogicConditionNode(SAstCreateContext* pCxt, ELogicConditionType typ
 SNode* createOperatorNode(SAstCreateContext* pCxt, EOperatorType type, SNode* pLeft, SNode* pRight);
 SNode* createBetweenAnd(SAstCreateContext* pCxt, SNode* pExpr, SNode* pLeft, SNode* pRight);
 SNode* createNotBetweenAnd(SAstCreateContext* pCxt, SNode* pExpr, SNode* pLeft, SNode* pRight);
-SNode* createIsNullCondNode(SAstCreateContext* pCxt, SNode* pExpr, bool isNull);
 SNode* createFunctionNode(SAstCreateContext* pCxt, const SToken* pFuncName, SNodeList* pParameterList);
 SNode* createNodeListNode(SAstCreateContext* pCxt, SNodeList* pList);
 SNode* createRealTableNode(SAstCreateContext* pCxt, const SToken* pDbName, const SToken* pTableName, const SToken* pTableAlias);

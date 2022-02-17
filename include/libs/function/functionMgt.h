@@ -105,7 +105,6 @@ typedef struct SFuncExecEnv {
   int32_t calcMemSize;
 } SFuncExecEnv;
 
-typedef void* FuncMgtHandle;
 typedef bool (*FExecGetEnv)(SFunctionNode* pFunc, SFuncExecEnv* pEnv);
 typedef bool (*FExecInit)(struct SqlFunctionCtx *pCtx, struct SResultRowEntryInfo* pResultCellInfo);
 typedef void (*FExecProcess)(struct SqlFunctionCtx *pCtx);
@@ -127,9 +126,7 @@ typedef struct SScalarFuncExecFuncs {
 
 int32_t fmFuncMgtInit();
 
-int32_t fmGetHandle(FuncMgtHandle* pHandle);
-
-int32_t fmGetFuncInfo(FuncMgtHandle handle, const char* pFuncName, int32_t* pFuncId, int32_t* pFuncType);
+int32_t fmGetFuncInfo(const char* pFuncName, int32_t* pFuncId, int32_t* pFuncType);
 
 int32_t fmGetFuncResultType(SFunctionNode* pFunc);
 
