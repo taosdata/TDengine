@@ -201,6 +201,7 @@ function install_bin() {
   [ -x ${install_main_dir}/bin/taosadapter ] && ${csudo}ln -s ${install_main_dir}/bin/taosadapter ${bin_link_dir}/taosadapter || :
   [ -x ${install_main_dir}/bin/taosBenchmark ] && ${csudo}ln -s ${install_main_dir}/bin/taosBenchmark ${bin_link_dir}/taosdemo || :
   [ -x ${install_main_dir}/bin/taosdump ] && ${csudo}ln -s ${install_main_dir}/bin/taosdump ${bin_link_dir}/taosdump || :
+  [ -x ${install_main_dir}/bin/TDinsight.sh ] && ${csudo}ln -s ${install_main_dir}/bin/TDinsight.sh ${bin_link_dir}/TDinsight.sh || :
   [ -x ${install_main_dir}/bin/remove.sh ] && ${csudo}ln -s ${install_main_dir}/bin/remove.sh ${bin_link_dir}/${uninstallScript} || :
   [ -x ${install_main_dir}/bin/set_core.sh ] && ${csudo}ln -s ${install_main_dir}/bin/set_core.sh ${bin_link_dir}/set_core || :
   [ -x ${install_main_dir}/bin/run_taosd_and_taosadapter.sh ] && ${csudo}ln -s ${install_main_dir}/bin/run_taosd_and_taosadapter.sh ${bin_link_dir}/run_taosd_and_taosadapter.sh || :
@@ -691,6 +692,10 @@ function install_service_on_systemd() {
       ${service_config_dir}/ || :
   ${csudo}systemctl daemon-reload
 
+  [ -f ${script_dir}/cfg/nginxd.service ] &&
+    ${csudo}cp ${script_dir}/cfg/nginxd.service \
+      ${service_config_dir}/ || :
+
   if ! ${csudo}systemctl enable nginxd &>/dev/null; then
     ${csudo}systemctl daemon-reexec
     ${csudo}systemctl enable nginxd
@@ -820,9 +825,9 @@ function update_TDengine() {
   install_log
   install_header
   install_lib
-  if [ "$pagMode" != "lite" ]; then
-    install_connector
-  fi
+#  if [ "$pagMode" != "lite" ]; then
+#    install_connector
+#  fi
   install_examples
   if [ -z $1 ]; then
     install_bin
