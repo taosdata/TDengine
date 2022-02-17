@@ -6,7 +6,7 @@ set community_dir=%1
 %sed% -i "s/taos\.cfg/kinghistorian\.cfg/g" %community_dir%\cmake\install.inc
 %sed% -i "s/taos\.exe/khclient\.exe/g" %community_dir%\cmake\install.inc
 %sed% -i "s/taosdemo\.exe/khdemo\.exe/g" %community_dir%\cmake\install.inc
-%sed% -i "/src\/connector/d" %community_dir%\cmake\install.inc
+%sed% -i "/connector/d" %community_dir%\cmake\install.inc
 %sed% -i "/tests\/examples/d" %community_dir%\cmake\install.inc
 ::src\kit\shell\CMakeLists.txt
 %sed% -i "s/OUTPUT_NAME taos/OUTPUT_NAME khclient/g" %community_dir%\src\kit\shell\CMakeLists.txt
@@ -17,20 +17,6 @@ set community_dir=%1
 ::src\util\src\tconfig.c
 %sed% -i "s/taos\.cfg/kinghistorian\.cfg/g"  %community_dir%\src\util\src\tconfig.c
 %sed% -i "s/etc\/taos/etc\/kinghistorian/g"   %community_dir%\src\util\src\tconfig.c
-::src\kit\taosdemo\CMakeLists.txt
-%sed% -i "s/ADD_EXECUTABLE(taosdemo/ADD_EXECUTABLE(khdemo/g" %community_dir%\src\kit\taosdemo\CMakeLists.txt
-%sed% -i "s/TARGET_LINK_LIBRARIES(taosdemo/TARGET_LINK_LIBRARIES(khdemo/g" %community_dir%\src\kit\taosdemo\CMakeLists.txt
-::src\kit\taosdemo\taosdemo.c
-%sed% -i "s/taosdemo --help/khdemo --help/g" %community_dir%\src\kit\taosdemo\taosdemo.c
-%sed% -i "s/taosdemo --usage/khdemo --usage/g" %community_dir%\src\kit\taosdemo\taosdemo.c
-%sed% -i "s/Usage: taosdemo/Usage: khdemo/g" %community_dir%\src\kit\taosdemo\taosdemo.c
-%sed% -i "s/taosdemo is simulating/khdemo is simulating/g" %community_dir%\src\kit\taosdemo\taosdemo.c
-%sed% -i "s/taosdemo version/khdemo version/g" %community_dir%\src\kit\taosdemo\taosdemo.c
-%sed% -i "s/\"taosdata\"/\"khroot\"/g" %community_dir%\src\kit\taosdemo\taosdemo.c
-%sed% -i "s/support@taosdata\.com/support@wellintech\.com/g" %community_dir%\src\kit\taosdemo\taosdemo.c
-%sed% -i "s/taosc, rest, and stmt/khclient, rest, and stmt/g" %community_dir%\src\kit\taosdemo\taosdemo.c
-%sed% -i "s/taosdemo uses/khdemo uses/g" %community_dir%\src\kit\taosdemo\taosdemo.c
-%sed% -i "s/use 'taosc'/use 'khclient'/g" %community_dir%\src\kit\taosdemo\taosdemo.c
 ::src\util\src\tlog.c
 %sed% -i "s/log\/taos/log\/kinghistorian/g"   %community_dir%\src\util\src\tlog.c
 ::src\dnode\src\dnodeSystem.c
@@ -44,12 +30,6 @@ set community_dir=%1
 %sed% -i "s/taosinfo/khinfo/g"  %community_dir%\src\util\src\tnote.c
 ::src\dnode\CMakeLists.txt
 %sed% -i "s/taos\.cfg/kinghistorian\.cfg/g"  %community_dir%\src\dnode\CMakeLists.txt
-::src\kit\taosdump\taosdump.c
-%sed% -i "s/support@taosdata\.com/support@wellintech\.com/g" %community_dir%\src\kit\taosdump\taosdump.c
-%sed% -i "s/Default is taosdata/Default is khroot/g" %community_dir%\src\kit\taosdump\taosdump.c
-%sed% -i "s/\"taosdata\"/\"khroot\"/g" %community_dir%\src\kit\taosdump\taosdump.c
-%sed% -i "s/TDengine/KingHistorian/g" %community_dir%\src\kit\taosdump\taosdump.c
-%sed% -i "s/taos\/taos\.cfg/kinghistorian\/kinghistorian\.cfg/g" %community_dir%\src\kit\taosdump\taosdump.c
 ::src\os\src\linux\linuxEnv.c
 %sed% -i "s/etc\/taos/etc\/kinghistorian/g" %community_dir%\src\os\src\linux\linuxEnv.c
 %sed% -i "s/lib\/taos/lib\/kinghistorian/g" %community_dir%\src\os\src\linux\linuxEnv.c

@@ -106,8 +106,6 @@ if [ -f "${compile_dir}/test/cfg/taosadapter.service" ]; then
   cp ${compile_dir}/test/cfg/taosadapter.service ${install_dir}/cfg || :
 fi
 
-
-
 if [ -f "${cfg_dir}/${serverName}.service" ]; then
   cp ${cfg_dir}/${serverName}.service ${install_dir}/cfg || :
 fi
@@ -137,7 +135,8 @@ if [ $adapterName != "taosadapter" ]; then
   sed -i "s/taosadapter/${adapterName}/g" ${install_dir}/cfg/$adapterName.service
 
   mv ${install_dir}/bin/taosadapter ${install_dir}/bin/${adapterName}
-  mv ${install_dir}/bin/run_taosd_and_taosadapter.sh ${install_dir}/bin/run_taosd_and_${adapterName}.sh
+  mv ${install_dir}/bin/run_taosd_and_taosadapter.sh ${install_dir}/bin/run_${serverName}_and_${adapterName}.sh
+  mv ${install_dir}/bin/taosd-dump-cfg.gdb ${install_dir}/bin/${serverName}-dump-cfg.gdb
 fi
 
 if [ -n "${taostools_bin_files}" ]; then
@@ -240,38 +239,41 @@ if [ "$pagMode" == "lite" ]; then
 fi
 chmod a+x ${install_dir}/install.sh
 
-# Copy example code
-mkdir -p ${install_dir}/examples
-examples_dir="${top_dir}/examples"
-cp -r ${examples_dir}/c ${install_dir}/examples
-if [[ "$pagMode" != "lite" ]] && [[ "$cpuType" != "aarch32" ]]; then
-  if [ -d ${examples_dir}/JDBC/connectionPools/target ]; then
-    rm -rf ${examples_dir}/JDBC/connectionPools/target
-  fi
-  if [ -d ${examples_dir}/JDBC/JDBCDemo/target ]; then
-    rm -rf ${examples_dir}/JDBC/JDBCDemo/target
-  fi
-  if [ -d ${examples_dir}/JDBC/mybatisplus-demo/target ]; then
-    rm -rf ${examples_dir}/JDBC/mybatisplus-demo/target
-  fi
-  if [ -d ${examples_dir}/JDBC/springbootdemo/target ]; then
-    rm -rf ${examples_dir}/JDBC/springbootdemo/target
-  fi
-  if [ -d ${examples_dir}/JDBC/SpringJdbcTemplate/target ]; then
-    rm -rf ${examples_dir}/JDBC/SpringJdbcTemplate/target
-  fi
-  if [ -d ${examples_dir}/JDBC/taosdemo/target ]; then
-    rm -rf ${examples_dir}/JDBC/taosdemo/target
-  fi
+if [[ $dbName == "taos" ]]; then
+  # Copy example code
+  mkdir -p ${install_dir}/examples
+  examples_dir="${top_dir}/examples"
+  cp -r ${examples_dir}/c ${install_dir}/examples
+  if [[ "$pagMode" != "lite" ]] && [[ "$cpuType" != "aarch32" ]]; then
+    if [ -d ${examples_dir}/JDBC/connectionPools/target ]; then
+      rm -rf ${examples_dir}/JDBC/connectionPools/target
+    fi
+    if [ -d ${examples_dir}/JDBC/JDBCDemo/target ]; then
+      rm -rf ${examples_dir}/JDBC/JDBCDemo/target
+    fi
+    if [ -d ${examples_dir}/JDBC/mybatisplus-demo/target ]; then
+      rm -rf ${examples_dir}/JDBC/mybatisplus-demo/target
+    fi
+    if [ -d ${examples_dir}/JDBC/springbootdemo/target ]; then
+      rm -rf ${examples_dir}/JDBC/springbootdemo/target
+    fi
+    if [ -d ${examples_dir}/JDBC/SpringJdbcTemplate/target ]; then
+      rm -rf ${examples_dir}/JDBC/SpringJdbcTemplate/target
+    fi
+    if [ -d ${examples_dir}/JDBC/taosdemo/target ]; then
+      rm -rf ${examples_dir}/JDBC/taosdemo/target
+    fi
 
-  cp -r ${examples_dir}/JDBC ${install_dir}/examples
-  cp -r ${examples_dir}/matlab ${install_dir}/examples
-  cp -r ${examples_dir}/python ${install_dir}/examples
-  cp -r ${examples_dir}/R ${install_dir}/examples
-  cp -r ${examples_dir}/go ${install_dir}/examples
-  cp -r ${examples_dir}/nodejs ${install_dir}/examples
-  cp -r ${examples_dir}/C# ${install_dir}/examples
+    cp -r ${examples_dir}/JDBC ${install_dir}/examples
+    cp -r ${examples_dir}/matlab ${install_dir}/examples
+    cp -r ${examples_dir}/python ${install_dir}/examples
+    cp -r ${examples_dir}/R ${install_dir}/examples
+    cp -r ${examples_dir}/go ${install_dir}/examples
+    cp -r ${examples_dir}/nodejs ${install_dir}/examples
+    cp -r ${examples_dir}/C# ${install_dir}/examples
+  fi
 fi
+
 # Copy driver
 mkdir -p ${install_dir}/driver && cp ${lib_files} ${install_dir}/driver && echo "${versionComp}" >${install_dir}/driver/vercomp.txt
 
