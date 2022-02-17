@@ -124,6 +124,10 @@ static SSdbRaw *mndTransActionEncode(STrans *pTrans) {
   SDB_SET_INT32(pRaw, dataPos, pTrans->id, TRANS_ENCODE_OVER)
   SDB_SET_INT8(pRaw, dataPos, pTrans->policy, TRANS_ENCODE_OVER)
   SDB_SET_INT8(pRaw, dataPos, pTrans->stage, TRANS_ENCODE_OVER)
+  SDB_SET_INT64(pRaw, dataPos, pTrans->createdTime, TRANS_ENCODE_OVER)
+  SDB_SET_INT32(pRaw, dataPos, pTrans->transType, TRANS_ENCODE_OVER)
+  SDB_SET_INT64(pRaw, dataPos, pTrans->dbUid, TRANS_ENCODE_OVER)
+  SDB_SET_BINARY(pRaw, dataPos, pTrans->dbname, TSDB_DB_FNAME_LEN, TRANS_ENCODE_OVER)
   SDB_SET_INT32(pRaw, dataPos, redoLogNum, TRANS_ENCODE_OVER)
   SDB_SET_INT32(pRaw, dataPos, undoLogNum, TRANS_ENCODE_OVER)
   SDB_SET_INT32(pRaw, dataPos, commitLogNum, TRANS_ENCODE_OVER)
@@ -229,6 +233,10 @@ static SSdbRow *mndTransActionDecode(SSdbRaw *pRaw) {
   SDB_GET_INT32(pRaw, dataPos, &pTrans->id, TRANS_DECODE_OVER)
   SDB_GET_INT8(pRaw, dataPos, (int8_t *)&pTrans->policy, TRANS_DECODE_OVER)
   SDB_GET_INT8(pRaw, dataPos, (int8_t *)&pTrans->stage, TRANS_DECODE_OVER)
+  SDB_GET_INT64(pRaw, dataPos, &pTrans->createdTime, TRANS_DECODE_OVER)
+  SDB_GET_INT32(pRaw, dataPos, &pTrans->transType, TRANS_DECODE_OVER)
+  SDB_GET_INT64(pRaw, dataPos, &pTrans->dbUid, TRANS_DECODE_OVER)
+  SDB_GET_BINARY(pRaw, dataPos, pTrans->dbname, TSDB_DB_FNAME_LEN, TRANS_DECODE_OVER)
   SDB_GET_INT32(pRaw, dataPos, &redoLogNum, TRANS_DECODE_OVER)
   SDB_GET_INT32(pRaw, dataPos, &undoLogNum, TRANS_DECODE_OVER)
   SDB_GET_INT32(pRaw, dataPos, &commitLogNum, TRANS_DECODE_OVER)
@@ -1034,13 +1042,13 @@ static int32_t mndGetTransMeta(SMnodeMsg *pReq, SShowObj *pShow, STableMetaRsp *
   pSchema[cols].bytes = pShow->bytes[cols];
   cols++;
 
-  pShow->bytes[cols] = (TSDB_DB_NAME_LEN - 1) + VARSTR_HEADER_SIZE;
+  pShow->bytes[cols] = TSDB_DB_NAME_LEN + VARSTR_HEADER_SIZE;
   pSchema[cols].type = TSDB_DATA_TYPE_BINARY;
   strcpy(pSchema[cols].name, "db");
   pSchema[cols].bytes = pShow->bytes[cols];
   cols++;
 
-  pShow->bytes[cols] = (TSDB_TRANS_DESC_LEN - 1) + VARSTR_HEADER_SIZE;
+  pShow->bytes[cols] = TSDB_TRANS_DESC_LEN + VARSTR_HEADER_SIZE;
   pSchema[cols].type = TSDB_DATA_TYPE_BINARY;
   strcpy(pSchema[cols].name, "type");
   pSchema[cols].bytes = pShow->bytes[cols];
@@ -1052,7 +1060,7 @@ static int32_t mndGetTransMeta(SMnodeMsg *pReq, SShowObj *pShow, STableMetaRsp *
   pSchema[cols].bytes = pShow->bytes[cols];
   cols++;
 
-  pShow->bytes[cols] = (TSDB_TRANS_ERROR_LEN - 1) + VARSTR_HEADER_SIZE;
+  pShow->bytes[cols] = TSDB_TRANS_ERROR_LEN + VARSTR_HEADER_SIZE;
   pSchema[cols].type = TSDB_DATA_TYPE_BINARY;
   strcpy(pSchema[cols].name, "last_error");
   pSchema[cols].bytes = pShow->bytes[cols];

@@ -143,7 +143,7 @@ typedef struct {
   int64_t    lastExecTime;
   int32_t    transType;
   uint64_t   dbUid;
-  char       dbname[TSDB_DB_NAME_LEN];
+  char       dbname[TSDB_DB_FNAME_LEN];
   char       lastError[TSDB_TRANS_DESC_LEN];
 } STrans;
 
