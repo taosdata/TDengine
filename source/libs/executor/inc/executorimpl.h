@@ -549,27 +549,19 @@ typedef struct SDistinctOperatorInfo {
   SArray*      pDistinctDataInfo;
 } SDistinctOperatorInfo;
 
-struct SGlobalMerger;
-
-typedef struct SMultiwayMergeInfo {
-  struct SGlobalMerger* pMerge;
-  SOptrBasicInfo        binfo;
-  int32_t               bufCapacity;
-  int64_t               seed;
-  char**                prevRow;
-  SArray*               orderColumnList;
-  int32_t               resultRowFactor;
-
-  bool         hasGroupColData;
-  char**       currentGroupColData;
-  SArray*      groupColumnList;
-  bool         hasDataBlockForNewGroup;
-  SSDataBlock* pExistBlock;
-
-  SArray* udfInfo;
-  bool    hasPrev;
-  bool    multiGroupResults;
-} SMultiwayMergeInfo;
+typedef struct SSortMergeOperatorInfo {
+  SOptrBasicInfo     binfo;
+  SArray            *orderInfo;   // SArray<SBlockOrderInfo>
+  SArray*            groupColumnList;
+  bool               hasDataBlockForNewGroup;
+  char**             currentGroupColData;
+  SArray*            udfInfo;
+  int32_t            numOfSources;
+//  char**             prevRow;
+//  int32_t            resultRowFactor;
+//  bool               multiGroupResults;
+//  bool               hasGroupColData;
+} SSortMergeOperatorInfo;
 
 typedef struct SMsortComparParam {
   struct SExternalMemSource **pSources;
@@ -592,6 +584,7 @@ typedef struct SOrderOperatorInfo {
 
   SMsortComparParam       cmpParam;
 
+  // TODO extact struct
   int64_t                 startTs;       // sort start time
   uint64_t                sortElapsed;   // sort elapsed time, time to flush to disk not included.
   uint64_t                totalSize;     // total load bytes from remote
@@ -642,8 +635,7 @@ SOperatorInfo* createFilterOperatorInfo(STaskRuntimeEnv* pRuntimeEnv, SOperatorI
 SOperatorInfo* createJoinOperatorInfo(SOperatorInfo** pdownstream, int32_t numOfDownstream, SSchema* pSchema,
                                       int32_t numOfOutput);
 SOperatorInfo* createOrderOperatorInfo(SOperatorInfo* downstream, SArray* pExprInfo, SArray* pOrderVal);
-SOperatorInfo* createMergeSortOperatorInfo(SOperatorInfo* downstream, SExprInfo* pExpr, int32_t numOfOutput,
-                                           SOrder* pOrderVal);
+SOperatorInfo* createSortMergeOperatorInfo(SOperatorInfo* downstream, SArray* pExprInfo, void* param, SArray* pUdfInfo, SExecTaskInfo* pTaskInfo);
 
 // SSDataBlock* doGlobalAggregate(void* param, bool* newgroup);
 // SSDataBlock* doMultiwayMergeSort(void* param, bool* newgroup);
