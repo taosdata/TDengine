@@ -35,9 +35,7 @@ struct tmq_list_t {
 };
 
 struct tmq_topic_vgroup_t {
-  char*   topic;
-  int32_t vgId;
-  int64_t offset;
+  SMqOffset offset;
 };
 
 struct tmq_topic_vgroup_list_t {
@@ -123,6 +121,12 @@ typedef struct {
   tsem_t       rspSem;
 } SMqCommitCbParam;
 
+typedef struct {
+  tmq_t*         tmq;
+  tsem_t         rspSem;
+  tmq_resp_err_t rspErr;
+} SMqResetOffsetParam;
+
 tmq_conf_t* tmq_conf_new() {
   tmq_conf_t* conf = calloc(1, sizeof(tmq_conf_t));
   conf->auto_commit = false;
@@ -173,12 +177,6 @@ int32_t tmq_list_append(tmq_list_t* ptr, const char* src) {
   return 0;
 }
 
-tmq_resp_err_t tmq_reset_offset(tmq_t* tmq, const tmq_topic_vgroup_list_t* offsets) {
-  // build msg
-  // send to mnode
-  return TMQ_RESP_ERR__SUCCESS;
-}
-
 int32_t tmqSubscribeCb(void* param, const SDataBuf* pMsg, int32_t code) {
   SMqSubscribeCbParam* pParam = (SMqSubscribeCbParam*)param;
   pParam->rspErr = code;
@@ -193,6 +191,13 @@ int32_t tmqCommitCb(void* param, const SDataBuf* pMsg, int32_t code) {
     pParam->tmq->commit_cb(pParam->tmq, rspErr, NULL, NULL);
   }
   if (!pParam->async) tsem_post(&pParam->rspSem);
+  return 0;
+}
+
+int32_t tmqResetOffsetCb(void* param, const SDataBuf* pMsg, int32_t code) {
+  SMqResetOffsetParam* pParam = (SMqResetOffsetParam*)param;
+  pParam->rspErr = code;
+  tsem_post(&pParam->rspSem);
   return 0;
 }
 
@@ -216,6 +221,55 @@ tmq_t* tmq_consumer_new(void* conn, tmq_conf_t* conf, char* errstr, int32_t errs
   pTmq->consumerId = generateRequestId() & (((uint64_t)-1) >> 1);
   pTmq->clientTopics = taosArrayInit(0, sizeof(SMqClientTopic));
   return pTmq;
+}
+
+tmq_resp_err_t tmq_reset_offset(tmq_t* tmq, const tmq_topic_vgroup_list_t* offsets) {
+  SRequestObj* pRequest = NULL;
+  // build msg
+  // send to mnode
+  SMqCMResetOffsetReq req;
+  req.num = offsets->cnt;
+  req.offsets = (SMqOffset*)offsets->elems;
+
+  SCoder encoder;
+
+  tCoderInit(&encoder, TD_LITTLE_ENDIAN, NULL, 0, TD_ENCODER);
+  tEncodeSMqCMResetOffsetReq(&encoder, &req);
+  int32_t tlen = encoder.pos;
+  void*   buf = malloc(tlen);
+  if (buf == NULL) {
+    tCoderClear(&encoder);
+    return -1;
+  }
+  tCoderClear(&encoder);
+
+  tCoderInit(&encoder, TD_LITTLE_ENDIAN, buf, tlen, TD_ENCODER);
+  tEncodeSMqCMResetOffsetReq(&encoder, &req);
+  tCoderClear(&encoder);
+
+  pRequest = createRequest(tmq->pTscObj, NULL, NULL, TDMT_MND_RESET_OFFSET);
+  if (pRequest == NULL) {
+    tscError("failed to malloc request");
+  }
+
+  SMqResetOffsetParam param = {0};
+  tsem_init(&param.rspSem, 0, 0);
+  param.tmq = tmq;
+
+  pRequest->body.requestMsg = (SDataBuf){.pData = buf, .len = tlen};
+
+  SMsgSendInfo* sendInfo = buildMsgInfoImpl(pRequest);
+  sendInfo->param = &param;
+  sendInfo->fp = tmqResetOffsetCb;
+  SEpSet epSet = getEpSet_s(&tmq->pTscObj->pAppInfo->mgmtEp);
+
+  int64_t transporterId = 0;
+  asyncSendMsgToServer(tmq->pTscObj->pAppInfo->pTransporter, &epSet, &transporterId, sendInfo);
+
+  tsem_wait(&param.rspSem);
+  tsem_destroy(&param.rspSem);
+
+  return TMQ_RESP_ERR__SUCCESS;
 }
 
 tmq_resp_err_t tmq_subscribe(tmq_t* tmq, tmq_list_t* topic_list) {
@@ -244,6 +298,7 @@ tmq_resp_err_t tmq_subscribe(tmq_t* tmq, tmq_list_t* topic_list) {
 
     char* topicFname = calloc(1, TSDB_TOPIC_FNAME_LEN);
     if (topicFname == NULL) {
+      goto _return;
     }
     tNameExtractFullName(&name, topicFname);
     tscDebug("subscribe topic: %s", topicFname);
@@ -251,9 +306,6 @@ tmq_resp_err_t tmq_subscribe(tmq_t* tmq, tmq_list_t* topic_list) {
         .nextVgIdx = 0, .sql = NULL, .sqlLen = 0, .topicId = 0, .topicName = topicFname, .vgs = NULL};
     topic.vgs = taosArrayInit(0, sizeof(SMqClientVg));
     taosArrayPush(tmq->clientTopics, &topic);
-    /*SMqClientTopic topic = {*/
-    /*.*/
-    /*};*/
     taosArrayPush(req.topicNames, &topicFname);
     free(dbName);
   }
@@ -270,7 +322,7 @@ tmq_resp_err_t tmq_subscribe(tmq_t* tmq, tmq_list_t* topic_list) {
 
   pRequest = createRequest(tmq->pTscObj, NULL, NULL, TDMT_MND_SUBSCRIBE);
   if (pRequest == NULL) {
-    tscError("failed to malloc sqlObj");
+    tscError("failed to malloc request");
   }
 
   SMqSubscribeCbParam param = {.rspErr = TMQ_RESP_ERR__SUCCESS, .tmq = tmq};

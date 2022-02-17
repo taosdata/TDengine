@@ -2306,3 +2306,57 @@ int32_t tDeserializeSAuthReq(void *buf, int32_t bufLen, SAuthReq *pReq) {
   tCoderClear(&decoder);
   return 0;
 }
+
+int32_t tEncodeSMqOffset(SCoder *encoder, const SMqOffset *pOffset) {
+  if (tEncodeI32(encoder, pOffset->vgId) < 0) return -1;
+  if (tEncodeI64(encoder, pOffset->offset) < 0) return -1;
+  if (tEncodeCStr(encoder, pOffset->topicName) < 0) return -1;
+  if (tEncodeCStr(encoder, pOffset->cgroup) < 0) return -1;
+  return encoder->pos;
+}
+
+int32_t tDecodeSMqOffset(SCoder *decoder, SMqOffset *pOffset) {
+  if (tDecodeI32(decoder, &pOffset->vgId) < 0) return -1;
+  if (tDecodeI64(decoder, &pOffset->offset) < 0) return -1;
+  if (tDecodeCStrTo(decoder, pOffset->topicName) < 0) return -1;
+  if (tDecodeCStrTo(decoder, pOffset->cgroup) < 0) return -1;
+  return 0;
+}
+
+int32_t tEncodeSMqCMResetOffsetReq(SCoder *encoder, const SMqCMResetOffsetReq *pReq) {
+  if (tStartEncode(encoder) < 0) return -1;
+  if (tEncodeI32(encoder, pReq->num) < 0) return -1;
+  for (int32_t i = 0; i < pReq->num; i++) {
+    tEncodeSMqOffset(encoder, &pReq->offsets[i]);
+  }
+  tEndEncode(encoder);
+  return encoder->pos;
+}
+
+int32_t tDecodeSMqCMResetOffsetReq(SCoder *decoder, SMqCMResetOffsetReq *pReq) {
+  if (tDecodeI32(decoder, &pReq->num) < 0) return -1;
+  pReq->offsets = TCODER_MALLOC(pReq->num * sizeof(SMqOffset), decoder);
+  if (pReq->offsets == NULL) return -1;
+  for (int32_t i = 0; i < pReq->num; i++) {
+    tDecodeSMqOffset(decoder, &pReq->offsets[i]);
+  }
+  return 0;
+}
+
+int32_t tEncodeSMqMVResetOffsetReq(SCoder *encoder, const SMqMVResetOffsetReq *pReq) {
+  if (tEncodeI32(encoder, pReq->num) < 0) return -1;
+  for (int32_t i = 0; i < pReq->num; i++) {
+    tEncodeSMqOffset(encoder, &pReq->offsets[i]);
+  }
+  return encoder->pos;
+}
+
+int32_t tDecodeSMqMVResetOffsetReq(SCoder *decoder, SMqMVResetOffsetReq *pReq) {
+  if (tDecodeI32(decoder, &pReq->num) < 0) return -1;
+  pReq->offsets = TCODER_MALLOC(pReq->num * sizeof(SMqOffset), decoder);
+  if (pReq->offsets == NULL) return -1;
+  for (int32_t i = 0; i < pReq->num; i++) {
+    tDecodeSMqOffset(decoder, &pReq->offsets[i]);
+  }
+  return 0;
+}
