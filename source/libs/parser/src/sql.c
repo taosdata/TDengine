@@ -2262,7 +2262,7 @@ static void yy_reduce(
 { setShowOptions(pInfo, TSDB_MGMT_TABLE_VARIABLES, 0, 0);  }
         break;
       case 13: /* cmd ::= SHOW SCORES */
-{ setShowOptions(pInfo, TSDB_MGMT_TABLE_SCORES, 0, 0);   }
+{ setShowOptions(pInfo, TSDB_MGMT_TABLE_TRANS, 0, 0);   }
         break;
       case 14: /* cmd ::= SHOW GRANTS */
 { setShowOptions(pInfo, TSDB_MGMT_TABLE_GRANTS, 0, 0);   }
