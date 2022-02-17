@@ -5441,7 +5441,6 @@ SOperatorInfo* createStreamScanOperatorInfo(void *streamReadHandle, SArray* pExp
   SArray* pColList = taosArrayInit(numOfOutput, sizeof(int32_t));
   for(int32_t i = 0; i < numOfOutput; ++i) {
     SExprInfo* pExpr = taosArrayGetP(pExprInfo, i);
-
     taosArrayPush(pColList, &pExpr->pExpr->pSchema[0].colId);
   }
   
@@ -5624,7 +5623,7 @@ static SExprInfo* exprArrayDup(SArray* pExprInfo) {
   return p;
 }
 
-static SSDataBlock* doSortMerge(void* param, bool* newgroup) {
+static SSDataBlock* doSortedMerge(void* param, bool* newgroup) {
   SOperatorInfo* pOperator = (SOperatorInfo*) param;
   if (pOperator->status == OP_EXEC_DONE) {
     return NULL;
@@ -5635,7 +5634,7 @@ static SSDataBlock* doSortMerge(void* param, bool* newgroup) {
 
   for(int32_t i = 0; i < pInfo->numOfSources; ++i) {
     SSDataBlock* pBlock = pOperator->pDownstream[i]->exec(pOperator->pDownstream[i], newgroup);
-
+    // TODO set the order input sources.
   }
 
   return NULL;
@@ -5679,7 +5678,7 @@ SOperatorInfo* createSortMergeOperatorInfo(SOperatorInfo* downstream, SArray* pE
   pOperator->numOfOutput  = numOfOutput;
 
   pOperator->pTaskInfo    = pTaskInfo;
-  pOperator->exec         = doSortMerge;
+  pOperator->exec         = doSortedMerge;
   pOperator->cleanupFn    = destroyGlobalAggOperatorInfo;
   appendDownstream(pOperator, downstream);
 

@@ -90,3 +90,25 @@ qTaskInfo_t qCreateStreamExecTaskInfo(void* msg, void* streamReadHandle) {
 
   return pTaskInfo;
 }
+
+int32_t qUpdateTQualifiedTableId(qTaskInfo_t tinfo, SArray* tableIdList, bool isAdd) {
+  SExecTaskInfo* pTaskInfo = (SExecTaskInfo* )tinfo;
+
+  // traverse to the streamscan node to add this table id
+  SOperatorInfo* pInfo = pTaskInfo->pRoot;
+  while(pInfo->operatorType != OP_StreamScan) {
+    pInfo = pInfo->pDownstream[0];
+  }
+
+  SStreamBlockScanInfo* pScanInfo = pInfo->info;
+  if (isAdd) {
+    int32_t code = tqReadHandleSetTbUidList(pScanInfo->readerHandle, tableIdList);
+    if (code != TSDB_CODE_SUCCESS) {
+      return code;
+    }
+  } else {
+    assert(0);
+  }
+
+  return TSDB_CODE_SUCCESS;
+}

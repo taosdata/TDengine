@@ -28,7 +28,7 @@ int32_t init_env() {
     return -1;
   }
 
-  TAOS_RES* pRes = taos_query(pConn, "create database if not exists abc1 vgroups 1");
+  TAOS_RES* pRes = taos_query(pConn, "create database if not exists abc1 vgroups 2");
   if (taos_errno(pRes) != 0) {
     printf("error in create db, reason:%s\n", taos_errstr(pRes));
     return -1;
@@ -56,14 +56,14 @@ int32_t init_env() {
   }
   taos_free_result(pRes);
 
-  pRes = taos_query(pConn, "create table if not exists tu2 using st1 tags(2)");
-  if (taos_errno(pRes) != 0) {
-    printf("failed to create child table tu2, reason:%s\n", taos_errstr(pRes));
-    return -1;
-  }
-  taos_free_result(pRes);
+//  pRes = taos_query(pConn, "create table if not exists tu6 using st1 tags(2)");
+//  if (taos_errno(pRes) != 0) {
+//    printf("failed to create child table tu2, reason:%s\n", taos_errstr(pRes));
+//    return -1;
+//  }
+//  taos_free_result(pRes);
 
-  const char* sql = "select * from tu1";
+  const char* sql = "select * from st1";
   pRes = tmq_create_topic(pConn, "test_stb_topic_1", sql, strlen(sql));
   if (taos_errno(pRes) != 0) {
     printf("failed to create topic test_stb_topic_1, reason:%s\n", taos_errstr(pRes));
@@ -197,7 +197,7 @@ int main() {
   code = init_env();
   tmq_t*      tmq = build_consumer();
   tmq_list_t* topic_list = build_topic_list();
-  perf_loop(tmq, topic_list);
-  /*basic_consume_loop(tmq, topic_list);*/
+//  perf_loop(tmq, topic_list);
+  basic_consume_loop(tmq, topic_list);
   /*sync_consume_loop(tmq, topic_list);*/
 }
