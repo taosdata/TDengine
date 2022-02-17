@@ -5447,7 +5447,12 @@ SOperatorInfo* createStreamScanOperatorInfo(void *streamReadHandle, SArray* pExp
   
   // set the extract column id to streamHandle
   tqReadHandleSetColIdList((STqReadHandle* )streamReadHandle, pColList);
-  tqReadHandleSetTbUidList(streamReadHandle, pTableIdList);
+  int32_t code = tqReadHandleSetTbUidList(streamReadHandle, pTableIdList);
+  if (code != 0) {
+    tfree(pInfo);
+    tfree(pOperator);
+    return NULL;
+  }
 
   pInfo->readerHandle = streamReadHandle;
 
@@ -5461,7 +5466,6 @@ SOperatorInfo* createStreamScanOperatorInfo(void *streamReadHandle, SArray* pExp
   pOperator->pTaskInfo     = pTaskInfo;
   return pOperator;
 }
-
 
 void setTableScanFilterOperatorInfo(STableScanInfo* pTableScanInfo, SOperatorInfo* pDownstream) {
   assert(pTableScanInfo != NULL && pDownstream != NULL);
@@ -8186,16 +8190,22 @@ SOperatorInfo* doCreateOperatorTreeNode(SPhyNode* pPhyNode, SExecTaskInfo* pTask
       STableGroupInfo groupInfo = {0};
 
       int32_t code = doCreateTableGroup(pHandle->meta, pScanPhyNode->tableType, pScanPhyNode->uid, &groupInfo, queryId, taskId);
+      SArray* idList = NULL;
 
-      SArray* pa = taosArrayGetP(groupInfo.pGroupList, 0);
-      ASSERT(taosArrayGetSize(groupInfo.pGroupList) == 1);
+      if (groupInfo.numOfTables > 0) {
+        SArray* pa = taosArrayGetP(groupInfo.pGroupList, 0);
+        ASSERT(taosArrayGetSize(groupInfo.pGroupList) == 1);
 
-      // Transfer the Array of STableKeyInfo into uid list.
-      size_t numOfTables = taosArrayGetSize(pa);
-      SArray* idList = taosArrayInit(numOfTables, sizeof(uint64_t));
-      for(int32_t i = 0; i < numOfTables; ++i) {
-        STableKeyInfo* pkeyInfo = taosArrayGet(pa, i);
-        taosArrayPush(idList, &pkeyInfo->uid);
+        // Transfer the Array of STableKeyInfo into uid list.
+        size_t  numOfTables = taosArrayGetSize(pa);
+        for (int32_t i = 0; i < numOfTables; ++i) {
+          STableKeyInfo* pkeyInfo = taosArrayGet(pa, i);
+          taosArrayPush(idList, &pkeyInfo->uid);
+        }
+
+        idList = taosArrayInit(numOfTables, sizeof(uint64_t));
+      } else {
+        idList = taosArrayInit(4, sizeof(uint64_t));
       }
 
       SOperatorInfo* pOperator = createStreamScanOperatorInfo(pHandle->reader, pPhyNode->pTargets, idList, pTaskInfo);
