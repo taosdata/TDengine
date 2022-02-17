@@ -15,7 +15,9 @@
 
 #include "querynodes.h"
 #include "nodesShowStmts.h"
+#include "taos.h"
 #include "taoserror.h"
+#include "thash.h"
 
 static SNode* makeNode(ENodeType type, size_t size) {
   SNode* p = calloc(1, size);
@@ -98,14 +100,14 @@ SNodeList* nodesMakeList() {
   return p;
 }
 
-SNodeList* nodesListAppend(SNodeList* pList, SNode* pNode) {
+int32_t nodesListAppend(SNodeList* pList, SNode* pNode) {
   if (NULL == pList || NULL == pNode) {
-    return NULL;
+    return TSDB_CODE_SUCCESS;
   }
   SListCell* p = calloc(1, sizeof(SListCell));
   if (NULL == p) {
-    terrno = TSDB_CODE_TSC_OUT_OF_MEMORY;
-    return pList;
+    terrno = TSDB_CODE_OUT_OF_MEMORY;
+    return TSDB_CODE_OUT_OF_MEMORY;
   }
   p->pNode = pNode;
   if (NULL == pList->pHead) {
@@ -116,7 +118,7 @@ SNodeList* nodesListAppend(SNodeList* pList, SNode* pNode) {
   }
   pList->pTail = p;
   ++(pList->length);
-  return pList;
+  return TSDB_CODE_SUCCESS;
 }
 
 SListCell* nodesListErase(SNodeList* pList, SListCell* pCell) {
@@ -207,4 +209,100 @@ bool nodesIsTimeorderQuery(const SNode* pQuery) {
 
 bool nodesIsTimelineQuery(const SNode* pQuery) {
   return false;
+}
+
+typedef struct SCollectColumnsCxt {
+  int32_t errCode;
+  uint64_t tableId;
+  bool realCol;
+  SNodeList* pCols;
+  SHashObj* pColIdHash;
+} SCollectColumnsCxt;
+
+static EDealRes doCollect(SCollectColumnsCxt* pCxt, int32_t id, SNode* pNode) {
+  if (NULL == taosHashGet(pCxt->pColIdHash, &id, sizeof(id))) {
+    pCxt->errCode = taosHashPut(pCxt->pColIdHash, &id, sizeof(id), NULL, 0);
+    if (TSDB_CODE_SUCCESS == pCxt->errCode) {
+      pCxt->errCode = nodesListAppend(pCxt->pCols, pNode);
+    }
+    return (TSDB_CODE_SUCCESS == pCxt->errCode ? DEAL_RES_IGNORE_CHILD : DEAL_RES_ERROR);
+  }
+  return DEAL_RES_CONTINUE;
+}
+
+static EDealRes collectColumns(SNode* pNode, void* pContext) {
+  SCollectColumnsCxt* pCxt = (SCollectColumnsCxt*)pContext;
+
+  if (pCxt->realCol && QUERY_NODE_COLUMN == nodeType(pNode)) {
+    SColumnNode* pCol = (SColumnNode*)pNode;
+    int32_t colId = pCol->colId;
+    if (pCxt->tableId == pCol->tableId && colId > 0) {
+      return doCollect(pCxt, colId, pNode);
+    }
+  } else if (!pCxt->realCol && QUERY_NODE_COLUMN_REF == nodeType(pNode)) {
+    return doCollect(pCxt, ((SColumnRefNode*)pNode)->slotId, pNode);
+  }
+  return DEAL_RES_CONTINUE;
+}
+
+int32_t nodesCollectColumns(SSelectStmt* pSelect, ESqlClause clause, uint64_t tableId, bool realCol, SNodeList** pCols) {
+  if (NULL == pSelect || NULL == pCols) {
+    return TSDB_CODE_SUCCESS;
+  }
+
+  SCollectColumnsCxt cxt = {
+    .errCode = TSDB_CODE_SUCCESS,
+    .realCol = realCol,
+    .pCols = nodesMakeList(),
+    .pColIdHash = taosHashInit(128, taosGetDefaultHashFunction(TSDB_DATA_TYPE_BIGINT), true, HASH_NO_LOCK)
+  };
+  if (NULL == cxt.pCols || NULL == cxt.pColIdHash) {
+    return TSDB_CODE_OUT_OF_MEMORY;
+  }
+
+  nodesWalkSelectStmt(pSelect, clause, collectColumns, &cxt);
+  taosHashCleanup(cxt.pColIdHash);
+  if (TSDB_CODE_SUCCESS != cxt.errCode) {
+    nodesDestroyList(cxt.pCols);
+    return cxt.errCode;
+  }
+  *pCols = cxt.pCols;
+  return TSDB_CODE_SUCCESS;
+}
+
+typedef struct SCollectFuncsCxt {
+  int32_t errCode;
+  FFuncClassifier classifier;
+  SNodeList* pFuncs;
+} SCollectFuncsCxt;
+
+static EDealRes collectFuncs(SNode* pNode, void* pContext) {
+  SCollectFuncsCxt* pCxt = (SCollectFuncsCxt*)pContext;
+  if (QUERY_NODE_FUNCTION == nodeType(pNode) && pCxt->classifier(((SFunctionNode*)pNode)->funcId)) {
+    pCxt->errCode = nodesListAppend(pCxt->pFuncs, pNode);
+    return (TSDB_CODE_SUCCESS == pCxt->errCode ? DEAL_RES_IGNORE_CHILD : DEAL_RES_ERROR);
+  }
+  return DEAL_RES_CONTINUE;
+}
+
+int32_t nodesCollectFuncs(SSelectStmt* pSelect, FFuncClassifier classifier, SNodeList** pFuncs) {
+  if (NULL == pSelect || NULL == pFuncs) {
+    return TSDB_CODE_SUCCESS;
+  }
+
+  SCollectFuncsCxt cxt = {
+    .errCode = TSDB_CODE_SUCCESS,
+    .classifier = classifier,
+    .pFuncs = nodesMakeList()
+  };
+  if (NULL == cxt.pFuncs) {
+    return TSDB_CODE_OUT_OF_MEMORY;
+  }
+  nodesWalkSelectStmt(pSelect, SQL_CLAUSE_GROUP_BY, collectFuncs, &cxt);
+  if (TSDB_CODE_SUCCESS != cxt.errCode) {
+    nodesDestroyList(cxt.pFuncs);
+    return cxt.errCode;
+  }
+  *pFuncs = cxt.pFuncs;
+  return TSDB_CODE_SUCCESS;
 }
