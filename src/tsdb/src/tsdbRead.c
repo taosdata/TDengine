@@ -1749,6 +1749,7 @@ static int32_t doCopyRowsFromFileBlock(STsdbQueryHandle* pQueryHandle, int32_t c
     } else {
       pData = (char*)pColInfo->pData + (capacity - numOfRows - num) * pColInfo->info.bytes;
     }
+    memset(pData, 0, pColInfo->info.bytes);
 
     if (!isAllRowsNull(src) && pColInfo->info.colId == src->colId) {
       if (pColInfo->info.type != TSDB_DATA_TYPE_BINARY && pColInfo->info.type != TSDB_DATA_TYPE_NCHAR) {
@@ -1788,6 +1789,7 @@ static int32_t doCopyRowsFromFileBlock(STsdbQueryHandle* pQueryHandle, int32_t c
     } else {
       pData = (char*)pColInfo->pData + (capacity - numOfRows - num) * pColInfo->info.bytes;
     }
+    memset(pData, 0, pColInfo->info.bytes);
 
     if (pColInfo->info.type == TSDB_DATA_TYPE_BINARY || pColInfo->info.type == TSDB_DATA_TYPE_NCHAR) {
       char* dst = pData;
