@@ -170,6 +170,7 @@ typedef struct SCreateDbInfo {
   int8_t             update;
   int8_t             cachelast;
   SArray            *keep;
+  int8_t             streamMode;
 } SCreateDbInfo;
 
 typedef struct SCreateFuncInfo {

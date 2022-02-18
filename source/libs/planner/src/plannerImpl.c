@@ -39,6 +39,9 @@ typedef struct SPlanContext {
   SNodeList* pResource;
 } SPlanContext;
 
+static SLogicNode* createQueryLogicNode(SPlanContext* pCxt, SNode* pStmt);
+static SLogicNode* createLogicNodeByTable(SPlanContext* pCxt, SSelectStmt* pSelect, SNode* pTable);
+
 typedef struct SRewriteExprCxt {
   int32_t errCode;
   int32_t planNodeId;
@@ -46,6 +49,15 @@ typedef struct SRewriteExprCxt {
 } SRewriteExprCxt;
 
 static EDealRes doRewriteExpr(SNode** pNode, void* pContext) {
+  switch (nodeType(*pNode)) {
+    case QUERY_NODE_OPERATOR:
+    case QUERY_NODE_LOGIC_CONDITION:
+    case QUERY_NODE_FUNCTION: {
+      break;
+    }
+    default:
+      break;
+  }
   SRewriteExprCxt* pCxt = (SRewriteExprCxt*)pContext;
   SNode* pTarget;
   int32_t index = 0;
@@ -142,10 +154,39 @@ static SLogicNode* createScanLogicNode(SPlanContext* pCxt, SSelectStmt* pSelect,
   return (SLogicNode*)pScan;
 }
 
-static SLogicNode* createQueryLogicNode(SPlanContext* pCxt, SNode* pStmt);
-
 static SLogicNode* createSubqueryLogicNode(SPlanContext* pCxt, SSelectStmt* pSelect, STempTableNode* pTable) {
   return createQueryLogicNode(pCxt, pTable->pSubquery);
+}
+
+static SLogicNode* createJoinLogicNode(SPlanContext* pCxt, SSelectStmt* pSelect, SJoinTableNode* pJoinTable) {
+  SJoinLogicNode* pJoin = (SJoinLogicNode*)nodesMakeNode(QUERY_NODE_LOGIC_PLAN_JOIN);
+  CHECK_ALLOC(pJoin, NULL);
+  pJoin->node.id = pCxt->planNodeId++;
+
+  pJoin->joinType = pJoinTable->joinType;
+
+  // set left and right node
+  pJoin->node.pChildren = nodesMakeList();
+  CHECK_ALLOC(pJoin->node.pChildren, (SLogicNode*)pJoin);
+  SLogicNode* pLeft = createLogicNodeByTable(pCxt, pSelect, pJoinTable->pLeft);
+  CHECK_ALLOC(pLeft, (SLogicNode*)pJoin);
+  CHECK_CODE(nodesListAppend(pJoin->node.pChildren, (SNode*)pLeft), (SLogicNode*)pJoin);
+  SLogicNode* pRight = createLogicNodeByTable(pCxt, pSelect, pJoinTable->pRight);
+  CHECK_ALLOC(pRight, (SLogicNode*)pJoin);
+  CHECK_CODE(nodesListAppend(pJoin->node.pChildren, (SNode*)pRight), (SLogicNode*)pJoin);
+
+  // set on conditions
+  pJoin->pOnConditions = nodesCloneNode(pJoinTable->pOnCond);
+  CHECK_ALLOC(pJoin->pOnConditions, (SLogicNode*)pJoin);
+
+  // set the output and rewrite the expression in subsequent clauses with the output
+  SNodeList* pCols = NULL;
+  CHECK_CODE(nodesCollectColumns(pSelect, SQL_CLAUSE_FROM, 0, false, &pCols), (SLogicNode*)pJoin);
+  pJoin->node.pTargets = nodesCloneList(pCols);
+  CHECK_ALLOC(pJoin->node.pTargets, (SLogicNode*)pJoin);
+  CHECK_CODE(rewriteExpr(pJoin->node.id, pJoin->node.pTargets, pSelect, SQL_CLAUSE_FROM), (SLogicNode*)pJoin);
+
+  return (SLogicNode*)pJoin;
 }
 
 static SLogicNode* createLogicNodeByTable(SPlanContext* pCxt, SSelectStmt* pSelect, SNode* pTable) {
@@ -155,14 +196,15 @@ static SLogicNode* createLogicNodeByTable(SPlanContext* pCxt, SSelectStmt* pSele
     case QUERY_NODE_TEMP_TABLE:
       return createSubqueryLogicNode(pCxt, pSelect, (STempTableNode*)pTable);
     case QUERY_NODE_JOIN_TABLE:
+      return createJoinLogicNode(pCxt, pSelect, (SJoinTableNode*)pTable);
     default:
       break;
   }
   return NULL;
 }
 
-static SLogicNode* createFilterLogicNode(SPlanContext* pCxt, SSelectStmt* pSelect, SNode* pWhere) {
-  if (NULL == pWhere) {
+static SLogicNode* createWhereFilterLogicNode(SPlanContext* pCxt, SSelectStmt* pSelect) {
+  if (NULL == pSelect->pWhere) {
     return NULL;
   }
 
@@ -171,7 +213,7 @@ static SLogicNode* createFilterLogicNode(SPlanContext* pCxt, SSelectStmt* pSelec
   pFilter->node.id = pCxt->planNodeId++;
 
   // set filter conditions
-  pFilter->node.pConditions = nodesCloneNode(pWhere);
+  pFilter->node.pConditions = nodesCloneNode(pSelect->pWhere);
   CHECK_ALLOC(pFilter->node.pConditions, (SLogicNode*)pFilter);
 
   // set the output and rewrite the expression in subsequent clauses with the output
@@ -184,10 +226,10 @@ static SLogicNode* createFilterLogicNode(SPlanContext* pCxt, SSelectStmt* pSelec
   return (SLogicNode*)pFilter;
 }
 
-static SLogicNode* createAggLogicNode(SPlanContext* pCxt, SSelectStmt* pSelect, SNodeList* pGroupByList, SNode* pHaving) {
+static SLogicNode* createAggLogicNode(SPlanContext* pCxt, SSelectStmt* pSelect) {
   SNodeList* pAggFuncs = NULL;
   CHECK_CODE(nodesCollectFuncs(pSelect, fmIsAggFunc, &pAggFuncs), NULL);
-  if (NULL == pAggFuncs && NULL == pGroupByList) {
+  if (NULL == pAggFuncs && NULL == pSelect->pGroupByList) {
     return NULL;
   }
 
@@ -196,11 +238,11 @@ static SLogicNode* createAggLogicNode(SPlanContext* pCxt, SSelectStmt* pSelect, 
   pAgg->node.id = pCxt->planNodeId++;
 
   // set grouyp keys, agg funcs and having conditions
-  pAgg->pGroupKeys = nodesCloneList(pGroupByList);
+  pAgg->pGroupKeys = nodesCloneList(pSelect->pGroupByList);
   CHECK_ALLOC(pAgg->pGroupKeys, (SLogicNode*)pAgg);
   pAgg->pAggFuncs = nodesCloneList(pAggFuncs);
   CHECK_ALLOC(pAgg->pAggFuncs, (SLogicNode*)pAgg);
-  pAgg->node.pConditions = nodesCloneNode(pHaving);
+  pAgg->node.pConditions = nodesCloneNode(pSelect->pHaving);
   CHECK_ALLOC(pAgg->node.pConditions, (SLogicNode*)pAgg);
 
   // set the output and rewrite the expression in subsequent clauses with the output
@@ -213,15 +255,28 @@ static SLogicNode* createAggLogicNode(SPlanContext* pCxt, SSelectStmt* pSelect, 
   return (SLogicNode*)pAgg;
 }
 
+static SLogicNode* createProjectLogicNode(SPlanContext* pCxt, SSelectStmt* pSelect) {
+  SProjectLogicNode* pProject = (SProjectLogicNode*)nodesMakeNode(QUERY_NODE_LOGIC_PLAN_PROJECT);
+  CHECK_ALLOC(pProject, NULL);
+  pProject->node.id = pCxt->planNodeId++;
+
+  pProject->node.pTargets = nodesCloneList(pSelect->pProjectionList);
+  CHECK_ALLOC(pProject->node.pTargets, (SLogicNode*)pProject);
+
+  return (SLogicNode*)pProject;
+}
+
 static SLogicNode* createSelectLogicNode(SPlanContext* pCxt, SSelectStmt* pSelect) {
   SLogicNode* pRoot = createLogicNodeByTable(pCxt, pSelect, pSelect->pFromTable);
   if (TSDB_CODE_SUCCESS == pCxt->errCode) {
-    pRoot = pushLogicNode(pCxt, pRoot, createFilterLogicNode(pCxt, pSelect, pSelect->pWhere));
+    pRoot = pushLogicNode(pCxt, pRoot, createWhereFilterLogicNode(pCxt, pSelect));
   }
   if (TSDB_CODE_SUCCESS == pCxt->errCode) {
-    pRoot = pushLogicNode(pCxt, pRoot, createAggLogicNode(pCxt, pSelect, pSelect->pGroupByList, pSelect->pHaving));
+    pRoot = pushLogicNode(pCxt, pRoot, createAggLogicNode(pCxt, pSelect));
   }
-  // pRoot = pushLogicNode(pCxt, pRoot, createProjectLogicNode(pSelect, pSelect->pProjectionList));
+  if (TSDB_CODE_SUCCESS == pCxt->errCode) {
+    pRoot = pushLogicNode(pCxt, pRoot, createProjectLogicNode(pCxt, pSelect));
+  }
   return pRoot;
 }
 
