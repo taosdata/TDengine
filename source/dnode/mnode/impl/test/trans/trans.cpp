@@ -28,7 +28,7 @@ class MndTestTrans : public ::testing::Test {
   static void KillThenRestartServer() {
     char    file[PATH_MAX] = "/tmp/mnode_test_trans/mnode/data/sdb.data";
     FileFd  fd = taosOpenFileRead(file);
-    int32_t size = 1024 * 1024;
+    int32_t size = 3 * 1024 * 1024;
     void*   buffer = malloc(size);
     int32_t readLen = taosReadFile(fd, buffer, size);
     if (readLen < 0 || readLen == size) {
@@ -60,6 +60,37 @@ class MndTestTrans : public ::testing::Test {
 
 Testbase   MndTestTrans::test;
 TestServer MndTestTrans::server2;
+
+TEST_F(MndTestTrans, 00_Create_User_Crash) {
+  {
+    test.SendShowMetaReq(TSDB_MGMT_TABLE_TRANS, "");
+    CHECK_META("show trans", 7);
+
+    CHECK_SCHEMA(0, TSDB_DATA_TYPE_INT, 4, "id");
+    CHECK_SCHEMA(1, TSDB_DATA_TYPE_TIMESTAMP, 8, "create_time");
+    CHECK_SCHEMA(2, TSDB_DATA_TYPE_BINARY, TSDB_TRANS_STAGE_LEN + VARSTR_HEADER_SIZE, "stage");
+    CHECK_SCHEMA(3, TSDB_DATA_TYPE_BINARY, TSDB_DB_NAME_LEN - 1 + VARSTR_HEADER_SIZE, "db");
+    CHECK_SCHEMA(4, TSDB_DATA_TYPE_BINARY, TSDB_TRANS_TYPE_LEN + VARSTR_HEADER_SIZE, "type");
+    CHECK_SCHEMA(5, TSDB_DATA_TYPE_TIMESTAMP, 8, "last_exec_time");
+    CHECK_SCHEMA(6, TSDB_DATA_TYPE_BINARY, TSDB_TRANS_ERROR_LEN - 1 + VARSTR_HEADER_SIZE, "last_error");
+
+    test.SendShowRetrieveReq();
+    EXPECT_EQ(test.GetShowRows(), 0);
+  }
+
+  {
+    SKillTransReq killReq = {0};
+    killReq.transId = 3;
+
+    int32_t contLen = tSerializeSKillTransReq(NULL, 0, &killReq);
+    void*   pReq = rpcMallocCont(contLen);
+    tSerializeSKillTransReq(pReq, contLen, &killReq);
+
+    SRpcMsg* pRsp = test.SendReq(TDMT_MND_KILL_TRANS, pReq, contLen);
+    ASSERT_NE(pRsp, nullptr);
+    ASSERT_EQ(pRsp->code, TSDB_CODE_MND_TRANS_NOT_EXIST);
+  }
+}
 
 TEST_F(MndTestTrans, 01_Create_User_Crash) {
   {
@@ -171,6 +202,57 @@ TEST_F(MndTestTrans, 03_Create_Qnode2_Crash) {
     ASSERT_EQ(pRsp->code, TSDB_CODE_RPC_NETWORK_UNAVAIL);
   }
 
+  {
+    // show trans
+    test.SendShowMetaReq(TSDB_MGMT_TABLE_TRANS, "");
+    CHECK_META("show trans", 7);
+    test.SendShowRetrieveReq();
+
+    EXPECT_EQ(test.GetShowRows(), 1);
+    CheckInt32(4);
+    CheckTimestamp();
+    CheckBinary("undoAction", TSDB_TRANS_STAGE_LEN);
+    CheckBinary("", TSDB_DB_NAME_LEN - 1);
+    CheckBinary("create-qnode", TSDB_TRANS_TYPE_LEN);
+    CheckTimestamp();
+    CheckBinary("Unable to establish connection", TSDB_TRANS_ERROR_LEN - 1);
+  }
+
+  // kill trans
+  {
+    SKillTransReq killReq = {0};
+    killReq.transId = 4;
+
+    int32_t contLen = tSerializeSKillTransReq(NULL, 0, &killReq);
+    void*   pReq = rpcMallocCont(contLen);
+    tSerializeSKillTransReq(pReq, contLen, &killReq);
+
+    SRpcMsg* pRsp = test.SendReq(TDMT_MND_KILL_TRANS, pReq, contLen);
+    ASSERT_NE(pRsp, nullptr);
+    ASSERT_EQ(pRsp->code, 0);
+  }
+
+  // show trans
+  {
+    test.SendShowMetaReq(TSDB_MGMT_TABLE_TRANS, "");
+    test.SendShowRetrieveReq();
+    EXPECT_EQ(test.GetShowRows(), 0);
+  }
+
+  // re-create trans
+  {
+    SMCreateQnodeReq createReq = {0};
+    createReq.dnodeId = 2;
+
+    int32_t contLen = tSerializeSMCreateDropQSBNodeReq(NULL, 0, &createReq);
+    void*   pReq = rpcMallocCont(contLen);
+    tSerializeSMCreateDropQSBNodeReq(pReq, contLen, &createReq);
+
+    SRpcMsg* pRsp = test.SendReq(TDMT_MND_CREATE_QNODE, pReq, contLen);
+    ASSERT_NE(pRsp, nullptr);
+    ASSERT_EQ(pRsp->code, TSDB_CODE_RPC_NETWORK_UNAVAIL);
+  }
+
   KillThenRestartServer();
 
   server2.DoStart();
@@ -201,3 +283,11 @@ TEST_F(MndTestTrans, 03_Create_Qnode2_Crash) {
     EXPECT_EQ(test.GetShowRows(), 2);
   }
 }
+
+// create db
+// partial create stb
+// drop db failed
+// create stb failed
+// start
+// create stb success
+// drop db success
