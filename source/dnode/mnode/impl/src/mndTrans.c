@@ -442,6 +442,11 @@ static int32_t mndTransActionUpdate(SSdb *pSdb, STrans *pOld, STrans *pNew) {
     mTrace("trans:%d, stage from %s to %s", pNew->id, mndTransStr(TRN_STAGE_COMMIT), mndTransStr(TRN_STAGE_COMMIT_LOG));
   }
 
+  if (pNew->stage == TRN_STAGE_ROLLBACK) {
+    pNew->stage = TRN_STAGE_FINISHED;
+    mTrace("trans:%d, stage from %s to %s", pNew->id, mndTransStr(TRN_STAGE_ROLLBACK), mndTransStr(TRN_STAGE_FINISHED));
+  }
+
   mTrace("trans:%d, perform update action, old row:%p stage:%s, new row:%p stage:%s", pOld->id, pOld,
          mndTransStr(pOld->stage), pNew, mndTransStr(pNew->stage));
   pOld->stage = pNew->stage;
@@ -1226,10 +1231,9 @@ static int32_t mndProcessKillTransReq(SMnodeMsg *pReq) {
   }
 
   code = mndKillTrans(pMnode, pTrans);
-  if (code == 0) code = TSDB_CODE_MND_ACTION_IN_PROGRESS;
 
 KILL_OVER:
-  if (code != 0 && code != TSDB_CODE_MND_ACTION_IN_PROGRESS) {
+  if (code != 0) {
     mError("trans:%d, failed to kill since %s", killReq.transId, terrstr());
     return -1;
   }
