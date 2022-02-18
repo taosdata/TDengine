@@ -105,7 +105,39 @@ typedef enum {
 } ETrnStage;
 
 typedef enum {
-  TRN_TYPE_CREATE_DB = 0,
+  TRN_TYPE_BASIC_SCOPE = 1000,
+  TRN_TYPE_CREATE_USER = 1001,
+  TRN_TYPE_ALTER_USER = 1002,
+  TRN_TYPE_DROP_USER = 1003,
+  TRN_TYPE_CREATE_FUNC = 1004,
+  TRN_TYPE_DROP_FUNC = 1005,
+  TRN_TYPE_CREATE_SNODE = 1006,
+  TRN_TYPE_DROP_SNODE = 1007,
+  TRN_TYPE_CREATE_QNODE = 1008,
+  TRN_TYPE_DROP_QNODE = 1009,
+  TRN_TYPE_CREATE_BNODE = 1010,
+  TRN_TYPE_DROP_BNODE = 1011,
+  TRN_TYPE_CREATE_MNODE = 1012,
+  TRN_TYPE_DROP_MNODE = 1013,
+  TRN_TYPE_CREATE_TOPIC = 1014,
+  TRN_TYPE_DROP_TOPIC = 1015,
+  TRN_TYPE_SUBSCRIBE = 1016,
+  TRN_TYPE_REBALANCE = 1017,
+  TRN_TYPE_BASIC_SCOPE_END,
+  TRN_TYPE_GLOBAL_SCOPE = 2000,
+  TRN_TYPE_CREATE_DNODE = 2001,
+  TRN_TYPE_DROP_DNODE = 2002,
+  TRN_TYPE_GLOBAL_SCOPE_END,
+  TRN_TYPE_DB_SCOPE = 3000,
+  TRN_TYPE_CREATE_DB = 3001,
+  TRN_TYPE_ALTER_DB = 3002,
+  TRN_TYPE_DROP_DB = 3003,
+  TRN_TYPE_CREATE_STB = 3004,
+  TRN_TYPE_ALTER_STB = 3005,
+  TRN_TYPE_DROP_STB = 3006,
+  TRN_TYPE_SPLIT_VGROUP = 3007,
+  TRN_TYPE_MERGE_VGROUP = 3018,
+  TRN_TYPE_DB_SCOPE_END,
 } ETrnType;
 
 typedef enum { TRN_POLICY_ROLLBACK = 0, TRN_POLICY_RETRY = 1 } ETrnPolicy;
@@ -128,6 +160,7 @@ typedef struct {
   int32_t    id;
   ETrnStage  stage;
   ETrnPolicy policy;
+  ETrnType   transType;
   int32_t    code;
   int32_t    failedTimes;
   void*      rpcHandle;
@@ -141,10 +174,9 @@ typedef struct {
   SArray*    undoActions;
   int64_t    createdTime;
   int64_t    lastExecTime;
-  int32_t    transType;
   uint64_t   dbUid;
-  char       dbname[TSDB_DB_NAME_LEN];
-  char       lastError[TSDB_TRANS_DESC_LEN];
+  char       dbname[TSDB_DB_FNAME_LEN];
+  char       lastError[TSDB_TRANS_ERROR_LEN];
 } STrans;
 
 typedef struct {

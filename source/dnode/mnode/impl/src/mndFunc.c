@@ -21,7 +21,7 @@
 #include "mndTrans.h"
 #include "mndUser.h"
 
-#define SDB_FUNC_VER 1
+#define SDB_FUNC_VER          1
 #define SDB_FUNC_RESERVE_SIZE 64
 
 static SSdbRaw *mndFuncActionEncode(SFuncObj *pFunc);
@@ -206,7 +206,7 @@ static int32_t mndCreateFunc(SMnode *pMnode, SMnodeMsg *pReq, SCreateFuncReq *pC
   memcpy(func.pComment, pCreate->pComment, pCreate->commentSize);
   memcpy(func.pCode, pCreate->pCode, func.codeSize);
 
-  pTrans = mndTransCreate(pMnode, TRN_POLICY_ROLLBACK, &pReq->rpcMsg);
+  pTrans = mndTransCreate(pMnode, TRN_POLICY_ROLLBACK, TRN_TYPE_CREATE_FUNC, &pReq->rpcMsg);
   if (pTrans == NULL) goto CREATE_FUNC_OVER;
 
   mDebug("trans:%d, used to create func:%s", pTrans->id, pCreate->name);
@@ -236,7 +236,7 @@ CREATE_FUNC_OVER:
 
 static int32_t mndDropFunc(SMnode *pMnode, SMnodeMsg *pReq, SFuncObj *pFunc) {
   int32_t code = -1;
-  STrans *pTrans = mndTransCreate(pMnode, TRN_POLICY_ROLLBACK, &pReq->rpcMsg);
+  STrans *pTrans = mndTransCreate(pMnode, TRN_POLICY_ROLLBACK, TRN_TYPE_DROP_FUNC, &pReq->rpcMsg);
   if (pTrans == NULL) goto DROP_FUNC_OVER;
 
   mDebug("trans:%d, used to drop user:%s", pTrans->id, pFunc->name);
