@@ -2,7 +2,10 @@
 
 ## <a class="anchor" id="install"></a>快捷安装
 
-TDengine 软件分为服务器、客户端和报警模块三部分，目前 2.0 版服务器仅能在 Linux 系统上安装和运行，后续会支持 Windows、Mac OS 等系统。客户端可以在 Windows 或 Linux 上安装和运行。任何 OS 的应用也可以选择 RESTful 接口连接服务器 taosd，其中 2.4 之后版本默认使用单独运行的独立组件 taosAdapter 提供 http 服务，之前版本使用内置 http 服务。CPU 支持 X64/ARM64/MIPS64/Alpha64，后续会支持 ARM32、RISC-V 等 CPU 架构。用户可根据需求选择通过 [源码](https://www.taosdata.com/cn/getting-started/#通过源码安装) 或者 [安装包](https://www.taosdata.com/cn/getting-started/#通过安装包安装) 来安装。
+TDengine 软件分为服务器、客户端，目前 2.0 版服务器仅能在 Linux 系统上安装和运行，后续会支持 Windows、Mac OS 等系统。客户端可以在 Windows 或 Linux 上安装和运行。任何 OS 的应用也可以选择 RESTful 接口连接服务器 taosd，其中 2.4 之后版本默认使用单独运行的独立组件 taosAdapter 提供 http 服务，之前版本使用内置 http 服务。支持 X64/ARM64/MIPS64/Alpha64，后续会支持 ARM32、RISC-V 等 CPU 架构。用户可根据需求选择通过 [源码](https://www.taosdata.com/getting-started/#source-install) 或者 [安装包](https://www.taosdata.com/getting-started/#package-install) 来安装。
+
+* 查看完整的Release notes，请点击[这里](https://github.com/taosdata/TDengine/releases)。
+* 下载其他组件、最新beta版及之前版本的安装包，请点击[这里](https://www.taosdata.com/cn/all-downloads/)。
 
 ### <a class="anchor" id="source-install"></a>通过源码安装
 
@@ -20,13 +23,38 @@ docker run -d -p 6030-6049:6030-6049 -p 6030-6049:6030-6049/udp tdengine/tdengin
 
 ### <a class="anchor" id="package-install"></a>通过安装包安装
 
-TDengine 的安装非常简单，从下载到安装成功仅仅只要几秒钟。服务端安装包包含客户端和连接器，我们提供三种安装包，您可以根据需要选择：
+TDengine 的安装非常简单，从下载到安装成功仅仅只要几秒钟。为方便使用，标准的服务端安装包包含了客户端程序、各种编程语言的连接器和示例代码；如果您只需要用到服务端程序和客户端连接的 C/C++ 语言支持，那么也可以仅下载 lite 版本的安装包。在安装包格式上，我们提供 rpm、deb、tar.gz 三种，以方便在特定操作系统上使用。版本还分稳定版和Beta版，Beta版含有更多新功能，正式上线或测试，建议安装稳定版。您可以根据需要选择下载：
 
-安装包下载在 [这里](https://www.taosdata.com/cn/getting-started/#通过安装包安装)。
+<ul id="server-packageList" class="package-list"></ul>
 
 具体的安装过程，请参见 [TDengine 多种安装包的安装和卸载](https://www.taosdata.com/blog/2019/08/09/566.html) 以及 [视频教程](https://www.taosdata.com/blog/2020/11/11/1941.html)。
+  
+## <a class="anchor" id="taosBenchmark"></a> taosBenchmark 详细功能列表
 
-### 使用 apt-get 安装
+taosBenchmark （曾命名 taosdemo）命令本身带有很多选项，配置表的数目、记录条数等等，请执行 `taosBenchmark --help` 详细列出。您可以设置不同参数进行体验。
+taosBenchmark 详细使用方法请参照 [如何使用taosBenchmark对TDengine进行性能测试](https://www.taosdata.com/2021/10/09/3111.html)。
+
+## 客户端
+
+如果客户端和服务端运行在不同的电脑上，可以单独安装客户端。下载时请注意，所选择的客户端版本号应该和在上面下载的服务端版本号精确匹配。Linux 和 Windows 安装包如下（其中 lite 版本的安装包仅带有 C/C++ 语言的连接支持，而标准版本的安装包还包含 Java、Python、Go、Node.js 等编程语言的连接器支持和示例代码）：
+  
+<ul id="client-packagelist" class="package-list"></ul>
+  
+## taosTools
+ 
+taosTools 是多个用于 TDengine 的辅助工具软件集合。
+
+推荐下载 deb 或 rpm 安装包，方便安装依赖软件。如果使用 tar.gz 格式安装包，需要自行安装依赖包。其中：
+
+* Debian/Ubuntu 系统需要安装 libjansson4 和 libsnappy1v5
+* CentOS/RHEL 系统需要安装 jansson 和 snappy
+  
+以及 TDengine server 或 TDengine client 安装包
+
+<ul id="taos-tools" class="package-list"></ul>
+
+
+## 使用 apt-get 安装
 
 如果使用 Debian 或 Ubuntu 系统，也可以使用 apt-get 从官方仓库安装，设置方法为：
 
@@ -181,15 +209,7 @@ taos> select avg(current), max(voltage), min(phase) from test.meters where group
 ```mysql
 taos> select avg(current), max(voltage), min(phase) from test.d10 interval(10s);
 ```
-
-## <a class="anchor" id="taosBenchmark"></a> taosBenchmark 详细功能列表
-
-taosBenchmark （曾命名 taosdemo）命令本身带有很多选项，配置表的数目、记录条数等等，请执行 `taosBenchmark --help` 详细列出。您可以设置不同参数进行体验。
-taosBenchmark 详细使用方法请参照 [如何使用taosBenchmark对TDengine进行性能测试](https://www.taosdata.com/2021/10/09/3111.html)。
-
-## 客户端
-
-如果客户端和服务端运行在不同的电脑上，可以单独安装客户端。Linux 和 Windows 安装包可以在 [这里](https://www.taosdata.com/cn/getting-started/#客户端) 下载。
+  
 
 ## <a class="anchor" id="platforms"></a>支持平台列表
 
@@ -231,3 +251,4 @@ taosBenchmark 详细使用方法请参照 [如何使用taosBenchmark对TDengine�
 
 请跳转到 [连接器](https://www.taosdata.com/cn/documentation/connector) 查看更详细的信息。
 
+<script src="/wp-includes/js/quick-start.js?v=1"></script>
