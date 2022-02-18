@@ -45,6 +45,8 @@ int32_t tInitSubmitMsgIter(SSubmitReq *pMsg, SSubmitMsgIter *pIter) {
 }
 
 int32_t tGetSubmitMsgNext(SSubmitMsgIter *pIter, SSubmitBlk **pPBlock) {
+  ASSERT(pIter->len >= 0);
+
   if (pIter->len == 0) {
     pIter->len += sizeof(SSubmitReq);
   } else {
@@ -2109,6 +2111,7 @@ int32_t tSerializeSCreateVnodeReq(void *buf, int32_t bufLen, SCreateVnodeReq *pR
   if (tEncodeI8(&encoder, pReq->cacheLastRow) < 0) return -1;
   if (tEncodeI8(&encoder, pReq->replica) < 0) return -1;
   if (tEncodeI8(&encoder, pReq->selfIndex) < 0) return -1;
+  if (tEncodeI8(&encoder, pReq->streamMode) < 0) return -1;
   for (int32_t i = 0; i < TSDB_MAX_REPLICA; ++i) {
     SReplica *pReplica = &pReq->replicas[i];
     if (tEncodeSReplica(&encoder, pReplica) < 0) return -1;
@@ -2148,6 +2151,7 @@ int32_t tDeserializeSCreateVnodeReq(void *buf, int32_t bufLen, SCreateVnodeReq *
   if (tDecodeI8(&decoder, &pReq->cacheLastRow) < 0) return -1;
   if (tDecodeI8(&decoder, &pReq->replica) < 0) return -1;
   if (tDecodeI8(&decoder, &pReq->selfIndex) < 0) return -1;
+  if (tDecodeI8(&decoder, &pReq->streamMode) < 0) return -1;
   for (int32_t i = 0; i < TSDB_MAX_REPLICA; ++i) {
     SReplica *pReplica = &pReq->replicas[i];
     if (tDecodeSReplica(&decoder, pReplica) < 0) return -1;

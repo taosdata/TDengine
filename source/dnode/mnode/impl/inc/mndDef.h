@@ -337,6 +337,7 @@ typedef struct {
   int64_t   pointsWritten;
   int8_t    compact;
   int8_t    replica;
+  int8_t    streamMode;
   SVnodeGid vnodeGid[TSDB_MAX_REPLICA];
 } SVgObj;
 

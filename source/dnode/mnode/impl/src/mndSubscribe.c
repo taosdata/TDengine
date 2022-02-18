@@ -1099,6 +1099,8 @@ static int32_t mndProcessSubscribeReq(SMnodeMsg *pMsg) {
         pConsumerEp->consumerId = consumerId;
         taosArrayPush(mqSubConsumer.vgInfo, pConsumerEp);
         if (pConsumerEp->oldConsumerId == -1) {
+          mInfo("mq set conn: assign vgroup %d of topic %s to consumer %ld", pConsumerEp->vgId, newTopicName,
+                pConsumerEp->consumerId);
           mndPersistMqSetConnReq(pMnode, pTrans, pTopic, cgroup, pConsumerEp);
         } else {
           mndPersistRebalanceMsg(pMnode, pTrans, pConsumerEp);

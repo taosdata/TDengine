@@ -745,6 +745,7 @@ typedef struct {
   int8_t   cacheLastRow;
   int8_t   replica;
   int8_t   selfIndex;
+  int8_t   streamMode;
   SReplica replicas[TSDB_MAX_REPLICA];
 } SCreateVnodeReq, SAlterVnodeReq;
 
