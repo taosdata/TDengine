@@ -2,7 +2,7 @@
 
 ## <a class="anchor" id="install"></a>快捷安装
 
-TDengine 包括服务器、客户端和周边生态工具软件，目前 2.0 版服务器仅能在 Linux 系统上安装和运行，后续将支持 Windows、Mac OS 等系统。客户端可以在 Windows 或 Linux 上安装和运行。在任何操作系统上的应用都可以使用 RESTful 接口连接服务器 taosd，其中 2.4 之后版本默认使用单独运行的独立组件 taosAdapter 提供 http 服务和更多数据写入方式。taosAdapter 需要手动启动。而之前版本 TDengine 使用内置 http 服务。
+TDengine 包括服务端、客户端和周边生态工具软件，目前 2.0 版服务端仅能在 Linux 系统上安装和运行，后续将支持 Windows、Mac OS 等系统。客户端可以在 Windows 或 Linux 上安装和运行。在任何操作系统上的应用都可以使用 RESTful 接口连接服务端程序 taosd，其中 2.4 之后版本默认使用单独运行的独立组件 taosAdapter 提供 http 服务和更多数据写入方式。taosAdapter 需要手动启动。而之前版本 TDengine 使用内置 http 服务。
 
 TDengine 支持 X64/ARM64/MIPS64/Alpha64 硬件平台，后续将支持 ARM32、RISC-V 等 CPU 架构。
 
@@ -129,8 +129,8 @@ Query OK, 2 row(s) in set (0.003128s)
 - -c, --config-dir: 指定配置文件目录，默认为 `/etc/taos`
 - -h, --host: 指定服务的 FQDN 地址或 IP 地址，默认为连接本地服务
 - -s, --commands: 在不进入终端的情况下运行 TDengine 命令
-- -u, --user: 连接 TDengine 服务器的用户名，缺省为 root
-- -p, --password: 连接TDengine服务器的密码，缺省为 taosdata
+- -u, --user: 连接 TDengine 服务端的用户名，缺省为 root
+- -p, --password: 连接 TDengine 服务端的密码，缺省为 taosdata
 - -?, --help: 打印出所有命令行参数
 
 示例：
@@ -212,7 +212,7 @@ taos> select avg(current), max(voltage), min(phase) from test.d10 interval(10s);
 
 ## <a class="anchor" id="platforms"></a>支持平台列表
 
-### TDengine 服务器支持的平台列表
+### TDengine 服务端支持的平台列表
 
 |                | **CentOS 7/8** | **Ubuntu 16/18/20** | **Other Linux** | **统信 UOS** | **银河/中标麒麟** | **凝思 V60/V80** | **华为 EulerOS** |
 | -------------- | --------------------- | ------------------------ | --------------- | --------------- | ------------------------- | --------------------- | --------------------- |
