@@ -10,7 +10,7 @@ TDengine supports X64/ARM64/MIPS64/Alpha64 hardware platforms and will support A
 
 Please visit our [TDengine github page](https://github.com/taosdata/TDengine) for instructions on installation from the source code.
 
-### Run TDengine with Docker Container
+### Install with Docker Container
 
 ```
 docker run -d -p 6030-6049:6030-6049 -p 6030-6049:6030-6049/udp tdengine/tdengine
@@ -28,7 +28,7 @@ TDengine is very easy to install, from download to successful installation in ju
 
 For details of the installation process, please refer to [Installation and Uninstallation of TDengine Multiple Installers](https://www.taosdata.com/en/documentation/install).
 
-## Install TDengine client only
+## Install client only
 
 If the client and server are running on different computers, you can install the client separately. When downloading, please note that the selected client version number should strictly match the server version number downloaded above. Linux and Windows installation packages are as follows (the lite version of the installer comes with connection support for the C/C++ language only, while the standard version of the installer also contains
 and sample code):
