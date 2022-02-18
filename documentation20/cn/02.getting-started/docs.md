@@ -26,7 +26,7 @@ TDengine 的安装非常简单，从下载到安装成功仅仅只要几秒钟�
 
 <ul id="server-packageList" class="package-list"></ul>
 
-具体的安装过程，请参见 [TDengine 多种安装包的安装和卸载](https://www.taosdata.com/cn/documentation/install) 以及 [视频教程](https://www.taosdata.com/blog/2020/11/11/1941.html)。
+具体的安装过程，请参见 [TDengine 多种安装包的安装和卸载](https://www.taosdata.com/cn/getting-started/install) 以及 [视频教程](https://www.taosdata.com/blog/2020/11/11/1941.html)。
 
 ## 仅安装客户端
 
