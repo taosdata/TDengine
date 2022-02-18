@@ -567,7 +567,7 @@ function install_data() {
 }
 
 function install_connector() {
-  ${csudo}cp -rf ${script_dir}/connector/ ${install_main_dir}/
+  [ -d "${script_dir}/connector/" ] && ${csudo}cp -rf ${script_dir}/connector/ ${install_main_dir}/
 }
 
 function install_examples() {
@@ -885,7 +885,7 @@ function update_TDengine() {
     echo -e "\033[44;32;1m${productName} client is updated successfully!${NC}"
   fi
 
-  rm -rf $(tar -tf ${tarName})
+  rm -rf $(tar -tf ${tarName} |grep -v "^\./$")
 }
 
 function install_TDengine() {
@@ -982,7 +982,7 @@ function install_TDengine() {
   fi
 
   touch ~/.${historyFile}
-  rm -rf $(tar -tf ${tarName})
+  rm -rf $(tar -tf ${tarName} |grep -v "^\./$")
 }
 
 ## ==============================Main program starts from here============================
