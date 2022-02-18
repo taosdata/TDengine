@@ -198,7 +198,13 @@ SResultRowPool* initResultRowPool(size_t size) {
   p->numOfElemPerBlock = 128;
 
   p->elemSize = (int32_t) size;
-  p->blockSize = p->numOfElemPerBlock * p->elemSize;
+  int64_t tmp = p->elemSize;
+  tmp *= p->numOfElemPerBlock;
+  if (tmp > 1024*1024*1024){
+    qError("ResultRow blockSize is too large:%" PRId64, tmp);
+    tmp = 128*1024*1024;
+  }
+  p->blockSize = tmp;
   p->position.pos = 0;
 
   p->pData = taosArrayInit(8, POINTER_BYTES);
