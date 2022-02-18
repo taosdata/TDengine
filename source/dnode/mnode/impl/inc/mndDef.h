@@ -128,6 +128,7 @@ typedef struct {
   int32_t    id;
   ETrnStage  stage;
   ETrnPolicy policy;
+  ETrnType   transType;
   int32_t    code;
   int32_t    failedTimes;
   void*      rpcHandle;
@@ -141,7 +142,6 @@ typedef struct {
   SArray*    undoActions;
   int64_t    createdTime;
   int64_t    lastExecTime;
-  int32_t    transType;
   uint64_t   dbUid;
   char       dbname[TSDB_DB_FNAME_LEN];
   char       lastError[TSDB_TRANS_ERROR_LEN];
