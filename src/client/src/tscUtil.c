@@ -5087,6 +5087,7 @@ int32_t tscCreateQueryFromQueryInfo(SQueryInfo* pQueryInfo, SQueryAttr* pQueryAt
   pQueryAttr->pUdfInfo          = pQueryInfo->pUdfInfo;
   pQueryAttr->range             = pQueryInfo->range;
 
+
   if (pQueryInfo->order.order == TSDB_ORDER_ASC) {   // TODO refactor
     pQueryAttr->window = pQueryInfo->window;
   } else {
@@ -5117,6 +5118,8 @@ int32_t tscCreateQueryFromQueryInfo(SQueryInfo* pQueryInfo, SQueryAttr* pQueryAt
       }
     }
   }
+
+  pQueryAttr->uniqueQuery       = isUniqueQuery(numOfOutput, pQueryAttr->pExpr1);
 
   pQueryAttr->tableCols = calloc(numOfCols, sizeof(SColumnInfo));
   for(int32_t i = 0; i < numOfCols; ++i) {
