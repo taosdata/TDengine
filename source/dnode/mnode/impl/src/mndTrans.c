@@ -221,7 +221,6 @@ static SSdbRow *mndTransActionDecode(SSdbRaw *pRaw) {
   pTrans = sdbGetRowObj(pRow);
   if (pTrans == NULL) goto TRANS_DECODE_OVER;
 
-
   SDB_GET_INT32(pRaw, dataPos, &pTrans->id, TRANS_DECODE_OVER)
 
   int16_t type = 0;
@@ -353,8 +352,60 @@ static const char *mndTransStr(ETrnStage stage) {
 
 static const char *mndTransType(ETrnType type) {
   switch (type) {
+    case TRN_TYPE_CREATE_USER:
+      return "create-user";
+    case TRN_TYPE_ALTER_USER:
+      return "alter-user";
+    case TRN_TYPE_DROP_USER:
+      return "drop-user";
+    case TRN_TYPE_CREATE_FUNC:
+      return "create-func";
+    case TRN_TYPE_DROP_FUNC:
+      return "drop-func";
+    case TRN_TYPE_CREATE_SNODE:
+      return "create-snode";
+    case TRN_TYPE_DROP_SNODE:
+      return "drop-snode";
+    case TRN_TYPE_CREATE_QNODE:
+      return "create-qnode";
+    case TRN_TYPE_DROP_QNODE:
+      return "drop-qnode";
+    case TRN_TYPE_CREATE_BNODE:
+      return "create-bnode";
+    case TRN_TYPE_DROP_BNODE:
+      return "drop-bnode";
+    case TRN_TYPE_CREATE_MNODE:
+      return "create-mnode";
+    case TRN_TYPE_DROP_MNODE:
+      return "drop-mnode";
+    case TRN_TYPE_CREATE_TOPIC:
+      return "create-topic";
+    case TRN_TYPE_DROP_TOPIC:
+      return "drop-topic";
+    case TRN_TYPE_SUBSCRIBE:
+      return "subscribe";
+    case TRN_TYPE_REBALANCE:
+      return "rebalance";
+    case TRN_TYPE_CREATE_DNODE:
+      return "create-qnode";
+    case TRN_TYPE_DROP_DNODE:
+      return "drop-qnode";
     case TRN_TYPE_CREATE_DB:
       return "create-db";
+    case TRN_TYPE_ALTER_DB:
+      return "alter-db";
+    case TRN_TYPE_DROP_DB:
+      return "drop-db";
+    case TRN_TYPE_SPLIT_VGROUP:
+      return "split-vgroup";
+    case TRN_TYPE_MERGE_VGROUP:
+      return "merge-vgroup";
+    case TRN_TYPE_CREATE_STB:
+      return "create-stb";
+    case TRN_TYPE_ALTER_STB:
+      return "alter-stb";
+    case TRN_TYPE_DROP_STB:
+      return "drop-stb";
     default:
       return "invalid";
   }
@@ -1228,7 +1279,7 @@ static int32_t mndGetTransMeta(SMnodeMsg *pReq, SShowObj *pShow, STableMetaRsp *
   pSchema[cols].bytes = pShow->bytes[cols];
   cols++;
 
-  pShow->bytes[cols] = (TSDB_TRANS_DESC_LEN - 1) + VARSTR_HEADER_SIZE;
+  pShow->bytes[cols] = TSDB_TRANS_TYPE_LEN + VARSTR_HEADER_SIZE;
   pSchema[cols].type = TSDB_DATA_TYPE_BINARY;
   strcpy(pSchema[cols].name, "type");
   pSchema[cols].bytes = pShow->bytes[cols];
