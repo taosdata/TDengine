@@ -546,7 +546,89 @@ static int32_t mndTransSync(SMnode *pMnode, STrans *pTrans) {
   return 0;
 }
 
+static bool mndIsBasicTrans(STrans *pTrans) {
+  return pTrans->stage > TRN_TYPE_BASIC_SCOPE && pTrans->stage < TRN_TYPE_BASIC_SCOPE_END;
+}
+
+static bool mndIsGlobalTrans(STrans *pTrans) {
+  return pTrans->stage > TRN_TYPE_GLOBAL_SCOPE && pTrans->stage < TRN_TYPE_GLOBAL_SCOPE_END;
+}
+
+static bool mndIsDbTrans(STrans *pTrans) {
+  return pTrans->stage > TRN_TYPE_DB_SCOPE && pTrans->stage < TRN_TYPE_DB_SCOPE_END;
+}
+
+static bool mndIsStbTrans(STrans *pTrans) {
+  return pTrans->stage > TRN_TYPE_STB_SCOPE && pTrans->stage < TRN_TYPE_STB_SCOPE_END;
+}
+
+static int32_t mndCheckTransCanBeStartedInParallel(SMnode *pMnode, STrans *pNewTrans) {
+  if (mndIsBasicTrans(pNewTrans)) return 0;
+
+  STrans *pTrans = NULL;
+  void   *pIter = NULL;
+  int32_t code = 0;
+
+  while (1) {
+    pIter = sdbFetch(pMnode->pSdb, SDB_TRANS, pIter, (void **)&pTrans);
+    if (pIter == NULL) break;
+
+    if (mndIsGlobalTrans(pNewTrans)) {
+      if (mndIsDbTrans(pTrans) || mndIsStbTrans(pTrans)) {
+        mError("trans:%d, can't execute since trans:%d in progress db:%s", pNewTrans->id, pTrans->id, pTrans->dbname);
+        code = -1;
+        break;
+      }
+    }
+
+    if (mndIsDbTrans(pNewTrans)) {
+      if (mndIsBasicTrans(pTrans)) continue;
+      if (mndIsGlobalTrans(pTrans)) {
+        mError("trans:%d, can't execute since trans:%d in progress", pNewTrans->id, pTrans->id);
+        code = -1;
+        break;
+      }
+      if (mndIsDbTrans(pTrans) || mndIsStbTrans(pTrans)) {
+        if (pNewTrans->dbUid == pTrans->dbUid) {
+          mError("trans:%d, can't execute since trans:%d in progress db:%s", pNewTrans->id, pTrans->id, pTrans->dbname);
+          code = -1;
+          break;
+        }
+      }
+    }
+
+    if (mndIsStbTrans(pNewTrans)) {
+      if (mndIsBasicTrans(pTrans)) continue;
+      if (mndIsGlobalTrans(pTrans)) {
+        mError("trans:%d, can't execute since trans:%d in progress", pNewTrans->id, pTrans->id);
+        code = -1;
+        break;
+      }
+      if (mndIsDbTrans(pTrans)) {
+        if (pNewTrans->dbUid == pTrans->dbUid) {
+          mError("trans:%d, can't execute since trans:%d in progress db:%s", pNewTrans->id, pTrans->id, pTrans->dbname);
+          code = -1;
+          break;
+        }
+      }
+      if (mndIsStbTrans(pTrans)) continue;
+    }
+
+    sdbRelease(pMnode->pSdb, pTrans);
+  }
+
+  sdbCancelFetch(pMnode->pSdb, pIter);
+  sdbRelease(pMnode->pSdb, pTrans);
+  return code;
+}
+
 int32_t mndTransPrepare(SMnode *pMnode, STrans *pTrans) {
+  if (mndCheckTransCanBeStartedInParallel(pMnode, pTrans) != 0) {
+    terrno = TSDB_CODE_MND_TRANS_CANT_PARALLEL;
+    mError("trans:%d, failed to prepare since %s", pTrans->id, terrstr());
+    return -1;
+  }
+
   mDebug("trans:%d, prepare transaction", pTrans->id);
   if (mndTransSync(pMnode, pTrans) != 0) {
     mError("trans:%d, failed to prepare since %s", pTrans->id, terrstr());
