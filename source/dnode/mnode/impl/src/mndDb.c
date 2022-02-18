@@ -439,6 +439,7 @@ static int32_t mndCreateDb(SMnode *pMnode, SMnodeMsg *pReq, SCreateDbReq *pCreat
 
   mDebug("trans:%d, used to create db:%s", pTrans->id, pCreate->db);
 
+  mndTransSetDbInfo(pTrans, &dbObj);
   if (mndSetCreateDbRedoLogs(pMnode, pTrans, &dbObj, pVgroups) != 0) goto CREATE_DB_OVER;
   if (mndSetCreateDbUndoLogs(pMnode, pTrans, &dbObj, pVgroups) != 0) goto CREATE_DB_OVER;
   if (mndSetCreateDbCommitLogs(pMnode, pTrans, &dbObj, pVgroups) != 0) goto CREATE_DB_OVER;
@@ -625,6 +626,7 @@ static int32_t mndUpdateDb(SMnode *pMnode, SMnodeMsg *pReq, SDbObj *pOld, SDbObj
 
   mDebug("trans:%d, used to update db:%s", pTrans->id, pOld->name);
 
+  mndTransSetDbInfo(pTrans, pOld);
   if (mndSetUpdateDbRedoLogs(pMnode, pTrans, pOld, pNew) != 0) goto UPDATE_DB_OVER;
   if (mndSetUpdateDbCommitLogs(pMnode, pTrans, pOld, pNew) != 0) goto UPDATE_DB_OVER;
   if (mndSetUpdateDbRedoActions(pMnode, pTrans, pOld, pNew) != 0) goto UPDATE_DB_OVER;
@@ -803,6 +805,7 @@ static int32_t mndDropDb(SMnode *pMnode, SMnodeMsg *pReq, SDbObj *pDb) {
   if (pTrans == NULL) goto DROP_DB_OVER;
 
   mDebug("trans:%d, used to drop db:%s", pTrans->id, pDb->name);
+  mndTransSetDbInfo(pTrans, pDb);
 
   if (mndSetDropDbRedoLogs(pMnode, pTrans, pDb) != 0) goto DROP_DB_OVER;
   if (mndSetDropDbCommitLogs(pMnode, pTrans, pDb) != 0) goto DROP_DB_OVER;

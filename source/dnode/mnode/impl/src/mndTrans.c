@@ -16,6 +16,7 @@
 #define _DEFAULT_SOURCE
 #include "mndTrans.h"
 #include "mndAuth.h"
+#include "mndDb.h"
 #include "mndShow.h"
 #include "mndSync.h"
 #include "mndUser.h"
@@ -511,6 +512,11 @@ int32_t mndTransAppendUndoAction(STrans *pTrans, STransAction *pAction) {
 void mndTransSetRpcRsp(STrans *pTrans, void *pCont, int32_t contLen) {
   pTrans->rpcRsp = pCont;
   pTrans->rpcRspLen = contLen;
+}
+
+void mndTransSetDbInfo(STrans *pTrans, SDbObj *pDb) {
+  pTrans->dbUid = pDb->uid;
+  memcpy(pTrans->dbname, pDb->name, TSDB_DB_FNAME_LEN);
 }
 
 static int32_t mndTransSync(SMnode *pMnode, STrans *pTrans) {
@@ -1199,7 +1205,12 @@ static int32_t mndRetrieveTrans(SMnodeMsg *pReq, SShowObj *pShow, char *data, in
     cols++;
 
     pWrite = data + pShow->offset[cols] * rows + pShow->bytes[cols] * numOfRows;
-    STR_TO_VARSTR(pWrite, pTrans->dbname);
+    char *name = mnGetDbStr(pTrans->dbname);
+    if (name != NULL) {
+      STR_WITH_MAXSIZE_TO_VARSTR(pWrite, name, pShow->bytes[cols]);
+    } else {
+      STR_TO_VARSTR(pWrite, "-");
+    }
     cols++;
 
     pWrite = data + pShow->offset[cols] * rows + pShow->bytes[cols] * numOfRows;
