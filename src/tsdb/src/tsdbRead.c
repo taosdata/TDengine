@@ -1749,7 +1749,6 @@ static int32_t doCopyRowsFromFileBlock(STsdbQueryHandle* pQueryHandle, int32_t c
     } else {
       pData = (char*)pColInfo->pData + (capacity - numOfRows - num) * pColInfo->info.bytes;
     }
-    memset(pData, 0, pColInfo->info.bytes);
 
     if (!isAllRowsNull(src) && pColInfo->info.colId == src->colId) {
       if (pColInfo->info.type != TSDB_DATA_TYPE_BINARY && pColInfo->info.type != TSDB_DATA_TYPE_NCHAR) {
@@ -1760,6 +1759,7 @@ static int32_t doCopyRowsFromFileBlock(STsdbQueryHandle* pQueryHandle, int32_t c
         // todo refactor, only copy one-by-one
         for (int32_t k = start; k < num + start; ++k) {
           const char* p = tdGetColDataOfRow(src, k);
+          memset(dst, 0, bytes);
           memcpy(dst, p, varDataTLen(p));
           dst += bytes;
         }
@@ -1772,6 +1772,7 @@ static int32_t doCopyRowsFromFileBlock(STsdbQueryHandle* pQueryHandle, int32_t c
         char* dst = pData;
 
         for(int32_t k = start; k < num + start; ++k) {
+          memset(dst, 0, bytes);
           setVardataNull(dst, pColInfo->info.type);
           dst += bytes;
         }
@@ -1789,12 +1790,12 @@ static int32_t doCopyRowsFromFileBlock(STsdbQueryHandle* pQueryHandle, int32_t c
     } else {
       pData = (char*)pColInfo->pData + (capacity - numOfRows - num) * pColInfo->info.bytes;
     }
-    memset(pData, 0, pColInfo->info.bytes);
 
     if (pColInfo->info.type == TSDB_DATA_TYPE_BINARY || pColInfo->info.type == TSDB_DATA_TYPE_NCHAR) {
       char* dst = pData;
 
       for(int32_t k = start; k < num + start; ++k) {
+        memset(pData, 0, pColInfo->info.bytes);
         setVardataNull(dst, pColInfo->info.type);
         dst += pColInfo->info.bytes;
       }
@@ -1862,6 +1863,7 @@ static void mergeTwoRowFromMem(STsdbQueryHandle* pQueryHandle, int32_t capacity,
     } else {
       pData = (char*)pColInfo->pData + (capacity - numOfRows - 1) * pColInfo->info.bytes;
     }
+    memset(pData, 0, pColInfo->info.bytes);
 
     int32_t colIdOfRow1;
     if(j >= numOfColsOfRow1) {
@@ -1997,6 +1999,7 @@ static void mergeTwoRowFromMem(STsdbQueryHandle* pQueryHandle, int32_t capacity,
       } else {
         pData = (char*)pColInfo->pData + (capacity - numOfRows - 1) * pColInfo->info.bytes;
       }
+      memset(pData, 0, pColInfo->info.bytes);
 
       if (pColInfo->info.type == TSDB_DATA_TYPE_BINARY || pColInfo->info.type == TSDB_DATA_TYPE_NCHAR) {
         setVardataNull(pData, pColInfo->info.type);
@@ -3152,7 +3155,7 @@ static bool loadCachedLast(STsdbQueryHandle* pQueryHandle) {
       }
     
       pData = (char*)pColInfo->pData + numOfRows * pColInfo->info.bytes;
-    
+      memset(pData, 0, pColInfo->info.bytes);
       if (pTable->lastCols[j].bytes > 0) {        
         void* value = pTable->lastCols[j].pData;
         switch (pColInfo->info.type) {
@@ -3207,7 +3210,7 @@ static bool loadCachedLast(STsdbQueryHandle* pQueryHandle) {
 
           pColInfo = taosArrayGet(pQueryHandle->pColumns, n);
           pData = (char*)pColInfo->pData + numOfRows * pColInfo->info.bytes;;
-
+          memset(pData, 0, pColInfo->info.bytes);
           if (pColInfo->info.colId == PRIMARYKEY_TIMESTAMP_COL_INDEX) {
             *(TSKEY *)pData = pTable->lastCols[j].ts;
             continue;
@@ -3233,7 +3236,8 @@ static bool loadCachedLast(STsdbQueryHandle* pQueryHandle) {
     if (priKey != TSKEY_INITIAL_VAL) {
       pColInfo = taosArrayGet(pQueryHandle->pColumns, priIdx);
       pData = (char*)pColInfo->pData + numOfRows * pColInfo->info.bytes;
-    
+      memset(pData, 0, pColInfo->info.bytes);
+
       *(TSKEY *)pData = priKey;
 
       for (int32_t n = 0; n < tgNumOfCols; ++n) {
@@ -3243,7 +3247,8 @@ static bool loadCachedLast(STsdbQueryHandle* pQueryHandle) {
       
         pColInfo = taosArrayGet(pQueryHandle->pColumns, n);
         pData = (char*)pColInfo->pData + numOfRows * pColInfo->info.bytes;;
-      
+        memset(pData, 0, pColInfo->info.bytes);
+
         assert (pColInfo->info.colId != PRIMARYKEY_TIMESTAMP_COL_INDEX);
         
         if (pColInfo->info.type == TSDB_DATA_TYPE_BINARY || pColInfo->info.type == TSDB_DATA_TYPE_NCHAR) {
