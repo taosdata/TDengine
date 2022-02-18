@@ -216,7 +216,7 @@ do { \
 
 #define TSDB_TRANS_STAGE_LEN      12
 #define TSDB_TRANS_TYPE_LEN       16
-#define TSDB_TRANS_ERROR_LEN      128
+#define TSDB_TRANS_ERROR_LEN      64
 
 #define TSDB_STEP_NAME_LEN        32
 #define TSDB_STEP_DESC_LEN        128

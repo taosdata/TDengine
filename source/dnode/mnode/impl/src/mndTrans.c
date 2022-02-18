@@ -805,6 +805,9 @@ void mndTransProcessRsp(SMnodeMsg *pRsp) {
   if (pAction != NULL) {
     pAction->msgReceived = 1;
     pAction->errCode = pRsp->rpcMsg.code;
+    if (pAction->errCode != 0) {
+      tstrncpy(pTrans->lastError, tstrerror(pAction->errCode), TSDB_TRANS_ERROR_LEN);
+    }
   }
 
   mDebug("trans:%d, action:%d response is received, code:0x%x, accept:0x%x", transId, action, pRsp->rpcMsg.code,
@@ -1110,6 +1113,7 @@ static void mndTransExecute(SMnode *pMnode, STrans *pTrans) {
   bool continueExec = true;
 
   while (continueExec) {
+    pTrans->lastExecTime = taosGetTimestampMs();
     switch (pTrans->stage) {
       case TRN_STAGE_PREPARE:
         continueExec = mndTransPerformPrepareStage(pMnode, pTrans);
