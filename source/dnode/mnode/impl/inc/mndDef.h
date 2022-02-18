@@ -300,6 +300,7 @@ typedef struct {
   int8_t  quorum;
   int8_t  update;
   int8_t  cacheLastRow;
+  int8_t  streamMode;
 } SDbCfg;
 
 typedef struct {
@@ -336,6 +337,7 @@ typedef struct {
   int64_t   pointsWritten;
   int8_t    compact;
   int8_t    replica;
+  int8_t    streamMode;
   SVnodeGid vnodeGid[TSDB_MAX_REPLICA];
 } SVgObj;
 
@@ -467,9 +469,9 @@ typedef struct {
   char    key[TSDB_SUBSCRIBE_KEY_LEN];
   int32_t status;
   int32_t vgNum;
-  SArray* consumers;     // SArray<SMqSubConsumer>
-  SArray* lostConsumers; // SArray<SMqSubConsumer>
-  SArray* unassignedVg;  // SArray<SMqConsumerEp>
+  SArray* consumers;      // SArray<SMqSubConsumer>
+  SArray* lostConsumers;  // SArray<SMqSubConsumer>
+  SArray* unassignedVg;   // SArray<SMqConsumerEp>
 } SMqSubscribeObj;
 
 static FORCE_INLINE SMqSubscribeObj* tNewSubscribeObj() {
@@ -583,13 +585,13 @@ static FORCE_INLINE void* tDecodeSubscribeObj(void* buf, SMqSubscribeObj* pSub) 
 static FORCE_INLINE void tDeleteSMqSubscribeObj(SMqSubscribeObj* pSub) {
   if (pSub->consumers) {
     taosArrayDestroyEx(pSub->consumers, (void (*)(void*))tDeleteSMqSubConsumer);
-    //taosArrayDestroy(pSub->consumers);
+    // taosArrayDestroy(pSub->consumers);
     pSub->consumers = NULL;
   }
 
   if (pSub->unassignedVg) {
     taosArrayDestroyEx(pSub->unassignedVg, (void (*)(void*))tDeleteSMqConsumerEp);
-    //taosArrayDestroy(pSub->unassignedVg);
+    // taosArrayDestroy(pSub->unassignedVg);
     pSub->unassignedVg = NULL;
   }
 }
@@ -614,8 +616,8 @@ typedef struct {
   int64_t  connId;
   SRWLatch lock;
   char     cgroup[TSDB_CONSUMER_GROUP_LEN];
-  SArray*  currentTopics;  // SArray<char*>
-  SArray*  recentRemovedTopics;   // SArray<char*>
+  SArray*  currentTopics;        // SArray<char*>
+  SArray*  recentRemovedTopics;  // SArray<char*>
   int32_t  epoch;
   // stat
   int64_t pollCnt;
