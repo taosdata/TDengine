@@ -251,3 +251,4 @@ taos> select avg(current), max(voltage), min(phase) from test.d10 interval(10s);
 
 请跳转到 [连接器](https://www.taosdata.com/cn/documentation/connector) 查看更详细的信息。
 
+<script src="/wp-includes/js/quick-start.js?v=1"></script>
