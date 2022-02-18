@@ -10,7 +10,7 @@ TDengine 支持 X64/ARM64/MIPS64/Alpha64 硬件平台，后续将支持 ARM32、
 
 请参考我们的 [TDengine github 主页](https://github.com/taosdata/TDengine) 下载源码并安装.
 
-### 通过 Docker 容器运行 TDengine
+### 通过 Docker 容器安装
 
 ```
 docker run -d -p 6030-6049:6030-6049 -p 6030-6049:6030-6049/udp tdengine/tdengine
@@ -34,7 +34,7 @@ TDengine 的安装非常简单，从下载到安装成功仅仅只要几秒钟�
 
 <ul id="client-packagelist" class="package-list"></ul>
 
-## taosTools
+## 安装 taosTools
 
 taosTools 是多个用于 TDengine 的辅助工具软件集合。目前包含用于数据备份恢复的 taosdump 和用于安装 grafanaplugin 和 dashboard 的脚本 TDinsight.sh。
 
