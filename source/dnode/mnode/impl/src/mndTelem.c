@@ -20,8 +20,7 @@
 #include "tbuffer.h"
 #include "tversion.h"
 
-// #define TELEMETRY_SERVER "telemetry.taosdata.com"
-#define TELEMETRY_SERVER "localhost"
+#define TELEMETRY_SERVER "telemetry.taosdata.com"
 #define TELEMETRY_PORT   80
 #define REPORT_INTERVAL  86400
 
