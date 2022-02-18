@@ -1113,7 +1113,7 @@ static int32_t addPrimaryTsColumnForTimeWindowQuery(SQueryInfo* pQueryInfo, SSql
 static int32_t checkInvalidExprForTimeWindow(SSqlCmd* pCmd, SQueryInfo* pQueryInfo) {
   const char* msg1 = "invalid query expression";
   const char* msg2 = "top/bottom query does not support order by value in time window query";
-  const char* msg3 = "unique function does not supportted in time window query";
+//  const char* msg3 = "unique function does not supportted in time window query";
 
   /*
    * invalid sql:
@@ -1126,7 +1126,7 @@ static int32_t checkInvalidExprForTimeWindow(SSqlCmd* pCmd, SQueryInfo* pQueryIn
       return invalidOperationMsg(tscGetErrorMsgPayload(pCmd), msg1);
     }
     if (pExpr->base.functionId == TSDB_FUNC_UNIQUE) {
-      return invalidOperationMsg(tscGetErrorMsgPayload(pCmd), msg3);
+      // return invalidOperationMsg(tscGetErrorMsgPayload(pCmd), msg3);
     }
   }
 
@@ -8384,7 +8384,7 @@ int32_t doFunctionsCompatibleCheck(SSqlCmd* pCmd, SQueryInfo* pQueryInfo, char* 
   const char* msg4 = "retrieve tags not compatible with group by or interval query";
   const char* msg5 = "functions can not be mixed up";
   const char* msg6 = "TWA/Diff/Derivative/Irate/CSum/MAvg/Elapsed only support group by tbname";
-  const char* msg7 = "unique function does not supportted in state window query";
+//  const char* msg7 = "unique function does not supportted in state window query";
 
   // only retrieve tags, group by is not supportted
   if (tscQueryTags(pQueryInfo)) {
@@ -8465,7 +8465,7 @@ int32_t doFunctionsCompatibleCheck(SSqlCmd* pCmd, SQueryInfo* pQueryInfo, char* 
       }
 
       if (pQueryInfo->stateWindow && f == TSDB_FUNC_UNIQUE){
-        return invalidOperationMsg(msg, msg7);
+        //return invalidOperationMsg(msg, msg7);
       }
 
       if (IS_MULTIOUTPUT(aAggs[f].status) && f != TSDB_FUNC_TOP && f != TSDB_FUNC_BOTTOM && f != TSDB_FUNC_DIFF &&
