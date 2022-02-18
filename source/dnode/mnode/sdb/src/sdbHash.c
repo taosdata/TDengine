@@ -16,6 +16,8 @@
 #define _DEFAULT_SOURCE
 #include "sdbInt.h"
 
+static void sdbCheck(SSdb *pSdb, SSdbRow *pRow);
+
 const char *sdbTableName(ESdbType type) {
   switch (type) {
     case SDB_TRANS:
@@ -221,6 +223,8 @@ static int32_t sdbDeleteRow(SSdb *pSdb, SHashObj *hash, SSdbRaw *pRaw, SSdbRow *
 
   pSdb->tableVer[pOldRow->type]++;
   sdbFreeRow(pSdb, pRow);
+
+  sdbCheck(pSdb, pOldRow);
   // sdbRelease(pSdb, pOldRow->pObj);
   return 0;
 }
@@ -305,6 +309,19 @@ void *sdbAcquire(SSdb *pSdb, ESdbType type, const void *pKey) {
   return pRet;
 }
 
+static void sdbCheck(SSdb *pSdb, SSdbRow *pRow) {
+  SRWLatch *pLock = &pSdb->locks[pRow->type];
+  taosRLockLatch(pLock);
+
+  int32_t ref = atomic_load_32(&pRow->refCount);
+  sdbPrintOper(pSdb, pRow, "checkRow");
+  if (ref <= 0 && pRow->status == SDB_STATUS_DROPPED) {
+    sdbFreeRow(pSdb, pRow);
+  }
+
+  taosRUnLockLatch(pLock);
+}
+
 void sdbRelease(SSdb *pSdb, void *pObj) {
   if (pObj == NULL) return;
 
@@ -332,6 +349,7 @@ void *sdbFetch(SSdb *pSdb, ESdbType type, void *pIter, void **ppObj) {
   SRWLatch *pLock = &pSdb->locks[type];
   taosRLockLatch(pLock);
 
+#if 0
   if (pIter != NULL) {
     SSdbRow *pLastRow = *(SSdbRow **)pIter;
     int32_t  ref = atomic_load_32(&pLastRow->refCount);
@@ -339,6 +357,7 @@ void *sdbFetch(SSdb *pSdb, ESdbType type, void *pIter, void **ppObj) {
       sdbFreeRow(pSdb, pLastRow);
     }
   }
+#endif
 
   SSdbRow **ppRow = taosHashIterate(hash, pIter);
   while (ppRow != NULL) {

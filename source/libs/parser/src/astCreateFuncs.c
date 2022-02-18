@@ -96,11 +96,17 @@ SToken getTokenFromRawExprNode(SAstCreateContext* pCxt, SNode* pNode) {
 SNodeList* createNodeList(SAstCreateContext* pCxt, SNode* pNode) {
   SNodeList* list = nodesMakeList();
   CHECK_OUT_OF_MEM(list);
-  return nodesListAppend(list, pNode);
+  if (TSDB_CODE_SUCCESS != nodesListAppend(list, pNode)) {
+    pCxt->valid = false;
+  }
+  return list;
 }
 
 SNodeList* addNodeToList(SAstCreateContext* pCxt, SNodeList* pList, SNode* pNode) {
-  return nodesListAppend(pList, pNode);
+  if (TSDB_CODE_SUCCESS != nodesListAppend(pList, pNode)) {
+    pCxt->valid = false;
+  }
+  return pList;
 }
 
 SNode* createColumnNode(SAstCreateContext* pCxt, const SToken* pTableAlias, const SToken* pColumnName) {

@@ -914,6 +914,8 @@ static void mndBuildDBVgroupInfo(SDbObj *pDb, SMnode *pMnode, SArray *pVgList) {
 
     sdbRelease(pSdb, pVgroup);
   }
+
+  sdbCancelFetch(pSdb, pIter);
 }
 
 static int32_t mndProcessUseDbReq(SMnodeMsg *pReq) {

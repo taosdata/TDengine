@@ -192,12 +192,12 @@ int32_t tqDeserializeConsumer(STQ* pTq, const STqSerializedHead* pHead, STqConsu
     if (pTopic->pReadhandle == NULL) {
       ASSERT(false);
     }
-    for (int i = 0; i < TQ_BUFFER_SIZE; i++) {
-      pTopic->buffer.output[i].status = 0;
+    for (int j = 0; j < TQ_BUFFER_SIZE; j++) {
+      pTopic->buffer.output[j].status = 0;
       STqReadHandle* pReadHandle = tqInitSubmitMsgScanner(pTq->pMeta);
       SReadHandle    handle = {.reader = pReadHandle, .meta = pTq->pMeta};
-      pTopic->buffer.output[i].pReadHandle = pReadHandle;
-      pTopic->buffer.output[i].task = qCreateStreamExecTaskInfo(pTopic->qmsg, &handle);
+      pTopic->buffer.output[j].pReadHandle = pReadHandle;
+      pTopic->buffer.output[j].task = qCreateStreamExecTaskInfo(pTopic->qmsg, &handle);
     }
   }
 

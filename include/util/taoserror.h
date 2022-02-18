@@ -459,7 +459,6 @@ int32_t* taosGetErrno();
 #define TSDB_CODE_PAR_GROUPBY_LACK_EXPRESSION   TAOS_DEF_ERROR_CODE(0, 0x260A)  //Not a GROUP BY expression
 #define TSDB_CODE_PAR_NOT_SELECTED_EXPRESSION   TAOS_DEF_ERROR_CODE(0, 0x260B)  //Not SELECTed expression
 #define TSDB_CODE_PAR_NOT_SINGLE_GROUP          TAOS_DEF_ERROR_CODE(0, 0x260C)  //Not a single-group group function
-#define TSDB_CODE_PAR_OUT_OF_MEMORY             TAOS_DEF_ERROR_CODE(0, 0x260D)  //Out of memory
 
 #ifdef __cplusplus
 }

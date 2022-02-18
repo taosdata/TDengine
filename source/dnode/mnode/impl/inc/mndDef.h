@@ -104,6 +104,10 @@ typedef enum {
   TRN_STAGE_FINISHED = 8
 } ETrnStage;
 
+typedef enum {
+  TRN_TYPE_CREATE_DB = 0,
+} ETrnType;
+
 typedef enum { TRN_POLICY_ROLLBACK = 0, TRN_POLICY_RETRY = 1 } ETrnPolicy;
 
 typedef enum {
@@ -135,6 +139,12 @@ typedef struct {
   SArray*    commitLogs;
   SArray*    redoActions;
   SArray*    undoActions;
+  int64_t    createdTime;
+  int64_t    lastExecTime;
+  int32_t    transType;
+  uint64_t   dbUid;
+  char       dbname[TSDB_DB_NAME_LEN];
+  char       lastError[TSDB_TRANS_DESC_LEN];
 } STrans;
 
 typedef struct {
