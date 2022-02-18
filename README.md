@@ -277,7 +277,7 @@ If TDengine shell connects the server successfully, welcome messages and version
 
 ## Install TDengine by apt-get
 
-If you use Debian or Ubuntu system, you can use 'apt-get' command to intall TDengine from official repository. Please use following commands to setup:
+If you use Debian or Ubuntu system, you can use 'apt-get' command to install TDengine from official repository. Please use following commands to setup:
 
 ```
 wget -qO - http://repos.taosdata.com/tdengine.key | sudo apt-key add -
