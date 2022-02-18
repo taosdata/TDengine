@@ -10,9 +10,7 @@
  */
 
 #include <gtest/gtest.h>
-#include "os.h"
-
-#include "tfs.h"
+#include "config.h"
 
 class CfgTest : public ::testing::Test {
  protected:
@@ -26,6 +24,6 @@ class CfgTest : public ::testing::Test {
   static const char *pConfig;
 };
 
-const char *TfsTest::pConfig;
+const char *CfgTest::pConfig;
 
 TEST_F(CfgTest, 01_Taos_File) {}
