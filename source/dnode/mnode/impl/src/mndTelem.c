@@ -234,32 +234,15 @@ static void mndSendTelemetryReport(SMnode* pMnode) {
   taosCloseSocket(fd);
 }
 
-static void* mndTelemThreadFp(void* param) {
-  SMnode*     pMnode = param;
+static int32_t mndProcessTelemTimer(SMnodeMsg* pReq) {
+  SMnode*     pMnode = pReq->pMnode;
   STelemMgmt* pMgmt = &pMnode->telemMgmt;
+  if (!pMgmt->enable) return 0;
 
-  struct timespec end = {0};
-  clock_gettime(CLOCK_REALTIME, &end);
-  end.tv_sec += 300;  // wait 5 minutes before send first report
-
-  setThreadName("mnd-telem");
-
-  while (!pMgmt->exit) {
-    int32_t         r = 0;
-    struct timespec ts = end;
-    pthread_mutex_lock(&pMgmt->lock);
-    r = pthread_cond_timedwait(&pMgmt->cond, &pMgmt->lock, &ts);
-    pthread_mutex_unlock(&pMgmt->lock);
-    if (r == 0) break;
-    if (r != ETIMEDOUT) continue;
-
-    if (mndIsMaster(pMnode)) {
-      mndSendTelemetryReport(pMnode);
-    }
-    end.tv_sec += REPORT_INTERVAL;
-  }
-
-  return NULL;
+  taosWLockLatch(&pMgmt->lock);
+  mndSendTelemetryReport(pMnode);
+  taosWUnLockLatch(&pMgmt->lock);
+  return 0;
 }
 
 static void mndGetEmail(SMnode* pMnode, char* filepath) {
@@ -280,43 +263,12 @@ static void mndGetEmail(SMnode* pMnode, char* filepath) {
 int32_t mndInitTelem(SMnode* pMnode) {
   STelemMgmt* pMgmt = &pMnode->telemMgmt;
   pMgmt->enable = pMnode->cfg.enableTelem;
-
-  if (!pMgmt->enable) return 0;
-
-  pMgmt->exit = 0;
-  pthread_mutex_init(&pMgmt->lock, NULL);
-  pthread_cond_init(&pMgmt->cond, NULL);
-  pMgmt->email[0] = 0;
-
+  taosInitRWLatch(&pMgmt->lock);
   mndGetEmail(pMnode, "/usr/local/taos/email");
 
-  pthread_attr_t attr;
-  pthread_attr_init(&attr);
-  pthread_attr_setdetachstate(&attr, PTHREAD_CREATE_JOINABLE);
-
-  int32_t code = pthread_create(&pMgmt->thread, &attr, mndTelemThreadFp, pMnode);
-  pthread_attr_destroy(&attr);
-  if (code != 0) {
-    mDebug("failed to create telemetry thread since :%s", strerror(code));
-  }
-
-  mInfo("mnd telemetry is initialized");
+  mndSetMsgHandle(pMnode, TDMT_MND_TELEM_TIMER, mndProcessTelemTimer);
+  mDebug("mnode telemetry is initialized");
   return 0;
 }
 
-void mndCleanupTelem(SMnode* pMnode) {
-  STelemMgmt* pMgmt = &pMnode->telemMgmt;
-  if (!pMgmt->enable) return;
-
-  if (taosCheckPthreadValid(pMgmt->thread)) {
-    pthread_mutex_lock(&pMgmt->lock);
-    pMgmt->exit = 1;
-    pthread_cond_signal(&pMgmt->cond);
-    pthread_mutex_unlock(&pMgmt->lock);
-
-    pthread_join(pMgmt->thread, NULL);
-  }
-
-  pthread_mutex_destroy(&pMgmt->lock);
-  pthread_cond_destroy(&pMgmt->cond);
-}
+void mndCleanupTelem(SMnode* pMnode) {}

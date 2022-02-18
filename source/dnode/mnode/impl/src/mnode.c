@@ -77,7 +77,7 @@ static void *mndBuildTimerMsg(int32_t *pContLen) {
   return pReq;
 }
 
-static void mndExecuteTransaction(void *param, void *tmrId) {
+static void mndPullupTrans(void *param, void *tmrId) {
   SMnode *pMnode = param;
   if (mndIsMaster(pMnode)) {
     int32_t contLen = 0;
@@ -86,7 +86,7 @@ static void mndExecuteTransaction(void *param, void *tmrId) {
     pMnode->putReqToMWriteQFp(pMnode->pDnode, &rpcMsg);
   }
 
-  taosTmrReset(mndExecuteTransaction, TRNAS_TIMER_MS, pMnode, pMnode->timer, &pMnode->transTimer);
+  taosTmrReset(mndPullupTrans, TRNAS_TIMER_MS, pMnode, pMnode->timer, &pMnode->transTimer);
 }
 
 static void mndCalMqRebalance(void *param, void *tmrId) {
@@ -101,7 +101,7 @@ static void mndCalMqRebalance(void *param, void *tmrId) {
   taosTmrReset(mndCalMqRebalance, MQ_TIMER_MS, pMnode, pMnode->timer, &pMnode->mqTimer);
 }
 
-static void mndExecuteTelemetry(void *param, void *tmrId) {
+static void mndPullupTelem(void *param, void *tmrId) {
   SMnode *pMnode = param;
   if (mndIsMaster(pMnode)) {
     int32_t contLen = 0;
@@ -110,7 +110,7 @@ static void mndExecuteTelemetry(void *param, void *tmrId) {
     pMnode->putReqToMReadQFp(pMnode->pDnode, &rpcMsg);
   }
 
-  taosTmrReset(mndExecuteTelemetry, TELEM_TIMER_MS, pMnode, pMnode->timer, &pMnode->telemTimer);
+  taosTmrReset(mndPullupTelem, TELEM_TIMER_MS, pMnode, pMnode->timer, &pMnode->telemTimer);
 }
 
 static int32_t mndInitTimer(SMnode *pMnode) {
@@ -120,7 +120,7 @@ static int32_t mndInitTimer(SMnode *pMnode) {
     return -1;
   }
 
-  if (taosTmrReset(mndExecuteTransaction, TRNAS_TIMER_MS, pMnode, pMnode->timer, &pMnode->transTimer)) {
+  if (taosTmrReset(mndPullupTrans, TRNAS_TIMER_MS, pMnode, pMnode->timer, &pMnode->transTimer)) {
     terrno = TSDB_CODE_OUT_OF_MEMORY;
     return -1;
   }
@@ -130,7 +130,7 @@ static int32_t mndInitTimer(SMnode *pMnode) {
     return -1;
   }
 
-  if (taosTmrReset(mndCalMqRebalance, TELEM_TIMER_MS, pMnode, pMnode->timer, &pMnode->telemTimer)) {
+  if (taosTmrReset(mndPullupTelem, 1000, pMnode, pMnode->timer, &pMnode->telemTimer)) {
     terrno = TSDB_CODE_OUT_OF_MEMORY;
     return -1;
   }

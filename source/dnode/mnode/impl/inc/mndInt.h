@@ -56,12 +56,9 @@ typedef struct {
 } SProfileMgmt;
 
 typedef struct {
-  int8_t           enable;
-  pthread_mutex_t  lock;
-  pthread_cond_t   cond;
-  volatile int32_t exit;
-  pthread_t        thread;
-  char             email[TSDB_FQDN_LEN];
+  int8_t   enable;
+  SRWLatch lock;
+  char     email[TSDB_FQDN_LEN];
 } STelemMgmt;
 
 typedef struct {
