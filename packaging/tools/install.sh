@@ -546,7 +546,7 @@ function install_data() {
 }
 
 function install_connector() {
-  ${csudo}cp -rf ${script_dir}/connector/ ${install_main_dir}/
+  [ -d "${script_dir}/connector/" ] && ${csudo}cp -rf ${script_dir}/connector/ ${install_main_dir}/
 }
 
 function install_examples() {
@@ -858,7 +858,7 @@ function updateProduct() {
     echo -e "\033[44;32;1m${productName} client is updated successfully!${NC}"
   fi
 
-  rm -rf $(tar -tf ${tarName})
+  rm -rf $(tar -tf ${tarName} |grep -v "^\./$")
 }
 
 function installProduct() {
@@ -954,7 +954,7 @@ function installProduct() {
   fi
 
   touch ~/.${historyFile}
-  rm -rf $(tar -tf ${tarName})
+  rm -rf $(tar -tf ${tarName} |grep -v "^\./$")
 }
 
 ## ==============================Main program starts from here============================
