@@ -30,6 +30,7 @@ function TDengineCursor(connection = null) {
   this._fields = null;
   this.data = [];
   this.fields = null;
+  this._stmt = null;
   if (connection != null) {
     this._connection = connection
     this._chandle = connection._chandle //pass through, just need library loaded.
@@ -488,7 +489,264 @@ TDengineCursor.prototype.schemalessInsert = function schemalessInsert(lines, pro
   let errorNo = this._chandle.errno(this._result);
   if (errorNo != 0) {
     throw new errors.InterfaceError(errorNo + ":" + this._chandle.errStr(this._result));
-    this._chandle.freeResult(this._result);
   }
   this._chandle.freeResult(this._result);
+}
+
+//STMT
+/**
+ * init a TAOS_STMT object for later use.it should be freed with stmtClose.
+ * @returns  Not NULL returned for success, and NULL for failure. 
+ * 
+ */
+TDengineCursor.prototype.stmtInit = function stmtInit() {
+  let stmt = null
+  stmt = this._chandle.stmtInit(this._connection._conn);
+  if (stmt == null || stmt == undefined) {
+    throw new errors.DatabaseError(this._chandle.stmtErrStr(stmt));
+  } else {
+    this._stmt = stmt;
+  }
+}
+
+/**
+ * prepare a sql statement,'sql' should be a valid INSERT/SELECT statement
+ * @param {string} sql  a valid INSERT/SELECT statement
+ * @returns {int}	0 for success, non-zero for failure.
+ */
+TDengineCursor.prototype.stmtPrepare = function stmtPrepare(sql) {
+  if (this._stmt == null) {
+    throw new errors.DatabaseError("stmt is null,init stmt first");
+  } else {
+    let stmtPrepare = this._chandle.stmtPrepare(this._stmt, sql, null);
+    if (stmtPrepare != 0) {
+      throw new errors.DatabaseError(this._chandle.stmtErrStr(this._stmt));
+    } else {
+      console.log("stmtPrepare success.");
+    }
+  }
+}
+
+/**
+ * For INSERT only. Used to bind table name as a parmeter for the input stmt object.
+ * @param {TaosBind} tableName target table name you want to  bind
+ * @returns 0 for success, non-zero for failure.
+ */
+TDengineCursor.prototype.stmtSetTbname = function stmtSetTbname(tableName) {
+  if (this._stmt == null) {
+    throw new errors.DatabaseError("stmt is null,init stmt first");
+  } else {
+    let stmtPrepare = this._chandle.stmtSetTbname(this._stmt, tableName);
+    if (stmtPrepare != 0) {
+      throw new errors.DatabaseError(this._chandle.stmtErrStr(this._stmt));
+    } else {
+      console.log("stmtSetTbname success.");
+    }
+  }
+}
+
+/**
+ * For INSERT only. 
+ * Set a table name for binding table name as parameter and tag values for all  tag parameters. 
+ * @param {*} tableName use to set target table name
+ * @param {TaosMultiBind} tags use to set tag value for target table. 
+ * @returns 
+ */
+TDengineCursor.prototype.stmtSetTbnameTags = function stmtSetTbnameTags(tableName, tags) {
+  if (this._stmt == null) {
+    throw new errors.DatabaseError("stmt is null,init stmt first");
+  } else {
+    let stmtPrepare = this._chandle.stmtSetTbnameTags(this._stmt, tableName, tags);
+    if (stmtPrepare != 0) {
+      throw new errors.DatabaseError(this._chandle.stmtErrStr(this._stmt));
+    } else {
+      console.log("stmtSetTbnameTags success.");
+    }
+  }
+}
+
+/**
+ * For INSERT only. 
+ * Set a table name for binding table name as parameter. Only used for binding all tables
+ * in one stable, user application must call 'loadTableInfo' API to load all table
+ * meta before calling this API. If the table meta is not cached locally, it will return error.
+ * @param {*} subTableName table name which is belong to an stable
+ * @returns 0 for success, non-zero for failure.
+ */
+TDengineCursor.prototype.stmtSetSubTbname = function stmtSetSubTbname(subTableName) {
+  if (this._stmt == null) {
+    throw new errors.DatabaseError("stmt is null,init stmt first");
+  } else {
+    let stmtPrepare = this._chandle.stmtSetSubTbname(this._stmt, subTableName);
+    if (stmtPrepare != 0) {
+      throw new errors.DatabaseError(this._chandle.stmtErrStr(this._stmt));
+    } else {
+      console.log("stmtSetSubTbname success.");
+    }
+  }
+}
+
+/**
+ * bind a whole line data, for both INSERT and SELECT. The parameter 'bind' points to an array 
+ * contains the whole line data. Each item in array represents a column's value, the item 
+ * number and sequence should keep consistence with columns in sql statement. The usage of 
+ * structure TAOS_BIND is the same with MYSQL_BIND in MySQL.
+ * @param {*} binds points to an array contains the whole line data.
+ * @returns 	0 for success, non-zero for failure.
+ */
+TDengineCursor.prototype.stmtBindParam = function stmtBindParam(binds) {
+  if (this._stmt == null) {
+    throw new errors.DatabaseError("stmt is null,init stmt first");
+  } else {
+    let stmtPrepare = this._chandle.bindParam(this._stmt, binds);
+    if (stmtPrepare != 0) {
+      throw new errors.DatabaseError(this._chandle.stmtErrStr(this._stmt));
+    } else {
+      console.log("bindParam success.");
+    }
+  }
+}
+
+/**
+ * Bind a single column's data, INTERNAL used and for INSERT only. 
+ * @param {TaosMultiBind} mbind points to a column's data which could be the one or more lines. 
+ * @param {*} colIndex the column's index in prepared sql statement, it starts from 0.
+ * @returns 0 for success, non-zero for failure.
+ */
+TDengineCursor.prototype.stmtBindSingleParamBatch = function stmtBindSingleParamBatch(mbind, colIndex) {
+  if (this._stmt == null) {
+    throw new errors.DatabaseError("stmt is null,init stmt first");
+  } else {
+    let stmtPrepare = this._chandle.stmtBindSingleParamBatch(this._stmt, mbind, colIndex);
+    if (stmtPrepare != 0) {
+      throw new errors.DatabaseError(this._chandle.stmtErrStr(this._stmt));
+    } else {
+      console.log("stmtBindSingleParamBatch success.");
+    }
+  }
+}
+
+/**
+ * For INSERT only.
+ * Bind one or multiple lines data.
+ * @param {*} mbinds Points to an array contains one or more lines data.The item 
+ *            number and sequence should keep consistence with columns
+ *            n sql statement. 
+ * @returns  0 for success, non-zero for failure.
+ */
+TDengineCursor.prototype.stmtBindParamBatch = function stmtBindParamBatch(mbinds) {
+  if (this._stmt == null) {
+    throw new errors.DatabaseError("stmt is null,init stmt first");
+  } else {
+    let stmtPrepare = this._chandle.stmtBindParamBatch(this._stmt, mbinds);
+    if (stmtPrepare != 0) {
+      throw new errors.DatabaseError(this._chandle.stmtErrStr(this._stmt));
+    } else {
+      console.log("stmtBindParamBatch success.");
+    }
+  }
+}
+
+/**
+ * add all current bound parameters to batch process, for INSERT only.
+ * Must be called after each call to bindParam/bindSingleParamBatch, 
+ * or all columns binds for one or more lines with bindSingleParamBatch. User 
+ * application can call any bind parameter API again to bind more data lines after calling
+ * to this API.
+ * @param {*} stmt 
+ * @returns 	0 for success, non-zero for failure.
+ */
+TDengineCursor.prototype.stmtAddBatch = function stmtAddBatch() {
+  if (this._stmt == null) {
+    throw new errors.DatabaseError("stmt is null,init stmt first");
+  } else {
+    let addBatchRes = this._chandle.addBatch(this._stmt);
+    if (addBatchRes != 0) {
+      throw new errors.DatabaseError(this._chandle.stmtErrStr(this._stmt));
+    }
+    else {
+      console.log("addBatch success.");
+    }
+  }
+}
+
+/**
+ * actually execute the INSERT/SELECT sql statement. User application can continue
+ * to bind new data after calling to this API.
+ * @param {*} stmt 
+ * @returns 	0 for success, non-zero for failure.
+ */
+TDengineCursor.prototype.stmtExecute = function stmtExecute() {
+  if (this._stmt != null) {
+    let stmtExecRes = this._chandle.stmtExecute(this._stmt);
+    if (stmtExecRes != 0) {
+      throw new errors.DatabaseError(this._chandle.stmtErrStr(this._stmt));
+    } else {
+      console.log("stmtExecute success.")
+    }
+  } else {
+    throw new errors.DatabaseError("stmt is null,init stmt first");
+  }
+}
+
+/**
+ * For SELECT only,getting the query result. 
+ * User application should free it with API 'FreeResult' at the end.
+ * @returns Not NULL for success, NULL for failure.
+ */
+TDengineCursor.prototype.stmtUseResult = function stmtUseResult() {
+  if (this._stmt != null) {
+    this._result = this._chandle.stmtUseResult(this._stmt);
+    let res = this._chandle.errno(this._result);
+    if (res != 0) {
+      throw new errors.DatabaseError(this._chandle.errStr(this._stmt));
+    } else {
+      console.log("stmtUseResult success.");
+      let fieldCount = this._chandle.fieldsCount(this._result);
+      if (fieldCount != 0) {
+        this._fields = this._chandle.useResult(this._result);
+        this.fields = this._fields;
+      }
+    }
+  } else {
+    throw new errors.DatabaseError("stmt is null,init stmt first");
+  }
+}
+
+/**
+ * user application call this API to load all tables meta info.
+ * This method must be called before stmtSetSubTbname(IntPtr stmt, string name);
+ * @param {*} tableList tables need to load meta info are form in an array
+ * @returns 0 for success, non-zero for failure.
+ */
+TDengineCursor.prototype.loadTableInfo = function loadTableInfo(tableList) {
+  if (this._connection._conn != null) {
+    let stmtExecRes = this._chandle.loadTableInfo(this._connection._conn, tableList);
+    if (stmtExecRes != 0) {
+      throw new errors.DatabaseError(`loadTableInfo() failed,code ${stmtExecRes}`);
+    } else {
+      console.log("loadTableInfo success.")
+    }
+  } else {
+    throw new errors.DatabaseError("taos connection is null.");
+  }
+}
+
+/**
+ * close STMT object and free resources.
+ * @param {*} stmt 
+ * @returns 0 for success, non-zero for failure.
+ */
+TDengineCursor.prototype.stmtClose = function stmtClose() {
+  if (this._stmt == null) {
+    throw new DatabaseError("stmt is null,init stmt first");
+  } else {
+    let closeStmtRes = this._chandle.closeStmt(this._stmt);
+    if (closeStmtRes != 0) {
+      throw new DatabaseError(this._chandle.stmtErrStr(this._stmt));
+    }
+    else {
+      console.log("closeStmt success.");
+    }
+  }
 }

@@ -29,6 +29,14 @@ extern "C" {
 #include "tsched.h"
 #include "tsclient.h"
 
+#define LABEL_SQL   "sql:"
+#define LABEL_TO    " to:"
+#define LABEL_SPLIT " split:"
+
+#define LABEL_SQL_LEN   (sizeof(LABEL_SQL) - 1)
+#define LABEL_TO_LEN    (sizeof(LABEL_TO) - 1)
+#define LABEL_SPLIT_LEN (sizeof(LABEL_SPLIT) - 1)
+
 #define UTIL_TABLE_IS_SUPER_TABLE(metaInfo) \
   (((metaInfo)->pTableMeta != NULL) && ((metaInfo)->pTableMeta->tableType == TSDB_SUPER_TABLE))
 

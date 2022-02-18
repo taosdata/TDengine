@@ -138,7 +138,7 @@ TDengine suggests using data collection point ID as the table name (like D1001 i
 
 ### STable: A Collection of Data Points in the Same Type
 
-The design of one table for each data collection point will require a huge number of tables, which is difficult to manage. Moreover, applications often need to take aggregation operations between data collection points, thus aggregation operations will become complicated. To support aggregation over multiple tables efficiently, the [STable(Super Table)](https://www.taosdata.com/en/documentation/super-table) concept is introduced by TDengine.
+The design of one table for each data collection point will require a huge number of tables, which is difficult to manage. Moreover, applications often need to take aggregation operations between data collection points, thus aggregation operations will become complicated. To support aggregation over multiple tables efficiently, the STable(Super Table) concept is introduced by TDengine.
 
 STable is an abstract set for a type of data collection point. A STable contains a set of data collection points (tables) that have the same schema or data structure, but with different static attributes (tags). To describe a STable (a set of data collection points of a specific type), in addition to defining the table structure of the collected metrics, it is also necessary to define the schema of its tags. The data type of tags can be int, float, string, and there can be multiple tags, which can be added, deleted, or modified afterward. If the whole system has N different types of data collection points, N STables need to be established.
 

@@ -1584,15 +1584,17 @@ int tsInsertInitialCheck(SSqlObj *pSql) {
   int32_t  index = 0;
   SSqlCmd *pCmd = &pSql->cmd;
 
-  SStrToken sToken = tStrGetToken(pSql->sqlstr, &index, false);
-  assert(sToken.type == TK_INSERT || sToken.type == TK_IMPORT);
-
   pCmd->count   = 0;
   pCmd->command = TSDB_SQL_INSERT;
   SInsertStatementParam* pInsertParam = &pCmd->insertParam;
 
   SQueryInfo *pQueryInfo = tscGetQueryInfoS(pCmd);
   TSDB_QUERY_SET_TYPE(pQueryInfo->type, TSDB_QUERY_TYPE_INSERT);
+
+  SStrToken sToken = tStrGetToken(pSql->sqlstr, &index, false);
+  if (sToken.type != TK_INSERT && sToken.type != TK_IMPORT) {
+    return tscSQLSyntaxErrMsg(pInsertParam->msg, NULL, sToken.z);
+  }
 
   sToken = tStrGetToken(pSql->sqlstr, &index, false);
   if (sToken.type != TK_INTO) {

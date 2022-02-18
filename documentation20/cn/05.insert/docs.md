@@ -5,15 +5,19 @@ TDengine支持多种接口写入数据，包括SQL，Prometheus，Telegraf，col
 ## <a class="anchor" id="sql"></a>SQL 写入
 
 应用通过C/C++, Java, Go, C#, Python, Node.js 连接器执行SQL insert语句来插入数据，用户还可以通过TAOS Shell，手动输入SQL insert语句插入数据。比如下面这条insert 就将一条记录写入到表d1001中：
+
 ```mysql
 INSERT INTO d1001 VALUES (1538548685000, 10.3, 219, 0.31);
 ```
+
 TDengine支持一次写入多条记录，比如下面这条命令就将两条记录写入到表d1001中：
+
 ```mysql
 INSERT INTO d1001 VALUES (1538548684000, 10.2, 220, 0.23) (1538548696650, 10.3, 218, 0.25);
 ```
 
 TDengine也支持一次向多个表写入数据，比如下面这条命令就向d1001写入两条记录，向d1002写入一条记录：
+
 ```mysql
 INSERT INTO d1001 VALUES (1538548685000, 10.3, 219, 0.31) (1538548695000, 12.6, 218, 0.33) d1002 VALUES (1538548696800, 12.3, 221, 0.31);
 ```
@@ -28,6 +32,7 @@ INSERT INTO d1001 VALUES (1538548685000, 10.3, 219, 0.31) (1538548695000, 12.6, 
 - 写入的数据的时间戳必须大于当前时间减去配置参数keep的时间。如果keep配置为3650天，那么无法写入比3650天还早的数据。写入数据的时间戳也不能大于当前时间加配置参数days。如果days为2，那么无法写入比当前时间还晚2天的数据。
 
 ## <a class="anchor" id="schemaless"></a>无模式（Schemaless）写入
+
 **前言**
 <br/>在物联网应用中，常会采集比较多的数据项，用于实现智能控制、业务分析、设备监控等。由于应用逻辑的版本升级，或者设备自身的硬件调整等原因，数据采集项就有可能比较频繁地出现变动。为了在这种情况下方便地完成数据记录工作，TDengine 从 2.2.0.0 版本开始，提供调用 Schemaless 写入方式，可以免于预先创建超级表/子表的步骤，随着数据写入接口能够自动创建与数据对应的存储结构。并且在必要时，Schemaless 将自动增加必要的数据列，保证用户写入的数据可以被正确存储。
 <br/>目前，TDengine 的 C/C++ Connector 提供支持 Schemaless 的操作接口，详情请参见 [Schemaless 方式写入接口](https://www.taosdata.com/cn/documentation/connector#schemaless)章节。这里对 Schemaless 的数据表达格式进行了描述。
@@ -39,11 +44,13 @@ INSERT INTO d1001 VALUES (1538548685000, 10.3, 219, 0.31) (1538548695000, 12.6, 
 对于InfluxDB、OpenTSDB的标准写入协议请参考各自的文档。下面首先以 InfluxDB 的行协议为基础，介绍 TDengine 扩展的协议内容，允许用户采用更加精细的方式控制（超级表）模式。
 
 Schemaless 采用一个字符串来表达一个数据行（可以向写入 API 中一次传入多行字符串来实现多个数据行的批量写入），其格式约定如下：
+
 ```json
 measurement,tag_set field_set timestamp
 ```
 
-其中，
+其中:
+
 * measurement 将作为数据表名。它与 tag_set 之间使用一个英文逗号来分隔。
 * tag_set 将作为标签数据，其格式形如 `<tag_key>=<tag_value>,<tag_key>=<tag_value>`，也即可以使用英文逗号来分隔多个标签数据。它与 field_set 之间使用一个半角空格来分隔。
 * field_set 将作为普通列数据，其格式形如 `<field_key>=<field_value>,<field_key>=<field_value>`，同样是使用英文逗号来分隔多个普通列的数据。它与 timestamp 之间使用一个半角空格来分隔。
@@ -51,6 +58,7 @@ measurement,tag_set field_set timestamp
 
 tag_set 中的所有的数据自动转化为 nchar 数据类型，并不需要使用双引号（")。
 <br/>在无模式写入数据行协议中，field_set 中的每个数据项都需要对自身的数据类型进行描述。具体来说：
+
 * 如果两边有英文双引号，表示 BIANRY(32) 类型。例如 `"abc"`。
 * 如果两边有英文双引号而且带有 L 前缀，表示 NCHAR(32) 类型。例如 `L"报错信息"`。
 * 对空格、等号（=）、逗号（,）、双引号（"），前面需要使用反斜杠（\）进行转义。（都指的是英文半角符号）
@@ -64,20 +72,26 @@ tag_set 中的所有的数据自动转化为 nchar 数据类型，并不需要�
 | 4  | i16     |  SmallInt |  2    |
 | 5  | i32     |  Int      |  4    |
 | 6  | i64或i  |  Bigint   |  8    |
+
 * t, T, true, True, TRUE, f, F, false, False 将直接作为 BOOL 型来处理。
+
 <br/>例如如下数据行表示：向名为 st 的超级表下的 t1 标签为 "3"（NCHAR）、t2 标签为 "4"（NCHAR）、t3 标签为 "t3"（NCHAR）的数据子表，写入 c1 列为 3（BIGINT）、c2 列为 false（BOOL）、c3 列为 "passit"（BINARY）、c4 列为 4（DOUBLE）、主键时间戳为 1626006833639000000 的一行数据。
+
 ```json
 st,t1=3,t2=4,t3=t3 c1=3i64,c3="passit",c2=false,c4=4f64 1626006833639000000
 ```
+
 需要注意的是，如果描述数据类型后缀时使用了错误的大小写，或者为数据指定的数据类型有误，均可能引发报错提示而导致数据写入失败。
 
 ### 无模式写入的主要处理逻辑
 
 无模式写入按照如下原则来处理行数据：
 <br/>1. 将使用如下规则来生成子表名：首先将measurement 的名称和标签的 key 和 value 组合成为如下的字符串
+
 ```json
 "measurement,tag_key1=tag_value1,tag_key2=tag_value2"
 ```
+
 需要注意的是，这里的tag_key1, tag_key2并不是用户输入的标签的原始顺序，而是使用了标签名称按照字符串升序排列后的结果。所以，tag_key1 并不是在行协议中输入的第一个标签。
 排列完成以后计算该字符串的 MD5 散列值 "md5_val"。然后将计算的结果与字符串组合生成表名：“t_md5_val”。其中的 “t_” 是固定的前缀，每个通过该映射关系自动生成的表都具有该前缀。
 <br/>2. 如果解析行协议获得的超级表不存在，则会创建这个超级表。
@@ -120,7 +134,9 @@ st,t1=3,t2=4,t3=t3 c1=3i64,c3="passit",c2=false,c4=4f64 1626006833639000000
 ```json
 st,t1=3,t2=4,t3=t3 c1=3i64,c3="passit",c2=false,c4=4f64 1626006833639000000
 ```
+
 该行数据映射生成一个超级表： st， 其包含了 3 个类型为 nchar 的标签，分别是：t1, t2, t3。五个数据列，分别是ts（timestamp），c1 (bigint），c3(binary)，c2 (bool),  c4 (bigint）。映射成为如下 SQL 语句：
+
 ```json
 create stable st (_ts timestamp, c1 bigint, c2 bool, c3 binary(6), c4 bigint) tags(t1 nchar(1), t2 nchar(1), t3 nchar(2))
 ```
@@ -129,22 +145,28 @@ create stable st (_ts timestamp, c1 bigint, c2 bool, c3 binary(6), c4 bigint) ta
 <br/>本节将说明不同行数据写入情况下，对于数据模式的影响。
 
 在使用行协议写入一个明确的标识的字段类型的时候，后续更改该字段的类型定义，会出现明确的数据模式错误，即会触发写入 API 报告错误。如下所示，
+
 ```json
 st,t1=3,t2=4,t3=t3 c1=3i64,c3="passit",c2=false,c4=4    1626006833639000000
 st,t1=3,t2=4,t3=t3 c1=3i64,c3="passit",c2=false,c4=4i   1626006833640000000
 ```
+
 第一行的数据类型映射将 c4 列定义为 Double， 但是第二行的数据又通过数值后缀方式声明该列为 BigInt， 由此会触发无模式写入的解析错误。
 
 如果列前面的行协议将数据列声明为了 binary， 后续的要求长度更长的binary长度，此时会触发超级表模式的变更。
+
 ```json
 st,t1=3,t2=4,t3=t3 c1=3i64,c5="pass"     1626006833639000000
 st,t1=3,t2=4,t3=t3 c1=3i64,c5="passit"   1626006833640000000
 ```
+
 第一行中行协议解析会声明 c5 列是一个 binary(4)的字段，第二次行数据写入会提取列 c5 仍然是 binary 列，但是其宽度为 6，此时需要将binary的宽度增加到能够容纳 新字符串的宽度。
+
 ```json
 st,t1=3,t2=4,t3=t3 c1=3i64               1626006833639000000
 st,t1=3,t2=4,t3=t3 c1=3i64,c6="passit"   1626006833640000000
 ```
+
 第二行数据相对于第一行来说增加了一个列 c6，类型为binary(6)。那么此时会自动增加一个列 c6， 类型为  binary(6)。
 
 **写入完整性**
@@ -156,98 +178,35 @@ st,t1=3,t2=4,t3=t3 c1=3i64,c6="passit"   1626006833640000000
 **后续升级计划**
 <br/>当前版本只提供了 C 版本的 API，后续将提供 其他高级语言的 API，例如 Java/Go/Python/C# 等。此外，在TDengine v2.3及后续版本中，您还可以通过 taosAdapter 采用 REST 的方式直接写入无模式数据。
 
+## <a class="anchor" id="prometheus"></a>Prometheus 直接写入（通过 taosAdapter）
 
-## <a class="anchor" id="prometheus"></a>Prometheus 直接写入
+remote_read 和 remote_write 是 Prometheus 数据读写分离的集群方案。
+只需要将 remote_read 和 remote_write url 指向 taosAdapter 对应的 url 同时设置 Basic 验证即可使用。
 
-[Prometheus](https://www.prometheus.io/)作为Cloud Native Computing Fundation毕业的项目，在性能监控以及K8S性能监控领域有着非常广泛的应用。TDengine提供一个小工具[Bailongma](https://github.com/taosdata/Bailongma)，只需对Prometheus做简单配置，无需任何代码，就可将Prometheus采集的数据直接写入TDengine，并按规则在TDengine自动创建库和相关表项。博文[用Docker容器快速搭建一个Devops监控Demo](https://www.taosdata.com/blog/2020/02/03/1189.html)即是采用Bailongma将Prometheus和Telegraf的数据写入TDengine中的示例，可以参考。
+* remote_read url :  `http://host_to_taosAdapter:port(default 6041)/prometheus/v1/remote_read/:db`
+* remote_write url :  `http://host_to_taosAdapter:port(default 6041)/prometheus/v1/remote_write/:db`
 
-### 从源代码编译 blm_prometheus
+Basic验证：
 
-用户需要从github下载[Bailongma](https://github.com/taosdata/Bailongma)的源码，使用Golang语言编译器编译生成可执行文件。在开始编译前，需要准备好以下条件：
-- Linux操作系统的服务器
-- 安装好Golang，1.14版本以上
-- 对应的TDengine版本。因为用到了TDengine的客户端动态链接库，因此需要安装好和服务端相同版本的TDengine程序；比如服务端版本是TDengine 2.0.0, 则在Bailongma所在的Linux服务器（可以与TDengine在同一台服务器，或者不同服务器）
+* username： TDengine 连接用户名
+* password： TDengine 连接密码
 
-Bailongma项目中有一个文件夹blm_prometheus，存放了prometheus的写入API程序。编译过程如下：
-```bash
-cd blm_prometheus
-go build
-```
+示例 prometheus.yml  如下：
 
-一切正常的情况下，就会在对应的目录下生成一个blm_prometheus的可执行程序。
-
-### 安装 Prometheus
-
-通过Prometheus的官网下载安装。具体请见：[下载地址](https://prometheus.io/download/)。
-
-### 配置 Prometheus
-
-参考Prometheus的[配置文档](https://prometheus.io/docs/prometheus/latest/configuration/configuration/)，在Prometheus的配置文件中的<remote_write>部分，增加以下配置：
-
-```
-  - url: "bailongma API服务提供的URL"（参考下面的blm_prometheus启动示例章节）
-```
-
-启动Prometheus后，可以通过taos客户端查询确认数据是否成功写入。
-
-### 启动 blm_prometheus 程序
-
-blm_prometheus程序有以下选项，在启动blm_prometheus程序时可以通过设定这些选项来设定blm_prometheus的配置。
-```bash
---tdengine-name
-如果TDengine安装在一台具备域名的服务器上，也可以通过配置TDengine的域名来访问TDengine。在K8S环境下，可以配置成TDengine所运行的service name。
-
---batch-size
-blm_prometheus会将收到的prometheus的数据拼装成TDengine的写入请求，这个参数控制一次发给TDengine的写入请求中携带的数据条数。
-
---dbname
-设置在TDengine中创建的数据库名称，blm_prometheus会自动在TDengine中创建一个以dbname为名称的数据库，缺省值是prometheus。
-
---dbuser
-设置访问TDengine的用户名，缺省值是'root'。
-
---dbpassword
-设置访问TDengine的密码，缺省值是'taosdata'。
-
---port
-blm_prometheus对prometheus提供服务的端口号。
-```
-
-### 启动示例
-
-通过以下命令启动一个blm_prometheus的API服务
-```bash
-./blm_prometheus -port 8088
-```
-假设blm_prometheus所在服务器的IP地址为"10.1.2.3"，则在prometheus的配置文件中<remote_write>部分增加url为
 ```yaml
 remote_write:
-  - url: "http://10.1.2.3:8088/receive"
-```
+  - url: "http://localhost:6041/prometheus/v1/remote_write/prometheus_data"
+    basic_auth:
+      username: root
+      password: taosdata
 
-### 查询 prometheus 写入数据
-
-prometheus产生的数据格式如下：
-```json
-{
-  Timestamp: 1576466279341,
-  Value: 37.000000,
-  apiserver_request_latencies_bucket {
-    component="apiserver",
-    instance="192.168.99.116:8443",
-    job="kubernetes-apiservers",
-    le="125000",
-    resource="persistentvolumes",
-    scope="cluster",
-    verb="LIST",
-    version="v1"
-  }
-}
-```
-其中，apiserver_request_latencies_bucket为prometheus采集的时序数据的名称，后面{}中的为该时序数据的标签。blm_prometheus会以时序数据的名称在TDengine中自动创建一个超级表，并将{}中的标签转换成TDengine的tag值，Timestamp作为时间戳，value作为该时序数据的值。因此在TDengine的客户端中，可以通过以下指令查到这个数据是否成功写入。
-```mysql
-use prometheus;
-select * from apiserver_request_latencies_bucket;
+remote_read:
+  - url: "http://localhost:6041/prometheus/v1/remote_read/prometheus_data"
+    basic_auth:
+      username: root
+      password: taosdata
+    remote_timeout: 10s
+    read_recent: true
 ```
 
 ## <a class="anchor" id="telegraf"></a> Telegraf 直接写入(通过 taosAdapter)
@@ -257,6 +216,7 @@ select * from apiserver_request_latencies_bucket;
 TDengine 新版本（2.3.0.0+）包含一个 taosAdapter 独立程序，负责接收包括 Telegraf 的多种应用的数据写入。
 
 配置方法，在 /etc/telegraf/telegraf.conf 增加如下文字，其中 database name 请填写希望在 TDengine 保存 Telegraf 数据的数据库名，TDengine server/cluster host、username和 password 填写 TDengine 实际值：
+
 ```
 [[outputs.http]]
   url = "http://<TDengine server/cluster host>:6041/influxdb/v1/write?db=<database name>"
@@ -269,9 +229,11 @@ TDengine 新版本（2.3.0.0+）包含一个 taosAdapter 独立程序，负责�
 ```
 
 然后重启 telegraf：
+
 ```
 sudo systemctl start telegraf
 ```
+
 即可在 TDengine 中查询 metrics 数据库中 Telegraf 写入的数据。
 
 taosAdapter 相关配置参数请参考 taosadapter --help 命令输出以及相关文档。
@@ -283,16 +245,20 @@ taosAdapter 相关配置参数请参考 taosadapter --help 命令输出以及相
 TDengine 新版本（2.3.0.0+）包含一个 taosAdapter 独立程序，负责接收包括 collectd 的多种应用的数据写入。
 
 在 /etc/collectd/collectd.conf 文件中增加如下内容，其中 host 和 port 请填写 TDengine 和 taosAdapter 配置的实际值：
+
 ```
 LoadPlugin network
 <Plugin network>
   Server "<TDengine cluster/server host>" "<port for collectd>"
 </Plugin>
 ```
+
 重启 collectd
+
 ```
 sudo systemctl start collectd
 ```
+
 taosAdapter 相关配置参数请参考 taosadapter --help 命令输出以及相关文档。
 
 ## <a class="anchor" id="statsd"></a> StatsD 直接写入(通过 taosAdapter)
@@ -303,12 +269,14 @@ taosAdapter 相关配置参数请参考 taosadapter --help 命令输出以及相
 TDengine 新版本（2.3.0.0+）包含一个 taosAdapter 独立程序，负责接收包括 StatsD 的多种应用的数据写入。
 
 在 config.js 文件中增加如下内容后启动 StatsD，其中 host 和 port 请填写 TDengine 和 taosAdapter 配置的实际值：
+
 ```
 backends 部分添加 "./backends/repeater"
 repeater 部分添加 { host:'<TDengine server/cluster host>', port: <port for StatsD>}
 ```
 
 示例配置文件：
+
 ```
 {
 port: 8125
@@ -323,9 +291,10 @@ icinga2 可以收集监控和性能数据并写入 OpenTSDB，taosAdapter 可以
 
 ## <a class="anchor" id="icinga2"></a> icinga2 直接写入(通过 taosAdapter)
 
-* 参考链接 https://icinga.com/docs/icinga-2/latest/doc/14-features/#opentsdb-writer 使能 opentsdb-writer
+* 参考链接 `https://icinga.com/docs/icinga-2/latest/doc/14-features/#opentsdb-writer` 使能 opentsdb-writer
 * 使能 taosAdapter 配置项 opentsdb_telnet.enable
 * 修改配置文件 /etc/icinga2/features-enabled/opentsdb.conf
+
 ```
 object OpenTsdbWriter "opentsdb" {
   host = "host to taosAdapter"
@@ -344,11 +313,15 @@ TCollector 是一个在客户侧收集本地收集器并发送数据到 OpenTSDB
 
 taosAdapter 相关配置参数请参考 taosadapter --help 命令输出以及相关文档。
 
-## <a class="anchor" id="taosadapter2-telegraf"></a> 使用 Bailongma 2.0 接入 Telegraf 数据写入
+## <a class="anchor" id="bailongma2-prometheus"></a> 使用 Bailongma 2.0 接入 Prometheus 数据写入
 
 **注意：**
-TDengine 新版本（2.3.0.0+）提供新版本 Bailongma ，命名为 taosAdapter ，提供更简便的 Telegraf 数据写入以及其他更强大的功能，Bailongma v2 及之前版本将逐步不再维护。
+TDengine 新版本（2.4.0.4+）包含 taosAdapter 组件，提供更简便的 Prometheus 数据写入以及其他更强大的功能，Bailongma v2 及之前版本将逐步不再维护。
 
+## <a class="anchor" id="bailongma2-telegraf"></a> 使用 Bailongma 2.0 接入 Telegraf 数据写入
+
+**注意：**
+TDengine 新版本（2.3.0.0+）包含 taosAdapter 组件，提供更简便的 Telegraf 数据写入以及其他更强大的功能，Bailongma v2 及之前版本将逐步不再维护。
 
 ## <a class="anchor" id="emq"></a>EMQ Broker 直接写入
 

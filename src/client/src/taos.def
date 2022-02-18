@@ -53,3 +53,4 @@ taos_is_null
 taos_insert_lines
 taos_schemaless_insert
 taos_result_block
+taos_print_row_ex

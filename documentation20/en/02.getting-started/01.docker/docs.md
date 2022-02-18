@@ -1,4 +1,4 @@
-# Quickly experience TDengine through Docker
+# Quickly experience TDengine with Docker
 
 While it is not recommended to deploy TDengine services via Docker in a production environment, Docker tools do a good job of shielding the environmental differences in the underlying operating system and are well suited for use in development testing or first-time experience with the toolset for installing and running TDengine. In particular, Docker makes it relatively easy to try TDengine on Mac OSX and Windows systems without having to install a virtual machine or rent an additional Linux server. In addition, starting from version 2.0.14.0, TDengine provides images that support both X86-64, X86, arm64, and arm32 platforms, so non-mainstream computers that can run docker, such as NAS, Raspberry Pi, and embedded development boards, can also easily experience TDengine based on this document.
 
@@ -20,7 +20,7 @@ Docker version 20.10.3, build 48d30b5
 ### running TDengine server inside Docker
 
 ```bash
-$ docker run -d -p 6030-6049:6030-6049 -p 6030-6049:6030-6049/udp tdengine/tdengine
+docker run -d -p 6030-6049:6030-6049 -p 6030-6049:6030-6049/udp tdengine/tdengine
 526aa188da767ae94b244226a2b2eec2b5f17dd8eff592893d9ec0cd0f3a1ccd
 ```
 
@@ -35,7 +35,7 @@ This command starts a docker container with TDengine server running and maps the
 Further, you can also use the `docker run` command to start the docker container running TDengine server, and use the `--name` command line parameter to name the container tdengine, use `--hostname` to specify the hostname as tdengine-server, and use `-v` to mount the local directory (-v) to synchronize the data inside the host and the container to prevent data loss after the container is deleted.
 
 ```
-$ docker run -d --name tdengine --hostname="tdengine-server" -v ~/work/taos/log:/var/log/taos -v ~/work/taos/data:/var/lib/taos  -p 6030-6041:6030-6041 -p 6030-6041:6030-6041/udp tdengine/tdengine
+docker run -d --name tdengine --hostname="tdengine-server" -v ~/work/taos/log:/var/log/taos -v ~/work/taos/data:/var/lib/taos  -p 6030-6041:6030-6041 -p 6030-6041:6030-6041/udp tdengine/tdengine
 ```
 
 - **--name tdengine**: set the container name, we can access the corresponding container by container name
@@ -45,7 +45,12 @@ $ docker run -d --name tdengine --hostname="tdengine-server" -v ~/work/taos/log:
 ### Use the `docker ps` command to verify that the container is running correctly
 
 ```bash
-$ docker ps
+docker ps
+```
+
+The output could be:
+
+```
 CONTAINER ID   IMAGE               COMMAND   CREATED          STATUS          ···
 c452519b0f9b   tdengine/tdengine   "taosd"   14 minutes ago   Up 14 minutes   ···
 ```
@@ -61,7 +66,7 @@ c452519b0f9b   tdengine/tdengine   "taosd"   14 minutes ago   Up 14 minutes   ·
 
 ```bash
 $ docker exec -it tdengine /bin/bash
-root@tdengine-server:~/TDengine-server-2.4.0.4# 
+root@tdengine-server:~/TDengine-server-2.4.0.4#
 ```
 
 - **docker exec**: Enter the container by `docker exec` command, if exited, the container will not stop.
@@ -78,7 +83,7 @@ root@tdengine-server:~/TDengine-server-2.4.0.4# taos
 Welcome to the TDengine shell from Linux, Client Version:2.4.0.4
 Copyright (c) 2020 by TAOS Data, Inc. All rights reserved.
 
-taos> 
+taos>
 ```
 
 The TDengine shell successfully connects to the server and prints out a welcome message and version information. If it fails, an error message is printed.
@@ -101,14 +106,18 @@ taos>
 You can also access the TDengine server inside the Docker container using `curl` command from the host side through the RESTful port.
 
 ```
-$ curl -u root:taosdata -d 'show databases' 127.0.0.1:6041/rest/sql
+curl -u root:taosdata -d 'show databases' 127.0.0.1:6041/rest/sql
+```
+
+The output could be:
+
+```
 {"status":"succ","head":["name","created_time","ntables","vgroups","replica","quorum","days","keep0,keep1,keep(D)","cache(MB)","blocks","minrows","maxrows","wallevel","fsync","comp","cachelast","precision","update","status"],"column_meta":[["name",8,32],["created_time",9,8],["ntables",4,4],["vgroups",4,4],["replica",3,2],["quorum",3,2],["days",3,2],["keep0,keep1,keep(D)",8,24],["cache(MB)",4,4],["blocks",4,4],["minrows",4,4],["maxrows",4,4],["wallevel",2,1],["fsync",4,4],["comp",2,1],["cachelast",2,1],["precision",8,3],["update",2,1],["status",8,10]],"data":[["test","2021-08-18 06:01:11.021",10000,4,1,1,10,"3650,3650,3650",16,6,100,4096,1,3000,2,0,"ms",0,"ready"],["log","2021-08-18 05:51:51.065",4,1,1,1,10,"30,30,30",1,3,100,4096,1,3000,2,0,"us",0,"ready"]],"rows":2}
 ```
 
 This command accesses the TDengine server through the RESTful interface, which connects to port 6041 on the local machine, so the connection is successful.
 
 TDengine RESTful interface details can be found in the [official documentation](https://www.taosdata.com/en/documentation/connector#restful).
-
 
 ### Running TDengine server and taosAdapter with a Docker container
 
@@ -121,54 +130,25 @@ Running TDengine version 2.4.0.4 image with docker.
 Start taosAdapter and taosd by default:
 
 ```
-$ docker run -d --name tdengine-taosa -p 6030-6049:6030-6049 -p 6030-6049:6030-6049/udp tdengine/tdengine:2.4.0.4
+docker run -d --name tdengine-taosa -p 6030-6049:6030-6049 -p 6030-6049:6030-6049/udp tdengine/tdengine:2.4.0.4
 ```
 
 Verify that the RESTful interface taosAdapter provides working using the `curl` command.
-```
-$ curl -H 'Authorization: Basic cm9vdDp0YW9zZGF0YQ==' -d 'show databases;' 127.0.0.1:6041/rest/sql
 
+```
+curl -H 'Authorization: Basic cm9vdDp0YW9zZGF0YQ==' -d 'show databases;' 127.0.0.1:6041/rest/sql
+```
+
+The output could be:
+
+```
 {"status":"succ","head":["name","created_time","ntables","vgroups","replica","quorum","days","keep","cache(MB)","blocks","minrows","maxrows","wallevel","fsync","comp","cachelast","precision","update","status"],"column_meta":[["name",8,32],["created_time",9,8],["ntables",4,4],["vgroups",4,4],["replica",3,2],["quorum",3,2],["days",3,2],["keep",8,24],["cache(MB)",4,4],["blocks",4,4],["minrows",4,4],["maxrows",4,4],["wallevel",2,1],["fsync",4,4],["comp",2,1],["cachelast",2,1],["precision",8,3],["update",2,1],["status",8,10]],"data":[["log","2021-12-28 09:18:55.765",10,1,1,1,10,"30",1,3,100,4096,1,3000,2,0,"us",0,"ready"]],"rows":1}
 ```
 
-taosAdapter supports multiple data collection agents (e.g. Telegraf, StatsD, collectd, etc.), here only demonstrate how StasD is simulated to write data, and the command is executed from the host side as follows.
-```
-$ echo "foo:1|c" | nc -u -w0 127.0.0.1 6044
-```
-
-Then you can use the taos shell to query the taosAdapter automatically created database statsd and the contents of the super table foo.
-```
-taos> show databases;
-              name              |      created_time       |   ntables   |   vgroups   | replica | quorum |  days  |           keep           |  cache(MB)  |   blocks    |   minrows   |   maxrows   | wallevel |    fsync    | comp | cachelast | precision | update |   status   |
-====================================================================================================================================================================================================================================================================================
- log                            | 2021-12-28 09:18:55.765 |          12 |           1 |       1 |      1 |     10 | 30                       |           1 |           3 |         100 |        4096 |        1 |        3000 |    2 |         0 | us        |      0 | ready      |
- statsd                         | 2021-12-28 09:21:48.841 |           1 |           1 |       1 |      1 |     10 | 3650                     |          16 |           6 |         100 |        4096 |        1 |        3000 |    2 |         0 | ns        |      2 | ready      |
-Query OK, 2 row(s) in set (0.002112s)
-
-taos> use statsd;
-Database changed.
-
-taos> show stables;
-              name              |      created_time       | columns |  tags  |   tables    |
-============================================================================================
- foo                            | 2021-12-28 09:21:48.894 |       2 |      1 |           1 |
-Query OK, 1 row(s) in set (0.001160s)
-
-taos> select * from foo;
-              ts               |         value         |         metric_type          |
-=======================================================================================
- 2021-12-28 09:21:48.840820836 |                     1 | counter                      |
-Query OK, 1 row(s) in set (0.001639s)
-
-taos>
-```
-
-You can see that the simulation data has been written to TDengine.
-
-
 ### Application example: write data to TDengine server in Docker container using taosBenchmark on the host
 
-1, execute `taosBenchmark` (was named taosdemo) in the host command line interface to write data to the TDengine server in the Docker container
+1. execute `taosBenchmark` (was named taosdemo) in the host command line interface to write data to the TDengine server in the Docker container
+
 ```bash
 $ taosBenchmark
 
@@ -177,7 +157,7 @@ taosBenchmark is simulating data generated by power equipments monitoring...
 host:                       127.0.0.1:6030
 user:                       root
 password:                   taosdata
-configDir:                  
+configDir:
 resultFile:                 ./output.txt
 thread num of insert data:  10
 thread num of create table: 10
@@ -206,13 +186,13 @@ database[0]:
       maxSqlLen:         1048576
       timeStampStep:     1
       startTimestamp:    2017-07-14 10:40:00.000
-      sampleFormat:      
-      sampleFile:        
-      tagsFile:          
+      sampleFormat:
+      sampleFile:
+      tagsFile:
       columnCount:       3
-column[0]:FLOAT column[1]:INT column[2]:FLOAT 
+column[0]:FLOAT column[1]:INT column[2]:FLOAT
       tagCount:            2
-        tag[0]:INT tag[1]:BINARY(16) 
+        tag[0]:INT tag[1]:BINARY(16)
 
          Press enter key to continue or Ctrl-C to stop
 ```
@@ -221,7 +201,7 @@ After enter, this command will automatically create a super table `meters` under
 
 It takes about a few minutes to execute this command and ends up inserting a total of 100 million records.
 
-3, Go to the TDengine terminal and view the data generated by taosBenchmark.
+2.Go to the TDengine terminal and view the data generated by taosBenchmark.
 
 - **Go to the terminal interface.**
 
@@ -231,7 +211,7 @@ $ root@c452519b0f9b:~/TDengine-server-2.4.0.4# taos
 Welcome to the TDengine shell from Linux, Client Version:2.4.0.4
 Copyright (c) 2020 by TAOS Data, Inc. All rights reserved.
 
-taos> 
+taos>
 ```
 
 - **View the database.**
@@ -240,7 +220,7 @@ taos>
 $ taos> show databases;
   name        |      created_time       |   ntables   |   vgroups   |    ···
   test        | 2021-08-18 06:01:11.021 |       10000 |           6 |    ···
-  log         | 2021-08-18 05:51:51.065 |           4 |           1 |	   ···
+  log         | 2021-08-18 05:51:51.065 |           4 |           1 |    ···
 
 ```
 
@@ -292,13 +272,49 @@ Query OK, 1 row(s) in set (0.003490s)
 
 ```
 
+### Application Example: use data collection agent to write data into TDengine
+
+taosAdapter supports multiple data collection agents (e.g. Telegraf, StatsD, collectd, etc.), here only demonstrate how StasD is simulated to write data, and the command is executed from the host side as follows.
+
+```
+echo "foo:1|c" | nc -u -w0 127.0.0.1 6044
+```
+
+Then you can use the taos shell to query the taosAdapter automatically created database statsd and the contents of the super table foo.
+
+```
+taos> show databases;
+              name              |      created_time       |   ntables   |   vgroups   | replica | quorum |  days  |           keep           |  cache(MB)  |   blocks    |   minrows   |   maxrows   | wallevel |    fsync    | comp | cachelast | precision | update |   status   |
+====================================================================================================================================================================================================================================================================================
+ log                            | 2021-12-28 09:18:55.765 |          12 |           1 |       1 |      1 |     10 | 30                       |           1 |           3 |         100 |        4096 |        1 |        3000 |    2 |         0 | us        |      0 | ready      |
+ statsd                         | 2021-12-28 09:21:48.841 |           1 |           1 |       1 |      1 |     10 | 3650                     |          16 |           6 |         100 |        4096 |        1 |        3000 |    2 |         0 | ns        |      2 | ready      |
+Query OK, 2 row(s) in set (0.002112s)
+
+taos> use statsd;
+Database changed.
+
+taos> show stables;
+              name              |      created_time       | columns |  tags  |   tables    |
+============================================================================================
+ foo                            | 2021-12-28 09:21:48.894 |       2 |      1 |           1 |
+Query OK, 1 row(s) in set (0.001160s)
+
+taos> select * from foo;
+              ts               |         value         |         metric_type          |
+=======================================================================================
+ 2021-12-28 09:21:48.840820836 |                     1 | counter                      |
+Query OK, 1 row(s) in set (0.001639s)
+
+taos>
+```
+
+You can see that the simulation data has been written to TDengine.
+
 ## Stop the TDengine service that is running in Docker
 
 ```bash
-$ docker stop tdengine
-tdengine
+docker stop tdengine
 ```
 
 - **docker stop**: Stop the specified running docker image with docker stop.
-- **tdengine**: The name of the container.
 
