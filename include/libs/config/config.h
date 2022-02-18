@@ -23,7 +23,14 @@
 extern "C" {
 #endif
 
-typedef enum { CFG_TYPE_NONE, CFG_TYPE_TAOS_CFG, CFG_TYPE_DOT_ENV, CFG_TYPE_ENV_VAR, CFG_TYPE_APOLLO_URL } ECfgType;
+typedef enum {
+  CFG_TYPE_NONE,
+  CFG_TYPE_TAOS_CFG,
+  CFG_TYPE_DOT_ENV,
+  CFG_TYPE_ENV_VAR,
+  CFG_TYPE_APOLLO_URL,
+  CFG_TYPE_CONSOLE_PARA
+} ECfgType;
 
 typedef enum {
   CFG_DYPE_NONE,
@@ -61,9 +68,11 @@ SConfig *cfgInit();
 int32_t  cfgLoad(SConfig *pConfig, ECfgType cfgType, const char *sourceStr);
 void     cfgCleanup(SConfig *pConfig);
 
-int32_t cfgGetSize(SConfig *pConfig);
-void   *cfgIterate(SConfig *pConfig, void *p);
-void    cfgCancelIterate(SConfig *pConfig, void *p);
+int32_t      cfgGetSize(SConfig *pConfig);
+void        *cfgIterate(SConfig *pConfig, void *p);
+void         cfgCancelIterate(SConfig *pConfig, void *p);
+ECfgUnitType cfgGetUtype(SConfig *pConfig, const char *name);
+ECfgDataType cfgGetDtype(SConfig *pConfig, const char *name);
 
 void cfgAddBool(SConfig *pConfig, const char *name, bool defaultVal, ECfgUnitType utype);
 void cfgAddInt8(SConfig *pConfig, const char *name, int8_t defaultVal, ECfgUnitType utype);
