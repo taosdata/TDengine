@@ -81,6 +81,7 @@ typedef struct SMnode {
   tmr_h             timer;
   tmr_h             transTimer;
   tmr_h             mqTimer;
+  tmr_h             telemTimer;
   char             *path;
   SMnodeCfg         cfg;
   int64_t           checkTime;
