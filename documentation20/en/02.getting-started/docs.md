@@ -26,7 +26,7 @@ TDengine is very easy to install, from download to successful installation in ju
 
 <ul id="server-packageList" class="package-list"></ul>
 
-For details of the installation process, please refer to [Installation and Uninstallation of TDengine Multiple Installers](https://www.taosdata.com/en/documentation/install).
+For details of the installation process, please refer to [How to install/uninstall TDengine with installation package](https://www.taosdata.com/en/getting-started/install).
 
 ## Install client only
 
