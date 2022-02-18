@@ -144,6 +144,8 @@ static void mndCleanupTimer(SMnode *pMnode) {
     pMnode->transTimer = NULL;
     taosTmrStop(pMnode->mqTimer);
     pMnode->mqTimer = NULL;
+    taosTmrStop(pMnode->telemTimer);
+    pMnode->telemTimer = NULL;
     taosTmrCleanUp(pMnode->timer);
     pMnode->timer = NULL;
   }
