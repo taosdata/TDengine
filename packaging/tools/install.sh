@@ -194,6 +194,7 @@ function install_bin() {
   ${csudo}rm -f ${bin_link_dir}/tarbitrator || :
   ${csudo}rm -f ${bin_link_dir}/set_core || :
   ${csudo}rm -f ${bin_link_dir}/run_${serverName}_and_${adapterName}.sh || :
+  ${csudo}rm -f ${bin_link_dir}/TDinsight.sh || :
 
   ${csudo}cp -r ${script_dir}/bin/* ${install_main_dir}/bin && ${csudo}chmod 0555 ${install_main_dir}/bin/*
 
@@ -803,15 +804,6 @@ function updateProduct() {
   install_log
   install_header
   install_lib
-<<<<<<< HEAD
-  #  if [ "$pagMode" != "lite" ]; then
-  #    install_connector
-  #  fi
-=======
-#  if [ "$pagMode" != "lite" ]; then
-#    install_connector
-#  fi
->>>>>>> d65ac3b56... [TD-13440]<fix>: move taosBenchmark back in TDengine package
   install_examples
   if [ -z $1 ]; then
     install_bin
