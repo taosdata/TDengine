@@ -474,6 +474,7 @@ STrans *mndTransCreate(SMnode *pMnode, ETrnPolicy policy, ETrnType type, const S
   pTrans->stage = TRN_STAGE_PREPARE;
   pTrans->policy = policy;
   pTrans->transType = type;
+  pTrans->createdTime = taosGetTimestampMs();
   pTrans->rpcHandle = pReq->handle;
   pTrans->rpcAHandle = pReq->ahandle;
   pTrans->redoLogs = taosArrayInit(MND_TRANS_ARRAY_SIZE, sizeof(void *));
@@ -1343,11 +1344,7 @@ static int32_t mndRetrieveTrans(SMnodeMsg *pReq, SShowObj *pShow, char *data, in
 
     pWrite = data + pShow->offset[cols] * rows + pShow->bytes[cols] * numOfRows;
     char *name = mnGetDbStr(pTrans->dbname);
-    if (name != NULL) {
-      STR_WITH_MAXSIZE_TO_VARSTR(pWrite, name, pShow->bytes[cols]);
-    } else {
-      STR_TO_VARSTR(pWrite, "-");
-    }
+    STR_WITH_MAXSIZE_TO_VARSTR(pWrite, name, pShow->bytes[cols]);
     cols++;
 
     pWrite = data + pShow->offset[cols] * rows + pShow->bytes[cols] * numOfRows;
