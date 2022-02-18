@@ -269,7 +269,7 @@ tmq_resp_err_t tmq_reset_offset(tmq_t* tmq, const tmq_topic_vgroup_list_t* offse
   tsem_wait(&param.rspSem);
   tsem_destroy(&param.rspSem);
 
-  return TMQ_RESP_ERR__SUCCESS;
+  return param.rspErr;
 }
 
 tmq_resp_err_t tmq_subscribe(tmq_t* tmq, tmq_list_t* topic_list) {
