@@ -3189,7 +3189,7 @@ int32_t loadDataBlockOnDemand(SQueryRuntimeEnv* pRuntimeEnv, STableScanInfo* pTa
   if ((*status) != BLK_DATA_ALL_NEEDED) {
     // the pCtx[i] result is belonged to previous time window since the outputBuf has not been set yet,
     // the filter result may be incorrect. So in case of interval query, we need to set the correct time output buffer
-    if (QUERY_IS_INTERVAL_QUERY(pQueryAttr) && (!pQueryAttr->pointInterpQuery)) {
+    if (QUERY_IS_INTERVAL_QUERY(pQueryAttr) && (!pQueryAttr->pointInterpQuery) && (!pQueryAttr->uniqueQuery)) {
       SResultRow* pResult = NULL;
 
       bool  masterScan = IS_MASTER_SCAN(pRuntimeEnv);

@@ -90,6 +90,7 @@ void cleanupResultRowInfo(SResultRowInfo *pResultRowInfo) {
       tfree(pResultRowInfo->pResult[i]->key);
       if (pResultRowInfo->pResult[i]->uniqueHash){
         taosHashCleanup(pResultRowInfo->pResult[i]->uniqueHash);
+        pResultRowInfo->pResult[i]->uniqueHash = NULL;
       }
     }
   }
