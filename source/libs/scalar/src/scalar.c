@@ -45,6 +45,11 @@ int32_t sclInitParam(SNode* node, SScalarParam *param, SScalarCtx *ctx, int32_t 
       
       break;
     }
+    case QUERY_NODE_NODE_LIST: {
+      SNodeListNode *nodeList = (SNodeListNode *)node;
+      //TODO BUILD HASH
+      break;
+    }
     case QUERY_NODE_COLUMN_REF: {
       if (NULL == ctx) {
         sclError("invalid node type for constant calculating, type:%d, ctx:%p", nodeType(node), ctx);

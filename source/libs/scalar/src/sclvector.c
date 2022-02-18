@@ -19,7 +19,7 @@
 #include "sclvector.h"
 #include "tcompare.h"
 #include "querynodes.h"
-#include "filter.h"
+#include "filterInt.h"
 #include "query.h"
 
 //GET_TYPED_DATA(v, double, pRight->type, (char *)&((right)[i]));                                
