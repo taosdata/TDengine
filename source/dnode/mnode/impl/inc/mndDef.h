@@ -144,7 +144,7 @@ typedef struct {
   int32_t    transType;
   uint64_t   dbUid;
   char       dbname[TSDB_DB_FNAME_LEN];
-  char       lastError[TSDB_TRANS_DESC_LEN];
+  char       lastError[TSDB_TRANS_ERROR_LEN];
 } STrans;
 
 typedef struct {
