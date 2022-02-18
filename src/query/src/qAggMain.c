@@ -5190,7 +5190,11 @@ static bool unique_function_setup(SQLFunctionCtx *pCtx, SResultRowCellInfo* pRes
   if (!function_setup(pCtx, pResInfo)) {
     return false;
   }
-  *pCtx->pUniqueSet = taosHashInit(64, taosGetDefaultHashFunction(TSDB_DATA_TYPE_BINARY), true, HASH_NO_LOCK);
+  if(*pCtx->pUniqueSet != NULL){
+    taosHashClear(*pCtx->pUniqueSet);
+  }else{
+    *pCtx->pUniqueSet = taosHashInit(64, taosGetDefaultHashFunction(TSDB_DATA_TYPE_BINARY), true, HASH_NO_LOCK);
+  }
 
   return true;
 }

@@ -3688,7 +3688,9 @@ void setDefaultOutputBuf(SQueryRuntimeEnv *pRuntimeEnv, SOptrBasicInfo *pInfo, i
     RESET_RESULT_INFO(pCellInfo);
 
     pCtx[i].resultInfo   = pCellInfo;
-    pCtx[i].pUniqueSet   = &pRow->uniqueHash;
+    if (pCtx[i].functionId == TSDB_FUNC_UNIQUE) {
+      pCtx[i].pUniqueSet = &pRow->uniqueHash;
+    }
     pCtx[i].pOutput      = pData->pData;
     pCtx[i].currentStage = stage;
     assert(pCtx[i].pOutput != NULL);
@@ -4023,7 +4025,9 @@ void setResultRowOutputBufInitCtx(SQueryRuntimeEnv *pRuntimeEnv, SResultRow *pRe
   int32_t offset = 0;
   for (int32_t i = 0; i < numOfOutput; ++i) {
     pCtx[i].resultInfo = getResultCell(pResult, i, rowCellInfoOffset);
-    pCtx[i].pUniqueSet = &pResult->uniqueHash;
+    if (pCtx[i].functionId == TSDB_FUNC_UNIQUE){
+      pCtx[i].pUniqueSet = &pResult->uniqueHash;
+    }
 
     SResultRowCellInfo* pResInfo = pCtx[i].resultInfo;
     if (pResInfo->initialized && pResInfo->complete) {
@@ -4117,7 +4121,9 @@ void setResultOutputBuf(SQueryRuntimeEnv *pRuntimeEnv, SResultRow *pResult, SQLF
      * not all queries require the interResultBuf, such as COUNT
      */
     pCtx[i].resultInfo = getResultCell(pResult, i, rowCellInfoOffset);
-    pCtx[i].pUniqueSet = &pResult->uniqueHash;
+    if (pCtx[i].functionId == TSDB_FUNC_UNIQUE) {
+      pCtx[i].pUniqueSet = &pResult->uniqueHash;
+    }
   }
 }
 
