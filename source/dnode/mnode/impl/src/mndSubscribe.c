@@ -369,8 +369,8 @@ static int32_t mndProcessMqTimerMsg(SMnodeMsg *pMsg) {
 
 static int32_t mndProcessDoRebalanceMsg(SMnodeMsg *pMsg) {
   SMnode            *pMnode = pMsg->pMnode;
-  SMqDoRebalanceMsg *pReq = (SMqDoRebalanceMsg *)pMsg->rpcMsg.pCont;
-  STrans            *pTrans = mndTransCreate(pMnode, TRN_POLICY_RETRY, &pMsg->rpcMsg);
+  SMqDoRebalanceMsg *pReq = pMsg->rpcMsg.pCont;
+  STrans            *pTrans = mndTransCreate(pMnode, TRN_POLICY_RETRY, TRN_TYPE_REBALANCE, &pMsg->rpcMsg);
   void              *pIter = NULL;
 
   mInfo("mq rebalance start");
@@ -969,7 +969,7 @@ static int32_t mndProcessSubscribeReq(SMnodeMsg *pMsg) {
     oldTopicNum = taosArrayGetSize(oldSub);
   }
 
-  STrans *pTrans = mndTransCreate(pMnode, TRN_POLICY_RETRY, &pMsg->rpcMsg);
+  STrans *pTrans = mndTransCreate(pMnode, TRN_POLICY_RETRY, TRN_TYPE_SUBSCRIBE, &pMsg->rpcMsg);
   if (pTrans == NULL) {
     // TODO: free memory
     return -1;
