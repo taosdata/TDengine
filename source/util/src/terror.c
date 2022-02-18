@@ -256,6 +256,8 @@ TAOS_DEFINE_ERROR(TSDB_CODE_MND_INVALID_FUNC_RETRIEVE,     "Invalid func retriev
 // mnode-trans
 TAOS_DEFINE_ERROR(TSDB_CODE_MND_TRANS_ALREADY_EXIST,       "Transaction already exists")
 TAOS_DEFINE_ERROR(TSDB_CODE_MND_TRANS_NOT_EXIST,           "Transaction not exists")
+TAOS_DEFINE_ERROR(TSDB_CODE_MND_TRANS_INVALID_STAGE,       "Invalid stage to kill")
+TAOS_DEFINE_ERROR(TSDB_CODE_MND_TRANS_CANT_PARALLEL,       "Invalid stage to kill")
 
 // mnode-topic
 TAOS_DEFINE_ERROR(TSDB_CODE_MND_UNSUPPORTED_TOPIC,         "Topic with STable not supported yet")

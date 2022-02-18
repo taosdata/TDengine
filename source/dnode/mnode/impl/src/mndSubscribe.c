@@ -135,14 +135,15 @@ static int32_t mndBuildRebalanceMsg(void **pBuf, int32_t *pLen, const SMqConsume
 
 static int32_t mndPersistRebalanceMsg(SMnode *pMnode, STrans *pTrans, const SMqConsumerEp *pConsumerEp) {
   ASSERT(pConsumerEp->oldConsumerId != -1);
-  int32_t vgId = pConsumerEp->vgId;
-  SVgObj *pVgObj = mndAcquireVgroup(pMnode, vgId);
 
   void   *buf;
   int32_t tlen;
   if (mndBuildRebalanceMsg(&buf, &tlen, pConsumerEp) < 0) {
     return -1;
   }
+
+  int32_t vgId = pConsumerEp->vgId;
+  SVgObj *pVgObj = mndAcquireVgroup(pMnode, vgId);
 
   STransAction action = {0};
   action.epSet = mndGetVgroupEpset(pMnode, pVgObj);
@@ -181,14 +182,14 @@ static int32_t mndBuildCancelConnReq(void **pBuf, int32_t *pLen, const SMqConsum
 }
 
 static int32_t mndPersistCancelConnReq(SMnode *pMnode, STrans *pTrans, const SMqConsumerEp *pConsumerEp) {
-  int32_t vgId = pConsumerEp->vgId;
-  SVgObj *pVgObj = mndAcquireVgroup(pMnode, vgId);
-
   void   *buf;
   int32_t tlen;
   if (mndBuildCancelConnReq(&buf, &tlen, pConsumerEp) < 0) {
     return -1;
   }
+
+  int32_t vgId = pConsumerEp->vgId;
+  SVgObj *pVgObj = mndAcquireVgroup(pMnode, vgId);
 
   STransAction action = {0};
   action.epSet = mndGetVgroupEpset(pMnode, pVgObj);
@@ -408,8 +409,8 @@ static int32_t mndProcessMqTimerMsg(SMnodeMsg *pMsg) {
 
 static int32_t mndProcessDoRebalanceMsg(SMnodeMsg *pMsg) {
   SMnode            *pMnode = pMsg->pMnode;
-  SMqDoRebalanceMsg *pReq = (SMqDoRebalanceMsg *)pMsg->rpcMsg.pCont;
-  STrans            *pTrans = mndTransCreate(pMnode, TRN_POLICY_RETRY, &pMsg->rpcMsg);
+  SMqDoRebalanceMsg *pReq = pMsg->rpcMsg.pCont;
+  STrans            *pTrans = mndTransCreate(pMnode, TRN_POLICY_RETRY, TRN_TYPE_REBALANCE, &pMsg->rpcMsg);
   void              *pIter = NULL;
 
   mInfo("mq rebalance start");
@@ -762,7 +763,10 @@ static int32_t mndInitUnassignedVg(SMnode *pMnode, const SMqTopicObj *pTopic, SM
   while (1) {
     pIter = sdbFetch(pSdb, SDB_VGROUP, pIter, (void **)&pVgroup);
     if (pIter == NULL) break;
-    if (pVgroup->dbUid != pTopic->dbUid) continue;
+    if (pVgroup->dbUid != pTopic->dbUid) {
+      sdbRelease(pSdb, pVgroup);
+      continue;
+    }
 
     pSub->vgNum++;
     plan->execNode.nodeId = pVgroup->vgId;
@@ -796,7 +800,6 @@ static int32_t mndPersistMqSetConnReq(SMnode *pMnode, STrans *pTrans, const SMqT
                                       const SMqConsumerEp *pConsumerEp) {
   ASSERT(pConsumerEp->oldConsumerId == -1);
   int32_t vgId = pConsumerEp->vgId;
-  SVgObj *pVgObj = mndAcquireVgroup(pMnode, vgId);
 
   SMqSetCVgReq req = {
       .vgId = vgId,
@@ -823,6 +826,8 @@ static int32_t mndPersistMqSetConnReq(SMnode *pMnode, STrans *pTrans, const SMqT
 
   void *abuf = POINTER_SHIFT(buf, sizeof(SMsgHead));
   tEncodeSMqSetCVgReq(&abuf, &req);
+
+  SVgObj *pVgObj = mndAcquireVgroup(pMnode, vgId);
 
   STransAction action = {0};
   action.epSet = mndGetVgroupEpset(pMnode, pVgObj);
@@ -1004,7 +1009,7 @@ static int32_t mndProcessSubscribeReq(SMnodeMsg *pMsg) {
     oldTopicNum = taosArrayGetSize(oldSub);
   }
 
-  STrans *pTrans = mndTransCreate(pMnode, TRN_POLICY_RETRY, &pMsg->rpcMsg);
+  STrans *pTrans = mndTransCreate(pMnode, TRN_POLICY_RETRY, TRN_TYPE_SUBSCRIBE, &pMsg->rpcMsg);
   if (pTrans == NULL) {
     // TODO: free memory
     return -1;

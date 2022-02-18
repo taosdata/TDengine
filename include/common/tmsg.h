@@ -100,7 +100,7 @@ typedef enum _mgmt_table {
   TSDB_MGMT_TABLE_STREAMS,
   TSDB_MGMT_TABLE_VARIABLES,
   TSDB_MGMT_TABLE_CONNS,
-  TSDB_MGMT_TABLE_SCORES,
+  TSDB_MGMT_TABLE_TRANS,
   TSDB_MGMT_TABLE_GRANTS,
   TSDB_MGMT_TABLE_VNODES,
   TSDB_MGMT_TABLE_CLUSTER,
@@ -524,6 +524,7 @@ typedef struct {
   int8_t  update;
   int8_t  cacheLastRow;
   int8_t  ignoreExist;
+  int8_t  streamMode;
 } SCreateDbReq;
 
 int32_t tSerializeSCreateDbReq(void* buf, int32_t bufLen, SCreateDbReq* pReq);
@@ -976,6 +977,13 @@ typedef struct {
 
 int32_t tSerializeSKillConnReq(void* buf, int32_t bufLen, SKillConnReq* pReq);
 int32_t tDeserializeSKillConnReq(void* buf, int32_t bufLen, SKillConnReq* pReq);
+
+typedef struct {
+  int32_t transId;
+} SKillTransReq;
+
+int32_t tSerializeSKillTransReq(void* buf, int32_t bufLen, SKillTransReq* pReq);
+int32_t tDeserializeSKillTransReq(void* buf, int32_t bufLen, SKillTransReq* pReq);
 
 typedef struct {
   char user[TSDB_USER_LEN];

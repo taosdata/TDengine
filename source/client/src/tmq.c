@@ -328,7 +328,7 @@ tmq_resp_err_t tmq_subscribe(tmq_t* tmq, tmq_list_t* topic_list) {
   SMqSubscribeCbParam param = {.rspErr = TMQ_RESP_ERR__SUCCESS, .tmq = tmq};
   tsem_init(&param.rspSem, 0, 0);
 
-  pRequest->body.requestMsg = (SDataBuf){.pData = buf, .len = tlen};
+  pRequest->body.requestMsg = (SDataBuf){.pData = buf, .len = tlen, .handle = NULL};
 
   SMsgSendInfo* sendInfo = buildMsgInfoImpl(pRequest);
   sendInfo->param = &param;
@@ -453,7 +453,7 @@ TAOS_RES* tmq_create_topic(TAOS* taos, const char* topicName, const char* sql, i
   tSerializeMCreateTopicReq(buf, tlen, &req);
   /*printf("formatted: %s\n", dagStr);*/
 
-  pRequest->body.requestMsg = (SDataBuf){.pData = buf, .len = tlen};
+  pRequest->body.requestMsg = (SDataBuf){.pData = buf, .len = tlen, .handle = NULL};
   pRequest->type = TDMT_MND_CREATE_TOPIC;
 
   SMsgSendInfo* sendInfo = buildMsgInfoImpl(pRequest);
@@ -779,8 +779,10 @@ tmq_message_t* tmq_consumer_poll(tmq_t* tmq, int64_t blocking_time) {
     param->pVg = pVg;
     tsem_init(&param->rspSem, 0, 0);
 
+
     SRequestObj* pRequest = createRequest(tmq->pTscObj, NULL, NULL, TDMT_VND_CONSUME);
-    pRequest->body.requestMsg = (SDataBuf){.pData = pReq, .len = sizeof(SMqConsumeReq)};
+    pRequest->body.requestMsg = (SDataBuf){.pData = pReq, .len = sizeof(SMqConsumeReq), .handle = NULL};
+
 
     SMsgSendInfo* sendInfo = buildMsgInfoImpl(pRequest);
     sendInfo->requestObjRefId = 0;

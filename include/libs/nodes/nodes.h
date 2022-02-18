@@ -72,8 +72,10 @@ typedef enum ENodeType {
   QUERY_NODE_SHOW_STMT,
 
   QUERY_NODE_LOGIC_PLAN_SCAN,
+  QUERY_NODE_LOGIC_PLAN_JOIN,
   QUERY_NODE_LOGIC_PLAN_FILTER,
-  QUERY_NODE_LOGIC_PLAN_AGG
+  QUERY_NODE_LOGIC_PLAN_AGG,
+  QUERY_NODE_LOGIC_PLAN_PROJECT
 } ENodeType;
 
 /**
@@ -100,7 +102,7 @@ SNode* nodesMakeNode(ENodeType type);
 void nodesDestroyNode(SNode* pNode);
 
 SNodeList* nodesMakeList();
-SNodeList* nodesListAppend(SNodeList* pList, SNode* pNode);
+int32_t nodesListAppend(SNodeList* pList, SNode* pNode);
 SListCell* nodesListErase(SNodeList* pList, SListCell* pCell);
 SNode* nodesListGetNode(SNodeList* pList, int32_t index);
 void nodesDestroyList(SNodeList* pList);

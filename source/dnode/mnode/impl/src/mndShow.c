@@ -295,8 +295,8 @@ char *mndShowStr(int32_t showType) {
       return "show configs";
     case TSDB_MGMT_TABLE_CONNS:
       return "show connections";
-    case TSDB_MGMT_TABLE_SCORES:
-      return "show scores";
+    case TSDB_MGMT_TABLE_TRANS:
+      return "show trans";
     case TSDB_MGMT_TABLE_GRANTS:
       return "show grants";
     case TSDB_MGMT_TABLE_VNODES:
