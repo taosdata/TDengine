@@ -13,7 +13,7 @@ namespace {
 // simple test
 void simpleTest() {
   SDiskbasedBuf* pResultBuf = NULL;
-  int32_t ret = createDiskbasedBuffer(&pResultBuf, 1024, 4096, 1, "/tmp/");
+  int32_t ret = createDiskbasedBuf(&pResultBuf, 1024, 4096, 1, "/tmp/");
   
   int32_t pageId = 0;
   int32_t groupId = 0;
@@ -25,7 +25,7 @@ void simpleTest() {
   
   SIDList list = getDataBufPagesIdList(pResultBuf, groupId);
   ASSERT_EQ(taosArrayGetSize(list), 1);
-  ASSERT_EQ(getNumOfResultBufGroupId(pResultBuf), 1);
+  ASSERT_EQ(getNumOfBufGroupId(pResultBuf), 1);
 
   releaseBufPage(pResultBuf, pBufPage);
 
@@ -50,12 +50,12 @@ void simpleTest() {
   SFilePage* t4 = getBufPage(pResultBuf, pageId);
   ASSERT_TRUE(t4 == pBufPage5);
 
-  destroyResultBuf(pResultBuf);
+  destroyDiskbasedBuf(pResultBuf);
 }
 
 void writeDownTest() {
   SDiskbasedBuf* pResultBuf = NULL;
-  int32_t ret = createDiskbasedBuffer(&pResultBuf, 1024, 4*1024, 1, "/tmp/");
+  int32_t ret = createDiskbasedBuf(&pResultBuf, 1024, 4*1024, 1, "/tmp/");
 
   int32_t pageId = 0;
   int32_t writePageId = 0;
@@ -97,12 +97,12 @@ void writeDownTest() {
   SArray* pa = getDataBufPagesIdList(pResultBuf, groupId);
   ASSERT_EQ(taosArrayGetSize(pa), 5);
 
-  destroyResultBuf(pResultBuf);
+  destroyDiskbasedBuf(pResultBuf);
 }
 
 void recyclePageTest() {
   SDiskbasedBuf* pResultBuf = NULL;
-  int32_t ret = createDiskbasedBuffer(&pResultBuf, 1024, 4*1024, 1, "/tmp/");
+  int32_t ret = createDiskbasedBuf(&pResultBuf, 1024, 4*1024, 1, "/tmp/");
 
   int32_t pageId = 0;
   int32_t writePageId = 0;
@@ -150,7 +150,7 @@ void recyclePageTest() {
   SArray* pa = getDataBufPagesIdList(pResultBuf, groupId);
   ASSERT_EQ(taosArrayGetSize(pa), 6);
 
-  destroyResultBuf(pResultBuf);
+  destroyDiskbasedBuf(pResultBuf);
 }
 } // namespace
 

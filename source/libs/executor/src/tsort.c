@@ -39,7 +39,7 @@ typedef struct SSortHandle {
   bool              nullFirst;
   bool              hasVarCol;
 
-  SArray           *pSources;
+  SArray           *pSources;  // TODO refactor, remove it
   SArray           *pOrderedSource;
 
   _sort_fetch_block_fn_t  fetchfp;
@@ -119,6 +119,7 @@ void destroySortHandle(SSortHandle* pSortHandle) {
     tMergeTreeDestroy(pSortHandle->pMergeTree);
   }
 
+  destroyDiskbasedBuf(pSortHandle->pBuf);
   tfree(pSortHandle->idStr);
   tfree(pSortHandle);
 }
@@ -171,7 +172,7 @@ static int32_t doAddToBuf(SSDataBlock* pDataBlock, SSortHandle* pHandle) {
   int32_t start = 0;
 
   if (pHandle->pBuf == NULL) {
-    int32_t code = createDiskbasedBuffer(&pHandle->pBuf, pHandle->pageSize, pHandle->numOfPages * pHandle->pageSize, 0, "/tmp");
+    int32_t code = createDiskbasedBuf(&pHandle->pBuf, pHandle->pageSize, pHandle->numOfPages * pHandle->pageSize, 0, "/tmp");
     setPrintStatis(pHandle->pBuf);
     if (code != TSDB_CODE_SUCCESS) {
       return code;
@@ -235,7 +236,7 @@ static int32_t sortComparInit(SMsortComparParam* cmpParam, SArray* pSources, int
   } else {
     // multi-pass internal merge sort is required
     if (pHandle->pBuf == NULL) {
-      code = createDiskbasedBuffer(&pHandle->pBuf, pHandle->pageSize, pHandle->numOfPages * pHandle->pageSize, 0, "/tmp");
+      code = createDiskbasedBuf(&pHandle->pBuf, pHandle->pageSize, pHandle->numOfPages * pHandle->pageSize, 0, "/tmp");
       setPrintStatis(pHandle->pBuf);
       if (code != TSDB_CODE_SUCCESS) {
         return code;
@@ -614,7 +615,10 @@ int32_t sortOpen(SSortHandle* pHandle) {
   }
 
   int32_t numOfSources = taosArrayGetSize(pHandle->pOrderedSource);
-  ASSERT(numOfSources <= getNumOfInMemBufPages(pHandle->pBuf));
+  if (pHandle->pBuf != NULL) {
+    ASSERT(numOfSources <= getNumOfInMemBufPages(pHandle->pBuf));
+  }
+
   code = sortComparInit(&pHandle->cmpParam, pHandle->pOrderedSource, 0, numOfSources - 1, pHandle);
   if (code != TSDB_CODE_SUCCESS) {
     return code;

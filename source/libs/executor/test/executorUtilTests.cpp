@@ -219,50 +219,50 @@ int32_t docomp(const void* p1, const void* p2, void* param) {
 //  destroySortHandle(phandle);
 //}
 
-TEST(testCase, ordered_merge_sort_Test) {
-  SArray* pOrderVal = taosArrayInit(4, sizeof(SOrder));
-  SOrder o = {.order = TSDB_ORDER_ASC};
-  o.col.info.colId = 1;
-  o.col.info.type = TSDB_DATA_TYPE_INT;
-  taosArrayPush(pOrderVal, &o);
-
-  int32_t numOfRows = 1000;
-  SBlockOrderInfo oi = {0};
-  oi.order = TSDB_ORDER_ASC;
-  oi.colIndex = 0;
-  SArray* orderInfo = taosArrayInit(1, sizeof(SBlockOrderInfo));
-  taosArrayPush(orderInfo, &oi);
-
-  SSchema s = {.type = TSDB_DATA_TYPE_INT, .colId = 1, .bytes = 4};
-  SSortHandle* phandle = createSortHandle(orderInfo, false, SORT_MULTIWAY_MERGE, 1024, 5, &s, 1,"test_abc");
-  setFetchRawDataFp(phandle, getSingleColDummyBlock);
-  setComparFn(phandle, docomp);
-
-  for(int32_t i = 0; i < 10; ++i) {
-    SOperatorSource* p = static_cast<SOperatorSource*>(calloc(1, sizeof(SOperatorSource)));
-    _info* c = static_cast<_info*>(calloc(1, sizeof(_info)));
-    c->count    = 1;
-    c->pageRows = 1000;
-    c->startVal = 0;
-
-    p->param = c;
-    sortAddSource(phandle, p);
-  }
-
-  int32_t code = sortOpen(phandle);
-  int32_t row = 1;
-
-  while(1) {
-    STupleHandle* pTupleHandle = sortNextTuple(phandle);
-    if (pTupleHandle == NULL) {
-      break;
-    }
-
-    void* v = sortGetValue(pTupleHandle, 0);
-    printf("%d: %d\n", row++, *(int32_t*) v);
-
-  }
-  destroySortHandle(phandle);
-}
+//TEST(testCase, ordered_merge_sort_Test) {
+//  SArray* pOrderVal = taosArrayInit(4, sizeof(SOrder));
+//  SOrder o = {.order = TSDB_ORDER_ASC};
+//  o.col.info.colId = 1;
+//  o.col.info.type = TSDB_DATA_TYPE_INT;
+//  taosArrayPush(pOrderVal, &o);
+//
+//  int32_t numOfRows = 1000;
+//  SBlockOrderInfo oi = {0};
+//  oi.order = TSDB_ORDER_ASC;
+//  oi.colIndex = 0;
+//  SArray* orderInfo = taosArrayInit(1, sizeof(SBlockOrderInfo));
+//  taosArrayPush(orderInfo, &oi);
+//
+//  SSchema s = {.type = TSDB_DATA_TYPE_INT, .colId = 1, .bytes = 4};
+//  SSortHandle* phandle = createSortHandle(orderInfo, false, SORT_MULTIWAY_MERGE, 1024, 5, &s, 1,"test_abc");
+//  setFetchRawDataFp(phandle, getSingleColDummyBlock);
+//  setComparFn(phandle, docomp);
+//
+//  for(int32_t i = 0; i < 10; ++i) {
+//    SOperatorSource* p = static_cast<SOperatorSource*>(calloc(1, sizeof(SOperatorSource)));
+//    _info* c = static_cast<_info*>(calloc(1, sizeof(_info)));
+//    c->count    = 1;
+//    c->pageRows = 1000;
+//    c->startVal = 0;
+//
+//    p->param = c;
+//    sortAddSource(phandle, p);
+//  }
+//
+//  int32_t code = sortOpen(phandle);
+//  int32_t row = 1;
+//
+//  while(1) {
+//    STupleHandle* pTupleHandle = sortNextTuple(phandle);
+//    if (pTupleHandle == NULL) {
+//      break;
+//    }
+//
+//    void* v = sortGetValue(pTupleHandle, 0);
+//    printf("%d: %d\n", row++, *(int32_t*) v);
+//
+//  }
+//  destroySortHandle(phandle);
+//}
 
 #pragma GCC diagnostic pop

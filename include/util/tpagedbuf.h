@@ -55,7 +55,7 @@ typedef struct SDiskbasedBufStatis {
  * @param handle
  * @return
  */
-int32_t createDiskbasedBuffer(SDiskbasedBuf** pBuf, int32_t pagesize, int32_t inMemBufSize, uint64_t qId, const char* dir);
+int32_t createDiskbasedBuf(SDiskbasedBuf** pBuf, int32_t pagesize, int32_t inMemBufSize, uint64_t qId, const char* dir);
 
 /**
  *
@@ -108,13 +108,13 @@ size_t getTotalBufSize(const SDiskbasedBuf* pBuf);
  * @param pBuf
  * @return
  */
-size_t getNumOfResultBufGroupId(const SDiskbasedBuf* pBuf);
+size_t getNumOfBufGroupId(const SDiskbasedBuf* pBuf);
 
 /**
  * destroy result buffer
  * @param pBuf
  */
-void destroyResultBuf(SDiskbasedBuf* pBuf);
+void destroyDiskbasedBuf(SDiskbasedBuf* pBuf);
 
 /**
  *

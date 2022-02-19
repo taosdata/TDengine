@@ -254,7 +254,7 @@ tMemBucket *tMemBucketCreate(int16_t nElemSize, int16_t dataType, double minval,
 
   resetSlotInfo(pBucket);
 
-  int32_t ret = createDiskbasedBuffer(&pBucket->pBuffer, pBucket->bufPageSize, pBucket->bufPageSize * 512, 1, tsTempDir);
+  int32_t ret = createDiskbasedBuf(&pBucket->pBuffer, pBucket->bufPageSize, pBucket->bufPageSize * 512, 1, tsTempDir);
   if (ret != 0) {
     tMemBucketDestroy(pBucket);
     return NULL;
@@ -269,7 +269,7 @@ void tMemBucketDestroy(tMemBucket *pBucket) {
     return;
   }
 
-  destroyResultBuf(pBucket->pBuffer);
+  destroyDiskbasedBuf(pBucket->pBuffer);
   tfree(pBucket->pSlots);
   tfree(pBucket);
 }

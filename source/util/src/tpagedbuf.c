@@ -53,7 +53,7 @@ typedef struct SDiskbasedBuf {
 
 static void printStatisData(const SDiskbasedBuf* pBuf);
 
-int32_t createDiskbasedBuffer(SDiskbasedBuf** pBuf, int32_t pagesize, int32_t inMemBufSize, uint64_t qId, const char* dir) {
+int32_t createDiskbasedBuf(SDiskbasedBuf** pBuf, int32_t pagesize, int32_t inMemBufSize, uint64_t qId, const char* dir) {
   *pBuf = calloc(1, sizeof(SDiskbasedBuf));
 
   SDiskbasedBuf* pResBuf = *pBuf;
@@ -473,7 +473,7 @@ void releaseBufPageInfo(SDiskbasedBuf* pBuf, SPageInfo* pi) {
   pBuf->statis.releasePages += 1;
 }
 
-size_t getNumOfResultBufGroupId(const SDiskbasedBuf* pBuf) { return taosHashGetSize(pBuf->groupSet); }
+size_t getNumOfBufGroupId(const SDiskbasedBuf* pBuf) { return taosHashGetSize(pBuf->groupSet); }
 
 size_t getTotalBufSize(const SDiskbasedBuf* pBuf) { return (size_t)pBuf->totalBufSize; }
 
@@ -488,7 +488,7 @@ SIDList getDataBufPagesIdList(SDiskbasedBuf* pBuf, int32_t groupId) {
   }
 }
 
-void destroyResultBuf(SDiskbasedBuf* pBuf) {
+void destroyDiskbasedBuf(SDiskbasedBuf* pBuf) {
   if (pBuf == NULL) {
     return;
   }

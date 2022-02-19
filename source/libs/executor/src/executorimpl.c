@@ -2215,7 +2215,7 @@ static void teardownQueryRuntimeEnv(STaskRuntimeEnv *pRuntimeEnv) {
 
   destroyScalarFuncSupport(pRuntimeEnv->scalarSup, pQueryAttr->numOfOutput);
 //  destroyUdfInfo(pRuntimeEnv->pUdfInfo);
-  destroyResultBuf(pRuntimeEnv->pResultBuf);
+  destroyDiskbasedBuf(pRuntimeEnv->pResultBuf);
   doFreeQueryHandle(pRuntimeEnv);
 
   destroyTsComp(pRuntimeEnv, pQueryAttr);
@@ -4629,7 +4629,7 @@ int32_t doInitQInfo(SQInfo* pQInfo, STSBuf* pTsBuf, void* tsdb, void* sourceOptr
   getIntermediateBufInfo(pRuntimeEnv, &ps, &pQueryAttr->intermediateResultRowSize);
 
   int32_t TENMB = 1024*1024*10;
-  int32_t code = createDiskbasedBuffer(&pRuntimeEnv->pResultBuf, ps, TENMB, pQInfo->qId, tsTempDir);
+  int32_t code = createDiskbasedBuf(&pRuntimeEnv->pResultBuf, ps, TENMB, pQInfo->qId, tsTempDir);
   if (code != TSDB_CODE_SUCCESS) {
     return code;
   }
@@ -5600,6 +5600,10 @@ SArray* getResultGroupCheckColumns(STaskAttr* pQuery) {
 }
 
 static void destroySortedMergeOperatorInfo(void* param, int32_t numOfOutput) {
+  SSortedMergeOperatorInfo* pInfo = (SSortedMergeOperatorInfo*) param;
+  taosArrayDestroy(pInfo->orderInfo);
+  destroySortHandle(pInfo->pSortHandle);
+  blockDataDestroy(pInfo->pDataBlock);
 }
 
 static void destroySlimitOperatorInfo(void* param, int32_t numOfOutput) {
@@ -5655,7 +5659,10 @@ static SSDataBlock* getSortedBlockData(SSortHandle* pHandle, SSDataBlock* pDataB
 }
 
 SSDataBlock* loadNextDataBlock(void* param) {
+  SOperatorInfo* pOperator = (SOperatorInfo*) param;
+  bool newgroup = false;
 
+  return pOperator->exec(pOperator, &newgroup);
 }
 
 static SSDataBlock* doSortedMerge(void* param, bool* newgroup) {
@@ -5672,14 +5679,17 @@ static SSDataBlock* doSortedMerge(void* param, bool* newgroup) {
 
   SSchema* p = blockDataExtractSchema(pInfo->pDataBlock, NULL);
   int32_t numOfBufPage = pInfo->sortBufSize / pInfo->bufPageSize;
-  pInfo->pSortHandle = createSortHandle(pInfo->orderInfo, pInfo->nullFirst, SORT_SINGLESOURCE, pInfo->bufPageSize,
+  pInfo->pSortHandle = createSortHandle(pInfo->orderInfo, pInfo->nullFirst, SORT_MULTIWAY_MERGE, pInfo->bufPageSize,
                                         numOfBufPage, p, pInfo->pDataBlock->info.numOfCols, "GET_TASKID(pTaskInfo)");
 
   tfree(p);
   setFetchRawDataFp(pInfo->pSortHandle, loadNextDataBlock);
 
   for(int32_t i = 0; i < pOperator->numOfDownstream; ++i) {
-    sortAddSource(pInfo->pSortHandle, pOperator->pDownstream[i]);
+    SOperatorSource* ps = calloc(1, sizeof(SOperatorSource));
+    ps->param = pOperator->pDownstream[i];
+
+    sortAddSource(pInfo->pSortHandle, ps);
   }
 
   int32_t code = sortOpen(pInfo->pSortHandle);
@@ -5714,7 +5724,7 @@ static SArray* createBlockOrder(SArray* pExprInfo, SArray* pOrderVal) {
   return pOrderInfo;
 }
 
-SOperatorInfo* createSortedMergeOperatorInfo(SOperatorInfo** downstream, int32_t numOfDownstream, SArray* pExprInfo, void* param, SArray* pOrderVal, SExecTaskInfo* pTaskInfo) {
+SOperatorInfo* createSortedMergeOperatorInfo(SOperatorInfo** downstream, int32_t numOfDownstream, SArray* pExprInfo, SArray* pOrderVal, SExecTaskInfo* pTaskInfo) {
   SSortedMergeOperatorInfo* pInfo = calloc(1, sizeof(SSortedMergeOperatorInfo));
   SOperatorInfo* pOperator = calloc(1, sizeof(SOperatorInfo));
   if (pInfo == NULL || pOperator == NULL) {
