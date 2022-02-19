@@ -47,6 +47,7 @@ int tdbEnvCommit(TENV *pEnv);
 int tdbCreate(TDB **ppDb);
 int tdbOpen(TDB *pDb, const char *fname, const char *dbname, TENV *pEnv);
 int tdbClose(TDB *pDb);
+int tdbDrop(TDB *pDb);
 
 int tdbSetKeyLen(TDB *pDb, int klen);
 int tdbSetValLen(TDB *pDb, int vlen);

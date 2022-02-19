@@ -132,6 +132,11 @@ int tdbClose(TDB *pDb) {
   return tdbDestroy(pDb);
 }
 
+int tdbDrop(TDB *pDb) {
+  // TODO
+  return 0;
+}
+
 int tdbSetKeyLen(TDB *pDb, int klen) {
   // TODO: check `klen`
   pDb->klen = klen;
