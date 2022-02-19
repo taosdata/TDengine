@@ -62,6 +62,7 @@ typedef enum ENodeType {
   QUERY_NODE_NODE_LIST,
   QUERY_NODE_FILL,
   QUERY_NODE_COLUMN_REF,
+  QUERY_NODE_TARGET,
 
   // Only be used in parser module.
   QUERY_NODE_RAW_EXPR,
@@ -93,7 +94,7 @@ typedef struct SListCell {
 } SListCell;
 
 typedef struct SNodeList {
-  int16_t length;
+  int32_t length;
   SListCell* pHead;
   SListCell* pTail;
 } SNodeList;
@@ -103,6 +104,7 @@ void nodesDestroyNode(SNode* pNode);
 
 SNodeList* nodesMakeList();
 int32_t nodesListAppend(SNodeList* pList, SNode* pNode);
+int32_t nodesListAppendList(SNodeList* pTarget, SNodeList* pSrc);
 SListCell* nodesListErase(SNodeList* pList, SListCell* pCell);
 SNode* nodesListGetNode(SNodeList* pList, int32_t index);
 void nodesDestroyList(SNodeList* pList);

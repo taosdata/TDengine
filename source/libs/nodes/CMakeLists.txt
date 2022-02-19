@@ -7,7 +7,7 @@ target_include_directories(
 )
 target_link_libraries(
     nodes
-    PRIVATE os util
+    PRIVATE os util common qcom
 )
 
 if(${BUILD_TEST})
