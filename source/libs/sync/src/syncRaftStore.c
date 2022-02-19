@@ -13,4 +13,13 @@
  * along with this program. If not, see <http://www.gnu.org/licenses/>.
  */
 
+#include "syncRaftStore.h"
 #include "sync.h"
+
+int32_t currentTerm(SyncTerm *pCurrentTerm) { return 0; }
+
+int32_t persistCurrentTerm(SyncTerm currentTerm) { return 0; }
+
+int32_t voteFor(SRaftId *pRaftId) { return 0; }
+
+int32_t persistVoteFor(SRaftId *pRaftId) { return 0; }

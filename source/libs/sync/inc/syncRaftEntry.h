@@ -26,12 +26,12 @@ extern "C" {
 #include "sync.h"
 #include "taosdef.h"
 
-struct SSyncRaftEntry {
+typedef struct SSyncRaftEntry {
   SyncTerm    term;
   SyncIndex   index;
   SSyncBuffer data;
   int8_t      flag;
-};
+} SSyncRaftEntry;
 
 #ifdef __cplusplus
 }

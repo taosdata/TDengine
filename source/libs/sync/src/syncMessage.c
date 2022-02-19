@@ -13,4 +13,8 @@
  * along with this program. If not, see <http://www.gnu.org/licenses/>.
  */
 
+#include "syncMessage.h"
 #include "sync.h"
+#include "syncRaft.h"
+
+void onMessage(SRaft *pRaft, void *pMsg) {}

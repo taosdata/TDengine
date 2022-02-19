@@ -23,7 +23,13 @@ extern "C" {
 #include <stdint.h>
 #include <stdio.h>
 #include <stdlib.h>
+#include "syncMessage.h"
+#include "syncRaft.h"
 #include "taosdef.h"
+
+void requestVote(SRaft *pRaft, const SyncRequestVote *pMsg);
+
+void onRequestVote(SRaft *pRaft, const SyncRequestVote *pMsg);
 
 #ifdef __cplusplus
 }

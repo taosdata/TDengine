@@ -13,4 +13,22 @@
  * along with this program. If not, see <http://www.gnu.org/licenses/>.
  */
 
+#include "syncAppendEntriesReply.h"
 #include "sync.h"
+
+void onAppendEntriesReply(SRaft *pRaft, const SyncAppendEntriesReply *pMsg) {
+
+// TLA+ Spec
+//HandleAppendEntriesResponse(i, j, m) ==
+//    /\ m.mterm = currentTerm[i]
+//    /\ \/ /\ m.msuccess \* successful
+//          /\ nextIndex'  = [nextIndex  EXCEPT ![i][j] = m.mmatchIndex + 1]
+//          /\ matchIndex' = [matchIndex EXCEPT ![i][j] = m.mmatchIndex]
+//       \/ /\ \lnot m.msuccess \* not successful
+//          /\ nextIndex' = [nextIndex EXCEPT ![i][j] =
+//                               Max({nextIndex[i][j] - 1, 1})]
+//          /\ UNCHANGED <<matchIndex>>
+//    /\ Discard(m)
+//    /\ UNCHANGED <<serverVars, candidateVars, logVars, elections>>
+
+}

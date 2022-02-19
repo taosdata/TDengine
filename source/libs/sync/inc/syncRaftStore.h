@@ -23,7 +23,17 @@ extern "C" {
 #include <stdint.h>
 #include <stdio.h>
 #include <stdlib.h>
+#include "sync.h"
+#include "syncRaft.h"
 #include "taosdef.h"
+
+int32_t currentTerm(SyncTerm *pCurrentTerm);
+
+int32_t persistCurrentTerm(SyncTerm currentTerm);
+
+int32_t voteFor(SRaftId *pRaftId);
+
+int32_t persistVoteFor(SRaftId *pRaftId);
 
 #ifdef __cplusplus
 }

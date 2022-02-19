@@ -13,4 +13,7 @@
  * along with this program. If not, see <http://www.gnu.org/licenses/>.
  */
 
+#include "syncTimeout.h"
 #include "sync.h"
+
+void onTimeout(SRaft *pRaft, void *pMsg) {}

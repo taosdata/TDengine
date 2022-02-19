@@ -23,7 +23,13 @@ extern "C" {
 #include <stdint.h>
 #include <stdio.h>
 #include <stdlib.h>
+#include "syncMessage.h"
+#include "syncRaft.h"
 #include "taosdef.h"
+
+void appendEntries(SRaft *pRaft, const SyncAppendEntries *pMsg);
+
+void onAppendEntries(SRaft *pRaft, const SyncAppendEntries *pMsg);
 
 #ifdef __cplusplus
 }

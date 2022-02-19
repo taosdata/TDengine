@@ -28,13 +28,25 @@ extern "C" {
 #include "taosdef.h"
 
 typedef enum ESyncMessageType {
-  SYNC_CLIENT_REQUEST = 0,
+  SYNC_PING = 0,
+  SYNC_PING_REPLY,
+  SYNC_CLIENT_REQUEST,
   SYNC_CLIENT_REQUEST_REPLY,
   SYNC_REQUEST_VOTE,
   SYNC_REQUEST_VOTE_REPLY,
   SYNC_APPEND_ENTRIES,
   SYNC_APPEND_ENTRIES_REPLY,
 } ESyncMessageType;
+
+typedef struct SyncPing {
+  ESyncMessageType   msgType;
+  const SSyncBuffer *pData;
+} SyncPing;
+
+typedef struct SyncPingReply {
+  ESyncMessageType   msgType;
+  const SSyncBuffer *pData;
+} SyncPingReply;
 
 typedef struct SyncClientRequest {
   ESyncMessageType   msgType;

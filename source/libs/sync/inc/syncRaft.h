@@ -24,12 +24,21 @@ extern "C" {
 #include <stdio.h>
 #include <stdlib.h>
 #include "sync.h"
+#include "syncMessage.h"
 #include "taosdef.h"
 
+typedef struct SRaftId {
+  SyncNodeId  nodeId;
+  SyncGroupId vgId;
+} SRaftId;
+
 typedef struct SRaft {
+  SRaftId id;
 } SRaft;
 
 int32_t raftPropose(SRaft* pRaft, const SSyncBuffer* pBuf, bool isWeak);
+
+static int raftSendMsg(SRaftId destRaftId, const void* pMsg, const SRaft* pRaft);
 
 #ifdef __cplusplus
 }

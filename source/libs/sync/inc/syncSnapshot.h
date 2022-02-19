@@ -23,7 +23,13 @@ extern "C" {
 #include <stdint.h>
 #include <stdio.h>
 #include <stdlib.h>
+#include "sync.h"
+#include "syncRaft.h"
 #include "taosdef.h"
+
+int32_t takeSnapshot(SSyncFSM *pFsm, SSnapshot *pSnapshot);
+
+int32_t restoreSnapshot(SSyncFSM *pFsm, SSnapshot *pSnapshot);
 
 #ifdef __cplusplus
 }
