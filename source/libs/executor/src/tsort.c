@@ -176,6 +176,7 @@ static int32_t doAddToBuf(SSDataBlock* pDataBlock, SSortHandle* pHandle) {
 
   if (pHandle->pBuf == NULL) {
     int32_t code = createDiskbasedBuffer(&pHandle->pBuf, pHandle->pageSize, pHandle->numOfPages * pHandle->pageSize, 0, "/tmp");
+    setPrintStatis(pHandle->pBuf);
     if (code != TSDB_CODE_SUCCESS) {
       return code;
     }
@@ -239,6 +240,7 @@ static int32_t sortComparInit(SMsortComparParam* cmpParam, SArray* pSources, int
     // multi-pass internal merge sort is required
     if (pHandle->pBuf == NULL) {
       code = createDiskbasedBuffer(&pHandle->pBuf, pHandle->pageSize, pHandle->numOfPages * pHandle->pageSize, 0, "/tmp");
+      setPrintStatis(pHandle->pBuf);
       if (code != TSDB_CODE_SUCCESS) {
         return code;
       }

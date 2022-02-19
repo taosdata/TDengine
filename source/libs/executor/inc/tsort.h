@@ -25,7 +25,7 @@ extern "C" {
 
 enum {
   SORT_MULTIWAY_MERGE = 0x1,
-  SORT_SINGLESOURCE = 0x2,
+  SORT_SINGLESOURCE   = 0x2,
 };
 
 typedef struct SMultiMergeSource {
