@@ -13,14 +13,21 @@
  * along with this program. If not, see <http://www.gnu.org/licenses/>.
  */
 
-#include "tdb_db.h"
+#ifndef _TDB_ENV_H_
+#define _TDB_ENV_H_
 
-int tdbOpen(TDB **dbpp, const char *fname, const char *dbname, uint32_t flags) {
-  // TODO
-  return 0;
-}
+#ifdef __cplusplus
+extern "C" {
+#endif
 
-int tdbClose(TDB *dbp, uint32_t flags) {
-  // TODO
-  return 0;
+const char* tdbEnvGetRootDir(TENV* pEnv);
+SPgFile*    tdbEnvGetPageFile(TENV* pEnv, const uint8_t fileid[]);
+SPgCache*   tdbEnvGetPgCache(TENV* pEnv);
+int         tdbEnvRgstPageFile(TENV* pEnv, SPgFile* pPgFile);
+int         tdbEnvRgstDB(TENV* pEnv, TDB* pDb);
+
+#ifdef __cplusplus
 }
+#endif
+
+#endif /*_TDB_ENV_H_*/
