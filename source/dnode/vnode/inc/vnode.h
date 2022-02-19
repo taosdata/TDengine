@@ -42,9 +42,9 @@ typedef struct {
 
 typedef struct {
   int32_t  vgId;
-  int64_t  dbId;
-  SDnode * pDnode;
-  STfs *   pTfs;
+  uint64_t dbId;
+  SDnode  *pDnode;
+  STfs    *pTfs;
   uint64_t wsize;
   uint64_t ssize;
   uint64_t lsize;
@@ -61,9 +61,9 @@ typedef struct {
 
 typedef struct {
   int32_t           sver;
-  const char *      timezone;
-  const char *      locale;
-  const char *      charset;
+  const char       *timezone;
+  const char       *locale;
+  const char       *charset;
   uint16_t          nthreads;  // number of commit threads. 0 for no threads and a schedule queue should be given (TODO)
   PutReqToVQueryQFp putReqToVQueryQFp;
   SendReqToDnodeFp  sendReqToDnodeFp;
@@ -71,17 +71,17 @@ typedef struct {
 
 typedef struct {
   int64_t           ver;
-  uint64_t          tbUid;
-  SHashObj *        tbIdHash;
-  const SSubmitMsg *pMsg;
-  SSubmitBlk *      pBlock;
+  int64_t           tbUid;
+  SHashObj         *tbIdHash;
+  const SSubmitReq *pMsg;
+  SSubmitBlk       *pBlock;
   SSubmitMsgIter    msgIter;
   SSubmitBlkIter    blkIter;
-  SMeta *           pVnodeMeta;
-  SArray *          pColIdList;  // SArray<int32_t>
+  SMeta            *pVnodeMeta;
+  SArray           *pColIdList;  // SArray<int32_t>
   int32_t           sver;
-  SSchemaWrapper *  pSchemaWrapper;
-  STSchema *        pSchema;
+  SSchemaWrapper   *pSchemaWrapper;
+  STSchema         *pSchema;
 } STqReadHandle;
 
 /* ------------------------ SVnode ------------------------ */
