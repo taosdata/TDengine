@@ -2,13 +2,9 @@
 
 ## <a class="anchor" id="install"></a>快捷安装
 
-TDengine 包括服务端、客户端和周边生态工具软件，目前 2.0 版服务端仅能在 Linux 系统上安装和运行，后续将支持 Windows、Mac OS 等系统。客户端可以在 Windows 或 Linux 上安装和运行。在任何操作系统上的应用都可以使用 RESTful 接口连接服务端程序 taosd，其中 2.4 之后版本默认使用单独运行的独立组件 taosAdapter 提供 http 服务和更多数据写入方式。taosAdapter 需要手动启动。而之前版本 TDengine 使用内置 http 服务。
+TDengine 包括服务端、客户端和周边生态工具软件，目前 2.0 版服务端仅在 Linux 系统上安装和运行，后续将支持 Windows、Mac OS 等系统。客户端可以在 Windows 或 Linux 上安装和运行。在任何操作系统上的应用都可以使用 RESTful 接口连接服务端程序 taosd，其中 2.4 之后版本默认使用单独运行的独立组件 taosAdapter 提供 http 服务和更多数据写入方式。taosAdapter 需要手动启动。而之前版本 TDengine 使用内置 http 服务。
 
 TDengine 支持 X64/ARM64/MIPS64/Alpha64 硬件平台，后续将支持 ARM32、RISC-V 等 CPU 架构。
-
-### <a class="anchor" id="source-install"></a>通过源码安装
-
-请参考我们的 [TDengine github 主页](https://github.com/taosdata/TDengine) 下载源码并安装.
 
 ### 通过 Docker 容器安装
 
@@ -26,23 +22,10 @@ TDengine 的安装非常简单，从下载到安装成功仅仅只要几秒钟�
 
 <ul id="server-packageList" class="package-list"></ul>
 
+#### 查看完整的 Release notes，请点击[这里](https://github.com/taosdata/TDengine/releases)。
 具体的安装过程，请参见 [TDengine 多种安装包的安装和卸载](https://www.taosdata.com/cn/getting-started/install) 以及 [视频教程](https://www.taosdata.com/blog/2020/11/11/1941.html)。
 
-## 仅安装客户端
-
-如果客户端和服务端运行在不同的电脑上，可以单独安装客户端。下载时请注意，所选择的客户端版本号应该和在上面下载的服务端版本号严格匹配。Linux 和 Windows 安装包如下（其中 lite 版本的安装包仅带有 C/C++ 语言的连接支持，而标准版本的安装包还包含和示例代码）：
-
-<ul id="client-packagelist" class="package-list"></ul>
-
-## 安装 taosTools
-
-taosTools 是多个用于 TDengine 的辅助工具软件集合。目前包含用于数据备份恢复的 taosdump 和用于安装 grafanaplugin 和 dashboard 的脚本 TDinsight.sh。
-
-运行 taosdump 需要安装 TDengine server 或 TDengine client 安装包，推荐使用 deb 或 rpm 格式安装包，方便安装依赖软件。
-
-<ul id="taos-tools" class="package-list"></ul>
-
-## 使用 apt-get 安装
+### 使用 apt-get 安装
 
 如果使用 Debian 或 Ubuntu 系统，也可以使用 apt-get 工具从官方仓库安装，设置方法为：
 
@@ -55,9 +38,25 @@ apt-cache policy tdengine
 sudo apt-get install tdengine
 ```
 
-查看完整的 Release notes，请点击[这里](https://github.com/taosdata/TDengine/releases)。
+### 仅安装客户端
 
-下载其他组件、最新 Beta 版及之前版本的安装包，请点击[这里](https://www.taosdata.com/cn/all-downloads/)。
+如果客户端和服务端运行在不同的电脑上，可以单独安装客户端。下载时请注意，所选择的客户端版本号应该和在上面下载的服务端版本号严格匹配。Linux 和 Windows 安装包如下（其中 lite 版本的安装包仅带有 C/C++ 语言的连接支持，而标准版本的安装包还包含和示例代码）：
+
+<ul id="client-packagelist" class="package-list"></ul>
+
+### 安装 taosTools
+
+taosTools 是多个用于 TDengine 的辅助工具软件集合。目前包含用于数据备份恢复的 taosdump 和用于安装 grafanaplugin 和 dashboard 的脚本 TDinsight.sh。
+
+运行 taosdump 需要安装 TDengine server 或 TDengine client 安装包，推荐使用 deb 或 rpm 格式安装包，方便安装依赖软件。
+
+<ul id="taos-tools" class="package-list"></ul>
+
+### <a class="anchor" id="source-install"></a>通过源码安装
+
+如果您希望对 TDengine 贡献代码或对内部实现感兴趣，请参考我们的 [TDengine github 主页](https://github.com/taosdata/TDengine) 下载源码构建和安装.
+
+### 下载其他组件、最新 Beta 版及之前版本的安装包，请点击[这里](https://www.taosdata.com/cn/all-downloads/)。
 
 ## <a class="anchor" id="start"></a>轻松启动
 
