@@ -22,7 +22,7 @@ TDengine is very easy to install, from download to successful installation in ju
 
 <ul id="server-packageList" class="package-list"></ul>
 
-For detailed installation steps, please refer to [How to install/uninstall TDengine with installation package](https://www.taosdata.com/en/getting-started/install).
+For detailed installation steps, please refer to [How to install/uninstall TDengine with installation package](https://www.taosdata.com/getting-started/install).
 
 **Click [here](https://github.com/taosdata/TDengine/releases) for release notes.**
 
@@ -57,7 +57,7 @@ To run taosdump, you need to install the TDengine server or TDengine client inst
 
 If you want to contribute to TDengine, please visit [TDengine GitHub page](https://github.com/taosdata/TDengine) for detailed instructions on build and installation from the source code.
 
-**To download other components, beta, or early releases, please click [here](https://www.taosdata.com/cn/all-downloads/)**
+**To download other components, beta version, or early releases, please click [here](https://www.taosdata.com/en/all-downloads/).**
 
 ## <a class="anchor" id="start"></a>Quick Launch
 
