@@ -23,13 +23,6 @@
 #include "tpagedbuf.h"
 #include "tutil.h"
 
-typedef struct SMsortComparParam {
-  void        **pSources;
-  int32_t       numOfSources;
-  SArray       *orderInfo;   // SArray<SBlockOrderInfo>
-  bool          nullFirst;
-} SMsortComparParam;
-
 typedef struct STupleHandle {
   SSDataBlock* pBlock;
   int32_t      rowIndex;
@@ -72,7 +65,9 @@ typedef struct SSortHandle {
   STupleHandle      tupleHandle;
 } SSortHandle;
 
-SSDataBlock* createDataBlock_rv(SSchema* pSchema, int32_t numOfCols) {
+static int32_t msortComparFn(const void *pLeft, const void *pRight, void *param);
+
+static SSDataBlock* createDataBlock_rv(SSchema* pSchema, int32_t numOfCols) {
   SSDataBlock* pBlock = calloc(1, sizeof(SSDataBlock));
   pBlock->pDataBlock = taosArrayInit(numOfCols, sizeof(SColumnInfoData));
   pBlock->info.numOfCols = numOfCols;
@@ -107,6 +102,7 @@ SSortHandle* createSortHandle(SArray* pOrderInfo, bool nullFirst, int32_t type, 
   pSortHandle->cmpParam.orderInfo = pOrderInfo;
 
   pSortHandle->pDataBlock = createDataBlock_rv(pSchema, numOfCols);
+  setComparFn(pSortHandle, msortComparFn);
 
   if (idstr != NULL) {
     pSortHandle->idStr    = strdup(idstr);
@@ -365,7 +361,7 @@ static SSDataBlock* getSortedBlockData(SSortHandle* pHandle, SMsortComparParam* 
   return (pHandle->pDataBlock->info.rows > 0)? pHandle->pDataBlock:NULL;
 }
 
-static int32_t msortComparFn(const void *pLeft, const void *pRight, void *param) {
+int32_t msortComparFn(const void *pLeft, const void *pRight, void *param) {
   int32_t pLeftIdx  = *(int32_t *)pLeft;
   int32_t pRightIdx = *(int32_t *)pRight;
 

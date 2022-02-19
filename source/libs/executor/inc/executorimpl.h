@@ -550,22 +550,20 @@ typedef struct SDistinctOperatorInfo {
   SArray*      pDistinctDataInfo;
 } SDistinctOperatorInfo;
 
-typedef struct SSortMergeOperatorInfo {
-  SOptrBasicInfo     binfo;
+typedef struct SSortedMergeOperatorInfo {
+  SSDataBlock       *pDataBlock;
+  bool               hasVarCol;
+  
   SArray            *orderInfo;   // SArray<SBlockOrderInfo>
-  SArray*            groupColumnList;
-  bool               hasDataBlockForNewGroup;
-  char**             currentGroupColData;
-  SArray*            udfInfo;
+  bool               nullFirst;
   int32_t            numOfSources;
-} SSortMergeOperatorInfo;
 
-typedef struct SMsortComparParam {
-  struct SExternalMemSource **pSources;
-  int32_t       numOfSources;
-  SArray       *orderInfo;   // SArray<SBlockOrderInfo>
-  bool          nullFirst;
-} SMsortComparParam;
+  SSortHandle       *pSortHandle;
+
+  int32_t            bufPageSize;
+  uint32_t           sortBufSize;  // max buffer size for in-memory sort
+  int32_t            numOfRowsInRes;
+} SSortedMergeOperatorInfo;
 
 typedef struct SOrderOperatorInfo {
   uint32_t                sortBufSize;  // max buffer size for in-memory sort
@@ -628,8 +626,8 @@ SOperatorInfo* createFilterOperatorInfo(STaskRuntimeEnv* pRuntimeEnv, SOperatorI
 
 SOperatorInfo* createJoinOperatorInfo(SOperatorInfo** pdownstream, int32_t numOfDownstream, SSchema* pSchema,
                                       int32_t numOfOutput);
-SOperatorInfo* createOrderOperatorInfo(SOperatorInfo* downstream, SArray* pExprInfo, SArray* pOrderVal);
-SOperatorInfo* createSortMergeOperatorInfo(SOperatorInfo* downstream, SArray* pExprInfo, void* param, SArray* pUdfInfo, SExecTaskInfo* pTaskInfo);
+SOperatorInfo* createOrderOperatorInfo(SOperatorInfo* downstream, SArray* pExprInfo, SArray* pOrderVal, SExecTaskInfo* pTaskInfo);
+SOperatorInfo* createSortedMergeOperatorInfo(SOperatorInfo** downstream, int32_t numOfDownstream, SArray* pExprInfo, void* param, SArray* pOrderVal, SExecTaskInfo* pTaskInfo);
 
 // SSDataBlock* doGlobalAggregate(void* param, bool* newgroup);
 // SSDataBlock* doMultiwayMergeSort(void* param, bool* newgroup);

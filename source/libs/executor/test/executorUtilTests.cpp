@@ -238,7 +238,6 @@ TEST(testCase, ordered_merge_sort_Test) {
   setFetchRawDataFp(phandle, getSingleColDummyBlock);
   setComparFn(phandle, docomp);
 
-
   for(int32_t i = 0; i < 10; ++i) {
     SOperatorSource* p = static_cast<SOperatorSource*>(calloc(1, sizeof(SOperatorSource)));
     _info* c = static_cast<_info*>(calloc(1, sizeof(_info)));

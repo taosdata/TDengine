@@ -45,6 +45,13 @@ typedef struct SOperatorSource {
   void* param;
 } SOperatorSource;
 
+typedef struct SMsortComparParam {
+  void        **pSources;
+  int32_t       numOfSources;
+  SArray       *orderInfo;   // SArray<SBlockOrderInfo>
+  bool          nullFirst;
+} SMsortComparParam;
+
 typedef struct SSortHandle SSortHandle;
 typedef struct STupleHandle STupleHandle;
 
