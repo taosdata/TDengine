@@ -53,7 +53,7 @@ typedef struct SDiskbasedBuf {
 
 static void printStatisData(const SDiskbasedBuf* pBuf);
 
-  int32_t createDiskbasedBuffer(SDiskbasedBuf** pBuf, int32_t pagesize, int32_t inMemBufSize, uint64_t qId, const char* dir) {
+int32_t createDiskbasedBuffer(SDiskbasedBuf** pBuf, int32_t pagesize, int32_t inMemBufSize, uint64_t qId, const char* dir) {
   *pBuf = calloc(1, sizeof(SDiskbasedBuf));
 
   SDiskbasedBuf* pResBuf = *pBuf;
@@ -569,7 +569,7 @@ void setBufPageDirty(SFilePage* pPage, bool dirty) {
   ppi->dirty = dirty;
 }
 
-void printStatisBeforeClose(SDiskbasedBuf* pBuf) {
+void setPrintStatis(SDiskbasedBuf* pBuf) {
   pBuf->printStatis = true;
 }
 

@@ -411,7 +411,6 @@ SSDataBlock* blockDataExtractBlock(SSDataBlock* pBlock, int32_t startIndex, int3
   return pDst;
 }
 
-
 /**
  *
  * +------------------+---------------+--------------------+
@@ -520,6 +519,22 @@ size_t blockDataGetRowSize(const SSDataBlock* pBlock) {
  */
 size_t blockDataGetSerialMetaSize(const SSDataBlock* pBlock) {
   return sizeof(int32_t) + pBlock->info.numOfCols * sizeof(int32_t);
+}
+
+SSchema* blockDataExtractSchema(const SSDataBlock* pBlock, int32_t* numOfCols) {
+  SSchema* pSchema = calloc(pBlock->info.numOfCols, sizeof(SSchema));
+  for(int32_t i = 0; i < pBlock->info.numOfCols; ++i) {
+    SColumnInfoData* pColInfoData = taosArrayGet(pBlock->pDataBlock, i);
+    pSchema[i].bytes = pColInfoData->info.bytes;
+    pSchema[i].type  = pColInfoData->info.type;
+    pSchema[i].colId = pColInfoData->info.colId;
+  }
+
+  if (numOfCols != NULL) {
+    *numOfCols = pBlock->info.numOfCols;
+  }
+
+  return pSchema;
 }
 
 double blockDataGetSerialRowSize(const SSDataBlock* pBlock) {

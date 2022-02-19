@@ -18,9 +18,6 @@ typedef struct SBlockOrderInfo {
   int32_t          order;
   int32_t          colIndex;
   SColumnInfoData *pColData;
-//  int32_t          type;
-//  int32_t          bytes;
-//  bool             hasNull;
 } SBlockOrderInfo;
 
 int  taosGetFqdnPortFromEp(const char *ep, SEp *pEp);
@@ -92,6 +89,8 @@ size_t blockDataGetSize(const SSDataBlock* pBlock);
 size_t blockDataGetRowSize(const SSDataBlock* pBlock);
 double blockDataGetSerialRowSize(const SSDataBlock* pBlock);
 size_t blockDataGetSerialMetaSize(const SSDataBlock* pBlock);
+
+SSchema* blockDataExtractSchema(const SSDataBlock* pBlock, int32_t* numOfCols);
 
 size_t blockDataNumOfRowsForSerialize(const SSDataBlock* pBlock, int32_t blockSize);
 

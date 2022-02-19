@@ -15,6 +15,7 @@
 #ifndef TDENGINE_EXECUTORIMPL_H
 #define TDENGINE_EXECUTORIMPL_H
 
+#include "tsort.h"
 #ifdef __cplusplus
 extern "C" {
 #endif
@@ -557,10 +558,6 @@ typedef struct SSortMergeOperatorInfo {
   char**             currentGroupColData;
   SArray*            udfInfo;
   int32_t            numOfSources;
-//  char**             prevRow;
-//  int32_t            resultRowFactor;
-//  bool               multiGroupResults;
-//  bool               hasGroupColData;
 } SSortMergeOperatorInfo;
 
 typedef struct SMsortComparParam {
@@ -571,18 +568,15 @@ typedef struct SMsortComparParam {
 } SMsortComparParam;
 
 typedef struct SOrderOperatorInfo {
-  int32_t                 sourceId;
   uint32_t                sortBufSize;  // max buffer size for in-memory sort
   SSDataBlock            *pDataBlock;
   bool                    hasVarCol;    // has variable length column, such as binary/varchar/nchar
-  int32_t                 numOfCompleted;
-  SDiskbasedBuf          *pSortInternalBuf;
-  SMultiwayMergeTreeInfo *pMergeTree;
-  SArray                 *pSources;     // SArray<SExternalMemSource*>
+  SArray                 *orderInfo;
+  bool                    nullFirst;
+  SSortHandle            *pSortHandle;
+
   int32_t                 bufPageSize;
   int32_t                 numOfRowsInRes;
-
-  SMsortComparParam       cmpParam;
 
   // TODO extact struct
   int64_t                 startTs;       // sort start time

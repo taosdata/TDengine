@@ -157,7 +157,7 @@ void setBufPageDirty(SFilePage* pPageInfo, bool dirty);
  * Print the statistics when closing this buffer
  * @param pBuf
  */
-void printStatisBeforeClose(SDiskbasedBuf* pBuf);
+void setPrintStatis(SDiskbasedBuf* pBuf);
 
 /**
  * return buf statistics.

@@ -121,6 +121,7 @@ int main(int argc, char** argv) {
   return RUN_ALL_TESTS();
 }
 
+#if 0
 TEST(testCase, build_executor_tree_Test) {
   const char* msg = "{\n"
                     "\t\"Id\":\t{\n"
@@ -330,7 +331,7 @@ TEST(testCase, external_sort_Test) {
     }
   }
 
-  printStatisBeforeClose(((SOrderOperatorInfo*) pOperator->info)->pSortInternalBuf);
+//  setPrintStatis(((SOrderOperatorInfo*) pOperator->info)->pSortInternalBuf);
 
   int64_t s2 = taosGetTimestampUs();
   printf("total:%ld\n", s2 - s1);
@@ -341,4 +342,7 @@ TEST(testCase, external_sort_Test) {
   taosArrayDestroy(pExprInfo);
   taosArrayDestroy(pOrderVal);
 }
+
+#endif
+
 #pragma GCC diagnostic pop
