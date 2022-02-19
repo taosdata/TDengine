@@ -5733,7 +5733,6 @@ SOperatorInfo* createSortedMergeOperatorInfo(SOperatorInfo** downstream, int32_t
   pInfo->orderInfo  = createBlockOrder(pExprInfo, pOrderVal);
 
   int32_t numOfRows = 1;
-//  setDefaultOutputBuf_rv(pExprInfo, numOfRows);
 
   pOperator->name         = "SortedMerge";
   pOperator->operatorType = OP_SortedMerge;

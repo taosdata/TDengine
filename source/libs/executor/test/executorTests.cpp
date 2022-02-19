@@ -340,5 +340,65 @@ TEST(testCase, external_sort_Test) {
   taosArrayDestroy(pOrderVal);
 }
 
+TEST(testCase, sorted_merge_Test) {
+  srand(time(NULL));
+
+  SArray* pOrderVal = taosArrayInit(4, sizeof(SOrder));
+  SOrder o = {0};
+  o.order = TSDB_ORDER_ASC;
+  o.col.info.colId = 1;
+  o.col.info.type = TSDB_DATA_TYPE_INT;
+  taosArrayPush(pOrderVal, &o);
+
+  SArray* pExprInfo = taosArrayInit(4, sizeof(SExprInfo));
+  SExprInfo *exp = static_cast<SExprInfo*>(calloc(1, sizeof(SExprInfo)));
+  exp->base.resSchema = createSchema(TSDB_DATA_TYPE_INT, sizeof(int32_t), 1, "res");
+  taosArrayPush(pExprInfo, &exp);
+
+  SExprInfo *exp1 = static_cast<SExprInfo*>(calloc(1, sizeof(SExprInfo)));
+  exp1->base.resSchema = createSchema(TSDB_DATA_TYPE_BINARY, 40, 2, "res1");
+//  taosArrayPush(pExprInfo, &exp1);
+
+  SOperatorInfo* pOperator = createOrderOperatorInfo(createDummyOperator(1500), pExprInfo, pOrderVal, NULL);
+
+  bool newgroup = false;
+  SSDataBlock* pRes = NULL;
+
+  int32_t total = 1;
+
+  int64_t s1 = taosGetTimestampUs();
+  int32_t t = 1;
+
+  while(1) {
+    int64_t s = taosGetTimestampUs();
+    pRes = pOperator->exec(pOperator, &newgroup);
+
+    int64_t e = taosGetTimestampUs();
+    if (t++ == 1) {
+      printf("---------------elapsed:%ld\n", e - s);
+    }
+
+    if (pRes == NULL) {
+      break;
+    }
+
+    SColumnInfoData* pCol1 = static_cast<SColumnInfoData*>(taosArrayGet(pRes->pDataBlock, 0));
+//    SColumnInfoData* pCol2 = static_cast<SColumnInfoData*>(taosArrayGet(pRes->pDataBlock, 1));
+    for (int32_t i = 0; i < pRes->info.rows; ++i) {
+//      char* p = colDataGet(pCol2, i);
+      printf("%d: %d\n", total++, ((int32_t*)pCol1->pData)[i]);
+//      printf("%d: %d, %s\n", total++, ((int32_t*)pCol1->pData)[i], (char*)varDataVal(p));
+    }
+  }
+
+  int64_t s2 = taosGetTimestampUs();
+  printf("total:%ld\n", s2 - s1);
+
+  pOperator->cleanupFn(pOperator->info, 2);
+  tfree(exp);
+  tfree(exp1);
+  taosArrayDestroy(pExprInfo);
+  taosArrayDestroy(pOrderVal);
+}
 
 #pragma GCC diagnostic pop
