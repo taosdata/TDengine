@@ -93,6 +93,8 @@ TDengine是一个高效的存储、查询、分析时序大数据的平台，专
 
 * [Grafana](/connections#grafana)：获取并可视化保存在TDengine的数据
 * [IDEA Database](https://www.taosdata.com/blog/2020/08/27/1767.html)：通过IDEA 数据库管理工具可视化使用 TDengine
+* [基于Electron开发的跨平台TDengine图形化管理工具](https://github.com/skye0207/TDengineGUI)
+* [基于DataX的TDeninge数据迁移工具](https://www.taosdata.com/blog/2021/10/26/3156.html)
 
 ## [TDengine集群的安装、管理](/cluster)
 
@@ -131,14 +133,6 @@ TDengine是一个高效的存储、查询、分析时序大数据的平台，专
 * [devops](/devops/telegraf)：使用 TDengine + Telegraf + Grafana 快速搭建 IT 运维系统
 * [devops](/devops/collectd)：使用 TDengine + collectd_statsd + Grafana 快速搭建 IT 运维系统
 * [最佳实践](/devops/immigrate)：OpenTSDB 应用迁移到 TDengine 的最佳实践
-
-## 常用工具
-
-* [TDengine样例导入工具](https://www.taosdata.com/blog/2020/01/18/1166.html)
-* [TDengine写入性能测试工具](https://www.taosdata.com/blog/2020/01/18/1166.html)
-* [IDEA数据库管理工具可视化使用TDengine](https://www.taosdata.com/blog/2020/08/27/1767.html)
-* [基于Electron开发的跨平台TDengine图形化管理工具](https://github.com/skye0207/TDengineGUI)
-* [基于DataX的TDeninge数据迁移工具](https://www.taosdata.com/blog/2021/10/26/3156.html)
 
 ## TDengine与其他数据库的对比测试
 
