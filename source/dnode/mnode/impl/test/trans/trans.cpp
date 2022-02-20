@@ -46,8 +46,10 @@ class MndTestTrans : public ::testing::Test {
     free(buffer);
     taosFsyncFile(fd);
     taosCloseFile(fd);
+    taosMsleep(1000);
 
     test.ServerStart();
+    test.ClientRestart();
   }
 
   static Testbase   test;

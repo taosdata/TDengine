@@ -205,6 +205,7 @@ int transInitBuffer(SConnBuffer* buf) {
 }
 int transClearBuffer(SConnBuffer* buf) {
   memset(buf, 0, sizeof(*buf));
+  buf->total = -1;
   return 0;
 }
 int transAllocBuffer(SConnBuffer* connBuf, uv_buf_t* uvBuf) {
@@ -214,27 +215,25 @@ int transAllocBuffer(SConnBuffer* connBuf, uv_buf_t* uvBuf) {
    * |<------STransMsgHead------->|<-------------------userdata--------------->|<-----auth data----->|<----user
    * info--->|
    */
-  static const int CAPACITY = 1024;
+  static const int CAPACITY = sizeof(STransMsgHead);
 
   SConnBuffer* p = connBuf;
   if (p->cap == 0) {
     p->buf = (char*)calloc(CAPACITY, sizeof(char));
     p->len = 0;
     p->cap = CAPACITY;
-    p->left = -1;
+    p->total = 0;
 
     uvBuf->base = p->buf;
     uvBuf->len = CAPACITY;
   } else {
-    if (p->len >= p->cap) {
-      if (p->left == -1) {
-        p->cap *= 2;
-        p->buf = realloc(p->buf, p->cap);
-      } else if (p->len + p->left > p->cap) {
-        p->cap = p->len + p->left;
-        p->buf = realloc(p->buf, p->len + p->left);
-      }
-    }
+    STransMsgHead head;
+    memcpy((char*)&head, p->buf, sizeof(head));
+    int32_t msgLen = (int32_t)htonl(head.msgLen);
+
+    p->total = msgLen;
+    p->cap = msgLen;
+    p->buf = realloc(p->buf, p->cap);
     uvBuf->base = p->buf + p->len;
     uvBuf->len = p->cap - p->len;
   }

@@ -27,7 +27,7 @@ void* rpcOpen(const SRpcInit* pInit) {
     return NULL;
   }
   if (pInit->label) {
-    tstrncpy(pRpc->label, pInit->label, strlen(pInit->label));
+    tstrncpy(pRpc->label, pInit->label, strlen(pInit->label) + 1);
   }
   pRpc->cfp = pInit->cfp;
   if (pInit->connType == TAOS_CONN_SERVER) {
@@ -35,6 +35,8 @@ void* rpcOpen(const SRpcInit* pInit) {
   } else {
     pRpc->numOfThreads = pInit->numOfThreads;
   }
+
+  pRpc->noPool = pInit->noPool;
   pRpc->connType = pInit->connType;
   pRpc->idleTime = pInit->idleTime;
   pRpc->tcphandle = (*taosInitHandle[pRpc->connType])(0, pInit->localPort, pRpc->label, pRpc->numOfThreads, NULL, pRpc);
