@@ -5199,8 +5199,12 @@ static bool unique_function_setup(SQLFunctionCtx *pCtx, SResultRowCellInfo* pRes
   return true;
 }
 
-static void do_unique_function(SQLFunctionCtx *pCtx, SUniqueFuncInfo *pInfo, TSKEY timestamp, char *pData, char *tag, int32_t bytes){
-  UniqueUnit **unique = taosHashGet(*pCtx->pUniqueSet, pData, bytes);
+static void do_unique_function(SQLFunctionCtx *pCtx, SUniqueFuncInfo *pInfo, TSKEY timestamp, char *pData, char *tag, int32_t bytes, int16_t type){
+  int32_t hashKeyBytes = bytes;
+  if(IS_VAR_DATA_TYPE(type)){
+    hashKeyBytes = varDataTLen(pData);
+  }
+  UniqueUnit **unique = taosHashGet(*pCtx->pUniqueSet, pData, hashKeyBytes);
   if (unique == NULL) {
     size_t size = sizeof(UniqueUnit) + bytes + pCtx->tagInfo.tagsLen;
     char *tmp = pInfo->res + pInfo->num * size;
@@ -5226,7 +5230,7 @@ static void do_unique_function(SQLFunctionCtx *pCtx, SUniqueFuncInfo *pInfo, TSK
       }
     }
 
-    taosHashPut(*pCtx->pUniqueSet, pData, bytes, &tmp, sizeof(UniqueUnit*));
+    taosHashPut(*pCtx->pUniqueSet, pData, hashKeyBytes, &tmp, sizeof(UniqueUnit*));
     pInfo->num++;
   }else if((*unique)->timestamp > timestamp){
     (*unique)->timestamp = timestamp;
@@ -5242,7 +5246,7 @@ static void unique_function(SQLFunctionCtx *pCtx) {
     if (pCtx->ptsList != NULL) {
       k = GET_TS_DATA(pCtx, i);
     }
-    do_unique_function(pCtx, pInfo, k, pData, NULL, pCtx->inputBytes);
+    do_unique_function(pCtx, pInfo, k, pData, NULL, pCtx->inputBytes, pCtx->inputType);
 
     if (sizeof(SUniqueFuncInfo) + pInfo->num * (sizeof(UniqueUnit) + pCtx->inputBytes + pCtx->tagInfo.tagsLen) >= MAX_UNIQUE_RESULT_SIZE){
       GET_RES_INFO(pCtx)->numOfRes = -1;    // mark out of memory
@@ -5262,7 +5266,7 @@ static void unique_function_merge(SQLFunctionCtx *pCtx) {
     TSKEY timestamp = ((UniqueUnit*)tmp)->timestamp;
     char *data = tmp + sizeof(UniqueUnit);
     char *tags = tmp + sizeof(UniqueUnit) + pCtx->outputBytes;
-    do_unique_function(pCtx, pOutput, timestamp, data, tags, pCtx->outputBytes);
+    do_unique_function(pCtx, pOutput, timestamp, data, tags, pCtx->outputBytes, pCtx->outputType);
 
     if (sizeof(SUniqueFuncInfo) + pOutput->num * (sizeof(UniqueUnit) + pCtx->outputBytes + pCtx->tagInfo.tagsLen) >= MAX_UNIQUE_RESULT_SIZE){
       GET_RES_INFO(pCtx)->numOfRes = -1;    // mark out of memory
