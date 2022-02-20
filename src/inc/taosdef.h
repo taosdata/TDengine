@@ -221,6 +221,7 @@ do { \
 #define TSDB_MAX_JSON_KEY_LEN     256
 #define TSDB_MAX_JSON_KEY_MD5_LEN 16
 
+#define TSDB_PASS_LEN             21
 #define TSDB_AUTH_LEN             16
 #define TSDB_KEY_LEN              16
 #define TSDB_VERSION_LEN          12

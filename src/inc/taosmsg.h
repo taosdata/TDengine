@@ -372,7 +372,7 @@ typedef struct {
 typedef struct {
   int8_t   extend;
   char     user[TSDB_USER_LEN];
-  char     pass[TSDB_KEY_LEN];
+  char     pass[TSDB_PASS_LEN];
   SAcctCfg cfg;
 } SCreateAcctMsg, SAlterAcctMsg;
 
@@ -384,7 +384,7 @@ typedef struct {
 typedef struct {
   int8_t extend;
   char   user[TSDB_USER_LEN];
-  char   pass[TSDB_KEY_LEN];
+  char   pass[TSDB_PASS_LEN];
   int8_t privilege;
   int8_t flag;
 } SCreateUserMsg, SAlterUserMsg;
