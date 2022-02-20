@@ -13,24 +13,36 @@
  * along with this program. If not, see <http://www.gnu.org/licenses/>.
  */
 
-#ifndef _TD_MND_DATABASE_H_
-#define _TD_MND_DATABASE_H_
-
-#include "mndInt.h"
+#ifndef _TD_PAGE_CACHE_H_
+#define _TD_PAGE_CACHE_H_
 
 #ifdef __cplusplus
 extern "C" {
 #endif
 
-int32_t mndInitDb(SMnode *pMnode);
-void    mndCleanupDb(SMnode *pMnode);
-SDbObj *mndAcquireDb(SMnode *pMnode, const char *db);
-void    mndReleaseDb(SMnode *pMnode, SDbObj *pDb);
-int32_t mndValidateDbInfo(SMnode *pMnode, SDbVgVersion *pDbs, int32_t numOfDbs, void **ppRsp, int32_t *pRspLen);
-char   *mnGetDbStr(char *src);
+typedef struct SPgCache SPgCache;
+typedef struct SPage    SPage;
+
+// SPgCache
+int pgCacheOpen(SPgCache **ppPgCache, TENV *pEnv);
+int pgCacheClose(SPgCache *pPgCache);
+
+SPage *pgCacheFetch(SPgCache *pPgCache, pgid_t pgid);
+int    pgCacheRelease(SPage *pPage);
+
+// SPage
+typedef TD_DLIST_NODE(SPage) SPgListNode;
+struct SPage {
+  pgid_t      pgid;      // page id
+  frame_id_t  frameid;   // frame id
+  uint8_t *   pData;     // real data
+  SPgListNode freeNode;  // for SPgCache.freeList
+  SPgListNode pghtNode;  // for pght
+  SPgListNode lruNode;   // for LRU
+};
 
 #ifdef __cplusplus
 }
 #endif
 
-#endif /*_TD_MND_DATABASE_H_*/
+#endif /*_TD_PAGE_CACHE_H_*/

@@ -12,10 +12,225 @@
  * You should have received a copy of the GNU Affero General Public License
  * along with this program. If not, see <http://www.gnu.org/licenses/>.
  */
+#include "tdbInt.h"
 
-#include "tdb_mpool.h"
+typedef TD_DLIST(SPage) SPgList;
+struct SPgCache {
+  TENV *  pEnv;  // TENV containing this page cache
+  pgsz_t  pgsize;
+  int32_t npage;
+  SPage **pages;
+  SPgList freeList;
+  SPgList lru;
+  struct {
+    int32_t  nbucket;
+    SPgList *buckets;
+  } pght;  // page hash table
+};
 
-static int         tdbGnrtFileID(const char *fname, uint8_t *fileid);
+static void pgCachePinPage(SPage *pPage);
+static void pgCacheUnpinPage(SPage *pPage);
+
+int pgCacheOpen(SPgCache **ppPgCache, TENV *pEnv) {
+  SPgCache *pPgCache;
+  SPage *   pPage;
+  void *    pData;
+  pgsz_t    pgSize;
+  cachesz_t cacheSize;
+  int32_t   npage;
+  int32_t   nbucket;
+  size_t    msize;
+
+  *ppPgCache = NULL;
+  pgSize = tdbEnvGetPageSize(pEnv);
+  cacheSize = tdbEnvGetCacheSize(pEnv);
+  npage = cacheSize / pgSize;
+  nbucket = npage;
+  msize = sizeof(*pPgCache) + sizeof(SPage *) * npage + sizeof(SPgList) * nbucket;
+
+  // Allocate the handle
+  pPgCache = (SPgCache *)calloc(1, msize);
+  if (pPgCache == NULL) {
+    return -1;
+  }
+
+  // Init the handle
+  pPgCache->pEnv = pEnv;
+  pPgCache->pgsize = pgSize;
+  pPgCache->npage = npage;
+  pPgCache->pages = (SPage **)(&pPgCache[1]);
+  pPgCache->pght.nbucket = nbucket;
+  pPgCache->pght.buckets = (SPgList *)(&(pPgCache->pages[npage]));
+
+  TD_DLIST_INIT(&(pPgCache->freeList));
+
+  for (int32_t i = 0; i < npage; i++) {
+    pData = malloc(pgSize + sizeof(SPage));
+    if (pData == NULL) {
+      return -1;
+      // TODO: handle error
+    }
+
+    pPage = POINTER_SHIFT(pData, pgSize);
+
+    pPage->pgid = TDB_IVLD_PGID;
+    pPage->frameid = i;
+    pPage->pData = pData;
+
+    // add current page to the page cache
+    pPgCache->pages[i] = pPage;
+    TD_DLIST_APPEND_WITH_FIELD(&(pPgCache->freeList), pPage, freeNode);
+  }
+
+#if 0
+  for (int32_t i = 0; i < nbucket; i++) {
+    TD_DLIST_INIT(pPgCache->pght.buckets + i);
+  }
+#endif
+
+  *ppPgCache = pPgCache;
+  return 0;
+}
+
+int pgCacheClose(SPgCache *pPgCache) {
+  SPage *pPage;
+  if (pPgCache) {
+    for (int32_t i = 0; i < pPgCache->npage; i++) {
+      pPage = pPgCache->pages[i];
+      tfree(pPage->pData);
+    }
+
+    free(pPgCache);
+  }
+
+  return 0;
+}
+
+#define PG_CACHE_HASH(fileid, pgno)       \
+  ({                                      \
+    uint64_t *tmp = (uint64_t *)(fileid); \
+    (tmp[0] + tmp[1] + tmp[2] + (pgno));  \
+  })
+
+SPage *pgCacheFetch(SPgCache *pPgCache, pgid_t pgid) {
+  SPage *  pPage;
+  SPgFile *pPgFile;
+  SPgList *pBucket;
+
+  // 1. Search the page hash table SPgCache.pght
+  pBucket = pPgCache->pght.buckets + (PG_CACHE_HASH(pgid.fileid, pgid.pgno) % pPgCache->pght.nbucket);
+  pPage = TD_DLIST_HEAD(pBucket);
+  while (pPage && tdbCmprPgId(&(pPage->pgid), &pgid)) {
+    pPage = TD_DLIST_NODE_NEXT_WITH_FIELD(pPage, pghtNode);
+  }
+
+  if (pPage) {
+    // Page is found, pin the page and return the page
+    pgCachePinPage(pPage);
+    return pPage;
+  }
+
+  // 2. Check the free list
+  pPage = TD_DLIST_HEAD(&(pPgCache->freeList));
+  if (pPage) {
+    TD_DLIST_POP_WITH_FIELD(&(pPgCache->freeList), pPage, freeNode);
+    pgCachePinPage(pPage);
+    return pPage;
+  }
+
+  // 3. Try to recycle a page from the LRU list
+  pPage = TD_DLIST_HEAD(&(pPgCache->lru));
+  if (pPage) {
+    TD_DLIST_POP_WITH_FIELD(&(pPgCache->lru), pPage, lruNode);
+    // TODO: remove from the hash table
+    pgCachePinPage(pPage);
+    return pPage;
+  }
+
+  // 4. If a memory allocator is set, try to allocate from the allocator (TODO)
+
+  return NULL;
+}
+
+int pgCacheRelease(SPage *pPage) {
+  // TODO
+  return 0;
+}
+
+static void pgCachePinPage(SPage *pPage) {
+  // TODO
+}
+
+static void pgCacheUnpinPage(SPage *pPage) {
+  // TODO
+}
+
+#if 0
+// Exposed handle
+typedef struct TDB_MPOOL  TDB_MPOOL;
+typedef struct TDB_MPFILE TDB_MPFILE;
+
+typedef TD_DLIST_NODE(pg_t) pg_free_dlist_node_t, pg_hash_dlist_node_t;
+typedef struct pg_t {
+  SRWLatch             rwLatch;
+  frame_id_t           frameid;
+  pgid_t               pgid;
+  uint8_t              dirty;
+  uint8_t              rbit;
+  int32_t              pinRef;
+  pg_free_dlist_node_t free;
+  pg_hash_dlist_node_t hash;
+  void *               p;
+} pg_t;
+
+typedef TD_DLIST(pg_t) pg_list_t;
+typedef struct {
+  SRWLatch latch;
+  TD_DLIST(TDB_MPFILE);
+} mpf_bucket_t;
+struct TDB_MPOOL {
+  int64_t    cachesize;
+  pgsz_t     pgsize;
+  int32_t    npages;
+  pg_t *     pages;
+  pg_list_t  freeList;
+  frame_id_t clockHand;
+  struct {
+    int32_t    nbucket;
+    pg_list_t *hashtab;
+  } pgtab;  // page table, hash<pgid_t, pg_t>
+  struct {
+#define MPF_HASH_BUCKETS 16
+    mpf_bucket_t buckets[MPF_HASH_BUCKETS];
+  } mpfht;  // MPF hash table. MPFs using this MP will be put in this hash table
+};
+
+#define MP_PAGE_AT(mp, idx) (mp)->pages[idx]
+
+typedef TD_DLIST_NODE(TDB_MPFILE) td_mpf_dlist_node_t;
+struct TDB_MPFILE {
+  char *              fname;                    // file name
+  int                 fd;                       // fd
+  uint8_t             fileid[TDB_FILE_ID_LEN];  // file ID
+  TDB_MPOOL *         mp;                       // underlying memory pool
+  td_mpf_dlist_node_t node;
+};
+
+/*=================================================== Exposed apis ==================================================*/
+// TDB_MPOOL
+int tdbMPoolOpen(TDB_MPOOL **mpp, uint64_t cachesize, pgsz_t pgsize);
+int tdbMPoolClose(TDB_MPOOL *mp);
+int tdbMPoolSync(TDB_MPOOL *mp);
+
+// TDB_MPFILE
+int tdbMPoolFileOpen(TDB_MPFILE **mpfp, const char *fname, TDB_MPOOL *mp);
+int tdbMPoolFileClose(TDB_MPFILE *mpf);
+int tdbMPoolFileNewPage(TDB_MPFILE *mpf, pgno_t *pgno, void *addr);
+int tdbMPoolFileFreePage(TDB_MPOOL *mpf, pgno_t *pgno, void *addr);
+int tdbMPoolFileGetPage(TDB_MPFILE *mpf, pgno_t pgno, void *addr);
+int tdbMPoolFilePutPage(TDB_MPFILE *mpf, pgno_t pgno, void *addr);
+int tdbMPoolFileSync(TDB_MPFILE *mpf);
+
 static void        tdbMPoolRegFile(TDB_MPOOL *mp, TDB_MPFILE *mpf);
 static void        tdbMPoolUnregFile(TDB_MPOOL *mp, TDB_MPFILE *mpf);
 static TDB_MPFILE *tdbMPoolGetFile(TDB_MPOOL *mp, uint8_t *fileid);
@@ -23,7 +238,7 @@ static int         tdbMPoolFileReadPage(TDB_MPFILE *mpf, pgno_t pgno, void *p);
 static int         tdbMPoolFileWritePage(TDB_MPFILE *mpf, pgno_t pgno, const void *p);
 static void        tdbMPoolClockEvictPage(TDB_MPOOL *mp, pg_t **pagepp);
 
-int tdbMPoolOpen(TDB_MPOOL **mpp, uint64_t cachesize, pgsize_t pgsize) {
+int tdbMPoolOpen(TDB_MPOOL **mpp, uint64_t cachesize, pgsz_t pgsize) {
   TDB_MPOOL *mp = NULL;
   size_t     tsize;
   pg_t *     pagep;
@@ -120,7 +335,7 @@ int tdbMPoolFileOpen(TDB_MPFILE **mpfp, const char *fname, TDB_MPOOL *mp) {
     goto _err;
   }
 
-  if (tdbGnrtFileID(fname, mpf->fileid) < 0) {
+  if (tdbGnrtFileID(fname, mpf->fileid, false) < 0) {
     goto _err;
   }
 
@@ -230,22 +445,6 @@ int tdbMPoolFilePutPage(TDB_MPFILE *mpf, pgno_t pgno, void *addr) {
   return 0;
 }
 
-static int tdbGnrtFileID(const char *fname, uint8_t *fileid) {
-  struct stat statbuf;
-
-  if (stat(fname, &statbuf) < 0) {
-    return -1;
-  }
-
-  memset(fileid, 0, TDB_FILE_ID_LEN);
-
-  ((uint64_t *)fileid)[0] = (uint64_t)statbuf.st_ino;
-  ((uint64_t *)fileid)[1] = (uint64_t)statbuf.st_dev;
-  ((uint64_t *)fileid)[2] = rand();
-
-  return 0;
-}
-
 #define MPF_GET_BUCKETID(fileid)                   \
   ({                                               \
     uint64_t *tmp = (uint64_t *)fileid;            \
@@ -317,7 +516,7 @@ static void tdbMPoolUnregFile(TDB_MPOOL *mp, TDB_MPFILE *mpf) {
 }
 
 static int tdbMPoolFileReadPage(TDB_MPFILE *mpf, pgno_t pgno, void *p) {
-  pgsize_t   pgsize;
+  pgsz_t     pgsize;
   TDB_MPOOL *mp;
   off_t      offset;
   size_t     rsize;
@@ -334,7 +533,7 @@ static int tdbMPoolFileReadPage(TDB_MPFILE *mpf, pgno_t pgno, void *p) {
 }
 
 static int tdbMPoolFileWritePage(TDB_MPFILE *mpf, pgno_t pgno, const void *p) {
-  pgsize_t   pgsize;
+  pgsz_t     pgsize;
   TDB_MPOOL *mp;
   off_t      offset;
 
@@ -377,3 +576,5 @@ static void tdbMPoolClockEvictPage(TDB_MPOOL *mp, pg_t **pagepp) {
 
   *pagepp = pagep;
 }
+
+#endif

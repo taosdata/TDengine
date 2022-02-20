@@ -242,6 +242,7 @@ static void doSetDbOptions(SCreateDbReq* pMsg, const SCreateDbInfo* pCreateDb) {
   pMsg->update = pCreateDb->update;
   pMsg->cacheLastRow = pCreateDb->cachelast;
   pMsg->numOfVgroups = pCreateDb->numOfVgroups;
+  pMsg->streamMode = pCreateDb->streamMode;
 }
 
 int32_t setDbOptions(SCreateDbReq* pCreateDbMsg, const SCreateDbInfo* pCreateDbSql, SMsgBuf* pMsgBuf) {

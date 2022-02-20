@@ -51,6 +51,7 @@ typedef struct {
   bool     isHeapAllocator;
   uint32_t ttl;
   uint32_t keep;
+  int8_t   streamMode;
   bool     isWeak;
   STsdbCfg tsdbCfg;
   SMetaCfg metaCfg;

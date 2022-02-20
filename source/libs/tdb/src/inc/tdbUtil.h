@@ -13,33 +13,32 @@
  * along with this program. If not, see <http://www.gnu.org/licenses/>.
  */
 
-#ifndef _TD_TDB_DB_H_
-#define _TD_TDB_DB_H_
-
-#include "tdb_mpool.h"
+#ifndef _TDB_UTIL_H_
+#define _TDB_UTIL_H_
 
 #ifdef __cplusplus
 extern "C" {
 #endif
 
-typedef struct TDB TDB;
+#if __STDC_VERSION__ >= 201112L
+#define TDB_STATIC_ASSERT(op, info) static_assert(op, info)
+#else
+#define TDB_STATIC_ASSERT(op, info)
+#endif
 
-struct TDB {
-  char *      fname;
-  char *      dbname;
-  TDB_MPFILE *mpf;
-  // union {
-  //   TDB_BTREE *btree;
-  //   TDB_HASH * hash;
-  //   TDB_HEAP * heap;
-  // } dbam;  // db access method
-};
+#define TDB_ROUND8(x) (((x) + 7) & ~7)
 
-int tdbOpen(TDB **dbpp, const char *fname, const char *dbname, uint32_t flags);
-int tdbClose(TDB *dbp, uint32_t flags);
+int tdbGnrtFileID(const char *fname, uint8_t *fileid, bool unique);
+
+#define TDB_F_OK 0x1
+#define TDB_R_OK 0x2
+#define TDB_W_OK 0x4
+int tdbCheckFileAccess(const char *pathname, int mode);
+
+int tdbGetFileSize(const char *fname, pgsz_t pgSize, pgno_t *pSize);
 
 #ifdef __cplusplus
 }
 #endif
 
-#endif /*_TD_TDB_DB_H_*/
+#endif /*_TDB_UTIL_H_*/

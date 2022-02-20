@@ -524,6 +524,7 @@ typedef struct {
   int8_t  update;
   int8_t  cacheLastRow;
   int8_t  ignoreExist;
+  int8_t  streamMode;
 } SCreateDbReq;
 
 int32_t tSerializeSCreateDbReq(void* buf, int32_t bufLen, SCreateDbReq* pReq);
@@ -744,6 +745,7 @@ typedef struct {
   int8_t   cacheLastRow;
   int8_t   replica;
   int8_t   selfIndex;
+  int8_t   streamMode;
   SReplica replicas[TSDB_MAX_REPLICA];
 } SCreateVnodeReq, SAlterVnodeReq;
 
@@ -976,6 +978,13 @@ typedef struct {
 
 int32_t tSerializeSKillConnReq(void* buf, int32_t bufLen, SKillConnReq* pReq);
 int32_t tDeserializeSKillConnReq(void* buf, int32_t bufLen, SKillConnReq* pReq);
+
+typedef struct {
+  int32_t transId;
+} SKillTransReq;
+
+int32_t tSerializeSKillTransReq(void* buf, int32_t bufLen, SKillTransReq* pReq);
+int32_t tDeserializeSKillTransReq(void* buf, int32_t bufLen, SKillTransReq* pReq);
 
 typedef struct {
   char user[TSDB_USER_LEN];
@@ -1752,6 +1761,11 @@ typedef struct {
 } SMqOffset;
 
 typedef struct {
+  int32_t vgId;
+  SArray* offsets;  // SArray<SMqOffset>
+} SMqVgOffsets;
+
+typedef struct {
   int32_t    num;
   SMqOffset* offsets;
 } SMqCMResetOffsetReq;
@@ -1761,8 +1775,8 @@ typedef struct {
 } SMqCMResetOffsetRsp;
 
 typedef struct {
-  int32_t    num;
-  SMqOffset* offsets;
+  int64_t      leftForVer;
+  SMqVgOffsets offsets;
 } SMqMVResetOffsetReq;
 
 typedef struct {
@@ -1773,7 +1787,6 @@ int32_t tEncodeSMqOffset(SCoder* encoder, const SMqOffset* pOffset);
 int32_t tDecodeSMqOffset(SCoder* decoder, SMqOffset* pOffset);
 int32_t tEncodeSMqCMResetOffsetReq(SCoder* encoder, const SMqCMResetOffsetReq* pReq);
 int32_t tDecodeSMqCMResetOffsetReq(SCoder* decoder, SMqCMResetOffsetReq* pReq);
-
 int32_t tEncodeSMqMVResetOffsetReq(SCoder* encoder, const SMqMVResetOffsetReq* pReq);
 int32_t tDecodeSMqMVResetOffsetReq(SCoder* decoder, SMqMVResetOffsetReq* pReq);
 
