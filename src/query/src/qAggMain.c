@@ -5201,7 +5201,7 @@ static bool unique_function_setup(SQLFunctionCtx *pCtx, SResultRowCellInfo* pRes
 
 static void do_unique_function(SQLFunctionCtx *pCtx, SUniqueFuncInfo *pInfo, TSKEY timestamp, char *pData, char *tag, int32_t bytes, int16_t type){
   int32_t hashKeyBytes = bytes;
-  if(IS_VAR_DATA_TYPE(type)){
+  if(IS_VAR_DATA_TYPE(type)){     // for var data, we can not use bytes, because there are dirty data in the back of var data
     hashKeyBytes = varDataTLen(pData);
   }
   UniqueUnit **unique = taosHashGet(*pCtx->pUniqueSet, pData, hashKeyBytes);
