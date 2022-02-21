@@ -137,7 +137,7 @@ static void clientHandleResp(SCliConn* conn) {
   rpcMsg.ahandle = pCtx->ahandle;
 
   if (rpcMsg.msgType == TDMT_VND_QUERY_RSP || rpcMsg.msgType == TDMT_VND_FETCH_RSP ||
-      rpcMsg.msgType == TDMT_VND_RES_READY) {
+      rpcMsg.msgType == TDMT_VND_RES_READY_RSP) {
     rpcMsg.handle = conn;
     conn->persist = 1;
     tDebug("client conn %p persist by app", conn);
