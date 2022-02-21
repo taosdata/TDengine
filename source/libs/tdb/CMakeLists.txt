@@ -23,6 +23,7 @@ target_sources(tdb_sqlite
     PRIVATE
     "src/sqlite/pcache.c"
     "src/sqlite/pcache1.c"
+    "src/sqlite/pager.c"
 )
 target_include_directories(tdb_sqlite PUBLIC "src/sqliteinc")
 
