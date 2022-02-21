@@ -31,7 +31,7 @@ typedef struct SConfig {
   SHashObj *hash;
 } SConfig;
 
-int32_t cfgLoadFromTaosFile(SConfig *pConfig, const char *filepath);
+int32_t cfgLoadFromCfgFile(SConfig *pConfig, const char *filepath);
 int32_t cfgLoadFromDotEnvFile(SConfig *pConfig, const char *filepath);
 int32_t cfgLoadFromGlobalEnvVariable(SConfig *pConfig);
 int32_t cfgLoadFromApollUrl(SConfig *pConfig, const char *url);

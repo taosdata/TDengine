@@ -36,7 +36,7 @@ SConfig *cfgInit() {
 int32_t cfgLoad(SConfig *pConfig, ECfgSrcType cfgType, const char *sourceStr) {
   switch (cfgType) {
     case CFG_TYPE_CFG_FILE:
-      return cfgLoadFromTaosFile(pConfig, sourceStr);
+      return cfgLoadFromCfgFile(pConfig, sourceStr);
     case CFG_TYPE_DOT_ENV:
       return cfgLoadFromDotEnvFile(pConfig, sourceStr);
     case CFG_TYPE_ENV_VAR:

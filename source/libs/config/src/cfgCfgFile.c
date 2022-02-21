@@ -16,7 +16,7 @@
 #define _DEFAULT_SOURCE
 #include "cfgInt.h"
 
-int32_t cfgLoadFromTaosFile(SConfig *pConfig, const char *filepath) {
+int32_t cfgLoadFromCfgFile(SConfig *pConfig, const char *filepath) {
   uInfo("load from .cfg file %s", filepath);
   return 0;
 }
