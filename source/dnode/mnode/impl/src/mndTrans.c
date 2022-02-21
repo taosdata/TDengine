@@ -221,7 +221,6 @@ static SSdbRow *mndTransActionDecode(SSdbRaw *pRaw) {
   pTrans = sdbGetRowObj(pRow);
   if (pTrans == NULL) goto TRANS_DECODE_OVER;
 
-
   SDB_GET_INT32(pRaw, dataPos, &pTrans->id, TRANS_DECODE_OVER)
 
   int16_t type = 0;
@@ -353,8 +352,60 @@ static const char *mndTransStr(ETrnStage stage) {
 
 static const char *mndTransType(ETrnType type) {
   switch (type) {
+    case TRN_TYPE_CREATE_USER:
+      return "create-user";
+    case TRN_TYPE_ALTER_USER:
+      return "alter-user";
+    case TRN_TYPE_DROP_USER:
+      return "drop-user";
+    case TRN_TYPE_CREATE_FUNC:
+      return "create-func";
+    case TRN_TYPE_DROP_FUNC:
+      return "drop-func";
+    case TRN_TYPE_CREATE_SNODE:
+      return "create-snode";
+    case TRN_TYPE_DROP_SNODE:
+      return "drop-snode";
+    case TRN_TYPE_CREATE_QNODE:
+      return "create-qnode";
+    case TRN_TYPE_DROP_QNODE:
+      return "drop-qnode";
+    case TRN_TYPE_CREATE_BNODE:
+      return "create-bnode";
+    case TRN_TYPE_DROP_BNODE:
+      return "drop-bnode";
+    case TRN_TYPE_CREATE_MNODE:
+      return "create-mnode";
+    case TRN_TYPE_DROP_MNODE:
+      return "drop-mnode";
+    case TRN_TYPE_CREATE_TOPIC:
+      return "create-topic";
+    case TRN_TYPE_DROP_TOPIC:
+      return "drop-topic";
+    case TRN_TYPE_SUBSCRIBE:
+      return "subscribe";
+    case TRN_TYPE_REBALANCE:
+      return "rebalance";
+    case TRN_TYPE_CREATE_DNODE:
+      return "create-qnode";
+    case TRN_TYPE_DROP_DNODE:
+      return "drop-qnode";
     case TRN_TYPE_CREATE_DB:
       return "create-db";
+    case TRN_TYPE_ALTER_DB:
+      return "alter-db";
+    case TRN_TYPE_DROP_DB:
+      return "drop-db";
+    case TRN_TYPE_SPLIT_VGROUP:
+      return "split-vgroup";
+    case TRN_TYPE_MERGE_VGROUP:
+      return "merge-vgroup";
+    case TRN_TYPE_CREATE_STB:
+      return "create-stb";
+    case TRN_TYPE_ALTER_STB:
+      return "alter-stb";
+    case TRN_TYPE_DROP_STB:
+      return "drop-stb";
     default:
       return "invalid";
   }
@@ -391,6 +442,11 @@ static int32_t mndTransActionUpdate(SSdb *pSdb, STrans *pOld, STrans *pNew) {
     mTrace("trans:%d, stage from %s to %s", pNew->id, mndTransStr(TRN_STAGE_COMMIT), mndTransStr(TRN_STAGE_COMMIT_LOG));
   }
 
+  if (pNew->stage == TRN_STAGE_ROLLBACK) {
+    pNew->stage = TRN_STAGE_FINISHED;
+    mTrace("trans:%d, stage from %s to %s", pNew->id, mndTransStr(TRN_STAGE_ROLLBACK), mndTransStr(TRN_STAGE_FINISHED));
+  }
+
   mTrace("trans:%d, perform update action, old row:%p stage:%s, new row:%p stage:%s", pOld->id, pOld,
          mndTransStr(pOld->stage), pNew, mndTransStr(pNew->stage));
   pOld->stage = pNew->stage;
@@ -423,6 +479,7 @@ STrans *mndTransCreate(SMnode *pMnode, ETrnPolicy policy, ETrnType type, const S
   pTrans->stage = TRN_STAGE_PREPARE;
   pTrans->policy = policy;
   pTrans->transType = type;
+  pTrans->createdTime = taosGetTimestampMs();
   pTrans->rpcHandle = pReq->handle;
   pTrans->rpcAHandle = pReq->ahandle;
   pTrans->redoLogs = taosArrayInit(MND_TRANS_ARRAY_SIZE, sizeof(void *));
@@ -754,6 +811,9 @@ void mndTransProcessRsp(SMnodeMsg *pRsp) {
   if (pAction != NULL) {
     pAction->msgReceived = 1;
     pAction->errCode = pRsp->rpcMsg.code;
+    if (pAction->errCode != 0) {
+      tstrncpy(pTrans->lastError, tstrerror(pAction->errCode), TSDB_TRANS_ERROR_LEN);
+    }
   }
 
   mDebug("trans:%d, action:%d response is received, code:0x%x, accept:0x%x", transId, action, pRsp->rpcMsg.code,
@@ -1059,6 +1119,7 @@ static void mndTransExecute(SMnode *pMnode, STrans *pTrans) {
   bool continueExec = true;
 
   while (continueExec) {
+    pTrans->lastExecTime = taosGetTimestampMs();
     switch (pTrans->stage) {
       case TRN_STAGE_PREPARE:
         continueExec = mndTransPerformPrepareStage(pMnode, pTrans);
@@ -1170,10 +1231,9 @@ static int32_t mndProcessKillTransReq(SMnodeMsg *pReq) {
   }
 
   code = mndKillTrans(pMnode, pTrans);
-  if (code == 0) code = TSDB_CODE_MND_ACTION_IN_PROGRESS;
 
 KILL_OVER:
-  if (code != 0 && code != TSDB_CODE_MND_ACTION_IN_PROGRESS) {
+  if (code != 0) {
     mError("trans:%d, failed to kill since %s", killReq.transId, terrstr());
     return -1;
   }
@@ -1228,7 +1288,7 @@ static int32_t mndGetTransMeta(SMnodeMsg *pReq, SShowObj *pShow, STableMetaRsp *
   pSchema[cols].bytes = pShow->bytes[cols];
   cols++;
 
-  pShow->bytes[cols] = (TSDB_TRANS_DESC_LEN - 1) + VARSTR_HEADER_SIZE;
+  pShow->bytes[cols] = TSDB_TRANS_TYPE_LEN + VARSTR_HEADER_SIZE;
   pSchema[cols].type = TSDB_DATA_TYPE_BINARY;
   strcpy(pSchema[cols].name, "type");
   pSchema[cols].bytes = pShow->bytes[cols];
@@ -1288,11 +1348,7 @@ static int32_t mndRetrieveTrans(SMnodeMsg *pReq, SShowObj *pShow, char *data, in
 
     pWrite = data + pShow->offset[cols] * rows + pShow->bytes[cols] * numOfRows;
     char *name = mnGetDbStr(pTrans->dbname);
-    if (name != NULL) {
-      STR_WITH_MAXSIZE_TO_VARSTR(pWrite, name, pShow->bytes[cols]);
-    } else {
-      STR_TO_VARSTR(pWrite, "-");
-    }
+    STR_WITH_MAXSIZE_TO_VARSTR(pWrite, name, pShow->bytes[cols]);
     cols++;
 
     pWrite = data + pShow->offset[cols] * rows + pShow->bytes[cols] * numOfRows;

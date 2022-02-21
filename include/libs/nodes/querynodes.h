@@ -62,8 +62,10 @@ typedef struct SColumnNode {
 
 typedef struct SColumnRefNode {
   ENodeType type;
-  int32_t tupleId;
-  int32_t slotId;
+  SDataType dataType;
+  int16_t tupleId;
+  int16_t slotId;
+  int16_t columnId;
 } SColumnRefNode;
 
 typedef struct SValueNode {
@@ -106,6 +108,12 @@ typedef enum EOperatorType {
   OP_TYPE_NMATCH,
   OP_TYPE_IS_NULL,
   OP_TYPE_IS_NOT_NULL,
+  OP_TYPE_IS_TRUE,
+  OP_TYPE_IS_FALSE,
+  OP_TYPE_IS_UNKNOWN,
+  OP_TYPE_IS_NOT_TRUE,
+  OP_TYPE_IS_NOT_FALSE,
+  OP_TYPE_IS_NOT_UNKNOWN,
 
   // json operator
   OP_TYPE_JSON_GET_VALUE,
@@ -285,7 +293,7 @@ typedef enum ESqlClause {
 void nodesWalkSelectStmt(SSelectStmt* pSelect, ESqlClause clause, FNodeWalker walker, void* pContext);
 void nodesRewriteSelectStmt(SSelectStmt* pSelect, ESqlClause clause, FNodeRewriter rewriter, void* pContext);
 
-int32_t nodesCollectColumns(SSelectStmt* pSelect, ESqlClause clause, uint64_t tableId, bool realCol, SNodeList** pCols);
+int32_t nodesCollectColumns(SSelectStmt* pSelect, ESqlClause clause, const char* pTableAlias, SNodeList** pCols);
 
 typedef bool (*FFuncClassifier)(int32_t funcId);
 int32_t nodesCollectFuncs(SSelectStmt* pSelect, FFuncClassifier classifier, SNodeList** pFuncs);
