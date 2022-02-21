@@ -43,6 +43,9 @@ typedef struct sqlite3_pcache_page {
 
 #define ROUND8(x) (((x) + 7) & ~7)
 
+typedef struct sqlite3_vfs sqlite3_vfs;
+typedef struct sqlite3     sqlite3;
+
 #include "pager.h"
 
 #include "pcache.h"
