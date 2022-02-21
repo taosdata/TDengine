@@ -13,27 +13,15 @@
  * along with this program. If not, see <http://www.gnu.org/licenses/>.
  */
 
-#ifndef _TD_AST_CREATE_FUNCS_H_
-#define _TD_AST_CREATE_FUNCS_H_
+#ifndef _TD_PARSER_IMPL_H_
+#define _TD_PARSER_IMPL_H_
 
 #ifdef __cplusplus
 extern "C" {
 #endif
 
 #include "querynodes.h"
-#include "parser.h"
-
-typedef enum EStmtType {
-  STMT_TYPE_CMD = 1,
-  STMT_TYPE_QUERY
-} EStmtType;
-
-typedef struct SQuery {
-  EStmtType stmtType;
-  SNode* pRoot;
-  int32_t numOfResCols;
-  SSchema* pResSchema;
-} SQuery;
+#include "newParser.h"
 
 int32_t doParse(SParseContext* pParseCxt, SQuery* pQuery);
 int32_t doTranslate(SParseContext* pParseCxt, SQuery* pQuery);
@@ -42,4 +30,4 @@ int32_t doTranslate(SParseContext* pParseCxt, SQuery* pQuery);
 }
 #endif
 
-#endif /*_TD_AST_CREATE_FUNCS_H_*/
+#endif /*_TD_PARSER_IMPL_H_*/

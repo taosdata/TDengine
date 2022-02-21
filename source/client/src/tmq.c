@@ -75,7 +75,7 @@ struct tmq_message_t {
   SMqConsumeRsp rsp;
 };
 
-typedef struct SMqClientVg {
+typedef struct {
   // statistics
   int64_t pollCnt;
   // offset
@@ -86,7 +86,7 @@ typedef struct SMqClientVg {
   SEpSet  epSet;
 } SMqClientVg;
 
-typedef struct SMqClientTopic {
+typedef struct {
   // subscribe info
   int32_t sqlLen;
   char*   sql;
@@ -269,7 +269,7 @@ tmq_resp_err_t tmq_reset_offset(tmq_t* tmq, const tmq_topic_vgroup_list_t* offse
   tsem_wait(&param.rspSem);
   tsem_destroy(&param.rspSem);
 
-  return TMQ_RESP_ERR__SUCCESS;
+  return param.rspErr;
 }
 
 tmq_resp_err_t tmq_subscribe(tmq_t* tmq, tmq_list_t* topic_list) {
@@ -779,10 +779,8 @@ tmq_message_t* tmq_consumer_poll(tmq_t* tmq, int64_t blocking_time) {
     param->pVg = pVg;
     tsem_init(&param->rspSem, 0, 0);
 
-
     SRequestObj* pRequest = createRequest(tmq->pTscObj, NULL, NULL, TDMT_VND_CONSUME);
     pRequest->body.requestMsg = (SDataBuf){.pData = pReq, .len = sizeof(SMqConsumeReq), .handle = NULL};
-
 
     SMsgSendInfo* sendInfo = buildMsgInfoImpl(pRequest);
     sendInfo->requestObjRefId = 0;

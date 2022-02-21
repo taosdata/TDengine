@@ -13,7 +13,7 @@ ADD_EXECUTABLE(plannerTest
 
 TARGET_LINK_LIBRARIES(
         plannerTest
-        PUBLIC os util common planner parser catalog transport gtest function qcom
+        PUBLIC os util common nodes planner parser catalog transport gtest function qcom
 )
 
 TARGET_INCLUDE_DIRECTORIES(

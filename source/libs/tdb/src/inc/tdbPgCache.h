@@ -13,20 +13,36 @@
  * along with this program. If not, see <http://www.gnu.org/licenses/>.
  */
 
-#ifndef _TD_PLANNER_IMPL_H_
-#define _TD_PLANNER_IMPL_H_
+#ifndef _TD_PAGE_CACHE_H_
+#define _TD_PAGE_CACHE_H_
 
 #ifdef __cplusplus
 extern "C" {
 #endif
 
-#include "plannodes.h"
-#include "planner.h"
+typedef struct SPgCache SPgCache;
+typedef struct SPage    SPage;
 
-int32_t createLogicPlan(SNode* pNode, SLogicNode** pLogicNode);
+// SPgCache
+int pgCacheOpen(SPgCache **ppPgCache, TENV *pEnv);
+int pgCacheClose(SPgCache *pPgCache);
+
+SPage *pgCacheFetch(SPgCache *pPgCache, pgid_t pgid);
+int    pgCacheRelease(SPage *pPage);
+
+// SPage
+typedef TD_DLIST_NODE(SPage) SPgListNode;
+struct SPage {
+  pgid_t      pgid;      // page id
+  frame_id_t  frameid;   // frame id
+  uint8_t *   pData;     // real data
+  SPgListNode freeNode;  // for SPgCache.freeList
+  SPgListNode pghtNode;  // for pght
+  SPgListNode lruNode;   // for LRU
+};
 
 #ifdef __cplusplus
 }
 #endif
 
-#endif /*_TD_PLANNER_IMPL_H_*/
+#endif /*_TD_PAGE_CACHE_H_*/

@@ -395,24 +395,27 @@ static int32_t mndCreateDb(SMnode *pMnode, SMnodeMsg *pReq, SCreateDbReq *pCreat
   dbObj.vgVersion = 1;
   dbObj.hashMethod = 1;
   memcpy(dbObj.createUser, pUser->user, TSDB_USER_LEN);
-  dbObj.cfg = (SDbCfg){.numOfVgroups = pCreate->numOfVgroups,
-                       .cacheBlockSize = pCreate->cacheBlockSize,
-                       .totalBlocks = pCreate->totalBlocks,
-                       .daysPerFile = pCreate->daysPerFile,
-                       .daysToKeep0 = pCreate->daysToKeep0,
-                       .daysToKeep1 = pCreate->daysToKeep1,
-                       .daysToKeep2 = pCreate->daysToKeep2,
-                       .minRows = pCreate->minRows,
-                       .maxRows = pCreate->maxRows,
-                       .fsyncPeriod = pCreate->fsyncPeriod,
-                       .commitTime = pCreate->commitTime,
-                       .precision = pCreate->precision,
-                       .compression = pCreate->compression,
-                       .walLevel = pCreate->walLevel,
-                       .replications = pCreate->replications,
-                       .quorum = pCreate->quorum,
-                       .update = pCreate->update,
-                       .cacheLastRow = pCreate->cacheLastRow};
+  dbObj.cfg = (SDbCfg){
+      .numOfVgroups = pCreate->numOfVgroups,
+      .cacheBlockSize = pCreate->cacheBlockSize,
+      .totalBlocks = pCreate->totalBlocks,
+      .daysPerFile = pCreate->daysPerFile,
+      .daysToKeep0 = pCreate->daysToKeep0,
+      .daysToKeep1 = pCreate->daysToKeep1,
+      .daysToKeep2 = pCreate->daysToKeep2,
+      .minRows = pCreate->minRows,
+      .maxRows = pCreate->maxRows,
+      .fsyncPeriod = pCreate->fsyncPeriod,
+      .commitTime = pCreate->commitTime,
+      .precision = pCreate->precision,
+      .compression = pCreate->compression,
+      .walLevel = pCreate->walLevel,
+      .replications = pCreate->replications,
+      .quorum = pCreate->quorum,
+      .update = pCreate->update,
+      .cacheLastRow = pCreate->cacheLastRow,
+      .streamMode = pCreate->streamMode,
+  };
 
   mndSetDefaultDbCfg(&dbObj.cfg);
 

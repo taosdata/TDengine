@@ -51,6 +51,7 @@ typedef struct {
   bool     isHeapAllocator;
   uint32_t ttl;
   uint32_t keep;
+  int8_t   streamMode;
   bool     isWeak;
   STsdbCfg tsdbCfg;
   SMetaCfg metaCfg;
@@ -225,9 +226,9 @@ static FORCE_INLINE int tqReadHandleSetTbUidList(STqReadHandle *pHandle, const S
   return 0;
 }
 
-void tqReadHandleSetMsg(STqReadHandle *pHandle, SSubmitReq *pMsg, int64_t ver);
-bool tqNextDataBlock(STqReadHandle *pHandle);
-int  tqRetrieveDataBlockInfo(STqReadHandle *pHandle, SDataBlockInfo *pBlockInfo);
+int32_t tqReadHandleSetMsg(STqReadHandle *pHandle, SSubmitReq *pMsg, int64_t ver);
+bool    tqNextDataBlock(STqReadHandle *pHandle);
+int     tqRetrieveDataBlockInfo(STqReadHandle *pHandle, SDataBlockInfo *pBlockInfo);
 // return SArray<SColumnInfoData>
 SArray *tqRetrieveDataBlock(STqReadHandle *pHandle);
 

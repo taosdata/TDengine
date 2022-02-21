@@ -10,7 +10,7 @@ target_link_libraries(
     util
     PRIVATE os
     PUBLIC lz4_static
-    PUBLIC api
+    PUBLIC api cjson
 )
 
 if(${BUILD_TEST})
