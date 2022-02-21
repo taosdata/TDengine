@@ -93,8 +93,8 @@ TDengine is a highly efficient platform to store, query, and analyze time-series
 - [MATLAB](/connections#matlab): access data stored in TDengine server via JDBC configured within MATLAB
 - [R](/connections#r): access data stored in TDengine server via JDBC configured within R
 - [IDEA Database](https://www.taosdata.com/blog/2020/08/27/1767.html): use TDengine visually through IDEA Database Management Tool
-- [TDengineGUI](https://github.com/skye0207/TDengineGUI)
-- [DataX, a data immigaration tool with TDeninge supported](https://github.com/taosdata/datax)
+- [TDengineGUI](https://github.com/skye0207/TDengineGUI): a TDengine management tool with Graphical User Interface
+- [DataX](https://github.com/taosdata/datax): a data immigaration tool with TDeninge supported
 
 ## [Installation and Management of TDengine Cluster](/cluster)
 
