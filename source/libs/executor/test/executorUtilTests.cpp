@@ -76,12 +76,12 @@ int32_t docomp(const void* p1, const void* p2, void* param) {
   int32_t pRightIdx = *(int32_t *)p2;
 
   SMsortComparParam *pParam = (SMsortComparParam *)param;
-  SOperatorSource** px = reinterpret_cast<SOperatorSource**>(pParam->pSources);
+  SGenericSource** px = reinterpret_cast<SGenericSource**>(pParam->pSources);
 
   SArray *pInfo = pParam->orderInfo;
 
-  SOperatorSource* pLeftSource  = px[pLeftIdx];
-  SOperatorSource* pRightSource = px[pRightIdx];
+  SGenericSource* pLeftSource  = px[pLeftIdx];
+  SGenericSource* pRightSource = px[pRightIdx];
 
   // this input is exhausted, set the special value to denote this
   if (pLeftSource->src.rowIndex == -1) {
@@ -162,7 +162,7 @@ int32_t docomp(const void* p1, const void* p2, void* param) {
 //  SArray* orderInfo = taosArrayInit(1, sizeof(SBlockOrderInfo));
 //  taosArrayPush(orderInfo, &oi);
 //
-//  SSortHandle* phandle = createSortHandle(orderInfo, false, SORT_SINGLESOURCE, 1024, 5, "test_abc");
+//  SSortHandle* phandle = createSortHandle(orderInfo, false, SORT_SINGLESOURCE_SORT, 1024, 5, "test_abc");
 //  setFetchRawDataFp(phandle, getSingleColDummyBlock);
 //  sortAddSource(phandle, &numOfRows);
 //
@@ -182,42 +182,50 @@ int32_t docomp(const void* p1, const void* p2, void* param) {
 //  destroySortHandle(phandle);
 //}
 //
-//TEST(testCase, external_mem_sort_Test) {
-//  totalcount = 50;
-//  startVal = 100000;
-//
-//  SArray* pOrderVal = taosArrayInit(4, sizeof(SOrder));
-//  SOrder o = {.order = TSDB_ORDER_ASC};
-//  o.col.info.colId = 1;
-//  o.col.info.type = TSDB_DATA_TYPE_INT;
-//  taosArrayPush(pOrderVal, &o);
-//
+TEST(testCase, external_mem_sort_Test) {
+  SArray* pOrderVal = taosArrayInit(4, sizeof(SOrder));
+  SOrder o = {.order = TSDB_ORDER_ASC};
+  o.col.info.colId = 1;
+  o.col.info.type = TSDB_DATA_TYPE_INT;
+  taosArrayPush(pOrderVal, &o);
+
 //  int32_t numOfRows = 1000;
-//  SBlockOrderInfo oi = {0};
-//  oi.order = TSDB_ORDER_ASC;
-//  oi.colIndex = 0;
-//  SArray* orderInfo = taosArrayInit(1, sizeof(SBlockOrderInfo));
-//  taosArrayPush(orderInfo, &oi);
-//
-//  SSortHandle* phandle = createSortHandle(orderInfo, false, SORT_SINGLESOURCE, 1024, 5, "test_abc");
-//  setFetchRawDataFp(phandle, getSingleColDummyBlock);
-//  sortAddSource(phandle, &numOfRows);
-//
-//  int32_t code = sortOpen(phandle);
-//  int32_t row = 1;
-//
-//  while(1) {
-//    STupleHandle* pTupleHandle = sortNextTuple(phandle);
-//    if (pTupleHandle == NULL) {
-//      break;
-//    }
-//
-//    void* v = sortGetValue(pTupleHandle, 0);
-//    printf("%d: %d\n", row++, *(int32_t*) v);
-//
-//  }
-//  destroySortHandle(phandle);
-//}
+  SBlockOrderInfo oi = {0};
+  oi.order = TSDB_ORDER_ASC;
+  oi.colIndex = 0;
+  SArray* orderInfo = taosArrayInit(1, sizeof(SBlockOrderInfo));
+  taosArrayPush(orderInfo, &oi);
+
+  SSchema s = {.type = TSDB_DATA_TYPE_INT, .colId = 1, .bytes = 4, };
+
+  SSortHandle* phandle = createSortHandle(orderInfo, false, SORT_SINGLESOURCE_SORT, 1024, 5, &s, 1, "test_abc");
+  setFetchRawDataFp(phandle, getSingleColDummyBlock);
+
+  _info* pInfo = (_info*) calloc(1, sizeof(_info));
+  pInfo->startVal = 100000;
+  pInfo->pageRows = 1000;
+  pInfo->count = 50;
+
+  SGenericSource* ps = static_cast<SGenericSource*>(calloc(1, sizeof(SGenericSource)));
+  ps->param = pInfo;
+
+  sortAddSource(phandle, ps);
+
+  int32_t code = sortOpen(phandle);
+  int32_t row = 1;
+
+  while(1) {
+    STupleHandle* pTupleHandle = sortNextTuple(phandle);
+    if (pTupleHandle == NULL) {
+      break;
+    }
+
+    void* v = sortGetValue(pTupleHandle, 0);
+    printf("%d: %d\n", row++, *(int32_t*) v);
+
+  }
+  destroySortHandle(phandle);
+}
 
 //TEST(testCase, ordered_merge_sort_Test) {
 //  SArray* pOrderVal = taosArrayInit(4, sizeof(SOrder));
@@ -234,7 +242,7 @@ int32_t docomp(const void* p1, const void* p2, void* param) {
 //  taosArrayPush(orderInfo, &oi);
 //
 //  SSchema s = {.type = TSDB_DATA_TYPE_INT, .colId = 1, .bytes = 4};
-//  SSortHandle* phandle = createSortHandle(orderInfo, false, SORT_MULTIWAY_MERGE, 1024, 5, &s, 1,"test_abc");
+//  SSortHandle* phandle = createSortHandle(orderInfo, false, SORT_MULTISOURCE_MERGE, 1024, 5, &s, 1,"test_abc");
 //  setFetchRawDataFp(phandle, getSingleColDummyBlock);
 //  setComparFn(phandle, docomp);
 //

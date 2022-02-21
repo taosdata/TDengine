@@ -24,8 +24,8 @@ extern "C" {
 #include "os.h"
 
 enum {
-  SORT_MULTIWAY_MERGE = 0x1,
-  SORT_SINGLESOURCE   = 0x2,
+  SORT_MULTISOURCE_MERGE = 0x1,
+  SORT_SINGLESOURCE_SORT = 0x2,
 };
 
 typedef struct SMultiMergeSource {
@@ -40,10 +40,10 @@ typedef struct SExternalMemSource {
   int32_t           pageIndex;
 } SExternalMemSource;
 
-typedef struct SOperatorSource {
+typedef struct SGenericSource {
   SMultiMergeSource src;
-  void* param;
-} SOperatorSource;
+  void             *param;
+} SGenericSource;
 
 typedef struct SMsortComparParam {
   void        **pSources;

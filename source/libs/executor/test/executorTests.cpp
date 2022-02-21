@@ -356,7 +356,7 @@ TEST(testCase, external_sort_Test) {
   taosArrayDestroy(pExprInfo);
   taosArrayDestroy(pOrderVal);
 }
-#endif
+
 
 TEST(testCase, sorted_merge_Test) {
   srand(time(NULL));
@@ -424,5 +424,5 @@ TEST(testCase, sorted_merge_Test) {
   taosArrayDestroy(pExprInfo);
   taosArrayDestroy(pOrderVal);
 }
-
+#endif
 #pragma GCC diagnostic pop

@@ -562,7 +562,7 @@ bool isAllDataInMemBuf(const SDiskbasedBuf* pBuf) {
 }
 
 void setBufPageDirty(SFilePage* pPage, bool dirty) {
-  int32_t offset = offsetof(SPageInfo, pData);  // todo extract method
+  int32_t offset = offsetof(SPageInfo, pData);
   char* p = (char*)pPage - offset;
 
   SPageInfo* ppi = ((SPageInfo**) p)[0];

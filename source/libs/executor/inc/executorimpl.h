@@ -551,7 +551,9 @@ typedef struct SDistinctOperatorInfo {
 } SDistinctOperatorInfo;
 
 typedef struct SSortedMergeOperatorInfo {
-  SSDataBlock       *pDataBlock;
+  SOptrBasicInfo     binfo;
+
+//  SSDataBlock       *pDataBlock;
   bool               hasVarCol;
   
   SArray            *orderInfo;   // SArray<SBlockOrderInfo>
@@ -563,6 +565,11 @@ typedef struct SSortedMergeOperatorInfo {
   int32_t            bufPageSize;
   uint32_t           sortBufSize;  // max buffer size for in-memory sort
   int32_t            numOfRowsInRes;
+
+  char**             prevRow;
+  int32_t            resultRowFactor;
+  bool               multiGroupResults;
+  bool               hasGroupColData;
 } SSortedMergeOperatorInfo;
 
 typedef struct SOrderOperatorInfo {
