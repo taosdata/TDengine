@@ -133,11 +133,22 @@ int32_t nodesListAppend(SNodeList* pList, SNode* pNode) {
 }
 
 int32_t nodesListAppendList(SNodeList* pTarget, SNodeList* pSrc) {
-  pTarget->pTail->pNext = pSrc->pHead;
-  pSrc->pHead->pPrev = pTarget->pTail;
+  if (NULL == pTarget || NULL == pSrc) {
+    return TSDB_CODE_SUCCESS;
+  }
+
+  if (NULL == pTarget->pHead) {
+    pTarget->pHead = pSrc->pHead;
+  } else {
+    pTarget->pTail->pNext = pSrc->pHead;
+    if (NULL != pSrc->pHead) {
+      pSrc->pHead->pPrev = pTarget->pTail;
+    }
+  }
   pTarget->pTail = pSrc->pTail;
   pTarget->length += pSrc->length;
   tfree(pSrc);
+
   return TSDB_CODE_SUCCESS;
 }
 
@@ -320,6 +331,10 @@ int32_t nodesCollectColumns(SSelectStmt* pSelect, ESqlClause clause, const char*
   if (TSDB_CODE_SUCCESS != cxt.errCode) {
     nodesDestroyList(cxt.pCols);
     return cxt.errCode;
+  }
+  if (0 == LIST_LENGTH(cxt.pCols)) {
+    nodesDestroyList(cxt.pCols);
+    cxt.pCols = NULL;
   }
   *pCols = cxt.pCols;
   return TSDB_CODE_SUCCESS;
