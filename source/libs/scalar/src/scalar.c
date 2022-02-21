@@ -7,12 +7,78 @@
 #include "sclInt.h"
 
 int32_t scalarGetOperatorParamNum(EOperatorType type) {
-  if (OP_TYPE_IS_NULL == type || OP_TYPE_IS_NOT_NULL == type) {
+  if (OP_TYPE_IS_NULL == type || OP_TYPE_IS_NOT_NULL == type || OP_TYPE_IS_TRUE == type || OP_TYPE_IS_NOT_TRUE == type 
+   || OP_TYPE_IS_FALSE == type || OP_TYPE_IS_NOT_FALSE == type || OP_TYPE_IS_UNKNOWN == type || OP_TYPE_IS_NOT_UNKNOWN == type) {
     return 1;
   }
 
   return 2;
 }
+
+int32_t scalarGenerateSetFromList(void **data, void *pNode, uint32_t type) {
+  SHashObj *pObj = taosHashInit(256, taosGetDefaultHashFunction(type), true, false);
+  if (NULL == pObj) {
+    sclError("taosHashInit failed, size:%d", 256);
+    SCL_ERR_RET(TSDB_CODE_QRY_OUT_OF_MEMORY);
+  }
+
+  taosHashSetEqualFp(pObj, taosGetDefaultEqualFunction(type)); 
+
+  int32_t code = 0;
+  SNodeListNode *nodeList = (SNodeListNode *)pNode;
+  SListCell *cell = nodeList->pNodeList->pHead;
+  SScalarParam in = {.num = 1}, out = {.num = 1, .type = type};
+  int8_t dummy = 0;
+  int32_t bufLen = 60;
+  out.data = malloc(bufLen);
+  int32_t len = 0;
+  void *buf = NULL;
+  
+  for (int32_t i = 0; i < nodeList->pNodeList->length; ++i) {
+    SValueNode *valueNode = (SValueNode *)cell->pNode;
+
+    if (valueNode->node.resType.type != type) {
+      in.type = valueNode->node.resType.type;
+      in.bytes = valueNode->node.resType.bytes;
+      in.data = nodesGetValueFromNode(valueNode);
+    
+      code = vectorConvertImpl(&in, &out);
+      if (code) {
+        sclError("convert from %d to %d failed", in.type, out.type);
+        SCL_ERR_JRET(code);
+      }
+
+      if (IS_VAR_DATA_TYPE(type)) {
+        len = varDataLen(out.data);
+      } else {
+        len = tDataTypes[type].bytes;
+      }
+
+      buf = out.data;
+    } else {
+      buf = nodesGetValueFromNode(valueNode);
+      len = valueNode->node.resType.bytes;
+    }
+    
+    if (taosHashPut(pObj, buf, (size_t)len, &dummy, sizeof(dummy))) {
+      sclError("taosHashPut failed");
+      SCL_ERR_JRET(TSDB_CODE_QRY_OUT_OF_MEMORY);
+    }
+  }
+
+  tfree(out.data);
+  *data = pObj;
+
+  return TSDB_CODE_SUCCESS;
+
+_return:
+
+  tfree(out.data);
+  taosHashCleanup(pObj);
+  
+  SCL_RET(code);
+}
+
 
 void sclFreeRes(SHashObj *res) {
   SScalarParam *p = NULL;
@@ -47,7 +113,15 @@ int32_t sclInitParam(SNode* node, SScalarParam *param, SScalarCtx *ctx, int32_t 
     }
     case QUERY_NODE_NODE_LIST: {
       SNodeListNode *nodeList = (SNodeListNode *)node;
-      //TODO BUILD HASH
+      if (nodeList->pNodeList->length <= 0) {
+        sclError("invalid length in nodeList, length:%d", nodeList->pNodeList->length);
+        SCL_RET(TSDB_CODE_QRY_INVALID_INPUT);
+      }
+
+      SCL_ERR_RET(scalarGenerateSetFromList(&param->data, node, nodeList->dataType.type));
+      param->num = 1;
+      param->type = SCL_DATA_TYPE_DUMMY_HASH;
+      
       break;
     }
     case QUERY_NODE_COLUMN_REF: {
@@ -291,6 +365,7 @@ int32_t sclExecOperator(SOperatorNode *node, SScalarCtx *ctx, SScalarParam *outp
   SCL_ERR_RET(sclInitOperatorParams(&params, node, ctx, &rowNum));
 
   output->type = node->node.resType.type;
+  output->num = rowNum;
   output->data = calloc(rowNum, tDataTypes[output->type].bytes);
   if (NULL == output->data) {
     sclError("calloc %d failed", (int32_t)rowNum * tDataTypes[output->type].bytes);
@@ -303,16 +378,20 @@ int32_t sclExecOperator(SOperatorNode *node, SScalarCtx *ctx, SScalarParam *outp
   SScalarParam* pLeft = &params[0];
   SScalarParam* pRight = paramNum > 1 ? &params[1] : NULL;
 
+  void *data = output->data;
+  
   for (int32_t i = 0; i < rowNum; ++i) {
 
     OperatorFn(pLeft, pRight, output->data, TSDB_ORDER_ASC);
 
-    sclParamMoveNext(output, 1);    
+    sclParamMoveNext(output, 1);
     sclParamMoveNext(pLeft, 1);
     if (pRight) {
       sclParamMoveNext(pRight, 1);
     }
   }
+
+  output->data = data;
 
   return TSDB_CODE_SUCCESS;
 

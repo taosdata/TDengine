@@ -71,6 +71,14 @@ int32_t fmGetFuncExecFuncs(int32_t funcId, SFuncExecFuncs* pFpSet) {
   return TSDB_CODE_SUCCESS;
 }
 
+int32_t fmGetScalarFuncExecFuncs(int32_t funcId, SScalarFuncExecFuncs* pFpSet) {
+  if (funcId < 0 || funcId >= funcMgtBuiltinsNum) {
+    return TSDB_CODE_FAILED;
+  }
+  pFpSet->process = funcMgtBuiltins[funcId].sprocessFunc;
+  return TSDB_CODE_SUCCESS;
+}
+
 bool fmIsAggFunc(int32_t funcId) {
   if (funcId < 0 || funcId >= funcMgtBuiltinsNum) {
     return false;

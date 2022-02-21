@@ -28,6 +28,8 @@ typedef struct SScalarCtx {
   SHashObj    *pRes;  /* element is SScalarParam */
 } SScalarCtx;
 
+
+#define SCL_DATA_TYPE_DUMMY_HASH 9000
 #define SCL_DEFAULT_OP_NUM 10
 
 #define sclFatal(...)  qFatal(__VA_ARGS__)

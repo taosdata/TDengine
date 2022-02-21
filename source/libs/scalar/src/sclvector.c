@@ -258,31 +258,7 @@ int32_t vectorConvertImpl(SScalarParam* pIn, SScalarParam* pOut) {
 
   switch (outType) {
     case TSDB_DATA_TYPE_BOOL:
-      if (inType == TSDB_DATA_TYPE_BINARY) {
-        for (int32_t i = 0; i < pIn->num; ++i) {
-          GET_TYPED_DATA(*(bool *)output, bool, TSDB_DATA_TYPE_USMALLINT, &varDataLen(input));
-          
-          input += varDataLen(input) + VARSTR_HEADER_SIZE;
-          output += sizeof(bool);
-        }
-      } else if (inType == TSDB_DATA_TYPE_NCHAR) {      
-        for (int32_t i = 0; i < pIn->num; ++i) {
-          GET_TYPED_DATA(*(bool *)output, bool, TSDB_DATA_TYPE_USMALLINT, &varDataLen(input));
-          
-          input += varDataLen(input) + VARSTR_HEADER_SIZE;
-          output += tDataTypes[outType].bytes;
-        }
-      } else {
-        for (int32_t i = 0; i < pIn->num; ++i) {
-          uint64_t value = 0;
-          GET_TYPED_DATA(value, uint64_t, inType, input);
-          SET_TYPED_DATA(output, outType, value);
-
-          input += tDataTypes[inType].bytes;
-          output += tDataTypes[outType].bytes;
-        }
-      }
-      break;
+    case TSDB_DATA_TYPE_TINYINT:
     case TSDB_DATA_TYPE_SMALLINT:
     case TSDB_DATA_TYPE_INT:
     case TSDB_DATA_TYPE_BIGINT:
@@ -295,16 +271,20 @@ int32_t vectorConvertImpl(SScalarParam* pIn, SScalarParam* pOut) {
         }
         
         for (int32_t i = 0; i < pIn->num; ++i) {
-          if (varDataLen(input) >= bufSize) {
-            bufSize = varDataLen(input) + 1;
-            tmp = realloc(tmp, bufSize);
+          if (isNull(input, inType)) {
+            assignVal(output, getNullValue(outType), 0, outType);
+          } else {
+            if (varDataLen(input) >= bufSize) {
+              bufSize = varDataLen(input) + 1;
+              tmp = realloc(tmp, bufSize);
+            }
+            
+            memcpy(tmp, varDataVal(input), varDataLen(input));
+            tmp[varDataLen(input)] = 0;
+            
+            int64_t value = strtoll(tmp, NULL, 10);
+            SET_TYPED_DATA(output, outType, value);
           }
-          
-          memcpy(tmp, varDataVal(input), varDataLen(input));
-          tmp[varDataLen(input)] = 0;
-          
-          int64_t value = strtoll(tmp, NULL, 10);
-          SET_TYPED_DATA(output, outType, value);
           
           input += varDataLen(input) + VARSTR_HEADER_SIZE;
           output += tDataTypes[outType].bytes;
@@ -319,21 +299,25 @@ int32_t vectorConvertImpl(SScalarParam* pIn, SScalarParam* pOut) {
         }
         
         for (int32_t i = 0; i < pIn->num; ++i) {
-          if (varDataLen(input)* TSDB_NCHAR_SIZE >= bufSize) {
-            bufSize = varDataLen(input) * TSDB_NCHAR_SIZE + 1;
-            tmp = realloc(tmp, bufSize);
-          }
-        
-          int len = taosUcs4ToMbs(varDataVal(input), varDataLen(input), tmp);
-          if (len < 0){
-            qError("castConvert taosUcs4ToMbs error 1");
-            tfree(tmp);
-            return TSDB_CODE_QRY_APP_ERROR;
-          }
+          if (isNull(input, inType)) {
+            assignVal(output, getNullValue(outType), 0, outType);
+          } else {
+            if (varDataLen(input)* TSDB_NCHAR_SIZE >= bufSize) {
+              bufSize = varDataLen(input) * TSDB_NCHAR_SIZE + 1;
+              tmp = realloc(tmp, bufSize);
+            }
           
-          tmp[len] = 0;
-          int64_t value = strtoll(tmp, NULL, 10);
-          SET_TYPED_DATA(output, outType, value);
+            int len = taosUcs4ToMbs(varDataVal(input), varDataLen(input), tmp);
+            if (len < 0){
+              qError("castConvert taosUcs4ToMbs error 1");
+              tfree(tmp);
+              return TSDB_CODE_QRY_APP_ERROR;
+            }
+            
+            tmp[len] = 0;
+            int64_t value = strtoll(tmp, NULL, 10);
+            SET_TYPED_DATA(output, outType, value);
+          }
 
           input += varDataLen(input) + VARSTR_HEADER_SIZE;
           output += tDataTypes[outType].bytes;
@@ -351,6 +335,7 @@ int32_t vectorConvertImpl(SScalarParam* pIn, SScalarParam* pOut) {
         }
       }
       break;
+    case TSDB_DATA_TYPE_UTINYINT:  
     case TSDB_DATA_TYPE_USMALLINT:
     case TSDB_DATA_TYPE_UINT:
     case TSDB_DATA_TYPE_UBIGINT:
@@ -362,15 +347,19 @@ int32_t vectorConvertImpl(SScalarParam* pIn, SScalarParam* pOut) {
         }
         
         for (int32_t i = 0; i < pIn->num; ++i) {
-          if (varDataLen(input) >= bufSize) {
-            bufSize = varDataLen(input) + 1;
-            tmp = realloc(tmp, bufSize);
+          if (isNull(input, inType)) {
+            assignVal(output, getNullValue(outType), 0, outType);
+          } else {
+            if (varDataLen(input) >= bufSize) {
+              bufSize = varDataLen(input) + 1;
+              tmp = realloc(tmp, bufSize);
+            }
+            
+            memcpy(tmp, varDataVal(input), varDataLen(input));
+            tmp[varDataLen(input)] = 0;
+            uint64_t value = strtoull(tmp, NULL, 10);
+            SET_TYPED_DATA(output, outType, value);
           }
-          
-          memcpy(tmp, varDataVal(input), varDataLen(input));
-          tmp[varDataLen(input)] = 0;
-          uint64_t value = strtoull(tmp, NULL, 10);
-          SET_TYPED_DATA(output, outType, value);
           
           input += varDataLen(input) + VARSTR_HEADER_SIZE;
           output += tDataTypes[outType].bytes;
@@ -385,21 +374,25 @@ int32_t vectorConvertImpl(SScalarParam* pIn, SScalarParam* pOut) {
         }
         
         for (int32_t i = 0; i < pIn->num; ++i) {
-          if (varDataLen(input)* TSDB_NCHAR_SIZE >= bufSize) {
-            bufSize = varDataLen(input) * TSDB_NCHAR_SIZE + 1;
-            tmp = realloc(tmp, bufSize);
-          }
-        
-          int len = taosUcs4ToMbs(varDataVal(input), varDataLen(input), tmp);
-          if (len < 0){
-            qError("castConvert taosUcs4ToMbs error 1");
-            tfree(tmp);
-            return TSDB_CODE_QRY_APP_ERROR;
-          }
+          if (isNull(input, inType)) {
+            assignVal(output, getNullValue(outType), 0, outType);
+          } else {
+            if (varDataLen(input)* TSDB_NCHAR_SIZE >= bufSize) {
+              bufSize = varDataLen(input) * TSDB_NCHAR_SIZE + 1;
+              tmp = realloc(tmp, bufSize);
+            }
           
-          tmp[len] = 0;
-          uint64_t value = strtoull(tmp, NULL, 10);
-          SET_TYPED_DATA(output, outType, value);
+            int len = taosUcs4ToMbs(varDataVal(input), varDataLen(input), tmp);
+            if (len < 0){
+              qError("castConvert taosUcs4ToMbs error 1");
+              tfree(tmp);
+              return TSDB_CODE_QRY_APP_ERROR;
+            }
+            
+            tmp[len] = 0;
+            uint64_t value = strtoull(tmp, NULL, 10);
+            SET_TYPED_DATA(output, outType, value);
+          }
 
           input += varDataLen(input) + VARSTR_HEADER_SIZE;
           output += tDataTypes[outType].bytes;
@@ -408,9 +401,13 @@ int32_t vectorConvertImpl(SScalarParam* pIn, SScalarParam* pOut) {
         tfree(tmp);
       } else {      
         for (int32_t i = 0; i < pIn->num; ++i) {
-          uint64_t value = 0;
-          GET_TYPED_DATA(value, uint64_t, inType, input);
-          SET_TYPED_DATA(output, outType, value);
+          if (isNull(input, inType)) {
+            assignVal(output, getNullValue(outType), 0, outType);
+          } else {
+            uint64_t value = 0;
+            GET_TYPED_DATA(value, uint64_t, inType, input);
+            SET_TYPED_DATA(output, outType, value);
+          }
 
           input += tDataTypes[inType].bytes;
           output += tDataTypes[outType].bytes;
@@ -427,16 +424,20 @@ int32_t vectorConvertImpl(SScalarParam* pIn, SScalarParam* pOut) {
         }
         
         for (int32_t i = 0; i < pIn->num; ++i) {
-          if (varDataLen(input) >= bufSize) {
-            bufSize = varDataLen(input) + 1;
-            tmp = realloc(tmp, bufSize);
+          if (isNull(input, inType)) {
+            assignVal(output, getNullValue(outType), 0, outType);
+          } else {
+            if (varDataLen(input) >= bufSize) {
+              bufSize = varDataLen(input) + 1;
+              tmp = realloc(tmp, bufSize);
+            }
+            
+            memcpy(tmp, varDataVal(input), varDataLen(input));
+            tmp[varDataLen(input)] = 0;
+            
+            double value = strtod(tmp, NULL);
+            SET_TYPED_DATA(output, outType, value);
           }
-          
-          memcpy(tmp, varDataVal(input), varDataLen(input));
-          tmp[varDataLen(input)] = 0;
-          
-          double value = strtod(tmp, NULL);
-          SET_TYPED_DATA(output, outType, value);
           
           input += varDataLen(input) + VARSTR_HEADER_SIZE;
           output += tDataTypes[outType].bytes;
@@ -451,21 +452,25 @@ int32_t vectorConvertImpl(SScalarParam* pIn, SScalarParam* pOut) {
         }
         
         for (int32_t i = 0; i < pIn->num; ++i) {
-          if (varDataLen(input)* TSDB_NCHAR_SIZE >= bufSize) {
-            bufSize = varDataLen(input) * TSDB_NCHAR_SIZE + 1;
-            tmp = realloc(tmp, bufSize);
-          }
-        
-          int len = taosUcs4ToMbs(varDataVal(input), varDataLen(input), tmp);
-          if (len < 0){
-            qError("castConvert taosUcs4ToMbs error 1");
-            tfree(tmp);
-            return TSDB_CODE_QRY_APP_ERROR;
-          }
+          if (isNull(input, inType)) {
+            assignVal(output, getNullValue(outType), 0, outType);
+          } else {        
+            if (varDataLen(input)* TSDB_NCHAR_SIZE >= bufSize) {
+              bufSize = varDataLen(input) * TSDB_NCHAR_SIZE + 1;
+              tmp = realloc(tmp, bufSize);
+            }
           
-          tmp[len] = 0;
-          double value = strtod(tmp, NULL);
-          SET_TYPED_DATA(output, outType, value);
+            int len = taosUcs4ToMbs(varDataVal(input), varDataLen(input), tmp);
+            if (len < 0){
+              qError("castConvert taosUcs4ToMbs error 1");
+              tfree(tmp);
+              return TSDB_CODE_QRY_APP_ERROR;
+            }
+            
+            tmp[len] = 0;
+            double value = strtod(tmp, NULL);
+            SET_TYPED_DATA(output, outType, value);
+          }
 
           input += varDataLen(input) + VARSTR_HEADER_SIZE;
           output += tDataTypes[outType].bytes;
@@ -474,9 +479,13 @@ int32_t vectorConvertImpl(SScalarParam* pIn, SScalarParam* pOut) {
         tfree(tmp);
       } else {
         for (int32_t i = 0; i < pIn->num; ++i) {
-          int64_t value = 0;
-          GET_TYPED_DATA(value, int64_t, inType, input);
-          SET_TYPED_DATA(output, outType, value);
+          if (isNull(input, inType)) {
+            assignVal(output, getNullValue(outType), 0, outType);
+          } else {         
+            int64_t value = 0;
+            GET_TYPED_DATA(value, int64_t, inType, input);
+            SET_TYPED_DATA(output, outType, value);
+          }
 
           input += tDataTypes[inType].bytes;
           output += tDataTypes[outType].bytes;
@@ -1121,6 +1130,12 @@ void vectorNotNull(SScalarParam* pLeft, SScalarParam* pRight, void *out, int32_t
   }
 }
 
+void vectorIsTrue(SScalarParam* pLeft, SScalarParam* pRight, void *out, int32_t _ord) {
+  SScalarParam output = {.data = out, .num = pLeft->num, .type = TSDB_DATA_TYPE_BOOL};
+  
+  vectorConvertImpl(pLeft, &output);
+}
+
 
 _bin_scalar_fn_t getBinScalarOperatorFn(int32_t binFunctionId) {
   switch (binFunctionId) {
@@ -1166,6 +1181,8 @@ _bin_scalar_fn_t getBinScalarOperatorFn(int32_t binFunctionId) {
       return vectorBitAnd;
     case OP_TYPE_BIT_OR:
       return vectorBitOr;
+    case OP_TYPE_IS_TRUE:
+      return vectorIsTrue;
     default:
       assert(0);
       return NULL;

@@ -1706,69 +1706,6 @@ int32_t filterHandleValueExtInfo(SFilterUnit* unit, char extInfo) {
   return TSDB_CODE_SUCCESS;
 }
 
-int32_t fltGenerateSetFromList(void **data, void *pNode, uint32_t type) {
-  SHashObj *pObj = taosHashInit(256, taosGetDefaultHashFunction(type), true, false);
-  if (NULL == pObj) {
-    fltError("taosHashInit failed, size:%d", 256);
-    FLT_ERR_RET(TSDB_CODE_QRY_OUT_OF_MEMORY);
-  }
-
-  taosHashSetEqualFp(pObj, taosGetDefaultEqualFunction(type)); 
-
-  int32_t code = 0;
-  SNodeListNode *nodeList = (SNodeListNode *)pNode;
-  SListCell *cell = nodeList->pNodeList->pHead;
-  SScalarParam in = {.num = 1}, out = {.num = 1, .type = type};
-  int8_t dummy = 0;
-  int32_t bufLen = 60;
-  out.data = malloc(bufLen);
-  int32_t len = 0;
-  void *buf = NULL;
-  
-  for (int32_t i = 0; i < nodeList->pNodeList->length; ++i) {
-    SValueNode *valueNode = (SValueNode *)cell->pNode;
-
-    if (valueNode->node.resType.type != type) {
-      in.type = valueNode->node.resType.type;
-      in.bytes = valueNode->node.resType.bytes;
-      in.data = nodesGetValueFromNode(valueNode);
-    
-      code = vectorConvertImpl(&in, &out);
-      if (code) {
-        fltError("convert from %d to %d failed", in.type, out.type);
-        FLT_ERR_JRET(code);
-      }
-
-      if (IS_VAR_DATA_TYPE(type)) {
-        len = varDataLen(out.data);
-      } else {
-        len = tDataTypes[type].bytes;
-      }
-
-      buf = out.data;
-    } else {
-      buf = nodesGetValueFromNode(valueNode);
-      len = valueNode->node.resType.bytes;
-    }
-    
-    if (taosHashPut(pObj, buf, (size_t)len, &dummy, sizeof(dummy))) {
-      fltError("taosHashPut failed");
-      FLT_ERR_JRET(TSDB_CODE_QRY_OUT_OF_MEMORY);
-    }
-  }
-
-  tfree(out.data);
-  *data = pObj;
-
-  return TSDB_CODE_SUCCESS;
-
-_return:
-
-  tfree(out.data);
-  taosHashCleanup(pObj);
-  
-  FLT_RET(code);
-}
 
 int32_t fltInitValFieldData(SFilterInfo *info) {
   for (uint32_t i = 0; i < info->unitNum; ++i) {
@@ -1793,7 +1730,7 @@ int32_t fltInitValFieldData(SFilterInfo *info) {
     }
 
     if (unit->compare.optr == TSDB_RELATION_IN) {
-      FLT_ERR_RET(fltGenerateSetFromList((void **)&fi->data, fi->desc, type));
+      FLT_ERR_RET(scalarGenerateSetFromList((void **)&fi->data, fi->desc, type));
       if (fi->data == NULL) {
         fltError("failed to convert in param");
         FLT_ERR_RET(TSDB_CODE_QRY_APP_ERROR);
