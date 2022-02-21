@@ -31,13 +31,28 @@ STqReadHandle* tqInitSubmitMsgScanner(SMeta* pMeta) {
   return pReadHandle;
 }
 
-void tqReadHandleSetMsg(STqReadHandle* pReadHandle, SSubmitReq* pMsg, int64_t ver) {
+int32_t tqReadHandleSetMsg(STqReadHandle* pReadHandle, SSubmitReq* pMsg, int64_t ver) {
   pReadHandle->pMsg = pMsg;
   pMsg->length = htonl(pMsg->length);
   pMsg->numOfBlocks = htonl(pMsg->numOfBlocks);
-  tInitSubmitMsgIter(pMsg, &pReadHandle->msgIter);
+
+  if (tInitSubmitMsgIter(pMsg, &pReadHandle->msgIter) < 0) return -1;
+  while (true) {
+    if (tGetSubmitMsgNext(&pReadHandle->msgIter, &pReadHandle->pBlock) < 0) return -1;
+    if (pReadHandle->pBlock == NULL) break;
+
+    pReadHandle->pBlock->uid = htobe64(pReadHandle->pBlock->uid);
+    pReadHandle->pBlock->tid = htonl(pReadHandle->pBlock->tid);
+    pReadHandle->pBlock->sversion = htonl(pReadHandle->pBlock->sversion);
+    pReadHandle->pBlock->dataLen = htonl(pReadHandle->pBlock->dataLen);
+    pReadHandle->pBlock->schemaLen = htonl(pReadHandle->pBlock->schemaLen);
+    pReadHandle->pBlock->numOfRows = htons(pReadHandle->pBlock->numOfRows);
+  }
+
+  if (tInitSubmitMsgIter(pMsg, &pReadHandle->msgIter) < 0) return -1;
   pReadHandle->ver = ver;
   memset(&pReadHandle->blkIter, 0, sizeof(SSubmitBlkIter));
+  return 0;
 }
 
 bool tqNextDataBlock(STqReadHandle* pHandle) {
@@ -47,19 +62,19 @@ bool tqNextDataBlock(STqReadHandle* pHandle) {
     }
     if (pHandle->pBlock == NULL) return false;
 
-    pHandle->pBlock->uid = htobe64(pHandle->pBlock->uid);
+    /*pHandle->pBlock->uid = htobe64(pHandle->pBlock->uid);*/
     /*if (pHandle->tbUid == pHandle->pBlock->uid) {*/
     ASSERT(pHandle->tbIdHash);
     void* ret = taosHashGet(pHandle->tbIdHash, &pHandle->pBlock->uid, sizeof(int64_t));
     if (ret != NULL) {
       /*printf("retrieve one tb %ld\n", pHandle->pBlock->uid);*/
-      pHandle->pBlock->tid = htonl(pHandle->pBlock->tid);
-      pHandle->pBlock->sversion = htonl(pHandle->pBlock->sversion);
-      pHandle->pBlock->dataLen = htonl(pHandle->pBlock->dataLen);
-      pHandle->pBlock->schemaLen = htonl(pHandle->pBlock->schemaLen);
-      pHandle->pBlock->numOfRows = htons(pHandle->pBlock->numOfRows);
+      /*pHandle->pBlock->tid = htonl(pHandle->pBlock->tid);*/
+      /*pHandle->pBlock->sversion = htonl(pHandle->pBlock->sversion);*/
+      /*pHandle->pBlock->dataLen = htonl(pHandle->pBlock->dataLen);*/
+      /*pHandle->pBlock->schemaLen = htonl(pHandle->pBlock->schemaLen);*/
+      /*pHandle->pBlock->numOfRows = htons(pHandle->pBlock->numOfRows);*/
       return true;
-    } else {
+      /*} else {*/
       /*printf("skip one tb %ld\n", pHandle->pBlock->uid);*/
     }
   }

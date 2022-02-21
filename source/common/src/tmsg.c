@@ -34,6 +34,7 @@ int32_t tInitSubmitMsgIter(SSubmitReq *pMsg, SSubmitMsgIter *pIter) {
   }
 
   pIter->totalLen = pMsg->length;
+  ASSERT(pIter->totalLen > 0);
   pIter->len = 0;
   pIter->pMsg = pMsg;
   if (pMsg->length <= sizeof(SSubmitReq)) {
@@ -52,6 +53,7 @@ int32_t tGetSubmitMsgNext(SSubmitMsgIter *pIter, SSubmitBlk **pPBlock) {
   } else {
     SSubmitBlk *pSubmitBlk = (SSubmitBlk *)POINTER_SHIFT(pIter->pMsg, pIter->len);
     pIter->len += (sizeof(SSubmitBlk) + pSubmitBlk->dataLen + pSubmitBlk->schemaLen);
+    ASSERT(pIter->len > 0);
   }
 
   if (pIter->len > pIter->totalLen) {
