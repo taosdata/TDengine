@@ -66,7 +66,7 @@ typedef struct SConfigItem {
   ECfgType     stype;
   ECfgUnitType utype;
   ECfgDataType dtype;
-  const char  *name;
+  char        *name;
   union {
     bool     boolVal;
     uint8_t  uint8Val;

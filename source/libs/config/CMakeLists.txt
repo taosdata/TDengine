@@ -1,5 +1,5 @@
 aux_source_directory(src CONFIG_SRC)
-add_library(config ${CONFIG_SRC})
+add_library(config STATIC ${CONFIG_SRC})
 target_include_directories(
     config
     PUBLIC "${CMAKE_SOURCE_DIR}/include/libs/config"

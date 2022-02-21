@@ -18,6 +18,18 @@
 
 SConfig *cfgInit() {
   SConfig *pConfig = calloc(1, sizeof(SConfig));
+  if (pConfig == NULL) {
+    terrno = TSDB_CODE_OUT_OF_MEMORY;
+    return NULL;
+  }
+
+  pConfig->hash = taosHashInit(64, MurmurHash3_32, false, HASH_NO_LOCK);
+  if (pConfig->hash == NULL) {
+    free(pConfig);
+    terrno = TSDB_CODE_OUT_OF_MEMORY;
+    return NULL;
+  }
+
   return pConfig;
 }
 
@@ -62,6 +74,19 @@ static int32_t cfgAddItem(SConfig *pConfig, SConfigItem *pItem, const char *name
   }
 
   if (taosHashPut(pConfig->hash, name, strlen(name) + 1, pItem, sizeof(SConfigItem)) != 0) {
+    if (pItem->dtype == CFG_DTYPE_STRING) {
+      free(pItem->strVal);
+    } else if (pItem->dtype == CFG_DTYPE_FQDN) {
+      free(pItem->fqdnVal);
+    } else if (pItem->dtype == CFG_DTYPE_IPSTR) {
+      free(pItem->ipstrVal);
+    } else if (pItem->dtype == CFG_DTYPE_DIR) {
+      free(pItem->dirVal);
+    } else if (pItem->dtype == CFG_DTYPE_FILE) {
+      free(pItem->fileVal);
+    } else {
+    }
+    free(pItem->name);
     terrno = TSDB_CODE_OUT_OF_MEMORY;
     return -1;
   }
