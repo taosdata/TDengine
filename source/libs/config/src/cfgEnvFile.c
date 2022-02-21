@@ -1,4 +1,3 @@
-
 /*
  * Copyright (c) 2019 TAOS Data, Inc. <jhtao@taosdata.com>
  *
@@ -14,30 +13,10 @@
  * along with this program. If not, see <http://www.gnu.org/licenses/>.
  */
 
-#ifndef _TD_CFG_INT_H_
-#define _TD_CFG_INT_H_
+#define _DEFAULT_SOURCE
+#include "cfgInt.h"
 
-#include "config.h"
-#include "taoserror.h"
-#include "thash.h"
-#include "ulog.h"
-
-#ifdef __cplusplus
-extern "C" {
-#endif
-
-typedef struct SConfig {
-  ECfgSrcType  stype;
-  SHashObj *hash;
-} SConfig;
-
-int32_t cfgLoadFromCfgFile(SConfig *pConfig, const char *filepath);
-int32_t cfgLoadFromEnvFile(SConfig *pConfig, const char *filepath);
-int32_t cfgLoadFromEnvVar(SConfig *pConfig);
-int32_t cfgLoadFromApollUrl(SConfig *pConfig, const char *url);
-
-#ifdef __cplusplus
+int32_t cfgLoadFromEnvFile(SConfig *pConfig, const char *filepath) {
+  uInfo("load from env file %s", filepath);
+  return 0;
 }
-#endif
-
-#endif /*_TD_CFG_INT_H_*/

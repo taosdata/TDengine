@@ -15,11 +15,7 @@
 
 #define _DEFAULT_SOURCE
 #include "dnode.h"
-#include "os.h"
-#include "tconfig.h"
-#include "tglobal.h"
-#include "tnote.h"
-#include "ulog.h"
+#include "dmnInt.h"
 
 static struct {
   bool stop;
@@ -136,38 +132,14 @@ void dmnWaitSignal() {
   }
 }
 
-void dnmInitEnvCfg(SDnodeEnvCfg *pCfg) {
-  pCfg->sver = 30000000;  // 3.0.0.0
-  pCfg->numOfCores = tsNumOfCores;
-  pCfg->numOfCommitThreads = tsNumOfCommitThreads;
-  pCfg->enableTelem = 0;
-  tstrncpy(pCfg->timezone, tsTimezone, TSDB_TIMEZONE_LEN);
-  tstrncpy(pCfg->locale, tsLocale, TSDB_LOCALE_LEN);
-  tstrncpy(pCfg->charset, tsCharset, TSDB_LOCALE_LEN);
-  tstrncpy(pCfg->buildinfo, buildinfo, 64);
-  tstrncpy(pCfg->gitinfo, gitinfo, 48);
-}
-
-void dmnInitObjCfg(SDnodeObjCfg *pCfg) {
-  pCfg->numOfSupportVnodes = tsNumOfSupportVnodes;
-  pCfg->statusInterval = tsStatusInterval;
-  pCfg->numOfThreadsPerCore = tsNumOfThreadsPerCore;
-  pCfg->ratioOfQueryCores = tsRatioOfQueryCores;
-  pCfg->maxShellConns = tsMaxShellConns;
-  pCfg->shellActivityTimer = tsShellActivityTimer;
-  pCfg->serverPort = tsServerPort;
-  tstrncpy(pCfg->dataDir, tsDataDir, TSDB_FILENAME_LEN);
-  tstrncpy(pCfg->localEp, tsLocalEp, TSDB_EP_LEN);
-  tstrncpy(pCfg->localFqdn, tsLocalFqdn, TSDB_FQDN_LEN);
-  tstrncpy(pCfg->firstEp, tsFirst, TSDB_EP_LEN);
-}
-
 int dmnRunDnode() {
   SDnodeEnvCfg envCfg = {0};
   SDnodeObjCfg objCfg = {0};
 
-  dnmInitEnvCfg(&envCfg);
-  dmnInitObjCfg(&objCfg);
+  if (dnmInitCfg(&envCfg, &objCfg, "", "", "") != 0) {
+    uInfo("Failed to start TDengine since load config error");
+    return -1;
+  }
 
   if (dndInit(&envCfg) != 0) {
     uInfo("Failed to start TDengine, please check the log at %s", tsLogDir);

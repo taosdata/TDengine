@@ -30,10 +30,10 @@ const char *CfgTest::pConfig;
 
 TEST_F(CfgTest, 02_Str) {
   EXPECT_STREQ(cfgStypeStr(CFG_TYPE_DEFAULT), "default");
-  EXPECT_STREQ(cfgStypeStr(CFG_TYPE_CFG_FILE), "cfg");
-  EXPECT_STREQ(cfgStypeStr(CFG_TYPE_DOT_ENV), ".env");
-  EXPECT_STREQ(cfgStypeStr(CFG_TYPE_ENV_VAR), "env");
-  EXPECT_STREQ(cfgStypeStr(CFG_TYPE_APOLLO_URL), "apollo");
+  EXPECT_STREQ(cfgStypeStr(CFG_TYPE_CFG_FILE), "cfg_file");
+  EXPECT_STREQ(cfgStypeStr(CFG_TYPE_ENV_FILE), "env_file");
+  EXPECT_STREQ(cfgStypeStr(CFG_TYPE_ENV_VAR), "env_var");
+  EXPECT_STREQ(cfgStypeStr(CFG_TYPE_APOLLO_URL), "apollo_url");
   EXPECT_STREQ(cfgStypeStr(ECfgSrcType(1024)), "invalid");
 
   EXPECT_STREQ(cfgDtypeStr(CFG_DTYPE_NONE), "none");

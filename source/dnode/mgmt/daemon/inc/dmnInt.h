@@ -1,3 +1,4 @@
+
 /*
  * Copyright (c) 2019 TAOS Data, Inc. <jhtao@taosdata.com>
  *
@@ -13,10 +14,25 @@
  * along with this program. If not, see <http://www.gnu.org/licenses/>.
  */
 
-#define _DEFAULT_SOURCE
-#include "cfgInt.h"
+#ifndef _TD_DMN_INT_H_
+#define _TD_DMN_INT_H_
 
-int32_t cfgLoadFromDotEnvFile(SConfig *pConfig, const char *filepath) {
-  uInfo("load from .env file %s", filepath);
-  return 0;
+#include "config.h"
+#include "dnode.h"
+#include "tconfig.h"
+#include "tglobal.h"
+#include "tnote.h"
+#include "ulog.h"
+
+#ifdef __cplusplus
+extern "C" {
+#endif
+
+int32_t dnmInitCfg(SDnodeEnvCfg *pEnvCfg, SDnodeObjCfg *pObjCfg, const char *configFile, const char *envFile,
+                   const char *apolloUrl);
+
+#ifdef __cplusplus
 }
+#endif
+
+#endif /*_TD_DMN_INT_H_*/

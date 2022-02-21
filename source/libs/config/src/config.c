@@ -37,10 +37,10 @@ int32_t cfgLoad(SConfig *pConfig, ECfgSrcType cfgType, const char *sourceStr) {
   switch (cfgType) {
     case CFG_TYPE_CFG_FILE:
       return cfgLoadFromCfgFile(pConfig, sourceStr);
-    case CFG_TYPE_DOT_ENV:
-      return cfgLoadFromDotEnvFile(pConfig, sourceStr);
+    case CFG_TYPE_ENV_FILE:
+      return cfgLoadFromEnvFile(pConfig, sourceStr);
     case CFG_TYPE_ENV_VAR:
-      return cfgLoadFromGlobalEnvVariable(pConfig);
+      return cfgLoadFromEnvVar(pConfig);
     case CFG_TYPE_APOLLO_URL:
       return cfgLoadFromApollUrl(pConfig, sourceStr);
     default:
@@ -206,13 +206,13 @@ const char *cfgStypeStr(ECfgSrcType type) {
     case CFG_TYPE_DEFAULT:
       return "default";
     case CFG_TYPE_CFG_FILE:
-      return "cfg";
-    case CFG_TYPE_DOT_ENV:
-      return ".env";
+      return "cfg_file";
+    case CFG_TYPE_ENV_FILE:
+      return "env_file";
     case CFG_TYPE_ENV_VAR:
-      return "env";
+      return "env_var";
     case CFG_TYPE_APOLLO_URL:
-      return "apollo";
+      return "apollo_url";
     default:
       return "invalid";
   }

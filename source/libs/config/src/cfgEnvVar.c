@@ -16,7 +16,7 @@
 #define _DEFAULT_SOURCE
 #include "cfgInt.h"
 
-int32_t cfgLoadFromGlobalEnvVariable(SConfig *pConfig) {
+int32_t cfgLoadFromEnvVar(SConfig *pConfig) {
   uInfo("load from global env variables");
   return 0;
 }
