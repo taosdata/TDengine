@@ -86,7 +86,9 @@ extern const int32_t TYPE_BYTES[16];
 #define TSDB_DEFAULT_USER               "root"
 #define TSDB_DEFAULT_PASS               "taosdata"
 
-#define SHELL_MAX_PASSWORD_LEN          20
+#define TSDB_PASS_LEN                   33
+
+#define SHELL_MAX_PASSWORD_LEN          TSDB_PASS_LEN
 #define TSDB_TRUE   1
 #define TSDB_FALSE  0
 #define TSDB_OK     0
@@ -221,7 +223,6 @@ do { \
 #define TSDB_MAX_JSON_KEY_LEN     256
 #define TSDB_MAX_JSON_KEY_MD5_LEN 16
 
-#define TSDB_PASS_LEN             21
 #define TSDB_AUTH_LEN             16
 #define TSDB_KEY_LEN              16
 #define TSDB_VERSION_LEN          12

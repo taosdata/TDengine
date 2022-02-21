@@ -204,6 +204,9 @@ int32_t tsMonitorInterval = 30;  // seconds
 // stream
 int8_t tsEnableStream = 1;
 
+// password
+int32_t tsPasswordLength = TSDB_PASS_LEN - 1;
+
 // internal
 int8_t tsCompactMnodeWal = 0;
 int8_t tsPrintAuth = 0;
@@ -1299,6 +1302,16 @@ static void doInitGlobalConfig(void) {
   cfg.minValue = 0;
   cfg.maxValue = 1;
   cfg.ptrLength = 1;
+  cfg.unitType = TAOS_CFG_UTYPE_NONE;
+  taosInitConfigOption(cfg);
+
+  cfg.option = "passwordLength";
+  cfg.ptr = &tsPasswordLength;
+  cfg.valType = TAOS_CFG_VTYPE_INT32;
+  cfg.cfgType = TSDB_CFG_CTYPE_B_CONFIG | TSDB_CFG_CTYPE_B_SHOW;
+  cfg.minValue = 1;
+  cfg.maxValue = TSDB_PASS_LEN - 1;
+  cfg.ptrLength = 0;
   cfg.unitType = TAOS_CFG_UTYPE_NONE;
   taosInitConfigOption(cfg);
 
