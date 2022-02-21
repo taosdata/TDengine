@@ -24,6 +24,11 @@ extern "C" {
 
 typedef struct SFilterInfo SFilterInfo;
 
+typedef struct SFilterColumnParam{
+  int32_t numOfCols;
+  SArray* pDataBlock;
+} SFilterColumnParam;
+
 
 int32_t scalarCalculateConstants(SNode *pNode, SNode **pRes);
 int32_t scalarCalculate(SNode *pNode, SSDataBlock *pSrc, SScalarParam *pDst);

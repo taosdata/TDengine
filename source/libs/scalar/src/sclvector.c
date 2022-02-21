@@ -515,6 +515,18 @@ int8_t gConvertTypes[TSDB_DATA_TYPE_BLOB+1][TSDB_DATA_TYPE_BLOB+1] = {
 /*BLOB*/   0,   0,   0,   0,   0,   0,   0,   0,   0,   0,   0,   0,   0,   0,   0,   0,   0,   0,   0,   0
 };
 
+int32_t vectorGetConvertType(int32_t type1, int32_t type2) {
+  if (type1 == type2) {
+    return 0;
+  }
+
+  if (type1 < type2) {
+    return gConvertTypes[type1][type2];
+  }
+
+  return gConvertTypes[type2][type1];
+}
+
 int32_t vectorConvert(SScalarParam* pLeft, SScalarParam* pRight, SScalarParam* pLeftOut, SScalarParam* pRightOut) {
   if (pLeft->type == pRight->type) {
     return TSDB_CODE_SUCCESS;
@@ -536,7 +548,8 @@ int32_t vectorConvert(SScalarParam* pLeft, SScalarParam* pRight, SScalarParam* p
     paramOut2 = pLeftOut;
   }
 
-  int8_t type = gConvertTypes[param1->type][param2->type];
+
+  int8_t type = vectorGetConvertType(param1->type, param2->type);
   if (0 == type) {
     return TSDB_CODE_SUCCESS;
   }
