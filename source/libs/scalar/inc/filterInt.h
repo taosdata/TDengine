@@ -25,6 +25,7 @@ extern "C" {
 #include "common.h"
 #include "scalar.h"
 #include "querynodes.h"
+#include "query.h"
 
 #define FILTER_DEFAULT_GROUP_SIZE 4
 #define FILTER_DEFAULT_UNIT_SIZE 4

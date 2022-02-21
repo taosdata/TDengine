@@ -12,15 +12,12 @@
  * You should have received a copy of the GNU Affero General Public License
  * along with this program. If not, see <http://www.gnu.org/licenses/>.
  */
-#ifndef TDENGINE_SCALAR_H
-#define TDENGINE_SCALAR_H
+#ifndef TDENGINE_FILTER_H
+#define TDENGINE_FILTER_H
 
 #ifdef __cplusplus
 extern "C" {
 #endif
-
-#include "function.h"
-#include "nodes.h"
 
 typedef struct SFilterInfo SFilterInfo;
 
@@ -30,12 +27,8 @@ typedef struct SFilterColumnParam{
 } SFilterColumnParam;
 
 
-int32_t scalarCalculateConstants(SNode *pNode, SNode **pRes);
-int32_t scalarCalculate(SNode *pNode, SSDataBlock *pSrc, SScalarParam *pDst);
-
-
 #ifdef __cplusplus
 }
 #endif
 
-#endif  // TDENGINE_SCALAR_H
+#endif  // TDENGINE_FILTER_H

@@ -6,7 +6,7 @@
 #include "sclvector.h"
 #include "sclInt.h"
 
-int32_t sclGetOperatorParamNum(EOperatorType type) {
+int32_t scalarGetOperatorParamNum(EOperatorType type) {
   if (OP_TYPE_IS_NULL == type || OP_TYPE_IS_NOT_NULL == type) {
     return 1;
   }
@@ -153,7 +153,7 @@ _return:
 
 int32_t sclInitOperatorParams(SScalarParam **pParams, SOperatorNode *node, SScalarCtx *ctx, int32_t *rowNum) {
   int32_t code = 0;
-  int32_t paramNum = sclGetOperatorParamNum(node->opType);
+  int32_t paramNum = scalarGetOperatorParamNum(node->opType);
   if (NULL == node->pLeft || (paramNum == 2 && NULL == node->pRight)) {
     sclError("invalid operation node, left:%p, right:%p", node->pLeft, node->pRight);
     SCL_ERR_RET(TSDB_CODE_QRY_INVALID_INPUT);
@@ -299,7 +299,7 @@ int32_t sclExecOperator(SOperatorNode *node, SScalarCtx *ctx, SScalarParam *outp
 
   _bin_scalar_fn_t OperatorFn = getBinScalarOperatorFn(node->opType);
 
-  int32_t paramNum = sclGetOperatorParamNum(node->opType);
+  int32_t paramNum = scalarGetOperatorParamNum(node->opType);
   SScalarParam* pLeft = &params[0];
   SScalarParam* pRight = paramNum > 1 ? &params[1] : NULL;
 

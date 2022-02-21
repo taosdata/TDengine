@@ -100,6 +100,9 @@ int32_t compareUint64ValDesc(const void *pLeft, const void *pRight);
 int32_t compareLenPrefixedStrDesc(const void *pLeft, const void *pRight);
 int32_t compareLenPrefixedWStrDesc(const void *pLeft, const void *pRight);
 
+__compar_fn_t getComparFunc(int32_t type, int32_t optr);
+
+
 #ifdef __cplusplus
 }
 #endif

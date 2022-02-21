@@ -36,28 +36,27 @@ OptrStr gOptrStr[] = {
   {TSDB_RELATION_OR,                       "or"},
   {TSDB_RELATION_NOT,                      "not"},
   {TSDB_RELATION_MATCH,                    "match"},
-  {TSDB_RELATION_NMATCH,                   "nmatch"},
-  {TSDB_RELATION_CONTAINS,                 "contains"},
+  {TSDB_RELATION_NMATCH,                   "nmatch"}
 };
 
 bool filterRangeCompGi (const void *minv, const void *maxv, const void *minr, const void *maxr, __compar_fn_t cfunc) {
   int32_t result = cfunc(maxv, minr);
-  if (result == TSDB_DATA_JSON_CAN_NOT_COMPARE) return false;
+  //if (result == TSDB_DATA_JSON_CAN_NOT_COMPARE) return false;
   return result >= 0;
 }
 bool filterRangeCompGe (const void *minv, const void *maxv, const void *minr, const void *maxr, __compar_fn_t cfunc) {
   int32_t result = cfunc(maxv, minr);
-  if (result == TSDB_DATA_JSON_CAN_NOT_COMPARE) return false;
+  //if (result == TSDB_DATA_JSON_CAN_NOT_COMPARE) return false;
   return result > 0;
 }
 bool filterRangeCompLi (const void *minv, const void *maxv, const void *minr, const void *maxr, __compar_fn_t cfunc) {
   int32_t result = cfunc(minv, maxr);
-  if (result == TSDB_DATA_JSON_CAN_NOT_COMPARE) return false;
+  //if (result == TSDB_DATA_JSON_CAN_NOT_COMPARE) return false;
   return result <= 0;
 }
 bool filterRangeCompLe (const void *minv, const void *maxv, const void *minr, const void *maxr, __compar_fn_t cfunc) {
   int32_t result = cfunc(minv, maxr);
-  if (result == TSDB_DATA_JSON_CAN_NOT_COMPARE) return false;
+  //if (result == TSDB_DATA_JSON_CAN_NOT_COMPARE) return false;
   return result < 0;
 }
 bool filterRangeCompii (const void *minv, const void *maxv, const void *minr, const void *maxr, __compar_fn_t cfunc) {
@@ -1299,7 +1298,7 @@ EDealRes fltTreeToGroup(SNode* pNode, void* pContext) {
       SListCell *cell = node->pParameterList->pHead;
       for (int32_t i = 0; i < node->pParameterList->length; ++i) {
         nodesWalkNode(cell->pNode, fltTreeToGroup, (void *)pContext);
-        FLT_ERR_JRET(ctx.code);
+        FLT_ERR_JRET(ctx->code);
       }
       
       return DEAL_RES_IGNORE_CHILD;
@@ -1316,7 +1315,7 @@ EDealRes fltTreeToGroup(SNode* pNode, void* pContext) {
     return DEAL_RES_CONTINUE;
   }
 
-  sclError("invalid node type for filter, type:%d", nodeType(pNode));
+  fltError("invalid node type for filter, type:%d", nodeType(pNode));
 
   code = TSDB_CODE_QRY_INVALID_INPUT;
 
@@ -1427,11 +1426,12 @@ void filterDumpInfoToString(SFilterInfo *info, const char *msg, int32_t options)
       for (uint32_t i = 0; i < info->fields[FLD_TYPE_VALUE].num; ++i) {
         SFilterField *field = &info->fields[FLD_TYPE_VALUE].fields[i];
         if (field->desc) {
-          SVariant *var = field->desc;
-          if (var->nType == TSDB_DATA_TYPE_VALUE_ARRAY) {
+          SValueNode *var = (SValueNode *)field->desc;
+          SDataType *dType = &var->node.resType;
+          if (dType->type == TSDB_DATA_TYPE_VALUE_ARRAY) {
             qDebug("VAL%d => [type:TS][val:[%" PRIi64"] - [%" PRId64 "]]", i, *(int64_t *)field->data, *(((int64_t *)field->data) + 1)); 
           } else {
-            qDebug("VAL%d => [type:%d][val:%" PRIx64"]", i, var->nType, var->i64); //TODO
+            qDebug("VAL%d => [type:%d][val:%" PRIx64"]", i, dType->type, var->datum.i); //TODO
           }
         } else if (field->data) {
           qDebug("VAL%d => [type:NIL][val:NIL]", i); //TODO
@@ -1448,7 +1448,7 @@ void filterDumpInfoToString(SFilterInfo *info, const char *msg, int32_t options)
         
         SFilterField *left = FILTER_UNIT_LEFT_FIELD(info, unit);
         SColumnRefNode *refNode = (SColumnRefNode *)left->desc;
-        if (unit->compare.optr >= TSDB_RELATION_INVALID && unit->compare.optr <= TSDB_RELATION_CONTAINS){
+        if (unit->compare.optr >= TSDB_RELATION_INVALID && unit->compare.optr <= TSDB_RELATION_NMATCH){
           len = sprintf(str, "UNIT[%d] => [%d][%d]  %s  [", i, refNode->tupleId, refNode->slotId, gOptrStr[unit->compare.optr].str);
         }
 
@@ -1467,7 +1467,7 @@ void filterDumpInfoToString(SFilterInfo *info, const char *msg, int32_t options)
 
         if (unit->compare.optr2) {
           strcat(str, " && ");
-          if (unit->compare.optr2 >= TSDB_RELATION_INVALID && unit->compare.optr2 <= TSDB_RELATION_CONTAINS){
+          if (unit->compare.optr2 >= TSDB_RELATION_INVALID && unit->compare.optr2 <= TSDB_RELATION_NMATCH){
             sprintf(str + strlen(str), "[%d][%d]  %s  [", refNode->tupleId, refNode->slotId, gOptrStr[unit->compare.optr2].str);
           }
           
@@ -1785,7 +1785,7 @@ int32_t fltInitValFieldData(SFilterInfo *info) {
     uint32_t type = FILTER_UNIT_DATA_TYPE(unit);
     SFilterField* fi = right;
     
-    SVariant* var = fi->desc;
+    SValueNode* var = (SValueNode *)fi->desc;
 
     if (var == NULL) {
       assert(fi->data != NULL);
@@ -1804,20 +1804,23 @@ int32_t fltInitValFieldData(SFilterInfo *info) {
       continue;
     }
 
+    SDataType *dType = &var->node.resType;
+
     if (type == TSDB_DATA_TYPE_BINARY) {
-      size_t len = (var->nType == TSDB_DATA_TYPE_BINARY || var->nType == TSDB_DATA_TYPE_NCHAR) ? var->nLen : MAX_NUM_STR_SIZE;
+      size_t len = (dType->type == TSDB_DATA_TYPE_BINARY || dType->type == TSDB_DATA_TYPE_NCHAR) ? dType->bytes : MAX_NUM_STR_SIZE;
       fi->data = calloc(1, len + 1 + VARSTR_HEADER_SIZE);
     } else if (type == TSDB_DATA_TYPE_NCHAR) {
-      size_t len = (var->nType == TSDB_DATA_TYPE_BINARY || var->nType == TSDB_DATA_TYPE_NCHAR) ? var->nLen : MAX_NUM_STR_SIZE;    
+      size_t len = (dType->type == TSDB_DATA_TYPE_BINARY || dType->type == TSDB_DATA_TYPE_NCHAR) ? dType->bytes : MAX_NUM_STR_SIZE;    
       fi->data = calloc(1, (len + 1) * TSDB_NCHAR_SIZE + VARSTR_HEADER_SIZE);
     } else if (type != TSDB_DATA_TYPE_JSON){
-      if (var->nType == TSDB_DATA_TYPE_VALUE_ARRAY) {  //TIME RANGE
-        fi->data = calloc(var->nLen, tDataTypes[type].bytes);
-        for (int32_t a = 0; a < var->nLen; ++a) {
+      if (dType->type == TSDB_DATA_TYPE_VALUE_ARRAY) {  //TIME RANGE
+/*      
+        fi->data = calloc(dType->bytes, tDataTypes[type].bytes);
+        for (int32_t a = 0; a < dType->bytes; ++a) {
           int64_t *v = taosArrayGet(var->arr, a);
           assignVal((char *)fi->data + a * tDataTypes[type].bytes, (char *)v, 0, type);
         }
-
+*/
         continue;
       } else {
         fi->data = calloc(1, sizeof(int64_t));
@@ -1829,13 +1832,10 @@ int32_t fltInitValFieldData(SFilterInfo *info) {
     if(type != TSDB_DATA_TYPE_JSON){
       bool converted = false;
       char extInfo = 0;
-      if (tVariantDumpEx(var, (char*)fi->data, type, true, &converted, &extInfo)) {
-        if (converted) {
-          filterHandleValueExtInfo(unit, extInfo);
-
-          continue;
-        }
-        qError("dump value to type[%d] failed", type);
+      SScalarParam in = {.data = nodesGetValueFromNode(var), .num = 1, .type = dType->type, .bytes = dType->bytes};
+      SScalarParam out = {.data = fi->data, .num = 1, .type = type};
+      if (vectorConvertImpl(&in, &out)) {
+        qError("convert value to type[%d] failed", type);
         return TSDB_CODE_TSC_INVALID_OPERATION;
       }
     }
@@ -1851,18 +1851,7 @@ int32_t fltInitValFieldData(SFilterInfo *info) {
       }
       varDataSetLen(newValData, len);
       varDataCopy(fi->data, newValData);
-    }else if(type == TSDB_DATA_TYPE_JSON &&
-        (unit->compare.optr == TSDB_RELATION_MATCH || unit->compare.optr == TSDB_RELATION_NMATCH)){
-      char newValData[TSDB_REGEX_STRING_DEFAULT_LEN * TSDB_NCHAR_SIZE + VARSTR_HEADER_SIZE] = {0};
-      int32_t len = taosUcs4ToMbs(((tVariant*)(fi->desc))->pz, ((tVariant*)(fi->desc))->nLen, newValData);
-      if (len < 0){
-        qError("filterInitValFieldData taosUcs4ToMbs error 2");
-        return TSDB_CODE_FAILED;
-      }
-      memcpy(((tVariant*)(fi->desc))->pz, newValData, len);
-      ((tVariant*)(fi->desc))->nLen = len;
     }
-
   }
 
   return TSDB_CODE_SUCCESS;
@@ -1871,8 +1860,6 @@ int32_t fltInitValFieldData(SFilterInfo *info) {
 
 bool filterDoCompare(__compar_fn_t func, uint8_t optr, void *left, void *right) {
   int32_t ret = func(left, right);
-
-  if(ret == TSDB_DATA_JSON_CAN_NOT_COMPARE) return false;
 
   switch (optr) {
     case TSDB_RELATION_EQUAL: {
@@ -1897,9 +1884,6 @@ bool filterDoCompare(__compar_fn_t func, uint8_t optr, void *left, void *right) 
       return ret == 0;
     }
     case TSDB_RELATION_MATCH: {
-      return ret == 0;
-    }
-    case TSDB_RELATION_CONTAINS: {
       return ret == 0;
     }
     case TSDB_RELATION_NMATCH: {
@@ -1968,25 +1952,25 @@ int32_t filterAddUnitRange(SFilterInfo *info, SFilterUnit* u, SFilterRangeCtx *c
 }
 
 int32_t filterCompareRangeCtx(SFilterRangeCtx *ctx1, SFilterRangeCtx *ctx2, bool *equal) {
-  CHK_JMP(ctx1->status != ctx2->status);
-  CHK_JMP(ctx1->isnull != ctx2->isnull);
-  CHK_JMP(ctx1->notnull != ctx2->notnull);
-  CHK_JMP(ctx1->isrange != ctx2->isrange);
+  FLT_CHK_JMP(ctx1->status != ctx2->status);
+  FLT_CHK_JMP(ctx1->isnull != ctx2->isnull);
+  FLT_CHK_JMP(ctx1->notnull != ctx2->notnull);
+  FLT_CHK_JMP(ctx1->isrange != ctx2->isrange);
 
   SFilterRangeNode *r1 = ctx1->rs;
   SFilterRangeNode *r2 = ctx2->rs;
   
   while (r1 && r2) {
-    CHK_JMP(r1->ra.sflag != r2->ra.sflag);
-    CHK_JMP(r1->ra.eflag != r2->ra.eflag);
-    CHK_JMP(r1->ra.s != r2->ra.s);
-    CHK_JMP(r1->ra.e != r2->ra.e);
+    FLT_CHK_JMP(r1->ra.sflag != r2->ra.sflag);
+    FLT_CHK_JMP(r1->ra.eflag != r2->ra.eflag);
+    FLT_CHK_JMP(r1->ra.s != r2->ra.s);
+    FLT_CHK_JMP(r1->ra.e != r2->ra.e);
     
     r1 = r1->next;
     r2 = r2->next;
   }
 
-  CHK_JMP(r1 != r2);
+  FLT_CHK_JMP(r1 != r2);
 
   *equal = true;
 
@@ -2009,11 +1993,11 @@ int32_t filterMergeUnits(SFilterInfo *info, SFilterGroupCtx* gRes, uint32_t colI
     uint8_t optr = FILTER_UNIT_OPTR(u);
 
     filterAddRangeOptr(ctx, optr, TSDB_RELATION_AND, empty, NULL);
-    CHK_JMP(*empty);
+    FLT_CHK_JMP(*empty);
 
     if (!FILTER_NO_MERGE_OPTR(optr)) {
       filterAddUnitRange(info, u, ctx, TSDB_RELATION_AND);
-      CHK_JMP(MR_EMPTY_RES(ctx));
+      FLT_CHK_JMP(MR_EMPTY_RES(ctx));
     }
     if(FILTER_UNIT_OPTR(u) == TSDB_RELATION_EQUAL && !FILTER_NO_MERGE_DATA_TYPE(FILTER_UNIT_DATA_TYPE(u))){
       gRes->colInfo[colIdx].optr = TSDB_RELATION_EQUAL;
@@ -2214,7 +2198,7 @@ int32_t filterMergeTwoGroups(SFilterInfo *info, SFilterGroupCtx** gRes1, SFilter
       
       filterMergeTwoGroupsImpl(info, &ctx, TSDB_RELATION_OR, idx1, *gRes1, *gRes2, NULL, all);
 
-      CHK_JMP(*all);
+      FLT_CHK_JMP(*all);
 
       if (numEqual) {
         if ((*gRes1)->colNum == 1) {
@@ -2234,7 +2218,7 @@ int32_t filterMergeTwoGroups(SFilterInfo *info, SFilterGroupCtx** gRes1, SFilter
             ++equal2;
           }
 
-          CHK_JMP(equal1 != merNum && equal2 != merNum);
+          FLT_CHK_JMP(equal1 != merNum && equal2 != merNum);
           colCtx.colIdx = idx1;
           colCtx.ctx = ctx;
           ctx = NULL;
@@ -2246,7 +2230,7 @@ int32_t filterMergeTwoGroups(SFilterInfo *info, SFilterGroupCtx** gRes1, SFilter
           ++equal1;
         }
 
-        CHK_JMP(equal1 != merNum);
+        FLT_CHK_JMP(equal1 != merNum);
         colCtx.colIdx = idx1;
         colCtx.ctx = ctx;        
         ctx = NULL;
@@ -2327,7 +2311,7 @@ int32_t filterMergeGroups(SFilterInfo *info, SFilterGroupCtx** gRes, int32_t *gR
           assert(m < n);
           filterMergeTwoGroups(info, &gRes[m], &gRes[n], &all);
 
-          CHK_JMP(all);
+          FLT_CHK_JMP(all);
 
           if (gRes[n] == NULL) {
             if (n < ((*gResNum) - 1)) {
@@ -2348,7 +2332,7 @@ int32_t filterMergeGroups(SFilterInfo *info, SFilterGroupCtx** gRes, int32_t *gR
         assert(m < n);
         filterMergeTwoGroups(info, &gRes[m], &gRes[n], &all);
 
-        CHK_JMP(all);
+        FLT_CHK_JMP(all);
         
         if (gRes[n] == NULL) {
           if (n < ((*gResNum) - 1)) {
@@ -2503,7 +2487,7 @@ int32_t filterGenerateColRange(SFilterInfo *info, SFilterGroupCtx** gRes, int32_
     idxs[colNum++] = i;
   }
 
-  CHK_JMP(colNum <= 0);
+  FLT_CHK_JMP(colNum <= 0);
 
   info->colRangeNum = colNum;
   info->colRange = calloc(colNum, POINTER_BYTES);
@@ -2543,7 +2527,7 @@ int32_t filterGenerateColRange(SFilterInfo *info, SFilterGroupCtx** gRes, int32_
           --info->colRangeNum;
           --m;
 
-          CHK_JMP(info->colRangeNum <= 0);          
+          FLT_CHK_JMP(info->colRangeNum <= 0);          
         }
 
         ++n; 
@@ -2672,7 +2656,7 @@ int32_t filterRmUnitByRange(SFilterInfo *info, SColumnDataAgg *pDataStatis, int3
 
     if (cunit->optr == TSDB_RELATION_ISNULL || cunit->optr == TSDB_RELATION_NOTNULL
      || cunit->optr == TSDB_RELATION_IN || cunit->optr == TSDB_RELATION_LIKE || cunit->optr == TSDB_RELATION_MATCH
-     || cunit->optr == TSDB_RELATION_NOT_EQUAL || cunit->optr == TSDB_RELATION_CONTAINS) {
+     || cunit->optr == TSDB_RELATION_NOT_EQUAL) {
       continue;
     }
 
@@ -2973,7 +2957,7 @@ static FORCE_INLINE bool filterExecuteImplNotNull(void *pinfo, int32_t numOfRows
   return all;
 }
 
-bool filterExecuteImplRange(void *pinfo, int32_t numOfRows, int8_t** p, SDataStatis *statis, int16_t numOfCols) {
+bool filterExecuteImplRange(void *pinfo, int32_t numOfRows, int8_t** p, SColumnDataAgg *statis, int16_t numOfCols) {
   SFilterInfo *info = (SFilterInfo *)pinfo;
   bool all = true;
   uint16_t dataSize = info->cunits[0].dataSize;
@@ -3175,13 +3159,13 @@ int32_t filterPreprocess(SFilterInfo *info) {
   filterMergeGroups(info, gRes, &gResNum);
 
   if (FILTER_GET_FLAG(info->status, FI_STATUS_ALL)) {
-    qInfo("Final - FilterInfo: [ALL]");
+    fltInfo("Final - FilterInfo: [ALL]");
     goto _return;
   }
 
   
   if (FILTER_GET_FLAG(info->status, FI_STATUS_EMPTY)) {
-    qInfo("Final - FilterInfo: [EMPTY]");
+    fltInfo("Final - FilterInfo: [EMPTY]");
     goto _return;
   }  
 
@@ -3210,9 +3194,6 @@ _return:
 
 
 int32_t fltSetColFieldDataImpl(SFilterInfo *info, void *param, filer_get_col_from_id fp, bool fromColId) {
-  CHK_LRET(info == NULL, TSDB_CODE_QRY_APP_ERROR, "info NULL");
-  CHK_LRET(info->fields[FLD_TYPE_COLUMN].num <= 0, TSDB_CODE_QRY_APP_ERROR, "no column fileds");
-
   if (FILTER_ALL_RES(info) || FILTER_EMPTY_RES(info)) {
     return TSDB_CODE_SUCCESS;
   }
@@ -3392,7 +3373,7 @@ int32_t filterGetTimeRange(SFilterInfo *info, STimeWindow       *win) {
       uint8_t raOptr = FILTER_UNIT_OPTR(unit);
       
       filterAddRangeOptr(cur, raOptr, TSDB_RELATION_AND, &empty, NULL);
-      CHK_JMP(empty);
+      FLT_CHK_JMP(empty);
       
       if (FILTER_NO_MERGE_OPTR(raOptr)) {
         continue;
@@ -3431,7 +3412,7 @@ int32_t filterGetTimeRange(SFilterInfo *info, STimeWindow       *win) {
       FLT_ERR_JRET(TSDB_CODE_QRY_INVALID_TIME_CONDITION);
     }
 
-    CHK_JMP(num < 1);
+    FLT_CHK_JMP(num < 1);
 
     SFilterRange tra;
     filterGetRangeRes(prev, &tra);
@@ -3526,7 +3507,7 @@ EDealRes fltReviseRewriter(SNode** pNode, void* pContext) {
     SListCell *cell = node->pParameterList->pHead;
     for (int32_t i = 0; i < node->pParameterList->length; ++i) {
       if (NULL == cell || NULL == cell->pNode) {
-        sclError("invalid cell, cell:%p, pNode:%p", cell, cell->pNode);
+        fltError("invalid cell, cell:%p, pNode:%p", cell, cell->pNode);
         stat->code = TSDB_CODE_QRY_INVALID_INPUT;
         return DEAL_RES_ERROR;
       }
@@ -3562,8 +3543,8 @@ EDealRes fltReviseRewriter(SNode** pNode, void* pContext) {
     }
 
     if (NULL == node->pRight) {
-      if (sclGetOperatorParamNum(node->opType) > 1) {
-        sclError("invalid operator, pRight:%d, type:%d", node->pRight, nodeType(node));
+      if (scalarGetOperatorParamNum(node->opType) > 1) {
+        fltError("invalid operator, pRight:%p, type:%d", node->pRight, nodeType(node));
         stat->code = TSDB_CODE_QRY_APP_ERROR;
         return DEAL_RES_ERROR;
       }
@@ -3614,7 +3595,7 @@ EDealRes fltReviseRewriter(SNode** pNode, void* pContext) {
     return DEAL_RES_CONTINUE;
   }  
   
-  sclError("invalid node type for filter, type:%d", nodeType(*pNode));
+  fltError("invalid node type for filter, type:%d", nodeType(*pNode));
   
   stat->code = TSDB_CODE_QRY_INVALID_INPUT;
   
