@@ -642,7 +642,7 @@ static SQLITE_NOINLINE int walIndexPageRealloc(
     apNew = (volatile u32 **)sqlite3Realloc((void *)pWal->apWiData, nByte);
     if( !apNew ){
       *ppPage = 0;
-      return SQLITE_NOMEM_BKPT;
+      return SQLITE_NOMEM;
     }
     memset((void*)&apNew[pWal->nWiData], 0,
            sizeof(u32*)*(iPage+1-pWal->nWiData));
@@ -654,7 +654,7 @@ static SQLITE_NOINLINE int walIndexPageRealloc(
   assert( pWal->apWiData[iPage]==0 );
   if( pWal->exclusiveMode==WAL_HEAPMEMORY_MODE ){
     pWal->apWiData[iPage] = (u32 volatile *)sqlite3MallocZero(WALINDEX_PGSZ);
-    if( !pWal->apWiData[iPage] ) rc = SQLITE_NOMEM_BKPT;
+    if( !pWal->apWiData[iPage] ) rc = SQLITE_NOMEM;
   }else{
     rc = sqlite3OsShmMap(pWal->pDbFd, iPage, WALINDEX_PGSZ, 
         pWal->writeLock, (void volatile **)&pWal->apWiData[iPage]
@@ -1310,7 +1310,7 @@ static int walIndexRecover(Wal *pWal){
     szFrame = szPage + WAL_FRAME_HDRSIZE;
     aFrame = (u8 *)sqlite3_malloc64(szFrame + WALINDEX_PGSZ);
     if( !aFrame ){
-      rc = SQLITE_NOMEM_BKPT;
+      rc = SQLITE_NOMEM;
       goto recovery_error;
     }
     aData = &aFrame[WAL_FRAME_HDRSIZE];
@@ -1534,7 +1534,7 @@ int sqlite3WalOpen(
   *ppWal = 0;
   pRet = (Wal*)sqlite3MallocZero(sizeof(Wal) + pVfs->szOsFile);
   if( !pRet ){
-    return SQLITE_NOMEM_BKPT;
+    return SQLITE_NOMEM;
   }
 
   pRet->pVfs = pVfs;
@@ -1799,7 +1799,7 @@ static int walIteratorInit(Wal *pWal, u32 nBackfill, WalIterator **pp){
         + iLast*sizeof(ht_slot);
   p = (WalIterator *)sqlite3_malloc64(nByte);
   if( !p ){
-    return SQLITE_NOMEM_BKPT;
+    return SQLITE_NOMEM;
   }
   memset(p, 0, nByte);
   p->nSegment = nSegment;
@@ -1811,7 +1811,7 @@ static int walIteratorInit(Wal *pWal, u32 nBackfill, WalIterator **pp){
       sizeof(ht_slot) * (iLast>HASHTABLE_NPAGE?HASHTABLE_NPAGE:iLast)
   );
   if( !aTmp ){
-    rc = SQLITE_NOMEM_BKPT;
+    rc = SQLITE_NOMEM;
   }
 
   for(i=walFramePage(nBackfill+1); rc==SQLITE_OK && i<nSegment; i++){
@@ -2129,7 +2129,7 @@ static int walCheckpoint(
         i64 iOffset;
         assert( walFramePgno(pWal, iFrame)==iDbpage );
         if( AtomicLoad(&db->u1.isInterrupted) ){
-          rc = db->mallocFailed ? SQLITE_NOMEM_BKPT : SQLITE_INTERRUPT;
+          rc = db->mallocFailed ? SQLITE_NOMEM : SQLITE_INTERRUPT;
           break;
         }
         if( iFrame<=nBackfill || iFrame>mxSafeFrame || iDbpage>mxPage ){
@@ -2606,7 +2606,7 @@ static int walBeginShmUnreliable(Wal *pWal, int *pChanged){
   szFrame = pWal->hdr.szPage + WAL_FRAME_HDRSIZE;
   aFrame = (u8 *)sqlite3_malloc64(szFrame);
   if( aFrame==0 ){
-    rc = SQLITE_NOMEM_BKPT;
+    rc = SQLITE_NOMEM;
     goto begin_unreliable_shm_out;
   }
   aData = &aFrame[WAL_FRAME_HDRSIZE];
@@ -3559,7 +3559,7 @@ static int walRewriteChecksums(Wal *pWal, u32 iLast){
   i64 iCksumOff;
 
   aBuf = sqlite3_malloc(szPage + WAL_FRAME_HDRSIZE);
-  if( aBuf==0 ) return SQLITE_NOMEM_BKPT;
+  if( aBuf==0 ) return SQLITE_NOMEM;
 
   /* Find the checksum values to use as input for the recalculating the
   ** first checksum. If the first frame is frame 1 (implying that the current
@@ -4059,7 +4059,7 @@ int sqlite3WalSnapshotGet(Wal *pWal, sqlite3_snapshot **ppSnapshot){
   }
   pRet = (WalIndexHdr*)sqlite3_malloc(sizeof(WalIndexHdr));
   if( pRet==0 ){
-    rc = SQLITE_NOMEM_BKPT;
+    rc = SQLITE_NOMEM;
   }else{
     memcpy(pRet, &pWal->hdr, sizeof(WalIndexHdr));
     *ppSnapshot = (sqlite3_snapshot*)pRet;

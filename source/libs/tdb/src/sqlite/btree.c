@@ -391,7 +391,7 @@ static int setSharedCacheTableLock(Btree *p, Pgno iTable, u8 eLock){
   if( !pLock ){
     pLock = (BtLock *)sqlite3MallocZero(sizeof(BtLock));
     if( !pLock ){
-      return SQLITE_NOMEM_BKPT;
+      return SQLITE_NOMEM;
     }
     pLock->iTable = iTable;
     pLock->pBtree = p;
@@ -606,7 +606,7 @@ static int btreeSetHasContent(BtShared *pBt, Pgno pgno){
     assert( pgno<=pBt->nPage );
     pBt->pHasContent = sqlite3BitvecCreate(pBt->nPage);
     if( !pBt->pHasContent ){
-      rc = SQLITE_NOMEM_BKPT;
+      rc = SQLITE_NOMEM;
     }
   }
   if( rc==SQLITE_OK && pgno<=sqlite3BitvecSize(pBt->pHasContent) ){
@@ -691,7 +691,7 @@ static int saveCursorKey(BtCursor *pCur){
         sqlite3_free(pKey);
       }
     }else{
-      rc = SQLITE_NOMEM_BKPT;
+      rc = SQLITE_NOMEM;
     }
   }
   assert( !pCur->curIntKey || !pCur->pKey );
@@ -823,7 +823,7 @@ static int btreeMoveto(
     KeyInfo *pKeyInfo = pCur->pKeyInfo;
     assert( nKey==(i64)(int)nKey );
     pIdxKey = sqlite3VdbeAllocUnpackedRecord(pKeyInfo);
-    if( pIdxKey==0 ) return SQLITE_NOMEM_BKPT;
+    if( pIdxKey==0 ) return SQLITE_NOMEM;
     sqlite3VdbeRecordUnpack(pKeyInfo, (int)nKey, pKey, pIdxKey);
     if( pIdxKey->nField==0 || pIdxKey->nField>pKeyInfo->nAllField ){
       rc = SQLITE_CORRUPT_BKPT;
@@ -2404,7 +2404,7 @@ int sqlite3BtreeOpen(
   }
   p = sqlite3MallocZero(sizeof(Btree));
   if( !p ){
-    return SQLITE_NOMEM_BKPT;
+    return SQLITE_NOMEM;
   }
   p->inTrans = TRANS_NONE;
   p->db = db;
@@ -2428,7 +2428,7 @@ int sqlite3BtreeOpen(
       p->sharable = 1;
       if( !zFullPathname ){
         sqlite3_free(p);
-        return SQLITE_NOMEM_BKPT;
+        return SQLITE_NOMEM;
       }
       if( isMemdb ){
         memcpy(zFullPathname, zFilename, nFilename);
@@ -2500,7 +2500,7 @@ int sqlite3BtreeOpen(
   
     pBt = sqlite3MallocZero( sizeof(*pBt) );
     if( pBt==0 ){
-      rc = SQLITE_NOMEM_BKPT;
+      rc = SQLITE_NOMEM;
       goto btree_open_out;
     }
     rc = sqlite3PagerOpen(pVfs, &pBt->pPager, zFilename,
@@ -2571,7 +2571,7 @@ int sqlite3BtreeOpen(
       if( SQLITE_THREADSAFE && sqlite3GlobalConfig.bCoreMutex ){
         pBt->mutex = sqlite3MutexAlloc(SQLITE_MUTEX_FAST);
         if( pBt->mutex==0 ){
-          rc = SQLITE_NOMEM_BKPT;
+          rc = SQLITE_NOMEM;
           goto btree_open_out;
         }
       }
@@ -4459,7 +4459,7 @@ static int btreeCursor(
 
   if( wrFlag ){
     allocateTempSpace(pBt);
-    if( pBt->pTmpSpace==0 ) return SQLITE_NOMEM_BKPT;
+    if( pBt->pTmpSpace==0 ) return SQLITE_NOMEM;
   }
   if( iTable<=1 ){
     if( iTable<1 ){
@@ -4919,7 +4919,7 @@ static int accessPayload(
             pCur->aOverflow, nOvfl*2*sizeof(Pgno)
         );
         if( aNew==0 ){
-          return SQLITE_NOMEM_BKPT;
+          return SQLITE_NOMEM;
         }else{
           pCur->aOverflow = aNew;
         }
@@ -5746,7 +5746,7 @@ int sqlite3BtreeIndexMoveto(
         }
         pCellKey = sqlite3Malloc( nCell+nOverrun );
         if( pCellKey==0 ){
-          rc = SQLITE_NOMEM_BKPT;
+          rc = SQLITE_NOMEM;
           goto moveto_index_finish;
         }
         pCur->ix = (u16)idx;
@@ -7721,7 +7721,7 @@ static int balance_nonroot(
   assert( pParent->nOverflow==0 || pParent->aiOvfl[0]==iParentIdx );
 
   if( !aOvflSpace ){
-    return SQLITE_NOMEM_BKPT;
+    return SQLITE_NOMEM;
   }
   assert( pParent->nFree>=0 );
 
@@ -7827,7 +7827,7 @@ static int balance_nonroot(
   assert( szScratch<=7*(int)pBt->pageSize );
   b.apCell = sqlite3StackAllocRaw(0, szScratch );
   if( b.apCell==0 ){
-    rc = SQLITE_NOMEM_BKPT;
+    rc = SQLITE_NOMEM;
     goto balance_cleanup;
   }
   b.szCell = (u16*)&b.apCell[nMaxCells];

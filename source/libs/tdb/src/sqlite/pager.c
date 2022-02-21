@@ -2499,7 +2499,7 @@ static int pager_delsuper(Pager *pPager, const char *zSuper){
   */
   pSuper = (sqlite3_file *)sqlite3MallocZero(pVfs->szOsFile * 2);
   if( !pSuper ){
-    rc = SQLITE_NOMEM_BKPT;
+    rc = SQLITE_NOMEM;
     pJournal = 0;
   }else{
     const int flags = (SQLITE_OPEN_READONLY|SQLITE_OPEN_SUPER_JOURNAL);
@@ -2518,7 +2518,7 @@ static int pager_delsuper(Pager *pPager, const char *zSuper){
   nSuperPtr = pVfs->mxPathname+1;
   zFree = sqlite3Malloc(4 + nSuperJournal + nSuperPtr + 2);
   if( !zFree ){
-    rc = SQLITE_NOMEM_BKPT;
+    rc = SQLITE_NOMEM;
     goto delsuper_out;
   }
   zFree[0] = zFree[1] = zFree[2] = zFree[3] = 0;
@@ -3358,7 +3358,7 @@ static int pagerPlaybackSavepoint(Pager *pPager, PagerSavepoint *pSavepoint){
   if( pSavepoint ){
     pDone = sqlite3BitvecCreate(pSavepoint->nOrig);
     if( !pDone ){
-      return SQLITE_NOMEM_BKPT;
+      return SQLITE_NOMEM;
     }
   }
 
@@ -3725,7 +3725,7 @@ int sqlite3PagerSetPagesize(Pager *pPager, u32 *pPageSize, int nReserve){
       * cell header parser will never run off the end of the allocation */
       pNew = (char *)sqlite3PageMalloc(pageSize+8);
       if( !pNew ){
-        rc = SQLITE_NOMEM_BKPT;
+        rc = SQLITE_NOMEM;
       }else{
         memset(pNew+pageSize, 0, 8);
       }
@@ -4009,7 +4009,7 @@ static int pagerAcquireMapPage(
     *ppPage = p = (PgHdr *)sqlite3MallocZero(sizeof(PgHdr) + pPager->nExtra);
     if( p==0 ){
       sqlite3OsUnfetch(pPager->fd, (i64)(pgno-1) * pPager->pageSize, pData);
-      return SQLITE_NOMEM_BKPT;
+      return SQLITE_NOMEM;
     }
     p->pExtra = (void *)&p[1];
     p->flags = PGHDR_MMAP;
@@ -4695,7 +4695,7 @@ int sqlite3PagerOpen(
     memDb = 1;
     if( zFilename && zFilename[0] ){
       zPathname = sqlite3DbStrDup(0, zFilename);
-      if( zPathname==0  ) return SQLITE_NOMEM_BKPT;
+      if( zPathname==0  ) return SQLITE_NOMEM;
       nPathname = sqlite3Strlen30(zPathname);
       zFilename = 0;
     }
@@ -4711,7 +4711,7 @@ int sqlite3PagerOpen(
     nPathname = pVfs->mxPathname+1;
     zPathname = sqlite3DbMallocRaw(0, nPathname*2);
     if( zPathname==0 ){
-      return SQLITE_NOMEM_BKPT;
+      return SQLITE_NOMEM;
     }
     zPathname[0] = 0; /* Make sure initialized even if FullPathname() fails */
     rc = sqlite3OsFullPathname(pVfs, zFilename, nPathname, zPathname);
@@ -4810,7 +4810,7 @@ int sqlite3PagerOpen(
   assert( EIGHT_BYTE_ALIGNMENT(SQLITE_INT_TO_PTR(journalFileSize)) );
   if( !pPtr ){
     sqlite3DbFree(0, zPathname);
-    return SQLITE_NOMEM_BKPT;
+    return SQLITE_NOMEM;
   }
   pPager = (Pager*)pPtr;                  pPtr += ROUND8(sizeof(*pPager));
   pPager->pPCache = (PCache*)pPtr;        pPtr += ROUND8(pcacheSize);
@@ -5490,7 +5490,7 @@ static int getPageNormal(
     rc = sqlite3PcacheFetchStress(pPager->pPCache, pgno, &pBase);
     if( rc!=SQLITE_OK ) goto pager_acquire_err;
     if( pBase==0 ){
-      rc = SQLITE_NOMEM_BKPT;
+      rc = SQLITE_NOMEM;
       goto pager_acquire_err;
     }
   }
@@ -5760,7 +5760,7 @@ static int pager_open_journal(Pager *pPager){
   if( !pagerUseWal(pPager) && pPager->journalMode!=PAGER_JOURNALMODE_OFF ){
     pPager->pInJournal = sqlite3BitvecCreate(pPager->dbSize);
     if( pPager->pInJournal==0 ){
-      return SQLITE_NOMEM_BKPT;
+      return SQLITE_NOMEM;
     }
   
     /* Open the journal file if it is not already open. */
@@ -6841,7 +6841,7 @@ static SQLITE_NOINLINE int pagerOpenSavepoint(Pager *pPager, int nSavepoint){
       pPager->aSavepoint, sizeof(PagerSavepoint)*nSavepoint
   );
   if( !aNew ){
-    return SQLITE_NOMEM_BKPT;
+    return SQLITE_NOMEM;
   }
   memset(&aNew[nCurrent], 0, (nSavepoint-nCurrent) * sizeof(PagerSavepoint));
   pPager->aSavepoint = aNew;
@@ -6858,7 +6858,7 @@ static SQLITE_NOINLINE int pagerOpenSavepoint(Pager *pPager, int nSavepoint){
     aNew[ii].pInSavepoint = sqlite3BitvecCreate(pPager->dbSize);
     aNew[ii].bTruncateOnRelease = 1;
     if( !aNew[ii].pInSavepoint ){
-      return SQLITE_NOMEM_BKPT;
+      return SQLITE_NOMEM;
     }
     if( pagerUseWal(pPager) ){
       sqlite3WalSavepoint(pPager->pWal, aNew[ii].aWalData);

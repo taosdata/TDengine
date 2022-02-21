@@ -15,11 +15,14 @@
 
 #include <assert.h>
 #include <pthread.h>
+#include <stddef.h>
 #include <stdint.h>
 #include <string.h>
 
 #ifndef SQLITEINT_H
 #define SQLITEINT_H
+
+#include "sqlite3.h"
 
 typedef int8_t   i8;
 typedef int16_t  i16;
