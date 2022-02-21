@@ -96,6 +96,7 @@ static void uvOnAcceptCb(uv_stream_t* stream, int status);
 static void uvOnConnectionCb(uv_stream_t* q, ssize_t nread, const uv_buf_t* buf);
 static void uvWorkerAsyncCb(uv_async_t* handle);
 static void uvAcceptAsyncCb(uv_async_t* handle);
+static void uvShutDownCb(uv_shutdown_t* req, int status);
 
 static void uvStartSendRespInternal(SSrvMsg* smsg);
 static void uvPrepareSendData(SSrvMsg* msg, uv_buf_t* wb);
@@ -446,6 +447,8 @@ void uvWorkerAsyncCb(uv_async_t* handle) {
       free(msg);
 
       destroyAllConn(pThrd);
+
+      uv_loop_close(pThrd->loop);
       uv_stop(pThrd->loop);
     } else {
       uvStartSendResp(msg);
@@ -461,6 +464,12 @@ static void uvAcceptAsyncCb(uv_async_t* async) {
   SServerObj* srv = async->data;
   uv_close((uv_handle_t*)&srv->server, NULL);
   uv_stop(srv->loop);
+}
+
+static void uvShutDownCb(uv_shutdown_t* req, int status) {
+  tDebug("conn failed to shut down: %s", uv_err_name(status));
+  uv_close((uv_handle_t*)req->handle, uvDestroyConn);
+  free(req);
 }
 
 void uvOnAcceptCb(uv_stream_t* stream, int status) {
@@ -528,8 +537,8 @@ void uvOnConnectionCb(uv_stream_t* q, ssize_t nread, const uv_buf_t* buf) {
   uv_tcp_init(pThrd->loop, pConn->pTcp);
   pConn->pTcp->data = pConn;
 
-  uv_tcp_nodelay(pConn->pTcp, 1);
-  uv_tcp_keepalive(pConn->pTcp, 1, 1);
+  // uv_tcp_nodelay(pConn->pTcp, 1);
+  // uv_tcp_keepalive(pConn->pTcp, 1, 1);
 
   // init write request, just
   pConn->pWriter = calloc(1, sizeof(uv_write_t));
@@ -656,7 +665,11 @@ static void destroyConn(SSrvConn* conn, bool clear) {
   QUEUE_REMOVE(&conn->queue);
 
   if (clear) {
+    tTrace("try to destroy conn %p", conn);
     uv_tcp_close_reset(conn->pTcp, uvDestroyConn);
+    // uv_shutdown_t* req = malloc(sizeof(uv_shutdown_t));
+    // uv_shutdown(req, (uv_stream_t*)conn->pTcp, uvShutDownCb);
+    // uv_unref((uv_handle_t*)conn->pTcp);
     // uv_close((uv_handle_t*)conn->pTcp, uvDestroyConn);
   }
 }
@@ -665,7 +678,7 @@ static void uvDestroyConn(uv_handle_t* handle) {
   tDebug("server conn %p destroy", conn);
   uv_timer_stop(conn->pTimer);
   // free(conn->pTimer);
-  // free(conn->pTcp);
+  free(conn->pTcp);
   free(conn->pWriter);
   free(conn);
 }

@@ -350,7 +350,6 @@ static void clientReadCb(uv_stream_t* handle, ssize_t nread, const uv_buf_t* buf
   if (nread > 0) {
     pBuf->len += nread;
     if (clientReadComplete(pBuf)) {
-      // uv_read_stop((uv_stream_t*)conn->stream);
       tTrace("client conn %p read complete", conn);
       clientHandleResp(conn);
     } else {
