@@ -3687,7 +3687,7 @@ void setDefaultOutputBuf(SQueryRuntimeEnv *pRuntimeEnv, SOptrBasicInfo *pInfo, i
     if (pCtx[i].functionId == TSDB_FUNC_UNIQUE) {
       pCtx[i].pUniqueSet = &pRow->uniqueHash;
     }else if (pCtx[i].functionId == TSDB_FUNC_MODE) {
-      pCtx[i].pUniqueSet = &pRow->modeHash;
+      pCtx[i].pModeSet = &pRow->modeHash;
     }
     pCtx[i].pOutput      = pData->pData;
     pCtx[i].currentStage = stage;
@@ -4026,7 +4026,7 @@ void setResultRowOutputBufInitCtx(SQueryRuntimeEnv *pRuntimeEnv, SResultRow *pRe
     if (pCtx[i].functionId == TSDB_FUNC_UNIQUE){
       pCtx[i].pUniqueSet = &pResult->uniqueHash;
     }else if (pCtx[i].functionId == TSDB_FUNC_MODE){
-      pCtx[i].pUniqueSet = &pResult->modeHash;
+      pCtx[i].pModeSet = &pResult->modeHash;
     }
 
     SResultRowCellInfo* pResInfo = pCtx[i].resultInfo;
@@ -4124,7 +4124,7 @@ void setResultOutputBuf(SQueryRuntimeEnv *pRuntimeEnv, SResultRow *pResult, SQLF
     if (pCtx[i].functionId == TSDB_FUNC_UNIQUE) {
       pCtx[i].pUniqueSet = &pResult->uniqueHash;
     }else if (pCtx[i].functionId == TSDB_FUNC_MODE) {
-      pCtx[i].pUniqueSet = &pResult->modeHash;
+      pCtx[i].pModeSet = &pResult->modeHash;
     }
   }
 }

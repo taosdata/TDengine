@@ -92,6 +92,10 @@ void cleanupResultRowInfo(SResultRowInfo *pResultRowInfo) {
         taosHashCleanup(pResultRowInfo->pResult[i]->uniqueHash);
         pResultRowInfo->pResult[i]->uniqueHash = NULL;
       }
+      if (pResultRowInfo->pResult[i]->modeHash){
+        taosHashCleanup(pResultRowInfo->pResult[i]->modeHash);
+        pResultRowInfo->pResult[i]->modeHash = NULL;
+      }
     }
   }
   
