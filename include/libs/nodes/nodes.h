@@ -132,7 +132,7 @@ bool nodesEqualNode(const SNode* a, const SNode* b);
 SNode* nodesCloneNode(const SNode* pNode);
 SNodeList* nodesCloneList(const SNodeList* pList);
 
-int32_t nodesNodeToString(const SNode* pNode, char** pStr, int32_t* pLen);
+int32_t nodesNodeToString(const SNode* pNode, bool format, char** pStr, int32_t* pLen);
 int32_t nodesStringToNode(const char* pStr, SNode** pNode);
 
 #ifdef __cplusplus

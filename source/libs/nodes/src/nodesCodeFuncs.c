@@ -26,27 +26,47 @@ static char* nodeName(ENodeType type) {
     case QUERY_NODE_COLUMN:
       return "Column";    
     case QUERY_NODE_VALUE:
+      return "Value";
     case QUERY_NODE_OPERATOR:
+      return "Operator";
     case QUERY_NODE_LOGIC_CONDITION:
+      return "LogicCondition";
     case QUERY_NODE_FUNCTION:
+      return "Function";
     case QUERY_NODE_REAL_TABLE:
+      return "RealTable";
     case QUERY_NODE_TEMP_TABLE:
+      return "TempTable";
     case QUERY_NODE_JOIN_TABLE:
+      return "JoinTable";
     case QUERY_NODE_GROUPING_SET:
+      return "GroupingSet";
     case QUERY_NODE_ORDER_BY_EXPR:
+      return "OrderByExpr";
     case QUERY_NODE_LIMIT:
+      return "Limit";
     case QUERY_NODE_STATE_WINDOW:
+      return "StateWindow";
     case QUERY_NODE_SESSION_WINDOW:
+      return "SessionWinow";
     case QUERY_NODE_INTERVAL_WINDOW:
+      return "IntervalWindow";
     case QUERY_NODE_NODE_LIST:
+      return "NodeList";
     case QUERY_NODE_FILL:
+      return "Fill";
     case QUERY_NODE_COLUMN_REF:
+      return "ColumnRef";
     case QUERY_NODE_TARGET:
+      return "Target";
     case QUERY_NODE_RAW_EXPR:
+      return "RawExpr";
     case QUERY_NODE_SET_OPERATOR:
+      return "SetOperator";
     case QUERY_NODE_SELECT_STMT:
+      return "SelectStmt";
     case QUERY_NODE_SHOW_STMT:
-      break;
+      return "ShowStmt";
     case QUERY_NODE_LOGIC_PLAN_SCAN:
       return "LogicScan";
     case QUERY_NODE_LOGIC_PLAN_JOIN:
@@ -119,7 +139,7 @@ static int32_t logicPlanNodeToJson(const void* pObj, SJson* pJson) {
 static const char* jkScanLogicPlanScanCols = "ScanCols";
 static const char* jkScanLogicPlanTableMeta = "TableMeta";
 
-static int32_t logicScanToJson(const void* pObj, SJson* pJson) {
+static int32_t logicScanNodeToJson(const void* pObj, SJson* pJson) {
   const SScanLogicNode* pNode = (const SScanLogicNode*)pObj;
 
   int32_t code = logicPlanNodeToJson(pObj, pJson);
@@ -135,7 +155,7 @@ static int32_t logicScanToJson(const void* pObj, SJson* pJson) {
 
 static const char* jkProjectLogicPlanProjections = "Projections";
 
-static int32_t logicProjectToJson(const void* pObj, SJson* pJson) {
+static int32_t logicProjectNodeToJson(const void* pObj, SJson* pJson) {
   const SProjectLogicNode* pNode = (const SProjectLogicNode*)pObj;
 
   int32_t code = logicPlanNodeToJson(pObj, pJson);
@@ -149,7 +169,7 @@ static int32_t logicProjectToJson(const void* pObj, SJson* pJson) {
 static const char* jkJoinLogicPlanJoinType = "JoinType";
 static const char* jkJoinLogicPlanOnConditions = "OnConditions";
 
-static int32_t logicJoinToJson(const void* pObj, SJson* pJson) {
+static int32_t logicJoinNodeToJson(const void* pObj, SJson* pJson) {
   const SJoinLogicNode* pNode = (const SJoinLogicNode*)pObj;
 
   int32_t code = logicPlanNodeToJson(pObj, pJson);
@@ -163,14 +183,14 @@ static int32_t logicJoinToJson(const void* pObj, SJson* pJson) {
   return code;
 }
 
-static int32_t logicFilterToJson(const void* pObj, SJson* pJson) {
+static int32_t logicFilterNodeToJson(const void* pObj, SJson* pJson) {
   return logicPlanNodeToJson(pObj, pJson);
 }
 
 static const char* jkAggLogicPlanGroupKeys = "GroupKeys";
 static const char* jkAggLogicPlanAggFuncs = "AggFuncs";
 
-static int32_t logicAggToJson(const void* pObj, SJson* pJson) {
+static int32_t logicAggNodeToJson(const void* pObj, SJson* pJson) {
   const SAggLogicNode* pNode = (const SAggLogicNode*)pObj;
 
   int32_t code = logicPlanNodeToJson(pObj, pJson);
@@ -184,17 +204,291 @@ static int32_t logicAggToJson(const void* pObj, SJson* pJson) {
   return code;
 }
 
+static const char* jkDataTypeType = "Type";
+static const char* jkDataTypePrecision = "Precision";
+static const char* jkDataTypeScale = "Scale";
+static const char* jkDataTypeDataBytes = "Bytes";
+
+static int32_t dataTypeToJson(const void* pObj, SJson* pJson) {
+  const SDataType* pNode = (const SDataType*)pObj;
+
+  int32_t code = tjsonAddIntegerToObject(pJson, jkDataTypeType, pNode->type);
+  if (TSDB_CODE_SUCCESS == code) {
+    code = tjsonAddIntegerToObject(pJson, jkDataTypePrecision, pNode->precision);
+  }
+  if (TSDB_CODE_SUCCESS == code) {
+    code = tjsonAddIntegerToObject(pJson, jkDataTypeScale, pNode->scale);
+  }
+  if (TSDB_CODE_SUCCESS == code) {
+    code = tjsonAddIntegerToObject(pJson, jkDataTypeDataBytes, pNode->bytes);
+  }
+
+  return code;
+}
+
+static const char* jkExprDataType = "DataType";
+static const char* jkExprAliasName = "AliasName";
+
+static int32_t exprNodeToJson(const void* pObj, SJson* pJson) {
+  const SExprNode* pNode = (const SExprNode*)pObj;
+
+  int32_t code = tjsonAddObject(pJson, jkExprDataType, dataTypeToJson, &pNode->resType);
+  if (TSDB_CODE_SUCCESS == code) {
+    code = tjsonAddStringToObject(pJson, jkExprAliasName, pNode->aliasName);
+  }
+
+  return code;
+}
+
+static const char* jkColumnTableId = "TableId";
+static const char* jkColumnColId = "ColId";
+static const char* jkColumnColType = "ColType";
+static const char* jkColumnDbName = "DbName";
+static const char* jkColumnTableName = "TableName";
+static const char* jkColumnTableAlias = "TableAlias";
+static const char* jkColumnColName = "ColName";
+
+static int32_t columnNodeToJson(const void* pObj, SJson* pJson) {
+  const SColumnNode* pNode = (const SColumnNode*)pObj;
+
+  int32_t code = exprNodeToJson(pObj, pJson);
+  if (TSDB_CODE_SUCCESS == code) {
+    code = tjsonAddIntegerToObject(pJson, jkColumnTableId, pNode->tableId);
+  }
+  if (TSDB_CODE_SUCCESS == code) {
+    code = tjsonAddIntegerToObject(pJson, jkColumnColId, pNode->colId);
+  }
+  if (TSDB_CODE_SUCCESS == code) {
+    code = tjsonAddIntegerToObject(pJson, jkColumnColType, pNode->colType);
+  }
+  if (TSDB_CODE_SUCCESS == code) {
+    code = tjsonAddStringToObject(pJson, jkColumnDbName, pNode->dbName);
+  }
+  if (TSDB_CODE_SUCCESS == code) {
+    code = tjsonAddStringToObject(pJson, jkColumnTableName, pNode->tableName);
+  }
+  if (TSDB_CODE_SUCCESS == code) {
+    code = tjsonAddStringToObject(pJson, jkColumnTableAlias, pNode->tableAlias);
+  }
+  if (TSDB_CODE_SUCCESS == code) {
+    code = tjsonAddStringToObject(pJson, jkColumnColName, pNode->colName);
+  }
+
+  return code;
+}
+
+// typedef struct SValueNode {
+//   SExprNode node; // QUERY_NODE_VALUE
+//   char* ;
+//   bool ;
+//   union {
+//     bool b;
+//     int64_t i;
+//     uint64_t u;
+//     double d;
+//     char* p;
+//   } datum;
+// } SValueNode;
+
+static const char* jkValueLiteral = "Literal";
+static const char* jkValueDuration = "Duration";
+static const char* jkValueDatum = "Datum";
+
+static int32_t valueNodeToJson(const void* pObj, SJson* pJson) {
+  const SValueNode* pNode = (const SValueNode*)pObj;
+
+  int32_t code = exprNodeToJson(pObj, pJson);
+  if (TSDB_CODE_SUCCESS == code) {
+    code = tjsonAddStringToObject(pJson, jkValueLiteral, pNode->literal);
+  }
+  if (TSDB_CODE_SUCCESS == code) {
+    code = tjsonAddIntegerToObject(pJson, jkValueDuration, pNode->isDuration);
+  }
+  switch (pNode->node.resType.type) {
+    case TSDB_DATA_TYPE_NULL:
+      break;
+    case TSDB_DATA_TYPE_BOOL:
+      code = tjsonAddIntegerToObject(pJson, jkValueDuration, pNode->datum.b);
+      break;
+    case TSDB_DATA_TYPE_TINYINT:
+    case TSDB_DATA_TYPE_SMALLINT:
+    case TSDB_DATA_TYPE_INT:
+    case TSDB_DATA_TYPE_BIGINT:
+    case TSDB_DATA_TYPE_TIMESTAMP:
+      code = tjsonAddIntegerToObject(pJson, jkValueDuration, pNode->datum.i);
+      break;
+    case TSDB_DATA_TYPE_UTINYINT:
+    case TSDB_DATA_TYPE_USMALLINT:
+    case TSDB_DATA_TYPE_UINT:
+    case TSDB_DATA_TYPE_UBIGINT:
+      code = tjsonAddIntegerToObject(pJson, jkValueDuration, pNode->datum.u);
+      break;
+    case TSDB_DATA_TYPE_FLOAT:
+    case TSDB_DATA_TYPE_DOUBLE:
+      code = tjsonAddDoubleToObject(pJson, jkValueDuration, pNode->datum.d);
+      break;
+    case TSDB_DATA_TYPE_BINARY:
+    case TSDB_DATA_TYPE_NCHAR:
+    case TSDB_DATA_TYPE_VARCHAR:
+    case TSDB_DATA_TYPE_VARBINARY:
+      code = tjsonAddStringToObject(pJson, jkValueLiteral, pNode->datum.p);
+      break;
+    case TSDB_DATA_TYPE_JSON:
+    case TSDB_DATA_TYPE_DECIMAL:
+    case TSDB_DATA_TYPE_BLOB:
+      // todo
+    default:
+      break;
+  }
+
+  return code;
+}
+
+static const char* jkOperatorType = "OpType";
+static const char* jkOperatorLeft = "Left";
+static const char* jkOperatorRight = "Right";
+
+static int32_t operatorNodeToJson(const void* pObj, SJson* pJson) {
+  const SOperatorNode* pNode = (const SOperatorNode*)pObj;
+
+  int32_t code = exprNodeToJson(pObj, pJson);
+  if (TSDB_CODE_SUCCESS == code) {
+    code = tjsonAddIntegerToObject(pJson, jkOperatorType, pNode->opType);
+  }
+  if (TSDB_CODE_SUCCESS == code) {
+    code = tjsonAddObject(pJson, jkOperatorLeft, nodeToJson, pNode->pLeft);
+  }
+  if (TSDB_CODE_SUCCESS == code) {
+    code = tjsonAddObject(pJson, jkOperatorRight, nodeToJson, pNode->pRight);
+  }
+
+  return code;
+}
+
+static const char* jkLogicCondType = "CondType";
+static const char* jkLogicCondParameters = "Parameters";
+
+static int32_t logicConditionNodeToJson(const void* pObj, SJson* pJson) {
+  const SLogicConditionNode* pNode = (const SLogicConditionNode*)pObj;
+
+  int32_t code = exprNodeToJson(pObj, pJson);
+  if (TSDB_CODE_SUCCESS == code) {
+    code = tjsonAddIntegerToObject(pJson, jkLogicCondType, pNode->condType);
+  }
+  if (TSDB_CODE_SUCCESS == code) {
+    code = addNodeList(pJson, jkLogicCondParameters, nodeToJson, pNode->pParameterList);
+  }
+
+  return code;
+}
+
+static const char* jkFunctionName = "Name";
+static const char* jkFunctionId = "Id";
+static const char* jkFunctionType = "Type";
+static const char* jkFunctionParameter = "Parameters";
+
+static int32_t functionNodeToJson(const void* pObj, SJson* pJson) {
+  const SFunctionNode* pNode = (const SFunctionNode*)pObj;
+
+  int32_t code = exprNodeToJson(pObj, pJson);
+  if (TSDB_CODE_SUCCESS == code) {
+    code = tjsonAddStringToObject(pJson, jkFunctionName, pNode->functionName);
+  }
+  if (TSDB_CODE_SUCCESS == code) {
+    code = tjsonAddIntegerToObject(pJson, jkFunctionId, pNode->funcId);
+  }
+  if (TSDB_CODE_SUCCESS == code) {
+    code = tjsonAddIntegerToObject(pJson, jkFunctionType, pNode->funcType);
+  }
+  if (TSDB_CODE_SUCCESS == code) {
+    code = addNodeList(pJson, jkFunctionParameter, nodeToJson, pNode->pParameterList);
+  }
+
+  return code;
+}
+
+static const char* jkGroupingSetType = "GroupingSetType";
+static const char* jkGroupingSetParameter = "Parameters";
+
+static int32_t groupingSetNodeToJson(const void* pObj, SJson* pJson) {
+  const SGroupingSetNode* pNode = (const SGroupingSetNode*)pObj;
+
+  int32_t code = tjsonAddIntegerToObject(pJson, jkGroupingSetType, pNode->groupingSetType);
+  if (TSDB_CODE_SUCCESS == code) {
+    code = addNodeList(pJson, jkGroupingSetParameter, nodeToJson, pNode->pParameterList);
+  }
+
+  return code;
+}
+
+static const char* jkSelectStmtDistinct = "Distinct";
+static const char* jkSelectStmtProjections = "Projections";
+static const char* jkSelectStmtFrom = "From";
+static const char* jkSelectStmtWhere = "Where";
+static const char* jkSelectStmtPartitionBy = "PartitionBy";
+static const char* jkSelectStmtWindow = "Window";
+static const char* jkSelectStmtGroupBy = "GroupBy";
+static const char* jkSelectStmtHaving = "Having";
+static const char* jkSelectStmtOrderBy = "OrderBy";
+static const char* jkSelectStmtLimit = "Limit";
+static const char* jkSelectStmtSlimit = "Slimit";
+
+static int32_t selectStmtTojson(const void* pObj, SJson* pJson) {
+  const SSelectStmt* pNode = (const SSelectStmt*)pObj;
+
+  int32_t code = tjsonAddIntegerToObject(pJson, jkSelectStmtDistinct, pNode->isDistinct);
+  if (TSDB_CODE_SUCCESS == code) {
+    code = addNodeList(pJson, jkSelectStmtProjections, nodeToJson, pNode->pProjectionList);
+  }
+  if (TSDB_CODE_SUCCESS == code) {
+    code = tjsonAddObject(pJson, jkSelectStmtFrom, nodeToJson, pNode->pFromTable);
+  }
+  if (TSDB_CODE_SUCCESS == code) {
+    code = tjsonAddObject(pJson, jkSelectStmtWhere, nodeToJson, pNode->pWhere);
+  }
+  if (TSDB_CODE_SUCCESS == code) {
+    code = addNodeList(pJson, jkSelectStmtPartitionBy, nodeToJson, pNode->pPartitionByList);
+  }
+  if (TSDB_CODE_SUCCESS == code) {
+    code = tjsonAddObject(pJson, jkSelectStmtWindow, nodeToJson, pNode->pWindow);
+  }
+  if (TSDB_CODE_SUCCESS == code) {
+    code = addNodeList(pJson, jkSelectStmtGroupBy, nodeToJson, pNode->pGroupByList);
+  }
+  if (TSDB_CODE_SUCCESS == code) {
+    code = tjsonAddObject(pJson, jkSelectStmtHaving, nodeToJson, pNode->pHaving);
+  }
+  if (TSDB_CODE_SUCCESS == code) {
+    code = addNodeList(pJson, jkSelectStmtOrderBy, nodeToJson, pNode->pOrderByList);
+  }
+  if (TSDB_CODE_SUCCESS == code) {
+    code = tjsonAddObject(pJson, jkSelectStmtLimit, nodeToJson, pNode->pLimit);
+  }
+  if (TSDB_CODE_SUCCESS == code) {
+    code = tjsonAddObject(pJson, jkSelectStmtSlimit, nodeToJson, pNode->pSlimit);
+  }
+
+  return code;
+}
+
 static int32_t specificNodeToJson(const void* pObj, SJson* pJson) {
   switch (nodeType(pObj)) {
     case QUERY_NODE_COLUMN:
+      return columnNodeToJson(pObj, pJson);
     case QUERY_NODE_VALUE:
+      return valueNodeToJson(pObj, pJson);
     case QUERY_NODE_OPERATOR:
+      return operatorNodeToJson(pObj, pJson);
     case QUERY_NODE_LOGIC_CONDITION:
+      return logicConditionNodeToJson(pObj, pJson);
     case QUERY_NODE_FUNCTION:
+      return functionNodeToJson(pObj, pJson);
     case QUERY_NODE_REAL_TABLE:
     case QUERY_NODE_TEMP_TABLE:
     case QUERY_NODE_JOIN_TABLE:
+      break;
     case QUERY_NODE_GROUPING_SET:
+      return groupingSetNodeToJson(pObj, pJson);
     case QUERY_NODE_ORDER_BY_EXPR:
     case QUERY_NODE_LIMIT:
     case QUERY_NODE_STATE_WINDOW:
@@ -206,19 +500,21 @@ static int32_t specificNodeToJson(const void* pObj, SJson* pJson) {
     case QUERY_NODE_TARGET:
     case QUERY_NODE_RAW_EXPR:
     case QUERY_NODE_SET_OPERATOR:
+      break;
     case QUERY_NODE_SELECT_STMT:
+      return selectStmtTojson(pObj, pJson);
     case QUERY_NODE_SHOW_STMT:
       break;
     case QUERY_NODE_LOGIC_PLAN_SCAN:
-      return logicScanToJson(pObj, pJson);
+      return logicScanNodeToJson(pObj, pJson);
     case QUERY_NODE_LOGIC_PLAN_JOIN:
-      return logicJoinToJson(pObj, pJson);
+      return logicJoinNodeToJson(pObj, pJson);
     case QUERY_NODE_LOGIC_PLAN_FILTER:
-      return logicFilterToJson(pObj, pJson);
+      return logicFilterNodeToJson(pObj, pJson);
     case QUERY_NODE_LOGIC_PLAN_AGG:
-      return logicAggToJson(pObj, pJson);
+      return logicAggNodeToJson(pObj, pJson);
     case QUERY_NODE_LOGIC_PLAN_PROJECT:
-      return logicProjectToJson(pObj, pJson);
+      return logicProjectNodeToJson(pObj, pJson);
     default:
       break;
   }
@@ -238,7 +534,7 @@ static int32_t nodeToJson(const void* pObj, SJson* pJson) {
   return code;
 }
 
-int32_t nodesNodeToString(const SNode* pNode, char** pStr, int32_t* pLen) {
+int32_t nodesNodeToString(const SNode* pNode, bool format, char** pStr, int32_t* pLen) {
   if (NULL == pNode || NULL == pStr || NULL == pLen) {
     return TSDB_CODE_SUCCESS;
   }
@@ -255,7 +551,7 @@ int32_t nodesNodeToString(const SNode* pNode, char** pStr, int32_t* pLen) {
     return code;
   }
 
-  *pStr = tjsonToString(pJson);
+  *pStr = format ? tjsonToString(pJson) : tjsonToUnformattedString(pJson);
   tjsonDelete(pJson);
 
   *pLen = strlen(*pStr) + 1;
