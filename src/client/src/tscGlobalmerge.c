@@ -615,11 +615,9 @@ static void doMergeResultImpl(SOperatorInfo* pInfo, SQLFunctionCtx *pCtx, int32_
       aAggs[functionId].mergeFunc(&pCtx[j]);
     }
 
-    if (functionId == TSDB_FUNC_UNIQUE &&
-        (GET_RES_INFO(&(pCtx[j]))->numOfRes > MAX_UNIQUE_RESULT_ROWS || GET_RES_INFO(&(pCtx[j]))->numOfRes == -1)){
-      tscError("Unique result num is too large. num: %d, limit: %d",
-             GET_RES_INFO(&(pCtx[j]))->numOfRes, MAX_UNIQUE_RESULT_ROWS);
-      longjmp(pInfo->pRuntimeEnv->env, TSDB_CODE_QRY_UNIQUE_RESULT_TOO_LARGE);
+    if (GET_RES_INFO(&(pCtx[j]))->numOfRes == -1){
+      tscError("result num is too large.");
+      longjmp(pInfo->pRuntimeEnv->env, TSDB_CODE_QRY_RESULT_TOO_LARGE);
     }
   }
 }
