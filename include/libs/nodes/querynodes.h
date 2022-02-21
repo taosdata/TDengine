@@ -306,6 +306,7 @@ bool nodesIsJsonOp(const SOperatorNode* pOp);
 
 bool nodesIsTimeorderQuery(const SNode* pQuery);
 bool nodesIsTimelineQuery(const SNode* pQuery);
+void *nodesGetValueFromNode(SValueNode *pNode);
 
 #ifdef __cplusplus
 }

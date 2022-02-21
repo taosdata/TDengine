@@ -12,29 +12,34 @@
  * You should have received a copy of the GNU Affero General Public License
  * along with this program. If not, see <http://www.gnu.org/licenses/>.
  */
-
-#ifndef _TD_TCOMPARE_H_
-#define _TD_TCOMPARE_H_
-
-#include "compare.h"
-#include "ttypes.h"
+#ifndef TDENGINE_TSCALARFUNCTION_H
+#define TDENGINE_TSCALARFUNCTION_H
 
 #ifdef __cplusplus
 extern "C" {
 #endif
 
-int32_t compareStrPatternMatch(const void* pLeft, const void* pRight);
-int32_t compareStrPatternNotMatch(const void* pLeft, const void* pRight);
+#include "function.h"
+#include "scalar.h"
 
-int32_t compareWStrPatternMatch(const void* pLeft, const void* pRight);
-int32_t compareWStrPatternNotMatch(const void* pLeft, const void* pRight);
+typedef struct SScalarFunctionSupport {
+  struct SExprInfo   *pExprInfo;
+  int32_t      numOfCols;
+  SColumnInfo *colList;
+  void        *exprList;   // client side used
+  int32_t      offset;
+  char**       data;
+} SScalarFunctionSupport;
 
-__compar_fn_t getComparFunc(int32_t type, int32_t optr);
-__compar_fn_t getKeyComparFunc(int32_t keyType, int32_t order);
-int32_t       doCompare(const char* a, const char* b, int32_t type, size_t size);
+extern struct SScalarFunctionInfo scalarFunc[8];
+
+int32_t evaluateExprNodeTree(tExprNode* pExprs, int32_t numOfRows, SScalarParam* pOutput,
+                          void* param, char* (*getSourceDataBlock)(void*, const char*, int32_t));
+
+
 
 #ifdef __cplusplus
 }
 #endif
 
-#endif /*_TD_TCOMPARE_H_*/
+#endif  // TDENGINE_TSCALARFUNCTION_H

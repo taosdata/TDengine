@@ -21,6 +21,7 @@ extern "C" {
 #endif
 
 #include "querynodes.h"
+#include "function.h"
 
 typedef enum EFunctionType {
   // aggregate function
@@ -117,6 +118,13 @@ typedef struct SFuncExecFuncs {
   FExecFinalize finalize;
 } SFuncExecFuncs;
 
+typedef int32_t (*FScalarExecProcess)(SScalarParam *pInput, int32_t inputNum, SScalarParam *pOutput);
+
+typedef struct SScalarFuncExecFuncs {
+  FScalarExecProcess process;
+} SScalarFuncExecFuncs;
+
+
 int32_t fmFuncMgtInit();
 
 int32_t fmGetFuncInfo(const char* pFuncName, int32_t* pFuncId, int32_t* pFuncType);
@@ -134,6 +142,7 @@ bool fmIsTimeorderFunc(int32_t funcId);
 int32_t fmFuncScanType(int32_t funcId);
 
 int32_t fmGetFuncExecFuncs(int32_t funcId, SFuncExecFuncs* pFpSet);
+int32_t fmGetScalarFuncExecFuncs(int32_t funcId, SScalarFuncExecFuncs* pFpSet);
 
 #ifdef __cplusplus
 }

@@ -17,6 +17,7 @@
 #include "plannodes.h"
 #include "taos.h"
 #include "taoserror.h"
+#include "taos.h"
 #include "thash.h"
 
 static SNode* makeNode(ENodeType type, size_t size) {
@@ -170,6 +171,36 @@ void nodesDestroyList(SNodeList* pList) {
     nodesDestroyNode(node);
   }
   tfree(pList);
+}
+
+void *nodesGetValueFromNode(SValueNode *pNode) {
+  switch (pNode->node.resType.type) {
+    case TSDB_DATA_TYPE_BOOL:
+      return (void *)&pNode->datum.b;
+    case TSDB_DATA_TYPE_TINYINT:
+    case TSDB_DATA_TYPE_SMALLINT:
+    case TSDB_DATA_TYPE_INT:
+    case TSDB_DATA_TYPE_BIGINT:
+    case TSDB_DATA_TYPE_TIMESTAMP:
+      return (void *)&pNode->datum.i;
+    case TSDB_DATA_TYPE_UTINYINT:
+    case TSDB_DATA_TYPE_USMALLINT:
+    case TSDB_DATA_TYPE_UINT:
+    case TSDB_DATA_TYPE_UBIGINT:
+      return (void *)&pNode->datum.u;
+    case TSDB_DATA_TYPE_FLOAT:
+    case TSDB_DATA_TYPE_DOUBLE: 
+      return (void *)&pNode->datum.d;
+    case TSDB_DATA_TYPE_BINARY:
+    case TSDB_DATA_TYPE_NCHAR:
+    case TSDB_DATA_TYPE_VARCHAR:
+    case TSDB_DATA_TYPE_VARBINARY: 
+      return (void *)pNode->datum.p;
+    default:
+      break;
+  }
+
+  return NULL;
 }
 
 bool nodesIsExprNode(const SNode* pNode) {

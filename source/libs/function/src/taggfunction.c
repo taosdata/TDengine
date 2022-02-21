@@ -13,7 +13,6 @@
  * along with this program. If not, see <http://www.gnu.org/licenses/>.
  */
 
-#include "tscalarfunction.h"
 #include "os.h"
 #include "taosdef.h"
 #include "tmsg.h"
@@ -3221,6 +3220,7 @@ static void diff_function(SqlFunctionCtx *pCtx) {
   }
 }
 
+#if 0
 char *getArithColumnData(void *param, const char* name, int32_t colId) {
   SScalarFunctionSupport *pSupport = (SScalarFunctionSupport *)param;
   
@@ -3235,15 +3235,16 @@ char *getArithColumnData(void *param, const char* name, int32_t colId) {
   assert(index >= 0);
   return pSupport->data[index] + pSupport->offset * pSupport->colList[index].bytes;
 }
+#endif
 
 static void arithmetic_function(SqlFunctionCtx *pCtx) {
   GET_RES_INFO(pCtx)->numOfRes += pCtx->size;
-  SScalarFunctionSupport *pSup = (SScalarFunctionSupport *)pCtx->param[1].pz;
+  //SScalarFunctionSupport *pSup = (SScalarFunctionSupport *)pCtx->param[1].pz;
 
-  SScalarFuncParam output = {0};
+  SScalarParam output = {0};
   output.data = pCtx->pOutput;
 
-  evaluateExprNodeTree(pSup->pExprInfo->pExpr, pCtx->size, &output, pSup, getArithColumnData);
+  //evaluateExprNodeTree(pSup->pExprInfo->pExpr, pCtx->size, &output, pSup, getArithColumnData);
 }
 
 #define LIST_MINMAX_N(ctx, minOutput, maxOutput, elemCnt, data, type, tsdbType, numOfNotNullElem) \

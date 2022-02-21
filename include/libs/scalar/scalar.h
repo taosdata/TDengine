@@ -12,40 +12,30 @@
  * You should have received a copy of the GNU Affero General Public License
  * along with this program. If not, see <http://www.gnu.org/licenses/>.
  */
-#ifndef TDENGINE_TSCALARFUNCTION_H
-#define TDENGINE_TSCALARFUNCTION_H
+#ifndef TDENGINE_SCALAR_H
+#define TDENGINE_SCALAR_H
 
 #ifdef __cplusplus
 extern "C" {
 #endif
 
 #include "function.h"
+#include "nodes.h"
+#include "querynodes.h"
 
-typedef struct SScalarFuncParam {
-  void*   data;
-  int32_t num;
-  int32_t type;
-  int32_t bytes;
-} SScalarFuncParam;
+typedef struct SFilterInfo SFilterInfo;
 
-typedef struct SScalarFunctionSupport {
-  struct SExprInfo   *pExprInfo;
-  int32_t      numOfCols;
-  SColumnInfo *colList;
-  void        *exprList;   // client side used
-  int32_t      offset;
-  char**       data;
-} SScalarFunctionSupport;
 
-extern struct SScalarFunctionInfo scalarFunc[8];
+int32_t scalarCalculateConstants(SNode *pNode, SNode **pRes);
+int32_t scalarCalculate(SNode *pNode, SSDataBlock *pSrc, SScalarParam *pDst);
+int32_t scalarGetOperatorParamNum(EOperatorType type);
 
-int32_t evaluateExprNodeTree(tExprNode* pExprs, int32_t numOfRows, SScalarFuncParam* pOutput,
-                          void* param, char* (*getSourceDataBlock)(void*, const char*, int32_t));
-
+int32_t vectorGetConvertType(int32_t type1, int32_t type2);
+int32_t vectorConvertImpl(SScalarParam* pIn, SScalarParam* pOut);
 
 
 #ifdef __cplusplus
 }
 #endif
 
-#endif  // TDENGINE_TSCALARFUNCTION_H
+#endif  // TDENGINE_SCALAR_H
