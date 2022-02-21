@@ -13,29 +13,29 @@ settings:
             logDir: /data/wz/test_root/run/dnode1/log
             debugFlag: 135
         - endpoint: localhost:6130
-            config_dir: /data/wz/test_root/run/dnode2/config
-            config: # will write into taos.cfg
-              dataDir: /data/wz/test_root/run/dnode2/data
-              logDir: /data/wz/test_root/run/dnode2/log
-              debugFlag: 135
+          config_dir: /data/wz/test_root/run/dnode2/config
+          config: # will write into taos.cfg
+            dataDir: /data/wz/test_root/run/dnode2/data
+            logDir: /data/wz/test_root/run/dnode2/log
+            debugFlag: 135
         - endpoint: localhost:6230
-            config_dir: /data/wz/test_root/run/dnode3/config
-            config: # will write into taos.cfg
-              dataDir: /data/wz/test_root/run/dnode3/data
-              logDir: /data/wz/test_root/run/dnode3/log
-              debugFlag: 135
+          config_dir: /data/wz/test_root/run/dnode3/config
+          config: # will write into taos.cfg
+            dataDir: /data/wz/test_root/run/dnode3/data
+            logDir: /data/wz/test_root/run/dnode3/log
+            debugFlag: 135
         - endpoint: localhost:6330
-            config_dir: /data/wz/test_root/run/dnode4/config
-            config: # will write into taos.cfg
-              dataDir: /data/wz/test_root/run/dnode4/data
-              logDir: /data/wz/test_root/run/dnode4/log
-              debugFlag: 135
+          config_dir: /data/wz/test_root/run/dnode4/config
+          config: # will write into taos.cfg
+            dataDir: /data/wz/test_root/run/dnode4/data
+            logDir: /data/wz/test_root/run/dnode4/log
+            debugFlag: 135
         - endpoint: localhost:6430
-            config_dir: /data/wz/test_root/run/dnode5/config
-            config: # will write into taos.cfg
-              dataDir: /data/wz/test_root/run/dnode5/data
-              logDir: /data/wz/test_root/run/dnode5/log
-              debugFlag: 135
+          config_dir: /data/wz/test_root/run/dnode5/config
+          config: # will write into taos.cfg
+            dataDir: /data/wz/test_root/run/dnode5/data
+            logDir: /data/wz/test_root/run/dnode5/log
+            debugFlag: 135
 
   - name: taospy
     fqdn: [localhost]
