@@ -7,6 +7,8 @@ import org.java_websocket.handshake.ServerHandshake;
 
 import java.net.URI;
 import java.nio.ByteBuffer;
+import java.nio.ByteOrder;
+import java.nio.charset.StandardCharsets;
 import java.util.Map;
 import java.util.concurrent.*;
 
@@ -20,6 +22,7 @@ public class WSClient extends WebSocketClient implements AutoCloseable {
     ThreadPoolExecutor executor;
 
     private boolean auth;
+    private int reqId;
 
     public boolean isAuth() {
         return auth;
@@ -54,8 +57,8 @@ public class WSClient extends WebSocketClient implements AutoCloseable {
     @Override
     public void onOpen(ServerHandshake serverHandshake) {
         // certification
-        Request request = Request.generateConnect(user, password, database);
-        this.send(request.toString());
+        ConnectReq connectReq = new ConnectReq(++reqId, user, password, database);
+        this.send(new Request(Action.CONN.getAction(), connectReq).toString());
     }
 
     @Override
@@ -64,14 +67,15 @@ public class WSClient extends WebSocketClient implements AutoCloseable {
             executor.submit(() -> {
                 JSONObject jsonObject = JSONObject.parseObject(message);
                 if (Action.CONN.getAction().equals(jsonObject.getString("action"))) {
-                    latch.countDown();
                     if (Code.SUCCESS.getCode() != jsonObject.getInteger("code")) {
-                        auth = false;
                         this.close();
+                    } else {
+                        auth = true;
                     }
+                    latch.countDown();
                 } else {
                     Response response = parseMessage(jsonObject);
-                    ResponseFuture remove = inFlightRequest.remove(response.id());
+                    ResponseFuture remove = inFlightRequest.remove(response.getAction(), response.getReqId());
                     if (null != remove) {
                         remove.getFuture().complete(response);
                     }
@@ -87,7 +91,14 @@ public class WSClient extends WebSocketClient implements AutoCloseable {
 
     @Override
     public void onMessage(ByteBuffer bytes) {
-        super.onMessage(bytes);
+        bytes.order(ByteOrder.LITTLE_ENDIAN);
+        long id = bytes.getLong();
+        ResponseFuture remove = inFlightRequest.remove(Action.FETCH_BLOCK.getAction(), id);
+        if (null != remove) {
+//            FetchBlockResp fetchBlockResp = new FetchBlockResp(id, bytes.slice());
+            FetchBlockResp fetchBlockResp = new FetchBlockResp(id, bytes);
+            remove.getFuture().complete(fetchBlockResp);
+        }
     }
 
     @Override
@@ -97,7 +108,6 @@ public class WSClient extends WebSocketClient implements AutoCloseable {
         } else {
             throw new RuntimeException("close connection: " + reason);
         }
-
     }
 
     @Override
@@ -109,6 +119,42 @@ public class WSClient extends WebSocketClient implements AutoCloseable {
     public void close() {
         super.close();
         executor.shutdown();
-        inFlightRequest.close();
+    }
+
+    static class ConnectReq extends Payload {
+        private String user;
+        private String password;
+        private String db;
+
+        public ConnectReq(long reqId, String user, String password, String db) {
+            super(reqId);
+            this.user = user;
+            this.password = password;
+            this.db = db;
+        }
+
+        public String getUser() {
+            return user;
+        }
+
+        public void setUser(String user) {
+            this.user = user;
+        }
+
+        public String getPassword() {
+            return password;
+        }
+
+        public void setPassword(String password) {
+            this.password = password;
+        }
+
+        public String getDb() {
+            return db;
+        }
+
+        public void setDb(String db) {
+            this.db = db;
+        }
     }
 }

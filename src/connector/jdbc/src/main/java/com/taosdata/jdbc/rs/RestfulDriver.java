@@ -3,6 +3,7 @@ package com.taosdata.jdbc.rs;
 import com.alibaba.fastjson.JSON;
 import com.alibaba.fastjson.JSONObject;
 import com.taosdata.jdbc.*;
+import com.taosdata.jdbc.enums.TimestampFormat;
 import com.taosdata.jdbc.utils.HttpClientPoolUtil;
 import com.taosdata.jdbc.ws.InFlightRequest;
 import com.taosdata.jdbc.ws.Transport;
@@ -77,18 +78,20 @@ public class RestfulDriver extends AbstractDriver {
                 int maxRequest = props.containsKey(TSDBDriver.PROPERTY_KEY_MAX_CONCURRENT_REQUEST)
                         ? Integer.parseInt(props.getProperty(TSDBDriver.PROPERTY_KEY_MAX_CONCURRENT_REQUEST))
                         : Transport.DEFAULT_MAX_REQUEST;
+
                 InFlightRequest inFlightRequest = new InFlightRequest(timeout, maxRequest);
                 CountDownLatch latch = new CountDownLatch(1);
                 Map<String, String> httpHeaders = new HashMap<>();
-                client = new WSClient(new URI(loginUrl), user, password, database, inFlightRequest, httpHeaders, latch, maxRequest);
+                client = new WSClient(new URI(loginUrl), user, password, database,
+                        inFlightRequest, httpHeaders, latch, maxRequest);
                 transport = new Transport(client, inFlightRequest);
-                if (!client.connectBlocking()) {
+                if (!client.connectBlocking(timeout, TimeUnit.MILLISECONDS)) {
                     throw new SQLException("can't create connection with server");
                 }
                 if (!latch.await(timeout, TimeUnit.MILLISECONDS)) {
                     throw new SQLException("auth timeout");
                 }
-                if (client.isAuth()) {
+                if (!client.isAuth()) {
                     throw new SQLException("auth failure");
                 }
             } catch (URISyntaxException e) {
@@ -96,7 +99,9 @@ public class RestfulDriver extends AbstractDriver {
             } catch (InterruptedException e) {
                 throw new SQLException("creat websocket connection has been Interrupted ", e);
             }
-            return new WSConnection(url, props, transport, database, true);
+            // TODO fetch Type from config
+            props.setProperty(TSDBDriver.PROPERTY_KEY_TIMESTAMP_FORMAT, String.valueOf(TimestampFormat.TIMESTAMP));
+            return new WSConnection(url, props, transport, database);
         }
         loginUrl = "http://" + props.getProperty(TSDBDriver.PROPERTY_KEY_HOST) + ":" + props.getProperty(TSDBDriver.PROPERTY_KEY_PORT) + "/rest/login/" + user + "/" + password + "";
         int poolSize = Integer.parseInt(props.getProperty("httpPoolSize", HttpClientPoolUtil.DEFAULT_MAX_PER_ROUTE));

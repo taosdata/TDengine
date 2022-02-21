@@ -45,14 +45,6 @@ If the client and server are running on different computers, you can install the
 
 <ul id="client-packagelist" class="package-list"></ul>
 
-### Install taosTools
-
-taosTools is a collection of helper software for TDengine. It currently includes taosdump for data backup and recovery and the script TDinsight.sh for installing grafanaplugin and dashboard.
-
-To run taosdump, you need to install the TDengine server or TDengine client installer. It is recommended to use the deb or rpm format to install the dependent software.
-
-<ul id="taos-tools" class="package-list"></ul>
-
 ### <a class="anchor" id="source-install"></a>Install from Source
 
 If you want to contribute to TDengine, please visit [TDengine GitHub page](https://github.com/taosdata/TDengine) for detailed instructions on build and installation from the source code.
@@ -166,7 +158,7 @@ taos> source <filename>;
 
 ### <a class="anchor" id="taosBenchmark"></a> Taste insertion speed with taosBenchmark
 
-Once the TDengine server started, you can execute the command `taosBenchmark` (which was named `taosdemo`) in the Linux terminal.
+Once the TDengine server started, you can execute the command `taosBenchmark` (which was named `taosdemo`) in the Linux terminal. In 2.4.0.7 and early release, taosBenchmark is distributed within taosTools package. In later release, taosBenchmark will be included within TDengine again. 
 
 ```bash
 taosBenchmark

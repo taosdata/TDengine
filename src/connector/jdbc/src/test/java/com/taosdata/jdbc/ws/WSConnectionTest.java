@@ -10,15 +10,17 @@ import org.junit.runner.RunWith;
 
 import java.sql.*;
 import java.util.Properties;
+import java.util.concurrent.TimeUnit;
 
 /**
  * You need to start taosadapter before testing this method
  */
 @Ignore
 @RunWith(CatalogRunner.class)
-@TestTarget(alias = "test connection with server", author = "huolibo",version = "2.0.37")
+@TestTarget(alias = "test connection with server", author = "huolibo", version = "2.0.37")
 public class WSConnectionTest {
-    private static final String host = "192.168.1.98";
+//    private static final String host = "192.168.1.98";
+    private static final String host = "127.0.0.1";
     private static final int port = 6041;
     private Connection connection;
 
@@ -46,18 +48,34 @@ public class WSConnectionTest {
         String url = "jdbc:TAOS-RS://" + host + ":" + port + "/";
         Properties properties = new Properties();
         properties.setProperty(TSDBDriver.PROPERTY_KEY_USER, "root");
-        properties.setProperty(TSDBDriver.PROPERTY_KEY_PASSWORD,"taosdata");
+        properties.setProperty(TSDBDriver.PROPERTY_KEY_PASSWORD, "taosdata");
         properties.setProperty(TSDBDriver.PROPERTY_KEY_BATCH_LOAD, "true");
         connection = DriverManager.getConnection(url, properties);
     }
 
-    @Test
-//    @Test(expected = SQLException.class)
+    @Test(expected = SQLException.class)
     @Description("wrong password or user")
     public void wrongUserOrPasswordConection() throws SQLException {
         String url = "jdbc:TAOS-RS://" + host + ":" + port + "/test?user=abc&password=taosdata";
         Properties properties = new Properties();
         properties.setProperty(TSDBDriver.PROPERTY_KEY_BATCH_LOAD, "true");
         connection = DriverManager.getConnection(url, properties);
+    }
+
+    @Test
+    @Description("sleep keep connection")
+    public void keepConnection() throws SQLException, InterruptedException {
+        String url = "jdbc:TAOS-RS://" + host + ":" + port + "/?user=root&password=taosdata";
+        Properties properties = new Properties();
+        properties.setProperty(TSDBDriver.PROPERTY_KEY_BATCH_LOAD, "true");
+        connection = DriverManager.getConnection(url, properties);
+        TimeUnit.MINUTES.sleep(1);
+        Statement statement = connection.createStatement();
+        ResultSet resultSet = statement.executeQuery("show databases");
+        TimeUnit.MINUTES.sleep(1);
+        resultSet.next();
+        System.out.println(resultSet.getTimestamp(1));
+        resultSet.close();
+        statement.close();
     }
 }
