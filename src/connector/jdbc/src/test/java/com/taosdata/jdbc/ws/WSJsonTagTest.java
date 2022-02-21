@@ -1248,7 +1248,8 @@ public class WSJsonTagTest {
 
     @BeforeClass
     public static void beforeClass() {
-        String host = "192.168.1.98";
+//        String host = "192.168.1.98";
+        String host = "127.0.0.1";
         final String url = "jdbc:TAOS-RS://" + host + ":6041/?user=root&password=taosdata";
         try {
             Properties properties = new Properties();
@@ -1268,7 +1269,7 @@ public class WSJsonTagTest {
     public static void afterClass() {
         try {
             if (null != statement) {
-                statement.execute("drop database " + dbName);
+//                statement.execute("drop database " + dbName);
                 statement.close();
             }
             if (null != connection) {

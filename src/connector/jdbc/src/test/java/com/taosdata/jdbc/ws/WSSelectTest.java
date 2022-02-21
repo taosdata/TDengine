@@ -3,16 +3,19 @@ package com.taosdata.jdbc.ws;
 import com.taosdata.jdbc.TSDBDriver;
 import com.taosdata.jdbc.enums.TimestampFormat;
 import org.junit.BeforeClass;
+import org.junit.Ignore;
 import org.junit.Test;
 
 import java.sql.*;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.Properties;
+import java.util.concurrent.TimeUnit;
 
-
+@Ignore
 public class WSSelectTest {
-    private static final String host = "192.168.1.98";
+    //    private static final String host = "192.168.1.98";
+    private static final String host = "127.0.0.1";
     private static final int port = 6041;
     private static Connection connection;
     private static final String databaseName = "driver";
@@ -37,13 +40,11 @@ public class WSSelectTest {
         int count = 0;
         long start = System.nanoTime();
         for (int i = 0; i < 1000; i++) {
-            ResultSet resultSet = statement.executeQuery("select * from " + databaseName + ".alltype_query limit 3000");
+            ResultSet resultSet = statement.executeQuery("select ts,c1,c2,c3,c4,c5,c6,c7,c8,c9,c10,c11,c12,c13 from " + databaseName + ".alltype_query limit 3000");
             while (resultSet.next()) {
-                Timestamp timestamp = resultSet.getTimestamp(1);
-                boolean aBoolean = resultSet.getBoolean(2);
-                if (aBoolean) {
-                    count++;
-                }
+                count++;
+                resultSet.getTimestamp(1);
+                resultSet.getBoolean(2);
                 resultSet.getInt(3);
                 resultSet.getInt(4);
                 resultSet.getInt(5);
@@ -66,16 +67,17 @@ public class WSSelectTest {
 
     @BeforeClass
     public static void beforeClass() throws SQLException {
-        String url = "jdbc:TAOS-RS://" + host + ":" + port +"/?user=root&password=taosdata";
+        String url = "jdbc:TAOS-RS://" + host + ":" + port + "/?user=root&password=taosdata";
         Properties properties = new Properties();
         properties.setProperty(TSDBDriver.PROPERTY_KEY_TIMESTAMP_FORMAT, String.valueOf(TimestampFormat.UTC));
+        properties.setProperty(TSDBDriver.PROPERTY_KEY_MESSAGE_WAIT_TIMEOUT, "100000");
         properties.setProperty(TSDBDriver.PROPERTY_KEY_BATCH_LOAD, "true");
         connection = DriverManager.getConnection(url, properties);
-//        Statement statement = connection.createStatement();
-//        statement.execute("drop database if exists " + databaseName);
-//        statement.execute("create database " + databaseName);
-//        statement.execute("create table " + databaseName + ".alltype_query(ts timestamp, c1 bool,c2 tinyint, c3 smallint, c4 int, c5 bigint, c6 tinyint unsigned, c7 smallint unsigned, c8 int unsigned, c9 bigint unsigned, c10 float, c11 double, c12 binary(20), c13 nchar(20) )");
-//        statement.close();
-//        testInsert();
+        Statement statement = connection.createStatement();
+        statement.execute("drop database if exists " + databaseName);
+        statement.execute("create database " + databaseName);
+        statement.execute("create table " + databaseName + ".alltype_query(ts timestamp, c1 bool,c2 tinyint, c3 smallint, c4 int, c5 bigint, c6 tinyint unsigned, c7 smallint unsigned, c8 int unsigned, c9 bigint unsigned, c10 float, c11 double, c12 binary(20), c13 nchar(30) )");
+        statement.close();
+        testInsert();
     }
 }

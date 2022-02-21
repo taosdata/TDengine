@@ -12,7 +12,7 @@ import java.util.Properties;
 import java.util.concurrent.TimeUnit;
 import java.util.stream.IntStream;
 
-//@Ignore
+@Ignore
 @RunWith(CatalogRunner.class)
 @TestTarget(alias = "query test", author = "huolibo", version = "2.0.38")
 @FixMethodOrder
