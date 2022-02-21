@@ -27,7 +27,7 @@ extern "C" {
 #endif
 
 typedef struct SConfig {
-  ECfgType  stype;
+  ECfgSrcType  stype;
   SHashObj *hash;
 } SConfig;
 

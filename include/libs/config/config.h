@@ -25,12 +25,12 @@ extern "C" {
 
 typedef enum {
   CFG_TYPE_DEFAULT,
-  CFG_TYPE_TAOS_CFG,
+  CFG_TYPE_CFG_FILE,
   CFG_TYPE_DOT_ENV,
   CFG_TYPE_ENV_VAR,
   CFG_TYPE_APOLLO_URL,
   CFG_TYPE_CONSOLE_PARA
-} ECfgType;
+} ECfgSrcType;
 
 typedef enum {
   CFG_DTYPE_NONE,
@@ -63,7 +63,7 @@ typedef enum {
 } ECfgUnitType;
 
 typedef struct SConfigItem {
-  ECfgType     stype;
+  ECfgSrcType   stype;
   ECfgUnitType utype;
   ECfgDataType dtype;
   char        *name;
@@ -90,7 +90,7 @@ typedef struct SConfigItem {
 typedef struct SConfig SConfig;
 
 SConfig *cfgInit();
-int32_t  cfgLoad(SConfig *pConfig, ECfgType cfgType, const char *sourceStr);
+int32_t  cfgLoad(SConfig *pConfig, ECfgSrcType cfgType, const char *sourceStr);
 void     cfgCleanup(SConfig *pConfig);
 
 int32_t      cfgGetSize(SConfig *pConfig);
@@ -114,6 +114,10 @@ int32_t cfgAddFqdn(SConfig *pConfig, const char *name, const char *defaultVal, E
 int32_t cfgAddIpStr(SConfig *pConfig, const char *name, const char *defaultVal, ECfgUnitType utype);
 int32_t cfgAddDir(SConfig *pConfig, const char *name, const char *defaultVal, ECfgUnitType utype);
 int32_t cfgAddFile(SConfig *pConfig, const char *name, const char *defaultVal, ECfgUnitType utype);
+
+const char *cfgStypeStr(ECfgSrcType type);
+const char *cfgDtypeStr(ECfgDataType type);
+const char *cfgUtypeStr(ECfgUnitType type);
 
 #ifdef __cplusplus
 }

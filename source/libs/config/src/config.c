@@ -33,9 +33,9 @@ SConfig *cfgInit() {
   return pConfig;
 }
 
-int32_t cfgLoad(SConfig *pConfig, ECfgType cfgType, const char *sourceStr) {
+int32_t cfgLoad(SConfig *pConfig, ECfgSrcType cfgType, const char *sourceStr) {
   switch (cfgType) {
-    case CFG_TYPE_TAOS_CFG:
+    case CFG_TYPE_CFG_FILE:
       return cfgLoadFromTaosFile(pConfig, sourceStr);
     case CFG_TYPE_DOT_ENV:
       return cfgLoadFromDotEnvFile(pConfig, sourceStr);
@@ -49,10 +49,12 @@ int32_t cfgLoad(SConfig *pConfig, ECfgType cfgType, const char *sourceStr) {
 }
 
 void cfgCleanup(SConfig *pConfig) {
-  if (pConfig == NULL) return;
-  if (pConfig->hash != NULL) {
-    taosHashCleanup(pConfig->hash);
-    pConfig->hash == NULL;
+  if (pConfig != NULL) {
+    if (pConfig->hash != NULL) {
+      taosHashCleanup(pConfig->hash);
+      pConfig->hash == NULL;
+    }
+    free(pConfig);
   }
 }
 
@@ -68,7 +70,7 @@ static int32_t cfgAddItem(SConfig *pConfig, SConfigItem *pItem, const char *name
   pItem->stype = CFG_TYPE_DEFAULT;
   pItem->utype = utype;
   pItem->name = strdup(name);
-  if (pItem->name != NULL) {
+  if (pItem->name == NULL) {
     terrno = TSDB_CODE_OUT_OF_MEMORY;
     return -1;
   }
@@ -152,7 +154,7 @@ int32_t cfgAddDouble(SConfig *pConfig, const char *name, double defaultVal, ECfg
 int32_t cfgAddString(SConfig *pConfig, const char *name, const char *defaultVal, ECfgUnitType utype) {
   SConfigItem item = {.dtype = CFG_DTYPE_STRING};
   item.strVal = strdup(defaultVal);
-  if (item.strVal != NULL) {
+  if (item.strVal == NULL) {
     terrno = TSDB_CODE_OUT_OF_MEMORY;
     return -1;
   }
@@ -162,7 +164,7 @@ int32_t cfgAddString(SConfig *pConfig, const char *name, const char *defaultVal,
 int32_t cfgAddFqdn(SConfig *pConfig, const char *name, const char *defaultVal, ECfgUnitType utype) {
   SConfigItem item = {.dtype = CFG_DTYPE_FQDN};
   item.fqdnVal = strdup(defaultVal);
-  if (item.fqdnVal != NULL) {
+  if (item.fqdnVal == NULL) {
     terrno = TSDB_CODE_OUT_OF_MEMORY;
     return -1;
   }
@@ -172,7 +174,7 @@ int32_t cfgAddFqdn(SConfig *pConfig, const char *name, const char *defaultVal, E
 int32_t cfgAddIpStr(SConfig *pConfig, const char *name, const char *defaultVal, ECfgUnitType utype) {
   SConfigItem item = {.dtype = CFG_DTYPE_IPSTR};
   item.ipstrVal = strdup(defaultVal);
-  if (item.ipstrVal != NULL) {
+  if (item.ipstrVal == NULL) {
     terrno = TSDB_CODE_OUT_OF_MEMORY;
     return -1;
   }
@@ -182,7 +184,7 @@ int32_t cfgAddIpStr(SConfig *pConfig, const char *name, const char *defaultVal, 
 int32_t cfgAddDir(SConfig *pConfig, const char *name, const char *defaultVal, ECfgUnitType utype) {
   SConfigItem item = {.dtype = CFG_DTYPE_DIR};
   item.dirVal = strdup(defaultVal);
-  if (item.dirVal != NULL) {
+  if (item.dirVal == NULL) {
     terrno = TSDB_CODE_OUT_OF_MEMORY;
     return -1;
   }
@@ -192,9 +194,88 @@ int32_t cfgAddDir(SConfig *pConfig, const char *name, const char *defaultVal, EC
 int32_t cfgAddFile(SConfig *pConfig, const char *name, const char *defaultVal, ECfgUnitType utype) {
   SConfigItem item = {.dtype = CFG_DTYPE_FILE};
   item.fileVal = strdup(defaultVal);
-  if (item.fileVal != NULL) {
+  if (item.fileVal == NULL) {
     terrno = TSDB_CODE_OUT_OF_MEMORY;
     return -1;
   }
   return cfgAddItem(pConfig, &item, name, utype);
+}
+
+const char *cfgStypeStr(ECfgSrcType type) {
+  switch (type) {
+    case CFG_TYPE_DEFAULT:
+      return "default";
+    case CFG_TYPE_CFG_FILE:
+      return "cfg";
+    case CFG_TYPE_DOT_ENV:
+      return ".env";
+    case CFG_TYPE_ENV_VAR:
+      return "env";
+    case CFG_TYPE_APOLLO_URL:
+      return "apollo";
+    default:
+      return "invalid";
+  }
+}
+
+const char *cfgDtypeStr(ECfgDataType type) {
+  switch (type) {
+    case CFG_DTYPE_NONE:
+      return "none";
+    case CFG_DTYPE_BOOL:
+      return "bool";
+    case CFG_DTYPE_INT8:
+      return "int8";
+    case CFG_DTYPE_UINT8:
+      return "uint8";
+    case CFG_DTYPE_INT16:
+      return "int16";
+    case CFG_DTYPE_UINT16:
+      return "uint16";
+    case CFG_DTYPE_INT32:
+      return "int32";
+    case CFG_DTYPE_UINT32:
+      return "uint32";
+    case CFG_DTYPE_INT64:
+      return "int64";
+    case CFG_DTYPE_UINT64:
+      return "uint64";
+    case CFG_DTYPE_FLOAT:
+      return "float";
+    case CFG_DTYPE_DOUBLE:
+      return "double";
+    case CFG_DTYPE_STRING:
+      return "string";
+    case CFG_DTYPE_FQDN:
+      return "fqdn";
+    case CFG_DTYPE_IPSTR:
+      return "ipstr";
+    case CFG_DTYPE_DIR:
+      return "dir";
+    case CFG_DTYPE_FILE:
+      return "file";
+    default:
+      return "invalid";
+  }
+}
+
+const char *cfgUtypeStr(ECfgUnitType type) {
+  switch (type) {
+    case CFG_UTYPE_NONE:
+      return "";
+    case CFG_UTYPE_PERCENT:
+      return "(%)";
+    case CFG_UTYPE_GB:
+      return "(GB)";
+    case CFG_UTYPE_MB:
+      return "(Mb)";
+    case CFG_UTYPE_BYTE:
+      return "(byte)";
+    case CFG_UTYPE_SECOND:
+      return "(s)";
+    case CFG_UTYPE_MS:
+      return "(ms)";
+    default:
+      return "invalid";
+  }
 }
