@@ -13,24 +13,31 @@
  * along with this program. If not, see <http://www.gnu.org/licenses/>.
  */
 
-#ifndef _TD_MND_DATABASE_H_
-#define _TD_MND_DATABASE_H_
-
-#include "mndInt.h"
+#ifndef _TD_NEW_PARSER_H_
+#define _TD_NEW_PARSER_H_
 
 #ifdef __cplusplus
 extern "C" {
 #endif
 
-int32_t mndInitDb(SMnode *pMnode);
-void    mndCleanupDb(SMnode *pMnode);
-SDbObj *mndAcquireDb(SMnode *pMnode, const char *db);
-void    mndReleaseDb(SMnode *pMnode, SDbObj *pDb);
-int32_t mndValidateDbInfo(SMnode *pMnode, SDbVgVersion *pDbs, int32_t numOfDbs, void **ppRsp, int32_t *pRspLen);
-char   *mnGetDbStr(char *src);
+#include "parser.h"
+
+typedef enum EStmtType {
+  STMT_TYPE_CMD = 1,
+  STMT_TYPE_QUERY
+} EStmtType;
+
+typedef struct SQuery {
+  EStmtType stmtType;
+  SNode* pRoot;
+  int32_t numOfResCols;
+  SSchema* pResSchema;
+} SQuery;
+
+int32_t parser(SParseContext* pParseCxt, SQuery* pQuery);
 
 #ifdef __cplusplus
 }
 #endif
 
-#endif /*_TD_MND_DATABASE_H_*/
+#endif /*_TD_NEW_PARSER_H_*/

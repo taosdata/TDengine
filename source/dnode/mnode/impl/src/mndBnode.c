@@ -21,7 +21,7 @@
 #include "mndTrans.h"
 #include "mndUser.h"
 
-#define TSDB_BNODE_VER_NUMBER 1
+#define TSDB_BNODE_VER_NUMBER   1
 #define TSDB_BNODE_RESERVE_SIZE 64
 
 static SSdbRaw *mndBnodeActionEncode(SBnodeObj *pObj);
@@ -248,7 +248,7 @@ static int32_t mndCreateBnode(SMnode *pMnode, SMnodeMsg *pReq, SDnodeObj *pDnode
   bnodeObj.createdTime = taosGetTimestampMs();
   bnodeObj.updateTime = bnodeObj.createdTime;
 
-  STrans *pTrans = mndTransCreate(pMnode, TRN_POLICY_ROLLBACK, &pReq->rpcMsg);
+  STrans *pTrans = mndTransCreate(pMnode, TRN_POLICY_ROLLBACK, TRN_TYPE_CREATE_BNODE, &pReq->rpcMsg);
   if (pTrans == NULL) goto CREATE_BNODE_OVER;
 
   mDebug("trans:%d, used to create bnode:%d", pTrans->id, pCreate->dnodeId);
@@ -366,7 +366,7 @@ static int32_t mndSetDropBnodeRedoActions(STrans *pTrans, SDnodeObj *pDnode, SBn
 static int32_t mndDropBnode(SMnode *pMnode, SMnodeMsg *pReq, SBnodeObj *pObj) {
   int32_t code = -1;
 
-  STrans *pTrans = mndTransCreate(pMnode, TRN_POLICY_RETRY, &pReq->rpcMsg);
+  STrans *pTrans = mndTransCreate(pMnode, TRN_POLICY_RETRY, TRN_TYPE_DROP_BNODE, &pReq->rpcMsg);
   if (pTrans == NULL) goto DROP_BNODE_OVER;
 
   mDebug("trans:%d, used to drop bnode:%d", pTrans->id, pObj->id);

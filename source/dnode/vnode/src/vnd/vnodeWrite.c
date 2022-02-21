@@ -43,13 +43,17 @@ int vnodeProcessWMsgs(SVnode *pVnode, SArray *pMsgs) {
 int vnodeApplyWMsg(SVnode *pVnode, SRpcMsg *pMsg, SRpcMsg **pRsp) {
   SVCreateTbReq      vCreateTbReq;
   SVCreateTbBatchReq vCreateTbBatchReq;
-  void              *ptr = vnodeMalloc(pVnode, pMsg->contLen);
-  if (ptr == NULL) {
-    // TODO: handle error
-  }
+  void              *ptr = NULL;
 
-  // TODO: copy here need to be extended
-  memcpy(ptr, pMsg->pCont, pMsg->contLen);
+  if (pVnode->config.streamMode == 0) {
+    ptr = vnodeMalloc(pVnode, pMsg->contLen);
+    if (ptr == NULL) {
+      // TODO: handle error
+    }
+
+    // TODO: copy here need to be extended
+    memcpy(ptr, pMsg->pCont, pMsg->contLen);
+  }
 
   // todo: change the interface here
   int64_t ver;
@@ -109,17 +113,19 @@ int vnodeApplyWMsg(SVnode *pVnode, SRpcMsg *pMsg, SRpcMsg **pRsp) {
       // }
       break;
     case TDMT_VND_SUBMIT:
-      if (tsdbInsertData(pVnode->pTsdb, (SSubmitReq *)ptr, NULL) < 0) {
-        // TODO: handle error
+      if (pVnode->config.streamMode == 0) {
+        if (tsdbInsertData(pVnode->pTsdb, (SSubmitReq *)ptr, NULL) < 0) {
+          // TODO: handle error
+        }
       }
       break;
     case TDMT_VND_MQ_SET_CONN: {
-      if (tqProcessSetConnReq(pVnode->pTq, POINTER_SHIFT(ptr, sizeof(SMsgHead))) < 0) {
+      if (tqProcessSetConnReq(pVnode->pTq, POINTER_SHIFT(pMsg->pCont, sizeof(SMsgHead))) < 0) {
         // TODO: handle error
       }
     } break;
     case TDMT_VND_MQ_REB: {
-      if (tqProcessRebReq(pVnode->pTq, POINTER_SHIFT(ptr, sizeof(SMsgHead))) < 0) {
+      if (tqProcessRebReq(pVnode->pTq, POINTER_SHIFT(pMsg->pCont, sizeof(SMsgHead))) < 0) {
       }
     } break;
     default:

@@ -85,6 +85,8 @@ static int32_t mndRestoreWal(SMnode *pMnode) {
   mDebug("restore sdb wal finished, sdb ver:%" PRId64, sdbVer);
 
   mndTransPullup(pMnode);
+  sdbVer = sdbUpdateVer(pSdb, 0);
+  mDebug("pullup trans finished, sdb ver:%" PRId64, sdbVer);
 
   if (sdbVer != lastSdbVer) {
     mInfo("sdb restored from %" PRId64 " to %" PRId64 ", write file", lastSdbVer, sdbVer);

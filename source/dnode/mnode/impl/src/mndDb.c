@@ -23,7 +23,7 @@
 #include "mndUser.h"
 #include "mndVgroup.h"
 
-#define TSDB_DB_VER_NUMBER 1
+#define TSDB_DB_VER_NUMBER   1
 #define TSDB_DB_RESERVE_SIZE 64
 
 static SSdbRaw *mndDbActionEncode(SDbObj *pDb);
@@ -395,24 +395,27 @@ static int32_t mndCreateDb(SMnode *pMnode, SMnodeMsg *pReq, SCreateDbReq *pCreat
   dbObj.vgVersion = 1;
   dbObj.hashMethod = 1;
   memcpy(dbObj.createUser, pUser->user, TSDB_USER_LEN);
-  dbObj.cfg = (SDbCfg){.numOfVgroups = pCreate->numOfVgroups,
-                       .cacheBlockSize = pCreate->cacheBlockSize,
-                       .totalBlocks = pCreate->totalBlocks,
-                       .daysPerFile = pCreate->daysPerFile,
-                       .daysToKeep0 = pCreate->daysToKeep0,
-                       .daysToKeep1 = pCreate->daysToKeep1,
-                       .daysToKeep2 = pCreate->daysToKeep2,
-                       .minRows = pCreate->minRows,
-                       .maxRows = pCreate->maxRows,
-                       .fsyncPeriod = pCreate->fsyncPeriod,
-                       .commitTime = pCreate->commitTime,
-                       .precision = pCreate->precision,
-                       .compression = pCreate->compression,
-                       .walLevel = pCreate->walLevel,
-                       .replications = pCreate->replications,
-                       .quorum = pCreate->quorum,
-                       .update = pCreate->update,
-                       .cacheLastRow = pCreate->cacheLastRow};
+  dbObj.cfg = (SDbCfg){
+      .numOfVgroups = pCreate->numOfVgroups,
+      .cacheBlockSize = pCreate->cacheBlockSize,
+      .totalBlocks = pCreate->totalBlocks,
+      .daysPerFile = pCreate->daysPerFile,
+      .daysToKeep0 = pCreate->daysToKeep0,
+      .daysToKeep1 = pCreate->daysToKeep1,
+      .daysToKeep2 = pCreate->daysToKeep2,
+      .minRows = pCreate->minRows,
+      .maxRows = pCreate->maxRows,
+      .fsyncPeriod = pCreate->fsyncPeriod,
+      .commitTime = pCreate->commitTime,
+      .precision = pCreate->precision,
+      .compression = pCreate->compression,
+      .walLevel = pCreate->walLevel,
+      .replications = pCreate->replications,
+      .quorum = pCreate->quorum,
+      .update = pCreate->update,
+      .cacheLastRow = pCreate->cacheLastRow,
+      .streamMode = pCreate->streamMode,
+  };
 
   mndSetDefaultDbCfg(&dbObj.cfg);
 
@@ -434,11 +437,12 @@ static int32_t mndCreateDb(SMnode *pMnode, SMnodeMsg *pReq, SCreateDbReq *pCreat
   }
 
   int32_t code = -1;
-  STrans *pTrans = mndTransCreate(pMnode, TRN_POLICY_ROLLBACK, &pReq->rpcMsg);
+  STrans *pTrans = mndTransCreate(pMnode, TRN_POLICY_ROLLBACK, TRN_TYPE_CREATE_DB, &pReq->rpcMsg);
   if (pTrans == NULL) goto CREATE_DB_OVER;
 
   mDebug("trans:%d, used to create db:%s", pTrans->id, pCreate->db);
 
+  mndTransSetDbInfo(pTrans, &dbObj);
   if (mndSetCreateDbRedoLogs(pMnode, pTrans, &dbObj, pVgroups) != 0) goto CREATE_DB_OVER;
   if (mndSetCreateDbUndoLogs(pMnode, pTrans, &dbObj, pVgroups) != 0) goto CREATE_DB_OVER;
   if (mndSetCreateDbCommitLogs(pMnode, pTrans, &dbObj, pVgroups) != 0) goto CREATE_DB_OVER;
@@ -620,11 +624,12 @@ static int32_t mndSetUpdateDbRedoActions(SMnode *pMnode, STrans *pTrans, SDbObj 
 
 static int32_t mndUpdateDb(SMnode *pMnode, SMnodeMsg *pReq, SDbObj *pOld, SDbObj *pNew) {
   int32_t code = -1;
-  STrans *pTrans = mndTransCreate(pMnode, TRN_POLICY_RETRY, &pReq->rpcMsg);
+  STrans *pTrans = mndTransCreate(pMnode, TRN_POLICY_RETRY, TRN_TYPE_ALTER_DB, &pReq->rpcMsg);
   if (pTrans == NULL) goto UPDATE_DB_OVER;
 
   mDebug("trans:%d, used to update db:%s", pTrans->id, pOld->name);
 
+  mndTransSetDbInfo(pTrans, pOld);
   if (mndSetUpdateDbRedoLogs(pMnode, pTrans, pOld, pNew) != 0) goto UPDATE_DB_OVER;
   if (mndSetUpdateDbCommitLogs(pMnode, pTrans, pOld, pNew) != 0) goto UPDATE_DB_OVER;
   if (mndSetUpdateDbRedoActions(pMnode, pTrans, pOld, pNew) != 0) goto UPDATE_DB_OVER;
@@ -799,10 +804,11 @@ static int32_t mndSetDropDbRedoActions(SMnode *pMnode, STrans *pTrans, SDbObj *p
 
 static int32_t mndDropDb(SMnode *pMnode, SMnodeMsg *pReq, SDbObj *pDb) {
   int32_t code = -1;
-  STrans *pTrans = mndTransCreate(pMnode, TRN_POLICY_RETRY, &pReq->rpcMsg);
+  STrans *pTrans = mndTransCreate(pMnode, TRN_POLICY_RETRY, TRN_TYPE_DROP_DB, &pReq->rpcMsg);
   if (pTrans == NULL) goto DROP_DB_OVER;
 
   mDebug("trans:%d, used to drop db:%s", pTrans->id, pDb->name);
+  mndTransSetDbInfo(pTrans, pDb);
 
   if (mndSetDropDbRedoLogs(pMnode, pTrans, pDb) != 0) goto DROP_DB_OVER;
   if (mndSetDropDbCommitLogs(pMnode, pTrans, pDb) != 0) goto DROP_DB_OVER;

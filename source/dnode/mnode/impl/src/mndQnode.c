@@ -248,7 +248,7 @@ static int32_t mndCreateQnode(SMnode *pMnode, SMnodeMsg *pReq, SDnodeObj *pDnode
   qnodeObj.createdTime = taosGetTimestampMs();
   qnodeObj.updateTime = qnodeObj.createdTime;
 
-  STrans *pTrans = mndTransCreate(pMnode, TRN_POLICY_ROLLBACK, &pReq->rpcMsg);
+  STrans *pTrans = mndTransCreate(pMnode, TRN_POLICY_ROLLBACK, TRN_TYPE_CREATE_QNODE, &pReq->rpcMsg);
   if (pTrans == NULL) goto CREATE_QNODE_OVER;
 
   mDebug("trans:%d, used to create qnode:%d", pTrans->id, pCreate->dnodeId);
@@ -366,7 +366,7 @@ static int32_t mndSetDropQnodeRedoActions(STrans *pTrans, SDnodeObj *pDnode, SQn
 static int32_t mndDropQnode(SMnode *pMnode, SMnodeMsg *pReq, SQnodeObj *pObj) {
   int32_t code = -1;
 
-  STrans *pTrans = mndTransCreate(pMnode, TRN_POLICY_RETRY, &pReq->rpcMsg);
+  STrans *pTrans = mndTransCreate(pMnode, TRN_POLICY_RETRY, TRN_TYPE_DROP_QNODE, &pReq->rpcMsg);
   if (pTrans == NULL) goto DROP_QNODE_OVER;
 
   mDebug("trans:%d, used to drop qnode:%d", pTrans->id, pObj->id);

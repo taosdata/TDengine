@@ -105,7 +105,41 @@ typedef enum {
 } ETrnStage;
 
 typedef enum {
-  TRN_TYPE_CREATE_DB = 0,
+  TRN_TYPE_BASIC_SCOPE = 1000,
+  TRN_TYPE_CREATE_USER = 1001,
+  TRN_TYPE_ALTER_USER = 1002,
+  TRN_TYPE_DROP_USER = 1003,
+  TRN_TYPE_CREATE_FUNC = 1004,
+  TRN_TYPE_DROP_FUNC = 1005,
+  TRN_TYPE_CREATE_SNODE = 1006,
+  TRN_TYPE_DROP_SNODE = 1007,
+  TRN_TYPE_CREATE_QNODE = 1008,
+  TRN_TYPE_DROP_QNODE = 1009,
+  TRN_TYPE_CREATE_BNODE = 1010,
+  TRN_TYPE_DROP_BNODE = 1011,
+  TRN_TYPE_CREATE_MNODE = 1012,
+  TRN_TYPE_DROP_MNODE = 1013,
+  TRN_TYPE_CREATE_TOPIC = 1014,
+  TRN_TYPE_DROP_TOPIC = 1015,
+  TRN_TYPE_SUBSCRIBE = 1016,
+  TRN_TYPE_REBALANCE = 1017,
+  TRN_TYPE_BASIC_SCOPE_END,
+  TRN_TYPE_GLOBAL_SCOPE = 2000,
+  TRN_TYPE_CREATE_DNODE = 2001,
+  TRN_TYPE_DROP_DNODE = 2002,
+  TRN_TYPE_GLOBAL_SCOPE_END,
+  TRN_TYPE_DB_SCOPE = 3000,
+  TRN_TYPE_CREATE_DB = 3001,
+  TRN_TYPE_ALTER_DB = 3002,
+  TRN_TYPE_DROP_DB = 3003,
+  TRN_TYPE_SPLIT_VGROUP = 3004,
+  TRN_TYPE_MERGE_VGROUP = 3015,
+  TRN_TYPE_DB_SCOPE_END,
+  TRN_TYPE_STB_SCOPE = 4000,
+  TRN_TYPE_CREATE_STB = 4001,
+  TRN_TYPE_ALTER_STB = 4002,
+  TRN_TYPE_DROP_STB = 4003,
+  TRN_TYPE_STB_SCOPE_END,
 } ETrnType;
 
 typedef enum { TRN_POLICY_ROLLBACK = 0, TRN_POLICY_RETRY = 1 } ETrnPolicy;
@@ -128,6 +162,7 @@ typedef struct {
   int32_t    id;
   ETrnStage  stage;
   ETrnPolicy policy;
+  ETrnType   transType;
   int32_t    code;
   int32_t    failedTimes;
   void*      rpcHandle;
@@ -141,10 +176,9 @@ typedef struct {
   SArray*    undoActions;
   int64_t    createdTime;
   int64_t    lastExecTime;
-  int32_t    transType;
   uint64_t   dbUid;
-  char       dbname[TSDB_DB_NAME_LEN];
-  char       lastError[TSDB_TRANS_DESC_LEN];
+  char       dbname[TSDB_DB_FNAME_LEN];
+  char       lastError[TSDB_TRANS_ERROR_LEN];
 } STrans;
 
 typedef struct {
@@ -266,6 +300,7 @@ typedef struct {
   int8_t  quorum;
   int8_t  update;
   int8_t  cacheLastRow;
+  int8_t  streamMode;
 } SDbCfg;
 
 typedef struct {
@@ -302,6 +337,7 @@ typedef struct {
   int64_t   pointsWritten;
   int8_t    compact;
   int8_t    replica;
+  int8_t    streamMode;
   SVnodeGid vnodeGid[TSDB_MAX_REPLICA];
 } SVgObj;
 
@@ -433,9 +469,9 @@ typedef struct {
   char    key[TSDB_SUBSCRIBE_KEY_LEN];
   int32_t status;
   int32_t vgNum;
-  SArray* consumers;     // SArray<SMqSubConsumer>
-  SArray* lostConsumers; // SArray<SMqSubConsumer>
-  SArray* unassignedVg;  // SArray<SMqConsumerEp>
+  SArray* consumers;      // SArray<SMqSubConsumer>
+  SArray* lostConsumers;  // SArray<SMqSubConsumer>
+  SArray* unassignedVg;   // SArray<SMqConsumerEp>
 } SMqSubscribeObj;
 
 static FORCE_INLINE SMqSubscribeObj* tNewSubscribeObj() {
@@ -549,13 +585,13 @@ static FORCE_INLINE void* tDecodeSubscribeObj(void* buf, SMqSubscribeObj* pSub) 
 static FORCE_INLINE void tDeleteSMqSubscribeObj(SMqSubscribeObj* pSub) {
   if (pSub->consumers) {
     taosArrayDestroyEx(pSub->consumers, (void (*)(void*))tDeleteSMqSubConsumer);
-    //taosArrayDestroy(pSub->consumers);
+    // taosArrayDestroy(pSub->consumers);
     pSub->consumers = NULL;
   }
 
   if (pSub->unassignedVg) {
     taosArrayDestroyEx(pSub->unassignedVg, (void (*)(void*))tDeleteSMqConsumerEp);
-    //taosArrayDestroy(pSub->unassignedVg);
+    // taosArrayDestroy(pSub->unassignedVg);
     pSub->unassignedVg = NULL;
   }
 }
@@ -580,8 +616,8 @@ typedef struct {
   int64_t  connId;
   SRWLatch lock;
   char     cgroup[TSDB_CONSUMER_GROUP_LEN];
-  SArray*  currentTopics;  // SArray<char*>
-  SArray*  recentRemovedTopics;   // SArray<char*>
+  SArray*  currentTopics;        // SArray<char*>
+  SArray*  recentRemovedTopics;  // SArray<char*>
   int32_t  epoch;
   // stat
   int64_t pollCnt;

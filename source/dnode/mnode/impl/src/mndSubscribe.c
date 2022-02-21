@@ -53,6 +53,7 @@ static int32_t mndProcessSubscribeInternalRsp(SMnodeMsg *pMsg);
 static int32_t mndProcessMqTimerMsg(SMnodeMsg *pMsg);
 static int32_t mndProcessGetSubEpReq(SMnodeMsg *pMsg);
 static int32_t mndProcessDoRebalanceMsg(SMnodeMsg *pMsg);
+static int32_t mndProcessResetOffsetReq(SMnodeMsg *pMsg);
 
 static int32_t mndPersistMqSetConnReq(SMnode *pMnode, STrans *pTrans, const SMqTopicObj *pTopic, const char *cgroup,
                                       const SMqConsumerEp *pConsumerEp);
@@ -204,6 +205,45 @@ static int32_t mndPersistCancelConnReq(SMnode *pMnode, STrans *pTrans, const SMq
 
   return 0;
 }
+
+#if 0
+static int32_t mndProcessResetOffsetReq(SMnodeMsg *pMsg) {
+  SMnode             *pMnode = pMsg->pMnode;
+  uint8_t            *str = pMsg->rpcMsg.pCont;
+  SMqCMResetOffsetReq req;
+
+  SCoder decoder;
+  tCoderInit(&decoder, TD_LITTLE_ENDIAN, str, pMsg->rpcMsg.contLen, TD_DECODER);
+  tDecodeSMqCMResetOffsetReq(&decoder, &req);
+
+  SHashObj *pHash = taosHashInit(64, taosGetDefaultHashFunction(TSDB_DATA_TYPE_INT), false, HASH_NO_LOCK);
+  if (pHash == NULL) {
+    return -1;
+  }
+
+  for (int32_t i = 0; i < req.num; i++) {
+    SMqOffset    *pOffset = &req.offsets[i];
+    SMqVgOffsets *pVgOffset = taosHashGet(pHash, &pOffset->vgId, sizeof(int32_t));
+    if (pVgOffset == NULL) {
+      pVgOffset = malloc(sizeof(SMqVgOffsets));
+      if (pVgOffset == NULL) {
+        return -1;
+      }
+      pVgOffset->offsets = taosArrayInit(0, sizeof(void *));
+      taosArrayPush(pVgOffset->offsets, &pOffset);
+    }
+    taosHashPut(pHash, &pOffset->vgId, sizeof(int32_t), &pVgOffset, sizeof(void *));
+  }
+
+  STrans *pTrans = mndTransCreate(pMnode, TRN_POLICY_ROLLBACK, &pMsg->rpcMsg);
+  if (pTrans == NULL) {
+    mError("mq-reset-offset: failed since %s", terrstr());
+    return -1;
+  }
+
+  return 0;
+}
+#endif
 
 static int32_t mndProcessGetSubEpReq(SMnodeMsg *pMsg) {
   SMnode           *pMnode = pMsg->pMnode;
@@ -369,8 +409,8 @@ static int32_t mndProcessMqTimerMsg(SMnodeMsg *pMsg) {
 
 static int32_t mndProcessDoRebalanceMsg(SMnodeMsg *pMsg) {
   SMnode            *pMnode = pMsg->pMnode;
-  SMqDoRebalanceMsg *pReq = (SMqDoRebalanceMsg *)pMsg->rpcMsg.pCont;
-  STrans            *pTrans = mndTransCreate(pMnode, TRN_POLICY_RETRY, &pMsg->rpcMsg);
+  SMqDoRebalanceMsg *pReq = pMsg->rpcMsg.pCont;
+  STrans            *pTrans = mndTransCreate(pMnode, TRN_POLICY_RETRY, TRN_TYPE_REBALANCE, &pMsg->rpcMsg);
   void              *pIter = NULL;
 
   mInfo("mq rebalance start");
@@ -969,7 +1009,7 @@ static int32_t mndProcessSubscribeReq(SMnodeMsg *pMsg) {
     oldTopicNum = taosArrayGetSize(oldSub);
   }
 
-  STrans *pTrans = mndTransCreate(pMnode, TRN_POLICY_RETRY, &pMsg->rpcMsg);
+  STrans *pTrans = mndTransCreate(pMnode, TRN_POLICY_RETRY, TRN_TYPE_SUBSCRIBE, &pMsg->rpcMsg);
   if (pTrans == NULL) {
     // TODO: free memory
     return -1;
@@ -1059,6 +1099,8 @@ static int32_t mndProcessSubscribeReq(SMnodeMsg *pMsg) {
         pConsumerEp->consumerId = consumerId;
         taosArrayPush(mqSubConsumer.vgInfo, pConsumerEp);
         if (pConsumerEp->oldConsumerId == -1) {
+          mInfo("mq set conn: assign vgroup %d of topic %s to consumer %ld", pConsumerEp->vgId, newTopicName,
+                pConsumerEp->consumerId);
           mndPersistMqSetConnReq(pMnode, pTrans, pTopic, cgroup, pConsumerEp);
         } else {
           mndPersistRebalanceMsg(pMnode, pTrans, pConsumerEp);
