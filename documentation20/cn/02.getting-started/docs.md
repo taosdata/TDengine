@@ -45,14 +45,6 @@ sudo apt-get install tdengine
 
 <ul id="client-packagelist" class="package-list"></ul>
 
-### 安装 taosTools
-
-taosTools 是多个用于 TDengine 的辅助工具软件集合。目前包含用于数据备份恢复的 taosdump 和用于安装 grafanaplugin 和 dashboard 的脚本 TDinsight.sh。
-
-运行 taosdump 需要安装 TDengine server 或 TDengine client 安装包，推荐使用 deb 或 rpm 格式安装包，方便安装依赖软件。
-
-<ul id="taos-tools" class="package-list"></ul>
-
 ### <a class="anchor" id="source-install"></a>通过源码安装
 
 如果您希望对 TDengine 贡献代码或对内部实现感兴趣，请参考我们的 [TDengine github 主页](https://github.com/taosdata/TDengine) 下载源码构建和安装.
@@ -160,7 +152,7 @@ taos> source <filename>;
 
 ### <a class="anchor" id="taosBenchmark"></a> 使用 taosBenchmark 体验写入速度
 
-启动 TDengine 的服务，在 Linux 终端执行 `taosBenchmark` （曾命名为 taosdemo）：
+启动 TDengine 的服务，在 Linux 终端执行 `taosBenchmark` （曾命名为 taosdemo）。taosBenchmark 在 TDengine 2.4.0.7 和之前发布版本在 taosTools 安装包中发布提供，在后续版本中 taosBenchmark 将在 TDengine 标准安装包中发布。
 
 ```bash
 taosBenchmark
