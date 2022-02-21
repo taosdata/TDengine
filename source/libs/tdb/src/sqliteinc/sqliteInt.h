@@ -46,6 +46,8 @@ typedef struct sqlite3_pcache_page {
 typedef struct sqlite3_vfs sqlite3_vfs;
 typedef struct sqlite3     sqlite3;
 
+#define SQLITE_DEFAULT_PAGE_SIZE 4096
+
 #include "pager.h"
 
 #include "pcache.h"
