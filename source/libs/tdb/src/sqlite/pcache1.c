@@ -199,10 +199,26 @@ struct PgFreeslot {
   PgFreeslot *pNext;  /* Next free slot */
 };
 
+sqlite3_pcache_methods2 pcache2 = {
+    1,                       /* iVersion */
+    0,                       /* pArg */
+    pcache1Init,             /* xInit */
+    pcache1Shutdown,         /* xShutdown */
+    pcache1Create,           /* xCreate */
+    pcache1Cachesize,        /* xCachesize */
+    pcache1Pagecount,        /* xPagecount */
+    pcache1Fetch,            /* xFetch */
+    pcache1Unpin,            /* xUnpin */
+    pcache1Rekey,            /* xRekey */
+    pcache1Truncate,         /* xTruncate */
+    pcache1Destroy,          /* xDestroy */
+    pcache1Shrink            /* xShrink */
+};
+
 /*
 ** Global data used by this cache.
 */
-static SQLITE_WSD struct PCacheGlobal {
+static struct PCacheGlobal {
   PGroup grp;                    /* The global PGroup for mode (2) */
 
   /* Variables related to SQLITE_CONFIG_PAGECACHE settings.  The
@@ -226,14 +242,7 @@ static SQLITE_WSD struct PCacheGlobal {
   ** (2) even if an incorrect value is read, no great harm is done since this
   ** is really just an optimization. */
   int bUnderPressure;            /* True if low on PAGECACHE memory */
-} pcache1_g;
-
-/*
-** All code in this file should access the global structure above via the
-** alias "pcache1". This ensures that the WSD emulation is used when
-** compiling for systems that do not support real WSD.
-*/
-#define pcache1 (GLOBAL(struct PCacheGlobal, pcache1_g))
+} pcache1;
 
 /*
 ** Macros to enter and leave the PCache LRU mutex.
