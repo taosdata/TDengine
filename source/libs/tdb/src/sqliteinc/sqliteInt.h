@@ -13,7 +13,10 @@
 **
 */
 
+#include <assert.h>
+#include <pthread.h>
 #include <stdint.h>
+#include <string.h>
 
 #ifndef SQLITEINT_H
 #define SQLITEINT_H
@@ -31,6 +34,10 @@ typedef struct sqlite3_pcache_page {
   void *pBuf;   /* The content of the page */
   void *pExtra; /* Extra information associated with the page */
 } sqlite3_pcache_page;
+
+#define ROUNDDOWN8(x) ((x) & ~7)
+
+#define ROUND8(x) (((x) + 7) & ~7)
 
 typedef u32 Pgno;
 
