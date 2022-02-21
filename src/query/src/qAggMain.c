@@ -5224,7 +5224,7 @@ static void unique_function(SQLFunctionCtx *pCtx) {
     }
   }
 
-//  GET_RES_INFO(pCtx)->numOfRes = pInfo->num;
+  GET_RES_INFO(pCtx)->numOfRes = 1;
 }
 
 static void unique_function_merge(SQLFunctionCtx *pCtx) {
@@ -5334,6 +5334,7 @@ static void mode_function(SQLFunctionCtx *pCtx) {
       return;
     }
   }
+  GET_RES_INFO(pCtx)->numOfRes = 1;
 }
 
 static void mode_function_merge(SQLFunctionCtx *pCtx) {
