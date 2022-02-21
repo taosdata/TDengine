@@ -71,12 +71,13 @@ function replace_community_pro() {
   sed -i "s/etc\/taos/etc\/ProDB/g" ${top_dir}/src/os/src/linux/linuxEnv.c
   sed -i "s/lib\/taos/lib\/ProDB/g" ${top_dir}/src/os/src/linux/linuxEnv.c
   sed -i "s/log\/taos/log\/ProDB/g" ${top_dir}/src/os/src/linux/linuxEnv.c
+
   # src/kit/shell/src/shellDarwin.c
   sed -i "s/TDengine shell/ProDB shell/g" ${top_dir}/src/kit/shell/src/shellDarwin.c
   sed -i "s/2020 by TAOS Data/2021 by HanaTech/g" ${top_dir}/src/kit/shell/src/shellDarwin.c
   # src/kit/shell/src/shellLinux.c
   sed -i "s/support@taosdata\.com/support@hanatech\.com\.cn/g" ${top_dir}/src/kit/shell/src/shellLinux.c
-  sed -i "s/TDengine shell/ProDB shell/g" ${top_dir}/src/kit/shell/src/shellLinux.c
+  sed -i "s/TDengine/ProDB/g" ${top_dir}/src/kit/shell/src/shellLinux.c
   sed -i "s/2020 by TAOS Data/2021 by HanaTech/g" ${top_dir}/src/kit/shell/src/shellLinux.c
   # src/os/src/windows/wEnv.c
   sed -i "s/C:\/TDengine/C:\/ProDB/g" ${top_dir}/src/os/src/windows/wEnv.c
@@ -87,6 +88,10 @@ function replace_community_pro() {
   sed -i "s/\"taos> \"/\"ProDB> \"/g" ${top_dir}/src/kit/shell/src/shellEngine.c
   sed -i "s/\"   -> \"/\"    -> \"/g" ${top_dir}/src/kit/shell/src/shellEngine.c
   sed -i "s/prompt_size = 6/prompt_size = 7/g" ${top_dir}/src/kit/shell/src/shellEngine.c
+  # src/kit/shell/src/shellImport.c
+  sed -i "s/TDengine/ProDB/g" ${top_dir}/src/kit/shell/src/shellImport.c
+  # src/kit/shell/src/shellMain.c
+  sed -i "s/TDengine/ProDB/g" ${top_dir}/src/kit/shell/src/shellMain.c
   # src/rpc/src/rpcMain.c
   sed -i "s/taos connections/prodbc connections/g" ${top_dir}/src/rpc/src/rpcMain.c
   # src/plugins/monitor/src/monMain.c
@@ -132,6 +137,7 @@ function replace_community_pro() {
   sed -i "s/configDir=\"\/etc\/taos\"/configDir=\"\/etc\/ProDB\"/g" ${top_dir}/packaging/tools/install.sh
   sed -i "s/installDir=\"\/usr\/local\/taos\"/installDir=\"\/usr\/local\/ProDB\"/g" ${top_dir}/packaging/tools/install.sh
   sed -i "s/adapterName=\"taosadapter\"/adapterName=\"proadapter\"/g" ${top_dir}/packaging/tools/install.sh
+  sed -i "s/\${csudo}mkdir -p \${install_main_dir}\/examples/#\${csudo}mkdir -p \${install_main_dir}\/examples/g" ${top_dir}/packaging/tools/install.sh
 
   # packaging/tools/makeclient.sh
   sed -i "s/productName=\"TDengine\"/productName=\"ProDB\"/g" ${top_dir}/packaging/tools/makeclient.sh
