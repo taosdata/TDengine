@@ -639,7 +639,7 @@ void sqlite3PcacheTruncate(PCache *pCache, Pgno pgno) {
     if (pgno == 0 && pCache->nRefSum) {
       sqlite3_pcache_page *pPage1;
       pPage1 = pcache2.xFetch(pCache->pCache, 1, 0);
-      if (ALWAYS(pPage1)) { /* Page 1 is always available in cache, because
+      if (pPage1) { /* Page 1 is always available in cache, because
                             ** pCache->nRefSum>0 */
         memset(pPage1->pBuf, 0, pCache->szPage);
         pgno = 1;
@@ -712,7 +712,7 @@ static PgHdr *pcacheSortDirtyList(PgHdr *pIn) {
     p = pIn;
     pIn = p->pDirty;
     p->pDirty = 0;
-    for (i = 0; ALWAYS(i < N_SORT_BUCKET - 1); i++) {
+    for (i = 0; i < N_SORT_BUCKET - 1; i++) {
       if (a[i] == 0) {
         a[i] = p;
         break;
@@ -721,7 +721,7 @@ static PgHdr *pcacheSortDirtyList(PgHdr *pIn) {
         a[i] = 0;
       }
     }
-    if (NEVER(i == N_SORT_BUCKET - 1)) {
+    if (i == N_SORT_BUCKET - 1) {
       /* To get here, there need to be 2^(N_SORT_BUCKET) elements in
       ** the input list.  But that is impossible.
       */
