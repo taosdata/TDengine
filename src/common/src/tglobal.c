@@ -1812,9 +1812,10 @@ static void doInitGlobalConfig(void) {
   cfg.ptrLength = 0;
   cfg.unitType = TAOS_CFG_UTYPE_NONE;
   taosInitConfigOption(cfg);
-  assert(tsGlobalConfigNum < TSDB_CFG_MAX_NUM);
+  assert(tsGlobalConfigNum == TSDB_CFG_MAX_NUM);
 #else
-  assert(tsGlobalConfigNum < TSDB_CFG_MAX_NUM);
+  // if TD_TSZ macro define, have 5 count configs, so must add 5
+  assert(tsGlobalConfigNum + 5 == TSDB_CFG_MAX_NUM);
 #endif
 }
 
