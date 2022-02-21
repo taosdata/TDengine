@@ -18,8 +18,8 @@
 #define _TD_CFG_INT_H_
 
 #include "config.h"
+#include "taoserror.h"
 #include "thash.h"
-#include "tlockfree.h"
 #include "ulog.h"
 
 #ifdef __cplusplus
@@ -27,8 +27,7 @@ extern "C" {
 #endif
 
 typedef struct SConfig {
-  ECfgType  loadType;
-  SRWLatch  lock;
+  ECfgType  stype;
   SHashObj *hash;
 } SConfig;
 

@@ -24,7 +24,7 @@ extern "C" {
 #endif
 
 typedef enum {
-  CFG_TYPE_NONE,
+  CFG_TYPE_DEFAULT,
   CFG_TYPE_TAOS_CFG,
   CFG_TYPE_DOT_ENV,
   CFG_TYPE_ENV_VAR,
@@ -33,8 +33,8 @@ typedef enum {
 } ECfgType;
 
 typedef enum {
-  CFG_DYPE_NONE,
-  CFG_DYPE_BOOL,
+  CFG_DTYPE_NONE,
+  CFG_DTYPE_BOOL,
   CFG_DTYPE_INT8,
   CFG_DTYPE_UINT8,
   CFG_DTYPE_INT16,
@@ -62,6 +62,31 @@ typedef enum {
   CFG_UTYPE_MS
 } ECfgUnitType;
 
+typedef struct SConfigItem {
+  ECfgType     stype;
+  ECfgUnitType utype;
+  ECfgDataType dtype;
+  const char  *name;
+  union {
+    bool     boolVal;
+    uint8_t  uint8Val;
+    int8_t   int8Val;
+    uint16_t uint16Val;
+    int16_t  int16Val;
+    uint32_t uint32Val;
+    int32_t  int32Val;
+    uint64_t uint64Val;
+    int64_t  int64Val;
+    float    floatVal;
+    double   doubleVal;
+    char    *strVal;
+    char    *fqdnVal;
+    char    *ipstrVal;
+    char    *dirVal;
+    char    *fileVal;
+  };
+} SConfigItem;
+
 typedef struct SConfig SConfig;
 
 SConfig *cfgInit();
@@ -69,44 +94,26 @@ int32_t  cfgLoad(SConfig *pConfig, ECfgType cfgType, const char *sourceStr);
 void     cfgCleanup(SConfig *pConfig);
 
 int32_t      cfgGetSize(SConfig *pConfig);
-void        *cfgIterate(SConfig *pConfig, void *p);
-void         cfgCancelIterate(SConfig *pConfig, void *p);
-ECfgUnitType cfgGetUtype(SConfig *pConfig, const char *name);
-ECfgDataType cfgGetDtype(SConfig *pConfig, const char *name);
+SConfigItem *cfgIterate(SConfig *pConfig, SConfigItem *pIter);
+void         cfgCancelIterate(SConfig *pConfig, SConfigItem *pIter);
+SConfigItem *cfgGetItem(SConfig *pConfig, const char *name);
 
-void cfgAddBool(SConfig *pConfig, const char *name, bool defaultVal, ECfgUnitType utype);
-void cfgAddInt8(SConfig *pConfig, const char *name, int8_t defaultVal, ECfgUnitType utype);
-void cfgAddUInt8(SConfig *pConfig, const char *name, uint8_t defaultVal, ECfgUnitType utype);
-void cfgAddInt16(SConfig *pConfig, const char *name, int16_t defaultVal, ECfgUnitType utype);
-void cfgAddUInt16(SConfig *pConfig, const char *name, uint16_t defaultVal, ECfgUnitType utype);
-void cfgAddInt32(SConfig *pConfig, const char *name, int32_t defaultVal, ECfgUnitType utype);
-void cfgAddUInt32(SConfig *pConfig, const char *name, uint32_t defaultVal, ECfgUnitType utype);
-void cfgAddInt64(SConfig *pConfig, const char *name, int64_t defaultVal, ECfgUnitType utype);
-void cfgAddUInt64(SConfig *pConfig, const char *name, uint64_t defaultVal, ECfgUnitType utype);
-void cfgAddFloat(SConfig *pConfig, const char *name, float defaultVal, ECfgUnitType utype);
-void cfgAddDouble(SConfig *pConfig, const char *name, double defaultVal, ECfgUnitType utype);
-void cfgAddString(SConfig *pConfig, const char *name, const char *defaultVal, ECfgUnitType utype);
-void cfgAddFqdn(SConfig *pConfig, const char *name, const char *defaultVal, ECfgUnitType utype);
-void cfgAddIpStr(SConfig *pConfig, const char *name, const char *defaultVal, ECfgUnitType utype);
-void cfgAddDir(SConfig *pConfig, const char *name, const char *defaultVal, ECfgUnitType utype);
-void cfgAddFile(SConfig *pConfig, const char *name, const char *defaultVal, ECfgUnitType utype);
-
-bool        cfgGetBool(SConfig *pConfig, const char *name);
-int8_t      cfgGetInt8(SConfig *pConfig, const char *name);
-uint8_t     cfgGetUInt8(SConfig *pConfig, const char *name);
-int16_t     cfgGetInt16(SConfig *pConfig, const char *name);
-uint16_t    cfgGetUInt16(SConfig *pConfig, const char *name);
-int32_t     cfgGetInt32(SConfig *pConfig, const char *name);
-uint32_t    cfgGetUInt32(SConfig *pConfig, const char *name);
-int64_t     cfgGetInt64(SConfig *pConfig, const char *name);
-uint64_t    cfgGetUInt64(SConfig *pConfig, const char *name);
-float       cfgGetFloat(SConfig *pConfig, const char *name);
-double      cfgGetDouble(SConfig *pConfig, const char *name);
-const char *cfgGetString(SConfig *pConfig, const char *name);
-const char *cfgGetFqdn(SConfig *pConfig, const char *name);
-const char *cfgGetIpStr(SConfig *pConfig, const char *name);
-const char *cfgGetDir(SConfig *pConfig, const char *name);
-const char *cfgGetFile(SConfig *pConfig, const char *name);
+int32_t cfgAddBool(SConfig *pConfig, const char *name, bool defaultVal, ECfgUnitType utype);
+int32_t cfgAddInt8(SConfig *pConfig, const char *name, int8_t defaultVal, ECfgUnitType utype);
+int32_t cfgAddUInt8(SConfig *pConfig, const char *name, uint8_t defaultVal, ECfgUnitType utype);
+int32_t cfgAddInt16(SConfig *pConfig, const char *name, int16_t defaultVal, ECfgUnitType utype);
+int32_t cfgAddUInt16(SConfig *pConfig, const char *name, uint16_t defaultVal, ECfgUnitType utype);
+int32_t cfgAddInt32(SConfig *pConfig, const char *name, int32_t defaultVal, ECfgUnitType utype);
+int32_t cfgAddUInt32(SConfig *pConfig, const char *name, uint32_t defaultVal, ECfgUnitType utype);
+int32_t cfgAddInt64(SConfig *pConfig, const char *name, int64_t defaultVal, ECfgUnitType utype);
+int32_t cfgAddUInt64(SConfig *pConfig, const char *name, uint64_t defaultVal, ECfgUnitType utype);
+int32_t cfgAddFloat(SConfig *pConfig, const char *name, float defaultVal, ECfgUnitType utype);
+int32_t cfgAddDouble(SConfig *pConfig, const char *name, double defaultVal, ECfgUnitType utype);
+int32_t cfgAddString(SConfig *pConfig, const char *name, const char *defaultVal, ECfgUnitType utype);
+int32_t cfgAddFqdn(SConfig *pConfig, const char *name, const char *defaultVal, ECfgUnitType utype);
+int32_t cfgAddIpStr(SConfig *pConfig, const char *name, const char *defaultVal, ECfgUnitType utype);
+int32_t cfgAddDir(SConfig *pConfig, const char *name, const char *defaultVal, ECfgUnitType utype);
+int32_t cfgAddFile(SConfig *pConfig, const char *name, const char *defaultVal, ECfgUnitType utype);
 
 #ifdef __cplusplus
 }
