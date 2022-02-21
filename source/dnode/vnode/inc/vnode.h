@@ -226,9 +226,9 @@ static FORCE_INLINE int tqReadHandleSetTbUidList(STqReadHandle *pHandle, const S
   return 0;
 }
 
-void tqReadHandleSetMsg(STqReadHandle *pHandle, SSubmitReq *pMsg, int64_t ver);
-bool tqNextDataBlock(STqReadHandle *pHandle);
-int  tqRetrieveDataBlockInfo(STqReadHandle *pHandle, SDataBlockInfo *pBlockInfo);
+int32_t tqReadHandleSetMsg(STqReadHandle *pHandle, SSubmitReq *pMsg, int64_t ver);
+bool    tqNextDataBlock(STqReadHandle *pHandle);
+int     tqRetrieveDataBlockInfo(STqReadHandle *pHandle, SDataBlockInfo *pBlockInfo);
 // return SArray<SColumnInfoData>
 SArray *tqRetrieveDataBlock(STqReadHandle *pHandle);
 
