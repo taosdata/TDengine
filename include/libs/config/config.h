@@ -38,8 +38,6 @@ typedef enum {
 typedef enum {
   CFG_DTYPE_NONE,
   CFG_DTYPE_BOOL,
-  CFG_DTYPE_INT8,
-  CFG_DTYPE_UINT16,
   CFG_DTYPE_INT32,
   CFG_DTYPE_INT64,
   CFG_DTYPE_FLOAT,
@@ -51,37 +49,24 @@ typedef enum {
   CFG_DTYPE_TIMEZONE
 } ECfgDataType;
 
-typedef enum {
-  CFG_UTYPE_NONE,
-  CFG_UTYPE_GB,
-  CFG_UTYPE_MB,
-  CFG_UTYPE_BYTE,
-  CFG_UTYPE_SECOND,
-  CFG_UTYPE_MS,
-  CFG_UTYPE_PERCENT
-} ECfgUnitType;
-
 typedef struct SConfigItem {
   ECfgSrcType  stype;
-  ECfgUnitType utype;
   ECfgDataType dtype;
   char        *name;
   union {
-    bool     boolVal;
-    int8_t   int8Val;
-    uint16_t uint16Val;
-    int32_t  int32Val;
-    int64_t  int64Val;
-    float    floatVal;
-    char    *strVal;
+    bool     bval;
+    float    fval;
+    int32_t  i32;
+    int64_t  i64;
+    char    *str;
   };
   union {
-    int64_t minIntVal;
-    double  minFloatVal;
+    int64_t imin;
+    double  fmin;
   };
   union {
-    int64_t maxIntVal;
-    double  maxFloatVal;
+    int64_t imax;
+    double  fmax;
   };
 } SConfigItem;
 
@@ -96,27 +81,19 @@ SConfigItem *cfgIterate(SConfig *pConfig, SConfigItem *pIter);
 void         cfgCancelIterate(SConfig *pConfig, SConfigItem *pIter);
 SConfigItem *cfgGetItem(SConfig *pConfig, const char *name);
 
-int32_t cfgAddBool(SConfig *pConfig, const char *name, bool defaultVal, ECfgUnitType utype);
-int32_t cfgAddInt8(SConfig *pConfig, const char *name, int8_t defaultVal, int64_t minval, int64_t maxval,
-                   ECfgUnitType utype);
-int32_t cfgAddUInt16(SConfig *pConfig, const char *name, uint16_t defaultVal, int64_t minval, int64_t maxval,
-                     ECfgUnitType utype);
-int32_t cfgAddInt32(SConfig *pConfig, const char *name, int32_t defaultVal, int64_t minval, int64_t maxval,
-                    ECfgUnitType utype);
-int32_t cfgAddInt64(SConfig *pConfig, const char *name, int64_t defaultVal, int64_t minval, int64_t maxval,
-                    ECfgUnitType utype);
-int32_t cfgAddFloat(SConfig *pConfig, const char *name, float defaultVal, double minval, double maxval,
-                    ECfgUnitType utype);
-int32_t cfgAddString(SConfig *pConfig, const char *name, const char *defaultVal, ECfgUnitType utype);
-int32_t cfgAddIpStr(SConfig *pConfig, const char *name, const char *defaultVal, ECfgUnitType utype);
-int32_t cfgAddDir(SConfig *pConfig, const char *name, const char *defaultVal, ECfgUnitType utype);
-int32_t cfgAddLocale(SConfig *pConfig, const char *name, const char *defaultVal, ECfgUnitType utype);
-int32_t cfgAddCharset(SConfig *pConfig, const char *name, const char *defaultVal, ECfgUnitType utype);
-int32_t cfgAddTimezone(SConfig *pConfig, const char *name, const char *defaultVal, ECfgUnitType utype);
+int32_t cfgAddBool(SConfig *pConfig, const char *name, bool defaultVal);
+int32_t cfgAddInt32(SConfig *pConfig, const char *name, int32_t defaultVal, int64_t minval, int64_t maxval);
+int32_t cfgAddInt64(SConfig *pConfig, const char *name, int64_t defaultVal, int64_t minval, int64_t maxval);
+int32_t cfgAddFloat(SConfig *pConfig, const char *name, float defaultVal, double minval, double maxval);
+int32_t cfgAddString(SConfig *pConfig, const char *name, const char *defaultVal);
+int32_t cfgAddIpStr(SConfig *pConfig, const char *name, const char *defaultVa);
+int32_t cfgAddDir(SConfig *pConfig, const char *name, const char *defaultVal);
+int32_t cfgAddLocale(SConfig *pConfig, const char *name, const char *defaultVal);
+int32_t cfgAddCharset(SConfig *pConfig, const char *name, const char *defaultVal);
+int32_t cfgAddTimezone(SConfig *pConfig, const char *name, const char *defaultVal);
 
 const char *cfgStypeStr(ECfgSrcType type);
 const char *cfgDtypeStr(ECfgDataType type);
-const char *cfgUtypeStr(ECfgUnitType type);
 
 #ifdef __cplusplus
 }

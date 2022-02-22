@@ -6,7 +6,7 @@ target_include_directories(
     PRIVATE "${CMAKE_CURRENT_SOURCE_DIR}/inc"
 )
 
-target_link_libraries(config os util)
+target_link_libraries(config os util common)
 
 if(${BUILD_TEST})
     ADD_SUBDIRECTORY(test)

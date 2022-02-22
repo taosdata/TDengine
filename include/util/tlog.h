@@ -74,6 +74,9 @@ void taosPrintLongString(const char *flags, int32_t dflag, const char *format, .
 
 void taosDumpData(unsigned char *msg, int32_t len);
 
+
+void taosSetDebugFlag(int32_t flag);
+
 #ifdef __cplusplus
 }
 #endif

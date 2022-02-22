@@ -16,205 +16,157 @@
 #define _DEFAULT_SOURCE
 #include "dmnInt.h"
 
-static void dmnInitEnvCfg(SDnodeEnvCfg *pCfg) {
-  pCfg->sver = 30000000;  // 3.0.0.0
-  pCfg->numOfCores = tsNumOfCores;
-  pCfg->numOfCommitThreads = tsNumOfCommitThreads;
-  pCfg->enableTelem = 0;
-  tstrncpy(pCfg->timezone, tsTimezone, TSDB_TIMEZONE_LEN);
-  tstrncpy(pCfg->locale, tsLocale, TSDB_LOCALE_LEN);
-  tstrncpy(pCfg->charset, tsCharset, TSDB_LOCALE_LEN);
-  tstrncpy(pCfg->buildinfo, buildinfo, 64);
-  tstrncpy(pCfg->gitinfo, gitinfo, 48);
+static int32_t dmnInitDnodeCfg(SConfig *pConfig) {
+  if (cfgAddString(pConfig, "version", version) != 0) return -1;
+  if (cfgAddString(pConfig, "buildinfo", buildinfo) != 0) return -1;
+  if (cfgAddString(pConfig, "gitinfo", gitinfo) != 0) return -1;
+  if (cfgAddTimezone(pConfig, "timezone", "") != 0) return -1;
+  if (cfgAddLocale(pConfig, "locale", "") != 0) return -1;
+  if (cfgAddCharset(pConfig, "charset", "") != 0) return -1;
+  if (cfgAddInt32(pConfig, "numOfCores", 1, 1, 100000) != 0) return -1;
+  if (cfgAddInt32(pConfig, "numOfCommitThreads", 4, 1, 1000) != 0) return -1;
+  if (cfgAddBool(pConfig, "telemetryReporting", 0) != 0) return -1;
+  if (cfgAddBool(pConfig, "enableCoreFile", 0) != 0) return -1;
+  if (cfgAddInt32(pConfig, "supportVnodes", 256, 0, 65536) != 0) return -1;
+  if (cfgAddInt32(pConfig, "statusInterval", 1, 1, 30) != 0) return -1;
+  if (cfgAddFloat(pConfig, "numOfThreadsPerCore", 1, 0, 10) != 0) return -1;
+  if (cfgAddFloat(pConfig, "ratioOfQueryCores", 1, 0, 5) != 0) return -1;
+  if (cfgAddInt32(pConfig, "maxShellConns", 50000, 10, 50000000) != 0) return -1;
+  if (cfgAddInt32(pConfig, "shellActivityTimer", 3, 1, 120) != 0) return -1;
+  if (cfgAddInt32(pConfig, "serverPort", 6030, 1, 65056) != 0) return -1;
+  return 0;
 }
 
-static void dmnInitObjCfg(SDnodeObjCfg *pCfg) {
-  pCfg->numOfSupportVnodes = tsNumOfSupportVnodes;
-  pCfg->statusInterval = tsStatusInterval;
-  pCfg->numOfThreadsPerCore = tsNumOfThreadsPerCore;
-  pCfg->ratioOfQueryCores = tsRatioOfQueryCores;
-  pCfg->maxShellConns = tsMaxShellConns;
-  pCfg->shellActivityTimer = tsShellActivityTimer;
-  pCfg->serverPort = tsServerPort;
-  tstrncpy(pCfg->dataDir, tsDataDir, TSDB_FILENAME_LEN);
-  tstrncpy(pCfg->localEp, tsLocalEp, TSDB_EP_LEN);
-  tstrncpy(pCfg->localFqdn, tsLocalFqdn, TSDB_FQDN_LEN);
-  tstrncpy(pCfg->firstEp, tsFirst, TSDB_EP_LEN);
+int32_t dmnLoadCfg(SConfig *pConfig, const char *inputCfgDir, const char *envFile, const char *apolloUrl) {
+  char configDir[PATH_MAX] = {0};
+  char configFile[PATH_MAX + 100] = {0};
+
+  taosExpandDir(inputCfgDir, configDir, PATH_MAX);
+  snprintf(configFile, sizeof(configFile), "%s" TD_DIRSEP "taos.cfg", configDir);
+
+  if (cfgLoad(pConfig, CFG_STYPE_APOLLO_URL, apolloUrl) != 0) {
+    uError("failed to load from apollo url:%s since %s\n", apolloUrl, terrstr());
+    return -1;
+  }
+
+  if (cfgLoad(pConfig, CFG_STYPE_CFG_FILE, configFile) != 0) {
+    if (cfgLoad(pConfig, CFG_STYPE_CFG_FILE, configDir) != 0) {
+      uError("failed to load from config file:%s since %s\n", configFile, terrstr());
+      return -1;
+    }
+  }
+
+  if (cfgLoad(pConfig, CFG_STYPE_ENV_FILE, envFile) != 0) {
+    uError("failed to load from env file:%s since %s\n", envFile, terrstr());
+    return -1;
+  }
+
+  if (cfgLoad(pConfig, CFG_STYPE_ENV_VAR, NULL) != 0) {
+    uError("failed to load from global env variables since %s\n", terrstr());
+    return -1;
+  }
+
+  return 0;
 }
 
-#if 0
-void taosReadGlobalLogCfg() {
-  FILE * fp;
-  char * line, *option, *value;
-  int    olen, vlen;
-  char   fileName[PATH_MAX] = {0};
+SConfig *dmnReadCfg(const char *cfgDir, const char *envFile, const char *apolloUrl) {
+  SConfig *pConfig = cfgInit();
+  if (pConfig == NULL) return NULL;
 
-  taosExpandDir(configDir, configDir, PATH_MAX);
-  taosReadLogOption("logDir", tsLogDir);
+  if (dmnInitLogCfg(pConfig) != 0) {
+    uError("failed to init log cfg since %s", terrstr());
+    cfgCleanup(pConfig);
+    return NULL;
+  }
+
+  if (dmnInitDnodeCfg(pConfig) != 0) {
+    uError("failed to init dnode cfg since %s", terrstr());
+    cfgCleanup(pConfig);
+    return NULL;
+  }
+
+  if (dmnLoadCfg(pConfig, cfgDir, envFile, apolloUrl) != 0) {
+    uError("failed to load cfg since %s", terrstr());
+    cfgCleanup(pConfig);
+    return NULL;
+  }
+
+  bool enableCore = cfgGetItem(pConfig, "enableCoreFile")->bval;
+  taosSetCoreDump(enableCore);
+
+  if (taosCheckAndPrintCfg() != 0) {
+    uError("failed to check config");
+    return NULL;
+  }
+
   
-  sprintf(fileName, "%s/taos.cfg", configDir);
-  fp = fopen(fileName, "r");
-  if (fp == NULL) {
-    printf("\nconfig file:%s not found, all variables are set to default\n", fileName);
-    return;
-  }
-
-  ssize_t _bytes = 0;
-  size_t len = 1024;
-  line = calloc(1, len);
-  
-  while (!feof(fp)) {
-    memset(line, 0, len);
-    
-    option = value = NULL;
-    olen = vlen = 0;
-
-    _bytes = tgetline(&line, &len, fp);
-    if (_bytes < 0)
-    {
-      break;
-    }
-
-    line[len - 1] = 0;
-
-    paGetToken(line, &option, &olen);
-    if (olen == 0) continue;
-    option[olen] = 0;
-
-    paGetToken(option + olen + 1, &value, &vlen);
-    if (vlen == 0) continue;
-    value[vlen] = 0;
-
-    taosReadLogOption(option, value);
-  }
-
-  tfree(line);
-  fclose(fp);
+  return pConfig;
 }
 
-
-void taosPrintCfg() {
-  uInfo("   taos config & system info:");
-  uInfo("==================================");
-
-  for (int i = 0; i < tsGlobalConfigNum; ++i) {
-    SGlobalCfg *cfg = tsGlobalConfig + i;
-    if (tscEmbeddedInUtil == 0 && !(cfg->cfgType & TSDB_CFG_CTYPE_B_CLIENT)) continue;
-    if (cfg->cfgType & TSDB_CFG_CTYPE_B_NOT_PRINT) continue;
-    
-    int optionLen = (int)strlen(cfg->option);
-    int blankLen = TSDB_CFG_PRINT_LEN - optionLen;
-    blankLen = blankLen < 0 ? 0 : blankLen;
-
-    char blank[TSDB_CFG_PRINT_LEN];
-    memset(blank, ' ', TSDB_CFG_PRINT_LEN);
-    blank[blankLen] = 0;
-
-    switch (cfg->valType) {
-      case TAOS_CFG_VTYPE_INT8:
-        uInfo(" %s:%s%d%s", cfg->option, blank, *((int8_t *)cfg->ptr), tsGlobalUnit[cfg->unitType]);
-        break;
-      case TAOS_CFG_VTYPE_INT16:
-        uInfo(" %s:%s%d%s", cfg->option, blank, *((int16_t *)cfg->ptr), tsGlobalUnit[cfg->unitType]);
-        break;
-      case TAOS_CFG_VTYPE_INT32:
-        uInfo(" %s:%s%d%s", cfg->option, blank, *((int32_t *)cfg->ptr), tsGlobalUnit[cfg->unitType]);
-        break;
-      case TAOS_CFG_VTYPE_UINT16:
-        uInfo(" %s:%s%d%s", cfg->option, blank, *((uint16_t *)cfg->ptr), tsGlobalUnit[cfg->unitType]);
-        break;
-      case TAOS_CFG_VTYPE_FLOAT:
-        uInfo(" %s:%s%f%s", cfg->option, blank, *((float *)cfg->ptr), tsGlobalUnit[cfg->unitType]);
-        break;
-      case TAOS_CFG_VTYPE_DOUBLE:
-        uInfo(" %s:%s%f%s", cfg->option, blank, *((double *)cfg->ptr), tsGlobalUnit[cfg->unitType]);
-        break;
-      case TAOS_CFG_VTYPE_STRING:
-      case TAOS_CFG_VTYPE_IPSTR:
-      case TAOS_CFG_VTYPE_DIRECTORY:
-        uInfo(" %s:%s%s%s", cfg->option, blank, (char *)cfg->ptr, tsGlobalUnit[cfg->unitType]);
-        break;
-      default:
-        break;
-    }
-  }
-
-  taosPrintOsInfo();
-  uInfo("==================================");
-}
-
-#if 0
-static void taosDumpCfg(SGlobalCfg *cfg) {
-    int optionLen = (int)strlen(cfg->option);
-    int blankLen = TSDB_CFG_PRINT_LEN - optionLen;
-    blankLen = blankLen < 0 ? 0 : blankLen;
-
-    char blank[TSDB_CFG_PRINT_LEN];
-    memset(blank, ' ', TSDB_CFG_PRINT_LEN);
-    blank[blankLen] = 0;
-
-    switch (cfg->valType) {
-      case TAOS_CFG_VTYPE_INT8:
-        printf(" %s:%s%d%s\n", cfg->option, blank, *((int8_t *)cfg->ptr), tsGlobalUnit[cfg->unitType]);
-        break;
-      case TAOS_CFG_VTYPE_INT16:
-        printf(" %s:%s%d%s\n", cfg->option, blank, *((int16_t *)cfg->ptr), tsGlobalUnit[cfg->unitType]);
-        break;
-      case TAOS_CFG_VTYPE_INT32:
-        printf(" %s:%s%d%s\n", cfg->option, blank, *((int32_t *)cfg->ptr), tsGlobalUnit[cfg->unitType]);
-        break;
-      case TAOS_CFG_VTYPE_UINT16:
-        printf(" %s:%s%d%s\n", cfg->option, blank, *((uint16_t *)cfg->ptr), tsGlobalUnit[cfg->unitType]);
-        break;
-      case TAOS_CFG_VTYPE_FLOAT:
-        printf(" %s:%s%f%s\n", cfg->option, blank, *((float *)cfg->ptr), tsGlobalUnit[cfg->unitType]);
-        break;
-      case TAOS_CFG_VTYPE_STRING:
-      case TAOS_CFG_VTYPE_IPSTR:
-      case TAOS_CFG_VTYPE_DIRECTORY:
-        printf(" %s:%s%s%s\n", cfg->option, blank, (char *)cfg->ptr, tsGlobalUnit[cfg->unitType]);
-        break;
-      default:
-        break;
-    }
-}
-
-void taosDumpGlobalCfg() {
+void dmnDumpCfg(SConfig *pCfg) {
   printf("taos global config:\n");
   printf("==================================\n");
-  for (int i = 0; i < tsGlobalConfigNum; ++i) {
-    SGlobalCfg *cfg = tsGlobalConfig + i;
-    if (tscEmbeddedInUtil == 0 && !(cfg->cfgType & TSDB_CFG_CTYPE_B_CLIENT)) continue;
-    if (cfg->cfgType & TSDB_CFG_CTYPE_B_NOT_PRINT) continue;
-    if (!(cfg->cfgType & TSDB_CFG_CTYPE_B_SHOW)) continue;
 
-    taosDumpCfg(cfg);
-  }
-
-  printf("\ntaos local config:\n");
-  printf("==================================\n");
-
-  for (int i = 0; i < tsGlobalConfigNum; ++i) {
-    SGlobalCfg *cfg = tsGlobalConfig + i;
-    if (tscEmbeddedInUtil == 0 && !(cfg->cfgType & TSDB_CFG_CTYPE_B_CLIENT)) continue;
-    if (cfg->cfgType & TSDB_CFG_CTYPE_B_NOT_PRINT) continue;
-    if (cfg->cfgType & TSDB_CFG_CTYPE_B_SHOW) continue;
-
-    taosDumpCfg(cfg);
+  SConfigItem *pItem = cfgIterate(pCfg, NULL);
+  while (pItem != NULL) {
+    switch (pItem->dtype) {
+      case CFG_DTYPE_BOOL:
+        printf("cfg:%s, value:%u src:%s\n", pItem->name, pItem->bval, cfgStypeStr(pItem->stype));
+        break;
+      case CFG_DTYPE_INT32:
+        printf("cfg:%s, value:%d src:%s\n", pItem->name, pItem->i32, cfgStypeStr(pItem->stype));
+        break;
+      case CFG_DTYPE_INT64:
+        printf("cfg:%s, value:%" PRId64 " src:%s\n", pItem->name, pItem->i64, cfgStypeStr(pItem->stype));
+        break;
+      case CFG_DTYPE_FLOAT:
+        printf("cfg:%s, value:%f src:%s\n", pItem->name, pItem->fval, cfgStypeStr(pItem->stype));
+        break;
+      case CFG_DTYPE_STRING:
+      case CFG_DTYPE_IPSTR:
+      case CFG_DTYPE_DIR:
+      case CFG_DTYPE_LOCALE:
+      case CFG_DTYPE_CHARSET:
+      case CFG_DTYPE_TIMEZONE:
+        printf("cfg:%s, value:%s src:%s\n", pItem->name, pItem->str, cfgStypeStr(pItem->stype));
+        break;
+    }
+    pItem = cfgIterate(pCfg, pItem);
   }
 }
 
-#endif
+SDnodeEnvCfg dmnGetEnvCfg(SConfig *pCfg) {
+  SDnodeEnvCfg envCfg = {0};
 
-#endif
+  const char *vstr = cfgGetItem(pCfg, "version")->str;
+  envCfg.sver = 30000000;
+  tstrncpy(envCfg.buildinfo, cfgGetItem(pCfg, "buildinfo")->str, sizeof(envCfg.buildinfo));
+  tstrncpy(envCfg.gitinfo, cfgGetItem(pCfg, "gitinfo")->str, sizeof(envCfg.gitinfo));
+  tstrncpy(envCfg.timezone, cfgGetItem(pCfg, "timezone")->str, sizeof(envCfg.timezone));
+  tstrncpy(envCfg.locale, cfgGetItem(pCfg, "locale")->str, sizeof(envCfg.locale));
+  tstrncpy(envCfg.charset, cfgGetItem(pCfg, "charset")->str, sizeof(envCfg.charset));
+  envCfg.numOfCores = cfgGetItem(pCfg, "numOfCores")->i32;
+  envCfg.numOfCommitThreads = (uint16_t) cfgGetItem(pCfg, "numOfCommitThreads")->i32;
+  envCfg.enableTelem = cfgGetItem(pCfg, "telemetryReporting")->bval;
 
-static int32_t dmnInitLog() {
-
+  return envCfg;
 }
 
-int32_t dnmInitCfg(SDnodeEnvCfg *pEnvCfg, SDnodeObjCfg *pObjCfg, const char *configFile, const char *envFile,
-                   const char *apolloUrl) {
-  dmnInitEnvCfg(pEnvCfg);
-  dmnInitObjCfg(pObjCfg);
-  return 0;
+SDnodeObjCfg dmnGetObjCfg(SConfig *pCfg) {
+  SDnodeObjCfg objCfg = {0};
+
+  objCfg.numOfSupportVnodes = cfgGetItem(pCfg, "supportVnodes")->i32;
+  objCfg.statusInterval = cfgGetItem(pCfg, "statusInterval")->i32;
+  objCfg.numOfThreadsPerCore = cfgGetItem(pCfg, "numOfThreadsPerCore")->fval;
+  objCfg.ratioOfQueryCores = cfgGetItem(pCfg, "ratioOfQueryCores")->fval;
+  objCfg.maxShellConns = cfgGetItem(pCfg, "maxShellConns")->i32;
+  objCfg.shellActivityTimer = cfgGetItem(pCfg, "shellActivityTimer")->i32;
+  objCfg.serverPort = (uint16_t)cfgGetItem(pCfg, "serverPort")->i32;
+  tstrncpy(objCfg.dataDir, cfgGetItem(pCfg, "dataDir")->str, sizeof(objCfg.dataDir));
+  tstrncpy(objCfg.localEp, cfgGetItem(pCfg, "localEp")->str, sizeof(objCfg.localEp));
+  tstrncpy(objCfg.localFqdn, cfgGetItem(pCfg, "localFqdn")->str, sizeof(objCfg.localFqdn, cfgGetItem));
+  tstrncpy(objCfg.firstEp, cfgGetItem(pCfg, "firstEp")->str, sizeof(objCfg.firstEp));
+  tstrncpy(objCfg.secondEp, cfgGetItem(pCfg, "secondEp")->str, sizeof(objCfg.firstEp));
+
+  return objCfg;
 }

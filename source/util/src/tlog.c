@@ -773,3 +773,12 @@ void taosPrintOsInfo() {
   uInfo(" os version:             %s", info.version);
   uInfo(" os machine:             %s", info.machine);
 }
+
+void taosSetDebugFlag(int32_t flag) {
+  if (!(debugFlag & DEBUG_TRACE || debugFlag & DEBUG_DEBUG || debugFlag & DEBUG_DUMP)) return;
+
+  debugFlag = flag;
+  mDebugFlag = flag;
+  dDebugFlag = flag;
+  cDebugFlag = flag;
+}

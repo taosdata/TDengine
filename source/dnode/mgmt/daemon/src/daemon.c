@@ -14,7 +14,6 @@
  */
 
 #define _DEFAULT_SOURCE
-#include "dnode.h"
 #include "dmnInt.h"
 
 static struct {
@@ -24,14 +23,16 @@ static struct {
   bool printAuth;
   bool printVersion;
   char configDir[PATH_MAX];
+  char envFile[PATH_MAX];
+  char apolloUrl[PATH_MAX];
 } dmn = {0};
 
-void dmnSigintHandle(int signum, void *info, void *ctx) {
+static void dmnSigintHandle(int signum, void *info, void *ctx) {
   uInfo("singal:%d is received", signum);
   dmn.stop = true;
 }
 
-void dmnSetSignalHandle() {
+static void dmnSetSignalHandle() {
   taosSetSignal(SIGTERM, dmnSigintHandle);
   taosSetSignal(SIGHUP, dmnSigintHandle);
   taosSetSignal(SIGINT, dmnSigintHandle);
@@ -39,10 +40,17 @@ void dmnSetSignalHandle() {
   taosSetSignal(SIGBREAK, dmnSigintHandle);
 }
 
-int dmnParseOption(int argc, char const *argv[]) {
+static void dmnWaitSignal() {
+  dmnSetSignalHandle();
+  while (!dmn.stop) {
+    taosMsleep(100);
+  }
+}
+
+static int32_t dmnParseOption(int32_t argc, char const *argv[]) {
   tstrncpy(dmn.configDir, "/etc/taos", PATH_MAX);
 
-  for (int i = 1; i < argc; ++i) {
+  for (int32_t i = 1; i < argc; ++i) {
     if (strcmp(argv[i], "-c") == 0) {
       if (i < argc - 1) {
         if (strlen(argv[++i]) >= PATH_MAX) {
@@ -58,8 +66,6 @@ int dmnParseOption(int argc, char const *argv[]) {
       dmn.dumpConfig = true;
     } else if (strcmp(argv[i], "-k") == 0) {
       dmn.generateGrant = true;
-    } else if (strcmp(argv[i], "-A") == 0) {
-      dmn.printAuth = true;
     } else if (strcmp(argv[i], "-V") == 0) {
       dmn.printVersion = true;
     } else {
@@ -69,86 +75,17 @@ int dmnParseOption(int argc, char const *argv[]) {
   return 0;
 }
 
-void dmnGenerateGrant() {
-#if 0
-  grantParseParameter();
-#endif
-}
-
-void dmnPrintVersion() {
-#ifdef TD_ENTERPRISE
-  char *releaseName = "enterprise";
-#else
-  char *releaseName = "community";
-#endif
-  printf("%s version: %s compatible_version: %s\n", releaseName, version, compatible_version);
-  printf("gitinfo: %s\n", gitinfo);
-  printf("gitinfoI: %s\n", gitinfoOfInternal);
-  printf("builuInfo: %s\n", buildinfo);
-}
-
-int dmnReadConfig(const char *path) {
-  tstrncpy(configDir, dmn.configDir, PATH_MAX);
-  taosInitGlobalCfg();
-  taosReadGlobalLogCfg();
-
-  if (taosMkDir(tsLogDir) != 0) {
-    printf("failed to create dir: %s, reason: %s\n", tsLogDir, strerror(errno));
-    return -1;
-  }
-
-  char temp[PATH_MAX];
-  snprintf(temp, PATH_MAX, "%s/taosdlog", tsLogDir);
-  if (taosInitLog(temp, tsNumOfLogLines, 1) != 0) {
-    printf("failed to init log file\n");
-    return -1;
-  }
-
-  if (taosInitNotes() != 0) {
-    printf("failed to init log file\n");
-    return -1;
-  }
-
-  if (taosReadCfgFromFile() != 0) {
-    uError("failed to read config");
-    return -1;
-  }
-
-  if (taosCheckAndPrintCfg() != 0) {
-    uError("failed to check config");
-    return -1;
-  }
-
-  taosSetCoreDump(tsEnableCoreFile);
-  return 0;
-}
-
-void dmnDumpConfig() { taosDumpGlobalCfg(); }
-
-void dmnWaitSignal() {
-  dmnSetSignalHandle();
-  while (!dmn.stop) {
-    taosMsleep(100);
-  }
-}
-
-int dmnRunDnode() {
-  SDnodeEnvCfg envCfg = {0};
-  SDnodeObjCfg objCfg = {0};
-
-  if (dnmInitCfg(&envCfg, &objCfg, "", "", "") != 0) {
-    uInfo("Failed to start TDengine since load config error");
-    return -1;
-  }
-
+int32_t dmnRunDnode(SConfig *pCfg) {
+  SDnodeEnvCfg envCfg = dmnGetEnvCfg(pCfg);
   if (dndInit(&envCfg) != 0) {
-    uInfo("Failed to start TDengine, please check the log at %s", tsLogDir);
+    uInfo("Failed to start TDengine, please check the log");
     return -1;
   }
 
+  SDnodeObjCfg objCfg = dmnGetObjCfg(pCfg);
   SDnode *pDnode = dndCreate(&objCfg);
   if (pDnode == NULL) {
-    uInfo("Failed to start TDengine, please check the log at %s", tsLogDir);
+    uInfo("Failed to start TDengine, please check the log");
     return -1;
   }
 
@@ -168,23 +105,33 @@ int main(int argc, char const *argv[]) {
   }
 
   if (dmn.generateGrant) {
-    dmnGenerateGrant();
-    return 0;
+     dmnGenerateGrant();
+     return 0;
   }
 
-  if (dmn.printVersion) {
-    dmnPrintVersion();
-    return 0;
-  }
-
-  if (dmnReadConfig(dmn.configDir) != 0) {
+  if (dmnInitLog(dmn.configDir, dmn.envFile, dmn.apolloUrl) != 0) {
     return -1;
   }
 
-  if (dmn.dumpConfig) {
-    dmnDumpConfig();
+  SConfig *pCfg = dmnReadCfg(dmn.configDir, dmn.envFile, dmn.apolloUrl);
+  if (pCfg == NULL) {
+    uInfo("Failed to start TDengine since read config error");
+    return -1;
+  }
+
+  if (dmn.printVersion) {
+    dmnPrintVersion(pCfg);
+    cfgCleanup(pCfg);
     return 0;
   }
 
-  return dmnRunDnode();
+  if (dmn.dumpConfig) {
+    dmnDumpCfg(pCfg);
+    cfgCleanup(pCfg);
+    return 0;
+  }
+
+  int32_t code = dmnRunDnode(pCfg);
+  cfgCleanup(pCfg);
+  return code;
 }

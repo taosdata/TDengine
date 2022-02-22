@@ -22,6 +22,7 @@
 #include "thash.h"
 #include "tutil.h"
 #include "ulog.h"
+#include "tglobal.h"
 
 #ifdef __cplusplus
 extern "C" {

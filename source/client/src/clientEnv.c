@@ -73,6 +73,7 @@ static void deregisterRequest(SRequestObj* pRequest) {
 }
 
 static void tscInitLogFile() {
+  #if 0
   taosReadGlobalLogCfg();
   if (mkdir(tsLogDir, 0755) != 0 && errno != EEXIST) {
     printf("failed to create log dir:%s\n", tsLogDir);
@@ -86,6 +87,7 @@ static void tscInitLogFile() {
   if (taosInitLog(temp, tsNumOfLogLines, maxLogFileNum) < 0) {
     printf("failed to open log file in directory:%s\n", tsLogDir);
   }
+  #endif
 }
 
 // todo close the transporter properly
@@ -224,9 +226,10 @@ void taos_init_imp(void) {
   srand(taosGetTimestampSec());
 
   deltaToUtcInitOnce();
+#if 0  
   taosInitGlobalCfg();
   taosReadCfgFromFile();
-
+#endif
   tscInitLogFile();
   if (taosCheckAndPrintCfg()) {
     tscInitRes = -1;
@@ -268,6 +271,7 @@ int taos_init() {
 }
 
 int taos_options_imp(TSDB_OPTION option, const char *str) {
+#if 0  
   SGlobalCfg *cfg = NULL;
 
   switch (option) {
@@ -418,7 +422,7 @@ int taos_options_imp(TSDB_OPTION option, const char *str) {
       tscError("Invalid option %d", option);
       return -1;
   }
-
+#endif
   return 0;
 }
 
