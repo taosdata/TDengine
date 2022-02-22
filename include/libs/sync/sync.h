@@ -137,22 +137,21 @@ typedef struct {
 
 } SSyncInfo;
 
-// will be defined in syncInt.h, here just for complie
-typedef struct SSyncNode {
-} SSyncNode;
+struct SSyncNode;
+typedef struct SSyncNode SSyncNode;
 
 int32_t syncInit();
 void    syncCleanUp();
 
-int64_t syncStart(const SSyncInfo*);
+int64_t syncStart(const SSyncInfo* pSyncInfo);
 void    syncStop(int64_t rid);
-int32_t syncReconfig(int64_t rid, const SSyncCfg*);
+int32_t syncReconfig(int64_t rid, const SSyncCfg* pSyncCfg);
 
 // int32_t syncForwardToPeer(int64_t rid, const SRpcMsg* pBuf, bool isWeak);
 int32_t syncForwardToPeer(int64_t rid, const SSyncBuffer* pBuf, bool isWeak);
 
 ESyncState syncGetMyRole(int64_t rid);
-void       syncGetNodesRole(int64_t rid, SNodesRole*);
+void       syncGetNodesRole(int64_t rid, SNodesRole* pNodeRole);
 
 extern int32_t sDebugFlag;
 
