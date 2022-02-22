@@ -372,7 +372,7 @@ int32_t getResultDataInfo(int32_t dataType, int32_t dataBytes, int32_t functionI
       if (size > MAX_UNIQUE_RESULT_SIZE){
         size = MAX_UNIQUE_RESULT_SIZE;
       }
-      *bytes = size;
+      *bytes = (int32_t)size;
       *interBytes = *bytes;
 
       return TSDB_CODE_SUCCESS;
@@ -5284,7 +5284,7 @@ typedef struct{
 
 static int32_t uniqueCompareFn(const void *p1, const void *p2, const void *param) {
   UiqueSupporter *support = (UiqueSupporter *)param;
-  return support->comparFn(p1 + support->dataOffset, p2 + support->dataOffset);
+  return support->comparFn((const char*)p1 + support->dataOffset, (const char*)p2 + support->dataOffset);
 }
 
 static void unique_func_finalizer(SQLFunctionCtx *pCtx) {
