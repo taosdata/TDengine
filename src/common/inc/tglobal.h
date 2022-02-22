@@ -159,9 +159,6 @@ extern int32_t tsMonitorInterval;
 // stream
 extern int8_t tsEnableStream;
 
-// password
-extern int32_t tsPasswordLength;
-
 // internal
 extern int8_t  tsCompactMnodeWal;
 extern int8_t  tsPrintAuth;
