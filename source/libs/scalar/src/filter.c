@@ -1820,6 +1820,9 @@ bool filterDoCompare(__compar_fn_t func, uint8_t optr, void *left, void *right) 
     case TSDB_RELATION_LIKE: {
       return ret == 0;
     }
+    case TSDB_RELATION_NOT_LIKE: {
+      return ret == 0;
+    }
     case TSDB_RELATION_MATCH: {
       return ret == 0;
     }
@@ -1827,6 +1830,9 @@ bool filterDoCompare(__compar_fn_t func, uint8_t optr, void *left, void *right) 
       return ret == 0;
     }
     case TSDB_RELATION_IN: {
+      return ret == 1;
+    }
+    case TSDB_RELATION_NOT_IN: {
       return ret == 1;
     }
 

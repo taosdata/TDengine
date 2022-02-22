@@ -50,20 +50,28 @@ int32_t scalarGenerateSetFromList(void **data, void *pNode, uint32_t type) {
 
       if (IS_VAR_DATA_TYPE(type)) {
         len = varDataLen(out.data);
+        buf = varDataVal(out.data);
       } else {
         len = tDataTypes[type].bytes;
+        buf = out.data;
       }
-
-      buf = out.data;
     } else {
       buf = nodesGetValueFromNode(valueNode);
-      len = valueNode->node.resType.bytes;
+      if (IS_VAR_DATA_TYPE(type)) {
+        len = varDataLen(buf);
+        buf = varDataVal(buf);
+      } else {
+        len = valueNode->node.resType.bytes;
+        buf = out.data;
+      }      
     }
     
     if (taosHashPut(pObj, buf, (size_t)len, &dummy, sizeof(dummy))) {
       sclError("taosHashPut failed");
       SCL_ERR_JRET(TSDB_CODE_QRY_OUT_OF_MEMORY);
     }
+
+    cell = cell->pNext;
   }
 
   tfree(out.data);
@@ -108,6 +116,7 @@ int32_t sclInitParam(SNode* node, SScalarParam *param, SScalarCtx *ctx, int32_t 
       param->num = 1;
       param->type = valueNode->node.resType.type;
       param->bytes = valueNode->node.resType.bytes;
+      param->colData = false;
       
       break;
     }
@@ -121,6 +130,7 @@ int32_t sclInitParam(SNode* node, SScalarParam *param, SScalarCtx *ctx, int32_t 
       SCL_ERR_RET(scalarGenerateSetFromList(&param->data, node, nodeList->dataType.type));
       param->num = 1;
       param->type = SCL_DATA_TYPE_DUMMY_HASH;
+      param->colData = false;
       
       break;
     }
@@ -137,7 +147,14 @@ int32_t sclInitParam(SNode* node, SScalarParam *param, SScalarCtx *ctx, int32_t 
       }
 
       SColumnInfoData *columnData = (SColumnInfoData *)taosArrayGet(ctx->pSrc->pDataBlock, ref->slotId);
-      param->data = columnData->pData;
+      if (IS_VAR_DATA_TYPE(columnData->info.type)) {
+        param->data = columnData;        
+        param->colData = true;
+      } else {
+        param->data = columnData->pData;        
+        param->colData = false;
+      }
+      
       param->num = ctx->pSrc->info.rows;
       param->type = columnData->info.type;
       param->bytes = columnData->info.bytes;
@@ -366,6 +383,7 @@ int32_t sclExecOperator(SOperatorNode *node, SScalarCtx *ctx, SScalarParam *outp
 
   output->type = node->node.resType.type;
   output->num = rowNum;
+  output->bytes = tDataTypes[output->type].bytes;
   output->data = calloc(rowNum, tDataTypes[output->type].bytes);
   if (NULL == output->data) {
     sclError("calloc %d failed", (int32_t)rowNum * tDataTypes[output->type].bytes);
@@ -377,21 +395,8 @@ int32_t sclExecOperator(SOperatorNode *node, SScalarCtx *ctx, SScalarParam *outp
   int32_t paramNum = scalarGetOperatorParamNum(node->opType);
   SScalarParam* pLeft = &params[0];
   SScalarParam* pRight = paramNum > 1 ? &params[1] : NULL;
-
-  void *data = output->data;
   
-  for (int32_t i = 0; i < rowNum; ++i) {
-
-    OperatorFn(pLeft, pRight, output->data, TSDB_ORDER_ASC);
-
-    sclParamMoveNext(output, 1);
-    sclParamMoveNext(pLeft, 1);
-    if (pRight) {
-      sclParamMoveNext(pRight, 1);
-    }
-  }
-
-  output->data = data;
+  OperatorFn(pLeft, pRight, output->data, TSDB_ORDER_ASC);
 
   return TSDB_CODE_SUCCESS;
 
@@ -506,7 +511,7 @@ EDealRes sclRewriteOperator(SNode** pNode, void* pContext) {
 
 
 EDealRes sclConstantsRewriter(SNode** pNode, void* pContext) {
-  if (QUERY_NODE_VALUE == nodeType(*pNode)) {
+  if (QUERY_NODE_VALUE == nodeType(*pNode) || QUERY_NODE_NODE_LIST == nodeType(*pNode)) {
     return DEAL_RES_CONTINUE;
   }
 
@@ -588,10 +593,10 @@ EDealRes sclWalkOperator(SNode* pNode, void* pContext) {
 
 
 EDealRes sclCalcWalker(SNode* pNode, void* pContext) {
-  if (QUERY_NODE_VALUE == nodeType(pNode)) {
+  if (QUERY_NODE_VALUE == nodeType(pNode) || QUERY_NODE_NODE_LIST == nodeType(pNode) || QUERY_NODE_COLUMN_REF == nodeType(pNode)) {
     return DEAL_RES_CONTINUE;
   }
-
+    
   if (QUERY_NODE_FUNCTION == nodeType(pNode)) {
     return sclWalkFunction(pNode, pContext);
   }
@@ -604,7 +609,7 @@ EDealRes sclCalcWalker(SNode* pNode, void* pContext) {
     return sclWalkOperator(pNode, pContext);
   }
 
-  sclError("invalid node type for calculating constants, type:%d", nodeType(pNode));
+  sclError("invalid node type for scalar calculating, type:%d", nodeType(pNode));
 
   SScalarCtx *ctx = (SScalarCtx *)pContext;
   

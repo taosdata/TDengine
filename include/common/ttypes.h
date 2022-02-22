@@ -91,6 +91,8 @@ typedef struct {
   do {                                         \
     switch (_type) {                           \
       case TSDB_DATA_TYPE_BOOL:                \
+        *(bool *)(_v) = (bool)(_data);     \
+        break;                                 \
       case TSDB_DATA_TYPE_TINYINT:             \
         *(int8_t *)(_v) = (int8_t)(_data);     \
         break;                                 \
