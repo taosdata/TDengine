@@ -614,46 +614,46 @@
 **   meaning that the 0x04 and 0x08 bits are both zero.
 */
 struct Pager {
-  //   sqlite3_vfs *pVfs;          /* OS functions to use for IO */
-  //   u8 exclusiveMode;           /* Boolean. True if locking_mode==EXCLUSIVE */
-  //   u8 journalMode;             /* One of the PAGER_JOURNALMODE_* values */
-  //   u8 useJournal;              /* Use a rollback journal on this file */
-  //   u8 noSync;                  /* Do not sync the journal if true */
-  //   u8 fullSync;                /* Do extra syncs of the journal for robustness */
-  //   u8 extraSync;               /* sync directory after journal delete */
-  //   u8 syncFlags;               /* SYNC_NORMAL or SYNC_FULL otherwise */
-  //   u8 walSyncFlags;            /* See description above */
-  //   u8 tempFile;                /* zFilename is a temporary or immutable file */
-  //   u8 noLock;                  /* Do not lock (except in WAL mode) */
-  //   u8 readOnly;                /* True for a read-only database */
-  //   u8 memDb;                   /* True to inhibit all file I/O */
-  //   u8 memVfs;                  /* VFS-implemented memory database */
+  sqlite3_vfs *pVfs;          /* OS functions to use for IO */
+  u8           exclusiveMode; /* Boolean. True if locking_mode==EXCLUSIVE */
+  u8           journalMode;   /* One of the PAGER_JOURNALMODE_* values */
+  u8           useJournal;    /* Use a rollback journal on this file */
+  u8           noSync;        /* Do not sync the journal if true */
+  u8           fullSync;      /* Do extra syncs of the journal for robustness */
+  u8           extraSync;     /* sync directory after journal delete */
+  u8           syncFlags;     /* SYNC_NORMAL or SYNC_FULL otherwise */
+  u8           walSyncFlags;  /* See description above */
+  u8           tempFile;      /* zFilename is a temporary or immutable file */
+  u8           noLock;        /* Do not lock (except in WAL mode) */
+  u8           readOnly;      /* True for a read-only database */
+  u8           memDb;         /* True to inhibit all file I/O */
+  u8           memVfs;        /* VFS-implemented memory database */
 
-  //   /**************************************************************************
-  //   ** The following block contains those class members that change during
-  //   ** routine operation.  Class members not in this block are either fixed
-  //   ** when the pager is first created or else only change when there is a
-  //   ** significant mode change (such as changing the page_size, locking_mode,
-  //   ** or the journal_mode).  From another view, these class members describe
-  //   ** the "state" of the pager, while other class members describe the
-  //   ** "configuration" of the pager.
-  //   */
-  //   u8 eState;                  /* Pager state (OPEN, READER, WRITER_LOCKED..) */
-  //   u8 eLock;                   /* Current lock held on database file */
-  //   u8 changeCountDone;         /* Set after incrementing the change-counter */
-  //   u8 setSuper;                /* Super-jrnl name is written into jrnl */
-  //   u8 doNotSpill;              /* Do not spill the cache when non-zero */
-  //   u8 subjInMemory;            /* True to use in-memory sub-journals */
-  //   u8 bUseFetch;               /* True to use xFetch() */
-  //   u8 hasHeldSharedLock;       /* True if a shared lock has ever been held */
-  //   Pgno dbSize;                /* Number of pages in the database */
-  //   Pgno dbOrigSize;            /* dbSize before the current transaction */
-  //   Pgno dbFileSize;            /* Number of pages in the database file */
-  //   Pgno dbHintSize;            /* Value passed to FCNTL_SIZE_HINT call */
-  //   int errCode;                /* One of several kinds of errors */
-  //   int nRec;                   /* Pages journalled since last j-header written */
-  //   u32 cksumInit;              /* Quasi-random value added to every checksum */
-  //   u32 nSubRec;                /* Number of records written to sub-journal */
+    /**************************************************************************
+    ** The following block contains those class members that change during
+    ** routine operation.  Class members not in this block are either fixed
+    ** when the pager is first created or else only change when there is a
+    ** significant mode change (such as changing the page_size, locking_mode,
+    ** or the journal_mode).  From another view, these class members describe
+    ** the "state" of the pager, while other class members describe the
+    ** "configuration" of the pager.
+    */
+    u8 eState;                  /* Pager state (OPEN, READER, WRITER_LOCKED..) */
+    u8 eLock;                   /* Current lock held on database file */
+    u8 changeCountDone;         /* Set after incrementing the change-counter */
+    u8 setSuper;                /* Super-jrnl name is written into jrnl */
+    u8 doNotSpill;              /* Do not spill the cache when non-zero */
+    u8 subjInMemory;            /* True to use in-memory sub-journals */
+    u8 bUseFetch;               /* True to use xFetch() */
+    u8 hasHeldSharedLock;       /* True if a shared lock has ever been held */
+    Pgno dbSize;                /* Number of pages in the database */
+    Pgno dbOrigSize;            /* dbSize before the current transaction */
+    Pgno dbFileSize;            /* Number of pages in the database file */
+    Pgno dbHintSize;            /* Value passed to FCNTL_SIZE_HINT call */
+    int errCode;                /* One of several kinds of errors */
+    int nRec;                   /* Pages journalled since last j-header written */
+    u32 cksumInit;              /* Quasi-random value added to every checksum */
+    u32 nSubRec;                /* Number of records written to sub-journal */
   //   Bitvec *pInJournal;         /* One bit for each page in the database file */
   //   sqlite3_file *fd;           /* File descriptor for database */
   //   sqlite3_file *jfd;          /* File descriptor for main journal */
@@ -4649,30 +4649,30 @@ int sqlite3PagerOpen(sqlite3_vfs *pVfs,        /* The virtual file system to use
                      int          vfsFlags,    /* flags passed through to sqlite3_vfs.xOpen() */
                      void (*xReinit)(DbPage *) /* Function to reinitialize pages */
 ) {
-  //   u8 *pPtr;
-  //   Pager *pPager = 0;       /* Pager object to allocate and return */
-  //   int rc = SQLITE_OK;      /* Return code */
-  //   int tempFile = 0;        /* True for temp files (incl. in-memory files) */
-  //   int memDb = 0;           /* True if this is an in-memory file */
-  // #ifndef SQLITE_OMIT_DESERIALIZE
-  //   int memJM = 0;           /* Memory journal mode */
-  // #else
-  // # define memJM 0
-  // #endif
-  //   int readOnly = 0;        /* True if this is a read-only file */
-  //   int journalFileSize;     /* Bytes to allocate for each journal fd */
-  //   char *zPathname = 0;     /* Full path to database file */
-  //   int nPathname = 0;       /* Number of bytes in zPathname */
-  //   int useJournal = (flags & PAGER_OMIT_JOURNAL)==0; /* False to omit journal */
-  //   int pcacheSize = sqlite3PcacheSize();       /* Bytes to allocate for PCache */
-  //   u32 szPageDflt = SQLITE_DEFAULT_PAGE_SIZE;  /* Default page size */
-  //   const char *zUri = 0;    /* URI args to copy */
-  //   int nUriByte = 1;        /* Number of bytes of URI args at *zUri */
-  //   int nUri = 0;            /* Number of URI parameters */
+  u8 *   pPtr;
+  Pager *pPager = 0;     /* Pager object to allocate and return */
+  int    rc = SQLITE_OK; /* Return code */
+  int    tempFile = 0;   /* True for temp files (incl. in-memory files) */
+  int    memDb = 0;      /* True if this is an in-memory file */
+#ifndef SQLITE_OMIT_DESERIALIZE
+  int memJM = 0; /* Memory journal mode */
+#else
+#define memJM 0
+#endif
+  int         readOnly = 0;                                   /* True if this is a read-only file */
+  int         journalFileSize;                                /* Bytes to allocate for each journal fd */
+  char *      zPathname = 0;                                  /* Full path to database file */
+  int         nPathname = 0;                                  /* Number of bytes in zPathname */
+  int         useJournal = (flags & PAGER_OMIT_JOURNAL) == 0; /* False to omit journal */
+  int         pcacheSize = sqlite3PcacheSize();               /* Bytes to allocate for PCache */
+  u32         szPageDflt = SQLITE_DEFAULT_PAGE_SIZE;          /* Default page size */
+  const char *zUri = 0;                                       /* URI args to copy */
+  int         nUriByte = 1;                                   /* Number of bytes of URI args at *zUri */
+  int         nUri = 0;                                       /* Number of URI parameters */
 
-  //   /* Figure out how much space is required for each journal file-handle
-  //   ** (there are two of them, the main journal and the sub-journal).  */
-  //   journalFileSize = ROUND8(sqlite3JournalSize(pVfs));
+  // /* Figure out how much space is required for each journal file-handle
+  // ** (there are two of them, the main journal and the sub-journal).  */
+  // journalFileSize = ROUND8(sqlite3JournalSize(pVfs));
 
   //   /* Set the output variable to NULL in case an error occurs. */
   //   *ppPager = 0;
