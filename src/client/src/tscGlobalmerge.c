@@ -440,6 +440,15 @@ int32_t tscCreateGlobalMergerEnv(SQueryInfo *pQueryInfo, tExtMemBuffer ***pMemBu
     rlen += pExpr->base.resBytes;
   }
 
+  int32_t pg = DEFAULT_PAGE_SIZE;
+  int32_t overhead = sizeof(tFilePage);
+  while((pg - overhead) < rlen * 2) {
+    pg *= 2;
+  }
+
+  if (*nBufferSizes < pg){
+    *nBufferSizes = 2 * pg;
+  }
   int32_t capacity = 0;
   if (rlen != 0) {
     if ((*nBufferSizes) < rlen) {
@@ -447,17 +456,11 @@ int32_t tscCreateGlobalMergerEnv(SQueryInfo *pQueryInfo, tExtMemBuffer ***pMemBu
     }
     capacity = (*nBufferSizes) / rlen;
   }
-  
+
   pModel = createColumnModel(pSchema, (int32_t)size, capacity);
   tfree(pSchema);
   if (pModel == NULL){
     return TSDB_CODE_TSC_OUT_OF_MEMORY;
-  }
-
-  int32_t pg = DEFAULT_PAGE_SIZE;
-  int32_t overhead = sizeof(tFilePage);
-  while((pg - overhead) < pModel->rowSize * 2) {
-    pg *= 2;
   }
 
   assert(numOfSub <= pTableMetaInfo->vgroupList->numOfVgroups);
@@ -593,7 +596,7 @@ static void setTagValueForMultipleRows(SQLFunctionCtx* pCtx, int32_t numOfOutput
   }
 }
 
-static void doMergeResultImpl(SMultiwayMergeInfo* pInfo, SQLFunctionCtx *pCtx, int32_t numOfExpr, int32_t rowIndex, char** pDataPtr) {
+static void doMergeResultImpl(SOperatorInfo* pInfo, SQLFunctionCtx *pCtx, int32_t numOfExpr, int32_t rowIndex, char** pDataPtr) {
   for (int32_t j = 0; j < numOfExpr; ++j) {
     pCtx[j].pInput = pDataPtr[j] + pCtx[j].inputBytes * rowIndex;
   }
@@ -605,11 +608,18 @@ static void doMergeResultImpl(SMultiwayMergeInfo* pInfo, SQLFunctionCtx *pCtx, i
     }
 
     if (functionId < 0) {
-      SUdfInfo* pUdfInfo = taosArrayGet(pInfo->udfInfo, -1 * functionId - 1);
+      SUdfInfo* pUdfInfo = taosArrayGet(((SMultiwayMergeInfo*)(pInfo->info))->udfInfo, -1 * functionId - 1);
       doInvokeUdf(pUdfInfo, &pCtx[j], 0, TSDB_UDF_FUNC_MERGE);
     } else {
       assert(!TSDB_FUNC_IS_SCALAR(functionId));
       aAggs[functionId].mergeFunc(&pCtx[j]);
+    }
+
+    if (functionId == TSDB_FUNC_UNIQUE &&
+        (GET_RES_INFO(&(pCtx[j]))->numOfRes > MAX_UNIQUE_RESULT_ROWS || GET_RES_INFO(&(pCtx[j]))->numOfRes == -1)){
+      tscError("Unique result num is too large. num: %d, limit: %d",
+             GET_RES_INFO(&(pCtx[j]))->numOfRes, MAX_UNIQUE_RESULT_ROWS);
+      longjmp(pInfo->pRuntimeEnv->env, TSDB_CODE_QRY_UNIQUE_RESULT_TOO_LARGE);
     }
   }
 }
@@ -644,7 +654,7 @@ static void doExecuteFinalMerge(SOperatorInfo* pOperator, int32_t numOfExpr, SSD
   for(int32_t i = 0; i < pBlock->info.rows; ++i) {
     if (pInfo->hasPrev) {
       if (needToMerge(pBlock, pInfo->orderColumnList, i, pInfo->prevRow)) {
-        doMergeResultImpl(pInfo, pCtx, numOfExpr, i, addrPtr);
+        doMergeResultImpl(pOperator, pCtx, numOfExpr, i, addrPtr);
       } else {
         doFinalizeResultImpl(pInfo, pCtx, numOfExpr);
 
@@ -656,7 +666,7 @@ static void doExecuteFinalMerge(SOperatorInfo* pOperator, int32_t numOfExpr, SSD
         for(int32_t j = 0; j < numOfExpr; ++j) {
           pCtx[j].pOutput += (pCtx[j].outputBytes * numOfRows);
           if (pCtx[j].functionId == TSDB_FUNC_TOP || pCtx[j].functionId == TSDB_FUNC_BOTTOM ||
-              pCtx[j].functionId == TSDB_FUNC_SAMPLE) {
+              pCtx[j].functionId == TSDB_FUNC_SAMPLE || pCtx[j].functionId == TSDB_FUNC_UNIQUE) {
             if(j > 0) pCtx[j].ptsOutputBuf = pCtx[j - 1].pOutput;
           }
         }
@@ -671,10 +681,10 @@ static void doExecuteFinalMerge(SOperatorInfo* pOperator, int32_t numOfExpr, SSD
           }
         }
 
-        doMergeResultImpl(pInfo, pCtx, numOfExpr, i, addrPtr);
+        doMergeResultImpl(pOperator, pCtx, numOfExpr, i, addrPtr);
       }
     } else {
-      doMergeResultImpl(pInfo, pCtx, numOfExpr, i, addrPtr);
+      doMergeResultImpl(pOperator, pCtx, numOfExpr, i, addrPtr);
     }
 
     savePrevOrderColumns(pInfo->prevRow, pInfo->orderColumnList, pBlock, i, &pInfo->hasPrev);

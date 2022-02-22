@@ -74,11 +74,11 @@ int32_t converToStr(char *str, int type, void *buf, int32_t bufSize, int32_t *le
       break;
 
     case TSDB_DATA_TYPE_UINT:
-      n = sprintf(str, "%d", *(uint32_t*)buf);
+      n = sprintf(str, "%u", *(uint32_t*)buf);
       break;
 
     case TSDB_DATA_TYPE_UBIGINT:
-      n = sprintf(str, "%" PRId64, *(uint64_t*)buf);
+      n = sprintf(str, "%" PRIu64, *(uint64_t*)buf);
       break;
 
     case TSDB_DATA_TYPE_FLOAT:
@@ -304,7 +304,7 @@ bool tscNonOrderedProjectionQueryOnSTable(SQueryInfo* pQueryInfo, int32_t tableI
     return false;
   }
 
-  // order by columnIndex exists, not a non-ordered projection query
+  // order by columnIndex not exists, not a ordered projection query
   return pQueryInfo->order.orderColId < 0;
 }
 
@@ -313,7 +313,7 @@ bool tscOrderedProjectionQueryOnSTable(SQueryInfo* pQueryInfo, int32_t tableInde
     return false;
   }
 
-  // order by columnIndex exists, a non-ordered projection query
+  // order by columnIndex exists, a ordered projection query
   return pQueryInfo->order.orderColId >= 0;
 }
 
@@ -689,7 +689,8 @@ bool isSimpleAggregateRv(SQueryInfo* pQueryInfo) {
         (functionId == TSDB_FUNC_TOP || functionId == TSDB_FUNC_BOTTOM ||
          functionId == TSDB_FUNC_TS_COMP ||
          functionId == TSDB_FUNC_SAMPLE ||
-         functionId == TSDB_FUNC_HISTOGRAM)) {
+         functionId == TSDB_FUNC_HISTOGRAM ||
+         functionId == TSDB_FUNC_UNIQUE)) {
       return true;
     }
   }
@@ -1403,8 +1404,6 @@ void handleDownstreamOperator(SSqlObj** pSqlObjList, int32_t numOfUpstream, SQue
         }
       }
     }
-
-    tableGroupInfo.map = taosHashInit(1, taosGetDefaultHashFunction(TSDB_DATA_TYPE_INT), true, HASH_NO_LOCK);
 
     STableKeyInfo tableKeyInfo = {.pTable = NULL, .lastKey = INT64_MIN};
 
@@ -2614,7 +2613,7 @@ SExprInfo* tscExprAppend(SQueryInfo* pQueryInfo, int16_t functionId, SColumnInde
 }
 
 SExprInfo* tscExprUpdate(SQueryInfo* pQueryInfo, int32_t index, int16_t functionId, int16_t srcColumnIndex,
-                           int16_t type, int16_t size) {
+                           int16_t type, int32_t size) {
   STableMetaInfo* pTableMetaInfo = tscGetMetaInfo(pQueryInfo, 0);
   SExprInfo* pExpr = tscExprGet(pQueryInfo, index);
   if (pExpr == NULL) {
@@ -2659,7 +2658,8 @@ int32_t tscExprTopBottomIndex(SQueryInfo* pQueryInfo){
     SExprInfo* pExpr = tscExprGet(pQueryInfo, i);
     if (pExpr == NULL)
       continue;
-    if (pExpr->base.functionId == TSDB_FUNC_TOP || pExpr->base.functionId == TSDB_FUNC_BOTTOM) {
+    if (pExpr->base.functionId == TSDB_FUNC_TOP || pExpr->base.functionId == TSDB_FUNC_BOTTOM
+        || pExpr->base.functionId == TSDB_FUNC_UNIQUE) {
       return i;
     }
   }
@@ -4937,7 +4937,11 @@ static int32_t createGlobalAggregateExpr(SQueryAttr* pQueryAttr, SQueryInfo* pQu
     pse->colInfo.colIndex = i;
 
     pse->colType = pExpr->base.resType;
-    pse->colBytes = pExpr->base.resBytes;
+    if(pExpr->base.resBytes > INT16_MAX && pExpr->base.functionId == TSDB_FUNC_UNIQUE){
+      pQueryAttr->interBytesForGlobal = pExpr->base.resBytes;
+    }else{
+      pse->colBytes = pExpr->base.resBytes;
+    }
   }
 
   {
@@ -5081,6 +5085,7 @@ int32_t tscCreateQueryFromQueryInfo(SQueryInfo* pQueryInfo, SQueryAttr* pQueryAt
   pQueryAttr->pUdfInfo          = pQueryInfo->pUdfInfo;
   pQueryAttr->range             = pQueryInfo->range;
 
+
   if (pQueryInfo->order.order == TSDB_ORDER_ASC) {   // TODO refactor
     pQueryAttr->window = pQueryInfo->window;
   } else {
@@ -5111,6 +5116,8 @@ int32_t tscCreateQueryFromQueryInfo(SQueryInfo* pQueryInfo, SQueryAttr* pQueryAt
       }
     }
   }
+
+  pQueryAttr->uniqueQuery       = isUniqueQuery(numOfOutput, pQueryAttr->pExpr1);
 
   pQueryAttr->tableCols = calloc(numOfCols, sizeof(SColumnInfo));
   for(int32_t i = 0; i < numOfCols; ++i) {
@@ -5403,7 +5410,7 @@ int parseJsontoTagData(char* json, SKVRowBuilder* kvRowBuilder, char* errMsg, in
   // set json real data
   cJSON *root = cJSON_Parse(json);
   if (root == NULL){
-    tscError("json parse error");
+    tscError("json parse error:%s", json);
     return tscSQLSyntaxErrMsg(errMsg, "json parse error", NULL);
   }
 

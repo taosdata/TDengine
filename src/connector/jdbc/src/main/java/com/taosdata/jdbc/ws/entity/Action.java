@@ -11,8 +11,9 @@ public enum Action {
     QUERY("query", QueryResp.class),
     FETCH("fetch", FetchResp.class),
     FETCH_JSON("fetch_json", FetchJsonResp.class),
-    // fetch_block's class is meaningless
-    FETCH_BLOCK("fetch_block", Response.class),
+    FETCH_BLOCK("fetch_block", FetchBlockResp.class),
+    // free_result's class is meaningless
+    FREE_RESULT("free_result", Response.class),
     ;
     private final String action;
     private final Class<? extends Response> clazz;
@@ -35,7 +36,6 @@ public enum Action {
     static {
         for (Action value : Action.values()) {
             actions.put(value.action, value);
-            IdUtil.init(value.action);
         }
     }
 
