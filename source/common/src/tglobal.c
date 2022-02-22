@@ -196,6 +196,7 @@ void taosSetAllDebugFlag() {
 }
 
 int32_t taosCfgDynamicOptions(char *msg) {
+  #if 0
   char   *option, *value;
   int32_t olen, vlen;
   int32_t vint = 0;
@@ -265,6 +266,7 @@ int32_t taosCfgDynamicOptions(char *msg) {
     }
   }
 
+#endif
   return false;
 }
 

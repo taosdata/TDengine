@@ -262,10 +262,6 @@ static int32_t cfgAddItem(SConfig *pConfig, SConfigItem *pItem, const char *name
   if (taosHashPut(pConfig->hash, lowcaseName, strlen(lowcaseName) + 1, pItem, sizeof(SConfigItem)) != 0) {
     if (pItem->dtype == CFG_DTYPE_STRING) {
       free(pItem->strVal);
-    } else if (pItem->dtype == CFG_DTYPE_IPSTR) {
-      free(pItem->ipstrVal);
-    } else if (pItem->dtype == CFG_DTYPE_DIR) {
-      free(pItem->dirVal);
     }
     free(pItem->name);
     terrno = TSDB_CODE_OUT_OF_MEMORY;
@@ -367,8 +363,8 @@ int32_t cfgAddIpStr(SConfig *pConfig, const char *name, const char *defaultVal, 
   }
 
   SConfigItem item = {.dtype = CFG_DTYPE_IPSTR};
-  item.ipstrVal = strdup(defaultVal);
-  if (item.ipstrVal == NULL) {
+  item.strVal = strdup(defaultVal);
+  if (item.strVal == NULL) {
     terrno = TSDB_CODE_OUT_OF_MEMORY;
     return -1;
   }
@@ -394,9 +390,9 @@ static int32_t cfgCheckAndSetDir(SConfigItem *pItem, const char *inputDir) {
     return -1;
   }
 
-  tfree(pItem->dirVal);
-  pItem->dirVal = strdup(fullDir);
-  if (pItem->dirVal == NULL) {
+  tfree(pItem->strVal);
+  pItem->strVal = strdup(fullDir);
+  if (pItem->strVal == NULL) {
     terrno = TSDB_CODE_OUT_OF_MEMORY;
     return -1;
   }
@@ -409,6 +405,67 @@ int32_t cfgAddDir(SConfig *pConfig, const char *name, const char *defaultVal, EC
   if (cfgCheckAndSetDir(&item, defaultVal) != 0) {
     return -1;
   }
+
+  return cfgAddItem(pConfig, &item, name, utype);
+}
+
+static int32_t cfgCheckAndSetLocale(SConfigItem *pItem, const char *locale) {
+  tfree(pItem->strVal);
+  pItem->strVal = strdup(locale);
+  if (pItem->strVal == NULL) {
+    terrno = TSDB_CODE_OUT_OF_MEMORY;
+    return -1;
+  }
+
+  return 0;
+}
+
+int32_t cfgAddLocale(SConfig *pConfig, const char *name, const char *defaultVal, ECfgUnitType utype) {
+  SConfigItem item = {.dtype = CFG_DTYPE_LOCALE};
+  if (cfgCheckAndSetLocale(&item, defaultVal) != 0) {
+    return -1;
+  }
+
+  return cfgAddItem(pConfig, &item, name, utype);
+}
+
+static int32_t cfgCheckAndSetCharset(SConfigItem *pItem, const char *charset) {
+  tfree(pItem->strVal);
+  pItem->strVal = strdup(charset);
+  if (pItem->strVal == NULL) {
+    terrno = TSDB_CODE_OUT_OF_MEMORY;
+    return -1;
+  }
+
+  return 0;
+}
+
+int32_t cfgAddCharset(SConfig *pConfig, const char *name, const char *defaultVal, ECfgUnitType utype) {
+  SConfigItem item = {.dtype = CFG_DTYPE_CHARSET};
+  if (cfgCheckAndSetCharset(&item, defaultVal) != 0) {
+    return -1;
+  }
+
+  return cfgAddItem(pConfig, &item, name, utype);
+}
+
+static int32_t cfgCheckAndSetTimezone(SConfigItem *pItem, const char *timezone) {
+  tfree(pItem->strVal);
+  pItem->strVal = strdup(timezone);
+  if (pItem->strVal == NULL) {
+    terrno = TSDB_CODE_OUT_OF_MEMORY;
+    return -1;
+  }
+
+  return 0;
+}
+
+int32_t cfgAddTimezone(SConfig *pConfig, const char *name, const char *defaultVal, ECfgUnitType utype) {
+  SConfigItem item = {.dtype = CFG_DTYPE_TIMEZONE};
+  if (cfgCheckAndSetTimezone(&item, defaultVal) != 0) {
+    return -1;
+  }
+
   return cfgAddItem(pConfig, &item, name, utype);
 }
 
@@ -455,6 +512,12 @@ const char *cfgDtypeStr(ECfgDataType type) {
       return "ipstr";
     case CFG_DTYPE_DIR:
       return "dir";
+    case CFG_DTYPE_LOCALE:
+      return "locale";
+    case CFG_DTYPE_CHARSET:
+      return "charset";
+    case CFG_DTYPE_TIMEZONE:
+      return "timezone";
     default:
       return "invalid";
   }

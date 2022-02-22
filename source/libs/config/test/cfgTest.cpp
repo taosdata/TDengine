@@ -102,10 +102,10 @@ TEST_F(CfgTest, 02_Basic) {
         printf("index:%d, cfg:%s value:%s\n", size, pItem->name, pItem->strVal);
         break;
       case CFG_DTYPE_IPSTR:
-        printf("index:%d, cfg:%s value:%s\n", size, pItem->name, pItem->ipstrVal);
+        printf("index:%d, cfg:%s value:%s\n", size, pItem->name, pItem->strVal);
         break;
       case CFG_DTYPE_DIR:
-        printf("index:%d, cfg:%s value:%s\n", size, pItem->name, pItem->dirVal);
+        printf("index:%d, cfg:%s value:%s\n", size, pItem->name, pItem->strVal);
         break;
       default:
         printf("index:%d, cfg:%s invalid cfg dtype:%d\n", size, pItem->name, pItem->dtype);
@@ -172,14 +172,14 @@ TEST_F(CfgTest, 02_Basic) {
   EXPECT_EQ(pItem->utype, CFG_UTYPE_NONE);
   EXPECT_EQ(pItem->dtype, CFG_DTYPE_IPSTR);
   EXPECT_STREQ(pItem->name, "test_ipstr");
-  EXPECT_STREQ(pItem->ipstrVal, "192.168.0.1");
+  EXPECT_STREQ(pItem->strVal, "192.168.0.1");
 
   pItem = cfgGetItem(pConfig, "test_dir");
   EXPECT_EQ(pItem->stype, CFG_STYPE_DEFAULT);
   EXPECT_EQ(pItem->utype, CFG_UTYPE_NONE);
   EXPECT_EQ(pItem->dtype, CFG_DTYPE_DIR);
   EXPECT_STREQ(pItem->name, "test_dir");
-  EXPECT_STREQ(pItem->dirVal, "/tmp");
+  EXPECT_STREQ(pItem->strVal, "/tmp");
 
   cfgCleanup(pConfig);
 }

@@ -46,6 +46,9 @@ typedef enum {
   CFG_DTYPE_STRING,
   CFG_DTYPE_IPSTR,
   CFG_DTYPE_DIR,
+  CFG_DTYPE_LOCALE,
+  CFG_DTYPE_CHARSET,
+  CFG_DTYPE_TIMEZONE
 } ECfgDataType;
 
 typedef enum {
@@ -71,8 +74,6 @@ typedef struct SConfigItem {
     int64_t  int64Val;
     float    floatVal;
     char    *strVal;
-    char    *ipstrVal;
-    char    *dirVal;
   };
   union {
     int64_t minIntVal;
@@ -82,7 +83,6 @@ typedef struct SConfigItem {
     int64_t maxIntVal;
     double  maxFloatVal;
   };
-
 } SConfigItem;
 
 typedef struct SConfig SConfig;
@@ -110,6 +110,9 @@ int32_t cfgAddFloat(SConfig *pConfig, const char *name, float defaultVal, double
 int32_t cfgAddString(SConfig *pConfig, const char *name, const char *defaultVal, ECfgUnitType utype);
 int32_t cfgAddIpStr(SConfig *pConfig, const char *name, const char *defaultVal, ECfgUnitType utype);
 int32_t cfgAddDir(SConfig *pConfig, const char *name, const char *defaultVal, ECfgUnitType utype);
+int32_t cfgAddLocale(SConfig *pConfig, const char *name, const char *defaultVal, ECfgUnitType utype);
+int32_t cfgAddCharset(SConfig *pConfig, const char *name, const char *defaultVal, ECfgUnitType utype);
+int32_t cfgAddTimezone(SConfig *pConfig, const char *name, const char *defaultVal, ECfgUnitType utype);
 
 const char *cfgStypeStr(ECfgSrcType type);
 const char *cfgDtypeStr(ECfgDataType type);
