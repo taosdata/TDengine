@@ -1253,6 +1253,7 @@ int32_t exprValidateMathNode(tExprNode *pExpr) {
 
 int32_t exprValidateTimeNode(char *msgbuf, tExprNode *pExpr) {
   const char* msg1 = "invalid timestamp digits";
+  const char* msg2 = "param must be positive integer";
 
   switch (pExpr->_func.functionId) {
     case TSDB_FUNC_SCALAR_NOW:
@@ -1354,6 +1355,9 @@ int32_t exprValidateTimeNode(char *msgbuf, tExprNode *pExpr) {
       }
 
       if (child->nodeType == TSQL_NODE_VALUE) {
+        if (child->pVal->i64 < 0) {
+          return exprInvalidOperationMsg(msgbuf, msg2);
+        }
         char fraction[32] = {0};
         NUM_TO_STRING(child->resultType, &child->pVal->i64, sizeof(fraction), fraction);
         int32_t tsDigits = strlen(fraction);
