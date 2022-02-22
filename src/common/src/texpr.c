@@ -2358,6 +2358,9 @@ void vectorTimeFunc(int16_t functionId, tExprOperandInfo *pInputs, int32_t numIn
           GET_TYPED_DATA(timeUnit, int64_t, pInputs[1].type, inputData[1]);
           GET_TYPED_DATA(timePrec, int64_t, pInputs[2].type, inputData[2]);
 
+          int64_t factor = (timePrec == TSDB_TIME_PRECISION_MILLI) ? 1000 :
+                           (timePrec == TSDB_TIME_PRECISION_MICRO ? 1000000 : 1000000000);
+
           if (pInputs[0].type == TSDB_DATA_TYPE_BINARY ||
               pInputs[0].type == TSDB_DATA_TYPE_NCHAR) { /* datetime format strings */
             taosParseTime((char *)varDataVal(inputData[0]), &timeVal, pInputs[0].bytes, TSDB_TIME_PRECISION_NANO, 0);
@@ -2366,16 +2369,21 @@ void vectorTimeFunc(int16_t functionId, tExprOperandInfo *pInputs, int32_t numIn
             if (timeValSec < 1000000000) {
               timeVal = timeValSec;
             }
-          } else if (pInputs[0].type == TSDB_DATA_TYPE_BIGINT ||
-                     pInputs[0].type == TSDB_DATA_TYPE_TIMESTAMP) { /* unix timestamp or ts column*/
+          } else if (pInputs[0].type == TSDB_DATA_TYPE_BIGINT) { /* unix timestamp */
             GET_TYPED_DATA(timeVal, int64_t, pInputs[0].type, inputData[0]);
+          } else if (pInputs[0].type == TSDB_DATA_TYPE_TIMESTAMP) { /* timestamp column*/
+            GET_TYPED_DATA(timeVal, int64_t, pInputs[0].type, inputData[0]);
+            int64_t timeValSec = timeVal / factor;
+            if (timeValSec < 1000000000) {
+              timeVal = timeValSec;
+            }
+          } else {
+            assert(0);
           }
 
           char buf[20] = {0};
           NUM_TO_STRING(TSDB_DATA_TYPE_BIGINT, &timeVal, sizeof(buf), buf);
           int32_t tsDigits = strlen(buf);
-          int64_t factor = (timePrec == TSDB_TIME_PRECISION_MILLI) ? 1000 :
-                           (timePrec == TSDB_TIME_PRECISION_MICRO ? 1000000 : 1000000000);
           timeUnit = timeUnit * 1000 / factor;
           switch (timeUnit) {
             case 0: { /* 1u */
