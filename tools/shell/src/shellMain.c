@@ -15,7 +15,6 @@
 
 #include "os.h"
 #include "shell.h"
-#include "tconfig.h"
 #include "tglobal.h"
 
 pthread_t pid;

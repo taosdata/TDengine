@@ -27,14 +27,16 @@ extern "C" {
 #endif
 
 typedef struct SConfig {
-  ECfgSrcType  stype;
-  SHashObj *hash;
+  ECfgSrcType stype;
+  SHashObj   *hash;
 } SConfig;
 
 int32_t cfgLoadFromCfgFile(SConfig *pConfig, const char *filepath);
 int32_t cfgLoadFromEnvFile(SConfig *pConfig, const char *filepath);
 int32_t cfgLoadFromEnvVar(SConfig *pConfig);
 int32_t cfgLoadFromApollUrl(SConfig *pConfig, const char *url);
+
+int32_t cfgSetItem(SConfig *pConfig, const char *name, const char *value, ECfgSrcType stype);
 
 #ifdef __cplusplus
 }

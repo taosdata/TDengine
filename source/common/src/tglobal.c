@@ -19,7 +19,6 @@
 #include "taosdef.h"
 #include "taoserror.h"
 #include "tcompare.h"
-#include "tconfig.h"
 #include "tep.h"
 #include "tglobal.h"
 #include "tlocale.h"
@@ -305,7 +304,7 @@ static void taosCheckDataDirCfg() {
 static void doInitGlobalConfig(void) {
   osInit();
   srand(taosSafeRand());
-
+#if 0
   SGlobalCfg cfg = {0};
 
   // ip address
@@ -1025,7 +1024,7 @@ static void doInitGlobalConfig(void) {
   cfg.valType = TAOS_CFG_VTYPE_DOUBLE;
   cfg.cfgType = TSDB_CFG_CTYPE_B_CONFIG;
   cfg.minValue = MIN_FLOAT;
-  cfg.maxValue = MAX_FLOAT;
+  cfg.maxValue = 100000;
   cfg.ptrLength = 0;
   cfg.unitType = TAOS_CFG_UTYPE_NONE;
 
@@ -1035,8 +1034,8 @@ static void doInitGlobalConfig(void) {
   cfg.ptr = &dPrecision;
   cfg.valType = TAOS_CFG_VTYPE_DOUBLE;
   cfg.cfgType = TSDB_CFG_CTYPE_B_CONFIG;
-  cfg.minValue = MIN_FLOAT;
-  cfg.maxValue = MAX_FLOAT;
+  cfg.minValue = 100000;
+  cfg.maxValue = 0;
   cfg.ptrLength = 0;
   cfg.unitType = TAOS_CFG_UTYPE_NONE;
   taosAddConfigOption(cfg);
@@ -1064,11 +1063,15 @@ static void doInitGlobalConfig(void) {
 #else
   // assert(tsGlobalConfigNum == TSDB_CFG_MAX_NUM - 5);
 #endif
+
+#endif
 }
 
 void taosInitGlobalCfg() { pthread_once(&tsInitGlobalCfgOnce, doInitGlobalConfig); }
 
 int32_t taosCheckAndPrintCfg() {
+#if 0
+
   SEp ep = {0};
   if (debugFlag & DEBUG_TRACE || debugFlag & DEBUG_DEBUG || debugFlag & DEBUG_DUMP) {
     taosSetAllDebugFlag();
@@ -1121,7 +1124,7 @@ int32_t taosCheckAndPrintCfg() {
   uInfo("   check global cfg completed");
   uInfo("==================================");
   taosPrintCfg();
-
+#endif
   return 0;
 }
 

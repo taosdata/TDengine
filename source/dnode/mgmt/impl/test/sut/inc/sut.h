@@ -21,7 +21,6 @@
 
 #include "dnode.h"
 #include "tmsg.h"
-#include "tconfig.h"
 #include "tdataformat.h"
 #include "tglobal.h"
 #include "tnote.h"

@@ -24,32 +24,26 @@ extern "C" {
 #endif
 
 typedef enum {
-  CFG_TYPE_DEFAULT,
-  CFG_TYPE_CFG_FILE,
-  CFG_TYPE_ENV_FILE,
-  CFG_TYPE_ENV_VAR,
-  CFG_TYPE_APOLLO_URL,
-  CFG_TYPE_CONSOLE_PARA
+  CFG_STYPE_DEFAULT,
+  CFG_STYPE_CFG_FILE,
+  CFG_STYPE_ENV_FILE,
+  CFG_STYPE_ENV_VAR,
+  CFG_STYPE_APOLLO_URL,
+  CFG_STYPE_ARG_LIST,
+  CFG_STYPE_API_OPTION
 } ECfgSrcType;
 
 typedef enum {
   CFG_DTYPE_NONE,
   CFG_DTYPE_BOOL,
   CFG_DTYPE_INT8,
-  CFG_DTYPE_UINT8,
-  CFG_DTYPE_INT16,
   CFG_DTYPE_UINT16,
   CFG_DTYPE_INT32,
-  CFG_DTYPE_UINT32,
   CFG_DTYPE_INT64,
-  CFG_DTYPE_UINT64,
   CFG_DTYPE_FLOAT,
-  CFG_DTYPE_DOUBLE,
   CFG_DTYPE_STRING,
-  CFG_DTYPE_FQDN,
   CFG_DTYPE_IPSTR,
   CFG_DTYPE_DIR,
-  CFG_DTYPE_FILE
 } ECfgDataType;
 
 typedef enum {
@@ -63,28 +57,30 @@ typedef enum {
 } ECfgUnitType;
 
 typedef struct SConfigItem {
-  ECfgSrcType   stype;
+  ECfgSrcType  stype;
   ECfgUnitType utype;
   ECfgDataType dtype;
   char        *name;
   union {
     bool     boolVal;
-    uint8_t  uint8Val;
     int8_t   int8Val;
     uint16_t uint16Val;
-    int16_t  int16Val;
-    uint32_t uint32Val;
     int32_t  int32Val;
-    uint64_t uint64Val;
     int64_t  int64Val;
     float    floatVal;
-    double   doubleVal;
     char    *strVal;
-    char    *fqdnVal;
     char    *ipstrVal;
     char    *dirVal;
-    char    *fileVal;
   };
+  union {
+    int64_t minIntVal;
+    double  minFloatVal;
+  };
+  union {
+    int64_t maxIntVal;
+    double  maxFloatVal;
+  };
+
 } SConfigItem;
 
 typedef struct SConfig SConfig;
@@ -99,21 +95,19 @@ void         cfgCancelIterate(SConfig *pConfig, SConfigItem *pIter);
 SConfigItem *cfgGetItem(SConfig *pConfig, const char *name);
 
 int32_t cfgAddBool(SConfig *pConfig, const char *name, bool defaultVal, ECfgUnitType utype);
-int32_t cfgAddInt8(SConfig *pConfig, const char *name, int8_t defaultVal, ECfgUnitType utype);
-int32_t cfgAddUInt8(SConfig *pConfig, const char *name, uint8_t defaultVal, ECfgUnitType utype);
-int32_t cfgAddInt16(SConfig *pConfig, const char *name, int16_t defaultVal, ECfgUnitType utype);
-int32_t cfgAddUInt16(SConfig *pConfig, const char *name, uint16_t defaultVal, ECfgUnitType utype);
-int32_t cfgAddInt32(SConfig *pConfig, const char *name, int32_t defaultVal, ECfgUnitType utype);
-int32_t cfgAddUInt32(SConfig *pConfig, const char *name, uint32_t defaultVal, ECfgUnitType utype);
-int32_t cfgAddInt64(SConfig *pConfig, const char *name, int64_t defaultVal, ECfgUnitType utype);
-int32_t cfgAddUInt64(SConfig *pConfig, const char *name, uint64_t defaultVal, ECfgUnitType utype);
-int32_t cfgAddFloat(SConfig *pConfig, const char *name, float defaultVal, ECfgUnitType utype);
-int32_t cfgAddDouble(SConfig *pConfig, const char *name, double defaultVal, ECfgUnitType utype);
+int32_t cfgAddInt8(SConfig *pConfig, const char *name, int8_t defaultVal, int64_t minval, int64_t maxval,
+                   ECfgUnitType utype);
+int32_t cfgAddUInt16(SConfig *pConfig, const char *name, uint16_t defaultVal, int64_t minval, int64_t maxval,
+                     ECfgUnitType utype);
+int32_t cfgAddInt32(SConfig *pConfig, const char *name, int32_t defaultVal, int64_t minval, int64_t maxval,
+                    ECfgUnitType utype);
+int32_t cfgAddInt64(SConfig *pConfig, const char *name, int64_t defaultVal, int64_t minval, int64_t maxval,
+                    ECfgUnitType utype);
+int32_t cfgAddFloat(SConfig *pConfig, const char *name, float defaultVal, double minval, double maxval,
+                    ECfgUnitType utype);
 int32_t cfgAddString(SConfig *pConfig, const char *name, const char *defaultVal, ECfgUnitType utype);
-int32_t cfgAddFqdn(SConfig *pConfig, const char *name, const char *defaultVal, ECfgUnitType utype);
 int32_t cfgAddIpStr(SConfig *pConfig, const char *name, const char *defaultVal, ECfgUnitType utype);
 int32_t cfgAddDir(SConfig *pConfig, const char *name, const char *defaultVal, ECfgUnitType utype);
-int32_t cfgAddFile(SConfig *pConfig, const char *name, const char *defaultVal, ECfgUnitType utype);
 
 const char *cfgStypeStr(ECfgSrcType type);
 const char *cfgDtypeStr(ECfgDataType type);

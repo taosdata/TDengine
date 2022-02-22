@@ -21,7 +21,6 @@
 #include "scheduler.h"
 #include "tmsg.h"
 #include "tcache.h"
-#include "tconfig.h"
 #include "tglobal.h"
 #include "tnote.h"
 #include "tref.h"

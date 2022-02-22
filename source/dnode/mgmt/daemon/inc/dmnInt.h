@@ -19,7 +19,6 @@
 
 #include "config.h"
 #include "dnode.h"
-#include "tconfig.h"
 #include "tglobal.h"
 #include "tnote.h"
 #include "ulog.h"
