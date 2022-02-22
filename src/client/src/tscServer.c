@@ -1254,6 +1254,17 @@ int32_t tscBuildCreateDnodeMsg(SSqlObj *pSql, SSqlInfo *pInfo) {
   return TSDB_CODE_SUCCESS;
 }
 
+static bool tscIsAlterCommand(char* sqlstr) {
+  int32_t index = 0;
+
+  do {
+    SStrToken t0 = tStrGetToken(sqlstr, &index, false);
+    if (t0.type != TK_LP) {
+      return t0.type == TK_ALTER;
+    }
+  } while (1);
+}
+
 int32_t tscBuildAcctMsg(SSqlObj *pSql, SSqlInfo *pInfo) {
   SSqlCmd *pCmd = &pSql->cmd;
   pCmd->payloadLen = sizeof(SCreateAcctMsg);
@@ -1295,7 +1306,12 @@ int32_t tscBuildAcctMsg(SSqlObj *pSql, SSqlInfo *pInfo) {
     }
   }
 
-  pCmd->msgType = TSDB_MSG_TYPE_CM_CREATE_ACCT;
+  if (tscIsAlterCommand(pSql->sqlstr)) {
+    pCmd->msgType = TSDB_MSG_TYPE_CM_ALTER_ACCT;
+  } else {
+    pCmd->msgType = TSDB_MSG_TYPE_CM_CREATE_ACCT;
+  }
+
   return TSDB_CODE_SUCCESS;
 }
 
