@@ -394,7 +394,7 @@ int32_t getResultDataInfo(int32_t dataType, int32_t dataBytes, int32_t functionI
         if (size > MAX_MODE_INNER_RESULT_SIZE){
           size = MAX_MODE_INNER_RESULT_SIZE;
         }
-        *bytes = size;
+        *bytes = (int32_t)size;
         *interBytes = *bytes;
 
         return TSDB_CODE_SUCCESS;
@@ -544,7 +544,7 @@ int32_t getResultDataInfo(int32_t dataType, int32_t dataBytes, int32_t functionI
     if (size > MAX_MODE_INNER_RESULT_SIZE){
       size = MAX_MODE_INNER_RESULT_SIZE;
     }
-    *interBytes = size;
+    *interBytes = (int32_t)size;
     return TSDB_CODE_SUCCESS;
   }else if (functionId == TSDB_FUNC_SAMPLE) {
       *type = (int16_t)dataType;
