@@ -1,10 +1,14 @@
 # for tdb
-set(TDB_SUBDIRS "db")
-foreach(TDB_SUBDIR ${TDB_SUBDIRS})
-    aux_source_directory("src/${TDB_SUBDIR}" TDB_SRC)
-endforeach()
+# set(TDB_SUBDIRS "db")
+# foreach(TDB_SUBDIR ${TDB_SUBDIRS})
+#     aux_source_directory("src/${TDB_SUBDIR}" TDB_SRC)
+# endforeach()
 
-add_library(tdb STATIC ${TDB_SRC})
+add_library(tdb "")
+target_sources(tdb
+    PRIVATE
+    "src/db/tdbPgCache.c"
+)
 
 target_include_directories(
     tdb
@@ -29,5 +33,5 @@ target_include_directories(tdb_sqlite PUBLIC "src/sqliteinc")
 
 # for test
 if(${BUILD_TEST})
-    add_subdirectory(test)
+    # add_subdirectory(test)
 endif(${BUILD_TEST})

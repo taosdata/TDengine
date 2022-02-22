@@ -38,7 +38,7 @@ typedef int32_t pgno_t;
 typedef struct {
   uint8_t fileid[TDB_FILE_ID_LEN];
   pgno_t  pgno;
-} pgid_t;
+} pgid_t, SPgid;
 
 #define TDB_IVLD_PGID (pgid_t){0, TDB_IVLD_PGNO};
 
@@ -65,9 +65,9 @@ static FORCE_INLINE int tdbCmprPgId(const void *p1, const void *p2) {
 typedef int32_t frame_id_t;
 
 // pgsz_t
-#define TDB_MIN_PGSIZE 512
-#define TDB_MAX_PGSIZE 65536
-#define TDB_DEFAULT_PGSIZE 4096
+#define TDB_MIN_PGSIZE       512
+#define TDB_MAX_PGSIZE       65536
+#define TDB_DEFAULT_PGSIZE   4096
 #define TDB_IS_PGSIZE_VLD(s) (((s) >= TDB_MIN_PGSIZE) && ((s) <= TDB_MAX_PGSIZE))
 
 // pgoff_t
@@ -119,13 +119,13 @@ typedef TD_DLIST_NODE(SPgFile) SPgFileListNode;
 
 #include "tdbUtil.h"
 
-#include "tdbBtree.h"
+// #include "tdbBtree.h"
 
 #include "tdbPgCache.h"
 
-#include "tdbPgFile.h"
+// #include "tdbPgFile.h"
 
-#include "tdbEnv.h"
+// #include "tdbEnv.h"
 
 #ifdef __cplusplus
 }
