@@ -64,7 +64,7 @@ static SSqlObj *taosConnectImpl(const char *ip, const char *user, const char *pa
   }
   SRpcCorEpSet corMgmtEpSet;
 
-  char secretEncrypt[32] = {0};
+  char secretEncrypt[TSDB_PASS_LEN] = {0};
   int  secretEncryptLen = 0;
   if (auth == NULL) {
     if (!validPassword(pass)) {
@@ -82,9 +82,9 @@ static SSqlObj *taosConnectImpl(const char *ip, const char *user, const char *pa
       terrno = TSDB_CODE_TSC_INVALID_PASS_LENGTH;
       return NULL;
     } else {
-      if (outlen >= 32) {
+      if (outlen >= TSDB_PASS_LEN) {
         terrno = TSDB_CODE_TSC_INVALID_USER_LENGTH;
-        tscError("failed to connect DB, invalid length of authentication: %s", base64);
+        tscError("failed to connect DB, too long length of authentication: %s", base64);
         return NULL;
       }
       memcpy(secretEncrypt, base64, outlen);
