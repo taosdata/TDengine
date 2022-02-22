@@ -2361,6 +2361,11 @@ void vectorTimeFunc(int16_t functionId, tExprOperandInfo *pInputs, int32_t numIn
           if (pInputs[0].type == TSDB_DATA_TYPE_BINARY ||
               pInputs[0].type == TSDB_DATA_TYPE_NCHAR) { /* datetime format strings */
             taosParseTime((char *)varDataVal(inputData[0]), &timeVal, pInputs[0].bytes, TSDB_TIME_PRECISION_NANO, 0);
+            //If converted value is less than 10digits in second, use value in second instead
+            int64_t timeValSec = timeVal / 1000000000;
+            if (timeValSec < 1000000000) {
+              timeVal = timeValSec;
+            }
           } else if (pInputs[0].type == TSDB_DATA_TYPE_BIGINT ||
                      pInputs[0].type == TSDB_DATA_TYPE_TIMESTAMP) { /* unix timestamp or ts column*/
             GET_TYPED_DATA(timeVal, int64_t, pInputs[0].type, inputData[0]);
@@ -2373,15 +2378,19 @@ void vectorTimeFunc(int16_t functionId, tExprOperandInfo *pInputs, int32_t numIn
                            (timePrec == TSDB_TIME_PRECISION_MICRO ? 1000000 : 1000000000);
           timeUnit = timeUnit * 1000 / factor;
           switch (timeUnit) {
-            case 0: { //time unit less than db precision
+            case 0: { /* 1u */
               if (tsDigits == TSDB_TIME_PRECISION_NANO_DIGITS) {
                 timeVal = timeVal / 1000 * 1000;
+              //} else if (tsDigits == TSDB_TIME_PRECISION_MICRO_DIGITS) {
+              //  //timeVal = timeVal / 1000;
+              } else if (tsDigits <= TSDB_TIME_PRECISION_SEC_DIGITS) {
+                timeVal = timeVal * factor;
               } else {
                 timeVal = timeVal;
               }
               break;
             }
-            case 1: {
+            case 1: { /* 1a */
               if (tsDigits == TSDB_TIME_PRECISION_MILLI_DIGITS) {
                 timeVal = timeVal;
               } else if (tsDigits == TSDB_TIME_PRECISION_MICRO_DIGITS) {
@@ -2395,7 +2404,7 @@ void vectorTimeFunc(int16_t functionId, tExprOperandInfo *pInputs, int32_t numIn
               }
               break;
             }
-            case 1000: {
+            case 1000: { /* 1s */
               if (tsDigits == TSDB_TIME_PRECISION_MILLI_DIGITS) {
                 timeVal = timeVal / 1000 * 1000;
               } else if (tsDigits == TSDB_TIME_PRECISION_MICRO_DIGITS) {
@@ -2409,7 +2418,7 @@ void vectorTimeFunc(int16_t functionId, tExprOperandInfo *pInputs, int32_t numIn
               }
               break;
             }
-            case 60000: {
+            case 60000: { /* 1m */
               if (tsDigits == TSDB_TIME_PRECISION_MILLI_DIGITS) {
                 timeVal = timeVal / 1000 / 60 * 60 * 1000;
               } else if (tsDigits == TSDB_TIME_PRECISION_MICRO_DIGITS) {
@@ -2423,7 +2432,7 @@ void vectorTimeFunc(int16_t functionId, tExprOperandInfo *pInputs, int32_t numIn
               }
               break;
             }
-            case 3600000: {
+            case 3600000: { /* 1h */
               if (tsDigits == TSDB_TIME_PRECISION_MILLI_DIGITS) {
                 timeVal = timeVal / 1000 / 3600 * 3600 * 1000;
               } else if (tsDigits == TSDB_TIME_PRECISION_MICRO_DIGITS) {
@@ -2437,7 +2446,7 @@ void vectorTimeFunc(int16_t functionId, tExprOperandInfo *pInputs, int32_t numIn
               }
               break;
             }
-            case 86400000: {
+            case 86400000: { /* 1d */
               if (tsDigits == TSDB_TIME_PRECISION_MILLI_DIGITS) {
                 timeVal = timeVal / 1000 / 86400 * 86400 * 1000;
               } else if (tsDigits == TSDB_TIME_PRECISION_MICRO_DIGITS) {
@@ -2451,8 +2460,50 @@ void vectorTimeFunc(int16_t functionId, tExprOperandInfo *pInputs, int32_t numIn
               }
               break;
             }
+            case 604800000: { /* 1w */
+              if (tsDigits == TSDB_TIME_PRECISION_MILLI_DIGITS) {
+                timeVal = timeVal / 1000 / 604800 * 604800 * 1000;
+              } else if (tsDigits == TSDB_TIME_PRECISION_MICRO_DIGITS) {
+                timeVal = timeVal / 1000000 / 604800 * 604800 * 1000000;
+              } else if (tsDigits == TSDB_TIME_PRECISION_NANO_DIGITS) {
+                timeVal = timeVal / 1000000000 / 604800 * 604800 * 1000000000;
+              } else if (tsDigits <= TSDB_TIME_PRECISION_SEC_DIGITS) {
+                timeVal = timeVal * factor / factor / 604800 * 604800* factor;
+              } else {
+                assert(0);
+              }
+              break;
+            }
             default: {
               timeVal = timeVal;
+              break;
+            }
+          }
+
+          //truncate the timestamp to db precision
+          switch (timePrec) {
+            case TSDB_TIME_PRECISION_MILLI: {
+              if (tsDigits == TSDB_TIME_PRECISION_MICRO_DIGITS) {
+                timeVal = timeVal / 1000;
+              } else if (tsDigits == TSDB_TIME_PRECISION_NANO_DIGITS) {
+                timeVal = timeVal / 1000000;
+              }
+              break;
+            }
+            case TSDB_TIME_PRECISION_MICRO: {
+              if (tsDigits == TSDB_TIME_PRECISION_NANO_DIGITS) {
+                timeVal = timeVal / 1000;
+              } else if (tsDigits == TSDB_TIME_PRECISION_MILLI_DIGITS) {
+                timeVal = timeVal * 1000;
+              }
+              break;
+            }
+            case TSDB_TIME_PRECISION_NANO: {
+              if (tsDigits == TSDB_TIME_PRECISION_MICRO_DIGITS) {
+                timeVal = timeVal * 1000;
+              } else if (tsDigits == TSDB_TIME_PRECISION_MILLI_DIGITS) {
+                timeVal = timeVal * 1000000;
+              }
               break;
             }
           }
