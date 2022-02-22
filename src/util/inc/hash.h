@@ -35,6 +35,8 @@ typedef struct SHashNode {
   int32_t           refCount;    // reference count
   char              data[];
 } SHashNode;
+  
+#define GET_HASH_PNODE(_n) ((SHashNode *)((char*)(_n) - sizeof(SHashNode)))
 
 typedef enum SHashLockTypeE {
   HASH_NO_LOCK     = 0,
