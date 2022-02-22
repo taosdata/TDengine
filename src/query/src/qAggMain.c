@@ -233,6 +233,16 @@ typedef struct {
   char         res[];
 } SUniqueFuncInfo;
 
+typedef struct {
+  int64_t  count;
+  char     data[];
+} ModeUnit;
+
+typedef struct {
+  int32_t      num;
+  char         res[];
+} SModeFuncInfo;
+
 int32_t getResultDataInfo(int32_t dataType, int32_t dataBytes, int32_t functionId, int32_t param, int16_t *type,
                           int32_t *bytes, int32_t *interBytes, int16_t extLength, bool isSuperTable, SUdfInfo* pUdfInfo) {
   if (!isValidDataType(dataType)) {
@@ -369,13 +379,25 @@ int32_t getResultDataInfo(int32_t dataType, int32_t dataBytes, int32_t functionI
       int64_t size = sizeof(UniqueUnit) + dataBytes + extLength;
       size *= param;
       size += sizeof(SUniqueFuncInfo);
-      if (size > MAX_UNIQUE_RESULT_SIZE){
+      if (size > MAX_UNIQUE_RESULT_SIZE) {
         size = MAX_UNIQUE_RESULT_SIZE;
       }
-      *bytes = size;
+      *bytes = (int32_t)size;
       *interBytes = *bytes;
 
       return TSDB_CODE_SUCCESS;
+    } else if (functionId == TSDB_FUNC_MODE) {
+        *type = TSDB_DATA_TYPE_BINARY;
+        int64_t size = sizeof(ModeUnit) + dataBytes;
+        size *= MAX_MODE_INNER_RESULT_ROWS;
+        size += sizeof(SModeFuncInfo);
+        if (size > MAX_MODE_INNER_RESULT_SIZE){
+          size = MAX_MODE_INNER_RESULT_SIZE;
+        }
+        *bytes = (int32_t)size;
+        *interBytes = *bytes;
+
+        return TSDB_CODE_SUCCESS;
     } else if (functionId == TSDB_FUNC_SAMPLE) {
       *type = TSDB_DATA_TYPE_BINARY;
       *bytes = (sizeof(SSampleFuncInfo) + dataBytes*param + sizeof(int64_t)*param + extLength*param);
@@ -513,7 +535,18 @@ int32_t getResultDataInfo(int32_t dataType, int32_t dataBytes, int32_t functionI
       size = MAX_UNIQUE_RESULT_SIZE;
     }
     *interBytes = (int32_t)size;
-  } else if (functionId == TSDB_FUNC_SAMPLE) {
+  } else if(functionId == TSDB_FUNC_MODE) {
+    *type = (int16_t)dataType;
+    *bytes = dataBytes;
+    int64_t size = sizeof(ModeUnit) + dataBytes;
+    size *= MAX_MODE_INNER_RESULT_ROWS;
+    size += sizeof(SModeFuncInfo);
+    if (size > MAX_MODE_INNER_RESULT_SIZE){
+      size = MAX_MODE_INNER_RESULT_SIZE;
+    }
+    *interBytes = (int32_t)size;
+    return TSDB_CODE_SUCCESS;
+  }else if (functionId == TSDB_FUNC_SAMPLE) {
       *type = (int16_t)dataType;
       *bytes = dataBytes;
       size_t size = sizeof(SSampleFuncInfo) + dataBytes*param + sizeof(int64_t)*param + extLength*param;
@@ -2245,20 +2278,12 @@ static void copyTopBotRes(SQLFunctionCtx *pCtx, int32_t type) {
   tfree(pData);
 }
 
-/*
- * Parameters values:
- * 1. param[0]: maximum allowable results
- * 2. param[1]: order by type (time or value)
- * 3. param[2]: asc/desc order
- *
- * top/bottom use the intermediate result buffer to keep the intermediate result
- */
-static STopBotInfo *getTopBotOutputInfo(SQLFunctionCtx *pCtx) {
+static void *getOutputInfo(SQLFunctionCtx *pCtx) {
   SResultRowCellInfo *pResInfo = GET_RES_INFO(pCtx);
 
   // only the first_stage_merge is directly written data into final output buffer
   if (pCtx->stableQuery && pCtx->currentStage != MERGE_STAGE) {
-    return (STopBotInfo*) pCtx->pOutput;
+    return pCtx->pOutput;
   } else { // during normal table query and super table at the secondary_stage, result is written to intermediate buffer
     return GET_ROWCELL_INTERBUF(pResInfo);
   }
@@ -2291,7 +2316,7 @@ bool topbot_datablock_filter(SQLFunctionCtx *pCtx, const char *minval, const cha
     return true;
   }
 
-  STopBotInfo *pTopBotInfo = getTopBotOutputInfo(pCtx);
+  STopBotInfo *pTopBotInfo = getOutputInfo(pCtx);
   
   // required number of results are not reached, continue load data block
   if (pTopBotInfo->num < pCtx->param[0].i64) {
@@ -2346,7 +2371,7 @@ static bool top_bottom_function_setup(SQLFunctionCtx *pCtx, SResultRowCellInfo* 
     return false;
   }
   
-  STopBotInfo *pInfo = getTopBotOutputInfo(pCtx);
+  STopBotInfo *pInfo = getOutputInfo(pCtx);
   buildTopBotStruct(pInfo, pCtx);
   return true;
 }
@@ -2354,7 +2379,7 @@ static bool top_bottom_function_setup(SQLFunctionCtx *pCtx, SResultRowCellInfo* 
 static void top_function(SQLFunctionCtx *pCtx) {
   int32_t notNullElems = 0;
 
-  STopBotInfo *pRes = getTopBotOutputInfo(pCtx);
+  STopBotInfo *pRes = getOutputInfo(pCtx);
   assert(pRes->num >= 0);
 
   if ((void *)pRes->res[0] != (void *)((char *)pRes + sizeof(STopBotInfo) + POINTER_BYTES * pCtx->param[0].i64)) {
@@ -2393,7 +2418,7 @@ static void top_func_merge(SQLFunctionCtx *pCtx) {
   // construct the input data struct from binary data
   buildTopBotStruct(pInput, pCtx);
   
-  STopBotInfo *pOutput = getTopBotOutputInfo(pCtx);
+  STopBotInfo *pOutput = getOutputInfo(pCtx);
   
   // the intermediate result is binary, we only use the output data type
   for (int32_t i = 0; i < pInput->num; ++i) {
@@ -2413,7 +2438,7 @@ static void top_func_merge(SQLFunctionCtx *pCtx) {
 static void bottom_function(SQLFunctionCtx *pCtx) {
   int32_t notNullElems = 0;
   
-  STopBotInfo *pRes = getTopBotOutputInfo(pCtx);
+  STopBotInfo *pRes = getOutputInfo(pCtx);
   
   if ((void *)pRes->res[0] != (void *)((char *)pRes + sizeof(STopBotInfo) + POINTER_BYTES * pCtx->param[0].i64)) {
     buildTopBotStruct(pRes, pCtx);
@@ -2450,7 +2475,7 @@ static void bottom_func_merge(SQLFunctionCtx *pCtx) {
   // construct the input data struct from binary data
   buildTopBotStruct(pInput, pCtx);
   
-  STopBotInfo *pOutput = getTopBotOutputInfo(pCtx);
+  STopBotInfo *pOutput = getOutputInfo(pCtx);
   
   // the intermediate result is binary, we only use the output data type
   for (int32_t i = 0; i < pInput->num; ++i) {
@@ -2619,18 +2644,6 @@ static void buildHistogramInfo(SAPercentileInfo* pInfo) {
   pInfo->pHisto->elems = (SHistBin*) ((char*)pInfo->pHisto + sizeof(SHistogramInfo));
 }
 
-static SAPercentileInfo *getAPerctInfo(SQLFunctionCtx *pCtx) {
-  SResultRowCellInfo *pResInfo = GET_RES_INFO(pCtx);
-  SAPercentileInfo* pInfo = NULL;
-
-  if (pCtx->stableQuery && pCtx->currentStage != MERGE_STAGE) {
-    pInfo = (SAPercentileInfo*) pCtx->pOutput;
-  } else {
-    pInfo = GET_ROWCELL_INTERBUF(pResInfo);
-  }
-  return pInfo;
-}
-
 //
 //   ----------------- tdigest -------------------
 //
@@ -2642,7 +2655,7 @@ static bool tdigest_setup(SQLFunctionCtx *pCtx, SResultRowCellInfo *pResultInfo)
   }
   
   // new TDigest
-  SAPercentileInfo *pInfo = getAPerctInfo(pCtx);
+  SAPercentileInfo *pInfo = getOutputInfo(pCtx);
   char *tmp = (char *)pInfo + sizeof(SAPercentileInfo);
   pInfo->pTDigest = tdigestNewFrom(tmp, COMPRESSION);
   return true;
@@ -2652,7 +2665,7 @@ static void tdigest_do(SQLFunctionCtx *pCtx) {
   int32_t notNullElems = 0;
 
   SResultRowCellInfo *pResInfo = GET_RES_INFO(pCtx);
-  SAPercentileInfo *  pAPerc = getAPerctInfo(pCtx);
+  SAPercentileInfo *  pAPerc = getOutputInfo(pCtx);
 
   assert(pAPerc->pTDigest != NULL);
   if(pAPerc->pTDigest == NULL) {
@@ -2694,7 +2707,7 @@ static void tdigest_merge(SQLFunctionCtx *pCtx) {
     return ;
   }
 
-  SAPercentileInfo *pOutput = getAPerctInfo(pCtx);
+  SAPercentileInfo *pOutput = getOutputInfo(pCtx);
   if(pOutput->pTDigest->num_centroids == 0) {
     memcpy(pOutput->pTDigest, pInput->pTDigest, (size_t)TDIGEST_SIZE(COMPRESSION));
     tdigestAutoFill(pOutput->pTDigest, COMPRESSION);
@@ -2711,7 +2724,7 @@ static void tdigest_finalizer(SQLFunctionCtx *pCtx) {
   double q = (pCtx->param[0].nType == TSDB_DATA_TYPE_INT) ? pCtx->param[0].i64 : pCtx->param[0].dKey;
 
   SResultRowCellInfo *pResInfo = GET_RES_INFO(pCtx);
-  SAPercentileInfo *  pAPerc = getAPerctInfo(pCtx);
+  SAPercentileInfo *  pAPerc = getOutputInfo(pCtx);
 
   if (pCtx->currentStage == MERGE_STAGE) {
     if (pResInfo->hasResult == DATA_SET_FLAG) {  // check for null
@@ -2755,7 +2768,7 @@ static bool apercentile_function_setup(SQLFunctionCtx *pCtx, SResultRowCellInfo*
     return false;
   }
   
-  SAPercentileInfo *pInfo = getAPerctInfo(pCtx);
+  SAPercentileInfo *pInfo = getOutputInfo(pCtx);
   buildHistogramInfo(pInfo);
   
   char *tmp = (char *)pInfo + sizeof(SAPercentileInfo);
@@ -2772,7 +2785,7 @@ static void apercentile_function(SQLFunctionCtx *pCtx) {
   int32_t notNullElems = 0;
   
   SResultRowCellInfo *     pResInfo = GET_RES_INFO(pCtx);
-  SAPercentileInfo *pInfo = getAPerctInfo(pCtx);
+  SAPercentileInfo *pInfo = getOutputInfo(pCtx);
   buildHistogramInfo(pInfo);
 
   assert(pInfo->pHisto->elems != NULL);
@@ -2816,7 +2829,7 @@ static void apercentile_func_merge(SQLFunctionCtx *pCtx) {
     return;
   }
   
-  SAPercentileInfo *pOutput = getAPerctInfo(pCtx);
+  SAPercentileInfo *pOutput = getOutputInfo(pCtx);
   buildHistogramInfo(pOutput);
   SHistogramInfo  *pHisto = pOutput->pHisto;
   
@@ -4710,17 +4723,6 @@ static void mavg_function(SQLFunctionCtx *pCtx) {
 //////////////////////////////////////////////////////////////////////////////////
 // Sample function with reservoir sampling algorithm
 
-static SSampleFuncInfo* getSampleFuncOutputInfo(SQLFunctionCtx *pCtx) {
-  SResultRowCellInfo *pResInfo = GET_RES_INFO(pCtx);
-
-  // only the first_stage stable is directly written data into final output buffer
-  if (pCtx->stableQuery && pCtx->currentStage != MERGE_STAGE) {
-    return (SSampleFuncInfo *) pCtx->pOutput;
-  } else { // during normal table query and super table at the secondary_stage, result is written to intermediate buffer
-    return GET_ROWCELL_INTERBUF(pResInfo);
-  }
-}
-
 static void assignResultSample(SQLFunctionCtx *pCtx, SSampleFuncInfo *pInfo, int32_t index, int64_t ts, void *pData, uint16_t type, int16_t bytes, char *inputTags) {
   assignVal(pInfo->values + index*bytes, pData, bytes, type);
   *(pInfo->timeStamps + index) = ts;
@@ -4800,7 +4802,7 @@ static bool sample_function_setup(SQLFunctionCtx *pCtx, SResultRowCellInfo* pRes
 
   srand(taosSafeRand());
 
-  SSampleFuncInfo *pRes = getSampleFuncOutputInfo(pCtx);
+  SSampleFuncInfo *pRes = getOutputInfo(pCtx);
   pRes->totalPoints = 0;
   pRes->numSampled = 0;
   pRes->values = ((char*)pRes + sizeof(SSampleFuncInfo));
@@ -4814,7 +4816,7 @@ static void sample_function(SQLFunctionCtx *pCtx) {
   int32_t notNullElems = 0;
 
   SResultRowCellInfo *pResInfo = GET_RES_INFO(pCtx);
-  SSampleFuncInfo *pRes = getSampleFuncOutputInfo(pCtx);
+  SSampleFuncInfo *pRes = getOutputInfo(pCtx);
 
   if (pRes->values !=  ((char*)pRes + sizeof(SSampleFuncInfo))) {
     pRes->values =  ((char*)pRes + sizeof(SSampleFuncInfo));
@@ -4852,7 +4854,7 @@ static void sample_func_merge(SQLFunctionCtx *pCtx) {
   pInput->timeStamps = (int64_t*)((char*)pInput->values + pInput->colBytes * pCtx->param[0].i64);
   pInput->taglists = (char*)pInput->timeStamps + sizeof(int64_t)*pCtx->param[0].i64;
 
-  SSampleFuncInfo *pOutput = getSampleFuncOutputInfo(pCtx);
+  SSampleFuncInfo *pOutput = getOutputInfo(pCtx);
   pOutput->totalPoints = pInput->totalPoints;
   pOutput->numSampled = pInput->numSampled;
   for (int32_t i = 0; i < pInput->numSampled; ++i) {
@@ -4886,20 +4888,12 @@ static void sample_func_finalizer(SQLFunctionCtx *pCtx) {
 //////////////////////////////////////////////////////////////////////////////////
 // elapsed function
 
-static SElapsedInfo * getSElapsedInfo(SQLFunctionCtx *pCtx) {
-  if (pCtx->stableQuery && pCtx->currentStage != MERGE_STAGE) {
-    return (SElapsedInfo *)pCtx->pOutput;
-  } else {
-    return GET_ROWCELL_INTERBUF(GET_RES_INFO(pCtx));
-  }
-}
-
 static bool elapsedSetup(SQLFunctionCtx *pCtx, SResultRowCellInfo* pResInfo) {
   if (!function_setup(pCtx, pResInfo)) {
     return false;
   }
 
-  SElapsedInfo *pInfo = getSElapsedInfo(pCtx);
+  SElapsedInfo *pInfo = getOutputInfo(pCtx);
   pInfo->min = MAX_TS_KEY;
   pInfo->max = 0;
   pInfo->hasResult = 0;
@@ -4912,7 +4906,7 @@ static int32_t elapsedRequired(SQLFunctionCtx *pCtx, STimeWindow* w, int32_t col
 }
 
 static void elapsedFunction(SQLFunctionCtx *pCtx) {
-  SElapsedInfo *pInfo = getSElapsedInfo(pCtx);
+  SElapsedInfo *pInfo = getOutputInfo(pCtx);
   if (pCtx->preAggVals.isSet) {
     if (pInfo->min == MAX_TS_KEY) {
       pInfo->min = pCtx->preAggVals.statis.min;
@@ -4979,7 +4973,7 @@ elapsedOver:
 }
 
 static void elapsedMerge(SQLFunctionCtx *pCtx) {
-  SElapsedInfo *pInfo = getSElapsedInfo(pCtx);
+  SElapsedInfo *pInfo = getOutputInfo(pCtx);
   memcpy(pInfo, pCtx->pInput, (size_t)pCtx->inputBytes);
   GET_RES_INFO(pCtx)->hasResult = pInfo->hasResult;
 }
@@ -5002,25 +4996,12 @@ static void elapsedFinalizer(SQLFunctionCtx *pCtx) {
 }
 
 //////////////////////////////////////////////////////////////////////////////////
-// histogram function
-static SHistogramFuncInfo* getHistogramFuncOutputInfo(SQLFunctionCtx *pCtx) {
-  SResultRowCellInfo *pResInfo = GET_RES_INFO(pCtx);
-
-  // only the first_stage stable is directly written data into final output buffer
-  if (pCtx->stableQuery && pCtx->currentStage != MERGE_STAGE) {
-    return (SHistogramFuncInfo *) pCtx->pOutput;
-  } else { // during normal table query and super table at the secondary_stage, result is written to intermediate buffer
-    return GET_ROWCELL_INTERBUF(pResInfo);
-  }
-}
-
-
 static bool histogram_function_setup(SQLFunctionCtx *pCtx, SResultRowCellInfo* pResInfo) {
   if (!function_setup(pCtx, pResInfo)) {
     return false;
   }
 
-  SHistogramFuncInfo *pRes = getHistogramFuncOutputInfo(pCtx);
+  SHistogramFuncInfo *pRes = getOutputInfo(pCtx);
   if (!pRes) {
     return false;
   }
@@ -5044,7 +5025,7 @@ static bool histogram_function_setup(SQLFunctionCtx *pCtx, SResultRowCellInfo* p
 static void histogram_function(SQLFunctionCtx *pCtx) {
   SResultRowCellInfo* pResInfo = GET_RES_INFO(pCtx);
 
-  SHistogramFuncInfo* pRes = getHistogramFuncOutputInfo(pCtx);
+  SHistogramFuncInfo* pRes = getOutputInfo(pCtx);
 
   if (pRes->orderedBins != (SHistogramFuncBin*)((char*)pRes + sizeof(SHistogramFuncInfo))) {
     pRes->orderedBins = (SHistogramFuncBin*)((char*)pRes + sizeof(SHistogramFuncInfo));
@@ -5092,7 +5073,7 @@ static void histogram_func_merge(SQLFunctionCtx *pCtx) {
   SHistogramFuncInfo* pInput = (SHistogramFuncInfo*) GET_INPUT_DATA_LIST(pCtx);
   pInput->orderedBins = (SHistogramFuncBin*)((char*)pInput + sizeof(SHistogramFuncInfo));
 
-  SHistogramFuncInfo* pRes = getHistogramFuncOutputInfo(pCtx);
+  SHistogramFuncInfo* pRes = getOutputInfo(pCtx);
   for (int32_t i = 0; i < pInput->numOfBins; ++i) {
     pRes->orderedBins[i].count += pInput->orderedBins[i].count;
   }
@@ -5129,18 +5110,6 @@ static void histogram_func_finalizer(SQLFunctionCtx *pCtx) {
   doFinalizer(pCtx);
 }
 
-// unique use the intermediate result buffer to keep the intermediate result
-static SUniqueFuncInfo *getUniqueOutputInfo(SQLFunctionCtx *pCtx) {
-  SResultRowCellInfo *pResInfo = GET_RES_INFO(pCtx);
-
-  // only the first_stage_merge is directly written data into final output buffer
-  if (pCtx->stableQuery && pCtx->currentStage != MERGE_STAGE) {
-    return (SUniqueFuncInfo*) pCtx->pOutput;
-  } else { // during normal table query and super table at the secondary_stage, result is written to intermediate buffer
-    return GET_ROWCELL_INTERBUF(pResInfo);
-  }
-}
-
 // unique
 static void copyUniqueRes(SQLFunctionCtx *pCtx, int32_t bytes) {
   SResultRowCellInfo *pResInfo = GET_RES_INFO(pCtx);
@@ -5174,7 +5143,7 @@ static void copyUniqueRes(SQLFunctionCtx *pCtx, int32_t bytes) {
 
   tvp = pRes->res + (size * ((pCtx->param[2].i64 == TSDB_ORDER_ASC) ? 0 : len -1));
   for (int32_t i = 0; i < len; ++i) {
-    int16_t offset = sizeof(UniqueUnit) + bytes;
+    int32_t offset = (int32_t)sizeof(UniqueUnit) + bytes;
     for (int32_t j = 0; j < pCtx->tagInfo.numOfTagCols; ++j) {
       memcpy(pData[j], tvp + offset, (size_t)pCtx->tagInfo.pTagCtxList[j]->outputBytes);
       offset += pCtx->tagInfo.pTagCtxList[j]->outputBytes;
@@ -5238,7 +5207,7 @@ static void do_unique_function(SQLFunctionCtx *pCtx, SUniqueFuncInfo *pInfo, TSK
 }
 
 static void unique_function(SQLFunctionCtx *pCtx) {
-  SUniqueFuncInfo *pInfo = getUniqueOutputInfo(pCtx);
+  SUniqueFuncInfo *pInfo = getOutputInfo(pCtx);
 
   for (int32_t i = 0; i < pCtx->size; i++) {
     char *pData = GET_INPUT_DATA(pCtx, i);
@@ -5248,7 +5217,8 @@ static void unique_function(SQLFunctionCtx *pCtx) {
     }
     do_unique_function(pCtx, pInfo, k, pData, NULL, pCtx->inputBytes, pCtx->inputType);
 
-    if (sizeof(SUniqueFuncInfo) + pInfo->num * (sizeof(UniqueUnit) + pCtx->inputBytes + pCtx->tagInfo.tagsLen) >= MAX_UNIQUE_RESULT_SIZE){
+    if (sizeof(SUniqueFuncInfo) + pInfo->num * (sizeof(UniqueUnit) + pCtx->inputBytes + pCtx->tagInfo.tagsLen) >= MAX_UNIQUE_RESULT_SIZE
+        || (pInfo->num > MAX_UNIQUE_RESULT_ROWS)){
       GET_RES_INFO(pCtx)->numOfRes = -1;    // mark out of memory
       return;
     }
@@ -5259,7 +5229,7 @@ static void unique_function(SQLFunctionCtx *pCtx) {
 
 static void unique_function_merge(SQLFunctionCtx *pCtx) {
   SUniqueFuncInfo *pInput = (SUniqueFuncInfo *)GET_INPUT_DATA_LIST(pCtx);
-  SUniqueFuncInfo *pOutput = getUniqueOutputInfo(pCtx);
+  SUniqueFuncInfo *pOutput = getOutputInfo(pCtx);
   size_t size = sizeof(UniqueUnit) + pCtx->outputBytes + pCtx->tagInfo.tagsLen;
   for (int32_t i = 0; i < pInput->num; ++i) {
     char *tmp = pInput->res + i* size;
@@ -5268,13 +5238,14 @@ static void unique_function_merge(SQLFunctionCtx *pCtx) {
     char *tags = tmp + sizeof(UniqueUnit) + pCtx->outputBytes;
     do_unique_function(pCtx, pOutput, timestamp, data, tags, pCtx->outputBytes, pCtx->outputType);
 
-    if (sizeof(SUniqueFuncInfo) + pOutput->num * (sizeof(UniqueUnit) + pCtx->outputBytes + pCtx->tagInfo.tagsLen) >= MAX_UNIQUE_RESULT_SIZE){
+    if (sizeof(SUniqueFuncInfo) + pOutput->num * (sizeof(UniqueUnit) + pCtx->outputBytes + pCtx->tagInfo.tagsLen) >= MAX_UNIQUE_RESULT_SIZE
+        || (pOutput->num > MAX_UNIQUE_RESULT_ROWS)){
       GET_RES_INFO(pCtx)->numOfRes = -1;    // mark out of memory
       return;
     }
   }
 
-  GET_RES_INFO(pCtx)->numOfRes = pOutput->num;
+//  GET_RES_INFO(pCtx)->numOfRes = pOutput->num;
 }
 
 typedef struct{
@@ -5284,11 +5255,11 @@ typedef struct{
 
 static int32_t uniqueCompareFn(const void *p1, const void *p2, const void *param) {
   UiqueSupporter *support = (UiqueSupporter *)param;
-  return support->comparFn(p1 + support->dataOffset, p2 + support->dataOffset);
+  return support->comparFn((const char*)p1 + support->dataOffset, (const char*)p2 + support->dataOffset);
 }
 
 static void unique_func_finalizer(SQLFunctionCtx *pCtx) {
-  SUniqueFuncInfo *pInfo = getUniqueOutputInfo(pCtx);
+  SUniqueFuncInfo *pInfo = GET_ROWCELL_INTERBUF(GET_RES_INFO(pCtx));
 
   GET_RES_INFO(pCtx)->numOfRes = pInfo->num;
   int32_t bytes = 0;
@@ -5317,6 +5288,114 @@ static void unique_func_finalizer(SQLFunctionCtx *pCtx) {
   doFinalizer(pCtx);
 }
 
+static bool mode_function_setup(SQLFunctionCtx *pCtx, SResultRowCellInfo* pResInfo) {
+  if (!function_setup(pCtx, pResInfo)) {
+    return false;
+  }
+  if(*pCtx->pModeSet != NULL){
+    taosHashClear(*pCtx->pModeSet);
+  }else{
+    *pCtx->pModeSet = taosHashInit(64, taosGetDefaultHashFunction(TSDB_DATA_TYPE_BINARY), true, HASH_NO_LOCK);
+  }
+
+  return true;
+}
+
+static void do_mode_function(SQLFunctionCtx *pCtx, SModeFuncInfo *pInfo, char *pData, int64_t count, int32_t bytes, int16_t type){
+  int32_t hashKeyBytes = bytes;
+  if(IS_VAR_DATA_TYPE(type)){     // for var data, we can not use bytes, because there are dirty data in the back of var data
+    hashKeyBytes = varDataTLen(pData);
+  }
+  ModeUnit **mode = taosHashGet(*pCtx->pModeSet, pData, hashKeyBytes);
+  if (mode == NULL) {
+    size_t size = sizeof(ModeUnit) + bytes;
+    char *tmp = pInfo->res + pInfo->num * size;
+    ((ModeUnit*)tmp)->count = count;
+    char *data = tmp + sizeof(ModeUnit);
+    memcpy(data, pData, bytes);
+
+    taosHashPut(*pCtx->pModeSet, pData, hashKeyBytes, &tmp, sizeof(ModeUnit*));
+    pInfo->num++;
+  }else{
+    (*mode)->count += count;
+  }
+}
+
+static void mode_function(SQLFunctionCtx *pCtx) {
+  SModeFuncInfo *pInfo = getOutputInfo(pCtx);
+
+  for (int32_t i = 0; i < pCtx->size; i++) {
+    char *pData = GET_INPUT_DATA(pCtx, i);
+    if (pCtx->hasNull && isNull(pData, pCtx->inputType)) {
+      continue;
+    }
+
+    do_mode_function(pCtx, pInfo, pData, 1, pCtx->inputBytes, pCtx->inputType);
+
+    if (sizeof(SModeFuncInfo) + pInfo->num * (sizeof(ModeUnit) + pCtx->inputBytes) >= MAX_MODE_INNER_RESULT_SIZE){
+      GET_RES_INFO(pCtx)->numOfRes = -1;    // mark out of memory
+      return;
+    }
+  }
+  GET_RES_INFO(pCtx)->numOfRes = 1;
+}
+
+static void mode_function_merge(SQLFunctionCtx *pCtx) {
+  SModeFuncInfo *pInput = (SModeFuncInfo *)GET_INPUT_DATA_LIST(pCtx);
+  SModeFuncInfo *pOutput = getOutputInfo(pCtx);
+  size_t size = sizeof(ModeUnit) + pCtx->outputBytes;
+  for (int32_t i = 0; i < pInput->num; ++i) {
+    char *tmp = pInput->res + i* size;
+    char *data = tmp + sizeof(ModeUnit);
+    do_mode_function(pCtx, pOutput, data, ((ModeUnit*)tmp)->count, pCtx->outputBytes, pCtx->outputType);
+
+    if (sizeof(SModeFuncInfo) + pOutput->num * (sizeof(ModeUnit) + pCtx->outputBytes) >= MAX_MODE_INNER_RESULT_SIZE){
+      GET_RES_INFO(pCtx)->numOfRes = -1;    // mark out of memory
+      return;
+    }
+  }
+}
+
+static void mode_func_finalizer(SQLFunctionCtx *pCtx) {
+  int32_t bytes = 0;
+  int32_t type = 0;
+  if (pCtx->currentStage == MERGE_STAGE) {
+    bytes = pCtx->outputBytes;
+    type = pCtx->outputType;
+    assert(pCtx->inputType == TSDB_DATA_TYPE_BINARY);
+  } else {
+    bytes = pCtx->inputBytes;
+    type = pCtx->inputType;
+  }
+
+  SResultRowCellInfo *pResInfo = GET_RES_INFO(pCtx);
+  SModeFuncInfo *pRes = GET_ROWCELL_INTERBUF(pResInfo);
+
+  size_t size = sizeof(ModeUnit) + bytes;
+
+  char *tvp = pRes->res;
+  char *result = NULL;
+  int64_t maxCount = 0;
+  for (int32_t i = 0; i < pRes->num; ++i) {
+    int64_t count = ((ModeUnit*)tvp)->count;
+    if (count > maxCount){
+      maxCount = count;
+      result = tvp;
+    }else if(count == maxCount){
+      result = NULL;
+    }
+    tvp += size;
+  }
+
+  if (result){
+    memcpy(pCtx->pOutput, result + sizeof(ModeUnit), bytes);
+  }else{
+    setNull(pCtx->pOutput, type, 0);
+  }
+  pResInfo->numOfRes = 1;
+  doFinalizer(pCtx);
+}
+
 /////////////////////////////////////////////////////////////////////////////////////////////
 /*
  * function compatible list.
@@ -5337,8 +5416,8 @@ int32_t functionCompatList[] = {
     1,          1,        1,         1,       -1,      1,          1,           1,          5,          1,      1,
     // tid_tag, deriv,    csum,       mavg,        sample,
     6,          8,        -1,         -1,          -1,
-    // block_info,elapsed,histogram,unique
-    7,          1,        -1,        -1
+    // block_info,elapsed,histogram,unique,mode
+    7,          1,        -1,        -1,      1
 };
 
 SAggFunctionInfo aAggs[TSDB_FUNC_MAX_NUM] = {{
@@ -5823,5 +5902,17 @@ SAggFunctionInfo aAggs[TSDB_FUNC_MAX_NUM] = {{
                               unique_func_finalizer,
                               unique_function_merge,
                               dataBlockRequired,
+                          },
+                          {
+                             // 40
+                             "mode",
+                             TSDB_FUNC_MODE,
+                             TSDB_FUNC_MODE,
+                             TSDB_BASE_FUNC_SO,
+                             mode_function_setup,
+                             mode_function,
+                             mode_func_finalizer,
+                             mode_function_merge,
+                             dataBlockRequired,
                           }
 };

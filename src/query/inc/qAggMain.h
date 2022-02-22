@@ -79,8 +79,9 @@ extern "C" {
 #define TSDB_FUNC_ELAPSED      37
 #define TSDB_FUNC_HISTOGRAM    38
 #define TSDB_FUNC_UNIQUE       39
+#define TSDB_FUNC_MODE         40
 
-#define TSDB_FUNC_MAX_NUM    40
+#define TSDB_FUNC_MAX_NUM    41
 
 #define TSDB_FUNCSTATE_SO           0x1u    // single output
 #define TSDB_FUNCSTATE_MO           0x2u    // dynamic number of output, not multinumber of output e.g., TOP/BOTTOM
@@ -148,7 +149,7 @@ typedef struct SResultRowCellInfo {
   int8_t   hasResult;       // result generated, not NULL value
   bool     initialized;     // output buffer has been initialized
   bool     complete;        // query has completed
-  uint32_t numOfRes;        // num of output result in current buffer
+  int32_t  numOfRes;        // num of output result in current buffer
 } SResultRowCellInfo;
 
 typedef struct SPoint1 {
@@ -203,6 +204,7 @@ typedef struct SQLFunctionCtx {
   SPoint1      end;
 
   SHashObj     **pUniqueSet;   // for unique function
+  SHashObj     **pModeSet;     // for mode function
 } SQLFunctionCtx;
 
 typedef struct SAggFunctionInfo {

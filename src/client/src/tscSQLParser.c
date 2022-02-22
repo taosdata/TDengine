@@ -2693,7 +2693,7 @@ int32_t addExprAndResultField(SSqlCmd* pCmd, SQueryInfo* pQueryInfo, int32_t col
   const char* msg26 = "start param cannot be 0 with 'log_bin'";
   const char* msg27 = "factor param cannot be negative or equal to 0/1";
   const char* msg28 = "the second paramter of diff should be 0 or 1";
-  const char* msg29 = "key timestamp column cannot be used to unique function";
+  const char* msg29 = "key timestamp column cannot be used to unique/mode function";
 
   switch (functionId) {
     case TSDB_FUNC_COUNT: {
@@ -2791,7 +2791,8 @@ int32_t addExprAndResultField(SSqlCmd* pCmd, SQueryInfo* pQueryInfo, int32_t col
     case TSDB_FUNC_CSUM:
     case TSDB_FUNC_STDDEV:
     case TSDB_FUNC_LEASTSQR:
-    case TSDB_FUNC_ELAPSED: {
+    case TSDB_FUNC_ELAPSED:
+    case TSDB_FUNC_MODE: {
       // 1. valid the number of parameters
       int32_t numOfParams =
           (pItem->pNode->Expr.paramList == NULL) ? 0 : (int32_t)taosArrayGetSize(pItem->pNode->Expr.paramList);
@@ -2852,7 +2853,9 @@ int32_t addExprAndResultField(SSqlCmd* pCmd, SQueryInfo* pQueryInfo, int32_t col
       // 2. check if sql function can be applied on this column data type
       SSchema* pSchema = tscGetTableColumnSchema(pTableMetaInfo->pTableMeta, index.columnIndex);
 
-      if (!IS_NUMERIC_TYPE(pSchema->type) && (functionId != TSDB_FUNC_ELAPSED)) {
+      if (functionId == TSDB_FUNC_MODE && pColumnSchema->colId == PRIMARYKEY_TIMESTAMP_COL_INDEX ){
+        return invalidOperationMsg(tscGetErrorMsgPayload(pCmd), msg29);
+      } else if (!IS_NUMERIC_TYPE(pSchema->type) && (functionId != TSDB_FUNC_ELAPSED) && (functionId != TSDB_FUNC_MODE)) {
         return invalidOperationMsg(tscGetErrorMsgPayload(pCmd), msg1);
       } else if (IS_UNSIGNED_NUMERIC_TYPE(pSchema->type) &&
                  (functionId == TSDB_FUNC_DIFF || functionId == TSDB_FUNC_DERIVATIVE)) {
@@ -4010,7 +4013,8 @@ int32_t tscTansformFuncForSTableQuery(SQueryInfo* pQueryInfo) {
         (functionId == TSDB_FUNC_SAMPLE) ||
         (functionId == TSDB_FUNC_ELAPSED) ||
         (functionId == TSDB_FUNC_HISTOGRAM) ||
-        (functionId == TSDB_FUNC_UNIQUE)) {
+        (functionId == TSDB_FUNC_UNIQUE) ||
+        (functionId == TSDB_FUNC_MODE)) {
       if (getResultDataInfo(pSrcSchema->type, pSrcSchema->bytes, functionId, (int32_t)pExpr->base.param[0].i64, &type, &bytes,
                             &interBytes, 0, true, NULL) != TSDB_CODE_SUCCESS) {
         return TSDB_CODE_TSC_INVALID_OPERATION;

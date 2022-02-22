@@ -362,7 +362,7 @@ SSDataBlock* createOutputBuf(SExprInfo* pExpr, int32_t numOfOutput, int32_t numO
       qError("size is too large, failed to allocate column buffer for output buffer");
       tmp = 128*1024*1024;
     }
-    int32_t size = MAX(tmp, minSize);
+    int32_t size = (int32_t)MAX(tmp, minSize);
     idata.pData = calloc(1, size);  // at least to hold a pointer on x64 platform
     if (idata.pData == NULL) {
       qError("failed to allocate column buffer for output buffer");
@@ -1009,11 +1009,9 @@ static void doApplyFunctions(SQueryRuntimeEnv* pRuntimeEnv, SQLFunctionCtx* pCtx
       }
     }
 
-    if (functionId == TSDB_FUNC_UNIQUE &&
-        (GET_RES_INFO(&(pCtx[k]))->numOfRes > MAX_UNIQUE_RESULT_ROWS || GET_RES_INFO(&(pCtx[k]))->numOfRes == -1)){
-      qError("Unique result num is too large. num: %d, limit: %d",
-             GET_RES_INFO(&(pCtx[k]))->numOfRes, MAX_UNIQUE_RESULT_ROWS);
-      longjmp(pRuntimeEnv->env, TSDB_CODE_QRY_UNIQUE_RESULT_TOO_LARGE);
+    if (GET_RES_INFO(&(pCtx[k]))->numOfRes == -1){
+      qError("result num is too large.");
+      longjmp(pRuntimeEnv->env, TSDB_CODE_QRY_RESULT_TOO_LARGE);
     }
 
     // restore it
@@ -1276,11 +1274,9 @@ static void doAggregateImpl(SOperatorInfo* pOperator, TSKEY startTs, SQLFunction
         assert(0);
       }
 
-      if (functionId == TSDB_FUNC_UNIQUE &&
-          (GET_RES_INFO(&(pCtx[k]))->numOfRes > MAX_UNIQUE_RESULT_ROWS || GET_RES_INFO(&(pCtx[k]))->numOfRes == -1)){
-        qError("Unique result num is too large. num: %d, limit: %d",
-               GET_RES_INFO(&(pCtx[k]))->numOfRes, MAX_UNIQUE_RESULT_ROWS);
-        longjmp(pRuntimeEnv->env, TSDB_CODE_QRY_UNIQUE_RESULT_TOO_LARGE);
+      if (GET_RES_INFO(&(pCtx[k]))->numOfRes == -1){
+        qError("Mode inner result num is too large");
+        longjmp(pRuntimeEnv->env, TSDB_CODE_QRY_RESULT_TOO_LARGE);
       }
     }
   }
@@ -1965,7 +1961,8 @@ static SQLFunctionCtx* createSQLFunctionCtx(SQueryRuntimeEnv* pRuntimeEnv, SExpr
     }
 
     pCtx->inputType  = pSqlExpr->colType;
-    if (pRuntimeEnv->pQueryAttr->interBytesForGlobal > INT16_MAX && pSqlExpr->functionId == TSDB_FUNC_UNIQUE){
+    if (pRuntimeEnv->pQueryAttr->interBytesForGlobal > INT16_MAX &&
+        (pSqlExpr->functionId == TSDB_FUNC_UNIQUE || pSqlExpr->functionId == TSDB_FUNC_MODE)){
       pCtx->inputBytes  = pRuntimeEnv->pQueryAttr->interBytesForGlobal;
     }else{
       pCtx->inputBytes = pSqlExpr->colBytes;
@@ -3690,6 +3687,8 @@ void setDefaultOutputBuf(SQueryRuntimeEnv *pRuntimeEnv, SOptrBasicInfo *pInfo, i
     pCtx[i].resultInfo   = pCellInfo;
     if (pCtx[i].functionId == TSDB_FUNC_UNIQUE) {
       pCtx[i].pUniqueSet = &pRow->uniqueHash;
+    }else if (pCtx[i].functionId == TSDB_FUNC_MODE) {
+      pCtx[i].pModeSet = &pRow->modeHash;
     }
     pCtx[i].pOutput      = pData->pData;
     pCtx[i].currentStage = stage;
@@ -4027,6 +4026,8 @@ void setResultRowOutputBufInitCtx(SQueryRuntimeEnv *pRuntimeEnv, SResultRow *pRe
     pCtx[i].resultInfo = getResultCell(pResult, i, rowCellInfoOffset);
     if (pCtx[i].functionId == TSDB_FUNC_UNIQUE){
       pCtx[i].pUniqueSet = &pResult->uniqueHash;
+    }else if (pCtx[i].functionId == TSDB_FUNC_MODE){
+      pCtx[i].pModeSet = &pResult->modeHash;
     }
 
     SResultRowCellInfo* pResInfo = pCtx[i].resultInfo;
@@ -4123,6 +4124,8 @@ void setResultOutputBuf(SQueryRuntimeEnv *pRuntimeEnv, SResultRow *pResult, SQLF
     pCtx[i].resultInfo = getResultCell(pResult, i, rowCellInfoOffset);
     if (pCtx[i].functionId == TSDB_FUNC_UNIQUE) {
       pCtx[i].pUniqueSet = &pResult->uniqueHash;
+    }else if (pCtx[i].functionId == TSDB_FUNC_MODE) {
+      pCtx[i].pModeSet = &pResult->modeHash;
     }
   }
 }

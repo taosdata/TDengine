@@ -91,6 +91,7 @@ typedef struct SResultRow {
   STimeWindow   win;
   char         *key;               // start key of current result row
   SHashObj     *uniqueHash;  // for unique function
+  SHashObj     *modeHash;  // for unique function
 } SResultRow;
 
 typedef struct SResultRowCell {
