@@ -217,7 +217,7 @@ static void *taosThreadToOpenNewFile(void *param) {
 
   uInfo("   new log file:%d is opened", tsLogObj.flag);
   uInfo("==================================");
-  taosPrintCfg();
+  // taosPrintCfg();
   taosKeepOldLog(keepName);
 
   return NULL;

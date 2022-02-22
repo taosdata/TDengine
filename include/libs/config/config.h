@@ -23,6 +23,8 @@
 extern "C" {
 #endif
 
+#define CFG_NAME_MAX_LEN 128
+
 typedef enum {
   CFG_STYPE_DEFAULT,
   CFG_STYPE_CFG_FILE,
@@ -48,12 +50,12 @@ typedef enum {
 
 typedef enum {
   CFG_UTYPE_NONE,
-  CFG_UTYPE_PERCENT,
   CFG_UTYPE_GB,
   CFG_UTYPE_MB,
   CFG_UTYPE_BYTE,
   CFG_UTYPE_SECOND,
-  CFG_UTYPE_MS
+  CFG_UTYPE_MS,
+  CFG_UTYPE_PERCENT
 } ECfgUnitType;
 
 typedef struct SConfigItem {

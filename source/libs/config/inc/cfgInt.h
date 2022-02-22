@@ -20,6 +20,7 @@
 #include "config.h"
 #include "taoserror.h"
 #include "thash.h"
+#include "tutil.h"
 #include "ulog.h"
 
 #ifdef __cplusplus

@@ -64,8 +64,7 @@ SConfigItem *cfgIterate(SConfig *pConfig, SConfigItem *pIter) { return taosHashI
 
 void cfgCancelIterate(SConfig *pConfig, SConfigItem *pIter) { return taosHashCancelIterate(pConfig->hash, pIter); }
 
-
-int32_t cfgSetBool(SConfigItem *pItem, const char *value, ECfgSrcType stype) {
+static int32_t cfgSetBool(SConfigItem *pItem, const char *value, ECfgSrcType stype) {
   bool tmp = false;
   if (strcasecmp(value, "true") == 0) {
     tmp = true;
@@ -73,12 +72,13 @@ int32_t cfgSetBool(SConfigItem *pItem, const char *value, ECfgSrcType stype) {
   if (atoi(value) > 0) {
     tmp = true;
   }
+
   pItem->boolVal = tmp;
   pItem->stype = stype;
   return 0;
 }
 
-int32_t cfgSetInt8(SConfigItem *pItem, const char *value, ECfgSrcType stype) {
+static int32_t cfgSetInt8(SConfigItem *pItem, const char *value, ECfgSrcType stype) {
   int8_t ival = (int8_t)atoi(value);
   if (ival < pItem->minIntVal || ival > pItem->maxIntVal) {
     uError("cfg:%s, type:%s src:%s value:%d out of range[%" PRId64 ", %" PRId64 "], use last src:%s value:%d",
@@ -87,12 +87,13 @@ int32_t cfgSetInt8(SConfigItem *pItem, const char *value, ECfgSrcType stype) {
     terrno = TSDB_CODE_OUT_OF_RANGE;
     return -1;
   }
+
   pItem->int8Val = ival;
   pItem->stype = stype;
   return 0;
 }
 
-int32_t cfgSetUInt16(SConfigItem *pItem, const char *value, ECfgSrcType stype) {
+static int32_t cfgSetUInt16(SConfigItem *pItem, const char *value, ECfgSrcType stype) {
   uint16_t ival = (uint16_t)atoi(value);
   if (ival < pItem->minIntVal || ival > pItem->maxIntVal) {
     uError("cfg:%s, type:%s src:%s value:%d out of range[%" PRId64 ", %" PRId64 "], use last src:%s value:%d",
@@ -101,12 +102,13 @@ int32_t cfgSetUInt16(SConfigItem *pItem, const char *value, ECfgSrcType stype) {
     terrno = TSDB_CODE_OUT_OF_RANGE;
     return -1;
   }
+
   pItem->uint16Val = ival;
   pItem->stype = stype;
   return 0;
 }
 
-int32_t cfgSetInt32(SConfigItem *pItem, const char *value, ECfgSrcType stype) {
+static int32_t cfgSetInt32(SConfigItem *pItem, const char *value, ECfgSrcType stype) {
   int32_t ival = (int32_t)atoi(value);
   if (ival < pItem->minIntVal || ival > pItem->maxIntVal) {
     uError("cfg:%s, type:%s src:%s value:%d out of range[%" PRId64 ", %" PRId64 "], use last src:%s value:%d",
@@ -115,26 +117,29 @@ int32_t cfgSetInt32(SConfigItem *pItem, const char *value, ECfgSrcType stype) {
     terrno = TSDB_CODE_OUT_OF_RANGE;
     return -1;
   }
+
   pItem->int32Val = ival;
   pItem->stype = stype;
   return 0;
 }
 
-int32_t cfgSetInt64(SConfigItem *pItem, const char *value, ECfgSrcType stype) {
+static int32_t cfgSetInt64(SConfigItem *pItem, const char *value, ECfgSrcType stype) {
   int64_t ival = (int64_t)atoi(value);
   if (ival < pItem->minIntVal || ival > pItem->maxIntVal) {
-    uError("cfg:%s, type:%s src:%s value:%d out of range[%" PRId64 ", %" PRId64 "], use last src:%s value:%d",
+    uError("cfg:%s, type:%s src:%s value:%" PRId64 " out of range[%" PRId64 ", %" PRId64
+           "], use last src:%s value:%" PRId64,
            pItem->name, cfgDtypeStr(pItem->dtype), cfgStypeStr(stype), ival, pItem->minIntVal, pItem->maxIntVal,
            cfgStypeStr(pItem->stype), pItem->int64Val);
     terrno = TSDB_CODE_OUT_OF_RANGE;
     return -1;
   }
+
   pItem->int64Val = ival;
   pItem->stype = stype;
   return 0;
 }
 
-int32_t cfgSetFloat(SConfigItem *pItem, const char *value, ECfgSrcType stype) {
+static int32_t cfgSetFloat(SConfigItem *pItem, const char *value, ECfgSrcType stype) {
   float fval = (float)atof(value);
   if (fval < pItem->minFloatVal || fval > pItem->maxFloatVal) {
     uError("cfg:%s, type:%s src:%s value:%f out of range[%f, %f], use last src:%s value:%f", pItem->name,
@@ -143,47 +148,51 @@ int32_t cfgSetFloat(SConfigItem *pItem, const char *value, ECfgSrcType stype) {
     terrno = TSDB_CODE_OUT_OF_RANGE;
     return -1;
   }
+
   pItem->floatVal = fval;
   pItem->stype = stype;
   return 0;
 }
 
-int32_t cfgSetString(SConfigItem *pItem, const char *value, ECfgSrcType stype) {
+static int32_t cfgSetString(SConfigItem *pItem, const char *value, ECfgSrcType stype) {
   char *tmp = strdup(value);
   if (tmp == NULL) {
     terrno = TSDB_CODE_OUT_OF_MEMORY;
     uError("cfg:%s, type:%s src:%s value:%s failed to dup since %s, use last src:%s value:%s", pItem->name,
-           cfgDtypeStr(pItem->dtype), cfgStypeStr(stype), terrstr(), cfgStypeStr(pItem->stype), pItem->floatVal);
+           cfgDtypeStr(pItem->dtype), cfgStypeStr(stype), value, terrstr(), cfgStypeStr(pItem->stype), pItem->strVal);
     return -1;
   }
+
   free(pItem->strVal);
   pItem->strVal = tmp;
   pItem->stype = stype;
   return 0;
 }
 
-int32_t cfgSetIpStr(SConfigItem *pItem, const char *value, ECfgSrcType stype) {
+static int32_t cfgSetIpStr(SConfigItem *pItem, const char *value, ECfgSrcType stype) {
   char *tmp = strdup(value);
   if (tmp == NULL) {
     terrno = TSDB_CODE_OUT_OF_MEMORY;
     uError("cfg:%s, type:%s src:%s value:%s failed to dup since %s, use last src:%s value:%s", pItem->name,
-           cfgDtypeStr(pItem->dtype), cfgStypeStr(stype), terrstr(), cfgStypeStr(pItem->stype), pItem->floatVal);
+           cfgDtypeStr(pItem->dtype), cfgStypeStr(stype), value, terrstr(), cfgStypeStr(pItem->stype), pItem->strVal);
     return -1;
   }
+
   free(pItem->strVal);
   pItem->strVal = tmp;
   pItem->stype = stype;
   return 0;
 }
 
-int32_t cfgSetDir(SConfigItem *pItem, const char *value, ECfgSrcType stype) {
+static int32_t cfgSetDir(SConfigItem *pItem, const char *value, ECfgSrcType stype) {
   char *tmp = strdup(value);
   if (tmp == NULL) {
     terrno = TSDB_CODE_OUT_OF_MEMORY;
     uError("cfg:%s, type:%s src:%s value:%s failed to dup since %s, use last src:%s value:%s", pItem->name,
-           cfgDtypeStr(pItem->dtype), cfgStypeStr(stype), terrstr(), cfgStypeStr(pItem->stype), pItem->floatVal);
+           cfgDtypeStr(pItem->dtype), cfgStypeStr(stype), value, terrstr(), cfgStypeStr(pItem->stype), pItem->strVal);
     return -1;
   }
+
   free(pItem->strVal);
   pItem->strVal = tmp;
   pItem->stype = stype;
@@ -214,7 +223,7 @@ int32_t cfgSetItem(SConfig *pConfig, const char *name, const char *value, ECfgSr
     case CFG_DTYPE_IPSTR:
       return cfgSetIpStr(pItem, value, stype);
     case CFG_DTYPE_DIR:
-      return cfgSetFqdn(pItem, value, stype);
+      return cfgSetDir(pItem, value, stype);
     case CFG_DTYPE_NONE:
     default:
       break;
@@ -225,8 +234,9 @@ int32_t cfgSetItem(SConfig *pConfig, const char *name, const char *value, ECfgSr
 }
 
 SConfigItem *cfgGetItem(SConfig *pConfig, const char *name) {
-  char lowcaseName[128] = 0;
-  memcpy(lowcaseName, name, 127);
+  char lowcaseName[CFG_NAME_MAX_LEN + 1] = {0};
+  memcpy(lowcaseName, name, CFG_NAME_MAX_LEN);
+  strntolower(lowcaseName, name, CFG_NAME_MAX_LEN);
 
   SConfigItem *pItem = taosHashGet(pConfig->hash, lowcaseName, strlen(lowcaseName) + 1);
   if (pItem == NULL) {
@@ -245,8 +255,10 @@ static int32_t cfgAddItem(SConfig *pConfig, SConfigItem *pItem, const char *name
     return -1;
   }
 
-  char lowcaseName[128] = 0;
-  memcpy(lowcaseName, name, 127);
+  char lowcaseName[CFG_NAME_MAX_LEN + 1] = {0};
+  memcpy(lowcaseName, name, CFG_NAME_MAX_LEN);
+  strntolower(lowcaseName, name, CFG_NAME_MAX_LEN);
+
   if (taosHashPut(pConfig->hash, lowcaseName, strlen(lowcaseName) + 1, pItem, sizeof(SConfigItem)) != 0) {
     if (pItem->dtype == CFG_DTYPE_STRING) {
       free(pItem->strVal);
@@ -412,6 +424,10 @@ const char *cfgStypeStr(ECfgSrcType type) {
       return "env_var";
     case CFG_STYPE_APOLLO_URL:
       return "apollo_url";
+    case CFG_STYPE_ARG_LIST:
+      return "arg_list";
+    case CFG_STYPE_API_OPTION:
+      return "api_option";
     default:
       return "invalid";
   }
