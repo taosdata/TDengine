@@ -20,26 +20,6 @@ import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.ExecutionException;
 
 public abstract class AbstractWSResultSet extends AbstractResultSet {
-    public static DateTimeFormatter rfc3339Parser = new DateTimeFormatterBuilder()
-            .parseCaseInsensitive()
-            .appendValue(ChronoField.YEAR, 4)
-            .appendLiteral('-')
-            .appendValue(ChronoField.MONTH_OF_YEAR, 2)
-            .appendLiteral('-')
-            .appendValue(ChronoField.DAY_OF_MONTH, 2)
-            .appendLiteral('T')
-            .appendValue(ChronoField.HOUR_OF_DAY, 2)
-            .appendLiteral(':')
-            .appendValue(ChronoField.MINUTE_OF_HOUR, 2)
-            .appendLiteral(':')
-            .appendValue(ChronoField.SECOND_OF_MINUTE, 2)
-            .optionalStart()
-            .appendFraction(ChronoField.NANO_OF_SECOND, 2, 9, true)
-            .optionalEnd()
-            .appendOffset("+HH:MM", "Z").toFormatter()
-            .withResolverStyle(ResolverStyle.STRICT)
-            .withChronology(IsoChronology.INSTANCE);
-
     protected final Statement statement;
     protected final Transport transport;
     protected final RequestFactory factory;
@@ -108,7 +88,7 @@ public abstract class AbstractWSResultSet extends AbstractResultSet {
                 throw TSDBError.createSQLException(TSDBErrorNumbers.ERROR_UNKNOWN, fetchResp.getMessage());
             }
             this.reset();
-            if (fetchResp.isCompleted()) {
+            if (fetchResp.isCompleted() || fetchResp.getRows() == 0) {
                 this.isCompleted = true;
                 return false;
             }

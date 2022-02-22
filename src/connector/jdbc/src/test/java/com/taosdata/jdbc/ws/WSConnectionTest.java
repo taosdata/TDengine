@@ -19,7 +19,7 @@ import java.util.concurrent.TimeUnit;
 @RunWith(CatalogRunner.class)
 @TestTarget(alias = "test connection with server", author = "huolibo", version = "2.0.37")
 public class WSConnectionTest {
-//    private static final String host = "192.168.1.98";
+    //    private static final String host = "192.168.1.98";
     private static final String host = "127.0.0.1";
     private static final int port = 6041;
     private Connection connection;
@@ -27,7 +27,7 @@ public class WSConnectionTest {
     @Test
     @Description("normal test with websocket server")
     public void normalConection() throws SQLException {
-        String url = "jdbc:TAOS-RS://" + host + ":" + port + "/test?user=root&password=taosdata";
+        String url = "jdbc:TAOS-RS://" + host + ":" + port + "/log?user=root&password=taosdata";
         Properties properties = new Properties();
         properties.setProperty(TSDBDriver.PROPERTY_KEY_BATCH_LOAD, "true");
         connection = DriverManager.getConnection(url, properties);
@@ -56,7 +56,7 @@ public class WSConnectionTest {
     @Test(expected = SQLException.class)
     @Description("wrong password or user")
     public void wrongUserOrPasswordConection() throws SQLException {
-        String url = "jdbc:TAOS-RS://" + host + ":" + port + "/test?user=abc&password=taosdata";
+        String url = "jdbc:TAOS-RS://" + host + ":" + port + "/log?user=abc&password=taosdata";
         Properties properties = new Properties();
         properties.setProperty(TSDBDriver.PROPERTY_KEY_BATCH_LOAD, "true");
         connection = DriverManager.getConnection(url, properties);
@@ -69,13 +69,13 @@ public class WSConnectionTest {
         Properties properties = new Properties();
         properties.setProperty(TSDBDriver.PROPERTY_KEY_BATCH_LOAD, "true");
         connection = DriverManager.getConnection(url, properties);
-        TimeUnit.MINUTES.sleep(1);
+        TimeUnit.SECONDS.sleep(20);
         Statement statement = connection.createStatement();
         ResultSet resultSet = statement.executeQuery("show databases");
-        TimeUnit.MINUTES.sleep(1);
+        TimeUnit.SECONDS.sleep(20);
         resultSet.next();
-        System.out.println(resultSet.getTimestamp(1));
         resultSet.close();
         statement.close();
+        connection.close();
     }
 }
