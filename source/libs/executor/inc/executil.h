@@ -69,8 +69,8 @@ typedef struct SResultRow {
 
 typedef struct SResultRowInfo {
   SResultRow** pResult;    // result list
-  int16_t      type:8;     // data type for hash key
-  int32_t      size:24;    // number of result set
+//  int16_t      type:8;     // data type for hash key
+  int32_t      size;       // number of result set
   int32_t      capacity;   // max capacity
   int32_t      curPos;     // current active result row index of pResult list
 } SResultRowInfo;
@@ -95,7 +95,7 @@ struct SUdfInfo;
 int32_t getOutputInterResultBufSize(struct STaskAttr* pQueryAttr);
 
 size_t  getResultRowSize(SArray* pExprInfo);
-int32_t initResultRowInfo(SResultRowInfo* pResultRowInfo, int32_t size, int16_t type);
+int32_t initResultRowInfo(SResultRowInfo* pResultRowInfo, int32_t size);
 void    cleanupResultRowInfo(SResultRowInfo* pResultRowInfo);
 
 void    resetResultRowInfo(struct STaskRuntimeEnv* pRuntimeEnv, SResultRowInfo* pResultRowInfo);
@@ -105,7 +105,7 @@ void    closeAllResultRows(SResultRowInfo* pResultRowInfo);
 int32_t initResultRow(SResultRow *pResultRow);
 void    closeResultRow(SResultRowInfo* pResultRowInfo, int32_t slot);
 bool    isResultRowClosed(SResultRowInfo *pResultRowInfo, int32_t slot);
-void    clearResultRow(struct STaskRuntimeEnv* pRuntimeEnv, SResultRow* pResultRow, int16_t type);
+void    clearResultRow(struct STaskRuntimeEnv* pRuntimeEnv, SResultRow* pResultRow);
 
 struct SResultRowEntryInfo* getResultCell(const SResultRow* pRow, int32_t index, int32_t* offset);
 

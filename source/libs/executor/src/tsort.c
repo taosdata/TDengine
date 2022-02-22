@@ -123,23 +123,6 @@ int32_t sortAddSource(SSortHandle* pSortHandle, void* pSource) {
   taosArrayPush(pSortHandle->pOrderedSource, &pSource);
 }
 
-static SSDataBlock* createDataBlock(const SSDataBlock* pDataBlock) {
-  int32_t numOfCols = pDataBlock->info.numOfCols;
-
-  SSDataBlock* pBlock = calloc(1, sizeof(SSDataBlock));
-  pBlock->pDataBlock = taosArrayInit(numOfCols, sizeof(SColumnInfoData));
-  pBlock->info.numOfCols = numOfCols;
-
-  for(int32_t i = 0; i < numOfCols; ++i) {
-    SColumnInfoData  colInfo = {0};
-    SColumnInfoData* p = taosArrayGet(pDataBlock->pDataBlock, i);
-    colInfo.info = p->info;
-    taosArrayPush(pBlock->pDataBlock, &colInfo);
-  }
-
-  return pBlock;
-}
-
 static int32_t doAddNewExternalMemSource(SDiskbasedBuf *pBuf, SArray* pAllSources, SSDataBlock* pBlock, int32_t* sourceId) {
   SExternalMemSource* pSource = calloc(1, sizeof(SExternalMemSource));
   if (pSource == NULL) {
@@ -198,7 +181,7 @@ static int32_t doAddToBuf(SSDataBlock* pDataBlock, SSortHandle* pHandle) {
 
   blockDataClearup(pDataBlock, pHandle->hasVarCol);
 
-  SSDataBlock* pBlock = createDataBlock(pDataBlock);
+  SSDataBlock* pBlock = createOneDataBlock(pDataBlock);
   int32_t code = doAddNewExternalMemSource(pHandle->pBuf, pHandle->pOrderedSource, pBlock, &pHandle->sourceId);
   if (code != TSDB_CODE_SUCCESS) {
     return code;
@@ -263,7 +246,7 @@ static void appendOneRowToDataBlock(SSDataBlock *pBlock, const SSDataBlock* pSou
     if (isNull) {
       colDataAppend(pColInfo, pBlock->info.rows, NULL, true);
     } else {
-      char* pData = colDataGet(pSrcColInfo, *rowIndex);
+      char* pData = colDataGetData(pSrcColInfo, *rowIndex);
       colDataAppend(pColInfo, pBlock->info.rows, pData, false);
     }
   }
@@ -279,15 +262,14 @@ static int32_t adjustMergeTreeForNextTuple(SExternalMemSource *pSource, SMultiwa
    */
   if (pSource->src.rowIndex >= pSource->src.pBlock->info.rows) {
     pSource->src.rowIndex = 0;
-    pSource->pageIndex += 1;
 
-    if (pSource->pageIndex >= taosArrayGetSize(pSource->pageIdList)) {
-      (*numOfCompleted)    += 1;
-      pSource->src.rowIndex = -1;
-      pSource->pageIndex    = -1;
-      pSource->src.pBlock   = blockDataDestroy(pSource->src.pBlock);
-    } else {
-      if (pHandle->type == SORT_SINGLESOURCE_SORT) {
+    if (pHandle->type == SORT_SINGLESOURCE_SORT) {
+      if (pSource->pageIndex >= taosArrayGetSize(pSource->pageIdList)) {
+        (*numOfCompleted) += 1;
+        pSource->src.rowIndex = -1;
+        pSource->pageIndex = -1;
+        pSource->src.pBlock = blockDataDestroy(pSource->src.pBlock);
+      } else {
         SPageInfo* pPgInfo = *(SPageInfo**)taosArrayGet(pSource->pageIdList, pSource->pageIndex);
 
         SFilePage* pPage = getBufPage(pHandle->pBuf, getPageId(pPgInfo));
@@ -297,12 +279,12 @@ static int32_t adjustMergeTreeForNextTuple(SExternalMemSource *pSource, SMultiwa
         }
 
         releaseBufPage(pHandle->pBuf, pPage);
-      } else {
-        pSource->src.pBlock = pHandle->fetchfp(((SGenericSource*)pSource)->param);
-        if (pSource->src.pBlock == NULL) {
-          (*numOfCompleted) += 1;
-          pSource->src.rowIndex = -1;
-        }
+      }
+    } else {
+      pSource->src.pBlock = pHandle->fetchfp(((SGenericSource*)pSource)->param);
+      if (pSource->src.pBlock == NULL) {
+        (*numOfCompleted) += 1;
+        pSource->src.rowIndex = -1;
       }
     }
   }
@@ -404,8 +386,8 @@ int32_t msortComparFn(const void *pLeft, const void *pRight, void *param) {
       return pParam->nullFirst? -1:1;
     }
 
-    void* left1  = colDataGet(pLeftColInfoData, pLeftSource->src.rowIndex);
-    void* right1 = colDataGet(pRightColInfoData, pRightSource->src.rowIndex);
+    void* left1  = colDataGetData(pLeftColInfoData, pLeftSource->src.rowIndex);
+    void* right1 = colDataGetData(pRightColInfoData, pRightSource->src.rowIndex);
 
     switch(pLeftColInfoData->info.type) {
       case TSDB_DATA_TYPE_INT: {
@@ -499,7 +481,7 @@ static int32_t doInternalMergeSort(SSortHandle* pHandle) {
       tMergeTreeDestroy(pHandle->pMergeTree);
       pHandle->numOfCompletedSources = 0;
 
-      SSDataBlock* pBlock = createDataBlock(pHandle->pDataBlock);
+      SSDataBlock* pBlock = createOneDataBlock(pHandle->pDataBlock);
       code = doAddNewExternalMemSource(pHandle->pBuf, pResList, pBlock, &pHandle->sourceId);
       if (code != 0) {
         return code;
@@ -545,7 +527,7 @@ static int32_t createInitialSortedMultiSources(SSortHandle* pHandle) {
       }
 
       if (pHandle->pDataBlock == NULL) {
-        pHandle->pDataBlock = createDataBlock(pBlock);
+        pHandle->pDataBlock = createOneDataBlock(pBlock);
       }
 
       int32_t code = blockDataMerge(pHandle->pDataBlock, pBlock);
@@ -646,6 +628,7 @@ STupleHandle* sortNextTuple(SSortHandle* pHandle) {
     return NULL;
   }
 
+  // All the data are hold in the buffer, no external sort is invoked.
   if (pHandle->inMemSort) {
     pHandle->tupleHandle.rowIndex += 1;
     if (pHandle->tupleHandle.rowIndex == pHandle->pDataBlock->info.rows) {
@@ -671,6 +654,7 @@ STupleHandle* sortNextTuple(SSortHandle* pHandle) {
     return NULL;
   }
 
+  // Get the adjusted value after the loser tree is updated.
   index = tMergeTreeGetChosenIndex(pHandle->pMergeTree);
   pSource = pHandle->cmpParam.pSources[index];
 
@@ -691,5 +675,5 @@ bool sortIsValueNull(STupleHandle* pVHandle, int32_t colIndex) {
 
 void* sortGetValue(STupleHandle* pVHandle, int32_t colIndex) {
   SColumnInfoData* pColInfo = TARRAY_GET_ELEM(pVHandle->pBlock->pDataBlock, colIndex);
-  return colDataGet(pColInfo, pVHandle->rowIndex);
+  return colDataGetData(pColInfo, pVHandle->rowIndex);
 }

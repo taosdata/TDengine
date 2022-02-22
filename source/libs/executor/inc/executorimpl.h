@@ -445,16 +445,20 @@ typedef struct SOptrBasicInfo {
   int32_t         capacity;
 } SOptrBasicInfo;
 
-typedef struct SOptrBasicInfo STableIntervalOperatorInfo;
-
-typedef struct SAggOperatorInfo {
-  SOptrBasicInfo       binfo;
-  SDiskbasedBuf       *pResultBuf;           // query result buffer based on blocked-wised disk file
+typedef struct SAggSupporter {
   SHashObj*            pResultRowHashTable;  // quick locate the window object for each result
   SHashObj*            pResultRowListSet;    // used to check if current ResultRowInfo has ResultRow object or not
   SArray*              pResultRowArrayList;  // The array list that contains the Result rows
   char*                keyBuf;               // window key buffer
   SResultRowPool      *pool;  // The window result objects pool, all the resultRow Objects are allocated and managed by this object.
+} SAggSupporter;
+
+typedef struct SOptrBasicInfo STableIntervalOperatorInfo;
+
+typedef struct SAggOperatorInfo {
+  SOptrBasicInfo       binfo;
+  SDiskbasedBuf       *pResultBuf;           // query result buffer based on blocked-wised disk file
+  SAggSupporter        aggSup;
   STableQueryInfo     *current;
   uint32_t             groupId;
   SGroupResInfo        groupResInfo;
@@ -552,8 +556,6 @@ typedef struct SDistinctOperatorInfo {
 
 typedef struct SSortedMergeOperatorInfo {
   SOptrBasicInfo     binfo;
-
-//  SSDataBlock       *pDataBlock;
   bool               hasVarCol;
   
   SArray            *orderInfo;   // SArray<SBlockOrderInfo>
@@ -564,12 +566,16 @@ typedef struct SSortedMergeOperatorInfo {
 
   int32_t            bufPageSize;
   uint32_t           sortBufSize;  // max buffer size for in-memory sort
-  int32_t            numOfRowsInRes;
 
-  char**             prevRow;
   int32_t            resultRowFactor;
-  bool               multiGroupResults;
-  bool               hasGroupColData;
+  bool               hasGroupVal;
+
+  SDiskbasedBuf     *pTupleStore;  // keep the final results
+  int32_t            numOfResPerPage;
+
+  char**             groupVal;
+  SArray            *groupInfo;
+  SAggSupporter      aggSup;
 } SSortedMergeOperatorInfo;
 
 typedef struct SOrderOperatorInfo {
@@ -634,7 +640,7 @@ SOperatorInfo* createFilterOperatorInfo(STaskRuntimeEnv* pRuntimeEnv, SOperatorI
 SOperatorInfo* createJoinOperatorInfo(SOperatorInfo** pdownstream, int32_t numOfDownstream, SSchema* pSchema,
                                       int32_t numOfOutput);
 SOperatorInfo* createOrderOperatorInfo(SOperatorInfo* downstream, SArray* pExprInfo, SArray* pOrderVal, SExecTaskInfo* pTaskInfo);
-SOperatorInfo* createSortedMergeOperatorInfo(SOperatorInfo** downstream, int32_t numOfDownstream, SArray* pExprInfo, SArray* pOrderVal, SExecTaskInfo* pTaskInfo);
+SOperatorInfo* createSortedMergeOperatorInfo(SOperatorInfo** downstream, int32_t numOfDownstream, SArray* pExprInfo, SArray* pOrderVal, SArray* pGroupInfo, SExecTaskInfo* pTaskInfo);
 
 // SSDataBlock* doGlobalAggregate(void* param, bool* newgroup);
 // SSDataBlock* doMultiwayMergeSort(void* param, bool* newgroup);
@@ -681,9 +687,6 @@ bool    isTaskKilled(SExecTaskInfo* pTaskInfo);
 int32_t checkForQueryBuf(size_t numOfTables);
 bool    checkNeedToCompressQueryCol(SQInfo* pQInfo);
 void    setQueryStatus(STaskRuntimeEnv* pRuntimeEnv, int8_t status);
-
-bool onlyQueryTags(STaskAttr* pQueryAttr);
-// void destroyUdfInfo(struct SUdfInfo* pUdfInfo);
 
 int32_t doDumpQueryResult(SQInfo* pQInfo, char* data, int8_t compressed, int32_t* compLen);
 

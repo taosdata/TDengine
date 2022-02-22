@@ -230,7 +230,7 @@ int32_t getExprFunctionId(SExprInfo *pExprInfo) {
 }
 
 void assignExprInfo(SExprInfo* dst, const SExprInfo* src) {
-  assert(dst != NULL && src != NULL);
+  assert(dst != NULL && src != NULL && src->base.numOfCols > 0);
 
   *dst = *src;
 #if 0

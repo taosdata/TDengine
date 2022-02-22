@@ -42,21 +42,20 @@ enum {
 };
 
 typedef struct SDummyInputInfo {
-  int32_t max;
-  int32_t current;
-  int32_t startVal;
-  int32_t type;
+  int32_t      totalPages;     // numOfPages
+  int32_t      current;
+  int32_t      startVal;
+  int32_t      type;
+  int32_t      numOfRowsPerPage;
   SSDataBlock* pBlock;
 } SDummyInputInfo;
 
 SSDataBlock* getDummyBlock(void* param, bool* newgroup) {
   SOperatorInfo* pOperator = static_cast<SOperatorInfo*>(param);
   SDummyInputInfo* pInfo = static_cast<SDummyInputInfo*>(pOperator->info);
-  if (pInfo->current >= pInfo->max) {
+  if (pInfo->current >= pInfo->totalPages) {
     return NULL;
   }
-
-  int32_t numOfRows = 1000;
 
   if (pInfo->pBlock == NULL) {
     pInfo->pBlock = static_cast<SSDataBlock*>(calloc(1, sizeof(SSDataBlock)));
@@ -67,8 +66,8 @@ SSDataBlock* getDummyBlock(void* param, bool* newgroup) {
     colInfo.info.type = TSDB_DATA_TYPE_INT;
     colInfo.info.bytes = sizeof(int32_t);
     colInfo.info.colId = 1;
-    colInfo.pData = static_cast<char*>(calloc(numOfRows, sizeof(int32_t)));
-    colInfo.nullbitmap = static_cast<char*>(calloc(1, (numOfRows + 7) / 8));
+    colInfo.pData = static_cast<char*>(calloc(pInfo->numOfRowsPerPage, sizeof(int32_t)));
+    colInfo.nullbitmap = static_cast<char*>(calloc(1, (pInfo->numOfRowsPerPage + 7) / 8));
 
     taosArrayPush(pInfo->pBlock->pDataBlock, &colInfo);
 
@@ -91,7 +90,7 @@ SSDataBlock* getDummyBlock(void* param, bool* newgroup) {
   char buf[128] = {0};
   char b1[128] = {0};
   int32_t v = 0;
-  for(int32_t i = 0; i < numOfRows; ++i) {
+  for(int32_t i = 0; i < pInfo->numOfRowsPerPage; ++i) {
     SColumnInfoData* pColInfo = static_cast<SColumnInfoData*>(TARRAY_GET_ELEM(pBlock->pDataBlock, 0));
 
     if (pInfo->type == data_desc) {
@@ -111,22 +110,23 @@ SSDataBlock* getDummyBlock(void* param, bool* newgroup) {
 //    colDataAppend(pColInfo2, i, b1, false);
   }
 
-  pBlock->info.rows = numOfRows;
+  pBlock->info.rows = pInfo->numOfRowsPerPage;
   pBlock->info.numOfCols = 1;
 
   pInfo->current += 1;
   return pBlock;
 }
 
-SOperatorInfo* createDummyOperator(int32_t numOfBlocks, int32_t type) {
+SOperatorInfo* createDummyOperator(int32_t startVal, int32_t numOfBlocks, int32_t rowsPerPage, int32_t type) {
   SOperatorInfo* pOperator = static_cast<SOperatorInfo*>(calloc(1, sizeof(SOperatorInfo)));
   pOperator->name = "dummyInputOpertor4Test";
   pOperator->exec = getDummyBlock;
 
   SDummyInputInfo *pInfo = (SDummyInputInfo*) calloc(1, sizeof(SDummyInputInfo));
-  pInfo->max = numOfBlocks;
-  pInfo->startVal = 1500000;
-  pInfo->type = type;
+  pInfo->totalPages = numOfBlocks;
+  pInfo->startVal   = startVal;
+  pInfo->numOfRowsPerPage = rowsPerPage;
+  pInfo->type       = type;
 
   pOperator->info = pInfo;
   return pOperator;
@@ -257,7 +257,7 @@ TEST(testCase, inMem_sort_Test) {
   SColumnInfoData* pCol1 = static_cast<SColumnInfoData*>(taosArrayGet(pRes->pDataBlock, 0));
   SColumnInfoData* pCol2 = static_cast<SColumnInfoData*>(taosArrayGet(pRes->pDataBlock, 1));
   for(int32_t i = 0; i < pRes->info.rows; ++i) {
-    char* p = colDataGet(pCol2, i);
+    char* p = colDataGetData(pCol2, i);
     printf("%d: %d, %s\n", i, ((int32_t*)pCol1->pData)[i], (char*)varDataVal(p));
   }
 }
@@ -341,7 +341,7 @@ TEST(testCase, external_sort_Test) {
     SColumnInfoData* pCol1 = static_cast<SColumnInfoData*>(taosArrayGet(pRes->pDataBlock, 0));
 //    SColumnInfoData* pCol2 = static_cast<SColumnInfoData*>(taosArrayGet(pRes->pDataBlock, 1));
     for (int32_t i = 0; i < pRes->info.rows; ++i) {
-//      char* p = colDataGet(pCol2, i);
+//      char* p = colDataGetData(pCol2, i);
       printf("%d: %d\n", total++, ((int32_t*)pCol1->pData)[i]);
 //      printf("%d: %d, %s\n", total++, ((int32_t*)pCol1->pData)[i], (char*)varDataVal(p));
     }
@@ -357,6 +357,7 @@ TEST(testCase, external_sort_Test) {
   taosArrayDestroy(pOrderVal);
 }
 
+#endif
 
 TEST(testCase, sorted_merge_Test) {
   srand(time(NULL));
@@ -370,7 +371,12 @@ TEST(testCase, sorted_merge_Test) {
 
   SArray* pExprInfo = taosArrayInit(4, sizeof(SExprInfo));
   SExprInfo *exp = static_cast<SExprInfo*>(calloc(1, sizeof(SExprInfo)));
-  exp->base.resSchema = createSchema(TSDB_DATA_TYPE_INT, sizeof(int32_t), 1, "res");
+  exp->base.resSchema = createSchema(TSDB_DATA_TYPE_BIGINT, sizeof(int64_t), 1, "count_result");
+  exp->base.pColumns = static_cast<SColumn*>(calloc(1, sizeof(SColumn)));
+  exp->base.pColumns->flag = TSDB_COL_NORMAL;
+  exp->base.pColumns->info = (SColumnInfo) {.colId = 1, .type = TSDB_DATA_TYPE_INT, .bytes = 4};
+  exp->base.numOfCols = 1;
+
   taosArrayPush(pExprInfo, &exp);
 
   SExprInfo *exp1 = static_cast<SExprInfo*>(calloc(1, sizeof(SExprInfo)));
@@ -380,10 +386,10 @@ TEST(testCase, sorted_merge_Test) {
   int32_t numOfSources = 10;
   SOperatorInfo** plist = (SOperatorInfo**) calloc(numOfSources, sizeof(void*));
   for(int32_t i = 0; i < numOfSources; ++i) {
-    plist[i] = createDummyOperator(1, data_asc);
+    plist[i] = createDummyOperator(1, 1, 1, data_asc);
   }
 
-  SOperatorInfo* pOperator = createSortedMergeOperatorInfo(plist, numOfSources, pExprInfo, pOrderVal, NULL);
+  SOperatorInfo* pOperator = createSortedMergeOperatorInfo(plist, numOfSources, pExprInfo, pOrderVal, NULL, NULL);
 
   bool newgroup = false;
   SSDataBlock* pRes = NULL;
@@ -409,8 +415,8 @@ TEST(testCase, sorted_merge_Test) {
     SColumnInfoData* pCol1 = static_cast<SColumnInfoData*>(taosArrayGet(pRes->pDataBlock, 0));
 //    SColumnInfoData* pCol2 = static_cast<SColumnInfoData*>(taosArrayGet(pRes->pDataBlock, 1));
     for (int32_t i = 0; i < pRes->info.rows; ++i) {
-//      char* p = colDataGet(pCol2, i);
-      printf("%d: %d\n", total++, ((int32_t*)pCol1->pData)[i]);
+//      char* p = colDataGetData(pCol2, i);
+      printf("%d: %ld\n", total++, ((int64_t*)pCol1->pData)[i]);
 //      printf("%d: %d, %s\n", total++, ((int32_t*)pCol1->pData)[i], (char*)varDataVal(p));
     }
   }
@@ -424,5 +430,4 @@ TEST(testCase, sorted_merge_Test) {
   taosArrayDestroy(pExprInfo);
   taosArrayDestroy(pOrderVal);
 }
-#endif
 #pragma GCC diagnostic pop
