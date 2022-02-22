@@ -39,9 +39,9 @@ public class WSConnection extends AbstractConnection {
     public PreparedStatement prepareStatement(String sql) throws SQLException {
         if (isClosed())
             throw TSDBError.createSQLException(TSDBErrorNumbers.ERROR_CONNECTION_CLOSED);
-
-//        return new WSPreparedStatement();
-        return null;
+        //TODO
+        throw TSDBError.createSQLException(TSDBErrorNumbers.ERROR_UNSUPPORTED_METHOD);
+//        return new WSPreparedStatement(transport, database, this, factory, sql);
     }
 
     @Override

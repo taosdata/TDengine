@@ -99,7 +99,6 @@ public class RestfulDriver extends AbstractDriver {
             } catch (InterruptedException e) {
                 throw new SQLException("creat websocket connection has been Interrupted ", e);
             }
-            // TODO fetch Type from config
             props.setProperty(TSDBDriver.PROPERTY_KEY_TIMESTAMP_FORMAT, String.valueOf(TimestampFormat.TIMESTAMP));
             return new WSConnection(url, props, transport, database);
         }
