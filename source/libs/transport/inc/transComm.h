@@ -217,7 +217,7 @@ typedef struct SConnBuffer {
   char* buf;
   int   len;
   int   cap;
-  int   left;
+  int   total;
 } SConnBuffer;
 
 typedef void (*AsyncCB)(uv_async_t* handle);

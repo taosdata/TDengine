@@ -64,6 +64,7 @@ typedef struct SRpcInit {
   int8_t   connType;      // TAOS_CONN_UDP, TAOS_CONN_TCPC, TAOS_CONN_TCPS
   int      idleTime;      // milliseconds, 0 means idle timer is disabled
 
+  bool noPool;  //  create conn pool or not
   // the following is for client app ecurity only
   char *user;     // user name
   char  spi;      // security parameter index

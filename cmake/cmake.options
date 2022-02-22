@@ -47,13 +47,13 @@ option(
 option(
     BUILD_WITH_UV
     "If build with libuv" 
-    OFF
+    ON  
 )
 
 option(
     BUILD_WITH_UV_TRANS
     "If build with libuv_trans " 
-    OFF 
+    ON 
 )
 
 option(
