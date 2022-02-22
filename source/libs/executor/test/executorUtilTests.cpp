@@ -164,24 +164,24 @@ TEST(testCase, inMem_sort_Test) {
   taosArrayPush(orderInfo, &oi);
 
   SSchema s = {.type = TSDB_DATA_TYPE_INT, .colId = 1, .bytes = 4, };
-  SSortHandle* phandle = createSortHandle(orderInfo, false, SORT_SINGLESOURCE_SORT, 1024, 5, &s, 1, "test_abc");
-  setFetchRawDataFp(phandle, getSingleColDummyBlock);
-  sortAddSource(phandle, &numOfRows);
+  SSortHandle* phandle = tsortCreateSortHandle(orderInfo, false, SORT_SINGLESOURCE_SORT, 1024, 5, &s, 1, "test_abc");
+  tsortSetFetchRawDataFp(phandle, getSingleColDummyBlock);
+  tsortAddSource(phandle, &numOfRows);
 
-  int32_t code = sortOpen(phandle);
+  int32_t code = tsortOpen(phandle);
   int32_t row = 1;
 
   while(1) {
-    STupleHandle* pTupleHandle = sortNextTuple(phandle);
+    STupleHandle* pTupleHandle = tsortNextTuple(phandle);
     if (pTupleHandle == NULL) {
       break;
     }
 
-    void* v = sortGetValue(pTupleHandle, 0);
+    void* v = tsortGetValue(pTupleHandle, 0);
     printf("%d: %d\n", row++, *(int32_t*) v);
 
   }
-  destroySortHandle(phandle);
+  tsortDestroySortHandle(phandle);
 }
 
 TEST(testCase, external_mem_sort_Test) {
@@ -198,8 +198,8 @@ TEST(testCase, external_mem_sort_Test) {
   taosArrayPush(orderInfo, &oi);
 
   SSchema s = {.type = TSDB_DATA_TYPE_INT, .colId = 1, .bytes = 4, };
-  SSortHandle* phandle = createSortHandle(orderInfo, false, SORT_SINGLESOURCE_SORT, 1024, 5, &s, 1, "test_abc");
-  setFetchRawDataFp(phandle, getSingleColDummyBlock);
+  SSortHandle* phandle = tsortCreateSortHandle(orderInfo, false, SORT_SINGLESOURCE_SORT, 1024, 5, &s, 1, "test_abc");
+  tsortSetFetchRawDataFp(phandle, getSingleColDummyBlock);
 
   _info* pInfo = (_info*) calloc(1, sizeof(_info));
   pInfo->startVal = 100000;
@@ -209,22 +209,22 @@ TEST(testCase, external_mem_sort_Test) {
   SGenericSource* ps = static_cast<SGenericSource*>(calloc(1, sizeof(SGenericSource)));
   ps->param = pInfo;
 
-  sortAddSource(phandle, ps);
+  tsortAddSource(phandle, ps);
 
-  int32_t code = sortOpen(phandle);
+  int32_t code = tsortOpen(phandle);
   int32_t row = 1;
 
   while(1) {
-    STupleHandle* pTupleHandle = sortNextTuple(phandle);
+    STupleHandle* pTupleHandle = tsortNextTuple(phandle);
     if (pTupleHandle == NULL) {
       break;
     }
 
-    void* v = sortGetValue(pTupleHandle, 0);
+    void* v = tsortGetValue(pTupleHandle, 0);
     printf("%d: %d\n", row++, *(int32_t*) v);
 
   }
-  destroySortHandle(phandle);
+  tsortDestroySortHandle(phandle);
 }
 
 TEST(testCase, ordered_merge_sort_Test) {
@@ -242,9 +242,9 @@ TEST(testCase, ordered_merge_sort_Test) {
   taosArrayPush(orderInfo, &oi);
 
   SSchema s = {.type = TSDB_DATA_TYPE_INT, .colId = 1, .bytes = 4};
-  SSortHandle* phandle = createSortHandle(orderInfo, false, SORT_MULTISOURCE_MERGE, 1024, 5, &s, 1,"test_abc");
-  setFetchRawDataFp(phandle, getSingleColDummyBlock);
-  setComparFn(phandle, docomp);
+  SSortHandle* phandle = tsortCreateSortHandle(orderInfo, false, SORT_MULTISOURCE_MERGE, 1024, 5, &s, 1,"test_abc");
+  tsortSetFetchRawDataFp(phandle, getSingleColDummyBlock);
+  tsortSetComparFp(phandle, docomp);
 
   for(int32_t i = 0; i < 10; ++i) {
     SGenericSource* p = static_cast<SGenericSource*>(calloc(1, sizeof(SGenericSource)));
@@ -254,23 +254,23 @@ TEST(testCase, ordered_merge_sort_Test) {
     c->startVal = 0;
 
     p->param = c;
-    sortAddSource(phandle, p);
+    tsortAddSource(phandle, p);
   }
 
-  int32_t code = sortOpen(phandle);
+  int32_t code = tsortOpen(phandle);
   int32_t row = 1;
 
   while(1) {
-    STupleHandle* pTupleHandle = sortNextTuple(phandle);
+    STupleHandle* pTupleHandle = tsortNextTuple(phandle);
     if (pTupleHandle == NULL) {
       break;
     }
 
-    void* v = sortGetValue(pTupleHandle, 0);
+    void* v = tsortGetValue(pTupleHandle, 0);
     printf("%d: %d\n", row++, *(int32_t*) v);
 
   }
-  destroySortHandle(phandle);
+  tsortDestroySortHandle(phandle);
 }
 
 #endif

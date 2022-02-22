@@ -63,33 +63,33 @@ typedef int32_t (*_sort_merge_compar_fn_t)(const void* p1, const void* p2, void*
  * @param type
  * @return
  */
-SSortHandle* createSortHandle(SArray* pOrderInfo, bool nullFirst, int32_t type, int32_t pageSize, int32_t numOfPages, SSchema* pSchema, int32_t numOfCols, const char* idstr);
+SSortHandle* tsortCreateSortHandle(SArray* pOrderInfo, bool nullFirst, int32_t type, int32_t pageSize, int32_t numOfPages, SSchema* pSchema, int32_t numOfCols, const char* idstr);
 
 /**
  *
  * @param pSortHandle
  */
-void destroySortHandle(SSortHandle* pSortHandle);
+void tsortDestroySortHandle(SSortHandle* pSortHandle);
 
 /**
  *
  * @param pHandle
  * @return
  */
-int32_t sortOpen(SSortHandle* pHandle);
+int32_t tsortOpen(SSortHandle* pHandle);
 
 /**
  *
  * @param pHandle
  * @return
  */
-int32_t sortClose(SSortHandle* pHandle);
+int32_t tsortClose(SSortHandle* pHandle);
 
 /**
  *
  * @return
  */
-int32_t setFetchRawDataFp(SSortHandle* pHandle, _sort_fetch_block_fn_t fp);
+int32_t tsortSetFetchRawDataFp(SSortHandle* pHandle, _sort_fetch_block_fn_t fp);
 
 /**
  *
@@ -97,7 +97,7 @@ int32_t setFetchRawDataFp(SSortHandle* pHandle, _sort_fetch_block_fn_t fp);
  * @param fp
  * @return
  */
-int32_t setComparFn(SSortHandle* pHandle, _sort_merge_compar_fn_t fp);
+int32_t tsortSetComparFp(SSortHandle* pHandle, _sort_merge_compar_fn_t fp);
 
 /**
  *
@@ -105,22 +105,14 @@ int32_t setComparFn(SSortHandle* pHandle, _sort_merge_compar_fn_t fp);
  * @param pSource
  * @return success or failed
  */
-int32_t sortAddSource(SSortHandle* pSortHandle, void* pSource);
+int32_t tsortAddSource(SSortHandle* pSortHandle, void* pSource);
 
 /**
  *
  * @param pHandle
  * @return
  */
-STupleHandle* sortNextTuple(SSortHandle* pHandle);
-
-/**
- *
- * @param pHandle
- * @param colIndex
- * @return
- */
-bool sortIsValueNull(STupleHandle* pVHandle, int32_t colIndex);
+STupleHandle* tsortNextTuple(SSortHandle* pHandle);
 
 /**
  *
@@ -128,7 +120,15 @@ bool sortIsValueNull(STupleHandle* pVHandle, int32_t colIndex);
  * @param colIndex
  * @return
  */
-void* sortGetValue(STupleHandle* pVHandle, int32_t colIndex);
+bool tsortIsNullVal(STupleHandle* pVHandle, int32_t colIndex);
+
+/**
+ *
+ * @param pHandle
+ * @param colIndex
+ * @return
+ */
+void* tsortGetValue(STupleHandle* pVHandle, int32_t colIndex);
 
 #ifdef __cplusplus
 }

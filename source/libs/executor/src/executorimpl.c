@@ -5586,7 +5586,7 @@ static void destroySortedMergeOperatorInfo(void* param, int32_t numOfOutput) {
   taosArrayDestroy(pInfo->groupInfo);
 
   if (pInfo->pSortHandle != NULL) {
-    destroySortHandle(pInfo->pSortHandle);
+    tsortDestroySortHandle(pInfo->pSortHandle);
   }
   blockDataDestroy(pInfo->binfo.pRes);
 
@@ -5617,11 +5617,11 @@ static void appendOneRowToDataBlock(SSDataBlock *pBlock, STupleHandle* pTupleHan
   for (int32_t i = 0; i < pBlock->info.numOfCols; ++i) {
     SColumnInfoData* pColInfo = taosArrayGet(pBlock->pDataBlock, i);
 
-    bool isNull = sortIsValueNull(pTupleHandle, i);
+    bool isNull = tsortIsNullVal(pTupleHandle, i);
     if (isNull) {
       colDataAppend(pColInfo, pBlock->info.rows, NULL, true);
     } else {
-      char* pData = sortGetValue(pTupleHandle, i);
+      char* pData = tsortGetValue(pTupleHandle, i);
       colDataAppend(pColInfo, pBlock->info.rows, pData, false);
     }
   }
@@ -5633,7 +5633,7 @@ static SSDataBlock* getSortedBlockData(SSortHandle* pHandle, SSDataBlock* pDataB
   blockDataClearup(pDataBlock, hasVarCol);
 
   while(1) {
-    STupleHandle* pTupleHandle = sortNextTuple(pHandle);
+    STupleHandle* pTupleHandle = tsortNextTuple(pHandle);
     if (pTupleHandle == NULL) {
       break;
     }
@@ -5788,7 +5788,7 @@ static SSDataBlock* doMerge(SOperatorInfo* pOperator) {
 
     blockDataClearup(pDataBlock, pInfo->hasVarCol);
     while (1) {
-      STupleHandle* pTupleHandle = sortNextTuple(pHandle);
+      STupleHandle* pTupleHandle = tsortNextTuple(pHandle);
       if (pTupleHandle == NULL) {
         break;
       }
@@ -5835,19 +5835,19 @@ static SSDataBlock* doSortedMerge(void* param, bool* newgroup) {
 
   SSchema* p = blockDataExtractSchema(pInfo->binfo.pRes, NULL);
   int32_t numOfBufPage = pInfo->sortBufSize / pInfo->bufPageSize;
-  pInfo->pSortHandle = createSortHandle(pInfo->orderInfo, pInfo->nullFirst, SORT_MULTISOURCE_MERGE, pInfo->bufPageSize,
+  pInfo->pSortHandle = tsortCreateSortHandle(pInfo->orderInfo, pInfo->nullFirst, SORT_MULTISOURCE_MERGE, pInfo->bufPageSize,
                                         numOfBufPage, p, pInfo->binfo.pRes->info.numOfCols, "GET_TASKID(pTaskInfo)");
 
   tfree(p);
-  setFetchRawDataFp(pInfo->pSortHandle, loadNextDataBlock);
+  tsortSetFetchRawDataFp(pInfo->pSortHandle, loadNextDataBlock);
 
   for(int32_t i = 0; i < pOperator->numOfDownstream; ++i) {
     SGenericSource* ps = calloc(1, sizeof(SGenericSource));
     ps->param = pOperator->pDownstream[i];
-    sortAddSource(pInfo->pSortHandle, ps);
+    tsortAddSource(pInfo->pSortHandle, ps);
   }
 
-  int32_t code = sortOpen(pInfo->pSortHandle);
+  int32_t code = tsortOpen(pInfo->pSortHandle);
   if (code != TSDB_CODE_SUCCESS) {
     longjmp(pTaskInfo->env, terrno);
   }
@@ -6006,18 +6006,18 @@ static SSDataBlock* doSort(void* param, bool* newgroup) {
 
   SSchema* p = blockDataExtractSchema(pInfo->pDataBlock, NULL);
   int32_t numOfBufPage = pInfo->sortBufSize / pInfo->bufPageSize;
-  pInfo->pSortHandle = createSortHandle(pInfo->orderInfo, pInfo->nullFirst, SORT_SINGLESOURCE_SORT, pInfo->bufPageSize,
+  pInfo->pSortHandle = tsortCreateSortHandle(pInfo->orderInfo, pInfo->nullFirst, SORT_SINGLESOURCE_SORT, pInfo->bufPageSize,
                                         numOfBufPage, p, pInfo->pDataBlock->info.numOfCols, "GET_TASKID(pTaskInfo)");
 
   tfree(p);
-  setFetchRawDataFp(pInfo->pSortHandle, loadNextDataBlock);
+  tsortSetFetchRawDataFp(pInfo->pSortHandle, loadNextDataBlock);
 
   SGenericSource* ps = calloc(1, sizeof(SGenericSource));
   ps->param = pOperator;
-  sortAddSource(pInfo->pSortHandle, ps);
+  tsortAddSource(pInfo->pSortHandle, ps);
 
   // TODO set error code;
-  int32_t code = sortOpen(pInfo->pSortHandle);
+  int32_t code = tsortOpen(pInfo->pSortHandle);
   if (code != TSDB_CODE_SUCCESS) {
     longjmp(pTaskInfo->env, terrno);
   }

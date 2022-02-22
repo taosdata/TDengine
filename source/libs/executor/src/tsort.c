@@ -87,7 +87,7 @@ static SSDataBlock* createDataBlock_rv(SSchema* pSchema, int32_t numOfCols) {
  * @param type
  * @return
  */
-SSortHandle* createSortHandle(SArray* pOrderInfo, bool nullFirst, int32_t type, int32_t pageSize, int32_t numOfPages, SSchema* pSchema, int32_t numOfCols, const char* idstr) {
+SSortHandle* tsortCreateSortHandle(SArray* pOrderInfo, bool nullFirst, int32_t type, int32_t pageSize, int32_t numOfPages, SSchema* pSchema, int32_t numOfCols, const char* idstr) {
   SSortHandle* pSortHandle = calloc(1, sizeof(SSortHandle));
 
   pSortHandle->type       = type;
@@ -99,7 +99,7 @@ SSortHandle* createSortHandle(SArray* pOrderInfo, bool nullFirst, int32_t type, 
   pSortHandle->cmpParam.orderInfo = pOrderInfo;
 
   pSortHandle->pDataBlock = createDataBlock_rv(pSchema, numOfCols);
-  setComparFn(pSortHandle, msortComparFn);
+  tsortSetComparFp(pSortHandle, msortComparFn);
 
   if (idstr != NULL) {
     pSortHandle->idStr    = strdup(idstr);
@@ -108,8 +108,8 @@ SSortHandle* createSortHandle(SArray* pOrderInfo, bool nullFirst, int32_t type, 
   return pSortHandle;
 }
 
-void destroySortHandle(SSortHandle* pSortHandle) {
-  sortClose(pSortHandle);
+void tsortDestroySortHandle(SSortHandle* pSortHandle) {
+  tsortClose(pSortHandle);
   if (pSortHandle->pMergeTree != NULL) {
     tMergeTreeDestroy(pSortHandle->pMergeTree);
   }
@@ -119,7 +119,7 @@ void destroySortHandle(SSortHandle* pSortHandle) {
   tfree(pSortHandle);
 }
 
-int32_t sortAddSource(SSortHandle* pSortHandle, void* pSource) {
+int32_t tsortAddSource(SSortHandle* pSortHandle, void* pSource) {
   taosArrayPush(pSortHandle->pOrderedSource, &pSource);
 }
 
@@ -573,7 +573,7 @@ static int32_t createInitialSortedMultiSources(SSortHandle* pHandle) {
   return TSDB_CODE_SUCCESS;
 }
 
-int32_t sortOpen(SSortHandle* pHandle) {
+int32_t tsortOpen(SSortHandle* pHandle) {
   if (pHandle->opened) {
     return 0;
   }
@@ -611,19 +611,19 @@ int32_t sortOpen(SSortHandle* pHandle) {
   }
 }
 
-int32_t sortClose(SSortHandle* pHandle) {
+int32_t tsortClose(SSortHandle* pHandle) {
   // do nothing
 }
 
-int32_t setFetchRawDataFp(SSortHandle* pHandle, _sort_fetch_block_fn_t fp) {
+int32_t tsortSetFetchRawDataFp(SSortHandle* pHandle, _sort_fetch_block_fn_t fp) {
   pHandle->fetchfp = fp;
 }
 
-int32_t setComparFn(SSortHandle* pHandle, _sort_merge_compar_fn_t fp) {
+int32_t tsortSetComparFp(SSortHandle* pHandle, _sort_merge_compar_fn_t fp) {
   pHandle->comparFn = fp;
 }
 
-STupleHandle* sortNextTuple(SSortHandle* pHandle) {
+STupleHandle* tsortNextTuple(SSortHandle* pHandle) {
   if (pHandle->cmpParam.numOfSources == pHandle->numOfCompletedSources) {
     return NULL;
   }
@@ -669,11 +669,11 @@ STupleHandle* sortNextTuple(SSortHandle* pHandle) {
   return &pHandle->tupleHandle;
 }
 
-bool sortIsValueNull(STupleHandle* pVHandle, int32_t colIndex) {
+bool tsortIsNullVal(STupleHandle* pVHandle, int32_t colIndex) {
   return false;
 }
 
-void* sortGetValue(STupleHandle* pVHandle, int32_t colIndex) {
+void* tsortGetValue(STupleHandle* pVHandle, int32_t colIndex) {
   SColumnInfoData* pColInfo = TARRAY_GET_ELEM(pVHandle->pBlock->pDataBlock, colIndex);
   return colDataGetData(pColInfo, pVHandle->rowIndex);
 }
