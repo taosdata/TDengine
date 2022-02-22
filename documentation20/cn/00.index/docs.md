@@ -88,6 +88,7 @@ TDengine是一个高效的存储、查询、分析时序大数据的平台，专
 * [TDinsight](/tools/insight): 监控 TDengine 集群的 Grafana 面板集合。
 * [taosdump](/tools/taosdump): TDengine 数据备份工具。使用 taosdump 请安装 taosTools。
 * [taosBenchmark](/tools/taosbenchmark): TDengine 压力测试工具。
+* [taosTools](/tools/taos-tools): taosTools 是 TDengine 的一个工具集合，它现在包括 taosBenchmark 和 taosdump。
 
 ## [与其他工具的连接](/connections)
 
