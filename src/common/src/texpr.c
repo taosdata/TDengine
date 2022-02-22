@@ -2333,7 +2333,7 @@ void vectorTimeFunc(int16_t functionId, tExprOperandInfo *pInputs, int32_t numIn
             char *newColData = calloc(1,  charLen / TSDB_NCHAR_SIZE + 1);
             int len = taosUcs4ToMbs(varDataVal(inputData[0]), charLen, newColData);
             if (len < 0){
-              uError("vectorTimeFunc taosUcs4ToMbs error 1");
+              uError("vectorTimeFunc taosUcs4ToMbs error");
               tfree(newColData);
               return;
             }
