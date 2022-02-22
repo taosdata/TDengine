@@ -382,7 +382,7 @@ int32_t getResultDataInfo(int32_t dataType, int32_t dataBytes, int32_t functionI
       if (size > MAX_UNIQUE_RESULT_SIZE) {
         size = MAX_UNIQUE_RESULT_SIZE;
       }
-      *bytes = size;
+      *bytes = (int32_t)size;
       *interBytes = *bytes;
 
       return TSDB_CODE_SUCCESS;
@@ -5143,7 +5143,7 @@ static void copyUniqueRes(SQLFunctionCtx *pCtx, int32_t bytes) {
 
   tvp = pRes->res + (size * ((pCtx->param[2].i64 == TSDB_ORDER_ASC) ? 0 : len -1));
   for (int32_t i = 0; i < len; ++i) {
-    int16_t offset = sizeof(UniqueUnit) + bytes;
+    int32_t offset = (int32_t)sizeof(UniqueUnit) + bytes;
     for (int32_t j = 0; j < pCtx->tagInfo.numOfTagCols; ++j) {
       memcpy(pData[j], tvp + offset, (size_t)pCtx->tagInfo.pTagCtxList[j]->outputBytes);
       offset += pCtx->tagInfo.pTagCtxList[j]->outputBytes;
@@ -5255,7 +5255,7 @@ typedef struct{
 
 static int32_t uniqueCompareFn(const void *p1, const void *p2, const void *param) {
   UiqueSupporter *support = (UiqueSupporter *)param;
-  return support->comparFn(p1 + support->dataOffset, p2 + support->dataOffset);
+  return support->comparFn((const char*)p1 + support->dataOffset, (const char*)p2 + support->dataOffset);
 }
 
 static void unique_func_finalizer(SQLFunctionCtx *pCtx) {
