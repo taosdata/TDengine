@@ -26,6 +26,12 @@ fi
 if [[ -e packaging/tools/uninstall-khtools.sh ]]; then
   rm -f packaging/tools/uninstall-khtools.sh
 fi
+if [[ -e packaging/tools/install-prodbtools.sh ]]; then
+  rm -f packaging/tools/install-prodbtools.sh
+fi
+if [[ -e packaging/tools/uninstall-prodbtools.sh ]]; then
+  rm -f packaging/tools/uninstall-prodbtools.sh
+fi
 
 rm -rf $COMMUNITY_DIR/debug/*
 rm -rf $COMMUNITY_DIR/release/*

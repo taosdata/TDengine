@@ -7,7 +7,7 @@ set community_dir=%1
 %sed% -i "s/taos\.exe/khclient\.exe/g" %community_dir%\cmake\install.inc
 %sed% -i "s/taosdemo\.exe/khdemo\.exe/g" %community_dir%\cmake\install.inc
 %sed% -i "/connector/d" %community_dir%\cmake\install.inc
-%sed% -i "/tests\/examples/d" %community_dir%\cmake\install.inc
+%sed% -i "/examples/d" %community_dir%\cmake\install.inc
 ::src\kit\shell\CMakeLists.txt
 %sed% -i "s/OUTPUT_NAME taos/OUTPUT_NAME khclient/g" %community_dir%\src\kit\shell\CMakeLists.txt
 ::src\kit\shell\inc\shell.h

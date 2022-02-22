@@ -6,8 +6,8 @@ set community_dir=%1
 %sed% -i "s/taos\.cfg/jh_taos\.cfg/g" %community_dir%\cmake\install.inc
 %sed% -i "s/taos\.exe/jh_taos\.exe/g" %community_dir%\cmake\install.inc
 %sed% -i "s/taosdemo\.exe/jhdemo\.exe/g" %community_dir%\cmake\install.inc
-%sed% -i "/src\/connector/d" %community_dir%\cmake\install.inc
-%sed% -i "/tests\/examples/d" %community_dir%\cmake\install.inc
+%sed% -i "/connector/d" %community_dir%\cmake\install.inc
+%sed% -i "/examples/d" %community_dir%\cmake\install.inc
 ::src\kit\shell\CMakeLists.txt
 %sed% -i "s/OUTPUT_NAME taos/OUTPUT_NAME jh_taos/g" %community_dir%\src\kit\shell\CMakeLists.txt
 ::src\kit\shell\inc\shell.h
