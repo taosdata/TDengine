@@ -2547,6 +2547,14 @@ void vectorTimeFunc(int16_t functionId, tExprOperandInfo *pInputs, int32_t numIn
             } else if (pInputs[j].type == TSDB_DATA_TYPE_BIGINT ||
                        pInputs[j].type == TSDB_DATA_TYPE_TIMESTAMP) { /* unix timestamp or ts column*/
               GET_TYPED_DATA(timeVal[j], int64_t, pInputs[j].type, inputData[j]);
+              if (pInputs[j].type == TSDB_DATA_TYPE_TIMESTAMP) {
+                int64_t factor = (timePrec == TSDB_TIME_PRECISION_MILLI) ? 1000 :
+                                 (timePrec == TSDB_TIME_PRECISION_MICRO ? 1000000 : 1000000000);
+                int64_t timeValSec = timeVal[j] / factor;
+                if (timeValSec < 1000000000) {
+                  timeVal[j] = timeValSec;
+                }
+              }
               char buf[20] = {0};
               NUM_TO_STRING(TSDB_DATA_TYPE_BIGINT, &timeVal[j], sizeof(buf), buf);
               int32_t tsDigits = strlen(buf);
