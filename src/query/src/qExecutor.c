@@ -362,7 +362,7 @@ SSDataBlock* createOutputBuf(SExprInfo* pExpr, int32_t numOfOutput, int32_t numO
       qError("size is too large, failed to allocate column buffer for output buffer");
       tmp = 128*1024*1024;
     }
-    int32_t size = MAX(tmp, minSize);
+    int32_t size = (int32_t)MAX(tmp, minSize);
     idata.pData = calloc(1, size);  // at least to hold a pointer on x64 platform
     if (idata.pData == NULL) {
       qError("failed to allocate column buffer for output buffer");
