@@ -46,8 +46,10 @@ class MndTestTrans : public ::testing::Test {
     free(buffer);
     taosFsyncFile(fd);
     taosCloseFile(fd);
+    taosMsleep(1000);
 
     test.ServerStart();
+    test.ClientRestart();
   }
 
   static Testbase   test;
@@ -283,6 +285,7 @@ TEST_F(MndTestTrans, 03_Create_Qnode2_Crash) {
     EXPECT_EQ(test.GetShowRows(), 2);
   }
 }
+
 
 // create db
 // partial create stb

@@ -23,8 +23,12 @@
 extern "C" {
 #endif
 
-int32_t       compareStrPatternComp(const void* pLeft, const void* pRight);
-int32_t       compareWStrPatternComp(const void* pLeft, const void* pRight);
+int32_t compareStrPatternMatch(const void* pLeft, const void* pRight);
+int32_t compareStrPatternNotMatch(const void* pLeft, const void* pRight);
+
+int32_t compareWStrPatternMatch(const void* pLeft, const void* pRight);
+int32_t compareWStrPatternNotMatch(const void* pLeft, const void* pRight);
+
 __compar_fn_t getComparFunc(int32_t type, int32_t optr);
 __compar_fn_t getKeyComparFunc(int32_t keyType, int32_t order);
 int32_t       doCompare(const char* a, const char* b, int32_t type, size_t size);

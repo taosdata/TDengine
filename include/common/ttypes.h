@@ -78,8 +78,11 @@ typedef struct {
       case TSDB_DATA_TYPE_UINT:                      \
         (_v) = (_finalType)GET_UINT32_VAL(_data);    \
         break;                                       \
-      default:                                       \
+      case TSDB_DATA_TYPE_INT:                       \
         (_v) = (_finalType)GET_INT32_VAL(_data);     \
+        break;                                       \
+      default:                                       \
+        (_v) = (_finalType)varDataLen(_data);        \
         break;                                       \
     }                                                \
   } while (0)
@@ -115,8 +118,10 @@ typedef struct {
       case TSDB_DATA_TYPE_UINT:                \
         *(uint32_t *)(_v) = (uint32_t)(_data); \
         break;                                 \
-      default:                                 \
+      case TSDB_DATA_TYPE_INT:                 \
         *(int32_t *)(_v) = (int32_t)(_data);   \
+        break;                                 \
+      default:                                 \
         break;                                 \
     }                                          \
   } while (0)
@@ -137,6 +142,9 @@ typedef struct {
 #define IS_VALID_UBIGINT(_t)    ((_t) >= 0 && (_t) < UINT64_MAX)
 #define IS_VALID_FLOAT(_t)      ((_t) >= -FLT_MAX && (_t) <= FLT_MAX)
 #define IS_VALID_DOUBLE(_t)     ((_t) >= -DBL_MAX && (_t) <= DBL_MAX)
+
+#define IS_CONVERT_AS_SIGNED(_t) (IS_SIGNED_NUMERIC_TYPE(_t) || (_t) == (TSDB_DATA_TYPE_BOOL) || (_t) == (TSDB_DATA_TYPE_TIMESTAMP))
+#define IS_CONVERT_AS_UNSIGNED(_t) (IS_UNSIGNED_NUMERIC_TYPE(_t) || (_t) == (TSDB_DATA_TYPE_BOOL))
 
 static FORCE_INLINE bool isNull(const void *val, int32_t type) {
   switch (type) {
@@ -205,6 +213,7 @@ void* getDataMax(int32_t type);
 
 
 #define SET_DOUBLE_NULL(v) (*(uint64_t *)(v) = TSDB_DATA_DOUBLE_NULL)
+#define SET_BIGINT_NULL(v) (*(uint64_t *)(v) = TSDB_DATA_BIGINT_NULL)
 
 #ifdef __cplusplus
 }

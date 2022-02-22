@@ -22,13 +22,12 @@
  * windows implementation
  */
 
-
-#include <Windows.h>
 #include <Mmsystem.h>
-#include <stdio.h>
+#include <Windows.h>
 #include <stdint.h>
+#include <stdio.h>
 
-#pragma warning( disable : 4244 )
+#pragma warning(disable : 4244)
 
 typedef void (*win_timer_f)(int signo);
 
@@ -40,8 +39,8 @@ void WINAPI taosWinOnTimer(UINT wTimerID, UINT msg, DWORD_PTR dwUser, DWORD_PTR 
 }
 
 static MMRESULT timerId;
-int taosInitTimer(win_timer_f callback, int ms) {
-  DWORD_PTR param = *((int64_t *) & callback);
+int             taosInitTimer(win_timer_f callback, int ms) {
+  DWORD_PTR param = *((int64_t *)&callback);
 
   timerId = timeSetEvent(ms, 1, (LPTIMECALLBACK)taosWinOnTimer, param, TIME_PERIODIC);
   if (timerId == 0) {
@@ -50,9 +49,7 @@ int taosInitTimer(win_timer_f callback, int ms) {
   return 0;
 }
 
-void taosUninitTimer() {
-  timeKillEvent(timerId);
-}
+void taosUninitTimer() { timeKillEvent(timerId); }
 
 #elif defined(_TD_DARWIN_64)
 
@@ -60,32 +57,32 @@ void taosUninitTimer() {
  * darwin implementation
  */
 
-#include <sys/syscall.h>
 #include <sys/event.h>
+#include <sys/syscall.h>
 #include <unistd.h>
 
 static void (*timer_callback)(int);
-static int           timer_ms = 0;
-static pthread_t     timer_thread;
-static int           timer_kq = -1;
-static volatile int  timer_stop = 0;
+static int          timer_ms = 0;
+static pthread_t    timer_thread;
+static int          timer_kq = -1;
+static volatile int timer_stop = 0;
 
-static void* timer_routine(void *arg) {
+static void* timer_routine(void* arg) {
   (void)arg;
   setThreadName("timer");
 
-  int r = 0;
+  int             r = 0;
   struct timespec to = {0};
-  to.tv_sec    = timer_ms / 1000;
-  to.tv_nsec   = (timer_ms % 1000) * 1000000;
+  to.tv_sec = timer_ms / 1000;
+  to.tv_nsec = (timer_ms % 1000) * 1000000;
   while (!timer_stop) {
     struct kevent64_s kev[10] = {0};
-    r = kevent64(timer_kq, NULL, 0, kev, sizeof(kev)/sizeof(kev[0]), 0, &to);
-    if (r!=0) {
+    r = kevent64(timer_kq, NULL, 0, kev, sizeof(kev) / sizeof(kev[0]), 0, &to);
+    if (r != 0) {
       fprintf(stderr, "==%s[%d]%s()==kevent64 failed\n", basename(__FILE__), __LINE__, __func__);
       abort();
     }
-    timer_callback(SIGALRM); // just mock
+    timer_callback(SIGALRM);  // just mock
   }
 
   return NULL;
@@ -93,11 +90,13 @@ static void* timer_routine(void *arg) {
 
 int taosInitTimer(void (*callback)(int), int ms) {
   int r = 0;
-  timer_ms       = ms;
+  timer_kq = -1;
+  timer_stop = 0;
+  timer_ms = ms;
   timer_callback = callback;
 
   timer_kq = kqueue();
-  if (timer_kq==-1) {
+  if (timer_kq == -1) {
     fprintf(stderr, "==%s[%d]%s()==failed to create timer kq\n", basename(__FILE__), __LINE__, __func__);
     // since no caller of this func checks the return value for the moment
     abort();
@@ -144,10 +143,10 @@ static void taosDeleteTimer(void *tharg) {
   timer_delete(*pTimer);
 }
 
-static pthread_t timerThread;
-static timer_t         timerId;
+static pthread_t     timerThread;
+static timer_t       timerId;
 static volatile bool stopTimer = false;
-static void *taosProcessAlarmSignal(void *tharg) {
+static void *        taosProcessAlarmSignal(void *tharg) {
   // Block the signal
   sigset_t sigset;
   sigemptyset(&sigset);
@@ -159,18 +158,18 @@ static void *taosProcessAlarmSignal(void *tharg) {
 
   setThreadName("tmr");
 
-  #ifdef _ALPINE
-    sevent.sigev_notify = SIGEV_THREAD;
-    sevent.sigev_value.sival_int = syscall(__NR_gettid);
-  #else
-    sevent.sigev_notify = SIGEV_THREAD_ID;
-    sevent._sigev_un._tid = syscall(__NR_gettid);
-  #endif
-  
+#ifdef _ALPINE
+  sevent.sigev_notify = SIGEV_THREAD;
+  sevent.sigev_value.sival_int = syscall(__NR_gettid);
+#else
+  sevent.sigev_notify = SIGEV_THREAD_ID;
+  sevent._sigev_un._tid = syscall(__NR_gettid);
+#endif
+
   sevent.sigev_signo = SIGALRM;
 
   if (timer_create(CLOCK_REALTIME, &sevent, &timerId) == -1) {
-    //printf("Failed to create timer");
+    // printf("Failed to create timer");
   }
 
   pthread_cleanup_push(taosDeleteTimer, &timerId);
@@ -182,36 +181,37 @@ static void *taosProcessAlarmSignal(void *tharg) {
   ts.it_interval.tv_nsec = 1000000 * MSECONDS_PER_TICK;
 
   if (timer_settime(timerId, 0, &ts, NULL)) {
-    //printf("Failed to init timer");
+    // printf("Failed to init timer");
     return NULL;
   }
 
   int signo;
   while (!stopTimer) {
     if (sigwait(&sigset, &signo)) {
-      //printf("Failed to wait signal: number %d", signo);
+      // printf("Failed to wait signal: number %d", signo);
       continue;
     }
     /* //printf("Signal handling: number %d ......\n", signo); */
 
     callback(0);
   }
-  
+
   pthread_cleanup_pop(1);
 
   return NULL;
 }
 
 int taosInitTimer(void (*callback)(int), int ms) {
+  stopTimer = false;
   pthread_attr_t tattr;
   pthread_attr_init(&tattr);
   int code = pthread_create(&timerThread, &tattr, taosProcessAlarmSignal, callback);
   pthread_attr_destroy(&tattr);
   if (code != 0) {
-    //printf("failed to create timer thread");
+    // printf("failed to create timer thread");
     return -1;
   } else {
-    //printf("timer thread:0x%08" PRIx64 " is created", taosGetPthreadId(timerThread));
+    // printf("timer thread:0x%08" PRIx64 " is created", taosGetPthreadId(timerThread));
   }
 
   return 0;
@@ -220,7 +220,7 @@ int taosInitTimer(void (*callback)(int), int ms) {
 void taosUninitTimer() {
   stopTimer = true;
 
-  //printf("join timer thread:0x%08" PRIx64, taosGetPthreadId(timerThread));
+  // printf("join timer thread:0x%08" PRIx64, taosGetPthreadId(timerThread));
   pthread_join(timerThread, NULL);
 }
 

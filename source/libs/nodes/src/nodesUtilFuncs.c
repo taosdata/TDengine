@@ -17,6 +17,7 @@
 #include "plannodes.h"
 #include "taos.h"
 #include "taoserror.h"
+#include "taos.h"
 #include "thash.h"
 
 static SNode* makeNode(ENodeType type, size_t size) {
@@ -132,11 +133,22 @@ int32_t nodesListAppend(SNodeList* pList, SNode* pNode) {
 }
 
 int32_t nodesListAppendList(SNodeList* pTarget, SNodeList* pSrc) {
-  pTarget->pTail->pNext = pSrc->pHead;
-  pSrc->pHead->pPrev = pTarget->pTail;
+  if (NULL == pTarget || NULL == pSrc) {
+    return TSDB_CODE_SUCCESS;
+  }
+
+  if (NULL == pTarget->pHead) {
+    pTarget->pHead = pSrc->pHead;
+  } else {
+    pTarget->pTail->pNext = pSrc->pHead;
+    if (NULL != pSrc->pHead) {
+      pSrc->pHead->pPrev = pTarget->pTail;
+    }
+  }
   pTarget->pTail = pSrc->pTail;
   pTarget->length += pSrc->length;
   tfree(pSrc);
+
   return TSDB_CODE_SUCCESS;
 }
 
@@ -170,6 +182,36 @@ void nodesDestroyList(SNodeList* pList) {
     nodesDestroyNode(node);
   }
   tfree(pList);
+}
+
+void *nodesGetValueFromNode(SValueNode *pNode) {
+  switch (pNode->node.resType.type) {
+    case TSDB_DATA_TYPE_BOOL:
+      return (void *)&pNode->datum.b;
+    case TSDB_DATA_TYPE_TINYINT:
+    case TSDB_DATA_TYPE_SMALLINT:
+    case TSDB_DATA_TYPE_INT:
+    case TSDB_DATA_TYPE_BIGINT:
+    case TSDB_DATA_TYPE_TIMESTAMP:
+      return (void *)&pNode->datum.i;
+    case TSDB_DATA_TYPE_UTINYINT:
+    case TSDB_DATA_TYPE_USMALLINT:
+    case TSDB_DATA_TYPE_UINT:
+    case TSDB_DATA_TYPE_UBIGINT:
+      return (void *)&pNode->datum.u;
+    case TSDB_DATA_TYPE_FLOAT:
+    case TSDB_DATA_TYPE_DOUBLE: 
+      return (void *)&pNode->datum.d;
+    case TSDB_DATA_TYPE_BINARY:
+    case TSDB_DATA_TYPE_NCHAR:
+    case TSDB_DATA_TYPE_VARCHAR:
+    case TSDB_DATA_TYPE_VARBINARY: 
+      return (void *)pNode->datum.p;
+    default:
+      break;
+  }
+
+  return NULL;
 }
 
 bool nodesIsExprNode(const SNode* pNode) {
@@ -289,6 +331,10 @@ int32_t nodesCollectColumns(SSelectStmt* pSelect, ESqlClause clause, const char*
   if (TSDB_CODE_SUCCESS != cxt.errCode) {
     nodesDestroyList(cxt.pCols);
     return cxt.errCode;
+  }
+  if (0 == LIST_LENGTH(cxt.pCols)) {
+    nodesDestroyList(cxt.pCols);
+    cxt.pCols = NULL;
   }
   *pCols = cxt.pCols;
   return TSDB_CODE_SUCCESS;

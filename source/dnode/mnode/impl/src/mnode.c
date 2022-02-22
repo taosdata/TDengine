@@ -77,7 +77,7 @@ static void mndTransReExecute(void *param, void *tmrId) {
   SMnode *pMnode = param;
   if (mndIsMaster(pMnode)) {
     int32_t contLen = 0;
-    void   *pReq = mndBuildTimerMsg(&contLen);
+    void *  pReq = mndBuildTimerMsg(&contLen);
     SRpcMsg rpcMsg = {.msgType = TDMT_MND_TRANS, .pCont = pReq, .contLen = contLen};
     pMnode->putReqToMWriteQFp(pMnode->pDnode, &rpcMsg);
   }
@@ -89,7 +89,7 @@ static void mndCalMqRebalance(void *param, void *tmrId) {
   SMnode *pMnode = param;
   if (mndIsMaster(pMnode)) {
     int32_t contLen = 0;
-    void   *pReq = mndBuildTimerMsg(&contLen);
+    void *  pReq = mndBuildTimerMsg(&contLen);
     SRpcMsg rpcMsg = {.msgType = TDMT_MND_MQ_TIMER, .pCont = pReq, .contLen = contLen};
     pMnode->putReqToMReadQFp(pMnode->pDnode, &rpcMsg);
   }
@@ -404,7 +404,8 @@ SMnodeMsg *mndInitMsg(SMnode *pMnode, SRpcMsg *pRpcMsg) {
     return NULL;
   }
 
-  if (pRpcMsg->msgType != TDMT_MND_TRANS && pRpcMsg->msgType != TDMT_MND_MQ_TIMER && pRpcMsg->msgType != TDMT_MND_MQ_DO_REBALANCE) {
+  if (pRpcMsg->msgType != TDMT_MND_TRANS && pRpcMsg->msgType != TDMT_MND_MQ_TIMER &&
+      pRpcMsg->msgType != TDMT_MND_MQ_DO_REBALANCE) {
     SRpcConnInfo connInfo = {0};
     if ((pRpcMsg->msgType & 1U) && rpcGetConnInfo(pRpcMsg->handle, &connInfo) != 0) {
       taosFreeQitem(pMsg);
@@ -439,7 +440,7 @@ void mndProcessMsg(SMnodeMsg *pMsg) {
   SMnode *pMnode = pMsg->pMnode;
   int32_t code = 0;
   tmsg_t  msgType = pMsg->rpcMsg.msgType;
-  void   *ahandle = pMsg->rpcMsg.ahandle;
+  void *  ahandle = pMsg->rpcMsg.ahandle;
   bool    isReq = (msgType & 1U);
 
   mTrace("msg:%p, type:%s will be processed, app:%p", pMsg, TMSG_INFO(msgType), ahandle);

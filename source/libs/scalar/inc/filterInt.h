@@ -13,8 +13,8 @@
  * along with this program. If not, see <http://www.gnu.org/licenses/>.
  */
 
-#ifndef TDENGINE_QFILTER_H
-#define TDENGINE_QFILTER_H
+#ifndef TDENGINE_FILTER_INT_H
+#define TDENGINE_FILTER_INT_H
 
 #ifdef __cplusplus
 extern "C" {
@@ -22,7 +22,10 @@ extern "C" {
 
 #include "thash.h"
 #include "tname.h"
-#include "function.h"
+#include "common.h"
+#include "scalar.h"
+#include "querynodes.h"
+#include "query.h"
 
 #define FILTER_DEFAULT_GROUP_SIZE 4
 #define FILTER_DEFAULT_UNIT_SIZE 4
@@ -83,6 +86,12 @@ enum {
   RANGE_TYPE_MR_CTX = 3,
 };
 
+enum {
+  FI_ACTION_NO_NEED = 1,
+  FI_ACTION_CONTINUE,
+  FI_ACTION_STOP,
+};
+
 typedef struct OptrStr {
   uint16_t optr;
   char    *str;
@@ -95,17 +104,11 @@ typedef struct SFilterRange {
   char eflag;
 } SFilterRange;
 
-typedef struct SFilterColRange {  
-  uint16_t idx;  //column field idx
-  bool isNull;
-  bool notNull;
-  bool isRange;
-  SFilterRange ra;
-} SFilterColRange;
-
 typedef bool (*rangeCompFunc) (const void *, const void *, const void *, const void *, __compar_fn_t);
 typedef int32_t(*filter_desc_compare_func)(const void *, const void *);
 typedef bool(*filter_exec_func)(void *, int32_t, int8_t**, SColumnDataAgg *, int16_t);
+typedef int32_t (*filer_get_col_from_id)(void *, int32_t, void **);
+typedef int32_t (*filer_get_col_from_name)(void *, int32_t, char*, void **);
 
 typedef struct SFilterRangeCompare {
   int64_t s;
@@ -153,37 +156,39 @@ typedef struct SFilterField {
 } SFilterField;
 
 typedef struct SFilterFields {
-  uint16_t size;
-  uint16_t num;
+  uint32_t size;
+  uint32_t num;
   SFilterField *fields;
 } SFilterFields;
 
 typedef struct SFilterFieldId {
   uint16_t type;
-  uint16_t idx;
+  uint32_t idx;
 } SFilterFieldId;
 
 typedef struct SFilterGroup {
-  uint16_t  unitSize;
-  uint16_t  unitNum;
-  uint16_t *unitIdxs;
+  uint32_t  unitSize;
+  uint32_t  unitNum;
+  uint32_t *unitIdxs;
   uint8_t  *unitFlags;  // !unit result
 } SFilterGroup;
 
 typedef struct SFilterColInfo {
   uint8_t type;
   int32_t dataType;
+  uint8_t optr;   // for equal operation in the relation of RELATION_IN
+  int64_t value;  // for equal operation in the relation of RELATION_IN
   void   *info;
 } SFilterColInfo;
 
 typedef struct SFilterGroupCtx {
-  uint16_t         colNum;
-  uint16_t        *colIdx;
+  uint32_t         colNum;
+  uint32_t        *colIdx;
   SFilterColInfo  *colInfo;
 } SFilterGroupCtx;
 
 typedef struct SFilterColCtx {
-  uint16_t  colIdx;
+  uint32_t  colIdx;
   void*     ctx;
 } SFilterColCtx;
 
@@ -217,16 +222,32 @@ typedef struct SFilterPCtx {
   SHashObj *unitHash;
 } SFilterPCtx;
 
+typedef struct SFltTreeStat {
+  int32_t code;
+  bool    scalarMode;
+} SFltTreeStat;
+
+typedef struct SFltScalarCtx {
+  SNode *node;
+} SFltScalarCtx;
+
+typedef struct SFltBuildGroupCtx {
+  SFilterInfo *info;
+  SArray      *group;
+  int32_t      code;
+} SFltBuildGroupCtx;
+
 typedef struct SFilterInfo {
+  bool              scalarMode;
+  SFltScalarCtx     sclCtx;
   uint32_t          options;
   uint32_t          status;  
-  uint16_t          unitSize;
-  uint16_t          unitNum;
-  uint16_t          groupNum;
-  uint16_t          colRangeNum;
+  uint32_t          unitSize;
+  uint32_t          unitNum;
+  uint32_t          groupNum;
+  uint32_t          colRangeNum;
   SFilterFields     fields[FLD_TYPE_MAX];
   SFilterGroup     *groups;
-  uint16_t         *cgroups;
   SFilterUnit      *units;
   SFilterComUnit   *cunits;
   uint8_t          *unitRes;    // result
@@ -234,16 +255,15 @@ typedef struct SFilterInfo {
   SFilterRangeCtx **colRange;
   filter_exec_func  func;          
   uint8_t           blkFlag;
-  uint16_t          blkGroupNum;
-  uint16_t         *blkUnits;
+  uint32_t          blkGroupNum;
+  uint32_t         *blkUnits;
   int8_t           *blkUnitRes;
-  
+  void             *pTable;
+
   SFilterPCtx       pctx;
 } SFilterInfo;
 
-#define COL_FIELD_SIZE (sizeof(SFilterField) + 2 * sizeof(int64_t))
-
-#define FILTER_NO_MERGE_DATA_TYPE(t) ((t) == TSDB_DATA_TYPE_BINARY || (t) == TSDB_DATA_TYPE_NCHAR)
+#define FILTER_NO_MERGE_DATA_TYPE(t) ((t) == TSDB_DATA_TYPE_BINARY || (t) == TSDB_DATA_TYPE_NCHAR || (t) == TSDB_DATA_TYPE_JSON)
 #define FILTER_NO_MERGE_OPTR(o) ((o) == TSDB_RELATION_ISNULL || (o) == TSDB_RELATION_NOTNULL || (o) == FILTER_DUMMY_EMPTY_OPTR)
 
 #define MR_EMPTY_RES(ctx) (ctx->rs == NULL)
@@ -259,7 +279,7 @@ typedef struct SFilterInfo {
 #define FILTER_CLR_FLAG(st, f) st &= (~f)
 
 #define SIMPLE_COPY_VALUES(dst, src) *((int64_t *)dst) = *((int64_t *)src)
-#define FILTER_PACKAGE_UNIT_HASH_KEY(v, optr, idx1, idx2) do { char *_t = (char *)v; _t[0] = optr; *(uint16_t *)(_t + 1) = idx1; *(uint16_t *)(_t + 3) = idx2; } while (0)
+#define FILTER_PACKAGE_UNIT_HASH_KEY(v, optr, idx1, idx2) do { char *_t = (char *)v; _t[0] = optr; *(uint32_t *)(_t + 1) = idx1; *(uint32_t *)(_t + 3) = idx2; } while (0)
 #define FILTER_GREATER(cr,sflag,eflag) ((cr > 0) || ((cr == 0) && (FILTER_GET_FLAG(sflag,RANGE_FLG_EXCLUDE) || FILTER_GET_FLAG(eflag,RANGE_FLG_EXCLUDE))))
 #define FILTER_COPY_RA(dst, src) do { (dst)->sflag = (src)->sflag; (dst)->eflag = (src)->eflag; (dst)->s = (src)->s; (dst)->e = (src)->e; } while (0)
 
@@ -269,25 +289,33 @@ typedef struct SFilterInfo {
 #define INSERT_RANGE(ctx, r, ra) do { SFilterRangeNode *n = filterNewRange(ctx, ra); n->prev = (r)->prev; if ((r)->prev) { (r)->prev->next = n; } else { (ctx)->rs = n; } (r)->prev = n; n->next = r; } while (0)
 #define APPEND_RANGE(ctx, r, ra) do { SFilterRangeNode *n = filterNewRange(ctx, ra); n->prev = (r); if (r) { (r)->next = n; } else { (ctx)->rs = n; } } while (0)
 
-#define ERR_RET(c) do { int32_t _code = c; if (_code != TSDB_CODE_SUCCESS) { return _code; } } while (0)
-#define ERR_LRET(c,...) do { int32_t _code = c; if (_code != TSDB_CODE_SUCCESS) { qError(__VA_ARGS__); return _code; } } while (0)
-#define ERR_JRET(c) do { code = c; if (code != TSDB_CODE_SUCCESS) { goto _return; } } while (0)
+#define FLT_IS_COMPARISON_OPERATOR(_op) ((_op) >= OP_TYPE_GREATER_THAN && (_op) < OP_TYPE_IS_NOT_NULL)
 
-#define CHK_RETV(c) do { if (c) { return; } } while (0)
-#define CHK_RET(c, r) do { if (c) { return r; } } while (0)
-#define CHK_JMP(c) do { if (c) { goto _return; } } while (0)
-#define CHK_LRETV(c,...) do { if (c) { qError(__VA_ARGS__); return; } } while (0)
-#define CHK_LRET(c, r,...) do { if (c) { if (r) {qError(__VA_ARGS__); } else { qDebug(__VA_ARGS__); } return r; } } while (0)
+#define fltFatal(...)  qFatal(__VA_ARGS__)
+#define fltError(...)  qError(__VA_ARGS__)
+#define fltWarn(...)   qWarn(__VA_ARGS__)
+#define fltInfo(...)   qInfo(__VA_ARGS__)
+#define fltDebug(...)  qDebug(__VA_ARGS__)
+#define fltTrace(...)  qTrace(__VA_ARGS__)
+
+
+#define FLT_CHK_JMP(c) do { if (c) { goto _return; } } while (0)
+#define FLT_ERR_RET(c) do { int32_t _code = c; if (_code != TSDB_CODE_SUCCESS) { terrno = _code; return _code; } } while (0)
+#define FLT_RET(c) do { int32_t _code = c; if (_code != TSDB_CODE_SUCCESS) { terrno = _code; } return _code; } while (0)
+#define FLT_ERR_JRET(c) do { code = c; if (code != TSDB_CODE_SUCCESS) { terrno = code; goto _return; } } while (0)
+
 
 #define FILTER_GET_FIELD(i, id) (&((i)->fields[(id).type].fields[(id).idx]))
 #define FILTER_GET_COL_FIELD(i, idx) (&((i)->fields[FLD_TYPE_COLUMN].fields[idx]))
-#define FILTER_GET_COL_FIELD_TYPE(fi) (((SSchema *)((fi)->desc))->type)
-#define FILTER_GET_COL_FIELD_SIZE(fi) (((SSchema *)((fi)->desc))->bytes)
-#define FILTER_GET_COL_FIELD_ID(fi) (((SSchema *)((fi)->desc))->colId)
-#define FILTER_GET_COL_FIELD_DESC(fi) ((SSchema *)((fi)->desc))
-#define FILTER_GET_COL_FIELD_DATA(fi, ri) ((char *)(fi)->data + ((SSchema *)((fi)->desc))->bytes * (ri))
-#define FILTER_GET_VAL_FIELD_TYPE(fi) (((tVariant *)((fi)->desc))->nType)
+#define FILTER_GET_COL_FIELD_TYPE(fi) (((SColumnRefNode *)((fi)->desc))->dataType.type)
+#define FILTER_GET_COL_FIELD_SIZE(fi) (((SColumnRefNode *)((fi)->desc))->dataType.bytes)
+#define FILTER_GET_COL_FIELD_ID(fi) (((SColumnRefNode *)((fi)->desc))->columnId)
+#define FILTER_GET_COL_FIELD_SLOT_ID(fi) (((SColumnRefNode *)((fi)->desc))->slotId)
+#define FILTER_GET_COL_FIELD_DESC(fi) ((SColumnRefNode *)((fi)->desc))
+#define FILTER_GET_COL_FIELD_DATA(fi, ri) ((char *)(fi)->data + ((SColumnRefNode *)((fi)->desc))->dataType.bytes * (ri))
+#define FILTER_GET_VAL_FIELD_TYPE(fi) (((SValueNode *)((fi)->desc))->node.resType.type)
 #define FILTER_GET_VAL_FIELD_DATA(fi) ((char *)(fi)->data)
+#define FILTER_GET_JSON_VAL_FIELD_DATA(fi) ((char *)(fi)->desc)
 #define FILTER_GET_TYPE(fl) ((fl) & FLD_TYPE_MAX)
 
 #define FILTER_GROUP_UNIT(i, g, uid) ((i)->units + (g)->unitIdxs[uid])
@@ -300,6 +328,7 @@ typedef struct SFilterInfo {
 #define FILTER_UNIT_COL_SIZE(i, u) FILTER_GET_COL_FIELD_SIZE(FILTER_UNIT_LEFT_FIELD(i, u))
 #define FILTER_UNIT_COL_ID(i, u) FILTER_GET_COL_FIELD_ID(FILTER_UNIT_LEFT_FIELD(i, u))
 #define FILTER_UNIT_VAL_DATA(i, u) FILTER_GET_VAL_FIELD_DATA(FILTER_UNIT_RIGHT_FIELD(i, u))
+#define FILTER_UNIT_JSON_VAL_DATA(i, u) FILTER_GET_JSON_VAL_FIELD_DATA(FILTER_UNIT_RIGHT_FIELD(i, u))
 #define FILTER_UNIT_COL_IDX(u) ((u)->left.idx)
 #define FILTER_UNIT_OPTR(u) ((u)->compare.optr)
 #define FILTER_UNIT_COMP_FUNC(u) ((u)->compare.func)
@@ -314,7 +343,7 @@ typedef struct SFilterInfo {
 #define FILTER_PUSH_VAR_HASH(colInfo, ha) do { (colInfo).type = RANGE_TYPE_VAR_HASH; (colInfo).info = ha;} while (0)
 #define FILTER_PUSH_CTX(colInfo, ctx) do { (colInfo).type = RANGE_TYPE_MR_CTX; (colInfo).info = ctx;} while (0)
 
-#define FILTER_COPY_IDX(dst, src, n) do { *(dst) = malloc(sizeof(uint16_t) * n); memcpy(*(dst), src, sizeof(uint16_t) * n);} while (0)
+#define FILTER_COPY_IDX(dst, src, n) do { *(dst) = malloc(sizeof(uint32_t) * n); memcpy(*(dst), src, sizeof(uint32_t) * n);} while (0)
 
 #define FILTER_ADD_CTX_TO_GRES(gres, idx, ctx) do { if ((gres)->colCtxs == NULL) { (gres)->colCtxs = taosArrayInit(gres->colNum, sizeof(SFilterColCtx)); } SFilterColCtx cCtx = {idx, ctx}; taosArrayPush((gres)->colCtxs, &cCtx); } while (0) 
 
@@ -322,18 +351,25 @@ typedef struct SFilterInfo {
 #define FILTER_ALL_RES(i) FILTER_GET_FLAG((i)->status, FI_STATUS_ALL)
 #define FILTER_EMPTY_RES(i) FILTER_GET_FLAG((i)->status, FI_STATUS_EMPTY)
 
-
-extern int32_t filterInitFromTree(tExprNode* tree, SFilterInfo **pinfo, uint32_t options);
+#if 0
+extern int32_t filterInitFromTree(tExprNode* tree, void **pinfo, uint32_t options);
 extern bool filterExecute(SFilterInfo *info, int32_t numOfRows, int8_t** p, SColumnDataAgg *statis, int16_t numOfCols);
-extern int32_t filterSetColFieldData(SFilterInfo *info, int32_t numOfCols, SArray* pDataBlock);
+extern int32_t filterSetColFieldData(SFilterInfo *info, void *param, filer_get_col_from_id fp);
+extern int32_t filterSetJsonColFieldData(SFilterInfo *info, void *param, filer_get_col_from_name fp);
 extern int32_t filterGetTimeRange(SFilterInfo *info, STimeWindow *win);
 extern int32_t filterConverNcharColumns(SFilterInfo* pFilterInfo, int32_t rows, bool *gotNchar);
 extern int32_t filterFreeNcharColumns(SFilterInfo* pFilterInfo);
 extern void filterFreeInfo(SFilterInfo *info);
 extern bool filterRangeExecute(SFilterInfo *info, SColumnDataAgg *pDataStatis, int32_t numOfCols, int32_t numOfRows);
+#else
+//REMOVE THESE!!!!!!!!!!!!!!!!!!!!
+#include "function.h"
+#endif
+extern bool filterDoCompare(__compar_fn_t func, uint8_t optr, void *left, void *right);
+extern __compar_fn_t filterGetCompFunc(int32_t type, int32_t optr);
 
 #ifdef __cplusplus
 }
 #endif
 
-#endif  // TDENGINE_QFILTER_H
+#endif  // TDENGINE_FILTER_INT_H

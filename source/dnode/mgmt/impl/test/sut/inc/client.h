@@ -21,13 +21,18 @@ class TestClient {
   bool Init(const char* user, const char* pass, const char* fqdn, uint16_t port);
   void Cleanup();
 
+  void DoInit();
+
   SRpcMsg* SendReq(SRpcMsg* pReq);
   void     SetRpcRsp(SRpcMsg* pRsp);
   tsem_t*  GetSem();
+  void     Restart();
 
  private:
   char     fqdn[TSDB_FQDN_LEN];
   uint16_t port;
+  char     user[128];
+  char     pass[128];
   void*    clientRpc;
   SRpcMsg* pRsp;
   tsem_t   sem;

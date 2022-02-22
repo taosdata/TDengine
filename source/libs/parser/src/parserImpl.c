@@ -349,7 +349,7 @@ static SNodeList* getProjectList(SNode* pNode) {
   return NULL;
 }
 
-static void setColumnInfoBySchema(const SRealTableNode* pTable, const SSchema* pColSchema, SColumnNode* pCol) {
+static void setColumnInfoBySchema(const SRealTableNode* pTable, const SSchema* pColSchema, bool isTag, SColumnNode* pCol) {
   strcpy(pCol->dbName, pTable->table.dbName);
   strcpy(pCol->tableAlias, pTable->table.tableAlias);
   strcpy(pCol->tableName, pTable->table.tableName);
@@ -359,7 +359,7 @@ static void setColumnInfoBySchema(const SRealTableNode* pTable, const SSchema* p
   }
   pCol->tableId = pTable->pMeta->uid;
   pCol->colId = pColSchema->colId;
-  // pCol->colType = pColSchema->type;
+  pCol->colType = isTag ? COLUMN_TYPE_TAG : COLUMN_TYPE_COLUMN;
   pCol->node.resType.type = pColSchema->type;
   pCol->node.resType.bytes = pColSchema->bytes;
 }
@@ -383,7 +383,7 @@ static int32_t createColumnNodeByTable(STranslateContext* pCxt, const STableNode
       if (NULL == pCol) {
         return generateSyntaxErrMsg(pCxt, TSDB_CODE_OUT_OF_MEMORY);
       }
-      setColumnInfoBySchema((SRealTableNode*)pTable, pMeta->schema + i, pCol);
+      setColumnInfoBySchema((SRealTableNode*)pTable, pMeta->schema + i, (i < pMeta->tableInfo.numOfTags), pCol);
       nodesListAppend(pList, (SNode*)pCol);
     }
   } else {
@@ -408,7 +408,7 @@ static bool findAndSetColumn(SColumnNode* pCol, const STableNode* pTable) {
     int32_t nums = pMeta->tableInfo.numOfTags + pMeta->tableInfo.numOfColumns;
     for (int32_t i = 0; i < nums; ++i) {
       if (0 == strcmp(pCol->colName, pMeta->schema[i].name)) {
-        setColumnInfoBySchema((SRealTableNode*)pTable, pMeta->schema + i, pCol);
+        setColumnInfoBySchema((SRealTableNode*)pTable, pMeta->schema + i, (i < pMeta->tableInfo.numOfTags), pCol);
         found = true;
         break;
       }

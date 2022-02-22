@@ -23,22 +23,50 @@
 #include "thash.h"
 #include "types.h"
 #include "ulog.h"
+#include "tdef.h"
+#include "taos.h"
 
-int32_t setCompareBytes1(const void *pLeft, const void *pRight) {
+int32_t setChkInBytes1(const void *pLeft, const void *pRight) {
   return NULL != taosHashGet((SHashObj *)pRight, pLeft, 1) ? 1 : 0;
 }
 
-int32_t setCompareBytes2(const void *pLeft, const void *pRight) {
+int32_t setChkInBytes2(const void *pLeft, const void *pRight) {
   return NULL != taosHashGet((SHashObj *)pRight, pLeft, 2) ? 1 : 0;
 }
 
-int32_t setCompareBytes4(const void *pLeft, const void *pRight) {
+int32_t setChkInBytes4(const void *pLeft, const void *pRight) {
   return NULL != taosHashGet((SHashObj *)pRight, pLeft, 4) ? 1 : 0;
 }
 
-int32_t setCompareBytes8(const void *pLeft, const void *pRight) {
+int32_t setChkInBytes8(const void *pLeft, const void *pRight) {
   return NULL != taosHashGet((SHashObj *)pRight, pLeft, 8) ? 1 : 0;
 }
+
+int32_t setChkNotInBytes1(const void *pLeft, const void *pRight) {
+  return NULL == taosHashGet((SHashObj *)pRight, pLeft, 1) ? 1 : 0;
+}
+
+int32_t setChkNotInBytes2(const void *pLeft, const void *pRight) {
+  return NULL == taosHashGet((SHashObj *)pRight, pLeft, 2) ? 1 : 0;
+}
+
+int32_t setChkNotInBytes4(const void *pLeft, const void *pRight) {
+  return NULL == taosHashGet((SHashObj *)pRight, pLeft, 4) ? 1 : 0;
+}
+
+int32_t setChkNotInBytes8(const void *pLeft, const void *pRight) {
+  return NULL == taosHashGet((SHashObj *)pRight, pLeft, 8) ? 1 : 0;
+}
+
+
+int32_t compareChkInString(const void *pLeft, const void* pRight)  {
+  return NULL != taosHashGet((SHashObj *)pRight, varDataVal(pLeft), varDataLen(pLeft)) ? 1 : 0;
+}
+
+int32_t compareChkNotInString(const void *pLeft, const void* pRight)  {
+  return NULL == taosHashGet((SHashObj *)pRight, varDataVal(pLeft), varDataLen(pLeft)) ? 1 : 0;
+}
+
 
 int32_t compareInt8Val(const void *pLeft, const void *pRight) {
   int8_t left = GET_INT8_VAL(pLeft), right = GET_INT8_VAL(pRight);
@@ -393,6 +421,156 @@ int32_t taosArrayCompareString(const void* a, const void* b) {
   return compareLenPrefixedStr(x, y);
 }
 
-int32_t compareFindItemInSet(const void *pLeft, const void* pRight)  {
-  return NULL != taosHashGet((SHashObj *)pRight, varDataVal(pLeft), varDataLen(pLeft)) ? 1 : 0;
+
+int32_t compareStrPatternMatch(const void* pLeft, const void* pRight) {
+  SPatternCompareInfo pInfo = {'%', '_'};
+
+  assert(varDataLen(pRight) <= TSDB_MAX_FIELD_LEN);
+  char *pattern = calloc(varDataLen(pRight) + 1, sizeof(char));
+  memcpy(pattern, varDataVal(pRight), varDataLen(pRight));
+
+  size_t sz = varDataLen(pLeft);
+  char *buf = malloc(sz + 1);
+  memcpy(buf, varDataVal(pLeft), sz);
+  buf[sz] = 0;
+
+  int32_t ret = patternMatch(pattern, buf, sz, &pInfo);
+  free(buf);
+  free(pattern);
+  return (ret == TSDB_PATTERN_MATCH) ? 0 : 1;
 }
+
+int32_t compareStrPatternNotMatch(const void* pLeft, const void* pRight) {
+  return compareStrPatternMatch(pLeft, pRight) ? 0 : 1;
+}
+
+int32_t compareWStrPatternMatch(const void* pLeft, const void* pRight) {
+  SPatternCompareInfo pInfo = {'%', '_'};
+
+  assert(varDataLen(pRight) <= TSDB_MAX_FIELD_LEN * TSDB_NCHAR_SIZE);
+
+  wchar_t *pattern = calloc(varDataLen(pRight) + 1, sizeof(wchar_t));
+  memcpy(pattern, varDataVal(pRight), varDataLen(pRight));
+
+  int32_t ret = WCSPatternMatch(pattern, varDataVal(pLeft), varDataLen(pLeft)/TSDB_NCHAR_SIZE, &pInfo);
+  free(pattern);
+
+  return (ret == TSDB_PATTERN_MATCH) ? 0 : 1;
+}
+
+int32_t compareWStrPatternNotMatch(const void* pLeft, const void* pRight) {
+  return compareWStrPatternMatch(pLeft, pRight) ? 0 : 1;
+}
+
+
+__compar_fn_t getComparFunc(int32_t type, int32_t optr) {
+  __compar_fn_t comparFn = NULL;
+
+  if (optr == TSDB_RELATION_IN && (type != TSDB_DATA_TYPE_BINARY && type != TSDB_DATA_TYPE_NCHAR)) {
+    switch (type) {
+      case TSDB_DATA_TYPE_BOOL:
+      case TSDB_DATA_TYPE_TINYINT:
+      case TSDB_DATA_TYPE_UTINYINT:
+        return setChkInBytes1;
+      case TSDB_DATA_TYPE_SMALLINT:
+      case TSDB_DATA_TYPE_USMALLINT:
+        return setChkInBytes2;
+      case TSDB_DATA_TYPE_INT:
+      case TSDB_DATA_TYPE_UINT:
+      case TSDB_DATA_TYPE_FLOAT:
+        return setChkInBytes4;
+      case TSDB_DATA_TYPE_BIGINT:
+      case TSDB_DATA_TYPE_UBIGINT:
+      case TSDB_DATA_TYPE_DOUBLE:
+      case TSDB_DATA_TYPE_TIMESTAMP:
+        return setChkInBytes8;
+      default:
+        assert(0);
+    }
+  }
+
+  if (optr == TSDB_RELATION_NOT_IN && (type != TSDB_DATA_TYPE_BINARY && type != TSDB_DATA_TYPE_NCHAR)) {
+    switch (type) {
+      case TSDB_DATA_TYPE_BOOL:
+      case TSDB_DATA_TYPE_TINYINT:
+      case TSDB_DATA_TYPE_UTINYINT:
+        return setChkNotInBytes1;
+      case TSDB_DATA_TYPE_SMALLINT:
+      case TSDB_DATA_TYPE_USMALLINT:
+        return setChkNotInBytes2;
+      case TSDB_DATA_TYPE_INT:
+      case TSDB_DATA_TYPE_UINT:
+      case TSDB_DATA_TYPE_FLOAT:
+        return setChkNotInBytes4;
+      case TSDB_DATA_TYPE_BIGINT:
+      case TSDB_DATA_TYPE_UBIGINT:
+      case TSDB_DATA_TYPE_DOUBLE:
+      case TSDB_DATA_TYPE_TIMESTAMP:
+        return setChkNotInBytes8;
+      default:
+        assert(0);
+    }
+  }
+
+  switch (type) {
+    case TSDB_DATA_TYPE_BOOL:
+    case TSDB_DATA_TYPE_TINYINT:   comparFn = compareInt8Val;   break;
+    case TSDB_DATA_TYPE_SMALLINT:  comparFn = compareInt16Val;  break;
+    case TSDB_DATA_TYPE_INT:       comparFn = compareInt32Val;  break;
+    case TSDB_DATA_TYPE_BIGINT:
+    case TSDB_DATA_TYPE_TIMESTAMP: comparFn = compareInt64Val;  break;
+    case TSDB_DATA_TYPE_FLOAT:     comparFn = compareFloatVal;  break;
+    case TSDB_DATA_TYPE_DOUBLE:    comparFn = compareDoubleVal; break;
+    case TSDB_DATA_TYPE_BINARY: {
+      if (optr == TSDB_RELATION_MATCH) {
+        comparFn = compareStrRegexCompMatch;
+      } else if (optr == TSDB_RELATION_NMATCH) {
+        comparFn = compareStrRegexCompNMatch;
+      } else if (optr == TSDB_RELATION_LIKE) { /* wildcard query using like operator */
+        comparFn = compareStrPatternMatch;
+      } else if (optr == TSDB_RELATION_NOT_LIKE) { /* wildcard query using like operator */
+        comparFn = compareStrPatternNotMatch;
+      } else if (optr == TSDB_RELATION_IN) {
+        comparFn = compareChkInString;
+      } else if (optr == TSDB_RELATION_NOT_IN) {
+        comparFn = compareChkNotInString;
+      } else { /* normal relational comparFn */
+        comparFn = compareLenPrefixedStr;
+      }
+
+      break;
+    }
+
+    case TSDB_DATA_TYPE_NCHAR: {
+      if (optr == TSDB_RELATION_MATCH) {
+        comparFn = compareStrRegexCompMatch;
+      } else if (optr == TSDB_RELATION_NMATCH) {
+        comparFn = compareStrRegexCompNMatch;
+      } else if (optr == TSDB_RELATION_LIKE) {
+        comparFn = compareWStrPatternMatch;
+      } else if (optr == TSDB_RELATION_NOT_LIKE) {
+        comparFn = compareWStrPatternNotMatch;
+      } else if (optr == TSDB_RELATION_IN) {
+        comparFn = compareChkInString;
+      } else if (optr == TSDB_RELATION_NOT_IN) {
+        comparFn = compareChkNotInString;
+      } else {
+        comparFn = compareLenPrefixedWStr;
+      }
+      break;
+    }
+
+    case TSDB_DATA_TYPE_UTINYINT:  comparFn = compareUint8Val; break;
+    case TSDB_DATA_TYPE_USMALLINT: comparFn = compareUint16Val;break;
+    case TSDB_DATA_TYPE_UINT:      comparFn = compareUint32Val;break;
+    case TSDB_DATA_TYPE_UBIGINT:   comparFn = compareUint64Val;break;
+
+    default:
+      comparFn = compareInt32Val;
+      break;
+  }
+
+  return comparFn;
+}
+
+

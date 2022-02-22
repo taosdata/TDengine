@@ -15,6 +15,7 @@
 
 #include "querynodes.h"
 #include "taos.h"
+#include "taoserror.h"
 
 #define COPY_SCALAR_FIELD(fldname) \
 	do { \
@@ -57,14 +58,13 @@ static void dataTypeCopy(const SDataType* pSrc, SDataType* pDst) {
 }
 
 static void exprNodeCopy(const SExprNode* pSrc, SExprNode* pDst) {
-  COPY_SCALAR_FIELD(type);
   dataTypeCopy(&pSrc->resType, &pDst->resType);
   COPY_CHAR_ARRAY_FIELD(aliasName);
   // COPY_NODE_LIST_FIELD(pAssociationList);
 }
 
 static SNode* columnNodeCopy(const SColumnNode* pSrc, SColumnNode* pDst) {
-  exprNodeCopy((const SExprNode*)&pSrc, (SExprNode*)&pDst);
+  exprNodeCopy((const SExprNode*)pSrc, (SExprNode*)pDst);
   COPY_SCALAR_FIELD(colId);
   COPY_SCALAR_FIELD(colType);
   COPY_CHAR_ARRAY_FIELD(dbName);
@@ -76,7 +76,7 @@ static SNode* columnNodeCopy(const SColumnNode* pSrc, SColumnNode* pDst) {
 }
 
 static SNode* valueNodeCopy(const SValueNode* pSrc, SValueNode* pDst) {
-  exprNodeCopy((const SExprNode*)&pSrc, (SExprNode*)&pDst);
+  exprNodeCopy((const SExprNode*)pSrc, (SExprNode*)pDst);
   COPY_CHAR_POINT_FIELD(literal);
   COPY_SCALAR_FIELD(isDuration);
   switch (pSrc->node.resType.type) {
@@ -119,7 +119,7 @@ static SNode* valueNodeCopy(const SValueNode* pSrc, SValueNode* pDst) {
 }
 
 static SNode* operatorNodeCopy(const SOperatorNode* pSrc, SOperatorNode* pDst) {
-  exprNodeCopy((const SExprNode*)&pSrc, (SExprNode*)&pDst);
+  exprNodeCopy((const SExprNode*)pSrc, (SExprNode*)pDst);
   COPY_SCALAR_FIELD(opType);
   COPY_NODE_FIELD(pLeft);
   COPY_NODE_FIELD(pRight);
@@ -127,17 +127,23 @@ static SNode* operatorNodeCopy(const SOperatorNode* pSrc, SOperatorNode* pDst) {
 }
 
 static SNode* logicConditionNodeCopy(const SLogicConditionNode* pSrc, SLogicConditionNode* pDst) {
-  exprNodeCopy((const SExprNode*)&pSrc, (SExprNode*)&pDst);
+  exprNodeCopy((const SExprNode*)pSrc, (SExprNode*)pDst);
   COPY_SCALAR_FIELD(condType);
   COPY_NODE_LIST_FIELD(pParameterList);
   return (SNode*)pDst;
 }
 
 static SNode* functionNodeCopy(const SFunctionNode* pSrc, SFunctionNode* pDst) {
-  exprNodeCopy((const SExprNode*)&pSrc, (SExprNode*)&pDst);
+  exprNodeCopy((const SExprNode*)pSrc, (SExprNode*)pDst);
   COPY_CHAR_ARRAY_FIELD(functionName);
   COPY_SCALAR_FIELD(funcId);
   COPY_SCALAR_FIELD(funcType);
+  COPY_NODE_LIST_FIELD(pParameterList);
+  return (SNode*)pDst;
+}
+
+static SNode* groupingSetNodeCopy(const SGroupingSetNode* pSrc, SGroupingSetNode* pDst) {
+  COPY_SCALAR_FIELD(groupingSetType);
   COPY_NODE_LIST_FIELD(pParameterList);
   return (SNode*)pDst;
 }
@@ -148,6 +154,7 @@ SNode* nodesCloneNode(const SNode* pNode) {
   }
   SNode* pDst = nodesMakeNode(nodeType(pNode));
   if (NULL == pDst) {
+    terrno = TSDB_CODE_OUT_OF_MEMORY;
     return NULL;
   }
   switch (nodeType(pNode)) {
@@ -164,7 +171,9 @@ SNode* nodesCloneNode(const SNode* pNode) {
     case QUERY_NODE_REAL_TABLE:
     case QUERY_NODE_TEMP_TABLE:
     case QUERY_NODE_JOIN_TABLE:
+      break;
     case QUERY_NODE_GROUPING_SET:
+      return groupingSetNodeCopy((const SGroupingSetNode*)pNode, (SGroupingSetNode*)pDst);
     case QUERY_NODE_ORDER_BY_EXPR:
     case QUERY_NODE_LIMIT:
     default:
@@ -174,8 +183,13 @@ SNode* nodesCloneNode(const SNode* pNode) {
 }
 
 SNodeList* nodesCloneList(const SNodeList* pList) {
+  if (NULL == pList) {
+    return NULL;
+  }
+
   SNodeList* pDst = nodesMakeList();
   if (NULL == pDst) {
+    terrno = TSDB_CODE_OUT_OF_MEMORY;
     return NULL;
   }
   SNode* pNode;

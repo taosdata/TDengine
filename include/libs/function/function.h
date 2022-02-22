@@ -226,13 +226,18 @@ typedef struct SAggFunctionInfo {
   int32_t (*dataReqFunc)(SqlFunctionCtx *pCtx, STimeWindow* w, int32_t colId);
 } SAggFunctionInfo;
 
-struct SScalarFuncParam;
+typedef struct SScalarParam {
+  void*   data;
+  int32_t num;
+  int32_t type;
+  int32_t bytes;
+} SScalarParam;
 
 typedef struct SScalarFunctionInfo {
   char      name[FUNCTIONS_NAME_MAX_LENGTH];
   int8_t    type;              // scalar function or aggregation function
   uint32_t  functionId;        // index of scalar function
-  void     (*process)(struct SScalarFuncParam* pOutput, size_t numOfInput, const struct SScalarFuncParam *pInput);
+  void     (*process)(struct SScalarParam* pOutput, size_t numOfInput, const struct SScalarParam *pInput);
 } SScalarFunctionInfo;
 
 typedef struct SMultiFunctionsDesc {
@@ -284,10 +289,6 @@ void cleanupResultRowEntry(struct SResultRowEntryInfo* pCell);
 int32_t getNumOfResult(SqlFunctionCtx* pCtx, int32_t num);
 bool isRowEntryCompleted(struct SResultRowEntryInfo* pEntry);
 bool isRowEntryInitialized(struct SResultRowEntryInfo* pEntry);
-
-struct SScalarFunctionSupport* createScalarFuncSupport(int32_t num);
-void destroyScalarFuncSupport(struct SScalarFunctionSupport* pSupport, int32_t num);
-struct SScalarFunctionSupport* getScalarFuncSupport(struct SScalarFunctionSupport* pSupport, int32_t index);
 
 ///////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
 // fill api
