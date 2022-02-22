@@ -5301,7 +5301,7 @@ static bool mode_function_setup(SQLFunctionCtx *pCtx, SResultRowCellInfo* pResIn
   return true;
 }
 
-static void do_mode_function(SQLFunctionCtx *pCtx, SModeFuncInfo *pInfo, char *pData, int32_t bytes, int16_t type){
+static void do_mode_function(SQLFunctionCtx *pCtx, SModeFuncInfo *pInfo, char *pData, int64_t count, int32_t bytes, int16_t type){
   int32_t hashKeyBytes = bytes;
   if(IS_VAR_DATA_TYPE(type)){     // for var data, we can not use bytes, because there are dirty data in the back of var data
     hashKeyBytes = varDataTLen(pData);
@@ -5310,14 +5310,14 @@ static void do_mode_function(SQLFunctionCtx *pCtx, SModeFuncInfo *pInfo, char *p
   if (mode == NULL) {
     size_t size = sizeof(ModeUnit) + bytes;
     char *tmp = pInfo->res + pInfo->num * size;
-    ((ModeUnit*)tmp)->count = 1;
+    ((ModeUnit*)tmp)->count = count;
     char *data = tmp + sizeof(ModeUnit);
     memcpy(data, pData, bytes);
 
     taosHashPut(*pCtx->pModeSet, pData, hashKeyBytes, &tmp, sizeof(ModeUnit*));
     pInfo->num++;
   }else{
-    (*mode)->count++;
+    (*mode)->count += count;
   }
 }
 
@@ -5326,8 +5326,11 @@ static void mode_function(SQLFunctionCtx *pCtx) {
 
   for (int32_t i = 0; i < pCtx->size; i++) {
     char *pData = GET_INPUT_DATA(pCtx, i);
+    if (pCtx->hasNull && isNull(pData, pCtx->inputType)) {
+      continue;
+    }
 
-    do_mode_function(pCtx, pInfo, pData, pCtx->inputBytes, pCtx->inputType);
+    do_mode_function(pCtx, pInfo, pData, 1, pCtx->inputBytes, pCtx->inputType);
 
     if (sizeof(SModeFuncInfo) + pInfo->num * (sizeof(ModeUnit) + pCtx->inputBytes) >= MAX_MODE_INNER_RESULT_SIZE){
       GET_RES_INFO(pCtx)->numOfRes = -1;    // mark out of memory
@@ -5344,7 +5347,7 @@ static void mode_function_merge(SQLFunctionCtx *pCtx) {
   for (int32_t i = 0; i < pInput->num; ++i) {
     char *tmp = pInput->res + i* size;
     char *data = tmp + sizeof(ModeUnit);
-    do_mode_function(pCtx, pOutput, data, pCtx->outputBytes, pCtx->outputType);
+    do_mode_function(pCtx, pOutput, data, ((ModeUnit*)tmp)->count, pCtx->outputBytes, pCtx->outputType);
 
     if (sizeof(SModeFuncInfo) + pOutput->num * (sizeof(ModeUnit) + pCtx->outputBytes) >= MAX_MODE_INNER_RESULT_SIZE){
       GET_RES_INFO(pCtx)->numOfRes = -1;    // mark out of memory
@@ -5355,11 +5358,14 @@ static void mode_function_merge(SQLFunctionCtx *pCtx) {
 
 static void mode_func_finalizer(SQLFunctionCtx *pCtx) {
   int32_t bytes = 0;
+  int32_t type = 0;
   if (pCtx->currentStage == MERGE_STAGE) {
     bytes = pCtx->outputBytes;
+    type = pCtx->outputType;
     assert(pCtx->inputType == TSDB_DATA_TYPE_BINARY);
   } else {
     bytes = pCtx->inputBytes;
+    type = pCtx->inputType;
   }
 
   SResultRowCellInfo *pResInfo = GET_RES_INFO(pCtx);
@@ -5383,11 +5389,10 @@ static void mode_func_finalizer(SQLFunctionCtx *pCtx) {
 
   if (result){
     memcpy(pCtx->pOutput, result + sizeof(ModeUnit), bytes);
-    pResInfo->numOfRes = 1;
   }else{
-    pResInfo->numOfRes = 0;
+    setNull(pCtx->pOutput, type, 0);
   }
-
+  pResInfo->numOfRes = 1;
   doFinalizer(pCtx);
 }
 
@@ -5903,7 +5908,7 @@ SAggFunctionInfo aAggs[TSDB_FUNC_MAX_NUM] = {{
                              "mode",
                              TSDB_FUNC_MODE,
                              TSDB_FUNC_MODE,
-                             TSDB_FUNCSTATE_SO,
+                             TSDB_BASE_FUNC_SO,
                              mode_function_setup,
                              mode_function,
                              mode_func_finalizer,
