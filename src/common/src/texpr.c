@@ -2326,7 +2326,21 @@ void vectorTimeFunc(int16_t functionId, tExprOperandInfo *pInputs, int32_t numIn
           int64_t timeVal = 0;
           int64_t timePrec;
           GET_TYPED_DATA(timePrec, int64_t, pInputs[1].type, inputData[1]);
-          taosParseTime((char *)varDataVal(inputData[0]), &timeVal, pInputs[0].bytes, timePrec, 0);
+          if (pInputs[0].type == TSDB_DATA_TYPE_BINARY) {
+            taosParseTime((char *)varDataVal(inputData[0]), &timeVal, pInputs[0].bytes, timePrec, 0);
+          } else {
+            int32_t charLen = varDataLen(inputData[0]);
+            char *newColData = calloc(1,  charLen / TSDB_NCHAR_SIZE + 1);
+            int len = taosUcs4ToMbs(varDataVal(inputData[0]), charLen, newColData);
+            if (len < 0){
+              uError("vectorTimeFunc taosUcs4ToMbs error 1");
+              tfree(newColData);
+              return;
+            }
+            newColData[len] = 0;
+            taosParseTime(newColData, &timeVal, len + 1, timePrec, 0);
+            tfree(newColData);
+          }
           SET_TYPED_DATA(outputData, pOutput->type, timeVal);
 
           break;
