@@ -222,22 +222,30 @@ int transAllocBuffer(SConnBuffer* connBuf, uv_buf_t* uvBuf) {
     p->buf = (char*)calloc(CAPACITY, sizeof(char));
     p->len = 0;
     p->cap = CAPACITY;
-    p->total = 0;
+    p->total = -1;
 
     uvBuf->base = p->buf;
     uvBuf->len = CAPACITY;
   } else {
-    STransMsgHead head;
-    memcpy((char*)&head, p->buf, sizeof(head));
-    int32_t msgLen = (int32_t)htonl(head.msgLen);
-
-    p->total = msgLen;
-    p->cap = msgLen;
+    p->cap = p->total;
     p->buf = realloc(p->buf, p->cap);
     uvBuf->base = p->buf + p->len;
     uvBuf->len = p->cap - p->len;
   }
   return 0;
+}
+// check whether already read complete
+bool transReadComplete(SConnBuffer* connBuf) {
+  if (connBuf->total == -1 && connBuf->len >= sizeof(STransMsgHead)) {
+    STransMsgHead head;
+    memcpy((char*)&head, connBuf->buf, sizeof(head));
+    int32_t msgLen = (int32_t)htonl(head.msgLen);
+    connBuf->total = msgLen;
+  }
+  if (connBuf->len == connBuf->cap && connBuf->total == connBuf->cap) {
+    return true;
+  }
+  return false;
 }
 int transPackMsg(STransMsgHead* msgHead, bool sercured, bool auth) {}
 

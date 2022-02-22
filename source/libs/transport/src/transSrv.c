@@ -104,7 +104,6 @@ static void uvStartSendResp(SSrvMsg* msg);
 
 static void destroySmsg(SSrvMsg* smsg);
 // check whether already read complete packet
-static bool      readComplete(SConnBuffer* buf);
 static SSrvConn* createConn(void* hThrd);
 static void      destroyConn(SSrvConn* conn, bool clear /*clear handle or not*/);
 
@@ -123,45 +122,6 @@ void uvAllocReadBufferCb(uv_handle_t* handle, size_t suggested_size, uv_buf_t* b
   SConnBuffer* pBuf = &conn->readBuf;
   transAllocBuffer(pBuf, buf);
 }
-
-// check data read from socket complete or not
-//
-static bool readComplete(SConnBuffer* data) {
-  // TODO(yihao): handle pipeline later
-  if (data->len == data->cap && data->total == data->cap) {
-    return true;
-  }
-  return false;
-  // STransMsgHead head;
-  // int32_t       headLen = sizeof(head);
-  // if (data->len >= headLen) {
-  //  memcpy((char*)&head, data->buf, headLen);
-  //  int32_t msgLen = (int32_t)htonl((uint32_t)head.msgLen);
-  //  if (msgLen > data->len) {
-  //    data->left = msgLen - data->len;
-  //    return false;
-  //  } else if (msgLen == data->len) {
-  //    return true;
-  //  } else if (msgLen < data->len) {
-  //    return false;
-  //    // handle other packet later
-  //  }
-  //} else {
-  //  return false;
-  //}
-}
-
-// static void uvDoProcess(SRecvInfo* pRecv) {
-//  // impl later
-//  STransMsgHead* pHead = (STransMsgHead*)pRecv->msg;
-//  SRpcInfo*      pRpc = (SRpcInfo*)pRecv->shandle;
-//  SSrvConn*         pConn = pRecv->thandle;
-//  tDump(pRecv->msg, pRecv->msgLen);
-//  terrno = 0;
-//  // SRpcReqContext* pContest;
-//
-//  // do auth and check
-//}
 
 static int uvAuthMsg(SSrvConn* pConn, char* msg, int len) {
   STransMsgHead* pHead = (STransMsgHead*)msg;
@@ -283,7 +243,7 @@ void uvOnReadCb(uv_stream_t* cli, ssize_t nread, const uv_buf_t* buf) {
   if (nread > 0) {
     pBuf->len += nread;
     tTrace("server conn %p read summary, total read: %d, current read: %d", conn, pBuf->len, (int)nread);
-    if (readComplete(pBuf)) {
+    if (transReadComplete(pBuf)) {
       tTrace("server conn %p alread read complete packet", conn);
       uvHandleReq(conn);
     } else {

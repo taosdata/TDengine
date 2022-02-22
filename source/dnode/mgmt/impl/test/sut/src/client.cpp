@@ -24,6 +24,9 @@ static void processClientRsp(void* parent, SRpcMsg* pRsp, SEpSet* pEpSet) {
 }
 
 void TestClient::SetRpcRsp(SRpcMsg* rsp) {
+  if (this->pRsp) {
+    free(this->pRsp);
+  }
   this->pRsp = (SRpcMsg*)calloc(1, sizeof(SRpcMsg));
   this->pRsp->msgType = rsp->msgType;
   this->pRsp->code = rsp->code;
@@ -60,7 +63,7 @@ bool TestClient::Init(const char* user, const char* pass, const char* fqdn, uint
   strcpy(this->user, user);
   strcpy(this->pass, pass);
   this->port = port;
-  // this->pRsp = NULL;
+  this->pRsp = NULL;
   this->DoInit();
   return true;
 }
