@@ -1457,7 +1457,8 @@ int32_t exprValidateTimeNode(char *msgbuf, tExprNode *pExpr) {
       }
 
       //time unit
-      if (child1->nodeType != TSQL_NODE_VALUE &&
+      if (child1->nodeType != TSQL_NODE_VALUE ||
+          child1->resultType != TSDB_DATA_TYPE_TIMESTAMP ||
           child1->pVal->nType != TSDB_DATA_TYPE_TIMESTAMP) {
         return TSDB_CODE_TSC_INVALID_OPERATION;
       }
