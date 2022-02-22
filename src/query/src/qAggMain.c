@@ -5174,7 +5174,7 @@ static void copyUniqueRes(SQLFunctionCtx *pCtx, int32_t bytes) {
 
   tvp = pRes->res + (size * ((pCtx->param[2].i64 == TSDB_ORDER_ASC) ? 0 : len -1));
   for (int32_t i = 0; i < len; ++i) {
-    int16_t offset = sizeof(UniqueUnit) + bytes;
+    int32_t offset = (int32_t)sizeof(UniqueUnit) + bytes;
     for (int32_t j = 0; j < pCtx->tagInfo.numOfTagCols; ++j) {
       memcpy(pData[j], tvp + offset, (size_t)pCtx->tagInfo.pTagCtxList[j]->outputBytes);
       offset += pCtx->tagInfo.pTagCtxList[j]->outputBytes;
