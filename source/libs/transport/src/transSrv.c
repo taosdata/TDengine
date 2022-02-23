@@ -413,11 +413,6 @@ void uvWorkerAsyncCb(uv_async_t* handle) {
     } else {
       uvStartSendResp(msg);
     }
-    // uv_buf_t wb;
-    // uvPrepareSendData(msg, &wb);
-    // uv_timer_stop(conn->pTimer);
-
-    // uv_write(conn->pWriter, (uv_stream_t*)conn->pTcp, &wb, 1, uvOnWriteCb);
   }
 }
 static void uvAcceptAsyncCb(uv_async_t* async) {
@@ -490,7 +485,6 @@ void uvOnConnectionCb(uv_stream_t* q, ssize_t nread, const uv_buf_t* buf) {
   pConn->pTimer->data = pConn;
 
   pConn->hostThrd = pThrd;
-  // pConn->pWorkerAsync = pThrd->workerAsync;  // thread safty
 
   // init client handle
   pConn->pTcp = (uv_tcp_t*)malloc(sizeof(uv_tcp_t));
@@ -730,14 +724,9 @@ void destroyWorkThrd(SWorkThrdObj* pThrd) {
 }
 void sendQuitToWorkThrd(SWorkThrdObj* pThrd) {
   SSrvMsg* srvMsg = calloc(1, sizeof(SSrvMsg));
-
-  // pthread_mutex_lock(&pThrd->msgMtx);
-  // QUEUE_PUSH(&pThrd->msg, &srvMsg->q);
-  // pthread_mutex_unlock(&pThrd->msgMtx);
   tDebug("send quit msg to work thread");
 
   transSendAsync(pThrd->asyncPool, &srvMsg->q);
-  // uv_async_send(pThrd->workerAsync);
 }
 
 void taosCloseServer(void* arg) {
@@ -774,19 +763,12 @@ void rpcSendResponse(const SRpcMsg* pMsg) {
   SSrvMsg* srvMsg = calloc(1, sizeof(SSrvMsg));
   srvMsg->pConn = pConn;
   srvMsg->msg = *pMsg;
-
-  // pthread_mutex_lock(&pThrd->msgMtx);
-  // QUEUE_PUSH(&pThrd->msg, &srvMsg->q);
-  // pthread_mutex_unlock(&pThrd->msgMtx);
-
   tTrace("server conn %p start to send resp", pConn);
   transSendAsync(pThrd->asyncPool, &srvMsg->q);
-  // uv_async_send(pThrd->workerAsync);
 }
 
 int rpcGetConnInfo(void* thandle, SRpcConnInfo* pInfo) {
   SSrvConn* pConn = thandle;
-  // struct sockaddr* pPeerName = &pConn->peername;
 
   struct sockaddr_in addr = pConn->addr;
   pInfo->clientIp = (uint32_t)(addr.sin_addr.s_addr);
