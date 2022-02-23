@@ -114,7 +114,6 @@ typedef struct PgHdr DbPage;
 
 /* Open and close a Pager connection. */ 
 int sqlite3PagerOpen(
-  sqlite3_vfs*,
   Pager **ppPager,
   const char*,
   int,
