@@ -20,6 +20,8 @@
 extern "C" {
 #endif
 
+typedef struct SPFile SPFile;
+
 // typedef struct __attribute__((__packed__)) {
 //   char    hdrInfo[16];  // info string
 //   pgsz_t  szPage;       // page size of current file

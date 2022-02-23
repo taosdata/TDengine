@@ -36,7 +36,7 @@ struct SPgHdr {
   SPgHdr * pLruPrev;
 };
 
-int     tdbOpenPCache(int pageSize, int cacheSize, int extraSize, SPCache **ppCache);
+int     tdbPCacheOpen(int pageSize, int cacheSize, int extraSize, SPCache **ppCache);
 int     tdbPCacheClose(SPCache *pCache);
 SPgHdr *tdbPCacheFetch(SPCache *pCache, const SPgid *pPgid, bool alcNewPage);
 void    tdbFetchFinish(SPCache *pCache, SPgHdr *pPage);

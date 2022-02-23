@@ -42,7 +42,7 @@ static void    tdbPCachePinPage(SPgHdr *pPage);
 static void    tdbPCacheRemovePageFromHash(SPgHdr *pPage);
 static void    tdbPCacheAddPageToHash(SPgHdr *pPage);
 
-int tdbOpenPCache(int pageSize, int cacheSize, int extraSize, SPCache **ppCache) {
+int tdbPCacheOpen(int pageSize, int cacheSize, int extraSize, SPCache **ppCache) {
   SPCache *pCache;
   void *   pPtr;
   SPgHdr * pPgHdr;
@@ -74,7 +74,7 @@ int tdbOpenPCache(int pageSize, int cacheSize, int extraSize, SPCache **ppCache)
   return 0;
 }
 
-int tdbClosePCache(SPCache *pCache) {
+int tdbPCacheClose(SPCache *pCache) {
   /* TODO */
   return 0;
 }
