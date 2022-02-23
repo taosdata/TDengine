@@ -13,28 +13,21 @@
  * along with this program. If not, see <http://www.gnu.org/licenses/>.
  */
 
-#ifndef _TD_LIBS_SYNC_RAFT_ENTRY_H
-#define _TD_LIBS_SYNC_RAFT_ENTRY_H
+#ifndef _TD_LIBS_IO_H
+#define _TD_LIBS_IO_H
 
 #ifdef __cplusplus
 extern "C" {
 #endif
 
-#include <stdint.h>
 #include <stdio.h>
 #include <stdlib.h>
-#include "sync.h"
+#include <stdint.h>
 #include "taosdef.h"
 
-typedef struct SSyncRaftEntry {
-  SyncTerm    term;
-  SyncIndex   index;
-  SSyncBuffer data;
-  int8_t      flag;
-} SSyncRaftEntry;
 
 #ifdef __cplusplus
 }
 #endif
 
-#endif /*_TD_LIBS_SYNC_RAFT_ENTRY_H*/
+#endif /*_TD_LIBS_IO_H*/
