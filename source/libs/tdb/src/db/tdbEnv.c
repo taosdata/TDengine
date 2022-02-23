@@ -17,9 +17,50 @@
 
 struct STEnv {
   char *   rootDir;
-  SPCache *pCache;
   int      jfd;
+  SPCache *pCache;
 };
+
+int tdbEnvOpen(const char *rootDir, STEnv **ppEnv) {
+  STEnv *  pEnv;
+  int      dsize;
+  int      zsize;
+  uint8_t *pPtr;
+
+  *ppEnv = NULL;
+
+  dsize = strlen(rootDir);
+  zsize = sizeof(*pEnv) + dsize + 1;
+
+  pPtr = (uint8_t *)calloc(1, zsize);
+  if (pPtr == NULL) {
+    return -1;
+  }
+
+  pEnv = (STEnv *)pPtr;
+  pPtr += sizeof(*pEnv);
+  pEnv->rootDir = pPtr;
+  memcpy(pEnv->rootDir, rootDir, dsize);
+  pEnv->rootDir[dsize] = '\0';
+
+  *ppEnv = pEnv;
+  return 0;
+}
+
+int tdbEnvClose(STEnv *pEnv) {
+  // TODO
+  return 0;
+}
+
+int tdbEnvBegin(STEnv *pEnv) {
+  // TODO
+  return 0;
+}
+
+int tdbEnvCommit(STEnv *pEnv) {
+  // TODO
+  return 0;
+}
 
 #if 0
 struct STDbEnv {

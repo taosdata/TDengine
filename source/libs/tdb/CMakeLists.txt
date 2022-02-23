@@ -10,6 +10,9 @@ target_sources(tdb
     "src/db/tdbPCache.c"
     "src/db/tdbPFile.c"
     "src/db/tdbUtil.c"
+    "src/db/tdbBtree.c"
+    "src/db/tdb.c"
+    "src/db/tdbEnv.c"
 )
 
 target_include_directories(

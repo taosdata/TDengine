@@ -15,6 +15,7 @@
 
 #include "tdbInt.h"
 
+#if 0
 struct STDb {
   char         dbname[TDB_MAX_DBNAME_LEN];
   SBTree *     pBt;      // current access method (may extend)
@@ -203,3 +204,4 @@ static int tdbDefaultKeyCmprFn(int keyLen1, const void *pKey1, int keyLen2, cons
   }
   return cret;
 }
+#endif
