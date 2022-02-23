@@ -21,52 +21,52 @@
 #include "ttimezone.h"
 
 SConfig *cfgInit() {
-  SConfig *pConfig = calloc(1, sizeof(SConfig));
-  if (pConfig == NULL) {
+  SConfig *pCfg = calloc(1, sizeof(SConfig));
+  if (pCfg == NULL) {
     terrno = TSDB_CODE_OUT_OF_MEMORY;
     return NULL;
   }
 
-  pConfig->hash = taosHashInit(16, MurmurHash3_32, false, HASH_NO_LOCK);
-  if (pConfig->hash == NULL) {
-    free(pConfig);
+  pCfg->hash = taosHashInit(16, MurmurHash3_32, false, HASH_NO_LOCK);
+  if (pCfg->hash == NULL) {
+    free(pCfg);
     terrno = TSDB_CODE_OUT_OF_MEMORY;
     return NULL;
   }
 
-  return pConfig;
+  return pCfg;
 }
 
-int32_t cfgLoad(SConfig *pConfig, ECfgSrcType cfgType, const char *sourceStr) {
+int32_t cfgLoad(SConfig *pCfg, ECfgSrcType cfgType, const char *sourceStr) {
   switch (cfgType) {
     case CFG_STYPE_CFG_FILE:
-      return cfgLoadFromCfgFile(pConfig, sourceStr);
+      return cfgLoadFromCfgFile(pCfg, sourceStr);
     case CFG_STYPE_ENV_FILE:
-      return cfgLoadFromEnvFile(pConfig, sourceStr);
+      return cfgLoadFromEnvFile(pCfg, sourceStr);
     case CFG_STYPE_ENV_VAR:
-      return cfgLoadFromEnvVar(pConfig);
+      return cfgLoadFromEnvVar(pCfg);
     case CFG_STYPE_APOLLO_URL:
-      return cfgLoadFromApollUrl(pConfig, sourceStr);
+      return cfgLoadFromApollUrl(pCfg, sourceStr);
     default:
       return -1;
   }
 }
 
-void cfgCleanup(SConfig *pConfig) {
-  if (pConfig != NULL) {
-    if (pConfig->hash != NULL) {
-      taosHashCleanup(pConfig->hash);
-      pConfig->hash == NULL;
+void cfgCleanup(SConfig *pCfg) {
+  if (pCfg != NULL) {
+    if (pCfg->hash != NULL) {
+      taosHashCleanup(pCfg->hash);
+      pCfg->hash == NULL;
     }
-    free(pConfig);
+    free(pCfg);
   }
 }
 
-int32_t cfgGetSize(SConfig *pConfig) { return taosHashGetSize(pConfig->hash); }
+int32_t cfgGetSize(SConfig *pCfg) { return taosHashGetSize(pCfg->hash); }
 
-SConfigItem *cfgIterate(SConfig *pConfig, SConfigItem *pIter) { return taosHashIterate(pConfig->hash, pIter); }
+SConfigItem *cfgIterate(SConfig *pCfg, SConfigItem *pIter) { return taosHashIterate(pCfg->hash, pIter); }
 
-void cfgCancelIterate(SConfig *pConfig, SConfigItem *pIter) { return taosHashCancelIterate(pConfig->hash, pIter); }
+void cfgCancelIterate(SConfig *pCfg, SConfigItem *pIter) { return taosHashCancelIterate(pCfg->hash, pIter); }
 
 static int32_t cfgCheckAndSetTimezone(SConfigItem *pItem, const char *timezone) {
   tfree(pItem->str);
@@ -292,8 +292,8 @@ static int32_t cfgSetTimezone(SConfigItem *pItem, const char *value, ECfgSrcType
   return 0;
 }
 
-int32_t cfgSetItem(SConfig *pConfig, const char *name, const char *value, ECfgSrcType stype) {
-  SConfigItem *pItem = cfgGetItem(pConfig, name);
+int32_t cfgSetItem(SConfig *pCfg, const char *name, const char *value, ECfgSrcType stype) {
+  SConfigItem *pItem = cfgGetItem(pCfg, name);
   if (pItem == NULL) {
     return -1;
   }
@@ -328,12 +328,12 @@ int32_t cfgSetItem(SConfig *pConfig, const char *name, const char *value, ECfgSr
   return -1;
 }
 
-SConfigItem *cfgGetItem(SConfig *pConfig, const char *name) {
+SConfigItem *cfgGetItem(SConfig *pCfg, const char *name) {
   char lowcaseName[CFG_NAME_MAX_LEN + 1] = {0};
   memcpy(lowcaseName, name, CFG_NAME_MAX_LEN);
   strntolower(lowcaseName, name, CFG_NAME_MAX_LEN);
 
-  SConfigItem *pItem = taosHashGet(pConfig->hash, lowcaseName, strlen(lowcaseName) + 1);
+  SConfigItem *pItem = taosHashGet(pCfg->hash, lowcaseName, strlen(lowcaseName) + 1);
   if (pItem == NULL) {
     terrno = TSDB_CODE_CFG_NOT_FOUND;
   }
@@ -341,7 +341,7 @@ SConfigItem *cfgGetItem(SConfig *pConfig, const char *name) {
   return pItem;
 }
 
-static int32_t cfgAddItem(SConfig *pConfig, SConfigItem *pItem, const char *name) {
+static int32_t cfgAddItem(SConfig *pCfg, SConfigItem *pItem, const char *name) {
   pItem->stype = CFG_STYPE_DEFAULT;
   pItem->name = strdup(name);
   if (pItem->name == NULL) {
@@ -353,7 +353,7 @@ static int32_t cfgAddItem(SConfig *pConfig, SConfigItem *pItem, const char *name
   memcpy(lowcaseName, name, CFG_NAME_MAX_LEN);
   strntolower(lowcaseName, name, CFG_NAME_MAX_LEN);
 
-  if (taosHashPut(pConfig->hash, lowcaseName, strlen(lowcaseName) + 1, pItem, sizeof(SConfigItem)) != 0) {
+  if (taosHashPut(pCfg->hash, lowcaseName, strlen(lowcaseName) + 1, pItem, sizeof(SConfigItem)) != 0) {
     if (pItem->dtype == CFG_DTYPE_STRING) {
       free(pItem->str);
     }
@@ -365,94 +365,94 @@ static int32_t cfgAddItem(SConfig *pConfig, SConfigItem *pItem, const char *name
   return 0;
 }
 
-int32_t cfgAddBool(SConfig *pConfig, const char *name, bool defaultVal) {
+int32_t cfgAddBool(SConfig *pCfg, const char *name, bool defaultVal) {
   SConfigItem item = {.dtype = CFG_DTYPE_BOOL, .bval = defaultVal};
-  return cfgAddItem(pConfig, &item, name);
+  return cfgAddItem(pCfg, &item, name);
 }
 
-int32_t cfgAddInt32(SConfig *pConfig, const char *name, int32_t defaultVal, int64_t minval, int64_t maxval) {
+int32_t cfgAddInt32(SConfig *pCfg, const char *name, int32_t defaultVal, int64_t minval, int64_t maxval) {
   if (defaultVal < minval || defaultVal > maxval) {
     terrno = TSDB_CODE_OUT_OF_RANGE;
     return -1;
   }
 
   SConfigItem item = {.dtype = CFG_DTYPE_INT32, .i32 = defaultVal, .imin = minval, .imax = maxval};
-  return cfgAddItem(pConfig, &item, name);
+  return cfgAddItem(pCfg, &item, name);
 }
 
-int32_t cfgAddInt64(SConfig *pConfig, const char *name, int64_t defaultVal, int64_t minval, int64_t maxval) {
+int32_t cfgAddInt64(SConfig *pCfg, const char *name, int64_t defaultVal, int64_t minval, int64_t maxval) {
   if (defaultVal < minval || defaultVal > maxval) {
     terrno = TSDB_CODE_OUT_OF_RANGE;
     return -1;
   }
 
   SConfigItem item = {.dtype = CFG_DTYPE_INT64, .i64 = defaultVal, .imin = minval, .imax = maxval};
-  return cfgAddItem(pConfig, &item, name);
+  return cfgAddItem(pCfg, &item, name);
 }
 
-int32_t cfgAddFloat(SConfig *pConfig, const char *name, float defaultVal, double minval, double maxval) {
+int32_t cfgAddFloat(SConfig *pCfg, const char *name, float defaultVal, double minval, double maxval) {
   if (defaultVal < minval || defaultVal > maxval) {
     terrno = TSDB_CODE_OUT_OF_RANGE;
     return -1;
   }
 
   SConfigItem item = {.dtype = CFG_DTYPE_FLOAT, .fval = defaultVal, .fmin = minval, .fmax = maxval};
-  return cfgAddItem(pConfig, &item, name);
+  return cfgAddItem(pCfg, &item, name);
 }
 
-int32_t cfgAddString(SConfig *pConfig, const char *name, const char *defaultVal) {
+int32_t cfgAddString(SConfig *pCfg, const char *name, const char *defaultVal) {
   SConfigItem item = {.dtype = CFG_DTYPE_STRING};
   item.str = strdup(defaultVal);
   if (item.str == NULL) {
     terrno = TSDB_CODE_OUT_OF_MEMORY;
     return -1;
   }
-  return cfgAddItem(pConfig, &item, name);
+  return cfgAddItem(pCfg, &item, name);
 }
 
-int32_t cfgAddIpStr(SConfig *pConfig, const char *name, const char *defaultVal) {
+int32_t cfgAddIpStr(SConfig *pCfg, const char *name, const char *defaultVal) {
   SConfigItem item = {.dtype = CFG_DTYPE_IPSTR};
   if (cfgCheckAndSetIpStr(&item, defaultVal) != 0) {
     return -1;
   }
 
-  return cfgAddItem(pConfig, &item, name);
+  return cfgAddItem(pCfg, &item, name);
 }
 
-int32_t cfgAddDir(SConfig *pConfig, const char *name, const char *defaultVal) {
+int32_t cfgAddDir(SConfig *pCfg, const char *name, const char *defaultVal) {
   SConfigItem item = {.dtype = CFG_DTYPE_DIR};
   if (cfgCheckAndSetDir(&item, defaultVal) != 0) {
     return -1;
   }
 
-  return cfgAddItem(pConfig, &item, name);
+  return cfgAddItem(pCfg, &item, name);
 }
 
-int32_t cfgAddLocale(SConfig *pConfig, const char *name, const char *defaultVal) {
+int32_t cfgAddLocale(SConfig *pCfg, const char *name, const char *defaultVal) {
   SConfigItem item = {.dtype = CFG_DTYPE_LOCALE};
   if (cfgCheckAndSetLocale(&item, defaultVal) != 0) {
     return -1;
   }
 
-  return cfgAddItem(pConfig, &item, name);
+  return cfgAddItem(pCfg, &item, name);
 }
 
-int32_t cfgAddCharset(SConfig *pConfig, const char *name, const char *defaultVal) {
+int32_t cfgAddCharset(SConfig *pCfg, const char *name, const char *defaultVal) {
   SConfigItem item = {.dtype = CFG_DTYPE_CHARSET};
   if (cfgCheckAndSetCharset(&item, defaultVal) != 0) {
     return -1;
   }
 
-  return cfgAddItem(pConfig, &item, name);
+  return cfgAddItem(pCfg, &item, name);
 }
 
-int32_t cfgAddTimezone(SConfig *pConfig, const char *name, const char *defaultVal) {
+int32_t cfgAddTimezone(SConfig *pCfg, const char *name, const char *defaultVal) {
   SConfigItem item = {.dtype = CFG_DTYPE_TIMEZONE};
   if (cfgCheckAndSetTimezone(&item, defaultVal) != 0) {
     return -1;
   }
 
-  return cfgAddItem(pConfig, &item, name);
+  return cfgAddItem(pCfg, &item, name);
 }
 
 const char *cfgStypeStr(ECfgSrcType type) {
@@ -537,20 +537,54 @@ void cfgPrintCfg(SConfig *pCfg) {
   }
 }
 
-int32_t cfgCheck(SConfig *pConfig) {
+void cfgDumpCfg(SConfig *pCfg) {
+  uInfo("global config");
+  uInfo("==================================");
+
+  SConfigItem *pItem = cfgIterate(pCfg, NULL);
+  while (pItem != NULL) {
+    switch (pItem->dtype) {
+      case CFG_DTYPE_BOOL:
+        uInfo("cfg:%s, value:%u src:%s", pItem->name, pItem->bval, cfgStypeStr(pItem->stype));
+        break;
+      case CFG_DTYPE_INT32:
+        uInfo("cfg:%s, value:%d src:%s", pItem->name, pItem->i32, cfgStypeStr(pItem->stype));
+        break;
+      case CFG_DTYPE_INT64:
+        uInfo("cfg:%s, value:%" PRId64 " src:%s", pItem->name, pItem->i64, cfgStypeStr(pItem->stype));
+        break;
+      case CFG_DTYPE_FLOAT:
+        uInfo("cfg:%s, value:%f src:%s", pItem->name, pItem->fval, cfgStypeStr(pItem->stype));
+        break;
+      case CFG_DTYPE_STRING:
+      case CFG_DTYPE_IPSTR:
+      case CFG_DTYPE_DIR:
+      case CFG_DTYPE_LOCALE:
+      case CFG_DTYPE_CHARSET:
+      case CFG_DTYPE_TIMEZONE:
+        uInfo("cfg:%s, value:%s src:%s", pItem->name, pItem->str, cfgStypeStr(pItem->stype));
+        break;
+    }
+    pItem = cfgIterate(pCfg, pItem);
+  }
+
+  uInfo("==================================");
+}
+
+int32_t cfgCheck(SConfig *pCfg) {
   SConfigItem *pItem = NULL;
 
-  pItem = cfgGetItem(pConfig, "localFqdn");
+  pItem = cfgGetItem(pCfg, "localFqdn");
   if (pItem != NULL) {
     tstrncpy(tsLocalFqdn, pItem->str, TSDB_FQDN_LEN);
   }
 
-  pItem = cfgGetItem(pConfig, "serverPort");
+  pItem = cfgGetItem(pCfg, "serverPort");
   if (pItem != NULL) {
     tsServerPort = (uint16_t)pItem->i32;
   }
 
-  pItem = cfgGetItem(pConfig, "firstEp");
+  pItem = cfgGetItem(pCfg, "firstEp");
   if (pItem != NULL) {
     tstrncpy(tsFirst, pItem->str, TSDB_EP_LEN);
   }
@@ -566,7 +600,7 @@ int32_t cfgCheck(SConfig *pConfig) {
     snprintf(tsFirst, TSDB_EP_LEN, "%s:%u", ep.fqdn, ep.port);
   }
 
-  pItem = cfgGetItem(pConfig, "secondEp");
+  pItem = cfgGetItem(pCfg, "secondEp");
   if (pItem != NULL) {
     tstrncpy(tsSecond, pItem->str, TSDB_EP_LEN);
   }
@@ -578,7 +612,7 @@ int32_t cfgCheck(SConfig *pConfig) {
     snprintf(tsSecond, TSDB_EP_LEN, "%s:%u", ep.fqdn, ep.port);
   }
 
-  pItem = cfgGetItem(pConfig, "dataDir");
+  pItem = cfgGetItem(pCfg, "dataDir");
   if (pItem != NULL) {
     tstrncpy(tsDataDir, pItem->str, PATH_MAX);
   }
@@ -602,7 +636,7 @@ int32_t cfgCheck(SConfig *pConfig) {
   tsSetTimeZone();
   // }
 
-  pItem = cfgGetItem(pConfig, "numOfCores");
+  pItem = cfgGetItem(pCfg, "numOfCores");
   if (pItem != NULL) {
     tsNumOfCores = pItem->i32;
   }
@@ -615,7 +649,7 @@ int32_t cfgCheck(SConfig *pConfig) {
     tsQueryBufferSizeBytes = tsQueryBufferSize * 1048576UL;
   }
 
-  cfgPrintCfg(pConfig);
+  cfgPrintCfg(pCfg);
 
   return 0;
 }

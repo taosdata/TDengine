@@ -45,7 +45,7 @@ int32_t dmnCheckCfg(SConfig *pCfg) {
   bool enableCore = cfgGetItem(pCfg, "enableCoreFile")->bval;
   taosSetCoreDump(enableCore);
 
-  
+
 
   return 0;
 }
@@ -74,13 +74,11 @@ SConfig *dmnReadCfg(const char *cfgDir, const char *envFile, const char *apolloU
 
   if (dmnCheckCfg(pCfg) != 0) {
     uError("failed to check cfg since %s", terrstr());
-  }
-
-  if (taosCheckAndPrintCfg() != 0) {
-    uError("failed to check config");
+    cfgCleanup(pCfg);
     return NULL;
   }
 
+  cfgDumpCfg(pCfg);
   return pCfg;
 }
 

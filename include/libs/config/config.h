@@ -73,27 +73,29 @@ typedef struct SConfigItem {
 typedef struct SConfig SConfig;
 
 SConfig *cfgInit();
-int32_t  cfgLoad(SConfig *pConfig, ECfgSrcType cfgType, const char *sourceStr);
-void     cfgCleanup(SConfig *pConfig);
+int32_t  cfgLoad(SConfig *pCfg, ECfgSrcType cfgType, const char *sourceStr);
+void     cfgCleanup(SConfig *pCfg);
 
-int32_t      cfgGetSize(SConfig *pConfig);
-SConfigItem *cfgIterate(SConfig *pConfig, SConfigItem *pIter);
-void         cfgCancelIterate(SConfig *pConfig, SConfigItem *pIter);
-SConfigItem *cfgGetItem(SConfig *pConfig, const char *name);
+int32_t      cfgGetSize(SConfig *pCfg);
+SConfigItem *cfgIterate(SConfig *pCfg, SConfigItem *pIter);
+void         cfgCancelIterate(SConfig *pCfg, SConfigItem *pIter);
+SConfigItem *cfgGetItem(SConfig *pCfg, const char *name);
 
-int32_t cfgAddBool(SConfig *pConfig, const char *name, bool defaultVal);
-int32_t cfgAddInt32(SConfig *pConfig, const char *name, int32_t defaultVal, int64_t minval, int64_t maxval);
-int32_t cfgAddInt64(SConfig *pConfig, const char *name, int64_t defaultVal, int64_t minval, int64_t maxval);
-int32_t cfgAddFloat(SConfig *pConfig, const char *name, float defaultVal, double minval, double maxval);
-int32_t cfgAddString(SConfig *pConfig, const char *name, const char *defaultVal);
-int32_t cfgAddIpStr(SConfig *pConfig, const char *name, const char *defaultVa);
-int32_t cfgAddDir(SConfig *pConfig, const char *name, const char *defaultVal);
-int32_t cfgAddLocale(SConfig *pConfig, const char *name, const char *defaultVal);
-int32_t cfgAddCharset(SConfig *pConfig, const char *name, const char *defaultVal);
-int32_t cfgAddTimezone(SConfig *pConfig, const char *name, const char *defaultVal);
+int32_t cfgAddBool(SConfig *pCfg, const char *name, bool defaultVal);
+int32_t cfgAddInt32(SConfig *pCfg, const char *name, int32_t defaultVal, int64_t minval, int64_t maxval);
+int32_t cfgAddInt64(SConfig *pCfg, const char *name, int64_t defaultVal, int64_t minval, int64_t maxval);
+int32_t cfgAddFloat(SConfig *pCfg, const char *name, float defaultVal, double minval, double maxval);
+int32_t cfgAddString(SConfig *pCfg, const char *name, const char *defaultVal);
+int32_t cfgAddIpStr(SConfig *pCfg, const char *name, const char *defaultVa);
+int32_t cfgAddDir(SConfig *pCfg, const char *name, const char *defaultVal);
+int32_t cfgAddLocale(SConfig *pCfg, const char *name, const char *defaultVal);
+int32_t cfgAddCharset(SConfig *pCfg, const char *name, const char *defaultVal);
+int32_t cfgAddTimezone(SConfig *pCfg, const char *name, const char *defaultVal);
 
 const char *cfgStypeStr(ECfgSrcType type);
 const char *cfgDtypeStr(ECfgDataType type);
+
+void cfgDumpCfg(SConfig *pCfg);
 
 #ifdef __cplusplus
 }
