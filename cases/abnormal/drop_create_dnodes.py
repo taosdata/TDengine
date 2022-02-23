@@ -16,18 +16,15 @@ import random
 import os
 import time
 import taos
-from queryutil.createdata import *
-from queryutil.where import *
-from queryutil.function import *
+import datetime
 from itertools import product
 from itertools import combinations
 import subprocess
 from taostest import TDCase
-from taostest.util.common import TDCom
+from distutils.log import warn as printf
 
-class TestNcharBoundary(TDCase):
+class TestDnodes(TDCase):
     def init(self):
-        self.tdCom = TDCom(self.tdSql)
         self.basic_dnodes = 5 # ->int
         self.loop_times = 100
 
@@ -85,13 +82,16 @@ class TestNcharBoundary(TDCase):
         '''
          create dnodes_ids
         '''
-        cmds = 'taos -s "create dnode \"%s\"; "'%dnode_ids
+        cmds = "taos -s 'create dnode \" %s \" ' ; "%(dnode_ids)
+        
         os.system(cmds)
-    def drop_dnodes(self):
-         '''
+
+    def drop_dnodes(self,dnode_ids):
+        '''
          drop dnodes_ids
         '''
-        cmds = 'taos -s "drop dnode \"%s\"; "'%dnode_ids
+        cmds = "taos -s 'drop dnode \" %s \" ' ; "%(dnode_ids)
+        
         os.system(cmds)
 
     def case_common(self):
@@ -675,7 +675,7 @@ class TestNcharBoundary(TDCase):
         basic_query_seed = 6
         for loop in self.loop_times:
             if loop % basic_query_seed ==0:
-                self.basic_query()
+                # self.basic_query()
                 self.basic_alter_exec()
 
             if loop%10 ==0 and flag:
@@ -689,14 +689,10 @@ class TestNcharBoundary(TDCase):
                     os.system("taos -s 'show dnodes;'")
             else:
                miss_dnodes = self.miss_dnodes(basic_dnodes_name)
-                if  miss_dnodes: # dnodes is full
-                    dnode_ids = random.sample(miss_dnodes,1)
-                    flag = self.is_accept_EP(dnode_ids)
-                    self.create_dnodes(dnode_ids)
-                else:
-                    print("current dnodes list is full")
-                    os.system("taos -s 'show dnodes;'")
-
-
-
-
+               if  miss_dnodes: # dnodes is full
+                   dnode_ids = random.sample(miss_dnodes,1)
+                   flag = self.is_accept_EP(dnode_ids)
+                   self.create_dnodes(dnode_ids)
+               else:
+                   print("current dnodes list is full")
+                   os.system("taos -s 'show dnodes;'")
