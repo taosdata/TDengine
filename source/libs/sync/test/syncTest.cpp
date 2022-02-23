@@ -1,26 +1,19 @@
 #include <stdio.h>
+#include "syncIO.h"
 #include "syncInt.h"
 
 int main() {
-    printf("test \n");
+  tsAsyncLog = 0;
+  taosInitLog((char*)"syncTest.log", 100000, 10);
 
-    syncStartEnv();
+  sDebug("sync test");
+  syncStartEnv();
 
-    char temp[100];
-    snprintf(temp, 100, "./debug.log");
-    taosInitLog(temp, 10000, 1);
-    tsAsyncLog = 0;
+  SSyncIO *syncIO = syncIOCreate();
+  assert(syncIO != NULL);
 
-    for (int i = 0; i < 100; i++) {
-        sDebug("log:%d -------- \n", i);
-    }
-
-    fflush(NULL);
-    //taosCloseLog();
-
-    while(1) {
-        sleep(3);
-    }
-    return 0;
+  while (1) {
+    sleep(3);
+  }
+  return 0;
 }
-

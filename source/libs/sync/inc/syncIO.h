@@ -20,11 +20,38 @@
 extern "C" {
 #endif
 
+#include <stdint.h>
 #include <stdio.h>
 #include <stdlib.h>
-#include <stdint.h>
+#include "os.h"
+#include "syncInt.h"
 #include "taosdef.h"
+#include "tqueue.h"
+#include "trpc.h"
 
+typedef struct SSyncIO {
+  void *      serverRpc;
+  void *      clientRpc;
+  STaosQueue *pMsgQ;
+  STaosQset * pQset;
+  pthread_t   tid;
+  int8_t      isStart;
+
+  int32_t (*start)(struct SSyncIO *ths);
+  int32_t (*stop)(struct SSyncIO *ths);
+  int32_t (*ping)(struct SSyncIO *ths);
+  int32_t (*onMessage)(struct SSyncIO *ths, void *pParent, SRpcMsg *pMsg, SEpSet *pEpSet);
+  int32_t (*destroy)(struct SSyncIO *ths);
+
+} SSyncIO;
+
+SSyncIO * syncIOCreate();
+
+static int32_t syncIOStart(SSyncIO *io);
+static int32_t syncIOStop(SSyncIO *io);
+static int32_t syncIOPing(SSyncIO *io);
+static int32_t syncIOOnMessage(struct SSyncIO *io, void *pParent, SRpcMsg *pMsg, SEpSet *pEpSet);
+static int32_t syncIODestroy(SSyncIO *io);
 
 #ifdef __cplusplus
 }

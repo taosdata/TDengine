@@ -23,16 +23,14 @@ extern "C" {
 #include <stdint.h>
 #include <stdio.h>
 #include <stdlib.h>
-#include "taosdef.h"
 #include "sync.h"
+#include "taosdef.h"
 #include "tlog.h"
 
 extern int32_t sDebugFlag;
 
-#define sLog(...)                                        \
-  {                                                        \
-      taosPrintLog("SYN FATAL ", sDebugFlag, __VA_ARGS__); \
-  }
+#define sLog(...) \
+  { taosPrintLog("SYN FATAL ", sDebugFlag, __VA_ARGS__); }
 
 #define sFatal(...)                                        \
   {                                                        \
