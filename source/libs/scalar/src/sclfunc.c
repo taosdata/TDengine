@@ -268,9 +268,6 @@ static void setScalarFuncParam(SScalarParam* param, int32_t type, int32_t bytes,
   param->data = pInput;
 }
 
-bool isStringOp(int32_t op) {
-  return op == TSDB_BINARY_OP_CONCAT;
-}
 
 #if 0
 int32_t evaluateExprNodeTree(tExprNode* pExprs, int32_t numOfRows, SScalarFuncParam* pOutput, void* param,

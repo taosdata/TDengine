@@ -43,7 +43,6 @@ enum {
   FLD_TYPE_COLUMN = 1,
   FLD_TYPE_VALUE = 2,  
   FLD_TYPE_MAX = 3,
-  FLD_DESC_NO_FREE = 4,
   FLD_DATA_NO_FREE = 8,
   FLD_DATA_IS_HASH = 16,
 };
@@ -61,11 +60,6 @@ enum {
   RANGE_FLG_NULL    = 4,
 };
 
-enum {
-  FI_OPTION_NO_REWRITE = 1,
-  FI_OPTION_TIMESTAMP = 2,
-  FI_OPTION_NEED_UNIQE = 4,
-};
 
 enum {
   FI_STATUS_ALL = 1,
@@ -107,7 +101,6 @@ typedef struct SFilterRange {
 typedef bool (*rangeCompFunc) (const void *, const void *, const void *, const void *, __compar_fn_t);
 typedef int32_t(*filter_desc_compare_func)(const void *, const void *);
 typedef bool(*filter_exec_func)(void *, int32_t, int8_t**, SColumnDataAgg *, int16_t);
-typedef int32_t (*filer_get_col_from_id)(void *, int32_t, void **);
 typedef int32_t (*filer_get_col_from_name)(void *, int32_t, char*, void **);
 
 typedef struct SFilterRangeCompare {
@@ -264,12 +257,12 @@ typedef struct SFilterInfo {
 } SFilterInfo;
 
 #define FILTER_NO_MERGE_DATA_TYPE(t) ((t) == TSDB_DATA_TYPE_BINARY || (t) == TSDB_DATA_TYPE_NCHAR || (t) == TSDB_DATA_TYPE_JSON)
-#define FILTER_NO_MERGE_OPTR(o) ((o) == TSDB_RELATION_ISNULL || (o) == TSDB_RELATION_NOTNULL || (o) == FILTER_DUMMY_EMPTY_OPTR)
+#define FILTER_NO_MERGE_OPTR(o) ((o) == OP_TYPE_IS_NULL || (o) == OP_TYPE_IS_NOT_NULL || (o) == FILTER_DUMMY_EMPTY_OPTR)
 
 #define MR_EMPTY_RES(ctx) (ctx->rs == NULL)
 
-#define SET_AND_OPTR(ctx, o) do {if (o == TSDB_RELATION_ISNULL) { (ctx)->isnull = true; } else if (o == TSDB_RELATION_NOTNULL) { if (!(ctx)->isrange) { (ctx)->notnull = true; } } else if (o != FILTER_DUMMY_EMPTY_OPTR) { (ctx)->isrange = true; (ctx)->notnull = false; }  } while (0)
-#define SET_OR_OPTR(ctx,o) do {if (o == TSDB_RELATION_ISNULL) { (ctx)->isnull = true; } else if (o == TSDB_RELATION_NOTNULL) { (ctx)->notnull = true; (ctx)->isrange = false; } else if (o != FILTER_DUMMY_EMPTY_OPTR) { if (!(ctx)->notnull) { (ctx)->isrange = true; } } } while (0)
+#define SET_AND_OPTR(ctx, o) do {if (o == OP_TYPE_IS_NULL) { (ctx)->isnull = true; } else if (o == OP_TYPE_IS_NOT_NULL) { if (!(ctx)->isrange) { (ctx)->notnull = true; } } else if (o != FILTER_DUMMY_EMPTY_OPTR) { (ctx)->isrange = true; (ctx)->notnull = false; }  } while (0)
+#define SET_OR_OPTR(ctx,o) do {if (o == OP_TYPE_IS_NULL) { (ctx)->isnull = true; } else if (o == OP_TYPE_IS_NOT_NULL) { (ctx)->notnull = true; (ctx)->isrange = false; } else if (o != FILTER_DUMMY_EMPTY_OPTR) { if (!(ctx)->notnull) { (ctx)->isrange = true; } } } while (0)
 #define CHK_OR_OPTR(ctx)  ((ctx)->isnull == true && (ctx)->notnull == true)
 #define CHK_AND_OPTR(ctx)  ((ctx)->isnull == true && (((ctx)->notnull == true) || ((ctx)->isrange == true)))
 
@@ -351,22 +344,9 @@ typedef struct SFilterInfo {
 #define FILTER_ALL_RES(i) FILTER_GET_FLAG((i)->status, FI_STATUS_ALL)
 #define FILTER_EMPTY_RES(i) FILTER_GET_FLAG((i)->status, FI_STATUS_EMPTY)
 
-#if 0
-extern int32_t filterInitFromTree(tExprNode* tree, void **pinfo, uint32_t options);
-extern bool filterExecute(SFilterInfo *info, int32_t numOfRows, int8_t** p, SColumnDataAgg *statis, int16_t numOfCols);
-extern int32_t filterSetColFieldData(SFilterInfo *info, void *param, filer_get_col_from_id fp);
-extern int32_t filterSetJsonColFieldData(SFilterInfo *info, void *param, filer_get_col_from_name fp);
-extern int32_t filterGetTimeRange(SFilterInfo *info, STimeWindow *win);
-extern int32_t filterConverNcharColumns(SFilterInfo* pFilterInfo, int32_t rows, bool *gotNchar);
-extern int32_t filterFreeNcharColumns(SFilterInfo* pFilterInfo);
-extern void filterFreeInfo(SFilterInfo *info);
-extern bool filterRangeExecute(SFilterInfo *info, SColumnDataAgg *pDataStatis, int32_t numOfCols, int32_t numOfRows);
-#else
-//REMOVE THESE!!!!!!!!!!!!!!!!!!!!
-#include "function.h"
-#endif
 extern bool filterDoCompare(__compar_fn_t func, uint8_t optr, void *left, void *right);
 extern __compar_fn_t filterGetCompFunc(int32_t type, int32_t optr);
+
 
 #ifdef __cplusplus
 }

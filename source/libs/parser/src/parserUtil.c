@@ -884,7 +884,7 @@ SColumnFilterInfo* tFilterInfoDup(const SColumnFilterInfo* src, int32_t numOfFil
   }
 
   assert(src->filterstr == 0 || src->filterstr == 1);
-  assert(!(src->lowerRelOptr == TSDB_RELATION_INVALID && src->upperRelOptr == TSDB_RELATION_INVALID));
+  assert(!(src->lowerRelOptr == 0 && src->upperRelOptr == 0));
 
   return pFilter;
 }
@@ -1507,45 +1507,45 @@ int32_t getTagFilterSerializeLen(SQueryStmtInfo* pQueryInfo) {
 uint32_t convertRelationalOperator(SToken *pToken) {
   switch (pToken->type) {
     case TK_LT:
-      return TSDB_RELATION_LESS;
+      return OP_TYPE_LOWER_THAN;
     case TK_LE:
-      return TSDB_RELATION_LESS_EQUAL;
+      return OP_TYPE_LOWER_EQUAL;
     case TK_GT:
-      return TSDB_RELATION_GREATER;
+      return OP_TYPE_GREATER_THAN;
     case TK_GE:
-      return TSDB_RELATION_GREATER_EQUAL;
+      return OP_TYPE_GREATER_EQUAL;
     case TK_NE:
-      return TSDB_RELATION_NOT_EQUAL;
+      return OP_TYPE_NOT_EQUAL;
     case TK_AND:
-      return TSDB_RELATION_AND;
+      return LOGIC_COND_TYPE_AND;
     case TK_OR:
-      return TSDB_RELATION_OR;
+      return LOGIC_COND_TYPE_OR;
     case TK_EQ:
-      return TSDB_RELATION_EQUAL;
+      return OP_TYPE_EQUAL;
 
     case TK_PLUS:
-      return TSDB_BINARY_OP_ADD;
+      return OP_TYPE_ADD;
     case TK_MINUS:
-      return TSDB_BINARY_OP_SUBTRACT;
+      return OP_TYPE_SUB;
     case TK_STAR:
-      return TSDB_BINARY_OP_MULTIPLY;
+      return OP_TYPE_MULTI;
     case TK_SLASH:
     case TK_DIVIDE:
-      return TSDB_BINARY_OP_DIVIDE;
+      return OP_TYPE_DIV;
     case TK_REM:
-      return TSDB_BINARY_OP_REMAINDER;
+      return OP_TYPE_MOD;
     case TK_LIKE:
-      return TSDB_RELATION_LIKE;
+      return OP_TYPE_LIKE;
     case TK_MATCH:
-      return TSDB_RELATION_MATCH;
+      return OP_TYPE_MATCH;
     case TK_NMATCH:
-      return TSDB_RELATION_NMATCH;
+      return OP_TYPE_NMATCH;
     case TK_ISNULL:
-      return TSDB_RELATION_ISNULL;
+      return OP_TYPE_IS_NULL;
     case TK_NOTNULL:
-      return TSDB_RELATION_NOTNULL;
+      return OP_TYPE_IS_NOT_NULL;
     case TK_IN:
-      return TSDB_RELATION_IN;
+      return OP_TYPE_IN;
     default: { return 0; }
   }
 }
