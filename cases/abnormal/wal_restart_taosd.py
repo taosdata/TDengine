@@ -125,8 +125,12 @@ class TestWal(TDCase):
                     f.write('SQL:'+insert_sql+'\n')
                     insert_errno_failed.append(err.errno)
                     f.write('errno:'+str(err.errno)+'\n')
+                    f.write('error type:'+str(err.msg)+'\n')
                     f.write('======= count:%d =======\n'%self.failed_conut)
-                    flag = 1
+                    if err.msg=="Database not ready":
+                        flag =2
+                    else :
+                        flag = 1
                     self.failed_conut+=1
                     f.write('\n')
                     f.flush()
@@ -134,15 +138,45 @@ class TestWal(TDCase):
 
                 if flag == 0: # means insert sucess
                     sub_dbname =dbname_list[1] 
-                else:
+                elif flag ==1 :
                     sub_dbname =dbname_list[2] 
+                elif flag ==2 :
+                    sub_dbname =dbname_list[3]
 
                 insert_sql=insert_sql.replace(dbname,sub_dbname)
                 conn_sub.execute(insert_sql)
 
         f.close()
  
-            
+    def compare_data(self):
+
+        more = set()
+        miss = set()
+        conn_major = taos.connect(host="vm130", port=6030,user="root", password="taosdata", config="/data/run/dnode0/config")
+        conn_sub = taos.connect(host="vm130", port=6130,user="root", password="taosdata", config="/data/run/dnode1/config")
+        result = conn_major.query("select int_val from wal_test.st")
+        major_data = result.fetch_all()
+        print(type(major_data) , len(major_data))
+
+        result = conn_sub.query("select int_val from wal_success.st")
+        sub_success_data = result.fetch_all()
+
+        result = conn_sub.query("select int_val from wal_failed.st")
+        sub_failed_data = result.fetch_all()
+
+        result = conn_sub.query("select int_val from wal_error.st")
+        sub_error_data = result.fetch_all()
+
+        total_failed = sub_error_data+sub_failed_data
+
+        more = set(major_data) - set(sub_success_data)
+        miss = set(sub_success_data) - set(major_data)
+
+        print("more", more)
+        print("miss" , miss)
+        
+
+
 
     def run(self) -> bool:
         self.dbname_check()
@@ -151,15 +185,16 @@ class TestWal(TDCase):
         # async threading run insert and kill instance major
         major_pid_string = "taosd -c /data/run/dnode0/config"
         
-        thread_pool = []
-        thread_insert = threading.Thread(target=self.basic_insert_task)
-        thread_kill_instance = threading.Thread(target=self.restart_major_taosd, args=(major_pid_string,self.sleep_time,self.loops))
-        thread_pool.append(thread_insert)
-        thread_pool.append(thread_kill_instance)
+        # thread_pool = []
+        # thread_insert = threading.Thread(target=self.basic_insert_task)
+        # thread_kill_instance = threading.Thread(target=self.restart_major_taosd, args=(major_pid_string,self.sleep_time,self.loops))
+        # thread_pool.append(thread_insert)
+        # thread_pool.append(thread_kill_instance)
 
-        #run task
-        for task in thread_pool:
-            task.start() 
+        # #run task
+        # for task in thread_pool:
+        #     task.start() 
+        self.compare_data()
         
 
         
