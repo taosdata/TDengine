@@ -22,14 +22,15 @@ int vnodeProcessWMsgs(SVnode *pVnode, SArray *pMsgs) {
   for (int i = 0; i < taosArrayGetSize(pMsgs); i++) {
     pMsg = *(SRpcMsg **)taosArrayGet(pMsgs, i);
 
-    // ser request version
+    // set request version
     void   *pBuf = POINTER_SHIFT(pMsg->pCont, sizeof(SMsgHead));
     int64_t ver = pVnode->state.processed++;
     taosEncodeFixedI64(&pBuf, ver);
 
     if (walWrite(pVnode->pWal, ver, pMsg->msgType, pMsg->pCont, pMsg->contLen) < 0) {
-      /*ASSERT(false);*/
       // TODO: handle error
+      /*ASSERT(false);*/
+      vError("vnode:%d  write wal error since %s", pVnode->vgId, terrstr());
     }
   }
 

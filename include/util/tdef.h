@@ -13,6 +13,8 @@
  * along with this program. If not, see <http://www.gnu.org/licenses/>.
  */
 
+// clang-format off
+
 #ifndef _TD_UTIL_DEF_H
 #define _TD_UTIL_DEF_H
 
@@ -196,6 +198,7 @@ typedef enum ELogicConditionType {
 #define TSDB_TOPIC_FNAME_LEN      TSDB_TABLE_FNAME_LEN
 #define TSDB_CONSUMER_GROUP_LEN   192
 #define TSDB_SUBSCRIBE_KEY_LEN    (TSDB_CONSUMER_GROUP_LEN + TSDB_TOPIC_FNAME_LEN + 2)
+#define TSDB_PARTITION_KEY_LEN    (TSDB_CONSUMER_GROUP_LEN + TSDB_TOPIC_FNAME_LEN + 2)
 #define TSDB_COL_NAME_LEN         65
 #define TSDB_MAX_SAVED_SQL_LEN    TSDB_MAX_COLUMNS * 64
 #define TSDB_MAX_SQL_LEN          TSDB_PAYLOAD_SIZE
@@ -348,9 +351,6 @@ typedef enum ELogicConditionType {
 
 #define TSDB_QUERY_TYPE_NON_TYPE        0x00u     // none type
 #define TSDB_QUERY_TYPE_FREE_RESOURCE   0x01u     // free qhandle at vnode
-
-#define TSDB_QUERY_TYPE_NON_TYPE      0x00u  // none type
-#define TSDB_QUERY_TYPE_FREE_RESOURCE 0x01u  // free qhandle at vnode
 
 #define TSDB_META_COMPACT_RATIO         0       // disable tsdb meta compact by default
 

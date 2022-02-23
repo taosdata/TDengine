@@ -20,6 +20,8 @@
 extern "C" {
 #endif
 
+// clang-format off
+
 #define TAOS_DEF_ERROR_CODE(mod, code) ((int32_t)((0x80000000 | ((mod)<<16) | (code))))
  
 #define TAOS_SYSTEM_ERROR(code)             (0x80ff0000 | (code))
@@ -260,6 +262,7 @@ int32_t* taosGetErrno();
 #define TSDB_CODE_MND_CONSUMER_NOT_EXIST        TAOS_DEF_ERROR_CODE(0, 0x03E7)
 #define TSDB_CODE_MND_UNSUPPORTED_TOPIC         TAOS_DEF_ERROR_CODE(0, 0x03E8)
 #define TSDB_CODE_MND_SUBSCRIBE_NOT_EXIST       TAOS_DEF_ERROR_CODE(0, 0x03E9)
+#define TSDB_CODE_MND_OFFSET_NOT_EXIST          TAOS_DEF_ERROR_CODE(0, 0x03EA)
 #define TSDB_CODE_MND_MQ_PLACEHOLDER            TAOS_DEF_ERROR_CODE(0, 0x03F0)
 
 // dnode

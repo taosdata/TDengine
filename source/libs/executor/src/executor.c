@@ -35,7 +35,7 @@ static int32_t doSetStreamBlock(SOperatorInfo* pOperator, void* input, char* id)
   } else {
     SStreamBlockScanInfo* pInfo = pOperator->info;
     if (tqReadHandleSetMsg(pInfo->readerHandle, input, 0) < 0) {
-      qError("submit msg error while set stream msg, %s" PRIx64, id);
+      qError("submit msg messed up when initing stream block, %s" PRIx64, id);
       return TSDB_CODE_QRY_APP_ERROR;
     }
     return TSDB_CODE_SUCCESS;
