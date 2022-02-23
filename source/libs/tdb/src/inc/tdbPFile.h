@@ -22,37 +22,11 @@ extern "C" {
 
 typedef struct SPFile SPFile;
 
-// typedef struct __attribute__((__packed__)) {
-//   char    hdrInfo[16];  // info string
-//   pgsz_t  szPage;       // page size of current file
-//   int32_t cno;          // commit number counter
-//   SPgno  freePgno;     // freelist page number
-//   uint8_t resv[100];    // reserved space
-// } SPgFileHdr;
-
-// #define TDB_PG_FILE_HDR_SIZE 128
-
-// TDB_STATIC_ASSERT(sizeof(SPgFileHdr) == TDB_PG_FILE_HDR_SIZE, "Page file header size if not 128");
-
-// struct SPgFile {
-//   TENV *          pEnv;                     // env containing this page file
-//   char *          fname;                    // backend file name
-//   uint8_t         fileid[TDB_FILE_ID_LEN];  // file id
-//   SPgno          lsize;                    // page file logical size (for count)
-//   SPgno          fsize;                    // real file size on disk (for rollback)
-//   int             fd;
-//   SPgFileListNode envHash;
-//   SPgFileListNode envPgfList;
-// };
-
-// int pgFileOpen(SPgFile **ppPgFile, const char *fname, TENV *pEnv);
-// int pgFileClose(SPgFile *pPgFile);
-
-// SPage *pgFileFetch(SPgFile *pPgFile, SPgno pgno);
-// int    pgFileRelease(SPage *pPage);
-
-// int pgFileWrite(SPage *pPage);
-// int pgFileAllocatePage(SPgFile *pPgFile, SPgno *pPgno);
+int tdbPFileOpen(SPCache *pCache, const char *fileName, SPFile **ppFile);
+int tdbPFileClose(SPFile *pFile);
+int tdbPFileBegin(SPFile *pFile);
+int tdbPFileCommit(SPFile *pFile);
+int tdbPFileRollback(SPFile *pFile);
 
 #ifdef __cplusplus
 }
