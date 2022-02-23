@@ -975,6 +975,129 @@ TEST(columnTest, binary_column_in_binary_list) {
   }
 }
 
+TEST(columnTest, binary_column_like_binary) {
+  SNode *pLeft = NULL, *pRight = NULL, *opNode = NULL;
+  char rightv[64] = {0};
+  char leftv[5][5]= {0};
+  SSDataBlock *src = NULL;  
+  SScalarParam res = {0};
+  bool eRes[5] = {true, false, true, false, true};  
+  
+  for (int32_t i = 0; i < 5; ++i) {
+    leftv[i][2] = 'a';
+    leftv[i][3] = 'a';
+    leftv[i][4] = '0' + i % 2;
+    varDataSetLen(leftv[i], 3);
+  }  
+  
+  int32_t rowNum = sizeof(leftv)/sizeof(leftv[0]);
+  scltMakeColRefNode(&pLeft, &src, TSDB_DATA_TYPE_BINARY, 3, rowNum, leftv);  
+
+  sprintf(&rightv[2], "%s", "__0");
+  varDataSetLen(rightv, strlen(&rightv[2]));
+  scltMakeValueNode(&pRight, TSDB_DATA_TYPE_BINARY, rightv);
+  scltMakeOpNode(&opNode, OP_TYPE_LIKE, TSDB_DATA_TYPE_BOOL, pLeft, pRight);
+  
+  int32_t code = scalarCalculate(opNode, src, &res);
+  ASSERT_EQ(code, 0);
+  ASSERT_EQ(res.num, rowNum);
+  ASSERT_EQ(res.type, TSDB_DATA_TYPE_BOOL);
+  ASSERT_EQ(res.bytes, tDataTypes[TSDB_DATA_TYPE_BOOL].bytes);
+  for (int32_t i = 0; i < rowNum; ++i) {
+    ASSERT_EQ(*((bool *)res.data + i), eRes[i]);
+  }
+}
+
+TEST(columnTest, binary_column_is_true) {
+  SNode *pLeft = NULL, *opNode = NULL;
+  char leftv[5][5]= {0};
+  SSDataBlock *src = NULL;  
+  SScalarParam res = {0};
+  bool eRes[5] = {false, true, false, true, false};  
+  
+  for (int32_t i = 0; i < 5; ++i) {
+    leftv[i][2] = '0' + i % 2;
+    leftv[i][3] = 'a';
+    leftv[i][4] = '0' + i % 2;
+    varDataSetLen(leftv[i], 3);
+  }  
+  
+  int32_t rowNum = sizeof(leftv)/sizeof(leftv[0]);
+  scltMakeColRefNode(&pLeft, &src, TSDB_DATA_TYPE_BINARY, 3, rowNum, leftv);  
+
+  scltMakeOpNode(&opNode, OP_TYPE_IS_TRUE, TSDB_DATA_TYPE_BOOL, pLeft, NULL);
+  
+  int32_t code = scalarCalculate(opNode, src, &res);
+  ASSERT_EQ(code, 0);
+  ASSERT_EQ(res.num, rowNum);
+  ASSERT_EQ(res.type, TSDB_DATA_TYPE_BOOL);
+  ASSERT_EQ(res.bytes, tDataTypes[TSDB_DATA_TYPE_BOOL].bytes);
+  for (int32_t i = 0; i < rowNum; ++i) {
+    ASSERT_EQ(*((bool *)res.data + i), eRes[i]);
+  }
+}
+
+TEST(columnTest, binary_column_is_null) {
+  SNode *pLeft = NULL, *opNode = NULL;
+  char leftv[5][5]= {0};
+  SSDataBlock *src = NULL;  
+  SScalarParam res = {0};
+  bool eRes[5] = {false, false, false, false, true};  
+  
+  for (int32_t i = 0; i < 4; ++i) {
+    leftv[i][2] = '0' + i % 2;
+    leftv[i][3] = 'a';
+    leftv[i][4] = '0' + i % 2;
+    varDataSetLen(leftv[i], 3);
+  }  
+
+  setVardataNull(leftv[4], TSDB_DATA_TYPE_BINARY);
+  
+  int32_t rowNum = sizeof(leftv)/sizeof(leftv[0]);
+  scltMakeColRefNode(&pLeft, &src, TSDB_DATA_TYPE_BINARY, 3, rowNum, leftv);  
+
+  scltMakeOpNode(&opNode, OP_TYPE_IS_NULL, TSDB_DATA_TYPE_BOOL, pLeft, NULL);
+  
+  int32_t code = scalarCalculate(opNode, src, &res);
+  ASSERT_EQ(code, 0);
+  ASSERT_EQ(res.num, rowNum);
+  ASSERT_EQ(res.type, TSDB_DATA_TYPE_BOOL);
+  ASSERT_EQ(res.bytes, tDataTypes[TSDB_DATA_TYPE_BOOL].bytes);
+  for (int32_t i = 0; i < rowNum; ++i) {
+    ASSERT_EQ(*((bool *)res.data + i), eRes[i]);
+  }
+}
+
+TEST(columnTest, binary_column_is_not_null) {
+  SNode *pLeft = NULL, *opNode = NULL;
+  char leftv[5][5]= {0};
+  SSDataBlock *src = NULL;  
+  SScalarParam res = {0};
+  bool eRes[5] = {true, true, true, true, false};  
+  
+  for (int32_t i = 0; i < 4; ++i) {
+    leftv[i][2] = '0' + i % 2;
+    leftv[i][3] = 'a';
+    leftv[i][4] = '0' + i % 2;
+    varDataSetLen(leftv[i], 3);
+  }  
+
+  setVardataNull(leftv[4], TSDB_DATA_TYPE_BINARY);
+  
+  int32_t rowNum = sizeof(leftv)/sizeof(leftv[0]);
+  scltMakeColRefNode(&pLeft, &src, TSDB_DATA_TYPE_BINARY, 3, rowNum, leftv);  
+
+  scltMakeOpNode(&opNode, OP_TYPE_IS_NOT_NULL, TSDB_DATA_TYPE_BOOL, pLeft, NULL);
+  
+  int32_t code = scalarCalculate(opNode, src, &res);
+  ASSERT_EQ(code, 0);
+  ASSERT_EQ(res.num, rowNum);
+  ASSERT_EQ(res.type, TSDB_DATA_TYPE_BOOL);
+  ASSERT_EQ(res.bytes, tDataTypes[TSDB_DATA_TYPE_BOOL].bytes);
+  for (int32_t i = 0; i < rowNum; ++i) {
+    ASSERT_EQ(*((bool *)res.data + i), eRes[i]);
+  }
+}
 
 
 int main(int argc, char** argv) {

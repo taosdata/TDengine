@@ -1294,8 +1294,21 @@ void vectorCompareImpl(SScalarParam* pLeft, SScalarParam* pRight, void *out, int
   bool res = false;
   
   bool *output=(bool *)out;
-  _getValueAddr_fn_t getVectorValueAddrFnLeft = getVectorValueAddrFn(pLeft->type);
-  _getValueAddr_fn_t getVectorValueAddrFnRight = getVectorValueAddrFn(pRight->type);
+  _getValueAddr_fn_t getVectorValueAddrFnLeft = NULL;
+  _getValueAddr_fn_t getVectorValueAddrFnRight = NULL;
+
+  if (IS_VAR_DATA_TYPE(pLeft->type) && !pLeft->colData) {
+    getVectorValueAddrFnLeft = getVectorValueAddr_default;
+  } else {
+    getVectorValueAddrFnLeft = getVectorValueAddrFn(pLeft->type);
+  }
+
+  if (IS_VAR_DATA_TYPE(pRight->type) && !pRight->colData) {
+    getVectorValueAddrFnRight = getVectorValueAddr_default;
+  } else {
+    getVectorValueAddrFnRight = getVectorValueAddrFn(pRight->type);
+  }
+
 
   if (pLeft->num == pRight->num) {
     for (; i < pRight->num && i >= 0; i += step, output += 1) {
@@ -1420,7 +1433,13 @@ void vectorIsNull(SScalarParam* pLeft, SScalarParam* pRight, void *out, int32_t 
   bool res = false;
   
   bool *output=(bool *)out;
-  _getValueAddr_fn_t getVectorValueAddrFnLeft = getVectorValueAddrFn(pLeft->type);
+  _getValueAddr_fn_t getVectorValueAddrFnLeft = NULL;
+
+  if (IS_VAR_DATA_TYPE(pLeft->type) && !pLeft->colData) {
+    getVectorValueAddrFnLeft = getVectorValueAddr_default;
+  } else {
+    getVectorValueAddrFnLeft = getVectorValueAddrFn(pLeft->type);
+  }
 
   for (; i >= 0 && i < pLeft->num; i += step, output += 1) {
     if (isNull(getVectorValueAddrFnLeft(pLeft->data,i), pLeft->type)) {
@@ -1440,7 +1459,13 @@ void vectorNotNull(SScalarParam* pLeft, SScalarParam* pRight, void *out, int32_t
   bool res = false;
   
   bool *output = (bool *)out;
-  _getValueAddr_fn_t getVectorValueAddrFnLeft = getVectorValueAddrFn(pLeft->type);
+  _getValueAddr_fn_t getVectorValueAddrFnLeft = NULL;
+
+  if (IS_VAR_DATA_TYPE(pLeft->type) && !pLeft->colData) {
+    getVectorValueAddrFnLeft = getVectorValueAddr_default;
+  } else {
+    getVectorValueAddrFnLeft = getVectorValueAddrFn(pLeft->type);
+  }
 
   for (; i >= 0 && i < pLeft->num; i += step, output += 1) {
     if (isNull(getVectorValueAddrFnLeft(pLeft->data,i), pLeft->type)) {
@@ -1456,6 +1481,11 @@ void vectorNotNull(SScalarParam* pLeft, SScalarParam* pRight, void *out, int32_t
 
 void vectorIsTrue(SScalarParam* pLeft, SScalarParam* pRight, void *out, int32_t _ord) {
   SScalarParam output = {.data = out, .num = pLeft->num, .type = TSDB_DATA_TYPE_BOOL};
+
+  if (pLeft->colData) {
+    SColumnInfoData *colInfo = (SColumnInfoData *)pLeft->data;
+    pLeft->data = colInfo->pData;
+  }
   
   vectorConvertImpl(pLeft, &output);
 }
