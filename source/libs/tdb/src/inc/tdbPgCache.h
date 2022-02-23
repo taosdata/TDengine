@@ -24,17 +24,22 @@ typedef struct SPCache SPCache;
 typedef struct SPgHdr  SPgHdr;
 
 struct SPgHdr {
-  void *  pData;
-  void *  pExtra;
-  SPgid   pgid;
-  uint8_t isLocalPage;
-  SPgHdr *pFreeNext;
-  SPgHdr *pHashNext;
+  void *   pData;
+  void *   pExtra;
+  SPgid    pgid;
+  uint8_t  isAnchor;
+  uint8_t  isLocalPage;
+  SPCache *pCache;
+  SPgHdr * pFreeNext;
+  SPgHdr * pHashNext;
+  SPgHdr * pLruNext;
+  SPgHdr * pLruPrev;
 };
 
 int     tdbOpenPCache(int pageSize, int cacheSize, int extraSize, SPCache **ppCache);
 int     tdbPCacheClose(SPCache *pCache);
 SPgHdr *tdbPCacheFetch(SPCache *pCache, const SPgid *pPgid, bool alcNewPage);
+void    tdbFetchFinish(SPCache *pCache, SPgHdr *pPage);
 void    tdbPCacheRelease(SPgHdr *pHdr);
 
 #ifdef __cplusplus

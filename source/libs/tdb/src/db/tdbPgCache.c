@@ -21,7 +21,7 @@ struct SPCache {
   int             nRef;
   pthread_mutex_t mutex;
   int             nPage;
-  SPgHdr *        lru;
+  SPgHdr          lru;
   int             nRecyclable;
   int             nHash;
   SPgHdr **       pgHash;
@@ -29,8 +29,8 @@ struct SPCache {
   SPgHdr *        pFree;
 };
 
-#define PCACHE_PAGE_HASH(pgid)  0     // TODO
-#define PAGE_IS_UNPINNED(pPage) true  // TODO
+#define PCACHE_PAGE_HASH(pgid) 0  // TODO
+#define PAGE_IS_PINNED(pPage)  ((pPage)->pLruNext == NULL)
 
 static void    tdbPCacheInitLock(SPCache *pCache);
 static void    tdbPCacheClearLock(SPCache *pCache);
@@ -39,6 +39,8 @@ static void    tdbPCacheUnlock(SPCache *pCache);
 static bool    tdbPCacheLocked(SPCache *pCache);
 static SPgHdr *tdbPCacheFetchImpl(SPCache *pCache, const SPgid *pPgid, bool alcNewPage);
 static void    tdbPCachePinPage(SPgHdr *pPage);
+static void    tdbPCacheRemovePageFromHash(SPgHdr *pPage);
+static void    tdbPCacheAddPageToHash(SPgHdr *pPage);
 
 int tdbOpenPCache(int pageSize, int cacheSize, int extraSize, SPCache **ppCache) {
   SPCache *pCache;
@@ -87,6 +89,10 @@ SPgHdr *tdbPCacheFetch(SPCache *pCache, const SPgid *pPgid, bool alcNewPage) {
   return pPage;
 }
 
+void tdbFetchFinish(SPCache *pCache, SPgHdr *pPage) {
+  // TODO
+}
+
 void tdbPCacheRelease(SPgHdr *pHdr) {
   // TODO
 }
@@ -120,11 +126,73 @@ static SPgHdr *tdbPCacheFetchImpl(SPCache *pCache, const SPgid *pPgid, bool alcN
     return pPage;
   }
 
+  // 2. Try to allocate a new page from the free list
+  if (pCache->pFree) {
+    pPage = pCache->pFree;
+    pCache->pFree = pPage->pFreeNext;
+    pCache->nFree--;
+    pPage->pLruNext = NULL;
+  }
+
+  // 3. Try to Recycle a page
+  if (!pPage && !pCache->lru.pLruPrev->isAnchor) {
+    pPage = pCache->lru.pLruPrev;
+    tdbPCacheRemovePageFromHash(pPage);
+    tdbPCachePinPage(pPage);
+  }
+
+  // 4. Try a stress allocation
+
+  // 5. Page here are just created from a free list
+  // or by recycling or allocated streesly,
+  // need to initialize it
+  if (pPage) {
+    memcpy(&pPage->pgid, pPgid, sizeof(*pPgid));
+    pPage->pCache = pCache;
+    pPage->pLruNext = NULL;
+    tdbPCacheAddPageToHash(pPage);
+  }
+
   return pPage;
 }
 
 static void tdbPCachePinPage(SPgHdr *pPage) {
-  if (PAGE_IS_UNPINNED(pPage)) {
-    /* TODO */
+  SPCache *pCache;
+
+  pCache = pPage->pCache;
+  if (!PAGE_IS_PINNED(pPage)) {
+    pPage->pLruPrev->pLruNext = pPage->pLruNext;
+    pPage->pLruNext->pLruPrev = pPage->pLruPrev;
+    pPage->pLruNext = NULL;
+
+    pCache->nRecyclable--;
   }
+}
+
+static void tdbPCacheRemovePageFromHash(SPgHdr *pPage) {
+  SPCache *pCache;
+  SPgHdr **ppPage;
+  int      h;
+
+  pCache = pPage->pCache;
+  h = PCACHE_PAGE_HASH(&(pPage->pgid));
+  for (ppPage = &(pCache->pgHash[h % pCache->nHash]); *ppPage != pPage; ppPage = &((*ppPage)->pHashNext))
+    ;
+  ASSERT(*ppPage == pPage);
+  *ppPage = pPage->pHashNext;
+
+  pCache->nPage--;
+}
+
+static void tdbPCacheAddPageToHash(SPgHdr *pPage) {
+  SPCache *pCache;
+  int      h;
+
+  pCache = pPage->pCache;
+  h = PCACHE_PAGE_HASH(&pPage->pgid) % pCache->nHash;
+
+  pPage->pHashNext = pCache->pgHash[h];
+  pCache->pgHash[h] = pPage;
+
+  pCache->nPage++;
 }
