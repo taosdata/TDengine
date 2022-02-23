@@ -42,6 +42,8 @@ int tsRpcMaxRetry;
 int tsRpcHeadSize;
 int tsRpcOverhead;
 
+int32_t tsRpcForceTcp = 1;   // disable this, means query, show command use udp protocol as default
+
 SHashObj *tsFqdnHash;
 
 #ifndef USE_UV
@@ -143,6 +145,10 @@ typedef struct SRpcConn {
 
 static int     tsRpcRefId = -1;
 static int32_t tsRpcNum = 0;
+
+int32_t tsRpcTimer = 300;
+int32_t tsRpcMaxTime = 600;  // seconds;
+
 // static pthread_once_t tsRpcInit = PTHREAD_ONCE_INIT;
 
 // server:0 client:1  tcp:2 udp:0
