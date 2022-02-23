@@ -82,7 +82,6 @@
 // #define SPILLFLAG_NOSYNC      0x04 /* Spill is ok, but do not sync */
 
 struct Pager {
-  sqlite3_vfs *pVfs;          /* OS functions to use for IO */
   u8           exclusiveMode; /* Boolean. True if locking_mode==EXCLUSIVE */
   u8           journalMode;   /* One of the PAGER_JOURNALMODE_* values */
   u8           useJournal;    /* Use a rollback journal on this file */
@@ -4099,86 +4098,85 @@ int sqlite3PagerOpen(Pager **ppPager, const char *zFilename, int nExtra, int fla
   **    + The value returned by sqlite3OsSectorSize()
   **    + The largest page size that can be written atomically.
   */
-  if (rc == SQLITE_OK) {
-    int iDc = sqlite3OsDeviceCharacteristics(pPager->fd);
-    if (!readOnly) {
-      setSectorSize(pPager);
-      assert(SQLITE_DEFAULT_PAGE_SIZE <= SQLITE_MAX_DEFAULT_PAGE_SIZE);
-      if (szPageDflt < pPager->sectorSize) {
-        if (pPager->sectorSize > SQLITE_MAX_DEFAULT_PAGE_SIZE) {
-          szPageDflt = SQLITE_MAX_DEFAULT_PAGE_SIZE;
-        } else {
-          szPageDflt = (u32)pPager->sectorSize;
-        }
-      }
-    }
-    pPager->noLock = sqlite3_uri_boolean(pPager->zFilename, "nolock", 0);
-    if ((iDc & SQLITE_IOCAP_IMMUTABLE) != 0 || sqlite3_uri_boolean(pPager->zFilename, "immutable", 0)) {
-      vfsFlags |= SQLITE_OPEN_READONLY;
-      goto act_like_temp_file;
-    }
-  }
-  /* The following call to PagerSetPagesize() serves to set the value of
-  ** Pager.pageSize and to allocate the Pager.pTmpSpace buffer.
-  */
-  if (rc == SQLITE_OK) {
-    assert(pPager->memDb == 0);
-    rc = sqlite3PagerSetPagesize(pPager, &szPageDflt, -1);
-    testcase(rc != SQLITE_OK);
-  }
+  // if (rc == SQLITE_OK) {
+  //   int iDc = sqlite3OsDeviceCharacteristics(pPager->fd);
+  //   if (!readOnly) {
+  //     setSectorSize(pPager);
+  //     if (szPageDflt < pPager->sectorSize) {
+  //       if (pPager->sectorSize > SQLITE_MAX_DEFAULT_PAGE_SIZE) {
+  //         szPageDflt = SQLITE_MAX_DEFAULT_PAGE_SIZE;
+  //       } else {
+  //         szPageDflt = (u32)pPager->sectorSize;
+  //       }
+  //     }
+  //   }
+  //   pPager->noLock = sqlite3_uri_boolean(pPager->zFilename, "nolock", 0);
+  //   if ((iDc & SQLITE_IOCAP_IMMUTABLE) != 0 || sqlite3_uri_boolean(pPager->zFilename, "immutable", 0)) {
+  //     vfsFlags |= SQLITE_OPEN_READONLY;
+  //     goto act_like_temp_file;
+  //   }
+  // }
+  // /* The following call to PagerSetPagesize() serves to set the value of
+  // ** Pager.pageSize and to allocate the Pager.pTmpSpace buffer.
+  // */
+  // if (rc == SQLITE_OK) {
+  //   assert(pPager->memDb == 0);
+  //   rc = sqlite3PagerSetPagesize(pPager, &szPageDflt, -1);
+  //   testcase(rc != SQLITE_OK);
+  // }
 
-  /* Initialize the PCache object. */
-  if (rc == SQLITE_OK) {
-    nExtra = ROUND8(nExtra);
-    assert(nExtra >= 8 && nExtra < 1000);
-    rc = sqlite3PcacheOpen(szPageDflt, nExtra, !memDb, !memDb ? pagerStress : 0, (void *)pPager, pPager->pPCache);
-  }
+  // /* Initialize the PCache object. */
+  // if (rc == SQLITE_OK) {
+  //   nExtra = ROUND8(nExtra);
+  //   assert(nExtra >= 8 && nExtra < 1000);
+  //   rc = sqlite3PcacheOpen(szPageDflt, nExtra, !memDb, !memDb ? pagerStress : 0, (void *)pPager, pPager->pPCache);
+  // }
 
-  /* If an error occurred above, free the  Pager structure and close the file.
-   */
-  if (rc != SQLITE_OK) {
-    sqlite3OsClose(pPager->fd);
-    sqlite3PageFree(pPager->pTmpSpace);
-    sqlite3_free(pPager);
-    return rc;
-  }
+  // /* If an error occurred above, free the  Pager structure and close the file.
+  //  */
+  // if (rc != SQLITE_OK) {
+  //   sqlite3OsClose(pPager->fd);
+  //   sqlite3PageFree(pPager->pTmpSpace);
+  //   sqlite3_free(pPager);
+  //   return rc;
+  // }
 
-  PAGERTRACE(("OPEN %d %s\n", FILEHANDLEID(pPager->fd), pPager->zFilename));
-  IOTRACE(("OPEN %p %s\n", pPager, pPager->zFilename))
+  // PAGERTRACE(("OPEN %d %s\n", FILEHANDLEID(pPager->fd), pPager->zFilename));
+  // IOTRACE(("OPEN %p %s\n", pPager, pPager->zFilename))
 
-  pPager->useJournal = (u8)useJournal;
-  pPager->mxPgno = SQLITE_MAX_PAGE_COUNT;
-  pPager->tempFile = (u8)tempFile;
-  assert(tempFile == PAGER_LOCKINGMODE_NORMAL || tempFile == PAGER_LOCKINGMODE_EXCLUSIVE);
-  assert(PAGER_LOCKINGMODE_EXCLUSIVE == 1);
-  pPager->exclusiveMode = (u8)tempFile;
-  pPager->changeCountDone = pPager->tempFile;
-  pPager->memDb = (u8)memDb;
-  pPager->readOnly = (u8)readOnly;
-  assert(useJournal || pPager->tempFile);
-  pPager->noSync = pPager->tempFile;
-  if (pPager->noSync) {
-    assert(pPager->fullSync == 0);
-    assert(pPager->extraSync == 0);
-    assert(pPager->syncFlags == 0);
-    assert(pPager->walSyncFlags == 0);
-  } else {
-    pPager->fullSync = 1;
-    pPager->extraSync = 0;
-    pPager->syncFlags = SQLITE_SYNC_NORMAL;
-    pPager->walSyncFlags = SQLITE_SYNC_NORMAL | (SQLITE_SYNC_NORMAL << 2);
-  }
-  pPager->nExtra = (u16)nExtra;
-  pPager->journalSizeLimit = SQLITE_DEFAULT_JOURNAL_SIZE_LIMIT;
-  assert(isOpen(pPager->fd) || tempFile);
-  setSectorSize(pPager);
-  if (!useJournal) {
-    pPager->journalMode = PAGER_JOURNALMODE_OFF;
-  } else if (memDb || memJM) {
-    pPager->journalMode = PAGER_JOURNALMODE_MEMORY;
-  }
-  pPager->xReiniter = xReinit;
-  setGetterMethod(pPager);
+  // pPager->useJournal = (u8)useJournal;
+  // pPager->mxPgno = SQLITE_MAX_PAGE_COUNT;
+  // pPager->tempFile = (u8)tempFile;
+  // assert(tempFile == PAGER_LOCKINGMODE_NORMAL || tempFile == PAGER_LOCKINGMODE_EXCLUSIVE);
+  // assert(PAGER_LOCKINGMODE_EXCLUSIVE == 1);
+  // pPager->exclusiveMode = (u8)tempFile;
+  // pPager->changeCountDone = pPager->tempFile;
+  // pPager->memDb = (u8)memDb;
+  // pPager->readOnly = (u8)readOnly;
+  // assert(useJournal || pPager->tempFile);
+  // pPager->noSync = pPager->tempFile;
+  // if (pPager->noSync) {
+  //   assert(pPager->fullSync == 0);
+  //   assert(pPager->extraSync == 0);
+  //   assert(pPager->syncFlags == 0);
+  //   assert(pPager->walSyncFlags == 0);
+  // } else {
+  //   pPager->fullSync = 1;
+  //   pPager->extraSync = 0;
+  //   pPager->syncFlags = SQLITE_SYNC_NORMAL;
+  //   pPager->walSyncFlags = SQLITE_SYNC_NORMAL | (SQLITE_SYNC_NORMAL << 2);
+  // }
+  // pPager->nExtra = (u16)nExtra;
+  // pPager->journalSizeLimit = SQLITE_DEFAULT_JOURNAL_SIZE_LIMIT;
+  // assert(isOpen(pPager->fd) || tempFile);
+  // setSectorSize(pPager);
+  // if (!useJournal) {
+  //   pPager->journalMode = PAGER_JOURNALMODE_OFF;
+  // } else if (memDb || memJM) {
+  //   pPager->journalMode = PAGER_JOURNALMODE_MEMORY;
+  // }
+  // pPager->xReiniter = xReinit;
+  // setGetterMethod(pPager);
 
   *ppPager = pPager;
   return SQLITE_OK;

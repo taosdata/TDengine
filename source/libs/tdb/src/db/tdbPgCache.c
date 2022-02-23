@@ -29,7 +29,8 @@ struct SPCache {
   SPgHdr *        pFree;
 };
 
-#define PCACHE_PAGE_HASH(pgid) 0  // TODO
+#define PCACHE_PAGE_HASH(pgid)  0     // TODO
+#define PAGE_IS_UNPINNED(pPage) true  // TODO
 
 static void    tdbPCacheInitLock(SPCache *pCache);
 static void    tdbPCacheClearLock(SPCache *pCache);
@@ -37,6 +38,7 @@ static void    tdbPCacheLock(SPCache *pCache);
 static void    tdbPCacheUnlock(SPCache *pCache);
 static bool    tdbPCacheLocked(SPCache *pCache);
 static SPgHdr *tdbPCacheFetchImpl(SPCache *pCache, const SPgid *pPgid, bool alcNewPage);
+static void    tdbPCachePinPage(SPgHdr *pPage);
 
 int tdbOpenPCache(int pageSize, int cacheSize, int extraSize, SPCache **ppCache) {
   SPCache *pCache;
@@ -113,14 +115,16 @@ static SPgHdr *tdbPCacheFetchImpl(SPCache *pCache, const SPgid *pPgid, bool alcN
     pPage = pPage->pHashNext;
   }
 
-  if (pPage) {
-    // TODO: pin the page and return the page
-    return pPage;
-  } else if (!alcNewPage) {
+  if (pPage || !alcNewPage) {
+    if (pPage) tdbPCachePinPage(pPage);
     return pPage;
   }
 
-  // Try other methods
-
   return pPage;
+}
+
+static void tdbPCachePinPage(SPgHdr *pPage) {
+  if (PAGE_IS_UNPINNED(pPage)) {
+    /* TODO */
+  }
 }
