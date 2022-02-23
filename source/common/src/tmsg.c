@@ -1669,8 +1669,8 @@ static int32_t tEncodeSTableMetaRsp(SCoder *pEncoder, STableMetaRsp *pRsp) {
   if (tEncodeI8(pEncoder, pRsp->update) < 0) return -1;
   if (tEncodeI32(pEncoder, pRsp->sversion) < 0) return -1;
   if (tEncodeI32(pEncoder, pRsp->tversion) < 0) return -1;
-  if (tEncodeI64(pEncoder, pRsp->suid) < 0) return -1;
-  if (tEncodeI64(pEncoder, pRsp->tuid) < 0) return -1;
+  if (tEncodeU64(pEncoder, pRsp->suid) < 0) return -1;
+  if (tEncodeU64(pEncoder, pRsp->tuid) < 0) return -1;
   if (tEncodeI32(pEncoder, pRsp->vgId) < 0) return -1;
   for (int32_t i = 0; i < pRsp->numOfColumns + pRsp->numOfTags; ++i) {
     SSchema *pSchema = &pRsp->pSchemas[i];
@@ -1692,8 +1692,8 @@ static int32_t tDecodeSTableMetaRsp(SCoder *pDecoder, STableMetaRsp *pRsp) {
   if (tDecodeI8(pDecoder, &pRsp->update) < 0) return -1;
   if (tDecodeI32(pDecoder, &pRsp->sversion) < 0) return -1;
   if (tDecodeI32(pDecoder, &pRsp->tversion) < 0) return -1;
-  if (tDecodeI64(pDecoder, &pRsp->suid) < 0) return -1;
-  if (tDecodeI64(pDecoder, &pRsp->tuid) < 0) return -1;
+  if (tDecodeU64(pDecoder, &pRsp->suid) < 0) return -1;
+  if (tDecodeU64(pDecoder, &pRsp->tuid) < 0) return -1;
   if (tDecodeI32(pDecoder, &pRsp->vgId) < 0) return -1;
 
   int32_t totalCols = pRsp->numOfTags + pRsp->numOfColumns;

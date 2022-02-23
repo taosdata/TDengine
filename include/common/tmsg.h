@@ -804,8 +804,8 @@ typedef struct {
   int8_t   update;
   int32_t  sversion;
   int32_t  tversion;
-  int64_t  suid;
-  int64_t  tuid;
+  uint64_t suid;
+  uint64_t tuid;
   int32_t  vgId;
   SSchema* pSchemas;
 } STableMetaRsp;

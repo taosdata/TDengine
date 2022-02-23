@@ -194,4 +194,3 @@ enum {
   TDMT_MAX
 #endif
 };
-// clang-format on
