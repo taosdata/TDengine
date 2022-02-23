@@ -20,7 +20,6 @@
 #include "query.h"
 #include "scheduler.h"
 #include "tcache.h"
-#include "tconfig.h"
 #include "tglobal.h"
 #include "tmsg.h"
 #include "tnote.h"
@@ -75,21 +74,7 @@ static void deregisterRequest(SRequestObj *pRequest) {
   taosReleaseRef(clientConnRefPool, pTscObj->id);
 }
 
-static void tscInitLogFile() {
-  taosReadGlobalLogCfg();
-  if (mkdir(tsLogDir, 0755) != 0 && errno != EEXIST) {
-    printf("failed to create log dir:%s\n", tsLogDir);
-  }
 
-  const char *  defaultLogFileNamePrefix = "taoslog";
-  const int32_t maxLogFileNum = 10;
-
-  char temp[128] = {0};
-  sprintf(temp, "%s/%s", tsLogDir, defaultLogFileNamePrefix);
-  if (taosInitLog(temp, tsNumOfLogLines, maxLogFileNum) < 0) {
-    printf("failed to open log file in directory:%s\n", tsLogDir);
-  }
-}
 
 // todo close the transporter properly
 void closeTransporter(STscObj *pTscObj) {
@@ -110,10 +95,10 @@ void *openTransporter(const char *user, const char *auth, int32_t numOfThread) {
   rpcInit.numOfThreads = numOfThread;
   rpcInit.cfp = processMsgFromServer;
   rpcInit.pfp = persistConnForSpecificMsg;
-  rpcInit.sessions = tsMaxConnections;
+  rpcInit.sessions = cfgGetItem(tscCfg, "maxConnections")->i32;
   rpcInit.connType = TAOS_CONN_CLIENT;
   rpcInit.user = (char *)user;
-  rpcInit.idleTime = tsShellActivityTimer * 1000;
+  rpcInit.idleTime = cfgGetItem(tscCfg, "shellActivityTimer")->i32 * 1000;
   rpcInit.ckey = "key";
   rpcInit.spi = 1;
   rpcInit.secret = (char *)auth;
@@ -228,11 +213,13 @@ void taos_init_imp(void) {
   srand(taosGetTimestampSec());
 
   deltaToUtcInitOnce();
-  taosInitGlobalCfg();
-  taosReadCfgFromFile();
 
-  tscInitLogFile();
-  if (taosCheckAndPrintCfg()) {
+  if (tscInitLog(configDir, NULL, NULL) != 0) {
+    tscInitRes = -1;
+    return;
+  }
+
+  if (tscInitCfg(configDir, NULL, NULL) != 0) {
     tscInitRes = -1;
     return;
   }
@@ -248,7 +235,7 @@ void taos_init_imp(void) {
 
   SSchedulerCfg scfg = {.maxJobNum = 100};
   schedulerInit(&scfg);
-  tscDebug("starting to initialize TAOS driver, local ep: %s", tsLocalEp);
+  tscDebug("starting to initialize TAOS driver");
 
   taosSetCoreDump(true);
 
@@ -272,6 +259,7 @@ int taos_init() {
 }
 
 int taos_options_imp(TSDB_OPTION option, const char *str) {
+#if 0  
   SGlobalCfg *cfg = NULL;
 
   switch (option) {
@@ -427,7 +415,7 @@ int taos_options_imp(TSDB_OPTION option, const char *str) {
       tscError("Invalid option %d", option);
       return -1;
   }
-
+#endif
   return 0;
 }
 

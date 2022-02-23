@@ -20,6 +20,7 @@
 #include "shellCommand.h"
 #include "tkey.h"
 #include "ulog.h"
+#include "version.h"
 
 #include <wordexp.h>
 #include <argp.h>

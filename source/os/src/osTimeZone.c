@@ -15,13 +15,13 @@
 
 #define _DEFAULT_SOURCE
 #include "os.h"
-#include "ulog.h"
-#include "tglobal.h"
-#include "tconfig.h"
-#include "tutil.h"
+// #include "ulog.h"
+// #include "tglobal.h"
+// #include "tutil.h"
 
 // TODO refactor to set the tz value through parameter
 void tsSetTimeZone() {
+#if 0 
   SGlobalCfg *cfg_timezone = taosGetConfigOption("timezone");
   if (cfg_timezone != NULL) {
     uInfo("timezone is set to %s by %s", tsTimezone, tsCfgStatusStr[cfg_timezone->cfgStatus]);
@@ -64,4 +64,6 @@ void tsSetTimeZone() {
   tsDaylight = daylight;
 
   uInfo("timezone format changed to %s", tsTimezone);
+
+#endif  
 }

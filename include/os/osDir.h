@@ -24,7 +24,7 @@ void    taosRemoveDir(const char *dirname);
 int32_t taosDirExist(char *dirname);
 int32_t taosMkDir(const char *dirname);
 void    taosRemoveOldFiles(char *dirname, int32_t keepDays);
-int32_t taosExpandDir(char *dirname, char *outname, int32_t maxlen);
+int32_t taosExpandDir(const char *dirname, char *outname, int32_t maxlen);
 int32_t taosRealPath(char *dirname, int32_t maxlen);
 
 #ifdef __cplusplus
