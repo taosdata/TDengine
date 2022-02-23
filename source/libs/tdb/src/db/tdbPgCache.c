@@ -35,6 +35,10 @@ struct SPgHdr {
   SPgHdr *pFreeNext;
 };
 
+static void tdbPCacheLock(SPCache *pCache);
+static void tdbPCacheUnlock(SPCache *pCache);
+static bool tdbPCacheLocked(SPCache *pCache);
+
 int tdbOpenPCache(int pageSize, int cacheSize, int extraSize, SPCache **ppCache) {
   SPCache *pCache;
   void *   pPtr;
@@ -68,6 +72,27 @@ int tdbOpenPCache(int pageSize, int cacheSize, int extraSize, SPCache **ppCache)
 }
 
 int tdbClosePCache(SPCache *pCache) {
-  // TODO
+  /* TODO */
   return 0;
+}
+
+void *tdbPCacheFetch(SPCache *pCache, SPgid *pPgid) {
+  tdbPCacheLock(pCache);
+  // 1. search the hash table
+  tdbPCacheUnlock(pCache);
+  return NULL;
+}
+
+void tdbPCacheRelease(void *pHdr) {
+  // TODO
+}
+
+static void tdbPCacheLock(SPCache *pCache) { pthread_mutex_lock(&(pCache->mutex)); }
+
+static void tdbPCacheUnlock(SPCache *pCache) { pthread_mutex_unlock(&(pCache->mutex)); }
+
+static bool tdbPCacheLocked(SPCache *pCache) {
+  assert(0);
+  // TODO
+  return true;
 }

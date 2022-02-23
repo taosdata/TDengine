@@ -25,7 +25,8 @@ typedef struct SPgHdr  SPgHdr;
 
 int   tdbOpenPCache(int pageSize, int cacheSize, int extraSize, SPCache **ppCache);
 int   tdbPCacheClose(SPCache *pCache);
-void *tdbPCacheFetch(SPCache *pCache);
+void *tdbPCacheFetch(SPCache *pCache, SPgid *pPgid);
+void  tdbPCacheRelease(void *pHdr);
 
 #ifdef __cplusplus
 }
