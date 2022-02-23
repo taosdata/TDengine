@@ -228,6 +228,7 @@ typedef struct SAggFunctionInfo {
 
 typedef struct SScalarParam {
   void*   data;
+  bool    colData;
   int32_t num;
   int32_t type;
   int32_t bytes;

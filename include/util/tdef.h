@@ -109,35 +109,52 @@ do { \
   (src) = (void *)((char *)src + sizeof(type));\
 } while(0)
 
+typedef enum EOperatorType {
+  // arithmetic operator
+  OP_TYPE_ADD = 1,
+  OP_TYPE_SUB,
+  OP_TYPE_MULTI,
+  OP_TYPE_DIV,
+  OP_TYPE_MOD,
 
-// TODO: check if below is necessary
-#define TSDB_RELATION_INVALID     0
-#define TSDB_RELATION_LESS        1
-#define TSDB_RELATION_GREATER     2
-#define TSDB_RELATION_EQUAL       3
-#define TSDB_RELATION_LESS_EQUAL  4
-#define TSDB_RELATION_GREATER_EQUAL 5
-#define TSDB_RELATION_NOT_EQUAL   6
-#define TSDB_RELATION_LIKE        7
-#define TSDB_RELATION_NOT_LIKE    8
-#define TSDB_RELATION_ISNULL      9
-#define TSDB_RELATION_NOTNULL     10
-#define TSDB_RELATION_IN          11
-#define TSDB_RELATION_NOT_IN      12
+  // bit operator
+  OP_TYPE_BIT_AND,
+  OP_TYPE_BIT_OR,
 
-#define TSDB_RELATION_AND         13
-#define TSDB_RELATION_OR          14
-#define TSDB_RELATION_NOT         15
+  // comparison operator
+  OP_TYPE_GREATER_THAN,
+  OP_TYPE_GREATER_EQUAL,
+  OP_TYPE_LOWER_THAN,
+  OP_TYPE_LOWER_EQUAL,
+  OP_TYPE_EQUAL,
+  OP_TYPE_NOT_EQUAL,
+  OP_TYPE_IN,
+  OP_TYPE_NOT_IN,
+  OP_TYPE_LIKE,
+  OP_TYPE_NOT_LIKE,
+  OP_TYPE_MATCH,
+  OP_TYPE_NMATCH,
+  OP_TYPE_IS_NULL,
+  OP_TYPE_IS_NOT_NULL,
+  OP_TYPE_IS_TRUE,
+  OP_TYPE_IS_FALSE,
+  OP_TYPE_IS_UNKNOWN,
+  OP_TYPE_IS_NOT_TRUE,
+  OP_TYPE_IS_NOT_FALSE,
+  OP_TYPE_IS_NOT_UNKNOWN,
 
-#define TSDB_RELATION_MATCH       16
-#define TSDB_RELATION_NMATCH      17
+  // json operator
+  OP_TYPE_JSON_GET_VALUE,
+  OP_TYPE_JSON_CONTAINS
+} EOperatorType;
 
-#define TSDB_BINARY_OP_ADD        4000
-#define TSDB_BINARY_OP_SUBTRACT   4001
-#define TSDB_BINARY_OP_MULTIPLY   4002
-#define TSDB_BINARY_OP_DIVIDE     4003
-#define TSDB_BINARY_OP_REMAINDER  4004
-#define TSDB_BINARY_OP_CONCAT     4005
+
+typedef enum ELogicConditionType {
+  LOGIC_COND_TYPE_AND,
+  LOGIC_COND_TYPE_OR,
+  LOGIC_COND_TYPE_NOT,
+} ELogicConditionType;
+
 
 #define FUNCTION_CEIL        4500
 #define FUNCTION_FLOOR       4501
@@ -148,9 +165,6 @@ do { \
 #define FUNCTION_CONCAT      4801
 #define FUNCTION_LTRIM       4802
 #define FUNCTION_RTRIM       4803
-
-#define IS_RELATION_OPTR(op) (((op) >= TSDB_RELATION_LESS) && ((op) < TSDB_RELATION_IN))
-#define IS_ARITHMETIC_OPTR(op) (((op) >= TSDB_BINARY_OP_ADD) && ((op) <= TSDB_BINARY_OP_REMAINDER))
 
 #define TSDB_NAME_DELIMITER_LEN   1
 

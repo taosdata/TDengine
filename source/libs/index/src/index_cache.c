@@ -119,13 +119,17 @@ void indexCacheDestroySkiplist(SSkipList* slt) {
   tSkipListDestroy(slt);
 }
 void indexCacheDestroyImm(IndexCache* cache) {
-  if (cache == NULL) { return; }
+  if (cache == NULL) {
+    return;
+  }
 
   MemTable* tbl = NULL;
   pthread_mutex_lock(&cache->mtx);
+
   tbl = cache->imm;
   cache->imm = NULL;  // or throw int bg thread
   pthread_cond_broadcast(&cache->finished);
+
   pthread_mutex_unlock(&cache->mtx);
 
   indexMemUnRef(tbl);
@@ -133,7 +137,9 @@ void indexCacheDestroyImm(IndexCache* cache) {
 }
 void indexCacheDestroy(void* cache) {
   IndexCache* pCache = cache;
-  if (pCache == NULL) { return; }
+  if (pCache == NULL) {
+    return;
+  }
   indexMemUnRef(pCache->mem);
   indexMemUnRef(pCache->imm);
   free(pCache->colName);
@@ -146,7 +152,9 @@ void indexCacheDestroy(void* cache) {
 
 Iterate* indexCacheIteratorCreate(IndexCache* cache) {
   Iterate* iiter = calloc(1, sizeof(Iterate));
-  if (iiter == NULL) { return NULL; }
+  if (iiter == NULL) {
+    return NULL;
+  }
 
   pthread_mutex_lock(&cache->mtx);
 
@@ -164,7 +172,9 @@ Iterate* indexCacheIteratorCreate(IndexCache* cache) {
   return iiter;
 }
 void indexCacheIteratorDestroy(Iterate* iter) {
-  if (iter == NULL) { return; }
+  if (iter == NULL) {
+    return;
+  }
   tSkipListDestroyIter(iter->iter);
   iterateValueDestroy(&iter->val, true);
   free(iter);
@@ -186,9 +196,6 @@ static void indexCacheMakeRoomForWrite(IndexCache* cache) {
     } else if (cache->imm != NULL) {
       // TODO: wake up by condition variable
       pthread_cond_wait(&cache->finished, &cache->mtx);
-      // pthread_mutex_unlock(&cache->mtx);
-      // taosMsleep(50);
-      // pthread_mutex_lock(&cache->mtx);
     } else {
       indexCacheRef(cache);
       cache->imm = cache->mem;
@@ -202,13 +209,17 @@ static void indexCacheMakeRoomForWrite(IndexCache* cache) {
 }
 
 int indexCachePut(void* cache, SIndexTerm* term, uint64_t uid) {
-  if (cache == NULL) { return -1; }
+  if (cache == NULL) {
+    return -1;
+  }
 
   IndexCache* pCache = cache;
   indexCacheRef(pCache);
   // encode data
   CacheTerm* ct = calloc(1, sizeof(CacheTerm));
-  if (cache == NULL) { return -1; }
+  if (cache == NULL) {
+    return -1;
+  }
   // set up key
   ct->colType = term->colType;
   ct->colVal = (char*)calloc(1, sizeof(char) * (term->nColVal + 1));
@@ -240,7 +251,9 @@ int indexCacheDel(void* cache, const char* fieldValue, int32_t fvlen, uint64_t u
 }
 
 static int indexQueryMem(MemTable* mem, CacheTerm* ct, EIndexQueryType qtype, SArray* result, STermValueType* s) {
-  if (mem == NULL) { return 0; }
+  if (mem == NULL) {
+    return 0;
+  }
   char* key = indexCacheTermGet(ct);
 
   SSkipListIterator* iter = tSkipListCreateIterFromVal(mem->mem, key, TSDB_DATA_TYPE_BINARY, TSDB_ORDER_ASC);
@@ -266,7 +279,9 @@ static int indexQueryMem(MemTable* mem, CacheTerm* ct, EIndexQueryType qtype, SA
   return 0;
 }
 int indexCacheSearch(void* cache, SIndexTermQuery* query, SArray* result, STermValueType* s) {
-  if (cache == NULL) { return 0; }
+  if (cache == NULL) {
+    return 0;
+  }
   IndexCache* pCache = cache;
 
   MemTable *mem = NULL, *imm = NULL;
@@ -294,23 +309,33 @@ int indexCacheSearch(void* cache, SIndexTermQuery* query, SArray* result, STermV
 }
 
 void indexCacheRef(IndexCache* cache) {
-  if (cache == NULL) { return; }
+  if (cache == NULL) {
+    return;
+  }
   int ref = T_REF_INC(cache);
   UNUSED(ref);
 }
 void indexCacheUnRef(IndexCache* cache) {
-  if (cache == NULL) { return; }
+  if (cache == NULL) {
+    return;
+  }
   int ref = T_REF_DEC(cache);
-  if (ref == 0) { indexCacheDestroy(cache); }
+  if (ref == 0) {
+    indexCacheDestroy(cache);
+  }
 }
 
 void indexMemRef(MemTable* tbl) {
-  if (tbl == NULL) { return; }
+  if (tbl == NULL) {
+    return;
+  }
   int ref = T_REF_INC(tbl);
   UNUSED(ref);
 }
 void indexMemUnRef(MemTable* tbl) {
-  if (tbl == NULL) { return; }
+  if (tbl == NULL) {
+    return;
+  }
   int ref = T_REF_DEC(tbl);
   if (ref == 0) {
     SSkipList* slt = tbl->mem;
@@ -320,7 +345,9 @@ void indexMemUnRef(MemTable* tbl) {
 }
 
 static void indexCacheTermDestroy(CacheTerm* ct) {
-  if (ct == NULL) { return; }
+  if (ct == NULL) {
+    return;
+  }
   free(ct->colVal);
   free(ct);
 }
@@ -333,7 +360,9 @@ static int32_t indexCacheTermCompare(const void* l, const void* r) {
   CacheTerm* rt = (CacheTerm*)r;
   // compare colVal
   int32_t cmp = strcmp(lt->colVal, rt->colVal);
-  if (cmp == 0) { return rt->version - lt->version; }
+  if (cmp == 0) {
+    return rt->version - lt->version;
+  }
   return cmp;
 }
 
@@ -354,7 +383,9 @@ static void doMergeWork(SSchedMsg* msg) {
 }
 static bool indexCacheIteratorNext(Iterate* itera) {
   SSkipListIterator* iter = itera->iter;
-  if (iter == NULL) { return false; }
+  if (iter == NULL) {
+    return false;
+  }
   IterateValue* iv = &itera->val;
   iterateValueDestroy(iv, false);
 
