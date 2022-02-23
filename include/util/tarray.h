@@ -43,8 +43,8 @@ extern "C" {
 
 typedef struct SArray {
   size_t size;
-  size_t capacity;
-  size_t elemSize;
+  uint32_t capacity;
+  uint32_t elemSize;
   void*  pData;
 } SArray;
 

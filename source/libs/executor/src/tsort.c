@@ -147,7 +147,7 @@ static int32_t doAddToBuf(SSDataBlock* pDataBlock, SSortHandle* pHandle) {
 
   if (pHandle->pBuf == NULL) {
     int32_t code = createDiskbasedBuf(&pHandle->pBuf, pHandle->pageSize, pHandle->numOfPages * pHandle->pageSize, 0, "/tmp");
-    setPrintStatis(pHandle->pBuf);
+    dBufSetPrintInfo(pHandle->pBuf);
     if (code != TSDB_CODE_SUCCESS) {
       return code;
     }
@@ -162,7 +162,7 @@ static int32_t doAddToBuf(SSDataBlock* pDataBlock, SSortHandle* pHandle) {
     }
 
     int32_t pageId = -1;
-    SFilePage* pPage = getNewDataBuf(pHandle->pBuf, pHandle->sourceId, &pageId);
+    SFilePage* pPage = getNewBufPage(pHandle->pBuf, pHandle->sourceId, &pageId);
     if (pPage == NULL) {
       return terrno;
     }
@@ -211,7 +211,7 @@ static int32_t sortComparInit(SMsortComparParam* cmpParam, SArray* pSources, int
     // multi-pass internal merge sort is required
     if (pHandle->pBuf == NULL) {
       code = createDiskbasedBuf(&pHandle->pBuf, pHandle->pageSize, pHandle->numOfPages * pHandle->pageSize, 0, "/tmp");
-      setPrintStatis(pHandle->pBuf);
+      dBufSetPrintInfo(pHandle->pBuf);
       if (code != TSDB_CODE_SUCCESS) {
         return code;
       }
@@ -462,7 +462,7 @@ static int32_t doInternalMergeSort(SSortHandle* pHandle) {
         }
 
         int32_t pageId = -1;
-        SFilePage* pPage = getNewDataBuf(pHandle->pBuf, pHandle->sourceId, &pageId);
+        SFilePage* pPage = getNewBufPage(pHandle->pBuf, pHandle->sourceId, &pageId);
         if (pPage == NULL) {
           return terrno;
         }

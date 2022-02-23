@@ -30,7 +30,6 @@ typedef struct SPageInfo SPageInfo;
 typedef struct SDiskbasedBuf SDiskbasedBuf;
 
 #define DEFAULT_INTERN_BUF_PAGE_SIZE  (1024L)                          // in bytes
-#define DEFAULT_PAGE_SIZE             (16384L)
 
 typedef struct SFilePage {
   int64_t num;
@@ -64,7 +63,7 @@ int32_t createDiskbasedBuf(SDiskbasedBuf** pBuf, int32_t pagesize, int32_t inMem
  * @param pageId
  * @return
  */
-SFilePage* getNewDataBuf(SDiskbasedBuf* pBuf, int32_t groupId, int32_t* pageId);
+void* getNewBufPage(SDiskbasedBuf* pBuf, int32_t groupId, int32_t* pageId);
 
 /**
  *
@@ -80,7 +79,7 @@ SIDList getDataBufPagesIdList(SDiskbasedBuf* pBuf, int32_t groupId);
  * @param id
  * @return
  */
-SFilePage* getBufPage(SDiskbasedBuf* pBuf, int32_t id);
+void* getBufPage(SDiskbasedBuf* pBuf, int32_t id);
 
 /**
  * release the referenced buf pages
@@ -151,18 +150,26 @@ bool isAllDataInMemBuf(const SDiskbasedBuf* pBuf);
  * @param pPageInfo
  * @param dirty
  */
-void setBufPageDirty(SFilePage* pPageInfo, bool dirty);
+void setBufPageDirty(void* pPageInfo, bool dirty);
 
 /**
  * Print the statistics when closing this buffer
  * @param pBuf
  */
-void setPrintStatis(SDiskbasedBuf* pBuf);
+void dBufSetPrintInfo(SDiskbasedBuf* pBuf);
 
 /**
- * return buf statistics.
+ * Return buf statistics.
+ * @param pBuf
+ * @return
  */
 SDiskbasedBufStatis getDBufStatis(const SDiskbasedBuf* pBuf);
+
+/**
+ * Print the buffer statistics information
+ * @param pBuf
+ */
+void dBufPrintStatis(const SDiskbasedBuf* pBuf);
 
 #ifdef __cplusplus
 }

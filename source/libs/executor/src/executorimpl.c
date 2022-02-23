@@ -705,7 +705,7 @@ static int32_t addNewWindowResultBuf(SResultRow *pWindowRes, SDiskbasedBuf *pRes
   SIDList list = getDataBufPagesIdList(pResultBuf, tid);
 
   if (taosArrayGetSize(list) == 0) {
-    pData = getNewDataBuf(pResultBuf, tid, &pageId);
+    pData = getNewBufPage(pResultBuf, tid, &pageId);
   } else {
     SPageInfo* pi = getLastPageInfo(list);
     pData = getBufPage(pResultBuf, getPageId(pi));
@@ -714,7 +714,7 @@ static int32_t addNewWindowResultBuf(SResultRow *pWindowRes, SDiskbasedBuf *pRes
     if (pData->num + size > getBufPageSize(pResultBuf)) {
       // release current page first, and prepare the next one
       releaseBufPageInfo(pResultBuf, pi);
-      pData = getNewDataBuf(pResultBuf, tid, &pageId);
+      pData = getNewBufPage(pResultBuf, tid, &pageId);
       if (pData != NULL) {
         assert(pData->num == 0);  // number of elements must be 0 for new allocated buffer
       }
@@ -4603,7 +4603,7 @@ int32_t doInitQInfo(SQInfo* pQInfo, STSBuf* pTsBuf, void* tsdb, void* sourceOptr
     tsBufSetTraverseOrder(pRuntimeEnv->pTsBuf, order);
   }
 
-  int32_t ps = DEFAULT_PAGE_SIZE;
+  int32_t ps = 4096;
   getIntermediateBufInfo(pRuntimeEnv, &ps, &pQueryAttr->intermediateResultRowSize);
 
   int32_t TENMB = 1024*1024*10;

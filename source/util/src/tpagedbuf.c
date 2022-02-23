@@ -18,7 +18,7 @@ typedef struct SPageDiskInfo {
   int32_t  length;
 } SPageDiskInfo;
 
-typedef struct SPageInfo {
+struct SPageInfo {
   SListNode*    pn;       // point to list node
   void*         pData;
   int64_t       offset;
@@ -26,9 +26,9 @@ typedef struct SPageInfo {
   int32_t       length:30;
   bool          used:1;     // set current page is in used
   bool          dirty:1;    // set current buffer page is dirty or not
-} SPageInfo;
+};
 
-typedef struct SDiskbasedBuf {
+struct SDiskbasedBuf {
   int32_t   numOfPages;
   int64_t   totalBufSize;
   uint64_t  fileSize;            // disk file size
@@ -49,9 +49,7 @@ typedef struct SDiskbasedBuf {
   uint64_t  qId;                 // for debug purpose
   bool      printStatis;         // Print statistics info when closing this buffer.
   SDiskbasedBufStatis statis;
-} SDiskbasedBuf;
-
-static void printStatisData(const SDiskbasedBuf* pBuf);
+};
 
 int32_t createDiskbasedBuf(SDiskbasedBuf** pBuf, int32_t pagesize, int32_t inMemBufSize, uint64_t qId, const char* dir) {
   *pBuf = calloc(1, sizeof(SDiskbasedBuf));
@@ -121,7 +119,7 @@ static char* doDecompressData(void* data, int32_t srcSize, int32_t *dst, SDiskba
     return data;
   }
 
-  *dst = tsDecompressString(data, srcSize, 1, pBuf->assistBuf, pBuf->pageSize+sizeof(SFilePage), ONE_STAGE_COMP, NULL, 0);
+  *dst = tsDecompressString(data, srcSize, 1, pBuf->assistBuf, pBuf->pageSize, ONE_STAGE_COMP, NULL, 0);
   if (*dst > 0) {
     memcpy(data, pBuf->assistBuf, *dst);
   }
@@ -151,14 +149,23 @@ static uint64_t allocatePositionInFile(SDiskbasedBuf* pBuf, size_t size) {
   }
 }
 
+/**
+ *   +--------------------------+-------------------+--------------+
+ *   | PTR to SPageInfo (8bytes)| Payload (PageSize)| 2 Extra Bytes|
+ *   +--------------------------+-------------------+--------------+
+ * @param pBuf
+ * @param pg
+ * @return
+ */
 static char* doFlushPageToDisk(SDiskbasedBuf* pBuf, SPageInfo* pg) {
   assert(!pg->used && pg->pData != NULL);
 
   int32_t size = -1;
   char*   t = NULL;
   if (pg->offset == -1 || pg->dirty) {
-    SFilePage* pPage = (SFilePage*) GET_DATA_PAYLOAD(pg);
-    t = doCompressData(pPage->data, pBuf->pageSize, &size, pBuf);
+    void* payload = GET_DATA_PAYLOAD(pg);
+    t = doCompressData(payload, pBuf->pageSize, &size, pBuf);
+    assert(size >= 0);
   }
 
   // this page is flushed to disk for the first time
@@ -217,10 +224,14 @@ static char* doFlushPageToDisk(SDiskbasedBuf* pBuf, SPageInfo* pg) {
 
     pBuf->statis.flushBytes += size;
     pBuf->statis.flushPages += 1;
+  } else {
+    size = pg->length;
   }
 
+  assert(size >= 0);
+
   char* pDataBuf = pg->pData;
-  memset(pDataBuf, 0, pBuf->pageSize + sizeof(SFilePage));
+  memset(pDataBuf, 0, pBuf->pageSize);
 
   pg->pData  = NULL;  // this means the data is not in buffer
   pg->length = size;
@@ -251,8 +262,8 @@ static int32_t loadPageFromDisk(SDiskbasedBuf* pBuf, SPageInfo* pg) {
     return ret;
   }
 
-  SFilePage* pPage = (SFilePage*) GET_DATA_PAYLOAD(pg);
-  ret = (int32_t)fread(pPage->data, 1, pg->length, pBuf->file);
+  void* pPage = (void*) GET_DATA_PAYLOAD(pg);
+  ret = (int32_t)fread(pPage, 1, pg->length, pBuf->file);
   if (ret != pg->length) {
     ret = TAOS_SYSTEM_ERROR(errno);
     return ret;
@@ -262,7 +273,7 @@ static int32_t loadPageFromDisk(SDiskbasedBuf* pBuf, SPageInfo* pg) {
   pBuf->statis.loadPages += 1;
 
   int32_t fullSize = 0;
-  doDecompressData(pPage->data, pg->length, &fullSize, pBuf);
+  doDecompressData(pPage, pg->length, &fullSize, pBuf);
   return 0;
 }
 
@@ -288,7 +299,7 @@ static SPageInfo* registerPage(SDiskbasedBuf* pBuf, int32_t groupId, int32_t pag
 
   pBuf->numOfPages += 1;
 
-  SPageInfo* ppi = malloc(sizeof(SPageInfo));//{ .info = PAGE_INFO_INITIALIZER, .pageId = pageId, .pn = NULL};
+  SPageInfo* ppi = malloc(sizeof(SPageInfo));
 
   ppi->pageId = pageId;
   ppi->pData  = NULL;
@@ -302,6 +313,7 @@ static SPageInfo* registerPage(SDiskbasedBuf* pBuf, int32_t groupId, int32_t pag
 
 static SListNode* getEldestUnrefedPage(SDiskbasedBuf* pBuf) {
   SListIter iter = {0};
+
   tdListInitIter(pBuf->lruList, &iter, TD_LIST_BACKWARD);
 
   SListNode* pn = NULL;
@@ -313,6 +325,8 @@ static SListNode* getEldestUnrefedPage(SDiskbasedBuf* pBuf) {
 
     if (!pageInfo->used) {
       break;
+    } else {
+      printf("page %d is used, dirty:%d\n", pageInfo->pageId, pageInfo->dirty);
     }
   }
 
@@ -360,10 +374,10 @@ static void lruListMoveToFront(SList *pList, SPageInfo* pi) {
 }
 
 static FORCE_INLINE size_t getAllocPageSize(int32_t pageSize) {
-  return pageSize + POINTER_BYTES + 2 + sizeof(SFilePage);
+  return pageSize + POINTER_BYTES + 2;
 }
 
-SFilePage* getNewDataBuf(SDiskbasedBuf* pBuf, int32_t groupId, int32_t* pageId) {
+void* getNewBufPage(SDiskbasedBuf* pBuf, int32_t groupId, int32_t* pageId) {
   pBuf->statis.getPages += 1;
 
   char* availablePage = NULL;
@@ -378,6 +392,10 @@ SFilePage* getNewDataBuf(SDiskbasedBuf* pBuf, int32_t groupId, int32_t* pageId) 
 
   // register new id in this group
   *pageId = (++pBuf->allocateId);
+
+  if (*pageId == 11) {
+    printf("page is allocated, id:%d\n", *pageId);
+  }
 
   // register page id info
   SPageInfo* pi = registerPage(pBuf, groupId, *pageId);
@@ -404,7 +422,7 @@ SFilePage* getNewDataBuf(SDiskbasedBuf* pBuf, int32_t groupId, int32_t* pageId) 
   return (void *)(GET_DATA_PAYLOAD(pi));
 }
 
-SFilePage* getBufPage(SDiskbasedBuf* pBuf, int32_t id) {
+void* getBufPage(SDiskbasedBuf* pBuf, int32_t id) {
   assert(pBuf != NULL && id >= 0);
   pBuf->statis.getPages += 1;
 
@@ -493,7 +511,7 @@ void destroyDiskbasedBuf(SDiskbasedBuf* pBuf) {
     return;
   }
 
-  printStatisData(pBuf);
+  dBufPrintStatis(pBuf);
 
   if (pBuf->file != NULL) {
   uDebug("Paged buffer closed, total:%.2f Kb (%d Pages), inmem size:%.2f Kb (%d Pages), file size:%.2f Kb, page size:%.2f Kb, %"PRIx64"\n",
@@ -561,7 +579,7 @@ bool isAllDataInMemBuf(const SDiskbasedBuf* pBuf) {
   return pBuf->fileSize == 0;
 }
 
-void setBufPageDirty(SFilePage* pPage, bool dirty) {
+void setBufPageDirty(void* pPage, bool dirty) {
   int32_t offset = offsetof(SPageInfo, pData);
   char* p = (char*)pPage - offset;
 
@@ -569,7 +587,7 @@ void setBufPageDirty(SFilePage* pPage, bool dirty) {
   ppi->dirty = dirty;
 }
 
-void setPrintStatis(SDiskbasedBuf* pBuf) {
+void dBufSetPrintInfo(SDiskbasedBuf* pBuf) {
   pBuf->printStatis = true;
 }
 
@@ -577,7 +595,7 @@ SDiskbasedBufStatis getDBufStatis(const SDiskbasedBuf* pBuf) {
   return pBuf->statis;
 }
 
-void printStatisData(const SDiskbasedBuf* pBuf) {
+void dBufPrintStatis(const SDiskbasedBuf* pBuf) {
   if (!pBuf->printStatis) {
     return;
   }
