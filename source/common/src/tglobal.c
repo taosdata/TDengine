@@ -29,12 +29,7 @@
 
 
 // common
-int32_t tsShellActivityTimer = 3;  // second
-float   tsNumOfThreadsPerCore = 1.0f;
-int32_t tsNumOfCommitThreads = 4;
-float   tsRatioOfQueryCores = 1.0f;
 int8_t  tsDaylight = 0;
-int8_t  tsEnableCoreFile = 0;
 int32_t tsMaxBinaryDisplayWidth = 30;
 int8_t  tsEnableSlaveQuery = 1;
 int8_t  tsEnableAdjustMaster = 1;
@@ -286,17 +281,6 @@ static void doInitGlobalConfig(void) {
   cfg.unitType = TAOS_CFG_UTYPE_NONE;
   taosAddConfigOption(cfg);
 
-  // timer
-  cfg.option = "maxTmrCtrl";
-  cfg.ptr = &tsMaxTmrCtrl;
-  cfg.valType = TAOS_CFG_VTYPE_INT32;
-  cfg.cfgType = TSDB_CFG_CTYPE_B_CONFIG | TSDB_CFG_CTYPE_B_SHOW;
-  cfg.minValue = 8;
-  cfg.maxValue = 2048;
-  cfg.ptrLength = 0;
-  cfg.unitType = TAOS_CFG_UTYPE_NONE;
-  taosAddConfigOption(cfg);
-
   cfg.option = "minSlidingTime";
   cfg.ptr = &tsMinSlidingTime;
   cfg.valType = TAOS_CFG_VTYPE_INT32;
@@ -489,17 +473,6 @@ static void doInitGlobalConfig(void) {
   cfg.ptrLength = 0;
   cfg.unitType = TAOS_CFG_UTYPE_NONE;
   taosAddConfigOption(cfg);
-
-  cfg.option = "enableCoreFile";
-  cfg.ptr = &tsEnableCoreFile;
-  cfg.valType = TAOS_CFG_VTYPE_INT8;
-  cfg.cfgType = TSDB_CFG_CTYPE_B_CONFIG;
-  cfg.minValue = 0;
-  cfg.maxValue = 1;
-  cfg.ptrLength = 0;
-  cfg.unitType = TAOS_CFG_UTYPE_NONE;
-  taosAddConfigOption(cfg);
-
 
   cfg.option = "maxBinaryDisplayWidth";
   cfg.ptr = &tsMaxBinaryDisplayWidth;

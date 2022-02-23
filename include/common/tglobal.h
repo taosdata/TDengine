@@ -23,13 +23,7 @@ extern "C" {
 #include "tdef.h"
 
 // common
-extern int32_t  tsShellActivityTimer;
-extern uint32_t tsMaxTmrCtrl;
-extern float    tsNumOfThreadsPerCore;
-extern int32_t  tsNumOfCommitThreads;
-extern float    tsRatioOfQueryCores;
 extern int8_t   tsDaylight;
-extern int8_t   tsEnableCoreFile;
 extern int32_t  tsCompressMsgSize;
 extern int32_t  tsCompressColData;
 extern int32_t  tsMaxNumOfDistinctResults;
