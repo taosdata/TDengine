@@ -21,7 +21,6 @@
 #include "scheduler.h"
 #include "tmsg.h"
 #include "tcache.h"
-#include "tconfig.h"
 #include "tglobal.h"
 #include "tnote.h"
 #include "tref.h"
@@ -71,22 +70,6 @@ static void deregisterRequest(SRequestObj* pRequest) {
   tscDebug("0x%"PRIx64" free Request from connObj: 0x%"PRIx64", reqId:0x%"PRIx64" elapsed:%"PRIu64" ms, current:%d, app current:%d", pRequest->self, pTscObj->id,
       pRequest->requestId, duration, num, currentInst);
   taosReleaseRef(clientConnRefPool, pTscObj->id);
-}
-
-static void tscInitLogFile() {
-  taosReadGlobalLogCfg();
-  if (mkdir(tsLogDir, 0755) != 0 && errno != EEXIST) {
-    printf("failed to create log dir:%s\n", tsLogDir);
-  }
-
-  const char    *defaultLogFileNamePrefix = "taoslog";
-  const int32_t  maxLogFileNum = 10;
-
-  char temp[128] = {0};
-  sprintf(temp, "%s/%s", tsLogDir, defaultLogFileNamePrefix);
-  if (taosInitLog(temp, tsNumOfLogLines, maxLogFileNum) < 0) {
-    printf("failed to open log file in directory:%s\n", tsLogDir);
-  }
 }
 
 // todo close the transporter properly
@@ -225,11 +208,13 @@ void taos_init_imp(void) {
   srand(taosGetTimestampSec());
 
   deltaToUtcInitOnce();
-  taosInitGlobalCfg();
-  taosReadCfgFromFile();
 
-  tscInitLogFile();
-  if (taosCheckAndPrintCfg()) {
+  if (tscInitLog(configDir, NULL, NULL) != 0) {
+    tscInitRes = -1;
+    return;
+  }
+
+  if (tscInitCfg(configDir, NULL, NULL) != 0) {
     tscInitRes = -1;
     return;
   }
@@ -245,7 +230,7 @@ void taos_init_imp(void) {
 
   SSchedulerCfg scfg = {.maxJobNum = 100};
   schedulerInit(&scfg);
-  tscDebug("starting to initialize TAOS driver, local ep: %s", tsLocalEp);
+  tscDebug("starting to initialize TAOS driver");
 
   taosSetCoreDump(true);
 
@@ -269,6 +254,7 @@ int taos_init() {
 }
 
 int taos_options_imp(TSDB_OPTION option, const char *str) {
+#if 0  
   SGlobalCfg *cfg = NULL;
 
   switch (option) {
@@ -419,7 +405,7 @@ int taos_options_imp(TSDB_OPTION option, const char *str) {
       tscError("Invalid option %d", option);
       return -1;
   }
-
+#endif
   return 0;
 }
 

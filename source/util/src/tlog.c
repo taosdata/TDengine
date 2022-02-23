@@ -70,7 +70,8 @@ typedef struct {
 int8_t tscEmbeddedInUtil = 0;
 
 int32_t tsLogKeepDays = 0;
-int8_t  tsAsyncLog = 1;
+bool    tsAsyncLog = true;
+bool    tsLogInited = false;
 float   tsTotalLogDirGB = 0;
 float   tsAvailLogDirGB = 0;
 float   tsMinimalLogDirGB = 1.0f;
@@ -79,20 +80,19 @@ int32_t writeInterval = DEFAULT_LOG_INTERVAL;
 
 // log
 int32_t tsNumOfLogLines = 10000000;
-int32_t mDebugFlag = 131;
 int32_t dDebugFlag = 135;
 int32_t vDebugFlag = 135;
+int32_t mDebugFlag = 131;
 int32_t cDebugFlag = 131;
 int32_t jniDebugFlag = 131;
-int32_t qDebugFlag = 131;
-int32_t rpcDebugFlag = 131;
+int32_t tmrDebugFlag = 131;
 int32_t uDebugFlag = 131;
-int32_t debugFlag = 0;
-int32_t sDebugFlag = 135;
+int32_t rpcDebugFlag = 131;
+int32_t qDebugFlag = 131;
 int32_t wDebugFlag = 135;
+int32_t sDebugFlag = 135;
 int32_t tsdbDebugFlag = 131;
 int32_t tqDebugFlag = 135;
-int32_t cqDebugFlag = 131;
 int32_t fsDebugFlag = 135;
 
 int64_t dbgEmptyW = 0;
@@ -120,11 +120,17 @@ static int32_t taosStartLog() {
   return 0;
 }
 
-int32_t taosInitLog(char *logName, int numOfLogLines, int maxFiles) {
+int32_t taosInitLog(const char *logName, int maxFiles) {
+  if (tsLogInited) return 0;
+
+  char fullName[PATH_MAX] = {0};
+  snprintf(fullName, PATH_MAX, "%s" TD_DIRSEP "%s", tsLogDir, logName);
+
   tsLogObj.logHandle = taosLogBuffNew(TSDB_DEFAULT_LOG_BUF_SIZE);
   if (tsLogObj.logHandle == NULL) return -1;
-  if (taosOpenLogFile(logName, numOfLogLines, maxFiles) < 0) return -1;
+  if (taosOpenLogFile(fullName, tsNumOfLogLines, maxFiles) < 0) return -1;
   if (taosStartLog() < 0) return -1;
+  tsLogInited = true;
   return 0;
 }
 
@@ -217,7 +223,7 @@ static void *taosThreadToOpenNewFile(void *param) {
 
   uInfo("   new log file:%d is opened", tsLogObj.flag);
   uInfo("==================================");
-  taosPrintCfg();
+  // taosPrintCfg();
   taosKeepOldLog(keepName);
 
   return NULL;
@@ -772,4 +778,24 @@ void taosPrintOsInfo() {
   uInfo(" os release:             %s", info.release);
   uInfo(" os version:             %s", info.version);
   uInfo(" os machine:             %s", info.machine);
+}
+
+void taosSetAllDebugFlag(int32_t flag) {
+  if (!(flag & DEBUG_TRACE || flag & DEBUG_DEBUG || flag & DEBUG_DUMP)) return;
+
+  dDebugFlag = flag;
+  vDebugFlag = flag;
+  mDebugFlag = flag;
+  cDebugFlag = flag;
+  jniDebugFlag = flag;
+  uDebugFlag = flag;
+  rpcDebugFlag = flag;
+  qDebugFlag = flag;
+  wDebugFlag = flag;
+  sDebugFlag = flag;
+  tsdbDebugFlag = flag;
+  tqDebugFlag = flag;
+  fsDebugFlag = flag;
+
+  uInfo("all debug flag are set to %d", flag);
 }

@@ -158,7 +158,7 @@ int main(int argc, char *argv[]) {
 
   tsAsyncLog = 0;
   rpcInit.connType = TAOS_CONN_SERVER;
-  taosInitLog("server.log", 100000, 10);
+  taosInitLog("server.log", 10);
 
   void *pRpc = rpcOpen(&rpcInit);
   if (pRpc == NULL) {

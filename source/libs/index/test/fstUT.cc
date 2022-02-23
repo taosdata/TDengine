@@ -30,8 +30,8 @@ static void EnvInit() {
   taosRemoveDir(path.c_str());
   taosMkDir(path.c_str());
   // init log file
-  snprintf(indexlog, PATH_MAX, "%s/tindex.idx", path.c_str());
-  if (taosInitLog(indexlog, tsNumOfLogLines, 1) != 0) {
+  tstrncpy(tsLogDir, path.c_str(), PATH_MAX);
+  if (taosInitLog("tindex.idx", 1) != 0) {
     printf("failed to init log");
   }
   // init index file

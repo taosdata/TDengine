@@ -22,8 +22,6 @@ extern "C" {
 
 extern char tsOsName[];
 extern char tsDataDir[];
-extern char tsLogDir[];
-extern char tsScriptDir[];
 extern char configDir[];
 
 #ifdef __cplusplus
