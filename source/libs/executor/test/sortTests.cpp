@@ -145,6 +145,8 @@ int32_t docomp(const void* p1, const void* p2, void* param) {
         assert(0);
     }
   }
+
+  return 0;
 }
 }  // namespace
 
