@@ -42,26 +42,28 @@ protected:
 
   bool run() {
     int32_t code = parser(&cxt_, &query_);
-    // cout << "parser return " << code << endl;
+
     if (code != TSDB_CODE_SUCCESS) {
-      cout << "sql:[" << cxt_.pSql << "] parser code:" << tstrerror(code) << ", msg:" << errMagBuf_ << endl;
+      cout << "sql:[" << cxt_.pSql << "] parser code:" << code << ", strerror:" << tstrerror(code) << ", msg:" << errMagBuf_ << endl;
       return false;
     }
+
+    const string syntaxTreeStr = toString(query_.pRoot, false);
+  
     SLogicNode* pLogicPlan = nullptr;
     code = createLogicPlan(query_.pRoot, &pLogicPlan);
     if (code != TSDB_CODE_SUCCESS) {
-      cout << "sql:[" << cxt_.pSql << "] plan code:" << tstrerror(code) << endl;
+      cout << "sql:[" << cxt_.pSql << "] plan code:" << code << ", strerror:" << tstrerror(code) << endl;
       return false;
     }
-    char* pStr = NULL;
-    int32_t len = 0;
-    code = nodesNodeToString((const SNode*)pLogicPlan, &pStr, &len);
-    if (code != TSDB_CODE_SUCCESS) {
-      cout << "sql:[" << cxt_.pSql << "] toString code:" << tstrerror(code) << endl;
-      return false;
-    }
-    cout << "logic plan : " << endl;
-    cout << pStr << endl;
+  
+    cout << "sql : [" << cxt_.pSql << "]" << endl;
+    cout << "syntax test : " << endl;
+    cout << syntaxTreeStr << endl;
+    // cout << "logic plan : " << endl;
+    // cout << toString((const SNode*)pLogicPlan) << endl;
+    cout << "unformatted logic plan : " << endl;
+    cout << toString((const SNode*)pLogicPlan, false) << endl;
     return true;
   }
 
@@ -73,6 +75,19 @@ private:
     memset(errMagBuf_, 0, max_err_len);
     cxt_.pMsg = errMagBuf_;
     cxt_.msgLen = max_err_len;
+  }
+
+  string toString(const SNode* pRoot, bool format = true) {
+    char* pStr = NULL;
+    int32_t len = 0;
+    int32_t code = nodesNodeToString(pRoot, format, &pStr, &len);
+    if (code != TSDB_CODE_SUCCESS) {
+      cout << "sql:[" << cxt_.pSql << "] toString code:" << code << ", strerror:" << tstrerror(code) << endl;
+      return string();
+    }
+    string str(pStr);
+    tfree(pStr);
+    return str;
   }
 
   string acctId_;
@@ -87,5 +102,21 @@ TEST_F(NewPlannerTest, simple) {
   setDatabase("root", "test");
 
   bind("SELECT * FROM t1");
+  ASSERT_TRUE(run());
+}
+
+TEST_F(NewPlannerTest, groupBy) {
+  setDatabase("root", "test");
+
+  bind("SELECT count(*) FROM t1");
+  ASSERT_TRUE(run());
+
+  bind("SELECT c1, count(*) FROM t1 GROUP BY c1");
+  ASSERT_TRUE(run());
+
+  bind("SELECT c1 + c3, c1 + count(*) FROM t1 where c2 = 'abc' GROUP BY c1, c3");
+  ASSERT_TRUE(run());
+
+  bind("SELECT c1 + c3, count(*) FROM t1 where concat(c2, 'wwww') = 'abcwww' GROUP BY c1 + c3");
   ASSERT_TRUE(run());
 }

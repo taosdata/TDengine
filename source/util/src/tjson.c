@@ -32,6 +32,10 @@ int32_t tjsonAddIntegerToObject(SJson* pJson, const char* pName, const uint64_t 
   return tjsonAddStringToObject(pJson, pName, tmp);
 }
 
+int32_t tjsonAddDoubleToObject(SJson* pJson, const char* pName, const double number) {
+  return (NULL == cJSON_AddNumberToObject((cJSON*)pJson, pName, number) ? TSDB_CODE_FAILED : TSDB_CODE_SUCCESS);
+}
+
 int32_t tjsonAddStringToObject(SJson* pJson, const char* pName, const char* pVal) {
   return (NULL == cJSON_AddStringToObject((cJSON*)pJson, pName, pVal) ? TSDB_CODE_FAILED : TSDB_CODE_SUCCESS);
 }
@@ -73,4 +77,8 @@ int32_t tjsonAddItem(SJson* pJson, FToJson func, const void* pObj) {
 
 char* tjsonToString(const SJson* pJson) {
   return cJSON_Print((cJSON*)pJson);
+}
+
+char* tjsonToUnformattedString(const SJson* pJson) {
+  return cJSON_PrintUnformatted((cJSON*)pJson);
 }

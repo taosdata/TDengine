@@ -1556,38 +1556,42 @@ int32_t ctgGetTableMeta(SCatalog* pCtg, void *pRpc, const SEpSet* pMgmtEps, cons
 
   STableMetaOutput *output = NULL;
 
-  CTG_ERR_JRET(ctgRefreshTblMeta(pCtg, pRpc, pMgmtEps, pTableName, isSTable, &output));
+  while (true) {
+    CTG_ERR_JRET(ctgRefreshTblMeta(pCtg, pRpc, pMgmtEps, pTableName, isSTable, &output));
 
-  if (CTG_IS_META_TABLE(output->metaType)) {
-    *pTableMeta = output->tbMeta;
-    goto _return;
-  }
+    if (CTG_IS_META_TABLE(output->metaType)) {
+      *pTableMeta = output->tbMeta;
+      goto _return;
+    }
 
-  if (CTG_IS_META_BOTH(output->metaType)) {
-    memcpy(output->tbMeta, &output->ctbMeta, sizeof(output->ctbMeta));
+    if (CTG_IS_META_BOTH(output->metaType)) {
+      memcpy(output->tbMeta, &output->ctbMeta, sizeof(output->ctbMeta));
+      
+      *pTableMeta = output->tbMeta;
+      goto _return;
+    }
+
+    if ((!CTG_IS_META_CTABLE(output->metaType)) || output->tbMeta) {
+      ctgError("invalid metaType:%d", output->metaType);
+      tfree(output->tbMeta);
+      CTG_ERR_JRET(TSDB_CODE_CTG_INTERNAL_ERROR);
+    }
+
+    // HANDLE ONLY CHILD TABLE META
+
+    SName stbName = *pTableName;
+    strcpy(stbName.tname, output->tbName);
     
-    *pTableMeta = output->tbMeta;
-    goto _return;
+    CTG_ERR_JRET(ctgGetTableMetaFromCache(pCtg, &stbName, pTableMeta, &exist));
+    if (0 == exist) {
+      ctgDebug("stb no longer exist, dbFName:%s, tbName:%s", output->dbFName, pTableName->tname);
+      continue;
+    }
+
+    memcpy(*pTableMeta, &output->ctbMeta, sizeof(output->ctbMeta));
+
+    break;
   }
-
-  if ((!CTG_IS_META_CTABLE(output->metaType)) || output->tbMeta) {
-    ctgError("invalid metaType:%d", output->metaType);
-    tfree(output->tbMeta);
-    CTG_ERR_JRET(TSDB_CODE_CTG_INTERNAL_ERROR);
-  }
-
-  // HANDLE ONLY CHILD TABLE META
-
-  SName stbName = *pTableName;
-  strcpy(stbName.tname, output->tbName);
-  
-  CTG_ERR_JRET(ctgGetTableMetaFromCache(pCtg, &stbName, pTableMeta, &exist));
-  if (0 == exist) {
-    ctgDebug("stb no longer exist, dbFName:%s, tbName:%s", output->dbFName, pTableName->tname);
-    CTG_ERR_JRET(TSDB_CODE_VND_TB_NOT_EXIST);
-  }
-
-  memcpy(*pTableMeta, &output->ctbMeta, sizeof(output->ctbMeta));
 
 _return:
 

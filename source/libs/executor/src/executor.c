@@ -14,9 +14,9 @@
  */
 
 #include "executor.h"
-#include "tq.h"
 #include "executorimpl.h"
 #include "planner.h"
+#include "tq.h"
 
 static int32_t doSetStreamBlock(SOperatorInfo* pOperator, void* input, char* id) {
   ASSERT(pOperator != NULL);
@@ -34,7 +34,10 @@ static int32_t doSetStreamBlock(SOperatorInfo* pOperator, void* input, char* id)
     return doSetStreamBlock(pOperator->pDownstream[0], input, id);
   } else {
     SStreamBlockScanInfo* pInfo = pOperator->info;
-    tqReadHandleSetMsg(pInfo->readerHandle, input, 0);
+    if (tqReadHandleSetMsg(pInfo->readerHandle, input, 0) < 0) {
+      qError("submit msg error while set stream msg, %s" PRIx64, id);
+      return TSDB_CODE_QRY_APP_ERROR;
+    }
     return TSDB_CODE_SUCCESS;
   }
 }
@@ -48,9 +51,9 @@ int32_t qSetStreamInput(qTaskInfo_t tinfo, const void* input) {
     return TSDB_CODE_SUCCESS;
   }
 
-  SExecTaskInfo* pTaskInfo = (SExecTaskInfo*) tinfo;
+  SExecTaskInfo* pTaskInfo = (SExecTaskInfo*)tinfo;
 
-  int32_t code = doSetStreamBlock(pTaskInfo->pRoot, (void*) input, GET_TASKID(pTaskInfo));
+  int32_t code = doSetStreamBlock(pTaskInfo->pRoot, (void*)input, GET_TASKID(pTaskInfo));
   if (code != TSDB_CODE_SUCCESS) {
     qError("%s failed to set the stream block data", GET_TASKID(pTaskInfo));
   } else {

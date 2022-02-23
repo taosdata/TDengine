@@ -190,6 +190,9 @@ TEST_F(MndTestQnode, 03_Create_Qnode_Rollback) {
     tSerializeSMCreateDropQSBNodeReq(pReq, contLen, &createReq);
 
     server2.Stop();
+    taosMsleep(1000);
+    // test.ClientRestart();
+
     SRpcMsg* pRsp = test.SendReq(TDMT_MND_CREATE_QNODE, pReq, contLen);
     ASSERT_NE(pRsp, nullptr);
     ASSERT_EQ(pRsp->code, TSDB_CODE_RPC_NETWORK_UNAVAIL);
@@ -226,6 +229,7 @@ TEST_F(MndTestQnode, 03_Create_Qnode_Rollback) {
   {
     // server start, wait until the rollback finished
     server2.DoStart();
+    test.ClientRestart();
     taosMsleep(1000);
 
     int32_t retry = 0;
@@ -248,7 +252,6 @@ TEST_F(MndTestQnode, 03_Create_Qnode_Rollback) {
     ASSERT_NE(retry, retryMax);
   }
 }
-
 TEST_F(MndTestQnode, 04_Drop_Qnode_Rollback) {
   {
     // send message first, then dnode2 crash, result is returned, and rollback is started

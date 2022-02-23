@@ -21,9 +21,9 @@ void Testbase::InitLog(const char* path) {
   mDebugFlag = 143;
   cDebugFlag = 0;
   jniDebugFlag = 0;
-  tmrDebugFlag = 0;
-  uDebugFlag = 0;
-  rpcDebugFlag = 0;
+  tmrDebugFlag = 143;
+  uDebugFlag = 143;
+  rpcDebugFlag = 143;
   qDebugFlag = 0;
   wDebugFlag = 0;
   sDebugFlag = 0;
@@ -66,16 +66,21 @@ void Testbase::Init(const char* path, int16_t port) {
 
 void Testbase::Cleanup() {
   tFreeSTableMetaRsp(&metaRsp);
-  server.Stop();
   client.Cleanup();
+  taosMsleep(10);
+  server.Stop();
   dndCleanup();
 }
 
-void Testbase::Restart() { server.Restart(); }
+void Testbase::Restart() {
+  server.Restart();
+  client.Restart();
+}
 
 void Testbase::ServerStop() { server.Stop(); }
 
 void Testbase::ServerStart() { server.DoStart(); }
+void Testbase::ClientRestart() { client.Restart(); }
 
 SRpcMsg* Testbase::SendReq(tmsg_t msgType, void* pCont, int32_t contLen) {
   SRpcMsg rpcMsg = {0};
