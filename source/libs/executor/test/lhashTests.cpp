@@ -31,13 +31,13 @@ TEST(testCase, linear_hash_Tests) {
   _hash_fn_t fn = taosGetDefaultHashFunction(TSDB_DATA_TYPE_INT);
 #if 1
   SLHashObj* pHashObj = tHashInit(100, 64 + 8, fn, 4);
-  for(int32_t i = 0; i < 5000; ++i) {
+  for(int32_t i = 0; i < 500000; ++i) {
     tHashPut(pHashObj, &i, sizeof(i), &i, sizeof(i));
   }
 
   tHashPrint(pHashObj, LINEAR_HASH_STATIS);
 
-  for(int32_t i = 0; i < 100; ++i) {
+  for(int32_t i = 0; i < 10000; ++i) {
     char* v = tHashGet(pHashObj, &i, sizeof(i));
     if (v != NULL) {
 //      printf("find value: %d, key:%d\n", *(int32_t*) v, i);
