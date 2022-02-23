@@ -280,15 +280,6 @@ static void doInitGlobalConfig(void) {
 #if 0
   SGlobalCfg cfg = {0};
 
-  cfg.option = "scriptDir";
-  cfg.ptr = tsScriptDir;
-  cfg.valType = TAOS_CFG_VTYPE_DIRECTORY;
-  cfg.cfgType = TSDB_CFG_CTYPE_B_CONFIG | TSDB_CFG_CTYPE_B_CLIENT;
-  cfg.minValue = 0;
-  cfg.maxValue = 0;
-  cfg.ptrLength = TSDB_FILENAME_LEN;
-  cfg.unitType = TAOS_CFG_UTYPE_NONE;
-  taosAddConfigOption(cfg);
 
   cfg.option = "dataDir";
   cfg.ptr = tsDataDir;

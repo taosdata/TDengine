@@ -23,7 +23,6 @@ char tsOsName[10] = "Windows";
 char configDir[PATH_MAX] = "C:/TDengine/cfg";
 char tsDataDir[PATH_MAX] = "C:/TDengine/data";
 char tsLogDir[PATH_MAX] = "C:/TDengine/log";
-char tsScriptDir[PATH_MAX] = "C:/TDengine/script";
 char tsTempDir[PATH_MAX] = "C:\\Windows\\Temp";
 
 extern taosWinSocketInit();
@@ -47,7 +46,6 @@ char tsOsName[10] = "Darwin";
 char configDir[PATH_MAX] = "/usr/local/etc/taos";
 char tsDataDir[PATH_MAX] = "/usr/local/var/lib/taos";
 char tsLogDir[PATH_MAX] = "/usr/local/var/log/taos";
-char tsScriptDir[PATH_MAX] = "/usr/local/etc/taos";
 char tsTempDir[PATH_MAX] = "/tmp/taosd";
 
 void osInit() {}
@@ -58,7 +56,6 @@ char tsOsName[10] = "Linux";
 char configDir[PATH_MAX] = "/etc/taos";
 char tsDataDir[PATH_MAX] = "/var/lib/taos";
 char tsLogDir[PATH_MAX] = "/var/log/taos";
-char tsScriptDir[PATH_MAX] = "/etc/taos";
 char tsTempDir[PATH_MAX] = "/tmp/";
 
 void osInit() {}

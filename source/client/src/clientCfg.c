@@ -83,6 +83,8 @@ static int32_t tscSetLogCfg(SConfig *pCfg) {
 }
 
 int32_t tscInitLog(const char *cfgDir, const char *envFile, const char *apolloUrl) {
+  if (tsLogInited) return 0;
+
   SConfig *pCfg = cfgInit();
   if (pCfg == NULL) return -1;
 
@@ -111,6 +113,7 @@ int32_t tscInitLog(const char *cfgDir, const char *envFile, const char *apolloUr
     return -1;
   }
 
+  cfgDumpCfg(pCfg);
   cfgCleanup(pCfg);
   return 0;
 }
@@ -151,7 +154,7 @@ static int32_t tscAddCfg(SConfig *pCfg) {
   if (cfgAddInt32(pCfg, "numOfCores", 1, 1, 100000) != 0) return -1;
   if (cfgAddInt32(pCfg, "numOfCommitThreads", 4, 1, 1000) != 0) return -1;
   // if (cfgAddBool(pCfg, "telemetryReporting", 0) != 0) return -1;
-  // if (cfgAddBool(pCfg, "enableCoreFile", 0) != 0) return -1;
+  if (cfgAddBool(pCfg, "enableCoreFile", 0) != 0) return -1;
   // if (cfgAddInt32(pCfg, "supportVnodes", 256, 0, 65536) != 0) return -1;
   if (cfgAddInt32(pCfg, "statusInterval", 1, 1, 30) != 0) return -1;
   if (cfgAddFloat(pCfg, "numOfThreadsPerCore", 1, 0, 10) != 0) return -1;
@@ -173,12 +176,6 @@ int32_t tscCheckCfg(SConfig *pCfg) {
 SConfig *tscInitCfgImp(const char *cfgDir, const char *envFile, const char *apolloUrl) {
   SConfig *pCfg = cfgInit();
   if (pCfg == NULL) return NULL;
-
-  if (tscAddLogCfg(pCfg) != 0) {
-    uError("failed to add log cfg since %s", terrstr());
-    cfgCleanup(pCfg);
-    return NULL;
-  }
 
   if (tscAddCfg(pCfg) != 0) {
     uError("failed to init tsc cfg since %s", terrstr());

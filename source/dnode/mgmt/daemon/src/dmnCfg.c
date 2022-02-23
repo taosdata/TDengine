@@ -202,7 +202,7 @@ SDnodeObjCfg dmnGetObjCfg(SConfig *pCfg) {
   tstrncpy(objCfg.firstEp, cfgGetItem(pCfg, "firstEp")->str, sizeof(objCfg.firstEp));
   tstrncpy(objCfg.secondEp, cfgGetItem(pCfg, "secondEp")->str, sizeof(objCfg.firstEp));
   objCfg.serverPort = (uint16_t)cfgGetItem(pCfg, "serverPort")->i32;
-  tstrncpy(objCfg.localFqdn, cfgGetItem(pCfg, "fqdn")->str, sizeof(objCfg.localFqdn, cfgGetItem));
+  tstrncpy(objCfg.localFqdn, cfgGetItem(pCfg, "fqdn")->str, sizeof(objCfg.localFqdn));
   snprintf(objCfg.localEp, sizeof(objCfg.localEp), "%s:%u", objCfg.localFqdn, objCfg.serverPort);
   return objCfg;
 }

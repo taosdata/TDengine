@@ -15,10 +15,13 @@
 
 #define _DEFAULT_SOURCE
 #include "cfgInt.h"
-#include "tmsg.h"
 #include "tep.h"
 #include "tlocale.h"
+#include "tmsg.h"
 #include "ttimezone.h"
+
+#define CFG_NAME_PRINT_LEN 22
+#define CFG_SRC_PRINT_LEN 12
 
 SConfig *cfgInit() {
   SConfig *pCfg = calloc(1, sizeof(SConfig));
@@ -505,56 +508,37 @@ const char *cfgDtypeStr(ECfgDataType type) {
   }
 }
 
-void cfgPrintCfg(SConfig *pCfg) {
-  uInfo("taos global config");
-  uInfo("==================================");
-
-  SConfigItem *pItem = cfgIterate(pCfg, NULL);
-  while (pItem != NULL) {
-    switch (pItem->dtype) {
-      case CFG_DTYPE_BOOL:
-        uInfo("cfg:%s, value:%u src:%s", pItem->name, pItem->bval, cfgStypeStr(pItem->stype));
-        break;
-      case CFG_DTYPE_INT32:
-        uInfo("cfg:%s, value:%d src:%s", pItem->name, pItem->i32, cfgStypeStr(pItem->stype));
-        break;
-      case CFG_DTYPE_INT64:
-        uInfo("cfg:%s, value:%" PRId64 " src:%s", pItem->name, pItem->i64, cfgStypeStr(pItem->stype));
-        break;
-      case CFG_DTYPE_FLOAT:
-        uInfo("cfg:%s, value:%f src:%s", pItem->name, pItem->fval, cfgStypeStr(pItem->stype));
-        break;
-      case CFG_DTYPE_STRING:
-      case CFG_DTYPE_IPSTR:
-      case CFG_DTYPE_DIR:
-      case CFG_DTYPE_LOCALE:
-      case CFG_DTYPE_CHARSET:
-      case CFG_DTYPE_TIMEZONE:
-        uInfo("cfg:%s, value:%s src:%s", pItem->name, pItem->str, cfgStypeStr(pItem->stype));
-        break;
-    }
-    pItem = cfgIterate(pCfg, pItem);
-  }
-}
-
 void cfgDumpCfg(SConfig *pCfg) {
-  uInfo("global config");
-  uInfo("==================================");
+  uInfo("   global config");
+  uInfo("=================================================================");
+
+  char src[CFG_SRC_PRINT_LEN + 1] = {0};
+  char name[CFG_NAME_PRINT_LEN + 1] = {0};
 
   SConfigItem *pItem = cfgIterate(pCfg, NULL);
   while (pItem != NULL) {
+    tstrncpy(src, cfgStypeStr(pItem->stype), CFG_SRC_PRINT_LEN);
+    for (int32_t i = 0; i < CFG_SRC_PRINT_LEN; ++i) {
+      if (src[i] == 0) src[i] = ' ';
+    }
+
+    tstrncpy(name, pItem->name, CFG_NAME_PRINT_LEN);
+    for (int32_t i = 0; i < CFG_NAME_PRINT_LEN; ++i) {
+      if (name[i] == 0) name[i] = ' ';
+    }
+
     switch (pItem->dtype) {
       case CFG_DTYPE_BOOL:
-        uInfo("cfg:%s, value:%u src:%s", pItem->name, pItem->bval, cfgStypeStr(pItem->stype));
+        uInfo("%s %s %u", src, name, pItem->bval);
         break;
       case CFG_DTYPE_INT32:
-        uInfo("cfg:%s, value:%d src:%s", pItem->name, pItem->i32, cfgStypeStr(pItem->stype));
+        uInfo("%s %s %d", src, name, pItem->i32);
         break;
       case CFG_DTYPE_INT64:
-        uInfo("cfg:%s, value:%" PRId64 " src:%s", pItem->name, pItem->i64, cfgStypeStr(pItem->stype));
+        uInfo("%s %s %" PRId64, src, name, pItem->i64);
         break;
       case CFG_DTYPE_FLOAT:
-        uInfo("cfg:%s, value:%f src:%s", pItem->name, pItem->fval, cfgStypeStr(pItem->stype));
+        uInfo("%s %s %f", src, name, pItem->fval);
         break;
       case CFG_DTYPE_STRING:
       case CFG_DTYPE_IPSTR:
@@ -562,13 +546,13 @@ void cfgDumpCfg(SConfig *pCfg) {
       case CFG_DTYPE_LOCALE:
       case CFG_DTYPE_CHARSET:
       case CFG_DTYPE_TIMEZONE:
-        uInfo("cfg:%s, value:%s src:%s", pItem->name, pItem->str, cfgStypeStr(pItem->stype));
+        uInfo("%s %s %s", src, name, pItem->str);
         break;
     }
     pItem = cfgIterate(pCfg, pItem);
   }
 
-  uInfo("==================================");
+  uInfo("=================================================================");
 }
 #if 0
 // int32_t cfgCheck(SConfig *pCfg) {
