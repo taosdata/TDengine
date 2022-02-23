@@ -7,7 +7,7 @@
 add_library(tdb "")
 target_sources(tdb
     PRIVATE
-    "src/db/tdbPgCache.c"
+    "src/db/tdbPCache.c"
 )
 
 target_include_directories(

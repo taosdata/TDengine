@@ -121,9 +121,9 @@ typedef TD_DLIST_NODE(SPgFile) SPgFileListNode;
 
 // #include "tdbBtree.h"
 
-#include "tdbPgCache.h"
+#include "tdbPCache.h"
 
-// #include "tdbPgFile.h"
+// #include "tdbPFile.h"
 
 // #include "tdbEnv.h"
 
