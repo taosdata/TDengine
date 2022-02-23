@@ -13,21 +13,24 @@
  * along with this program. If not, see <http://www.gnu.org/licenses/>.
  */
 
-#ifndef _TD_COMMON_BIN_SCALAR_OPERATOR_H_
-#define _TD_COMMON_BIN_SCALAR_OPERATOR_H_
+#ifndef _TD_LIBS_SYNC_REQUEST_VOTE_REPLY_H
+#define _TD_LIBS_SYNC_REQUEST_VOTE_REPLY_H
 
 #ifdef __cplusplus
 extern "C" {
 #endif
 
-#include "tscalarfunction.h"
+#include <stdint.h>
+#include <stdio.h>
+#include <stdlib.h>
+#include "syncMessage.h"
+#include "syncRaft.h"
+#include "taosdef.h"
 
-typedef void (*_bin_scalar_fn_t)(SScalarFuncParam* pLeft, SScalarFuncParam* pRight, void *output, int32_t order);
-_bin_scalar_fn_t getBinScalarOperatorFn(int32_t binOperator);
-bool isBinaryStringOp(int32_t op);
+void onRequestVoteReply(SRaft *pRaft, const SyncRequestVoteReply *pMsg);
 
 #ifdef __cplusplus
 }
 #endif
 
-#endif  /*_TD_COMMON_BIN_SCALAR_OPERATOR_H_*/
+#endif /*_TD_LIBS_SYNC_REQUEST_VOTE_REPLY_H*/

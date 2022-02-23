@@ -13,7 +13,7 @@ add_library(executor STATIC ${EXECUTOR_SRC})
 #        INTERFACE_INCLUDE_DIRECTORIES "${CMAKE_SOURCE_DIR}/include/libs/executor"
 #        )
 target_link_libraries(executor
-            PRIVATE os util common function parser planner qcom vnode
+            PRIVATE os util common function parser planner qcom vnode scalar nodes
         )
 
 target_include_directories(

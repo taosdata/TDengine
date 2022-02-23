@@ -198,8 +198,8 @@ DLL_EXPORT TAOS_RES *taos_schemaless_insert(TAOS *taos, char *lines[], int numLi
 /* --------------------------TMQ INTERFACE------------------------------- */
 
 enum tmq_resp_err_t {
+  TMQ_RESP_ERR__FAIL = -1,
   TMQ_RESP_ERR__SUCCESS = 0,
-  TMQ_RESP_ERR__FAIL = 1,
 };
 
 typedef enum tmq_resp_err_t tmq_resp_err_t;
@@ -226,7 +226,7 @@ DLL_EXPORT const char *tmq_err2str(tmq_resp_err_t);
 DLL_EXPORT tmq_resp_err_t tmq_subscribe(tmq_t *tmq, tmq_list_t *topic_list);
 #if 0
 DLL_EXPORT tmq_resp_err_t tmq_unsubscribe(tmq_t* tmq);
-DLL_EXPORT tmq_resp_err_t tmq_subscription(tmq_t* tmq, tmq_topic_vgroup_list_t** topics);
+DLL_EXPORT tmq_resp_err_t tmq_subscription(tmq_t* tmq, tmq_list_t** topics);
 #endif
 DLL_EXPORT tmq_message_t *tmq_consumer_poll(tmq_t *tmq, int64_t blocking_time);
 DLL_EXPORT tmq_resp_err_t tmq_consumer_close(tmq_t *tmq);
@@ -238,6 +238,7 @@ DLL_EXPORT tmq_resp_err_t tmq_commit(tmq_t *tmq, const tmq_topic_vgroup_list_t *
 #if 0
 DLL_EXPORT tmq_resp_err_t tmq_commit_message(tmq_t* tmq, const tmq_message_t* tmqmessage, int32_t async);
 #endif
+DLL_EXPORT tmq_resp_err_t tmq_seek(tmq_t *tmq, const tmq_topic_vgroup_t *offset);
 /* ----------------------TMQ CONFIGURATION INTERFACE---------------------- */
 
 enum tmq_conf_res_t {

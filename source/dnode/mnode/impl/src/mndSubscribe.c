@@ -19,6 +19,7 @@
 #include "mndDb.h"
 #include "mndDnode.h"
 #include "mndMnode.h"
+#include "mndOffset.h"
 #include "mndShow.h"
 #include "mndStb.h"
 #include "mndTopic.h"
@@ -80,13 +81,13 @@ int32_t mndInitSubscribe(SMnode *pMnode) {
   return sdbSetTable(pMnode->pSdb, table);
 }
 
-static SMqSubscribeObj *mndCreateSubscription(SMnode *pMnode, const SMqTopicObj *pTopic, const char *consumerGroup) {
+static SMqSubscribeObj *mndCreateSubscription(SMnode *pMnode, const SMqTopicObj *pTopic, const char *cgroup) {
   SMqSubscribeObj *pSub = tNewSubscribeObj();
   if (pSub == NULL) {
     terrno = TSDB_CODE_OUT_OF_MEMORY;
     return NULL;
   }
-  char *key = mndMakeSubscribeKey(consumerGroup, pTopic->name);
+  char *key = mndMakeSubscribeKey(cgroup, pTopic->name);
   if (key == NULL) {
     terrno = TSDB_CODE_OUT_OF_MEMORY;
     tDeleteSMqSubscribeObj(pSub);
@@ -289,9 +290,15 @@ static int32_t mndProcessGetSubEpReq(SMnodeMsg *pMsg) {
           strcpy(topicEp.topic, topicName);
           topicEp.vgs = taosArrayInit(vgsz, sizeof(SMqSubVgEp));
           for (int32_t k = 0; k < vgsz; k++) {
+            char           offsetKey[TSDB_PARTITION_KEY_LEN];
             SMqConsumerEp *pConsumerEp = taosArrayGet(pSubConsumer->vgInfo, k);
-
-            SMqSubVgEp vgEp = {.epSet = pConsumerEp->epSet, .vgId = pConsumerEp->vgId};
+            SMqSubVgEp     vgEp = {.epSet = pConsumerEp->epSet, .vgId = pConsumerEp->vgId, .offset = -1};
+            mndMakePartitionKey(offsetKey, pConsumer->cgroup, topicName, pConsumerEp->vgId);
+            SMqOffsetObj *pOffsetObj = mndAcquireOffset(pMnode, offsetKey);
+            if (pOffsetObj != NULL) {
+              vgEp.offset = pOffsetObj->offset;
+              mndReleaseOffset(pMnode, pOffsetObj);
+            }
             taosArrayPush(topicEp.vgs, &vgEp);
           }
           taosArrayPush(rsp.topics, &topicEp);
@@ -870,7 +877,7 @@ static SSdbRaw *mndSubActionEncode(SMqSubscribeObj *pSub) {
 
 SUB_ENCODE_OVER:
   tfree(buf);
-  if (terrno != 0) {
+  if (terrno != TSDB_CODE_SUCCESS) {
     mError("subscribe:%s, failed to encode to raw:%p since %s", pSub->key, pRaw, terrstr());
     sdbFreeRaw(pRaw);
     return NULL;
@@ -1085,6 +1092,8 @@ static int32_t mndProcessSubscribeReq(SMnodeMsg *pMsg) {
         mDebug("create new subscription by consumer %ld, group: %s, topic %s", consumerId, cgroup, newTopicName);
         pSub = mndCreateSubscription(pMnode, pTopic, cgroup);
         createSub = true;
+
+        mndCreateOffset(pTrans, cgroup, newTopicName, pSub->unassignedVg);
       }
 
       SMqSubConsumer mqSubConsumer;

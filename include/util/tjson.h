@@ -30,6 +30,7 @@ void tjsonDelete(SJson* pJson);
 SJson* tjsonAddArrayToObject(SJson* pJson, const char* pName);
 
 int32_t tjsonAddIntegerToObject(SJson* pJson, const char* pName, const uint64_t number);
+int32_t tjsonAddDoubleToObject(SJson* pJson, const char* pName, const double number);
 int32_t tjsonAddStringToObject(SJson* pJson, const char* pName, const char* pVal);
 int32_t tjsonAddItemToObject(SJson* pJson, const char* pName, SJson* pItem);
 int32_t tjsonAddItemToArray(SJson* pJson, SJson* pItem);
@@ -42,6 +43,7 @@ int32_t tjsonAddItem(SJson* pJson, FToJson func, const void* pObj);
 typedef int32_t (*FFromJson)(const SJson* pJson, void* pObj);
 
 char* tjsonToString(const SJson* pJson);
+char* tjsonToUnformattedString(const SJson* pJson);
 
 #ifdef __cplusplus
 }

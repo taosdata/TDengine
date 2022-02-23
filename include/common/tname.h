@@ -16,6 +16,11 @@
 #ifndef TDENGINE_TNAME_H
 #define TDENGINE_TNAME_H
 
+#ifdef __cplusplus
+extern "C" {
+#endif
+
+
 #include "tdef.h"
 #include "tmsg.h"
 
@@ -58,5 +63,10 @@ int32_t tNameFromString(SName* dst, const char* str, uint32_t type);
 int32_t tNameSetAcctId(SName* dst, int32_t acctId);
 
 SSchema createSchema(uint8_t type, int32_t bytes, int32_t colId, const char* name);
+
+#ifdef __cplusplus
+}
+#endif
+
 
 #endif  // TDENGINE_TNAME_H

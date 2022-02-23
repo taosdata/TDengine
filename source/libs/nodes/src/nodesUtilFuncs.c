@@ -17,6 +17,7 @@
 #include "plannodes.h"
 #include "taos.h"
 #include "taoserror.h"
+#include "taos.h"
 #include "thash.h"
 
 static SNode* makeNode(ENodeType type, size_t size) {
@@ -62,6 +63,8 @@ SNode* nodesMakeNode(ENodeType type) {
       return makeNode(type, sizeof(SNodeListNode));
     case QUERY_NODE_FILL:
       return makeNode(type, sizeof(SFillNode));
+    case QUERY_NODE_COLUMN_REF:
+      return makeNode(type, sizeof(SColumnRefNode));
     case QUERY_NODE_RAW_EXPR:
       return makeNode(type, sizeof(SRawExprNode));
     case QUERY_NODE_SET_OPERATOR:
@@ -74,12 +77,22 @@ SNode* nodesMakeNode(ENodeType type) {
       return makeNode(type, sizeof(SScanLogicNode));
     case QUERY_NODE_LOGIC_PLAN_JOIN:
       return makeNode(type, sizeof(SJoinLogicNode));
-    case QUERY_NODE_LOGIC_PLAN_FILTER:
-      return makeNode(type, sizeof(SFilterLogicNode));
     case QUERY_NODE_LOGIC_PLAN_AGG:
       return makeNode(type, sizeof(SAggLogicNode));
     case QUERY_NODE_LOGIC_PLAN_PROJECT:
       return makeNode(type, sizeof(SProjectLogicNode));
+    case QUERY_NODE_TARGET:
+      return makeNode(type, sizeof(STargetNode));
+    case QUERY_NODE_TUPLE_DESC:
+      return makeNode(type, sizeof(STupleDescNode));
+    case QUERY_NODE_SLOT_DESC:
+      return makeNode(type, sizeof(SSlotDescNode));
+    case QUERY_NODE_PHYSICAL_PLAN_TAG_SCAN:
+      return makeNode(type, sizeof(STagScanPhysiNode));
+    case QUERY_NODE_PHYSICAL_PLAN_TABLE_SCAN:
+      return makeNode(type, sizeof(STableScanPhysiNode));
+    case QUERY_NODE_PHYSICAL_PLAN_PROJECT:
+      return makeNode(type, sizeof(SProjectPhysiNode));
     default:
       break;
   }
@@ -132,11 +145,22 @@ int32_t nodesListAppend(SNodeList* pList, SNode* pNode) {
 }
 
 int32_t nodesListAppendList(SNodeList* pTarget, SNodeList* pSrc) {
-  pTarget->pTail->pNext = pSrc->pHead;
-  pSrc->pHead->pPrev = pTarget->pTail;
+  if (NULL == pTarget || NULL == pSrc) {
+    return TSDB_CODE_SUCCESS;
+  }
+
+  if (NULL == pTarget->pHead) {
+    pTarget->pHead = pSrc->pHead;
+  } else {
+    pTarget->pTail->pNext = pSrc->pHead;
+    if (NULL != pSrc->pHead) {
+      pSrc->pHead->pPrev = pTarget->pTail;
+    }
+  }
   pTarget->pTail = pSrc->pTail;
   pTarget->length += pSrc->length;
   tfree(pSrc);
+
   return TSDB_CODE_SUCCESS;
 }
 
@@ -170,6 +194,36 @@ void nodesDestroyList(SNodeList* pList) {
     nodesDestroyNode(node);
   }
   tfree(pList);
+}
+
+void* nodesGetValueFromNode(SValueNode *pNode) {
+  switch (pNode->node.resType.type) {
+    case TSDB_DATA_TYPE_BOOL:
+      return (void*)&pNode->datum.b;
+    case TSDB_DATA_TYPE_TINYINT:
+    case TSDB_DATA_TYPE_SMALLINT:
+    case TSDB_DATA_TYPE_INT:
+    case TSDB_DATA_TYPE_BIGINT:
+    case TSDB_DATA_TYPE_TIMESTAMP:
+      return (void*)&pNode->datum.i;
+    case TSDB_DATA_TYPE_UTINYINT:
+    case TSDB_DATA_TYPE_USMALLINT:
+    case TSDB_DATA_TYPE_UINT:
+    case TSDB_DATA_TYPE_UBIGINT:
+      return (void*)&pNode->datum.u;
+    case TSDB_DATA_TYPE_FLOAT:
+    case TSDB_DATA_TYPE_DOUBLE: 
+      return (void*)&pNode->datum.d;
+    case TSDB_DATA_TYPE_BINARY:
+    case TSDB_DATA_TYPE_NCHAR:
+    case TSDB_DATA_TYPE_VARCHAR:
+    case TSDB_DATA_TYPE_VARBINARY: 
+      return (void*)pNode->datum.p;
+    default:
+      break;
+  }
+
+  return NULL;
 }
 
 bool nodesIsExprNode(const SNode* pNode) {
@@ -289,6 +343,10 @@ int32_t nodesCollectColumns(SSelectStmt* pSelect, ESqlClause clause, const char*
   if (TSDB_CODE_SUCCESS != cxt.errCode) {
     nodesDestroyList(cxt.pCols);
     return cxt.errCode;
+  }
+  if (0 == LIST_LENGTH(cxt.pCols)) {
+    nodesDestroyList(cxt.pCols);
+    cxt.pCols = NULL;
   }
   *pCols = cxt.pCols;
   return TSDB_CODE_SUCCESS;

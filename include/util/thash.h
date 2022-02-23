@@ -55,6 +55,8 @@ uint32_t taosIntHash_64(const char *key, uint32_t len);
 
 _hash_fn_t taosGetDefaultHashFunction(int32_t type);
 
+_equal_fn_t taosGetDefaultEqualFunction(int32_t type);
+
 typedef struct SHashNode {
   struct SHashNode *next;
   uint32_t          hashVal;     // the hash value of key
@@ -257,6 +259,8 @@ void* taosHashAcquire(SHashObj *pHashObj, const void *key, size_t keyLen);
  * @return
  */
 void taosHashRelease(SHashObj *pHashObj, void *p);
+
+void taosHashSetEqualFp(SHashObj *pHashObj, _equal_fn_t fp);
 
 
 #ifdef __cplusplus

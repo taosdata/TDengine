@@ -49,10 +49,19 @@ int32_t WCSPatternMatch(const wchar_t *pattern, const wchar_t *str, size_t size,
 
 int32_t taosArrayCompareString(const void *a, const void *b);
 
-int32_t setCompareBytes1(const void *pLeft, const void *pRight);
-int32_t setCompareBytes2(const void *pLeft, const void *pRight);
-int32_t setCompareBytes4(const void *pLeft, const void *pRight);
-int32_t setCompareBytes8(const void *pLeft, const void *pRight);
+int32_t setChkInBytes1(const void *pLeft, const void *pRight);
+int32_t setChkInBytes2(const void *pLeft, const void *pRight);
+int32_t setChkInBytes4(const void *pLeft, const void *pRight);
+int32_t setChkInBytes8(const void *pLeft, const void *pRight);
+
+int32_t setChkNotInBytes1(const void *pLeft, const void *pRight);
+int32_t setChkNotInBytes2(const void *pLeft, const void *pRight);
+int32_t setChkNotInBytes4(const void *pLeft, const void *pRight);
+int32_t setChkNotInBytes8(const void *pLeft, const void *pRight);
+
+int32_t compareChkInString(const void *pLeft, const void *pRight);
+int32_t compareChkNotInString(const void *pLeft, const void *pRight);
+
 
 int32_t compareInt8Val(const void *pLeft, const void *pRight);
 int32_t compareInt16Val(const void *pLeft, const void *pRight);
@@ -74,7 +83,6 @@ int32_t compareStrRegexComp(const void *pLeft, const void *pRight);
 int32_t compareStrRegexCompMatch(const void *pLeft, const void *pRight);
 int32_t compareStrRegexCompNMatch(const void *pLeft, const void *pRight);
 
-int32_t compareFindItemInSet(const void *pLeft, const void *pRight);
 
 int32_t compareInt8ValDesc(const void *pLeft, const void *pRight);
 int32_t compareInt16ValDesc(const void *pLeft, const void *pRight);
@@ -91,6 +99,9 @@ int32_t compareUint64ValDesc(const void *pLeft, const void *pRight);
 
 int32_t compareLenPrefixedStrDesc(const void *pLeft, const void *pRight);
 int32_t compareLenPrefixedWStrDesc(const void *pLeft, const void *pRight);
+
+__compar_fn_t getComparFunc(int32_t type, int32_t optr);
+
 
 #ifdef __cplusplus
 }

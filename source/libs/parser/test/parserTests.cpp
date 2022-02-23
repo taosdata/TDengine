@@ -593,7 +593,7 @@ TEST(testCase, function_Test6) {
   SExprInfo* p2 = (SExprInfo*) taosArrayGetP(pQueryInfo->exprList[1], 0);
   ASSERT_EQ(p2->pExpr->nodeType, TEXPR_BINARYEXPR_NODE);
 
-  ASSERT_EQ(p2->pExpr->_node.optr, TSDB_BINARY_OP_ADD);
+  ASSERT_EQ(p2->pExpr->_node.optr, OP_TYPE_ADD);
   ASSERT_EQ(p2->pExpr->_node.pLeft->nodeType, TEXPR_COL_NODE);
   ASSERT_EQ(p2->pExpr->_node.pRight->nodeType, TEXPR_COL_NODE);
 

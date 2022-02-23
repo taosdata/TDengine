@@ -349,7 +349,7 @@ static SNodeList* getProjectList(SNode* pNode) {
   return NULL;
 }
 
-static void setColumnInfoBySchema(const SRealTableNode* pTable, const SSchema* pColSchema, SColumnNode* pCol) {
+static void setColumnInfoBySchema(const SRealTableNode* pTable, const SSchema* pColSchema, bool isTag, SColumnNode* pCol) {
   strcpy(pCol->dbName, pTable->table.dbName);
   strcpy(pCol->tableAlias, pTable->table.tableAlias);
   strcpy(pCol->tableName, pTable->table.tableName);
@@ -359,7 +359,7 @@ static void setColumnInfoBySchema(const SRealTableNode* pTable, const SSchema* p
   }
   pCol->tableId = pTable->pMeta->uid;
   pCol->colId = pColSchema->colId;
-  // pCol->colType = pColSchema->type;
+  pCol->colType = isTag ? COLUMN_TYPE_TAG : COLUMN_TYPE_COLUMN;
   pCol->node.resType.type = pColSchema->type;
   pCol->node.resType.bytes = pColSchema->bytes;
 }
@@ -383,7 +383,7 @@ static int32_t createColumnNodeByTable(STranslateContext* pCxt, const STableNode
       if (NULL == pCol) {
         return generateSyntaxErrMsg(pCxt, TSDB_CODE_OUT_OF_MEMORY);
       }
-      setColumnInfoBySchema((SRealTableNode*)pTable, pMeta->schema + i, pCol);
+      setColumnInfoBySchema((SRealTableNode*)pTable, pMeta->schema + i, (i < pMeta->tableInfo.numOfTags), pCol);
       nodesListAppend(pList, (SNode*)pCol);
     }
   } else {
@@ -408,7 +408,7 @@ static bool findAndSetColumn(SColumnNode* pCol, const STableNode* pTable) {
     int32_t nums = pMeta->tableInfo.numOfTags + pMeta->tableInfo.numOfColumns;
     for (int32_t i = 0; i < nums; ++i) {
       if (0 == strcmp(pCol->colName, pMeta->schema[i].name)) {
-        setColumnInfoBySchema((SRealTableNode*)pTable, pMeta->schema + i, pCol);
+        setColumnInfoBySchema((SRealTableNode*)pTable, pMeta->schema + i, (i < pMeta->tableInfo.numOfTags), pCol);
         found = true;
         break;
       }
@@ -500,22 +500,24 @@ static EDealRes translateColumn(STranslateContext* pCxt, SColumnNode* pCol) {
 }
 
 static int32_t trimStringCopy(const char* src, int32_t len, char* dst) {
+  varDataSetLen(dst, len);
+  char* dstVal = varDataVal(dst);
   // delete escape character: \\, \', \"
   char delim = src[0];
   int32_t cnt = 0;
   int32_t j = 0;
   for (uint32_t k = 1; k < len - 1; ++k) {
     if (src[k] == '\\' || (src[k] == delim && src[k + 1] == delim)) {
-      dst[j] = src[k + 1];
+      dstVal[j] = src[k + 1];
       cnt++;
       j++;
       k++;
       continue;
     }
-    dst[j] = src[k];
+    dstVal[j] = src[k];
     j++;
   }
-  dst[j] = '\0';
+  dstVal[j] = '\0';
   return j;
 }
 
@@ -560,7 +562,7 @@ static EDealRes translateValue(STranslateContext* pCxt, SValueNode* pVal) {
       case TSDB_DATA_TYPE_VARCHAR:
       case TSDB_DATA_TYPE_VARBINARY: {
         int32_t n = strlen(pVal->literal);
-        pVal->datum.p = calloc(1, n);
+        pVal->datum.p = calloc(1, n + VARSTR_HEADER_SIZE);
         if (NULL == pVal->datum.p) {
           generateSyntaxErrMsg(pCxt, TSDB_CODE_OUT_OF_MEMORY);
           return DEAL_RES_ERROR;

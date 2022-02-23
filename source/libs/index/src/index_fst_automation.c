@@ -17,7 +17,9 @@
 
 StartWithStateValue* startWithStateValueCreate(StartWithStateKind kind, ValueType ty, void* val) {
   StartWithStateValue* nsv = calloc(1, sizeof(StartWithStateValue));
-  if (nsv == NULL) { return NULL; }
+  if (nsv == NULL) {
+    return NULL;
+  }
 
   nsv->kind = kind;
   nsv->type = ty;
@@ -35,7 +37,9 @@ StartWithStateValue* startWithStateValueCreate(StartWithStateKind kind, ValueTyp
 }
 void startWithStateValueDestroy(void* val) {
   StartWithStateValue* sv = (StartWithStateValue*)val;
-  if (sv == NULL) { return; }
+  if (sv == NULL) {
+    return;
+  }
 
   if (sv->type == FST_INT) {
     //
@@ -48,7 +52,9 @@ void startWithStateValueDestroy(void* val) {
 }
 StartWithStateValue* startWithStateValueDump(StartWithStateValue* sv) {
   StartWithStateValue* nsv = calloc(1, sizeof(StartWithStateValue));
-  if (nsv == NULL) { return NULL; }
+  if (nsv == NULL) {
+    return NULL;
+  }
 
   nsv->kind = sv->kind;
   nsv->type = sv->type;
@@ -88,10 +94,14 @@ static bool prefixCanMatch(AutomationCtx* ctx, void* sv) {
 static bool  prefixWillAlwaysMatch(AutomationCtx* ctx, void* state) { return true; }
 static void* prefixAccept(AutomationCtx* ctx, void* state, uint8_t byte) {
   StartWithStateValue* ssv = (StartWithStateValue*)state;
-  if (ssv == NULL || ctx == NULL) { return NULL; }
+  if (ssv == NULL || ctx == NULL) {
+    return NULL;
+  }
 
   char* data = ctx->data;
-  if (ssv->kind == Done) { return startWithStateValueCreate(Done, FST_INT, &ssv->val); }
+  if (ssv->kind == Done) {
+    return startWithStateValueCreate(Done, FST_INT, &ssv->val);
+  }
   if ((strlen(data) > ssv->val) && data[ssv->val] == byte) {
     int val = ssv->val + 1;
 
@@ -128,7 +138,9 @@ AutomationFunc automFuncs[] = {
 
 AutomationCtx* automCtxCreate(void* data, AutomationType atype) {
   AutomationCtx* ctx = calloc(1, sizeof(AutomationCtx));
-  if (ctx == NULL) { return NULL; }
+  if (ctx == NULL) {
+    return NULL;
+  }
 
   StartWithStateValue* sv = NULL;
   if (atype == AUTOMATION_ALWAYS) {
