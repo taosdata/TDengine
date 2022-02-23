@@ -28,11 +28,6 @@
 #include "ulog.h"
 
 // cluster
-char     tsFirst[TSDB_EP_LEN] = {0};
-char     tsSecond[TSDB_EP_LEN] = {0};
-char     tsLocalFqdn[TSDB_FQDN_LEN] = {0};
-char     tsLocalEp[TSDB_EP_LEN] = {0};  // Local End Point, hostname:port
-uint16_t tsServerPort = 6030;
 int32_t  tsStatusInterval = 1;  // second
 int8_t   tsEnableTelemetryReporting = 0;
 char     tsEmail[TSDB_FQDN_LEN] = {0};
@@ -292,38 +287,6 @@ static void doInitGlobalConfig(void) {
   srand(taosSafeRand());
 #if 0
   SGlobalCfg cfg = {0};
-
-  // ip address
-  cfg.option = "firstEp";
-  cfg.ptr = tsFirst;
-  cfg.valType = TAOS_CFG_VTYPE_STRING;
-  cfg.cfgType = TSDB_CFG_CTYPE_B_CONFIG | TSDB_CFG_CTYPE_B_CLIENT;
-  cfg.minValue = 0;
-  cfg.maxValue = 0;
-  cfg.ptrLength = TSDB_EP_LEN;
-  cfg.unitType = TAOS_CFG_UTYPE_NONE;
-  taosAddConfigOption(cfg);
-
-  cfg.option = "secondEp";
-  cfg.ptr = tsSecond;
-  cfg.valType = TAOS_CFG_VTYPE_STRING;
-  cfg.cfgType = TSDB_CFG_CTYPE_B_CONFIG | TSDB_CFG_CTYPE_B_CLIENT;
-  cfg.minValue = 0;
-  cfg.maxValue = 0;
-  cfg.ptrLength = TSDB_EP_LEN;
-  cfg.unitType = TAOS_CFG_UTYPE_NONE;
-  taosAddConfigOption(cfg);
-
-  cfg.option = "fqdn";
-  cfg.ptr = tsLocalFqdn;
-  cfg.valType = TAOS_CFG_VTYPE_STRING;
-  cfg.cfgType = TSDB_CFG_CTYPE_B_CONFIG | TSDB_CFG_CTYPE_B_CLIENT;
-  cfg.minValue = 0;
-  cfg.maxValue = 0;
-  cfg.ptrLength = TSDB_FQDN_LEN;
-  cfg.unitType = TAOS_CFG_UTYPE_NONE;
-  taosAddConfigOption(cfg);
-
 
   cfg.option = "scriptDir";
   cfg.ptr = tsScriptDir;
@@ -723,26 +686,6 @@ int32_t taosCheckAndPrintCfg() {
     taosSetAllDebugFlag();
   }
 
-  if (tsLocalFqdn[0] == 0) {
-    taosGetFqdn(tsLocalFqdn);
-  }
-
-  snprintf(tsLocalEp, sizeof(tsLocalEp), "%s:%u", tsLocalFqdn, tsServerPort);
-  uInfo("localEp is: %s", tsLocalEp);
-
-  if (tsFirst[0] == 0) {
-    strcpy(tsFirst, tsLocalEp);
-  } else {
-    taosGetFqdnPortFromEp(tsFirst, &ep);
-    snprintf(tsFirst, sizeof(tsFirst), "%s:%u", ep.fqdn, ep.port);
-  }
-
-  if (tsSecond[0] == 0) {
-    strcpy(tsSecond, tsLocalEp);
-  } else {
-    taosGetFqdnPortFromEp(tsSecond, &ep);
-    snprintf(tsSecond, sizeof(tsSecond), "%s:%u", ep.fqdn, ep.port);
-  }
 
   taosCheckDataDirCfg();
 

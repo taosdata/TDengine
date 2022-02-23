@@ -14,10 +14,12 @@ int taosGetFqdnPortFromEp(const char *ep, SEp* pEp) {
     pEp->port = atoi(temp+1);
   }
 
+#if 0
   if (pEp->port == 0) {
     pEp->port = tsServerPort;
     return -1;
   }
+#endif
 
   return 0;
 }

@@ -90,7 +90,9 @@ TAOS* taos_connect_internal(const char* ip, const char* user, const char* pass, 
       epSet.epSet.eps[0].port = port;
     }
   } else {
-    if (initEpSetFromCfg(tsFirst, tsSecond, &epSet) < 0) {
+    SConfigItem* pFirst = cfgGetItem(tscCfg, "firstEp");
+    SConfigItem* pSecond = cfgGetItem(tscCfg, "secondEp");
+    if (initEpSetFromCfg(pFirst->str, pSecond->str, &epSet) < 0) {
       return NULL;
     }
   }

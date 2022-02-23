@@ -570,86 +570,82 @@ void cfgDumpCfg(SConfig *pCfg) {
 
   uInfo("==================================");
 }
+#if 0
+// int32_t cfgCheck(SConfig *pCfg) {
+//   SConfigItem *pItem = NULL;
 
-int32_t cfgCheck(SConfig *pCfg) {
-  SConfigItem *pItem = NULL;
+//   pItem = cfgGetItem(pCfg, "serverPort");
+//   if (pItem != NULL) {
+//     tsServerPort = (uint16_t)pItem->i32;
+//   }
 
-  pItem = cfgGetItem(pCfg, "localFqdn");
-  if (pItem != NULL) {
-    tstrncpy(tsLocalFqdn, pItem->str, TSDB_FQDN_LEN);
-  }
+//   pItem = cfgGetItem(pCfg, "firstEp");
+//   if (pItem != NULL) {
+//     tstrncpy(tsFirst, pItem->str, TSDB_EP_LEN);
+//   }
 
-  pItem = cfgGetItem(pCfg, "serverPort");
-  if (pItem != NULL) {
-    tsServerPort = (uint16_t)pItem->i32;
-  }
+//   snprintf(tsLocalEp, TSDB_EP_LEN, "%s:%u", tsLocalFqdn, tsServerPort);
+//   uInfo("localEp is: %s", tsLocalEp);
 
-  pItem = cfgGetItem(pCfg, "firstEp");
-  if (pItem != NULL) {
-    tstrncpy(tsFirst, pItem->str, TSDB_EP_LEN);
-  }
+//   SEp ep = {0};
+//   if (tsFirst[0] == 0) {
+//     strcpy(tsFirst, tsLocalEp);
+//   } else {
+//     taosGetFqdnPortFromEp(tsFirst, &ep);
+//     snprintf(tsFirst, TSDB_EP_LEN, "%s:%u", ep.fqdn, ep.port);
+//   }
 
-  snprintf(tsLocalEp, TSDB_EP_LEN, "%s:%u", tsLocalFqdn, tsServerPort);
-  uInfo("localEp is: %s", tsLocalEp);
+//   pItem = cfgGetItem(pCfg, "secondEp");
+//   if (pItem != NULL) {
+//     tstrncpy(tsSecond, pItem->str, TSDB_EP_LEN);
+//   }
 
-  SEp ep = {0};
-  if (tsFirst[0] == 0) {
-    strcpy(tsFirst, tsLocalEp);
-  } else {
-    taosGetFqdnPortFromEp(tsFirst, &ep);
-    snprintf(tsFirst, TSDB_EP_LEN, "%s:%u", ep.fqdn, ep.port);
-  }
+//   if (tsSecond[0] == 0) {
+//     strcpy(tsSecond, tsLocalEp);
+//   } else {
+//     taosGetFqdnPortFromEp(tsSecond, &ep);
+//     snprintf(tsSecond, TSDB_EP_LEN, "%s:%u", ep.fqdn, ep.port);
+//   }
 
-  pItem = cfgGetItem(pCfg, "secondEp");
-  if (pItem != NULL) {
-    tstrncpy(tsSecond, pItem->str, TSDB_EP_LEN);
-  }
+//   pItem = cfgGetItem(pCfg, "dataDir");
+//   if (pItem != NULL) {
+//     tstrncpy(tsDataDir, pItem->str, PATH_MAX);
+//   }
 
-  if (tsSecond[0] == 0) {
-    strcpy(tsSecond, tsLocalEp);
-  } else {
-    taosGetFqdnPortFromEp(tsSecond, &ep);
-    snprintf(tsSecond, TSDB_EP_LEN, "%s:%u", ep.fqdn, ep.port);
-  }
+//   if (tsDiskCfgNum <= 0) {
+//     taosAddDataDir(0, tsDataDir, 0, 1);
+//     tsDiskCfgNum = 1;
+//     uTrace("dataDir:%s, level:0 primary:1 is configured by default", tsDataDir);
+//   }
 
-  pItem = cfgGetItem(pCfg, "dataDir");
-  if (pItem != NULL) {
-    tstrncpy(tsDataDir, pItem->str, PATH_MAX);
-  }
+//   if (taosDirExist(tsTempDir) != 0) {
+//     return -1;
+//   }
 
-  if (tsDiskCfgNum <= 0) {
-    taosAddDataDir(0, tsDataDir, 0, 1);
-    tsDiskCfgNum = 1;
-    uTrace("dataDir:%s, level:0 primary:1 is configured by default", tsDataDir);
-  }
+//   taosGetSystemInfo();
 
-  if (taosDirExist(tsTempDir) != 0) {
-    return -1;
-  }
+//   tsSetLocale();
 
-  taosGetSystemInfo();
+//   // SGlobalCfg *cfg_timezone = taosGetConfigOption("timezone");
+//   // if (cfg_timezone && cfg_timezone->cfgStatus == TAOS_CFG_CSTATUS_FILE) {
+//   tsSetTimeZone();
+//   // }
 
-  tsSetLocale();
+//   pItem = cfgGetItem(pCfg, "numOfCores");
+//   if (pItem != NULL) {
+//     tsNumOfCores = pItem->i32;
+//   }
 
-  // SGlobalCfg *cfg_timezone = taosGetConfigOption("timezone");
-  // if (cfg_timezone && cfg_timezone->cfgStatus == TAOS_CFG_CSTATUS_FILE) {
-  tsSetTimeZone();
-  // }
+//   if (tsNumOfCores <= 0) {
+//     tsNumOfCores = 1;
+//   }
 
-  pItem = cfgGetItem(pCfg, "numOfCores");
-  if (pItem != NULL) {
-    tsNumOfCores = pItem->i32;
-  }
+//   if (tsQueryBufferSize >= 0) {
+//     tsQueryBufferSizeBytes = tsQueryBufferSize * 1048576UL;
+//   }
 
-  if (tsNumOfCores <= 0) {
-    tsNumOfCores = 1;
-  }
+//   cfgPrintCfg(pCfg);
 
-  if (tsQueryBufferSize >= 0) {
-    tsQueryBufferSizeBytes = tsQueryBufferSize * 1048576UL;
-  }
-
-  cfgPrintCfg(pCfg);
-
-  return 0;
-}
+//   return 0;
+// }
+#endif

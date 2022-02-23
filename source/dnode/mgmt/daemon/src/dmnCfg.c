@@ -16,14 +16,35 @@
 #define _DEFAULT_SOURCE
 #include "dmnInt.h"
 
+static int32_t dmnAddEpCfg(SConfig *pCfg) {
+  char defaultFqdn[TSDB_FQDN_LEN] = {0};
+  if (taosGetFqdn(defaultFqdn) != 0) {
+    terrno = TAOS_SYSTEM_ERROR(errno);
+    return -1;
+  }
+  if (cfgAddString(pCfg, "fqdn", defaultFqdn) != 0) return -1;
+  
+  int32_t defaultServerPort = 6030;
+  if (cfgAddInt32(pCfg, "serverPort", defaultServerPort, 1, 65056) != 0) return -1;
+
+  char defaultFirstEp[TSDB_EP_LEN] = {0};
+  char defaultSecondEp[TSDB_EP_LEN] = {0};
+  snprintf(defaultFirstEp, TSDB_EP_LEN, "%s:%d", defaultFqdn, defaultServerPort);
+  snprintf(defaultSecondEp, TSDB_EP_LEN, "%s:%d", defaultFqdn, defaultServerPort);
+  if (cfgAddString(pCfg, "firstEp", defaultFirstEp) != 0) return -1;
+  if (cfgAddString(pCfg, "secondEp", defaultSecondEp) != 0) return -1;
+
+  return 0;
+}
+
 static int32_t dmnAddDnodeCfg(SConfig *pCfg) {
+  if (dmnAddEpCfg(pCfg) != 0) return -1;
+
+
   if (cfgAddString(pCfg, "buildinfo", buildinfo) != 0) return -1;
   if (cfgAddString(pCfg, "gitinfo", gitinfo) != 0) return -1;
   if (cfgAddString(pCfg, "version", version) != 0) return -1;
-  if (cfgAddString(pCfg, "firstEp", "") != 0) return -1;
-  if (cfgAddString(pCfg, "secondEp", "") != 0) return -1;
-  if (cfgAddString(pCfg, "fqdn", "") != 0) return -1;
-  if (cfgAddInt32(pCfg, "serverPort", 6030, 1, 65056) != 0) return -1;
+ 
   if (cfgAddDir(pCfg, "dataDir", tsDataDir) != 0) return -1;
   if (cfgAddTimezone(pCfg, "timezone", "") != 0) return -1;
   if (cfgAddLocale(pCfg, "locale", "") != 0) return -1;
@@ -55,7 +76,7 @@ SConfig *dmnReadCfg(const char *cfgDir, const char *envFile, const char *apolloU
   if (pCfg == NULL) return NULL;
 
   if (dmnAddLogCfg(pCfg) != 0) {
-    printf("failed to add log cfg since %s\n", terrstr());
+    uError("failed to add log cfg since %s", terrstr());
     cfgCleanup(pCfg);
     return NULL;
   }

@@ -24,11 +24,6 @@ extern "C" {
 #include "tcfg.h"
 
 // cluster
-extern char     tsFirst[];
-extern char     tsSecond[];
-extern char     tsLocalFqdn[];
-extern char     tsLocalEp[];
-extern uint16_t tsServerPort;
 extern int32_t  tsStatusInterval;
 extern int8_t   tsEnableTelemetryReporting;
 extern int32_t  tsNumOfSupportVnodes;

@@ -72,22 +72,6 @@ static void deregisterRequest(SRequestObj* pRequest) {
   taosReleaseRef(clientConnRefPool, pTscObj->id);
 }
 
-static void tscInitLogFile() {
-  #if 0
-  taosReadGlobalLogCfg();
-  if (mkdir(tsLogDir, 0755) != 0 && errno != EEXIST) {
-    printf("failed to create log dir:%s\n", tsLogDir);
-  }
-
-  const char    *defaultLogFileNamePrefix = "taoslog";
-  const int32_t  maxLogFileNum = 10;
-
-  if (taosInitLog(defaultLogFileNamePrefix, maxLogFileNum) < 0) {
-    printf("failed to open log file in directory:%s\n", tsLogDir);
-  }
-  #endif
-}
-
 // todo close the transporter properly
 void closeTransporter(STscObj* pTscObj)  {
   if (pTscObj == NULL || pTscObj->pAppInfo->pTransporter == NULL) {
@@ -224,11 +208,17 @@ void taos_init_imp(void) {
   srand(taosGetTimestampSec());
 
   deltaToUtcInitOnce();
-#if 0  
-  taosInitGlobalCfg();
-  taosReadCfgFromFile();
-#endif
-  tscInitLogFile();
+
+  if (tscInitLog(configDir, NULL, NULL) != 0) {
+    tscInitRes = -1;
+    return;
+  }
+
+  if (tscInitCfg(configDir, NULL, NULL) != 0) {
+    tscInitRes = -1;
+    return;
+  }
+
   if (taosCheckAndPrintCfg()) {
     tscInitRes = -1;
     return;
@@ -245,7 +235,7 @@ void taos_init_imp(void) {
 
   SSchedulerCfg scfg = {.maxJobNum = 100};
   schedulerInit(&scfg);
-  tscDebug("starting to initialize TAOS driver, local ep: %s", tsLocalEp);
+  tscDebug("starting to initialize TAOS driver");
 
   taosSetCoreDump(true);
 

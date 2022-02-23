@@ -56,7 +56,7 @@ void taos_cleanup(void) {
 }
 
 TAOS *taos_connect(const char *ip, const char *user, const char *pass, const char *db, uint16_t port) {
-  int32_t p = (port != 0) ? port : tsServerPort;
+  int32_t p = (port != 0) ? port : cfgGetItem(tscCfg, "serverPort")->i32;
 
   tscDebug("try to connect to %s:%u, user:%s db:%s", ip, p, user, db);
   if (user == NULL) {
