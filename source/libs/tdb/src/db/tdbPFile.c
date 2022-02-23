@@ -70,6 +70,19 @@ int tdbPFileClose(SPFile *pFile) {
   return 0;
 }
 
+SPgHdr *tdbPFileGet(SPFile *pFile, SPgno pgno) {
+  SPCache *pCache;
+  SPgid    pgid;
+  SPgHdr * pPage;
+
+  pCache = pFile->pCache;
+
+  pPage = tdbPCacheFetch(pCache, &pgid, true);
+  tdbPCacheFetchFinish(pCache, pPage);
+
+  return pPage;
+}
+
 int tdbPFileBegin(SPFile *pFile) {
   // TODO
   return 0;
