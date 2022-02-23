@@ -14,7 +14,10 @@
  */
 
 #include "syncIO.h"
+#include <tep.h>
 #include "syncOnMessage.h"
+#include "tglobal.h"
+#include "tutil.h"
 
 void *syncConsumer(void *param) {
   SSyncIO *io = param;
@@ -32,7 +35,7 @@ void *syncConsumer(void *param) {
 
     for (int i = 0; i < numOfMsgs; ++i) {
       taosGetQitem(qall, (void **)&pRpcMsg);
-      sDebug("sync-io recv msg: %s", (char *)(pRpcMsg->pCont));
+      sDebug("sync-io recv type:%d msg:%s", pRpcMsg->msgType, (char *)(pRpcMsg->pCont));
     }
 
     taosResetQitems(qall);
@@ -109,6 +112,8 @@ SSyncIO *syncIOCreate() {
 static int32_t syncIOStart(SSyncIO *io) {
   taosBlockSIGPIPE();
 
+  tsRpcForceTcp = 1;
+
   // cient rpc init
   {
     SRpcInit rpcInit;
@@ -122,7 +127,7 @@ static int32_t syncIOStart(SSyncIO *io) {
     rpcInit.user = "sync-io";
     rpcInit.secret = "sync-io";
     rpcInit.ckey = "key";
-    rpcInit.spi = 1;
+    rpcInit.spi = 0;
     rpcInit.connType = TAOS_CONN_CLIENT;
 
     io->clientRpc = rpcOpen(&rpcInit);
@@ -155,7 +160,7 @@ static int32_t syncIOStart(SSyncIO *io) {
 
   // start consumer thread
   {
-    if (pthread_create(&io->tid, NULL, syncConsumer, NULL) != 0) {
+    if (pthread_create(&io->tid, NULL, syncConsumer, io) != 0) {
       sError("failed to create sync consumer thread since %s", strerror(errno));
       terrno = TAOS_SYSTEM_ERROR(errno);
       return -1;
@@ -171,7 +176,23 @@ static int32_t syncIOStop(SSyncIO *io) {
   return 0;
 }
 
-static int32_t syncIOPing(SSyncIO *io) { return 0; }
+static int32_t syncIOPing(SSyncIO *io) {
+  SRpcMsg rpcMsg, rspMsg;
+
+  rpcMsg.pCont = rpcMallocCont(10);
+  snprintf(rpcMsg.pCont, 10, "ping");
+  rpcMsg.contLen = 10;
+  rpcMsg.handle = io;
+  rpcMsg.msgType = 1;
+
+  SEpSet epSet;
+  epSet.inUse = 0;
+  addEpIntoEpSet(&epSet, "127.0.0.1", 38000);
+
+  rpcSendRequest(io->clientRpc, &epSet, &rpcMsg, NULL);
+
+  return 0;
+}
 
 static int32_t syncIOOnMessage(struct SSyncIO *io, void *pParent, SRpcMsg *pMsg, SEpSet *pEpSet) { return 0; }
 

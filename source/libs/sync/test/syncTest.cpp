@@ -2,9 +2,19 @@
 #include "syncIO.h"
 #include "syncInt.h"
 
+void *pingFunc(void *param) {
+  SSyncIO *io = (SSyncIO *)param;
+  while (1) {
+    sDebug("io->ping");
+    io->ping(io);
+    sleep(1);
+  }
+  return NULL;
+}
+
 int main() {
   tsAsyncLog = 0;
-  taosInitLog((char*)"syncTest.log", 100000, 10);
+  taosInitLog((char *)"syncTest.log", 100000, 10);
 
   sDebug("sync test");
   syncStartEnv();
@@ -12,8 +22,15 @@ int main() {
   SSyncIO *syncIO = syncIOCreate();
   assert(syncIO != NULL);
 
+  syncIO->start(syncIO);
+
+  sleep(2);
+
+  pthread_t tid;
+  pthread_create(&tid, NULL, pingFunc, syncIO);
+
   while (1) {
-    sleep(3);
+    sleep(1);
   }
   return 0;
 }
