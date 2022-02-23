@@ -119,13 +119,6 @@ bool tsdbForceKeepFile = false;
 int64_t tsTickPerDay[] = {86400000L, 86400000000L, 86400000000000L};
 
 // system info
-float    tsTotalTmpDirGB = 0;
-float    tsTotalDataDirGB = 0;
-float    tsAvailTmpDirectorySpace = 0;
-float    tsAvailDataDirGB = 0;
-float    tsUsedDataDirGB = 0;
-float    tsReservedTmpDirectorySpace = 1.0f;
-float    tsMinimalDataDirGB = 2.0f;
 int32_t  tsTotalMemoryMB = 0;
 uint32_t tsVersion = 0;
 
@@ -422,35 +415,6 @@ static void doInitGlobalConfig(void) {
   taosAddConfigOption(cfg);
 
 
-  cfg.option = "minimalLogDirGB";
-  cfg.ptr = &tsMinimalLogDirGB;
-  cfg.valType = TAOS_CFG_VTYPE_FLOAT;
-  cfg.cfgType = TSDB_CFG_CTYPE_B_CONFIG | TSDB_CFG_CTYPE_B_SHOW;
-  cfg.minValue = 0.001f;
-  cfg.maxValue = 10000000;
-  cfg.ptrLength = 0;
-  cfg.unitType = TAOS_CFG_UTYPE_GB;
-  taosAddConfigOption(cfg);
-
-  cfg.option = "minimalTmpDirGB";
-  cfg.ptr = &tsReservedTmpDirectorySpace;
-  cfg.valType = TAOS_CFG_VTYPE_FLOAT;
-  cfg.cfgType = TSDB_CFG_CTYPE_B_CONFIG | TSDB_CFG_CTYPE_B_SHOW;
-  cfg.minValue = 0.001f;
-  cfg.maxValue = 10000000;
-  cfg.ptrLength = 0;
-  cfg.unitType = TAOS_CFG_UTYPE_GB;
-  taosAddConfigOption(cfg);
-
-  cfg.option = "minimalDataDirGB";
-  cfg.ptr = &tsMinimalDataDirGB;
-  cfg.valType = TAOS_CFG_VTYPE_FLOAT;
-  cfg.cfgType = TSDB_CFG_CTYPE_B_CONFIG | TSDB_CFG_CTYPE_B_SHOW;
-  cfg.minValue = 0.001f;
-  cfg.maxValue = 10000000;
-  cfg.ptrLength = 0;
-  cfg.unitType = TAOS_CFG_UTYPE_GB;
-  taosAddConfigOption(cfg);
 
   cfg.option = "slaveQuery";
   cfg.ptr = &tsEnableSlaveQuery;

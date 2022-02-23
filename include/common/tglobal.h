@@ -56,16 +56,7 @@ extern int32_t tsProjectExecInterval;
 extern int64_t tsMaxRetentWindow;
 
 // system info
-extern float    tsTotalLogDirGB;
-extern float    tsTotalTmpDirGB;
-extern float    tsTotalDataDirGB;
-extern float    tsAvailLogDirGB;
-extern float    tsAvailTmpDirectorySpace;
-extern float    tsAvailDataDirGB;
-extern float    tsUsedDataDirGB;
-extern float    tsMinimalLogDirGB;
-extern float    tsReservedTmpDirectorySpace;
-extern float    tsMinimalDataDirGB;
+
 extern uint32_t tsVersion;
 
 // build info

@@ -325,18 +325,6 @@ void taosGetDisk() {
   SDiskSize    diskSize = tfsGetSize(pTfs);
   
   tfsUpdateSize(&fsMeta);
-  tsTotalDataDirGB = (float)(fsMeta.total / unit);
-  tsUsedDataDirGB = (float)(fsMeta.used / unit);
-  tsAvailDataDirGB = (float)(fsMeta.avail / unit);
 
-  if (taosGetDiskSize(tsLogDir, &diskSize) == 0) {
-    tsTotalLogDirGB = (float)(diskSize.total / unit);
-    tsAvailLogDirGB = (float)(diskSize.avail / unit);
-  }
-
-  if (taosGetDiskSize(tsTempDir, &diskSize) == 0) {
-    tsTotalTmpDirGB = (float)(diskSize.total / unit);
-    tsAvailTmpDirectorySpace = (float)(diskSize.avail / unit);
-  }
 #endif
 }

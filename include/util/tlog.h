@@ -22,7 +22,6 @@
 extern "C" {
 #endif
 
-extern char    tsLogDir[];
 extern bool    tsLogInited;
 extern bool    tsAsyncLog;
 extern int32_t tsNumOfLogLines;

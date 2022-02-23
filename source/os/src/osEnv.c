@@ -16,6 +16,30 @@
 
 #define _DEFAULT_SOURCE
 #include "os.h"
+#include "osEnv.h"
+#include "osSysinfo.h"
+
+SDiskSpace tsLogSpace;
+SDiskSpace tsTempSpace;
+SDiskSpace tsDataSpace;
+
+void taosUpdateLogSpace() { taosGetDiskSize(tsLogDir, &tsLogSpace.size); }
+
+void taosUpdateTempSpace() { taosGetDiskSize(tsTempDir, &tsTempSpace.size); }
+
+void taosUpdateDataSpace() { taosGetDiskSize(tsDataDir, &tsDataSpace.size); }
+
+bool taosLogSpaceAvailable() { return tsDataSpace.reserved > tsDataSpace.size.avail; }
+
+bool taosTempSpaceAvailable() { return tsTempSpace.reserved > tsTempSpace.size.avail; }
+
+bool taosDataSpaceAvailable() { return tsDataSpace.reserved > tsDataSpace.size.avail; }
+
+void taosUpdateAllSpace() {
+  taosUpdateLogSpace();
+  taosUpdateTempSpace();
+  taosUpdateDataSpace();
+}
 
 #if defined(_TD_WINDOWS_64) || defined(_TD_WINDOWS_32)
 

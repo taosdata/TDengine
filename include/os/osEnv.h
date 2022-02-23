@@ -21,8 +21,23 @@ extern "C" {
 #endif
 
 extern char tsOsName[];
+
 extern char tsDataDir[];
+extern char tsLogDir[];
+extern char tsTempDir[];
 extern char configDir[];
+
+extern struct SDiskSpace tsLogSpace;
+extern struct SDiskSpace tsTempSpace;
+extern struct SDiskSpace tsDataSpace;
+
+void taosUpdateLogSpace();
+void taosUpdateTempSpace();
+void taosUpdateDataSpace();
+bool taosLogSpaceAvailable();
+bool taosTmpSpaceAvailable();
+bool taosDataSpaceAvailable();
+void taosUpdateAllSpace();
 
 #ifdef __cplusplus
 }

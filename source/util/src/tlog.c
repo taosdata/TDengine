@@ -72,9 +72,6 @@ int8_t tscEmbeddedInUtil = 0;
 int32_t tsLogKeepDays = 0;
 bool    tsAsyncLog = true;
 bool    tsLogInited = false;
-float   tsTotalLogDirGB = 0;
-float   tsAvailLogDirGB = 0;
-float   tsMinimalLogDirGB = 1.0f;
 int64_t asyncLogLostLines = 0;
 int32_t writeInterval = DEFAULT_LOG_INTERVAL;
 
@@ -383,12 +380,7 @@ static int32_t taosOpenLogFile(char *fn, int32_t maxLines, int32_t maxFileNum) {
 }
 
 void taosPrintLog(const char *flags, int32_t dflag, const char *format, ...) {
-  if (tsTotalLogDirGB != 0 && tsAvailLogDirGB < tsMinimalLogDirGB) {
-    printf("server disk:%s space remain %.3f GB, total %.1f GB, stop print log.\n", tsLogDir, tsAvailLogDirGB,
-           tsTotalLogDirGB);
-    fflush(stdout);
-    return;
-  }
+  if (!taosLogSpaceAvailable()) return;
 
   va_list        argpointer;
   char           buffer[MAX_LOGLINE_BUFFER_SIZE] = {0};
@@ -443,12 +435,7 @@ void taosPrintLog(const char *flags, int32_t dflag, const char *format, ...) {
 }
 
 void taosDumpData(unsigned char *msg, int32_t len) {
-  if (tsTotalLogDirGB != 0 && tsAvailLogDirGB < tsMinimalLogDirGB) {
-    printf("server disk:%s space remain %.3f GB, total %.1f GB, stop dump log.\n", tsLogDir, tsAvailLogDirGB,
-           tsTotalLogDirGB);
-    fflush(stdout);
-    return;
-  }
+  if (!taosLogSpaceAvailable()) return;
 
   char    temp[256];
   int32_t i, pos = 0, c = 0;
@@ -471,12 +458,7 @@ void taosDumpData(unsigned char *msg, int32_t len) {
 }
 
 void taosPrintLongString(const char *flags, int32_t dflag, const char *format, ...) {
-  if (tsTotalLogDirGB != 0 && tsAvailLogDirGB < tsMinimalLogDirGB) {
-    printf("server disk:%s space remain %.3f GB, total %.1f GB, stop write log.\n", tsLogDir, tsAvailLogDirGB,
-           tsTotalLogDirGB);
-    fflush(stdout);
-    return;
-  }
+  if (!taosLogSpaceAvailable()) return;
 
   va_list        argpointer;
   char           buffer[MAX_LOGLINE_DUMP_BUFFER_SIZE];
