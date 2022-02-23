@@ -19,7 +19,6 @@
 #define CHECK_ALLOC(p, res) \
   do { \
     if (NULL == (p)) { \
-      printf("%s : %d\n", __FUNCTION__, __LINE__); \
       pCxt->errCode = TSDB_CODE_OUT_OF_MEMORY; \
       return (res); \
     } \
@@ -29,7 +28,6 @@
   do { \
     int32_t code = (exec); \
     if (TSDB_CODE_SUCCESS != code) { \
-      printf("%s : %d\n", __FUNCTION__, __LINE__); \
       pCxt->errCode = code; \
       return (res); \
     } \
@@ -38,7 +36,6 @@
 typedef struct SPlanContext {
   int32_t errCode;
   int32_t planNodeId;
-  SNodeList* pResource;
 } SPlanContext;
 
 static SLogicNode* createQueryLogicNode(SPlanContext* pCxt, SNode* pStmt);
@@ -60,10 +57,7 @@ static EDealRes doRewriteExpr(SNode** pNode, void* pContext) {
       FOREACH(pExpr, pCxt->pExprs) {
         if (nodesEqualNode(pExpr, *pNode)) {
           SColumnNode* pCol = (SColumnNode*)nodesMakeNode(QUERY_NODE_COLUMN);
-          if (NULL == pCol) {
-            pCxt->errCode = TSDB_CODE_OUT_OF_MEMORY;
-            return DEAL_RES_ERROR;
-          }
+          CHECK_ALLOC(pCol, DEAL_RES_ERROR);
           SExprNode* pToBeRewrittenExpr = (SExprNode*)(*pNode);
           pCol->node.resType = pToBeRewrittenExpr->resType;
           strcpy(pCol->node.aliasName, pToBeRewrittenExpr->aliasName);
@@ -222,26 +216,6 @@ static SLogicNode* createLogicNodeByTable(SPlanContext* pCxt, SSelectStmt* pSele
   return NULL;
 }
 
-static SLogicNode* createWhereFilterLogicNode(SPlanContext* pCxt, SLogicNode* pChild, SSelectStmt* pSelect) {
-  if (NULL == pSelect->pWhere) {
-    return NULL;
-  }
-
-  SFilterLogicNode* pFilter = (SFilterLogicNode*)nodesMakeNode(QUERY_NODE_LOGIC_PLAN_FILTER);
-  CHECK_ALLOC(pFilter, NULL);
-  pFilter->node.id = pCxt->planNodeId++;
-
-  // set filter conditions
-  pFilter->node.pConditions = nodesCloneNode(pSelect->pWhere);
-  CHECK_ALLOC(pFilter->node.pConditions, (SLogicNode*)pFilter);
-
-  // set the output
-  pFilter->node.pTargets = nodesCloneList(pChild->pTargets);
-  CHECK_ALLOC(pFilter->node.pTargets, (SLogicNode*)pFilter);
-
-  return (SLogicNode*)pFilter;
-}
-
 typedef struct SCreateColumnCxt {
   int32_t errCode;
   SNodeList* pList;
@@ -252,10 +226,8 @@ static EDealRes doCreateColumn(SNode* pNode, void* pContext) {
   switch (nodeType(pNode)) {
     case QUERY_NODE_COLUMN: {
       SNode* pCol = nodesCloneNode(pNode);
-      if (NULL == pCol || TSDB_CODE_SUCCESS != nodesListAppend(pCxt->pList, pCol)) {
-        pCxt->errCode = TSDB_CODE_OUT_OF_MEMORY;
-        return DEAL_RES_ERROR;
-      }
+      CHECK_ALLOC(pCol, DEAL_RES_ERROR);
+      CHECK_CODE(nodesListAppend(pCxt->pList, pCol), DEAL_RES_ERROR);
       return DEAL_RES_IGNORE_CHILD;
     }
     case QUERY_NODE_OPERATOR:
@@ -263,16 +235,10 @@ static EDealRes doCreateColumn(SNode* pNode, void* pContext) {
     case QUERY_NODE_FUNCTION: {
       SExprNode* pExpr = (SExprNode*)pNode;
       SColumnNode* pCol = (SColumnNode*)nodesMakeNode(QUERY_NODE_COLUMN);
-      if (NULL == pCol) {
-        pCxt->errCode = TSDB_CODE_OUT_OF_MEMORY;
-        return DEAL_RES_ERROR;
-      }
+      CHECK_ALLOC(pCol, DEAL_RES_ERROR);
       pCol->node.resType = pExpr->resType;
       strcpy(pCol->colName, pExpr->aliasName);
-      if (TSDB_CODE_SUCCESS != nodesListAppend(pCxt->pList, (SNode*)pCol)) {
-        pCxt->errCode = TSDB_CODE_OUT_OF_MEMORY;
-        return DEAL_RES_ERROR;
-      }
+      CHECK_CODE(nodesListAppend(pCxt->pList, (SNode*)pCol), DEAL_RES_ERROR);
       return DEAL_RES_IGNORE_CHILD;
     }
     default:
@@ -284,9 +250,8 @@ static EDealRes doCreateColumn(SNode* pNode, void* pContext) {
 
 static SNodeList* createColumnByRewriteExps(SPlanContext* pCxt, SNodeList* pExprs) {
   SCreateColumnCxt cxt = { .errCode = TSDB_CODE_SUCCESS, .pList = nodesMakeList() };
-  if (NULL == cxt.pList) {
-    return NULL;
-  }
+  CHECK_ALLOC(cxt.pList, NULL);
+
   nodesWalkList(pExprs, doCreateColumn, &cxt);
   if (TSDB_CODE_SUCCESS != cxt.errCode) {
     nodesDestroyList(cxt.pList);
@@ -379,8 +344,9 @@ static SLogicNode* createProjectLogicNode(SPlanContext* pCxt, SSelectStmt* pSele
 
 static SLogicNode* createSelectLogicNode(SPlanContext* pCxt, SSelectStmt* pSelect) {
   SLogicNode* pRoot = createLogicNodeByTable(pCxt, pSelect, pSelect->pFromTable);
-  if (TSDB_CODE_SUCCESS == pCxt->errCode) {
-    pRoot = pushLogicNode(pCxt, pRoot, createWhereFilterLogicNode(pCxt, pRoot, pSelect));
+  if (TSDB_CODE_SUCCESS == pCxt->errCode && NULL != pSelect->pWhere) {
+    pRoot->pConditions = nodesCloneNode(pSelect->pWhere);
+    CHECK_ALLOC(pRoot->pConditions, pRoot);
   }
   if (TSDB_CODE_SUCCESS == pCxt->errCode) {
     pRoot = pushLogicNode(pCxt, pRoot, createAggLogicNode(pCxt, pSelect));
@@ -408,5 +374,302 @@ int32_t createLogicPlan(SNode* pNode, SLogicNode** pLogicNode) {
     return cxt.errCode;
   }
   *pLogicNode = pRoot;
+  return TSDB_CODE_SUCCESS;
+}
+
+int32_t optimize(SLogicNode* pLogicNode) {
+  // todo
+  return TSDB_CODE_SUCCESS;
+}
+
+typedef struct SSubLogicPlan {
+  SNode* pRoot; // SLogicNode
+  bool haveSuperTable;
+  bool haveSystemTable;
+} SSubLogicPlan;
+
+int32_t splitLogicPlan(SSubLogicPlan* pLogicPlan) {
+  // todo
+  return TSDB_CODE_SUCCESS;
+}
+
+typedef struct SSlotIndex {
+  int16_t tupleId;
+  int16_t slotId;
+} SSlotIndex;
+
+typedef struct SPhysiPlanContext {
+  int32_t errCode;
+  int16_t nextTupleId;
+  SArray* pTupleHelper;
+} SPhysiPlanContext;
+
+static int32_t getSlotKey(SNode* pNode, char* pKey) {
+  if (QUERY_NODE_COLUMN == nodeType(pNode)) {
+    return sprintf(pKey, "%s.%s", ((SColumnNode*)pNode)->tableAlias, ((SColumnNode*)pNode)->colName);
+  } else {
+    return sprintf(pKey, "%s", ((SExprNode*)pNode)->aliasName);
+  }
+}
+
+static SNode* createColumnRef(SNode* pNode, int16_t tupleId, int16_t slotId) {
+  SColumnRefNode* pCol = (SColumnRefNode*)nodesMakeNode(QUERY_NODE_COLUMN_REF);
+  if (NULL == pCol) {
+    return NULL;
+  }
+  pCol->dataType = ((SExprNode*)pNode)->resType;
+  pCol->tupleId = tupleId;
+  pCol->slotId = slotId;
+  pCol->columnId = (QUERY_NODE_COLUMN == nodeType(pNode) ? ((SColumnNode*)pNode)->colId : -1);
+  return (SNode*)pCol;
+}
+
+static SNode* createSlotDesc(SPhysiPlanContext* pCxt, const SNode* pNode, int16_t slotId) {
+  SSlotDescNode* pSlot = (SSlotDescNode*)nodesMakeNode(QUERY_NODE_SLOT_DESC);
+  CHECK_ALLOC(pSlot, NULL);
+  pSlot->slotId = slotId;
+  pSlot->dataType = ((SExprNode*)pNode)->resType;
+  pSlot->srcTupleId = -1;
+  pSlot->srcSlotId = -1;
+  pSlot->reserve = false;
+  pSlot->output = true;
+  return (SNode*)pSlot;
+}
+
+static SNode* createTarget(SNode* pNode, int16_t tupleId, int16_t slotId) {
+  STargetNode* pTarget = (STargetNode*)nodesMakeNode(QUERY_NODE_TARGET);
+  if (NULL == pTarget) {
+    return NULL;
+  }
+  pTarget->tupleId = tupleId;
+  pTarget->slotId = slotId;
+  pTarget->pExpr = nodesCloneNode(pNode);
+  if (NULL == pTarget->pExpr) {
+    nodesDestroyNode((SNode*)pTarget);
+    return NULL;
+  }
+  return (SNode*)pTarget;
+}
+
+static int32_t addTupleDesc(SPhysiPlanContext* pCxt, SNodeList* pList, STupleDescNode* pTuple, SNodeList** pOutput) {
+  pTuple->tupleId = pCxt->nextTupleId++;
+
+  SHashObj* pHash = NULL;
+  if (NULL == pTuple->pSlots) {
+    pTuple->pSlots = nodesMakeList();
+    CHECK_ALLOC(pTuple->pSlots, TSDB_CODE_OUT_OF_MEMORY);
+
+    pHash = taosHashInit(LIST_LENGTH(pList), taosGetDefaultHashFunction(TSDB_DATA_TYPE_BINARY), true, HASH_NO_LOCK);
+    CHECK_ALLOC(pHash, TSDB_CODE_OUT_OF_MEMORY);
+    if (NULL == taosArrayInsert(pCxt->pTupleHelper, pTuple->tupleId, &pHash)) {
+      taosHashCleanup(pHash);
+      return TSDB_CODE_OUT_OF_MEMORY;
+    }
+  } else {
+    pHash = taosArrayGetP(pCxt->pTupleHelper, pTuple->tupleId);
+  }
+  
+  *pOutput = nodesMakeList();
+  CHECK_ALLOC(*pOutput, TSDB_CODE_OUT_OF_MEMORY);
+
+  SNode* pNode = NULL;
+  int16_t slotId = 0;
+  FOREACH(pNode, pList) {
+    SNode* pSlot = createSlotDesc(pCxt, pNode, slotId);
+    CHECK_ALLOC(pSlot, TSDB_CODE_OUT_OF_MEMORY);
+    if (TSDB_CODE_SUCCESS != nodesListAppend(pTuple->pSlots, (SNode*)pSlot)) {
+      nodesDestroyNode(pSlot);
+      return TSDB_CODE_OUT_OF_MEMORY;
+    }
+
+    SNode* pTarget = createTarget(pNode, pTuple->tupleId, slotId);
+    CHECK_ALLOC(pTarget, TSDB_CODE_OUT_OF_MEMORY);
+    if (TSDB_CODE_SUCCESS != nodesListAppend(*pOutput, pTarget)) {
+      nodesDestroyNode(pTarget);
+      return TSDB_CODE_OUT_OF_MEMORY;
+    }
+
+    SSlotIndex index = { .tupleId = pTuple->tupleId, .slotId = slotId };
+    char name[TSDB_TABLE_NAME_LEN + TSDB_COL_NAME_LEN];
+    int32_t len = getSlotKey(pNode, name);
+    CHECK_CODE(taosHashPut(pHash, name, len, &index, sizeof(SSlotIndex)), TSDB_CODE_OUT_OF_MEMORY);
+
+    ++slotId;
+  }
+  return TSDB_CODE_SUCCESS;
+}
+
+typedef struct STransformCxt {
+  int32_t errCode;
+  SHashObj* pHash;
+} STransformCxt;
+
+static EDealRes doTransform(SNode** pNode, void* pContext) {
+  if (QUERY_NODE_COLUMN == nodeType(*pNode)) {
+    STransformCxt* pCxt = (STransformCxt*)pContext;
+    char name[TSDB_TABLE_NAME_LEN + TSDB_COL_NAME_LEN];
+    int32_t len = getSlotKey(*pNode, name);
+    SSlotIndex* pIndex = taosHashGet(pCxt->pHash, name, len);
+    if (NULL != pIndex) {
+      *pNode = createColumnRef(*pNode, pIndex->tupleId, pIndex->slotId);
+      CHECK_ALLOC(*pNode, DEAL_RES_ERROR);
+      return DEAL_RES_IGNORE_CHILD;
+    }
+  }
+  return DEAL_RES_CONTINUE;
+}
+
+static SNode* transformForPhysiPlan(SPhysiPlanContext* pCxt, int16_t tupleId, SNode* pNode) {
+  SNode* pRes = nodesCloneNode(pNode);
+  CHECK_ALLOC(pRes, NULL);
+  STransformCxt cxt = { .errCode = TSDB_CODE_SUCCESS, .pHash = taosArrayGetP(pCxt->pTupleHelper, tupleId) };
+  nodesRewriteNode(&pRes, doTransform, &cxt);
+  if (TSDB_CODE_SUCCESS != cxt.errCode) {
+    nodesDestroyNode(pRes);
+    return NULL;
+  }
+  return pRes;
+}
+
+static SNodeList* transformListForPhysiPlan(SPhysiPlanContext* pCxt, int16_t tupleId, SNodeList* pList) {
+  SNodeList* pRes = nodesCloneList(pList);
+  CHECK_ALLOC(pRes, NULL);
+  STransformCxt cxt = { .errCode = TSDB_CODE_SUCCESS, .pHash = taosArrayGetP(pCxt->pTupleHelper, tupleId) };
+  nodesRewriteList(pRes, doTransform, &cxt);
+  if (TSDB_CODE_SUCCESS != cxt.errCode) {
+    nodesDestroyList(pRes);
+    return NULL;
+  }
+  return pRes;
+}
+
+static SPhysiNode* makePhysiNode(ENodeType type) {
+  SPhysiNode* pPhysiNode = (SPhysiNode*)nodesMakeNode(type);
+  if (NULL == pPhysiNode) {
+    return NULL;
+  }
+  pPhysiNode->outputTuple.type = QUERY_NODE_TUPLE_DESC;
+  return pPhysiNode;
+}
+
+static int32_t initScanPhysiNode(SPhysiPlanContext* pCxt, SScanLogicNode* pScanLogicNode, SScanPhysiNode* pScanPhysiNode) {
+  CHECK_CODE(addTupleDesc(pCxt, pScanLogicNode->pScanCols, &pScanPhysiNode->node.outputTuple, &pScanPhysiNode->pScanCols), TSDB_CODE_OUT_OF_MEMORY);
+
+  if (NULL != pScanLogicNode->node.pConditions) {
+    pScanPhysiNode->node.pConditions = transformForPhysiPlan(pCxt, pScanPhysiNode->node.outputTuple.tupleId, pScanLogicNode->node.pConditions);
+    CHECK_ALLOC(pScanPhysiNode->node.pConditions, TSDB_CODE_OUT_OF_MEMORY);
+  }
+
+  pScanPhysiNode->uid = pScanLogicNode->pMeta->uid;
+  pScanPhysiNode->tableType = pScanLogicNode->pMeta->tableType;
+  pScanPhysiNode->order = TSDB_ORDER_ASC;
+  pScanPhysiNode->count = 1;
+  pScanPhysiNode->reverse = 0;
+
+  return TSDB_CODE_SUCCESS;
+}
+
+static SPhysiNode* createTagScanPhysiNode(SPhysiPlanContext* pCxt, SScanLogicNode* pScanLogicNode) {
+  STagScanPhysiNode* pTagScan = (STagScanPhysiNode*)makePhysiNode(QUERY_NODE_PHYSICAL_PLAN_TAG_SCAN);
+  CHECK_ALLOC(pTagScan, NULL);
+  CHECK_CODE(initScanPhysiNode(pCxt, pScanLogicNode, (SScanPhysiNode*)pTagScan), (SPhysiNode*)pTagScan);
+  return (SPhysiNode*)pTagScan;
+}
+
+static SPhysiNode* createTableScanPhysiNode(SPhysiPlanContext* pCxt, SScanLogicNode* pScanLogicNode) {
+  STableScanPhysiNode* pTableScan = (STableScanPhysiNode*)makePhysiNode(QUERY_NODE_PHYSICAL_PLAN_TABLE_SCAN);
+  CHECK_ALLOC(pTableScan, NULL);
+  CHECK_CODE(initScanPhysiNode(pCxt, pScanLogicNode, (SScanPhysiNode*)pTableScan), (SPhysiNode*)pTableScan);
+  pTableScan->scanFlag = pScanLogicNode->scanFlag;
+  pTableScan->scanRange = pScanLogicNode->scanRange;
+  return (SPhysiNode*)pTableScan;
+}
+
+static SPhysiNode* createScanPhysiNode(SPhysiPlanContext* pCxt, SScanLogicNode* pScanLogicNode) {
+  switch (pScanLogicNode->scanType) {
+    case SCAN_TYPE_TAG:
+      return createTagScanPhysiNode(pCxt, pScanLogicNode);
+    case SCAN_TYPE_TABLE:
+      return createTableScanPhysiNode(pCxt, pScanLogicNode);
+    case SCAN_TYPE_STABLE:
+    case SCAN_TYPE_STREAM:
+      break;
+    default:
+      break;
+  }
+}
+
+static SPhysiNode* createProjectPhysiNode(SPhysiPlanContext* pCxt, SProjectLogicNode* pProjectLogicNode) {
+  SProjectPhysiNode* pProject = (SProjectPhysiNode*)makePhysiNode(QUERY_NODE_PHYSICAL_PLAN_PROJECT);
+  CHECK_ALLOC(pProject, NULL);
+
+  SNodeList* pProjections = transformListForPhysiPlan(pCxt, pProject->node.outputTuple.tupleId, pProjectLogicNode->pProjections);
+  CHECK_ALLOC(pProjections, (SPhysiNode*)pProject);
+  CHECK_CODE(addTupleDesc(pCxt, pProjections, &pProject->node.outputTuple, &pProject->pProjections), (SPhysiNode*)pProject);
+  nodesDestroyList(pProjections);
+
+  if (NULL != pProjectLogicNode->node.pConditions) {
+    pProject->node.pConditions = transformForPhysiPlan(pCxt, pProject->node.outputTuple.tupleId, pProjectLogicNode->node.pConditions);
+    CHECK_ALLOC(pProject->node.pConditions, (SPhysiNode*)pProject);
+  }
+
+  return (SPhysiNode*)pProject;
+}
+
+static SPhysiNode* createPhysiNode(SPhysiPlanContext* pCxt, SLogicNode* pLogicPlan) {
+  SNodeList* pChildern = nodesMakeList();
+  CHECK_ALLOC(pChildern, NULL);
+
+  SNode* pLogicChild;
+  FOREACH(pLogicChild, pLogicPlan->pChildren) {
+    SNode* pChildPhyNode = (SNode*)createPhysiNode(pCxt, (SLogicNode*)pLogicChild);
+    if (TSDB_CODE_SUCCESS != nodesListAppend(pChildern, pChildPhyNode)) {
+      pCxt->errCode = TSDB_CODE_OUT_OF_MEMORY;
+      nodesDestroyList(pChildern);
+      return NULL;
+    }
+  }
+
+  SPhysiNode* pPhyNode = NULL;
+  switch (nodeType(pLogicPlan)) {
+    case QUERY_NODE_LOGIC_PLAN_SCAN:
+      pPhyNode = createScanPhysiNode(pCxt, (SScanLogicNode*)pLogicPlan);
+      break;
+    case QUERY_NODE_LOGIC_PLAN_JOIN:
+      break;
+    case QUERY_NODE_LOGIC_PLAN_AGG:
+      break;
+    case QUERY_NODE_LOGIC_PLAN_PROJECT:
+      pPhyNode = createProjectPhysiNode(pCxt, (SProjectLogicNode*)pLogicPlan);
+      break;
+    default:
+      break;
+  }
+
+  if (NULL != pPhyNode) {
+    pPhyNode->pChildren = pChildern;
+    SNode* pChild;
+    FOREACH(pChild, pPhyNode->pChildren) {
+      ((SPhysiNode*)pChild)->pParent = pPhyNode;
+    }
+  }
+
+  return pPhyNode;
+}
+
+int32_t createPhysiPlan(SLogicNode* pLogicNode, SPhysiNode** pPhyNode) {
+  SPhysiPlanContext cxt = { .errCode = TSDB_CODE_SUCCESS, .nextTupleId = 0, .pTupleHelper = taosArrayInit(32, POINTER_BYTES) };
+  if (NULL == cxt.pTupleHelper) {
+    return TSDB_CODE_OUT_OF_MEMORY;
+  }
+  *pPhyNode = createPhysiNode(&cxt, pLogicNode);
+  return cxt.errCode;
+}
+
+int32_t buildPhysiPlan(SLogicNode* pLogicNode, SPhysiNode** pPhyNode) {
+  // split
+  // scale out
+  // maping
+  // create
   return TSDB_CODE_SUCCESS;
 }

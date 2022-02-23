@@ -25,6 +25,11 @@ using namespace testing;
 
 class NewPlannerTest : public Test {
 protected:
+  enum TestTarget {
+    TEST_LOGIC_PLAN,
+    TEST_PHYSICAL_PLAN
+  };
+
   void setDatabase(const string& acctId, const string& db) {
     acctId_ = acctId;
     db_ = db;
@@ -40,7 +45,7 @@ protected:
     cxt_.pSql = sqlBuf_.c_str();
   }
 
-  bool run() {
+  bool run(TestTarget target = TEST_PHYSICAL_PLAN) {
     int32_t code = parser(&cxt_, &query_);
 
     if (code != TSDB_CODE_SUCCESS) {
@@ -53,17 +58,27 @@ protected:
     SLogicNode* pLogicPlan = nullptr;
     code = createLogicPlan(query_.pRoot, &pLogicPlan);
     if (code != TSDB_CODE_SUCCESS) {
-      cout << "sql:[" << cxt_.pSql << "] plan code:" << code << ", strerror:" << tstrerror(code) << endl;
+      cout << "sql:[" << cxt_.pSql << "] logic plan code:" << code << ", strerror:" << tstrerror(code) << endl;
       return false;
     }
   
     cout << "sql : [" << cxt_.pSql << "]" << endl;
     cout << "syntax test : " << endl;
     cout << syntaxTreeStr << endl;
-    // cout << "logic plan : " << endl;
-    // cout << toString((const SNode*)pLogicPlan) << endl;
     cout << "unformatted logic plan : " << endl;
     cout << toString((const SNode*)pLogicPlan, false) << endl;
+
+    if (TEST_PHYSICAL_PLAN == target) {
+      SPhysiNode* pPhyPlan = nullptr;
+      code = createPhysiPlan(pLogicPlan, &pPhyPlan);
+      if (code != TSDB_CODE_SUCCESS) {
+        cout << "sql:[" << cxt_.pSql << "] physical plan code:" << code << ", strerror:" << tstrerror(code) << endl;
+        return false;
+      }
+      cout << "unformatted physical plan : " << endl;
+      cout << toString((const SNode*)pPhyPlan, false) << endl;
+    }
+
     return true;
   }
 
@@ -118,5 +133,12 @@ TEST_F(NewPlannerTest, groupBy) {
   ASSERT_TRUE(run());
 
   bind("SELECT c1 + c3, count(*) FROM t1 where concat(c2, 'wwww') = 'abcwww' GROUP BY c1 + c3");
+  ASSERT_TRUE(run());
+}
+
+TEST_F(NewPlannerTest, subquery) {
+  setDatabase("root", "test");
+
+  bind("SELECT count(*) FROM (SELECT c1 + c3 a, c1 + count(*) b FROM t1 where c2 = 'abc' GROUP BY c1, c3) where a > 100 group by b");
   ASSERT_TRUE(run());
 }
