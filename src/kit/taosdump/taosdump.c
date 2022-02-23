@@ -2053,15 +2053,14 @@ static int getTableDes(
                 memset(tableDes->cols[i].value, 0,
                         sizeof(tableDes->cols[i].value));
                 int len = strlen((char *)row[0]);
-                // FIXME for long value
-                if (len < (COL_VALUEBUF_LEN - 2)) {
+                if (len <= COL_VALUEBUF_LEN / 4 - 1) {
                     converStringToReadable(
                             (char *)row[0],
                             length[0],
                             tableDes->cols[i].value,
                             len);
                 } else {
-                    tableDes->cols[i].var_value = calloc(1, len * 2);
+                    tableDes->cols[i].var_value = calloc(1, len * 4 + 1);
                     if (tableDes->cols[i].var_value == NULL) {
                         errorPrint("%s() LN%d, memory alalocation failed!\n",
                                 __func__, __LINE__);
