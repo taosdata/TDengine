@@ -43,6 +43,8 @@ void Testbase::Init(const char* path, int16_t port) {
   SDnodeEnvCfg cfg = {0};
   cfg.numOfCommitThreads = 1;
   cfg.numOfCores = 1;
+  cfg.rpcMaxTime = 600;
+  cfg.rpcTimer = 300;
   dndInit(&cfg);
 
   char fqdn[] = "localhost";

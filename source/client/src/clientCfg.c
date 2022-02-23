@@ -17,7 +17,7 @@
 #include "clientInt.h"
 #include "ulog.h"
 
-// todo refact 
+// todo refact
 SConfig *tscCfg;
 
 static int32_t tscLoadCfg(SConfig *pConfig, const char *inputCfgDir, const char *envFile, const char *apolloUrl) {
@@ -125,7 +125,7 @@ static int32_t tscAddEpCfg(SConfig *pCfg) {
     return -1;
   }
   if (cfgAddString(pCfg, "fqdn", defaultFqdn) != 0) return -1;
-  
+
   int32_t defaultServerPort = 6030;
   if (cfgAddInt32(pCfg, "serverPort", defaultServerPort, 1, 65056) != 0) return -1;
 
@@ -142,11 +142,10 @@ static int32_t tscAddEpCfg(SConfig *pCfg) {
 static int32_t tscAddCfg(SConfig *pCfg) {
   if (tscAddEpCfg(pCfg) != 0) return -1;
 
-
   // if (cfgAddString(pCfg, "buildinfo", buildinfo) != 0) return -1;
   // if (cfgAddString(pCfg, "gitinfo", gitinfo) != 0) return -1;
   // if (cfgAddString(pCfg, "version", version) != 0) return -1;
- 
+
   // if (cfgAddDir(pCfg, "dataDir", tsDataDir) != 0) return -1;
   if (cfgAddTimezone(pCfg, "timezone", "") != 0) return -1;
   if (cfgAddLocale(pCfg, "locale", "") != 0) return -1;
@@ -160,7 +159,8 @@ static int32_t tscAddCfg(SConfig *pCfg) {
   if (cfgAddFloat(pCfg, "numOfThreadsPerCore", 1, 0, 10) != 0) return -1;
   if (cfgAddFloat(pCfg, "ratioOfQueryCores", 1, 0, 5) != 0) return -1;
   if (cfgAddInt32(pCfg, "shellActivityTimer", 3, 1, 120) != 0) return -1;
-
+  if (cfgAddInt32(pCfg, "rpcTimer", 300, 100, 3000) != 0) return -1;
+  if (cfgAddInt32(pCfg, "rpcMaxTime", 600, 100, 7200) != 0) return -1;
   if (cfgAddInt32(pCfg, "maxConnections", 50000, 1, 100000) != 0) return -1;
   return 0;
 }
@@ -168,8 +168,6 @@ static int32_t tscAddCfg(SConfig *pCfg) {
 int32_t tscCheckCfg(SConfig *pCfg) {
   bool enableCore = cfgGetItem(pCfg, "enableCoreFile")->bval;
   taosSetCoreDump(enableCore);
-
-
 
   return 0;
 }

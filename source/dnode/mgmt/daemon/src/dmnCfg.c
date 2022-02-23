@@ -80,6 +80,9 @@ static int32_t dmnAddDnodeCfg(SConfig *pCfg) {
   if (cfgAddFloat(pCfg, "ratioOfQueryCores", 1, 0, 5) != 0) return -1;
   if (cfgAddInt32(pCfg, "maxShellConns", 50000, 10, 50000000) != 0) return -1;
   if (cfgAddInt32(pCfg, "shellActivityTimer", 3, 1, 120) != 0) return -1;
+  if (cfgAddInt32(pCfg, "rpcTimer", 300, 100, 3000) != 0) return -1;
+  if (cfgAddInt32(pCfg, "rpcMaxTime", 600, 100, 7200) != 0) return -1;
+  
   return 0;
 }
 
@@ -184,6 +187,8 @@ SDnodeEnvCfg dmnGetEnvCfg(SConfig *pCfg) {
   envCfg.numOfCores = cfgGetItem(pCfg, "numOfCores")->i32;
   envCfg.numOfCommitThreads = (uint16_t)cfgGetItem(pCfg, "numOfCommitThreads")->i32;
   envCfg.enableTelem = cfgGetItem(pCfg, "telemetryReporting")->bval;
+  envCfg.rpcMaxTime = cfgGetItem(pCfg, "rpcMaxTime")->i32;
+  envCfg.rpcTimer = cfgGetItem(pCfg, "rpcTimer")->i32;
 
   return envCfg;
 }

@@ -223,7 +223,11 @@ void taos_init_imp(void) {
   initMsgHandleFp();
   initQueryModuleMsgHandle();
 
-  rpcInit();
+  SRpcCfg rpcCfg = {0};
+  rpcCfg.rpcTimer = cfgGetItem(tscCfg, "rpcTimer")->i32;
+  rpcCfg.rpcMaxTime = cfgGetItem(tscCfg, "rpcMaxTime")->i32;
+  rpcCfg.sver = 30000000;
+  rpcInit(&rpcCfg);
 
   SCatalogCfg cfg = {.maxDBCacheNum = 100, .maxTblCacheNum = 100};
   catalogInit(&cfg);

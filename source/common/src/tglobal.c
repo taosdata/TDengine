@@ -118,23 +118,6 @@ bool tsdbForceKeepFile = false;
  */
 int64_t tsTickPerDay[] = {86400000L, 86400000000L, 86400000000000L};
 
-// system info
-int32_t  tsTotalMemoryMB = 0;
-uint32_t tsVersion = 0;
-
-//
-// lossy compress 6
-//
-char tsLossyColumns[32] = "";  // "float|double" means all float and double columns can be lossy compressed.  set empty
-                               // can close lossy compress.
-// below option can take effect when tsLossyColumns not empty
-double   tsFPrecision = 1E-8;                   // float column precision
-double   tsDPrecision = 1E-16;                  // double column precision
-uint32_t tsMaxRange = 500;                      // max range
-uint32_t tsCurRange = 100;                      // range
-char     tsCompressor[32] = "ZSTD_COMPRESSOR";  // ZSTD_COMPRESSOR or GZIP_COMPRESSOR
-
-
 int32_t (*monStartSystemFp)() = NULL;
 void (*monStopSystemFp)() = NULL;
 void (*monExecuteSQLFp)(char *sql) = NULL;
@@ -528,8 +511,6 @@ static void doInitGlobalConfig(void) {
 
 #endif
 }
-
-void taosInitGlobalCfg() { pthread_once(&tsInitGlobalCfgOnce, doInitGlobalConfig); }
 
 /*
  * alter dnode 1 balance "vnode:1-dnode:2"
