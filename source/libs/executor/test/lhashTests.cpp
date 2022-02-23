@@ -30,7 +30,7 @@ TEST(testCase, linear_hash_Tests) {
 
   _hash_fn_t fn = taosGetDefaultHashFunction(TSDB_DATA_TYPE_INT);
 #if 1
-  SLHashObj* pHashObj = tHashInit(100, 64 + 8, fn, 4);
+  SLHashObj* pHashObj = tHashInit(220000, 64 + 8, fn, 4);
   for(int32_t i = 0; i < 500000; ++i) {
     tHashPut(pHashObj, &i, sizeof(i), &i, sizeof(i));
   }
