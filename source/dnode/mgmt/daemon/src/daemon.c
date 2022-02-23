@@ -22,7 +22,6 @@ static struct {
   bool generateGrant;
   bool printAuth;
   bool printVersion;
-  char configDir[PATH_MAX];
   char envFile[PATH_MAX];
   char apolloUrl[PATH_MAX];
 } dmn = {0};
@@ -48,8 +47,6 @@ static void dmnWaitSignal() {
 }
 
 static int32_t dmnParseOption(int32_t argc, char const *argv[]) {
-  tstrncpy(dmn.configDir, "/etc/taos", PATH_MAX);
-
   for (int32_t i = 1; i < argc; ++i) {
     if (strcmp(argv[i], "-c") == 0) {
       if (i < argc - 1) {
@@ -57,7 +54,7 @@ static int32_t dmnParseOption(int32_t argc, char const *argv[]) {
           printf("config file path overflow");
           return -1;
         }
-        tstrncpy(dmn.configDir, argv[i], PATH_MAX);
+        tstrncpy(configDir, argv[i], PATH_MAX);
       } else {
         printf("'-c' requires a parameter, default is %s\n", configDir);
         return -1;
@@ -105,24 +102,23 @@ int main(int argc, char const *argv[]) {
   }
 
   if (dmn.generateGrant) {
-     dmnGenerateGrant();
-     return 0;
-  }
-
-  if (dmnInitLog(dmn.configDir, dmn.envFile, dmn.apolloUrl) != 0) {
-    return -1;
-  }
-
-  SConfig *pCfg = dmnReadCfg(dmn.configDir, dmn.envFile, dmn.apolloUrl);
-  if (pCfg == NULL) {
-    uInfo("Failed to start TDengine since read config error");
-    return -1;
+    dmnGenerateGrant();
+    return 0;
   }
 
   if (dmn.printVersion) {
-    dmnPrintVersion(pCfg);
-    cfgCleanup(pCfg);
+    dmnPrintVersion();
     return 0;
+  }
+
+  if (dmnInitLog(configDir, dmn.envFile, dmn.apolloUrl) != 0) {
+    return -1;
+  }
+
+  SConfig *pCfg = dmnReadCfg(configDir, dmn.envFile, dmn.apolloUrl);
+  if (pCfg == NULL) {
+    uInfo("Failed to start TDengine since read config error");
+    return -1;
   }
 
   if (dmn.dumpConfig) {

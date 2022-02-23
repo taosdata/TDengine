@@ -178,22 +178,6 @@ char *qtypeStr[] = {"rpc", "fwd", "wal", "cq", "query"};
 
 static pthread_once_t tsInitGlobalCfgOnce = PTHREAD_ONCE_INIT;
 
-void taosSetAllDebugFlag() {
-  if (debugFlag != 0) {
-    mDebugFlag = debugFlag;
-    dDebugFlag = debugFlag;
-    vDebugFlag = debugFlag;
-    jniDebugFlag = debugFlag;
-    qDebugFlag = debugFlag;
-    rpcDebugFlag = debugFlag;
-    uDebugFlag = debugFlag;
-    sDebugFlag = debugFlag;
-    wDebugFlag = debugFlag;
-    tsdbDebugFlag = debugFlag;
-    cqDebugFlag = debugFlag;
-    uInfo("all debug flag are set to %d", debugFlag);
-  }
-}
 
 int32_t taosCfgDynamicOptions(char *msg) {
   #if 0

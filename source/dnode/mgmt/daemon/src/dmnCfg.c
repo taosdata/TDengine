@@ -16,91 +16,72 @@
 #define _DEFAULT_SOURCE
 #include "dmnInt.h"
 
-static int32_t dmnInitDnodeCfg(SConfig *pConfig) {
-  if (cfgAddString(pConfig, "version", version) != 0) return -1;
-  if (cfgAddString(pConfig, "buildinfo", buildinfo) != 0) return -1;
-  if (cfgAddString(pConfig, "gitinfo", gitinfo) != 0) return -1;
-  if (cfgAddTimezone(pConfig, "timezone", "") != 0) return -1;
-  if (cfgAddLocale(pConfig, "locale", "") != 0) return -1;
-  if (cfgAddCharset(pConfig, "charset", "") != 0) return -1;
-  if (cfgAddInt32(pConfig, "numOfCores", 1, 1, 100000) != 0) return -1;
-  if (cfgAddInt32(pConfig, "numOfCommitThreads", 4, 1, 1000) != 0) return -1;
-  if (cfgAddBool(pConfig, "telemetryReporting", 0) != 0) return -1;
-  if (cfgAddBool(pConfig, "enableCoreFile", 0) != 0) return -1;
-  if (cfgAddInt32(pConfig, "supportVnodes", 256, 0, 65536) != 0) return -1;
-  if (cfgAddInt32(pConfig, "statusInterval", 1, 1, 30) != 0) return -1;
-  if (cfgAddFloat(pConfig, "numOfThreadsPerCore", 1, 0, 10) != 0) return -1;
-  if (cfgAddFloat(pConfig, "ratioOfQueryCores", 1, 0, 5) != 0) return -1;
-  if (cfgAddInt32(pConfig, "maxShellConns", 50000, 10, 50000000) != 0) return -1;
-  if (cfgAddInt32(pConfig, "shellActivityTimer", 3, 1, 120) != 0) return -1;
-  if (cfgAddInt32(pConfig, "serverPort", 6030, 1, 65056) != 0) return -1;
+static int32_t dmnAddDnodeCfg(SConfig *pCfg) {
+  if (cfgAddString(pCfg, "buildinfo", buildinfo) != 0) return -1;
+  if (cfgAddString(pCfg, "gitinfo", gitinfo) != 0) return -1;
+  if (cfgAddString(pCfg, "version", version) != 0) return -1;
+  if (cfgAddString(pCfg, "firstEp", "") != 0) return -1;
+  if (cfgAddString(pCfg, "secondEp", "") != 0) return -1;
+  if (cfgAddString(pCfg, "fqdn", "") != 0) return -1;
+  if (cfgAddInt32(pCfg, "serverPort", 6030, 1, 65056) != 0) return -1;
+  if (cfgAddDir(pCfg, "dataDir", tsDataDir) != 0) return -1;
+  if (cfgAddTimezone(pCfg, "timezone", "") != 0) return -1;
+  if (cfgAddLocale(pCfg, "locale", "") != 0) return -1;
+  if (cfgAddCharset(pCfg, "charset", "") != 0) return -1;
+  if (cfgAddInt32(pCfg, "numOfCores", 1, 1, 100000) != 0) return -1;
+  if (cfgAddInt32(pCfg, "numOfCommitThreads", 4, 1, 1000) != 0) return -1;
+  if (cfgAddBool(pCfg, "telemetryReporting", 0) != 0) return -1;
+  if (cfgAddBool(pCfg, "enableCoreFile", 0) != 0) return -1;
+  if (cfgAddInt32(pCfg, "supportVnodes", 256, 0, 65536) != 0) return -1;
+  if (cfgAddInt32(pCfg, "statusInterval", 1, 1, 30) != 0) return -1;
+  if (cfgAddFloat(pCfg, "numOfThreadsPerCore", 1, 0, 10) != 0) return -1;
+  if (cfgAddFloat(pCfg, "ratioOfQueryCores", 1, 0, 5) != 0) return -1;
+  if (cfgAddInt32(pCfg, "maxShellConns", 50000, 10, 50000000) != 0) return -1;
+  if (cfgAddInt32(pCfg, "shellActivityTimer", 3, 1, 120) != 0) return -1;
   return 0;
 }
 
-int32_t dmnLoadCfg(SConfig *pConfig, const char *inputCfgDir, const char *envFile, const char *apolloUrl) {
-  char configDir[PATH_MAX] = {0};
-  char configFile[PATH_MAX + 100] = {0};
+int32_t dmnCheckCfg(SConfig *pCfg) {
+  bool enableCore = cfgGetItem(pCfg, "enableCoreFile")->bval;
+  taosSetCoreDump(enableCore);
 
-  taosExpandDir(inputCfgDir, configDir, PATH_MAX);
-  snprintf(configFile, sizeof(configFile), "%s" TD_DIRSEP "taos.cfg", configDir);
-
-  if (cfgLoad(pConfig, CFG_STYPE_APOLLO_URL, apolloUrl) != 0) {
-    uError("failed to load from apollo url:%s since %s\n", apolloUrl, terrstr());
-    return -1;
-  }
-
-  if (cfgLoad(pConfig, CFG_STYPE_CFG_FILE, configFile) != 0) {
-    if (cfgLoad(pConfig, CFG_STYPE_CFG_FILE, configDir) != 0) {
-      uError("failed to load from config file:%s since %s\n", configFile, terrstr());
-      return -1;
-    }
-  }
-
-  if (cfgLoad(pConfig, CFG_STYPE_ENV_FILE, envFile) != 0) {
-    uError("failed to load from env file:%s since %s\n", envFile, terrstr());
-    return -1;
-  }
-
-  if (cfgLoad(pConfig, CFG_STYPE_ENV_VAR, NULL) != 0) {
-    uError("failed to load from global env variables since %s\n", terrstr());
-    return -1;
-  }
+  
 
   return 0;
 }
 
 SConfig *dmnReadCfg(const char *cfgDir, const char *envFile, const char *apolloUrl) {
-  SConfig *pConfig = cfgInit();
-  if (pConfig == NULL) return NULL;
+  SConfig *pCfg = cfgInit();
+  if (pCfg == NULL) return NULL;
 
-  if (dmnInitLogCfg(pConfig) != 0) {
-    uError("failed to init log cfg since %s", terrstr());
-    cfgCleanup(pConfig);
+  if (dmnAddLogCfg(pCfg) != 0) {
+    printf("failed to add log cfg since %s\n", terrstr());
+    cfgCleanup(pCfg);
     return NULL;
   }
 
-  if (dmnInitDnodeCfg(pConfig) != 0) {
+  if (dmnAddDnodeCfg(pCfg) != 0) {
     uError("failed to init dnode cfg since %s", terrstr());
-    cfgCleanup(pConfig);
+    cfgCleanup(pCfg);
     return NULL;
   }
 
-  if (dmnLoadCfg(pConfig, cfgDir, envFile, apolloUrl) != 0) {
+  if (dmnLoadCfg(pCfg, cfgDir, envFile, apolloUrl) != 0) {
     uError("failed to load cfg since %s", terrstr());
-    cfgCleanup(pConfig);
+    cfgCleanup(pCfg);
     return NULL;
   }
 
-  bool enableCore = cfgGetItem(pConfig, "enableCoreFile")->bval;
-  taosSetCoreDump(enableCore);
+  if (dmnCheckCfg(pCfg) != 0) {
+    uError("failed to check cfg since %s", terrstr());
+  }
 
   if (taosCheckAndPrintCfg() != 0) {
     uError("failed to check config");
     return NULL;
   }
 
-  
-  return pConfig;
+  return pCfg;
 }
 
 void dmnDumpCfg(SConfig *pCfg) {
@@ -146,7 +127,7 @@ SDnodeEnvCfg dmnGetEnvCfg(SConfig *pCfg) {
   tstrncpy(envCfg.locale, cfgGetItem(pCfg, "locale")->str, sizeof(envCfg.locale));
   tstrncpy(envCfg.charset, cfgGetItem(pCfg, "charset")->str, sizeof(envCfg.charset));
   envCfg.numOfCores = cfgGetItem(pCfg, "numOfCores")->i32;
-  envCfg.numOfCommitThreads = (uint16_t) cfgGetItem(pCfg, "numOfCommitThreads")->i32;
+  envCfg.numOfCommitThreads = (uint16_t)cfgGetItem(pCfg, "numOfCommitThreads")->i32;
   envCfg.enableTelem = cfgGetItem(pCfg, "telemetryReporting")->bval;
 
   return envCfg;

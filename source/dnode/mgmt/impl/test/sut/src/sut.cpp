@@ -28,16 +28,12 @@ void Testbase::InitLog(const char* path) {
   wDebugFlag = 0;
   sDebugFlag = 0;
   tsdbDebugFlag = 0;
-  cqDebugFlag = 0;
   tscEmbeddedInUtil = 1;
   tsAsyncLog = 0;
 
   taosRemoveDir(path);
   taosMkDir(path);
-
-  char temp[PATH_MAX];
-  snprintf(temp, PATH_MAX, "%s/taosdlog", path);
-  if (taosInitLog(temp, tsNumOfLogLines, 1) != 0) {
+  if (taosInitLog("taosdlog", 1) != 0) {
     printf("failed to init log file\n");
   }
 }

@@ -23,7 +23,7 @@ extern "C" {
 #endif
 
 // log
-extern int8_t  tsAsyncLog;
+extern bool    tsAsyncLog;
 extern int32_t tsNumOfLogLines;
 extern int32_t tsLogKeepDays;
 extern int32_t dDebugFlag;
@@ -32,9 +32,6 @@ extern int32_t mDebugFlag;
 extern int32_t cDebugFlag;
 extern int32_t jniDebugFlag;
 extern int32_t tmrDebugFlag;
-extern int32_t httpDebugFlag;
-extern int32_t mqttDebugFlag;
-extern int32_t monDebugFlag;
 extern int32_t uDebugFlag;
 extern int32_t rpcDebugFlag;
 extern int32_t qDebugFlag;
@@ -42,8 +39,7 @@ extern int32_t wDebugFlag;
 extern int32_t sDebugFlag;
 extern int32_t tsdbDebugFlag;
 extern int32_t tqDebugFlag;
-extern int32_t cqDebugFlag;
-extern int32_t debugFlag;
+extern int32_t fsDebugFlag;
 
 #define DEBUG_FATAL 1U
 #define DEBUG_ERROR DEBUG_FATAL
@@ -56,7 +52,7 @@ extern int32_t debugFlag;
 #define DEBUG_SCREEN 64U
 #define DEBUG_FILE 128U
 
-int32_t taosInitLog(char *logName, int32_t numOfLogLines, int32_t maxFiles);
+int32_t taosInitLog(const char *logName, int32_t maxFiles);
 void    taosCloseLog();
 void    taosResetLog();
 
@@ -75,7 +71,7 @@ void taosPrintLongString(const char *flags, int32_t dflag, const char *format, .
 void taosDumpData(unsigned char *msg, int32_t len);
 
 
-void taosSetDebugFlag(int32_t flag);
+void taosSetAllDebugFlag(int32_t flag);
 
 #ifdef __cplusplus
 }

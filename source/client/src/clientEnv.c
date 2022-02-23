@@ -82,9 +82,7 @@ static void tscInitLogFile() {
   const char    *defaultLogFileNamePrefix = "taoslog";
   const int32_t  maxLogFileNum = 10;
 
-  char temp[128] = {0};
-  sprintf(temp, "%s/%s", tsLogDir, defaultLogFileNamePrefix);
-  if (taosInitLog(temp, tsNumOfLogLines, maxLogFileNum) < 0) {
+  if (taosInitLog(defaultLogFileNamePrefix, maxLogFileNum) < 0) {
     printf("failed to open log file in directory:%s\n", tsLogDir);
   }
   #endif

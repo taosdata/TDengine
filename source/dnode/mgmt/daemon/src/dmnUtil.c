@@ -22,7 +22,7 @@ void dmnGenerateGrant() {
 #endif
 }
 
-void dmnPrintVersion(SConfig *pCfg) {
+void dmnPrintVersion() {
 #ifdef TD_ENTERPRISE
   char *releaseName = "enterprise";
 #else

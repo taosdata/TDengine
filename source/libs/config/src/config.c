@@ -538,10 +538,7 @@ void cfgPrintCfg(SConfig *pCfg) {
 }
 
 int32_t cfgCheck(SConfig *pConfig) {
-  SConfigItem *pItem = cfgGetItem(pConfig, "debugFlag");
-  if (pItem != NULL) {
-    taosSetDebugFlag(pItem->i32);
-  }
+  SConfigItem *pItem = NULL;
 
   pItem = cfgGetItem(pConfig, "localFqdn");
   if (pItem != NULL) {
