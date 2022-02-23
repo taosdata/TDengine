@@ -59,12 +59,6 @@ extern int64_t tsMaxRetentWindow;
 
 extern uint32_t tsVersion;
 
-// build info
-extern char version[];
-extern char compatible_version[];
-extern char gitinfo[];
-extern char gitinfoOfInternal[];
-extern char buildinfo[];
 
 // lossy
 extern char     tsLossyColumns[];

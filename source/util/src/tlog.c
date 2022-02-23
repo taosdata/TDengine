@@ -119,6 +119,7 @@ static int32_t taosStartLog() {
 
 int32_t taosInitLog(const char *logName, int maxFiles) {
   if (tsLogInited) return 0;
+  taosUpdateLogSpace();
 
   char fullName[PATH_MAX] = {0};
   snprintf(fullName, PATH_MAX, "%s" TD_DIRSEP "%s", tsLogDir, logName);

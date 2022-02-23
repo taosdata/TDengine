@@ -1,4 +1,3 @@
-
 /*
  * Copyright (c) 2019 TAOS Data, Inc. <jhtao@taosdata.com>
  *
@@ -14,34 +13,21 @@
  * along with this program. If not, see <http://www.gnu.org/licenses/>.
  */
 
-#ifndef _TD_DMN_INT_H_
-#define _TD_DMN_INT_H_
-
-#include "config.h"
-#include "dnode.h"
-#include "taoserror.h"
-#include "tglobal.h"
-#include "ulog.h"
-#include "version.h"
+#ifndef _TD_UTIL_VERSION_H
+#define _TD_UTIL_VERSION_H
 
 #ifdef __cplusplus
 extern "C" {
 #endif
 
-int32_t dmnAddLogCfg(SConfig *pCfg);
-int32_t dmnInitLog(const char *cfgDir, const char *envFile, const char *apolloUrl);
-int32_t dmnLoadCfg(SConfig *pConfig, const char *inputCfgDir, const char *envFile, const char *apolloUrl);
-
-SConfig     *dmnReadCfg(const char *cfgDir, const char *envFile, const char *apolloUrl);
-SDnodeEnvCfg dmnGetEnvCfg(SConfig *pCfg);
-SDnodeObjCfg dmnGetObjCfg(SConfig *pCfg);
-
-void dmnDumpCfg(SConfig *pCfg);
-void dmnPrintVersion();
-void dmnGenerateGrant();
+extern char version[];
+extern char compatible_version[];
+extern char gitinfo[];
+extern char gitinfoOfInternal[];
+extern char buildinfo[];
 
 #ifdef __cplusplus
 }
 #endif
 
-#endif /*_TD_DMN_INT_H_*/
+#endif /*_TD_UTIL_VERSION_H*/

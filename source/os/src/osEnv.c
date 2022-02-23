@@ -29,11 +29,11 @@ void taosUpdateTempSpace() { taosGetDiskSize(tsTempDir, &tsTempSpace.size); }
 
 void taosUpdateDataSpace() { taosGetDiskSize(tsDataDir, &tsDataSpace.size); }
 
-bool taosLogSpaceAvailable() { return tsDataSpace.reserved > tsDataSpace.size.avail; }
+bool taosLogSpaceAvailable() { return tsLogSpace.reserved < tsLogSpace.size.avail; }
 
-bool taosTempSpaceAvailable() { return tsTempSpace.reserved > tsTempSpace.size.avail; }
+bool taosTempSpaceAvailable() { return tsTempSpace.reserved < tsTempSpace.size.avail; }
 
-bool taosDataSpaceAvailable() { return tsDataSpace.reserved > tsDataSpace.size.avail; }
+bool taosDataSpaceAvailable() { return tsDataSpace.reserved < tsDataSpace.size.avail; }
 
 void taosUpdateAllSpace() {
   taosUpdateLogSpace();
