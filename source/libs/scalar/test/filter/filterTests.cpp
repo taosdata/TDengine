@@ -184,9 +184,26 @@ void flttMakeListNode(SNode **pNode, SNodeList *list, int32_t resType) {
 
 }
 
+TEST(timerangeTest, greater) {
+  SNode *pcol = NULL, *pval = NULL, *opNode1 = NULL, *opNode2 = NULL, *logicNode = NULL;
+  bool eRes[5] = {false, false, true, true, true};
+  SScalarParam res = {0};
+  int64_t tsmall = 222, tbig = 333;
+  flttMakeColRefNode(&pcol, NULL, TSDB_DATA_TYPE_TIMESTAMP, sizeof(int64_t), 0, NULL);  
+  flttMakeValueNode(&pval, TSDB_DATA_TYPE_TIMESTAMP, &tsmall);
+  flttMakeOpNode(&opNode1, OP_TYPE_GREATER_THAN, TSDB_DATA_TYPE_BOOL, pcol, pval);
+
+  SFilterInfo *filter = NULL;
+  int32_t code = filterInitFromNode(opNode1, &filter, FLT_OPTION_NO_REWRITE|FLT_OPTION_TIMESTAMP);
+  ASSERT_EQ(code, 0);
+  STimeWindow win = {0};
+  code = filterGetTimeRange(filter, &win);
+  ASSERT_EQ(code, 0);
+  ASSERT_EQ(win.skey, tsmall);
+  ASSERT_EQ(win.ekey, INT64_MAX); 
+}
+
 TEST(timerangeTest, greater_and_lower) {
-  flttInitLogFile();
-  
   SNode *pcol = NULL, *pval = NULL, *opNode1 = NULL, *opNode2 = NULL, *logicNode = NULL;
   bool eRes[5] = {false, false, true, true, true};
   SScalarParam res = {0};
@@ -213,12 +230,12 @@ TEST(timerangeTest, greater_and_lower) {
   ASSERT_EQ(win.ekey, tbig); 
 }
 
-#if 0
+
 TEST(columnTest, smallint_column_greater_double_value) {
   SNode *pLeft = NULL, *pRight = NULL, *opNode = NULL;
   int16_t leftv[5]= {1, 2, 3, 4, 5};
   double rightv= 2.5;
-  bool eRes[5] = {false, false, true, true, true};
+  int8_t eRes[5] = {0, 0, 1, 1, 1};
   SSDataBlock *src = NULL;
   SScalarParam res = {0};
   int32_t rowNum = sizeof(leftv)/sizeof(leftv[0]);
@@ -226,15 +243,96 @@ TEST(columnTest, smallint_column_greater_double_value) {
   flttMakeValueNode(&pRight, TSDB_DATA_TYPE_DOUBLE, &rightv);
   flttMakeOpNode(&opNode, OP_TYPE_GREATER_THAN, TSDB_DATA_TYPE_BOOL, pLeft, pRight);
   
-  int32_t code = scalarCalculate(opNode, src, &res);
+  SFilterInfo *filter = NULL;
+  int32_t code = filterInitFromNode(opNode, &filter, 0);
   ASSERT_EQ(code, 0);
-  ASSERT_EQ(res.num, rowNum);
-  ASSERT_EQ(res.type, TSDB_DATA_TYPE_BOOL);
-  ASSERT_EQ(res.bytes, tDataTypes[TSDB_DATA_TYPE_BOOL].bytes);
+
+  SColumnDataAgg stat = {0};
+  stat.colId = ((SColumnRefNode *)pLeft)->columnId;
+  stat.max = 10;
+  stat.min = 5;
+  stat.numOfNull = 0;
+  bool keep = filterRangeExecute(filter, &stat, 1, rowNum);
+  ASSERT_EQ(keep, true);
+
+  stat.max = 1;
+  stat.min = -1;
+  keep = filterRangeExecute(filter, &stat, 1, rowNum);
+  ASSERT_EQ(keep, true);
+
+  stat.max = 10;
+  stat.min = 5;
+  stat.numOfNull = rowNum;
+  keep = filterRangeExecute(filter, &stat, 1, rowNum);
+  ASSERT_EQ(keep, true);
+
+  SFilterColumnParam param = {.numOfCols= src->info.numOfCols, .pDataBlock = src->pDataBlock};
+  code = filterSetDataFromSlotId(filter, &param);
+  ASSERT_EQ(code, 0);
+
+  stat.max = 5;
+  stat.min = 1;
+  stat.numOfNull = 0;
+  int8_t *rowRes = NULL;
+  keep = filterExecute(filter, src, &rowRes, &stat, src->info.numOfCols);
+  ASSERT_EQ(keep, false);
+  
   for (int32_t i = 0; i < rowNum; ++i) {
-    ASSERT_EQ(*((bool *)res.data + i), eRes[i]);
+    ASSERT_EQ(*((int8_t *)rowRes + i), eRes[i]);
   }
 }
+
+TEST(columnTest, int_column_greater_smallint_value) {
+  SNode *pLeft = NULL, *pRight = NULL, *opNode = NULL;
+  int32_t leftv[5]= {1, 3, 5, 7, 9};
+  int16_t rightv= 4;
+  int8_t eRes[5] = {0, 0, 1, 1, 1};
+  SSDataBlock *src = NULL;
+  SScalarParam res = {0};
+  int32_t rowNum = sizeof(leftv)/sizeof(leftv[0]);
+  flttMakeColRefNode(&pLeft, &src, TSDB_DATA_TYPE_INT, sizeof(int32_t), rowNum, leftv);
+  flttMakeValueNode(&pRight, TSDB_DATA_TYPE_SMALLINT, &rightv);
+  flttMakeOpNode(&opNode, OP_TYPE_GREATER_THAN, TSDB_DATA_TYPE_BOOL, pLeft, pRight);
+  
+  SFilterInfo *filter = NULL;
+  int32_t code = filterInitFromNode(opNode, &filter, 0);
+  ASSERT_EQ(code, 0);
+
+  SColumnDataAgg stat = {0};
+  stat.colId = ((SColumnRefNode *)pLeft)->columnId;
+  stat.max = 10;
+  stat.min = 5;
+  stat.numOfNull = 0;
+  bool keep = filterRangeExecute(filter, &stat, 1, rowNum);
+  ASSERT_EQ(keep, true);
+
+  stat.max = 1;
+  stat.min = -1;
+  keep = filterRangeExecute(filter, &stat, 1, rowNum);
+  ASSERT_EQ(keep, false);
+
+  stat.max = 10;
+  stat.min = 5;
+  stat.numOfNull = rowNum;
+  keep = filterRangeExecute(filter, &stat, 1, rowNum);
+  ASSERT_EQ(keep, false);
+
+  SFilterColumnParam param = {.numOfCols= src->info.numOfCols, .pDataBlock = src->pDataBlock};
+  code = filterSetDataFromSlotId(filter, &param);
+  ASSERT_EQ(code, 0);
+
+  stat.max = 5;
+  stat.min = 1;
+  stat.numOfNull = 0;
+  int8_t *rowRes = NULL;
+  keep = filterExecute(filter, src, &rowRes, &stat, src->info.numOfCols);
+  ASSERT_EQ(keep, false);
+  
+  for (int32_t i = 0; i < rowNum; ++i) {
+    ASSERT_EQ(*((int8_t *)rowRes + i), eRes[i]);
+  }
+}
+
 
 TEST(columnTest, int_column_in_double_list) {
   SNode *pLeft = NULL, *pRight = NULL, *listNode = NULL, *opNode = NULL;
@@ -254,16 +352,31 @@ TEST(columnTest, int_column_in_double_list) {
   nodesListAppend(list, pRight);
   flttMakeListNode(&listNode,list, TSDB_DATA_TYPE_INT);
   flttMakeOpNode(&opNode, OP_TYPE_IN, TSDB_DATA_TYPE_BOOL, pLeft, listNode);
-  
-  int32_t code = scalarCalculate(opNode, src, &res);
+
+  SFilterInfo *filter = NULL;
+  int32_t code = filterInitFromNode(opNode, &filter, 0);
   ASSERT_EQ(code, 0);
-  ASSERT_EQ(res.num, rowNum);
-  ASSERT_EQ(res.type, TSDB_DATA_TYPE_BOOL);
-  ASSERT_EQ(res.bytes, tDataTypes[TSDB_DATA_TYPE_BOOL].bytes);
+
+  SColumnDataAgg stat = {0};
+  SFilterColumnParam param = {.numOfCols= src->info.numOfCols, .pDataBlock = src->pDataBlock};
+  code = filterSetDataFromSlotId(filter, &param);
+  ASSERT_EQ(code, 0);
+
+  stat.max = 5;
+  stat.min = 1;
+  stat.numOfNull = 0;
+  int8_t *rowRes = NULL;
+  bool keep = filterExecute(filter, src, &rowRes, &stat, src->info.numOfCols);
+  ASSERT_EQ(keep, false);
+  
   for (int32_t i = 0; i < rowNum; ++i) {
-    ASSERT_EQ(*((bool *)res.data + i), eRes[i]);
+    ASSERT_EQ(*((int8_t *)rowRes + i), eRes[i]);
   }
+
+  
 }
+
+
 
 TEST(columnTest, binary_column_in_binary_list) {
   SNode *pLeft = NULL, *pRight = NULL, *listNode = NULL, *opNode = NULL;
@@ -303,15 +416,27 @@ TEST(columnTest, binary_column_in_binary_list) {
   flttMakeListNode(&listNode,list, TSDB_DATA_TYPE_BINARY);
   flttMakeOpNode(&opNode, OP_TYPE_IN, TSDB_DATA_TYPE_BOOL, pLeft, listNode);
   
-  int32_t code = scalarCalculate(opNode, src, &res);
+  SFilterInfo *filter = NULL;
+  int32_t code = filterInitFromNode(opNode, &filter, 0);
   ASSERT_EQ(code, 0);
-  ASSERT_EQ(res.num, rowNum);
-  ASSERT_EQ(res.type, TSDB_DATA_TYPE_BOOL);
-  ASSERT_EQ(res.bytes, tDataTypes[TSDB_DATA_TYPE_BOOL].bytes);
+
+  SColumnDataAgg stat = {0};
+  SFilterColumnParam param = {.numOfCols= src->info.numOfCols, .pDataBlock = src->pDataBlock};
+  code = filterSetDataFromSlotId(filter, &param);
+  ASSERT_EQ(code, 0);
+
+  stat.max = 5;
+  stat.min = 1;
+  stat.numOfNull = 0;
+  int8_t *rowRes = NULL;
+  bool keep = filterExecute(filter, src, &rowRes, &stat, src->info.numOfCols);
+  ASSERT_EQ(keep, false);
+  
   for (int32_t i = 0; i < rowNum; ++i) {
-    ASSERT_EQ(*((bool *)res.data + i), eRes[i]);
+    ASSERT_EQ(*((int8_t *)rowRes + i), eRes[i]);
   }
 }
+
 
 TEST(columnTest, binary_column_like_binary) {
   SNode *pLeft = NULL, *pRight = NULL, *opNode = NULL;
@@ -336,13 +461,24 @@ TEST(columnTest, binary_column_like_binary) {
   flttMakeValueNode(&pRight, TSDB_DATA_TYPE_BINARY, rightv);
   flttMakeOpNode(&opNode, OP_TYPE_LIKE, TSDB_DATA_TYPE_BOOL, pLeft, pRight);
   
-  int32_t code = scalarCalculate(opNode, src, &res);
+  SFilterInfo *filter = NULL;
+  int32_t code = filterInitFromNode(opNode, &filter, 0);
   ASSERT_EQ(code, 0);
-  ASSERT_EQ(res.num, rowNum);
-  ASSERT_EQ(res.type, TSDB_DATA_TYPE_BOOL);
-  ASSERT_EQ(res.bytes, tDataTypes[TSDB_DATA_TYPE_BOOL].bytes);
+
+  SColumnDataAgg stat = {0};
+  SFilterColumnParam param = {.numOfCols= src->info.numOfCols, .pDataBlock = src->pDataBlock};
+  code = filterSetDataFromSlotId(filter, &param);
+  ASSERT_EQ(code, 0);
+
+  stat.max = 5;
+  stat.min = 1;
+  stat.numOfNull = 0;
+  int8_t *rowRes = NULL;
+  bool keep = filterExecute(filter, src, &rowRes, &stat, src->info.numOfCols);
+  ASSERT_EQ(keep, false);
+  
   for (int32_t i = 0; i < rowNum; ++i) {
-    ASSERT_EQ(*((bool *)res.data + i), eRes[i]);
+    ASSERT_EQ(*((int8_t *)rowRes + i), eRes[i]);
   }
 }
 
@@ -368,13 +504,24 @@ TEST(columnTest, binary_column_is_null) {
 
   flttMakeOpNode(&opNode, OP_TYPE_IS_NULL, TSDB_DATA_TYPE_BOOL, pLeft, NULL);
   
-  int32_t code = scalarCalculate(opNode, src, &res);
+  SFilterInfo *filter = NULL;
+  int32_t code = filterInitFromNode(opNode, &filter, 0);
   ASSERT_EQ(code, 0);
-  ASSERT_EQ(res.num, rowNum);
-  ASSERT_EQ(res.type, TSDB_DATA_TYPE_BOOL);
-  ASSERT_EQ(res.bytes, tDataTypes[TSDB_DATA_TYPE_BOOL].bytes);
+
+  SColumnDataAgg stat = {0};
+  SFilterColumnParam param = {.numOfCols= src->info.numOfCols, .pDataBlock = src->pDataBlock};
+  code = filterSetDataFromSlotId(filter, &param);
+  ASSERT_EQ(code, 0);
+
+  stat.max = 5;
+  stat.min = 1;
+  stat.numOfNull = 0;
+  int8_t *rowRes = NULL;
+  bool keep = filterExecute(filter, src, &rowRes, &stat, src->info.numOfCols);
+  ASSERT_EQ(keep, false);
+  
   for (int32_t i = 0; i < rowNum; ++i) {
-    ASSERT_EQ(*((bool *)res.data + i), eRes[i]);
+    ASSERT_EQ(*((int8_t *)rowRes + i), eRes[i]);
   }
 }
 
@@ -399,50 +546,100 @@ TEST(columnTest, binary_column_is_not_null) {
 
   flttMakeOpNode(&opNode, OP_TYPE_IS_NOT_NULL, TSDB_DATA_TYPE_BOOL, pLeft, NULL);
   
-  int32_t code = scalarCalculate(opNode, src, &res);
+  SFilterInfo *filter = NULL;
+  int32_t code = filterInitFromNode(opNode, &filter, 0);
   ASSERT_EQ(code, 0);
-  ASSERT_EQ(res.num, rowNum);
-  ASSERT_EQ(res.type, TSDB_DATA_TYPE_BOOL);
-  ASSERT_EQ(res.bytes, tDataTypes[TSDB_DATA_TYPE_BOOL].bytes);
+
+  SColumnDataAgg stat = {0};
+  SFilterColumnParam param = {.numOfCols= src->info.numOfCols, .pDataBlock = src->pDataBlock};
+  code = filterSetDataFromSlotId(filter, &param);
+  ASSERT_EQ(code, 0);
+
+  stat.max = 5;
+  stat.min = 1;
+  stat.numOfNull = 0;
+  int8_t *rowRes = NULL;
+  bool keep = filterExecute(filter, src, &rowRes, &stat, src->info.numOfCols);
+  ASSERT_EQ(keep, false);
+  
   for (int32_t i = 0; i < rowNum; ++i) {
-    ASSERT_EQ(*((bool *)res.data + i), eRes[i]);
+    ASSERT_EQ(*((int8_t *)rowRes + i), eRes[i]);
   }
 }
 
-TEST(logicTest, and_or_and) {
-
-}
-
-TEST(logicTest, or_and_or) {
-
-}
 
 
 TEST(opTest, smallint_column_greater_int_column) {
+  flttInitLogFile();
 
+  SNode *pLeft = NULL, *pRight = NULL, *opNode = NULL;
+  int16_t leftv[5] = {1, -6, -2, 11, 101};
+  int32_t rightv[5]= {0, -5, -4, 23, 100};
+  bool eRes[5] = {true, false, true, false, true};
+  SSDataBlock *src = NULL;
+  SScalarParam res = {0};
+  int32_t rowNum = sizeof(rightv)/sizeof(rightv[0]);
+  flttMakeColRefNode(&pLeft, &src, TSDB_DATA_TYPE_SMALLINT, sizeof(int16_t), rowNum, leftv);
+  flttMakeColRefNode(&pRight, &src, TSDB_DATA_TYPE_INT, sizeof(int32_t), rowNum, rightv);
+  flttMakeOpNode(&opNode, OP_TYPE_GREATER_THAN, TSDB_DATA_TYPE_BOOL, pLeft, pRight);
+  
+  SFilterInfo *filter = NULL;
+  int32_t code = filterInitFromNode(opNode, &filter, 0);
+  ASSERT_EQ(code, 0);
+
+  SColumnDataAgg stat = {0};
+  SFilterColumnParam param = {.numOfCols= src->info.numOfCols, .pDataBlock = src->pDataBlock};
+  code = filterSetDataFromSlotId(filter, &param);
+  ASSERT_EQ(code, 0);
+
+  stat.max = 5;
+  stat.min = 1;
+  stat.numOfNull = 0;
+  int8_t *rowRes = NULL;
+  bool keep = filterExecute(filter, src, &rowRes, &stat, src->info.numOfCols);
+  ASSERT_EQ(keep, false);
+  
+  for (int32_t i = 0; i < rowNum; ++i) {
+    ASSERT_EQ(*((int8_t *)rowRes + i), eRes[i]);
+  }
 }
+
 
 TEST(opTest, smallint_value_add_int_column) {
   SNode *pLeft = NULL, *pRight = NULL, *opNode = NULL;
   int32_t leftv = 1;
-  int16_t rightv[5]= {0, -5, -4, 23, 100};
-  double eRes[5] = {1.0, -4, -3, 24, 101};
+  int16_t rightv[5]= {0, -1, -4, -1, 100};
+  bool eRes[5] = {true, false, true, false, true};
   SSDataBlock *src = NULL;
   SScalarParam res = {0};
   int32_t rowNum = sizeof(rightv)/sizeof(rightv[0]);
   flttMakeValueNode(&pLeft, TSDB_DATA_TYPE_INT, &leftv);
   flttMakeColRefNode(&pRight, &src, TSDB_DATA_TYPE_SMALLINT, sizeof(int16_t), rowNum, rightv);
   flttMakeOpNode(&opNode, OP_TYPE_ADD, TSDB_DATA_TYPE_DOUBLE, pLeft, pRight);
+  flttMakeOpNode(&opNode, OP_TYPE_IS_TRUE, TSDB_DATA_TYPE_BOOL, opNode, NULL);
   
-  int32_t code = scalarCalculate(opNode, src, &res);
+  SFilterInfo *filter = NULL;
+  int32_t code = filterInitFromNode(opNode, &filter, 0);
   ASSERT_EQ(code, 0);
-  ASSERT_EQ(res.num, rowNum);
-  ASSERT_EQ(res.type, TSDB_DATA_TYPE_DOUBLE);
-  ASSERT_EQ(res.bytes, tDataTypes[TSDB_DATA_TYPE_DOUBLE].bytes);
+
+  SColumnDataAgg stat = {0};
+  SFilterColumnParam param = {.numOfCols= src->info.numOfCols, .pDataBlock = src->pDataBlock};
+  code = filterSetDataFromSlotId(filter, &param);
+  ASSERT_EQ(code, 0);
+
+  stat.max = 5;
+  stat.min = 1;
+  stat.numOfNull = 0;
+  int8_t *rowRes = NULL;
+  bool keep = filterExecute(filter, src, &rowRes, &stat, src->info.numOfCols);
+  ASSERT_EQ(keep, false);
+  
   for (int32_t i = 0; i < rowNum; ++i) {
-    ASSERT_EQ(*((double *)res.data + i), eRes[i]);
+    ASSERT_EQ(*((int8_t *)rowRes + i), eRes[i]);
   }
 }
+
+
 
 TEST(opTest, bigint_column_multi_binary_column) {
   SNode *pLeft = NULL, *pRight = NULL, *opNode = NULL;
@@ -453,21 +650,33 @@ TEST(opTest, bigint_column_multi_binary_column) {
     rightv[i][4] = '0' + i;
     varDataSetLen(rightv[i], 3);
   }
-  double eRes[5] = {0, 2, 6, 12, 20};
+  bool eRes[5] = {false, true, true, true, true};
   SSDataBlock *src = NULL;
   SScalarParam res = {0};
   int32_t rowNum = sizeof(rightv)/sizeof(rightv[0]);
   flttMakeColRefNode(&pLeft, &src, TSDB_DATA_TYPE_BIGINT, sizeof(int64_t), rowNum, leftv);
   flttMakeColRefNode(&pRight, &src, TSDB_DATA_TYPE_BINARY, 5, rowNum, rightv);
   flttMakeOpNode(&opNode, OP_TYPE_MULTI, TSDB_DATA_TYPE_DOUBLE, pLeft, pRight);
+  flttMakeOpNode(&opNode, OP_TYPE_IS_TRUE, TSDB_DATA_TYPE_BOOL, opNode, NULL);
   
-  int32_t code = scalarCalculate(opNode, src, &res);
+  SFilterInfo *filter = NULL;
+  int32_t code = filterInitFromNode(opNode, &filter, 0);
   ASSERT_EQ(code, 0);
-  ASSERT_EQ(res.num, rowNum);
-  ASSERT_EQ(res.type, TSDB_DATA_TYPE_DOUBLE);
-  ASSERT_EQ(res.bytes, tDataTypes[TSDB_DATA_TYPE_DOUBLE].bytes);
+
+  SColumnDataAgg stat = {0};
+  SFilterColumnParam param = {.numOfCols= src->info.numOfCols, .pDataBlock = src->pDataBlock};
+  code = filterSetDataFromSlotId(filter, &param);
+  ASSERT_EQ(code, 0);
+
+  stat.max = 5;
+  stat.min = 1;
+  stat.numOfNull = 0;
+  int8_t *rowRes = NULL;
+  bool keep = filterExecute(filter, src, &rowRes, &stat, src->info.numOfCols);
+  ASSERT_EQ(keep, false);
+  
   for (int32_t i = 0; i < rowNum; ++i) {
-    ASSERT_EQ(*((double *)res.data + i), eRes[i]);
+    ASSERT_EQ(*((int8_t *)rowRes + i), eRes[i]);
   }
 }
 
@@ -480,67 +689,106 @@ TEST(opTest, smallint_column_and_binary_column) {
     rightv[i][4] = '0' + i;
     varDataSetLen(rightv[i], 3);
   }
-  int64_t eRes[5] = {0, 0, 2, 0, 4};
+  bool eRes[5] = {false, false, true, false, true};
   SSDataBlock *src = NULL;
   SScalarParam res = {0};
   int32_t rowNum = sizeof(rightv)/sizeof(rightv[0]);
   flttMakeColRefNode(&pLeft, &src, TSDB_DATA_TYPE_SMALLINT, sizeof(int16_t), rowNum, leftv);
   flttMakeColRefNode(&pRight, &src, TSDB_DATA_TYPE_BINARY, 5, rowNum, rightv);
   flttMakeOpNode(&opNode, OP_TYPE_BIT_AND, TSDB_DATA_TYPE_BIGINT, pLeft, pRight);
+  flttMakeOpNode(&opNode, OP_TYPE_IS_TRUE, TSDB_DATA_TYPE_BOOL, opNode, NULL);
   
-  int32_t code = scalarCalculate(opNode, src, &res);
+  SFilterInfo *filter = NULL;
+  int32_t code = filterInitFromNode(opNode, &filter, 0);
   ASSERT_EQ(code, 0);
-  ASSERT_EQ(res.num, rowNum);
-  ASSERT_EQ(res.type, TSDB_DATA_TYPE_BIGINT);
-  ASSERT_EQ(res.bytes, tDataTypes[TSDB_DATA_TYPE_BIGINT].bytes);
+
+  SColumnDataAgg stat = {0};
+  SFilterColumnParam param = {.numOfCols= src->info.numOfCols, .pDataBlock = src->pDataBlock};
+  code = filterSetDataFromSlotId(filter, &param);
+  ASSERT_EQ(code, 0);
+
+  stat.max = 5;
+  stat.min = 1;
+  stat.numOfNull = 0;
+  int8_t *rowRes = NULL;
+  bool keep = filterExecute(filter, src, &rowRes, &stat, src->info.numOfCols);
+  ASSERT_EQ(keep, false);
+  
   for (int32_t i = 0; i < rowNum; ++i) {
-    ASSERT_EQ(*((int64_t *)res.data + i), eRes[i]);
+    ASSERT_EQ(*((int8_t *)rowRes + i), eRes[i]);
   }
 }
 
 TEST(opTest, smallint_column_or_float_column) {
   SNode *pLeft = NULL, *pRight = NULL, *opNode = NULL;
-  int16_t leftv[5]= {1, 2, 3, 4, 5};
-  float rightv[5]= {2.0, 3.0, 4.1, 5.2, 6.0};
-  int64_t eRes[5] = {3, 3, 7, 5, 7};
+  int16_t leftv[5]= {1, 2, 0, 4, 5};
+  float rightv[5]= {2.0, 3.0, 0, 5.2, 6.0};
+  bool eRes[5] = {true, true, false, true, true};
   SSDataBlock *src = NULL;
   SScalarParam res = {0};
   int32_t rowNum = sizeof(rightv)/sizeof(rightv[0]);
   flttMakeColRefNode(&pLeft, &src, TSDB_DATA_TYPE_SMALLINT, sizeof(int16_t), rowNum, leftv);
   flttMakeColRefNode(&pRight, &src, TSDB_DATA_TYPE_FLOAT, sizeof(float), rowNum, rightv);
   flttMakeOpNode(&opNode, OP_TYPE_BIT_OR, TSDB_DATA_TYPE_BIGINT, pLeft, pRight);
+  flttMakeOpNode(&opNode, OP_TYPE_IS_TRUE, TSDB_DATA_TYPE_BOOL, opNode, NULL);
   
-  int32_t code = scalarCalculate(opNode, src, &res);
+  SFilterInfo *filter = NULL;
+  int32_t code = filterInitFromNode(opNode, &filter, 0);
   ASSERT_EQ(code, 0);
-  ASSERT_EQ(res.num, rowNum);
-  ASSERT_EQ(res.type, TSDB_DATA_TYPE_BIGINT);
-  ASSERT_EQ(res.bytes, tDataTypes[TSDB_DATA_TYPE_BIGINT].bytes);
+
+  SColumnDataAgg stat = {0};
+  SFilterColumnParam param = {.numOfCols= src->info.numOfCols, .pDataBlock = src->pDataBlock};
+  code = filterSetDataFromSlotId(filter, &param);
+  ASSERT_EQ(code, 0);
+
+  stat.max = 5;
+  stat.min = 1;
+  stat.numOfNull = 0;
+  int8_t *rowRes = NULL;
+  bool keep = filterExecute(filter, src, &rowRes, &stat, src->info.numOfCols);
+  ASSERT_EQ(keep, false);
+  
   for (int32_t i = 0; i < rowNum; ++i) {
-    ASSERT_EQ(*((int64_t *)res.data + i), eRes[i]);
+    ASSERT_EQ(*((int8_t *)rowRes + i), eRes[i]);
   }
 }
 
+
+
 TEST(opTest, smallint_column_or_double_value) {
   SNode *pLeft = NULL, *pRight = NULL, *opNode = NULL;
-  int16_t leftv[5]= {1, 2, 3, 4, 5};
+  int16_t leftv[5]= {0, 2, 3, 0, -1};
   double rightv= 10.2;
-  int64_t eRes[5] = {11, 10, 11, 14, 15};
+  bool eRes[5] = {true, true, true, true, true};
   SSDataBlock *src = NULL;
   SScalarParam res = {0};
   int32_t rowNum = sizeof(leftv)/sizeof(leftv[0]);
   flttMakeColRefNode(&pLeft, &src, TSDB_DATA_TYPE_SMALLINT, sizeof(int16_t), rowNum, leftv);
   flttMakeValueNode(&pRight, TSDB_DATA_TYPE_DOUBLE, &rightv);
   flttMakeOpNode(&opNode, OP_TYPE_BIT_OR, TSDB_DATA_TYPE_BIGINT, pLeft, pRight);
+  flttMakeOpNode(&opNode, OP_TYPE_IS_TRUE, TSDB_DATA_TYPE_BOOL, opNode, NULL);
   
-  int32_t code = scalarCalculate(opNode, src, &res);
+  SFilterInfo *filter = NULL;
+  int32_t code = filterInitFromNode(opNode, &filter, 0);
   ASSERT_EQ(code, 0);
-  ASSERT_EQ(res.num, rowNum);
-  ASSERT_EQ(res.type, TSDB_DATA_TYPE_BIGINT);
-  ASSERT_EQ(res.bytes, tDataTypes[TSDB_DATA_TYPE_BIGINT].bytes);
+
+  SColumnDataAgg stat = {0};
+  SFilterColumnParam param = {.numOfCols= src->info.numOfCols, .pDataBlock = src->pDataBlock};
+  code = filterSetDataFromSlotId(filter, &param);
+  ASSERT_EQ(code, 0);
+
+  stat.max = 5;
+  stat.min = 1;
+  stat.numOfNull = 0;
+  int8_t *rowRes = NULL;
+  bool keep = filterExecute(filter, src, &rowRes, &stat, src->info.numOfCols);
+  ASSERT_EQ(keep, true);
+  
   for (int32_t i = 0; i < rowNum; ++i) {
-    ASSERT_EQ(*((int64_t *)res.data + i), eRes[i]);
+    ASSERT_EQ(*((int8_t *)rowRes + i), eRes[i]);
   }
 }
+
 
 TEST(opTest, binary_column_is_true) {
   SNode *pLeft = NULL, *opNode = NULL;
@@ -561,15 +809,40 @@ TEST(opTest, binary_column_is_true) {
 
   flttMakeOpNode(&opNode, OP_TYPE_IS_TRUE, TSDB_DATA_TYPE_BOOL, pLeft, NULL);
   
-  int32_t code = scalarCalculate(opNode, src, &res);
+  SFilterInfo *filter = NULL;
+  int32_t code = filterInitFromNode(opNode, &filter, 0);
   ASSERT_EQ(code, 0);
-  ASSERT_EQ(res.num, rowNum);
-  ASSERT_EQ(res.type, TSDB_DATA_TYPE_BOOL);
-  ASSERT_EQ(res.bytes, tDataTypes[TSDB_DATA_TYPE_BOOL].bytes);
+
+  SColumnDataAgg stat = {0};
+  SFilterColumnParam param = {.numOfCols= src->info.numOfCols, .pDataBlock = src->pDataBlock};
+  code = filterSetDataFromSlotId(filter, &param);
+  ASSERT_EQ(code, 0);
+
+  stat.max = 5;
+  stat.min = 1;
+  stat.numOfNull = 0;
+  int8_t *rowRes = NULL;
+  bool keep = filterExecute(filter, src, &rowRes, &stat, src->info.numOfCols);
+  ASSERT_EQ(keep, false);
+  
   for (int32_t i = 0; i < rowNum; ++i) {
-    ASSERT_EQ(*((bool *)res.data + i), eRes[i]);
+    ASSERT_EQ(*((int8_t *)rowRes + i), eRes[i]);
   }
 }
+
+#if 0
+
+
+TEST(logicTest, and_or_and) {
+
+}
+
+TEST(logicTest, or_and_or) {
+
+}
+
+
+
 #endif
 
 int main(int argc, char** argv) {
