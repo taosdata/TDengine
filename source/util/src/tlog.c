@@ -16,7 +16,6 @@
 #define _DEFAULT_SOURCE
 #include "tlog.h"
 #include "os.h"
-#include "tnote.h"
 #include "tutil.h"
 #include "ulog.h"
 
@@ -432,7 +431,6 @@ void taosPrintLog(const char *flags, int32_t dflag, const char *format, ...) {
   }
 
   if (dflag & DEBUG_SCREEN) taosWriteFile(1, buffer, (uint32_t)len);
-  if (dflag == 255) nInfo(buffer, len);
 }
 
 void taosDumpData(unsigned char *msg, int32_t len) {

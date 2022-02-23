@@ -22,7 +22,6 @@
 #include "tmsg.h"
 #include "tcache.h"
 #include "tglobal.h"
-#include "tnote.h"
 #include "tref.h"
 #include "trpc.h"
 #include "ttime.h"
@@ -219,7 +218,6 @@ void taos_init_imp(void) {
     return;
   }
 
-  taosInitNotes();
   initMsgHandleFp();
   initQueryModuleMsgHandle();
 

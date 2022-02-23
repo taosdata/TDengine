@@ -8,7 +8,6 @@
 #include "tep.h"
 #include "tglobal.h"
 #include "tmsgtype.h"
-#include "tnote.h"
 #include "tpagedbuf.h"
 #include "tref.h"
 
@@ -242,11 +241,9 @@ TAOS_RES* taos_query_l(TAOS* taos, const char* sql, int sqlLen) {
     return NULL;
   }
 
-  nPrintTsc("%s", sql)
-
-      SRequestObj* pRequest = NULL;
-  SQueryNode*      pQueryNode = NULL;
-  SArray*          pNodeList = taosArrayInit(4, sizeof(struct SQueryNodeAddr));
+  SRequestObj* pRequest = NULL;
+  SQueryNode*  pQueryNode = NULL;
+  SArray*      pNodeList = taosArrayInit(4, sizeof(struct SQueryNodeAddr));
 
   terrno = TSDB_CODE_SUCCESS;
   CHECK_CODE_GOTO(buildRequest(pTscObj, sql, sqlLen, &pRequest), _return);

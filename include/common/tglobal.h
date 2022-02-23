@@ -44,7 +44,6 @@ extern int8_t  tsDeadLockKillQuery;
 // client
 extern int32_t tsMaxWildCardsLen;
 extern int32_t tsMaxRegexStringLen;
-extern int8_t  tsTscEnableRecordSql;
 extern int32_t tsMaxNumOfOrderedResults;
 extern int32_t tsMinSlidingTime;
 extern int32_t tsMinIntervalTime;

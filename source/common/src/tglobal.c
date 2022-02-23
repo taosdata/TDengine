@@ -60,8 +60,6 @@ int32_t tsCompatibleModel = 1;
 int32_t tsMaxWildCardsLen = TSDB_PATTERN_STRING_DEFAULT_LEN;
 int32_t tsMaxRegexStringLen = TSDB_REGEX_STRING_DEFAULT_LEN;
 
-int8_t tsTscEnableRecordSql = 0;
-
 // the maximum number of results for projection query on super table that are returned from
 // one virtual node, to order according to timestamp
 int32_t tsMaxNumOfOrderedResults = 100000;
@@ -409,17 +407,6 @@ static void doInitGlobalConfig(void) {
   cfg.unitType = TAOS_CFG_UTYPE_NONE;
   taosAddConfigOption(cfg);
 
-
-
-  cfg.option = "enableRecordSql";
-  cfg.ptr = &tsTscEnableRecordSql;
-  cfg.valType = TAOS_CFG_VTYPE_INT8;
-  cfg.cfgType = TSDB_CFG_CTYPE_B_CONFIG;
-  cfg.minValue = 0;
-  cfg.maxValue = 1;
-  cfg.ptrLength = 0;
-  cfg.unitType = TAOS_CFG_UTYPE_NONE;
-  taosAddConfigOption(cfg);
 
   cfg.option = "maxBinaryDisplayWidth";
   cfg.ptr = &tsMaxBinaryDisplayWidth;
