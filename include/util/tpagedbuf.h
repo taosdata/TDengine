@@ -153,6 +153,12 @@ bool isAllDataInMemBuf(const SDiskbasedBuf* pBuf);
 void setBufPageDirty(void* pPageInfo, bool dirty);
 
 /**
+ * Set the compress/ no-compress flag for paged buffer, when flushing data in disk.
+ * @param pBuf
+ */
+void setBufPageCompressOnDisk(SDiskbasedBuf* pBuf, bool comp);
+
+/**
  * Print the statistics when closing this buffer
  * @param pBuf
  */

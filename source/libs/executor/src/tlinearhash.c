@@ -78,6 +78,8 @@ SLHashObj* tHashInit(int32_t inMemPages, int32_t pageSize, _hash_fn_t fn, int32_
     return NULL;
   }
 
+  setBufPageCompressOnDisk(pHashObj->pBuf, false);
+
   /**
    * The number of bits in the hash value, which is used to decide the exact bucket where the object should be located in.
    * The initial value is 0.
