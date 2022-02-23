@@ -245,7 +245,7 @@ SEND_OVER:
 static int32_t mndProcessTelemTimer(SMnodeMsg* pReq) {
   SMnode*     pMnode = pReq->pMnode;
   STelemMgmt* pMgmt = &pMnode->telemMgmt;
-  // if (!pMgmt->enable) return 0;
+  if (!pMgmt->enable) return 0;
 
   taosWLockLatch(&pMgmt->lock);
   mndSendTelemetryReport(pMnode);
