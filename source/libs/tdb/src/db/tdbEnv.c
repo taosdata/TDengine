@@ -15,6 +15,12 @@
 
 #include "tdbInt.h"
 
+struct STEnv {
+  char *   rootDir;
+  SPCache *pCache;
+  int      jfd;
+};
+
 #if 0
 struct STDbEnv {
   char *      rootDir;    // root directory of the environment

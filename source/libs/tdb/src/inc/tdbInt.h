@@ -116,13 +116,13 @@ typedef TD_DLIST_NODE(SPgFile) SPgFileListNode;
 
 #include "tdbUtil.h"
 
-// #include "tdbBtree.h"
+#include "tdbBtree.h"
 
 #include "tdbPCache.h"
 
 #include "tdbPFile.h"
 
-// #include "tdbEnv.h"
+#include "tdbEnv.h"
 
 #ifdef __cplusplus
 }

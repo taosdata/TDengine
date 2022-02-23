@@ -15,6 +15,7 @@
 
 #include "tdbInt.h"
 
+#if 0
 struct SBtCursor {
   SBTree *pBtree;
   SPgno  pgno;
@@ -39,9 +40,9 @@ typedef struct __attribute__((__packed__)) {
 
 typedef int (*BtreeCmprFn)(const void *, const void *);
 
-#define BTREE_PAGE_HDR(pPage) NULL             /* TODO */
+#define BTREE_PAGE_HDR(pPage)             NULL /* TODO */
 #define BTREE_PAGE_PAYLOAD_AT(pPage, idx) NULL /*TODO*/
-#define BTREE_PAGE_IS_LEAF(pPage) 0            /* TODO */
+#define BTREE_PAGE_IS_LEAF(pPage)         0    /* TODO */
 
 static int btreeCreate(SBTree **ppBt);
 static int btreeDestroy(SBTree *pBt);
@@ -162,3 +163,4 @@ static int btreeCursorMoveToChild(SBtCursor *pBtCur, SPgno pgno) {
   // TODO
   return 0;
 }
+#endif
