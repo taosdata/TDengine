@@ -1044,6 +1044,8 @@ int32_t fltAddGroupUnitFromNode(SFilterInfo *info, SNode* tree, SArray *group) {
       filterAddUnitToGroup(&fgroup, uidx);
       
       taosArrayPush(group, &fgroup);
+
+      cell = cell->pNext;
     }
   } else {
     filterAddFieldFromNode(info, node->pRight, &right);
@@ -1312,6 +1314,8 @@ EDealRes fltTreeToGroup(SNode* pNode, void* pContext) {
         
         preGroup = resGroup;
         resGroup = NULL;
+
+        cell = cell->pNext;
       }
 
       taosArrayAddAll(ctx->group, preGroup);
@@ -1326,6 +1330,8 @@ EDealRes fltTreeToGroup(SNode* pNode, void* pContext) {
       for (int32_t i = 0; i < node->pParameterList->length; ++i) {
         nodesWalkNode(cell->pNode, fltTreeToGroup, (void *)pContext);
         FLT_ERR_JRET(ctx->code);
+        
+        cell = cell->pNext;
       }
       
       return DEAL_RES_IGNORE_CHILD;

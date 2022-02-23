@@ -106,6 +106,7 @@ typedef struct {
         *(uint16_t *)(_v) = (uint16_t)(_data); \
         break;                                 \
       case TSDB_DATA_TYPE_BIGINT:              \
+      case TSDB_DATA_TYPE_TIMESTAMP:           \
         *(int64_t *)(_v) = (int64_t)(_data);   \
         break;                                 \
       case TSDB_DATA_TYPE_UBIGINT:             \
