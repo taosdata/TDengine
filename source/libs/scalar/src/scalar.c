@@ -339,11 +339,15 @@ int32_t sclExecLogic(SLogicConditionNode *node, SScalarCtx *ctx, SScalarParam *o
   SCL_ERR_RET(sclInitParamList(&params, node->pParameterList, ctx, &rowNum));
 
   output->type = node->node.resType.type;
+  output->bytes = sizeof(bool);
+  output->num = rowNum;
   output->data = calloc(rowNum, sizeof(bool));
   if (NULL == output->data) {
     sclError("calloc %d failed", (int32_t)(rowNum * sizeof(bool)));
     SCL_ERR_JRET(TSDB_CODE_QRY_OUT_OF_MEMORY);
   }
+
+  void *data = output->data;
   
   bool value = false;
 
@@ -365,6 +369,8 @@ int32_t sclExecLogic(SLogicConditionNode *node, SScalarCtx *ctx, SScalarParam *o
     sclParamMoveNext(output, 1);    
     sclParamMoveNext(params, node->pParameterList->length);
   }
+
+  output->data = data;
 
   return TSDB_CODE_SUCCESS;
 
