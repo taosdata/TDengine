@@ -598,25 +598,23 @@ static int tfileReaderLoadHeader(TFileReader* reader) {
   return 0;
 }
 static int tfileReaderLoadFst(TFileReader* reader) {
-  // current load fst into memory, refactor it later
-  static int FST_MAX_SIZE = 64 * 1024 * 1024;
+  WriterCtx* ctx = reader->ctx;
+  int        size = ctx->size(ctx);
 
-  char* buf = calloc(1, sizeof(char) * FST_MAX_SIZE);
+  // current load fst into memory, refactor it later
+  int   fstSize = size - reader->header.fstOffset - sizeof(tfileMagicNumber);
+  char* buf = calloc(1, fstSize);
   if (buf == NULL) {
     return -1;
   }
 
-  WriterCtx* ctx = reader->ctx;
-  int        size = ctx->size(ctx);
-
   int64_t ts = taosGetTimestampUs();
-  int32_t nread =
-      ctx->readFrom(ctx, buf, size - reader->header.fstOffset - sizeof(tfileMagicNumber), reader->header.fstOffset);
+  int32_t nread = ctx->readFrom(ctx, buf, fstSize, reader->header.fstOffset);
   int64_t cost = taosGetTimestampUs() - ts;
-  indexInfo("nread = %d, and fst offset=%d, filename: %s, size: %d, time cost: %" PRId64 "us", nread,
-            reader->header.fstOffset, ctx->file.buf, ctx->file.size, cost);
+  indexInfo("nread = %d, and fst offset=%d, size: %d, filename: %s, size: %d, time cost: %" PRId64 "us", nread,
+            reader->header.fstOffset, fstSize, ctx->file.buf, ctx->file.size, cost);
   // we assuse fst size less than FST_MAX_SIZE
-  assert(nread > 0 && nread < FST_MAX_SIZE);
+  assert(nread > 0 && nread <= fstSize);
 
   FstSlice st = fstSliceCreate((uint8_t*)buf, nread);
   reader->fst = fstCreate(&st);
@@ -626,25 +624,35 @@ static int tfileReaderLoadFst(TFileReader* reader) {
   return reader->fst != NULL ? 0 : -1;
 }
 static int tfileReaderLoadTableIds(TFileReader* reader, int32_t offset, SArray* result) {
-  int32_t    nid;
+  // TODO(yihao): opt later
   WriterCtx* ctx = reader->ctx;
+  char       block[1024] = {0};
+  int32_t    nread = ctx->readFrom(ctx, block, sizeof(block), offset);
+  assert(nread >= sizeof(uint32_t));
 
-  int32_t nread = ctx->readFrom(ctx, (char*)&nid, sizeof(nid), offset);
-  assert(sizeof(nid) == nread);
+  char*   p = block;
+  int32_t nid = *(int32_t*)p;
+  p += sizeof(nid);
 
-  int32_t total = sizeof(uint64_t) * nid;
-  char*   buf = calloc(1, total);
-  if (buf == NULL) {
-    return -1;
+  while (nid > 0) {
+    int32_t left = block + sizeof(block) - p;
+    if (left >= sizeof(uint64_t)) {
+      taosArrayPush(result, (uint64_t*)p);
+      p += sizeof(uint64_t);
+    } else {
+      char buf[sizeof(uint64_t)] = {0};
+      memcpy(buf, p, left);
+
+      memset(block, 0, sizeof(block));
+      offset += sizeof(block);
+      nread = ctx->readFrom(ctx, block, sizeof(block), offset);
+      memcpy(buf + left, block, sizeof(uint64_t) - left);
+
+      taosArrayPush(result, (uint64_t*)buf);
+      p = block + sizeof(uint64_t) - left;
+    }
+    nid -= 1;
   }
-
-  nread = ctx->readFrom(ctx, buf, total, offset + sizeof(nid));
-  assert(total == nread);
-
-  for (int32_t i = 0; i < nid; i++) {
-    taosArrayPush(result, (uint64_t*)buf + i);
-  }
-  free(buf);
   return 0;
 }
 static int tfileReaderVerify(TFileReader* reader) {
@@ -686,11 +694,10 @@ void tfileReaderUnRef(TFileReader* reader) {
 }
 
 static SArray* tfileGetFileList(const char* path) {
-  SArray* files = taosArrayInit(4, sizeof(void*));
-
   char     buf[128] = {0};
   uint64_t suid;
   uint32_t version;
+  SArray*  files = taosArrayInit(4, sizeof(void*));
 
   DIR* dir = opendir(path);
   if (NULL == dir) {

@@ -230,3 +230,4 @@ TEST_F(FstEnv, writeNormal) {
   assert(fst->Get("aa", &val) == true);
   assert(val == 0);
 }
+TEST_F(FstEnv, writeExcpet) {}
