@@ -21,26 +21,9 @@ extern "C" {
 #endif
 
 #include "tdef.h"
-#include "tcfg.h"
-
-// cluster
-extern int32_t  tsStatusInterval;
-extern int8_t   tsEnableTelemetryReporting;
-extern int32_t  tsNumOfSupportVnodes;
 
 // common
-extern int      tsRpcTimer;
-extern int      tsRpcMaxTime;
-extern int      tsRpcForceTcp;  // all commands go to tcp protocol if this is enabled
-extern int32_t  tsMaxConnections;
-extern int32_t  tsMaxShellConns;
-extern int32_t  tsShellActivityTimer;
-extern uint32_t tsMaxTmrCtrl;
-extern float    tsNumOfThreadsPerCore;
-extern int32_t  tsNumOfCommitThreads;
-extern float    tsRatioOfQueryCores;
 extern int8_t   tsDaylight;
-extern int8_t   tsEnableCoreFile;
 extern int32_t  tsCompressMsgSize;
 extern int32_t  tsCompressColData;
 extern int32_t  tsMaxNumOfDistinctResults;
@@ -73,24 +56,9 @@ extern int32_t tsProjectExecInterval;
 extern int64_t tsMaxRetentWindow;
 
 // system info
-extern float    tsTotalLogDirGB;
-extern float    tsTotalTmpDirGB;
-extern float    tsTotalDataDirGB;
-extern float    tsAvailLogDirGB;
-extern float    tsAvailTmpDirectorySpace;
-extern float    tsAvailDataDirGB;
-extern float    tsUsedDataDirGB;
-extern float    tsMinimalLogDirGB;
-extern float    tsReservedTmpDirectorySpace;
-extern float    tsMinimalDataDirGB;
+
 extern uint32_t tsVersion;
 
-// build info
-extern char version[];
-extern char compatible_version[];
-extern char gitinfo[];
-extern char gitinfoOfInternal[];
-extern char buildinfo[];
 
 // lossy
 extern char     tsLossyColumns[];

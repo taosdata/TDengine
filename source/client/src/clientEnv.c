@@ -90,10 +90,10 @@ void* openTransporter(const char *user, const char *auth, int32_t numOfThread) {
   rpcInit.label = "TSC";
   rpcInit.numOfThreads = numOfThread;
   rpcInit.cfp = processMsgFromServer;
-  rpcInit.sessions = tsMaxConnections;
+  rpcInit.sessions = cfgGetItem(tscCfg, "maxConnections")->i32;
   rpcInit.connType = TAOS_CONN_CLIENT;
   rpcInit.user = (char *)user;
-  rpcInit.idleTime = tsShellActivityTimer * 1000;
+  rpcInit.idleTime = cfgGetItem(tscCfg, "shellActivityTimer")->i32 * 1000;
   rpcInit.ckey = "key";
   rpcInit.spi = 1;
   rpcInit.secret = (char *)auth;

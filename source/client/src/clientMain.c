@@ -7,6 +7,7 @@
 #include "tmsg.h"
 #include "tglobal.h"
 #include "catalog.h"
+#include "version.h"
 
 #define TSC_VAR_NOT_RELEASE 1
 #define TSC_VAR_RELEASED    0

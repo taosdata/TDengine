@@ -22,6 +22,7 @@
 #include "taoserror.h"
 #include "tglobal.h"
 #include "ulog.h"
+#include "version.h"
 
 #ifdef __cplusplus
 extern "C" {

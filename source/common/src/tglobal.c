@@ -27,24 +27,9 @@
 #include "tutil.h"
 #include "ulog.h"
 
-// cluster
-int32_t  tsStatusInterval = 1;  // second
-int8_t   tsEnableTelemetryReporting = 0;
-char     tsEmail[TSDB_FQDN_LEN] = {0};
-int32_t  tsNumOfSupportVnodes = 128;
 
 // common
-int32_t tsRpcTimer = 300;
-int32_t tsRpcMaxTime = 600;  // seconds;
-int32_t tsRpcForceTcp = 1;   // disable this, means query, show command use udp protocol as default
-int32_t tsMaxShellConns = 50000;
-int32_t tsMaxConnections = 50000;
-int32_t tsShellActivityTimer = 3;  // second
-float   tsNumOfThreadsPerCore = 1.0f;
-int32_t tsNumOfCommitThreads = 4;
-float   tsRatioOfQueryCores = 1.0f;
 int8_t  tsDaylight = 0;
-int8_t  tsEnableCoreFile = 0;
 int32_t tsMaxBinaryDisplayWidth = 30;
 int8_t  tsEnableSlaveQuery = 1;
 int8_t  tsEnableAdjustMaster = 1;
@@ -125,12 +110,6 @@ int8_t tsDeadLockKillQuery = 0;
 // For backward compatibility
 bool tsdbForceKeepFile = false;
 
-#ifndef _STORAGE
-SDiskCfg tsDiskCfg[1];
-#else
-SDiskCfg tsDiskCfg[TFS_MAX_DISKS];
-#endif
-
 /*
  * minimum scale for whole system, millisecond by default
  * for TSDB_TIME_PRECISION_MILLI: 86400000L
@@ -140,13 +119,6 @@ SDiskCfg tsDiskCfg[TFS_MAX_DISKS];
 int64_t tsTickPerDay[] = {86400000L, 86400000000L, 86400000000000L};
 
 // system info
-float    tsTotalTmpDirGB = 0;
-float    tsTotalDataDirGB = 0;
-float    tsAvailTmpDirectorySpace = 0;
-float    tsAvailDataDirGB = 0;
-float    tsUsedDataDirGB = 0;
-float    tsReservedTmpDirectorySpace = 1.0f;
-float    tsMinimalDataDirGB = 2.0f;
 int32_t  tsTotalMemoryMB = 0;
 uint32_t tsVersion = 0;
 
@@ -247,12 +219,12 @@ int32_t taosCfgDynamicOptions(char *msg) {
   return false;
 }
 
-void taosAddDataDir(int index, char *v1, int level, int primary) {
-  tstrncpy(tsDiskCfg[index].dir, v1, TSDB_FILENAME_LEN);
-  tsDiskCfg[index].level = level;
-  tsDiskCfg[index].primary = primary;
-  uTrace("dataDir:%s, level:%d primary:%d is configured", v1, level, primary);
-}
+// void taosAddDataDir(int index, char *v1, int level, int primary) {
+//   tstrncpy(tsDiskCfg[index].dir, v1, TSDB_FILENAME_LEN);
+//   tsDiskCfg[index].level = level;
+//   tsDiskCfg[index].primary = primary;
+//   uTrace("dataDir:%s, level:%d primary:%d is configured", v1, level, primary);
+// }
 
 #ifndef _STORAGE
 // void taosReadDataDirCfg(char *v1, char *v2, char *v3) {
@@ -301,58 +273,6 @@ static void doInitGlobalConfig(void) {
   cfg.ptrLength = 0;
   cfg.unitType = TAOS_CFG_UTYPE_NONE;
   taosAddConfigOption(cfg);
-
-  cfg.option = "telemetryReporting";
-  cfg.ptr = &tsEnableTelemetryReporting;
-  cfg.valType = TAOS_CFG_VTYPE_INT8;
-  cfg.cfgType = TSDB_CFG_CTYPE_B_CONFIG | TSDB_CFG_CTYPE_B_SHOW;
-  cfg.minValue = 0;
-  cfg.maxValue = 1;
-  cfg.ptrLength = 1;
-  cfg.unitType = TAOS_CFG_UTYPE_NONE;
-  taosAddConfigOption(cfg);
-
-  // timer
-  cfg.option = "maxTmrCtrl";
-  cfg.ptr = &tsMaxTmrCtrl;
-  cfg.valType = TAOS_CFG_VTYPE_INT32;
-  cfg.cfgType = TSDB_CFG_CTYPE_B_CONFIG | TSDB_CFG_CTYPE_B_SHOW;
-  cfg.minValue = 8;
-  cfg.maxValue = 2048;
-  cfg.ptrLength = 0;
-  cfg.unitType = TAOS_CFG_UTYPE_NONE;
-  taosAddConfigOption(cfg);
-
-  cfg.option = "rpcTimer";
-  cfg.ptr = &tsRpcTimer;
-  cfg.valType = TAOS_CFG_VTYPE_INT32;
-  cfg.cfgType = TSDB_CFG_CTYPE_B_CONFIG | TSDB_CFG_CTYPE_B_CLIENT;
-  cfg.minValue = 100;
-  cfg.maxValue = 3000;
-  cfg.ptrLength = 0;
-  cfg.unitType = TAOS_CFG_UTYPE_MS;
-  taosAddConfigOption(cfg);
-
-  cfg.option = "rpcForceTcp";
-  cfg.ptr = &tsRpcForceTcp;
-  cfg.valType = TAOS_CFG_VTYPE_INT32;
-  cfg.cfgType = TSDB_CFG_CTYPE_B_CONFIG | TSDB_CFG_CTYPE_B_CLIENT;
-  cfg.minValue = 0;
-  cfg.maxValue = 1;
-  cfg.ptrLength = 0;
-  cfg.unitType = TAOS_CFG_UTYPE_NONE;
-  taosAddConfigOption(cfg);
-
-  cfg.option = "rpcMaxTime";
-  cfg.ptr = &tsRpcMaxTime;
-  cfg.valType = TAOS_CFG_VTYPE_INT32;
-  cfg.cfgType = TSDB_CFG_CTYPE_B_CONFIG | TSDB_CFG_CTYPE_B_CLIENT;
-  cfg.minValue = 100;
-  cfg.maxValue = 7200;
-  cfg.ptrLength = 0;
-  cfg.unitType = TAOS_CFG_UTYPE_SECOND;
-  taosAddConfigOption(cfg);
-
 
   cfg.option = "minSlidingTime";
   cfg.ptr = &tsMinSlidingTime;
@@ -495,45 +415,6 @@ static void doInitGlobalConfig(void) {
   taosAddConfigOption(cfg);
 
 
-  cfg.option = "maxConnections";
-  cfg.ptr = &tsMaxConnections;
-  cfg.valType = TAOS_CFG_VTYPE_INT32;
-  cfg.cfgType = TSDB_CFG_CTYPE_B_CONFIG | TSDB_CFG_CTYPE_B_SHOW;
-  cfg.minValue = 1;
-  cfg.maxValue = 100000;
-  cfg.ptrLength = 0;
-  cfg.unitType = TAOS_CFG_UTYPE_NONE;
-  taosAddConfigOption(cfg);
-
-  cfg.option = "minimalLogDirGB";
-  cfg.ptr = &tsMinimalLogDirGB;
-  cfg.valType = TAOS_CFG_VTYPE_FLOAT;
-  cfg.cfgType = TSDB_CFG_CTYPE_B_CONFIG | TSDB_CFG_CTYPE_B_SHOW;
-  cfg.minValue = 0.001f;
-  cfg.maxValue = 10000000;
-  cfg.ptrLength = 0;
-  cfg.unitType = TAOS_CFG_UTYPE_GB;
-  taosAddConfigOption(cfg);
-
-  cfg.option = "minimalTmpDirGB";
-  cfg.ptr = &tsReservedTmpDirectorySpace;
-  cfg.valType = TAOS_CFG_VTYPE_FLOAT;
-  cfg.cfgType = TSDB_CFG_CTYPE_B_CONFIG | TSDB_CFG_CTYPE_B_SHOW;
-  cfg.minValue = 0.001f;
-  cfg.maxValue = 10000000;
-  cfg.ptrLength = 0;
-  cfg.unitType = TAOS_CFG_UTYPE_GB;
-  taosAddConfigOption(cfg);
-
-  cfg.option = "minimalDataDirGB";
-  cfg.ptr = &tsMinimalDataDirGB;
-  cfg.valType = TAOS_CFG_VTYPE_FLOAT;
-  cfg.cfgType = TSDB_CFG_CTYPE_B_CONFIG | TSDB_CFG_CTYPE_B_SHOW;
-  cfg.minValue = 0.001f;
-  cfg.maxValue = 10000000;
-  cfg.ptrLength = 0;
-  cfg.unitType = TAOS_CFG_UTYPE_GB;
-  taosAddConfigOption(cfg);
 
   cfg.option = "slaveQuery";
   cfg.ptr = &tsEnableSlaveQuery;
@@ -556,17 +437,6 @@ static void doInitGlobalConfig(void) {
   cfg.ptrLength = 0;
   cfg.unitType = TAOS_CFG_UTYPE_NONE;
   taosAddConfigOption(cfg);
-
-  cfg.option = "enableCoreFile";
-  cfg.ptr = &tsEnableCoreFile;
-  cfg.valType = TAOS_CFG_VTYPE_INT8;
-  cfg.cfgType = TSDB_CFG_CTYPE_B_CONFIG;
-  cfg.minValue = 0;
-  cfg.maxValue = 1;
-  cfg.ptrLength = 0;
-  cfg.unitType = TAOS_CFG_UTYPE_NONE;
-  taosAddConfigOption(cfg);
-
 
   cfg.option = "maxBinaryDisplayWidth";
   cfg.ptr = &tsMaxBinaryDisplayWidth;
