@@ -126,7 +126,7 @@ typedef struct {
 tmq_conf_t* tmq_conf_new() {
   tmq_conf_t* conf = calloc(1, sizeof(tmq_conf_t));
   conf->auto_commit = false;
-  conf->resetOffset = TMQ_CONF__RESET_OFFSET__EARLIEAST;
+  conf->resetOffset = TMQ_CONF__RESET_OFFSET__LATEST;
   return conf;
 }
 
