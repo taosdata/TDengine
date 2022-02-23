@@ -144,7 +144,12 @@ namespace TDengineDriver
         public int num;
     }
 
-
+    public delegate void QueryAsyncCallback(IntPtr param, IntPtr taoRes, int code);
+    public delegate void FetchRowAsyncCallback(IntPtr param, IntPtr taoRes, int numOfRows);
+    public delegate void SubscribeCallback(IntPtr subscribe, IntPtr tasRes, IntPtr param, int code);
+    public delegate void StreamOpenCallback(IntPtr param,IntPtr taosRes,IntPtr row);
+    public delegate void StreamOpenCallback2(IntPtr ptr);
+    
     public class TDengine
     {
         public const int TSDB_CODE_SUCCESS = 0;
@@ -176,12 +181,12 @@ namespace TDengineDriver
         // static extern public IntPtr Query(IntPtr conn, string sqlstr);
         static extern private IntPtr Query(IntPtr conn, IntPtr byteArr);
 
-        static public IntPtr Query(IntPtr conn,string command)
-        {   
-            IntPtr res = IntPtr.Zero;        
-                
+        static public IntPtr Query(IntPtr conn, string command)
+        {
+            IntPtr res = IntPtr.Zero;
+
             IntPtr commandBuffer = Marshal.StringToCoTaskMemUTF8(command);
-            res = Query(conn,commandBuffer);
+            res = Query(conn, commandBuffer);
             return res;
         }
 
@@ -411,5 +416,47 @@ namespace TDengineDriver
 
         [DllImport("taos", EntryPoint = "taos_fetch_lengths", CallingConvention = CallingConvention.Cdecl)]
         static extern public IntPtr FetchLengths(IntPtr taos);
+
+        // Async Query 
+        // void taos_query_a(TAOS *taos, const char *sql, void (*fp)(void *param, TAOS_RES *, int code), void *param);
+        
+        /// <summary>
+        /// This API uses non-blocking call mode.
+        /// Application can open mutilple tables and manipulate(query or insert) opened table concurrently. 
+        /// So applications must ensure that opetations on the same table is compeletly serialized.
+        /// Becuase that will cause some query and insert operations cannot be performed.
+        /// </summary>
+        /// <param name="taos"> A taos connection return by Connect()</param>
+        /// <param name="sql">sql command need to execute</param>
+        /// <param name="fq">User-defined callback function</param>
+        /// <param name="param">the parameter for callback</param>
+        [DllImport("taos", EntryPoint = "taos_query_a", CallingConvention = CallingConvention.Cdecl)]
+        static extern public void QueryAsync(IntPtr taos, string sql, QueryAsyncCallback fq, IntPtr param);
+
+        // void taos_fetch_rows_a(TAOS_RES *res, void (*fp)(void *param, TAOS_RES *, int numOfRows), void *param);
+        [DllImport("taos", EntryPoint = "taos_fetch_rows_a", CallingConvention = CallingConvention.Cdecl)]
+        static extern public void FetchRowAsync(IntPtr taos, FetchRowAsyncCallback fq, IntPtr param);
+
+        // Subscribe
+        // TAOS_SUB *taos_subscribe(TAOS* taos, int restart, const char* topic, const char *sql, TAOS_SUBSCRIBE_CALLBACK fp, void *param, int interval);
+        [DllImport("taos", EntryPoint = "taos_subscribe", CallingConvention = CallingConvention.Cdecl)]
+        static extern public IntPtr Subscribe(IntPtr taos, int restart, string topic, string sql, SubscribeCallback fq, IntPtr param, int interval);
+        
+        // TAOS_RES *taos_consume(TAOS_SUB *tsub)
+        [DllImport("taos", EntryPoint = "taos_consume", CallingConvention = CallingConvention.Cdecl)]
+        static extern public IntPtr Consume(IntPtr subscribe);
+
+        // void taos_unsubscribe(TAOS_SUB* tsub, int keepProgress)
+        [DllImport("taos", EntryPoint = "taos_unsubscribe", CallingConvention = CallingConvention.Cdecl)]
+        static extern public void Unsubscribe(IntPtr subscribe, int keep);
+
+        // TAOS_STREAM *taos_open_stream(TAOS* taos, const char* sql, void (* fp) (void* param, TAOS_RES*, TAOS_ROW row), int64_t stime, void* param, void (* callback) (void*))
+        [DllImport("taos", EntryPoint = "taos_open_stream", CallingConvention = CallingConvention.Cdecl)]
+        static extern public IntPtr OpenStream(IntPtr taos,string sql,StreamOpenCallback fp,Int64 stime,IntPtr param,StreamOpenCallback2 callback2);
+
+        // void taos_close_stream(TAOS_STREAM* tstr)
+        [DllImport("taos", EntryPoint = "taos_close_stream", CallingConvention = CallingConvention.Cdecl)]
+        static extern public void CloseStream(IntPtr stream);
+
     }
 }
