@@ -17,7 +17,29 @@
 #include <tep.h>
 #include "syncOnMessage.h"
 #include "tglobal.h"
+#include "ttimer.h"
 #include "tutil.h"
+
+static void syncTick(void *param, void *tmrId) {
+  SSyncIO *io = (SSyncIO *)param;
+  sDebug("syncTick ... ");
+
+  SRpcMsg rpcMsg;
+  rpcMsg.pCont = rpcMallocCont(10);
+  snprintf(rpcMsg.pCont, 10, "TICK");
+  rpcMsg.contLen = 10;
+  rpcMsg.handle = io;
+  rpcMsg.msgType = 2;
+
+  SRpcMsg *pTemp;
+
+  pTemp = taosAllocateQitem(sizeof(SRpcMsg));
+  memcpy(pTemp, &rpcMsg, sizeof(SRpcMsg));
+
+  taosWriteQitem(io->pMsgQ, pTemp);
+
+  io->syncTimer = taosTmrStart(syncTick, 1000, io, io->syncTimerManager);
+}
 
 void *syncConsumer(void *param) {
   SSyncIO *io = param;
@@ -58,6 +80,7 @@ void *syncConsumer(void *param) {
   }
 
   taosFreeQall(qall);
+  return NULL;
 }
 
 static int retrieveAuthInfo(void *parent, char *meterId, char *spi, char *encrypt, char *secret, char *ckey) {
@@ -68,17 +91,8 @@ static int retrieveAuthInfo(void *parent, char *meterId, char *spi, char *encryp
 }
 
 static void processResponse(void *pParent, SRpcMsg *pMsg, SEpSet *pEpSet) {
-  /*
-// SInfo *pInfo = (SInfo *)pMsg->ahandle;
-sDebug("thread:%d, response is received, type:%d contLen:%d code:0x%x", pInfo->index, pMsg->msgType, pMsg->contLen,
-       pMsg->code);
-
-if (pEpSet) pInfo->epSet = *pEpSet;
-
-rpcFreeCont(pMsg->pCont);
-// tsem_post(&pInfo->rspSem);
-tsem_post(&pInfo->rspSem);
-*/
+  sDebug("processResponse ... ");
+  rpcFreeCont(pMsg->pCont);
 }
 
 static void processRequestMsg(void *pParent, SRpcMsg *pMsg, SEpSet *pEpSet) {
@@ -158,6 +172,9 @@ static int32_t syncIOStart(SSyncIO *io) {
     }
   }
 
+  io->epSet.inUse = 0;
+  addEpIntoEpSet(&io->epSet, "127.0.0.1", 38000);
+
   // start consumer thread
   {
     if (pthread_create(&io->tid, NULL, syncConsumer, io) != 0) {
@@ -166,6 +183,10 @@ static int32_t syncIOStart(SSyncIO *io) {
       return -1;
     }
   }
+
+  // start tmr thread
+  io->syncTimerManager = taosTmrInit(1000, 50, 10000, "SYNC");
+  io->syncTimer = taosTmrStart(syncTick, 1000, io, io->syncTimerManager);
 
   return 0;
 }
@@ -185,11 +206,7 @@ static int32_t syncIOPing(SSyncIO *io) {
   rpcMsg.handle = io;
   rpcMsg.msgType = 1;
 
-  SEpSet epSet;
-  epSet.inUse = 0;
-  addEpIntoEpSet(&epSet, "127.0.0.1", 38000);
-
-  rpcSendRequest(io->clientRpc, &epSet, &rpcMsg, NULL);
+  rpcSendRequest(io->clientRpc, &io->epSet, &rpcMsg, NULL);
 
   return 0;
 }
