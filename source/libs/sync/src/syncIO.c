@@ -28,7 +28,7 @@ static void syncTick(void *param, void *tmrId) {
   rpcMsg.pCont = rpcMallocCont(10);
   snprintf(rpcMsg.pCont, 10, "TICK");
   rpcMsg.contLen = 10;
-  rpcMsg.handle = io;
+  rpcMsg.handle = NULL;
   rpcMsg.msgType = 2;
 
   SRpcMsg *pTemp;
@@ -65,15 +65,15 @@ void *syncConsumer(void *param) {
       taosGetQitem(qall, (void **)&pRpcMsg);
       rpcFreeCont(pRpcMsg->pCont);
 
-      /*
-          int msgSize = 128;
-          memset(&rpcMsg, 0, sizeof(rpcMsg));
-          rpcMsg.pCont = rpcMallocCont(msgSize);
-          rpcMsg.contLen = msgSize;
-          rpcMsg.handle = pRpcMsg->handle;
-          rpcMsg.code = 0;
-          rpcSendResponse(&rpcMsg);
-      */
+      if (pRpcMsg->handle != NULL) {
+        int msgSize = 128;
+        memset(&rpcMsg, 0, sizeof(rpcMsg));
+        rpcMsg.pCont = rpcMallocCont(msgSize);
+        rpcMsg.contLen = msgSize;
+        rpcMsg.handle = pRpcMsg->handle;
+        rpcMsg.code = 0;
+        rpcSendResponse(&rpcMsg);
+      }
 
       taosFreeQitem(pRpcMsg);
     }
