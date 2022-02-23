@@ -587,6 +587,11 @@ void setBufPageDirty(void* pPage, bool dirty) {
   ppi->dirty = dirty;
 }
 
+void setBufPageCompressOnDisk(SDiskbasedBuf* pBuf, bool comp) {
+  pBuf->comp = comp;
+}
+
+
 void dBufSetPrintInfo(SDiskbasedBuf* pBuf) {
   pBuf->printStatis = true;
 }
