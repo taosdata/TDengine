@@ -466,7 +466,7 @@ int32_t compareWStrPatternNotMatch(const void* pLeft, const void* pRight) {
 __compar_fn_t getComparFunc(int32_t type, int32_t optr) {
   __compar_fn_t comparFn = NULL;
 
-  if (optr == TSDB_RELATION_IN && (type != TSDB_DATA_TYPE_BINARY && type != TSDB_DATA_TYPE_NCHAR)) {
+  if (optr == OP_TYPE_IN && (type != TSDB_DATA_TYPE_BINARY && type != TSDB_DATA_TYPE_NCHAR)) {
     switch (type) {
       case TSDB_DATA_TYPE_BOOL:
       case TSDB_DATA_TYPE_TINYINT:
@@ -489,7 +489,7 @@ __compar_fn_t getComparFunc(int32_t type, int32_t optr) {
     }
   }
 
-  if (optr == TSDB_RELATION_NOT_IN && (type != TSDB_DATA_TYPE_BINARY && type != TSDB_DATA_TYPE_NCHAR)) {
+  if (optr == OP_TYPE_NOT_IN && (type != TSDB_DATA_TYPE_BINARY && type != TSDB_DATA_TYPE_NCHAR)) {
     switch (type) {
       case TSDB_DATA_TYPE_BOOL:
       case TSDB_DATA_TYPE_TINYINT:
@@ -522,17 +522,17 @@ __compar_fn_t getComparFunc(int32_t type, int32_t optr) {
     case TSDB_DATA_TYPE_FLOAT:     comparFn = compareFloatVal;  break;
     case TSDB_DATA_TYPE_DOUBLE:    comparFn = compareDoubleVal; break;
     case TSDB_DATA_TYPE_BINARY: {
-      if (optr == TSDB_RELATION_MATCH) {
+      if (optr == OP_TYPE_MATCH) {
         comparFn = compareStrRegexCompMatch;
-      } else if (optr == TSDB_RELATION_NMATCH) {
+      } else if (optr == OP_TYPE_NMATCH) {
         comparFn = compareStrRegexCompNMatch;
-      } else if (optr == TSDB_RELATION_LIKE) { /* wildcard query using like operator */
+      } else if (optr == OP_TYPE_LIKE) { /* wildcard query using like operator */
         comparFn = compareStrPatternMatch;
-      } else if (optr == TSDB_RELATION_NOT_LIKE) { /* wildcard query using like operator */
+      } else if (optr == OP_TYPE_NOT_LIKE) { /* wildcard query using like operator */
         comparFn = compareStrPatternNotMatch;
-      } else if (optr == TSDB_RELATION_IN) {
+      } else if (optr == OP_TYPE_IN) {
         comparFn = compareChkInString;
-      } else if (optr == TSDB_RELATION_NOT_IN) {
+      } else if (optr == OP_TYPE_NOT_IN) {
         comparFn = compareChkNotInString;
       } else { /* normal relational comparFn */
         comparFn = compareLenPrefixedStr;
@@ -542,17 +542,17 @@ __compar_fn_t getComparFunc(int32_t type, int32_t optr) {
     }
 
     case TSDB_DATA_TYPE_NCHAR: {
-      if (optr == TSDB_RELATION_MATCH) {
+      if (optr == OP_TYPE_MATCH) {
         comparFn = compareStrRegexCompMatch;
-      } else if (optr == TSDB_RELATION_NMATCH) {
+      } else if (optr == OP_TYPE_NMATCH) {
         comparFn = compareStrRegexCompNMatch;
-      } else if (optr == TSDB_RELATION_LIKE) {
+      } else if (optr == OP_TYPE_LIKE) {
         comparFn = compareWStrPatternMatch;
-      } else if (optr == TSDB_RELATION_NOT_LIKE) {
+      } else if (optr == OP_TYPE_NOT_LIKE) {
         comparFn = compareWStrPatternNotMatch;
-      } else if (optr == TSDB_RELATION_IN) {
+      } else if (optr == OP_TYPE_IN) {
         comparFn = compareChkInString;
-      } else if (optr == TSDB_RELATION_NOT_IN) {
+      } else if (optr == OP_TYPE_NOT_IN) {
         comparFn = compareChkNotInString;
       } else {
         comparFn = compareLenPrefixedWStr;

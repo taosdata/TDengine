@@ -23,6 +23,7 @@
 #include "query.h"
 #include "sclInt.h"
 #include "tep.h"
+#include "filter.h"
 
 //GET_TYPED_DATA(v, double, pRight->type, (char *)&((right)[i]));                                
 
@@ -1380,51 +1381,51 @@ void vectorCompare(SScalarParam* pLeft, SScalarParam* pRight, void *out, int32_t
 }
 
 void vectorGreater(SScalarParam* pLeft, SScalarParam* pRight, void *out, int32_t _ord) {
-  vectorCompare(pLeft, pRight, out, _ord, TSDB_RELATION_GREATER);
+  vectorCompare(pLeft, pRight, out, _ord, OP_TYPE_GREATER_THAN);
 }
 
 void vectorGreaterEqual(SScalarParam* pLeft, SScalarParam* pRight, void *out, int32_t _ord) {
-  vectorCompare(pLeft, pRight, out, _ord, TSDB_RELATION_GREATER_EQUAL);
+  vectorCompare(pLeft, pRight, out, _ord, OP_TYPE_GREATER_EQUAL);
 }
 
 void vectorLower(SScalarParam* pLeft, SScalarParam* pRight, void *out, int32_t _ord) {
-  vectorCompare(pLeft, pRight, out, _ord, TSDB_RELATION_LESS);
+  vectorCompare(pLeft, pRight, out, _ord, OP_TYPE_LOWER_THAN);
 }
 
 void vectorLowerEqual(SScalarParam* pLeft, SScalarParam* pRight, void *out, int32_t _ord) {
-  vectorCompare(pLeft, pRight, out, _ord, TSDB_RELATION_LESS_EQUAL);
+  vectorCompare(pLeft, pRight, out, _ord, OP_TYPE_LOWER_EQUAL);
 }
 
 void vectorEqual(SScalarParam* pLeft, SScalarParam* pRight, void *out, int32_t _ord) {
-  vectorCompare(pLeft, pRight, out, _ord, TSDB_RELATION_EQUAL);
+  vectorCompare(pLeft, pRight, out, _ord, OP_TYPE_EQUAL);
 }
 
 void vectorNotEqual(SScalarParam* pLeft, SScalarParam* pRight, void *out, int32_t _ord) {
-  vectorCompare(pLeft, pRight, out, _ord, TSDB_RELATION_NOT_EQUAL);
+  vectorCompare(pLeft, pRight, out, _ord, OP_TYPE_NOT_EQUAL);
 }
 
 void vectorIn(SScalarParam* pLeft, SScalarParam* pRight, void *out, int32_t _ord) {
-  vectorCompare(pLeft, pRight, out, _ord, TSDB_RELATION_IN);
+  vectorCompare(pLeft, pRight, out, _ord, OP_TYPE_IN);
 }
 
 void vectorNotIn(SScalarParam* pLeft, SScalarParam* pRight, void *out, int32_t _ord) {
-  vectorCompare(pLeft, pRight, out, _ord, TSDB_RELATION_NOT_IN);
+  vectorCompare(pLeft, pRight, out, _ord, OP_TYPE_NOT_IN);
 }
 
 void vectorLike(SScalarParam* pLeft, SScalarParam* pRight, void *out, int32_t _ord) {
-  vectorCompare(pLeft, pRight, out, _ord, TSDB_RELATION_LIKE);
+  vectorCompare(pLeft, pRight, out, _ord, OP_TYPE_LIKE);
 }
 
 void vectorNotLike(SScalarParam* pLeft, SScalarParam* pRight, void *out, int32_t _ord) {
-  vectorCompare(pLeft, pRight, out, _ord, TSDB_RELATION_NOT_LIKE);
+  vectorCompare(pLeft, pRight, out, _ord, OP_TYPE_NOT_LIKE);
 }
 
 void vectorMatch(SScalarParam* pLeft, SScalarParam* pRight, void *out, int32_t _ord) {
-  vectorCompare(pLeft, pRight, out, _ord, TSDB_RELATION_MATCH);
+  vectorCompare(pLeft, pRight, out, _ord, OP_TYPE_MATCH);
 }
 
 void vectorNotMatch(SScalarParam* pLeft, SScalarParam* pRight, void *out, int32_t _ord) {
-  vectorCompare(pLeft, pRight, out, _ord, TSDB_RELATION_NMATCH);
+  vectorCompare(pLeft, pRight, out, _ord, OP_TYPE_NMATCH);
 }
 
 void vectorIsNull(SScalarParam* pLeft, SScalarParam* pRight, void *out, int32_t _ord) {
@@ -1543,6 +1544,4 @@ _bin_scalar_fn_t getBinScalarOperatorFn(int32_t binFunctionId) {
   }
 }
 
-bool isBinaryStringOp(int32_t op) {
-  return op == TSDB_BINARY_OP_CONCAT;
-}
+
