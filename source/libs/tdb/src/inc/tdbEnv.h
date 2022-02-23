@@ -22,7 +22,7 @@ extern "C" {
 
 typedef struct STEnv STEnv;
 
-int tdbEnvOpen(const char *rootDir, STEnv **ppEnv);
+int tdbEnvOpen(const char *rootDir, int pageSize, int cacheSize, STEnv **ppEnv);
 int tdbEnvClose(STEnv *pEnv);
 
 int tdbEnvBegin(STEnv *pEnv);

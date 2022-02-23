@@ -89,7 +89,7 @@ SPgHdr *tdbPCacheFetch(SPCache *pCache, const SPgid *pPgid, bool alcNewPage) {
   return pPage;
 }
 
-void tdbFetchFinish(SPCache *pCache, SPgHdr *pPage) {
+void tdbPCacheFetchFinish(SPCache *pCache, SPgHdr *pPage) {
   // TODO
 }
 

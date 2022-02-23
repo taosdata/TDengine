@@ -21,7 +21,7 @@ struct STEnv {
   SPCache *pCache;
 };
 
-int tdbEnvOpen(const char *rootDir, STEnv **ppEnv) {
+int tdbEnvOpen(const char *rootDir, int pageSize, int cacheSize, STEnv **ppEnv) {
   STEnv *  pEnv;
   int      dsize;
   int      zsize;
@@ -42,6 +42,10 @@ int tdbEnvOpen(const char *rootDir, STEnv **ppEnv) {
   pEnv->rootDir = pPtr;
   memcpy(pEnv->rootDir, rootDir, dsize);
   pEnv->rootDir[dsize] = '\0';
+
+  pEnv->jfd = -1;
+
+  tdbPCacheOpen(pageSize, cacheSize, 0, &(pEnv->pCache));
 
   *ppEnv = pEnv;
   return 0;

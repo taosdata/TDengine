@@ -39,7 +39,7 @@ struct SPgHdr {
 int     tdbPCacheOpen(int pageSize, int cacheSize, int extraSize, SPCache **ppCache);
 int     tdbPCacheClose(SPCache *pCache);
 SPgHdr *tdbPCacheFetch(SPCache *pCache, const SPgid *pPgid, bool alcNewPage);
-void    tdbFetchFinish(SPCache *pCache, SPgHdr *pPage);
+void    tdbPCacheFetchFinish(SPCache *pCache, SPgHdr *pPage);
 void    tdbPCacheRelease(SPgHdr *pHdr);
 
 #ifdef __cplusplus

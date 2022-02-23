@@ -15,6 +15,29 @@
 
 #include "tdbInt.h"
 
+struct SBTree {
+  SPgno   root;
+  int     keyLen;
+  int     valLen;
+  SPFile *pFile;
+  int (*FKeyComparator)(const void *pKey1, int keyLen1, const void *pKey2, int keyLen2);
+};
+
+struct SBtCursor {
+  SBTree *pBt;
+};
+
+int tdbBtreeOpen(SPgno root, SBTree **ppBt) {
+  *ppBt = NULL;
+  /* TODO */
+  return 0;
+}
+
+int tdbBtreeClose(SBTree *pBt) {
+  // TODO
+  return 0;
+}
+
 #if 0
 struct SBtCursor {
   SBTree *pBtree;
