@@ -129,7 +129,7 @@ describe("stmt_bind_single_param", () => {
         `t_f32 float,` +
         `t_d64 double,` +
         `t_bnr binary(20),` +
-        `t_blob nchar(20),` +
+        `t_nchr nchar(20),` +
         `t_u8 tinyint unsigned,` +
         `t_u16 smallint unsigned,` +
         `t_u32 int unsigned,` +
@@ -228,7 +228,7 @@ describe("stmt_bind_single_param", () => {
         `t_f32 float,` +
         `t_d64 double,` +
         `t_bnr binary(20),` +
-        `t_blob nchar(20),` +
+        `t_nchr nchar(20),` +
         `t_u8 tinyint unsigned,` +
         `t_u16 smallint unsigned,` +
         `t_u32 int unsigned,` +
@@ -397,7 +397,7 @@ describe("stmt_bind_para_batch", () => {
         `t_f32 float,` +
         `t_d64 double,` +
         `t_bnr binary(20),` +
-        `t_blob nchar(20),` +
+        `t_nchr nchar(20),` +
         `t_u8 tinyint unsigned,` +
         `t_u16 smallint unsigned,` +
         `t_u32 int unsigned,` +
@@ -497,7 +497,7 @@ describe("stmt_bind_para_batch", () => {
         `t_f32 float,` +
         `t_d64 double,` +
         `t_bnr binary(20),` +
-        `t_blob nchar(20),` +
+        `t_nchr nchar(20),` +
         `t_u8 tinyint unsigned,` +
         `t_u16 smallint unsigned,` +
         `t_u32 int unsigned,` +
@@ -645,7 +645,7 @@ describe("stmt_bind_param", () => {
         `t_f32 float,` +
         `t_d64 double,` +
         `t_bnr binary(20),` +
-        `t_blob nchar(20),` +
+        `t_nchr nchar(20),` +
         `t_u8 tinyint unsigned,` +
         `t_u16 smallint unsigned,` +
         `t_u32 int unsigned,` +
@@ -753,7 +753,7 @@ describe("stmt_bind_param", () => {
         `t_f32 float,` +
         `t_d64 double,` +
         `t_bnr binary(20),` +
-        `t_blob nchar(20),` +
+        `t_nchr nchar(20),` +
         `t_u8 tinyint unsigned,` +
         `t_u16 smallint unsigned,` +
         `t_u32 int unsigned,` +
