@@ -99,6 +99,7 @@ class FstReadMemory {
     fstSliceDestroy(&skey);
     return ok;
   }
+
   bool GetWithTimeCostUs(const std::string& key, uint64_t* val, uint64_t* elapse) {
     int64_t s = taosGetTimestampUs();
     bool    ok = this->Get(key, val);
@@ -120,8 +121,6 @@ class FstReadMemory {
       printf("key: %s, val: %" PRIu64 "\n", key.c_str(), (uint64_t)(rt->out.out));
       swsResultDestroy(rt);
     }
-    for (size_t i = 0; i < result.size(); i++) {
-    }
     std::cout << std::endl;
     return true;
   }
@@ -137,7 +136,7 @@ class FstReadMemory {
     fstDestroy(_fst);
     fstSliceDestroy(&_s);
     writerCtxDestroy(_wc, false);
-    tfCleanup();
+    // tfCleanup();
   }
 
  private:
@@ -196,6 +195,10 @@ class TFst {
     }
     return fr->Get(k, v);
   }
+  bool Search(AutomationCtx* ctx, std::vector<uint64_t>& result) {
+    // add more
+    return fr->Search(ctx, result);
+  }
 
  private:
   FstWriter*     fw;
@@ -229,5 +232,9 @@ TEST_F(FstEnv, writeNormal) {
   assert(fst->Get("a", &val) == false);
   assert(fst->Get("aa", &val) == true);
   assert(val == 0);
+
+  std::vector<uint64_t> rlt;
+  AutomationCtx*        ctx = automCtxCreate((void*)"ab", AUTOMATION_ALWAYS);
+  assert(fst->Search(ctx, rlt) == true);
 }
-TEST_F(FstEnv, writeExcpet) {}
+TEST_F(FstEnv, WriteMillonrRecord) {}

@@ -235,6 +235,7 @@ void fstStateCompileForOneTrans(FstCountingWriter* w, CompiledAddr addr, FstTran
   FstState st = fstStateCreate(OneTrans);
 
   fstStateSetCommInput(&st, trn->inp);
+
   bool    null = false;
   uint8_t inp = fstStateCommInput(&st, &null);
   if (null == true) {
@@ -936,6 +937,7 @@ FstLastTransition* fstLastTransitionCreate(uint8_t inp, Output out) {
 }
 
 void fstLastTransitionDestroy(FstLastTransition* trn) { free(trn); }
+
 void fstBuilderNodeUnfinishedLastCompiled(FstBuilderNodeUnfinished* unNode, CompiledAddr addr) {
   FstLastTransition* trn = unNode->last;
   if (trn == NULL) {
