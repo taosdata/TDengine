@@ -274,13 +274,7 @@ void taosPrintDataDirCfg() {
 }
 #endif
 
-static void taosCheckDataDirCfg() {
-  if (tsDiskCfgNum <= 0) {
-    taosAddDataDir(0, tsDataDir, 0, 1);
-    tsDiskCfgNum = 1;
-    uTrace("dataDir:%s, level:0 primary:1 is configured by default", tsDataDir);
-  }
-}
+
 
 static void doInitGlobalConfig(void) {
   osInit();
@@ -677,45 +671,6 @@ static void doInitGlobalConfig(void) {
 }
 
 void taosInitGlobalCfg() { pthread_once(&tsInitGlobalCfgOnce, doInitGlobalConfig); }
-
-int32_t taosCheckAndPrintCfg() {
-#if 0
-
-  SEp ep = {0};
-  if (debugFlag & DEBUG_TRACE || debugFlag & DEBUG_DEBUG || debugFlag & DEBUG_DUMP) {
-    taosSetAllDebugFlag();
-  }
-
-
-  taosCheckDataDirCfg();
-
-  if (taosDirExist(tsTempDir) != 0) {
-    return -1;
-  }
-
-  taosGetSystemInfo();
-
-  tsSetLocale();
-
-  SGlobalCfg *cfg_timezone = taosGetConfigOption("timezone");
-  if (cfg_timezone && cfg_timezone->cfgStatus == TAOS_CFG_CSTATUS_FILE) {
-    tsSetTimeZone();
-  }
-
-  if (tsNumOfCores <= 0) {
-    tsNumOfCores = 1;
-  }
-
-  if (tsQueryBufferSize >= 0) {
-    tsQueryBufferSizeBytes = tsQueryBufferSize * 1048576UL;
-  }
-
-  uInfo("   check global cfg completed");
-  uInfo("==================================");
-  taosPrintCfg();
-#endif
-  return 0;
-}
 
 /*
  * alter dnode 1 balance "vnode:1-dnode:2"

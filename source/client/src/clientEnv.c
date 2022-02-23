@@ -219,11 +219,6 @@ void taos_init_imp(void) {
     return;
   }
 
-  if (taosCheckAndPrintCfg()) {
-    tscInitRes = -1;
-    return;
-  }
-
   taosInitNotes();
   initMsgHandleFp();
   initQueryModuleMsgHandle();

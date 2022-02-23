@@ -15,6 +15,8 @@
 
 #define _DEFAULT_SOURCE
 #include "dmnInt.h"
+#include "tlocale.h"
+#include "ttimezone.h"
 
 static int32_t dmnAddEpCfg(SConfig *pCfg) {
   char defaultFqdn[TSDB_FQDN_LEN] = {0};
@@ -23,7 +25,7 @@ static int32_t dmnAddEpCfg(SConfig *pCfg) {
     return -1;
   }
   if (cfgAddString(pCfg, "fqdn", defaultFqdn) != 0) return -1;
-  
+
   int32_t defaultServerPort = 6030;
   if (cfgAddInt32(pCfg, "serverPort", defaultServerPort, 1, 65056) != 0) return -1;
 
@@ -37,15 +39,41 @@ static int32_t dmnAddEpCfg(SConfig *pCfg) {
   return 0;
 }
 
-static int32_t dmnAddDnodeCfg(SConfig *pCfg) {
-  if (dmnAddEpCfg(pCfg) != 0) return -1;
+static int32_t dmnAddDirCfg(SConfig *pCfg) {
+  if (cfgAddDir(pCfg, "dataDir", tsDataDir) != 0) return -1;
+  if (cfgAddDir(pCfg, "tmpDir", tsTempDir) != 0) return -1;
+  return 0;
+}
+static int32_t dmnCheckDirCfg(SConfig *pCfg) {
+  SConfigItem *pItem = NULL;
 
+  pItem = cfgGetItem(pCfg, "dataDir");
+  if (tsDiskCfgNum <= 0) {
+    taosAddDataDir(0, pItem->str, 0, 1);
+    tsDiskCfgNum = 1;
+    uTrace("dataDir:%s, level:0 primary:1 is configured by default", pItem->str);
+  }
 
+  pItem = cfgGetItem(pCfg, "tmpDir");
+  if (taosDirExist(pItem->str) != 0) {
+    return -1;
+  }
+
+  return 0;
+}
+
+static int32_t dmnAddVersionCfg(SConfig *pCfg) {
   if (cfgAddString(pCfg, "buildinfo", buildinfo) != 0) return -1;
   if (cfgAddString(pCfg, "gitinfo", gitinfo) != 0) return -1;
   if (cfgAddString(pCfg, "version", version) != 0) return -1;
- 
-  if (cfgAddDir(pCfg, "dataDir", tsDataDir) != 0) return -1;
+  return 0;
+}
+
+static int32_t dmnAddDnodeCfg(SConfig *pCfg) {
+  if (dmnAddEpCfg(pCfg) != 0) return -1;
+  if (dmnAddDirCfg(pCfg) != 0) return -1;
+  if (dmnAddVersionCfg(pCfg) != 0) return -1;
+
   if (cfgAddTimezone(pCfg, "timezone", "") != 0) return -1;
   if (cfgAddLocale(pCfg, "locale", "") != 0) return -1;
   if (cfgAddCharset(pCfg, "charset", "") != 0) return -1;
@@ -62,11 +90,26 @@ static int32_t dmnAddDnodeCfg(SConfig *pCfg) {
   return 0;
 }
 
-int32_t dmnCheckCfg(SConfig *pCfg) {
+static int32_t dmnCheckCfg(SConfig *pCfg) {
   bool enableCore = cfgGetItem(pCfg, "enableCoreFile")->bval;
   taosSetCoreDump(enableCore);
 
+  if (dmnCheckDirCfg(pCfg) != 0) {
+    return -1;
+  }
 
+  taosGetSystemInfo();
+
+  tsSetTimeZone();
+  tsSetLocale();
+
+  if (tsNumOfCores <= 0) {
+    tsNumOfCores = 1;
+  }
+
+  if (tsQueryBufferSize >= 0) {
+    tsQueryBufferSizeBytes = tsQueryBufferSize * 1048576UL;
+  }
 
   return 0;
 }
