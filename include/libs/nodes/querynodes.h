@@ -68,6 +68,13 @@ typedef struct SColumnRefNode {
   int16_t columnId;
 } SColumnRefNode;
 
+typedef struct STargetNode {
+  ENodeType type;
+  int16_t tupleId;
+  int16_t slotId;
+  SNode* pExpr;
+} STargetNode;
+
 typedef struct SValueNode {
   SExprNode node; // QUERY_NODE_VALUE
   char* literal;
@@ -141,6 +148,7 @@ typedef struct SLogicConditionNode {
 
 typedef struct SNodeListNode {
   ENodeType type; // QUERY_NODE_NODE_LIST
+  SDataType dataType;
   SNodeList* pNodeList;
 } SNodeListNode;
 
@@ -306,7 +314,8 @@ bool nodesIsJsonOp(const SOperatorNode* pOp);
 
 bool nodesIsTimeorderQuery(const SNode* pQuery);
 bool nodesIsTimelineQuery(const SNode* pQuery);
-void *nodesGetValueFromNode(SValueNode *pNode);
+
+void* nodesGetValueFromNode(SValueNode *pNode);
 
 #ifdef __cplusplus
 }
