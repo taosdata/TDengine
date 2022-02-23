@@ -24,20 +24,19 @@ struct SPCache {
   SPgHdr *        lru;
   int             nRecyclable;
   int             nHash;
-  SPgHdr *        pgHash;
+  SPgHdr **       pgHash;
   int             nFree;
   SPgHdr *        pFree;
 };
 
-struct SPgHdr {
-  void *  pData;
-  SPgid   pgid;
-  SPgHdr *pFreeNext;
-};
+#define PCACHE_PAGE_HASH(pgid) 0  // TODO
 
-static void tdbPCacheLock(SPCache *pCache);
-static void tdbPCacheUnlock(SPCache *pCache);
-static bool tdbPCacheLocked(SPCache *pCache);
+static void    tdbPCacheInitLock(SPCache *pCache);
+static void    tdbPCacheClearLock(SPCache *pCache);
+static void    tdbPCacheLock(SPCache *pCache);
+static void    tdbPCacheUnlock(SPCache *pCache);
+static bool    tdbPCacheLocked(SPCache *pCache);
+static SPgHdr *tdbPCacheFetchImpl(SPCache *pCache, const SPgid *pPgid, bool alcNewPage);
 
 int tdbOpenPCache(int pageSize, int cacheSize, int extraSize, SPCache **ppCache) {
   SPCache *pCache;
@@ -53,7 +52,7 @@ int tdbOpenPCache(int pageSize, int cacheSize, int extraSize, SPCache **ppCache)
   pCache->cacheSize = cacheSize;
   pCache->extraSize = extraSize;
 
-  pthread_mutex_init(&pCache->mutex, NULL);
+  tdbPCacheInitLock(pCache);
 
   for (int i = 0; i < cacheSize; i++) {
     pPtr = calloc(1, pageSize + extraSize + sizeof(SPgHdr));
@@ -76,16 +75,23 @@ int tdbClosePCache(SPCache *pCache) {
   return 0;
 }
 
-void *tdbPCacheFetch(SPCache *pCache, SPgid *pPgid) {
+SPgHdr *tdbPCacheFetch(SPCache *pCache, const SPgid *pPgid, bool alcNewPage) {
+  SPgHdr *pPage;
+
   tdbPCacheLock(pCache);
-  // 1. search the hash table
+  pPage = tdbPCacheFetchImpl(pCache, pPgid, alcNewPage);
   tdbPCacheUnlock(pCache);
-  return NULL;
+
+  return pPage;
 }
 
-void tdbPCacheRelease(void *pHdr) {
+void tdbPCacheRelease(SPgHdr *pHdr) {
   // TODO
 }
+
+static void tdbPCacheInitLock(SPCache *pCache) { pthread_mutex_init(&(pCache->mutex), NULL); }
+
+static void tdbPCacheClearLock(SPCache *pCache) { pthread_mutex_destroy(&(pCache->mutex)); }
 
 static void tdbPCacheLock(SPCache *pCache) { pthread_mutex_lock(&(pCache->mutex)); }
 
@@ -95,4 +101,26 @@ static bool tdbPCacheLocked(SPCache *pCache) {
   assert(0);
   // TODO
   return true;
+}
+
+static SPgHdr *tdbPCacheFetchImpl(SPCache *pCache, const SPgid *pPgid, bool alcNewPage) {
+  SPgHdr *pPage;
+
+  // 1. Search the hash table
+  pPage = pCache->pgHash[PCACHE_PAGE_HASH(pPgid) % pCache->nHash];
+  while (pPage) {
+    if (memcmp(pPgid, &(pPage->pgid), sizeof(*pPgid)) == 0) break;
+    pPage = pPage->pHashNext;
+  }
+
+  if (pPage) {
+    // TODO: pin the page and return the page
+    return pPage;
+  } else if (!alcNewPage) {
+    return pPage;
+  }
+
+  // Try other methods
+
+  return pPage;
 }

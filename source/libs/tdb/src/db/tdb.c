@@ -65,7 +65,7 @@ int tdbOpen(TDB *pDb, const char *fname, const char *dbname, TENV *pEnv) {
   SBTree *  pBt;
   bool      fileExist;
   size_t    dbNameLen;
-  pgno_t    dbRootPgno;
+  SPgno    dbRootPgno;
   char      dbfname[128];  // TODO: make this as a macro or malloc on the heap
 
   ASSERT(pDb != NULL);

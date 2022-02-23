@@ -17,8 +17,8 @@
 
 typedef struct SPage1 {
   char     magic[64];
-  pgno_t   mdbRootPgno;  // master DB root page number
-  pgno_t   freePgno;     // free list page number
+  SPgno   mdbRootPgno;  // master DB root page number
+  SPgno   freePgno;     // free list page number
   uint32_t nFree;        // number of free pages
 } SPage1;
 
@@ -28,13 +28,13 @@ typedef struct SFreePage {
 
 TDB_STATIC_ASSERT(sizeof(SPage1) <= TDB_MIN_PGSIZE, "TDB Page1 definition too large");
 
-static int pgFileRead(SPgFile *pPgFile, pgno_t pgno, uint8_t *pData);
+static int pgFileRead(SPgFile *pPgFile, SPgno pgno, uint8_t *pData);
 
 int pgFileOpen(SPgFile **ppPgFile, const char *fname, TENV *pEnv) {
   SPgFile * pPgFile;
   SPgCache *pPgCache;
   size_t    fnameLen;
-  pgno_t    fsize;
+  SPgno    fsize;
 
   *ppPgFile = NULL;
 
@@ -67,7 +67,7 @@ int pgFileOpen(SPgFile **ppPgFile, const char *fname, TENV *pEnv) {
 
   if (pPgFile->fsize == 0) {
     // A created file
-    pgno_t pgno;
+    SPgno pgno;
     pgid_t pgid;
 
     pgFileAllocatePage(pPgFile, &pgno);
@@ -106,7 +106,7 @@ int pgFileClose(SPgFile *pPgFile) {
   return 0;
 }
 
-SPage *pgFileFetch(SPgFile *pPgFile, pgno_t pgno) {
+SPage *pgFileFetch(SPgFile *pPgFile, SPgno pgno) {
   SPgCache *pPgCache;
   SPage *   pPage;
   pgid_t    pgid;
@@ -161,8 +161,8 @@ int pgFileWrite(SPage *pPage) {
   return 0;
 }
 
-int pgFileAllocatePage(SPgFile *pPgFile, pgno_t *pPgno) {
-  pgno_t    pgno;
+int pgFileAllocatePage(SPgFile *pPgFile, SPgno *pPgno) {
+  SPgno    pgno;
   SPage1 *  pPage1;
   SPgCache *pPgCache;
   pgid_t    pgid;
@@ -189,7 +189,7 @@ int pgFileAllocatePage(SPgFile *pPgFile, pgno_t *pPgno) {
   return 0;
 }
 
-static int pgFileRead(SPgFile *pPgFile, pgno_t pgno, uint8_t *pData) {
+static int pgFileRead(SPgFile *pPgFile, SPgno pgno, uint8_t *pData) {
   pgsz_t   pgSize;
   ssize_t  rsize;
   uint8_t *pTData;

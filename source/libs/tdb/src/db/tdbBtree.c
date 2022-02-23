@@ -17,12 +17,12 @@
 
 struct SBtCursor {
   SBTree *pBtree;
-  pgno_t  pgno;
+  SPgno  pgno;
   SPage * pPage;  // current page traversing
 };
 
 typedef struct {
-  pgno_t pgno;
+  SPgno pgno;
   pgsz_t offset;
 } SBtIdx;
 
@@ -34,7 +34,7 @@ typedef struct __attribute__((__packed__)) {
   pgoff_t  freeOff;     // free payload offset
   pgsz_t   fragSize;    // total fragment size
   pgoff_t  offPayload;  // payload offset
-  pgno_t   rChildPgno;  // right most child page number
+  SPgno   rChildPgno;  // right most child page number
 } SBtPgHdr;
 
 typedef int (*BtreeCmprFn)(const void *, const void *);
@@ -45,7 +45,7 @@ typedef int (*BtreeCmprFn)(const void *, const void *);
 
 static int btreeCreate(SBTree **ppBt);
 static int btreeDestroy(SBTree *pBt);
-static int btreeCursorMoveToChild(SBtCursor *pBtCur, pgno_t pgno);
+static int btreeCursorMoveToChild(SBtCursor *pBtCur, SPgno pgno);
 
 int btreeOpen(SBTree **ppBt, SPgFile *pPgFile) {
   SBTree *pBt;
@@ -98,8 +98,8 @@ int btreeCursorMoveTo(SBtCursor *pBtCur, int kLen, const void *pKey) {
   SPage *     pPage;
   SBtPgHdr *  pBtPgHdr;
   SPgFile *   pPgFile;
-  pgno_t      childPgno;
-  pgno_t      rootPgno;
+  SPgno      childPgno;
+  SPgno      rootPgno;
   int         nPayloads;
   void *      pPayload;
   BtreeCmprFn cmpFn;
@@ -157,7 +157,7 @@ int btreeCursorMoveTo(SBtCursor *pBtCur, int kLen, const void *pKey) {
   return 0;
 }
 
-static int btreeCursorMoveToChild(SBtCursor *pBtCur, pgno_t pgno) {
+static int btreeCursorMoveToChild(SBtCursor *pBtCur, SPgno pgno) {
   SPgFile *pPgFile;
   // TODO
   return 0;

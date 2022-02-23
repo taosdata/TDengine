@@ -24,7 +24,7 @@ typedef struct __attribute__((__packed__)) {
   char    hdrInfo[16];  // info string
   pgsz_t  szPage;       // page size of current file
   int32_t cno;          // commit number counter
-  pgno_t  freePgno;     // freelist page number
+  SPgno  freePgno;     // freelist page number
   uint8_t resv[100];    // reserved space
 } SPgFileHdr;
 
@@ -36,8 +36,8 @@ struct SPgFile {
   TENV *          pEnv;                     // env containing this page file
   char *          fname;                    // backend file name
   uint8_t         fileid[TDB_FILE_ID_LEN];  // file id
-  pgno_t          lsize;                    // page file logical size (for count)
-  pgno_t          fsize;                    // real file size on disk (for rollback)
+  SPgno          lsize;                    // page file logical size (for count)
+  SPgno          fsize;                    // real file size on disk (for rollback)
   int             fd;
   SPgFileListNode envHash;
   SPgFileListNode envPgfList;
@@ -46,11 +46,11 @@ struct SPgFile {
 int pgFileOpen(SPgFile **ppPgFile, const char *fname, TENV *pEnv);
 int pgFileClose(SPgFile *pPgFile);
 
-SPage *pgFileFetch(SPgFile *pPgFile, pgno_t pgno);
+SPage *pgFileFetch(SPgFile *pPgFile, SPgno pgno);
 int    pgFileRelease(SPage *pPage);
 
 int pgFileWrite(SPage *pPage);
-int pgFileAllocatePage(SPgFile *pPgFile, pgno_t *pPgno);
+int pgFileAllocatePage(SPgFile *pPgFile, SPgno *pPgno);
 
 #ifdef __cplusplus
 }

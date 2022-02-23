@@ -27,8 +27,8 @@ extern "C" {
 
 typedef struct SPgFile SPgFile;
 
-// pgno_t
-typedef int32_t pgno_t;
+// SPgno
+typedef int32_t SPgno;
 #define TDB_IVLD_PGNO ((pgno_t)0)
 
 // fileid
@@ -37,7 +37,7 @@ typedef int32_t pgno_t;
 // pgid_t
 typedef struct {
   uint8_t fileid[TDB_FILE_ID_LEN];
-  pgno_t  pgno;
+  SPgno  pgno;
 } pgid_t, SPgid;
 
 #define TDB_IVLD_PGID (pgid_t){0, TDB_IVLD_PGNO};

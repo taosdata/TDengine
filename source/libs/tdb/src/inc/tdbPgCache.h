@@ -23,10 +23,18 @@ extern "C" {
 typedef struct SPCache SPCache;
 typedef struct SPgHdr  SPgHdr;
 
-int   tdbOpenPCache(int pageSize, int cacheSize, int extraSize, SPCache **ppCache);
-int   tdbPCacheClose(SPCache *pCache);
-void *tdbPCacheFetch(SPCache *pCache, SPgid *pPgid);
-void  tdbPCacheRelease(void *pHdr);
+struct SPgHdr {
+  void *  pData;
+  void *  pExtra;
+  SPgid   pgid;
+  SPgHdr *pFreeNext;
+  SPgHdr *pHashNext;
+};
+
+int     tdbOpenPCache(int pageSize, int cacheSize, int extraSize, SPCache **ppCache);
+int     tdbPCacheClose(SPCache *pCache);
+SPgHdr *tdbPCacheFetch(SPCache *pCache, const SPgid *pPgid, bool alcNewPage);
+void    tdbPCacheRelease(SPgHdr *pHdr);
 
 #ifdef __cplusplus
 }
