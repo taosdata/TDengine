@@ -23,6 +23,7 @@
 #include "mndDnode.h"
 #include "mndFunc.h"
 #include "mndMnode.h"
+#include "mndOffset.h"
 #include "mndProfile.h"
 #include "mndQnode.h"
 #include "mndShow.h"
@@ -77,7 +78,7 @@ static void mndTransReExecute(void *param, void *tmrId) {
   SMnode *pMnode = param;
   if (mndIsMaster(pMnode)) {
     int32_t contLen = 0;
-    void *  pReq = mndBuildTimerMsg(&contLen);
+    void   *pReq = mndBuildTimerMsg(&contLen);
     SRpcMsg rpcMsg = {.msgType = TDMT_MND_TRANS, .pCont = pReq, .contLen = contLen};
     pMnode->putReqToMWriteQFp(pMnode->pDnode, &rpcMsg);
   }
@@ -89,7 +90,7 @@ static void mndCalMqRebalance(void *param, void *tmrId) {
   SMnode *pMnode = param;
   if (mndIsMaster(pMnode)) {
     int32_t contLen = 0;
-    void *  pReq = mndBuildTimerMsg(&contLen);
+    void   *pReq = mndBuildTimerMsg(&contLen);
     SRpcMsg rpcMsg = {.msgType = TDMT_MND_MQ_TIMER, .pCont = pReq, .contLen = contLen};
     pMnode->putReqToMReadQFp(pMnode->pDnode, &rpcMsg);
   }
@@ -197,6 +198,7 @@ static int32_t mndInitSteps(SMnode *pMnode) {
   if (mndAllocStep(pMnode, "mnode-topic", mndInitTopic, mndCleanupTopic) != 0) return -1;
   if (mndAllocStep(pMnode, "mnode-consumer", mndInitConsumer, mndCleanupConsumer) != 0) return -1;
   if (mndAllocStep(pMnode, "mnode-subscribe", mndInitSubscribe, mndCleanupSubscribe) != 0) return -1;
+  if (mndAllocStep(pMnode, "mnode-offset", mndInitOffset, mndCleanupOffset) != 0) return -1;
   if (mndAllocStep(pMnode, "mnode-vgroup", mndInitVgroup, mndCleanupVgroup) != 0) return -1;
   if (mndAllocStep(pMnode, "mnode-stb", mndInitStb, mndCleanupStb) != 0) return -1;
   if (mndAllocStep(pMnode, "mnode-db", mndInitDb, mndCleanupDb) != 0) return -1;
@@ -440,7 +442,7 @@ void mndProcessMsg(SMnodeMsg *pMsg) {
   SMnode *pMnode = pMsg->pMnode;
   int32_t code = 0;
   tmsg_t  msgType = pMsg->rpcMsg.msgType;
-  void *  ahandle = pMsg->rpcMsg.ahandle;
+  void   *ahandle = pMsg->rpcMsg.ahandle;
   bool    isReq = (msgType & 1U);
 
   mTrace("msg:%p, type:%s will be processed, app:%p", pMsg, TMSG_INFO(msgType), ahandle);

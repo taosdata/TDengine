@@ -16,7 +16,6 @@
 #ifndef TDENGINE_COMMON_H
 #define TDENGINE_COMMON_H
 
-
 #ifdef __cplusplus
 extern "C" {
 #endif
@@ -43,14 +42,16 @@ extern "C" {
 //   int16_t bytes;
 // } SSchema;
 
-#define TMQ_REQ_TYPE_COMMIT_ONLY 0
-#define TMQ_REQ_TYPE_CONSUME_ONLY 1
-#define TMQ_REQ_TYPE_CONSUME_AND_COMMIT 2
+enum {
+  TMQ_CONF__RESET_OFFSET__LATEST = -1,
+  TMQ_CONF__RESET_OFFSET__EARLIEAST = -2,
+  TMQ_CONF__RESET_OFFSET__NONE = -3,
+};
 
 typedef struct {
   uint32_t  numOfTables;
-  SArray   *pGroupList;
-  SHashObj *map;  // speedup acquire the tableQueryInfo by table uid
+  SArray*   pGroupList;
+  SHashObj* map;  // speedup acquire the tableQueryInfo by table uid
 } STableGroupInfo;
 
 typedef struct SColumnDataAgg {
@@ -79,14 +80,14 @@ typedef struct SConstantItem {
 
 // info.numOfCols = taosArrayGetSize(pDataBlock) + taosArrayGetSize(pConstantList);
 typedef struct SSDataBlock {
-  SColumnDataAgg *pBlockAgg;
-  SArray         *pDataBlock;    // SArray<SColumnInfoData>
-  SArray         *pConstantList; // SArray<SConstantItem>, it is a constant/tags value of the corresponding result value.
-  SDataBlockInfo  info;
+  SColumnDataAgg* pBlockAgg;
+  SArray*         pDataBlock;  // SArray<SColumnInfoData>
+  SArray* pConstantList;       // SArray<SConstantItem>, it is a constant/tags value of the corresponding result value.
+  SDataBlockInfo info;
 } SSDataBlock;
 
 typedef struct SVarColAttr {
-  int32_t *offset;    // start position for each entry in the list
+  int32_t* offset;    // start position for each entry in the list
   uint32_t length;    // used buffer size that contain the valid data
   uint32_t allocLen;  // allocated buffer size
 } SVarColAttr;
@@ -94,11 +95,11 @@ typedef struct SVarColAttr {
 // pBlockAgg->numOfNull == info.rows, all data are null
 // pBlockAgg->numOfNull == 0, no data are null.
 typedef struct SColumnInfoData {
-  SColumnInfo info;   // TODO filter info needs to be removed
-  bool        hasNull;// if current column data has null value.
-  char       *pData;  // the corresponding block data in memory
+  SColumnInfo info;     // TODO filter info needs to be removed
+  bool        hasNull;  // if current column data has null value.
+  char*       pData;    // the corresponding block data in memory
   union {
-    char       *nullbitmap;  // bitmap, one bit for each item in the list
+    char*       nullbitmap;  // bitmap, one bit for each item in the list
     SVarColAttr varmeta;
   };
 } SColumnInfoData;
@@ -149,7 +150,6 @@ static FORCE_INLINE int32_t tEncodeSMqConsumeRsp(void** buf, const SMqConsumeRsp
   int32_t tlen = 0;
   int32_t sz = 0;
   tlen += taosEncodeFixedI64(buf, pRsp->consumerId);
-  tlen += taosEncodeFixedI64(buf, pRsp->committedOffset);
   tlen += taosEncodeFixedI64(buf, pRsp->reqOffset);
   tlen += taosEncodeFixedI64(buf, pRsp->rspOffset);
   tlen += taosEncodeFixedI32(buf, pRsp->skipLogNum);
@@ -170,7 +170,6 @@ static FORCE_INLINE int32_t tEncodeSMqConsumeRsp(void** buf, const SMqConsumeRsp
 static FORCE_INLINE void* tDecodeSMqConsumeRsp(void* buf, SMqConsumeRsp* pRsp) {
   int32_t sz;
   buf = taosDecodeFixedI64(buf, &pRsp->consumerId);
-  buf = taosDecodeFixedI64(buf, &pRsp->committedOffset);
   buf = taosDecodeFixedI64(buf, &pRsp->reqOffset);
   buf = taosDecodeFixedI64(buf, &pRsp->rspOffset);
   buf = taosDecodeFixedI32(buf, &pRsp->skipLogNum);
@@ -250,11 +249,11 @@ typedef struct SSqlExpr {
   char    token[TSDB_COL_NAME_LEN];  // original token
   SSchema resSchema;
 
-  int32_t   numOfCols;
-  SColumn*  pColumns;       // data columns that are required by query
-  int32_t   interBytes;     // inter result buffer size
-  int16_t   numOfParams;    // argument value of each function
-  SVariant  param[3];       // parameters are not more than 3
+  int32_t  numOfCols;
+  SColumn* pColumns;     // data columns that are required by query
+  int32_t  interBytes;   // inter result buffer size
+  int16_t  numOfParams;  // argument value of each function
+  SVariant param[3];     // parameters are not more than 3
 } SSqlExpr;
 
 typedef struct SExprInfo {
@@ -271,7 +270,7 @@ typedef struct SSessionWindow {
   SColumn col;
 } SSessionWindow;
 
-#define QUERY_ASC_FORWARD_STEP 1
+#define QUERY_ASC_FORWARD_STEP  1
 #define QUERY_DESC_FORWARD_STEP -1
 
 #define GET_FORWARD_DIRECTION_FACTOR(ord) (((ord) == TSDB_ORDER_ASC) ? QUERY_ASC_FORWARD_STEP : QUERY_DESC_FORWARD_STEP)
