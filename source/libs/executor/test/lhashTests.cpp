@@ -23,28 +23,28 @@
 #pragma GCC diagnostic ignored "-Wunused-function"
 #pragma GCC diagnostic ignored "-Wunused-variable"
 #pragma GCC diagnostic ignored "-Wsign-compare"
-#include "os.h"
 
 TEST(testCase, linear_hash_Tests) {
   srand(time(NULL));
 
   _hash_fn_t fn = taosGetDefaultHashFunction(TSDB_DATA_TYPE_INT);
 #if 1
-  SLHashObj* pHashObj = tHashInit(220000, 64 + 8, fn, 4);
-  for(int32_t i = 0; i < 500000; ++i) {
-    tHashPut(pHashObj, &i, sizeof(i), &i, sizeof(i));
+  SLHashObj* pHashObj = tHashInit(10, 128 + 8, fn, 8);
+  for(int32_t i = 0; i < 100; ++i) {
+    int32_t code = tHashPut(pHashObj, &i, sizeof(i), &i, sizeof(i));
+    assert(code == 0);
   }
 
-  tHashPrint(pHashObj, LINEAR_HASH_STATIS);
+//  tHashPrint(pHashObj, LINEAR_HASH_STATIS);
 
-  for(int32_t i = 0; i < 10000; ++i) {
-    char* v = tHashGet(pHashObj, &i, sizeof(i));
-    if (v != NULL) {
-//      printf("find value: %d, key:%d\n", *(int32_t*) v, i);
-    } else {
-      printf("failed to found key:%d in hash\n", i);
-    }
-  }
+//  for(int32_t i = 0; i < 10000; ++i) {
+//    char* v = tHashGet(pHashObj, &i, sizeof(i));
+//    if (v != NULL) {
+////      printf("find value: %d, key:%d\n", *(int32_t*) v, i);
+//    } else {
+//      printf("failed to found key:%d in hash\n", i);
+//    }
+//  }
 
   tHashPrint(pHashObj, LINEAR_HASH_DATA);
   tHashCleanup(pHashObj);

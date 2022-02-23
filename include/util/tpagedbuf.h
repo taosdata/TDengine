@@ -136,6 +136,11 @@ int32_t getPageId(const SPageInfo* pPgInfo);
  */
 int32_t getBufPageSize(const SDiskbasedBuf* pBuf);
 
+/**
+ *
+ * @param pBuf
+ * @return
+ */
 int32_t getNumOfInMemBufPages(const SDiskbasedBuf* pBuf);
 
 /**
@@ -147,16 +152,23 @@ bool isAllDataInMemBuf(const SDiskbasedBuf* pBuf);
 
 /**
  * Set the buffer page is dirty, and needs to be flushed to disk when swap out.
- * @param pPageInfo
+ * @param pPage
  * @param dirty
  */
-void setBufPageDirty(void* pPageInfo, bool dirty);
+void setBufPageDirty(void* pPage, bool dirty);
 
 /**
  * Set the compress/ no-compress flag for paged buffer, when flushing data in disk.
  * @param pBuf
  */
 void setBufPageCompressOnDisk(SDiskbasedBuf* pBuf, bool comp);
+
+/**
+ * Set the pageId page buffer is not need
+ * @param pBuf
+ * @param pageId
+ */
+void dBufSetBufPageRecycled(SDiskbasedBuf *pBuf, void* pPage);
 
 /**
  * Print the statistics when closing this buffer
