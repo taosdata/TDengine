@@ -21,12 +21,6 @@ extern "C" {
 #endif
 
 #include "tdef.h"
-#include "tcfg.h"
-
-// cluster
-extern int32_t  tsStatusInterval;
-extern int8_t   tsEnableTelemetryReporting;
-extern int32_t  tsNumOfSupportVnodes;
 
 // common
 extern int      tsRpcTimer;

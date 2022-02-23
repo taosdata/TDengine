@@ -27,11 +27,6 @@
 #include "tutil.h"
 #include "ulog.h"
 
-// cluster
-int32_t  tsStatusInterval = 1;  // second
-int8_t   tsEnableTelemetryReporting = 0;
-char     tsEmail[TSDB_FQDN_LEN] = {0};
-int32_t  tsNumOfSupportVnodes = 128;
 
 // common
 int32_t tsRpcTimer = 300;
@@ -124,12 +119,6 @@ int8_t tsDeadLockKillQuery = 0;
 // tsdb config
 // For backward compatibility
 bool tsdbForceKeepFile = false;
-
-#ifndef _STORAGE
-SDiskCfg tsDiskCfg[1];
-#else
-SDiskCfg tsDiskCfg[TFS_MAX_DISKS];
-#endif
 
 /*
  * minimum scale for whole system, millisecond by default
@@ -247,12 +236,12 @@ int32_t taosCfgDynamicOptions(char *msg) {
   return false;
 }
 
-void taosAddDataDir(int index, char *v1, int level, int primary) {
-  tstrncpy(tsDiskCfg[index].dir, v1, TSDB_FILENAME_LEN);
-  tsDiskCfg[index].level = level;
-  tsDiskCfg[index].primary = primary;
-  uTrace("dataDir:%s, level:%d primary:%d is configured", v1, level, primary);
-}
+// void taosAddDataDir(int index, char *v1, int level, int primary) {
+//   tstrncpy(tsDiskCfg[index].dir, v1, TSDB_FILENAME_LEN);
+//   tsDiskCfg[index].level = level;
+//   tsDiskCfg[index].primary = primary;
+//   uTrace("dataDir:%s, level:%d primary:%d is configured", v1, level, primary);
+// }
 
 #ifndef _STORAGE
 // void taosReadDataDirCfg(char *v1, char *v2, char *v3) {
@@ -299,16 +288,6 @@ static void doInitGlobalConfig(void) {
   cfg.minValue = 10 * 10000;
   cfg.maxValue = 10000 * 10000;
   cfg.ptrLength = 0;
-  cfg.unitType = TAOS_CFG_UTYPE_NONE;
-  taosAddConfigOption(cfg);
-
-  cfg.option = "telemetryReporting";
-  cfg.ptr = &tsEnableTelemetryReporting;
-  cfg.valType = TAOS_CFG_VTYPE_INT8;
-  cfg.cfgType = TSDB_CFG_CTYPE_B_CONFIG | TSDB_CFG_CTYPE_B_SHOW;
-  cfg.minValue = 0;
-  cfg.maxValue = 1;
-  cfg.ptrLength = 1;
   cfg.unitType = TAOS_CFG_UTYPE_NONE;
   taosAddConfigOption(cfg);
 
