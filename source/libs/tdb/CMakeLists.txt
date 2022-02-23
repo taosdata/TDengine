@@ -9,6 +9,7 @@ target_sources(tdb
     PRIVATE
     "src/db/tdbPCache.c"
     "src/db/tdbPFile.c"
+    "src/db/tdbUtil.c"
 )
 
 target_include_directories(

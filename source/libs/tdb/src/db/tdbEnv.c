@@ -15,6 +15,7 @@
 
 #include "tdbInt.h"
 
+#if 0
 struct STDbEnv {
   char *      rootDir;    // root directory of the environment
   char *      jname;      // journal file name
@@ -171,3 +172,4 @@ int tdbEnvRgstDB(TENV *pEnv, TDB *pDb) {
   // TODO
   return 0;
 }
+#endif

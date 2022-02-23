@@ -20,11 +20,13 @@
 extern "C" {
 #endif
 
+#if 0
 const char* tdbEnvGetRootDir(TENV* pEnv);
 SPgFile*    tdbEnvGetPageFile(TENV* pEnv, const uint8_t fileid[]);
 SPgCache*   tdbEnvGetPgCache(TENV* pEnv);
 int         tdbEnvRgstPageFile(TENV* pEnv, SPgFile* pPgFile);
 int         tdbEnvRgstDB(TENV* pEnv, TDB* pDb);
+#endif
 
 #ifdef __cplusplus
 }

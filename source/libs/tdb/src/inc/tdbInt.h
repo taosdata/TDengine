@@ -19,7 +19,7 @@
 #include "tlist.h"
 #include "tlockfree.h"
 
-#include "tdb.h"
+// #include "tdb.h"
 
 #ifdef __cplusplus
 extern "C" {
@@ -69,9 +69,6 @@ typedef int32_t frame_id_t;
 #define TDB_MAX_PGSIZE       65536
 #define TDB_DEFAULT_PGSIZE   4096
 #define TDB_IS_PGSIZE_VLD(s) (((s) >= TDB_MIN_PGSIZE) && ((s) <= TDB_MAX_PGSIZE))
-
-// pgoff_t
-typedef pgsz_t pgoff_t;
 
 // cache
 #define TDB_DEFAULT_CACHE_SIZE (256 * 4096)  // 1M
