@@ -15,17 +15,17 @@ let dbName = 'node_test_stmt_db';
 let tsArr = [1642435200000, 1642435300000, 1642435400000, 1642435500000, 1642435600000];
 let boolArr = [true, false, true, false, null];
 let tinyIntArr = [-127, 3, 127, 0, null];
-let smallIntArr = [-32767, 16, 32766, 0, null];
-let intArr = [-2147483647, 17, 2147483646, 0, null];
-let bigIntArr = [16424352000002222n, -16424354000001111n, 18n, 0n, null];
+let smallIntArr = [-32767, 16, 32767, 0, null];
+let intArr = [-2147483647, 17, 2147483647, 0, null];
+let bigIntArr = [-9223372036854775807n, 9223372036854775807n, 18n, 0n, null];
 let floatArr = [3.4028234663852886e+38, -3.4028234663852886e+38, 19, 0, null];
 let doubleArr = [1.7976931348623157e+308, -1.7976931348623157e+308, 20, 0, null];
 let binaryArr = ['TDengine_Binary', 'taosdata涛思数据', '~!@#$%^&*()', '', null];
 let ncharArr = ['TDengine_Nchar', 'taosdata涛思数据', '~!@#$$%^&*()', '', null];
 let uTinyIntArr = [0, 127, 254, 23, null];
-let uSmallIntArr = [0, 256, 512, 24, null];
-let uIntArr = [0, 1233, 2147483646, 25, null];
-let uBigIntArr = [0n, 16424352000002222n, 36424354000001111n, 26n, null];
+let uSmallIntArr = [0, 256, 65534, 24, null];
+let uIntArr = [0, 1233, 4294967294, 25, null];
+let uBigIntArr = [0n, 36424354000001111n, 18446744073709551614n, 26n, null];
 
 //prepare tag data.
 let tagData1 = [true, 1, 32767, 1234555, -164243520000011111n, 214.02, 2.01, 'taosdata涛思数据', 'TDengine数据', 254, 65534, 4294967290 / 2, 164243520000011111n];
@@ -94,7 +94,7 @@ beforeAll(() => {
 // Clears the database and adds some testing data.
 // Jest will wait for this promise to resolve before running tests.
 afterAll(() => {
-  // executeUpdate(`drop database if exists ${dbName};`);
+  executeUpdate(`drop database if exists ${dbName};`);
   conn.close();
 });
 
@@ -115,7 +115,7 @@ describe("stmt_bind_single_param", () => {
         `f32 float,` +
         `d64 double,` +
         `bnr binary(20),` +
-        `blob nchar(20),` +
+        `nchr nchar(20),` +
         `u8 tinyint unsigned,` +
         `u16 smallint unsigned,` +
         `u32 int unsigned,` +
@@ -214,7 +214,7 @@ describe("stmt_bind_single_param", () => {
         `f32 float,` +
         `d64 double,` +
         `bnr binary(20),` +
-        `blob nchar(20),` +
+        `nchr nchar(20),` +
         `u8 tinyint unsigned,` +
         `u16 smallint unsigned,` +
         `u32 int unsigned,` +
@@ -383,7 +383,7 @@ describe("stmt_bind_para_batch", () => {
         `f32 float,` +
         `d64 double,` +
         `bnr binary(20),` +
-        `blob nchar(20),` +
+        `nchr nchar(20),` +
         `u8 tinyint unsigned,` +
         `u16 smallint unsigned,` +
         `u32 int unsigned,` +
@@ -483,7 +483,7 @@ describe("stmt_bind_para_batch", () => {
         `f32 float,` +
         `d64 double,` +
         `bnr binary(20),` +
-        `blob nchar(20),` +
+        `nchr nchar(20),` +
         `u8 tinyint unsigned,` +
         `u16 smallint unsigned,` +
         `u32 int unsigned,` +
@@ -631,7 +631,7 @@ describe("stmt_bind_param", () => {
         `f32 float,` +
         `d64 double,` +
         `bnr binary(20),` +
-        `blob nchar(20),` +
+        `nchr nchar(20),` +
         `u8 tinyint unsigned,` +
         `u16 smallint unsigned,` +
         `u32 int unsigned,` +
@@ -739,7 +739,7 @@ describe("stmt_bind_param", () => {
         `f32 float,` +
         `d64 double,` +
         `bnr binary(20),` +
-        `blob nchar(20),` +
+        `nchr nchar(20),` +
         `u8 tinyint unsigned,` +
         `u16 smallint unsigned,` +
         `u32 int unsigned,` +
@@ -763,8 +763,8 @@ describe("stmt_bind_param", () => {
       let querySql = `select * from ${table}`;
       let expectResField = getFieldArr(getFeildsFromDll(createSql));
       let data = getBindData();
-      let expectResData = getResData(data, tagData1, 14).concat(getResData(data,tagData2,14)).concat(getResData(data,tagData3,14));
-      
+      let expectResData = getResData(data, tagData1, 14).concat(getResData(data, tagData2, 14)).concat(getResData(data, tagData3, 14));
+
       // prepare tag TAOS_BIND 
       let tagBind1 = new taos.TaosBind(14);
       tagBind1.bindBool(true);
@@ -894,7 +894,7 @@ describe("stmt_bind_param", () => {
       c1.stmtAddBatch();
       c1.stmtExecute();
       c1.stmtClose();
-      
+
       let result = executeQuery(querySql);
       let actualResData = result.resData;
       let actualResFields = result.resFeilds;
