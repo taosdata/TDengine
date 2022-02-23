@@ -29,7 +29,9 @@ struct SBtCursor {
 };
 
 typedef struct SBPage {
-  /* TODO */
+  u8    isInit;
+  u8    isLeaf;
+  SPgno pgno;
 } SBPage;
 
 int tdbBtreeOpen(SPgno root, SBTree **ppBt) {
@@ -55,10 +57,16 @@ int tdbBtreeCursorMoveTo(SBtCursor *pCur) {
 }
 
 static int tdbBtreeCursorMoveToRoot(SBtCursor *pCur) {
-  SPFile *pFile = pCur->pBt->pFile;
+  SPFile *pFile;
+  SPgHdr *pPage;
 
-  tdbPFileGet(pFile, pCur->pBt->root);
-  /* TODO */
+  pFile = pCur->pBt->pFile;
+
+  pPage = tdbPFileGet(pFile, pCur->pBt->root);
+  if (pPage == NULL) {
+    return -1;
+  }
+
   return 0;
 }
 
