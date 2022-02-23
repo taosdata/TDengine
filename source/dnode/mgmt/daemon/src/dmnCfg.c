@@ -70,7 +70,7 @@ static int32_t dmnAddDnodeCfg(SConfig *pCfg) {
   if (cfgAddTimezone(pCfg, "timezone", "") != 0) return -1;
   if (cfgAddLocale(pCfg, "locale", "") != 0) return -1;
   if (cfgAddCharset(pCfg, "charset", "") != 0) return -1;
-  if (cfgAddInt32(pCfg, "numOfCores", 1, 1, 100000) != 0) return -1;
+  if (cfgAddInt32(pCfg, "numOfCores", 2, 1, 100000) != 0) return -1;
   if (cfgAddInt32(pCfg, "numOfCommitThreads", 4, 1, 1000) != 0) return -1;
   if (cfgAddBool(pCfg, "telemetryReporting", 0) != 0) return -1;
   if (cfgAddBool(pCfg, "enableCoreFile", 0) != 0) return -1;
