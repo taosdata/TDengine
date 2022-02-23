@@ -58,7 +58,9 @@ class FstReadMemory {
   bool init() {
     char* buf = (char*)calloc(1, sizeof(char) * _size);
     int   nRead = fstCountingWriterRead(_w, (uint8_t*)buf, _size);
-    if (nRead <= 0) { return false; }
+    if (nRead <= 0) {
+      return false;
+    }
     _size = nRead;
     _s = fstSliceCreate((uint8_t*)buf, _size);
     _fst = fstCreate(&_s);
@@ -97,7 +99,8 @@ class FstReadMemory {
       printf("key: %s, val: %" PRIu64 "\n", key.c_str(), (uint64_t)(rt->out.out));
       swsResultDestroy(rt);
     }
-    for (size_t i = 0; i < result.size(); i++) {}
+    for (size_t i = 0; i < result.size(); i++) {
+    }
     std::cout << std::endl;
     return true;
   }
@@ -173,7 +176,9 @@ void checkMillonWriteAndReadOfFst() {
   delete fw;
   FstReadMemory* fr = new FstReadMemory(1024 * 64 * 1024);
 
-  if (fr->init()) { printf("success to init fst read"); }
+  if (fr->init()) {
+    printf("success to init fst read");
+  }
 
   Performance_fstReadRecords(fr);
   tfCleanup();
