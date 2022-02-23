@@ -100,13 +100,10 @@ extern uint32_t tsMaxRange;
 extern uint32_t tsCurRange;
 extern char     tsCompressor[];
 
-extern int32_t  tsDiskCfgNum;
-extern SDiskCfg tsDiskCfg[];
 
 #define NEEDTO_COMPRESSS_MSG(size) (tsCompressMsgSize != -1 && (size) > tsCompressMsgSize)
 
 void    taosInitGlobalCfg();
-int32_t taosCheckAndPrintCfg();
 int32_t taosCfgDynamicOptions(char *msg);
 bool    taosCheckBalanceCfgOptions(const char *option, int32_t *vnodeId, int32_t *dnodeId);
 void    taosAddDataDir(int index, char *v1, int level, int primary);

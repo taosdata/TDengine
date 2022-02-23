@@ -4,7 +4,7 @@
 #include "tglobal.h"
 #include "tlockfree.h"
 
-int taosGetFqdnPortFromEp(const char *ep, SEp* pEp) {
+int taosGetFqdnPortFromEp(const char *ep, uint16_t defaultPort, SEp* pEp) {
   pEp->port = 0;
   strcpy(pEp->fqdn, ep);
 
@@ -14,12 +14,10 @@ int taosGetFqdnPortFromEp(const char *ep, SEp* pEp) {
     pEp->port = atoi(temp+1);
   }
 
-#if 0
   if (pEp->port == 0) {
-    pEp->port = tsServerPort;
+    pEp->port = defaultPort;
     return -1;
   }
-#endif
 
   return 0;
 }

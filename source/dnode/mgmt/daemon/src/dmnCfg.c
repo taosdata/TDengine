@@ -47,13 +47,6 @@ static int32_t dmnAddDirCfg(SConfig *pCfg) {
 static int32_t dmnCheckDirCfg(SConfig *pCfg) {
   SConfigItem *pItem = NULL;
 
-  pItem = cfgGetItem(pCfg, "dataDir");
-  if (tsDiskCfgNum <= 0) {
-    taosAddDataDir(0, pItem->str, 0, 1);
-    tsDiskCfgNum = 1;
-    uTrace("dataDir:%s, level:0 primary:1 is configured by default", pItem->str);
-  }
-
   pItem = cfgGetItem(pCfg, "tmpDir");
   if (taosDirExist(pItem->str) != 0) {
     return -1;
@@ -204,12 +197,12 @@ SDnodeObjCfg dmnGetObjCfg(SConfig *pCfg) {
   objCfg.ratioOfQueryCores = cfgGetItem(pCfg, "ratioOfQueryCores")->fval;
   objCfg.maxShellConns = cfgGetItem(pCfg, "maxShellConns")->i32;
   objCfg.shellActivityTimer = cfgGetItem(pCfg, "shellActivityTimer")->i32;
-  objCfg.serverPort = (uint16_t)cfgGetItem(pCfg, "serverPort")->i32;
   tstrncpy(objCfg.dataDir, cfgGetItem(pCfg, "dataDir")->str, sizeof(objCfg.dataDir));
-  tstrncpy(objCfg.localEp, cfgGetItem(pCfg, "localEp")->str, sizeof(objCfg.localEp));
-  tstrncpy(objCfg.localFqdn, cfgGetItem(pCfg, "localFqdn")->str, sizeof(objCfg.localFqdn, cfgGetItem));
+
   tstrncpy(objCfg.firstEp, cfgGetItem(pCfg, "firstEp")->str, sizeof(objCfg.firstEp));
   tstrncpy(objCfg.secondEp, cfgGetItem(pCfg, "secondEp")->str, sizeof(objCfg.firstEp));
-
+  objCfg.serverPort = (uint16_t)cfgGetItem(pCfg, "serverPort")->i32;
+  tstrncpy(objCfg.localFqdn, cfgGetItem(pCfg, "fqdn")->str, sizeof(objCfg.localFqdn, cfgGetItem));
+  snprintf(objCfg.localEp, sizeof(objCfg.localEp), "%s:%u", objCfg.localFqdn, objCfg.serverPort);
   return objCfg;
 }

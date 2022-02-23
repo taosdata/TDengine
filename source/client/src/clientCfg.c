@@ -21,20 +21,20 @@
 SConfig *tscCfg;
 
 static int32_t tscLoadCfg(SConfig *pConfig, const char *inputCfgDir, const char *envFile, const char *apolloUrl) {
-  char configDir[PATH_MAX] = {0};
-  char configFile[PATH_MAX + 100] = {0};
+  char cfgDir[PATH_MAX] = {0};
+  char cfgFile[PATH_MAX + 100] = {0};
 
-  taosExpandDir(inputCfgDir, configDir, PATH_MAX);
-  snprintf(configFile, sizeof(configFile), "%s" TD_DIRSEP "taos.cfg", configDir);
+  taosExpandDir(inputCfgDir, cfgDir, PATH_MAX);
+  snprintf(cfgFile, sizeof(cfgFile), "%s" TD_DIRSEP "taos.cfg", cfgDir);
 
   if (cfgLoad(pConfig, CFG_STYPE_APOLLO_URL, apolloUrl) != 0) {
     uError("failed to load from apollo url:%s since %s\n", apolloUrl, terrstr());
     return -1;
   }
 
-  if (cfgLoad(pConfig, CFG_STYPE_CFG_FILE, configFile) != 0) {
-    if (cfgLoad(pConfig, CFG_STYPE_CFG_FILE, configDir) != 0) {
-      uError("failed to load from config file:%s since %s\n", configFile, terrstr());
+  if (cfgLoad(pConfig, CFG_STYPE_CFG_FILE, cfgFile) != 0) {
+    if (cfgLoad(pConfig, CFG_STYPE_CFG_FILE, cfgDir) != 0) {
+      uError("failed to load from config file:%s since %s\n", cfgFile, terrstr());
       return -1;
     }
   }

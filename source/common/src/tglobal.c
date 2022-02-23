@@ -125,8 +125,6 @@ int8_t tsDeadLockKillQuery = 0;
 // For backward compatibility
 bool tsdbForceKeepFile = false;
 
-int32_t tsDiskCfgNum = 0;
-
 #ifndef _STORAGE
 SDiskCfg tsDiskCfg[1];
 #else
@@ -257,21 +255,21 @@ void taosAddDataDir(int index, char *v1, int level, int primary) {
 }
 
 #ifndef _STORAGE
-void taosReadDataDirCfg(char *v1, char *v2, char *v3) {
-  if (tsDiskCfgNum == 1) {
-    SDiskCfg *cfg = &tsDiskCfg[0];
-    uInfo("dataDir:%s, level:%d primary:%d is replaced by %s", cfg->dir, cfg->level, cfg->primary, v1);
-  }
-  taosAddDataDir(0, v1, 0, 1);
-  tsDiskCfgNum = 1;
-}
+// void taosReadDataDirCfg(char *v1, char *v2, char *v3) {
+//   if (tsDiskCfgNum == 1) {
+//     SDiskCfg *cfg = &tsDiskCfg[0];
+//     uInfo("dataDir:%s, level:%d primary:%d is replaced by %s", cfg->dir, cfg->level, cfg->primary, v1);
+//   }
+//   taosAddDataDir(0, v1, 0, 1);
+//   tsDiskCfgNum = 1;
+// }
 
-void taosPrintDataDirCfg() {
-  for (int i = 0; i < tsDiskCfgNum; ++i) {
-    SDiskCfg *cfg = &tsDiskCfg[i];
-    uInfo(" dataDir: %s", cfg->dir);
-  }
-}
+// void taosPrintDataDirCfg() {
+//   for (int i = 0; i < tsDiskCfgNum; ++i) {
+//     SDiskCfg *cfg = &tsDiskCfg[i];
+//     uInfo(" dataDir: %s", cfg->dir);
+//   }
+// }
 #endif
 
 

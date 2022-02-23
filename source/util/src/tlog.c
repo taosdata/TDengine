@@ -71,6 +71,7 @@ int8_t tscEmbeddedInUtil = 0;
 
 int32_t tsLogKeepDays = 0;
 bool    tsAsyncLog = true;
+bool    tsLogInited = false;
 float   tsTotalLogDirGB = 0;
 float   tsAvailLogDirGB = 0;
 float   tsMinimalLogDirGB = 1.0f;
@@ -120,6 +121,8 @@ static int32_t taosStartLog() {
 }
 
 int32_t taosInitLog(const char *logName, int maxFiles) {
+  if (tsLogInited) return 0;
+
   char fullName[PATH_MAX] = {0};
   snprintf(fullName, PATH_MAX, "%s" TD_DIRSEP "%s", tsLogDir, logName);
 
@@ -127,6 +130,7 @@ int32_t taosInitLog(const char *logName, int maxFiles) {
   if (tsLogObj.logHandle == NULL) return -1;
   if (taosOpenLogFile(fullName, tsNumOfLogLines, maxFiles) < 0) return -1;
   if (taosStartLog() < 0) return -1;
+  tsLogInited = true;
   return 0;
 }
 
