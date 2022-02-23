@@ -27,6 +27,9 @@ extern "C" {
 #include "syncRaft.h"
 #include "taosdef.h"
 
+void testJson();
+void testJson2();
+
 int32_t currentTerm(SyncTerm *pCurrentTerm);
 
 int32_t persistCurrentTerm(SyncTerm currentTerm);

@@ -203,7 +203,7 @@ static int32_t syncIOPing(SSyncIO *io) {
   rpcMsg.pCont = rpcMallocCont(10);
   snprintf(rpcMsg.pCont, 10, "ping");
   rpcMsg.contLen = 10;
-  rpcMsg.handle = io;
+  rpcMsg.handle = NULL;
   rpcMsg.msgType = 1;
 
   rpcSendRequest(io->clientRpc, &io->epSet, &rpcMsg, NULL);

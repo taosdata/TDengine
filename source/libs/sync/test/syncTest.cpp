@@ -1,6 +1,7 @@
 #include <stdio.h>
 #include "syncIO.h"
 #include "syncInt.h"
+#include "syncRaftStore.h"
 
 void *pingFunc(void *param) {
   SSyncIO *io = (SSyncIO *)param;
@@ -13,6 +14,10 @@ void *pingFunc(void *param) {
 }
 
 int main() {
+
+  testJson();
+  testJson2();
+
   tsAsyncLog = 0;
   taosInitLog((char *)"syncTest.log", 100000, 10);
 

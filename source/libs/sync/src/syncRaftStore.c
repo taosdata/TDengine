@@ -14,7 +14,40 @@
  */
 
 #include "syncRaftStore.h"
+#include "cJSON.h"
 #include "sync.h"
+
+char *serialized;
+
+void testJson() {
+  FileFd raftStoreFd = taosOpenFileReadWrite("raft.store");
+
+  uint64_t currentTerm = 100;
+  uint64_t voteFor = 200;
+
+  cJSON *pRoot = cJSON_CreateObject();
+  cJSON_AddNumberToObject(pRoot, "current_term", currentTerm);
+  cJSON_AddNumberToObject(pRoot, "vote_for", voteFor);
+
+  serialized = cJSON_Print(pRoot);
+  int len = strlen(serialized);
+  printf("serialized: %s \n", serialized);
+
+  taosWriteFile(raftStoreFd, serialized, len);
+  taosCloseFile(raftStoreFd);
+}
+
+void testJson2() {
+  cJSON *pRoot = cJSON_Parse(serialized);
+
+  cJSON   *pCurrentTerm = cJSON_GetObjectItem(pRoot, "current_term");
+  uint64_t currentTerm = pCurrentTerm->valueint;
+
+  cJSON   *pVoteFor = cJSON_GetObjectItem(pRoot, "vote_for");
+  uint64_t voteFor = pVoteFor->valueint;
+
+  printf("read json: currentTerm:%lu, voteFor:%lu \n", currentTerm, voteFor);
+}
 
 int32_t currentTerm(SyncTerm *pCurrentTerm) { return 0; }
 
