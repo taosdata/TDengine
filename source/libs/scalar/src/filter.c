@@ -3346,15 +3346,8 @@ int32_t filterGetTimeRange(SFilterInfo *info, STimeWindow       *win) {
       if (FILTER_NO_MERGE_OPTR(raOptr)) {
         continue;
       }
-      
-      SFilterField *right = FILTER_UNIT_RIGHT_FIELD(info, unit);
-      void *s = FILTER_GET_VAL_FIELD_DATA(right);
-      void *e = FILTER_GET_VAL_FIELD_DATA(right) + tDataTypes[TSDB_DATA_TYPE_TIMESTAMP].bytes;
 
-      SIMPLE_COPY_VALUES(&ra.s, s);
-      SIMPLE_COPY_VALUES(&ra.e, e);
-      
-      filterAddRange(cur, &ra, optr);
+      filterAddUnitRange(info, unit, cur, optr);
     }
 
     if (cur->notnull) {
