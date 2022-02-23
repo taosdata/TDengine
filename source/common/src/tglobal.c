@@ -29,8 +29,6 @@
 
 
 // common
-int32_t tsMaxShellConns = 50000;
-int32_t tsMaxConnections = 50000;
 int32_t tsShellActivityTimer = 3;  // second
 float   tsNumOfThreadsPerCore = 1.0f;
 int32_t tsNumOfCommitThreads = 4;
@@ -439,16 +437,6 @@ static void doInitGlobalConfig(void) {
   cfg.unitType = TAOS_CFG_UTYPE_NONE;
   taosAddConfigOption(cfg);
 
-
-  cfg.option = "maxConnections";
-  cfg.ptr = &tsMaxConnections;
-  cfg.valType = TAOS_CFG_VTYPE_INT32;
-  cfg.cfgType = TSDB_CFG_CTYPE_B_CONFIG | TSDB_CFG_CTYPE_B_SHOW;
-  cfg.minValue = 1;
-  cfg.maxValue = 100000;
-  cfg.ptrLength = 0;
-  cfg.unitType = TAOS_CFG_UTYPE_NONE;
-  taosAddConfigOption(cfg);
 
   cfg.option = "minimalLogDirGB";
   cfg.ptr = &tsMinimalLogDirGB;

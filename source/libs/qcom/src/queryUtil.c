@@ -87,7 +87,7 @@ int32_t initTaskQueue() {
   double factor = 4.0;
   int32_t numOfThreads = TMAX((int)(tsNumOfCores * tsNumOfThreadsPerCore / factor), 2);
 
-  int32_t queueSize = tsMaxConnections * 2;
+  int32_t queueSize = 25000; //tsMaxConnections * 2;
   pTaskQueue = taosInitScheduler(queueSize, numOfThreads, "tsc");
   if (NULL == pTaskQueue) {
     qError("failed to init task queue");

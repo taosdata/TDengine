@@ -23,8 +23,6 @@ extern "C" {
 #include "tdef.h"
 
 // common
-extern int32_t  tsMaxConnections;
-extern int32_t  tsMaxShellConns;
 extern int32_t  tsShellActivityTimer;
 extern uint32_t tsMaxTmrCtrl;
 extern float    tsNumOfThreadsPerCore;

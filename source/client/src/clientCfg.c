@@ -159,8 +159,9 @@ static int32_t tscAddCfg(SConfig *pCfg) {
   if (cfgAddInt32(pCfg, "statusInterval", 1, 1, 30) != 0) return -1;
   if (cfgAddFloat(pCfg, "numOfThreadsPerCore", 1, 0, 10) != 0) return -1;
   if (cfgAddFloat(pCfg, "ratioOfQueryCores", 1, 0, 5) != 0) return -1;
-  if (cfgAddInt32(pCfg, "maxShellConns", 50000, 10, 50000000) != 0) return -1;
   if (cfgAddInt32(pCfg, "shellActivityTimer", 3, 1, 120) != 0) return -1;
+
+  if (cfgAddInt32(pCfg, "maxConnections", 50000, 1, 100000) != 0) return -1;
   return 0;
 }
 

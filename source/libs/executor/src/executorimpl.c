@@ -5301,7 +5301,7 @@ SOperatorInfo* createExchangeOperatorInfo(const SArray* pSources, const SArray* 
     rpcInit.label = "EX";
     rpcInit.numOfThreads = 1;
     rpcInit.cfp = qProcessFetchRsp;
-    rpcInit.sessions = tsMaxConnections;
+    rpcInit.sessions = 50000; //tsMaxConnections;
     rpcInit.connType = TAOS_CONN_CLIENT;
     rpcInit.user = (char *)"root";
     rpcInit.idleTime = tsShellActivityTimer * 1000;
