@@ -70,6 +70,8 @@ static FORCE_INLINE int tdbCmprPgId(const void *p1, const void *p2) {
   }
 }
 
+#define TDB_IS_SAME_PAGE(pPgid1, pPgid2) (tdbCmprPgId(pPgid1, pPgid2) == 0)
+
 // framd_id_t
 typedef int32_t frame_id_t;
 

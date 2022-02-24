@@ -18,20 +18,23 @@ struct SPCache {
   int             pageSize;
   int             cacheSize;
   int             extraSize;
-  int             nRef;
   pthread_mutex_t mutex;
-  int             nPage;
-  SPgHdr          lru;
-  int             nRecyclable;
-  int             nHash;
-  SPgHdr **       pgHash;
   int             nFree;
   SPgHdr *        pFree;
+  int             nPage;
+  int             nHash;
+  SPgHdr **       pgHash;
+  int             nRecyclable;
+  SPgHdr          lru;
+  int             nDirty;
+  SPgHdr *        pDirty;
+  SPgHdr *        pDirtyTail;
 };
 
 #define PCACHE_PAGE_HASH(pgid) 0  // TODO
 #define PAGE_IS_PINNED(pPage)  ((pPage)->pLruNext == NULL)
 
+static int     tdbPCacheOpenImpl(SPCache *pCache);
 static void    tdbPCacheInitLock(SPCache *pCache);
 static void    tdbPCacheClearLock(SPCache *pCache);
 static void    tdbPCacheLock(SPCache *pCache);
@@ -56,19 +59,9 @@ int tdbPCacheOpen(int pageSize, int cacheSize, int extraSize, SPCache **ppCache)
   pCache->cacheSize = cacheSize;
   pCache->extraSize = extraSize;
 
-  tdbPCacheInitLock(pCache);
-
-  for (int i = 0; i < cacheSize; i++) {
-    pPtr = calloc(1, pageSize + extraSize + sizeof(SPgHdr));
-    if (pPtr == NULL) {
-      return -1;
-    }
-
-    pPgHdr = (SPgHdr *)&((char *)pPtr)[pageSize + extraSize];
-    pPgHdr->pFreeNext = pCache->pFree;
-    pCache->pFree = pPgHdr;
-
-    pCache->nFree++;
+  if (tdbPCacheOpenImpl(pCache) < 0) {
+    free(pCache);
+    return -1;
   }
 
   return 0;
@@ -195,4 +188,60 @@ static void tdbPCacheAddPageToHash(SPgHdr *pPage) {
   pCache->pgHash[h] = pPage;
 
   pCache->nPage++;
+}
+
+static int tdbPCacheOpenImpl(SPCache *pCache) {
+  SPgHdr *pPage;
+  u8 *    pPtr;
+  int     tsize;
+
+  tdbPCacheInitLock(pCache);
+
+  // Open the free list
+  pCache->nFree = 0;
+  pCache->pFree = NULL;
+  for (int i = 0; i < pCache->cacheSize; i++) {
+    tsize = pCache->pageSize + sizeof(SPgHdr) + pCache->extraSize;
+    pPtr = (u8 *)calloc(1, tsize);
+    if (pPtr == NULL) {
+      // TODO
+      return -1;
+    }
+
+    pPage = (SPgHdr *)(&(pPtr[pCache->pageSize]));
+    pPage->pData = (void *)pPtr;
+    pPage->pExtra = (void *)(&(pPage[1]));
+    // pPage->pgid = 0;
+    pPage->isAnchor = 0;
+    pPage->isLocalPage = 1;
+    pPage->pCache = pCache;
+    pPage->pHashNext = NULL;
+    pPage->pLruNext = NULL;
+    pPage->pLruPrev = NULL;
+
+    pPage->pFreeNext = pCache->pFree;
+    pCache->pFree = pPage;
+    pCache->nFree++;
+  }
+
+  // Open the hash table
+  pCache->nPage = 0;
+  pCache->nHash = pCache->cacheSize;
+  pCache->pgHash = (SPgHdr **)calloc(pCache->nHash, sizeof(SPgHdr *));
+  if (pCache->pgHash == NULL) {
+    // TODO
+    return -1;
+  }
+
+  // Open LRU list
+  pCache->nRecyclable = 0;
+  pCache->lru.isAnchor = 1;
+  pCache->lru.pLruNext = &(pCache->lru);
+  pCache->lru.pLruPrev = &(pCache->lru);
+
+  // Open dirty list
+  pCache->nDirty = 0;
+  pCache->pDirty = pCache->pDirtyTail = NULL;
+
+  return 0;
 }

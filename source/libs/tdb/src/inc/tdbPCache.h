@@ -27,8 +27,8 @@ struct SPgHdr {
   void *   pData;
   void *   pExtra;
   SPgid    pgid;
-  uint8_t  isAnchor;
-  uint8_t  isLocalPage;
+  u8       isAnchor;
+  u8       isLocalPage;
   SPCache *pCache;
   SPgHdr * pFreeNext;
   SPgHdr * pHashNext;
