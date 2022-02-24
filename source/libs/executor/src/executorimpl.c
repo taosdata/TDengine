@@ -132,7 +132,8 @@ do {                                       \
 } while (0)
 
 int32_t getMaximumIdleDurationSec() {
-  return tsShellActivityTimer * 2;
+  // todo
+  return 6; //tsShellActivityTimer * 2;
 }
 
 static int32_t getExprFunctionId(SExprInfo *pExprInfo) {
@@ -2148,7 +2149,7 @@ static int32_t setupQueryRuntimeEnv(STaskRuntimeEnv *pRuntimeEnv, int32_t numOfT
   // NOTE: pTableCheckInfo need to update the query time range and the lastKey info
   pRuntimeEnv->pTableRetrieveTsMap = taosHashInit(numOfTables, taosGetDefaultHashFunction(TSDB_DATA_TYPE_INT), false, HASH_NO_LOCK);
 
-  pRuntimeEnv->scalarSup = createScalarFuncSupport(pQueryAttr->numOfOutput);
+  //pRuntimeEnv->scalarSup = createScalarFuncSupport(pQueryAttr->numOfOutput);
 
   if (pRuntimeEnv->scalarSup == NULL || pRuntimeEnv->pResultRowHashTable == NULL || pRuntimeEnv->keyBuf == NULL ||
       pRuntimeEnv->prevRow == NULL  || pRuntimeEnv->tagVal == NULL) {
@@ -2174,7 +2175,7 @@ static int32_t setupQueryRuntimeEnv(STaskRuntimeEnv *pRuntimeEnv, int32_t numOfT
   return TSDB_CODE_SUCCESS;
 
 _clean:
-  destroyScalarFuncSupport(pRuntimeEnv->scalarSup, pRuntimeEnv->pQueryAttr->numOfOutput);
+  //destroyScalarFuncSupport(pRuntimeEnv->scalarSup, pRuntimeEnv->pQueryAttr->numOfOutput);
   tfree(pRuntimeEnv->pResultRowHashTable);
   tfree(pRuntimeEnv->keyBuf);
   tfree(pRuntimeEnv->prevRow);
@@ -2212,7 +2213,7 @@ static void teardownQueryRuntimeEnv(STaskRuntimeEnv *pRuntimeEnv) {
 
   //qDebug("QInfo:0x%"PRIx64" teardown runtime env", pQInfo->qId);
 
-  destroyScalarFuncSupport(pRuntimeEnv->scalarSup, pQueryAttr->numOfOutput);
+  //destroyScalarFuncSupport(pRuntimeEnv->scalarSup, pQueryAttr->numOfOutput);
 //  destroyUdfInfo(pRuntimeEnv->pUdfInfo);
   destroyResultBuf(pRuntimeEnv->pResultBuf);
   doFreeQueryHandle(pRuntimeEnv);
@@ -5301,10 +5302,12 @@ SOperatorInfo* createExchangeOperatorInfo(const SArray* pSources, const SArray* 
     rpcInit.label = "EX";
     rpcInit.numOfThreads = 1;
     rpcInit.cfp = qProcessFetchRsp;
-    rpcInit.sessions = tsMaxConnections;
+    // todo
+    rpcInit.sessions = 50000; //tsMaxConnections;
     rpcInit.connType = TAOS_CONN_CLIENT;
     rpcInit.user = (char *)"root";
-    rpcInit.idleTime = tsShellActivityTimer * 1000;
+    // todo 
+    rpcInit.idleTime = 6; //tsShellActivityTimer * 1000;
     rpcInit.ckey = "key";
     rpcInit.spi = 1;
     rpcInit.secret = (char *)"dcc5bed04851fec854c035b2e40263b6";

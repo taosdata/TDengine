@@ -507,6 +507,7 @@ static void dndGenerateVnodeCfg(SCreateVnodeReq *pCreate, SVnodeCfg *pCfg) {
   pCfg->isHeapAllocator = true;
   pCfg->ttl = 4;
   pCfg->keep = pCreate->daysToKeep0;
+  pCfg->streamMode = pCreate->streamMode;
   pCfg->isWeak = true;
   pCfg->tsdbCfg.keep = pCreate->daysToKeep0;
   pCfg->tsdbCfg.keep1 = pCreate->daysToKeep2;

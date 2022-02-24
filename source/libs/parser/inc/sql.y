@@ -76,7 +76,7 @@ cmd ::= SHOW QUERIES.    { setShowOptions(pInfo, TSDB_MGMT_TABLE_QUERIES, 0, 0);
 cmd ::= SHOW CONNECTIONS.{ setShowOptions(pInfo, TSDB_MGMT_TABLE_CONNS, 0, 0);}
 cmd ::= SHOW STREAMS.    { setShowOptions(pInfo, TSDB_MGMT_TABLE_STREAMS, 0, 0);  }
 cmd ::= SHOW VARIABLES.  { setShowOptions(pInfo, TSDB_MGMT_TABLE_VARIABLES, 0, 0);  }
-cmd ::= SHOW SCORES.     { setShowOptions(pInfo, TSDB_MGMT_TABLE_SCORES, 0, 0);   }
+cmd ::= SHOW SCORES.     { setShowOptions(pInfo, TSDB_MGMT_TABLE_TRANS, 0, 0);   }
 cmd ::= SHOW GRANTS.     { setShowOptions(pInfo, TSDB_MGMT_TABLE_GRANTS, 0, 0);   }
 
 cmd ::= SHOW VNODES.                { setShowOptions(pInfo, TSDB_MGMT_TABLE_VNODES, 0, 0); }
@@ -282,6 +282,7 @@ update(Y)  ::= UPDATE INTEGER(X).             { Y = X; }
 cachelast(Y) ::= CACHELAST INTEGER(X).        { Y = X; }
 vgroups(Y) ::= VGROUPS INTEGER(X).            { Y = X; }
 //partitions(Y) ::= PARTITIONS INTEGER(X).      { Y = X; }
+stream_mode(Y) ::= STREAM MODE INTEGER(X).    { Y = X; }
 
 %type db_optr {SCreateDbInfo}
 db_optr(Y) ::= . {setDefaultCreateDbOption(&Y);}
@@ -302,6 +303,7 @@ db_optr(Y) ::= db_optr(Z) keep(X).           { Y = Z; Y.keep = X; }
 db_optr(Y) ::= db_optr(Z) update(X).         { Y = Z; Y.update = strtol(X.z, NULL, 10); }
 db_optr(Y) ::= db_optr(Z) cachelast(X).      { Y = Z; Y.cachelast = strtol(X.z, NULL, 10); }
 db_optr(Y) ::= db_optr(Z) vgroups(X).        { Y = Z; Y.numOfVgroups = strtol(X.z, NULL, 10); }
+db_optr(Y) ::= db_optr(Z) stream_mode(X).    { Y = Z; Y.streamMode = strtol(X.z, NULL, 10); }
 
 //%type topic_optr {SCreateDbInfo}
 //

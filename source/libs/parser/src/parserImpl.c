@@ -241,17 +241,6 @@ abort_parse:
   return cxt.valid ? TSDB_CODE_SUCCESS : TSDB_CODE_FAILED;
 }
 
-typedef enum ESqlClause {
-  SQL_CLAUSE_FROM = 1,
-  SQL_CLAUSE_WHERE,
-  SQL_CLAUSE_PARTITION_BY,
-  SQL_CLAUSE_WINDOW,
-  SQL_CLAUSE_GROUP_BY,
-  SQL_CLAUSE_HAVING,
-  SQL_CLAUSE_SELECT,
-  SQL_CLAUSE_ORDER_BY
-} ESqlClause;
-
 static bool afterGroupBy(ESqlClause clause) {
   return clause > SQL_CLAUSE_GROUP_BY;
 }
@@ -298,7 +287,7 @@ static char* getSyntaxErrFormat(int32_t errCode) {
       return "Not SELECTed expression";
     case TSDB_CODE_PAR_NOT_SINGLE_GROUP:
       return "Not a single-group group function";
-    case TSDB_CODE_PAR_OUT_OF_MEMORY:
+    case TSDB_CODE_OUT_OF_MEMORY:
       return "Out of memory";
     default:
       return "Unknown error";
@@ -360,23 +349,24 @@ static SNodeList* getProjectList(SNode* pNode) {
   return NULL;
 }
 
-static void setColumnInfoBySchema(const STableNode* pTable, const SSchema* pColSchema, SColumnNode* pCol) {
-  strcpy(pCol->dbName, pTable->dbName);
-  strcpy(pCol->tableAlias, pTable->tableAlias);
-  strcpy(pCol->tableName, pTable->tableName);
+static void setColumnInfoBySchema(const SRealTableNode* pTable, const SSchema* pColSchema, bool isTag, SColumnNode* pCol) {
+  strcpy(pCol->dbName, pTable->table.dbName);
+  strcpy(pCol->tableAlias, pTable->table.tableAlias);
+  strcpy(pCol->tableName, pTable->table.tableName);
   strcpy(pCol->colName, pColSchema->name);
   if ('\0' == pCol->node.aliasName[0]) {
     strcpy(pCol->node.aliasName, pColSchema->name);
   }
+  pCol->tableId = pTable->pMeta->uid;
   pCol->colId = pColSchema->colId;
-  // pCol->colType = pColSchema->type;
+  pCol->colType = isTag ? COLUMN_TYPE_TAG : COLUMN_TYPE_COLUMN;
   pCol->node.resType.type = pColSchema->type;
   pCol->node.resType.bytes = pColSchema->bytes;
 }
 
 static void setColumnInfoByExpr(const STableNode* pTable, SExprNode* pExpr, SColumnNode* pCol) {
   pCol->pProjectRef = (SNode*)pExpr;
-  pExpr->pAssociationList = nodesListAppend(pExpr->pAssociationList, (SNode*)pCol);
+  nodesListAppend(pExpr->pAssociationList, (SNode*)pCol);
   if (NULL != pTable) {
     strcpy(pCol->tableAlias, pTable->tableAlias);
   }
@@ -391,9 +381,9 @@ static int32_t createColumnNodeByTable(STranslateContext* pCxt, const STableNode
     for (int32_t i = 0; i < nums; ++i) {
       SColumnNode* pCol = (SColumnNode*)nodesMakeNode(QUERY_NODE_COLUMN);
       if (NULL == pCol) {
-        return generateSyntaxErrMsg(pCxt, TSDB_CODE_PAR_OUT_OF_MEMORY);
+        return generateSyntaxErrMsg(pCxt, TSDB_CODE_OUT_OF_MEMORY);
       }
-      setColumnInfoBySchema(pTable, pMeta->schema + i, pCol);
+      setColumnInfoBySchema((SRealTableNode*)pTable, pMeta->schema + i, (i < pMeta->tableInfo.numOfTags), pCol);
       nodesListAppend(pList, (SNode*)pCol);
     }
   } else {
@@ -402,7 +392,7 @@ static int32_t createColumnNodeByTable(STranslateContext* pCxt, const STableNode
     FOREACH(pNode, pProjectList) {
       SColumnNode* pCol = (SColumnNode*)nodesMakeNode(QUERY_NODE_COLUMN);
       if (NULL == pCol) {
-        return generateSyntaxErrMsg(pCxt, TSDB_CODE_PAR_OUT_OF_MEMORY);
+        return generateSyntaxErrMsg(pCxt, TSDB_CODE_OUT_OF_MEMORY);
       }
       setColumnInfoByExpr(pTable, (SExprNode*)pNode, pCol);
       nodesListAppend(pList, (SNode*)pCol);
@@ -418,7 +408,7 @@ static bool findAndSetColumn(SColumnNode* pCol, const STableNode* pTable) {
     int32_t nums = pMeta->tableInfo.numOfTags + pMeta->tableInfo.numOfColumns;
     for (int32_t i = 0; i < nums; ++i) {
       if (0 == strcmp(pCol->colName, pMeta->schema[i].name)) {
-        setColumnInfoBySchema(pTable, pMeta->schema + i, pCol);
+        setColumnInfoBySchema((SRealTableNode*)pTable, pMeta->schema + i, (i < pMeta->tableInfo.numOfTags), pCol);
         found = true;
         break;
       }
@@ -510,22 +500,24 @@ static EDealRes translateColumn(STranslateContext* pCxt, SColumnNode* pCol) {
 }
 
 static int32_t trimStringCopy(const char* src, int32_t len, char* dst) {
+  varDataSetLen(dst, len);
+  char* dstVal = varDataVal(dst);
   // delete escape character: \\, \', \"
   char delim = src[0];
   int32_t cnt = 0;
   int32_t j = 0;
   for (uint32_t k = 1; k < len - 1; ++k) {
     if (src[k] == '\\' || (src[k] == delim && src[k + 1] == delim)) {
-      dst[j] = src[k + 1];
+      dstVal[j] = src[k + 1];
       cnt++;
       j++;
       k++;
       continue;
     }
-    dst[j] = src[k];
+    dstVal[j] = src[k];
     j++;
   }
-  dst[j] = '\0';
+  dstVal[j] = '\0';
   return j;
 }
 
@@ -570,9 +562,9 @@ static EDealRes translateValue(STranslateContext* pCxt, SValueNode* pVal) {
       case TSDB_DATA_TYPE_VARCHAR:
       case TSDB_DATA_TYPE_VARBINARY: {
         int32_t n = strlen(pVal->literal);
-        pVal->datum.p = calloc(1, n);
+        pVal->datum.p = calloc(1, n + VARSTR_HEADER_SIZE);
         if (NULL == pVal->datum.p) {
-          generateSyntaxErrMsg(pCxt, TSDB_CODE_PAR_OUT_OF_MEMORY);
+          generateSyntaxErrMsg(pCxt, TSDB_CODE_OUT_OF_MEMORY);
           return DEAL_RES_ERROR;
         }
         trimStringCopy(pVal->literal, n, pVal->datum.p);
@@ -582,7 +574,7 @@ static EDealRes translateValue(STranslateContext* pCxt, SValueNode* pVal) {
         int32_t n = strlen(pVal->literal);
         char* tmp = calloc(1, n);
         if (NULL == tmp) {
-          generateSyntaxErrMsg(pCxt, TSDB_CODE_PAR_OUT_OF_MEMORY);
+          generateSyntaxErrMsg(pCxt, TSDB_CODE_OUT_OF_MEMORY);
           return DEAL_RES_ERROR;
         }
         int32_t len = trimStringCopy(pVal->literal, n, tmp);
@@ -830,7 +822,7 @@ static int32_t translateStar(STranslateContext* pCxt, SSelectStmt* pSelect, bool
     size_t nums = taosArrayGetSize(pTables);
     pSelect->pProjectionList = nodesMakeList();
     if (NULL == pSelect->pProjectionList) {
-      return generateSyntaxErrMsg(pCxt, TSDB_CODE_PAR_OUT_OF_MEMORY);
+      return generateSyntaxErrMsg(pCxt, TSDB_CODE_OUT_OF_MEMORY);
     }
     for (size_t i = 0; i < nums; ++i) {
       STableNode* pTable = taosArrayGetP(pTables, i);
@@ -890,14 +882,13 @@ static int32_t translateOrderByPosition(STranslateContext* pCxt, SNodeList* pPro
       int32_t pos = getPositionValue(pVal);
       if (pos < 0) {
         ERASE_NODE(pOrderByList);
-        nodesDestroyNode(pNode);
         continue;
       } else if (0 == pos || pos > LIST_LENGTH(pProjectionList)) {
         return generateSyntaxErrMsg(pCxt, TSDB_CODE_PAR_WRONG_NUMBER_OF_SELECT);
       } else {
         SColumnNode* pCol = (SColumnNode*)nodesMakeNode(QUERY_NODE_COLUMN);
         if (NULL == pCol) {
-          return generateSyntaxErrMsg(pCxt, TSDB_CODE_PAR_OUT_OF_MEMORY);
+          return generateSyntaxErrMsg(pCxt, TSDB_CODE_OUT_OF_MEMORY);
         }
         setColumnInfoByExpr(NULL, (SExprNode*)nodesListGetNode(pProjectionList, pos - 1), pCol);
         ((SOrderByExprNode*)pNode)->pExpr = (SNode*)pCol;
@@ -1036,7 +1027,7 @@ int32_t setReslutSchema(STranslateContext* pCxt, SQuery* pQuery) {
     pQuery->numOfResCols = LIST_LENGTH(pSelect->pProjectionList);
     pQuery->pResSchema = calloc(pQuery->numOfResCols, sizeof(SSchema));
     if (NULL == pQuery->pResSchema) {
-      return generateSyntaxErrMsg(pCxt, TSDB_CODE_PAR_OUT_OF_MEMORY);
+      return generateSyntaxErrMsg(pCxt, TSDB_CODE_OUT_OF_MEMORY);
     }
     SNode* pNode;
     int32_t index = 0;
@@ -1065,6 +1056,14 @@ int32_t doTranslate(SParseContext* pParseCxt, SQuery* pQuery) {
   }
   if (TSDB_CODE_SUCCESS == code && STMT_TYPE_QUERY == pQuery->stmtType) {
     code = setReslutSchema(&cxt, pQuery);
+  }
+  return code;
+}
+
+int32_t parser(SParseContext* pParseCxt, SQuery* pQuery) {
+  int32_t code = doParse(pParseCxt, pQuery);
+  if (TSDB_CODE_SUCCESS == code) {
+    code = doTranslate(pParseCxt, pQuery);
   }
   return code;
 }

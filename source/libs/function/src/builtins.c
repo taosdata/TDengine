@@ -36,7 +36,7 @@ const SBuiltinFuncDefinition funcMgtBuiltins[] = {
     .checkFunc = stubCheckAndGetResultType,
     .getEnvFunc = NULL,
     .initFunc = NULL,
-    .processFunc = NULL,
+    .sprocessFunc = NULL,
     .finalizeFunc = NULL
   }
 };

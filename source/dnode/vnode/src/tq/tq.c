@@ -192,12 +192,12 @@ int32_t tqDeserializeConsumer(STQ* pTq, const STqSerializedHead* pHead, STqConsu
     if (pTopic->pReadhandle == NULL) {
       ASSERT(false);
     }
-    for (int i = 0; i < TQ_BUFFER_SIZE; i++) {
-      pTopic->buffer.output[i].status = 0;
+    for (int j = 0; j < TQ_BUFFER_SIZE; j++) {
+      pTopic->buffer.output[j].status = 0;
       STqReadHandle* pReadHandle = tqInitSubmitMsgScanner(pTq->pMeta);
       SReadHandle    handle = {.reader = pReadHandle, .meta = pTq->pMeta};
-      pTopic->buffer.output[i].pReadHandle = pReadHandle;
-      pTopic->buffer.output[i].task = qCreateStreamExecTaskInfo(pTopic->qmsg, &handle);
+      pTopic->buffer.output[j].pReadHandle = pReadHandle;
+      pTopic->buffer.output[j].task = qCreateStreamExecTaskInfo(pTopic->qmsg, &handle);
     }
   }
 
@@ -207,8 +207,16 @@ int32_t tqDeserializeConsumer(STQ* pTq, const STqSerializedHead* pHead, STqConsu
 int32_t tqProcessConsumeReq(STQ* pTq, SRpcMsg* pMsg) {
   SMqConsumeReq* pReq = pMsg->pCont;
   int64_t        consumerId = pReq->consumerId;
-  int64_t        fetchOffset = pReq->offset;
+  int64_t        fetchOffset;
   /*int64_t        blockingTime = pReq->blockingTime;*/
+
+  if (pReq->currentOffset == TMQ_CONF__RESET_OFFSET__EARLIEAST) {
+    fetchOffset = 0;
+  } else if (pReq->currentOffset == TMQ_CONF__RESET_OFFSET__LATEST) {
+    fetchOffset = walGetLastVer(pTq->pWal);
+  } else {
+    fetchOffset = pReq->currentOffset + 1;
+  }
 
   SMqConsumeRsp rsp = {.consumerId = consumerId, .numOfTopics = 0, .pBlockData = NULL};
 
@@ -226,30 +234,8 @@ int32_t tqProcessConsumeReq(STQ* pTq, SRpcMsg* pMsg) {
   ASSERT(strcmp(pTopic->topicName, pReq->topic) == 0);
   ASSERT(pConsumer->consumerId == consumerId);
 
-  if (pReq->reqType == TMQ_REQ_TYPE_COMMIT_ONLY) {
-    pTopic->committedOffset = pReq->offset;
-    /*printf("offset %ld committed\n", pTopic->committedOffset);*/
-    pMsg->pCont = NULL;
-    pMsg->contLen = 0;
-    pMsg->code = 0;
-    rpcSendResponse(pMsg);
-    return 0;
-  }
-
-  if (pReq->reqType == TMQ_REQ_TYPE_CONSUME_AND_COMMIT) {
-    if (pTopic->committedOffset < pReq->offset - 1) {
-      pTopic->committedOffset = pReq->offset - 1;
-      /*printf("offset %ld committed\n", pTopic->committedOffset);*/
-    }
-  }
-
-  rsp.committedOffset = pTopic->committedOffset;
-  rsp.reqOffset = pReq->offset;
+  rsp.reqOffset = pReq->currentOffset;
   rsp.skipLogNum = 0;
-
-  if (fetchOffset <= pTopic->committedOffset) {
-    fetchOffset = pTopic->committedOffset + 1;
-  }
 
   SWalHead* pHead;
   while (1) {

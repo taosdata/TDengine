@@ -217,7 +217,7 @@ typedef struct SConnBuffer {
   char* buf;
   int   len;
   int   cap;
-  int   left;
+  int   total;
 } SConnBuffer;
 
 typedef void (*AsyncCB)(uv_async_t* handle);
@@ -238,10 +238,11 @@ SAsyncPool* transCreateAsyncPool(uv_loop_t* loop, int sz, void* arg, AsyncCB cb)
 void        transDestroyAsyncPool(SAsyncPool* pool);
 int         transSendAsync(SAsyncPool* pool, queue* mq);
 
-int transInitBuffer(SConnBuffer* buf);
-int transClearBuffer(SConnBuffer* buf);
-int transDestroyBuffer(SConnBuffer* buf);
-int transAllocBuffer(SConnBuffer* connBuf, uv_buf_t* uvBuf);
+int  transInitBuffer(SConnBuffer* buf);
+int  transClearBuffer(SConnBuffer* buf);
+int  transDestroyBuffer(SConnBuffer* buf);
+int  transAllocBuffer(SConnBuffer* connBuf, uv_buf_t* uvBuf);
+bool transReadComplete(SConnBuffer* connBuf);
 
 // int transPackMsg(SRpcMsg *rpcMsg, bool sercured, bool auth, char **msg, int32_t *msgLen);
 

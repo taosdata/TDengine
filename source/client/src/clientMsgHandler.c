@@ -97,9 +97,9 @@ SMsgSendInfo* buildMsgInfoImpl(SRequestObj *pRequest) {
       int32_t contLen = tSerializeSRetrieveTableReq(NULL, 0, &retrieveReq);
       void*   pReq = malloc(contLen);
       tSerializeSRetrieveTableReq(pReq, contLen, &retrieveReq);
-
       pMsgSendInfo->msgInfo.pData = pReq;
       pMsgSendInfo->msgInfo.len = contLen;
+      pMsgSendInfo->msgInfo.handle = NULL;
     } else {
       SVShowTablesFetchReq* pFetchMsg = calloc(1, sizeof(SVShowTablesFetchReq));
       if (pFetchMsg == NULL) {
@@ -111,6 +111,7 @@ SMsgSendInfo* buildMsgInfoImpl(SRequestObj *pRequest) {
 
       pMsgSendInfo->msgInfo.pData = pFetchMsg;
       pMsgSendInfo->msgInfo.len = sizeof(SVShowTablesFetchReq);
+      pMsgSendInfo->msgInfo.handle = NULL;
     }
   } else {
     assert(pRequest != NULL);

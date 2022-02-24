@@ -17,7 +17,6 @@
 #include "os.h"
 #include "ulog.h"
 #include "tglobal.h"
-#include "tconfig.h"
 #include "tutil.h"
 
 /**

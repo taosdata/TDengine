@@ -21,7 +21,7 @@
 #include "mndShow.h"
 #include "mndTrans.h"
 
-#define TSDB_VGROUP_VER_NUMBER 1
+#define TSDB_VGROUP_VER_NUMBER   1
 #define TSDB_VGROUP_RESERVE_SIZE 64
 
 static SSdbRow *mndVgroupActionDecode(SSdbRaw *pRaw);
@@ -214,6 +214,7 @@ void *mndBuildCreateVnodeReq(SMnode *pMnode, SDnodeObj *pDnode, SDbObj *pDb, SVg
   createReq.cacheLastRow = pDb->cfg.cacheLastRow;
   createReq.replica = pVgroup->replica;
   createReq.selfIndex = -1;
+  createReq.streamMode = pVgroup->streamMode;
 
   for (int32_t v = 0; v < pVgroup->replica; ++v) {
     SReplica  *pReplica = &createReq.replicas[v];
@@ -255,8 +256,7 @@ void *mndBuildCreateVnodeReq(SMnode *pMnode, SDnodeObj *pDnode, SDbObj *pDb, SVg
   return pReq;
 }
 
-void *mndBuildDropVnodeReq(SMnode *pMnode, SDnodeObj *pDnode, SDbObj *pDb, SVgObj *pVgroup,
-                                    int32_t *pContLen) {
+void *mndBuildDropVnodeReq(SMnode *pMnode, SDnodeObj *pDnode, SDbObj *pDb, SVgObj *pVgroup, int32_t *pContLen) {
   SDropVnodeReq dropReq = {0};
   dropReq.dnodeId = pDnode->id;
   dropReq.vgId = pVgroup->vgId;
@@ -399,6 +399,7 @@ int32_t mndAllocVgroup(SMnode *pMnode, SDbObj *pDb, SVgObj **ppVgroups) {
     pVgroup->createdTime = taosGetTimestampMs();
     pVgroup->updateTime = pVgroups->createdTime;
     pVgroup->version = 1;
+    pVgroup->streamMode = pDb->cfg.streamMode;
     pVgroup->hashBegin = hashMin + hashInterval * v;
     if (v == pDb->cfg.numOfVgroups - 1) {
       pVgroup->hashEnd = hashMax;

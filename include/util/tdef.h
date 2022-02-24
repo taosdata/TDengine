@@ -13,6 +13,8 @@
  * along with this program. If not, see <http://www.gnu.org/licenses/>.
  */
 
+// clang-format off
+
 #ifndef _TD_UTIL_DEF_H
 #define _TD_UTIL_DEF_H
 
@@ -108,33 +110,52 @@ do { \
   (src) = (void *)((char *)src + sizeof(type));\
 } while(0)
 
+typedef enum EOperatorType {
+  // arithmetic operator
+  OP_TYPE_ADD = 1,
+  OP_TYPE_SUB,
+  OP_TYPE_MULTI,
+  OP_TYPE_DIV,
+  OP_TYPE_MOD,
 
-// TODO: check if below is necessary
-#define TSDB_RELATION_INVALID     0
-#define TSDB_RELATION_LESS        1
-#define TSDB_RELATION_GREATER     2
-#define TSDB_RELATION_EQUAL       3
-#define TSDB_RELATION_LESS_EQUAL  4
-#define TSDB_RELATION_GREATER_EQUAL 5
-#define TSDB_RELATION_NOT_EQUAL   6
-#define TSDB_RELATION_LIKE        7
-#define TSDB_RELATION_ISNULL      8
-#define TSDB_RELATION_NOTNULL     9
-#define TSDB_RELATION_IN          10
+  // bit operator
+  OP_TYPE_BIT_AND,
+  OP_TYPE_BIT_OR,
 
-#define TSDB_RELATION_AND         11
-#define TSDB_RELATION_OR          12
-#define TSDB_RELATION_NOT         13
+  // comparison operator
+  OP_TYPE_GREATER_THAN,
+  OP_TYPE_GREATER_EQUAL,
+  OP_TYPE_LOWER_THAN,
+  OP_TYPE_LOWER_EQUAL,
+  OP_TYPE_EQUAL,
+  OP_TYPE_NOT_EQUAL,
+  OP_TYPE_IN,
+  OP_TYPE_NOT_IN,
+  OP_TYPE_LIKE,
+  OP_TYPE_NOT_LIKE,
+  OP_TYPE_MATCH,
+  OP_TYPE_NMATCH,
+  OP_TYPE_IS_NULL,
+  OP_TYPE_IS_NOT_NULL,
+  OP_TYPE_IS_TRUE,
+  OP_TYPE_IS_FALSE,
+  OP_TYPE_IS_UNKNOWN,
+  OP_TYPE_IS_NOT_TRUE,
+  OP_TYPE_IS_NOT_FALSE,
+  OP_TYPE_IS_NOT_UNKNOWN,
 
-#define TSDB_RELATION_MATCH       14
-#define TSDB_RELATION_NMATCH      15
+  // json operator
+  OP_TYPE_JSON_GET_VALUE,
+  OP_TYPE_JSON_CONTAINS
+} EOperatorType;
 
-#define TSDB_BINARY_OP_ADD        4000
-#define TSDB_BINARY_OP_SUBTRACT   4001
-#define TSDB_BINARY_OP_MULTIPLY   4002
-#define TSDB_BINARY_OP_DIVIDE     4003
-#define TSDB_BINARY_OP_REMAINDER  4004
-#define TSDB_BINARY_OP_CONCAT     4005
+
+typedef enum ELogicConditionType {
+  LOGIC_COND_TYPE_AND,
+  LOGIC_COND_TYPE_OR,
+  LOGIC_COND_TYPE_NOT,
+} ELogicConditionType;
+
 
 #define FUNCTION_CEIL        4500
 #define FUNCTION_FLOOR       4501
@@ -145,9 +166,6 @@ do { \
 #define FUNCTION_CONCAT      4801
 #define FUNCTION_LTRIM       4802
 #define FUNCTION_RTRIM       4803
-
-#define IS_RELATION_OPTR(op) (((op) >= TSDB_RELATION_LESS) && ((op) < TSDB_RELATION_IN))
-#define IS_ARITHMETIC_OPTR(op) (((op) >= TSDB_BINARY_OP_ADD) && ((op) <= TSDB_BINARY_OP_REMAINDER))
 
 #define TSDB_NAME_DELIMITER_LEN   1
 
@@ -180,6 +198,7 @@ do { \
 #define TSDB_TOPIC_FNAME_LEN      TSDB_TABLE_FNAME_LEN
 #define TSDB_CONSUMER_GROUP_LEN   192
 #define TSDB_SUBSCRIBE_KEY_LEN    (TSDB_CONSUMER_GROUP_LEN + TSDB_TOPIC_FNAME_LEN + 2)
+#define TSDB_PARTITION_KEY_LEN    (TSDB_CONSUMER_GROUP_LEN + TSDB_TOPIC_FNAME_LEN + 2)
 #define TSDB_COL_NAME_LEN         65
 #define TSDB_MAX_SAVED_SQL_LEN    TSDB_MAX_COLUMNS * 64
 #define TSDB_MAX_SQL_LEN          TSDB_PAYLOAD_SIZE
@@ -213,6 +232,10 @@ do { \
 #define TSDB_SHOW_SQL_LEN         512
 #define TSDB_SHOW_SUBQUERY_LEN    1000
 #define TSDB_SLOW_QUERY_SQL_LEN   512
+
+#define TSDB_TRANS_STAGE_LEN      12
+#define TSDB_TRANS_TYPE_LEN       16
+#define TSDB_TRANS_ERROR_LEN      64
 
 #define TSDB_STEP_NAME_LEN        32
 #define TSDB_STEP_DESC_LEN        128
@@ -328,7 +351,6 @@ do { \
 
 #define TSDB_QUERY_TYPE_NON_TYPE        0x00u     // none type
 #define TSDB_QUERY_TYPE_FREE_RESOURCE   0x01u     // free qhandle at vnode
-
 
 #define TSDB_META_COMPACT_RATIO         0       // disable tsdb meta compact by default
 

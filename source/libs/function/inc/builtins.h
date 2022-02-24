@@ -46,6 +46,7 @@ typedef struct SBuiltinFuncDefinition {
   FExecGetEnv getEnvFunc;
   FExecInit initFunc;
   FExecProcess processFunc;
+  FScalarExecProcess sprocessFunc;
   FExecFinalize finalizeFunc;
 } SBuiltinFuncDefinition;
 

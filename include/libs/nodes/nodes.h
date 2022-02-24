@@ -61,19 +61,27 @@ typedef enum ENodeType {
   QUERY_NODE_INTERVAL_WINDOW,
   QUERY_NODE_NODE_LIST,
   QUERY_NODE_FILL,
+  QUERY_NODE_RAW_EXPR, // Only be used in parser module.
   QUERY_NODE_COLUMN_REF,
-
-  // Only be used in parser module.
-  QUERY_NODE_RAW_EXPR,
+  QUERY_NODE_TARGET,
+  QUERY_NODE_TUPLE_DESC,
+  QUERY_NODE_SLOT_DESC,
 
   // Statement nodes are used in parser and planner module.
   QUERY_NODE_SET_OPERATOR,
   QUERY_NODE_SELECT_STMT,
   QUERY_NODE_SHOW_STMT,
 
+  // logic plan node
   QUERY_NODE_LOGIC_PLAN_SCAN,
-  QUERY_NODE_LOGIC_PLAN_FILTER,
-  QUERY_NODE_LOGIC_PLAN_AGG
+  QUERY_NODE_LOGIC_PLAN_JOIN,
+  QUERY_NODE_LOGIC_PLAN_AGG,
+  QUERY_NODE_LOGIC_PLAN_PROJECT,
+
+  // physical plan node
+  QUERY_NODE_PHYSICAL_PLAN_TAG_SCAN,
+  QUERY_NODE_PHYSICAL_PLAN_TABLE_SCAN,
+  QUERY_NODE_PHYSICAL_PLAN_PROJECT
 } ENodeType;
 
 /**
@@ -91,7 +99,7 @@ typedef struct SListCell {
 } SListCell;
 
 typedef struct SNodeList {
-  int16_t length;
+  int32_t length;
   SListCell* pHead;
   SListCell* pTail;
 } SNodeList;
@@ -100,7 +108,8 @@ SNode* nodesMakeNode(ENodeType type);
 void nodesDestroyNode(SNode* pNode);
 
 SNodeList* nodesMakeList();
-SNodeList* nodesListAppend(SNodeList* pList, SNode* pNode);
+int32_t nodesListAppend(SNodeList* pList, SNode* pNode);
+int32_t nodesListAppendList(SNodeList* pTarget, SNodeList* pSrc);
 SListCell* nodesListErase(SNodeList* pList, SListCell* pCell);
 SNode* nodesListGetNode(SNodeList* pList, int32_t index);
 void nodesDestroyList(SNodeList* pList);
@@ -128,7 +137,7 @@ bool nodesEqualNode(const SNode* a, const SNode* b);
 SNode* nodesCloneNode(const SNode* pNode);
 SNodeList* nodesCloneList(const SNodeList* pList);
 
-int32_t nodesNodeToString(const SNode* pNode, char** pStr, int32_t* pLen);
+int32_t nodesNodeToString(const SNode* pNode, bool format, char** pStr, int32_t* pLen);
 int32_t nodesStringToNode(const char* pStr, SNode** pNode);
 
 #ifdef __cplusplus

@@ -27,15 +27,18 @@ typedef struct SDnode SDnode;
 
 /* ------------------------ Environment ------------------ */
 typedef struct {
-  int32_t sver;
-  int32_t numOfCores;
-  int16_t numOfCommitThreads;
-  int8_t  enableTelem;
-  char    timezone[TSDB_TIMEZONE_LEN];
-  char    locale[TSDB_LOCALE_LEN];
-  char    charset[TSDB_LOCALE_LEN];
-  char    buildinfo[64];
-  char    gitinfo[48];
+  int32_t  sver;
+  int32_t  numOfCores;
+  uint16_t numOfCommitThreads;
+  bool     enableTelem;
+  bool     printAuth;
+  int32_t  rpcTimer;
+  int32_t  rpcMaxTime;
+  char     timezone[TSDB_TIMEZONE_LEN];
+  char     locale[TSDB_LOCALE_LEN];
+  char     charset[TSDB_LOCALE_LEN];
+  char     buildinfo[64];
+  char     gitinfo[48];
 } SDnodeEnvCfg;
 
 /**
@@ -65,6 +68,7 @@ typedef struct {
   char     localEp[TSDB_EP_LEN];
   char     localFqdn[TSDB_FQDN_LEN];
   char     firstEp[TSDB_EP_LEN];
+  char     secondEp[TSDB_EP_LEN];
 } SDnodeObjCfg;
 
 /**

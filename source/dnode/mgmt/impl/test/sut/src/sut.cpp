@@ -21,23 +21,20 @@ void Testbase::InitLog(const char* path) {
   mDebugFlag = 143;
   cDebugFlag = 0;
   jniDebugFlag = 0;
-  tmrDebugFlag = 0;
-  uDebugFlag = 0;
-  rpcDebugFlag = 0;
+  tmrDebugFlag = 143;
+  uDebugFlag = 143;
+  rpcDebugFlag = 143;
   qDebugFlag = 0;
   wDebugFlag = 0;
   sDebugFlag = 0;
   tsdbDebugFlag = 0;
-  cqDebugFlag = 0;
   tscEmbeddedInUtil = 1;
   tsAsyncLog = 0;
 
   taosRemoveDir(path);
   taosMkDir(path);
-
-  char temp[PATH_MAX];
-  snprintf(temp, PATH_MAX, "%s/taosdlog", path);
-  if (taosInitLog(temp, tsNumOfLogLines, 1) != 0) {
+  tstrncpy(tsLogDir, path, PATH_MAX);
+  if (taosInitLog("taosdlog", 1) != 0) {
     printf("failed to init log file\n");
   }
 }
@@ -46,6 +43,8 @@ void Testbase::Init(const char* path, int16_t port) {
   SDnodeEnvCfg cfg = {0};
   cfg.numOfCommitThreads = 1;
   cfg.numOfCores = 1;
+  cfg.rpcMaxTime = 600;
+  cfg.rpcTimer = 300;
   dndInit(&cfg);
 
   char fqdn[] = "localhost";
@@ -66,16 +65,21 @@ void Testbase::Init(const char* path, int16_t port) {
 
 void Testbase::Cleanup() {
   tFreeSTableMetaRsp(&metaRsp);
-  server.Stop();
   client.Cleanup();
+  taosMsleep(10);
+  server.Stop();
   dndCleanup();
 }
 
-void Testbase::Restart() { server.Restart(); }
+void Testbase::Restart() {
+  server.Restart();
+  client.Restart();
+}
 
 void Testbase::ServerStop() { server.Stop(); }
 
 void Testbase::ServerStart() { server.DoStart(); }
+void Testbase::ClientRestart() { client.Restart(); }
 
 SRpcMsg* Testbase::SendReq(tmsg_t msgType, void* pCont, int32_t contLen) {
   SRpcMsg rpcMsg = {0};

@@ -64,6 +64,7 @@ typedef struct SRpcInit {
   int8_t   connType;      // TAOS_CONN_UDP, TAOS_CONN_TCPC, TAOS_CONN_TCPS
   int      idleTime;      // milliseconds, 0 means idle timer is disabled
 
+  bool noPool;  //  create conn pool or not
   // the following is for client app ecurity only
   char *user;     // user name
   char  spi;      // security parameter index
@@ -77,12 +78,21 @@ typedef struct SRpcInit {
   // call back to retrieve the client auth info, for server app only
   int (*afp)(void *parent, char *tableId, char *spi, char *encrypt, char *secret, char *ckey);
 
+  // call back to keep conn or not
+  bool (*pfp)(void *parent, tmsg_t msgType);
+
   void *parent;
 } SRpcInit;
 
-int32_t rpcInit();
+typedef struct {
+  int32_t rpcTimer;
+  int32_t rpcMaxTime;
+  int32_t sver;
+} SRpcCfg;
+
+int32_t rpcInit(SRpcCfg *pCfg);
 void    rpcCleanup();
-void *  rpcOpen(const SRpcInit *pRpc);
+void   *rpcOpen(const SRpcInit *pRpc);
 void    rpcClose(void *);
 void *  rpcMallocCont(int contLen);
 void    rpcFreeCont(void *pCont);

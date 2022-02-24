@@ -50,6 +50,7 @@ typedef enum EColumnType {
 
 typedef struct SColumnNode {
   SExprNode node; // QUERY_NODE_COLUMN
+  uint64_t tableId;
   int16_t colId;
   EColumnType colType; // column or tag
   char dbName[TSDB_DB_NAME_LEN];
@@ -59,10 +60,20 @@ typedef struct SColumnNode {
   SNode* pProjectRef;
 } SColumnNode;
 
-typedef struct SColumnRef {
+typedef struct SColumnRefNode {
   ENodeType type;
-  int32_t slotId;
-} SColumnRef;
+  SDataType dataType;
+  int16_t tupleId;
+  int16_t slotId;
+  int16_t columnId;
+} SColumnRefNode;
+
+typedef struct STargetNode {
+  ENodeType type;
+  int16_t tupleId;
+  int16_t slotId;
+  SNode* pExpr;
+} STargetNode;
 
 typedef struct SValueNode {
   SExprNode node; // QUERY_NODE_VALUE
@@ -77,39 +88,6 @@ typedef struct SValueNode {
   } datum;
 } SValueNode;
 
-typedef enum EOperatorType {
-  // arithmetic operator
-  OP_TYPE_ADD = 1,
-  OP_TYPE_SUB,
-  OP_TYPE_MULTI,
-  OP_TYPE_DIV,
-  OP_TYPE_MOD,
-
-  // bit operator
-  OP_TYPE_BIT_AND,
-  OP_TYPE_BIT_OR,
-
-  // comparison operator
-  OP_TYPE_GREATER_THAN,
-  OP_TYPE_GREATER_EQUAL,
-  OP_TYPE_LOWER_THAN,
-  OP_TYPE_LOWER_EQUAL,
-  OP_TYPE_EQUAL,
-  OP_TYPE_NOT_EQUAL,
-  OP_TYPE_IN,
-  OP_TYPE_NOT_IN,
-  OP_TYPE_LIKE,
-  OP_TYPE_NOT_LIKE,
-  OP_TYPE_MATCH,
-  OP_TYPE_NMATCH,
-  OP_TYPE_IS_NULL,
-  OP_TYPE_IS_NOT_NULL,
-
-  // json operator
-  OP_TYPE_JSON_GET_VALUE,
-  OP_TYPE_JSON_CONTAINS
-} EOperatorType;
-
 typedef struct SOperatorNode {
   SExprNode node; // QUERY_NODE_OPERATOR
   EOperatorType opType;
@@ -117,11 +95,6 @@ typedef struct SOperatorNode {
   SNode* pRight;
 } SOperatorNode;
 
-typedef enum ELogicConditionType {
-  LOGIC_COND_TYPE_AND,
-  LOGIC_COND_TYPE_OR,
-  LOGIC_COND_TYPE_NOT,
-} ELogicConditionType;
 
 typedef struct SLogicConditionNode {
   SExprNode node; // QUERY_NODE_LOGIC_CONDITION
@@ -131,6 +104,7 @@ typedef struct SLogicConditionNode {
 
 typedef struct SNodeListNode {
   ENodeType type; // QUERY_NODE_NODE_LIST
+  SDataType dataType;
   SNodeList* pNodeList;
 } SNodeListNode;
 
@@ -269,6 +243,25 @@ typedef struct SSetOperator {
   SNode* pLimit;
 } SSetOperator;
 
+typedef enum ESqlClause {
+  SQL_CLAUSE_FROM = 1,
+  SQL_CLAUSE_WHERE,
+  SQL_CLAUSE_PARTITION_BY,
+  SQL_CLAUSE_WINDOW,
+  SQL_CLAUSE_GROUP_BY,
+  SQL_CLAUSE_HAVING,
+  SQL_CLAUSE_SELECT,
+  SQL_CLAUSE_ORDER_BY
+} ESqlClause;
+
+void nodesWalkSelectStmt(SSelectStmt* pSelect, ESqlClause clause, FNodeWalker walker, void* pContext);
+void nodesRewriteSelectStmt(SSelectStmt* pSelect, ESqlClause clause, FNodeRewriter rewriter, void* pContext);
+
+int32_t nodesCollectColumns(SSelectStmt* pSelect, ESqlClause clause, const char* pTableAlias, SNodeList** pCols);
+
+typedef bool (*FFuncClassifier)(int32_t funcId);
+int32_t nodesCollectFuncs(SSelectStmt* pSelect, FFuncClassifier classifier, SNodeList** pFuncs);
+
 bool nodesIsExprNode(const SNode* pNode);
 
 bool nodesIsArithmeticOp(const SOperatorNode* pOp);
@@ -277,6 +270,8 @@ bool nodesIsJsonOp(const SOperatorNode* pOp);
 
 bool nodesIsTimeorderQuery(const SNode* pQuery);
 bool nodesIsTimelineQuery(const SNode* pQuery);
+
+void* nodesGetValueFromNode(SValueNode *pNode);
 
 #ifdef __cplusplus
 }

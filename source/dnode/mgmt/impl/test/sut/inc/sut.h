@@ -21,10 +21,9 @@
 
 #include "dnode.h"
 #include "tmsg.h"
-#include "tconfig.h"
 #include "tdataformat.h"
 #include "tglobal.h"
-#include "tnote.h"
+#include "tmsg.h"
 #include "trpc.h"
 #include "tthread.h"
 #include "ulog.h"
@@ -39,6 +38,7 @@ class Testbase {
   void     Restart();
   void     ServerStop();
   void     ServerStart();
+  void     ClientRestart();
   SRpcMsg* SendReq(tmsg_t msgType, void* pCont, int32_t contLen);
 
  private:
@@ -100,7 +100,7 @@ class Testbase {
   {                                               \
     char* bytes = (char*)calloc(1, len);          \
     for (int32_t i = 0; i < len - 1; ++i) {       \
-      bytes[i] = b;                             \
+      bytes[i] = b;                               \
     }                                             \
     EXPECT_STREQ(test.GetShowBinary(len), bytes); \
   }

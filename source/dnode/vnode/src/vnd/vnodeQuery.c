@@ -126,7 +126,7 @@ static int vnodeGetTableMeta(SVnode *pVnode, SRpcMsg *pMsg) {
     goto _exit;
   }
 
-  metaRsp.dbId = htobe64(pVnode->config.dbId);
+  metaRsp.dbId = pVnode->config.dbId;
   memcpy(metaRsp.dbFName, infoReq.dbFName, sizeof(metaRsp.dbFName));
   strcpy(metaRsp.tbName, infoReq.tbName);
   if (pTbCfg->type == META_CHILD_TABLE) {

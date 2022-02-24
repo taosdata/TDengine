@@ -104,6 +104,45 @@ typedef enum {
   TRN_STAGE_FINISHED = 8
 } ETrnStage;
 
+typedef enum {
+  TRN_TYPE_BASIC_SCOPE = 1000,
+  TRN_TYPE_CREATE_USER = 1001,
+  TRN_TYPE_ALTER_USER = 1002,
+  TRN_TYPE_DROP_USER = 1003,
+  TRN_TYPE_CREATE_FUNC = 1004,
+  TRN_TYPE_DROP_FUNC = 1005,
+  TRN_TYPE_CREATE_SNODE = 1006,
+  TRN_TYPE_DROP_SNODE = 1007,
+  TRN_TYPE_CREATE_QNODE = 1008,
+  TRN_TYPE_DROP_QNODE = 1009,
+  TRN_TYPE_CREATE_BNODE = 1010,
+  TRN_TYPE_DROP_BNODE = 1011,
+  TRN_TYPE_CREATE_MNODE = 1012,
+  TRN_TYPE_DROP_MNODE = 1013,
+  TRN_TYPE_CREATE_TOPIC = 1014,
+  TRN_TYPE_DROP_TOPIC = 1015,
+  TRN_TYPE_SUBSCRIBE = 1016,
+  TRN_TYPE_REBALANCE = 1017,
+  TRN_TYPE_COMMIT_OFFSET = 1018,
+  TRN_TYPE_BASIC_SCOPE_END,
+  TRN_TYPE_GLOBAL_SCOPE = 2000,
+  TRN_TYPE_CREATE_DNODE = 2001,
+  TRN_TYPE_DROP_DNODE = 2002,
+  TRN_TYPE_GLOBAL_SCOPE_END,
+  TRN_TYPE_DB_SCOPE = 3000,
+  TRN_TYPE_CREATE_DB = 3001,
+  TRN_TYPE_ALTER_DB = 3002,
+  TRN_TYPE_DROP_DB = 3003,
+  TRN_TYPE_SPLIT_VGROUP = 3004,
+  TRN_TYPE_MERGE_VGROUP = 3015,
+  TRN_TYPE_DB_SCOPE_END,
+  TRN_TYPE_STB_SCOPE = 4000,
+  TRN_TYPE_CREATE_STB = 4001,
+  TRN_TYPE_ALTER_STB = 4002,
+  TRN_TYPE_DROP_STB = 4003,
+  TRN_TYPE_STB_SCOPE_END,
+} ETrnType;
+
 typedef enum { TRN_POLICY_ROLLBACK = 0, TRN_POLICY_RETRY = 1 } ETrnPolicy;
 
 typedef enum {
@@ -124,6 +163,7 @@ typedef struct {
   int32_t    id;
   ETrnStage  stage;
   ETrnPolicy policy;
+  ETrnType   transType;
   int32_t    code;
   int32_t    failedTimes;
   void*      rpcHandle;
@@ -135,6 +175,11 @@ typedef struct {
   SArray*    commitLogs;
   SArray*    redoActions;
   SArray*    undoActions;
+  int64_t    createdTime;
+  int64_t    lastExecTime;
+  int64_t    dbUid;
+  char       dbname[TSDB_DB_FNAME_LEN];
+  char       lastError[TSDB_TRANS_ERROR_LEN];
 } STrans;
 
 typedef struct {
@@ -256,19 +301,20 @@ typedef struct {
   int8_t  quorum;
   int8_t  update;
   int8_t  cacheLastRow;
+  int8_t  streamMode;
 } SDbCfg;
 
 typedef struct {
-  char     name[TSDB_DB_FNAME_LEN];
-  char     acct[TSDB_USER_LEN];
-  char     createUser[TSDB_USER_LEN];
-  int64_t  createdTime;
-  int64_t  updateTime;
-  uint64_t uid;
-  int32_t  cfgVersion;
-  int32_t  vgVersion;
-  int8_t   hashMethod;  // default is 1
-  SDbCfg   cfg;
+  char    name[TSDB_DB_FNAME_LEN];
+  char    acct[TSDB_USER_LEN];
+  char    createUser[TSDB_USER_LEN];
+  int64_t createdTime;
+  int64_t updateTime;
+  int64_t uid;
+  int32_t cfgVersion;
+  int32_t vgVersion;
+  int8_t  hashMethod;  // default is 1
+  SDbCfg  cfg;
 } SDbObj;
 
 typedef struct {
@@ -292,6 +338,7 @@ typedef struct {
   int64_t   pointsWritten;
   int8_t    compact;
   int8_t    replica;
+  int8_t    streamMode;
   SVnodeGid vnodeGid[TSDB_MAX_REPLICA];
 } SVgObj;
 
@@ -300,8 +347,8 @@ typedef struct {
   char     db[TSDB_DB_FNAME_LEN];
   int64_t  createdTime;
   int64_t  updateTime;
-  uint64_t uid;
-  uint64_t dbUid;
+  int64_t  uid;
+  int64_t  dbUid;
   int32_t  version;
   int32_t  nextColId;
   int32_t  numOfColumns;
@@ -420,12 +467,30 @@ static FORCE_INLINE void tDeleteSMqSubConsumer(SMqSubConsumer* pSubConsumer) {
 }
 
 typedef struct {
+  char    key[TSDB_PARTITION_KEY_LEN];
+  int64_t offset;
+} SMqOffsetObj;
+
+static FORCE_INLINE int32_t tEncodeSMqOffsetObj(void** buf, const SMqOffsetObj* pOffset) {
+  int32_t tlen = 0;
+  tlen += taosEncodeString(buf, pOffset->key);
+  tlen += taosEncodeFixedI64(buf, pOffset->offset);
+  return tlen;
+}
+
+static FORCE_INLINE void* tDecodeSMqOffsetObj(void* buf, SMqOffsetObj* pOffset) {
+  buf = taosDecodeStringTo(buf, pOffset->key);
+  buf = taosDecodeFixedI64(buf, &pOffset->offset);
+  return buf;
+}
+
+typedef struct {
   char    key[TSDB_SUBSCRIBE_KEY_LEN];
   int32_t status;
   int32_t vgNum;
-  SArray* consumers;     // SArray<SMqSubConsumer>
-  SArray* lostConsumers; // SArray<SMqSubConsumer>
-  SArray* unassignedVg;  // SArray<SMqConsumerEp>
+  SArray* consumers;      // SArray<SMqSubConsumer>
+  SArray* lostConsumers;  // SArray<SMqSubConsumer>
+  SArray* unassignedVg;   // SArray<SMqConsumerEp>
 } SMqSubscribeObj;
 
 static FORCE_INLINE SMqSubscribeObj* tNewSubscribeObj() {
@@ -539,13 +604,13 @@ static FORCE_INLINE void* tDecodeSubscribeObj(void* buf, SMqSubscribeObj* pSub) 
 static FORCE_INLINE void tDeleteSMqSubscribeObj(SMqSubscribeObj* pSub) {
   if (pSub->consumers) {
     taosArrayDestroyEx(pSub->consumers, (void (*)(void*))tDeleteSMqSubConsumer);
-    //taosArrayDestroy(pSub->consumers);
+    // taosArrayDestroy(pSub->consumers);
     pSub->consumers = NULL;
   }
 
   if (pSub->unassignedVg) {
     taosArrayDestroyEx(pSub->unassignedVg, (void (*)(void*))tDeleteSMqConsumerEp);
-    //taosArrayDestroy(pSub->unassignedVg);
+    // taosArrayDestroy(pSub->unassignedVg);
     pSub->unassignedVg = NULL;
   }
 }
@@ -570,8 +635,8 @@ typedef struct {
   int64_t  connId;
   SRWLatch lock;
   char     cgroup[TSDB_CONSUMER_GROUP_LEN];
-  SArray*  currentTopics;  // SArray<char*>
-  SArray*  recentRemovedTopics;   // SArray<char*>
+  SArray*  currentTopics;        // SArray<char*>
+  SArray*  recentRemovedTopics;  // SArray<char*>
   int32_t  epoch;
   // stat
   int64_t pollCnt;

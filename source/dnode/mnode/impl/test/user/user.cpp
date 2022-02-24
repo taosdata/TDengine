@@ -617,6 +617,7 @@ TEST_F(MndTestUser, 06_Create_Drop_Alter_User) {
   // restart
   test.Restart();
 
+  taosMsleep(1000);
   test.SendShowMetaReq(TSDB_MGMT_TABLE_USER, "");
   CHECK_META("show users", 4);
 

@@ -296,7 +296,7 @@ PRASE_DNODE_OVER:
   if (taosArrayGetSize(pMgmt->pDnodeEps) == 0) {
     SDnodeEp dnodeEp = {0};
     dnodeEp.isMnode = 1;
-    taosGetFqdnPortFromEp(pDnode->cfg.firstEp, &dnodeEp.ep);
+    taosGetFqdnPortFromEp(pDnode->cfg.firstEp, pDnode->cfg.serverPort, &dnodeEp.ep);
     taosArrayPush(pMgmt->pDnodeEps, &dnodeEp);
   }
 
