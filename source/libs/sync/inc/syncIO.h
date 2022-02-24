@@ -37,10 +37,10 @@ typedef struct SSyncIO {
   pthread_t   tid;
   int8_t      isStart;
 
-    SEpSet    epSet;
+  SEpSet epSet;
 
   void *syncTimer;
-void *syncTimerManager;
+  void *syncTimerManager;
 
   int32_t (*start)(struct SSyncIO *ths);
   int32_t (*stop)(struct SSyncIO *ths);

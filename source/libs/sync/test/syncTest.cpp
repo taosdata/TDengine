@@ -14,9 +14,23 @@ void *pingFunc(void *param) {
 }
 
 int main() {
+  tsAsyncLog = 0;
+  taosInitLog((char *)"syncTest.log", 100000, 10);
 
-  testJson();
-  testJson2();
+  SRaftStore *pRaftStore = raftStoreOpen("./raft_store.json");
+  assert(pRaftStore != NULL);
+
+  raftStorePrint(pRaftStore);
+
+  pRaftStore->currentTerm = 100;
+  pRaftStore->voteFor.addr = 200;
+  pRaftStore->voteFor.vgId = 300;
+
+  raftStorePrint(pRaftStore);
+
+  raftStorePersist(pRaftStore);
+
+
 
   tsAsyncLog = 0;
   taosInitLog((char *)"syncTest.log", 100000, 10);
