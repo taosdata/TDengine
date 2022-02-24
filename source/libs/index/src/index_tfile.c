@@ -371,7 +371,7 @@ int indexTFileSearch(void* tfile, SIndexTermQuery* query, SArray* result) {
     return ret;
   }
 
-  IndexTFile* pTfile = (IndexTFile*)tfile;
+  IndexTFile* pTfile = tfile;
 
   SIndexTerm* term = query->term;
   ICacheKey key = {.suid = term->suid, .colType = term->colType, .colName = term->colName, .nColName = term->nColName};
