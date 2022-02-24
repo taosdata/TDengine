@@ -20,6 +20,12 @@
 extern "C" {
 #endif
 
+#include "plannodes.h"
+#include "planner.h"
+
+int32_t createLogicPlan(SNode* pNode, SLogicNode** pLogicNode);
+int32_t createPhysiPlan(SLogicNode* pLogicNode, SPhysiNode** pPhyNode);
+
 #ifdef __cplusplus
 }
 #endif

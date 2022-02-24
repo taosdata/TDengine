@@ -270,7 +270,8 @@ int32_t dndInit(const SDnodeEnvCfg *pCfg) {
   taosBlockSIGPIPE();
   taosResolveCRC();
 
-  if (rpcInit() != 0) {
+  SRpcCfg rpcCfg = {.rpcTimer = pCfg->rpcTimer, .rpcMaxTime = pCfg->rpcMaxTime, .sver = pCfg->sver};
+  if (rpcInit(&rpcCfg) != 0) {
     dError("failed to init rpc since %s", terrstr());
     dndCleanup();
     return -1;
@@ -325,18 +326,6 @@ void taosGetDisk() {
   SDiskSize    diskSize = tfsGetSize(pTfs);
   
   tfsUpdateSize(&fsMeta);
-  tsTotalDataDirGB = (float)(fsMeta.total / unit);
-  tsUsedDataDirGB = (float)(fsMeta.used / unit);
-  tsAvailDataDirGB = (float)(fsMeta.avail / unit);
 
-  if (taosGetDiskSize(tsLogDir, &diskSize) == 0) {
-    tsTotalLogDirGB = (float)(diskSize.total / unit);
-    tsAvailLogDirGB = (float)(diskSize.avail / unit);
-  }
-
-  if (taosGetDiskSize(tsTempDir, &diskSize) == 0) {
-    tsTotalTmpDirGB = (float)(diskSize.total / unit);
-    tsAvailTmpDirectorySpace = (float)(diskSize.avail / unit);
-  }
 #endif
 }

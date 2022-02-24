@@ -121,7 +121,7 @@ static int32_t findCol(SToken* pColname, int32_t start, int32_t end, SSchema* pS
 }
 
 static void buildMsgHeader(SVgDataBlocks* blocks) {
-    SSubmitMsg* submit = (SSubmitMsg*)blocks->pData;
+    SSubmitReq* submit = (SSubmitReq*)blocks->pData;
     submit->header.vgId    = htonl(blocks->vg.vgId);
     submit->header.contLen = htonl(blocks->size);
     submit->length         = submit->header.contLen;
@@ -204,7 +204,7 @@ static int parseTime(char **end, SToken *pToken, int16_t timePrec, int64_t *time
     bool isSigned = false;
     toInteger(pToken->z, pToken->n, 10, &ts, &isSigned);
   } else { // parse the RFC-3339/ISO-8601 timestamp format string
-    if (taosParseTime(pToken->z, time, pToken->n, timePrec, tsDaylight) != TSDB_CODE_SUCCESS) {
+    if (taosParseTime(pToken->z, time, pToken->n, timePrec, osDaylight()) != TSDB_CODE_SUCCESS) {
       return buildSyntaxErrMsg(pMsgBuf, "invalid timestamp format", pToken->z);
     }
 
@@ -322,7 +322,7 @@ static int32_t parseBoundColumns(SInsertParseContext* pCxt, SParsedDataColInfo* 
     }
     lastColIdx = index;
     pColList->cols[index].valStat = VAL_STAT_HAS;
-    pColList->boundedColumns[pColList->numOfBound] = index;
+    pColList->boundedColumns[pColList->numOfBound] = index + PRIMARYKEY_TIMESTAMP_COL_ID;
     ++pColList->numOfBound;
     switch (pSchema[t].type) {
       case TSDB_DATA_TYPE_BINARY:

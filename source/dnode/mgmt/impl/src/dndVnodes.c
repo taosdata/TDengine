@@ -15,8 +15,8 @@
 
 #define _DEFAULT_SOURCE
 #include "dndVnodes.h"
-#include "dndTransport.h"
 #include "dndMgmt.h"
+#include "dndTransport.h"
 
 typedef struct {
   int32_t  vgId;
@@ -34,9 +34,9 @@ typedef struct {
   int8_t      dropped;
   int8_t      accessState;
   uint64_t    dbUid;
-  char *      db;
-  char *      path;
-  SVnode *    pImpl;
+  char       *db;
+  char       *path;
+  SVnode     *pImpl;
   STaosQueue *pWriteQ;
   STaosQueue *pSyncQ;
   STaosQueue *pApplyQ;
@@ -50,7 +50,7 @@ typedef struct {
   int32_t      failed;
   int32_t      threadIndex;
   pthread_t    thread;
-  SDnode *     pDnode;
+  SDnode      *pDnode;
   SWrapperCfg *pCfgs;
 } SVnodeThread;
 
@@ -68,7 +68,7 @@ void           dndProcessVnodeWriteMsg(SDnode *pDnode, SRpcMsg *pMsg, SEpSet *pE
 void           dndProcessVnodeSyncMsg(SDnode *pDnode, SRpcMsg *pMsg, SEpSet *pEpSet);
 static int32_t dndPutMsgIntoVnodeApplyQueue(SDnode *pDnode, int32_t vgId, SRpcMsg *pMsg);
 
-static SVnodeObj * dndAcquireVnode(SDnode *pDnode, int32_t vgId);
+static SVnodeObj  *dndAcquireVnode(SDnode *pDnode, int32_t vgId);
 static void        dndReleaseVnode(SDnode *pDnode, SVnodeObj *pVnode);
 static int32_t     dndOpenVnode(SDnode *pDnode, SWrapperCfg *pCfg, SVnode *pImpl);
 static void        dndCloseVnode(SDnode *pDnode, SVnodeObj *pVnode);
@@ -81,7 +81,7 @@ static void    dndCloseVnodes(SDnode *pDnode);
 
 static SVnodeObj *dndAcquireVnode(SDnode *pDnode, int32_t vgId) {
   SVnodesMgmt *pMgmt = &pDnode->vmgmt;
-  SVnodeObj *  pVnode = NULL;
+  SVnodeObj   *pVnode = NULL;
   int32_t      refCount = 0;
 
   taosRLockLatch(&pMgmt->latch);
@@ -112,7 +112,7 @@ static void dndReleaseVnode(SDnode *pDnode, SVnodeObj *pVnode) {
 
 static int32_t dndOpenVnode(SDnode *pDnode, SWrapperCfg *pCfg, SVnode *pImpl) {
   SVnodesMgmt *pMgmt = &pDnode->vmgmt;
-  SVnodeObj *  pVnode = calloc(1, sizeof(SVnodeObj));
+  SVnodeObj   *pVnode = calloc(1, sizeof(SVnodeObj));
   if (pVnode == NULL) {
     terrno = TSDB_CODE_OUT_OF_MEMORY;
     return -1;
@@ -189,7 +189,7 @@ static SVnodeObj **dndGetVnodesFromHash(SDnode *pDnode, int32_t *numOfVnodes) {
   void *pIter = taosHashIterate(pMgmt->hash, NULL);
   while (pIter) {
     SVnodeObj **ppVnode = pIter;
-    SVnodeObj * pVnode = *ppVnode;
+    SVnodeObj  *pVnode = *ppVnode;
     if (pVnode && num < size) {
       int32_t refCount = atomic_add_fetch_32(&pVnode->refCount, 1);
       dTrace("vgId:%d, acquire vnode, refCount:%d", pVnode->vgId, refCount);
@@ -211,9 +211,9 @@ static int32_t dndGetVnodesFromFile(SDnode *pDnode, SWrapperCfg **ppCfgs, int32_
   int32_t      code = TSDB_CODE_DND_VNODE_READ_FILE_ERROR;
   int32_t      len = 0;
   int32_t      maxLen = 30000;
-  char *       content = calloc(1, maxLen + 1);
-  cJSON *      root = NULL;
-  FILE *       fp = NULL;
+  char        *content = calloc(1, maxLen + 1);
+  cJSON       *root = NULL;
+  FILE        *fp = NULL;
   char         file[PATH_MAX + 20] = {0};
   SWrapperCfg *pCfgs = NULL;
 
@@ -254,7 +254,7 @@ static int32_t dndGetVnodesFromFile(SDnode *pDnode, SWrapperCfg **ppCfgs, int32_
     }
 
     for (int32_t i = 0; i < vnodesNum; ++i) {
-      cJSON *      vnode = cJSON_GetArrayItem(vnodes, i);
+      cJSON       *vnode = cJSON_GetArrayItem(vnodes, i);
       SWrapperCfg *pCfg = &pCfgs[i];
 
       cJSON *vgId = cJSON_GetObjectItem(vnode, "vgId");
@@ -326,7 +326,7 @@ static int32_t dndWriteVnodesToFile(SDnode *pDnode) {
 
   int32_t len = 0;
   int32_t maxLen = 65536;
-  char *  content = calloc(1, maxLen + 1);
+  char   *content = calloc(1, maxLen + 1);
 
   len += snprintf(content + len, maxLen - len, "{\n");
   len += snprintf(content + len, maxLen - len, "  \"vnodes\": [\n");
@@ -368,8 +368,8 @@ static int32_t dndWriteVnodesToFile(SDnode *pDnode) {
 
 static void *dnodeOpenVnodeFunc(void *param) {
   SVnodeThread *pThread = param;
-  SDnode *      pDnode = pThread->pDnode;
-  SVnodesMgmt * pMgmt = &pDnode->vmgmt;
+  SDnode       *pDnode = pThread->pDnode;
+  SVnodesMgmt  *pMgmt = &pDnode->vmgmt;
 
   dDebug("thread:%d, start to open %d vnodes", pThread->threadIndex, pThread->vnodeNum);
   setThreadName("open-vnodes");
@@ -383,7 +383,7 @@ static void *dnodeOpenVnodeFunc(void *param) {
     dndReportStartup(pDnode, "open-vnodes", stepDesc);
 
     SVnodeCfg cfg = {.pDnode = pDnode, .pTfs = pDnode->pTfs, .vgId = pCfg->vgId, .dbId = pCfg->dbUid};
-    SVnode *  pImpl = vnodeOpen(pCfg->path, &cfg);
+    SVnode   *pImpl = vnodeOpen(pCfg->path, &cfg);
     if (pImpl == NULL) {
       dError("vgId:%d, failed to open vnode by thread:%d", pCfg->vgId, pThread->threadIndex);
       pThread->failed++;
@@ -499,31 +499,6 @@ static void dndCloseVnodes(SDnode *pDnode) {
   dInfo("total vnodes:%d are all closed", numOfVnodes);
 }
 
-static SCreateVnodeReq *dndParseCreateVnodeReq(SRpcMsg *pReq) {
-  SCreateVnodeReq *pCreate = pReq->pCont;
-  pCreate->vgId = htonl(pCreate->vgId);
-  pCreate->dnodeId = htonl(pCreate->dnodeId);
-  pCreate->dbUid = htobe64(pCreate->dbUid);
-  pCreate->vgVersion = htonl(pCreate->vgVersion);
-  pCreate->cacheBlockSize = htonl(pCreate->cacheBlockSize);
-  pCreate->totalBlocks = htonl(pCreate->totalBlocks);
-  pCreate->daysPerFile = htonl(pCreate->daysPerFile);
-  pCreate->daysToKeep0 = htonl(pCreate->daysToKeep0);
-  pCreate->daysToKeep1 = htonl(pCreate->daysToKeep1);
-  pCreate->daysToKeep2 = htonl(pCreate->daysToKeep2);
-  pCreate->minRows = htonl(pCreate->minRows);
-  pCreate->maxRows = htonl(pCreate->maxRows);
-  pCreate->commitTime = htonl(pCreate->commitTime);
-  pCreate->fsyncPeriod = htonl(pCreate->fsyncPeriod);
-  for (int r = 0; r < pCreate->replica; ++r) {
-    SReplica *pReplica = &pCreate->replicas[r];
-    pReplica->id = htonl(pReplica->id);
-    pReplica->port = htons(pReplica->port);
-  }
-
-  return pCreate;
-}
-
 static void dndGenerateVnodeCfg(SCreateVnodeReq *pCreate, SVnodeCfg *pCfg) {
   pCfg->vgId = pCreate->vgId;
   pCfg->wsize = pCreate->cacheBlockSize;
@@ -532,6 +507,7 @@ static void dndGenerateVnodeCfg(SCreateVnodeReq *pCreate, SVnodeCfg *pCfg) {
   pCfg->isHeapAllocator = true;
   pCfg->ttl = 4;
   pCfg->keep = pCreate->daysToKeep0;
+  pCfg->streamMode = pCreate->streamMode;
   pCfg->isWeak = true;
   pCfg->tsdbCfg.keep = pCreate->daysToKeep0;
   pCfg->tsdbCfg.keep1 = pCreate->daysToKeep2;
@@ -556,37 +532,30 @@ static void dndGenerateWrapperCfg(SDnode *pDnode, SCreateVnodeReq *pCreate, SWra
   pCfg->vgVersion = pCreate->vgVersion;
 }
 
-static SDropVnodeReq *dndParseDropVnodeReq(SRpcMsg *pReq) {
-  SDropVnodeReq *pDrop = pReq->pCont;
-  pDrop->vgId = htonl(pDrop->vgId);
-  return pDrop;
-}
-
-static SAuthVnodeReq *dndParseAuthVnodeReq(SRpcMsg *pReq) {
-  SAuthVnodeReq *pAuth = pReq->pCont;
-  pAuth->vgId = htonl(pAuth->vgId);
-  return pAuth;
-}
-
 int32_t dndProcessCreateVnodeReq(SDnode *pDnode, SRpcMsg *pReq) {
-  SCreateVnodeReq *pCreate = dndParseCreateVnodeReq(pReq);
-  dDebug("vgId:%d, create vnode req is received", pCreate->vgId);
-
-  SVnodeCfg vnodeCfg = {0};
-  dndGenerateVnodeCfg(pCreate, &vnodeCfg);
-
-  SWrapperCfg wrapperCfg = {0};
-  dndGenerateWrapperCfg(pDnode, pCreate, &wrapperCfg);
-
-  if (pCreate->dnodeId != dndGetDnodeId(pDnode)) {
-    terrno = TSDB_CODE_DND_VNODE_INVALID_OPTION;
-    dDebug("vgId:%d, failed to create vnode since %s", pCreate->vgId, terrstr());
+  SCreateVnodeReq createReq = {0};
+  if (tDeserializeSCreateVnodeReq(pReq->pCont, pReq->contLen, &createReq) != 0) {
+    terrno = TSDB_CODE_INVALID_MSG;
     return -1;
   }
 
-  SVnodeObj *pVnode = dndAcquireVnode(pDnode, pCreate->vgId);
+  dDebug("vgId:%d, create vnode req is received", createReq.vgId);
+
+  SVnodeCfg vnodeCfg = {0};
+  dndGenerateVnodeCfg(&createReq, &vnodeCfg);
+
+  SWrapperCfg wrapperCfg = {0};
+  dndGenerateWrapperCfg(pDnode, &createReq, &wrapperCfg);
+
+  if (createReq.dnodeId != dndGetDnodeId(pDnode)) {
+    terrno = TSDB_CODE_DND_VNODE_INVALID_OPTION;
+    dDebug("vgId:%d, failed to create vnode since %s", createReq.vgId, terrstr());
+    return -1;
+  }
+
+  SVnodeObj *pVnode = dndAcquireVnode(pDnode, createReq.vgId);
   if (pVnode != NULL) {
-    dDebug("vgId:%d, already exist", pCreate->vgId);
+    dDebug("vgId:%d, already exist", createReq.vgId);
     dndReleaseVnode(pDnode, pVnode);
     terrno = TSDB_CODE_DND_VNODE_ALREADY_DEPLOYED;
     return -1;
@@ -597,13 +566,13 @@ int32_t dndProcessCreateVnodeReq(SDnode *pDnode, SRpcMsg *pReq) {
   vnodeCfg.dbId = wrapperCfg.dbUid;
   SVnode *pImpl = vnodeOpen(wrapperCfg.path, &vnodeCfg);
   if (pImpl == NULL) {
-    dError("vgId:%d, failed to create vnode since %s", pCreate->vgId, terrstr());
+    dError("vgId:%d, failed to create vnode since %s", createReq.vgId, terrstr());
     return -1;
   }
 
   int32_t code = dndOpenVnode(pDnode, &wrapperCfg, pImpl);
   if (code != 0) {
-    dError("vgId:%d, failed to open vnode since %s", pCreate->vgId, terrstr());
+    dError("vgId:%d, failed to open vnode since %s", createReq.vgId, terrstr());
     vnodeClose(pImpl);
     vnodeDestroy(wrapperCfg.path);
     terrno = code;
@@ -622,32 +591,37 @@ int32_t dndProcessCreateVnodeReq(SDnode *pDnode, SRpcMsg *pReq) {
 }
 
 int32_t dndProcessAlterVnodeReq(SDnode *pDnode, SRpcMsg *pReq) {
-  SAlterVnodeReq *pAlter = (SAlterVnodeReq *)dndParseCreateVnodeReq(pReq);
-  dDebug("vgId:%d, alter vnode req is received", pAlter->vgId);
-
-  SVnodeCfg vnodeCfg = {0};
-  dndGenerateVnodeCfg(pAlter, &vnodeCfg);
-
-  SVnodeObj *pVnode = dndAcquireVnode(pDnode, pAlter->vgId);
-  if (pVnode == NULL) {
-    dDebug("vgId:%d, failed to alter vnode since %s", pAlter->vgId, terrstr());
+  SAlterVnodeReq alterReq = {0};
+  if (tDeserializeSCreateVnodeReq(pReq->pCont, pReq->contLen, &alterReq) != 0) {
+    terrno = TSDB_CODE_INVALID_MSG;
     return -1;
   }
 
-  if (pAlter->vgVersion == pVnode->vgVersion) {
+  dDebug("vgId:%d, alter vnode req is received", alterReq.vgId);
+
+  SVnodeCfg vnodeCfg = {0};
+  dndGenerateVnodeCfg(&alterReq, &vnodeCfg);
+
+  SVnodeObj *pVnode = dndAcquireVnode(pDnode, alterReq.vgId);
+  if (pVnode == NULL) {
+    dDebug("vgId:%d, failed to alter vnode since %s", alterReq.vgId, terrstr());
+    return -1;
+  }
+
+  if (alterReq.vgVersion == pVnode->vgVersion) {
     dndReleaseVnode(pDnode, pVnode);
-    dDebug("vgId:%d, no need to alter vnode cfg for version unchanged ", pAlter->vgId);
+    dDebug("vgId:%d, no need to alter vnode cfg for version unchanged ", alterReq.vgId);
     return 0;
   }
 
   if (vnodeAlter(pVnode->pImpl, &vnodeCfg) != 0) {
-    dError("vgId:%d, failed to alter vnode since %s", pAlter->vgId, terrstr());
+    dError("vgId:%d, failed to alter vnode since %s", alterReq.vgId, terrstr());
     dndReleaseVnode(pDnode, pVnode);
     return -1;
   }
 
   int32_t oldVersion = pVnode->vgVersion;
-  pVnode->vgVersion = pAlter->vgVersion;
+  pVnode->vgVersion = alterReq.vgVersion;
   int32_t code = dndWriteVnodesToFile(pDnode);
   if (code != 0) {
     pVnode->vgVersion = oldVersion;
@@ -658,9 +632,13 @@ int32_t dndProcessAlterVnodeReq(SDnode *pDnode, SRpcMsg *pReq) {
 }
 
 int32_t dndProcessDropVnodeReq(SDnode *pDnode, SRpcMsg *pReq) {
-  SDropVnodeReq *pDrop = dndParseDropVnodeReq(pReq);
+  SDropVnodeReq dropReq = {0};
+  if (tDeserializeSDropVnodeReq(pReq->pCont, pReq->contLen, &dropReq) != 0) {
+    terrno = TSDB_CODE_INVALID_MSG;
+    return -1;
+  }
 
-  int32_t vgId = pDrop->vgId;
+  int32_t vgId = dropReq.vgId;
   dDebug("vgId:%d, drop vnode req is received", vgId);
 
   SVnodeObj *pVnode = dndAcquireVnode(pDnode, vgId);
@@ -683,27 +661,11 @@ int32_t dndProcessDropVnodeReq(SDnode *pDnode, SRpcMsg *pReq) {
   return 0;
 }
 
-int32_t dndProcessAuthVnodeReq(SDnode *pDnode, SRpcMsg *pReq) {
-  SAuthVnodeReq *pAuth = (SAuthVnodeReq *)dndParseAuthVnodeReq(pReq);
-
-  int32_t vgId = pAuth->vgId;
-  dDebug("vgId:%d, auth vnode req is received", vgId);
-
-  SVnodeObj *pVnode = dndAcquireVnode(pDnode, vgId);
-  if (pVnode == NULL) {
-    dDebug("vgId:%d, failed to auth since %s", vgId, terrstr());
-    return -1;
-  }
-
-  pVnode->accessState = pAuth->accessState;
-  dndReleaseVnode(pDnode, pVnode);
-  return 0;
-}
-
 int32_t dndProcessSyncVnodeReq(SDnode *pDnode, SRpcMsg *pReq) {
-  SSyncVnodeReq *pSync = (SSyncVnodeReq *)dndParseDropVnodeReq(pReq);
+  SSyncVnodeReq syncReq = {0};
+  tDeserializeSDropVnodeReq(pReq->pCont, pReq->contLen, &syncReq);
 
-  int32_t vgId = pSync->vgId;
+  int32_t vgId = syncReq.vgId;
   dDebug("vgId:%d, sync vnode req is received", vgId);
 
   SVnodeObj *pVnode = dndAcquireVnode(pDnode, vgId);
@@ -723,9 +685,10 @@ int32_t dndProcessSyncVnodeReq(SDnode *pDnode, SRpcMsg *pReq) {
 }
 
 int32_t dndProcessCompactVnodeReq(SDnode *pDnode, SRpcMsg *pReq) {
-  SCompactVnodeReq *pCompact = (SCompactVnodeReq *)dndParseDropVnodeReq(pReq);
+  SCompactVnodeReq compatcReq = {0};
+  tDeserializeSDropVnodeReq(pReq->pCont, pReq->contLen, &compatcReq);
 
-  int32_t vgId = pCompact->vgId;
+  int32_t vgId = compatcReq.vgId;
   dDebug("vgId:%d, compact vnode req is received", vgId);
 
   SVnodeObj *pVnode = dndAcquireVnode(pDnode, vgId);

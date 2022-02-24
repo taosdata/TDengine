@@ -53,9 +53,6 @@ static EDealRes walkNode(SNode* pNode, ETraversalOrder order, FNodeWalker walker
     case QUERY_NODE_LOGIC_CONDITION:
       res = walkList(((SLogicConditionNode*)pNode)->pParameterList, order, walker, pContext);
       break;
-    case QUERY_NODE_IS_NULL_CONDITION:
-      res = walkNode(((SIsNullCondNode*)pNode)->pExpr, order, walker, pContext);
-      break;
     case QUERY_NODE_FUNCTION:
       res = walkList(((SFunctionNode*)pNode)->pParameterList, order, walker, pContext);
       break;
@@ -179,9 +176,6 @@ static EDealRes rewriteNode(SNode** pRawNode, ETraversalOrder order, FNodeRewrit
     case QUERY_NODE_LOGIC_CONDITION:
       res = rewriteList(((SLogicConditionNode*)pNode)->pParameterList, order, rewriter, pContext);
       break;
-    case QUERY_NODE_IS_NULL_CONDITION:
-      res = rewriteNode(&(((SIsNullCondNode*)pNode)->pExpr), order, rewriter, pContext);
-      break;
     case QUERY_NODE_FUNCTION:
       res = rewriteList(((SFunctionNode*)pNode)->pParameterList, order, rewriter, pContext);
       break;
@@ -269,4 +263,61 @@ void nodesRewriteNodePostOrder(SNode** pNode, FNodeRewriter rewriter, void* pCon
 
 void nodesRewriteListPostOrder(SNodeList* pList, FNodeRewriter rewriter, void* pContext) {
   (void)rewriteList(pList, TRAVERSAL_POSTORDER, rewriter, pContext);
+}
+
+void nodesWalkSelectStmt(SSelectStmt* pSelect, ESqlClause clause, FNodeWalker walker, void* pContext) {
+  if (NULL == pSelect) {
+    return;
+  }
+
+  switch (clause) {
+    case SQL_CLAUSE_FROM:
+      nodesWalkNode(pSelect->pFromTable, walker, pContext);
+      nodesWalkNode(pSelect->pWhere, walker, pContext);
+    case SQL_CLAUSE_WHERE:
+      nodesWalkList(pSelect->pPartitionByList, walker, pContext);
+    case SQL_CLAUSE_PARTITION_BY:
+      nodesWalkNode(pSelect->pWindow, walker, pContext);
+    case SQL_CLAUSE_WINDOW:
+      nodesWalkList(pSelect->pGroupByList, walker, pContext);
+    case SQL_CLAUSE_GROUP_BY:
+      nodesWalkNode(pSelect->pHaving, walker, pContext);
+    case SQL_CLAUSE_HAVING:
+      nodesWalkList(pSelect->pProjectionList, walker, pContext);
+    case SQL_CLAUSE_SELECT:
+      nodesWalkList(pSelect->pOrderByList, walker, pContext);
+    case SQL_CLAUSE_ORDER_BY:
+    default:
+      break;
+  }
+
+  return;
+}
+
+void nodesRewriteSelectStmt(SSelectStmt* pSelect, ESqlClause clause, FNodeRewriter rewriter, void* pContext) {
+  if (NULL == pSelect) {
+    return;
+  }
+
+  switch (clause) {
+    case SQL_CLAUSE_FROM:
+      nodesRewriteNode(&(pSelect->pFromTable), rewriter, pContext);
+      nodesRewriteNode(&(pSelect->pWhere), rewriter, pContext);
+    case SQL_CLAUSE_WHERE:
+      nodesRewriteList(pSelect->pPartitionByList, rewriter, pContext);
+    case SQL_CLAUSE_PARTITION_BY:
+      nodesRewriteNode(&(pSelect->pWindow), rewriter, pContext);
+    case SQL_CLAUSE_WINDOW:
+      nodesRewriteList(pSelect->pGroupByList, rewriter, pContext);
+    case SQL_CLAUSE_GROUP_BY:
+      nodesRewriteNode(&(pSelect->pHaving), rewriter, pContext);
+    case SQL_CLAUSE_HAVING:
+      nodesRewriteList(pSelect->pProjectionList, rewriter, pContext);
+    case SQL_CLAUSE_SELECT:
+      nodesRewriteList(pSelect->pOrderByList, rewriter, pContext);
+    default:
+      break;
+  }
+
+  return;
 }

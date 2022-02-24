@@ -120,6 +120,7 @@ static int32_t mndProcessShowReq(SMnodeMsg *pReq) {
   SShowMgmt *pMgmt = &pMnode->showMgmt;
   int32_t    code = -1;
   SShowReq   showReq = {0};
+  SShowRsp   showRsp = {0};
 
   if (tDeserializeSShowReq(pReq->rpcMsg.pCont, pReq->rpcMsg.contLen, &showReq) != 0) {
     terrno = TSDB_CODE_INVALID_MSG;
@@ -142,25 +143,26 @@ static int32_t mndProcessShowReq(SMnodeMsg *pReq) {
     goto SHOW_OVER;
   }
 
-  int32_t   size = sizeof(SShowRsp) + sizeof(SSchema) * TSDB_MAX_COLUMNS + TSDB_EXTRA_PAYLOAD_SIZE;
-  SShowRsp *pRsp = rpcMallocCont(size);
-  if (pRsp == NULL) {
+  showRsp.showId = pShow->id;
+  showRsp.tableMeta.pSchemas = calloc(TSDB_MAX_COLUMNS, sizeof(SSchema));
+  if (showRsp.tableMeta.pSchemas == NULL) {
     mndReleaseShowObj(pShow, true);
     terrno = TSDB_CODE_OUT_OF_MEMORY;
     goto SHOW_OVER;
   }
 
-  code = (*metaFp)(pReq, pShow, &pRsp->tableMeta);
+  code = (*metaFp)(pReq, pShow, &showRsp.tableMeta);
   mDebug("show:0x%" PRIx64 ", get meta finished, numOfRows:%d cols:%d showReq.type:%s, result:%s", pShow->id,
          pShow->numOfRows, pShow->numOfColumns, mndShowStr(showReq.type), tstrerror(code));
 
-  if (code == TSDB_CODE_SUCCESS) {
-    pReq->contLen = sizeof(SShowRsp) + sizeof(SSchema) * pShow->numOfColumns;
-    pReq->pCont = pRsp;
-    pRsp->showId = htobe64(pShow->id);
+  if (code == 0) {
+    int32_t bufLen = tSerializeSShowRsp(NULL, 0, &showRsp);
+    void   *pBuf = rpcMallocCont(bufLen);
+    tSerializeSShowRsp(pBuf, bufLen, &showRsp);
+    pReq->contLen = bufLen;
+    pReq->pCont = pBuf;
     mndReleaseShowObj(pShow, false);
   } else {
-    rpcFreeCont(pRsp);
     mndReleaseShowObj(pShow, true);
   }
 
@@ -170,6 +172,7 @@ SHOW_OVER:
   }
 
   tFreeSShowReq(&showReq);
+  tFreeSShowRsp(&showRsp);
   return code;
 }
 
@@ -292,8 +295,8 @@ char *mndShowStr(int32_t showType) {
       return "show configs";
     case TSDB_MGMT_TABLE_CONNS:
       return "show connections";
-    case TSDB_MGMT_TABLE_SCORES:
-      return "show scores";
+    case TSDB_MGMT_TABLE_TRANS:
+      return "show trans";
     case TSDB_MGMT_TABLE_GRANTS:
       return "show grants";
     case TSDB_MGMT_TABLE_VNODES:

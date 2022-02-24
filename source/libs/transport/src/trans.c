@@ -27,14 +27,21 @@ void* rpcOpen(const SRpcInit* pInit) {
     return NULL;
   }
   if (pInit->label) {
-    tstrncpy(pRpc->label, pInit->label, strlen(pInit->label));
+    tstrncpy(pRpc->label, pInit->label, strlen(pInit->label) + 1);
   }
+
+  // register callback handle
   pRpc->cfp = pInit->cfp;
+  pRpc->afp = pInit->afp;
+  pRpc->pfp = pInit->pfp;
+
   if (pInit->connType == TAOS_CONN_SERVER) {
     pRpc->numOfThreads = pInit->numOfThreads > TSDB_MAX_RPC_THREADS ? TSDB_MAX_RPC_THREADS : pInit->numOfThreads;
   } else {
     pRpc->numOfThreads = pInit->numOfThreads;
   }
+
+  pRpc->noPool = pInit->noPool;
   pRpc->connType = pInit->connType;
   pRpc->idleTime = pInit->idleTime;
   pRpc->tcphandle = (*taosInitHandle[pRpc->connType])(0, pInit->localPort, pRpc->label, pRpc->numOfThreads, NULL, pRpc);
@@ -105,7 +112,7 @@ void rpcSendRedirectRsp(void* thandle, const SEpSet* pEpSet) {
 int  rpcReportProgress(void* pConn, char* pCont, int contLen) { return -1; }
 void rpcCancelRequest(int64_t rid) { return; }
 
-int32_t rpcInit(void) {
+int32_t rpcInit(SRpcCfg* pCfg) {
   // impl later
   return 0;
 }

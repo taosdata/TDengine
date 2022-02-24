@@ -16,15 +16,37 @@
 #ifndef _TD_OS_ENV_H_
 #define _TD_OS_ENV_H_
 
+#include "osSysinfo.h"
+
 #ifdef __cplusplus
 extern "C" {
 #endif
 
-extern char tsOsName[];
-extern char tsDataDir[];
-extern char tsLogDir[];
-extern char tsScriptDir[];
+typedef struct SOsEnv SOsEnv;
+
 extern char configDir[];
+
+void osInit();
+void osUpdate();
+
+bool   osLogSpaceAvailable();
+int8_t osDaylight();
+
+const char *osLogDir();
+const char *osTempDir();
+const char *osDataDir();
+const char *osName();
+const char *osTimezone();
+const char *osLocale();
+const char *osCharset();
+
+void osSetLogDir(const char *logDir);
+void osSetTempDir(const char *tempDir);
+void osSetDataDir(const char *dataDir);
+void osSetLogReservedSpace(float sizeInGB);
+void osSetTempReservedSpace(float sizeInGB);
+void osSetDataReservedSpace(float sizeInGB);
+void osSetTimezone(const char *timezone);
 
 #ifdef __cplusplus
 }

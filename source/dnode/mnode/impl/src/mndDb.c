@@ -18,11 +18,12 @@
 #include "mndAuth.h"
 #include "mndDnode.h"
 #include "mndShow.h"
+#include "mndStb.h"
 #include "mndTrans.h"
 #include "mndUser.h"
 #include "mndVgroup.h"
 
-#define TSDB_DB_VER_NUMBER 1
+#define TSDB_DB_VER_NUMBER   1
 #define TSDB_DB_RESERVE_SIZE 64
 
 static SSdbRaw *mndDbActionEncode(SDbObj *pDb);
@@ -194,7 +195,7 @@ static int32_t mndDbActionUpdate(SSdb *pSdb, SDbObj *pOld, SDbObj *pNew) {
   return 0;
 }
 
-SDbObj *mndAcquireDb(SMnode *pMnode, char *db) {
+SDbObj *mndAcquireDb(SMnode *pMnode, const char *db) {
   SSdb   *pSdb = pMnode->pSdb;
   SDbObj *pDb = sdbAcquire(pSdb, SDB_DB, db);
   if (pDb == NULL && terrno == TSDB_CODE_SDB_OBJ_NOT_THERE) {
@@ -334,11 +335,12 @@ static int32_t mndSetCreateDbRedoActions(SMnode *pMnode, STrans *pTrans, SDbObj 
       action.epSet = mndGetDnodeEpset(pDnode);
       mndReleaseDnode(pMnode, pDnode);
 
-      SCreateVnodeReq *pReq = mndBuildCreateVnodeReq(pMnode, pDnode, pDb, pVgroup);
+      int32_t contLen = 0;
+      void   *pReq = mndBuildCreateVnodeReq(pMnode, pDnode, pDb, pVgroup, &contLen);
       if (pReq == NULL) return -1;
 
       action.pCont = pReq;
-      action.contLen = sizeof(SCreateVnodeReq);
+      action.contLen = contLen;
       action.msgType = TDMT_DND_CREATE_VNODE;
       action.acceptableCode = TSDB_CODE_DND_VNODE_ALREADY_DEPLOYED;
       if (mndTransAppendRedoAction(pTrans, &action) != 0) {
@@ -364,11 +366,12 @@ static int32_t mndSetCreateDbUndoActions(SMnode *pMnode, STrans *pTrans, SDbObj 
       action.epSet = mndGetDnodeEpset(pDnode);
       mndReleaseDnode(pMnode, pDnode);
 
-      SDropVnodeReq *pReq = mndBuildDropVnodeReq(pMnode, pDnode, pDb, pVgroup);
+      int32_t contLen = 0;
+      void   *pReq = mndBuildDropVnodeReq(pMnode, pDnode, pDb, pVgroup, &contLen);
       if (pReq == NULL) return -1;
 
       action.pCont = pReq;
-      action.contLen = sizeof(SDropVnodeReq);
+      action.contLen = contLen;
       action.msgType = TDMT_DND_DROP_VNODE;
       action.acceptableCode = TSDB_CODE_DND_VNODE_NOT_DEPLOYED;
       if (mndTransAppendUndoAction(pTrans, &action) != 0) {
@@ -392,24 +395,27 @@ static int32_t mndCreateDb(SMnode *pMnode, SMnodeMsg *pReq, SCreateDbReq *pCreat
   dbObj.vgVersion = 1;
   dbObj.hashMethod = 1;
   memcpy(dbObj.createUser, pUser->user, TSDB_USER_LEN);
-  dbObj.cfg = (SDbCfg){.numOfVgroups = pCreate->numOfVgroups,
-                       .cacheBlockSize = pCreate->cacheBlockSize,
-                       .totalBlocks = pCreate->totalBlocks,
-                       .daysPerFile = pCreate->daysPerFile,
-                       .daysToKeep0 = pCreate->daysToKeep0,
-                       .daysToKeep1 = pCreate->daysToKeep1,
-                       .daysToKeep2 = pCreate->daysToKeep2,
-                       .minRows = pCreate->minRows,
-                       .maxRows = pCreate->maxRows,
-                       .fsyncPeriod = pCreate->fsyncPeriod,
-                       .commitTime = pCreate->commitTime,
-                       .precision = pCreate->precision,
-                       .compression = pCreate->compression,
-                       .walLevel = pCreate->walLevel,
-                       .replications = pCreate->replications,
-                       .quorum = pCreate->quorum,
-                       .update = pCreate->update,
-                       .cacheLastRow = pCreate->cacheLastRow};
+  dbObj.cfg = (SDbCfg){
+      .numOfVgroups = pCreate->numOfVgroups,
+      .cacheBlockSize = pCreate->cacheBlockSize,
+      .totalBlocks = pCreate->totalBlocks,
+      .daysPerFile = pCreate->daysPerFile,
+      .daysToKeep0 = pCreate->daysToKeep0,
+      .daysToKeep1 = pCreate->daysToKeep1,
+      .daysToKeep2 = pCreate->daysToKeep2,
+      .minRows = pCreate->minRows,
+      .maxRows = pCreate->maxRows,
+      .fsyncPeriod = pCreate->fsyncPeriod,
+      .commitTime = pCreate->commitTime,
+      .precision = pCreate->precision,
+      .compression = pCreate->compression,
+      .walLevel = pCreate->walLevel,
+      .replications = pCreate->replications,
+      .quorum = pCreate->quorum,
+      .update = pCreate->update,
+      .cacheLastRow = pCreate->cacheLastRow,
+      .streamMode = pCreate->streamMode,
+  };
 
   mndSetDefaultDbCfg(&dbObj.cfg);
 
@@ -431,11 +437,12 @@ static int32_t mndCreateDb(SMnode *pMnode, SMnodeMsg *pReq, SCreateDbReq *pCreat
   }
 
   int32_t code = -1;
-  STrans *pTrans = mndTransCreate(pMnode, TRN_POLICY_ROLLBACK, &pReq->rpcMsg);
+  STrans *pTrans = mndTransCreate(pMnode, TRN_POLICY_ROLLBACK, TRN_TYPE_CREATE_DB, &pReq->rpcMsg);
   if (pTrans == NULL) goto CREATE_DB_OVER;
 
   mDebug("trans:%d, used to create db:%s", pTrans->id, pCreate->db);
 
+  mndTransSetDbInfo(pTrans, &dbObj);
   if (mndSetCreateDbRedoLogs(pMnode, pTrans, &dbObj, pVgroups) != 0) goto CREATE_DB_OVER;
   if (mndSetCreateDbUndoLogs(pMnode, pTrans, &dbObj, pVgroups) != 0) goto CREATE_DB_OVER;
   if (mndSetCreateDbCommitLogs(pMnode, pTrans, &dbObj, pVgroups) != 0) goto CREATE_DB_OVER;
@@ -576,11 +583,12 @@ static int32_t mndBuildUpdateVgroupAction(SMnode *pMnode, STrans *pTrans, SDbObj
     action.epSet = mndGetDnodeEpset(pDnode);
     mndReleaseDnode(pMnode, pDnode);
 
-    SAlterVnodeReq *pReq = (SAlterVnodeReq *)mndBuildCreateVnodeReq(pMnode, pDnode, pDb, pVgroup);
+    int32_t contLen = 0;
+    void   *pReq = mndBuildCreateVnodeReq(pMnode, pDnode, pDb, pVgroup, &contLen);
     if (pReq == NULL) return -1;
 
     action.pCont = pReq;
-    action.contLen = sizeof(SAlterVnodeReq);
+    action.contLen = contLen;
     action.msgType = TDMT_DND_ALTER_VNODE;
     if (mndTransAppendRedoAction(pTrans, &action) != 0) {
       free(pReq);
@@ -616,11 +624,12 @@ static int32_t mndSetUpdateDbRedoActions(SMnode *pMnode, STrans *pTrans, SDbObj 
 
 static int32_t mndUpdateDb(SMnode *pMnode, SMnodeMsg *pReq, SDbObj *pOld, SDbObj *pNew) {
   int32_t code = -1;
-  STrans *pTrans = mndTransCreate(pMnode, TRN_POLICY_RETRY, &pReq->rpcMsg);
+  STrans *pTrans = mndTransCreate(pMnode, TRN_POLICY_RETRY, TRN_TYPE_ALTER_DB, &pReq->rpcMsg);
   if (pTrans == NULL) goto UPDATE_DB_OVER;
 
   mDebug("trans:%d, used to update db:%s", pTrans->id, pOld->name);
 
+  mndTransSetDbInfo(pTrans, pOld);
   if (mndSetUpdateDbRedoLogs(pMnode, pTrans, pOld, pNew) != 0) goto UPDATE_DB_OVER;
   if (mndSetUpdateDbCommitLogs(pMnode, pTrans, pOld, pNew) != 0) goto UPDATE_DB_OVER;
   if (mndSetUpdateDbRedoActions(pMnode, pTrans, pOld, pNew) != 0) goto UPDATE_DB_OVER;
@@ -722,6 +731,24 @@ static int32_t mndSetDropDbCommitLogs(SMnode *pMnode, STrans *pTrans, SDbObj *pD
     sdbRelease(pSdb, pVgroup);
   }
 
+  while (1) {
+    SStbObj *pStb = NULL;
+    pIter = sdbFetch(pSdb, SDB_STB, pIter, (void **)&pStb);
+    if (pIter == NULL) break;
+
+    if (pStb->dbUid == pDb->uid) {
+      SSdbRaw *pStbRaw = mndStbActionEncode(pStb);
+      if (pStbRaw == NULL || mndTransAppendCommitlog(pTrans, pStbRaw) != 0) {
+        sdbCancelFetch(pSdb, pIter);
+        sdbRelease(pSdb, pStbRaw);
+        return -1;
+      }
+      sdbSetRawStatus(pStbRaw, SDB_STATUS_DROPPED);
+    }
+
+    sdbRelease(pSdb, pStb);
+  }
+
   return 0;
 }
 
@@ -735,11 +762,12 @@ static int32_t mndBuildDropVgroupAction(SMnode *pMnode, STrans *pTrans, SDbObj *
     action.epSet = mndGetDnodeEpset(pDnode);
     mndReleaseDnode(pMnode, pDnode);
 
-    SDropVnodeReq *pReq = mndBuildDropVnodeReq(pMnode, pDnode, pDb, pVgroup);
+    int32_t contLen = 0;
+    void   *pReq = mndBuildDropVnodeReq(pMnode, pDnode, pDb, pVgroup, &contLen);
     if (pReq == NULL) return -1;
 
     action.pCont = pReq;
-    action.contLen = sizeof(SDropVnodeReq);
+    action.contLen = contLen;
     action.msgType = TDMT_DND_DROP_VNODE;
     action.acceptableCode = TSDB_CODE_DND_VNODE_NOT_DEPLOYED;
     if (mndTransAppendRedoAction(pTrans, &action) != 0) {
@@ -776,10 +804,11 @@ static int32_t mndSetDropDbRedoActions(SMnode *pMnode, STrans *pTrans, SDbObj *p
 
 static int32_t mndDropDb(SMnode *pMnode, SMnodeMsg *pReq, SDbObj *pDb) {
   int32_t code = -1;
-  STrans *pTrans = mndTransCreate(pMnode, TRN_POLICY_RETRY, &pReq->rpcMsg);
+  STrans *pTrans = mndTransCreate(pMnode, TRN_POLICY_RETRY, TRN_TYPE_DROP_DB, &pReq->rpcMsg);
   if (pTrans == NULL) goto DROP_DB_OVER;
 
   mDebug("trans:%d, used to drop db:%s", pTrans->id, pDb->name);
+  mndTransSetDbInfo(pTrans, pDb);
 
   if (mndSetDropDbRedoLogs(pMnode, pTrans, pDb) != 0) goto DROP_DB_OVER;
   if (mndSetDropDbCommitLogs(pMnode, pTrans, pDb) != 0) goto DROP_DB_OVER;
@@ -891,6 +920,8 @@ static void mndBuildDBVgroupInfo(SDbObj *pDb, SMnode *pMnode, SArray *pVgList) {
 
     sdbRelease(pSdb, pVgroup);
   }
+
+  sdbCancelFetch(pSdb, pIter);
 }
 
 static int32_t mndProcessUseDbReq(SMnodeMsg *pReq) {
@@ -1111,117 +1142,117 @@ static int32_t mndGetDbMeta(SMnodeMsg *pReq, SShowObj *pShow, STableMetaRsp *pMe
   SSdb   *pSdb = pMnode->pSdb;
 
   int32_t  cols = 0;
-  SSchema *pSchema = pMeta->pSchema;
+  SSchema *pSchema = pMeta->pSchemas;
 
   pShow->bytes[cols] = (TSDB_DB_NAME_LEN - 1) + VARSTR_HEADER_SIZE;
   pSchema[cols].type = TSDB_DATA_TYPE_BINARY;
   strcpy(pSchema[cols].name, "name");
-  pSchema[cols].bytes = htonl(pShow->bytes[cols]);
+  pSchema[cols].bytes = pShow->bytes[cols];
   cols++;
 
   pShow->bytes[cols] = 8;
   pSchema[cols].type = TSDB_DATA_TYPE_TIMESTAMP;
   strcpy(pSchema[cols].name, "create_time");
-  pSchema[cols].bytes = htonl(pShow->bytes[cols]);
+  pSchema[cols].bytes = pShow->bytes[cols];
   cols++;
 
   pShow->bytes[cols] = 2;
   pSchema[cols].type = TSDB_DATA_TYPE_SMALLINT;
   strcpy(pSchema[cols].name, "vgroups");
-  pSchema[cols].bytes = htonl(pShow->bytes[cols]);
+  pSchema[cols].bytes = pShow->bytes[cols];
   cols++;
 
   pShow->bytes[cols] = 4;
   pSchema[cols].type = TSDB_DATA_TYPE_INT;
   strcpy(pSchema[cols].name, "ntables");
-  pSchema[cols].bytes = htonl(pShow->bytes[cols]);
+  pSchema[cols].bytes = pShow->bytes[cols];
   cols++;
 
   pShow->bytes[cols] = 2;
   pSchema[cols].type = TSDB_DATA_TYPE_SMALLINT;
   strcpy(pSchema[cols].name, "replica");
-  pSchema[cols].bytes = htonl(pShow->bytes[cols]);
+  pSchema[cols].bytes = pShow->bytes[cols];
   cols++;
 
   pShow->bytes[cols] = 2;
   pSchema[cols].type = TSDB_DATA_TYPE_SMALLINT;
   strcpy(pSchema[cols].name, "quorum");
-  pSchema[cols].bytes = htonl(pShow->bytes[cols]);
+  pSchema[cols].bytes = pShow->bytes[cols];
   cols++;
 
   pShow->bytes[cols] = 2;
   pSchema[cols].type = TSDB_DATA_TYPE_SMALLINT;
   strcpy(pSchema[cols].name, "days");
-  pSchema[cols].bytes = htonl(pShow->bytes[cols]);
+  pSchema[cols].bytes = pShow->bytes[cols];
   cols++;
 
   pShow->bytes[cols] = 24 + VARSTR_HEADER_SIZE;
   pSchema[cols].type = TSDB_DATA_TYPE_BINARY;
   strcpy(pSchema[cols].name, "keep0,keep1,keep2");
-  pSchema[cols].bytes = htonl(pShow->bytes[cols]);
+  pSchema[cols].bytes = pShow->bytes[cols];
   cols++;
 
   pShow->bytes[cols] = 4;
   pSchema[cols].type = TSDB_DATA_TYPE_INT;
   strcpy(pSchema[cols].name, "cache");
-  pSchema[cols].bytes = htonl(pShow->bytes[cols]);
+  pSchema[cols].bytes = pShow->bytes[cols];
   cols++;
 
   pShow->bytes[cols] = 4;
   pSchema[cols].type = TSDB_DATA_TYPE_INT;
   strcpy(pSchema[cols].name, "blocks");
-  pSchema[cols].bytes = htonl(pShow->bytes[cols]);
+  pSchema[cols].bytes = pShow->bytes[cols];
   cols++;
 
   pShow->bytes[cols] = 4;
   pSchema[cols].type = TSDB_DATA_TYPE_INT;
   strcpy(pSchema[cols].name, "minrows");
-  pSchema[cols].bytes = htonl(pShow->bytes[cols]);
+  pSchema[cols].bytes = pShow->bytes[cols];
   cols++;
 
   pShow->bytes[cols] = 4;
   pSchema[cols].type = TSDB_DATA_TYPE_INT;
   strcpy(pSchema[cols].name, "maxrows");
-  pSchema[cols].bytes = htonl(pShow->bytes[cols]);
+  pSchema[cols].bytes = pShow->bytes[cols];
   cols++;
 
   pShow->bytes[cols] = 1;
   pSchema[cols].type = TSDB_DATA_TYPE_TINYINT;
   strcpy(pSchema[cols].name, "wallevel");
-  pSchema[cols].bytes = htonl(pShow->bytes[cols]);
+  pSchema[cols].bytes = pShow->bytes[cols];
   cols++;
 
   pShow->bytes[cols] = 4;
   pSchema[cols].type = TSDB_DATA_TYPE_INT;
   strcpy(pSchema[cols].name, "fsync");
-  pSchema[cols].bytes = htonl(pShow->bytes[cols]);
+  pSchema[cols].bytes = pShow->bytes[cols];
   cols++;
 
   pShow->bytes[cols] = 1;
   pSchema[cols].type = TSDB_DATA_TYPE_TINYINT;
   strcpy(pSchema[cols].name, "comp");
-  pSchema[cols].bytes = htonl(pShow->bytes[cols]);
+  pSchema[cols].bytes = pShow->bytes[cols];
   cols++;
 
   pShow->bytes[cols] = 1;
   pSchema[cols].type = TSDB_DATA_TYPE_TINYINT;
   strcpy(pSchema[cols].name, "cachelast");
-  pSchema[cols].bytes = htonl(pShow->bytes[cols]);
+  pSchema[cols].bytes = pShow->bytes[cols];
   cols++;
 
   pShow->bytes[cols] = 3 + VARSTR_HEADER_SIZE;
   pSchema[cols].type = TSDB_DATA_TYPE_BINARY;
   strcpy(pSchema[cols].name, "precision");
-  pSchema[cols].bytes = htonl(pShow->bytes[cols]);
+  pSchema[cols].bytes = pShow->bytes[cols];
   cols++;
 
   pShow->bytes[cols] = 1;
   pSchema[cols].type = TSDB_DATA_TYPE_TINYINT;
   strcpy(pSchema[cols].name, "update");
-  pSchema[cols].bytes = htonl(pShow->bytes[cols]);
+  pSchema[cols].bytes = pShow->bytes[cols];
   cols++;
 
-  pMeta->numOfColumns = htonl(cols);
+  pMeta->numOfColumns = cols;
   pShow->numOfColumns = cols;
 
   pShow->offset[0] = 0;

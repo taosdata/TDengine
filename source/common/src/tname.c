@@ -31,7 +31,7 @@ SColumnFilterInfo* tFilterInfoDup(const SColumnFilterInfo* src, int32_t numOfFil
   }
 
   assert(src->filterstr == 0 || src->filterstr == 1);
-  assert(!(src->lowerRelOptr == TSDB_RELATION_INVALID && src->upperRelOptr == TSDB_RELATION_INVALID));
+  assert(!(src->lowerRelOptr == 0 && src->upperRelOptr == 0));
 
   return pFilter;
 }

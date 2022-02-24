@@ -113,6 +113,7 @@ typedef struct STableMetaOutput {
 typedef struct SDataBuf {
   void     *pData;
   uint32_t  len;
+  void     *handle;
 } SDataBuf;
 
 typedef int32_t (*__async_send_cb_fn_t)(void* param, const SDataBuf* pMsg, int32_t code);

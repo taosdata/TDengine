@@ -23,8 +23,8 @@
 #include "tlist.h"
 #include "tlockfree.h"
 #include "tmacro.h"
-#include "wal.h"
 #include "tq.h"
+#include "wal.h"
 
 #include "vnode.h"
 
@@ -174,7 +174,6 @@ void            vmaReset(SVMemAllocator* pVMA);
 void*           vmaMalloc(SVMemAllocator* pVMA, uint64_t size);
 void            vmaFree(SVMemAllocator* pVMA, void* ptr);
 bool            vmaIsFull(SVMemAllocator* pVMA);
-
 
 #ifdef __cplusplus
 }

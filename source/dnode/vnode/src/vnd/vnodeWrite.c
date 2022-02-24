@@ -22,14 +22,15 @@ int vnodeProcessWMsgs(SVnode *pVnode, SArray *pMsgs) {
   for (int i = 0; i < taosArrayGetSize(pMsgs); i++) {
     pMsg = *(SRpcMsg **)taosArrayGet(pMsgs, i);
 
-    // ser request version
+    // set request version
     void   *pBuf = POINTER_SHIFT(pMsg->pCont, sizeof(SMsgHead));
     int64_t ver = pVnode->state.processed++;
     taosEncodeFixedI64(&pBuf, ver);
 
     if (walWrite(pVnode->pWal, ver, pMsg->msgType, pMsg->pCont, pMsg->contLen) < 0) {
-      /*ASSERT(false);*/
       // TODO: handle error
+      /*ASSERT(false);*/
+      vError("vnode:%d  write wal error since %s", pVnode->vgId, terrstr());
     }
   }
 
@@ -43,13 +44,17 @@ int vnodeProcessWMsgs(SVnode *pVnode, SArray *pMsgs) {
 int vnodeApplyWMsg(SVnode *pVnode, SRpcMsg *pMsg, SRpcMsg **pRsp) {
   SVCreateTbReq      vCreateTbReq;
   SVCreateTbBatchReq vCreateTbBatchReq;
-  void              *ptr = vnodeMalloc(pVnode, pMsg->contLen);
-  if (ptr == NULL) {
-    // TODO: handle error
-  }
+  void              *ptr = NULL;
 
-  // TODO: copy here need to be extended
-  memcpy(ptr, pMsg->pCont, pMsg->contLen);
+  if (pVnode->config.streamMode == 0) {
+    ptr = vnodeMalloc(pVnode, pMsg->contLen);
+    if (ptr == NULL) {
+      // TODO: handle error
+    }
+
+    // TODO: copy here need to be extended
+    memcpy(ptr, pMsg->pCont, pMsg->contLen);
+  }
 
   // todo: change the interface here
   int64_t ver;
@@ -109,17 +114,19 @@ int vnodeApplyWMsg(SVnode *pVnode, SRpcMsg *pMsg, SRpcMsg **pRsp) {
       // }
       break;
     case TDMT_VND_SUBMIT:
-      if (tsdbInsertData(pVnode->pTsdb, (SSubmitMsg *)ptr, NULL) < 0) {
-        // TODO: handle error
+      if (pVnode->config.streamMode == 0) {
+        if (tsdbInsertData(pVnode->pTsdb, (SSubmitReq *)ptr, NULL) < 0) {
+          // TODO: handle error
+        }
       }
       break;
     case TDMT_VND_MQ_SET_CONN: {
-      if (tqProcessSetConnReq(pVnode->pTq, POINTER_SHIFT(ptr, sizeof(SMsgHead))) < 0) {
+      if (tqProcessSetConnReq(pVnode->pTq, POINTER_SHIFT(pMsg->pCont, sizeof(SMsgHead))) < 0) {
         // TODO: handle error
       }
     } break;
     case TDMT_VND_MQ_REB: {
-      if (tqProcessRebReq(pVnode->pTq, POINTER_SHIFT(ptr, sizeof(SMsgHead))) < 0) {
+      if (tqProcessRebReq(pVnode->pTq, POINTER_SHIFT(pMsg->pCont, sizeof(SMsgHead))) < 0) {
       }
     } break;
     default:

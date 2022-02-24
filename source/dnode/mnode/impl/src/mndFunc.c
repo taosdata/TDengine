@@ -21,7 +21,7 @@
 #include "mndTrans.h"
 #include "mndUser.h"
 
-#define SDB_FUNC_VER 1
+#define SDB_FUNC_VER          1
 #define SDB_FUNC_RESERVE_SIZE 64
 
 static SSdbRaw *mndFuncActionEncode(SFuncObj *pFunc);
@@ -206,7 +206,7 @@ static int32_t mndCreateFunc(SMnode *pMnode, SMnodeMsg *pReq, SCreateFuncReq *pC
   memcpy(func.pComment, pCreate->pComment, pCreate->commentSize);
   memcpy(func.pCode, pCreate->pCode, func.codeSize);
 
-  pTrans = mndTransCreate(pMnode, TRN_POLICY_ROLLBACK, &pReq->rpcMsg);
+  pTrans = mndTransCreate(pMnode, TRN_POLICY_ROLLBACK, TRN_TYPE_CREATE_FUNC, &pReq->rpcMsg);
   if (pTrans == NULL) goto CREATE_FUNC_OVER;
 
   mDebug("trans:%d, used to create func:%s", pTrans->id, pCreate->name);
@@ -236,7 +236,7 @@ CREATE_FUNC_OVER:
 
 static int32_t mndDropFunc(SMnode *pMnode, SMnodeMsg *pReq, SFuncObj *pFunc) {
   int32_t code = -1;
-  STrans *pTrans = mndTransCreate(pMnode, TRN_POLICY_ROLLBACK, &pReq->rpcMsg);
+  STrans *pTrans = mndTransCreate(pMnode, TRN_POLICY_ROLLBACK, TRN_TYPE_DROP_FUNC, &pReq->rpcMsg);
   if (pTrans == NULL) goto DROP_FUNC_OVER;
 
   mDebug("trans:%d, used to drop user:%s", pTrans->id, pFunc->name);
@@ -468,51 +468,51 @@ static int32_t mndGetFuncMeta(SMnodeMsg *pReq, SShowObj *pShow, STableMetaRsp *p
   SSdb   *pSdb = pMnode->pSdb;
 
   int32_t  cols = 0;
-  SSchema *pSchema = pMeta->pSchema;
+  SSchema *pSchema = pMeta->pSchemas;
 
   pShow->bytes[cols] = TSDB_FUNC_NAME_LEN + VARSTR_HEADER_SIZE;
   pSchema[cols].type = TSDB_DATA_TYPE_BINARY;
   strcpy(pSchema[cols].name, "name");
-  pSchema[cols].bytes = htonl(pShow->bytes[cols]);
+  pSchema[cols].bytes = pShow->bytes[cols];
   cols++;
 
   pShow->bytes[cols] = PATH_MAX + VARSTR_HEADER_SIZE;
   pSchema[cols].type = TSDB_DATA_TYPE_BINARY;
   strcpy(pSchema[cols].name, "comment");
-  pSchema[cols].bytes = htonl(pShow->bytes[cols]);
+  pSchema[cols].bytes = pShow->bytes[cols];
   cols++;
 
   pShow->bytes[cols] = 4;
   pSchema[cols].type = TSDB_DATA_TYPE_INT;
   strcpy(pSchema[cols].name, "aggregate");
-  pSchema[cols].bytes = htonl(pShow->bytes[cols]);
+  pSchema[cols].bytes = pShow->bytes[cols];
   cols++;
 
   pShow->bytes[cols] = TSDB_TYPE_STR_MAX_LEN + VARSTR_HEADER_SIZE;
   pSchema[cols].type = TSDB_DATA_TYPE_BINARY;
   strcpy(pSchema[cols].name, "outputtype");
-  pSchema[cols].bytes = htonl(pShow->bytes[cols]);
+  pSchema[cols].bytes = pShow->bytes[cols];
   cols++;
 
   pShow->bytes[cols] = 8;
   pSchema[cols].type = TSDB_DATA_TYPE_TIMESTAMP;
   strcpy(pSchema[cols].name, "create_time");
-  pSchema[cols].bytes = htonl(pShow->bytes[cols]);
+  pSchema[cols].bytes = pShow->bytes[cols];
   cols++;
 
   pShow->bytes[cols] = 4;
   pSchema[cols].type = TSDB_DATA_TYPE_INT;
   strcpy(pSchema[cols].name, "code_len");
-  pSchema[cols].bytes = htonl(pShow->bytes[cols]);
+  pSchema[cols].bytes = pShow->bytes[cols];
   cols++;
 
   pShow->bytes[cols] = 4;
   pSchema[cols].type = TSDB_DATA_TYPE_INT;
   strcpy(pSchema[cols].name, "bufsize");
-  pSchema[cols].bytes = htonl(pShow->bytes[cols]);
+  pSchema[cols].bytes = pShow->bytes[cols];
   cols++;
 
-  pMeta->numOfColumns = htonl(cols);
+  pMeta->numOfColumns = cols;
   pShow->numOfColumns = cols;
 
   pShow->offset[0] = 0;

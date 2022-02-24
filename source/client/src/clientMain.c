@@ -7,6 +7,7 @@
 #include "tmsg.h"
 #include "tglobal.h"
 #include "catalog.h"
+#include "version.h"
 
 #define TSC_VAR_NOT_RELEASE 1
 #define TSC_VAR_RELEASED    0
@@ -56,9 +57,7 @@ void taos_cleanup(void) {
 }
 
 TAOS *taos_connect(const char *ip, const char *user, const char *pass, const char *db, uint16_t port) {
-  int32_t p = (port != 0) ? port : tsServerPort;
-
-  tscDebug("try to connect to %s:%u, user:%s db:%s", ip, p, user, db);
+  tscDebug("try to connect to %s:%u, user:%s db:%s", ip, port, user, db);
   if (user == NULL) {
     user = TSDB_DEFAULT_USER;
   }
@@ -67,7 +66,7 @@ TAOS *taos_connect(const char *ip, const char *user, const char *pass, const cha
     pass = TSDB_DEFAULT_PASS;
   }
 
-  return taos_connect_internal(ip, user, pass, NULL, db, p);
+  return taos_connect_internal(ip, user, pass, NULL, db, port);
 }
 
 void taos_close(TAOS* taos) {

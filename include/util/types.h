@@ -66,6 +66,7 @@ static FORCE_INLINE double taos_align_get_double(const char *pBuf) {
 // #else
   #define GET_FLOAT_VAL(x)       (*(float *)(x))
   #define GET_DOUBLE_VAL(x)      (*(double *)(x))
+  #define SET_BIGINT_VAL(x, y)  { (*(int64_t *)(x))  = (int64_t)(y);       }
   #define SET_FLOAT_VAL(x, y)  { (*(float *)(x))  = (float)(y);       }
   #define SET_DOUBLE_VAL(x, y) { (*(double *)(x)) = (double)(y);      }
   #define SET_FLOAT_PTR(x, y)  { (*(float *)(x))  = (*(float *)(y));  }

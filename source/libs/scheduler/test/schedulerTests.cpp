@@ -66,10 +66,8 @@ void schtInitLogFile() {
   tsAsyncLog = 0;
   qDebugFlag = 159;
 
-  char temp[128] = {0};
-  sprintf(temp, "%s/%s", tsLogDir, defaultLogFileNamePrefix);
-  if (taosInitLog(temp, tsNumOfLogLines, maxLogFileNum) < 0) {
-    printf("failed to open log file in directory:%s\n", tsLogDir);
+  if (taosInitLog(defaultLogFileNamePrefix, maxLogFileNum) < 0) {
+    printf("failed to open log file in directory:%s\n", osLogDir());
   }
 
 }
@@ -273,7 +271,7 @@ void *schtSendRsp(void *param) {
   while (pIter) {
     SSchTask *task = *(SSchTask **)pIter;
 
-    SShellSubmitRsp rsp = {0};
+    SSubmitRsp rsp = {0};
     rsp.affectedRows = 10;
     schHandleResponseMsg(job, task, TDMT_VND_SUBMIT_RSP, (char *)&rsp, sizeof(rsp), 0);
     

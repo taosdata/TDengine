@@ -3,7 +3,6 @@
 #include "function.h"
 #include "thash.h"
 #include "taggfunction.h"
-#include "tscalarfunction.h"
 
 static SHashObj* functionHashTable = NULL;
 static SHashObj* udfHashTable = NULL;
@@ -18,12 +17,14 @@ static void doInitFunctionHashTable() {
     taosHashPut(functionHashTable, aggFunc[i].name, len, (void*)&ptr, POINTER_BYTES);
   }
 
+/*
   numOfEntries = tListLen(scalarFunc);
   for(int32_t i = 0; i < numOfEntries; ++i) {
     int32_t len = (int32_t) strlen(scalarFunc[i].name);
     SScalarFunctionInfo* ptr = &scalarFunc[i];
     taosHashPut(functionHashTable, scalarFunc[i].name, len, (void*)&ptr, POINTER_BYTES);
   }
+*/
 
   udfHashTable = taosHashInit(numOfEntries, MurmurHash3_32, true, true);
 }

@@ -81,6 +81,8 @@ TAOS_DEFINE_ERROR(TSDB_CODE_INVALID_MSG,                  "Invalid message")
 TAOS_DEFINE_ERROR(TSDB_CODE_MSG_NOT_PROCESSED,            "Message not processed")
 TAOS_DEFINE_ERROR(TSDB_CODE_INVALID_PARA,                 "Invalid parameters")
 TAOS_DEFINE_ERROR(TSDB_CODE_REPEAT_INIT,                  "Repeat initialization")
+TAOS_DEFINE_ERROR(TSDB_CODE_CFG_NOT_FOUND,                "Config not found")
+TAOS_DEFINE_ERROR(TSDB_CODE_INVALID_CFG,                  "Invalid config option")
 
 TAOS_DEFINE_ERROR(TSDB_CODE_REF_NO_MEMORY,                "Ref out of memory")
 TAOS_DEFINE_ERROR(TSDB_CODE_REF_FULL,                     "too many Ref Objs")
@@ -256,6 +258,8 @@ TAOS_DEFINE_ERROR(TSDB_CODE_MND_INVALID_FUNC_RETRIEVE,     "Invalid func retriev
 // mnode-trans
 TAOS_DEFINE_ERROR(TSDB_CODE_MND_TRANS_ALREADY_EXIST,       "Transaction already exists")
 TAOS_DEFINE_ERROR(TSDB_CODE_MND_TRANS_NOT_EXIST,           "Transaction not exists")
+TAOS_DEFINE_ERROR(TSDB_CODE_MND_TRANS_INVALID_STAGE,       "Invalid stage to kill")
+TAOS_DEFINE_ERROR(TSDB_CODE_MND_TRANS_CANT_PARALLEL,       "Invalid stage to kill")
 
 // mnode-topic
 TAOS_DEFINE_ERROR(TSDB_CODE_MND_UNSUPPORTED_TOPIC,         "Topic with STable not supported yet")

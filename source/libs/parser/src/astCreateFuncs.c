@@ -84,6 +84,10 @@ SNode* releaseRawExprNode(SAstCreateContext* pCxt, SNode* pNode) {
 }
 
 SToken getTokenFromRawExprNode(SAstCreateContext* pCxt, SNode* pNode) {
+  if (NULL == pNode || QUERY_NODE_RAW_EXPR != nodeType(pNode)) {
+    pCxt->valid = false;
+    return nil_token;
+  }
   SRawExprNode* target = (SRawExprNode*)pNode;
   SToken t = { .type = 0, .z = target->p, .n = target->n};
   return t;
@@ -92,11 +96,17 @@ SToken getTokenFromRawExprNode(SAstCreateContext* pCxt, SNode* pNode) {
 SNodeList* createNodeList(SAstCreateContext* pCxt, SNode* pNode) {
   SNodeList* list = nodesMakeList();
   CHECK_OUT_OF_MEM(list);
-  return nodesListAppend(list, pNode);
+  if (TSDB_CODE_SUCCESS != nodesListAppend(list, pNode)) {
+    pCxt->valid = false;
+  }
+  return list;
 }
 
 SNodeList* addNodeToList(SAstCreateContext* pCxt, SNodeList* pList, SNode* pNode) {
-  return nodesListAppend(pList, pNode);
+  if (TSDB_CODE_SUCCESS != nodesListAppend(pList, pNode)) {
+    pCxt->valid = false;
+  }
+  return pList;
 }
 
 SNode* createColumnNode(SAstCreateContext* pCxt, const SToken* pTableAlias, const SToken* pColumnName) {
@@ -164,14 +174,6 @@ SNode* createBetweenAnd(SAstCreateContext* pCxt, SNode* pExpr, SNode* pLeft, SNo
 SNode* createNotBetweenAnd(SAstCreateContext* pCxt, SNode* pExpr, SNode* pLeft, SNode* pRight) {
   return createLogicConditionNode(pCxt, LOGIC_COND_TYPE_OR,
       createOperatorNode(pCxt, OP_TYPE_LOWER_THAN, pExpr, pLeft), createOperatorNode(pCxt, OP_TYPE_GREATER_THAN, pExpr, pRight));
-}
-
-SNode* createIsNullCondNode(SAstCreateContext* pCxt, SNode* pExpr, bool isNull) {
-  SIsNullCondNode* cond = (SIsNullCondNode*)nodesMakeNode(QUERY_NODE_IS_NULL_CONDITION);
-  CHECK_OUT_OF_MEM(cond);
-  cond->pExpr = pExpr;
-  cond->isNull = isNull;
-  return (SNode*)cond;
 }
 
 SNode* createFunctionNode(SAstCreateContext* pCxt, const SToken* pFuncName, SNodeList* pParameterList) {
@@ -292,7 +294,11 @@ SNode* createGroupingSetNode(SAstCreateContext* pCxt, SNode* pNode) {
 }
 
 SNode* setProjectionAlias(SAstCreateContext* pCxt, SNode* pNode, const SToken* pAlias) {
-  strncpy(((SExprNode*)pNode)->aliasName, pAlias->z, pAlias->n);
+  if (NULL == pNode || !pCxt->valid) {
+    return pNode;
+  }
+  uint32_t maxLen = sizeof(((SExprNode*)pNode)->aliasName);
+  strncpy(((SExprNode*)pNode)->aliasName, pAlias->z, pAlias->n > maxLen ? maxLen : pAlias->n);
   return pNode;
 }
 

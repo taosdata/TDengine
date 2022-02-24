@@ -21,23 +21,20 @@ void Testbase::InitLog(const char* path) {
   mDebugFlag = 143;
   cDebugFlag = 0;
   jniDebugFlag = 0;
-  tmrDebugFlag = 0;
-  uDebugFlag = 0;
-  rpcDebugFlag = 0;
+  tmrDebugFlag = 143;
+  uDebugFlag = 143;
+  rpcDebugFlag = 143;
   qDebugFlag = 0;
   wDebugFlag = 0;
   sDebugFlag = 0;
   tsdbDebugFlag = 0;
-  cqDebugFlag = 0;
   tscEmbeddedInUtil = 1;
   tsAsyncLog = 0;
 
   taosRemoveDir(path);
   taosMkDir(path);
-
-  char temp[PATH_MAX];
-  snprintf(temp, PATH_MAX, "%s/taosdlog", path);
-  if (taosInitLog(temp, tsNumOfLogLines, 1) != 0) {
+  osSetLogDir(path);
+  if (taosInitLog("taosdlog", 1) != 0) {
     printf("failed to init log file\n");
   }
 }
@@ -46,6 +43,8 @@ void Testbase::Init(const char* path, int16_t port) {
   SDnodeEnvCfg cfg = {0};
   cfg.numOfCommitThreads = 1;
   cfg.numOfCores = 1;
+  cfg.rpcMaxTime = 600;
+  cfg.rpcTimer = 300;
   dndInit(&cfg);
 
   char fqdn[] = "localhost";
@@ -56,19 +55,31 @@ void Testbase::Init(const char* path, int16_t port) {
   server.Start(path, fqdn, port, firstEp);
   client.Init("root", "taosdata", fqdn, port);
   taosMsleep(1100);
+
+  tFreeSTableMetaRsp(&metaRsp);
+  showId = 0;
+  pData = 0;
+  pos = 0;
+  pRetrieveRsp = NULL;
 }
 
 void Testbase::Cleanup() {
-  server.Stop();
+  tFreeSTableMetaRsp(&metaRsp);
   client.Cleanup();
+  taosMsleep(10);
+  server.Stop();
   dndCleanup();
 }
 
-void Testbase::Restart() { server.Restart(); }
+void Testbase::Restart() {
+  server.Restart();
+  client.Restart();
+}
 
 void Testbase::ServerStop() { server.Stop(); }
 
 void Testbase::ServerStart() { server.DoStart(); }
+void Testbase::ClientRestart() { client.Restart(); }
 
 SRpcMsg* Testbase::SendReq(tmsg_t msgType, void* pCont, int32_t contLen) {
   SRpcMsg rpcMsg = {0};
@@ -85,51 +96,45 @@ void Testbase::SendShowMetaReq(int8_t showType, const char* db) {
   strcpy(showReq.db, db);
 
   int32_t contLen = tSerializeSShowReq(NULL, 0, &showReq);
-  char*   pReq = (char*)rpcMallocCont(contLen);
+  void*   pReq = rpcMallocCont(contLen);
   tSerializeSShowReq(pReq, contLen, &showReq);
   tFreeSShowReq(&showReq);
 
-  SRpcMsg*  pRsp = SendReq(TDMT_MND_SHOW, pReq, contLen);
-  SShowRsp* pShowRsp = (SShowRsp*)pRsp->pCont;
+  SRpcMsg* pRsp = SendReq(TDMT_MND_SHOW, pReq, contLen);
+  ASSERT(pRsp->pCont != nullptr);
 
-  ASSERT(pShowRsp != nullptr);
-  pShowRsp->showId = htobe64(pShowRsp->showId);
-  pMeta = &pShowRsp->tableMeta;
-  pMeta->numOfTags = htonl(pMeta->numOfTags);
-  pMeta->numOfColumns = htonl(pMeta->numOfColumns);
-  pMeta->sversion = htonl(pMeta->sversion);
-  pMeta->tversion = htonl(pMeta->tversion);
-  pMeta->tuid = htobe64(pMeta->tuid);
-  pMeta->suid = htobe64(pMeta->suid);
+  if (pRsp->contLen == 0) return;
 
-  showId = pShowRsp->showId;
+  SShowRsp showRsp = {0};
+  tDeserializeSShowRsp(pRsp->pCont, pRsp->contLen, &showRsp);
+  tFreeSTableMetaRsp(&metaRsp);
+  metaRsp = showRsp.tableMeta;
+  showId = showRsp.showId;
 }
 
 int32_t Testbase::GetMetaColId(int32_t index) {
-  SSchema* pSchema = &pMeta->pSchema[index];
-  pSchema->colId = htonl(pSchema->colId);
+  SSchema* pSchema = &metaRsp.pSchemas[index];
   return pSchema->colId;
 }
 
 int8_t Testbase::GetMetaType(int32_t index) {
-  SSchema* pSchema = &pMeta->pSchema[index];
+  SSchema* pSchema = &metaRsp.pSchemas[index];
   return pSchema->type;
 }
 
 int32_t Testbase::GetMetaBytes(int32_t index) {
-  SSchema* pSchema = &pMeta->pSchema[index];
-  pSchema->bytes = htonl(pSchema->bytes);
+  SSchema* pSchema = &metaRsp.pSchemas[index];
   return pSchema->bytes;
 }
 
 const char* Testbase::GetMetaName(int32_t index) {
-  SSchema* pSchema = &pMeta->pSchema[index];
+  SSchema* pSchema = &metaRsp.pSchemas[index];
   return pSchema->name;
 }
 
-int32_t Testbase::GetMetaNum() { return pMeta->numOfColumns; }
+int32_t Testbase::GetMetaNum() { return metaRsp.numOfColumns; }
 
-const char* Testbase::GetMetaTbName() { return pMeta->tbName; }
+const char* Testbase::GetMetaTbName() { return metaRsp.tbName; }
 
 void Testbase::SendShowRetrieveReq() {
   SRetrieveTableReq retrieveReq = {0};
@@ -150,7 +155,7 @@ void Testbase::SendShowRetrieveReq() {
   pos = 0;
 }
 
-const char* Testbase::GetShowName() { return pMeta->tbName; }
+const char* Testbase::GetShowName() { return metaRsp.tbName; }
 
 int8_t Testbase::GetShowInt8() {
   int8_t data = *((int8_t*)(pData + pos));
@@ -191,6 +196,6 @@ const char* Testbase::GetShowBinary(int32_t len) {
 
 int32_t Testbase::GetShowRows() { return pRetrieveRsp->numOfRows; }
 
-STableMetaRsp* Testbase::GetShowMeta() { return pMeta; }
+STableMetaRsp* Testbase::GetShowMeta() { return &metaRsp; }
 
 SRetrieveTableRsp* Testbase::GetRetrieveRsp() { return pRetrieveRsp; }

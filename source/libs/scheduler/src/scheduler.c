@@ -18,6 +18,10 @@
 #include "query.h"
 #include "catalog.h"
 
+typedef struct SSchTrans {
+  void *transInst;
+  void *transHandle;
+}SSchTrans;
 static SSchedulerMgmt schMgmt = {0};
 
 uint64_t schGenTaskId(void) {
@@ -823,7 +827,7 @@ int32_t schHandleResponseMsg(SSchJob *pJob, SSchTask *pTask, int32_t msgType, ch
           SCH_ERR_RET(schProcessOnTaskFailure(pJob, pTask, rspCode));
         }
 
-        SShellSubmitRsp *rsp = (SShellSubmitRsp *)msg;
+        SSubmitRsp *rsp = (SSubmitRsp *)msg;
         if (rsp) {
           pJob->resNumOfRows += rsp->affectedRows;
         }
@@ -932,6 +936,7 @@ int32_t schHandleCallback(void* param, const SDataBuf* pMsg, int32_t msgType, in
   pTask = *task;
   SCH_TASK_DLOG("rsp msg received, type:%s, code:%s", TMSG_INFO(msgType), tstrerror(rspCode));
   
+  pTask->handle = pMsg->handle;  
   SCH_ERR_JRET(schHandleResponseMsg(pJob, pTask, msgType, pMsg->pData, pMsg->len, rspCode));
 
 _return:
@@ -1000,6 +1005,9 @@ int32_t schGetCallbackFp(int32_t msgType, __async_send_cb_fn_t *fp) {
 
 int32_t schAsyncSendMsg(void *transport, SEpSet* epSet, uint64_t qId, uint64_t tId, int32_t msgType, void *msg, uint32_t msgSize) {
   int32_t code = 0;
+
+  SSchTrans *trans = (SSchTrans *)transport;
+
   SMsgSendInfo* pMsgSendInfo = calloc(1, sizeof(SMsgSendInfo));
   if (NULL == pMsgSendInfo) {
     qError("QID:%"PRIx64 ",TID:%"PRIx64 " calloc %d failed", qId, tId, (int32_t)sizeof(SMsgSendInfo));
@@ -1018,14 +1026,16 @@ int32_t schAsyncSendMsg(void *transport, SEpSet* epSet, uint64_t qId, uint64_t t
   param->queryId = qId;
   param->taskId = tId;
 
+  
   pMsgSendInfo->param = param;
   pMsgSendInfo->msgInfo.pData = msg;
   pMsgSendInfo->msgInfo.len = msgSize;
+  pMsgSendInfo->msgInfo.handle = trans->transHandle; 
   pMsgSendInfo->msgType = msgType;
   pMsgSendInfo->fp = fp;
   
   int64_t  transporterId = 0;
-  code = asyncSendMsgToServer(transport, epSet, &transporterId, pMsgSendInfo);
+  code = asyncSendMsgToServer(trans->transInst, epSet, &transporterId, pMsgSendInfo);
   if (code) {
     SCH_ERR_JRET(code);
   }
@@ -1149,7 +1159,8 @@ int32_t schBuildAndSendMsg(SSchJob *pJob, SSchTask *pTask, SQueryNodeAddr *addr,
 
   atomic_store_32(&pTask->lastMsgType, msgType);
 
-  SCH_ERR_JRET(schAsyncSendMsg(pJob->transport, &epSet, pJob->queryId, pTask->taskId, msgType, msg, msgSize));
+  SSchTrans trans = {.transInst = pJob->transport, .transHandle = pTask->handle};
+  SCH_ERR_JRET(schAsyncSendMsg(&trans, &epSet, pJob->queryId, pTask->taskId, msgType, msg, msgSize));
 
   if (isCandidateAddr) {
     SCH_ERR_RET(schRecordTaskExecNode(pJob, pTask, addr));

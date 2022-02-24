@@ -13,33 +13,41 @@
  * along with this program. If not, see <http://www.gnu.org/licenses/>.
  */
 
-#include "tep.h"
 #include "sut.h"
+#include "tep.h"
 
 static void processClientRsp(void* parent, SRpcMsg* pRsp, SEpSet* pEpSet) {
   TestClient* client = (TestClient*)parent;
   client->SetRpcRsp(pRsp);
-  uInfo("response:%s from dnode, code:0x%x", TMSG_INFO(pRsp->msgType), pRsp->code);
+  uInfo("x response:%s from dnode, code:0x%x, msgSize: %d", TMSG_INFO(pRsp->msgType), pRsp->code, pRsp->contLen);
   tsem_post(client->GetSem());
 }
 
-void TestClient::SetRpcRsp(SRpcMsg* pRsp) { this->pRsp = pRsp; };
+void TestClient::SetRpcRsp(SRpcMsg* rsp) {
+  if (this->pRsp) {
+    free(this->pRsp);
+  }
+  this->pRsp = (SRpcMsg*)calloc(1, sizeof(SRpcMsg));
+  this->pRsp->msgType = rsp->msgType;
+  this->pRsp->code = rsp->code;
+  this->pRsp->pCont = rsp->pCont;
+  this->pRsp->contLen = rsp->contLen;
+};
 
 tsem_t* TestClient::GetSem() { return &sem; }
 
-bool TestClient::Init(const char* user, const char* pass, const char* fqdn, uint16_t port) {
+void TestClient::DoInit() {
   char secretEncrypt[TSDB_PASSWORD_LEN + 1] = {0};
   taosEncryptPass_c((uint8_t*)pass, strlen(pass), secretEncrypt);
-
   SRpcInit rpcInit;
   memset(&rpcInit, 0, sizeof(rpcInit));
-  rpcInit.label = (char*)"DND-C";
+  rpcInit.label = (char*)"shell";
   rpcInit.numOfThreads = 1;
   rpcInit.cfp = processClientRsp;
   rpcInit.sessions = 1024;
   rpcInit.connType = TAOS_CONN_CLIENT;
   rpcInit.idleTime = 30 * 1000;
-  rpcInit.user = (char*)user;
+  rpcInit.user = (char*)this->user;
   rpcInit.ckey = (char*)"key";
   rpcInit.parent = this;
   rpcInit.secret = (char*)secretEncrypt;
@@ -47,11 +55,16 @@ bool TestClient::Init(const char* user, const char* pass, const char* fqdn, uint
 
   clientRpc = rpcOpen(&rpcInit);
   ASSERT(clientRpc);
+  tsem_init(&this->sem, 0, 0);
+}
 
-  tsem_init(&sem, 0, 0);
+bool TestClient::Init(const char* user, const char* pass, const char* fqdn, uint16_t port) {
   strcpy(this->fqdn, fqdn);
+  strcpy(this->user, user);
+  strcpy(this->pass, pass);
   this->port = port;
-
+  this->pRsp = NULL;
+  this->DoInit();
   return true;
 }
 
@@ -60,11 +73,16 @@ void TestClient::Cleanup() {
   rpcClose(clientRpc);
 }
 
+void TestClient::Restart() {
+  this->Cleanup();
+  this->DoInit();
+}
 SRpcMsg* TestClient::SendReq(SRpcMsg* pReq) {
   SEpSet epSet = {0};
   addEpIntoEpSet(&epSet, fqdn, port);
   rpcSendRequest(clientRpc, &epSet, pReq, NULL);
   tsem_wait(&sem);
+  uInfo("y response:%s from dnode, code:0x%x, msgSize: %d", TMSG_INFO(pRsp->msgType), pRsp->code, pRsp->contLen);
 
   return pRsp;
 }

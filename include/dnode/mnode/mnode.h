@@ -46,7 +46,8 @@ typedef struct SMnodeLoad {
 
 typedef struct SMnodeCfg {
   int32_t sver;
-  int8_t  enableTelem;
+  bool    enableTelem;
+  bool    printAuth;
   int32_t statusInterval;
   int32_t shellActivityTimer;
   char   *timezone;

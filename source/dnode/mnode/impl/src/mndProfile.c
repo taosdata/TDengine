@@ -14,16 +14,14 @@
  */
 
 #define _DEFAULT_SOURCE
-#include "tglobal.h"
 #include "mndProfile.h"
-//#include "mndConsumer.h"
 #include "mndDb.h"
-#include "mndStb.h"
 #include "mndMnode.h"
 #include "mndShow.h"
-//#include "mndTopic.h"
+#include "mndStb.h"
 #include "mndUser.h"
-//#include "mndVgroup.h"
+#include "tglobal.h"
+#include "version.h"
 
 #define QUERY_ID_SIZE 20
 #define QUERY_OBJ_ID_SIZE 18
@@ -184,15 +182,17 @@ static void mndCancelGetNextConn(SMnode *pMnode, void *pIter) {
 }
 
 static int32_t mndProcessConnectReq(SMnodeMsg *pReq) {
-  SMnode   *pMnode = pReq->pMnode;
-  SUserObj *pUser = NULL;
-  SDbObj   *pDb = NULL;
-  SConnObj *pConn = NULL;
-  int32_t   code = -1;
+  SMnode     *pMnode = pReq->pMnode;
+  SUserObj   *pUser = NULL;
+  SDbObj     *pDb = NULL;
+  SConnObj   *pConn = NULL;
+  int32_t     code = -1;
+  SConnectReq connReq = {0};
 
-  SConnectReq *pConnReq = pReq->rpcMsg.pCont;
-  pConnReq->pid = htonl(pConnReq->pid);
-  pConnReq->startTime = htobe64(pConnReq->startTime);
+  if (tDeserializeSConnectReq(pReq->rpcMsg.pCont, pReq->rpcMsg.contLen, &connReq) != 0) {
+    terrno = TSDB_CODE_INVALID_MSG;
+    goto CONN_OVER;
+  }
 
   SRpcConnInfo info = {0};
   if (rpcGetConnInfo(pReq->rpcMsg.handle, &info) != 0) {
@@ -209,41 +209,42 @@ static int32_t mndProcessConnectReq(SMnodeMsg *pReq) {
     goto CONN_OVER;
   }
 
-  if (pConnReq->db[0]) {
-    snprintf(pReq->db, TSDB_DB_FNAME_LEN, "%d%s%s", pUser->acctId, TS_PATH_DELIMITER, pConnReq->db);
+  if (connReq.db[0]) {
+    snprintf(pReq->db, TSDB_DB_FNAME_LEN, "%d%s%s", pUser->acctId, TS_PATH_DELIMITER, connReq.db);
     pDb = mndAcquireDb(pMnode, pReq->db);
     if (pDb == NULL) {
       terrno = TSDB_CODE_MND_INVALID_DB;
-      mError("user:%s, failed to login from %s while use db:%s since %s", pReq->user, ip, pConnReq->db, terrstr());
+      mError("user:%s, failed to login from %s while use db:%s since %s", pReq->user, ip, connReq.db, terrstr());
       goto CONN_OVER;
     }
   }
 
-  pConn = mndCreateConn(pMnode, &info, pConnReq->pid, pConnReq->app, pConnReq->startTime);
+  pConn = mndCreateConn(pMnode, &info, connReq.pid, connReq.app, connReq.startTime);
   if (pConn == NULL) {
     mError("user:%s, failed to login from %s while create connection since %s", pReq->user, ip, terrstr());
     goto CONN_OVER;
   }
 
-  SConnectRsp *pRsp = rpcMallocCont(sizeof(SConnectRsp));
-  if (pRsp == NULL) {
-    terrno = TSDB_CODE_OUT_OF_MEMORY;
-    mError("user:%s, failed to login from %s while create rsp since %s", pReq->user, ip, terrstr());
-    goto CONN_OVER;
-  }
+  SConnectRsp connectRsp = {0};
+  connectRsp.acctId = pUser->acctId;
+  connectRsp.superUser = pUser->superUser;
+  connectRsp.clusterId = pMnode->clusterId;
+  connectRsp.connId = pConn->id;
 
-  pRsp->acctId    = htonl(pUser->acctId);
-  pRsp->superUser = pUser->superUser;
-  pRsp->clusterId = htobe64(pMnode->clusterId);
-  pRsp->connId    = htonl(pConn->id);
+  snprintf(connectRsp.sVersion, sizeof(connectRsp.sVersion), "ver:%s\nbuild:%s\ngitinfo:%s", version, buildinfo,
+           gitinfo);
+  mndGetMnodeEpSet(pMnode, &connectRsp.epSet);
 
-  snprintf(pRsp->sVersion, tListLen(pRsp->sVersion), "ver:%s\nbuild:%s\ngitinfo:%s", version, buildinfo, gitinfo);
-  mndGetMnodeEpSet(pMnode, &pRsp->epSet);
+  int32_t contLen = tSerializeSConnectRsp(NULL, 0, &connectRsp);
+  if (contLen < 0) goto CONN_OVER;
+  void *pRsp = rpcMallocCont(contLen);
+  if (pRsp == NULL) goto CONN_OVER;
+  tSerializeSConnectRsp(pRsp, contLen, &connectRsp);
 
-  pReq->contLen = sizeof(SConnectRsp);
+  pReq->contLen = contLen;
   pReq->pCont = pRsp;
 
-  mDebug("user:%s, login from %s, conn:%d, app:%s", info.user, ip, pConn->id, pConnReq->app);
+  mDebug("user:%s, login from %s, conn:%d, app:%s", info.user, ip, pConn->id, connReq.app);
 
   code = 0;
 
@@ -276,7 +277,7 @@ static int32_t mndSaveQueryStreamList(SConnObj *pConn, SHeartBeatReq *pReq) {
   return TSDB_CODE_SUCCESS;
 }
 
-static SClientHbRsp* mndMqHbBuildRsp(SMnode* pMnode, SClientHbReq* pReq) {
+static SClientHbRsp *mndMqHbBuildRsp(SMnode *pMnode, SClientHbReq *pReq) {
 #if 0
   SClientHbRsp* pRsp = malloc(sizeof(SClientHbRsp));
   if (pRsp == NULL) {
@@ -350,14 +351,13 @@ static int32_t mndProcessHeartBeatReq(SMnodeMsg *pReq) {
     return -1;
   }
 
-  SArray *pArray = batchReq.reqs;
-  int32_t sz = taosArrayGetSize(pArray);
-
+  
   SClientHbBatchRsp batchRsp = {0};
   batchRsp.rsps = taosArrayInit(0, sizeof(SClientHbRsp));
 
+  int32_t sz = taosArrayGetSize(batchReq.reqs);
   for (int i = 0; i < sz; i++) {
-    SClientHbReq *pHbReq = taosArrayGet(pArray, i);
+    SClientHbReq *pHbReq = taosArrayGet(batchReq.reqs, i);
     if (pHbReq->connKey.hbType == HEARTBEAT_TYPE_QUERY) {
       int32_t kvNum = taosHashGetSize(pHbReq->info);
       if (NULL == pHbReq->info || kvNum <= 0) {
@@ -409,7 +409,7 @@ static int32_t mndProcessHeartBeatReq(SMnodeMsg *pReq) {
       }
     }
   }
-  taosArrayDestroyEx(pArray, tFreeClientHbReq);
+  taosArrayDestroyEx(batchReq.reqs, tFreeClientHbReq);
 
   int32_t tlen = tSerializeSClientHbBatchRsp(NULL, 0, &batchRsp);
   void   *buf = rpcMallocCont(tlen);
@@ -517,19 +517,22 @@ static int32_t mndProcessKillQueryReq(SMnodeMsg *pReq) {
   }
   mndReleaseUser(pMnode, pUser);
 
-  SKillQueryReq *pKill = pReq->rpcMsg.pCont;
-  int32_t        connId = htonl(pKill->connId);
-  int32_t        queryId = htonl(pKill->queryId);
-  mInfo("kill query msg is received, queryId:%d", pKill->queryId);
+  SKillQueryReq killReq = {0};
+  if (tDeserializeSKillQueryReq(pReq->rpcMsg.pCont, pReq->rpcMsg.contLen, &killReq) != 0) {
+    terrno = TSDB_CODE_INVALID_MSG;
+    return -1;
+  }
 
-  SConnObj *pConn = taosCacheAcquireByKey(pMgmt->cache, &connId, sizeof(int32_t));
+  mInfo("kill query msg is received, queryId:%d", killReq.queryId);
+
+  SConnObj *pConn = taosCacheAcquireByKey(pMgmt->cache, &killReq.connId, sizeof(int32_t));
   if (pConn == NULL) {
-    mError("connId:%d, failed to kill queryId:%d, conn not exist", connId, queryId);
+    mError("connId:%d, failed to kill queryId:%d, conn not exist", killReq.connId, killReq.queryId);
     terrno = TSDB_CODE_MND_INVALID_CONN_ID;
     return -1;
   } else {
-    mInfo("connId:%d, queryId:%d is killed by user:%s", connId, queryId, pReq->user);
-    pConn->queryId = queryId;
+    mInfo("connId:%d, queryId:%d is killed by user:%s", killReq.connId, killReq.queryId, pReq->user);
+    pConn->queryId = killReq.queryId;
     taosCacheRelease(pMgmt->cache, (void **)&pConn, false);
     return 0;
   }
@@ -548,16 +551,19 @@ static int32_t mndProcessKillConnReq(SMnodeMsg *pReq) {
   }
   mndReleaseUser(pMnode, pUser);
 
-  SKillConnReq *pKill = pReq->rpcMsg.pCont;
-  int32_t       connId = htonl(pKill->connId);
+  SKillConnReq killReq = {0};
+  if (tDeserializeSKillConnReq(pReq->rpcMsg.pCont, pReq->rpcMsg.contLen, &killReq) != 0) {
+    terrno = TSDB_CODE_INVALID_MSG;
+    return -1;
+  }
 
-  SConnObj *pConn = taosCacheAcquireByKey(pMgmt->cache, &connId, sizeof(int32_t));
+  SConnObj *pConn = taosCacheAcquireByKey(pMgmt->cache, &killReq.connId, sizeof(int32_t));
   if (pConn == NULL) {
-    mError("connId:%d, failed to kill connection, conn not exist", connId);
+    mError("connId:%d, failed to kill connection, conn not exist", killReq.connId);
     terrno = TSDB_CODE_MND_INVALID_CONN_ID;
     return -1;
   } else {
-    mInfo("connId:%d, is killed by user:%s", connId, pReq->user);
+    mInfo("connId:%d, is killed by user:%s", killReq.connId, pReq->user);
     pConn->killed = 1;
     taosCacheRelease(pMgmt->cache, (void **)&pConn, false);
     return TSDB_CODE_SUCCESS;
@@ -578,53 +584,53 @@ static int32_t mndGetConnsMeta(SMnodeMsg *pReq, SShowObj *pShow, STableMetaRsp *
   mndReleaseUser(pMnode, pUser);
 
   int32_t  cols = 0;
-  SSchema *pSchema = pMeta->pSchema;
+  SSchema *pSchema = pMeta->pSchemas;
 
   pShow->bytes[cols] = 4;
   pSchema[cols].type = TSDB_DATA_TYPE_INT;
   strcpy(pSchema[cols].name, "connId");
-  pSchema[cols].bytes = htonl(pShow->bytes[cols]);
+  pSchema[cols].bytes = pShow->bytes[cols];
   cols++;
 
   pShow->bytes[cols] = TSDB_USER_LEN + VARSTR_HEADER_SIZE;
   pSchema[cols].type = TSDB_DATA_TYPE_BINARY;
   strcpy(pSchema[cols].name, "user");
-  pSchema[cols].bytes = htonl(pShow->bytes[cols]);
+  pSchema[cols].bytes = pShow->bytes[cols];
   cols++;
 
   // app name
   pShow->bytes[cols] = TSDB_APP_NAME_LEN + VARSTR_HEADER_SIZE;
   pSchema[cols].type = TSDB_DATA_TYPE_BINARY;
   strcpy(pSchema[cols].name, "program");
-  pSchema[cols].bytes = htonl(pShow->bytes[cols]);
+  pSchema[cols].bytes = pShow->bytes[cols];
   cols++;
 
   // app pid
   pShow->bytes[cols] = 4;
   pSchema[cols].type = TSDB_DATA_TYPE_INT;
   strcpy(pSchema[cols].name, "pid");
-  pSchema[cols].bytes = htonl(pShow->bytes[cols]);
+  pSchema[cols].bytes = pShow->bytes[cols];
   cols++;
 
   pShow->bytes[cols] = TSDB_IPv4ADDR_LEN + 6 + VARSTR_HEADER_SIZE;
   pSchema[cols].type = TSDB_DATA_TYPE_BINARY;
   strcpy(pSchema[cols].name, "ip:port");
-  pSchema[cols].bytes = htonl(pShow->bytes[cols]);
+  pSchema[cols].bytes = pShow->bytes[cols];
   cols++;
 
   pShow->bytes[cols] = 8;
   pSchema[cols].type = TSDB_DATA_TYPE_TIMESTAMP;
   strcpy(pSchema[cols].name, "login_time");
-  pSchema[cols].bytes = htonl(pShow->bytes[cols]);
+  pSchema[cols].bytes = pShow->bytes[cols];
   cols++;
 
   pShow->bytes[cols] = 8;
   pSchema[cols].type = TSDB_DATA_TYPE_TIMESTAMP;
   strcpy(pSchema[cols].name, "last_access");
-  pSchema[cols].bytes = htonl(pShow->bytes[cols]);
+  pSchema[cols].bytes = pShow->bytes[cols];
   cols++;
 
-  pMeta->numOfColumns = htonl(cols);
+  pMeta->numOfColumns = cols;
   pShow->numOfColumns = cols;
 
   pShow->offset[0] = 0;
@@ -707,93 +713,93 @@ static int32_t mndGetQueryMeta(SMnodeMsg *pReq, SShowObj *pShow, STableMetaRsp *
   mndReleaseUser(pMnode, pUser);
 
   int32_t  cols = 0;
-  SSchema *pSchema = pMeta->pSchema;
+  SSchema *pSchema = pMeta->pSchemas;
 
   pShow->bytes[cols] = 4;
   pSchema[cols].type = TSDB_DATA_TYPE_INT;
   strcpy(pSchema[cols].name, "queryId");
-  pSchema[cols].bytes = htonl(pShow->bytes[cols]);
+  pSchema[cols].bytes = pShow->bytes[cols];
   cols++;
 
   pShow->bytes[cols] = 4;
   pSchema[cols].type = TSDB_DATA_TYPE_INT;
   strcpy(pSchema[cols].name, "connId");
-  pSchema[cols].bytes = htonl(pShow->bytes[cols]);
+  pSchema[cols].bytes = pShow->bytes[cols];
   cols++;
 
   pShow->bytes[cols] = TSDB_USER_LEN + VARSTR_HEADER_SIZE;
   pSchema[cols].type = TSDB_DATA_TYPE_BINARY;
   strcpy(pSchema[cols].name, "user");
-  pSchema[cols].bytes = htonl(pShow->bytes[cols]);
+  pSchema[cols].bytes = pShow->bytes[cols];
   cols++;
 
   pShow->bytes[cols] = TSDB_IPv4ADDR_LEN + 6 + VARSTR_HEADER_SIZE;
   pSchema[cols].type = TSDB_DATA_TYPE_BINARY;
   strcpy(pSchema[cols].name, "ip:port");
-  pSchema[cols].bytes = htonl(pShow->bytes[cols]);
+  pSchema[cols].bytes = pShow->bytes[cols];
   cols++;
 
   pShow->bytes[cols] = 22 + VARSTR_HEADER_SIZE;
   pSchema[cols].type = TSDB_DATA_TYPE_BINARY;
   strcpy(pSchema[cols].name, "qid");
-  pSchema[cols].bytes = htonl(pShow->bytes[cols]);
+  pSchema[cols].bytes = pShow->bytes[cols];
   cols++;
 
   pShow->bytes[cols] = 8;
   pSchema[cols].type = TSDB_DATA_TYPE_TIMESTAMP;
   strcpy(pSchema[cols].name, "created_time");
-  pSchema[cols].bytes = htonl(pShow->bytes[cols]);
+  pSchema[cols].bytes = pShow->bytes[cols];
   cols++;
 
   pShow->bytes[cols] = 8;
   pSchema[cols].type = TSDB_DATA_TYPE_BIGINT;
   strcpy(pSchema[cols].name, "time");
-  pSchema[cols].bytes = htonl(pShow->bytes[cols]);
+  pSchema[cols].bytes = pShow->bytes[cols];
   cols++;
 
   pShow->bytes[cols] = QUERY_OBJ_ID_SIZE + VARSTR_HEADER_SIZE;
   pSchema[cols].type = TSDB_DATA_TYPE_BINARY;
   strcpy(pSchema[cols].name, "sql_obj_id");
-  pSchema[cols].bytes = htonl(pShow->bytes[cols]);
+  pSchema[cols].bytes = pShow->bytes[cols];
   cols++;
 
   pShow->bytes[cols] = 4;
   pSchema[cols].type = TSDB_DATA_TYPE_INT;
   strcpy(pSchema[cols].name, "pid");
-  pSchema[cols].bytes = htonl(pShow->bytes[cols]);
+  pSchema[cols].bytes = pShow->bytes[cols];
   cols++;
 
   pShow->bytes[cols] = TSDB_EP_LEN + VARSTR_HEADER_SIZE;
   pSchema[cols].type = TSDB_DATA_TYPE_BINARY;
   strcpy(pSchema[cols].name, "ep");
-  pSchema[cols].bytes = htonl(pShow->bytes[cols]);
+  pSchema[cols].bytes = pShow->bytes[cols];
   cols++;
 
   pShow->bytes[cols] = 1;
   pSchema[cols].type = TSDB_DATA_TYPE_BOOL;
   strcpy(pSchema[cols].name, "stable_query");
-  pSchema[cols].bytes = htonl(pShow->bytes[cols]);
+  pSchema[cols].bytes = pShow->bytes[cols];
   cols++;
 
   pShow->bytes[cols] = 4;
   pSchema[cols].type = TSDB_DATA_TYPE_INT;
   strcpy(pSchema[cols].name, "sub_queries");
-  pSchema[cols].bytes = htonl(pShow->bytes[cols]);
+  pSchema[cols].bytes = pShow->bytes[cols];
   cols++;
 
   pShow->bytes[cols] = TSDB_SHOW_SUBQUERY_LEN + VARSTR_HEADER_SIZE;
   pSchema[cols].type = TSDB_DATA_TYPE_BINARY;
   strcpy(pSchema[cols].name, "sub_query_info");
-  pSchema[cols].bytes = htonl(pShow->bytes[cols]);
+  pSchema[cols].bytes = pShow->bytes[cols];
   cols++;
 
   pShow->bytes[cols] = TSDB_SHOW_SQL_LEN + VARSTR_HEADER_SIZE;
   pSchema[cols].type = TSDB_DATA_TYPE_BINARY;
   strcpy(pSchema[cols].name, "sql");
-  pSchema[cols].bytes = htonl(pShow->bytes[cols]);
+  pSchema[cols].bytes = pShow->bytes[cols];
   cols++;
 
-  pMeta->numOfColumns = htonl(cols);
+  pMeta->numOfColumns = cols;
   pShow->numOfColumns = cols;
 
   pShow->offset[0] = 0;

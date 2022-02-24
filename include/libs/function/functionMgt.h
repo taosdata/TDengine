@@ -21,6 +21,7 @@ extern "C" {
 #endif
 
 #include "querynodes.h"
+#include "function.h"
 
 typedef enum EFunctionType {
   // aggregate function
@@ -105,7 +106,6 @@ typedef struct SFuncExecEnv {
   int32_t calcMemSize;
 } SFuncExecEnv;
 
-typedef void* FuncMgtHandle;
 typedef bool (*FExecGetEnv)(SFunctionNode* pFunc, SFuncExecEnv* pEnv);
 typedef bool (*FExecInit)(struct SqlFunctionCtx *pCtx, struct SResultRowEntryInfo* pResultCellInfo);
 typedef void (*FExecProcess)(struct SqlFunctionCtx *pCtx);
@@ -118,11 +118,16 @@ typedef struct SFuncExecFuncs {
   FExecFinalize finalize;
 } SFuncExecFuncs;
 
+typedef int32_t (*FScalarExecProcess)(SScalarParam *pInput, int32_t inputNum, SScalarParam *pOutput);
+
+typedef struct SScalarFuncExecFuncs {
+  FScalarExecProcess process;
+} SScalarFuncExecFuncs;
+
+
 int32_t fmFuncMgtInit();
 
-int32_t fmGetHandle(FuncMgtHandle* pHandle);
-
-int32_t fmGetFuncInfo(FuncMgtHandle handle, const char* pFuncName, int32_t* pFuncId, int32_t* pFuncType);
+int32_t fmGetFuncInfo(const char* pFuncName, int32_t* pFuncId, int32_t* pFuncType);
 
 int32_t fmGetFuncResultType(SFunctionNode* pFunc);
 
@@ -136,7 +141,8 @@ bool fmIsTimeorderFunc(int32_t funcId);
 
 int32_t fmFuncScanType(int32_t funcId);
 
-int32_t fmGetFuncExecFuncs(FuncMgtHandle handle, int32_t funcId, SFuncExecFuncs* pFpSet);
+int32_t fmGetFuncExecFuncs(int32_t funcId, SFuncExecFuncs* pFpSet);
+int32_t fmGetScalarFuncExecFuncs(int32_t funcId, SScalarFuncExecFuncs* pFpSet);
 
 #ifdef __cplusplus
 }

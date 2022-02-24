@@ -27,37 +27,39 @@ Testbase DndTestVnode::test;
 
 TEST_F(DndTestVnode, 01_Create_Vnode) {
   for (int i = 0; i < 3; ++i) {
-    int32_t contLen = sizeof(SCreateVnodeReq);
-
-    SCreateVnodeReq* pReq = (SCreateVnodeReq*)rpcMallocCont(contLen);
-    pReq->vgId = htonl(2);
-    pReq->dnodeId = htonl(1);
-    strcpy(pReq->db, "1.d1");
-    pReq->dbUid = htobe64(9527);
-    pReq->vgVersion = htonl(1);
-    pReq->cacheBlockSize = htonl(16);
-    pReq->totalBlocks = htonl(10);
-    pReq->daysPerFile = htonl(10);
-    pReq->daysToKeep0 = htonl(3650);
-    pReq->daysToKeep1 = htonl(3650);
-    pReq->daysToKeep2 = htonl(3650);
-    pReq->minRows = htonl(100);
-    pReq->minRows = htonl(4096);
-    pReq->commitTime = htonl(3600);
-    pReq->fsyncPeriod = htonl(3000);
-    pReq->walLevel = 1;
-    pReq->precision = 0;
-    pReq->compression = 2;
-    pReq->replica = 1;
-    pReq->quorum = 1;
-    pReq->update = 0;
-    pReq->cacheLastRow = 0;
-    pReq->selfIndex = 0;
-    for (int r = 0; r < pReq->replica; ++r) {
-      SReplica* pReplica = &pReq->replicas[r];
-      pReplica->id = htonl(1);
-      pReplica->port = htons(9527);
+    SCreateVnodeReq createReq = {0};
+    createReq.vgId = 2;
+    createReq.dnodeId = 1;
+    strcpy(createReq.db, "1.d1");
+    createReq.dbUid = 9527;
+    createReq.vgVersion = 1;
+    createReq.cacheBlockSize = 16;
+    createReq.totalBlocks = 10;
+    createReq.daysPerFile = 10;
+    createReq.daysToKeep0 = 3650;
+    createReq.daysToKeep1 = 3650;
+    createReq.daysToKeep2 = 3650;
+    createReq.minRows = 100;
+    createReq.minRows = 4096;
+    createReq.commitTime = 3600;
+    createReq.fsyncPeriod = 3000;
+    createReq.walLevel = 1;
+    createReq.precision = 0;
+    createReq.compression = 2;
+    createReq.replica = 1;
+    createReq.quorum = 1;
+    createReq.update = 0;
+    createReq.cacheLastRow = 0;
+    createReq.selfIndex = 0;
+    for (int r = 0; r < createReq.replica; ++r) {
+      SReplica* pReplica = &createReq.replicas[r];
+      pReplica->id = 1;
+      pReplica->port = 9527;
     }
+
+    int32_t contLen = tSerializeSCreateVnodeReq(NULL, 0, &createReq);
+    void*   pReq = rpcMallocCont(contLen);
+    tSerializeSCreateVnodeReq(pReq, contLen, &createReq);
 
     SRpcMsg* pRsp = test.SendReq(TDMT_DND_CREATE_VNODE, pReq, contLen);
     ASSERT_NE(pRsp, nullptr);
@@ -70,37 +72,39 @@ TEST_F(DndTestVnode, 01_Create_Vnode) {
   }
 
   {
-    int32_t contLen = sizeof(SCreateVnodeReq);
-
-    SCreateVnodeReq* pReq = (SCreateVnodeReq*)rpcMallocCont(contLen);
-    pReq->vgId = htonl(2);
-    pReq->dnodeId = htonl(3);
-    strcpy(pReq->db, "1.d1");
-    pReq->dbUid = htobe64(9527);
-    pReq->vgVersion = htonl(1);
-    pReq->cacheBlockSize = htonl(16);
-    pReq->totalBlocks = htonl(10);
-    pReq->daysPerFile = htonl(10);
-    pReq->daysToKeep0 = htonl(3650);
-    pReq->daysToKeep1 = htonl(3650);
-    pReq->daysToKeep2 = htonl(3650);
-    pReq->minRows = htonl(100);
-    pReq->minRows = htonl(4096);
-    pReq->commitTime = htonl(3600);
-    pReq->fsyncPeriod = htonl(3000);
-    pReq->walLevel = 1;
-    pReq->precision = 0;
-    pReq->compression = 2;
-    pReq->replica = 1;
-    pReq->quorum = 1;
-    pReq->update = 0;
-    pReq->cacheLastRow = 0;
-    pReq->selfIndex = 0;
-    for (int r = 0; r < pReq->replica; ++r) {
-      SReplica* pReplica = &pReq->replicas[r];
-      pReplica->id = htonl(1);
-      pReplica->port = htons(9527);
+    SCreateVnodeReq createReq = {0};
+    createReq.vgId = 2;
+    createReq.dnodeId = 3;
+    strcpy(createReq.db, "1.d1");
+    createReq.dbUid = 9527;
+    createReq.vgVersion = 1;
+    createReq.cacheBlockSize = 16;
+    createReq.totalBlocks = 10;
+    createReq.daysPerFile = 10;
+    createReq.daysToKeep0 = 3650;
+    createReq.daysToKeep1 = 3650;
+    createReq.daysToKeep2 = 3650;
+    createReq.minRows = 100;
+    createReq.minRows = 4096;
+    createReq.commitTime = 3600;
+    createReq.fsyncPeriod = 3000;
+    createReq.walLevel = 1;
+    createReq.precision = 0;
+    createReq.compression = 2;
+    createReq.replica = 1;
+    createReq.quorum = 1;
+    createReq.update = 0;
+    createReq.cacheLastRow = 0;
+    createReq.selfIndex = 0;
+    for (int r = 0; r < createReq.replica; ++r) {
+      SReplica* pReplica = &createReq.replicas[r];
+      pReplica->id = 1;
+      pReplica->port = 9527;
     }
+
+    int32_t contLen = tSerializeSCreateVnodeReq(NULL, 0, &createReq);
+    void*   pReq = rpcMallocCont(contLen);
+    tSerializeSCreateVnodeReq(pReq, contLen, &createReq);
 
     SRpcMsg* pRsp = test.SendReq(TDMT_DND_CREATE_VNODE, pReq, contLen);
     ASSERT_NE(pRsp, nullptr);
@@ -110,37 +114,39 @@ TEST_F(DndTestVnode, 01_Create_Vnode) {
 
 TEST_F(DndTestVnode, 02_Alter_Vnode) {
   for (int i = 0; i < 3; ++i) {
-    int32_t contLen = sizeof(SAlterVnodeReq);
-
-    SAlterVnodeReq* pReq = (SAlterVnodeReq*)rpcMallocCont(contLen);
-    pReq->vgId = htonl(2);
-    pReq->dnodeId = htonl(1);
-    strcpy(pReq->db, "1.d1");
-    pReq->dbUid = htobe64(9527);
-    pReq->vgVersion = htonl(2);
-    pReq->cacheBlockSize = htonl(16);
-    pReq->totalBlocks = htonl(10);
-    pReq->daysPerFile = htonl(10);
-    pReq->daysToKeep0 = htonl(3650);
-    pReq->daysToKeep1 = htonl(3650);
-    pReq->daysToKeep2 = htonl(3650);
-    pReq->minRows = htonl(100);
-    pReq->minRows = htonl(4096);
-    pReq->commitTime = htonl(3600);
-    pReq->fsyncPeriod = htonl(3000);
-    pReq->walLevel = 1;
-    pReq->precision = 0;
-    pReq->compression = 2;
-    pReq->replica = 1;
-    pReq->quorum = 1;
-    pReq->update = 0;
-    pReq->cacheLastRow = 0;
-    pReq->selfIndex = 0;
-    for (int r = 0; r < pReq->replica; ++r) {
-      SReplica* pReplica = &pReq->replicas[r];
-      pReplica->id = htonl(1);
-      pReplica->port = htons(9527);
+    SAlterVnodeReq alterReq = {0};
+    alterReq.vgId = 2;
+    alterReq.dnodeId = 1;
+    strcpy(alterReq.db, "1.d1");
+    alterReq.dbUid = 9527;
+    alterReq.vgVersion = 2;
+    alterReq.cacheBlockSize = 16;
+    alterReq.totalBlocks = 10;
+    alterReq.daysPerFile = 10;
+    alterReq.daysToKeep0 = 3650;
+    alterReq.daysToKeep1 = 3650;
+    alterReq.daysToKeep2 = 3650;
+    alterReq.minRows = 100;
+    alterReq.minRows = 4096;
+    alterReq.commitTime = 3600;
+    alterReq.fsyncPeriod = 3000;
+    alterReq.walLevel = 1;
+    alterReq.precision = 0;
+    alterReq.compression = 2;
+    alterReq.replica = 1;
+    alterReq.quorum = 1;
+    alterReq.update = 0;
+    alterReq.cacheLastRow = 0;
+    alterReq.selfIndex = 0;
+    for (int r = 0; r < alterReq.replica; ++r) {
+      SReplica* pReplica = &alterReq.replicas[r];
+      pReplica->id = 1;
+      pReplica->port = 9527;
     }
+
+    int32_t contLen = tSerializeSCreateVnodeReq(NULL, 0, &alterReq);
+    void*   pReq = rpcMallocCont(contLen);
+    tSerializeSCreateVnodeReq(pReq, contLen, &alterReq);
 
     SRpcMsg* pRsp = test.SendReq(TDMT_DND_ALTER_VNODE, pReq, contLen);
     ASSERT_NE(pRsp, nullptr);
@@ -312,17 +318,19 @@ TEST_F(DndTestVnode, 05_DROP_Stb) {
 
 TEST_F(DndTestVnode, 06_Drop_Vnode) {
   for (int i = 0; i < 3; ++i) {
-    int32_t contLen = sizeof(SDropVnodeReq);
+    SDropVnodeReq dropReq = {0};
+    dropReq.vgId = 2;
+    dropReq.dnodeId = 1;
+    strcpy(dropReq.db, "1.d1");
+    dropReq.dbUid = 9527;
 
-    SDropVnodeReq* pReq = (SDropVnodeReq*)rpcMallocCont(contLen);
-    pReq->vgId = htonl(2);
-    pReq->dnodeId = htonl(1);
-    strcpy(pReq->db, "1.d1");
-    pReq->dbUid = htobe64(9527);
+    int32_t contLen = tSerializeSDropVnodeReq(NULL, 0, &dropReq);
+    void*   pReq = rpcMallocCont(contLen);
+    tSerializeSDropVnodeReq(pReq, contLen, &dropReq);
 
     SRpcMsg rpcMsg = {0};
     rpcMsg.pCont = pReq;
-    rpcMsg.contLen = sizeof(SDropVnodeReq);
+    rpcMsg.contLen = contLen;
     rpcMsg.msgType = TDMT_DND_DROP_VNODE;
 
     SRpcMsg* pRsp = test.SendReq(TDMT_DND_DROP_VNODE, pReq, contLen);

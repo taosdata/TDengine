@@ -192,12 +192,12 @@ int32_t tqDeserializeConsumer(STQ* pTq, const STqSerializedHead* pHead, STqConsu
     if (pTopic->pReadhandle == NULL) {
       ASSERT(false);
     }
-    for (int i = 0; i < TQ_BUFFER_SIZE; i++) {
-      pTopic->buffer.output[i].status = 0;
+    for (int j = 0; j < TQ_BUFFER_SIZE; j++) {
+      pTopic->buffer.output[j].status = 0;
       STqReadHandle* pReadHandle = tqInitSubmitMsgScanner(pTq->pMeta);
       SReadHandle    handle = {.reader = pReadHandle, .meta = pTq->pMeta};
-      pTopic->buffer.output[i].pReadHandle = pReadHandle;
-      pTopic->buffer.output[i].task = qCreateStreamExecTaskInfo(pTopic->qmsg, &handle);
+      pTopic->buffer.output[j].pReadHandle = pReadHandle;
+      pTopic->buffer.output[j].task = qCreateStreamExecTaskInfo(pTopic->qmsg, &handle);
     }
   }
 
@@ -207,8 +207,16 @@ int32_t tqDeserializeConsumer(STQ* pTq, const STqSerializedHead* pHead, STqConsu
 int32_t tqProcessConsumeReq(STQ* pTq, SRpcMsg* pMsg) {
   SMqConsumeReq* pReq = pMsg->pCont;
   int64_t        consumerId = pReq->consumerId;
-  int64_t        fetchOffset = pReq->offset;
+  int64_t        fetchOffset;
   /*int64_t        blockingTime = pReq->blockingTime;*/
+
+  if (pReq->currentOffset == TMQ_CONF__RESET_OFFSET__EARLIEAST) {
+    fetchOffset = 0;
+  } else if (pReq->currentOffset == TMQ_CONF__RESET_OFFSET__LATEST) {
+    fetchOffset = walGetLastVer(pTq->pWal);
+  } else {
+    fetchOffset = pReq->currentOffset + 1;
+  }
 
   SMqConsumeRsp rsp = {.consumerId = consumerId, .numOfTopics = 0, .pBlockData = NULL};
 
@@ -226,32 +234,21 @@ int32_t tqProcessConsumeReq(STQ* pTq, SRpcMsg* pMsg) {
   ASSERT(strcmp(pTopic->topicName, pReq->topic) == 0);
   ASSERT(pConsumer->consumerId == consumerId);
 
-  if (pReq->reqType == TMQ_REQ_TYPE_COMMIT_ONLY) {
-    pTopic->committedOffset = pReq->offset;
-    pMsg->pCont = NULL;
-    pMsg->contLen = 0;
-    pMsg->code = 0;
-    rpcSendResponse(pMsg);
-    return 0;
-  }
-
-  if (pReq->reqType == TMQ_REQ_TYPE_CONSUME_AND_COMMIT) {
-    pTopic->committedOffset = pReq->offset - 1;
-  }
-
-  rsp.committedOffset = pTopic->committedOffset;
-  rsp.reqOffset = pReq->offset;
+  rsp.reqOffset = pReq->currentOffset;
   rsp.skipLogNum = 0;
 
   SWalHead* pHead;
   while (1) {
     int8_t pos = fetchOffset % TQ_BUFFER_SIZE;
     if (walReadWithHandle(pTopic->pReadhandle, fetchOffset) < 0) {
+      // TODO: no more log, set timer to wait blocking time
+      // if data inserted during waiting, launch query and
+      // rsponse to user
       break;
     }
     pHead = pTopic->pReadhandle->pHead;
     if (pHead->head.msgType == TDMT_VND_SUBMIT) {
-      SSubmitMsg* pCont = (SSubmitMsg*)&pHead->head.body;
+      SSubmitReq* pCont = (SSubmitReq*)&pHead->head.body;
       qTaskInfo_t task = pTopic->buffer.output[pos].task;
       qSetStreamInput(task, pCont);
       SArray* pRes = taosArrayInit(0, sizeof(SSDataBlock));
@@ -263,6 +260,7 @@ int32_t tqProcessConsumeReq(STQ* pTq, SRpcMsg* pMsg) {
         }
         if (pDataBlock == NULL) {
           fetchOffset++;
+          pos = fetchOffset % TQ_BUFFER_SIZE;
           rsp.skipLogNum++;
           break;
         }
@@ -397,7 +395,7 @@ int32_t tqProcessConsumeReqV0(STQ* pTq, SRpcMsg* pMsg) {
       fetchOffset++;
     }
     if (skip == 1) continue;
-    SSubmitMsg* pCont = (SSubmitMsg*)&pHead->head.body;
+    SSubmitReq* pCont = (SSubmitReq*)&pHead->head.body;
     qTaskInfo_t task = pTopic->buffer.output[pos].task;
 
     printf("current fetch offset %ld\n", fetchOffset);

@@ -96,7 +96,7 @@ static void *sendRequest(void *param) {
 
 int main(int argc, char *argv[]) {
   SRpcInit       rpcInit;
-  SEpSet         epSet;
+  SEpSet         epSet = {0};
   int            msgSize = 128;
   int            numOfReqs = 0;
   int            appThreads = 1;
@@ -169,7 +169,7 @@ int main(int argc, char *argv[]) {
     }
   }
 
-  taosInitLog("client.log", 100000, 10);
+  taosInitLog("client.log", 10);
 
   void *pRpc = rpcOpen(&rpcInit);
   if (pRpc == NULL) {

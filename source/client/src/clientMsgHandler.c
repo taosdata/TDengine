@@ -20,14 +20,14 @@
 #include "clientLog.h"
 #include "catalog.h"
 
-int (*handleRequestRspFp[TDMT_MAX])(void*, const SDataBuf* pMsg, int32_t code);
+int32_t (*handleRequestRspFp[TDMT_MAX])(void*, const SDataBuf* pMsg, int32_t code);
 
 static void setErrno(SRequestObj* pRequest, int32_t code) {
   pRequest->code = code;
   terrno = code;
 }
 
-int genericRspCallback(void* param, const SDataBuf* pMsg, int32_t code) {
+int32_t genericRspCallback(void* param, const SDataBuf* pMsg, int32_t code) {
   SRequestObj* pRequest = param;
   setErrno(pRequest, code);
 
@@ -36,7 +36,7 @@ int genericRspCallback(void* param, const SDataBuf* pMsg, int32_t code) {
   return code;
 }
 
-int processConnectRsp(void* param, const SDataBuf* pMsg, int32_t code) {
+int32_t processConnectRsp(void* param, const SDataBuf* pMsg, int32_t code) {
   SRequestObj* pRequest = param;
   if (code != TSDB_CODE_SUCCESS) {
     free(pMsg->pData);
@@ -45,41 +45,35 @@ int processConnectRsp(void* param, const SDataBuf* pMsg, int32_t code) {
     return code;
   }
 
-  STscObj *pTscObj = pRequest->pTscObj;
+  STscObj* pTscObj = pRequest->pTscObj;
 
-  SConnectRsp *pConnect = (SConnectRsp *)pMsg->pData;
-  pConnect->acctId    = htonl(pConnect->acctId);
-  pConnect->connId    = htonl(pConnect->connId);
-  pConnect->clusterId = htobe64(pConnect->clusterId);
+  SConnectRsp connectRsp = {0};
+  tDeserializeSConnectRsp(pMsg->pData, pMsg->len, &connectRsp);
+  assert(connectRsp.epSet.numOfEps > 0);
 
-  assert(pConnect->epSet.numOfEps > 0);
-  for(int32_t i = 0; i < pConnect->epSet.numOfEps; ++i) {
-    pConnect->epSet.eps[i].port = htons(pConnect->epSet.eps[i].port);
+  if (!isEpsetEqual(&pTscObj->pAppInfo->mgmtEp.epSet, &connectRsp.epSet)) {
+    updateEpSet_s(&pTscObj->pAppInfo->mgmtEp, &connectRsp.epSet);
   }
 
-  if (!isEpsetEqual(&pTscObj->pAppInfo->mgmtEp.epSet, &pConnect->epSet)) {
-    updateEpSet_s(&pTscObj->pAppInfo->mgmtEp, &pConnect->epSet);
+  for (int32_t i = 0; i < connectRsp.epSet.numOfEps; ++i) {
+    tscDebug("0x%" PRIx64 " epSet.fqdn[%d]:%s port:%d, connObj:0x%" PRIx64, pRequest->requestId, i,
+             connectRsp.epSet.eps[i].fqdn, connectRsp.epSet.eps[i].port, pTscObj->id);
   }
 
-  for (int i = 0; i < pConnect->epSet.numOfEps; ++i) {
-    tscDebug("0x%" PRIx64 " epSet.fqdn[%d]:%s port:%d, connObj:0x%"PRIx64, pRequest->requestId, i, pConnect->epSet.eps[i].fqdn,
-        pConnect->epSet.eps[i].port, pTscObj->id);
-  }
-
-  pTscObj->connId = pConnect->connId;
-  pTscObj->acctId = pConnect->acctId;
-  tstrncpy(pTscObj->ver, pConnect->sVersion, tListLen(pTscObj->ver));
+  pTscObj->connId = connectRsp.connId;
+  pTscObj->acctId = connectRsp.acctId;
+  tstrncpy(pTscObj->ver, connectRsp.sVersion, tListLen(pTscObj->ver));
 
   // update the appInstInfo
-  pTscObj->pAppInfo->clusterId = pConnect->clusterId;
+  pTscObj->pAppInfo->clusterId = connectRsp.clusterId;
   atomic_add_fetch_64(&pTscObj->pAppInfo->numOfConns, 1);
 
   pTscObj->connType = HEARTBEAT_TYPE_QUERY;
 
-  hbRegisterConn(pTscObj->pAppInfo->pAppHbMgr, pConnect->connId, pConnect->clusterId, HEARTBEAT_TYPE_QUERY);
+  hbRegisterConn(pTscObj->pAppInfo->pAppHbMgr, connectRsp.connId, connectRsp.clusterId, HEARTBEAT_TYPE_QUERY);
 
   //  pRequest->body.resInfo.pRspMsg = pMsg->pData;
-  tscDebug("0x%" PRIx64 " clusterId:%" PRId64 ", totalConn:%" PRId64, pRequest->requestId, pConnect->clusterId,
+  tscDebug("0x%" PRIx64 " clusterId:%" PRId64 ", totalConn:%" PRId64, pRequest->requestId, connectRsp.clusterId,
            pTscObj->pAppInfo->numOfConns);
 
   free(pMsg->pData);
@@ -103,9 +97,9 @@ SMsgSendInfo* buildMsgInfoImpl(SRequestObj *pRequest) {
       int32_t contLen = tSerializeSRetrieveTableReq(NULL, 0, &retrieveReq);
       void*   pReq = malloc(contLen);
       tSerializeSRetrieveTableReq(pReq, contLen, &retrieveReq);
-
       pMsgSendInfo->msgInfo.pData = pReq;
       pMsgSendInfo->msgInfo.len = contLen;
+      pMsgSendInfo->msgInfo.handle = NULL;
     } else {
       SVShowTablesFetchReq* pFetchMsg = calloc(1, sizeof(SVShowTablesFetchReq));
       if (pFetchMsg == NULL) {
@@ -117,6 +111,7 @@ SMsgSendInfo* buildMsgInfoImpl(SRequestObj *pRequest) {
 
       pMsgSendInfo->msgInfo.pData = pFetchMsg;
       pMsgSendInfo->msgInfo.len = sizeof(SVShowTablesFetchReq);
+      pMsgSendInfo->msgInfo.handle = NULL;
     }
   } else {
     assert(pRequest != NULL);
@@ -135,39 +130,29 @@ int32_t processShowRsp(void* param, const SDataBuf* pMsg, int32_t code) {
     return code;
   }
 
-  SShowRsp* pShow = (SShowRsp *)pMsg->pData;
-  pShow->showId   = htobe64(pShow->showId);
+  SShowRsp showRsp = {0};
+  tDeserializeSShowRsp(pMsg->pData, pMsg->len, &showRsp);
+  STableMetaRsp *pMetaMsg = &showRsp.tableMeta;
 
-  STableMetaRsp *pMetaMsg = &(pShow->tableMeta);
-  pMetaMsg->numOfColumns = htonl(pMetaMsg->numOfColumns);
-
-  SSchema* pSchema = pMetaMsg->pSchema;
-  pMetaMsg->tuid = htobe64(pMetaMsg->tuid);
-  for (int i = 0; i < pMetaMsg->numOfColumns; ++i) {
-    pSchema->bytes = htonl(pSchema->bytes);
-    pSchema->colId = htonl(pSchema->colId);
-    pSchema++;
-  }
-
-  pSchema = pMetaMsg->pSchema;
   tfree(pRequest->body.resInfo.pRspMsg);
-
   pRequest->body.resInfo.pRspMsg = pMsg->pData;
   SReqResultInfo* pResInfo = &pRequest->body.resInfo;
 
   if (pResInfo->fields == NULL) {
     TAOS_FIELD* pFields = calloc(pMetaMsg->numOfColumns, sizeof(TAOS_FIELD));
     for (int32_t i = 0; i < pMetaMsg->numOfColumns; ++i) {
-      tstrncpy(pFields[i].name, pSchema[i].name, tListLen(pFields[i].name));
-      pFields[i].type = pSchema[i].type;
-      pFields[i].bytes = pSchema[i].bytes;
+      SSchema* pSchema = &pMetaMsg->pSchemas[i];
+      tstrncpy(pFields[i].name, pSchema->name, tListLen(pFields[i].name));
+      pFields[i].type = pSchema->type;
+      pFields[i].bytes = pSchema->bytes;
     }
 
     pResInfo->fields = pFields;
   }
 
   pResInfo->numOfCols = pMetaMsg->numOfColumns;
-  pRequest->body.showInfo.execId = pShow->showId;
+  pRequest->body.showInfo.execId = showRsp.showId;
+  tFreeSShowRsp(&showRsp);
 
   // todo
   if (pRequest->type == TDMT_VND_SHOW_TABLES) {

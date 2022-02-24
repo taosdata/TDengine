@@ -296,7 +296,7 @@ PRASE_DNODE_OVER:
   if (taosArrayGetSize(pMgmt->pDnodeEps) == 0) {
     SDnodeEp dnodeEp = {0};
     dnodeEp.isMnode = 1;
-    taosGetFqdnPortFromEp(pDnode->cfg.firstEp, &dnodeEp.ep);
+    taosGetFqdnPortFromEp(pDnode->cfg.firstEp, pDnode->cfg.serverPort, &dnodeEp.ep);
     taosArrayPush(pMgmt->pDnodeEps, &dnodeEp);
   }
 
@@ -371,18 +371,17 @@ void dndSendStatusReq(SDnode *pDnode) {
   req.clusterCfg.checkTime = 0;
   char timestr[32] = "1970-01-01 00:00:00.00";
   (void)taosParseTime(timestr, &req.clusterCfg.checkTime, (int32_t)strlen(timestr), TSDB_TIME_PRECISION_MILLI, 0);
-  memcpy(req.clusterCfg.timezone, pDnode->env.timezone, TSDB_TIMEZONE_LEN);
-  memcpy(req.clusterCfg.locale, pDnode->env.locale, TSDB_LOCALE_LEN);
-  memcpy(req.clusterCfg.charset, pDnode->env.charset, TSDB_LOCALE_LEN);
+  memcpy(req.clusterCfg.timezone, pDnode->env.timezone, TD_TIMEZONE_LEN);
+  memcpy(req.clusterCfg.locale, pDnode->env.locale, TD_LOCALE_LEN);
+  memcpy(req.clusterCfg.charset, pDnode->env.charset, TD_LOCALE_LEN);
   taosRUnLockLatch(&pMgmt->latch);
 
   req.pVloads = taosArrayInit(TSDB_MAX_VNODES, sizeof(SVnodeLoad));
   dndGetVnodeLoads(pDnode, req.pVloads);
 
-  int32_t contLen = tSerializeSStatusReq(NULL, &req);
+  int32_t contLen = tSerializeSStatusReq(NULL, 0, &req);
   void   *pHead = rpcMallocCont(contLen);
-  void   *pBuf = pHead;
-  tSerializeSStatusReq(&pBuf, &req);
+  tSerializeSStatusReq(pHead, contLen, &req);
   taosArrayDestroy(req.pVloads);
 
   SRpcMsg rpcMsg = {.pCont = pHead, .contLen = contLen, .msgType = TDMT_MND_STATUS, .ahandle = (void *)9527};
@@ -395,7 +394,7 @@ void dndSendStatusReq(SDnode *pDnode) {
 static void dndUpdateDnodeCfg(SDnode *pDnode, SDnodeCfg *pCfg) {
   SDnodeMgmt *pMgmt = &pDnode->dmgmt;
   if (pMgmt->dnodeId == 0) {
-    dInfo("set dnodeId:%d clusterId:0x%" PRId64, pCfg->dnodeId, pCfg->clusterId);
+    dInfo("set dnodeId:%d clusterId:%" PRId64, pCfg->dnodeId, pCfg->clusterId);
     taosWLockLatch(&pMgmt->latch);
     pMgmt->dnodeId = pCfg->dnodeId;
     pMgmt->clusterId = pCfg->clusterId;
@@ -437,7 +436,8 @@ static void dndProcessStatusRsp(SDnode *pDnode, SRpcMsg *pRsp) {
     }
   } else {
     SStatusRsp statusRsp = {0};
-    if (pRsp->pCont != NULL && pRsp->contLen != 0 && tDeserializeSStatusRsp(pRsp->pCont, &statusRsp) != NULL) {
+    if (pRsp->pCont != NULL && pRsp->contLen != 0 &&
+        tDeserializeSStatusRsp(pRsp->pCont, pRsp->contLen, &statusRsp) == 0) {
       pMgmt->dver = statusRsp.dver;
       dndUpdateDnodeCfg(pDnode, &statusRsp.dnodeCfg);
       dndUpdateDnodeEps(pDnode, statusRsp.pDnodeEps);
@@ -651,9 +651,6 @@ static void dndProcessMgmtQueue(SDnode *pDnode, SRpcMsg *pMsg) {
       break;
     case TDMT_DND_DROP_VNODE:
       code = dndProcessDropVnodeReq(pDnode, pMsg);
-      break;
-    case TDMT_DND_AUTH_VNODE:
-      code = dndProcessAuthVnodeReq(pDnode, pMsg);
       break;
     case TDMT_DND_SYNC_VNODE:
       code = dndProcessSyncVnodeReq(pDnode, pMsg);

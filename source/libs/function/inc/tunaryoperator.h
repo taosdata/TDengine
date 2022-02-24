@@ -20,10 +20,10 @@
 extern "C" {
 #endif
 
-#include "tscalarfunction.h"
+//#include "tscalarfunction.h"
 
-typedef void (*_unary_scalar_fn_t)(SScalarFuncParam *pLeft, SScalarFuncParam* pOutput);
-_unary_scalar_fn_t getUnaryScalarOperatorFn(int32_t binOperator);
+//typedef void (*_unary_scalar_fn_t)(SScalarParam *pLeft, SScalarParam* pOutput);
+//_unary_scalar_fn_t getUnaryScalarOperatorFn(int32_t binOperator);
 
 #ifdef __cplusplus
 }

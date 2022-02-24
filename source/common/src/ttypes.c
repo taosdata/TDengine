@@ -585,7 +585,7 @@ void assignVal(char *val, const char *src, int32_t len, int32_t type) {
 }
 
 void operateVal(void *dst, void *s1, void *s2, int32_t optr, int32_t type) {
-  if (optr == TSDB_BINARY_OP_ADD) {
+  if (optr == OP_TYPE_ADD) {
     switch (type) {
       case TSDB_DATA_TYPE_TINYINT:
         *((int8_t *)dst) = GET_INT8_VAL(s1) + GET_INT8_VAL(s2);

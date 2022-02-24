@@ -14,8 +14,11 @@
  */
 
 #include "querynodes.h"
-#include "nodesShowStmts.h"
+#include "plannodes.h"
+#include "taos.h"
 #include "taoserror.h"
+#include "taos.h"
+#include "thash.h"
 
 static SNode* makeNode(ENodeType type, size_t size) {
   SNode* p = calloc(1, size);
@@ -36,8 +39,6 @@ SNode* nodesMakeNode(ENodeType type) {
       return makeNode(type, sizeof(SOperatorNode));
     case QUERY_NODE_LOGIC_CONDITION:
       return makeNode(type, sizeof(SLogicConditionNode));
-    case QUERY_NODE_IS_NULL_CONDITION:
-      return makeNode(type, sizeof(SIsNullCondNode));
     case QUERY_NODE_FUNCTION:
       return makeNode(type, sizeof(SFunctionNode));
     case QUERY_NODE_REAL_TABLE:
@@ -62,14 +63,36 @@ SNode* nodesMakeNode(ENodeType type) {
       return makeNode(type, sizeof(SNodeListNode));
     case QUERY_NODE_FILL:
       return makeNode(type, sizeof(SFillNode));
+    case QUERY_NODE_COLUMN_REF:
+      return makeNode(type, sizeof(SColumnRefNode));
     case QUERY_NODE_RAW_EXPR:
       return makeNode(type, sizeof(SRawExprNode));
     case QUERY_NODE_SET_OPERATOR:
       return makeNode(type, sizeof(SSetOperator));
     case QUERY_NODE_SELECT_STMT:
       return makeNode(type, sizeof(SSelectStmt));
-    case QUERY_NODE_SHOW_STMT:
-      return makeNode(type, sizeof(SShowStmt));
+    // case QUERY_NODE_SHOW_STMT:
+    //   return makeNode(type, sizeof(SShowStmt));
+    case QUERY_NODE_LOGIC_PLAN_SCAN:
+      return makeNode(type, sizeof(SScanLogicNode));
+    case QUERY_NODE_LOGIC_PLAN_JOIN:
+      return makeNode(type, sizeof(SJoinLogicNode));
+    case QUERY_NODE_LOGIC_PLAN_AGG:
+      return makeNode(type, sizeof(SAggLogicNode));
+    case QUERY_NODE_LOGIC_PLAN_PROJECT:
+      return makeNode(type, sizeof(SProjectLogicNode));
+    case QUERY_NODE_TARGET:
+      return makeNode(type, sizeof(STargetNode));
+    case QUERY_NODE_TUPLE_DESC:
+      return makeNode(type, sizeof(STupleDescNode));
+    case QUERY_NODE_SLOT_DESC:
+      return makeNode(type, sizeof(SSlotDescNode));
+    case QUERY_NODE_PHYSICAL_PLAN_TAG_SCAN:
+      return makeNode(type, sizeof(STagScanPhysiNode));
+    case QUERY_NODE_PHYSICAL_PLAN_TABLE_SCAN:
+      return makeNode(type, sizeof(STableScanPhysiNode));
+    case QUERY_NODE_PHYSICAL_PLAN_PROJECT:
+      return makeNode(type, sizeof(SProjectPhysiNode));
     default:
       break;
   }
@@ -100,14 +123,14 @@ SNodeList* nodesMakeList() {
   return p;
 }
 
-SNodeList* nodesListAppend(SNodeList* pList, SNode* pNode) {
+int32_t nodesListAppend(SNodeList* pList, SNode* pNode) {
   if (NULL == pList || NULL == pNode) {
-    return NULL;
+    return TSDB_CODE_SUCCESS;
   }
   SListCell* p = calloc(1, sizeof(SListCell));
   if (NULL == p) {
-    terrno = TSDB_CODE_TSC_OUT_OF_MEMORY;
-    return pList;
+    terrno = TSDB_CODE_OUT_OF_MEMORY;
+    return TSDB_CODE_OUT_OF_MEMORY;
   }
   p->pNode = pNode;
   if (NULL == pList->pHead) {
@@ -118,7 +141,27 @@ SNodeList* nodesListAppend(SNodeList* pList, SNode* pNode) {
   }
   pList->pTail = p;
   ++(pList->length);
-  return pList;
+  return TSDB_CODE_SUCCESS;
+}
+
+int32_t nodesListAppendList(SNodeList* pTarget, SNodeList* pSrc) {
+  if (NULL == pTarget || NULL == pSrc) {
+    return TSDB_CODE_SUCCESS;
+  }
+
+  if (NULL == pTarget->pHead) {
+    pTarget->pHead = pSrc->pHead;
+  } else {
+    pTarget->pTail->pNext = pSrc->pHead;
+    if (NULL != pSrc->pHead) {
+      pSrc->pHead->pPrev = pTarget->pTail;
+    }
+  }
+  pTarget->pTail = pSrc->pTail;
+  pTarget->length += pSrc->length;
+  tfree(pSrc);
+
+  return TSDB_CODE_SUCCESS;
 }
 
 SListCell* nodesListErase(SNodeList* pList, SListCell* pCell) {
@@ -129,6 +172,7 @@ SListCell* nodesListErase(SNodeList* pList, SListCell* pCell) {
     pCell->pNext->pPrev = pCell->pPrev;
   }
   SListCell* pNext = pCell->pNext;
+  nodesDestroyNode(pCell->pNode);
   tfree(pCell);
   --(pList->length);
   return pNext;
@@ -150,6 +194,36 @@ void nodesDestroyList(SNodeList* pList) {
     nodesDestroyNode(node);
   }
   tfree(pList);
+}
+
+void* nodesGetValueFromNode(SValueNode *pNode) {
+  switch (pNode->node.resType.type) {
+    case TSDB_DATA_TYPE_BOOL:
+      return (void*)&pNode->datum.b;
+    case TSDB_DATA_TYPE_TINYINT:
+    case TSDB_DATA_TYPE_SMALLINT:
+    case TSDB_DATA_TYPE_INT:
+    case TSDB_DATA_TYPE_BIGINT:
+    case TSDB_DATA_TYPE_TIMESTAMP:
+      return (void*)&pNode->datum.i;
+    case TSDB_DATA_TYPE_UTINYINT:
+    case TSDB_DATA_TYPE_USMALLINT:
+    case TSDB_DATA_TYPE_UINT:
+    case TSDB_DATA_TYPE_UBIGINT:
+      return (void*)&pNode->datum.u;
+    case TSDB_DATA_TYPE_FLOAT:
+    case TSDB_DATA_TYPE_DOUBLE: 
+      return (void*)&pNode->datum.d;
+    case TSDB_DATA_TYPE_BINARY:
+    case TSDB_DATA_TYPE_NCHAR:
+    case TSDB_DATA_TYPE_VARCHAR:
+    case TSDB_DATA_TYPE_VARBINARY: 
+      return (void*)pNode->datum.p;
+    default:
+      break;
+  }
+
+  return NULL;
 }
 
 bool nodesIsExprNode(const SNode* pNode) {
@@ -185,6 +259,14 @@ bool nodesIsComparisonOp(const SOperatorNode* pOp) {
     case OP_TYPE_NOT_LIKE:
     case OP_TYPE_MATCH:
     case OP_TYPE_NMATCH:
+    case OP_TYPE_IS_NULL:
+    case OP_TYPE_IS_NOT_NULL:
+    case OP_TYPE_IS_TRUE:
+    case OP_TYPE_IS_FALSE:
+    case OP_TYPE_IS_UNKNOWN:
+    case OP_TYPE_IS_NOT_TRUE:
+    case OP_TYPE_IS_NOT_FALSE:
+    case OP_TYPE_IS_NOT_UNKNOWN:
       return true;
     default:
       break;
@@ -209,4 +291,106 @@ bool nodesIsTimeorderQuery(const SNode* pQuery) {
 
 bool nodesIsTimelineQuery(const SNode* pQuery) {
   return false;
+}
+
+typedef struct SCollectColumnsCxt {
+  int32_t errCode;
+  const char* pTableAlias;
+  SNodeList* pCols;
+  SHashObj* pColIdHash;
+} SCollectColumnsCxt;
+
+static EDealRes doCollect(SCollectColumnsCxt* pCxt, int32_t id, SNode* pNode) {
+  if (NULL == taosHashGet(pCxt->pColIdHash, &id, sizeof(id))) {
+    pCxt->errCode = taosHashPut(pCxt->pColIdHash, &id, sizeof(id), NULL, 0);
+    if (TSDB_CODE_SUCCESS == pCxt->errCode) {
+      pCxt->errCode = nodesListAppend(pCxt->pCols, pNode);
+    }
+    return (TSDB_CODE_SUCCESS == pCxt->errCode ? DEAL_RES_IGNORE_CHILD : DEAL_RES_ERROR);
+  }
+  return DEAL_RES_CONTINUE;
+}
+
+static EDealRes collectColumns(SNode* pNode, void* pContext) {
+  SCollectColumnsCxt* pCxt = (SCollectColumnsCxt*)pContext;
+  if (QUERY_NODE_COLUMN == nodeType(pNode)) {
+    SColumnNode* pCol = (SColumnNode*)pNode;
+    int32_t colId = pCol->colId;
+    if (0 == strcmp(pCxt->pTableAlias, pCol->tableAlias)) {
+      return doCollect(pCxt, colId, pNode);
+    }
+  }
+  return DEAL_RES_CONTINUE;
+}
+
+int32_t nodesCollectColumns(SSelectStmt* pSelect, ESqlClause clause, const char* pTableAlias, SNodeList** pCols) {
+  if (NULL == pSelect || NULL == pCols) {
+    return TSDB_CODE_SUCCESS;
+  }
+
+  SCollectColumnsCxt cxt = {
+    .errCode = TSDB_CODE_SUCCESS,
+    .pTableAlias = pTableAlias,
+    .pCols = nodesMakeList(),
+    .pColIdHash = taosHashInit(128, taosGetDefaultHashFunction(TSDB_DATA_TYPE_BIGINT), true, HASH_NO_LOCK)
+  };
+  if (NULL == cxt.pCols || NULL == cxt.pColIdHash) {
+    return TSDB_CODE_OUT_OF_MEMORY;
+  }
+
+  nodesWalkSelectStmt(pSelect, clause, collectColumns, &cxt);
+  taosHashCleanup(cxt.pColIdHash);
+  if (TSDB_CODE_SUCCESS != cxt.errCode) {
+    nodesDestroyList(cxt.pCols);
+    return cxt.errCode;
+  }
+  if (0 == LIST_LENGTH(cxt.pCols)) {
+    nodesDestroyList(cxt.pCols);
+    cxt.pCols = NULL;
+  }
+  *pCols = cxt.pCols;
+  return TSDB_CODE_SUCCESS;
+}
+
+typedef struct SCollectFuncsCxt {
+  int32_t errCode;
+  FFuncClassifier classifier;
+  SNodeList* pFuncs;
+} SCollectFuncsCxt;
+
+static EDealRes collectFuncs(SNode* pNode, void* pContext) {
+  SCollectFuncsCxt* pCxt = (SCollectFuncsCxt*)pContext;
+  if (QUERY_NODE_FUNCTION == nodeType(pNode) && pCxt->classifier(((SFunctionNode*)pNode)->funcId)) {
+    pCxt->errCode = nodesListAppend(pCxt->pFuncs, pNode);
+    return (TSDB_CODE_SUCCESS == pCxt->errCode ? DEAL_RES_IGNORE_CHILD : DEAL_RES_ERROR);
+  }
+  return DEAL_RES_CONTINUE;
+}
+
+int32_t nodesCollectFuncs(SSelectStmt* pSelect, FFuncClassifier classifier, SNodeList** pFuncs) {
+  if (NULL == pSelect || NULL == pFuncs) {
+    return TSDB_CODE_SUCCESS;
+  }
+
+  SCollectFuncsCxt cxt = {
+    .errCode = TSDB_CODE_SUCCESS,
+    .classifier = classifier,
+    .pFuncs = nodesMakeList()
+  };
+  if (NULL == cxt.pFuncs) {
+    return TSDB_CODE_OUT_OF_MEMORY;
+  }
+  nodesWalkSelectStmt(pSelect, SQL_CLAUSE_GROUP_BY, collectFuncs, &cxt);
+  if (TSDB_CODE_SUCCESS != cxt.errCode) {
+    nodesDestroyList(cxt.pFuncs);
+    return cxt.errCode;
+  }
+  if (LIST_LENGTH(cxt.pFuncs) > 0) {
+    *pFuncs = cxt.pFuncs;
+  } else {
+    nodesDestroyList(cxt.pFuncs);
+    *pFuncs = NULL;
+  }
+  
+  return TSDB_CODE_SUCCESS;
 }

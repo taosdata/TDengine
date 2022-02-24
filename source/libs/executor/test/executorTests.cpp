@@ -33,6 +33,8 @@
 #include "trpc.h"
 #include "stub.h"
 #include "executor.h"
+#include "tmsg.h"
+#include "tname.h"
 
 namespace {
 

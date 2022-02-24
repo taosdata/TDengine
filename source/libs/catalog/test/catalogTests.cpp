@@ -131,10 +131,8 @@ void ctgTestInitLogFile() {
 
   ctgDbgEnableDebug("api");
   
-  char temp[128] = {0};
-  sprintf(temp, "%s/%s", tsLogDir, defaultLogFileNamePrefix);
-  if (taosInitLog(temp, tsNumOfLogLines, maxLogFileNum) < 0) {
-    printf("failed to open log file in directory:%s\n", tsLogDir);
+  if (taosInitLog(defaultLogFileNamePrefix, maxLogFileNum) < 0) {
+    printf("failed to open log file in directory:%s\n", osLogDir());
   }
 }
 
@@ -222,7 +220,7 @@ void ctgTestBuildDBVgroup(SDBVgInfo **pdbVgroup) {
     for (int32_t n = 0; n < vgInfo.epset.numOfEps; ++n) {
       SEp *addr = &vgInfo.epset.eps[n];
       strcpy(addr->fqdn, "a0");
-      addr->port = htons(n + 22);
+      addr->port = n + 22;
     }
 
     taosHashPut(dbVgroup->vgHash, &vgInfo.vgId, sizeof(vgInfo.vgId), &vgInfo, sizeof(vgInfo));
@@ -247,19 +245,19 @@ void ctgTestBuildSTableMetaRsp(STableMetaRsp *rspMsg) {
   rspMsg->vgId = 1;
 
   SSchema *s = NULL;
-  s = &rspMsg->pSchema[0];
+  s = &rspMsg->pSchemas[0];
   s->type = TSDB_DATA_TYPE_TIMESTAMP;
   s->colId = 1;
   s->bytes = 8;
   strcpy(s->name, "ts");
 
-  s = &rspMsg->pSchema[1];
+  s = &rspMsg->pSchemas[1];
   s->type = TSDB_DATA_TYPE_INT;
   s->colId = 2;
   s->bytes = 4;
   strcpy(s->name, "col1s");
 
-  s = &rspMsg->pSchema[2];
+  s = &rspMsg->pSchemas[2];
   s->type = TSDB_DATA_TYPE_BINARY;
   s->colId = 3;
   s->bytes = 12 + 1;
@@ -309,173 +307,189 @@ void ctgTestRspDbVgroups(void *shandle, SEpSet *pEpSet, SRpcMsg *pMsg, SRpcMsg *
 }
 
 void ctgTestRspTableMeta(void *shandle, SEpSet *pEpSet, SRpcMsg *pMsg, SRpcMsg *pRsp) {
-  STableMetaRsp *rspMsg = NULL;  // todo
-
-  pRsp->code = 0;
-  pRsp->contLen = sizeof(STableMetaRsp) + (ctgTestColNum + ctgTestTagNum) * sizeof(SSchema);
-  pRsp->pCont = calloc(1, pRsp->contLen);
-  rspMsg = (STableMetaRsp *)pRsp->pCont;
-  strcpy(rspMsg->dbFName, ctgTestDbname);
-  strcpy(rspMsg->tbName, ctgTestTablename);
-  rspMsg->numOfTags = 0;
-  rspMsg->numOfColumns = htonl(ctgTestColNum);
-  rspMsg->precision = 1;
-  rspMsg->tableType = TSDB_NORMAL_TABLE;
-  rspMsg->update = 1;
-  rspMsg->sversion = htonl(ctgTestSVersion);
-  rspMsg->tversion = htonl(ctgTestTVersion);
-  rspMsg->suid = 0;
-  rspMsg->tuid = htobe64(0x0000000000000001);
-  rspMsg->vgId = htonl(8);
+  STableMetaRsp metaRsp = {0};
+  strcpy(metaRsp.dbFName, ctgTestDbname);
+  strcpy(metaRsp.tbName, ctgTestTablename);
+  metaRsp.numOfTags = 0;
+  metaRsp.numOfColumns = ctgTestColNum;
+  metaRsp.precision = 1;
+  metaRsp.tableType = TSDB_NORMAL_TABLE;
+  metaRsp.update = 1;
+  metaRsp.sversion = ctgTestSVersion;
+  metaRsp.tversion = ctgTestTVersion;
+  metaRsp.suid = 0;
+  metaRsp.tuid = 0x0000000000000001;
+  metaRsp.vgId = 8;
+  metaRsp.pSchemas = (SSchema *)malloc((metaRsp.numOfTags + metaRsp.numOfColumns) * sizeof(SSchema));
 
   SSchema *s = NULL;
-  s = &rspMsg->pSchema[0];
+  s = &metaRsp.pSchemas[0];
   s->type = TSDB_DATA_TYPE_TIMESTAMP;
-  s->colId = htonl(1);
-  s->bytes = htonl(8);
+  s->colId = 1;
+  s->bytes = 8;
   strcpy(s->name, "ts");
 
-  s = &rspMsg->pSchema[1];
+  s = &metaRsp.pSchemas[1];
   s->type = TSDB_DATA_TYPE_INT;
-  s->colId = htonl(2);
-  s->bytes = htonl(4);
+  s->colId = 2;
+  s->bytes = 4;
   strcpy(s->name, "col1");
 
-  return;
+  int32_t contLen = tSerializeSTableMetaRsp(NULL, 0, &metaRsp);
+  void   *pReq = rpcMallocCont(contLen);
+  tSerializeSTableMetaRsp(pReq, contLen, &metaRsp);
+
+  pRsp->code = 0;
+  pRsp->contLen = contLen;
+  pRsp->pCont = pReq;
+
+  tFreeSTableMetaRsp(&metaRsp);
 }
 
 void ctgTestRspCTableMeta(void *shandle, SEpSet *pEpSet, SRpcMsg *pMsg, SRpcMsg *pRsp) {
-  STableMetaRsp *rspMsg = NULL;  // todo
-
-  pRsp->code = 0;
-  pRsp->contLen = sizeof(STableMetaRsp) + (ctgTestColNum + ctgTestTagNum) * sizeof(SSchema);
-  pRsp->pCont = calloc(1, pRsp->contLen);
-  rspMsg = (STableMetaRsp *)pRsp->pCont;
-  strcpy(rspMsg->dbFName, ctgTestDbname);
-  strcpy(rspMsg->tbName, ctgTestCTablename);
-  strcpy(rspMsg->stbName, ctgTestSTablename);
-  rspMsg->numOfTags = htonl(ctgTestTagNum);
-  rspMsg->numOfColumns = htonl(ctgTestColNum);
-  rspMsg->precision = 1;
-  rspMsg->tableType = TSDB_CHILD_TABLE;
-  rspMsg->update = 1;
-  rspMsg->sversion = htonl(ctgTestSVersion);
-  rspMsg->tversion = htonl(ctgTestTVersion);
-  rspMsg->suid = htobe64(0x0000000000000002);
-  rspMsg->tuid = htobe64(0x0000000000000003);
-  rspMsg->vgId = htonl(9);
+  STableMetaRsp metaRsp = {0};
+  strcpy(metaRsp.dbFName, ctgTestDbname);
+  strcpy(metaRsp.tbName, ctgTestCTablename);
+  strcpy(metaRsp.stbName, ctgTestSTablename);
+  metaRsp.numOfTags = ctgTestTagNum;
+  metaRsp.numOfColumns = ctgTestColNum;
+  metaRsp.precision = 1;
+  metaRsp.tableType = TSDB_CHILD_TABLE;
+  metaRsp.update = 1;
+  metaRsp.sversion = ctgTestSVersion;
+  metaRsp.tversion = ctgTestTVersion;
+  metaRsp.suid = 0x0000000000000002;
+  metaRsp.tuid = 0x0000000000000003;
+  metaRsp.vgId = 9;
+  metaRsp.pSchemas = (SSchema *)malloc((metaRsp.numOfTags + metaRsp.numOfColumns) * sizeof(SSchema));
 
   SSchema *s = NULL;
-  s = &rspMsg->pSchema[0];
+  s = &metaRsp.pSchemas[0];
   s->type = TSDB_DATA_TYPE_TIMESTAMP;
-  s->colId = htonl(1);
-  s->bytes = htonl(8);
+  s->colId = 1;
+  s->bytes = 8;
   strcpy(s->name, "ts");
 
-  s = &rspMsg->pSchema[1];
+  s = &metaRsp.pSchemas[1];
   s->type = TSDB_DATA_TYPE_INT;
-  s->colId = htonl(2);
-  s->bytes = htonl(4);
+  s->colId = 2;
+  s->bytes = 4;
   strcpy(s->name, "col1s");
 
-  s = &rspMsg->pSchema[2];
+  s = &metaRsp.pSchemas[2];
   s->type = TSDB_DATA_TYPE_BINARY;
-  s->colId = htonl(3);
-  s->bytes = htonl(12);
+  s->colId = 3;
+  s->bytes = 12;
   strcpy(s->name, "tag1s");
 
-  return;
+  int32_t contLen = tSerializeSTableMetaRsp(NULL, 0, &metaRsp);
+  void   *pReq = rpcMallocCont(contLen);
+  tSerializeSTableMetaRsp(pReq, contLen, &metaRsp);
+
+  pRsp->code = 0;
+  pRsp->contLen = contLen;
+  pRsp->pCont = pReq;
+
+  tFreeSTableMetaRsp(&metaRsp);
 }
 
 void ctgTestRspSTableMeta(void *shandle, SEpSet *pEpSet, SRpcMsg *pMsg, SRpcMsg *pRsp) {
-  STableMetaRsp *rspMsg = NULL;  // todo
-
-  pRsp->code = 0;
-  pRsp->contLen = sizeof(STableMetaRsp) + (ctgTestColNum + ctgTestTagNum) * sizeof(SSchema);
-  pRsp->pCont = calloc(1, pRsp->contLen);
-  rspMsg = (STableMetaRsp *)pRsp->pCont;
-  strcpy(rspMsg->dbFName, ctgTestDbname);
-  strcpy(rspMsg->tbName, ctgTestSTablename);
-  strcpy(rspMsg->stbName, ctgTestSTablename);
-  rspMsg->numOfTags = htonl(ctgTestTagNum);
-  rspMsg->numOfColumns = htonl(ctgTestColNum);
-  rspMsg->precision = 1;
-  rspMsg->tableType = TSDB_SUPER_TABLE;
-  rspMsg->update = 1;
-  rspMsg->sversion = htonl(ctgTestSVersion);
-  rspMsg->tversion = htonl(ctgTestTVersion);
-  rspMsg->suid = htobe64(ctgTestSuid);
-  rspMsg->tuid = htobe64(ctgTestSuid);
-  rspMsg->vgId = 0;
+  STableMetaRsp metaRsp = {0};
+  strcpy(metaRsp.dbFName, ctgTestDbname);
+  strcpy(metaRsp.tbName, ctgTestSTablename);
+  strcpy(metaRsp.stbName, ctgTestSTablename);
+  metaRsp.numOfTags = ctgTestTagNum;
+  metaRsp.numOfColumns = ctgTestColNum;
+  metaRsp.precision = 1;
+  metaRsp.tableType = TSDB_SUPER_TABLE;
+  metaRsp.update = 1;
+  metaRsp.sversion = ctgTestSVersion;
+  metaRsp.tversion = ctgTestTVersion;
+  metaRsp.suid = ctgTestSuid;
+  metaRsp.tuid = ctgTestSuid;
+  metaRsp.vgId = 0;
+  metaRsp.pSchemas = (SSchema *)malloc((metaRsp.numOfTags + metaRsp.numOfColumns) * sizeof(SSchema));
 
   SSchema *s = NULL;
-  s = &rspMsg->pSchema[0];
+  s = &metaRsp.pSchemas[0];
   s->type = TSDB_DATA_TYPE_TIMESTAMP;
-  s->colId = htonl(1);
-  s->bytes = htonl(8);
+  s->colId = 1;
+  s->bytes = 8;
   strcpy(s->name, "ts");
 
-  s = &rspMsg->pSchema[1];
+  s = &metaRsp.pSchemas[1];
   s->type = TSDB_DATA_TYPE_INT;
-  s->colId = htonl(2);
-  s->bytes = htonl(4);
+  s->colId = 2;
+  s->bytes = 4;
   strcpy(s->name, "col1s");
 
-  s = &rspMsg->pSchema[2];
+  s = &metaRsp.pSchemas[2];
   s->type = TSDB_DATA_TYPE_BINARY;
-  s->colId = htonl(3);
-  s->bytes = htonl(12);
+  s->colId = 3;
+  s->bytes = 12;
   strcpy(s->name, "tag1s");
 
-  return;
+  int32_t contLen = tSerializeSTableMetaRsp(NULL, 0, &metaRsp);
+  void   *pReq = rpcMallocCont(contLen);
+  tSerializeSTableMetaRsp(pReq, contLen, &metaRsp);
+
+  pRsp->code = 0;
+  pRsp->contLen = contLen;
+  pRsp->pCont = pReq;
+
+  tFreeSTableMetaRsp(&metaRsp);
 }
 
 void ctgTestRspMultiSTableMeta(void *shandle, SEpSet *pEpSet, SRpcMsg *pMsg, SRpcMsg *pRsp) {
-  STableMetaRsp *rspMsg = NULL;  // todo
   static int32_t idx = 1;
 
-  pRsp->code = 0;
-  pRsp->contLen = sizeof(STableMetaRsp) + (ctgTestColNum + ctgTestTagNum) * sizeof(SSchema);
-  pRsp->pCont = calloc(1, pRsp->contLen);
-  rspMsg = (STableMetaRsp *)pRsp->pCont;
-  strcpy(rspMsg->dbFName, ctgTestDbname);
-  sprintf(rspMsg->tbName, "%s_%d", ctgTestSTablename, idx);
-  sprintf(rspMsg->stbName, "%s_%d", ctgTestSTablename, idx);
-  rspMsg->numOfTags = htonl(ctgTestTagNum);
-  rspMsg->numOfColumns = htonl(ctgTestColNum);
-  rspMsg->precision = 1;
-  rspMsg->tableType = TSDB_SUPER_TABLE;
-  rspMsg->update = 1;
-  rspMsg->sversion = htonl(ctgTestSVersion);
-  rspMsg->tversion = htonl(ctgTestTVersion);
-  rspMsg->suid = htobe64(ctgTestSuid + idx);
-  rspMsg->tuid = htobe64(ctgTestSuid + idx);
-  rspMsg->vgId = 0;
+  STableMetaRsp metaRsp = {0};
+  strcpy(metaRsp.dbFName, ctgTestDbname);
+  sprintf(metaRsp.tbName, "%s_%d", ctgTestSTablename, idx);
+  sprintf(metaRsp.stbName, "%s_%d", ctgTestSTablename, idx);
+  metaRsp.numOfTags = ctgTestTagNum;
+  metaRsp.numOfColumns = ctgTestColNum;
+  metaRsp.precision = 1;
+  metaRsp.tableType = TSDB_SUPER_TABLE;
+  metaRsp.update = 1;
+  metaRsp.sversion = ctgTestSVersion;
+  metaRsp.tversion = ctgTestTVersion;
+  metaRsp.suid = ctgTestSuid + idx;
+  metaRsp.tuid = ctgTestSuid + idx;
+  metaRsp.vgId = 0;
+  metaRsp.pSchemas = (SSchema *)malloc((metaRsp.numOfTags + metaRsp.numOfColumns) * sizeof(SSchema));
 
   SSchema *s = NULL;
-  s = &rspMsg->pSchema[0];
+  s = &metaRsp.pSchemas[0];
   s->type = TSDB_DATA_TYPE_TIMESTAMP;
-  s->colId = htonl(1);
-  s->bytes = htonl(8);
+  s->colId = 1;
+  s->bytes = 8;
   strcpy(s->name, "ts");
 
-  s = &rspMsg->pSchema[1];
+  s = &metaRsp.pSchemas[1];
   s->type = TSDB_DATA_TYPE_INT;
-  s->colId = htonl(2);
-  s->bytes = htonl(4);
+  s->colId = 2;
+  s->bytes = 4;
   strcpy(s->name, "col1s");
 
-  s = &rspMsg->pSchema[2];
+  s = &metaRsp.pSchemas[2];
   s->type = TSDB_DATA_TYPE_BINARY;
-  s->colId = htonl(3);
-  s->bytes = htonl(12);
+  s->colId = 3;
+  s->bytes = 12;
   strcpy(s->name, "tag1s");
 
   ++idx;
 
-  return;
-}
+  int32_t contLen = tSerializeSTableMetaRsp(NULL, 0, &metaRsp);
+  void   *pReq = rpcMallocCont(contLen);
+  tSerializeSTableMetaRsp(pReq, contLen, &metaRsp);
 
+  pRsp->code = 0;
+  pRsp->contLen = contLen;
+  pRsp->pCont = pReq;
+
+  tFreeSTableMetaRsp(&metaRsp);
+}
 
 void ctgTestRspByIdx(void *shandle, SEpSet *pEpSet, SRpcMsg *pMsg, SRpcMsg *pRsp) {
   switch (ctgTestRspFunc[ctgTestRspIdx]) {
@@ -502,7 +516,6 @@ void ctgTestRspByIdx(void *shandle, SEpSet *pEpSet, SRpcMsg *pMsg, SRpcMsg *pRsp
 
   return;
 }
-
 
 void ctgTestRspDbVgroupsAndNormalMeta(void *shandle, SEpSet *pEpSet, SRpcMsg *pMsg, SRpcMsg *pRsp) {
   ctgTestRspDbVgroups(shandle, pEpSet, pMsg, pRsp);
