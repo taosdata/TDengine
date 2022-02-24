@@ -35,5 +35,11 @@ fi
 
 rm -rf $COMMUNITY_DIR/debug/*
 rm -rf $COMMUNITY_DIR/release/*
+if [[ -e $COMMUNITY_DIR/rpms ]]; then
+    rm -rf $COMMUNITY_DIR/rpms
+fi
+if [[ -e $COMMUNITY_DIR/debs ]]; then
+    rm -rf $COMMUNITY_DIR/debs
+fi
 
 cd $CUR_DIR
