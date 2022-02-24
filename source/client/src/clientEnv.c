@@ -22,7 +22,6 @@
 #include "tcache.h"
 #include "tglobal.h"
 #include "tmsg.h"
-#include "tnote.h"
 #include "tref.h"
 #include "trpc.h"
 #include "ttime.h"
@@ -224,11 +223,14 @@ void taos_init_imp(void) {
     return;
   }
 
-  taosInitNotes();
   initMsgHandleFp();
   initQueryModuleMsgHandle();
 
-  rpcInit();
+  SRpcCfg rpcCfg = {0};
+  rpcCfg.rpcTimer = cfgGetItem(tscCfg, "rpcTimer")->i32;
+  rpcCfg.rpcMaxTime = cfgGetItem(tscCfg, "rpcMaxTime")->i32;
+  rpcCfg.sver = 30000000;
+  rpcInit(&rpcCfg);
 
   SCatalogCfg cfg = {.maxDBCacheNum = 100, .maxTblCacheNum = 100};
   catalogInit(&cfg);

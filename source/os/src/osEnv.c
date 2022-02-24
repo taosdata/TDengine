@@ -82,6 +82,8 @@ char tsDataDir[PATH_MAX] = "/var/lib/taos";
 char tsLogDir[PATH_MAX] = "/var/log/taos";
 char tsTempDir[PATH_MAX] = "/tmp/";
 
-void osInit() {}
+void osInit() {
+    srand(taosSafeRand());
+}
 
 #endif

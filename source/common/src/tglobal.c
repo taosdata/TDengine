@@ -60,8 +60,6 @@ int32_t tsCompatibleModel = 1;
 int32_t tsMaxWildCardsLen = TSDB_PATTERN_STRING_DEFAULT_LEN;
 int32_t tsMaxRegexStringLen = TSDB_REGEX_STRING_DEFAULT_LEN;
 
-int8_t tsTscEnableRecordSql = 0;
-
 // the maximum number of results for projection query on super table that are returned from
 // one virtual node, to order according to timestamp
 int32_t tsMaxNumOfOrderedResults = 100000;
@@ -117,23 +115,6 @@ bool tsdbForceKeepFile = false;
  *     TSDB_TIME_PRECISION_NANO:  86400000000000L
  */
 int64_t tsTickPerDay[] = {86400000L, 86400000000L, 86400000000000L};
-
-// system info
-int32_t  tsTotalMemoryMB = 0;
-uint32_t tsVersion = 0;
-
-//
-// lossy compress 6
-//
-char tsLossyColumns[32] = "";  // "float|double" means all float and double columns can be lossy compressed.  set empty
-                               // can close lossy compress.
-// below option can take effect when tsLossyColumns not empty
-double   tsFPrecision = 1E-8;                   // float column precision
-double   tsDPrecision = 1E-16;                  // double column precision
-uint32_t tsMaxRange = 500;                      // max range
-uint32_t tsCurRange = 100;                      // range
-char     tsCompressor[32] = "ZSTD_COMPRESSOR";  // ZSTD_COMPRESSOR or GZIP_COMPRESSOR
-
 
 int32_t (*monStartSystemFp)() = NULL;
 void (*monStopSystemFp)() = NULL;
@@ -427,17 +408,6 @@ static void doInitGlobalConfig(void) {
   taosAddConfigOption(cfg);
 
 
-
-  cfg.option = "enableRecordSql";
-  cfg.ptr = &tsTscEnableRecordSql;
-  cfg.valType = TAOS_CFG_VTYPE_INT8;
-  cfg.cfgType = TSDB_CFG_CTYPE_B_CONFIG;
-  cfg.minValue = 0;
-  cfg.maxValue = 1;
-  cfg.ptrLength = 0;
-  cfg.unitType = TAOS_CFG_UTYPE_NONE;
-  taosAddConfigOption(cfg);
-
   cfg.option = "maxBinaryDisplayWidth";
   cfg.ptr = &tsMaxBinaryDisplayWidth;
   cfg.valType = TAOS_CFG_VTYPE_INT32;
@@ -528,8 +498,6 @@ static void doInitGlobalConfig(void) {
 
 #endif
 }
-
-void taosInitGlobalCfg() { pthread_once(&tsInitGlobalCfgOnce, doInitGlobalConfig); }
 
 /*
  * alter dnode 1 balance "vnode:1-dnode:2"

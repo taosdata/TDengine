@@ -44,7 +44,6 @@ extern int8_t  tsDeadLockKillQuery;
 // client
 extern int32_t tsMaxWildCardsLen;
 extern int32_t tsMaxRegexStringLen;
-extern int8_t  tsTscEnableRecordSql;
 extern int32_t tsMaxNumOfOrderedResults;
 extern int32_t tsMinSlidingTime;
 extern int32_t tsMinIntervalTime;
@@ -55,23 +54,8 @@ extern float   tsStreamComputDelayRatio;  // the delayed computing ration of the
 extern int32_t tsProjectExecInterval;
 extern int64_t tsMaxRetentWindow;
 
-// system info
-
-extern uint32_t tsVersion;
-
-
-// lossy
-extern char     tsLossyColumns[];
-extern double   tsFPrecision;
-extern double   tsDPrecision;
-extern uint32_t tsMaxRange;
-extern uint32_t tsCurRange;
-extern char     tsCompressor[];
-
-
 #define NEEDTO_COMPRESSS_MSG(size) (tsCompressMsgSize != -1 && (size) > tsCompressMsgSize)
 
-void    taosInitGlobalCfg();
 int32_t taosCfgDynamicOptions(char *msg);
 bool    taosCheckBalanceCfgOptions(const char *option, int32_t *vnodeId, int32_t *dnodeId);
 void    taosAddDataDir(int index, char *v1, int level, int primary);

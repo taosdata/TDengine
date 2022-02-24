@@ -32,6 +32,8 @@ typedef struct {
   uint16_t numOfCommitThreads;
   bool     enableTelem;
   bool     printAuth;
+  int32_t  rpcTimer;
+  int32_t  rpcMaxTime;
   char     timezone[TSDB_TIMEZONE_LEN];
   char     locale[TSDB_LOCALE_LEN];
   char     charset[TSDB_LOCALE_LEN];

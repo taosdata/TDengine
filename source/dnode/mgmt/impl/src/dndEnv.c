@@ -270,7 +270,8 @@ int32_t dndInit(const SDnodeEnvCfg *pCfg) {
   taosBlockSIGPIPE();
   taosResolveCRC();
 
-  if (rpcInit() != 0) {
+  SRpcCfg rpcCfg = {.rpcTimer = pCfg->rpcTimer, .rpcMaxTime = pCfg->rpcMaxTime, .sver = pCfg->sver};
+  if (rpcInit(&rpcCfg) != 0) {
     dError("failed to init rpc since %s", terrstr());
     dndCleanup();
     return -1;
