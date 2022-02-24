@@ -14,13 +14,25 @@
  */
 
 #include "syncEnv.h"
+#include <assert.h>
 #include "sync.h"
 #include "syncInt.h"
 
-int32_t syncStartEnv() {
-  sInfo("log: syncStartEnv \n");
+SSyncEnv *gSyncEnv = NULL;
 
-  if (rpcInit() != 0) {
-    return -1;
-  }
+int32_t syncEnvStart() {
+  int32_t ret;
+  gSyncEnv = (SSyncEnv *)malloc(sizeof(SSyncEnv));
+  assert(gSyncEnv != NULL);
+  ret = doSyncEnvStart(gSyncEnv);
+  return ret;
 }
+
+int32_t syncEnvStop() {
+  int32_t ret = doSyncEnvStop(gSyncEnv);
+  return ret;
+}
+
+static int32_t doSyncEnvStart(SSyncEnv *pSyncEnv) { return 0; }
+
+static int32_t doSyncEnvStop(SSyncEnv *pSyncEnv) { return 0; }

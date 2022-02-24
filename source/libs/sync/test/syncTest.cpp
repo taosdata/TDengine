@@ -30,13 +30,11 @@ int main() {
 
   raftStorePersist(pRaftStore);
 
-
-
   tsAsyncLog = 0;
   taosInitLog((char *)"syncTest.log", 100000, 10);
 
   sDebug("sync test");
-  syncStartEnv();
+
 
   SSyncIO *syncIO = syncIOCreate();
   assert(syncIO != NULL);

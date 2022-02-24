@@ -15,9 +15,13 @@
 
 #include <stdint.h>
 #include "sync.h"
+#include "syncEnv.h"
 #include "syncInt.h"
 
-int32_t syncInit() { return 0; }
+int32_t syncInit() {
+  int32_t ret = syncEnvStart();
+  return ret;
+}
 
 void syncCleanUp() {}
 

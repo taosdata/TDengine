@@ -153,8 +153,6 @@ int32_t syncForwardToPeer(int64_t rid, const SSyncBuffer* pBuf, bool isWeak);
 ESyncState syncGetMyRole(int64_t rid);
 void       syncGetNodesRole(int64_t rid, SNodesRole* pNodeRole);
 
-int32_t syncStartEnv();
-
 extern int32_t sDebugFlag;
 
 #ifdef __cplusplus

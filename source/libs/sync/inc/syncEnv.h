@@ -23,8 +23,22 @@ extern "C" {
 #include <stdint.h>
 #include <stdio.h>
 #include <stdlib.h>
+#include "syncInt.h"
 #include "taosdef.h"
 #include "trpc.h"
+
+typedef struct SSyncEnv {
+  void *pTimer;
+  void *pTimerManager;
+} SSyncEnv;
+
+int32_t syncEnvStart();
+
+int32_t syncEnvStop();
+
+static int32_t doSyncEnvStart(SSyncEnv *pSyncEnv);
+
+static int32_t doSyncEnvStop(SSyncEnv *pSyncEnv);
 
 #ifdef __cplusplus
 }
