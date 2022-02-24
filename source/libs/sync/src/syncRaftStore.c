@@ -17,10 +17,10 @@
 #include "cJSON.h"
 #include "sync.h"
 
-char *serialized;
+FileFd raftStoreFd;
 
 void testJson() {
-  FileFd raftStoreFd = taosOpenFileReadWrite("raft.store");
+  raftStoreFd = taosOpenFileReadWrite("raft.store");
 
   uint64_t currentTerm = 100;
   uint64_t voteFor = 200;
@@ -29,16 +29,22 @@ void testJson() {
   cJSON_AddNumberToObject(pRoot, "current_term", currentTerm);
   cJSON_AddNumberToObject(pRoot, "vote_for", voteFor);
 
-  serialized = cJSON_Print(pRoot);
-  int len = strlen(serialized);
+  char *serialized = cJSON_Print(pRoot);
+  int   len = strlen(serialized);
   printf("serialized: %s \n", serialized);
 
   taosWriteFile(raftStoreFd, serialized, len);
-  taosCloseFile(raftStoreFd);
 }
 
 void testJson2() {
-  cJSON *pRoot = cJSON_Parse(serialized);
+  taosLSeekFile(raftStoreFd, 0, SEEK_SET);
+
+  char buf[128];
+  memset(buf, 0, sizeof(buf));
+  taosReadFile(raftStoreFd, buf, sizeof(buf));
+  printf("read file: %s \n", buf);
+
+  cJSON *pRoot = cJSON_Parse(buf);
 
   cJSON   *pCurrentTerm = cJSON_GetObjectItem(pRoot, "current_term");
   uint64_t currentTerm = pCurrentTerm->valueint;
@@ -47,6 +53,8 @@ void testJson2() {
   uint64_t voteFor = pVoteFor->valueint;
 
   printf("read json: currentTerm:%lu, voteFor:%lu \n", currentTerm, voteFor);
+
+  taosCloseFile(raftStoreFd);
 }
 
 int32_t currentTerm(SyncTerm *pCurrentTerm) { return 0; }
