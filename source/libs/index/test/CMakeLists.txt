@@ -1,6 +1,7 @@
 add_executable(indexTest "")
 add_executable(fstTest "")
 add_executable(fstUT "")
+add_executable(UtilUT "")
 
 target_sources(indexTest
   PRIVATE 
@@ -15,6 +16,11 @@ target_sources(fstUT
   PRIVATE 
   "fstUT.cc" 
 )
+target_sources(UtilUT
+  PRIVATE 
+  "utilUT.cc" 
+)
+
 target_include_directories ( indexTest
   PUBLIC
   "${CMAKE_SOURCE_DIR}/include/libs/index" 
@@ -27,6 +33,12 @@ target_include_directories ( fstTest
 ) 
 
 target_include_directories ( fstUT 
+  PUBLIC
+  "${CMAKE_SOURCE_DIR}/include/libs/index" 
+  "${CMAKE_CURRENT_SOURCE_DIR}/../inc"
+) 
+
+target_include_directories ( UtilUT 
   PUBLIC
   "${CMAKE_SOURCE_DIR}/include/libs/index" 
   "${CMAKE_CURRENT_SOURCE_DIR}/../inc"
@@ -46,6 +58,14 @@ target_link_libraries (fstTest
   index
 )
 target_link_libraries (fstUT
+  os  
+  util
+  common
+  gtest_main
+  index
+)
+
+target_link_libraries (UtilUT
   os  
   util
   common

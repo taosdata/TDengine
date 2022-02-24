@@ -370,22 +370,27 @@ static void indexInterResultsDestroy(SArray* results) {
   }
   taosArrayDestroy(results);
 }
+
 static int indexMergeFinalResults(SArray* interResults, EIndexOperatorType oType, SArray* fResults) {
   // refactor, merge interResults into fResults by oType
-  SArray* first = taosArrayGetP(interResults, 0);
-  taosArraySort(first, uidCompare);
-  taosArrayRemoveDuplicate(first, uidCompare, NULL);
+
+  for (int i = 0; i < taosArrayGetSize(interResults); i--) {
+    SArray* t = taosArrayGetP(interResults, i);
+    taosArraySort(t, uidCompare);
+    taosArrayRemoveDuplicate(t, uidCompare, NULL);
+  }
 
   if (oType == MUST) {
+    iIntersection(interResults, fResults);
     // just one column index, enhance later
-    taosArrayAddAll(fResults, first);
+    // taosArrayAddAll(fResults, interResults);
   } else if (oType == SHOULD) {
     // just one column index, enhance later
-    taosArrayAddAll(fResults, first);
+    taosArrayAddAll(fResults, interResults);
     // tag1 condistion || tag2 condition
   } else if (oType == NOT) {
     // just one column index, enhance later
-    taosArrayAddAll(fResults, first);
+    taosArrayAddAll(fResults, interResults);
     // not use currently
   }
   return 0;
