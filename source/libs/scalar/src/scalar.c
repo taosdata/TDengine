@@ -50,13 +50,13 @@ int32_t sclInitParam(SNode* node, SScalarParam *param, SScalarCtx *ctx, int32_t 
       //TODO BUILD HASH
       break;
     }
-    case QUERY_NODE_COLUMN_REF: {
+    case QUERY_NODE_COLUMN: {
       if (NULL == ctx) {
         sclError("invalid node type for constant calculating, type:%d, ctx:%p", nodeType(node), ctx);
         SCL_ERR_RET(TSDB_CODE_QRY_APP_ERROR);
       }
       
-      SColumnRefNode *ref = (SColumnRefNode *)node;
+      SColumnNode *ref = (SColumnNode *)node;
       if (ref->slotId >= taosArrayGetSize(ctx->pSrc->pDataBlock)) {
         sclError("column ref slotId is too big, slodId:%d, dataBlockSize:%d", ref->slotId, (int32_t)taosArrayGetSize(ctx->pSrc->pDataBlock));
         SCL_ERR_RET(TSDB_CODE_QRY_INVALID_INPUT);
@@ -190,7 +190,8 @@ int32_t sclExecFuncion(SFunctionNode *node, SScalarCtx *ctx, SScalarParam *outpu
   SScalarFuncExecFuncs ffpSet = {0};
   int32_t code = fmGetScalarFuncExecFuncs(node->funcId, &ffpSet);
   if (code) {
-    sclError("fmGetFuncExecFuncs failed, funcId:%d, code:%s", node->funcId, tstrerror(code));
+    sclError(
+"fmGetFuncExecFuncs failed, funcId:%d, code:%s", node->funcId, tstrerror(code));
     SCL_ERR_RET(code);
   }
 
@@ -208,7 +209,8 @@ int32_t sclExecFuncion(SFunctionNode *node, SScalarCtx *ctx, SScalarParam *outpu
   for (int32_t i = 0; i < rowNum; ++i) {
     code = (*ffpSet.process)(params, node->pParameterList->length, output);
     if (code) {
-      sclError("scalar function exec failed, funcId:%d, code:%s", node->funcId, tstrerror(code));
+      sclError(
+"scalar function exec failed, funcId:%d, code:%s", node->funcId, tstrerror(code));
       SCL_ERR_JRET(code);    
     }
 

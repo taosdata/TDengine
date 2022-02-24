@@ -886,14 +886,14 @@ int32_t filterAddFieldFromNode(SFilterInfo *info, SNode *node, SFilterFieldId *f
     FLT_ERR_RET(TSDB_CODE_QRY_APP_ERROR);
   }
   
-  if (nodeType(node) != QUERY_NODE_COLUMN_REF && nodeType(node) != QUERY_NODE_VALUE) {
+  if (nodeType(node) != QUERY_NODE_COLUMN && nodeType(node) != QUERY_NODE_VALUE) {
     FLT_ERR_RET(TSDB_CODE_QRY_APP_ERROR);
   }
   
   int32_t type;
   void *v;
 
-  if (nodeType(node) == QUERY_NODE_COLUMN_REF) {
+  if (nodeType(node) == QUERY_NODE_COLUMN) {
     type = FLD_TYPE_COLUMN;
     v = node;
   } else {
@@ -1418,7 +1418,7 @@ void filterDumpInfoToString(SFilterInfo *info, const char *msg, int32_t options)
       qDebug("COLUMN Field Num:%u", info->fields[FLD_TYPE_COLUMN].num);
       for (uint32_t i = 0; i < info->fields[FLD_TYPE_COLUMN].num; ++i) {
         SFilterField *field = &info->fields[FLD_TYPE_COLUMN].fields[i];
-        SColumnRefNode *refNode = (SColumnRefNode *)field->desc;
+        SColumnNode *refNode = (SColumnNode *)field->desc;
         qDebug("COL%d => [%d][%d]", i, refNode->tupleId, refNode->slotId);
       }
 
@@ -1447,7 +1447,7 @@ void filterDumpInfoToString(SFilterInfo *info, const char *msg, int32_t options)
         char str[512] = {0};
         
         SFilterField *left = FILTER_UNIT_LEFT_FIELD(info, unit);
-        SColumnRefNode *refNode = (SColumnRefNode *)left->desc;
+        SColumnNode *refNode = (SColumnNode *)left->desc;
         if (unit->compare.optr >= TSDB_RELATION_INVALID && unit->compare.optr <= TSDB_RELATION_NMATCH){
           len = sprintf(str, "UNIT[%d] => [%d][%d]  %s  [", i, refNode->tupleId, refNode->slotId, gOptrStr[unit->compare.optr].str);
         }
@@ -3549,17 +3549,17 @@ EDealRes fltReviseRewriter(SNode** pNode, void* pContext) {
         return DEAL_RES_ERROR;
       }
       
-      if (QUERY_NODE_COLUMN_REF != nodeType(node->pLeft)) {
+      if (QUERY_NODE_COLUMN != nodeType(node->pLeft)) {
         stat->scalarMode = true;
         return DEAL_RES_CONTINUE;
       }
     } else {
-      if ((QUERY_NODE_COLUMN_REF != nodeType(node->pLeft)) && (QUERY_NODE_VALUE != nodeType(node->pLeft))) {
+      if ((QUERY_NODE_COLUMN != nodeType(node->pLeft)) && (QUERY_NODE_VALUE != nodeType(node->pLeft))) {
         stat->scalarMode = true;
         return DEAL_RES_CONTINUE;
       }
 
-      if ((QUERY_NODE_COLUMN_REF != nodeType(node->pRight)) && (QUERY_NODE_VALUE != nodeType(node->pRight))) {
+      if ((QUERY_NODE_COLUMN != nodeType(node->pRight)) && (QUERY_NODE_VALUE != nodeType(node->pRight))) {
         stat->scalarMode = true;
         return DEAL_RES_CONTINUE;
       }      
@@ -3569,7 +3569,7 @@ EDealRes fltReviseRewriter(SNode** pNode, void* pContext) {
         return DEAL_RES_CONTINUE;
       }
 
-      if (QUERY_NODE_COLUMN_REF != nodeType(node->pLeft)) {
+      if (QUERY_NODE_COLUMN != nodeType(node->pLeft)) {
         SNode *t = node->pLeft;
         node->pLeft = node->pRight;
         node->pRight = t;
@@ -3582,10 +3582,10 @@ EDealRes fltReviseRewriter(SNode** pNode, void* pContext) {
       }
 
       if (OP_TYPE_IN != node->opType) {
-        SColumnRefNode *refNode = (SColumnRefNode *)node->pLeft;
+        SColumnNode *refNode = (SColumnNode *)node->pLeft;
         SValueNode *valueNode = (SValueNode *)node->pRight;
-        int32_t type = vectorGetConvertType(refNode->dataType.type, valueNode->node.resType.type);
-        if (0 != type && type != refNode->dataType.type) {
+        int32_t type = vectorGetConvertType(refNode->node.resType.type, valueNode->node.resType.type);
+        if (0 != type && type != refNode->node.resType.type) {
           stat->scalarMode = true;
           return DEAL_RES_CONTINUE;
         }

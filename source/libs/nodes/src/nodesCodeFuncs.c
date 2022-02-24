@@ -55,8 +55,6 @@ static char* nodeName(ENodeType type) {
       return "NodeList";
     case QUERY_NODE_FILL:
       return "Fill";
-    case QUERY_NODE_COLUMN_REF:
-      return "ColumnRef";
     case QUERY_NODE_TARGET:
       return "Target";
     case QUERY_NODE_RAW_EXPR:
@@ -503,28 +501,6 @@ static int32_t groupingSetNodeToJson(const void* pObj, SJson* pJson) {
   return code;
 }
 
-static const char* jkColumnRefDataType = "DataType";
-static const char* jkColumnRefTupleId = "TupleId";
-static const char* jkColumnRefSlotId = "SlotId";
-static const char* jkColumnRefColumnId = "ColumnId";
-
-static int32_t columnRefNodeToJson(const void* pObj, SJson* pJson) {
-  const SColumnRefNode* pNode = (const SColumnRefNode*)pObj;
-
-  int32_t code = tjsonAddObject(pJson, jkColumnRefDataType, dataTypeToJson, &pNode->dataType);
-  if (TSDB_CODE_SUCCESS == code) {
-    code = tjsonAddIntegerToObject(pJson, jkColumnRefTupleId, pNode->tupleId);
-  }
-  if (TSDB_CODE_SUCCESS == code) {
-    code = tjsonAddIntegerToObject(pJson, jkColumnRefSlotId, pNode->slotId);
-  }
-  if (TSDB_CODE_SUCCESS == code) {
-    code = tjsonAddIntegerToObject(pJson, jkColumnRefColumnId, pNode->columnId);
-  }
-
-  return code;
-}
-
 static const char* jkTargetTupleId = "TupleId";
 static const char* jkTargetSlotId = "SlotId";
 static const char* jkTargetExpr = "Expr";
@@ -646,8 +622,6 @@ static int32_t specificNodeToJson(const void* pObj, SJson* pJson) {
     case QUERY_NODE_INTERVAL_WINDOW:
     case QUERY_NODE_NODE_LIST:
     case QUERY_NODE_FILL:
-    case QUERY_NODE_COLUMN_REF:
-      return columnRefNodeToJson(pObj, pJson);
     case QUERY_NODE_TARGET:
       return targetNodeToJson(pObj, pJson);
     case QUERY_NODE_RAW_EXPR:

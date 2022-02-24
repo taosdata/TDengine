@@ -79,8 +79,6 @@ SNode* nodesMakeNode(ENodeType type) {
       return makeNode(type, sizeof(SAggLogicNode));
     case QUERY_NODE_LOGIC_PLAN_PROJECT:
       return makeNode(type, sizeof(SProjectLogicNode));
-    case QUERY_NODE_COLUMN_REF:
-      return makeNode(type, sizeof(SColumnRefNode));
     case QUERY_NODE_TARGET:
       return makeNode(type, sizeof(STargetNode));
     case QUERY_NODE_TUPLE_DESC:
@@ -93,6 +91,10 @@ SNode* nodesMakeNode(ENodeType type) {
       return makeNode(type, sizeof(STableScanPhysiNode));
     case QUERY_NODE_PHYSICAL_PLAN_PROJECT:
       return makeNode(type, sizeof(SProjectPhysiNode));
+    case QUERY_NODE_PHYSICAL_PLAN_JOIN:
+      return makeNode(type, sizeof(SJoinPhysiNode));
+    case QUERY_NODE_PHYSICAL_PLAN_AGG:
+      return makeNode(type, sizeof(SAggPhysiNode));
     default:
       break;
   }
