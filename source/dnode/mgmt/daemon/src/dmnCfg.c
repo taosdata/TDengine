@@ -16,7 +16,6 @@
 #define _DEFAULT_SOURCE
 #include "dmnInt.h"
 #include "tlocale.h"
-#include "ttimezone.h"
 
 static int32_t dmnAddEpCfg(SConfig *pCfg) {
   char defaultFqdn[TSDB_FQDN_LEN] = {0};

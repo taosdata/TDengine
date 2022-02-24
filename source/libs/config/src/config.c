@@ -18,7 +18,6 @@
 #include "tep.h"
 #include "tlocale.h"
 #include "tmsg.h"
-#include "ttimezone.h"
 
 #define CFG_NAME_PRINT_LEN 22
 #define CFG_SRC_PRINT_LEN 12

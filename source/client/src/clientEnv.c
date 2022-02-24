@@ -25,7 +25,6 @@
 #include "tref.h"
 #include "trpc.h"
 #include "ttime.h"
-#include "ttimezone.h"
 
 #define TSC_VAR_NOT_RELEASE 1
 #define TSC_VAR_RELEASED 0
