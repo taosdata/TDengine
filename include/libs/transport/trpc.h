@@ -78,6 +78,9 @@ typedef struct SRpcInit {
   // call back to retrieve the client auth info, for server app only
   int (*afp)(void *parent, char *tableId, char *spi, char *encrypt, char *secret, char *ckey);
 
+  // call back to keep conn or not
+  bool (*pfp)(void *parent, tmsg_t msgType);
+
   void *parent;
 } SRpcInit;
 

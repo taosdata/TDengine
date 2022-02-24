@@ -169,7 +169,7 @@ int main(int argc, char *argv[]) {
     }
   }
 
-  taosInitLog("client.log", 100000, 10);
+  taosInitLog("client.log", 10);
 
   void *pRpc = rpcOpen(&rpcInit);
   if (pRpc == NULL) {

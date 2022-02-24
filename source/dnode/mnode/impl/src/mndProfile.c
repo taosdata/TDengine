@@ -21,6 +21,7 @@
 #include "mndStb.h"
 #include "mndUser.h"
 #include "tglobal.h"
+#include "version.h"
 
 #define QUERY_ID_SIZE 20
 #define QUERY_OBJ_ID_SIZE 18
