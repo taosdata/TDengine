@@ -25,7 +25,7 @@
 #include "tfs.h"
 #include "wal.h"
 
-static SDnodeEnv dndEnv = {0};
+static int8_t once = DND_ENV_INIT;
 
 EStat dndGetStat(SDnode *pDnode) { return pDnode->stat; }
 
@@ -137,7 +137,6 @@ static int32_t dndCreateImp(SDnode *pDnode, SDnodeObjCfg *pCfg) {
   }
 
   memcpy(&pDnode->cfg, pCfg, sizeof(SDnodeObjCfg));
-  memcpy(&pDnode->env, &dndEnv.cfg, sizeof(SDnodeEnvCfg));
   return 0;
 }
 
@@ -259,8 +258,8 @@ void dndClose(SDnode *pDnode) {
   dInfo("dnode object is closed, data:%p", pDnode);
 }
 
-int32_t dndInit(const SDnodeEnvCfg *pCfg) {
-  if (atomic_val_compare_exchange_8(&dndEnv.once, DND_ENV_INIT, DND_ENV_READY) != DND_ENV_INIT) {
+int32_t dndInit() {
+  if (atomic_val_compare_exchange_8(&once, DND_ENV_INIT, DND_ENV_READY) != DND_ENV_INIT) {
     terrno = TSDB_CODE_REPEAT_INIT;
     dError("failed to init dnode env since %s", terrstr());
     return -1;
@@ -270,8 +269,7 @@ int32_t dndInit(const SDnodeEnvCfg *pCfg) {
   taosBlockSIGPIPE();
   taosResolveCRC();
 
-  SRpcCfg rpcCfg = {.rpcTimer = pCfg->rpcTimer, .rpcMaxTime = pCfg->rpcMaxTime, .sver = pCfg->sver};
-  if (rpcInit(&rpcCfg) != 0) {
+  if (rpcInit() != 0) {
     dError("failed to init rpc since %s", terrstr());
     dndCleanup();
     return -1;
@@ -284,11 +282,8 @@ int32_t dndInit(const SDnodeEnvCfg *pCfg) {
   }
 
   SVnodeOpt vnodeOpt = {
-      .sver = pCfg->sver,
-      .timezone = pCfg->timezone,
-      .locale = pCfg->locale,
-      .charset = pCfg->charset,
-      .nthreads = pCfg->numOfCommitThreads,
+      .sver = tsVersion,
+      .nthreads = tsNumOfCommitThreads,
       .putReqToVQueryQFp = dndPutReqToVQueryQ,
       .sendReqToDnodeFp = dndSendReqToDnode
   };
@@ -299,13 +294,12 @@ int32_t dndInit(const SDnodeEnvCfg *pCfg) {
     return -1;
   }
 
-  memcpy(&dndEnv.cfg, pCfg, sizeof(SDnodeEnvCfg));
   dInfo("dnode env is initialized");
   return 0;
 }
 
 void dndCleanup() {
-  if (atomic_val_compare_exchange_8(&dndEnv.once, DND_ENV_READY, DND_ENV_CLEANUP) != DND_ENV_READY) {
+  if (atomic_val_compare_exchange_8(&once, DND_ENV_READY, DND_ENV_CLEANUP) != DND_ENV_READY) {
     dError("dnode env is already cleaned up");
     return;
   }

@@ -133,8 +133,7 @@ do {                                       \
 } while (0)
 
 int32_t getMaximumIdleDurationSec() {
-  // todo
-  return 6; //tsShellActivityTimer * 2;
+  return tsShellActivityTimer * 2;
 }
 
 static int32_t getExprFunctionId(SExprInfo *pExprInfo) {
@@ -5293,12 +5292,10 @@ SOperatorInfo* createExchangeOperatorInfo(const SArray* pSources, const SArray* 
     rpcInit.label = "EX";
     rpcInit.numOfThreads = 1;
     rpcInit.cfp = qProcessFetchRsp;
-    // todo
-    rpcInit.sessions = 50000; //tsMaxConnections;
+    rpcInit.sessions = tsMaxConnections;
     rpcInit.connType = TAOS_CONN_CLIENT;
     rpcInit.user = (char *)"root";
-    // todo
-    rpcInit.idleTime = 6; //tsShellActivityTimer * 1000;
+    rpcInit.idleTime = tsShellActivityTimer * 1000;
     rpcInit.ckey = "key";
     rpcInit.spi = 1;
     rpcInit.secret = (char *)"dcc5bed04851fec854c035b2e40263b6";

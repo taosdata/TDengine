@@ -138,13 +138,9 @@ static void mndAddMemoryInfo(SMnode* pMnode, SBufferWriter* bw) {
 
 static void mndAddVersionInfo(SMnode* pMnode, SBufferWriter* bw) {
   STelemMgmt* pMgmt = &pMnode->telemMgmt;
-
-  char vstr[32] = {0};
-  taosVersionIntToStr(pMnode->cfg.sver, vstr, 32);
-
-  mndAddStringField(bw, "version", vstr);
-  mndAddStringField(bw, "buildInfo", pMnode->cfg.buildinfo);
-  mndAddStringField(bw, "gitInfo", pMnode->cfg.gitinfo);
+  mndAddStringField(bw, "version", version);
+  mndAddStringField(bw, "buildInfo", buildinfo);
+  mndAddStringField(bw, "gitInfo", gitinfo);
   mndAddStringField(bw, "email", pMgmt->email);
 }
 
@@ -270,7 +266,7 @@ static void mndGetEmail(SMnode* pMnode, char* filepath) {
 
 int32_t mndInitTelem(SMnode* pMnode) {
   STelemMgmt* pMgmt = &pMnode->telemMgmt;
-  pMgmt->enable = pMnode->cfg.enableTelem;
+  pMgmt->enable = tsEnableTelemetryReporting;
   taosInitRWLatch(&pMgmt->lock);
   mndGetEmail(pMnode, "/usr/local/taos/email");
 

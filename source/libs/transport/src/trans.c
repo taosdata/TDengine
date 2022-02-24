@@ -112,7 +112,7 @@ void rpcSendRedirectRsp(void* thandle, const SEpSet* pEpSet) {
 int  rpcReportProgress(void* pConn, char* pCont, int contLen) { return -1; }
 void rpcCancelRequest(int64_t rid) { return; }
 
-int32_t rpcInit(SRpcCfg* pCfg) {
+int32_t rpcInit() {
   // impl later
   return 0;
 }

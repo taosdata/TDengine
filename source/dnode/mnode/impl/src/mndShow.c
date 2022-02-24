@@ -64,7 +64,7 @@ static SShowObj *mndCreateShowObj(SMnode *pMnode, SShowReq *pReq) {
   memcpy(showObj.db, pReq->db, TSDB_DB_FNAME_LEN);
   memcpy(showObj.payload, pReq->payload, pReq->payloadLen);
 
-  int32_t   keepTime = pMnode->cfg.shellActivityTimer * 6 * 1000;
+  int32_t   keepTime = tsShellActivityTimer * 6 * 1000;
   SShowObj *pShow = taosCachePut(pMgmt->cache, &showId, sizeof(int64_t), &showObj, size, keepTime);
   if (pShow == NULL) {
     terrno = TSDB_CODE_OUT_OF_MEMORY;

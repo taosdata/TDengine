@@ -25,11 +25,6 @@ void* serverLoop(void* param) {
 SDnodeObjCfg TestServer::BuildOption(const char* path, const char* fqdn, uint16_t port, const char* firstEp) {
   SDnodeObjCfg cfg = {0};
   cfg.numOfSupportVnodes = 16;
-  cfg.statusInterval = 1;
-  cfg.numOfThreadsPerCore = 1;
-  cfg.ratioOfQueryCores = 1;
-  cfg.maxShellConns = 1000;
-  cfg.shellActivityTimer = 30;
   cfg.serverPort = port;
   strcpy(cfg.dataDir, path);
   snprintf(cfg.localEp, TSDB_EP_LEN, "%s:%u", fqdn, port);

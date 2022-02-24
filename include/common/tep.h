@@ -20,7 +20,7 @@ typedef struct SBlockOrderInfo {
   SColumnInfoData *pColData;
 } SBlockOrderInfo;
 
-int  taosGetFqdnPortFromEp(const char *ep, uint16_t defaultPort, SEp *pEp);
+int  taosGetFqdnPortFromEp(const char *ep, SEp *pEp);
 void addEpIntoEpSet(SEpSet *pEpSet, const char *fqdn, uint16_t port);
 
 bool isEpsetEqual(const SEpSet *s1, const SEpSet *s2);

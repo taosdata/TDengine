@@ -296,7 +296,7 @@ PRASE_DNODE_OVER:
   if (taosArrayGetSize(pMgmt->pDnodeEps) == 0) {
     SDnodeEp dnodeEp = {0};
     dnodeEp.isMnode = 1;
-    taosGetFqdnPortFromEp(pDnode->cfg.firstEp, pDnode->cfg.serverPort, &dnodeEp.ep);
+    taosGetFqdnPortFromEp(pDnode->cfg.firstEp, &dnodeEp.ep);
     taosArrayPush(pMgmt->pDnodeEps, &dnodeEp);
   }
 
@@ -357,23 +357,23 @@ void dndSendStatusReq(SDnode *pDnode) {
 
   SDnodeMgmt *pMgmt = &pDnode->dmgmt;
   taosRLockLatch(&pMgmt->latch);
-  req.sver = pDnode->env.sver;
+  req.sver = tsVersion;
   req.dver = pMgmt->dver;
   req.dnodeId = pMgmt->dnodeId;
   req.clusterId = pMgmt->clusterId;
   req.rebootTime = pMgmt->rebootTime;
   req.updateTime = pMgmt->updateTime;
-  req.numOfCores = pDnode->env.numOfCores;
+  req.numOfCores = tsNumOfCores;
   req.numOfSupportVnodes = pDnode->cfg.numOfSupportVnodes;
   memcpy(req.dnodeEp, pDnode->cfg.localEp, TSDB_EP_LEN);
 
-  req.clusterCfg.statusInterval = pDnode->cfg.statusInterval;
+  req.clusterCfg.statusInterval = tsStatusInterval;
   req.clusterCfg.checkTime = 0;
   char timestr[32] = "1970-01-01 00:00:00.00";
   (void)taosParseTime(timestr, &req.clusterCfg.checkTime, (int32_t)strlen(timestr), TSDB_TIME_PRECISION_MILLI, 0);
-  memcpy(req.clusterCfg.timezone, pDnode->env.timezone, TD_TIMEZONE_LEN);
-  memcpy(req.clusterCfg.locale, pDnode->env.locale, TD_LOCALE_LEN);
-  memcpy(req.clusterCfg.charset, pDnode->env.charset, TD_LOCALE_LEN);
+  memcpy(req.clusterCfg.timezone, osTimezone(), TD_TIMEZONE_LEN);
+  memcpy(req.clusterCfg.locale, osLocale(), TD_LOCALE_LEN);
+  memcpy(req.clusterCfg.charset, osCharset(), TD_LOCALE_LEN);
   taosRUnLockLatch(&pMgmt->latch);
 
   req.pVloads = taosArrayInit(TSDB_MAX_VNODES, sizeof(SVnodeLoad));
@@ -475,7 +475,7 @@ void dndProcessStartupReq(SDnode *pDnode, SRpcMsg *pReq) {
 static void *dnodeThreadRoutine(void *param) {
   SDnode     *pDnode = param;
   SDnodeMgmt *pMgmt = &pDnode->dmgmt;
-  int32_t     ms = pDnode->cfg.statusInterval * 1000;
+  int32_t     ms = tsStatusInterval * 1000;
 
   setThreadName("dnode-hb");
 

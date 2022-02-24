@@ -10,7 +10,7 @@
  */
 
 #include <gtest/gtest.h>
-#include "config.h"
+#include "tconfig.h"
 
 class CfgTest : public ::testing::Test {
  protected:
@@ -43,7 +43,6 @@ TEST_F(CfgTest, 01_Str) {
   EXPECT_STREQ(cfgDtypeStr(CFG_DTYPE_INT64), "int64");
   EXPECT_STREQ(cfgDtypeStr(CFG_DTYPE_FLOAT), "float");
   EXPECT_STREQ(cfgDtypeStr(CFG_DTYPE_STRING), "string");
-  EXPECT_STREQ(cfgDtypeStr(CFG_DTYPE_IPSTR), "ipstr");
   EXPECT_STREQ(cfgDtypeStr(CFG_DTYPE_DIR), "dir");
   EXPECT_STREQ(cfgDtypeStr(CFG_DTYPE_DIR), "dir");
   EXPECT_STREQ(cfgDtypeStr(CFG_DTYPE_DIR), "dir");
@@ -55,15 +54,14 @@ TEST_F(CfgTest, 02_Basic) {
   SConfig *pConfig = cfgInit();
   ASSERT_NE(pConfig, nullptr);
 
-  EXPECT_EQ(cfgAddBool(pConfig, "test_bool", 0), 0);
-  EXPECT_EQ(cfgAddInt32(pConfig, "test_int32", 1, 0, 16), 0);
-  EXPECT_EQ(cfgAddInt64(pConfig, "test_int64", 2, 0, 16), 0);
-  EXPECT_EQ(cfgAddFloat(pConfig, "test_float", 3, 0, 16), 0);
-  EXPECT_EQ(cfgAddString(pConfig, "test_string", "4"), 0);
-  EXPECT_EQ(cfgAddIpStr(pConfig, "test_ipstr", "192.168.0.1"), 0);
-  EXPECT_EQ(cfgAddDir(pConfig, "test_dir", "/tmp"), 0);
+  EXPECT_EQ(cfgAddBool(pConfig, "test_bool", 0, 0), 0);
+  EXPECT_EQ(cfgAddInt32(pConfig, "test_int32", 1, 0, 16, 0), 0);
+  EXPECT_EQ(cfgAddInt64(pConfig, "test_int64", 2, 0, 16, 0), 0);
+  EXPECT_EQ(cfgAddFloat(pConfig, "test_float", 3, 0, 16, 0), 0);
+  EXPECT_EQ(cfgAddString(pConfig, "test_string", "4", 0), 0);
+  EXPECT_EQ(cfgAddDir(pConfig, "test_dir", "/tmp", 0), 0);
 
-  EXPECT_EQ(cfgGetSize(pConfig), 7);
+  EXPECT_EQ(cfgGetSize(pConfig), 6);
 
   int32_t      size = 0;
   SConfigItem *pItem = cfgIterate(pConfig, NULL);
@@ -84,9 +82,6 @@ TEST_F(CfgTest, 02_Basic) {
       case CFG_DTYPE_STRING:
         printf("index:%d, cfg:%s value:%s\n", size, pItem->name, pItem->str);
         break;
-      case CFG_DTYPE_IPSTR:
-        printf("index:%d, cfg:%s value:%s\n", size, pItem->name, pItem->str);
-        break;
       case CFG_DTYPE_DIR:
         printf("index:%d, cfg:%s value:%s\n", size, pItem->name, pItem->str);
         break;
@@ -99,7 +94,7 @@ TEST_F(CfgTest, 02_Basic) {
   }
   cfgCancelIterate(pConfig, pItem);
 
-  EXPECT_EQ(cfgGetSize(pConfig), 7);
+  EXPECT_EQ(cfgGetSize(pConfig), 6);
 
   pItem = cfgGetItem(pConfig, "test_bool");
   EXPECT_EQ(pItem->stype, CFG_STYPE_DEFAULT);
@@ -130,12 +125,6 @@ TEST_F(CfgTest, 02_Basic) {
   EXPECT_EQ(pItem->dtype, CFG_DTYPE_STRING);
   EXPECT_STREQ(pItem->name, "test_string");
   EXPECT_STREQ(pItem->str, "4");
-
-  pItem = cfgGetItem(pConfig, "test_ipstr");
-  EXPECT_EQ(pItem->stype, CFG_STYPE_DEFAULT);
-  EXPECT_EQ(pItem->dtype, CFG_DTYPE_IPSTR);
-  EXPECT_STREQ(pItem->name, "test_ipstr");
-  EXPECT_STREQ(pItem->str, "192.168.0.1");
 
   pItem = cfgGetItem(pConfig, "test_dir");
   EXPECT_EQ(pItem->stype, CFG_STYPE_DEFAULT);
