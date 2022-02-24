@@ -4,13 +4,6 @@
 
 set -e
 #set -x
-scriptDir=$(dirname $(readlink -f $0))
-
-source $scriptDir/sed_power.sh
-source $scriptDir/sed_tq.sh
-source $scriptDir/sed_pro.sh
-source $scriptDir/sed_kh.sh
-source $scriptDir/sed_jh.sh
 
 # release.sh  -v [cluster | edge]
 #             -c [aarch32 | aarch64 | x64 | x86 | mips64 ...]
@@ -33,7 +26,7 @@ soMode=dynamic  # [static | dynamic]
 dbName=taos     # [taos | power | tq | pro | kh | jh]
 allocator=glibc # [glibc | jemalloc]
 verNumber=""
-verNumberComp="1.0.0.0"
+verNumberComp="2.0.0.0"
 httpdBuild=false
 
 while getopts "hv:V:c:o:l:s:d:a:n:m:H:" arg; do
@@ -90,7 +83,7 @@ while getopts "hv:V:c:o:l:s:d:a:n:m:H:" arg; do
     echo "                  -l [full | lite] "
     echo "                  -a [glibc | jemalloc] "
     echo "                  -s [static | dynamic] "
-    echo "                  -d [taos | power | tq | pro | kh | jh] "
+    echo "                  -d [taos | ...] "
     echo "                  -n [version number] "
     echo "                  -m [compatible version number] "
     echo "                  -H [false | true] "
@@ -107,7 +100,7 @@ echo "verMode=${verMode} verType=${verType} cpuType=${cpuType} osType=${osType} 
 
 curr_dir=$(pwd)
 
-if [ "$osType" != "Darwin" ]; then
+if [ "$osType" == "Darwin" ]; then
   script_dir="$(dirname $(readlink -f $0))"
   top_dir="$(readlink -f ${script_dir}/..)"
 else
@@ -184,7 +177,7 @@ else
   gitinfoOfInternal=NULL
 fi
 
-cd ${curr_dir}
+cd "${curr_dir}"
 
 # 2. cmake executable file
 compile_dir="${top_dir}/debug"
@@ -207,6 +200,7 @@ fi
 
 # 3. replace product info
 if [[ "$dbName" != "taos" ]]; then
+  source ${top_dir}/../enterprise/packaging/oem/sed_$dbName.sh
   replace_community_$dbName
 fi
 
@@ -313,8 +307,8 @@ if [ "$osType" != "Darwin" ]; then
 
   if [ "$verMode" == "cluster" ]; then
     ${csudo} ./makepkg.sh ${compile_dir} ${verNumber} "${build_time}" ${cpuType} ${osType} ${verMode} ${verType} ${pagMode} ${verNumberComp} ${dbName}
-#  ${csudo}./makeclient.sh ${compile_dir} ${verNumber} "${build_time}" ${cpuType} ${osType} ${verMode} ${verType} ${pagMode}
-#  ${csudo}./makearbi.sh ${compile_dir} ${verNumber} "${build_time}" ${cpuType} ${osType} ${verMode} ${verType} ${pagMode}
+    #  ${csudo}./makeclient.sh ${compile_dir} ${verNumber} "${build_time}" ${cpuType} ${osType} ${verMode} ${verType} ${pagMode}
+    #  ${csudo}./makearbi.sh ${compile_dir} ${verNumber} "${build_time}" ${cpuType} ${osType} ${verMode} ${verType} ${pagMode}
   fi
 
 else
