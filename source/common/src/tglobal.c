@@ -263,11 +263,26 @@ static void taosAddClientCfg(SConfig *pCfg) {
   cfgAddInt32(pCfg, "maxNumOfOrderedRes", tsMaxNumOfOrderedResults, 128, TSDB_MAX_ALLOWED_SQL_LEN, 1);
   cfgAddBool(pCfg, "keepColumnName", tsKeepOriginalColumnName, 1);
   cfgAddInt32(pCfg, "maxBinaryDisplayWidth", tsMaxBinaryDisplayWidth, 1, 65536, 1);
+}
+
+static void taosAddSystemInfo(SConfig *pCfg) {
+  SysNameInfo info = taosGetSysNameInfo();
+
   cfgAddTimezone(pCfg, "timezone", tsTimezone);
   cfgAddLocale(pCfg, "locale", tsLocale);
   cfgAddCharset(pCfg, "charset", tsCharset);
   cfgAddBool(pCfg, "enableCoreFile", 0, 1);
   cfgAddInt32(pCfg, "numOfCores", tsNumOfCores, 1, 100000, 1);
+  cfgAddInt32(pCfg, "pageSize(KB)", tsPageSize, 0, INT64_MAX, 1);
+  cfgAddInt64(pCfg, "openMax", tsOpenMax, 0, INT64_MAX, 1);
+  cfgAddInt64(pCfg, "streamMax", tsStreamMax, 0, INT64_MAX, 1);
+  cfgAddInt32(pCfg, "totalMemory(MB)", tsTotalMemoryMB, 0, INT32_MAX, 1);
+  cfgAddString(pCfg, "os sysname", info.sysname, 1);
+  cfgAddString(pCfg, "os nodename", info.nodename, 1);
+  cfgAddString(pCfg, "os release", info.release, 1);
+  cfgAddString(pCfg, "os version", info.version, 1);
+  cfgAddString(pCfg, "os machine", info.machine, 1);
+  cfgAddString(pCfg, "os sysname", info.sysname, 1);
 
   cfgAddString(pCfg, "version", version, 1);
   cfgAddString(pCfg, "compatible_version", compatible_version, 1);
@@ -348,7 +363,9 @@ static void taosSetClientCfg(SConfig *pCfg) {
   tsMaxNumOfOrderedResults = cfgGetItem(pCfg, "maxNumOfOrderedRes")->i32;
   tsKeepOriginalColumnName = cfgGetItem(pCfg, "keepColumnName")->bval;
   tsMaxBinaryDisplayWidth = cfgGetItem(pCfg, "maxBinaryDisplayWidth")->i32;
+}
 
+static void taosSetSystemCfg(SConfig *pCfg) {
   SConfigItem *pItem = cfgGetItem(pCfg, "timezone");
   osSetTimezone(pItem->str);
   uDebug("timezone format changed from %s to %s", pItem->str, tsTimezone);
@@ -448,6 +465,7 @@ int32_t taosInitCfg(const char *cfgDir, const char *envFile, const char *apolloU
     taosAddClientCfg(tsCfg);
     taosAddServerCfg(tsCfg);
   }
+  taosAddSystemInfo(tsCfg);
 
   if (taosLoadCfg(tsCfg, cfgDir, envFile, apolloUrl) != 0) {
     uError("failed to load cfg since %s", terrstr());
@@ -462,6 +480,7 @@ int32_t taosInitCfg(const char *cfgDir, const char *envFile, const char *apolloU
     taosSetClientCfg(tsCfg);
     taosSetServerCfg(tsCfg);
   }
+  taosSetSystemCfg(tsCfg);
 
   cfgDumpCfg(tsCfg, tsc, false);
   return 0;

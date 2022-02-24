@@ -746,21 +746,6 @@ cmp_end:
   return ret;
 }
 
-void taosPrintOsInfo() {
-  SysNameInfo info = taosGetSysNameInfo();
-
-  uInfo(" os pageSize:            %" PRId64 "(KB)", tsPageSize);
-  uInfo(" os openMax:             %" PRId64, tsOpenMax);
-  uInfo(" os streamMax:           %" PRId64, tsStreamMax);
-  uInfo(" os numOfCores:          %d", tsNumOfCores);
-  uInfo(" os totalMemory:         %d(MB)", tsTotalMemoryMB);
-  uInfo(" os sysname:             %s", info.sysname);
-  uInfo(" os nodename:            %s", info.nodename);
-  uInfo(" os release:             %s", info.release);
-  uInfo(" os version:             %s", info.version);
-  uInfo(" os machine:             %s", info.machine);
-}
-
 void taosSetAllDebugFlag(int32_t flag) {
   if (!(flag & DEBUG_TRACE || flag & DEBUG_DEBUG || flag & DEBUG_DUMP)) return;
 

@@ -22,17 +22,13 @@ extern "C" {
 
 #include "os.h"
 
-#define TD_LOCALE_LEN   64
-#define TD_CHARSET_LEN  64
-#define TD_TIMEZONE_LEN 96
-
 typedef struct {
   int64_t total;
   int64_t used;
   int64_t avail;
 } SDiskSize;
 
-typedef struct SDiskSpace {
+typedef struct {
   int64_t   reserved;
   SDiskSize size;
 } SDiskSpace;
@@ -48,7 +44,6 @@ void    taosGetDisk();
 bool    taosGetCpuUsage(float *sysCpuUsage, float *procCpuUsage);
 bool    taosGetProcMemory(float *memoryUsedMB);
 bool    taosGetSysMemory(float *memoryUsedMB);
-void    taosPrintOsInfo();
 int     taosSystem(const char *cmd);
 void    taosKillSystem();
 int32_t taosGetSystemUUID(char *uid, int32_t uidlen);
