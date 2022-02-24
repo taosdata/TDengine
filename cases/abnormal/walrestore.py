@@ -19,7 +19,7 @@ def kill_and_start(run_log_dir: str, taosd_config: dict, mq):
     taosd = TaosD(remote)
     for i in range(kill_times):
         time.sleep(random.randint(2, 5))
-        taosd.kill_and_start(taosd_config, sleep_seconds=3)
+        taosd.kill_and_start(taosd_config, sleep_seconds=3)  # sleep_seconds 是 kill 和 start 之间等待的秒数
     mq.put("done")
     logger.info("exit kill and start process")
 
@@ -35,6 +35,7 @@ class TestWalRestore(TDCase):
         self.total_rows_1 = None
         self.total_rows_2 = None
         self.try_insert_total = 0
+        self.error_times = 0
 
     def prepare_table(self, conn):
         conn.execute("create database if not exists wal_test")
@@ -83,6 +84,7 @@ class TestWalRestore(TDCase):
                     self.conn2.execute(sql)
             except BaseException as e:
                 self.logger.error("%s", e)
+                self.error_times += 1
         return self.check_total_record()
 
     def check_total_record(self):
@@ -107,7 +109,7 @@ class TestWalRestore(TDCase):
         pass
 
     def get_report(self, start_time: datetime, stop_time: datetime) -> str:
-        report = f"try_insert_total={self.try_insert_total} total_rows_1 = {self.total_rows_1}, total_rows_2 = {self.total_rows_2}"
+        report = f"try_insert_total={self.try_insert_total} total_rows_1 = {self.total_rows_1}, total_rows_2 = {self.total_rows_2}, kill_times = {kill_times}, error_times = {self.error_times}"
         self.logger.info(report)
         return report
 
