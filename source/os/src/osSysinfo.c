@@ -111,7 +111,7 @@ int32_t taosGetDiskSize(char *dataDir, SDiskSize *diskSize) {
     diskSize->used = (int64_t)(i64TotalBytes - i64FreeBytes);
     return 0;
   } else {
-    //printf("failed to get disk size, dataDir:%s errno:%s", osDataDir(), strerror(errno));
+    //printf("failed to get disk size, dataDir:%s errno:%s", tsDataDir, strerror(errno));
     terrno = TAOS_SYSTEM_ERROR(errno);
     return -1;
   }
@@ -316,7 +316,7 @@ void taosSetCoreDump() {}
 int32_t taosGetDiskSize(char *dataDir, SDiskSize *diskSize) {
   struct statvfs info;
   if (statvfs(dataDir, &info)) {
-    //printf("failed to get disk size, dataDir:%s errno:%s", osDataDir(), strerror(errno));
+    //printf("failed to get disk size, dataDir:%s errno:%s", tsDataDir, strerror(errno));
     terrno = TAOS_SYSTEM_ERROR(errno);
     return -1;
   } else {

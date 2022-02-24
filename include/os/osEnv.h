@@ -22,33 +22,31 @@
 extern "C" {
 #endif
 
-typedef struct SOsEnv SOsEnv;
+extern char    tsOsName[];
+extern char    tsTimezone[];
+extern char    tsCharset[];
+extern char    tsLocale[];
+extern int8_t  tsDaylight;
+extern bool    tsEnableCoreFile;
+extern int64_t tsPageSize;
+extern int64_t tsOpenMax;
+extern int64_t tsStreamMax;
+extern int32_t tsNumOfCores;
+extern int32_t tsTotalMemoryMB;
 
 extern char configDir[];
+extern char tsDataDir[];
+extern char tsLogDir[];
+extern char tsTempDir[];
+
+extern SDiskSpace tsDataSpace;
+extern SDiskSpace tsLogSpace;
+extern SDiskSpace tsTempSpace;
 
 void osInit();
 void osUpdate();
-
-bool   osLogSpaceAvailable();
-int8_t osDaylight();
-
-const char *osLogDir();
-const char *osTempDir();
-const char *osDataDir();
-const char *osName();
-const char *osTimezone();
-const char *osLocale();
-const char *osCharset();
-
-void osSetLogDir(const char *logDir);
-void osSetTempDir(const char *tempDir);
-void osSetDataDir(const char *dataDir);
-void osSetLogReservedSpace(float sizeInGB);
-void osSetTempReservedSpace(float sizeInGB);
-void osSetDataReservedSpace(float sizeInGB);
+bool osLogSpaceAvailable();
 void osSetTimezone(const char *timezone);
-void osSetLocale(const char *locale, const char *charset);
-bool osSetEnableCore(bool enable);
 
 #ifdef __cplusplus
 }

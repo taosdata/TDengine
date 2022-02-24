@@ -23,7 +23,7 @@ STSBuf* tsBufCreate(bool autoDelete, int32_t order) {
 
   pTSBuf->autoDelete = autoDelete;
   
-  taosGetTmpfilePath(osTempDir(), "join", pTSBuf->path);
+  taosGetTmpfilePath(tsTempDir, "join", pTSBuf->path);
   pTSBuf->f = fopen(pTSBuf->path, "wb+");
   if (pTSBuf->f == NULL) {
     free(pTSBuf);

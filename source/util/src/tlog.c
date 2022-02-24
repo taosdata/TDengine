@@ -121,7 +121,7 @@ int32_t taosInitLog(const char *logName, int maxFiles) {
   osUpdate();
 
   char fullName[PATH_MAX] = {0};
-  snprintf(fullName, PATH_MAX, "%s" TD_DIRSEP "%s", osLogDir(), logName);
+  snprintf(fullName, PATH_MAX, "%s" TD_DIRSEP "%s", tsLogDir, logName);
 
   tsLogObj.logHandle = taosLogBuffNew(TSDB_DEFAULT_LOG_BUF_SIZE);
   if (tsLogObj.logHandle == NULL) return -1;
@@ -187,7 +187,7 @@ static void taosKeepOldLog(char *oldName) {
     }
   }
 
-  taosRemoveOldFiles(osLogDir(), TABS(tsLogKeepDays));
+  taosRemoveOldFiles(tsLogDir, TABS(tsLogKeepDays));
 }
 
 static void *taosThreadToOpenNewFile(void *param) {

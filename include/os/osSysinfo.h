@@ -37,14 +37,6 @@ typedef struct SDiskSpace {
   SDiskSize size;
 } SDiskSpace;
 
-extern int64_t tsPageSize;
-extern int64_t tsOpenMax;
-extern int64_t tsStreamMax;
-extern int32_t tsNumOfCores;
-extern int32_t tsTotalMemoryMB;
-
-
-
 int32_t taosGetDiskSize(char *dataDir, SDiskSize *diskSize);
 int32_t taosGetCpuCores();
 void    taosGetSystemInfo();

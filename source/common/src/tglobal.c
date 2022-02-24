@@ -207,7 +207,7 @@ static int32_t taosLoadCfg(SConfig *pCfg, const char *inputCfgDir, const char *e
 }
 
 static void taosAddClientLogCfg(SConfig *pCfg) {
-  cfgAddDir(pCfg, "logDir", osLogDir(), 1);
+  cfgAddDir(pCfg, "logDir", tsLogDir, 1);
   cfgAddFloat(pCfg, "minimalLogDirGB", 1.0f, 0.001f, 10000000, 1);
   cfgAddInt32(pCfg, "numOfLogLines", tsNumOfLogLines, 1000, 2000000000, 1);
   cfgAddBool(pCfg, "asyncLog", tsAsyncLog, 1);
@@ -248,7 +248,7 @@ static void taosAddClientCfg(SConfig *pCfg) {
   cfgAddString(pCfg, "secondEp", defaultSecondEp, 1);
   cfgAddString(pCfg, "fqdn", defaultFqdn, 1);
   cfgAddInt32(pCfg, "serverPort", defaultServerPort, 1, 65056, 1);
-  cfgAddDir(pCfg, "tempDir", osTempDir(), 1);
+  cfgAddDir(pCfg, "tempDir", tsTempDir, 1);
   cfgAddFloat(pCfg, "minimalTempDirGB", 1.0f, 0.001f, 10000000, 1);
   cfgAddFloat(pCfg, "numOfThreadsPerCore", tsNumOfThreadsPerCore, 0, 10, 1);
   cfgAddInt32(pCfg, "maxTmrCtrl", tsMaxTmrCtrl, 8, 2048, 1);
@@ -263,11 +263,12 @@ static void taosAddClientCfg(SConfig *pCfg) {
   cfgAddInt32(pCfg, "maxNumOfOrderedRes", tsMaxNumOfOrderedResults, 128, TSDB_MAX_ALLOWED_SQL_LEN, 1);
   cfgAddBool(pCfg, "keepColumnName", tsKeepOriginalColumnName, 1);
   cfgAddInt32(pCfg, "maxBinaryDisplayWidth", tsMaxBinaryDisplayWidth, 1, 65536, 1);
-  cfgAddTimezone(pCfg, "timezone", osTimezone());
-  cfgAddLocale(pCfg, "locale", osLocale());
-  cfgAddCharset(pCfg, "charset", osCharset());
+  cfgAddTimezone(pCfg, "timezone", tsTimezone);
+  cfgAddLocale(pCfg, "locale", tsLocale);
+  cfgAddCharset(pCfg, "charset", tsCharset);
   cfgAddBool(pCfg, "enableCoreFile", 0, 1);
   cfgAddInt32(pCfg, "numOfCores", tsNumOfCores, 1, 100000, 1);
+
   cfgAddString(pCfg, "version", version, 1);
   cfgAddString(pCfg, "compatible_version", compatible_version, 1);
   cfgAddString(pCfg, "gitinfo", gitinfo, 1);
@@ -277,7 +278,7 @@ static void taosAddClientCfg(SConfig *pCfg) {
 
 static void taosAddServerCfg(SConfig *pCfg) {
   cfgAddInt32(pCfg, "supportVnodes", 256, 0, 65536, 0);
-  cfgAddDir(pCfg, "dataDir", osDataDir(), 0);
+  cfgAddDir(pCfg, "dataDir", tsDataDir, 0);
   cfgAddFloat(pCfg, "minimalDataDirGB", 2.0f, 0.001f, 10000000, 0);
   cfgAddInt32(pCfg, "numOfCommitThreads", tsNumOfCommitThreads, 1, 100, 0);
   cfgAddFloat(pCfg, "ratioOfQueryCores", tsRatioOfQueryCores, 0, 2, 0);
@@ -301,8 +302,8 @@ static void taosAddServerCfg(SConfig *pCfg) {
 
 static void taosSetClientLogCfg(SConfig *pCfg) {
   SConfigItem *pItem = cfgGetItem(pCfg, "logDir");
-  osSetLogDir(cfgGetItem(pCfg, "logDir")->str);
-  osSetDataReservedSpace(cfgGetItem(pCfg, "minimalLogDirGB")->fval);
+  tstrncpy(tsLogDir, cfgGetItem(pCfg, "logDir")->str, PATH_MAX);
+  tsLogSpace.reserved = cfgGetItem(pCfg, "minimalLogDirGB")->fval;
   tsNumOfLogLines = cfgGetItem(pCfg, "numOfLogLines")->i32;
   tsAsyncLog = cfgGetItem(pCfg, "asyncLog")->bval;
   tsLogKeepDays = cfgGetItem(pCfg, "logKeepDays")->i32;
@@ -331,8 +332,8 @@ static void taosSetClientCfg(SConfig *pCfg) {
   tstrncpy(tsLocalFqdn, cfgGetItem(pCfg, "fqdn")->str, TSDB_EP_LEN);
   tsServerPort = (uint16_t)cfgGetItem(pCfg, "serverPort")->i32;
   snprintf(tsLocalEp, sizeof(tsLocalEp), "%s:%u", tsLocalFqdn, tsServerPort);
-  osSetTempDir(cfgGetItem(pCfg, "tempDir")->str);
-  osSetDataReservedSpace(cfgGetItem(pCfg, "minimalTempDirGB")->fval);
+  tstrncpy(tsLogDir, cfgGetItem(pCfg, "tempDir")->str, PATH_MAX);
+  tsTempSpace.reserved = cfgGetItem(pCfg, "minimalTempDirGB")->fval;
 
   tsNumOfThreadsPerCore = cfgGetItem(pCfg, "maxTmrCtrl")->fval;
   tsMaxTmrCtrl = cfgGetItem(pCfg, "maxTmrCtrl")->i32;
@@ -350,28 +351,27 @@ static void taosSetClientCfg(SConfig *pCfg) {
 
   SConfigItem *pItem = cfgGetItem(pCfg, "timezone");
   osSetTimezone(pItem->str);
-  uDebug("timezone format changed from %s to %s", pItem->str, osTimezone());
-  cfgSetItem(pCfg, "timezone", osTimezone(), pItem->stype);
+  uDebug("timezone format changed from %s to %s", pItem->str, tsTimezone);
+  cfgSetItem(pCfg, "timezone", tsTimezone, pItem->stype);
 
   const char *locale = cfgGetItem(pCfg, "locale")->str;
   const char *charset = cfgGetItem(pCfg, "charset")->str;
-  osSetLocale(locale, charset);
+  taosSetSystemLocale(locale, charset);
 
   if (tsNumOfCores <= 1) {
     tsNumOfCores = 2;
   }
 
   bool enableCore = cfgGetItem(pCfg, "enableCoreFile")->bval;
-  taosSetCoreDump(enableCore);
+  taosSetConsoleEcho(enableCore);
 
   // todo
   tsVersion = 30000000;
 }
 
 static void taosSetServerCfg(SConfig *pCfg) {
-  osSetDataDir(cfgGetItem(pCfg, "dataDir")->str);
-  osSetTempReservedSpace(cfgGetItem(pCfg, "minimalDataDirGB")->fval);
-
+  tstrncpy(tsDataDir, cfgGetItem(pCfg, "dataDir")->str, PATH_MAX);
+  tsTempSpace.reserved = cfgGetItem(pCfg, "minimalDataDirGB")->fval;
   tsNumOfCommitThreads = cfgGetItem(pCfg, "numOfCommitThreads")->i32;
   tsRatioOfQueryCores = cfgGetItem(pCfg, "ratioOfQueryCores")->fval;
   tsMaxNumOfDistinctResults = cfgGetItem(pCfg, "maxNumOfDistinctRes")->i32;

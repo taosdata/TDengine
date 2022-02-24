@@ -277,19 +277,19 @@ static int32_t mndCheckClusterCfgPara(SMnode *pMnode, const SClusterCfg *pCfg) {
     return DND_REASON_STATUS_INTERVAL_NOT_MATCH;
   }
 
-  if ((0 != strcasecmp(pCfg->timezone, osTimezone())) && (pMnode->checkTime != pCfg->checkTime)) {
-    mError("timezone [%s - %s] [%" PRId64 " - %" PRId64 "] cfg inconsistent", pCfg->timezone, osTimezone(),
+  if ((0 != strcasecmp(pCfg->timezone, tsTimezone)) && (pMnode->checkTime != pCfg->checkTime)) {
+    mError("timezone [%s - %s] [%" PRId64 " - %" PRId64 "] cfg inconsistent", pCfg->timezone, tsTimezone,
            pCfg->checkTime, pMnode->checkTime);
     return DND_REASON_TIME_ZONE_NOT_MATCH;
   }
 
-  if (0 != strcasecmp(pCfg->locale, osLocale())) {
-    mError("locale [%s - %s]  cfg inconsistent", pCfg->locale, osLocale());
+  if (0 != strcasecmp(pCfg->locale, tsLocale)) {
+    mError("locale [%s - %s]  cfg inconsistent", pCfg->locale, tsLocale);
     return DND_REASON_LOCALE_NOT_MATCH;
   }
 
-  if (0 != strcasecmp(pCfg->charset, osCharset())) {
-    mError("charset [%s - %s] cfg inconsistent.", pCfg->charset, osCharset());
+  if (0 != strcasecmp(pCfg->charset, tsCharset)) {
+    mError("charset [%s - %s] cfg inconsistent.", pCfg->charset, tsCharset);
     return DND_REASON_CHARSET_NOT_MATCH;
   }
 
@@ -669,15 +669,15 @@ static int32_t mndRetrieveConfigs(SMnodeMsg *pReq, SShowObj *pShow, char *data, 
   numOfRows++;
 
   cfgOpts[numOfRows] = "timezone";
-  snprintf(cfgVals[numOfRows], TSDB_CONIIG_VALUE_LEN, "%s", osTimezone());
+  snprintf(cfgVals[numOfRows], TSDB_CONIIG_VALUE_LEN, "%s", tsTimezone);
   numOfRows++;
 
   cfgOpts[numOfRows] = "locale";
-  snprintf(cfgVals[numOfRows], TSDB_CONIIG_VALUE_LEN, "%s", osLocale());
+  snprintf(cfgVals[numOfRows], TSDB_CONIIG_VALUE_LEN, "%s", tsLocale);
   numOfRows++;
 
   cfgOpts[numOfRows] = "charset";
-  snprintf(cfgVals[numOfRows], TSDB_CONIIG_VALUE_LEN, "%s", osCharset());
+  snprintf(cfgVals[numOfRows], TSDB_CONIIG_VALUE_LEN, "%s", tsCharset);
   numOfRows++;
 
   for (int32_t i = 0; i < numOfRows; i++) {

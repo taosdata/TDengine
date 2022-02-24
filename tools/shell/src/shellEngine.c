@@ -68,11 +68,11 @@ TAOS *shellInit(SShellArguments *_args) {
   printf("\n");
   if (!_args->is_use_passwd) {
 #ifdef TD_WINDOWS
-    strcpy(osName(), "Windows");
+    strcpy(tsOsName, "Windows");
 #elif defined(TD_DARWIN)
-    strcpy(osName(), "Darwin");
+    strcpy(tsOsName, "Darwin");
 #endif
-    printf(CLIENT_VERSION, osName(), taos_get_client_info());
+    printf(CLIENT_VERSION, tsOsName, taos_get_client_info());
   }
 
   fflush(stdout);
