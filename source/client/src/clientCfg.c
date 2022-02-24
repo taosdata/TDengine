@@ -67,7 +67,7 @@ static int32_t tscAddLogCfg(SConfig *pCfg) {
 }
 
 static int32_t tscSetLogCfg(SConfig *pCfg) {
-  tstrncpy(tsLogDir, cfgGetItem(pCfg, "logDir")->str, PATH_MAX);
+  tstrncpy(osLogDir(), cfgGetItem(pCfg, "logDir")->str, PATH_MAX);
   tsAsyncLog = cfgGetItem(pCfg, "asyncLog")->bval;
   tsNumOfLogLines = cfgGetItem(pCfg, "numOfLogLines")->i32;
   tsLogKeepDays = cfgGetItem(pCfg, "logKeepDays")->i32;
@@ -146,7 +146,7 @@ static int32_t tscAddCfg(SConfig *pCfg) {
   // if (cfgAddString(pCfg, "gitinfo", gitinfo) != 0) return -1;
   // if (cfgAddString(pCfg, "version", version) != 0) return -1;
 
-  // if (cfgAddDir(pCfg, "dataDir", tsDataDir) != 0) return -1;
+  // if (cfgAddDir(pCfg, "dataDir", osDataDir()) != 0) return -1;
   if (cfgAddTimezone(pCfg, "timezone", "") != 0) return -1;
   if (cfgAddLocale(pCfg, "locale", "") != 0) return -1;
   if (cfgAddCharset(pCfg, "charset", "") != 0) return -1;

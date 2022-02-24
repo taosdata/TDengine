@@ -118,10 +118,9 @@ static int32_t taosStartLog() {
 
 int32_t taosInitLog(const char *logName, int maxFiles) {
   if (tsLogInited) return 0;
-  taosUpdateLogSpace();
 
   char fullName[PATH_MAX] = {0};
-  snprintf(fullName, PATH_MAX, "%s" TD_DIRSEP "%s", tsLogDir, logName);
+  snprintf(fullName, PATH_MAX, "%s" TD_DIRSEP "%s", osLogDir(), logName);
 
   tsLogObj.logHandle = taosLogBuffNew(TSDB_DEFAULT_LOG_BUF_SIZE);
   if (tsLogObj.logHandle == NULL) return -1;
@@ -187,7 +186,7 @@ static void taosKeepOldLog(char *oldName) {
     }
   }
 
-  taosRemoveOldFiles(tsLogDir, TABS(tsLogKeepDays));
+  taosRemoveOldFiles(osLogDir(), TABS(tsLogKeepDays));
 }
 
 static void *taosThreadToOpenNewFile(void *param) {
@@ -380,7 +379,7 @@ static int32_t taosOpenLogFile(char *fn, int32_t maxLines, int32_t maxFileNum) {
 }
 
 void taosPrintLog(const char *flags, int32_t dflag, const char *format, ...) {
-  if (!taosLogSpaceAvailable()) return;
+  if (!osLogSpaceAvailable()) return;
 
   va_list        argpointer;
   char           buffer[MAX_LOGLINE_BUFFER_SIZE] = {0};
@@ -434,7 +433,7 @@ void taosPrintLog(const char *flags, int32_t dflag, const char *format, ...) {
 }
 
 void taosDumpData(unsigned char *msg, int32_t len) {
-  if (!taosLogSpaceAvailable()) return;
+  if (!osLogSpaceAvailable()) return;
 
   char    temp[256];
   int32_t i, pos = 0, c = 0;
@@ -457,7 +456,7 @@ void taosDumpData(unsigned char *msg, int32_t len) {
 }
 
 void taosPrintLongString(const char *flags, int32_t dflag, const char *format, ...) {
-  if (!taosLogSpaceAvailable()) return;
+  if (!osLogSpaceAvailable()) return;
 
   va_list        argpointer;
   char           buffer[MAX_LOGLINE_DUMP_BUFFER_SIZE];

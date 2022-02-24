@@ -40,18 +40,19 @@ static int32_t dmnAddEpCfg(SConfig *pCfg) {
 }
 
 static int32_t dmnAddDirCfg(SConfig *pCfg) {
-  if (cfgAddDir(pCfg, "dataDir", tsDataDir) != 0) return -1;
-  if (cfgAddDir(pCfg, "tempDir", tsTempDir) != 0) return -1;
+  if (cfgAddDir(pCfg, "dataDir", osDataDir()) != 0) return -1;
+  if (cfgAddDir(pCfg, "tempDir", osTempDir()) != 0) return -1;
   if (cfgAddFloat(pCfg, "minimalDataDirGB", 2.0f, 0.001f, 10000000) != 0) return -1;
   if (cfgAddFloat(pCfg, "minimalTempDirGB", 1.0f, 0.001f, 10000000) != 0) return -1;
   return 0;
 }
 
 static int32_t dmnCheckDirCfg(SConfig *pCfg) {
-  tstrncpy(tsDataDir, cfgGetItem(pCfg, "dataDir")->str, PATH_MAX);
-  tstrncpy(tsTempDir, cfgGetItem(pCfg, "tempDir")->str, PATH_MAX);
-  tsDataSpace.reserved = cfgGetItem(pCfg, "minimalDataDirGB")->fval;
-  tsTempSpace.reserved = cfgGetItem(pCfg, "minimalTempDirGB")->fval;
+  SEnvVar *pEnv = osEnv();
+  tstrncpy(pEnv->dataDir, cfgGetItem(pCfg, "dataDir")->str, PATH_MAX);
+  tstrncpy(pEnv->tempDir, cfgGetItem(pCfg, "tempDir")->str, PATH_MAX);
+  pEnv->dataSpace.reserved = cfgGetItem(pCfg, "minimalDataDirGB")->fval;
+  pEnv->tempSpace.reserved = cfgGetItem(pCfg, "minimalTempDirGB")->fval;
   return 0;
 }
 

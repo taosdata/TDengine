@@ -155,7 +155,7 @@ class TransObj {
     taosRemoveDir(path.c_str());
     taosMkDir(path.c_str());
 
-    tstrncpy(tsLogDir, path.c_str(), PATH_MAX);
+    tstrncpy(osLogDir(), path.c_str(), PATH_MAX);
     if (taosInitLog("taosdlog", 1) != 0) {
       printf("failed to init log file\n");
     }

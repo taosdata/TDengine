@@ -55,7 +55,7 @@ int32_t initUdfInfo(SUdfInfo* pUdfInfo) {
 
   } else {
     char path[PATH_MAX] = {0};
-    taosGetTmpfilePath("script", path, tsTempDir);
+    taosGetTmpfilePath("script", path, osTempDir());
 
     FILE* file = fopen(path, "w+");
 

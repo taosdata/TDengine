@@ -593,16 +593,16 @@ void cfgDumpCfg(SConfig *pCfg) {
 
 //   pItem = cfgGetItem(pCfg, "dataDir");
 //   if (pItem != NULL) {
-//     tstrncpy(tsDataDir, pItem->str, PATH_MAX);
+//     tstrncpy(osDataDir(), pItem->str, PATH_MAX);
 //   }
 
 //   if (tsDiskCfgNum <= 0) {
-//     taosAddDataDir(0, tsDataDir, 0, 1);
+//     taosAddDataDir(0, osDataDir(), 0, 1);
 //     tsDiskCfgNum = 1;
-//     uTrace("dataDir:%s, level:0 primary:1 is configured by default", tsDataDir);
+//     uTrace("dataDir:%s, level:0 primary:1 is configured by default", osDataDir());
 //   }
 
-//   if (taosDirExist(tsTempDir) != 0) {
+//   if (taosDirExist(osTempDir()) != 0) {
 //     return -1;
 //   }
 

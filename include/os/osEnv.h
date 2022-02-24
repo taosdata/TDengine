@@ -16,28 +16,32 @@
 #ifndef _TD_OS_ENV_H_
 #define _TD_OS_ENV_H_
 
+#include "osSysinfo.h"
+
 #ifdef __cplusplus
 extern "C" {
 #endif
 
-extern char tsOsName[];
+typedef struct SEnvVar {
+  char       dataDir[PATH_MAX];
+  char       logDir[PATH_MAX];
+  char       tempDir[PATH_MAX];
+  char       osName[16];
+  SDiskSpace dataSpace;
+  SDiskSpace logSpace;
+  SDiskSpace tempSpace;
+} SEnvVar;
 
-extern char tsDataDir[];
-extern char tsLogDir[];
-extern char tsTempDir[];
 extern char configDir[];
 
-extern struct SDiskSpace tsLogSpace;
-extern struct SDiskSpace tsTempSpace;
-extern struct SDiskSpace tsDataSpace;
-
-void taosUpdateLogSpace();
-void taosUpdateTempSpace();
-void taosUpdateDataSpace();
-bool taosLogSpaceAvailable();
-bool taosTmpSpaceAvailable();
-bool taosDataSpaceAvailable();
-void taosUpdateAllSpace();
+void     osInit();
+SEnvVar *osEnv();
+void     osUpdate();
+bool     osLogSpaceAvailable();
+char *   osLogDir();
+char *   osTempDir();
+char *   osDataDir();
+char *   osName();
 
 #ifdef __cplusplus
 }

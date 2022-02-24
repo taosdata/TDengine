@@ -41,8 +41,10 @@ int32_t dmnAddLogCfg(SConfig *pCfg) {
 }
 
 int32_t dmnSetLogCfg(SConfig *pCfg) {
-  tstrncpy(tsLogDir, cfgGetItem(pCfg, "logDir")->str, PATH_MAX);
-  tsLogSpace.reserved = cfgGetItem(pCfg, "minimalLogDirGB")->fval;
+  SEnvVar *pEnv = osEnv();
+
+  tstrncpy(pEnv->logDir, cfgGetItem(pCfg, "logDir")->str, PATH_MAX);
+  pEnv->logSpace.reserved = cfgGetItem(pCfg, "minimalLogDirGB")->fval;
   tsAsyncLog = cfgGetItem(pCfg, "asyncLog")->bval;
   tsNumOfLogLines = cfgGetItem(pCfg, "numOfLogLines")->i32;
   tsLogKeepDays = cfgGetItem(pCfg, "logKeepDays")->i32;

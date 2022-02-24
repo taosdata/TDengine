@@ -27,7 +27,6 @@ extern int8_t   tsDaylight;
 extern int32_t  tsCompressMsgSize;
 extern int32_t  tsCompressColData;
 extern int32_t  tsMaxNumOfDistinctResults;
-extern char     tsTempDir[];
 extern int      tsCompatibleModel;  // 2.0 compatible model
 extern int8_t   tsEnableSlaveQuery;
 extern int8_t   tsEnableAdjustMaster;
