@@ -23,7 +23,7 @@ TDengine is a high-performance, scalable time-series database with SQL support. 
 
 - **Seamless Integration**: Without a single line of code, TDengine provide seamless integration with third-party tools such as Telegraf, Grafana, EMQ X, Prometheus, StatsD, collectd, etc. More will be integrated.
  
-- **Zero Management**: Installation and cluster setup can be done in seconds. Data partitioning and sharding are done automatically. TDengine’s running status can be monitored via Grafana or other DevOps tools. 
+- **Zero Management**: Installation and cluster setup can be done in seconds. Data partitioning and sharding are executed automatically. TDengine’s running status can be monitored via Grafana or other DevOps tools. 
 
 - **Zero Learning Cost**: With SQL as the query language, support for ubiquitous tools like Python, Java, C/C++, Go, Rust, Node.js connectors, there is zero learning cost.
 
