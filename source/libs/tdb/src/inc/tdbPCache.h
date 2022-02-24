@@ -29,6 +29,7 @@ struct SPgHdr {
   SPgid    pgid;
   u8       isAnchor;
   u8       isLocalPage;
+  u8       isLoad;
   i32      nRef;
   SPCache *pCache;
   SPgHdr * pFreeNext;

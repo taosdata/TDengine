@@ -120,7 +120,10 @@ static SPgHdr *tdbPCacheFetchImpl(SPCache *pCache, const SPgid *pPgid, bool alcN
   }
 
   if (pPage || !alcNewPage) {
-    if (pPage) tdbPCachePinPage(pPage);
+    if (pPage) {
+      ASSERT(pPage->isLoad == 1);
+      tdbPCachePinPage(pPage);
+    }
     return pPage;
   }
 
@@ -147,7 +150,7 @@ static SPgHdr *tdbPCacheFetchImpl(SPCache *pCache, const SPgid *pPgid, bool alcN
   if (pPage) {
     memcpy(&(pPage->pgid), pPgid, sizeof(*pPgid));
     pPage->pLruNext = NULL;
-    // *(void **)pPage->page.pExtra = 0; (TODO)
+    pPage->isLoad = 0;
     tdbPCacheAddPageToHash(pPage);
   }
 

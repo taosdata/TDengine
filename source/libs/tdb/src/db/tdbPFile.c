@@ -84,12 +84,14 @@ SPgHdr *tdbPFileGet(SPFile *pFile, SPgno pgno) {
   }
   tdbPCacheFetchFinish(pFile->pCache, pPage);
 
-  if (pgno > pFile->dbFileSize /*TODO*/) {
-    memset(pPage->pData, 0, pFile->pageSize);
-  } else {
-    if (tdbPFileReadPage(pFile, pPage) < 0) {
-      // TODO: handle error
-      return NULL;
+  if (!(pPage->isLoad)) {
+    if (pgno > pFile->dbFileSize /*TODO*/) {
+      memset(pPage->pData, 0, pFile->pageSize);
+    } else {
+      if (tdbPFileReadPage(pFile, pPage) < 0) {
+        // TODO: handle error
+        return NULL;
+      }
     }
   }
 
