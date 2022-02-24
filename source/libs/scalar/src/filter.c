@@ -3505,12 +3505,18 @@ EDealRes fltReviseRewriter(SNode** pNode, void* pContext) {
 
     if (NULL == node->pRight) {
       if (scalarGetOperatorParamNum(node->opType) > 1) {
-        fltError("invalid operator, pRight:%p, type:%d", node->pRight, nodeType(node));
+        fltError("invalid operator, pRight:%p, nodeType:%d, opType:%d", node->pRight, nodeType(node), node->opType);
         stat->code = TSDB_CODE_QRY_APP_ERROR;
         return DEAL_RES_ERROR;
       }
       
       if (QUERY_NODE_COLUMN_REF != nodeType(node->pLeft)) {
+        stat->scalarMode = true;
+        return DEAL_RES_CONTINUE;
+      }
+
+      if (OP_TYPE_IS_TRUE == node->opType || OP_TYPE_IS_FALSE == node->opType || OP_TYPE_IS_UNKNOWN == node->opType
+       || OP_TYPE_IS_NOT_TRUE == node->opType || OP_TYPE_IS_NOT_FALSE == node->opType || OP_TYPE_IS_NOT_UNKNOWN == node->opType) {
         stat->scalarMode = true;
         return DEAL_RES_CONTINUE;
       }
