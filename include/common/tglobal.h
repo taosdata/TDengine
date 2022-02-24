@@ -24,9 +24,14 @@ extern "C" {
 #include "tdef.h"
 
 // cluster
-extern int32_t tsVersion;
-extern int32_t tsStatusInterval;
-extern bool    tsEnableTelemetryReporting;
+extern char     tsFirst[];
+extern char     tsSecond[];
+extern char     tsLocalFqdn[];
+extern char     tsLocalEp[];
+extern uint16_t tsServerPort;
+extern int32_t  tsVersion;
+extern int32_t  tsStatusInterval;
+extern bool     tsEnableTelemetryReporting;
 
 // common
 extern int32_t tsRpcTimer;

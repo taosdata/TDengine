@@ -253,13 +253,6 @@ int hbAddConnInfo(SAppHbMgr* pAppHbMgr, SClientHbKey connKey, void* key, void* v
 // --- mq
 void hbMgrInitMqHbRspHandle();
 
-
-// config
-int32_t tscInitLog(const char *cfgDir, const char *envFile, const char *apolloUrl);
-int32_t tscInitCfg(const char *cfgDir, const char *envFile, const char *apolloUrl);
-
-extern SConfig *tscCfg;
-
 #ifdef __cplusplus
 }
 #endif

@@ -29,9 +29,14 @@
 SConfig *tsCfg = NULL;
 
 // cluster
-int32_t tsVersion = 30000000;
-int32_t tsStatusInterval = 1;  // second
-bool    tsEnableTelemetryReporting = 0;
+char     tsFirst[TSDB_EP_LEN] = {0};
+char     tsSecond[TSDB_EP_LEN] = {0};
+char     tsLocalFqdn[TSDB_FQDN_LEN] = {0};
+char     tsLocalEp[TSDB_EP_LEN] = {0};  // Local End Point, hostname:port
+uint16_t tsServerPort = 6030;
+int32_t  tsVersion = 30000000;
+int32_t  tsStatusInterval = 1;  // second
+bool     tsEnableTelemetryReporting = 0;
 
 // common
 int32_t tsRpcTimer = 300;
@@ -321,11 +326,19 @@ static void taosSetServerLogCfg(SConfig *pCfg) {
 static void taosSetClientCfg(SConfig *pCfg) {
   osSetTempDir(cfgGetItem(pCfg, "tempDir")->str);
   osSetDataReservedSpace(cfgGetItem(pCfg, "minimalTempDirGB")->fval);
+  tstrncpy(tsFirst, cfgGetItem(pCfg, "firstEp")->str, TSDB_EP_LEN);
+  tstrncpy(tsSecond, cfgGetItem(pCfg, "secondEp")->str, TSDB_EP_LEN);
+  tstrncpy(tsLocalFqdn, cfgGetItem(pCfg, "fqdn")->str, TSDB_EP_LEN);
+  tsServerPort = (uint16_t)cfgGetItem(pCfg, "serverPort")->i32;
+  snprintf(tsLocalEp, sizeof(tsLocalEp), "%s:%u", tsLocalFqdn, tsServerPort);
 
   taosGetSystemInfo();
   if (tsNumOfCores <= 0) {
     tsNumOfCores = 1;
   }
+
+  bool enableCore = cfgGetItem(pCfg, "enableCoreFile")->bval;
+  taosSetCoreDump(enableCore);
 }
 
 static void taosSetServerCfg(SConfig *pCfg) {
