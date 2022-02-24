@@ -47,7 +47,7 @@ static int32_t dmnAddDirCfg(SConfig *pCfg) {
 }
 
 static int32_t dmnCheckDirCfg(SConfig *pCfg) {
-  SEnvVar *pEnv = osEnv();
+  SOsEnv *pEnv = osEnv();
   tstrncpy(pEnv->dataDir, cfgGetItem(pCfg, "dataDir")->str, PATH_MAX);
   tstrncpy(pEnv->tempDir, cfgGetItem(pCfg, "tempDir")->str, PATH_MAX);
   pEnv->dataSpace.reserved = cfgGetItem(pCfg, "minimalDataDirGB")->fval;

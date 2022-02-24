@@ -16,10 +16,10 @@
 #define _DEFAULT_SOURCE
 #include "osEnv.h"
 
-SEnvVar env = {0};
-char    configDir[PATH_MAX] = {0};
+SOsEnv env = {0};
+char   configDir[PATH_MAX] = {0};
 
-SEnvVar *osEnv() { return &env; }
+SOsEnv *osEnv() { return &env; }
 
 void osInitImp() {
   osGetSystemTimezone(env.timezone);

@@ -22,7 +22,7 @@
 extern "C" {
 #endif
 
-typedef struct SEnvVar {
+typedef struct SOsEnv {
   char       dataDir[PATH_MAX];
   char       logDir[PATH_MAX];
   char       tempDir[PATH_MAX];
@@ -34,20 +34,20 @@ typedef struct SEnvVar {
   char       locale[TD_LOCALE_LEN];
   char       charset[TD_CHARSET_LEN];
   int8_t     daylight;
-} SEnvVar;
+} SOsEnv;
 
 extern char configDir[];
 
-void     osInit();
-SEnvVar *osEnv();
-void     osUpdate();
-bool     osLogSpaceAvailable();
-char    *osLogDir();
-char    *osTempDir();
-char    *osDataDir();
-char    *osName();
-char *osTimezone();
-int8_t   osDaylight();
+void    osInit();
+SOsEnv *osEnv();
+void    osUpdate();
+bool    osLogSpaceAvailable();
+char   *osLogDir();
+char   *osTempDir();
+char   *osDataDir();
+char   *osName();
+char   *osTimezone();
+int8_t  osDaylight();
 
 void osSetTimezone(const char*timezone);
 
