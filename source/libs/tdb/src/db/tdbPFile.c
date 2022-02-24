@@ -93,7 +93,11 @@ SPgHdr *tdbPFileGet(SPFile *pFile, SPgno pgno) {
         return NULL;
       }
     }
+
+    pPage->isLoad = 1;
   }
+
+  ASSERT(pPage->isLoad);
 
   return pPage;
 }
