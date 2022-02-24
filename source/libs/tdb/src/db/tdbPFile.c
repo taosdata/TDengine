@@ -18,6 +18,7 @@
 struct SPFile {
   char *   dbFileName;
   char *   jFileName;
+  int      pageSize;
   uint8_t  fid[TDB_FILE_ID_LEN];
   int      fd;
   int      jfd;
@@ -25,6 +26,8 @@ struct SPFile {
   SPgno    dbFileSize;
   SPgno    dbOrigSize;
 };
+
+static int tdbPFileReadPage(SPFile *pFile, SPgHdr *pPage);
 
 int tdbPFileOpen(SPCache *pCache, const char *fileName, SPFile **ppFile) {
   uint8_t *pPtr;
@@ -81,7 +84,13 @@ SPgHdr *tdbPFileGet(SPFile *pFile, SPgno pgno) {
   }
   tdbPCacheFetchFinish(pFile->pCache, pPage);
 
-  if (true /* not load from the file, then load the content from the file*/) {
+  if (pgno > pFile->dbFileSize /*TODO*/) {
+    memset(pPage->pData, 0, pFile->pageSize);
+  } else {
+    if (tdbPFileReadPage(pFile, pPage) < 0) {
+      // TODO: handle error
+      return NULL;
+    }
   }
 
   return pPage;
@@ -99,5 +108,20 @@ int tdbPFileCommit(SPFile *pFile) {
 
 int tdbPFileRollback(SPFile *pFile) {
   // TODO
+  return 0;
+}
+
+static int tdbPFileReadPage(SPFile *pFile, SPgHdr *pPage) {
+  i64 offset;
+  int ret;
+
+  ASSERT(memcmp(pFile->fid, pPage->pgid.fileid, TDB_FILE_ID_LEN) == 0);
+
+  offset = (pPage->pgid.pgno - 1) * (i64)(pFile->pageSize);
+  ret = tdbPRead(pFile->fd, pPage->pData, pFile->pageSize, offset);
+  if (ret < 0) {
+    // TODO: handle error
+    return -1;
+  }
   return 0;
 }

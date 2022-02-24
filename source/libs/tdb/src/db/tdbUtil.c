@@ -65,3 +65,28 @@ int tdbGetFileSize(const char *fname, int pgSize, SPgno *pSize) {
   *pSize = st.st_size / pgSize;
   return 0;
 }
+
+int tdbPRead(int fd, void *pData, int count, i64 offset) {
+  void *pBuf;
+  int   nbytes;
+  i64   ioffset;
+  int   iread;
+
+  pBuf = pData;
+  nbytes = count;
+  ioffset = offset;
+  while (nbytes > 0) {
+    iread = pread(fd, pBuf, nbytes, ioffset);
+    if (iread < 0) {
+      /* TODO */
+    } else if (iread == 0) {
+      return (count - iread);
+    }
+
+    nbytes = nbytes - iread;
+    pBuf = (void *)((u8 *)pBuf + iread);
+    ioffset += iread;
+  }
+
+  return count;
+}

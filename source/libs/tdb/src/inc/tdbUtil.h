@@ -37,6 +37,8 @@ int tdbCheckFileAccess(const char *pathname, int mode);
 
 int tdbGetFileSize(const char *fname, int pgSize, SPgno *pSize);
 
+int tdbPRead(int fd, void *pData, int count, i64 offset);
+
 #ifdef __cplusplus
 }
 #endif
