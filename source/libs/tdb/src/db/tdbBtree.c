@@ -28,11 +28,11 @@ struct SBtCursor {
   int8_t  iPage;
 };
 
-typedef struct SBPage {
+typedef struct SMemPage {
   u8    isInit;
   u8    isLeaf;
   SPgno pgno;
-} SBPage;
+} SMemPage;
 
 int tdbBtreeOpen(SPgno root, SBTree **ppBt) {
   *ppBt = NULL;

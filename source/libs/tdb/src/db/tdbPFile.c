@@ -77,6 +77,9 @@ SPgHdr *tdbPFileGet(SPFile *pFile, SPgno pgno) {
   SPgid   pgid;
   SPgHdr *pPage;
 
+  memcpy(pgid.fileid, pFile->fid, TDB_FILE_ID_LEN);
+  pgid.pgno = pgno;
+
   pPage = tdbPCacheFetch(pFile->pCache, &pgid, 1);
   if (pPage == NULL) {
     // TODO
