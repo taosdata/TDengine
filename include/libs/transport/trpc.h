@@ -84,13 +84,7 @@ typedef struct SRpcInit {
   void *parent;
 } SRpcInit;
 
-typedef struct {
-  int32_t rpcTimer;
-  int32_t rpcMaxTime;
-  int32_t sver;
-} SRpcCfg;
-
-int32_t rpcInit(SRpcCfg *pCfg);
+int32_t rpcInit();
 void    rpcCleanup();
 void   *rpcOpen(const SRpcInit *pRpc);
 void    rpcClose(void *);

@@ -124,7 +124,6 @@ typedef struct {
 typedef struct SDnode {
   EStat        stat;
   SDnodeObjCfg cfg;
-  SDnodeEnvCfg env;
   SDnodeDir    dir;
   FileFd       lockFd;
   SDnodeMgmt   dmgmt;
@@ -137,11 +136,6 @@ typedef struct SDnode {
   STfs        *pTfs;
   SStartupReq  startup;
 } SDnode;
-
-typedef struct {
-  int8_t       once;
-  SDnodeEnvCfg cfg;
-} SDnodeEnv;
 
 #ifdef __cplusplus
 }

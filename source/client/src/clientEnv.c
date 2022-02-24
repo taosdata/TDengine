@@ -93,10 +93,10 @@ void *openTransporter(const char *user, const char *auth, int32_t numOfThread) {
   rpcInit.numOfThreads = numOfThread;
   rpcInit.cfp = processMsgFromServer;
   rpcInit.pfp = persistConnForSpecificMsg;
-  rpcInit.sessions = cfgGetItem(tscCfg, "maxConnections")->i32;
+  rpcInit.sessions = tsMaxConnections;
   rpcInit.connType = TAOS_CONN_CLIENT;
   rpcInit.user = (char *)user;
-  rpcInit.idleTime = cfgGetItem(tscCfg, "shellActivityTimer")->i32 * 1000;
+  rpcInit.idleTime = tsShellActivityTimer * 1000;
   rpcInit.ckey = "key";
   rpcInit.spi = 1;
   rpcInit.secret = (char *)auth;
@@ -212,12 +212,12 @@ void taos_init_imp(void) {
 
   deltaToUtcInitOnce();
 
-  if (tscInitLog(configDir, NULL, NULL) != 0) {
+  if (taosCreateLog("taoslog", 10, configDir, NULL, NULL, 1) != 0) {
     tscInitRes = -1;
     return;
   }
 
-  if (tscInitCfg(configDir, NULL, NULL) != 0) {
+  if (taosInitCfg(configDir, NULL, NULL, 1) != 0) {
     tscInitRes = -1;
     return;
   }
@@ -225,11 +225,7 @@ void taos_init_imp(void) {
   initMsgHandleFp();
   initQueryModuleMsgHandle();
 
-  SRpcCfg rpcCfg = {0};
-  rpcCfg.rpcTimer = cfgGetItem(tscCfg, "rpcTimer")->i32;
-  rpcCfg.rpcMaxTime = cfgGetItem(tscCfg, "rpcMaxTime")->i32;
-  rpcCfg.sver = 30000000;
-  rpcInit(&rpcCfg);
+  rpcInit();
 
   SCatalogCfg cfg = {.maxDBCacheNum = 100, .maxTblCacheNum = 100};
   catalogInit(&cfg);

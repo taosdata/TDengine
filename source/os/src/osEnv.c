@@ -31,6 +31,7 @@ typedef struct SOsEnv {
   char       locale[TD_LOCALE_LEN];
   char       charset[TD_CHARSET_LEN];
   int8_t     daylight;
+  bool       enableCoreFile;
 } SOsEnv;
 
 static SOsEnv env = {0};
@@ -73,9 +74,12 @@ void osSetLogReservedSpace(float sizeInGB) { env.logSpace.reserved = sizeInGB; }
 void osSetTempReservedSpace(float sizeInGB) { env.tempSpace.reserved = sizeInGB; }
 void osSetDataReservedSpace(float sizeInGB) { env.dataSpace.reserved = sizeInGB; }
 void osSetTimezone(const char *timezone) { taosSetSystemTimezone(timezone, env.timezone, &env.daylight); }
+void osSetLocale(const char *locale, const char *charset) { taosSetSystemLocale(locale, charset); }
+bool osSetEnableCore(bool enable) { env.enableCoreFile = enable; }
 
 void osInit() {
   srand(taosSafeRand());
+  taosGetSystemInfo();
 
 #if defined(_TD_WINDOWS_64) || defined(_TD_WINDOWS_32)
   taosWinSocketInit();
@@ -88,21 +92,27 @@ void osInit() {
     strcpy(env.tempDir, tmpDir);
   }
 
-  strcpy(configDir, "C:\\TDengine\\cfg");
+  if (configDir[0] == 0) {
+    strcpy(configDir, "C:\\TDengine\\cfg");
+  }
   strcpy(env.dataDir, "C:\\TDengine\\data");
   strcpy(env.logDir, "C:\\TDengine\\log");
   strcpy(env.tempDir, "C:\\Windows\\Temp");
   strcpy(env.osName, "Windows");
 
 #elif defined(_TD_DARWIN_64)
-  strcpy(configDir, "/tmp/taosd");
+  if (configDir[0] == 0) {
+    strcpy(configDir, "/tmp/taosd");
+  }
   strcpy(env.dataDir, "/usr/local/var/lib/taos");
   strcpy(env.logDir, "/usr/local/var/log/taos");
   strcpy(env.tempDir, "/usr/local/etc/taos");
   strcpy(env.osName, "Darwin");
 
 #else
-  strcpy(configDir, "/etc/taos");
+  if (configDir[0] == 0) {
+    strcpy(configDir, "/etc/taos");
+  }
   strcpy(env.dataDir, "/var/lib/taos");
   strcpy(env.logDir, "/var/log/taos");
   strcpy(env.tempDir, "/tmp");
