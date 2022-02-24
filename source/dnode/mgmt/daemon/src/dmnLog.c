@@ -46,9 +46,6 @@ int32_t dmnSetLogCfg(SConfig *pCfg) {
   tsAsyncLog = cfgGetItem(pCfg, "asyncLog")->bval;
   tsNumOfLogLines = cfgGetItem(pCfg, "numOfLogLines")->i32;
   tsLogKeepDays = cfgGetItem(pCfg, "logKeepDays")->i32;
-  dDebugFlag = cfgGetItem(pCfg, "dDebugFlag")->i32;
-  vDebugFlag = cfgGetItem(pCfg, "vDebugFlag")->i32;
-  mDebugFlag = cfgGetItem(pCfg, "mDebugFlag")->i32;
   cDebugFlag = cfgGetItem(pCfg, "cDebugFlag")->i32;
   jniDebugFlag = cfgGetItem(pCfg, "jniDebugFlag")->i32;
   tmrDebugFlag = cfgGetItem(pCfg, "tmrDebugFlag")->i32;

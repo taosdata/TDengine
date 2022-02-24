@@ -31,6 +31,7 @@ typedef struct SOsEnv {
   char       locale[TD_LOCALE_LEN];
   char       charset[TD_CHARSET_LEN];
   int8_t     daylight;
+  bool       enableCoreFile;
 } SOsEnv;
 
 static SOsEnv env = {0};
@@ -73,6 +74,7 @@ void osSetLogReservedSpace(float sizeInGB) { env.logSpace.reserved = sizeInGB; }
 void osSetTempReservedSpace(float sizeInGB) { env.tempSpace.reserved = sizeInGB; }
 void osSetDataReservedSpace(float sizeInGB) { env.dataSpace.reserved = sizeInGB; }
 void osSetTimezone(const char *timezone) { taosSetSystemTimezone(timezone, env.timezone, &env.daylight); }
+bool osSetEnableCore(bool enable) { env.enableCoreFile = enable; }
 
 void osInit() {
   srand(taosSafeRand());

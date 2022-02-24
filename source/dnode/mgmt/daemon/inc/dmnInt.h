@@ -17,7 +17,7 @@
 #ifndef _TD_DMN_INT_H_
 #define _TD_DMN_INT_H_
 
-#include "config.h"
+#include "tconfig.h"
 #include "dnode.h"
 #include "taoserror.h"
 #include "tglobal.h"

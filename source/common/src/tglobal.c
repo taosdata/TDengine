@@ -19,18 +19,32 @@
 #include "taosdef.h"
 #include "taoserror.h"
 #include "tcompare.h"
+#include "tconfig.h"
 #include "tep.h"
 #include "tglobal.h"
 #include "tlog.h"
 #include "tutil.h"
 #include "ulog.h"
 
+// cluster
+int32_t tsVersion = 30000000;
+int32_t tsStatusInterval = 1;  // second
+bool    tsEnableTelemetryReporting = 0;
 
 // common
+int32_t tsRpcTimer = 300;
+int32_t tsRpcMaxTime = 600;  // seconds;
+bool    tsRpcForceTcp = 1;   // disable this, means query, show command use udp protocol as default
+int32_t tsMaxShellConns = 50000;
+int32_t tsMaxConnections = 50000;
+int32_t tsShellActivityTimer = 3;  // second
+float   tsNumOfThreadsPerCore = 1.0f;
+int32_t tsNumOfCommitThreads = 4;
+float   tsRatioOfQueryCores = 1.0f;
 int32_t tsMaxBinaryDisplayWidth = 30;
-int8_t  tsEnableSlaveQuery = 1;
-int8_t  tsEnableAdjustMaster = 1;
-int8_t  tsPrintAuth = 0;
+bool    tsEnableSlaveQuery = 1;
+bool    tsPrintAuth = 0;
+
 /*
  * denote if the server needs to compress response message at the application layer to client, including query rsp,
  * metricmeta rsp, and multi-meter query rsp message body. The client compress the submit message to server.
@@ -93,17 +107,20 @@ int32_t tsQueryBufferSize = -1;
 int64_t tsQueryBufferSizeBytes = -1;
 
 // in retrieve blocking model, the retrieve threads will wait for the completion of the query processing.
-int32_t tsRetrieveBlockingModel = 0;
+bool tsRetrieveBlockingModel = 0;
 
 // last_row(*), first(*), last_row(ts, col1, col2) query, the result fields will be the original column name
-int8_t tsKeepOriginalColumnName = 0;
+bool tsKeepOriginalColumnName = 0;
 
 // long query death-lock
-int8_t tsDeadLockKillQuery = 0;
+bool tsDeadLockKillQuery = 0;
 
 // tsdb config
 // For backward compatibility
 bool tsdbForceKeepFile = false;
+
+int32_t  tsDiskCfgNum = 0;
+SDiskCfg tsDiskCfg[TFS_MAX_DISKS] = {0};
 
 /*
  * minimum scale for whole system, millisecond by default
@@ -113,414 +130,340 @@ bool tsdbForceKeepFile = false;
  */
 int64_t tsTickPerDay[] = {86400000L, 86400000000L, 86400000000000L};
 
-int32_t (*monStartSystemFp)() = NULL;
-void (*monStopSystemFp)() = NULL;
-void (*monExecuteSQLFp)(char *sql) = NULL;
+// lossy compress 6
+char tsLossyColumns[32] = "";  // "float|double" means all float and double columns can be lossy compressed.  set empty
+                               // can close lossy compress.
+// below option can take effect when tsLossyColumns not empty
+double   tsFPrecision = 1E-8;                   // float column precision
+double   tsDPrecision = 1E-16;                  // double column precision
+uint32_t tsMaxRange = 500;                      // max range
+uint32_t tsCurRange = 100;                      // range
+char     tsCompressor[32] = "ZSTD_COMPRESSOR";  // ZSTD_COMPRESSOR or GZIP_COMPRESSOR
 
-char *qtypeStr[] = {"rpc", "fwd", "wal", "cq", "query"};
-
-static pthread_once_t tsInitGlobalCfgOnce = PTHREAD_ONCE_INIT;
-
-
-int32_t taosCfgDynamicOptions(char *msg) {
-  #if 0
-  char   *option, *value;
-  int32_t olen, vlen;
-  int32_t vint = 0;
-
-  paGetToken(msg, &option, &olen);
-  if (olen == 0) return -1;
-
-  paGetToken(option + olen + 1, &value, &vlen);
-  if (vlen == 0)
-    vint = 135;
-  else {
-    vint = atoi(value);
-  }
-
-  uInfo("change dynamic option: %s, value: %d", option, vint);
-
-  for (int32_t i = 0; i < tsGlobalConfigNum; ++i) {
-    SGlobalCfg *cfg = tsGlobalConfig + i;
-    // if (!(cfg->cfgType & TSDB_CFG_CTYPE_B_LOG)) continue;
-    if (cfg->valType != TAOS_CFG_VTYPE_INT32 && cfg->valType != TAOS_CFG_VTYPE_INT8) continue;
-
-    int32_t cfgLen = (int32_t)strlen(cfg->option);
-    if (cfgLen != olen) continue;
-    if (strncasecmp(option, cfg->option, olen) != 0) continue;
-    if (cfg->valType == TAOS_CFG_VTYPE_INT32) {
-      *((int32_t *)cfg->ptr) = vint;
-    } else {
-      *((int8_t *)cfg->ptr) = (int8_t)vint;
-    }
-
-    if (strncasecmp(cfg->option, "monitor", olen) == 0) {
-      if (1 == vint) {
-        if (monStartSystemFp) {
-          (*monStartSystemFp)();
-          uInfo("monitor is enabled");
-        } else {
-          uError("monitor can't be updated, for monitor not initialized");
-        }
-      } else {
-        if (monStopSystemFp) {
-          (*monStopSystemFp)();
-          uInfo("monitor is disabled");
-        } else {
-          uError("monitor can't be updated, for monitor not initialized");
-        }
-      }
-      return 0;
-    }
-    if (strncasecmp(cfg->option, "debugFlag", olen) == 0) {
-      taosSetAllDebugFlag();
-    }
-    return 0;
-  }
-
-  if (strncasecmp(option, "resetlog", 8) == 0) {
-    taosResetLog();
-    taosPrintCfg();
-    return 0;
-  }
-
-  if (strncasecmp(option, "resetQueryCache", 15) == 0) {
-    if (monExecuteSQLFp) {
-      (*monExecuteSQLFp)("resetQueryCache");
-      uInfo("resetquerycache is executed");
-    } else {
-      uError("resetquerycache can't be executed, for monitor not started");
-    }
-  }
-
-#endif
-  return false;
-}
-
-// void taosAddDataDir(int index, char *v1, int level, int primary) {
-//   tstrncpy(tsDiskCfg[index].dir, v1, TSDB_FILENAME_LEN);
-//   tsDiskCfg[index].level = level;
-//   tsDiskCfg[index].primary = primary;
-//   uTrace("dataDir:%s, level:%d primary:%d is configured", v1, level, primary);
-// }
-
-#ifndef _STORAGE
-// void taosReadDataDirCfg(char *v1, char *v2, char *v3) {
-//   if (tsDiskCfgNum == 1) {
-//     SDiskCfg *cfg = &tsDiskCfg[0];
-//     uInfo("dataDir:%s, level:%d primary:%d is replaced by %s", cfg->dir, cfg->level, cfg->primary, v1);
-//   }
-//   taosAddDataDir(0, v1, 0, 1);
-//   tsDiskCfgNum = 1;
-// }
-
-// void taosPrintDataDirCfg() {
-//   for (int i = 0; i < tsDiskCfgNum; ++i) {
-//     SDiskCfg *cfg = &tsDiskCfg[i];
-//     uInfo(" dataDir: %s", cfg->dir);
-//   }
-// }
-#endif
-
-
-
-static void doInitGlobalConfig(void) {
-  osInit();
-  srand(taosSafeRand());
 #if 0
-  SGlobalCfg cfg = {0};
-
-
-  cfg.option = "dataDir";
-  cfg.ptr = osDataDir();
-  cfg.valType = TAOS_CFG_VTYPE_DATA_DIRCTORY;
-  cfg.cfgType = TSDB_CFG_CTYPE_B_CONFIG;
-  cfg.minValue = 0;
-  cfg.maxValue = 0;
-  cfg.ptrLength = TSDB_FILENAME_LEN;
-  cfg.unitType = TAOS_CFG_UTYPE_NONE;
-  taosAddConfigOption(cfg);
-
-
-  cfg.option = "maxNumOfDistinctRes";
-  cfg.ptr = &tsMaxNumOfDistinctResults;
-  cfg.valType = TAOS_CFG_VTYPE_INT32;
-  cfg.cfgType = TSDB_CFG_CTYPE_B_CONFIG | TSDB_CFG_CTYPE_B_SHOW | TSDB_CFG_CTYPE_B_CLIENT;
-  cfg.minValue = 10 * 10000;
-  cfg.maxValue = 10000 * 10000;
-  cfg.ptrLength = 0;
-  cfg.unitType = TAOS_CFG_UTYPE_NONE;
-  taosAddConfigOption(cfg);
-
-  cfg.option = "minSlidingTime";
-  cfg.ptr = &tsMinSlidingTime;
-  cfg.valType = TAOS_CFG_VTYPE_INT32;
-  cfg.cfgType = TSDB_CFG_CTYPE_B_CONFIG | TSDB_CFG_CTYPE_B_SHOW;
-  cfg.minValue = 10;
-  cfg.maxValue = 1000000;
-  cfg.ptrLength = 0;
-  cfg.unitType = TAOS_CFG_UTYPE_MS;
-  taosAddConfigOption(cfg);
-
-  cfg.option = "minIntervalTime";
-  cfg.ptr = &tsMinIntervalTime;
-  cfg.valType = TAOS_CFG_VTYPE_INT32;
-  cfg.cfgType = TSDB_CFG_CTYPE_B_CONFIG | TSDB_CFG_CTYPE_B_SHOW;
-  cfg.minValue = 1;
-  cfg.maxValue = 1000000;
-  cfg.ptrLength = 0;
-  cfg.unitType = TAOS_CFG_UTYPE_MS;
-  taosAddConfigOption(cfg);
-
-  cfg.option = "maxStreamCompDelay";
-  cfg.ptr = &tsMaxStreamComputDelay;
-  cfg.valType = TAOS_CFG_VTYPE_INT32;
-  cfg.cfgType = TSDB_CFG_CTYPE_B_CONFIG | TSDB_CFG_CTYPE_B_SHOW;
-  cfg.minValue = 10;
-  cfg.maxValue = 1000000000;
-  cfg.ptrLength = 0;
-  cfg.unitType = TAOS_CFG_UTYPE_MS;
-  taosAddConfigOption(cfg);
-
-  cfg.option = "maxFirstStreamCompDelay";
-  cfg.ptr = &tsStreamCompStartDelay;
-  cfg.valType = TAOS_CFG_VTYPE_INT32;
-  cfg.cfgType = TSDB_CFG_CTYPE_B_CONFIG | TSDB_CFG_CTYPE_B_SHOW;
-  cfg.minValue = 1000;
-  cfg.maxValue = 1000000000;
-  cfg.ptrLength = 0;
-  cfg.unitType = TAOS_CFG_UTYPE_MS;
-  taosAddConfigOption(cfg);
-
-  cfg.option = "retryStreamCompDelay";
-  cfg.ptr = &tsRetryStreamCompDelay;
-  cfg.valType = TAOS_CFG_VTYPE_INT32;
-  cfg.cfgType = TSDB_CFG_CTYPE_B_CONFIG | TSDB_CFG_CTYPE_B_SHOW;
-  cfg.minValue = 10;
-  cfg.maxValue = 1000000000;
-  cfg.ptrLength = 0;
-  cfg.unitType = TAOS_CFG_UTYPE_MS;
-
-  taosAddConfigOption(cfg);
-  cfg.option = "streamCompDelayRatio";
-  cfg.ptr = &tsStreamComputDelayRatio;
-  cfg.valType = TAOS_CFG_VTYPE_FLOAT;
-  cfg.cfgType = TSDB_CFG_CTYPE_B_CONFIG | TSDB_CFG_CTYPE_B_SHOW;
-  cfg.minValue = 0.1f;
-  cfg.maxValue = 0.9f;
-  cfg.ptrLength = 0;
-  cfg.unitType = TAOS_CFG_UTYPE_NONE;
-  taosAddConfigOption(cfg);
-
-  cfg.option = "compressMsgSize";
-  cfg.ptr = &tsCompressMsgSize;
-  cfg.valType = TAOS_CFG_VTYPE_INT32;
-  cfg.cfgType = TSDB_CFG_CTYPE_B_CONFIG | TSDB_CFG_CTYPE_B_CLIENT | TSDB_CFG_CTYPE_B_SHOW;
-  cfg.minValue = -1;
-  cfg.maxValue = 100000000.0f;
-  cfg.ptrLength = 0;
-  cfg.unitType = TAOS_CFG_UTYPE_NONE;
-  taosAddConfigOption(cfg);
-
-  cfg.option = "compressColData";
-  cfg.ptr = &tsCompressColData;
-  cfg.valType = TAOS_CFG_VTYPE_INT32;
-  cfg.cfgType = TSDB_CFG_CTYPE_B_CONFIG | TSDB_CFG_CTYPE_B_CLIENT | TSDB_CFG_CTYPE_B_SHOW;
-  cfg.minValue = -1;
-  cfg.maxValue = 100000000.0f;
-  cfg.ptrLength = 0;
-  cfg.unitType = TAOS_CFG_UTYPE_NONE;
-  taosAddConfigOption(cfg);
-
-  cfg.option = "maxWildCardsLength";
-  cfg.ptr = &tsMaxWildCardsLen;
-  cfg.valType = TAOS_CFG_VTYPE_INT32;
-  cfg.cfgType = TSDB_CFG_CTYPE_B_CONFIG | TSDB_CFG_CTYPE_B_CLIENT | TSDB_CFG_CTYPE_B_SHOW;
-  cfg.minValue = 0;
-  cfg.maxValue = TSDB_MAX_FIELD_LEN;
-  cfg.ptrLength = 0;
-  cfg.unitType = TAOS_CFG_UTYPE_BYTE;
-  taosAddConfigOption(cfg);
-
-  cfg.option = "maxRegexStringLen";
-  cfg.ptr = &tsMaxRegexStringLen;
-  cfg.valType = TAOS_CFG_VTYPE_INT32;
-  cfg.cfgType = TSDB_CFG_CTYPE_B_CONFIG | TSDB_CFG_CTYPE_B_CLIENT | TSDB_CFG_CTYPE_B_SHOW;
-  cfg.minValue = 0;
-  cfg.maxValue = TSDB_MAX_FIELD_LEN;
-  cfg.ptrLength = 0;
-  cfg.unitType = TAOS_CFG_UTYPE_BYTE;
-  taosAddConfigOption(cfg);
-
-  cfg.option = "maxNumOfOrderedRes";
-  cfg.ptr = &tsMaxNumOfOrderedResults;
-  cfg.valType = TAOS_CFG_VTYPE_INT32;
-  cfg.cfgType = TSDB_CFG_CTYPE_B_CONFIG | TSDB_CFG_CTYPE_B_CLIENT | TSDB_CFG_CTYPE_B_SHOW;
-  cfg.minValue = TSDB_MAX_SQL_LEN;
-  cfg.maxValue = TSDB_MAX_ALLOWED_SQL_LEN;
-  cfg.ptrLength = 0;
-  cfg.unitType = TAOS_CFG_UTYPE_NONE;
-  taosAddConfigOption(cfg);
-
-  cfg.option = "queryBufferSize";
-  cfg.ptr = &tsQueryBufferSize;
-  cfg.valType = TAOS_CFG_VTYPE_INT32;
-  cfg.cfgType = TSDB_CFG_CTYPE_B_CONFIG | TSDB_CFG_CTYPE_B_SHOW;
-  cfg.minValue = -1;
-  cfg.maxValue = 500000000000.0f;
-  cfg.ptrLength = 0;
-  cfg.unitType = TAOS_CFG_UTYPE_BYTE;
-  taosAddConfigOption(cfg);
-
-  cfg.option = "retrieveBlockingModel";
-  cfg.ptr = &tsRetrieveBlockingModel;
-  cfg.valType = TAOS_CFG_VTYPE_INT32;
-  cfg.cfgType = TSDB_CFG_CTYPE_B_CONFIG | TSDB_CFG_CTYPE_B_SHOW;
-  cfg.minValue = 0;
-  cfg.maxValue = 1;
-  cfg.ptrLength = 1;
-  cfg.unitType = TAOS_CFG_UTYPE_NONE;
-  taosAddConfigOption(cfg);
-
-  cfg.option = "keepColumnName";
-  cfg.ptr = &tsKeepOriginalColumnName;
-  cfg.valType = TAOS_CFG_VTYPE_INT8;
-  cfg.cfgType = TSDB_CFG_CTYPE_B_CONFIG | TSDB_CFG_CTYPE_B_SHOW | TSDB_CFG_CTYPE_B_CLIENT;
-  cfg.minValue = 0;
-  cfg.maxValue = 1;
-  cfg.ptrLength = 1;
-  cfg.unitType = TAOS_CFG_UTYPE_NONE;
-  taosAddConfigOption(cfg);
-
-
-
-  cfg.option = "slaveQuery";
-  cfg.ptr = &tsEnableSlaveQuery;
-  cfg.valType = TAOS_CFG_VTYPE_INT8;
-  cfg.cfgType = TSDB_CFG_CTYPE_B_CONFIG | TSDB_CFG_CTYPE_B_SHOW;
-  cfg.minValue = 0;
-  cfg.maxValue = 1;
-  cfg.ptrLength = 0;
-  cfg.unitType = TAOS_CFG_UTYPE_NONE;
-  taosAddConfigOption(cfg);
-
-
-  cfg.option = "maxBinaryDisplayWidth";
-  cfg.ptr = &tsMaxBinaryDisplayWidth;
-  cfg.valType = TAOS_CFG_VTYPE_INT32;
-  cfg.cfgType = TSDB_CFG_CTYPE_B_CONFIG | TSDB_CFG_CTYPE_B_CLIENT;
-  cfg.minValue = 1;
-  cfg.maxValue = 65536;
-  cfg.ptrLength = 0;
-  cfg.unitType = TAOS_CFG_UTYPE_NONE;
-  taosAddConfigOption(cfg);
-
-  cfg.option = "tempDir";
-  cfg.ptr = osTempDir();
-  cfg.valType = TAOS_CFG_VTYPE_STRING;
-  cfg.cfgType = TSDB_CFG_CTYPE_B_CONFIG | TSDB_CFG_CTYPE_B_CLIENT;
-  cfg.minValue = 0;
-  cfg.maxValue = 0;
-  cfg.ptrLength = PATH_MAX;
-  cfg.unitType = TAOS_CFG_UTYPE_NONE;
-  taosAddConfigOption(cfg);
-
-  // enable kill long query
-  cfg.option = "deadLockKillQuery";
-  cfg.ptr = &tsDeadLockKillQuery;
-  cfg.valType = TAOS_CFG_VTYPE_INT8;
-  cfg.cfgType = TSDB_CFG_CTYPE_B_CONFIG | TSDB_CFG_CTYPE_B_SHOW;
-  cfg.minValue = 0;
-  cfg.maxValue = 1;
-  cfg.ptrLength = 1;
-  cfg.unitType = TAOS_CFG_UTYPE_NONE;
-  taosAddConfigOption(cfg);
-
-#ifdef TD_TSZ
-  // lossy compress
-  cfg.option = "lossyColumns";
-  cfg.ptr = lossyColumns;
-  cfg.valType = TAOS_CFG_VTYPE_STRING;
-  cfg.cfgType = TSDB_CFG_CTYPE_B_CONFIG;
-  cfg.minValue = 0;
-  cfg.maxValue = 0;
-  cfg.ptrLength = tListLen(lossyColumns);
-  cfg.unitType = TAOS_CFG_UTYPE_NONE;
-  taosAddConfigOption(cfg);
-
-  cfg.option = "fPrecision";
-  cfg.ptr = &fPrecision;
-  cfg.valType = TAOS_CFG_VTYPE_DOUBLE;
-  cfg.cfgType = TSDB_CFG_CTYPE_B_CONFIG;
-  cfg.minValue = MIN_FLOAT;
-  cfg.maxValue = 100000;
-  cfg.ptrLength = 0;
-  cfg.unitType = TAOS_CFG_UTYPE_NONE;
-
-  taosAddConfigOption(cfg);
-
-  cfg.option = "dPrecision";
-  cfg.ptr = &dPrecision;
-  cfg.valType = TAOS_CFG_VTYPE_DOUBLE;
-  cfg.cfgType = TSDB_CFG_CTYPE_B_CONFIG;
-  cfg.minValue = 100000;
-  cfg.maxValue = 0;
-  cfg.ptrLength = 0;
-  cfg.unitType = TAOS_CFG_UTYPE_NONE;
-  taosAddConfigOption(cfg);
-
-  cfg.option = "maxRange";
-  cfg.ptr = &maxRange;
-  cfg.valType = TAOS_CFG_VTYPE_INT32;
-  cfg.cfgType = TSDB_CFG_CTYPE_B_CONFIG;
-  cfg.minValue = 0;
-  cfg.maxValue = 65536;
-  cfg.ptrLength = 0;
-  cfg.unitType = TAOS_CFG_UTYPE_NONE;
-  taosAddConfigOption(cfg);
-
-  cfg.option = "range";
-  cfg.ptr = &curRange;
-  cfg.valType = TAOS_CFG_VTYPE_INT32;
-  cfg.cfgType = TSDB_CFG_CTYPE_B_CONFIG;
-  cfg.minValue = 0;
-  cfg.maxValue = 65536;
-  cfg.ptrLength = 0;
-  cfg.unitType = TAOS_CFG_UTYPE_NONE;
-  taosAddConfigOption(cfg);
-  assert(tsGlobalConfigNum == TSDB_CFG_MAX_NUM);
-#else
-  // assert(tsGlobalConfigNum == TSDB_CFG_MAX_NUM - 5);
-#endif
-
-#endif
+void taosAddDataDir(int index, char *v1, int level, int primary) {
+  tstrncpy(tsDiskCfg[index].dir, v1, TSDB_FILENAME_LEN);
+  tsDiskCfg[index].level = level;
+  tsDiskCfg[index].primary = primary;
+  uTrace("dataDir:%s, level:%d primary:%d is configured", v1, level, primary);
 }
 
-/*
- * alter dnode 1 balance "vnode:1-dnode:2"
- */
 
-bool taosCheckBalanceCfgOptions(const char *option, int32_t *vnodeId, int32_t *dnodeId) {
-  int len = (int)strlen(option);
-  if (strncasecmp(option, "vnode:", 6) != 0) {
-    return false;
+void taosReadDataDirCfg(char *v1, char *v2, char *v3) {
+  if (tsDiskCfgNum == 1) {
+    SDiskCfg *cfg = &tsDiskCfg[0];
+    uInfo("dataDir:%s, level:%d primary:%d is replaced by %s", cfg->dir, cfg->level, cfg->primary, v1);
+  }
+  taosAddDataDir(0, v1, 0, 1);
+  tsDiskCfgNum = 1;
+}
+
+void taosPrintDataDirCfg() {
+  for (int i = 0; i < tsDiskCfgNum; ++i) {
+    SDiskCfg *cfg = &tsDiskCfg[i];
+    uInfo(" dataDir: %s", cfg->dir);
+  }
+}
+#endif
+
+#if 0
+void taosInitGlobalCfg() { pthread_once(&tsInitGlobalCfgOnce, doInitGlobalConfig); }
+
+int32_t taosCheckAndPrintCfg() {
+  SEp ep = {0};
+  if (debugFlag & DEBUG_TRACE || debugFlag & DEBUG_DEBUG || debugFlag & DEBUG_DUMP) {
+    taosSetAllDebugFlag();
   }
 
-  int pos = 0;
-  for (; pos < len; ++pos) {
-    if (option[pos] == '-') break;
+  if (tsLocalFqdn[0] == 0) {
+    taosGetFqdn(tsLocalFqdn);
   }
 
-  if (++pos >= len) return false;
-  if (strncasecmp(option + pos, "dnode:", 6) != 0) {
-    return false;
+  snprintf(tsLocalEp, sizeof(tsLocalEp), "%s:%u", tsLocalFqdn, tsServerPort);
+  uInfo("localEp is: %s", tsLocalEp);
+
+  if (tsFirst[0] == 0) {
+    strcpy(tsFirst, tsLocalEp);
+  } else {
+    taosGetFqdnPortFromEp(tsFirst, &ep);
+    snprintf(tsFirst, sizeof(tsFirst), "%s:%u", ep.fqdn, ep.port);
   }
 
-  *vnodeId = strtol(option + 6, NULL, 10);
-  *dnodeId = strtol(option + pos + 6, NULL, 10);
-  if (*vnodeId <= 1 || *dnodeId <= 0) {
-    return false;
+  if (tsSecond[0] == 0) {
+    strcpy(tsSecond, tsLocalEp);
+  } else {
+    taosGetFqdnPortFromEp(tsSecond, &ep);
+    snprintf(tsSecond, sizeof(tsSecond), "%s:%u", ep.fqdn, ep.port);
   }
 
-  return true;
+  taosCheckDataDirCfg();
+
+  if (taosDirExist(tsTempDir) != 0) {
+    return -1;
+  }
+
+  taosGetSystemInfo();
+
+  tsSetLocale();
+
+  SGlobalCfg *cfg_timezone = taosGetConfigOption("timezone");
+  if (cfg_timezone && cfg_timezone->cfgStatus == TAOS_CFG_CSTATUS_FILE) {
+    tsSetTimeZone();
+  }
+
+  if (tsNumOfCores <= 0) {
+    tsNumOfCores = 1;
+  }
+
+  if (tsQueryBufferSize >= 0) {
+    tsQueryBufferSizeBytes = tsQueryBufferSize * 1048576UL;
+  }
+
+  uInfo("   check global cfg completed");
+  uInfo("==================================");
+  taosPrintCfg();
+
+  return 0;
+}
+
+void taosPrintLog(){}
+
+#endif
+
+static SConfig *tsCfg = NULL;
+
+static int32_t taosLoadCfg(SConfig *pCfg, const char *inputCfgDir, const char *envFile, const char *apolloUrl) {
+  char cfgDir[PATH_MAX] = {0};
+  char cfgFile[PATH_MAX + 100] = {0};
+
+  taosExpandDir(inputCfgDir, cfgDir, PATH_MAX);
+  snprintf(cfgFile, sizeof(cfgFile), "%s" TD_DIRSEP "taos.cfg", cfgDir);
+
+  if (cfgLoad(pCfg, CFG_STYPE_APOLLO_URL, apolloUrl) != 0) {
+    uError("failed to load from apollo url:%s since %s\n", apolloUrl, terrstr());
+    return -1;
+  }
+
+  if (cfgLoad(pCfg, CFG_STYPE_CFG_FILE, cfgFile) != 0) {
+    if (cfgLoad(pCfg, CFG_STYPE_CFG_FILE, cfgDir) != 0) {
+      uError("failed to load from config file:%s since %s\n", cfgFile, terrstr());
+      return -1;
+    }
+  }
+
+  if (cfgLoad(pCfg, CFG_STYPE_ENV_FILE, envFile) != 0) {
+    uError("failed to load from env file:%s since %s\n", envFile, terrstr());
+    return -1;
+  }
+
+  if (cfgLoad(pCfg, CFG_STYPE_ENV_VAR, NULL) != 0) {
+    uError("failed to load from global env variables since %s\n", terrstr());
+    return -1;
+  }
+
+  return 0;
+}
+
+static void taosAddClientLogCfg(SConfig *pCfg) {
+  cfgAddDir(pCfg, "logDir", osLogDir(), 1);
+  cfgAddFloat(pCfg, "minimalLogDirGB", 1.0f, 0.001f, 10000000, 1);
+  cfgAddInt32(pCfg, "numOfLogLines", tsNumOfLogLines, 1000, 2000000000, 1);
+  cfgAddBool(pCfg, "asyncLog", tsAsyncLog, 1);
+  cfgAddInt32(pCfg, "logKeepDays", 0, -365000, 365000, 1);
+  cfgAddInt32(pCfg, "cDebugFlag", cDebugFlag, 0, 255, 1);
+  cfgAddInt32(pCfg, "uDebugFlag", uDebugFlag, 0, 255, 1);
+  cfgAddInt32(pCfg, "rpcDebugFlag", rpcDebugFlag, 0, 255, 1);
+  cfgAddInt32(pCfg, "tmrDebugFlag", tmrDebugFlag, 0, 255, 1);
+  cfgAddInt32(pCfg, "jniDebugFlag", jniDebugFlag, 0, 255, 1);
+}
+
+static void taosAddServerLogCfg(SConfig *pCfg) {
+  taosAddClientLogCfg(pCfg);
+  cfgAddInt32(pCfg, "dDebugFlag", dDebugFlag, 0, 255, 0);
+  cfgAddInt32(pCfg, "vDebugFlag", vDebugFlag, 0, 255, 0);
+  cfgAddInt32(pCfg, "mDebugFlag", mDebugFlag, 0, 255, 0);
+  cfgAddInt32(pCfg, "qDebugFlag", qDebugFlag, 0, 255, 0);
+  cfgAddInt32(pCfg, "wDebugFlag", wDebugFlag, 0, 255, 0);
+  cfgAddInt32(pCfg, "sDebugFlag", sDebugFlag, 0, 255, 0);
+  cfgAddInt32(pCfg, "tsdbDebugFlag", tsdbDebugFlag, 0, 255, 0);
+  cfgAddInt32(pCfg, "tqDebugFlag", tqDebugFlag, 0, 255, 0);
+  cfgAddInt32(pCfg, "fsDebugFlag", fsDebugFlag, 0, 255, 0);
+  cfgAddInt32(pCfg, "simDebugFlag", 143, 0, 255, 1);
+  cfgAddInt32(pCfg, "debugFlag", 0, 0, 255, 1);
+}
+
+static void taosAddClientCfg(SConfig *pCfg) {
+  char    defaultFqdn[TSDB_FQDN_LEN] = {0};
+  int32_t defaultServerPort = 6030;
+  char    defaultFirstEp[TSDB_EP_LEN] = {0};
+  char    defaultSecondEp[TSDB_EP_LEN] = {0};
+  taosGetFqdn(defaultFqdn);
+  snprintf(defaultFirstEp, TSDB_EP_LEN, "%s:%d", defaultFqdn, defaultServerPort);
+  snprintf(defaultSecondEp, TSDB_EP_LEN, "%s:%d", defaultFqdn, defaultServerPort);
+
+  cfgAddString(pCfg, "firstEp", defaultFirstEp, 1);
+  cfgAddString(pCfg, "secondEp", defaultSecondEp, 1);
+  cfgAddString(pCfg, "fqdn", defaultFqdn, 1);
+  cfgAddInt32(pCfg, "serverPort", defaultServerPort, 1, 65056, 1);
+  cfgAddDir(pCfg, "tempDir", osTempDir(), 1);
+  cfgAddString(pCfg, "configDir", configDir, 1);
+  cfgAddString(pCfg, "scriptDir", configDir, 1);
+  cfgAddFloat(pCfg, "minimalTempDirGB", 1.0f, 0.001f, 10000000, 1);
+  cfgAddFloat(pCfg, "numOfThreadsPerCore", tsNumOfThreadsPerCore, 0, 10, 1);
+  cfgAddInt32(pCfg, "maxTmrCtrl", tsMaxTmrCtrl, 8, 2048, 1);
+  cfgAddInt32(pCfg, "rpcTimer", tsRpcTimer, 100, 3000, 1);
+  cfgAddInt32(pCfg, "rpcMaxTime", tsRpcMaxTime, 100, 7200, 1);
+  cfgAddBool(pCfg, "rpcForceTcp", tsRpcForceTcp, 1);
+  cfgAddInt32(pCfg, "shellActivityTimer", tsShellActivityTimer, 1, 120, 1);
+  cfgAddInt32(pCfg, "compressMsgSize", tsCompressMsgSize, -1, 100000000, 1);
+  cfgAddInt32(pCfg, "compressColData", tsCompressColData, -1, 100000000, 1);
+  cfgAddInt32(pCfg, "maxWildCardsLength", tsMaxWildCardsLen, 0, TSDB_MAX_FIELD_LEN, 1);
+  cfgAddInt32(pCfg, "maxRegexStringLen", tsMaxRegexStringLen, 0, TSDB_MAX_FIELD_LEN, 1);
+  cfgAddInt32(pCfg, "maxNumOfOrderedRes", tsMaxNumOfOrderedResults, 128, TSDB_MAX_ALLOWED_SQL_LEN, 1);
+  cfgAddBool(pCfg, "keepColumnName", tsKeepOriginalColumnName, 1);
+  cfgAddInt32(pCfg, "numOfCores", 1, 1, 100000, 1);
+  cfgAddBool(pCfg, "enableCoreFile", 0, 1);
+  cfgAddInt32(pCfg, "maxBinaryDisplayWidth", tsMaxBinaryDisplayWidth, 1, 65536, 1);
+  cfgAddString(pCfg, "version", version, 1);
+  cfgAddString(pCfg, "compatible_version", compatible_version, 1);
+  cfgAddString(pCfg, "gitinfo", gitinfo, 1);
+  cfgAddString(pCfg, "gitinfoOfInternal", gitinfoOfInternal, 1);
+  cfgAddString(pCfg, "buildinfo", buildinfo, 1);
+  cfgAddTimezone(pCfg, "timezone", osTimezone());
+  cfgAddLocale(pCfg, "locale", osLocale());
+  cfgAddCharset(pCfg, "charset", osCharset);
+}
+
+static void taosAddServerCfg(SConfig *pCfg) {
+  taosAddClientCfg(pCfg);
+  cfgAddInt32(pCfg, "supportVnodes", 256, 0, 65536, 0);
+  cfgAddDir(pCfg, "dataDir", osDataDir(), 0);
+  cfgAddFloat(pCfg, "minimalDataDirGB", 2.0f, 0.001f, 10000000, 0);
+  cfgAddInt32(pCfg, "numOfCommitThreads", tsNumOfCommitThreads, 1, 100, 0);
+  cfgAddFloat(pCfg, "ratioOfQueryCores", tsRatioOfQueryCores, 0, 2, 0);
+  cfgAddInt32(pCfg, "maxNumOfDistinctRes", tsMaxNumOfDistinctResults, 10 * 10000, 10000 * 10000, 0);
+  cfgAddBool(pCfg, "telemetryReporting", tsEnableTelemetryReporting, 0);
+  cfgAddInt32(pCfg, "maxConnections", tsMaxConnections, 1, 100000, 0);
+  cfgAddInt32(pCfg, "maxShellConns", tsMaxShellConns, 10, 50000000, 0);
+  cfgAddInt32(pCfg, "statusInterval", tsStatusInterval, 1, 30, 0);
+  cfgAddInt32(pCfg, "minSlidingTime", tsMinSlidingTime, 10, 1000000, 0);
+  cfgAddInt32(pCfg, "minIntervalTime", tsMinIntervalTime, 1, 1000000, 0);
+  cfgAddInt32(pCfg, "maxStreamCompDelay", tsMaxStreamComputDelay, 10, 1000000000, 0);
+  cfgAddInt32(pCfg, "maxFirstStreamCompDelay", tsStreamCompStartDelay, 1000, 1000000000, 0);
+  cfgAddInt32(pCfg, "retryStreamCompDelay", tsRetryStreamCompDelay, 10, 1000000000, 0);
+  cfgAddFloat(pCfg, "streamCompDelayRatio", tsStreamComputDelayRatio, 0.1, 0.9, 0);
+  cfgAddInt32(pCfg, "queryBufferSize", tsQueryBufferSize, -1, 500000000000, 0);
+  cfgAddBool(pCfg, "retrieveBlockingModel", tsRetrieveBlockingModel, 0);
+  cfgAddBool(pCfg, "printAuth", tsPrintAuth, 0);
+  cfgAddBool(pCfg, "slaveQuery", tsEnableSlaveQuery, 0);
+  cfgAddBool(pCfg, "deadLockKillQuery", tsDeadLockKillQuery, 0);
+}
+
+static void taosSetClientLogCfg(SConfig *pCfg) {
+  osSetLogDir(cfgGetItem(pCfg, "logDir")->str);
+  osSetDataReservedSpace(cfgGetItem(pCfg, "minimalLogDirGB")->fval);
+  tsNumOfLogLines = cfgGetItem(pCfg, "numOfLogLines")->i32;
+  tsAsyncLog = cfgGetItem(pCfg, "asyncLog")->bval;
+  tsLogKeepDays = cfgGetItem(pCfg, "logKeepDays")->i32;
+  cDebugFlag = cfgGetItem(pCfg, "cDebugFlag")->i32;
+  uDebugFlag = cfgGetItem(pCfg, "uDebugFlag")->i32;
+  rpcDebugFlag = cfgGetItem(pCfg, "rpcDebugFlag")->i32;
+  tmrDebugFlag = cfgGetItem(pCfg, "tmrDebugFlag")->i32;
+  jniDebugFlag = cfgGetItem(pCfg, "jniDebugFlag")->i32;
+}
+
+static void taosSetServerLogCfg(SConfig *pCfg) {
+  dDebugFlag = cfgGetItem(pCfg, "dDebugFlag")->i32;
+  vDebugFlag = cfgGetItem(pCfg, "vDebugFlag")->i32;
+  mDebugFlag = cfgGetItem(pCfg, "mDebugFlag")->i32;
+  qDebugFlag = cfgGetItem(pCfg, "qDebugFlag")->i32;
+  wDebugFlag = cfgGetItem(pCfg, "wDebugFlag")->i32;
+  sDebugFlag = cfgGetItem(pCfg, "sDebugFlag")->i32;
+  tsdbDebugFlag = cfgGetItem(pCfg, "tsdbDebugFlag")->i32;
+  tqDebugFlag = cfgGetItem(pCfg, "tqDebugFlag")->i32;
+  fsDebugFlag = cfgGetItem(pCfg, "fsDebugFlag")->i32;
+  taosSetAllDebugFlag(cfgGetItem(pCfg, "debugFlag")->i32);
+}
+
+static void taosSetClientCfg(SConfig *pCfg) {
+  osSetTempDir(cfgGetItem(pCfg, "tempDir")->str);
+  osSetDataReservedSpace(cfgGetItem(pCfg, "minimalTempDirGB")->fval);
+}
+
+static void taosSetServerCfg(SConfig *pCfg) {
+  osSetDataDir(cfgGetItem(pCfg, "dataDir")->str);
+  osSetTempReservedSpace(cfgGetItem(pCfg, "minimalDataDirGB")->fval);
+}
+
+int32_t taosCreateLog(const char *logname, int32_t logFileNum, const char *cfgDir, const char *envFile,
+                      const char *apolloUrl, bool tsc) {
+  SConfig *pCfg = cfgInit();
+  if (tsCfg == NULL) return -1;
+
+  if (tsc) {
+    aosAddClientLogCfg(pCfg);
+  } else {
+    ttaosAddServerLogCfg(pCfg);
+  }
+
+  if (taosLoadCfg(tsCfg, cfgDir, envFile, apolloUrl) != 0) {
+    uError("failed to load cfg since %", terrstr());
+    cfgCleanup(pCfg);
+    return -1;
+  }
+
+  if (tsc) {
+    taosSetClientLogCfg(pCfg);
+  } else {
+    taosSetServerLogCfg(pCfg);
+  }
+
+  if (taosInitLog(logname, logFileNum) != 0) {
+    printf("failed to init log file since %s\n", terrstr());
+    cfgCleanup(pCfg);
+    return -1;
+  }
+
+  cfgCleanup(pCfg);
+  return 0;
+}
+
+int32_t taosInitCfg(const char *cfgDir, const char *envFile, const char *apolloUrl, bool tsc) {
+  if (tsCfg != NULL) return 0;
+  tsCfg = cfgInit();
+  if (tsCfg == NULL) return -1;
+
+  if (tsc) {
+    taosAddServerCfg(tsCfg);
+  } else {
+    taosAddClientCfg(tsCfg);
+  }
+
+  if (taosLoadCfg(tsCfg, cfgDir, envFile, apolloUrl) != 0) {
+    uError("failed to load cfg since %", terrstr());
+    cfgCleanup(tsCfg);
+    tsCfg = NULL;
+    return -1;
+  }
+
+  if (tsc) {
+    taosSetClientCfg(tsCfg);
+  } else {
+    taosSetServerCfg(tsCfg);
+  }
+
+  cfgDumpCfg(tsCfg);
+  return 0;
+}
+
+void taosCfgDynamicOptions(const char *option, const char *value) {
+  if (strcasecmp(option, "debugFlag") == 0) {
+    int32_t debugFlag = atoi(value);
+    taosSetAllDebugFlag(debugFlag);
+  }
+
+  if (strcasecmp(option, "resetlog") == 0) {
+    taosResetLog();
+    // taosPrintCfg();
+  }
 }

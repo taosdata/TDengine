@@ -367,7 +367,7 @@ void dndSendStatusReq(SDnode *pDnode) {
   req.numOfSupportVnodes = pDnode->cfg.numOfSupportVnodes;
   memcpy(req.dnodeEp, pDnode->cfg.localEp, TSDB_EP_LEN);
 
-  req.clusterCfg.statusInterval = pDnode->cfg.statusInterval;
+  req.clusterCfg.statusInterval = tsStatusInterval;
   req.clusterCfg.checkTime = 0;
   char timestr[32] = "1970-01-01 00:00:00.00";
   (void)taosParseTime(timestr, &req.clusterCfg.checkTime, (int32_t)strlen(timestr), TSDB_TIME_PRECISION_MILLI, 0);
@@ -475,7 +475,7 @@ void dndProcessStartupReq(SDnode *pDnode, SRpcMsg *pReq) {
 static void *dnodeThreadRoutine(void *param) {
   SDnode     *pDnode = param;
   SDnodeMgmt *pMgmt = &pDnode->dmgmt;
-  int32_t     ms = pDnode->cfg.statusInterval * 1000;
+  int32_t     ms = tsStatusInterval * 1000;
 
   setThreadName("dnode-hb");
 

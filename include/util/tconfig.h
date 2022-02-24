@@ -52,6 +52,7 @@ typedef enum {
 typedef struct SConfigItem {
   ECfgSrcType  stype;
   ECfgDataType dtype;
+  bool         tsc;
   char        *name;
   union {
     bool     bval;
@@ -82,13 +83,12 @@ void         cfgCancelIterate(SConfig *pCfg, SConfigItem *pIter);
 SConfigItem *cfgGetItem(SConfig *pCfg, const char *name);
 int32_t      cfgSetItem(SConfig *pCfg, const char *name, const char *value, ECfgSrcType stype);
 
-int32_t cfgAddBool(SConfig *pCfg, const char *name, bool defaultVal);
-int32_t cfgAddInt32(SConfig *pCfg, const char *name, int32_t defaultVal, int64_t minval, int64_t maxval);
-int32_t cfgAddInt64(SConfig *pCfg, const char *name, int64_t defaultVal, int64_t minval, int64_t maxval);
-int32_t cfgAddFloat(SConfig *pCfg, const char *name, float defaultVal, double minval, double maxval);
-int32_t cfgAddString(SConfig *pCfg, const char *name, const char *defaultVal);
-int32_t cfgAddIpStr(SConfig *pCfg, const char *name, const char *defaultVa);
-int32_t cfgAddDir(SConfig *pCfg, const char *name, const char *defaultVal);
+int32_t cfgAddBool(SConfig *pCfg, const char *name, bool defaultVal, bool tsc);
+int32_t cfgAddInt32(SConfig *pCfg, const char *name, int32_t defaultVal, int64_t minval, int64_t maxval, bool tsc);
+int32_t cfgAddInt64(SConfig *pCfg, const char *name, int64_t defaultVal, int64_t minval, int64_t maxval, bool tsc);
+int32_t cfgAddFloat(SConfig *pCfg, const char *name, float defaultVal, double minval, double maxval, bool tsc);
+int32_t cfgAddString(SConfig *pCfg, const char *name, const char *defaultVal, bool tsc);
+int32_t cfgAddDir(SConfig *pCfg, const char *name, const char *defaultVal, bool tsc);
 int32_t cfgAddLocale(SConfig *pCfg, const char *name, const char *defaultVal);
 int32_t cfgAddCharset(SConfig *pCfg, const char *name, const char *defaultVal);
 int32_t cfgAddTimezone(SConfig *pCfg, const char *name, const char *defaultVal);
@@ -96,7 +96,7 @@ int32_t cfgAddTimezone(SConfig *pCfg, const char *name, const char *defaultVal);
 const char *cfgStypeStr(ECfgSrcType type);
 const char *cfgDtypeStr(ECfgDataType type);
 
-void cfgDumpCfg(SConfig *pCfg);
+void cfgDumpCfg(SConfig *pCfg, bool tsc);
 
 #ifdef __cplusplus
 }

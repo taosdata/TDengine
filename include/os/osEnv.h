@@ -47,6 +47,7 @@ void osSetLogReservedSpace(float sizeInGB);
 void osSetTempReservedSpace(float sizeInGB);
 void osSetDataReservedSpace(float sizeInGB);
 void osSetTimezone(const char *timezone);
+bool osSetEnableCore(bool enable);
 
 #ifdef __cplusplus
 }

@@ -52,3 +52,11 @@ add_test(
     NAME queue_test
     COMMAND queue_test
 )
+
+# cfgTest
+add_executable(cfgTest "cfgTest.cpp")
+target_link_libraries(cfgTest os util gtest_main)   
+add_test(
+    NAME cfgTest
+    COMMAND cfgTest
+)

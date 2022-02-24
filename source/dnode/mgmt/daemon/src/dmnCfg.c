@@ -16,47 +16,8 @@
 #define _DEFAULT_SOURCE
 #include "dmnInt.h"
 
-static int32_t dmnAddEpCfg(SConfig *pCfg) {
-  char defaultFqdn[TSDB_FQDN_LEN] = {0};
-  if (taosGetFqdn(defaultFqdn) != 0) {
-    terrno = TAOS_SYSTEM_ERROR(errno);
-    return -1;
-  }
-  if (cfgAddString(pCfg, "fqdn", defaultFqdn) != 0) return -1;
-
-  int32_t defaultServerPort = 6030;
-  if (cfgAddInt32(pCfg, "serverPort", defaultServerPort, 1, 65056) != 0) return -1;
-
-  char defaultFirstEp[TSDB_EP_LEN] = {0};
-  char defaultSecondEp[TSDB_EP_LEN] = {0};
-  snprintf(defaultFirstEp, TSDB_EP_LEN, "%s:%d", defaultFqdn, defaultServerPort);
-  snprintf(defaultSecondEp, TSDB_EP_LEN, "%s:%d", defaultFqdn, defaultServerPort);
-  if (cfgAddString(pCfg, "firstEp", defaultFirstEp) != 0) return -1;
-  if (cfgAddString(pCfg, "secondEp", defaultSecondEp) != 0) return -1;
-
-  return 0;
-}
-
-static int32_t dmnAddDirCfg(SConfig *pCfg) {
-  if (cfgAddDir(pCfg, "dataDir", osDataDir()) != 0) return -1;
-  if (cfgAddDir(pCfg, "tempDir", osTempDir()) != 0) return -1;
-  if (cfgAddFloat(pCfg, "minimalDataDirGB", 2.0f, 0.001f, 10000000) != 0) return -1;
-  if (cfgAddFloat(pCfg, "minimalTempDirGB", 1.0f, 0.001f, 10000000) != 0) return -1;
-  return 0;
-}
-
 static int32_t dmnCheckDirCfg(SConfig *pCfg) {
-  osSetDataDir(cfgGetItem(pCfg, "dataDir")->str);
-  osSetTempDir(cfgGetItem(pCfg, "tempDir")->str);
-  osSetTempReservedSpace(cfgGetItem(pCfg, "minimalDataDirGB")->fval);
-  osSetDataReservedSpace(cfgGetItem(pCfg, "minimalTempDirGB")->fval);
-  return 0;
-}
 
-static int32_t dmnAddVersionCfg(SConfig *pCfg) {
-  if (cfgAddString(pCfg, "buildinfo", buildinfo) != 0) return -1;
-  if (cfgAddString(pCfg, "gitinfo", gitinfo) != 0) return -1;
-  if (cfgAddString(pCfg, "version", version) != 0) return -1;
   return 0;
 }
 
@@ -167,7 +128,6 @@ void dmnDumpCfg(SConfig *pCfg) {
         printf("cfg:%s, value:%f src:%s\n", pItem->name, pItem->fval, cfgStypeStr(pItem->stype));
         break;
       case CFG_DTYPE_STRING:
-      case CFG_DTYPE_IPSTR:
       case CFG_DTYPE_DIR:
       case CFG_DTYPE_LOCALE:
       case CFG_DTYPE_CHARSET:
@@ -197,11 +157,11 @@ SDnodeObjCfg dmnGetObjCfg(SConfig *pCfg) {
   SDnodeObjCfg objCfg = {0};
 
   objCfg.numOfSupportVnodes = cfgGetItem(pCfg, "supportVnodes")->i32;
-  objCfg.statusInterval = cfgGetItem(pCfg, "statusInterval")->i32;
-  objCfg.numOfThreadsPerCore = cfgGetItem(pCfg, "numOfThreadsPerCore")->fval;
-  objCfg.ratioOfQueryCores = cfgGetItem(pCfg, "ratioOfQueryCores")->fval;
-  objCfg.maxShellConns = cfgGetItem(pCfg, "maxShellConns")->i32;
-  objCfg.shellActivityTimer = cfgGetItem(pCfg, "shellActivityTimer")->i32;
+  // objCfg.statusInterval = cfgGetItem(pCfg, "statusInterval")->i32;
+  // objCfg.numOfThreadsPerCore = cfgGetItem(pCfg, "numOfThreadsPerCore")->fval;
+  // objCfg.ratioOfQueryCores = cfgGetItem(pCfg, "ratioOfQueryCores")->fval;
+  // objCfg.maxShellConns = cfgGetItem(pCfg, "maxShellConns")->i32;
+  // objCfg.shellActivityTimer = cfgGetItem(pCfg, "shellActivityTimer")->i32;
   tstrncpy(objCfg.dataDir, cfgGetItem(pCfg, "dataDir")->str, sizeof(objCfg.dataDir));
 
   tstrncpy(objCfg.firstEp, cfgGetItem(pCfg, "firstEp")->str, sizeof(objCfg.firstEp));

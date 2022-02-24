@@ -53,11 +53,12 @@ void dndCleanup();
 /* ------------------------ SDnode ----------------------- */
 typedef struct {
   int32_t  numOfSupportVnodes;
-  int32_t  statusInterval;
-  float    numOfThreadsPerCore;
-  float    ratioOfQueryCores;
-  int32_t  maxShellConns;
-  int32_t  shellActivityTimer;
+  // int32_t  statusInterval;
+  // float    numOfThreadsPerCore;
+  // float    ratioOfQueryCores;
+  // int32_t  maxShellConns;
+  // int32_t  shellActivityTimer;
+
   uint16_t serverPort;
   char     dataDir[TSDB_FILENAME_LEN];
   char     localEp[TSDB_EP_LEN];

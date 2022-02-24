@@ -275,8 +275,6 @@ static void dndInitMnodeOption(SDnode *pDnode, SMnodeOpt *pOption) {
   pOption->clusterId = dndGetClusterId(pDnode);
   pOption->cfg.sver = pDnode->env.sver;
   pOption->cfg.enableTelem = pDnode->env.enableTelem;
-  pOption->cfg.statusInterval = pDnode->cfg.statusInterval;
-  pOption->cfg.shellActivityTimer = pDnode->cfg.shellActivityTimer;
 }
 
 static void dndBuildMnodeDeployOption(SDnode *pDnode, SMnodeOpt *pOption) {

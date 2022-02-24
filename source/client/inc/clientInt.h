@@ -32,7 +32,7 @@ extern "C" {
 #include "tmsgtype.h"
 #include "trpc.h"
 
-#include "config.h"
+#include "tconfig.h"
 
 #define CHECK_CODE_GOTO(expr, label) \
   do {                               \
