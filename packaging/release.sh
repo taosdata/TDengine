@@ -11,7 +11,7 @@ set -e
 #             -V [stable | beta]
 #             -l [full | lite]
 #             -s [static | dynamic]
-#             -d [taos | power | tq | pro | kh | jh]
+#             -d [taos | ...]
 #             -n [2.0.0.3]
 #             -m [2.0.0.0]
 #             -H [ false | true]
@@ -23,7 +23,7 @@ cpuType=x64     # [aarch32 | aarch64 | x64 | x86 | mips64 ...]
 osType=Linux    # [Linux | Kylin | Alpine | Raspberrypi | Darwin | Windows | Ningsi60 | Ningsi80 |...]
 pagMode=full    # [full | lite]
 soMode=dynamic  # [static | dynamic]
-dbName=taos     # [taos | power | tq | pro | kh | jh]
+dbName=taos     # [taos | ...]
 allocator=glibc # [glibc | jemalloc]
 verNumber=""
 verNumberComp="2.0.0.0"
@@ -200,7 +200,7 @@ fi
 
 # 3. replace product info
 if [[ "$dbName" != "taos" ]]; then
-  source ${top_dir}/../enterprise/packaging/oem/sed_$dbName.sh
+  source ${enterprise_dir}/packaging/oem/sed_$dbName.sh
   replace_community_$dbName
 fi
 
