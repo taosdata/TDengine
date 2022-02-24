@@ -71,14 +71,18 @@ int tdbPFileClose(SPFile *pFile) {
 }
 
 SPgHdr *tdbPFileGet(SPFile *pFile, SPgno pgno) {
-  SPCache *pCache;
-  SPgid    pgid;
-  SPgHdr * pPage;
+  SPgid   pgid;
+  SPgHdr *pPage;
 
-  pCache = pFile->pCache;
+  pPage = tdbPCacheFetch(pFile->pCache, &pgid, 1);
+  if (pPage == NULL) {
+    // TODO
+    ASSERT(0);
+  }
+  tdbPCacheFetchFinish(pFile->pCache, pPage);
 
-  pPage = tdbPCacheFetch(pCache, &pgid, true);
-  tdbPCacheFetchFinish(pCache, pPage);
+  if (true /* not load from the file, then load the content from the file*/) {
+  }
 
   return pPage;
 }

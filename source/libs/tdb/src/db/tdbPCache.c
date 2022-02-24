@@ -31,8 +31,12 @@ struct SPCache {
   SPgHdr *        pDirtyTail;
 };
 
-#define PCACHE_PAGE_HASH(pgid) 0  // TODO
-#define PAGE_IS_PINNED(pPage)  ((pPage)->pLruNext == NULL)
+#define PCACHE_PAGE_HASH(pPgid)                              \
+  ({                                                         \
+    u32 *t = (u32 *)((pPgid)->fileid);                       \
+    t[0] + t[1] + t[2] + t[3] + t[4] + t[5] + (pPgid)->pgno; \
+  })
+#define PAGE_IS_PINNED(pPage) ((pPage)->pLruNext == NULL)
 
 static int     tdbPCacheOpenImpl(SPCache *pCache);
 static void    tdbPCacheInitLock(SPCache *pCache);
@@ -83,7 +87,8 @@ SPgHdr *tdbPCacheFetch(SPCache *pCache, const SPgid *pPgid, bool alcNewPage) {
 }
 
 void tdbPCacheFetchFinish(SPCache *pCache, SPgHdr *pPage) {
-  // TODO
+  /* TODO */
+  pPage->nRef++;  // TODO: do we need atomic operation???
 }
 
 void tdbPCacheRelease(SPgHdr *pHdr) {
@@ -110,7 +115,7 @@ static SPgHdr *tdbPCacheFetchImpl(SPCache *pCache, const SPgid *pPgid, bool alcN
   // 1. Search the hash table
   pPage = pCache->pgHash[PCACHE_PAGE_HASH(pPgid) % pCache->nHash];
   while (pPage) {
-    if (memcmp(pPgid, &(pPage->pgid), sizeof(*pPgid)) == 0) break;
+    if (TDB_IS_SAME_PAGE(&(pPage->pgid), pPgid)) break;
     pPage = pPage->pHashNext;
   }
 
@@ -134,15 +139,15 @@ static SPgHdr *tdbPCacheFetchImpl(SPCache *pCache, const SPgid *pPgid, bool alcN
     tdbPCachePinPage(pPage);
   }
 
-  // 4. Try a stress allocation
+  // 4. Try a stress allocation (TODO)
 
   // 5. Page here are just created from a free list
   // or by recycling or allocated streesly,
   // need to initialize it
   if (pPage) {
-    memcpy(&pPage->pgid, pPgid, sizeof(*pPgid));
-    pPage->pCache = pCache;
+    memcpy(&(pPage->pgid), pPgid, sizeof(*pPgid));
     pPage->pLruNext = NULL;
+    // *(void **)pPage->page.pExtra = 0; (TODO)
     tdbPCacheAddPageToHash(pPage);
   }
 
@@ -182,7 +187,7 @@ static void tdbPCacheAddPageToHash(SPgHdr *pPage) {
   int      h;
 
   pCache = pPage->pCache;
-  h = PCACHE_PAGE_HASH(&pPage->pgid) % pCache->nHash;
+  h = PCACHE_PAGE_HASH(&(pPage->pgid)) % pCache->nHash;
 
   pPage->pHashNext = pCache->pgHash[h];
   pCache->pgHash[h] = pPage;
