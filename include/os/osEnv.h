@@ -48,6 +48,8 @@ char   *osDataDir();
 char   *osName();
 char   *osTimezone();
 int8_t  osDaylight();
+char   *osLocale();
+char   *osCharset();
 
 void osSetTimezone(const char*timezone);
 

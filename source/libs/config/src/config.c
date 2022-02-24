@@ -16,7 +16,6 @@
 #define _DEFAULT_SOURCE
 #include "cfgInt.h"
 #include "tep.h"
-#include "tlocale.h"
 #include "tmsg.h"
 
 #define CFG_NAME_PRINT_LEN 22

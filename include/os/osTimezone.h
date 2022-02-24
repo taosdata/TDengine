@@ -20,11 +20,11 @@
 extern "C" {
 #endif
 
-void osGetSystemTimezone(char *outTimezone);
-void osSetSystemTimezone(const char *inTimezone, char *outTimezone, int8_t *outDaylight);
+void taosGetSystemTimezone(char *outTimezone);
+void taosSetSystemTimezone(const char *inTimezone, char *outTimezone, int8_t *outDaylight);
 
 #ifdef __cplusplus
 }
 #endif
 
-#endif /*_TD_OS_SOCKET_H_*/
+#endif /*_TD_OS_TIMEZONE_H_*/

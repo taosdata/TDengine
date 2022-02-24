@@ -21,7 +21,6 @@
 #include "tcompare.h"
 #include "tep.h"
 #include "tglobal.h"
-#include "tlocale.h"
 #include "tlog.h"
 #include "tutil.h"
 #include "ulog.h"

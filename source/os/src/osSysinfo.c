@@ -21,9 +21,6 @@ int64_t tsPageSize = 0;
 int64_t tsOpenMax = 0;
 int64_t tsStreamMax = 0;
 int32_t tsNumOfCores = 1;
-char    tsLocale[TD_LOCALE_LEN] = {0};
-char    tsCharset[TD_LOCALE_LEN] = {0};  // default encode string
-
 #if defined(_TD_WINDOWS_64) || defined(_TD_WINDOWS_32)
 
 /*
@@ -88,17 +85,6 @@ bool taosGetProcMemory(float *memoryUsedMB) {
   return true;
 }
 
-
-
-static void taosGetSystemLocale() {
-  // get and set default locale
-  char *locale = setlocale(LC_CTYPE, "chs");
-  if (locale != NULL) {
-    tstrncpy(tsLocale, locale, TD_LOCALE_LEN);
-  }
-
-  strcpy(tsCharset, "cp936");
-}
 
 int32_t taosGetCpuCores() {
   SYSTEM_INFO info;
@@ -191,7 +177,6 @@ void taosGetSystemInfo() {
   taosGetCpuUsage(&tmp1, &tmp2);
   taosGetProcIO(&tmp1, &tmp2);
 
-  taosGetSystemLocale();
 }
 
 void taosKillSystem() {
@@ -263,52 +248,6 @@ char *taosGetCmdlineByPID(int pid) { return ""; }
 #include <errno.h>
 #include <libproc.h>
 
-/*
- * originally from src/os/src/detail/osSysinfo.c
- * POSIX format locale string:
- * (Language Strings)_(Country/Region Strings).(code_page)
- *
- * example: en_US.UTF-8, zh_CN.GB18030, zh_CN.UTF-8,
- *
- * if user does not specify the locale in taos.cfg the program use default LC_CTYPE as system locale.
- *
- * In case of some CentOS systems, their default locale is "en_US.utf8", which is not valid code_page
- * for libiconv that is employed to convert string in this system. This program will automatically use
- * UTF-8 instead as the charset.
- *
- * In case of windows client, the locale string is not valid POSIX format, user needs to set the
- * correct code_page for libiconv. Usually, the code_page of windows system with simple chinese is
- * CP936, CP437 for English charset.
- *
- */
-static void taosGetSystemLocale() {  // get and set default locale
-  char  sep = '.';
-  char *locale = NULL;
-
-  locale = setlocale(LC_CTYPE, "");
-  if (locale == NULL) {
-    //printf("can't get locale from system, set it to en_US.UTF-8 since error:%d:%s", errno, strerror(errno));
-    strcpy(tsLocale, "en_US.UTF-8");
-  } else {
-    tstrncpy(tsLocale, locale, TD_LOCALE_LEN);
-    //printf("locale not configured, set to system default:%s", tsLocale);
-  }
-
-  /* if user does not specify the charset, extract it from locale */
-  char *str = strrchr(tsLocale, sep);
-  if (str != NULL) {
-    str++;
-
-    char *revisedCharset = taosCharsetReplace(str);
-    tstrncpy(tsCharset, revisedCharset, TD_LOCALE_LEN);
-
-    free(revisedCharset);
-    //printf("charset not configured, set to system default:%s", tsCharset);
-  } else {
-    strcpy(tsCharset, "UTF-8");
-    //printf("can't get locale and charset from system, set it to UTF-8");
-  }
-}
 
 void taosKillSystem() {
   //printf("function taosKillSystem, exit!");
@@ -325,8 +264,6 @@ void taosGetSystemInfo() {
   long page_size = sysconf(_SC_PAGESIZE);
   tsTotalMemoryMB = physical_pages * page_size / (1024 * 1024);
   tsPageSize = page_size;
-
-  taosGetSystemLocale();
 }
 
 bool taosReadProcIO(int64_t *rchars, int64_t *wchars) {
@@ -563,51 +500,6 @@ static bool taosGetProcCpuInfo(ProcCpuInfo *cpuInfo) {
   return true;
 }
 
-/*
- * POSIX format locale string:
- * (Language Strings)_(Country/Region Strings).(code_page)
- *
- * example: en_US.UTF-8, zh_CN.GB18030, zh_CN.UTF-8,
- *
- * if user does not specify the locale in taos.cfg the program use default LC_CTYPE as system locale.
- *
- * In case of some CentOS systems, their default locale is "en_US.utf8", which is not valid code_page
- * for libiconv that is employed to convert string in this system. This program will automatically use
- * UTF-8 instead as the charset.
- *
- * In case of windows client, the locale string is not valid POSIX format, user needs to set the
- * correct code_page for libiconv. Usually, the code_page of windows system with simple chinese is
- * CP936, CP437 for English charset.
- *
- */
-static void taosGetSystemLocale() {  // get and set default locale
-  char  sep = '.';
-  char *locale = NULL;
-
-  locale = setlocale(LC_CTYPE, "");
-  if (locale == NULL) {
-    //printf("can't get locale from system, set it to en_US.UTF-8 since error:%d:%s", errno, strerror(errno));
-    strcpy(tsLocale, "en_US.UTF-8");
-  } else {
-    tstrncpy(tsLocale, locale, TD_LOCALE_LEN);
-    //printf("locale not configured, set to system default:%s", tsLocale);
-  }
-
-  // if user does not specify the charset, extract it from locale
-  char *str = strrchr(tsLocale, sep);
-  if (str != NULL) {
-    str++;
-
-    char *revisedCharset = taosCharsetReplace(str);
-    tstrncpy(tsCharset, revisedCharset, TD_LOCALE_LEN);
-
-    free(revisedCharset);
-    //printf("charset not configured, set to system default:%s", tsCharset);
-  } else {
-    strcpy(tsCharset, "UTF-8");
-    //printf("can't get locale and charset from system, set it to UTF-8");
-  }
-}
 
 int32_t taosGetCpuCores() { return (int32_t)sysconf(_SC_NPROCESSORS_ONLN); }
 
@@ -836,7 +728,6 @@ void taosGetSystemInfo() {
   taosGetCpuUsage(&tmp1, &tmp2);
   taosGetProcIO(&tmp1, &tmp2);
 
-  taosGetSystemLocale();
 }
 
 void taosKillSystem() {

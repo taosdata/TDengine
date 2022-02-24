@@ -42,8 +42,6 @@ extern int64_t tsOpenMax;
 extern int64_t tsStreamMax;
 extern int32_t tsNumOfCores;
 extern int32_t tsTotalMemoryMB;
-extern char    tsLocale[];
-extern char    tsCharset[];  // default encode string
 
 
 

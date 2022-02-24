@@ -22,7 +22,8 @@ char   configDir[PATH_MAX] = {0};
 SOsEnv *osEnv() { return &env; }
 
 void osInitImp() {
-  osGetSystemTimezone(env.timezone);
+  taosGetSystemLocale(env.locale, env.charset);
+  taosGetSystemTimezone(env.timezone);
   osSetTimezone(env.timezone);
 }
 
@@ -45,10 +46,12 @@ char *osTempDir() { return env.tempDir; }
 char *osDataDir() { return env.dataDir; }
 char *osName() { return env.osName; }
 char *osTimezone() { return env.timezone; }
+char *osLocale() { return env.locale; }
+char *osCharset() { return env.charset; }
 
 int8_t osDaylight() { return env.daylight; }
 
-void osSetTimezone(const char *timezone) { osSetSystemTimezone(timezone, env.timezone, &env.daylight); }
+void osSetTimezone(const char *timezone) { taosSetSystemTimezone(timezone, env.timezone, &env.daylight); }
 
 #if defined(_TD_WINDOWS_64) || defined(_TD_WINDOWS_32)
 

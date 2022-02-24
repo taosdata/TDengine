@@ -45,7 +45,7 @@
 #include <unistd.h>
 #endif
 
-void osSetSystemTimezone(const char *inTimezone, char *outTimezone, int8_t *outDaylight) {
+void taosSetSystemTimezone(const char *inTimezone, char *outTimezone, int8_t *outDaylight) {
 #ifdef WINDOWS
   char winStr[TD_LOCALE_LEN * 2];
   sprintf(winStr, "TZ=%s", inTimezone);
@@ -84,7 +84,7 @@ void osSetSystemTimezone(const char *inTimezone, char *outTimezone, int8_t *outD
   *outDaylight = daylight;
 }
 
-void osGetSystemTimezone(char *outTimezone) {
+void taosGetSystemTimezone(char *outTimezone) {
 #if defined(_TD_WINDOWS_64) || defined(_TD_WINDOWS_32)
   char *tz = getenv("TZ");
   if (tz == NULL || strlen(tz) == 0) {

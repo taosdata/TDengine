@@ -13,17 +13,22 @@
  * along with this program. If not, see <http://www.gnu.org/licenses/>.
  */
 
-#ifndef _TD_COMMON_LOCALE_H_
-#define _TD_COMMON_LOCALE_H_
+#ifndef _TD_OS_LOCALE_H_
+#define _TD_OS_LOCALE_H_
+
+#include "os.h"
+#include "osString.h"
 
 #ifdef __cplusplus
 extern "C" {
 #endif
 
-void tsSetLocale();
+char *taosCharsetReplace(char *charsetstr);
+void  taosGetSystemLocale(char *outLocale, char *outCharset);
+void  taosSetSystemLocale(const char *inLocale, const char *inCharSet);
 
 #ifdef __cplusplus
 }
-#endif /*_TD_COMMON_LOCALE_H_*/
-
 #endif
+
+#endif /*_TD_OS_LOCALE_H_*/

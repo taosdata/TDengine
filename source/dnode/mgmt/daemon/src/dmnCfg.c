@@ -15,7 +15,6 @@
 
 #define _DEFAULT_SOURCE
 #include "dmnInt.h"
-#include "tlocale.h"
 
 static int32_t dmnAddEpCfg(SConfig *pCfg) {
   char defaultFqdn[TSDB_FQDN_LEN] = {0};
@@ -105,7 +104,6 @@ static int32_t dmnCheckCfg(SConfig *pCfg) {
 
   taosGetSystemInfo();
 
-  tsSetLocale();
 
   if (tsNumOfCores <= 0) {
     tsNumOfCores = 1;
