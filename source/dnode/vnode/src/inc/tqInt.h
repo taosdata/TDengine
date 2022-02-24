@@ -141,9 +141,9 @@ typedef struct {
   STqMetaList* unconnectTopic;
 
   // TODO:temporaral use, to be replaced by unified tfile
-  int fileFd;
+  TdFilePtr pFile;
   // TODO:temporaral use, to be replaced by unified tfile
-  int idxFd;
+  TdFilePtr pIdxFile;
 
   char*          dirPath;
   int32_t        tqConfigFlag;

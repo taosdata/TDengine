@@ -38,7 +38,7 @@ typedef struct WriterCtx {
   WriterType type;
   union {
     struct {
-      int  fd;
+      TdFilePtr pFile;
       bool readOnly;
       char buf[256];
       int  size;
