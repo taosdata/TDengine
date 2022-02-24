@@ -22,36 +22,31 @@
 extern "C" {
 #endif
 
-typedef struct SOsEnv {
-  char       dataDir[PATH_MAX];
-  char       logDir[PATH_MAX];
-  char       tempDir[PATH_MAX];
-  SDiskSpace dataSpace;
-  SDiskSpace logSpace;
-  SDiskSpace tempSpace;
-  char       osName[16];
-  char       timezone[TD_TIMEZONE_LEN];
-  char       locale[TD_LOCALE_LEN];
-  char       charset[TD_CHARSET_LEN];
-  int8_t     daylight;
-} SOsEnv;
+typedef struct SOsEnv SOsEnv;
 
 extern char configDir[];
 
-void    osInit();
-SOsEnv *osEnv();
-void    osUpdate();
-bool    osLogSpaceAvailable();
-char   *osLogDir();
-char   *osTempDir();
-char   *osDataDir();
-char   *osName();
-char   *osTimezone();
-int8_t  osDaylight();
-char   *osLocale();
-char   *osCharset();
+void osInit();
+void osUpdate();
 
-void osSetTimezone(const char*timezone);
+bool   osLogSpaceAvailable();
+int8_t osDaylight();
+
+const char *osLogDir();
+const char *osTempDir();
+const char *osDataDir();
+const char *osName();
+const char *osTimezone();
+const char *osLocale();
+const char *osCharset();
+
+void osSetLogDir(const char *logDir);
+void osSetTempDir(const char *tempDir);
+void osSetDataDir(const char *dataDir);
+void osSetLogReservedSpace(float sizeInGB);
+void osSetTempReservedSpace(float sizeInGB);
+void osSetDataReservedSpace(float sizeInGB);
+void osSetTimezone(const char *timezone);
 
 #ifdef __cplusplus
 }

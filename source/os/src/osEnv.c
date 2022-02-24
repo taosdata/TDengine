@@ -16,8 +16,24 @@
 #define _DEFAULT_SOURCE
 #include "osEnv.h"
 
-SOsEnv env = {0};
-char   configDir[PATH_MAX] = {0};
+extern void taosWinSocketInit();
+char configDir[PATH_MAX] = {0};
+
+typedef struct SOsEnv {
+  char       dataDir[PATH_MAX];
+  char       logDir[PATH_MAX];
+  char       tempDir[PATH_MAX];
+  SDiskSpace dataSpace;
+  SDiskSpace logSpace;
+  SDiskSpace tempSpace;
+  char       osName[16];
+  char       timezone[TD_TIMEZONE_LEN];
+  char       locale[TD_LOCALE_LEN];
+  char       charset[TD_CHARSET_LEN];
+  int8_t     daylight;
+} SOsEnv;
+
+static SOsEnv env = {0};
 
 SOsEnv *osEnv() { return &env; }
 
@@ -39,26 +55,29 @@ void osUpdate() {
   }
 }
 
-bool osLogSpaceAvailable() { return env.logSpace.reserved < env.logSpace.size.avail; }
-
-char *osLogDir() { return env.logDir; }
-char *osTempDir() { return env.tempDir; }
-char *osDataDir() { return env.dataDir; }
-char *osName() { return env.osName; }
-char *osTimezone() { return env.timezone; }
-char *osLocale() { return env.locale; }
-char *osCharset() { return env.charset; }
-
+bool   osLogSpaceAvailable() { return env.logSpace.reserved <= env.logSpace.size.avail; }
 int8_t osDaylight() { return env.daylight; }
 
+const char *osLogDir() { return env.logDir; }
+const char *osTempDir() { return env.tempDir; }
+const char *osDataDir() { return env.dataDir; }
+const char *osName() { return env.osName; }
+const char *osTimezone() { return env.timezone; }
+const char *osLocale() { return env.locale; }
+const char *osCharset() { return env.charset; }
+
+void osSetLogDir(const char *logDir) { tstrncpy(env.logDir, logDir, PATH_MAX); }
+void osSetTempDir(const char *tempDir) { tstrncpy(env.tempDir, tempDir, PATH_MAX); }
+void osSetDataDir(const char *dataDir) { tstrncpy(env.dataDir, dataDir, PATH_MAX); }
+void osSetLogReservedSpace(float sizeInGB) { env.logSpace.reserved = sizeInGB; }
+void osSetTempReservedSpace(float sizeInGB) { env.tempSpace.reserved = sizeInGB; }
+void osSetDataReservedSpace(float sizeInGB) { env.dataSpace.reserved = sizeInGB; }
 void osSetTimezone(const char *timezone) { taosSetSystemTimezone(timezone, env.timezone, &env.daylight); }
-
-#if defined(_TD_WINDOWS_64) || defined(_TD_WINDOWS_32)
-
-extern taosWinSocketInit();
 
 void osInit() {
   srand(taosSafeRand());
+
+#if defined(_TD_WINDOWS_64) || defined(_TD_WINDOWS_32)
   taosWinSocketInit();
 
   const char *tmpDir = getenv("tmp");
@@ -74,27 +93,20 @@ void osInit() {
   strcpy(env.logDir, "C:\\TDengine\\log");
   strcpy(env.tempDir, "C:\\Windows\\Temp");
   strcpy(env.osName, "Windows");
-}
 
 #elif defined(_TD_DARWIN_64)
-
-void osInit() {
-  srand(taosSafeRand());
   strcpy(configDir, "/tmp/taosd");
   strcpy(env.dataDir, "/usr/local/var/lib/taos");
   strcpy(env.logDir, "/usr/local/var/log/taos");
   strcpy(env.tempDir, "/usr/local/etc/taos");
   strcpy(env.osName, "Darwin");
-}
-#else
 
-void osInit() {
-  srand(taosSafeRand());
+#else
   strcpy(configDir, "/etc/taos");
   strcpy(env.dataDir, "/var/lib/taos");
   strcpy(env.logDir, "/var/log/taos");
   strcpy(env.tempDir, "/tmp");
   strcpy(env.osName, "Linux");
-}
 
 #endif
+}

@@ -67,7 +67,7 @@ static int32_t tscAddLogCfg(SConfig *pCfg) {
 }
 
 static int32_t tscSetLogCfg(SConfig *pCfg) {
-  tstrncpy(osLogDir(), cfgGetItem(pCfg, "logDir")->str, PATH_MAX);
+  osSetLogDir(cfgGetItem(pCfg, "logDir")->str);
   tsAsyncLog = cfgGetItem(pCfg, "asyncLog")->bval;
   tsNumOfLogLines = cfgGetItem(pCfg, "numOfLogLines")->i32;
   tsLogKeepDays = cfgGetItem(pCfg, "logKeepDays")->i32;
