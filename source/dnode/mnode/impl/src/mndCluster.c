@@ -52,7 +52,7 @@ int32_t mndGetClusterName(SMnode *pMnode, char *clusterName, int32_t len) {
   SSdb *pSdb = pMnode->pSdb;
 
   SClusterObj *pCluster = sdbAcquire(pSdb, SDB_CLUSTER, &pMnode->clusterId);
-  if (pCluster = NULL) {
+  if (pCluster == NULL) {
     return -1;
   }
 

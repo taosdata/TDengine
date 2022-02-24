@@ -45,7 +45,6 @@ int32_t taosUcs4ToMbs(void *ucs4, int32_t ucs4_max_len, char *mbs);
 bool    taosMbsToUcs4(const char *mbs, size_t mbs_len, char *ucs4, int32_t ucs4_max_len, int32_t *len);
 int32_t tasoUcs4Compare(void *f1_ucs4, void *f2_ucs4, int32_t bytes, int8_t ncharSize);
 bool    taosValidateEncodec(const char *encodec);
-char *  taosCharsetReplace(char *charsetstr);
 
 #ifdef __cplusplus
 }

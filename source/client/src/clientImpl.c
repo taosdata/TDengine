@@ -8,11 +8,10 @@
 #include "tep.h"
 #include "tglobal.h"
 #include "tmsgtype.h"
-#include "tnote.h"
 #include "tpagedbuf.h"
 #include "tref.h"
 
-static int32_t       initEpSetFromCfg(const char* firstEp, const char* secondEp, SCorEpSet* pEpSet);
+static int32_t       initEpSetFromCfg(const char* ip, uint16_t port, SCorEpSet* pEpSet);
 static SMsgSendInfo* buildConnectMsg(SRequestObj* pRequest);
 static void          destroySendMsgInfo(SMsgSendInfo* pMsgBody);
 static void          setQueryResultFromRsp(SReqResultInfo* pResultInfo, const SRetrieveTableRsp* pRsp);
@@ -81,19 +80,7 @@ TAOS* taos_connect_internal(const char* ip, const char* user, const char* pass, 
   }
 
   SCorEpSet epSet = {0};
-  if (ip) {
-    if (initEpSetFromCfg(ip, NULL, &epSet) < 0) {
-      return NULL;
-    }
-
-    if (port) {
-      epSet.epSet.eps[0].port = port;
-    }
-  } else {
-    if (initEpSetFromCfg(tsFirst, tsSecond, &epSet) < 0) {
-      return NULL;
-    }
-  }
+  initEpSetFromCfg(ip, port, &epSet);
 
   char*          key = getClusterKey(user, secretEncrypt, ip, port);
   SAppInstInfo** pInst = NULL;
@@ -254,11 +241,9 @@ TAOS_RES* taos_query_l(TAOS* taos, const char* sql, int sqlLen) {
     return NULL;
   }
 
-  nPrintTsc("%s", sql)
-
-      SRequestObj* pRequest = NULL;
-  SQueryNode*      pQueryNode = NULL;
-  SArray*          pNodeList = taosArrayInit(4, sizeof(struct SQueryNodeAddr));
+  SRequestObj* pRequest = NULL;
+  SQueryNode*  pQueryNode = NULL;
+  SArray*      pNodeList = taosArrayInit(4, sizeof(struct SQueryNodeAddr));
 
   terrno = TSDB_CODE_SUCCESS;
   CHECK_CODE_GOTO(buildRequest(pTscObj, sql, sqlLen, &pRequest), _return);
@@ -282,32 +267,40 @@ _return:
   return pRequest;
 }
 
-int initEpSetFromCfg(const char* firstEp, const char* secondEp, SCorEpSet* pEpSet) {
-  pEpSet->version = 0;
+int initEpSetFromCfg(const char* ip, uint16_t port, SCorEpSet* pEpSet) {
+  SConfigItem* pFirst = cfgGetItem(tscCfg, "firstEp");
+  SConfigItem* pSecond = cfgGetItem(tscCfg, "secondEp");
+  SConfigItem* pPort = cfgGetItem(tscCfg, "serverPort");
 
   // init mnode ip set
   SEpSet* mgmtEpSet = &(pEpSet->epSet);
   mgmtEpSet->numOfEps = 0;
   mgmtEpSet->inUse = 0;
+  pEpSet->version = 0;
 
-  if (firstEp && firstEp[0] != 0) {
-    if (strlen(firstEp) >= TSDB_EP_LEN) {
-      terrno = TSDB_CODE_TSC_INVALID_FQDN;
-      return -1;
-    }
-
-    taosGetFqdnPortFromEp(firstEp, &mgmtEpSet->eps[0]);
+  if (ip != NULL) {
+    taosGetFqdnPortFromEp(ip, (uint16_t)pPort->i32, &mgmtEpSet->eps[0]);
     mgmtEpSet->numOfEps++;
-  }
-
-  if (secondEp && secondEp[0] != 0) {
-    if (strlen(secondEp) >= TSDB_EP_LEN) {
-      terrno = TSDB_CODE_TSC_INVALID_FQDN;
-      return -1;
+    if (port) {
+      mgmtEpSet->eps[0].port = port;
     }
-
-    taosGetFqdnPortFromEp(secondEp, &mgmtEpSet->eps[mgmtEpSet->numOfEps]);
-    mgmtEpSet->numOfEps++;
+  } else {
+    if (pFirst->str[0] != 0) {
+      if (strlen(pFirst->str) >= TSDB_EP_LEN) {
+        terrno = TSDB_CODE_TSC_INVALID_FQDN;
+        return -1;
+      }
+      taosGetFqdnPortFromEp(pFirst->str, (uint16_t)pPort->i32, &mgmtEpSet->eps[0]);
+      mgmtEpSet->numOfEps++;
+    }
+    if (pSecond->str[0] != 0) {
+      if (strlen(pSecond->str) >= TSDB_EP_LEN) {
+        terrno = TSDB_CODE_TSC_INVALID_FQDN;
+        return -1;
+      }
+      taosGetFqdnPortFromEp(pSecond->str, (uint16_t)pPort->i32, &mgmtEpSet->eps[1]);
+      mgmtEpSet->numOfEps++;
+    }
   }
 
   if (mgmtEpSet->numOfEps == 0) {
@@ -370,7 +363,6 @@ static SMsgSendInfo* buildConnectMsg(SRequestObj* pRequest) {
   pMsgSendInfo->fp = handleRequestRspFp[TMSG_INDEX(pMsgSendInfo->msgType)];
   pMsgSendInfo->param = pRequest;
 
-
   SConnectReq connectReq = {0};
   STscObj*    pObj = pRequest->pTscObj;
 
@@ -398,7 +390,9 @@ static void destroySendMsgInfo(SMsgSendInfo* pMsgBody) {
   tfree(pMsgBody->msgInfo.pData);
   tfree(pMsgBody);
 }
-
+bool persistConnForSpecificMsg(void* parenct, tmsg_t msgType) {
+  return msgType == TDMT_VND_QUERY_RSP || msgType == TDMT_VND_FETCH_RSP || msgType == TDMT_VND_RES_READY_RSP;
+}
 void processMsgFromServer(void* parent, SRpcMsg* pMsg, SEpSet* pEpSet) {
   SMsgSendInfo* pSendInfo = (SMsgSendInfo*)pMsg->ahandle;
   assert(pMsg->ahandle != NULL);

@@ -132,7 +132,8 @@ do {                                       \
 } while (0)
 
 int32_t getMaximumIdleDurationSec() {
-  return tsShellActivityTimer * 2;
+  // todo
+  return 6; //tsShellActivityTimer * 2;
 }
 
 static int32_t getExprFunctionId(SExprInfo *pExprInfo) {
@@ -4628,7 +4629,7 @@ int32_t doInitQInfo(SQInfo* pQInfo, STSBuf* pTsBuf, void* tsdb, void* sourceOptr
   getIntermediateBufInfo(pRuntimeEnv, &ps, &pQueryAttr->intermediateResultRowSize);
 
   int32_t TENMB = 1024*1024*10;
-  int32_t code = createDiskbasedBuffer(&pRuntimeEnv->pResultBuf, ps, TENMB, pQInfo->qId, tsTempDir);
+  int32_t code = createDiskbasedBuffer(&pRuntimeEnv->pResultBuf, ps, TENMB, pQInfo->qId, osTempDir());
   if (code != TSDB_CODE_SUCCESS) {
     return code;
   }
@@ -5301,10 +5302,12 @@ SOperatorInfo* createExchangeOperatorInfo(const SArray* pSources, const SArray* 
     rpcInit.label = "EX";
     rpcInit.numOfThreads = 1;
     rpcInit.cfp = qProcessFetchRsp;
-    rpcInit.sessions = tsMaxConnections;
+    // todo
+    rpcInit.sessions = 50000; //tsMaxConnections;
     rpcInit.connType = TAOS_CONN_CLIENT;
     rpcInit.user = (char *)"root";
-    rpcInit.idleTime = tsShellActivityTimer * 1000;
+    // todo 
+    rpcInit.idleTime = 6; //tsShellActivityTimer * 1000;
     rpcInit.ckey = "key";
     rpcInit.spi = 1;
     rpcInit.secret = (char *)"dcc5bed04851fec854c035b2e40263b6";

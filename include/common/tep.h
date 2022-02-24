@@ -23,7 +23,7 @@ typedef struct SBlockOrderInfo {
 //  bool             hasNull;
 } SBlockOrderInfo;
 
-int  taosGetFqdnPortFromEp(const char *ep, SEp *pEp);
+int  taosGetFqdnPortFromEp(const char *ep, uint16_t defaultPort, SEp *pEp);
 void addEpIntoEpSet(SEpSet *pEpSet, const char *fqdn, uint16_t port);
 
 bool isEpsetEqual(const SEpSet *s1, const SEpSet *s2);
@@ -68,8 +68,8 @@ static FORCE_INLINE bool colDataIsNull(const SColumnInfoData* pColumnInfoData, u
 }
 
 #define colDataGet(p1_, r_)                                                          \
-  ((IS_VAR_DATA_TYPE((p1_)->info.type)) ? (p1_)->pData + (p1_)->varmeta.offset[(r_)] \
-                                        : (p1_)->pData + ((r_) * (p1_)->info.bytes));
+  ((IS_VAR_DATA_TYPE((p1_)->info.type)) ? ((p1_)->pData + (p1_)->varmeta.offset[(r_)]) \
+                                        : ((p1_)->pData + ((r_) * (p1_)->info.bytes)))
 
 int32_t colDataAppend(SColumnInfoData* pColumnInfoData, uint32_t currentRow, const char* pData, bool isNull);
 int32_t colDataMergeCol(SColumnInfoData* pColumnInfoData, uint32_t numOfRow1, const SColumnInfoData* pSource, uint32_t numOfRow2);

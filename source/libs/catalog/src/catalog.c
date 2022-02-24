@@ -546,7 +546,7 @@ int32_t ctgGetTableMetaFromCache(SCatalog* pCtg, const SName* pTableName, STable
 
   if (tbMeta->tableType != TSDB_CHILD_TABLE) {
     ctgReleaseDBCache(pCtg, dbCache);
-    ctgDebug("Got tbl from cache, type:%d, dbFName:%s, tbName:%s", tbMeta->tableType, dbFName, pTableName->tname);
+    ctgDebug("Got meta from cache, type:%d, dbFName:%s, tbName:%s", tbMeta->tableType, dbFName, pTableName->tname);
     return TSDB_CODE_SUCCESS;
   }
   

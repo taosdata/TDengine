@@ -204,7 +204,7 @@ static int parseTime(char **end, SToken *pToken, int16_t timePrec, int64_t *time
     bool isSigned = false;
     toInteger(pToken->z, pToken->n, 10, &ts, &isSigned);
   } else { // parse the RFC-3339/ISO-8601 timestamp format string
-    if (taosParseTime(pToken->z, time, pToken->n, timePrec, tsDaylight) != TSDB_CODE_SUCCESS) {
+    if (taosParseTime(pToken->z, time, pToken->n, timePrec, osDaylight()) != TSDB_CODE_SUCCESS) {
       return buildSyntaxErrMsg(pMsgBuf, "invalid timestamp format", pToken->z);
     }
 

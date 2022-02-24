@@ -13,17 +13,21 @@
  * along with this program. If not, see <http://www.gnu.org/licenses/>.
  */
 
-#ifndef _TD_COMMON_TIMEZONE_H_
-#define _TD_COMMON_TIMEZONE_H_
+#ifndef _TD_UTIL_VERSION_H
+#define _TD_UTIL_VERSION_H
 
 #ifdef __cplusplus
 extern "C" {
 #endif
 
-void tsSetTimeZone();
+extern char version[];
+extern char compatible_version[];
+extern char gitinfo[];
+extern char gitinfoOfInternal[];
+extern char buildinfo[];
 
 #ifdef __cplusplus
 }
 #endif
 
-#endif /*_TD_COMMON_TIMEZONE_H_*/
+#endif /*_TD_UTIL_VERSION_H*/

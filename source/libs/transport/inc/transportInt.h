@@ -66,6 +66,7 @@ typedef struct {
 
   void (*cfp)(void* parent, SRpcMsg*, SEpSet*);
   int (*afp)(void* parent, char* user, char* spi, char* encrypt, char* secret, char* ckey);
+  bool (*pfp)(void* parent, tmsg_t msgType);
 
   int32_t         refCount;
   void*           parent;
