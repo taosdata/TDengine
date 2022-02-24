@@ -26,6 +26,8 @@
 #include "tutil.h"
 #include "ulog.h"
 
+SConfig *tsCfg = NULL;
+
 // cluster
 int32_t tsVersion = 30000000;
 int32_t tsStatusInterval = 1;  // second
@@ -140,16 +142,14 @@ uint32_t tsMaxRange = 500;                      // max range
 uint32_t tsCurRange = 100;                      // range
 char     tsCompressor[32] = "ZSTD_COMPRESSOR";  // ZSTD_COMPRESSOR or GZIP_COMPRESSOR
 
-#if 0
-void taosAddDataDir(int index, char *v1, int level, int primary) {
+static void taosAddDataDir(int32_t index, char *v1, int32_t level, int32_t primary) {
   tstrncpy(tsDiskCfg[index].dir, v1, TSDB_FILENAME_LEN);
   tsDiskCfg[index].level = level;
   tsDiskCfg[index].primary = primary;
   uTrace("dataDir:%s, level:%d primary:%d is configured", v1, level, primary);
 }
 
-
-void taosReadDataDirCfg(char *v1, char *v2, char *v3) {
+static void taosReadDataDirCfg(char *v1, char *v2, char *v3) {
   if (tsDiskCfgNum == 1) {
     SDiskCfg *cfg = &tsDiskCfg[0];
     uInfo("dataDir:%s, level:%d primary:%d is replaced by %s", cfg->dir, cfg->level, cfg->primary, v1);
@@ -158,79 +158,12 @@ void taosReadDataDirCfg(char *v1, char *v2, char *v3) {
   tsDiskCfgNum = 1;
 }
 
-void taosPrintDataDirCfg() {
-  for (int i = 0; i < tsDiskCfgNum; ++i) {
+static void taosPrintDataDirCfg() {
+  for (int32_t i = 0; i < tsDiskCfgNum; ++i) {
     SDiskCfg *cfg = &tsDiskCfg[i];
     uInfo(" dataDir: %s", cfg->dir);
   }
 }
-#endif
-
-#if 0
-void taosInitGlobalCfg() { pthread_once(&tsInitGlobalCfgOnce, doInitGlobalConfig); }
-
-int32_t taosCheckAndPrintCfg() {
-  SEp ep = {0};
-  if (debugFlag & DEBUG_TRACE || debugFlag & DEBUG_DEBUG || debugFlag & DEBUG_DUMP) {
-    taosSetAllDebugFlag();
-  }
-
-  if (tsLocalFqdn[0] == 0) {
-    taosGetFqdn(tsLocalFqdn);
-  }
-
-  snprintf(tsLocalEp, sizeof(tsLocalEp), "%s:%u", tsLocalFqdn, tsServerPort);
-  uInfo("localEp is: %s", tsLocalEp);
-
-  if (tsFirst[0] == 0) {
-    strcpy(tsFirst, tsLocalEp);
-  } else {
-    taosGetFqdnPortFromEp(tsFirst, &ep);
-    snprintf(tsFirst, sizeof(tsFirst), "%s:%u", ep.fqdn, ep.port);
-  }
-
-  if (tsSecond[0] == 0) {
-    strcpy(tsSecond, tsLocalEp);
-  } else {
-    taosGetFqdnPortFromEp(tsSecond, &ep);
-    snprintf(tsSecond, sizeof(tsSecond), "%s:%u", ep.fqdn, ep.port);
-  }
-
-  taosCheckDataDirCfg();
-
-  if (taosDirExist(tsTempDir) != 0) {
-    return -1;
-  }
-
-  taosGetSystemInfo();
-
-  tsSetLocale();
-
-  SGlobalCfg *cfg_timezone = taosGetConfigOption("timezone");
-  if (cfg_timezone && cfg_timezone->cfgStatus == TAOS_CFG_CSTATUS_FILE) {
-    tsSetTimeZone();
-  }
-
-  if (tsNumOfCores <= 0) {
-    tsNumOfCores = 1;
-  }
-
-  if (tsQueryBufferSize >= 0) {
-    tsQueryBufferSizeBytes = tsQueryBufferSize * 1048576UL;
-  }
-
-  uInfo("   check global cfg completed");
-  uInfo("==================================");
-  taosPrintCfg();
-
-  return 0;
-}
-
-void taosPrintLog(){}
-
-#endif
-
-static SConfig *tsCfg = NULL;
 
 static int32_t taosLoadCfg(SConfig *pCfg, const char *inputCfgDir, const char *envFile, const char *apolloUrl) {
   char cfgDir[PATH_MAX] = {0};
@@ -331,7 +264,7 @@ static void taosAddClientCfg(SConfig *pCfg) {
   cfgAddString(pCfg, "buildinfo", buildinfo, 1);
   cfgAddTimezone(pCfg, "timezone", osTimezone());
   cfgAddLocale(pCfg, "locale", osLocale());
-  cfgAddCharset(pCfg, "charset", osCharset);
+  cfgAddCharset(pCfg, "charset", osCharset());
 }
 
 static void taosAddServerCfg(SConfig *pCfg) {
@@ -388,11 +321,21 @@ static void taosSetServerLogCfg(SConfig *pCfg) {
 static void taosSetClientCfg(SConfig *pCfg) {
   osSetTempDir(cfgGetItem(pCfg, "tempDir")->str);
   osSetDataReservedSpace(cfgGetItem(pCfg, "minimalTempDirGB")->fval);
+
+  taosGetSystemInfo();
+  if (tsNumOfCores <= 0) {
+    tsNumOfCores = 1;
+  }
 }
 
 static void taosSetServerCfg(SConfig *pCfg) {
   osSetDataDir(cfgGetItem(pCfg, "dataDir")->str);
   osSetTempReservedSpace(cfgGetItem(pCfg, "minimalDataDirGB")->fval);
+
+  tsQueryBufferSize = cfgGetItem(pCfg, "queryBufferSize")->i32;
+  if (tsQueryBufferSize >= 0) {
+    tsQueryBufferSizeBytes = tsQueryBufferSize * 1048576UL;
+  }
 }
 
 int32_t taosCreateLog(const char *logname, int32_t logFileNum, const char *cfgDir, const char *envFile,
@@ -401,13 +344,13 @@ int32_t taosCreateLog(const char *logname, int32_t logFileNum, const char *cfgDi
   if (tsCfg == NULL) return -1;
 
   if (tsc) {
-    aosAddClientLogCfg(pCfg);
+    taosAddClientLogCfg(pCfg);
   } else {
-    ttaosAddServerLogCfg(pCfg);
+    taosAddServerLogCfg(pCfg);
   }
 
   if (taosLoadCfg(tsCfg, cfgDir, envFile, apolloUrl) != 0) {
-    uError("failed to load cfg since %", terrstr());
+    uError("failed to load cfg since %s", terrstr());
     cfgCleanup(pCfg);
     return -1;
   }
@@ -440,7 +383,7 @@ int32_t taosInitCfg(const char *cfgDir, const char *envFile, const char *apolloU
   }
 
   if (taosLoadCfg(tsCfg, cfgDir, envFile, apolloUrl) != 0) {
-    uError("failed to load cfg since %", terrstr());
+    uError("failed to load cfg since %s", terrstr());
     cfgCleanup(tsCfg);
     tsCfg = NULL;
     return -1;
@@ -452,8 +395,15 @@ int32_t taosInitCfg(const char *cfgDir, const char *envFile, const char *apolloU
     taosSetServerCfg(tsCfg);
   }
 
-  cfgDumpCfg(tsCfg);
+  cfgDumpCfg(tsCfg, tsc);
   return 0;
+}
+
+void taosCleanupCfg() {
+  if (tsCfg) {
+    cfgCleanup(tsCfg);
+    tsCfg = NULL;
+  }
 }
 
 void taosCfgDynamicOptions(const char *option, const char *value) {

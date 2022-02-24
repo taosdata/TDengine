@@ -509,7 +509,6 @@ void cfgDumpCfg(SConfig *pCfg, bool tsc) {
         uInfo("%s %s %f", src, name, pItem->fval);
         break;
       case CFG_DTYPE_STRING:
-      case CFG_DTYPE_IPSTR:
       case CFG_DTYPE_DIR:
       case CFG_DTYPE_LOCALE:
       case CFG_DTYPE_CHARSET:
