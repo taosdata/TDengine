@@ -294,21 +294,11 @@ static int32_t mndSetOptions(SMnode *pMnode, const SMnodeOpt *pOption) {
   pMnode->cfg.enableTelem = pOption->cfg.enableTelem;
   pMnode->cfg.statusInterval = pOption->cfg.statusInterval;
   pMnode->cfg.shellActivityTimer = pOption->cfg.shellActivityTimer;
-  pMnode->cfg.timezone = strdup(pOption->cfg.timezone);
-  pMnode->cfg.locale = strdup(pOption->cfg.locale);
-  pMnode->cfg.charset = strdup(pOption->cfg.charset);
-  pMnode->cfg.gitinfo = strdup(pOption->cfg.gitinfo);
-  pMnode->cfg.buildinfo = strdup(pOption->cfg.buildinfo);
 
   if (pMnode->sendReqToDnodeFp == NULL || pMnode->sendReqToMnodeFp == NULL || pMnode->sendRedirectRspFp == NULL ||
       pMnode->putReqToMWriteQFp == NULL || pMnode->dnodeId < 0 || pMnode->clusterId < 0 ||
       pMnode->cfg.statusInterval < 1) {
     terrno = TSDB_CODE_MND_INVALID_OPTIONS;
-    return -1;
-  }
-
-  if (pMnode->cfg.timezone == NULL || pMnode->cfg.locale == NULL || pMnode->cfg.charset == NULL) {
-    terrno = TSDB_CODE_OUT_OF_MEMORY;
     return -1;
   }
 
@@ -381,11 +371,6 @@ void mndClose(SMnode *pMnode) {
     mDebug("start to close mnode");
     mndCleanupSteps(pMnode, -1);
     tfree(pMnode->path);
-    tfree(pMnode->cfg.charset);
-    tfree(pMnode->cfg.locale);
-    tfree(pMnode->cfg.timezone);
-    tfree(pMnode->cfg.gitinfo);
-    tfree(pMnode->cfg.buildinfo);
     tfree(pMnode);
     mDebug("mnode is closed");
   }

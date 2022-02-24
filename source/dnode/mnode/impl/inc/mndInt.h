@@ -24,6 +24,7 @@
 #include "tqueue.h"
 #include "ttime.h"
 #include "wal.h"
+#include "version.h"
 
 #ifdef __cplusplus
 extern "C" {

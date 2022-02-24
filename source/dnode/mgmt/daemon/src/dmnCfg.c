@@ -184,11 +184,6 @@ SDnodeEnvCfg dmnGetEnvCfg(SConfig *pCfg) {
 
   const char *vstr = cfgGetItem(pCfg, "version")->str;
   envCfg.sver = 30000000;
-  tstrncpy(envCfg.buildinfo, cfgGetItem(pCfg, "buildinfo")->str, sizeof(envCfg.buildinfo));
-  tstrncpy(envCfg.gitinfo, cfgGetItem(pCfg, "gitinfo")->str, sizeof(envCfg.gitinfo));
-  tstrncpy(envCfg.timezone, cfgGetItem(pCfg, "timezone")->str, sizeof(envCfg.timezone));
-  tstrncpy(envCfg.locale, cfgGetItem(pCfg, "locale")->str, sizeof(envCfg.locale));
-  tstrncpy(envCfg.charset, cfgGetItem(pCfg, "charset")->str, sizeof(envCfg.charset));
   envCfg.numOfCores = cfgGetItem(pCfg, "numOfCores")->i32;
   envCfg.numOfCommitThreads = (uint16_t)cfgGetItem(pCfg, "numOfCommitThreads")->i32;
   envCfg.enableTelem = cfgGetItem(pCfg, "telemetryReporting")->bval;

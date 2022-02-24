@@ -277,19 +277,19 @@ static int32_t mndCheckClusterCfgPara(SMnode *pMnode, const SClusterCfg *pCfg) {
     return DND_REASON_STATUS_INTERVAL_NOT_MATCH;
   }
 
-  if ((0 != strcasecmp(pCfg->timezone, pMnode->cfg.timezone)) && (pMnode->checkTime != pCfg->checkTime)) {
-    mError("timezone [%s - %s] [%" PRId64 " - %" PRId64 "] cfg inconsistent", pCfg->timezone, pMnode->cfg.timezone,
+  if ((0 != strcasecmp(pCfg->timezone, osTimezone())) && (pMnode->checkTime != pCfg->checkTime)) {
+    mError("timezone [%s - %s] [%" PRId64 " - %" PRId64 "] cfg inconsistent", pCfg->timezone, osTimezone(),
            pCfg->checkTime, pMnode->checkTime);
     return DND_REASON_TIME_ZONE_NOT_MATCH;
   }
 
-  if (0 != strcasecmp(pCfg->locale, pMnode->cfg.locale)) {
-    mError("locale [%s - %s]  cfg inconsistent", pCfg->locale, pMnode->cfg.locale);
+  if (0 != strcasecmp(pCfg->locale, osLocale())) {
+    mError("locale [%s - %s]  cfg inconsistent", pCfg->locale, osLocale());
     return DND_REASON_LOCALE_NOT_MATCH;
   }
 
-  if (0 != strcasecmp(pCfg->charset, pMnode->cfg.charset)) {
-    mError("charset [%s - %s] cfg inconsistent.", pCfg->charset, pMnode->cfg.charset);
+  if (0 != strcasecmp(pCfg->charset, osCharset())) {
+    mError("charset [%s - %s] cfg inconsistent.", pCfg->charset, osCharset());
     return DND_REASON_CHARSET_NOT_MATCH;
   }
 
@@ -670,15 +670,15 @@ static int32_t mndRetrieveConfigs(SMnodeMsg *pReq, SShowObj *pShow, char *data, 
   numOfRows++;
 
   cfgOpts[numOfRows] = "timezone";
-  snprintf(cfgVals[numOfRows], TSDB_CONIIG_VALUE_LEN, "%s", pMnode->cfg.timezone);
+  snprintf(cfgVals[numOfRows], TSDB_CONIIG_VALUE_LEN, "%s", osTimezone());
   numOfRows++;
 
   cfgOpts[numOfRows] = "locale";
-  snprintf(cfgVals[numOfRows], TSDB_CONIIG_VALUE_LEN, "%s", pMnode->cfg.locale);
+  snprintf(cfgVals[numOfRows], TSDB_CONIIG_VALUE_LEN, "%s", osLocale());
   numOfRows++;
 
   cfgOpts[numOfRows] = "charset";
-  snprintf(cfgVals[numOfRows], TSDB_CONIIG_VALUE_LEN, "%s", pMnode->cfg.charset);
+  snprintf(cfgVals[numOfRows], TSDB_CONIIG_VALUE_LEN, "%s", osCharset());
   numOfRows++;
 
   for (int32_t i = 0; i < numOfRows; i++) {

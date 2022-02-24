@@ -285,9 +285,6 @@ int32_t dndInit(const SDnodeEnvCfg *pCfg) {
 
   SVnodeOpt vnodeOpt = {
       .sver = pCfg->sver,
-      .timezone = pCfg->timezone,
-      .locale = pCfg->locale,
-      .charset = pCfg->charset,
       .nthreads = pCfg->numOfCommitThreads,
       .putReqToVQueryQFp = dndPutReqToVQueryQ,
       .sendReqToDnodeFp = dndSendReqToDnode

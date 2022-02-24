@@ -277,11 +277,6 @@ static void dndInitMnodeOption(SDnode *pDnode, SMnodeOpt *pOption) {
   pOption->cfg.enableTelem = pDnode->env.enableTelem;
   pOption->cfg.statusInterval = pDnode->cfg.statusInterval;
   pOption->cfg.shellActivityTimer = pDnode->cfg.shellActivityTimer;
-  pOption->cfg.timezone = pDnode->env.timezone;
-  pOption->cfg.charset = pDnode->env.charset;
-  pOption->cfg.locale = pDnode->env.locale;
-  pOption->cfg.gitinfo = pDnode->env.gitinfo;
-  pOption->cfg.buildinfo = pDnode->env.buildinfo;
 }
 
 static void dndBuildMnodeDeployOption(SDnode *pDnode, SMnodeOpt *pOption) {

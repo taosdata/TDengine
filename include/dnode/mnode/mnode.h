@@ -50,11 +50,6 @@ typedef struct SMnodeCfg {
   bool    printAuth;
   int32_t statusInterval;
   int32_t shellActivityTimer;
-  char   *timezone;
-  char   *locale;
-  char   *charset;
-  char   *buildinfo;
-  char   *gitinfo;
 } SMnodeCfg;
 
 typedef struct {
