@@ -147,3 +147,57 @@ TEST_F(UtilEnv, intersect02) {
   iIntersection(src, rslt);
   assert(taosArrayGetSize(rslt) == 0);
 }
+TEST_F(UtilEnv, 01union) {
+  clearSourceArray(src);
+  clearFinalArray(rslt);
+
+  uint64_t arr1[] = {13, 14, 15};
+  SArray * f = (SArray *)taosArrayGetP(src, 0);
+  for (int i = 0; i < sizeof(arr1) / sizeof(arr1[0]); i++) {
+    taosArrayPush(f, &arr1[i]);
+  }
+  iUnion(src, rslt);
+  assert(taosArrayGetSize(rslt) == 3);
+}
+TEST_F(UtilEnv, 02union) {
+  clearSourceArray(src);
+  clearFinalArray(rslt);
+
+  uint64_t arr1[] = {13, 14, 15};
+  SArray * f = (SArray *)taosArrayGetP(src, 0);
+  for (int i = 0; i < sizeof(arr1) / sizeof(arr1[0]); i++) {
+    taosArrayPush(f, &arr1[i]);
+  }
+
+  uint64_t arr2[] = {13, 14, 15};
+  f = (SArray *)taosArrayGetP(src, 1);
+  for (int i = 0; i < sizeof(arr2) / sizeof(arr2[0]); i++) {
+    taosArrayPush(f, &arr2[i]);
+  }
+  iUnion(src, rslt);
+  assert(taosArrayGetSize(rslt) == 3);
+}
+TEST_F(UtilEnv, 03union) {
+  clearSourceArray(src);
+  clearFinalArray(rslt);
+
+  uint64_t arr1[] = {13, 16, 18, 20};
+  SArray * f = (SArray *)taosArrayGetP(src, 0);
+  for (int i = 0; i < sizeof(arr1) / sizeof(arr1[0]); i++) {
+    taosArrayPush(f, &arr1[i]);
+  }
+
+  uint64_t arr2[] = {0, 12, 13, 20, 23};
+  f = (SArray *)taosArrayGetP(src, 1);
+  for (int i = 0; i < sizeof(arr2) / sizeof(arr2[0]); i++) {
+    taosArrayPush(f, &arr2[i]);
+  }
+
+  uint64_t arr3[] = {1, 12, 13, 16, 17};
+  f = (SArray *)taosArrayGetP(src, 2);
+  for (int i = 0; i < sizeof(arr3) / sizeof(arr3[0]); i++) {
+    taosArrayPush(f, &arr3[i]);
+  }
+  iUnion(src, rslt);
+  assert(taosArrayGetSize(rslt) == 9);
+}

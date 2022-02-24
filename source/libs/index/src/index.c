@@ -382,12 +382,8 @@ static int indexMergeFinalResults(SArray* interResults, EIndexOperatorType oType
 
   if (oType == MUST) {
     iIntersection(interResults, fResults);
-    // just one column index, enhance later
-    // taosArrayAddAll(fResults, interResults);
   } else if (oType == SHOULD) {
-    // just one column index, enhance later
-    taosArrayAddAll(fResults, interResults);
-    // tag1 condistion || tag2 condition
+    iUnion(interResults, fResults);
   } else if (oType == NOT) {
     // just one column index, enhance later
     taosArrayAddAll(fResults, interResults);

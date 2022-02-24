@@ -54,7 +54,7 @@ extern "C" {
  * output:[4, 5]
  */
 void iIntersection(SArray *interResults, SArray *finalResult);
-
+void iUnion(SArray *interResults, SArray *finalResult);
 #ifdef __cplusplus
 }
 #endif
