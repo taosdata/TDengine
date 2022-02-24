@@ -237,7 +237,7 @@ int32_t mndGetDnodeSize(SMnode *pMnode) {
 
 bool mndIsDnodeOnline(SMnode *pMnode, SDnodeObj *pDnode, int64_t curMs) {
   int64_t interval = TABS(pDnode->lastAccessTime - curMs);
-  if (interval > 3500 * pMnode->cfg.statusInterval) {
+  if (interval > 3500 * tsStatusInterval) {
     if (pDnode->rebootTime > 0) {
       pDnode->offlineReason = DND_REASON_STATUS_MSG_TIMEOUT;
     }
@@ -272,8 +272,8 @@ static void mndGetDnodeData(SMnode *pMnode, SArray *pDnodeEps) {
 }
 
 static int32_t mndCheckClusterCfgPara(SMnode *pMnode, const SClusterCfg *pCfg) {
-  if (pCfg->statusInterval != pMnode->cfg.statusInterval) {
-    mError("statusInterval [%d - %d] cfg inconsistent", pCfg->statusInterval, pMnode->cfg.statusInterval);
+  if (pCfg->statusInterval != tsStatusInterval) {
+    mError("statusInterval [%d - %d] cfg inconsistent", pCfg->statusInterval, tsStatusInterval);
     return DND_REASON_STATUS_INTERVAL_NOT_MATCH;
   }
 
@@ -355,12 +355,11 @@ static int32_t mndProcessStatusReq(SMnodeMsg *pReq) {
   bool    needCheck = !online || dnodeChanged || reboot;
 
   if (needCheck) {
-    if (statusReq.sver != pMnode->cfg.sver) {
+    if (statusReq.sver != tsVersion) {
       if (pDnode != NULL) {
         pDnode->offlineReason = DND_REASON_VERSION_NOT_MATCH;
       }
-      mError("dnode:%d, status msg version:%d not match cluster:%d", statusReq.dnodeId, statusReq.sver,
-             pMnode->cfg.sver);
+      mError("dnode:%d, status msg version:%d not match cluster:%d", statusReq.dnodeId, statusReq.sver, tsVersion);
       terrno = TSDB_CODE_MND_INVALID_MSG_VERSION;
       goto PROCESS_STATUS_MSG_OVER;
     }
@@ -666,7 +665,7 @@ static int32_t mndRetrieveConfigs(SMnodeMsg *pReq, SShowObj *pShow, char *data, 
   int32_t cols = 0;
 
   cfgOpts[numOfRows] = "statusInterval";
-  snprintf(cfgVals[numOfRows], TSDB_CONIIG_VALUE_LEN, "%d", pMnode->cfg.statusInterval);
+  snprintf(cfgVals[numOfRows], TSDB_CONIIG_VALUE_LEN, "%d", tsStatusInterval);
   numOfRows++;
 
   cfgOpts[numOfRows] = "timezone";

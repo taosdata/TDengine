@@ -246,9 +246,9 @@ static void taosAddClientCfg(SConfig *pCfg) {
   cfgAddString(pCfg, "secondEp", defaultSecondEp, 1);
   cfgAddString(pCfg, "fqdn", defaultFqdn, 1);
   cfgAddInt32(pCfg, "serverPort", defaultServerPort, 1, 65056, 1);
-  cfgAddDir(pCfg, "tempDir", osTempDir(), 1);
   cfgAddString(pCfg, "configDir", configDir, 1);
   cfgAddString(pCfg, "scriptDir", configDir, 1);
+  cfgAddDir(pCfg, "tempDir", osTempDir(), 1);
   cfgAddFloat(pCfg, "minimalTempDirGB", 1.0f, 0.001f, 10000000, 1);
   cfgAddFloat(pCfg, "numOfThreadsPerCore", tsNumOfThreadsPerCore, 0, 10, 1);
   cfgAddInt32(pCfg, "maxTmrCtrl", tsMaxTmrCtrl, 8, 2048, 1);
@@ -262,17 +262,17 @@ static void taosAddClientCfg(SConfig *pCfg) {
   cfgAddInt32(pCfg, "maxRegexStringLen", tsMaxRegexStringLen, 0, TSDB_MAX_FIELD_LEN, 1);
   cfgAddInt32(pCfg, "maxNumOfOrderedRes", tsMaxNumOfOrderedResults, 128, TSDB_MAX_ALLOWED_SQL_LEN, 1);
   cfgAddBool(pCfg, "keepColumnName", tsKeepOriginalColumnName, 1);
-  cfgAddInt32(pCfg, "numOfCores", 1, 1, 100000, 1);
-  cfgAddBool(pCfg, "enableCoreFile", 0, 1);
   cfgAddInt32(pCfg, "maxBinaryDisplayWidth", tsMaxBinaryDisplayWidth, 1, 65536, 1);
+  cfgAddTimezone(pCfg, "timezone", osTimezone());
+  cfgAddLocale(pCfg, "locale", osLocale());
+  cfgAddCharset(pCfg, "charset", osCharset());
+  cfgAddBool(pCfg, "enableCoreFile", 0, 1);
+  cfgAddInt32(pCfg, "numOfCores", tsNumOfCores, 1, 100000, 1);
   cfgAddString(pCfg, "version", version, 1);
   cfgAddString(pCfg, "compatible_version", compatible_version, 1);
   cfgAddString(pCfg, "gitinfo", gitinfo, 1);
   cfgAddString(pCfg, "gitinfoOfInternal", gitinfoOfInternal, 1);
   cfgAddString(pCfg, "buildinfo", buildinfo, 1);
-  cfgAddTimezone(pCfg, "timezone", osTimezone());
-  cfgAddLocale(pCfg, "locale", osLocale());
-  cfgAddCharset(pCfg, "charset", osCharset());
 }
 
 static void taosAddServerCfg(SConfig *pCfg) {
@@ -325,20 +325,37 @@ static void taosSetServerLogCfg(SConfig *pCfg) {
 }
 
 static void taosSetClientCfg(SConfig *pCfg) {
-  osSetTempDir(cfgGetItem(pCfg, "tempDir")->str);
-  osSetDataReservedSpace(cfgGetItem(pCfg, "minimalTempDirGB")->fval);
   tstrncpy(tsFirst, cfgGetItem(pCfg, "firstEp")->str, TSDB_EP_LEN);
   tstrncpy(tsSecond, cfgGetItem(pCfg, "secondEp")->str, TSDB_EP_LEN);
   tstrncpy(tsLocalFqdn, cfgGetItem(pCfg, "fqdn")->str, TSDB_EP_LEN);
   tsServerPort = (uint16_t)cfgGetItem(pCfg, "serverPort")->i32;
   snprintf(tsLocalEp, sizeof(tsLocalEp), "%s:%u", tsLocalFqdn, tsServerPort);
+  osSetTempDir(cfgGetItem(pCfg, "tempDir")->str);
+  osSetDataReservedSpace(cfgGetItem(pCfg, "minimalTempDirGB")->fval);
+
+  tsNumOfThreadsPerCore = cfgGetItem(pCfg, "maxTmrCtrl")->fval;
+  tsMaxTmrCtrl = cfgGetItem(pCfg, "maxTmrCtrl")->i32;
+  tsRpcTimer = cfgGetItem(pCfg, "rpcTimer")->i32;
+  tsRpcMaxTime = cfgGetItem(pCfg, "rpcMaxTime")->i32;
+  tsRpcForceTcp = cfgGetItem(pCfg, "rpcForceTcp")->i32;
+  tsShellActivityTimer = cfgGetItem(pCfg, "shellActivityTimer")->bval;
+  tsCompressMsgSize = cfgGetItem(pCfg, "compressMsgSize")->i32;
+  tsCompressColData = cfgGetItem(pCfg, "compressColData")->i32;
+  tsMaxWildCardsLen = cfgGetItem(pCfg, "maxWildCardsLength")->i32;
+  tsMaxRegexStringLen = cfgGetItem(pCfg, "maxRegexStringLen")->i32;
+  tsMaxNumOfOrderedResults = cfgGetItem(pCfg, "maxNumOfOrderedRes")->i32;
+  tsKeepOriginalColumnName = cfgGetItem(pCfg, "keepColumnName")->bval;
+  tsMaxBinaryDisplayWidth = cfgGetItem(pCfg, "maxBinaryDisplayWidth")->i32;
 
   SConfigItem *pItem = cfgGetItem(pCfg, "timezone");
   osSetTimezone(pItem->str);
   uDebug("timezone format changed from %s to %s", pItem->str, osTimezone());
   cfgSetItem(pCfg, "timezone", osTimezone(), pItem->stype);
 
-  taosGetSystemInfo();
+  const char *locale = cfgGetItem(pCfg, "locale")->str;
+  const char *charset = cfgGetItem(pCfg, "charset")->str;
+  osSetLocale(locale, charset);
+
   if (tsNumOfCores <= 1) {
     tsNumOfCores = 2;
   }
@@ -354,7 +371,25 @@ static void taosSetServerCfg(SConfig *pCfg) {
   osSetDataDir(cfgGetItem(pCfg, "dataDir")->str);
   osSetTempReservedSpace(cfgGetItem(pCfg, "minimalDataDirGB")->fval);
 
+  tsNumOfCommitThreads = cfgGetItem(pCfg, "numOfCommitThreads")->i32;
+  tsRatioOfQueryCores = cfgGetItem(pCfg, "ratioOfQueryCores")->fval;
+  tsMaxNumOfDistinctResults = cfgGetItem(pCfg, "maxNumOfDistinctRes")->i32;
+  tsEnableTelemetryReporting = cfgGetItem(pCfg, "telemetryReporting")->bval;
+  tsMaxConnections = cfgGetItem(pCfg, "maxConnections")->i32;
+  tsMaxShellConns = cfgGetItem(pCfg, "maxShellConns")->i32;
+  tsStatusInterval = cfgGetItem(pCfg, "statusInterval")->i32;
+  tsMinSlidingTime = cfgGetItem(pCfg, "minSlidingTime")->i32;
+  tsMinIntervalTime = cfgGetItem(pCfg, "minIntervalTime")->i32;
+  tsMaxStreamComputDelay = cfgGetItem(pCfg, "maxStreamCompDelay")->i32;
+  tsStreamCompStartDelay = cfgGetItem(pCfg, "maxFirstStreamCompDelay")->i32;
+  tsRetryStreamCompDelay = cfgGetItem(pCfg, "retryStreamCompDelay")->i32;
+  tsStreamComputDelayRatio = cfgGetItem(pCfg, "streamCompDelayRatio")->fval;
   tsQueryBufferSize = cfgGetItem(pCfg, "queryBufferSize")->i32;
+  tsRetrieveBlockingModel = cfgGetItem(pCfg, "retrieveBlockingModel")->bval;
+  tsPrintAuth = cfgGetItem(pCfg, "printAuth")->bval;
+  tsEnableSlaveQuery = cfgGetItem(pCfg, "slaveQuery")->bval;
+  tsDeadLockKillQuery = cfgGetItem(pCfg, "deadLockKillQuery")->bval;
+
   if (tsQueryBufferSize >= 0) {
     tsQueryBufferSizeBytes = tsQueryBufferSize * 1048576UL;
   }

@@ -25,6 +25,7 @@
 #include "ttime.h"
 #include "wal.h"
 #include "version.h"
+#include "tglobal.h"
 
 #ifdef __cplusplus
 extern "C" {
@@ -81,7 +82,6 @@ typedef struct SMnode {
   tmr_h             mqTimer;
   tmr_h             telemTimer;
   char             *path;
-  SMnodeCfg         cfg;
   int64_t           checkTime;
   SSdb             *pSdb;
   SDnode           *pDnode;

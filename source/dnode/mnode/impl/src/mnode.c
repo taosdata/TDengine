@@ -290,14 +290,9 @@ static int32_t mndSetOptions(SMnode *pMnode, const SMnodeOpt *pOption) {
   pMnode->sendReqToDnodeFp = pOption->sendReqToDnodeFp;
   pMnode->sendReqToMnodeFp = pOption->sendReqToMnodeFp;
   pMnode->sendRedirectRspFp = pOption->sendRedirectRspFp;
-  pMnode->cfg.sver = pOption->cfg.sver;
-  pMnode->cfg.enableTelem = pOption->cfg.enableTelem;
-  pMnode->cfg.statusInterval = pOption->cfg.statusInterval;
-  pMnode->cfg.shellActivityTimer = pOption->cfg.shellActivityTimer;
 
   if (pMnode->sendReqToDnodeFp == NULL || pMnode->sendReqToMnodeFp == NULL || pMnode->sendRedirectRspFp == NULL ||
-      pMnode->putReqToMWriteQFp == NULL || pMnode->dnodeId < 0 || pMnode->clusterId < 0 ||
-      pMnode->cfg.statusInterval < 1) {
+      pMnode->putReqToMWriteQFp == NULL || pMnode->dnodeId < 0 || pMnode->clusterId < 0) {
     terrno = TSDB_CODE_MND_INVALID_OPTIONS;
     return -1;
   }

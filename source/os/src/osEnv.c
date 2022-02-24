@@ -74,10 +74,12 @@ void osSetLogReservedSpace(float sizeInGB) { env.logSpace.reserved = sizeInGB; }
 void osSetTempReservedSpace(float sizeInGB) { env.tempSpace.reserved = sizeInGB; }
 void osSetDataReservedSpace(float sizeInGB) { env.dataSpace.reserved = sizeInGB; }
 void osSetTimezone(const char *timezone) { taosSetSystemTimezone(timezone, env.timezone, &env.daylight); }
+void osSetLocale(const char *locale, const char *charset) { taosSetSystemLocale(locale, charset); }
 bool osSetEnableCore(bool enable) { env.enableCoreFile = enable; }
 
 void osInit() {
   srand(taosSafeRand());
+  taosGetSystemInfo();
 
 #if defined(_TD_WINDOWS_64) || defined(_TD_WINDOWS_32)
   taosWinSocketInit();

@@ -266,7 +266,7 @@ static void mndGetEmail(SMnode* pMnode, char* filepath) {
 
 int32_t mndInitTelem(SMnode* pMnode) {
   STelemMgmt* pMgmt = &pMnode->telemMgmt;
-  pMgmt->enable = pMnode->cfg.enableTelem;
+  pMgmt->enable = tsEnableTelemetryReporting;
   taosInitRWLatch(&pMgmt->lock);
   mndGetEmail(pMnode, "/usr/local/taos/email");
 
