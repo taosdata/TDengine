@@ -422,12 +422,14 @@ SMnodeMsg *mndInitMsg(SMnode *pMnode, SRpcMsg *pRpcMsg) {
   pMsg->rpcMsg = *pRpcMsg;
   pMsg->createdTime = taosGetTimestampSec();
 
-  mTrace("msg:%p, is created, app:%p RPC:%p user:%s", pMsg, pRpcMsg->ahandle, pRpcMsg->handle, pMsg->user);
+  if (pRpcMsg != NULL) {
+    mTrace("msg:%p, is created, app:%p RPC:%p user:%s", pMsg, pRpcMsg->ahandle, pRpcMsg->handle, pMsg->user);
+  }
   return pMsg;
 }
 
 void mndCleanupMsg(SMnodeMsg *pMsg) {
-  mTrace("msg:%p, is destroyed, app:%p RPC:%p", pMsg, pMsg->rpcMsg.ahandle, pMsg->rpcMsg.handle);
+  mTrace("msg:%p, is destroyed", pMsg);
   rpcFreeCont(pMsg->rpcMsg.pCont);
   pMsg->rpcMsg.pCont = NULL;
   taosFreeQitem(pMsg);
