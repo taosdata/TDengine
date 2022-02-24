@@ -363,7 +363,6 @@ static SMsgSendInfo* buildConnectMsg(SRequestObj* pRequest) {
   pMsgSendInfo->fp = handleRequestRspFp[TMSG_INDEX(pMsgSendInfo->msgType)];
   pMsgSendInfo->param = pRequest;
 
-
   SConnectReq connectReq = {0};
   STscObj*    pObj = pRequest->pTscObj;
 
@@ -391,7 +390,9 @@ static void destroySendMsgInfo(SMsgSendInfo* pMsgBody) {
   tfree(pMsgBody->msgInfo.pData);
   tfree(pMsgBody);
 }
-
+bool persistConnForSpecificMsg(void* parenct, tmsg_t msgType) {
+  return msgType == TDMT_VND_QUERY_RSP || msgType == TDMT_VND_FETCH_RSP || msgType == TDMT_VND_RES_READY_RSP;
+}
 void processMsgFromServer(void* parent, SRpcMsg* pMsg, SEpSet* pEpSet) {
   SMsgSendInfo* pSendInfo = (SMsgSendInfo*)pMsg->ahandle;
   assert(pMsg->ahandle != NULL);

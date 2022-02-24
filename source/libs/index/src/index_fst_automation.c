@@ -16,24 +16,24 @@
 #include "index_fst_automation.h"
 
 StartWithStateValue* startWithStateValueCreate(StartWithStateKind kind, ValueType ty, void* val) {
-  StartWithStateValue* nsv = calloc(1, sizeof(StartWithStateValue));
-  if (nsv == NULL) {
+  StartWithStateValue* sv = calloc(1, sizeof(StartWithStateValue));
+  if (sv == NULL) {
     return NULL;
   }
 
-  nsv->kind = kind;
-  nsv->type = ty;
+  sv->kind = kind;
+  sv->type = ty;
   if (ty == FST_INT) {
-    nsv->val = *(int*)val;
+    sv->val = *(int*)val;
   } else if (ty == FST_CHAR) {
     size_t len = strlen((char*)val);
-    nsv->ptr = (char*)calloc(1, len + 1);
-    memcpy(nsv->ptr, val, len);
+    sv->ptr = (char*)calloc(1, len + 1);
+    memcpy(sv->ptr, val, len);
   } else if (ty == FST_ARRAY) {
     // TODO,
     // nsv->arr = taosArrayFromList()
   }
-  return nsv;
+  return sv;
 }
 void startWithStateValueDestroy(void* val) {
   StartWithStateValue* sv = (StartWithStateValue*)val;
@@ -146,11 +146,9 @@ AutomationCtx* automCtxCreate(void* data, AutomationType atype) {
   if (atype == AUTOMATION_ALWAYS) {
     int val = 0;
     sv = startWithStateValueCreate(Running, FST_INT, &val);
-    ctx->stdata = (void*)sv;
   } else if (atype == AUTOMATION_PREFIX) {
     int val = 0;
     sv = startWithStateValueCreate(Running, FST_INT, &val);
-    ctx->stdata = (void*)sv;
   } else if (atype == AUTMMATION_MATCH) {
   } else {
     // add more search type
@@ -160,9 +158,8 @@ AutomationCtx* automCtxCreate(void* data, AutomationType atype) {
   if (data != NULL) {
     char*  src = (char*)data;
     size_t len = strlen(src);
-    dst = (char*)malloc(len * sizeof(char) + 1);
+    dst = (char*)calloc(1, len * sizeof(char) + 1);
     memcpy(dst, src, len);
-    dst[len] = 0;
   }
 
   ctx->data = dst;
