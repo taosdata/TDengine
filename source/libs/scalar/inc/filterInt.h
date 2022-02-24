@@ -306,7 +306,7 @@ typedef struct SFilterInfo {
 #define FILTER_GET_COL_FIELD_ID(fi) (((SColumnRefNode *)((fi)->desc))->columnId)
 #define FILTER_GET_COL_FIELD_SLOT_ID(fi) (((SColumnRefNode *)((fi)->desc))->slotId)
 #define FILTER_GET_COL_FIELD_DESC(fi) ((SColumnRefNode *)((fi)->desc))
-#define FILTER_GET_COL_FIELD_DATA(fi, ri) (colDataGet(((SColumnInfoData *)(fi)->data), (ri)))
+#define FILTER_GET_COL_FIELD_DATA(fi, ri) (colDataGetData(((SColumnInfoData *)(fi)->data), (ri)))
 #define FILTER_GET_VAL_FIELD_TYPE(fi) (((SValueNode *)((fi)->desc))->node.resType.type)
 #define FILTER_GET_VAL_FIELD_DATA(fi) ((char *)(fi)->data)
 #define FILTER_GET_JSON_VAL_FIELD_DATA(fi) ((char *)(fi)->desc)
