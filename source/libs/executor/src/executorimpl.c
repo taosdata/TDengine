@@ -141,19 +141,19 @@ static int32_t getExprFunctionId(SExprInfo *pExprInfo) {
   return 0;
 }
 
-static void getNextTimeWindow(STaskAttr* pQueryAttr, STimeWindow* tw) {
-  int32_t factor = GET_FORWARD_DIRECTION_FACTOR(pQueryAttr->order.order);
-  if (pQueryAttr->interval.intervalUnit != 'n' && pQueryAttr->interval.intervalUnit != 'y') {
-    tw->skey += pQueryAttr->interval.sliding * factor;
-    tw->ekey = tw->skey + pQueryAttr->interval.interval - 1;
+static void getNextTimeWindow(SInterval* pInterval, int32_t precision, int32_t order, STimeWindow* tw) {
+  int32_t factor = GET_FORWARD_DIRECTION_FACTOR(order);
+  if (pInterval->intervalUnit != 'n' && pInterval->intervalUnit != 'y') {
+    tw->skey += pInterval->sliding * factor;
+    tw->ekey = tw->skey + pInterval->interval - 1;
     return;
   }
 
-  int64_t key = tw->skey, interval = pQueryAttr->interval.interval;
+  int64_t key = tw->skey, interval = pInterval->interval;
   //convert key to second
-  key = convertTimePrecision(key, pQueryAttr->precision, TSDB_TIME_PRECISION_MILLI) / 1000;
+  key = convertTimePrecision(key, precision, TSDB_TIME_PRECISION_MILLI) / 1000;
 
-  if (pQueryAttr->interval.intervalUnit == 'y') {
+  if (pInterval->intervalUnit == 'y') {
     interval *= 12;
   }
 
@@ -164,12 +164,12 @@ static void getNextTimeWindow(STaskAttr* pQueryAttr, STimeWindow* tw) {
   int mon = (int)(tm.tm_year * 12 + tm.tm_mon + interval * factor);
   tm.tm_year = mon / 12;
   tm.tm_mon = mon % 12;
-  tw->skey = convertTimePrecision((int64_t)mktime(&tm) * 1000L, TSDB_TIME_PRECISION_MILLI, pQueryAttr->precision);
+  tw->skey = convertTimePrecision((int64_t)mktime(&tm) * 1000L, TSDB_TIME_PRECISION_MILLI, precision);
 
   mon = (int)(mon + interval);
   tm.tm_year = mon / 12;
   tm.tm_mon = mon % 12;
-  tw->ekey = convertTimePrecision((int64_t)mktime(&tm) * 1000L, TSDB_TIME_PRECISION_MILLI, pQueryAttr->precision);
+  tw->ekey = convertTimePrecision((int64_t)mktime(&tm) * 1000L, TSDB_TIME_PRECISION_MILLI, precision);
 
   tw->ekey -= 1;
 }
@@ -179,7 +179,7 @@ static void setResultOutputBuf(STaskRuntimeEnv* pRuntimeEnv, SResultRow* pResult
                                int32_t numOfCols, int32_t* rowCellInfoOffset);
 
 void setResultRowOutputBufInitCtx(STaskRuntimeEnv *pRuntimeEnv, SResultRow *pResult, SqlFunctionCtx* pCtx, int32_t numOfOutput, int32_t* rowCellInfoOffset);
-static bool functionNeedToExecute(STaskRuntimeEnv *pRuntimeEnv, SqlFunctionCtx *pCtx);
+static bool functionNeedToExecute(SqlFunctionCtx *pCtx);
 
 static void setBlockStatisInfo(SqlFunctionCtx *pCtx, SSDataBlock* pSDataBlock, SColumn* pColumn);
 
@@ -222,7 +222,8 @@ static int32_t getGroupbyColumnIndex(SGroupbyExpr *pGroupbyExpr, SSDataBlock* pD
 static int32_t setGroupResultOutputBuf(STaskRuntimeEnv *pRuntimeEnv, SOptrBasicInfo *binf, int32_t numOfCols, char *pData, int16_t type, int16_t bytes, int32_t groupIndex);
 
 static void initCtxOutputBuffer(SqlFunctionCtx* pCtx, int32_t size);
-static void getAlignQueryTimeWindow(STaskAttr *pQueryAttr, int64_t key, int64_t keyFirst, int64_t keyLast, STimeWindow *win);
+static void getAlignQueryTimeWindow(SInterval* pInterval, int32_t precision, int64_t key, int64_t keyFirst, int64_t keyLast, STimeWindow *win);
+
 static void setResultBufSize(STaskAttr* pQueryAttr, SRspResultInfo* pResultInfo);
 static void setCtxTagForJoin(STaskRuntimeEnv* pRuntimeEnv, SqlFunctionCtx* pCtx, SExprInfo* pExprInfo, void* pTable);
 static void setParamForStableStddev(STaskRuntimeEnv* pRuntimeEnv, SqlFunctionCtx* pCtx, int32_t numOfOutput, SExprInfo* pExpr);
@@ -392,6 +393,10 @@ static void prepareResultListBuffer(SResultRowInfo* pResultRowInfo, jmp_buf env)
     newCapacity = (int64_t)(pResultRowInfo->capacity * 1.25);
   } else {
     newCapacity = (int64_t)(pResultRowInfo->capacity * 1.5);
+  }
+
+  if (newCapacity == pResultRowInfo->capacity) {
+    newCapacity += 4;
   }
 
   char *t = realloc(pResultRowInfo->pResult, (size_t)(newCapacity * POINTER_BYTES));
@@ -593,19 +598,19 @@ static SResultRow* doSetResultOutBufByKey_rv(SResultRowInfo* pResultRowInfo, int
   return pResultRowInfo->pResult[pResultRowInfo->curPos];
 }
 
-static void getInitialStartTimeWindow(STaskAttr* pQueryAttr, TSKEY ts, STimeWindow* w) {
-  if (QUERY_IS_ASC_QUERY(pQueryAttr)) {
-    getAlignQueryTimeWindow(pQueryAttr, ts, ts, pQueryAttr->window.ekey, w);
+static void getInitialStartTimeWindow(SInterval* pInterval, int32_t precision, TSKEY ts, STimeWindow* w, TSKEY ekey, bool ascQuery) {
+  if (ascQuery) {
+    getAlignQueryTimeWindow(pInterval, precision, ts, ts, ekey, w);
   } else {
     // the start position of the first time window in the endpoint that spreads beyond the queried last timestamp
-    getAlignQueryTimeWindow(pQueryAttr, ts, pQueryAttr->window.ekey, ts, w);
+    getAlignQueryTimeWindow(pInterval, precision, ts, ekey, ts, w);
 
     int64_t key = w->skey;
     while(key < ts) { // moving towards end
-      if (pQueryAttr->interval.intervalUnit == 'n' || pQueryAttr->interval.intervalUnit == 'y') {
-        key = taosTimeAdd(key, pQueryAttr->interval.sliding, pQueryAttr->interval.slidingUnit, pQueryAttr->precision);
+      if (pInterval->intervalUnit == 'n' || pInterval->intervalUnit == 'y') {
+        key = taosTimeAdd(key, pInterval->sliding, pInterval->slidingUnit, precision);
       } else {
-        key += pQueryAttr->interval.sliding;
+        key += pInterval->sliding;
       }
 
       if (key >= ts) {
@@ -618,39 +623,39 @@ static void getInitialStartTimeWindow(STaskAttr* pQueryAttr, TSKEY ts, STimeWind
 }
 
 // get the correct time window according to the handled timestamp
-static STimeWindow getActiveTimeWindow(SResultRowInfo * pResultRowInfo, int64_t ts, STaskAttr *pQueryAttr) {
+static STimeWindow getActiveTimeWindow(SResultRowInfo * pResultRowInfo, int64_t ts, SInterval* pInterval, int32_t precision, STimeWindow* win) {
   STimeWindow w = {0};
 
  if (pResultRowInfo->curPos == -1) {  // the first window, from the previous stored value
-    getInitialStartTimeWindow(pQueryAttr, ts, &w);
+    getInitialStartTimeWindow(pInterval, precision, ts, &w, win->ekey, true);
 
-    if (pQueryAttr->interval.intervalUnit == 'n' || pQueryAttr->interval.intervalUnit == 'y') {
-      w.ekey = taosTimeAdd(w.skey, pQueryAttr->interval.interval, pQueryAttr->interval.intervalUnit, pQueryAttr->precision) - 1;
+    if (pInterval->intervalUnit == 'n' || pInterval->intervalUnit == 'y') {
+      w.ekey = taosTimeAdd(w.skey, pInterval->interval, pInterval->intervalUnit, precision) - 1;
     } else {
-      w.ekey = w.skey + pQueryAttr->interval.interval - 1;
+      w.ekey = w.skey + pInterval->interval - 1;
     }
   } else {
     w = getResultRow(pResultRowInfo, pResultRowInfo->curPos)->win;
   }
 
   if (w.skey > ts || w.ekey < ts) {
-    if (pQueryAttr->interval.intervalUnit == 'n' || pQueryAttr->interval.intervalUnit == 'y') {
-      w.skey = taosTimeTruncate(ts, &pQueryAttr->interval, pQueryAttr->precision);
-      w.ekey = taosTimeAdd(w.skey, pQueryAttr->interval.interval, pQueryAttr->interval.intervalUnit, pQueryAttr->precision) - 1;
+    if (pInterval->intervalUnit == 'n' || pInterval->intervalUnit == 'y') {
+      w.skey = taosTimeTruncate(ts, pInterval, precision);
+      w.ekey = taosTimeAdd(w.skey, pInterval->interval, pInterval->intervalUnit, precision) - 1;
     } else {
       int64_t st = w.skey;
 
       if (st > ts) {
-        st -= ((st - ts + pQueryAttr->interval.sliding - 1) / pQueryAttr->interval.sliding) * pQueryAttr->interval.sliding;
+        st -= ((st - ts + pInterval->sliding - 1) / pInterval->sliding) * pInterval->sliding;
       }
 
-      int64_t et = st + pQueryAttr->interval.interval - 1;
+      int64_t et = st + pInterval->interval - 1;
       if (et < ts) {
-        st += ((ts - et + pQueryAttr->interval.sliding - 1) / pQueryAttr->interval.sliding) * pQueryAttr->interval.sliding;
+        st += ((ts - et + pInterval->sliding - 1) / pInterval->sliding) * pInterval->sliding;
       }
 
       w.skey = st;
-      w.ekey = w.skey + pQueryAttr->interval.interval - 1;
+      w.ekey = w.skey + pInterval->interval - 1;
     }
   }
 
@@ -658,10 +663,7 @@ static STimeWindow getActiveTimeWindow(SResultRowInfo * pResultRowInfo, int64_t 
    * query border check, skey should not be bounded by the query time range, since the value skey will
    * be used as the time window index value. So we only change ekey of time window accordingly.
    */
-  if (w.ekey > pQueryAttr->window.ekey && QUERY_IS_ASC_QUERY(pQueryAttr)) {
-    w.ekey = pQueryAttr->window.ekey;
-  }
-
+//  ASSERT(win->skey <= win->ekey); // todo no need this
   return w;
 }
 
@@ -670,7 +672,7 @@ static STimeWindow getCurrentActiveTimeWindow(SResultRowInfo * pResultRowInfo, i
   STimeWindow w = {0};
 
  if (pResultRowInfo->curPos == -1) {  // the first window, from the previous stored value
-    getInitialStartTimeWindow(pQueryAttr, ts, &w);
+//    getInitialStartTimeWindow(pQueryAttr, ts, &w);
 
     if (pQueryAttr->interval.intervalUnit == 'n' || pQueryAttr->interval.intervalUnit == 'y') {
       w.ekey = taosTimeAdd(w.skey, pQueryAttr->interval.interval, pQueryAttr->interval.intervalUnit, pQueryAttr->precision) - 1;
@@ -771,6 +773,37 @@ static int32_t setResultOutputBufByKey(STaskRuntimeEnv *pRuntimeEnv, SResultRowI
 
   return TSDB_CODE_SUCCESS;
 }
+
+static void setResultRowOutputBufInitCtx_rv(SDiskbasedBuf * pBuf, SResultRow *pResult, SqlFunctionCtx* pCtx, int32_t numOfOutput, int32_t* rowCellInfoOffset);
+
+static int32_t setResultOutputBufByKey_rv(SResultRowInfo *pResultRowInfo, int64_t id, STimeWindow *win,
+                                       bool masterscan, SResultRow **pResult, int64_t tableGroupId, SqlFunctionCtx* pCtx,
+                                       int32_t numOfOutput, int32_t* rowCellInfoOffset, SDiskbasedBuf *pBuf, SAggSupporter *pAggSup, SExecTaskInfo* pTaskInfo) {
+  assert(win->skey <= win->ekey);
+  SResultRow *pResultRow = doSetResultOutBufByKey_rv(pResultRowInfo, id, (char *)&win->skey, TSDB_KEYSIZE, masterscan, tableGroupId,
+       pTaskInfo, true, pAggSup);
+
+  if (pResultRow == NULL) {
+    *pResult = NULL;
+    return TSDB_CODE_SUCCESS;
+  }
+
+  // not assign result buffer yet, add new result buffer
+  if (pResultRow->pageId == -1) { // todo intermediate result size
+    int32_t ret = addNewWindowResultBuf(pResultRow, pBuf, (int32_t) tableGroupId, 0);
+    if (ret != TSDB_CODE_SUCCESS) {
+      return -1;
+    }
+  }
+
+  // set time window for current result
+  pResultRow->win = (*win);
+  *pResult = pResultRow;
+  setResultRowOutputBufInitCtx_rv(pBuf, pResultRow, pCtx, numOfOutput, rowCellInfoOffset);
+
+  return TSDB_CODE_SUCCESS;
+}
+
 
 static void setResultRowInterpo(SResultRow* pResult, SResultTsInterpType type) {
   assert(pResult != NULL && (type == RESULT_ROW_START_INTERP || type == RESULT_ROW_END_INTERP));
@@ -873,48 +906,44 @@ static void doUpdateResultRowIndex(SResultRowInfo*pResultRowInfo, TSKEY lastKey,
   }
 }
 
-static void updateResultRowInfoActiveIndex(SResultRowInfo* pResultRowInfo, STaskAttr* pQueryAttr, TSKEY lastKey) {
-  bool ascQuery = QUERY_IS_ASC_QUERY(pQueryAttr);
-  if ((lastKey > pQueryAttr->window.ekey && ascQuery) || (lastKey < pQueryAttr->window.ekey && (!ascQuery))) {
+static void updateResultRowInfoActiveIndex(SResultRowInfo* pResultRowInfo, const STimeWindow* pWin, TSKEY lastKey, bool ascQuery, bool interp) {
+  if ((lastKey > pWin->ekey && ascQuery) || (lastKey < pWin->ekey && (!ascQuery))) {
     closeAllResultRows(pResultRowInfo);
     pResultRowInfo->curPos = pResultRowInfo->size - 1;
   } else {
     int32_t step = ascQuery ? 1 : -1;
-    doUpdateResultRowIndex(pResultRowInfo, lastKey - step, ascQuery, pQueryAttr->timeWindowInterpo);
+    doUpdateResultRowIndex(pResultRowInfo, lastKey - step, ascQuery, interp);
   }
 }
 
-static int32_t getNumOfRowsInTimeWindow(STaskRuntimeEnv* pRuntimeEnv, SDataBlockInfo *pDataBlockInfo, TSKEY *pPrimaryColumn,
-                                        int32_t startPos, TSKEY ekey, __block_search_fn_t searchFn, bool updateLastKey) {
+static int32_t getNumOfRowsInTimeWindow(SDataBlockInfo *pDataBlockInfo, TSKEY *pPrimaryColumn,
+                                        int32_t startPos, TSKEY ekey, __block_search_fn_t searchFn, STableQueryInfo* item, int32_t order) {
   assert(startPos >= 0 && startPos < pDataBlockInfo->rows);
-  STaskAttr* pQueryAttr = pRuntimeEnv->pQueryAttr;
-  STableQueryInfo* item = pRuntimeEnv->current;
 
   int32_t num   = -1;
-  int32_t order = pQueryAttr->order.order;
   int32_t step  = GET_FORWARD_DIRECTION_FACTOR(order);
 
-  if (QUERY_IS_ASC_QUERY(pQueryAttr)) {
+  if (order == TSDB_ORDER_ASC) {
     if (ekey < pDataBlockInfo->window.ekey && pPrimaryColumn) {
       num = getForwardStepsInBlock(pDataBlockInfo->rows, searchFn, ekey, startPos, order, pPrimaryColumn);
-      if (updateLastKey) { // update the last key
+      if (item != NULL) {
         item->lastKey = pPrimaryColumn[startPos + (num - 1)] + step;
       }
     } else {
       num = pDataBlockInfo->rows - startPos;
-      if (updateLastKey) {
+      if (item != NULL) {
         item->lastKey = pDataBlockInfo->window.ekey + step;
       }
     }
   } else {  // desc
     if (ekey > pDataBlockInfo->window.skey && pPrimaryColumn) {
       num = getForwardStepsInBlock(pDataBlockInfo->rows, searchFn, ekey, startPos, order, pPrimaryColumn);
-      if (updateLastKey) {  // update the last key
+      if (item != NULL) {
         item->lastKey = pPrimaryColumn[startPos - (num - 1)] + step;
       }
     } else {
       num = startPos + 1;
-      if (updateLastKey) {
+      if (item != NULL) {
         item->lastKey = pDataBlockInfo->window.skey + step;
       }
     }
@@ -924,22 +953,18 @@ static int32_t getNumOfRowsInTimeWindow(STaskRuntimeEnv* pRuntimeEnv, SDataBlock
   return num;
 }
 
-static void doApplyFunctions(STaskRuntimeEnv* pRuntimeEnv, SqlFunctionCtx* pCtx, STimeWindow* pWin, int32_t offset,
-                             int32_t forwardStep, TSKEY* tsCol, int32_t numOfTotal, int32_t numOfOutput) {
-  STaskAttr *pQueryAttr = pRuntimeEnv->pQueryAttr;
-  bool hasAggregates = pCtx[0].isAggSet;
-
+static void doApplyFunctions(SqlFunctionCtx* pCtx, STimeWindow* pWin, int32_t offset, int32_t forwardStep, TSKEY* tsCol,
+    int32_t numOfTotal, int32_t numOfOutput, int32_t order) {
   for (int32_t k = 0; k < numOfOutput; ++k) {
     pCtx[k].size    = forwardStep;
     pCtx[k].startTs = pWin->skey;
 
     // keep it temporarialy
-    char* start = NULL;//pCtx[k].pInput;
+    int32_t startOffset = pCtx[k].startRow;
+    bool    hasAgg      = pCtx[k].isAggSet;
 
-    int32_t pos = (QUERY_IS_ASC_QUERY(pQueryAttr)) ? offset : offset - (forwardStep - 1);
-    if (pCtx[k].pInput != NULL) {
-//      pCtx[k].pInput = (char *)pCtx[k].pInput + pos * pCtx[k].inputBytes;
-    }
+    int32_t pos = (order == TSDB_ORDER_ASC) ? offset : offset - (forwardStep - 1);
+    pCtx[k].startRow = pos;
 
     if (tsCol != NULL) {
       pCtx[k].ptsList = &tsCol[pos];
@@ -951,88 +976,80 @@ static void doApplyFunctions(STaskRuntimeEnv* pRuntimeEnv, SqlFunctionCtx* pCtx,
       pCtx[k].isAggSet = false;
     }
 
-    if (functionNeedToExecute(pRuntimeEnv, &pCtx[k])) {
+    if (functionNeedToExecute(&pCtx[k])) {
       pCtx[k].fpSet->addInput(&pCtx[k]);
     }
 
     // restore it
-    pCtx[k].isAggSet = hasAggregates;
-//    pCtx[k].pInput = start;
+    pCtx[k].isAggSet = hasAgg;
+    pCtx[k].startRow = startOffset;
   }
 }
 
-static int32_t getNextQualifiedWindow(STaskAttr* pQueryAttr, STimeWindow* pNext, SDataBlockInfo* pDataBlockInfo,
-                                      TSKEY* primaryKeys, __block_search_fn_t searchFn, int32_t prevPosition) {
-  getNextTimeWindow(pQueryAttr, pNext);
+static int32_t getNextQualifiedWindow(SInterval* pInterval, STimeWindow* pNext, SDataBlockInfo* pDataBlockInfo,
+                                      TSKEY* primaryKeys, int32_t prevPosition, STableIntervalOperatorInfo* pInfo) {
+  int32_t order = pInfo->order;
+  bool    ascQuery  = (order == TSDB_ORDER_ASC);
+
+  int32_t precision = pInfo->precision;
+  getNextTimeWindow(pInterval, precision, order, pNext);
 
   // next time window is not in current block
-  if ((pNext->skey > pDataBlockInfo->window.ekey && QUERY_IS_ASC_QUERY(pQueryAttr)) ||
-      (pNext->ekey < pDataBlockInfo->window.skey && !QUERY_IS_ASC_QUERY(pQueryAttr))) {
+  if ((pNext->skey > pDataBlockInfo->window.ekey && order == TSDB_ORDER_ASC) ||
+      (pNext->ekey < pDataBlockInfo->window.skey && order == TSDB_ORDER_DESC)) {
     return -1;
   }
 
-  TSKEY startKey = -1;
-  if (QUERY_IS_ASC_QUERY(pQueryAttr)) {
-    startKey = pNext->skey;
-    if (startKey < pQueryAttr->window.skey) {
-      startKey = pQueryAttr->window.skey;
-    }
-  } else {
-    startKey = pNext->ekey;
-    if (startKey > pQueryAttr->window.skey) {
-      startKey = pQueryAttr->window.skey;
-    }
-  }
-
+  TSKEY startKey = ascQuery? pNext->skey:pNext->ekey;
   int32_t startPos = 0;
 
   // tumbling time window query, a special case of sliding time window query
-  if (pQueryAttr->interval.sliding == pQueryAttr->interval.interval && prevPosition != -1) {
-    int32_t factor = GET_FORWARD_DIRECTION_FACTOR(pQueryAttr->order.order);
+  if (pInterval->sliding == pInterval->interval && prevPosition != -1) {
+    int32_t factor = GET_FORWARD_DIRECTION_FACTOR(order);
     startPos = prevPosition + factor;
   } else {
-    if (startKey <= pDataBlockInfo->window.skey && QUERY_IS_ASC_QUERY(pQueryAttr)) {
+    if (startKey <= pDataBlockInfo->window.skey && ascQuery) {
       startPos = 0;
-    } else if (startKey >= pDataBlockInfo->window.ekey && !QUERY_IS_ASC_QUERY(pQueryAttr)) {
+    } else if (startKey >= pDataBlockInfo->window.ekey && !ascQuery) {
       startPos = pDataBlockInfo->rows - 1;
     } else {
-      startPos = searchFn((char *)primaryKeys, pDataBlockInfo->rows, startKey, pQueryAttr->order.order);
+      startPos = binarySearchForKey((char *)primaryKeys, pDataBlockInfo->rows, startKey, order);
     }
   }
 
   /* interp query with fill should not skip time window */
-  if (pQueryAttr->pointInterpQuery && pQueryAttr->fillType != TSDB_FILL_NONE) {
-    return startPos;
-  }
+//  if (pQueryAttr->pointInterpQuery && pQueryAttr->fillType != TSDB_FILL_NONE) {
+//    return startPos;
+//  }
 
   /*
    * This time window does not cover any data, try next time window,
    * this case may happen when the time window is too small
    */
   if (primaryKeys == NULL) {
-    if (QUERY_IS_ASC_QUERY(pQueryAttr)) {
+    if (ascQuery) {
       assert(pDataBlockInfo->window.skey <= pNext->ekey);
     } else {
       assert(pDataBlockInfo->window.ekey >= pNext->skey);
     }
   } else {
-    if (QUERY_IS_ASC_QUERY(pQueryAttr) && primaryKeys[startPos] > pNext->ekey) {
+    if (ascQuery && primaryKeys[startPos] > pNext->ekey) {
       TSKEY next = primaryKeys[startPos];
-      if (pQueryAttr->interval.intervalUnit == 'n' || pQueryAttr->interval.intervalUnit == 'y') {
-        pNext->skey = taosTimeTruncate(next, &pQueryAttr->interval, pQueryAttr->precision);
-        pNext->ekey = taosTimeAdd(pNext->skey, pQueryAttr->interval.interval, pQueryAttr->interval.intervalUnit, pQueryAttr->precision) - 1;
+      if (pInterval->intervalUnit == 'n' || pInterval->intervalUnit == 'y') {
+        pNext->skey = taosTimeTruncate(next, pInterval, precision);
+        pNext->ekey = taosTimeAdd(pNext->skey, pInterval->interval, pInterval->intervalUnit, precision) - 1;
       } else {
-        pNext->ekey += ((next - pNext->ekey + pQueryAttr->interval.sliding - 1)/pQueryAttr->interval.sliding) * pQueryAttr->interval.sliding;
-        pNext->skey = pNext->ekey - pQueryAttr->interval.interval + 1;
+        pNext->ekey += ((next - pNext->ekey + pInterval->sliding - 1)/pInterval->sliding) * pInterval->sliding;
+        pNext->skey = pNext->ekey - pInterval->interval + 1;
       }
-    } else if ((!QUERY_IS_ASC_QUERY(pQueryAttr)) && primaryKeys[startPos] < pNext->skey) {
+    } else if ((!ascQuery) && primaryKeys[startPos] < pNext->skey) {
       TSKEY next = primaryKeys[startPos];
-      if (pQueryAttr->interval.intervalUnit == 'n' || pQueryAttr->interval.intervalUnit == 'y') {
-        pNext->skey = taosTimeTruncate(next, &pQueryAttr->interval, pQueryAttr->precision);
-        pNext->ekey = taosTimeAdd(pNext->skey, pQueryAttr->interval.interval, pQueryAttr->interval.intervalUnit, pQueryAttr->precision) - 1;
+      if (pInterval->intervalUnit == 'n' || pInterval->intervalUnit == 'y') {
+        pNext->skey = taosTimeTruncate(next, pInterval, precision);
+        pNext->ekey = taosTimeAdd(pNext->skey, pInterval->interval, pInterval->intervalUnit, precision) - 1;
       } else {
-        pNext->skey -= ((pNext->skey - next + pQueryAttr->interval.sliding - 1) / pQueryAttr->interval.sliding) * pQueryAttr->interval.sliding;
-        pNext->ekey = pNext->skey + pQueryAttr->interval.interval - 1;
+        pNext->skey -= ((pNext->skey - next + pInterval->sliding - 1) / pInterval->sliding) * pInterval->sliding;
+        pNext->ekey = pNext->skey + pInterval->interval - 1;
       }
     }
   }
@@ -1069,23 +1086,19 @@ static void setNotInterpoWindowKey(SqlFunctionCtx* pCtx, int32_t numOfOutput, in
   }
 }
 
-static void saveDataBlockLastRow(STaskRuntimeEnv* pRuntimeEnv, SDataBlockInfo* pDataBlockInfo, SArray* pDataBlock,
-    int32_t rowIndex) {
+static void saveDataBlockLastRow(char** pRow, SArray* pDataBlock, int32_t rowIndex, int32_t numOfCols) {
   if (pDataBlock == NULL) {
     return;
   }
 
-  STaskAttr* pQueryAttr = pRuntimeEnv->pQueryAttr;
-  for (int32_t k = 0; k < pQueryAttr->numOfCols; ++k) {
+  for (int32_t k = 0; k < numOfCols; ++k) {
     SColumnInfoData *pColInfo = taosArrayGet(pDataBlock, k);
-    memcpy(pRuntimeEnv->prevRow[k], ((char*)pColInfo->pData) + (pColInfo->info.bytes * rowIndex), pColInfo->info.bytes);
+    memcpy(pRow[k], ((char*)pColInfo->pData) + (pColInfo->info.bytes * rowIndex), pColInfo->info.bytes);
   }
 }
 
-static TSKEY getStartTsKey(STaskAttr* pQueryAttr, STimeWindow* win, const TSKEY* tsCols, int32_t rows) {
+static TSKEY getStartTsKey(STimeWindow* win, const TSKEY* tsCols, int32_t rows, bool ascQuery) {
   TSKEY ts = TSKEY_INITIAL_VAL;
-
-  bool ascQuery = QUERY_IS_ASC_QUERY(pQueryAttr);
   if (tsCols == NULL) {
     ts = ascQuery? win->skey : win->ekey;
   } else {
@@ -1191,7 +1204,7 @@ static void doSetInputDataBlock(SOperatorInfo* pOperator, SqlFunctionCtx* pCtx, 
 
 static void doAggregateImpl(SOperatorInfo* pOperator, TSKEY startTs, SqlFunctionCtx* pCtx, SSDataBlock* pSDataBlock) {
   for (int32_t k = 0; k < pOperator->numOfOutput; ++k) {
-    if (functionNeedToExecute(NULL, &pCtx[k])) {
+    if (functionNeedToExecute(&pCtx[k])) {
       pCtx[k].startTs = startTs;// this can be set during create the struct
       pCtx[k].fpSet->addInput(&pCtx[k]);
     }
@@ -1350,20 +1363,19 @@ static bool setTimeWindowInterpolationEndTs(SOperatorInfo* pOperatorInfo, SqlFun
 }
 
 static void doWindowBorderInterpolation(SOperatorInfo* pOperatorInfo, SSDataBlock* pBlock, SqlFunctionCtx* pCtx,
-    SResultRow* pResult, STimeWindow* win, int32_t startPos, int32_t forwardStep) {
-  STaskRuntimeEnv* pRuntimeEnv = pOperatorInfo->pRuntimeEnv;
-  STaskAttr* pQueryAttr = pRuntimeEnv->pQueryAttr;
-  if (!pQueryAttr->timeWindowInterpo) {
+    SResultRow* pResult, STimeWindow* win, int32_t startPos, int32_t forwardStep, int32_t order, bool timeWindowInterpo) {
+  if (!timeWindowInterpo) {
     return;
   }
 
   assert(pBlock != NULL);
-  int32_t step = GET_FORWARD_DIRECTION_FACTOR(pQueryAttr->order.order);
+  int32_t step = GET_FORWARD_DIRECTION_FACTOR(order);
 
   if (pBlock->pDataBlock == NULL){
 //    tscError("pBlock->pDataBlock == NULL");
     return;
   }
+
   SColumnInfoData *pColInfo = taosArrayGet(pBlock->pDataBlock, 0);
 
   TSKEY  *tsCols = (TSKEY *)(pColInfo->pData);
@@ -1376,38 +1388,37 @@ static void doWindowBorderInterpolation(SOperatorInfo* pOperatorInfo, SSDataBloc
       setResultRowInterpo(pResult, RESULT_ROW_START_INTERP);
     }
   } else {
-    setNotInterpoWindowKey(pCtx, pQueryAttr->numOfOutput, RESULT_ROW_START_INTERP);
+    setNotInterpoWindowKey(pCtx, pOperatorInfo->numOfOutput, RESULT_ROW_START_INTERP);
   }
 
   // point interpolation does not require the end key time window interpolation.
-  if (pQueryAttr->pointInterpQuery) {
-    return;
-  }
+//  if (pointInterpQuery) {
+//    return;
+//  }
 
   // interpolation query does not generate the time window end interpolation
   done = resultRowInterpolated(pResult, RESULT_ROW_END_INTERP);
   if (!done) {
     int32_t endRowIndex = startPos + (forwardStep - 1) * step;
 
-    TSKEY endKey = QUERY_IS_ASC_QUERY(pQueryAttr)? pBlock->info.window.ekey:pBlock->info.window.skey;
+    TSKEY endKey = (order == TSDB_ORDER_ASC)? pBlock->info.window.ekey:pBlock->info.window.skey;
     bool  interp = setTimeWindowInterpolationEndTs(pOperatorInfo, pCtx, endRowIndex, pBlock->pDataBlock, tsCols, endKey, win);
     if (interp) {
       setResultRowInterpo(pResult, RESULT_ROW_END_INTERP);
     }
   } else {
-    setNotInterpoWindowKey(pCtx, pQueryAttr->numOfOutput, RESULT_ROW_END_INTERP);
+    setNotInterpoWindowKey(pCtx, pOperatorInfo->numOfOutput, RESULT_ROW_END_INTERP);
   }
 }
 
 static void hashIntervalAgg(SOperatorInfo* pOperatorInfo, SResultRowInfo* pResultRowInfo, SSDataBlock* pSDataBlock, int32_t tableGroupId) {
   STableIntervalOperatorInfo* pInfo = (STableIntervalOperatorInfo*) pOperatorInfo->info;
 
-  STaskRuntimeEnv* pRuntimeEnv = pOperatorInfo->pRuntimeEnv;
-  int32_t           numOfOutput = pOperatorInfo->numOfOutput;
-  STaskAttr*       pQueryAttr = pRuntimeEnv->pQueryAttr;
+  SExecTaskInfo* pTaskInfo = pOperatorInfo->pTaskInfo;
+  int32_t numOfOutput = pOperatorInfo->numOfOutput;
 
-  int32_t step = GET_FORWARD_DIRECTION_FACTOR(pQueryAttr->order.order);
-  bool ascQuery = QUERY_IS_ASC_QUERY(pQueryAttr);
+  int32_t step = 1;
+  bool ascQuery = true;
 
   int32_t prevIndex = pResultRowInfo->curPos;
 
@@ -1420,26 +1431,26 @@ static void hashIntervalAgg(SOperatorInfo* pOperatorInfo, SResultRowInfo* pResul
   }
 
   int32_t startPos = ascQuery? 0 : (pSDataBlock->info.rows - 1);
-  TSKEY ts = getStartTsKey(pQueryAttr, &pSDataBlock->info.window, tsCols, pSDataBlock->info.rows);
+  TSKEY ts = getStartTsKey(&pSDataBlock->info.window, tsCols, pSDataBlock->info.rows, ascQuery);
 
-  STimeWindow win = getActiveTimeWindow(pResultRowInfo, ts, pQueryAttr);
-  bool masterScan = IS_MAIN_SCAN(pRuntimeEnv);
+  STimeWindow win = getActiveTimeWindow(pResultRowInfo, ts, &pInfo->interval, pInfo->precision, &pInfo->win);
+  bool masterScan = true;
 
   SResultRow* pResult = NULL;
-  int32_t ret = setResultOutputBufByKey(pRuntimeEnv, pResultRowInfo, pSDataBlock->info.uid, &win, masterScan, &pResult, tableGroupId, pInfo->pCtx,
-                                        numOfOutput, pInfo->rowCellInfoOffset);
+  int32_t ret = setResultOutputBufByKey_rv(pResultRowInfo, pSDataBlock->info.uid, &win, masterScan, &pResult, tableGroupId, pInfo->binfo.pCtx,
+                                        numOfOutput, pInfo->binfo.rowCellInfoOffset, pInfo->pResultBuf, &pInfo->aggSup, pTaskInfo);
   if (ret != TSDB_CODE_SUCCESS || pResult == NULL) {
-    longjmp(pRuntimeEnv->env, TSDB_CODE_QRY_OUT_OF_MEMORY);
+    longjmp(pTaskInfo->env, TSDB_CODE_QRY_OUT_OF_MEMORY);
   }
 
   int32_t forwardStep = 0;
-  TSKEY   ekey = reviseWindowEkey(pQueryAttr, &win);
+  TSKEY   ekey = win.ekey;
   forwardStep =
-      getNumOfRowsInTimeWindow(pRuntimeEnv, &pSDataBlock->info, tsCols, startPos, ekey, binarySearchForKey, true);
+      getNumOfRowsInTimeWindow(&pSDataBlock->info, tsCols, startPos, ekey, binarySearchForKey, NULL, TSDB_ORDER_ASC);
 
   // prev time window not interpolation yet.
   int32_t curIndex = pResultRowInfo->curPos;
-  if (prevIndex != -1 && prevIndex < curIndex && pQueryAttr->timeWindowInterpo) {
+  if (prevIndex != -1 && prevIndex < curIndex && pInfo->timeWindowInterpo) {
     for (int32_t j = prevIndex; j < curIndex; ++j) {  // previous time window may be all closed already.
       SResultRow* pRes = getResultRow(pResultRowInfo, j);
       if (pRes->closed) {
@@ -1448,64 +1459,64 @@ static void hashIntervalAgg(SOperatorInfo* pOperatorInfo, SResultRowInfo* pResul
       }
 
         STimeWindow w = pRes->win;
-        ret = setResultOutputBufByKey(pRuntimeEnv, pResultRowInfo, pSDataBlock->info.uid, &w, masterScan, &pResult,
-                                      tableGroupId, pInfo->pCtx, numOfOutput, pInfo->rowCellInfoOffset);
+        ret = setResultOutputBufByKey_rv(pResultRowInfo, pSDataBlock->info.uid, &w, masterScan, &pResult,
+                                      tableGroupId, pInfo->binfo.pCtx, numOfOutput, pInfo->binfo.rowCellInfoOffset, pInfo->pResultBuf, &pInfo->aggSup, pTaskInfo);
         if (ret != TSDB_CODE_SUCCESS) {
-          longjmp(pRuntimeEnv->env, TSDB_CODE_QRY_OUT_OF_MEMORY);
+          longjmp(pTaskInfo->env, TSDB_CODE_QRY_OUT_OF_MEMORY);
         }
 
         assert(!resultRowInterpolated(pResult, RESULT_ROW_END_INTERP));
 
-        doTimeWindowInterpolation(pOperatorInfo, pInfo, pSDataBlock->pDataBlock, *(TSKEY*)pRuntimeEnv->prevRow[0], -1,
+        doTimeWindowInterpolation(pOperatorInfo, &pInfo->binfo, pSDataBlock->pDataBlock, *(TSKEY*)pInfo->pRow[0], -1,
                                   tsCols[startPos], startPos, w.ekey, RESULT_ROW_END_INTERP);
 
         setResultRowInterpo(pResult, RESULT_ROW_END_INTERP);
-        setNotInterpoWindowKey(pInfo->pCtx, pQueryAttr->numOfOutput, RESULT_ROW_START_INTERP);
+        setNotInterpoWindowKey(pInfo->binfo.pCtx, pOperatorInfo->numOfOutput, RESULT_ROW_START_INTERP);
 
-        doApplyFunctions(pRuntimeEnv, pInfo->pCtx, &w, startPos, 0, tsCols, pSDataBlock->info.rows, numOfOutput);
+        doApplyFunctions(pInfo->binfo.pCtx, &w, startPos, 0, tsCols, pSDataBlock->info.rows, numOfOutput, TSDB_ORDER_ASC);
       }
 
     // restore current time window
-    ret = setResultOutputBufByKey(pRuntimeEnv, pResultRowInfo, pSDataBlock->info.uid, &win, masterScan, &pResult, tableGroupId, pInfo->pCtx,
-                                  numOfOutput, pInfo->rowCellInfoOffset);
+    ret = setResultOutputBufByKey_rv(pResultRowInfo, pSDataBlock->info.uid, &win, masterScan, &pResult, tableGroupId, pInfo->binfo.pCtx,
+                                  numOfOutput, pInfo->binfo.rowCellInfoOffset, pInfo->pResultBuf, &pInfo->aggSup, pTaskInfo);
     if (ret != TSDB_CODE_SUCCESS) {
-      longjmp(pRuntimeEnv->env, TSDB_CODE_QRY_OUT_OF_MEMORY);
+      longjmp(pTaskInfo->env, TSDB_CODE_QRY_OUT_OF_MEMORY);
     }
   }
 
   // window start key interpolation
-  doWindowBorderInterpolation(pOperatorInfo, pSDataBlock, pInfo->pCtx, pResult, &win, startPos, forwardStep);
-  doApplyFunctions(pRuntimeEnv, pInfo->pCtx, &win, startPos, forwardStep, tsCols, pSDataBlock->info.rows, numOfOutput);
+  doWindowBorderInterpolation(pOperatorInfo, pSDataBlock, pInfo->binfo.pCtx, pResult, &win, startPos, forwardStep, pInfo->order, false);
+  doApplyFunctions(pInfo->binfo.pCtx, &win, startPos, forwardStep, tsCols, pSDataBlock->info.rows, numOfOutput, TSDB_ORDER_ASC);
 
   STimeWindow nextWin = win;
   while (1) {
     int32_t prevEndPos = (forwardStep - 1) * step + startPos;
-    startPos = getNextQualifiedWindow(pQueryAttr, &nextWin, &pSDataBlock->info, tsCols, binarySearchForKey, prevEndPos);
+    startPos = getNextQualifiedWindow(&pInfo->interval, &nextWin, &pSDataBlock->info, tsCols, prevEndPos, pInfo);
     if (startPos < 0) {
       break;
     }
 
     // null data, failed to allocate more memory buffer
-    int32_t code = setResultOutputBufByKey(pRuntimeEnv, pResultRowInfo, pSDataBlock->info.uid, &nextWin, masterScan, &pResult, tableGroupId,
-                                           pInfo->pCtx, numOfOutput, pInfo->rowCellInfoOffset);
+    int32_t code = setResultOutputBufByKey_rv(pResultRowInfo, pSDataBlock->info.uid, &nextWin, masterScan, &pResult, tableGroupId,
+                                           pInfo->binfo.pCtx, numOfOutput, pInfo->binfo.rowCellInfoOffset, pInfo->pResultBuf, &pInfo->aggSup, pTaskInfo);
     if (code != TSDB_CODE_SUCCESS || pResult == NULL) {
-      longjmp(pRuntimeEnv->env, TSDB_CODE_QRY_OUT_OF_MEMORY);
+      longjmp(pTaskInfo->env, TSDB_CODE_QRY_OUT_OF_MEMORY);
     }
 
-    ekey = reviseWindowEkey(pQueryAttr, &nextWin);
-    forwardStep = getNumOfRowsInTimeWindow(pRuntimeEnv, &pSDataBlock->info, tsCols, startPos, ekey, binarySearchForKey, true);
+    ekey = nextWin.ekey;//reviseWindowEkey(pQueryAttr, &nextWin);
+    forwardStep = getNumOfRowsInTimeWindow(&pSDataBlock->info, tsCols, startPos, ekey, binarySearchForKey, NULL, TSDB_ORDER_ASC);
 
     // window start(end) key interpolation
-    doWindowBorderInterpolation(pOperatorInfo, pSDataBlock, pInfo->pCtx, pResult, &nextWin, startPos, forwardStep);
-    doApplyFunctions(pRuntimeEnv, pInfo->pCtx, &nextWin, startPos, forwardStep, tsCols, pSDataBlock->info.rows, numOfOutput);
+    doWindowBorderInterpolation(pOperatorInfo, pSDataBlock, pInfo->binfo.pCtx, pResult, &nextWin, startPos, forwardStep, pInfo->order, false);
+    doApplyFunctions(pInfo->binfo.pCtx, &nextWin, startPos, forwardStep, tsCols, pSDataBlock->info.rows, numOfOutput, TSDB_ORDER_ASC);
   }
 
-  if (pQueryAttr->timeWindowInterpo) {
+  if (pInfo->timeWindowInterpo) {
     int32_t rowIndex = ascQuery? (pSDataBlock->info.rows-1):0;
-    saveDataBlockLastRow(pRuntimeEnv, &pSDataBlock->info, pSDataBlock->pDataBlock, rowIndex);
+    saveDataBlockLastRow(pInfo->pRow, pSDataBlock->pDataBlock, rowIndex, pSDataBlock->info.numOfCols);
   }
 
-  updateResultRowInfoActiveIndex(pResultRowInfo, pQueryAttr, pRuntimeEnv->current->lastKey);
+//  updateResultRowInfoActiveIndex(pResultRowInfo, &pInfo->win, pRuntimeEnv->current->lastKey, true, false);
 }
 
 
@@ -1528,7 +1539,7 @@ static void hashAllIntervalAgg(SOperatorInfo* pOperatorInfo, SResultRowInfo* pRe
   }
 
   int32_t startPos = ascQuery? 0 : (pSDataBlock->info.rows - 1);
-  TSKEY ts = getStartTsKey(pQueryAttr, &pSDataBlock->info.window, tsCols, pSDataBlock->info.rows);
+  TSKEY ts = getStartTsKey(&pSDataBlock->info.window, tsCols, pSDataBlock->info.rows, ascQuery);
 
   STimeWindow win = getCurrentActiveTimeWindow(pResultRowInfo, ts, pQueryAttr);
   bool masterScan = IS_MAIN_SCAN(pRuntimeEnv);
@@ -1541,25 +1552,25 @@ static void hashAllIntervalAgg(SOperatorInfo* pOperatorInfo, SResultRowInfo* pRe
   while (1) {
     // null data, failed to allocate more memory buffer
     ret = setResultOutputBufByKey(pRuntimeEnv, pResultRowInfo, pSDataBlock->info.uid, &win, masterScan, &pResult,
-                                  tableGroupId, pInfo->pCtx, numOfOutput, pInfo->rowCellInfoOffset);
+                                  tableGroupId, pInfo->binfo.pCtx, numOfOutput, pInfo->binfo.rowCellInfoOffset);
     if (ret != TSDB_CODE_SUCCESS) {
       longjmp(pRuntimeEnv->env, TSDB_CODE_QRY_OUT_OF_MEMORY);
     }
 
     TSKEY   ekey = reviseWindowEkey(pQueryAttr, &win);
-    forwardStep = getNumOfRowsInTimeWindow(pRuntimeEnv, &pSDataBlock->info, tsCols, startPos, ekey, binarySearchForKey, true);
+//    forwardStep = getNumOfRowsInTimeWindow(pRuntimeEnv, &pSDataBlock->info, tsCols, startPos, ekey, binarySearchForKey, true);
 
     // window start(end) key interpolation
-    doWindowBorderInterpolation(pOperatorInfo, pSDataBlock, pInfo->pCtx, pResult, &win, startPos, forwardStep);
-    doApplyFunctions(pRuntimeEnv, pInfo->pCtx, ascQuery ? &win : &preWin, startPos, forwardStep, tsCols, pSDataBlock->info.rows, numOfOutput);
+//    doWindowBorderInterpolation(pOperatorInfo, pSDataBlock, pInfo->binfo.pCtx, pResult, &win, startPos, forwardStep);
+//    doApplyFunctions(pRuntimeEnv, pInfo->binfo.pCtx, ascQuery ? &win : &preWin, startPos, forwardStep, tsCols, pSDataBlock->info.rows, numOfOutput);
     preWin = win;
 
     int32_t prevEndPos = (forwardStep - 1) * step + startPos;
-    startPos = getNextQualifiedWindow(pQueryAttr, &win, &pSDataBlock->info, tsCols, binarySearchForKey, prevEndPos);
+//    startPos = getNextQualifiedWindow(pQueryAttr, &win, &pSDataBlock->info, tsCols, binarySearchForKey, prevEndPos);
     if (startPos < 0) {
       if ((ascQuery && win.skey <= pQueryAttr->window.ekey) || ((!ascQuery) && win.ekey >= pQueryAttr->window.ekey)) {
         int32_t code = setResultOutputBufByKey(pRuntimeEnv, pResultRowInfo, pSDataBlock->info.uid, &win, masterScan, &pResult, tableGroupId,
-                                               pInfo->pCtx, numOfOutput, pInfo->rowCellInfoOffset);
+                                               pInfo->binfo.pCtx, numOfOutput, pInfo->binfo.rowCellInfoOffset);
         if (code != TSDB_CODE_SUCCESS || pResult == NULL) {
           longjmp(pRuntimeEnv->env, TSDB_CODE_QRY_OUT_OF_MEMORY);
         }
@@ -1567,8 +1578,8 @@ static void hashAllIntervalAgg(SOperatorInfo* pOperatorInfo, SResultRowInfo* pRe
         startPos = pSDataBlock->info.rows - 1;
 
         // window start(end) key interpolation
-        doWindowBorderInterpolation(pOperatorInfo, pSDataBlock, pInfo->pCtx, pResult, &win, startPos, forwardStep);
-        doApplyFunctions(pRuntimeEnv, pInfo->pCtx, ascQuery ? &win : &preWin, startPos, forwardStep, tsCols, pSDataBlock->info.rows, numOfOutput);
+//        doWindowBorderInterpolation(pOperatorInfo, pSDataBlock, pInfo->binfo.pCtx, pResult, &win, startPos, forwardStep);
+//        doApplyFunctions(pRuntimeEnv, pInfo->binfo.pCtx, ascQuery ? &win : &preWin, startPos, forwardStep, tsCols, pSDataBlock->info.rows, numOfOutput);
       }
 
       break;
@@ -1578,10 +1589,10 @@ static void hashAllIntervalAgg(SOperatorInfo* pOperatorInfo, SResultRowInfo* pRe
 
   if (pQueryAttr->timeWindowInterpo) {
     int32_t rowIndex = ascQuery? (pSDataBlock->info.rows-1):0;
-    saveDataBlockLastRow(pRuntimeEnv, &pSDataBlock->info, pSDataBlock->pDataBlock, rowIndex);
+//    saveDataBlockLastRow(pRuntimeEnv, &pSDataBlock->info, pSDataBlock->pDataBlock, rowIndex);
   }
 
-  updateResultRowInfoActiveIndex(pResultRowInfo, pQueryAttr, pRuntimeEnv->current->lastKey);
+//  updateResultRowInfoActiveIndex(pResultRowInfo, pQueryAttr, pRuntimeEnv->current->lastKey);
 }
 
 
@@ -1643,7 +1654,7 @@ static void doHashGroupbyAgg(SOperatorInfo* pOperator, SGroupbyOperatorInfo *pIn
       longjmp(pRuntimeEnv->env, TSDB_CODE_QRY_APP_ERROR);
     }
 
-    doApplyFunctions(pRuntimeEnv, pInfo->binfo.pCtx, &w, j - num, num, tsList, pSDataBlock->info.rows, pOperator->numOfOutput);
+//    doApplyFunctions(pRuntimeEnv, pInfo->binfo.pCtx, &w, j - num, num, tsList, pSDataBlock->info.rows, pOperator->numOfOutput);
 
     num = 1;
     memcpy(pInfo->prevData, val, bytes);
@@ -1662,7 +1673,7 @@ static void doHashGroupbyAgg(SOperatorInfo* pOperator, SGroupbyOperatorInfo *pIn
       longjmp(pRuntimeEnv->env, TSDB_CODE_QRY_APP_ERROR);
     }
 
-    doApplyFunctions(pRuntimeEnv, pInfo->binfo.pCtx, &w, pSDataBlock->info.rows - num, num, tsList, pSDataBlock->info.rows, pOperator->numOfOutput);
+//    doApplyFunctions(pRuntimeEnv, pInfo->binfo.pCtx, &w, pSDataBlock->info.rows - num, num, tsList, pSDataBlock->info.rows, pOperator->numOfOutput);
   }
 
   tfree(pInfo->prevData);
@@ -1712,8 +1723,8 @@ static void doSessionWindowAggImpl(SOperatorInfo* pOperator, SSWindowOperatorInf
         longjmp(pRuntimeEnv->env, TSDB_CODE_QRY_APP_ERROR);
       }
 
-      doApplyFunctions(pRuntimeEnv, pBInfo->pCtx, &pInfo->curWindow, pInfo->start, pInfo->numOfRows, tsList,
-                       pSDataBlock->info.rows, pOperator->numOfOutput);
+//      doApplyFunctions(pRuntimeEnv, pBInfo->pCtx, &pInfo->curWindow, pInfo->start, pInfo->numOfRows, tsList,
+//                       pSDataBlock->info.rows, pOperator->numOfOutput);
 
       pInfo->curWindow.skey = tsList[j];
       pInfo->curWindow.ekey = tsList[j];
@@ -1733,8 +1744,8 @@ static void doSessionWindowAggImpl(SOperatorInfo* pOperator, SSWindowOperatorInf
     longjmp(pRuntimeEnv->env, TSDB_CODE_QRY_APP_ERROR);
   }
 
-  doApplyFunctions(pRuntimeEnv, pBInfo->pCtx, &pInfo->curWindow, pInfo->start, pInfo->numOfRows, tsList,
-                   pSDataBlock->info.rows, pOperator->numOfOutput);
+//  doApplyFunctions(pRuntimeEnv, pBInfo->pCtx, &pInfo->curWindow, pInfo->start, pInfo->numOfRows, tsList,
+//                   pSDataBlock->info.rows, pOperator->numOfOutput);
 }
 
 static void setResultRowKey(SResultRow* pResultRow, char* pData, int16_t type) {
@@ -1808,7 +1819,7 @@ static int32_t getGroupbyColumnIndex(SGroupbyExpr *pGroupbyExpr, SSDataBlock* pD
   return -1;
 }
 
-static bool functionNeedToExecute(STaskRuntimeEnv *pRuntimeEnv, SqlFunctionCtx *pCtx) {
+static bool functionNeedToExecute(SqlFunctionCtx *pCtx) {
   struct SResultRowEntryInfo *pResInfo = GET_RES_INFO(pCtx);
 
   // in case of timestamp column, always generated results.
@@ -2048,6 +2059,10 @@ static SqlFunctionCtx* createSqlFunctionCtx_rv(SArray* pExprInfo, int32_t** rowC
     pCtx->resDataInfo.type   = pSqlExpr->resSchema.type;
 
     pCtx->order        = TSDB_ORDER_ASC;
+    if (i == 0) {
+      pCtx->functionId = FUNCTION_TS;
+    }
+
 //    pCtx->functionId   = pSqlExpr->functionId;
 //    pCtx->stableQuery  = pQueryAttr->stableQuery;
     pCtx->resDataInfo.intermediateBytes = pSqlExpr->interBytes;
@@ -2343,22 +2358,22 @@ static bool isCachedLastQuery(STaskAttr *pQueryAttr) {
 }
 
 /////////////////////////////////////////////////////////////////////////////////////////////
-
-void getAlignQueryTimeWindow(STaskAttr *pQueryAttr, int64_t key, int64_t keyFirst, int64_t keyLast, STimeWindow *win) {
-  assert(key >= keyFirst && key <= keyLast && pQueryAttr->interval.sliding <= pQueryAttr->interval.interval);
-  win->skey = taosTimeTruncate(key, &pQueryAttr->interval, pQueryAttr->precision);
+//todo refactor : return window
+void getAlignQueryTimeWindow(SInterval* pInterval, int32_t precision, int64_t key, int64_t keyFirst, int64_t keyLast, STimeWindow *win) {
+  assert(key >= keyFirst && key <= keyLast && pInterval->sliding <= pInterval->interval);
+  win->skey = taosTimeTruncate(key, pInterval, precision);
 
   /*
-   * if the realSkey > INT64_MAX - pQueryAttr->interval.interval, the query duration between
+   * if the realSkey > INT64_MAX - pInterval->interval, the query duration between
    * realSkey and realEkey must be less than one interval.Therefore, no need to adjust the query ranges.
    */
-  if (keyFirst > (INT64_MAX - pQueryAttr->interval.interval)) {
-    assert(keyLast - keyFirst < pQueryAttr->interval.interval);
+  if (keyFirst > (INT64_MAX - pInterval->interval)) {
+    assert(keyLast - keyFirst < pInterval->interval);
     win->ekey = INT64_MAX;
-  } else if (pQueryAttr->interval.intervalUnit == 'n' || pQueryAttr->interval.intervalUnit == 'y') {
-    win->ekey = taosTimeAdd(win->skey, pQueryAttr->interval.interval, pQueryAttr->interval.intervalUnit, pQueryAttr->precision) - 1;
+  } else if (pInterval->intervalUnit == 'n' || pInterval->intervalUnit == 'y') {
+    win->ekey = taosTimeAdd(win->skey, pInterval->interval, pInterval->intervalUnit, precision) - 1;
   } else {
-    win->ekey = win->skey + pQueryAttr->interval.interval - 1;
+    win->ekey = win->skey + pInterval->interval - 1;
   }
 }
 
@@ -2584,7 +2599,7 @@ static bool overlapWithTimeWindow(STaskAttr* pQueryAttr, SDataBlockInfo* pBlockI
   TSKEY ek = TMAX(pQueryAttr->window.skey, pQueryAttr->window.ekey);
 
   if (QUERY_IS_ASC_QUERY(pQueryAttr)) {
-    getAlignQueryTimeWindow(pQueryAttr, pBlockInfo->window.skey, sk, ek, &w);
+//    getAlignQueryTimeWindow(pQueryAttr, pBlockInfo->window.skey, sk, ek, &w);
     assert(w.ekey >= pBlockInfo->window.skey);
 
     if (w.ekey < pBlockInfo->window.ekey) {
@@ -2592,7 +2607,7 @@ static bool overlapWithTimeWindow(STaskAttr* pQueryAttr, SDataBlockInfo* pBlockI
     }
 
     while(1) {
-      getNextTimeWindow(pQueryAttr, &w);
+//      getNextTimeWindow(pQueryAttr, &w);
       if (w.skey > pBlockInfo->window.ekey) {
         break;
       }
@@ -2603,7 +2618,7 @@ static bool overlapWithTimeWindow(STaskAttr* pQueryAttr, SDataBlockInfo* pBlockI
       }
     }
   } else {
-    getAlignQueryTimeWindow(pQueryAttr, pBlockInfo->window.ekey, sk, ek, &w);
+//    getAlignQueryTimeWindow(pQueryAttr, pBlockInfo->window.ekey, sk, ek, &w);
     assert(w.skey <= pBlockInfo->window.ekey);
 
     if (w.skey > pBlockInfo->window.skey) {
@@ -2611,7 +2626,7 @@ static bool overlapWithTimeWindow(STaskAttr* pQueryAttr, SDataBlockInfo* pBlockI
     }
 
     while(1) {
-      getNextTimeWindow(pQueryAttr, &w);
+//      getNextTimeWindow(pQueryAttr, &w);
       if (w.ekey < pBlockInfo->window.skey) {
         break;
       }
@@ -3513,9 +3528,6 @@ static void setupEnvForReverseScan(STableScanInfo *pTableScanInfo, SqlFunctionCt
 }
 
 void finalizeQueryResult(SOperatorInfo* pOperator, SqlFunctionCtx* pCtx, SResultRowInfo* pResultRowInfo, int32_t* rowCellInfoOffset) {
-  STaskRuntimeEnv *pRuntimeEnv = pOperator->pRuntimeEnv;
-//  STaskAttr *pQueryAttr = pRuntimeEnv->pQueryAttr;
-
   int32_t numOfOutput = pOperator->numOfOutput;
 //  if (pQueryAttr->groupbyColumn || QUERY_IS_INTERVAL_QUERY(pQueryAttr) || pQueryAttr->sw.gap > 0 || pQueryAttr->stateWindow) {
 //    // for each group result, call the finalize function for each column
@@ -3908,7 +3920,7 @@ void setIntervalQueryRange(STaskRuntimeEnv *pRuntimeEnv, TSKEY key) {
 
   TSKEY sk = TMIN(win.skey, win.ekey);
   TSKEY ek = TMAX(win.skey, win.ekey);
-  getAlignQueryTimeWindow(pQueryAttr, win.skey, sk, ek, &w);
+//  getAlignQueryTimeWindow(pQueryAttr, win.skey, sk, ek, &w);
 
 //  if (pResultRowInfo->prevSKey == TSKEY_INITIAL_VAL) {
 //    if (!QUERY_IS_ASC_QUERY(pQueryAttr)) {
@@ -6364,22 +6376,19 @@ static SSDataBlock* doIntervalAgg(void* param, bool* newgroup) {
     return NULL;
   }
 
-  STableIntervalOperatorInfo* pIntervalInfo = pOperator->info;
+  STableIntervalOperatorInfo* pInfo = pOperator->info;
 
-  STaskRuntimeEnv* pRuntimeEnv = pOperator->pRuntimeEnv;
   if (pOperator->status == OP_RES_TO_RETURN) {
 //    toSDatablock(pAggInfo->pGroupResInfo, pAggInfo->pResultBuf, pInfo->pRes, pAggInfo->binfo.capacity);
-    if (pIntervalInfo->pRes->info.rows == 0 || !hasRemainDataInCurrentGroup(&pRuntimeEnv->groupResInfo)) {
+    if (pInfo->binfo.pRes->info.rows == 0 || !hasRemainDataInCurrentGroup(&pInfo->groupResInfo)) {
       doSetOperatorCompleted(pOperator);
     }
 
-    return pIntervalInfo->pRes;
+    return pInfo->binfo.pRes;
   }
 
-  STaskAttr* pQueryAttr = pRuntimeEnv->pQueryAttr;
-  int32_t order = pQueryAttr->order.order;
-  STimeWindow win = pQueryAttr->window;
-
+//  int32_t order = pQueryAttr->order.order;
+//  STimeWindow win = pQueryAttr->window;
   SOperatorInfo* downstream = pOperator->pDownstream[0];
 
   while(1) {
@@ -6391,30 +6400,30 @@ static SSDataBlock* doIntervalAgg(void* param, bool* newgroup) {
       break;
     }
 
-//    setTagValue(pOperator, pRuntimeEnv->current->pTable, pIntervalInfo->pCtx, pOperator->numOfOutput);
+//    setTagValue(pOperator, pRuntimeEnv->current->pTable, pInfo->pCtx, pOperator->numOfOutput);
 
     // the pDataBlock are always the same one, no need to call this again
-    setInputDataBlock(pOperator, pIntervalInfo->pCtx, pBlock, pQueryAttr->order.order);
-    hashIntervalAgg(pOperator, &pIntervalInfo->resultRowInfo, pBlock, 0);
+    setInputDataBlock(pOperator, pInfo->binfo.pCtx, pBlock, TSDB_ORDER_ASC);
+    hashIntervalAgg(pOperator, &pInfo->binfo.resultRowInfo, pBlock, 0);
   }
 
   // restore the value
-  pQueryAttr->order.order = order;
-  pQueryAttr->window = win;
+//  pQueryAttr->order.order = order;
+//  pQueryAttr->window = win;
 
   pOperator->status = OP_RES_TO_RETURN;
-  closeAllResultRows(&pIntervalInfo->resultRowInfo);
+  closeAllResultRows(&pInfo->binfo.resultRowInfo);
   setTaskStatus(pOperator->pTaskInfo, TASK_COMPLETED);
-  finalizeQueryResult(pOperator, pIntervalInfo->pCtx, &pIntervalInfo->resultRowInfo, pIntervalInfo->rowCellInfoOffset);
+  finalizeQueryResult(pOperator, pInfo->binfo.pCtx, &pInfo->binfo.resultRowInfo, pInfo->binfo.rowCellInfoOffset);
 
-  initGroupResInfo(&pRuntimeEnv->groupResInfo, &pIntervalInfo->resultRowInfo);
-//  toSDatablock(&pRuntimeEnv->groupResInfo, pRuntimeEnv, pIntervalInfo->pRes);
+  initGroupResInfo(&pInfo->groupResInfo, &pInfo->binfo.resultRowInfo);
+  toSDatablock(&pInfo->groupResInfo, pInfo->pResultBuf, pInfo->binfo.pRes, pInfo->binfo.capacity);
 
-  if (pIntervalInfo->pRes->info.rows == 0 || !hasRemainDataInCurrentGroup(&pRuntimeEnv->groupResInfo)) {
+  if (pInfo->binfo.pRes->info.rows == 0 || !hasRemainDataInCurrentGroup(&pInfo->groupResInfo)) {
     doSetOperatorCompleted(pOperator);
   }
 
-  return pIntervalInfo->pRes->info.rows == 0? NULL:pIntervalInfo->pRes;
+  return pInfo->binfo.pRes->info.rows == 0? NULL:pInfo->binfo.pRes;
 }
 
 static SSDataBlock* doAllIntervalAgg(void* param, bool* newgroup) {
@@ -6429,11 +6438,11 @@ static SSDataBlock* doAllIntervalAgg(void* param, bool* newgroup) {
   if (pOperator->status == OP_RES_TO_RETURN) {
 //    toSDatablock(&pRuntimeEnv->groupResInfo, pRuntimeEnv, pIntervalInfo->pRes);
 
-    if (pIntervalInfo->pRes->info.rows == 0 || !hasRemainDataInCurrentGroup(&pRuntimeEnv->groupResInfo)) {
+    if (pIntervalInfo->binfo.pRes->info.rows == 0 || !hasRemainDataInCurrentGroup(&pRuntimeEnv->groupResInfo)) {
       doSetOperatorCompleted(pOperator);
     }
 
-    return pIntervalInfo->pRes;
+    return pIntervalInfo->binfo.pRes;
   }
 
   STaskAttr* pQueryAttr = pRuntimeEnv->pQueryAttr;
@@ -6454,8 +6463,8 @@ static SSDataBlock* doAllIntervalAgg(void* param, bool* newgroup) {
 //    setTagValue(pOperator, pRuntimeEnv->current->pTable, pIntervalInfo->pCtx, pOperator->numOfOutput);
 
     // the pDataBlock are always the same one, no need to call this again
-    setInputDataBlock(pOperator, pIntervalInfo->pCtx, pBlock, pQueryAttr->order.order);
-    hashAllIntervalAgg(pOperator, &pIntervalInfo->resultRowInfo, pBlock, 0);
+    setInputDataBlock(pOperator, pIntervalInfo->binfo.pCtx, pBlock, pQueryAttr->order.order);
+    hashAllIntervalAgg(pOperator, &pIntervalInfo->binfo.resultRowInfo, pBlock, 0);
   }
 
   // restore the value
@@ -6463,18 +6472,18 @@ static SSDataBlock* doAllIntervalAgg(void* param, bool* newgroup) {
   pQueryAttr->window = win;
 
   pOperator->status = OP_RES_TO_RETURN;
-  closeAllResultRows(&pIntervalInfo->resultRowInfo);
+  closeAllResultRows(&pIntervalInfo->binfo.resultRowInfo);
   setTaskStatus(pOperator->pTaskInfo, TASK_COMPLETED);
-  finalizeQueryResult(pOperator, pIntervalInfo->pCtx, &pIntervalInfo->resultRowInfo, pIntervalInfo->rowCellInfoOffset);
+  finalizeQueryResult(pOperator, pIntervalInfo->binfo.pCtx, &pIntervalInfo->binfo.resultRowInfo, pIntervalInfo->binfo.rowCellInfoOffset);
 
-  initGroupResInfo(&pRuntimeEnv->groupResInfo, &pIntervalInfo->resultRowInfo);
+  initGroupResInfo(&pRuntimeEnv->groupResInfo, &pIntervalInfo->binfo.resultRowInfo);
 //  toSDatablock(&pRuntimeEnv->groupResInfo, pRuntimeEnv, pIntervalInfo->pRes);
 
-  if (pIntervalInfo->pRes->info.rows == 0 || !hasRemainDataInCurrentGroup(&pRuntimeEnv->groupResInfo)) {
+  if (pIntervalInfo->binfo.pRes->info.rows == 0 || !hasRemainDataInCurrentGroup(&pRuntimeEnv->groupResInfo)) {
     pOperator->status = OP_EXEC_DONE;
   }
 
-  return pIntervalInfo->pRes->info.rows == 0? NULL:pIntervalInfo->pRes;
+  return pIntervalInfo->binfo.pRes->info.rows == 0? NULL:pIntervalInfo->binfo.pRes;
 }
 
 static SSDataBlock* doSTableIntervalAgg(void* param, bool* newgroup) {
@@ -6490,14 +6499,14 @@ static SSDataBlock* doSTableIntervalAgg(void* param, bool* newgroup) {
     int64_t st = taosGetTimestampUs();
 
 //    copyToSDataBlock(NULL, 3000, pIntervalInfo->pRes, pIntervalInfo->rowCellInfoOffset);
-    if (pIntervalInfo->pRes->info.rows == 0 || !hasRemainData(&pRuntimeEnv->groupResInfo)) {
+    if (pIntervalInfo->binfo.pRes->info.rows == 0 || !hasRemainData(&pRuntimeEnv->groupResInfo)) {
       doSetOperatorCompleted(pOperator);
     }
 
     SQInfo* pQInfo = pRuntimeEnv->qinfo;
     pQInfo->summary.firstStageMergeTime += (taosGetTimestampUs() - st);
 
-    return pIntervalInfo->pRes;
+    return pIntervalInfo->binfo.pRes;
   }
 
   STaskAttr* pQueryAttr = pRuntimeEnv->pQueryAttr;
@@ -6518,7 +6527,7 @@ static SSDataBlock* doSTableIntervalAgg(void* param, bool* newgroup) {
     STableQueryInfo* pTableQueryInfo = pRuntimeEnv->current;
 
 //    setTagValue(pOperator, pTableQueryInfo->pTable, pIntervalInfo->pCtx, pOperator->numOfOutput);
-    setInputDataBlock(pOperator, pIntervalInfo->pCtx, pBlock, pQueryAttr->order.order);
+    setInputDataBlock(pOperator, pIntervalInfo->binfo.pCtx, pBlock, pQueryAttr->order.order);
     setIntervalQueryRange(pRuntimeEnv, pBlock->info.window.skey);
 
     hashIntervalAgg(pOperator, &pTableQueryInfo->resInfo, pBlock, pTableQueryInfo->groupIndex);
@@ -6530,11 +6539,11 @@ static SSDataBlock* doSTableIntervalAgg(void* param, bool* newgroup) {
   setTaskStatus(pOperator->pTaskInfo, TASK_COMPLETED);
 
 //  copyToSDataBlock(pRuntimeEnv, 3000, pIntervalInfo->pRes, pIntervalInfo->rowCellInfoOffset);
-  if (pIntervalInfo->pRes->info.rows == 0 || !hasRemainData(&pRuntimeEnv->groupResInfo)) {
+  if (pIntervalInfo->binfo.pRes->info.rows == 0 || !hasRemainData(&pRuntimeEnv->groupResInfo)) {
     pOperator->status = OP_EXEC_DONE;
   }
 
-  return pIntervalInfo->pRes;
+  return pIntervalInfo->binfo.pRes;
 }
 
 static SSDataBlock* doAllSTableIntervalAgg(void* param, bool* newgroup) {
@@ -6548,11 +6557,11 @@ static SSDataBlock* doAllSTableIntervalAgg(void* param, bool* newgroup) {
 
   if (pOperator->status == OP_RES_TO_RETURN) {
 //    copyToSDataBlock(pRuntimeEnv, 3000, pIntervalInfo->pRes, pIntervalInfo->rowCellInfoOffset);
-    if (pIntervalInfo->pRes->info.rows == 0 || !hasRemainData(&pRuntimeEnv->groupResInfo)) {
+    if (pIntervalInfo->binfo.pRes->info.rows == 0 || !hasRemainData(&pRuntimeEnv->groupResInfo)) {
       pOperator->status = OP_EXEC_DONE;
     }
 
-    return pIntervalInfo->pRes;
+    return pIntervalInfo->binfo.pRes;
   }
 
   STaskAttr* pQueryAttr = pRuntimeEnv->pQueryAttr;
@@ -6573,7 +6582,7 @@ static SSDataBlock* doAllSTableIntervalAgg(void* param, bool* newgroup) {
     STableQueryInfo* pTableQueryInfo = pRuntimeEnv->current;
 
 //    setTagValue(pOperator, pTableQueryInfo->pTable, pIntervalInfo->pCtx, pOperator->numOfOutput);
-    setInputDataBlock(pOperator, pIntervalInfo->pCtx, pBlock, pQueryAttr->order.order);
+    setInputDataBlock(pOperator, pIntervalInfo->binfo.pCtx, pBlock, pQueryAttr->order.order);
     setIntervalQueryRange(pRuntimeEnv, pBlock->info.window.skey);
 
     hashAllIntervalAgg(pOperator, &pTableQueryInfo->resInfo, pBlock, pTableQueryInfo->groupIndex);
@@ -6586,14 +6595,14 @@ static SSDataBlock* doAllSTableIntervalAgg(void* param, bool* newgroup) {
 
   int64_t st = taosGetTimestampUs();
 //  copyToSDataBlock(pRuntimeEnv, 3000, pIntervalInfo->pRes, pIntervalInfo->rowCellInfoOffset);
-  if (pIntervalInfo->pRes->info.rows == 0 || !hasRemainData(&pRuntimeEnv->groupResInfo)) {
+  if (pIntervalInfo->binfo.pRes->info.rows == 0 || !hasRemainData(&pRuntimeEnv->groupResInfo)) {
     pOperator->status = OP_EXEC_DONE;
   }
 
   SQInfo* pQInfo = pRuntimeEnv->qinfo;
   pQInfo->summary.firstStageMergeTime += (taosGetTimestampUs() - st);
 
-  return pIntervalInfo->pRes;
+  return pIntervalInfo->binfo.pRes;
 }
 
 static void doStateWindowAggImpl(SOperatorInfo* pOperator, SStateWindowOperatorInfo *pInfo, SSDataBlock *pSDataBlock) {
@@ -6645,8 +6654,8 @@ static void doStateWindowAggImpl(SOperatorInfo* pOperator, SStateWindowOperatorI
       if (ret != TSDB_CODE_SUCCESS) {  // null data, too many state code
         longjmp(pRuntimeEnv->env, TSDB_CODE_QRY_APP_ERROR);
       }
-      doApplyFunctions(pRuntimeEnv, pBInfo->pCtx, &pInfo->curWindow, pInfo->start, pInfo->numOfRows, tsList,
-                       pSDataBlock->info.rows, pOperator->numOfOutput);
+//      doApplyFunctions(pRuntimeEnv, pBInfo->pCtx, &pInfo->curWindow, pInfo->start, pInfo->numOfRows, tsList,
+//                       pSDataBlock->info.rows, pOperator->numOfOutput);
 
       pInfo->curWindow.skey = tsList[j];
       pInfo->curWindow.ekey = tsList[j];
@@ -6667,8 +6676,8 @@ static void doStateWindowAggImpl(SOperatorInfo* pOperator, SStateWindowOperatorI
     longjmp(pRuntimeEnv->env, TSDB_CODE_QRY_APP_ERROR);
   }
 
-  doApplyFunctions(pRuntimeEnv, pBInfo->pCtx, &pInfo->curWindow, pInfo->start, pInfo->numOfRows, tsList,
-                   pSDataBlock->info.rows, pOperator->numOfOutput);
+//  doApplyFunctions(pRuntimeEnv, pBInfo->pCtx, &pInfo->curWindow, pInfo->start, pInfo->numOfRows, tsList,
+//                   pSDataBlock->info.rows, pOperator->numOfOutput);
 }
 
 static SSDataBlock* doStateWindowAgg(void *param, bool* newgroup) {
@@ -7268,27 +7277,44 @@ SOperatorInfo* createLimitOperatorInfo(STaskRuntimeEnv* pRuntimeEnv, SOperatorIn
   return pOperator;
 }
 
-SOperatorInfo* createTimeIntervalOperatorInfo(STaskRuntimeEnv* pRuntimeEnv, SOperatorInfo* downstream, SExprInfo* pExpr, int32_t numOfOutput) {
+SOperatorInfo* createIntervalOperatorInfo(SOperatorInfo* downstream, SArray* pExprInfo, SExecTaskInfo* pTaskInfo) {
   STableIntervalOperatorInfo* pInfo = calloc(1, sizeof(STableIntervalOperatorInfo));
 
-  pInfo->pCtx = createSqlFunctionCtx(pRuntimeEnv, pExpr, numOfOutput, &pInfo->rowCellInfoOffset);
-  pInfo->pRes = createOutputBuf(pExpr, numOfOutput, pRuntimeEnv->resultInfo.capacity);
-  initResultRowInfo(&pInfo->resultRowInfo, 8);
+  initAggSup(&pInfo->aggSup, pExprInfo);
+
+  // todo:
+  pInfo->order = TSDB_ORDER_ASC;
+  pInfo->precision = TSDB_TIME_PRECISION_MICRO;
+  pInfo->win.skey = INT64_MIN;
+  pInfo->win.ekey = INT64_MAX;
+  pInfo->interval.intervalUnit = 's';
+  pInfo->interval.slidingUnit  = 's';
+  pInfo->interval.interval = 1000;
+  pInfo->interval.sliding  = 1000;
+
+  int32_t code = createDiskbasedBuf(&pInfo->pResultBuf, 4096, 4096 * 256, 0, "/tmp/");
+
+  int32_t numOfOutput = taosArrayGetSize(pExprInfo);
+  pInfo->binfo.pCtx = createSqlFunctionCtx_rv(pExprInfo, &pInfo->binfo.rowCellInfoOffset, &pInfo->binfo.resRowSize);
+  pInfo->binfo.pRes = createOutputBuf_rv(pExprInfo, pInfo->binfo.capacity);
+
+  initResultRowInfo(&pInfo->binfo.resultRowInfo, (int32_t)1);
 
   SOperatorInfo* pOperator = calloc(1, sizeof(SOperatorInfo));
 
   pOperator->name         = "TimeIntervalAggOperator";
-//  pOperator->operatorType = OP_TimeWindow;
+  pOperator->operatorType = OP_TimeWindow;
   pOperator->blockingOptr = true;
   pOperator->status       = OP_IN_EXECUTING;
-  pOperator->pExpr        = pExpr;
+  pOperator->pExpr        = exprArrayDup(pExprInfo);
+
+  pOperator->pTaskInfo    = pTaskInfo;
   pOperator->numOfOutput  = numOfOutput;
   pOperator->info         = pInfo;
-  pOperator->pRuntimeEnv  = pRuntimeEnv;
   pOperator->exec         = doIntervalAgg;
   pOperator->cleanupFn    = destroyBasicOperatorInfo;
 
-    int32_t code = appendDownstream(pOperator, &downstream, 1);
+  code = appendDownstream(pOperator, &downstream, 1);
   return pOperator;
 }
 
@@ -7296,9 +7322,9 @@ SOperatorInfo* createTimeIntervalOperatorInfo(STaskRuntimeEnv* pRuntimeEnv, SOpe
 SOperatorInfo* createAllTimeIntervalOperatorInfo(STaskRuntimeEnv* pRuntimeEnv, SOperatorInfo* downstream, SExprInfo* pExpr, int32_t numOfOutput) {
   STableIntervalOperatorInfo* pInfo = calloc(1, sizeof(STableIntervalOperatorInfo));
 
-  pInfo->pCtx = createSqlFunctionCtx(pRuntimeEnv, pExpr, numOfOutput, &pInfo->rowCellInfoOffset);
-  pInfo->pRes = createOutputBuf(pExpr, numOfOutput, pRuntimeEnv->resultInfo.capacity);
-  initResultRowInfo(&pInfo->resultRowInfo, 8);
+  pInfo->binfo.pCtx = createSqlFunctionCtx(pRuntimeEnv, pExpr, numOfOutput, &pInfo->binfo.rowCellInfoOffset);
+  pInfo->binfo.pRes = createOutputBuf(pExpr, numOfOutput, pRuntimeEnv->resultInfo.capacity);
+  initResultRowInfo(&pInfo->binfo.resultRowInfo, 8);
 
   SOperatorInfo* pOperator = calloc(1, sizeof(SOperatorInfo));
 
@@ -7369,9 +7395,9 @@ SOperatorInfo* createSWindowOperatorInfo(STaskRuntimeEnv* pRuntimeEnv, SOperator
 SOperatorInfo* createMultiTableTimeIntervalOperatorInfo(STaskRuntimeEnv* pRuntimeEnv, SOperatorInfo* downstream, SExprInfo* pExpr, int32_t numOfOutput) {
   STableIntervalOperatorInfo* pInfo = calloc(1, sizeof(STableIntervalOperatorInfo));
 
-  pInfo->pCtx = createSqlFunctionCtx(pRuntimeEnv, pExpr, numOfOutput, &pInfo->rowCellInfoOffset);
-  pInfo->pRes = createOutputBuf(pExpr, numOfOutput, pRuntimeEnv->resultInfo.capacity);
-  initResultRowInfo(&pInfo->resultRowInfo, 8);
+  pInfo->binfo.pCtx = createSqlFunctionCtx(pRuntimeEnv, pExpr, numOfOutput, &pInfo->binfo.rowCellInfoOffset);
+  pInfo->binfo.pRes = createOutputBuf(pExpr, numOfOutput, pRuntimeEnv->resultInfo.capacity);
+  initResultRowInfo(&pInfo->binfo.resultRowInfo, 8);
 
   SOperatorInfo* pOperator = calloc(1, sizeof(SOperatorInfo));
   pOperator->name         = "MultiTableTimeIntervalOperator";
@@ -7393,9 +7419,9 @@ SOperatorInfo* createMultiTableTimeIntervalOperatorInfo(STaskRuntimeEnv* pRuntim
 SOperatorInfo* createAllMultiTableTimeIntervalOperatorInfo(STaskRuntimeEnv* pRuntimeEnv, SOperatorInfo* downstream, SExprInfo* pExpr, int32_t numOfOutput) {
   STableIntervalOperatorInfo* pInfo = calloc(1, sizeof(STableIntervalOperatorInfo));
 
-  pInfo->pCtx = createSqlFunctionCtx(pRuntimeEnv, pExpr, numOfOutput, &pInfo->rowCellInfoOffset);
-  pInfo->pRes = createOutputBuf(pExpr, numOfOutput, pRuntimeEnv->resultInfo.capacity);
-  initResultRowInfo(&pInfo->resultRowInfo, 8);
+  pInfo->binfo.pCtx = createSqlFunctionCtx(pRuntimeEnv, pExpr, numOfOutput, &pInfo->binfo.rowCellInfoOffset);
+  pInfo->binfo.pRes = createOutputBuf(pExpr, numOfOutput, pRuntimeEnv->resultInfo.capacity);
+  initResultRowInfo(&pInfo->binfo.resultRowInfo, 8);
 
   SOperatorInfo* pOperator = calloc(1, sizeof(SOperatorInfo));
   pOperator->name         = "AllMultiTableTimeIntervalOperator";
@@ -7458,7 +7484,7 @@ SOperatorInfo* createFillOperatorInfo(STaskRuntimeEnv* pRuntimeEnv, SOperatorInf
 
     TSKEY sk = TMIN(pQueryAttr->window.skey, pQueryAttr->window.ekey);
     TSKEY ek = TMAX(pQueryAttr->window.skey, pQueryAttr->window.ekey);
-    getAlignQueryTimeWindow(pQueryAttr, pQueryAttr->window.skey, sk, ek, &w);
+//    getAlignQueryTimeWindow(pQueryAttr, pQueryAttr->window.skey, sk, ek, &w);
 
     pInfo->pFillInfo =
         taosCreateFillInfo(pQueryAttr->order.order, w.skey, 0, (int32_t)pRuntimeEnv->resultInfo.capacity, numOfOutput,

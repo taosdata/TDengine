@@ -4395,7 +4395,7 @@ SFunctionFpSet fpSet[1] = {
       .addInput = count_function,
       .finalize = doFinalizer,
       .combine = count_func_merge,
-    }
+    },
 };
 
 SAggFunctionInfo aggFunc[35] = {{

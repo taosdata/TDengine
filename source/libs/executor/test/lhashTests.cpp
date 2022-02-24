@@ -28,9 +28,9 @@ TEST(testCase, linear_hash_Tests) {
   srand(time(NULL));
 
   _hash_fn_t fn = taosGetDefaultHashFunction(TSDB_DATA_TYPE_INT);
-#if 1
-  SLHashObj* pHashObj = tHashInit(10, 128 + 8, fn, 8);
-  for(int32_t i = 0; i < 100; ++i) {
+#if 0
+  SLHashObj* pHashObj = tHashInit(256, 4096, fn, 320);
+  for(int32_t i = 0; i < 5000000; ++i) {
     int32_t code = tHashPut(pHashObj, &i, sizeof(i), &i, sizeof(i));
     assert(code == 0);
   }
@@ -46,13 +46,13 @@ TEST(testCase, linear_hash_Tests) {
 //    }
 //  }
 
-  tHashPrint(pHashObj, LINEAR_HASH_DATA);
+  tHashPrint(pHashObj, LINEAR_HASH_STATIS);
   tHashCleanup(pHashObj);
 #endif
 
 #if 0
   SHashObj* pHashObj = taosHashInit(1000, fn, false, HASH_NO_LOCK);
-  for(int32_t i = 0; i < 500000; ++i) {
+  for(int32_t i = 0; i < 1000000; ++i) {
     taosHashPut(pHashObj, &i, sizeof(i), &i, sizeof(i));
   }
 

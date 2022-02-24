@@ -32,7 +32,7 @@ typedef struct SDiskbasedBuf SDiskbasedBuf;
 #define DEFAULT_INTERN_BUF_PAGE_SIZE  (1024L)                          // in bytes
 
 typedef struct SFilePage {
-  int64_t num;
+  int32_t num;
   char    data[];
 } SFilePage;
 

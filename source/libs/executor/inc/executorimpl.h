@@ -453,7 +453,19 @@ typedef struct SAggSupporter {
   SResultRowPool      *pool;  // The window result objects pool, all the resultRow Objects are allocated and managed by this object.
 } SAggSupporter;
 
-typedef struct SOptrBasicInfo STableIntervalOperatorInfo;
+typedef struct STableIntervalOperatorInfo {
+  SOptrBasicInfo       binfo;
+  SDiskbasedBuf       *pResultBuf;           // query result buffer based on blocked-wised disk file
+  SGroupResInfo        groupResInfo;
+  SInterval            interval;
+  STimeWindow          win;
+  int32_t              precision;
+  bool                 timeWindowInterpo;
+  char               **pRow;
+  SAggSupporter        aggSup;
+  STableQueryInfo     *pCurrent;
+  int32_t              order;
+} STableIntervalOperatorInfo;
 
 typedef struct SAggOperatorInfo {
   SOptrBasicInfo       binfo;
@@ -606,8 +618,8 @@ SOperatorInfo* createMultiTableAggOperatorInfo(SOperatorInfo* downstream, SArray
 SOperatorInfo* createProjectOperatorInfo(STaskRuntimeEnv* pRuntimeEnv, SOperatorInfo* downstream, SExprInfo* pExpr,
                                          int32_t numOfOutput);
 SOperatorInfo* createLimitOperatorInfo(STaskRuntimeEnv* pRuntimeEnv, SOperatorInfo* downstream);
-SOperatorInfo* createTimeIntervalOperatorInfo(STaskRuntimeEnv* pRuntimeEnv, SOperatorInfo* downstream, SExprInfo* pExpr,
-                                              int32_t numOfOutput);
+SOperatorInfo* createIntervalOperatorInfo(SOperatorInfo* downstream, SArray* pExprInfo, SExecTaskInfo* pTaskInfo);
+
 SOperatorInfo* createAllTimeIntervalOperatorInfo(STaskRuntimeEnv* pRuntimeEnv, SOperatorInfo* downstream,
                                                  SExprInfo* pExpr, int32_t numOfOutput);
 SOperatorInfo* createSWindowOperatorInfo(STaskRuntimeEnv* pRuntimeEnv, SOperatorInfo* downstream, SExprInfo* pExpr,

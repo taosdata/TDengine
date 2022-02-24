@@ -68,6 +68,7 @@ typedef struct SResultRow {
 } SResultRow;
 
 typedef struct SResultRowInfo {
+  SResultRow  *pCurResult; // current active result row info
   SResultRow** pResult;    // result list
 //  int16_t      type:8;     // data type for hash key
   int32_t      size;       // number of result set

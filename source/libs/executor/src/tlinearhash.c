@@ -44,8 +44,8 @@ typedef struct SLHashObj {
  * +-----------+-------+--------+
  */
 typedef struct SLHashNode {
-  int32_t   keyLen;
-  int32_t   dataLen;
+  uint16_t   keyLen;
+  uint16_t   dataLen;
 } SLHashNode;
 
 #define GET_LHASH_NODE_KEY(_n)      (((char*)(_n)) + sizeof(SLHashNode))
@@ -70,10 +70,10 @@ static int32_t doGetRelatedSplitBucketId(int32_t bucketId, int32_t bits) {
 }
 
 static void doCopyObject(char* p, const void* key, int32_t keyLen, const void* data, int32_t size) {
-  *(int32_t*) p = keyLen;
-  p += sizeof(int32_t);
-  *(int32_t*) p = size;
-  p += sizeof(int32_t);
+  *(uint16_t*) p = keyLen;
+  p += sizeof(uint16_t);
+  *(uint16_t*) p = size;
+  p += sizeof(uint16_t);
 
   memcpy(p, key, keyLen);
   p += keyLen;
@@ -118,7 +118,7 @@ static int32_t doAddToBucket(SLHashObj* pHashObj, SLHashBucket* pBucket, int32_t
   }
 
   pBucket->size += 1;
-  printf("===> add to bucket:0x%x, num:%d, key:%d\n", index, pBucket->size, *(int*) key);
+//  printf("===> add to bucket:0x%x, num:%d, key:%d\n", index, pBucket->size, *(int*) key);
 
   return TSDB_CODE_SUCCESS;
 }
@@ -154,6 +154,14 @@ static void doCompressBucketPages(SLHashObj *pHashObj, SLHashBucket* pBucket) {
   int32_t*   pageId = taosArrayGetLast(pBucket->pPageIdList);
   SFilePage* pLast = getBufPage(pHashObj->pBuf, *pageId);
 
+  if (pLast->num <= sizeof(SFilePage)) {
+    // this is empty
+    dBufSetBufPageRecycled(pHashObj->pBuf, pLast);
+    releaseBufPage(pHashObj->pBuf, pFirst);
+    taosArrayRemove(pBucket->pPageIdList, numOfPages - 1);
+    return;
+  }
+
   char*   pStart = pLast->data;
   int32_t nodeSize = GET_LHASH_NODE_LEN(pStart);
   while (1) {
@@ -162,21 +170,33 @@ static void doCompressBucketPages(SLHashObj *pHashObj, SLHashBucket* pBucket) {
 
       SLHashNode* pNode = (SLHashNode*)pStart;
       doCopyObject(p, GET_LHASH_NODE_KEY(pStart), pNode->keyLen, GET_LHASH_NODE_DATA(pStart), pNode->dataLen);
+
       setBufPageDirty(pFirst, true);
+      setBufPageDirty(pLast, true);
+
+      ASSERT(pLast->num >= nodeSize + sizeof(SFilePage));
 
       pFirst->num += nodeSize;
       pLast->num -= nodeSize;
+
       pStart += nodeSize;
-      if (pStart - pLast->data >= pLast->num) {
+      if (pLast->num <= sizeof(SFilePage)) {
         // this is empty
         dBufSetBufPageRecycled(pHashObj->pBuf, pLast);
+        releaseBufPage(pHashObj->pBuf, pFirst);
         taosArrayRemove(pBucket->pPageIdList, numOfPages - 1);
         break;
       }
 
       nodeSize = GET_LHASH_NODE_LEN(pStart);
     } else { // move to the front of pLast page
-      memmove(pLast->data, pStart,(((char*)pLast) + pLast->num - pStart));
+      if (pStart != pLast->data) {
+        memmove(pLast->data, pStart, (((char*)pLast) + pLast->num - pStart));
+        setBufPageDirty(pLast, true);
+      }
+
+      releaseBufPage(pHashObj->pBuf, pLast);
+      releaseBufPage(pHashObj->pBuf, pFirst);
       break;
     }
   }
@@ -216,7 +236,7 @@ static int32_t doAddNewBucket(SLHashObj* pHashObj) {
   taosArrayPush(pBucket->pPageIdList, &pageId);
 
   pHashObj->numOfBuckets += 1;
-  printf("---------------add new bucket, id:0x%x, total:%d\n", pHashObj->numOfBuckets - 1, pHashObj->numOfBuckets);
+//  printf("---------------add new bucket, id:0x%x, total:%d\n", pHashObj->numOfBuckets - 1, pHashObj->numOfBuckets);
   return TSDB_CODE_SUCCESS;
 }
 
@@ -281,7 +301,7 @@ int32_t tHashPut(SLHashObj* pHashObj, const void *key, size_t keyLen, void *data
 
     if (v >= pHashObj->numOfBuckets) {
       int32_t newBucketId = doGetAlternativeBucketId(v, pHashObj->bits, pHashObj->numOfBuckets);
-      printf("bucketId: 0x%x not exists, put it into 0x%x instead\n", v, newBucketId);
+//      printf("bucketId: 0x%x not exists, put it into 0x%x instead\n", v, newBucketId);
       v = newBucketId;
     }
 
@@ -305,7 +325,7 @@ int32_t tHashPut(SLHashObj* pHashObj, const void *key, size_t keyLen, void *data
 
     int32_t numOfBits = ceil(log(pHashObj->numOfBuckets) / log(2));
     if (numOfBits > pHashObj->bits) {
-      printf("extend the bits from %d to %d, new bucket:%d\n", pHashObj->bits, numOfBits, newBucketId);
+//      printf("extend the bits from %d to %d, new bucket:%d\n", pHashObj->bits, numOfBits, newBucketId);
       ASSERT(numOfBits == pHashObj->bits + 1);
       pHashObj->bits = numOfBits;
     }
@@ -314,7 +334,7 @@ int32_t tHashPut(SLHashObj* pHashObj, const void *key, size_t keyLen, void *data
 
     // load all data in this bucket and check if the data needs to relocated into the new bucket
     SLHashBucket* pBucket = pHashObj->pBucket[splitBucketId];
-    printf("split %d items' bucket:0x%x to new bucket:0x%x\n", pBucket->size, splitBucketId, newBucketId);
+//    printf("split %d items' bucket:0x%x to new bucket:0x%x\n", pBucket->size, splitBucketId, newBucketId);
 
     for (int32_t i = 0; i < taosArrayGetSize(pBucket->pPageIdList); ++i) {
       int32_t    pageId = *(int32_t*)taosArrayGet(pBucket->pPageIdList, i);
@@ -331,14 +351,14 @@ int32_t tHashPut(SLHashObj* pHashObj, const void *key, size_t keyLen, void *data
 
         if (v1 != splitBucketId) {  // place it into the new bucket
           ASSERT(v1 == newBucketId);
-          printf("move key:%d to 0x%x bucket, remain items:%d\n", *(int32_t*)k, v1, pBucket->size - 1);
+//          printf("move key:%d to 0x%x bucket, remain items:%d\n", *(int32_t*)k, v1, pBucket->size - 1);
 
           SLHashBucket* pNewBucket = pHashObj->pBucket[newBucketId];
           doAddToBucket(pHashObj, pNewBucket, newBucketId, (void*)GET_LHASH_NODE_KEY(pNode), pNode->keyLen,
                         GET_LHASH_NODE_KEY(pNode), pNode->dataLen);
           doRemoveFromBucket(p, pNode, pBucket);
         } else {
-          printf("check key:%d, located into: %d, skip it\n", *(int*) k, v1);
+//          printf("check key:%d, located into: %d, skip it\n", *(int*) k, v1);
 
           int32_t nodeSize = GET_LHASH_NODE_LEN(pStart);
           pStart += nodeSize;
@@ -398,8 +418,8 @@ void tHashPrint(const SLHashObj* pHashObj, int32_t type) {
 
   if (type == LINEAR_HASH_DATA) {
     for (int32_t i = 0; i < pHashObj->numOfBuckets; ++i) {
-      printf("bucket: 0x%x, obj:%d, page:%d\n", i, pHashObj->pBucket[i]->size,
-             (int)taosArrayGetSize(pHashObj->pBucket[i]->pPageIdList));
+//      printf("bucket: 0x%x, obj:%d, page:%d\n", i, pHashObj->pBucket[i]->size,
+//             (int)taosArrayGetSize(pHashObj->pBucket[i]->pPageIdList));
     }
   } else {
     dBufPrintStatis(pHashObj->pBuf);

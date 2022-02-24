@@ -54,7 +54,6 @@ int32_t getOutputInterResultBufSize(STaskAttr* pQueryAttr) {
 }
 
 int32_t initResultRowInfo(SResultRowInfo *pResultRowInfo, int32_t size) {
-//  pResultRowInfo->type     = type;
   pResultRowInfo->size     = 0;
   pResultRowInfo->curPos  = -1;
   pResultRowInfo->capacity = size;
