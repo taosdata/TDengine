@@ -17,18 +17,6 @@
 #include "dmnInt.h"
 #include "tconfig.h"
 
-SDnodeEnvCfg dmnGetEnvCfg() {
-  SConfig *pCfg = taosGetCfg();
-  SDnodeEnvCfg envCfg = {0};
-
-  const char *vstr = cfgGetItem(pCfg, "version")->str;
-  envCfg.sver = 30000000;
-  envCfg.numOfCores = cfgGetItem(pCfg, "numOfCores")->i32;
-  envCfg.numOfCommitThreads = (uint16_t)cfgGetItem(pCfg, "numOfCommitThreads")->i32;
-  envCfg.enableTelem = cfgGetItem(pCfg, "telemetryReporting")->bval;
-  return envCfg;
-}
-
 SDnodeObjCfg dmnGetObjCfg() {
   SConfig *pCfg = taosGetCfg();
   SDnodeObjCfg objCfg = {0};

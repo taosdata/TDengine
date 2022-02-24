@@ -25,22 +25,12 @@ extern "C" {
 /* ------------------------ TYPES EXPOSED ---------------- */
 typedef struct SDnode SDnode;
 
-/* ------------------------ Environment ------------------ */
-typedef struct {
-  int32_t  sver;
-  int32_t  numOfCores;
-  uint16_t numOfCommitThreads;
-  bool     enableTelem;
-  bool     printAuth;
-} SDnodeEnvCfg;
-
 /**
  * @brief Initialize the environment
  *
- * @param pOption Option of the environment
  * @return int32_t 0 for success and -1 for failure
  */
-int32_t dndInit(const SDnodeEnvCfg *pCfg);
+int32_t dndInit();
 
 /**
  * @brief clear the environment
@@ -51,12 +41,6 @@ void dndCleanup();
 /* ------------------------ SDnode ----------------------- */
 typedef struct {
   int32_t  numOfSupportVnodes;
-  // int32_t  statusInterval;
-  // float    numOfThreadsPerCore;
-  // float    ratioOfQueryCores;
-  // int32_t  maxShellConns;
-  // int32_t  shellActivityTimer;
-
   uint16_t serverPort;
   char     dataDir[TSDB_FILENAME_LEN];
   char     localEp[TSDB_EP_LEN];

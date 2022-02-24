@@ -273,8 +273,8 @@ static void dndInitMnodeOption(SDnode *pDnode, SMnodeOpt *pOption) {
   pOption->putReqToMReadQFp = dndPutMsgToMReadQ;
   pOption->dnodeId = dndGetDnodeId(pDnode);
   pOption->clusterId = dndGetClusterId(pDnode);
-  pOption->cfg.sver = pDnode->env.sver;
-  pOption->cfg.enableTelem = pDnode->env.enableTelem;
+  pOption->cfg.sver = tsVersion;
+  pOption->cfg.enableTelem = tsEnableTelemetryReporting;
 }
 
 static void dndBuildMnodeDeployOption(SDnode *pDnode, SMnodeOpt *pOption) {

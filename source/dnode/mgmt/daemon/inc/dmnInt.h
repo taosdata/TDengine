@@ -28,7 +28,6 @@
 extern "C" {
 #endif
 
-SDnodeEnvCfg dmnGetEnvCfg();
 SDnodeObjCfg dmnGetObjCfg();
 
 void dmnDumpCfg();

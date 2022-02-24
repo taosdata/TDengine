@@ -344,7 +344,7 @@ static int32_t dndInitServer(SDnode *pDnode) {
   STransMgmt *pMgmt = &pDnode->tmgmt;
   dndInitMsgFp(pMgmt);
 
-  int32_t numOfThreads = (int32_t)((pDnode->env.numOfCores * tsNumOfThreadsPerCore) / 2.0);
+  int32_t numOfThreads = (int32_t)((tsNumOfCores * tsNumOfThreadsPerCore) / 2.0);
   if (numOfThreads < 1) {
     numOfThreads = 1;
   }

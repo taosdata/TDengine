@@ -220,7 +220,6 @@ static void taosAddClientLogCfg(SConfig *pCfg) {
 }
 
 static void taosAddServerLogCfg(SConfig *pCfg) {
-  taosAddClientLogCfg(pCfg);
   cfgAddInt32(pCfg, "dDebugFlag", dDebugFlag, 0, 255, 0);
   cfgAddInt32(pCfg, "vDebugFlag", vDebugFlag, 0, 255, 0);
   cfgAddInt32(pCfg, "mDebugFlag", mDebugFlag, 0, 255, 0);
@@ -277,7 +276,6 @@ static void taosAddClientCfg(SConfig *pCfg) {
 }
 
 static void taosAddServerCfg(SConfig *pCfg) {
-  taosAddClientCfg(pCfg);
   cfgAddInt32(pCfg, "supportVnodes", 256, 0, 65536, 0);
   cfgAddDir(pCfg, "dataDir", osDataDir(), 0);
   cfgAddFloat(pCfg, "minimalDataDirGB", 2.0f, 0.001f, 10000000, 0);
@@ -324,7 +322,6 @@ static void taosSetServerLogCfg(SConfig *pCfg) {
   tsdbDebugFlag = cfgGetItem(pCfg, "tsdbDebugFlag")->i32;
   tqDebugFlag = cfgGetItem(pCfg, "tqDebugFlag")->i32;
   fsDebugFlag = cfgGetItem(pCfg, "fsDebugFlag")->i32;
-  taosSetAllDebugFlag(cfgGetItem(pCfg, "debugFlag")->i32);
 }
 
 static void taosSetClientCfg(SConfig *pCfg) {
@@ -342,12 +339,15 @@ static void taosSetClientCfg(SConfig *pCfg) {
   cfgSetItem(pCfg, "timezone", osTimezone(), pItem->stype);
 
   taosGetSystemInfo();
-  if (tsNumOfCores <= 0) {
-    tsNumOfCores = 1;
+  if (tsNumOfCores <= 1) {
+    tsNumOfCores = 2;
   }
 
   bool enableCore = cfgGetItem(pCfg, "enableCoreFile")->bval;
   taosSetCoreDump(enableCore);
+
+  // todo
+  tsVersion = 30000000;
 }
 
 static void taosSetServerCfg(SConfig *pCfg) {
@@ -363,15 +363,16 @@ static void taosSetServerCfg(SConfig *pCfg) {
 int32_t taosCreateLog(const char *logname, int32_t logFileNum, const char *cfgDir, const char *envFile,
                       const char *apolloUrl, bool tsc) {
   SConfig *pCfg = cfgInit();
-  if (tsCfg == NULL) return -1;
+  if (pCfg == NULL) return -1;
 
   if (tsc) {
     taosAddClientLogCfg(pCfg);
   } else {
+    taosAddClientLogCfg(pCfg);
     taosAddServerLogCfg(pCfg);
   }
 
-  if (taosLoadCfg(tsCfg, cfgDir, envFile, apolloUrl) != 0) {
+  if (taosLoadCfg(pCfg, cfgDir, envFile, apolloUrl) != 0) {
     uError("failed to load cfg since %s", terrstr());
     cfgCleanup(pCfg);
     return -1;
@@ -379,8 +380,11 @@ int32_t taosCreateLog(const char *logname, int32_t logFileNum, const char *cfgDi
 
   if (tsc) {
     taosSetClientLogCfg(pCfg);
+    taosSetAllDebugFlag(cfgGetItem(pCfg, "debugFlag")->i32);
   } else {
+    taosSetClientLogCfg(pCfg);
     taosSetServerLogCfg(pCfg);
+    taosSetAllDebugFlag(cfgGetItem(pCfg, "debugFlag")->i32);
   }
 
   if (taosInitLog(logname, logFileNum) != 0) {
@@ -396,12 +400,15 @@ int32_t taosCreateLog(const char *logname, int32_t logFileNum, const char *cfgDi
 int32_t taosInitCfg(const char *cfgDir, const char *envFile, const char *apolloUrl, bool tsc) {
   if (tsCfg != NULL) return 0;
   tsCfg = cfgInit();
-  if (tsCfg == NULL) return -1;
 
   if (tsc) {
-    taosAddServerCfg(tsCfg);
-  } else {
+    taosAddClientLogCfg(tsCfg);
     taosAddClientCfg(tsCfg);
+  } else {
+    taosAddClientLogCfg(tsCfg);
+    taosAddServerLogCfg(tsCfg);
+    taosAddClientCfg(tsCfg);
+    taosAddServerCfg(tsCfg);
   }
 
   if (taosLoadCfg(tsCfg, cfgDir, envFile, apolloUrl) != 0) {
@@ -414,6 +421,7 @@ int32_t taosInitCfg(const char *cfgDir, const char *envFile, const char *apolloU
   if (tsc) {
     taosSetClientCfg(tsCfg);
   } else {
+    taosSetClientCfg(tsCfg);
     taosSetServerCfg(tsCfg);
   }
 
@@ -436,6 +444,6 @@ void taosCfgDynamicOptions(const char *option, const char *value) {
 
   if (strcasecmp(option, "resetlog") == 0) {
     taosResetLog();
-    // taosPrintCfg();
+    cfgDumpCfg(tsCfg, 1, false);
   }
 }

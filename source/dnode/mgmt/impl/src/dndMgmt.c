@@ -357,13 +357,13 @@ void dndSendStatusReq(SDnode *pDnode) {
 
   SDnodeMgmt *pMgmt = &pDnode->dmgmt;
   taosRLockLatch(&pMgmt->latch);
-  req.sver = pDnode->env.sver;
+  req.sver = tsVersion;
   req.dver = pMgmt->dver;
   req.dnodeId = pMgmt->dnodeId;
   req.clusterId = pMgmt->clusterId;
   req.rebootTime = pMgmt->rebootTime;
   req.updateTime = pMgmt->updateTime;
-  req.numOfCores = pDnode->env.numOfCores;
+  req.numOfCores = tsNumOfCores;
   req.numOfSupportVnodes = pDnode->cfg.numOfSupportVnodes;
   memcpy(req.dnodeEp, pDnode->cfg.localEp, TSDB_EP_LEN);
 
