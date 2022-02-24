@@ -827,6 +827,7 @@ void *ctgTestSetCtableMetaThread(void *param) {
 
 #if 0
 
+
 TEST(tableMeta, normalTable) {
   struct SCatalog *pCtg = NULL;
   void            *mockPointer = (void *)0x1;

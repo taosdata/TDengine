@@ -89,6 +89,7 @@ typedef struct SMnode {
   SProfileMgmt      profileMgmt;
   STelemMgmt        telemMgmt;
   SSyncMgmt         syncMgmt;
+  SHashObj         *infosMeta;
   MndMsgFp          msgFp[TDMT_MAX];
   SendReqToDnodeFp  sendReqToDnodeFp;
   SendReqToMnodeFp  sendReqToMnodeFp;

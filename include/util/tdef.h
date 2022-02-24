@@ -96,6 +96,21 @@ extern const int32_t TYPE_BYTES[15];
 #define TSDB_TIME_PRECISION_MICRO_STR "us"
 #define TSDB_TIME_PRECISION_NANO_STR  "ns"
 
+#define TSDB_INFORMATION_SCHEMA_DB            "information_schema"
+#define TSDB_INS_TABLE_DNODES                 "dnodes"
+#define TSDB_INS_TABLE_MNODES                 "mnodes"
+#define TSDB_INS_TABLE_MODULES                "modules"
+#define TSDB_INS_TABLE_QNODES                 "qnodes"
+#define TSDB_INS_TABLE_USER_DATABASE          "user_database"
+#define TSDB_INS_TABLE_USER_FUNCTIONS         "user_functions"
+#define TSDB_INS_TABLE_USER_INDEXES           "user_indexes"
+#define TSDB_INS_TABLE_USER_STABLES           "user_stables"
+#define TSDB_INS_TABLE_USER_STREAMS           "user_streams"
+#define TSDB_INS_TABLE_USER_TABLES            "user_tables"
+#define TSDB_INS_TABLE_USER_TABLE_DISTRIBUTED "user_table_distributed"
+#define TSDB_INS_TABLE_USER_USERS             "user_users"
+#define TSDB_INS_TABLE_VGROUPS                "vgroups"
+
 #define TSDB_TICK_PER_SECOND(precision) ((int64_t)((precision)==TSDB_TIME_PRECISION_MILLI ? 1e3L : ((precision)==TSDB_TIME_PRECISION_MICRO ? 1e6L : 1e9L)))
 
 #define T_MEMBER_SIZE(type, member) sizeof(((type *)0)->member)
