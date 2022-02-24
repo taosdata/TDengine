@@ -631,7 +631,7 @@ Users can directly view the usage information of the module through Python's hel
 
 - *TDengineConnection* class
 
-Refer to help (taos.TDEngineConnection) in python. This class corresponds to a connection between the client and TDengine. In the scenario of client multithreading, it is recommended that each thread apply for an independent connection instance, but not recommended that multiple threads share a connection.
+Refer to help (taos.TDengineConnection) in python. This class corresponds to a connection between the client and TDengine. In the scenario of client multithreading, it is recommended that each thread apply for an independent connection instance, but not recommended that multiple threads share a connection.
 
 - *TDengineCursor* class
 
