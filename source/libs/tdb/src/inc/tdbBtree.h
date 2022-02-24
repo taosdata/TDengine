@@ -23,22 +23,6 @@ extern "C" {
 typedef struct SBTree    SBTree;
 typedef struct SBtCursor SBtCursor;
 
-#if 0
-// SBTree
-int btreeOpen(SBTree **ppBt, SPgFile *pPgFile);
-int btreeClose(SBTree *pBt);
-
-// SBtCursor
-int btreeCursorOpen(SBtCursor *pBtCur, SBTree *pBt);
-int btreeCursorClose(SBtCursor *pBtCur);
-int btreeCursorMoveTo(SBtCursor *pBtCur, int kLen, const void *pKey);
-int btreeCursorNext(SBtCursor *pBtCur);
-
-struct SBTree {
-  SPgno   root;
-};
-#endif
-
 #ifdef __cplusplus
 }
 #endif
