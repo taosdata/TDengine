@@ -97,8 +97,6 @@ int32_t dmnRunDnode() {
 }
 
 int main(int argc, char const *argv[]) {
-  osInit();
-
   if (dmnParseOption(argc, argv) != 0) {
     return -1;
   }

@@ -217,6 +217,10 @@ static void taosAddClientLogCfg(SConfig *pCfg) {
   cfgAddInt32(pCfg, "rpcDebugFlag", rpcDebugFlag, 0, 255, 1);
   cfgAddInt32(pCfg, "tmrDebugFlag", tmrDebugFlag, 0, 255, 1);
   cfgAddInt32(pCfg, "jniDebugFlag", jniDebugFlag, 0, 255, 1);
+  cfgAddInt32(pCfg, "simDebugFlag", 143, 0, 255, 1);
+  cfgAddDir(pCfg, "configDir", configDir, 1);
+  cfgAddDir(pCfg, "scriptDir", configDir, 1);
+  cfgAddInt32(pCfg, "debugFlag", 0, 0, 255, 1);
 }
 
 static void taosAddServerLogCfg(SConfig *pCfg) {
@@ -229,8 +233,6 @@ static void taosAddServerLogCfg(SConfig *pCfg) {
   cfgAddInt32(pCfg, "tsdbDebugFlag", tsdbDebugFlag, 0, 255, 0);
   cfgAddInt32(pCfg, "tqDebugFlag", tqDebugFlag, 0, 255, 0);
   cfgAddInt32(pCfg, "fsDebugFlag", fsDebugFlag, 0, 255, 0);
-  cfgAddInt32(pCfg, "simDebugFlag", 143, 0, 255, 1);
-  cfgAddInt32(pCfg, "debugFlag", 0, 0, 255, 1);
 }
 
 static void taosAddClientCfg(SConfig *pCfg) {
@@ -246,8 +248,6 @@ static void taosAddClientCfg(SConfig *pCfg) {
   cfgAddString(pCfg, "secondEp", defaultSecondEp, 1);
   cfgAddString(pCfg, "fqdn", defaultFqdn, 1);
   cfgAddInt32(pCfg, "serverPort", defaultServerPort, 1, 65056, 1);
-  cfgAddString(pCfg, "configDir", configDir, 1);
-  cfgAddString(pCfg, "scriptDir", configDir, 1);
   cfgAddDir(pCfg, "tempDir", osTempDir(), 1);
   cfgAddFloat(pCfg, "minimalTempDirGB", 1.0f, 0.001f, 10000000, 1);
   cfgAddFloat(pCfg, "numOfThreadsPerCore", tsNumOfThreadsPerCore, 0, 10, 1);
@@ -300,6 +300,7 @@ static void taosAddServerCfg(SConfig *pCfg) {
 }
 
 static void taosSetClientLogCfg(SConfig *pCfg) {
+  SConfigItem *pItem = cfgGetItem(pCfg, "logDir");
   osSetLogDir(cfgGetItem(pCfg, "logDir")->str);
   osSetDataReservedSpace(cfgGetItem(pCfg, "minimalLogDirGB")->fval);
   tsNumOfLogLines = cfgGetItem(pCfg, "numOfLogLines")->i32;
@@ -397,6 +398,8 @@ static void taosSetServerCfg(SConfig *pCfg) {
 
 int32_t taosCreateLog(const char *logname, int32_t logFileNum, const char *cfgDir, const char *envFile,
                       const char *apolloUrl, bool tsc) {
+  osInit();
+
   SConfig *pCfg = cfgInit();
   if (pCfg == NULL) return -1;
 

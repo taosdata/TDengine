@@ -92,21 +92,27 @@ void osInit() {
     strcpy(env.tempDir, tmpDir);
   }
 
-  strcpy(configDir, "C:\\TDengine\\cfg");
+  if (configDir[0] == 0) {
+    strcpy(configDir, "C:\\TDengine\\cfg");
+  }
   strcpy(env.dataDir, "C:\\TDengine\\data");
   strcpy(env.logDir, "C:\\TDengine\\log");
   strcpy(env.tempDir, "C:\\Windows\\Temp");
   strcpy(env.osName, "Windows");
 
 #elif defined(_TD_DARWIN_64)
-  strcpy(configDir, "/tmp/taosd");
+  if (configDir[0] == 0) {
+    strcpy(configDir, "/tmp/taosd");
+  }
   strcpy(env.dataDir, "/usr/local/var/lib/taos");
   strcpy(env.logDir, "/usr/local/var/log/taos");
   strcpy(env.tempDir, "/usr/local/etc/taos");
   strcpy(env.osName, "Darwin");
 
 #else
-  strcpy(configDir, "/etc/taos");
+  if (configDir[0] == 0) {
+    strcpy(configDir, "/etc/taos");
+  }
   strcpy(env.dataDir, "/var/lib/taos");
   strcpy(env.logDir, "/var/log/taos");
   strcpy(env.tempDir, "/tmp");

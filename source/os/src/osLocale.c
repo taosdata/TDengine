@@ -75,8 +75,8 @@ void taosSetSystemLocale(const char *inLocale, const char *inCharSet) {
   char *locale = setlocale(LC_CTYPE, inLocale);
 
   // default locale or user specified locale is not valid, abort launch
-  if (inLocale == NULL || strlen(inCharSet) == 0) {
-    printf("Invalid locale:%s, please set the valid locale in config file\n", inLocale);
+  if (inLocale == NULL || strlen(inLocale) == 0) {
+    //printf("Invalid locale:%s, please set the valid locale in config file\n", inLocale);
   }
 
   if (!taosValidateEncodec(inCharSet)) {
