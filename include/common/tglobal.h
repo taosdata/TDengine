@@ -99,6 +99,8 @@ int32_t taosInitCfg(const char *cfgDir, const char *envFile, const char *apolloU
 void    taosCleanupCfg();
 void    taosCfgDynamicOptions(const char *option, const char *value);
 
+struct SConfig *taosGetCfg();
+
 #ifdef __cplusplus
 }
 #endif

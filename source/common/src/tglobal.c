@@ -170,6 +170,10 @@ static void taosPrintDataDirCfg() {
   }
 }
 
+struct SConfig *taosGetCfg() {
+  return tsCfg;
+}
+
 static int32_t taosLoadCfg(SConfig *pCfg, const char *inputCfgDir, const char *envFile, const char *apolloUrl) {
   char cfgDir[PATH_MAX] = {0};
   char cfgFile[PATH_MAX + 100] = {0};
@@ -332,6 +336,11 @@ static void taosSetClientCfg(SConfig *pCfg) {
   tsServerPort = (uint16_t)cfgGetItem(pCfg, "serverPort")->i32;
   snprintf(tsLocalEp, sizeof(tsLocalEp), "%s:%u", tsLocalFqdn, tsServerPort);
 
+  SConfigItem *pItem = cfgGetItem(pCfg, "timezone");
+  osSetTimezone(pItem->str);
+  uDebug("timezone format changed from %s to %s", pItem->str, osTimezone());
+  cfgSetItem(pCfg, "timezone", osTimezone(), pItem->stype);
+
   taosGetSystemInfo();
   if (tsNumOfCores <= 0) {
     tsNumOfCores = 1;
@@ -408,7 +417,7 @@ int32_t taosInitCfg(const char *cfgDir, const char *envFile, const char *apolloU
     taosSetServerCfg(tsCfg);
   }
 
-  cfgDumpCfg(tsCfg, tsc);
+  cfgDumpCfg(tsCfg, tsc, false);
   return 0;
 }
 

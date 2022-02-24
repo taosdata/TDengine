@@ -475,9 +475,16 @@ const char *cfgDtypeStr(ECfgDataType type) {
   }
 }
 
-void cfgDumpCfg(SConfig *pCfg, bool tsc) {
-  uInfo("   global config");
-  uInfo("=================================================================");
+void cfgDumpCfg(SConfig *pCfg, bool tsc, bool dump) {
+  if (dump) {
+    printf("   global config");
+    printf("\n");
+    printf("=================================================================");
+    printf("\n");
+  } else {
+    uInfo("   global config");
+    uInfo("=================================================================");
+  }
 
   char src[CFG_SRC_PRINT_LEN + 1] = {0};
   char name[CFG_NAME_PRINT_LEN + 1] = {0};
@@ -497,110 +504,61 @@ void cfgDumpCfg(SConfig *pCfg, bool tsc) {
 
     switch (pItem->dtype) {
       case CFG_DTYPE_BOOL:
-        uInfo("%s %s %u", src, name, pItem->bval);
+        if (dump) {
+          printf("%s %s %u", src, name, pItem->bval);
+          printf("\n");
+        } else {
+          uInfo("%s %s %u", src, name, pItem->bval);
+        }
+
         break;
       case CFG_DTYPE_INT32:
-        uInfo("%s %s %d", src, name, pItem->i32);
+        if (dump) {
+          printf("%s %s %d", src, name, pItem->i32);
+          printf("\n");
+        } else {
+          uInfo("%s %s %d", src, name, pItem->i32);
+        }
         break;
       case CFG_DTYPE_INT64:
-        uInfo("%s %s %" PRId64, src, name, pItem->i64);
+        if (dump) {
+          printf("%s %s %" PRId64, src, name, pItem->i64);
+          printf("\n");
+        } else {
+          uInfo("%s %s %" PRId64, src, name, pItem->i64);
+        }
         break;
       case CFG_DTYPE_FLOAT:
-        uInfo("%s %s %f", src, name, pItem->fval);
+        if (dump) {
+          printf("%s %s %f", src, name, pItem->fval);
+          printf("\n");
+        } else {
+          uInfo("%s %s %f", src, name, pItem->fval);
+        }
         break;
       case CFG_DTYPE_STRING:
       case CFG_DTYPE_DIR:
       case CFG_DTYPE_LOCALE:
       case CFG_DTYPE_CHARSET:
       case CFG_DTYPE_TIMEZONE:
-        uInfo("%s %s %s", src, name, pItem->str);
+        if (dump) {
+          printf("%s %s %s", src, name, pItem->str);
+          printf("\n");
+        } else {
+          uInfo("%s %s %s", src, name, pItem->str);
+        }
         break;
     }
     pItem = cfgIterate(pCfg, pItem);
   }
 
-  uInfo("=================================================================");
+  if (dump) {
+    printf("=================================================================");
+    printf("\n");
+  } else {
+    uInfo("=================================================================");
+  }
 }
-
-#if 0
-// int32_t cfgCheck(SConfig *pCfg) {
-//   SConfigItem *pItem = NULL;
-
-//   pItem = cfgGetItem(pCfg, "serverPort");
-//   if (pItem != NULL) {
-//     tsServerPort = (uint16_t)pItem->i32;
-//   }
-
-//   pItem = cfgGetItem(pCfg, "firstEp");
-//   if (pItem != NULL) {
-//     tstrncpy(tsFirst, pItem->str, TSDB_EP_LEN);
-//   }
-
-//   snprintf(tsLocalEp, TSDB_EP_LEN, "%s:%u", tsLocalFqdn, tsServerPort);
-//   uInfo("localEp is: %s", tsLocalEp);
-
-//   SEp ep = {0};
-//   if (tsFirst[0] == 0) {
-//     strcpy(tsFirst, tsLocalEp);
-//   } else {
-//     taosGetFqdnPortFromEp(tsFirst, &ep);
-//     snprintf(tsFirst, TSDB_EP_LEN, "%s:%u", ep.fqdn, ep.port);
-//   }
-
-//   pItem = cfgGetItem(pCfg, "secondEp");
-//   if (pItem != NULL) {
-//     tstrncpy(tsSecond, pItem->str, TSDB_EP_LEN);
-//   }
-
-//   if (tsSecond[0] == 0) {
-//     strcpy(tsSecond, tsLocalEp);
-//   } else {
-//     taosGetFqdnPortFromEp(tsSecond, &ep);
-//     snprintf(tsSecond, TSDB_EP_LEN, "%s:%u", ep.fqdn, ep.port);
-//   }
-
-//   pItem = cfgGetItem(pCfg, "dataDir");
-//   if (pItem != NULL) {
-//     tstrncpy(osDataDir(), pItem->str, PATH_MAX);
-//   }
-
-//   if (tsDiskCfgNum <= 0) {
-//     taosAddDataDir(0, osDataDir(), 0, 1);
-//     tsDiskCfgNum = 1;
-//     uTrace("dataDir:%s, level:0 primary:1 is configured by default", osDataDir());
-//   }
-
-//   if (taosDirExist(osTempDir()) != 0) {
-//     return -1;
-//   }
-
-//   taosGetSystemInfo();
-
-//   tsSetLocale();
-
-//   // SGlobalCfg *cfg_timezone = taosGetConfigOption("timezone");
-//   // if (cfg_timezone && cfg_timezone->cfgStatus == TAOS_CFG_CSTATUS_FILE) {
-//   tsSetTimeZone();
-//   // }
-
-//   pItem = cfgGetItem(pCfg, "numOfCores");
-//   if (pItem != NULL) {
-//     tsNumOfCores = pItem->i32;
-//   }
-
-//   if (tsNumOfCores <= 0) {
-//     tsNumOfCores = 1;
-//   }
-
-//   if (tsQueryBufferSize >= 0) {
-//     tsQueryBufferSizeBytes = tsQueryBufferSize * 1048576UL;
-//   }
-
-//   cfgPrintCfg(pCfg);
-
-//   return 0;
-// }
-#endif
 
 int32_t cfgLoadFromEnvVar(SConfig *pConfig) {
   uInfo("load from global env variables");

@@ -32,8 +32,6 @@ typedef struct {
   uint16_t numOfCommitThreads;
   bool     enableTelem;
   bool     printAuth;
-  int32_t  rpcTimer;
-  int32_t  rpcMaxTime;
 } SDnodeEnvCfg;
 
 /**

@@ -95,7 +95,7 @@ int32_t cfgAddTimezone(SConfig *pCfg, const char *name, const char *defaultVal);
 const char *cfgStypeStr(ECfgSrcType type);
 const char *cfgDtypeStr(ECfgDataType type);
 
-void cfgDumpCfg(SConfig *pCfg, bool tsc);
+void cfgDumpCfg(SConfig *pCfg, bool tsc, bool dump);
 
 #ifdef __cplusplus
 }
