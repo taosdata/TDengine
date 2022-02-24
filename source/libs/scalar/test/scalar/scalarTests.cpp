@@ -75,10 +75,10 @@ void scltMakeValueNode(SNode **pNode, int32_t dataType, void *value) {
 }
 
 void scltMakeColRefNode(SNode **pNode, SSDataBlock **block, int32_t dataType, int32_t dataBytes, int32_t rowNum, void *value) {
-  SNode *node = nodesMakeNode(QUERY_NODE_COLUMN_REF);
-  SColumnRefNode *rnode = (SColumnRefNode *)node;
-  rnode->dataType.type = dataType;
-  rnode->dataType.bytes = dataBytes;
+  SNode *node = nodesMakeNode(QUERY_NODE_COLUMN);
+  SColumnNode *rnode = (SColumnNode *)node;
+  rnode->node.resType.type = dataType;
+  rnode->node.resType.bytes = dataBytes;
   rnode->tupleId = 0;
 
   if (NULL == *block) {
@@ -111,7 +111,7 @@ void scltMakeColRefNode(SNode **pNode, SSDataBlock **block, int32_t dataType, in
     taosArrayPush(res->pDataBlock, &idata);
 
     rnode->slotId = 2;
-    rnode->columnId = 55;
+    rnode->colId = 55;
 
     *block = res;
   } else {
@@ -126,7 +126,7 @@ void scltMakeColRefNode(SNode **pNode, SSDataBlock **block, int32_t dataType, in
     taosArrayPush(res->pDataBlock, &idata);
     
     rnode->slotId = idx;
-    rnode->columnId = 55 + idx;
+    rnode->colId = 55 + idx;
   }
 
   *pNode = (SNode *)rnode;
