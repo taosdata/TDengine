@@ -32,7 +32,7 @@ function stmtUseResultSample() {
         `f32 float,` +
         `d64 double,` +
         `bnr binary(20),` +
-        `blob nchar(20),` +
+        `nchr nchar(20),` +
         `u8 tinyint unsigned,` +
         `u16 smallint unsigned,` +
         `u32 int unsigned,` +
