@@ -4,96 +4,87 @@
 set -e
 #set -x
 
-scriptDir=$(dirname $(readlink -f $0))
-
-source $scriptDir/sed_power.sh
-source $scriptDir/sed_tq.sh
-source $scriptDir/sed_pro.sh
-source $scriptDir/sed_kh.sh
-source $scriptDir/sed_jh.sh
-
 # release.sh  -v [cluster | edge]
 #             -c [aarch32 | aarch64 | x64 | x86 | mips64 ...]
 #             -o [Linux | Kylin | Alpine | Raspberrypi | Darwin | Windows | Ningsi60 | Ningsi80 |...]
 #             -V [stable | beta]
 #             -l [full | lite]
 #             -s [static | dynamic]
-#             -d [taos | power | tq | pro | kh | jh]
-#             -n [2.0.0.3]
+#             -d [taos | ...]
+#             -n [2.2.x.x]
 #             -m [2.0.0.0]
 
 # set parameters by default value
-verMode=edge     # [cluster, edge]
-verType=stable   # [stable, beta]
-cpuType=x64      # [aarch32 | aarch64 | x64 | x86 | mips64 ...]
-osType=Linux     # [Linux | Kylin | Alpine | Raspberrypi | Darwin | Windows | Ningsi60 | Ningsi80 |...]
-pagMode=full     # [full | lite]
-soMode=dynamic   # [static | dynamic]
-dbName=taos      # [taos | power | tq | pro | kh | jh]
-allocator=glibc  # [glibc | jemalloc]
+verMode=edge    # [cluster, edge]
+verType=stable  # [stable, beta]
+cpuType=x64     # [aarch32 | aarch64 | x64 | x86 | mips64 ...]
+osType=Linux    # [Linux | Kylin | Alpine | Raspberrypi | Darwin | Windows | Ningsi60 | Ningsi80 |...]
+pagMode=full    # [full | lite]
+soMode=dynamic  # [static | dynamic]
+dbName=taos     # [taos | ...]
+allocator=glibc # [glibc | jemalloc]
 verNumber=""
 verNumberComp="2.0.0.0"
 
-while getopts "hv:V:c:o:l:s:d:a:n:m:" arg
-do
+while getopts "hv:V:c:o:l:s:d:a:n:m:" arg; do
   case $arg in
-    v)
-      #echo "verMode=$OPTARG"
-      verMode=$( echo $OPTARG )
-      ;;
-    V)
-      #echo "verType=$OPTARG"
-      verType=$(echo $OPTARG)
-      ;;
-    c)
-      #echo "cpuType=$OPTARG"
-      cpuType=$(echo $OPTARG)
-      ;;
-    l)
-      #echo "pagMode=$OPTARG"
-      pagMode=$(echo $OPTARG)
-      ;;
-    s)
-      #echo "soMode=$OPTARG"
-      soMode=$(echo $OPTARG)
-      ;;
-    d)
-      #echo "dbName=$OPTARG"
-      dbName=$(echo $OPTARG)
-      ;;
-    a)
-      #echo "allocator=$OPTARG"
-      allocator=$(echo $OPTARG)
-      ;;
-    n)
-      #echo "verNumber=$OPTARG"
-      verNumber=$(echo $OPTARG)
-      ;;
-    m)
-      #echo "verNumberComp=$OPTARG"
-      verNumberComp=$(echo $OPTARG)
-      ;;
-    o)
-      #echo "osType=$OPTARG"
-      osType=$(echo $OPTARG)
-      ;;
-    h)
-      echo "Usage: `basename $0` -v [cluster | edge] "
-      echo "                  -c [aarch32 | aarch64 | x64 | x86 | mips64 ...] "
-      echo "                  -o [Linux | Kylin | Alpine | Raspberrypi | Darwin | Windows | Ningsi60 | Ningsi80 |...] "
-      echo "                  -V [stable | beta] "
-      echo "                  -l [full | lite] "
-      echo "                  -a [glibc | jemalloc] "
-      echo "                  -s [static | dynamic] "
-      echo "                  -d [taos | power | tq | pro | kh | jh] "
-      echo "                  -n [version number] "
-      echo "                  -m [compatible version number] "
-      exit 0
-      ;;
-    ?) #unknow option
-      echo "unkonw argument"
-      exit 1
-      ;;
+  v)
+    #echo "verMode=$OPTARG"
+    verMode=$(echo $OPTARG)
+    ;;
+  V)
+    #echo "verType=$OPTARG"
+    verType=$(echo $OPTARG)
+    ;;
+  c)
+    #echo "cpuType=$OPTARG"
+    cpuType=$(echo $OPTARG)
+    ;;
+  l)
+    #echo "pagMode=$OPTARG"
+    pagMode=$(echo $OPTARG)
+    ;;
+  s)
+    #echo "soMode=$OPTARG"
+    soMode=$(echo $OPTARG)
+    ;;
+  d)
+    #echo "dbName=$OPTARG"
+    dbName=$(echo $OPTARG)
+    ;;
+  a)
+    #echo "allocator=$OPTARG"
+    allocator=$(echo $OPTARG)
+    ;;
+  n)
+    #echo "verNumber=$OPTARG"
+    verNumber=$(echo $OPTARG)
+    ;;
+  m)
+    #echo "verNumberComp=$OPTARG"
+    verNumberComp=$(echo $OPTARG)
+    ;;
+  o)
+    #echo "osType=$OPTARG"
+    osType=$(echo $OPTARG)
+    ;;
+  h)
+    echo "Usage: $(basename $0) -v [cluster | edge] "
+    echo "                  -c [aarch32 | aarch64 | x64 | x86 | mips64 ...] "
+    echo "                  -o [Linux | Kylin | Alpine | Raspberrypi | Darwin | Windows | Ningsi60 | Ningsi80 |...] "
+    echo "                  -V [stable | beta] "
+    echo "                  -l [full | lite] "
+    echo "                  -a [glibc | jemalloc] "
+    echo "                  -s [static | dynamic] "
+    echo "                  -d [taos | ...] "
+    echo "                  -n [version number] "
+    echo "                  -m [compatible version number] "
+    exit 0
+    ;;
+  ?) #unknow option
+    echo "unkonw argument"
+    exit 1
+    ;;
   esac
 done
 
@@ -101,14 +92,14 @@ echo "verMode=${verMode} verType=${verType} cpuType=${cpuType} osType=${osType} 
 
 curr_dir=$(pwd)
 
-if [ "$osType" != "Darwin" ]; then
-  script_dir="$(dirname $(readlink -f $0))"
-  top_dir="$(readlink -f ${script_dir}/..)"
-else
-  script_dir=`dirname $0`
+if [ "$osType" == "Darwin" ]; then
+  script_dir=$(dirname $0)
   cd ${script_dir}
   script_dir="$(pwd)"
   top_dir=${script_dir}/..
+else
+  script_dir="$(dirname $(readlink -f $0))"
+  top_dir="$(readlink -f ${script_dir}/..)"
 fi
 
 csudo=""
@@ -126,7 +117,7 @@ function is_valid_version() {
   return 1
 }
 
-function vercomp () {
+function vercomp() {
   if [[ $1 == $2 ]]; then
     echo 0
     exit 0
@@ -136,11 +127,11 @@ function vercomp () {
   local i ver1=($1) ver2=($2)
 
   # fill empty fields in ver1 with zeros
-  for ((i=${#ver1[@]}; i<${#ver2[@]}; i++)); do
+  for ((i = ${#ver1[@]}; i < ${#ver2[@]}; i++)); do
     ver1[i]=0
   done
 
-  for ((i=0; i<${#ver1[@]}; i++)); do
+  for ((i = 0; i < ${#ver1[@]}; i++)); do
     if [[ -z ${ver2[i]} ]]; then
       # fill empty fields in ver2 with zeros
       ver2[i]=0
@@ -158,7 +149,7 @@ function vercomp () {
 }
 
 # 1. check version information
-if (( ! is_valid_version $verNumber ) || ( ! is_valid_version $verNumberComp ) || [[ "$(vercomp $verNumber $verNumberComp)" == '2' ]]); then
+if ( (! is_valid_version $verNumber) || (! is_valid_version $verNumberComp) || [[ "$(vercomp $verNumber $verNumberComp)" == '2' ]]); then
   echo "please enter correct version"
   exit 0
 fi
@@ -194,19 +185,20 @@ fi
 cd ${compile_dir}
 
 if [[ "$allocator" == "jemalloc" ]]; then
-    allocator_macro="-DJEMALLOC_ENABLED=true"
+  allocator_macro="-DJEMALLOC_ENABLED=true"
 else
-    allocator_macro=""
+  allocator_macro=""
 fi
 
 if [[ "$dbName" != "taos" ]]; then
+  source ${enterprise_dir}/packaging/oem/sed_$dbName.sh
   replace_community_$dbName
 fi
 
 # check support cpu type
-if [[ "$cpuType" == "x64" ]] || [[ "$cpuType" == "aarch64" ]] || [[ "$cpuType" == "aarch32" ]] || [[ "$cpuType" == "mips64" ]] ; then
+if [[ "$cpuType" == "x64" ]] || [[ "$cpuType" == "aarch64" ]] || [[ "$cpuType" == "aarch32" ]] || [[ "$cpuType" == "mips64" ]]; then
   if [ "$verMode" != "cluster" ]; then
-    cmake ../    -DCPUTYPE=${cpuType} -DOSTYPE=${osType} -DSOMODE=${soMode} -DDBNAME=${dbName} -DVERTYPE=${verType} -DVERDATE="${build_time}" -DGITINFO=${gitinfo} -DGITINFOI=${gitinfoOfInternal} -DVERNUMBER=${verNumber} -DVERCOMPATIBLE=${verNumberComp} -DPAGMODE=${pagMode} ${allocator_macro}
+    cmake ../ -DCPUTYPE=${cpuType} -DOSTYPE=${osType} -DSOMODE=${soMode} -DDBNAME=${dbName} -DVERTYPE=${verType} -DVERDATE="${build_time}" -DGITINFO=${gitinfo} -DGITINFOI=${gitinfoOfInternal} -DVERNUMBER=${verNumber} -DVERCOMPATIBLE=${verNumberComp} -DPAGMODE=${pagMode} ${allocator_macro}
   else
     if [[ "$dbName" != "taos" ]]; then
       replace_enterprise_$dbName
@@ -220,7 +212,7 @@ fi
 
 make -j8
 
-cd ${curr_dir}
+cd "${curr_dir}"
 
 # 3. Call the corresponding script for packaging
 if [ "$osType" != "Darwin" ]; then
@@ -259,13 +251,13 @@ if [ "$osType" != "Darwin" ]; then
   cd ${script_dir}/tools
 
   if [[ "$dbName" == "taos" ]]; then
-    ${csudo} ./makepkg.sh    ${compile_dir} ${verNumber} "${build_time}" ${cpuType} ${osType} ${verMode} ${verType} ${pagMode} ${verNumberComp}
+    ${csudo} ./makepkg.sh ${compile_dir} ${verNumber} "${build_time}" ${cpuType} ${osType} ${verMode} ${verType} ${pagMode} ${verNumberComp}
     ${csudo} ./makeclient.sh ${compile_dir} ${verNumber} "${build_time}" ${cpuType} ${osType} ${verMode} ${verType} ${pagMode}
-    ${csudo} ./makearbi.sh   ${compile_dir} ${verNumber} "${build_time}" ${cpuType} ${osType} ${verMode} ${verType} ${pagMode}
+    ${csudo} ./makearbi.sh ${compile_dir} ${verNumber} "${build_time}" ${cpuType} ${osType} ${verMode} ${verType} ${pagMode}
   else
-    ${csudo} ./makepkg_$dbName.sh    ${compile_dir} ${verNumber} "${build_time}" ${cpuType} ${osType} ${verMode} ${verType} ${pagMode} ${dbName} ${verNumberComp}
+    ${csudo} ./makepkg_$dbName.sh ${compile_dir} ${verNumber} "${build_time}" ${cpuType} ${osType} ${verMode} ${verType} ${pagMode} ${dbName} ${verNumberComp}
     ${csudo} ./makeclient_$dbName.sh ${compile_dir} ${verNumber} "${build_time}" ${cpuType} ${osType} ${verMode} ${verType} ${pagMode} ${dbName}
-    ${csudo} ./makearbi_$dbName.sh   ${compile_dir} ${verNumber} "${build_time}" ${cpuType} ${osType} ${verMode} ${verType} ${pagMode}
+    ${csudo} ./makearbi_$dbName.sh ${compile_dir} ${verNumber} "${build_time}" ${cpuType} ${osType} ${verMode} ${verType} ${pagMode}
   fi
 else
   # only make client for Darwin
