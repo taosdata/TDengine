@@ -125,7 +125,7 @@ typedef struct SDnode {
   EStat        stat;
   SDnodeObjCfg cfg;
   SDnodeDir    dir;
-  FileFd       lockFd;
+  TdFilePtr    pLockFile;
   SDnodeMgmt   dmgmt;
   SMnodeMgmt   mmgmt;
   SQnodeMgmt   qmgmt;

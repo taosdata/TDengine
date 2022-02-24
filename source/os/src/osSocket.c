@@ -14,6 +14,7 @@
  */
 
 #define _DEFAULT_SOURCE
+#define ALLOW_FORBID_FUNC
 #include "os.h"
 
 #if defined(_TD_WINDOWS_64) || defined(_TD_WINDOWS_32)
