@@ -21,15 +21,12 @@
 #include "tcompare.h"
 #include "tep.h"
 #include "tglobal.h"
-#include "tlocale.h"
 #include "tlog.h"
-#include "ttimezone.h"
 #include "tutil.h"
 #include "ulog.h"
 
 
 // common
-int8_t  tsDaylight = 0;
 int32_t tsMaxBinaryDisplayWidth = 30;
 int8_t  tsEnableSlaveQuery = 1;
 int8_t  tsEnableAdjustMaster = 1;
@@ -235,7 +232,7 @@ static void doInitGlobalConfig(void) {
 
 
   cfg.option = "dataDir";
-  cfg.ptr = tsDataDir;
+  cfg.ptr = osDataDir();
   cfg.valType = TAOS_CFG_VTYPE_DATA_DIRCTORY;
   cfg.cfgType = TSDB_CFG_CTYPE_B_CONFIG;
   cfg.minValue = 0;
@@ -419,7 +416,7 @@ static void doInitGlobalConfig(void) {
   taosAddConfigOption(cfg);
 
   cfg.option = "tempDir";
-  cfg.ptr = tsTempDir;
+  cfg.ptr = osTempDir();
   cfg.valType = TAOS_CFG_VTYPE_STRING;
   cfg.cfgType = TSDB_CFG_CTYPE_B_CONFIG | TSDB_CFG_CTYPE_B_CLIENT;
   cfg.minValue = 0;

@@ -184,8 +184,7 @@ static void parse_args(
     for (int i = 1; i < argc; i++) {
         if ((strncmp(argv[i], "-p", 2) == 0)
               || (strncmp(argv[i], "--password", 10) == 0)) {
-            strcpy(tsOsName, "Linux");
-            printf(LINUXCLIENT_VERSION, tsOsName, taos_get_client_info());
+            printf(LINUXCLIENT_VERSION, osName(), taos_get_client_info());
             if ((strlen(argv[i]) == 2)
                   || (strncmp(argv[i], "--password", 10) == 0)) {
                 printf("Enter password: ");

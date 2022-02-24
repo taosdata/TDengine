@@ -13,77 +13,100 @@
  * along with this program. If not, see <http://www.gnu.org/licenses/>.
  */
 
-
 #define _DEFAULT_SOURCE
-#include "os.h"
 #include "osEnv.h"
-#include "osSysinfo.h"
 
-SDiskSpace tsLogSpace;
-SDiskSpace tsTempSpace;
-SDiskSpace tsDataSpace;
+extern void taosWinSocketInit();
+char configDir[PATH_MAX] = {0};
 
-void taosUpdateLogSpace() { taosGetDiskSize(tsLogDir, &tsLogSpace.size); }
+typedef struct SOsEnv {
+  char       dataDir[PATH_MAX];
+  char       logDir[PATH_MAX];
+  char       tempDir[PATH_MAX];
+  SDiskSpace dataSpace;
+  SDiskSpace logSpace;
+  SDiskSpace tempSpace;
+  char       osName[16];
+  char       timezone[TD_TIMEZONE_LEN];
+  char       locale[TD_LOCALE_LEN];
+  char       charset[TD_CHARSET_LEN];
+  int8_t     daylight;
+} SOsEnv;
 
-void taosUpdateTempSpace() { taosGetDiskSize(tsTempDir, &tsTempSpace.size); }
+static SOsEnv env = {0};
 
-void taosUpdateDataSpace() { taosGetDiskSize(tsDataDir, &tsDataSpace.size); }
+SOsEnv *osEnv() { return &env; }
 
-bool taosLogSpaceAvailable() { return tsLogSpace.reserved < tsLogSpace.size.avail; }
-
-bool taosTempSpaceAvailable() { return tsTempSpace.reserved < tsTempSpace.size.avail; }
-
-bool taosDataSpaceAvailable() { return tsDataSpace.reserved < tsDataSpace.size.avail; }
-
-void taosUpdateAllSpace() {
-  taosUpdateLogSpace();
-  taosUpdateTempSpace();
-  taosUpdateDataSpace();
+void osInitImp() {
+  taosGetSystemLocale(env.locale, env.charset);
+  taosGetSystemTimezone(env.timezone);
+  osSetTimezone(env.timezone);
 }
 
-#if defined(_TD_WINDOWS_64) || defined(_TD_WINDOWS_32)
+void osUpdate() {
+  if (env.logDir[0] != 0) {
+    taosGetDiskSize(env.logDir, &env.logSpace.size);
+  }
+  if (env.dataDir[0] != 0) {
+    taosGetDiskSize(env.dataDir, &env.dataSpace.size);
+  }
+  if (env.tempDir[0] != 0) {
+    taosGetDiskSize(env.tempDir, &env.tempSpace.size);
+  }
+}
 
-char tsOsName[10] = "Windows";
-char configDir[PATH_MAX] = "C:/TDengine/cfg";
-char tsDataDir[PATH_MAX] = "C:/TDengine/data";
-char tsLogDir[PATH_MAX] = "C:/TDengine/log";
-char tsTempDir[PATH_MAX] = "C:\\Windows\\Temp";
+bool   osLogSpaceAvailable() { return env.logSpace.reserved <= env.logSpace.size.avail; }
+int8_t osDaylight() { return env.daylight; }
 
-extern taosWinSocketInit();
+const char *osLogDir() { return env.logDir; }
+const char *osTempDir() { return env.tempDir; }
+const char *osDataDir() { return env.dataDir; }
+const char *osName() { return env.osName; }
+const char *osTimezone() { return env.timezone; }
+const char *osLocale() { return env.locale; }
+const char *osCharset() { return env.charset; }
+
+void osSetLogDir(const char *logDir) { tstrncpy(env.logDir, logDir, PATH_MAX); }
+void osSetTempDir(const char *tempDir) { tstrncpy(env.tempDir, tempDir, PATH_MAX); }
+void osSetDataDir(const char *dataDir) { tstrncpy(env.dataDir, dataDir, PATH_MAX); }
+void osSetLogReservedSpace(float sizeInGB) { env.logSpace.reserved = sizeInGB; }
+void osSetTempReservedSpace(float sizeInGB) { env.tempSpace.reserved = sizeInGB; }
+void osSetDataReservedSpace(float sizeInGB) { env.dataSpace.reserved = sizeInGB; }
+void osSetTimezone(const char *timezone) { taosSetSystemTimezone(timezone, env.timezone, &env.daylight); }
 
 void osInit() {
+  srand(taosSafeRand());
+
+#if defined(_TD_WINDOWS_64) || defined(_TD_WINDOWS_32)
   taosWinSocketInit();
 
   const char *tmpDir = getenv("tmp");
   if (tmpDir == NULL) {
     tmpDir = getenv("temp");
   }
-
   if (tmpDir != NULL) {
-    strcpy(tsTempDir, tmpDir);
+    strcpy(env.tempDir, tmpDir);
   }
-}
+
+  strcpy(configDir, "C:\\TDengine\\cfg");
+  strcpy(env.dataDir, "C:\\TDengine\\data");
+  strcpy(env.logDir, "C:\\TDengine\\log");
+  strcpy(env.tempDir, "C:\\Windows\\Temp");
+  strcpy(env.osName, "Windows");
 
 #elif defined(_TD_DARWIN_64)
-
-char tsOsName[10] = "Darwin";
-char configDir[PATH_MAX] = "/usr/local/etc/taos";
-char tsDataDir[PATH_MAX] = "/usr/local/var/lib/taos";
-char tsLogDir[PATH_MAX] = "/usr/local/var/log/taos";
-char tsTempDir[PATH_MAX] = "/tmp/taosd";
-
-void osInit() {}
+  strcpy(configDir, "/tmp/taosd");
+  strcpy(env.dataDir, "/usr/local/var/lib/taos");
+  strcpy(env.logDir, "/usr/local/var/log/taos");
+  strcpy(env.tempDir, "/usr/local/etc/taos");
+  strcpy(env.osName, "Darwin");
 
 #else
-
-char tsOsName[10] = "Linux";
-char configDir[PATH_MAX] = "/etc/taos";
-char tsDataDir[PATH_MAX] = "/var/lib/taos";
-char tsLogDir[PATH_MAX] = "/var/log/taos";
-char tsTempDir[PATH_MAX] = "/tmp/";
-
-void osInit() {
-    srand(taosSafeRand());
-}
+  strcpy(configDir, "/etc/taos");
+  strcpy(env.dataDir, "/var/lib/taos");
+  strcpy(env.logDir, "/var/log/taos");
+  strcpy(env.tempDir, "/tmp");
+  strcpy(env.osName, "Linux");
 
 #endif
+}

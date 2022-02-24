@@ -80,6 +80,7 @@ int32_t      cfgGetSize(SConfig *pCfg);
 SConfigItem *cfgIterate(SConfig *pCfg, SConfigItem *pIter);
 void         cfgCancelIterate(SConfig *pCfg, SConfigItem *pIter);
 SConfigItem *cfgGetItem(SConfig *pCfg, const char *name);
+int32_t      cfgSetItem(SConfig *pCfg, const char *name, const char *value, ECfgSrcType stype);
 
 int32_t cfgAddBool(SConfig *pCfg, const char *name, bool defaultVal);
 int32_t cfgAddInt32(SConfig *pCfg, const char *name, int32_t defaultVal, int64_t minval, int64_t maxval);

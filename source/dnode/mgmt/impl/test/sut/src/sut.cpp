@@ -33,7 +33,7 @@ void Testbase::InitLog(const char* path) {
 
   taosRemoveDir(path);
   taosMkDir(path);
-  tstrncpy(tsLogDir, path, PATH_MAX);
+  osSetLogDir(path);
   if (taosInitLog("taosdlog", 1) != 0) {
     printf("failed to init log file\n");
   }

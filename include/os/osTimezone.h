@@ -13,17 +13,18 @@
  * along with this program. If not, see <http://www.gnu.org/licenses/>.
  */
 
-#ifndef _TD_COMMON_LOCALE_H_
-#define _TD_COMMON_LOCALE_H_
+#ifndef _TD_OS_TIMEZONE_H_
+#define _TD_OS_TIMEZONE_H_
 
 #ifdef __cplusplus
 extern "C" {
 #endif
 
-void tsSetLocale();
+void taosGetSystemTimezone(char *outTimezone);
+void taosSetSystemTimezone(const char *inTimezone, char *outTimezone, int8_t *outDaylight);
 
 #ifdef __cplusplus
 }
-#endif /*_TD_COMMON_LOCALE_H_*/
-
 #endif
+
+#endif /*_TD_OS_TIMEZONE_H_*/

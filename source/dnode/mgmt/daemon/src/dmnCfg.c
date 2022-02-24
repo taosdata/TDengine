@@ -15,8 +15,6 @@
 
 #define _DEFAULT_SOURCE
 #include "dmnInt.h"
-#include "tlocale.h"
-#include "ttimezone.h"
 
 static int32_t dmnAddEpCfg(SConfig *pCfg) {
   char defaultFqdn[TSDB_FQDN_LEN] = {0};
@@ -40,18 +38,18 @@ static int32_t dmnAddEpCfg(SConfig *pCfg) {
 }
 
 static int32_t dmnAddDirCfg(SConfig *pCfg) {
-  if (cfgAddDir(pCfg, "dataDir", tsDataDir) != 0) return -1;
-  if (cfgAddDir(pCfg, "tempDir", tsTempDir) != 0) return -1;
+  if (cfgAddDir(pCfg, "dataDir", osDataDir()) != 0) return -1;
+  if (cfgAddDir(pCfg, "tempDir", osTempDir()) != 0) return -1;
   if (cfgAddFloat(pCfg, "minimalDataDirGB", 2.0f, 0.001f, 10000000) != 0) return -1;
   if (cfgAddFloat(pCfg, "minimalTempDirGB", 1.0f, 0.001f, 10000000) != 0) return -1;
   return 0;
 }
 
 static int32_t dmnCheckDirCfg(SConfig *pCfg) {
-  tstrncpy(tsDataDir, cfgGetItem(pCfg, "dataDir")->str, PATH_MAX);
-  tstrncpy(tsTempDir, cfgGetItem(pCfg, "tempDir")->str, PATH_MAX);
-  tsDataSpace.reserved = cfgGetItem(pCfg, "minimalDataDirGB")->fval;
-  tsTempSpace.reserved = cfgGetItem(pCfg, "minimalTempDirGB")->fval;
+  osSetDataDir(cfgGetItem(pCfg, "dataDir")->str);
+  osSetTempDir(cfgGetItem(pCfg, "tempDir")->str);
+  osSetTempReservedSpace(cfgGetItem(pCfg, "minimalDataDirGB")->fval);
+  osSetDataReservedSpace(cfgGetItem(pCfg, "minimalTempDirGB")->fval);
   return 0;
 }
 
@@ -86,9 +84,18 @@ static int32_t dmnAddDnodeCfg(SConfig *pCfg) {
   return 0;
 }
 
+static void dmnSetDnodeCfg(SConfig *pCfg) {
+  SConfigItem *pItem = cfgGetItem(pCfg, "timezone");
+  osSetTimezone(pItem->str);
+  uDebug("timezone format changed from %s to %s", pItem->str, osTimezone());
+  cfgSetItem(pCfg, "timezone", osTimezone(), pItem->stype);
+}
+
 static int32_t dmnCheckCfg(SConfig *pCfg) {
   bool enableCore = cfgGetItem(pCfg, "enableCoreFile")->bval;
   taosSetCoreDump(enableCore);
+
+  dmnSetDnodeCfg(pCfg);
 
   if (dmnCheckDirCfg(pCfg) != 0) {
     return -1;
@@ -96,8 +103,6 @@ static int32_t dmnCheckCfg(SConfig *pCfg) {
 
   taosGetSystemInfo();
 
-  tsSetTimeZone();
-  tsSetLocale();
 
   if (tsNumOfCores <= 0) {
     tsNumOfCores = 1;

@@ -97,6 +97,8 @@ int32_t dmnRunDnode(SConfig *pCfg) {
 }
 
 int main(int argc, char const *argv[]) {
+  osInit();
+
   if (dmnParseOption(argc, argv) != 0) {
     return -1;
   }

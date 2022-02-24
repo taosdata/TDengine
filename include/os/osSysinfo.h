@@ -21,9 +21,10 @@ extern "C" {
 #endif
 
 #include "os.h"
-  
-#define TSDB_LOCALE_LEN   64
-#define TSDB_TIMEZONE_LEN 96
+
+#define TD_LOCALE_LEN   64
+#define TD_CHARSET_LEN  64
+#define TD_TIMEZONE_LEN 96
 
 typedef struct {
   int64_t total;
@@ -41,9 +42,6 @@ extern int64_t tsOpenMax;
 extern int64_t tsStreamMax;
 extern int32_t tsNumOfCores;
 extern int32_t tsTotalMemoryMB;
-extern char    tsTimezone[];
-extern char    tsLocale[];
-extern char    tsCharset[];  // default encode string
 
 
 

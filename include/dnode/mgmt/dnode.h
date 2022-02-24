@@ -34,9 +34,9 @@ typedef struct {
   bool     printAuth;
   int32_t  rpcTimer;
   int32_t  rpcMaxTime;
-  char     timezone[TSDB_TIMEZONE_LEN];
-  char     locale[TSDB_LOCALE_LEN];
-  char     charset[TSDB_LOCALE_LEN];
+  char     timezone[TD_TIMEZONE_LEN];
+  char     locale[TD_LOCALE_LEN];
+  char     charset[TD_LOCALE_LEN];
   char     buildinfo[64];
   char     gitinfo[48];
 } SDnodeEnvCfg;

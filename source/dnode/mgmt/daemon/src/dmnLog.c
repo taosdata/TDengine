@@ -17,7 +17,7 @@
 #include "dmnInt.h"
 
 int32_t dmnAddLogCfg(SConfig *pCfg) {
-  if (cfgAddDir(pCfg, "logDir", "/var/log/taos") != 0) return -1;
+  if (cfgAddDir(pCfg, "logDir", osLogDir()) != 0) return -1;
   if (cfgAddFloat(pCfg, "minimalLogDirGB", 1.0f, 0.001f, 10000000) != 0) return -1;
   if (cfgAddBool(pCfg, "asyncLog", 1) != 0) return -1;
   if (cfgAddInt32(pCfg, "numOfLogLines", 10000000, 1000, 2000000000) != 0) return -1;
@@ -41,8 +41,8 @@ int32_t dmnAddLogCfg(SConfig *pCfg) {
 }
 
 int32_t dmnSetLogCfg(SConfig *pCfg) {
-  tstrncpy(tsLogDir, cfgGetItem(pCfg, "logDir")->str, PATH_MAX);
-  tsLogSpace.reserved = cfgGetItem(pCfg, "minimalLogDirGB")->fval;
+  osSetLogDir(cfgGetItem(pCfg, "logDir")->str);
+  osSetLogReservedSpace(cfgGetItem(pCfg, "minimalLogDirGB")->fval);
   tsAsyncLog = cfgGetItem(pCfg, "asyncLog")->bval;
   tsNumOfLogLines = cfgGetItem(pCfg, "numOfLogLines")->i32;
   tsLogKeepDays = cfgGetItem(pCfg, "logKeepDays")->i32;
