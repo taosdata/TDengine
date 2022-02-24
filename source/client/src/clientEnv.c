@@ -300,7 +300,7 @@ int taos_options_imp(TSDB_OPTION option, const char *str) {
       assert(cfg != NULL);
 
       size_t len = strlen(str);
-      if (len == 0 || len > TSDB_LOCALE_LEN) {
+      if (len == 0 || len > TD_LOCALE_LEN) {
         tscInfo("Invalid locale:%s, use default", str);
         return -1;
       }
@@ -318,7 +318,7 @@ int taos_options_imp(TSDB_OPTION option, const char *str) {
             return -1;
           }
 
-          tstrncpy(tsLocale, defaultLocale, TSDB_LOCALE_LEN);
+          tstrncpy(tsLocale, defaultLocale, TD_LOCALE_LEN);
         }
 
         // set the user specified locale
@@ -332,7 +332,7 @@ int taos_options_imp(TSDB_OPTION option, const char *str) {
           tscInfo("failed to set locale:%s, current locale:%s", str, tsLocale);
         }
 
-        tstrncpy(tsLocale, locale, TSDB_LOCALE_LEN);
+        tstrncpy(tsLocale, locale, TD_LOCALE_LEN);
 
         char *charset = strrchr(tsLocale, sep);
         if (charset != NULL) {
@@ -347,7 +347,7 @@ int taos_options_imp(TSDB_OPTION option, const char *str) {
               tscInfo("charset changed from %s to %s", tsCharset, charset);
             }
 
-            tstrncpy(tsCharset, charset, TSDB_LOCALE_LEN);
+            tstrncpy(tsCharset, charset, TD_LOCALE_LEN);
             cfg->cfgStatus = TAOS_CFG_CSTATUS_OPTION;
 
           } else {
@@ -371,7 +371,7 @@ int taos_options_imp(TSDB_OPTION option, const char *str) {
       assert(cfg != NULL);
 
       size_t len = strlen(str);
-      if (len == 0 || len > TSDB_LOCALE_LEN) {
+      if (len == 0 || len > TD_LOCALE_LEN) {
         tscInfo("failed to set charset:%s", str);
         return -1;
       }
@@ -384,7 +384,7 @@ int taos_options_imp(TSDB_OPTION option, const char *str) {
             tscInfo("charset changed from %s to %s", tsCharset, str);
           }
 
-          tstrncpy(tsCharset, str, TSDB_LOCALE_LEN);
+          tstrncpy(tsCharset, str, TD_LOCALE_LEN);
           cfg->cfgStatus = TAOS_CFG_CSTATUS_OPTION;
         } else {
           tscInfo("charset:%s not valid", str);
@@ -402,7 +402,7 @@ int taos_options_imp(TSDB_OPTION option, const char *str) {
       assert(cfg != NULL);
 
       if (cfg->cfgStatus <= TAOS_CFG_CSTATUS_OPTION) {
-        tstrncpy(tsTimezone, str, TSDB_TIMEZONE_LEN);
+        tstrncpy(tsTimezone, str, TD_TIMEZONE_LEN);
         tsSetTimeZone();
         cfg->cfgStatus = TAOS_CFG_CSTATUS_OPTION;
         tscDebug("timezone set:%s, input:%s by taos_options", tsTimezone, str);

@@ -87,9 +87,18 @@ static int32_t dmnAddDnodeCfg(SConfig *pCfg) {
   return 0;
 }
 
+static void dmnSetDnodeCfg(SConfig *pCfg) {
+  SConfigItem *pItem = cfgGetItem(pCfg, "timezone");
+  osSetTimezone(pItem->str);
+  uDebug("timezone format changed from %s to %s", pItem->str, osTimezone());
+  cfgSetItem(pCfg, "timezone", osTimezone(), pItem->stype);
+}
+
 static int32_t dmnCheckCfg(SConfig *pCfg) {
   bool enableCore = cfgGetItem(pCfg, "enableCoreFile")->bval;
   taosSetCoreDump(enableCore);
+
+  dmnSetDnodeCfg(pCfg);
 
   if (dmnCheckDirCfg(pCfg) != 0) {
     return -1;
@@ -97,7 +106,6 @@ static int32_t dmnCheckCfg(SConfig *pCfg) {
 
   taosGetSystemInfo();
 
-  tsSetTimeZone();
   tsSetLocale();
 
   if (tsNumOfCores <= 0) {

@@ -29,7 +29,6 @@
 
 
 // common
-int8_t  tsDaylight = 0;
 int32_t tsMaxBinaryDisplayWidth = 30;
 int8_t  tsEnableSlaveQuery = 1;
 int8_t  tsEnableAdjustMaster = 1;

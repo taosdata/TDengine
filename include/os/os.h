@@ -73,6 +73,7 @@ extern "C" {
 #include "osThread.h"
 #include "osTime.h"
 #include "osTimer.h"
+#include "osTimezone.h"
 
 void osInit();
 

@@ -15,11 +15,40 @@
 
 #define _DEFAULT_SOURCE
 #include "osEnv.h"
-#include "os.h"
-#include "osSysinfo.h"
 
 SEnvVar env = {0};
 char    configDir[PATH_MAX] = {0};
+
+SEnvVar *osEnv() { return &env; }
+
+void osInitImp() {
+  osGetSystemTimezone(env.timezone);
+  osSetTimezone(env.timezone);
+}
+
+void osUpdate() {
+  if (env.logDir[0] != 0) {
+    taosGetDiskSize(env.logDir, &env.logSpace.size);
+  }
+  if (env.dataDir[0] != 0) {
+    taosGetDiskSize(env.dataDir, &env.dataSpace.size);
+  }
+  if (env.tempDir[0] != 0) {
+    taosGetDiskSize(env.tempDir, &env.tempSpace.size);
+  }
+}
+
+bool osLogSpaceAvailable() { return env.logSpace.reserved < env.logSpace.size.avail; }
+
+char *osLogDir() { return env.logDir; }
+char *osTempDir() { return env.tempDir; }
+char *osDataDir() { return env.dataDir; }
+char *osName() { return env.osName; }
+char *osTimezone() { return env.timezone; }
+
+int8_t osDaylight() { return env.daylight; }
+
+void osSetTimezone(const char *timezone) { osSetSystemTimezone(timezone, env.timezone, &env.daylight); }
 
 #if defined(_TD_WINDOWS_64) || defined(_TD_WINDOWS_32)
 
@@ -66,24 +95,3 @@ void osInit() {
 }
 
 #endif
-
-SEnvVar *osEnv() { return &env; }
-
-void osUpdate() {
-  if (env.logDir[0] != 0) {
-    taosGetDiskSize(env.logDir, &env.logSpace.size);
-  }
-  if (env.dataDir[0] != 0) {
-    taosGetDiskSize(env.dataDir, &env.dataSpace.size);
-  }
-  if (env.tempDir[0] != 0) {
-    taosGetDiskSize(env.tempDir, &env.tempSpace.size);
-  }
-}
-
-bool osLogSpaceAvailable() { return env.logSpace.reserved < env.logSpace.size.avail; }
-
-char *osLogDir() { return env.logDir; }
-char *osTempDir() { return env.tempDir; }
-char *osDataDir() { return env.dataDir; }
-char *osName() { return env.osName; }

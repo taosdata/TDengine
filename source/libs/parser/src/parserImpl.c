@@ -578,7 +578,7 @@ static EDealRes translateValue(STranslateContext* pCxt, SValueNode* pVal) {
           return DEAL_RES_ERROR;
         }
         int32_t len = trimStringCopy(pVal->literal, n, tmp);
-        if (taosParseTime(tmp, &pVal->datum.i, len, pVal->node.resType.precision, tsDaylight) != TSDB_CODE_SUCCESS) {
+        if (taosParseTime(tmp, &pVal->datum.i, len, pVal->node.resType.precision, osDaylight()) != TSDB_CODE_SUCCESS) {
           tfree(tmp);
           generateSyntaxErrMsg(pCxt, TSDB_CODE_PAR_WRONG_VALUE_TYPE, pVal->literal);
           return DEAL_RES_ERROR;

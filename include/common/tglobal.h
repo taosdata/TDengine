@@ -23,7 +23,6 @@ extern "C" {
 #include "tdef.h"
 
 // common
-extern int8_t   tsDaylight;
 extern int32_t  tsCompressMsgSize;
 extern int32_t  tsCompressColData;
 extern int32_t  tsMaxNumOfDistinctResults;

@@ -21,9 +21,8 @@ int64_t tsPageSize = 0;
 int64_t tsOpenMax = 0;
 int64_t tsStreamMax = 0;
 int32_t tsNumOfCores = 1;
-char    tsTimezone[TSDB_TIMEZONE_LEN] = {0};
-char    tsLocale[TSDB_LOCALE_LEN] = {0};
-char    tsCharset[TSDB_LOCALE_LEN] = {0};  // default encode string
+char    tsLocale[TD_LOCALE_LEN] = {0};
+char    tsCharset[TD_LOCALE_LEN] = {0};  // default encode string
 
 #if defined(_TD_WINDOWS_64) || defined(_TD_WINDOWS_32)
 
@@ -89,21 +88,13 @@ bool taosGetProcMemory(float *memoryUsedMB) {
   return true;
 }
 
-static void taosGetSystemTimezone() {
-  // get and set default timezone
-  char *tz = getenv("TZ");
-  if (tz == NULL || strlen(tz) == 0) {
-    strcpy(tsTimezone, "not configured");
-  } else {
-    strcpy(tsTimezone, tz);
-  }
-}
+
 
 static void taosGetSystemLocale() {
   // get and set default locale
   char *locale = setlocale(LC_CTYPE, "chs");
   if (locale != NULL) {
-    tstrncpy(tsLocale, locale, TSDB_LOCALE_LEN);
+    tstrncpy(tsLocale, locale, TD_LOCALE_LEN);
   }
 
   strcpy(tsCharset, "cp936");
@@ -200,7 +191,6 @@ void taosGetSystemInfo() {
   taosGetCpuUsage(&tmp1, &tmp2);
   taosGetProcIO(&tmp1, &tmp2);
 
-  taosGetSystemTimezone();
   taosGetSystemLocale();
 }
 
@@ -273,57 +263,6 @@ char *taosGetCmdlineByPID(int pid) { return ""; }
 #include <errno.h>
 #include <libproc.h>
 
-static void taosGetSystemTimezone() {
-  /* load time zone string from /etc/localtime */
-  char  buf[4096];
-  char *tz = NULL;
-  {
-    int n = readlink("/etc/localtime", buf, sizeof(buf));
-    if (n < 0) {
-      //printf("read /etc/localtime error, reason:%s", strerror(errno));
-      return;
-    }
-    buf[n] = '\0';
-    for (int i = n - 1; i >= 0; --i) {
-      if (buf[i] == '/') {
-        if (tz) {
-          tz = buf + i + 1;
-          break;
-        }
-        tz = buf + i + 1;
-      }
-    }
-    if (!tz || 0 == strchr(tz, '/')) {
-      //printf("parsing /etc/localtime failed");
-      return;
-    }
-
-    setenv("TZ", tz, 1);
-    tzset();
-  }
-
-  /*
-   * NOTE: do not remove it.
-   * Enforce set the correct daylight saving time(DST) flag according
-   * to current time
-   */
-  time_t    tx1 = time(NULL);
-  struct tm tm1;
-  localtime_r(&tx1, &tm1);
-
-  /*
-   * format example:
-   *
-   * Asia/Shanghai   (CST, +0800)
-   * Europe/London   (BST, +0100)
-   */
-  snprintf(tsTimezone, TSDB_TIMEZONE_LEN, "%s (%s, %+03ld00)", tz, tm1.tm_isdst ? tzname[daylight] : tzname[0],
-           -timezone / 3600);
-
-  // cfg_timezone->cfgStatus = TAOS_CFG_CSTATUS_DEFAULT;
-  //printf("timezone not configured, set to system default:%s", tsTimezone);
-}
-
 /*
  * originally from src/os/src/detail/osSysinfo.c
  * POSIX format locale string:
@@ -351,7 +290,7 @@ static void taosGetSystemLocale() {  // get and set default locale
     //printf("can't get locale from system, set it to en_US.UTF-8 since error:%d:%s", errno, strerror(errno));
     strcpy(tsLocale, "en_US.UTF-8");
   } else {
-    tstrncpy(tsLocale, locale, TSDB_LOCALE_LEN);
+    tstrncpy(tsLocale, locale, TD_LOCALE_LEN);
     //printf("locale not configured, set to system default:%s", tsLocale);
   }
 
@@ -361,7 +300,7 @@ static void taosGetSystemLocale() {  // get and set default locale
     str++;
 
     char *revisedCharset = taosCharsetReplace(str);
-    tstrncpy(tsCharset, revisedCharset, TSDB_LOCALE_LEN);
+    tstrncpy(tsCharset, revisedCharset, TD_LOCALE_LEN);
 
     free(revisedCharset);
     //printf("charset not configured, set to system default:%s", tsCharset);
@@ -387,7 +326,6 @@ void taosGetSystemInfo() {
   tsTotalMemoryMB = physical_pages * page_size / (1024 * 1024);
   tsPageSize = page_size;
 
-  taosGetSystemTimezone();
   taosGetSystemLocale();
 }
 
@@ -625,65 +563,6 @@ static bool taosGetProcCpuInfo(ProcCpuInfo *cpuInfo) {
   return true;
 }
 
-static void taosGetSystemTimezone() {
-  /*
-   * NOTE: do not remove it.
-   * Enforce set the correct daylight saving time(DST) flag according
-   * to current time
-   */
-  time_t    tx1 = time(NULL);
-  struct tm tm1;
-  localtime_r(&tx1, &tm1);
-
-  /* load time zone string from /etc/timezone */
-  FILE *f = fopen("/etc/timezone", "r");
-  char  buf[68] = {0};
-  if (f != NULL) {
-    int len = fread(buf, 64, 1, f);
-    if (len < 64 && ferror(f)) {
-      fclose(f);
-      //printf("read /etc/timezone error, reason:%s", strerror(errno));
-      return;
-    }
-
-    fclose(f);
-
-    buf[sizeof(buf) - 1] = 0;
-    char *lineEnd = strstr(buf, "\n");
-    if (lineEnd != NULL) {
-      *lineEnd = 0;
-    }
-
-    // for CentOS system, /etc/timezone does not exist. Ignore the TZ environment variables
-    if (strlen(buf) > 0) {
-      setenv("TZ", buf, 1);
-    }
-  }
-  // get and set default timezone
-  tzset();
-
-  /*
-   * get CURRENT time zone.
-   * system current time zone is affected by daylight saving time(DST)
-   *
-   * e.g., the local time zone of London in DST is GMT+01:00,
-   * otherwise is GMT+00:00
-   */
-  int32_t tz = (-timezone * MILLISECOND_PER_SECOND) / MILLISECOND_PER_HOUR;
-  tz += daylight;
-
-  /*
-   * format example:
-   *
-   * Asia/Shanghai   (CST, +0800)
-   * Europe/London   (BST, +0100)
-   */
-  snprintf(tsTimezone, TSDB_TIMEZONE_LEN, "%s (%s, %s%02d00)", buf, tzname[daylight], tz >= 0 ? "+" : "-", abs(tz));
-
-  // cfg_timezone->cfgStatus = TAOS_CFG_CSTATUS_DEFAULT;
-  //printf("timezone not configured, set to system default:%s", tsTimezone);
-}
-
 /*
  * POSIX format locale string:
  * (Language Strings)_(Country/Region Strings).(code_page)
@@ -710,7 +589,7 @@ static void taosGetSystemLocale() {  // get and set default locale
     //printf("can't get locale from system, set it to en_US.UTF-8 since error:%d:%s", errno, strerror(errno));
     strcpy(tsLocale, "en_US.UTF-8");
   } else {
-    tstrncpy(tsLocale, locale, TSDB_LOCALE_LEN);
+    tstrncpy(tsLocale, locale, TD_LOCALE_LEN);
     //printf("locale not configured, set to system default:%s", tsLocale);
   }
 
@@ -720,7 +599,7 @@ static void taosGetSystemLocale() {  // get and set default locale
     str++;
 
     char *revisedCharset = taosCharsetReplace(str);
-    tstrncpy(tsCharset, revisedCharset, TSDB_LOCALE_LEN);
+    tstrncpy(tsCharset, revisedCharset, TD_LOCALE_LEN);
 
     free(revisedCharset);
     //printf("charset not configured, set to system default:%s", tsCharset);
@@ -957,7 +836,6 @@ void taosGetSystemInfo() {
   taosGetCpuUsage(&tmp1, &tmp2);
   taosGetProcIO(&tmp1, &tmp2);
 
-  taosGetSystemTimezone();
   taosGetSystemLocale();
 }
 

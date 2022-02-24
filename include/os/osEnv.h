@@ -26,10 +26,14 @@ typedef struct SEnvVar {
   char       dataDir[PATH_MAX];
   char       logDir[PATH_MAX];
   char       tempDir[PATH_MAX];
-  char       osName[16];
   SDiskSpace dataSpace;
   SDiskSpace logSpace;
   SDiskSpace tempSpace;
+  char       osName[16];
+  char       timezone[TD_TIMEZONE_LEN];
+  char       locale[TD_LOCALE_LEN];
+  char       charset[TD_CHARSET_LEN];
+  int8_t     daylight;
 } SEnvVar;
 
 extern char configDir[];
@@ -38,10 +42,14 @@ void     osInit();
 SEnvVar *osEnv();
 void     osUpdate();
 bool     osLogSpaceAvailable();
-char *   osLogDir();
-char *   osTempDir();
-char *   osDataDir();
-char *   osName();
+char    *osLogDir();
+char    *osTempDir();
+char    *osDataDir();
+char    *osName();
+char *osTimezone();
+int8_t   osDaylight();
+
+void osSetTimezone(const char*timezone);
 
 #ifdef __cplusplus
 }

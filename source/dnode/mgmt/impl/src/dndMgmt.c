@@ -371,9 +371,9 @@ void dndSendStatusReq(SDnode *pDnode) {
   req.clusterCfg.checkTime = 0;
   char timestr[32] = "1970-01-01 00:00:00.00";
   (void)taosParseTime(timestr, &req.clusterCfg.checkTime, (int32_t)strlen(timestr), TSDB_TIME_PRECISION_MILLI, 0);
-  memcpy(req.clusterCfg.timezone, pDnode->env.timezone, TSDB_TIMEZONE_LEN);
-  memcpy(req.clusterCfg.locale, pDnode->env.locale, TSDB_LOCALE_LEN);
-  memcpy(req.clusterCfg.charset, pDnode->env.charset, TSDB_LOCALE_LEN);
+  memcpy(req.clusterCfg.timezone, pDnode->env.timezone, TD_TIMEZONE_LEN);
+  memcpy(req.clusterCfg.locale, pDnode->env.locale, TD_LOCALE_LEN);
+  memcpy(req.clusterCfg.charset, pDnode->env.charset, TD_LOCALE_LEN);
   taosRUnLockLatch(&pMgmt->latch);
 
   req.pVloads = taosArrayInit(TSDB_MAX_VNODES, sizeof(SVnodeLoad));
