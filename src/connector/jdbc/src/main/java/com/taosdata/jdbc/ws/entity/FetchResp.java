@@ -8,7 +8,7 @@ public class FetchResp extends Response{
     private String message;
     private long id;
     private boolean completed;
-    private int[] lengths;
+    private Integer[] lengths;
     private int rows;
 
     public int getCode() {
@@ -43,11 +43,11 @@ public class FetchResp extends Response{
         this.completed = completed;
     }
 
-    public int[] getLengths() {
+    public Integer[] getLengths() {
         return lengths;
     }
 
-    public void setLengths(int[] lengths) {
+    public void setLengths(Integer[] lengths) {
         this.lengths = lengths;
     }
 

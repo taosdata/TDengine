@@ -579,7 +579,7 @@ public void setString(int columnIndex, ArrayList<String> list, int size) throws 
 public void setNString(int columnIndex, ArrayList<String> list, int size) throws SQLException
 ```
 ### Set client configuration in JDBC
-Starting with TDEngine-2.3.5.0, JDBC Driver supports setting TDengine client parameters on the first connection of a Java application. The Driver supports jdbcUrl and Properties to set client parameters in JDBC-JNI mode.
+Starting with TDengine-2.3.5.0, JDBC Driver supports setting TDengine client parameters on the first connection of a Java application. The Driver supports jdbcUrl and Properties to set client parameters in JDBC-JNI mode.
 
 Note:
 * JDBC-RESTful does not support setting client parameters.

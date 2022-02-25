@@ -452,7 +452,8 @@ class TaosMultiBind {
             if (element == null || element == undefined) {
                 ref.set(mbindIsNullBuf, index * ref.types.char.size, 1, ref.types.char);
             } else {
-                ref.writeInt64LE(mbindBufferBuf, index * ref.types.uint64.size, element.toString())
+
+                ref.writeUInt64LE(mbindBufferBuf, index * ref.types.uint64.size, element.toString())
                 ref.set(mbindIsNullBuf, index * ref.types.char.size, 0, ref.types.char);
             }
 

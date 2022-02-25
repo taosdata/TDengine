@@ -52,19 +52,19 @@ When the client encountered a connection failure, please follow the following st
    - Local virtual machine: Check whether the network can be pinged, and try to avoid using localhost as hostname
    - Corporate server: If you are in a NAT network environment, be sure to check whether the server can return messages to the client
 
-2. Make sure that the client and server version numbers are exactly the same, and the open source Community Edition and Enterprise Edition cannot be mixed.
-3. On the server, execute systemctl status taosd to check the running status of *taosd*. If not running, start *taosd*.
-4. Verify that the correct server FQDN (Fully Qualified Domain Name, which is available by executing the Linux command hostname-f on the server) is specified when the client connects. FQDN configuration reference: "[All about FQDN of TDengine](https://www.taosdata.com/blog/2020/09/11/1824.html)".
-5. Ping the server FQDN. If there is no response, please check your network, DNS settings, or the system hosts file of the computer where the client is located.
-6. Check the firewall settings (Ubuntu uses ufw status, CentOS uses firewall-cmd-list-port) to confirm that TCP/UDP ports 6030-6042 are open.
-7. For JDBC (ODBC, Python, Go and other interfaces are similar) connections on Linux, make sure that libtaos.so is in the directory /usr/local/taos/driver, and /usr/local/taos/driver is in the system library function search path LD_LIBRARY_PATH.
-8. For JDBC, ODBC, Python, Go, etc. connections on Windows, make sure that C:\ TDengine\ driver\ taos.dll is in your system library function search directory (it is recommended that taos.dll be placed in the directory C:\ Windows\ System32)
-9. If the connection issue still exist
+3. Make sure that the client and server version numbers are exactly the same, and the open source Community Edition and Enterprise Edition cannot be mixed.
+4. On the server, execute systemctl status taosd to check the running status of *taosd*. If not running, start *taosd*.
+5. Verify that the correct server FQDN (Fully Qualified Domain Name, which is available by executing the Linux command hostname-f on the server) is specified when the client connects. FQDN configuration reference: "[All about FQDN of TDengine](https://www.taosdata.com/blog/2020/09/11/1824.html)".
+6. Ping the server FQDN. If there is no response, please check your network, DNS settings, or the system hosts file of the computer where the client is located.
+7. Check the firewall settings (Ubuntu uses ufw status, CentOS uses firewall-cmd-list-port) to confirm that TCP/UDP ports 6030-6042 are open.
+8. For JDBC (ODBC, Python, Go and other interfaces are similar) connections on Linux, make sure that libtaos.so is in the directory /usr/local/taos/driver, and /usr/local/taos/driver is in the system library function search path LD_LIBRARY_PATH.
+9. For JDBC, ODBC, Python, Go, etc. connections on Windows, make sure that C:\ TDengine\ driver\ taos.dll is in your system library function search directory (it is recommended that taos.dll be placed in the directory C:\ Windows\ System32)
+10. If the connection issue still exist
 
-1. - On Linux system, please use the command line tool nc to determine whether the TCP and UDP connections on the specified ports are unobstructed. Check whether the UDP port connection works: nc -vuz {hostIP} {port} Check whether the server-side TCP port connection works: nc -l {port}Check whether the client-side TCP port connection works: nc {hostIP} {port}
-   - Windows systems use the PowerShell command Net-TestConnection-ComputerName {fqdn} Port {port} to detect whether the service-segment port is accessed
+  - On Linux system, please use the command line tool nc to determine whether the TCP and UDP connections on the specified ports are unobstructed. Check whether the UDP port connection works: nc -vuz {hostIP} {port} Check whether the server-side TCP port connection works: nc -l {port}Check whether the client-side TCP port connection works: nc {hostIP} {port}
+  - Windows systems use the PowerShell command Net-TestConnection-ComputerName {fqdn} Port {port} to detect whether the service-segment port is accessed
 
-10. You can also use the built-in network connectivity detection function of taos program to verify whether the specified port connection between the server and the client is unobstructed (including TCP and UDP): [TDengine's Built-in Network Detection Tool Use Guide](https://www.taosdata.com/blog/2020/09/08/1816.html).
+11. You can also use the built-in network connectivity detection function of taos program to verify whether the specified port connection between the server and the client is unobstructed (including TCP and UDP): [TDengine's Built-in Network Detection Tool Use Guide](https://www.taosdata.com/blog/2020/09/08/1816.html).
 
 
 

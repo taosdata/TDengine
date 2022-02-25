@@ -2,7 +2,7 @@
 
 ## <a class="anchor" id="install"></a>Quick Install
 
-TDengine includes server, client, and ecological software and peripheral tools. Currently, version 2.0 of the server can only be installed and run on Linux and will support Windows, macOS, and other OSes in the future. The client can be installed and run on Windows or Linux. Applications on any operating system can use the RESTful interface to connect to the taosd server. After 2.4, TDengine includes taosAdapter to provide an easy-to-use and efficient way to ingest data including RESTful service. taosAdapter needs to be started manually as a stand-alone component. The early version uses an embedded HTTP component to provide the RESTful interface.
+TDengine includes server, client, and ecosystem software and peripheral tools. Currently, version 2.0 of the server can only be installed and run on Linux and will support Windows, macOS, and other OSes in the future. The client can be installed and run on Windows or Linux. Applications on any operating system can use the RESTful interface to connect to the taosd server. Starting with 2.4, TDengine includes taosAdapter to provide an easy-to-use and efficient way to ingest data and includes a RESTful service. taosAdapter needs to be started manually as a stand-alone component. The earlier version uses an embedded HTTP component to provide the RESTful interface.
 
 TDengine supports X64/ARM64/MIPS64/Alpha64 hardware platforms and will support ARM32, RISC-V, and other CPU architectures in the future.
 
@@ -14,11 +14,11 @@ docker run -d -p 6030-6049:6030-6049 -p 6030-6049:6030-6049/udp tdengine/tdengin
 
 Please refer to [Quickly Taste TDengine with Docker](https://www.taosdata.com/en/documentation/getting-started/docker) for the details.
 
-For the time being, using Docker to deploy the client or server of TDengine for production environments is not recommended. However it is a convenient way to deploy TDengine for development purposes. In particular, it is easy to try TDengine in Mac OS X and Windows environments with Docker.
+For the time being, we do not recommend using Docker to deploy the TDengine server or client in production environments. However it is a convenient way to deploy TDengine for development purposes. In particular, it is easy to try TDengine in Mac OS X and Windows environments with Docker.
 
 ### <a class="anchor" id="package-install"></a>Install from Package
 
-TDengine is very easy to install, from download to successful installation in just a few seconds. For ease of use, the standard server installation package includes the client application and sample code; if you only need the server application and C/C++ language support for the client connection, you can also download the lite version of the installation package only. The installation packages are available in `rpm` and `deb` formats, as well as `tar.gz` format for enterprise customers who need to facilitate use on specific operating systems. Releases include both stable and beta releases. We recommend the stable release for production use or testing. The beta release may contain more new features. You can choose to download from the following as needed:
+TDengine is very easy to run; download to successful installation takes just a few seconds. For ease of use, the standard server installation package includes the client application and sample code. But if you only need the server application and C/C++ language support for the client connection, you can also download only the lite version of the installation package. The installation packages are available in `rpm` and `deb` formats, as well as `tar.gz` format for enterprise customers who need to facilitate use on specific operating systems. Releases include both stable and beta releases. We recommend the stable release for production use or testing. The beta release may contain more new features. You can choose to download from the following as needed:
 
 <ul id="server-packageList" class="package-list"></ul>
 
@@ -45,14 +45,6 @@ If the client and server are running on different computers, you can install the
 
 <ul id="client-packagelist" class="package-list"></ul>
 
-### Install taosTools
-
-taosTools is a collection of helper software for TDengine. It currently includes taosdump for data backup and recovery and the script TDinsight.sh for installing grafanaplugin and dashboard.
-
-To run taosdump, you need to install the TDengine server or TDengine client installer. It is recommended to use the deb or rpm format to install the dependent software.
-
-<ul id="taos-tools" class="package-list"></ul>
-
 ### <a class="anchor" id="source-install"></a>Install from Source
 
 If you want to contribute to TDengine, please visit [TDengine GitHub page](https://github.com/taosdata/TDengine) for detailed instructions on build and installation from the source code.
@@ -67,13 +59,13 @@ After installation, you can start the TDengine service by the `systemctl` comman
 systemctl start taosd
 ```
 
-Then check if the service is working now.
+Then check if the service is working.
 
 ```bash
 systemctl status taosd
 ```
 
-If the service is running successfully, you can play around through TDengine shell `taos`.
+If the service is running successfully, you can play around through the TDengine shell, `taos`.
 
 **Note:**
 
@@ -128,7 +120,7 @@ ts     |  speed  |
 Query OK, 2 row(s) in set (0.001700s)
 ```
 
-Besides the SQL commands, the system administrator can check system status, add or delete accounts, and manage the servers.
+Besides executing SQL commands, the system administrator can check system status, add or delete accounts, and manage the servers.
 
 ### Shell Command Line Parameters
 
@@ -166,7 +158,7 @@ taos> source <filename>;
 
 ### <a class="anchor" id="taosBenchmark"></a> Taste insertion speed with taosBenchmark
 
-Once the TDengine server started, you can execute the command `taosBenchmark` (which was named `taosdemo`) in the Linux terminal.
+Once the TDengine server started, you can execute the command `taosBenchmark` (which was named `taosdemo`) in the Linux terminal. In 2.4.0.7 and early release, taosBenchmark is distributed within taosTools package. In later release, taosBenchmark will be included within TDengine again. 
 
 ```bash
 taosBenchmark
