@@ -108,7 +108,7 @@ typedef TD_DLIST_NODE(SPgFile) SPgFileListNode;
     }                             \
   } while (0)
 
-#define TDB_VARIANT_LEN (int)-1
+#define TDB_VARIANT_LEN ((int)-1)
 
 // page payload format
 // <keyLen> + <valLen> + [key] + [value]

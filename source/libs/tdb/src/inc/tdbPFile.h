@@ -25,6 +25,8 @@ typedef struct SPFile SPFile;
 int    tdbPFileOpen(SPCache *pCache, const char *fileName, SPFile **ppFile);
 int    tdbPFileClose(SPFile *pFile);
 SPage *tdbPFileGet(SPFile *pFile, SPgno pgno);
+int    tdbPFileWrite(SPFile *pFile, SPage *pPage);
+int    tdbPFileAllocPage(SPFile *pFile, SPage **ppPage);
 int    tdbPFileBegin(SPFile *pFile);
 int    tdbPFileCommit(SPFile *pFile);
 int    tdbPFileRollback(SPFile *pFile);

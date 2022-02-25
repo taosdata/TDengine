@@ -23,6 +23,8 @@ extern "C" {
 typedef struct SBTree    SBTree;
 typedef struct SBtCursor SBtCursor;
 
+int tdbBtCursorInsert(SBtCursor *pCur, const void *pKey, int kLen, const void *pVal, int vLen);
+
 #ifdef __cplusplus
 }
 #endif

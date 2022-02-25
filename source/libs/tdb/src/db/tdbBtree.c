@@ -25,18 +25,29 @@ struct SBTree {
   int (*FKeyComparator)(const void *pKey1, int keyLen1, const void *pKey2, int keyLen2);
 };
 
+typedef struct SPgHdr {
+  u8  flags;
+  u8  nFree;
+  u16 firstFree;
+  u16 nCells;
+  u16 pCell;
+  i32 kLen;
+  i32 vLen;
+} SPgHdr;
+
+typedef struct SBtPage {
+  SPgHdr *pHdr;
+  u16 *   aCellIdx;
+} SBtPage;
+
 struct SBtCursor {
-  SBTree *  pBt;
-  i8        iPage;
-  // SMemPage *pPage;
-  // SMemPage *apPage[BTREE_MAX_DEPTH + 1];
+  SBTree * pBt;
+  i8       iPage;
+  SBtPage *pPage;
 };
 
-// typedef struct SMemPage {
-//   u8    isInit;
-//   u8    isLeaf;
-//   SPgno pgno;
-// } SMemPage;
+static int tdbBtCursorMoveTo(SBtCursor *pCur, const void *pKey, int kLen);
+static int tdbEncodeLength(u8 *pBuf, uint len);
 
 int tdbBtreeOpen(SPgno root, SBTree **ppBt) {
   *ppBt = NULL;
@@ -56,21 +67,72 @@ int tdbBtreeCursor(SBTree *pBt, SBtCursor *pCur) {
   return 0;
 }
 
-int tdbBtreeCursorMoveTo(SBtCursor *pCur) {
-  /* TODO */
-  return 0;
-}
-
-static int tdbBtreeCursorMoveToRoot(SBtCursor *pCur) {
+int tdbBtCursorInsert(SBtCursor *pCur, const void *pKey, int kLen, const void *pVal, int vLen) {
+  int     ret;
   SPFile *pFile;
-  SPage * pPage;
 
-  pFile = pCur->pBt->pFile;
-
-  pPage = tdbPFileGet(pFile, pCur->pBt->root);
-  if (pPage == NULL) {
+  ret = tdbBtCursorMoveTo(pCur, pKey, kLen);
+  if (ret < 0) {
+    // TODO: handle error
     return -1;
   }
 
+  pFile = pCur->pBt->pFile;
+  // ret = tdbPFileWrite(pFile, pCur->pPage);
+  // if (ret < 0) {
+  //   // TODO: handle error
+  //   return -1;
+  // }
+
   return 0;
+}
+
+static int tdbBtCursorMoveTo(SBtCursor *pCur, const void *pKey, int kLen) {
+  // TODO
+  return 0;
+}
+
+static int tdbEncodeKeyValue(const void *pKey, int kLen, int kLenG, const void *pVal, int vLen, int vLenG, void *pBuf,
+                             int *bLen) {
+  u8 *pPtr;
+
+  ASSERT(kLen > 0 && vLen > 0);
+  ASSERT(kLenG == TDB_VARIANT_LEN || kLenG == kLen);
+  ASSERT(vLenG == TDB_VARIANT_LEN || vLenG == vLen);
+
+  pPtr = (u8 *)pBuf;
+  if (kLenG == TDB_VARIANT_LEN) {
+    pPtr += tdbEncodeLength(pPtr, kLen);
+  }
+
+  if (vLenG == TDB_VARIANT_LEN) {
+    pPtr += tdbEncodeLength(pPtr, vLen);
+  }
+
+  memcpy(pPtr, pKey, kLen);
+  pPtr += kLen;
+
+  memcpy(pPtr, pVal, vLen);
+  pPtr += vLen;
+
+  *bLen = pPtr - (u8 *)pBuf;
+  return 0;
+}
+
+static int tdbDecodeKeyValue(const void *pBuf, void *pKey, int *kLen, void *pVal, int *vLen) {
+  // TODO
+  return 0;
+}
+
+static int tdbEncodeLength(u8 *pBuf, uint len) {
+  int iCount = 0;
+
+  while (len > 127) {
+    pBuf[iCount++] = (u8)((len & 0xff) | 128);
+    len >>= 7;
+  }
+
+  pBuf[iCount++] = (u8)len;
+
+  return iCount;
 }

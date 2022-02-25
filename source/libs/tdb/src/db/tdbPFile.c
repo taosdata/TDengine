@@ -105,6 +105,18 @@ SPage *tdbPFileGet(SPFile *pFile, SPgno pgno) {
   return pPage;
 }
 
+int tdbPFileWrite(SPFile *pFile, SPage *pPage) {
+  // TODO: if the page is not in journal, write to journal
+  // mark the page as dirty
+  return 0;
+}
+
+int tdbPFileAllocPage(SPFile *pFile, SPage **ppPage) {
+  // TODO
+  *ppPage = NULL;
+  return 0;
+}
+
 int tdbPFileBegin(SPFile *pFile) {
   // TODO
   return 0;
