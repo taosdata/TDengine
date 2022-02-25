@@ -135,7 +135,7 @@ CREATE DATABASE db_name PRECISION 'ns';
     ```mysql
     ALTER DATABASE db_name BLOCKS 100;
     ```
-    BLOCKS 参数是每个 VNODE (TSDB) 中有多少 cache 大小的内存块，因此一个 VNODE 的用的内存大小粗略为（cache * blocks）。取值范围 [3, 1000]。
+    BLOCKS 参数是每个 VNODE (TSDB) 中有多少 cache 大小的内存块，因此一个 VNODE 的用的内存大小粗略为（cache * blocks）。取值范围 [3, 10000]。
 
     ```mysql
     ALTER DATABASE db_name CACHELAST 0;
