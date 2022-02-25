@@ -523,7 +523,8 @@ static int tsdbSetAndOpenCommitFile(SCommitH *pCommith, SDFileSet *pSet, int fid
     SDFile *pRDataf = TSDB_READ_DATA_FILE(&(pCommith->readh));
     SDFile *pWDataf = TSDB_COMMIT_DATA_FILE(pCommith);
     tsdbInitDFileEx(pWDataf, pRDataf);
-    if (tsdbOpenDFile(pWDataf, O_WRONLY) < 0) {
+    // if (tsdbOpenDFile(pWDataf, O_WRONLY) < 0) {
+    if (tsdbOpenDFile(pWDataf, TD_FILE_WRITE) < 0) {
       tsdbError("vgId:%d failed to open file %s to commit since %s", REPO_ID(pRepo), TSDB_FILE_FULL_NAME(pWDataf),
                 tstrerror(terrno));
 
@@ -543,7 +544,8 @@ static int tsdbSetAndOpenCommitFile(SCommitH *pCommith, SDFileSet *pSet, int fid
       tsdbInitDFileEx(pWLastf, pRLastf);
       pCommith->isLFileSame = true;
 
-      if (tsdbOpenDFile(pWLastf, O_WRONLY) < 0) {
+      // if (tsdbOpenDFile(pWLastf, O_WRONLY) < 0) {
+      if (tsdbOpenDFile(pWLastf, TD_FILE_WRITE) < 0) {
         tsdbError("vgId:%d failed to open file %s to commit since %s", REPO_ID(pRepo), TSDB_FILE_FULL_NAME(pWLastf),
                   tstrerror(terrno));
 

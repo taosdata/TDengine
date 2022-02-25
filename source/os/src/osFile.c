@@ -308,6 +308,7 @@ int64_t taosWriteFile(TdFilePtr pFile, const void *buf, int64_t count) {
 }
 
 int64_t taosLSeekFile(TdFilePtr pFile, int64_t offset, int32_t whence) { 
+  if (pFile == NULL) return -1;
   return (int64_t)lseek(pFile->fd, (long)offset, whence); 
 }
 
@@ -602,7 +603,8 @@ int taosGetErrorFile(TdFilePtr pFile) {
   return errno;
 }
 size_t taosGetLineFile(TdFilePtr pFile, char ** __restrict__ ptrBuf) {
-  return getline(ptrBuf, NULL, pFile->fp);
+  size_t len = 0;
+  return getline(ptrBuf, &len, pFile->fp);
 }
 int32_t taosEOFFile(TdFilePtr pFile) {
   return feof(pFile->fp);
