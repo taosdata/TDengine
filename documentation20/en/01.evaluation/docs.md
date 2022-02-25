@@ -22,9 +22,11 @@ TDengine is a high-performance, scalable time-series database with SQL support. 
 
 TDengine can be widely applied to Internet of Things (IoT), Connected Vehicles, Industrial IoT, DevOps, energy, finance and many other scenarios. With TDengine, the total cost of ownership of time-series data platforms can be greatly reduced. However, since it makes full use of the characteristics of time-series data, TDengine cannot be used to process general data from web crawlers, microblogs, WeChat, e-commerce, ERP, CRM, and other sources.
 
+<center>
 ![TDengine Technology Ecosystem](../images/eco_system.png)
+<center>
+<center>Figure 1. TDengine Ecosystem</center>
 
-<center>Figure 1. TDengine Technology Ecosystem</center>
 
 ## <a class="anchor" id="scenes"></a>Overall Scenarios of TDengine
 
