@@ -16,11 +16,6 @@
 #define _DEFAULT_SOURCE
 #include "os.h"
 
-int32_t tsTotalMemoryMB = 0;
-int64_t tsPageSize = 0;
-int64_t tsOpenMax = 0;
-int64_t tsStreamMax = 0;
-int32_t tsNumOfCores = 2;
 #if defined(_TD_WINDOWS_64) || defined(_TD_WINDOWS_32)
 
 /*

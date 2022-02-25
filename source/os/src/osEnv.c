@@ -19,23 +19,23 @@
 extern void taosWinSocketInit();
 
 char       configDir[PATH_MAX] = {0};
-char       tsDataDir[PATH_MAX];
-char       tsLogDir[PATH_MAX];
-char       tsTempDir[PATH_MAX];
-SDiskSpace tsDataSpace;
-SDiskSpace tsLogSpace;
-SDiskSpace tsTempSpace;
-char       tsOsName[16];
-char       tsTimezone[TD_TIMEZONE_LEN];
-char       tsLocale[TD_LOCALE_LEN];
-char       tsCharset[TD_CHARSET_LEN];
-int8_t     tsDaylight;
-bool       tsEnableCoreFile;
-int64_t    tsPageSize;
-int64_t    tsOpenMax;
-int64_t    tsStreamMax;
-int32_t    tsNumOfCores;
-int32_t    tsTotalMemoryMB;
+char       tsDataDir[PATH_MAX] = {0};
+char       tsLogDir[PATH_MAX] = {0};
+char       tsTempDir[PATH_MAX] = {0};
+SDiskSpace tsDataSpace = {0};
+SDiskSpace tsLogSpace = {0};
+SDiskSpace tsTempSpace = {0};
+char       tsOsName[16] = {0};
+char       tsTimezone[TD_TIMEZONE_LEN] = {0};
+char       tsLocale[TD_LOCALE_LEN] = {0};
+char       tsCharset[TD_CHARSET_LEN] = {0};
+int8_t     tsDaylight = 0;
+bool       tsEnableCoreFile = 0;
+int64_t    tsPageSize = 0;
+int64_t    tsOpenMax = 0;
+int64_t    tsStreamMax = 0;
+int32_t    tsNumOfCores = 0;
+int32_t    tsTotalMemoryMB = 0;
 
 void osInit() {
   srand(taosSafeRand());
