@@ -2001,16 +2001,15 @@ static SQLFunctionCtx* createSQLFunctionCtx(SQueryRuntimeEnv* pRuntimeEnv, SExpr
     int32_t functionId = pCtx->functionId;
 
     if (functionId == TSDB_FUNC_TOP || functionId == TSDB_FUNC_BOTTOM
-        || functionId == TSDB_FUNC_DIFF || functionId == TSDB_FUNC_UNIQUE) {
+        || functionId == TSDB_FUNC_DIFF || functionId == TSDB_FUNC_UNIQUE
+        || functionId == TSDB_FUNC_TAIL) {
       int32_t f = pExpr[i-1].base.functionId;
       assert(f == TSDB_FUNC_TS || f == TSDB_FUNC_TS_DUMMY);
 
-      pCtx->param[2].i64 = pQueryAttr->order.order;
-      pCtx->param[2].nType = TSDB_DATA_TYPE_BIGINT;
-      pCtx->param[3].i64 = functionId;
+      pCtx->param[3].i64 = pQueryAttr->order.order;
       pCtx->param[3].nType = TSDB_DATA_TYPE_BIGINT;
 
-      pCtx->param[1].i64 = pQueryAttr->order.orderColId;
+      pCtx->param[2].i64 = pQueryAttr->order.orderColId;
     } else if (functionId == TSDB_FUNC_INTERP) {
       pCtx->param[2].i64 = (int8_t)pQueryAttr->fillType;
       if (pQueryAttr->fillVal != NULL) {
