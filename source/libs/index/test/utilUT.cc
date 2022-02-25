@@ -201,3 +201,27 @@ TEST_F(UtilEnv, 03union) {
   iUnion(src, rslt);
   assert(taosArrayGetSize(rslt) == 9);
 }
+TEST_F(UtilEnv, 04union) {
+  clearSourceArray(src);
+  clearFinalArray(rslt);
+
+  uint64_t arr1[] = {1, 4, 5, 6};
+  SArray * f = (SArray *)taosArrayGetP(src, 0);
+  for (int i = 0; i < sizeof(arr1) / sizeof(arr1[0]); i++) {
+    taosArrayPush(f, &arr1[i]);
+  }
+
+  uint64_t arr2[] = {7, 8, 10};
+  f = (SArray *)taosArrayGetP(src, 1);
+  for (int i = 0; i < sizeof(arr2) / sizeof(arr2[0]); i++) {
+    taosArrayPush(f, &arr2[i]);
+  }
+
+  uint64_t arr3[] = {20, 21, 30, 100};
+  f = (SArray *)taosArrayGetP(src, 2);
+  for (int i = 0; i < sizeof(arr3) / sizeof(arr3[0]); i++) {
+    taosArrayPush(f, &arr3[i]);
+  }
+  iUnion(src, rslt);
+  assert(taosArrayGetSize(rslt) == 11);
+}
