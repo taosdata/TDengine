@@ -105,7 +105,7 @@ WriterCtx* writerCtxCreate(WriterType type, const char* path, bool readOnly, int
 #endif
     }
     memcpy(ctx->file.buf, path, strlen(path));
-    if (ctx->file.pFile < 0) {
+    if (ctx->file.pFile == NULL) {
       indexError("failed to open file, error %d", errno);
       goto END;
     }

@@ -416,7 +416,7 @@ void taosPrintLog(const char *flags, int32_t dflag, const char *format, ...) {
   buffer[len++] = '\n';
   buffer[len] = 0;
 
-  if ((dflag & DEBUG_FILE) && tsLogObj.logHandle && tsLogObj.logHandle->pFile >= 0) {
+  if ((dflag & DEBUG_FILE) && tsLogObj.logHandle && tsLogObj.logHandle->pFile != NULL) {
     if (tsAsyncLog) {
       taosPushLogBuffer(tsLogObj.logHandle, buffer, len);
     } else {
@@ -483,7 +483,7 @@ void taosPrintLongString(const char *flags, int32_t dflag, const char *format, .
   buffer[len++] = '\n';
   buffer[len] = 0;
 
-  if ((dflag & DEBUG_FILE) && tsLogObj.logHandle && tsLogObj.logHandle->pFile >= 0) {
+  if ((dflag & DEBUG_FILE) && tsLogObj.logHandle && tsLogObj.logHandle->pFile != NULL) {
     if (tsAsyncLog) {
       taosPushLogBuffer(tsLogObj.logHandle, buffer, len);
     } else {
