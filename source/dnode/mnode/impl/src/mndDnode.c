@@ -237,7 +237,7 @@ int32_t mndGetDnodeSize(SMnode *pMnode) {
 
 bool mndIsDnodeOnline(SMnode *pMnode, SDnodeObj *pDnode, int64_t curMs) {
   int64_t interval = TABS(pDnode->lastAccessTime - curMs);
-  if (interval > 3500 * pMnode->cfg.statusInterval) {
+  if (interval > 3500 * tsStatusInterval) {
     if (pDnode->rebootTime > 0) {
       pDnode->offlineReason = DND_REASON_STATUS_MSG_TIMEOUT;
     }
@@ -272,24 +272,24 @@ static void mndGetDnodeData(SMnode *pMnode, SArray *pDnodeEps) {
 }
 
 static int32_t mndCheckClusterCfgPara(SMnode *pMnode, const SClusterCfg *pCfg) {
-  if (pCfg->statusInterval != pMnode->cfg.statusInterval) {
-    mError("statusInterval [%d - %d] cfg inconsistent", pCfg->statusInterval, pMnode->cfg.statusInterval);
+  if (pCfg->statusInterval != tsStatusInterval) {
+    mError("statusInterval [%d - %d] cfg inconsistent", pCfg->statusInterval, tsStatusInterval);
     return DND_REASON_STATUS_INTERVAL_NOT_MATCH;
   }
 
-  if ((0 != strcasecmp(pCfg->timezone, pMnode->cfg.timezone)) && (pMnode->checkTime != pCfg->checkTime)) {
-    mError("timezone [%s - %s] [%" PRId64 " - %" PRId64 "] cfg inconsistent", pCfg->timezone, pMnode->cfg.timezone,
+  if ((0 != strcasecmp(pCfg->timezone, tsTimezone)) && (pMnode->checkTime != pCfg->checkTime)) {
+    mError("timezone [%s - %s] [%" PRId64 " - %" PRId64 "] cfg inconsistent", pCfg->timezone, tsTimezone,
            pCfg->checkTime, pMnode->checkTime);
     return DND_REASON_TIME_ZONE_NOT_MATCH;
   }
 
-  if (0 != strcasecmp(pCfg->locale, pMnode->cfg.locale)) {
-    mError("locale [%s - %s]  cfg inconsistent", pCfg->locale, pMnode->cfg.locale);
+  if (0 != strcasecmp(pCfg->locale, tsLocale)) {
+    mError("locale [%s - %s]  cfg inconsistent", pCfg->locale, tsLocale);
     return DND_REASON_LOCALE_NOT_MATCH;
   }
 
-  if (0 != strcasecmp(pCfg->charset, pMnode->cfg.charset)) {
-    mError("charset [%s - %s] cfg inconsistent.", pCfg->charset, pMnode->cfg.charset);
+  if (0 != strcasecmp(pCfg->charset, tsCharset)) {
+    mError("charset [%s - %s] cfg inconsistent.", pCfg->charset, tsCharset);
     return DND_REASON_CHARSET_NOT_MATCH;
   }
 
@@ -355,12 +355,11 @@ static int32_t mndProcessStatusReq(SMnodeMsg *pReq) {
   bool    needCheck = !online || dnodeChanged || reboot;
 
   if (needCheck) {
-    if (statusReq.sver != pMnode->cfg.sver) {
+    if (statusReq.sver != tsVersion) {
       if (pDnode != NULL) {
         pDnode->offlineReason = DND_REASON_VERSION_NOT_MATCH;
       }
-      mError("dnode:%d, status msg version:%d not match cluster:%d", statusReq.dnodeId, statusReq.sver,
-             pMnode->cfg.sver);
+      mError("dnode:%d, status msg version:%d not match cluster:%d", statusReq.dnodeId, statusReq.sver, tsVersion);
       terrno = TSDB_CODE_MND_INVALID_MSG_VERSION;
       goto PROCESS_STATUS_MSG_OVER;
     }
@@ -666,19 +665,19 @@ static int32_t mndRetrieveConfigs(SMnodeMsg *pReq, SShowObj *pShow, char *data, 
   int32_t cols = 0;
 
   cfgOpts[numOfRows] = "statusInterval";
-  snprintf(cfgVals[numOfRows], TSDB_CONIIG_VALUE_LEN, "%d", pMnode->cfg.statusInterval);
+  snprintf(cfgVals[numOfRows], TSDB_CONIIG_VALUE_LEN, "%d", tsStatusInterval);
   numOfRows++;
 
   cfgOpts[numOfRows] = "timezone";
-  snprintf(cfgVals[numOfRows], TSDB_CONIIG_VALUE_LEN, "%s", pMnode->cfg.timezone);
+  snprintf(cfgVals[numOfRows], TSDB_CONIIG_VALUE_LEN, "%s", tsTimezone);
   numOfRows++;
 
   cfgOpts[numOfRows] = "locale";
-  snprintf(cfgVals[numOfRows], TSDB_CONIIG_VALUE_LEN, "%s", pMnode->cfg.locale);
+  snprintf(cfgVals[numOfRows], TSDB_CONIIG_VALUE_LEN, "%s", tsLocale);
   numOfRows++;
 
   cfgOpts[numOfRows] = "charset";
-  snprintf(cfgVals[numOfRows], TSDB_CONIIG_VALUE_LEN, "%s", pMnode->cfg.charset);
+  snprintf(cfgVals[numOfRows], TSDB_CONIIG_VALUE_LEN, "%s", tsCharset);
   numOfRows++;
 
   for (int32_t i = 0; i < numOfRows; i++) {

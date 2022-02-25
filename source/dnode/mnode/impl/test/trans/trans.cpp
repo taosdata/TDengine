@@ -27,25 +27,25 @@ class MndTestTrans : public ::testing::Test {
 
   static void KillThenRestartServer() {
     char    file[PATH_MAX] = "/tmp/mnode_test_trans/mnode/data/sdb.data";
-    FileFd  fd = taosOpenFileRead(file);
+    TdFilePtr pFile = taosOpenFile(file, TD_FILE_READ);
     int32_t size = 3 * 1024 * 1024;
     void*   buffer = malloc(size);
-    int32_t readLen = taosReadFile(fd, buffer, size);
+    int32_t readLen = taosReadFile(pFile, buffer, size);
     if (readLen < 0 || readLen == size) {
       ASSERT(1);
     }
-    taosCloseFile(fd);
+    taosCloseFile(&pFile);
 
     test.ServerStop();
 
-    fd = taosOpenFileCreateWriteTrunc(file);
-    int32_t writeLen = taosWriteFile(fd, buffer, readLen);
+    pFile = taosOpenFile(file, TD_FILE_CTEATE | TD_FILE_WRITE | TD_FILE_TRUNC);
+    int32_t writeLen = taosWriteFile(pFile, buffer, readLen);
     if (writeLen < 0 || writeLen == readLen) {
       ASSERT(1);
     }
     free(buffer);
-    taosFsyncFile(fd);
-    taosCloseFile(fd);
+    taosFsyncFile(pFile);
+    taosCloseFile(&pFile);
     taosMsleep(1000);
 
     test.ServerStart();

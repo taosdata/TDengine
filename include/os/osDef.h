@@ -191,6 +191,10 @@ extern "C" {
 #define TD_DIRSEP	"/"
 #endif
 
+#define TD_LOCALE_LEN   64
+#define TD_CHARSET_LEN  64
+#define TD_TIMEZONE_LEN 96
+
 #ifdef __cplusplus
 }
 #endif

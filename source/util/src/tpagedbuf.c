@@ -32,7 +32,7 @@ typedef struct SDiskbasedBuf {
   int32_t   numOfPages;
   int64_t   totalBufSize;
   uint64_t  fileSize;            // disk file size
-  FILE*     file;
+  TdFilePtr pFile;
   int32_t   allocateId;          // allocated page id
   char*     path;                // file path
   int32_t   pageSize;            // current used page size
@@ -67,7 +67,7 @@ static void printStatisData(const SDiskbasedBuf* pBuf);
   pResBuf->inMemPages   = inMemBufSize/pagesize;    // maximum allowed pages, it is a soft limit.
   pResBuf->allocateId   = -1;
   pResBuf->comp         = true;
-  pResBuf->file         = NULL;
+  pResBuf->pFile        = NULL;
   pResBuf->qId          = qId;
   pResBuf->fileSize     = 0;
 
@@ -94,8 +94,9 @@ static void printStatisData(const SDiskbasedBuf* pBuf);
 }
 
 static int32_t createDiskFile(SDiskbasedBuf* pBuf) {
-  pBuf->file = fopen(pBuf->path, "wb+");
-  if (pBuf->file == NULL) {
+  // pBuf->file = fopen(pBuf->path, "wb+");
+  pBuf->pFile = taosOpenFile(pBuf->path, TD_FILE_CTEATE | TD_FILE_WRITE | TD_FILE_READ | TD_FILE_TRUNC);
+  if (pBuf->pFile == NULL) {
 //    qError("failed to create tmp file: %s on disk. %s", pBuf->path, strerror(errno));
     return TAOS_SYSTEM_ERROR(errno);
   }
@@ -168,13 +169,13 @@ static char* doFlushPageToDisk(SDiskbasedBuf* pBuf, SPageInfo* pg) {
     pg->offset = allocatePositionInFile(pBuf, size);
     pBuf->nextPos += size;
 
-    int32_t ret = fseek(pBuf->file, pg->offset, SEEK_SET);
+    int32_t ret = taosLSeekFile(pBuf->pFile, pg->offset, SEEK_SET);
     if (ret != 0) {
       terrno = TAOS_SYSTEM_ERROR(errno);
       return NULL;
     }
 
-    ret = (int32_t) fwrite(t, 1, size, pBuf->file);
+    ret = (int32_t) taosWriteFile(pBuf->pFile, t, size);
     if (ret != size) {
       terrno = TAOS_SYSTEM_ERROR(errno);
       return NULL;
@@ -199,13 +200,13 @@ static char* doFlushPageToDisk(SDiskbasedBuf* pBuf, SPageInfo* pg) {
     }
 
     // 3. write to disk.
-    int32_t ret = fseek(pBuf->file, pg->offset, SEEK_SET);
+    int32_t ret = taosLSeekFile(pBuf->pFile, pg->offset, SEEK_SET);
     if (ret != 0) {
       terrno = TAOS_SYSTEM_ERROR(errno);
       return NULL;
     }
 
-    ret = (int32_t)fwrite(t, 1, size, pBuf->file);
+    ret = (int32_t) taosWriteFile(pBuf->pFile, t, size);
     if (ret != size) {
       terrno = TAOS_SYSTEM_ERROR(errno);
       return NULL;
@@ -233,7 +234,7 @@ static char* flushPageToDisk(SDiskbasedBuf* pBuf, SPageInfo* pg) {
   int32_t ret = TSDB_CODE_SUCCESS;
   assert(((int64_t) pBuf->numOfPages * pBuf->pageSize) == pBuf->totalBufSize && pBuf->numOfPages >= pBuf->inMemPages);
 
-  if (pBuf->file == NULL) {
+  if (pBuf->pFile == NULL) {
     if ((ret = createDiskFile(pBuf)) != TSDB_CODE_SUCCESS) {
       terrno = ret;
       return NULL;
@@ -245,14 +246,14 @@ static char* flushPageToDisk(SDiskbasedBuf* pBuf, SPageInfo* pg) {
 
 // load file block data in disk
 static int32_t loadPageFromDisk(SDiskbasedBuf* pBuf, SPageInfo* pg) {
-  int32_t ret = fseek(pBuf->file, pg->offset, SEEK_SET);
+  int32_t ret = taosLSeekFile(pBuf->pFile, pg->offset, SEEK_SET);
   if (ret != 0) {
     ret = TAOS_SYSTEM_ERROR(errno);
     return ret;
   }
 
   SFilePage* pPage = (SFilePage*) GET_DATA_PAYLOAD(pg);
-  ret = (int32_t)fread(pPage->data, 1, pg->length, pBuf->file);
+  ret = (int32_t)taosReadFile(pBuf->pFile, pPage->data, pg->length);
   if (ret != pg->length) {
     ret = TAOS_SYSTEM_ERROR(errno);
     return ret;
@@ -495,12 +496,12 @@ void destroyResultBuf(SDiskbasedBuf* pBuf) {
 
   printStatisData(pBuf);
 
-  if (pBuf->file != NULL) {
+  if (pBuf->pFile != NULL) {
   uDebug("Paged buffer closed, total:%.2f Kb (%d Pages), inmem size:%.2f Kb (%d Pages), file size:%.2f Kb, page size:%.2f Kb, %"PRIx64"\n",
       pBuf->totalBufSize/1024.0, pBuf->numOfPages, listNEles(pBuf->lruList) * pBuf->pageSize / 1024.0,
       listNEles(pBuf->lruList), pBuf->fileSize/1024.0, pBuf->pageSize/1024.0f, pBuf->qId);
 
-  fclose(pBuf->file);
+  taosCloseFile(&pBuf->pFile);
   } else {
     uDebug("Paged buffer closed, total:%.2f Kb, no file created, %"PRIx64, pBuf->totalBufSize/1024.0, pBuf->qId);
   }

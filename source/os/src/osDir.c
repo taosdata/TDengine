@@ -71,7 +71,7 @@ int32_t taosMkDir(const char *dirname) {
   return code;
 }
 
-void taosRemoveOldFiles(char *dirname, int32_t keepDays) {
+void taosRemoveOldFiles(const char *dirname, int32_t keepDays) {
   DIR *dir = opendir(dirname);
   if (dir == NULL) return;
 

@@ -371,7 +371,7 @@ int indexTFileSearch(void* tfile, SIndexTermQuery* query, SArray* result) {
     return ret;
   }
 
-  IndexTFile* pTfile = (IndexTFile*)tfile;
+  IndexTFile* pTfile = tfile;
 
   SIndexTerm* term = query->term;
   ICacheKey key = {.suid = term->suid, .colType = term->colType, .colName = term->colName, .nColName = term->nColName};
@@ -586,11 +586,11 @@ static int tfileReaderLoadHeader(TFileReader* reader) {
 
   int64_t nread = reader->ctx->readFrom(reader->ctx, buf, sizeof(buf), 0);
   if (nread == -1) {
-    indexError("actual Read: %d, to read: %d, errno: %d, filefd: %d, filename: %s", (int)(nread), (int)sizeof(buf),
-               errno, reader->ctx->file.fd, reader->ctx->file.buf);
+    indexError("actual Read: %d, to read: %d, errno: %d, filename: %s", (int)(nread), (int)sizeof(buf),
+               errno, reader->ctx->file.buf);
   } else {
-    indexInfo("actual Read: %d, to read: %d, filefd: %d, filename: %s", (int)(nread), (int)sizeof(buf),
-              reader->ctx->file.fd, reader->ctx->file.buf);
+    indexInfo("actual Read: %d, to read: %d, filename: %s", (int)(nread), (int)sizeof(buf),
+              reader->ctx->file.buf);
   }
   // assert(nread == sizeof(buf));
   memcpy(&reader->header, buf, sizeof(buf));

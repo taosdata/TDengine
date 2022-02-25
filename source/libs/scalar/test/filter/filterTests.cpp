@@ -76,15 +76,15 @@ void flttMakeValueNode(SNode **pNode, int32_t dataType, void *value) {
 }
 
 void flttMakeColRefNode(SNode **pNode, SSDataBlock **block, int32_t dataType, int32_t dataBytes, int32_t rowNum, void *value) {
-  SNode *node = nodesMakeNode(QUERY_NODE_COLUMN_REF);
-  SColumnRefNode *rnode = (SColumnRefNode *)node;
-  rnode->dataType.type = dataType;
-  rnode->dataType.bytes = dataBytes;
+  SNode *node = nodesMakeNode(QUERY_NODE_COLUMN);
+  SColumnNode *rnode = (SColumnNode *)node;
+  rnode->node.resType.type = dataType;
+  rnode->node.resType.bytes = dataBytes;
   rnode->tupleId = 0;
 
   if (NULL == block) {
     rnode->slotId = 2;
-    rnode->columnId = 55;
+    rnode->colId = 55;
     *pNode = (SNode *)rnode;
 
     return;
@@ -120,7 +120,7 @@ void flttMakeColRefNode(SNode **pNode, SSDataBlock **block, int32_t dataType, in
     taosArrayPush(res->pDataBlock, &idata);
 
     rnode->slotId = 2;
-    rnode->columnId = 55;
+    rnode->colId = 55;
 
     *block = res;
   } else {
@@ -137,7 +137,7 @@ void flttMakeColRefNode(SNode **pNode, SSDataBlock **block, int32_t dataType, in
     res->info.numOfCols++;
     
     rnode->slotId = idx;
-    rnode->columnId = 55 + idx;
+    rnode->colId = 55 + idx;
   }
 
   *pNode = (SNode *)rnode;
@@ -259,7 +259,7 @@ TEST(columnTest, smallint_column_greater_double_value) {
   ASSERT_EQ(code, 0);
 
   SColumnDataAgg stat = {0};
-  stat.colId = ((SColumnRefNode *)pLeft)->columnId;
+  stat.colId = ((SColumnNode *)pLeft)->colId;
   stat.max = 10;
   stat.min = 5;
   stat.numOfNull = 0;
@@ -310,7 +310,7 @@ TEST(columnTest, int_column_greater_smallint_value) {
   ASSERT_EQ(code, 0);
 
   SColumnDataAgg stat = {0};
-  stat.colId = ((SColumnRefNode *)pLeft)->columnId;
+  stat.colId = ((SColumnNode *)pLeft)->colId;
   stat.max = 10;
   stat.min = 5;
   stat.numOfNull = 0;

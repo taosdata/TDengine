@@ -656,9 +656,9 @@ int32_t tDeserializeSRetrieveFuncRsp(void* buf, int32_t bufLen, SRetrieveFuncRsp
 typedef struct {
   int32_t statusInterval;
   int64_t checkTime;                    // 1970-01-01 00:00:00.000
-  char    timezone[TSDB_TIMEZONE_LEN];  // tsTimezone
-  char    locale[TSDB_LOCALE_LEN];      // tsLocale
-  char    charset[TSDB_LOCALE_LEN];     // tsCharset
+  char    timezone[TD_TIMEZONE_LEN];  // tsTimezone
+  char    locale[TD_LOCALE_LEN];      // tsLocale
+  char    charset[TD_LOCALE_LEN];     // tsCharset
 } SClusterCfg;
 
 typedef struct {

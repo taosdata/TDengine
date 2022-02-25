@@ -62,12 +62,13 @@ static void mndAddCpuInfo(SMnode* pMnode, SBufferWriter* bw) {
   size_t  size = 0;
   int32_t done = 0;
 
-  FILE* fp = fopen("/proc/cpuinfo", "r");
-  if (fp == NULL) {
+  // FILE* fp = fopen("/proc/cpuinfo", "r");
+  TdFilePtr pFile = taosOpenFile("/proc/cpuinfo", TD_FILE_READ);
+  if (pFile == NULL) {
     return;
   }
 
-  while (done != 3 && (size = tgetline(&line, &size, fp)) != -1) {
+  while (done != 3 && (size = taosGetLineFile(pFile, &line)) != -1) {
     line[size - 1] = '\0';
     if (((done & 1) == 0) && strncmp(line, "model name", 10) == 0) {
       const char* v = strchr(line, ':') + 2;
@@ -83,20 +84,21 @@ static void mndAddCpuInfo(SMnode* pMnode, SBufferWriter* bw) {
     }
   }
 
-  free(line);
-  fclose(fp);
+  if(line != NULL) free(line);
+  taosCloseFile(&pFile);
 }
 
 static void mndAddOsInfo(SMnode* pMnode, SBufferWriter* bw) {
   char*  line = NULL;
   size_t size = 0;
 
-  FILE* fp = fopen("/etc/os-release", "r");
-  if (fp == NULL) {
+  // FILE* fp = fopen("/etc/os-release", "r");
+  TdFilePtr pFile = taosOpenFile("/etc/os-release", TD_FILE_READ);
+  if (pFile == NULL) {
     return;
   }
 
-  while ((size = tgetline(&line, &size, fp)) != -1) {
+  while ((size = taosGetLineFile(pFile, &line)) != -1) {
     line[size - 1] = '\0';
     if (strncmp(line, "PRETTY_NAME", 11) == 0) {
       const char* p = strchr(line, '=') + 1;
@@ -109,20 +111,21 @@ static void mndAddOsInfo(SMnode* pMnode, SBufferWriter* bw) {
     }
   }
 
-  free(line);
-  fclose(fp);
+  if(line != NULL) free(line);
+  taosCloseFile(&pFile);
 }
 
 static void mndAddMemoryInfo(SMnode* pMnode, SBufferWriter* bw) {
   char*  line = NULL;
   size_t size = 0;
 
-  FILE* fp = fopen("/proc/meminfo", "r");
-  if (fp == NULL) {
+  // FILE* fp = fopen("/proc/meminfo", "r");
+  TdFilePtr pFile = taosOpenFile("/proc/meminfo", TD_FILE_READ);
+  if (pFile == NULL) {
     return;
   }
 
-  while ((size = tgetline(&line, &size, fp)) != -1) {
+  while ((size = taosGetLineFile(pFile, &line)) != -1) {
     line[size - 1] = '\0';
     if (strncmp(line, "MemTotal", 8) == 0) {
       const char* p = strchr(line, ':') + 1;
@@ -132,19 +135,15 @@ static void mndAddMemoryInfo(SMnode* pMnode, SBufferWriter* bw) {
     }
   }
 
-  free(line);
-  fclose(fp);
+  if(line != NULL) free(line);
+  taosCloseFile(&pFile);
 }
 
 static void mndAddVersionInfo(SMnode* pMnode, SBufferWriter* bw) {
   STelemMgmt* pMgmt = &pMnode->telemMgmt;
-
-  char vstr[32] = {0};
-  taosVersionIntToStr(pMnode->cfg.sver, vstr, 32);
-
-  mndAddStringField(bw, "version", vstr);
-  mndAddStringField(bw, "buildInfo", pMnode->cfg.buildinfo);
-  mndAddStringField(bw, "gitInfo", pMnode->cfg.gitinfo);
+  mndAddStringField(bw, "version", version);
+  mndAddStringField(bw, "buildInfo", buildinfo);
+  mndAddStringField(bw, "gitInfo", gitinfo);
   mndAddStringField(bw, "email", pMgmt->email);
 }
 
@@ -256,21 +255,21 @@ static int32_t mndProcessTelemTimer(SMnodeMsg* pReq) {
 static void mndGetEmail(SMnode* pMnode, char* filepath) {
   STelemMgmt* pMgmt = &pMnode->telemMgmt;
 
-  int32_t fd = taosOpenFileRead(filepath);
-  if (fd < 0) {
+  TdFilePtr pFile = taosOpenFile(filepath, TD_FILE_READ);
+  if (pFile == NULL) {
     return;
   }
 
-  if (taosReadFile(fd, (void*)pMgmt->email, TSDB_FQDN_LEN) < 0) {
+  if (taosReadFile(pFile, (void*)pMgmt->email, TSDB_FQDN_LEN) < 0) {
     mError("failed to read %d bytes from file %s since %s", TSDB_FQDN_LEN, filepath, strerror(errno));
   }
 
-  taosCloseFile(fd);
+  taosCloseFile(&pFile);
 }
 
 int32_t mndInitTelem(SMnode* pMnode) {
   STelemMgmt* pMgmt = &pMnode->telemMgmt;
-  pMgmt->enable = pMnode->cfg.enableTelem;
+  pMgmt->enable = tsEnableTelemetryReporting;
   taosInitRWLatch(&pMgmt->lock);
   mndGetEmail(pMnode, "/usr/local/taos/email");
 

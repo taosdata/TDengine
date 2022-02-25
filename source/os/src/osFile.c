@@ -12,38 +12,45 @@
  * You should have received a copy of the GNU Affero General Public License
  * along with this program. If not, see <http://www.gnu.org/licenses/>.
  */
-
+#define ALLOW_FORBID_FUNC
 #include "os.h"
 
 #if defined(_TD_WINDOWS_64) || defined(_TD_WINDOWS_32)
-#include <io.h>
+  #include <io.h>
 
-#if defined(_MSDOS)
-#define open _open
-#endif
+  #if defined(_MSDOS)
+    #define open _open
+  #endif
 
-#if defined(_WIN32)
-extern int openA(const char *, int, ...); /* MsvcLibX ANSI version of open */
-extern int openU(const char *, int, ...); /* MsvcLibX UTF-8 version of open */
-#if defined(_UTF8_SOURCE) || defined(_BSD_SOURCE) || defined(_GNU_SOURCE)
-#define open openU
-#else /* _ANSI_SOURCE */
-#define open openA
-#endif /* defined(_UTF8_SOURCE) */
-#endif /* defined(_WIN32) */
+  #if defined(_WIN32)
+    extern int openA(const char *, int, ...); /* MsvcLibX ANSI version of open */
+    extern int openU(const char *, int, ...); /* MsvcLibX UTF-8 version of open */
+    #if defined(_UTF8_SOURCE) || defined(_BSD_SOURCE) || defined(_GNU_SOURCE)
+      #define open openU
+    #else /* _ANSI_SOURCE */
+      #define open openA
+    #endif /* defined(_UTF8_SOURCE) */
+  #endif /* defined(_WIN32) */
 
 #else
-#include <fcntl.h>
-#include <sys/file.h>
-#include <sys/sendfile.h>
-#include <sys/stat.h>
-#include <unistd.h>
+  #include <fcntl.h>
+  #include <sys/file.h>
+  #include <sys/sendfile.h>
+  #include <sys/stat.h>
+  #include <unistd.h>
+  #define LINUX_FILE_NO_TEXT_OPTION 0
+  #define O_TEXT LINUX_FILE_NO_TEXT_OPTION
 #endif
 
-void taosCloseFile(FileFd fd) {
-  close(fd);
-  fd = FD_INITIALIZER;
-}
+typedef int32_t FileFd;
+
+typedef struct TdFile {
+ int refId;
+ FileFd  fd;
+ FILE *fp;
+}*TdFilePtr,TdFile;
+
+
 
 void taosGetTmpfilePath(const char * inputTmpDir, const char *fileNamePrefix, char *dstPath) {
 #if defined(_TD_WINDOWS_64) || defined(_TD_WINDOWS_32)
@@ -96,13 +103,166 @@ void taosGetTmpfilePath(const char * inputTmpDir, const char *fileNamePrefix, ch
 #endif
 }
 
-int64_t taosReadFile(FileFd fd, void *buf, int64_t count) {
+int64_t taosCopyFile(const char *from, const char *to) {
+#if defined(_TD_WINDOWS_64) || defined(_TD_WINDOWS_32)
+  return 0;
+#else
+  char    buffer[4096];
+  int64_t size = 0;
+  int64_t bytes;
+
+  // fidfrom = open(from, O_RDONLY);
+  TdFilePtr pFileFrom = taosOpenFile(from,TD_FILE_READ);
+  if (pFileFrom == NULL) goto _err;
+
+  // fidto = open(to, O_WRONLY | O_CREAT | O_EXCL, 0755);
+  TdFilePtr pFileTo = taosOpenFile(to,TD_FILE_CTEATE | TD_FILE_WRITE | TD_FILE_EXCL);
+  if (pFileTo == NULL) goto _err;
+
+  while (true) {
+    bytes = taosReadFile(pFileFrom, buffer, sizeof(buffer));
+    if (bytes < 0) goto _err;
+    if (bytes == 0) break;
+
+    size += bytes;
+
+    if (taosWriteFile(pFileTo, (void *)buffer, bytes) < bytes) goto _err;
+    if (bytes < sizeof(buffer)) break;
+  }
+
+  taosFsyncFile(pFileTo);
+
+  taosCloseFile(&pFileFrom);
+  taosCloseFile(&pFileTo);
+  return size;
+
+_err:
+  if (pFileFrom != NULL) taosCloseFile(&pFileFrom);
+  if (pFileTo != NULL) taosCloseFile(&pFileTo);
+  remove(to);
+  return -1;
+#endif
+}
+
+int32_t taosRenameFile(const char *oldName, const char *newName) {
+#if defined(_TD_WINDOWS_64) || defined(_TD_WINDOWS_32)
+  int32_t code = MoveFileEx(oldName, newName, MOVEFILE_REPLACE_EXISTING | MOVEFILE_COPY_ALLOWED);
+  if (code < 0) {
+    //printf("failed to rename file %s to %s, reason:%s", oldName, newName, strerror(errno));
+  }
+
+  return code;
+#else
+  int32_t code = rename(oldName, newName);
+  if (code < 0) {
+    //printf("failed to rename file %s to %s, reason:%s", oldName, newName, strerror(errno));
+  }
+
+  return code;
+#endif
+}
+
+int32_t taosStatFile(const char *path, int64_t *size, int32_t *mtime) {
+#if defined(_TD_WINDOWS_64) || defined(_TD_WINDOWS_32)
+  return 0;
+#else
+  struct stat fileStat;
+  int32_t     code = stat(path, &fileStat);
+  if (code < 0) {
+    return code;
+  }
+
+  if (size != NULL) {
+    *size = fileStat.st_size;
+  }
+
+  if (mtime != NULL) {
+    *mtime = fileStat.st_mtime;
+  }
+
+  return 0;
+#endif
+}
+
+void autoDelFileListAdd(const char *path) {
+  return;
+}
+
+TdFilePtr taosOpenFile(const char *path,int32_t tdFileOptions) {
+#if defined(_TD_WINDOWS_64) || defined(_TD_WINDOWS_32)
+  return NULL;
+#else
+  int access = O_BINARY;
+  char *mode = NULL;
+  access |= (tdFileOptions & TD_FILE_CTEATE) ? O_CREAT : 0;
+  if ((tdFileOptions & TD_FILE_WRITE) && (tdFileOptions & TD_FILE_READ))
+  {
+    access |= O_RDWR;
+    mode = (tdFileOptions & TD_FILE_TEXT) ? "rt+" : "rb+";
+  }else if(tdFileOptions & TD_FILE_WRITE) {
+    access |= O_WRONLY;
+    mode = (tdFileOptions & TD_FILE_TEXT) ? "wt" : "wb";
+  }else if(tdFileOptions & TD_FILE_READ) {
+    access |= O_RDONLY;
+    mode = (tdFileOptions & TD_FILE_TEXT) ? "rt" : "rb";
+  }
+  access |= (tdFileOptions & TD_FILE_TRUNC) ? O_TRUNC : 0;
+  access |= (tdFileOptions & TD_FILE_APPEND) ? O_APPEND : 0;
+  access |= (tdFileOptions & TD_FILE_TEXT) ? O_TEXT : 0;
+  access |= (tdFileOptions & TD_FILE_EXCL) ? O_EXCL : 0;
+  if(tdFileOptions & TD_FILE_AUTO_DEL) {
+    autoDelFileListAdd(path);
+  }
+  int fd = open(path, access, S_IRWXU | S_IRWXG | S_IRWXO);
+  if(fd == -1) {
+    return NULL;
+  }
+  FILE* fp = fdopen(fd, mode);
+  if (fp == NULL) {
+    close(fd);
+    return NULL;
+  }
+  TdFilePtr pFile = (TdFilePtr)malloc(sizeof(TdFile));
+  if (pFile == NULL) {
+    close(fd);
+    fclose(fp);
+    return NULL;
+  }
+  pFile->fd = fd;
+  pFile->fp = fp;
+  pFile->refId = 0;
+  return pFile;
+#endif
+}
+
+int64_t taosCloseFile(TdFilePtr *ppFile) {
+#if defined(_TD_WINDOWS_64) || defined(_TD_WINDOWS_32)
+  return 0;
+#else
+  if(ppFile == NULL || *ppFile == NULL || (*ppFile)->fd == -1) {
+    return 0;
+  }
+  fsync((*ppFile)->fd);
+  close((*ppFile)->fd);
+  (*ppFile)->fd = -1;
+  (*ppFile)->fp = NULL;
+  (*ppFile)->refId = 0;
+  free(*ppFile);
+  *ppFile = NULL;
+  return 0;
+#endif
+}
+
+int64_t taosReadFile(TdFilePtr pFile, void *buf, int64_t count) {
+  if(pFile == NULL) {
+    return 0;
+  }
   int64_t leftbytes = count;
   int64_t readbytes;
   char *  tbuf = (char *)buf;
 
   while (leftbytes > 0) {
-    readbytes = read(fd, (void *)tbuf, (uint32_t)leftbytes);
+    readbytes = read(pFile->fd, (void *)tbuf, (uint32_t)leftbytes);
     if (readbytes < 0) {
       if (errno == EINTR) {
         continue;
@@ -120,13 +280,20 @@ int64_t taosReadFile(FileFd fd, void *buf, int64_t count) {
   return count;
 }
 
-int64_t taosWriteFile(FileFd fd, const void *buf, int64_t n) {
-  int64_t nleft = n;
+int64_t taosPReadFile(TdFilePtr pFile, void *buf, int64_t count, int64_t offset) {
+  if(pFile == NULL) {
+    return 0;
+  }
+  return pread(pFile->fd, buf, count, offset);
+}
+
+int64_t taosWriteFile(TdFilePtr pFile, const void *buf, int64_t count) {
+  int64_t nleft = count;
   int64_t nwritten = 0;
   char *  tbuf = (char *)buf;
 
   while (nleft > 0) {
-    nwritten = write(fd, (void *)tbuf, (uint32_t)nleft);
+    nwritten = write(pFile->fd, (void *)tbuf, (uint32_t)nleft);
     if (nwritten < 0) {
       if (errno == EINTR) {
         continue;
@@ -137,48 +304,120 @@ int64_t taosWriteFile(FileFd fd, const void *buf, int64_t n) {
     tbuf += nwritten;
   }
 
-  return n;
+  return count;
 }
 
-int64_t taosLSeekFile(FileFd fd, int64_t offset, int32_t whence) { return (int64_t)lseek(fd, (long)offset, whence); }
+int64_t taosLSeekFile(TdFilePtr pFile, int64_t offset, int32_t whence) { 
+  if (pFile == NULL) return -1;
+  return (int64_t)lseek(pFile->fd, (long)offset, whence); 
+}
 
-int64_t taosCopyFile(const char *from, const char *to) {
+int32_t taosFStatFile(TdFilePtr pFile, int64_t *size, int32_t *mtime) {
 #if defined(_TD_WINDOWS_64) || defined(_TD_WINDOWS_32)
   return 0;
 #else
-  char    buffer[4096];
-  int     fidto = -1, fidfrom = -1;
-  int64_t size = 0;
-  int64_t bytes;
-
-  fidfrom = open(from, O_RDONLY);
-  if (fidfrom < 0) goto _err;
-
-  fidto = open(to, O_WRONLY | O_CREAT | O_EXCL, 0755);
-  if (fidto < 0) goto _err;
-
-  while (true) {
-    bytes = taosReadFile(fidfrom, buffer, sizeof(buffer));
-    if (bytes < 0) goto _err;
-    if (bytes == 0) break;
-
-    size += bytes;
-
-    if (taosWriteFile(fidto, (void *)buffer, bytes) < bytes) goto _err;
-    if (bytes < sizeof(buffer)) break;
+  struct stat fileStat;
+  int32_t     code = fstat(pFile->fd, &fileStat);
+  if (code < 0) {
+    return code;
   }
 
-  taosFsyncFile(fidto);
+  if (size != NULL) {
+    *size = fileStat.st_size;
+  }
 
-  taosCloseFile(fidfrom);
-  taosCloseFile(fidto);
-  return size;
+  if (mtime != NULL) {
+    *mtime = fileStat.st_mtime;
+  }
 
-_err:
-  if (fidfrom >= 0) taosCloseFile(fidfrom);
-  if (fidto >= 0) taosCloseFile(fidto);
-  remove(to);
-  return -1;
+  return 0;
+#endif
+}
+
+int32_t taosLockFile(TdFilePtr pFile) {
+#if defined(_TD_WINDOWS_64) || defined(_TD_WINDOWS_32)
+  return 0;
+#else
+  return (int32_t)flock(pFile->fd, LOCK_EX | LOCK_NB);
+#endif
+}
+
+int32_t taosUnLockFile(TdFilePtr pFile) {
+#if defined(_TD_WINDOWS_64) || defined(_TD_WINDOWS_32)
+  return 0;
+#else
+  return (int32_t)flock(pFile->fd, LOCK_UN | LOCK_NB);
+#endif
+}
+
+int32_t taosFtruncateFile(TdFilePtr pFile, int64_t l_size) {
+#if defined(_TD_WINDOWS_64) || defined(_TD_WINDOWS_32)
+  if (pFile->fd < 0) {
+    errno = EBADF;
+    uError("%s\n", "fd arg was negative");
+    return -1;
+  }
+
+  HANDLE h = (HANDLE)_get_osfhandle(pFile->fd);
+
+  LARGE_INTEGER li_0;
+  li_0.QuadPart = (int64_t)0;
+  BOOL cur = SetFilePointerEx(h, li_0, NULL, FILE_CURRENT);
+  if (!cur) {
+    uError("SetFilePointerEx Error getting current position in file.\n");
+    return -1;
+  }
+
+  LARGE_INTEGER li_size;
+  li_size.QuadPart = l_size;
+  BOOL cur2 = SetFilePointerEx(h, li_size, NULL, FILE_BEGIN);
+  if (cur2 == 0) {
+    int error = GetLastError();
+    uError("SetFilePointerEx GetLastError is: %d\n", error);
+    switch (error) {
+      case ERROR_INVALID_HANDLE:
+        errno = EBADF;
+        break;
+      default:
+        errno = EIO;
+        break;
+    }
+    return -1;
+  }
+
+  if (!SetEndOfFile(h)) {
+    int error = GetLastError();
+    uError("SetEndOfFile GetLastError is:%d", error);
+    switch (error) {
+      case ERROR_INVALID_HANDLE:
+        errno = EBADF;
+        break;
+      default:
+        errno = EIO;
+        break;
+    }
+    return -1;
+  }
+
+  return 0;
+#else
+  return ftruncate(pFile->fd, l_size);
+#endif
+}
+
+int32_t taosFsyncFile(TdFilePtr pFile) {
+#if defined(_TD_WINDOWS_64) || defined(_TD_WINDOWS_32)
+  if (pFile->fd < 0) {
+    errno = EBADF;
+    uError("%s\n", "fd arg was negative");
+    return -1;
+  }
+
+  HANDLE h = (HANDLE)_get_osfhandle(pFile->fd);
+
+  return FlushFileBuffers(h);
+#else
+  return fsync(pFile->fd);
 #endif
 }
 
@@ -301,12 +540,12 @@ int64_t taosSendFile(SocketFd dfd, FileFd sfd, int64_t *offset, int64_t count) {
 
 #else
 
-int64_t taosSendFile(SocketFd dfd, FileFd sfd, int64_t *offset, int64_t size) {
+int64_t taosSendFile(SocketFd fdDst, TdFilePtr pFileSrc, int64_t *offset, int64_t size)  {
   int64_t leftbytes = size;
   int64_t sentbytes;
 
   while (leftbytes > 0) {
-    sentbytes = sendfile(dfd, sfd, offset, leftbytes);
+    sentbytes = sendfile(fdDst, pFileSrc->fd, offset, leftbytes);
     if (sentbytes == -1) {
       if (errno == EINTR || errno == EAGAIN || errno == EWOULDBLOCK) {
         continue;
@@ -323,215 +562,50 @@ int64_t taosSendFile(SocketFd dfd, FileFd sfd, int64_t *offset, int64_t size) {
   return size;
 }
 
-int64_t taosFSendFile(FILE *outfile, FILE *infile, int64_t *offset, int64_t size) {
-  return taosSendFile(fileno(outfile), fileno(infile), offset, size);
+int64_t taosFSendFile(TdFilePtr pFileOut, TdFilePtr pFileIn, int64_t *offset, int64_t size) {
+  return taosSendFile(pFileOut->fd, pFileIn, offset, size);
 }
 
 #endif
 
-int32_t taosFtruncateFile(FileFd fd, int64_t l_size) {
-#if defined(_TD_WINDOWS_64) || defined(_TD_WINDOWS_32)
-  if (fd < 0) {
-    errno = EBADF;
-    uError("%s\n", "fd arg was negative");
-    return -1;
-  }
 
-  HANDLE h = (HANDLE)_get_osfhandle(fd);
-
-  LARGE_INTEGER li_0;
-  li_0.QuadPart = (int64_t)0;
-  BOOL cur = SetFilePointerEx(h, li_0, NULL, FILE_CURRENT);
-  if (!cur) {
-    uError("SetFilePointerEx Error getting current position in file.\n");
-    return -1;
-  }
-
-  LARGE_INTEGER li_size;
-  li_size.QuadPart = l_size;
-  BOOL cur2 = SetFilePointerEx(h, li_size, NULL, FILE_BEGIN);
-  if (cur2 == 0) {
-    int error = GetLastError();
-    uError("SetFilePointerEx GetLastError is: %d\n", error);
-    switch (error) {
-      case ERROR_INVALID_HANDLE:
-        errno = EBADF;
-        break;
-      default:
-        errno = EIO;
-        break;
-    }
-    return -1;
-  }
-
-  if (!SetEndOfFile(h)) {
-    int error = GetLastError();
-    uError("SetEndOfFile GetLastError is:%d", error);
-    switch (error) {
-      case ERROR_INVALID_HANDLE:
-        errno = EBADF;
-        break;
-      default:
-        errno = EIO;
-        break;
-    }
-    return -1;
-  }
-
-  return 0;
-#else
-  return ftruncate(fd, l_size);
+#ifdef __GNUC__
+ __attribute__((format(printf, 2, 3)))
 #endif
+void taosFprintfFile(TdFilePtr pFile, const char *format, ...) {
+  va_list        ap;
+  va_start(ap, format);
+  fprintf(pFile->fp, format, ap);
+  va_end(ap);
+  fflush(pFile->fp);
 }
 
-int32_t taosFsyncFile(FileFd fd) {
-#if defined(_TD_WINDOWS_64) || defined(_TD_WINDOWS_32)
-  if (fd < 0) {
-    errno = EBADF;
-    uError("%s\n", "fd arg was negative");
-    return -1;
-  }
+void *taosMmapReadOnlyFile(TdFilePtr pFile, int64_t length) {
+  if (pFile == NULL) return NULL;
 
-  HANDLE h = (HANDLE)_get_osfhandle(fd);
-
-  return FlushFileBuffers(h);
-#else
-  return fsync(fd);
-#endif
+  void *ptr = mmap(NULL, length, PROT_READ, MAP_SHARED, pFile->fd, 0);
+  return ptr;
 }
 
-int32_t taosRenameFile(const char *oldName, const char *newName) {
-#if defined(_TD_WINDOWS_64) || defined(_TD_WINDOWS_32)
-  int32_t code = MoveFileEx(oldName, newName, MOVEFILE_REPLACE_EXISTING | MOVEFILE_COPY_ALLOWED);
-  if (code < 0) {
-    //printf("failed to rename file %s to %s, reason:%s", oldName, newName, strerror(errno));
-  }
-
-  return code;
-#else
-  int32_t code = rename(oldName, newName);
-  if (code < 0) {
-    //printf("failed to rename file %s to %s, reason:%s", oldName, newName, strerror(errno));
-  }
-
-  return code;
-#endif
+bool taosValidFile(TdFilePtr pFile) {
+  return pFile != NULL;
 }
 
-int32_t taosLockFile(int32_t fd) {
+int32_t taosUmaskFile(int32_t maskVal) {
 #if defined(_TD_WINDOWS_64) || defined(_TD_WINDOWS_32)
   return 0;
 #else
-  return (int32_t)flock(fd, LOCK_EX | LOCK_NB);
+  return umask(maskVal);
 #endif
 }
 
-int32_t taosUnLockFile(int32_t fd) {
-#if defined(_TD_WINDOWS_64) || defined(_TD_WINDOWS_32)
-  return 0;
-#else
-  return (int32_t)flock(fd, LOCK_UN | LOCK_NB);
-#endif
+int taosGetErrorFile(TdFilePtr pFile) {
+  return errno;
 }
-
-int32_t taosUmaskFile(int32_t val) {
-#if defined(_TD_WINDOWS_64) || defined(_TD_WINDOWS_32)
-  return 0;
-#else
-  return umask(val);
-#endif
+size_t taosGetLineFile(TdFilePtr pFile, char ** __restrict__ ptrBuf) {
+  size_t len = 0;
+  return getline(ptrBuf, &len, pFile->fp);
 }
-
-int32_t taosStatFile(const char *path, int64_t *size, int32_t *mtime) {
-#if defined(_TD_WINDOWS_64) || defined(_TD_WINDOWS_32)
-  return 0;
-#else
-  struct stat fileStat;
-  int32_t     code = stat(path, &fileStat);
-  if (code < 0) {
-    return code;
-  }
-
-  if (size != NULL) {
-    *size = fileStat.st_size;
-  }
-
-  if (mtime != NULL) {
-    *mtime = fileStat.st_mtime;
-  }
-
-  return 0;
-#endif
+int32_t taosEOFFile(TdFilePtr pFile) {
+  return feof(pFile->fp);
 }
-
-int32_t taosFStatFile(int32_t fd, int64_t *size, int32_t *mtime) {
-#if defined(_TD_WINDOWS_64) || defined(_TD_WINDOWS_32)
-  return 0;
-#else
-  struct stat fileStat;
-  int32_t     code = fstat(fd, &fileStat);
-  if (code < 0) {
-    return code;
-  }
-
-  if (size != NULL) {
-    *size = fileStat.st_size;
-  }
-
-  if (mtime != NULL) {
-    *mtime = fileStat.st_mtime;
-  }
-
-  return 0;
-#endif
-}
-
-int32_t taosOpenFileWrite(const char *path) {
-#if defined(_TD_WINDOWS_64) || defined(_TD_WINDOWS_32)
-  return 0;
-#else
-  return open(path, O_WRONLY, S_IRWXU | S_IRWXG | S_IRWXO);
-#endif
-}
-
-int32_t taosOpenFileCreateWrite(const char *path) {
-#if defined(_TD_WINDOWS_64) || defined(_TD_WINDOWS_32)
-  return 0;
-#else
-  return open(path, O_WRONLY | O_CREAT, S_IRWXU | S_IRWXG | S_IRWXO);
-#endif
-}
-
-int32_t taosOpenFileCreateWriteTrunc(const char *path) {
-#if defined(_TD_WINDOWS_64) || defined(_TD_WINDOWS_32)
-  return 0;
-#else
-  return open(path, O_WRONLY | O_CREAT | O_TRUNC, S_IRWXU | S_IRWXG | S_IRWXO);
-#endif
-}
-
-int32_t taosOpenFileCreateWriteAppend(const char *path) {
-#if defined(_TD_WINDOWS_64) || defined(_TD_WINDOWS_32)
-  return 0;
-#else
-  return open(path, O_WRONLY | O_CREAT | O_APPEND, S_IRWXU | S_IRWXG | S_IRWXO);
-#endif
-}
-
-FileFd taosOpenFileRead(const char *path) {
-  #if defined(_TD_WINDOWS_64) || defined(_TD_WINDOWS_32)
-  return 0;
-#else
-  return open(path, O_RDONLY, S_IRWXU | S_IRWXG | S_IRWXO);
-#endif
-}
-
-FileFd taosOpenFileReadWrite(const char *path) {
-  #if defined(_TD_WINDOWS_64) || defined(_TD_WINDOWS_32)
-  return 0;
-#else
-  return open(path, O_RDWR, S_IRWXU | S_IRWXG | S_IRWXO);
-#endif
-}
-
-

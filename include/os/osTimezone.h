@@ -13,10 +13,18 @@
  * along with this program. If not, see <http://www.gnu.org/licenses/>.
  */
 
-#define _DEFAULT_SOURCE
-#include "cfgInt.h"
+#ifndef _TD_OS_TIMEZONE_H_
+#define _TD_OS_TIMEZONE_H_
 
-int32_t cfgLoadFromEnvFile(SConfig *pConfig, const char *filepath) {
-  uInfo("load from env file %s", filepath);
-  return 0;
+#ifdef __cplusplus
+extern "C" {
+#endif
+
+void taosGetSystemTimezone(char *outTimezone);
+void taosSetSystemTimezone(const char *inTimezone, char *outTimezone, int8_t *outDaylight);
+
+#ifdef __cplusplus
 }
+#endif
+
+#endif /*_TD_OS_TIMEZONE_H_*/

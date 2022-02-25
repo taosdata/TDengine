@@ -17,7 +17,7 @@
 #ifndef _TD_DMN_INT_H_
 #define _TD_DMN_INT_H_
 
-#include "config.h"
+#include "tconfig.h"
 #include "dnode.h"
 #include "taoserror.h"
 #include "tglobal.h"
@@ -28,15 +28,9 @@
 extern "C" {
 #endif
 
-int32_t dmnAddLogCfg(SConfig *pCfg);
-int32_t dmnInitLog(const char *cfgDir, const char *envFile, const char *apolloUrl);
-int32_t dmnLoadCfg(SConfig *pConfig, const char *inputCfgDir, const char *envFile, const char *apolloUrl);
+SDnodeObjCfg dmnGetObjCfg();
 
-SConfig     *dmnReadCfg(const char *cfgDir, const char *envFile, const char *apolloUrl);
-SDnodeEnvCfg dmnGetEnvCfg(SConfig *pCfg);
-SDnodeObjCfg dmnGetObjCfg(SConfig *pCfg);
-
-void dmnDumpCfg(SConfig *pCfg);
+void dmnDumpCfg();
 void dmnPrintVersion();
 void dmnGenerateGrant();
 

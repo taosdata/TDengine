@@ -86,7 +86,7 @@ typedef struct SRpcInit {
 
 int32_t rpcInit();
 void    rpcCleanup();
-void *  rpcOpen(const SRpcInit *pRpc);
+void   *rpcOpen(const SRpcInit *pRpc);
 void    rpcClose(void *);
 void *  rpcMallocCont(int contLen);
 void    rpcFreeCont(void *pCont);

@@ -18,24 +18,6 @@
 #include <wchar.h>
 #include <wctype.h>
 
-typedef struct CharsetPair {
-  char *oldCharset;
-  char *newCharset;
-} CharsetPair;
-
-char *taosCharsetReplace(char *charsetstr) {
-  CharsetPair charsetRep[] = {
-      { "utf8", "UTF-8" }, { "936", "CP936" },
-  };
-
-  for (int32_t i = 0; i < tListLen(charsetRep); ++i) {
-    if (strcasecmp(charsetRep[i].oldCharset, charsetstr) == 0) {
-      return strdup(charsetRep[i].newCharset);
-    }
-  }
-
-  return strdup(charsetstr);
-}
 
 int64_t taosStr2int64(const char *str) {
   char *endptr = NULL;

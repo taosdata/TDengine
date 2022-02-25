@@ -1,4 +1,3 @@
-
 /*
  * Copyright (c) 2019 TAOS Data, Inc. <jhtao@taosdata.com>
  *
@@ -14,34 +13,22 @@
  * along with this program. If not, see <http://www.gnu.org/licenses/>.
  */
 
-#ifndef _TD_CFG_INT_H_
-#define _TD_CFG_INT_H_
+#ifndef _TD_OS_LOCALE_H_
+#define _TD_OS_LOCALE_H_
 
-#include "config.h"
-#include "taoserror.h"
-#include "thash.h"
-#include "tutil.h"
-#include "ulog.h"
-#include "tglobal.h"
+#include "os.h"
+#include "osString.h"
 
 #ifdef __cplusplus
 extern "C" {
 #endif
 
-typedef struct SConfig {
-  ECfgSrcType stype;
-  SHashObj   *hash;
-} SConfig;
-
-int32_t cfgLoadFromCfgFile(SConfig *pConfig, const char *filepath);
-int32_t cfgLoadFromEnvFile(SConfig *pConfig, const char *filepath);
-int32_t cfgLoadFromEnvVar(SConfig *pConfig);
-int32_t cfgLoadFromApollUrl(SConfig *pConfig, const char *url);
-
-int32_t cfgSetItem(SConfig *pConfig, const char *name, const char *value, ECfgSrcType stype);
+char *taosCharsetReplace(char *charsetstr);
+void  taosGetSystemLocale(char *outLocale, char *outCharset);
+void  taosSetSystemLocale(const char *inLocale, const char *inCharSet);
 
 #ifdef __cplusplus
 }
 #endif
 
-#endif /*_TD_CFG_INT_H_*/
+#endif /*_TD_OS_LOCALE_H_*/
