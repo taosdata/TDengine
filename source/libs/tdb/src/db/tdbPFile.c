@@ -27,7 +27,7 @@ struct SPFile {
   SPgno    dbOrigSize;
 };
 
-static int tdbPFileReadPage(SPFile *pFile, SPgHdr *pPage);
+static int tdbPFileReadPage(SPFile *pFile, SPage *pPage);
 
 int tdbPFileOpen(SPCache *pCache, const char *fileName, SPFile **ppFile) {
   uint8_t *pPtr;
@@ -73,9 +73,9 @@ int tdbPFileClose(SPFile *pFile) {
   return 0;
 }
 
-SPgHdr *tdbPFileGet(SPFile *pFile, SPgno pgno) {
-  SPgid   pgid;
-  SPgHdr *pPage;
+SPage *tdbPFileGet(SPFile *pFile, SPgno pgno) {
+  SPgid  pgid;
+  SPage *pPage;
 
   memcpy(pgid.fileid, pFile->fid, TDB_FILE_ID_LEN);
   pgid.pgno = pgno;
@@ -120,7 +120,7 @@ int tdbPFileRollback(SPFile *pFile) {
   return 0;
 }
 
-static int tdbPFileReadPage(SPFile *pFile, SPgHdr *pPage) {
+static int tdbPFileReadPage(SPFile *pFile, SPage *pPage) {
   i64 offset;
   int ret;
 

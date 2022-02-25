@@ -20,15 +20,15 @@ struct SPCache {
   int             extraSize;
   pthread_mutex_t mutex;
   int             nFree;
-  SPgHdr *        pFree;
+  SPage *         pFree;
   int             nPage;
   int             nHash;
-  SPgHdr **       pgHash;
+  SPage **        pgHash;
   int             nRecyclable;
-  SPgHdr          lru;
+  SPage           lru;
   int             nDirty;
-  SPgHdr *        pDirty;
-  SPgHdr *        pDirtyTail;
+  SPage *         pDirty;
+  SPage *         pDirtyTail;
 };
 
 #define PCACHE_PAGE_HASH(pPgid)                              \
@@ -38,21 +38,21 @@ struct SPCache {
   })
 #define PAGE_IS_PINNED(pPage) ((pPage)->pLruNext == NULL)
 
-static int     tdbPCacheOpenImpl(SPCache *pCache);
-static void    tdbPCacheInitLock(SPCache *pCache);
-static void    tdbPCacheClearLock(SPCache *pCache);
-static void    tdbPCacheLock(SPCache *pCache);
-static void    tdbPCacheUnlock(SPCache *pCache);
-static bool    tdbPCacheLocked(SPCache *pCache);
-static SPgHdr *tdbPCacheFetchImpl(SPCache *pCache, const SPgid *pPgid, bool alcNewPage);
-static void    tdbPCachePinPage(SPgHdr *pPage);
-static void    tdbPCacheRemovePageFromHash(SPgHdr *pPage);
-static void    tdbPCacheAddPageToHash(SPgHdr *pPage);
+static int    tdbPCacheOpenImpl(SPCache *pCache);
+static void   tdbPCacheInitLock(SPCache *pCache);
+static void   tdbPCacheClearLock(SPCache *pCache);
+static void   tdbPCacheLock(SPCache *pCache);
+static void   tdbPCacheUnlock(SPCache *pCache);
+static bool   tdbPCacheLocked(SPCache *pCache);
+static SPage *tdbPCacheFetchImpl(SPCache *pCache, const SPgid *pPgid, bool alcNewPage);
+static void   tdbPCachePinPage(SPage *pPage);
+static void   tdbPCacheRemovePageFromHash(SPage *pPage);
+static void   tdbPCacheAddPageToHash(SPage *pPage);
 
 int tdbPCacheOpen(int pageSize, int cacheSize, int extraSize, SPCache **ppCache) {
   SPCache *pCache;
   void *   pPtr;
-  SPgHdr * pPgHdr;
+  SPage *  pPgHdr;
 
   pCache = (SPCache *)calloc(1, sizeof(*pCache));
   if (pCache == NULL) {
@@ -76,8 +76,8 @@ int tdbPCacheClose(SPCache *pCache) {
   return 0;
 }
 
-SPgHdr *tdbPCacheFetch(SPCache *pCache, const SPgid *pPgid, bool alcNewPage) {
-  SPgHdr *pPage;
+SPage *tdbPCacheFetch(SPCache *pCache, const SPgid *pPgid, bool alcNewPage) {
+  SPage *pPage;
 
   tdbPCacheLock(pCache);
   pPage = tdbPCacheFetchImpl(pCache, pPgid, alcNewPage);
@@ -86,12 +86,12 @@ SPgHdr *tdbPCacheFetch(SPCache *pCache, const SPgid *pPgid, bool alcNewPage) {
   return pPage;
 }
 
-void tdbPCacheFetchFinish(SPCache *pCache, SPgHdr *pPage) {
+void tdbPCacheFetchFinish(SPCache *pCache, SPage *pPage) {
   /* TODO */
   pPage->nRef++;  // TODO: do we need atomic operation???
 }
 
-void tdbPCacheRelease(SPgHdr *pHdr) {
+void tdbPCacheRelease(SPage *pHdr) {
   // TODO
 }
 
@@ -109,8 +109,8 @@ static bool tdbPCacheLocked(SPCache *pCache) {
   return true;
 }
 
-static SPgHdr *tdbPCacheFetchImpl(SPCache *pCache, const SPgid *pPgid, bool alcNewPage) {
-  SPgHdr *pPage;
+static SPage *tdbPCacheFetchImpl(SPCache *pCache, const SPgid *pPgid, bool alcNewPage) {
+  SPage *pPage;
 
   // 1. Search the hash table
   pPage = pCache->pgHash[PCACHE_PAGE_HASH(pPgid) % pCache->nHash];
@@ -157,7 +157,7 @@ static SPgHdr *tdbPCacheFetchImpl(SPCache *pCache, const SPgid *pPgid, bool alcN
   return pPage;
 }
 
-static void tdbPCachePinPage(SPgHdr *pPage) {
+static void tdbPCachePinPage(SPage *pPage) {
   SPCache *pCache;
 
   pCache = pPage->pCache;
@@ -170,9 +170,9 @@ static void tdbPCachePinPage(SPgHdr *pPage) {
   }
 }
 
-static void tdbPCacheRemovePageFromHash(SPgHdr *pPage) {
+static void tdbPCacheRemovePageFromHash(SPage *pPage) {
   SPCache *pCache;
-  SPgHdr **ppPage;
+  SPage ** ppPage;
   int      h;
 
   pCache = pPage->pCache;
@@ -185,7 +185,7 @@ static void tdbPCacheRemovePageFromHash(SPgHdr *pPage) {
   pCache->nPage--;
 }
 
-static void tdbPCacheAddPageToHash(SPgHdr *pPage) {
+static void tdbPCacheAddPageToHash(SPage *pPage) {
   SPCache *pCache;
   int      h;
 
@@ -199,9 +199,9 @@ static void tdbPCacheAddPageToHash(SPgHdr *pPage) {
 }
 
 static int tdbPCacheOpenImpl(SPCache *pCache) {
-  SPgHdr *pPage;
-  u8 *    pPtr;
-  int     tsize;
+  SPage *pPage;
+  u8 *   pPtr;
+  int    tsize;
 
   tdbPCacheInitLock(pCache);
 
@@ -209,14 +209,14 @@ static int tdbPCacheOpenImpl(SPCache *pCache) {
   pCache->nFree = 0;
   pCache->pFree = NULL;
   for (int i = 0; i < pCache->cacheSize; i++) {
-    tsize = pCache->pageSize + sizeof(SPgHdr) + pCache->extraSize;
+    tsize = pCache->pageSize + sizeof(SPage) + pCache->extraSize;
     pPtr = (u8 *)calloc(1, tsize);
     if (pPtr == NULL) {
       // TODO
       return -1;
     }
 
-    pPage = (SPgHdr *)(&(pPtr[pCache->pageSize]));
+    pPage = (SPage *)(&(pPtr[pCache->pageSize]));
     pPage->pData = (void *)pPtr;
     pPage->pExtra = (void *)(&(pPage[1]));
     // pPage->pgid = 0;
@@ -235,7 +235,7 @@ static int tdbPCacheOpenImpl(SPCache *pCache) {
   // Open the hash table
   pCache->nPage = 0;
   pCache->nHash = pCache->cacheSize;
-  pCache->pgHash = (SPgHdr **)calloc(pCache->nHash, sizeof(SPgHdr *));
+  pCache->pgHash = (SPage **)calloc(pCache->nHash, sizeof(SPage *));
   if (pCache->pgHash == NULL) {
     // TODO
     return -1;

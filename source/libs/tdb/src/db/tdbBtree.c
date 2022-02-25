@@ -28,15 +28,15 @@ struct SBTree {
 struct SBtCursor {
   SBTree *  pBt;
   i8        iPage;
-  SMemPage *pPage;
-  SMemPage *apPage[BTREE_MAX_DEPTH + 1];
+  // SMemPage *pPage;
+  // SMemPage *apPage[BTREE_MAX_DEPTH + 1];
 };
 
-typedef struct SMemPage {
-  u8    isInit;
-  u8    isLeaf;
-  SPgno pgno;
-} SMemPage;
+// typedef struct SMemPage {
+//   u8    isInit;
+//   u8    isLeaf;
+//   SPgno pgno;
+// } SMemPage;
 
 int tdbBtreeOpen(SPgno root, SBTree **ppBt) {
   *ppBt = NULL;
@@ -63,7 +63,7 @@ int tdbBtreeCursorMoveTo(SBtCursor *pCur) {
 
 static int tdbBtreeCursorMoveToRoot(SBtCursor *pCur) {
   SPFile *pFile;
-  SPgHdr *pPage;
+  SPage * pPage;
 
   pFile = pCur->pBt->pFile;
 

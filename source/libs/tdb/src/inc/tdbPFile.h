@@ -22,12 +22,12 @@ extern "C" {
 
 typedef struct SPFile SPFile;
 
-int     tdbPFileOpen(SPCache *pCache, const char *fileName, SPFile **ppFile);
-int     tdbPFileClose(SPFile *pFile);
-SPgHdr *tdbPFileGet(SPFile *pFile, SPgno pgno);
-int     tdbPFileBegin(SPFile *pFile);
-int     tdbPFileCommit(SPFile *pFile);
-int     tdbPFileRollback(SPFile *pFile);
+int    tdbPFileOpen(SPCache *pCache, const char *fileName, SPFile **ppFile);
+int    tdbPFileClose(SPFile *pFile);
+SPage *tdbPFileGet(SPFile *pFile, SPgno pgno);
+int    tdbPFileBegin(SPFile *pFile);
+int    tdbPFileCommit(SPFile *pFile);
+int    tdbPFileRollback(SPFile *pFile);
 
 #ifdef __cplusplus
 }

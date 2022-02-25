@@ -21,9 +21,9 @@ extern "C" {
 #endif
 
 typedef struct SPCache SPCache;
-typedef struct SPgHdr  SPgHdr;
+typedef struct SPage   SPage;
 
-struct SPgHdr {
+struct SPage {
   void *   pData;
   void *   pExtra;
   SPgid    pgid;
@@ -32,17 +32,17 @@ struct SPgHdr {
   u8       isLoad;
   i32      nRef;
   SPCache *pCache;
-  SPgHdr * pFreeNext;
-  SPgHdr * pHashNext;
-  SPgHdr * pLruNext;
-  SPgHdr * pLruPrev;
+  SPage *  pFreeNext;
+  SPage *  pHashNext;
+  SPage *  pLruNext;
+  SPage *  pLruPrev;
 };
 
-int     tdbPCacheOpen(int pageSize, int cacheSize, int extraSize, SPCache **ppCache);
-int     tdbPCacheClose(SPCache *pCache);
-SPgHdr *tdbPCacheFetch(SPCache *pCache, const SPgid *pPgid, bool alcNewPage);
-void    tdbPCacheFetchFinish(SPCache *pCache, SPgHdr *pPage);
-void    tdbPCacheRelease(SPgHdr *pHdr);
+int    tdbPCacheOpen(int pageSize, int cacheSize, int extraSize, SPCache **ppCache);
+int    tdbPCacheClose(SPCache *pCache);
+SPage *tdbPCacheFetch(SPCache *pCache, const SPgid *pPgid, bool alcNewPage);
+void   tdbPCacheFetchFinish(SPCache *pCache, SPage *pPage);
+void   tdbPCacheRelease(SPage *pHdr);
 
 #ifdef __cplusplus
 }
