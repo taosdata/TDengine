@@ -13,13 +13,15 @@
 
 
 from glob import glob
-import os 
+import os ,sys
 import re
 import time
 import taos
 import subprocess
 from taostest import TDCase
 from taostest.util.common import TDCom
+from taostest.util.common import TDCom
+from taostest.components.taosd import TaosD
 import copy
 import  threading
 
@@ -46,79 +48,57 @@ class MyThread(threading.Thread):
 class TestWal(TDCase):
     def init(self):
         self.tdCom = TDCom(self.tdSql)
+        self.taosd_envs = self.get_component_by_name("taosd")
 
-        self.major_conf = {"host":"vm130", "port":6030,"user":"root", 
-        "password":"taosdata", "config":"/data/run/dnode0/config"}
+        self.primary_conf = self.taosd_envs[0]
 
-        self.sub_conf = {"host":"vm130", "port":6130,"user":"root", 
-        "password":"taosdata", "config":"/data/run/dnode1/config"}
+        self.secondary_conf = self.taosd_envs[1]
 
         self.ts = 1643644800000 # 2010-02-01 00:00:00
         self.time_step = 10;
-        self.count = 0
-        self.failed_conut = 0
-        self.sleep_time = 10
-        self.loops = 10
-        self.nums =300000 
-        self.batch = 500
-        self.thread_nums = 100
+        self.count = 0 
+        self.sleep_time = 5   # every sleep_time ,restart taosd 
+        self.loops = 3  # loop restart taosd times
+        self.nums =100000 # rows of per_table ,if basic insert , only 1 table ,if multi insert ,table nums = self .thread_nums
+        self.batch = 500  
+        self.thread_nums = 100   # thread nums to insert data ,every thread insert an sub_table
         
 
     def get_conn(self,conf): # conf is an dict
-        conn = taos.connect(host=conf["host"], port=conf["port"],user=conf["user"], password=conf["password"], config=conf["config"])
+        conn = self.tdSql.get_connection(conf)
         return conn
-    
-    def kill_9_instance(self,pid_string):
-        cmds = "nohup ps -ef | grep '%s'|awk '{print $2}'|xargs kill -9 > killout.log 2>&1 >>/dev/null"%pid_string
-        status_code = os.system(cmds)
-        print('show kill cmds :  ',cmds)  
-        print("kill taosd_major instance ")
 
-    def start_instance(self,cmds):
-        status_code = os.system( "screen -d -m {}  ".format(cmds)) 
-        if status_code!=0:
-            print(" start failed ,shell run status code is : " , status_code)
-        else:
-            print(" ==== start success ====")
+    def restart_primary_taosd(self,sleep_time,loops):
 
-    def restart_major_taosd(self,major_pid_string,sleep_time,loops):
-
-        # if match sleep time ,kill -9 major taosd instance
+        # if match sleep time ,kill -9 primary taosd instance
+        primary_dnode = self.primary_conf["spec"]["dnodes"][0]
         
         for loop in range(loops):
         
             time.sleep(sleep_time)
-            print("this is the %d_th kill major taosd instance"%loop)
+            print("this is the %d_th kill primary taosd instance"%loop)
             
-            # do kill
-            self.kill_9_instance(major_pid_string)
-            time.sleep(3)
-            # self.start_instance(major_pid_string)
-            cmds = "taosd -c "+ major_pid_string
-            os.system( "screen -d -m {}  ".format(cmds)) 
+            # do restart
+            self.envMgr.taosd.restart(primary_dnode,sleep_time)
+
     
     def prepare_db_stable(self):
-        conn_major = self.get_conn(self.major_conf)
-        conn_sub = self.get_conn(self.sub_conf)
+        conn_primary = self.get_conn(self.primary_conf)
+        conn_secondary = self.get_conn(self.secondary_conf)
 
-        conn_major.execute("create database wal_test")
-        conn_major.execute("use wal_test")
+        conn_primary.execute("create database wal_test")
+        conn_primary.execute("use wal_test")
         
-        conn_major.execute("create stable st (ts timestamp ,int_val int , double_val double ,\
-         err_no binary(30) , err_msg binary(100)) tags(name binary(20))")
+        conn_primary.execute("create stable st (ts timestamp ,int_val int , double_val double ,\
+         err_msg binary(80)) tags(name binary(20))")
         
-        conn_sub.execute("create database wal_success")
-        conn_sub.execute("create stable wal_success.st (ts timestamp ,int_val int , double_val double ,\
-         err_no binary(30) , err_msg binary(100)) tags(name binary(20))")
+        conn_secondary.execute("create database wal_success")
+        conn_secondary.execute("create stable wal_success.st (ts timestamp ,int_val int , double_val double ,\
+         err_msg binary(80)) tags(name binary(20))")
         
-        conn_sub.execute("create database wal_failed")
-        conn_sub.execute("create stable wal_failed.st (ts timestamp ,int_val int , double_val double , \
-            err_no binary(30) , err_msg binary(100)) tags(name binary(20))")
-        
-        conn_sub.execute("create database wal_error")
-        conn_sub.execute("create stable wal_error.st (ts timestamp ,int_val int , double_val double ,\
-             err_no binary(30) , err_msg binary(100)) tags(name binary(20))")
-    
+        conn_secondary.execute("create database wal_failed")
+        conn_secondary.execute("create stable wal_failed.st (ts timestamp ,int_val int , double_val double , \
+            err_msg binary(80)) tags(name binary(20))")
             
     def multi_insert_task(self,tbname):
 
@@ -126,8 +106,8 @@ class TestWal(TDCase):
         
         tablename = tbname
         dbname_list = ['wal_test' ,'wal_success','wal_failed','wal_error']
-        conn_major = self.get_conn(self.major_conf)
-        conn_sub = self.get_conn(self.sub_conf)
+        conn_primary = self.get_conn(self.primary_conf)
+        conn_secondary = self.get_conn(self.secondary_conf)
 
         row_length = 0
         dbname = dbname_list[0]
@@ -139,50 +119,33 @@ class TestWal(TDCase):
             ts = self.ts + self.count * self.time_step
             int_val = self.count
             double_val = self.count + 0.01
+            
+            err_msg ="NULL"
             dbname = dbname_list[0]
 
-            err_no = "null"
-            err_msg ="null"
-
             insert_sql = f'insert into {dbname}.{tablename} using {dbname}.st tags("test") values({ts} , {int_val}, \
-            {double_val}, "{err_no}","{err_msg}")'
-
-            # print(insert_sql)
-
+            {double_val}, "{err_msg}")'
             if i %self.batch == 0 :
-                # print("insert is going ,insert rows :  ", i)
                 replace_body = f'insert into {dbname}.{tablename} using {dbname}.st tags("test") values'
                 body = insert_sql.replace(replace_body , "")
                 multi_sqls = multi_sqls + body
-                # print(multi_sqls) 
-                
-
                 row_length = len(insert_sql)
-                if len(multi_sqls)>row_length: # avoid first multi_sqls only 1 rows 
+                if len(multi_sqls)>=row_length: # avoid first multi_sqls only 1 rows 
                     flag = 0 
                     try:
-                        conn_major.execute(multi_sqls)
+                        conn_primary.execute(multi_sqls)
                     except taos.Error as err: 
-                        err_no = "\"" + str(err.errno) + "\""
-                        err_msg = "\"" +  str(err.msg) + "\""
-                        print(err_msg)
-                        # multi_sqls.replace('"null"' ,err_no ,1 )
-                        multi_sqls.replace('"null"' ,err_msg)
-                        if err.msg=="Database not ready":
-                            flag =2
-                        else :
-                            flag = 1
-                        self.failed_conut+=1
+                        err_msg = str(err.msg) 
+                        multi_sqls=multi_sqls.replace("NULL" ,err_msg)
+                        flag = 1
                     if flag == 0: # means insert sucess
-                        sub_dbname =dbname_list[1] 
+                        secondary_dbname =dbname_list[1] 
                     elif flag ==1 :
-                        sub_dbname =dbname_list[2] 
-                    elif flag ==2 :
-                        sub_dbname =dbname_list[3]
-
-                    multi_sqls=multi_sqls.replace(dbname,sub_dbname)
-                    conn_sub.execute(multi_sqls)
-
+                        secondary_dbname =dbname_list[2] 
+                    
+                    multi_sqls=multi_sqls.replace(dbname,secondary_dbname)
+                    conn_secondary.execute(multi_sqls)
+                multi_sqls = f'insert into {dbname}.{tablename} using {dbname}.st tags("test") values'
             else :
                 replace_body =  f'insert into {dbname}.{tablename} using {dbname}.st tags("test") values'
                 body = insert_sql.replace(replace_body , "")
@@ -190,117 +153,83 @@ class TestWal(TDCase):
             
             self.count+=1
 
-        if len(multi_sqls)>row_length: # last rows to insert
-            
+        
+        if len(multi_sqls)>=row_length: # avoid first multi_sqls only 1 rows 
             flag = 0 
             try:
-                conn_major.execute(multi_sqls)
+                conn_primary.execute(multi_sqls)
             except taos.Error as err: 
-                err_no = "\"" + str(err.errno) + "\""
-                err_msg = "\"" +  str(err.msg) + "\""
-                print(err_msg)
-                # multi_sqls.replace("null" ,err_no ,1 )
-                multi_sqls.replace("null" ,err_msg )
-                
-                if err.msg=="Database not ready":
-                    flag =2
-                else :
-                    flag = 1
-                self.failed_conut+=1
+                err_msg = str(err.msg) 
+                multi_sqls=multi_sqls.replace("NULL" ,err_msg)
+                flag = 1
             if flag == 0: # means insert sucess
-                sub_dbname =dbname_list[1] 
+                secondary_dbname =dbname_list[1] 
             elif flag ==1 :
-                sub_dbname =dbname_list[2] 
-            elif flag ==2 :
-                sub_dbname =dbname_list[3]
+                secondary_dbname =dbname_list[2] 
+            
+            multi_sqls=multi_sqls.replace(dbname,secondary_dbname)
+            conn_secondary.execute(multi_sqls)
+            multi_sqls = f'insert into {dbname}.{tablename} using {dbname}.st tags("test") values'
 
-            multi_sqls=multi_sqls.replace(dbname,sub_dbname)
-            conn_sub.execute(multi_sqls)
-
-     
     def basic_insert_task(self,tbname):
         print(" ======= insert task is going now ======= ")
         
         tablename = tbname
         dbname_list = ['wal_test' ,'wal_success','wal_failed','wal_error']
-        conn_major = self.get_conn(self.major_conf)
-        conn_sub = self.get_conn(self.sub_conf)
+        conn_primary = self.get_conn(self.primary_conf)
+        conn_secondary = self.get_conn(self.secondary_conf)
       
         for i in range(self.nums):
-
             ts = self.ts + self.count * self.time_step
             int_val = self.count
             double_val = self.count + 0.01
             dbname = dbname_list[0]
-            err_no = "null"
-            err_msg ="null"
+            err_msg ="NULL"
             insert_sql = f'insert into {dbname}.{tablename} using {dbname}.st tags("test") values({ts} , {int_val}, \
-            {double_val}, {err_no},{err_msg})'
-            
+            {double_val},{err_msg})'
             flag = 0 
             try:
-                conn_major.execute(insert_sql)
+                conn_primary.execute(insert_sql)
             except taos.Error as err: 
-                err_no = "\"" + str(err.errno) + "\""
-                err_msg = "\"" +  str(err.msg) + "\""
+                err_msg = str(err.msg) 
                 insert_sql = f'insert into {dbname}.{tablename} using {dbname}.st tags("test") values({ts} , {int_val}, \
-            {double_val}, {err_no},{err_msg})'
-                if err.msg=="Database not ready":
-                    flag =2
-                else :
-                    flag = 1
-                self.failed_conut+=1
-
+            {double_val},"{err_msg}")'
+                flag = 1
             self.count+=1 
-
             if flag == 0: # means insert sucess
-                sub_dbname =dbname_list[1] 
+                secondary_dbname =dbname_list[1] 
             elif flag ==1 :
-                sub_dbname =dbname_list[2] 
-            elif flag ==2 :
-                sub_dbname =dbname_list[3]
-
-            insert_sql=insert_sql.replace(dbname,sub_dbname)
-            conn_sub.execute(insert_sql)  
+                secondary_dbname =dbname_list[2] 
+            insert_sql=insert_sql.replace(dbname,secondary_dbname)
+            conn_secondary.execute(insert_sql)  
  
     def compare_data(self):
-
         more = set()
         miss = set()
+        conn_primary = self.get_conn(self.primary_conf)
+        conn_secondary = self.get_conn(self.secondary_conf)
+        result = conn_primary.query("select int_val from wal_test.st")
+        primary_data = result.fetch_all()
+        result = conn_secondary.query("select int_val from wal_success.st")
+        secondary_success_data = result.fetch_all()
 
-        conn_major = self.get_conn(self.major_conf)
-        conn_sub = self.get_conn(self.sub_conf)
-
-        result = conn_major.query("select int_val from wal_test.st")
-        major_data = result.fetch_all()
-
-        result = conn_sub.query("select int_val from wal_success.st")
-        sub_success_data = result.fetch_all()
-
-        result = conn_sub.query("select int_val from wal_failed.st")
-        sub_failed_data = result.fetch_all()
-
-        result = conn_sub.query("select int_val from wal_error.st")
-        sub_error_data = result.fetch_all()
-
-        total_failed = sub_error_data+sub_failed_data
-
-        more = set(major_data) - set(sub_success_data)
-        miss = set(sub_success_data) - set(major_data)
-
-        # print("more  rows ", more)
+        more = set(primary_data) - set(secondary_success_data)
+        miss = set(secondary_success_data) - set(primary_data)
         print("more rows numbers : ", len(more))
-        
-        # print("miss  rows" , miss)
         print("miss rows numbers : ", len(miss))
+
+        if len(miss) >0:
+            print(" there are some records was missed , case failed ")
+            sys.exit(1)
+            
         
-    def basic_single_row(self , major_pid_string):
+    def basic_single_row(self):
         sleep_time = self.sleep_time
         loops = self.loops
         self.prepare_db_stable()
         thread_pool = []
         thread_insert = MyThread(func=self.basic_insert_task,args=('tb',))
-        thread_kill_instance = MyThread(func=self.restart_major_taosd, args=(major_pid_string,sleep_time,loops))
+        thread_kill_instance = MyThread(func=self.restart_primary_taosd, args=(sleep_time,loops))
         thread_pool.append(thread_insert)
         thread_pool.append(thread_kill_instance)
 
@@ -310,14 +239,14 @@ class TestWal(TDCase):
         thread_insert.join()
         thread_kill_instance.join()
     
-    def basic_multi_insert_rows(self , major_pid_string):
+    def basic_multi_insert_rows(self):
         
         sleep_time = self.sleep_time
         loops = self.loops
         self.prepare_db_stable()
         thread_pool = []
         thread_insert = MyThread(func=self.multi_insert_task ,args=('tb',))
-        thread_kill_instance = MyThread(func=self.restart_major_taosd, args=(major_pid_string,sleep_time,loops))
+        thread_kill_instance = MyThread(func=self.restart_primary_taosd, args=(sleep_time,loops))
         thread_pool.append(thread_insert)
         thread_pool.append(thread_kill_instance)
 
@@ -327,14 +256,13 @@ class TestWal(TDCase):
         thread_insert.join()
         thread_kill_instance.join()
 
-    def thread_pools_basic_insert(self ,major_pid_string):
+    def thread_pools_basic_insert(self ):
         self.prepare_db_stable()
         thread_pool = []
-
         sleep_time = self.sleep_time
         loops = self.loops
         
-        thread_kill_instance = MyThread(func=self.restart_major_taosd, args=(major_pid_string,sleep_time,loops))
+        thread_kill_instance = MyThread(func=self.restart_primary_taosd, args=(sleep_time,loops))
         thread_kill_instance.start()
         for ids in range(self.thread_nums):
             tbname = "tb_%d"%ids
@@ -347,26 +275,22 @@ class TestWal(TDCase):
             task.start()
             print("======== thread %d is start ======"%index)
             index +=1
-
      
         thread_kill_instance.join()
         for task in thread_pool:
             task.join()
 
-    def thread_pools_multi_insert(self ,major_pid_string):
+    def thread_pools_multi_insert(self):
         self.prepare_db_stable()
         thread_pool = []
-
         sleep_time = self.sleep_time
         loops = self.loops
-        
-        thread_kill_instance = MyThread(func=self.restart_major_taosd, args=(major_pid_string,sleep_time,loops))
+        thread_kill_instance = MyThread(func=self.restart_primary_taosd, args=(sleep_time,loops))
         thread_kill_instance.start()
         for ids in range(self.thread_nums):
             tbname = "tb_%d"%ids
             thread_insert_ins = MyThread(func=self.multi_insert_task,args=(tbname,))
             thread_pool.append(thread_insert_ins)
-
          #run task
         for task in thread_pool:
             task.start()
@@ -378,13 +302,8 @@ class TestWal(TDCase):
     def run(self) -> bool:
         
         start = time.time()
-
-        # async threading run insert and kill instance major
-        major_pid_string = self.major_conf["config"]
         
-        
-        # self.thread_pools_multi_insert(major_pid_string)
-        self.thread_pools_basic_insert(major_pid_string)
+        self.thread_pools_multi_insert()
         time.sleep(3)
         self.compare_data()  # please use small data to compare
         end = time.time()

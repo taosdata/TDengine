@@ -1,6 +1,7 @@
 settings:
   - name: taosd
     fqdn: [vm130]
+    labels: primary
     spec:
       version: 2.4.0.0  # 默认最新版
       config: # common config for all dnodes
@@ -12,11 +13,13 @@ settings:
             dataDir: /data/run/dnode0/data
             logDir: /data/run/dnode0/log
             debugFlag: 135
+            maxSQLLength: 65480
             walLevel: 2
             fsync: 0 
 
   - name: taosd
     fqdn: [vm130]
+    labels: secondary
     spec:
       version: 2.4.0.0  # 默认最新版
       config: # common config for all dnodes
@@ -28,6 +31,7 @@ settings:
             dataDir: /data/run/dnode1/data
             logDir: /data/run/dnode1/log
             debugFlag: 135
+            maxSQLLength: 65480
             walLevel: 2
             fsync: 0 
 
@@ -38,6 +42,17 @@ settings:
       client_version: 2.4.0.0
       config:
         firstEP: vm130:6030
+        logDir: /data/run/dnode0/log
+        debugFlag: 135
+        maxSQLLength: 65480
+
+  - name: taospy
+    fqdn: [vm130]
+    spec:
+      version: 2.2.0  
+      client_version: 2.4.0.0
+      config:
+        firstEP: vm130:6130
         logDir: /data/run/dnode1/log
         debugFlag: 135
-
+        maxSQLLength: 65480
