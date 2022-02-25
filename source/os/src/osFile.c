@@ -602,7 +602,8 @@ int taosGetErrorFile(TdFilePtr pFile) {
   return errno;
 }
 size_t taosGetLineFile(TdFilePtr pFile, char ** __restrict__ ptrBuf) {
-  return getline(ptrBuf, NULL, pFile->fp);
+  size_t len = 0;
+  return getline(ptrBuf, &len, pFile->fp);
 }
 int32_t taosEOFFile(TdFilePtr pFile) {
   return feof(pFile->fp);

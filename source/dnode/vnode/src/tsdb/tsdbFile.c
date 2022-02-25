@@ -456,7 +456,8 @@ static int tsdbScanAndTryFixDFile(STsdb *pRepo, SDFile *pDFile) {
   }
 
   if (pDFile->info.size < dfstat.st_size) {
-    if (tsdbOpenDFile(&df, O_WRONLY) < 0) {
+    // if (tsdbOpenDFile(&df, O_WRONLY) < 0) {
+    if (tsdbOpenDFile(&df, TD_FILE_WRITE) < 0) {
       return -1;
     }
 
@@ -537,7 +538,8 @@ static int tsdbApplyDFileChange(SDFile *from, SDFile *to) {
 static int tsdbRollBackDFile(SDFile *pDFile) {
   SDFile df = *pDFile;
 
-  if (tsdbOpenDFile(&df, O_WRONLY) < 0) {
+  // if (tsdbOpenDFile(&df, O_WRONLY) < 0) {
+  if (tsdbOpenDFile(&df, TD_FILE_WRITE) < 0) {
     return -1;
   }
 
