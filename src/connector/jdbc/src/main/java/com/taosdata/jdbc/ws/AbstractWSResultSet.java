@@ -25,7 +25,7 @@ public abstract class AbstractWSResultSet extends AbstractResultSet {
     protected final RequestFactory factory;
     protected final long queryId;
 
-    protected boolean isClosed;
+    protected volatile boolean isClosed;
     // meta
     protected final ResultSetMetaData metaData;
     protected final List<RestfulResultSet.Field> fields = new ArrayList<>();
@@ -105,10 +105,14 @@ public abstract class AbstractWSResultSet extends AbstractResultSet {
 
     @Override
     public void close() throws SQLException {
-        this.isClosed = true;
-        if (result != null && !result.isEmpty() && !isCompleted) {
-            FetchReq fetchReq = new FetchReq(queryId, queryId);
-            transport.sendWithoutRep(new Request(Action.FREE_RESULT.getAction(), fetchReq));
+        synchronized (this) {
+            if (!this.isClosed) {
+                this.isClosed = true;
+                if (result != null && !result.isEmpty() && !isCompleted) {
+                    FetchReq fetchReq = new FetchReq(queryId, queryId);
+                    transport.sendWithoutRep(new Request(Action.FREE_RESULT.getAction(), fetchReq));
+                }
+            }
         }
     }
 
