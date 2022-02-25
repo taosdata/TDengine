@@ -132,7 +132,7 @@ void ctgTestInitLogFile() {
   ctgDbgEnableDebug("api");
   
   if (taosInitLog(defaultLogFileNamePrefix, maxLogFileNum) < 0) {
-    printf("failed to open log file in directory:%s\n", osLogDir());
+    printf("failed to open log file in directory:%s\n", tsLogDir);
   }
 }
 
