@@ -59,6 +59,7 @@ typedef struct SConfigItem {
     int32_t  i32;
     int64_t  i64;
     char    *str;
+    SArray  *array;  // SDiskCfg
   };
   union {
     int64_t imin;
@@ -71,15 +72,15 @@ typedef struct SConfigItem {
 } SConfigItem;
 
 typedef struct {
-  char *name;
-  char *value;
+  const char *name;
+  const char *value;
 } SConfigPair;
 
 typedef struct SConfig SConfig;
 
 SConfig *cfgInit();
 int32_t  cfgLoad(SConfig *pCfg, ECfgSrcType cfgType, const char *sourceStr);
-int32_t  cfgLoadArray(SConfig *pCfg, SArray *pArgs);
+int32_t  cfgLoadArray(SConfig *pCfg, SArray *pArgs); // SConfigPair
 void     cfgCleanup(SConfig *pCfg);
 
 int32_t      cfgGetSize(SConfig *pCfg);

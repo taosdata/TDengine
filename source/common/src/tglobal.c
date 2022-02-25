@@ -154,19 +154,20 @@ static void taosAddDataDir(int32_t index, char *v1, int32_t level, int32_t prima
   uTrace("dataDir:%s, level:%d primary:%d is configured", v1, level, primary);
 }
 
-static void taosReadDataDirCfg(char *v1, char *v2, char *v3) {
-  if (tsDiskCfgNum == 1) {
-    SDiskCfg *cfg = &tsDiskCfg[0];
-    uInfo("dataDir:%s, level:%d primary:%d is replaced by %s", cfg->dir, cfg->level, cfg->primary, v1);
-  }
-  taosAddDataDir(0, v1, 0, 1);
-  tsDiskCfgNum = 1;
-}
+static void taosSetTfsCfg(SConfig *pCfg) {
+  SConfigItem *pItem = cfgGetItem(pCfg, "dataDir");
+  if (pItem == NULL) return;
 
-static void taosPrintDataDirCfg() {
-  for (int32_t i = 0; i < tsDiskCfgNum; ++i) {
-    SDiskCfg *cfg = &tsDiskCfg[i];
-    uInfo(" dataDir: %s", cfg->dir);
+  int32_t size = taosArrayGetSize(pItem->array);
+  if (size <= 0) {
+    tsDiskCfgNum = 1;
+    taosAddDataDir(0, pItem->str, 0, 1);
+  } else {
+    tsDiskCfgNum = size < TFS_MAX_DISKS ? size : TFS_MAX_DISKS;
+    for (int32_t index = 0; index < tsDiskCfgNum; ++index) {
+      SDiskCfg *pCfg = taosArrayGet(pItem->array, index);
+      memcpy(&tsDiskCfg[index], pCfg, sizeof(SDiskCfg));
+    }
   }
 }
 
@@ -270,7 +271,7 @@ static int32_t taosAddClientCfg(SConfig *pCfg) {
   return 0;
 }
 
-static int32_t taosAddSystemInfo(SConfig *pCfg) {
+static int32_t taosAddSystemCfg(SConfig *pCfg) {
   SysNameInfo info = taosGetSysNameInfo();
 
   if (cfgAddTimezone(pCfg, "timezone", tsTimezone) != 0) return -1;
@@ -440,6 +441,12 @@ int32_t taosCreateLog(const char *logname, int32_t logFileNum, const char *cfgDi
     return -1;
   }
 
+  if (cfgLoadArray(pCfg, pArgs) != 0) {
+    uError("failed to load cfg from array since %s", terrstr());
+    cfgCleanup(pCfg);
+    return -1;
+  }
+
   if (tsc) {
     taosSetClientLogCfg(pCfg);
   } else {
@@ -472,7 +479,7 @@ int32_t taosInitCfg(const char *cfgDir, const char *envFile, const char *apolloU
     if (taosAddClientCfg(tsCfg) != 0) return -1;
     if (taosAddServerCfg(tsCfg) != 0) return -1;
   }
-  taosAddSystemInfo(tsCfg);
+  taosAddSystemCfg(tsCfg);
 
   if (taosLoadCfg(tsCfg, cfgDir, envFile, apolloUrl) != 0) {
     uError("failed to load cfg since %s", terrstr());
@@ -481,11 +488,18 @@ int32_t taosInitCfg(const char *cfgDir, const char *envFile, const char *apolloU
     return -1;
   }
 
+  if (cfgLoadArray(tsCfg, pArgs) != 0) {
+    uError("failed to load cfg from array since %s", terrstr());
+    cfgCleanup(tsCfg);
+    return -1;
+  }
+
   if (tsc) {
     taosSetClientCfg(tsCfg);
   } else {
     taosSetClientCfg(tsCfg);
     taosSetServerCfg(tsCfg);
+    taosSetTfsCfg(tsCfg);
   }
   taosSetSystemCfg(tsCfg);
 

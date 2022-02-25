@@ -16,6 +16,7 @@
 #define _DEFAULT_SOURCE
 #include "tconfig.h"
 #include "taoserror.h"
+#include "tcfg.h"
 #include "thash.h"
 #include "tutil.h"
 #include "ulog.h"
@@ -321,6 +322,32 @@ int32_t cfgSetItem(SConfig *pCfg, const char *name, const char *value, ECfgSrcTy
   return -1;
 }
 
+static int32_t cfgSetTfsItem(SConfig *pCfg, const char *name, const char *value, const char *level,
+                                   const char *primary, ECfgSrcType stype) {
+  SConfigItem *pItem = cfgGetItem(pCfg, name);
+  if (pItem == NULL) return -1;
+
+  if (pItem->array == NULL) {
+    pItem->array = taosArrayInit(16, sizeof(SDiskCfg));
+    if (pItem->array == NULL) {
+      terrno = TSDB_CODE_OUT_OF_MEMORY;
+      return -1;
+    }
+  }
+
+  SDiskCfg cfg = {0};
+  tstrncpy(cfg.dir, name, sizeof(cfg.dir));
+  cfg.level = atoi(level);
+  cfg.primary = atoi(primary);
+  void *ret = taosArrayPush(pItem->array, &cfg);
+  if (ret == NULL) {
+    terrno = TSDB_CODE_OUT_OF_MEMORY;
+    return -1;
+  }
+
+  return 0;
+}
+
 SConfigItem *cfgGetItem(SConfig *pCfg, const char *name) {
   char lowcaseName[CFG_NAME_MAX_LEN + 1] = {0};
   memcpy(lowcaseName, name, CFG_NAME_MAX_LEN);
@@ -487,12 +514,12 @@ const char *cfgDtypeStr(ECfgDataType type) {
 
 void cfgDumpCfg(SConfig *pCfg, bool tsc, bool dump) {
   if (dump) {
-    printf("   global config");
+    printf("                     global config");
     printf("\n");
     printf("=================================================================");
     printf("\n");
   } else {
-    uInfo("   global config");
+    uInfo("                     global config");
     uInfo("=================================================================");
   }
 
@@ -620,7 +647,9 @@ int32_t cfgLoadFromCfgFile(SConfig *pConfig, const char *filepath) {
     }
 
     cfgSetItem(pConfig, name, value, CFG_STYPE_CFG_FILE);
-    // taosReadConfigOption(name, value, value2, value3);
+    if (value2 != NULL && value3 != NULL && value2[0] != 0 && value3[0] != 0) {
+      cfgSetTfsItem(pConfig, name, value, value2, value3, CFG_STYPE_CFG_FILE);
+    }
   }
 
   taosCloseFile(&pFile);
