@@ -185,16 +185,16 @@ static int32_t dndReadDnodes(SDnode *pDnode) {
   int32_t maxLen = 256 * 1024;
   char   *content = calloc(1, maxLen + 1);
   cJSON  *root = NULL;
-  FILE   *fp = NULL;
 
-  fp = fopen(pMgmt->file, "r");
-  if (fp == NULL) {
+  // fp = fopen(pMgmt->file, "r");
+  TdFilePtr pFile = taosOpenFile(pMgmt->file, TD_FILE_READ);
+  if (pFile == NULL) {
     dDebug("file %s not exist", pMgmt->file);
     code = 0;
     goto PRASE_DNODE_OVER;
   }
 
-  len = (int32_t)fread(content, 1, maxLen, fp);
+  len = (int32_t)taosReadFile(pFile, content, maxLen);
   if (len <= 0) {
     dError("failed to read %s since content is null", pMgmt->file);
     goto PRASE_DNODE_OVER;
@@ -286,7 +286,7 @@ static int32_t dndReadDnodes(SDnode *pDnode) {
 PRASE_DNODE_OVER:
   if (content != NULL) free(content);
   if (root != NULL) cJSON_Delete(root);
-  if (fp != NULL) fclose(fp);
+  if (pFile != NULL) taosCloseFile(&pFile);
 
   if (dndIsEpChanged(pDnode, pMgmt->dnodeId, pDnode->cfg.localEp)) {
     dError("localEp %s different with %s and need reconfigured", pDnode->cfg.localEp, pMgmt->file);
@@ -309,8 +309,9 @@ PRASE_DNODE_OVER:
 static int32_t dndWriteDnodes(SDnode *pDnode) {
   SDnodeMgmt *pMgmt = &pDnode->dmgmt;
 
-  FILE *fp = fopen(pMgmt->file, "w");
-  if (fp == NULL) {
+  // FILE *fp = fopen(pMgmt->file, "w");
+  TdFilePtr pFile = taosOpenFile(pMgmt->file, TD_FILE_CTEATE | TD_FILE_WRITE | TD_FILE_TRUNC);
+  if (pFile == NULL) {
     dError("failed to write %s since %s", pMgmt->file, strerror(errno));
     terrno = TAOS_SYSTEM_ERROR(errno);
     return -1;
@@ -341,9 +342,9 @@ static int32_t dndWriteDnodes(SDnode *pDnode) {
   }
   len += snprintf(content + len, maxLen - len, "}\n");
 
-  fwrite(content, 1, len, fp);
-  taosFsyncFile(fileno(fp));
-  fclose(fp);
+  taosWriteFile(pFile, content, len);
+  taosFsyncFile(pFile);
+  taosCloseFile(&pFile);
   free(content);
   terrno = 0;
 

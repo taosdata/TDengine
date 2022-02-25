@@ -59,31 +59,31 @@ void dndGetStartup(SDnode *pDnode, SStartupReq *pStartup) {
   pStartup->finished = (dndGetStat(pDnode) == DND_STAT_RUNNING);
 }
 
-static FileFd dndCheckRunning(char *dataDir) {
+static TdFilePtr dndCheckRunning(char *dataDir) {
   char filepath[PATH_MAX] = {0};
   snprintf(filepath, sizeof(filepath), "%s/.running", dataDir);
 
-  FileFd fd = taosOpenFileCreateWriteTrunc(filepath);
-  if (fd < 0) {
+  TdFilePtr pFile = taosOpenFile(filepath, TD_FILE_CTEATE | TD_FILE_WRITE | TD_FILE_TRUNC);
+  if (pFile == NULL) {
     terrno = TAOS_SYSTEM_ERROR(errno);
     dError("failed to lock file:%s since %s, quit", filepath, terrstr());
-    return -1;
+    return NULL;
   }
 
-  int32_t ret = taosLockFile(fd);
+  int32_t ret = taosLockFile(pFile);
   if (ret != 0) {
     terrno = TAOS_SYSTEM_ERROR(errno);
     dError("failed to lock file:%s since %s, quit", filepath, terrstr());
-    taosCloseFile(fd);
-    return -1;
+    taosCloseFile(&pFile);
+    return NULL;
   }
 
-  return fd;
+  return pFile;
 }
 
 static int32_t dndCreateImp(SDnode *pDnode, SDnodeObjCfg *pCfg) {
-  pDnode->lockFd = dndCheckRunning(pCfg->dataDir);
-  if (pDnode->lockFd < 0) {
+  pDnode->pLockFile = dndCheckRunning(pCfg->dataDir);
+  if (pDnode->pLockFile == NULL) {
     return -1;
   }
 
@@ -147,10 +147,10 @@ static void dndCloseImp(SDnode *pDnode) {
   tfree(pDnode->dir.snode);
   tfree(pDnode->dir.bnode);
 
-  if (pDnode->lockFd >= 0) {
-    taosUnLockFile(pDnode->lockFd);
-    taosCloseFile(pDnode->lockFd);
-    pDnode->lockFd = 0;
+  if (pDnode->pLockFile != NULL) {
+    taosUnLockFile(pDnode->pLockFile);
+    taosCloseFile(&pDnode->pLockFile);
+    pDnode->pLockFile = NULL;
   }
 }
 

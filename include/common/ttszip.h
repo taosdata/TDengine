@@ -73,9 +73,9 @@ typedef struct STSGroupBlockInfoEx {
 } STSGroupBlockInfoEx;
 
 typedef struct STSBuf {
-  FILE*    f;
-  char     path[PATH_MAX];
-  uint32_t fileSize;
+  TdFilePtr pFile;
+  char      path[PATH_MAX];
+  uint32_t  fileSize;
 
   // todo use array
   STSGroupBlockInfoEx* pData;

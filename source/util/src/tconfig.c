@@ -571,31 +571,28 @@ int32_t cfgLoadFromEnvFile(SConfig *pConfig, const char *filepath) {
 }
 
 int32_t cfgLoadFromCfgFile(SConfig *pConfig, const char *filepath) {
-  char   *line, *name, *value, *value2, *value3;
+  char   *line = NULL, *name, *value, *value2, *value3;
   int     olen, vlen, vlen2, vlen3;
   ssize_t _bytes = 0;
-  size_t  len = 1024;
 
-  FILE *fp = fopen(filepath, "r");
-  if (fp == NULL) {
+  // FILE *fp = fopen(filepath, "r");
+  TdFilePtr pFile = taosOpenFile(filepath, TD_FILE_READ);
+  if (pFile == NULL) {
     terrno = TAOS_SYSTEM_ERROR(errno);
     return -1;
   }
 
-  line = malloc(len);
-
-  while (!feof(fp)) {
-    memset(line, 0, len);
+  while (!taosEOFFile(pFile)) {
 
     name = value = value2 = value3 = NULL;
     olen = vlen = vlen2 = vlen3 = 0;
 
-    _bytes = tgetline(&line, &len, fp);
+    _bytes = taosGetLineFile(pFile, &line);
     if (_bytes < 0) {
       break;
     }
 
-    line[len - 1] = 0;
+    line[_bytes - 1] = 0;
 
     paGetToken(line, &name, &olen);
     if (olen == 0) continue;
@@ -616,8 +613,8 @@ int32_t cfgLoadFromCfgFile(SConfig *pConfig, const char *filepath) {
     // taosReadConfigOption(name, value, value2, value3);
   }
 
-  fclose(fp);
-  tfree(line);
+  taosCloseFile(&pFile);
+  if(line != NULL) tfree(line);
 
   uInfo("load from cfg file %s success", filepath);
   return 0;

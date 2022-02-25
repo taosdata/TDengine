@@ -24,18 +24,18 @@
 uint32_t taosRand(void) { return rand(); }
 
 uint32_t taosSafeRand(void) {
-  int fd;
+  TdFilePtr pFile;
   int seed;
 
-  fd = open("/dev/urandom", 0);
-  if (fd < 0) {
+  pFile = taosOpenFile("/dev/urandom", TD_FILE_READ);
+  if (pFile == NULL) {
     seed = (int)time(0);
   } else {
-    int len = read(fd, &seed, sizeof(seed));
+    int len = taosReadFile(pFile, &seed, sizeof(seed));
     if (len < 0) {
       seed = (int)time(0);
     }
-    close(fd);
+    taosCloseFile(&pFile);
   }
 
   return (uint32_t)seed;
