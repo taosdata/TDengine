@@ -1218,6 +1218,120 @@ import (
 ### 其他代码示例
 
 [Consume Messages from Kafka](https://github.com/taosdata/go-demo-kafka) 是一个通过 Go 语言实现消费 Kafka 队列写入 TDengine 的示例程序，也可以作为通过 Go 连接 TDengine 的写法参考。
+  
+### Go RESTful的使用
+
+#### 引入
+```go restful
+import (
+  "database/sql"
+  _ "github.com/taosdata/driver-go/v2/taosRestful"
+)
+```
+
+`go.mod ` 的文件 require 块使用 github.com/taosdata/driver-go/v2 develop 之后执行 `go mod tidy `
+  
+`sql.Open `的driverName 为 `taosRestful`
+
+#### DSN
+
+格式为：
+
+数据库用户名:数据库密码@连接方式(域名或ip:端口)/[数据库][?参数]
+
+样例：
+
+`root:taosdata@http(localhost:6041)/test?readBufferSize=52428800`
+  
+参数：
+
+`disableCompression`是否接受压缩数据，默认为true不接受压缩数据，如果传输数据使用gzip压缩设置为false。
+
+`readBufferSize`读取数据的缓存区大小默认为4K(4096)，当查询结果数据量多时可以适当调大该值。
+  
+#### 使用限制
+  
+由于restful接口无状态所以`use db`语法不会生效，需要将db名称放到sql语句中，如：`create table if not exists tb1 (ts timestamp, a int)`改为`create table if not exists test.tb1 (ts timestamp, a int)`否则将报错`[0x217] Database not specified or available`。
+  
+也可以将db名称放到DSN中，将`root:taosdata@http(localhost:6041)/`改为`root:taosdata@http(localhost:6041)/test`，此方法在TDengine 2.4.0.5版本的taosAdapter开始支持。当指定的 db不存在时执行`create database`语句不会报错，而执行针对该db的其他查询或写入操作会报错。完整示例如下：
+  
+```go restful demo
+package main
+ 
+import (
+    "database/sql"
+    "fmt"
+    "time"
+ 
+    _ "github.com/taosdata/driver-go/v2/taosRestful"
+)
+ 
+func main() {
+    var taosDSN = "root:taosdata@http(localhost:6041)/test"
+    taos, err := sql.Open("taosRestful", taosDSN)
+    if err != nil {
+        fmt.Println("failed to connect TDengine, err:", err)
+        return
+    }
+    defer taos.Close()
+    taos.Exec("create database if not exists test")
+    taos.Exec("create table if not exists tb1 (ts timestamp, a int)")
+    _, err = taos.Exec("insert into tb1 values(now, 0)(now+1s,1)(now+2s,2)(now+3s,3)")
+    if err != nil {
+        fmt.Println("failed to insert, err:", err)
+        return
+    }
+    rows, err := taos.Query("select * from tb1")
+    if err != nil {
+        fmt.Println("failed to select from table, err:", err)
+        return
+    }
+ 
+    defer rows.Close()
+    for rows.Next() {
+        var r struct {
+            ts time.Time
+            a  int
+        }
+        err := rows.Scan(&r.ts, &r.a)
+        if err != nil {
+            fmt.Println("scan error:\n", err)
+            return
+        }
+        fmt.Println(r.ts, r.a)
+    }
+}
+```
+#### 常见问题
+ 
+- 无法找到包`github.com/taosdata/driver-go/v2/taosRestful`
+  
+  将`go.mod`中require块对`github.com/taosdata/driver-go/v2`的引用改为`github.com/taosdata/driver-go/v2 develop`，之后执行`go mod tidy`。
+
+- stmt相关接口崩溃
+
+  restful不支持stmt相关接口，建议使用`db.Exec`和`db.Query`。
+  
+- 使用`use db`语句后执行其他语句报错`[0x217] Database not specified or available`
+  
+  在restful接口中sql语句的执行无上下文关联，使用`use db`语句不会生效，解决办法见上方使用限制章节。
+  
+- 使用taosSql不报错使用taosRestful报错`[0x217] Database not specified or available`
+  
+   因为restful 接口无状态，使用`use db`语句不会生效，解决办法见上方使用限制章节。
+  
+- 升级`github.com/taosdata/driver-go/v2/taosRestful`
+  
+  将`go.mod`文件中对`github.com/taosdata/driver-go/v2`的引用改为`github.com/taosdata/driver-go/v2 develop`，之后执行`go mod tidy`。
+  
+- readBufferSize参数调大后无明显效果
+  
+  readBufferSize调大后会减少获取结果时syscall的调用。如果查询结果的数据量不大，修改该参数不会带来明显提升，如果该参数修改过大，瓶颈会在解析json数据。如果需要优化查询速度，需要根据实际情况调整该值来达到查询效果最优。
+  
+- disableCompression参数设置为false时查询效率降低
+  
+  当disableCompression参数设置为false时查询结果会gzip压缩后传输，拿到数据后要先进行gzip解压。
+  
 
 ## <a class="anchor" id="nodejs"></a>Node.js Connector
 
