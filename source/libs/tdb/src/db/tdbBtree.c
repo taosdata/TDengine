@@ -17,12 +17,14 @@
 
 #define BTREE_MAX_DEPTH 20
 
+typedef int (*FKeyComparator)(const void *pKey1, int kLen1, const void *pKey2, int kLen2);
+
 struct SBTree {
-  SPgno   root;
-  int     keyLen;
-  int     valLen;
-  SPFile *pFile;
-  int (*FKeyComparator)(const void *pKey1, int keyLen1, const void *pKey2, int keyLen2);
+  SPgno          root;
+  int            keyLen;
+  int            valLen;
+  SPFile *       pFile;
+  FKeyComparator kcmpr;
 };
 
 typedef struct SPgHdr {
@@ -48,6 +50,8 @@ struct SBtCursor {
 
 static int tdbBtCursorMoveTo(SBtCursor *pCur, const void *pKey, int kLen);
 static int tdbEncodeLength(u8 *pBuf, uint len);
+static int tdbBtCursorMoveToRoot(SBtCursor *pCur);
+static int tdbInitBtPage(SPage *pPage, SBtPage **ppBtPage);
 
 int tdbBtreeOpen(SPgno root, SBTree **ppBt) {
   *ppBt = NULL;
@@ -88,6 +92,9 @@ int tdbBtCursorInsert(SBtCursor *pCur, const void *pKey, int kLen, const void *p
 }
 
 static int tdbBtCursorMoveTo(SBtCursor *pCur, const void *pKey, int kLen) {
+  int ret;
+
+  ret = tdbBtCursorMoveToRoot(pCur);
   // TODO
   return 0;
 }
@@ -120,7 +127,16 @@ static int tdbEncodeKeyValue(const void *pKey, int kLen, int kLenG, const void *
 }
 
 static int tdbDecodeKeyValue(const void *pBuf, void *pKey, int *kLen, void *pVal, int *vLen) {
-  // TODO
+  if (*kLen == TDB_VARIANT_LEN) {
+    // Decode the key length
+  }
+
+  if (*vLen == TDB_VARIANT_LEN) {
+    // Decode the value length
+  }
+
+  // TODO: decode the key and value
+
   return 0;
 }
 
@@ -135,4 +151,36 @@ static int tdbEncodeLength(u8 *pBuf, uint len) {
   pBuf[iCount++] = (u8)len;
 
   return iCount;
+}
+
+static int tdbBtCursorMoveToRoot(SBtCursor *pCur) {
+  SBTree * pBt;
+  SPFile * pFile;
+  SPage *  pPage;
+  SBtPage *pBtPage;
+  int      ret;
+
+  pBt = pCur->pBt;
+  pFile = pBt->pFile;
+
+  pPage = tdbPFileGet(pFile, pBt->root);
+  if (pPage == NULL) {
+    // TODO: handle error
+  }
+
+  ret = tdbInitBtPage(pPage, &pBtPage);
+  if (ret < 0) {
+    // TODO
+    return 0;
+  }
+
+  pCur->pPage = pBtPage;
+  pCur->iPage = 0;
+
+  return 0;
+}
+
+static int tdbInitBtPage(SPage *pPage, SBtPage **ppBtPage) {
+  // TODO
+  return 0;
 }
