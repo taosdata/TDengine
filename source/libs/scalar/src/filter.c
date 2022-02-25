@@ -1455,7 +1455,7 @@ void filterDumpInfoToString(SFilterInfo *info, const char *msg, int32_t options)
       for (uint32_t i = 0; i < info->fields[FLD_TYPE_COLUMN].num; ++i) {
         SFilterField *field = &info->fields[FLD_TYPE_COLUMN].fields[i];
         SColumnNode *refNode = (SColumnNode *)field->desc;
-        qDebug("COL%d => [%d][%d]", i, refNode->tupleId, refNode->slotId);
+        qDebug("COL%d => [%d][%d]", i, refNode->dataBlockId, refNode->slotId);
       }
 
       qDebug("VALUE Field Num:%u", info->fields[FLD_TYPE_VALUE].num);
@@ -1485,7 +1485,7 @@ void filterDumpInfoToString(SFilterInfo *info, const char *msg, int32_t options)
         SFilterField *left = FILTER_UNIT_LEFT_FIELD(info, unit);
         SColumnNode *refNode = (SColumnNode *)left->desc;
         if (unit->compare.optr >= 0 && unit->compare.optr <= OP_TYPE_JSON_CONTAINS){
-          len = sprintf(str, "UNIT[%d] => [%d][%d]  %s  [", i, refNode->tupleId, refNode->slotId, gOptrStr[unit->compare.optr].str);
+          len = sprintf(str, "UNIT[%d] => [%d][%d]  %s  [", i, refNode->dataBlockId, refNode->slotId, gOptrStr[unit->compare.optr].str);
         }
 
         if (unit->right.type == FLD_TYPE_VALUE && FILTER_UNIT_OPTR(unit) != OP_TYPE_IN) {
@@ -1504,7 +1504,7 @@ void filterDumpInfoToString(SFilterInfo *info, const char *msg, int32_t options)
         if (unit->compare.optr2) {
           strcat(str, " && ");
           if (unit->compare.optr2 >= 0 && unit->compare.optr2 <= OP_TYPE_JSON_CONTAINS){
-            sprintf(str + strlen(str), "[%d][%d]  %s  [", refNode->tupleId, refNode->slotId, gOptrStr[unit->compare.optr2].str);
+            sprintf(str + strlen(str), "[%d][%d]  %s  [", refNode->dataBlockId, refNode->slotId, gOptrStr[unit->compare.optr2].str);
           }
           
           if (unit->right2.type == FLD_TYPE_VALUE && FILTER_UNIT_OPTR(unit) != OP_TYPE_IN) {

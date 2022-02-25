@@ -71,17 +71,18 @@ typedef struct SSlotDescNode {
   SDataType dataType;
   bool reserve;
   bool output;
+  bool tag;
 } SSlotDescNode;
 
-typedef struct STupleDescNode {
+typedef struct SDataBlockDescNode {
   ENodeType type;
-  int16_t tupleId;
+  int16_t dataBlockId;
   SNodeList* pSlots;
-} STupleDescNode;
+} SDataBlockDescNode;
 
 typedef struct SPhysiNode {
   ENodeType type;
-  STupleDescNode outputTuple;
+  SDataBlockDescNode outputDataBlockDesc;
   SNode* pConditions;
   SNodeList* pChildren;
   struct SPhysiNode* pParent;
@@ -104,6 +105,7 @@ typedef struct STableScanPhysiNode {
   SScanPhysiNode scan;
   uint8_t scanFlag;         // denotes reversed scan of data or not
   STimeWindow scanRange;
+  SNode* pScanConditions;
 } STableScanPhysiNode;
 
 typedef STableScanPhysiNode STableSeqScanPhysiNode;

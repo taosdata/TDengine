@@ -79,7 +79,7 @@ void scltMakeColRefNode(SNode **pNode, SSDataBlock **block, int32_t dataType, in
   SColumnNode *rnode = (SColumnNode *)node;
   rnode->node.resType.type = dataType;
   rnode->node.resType.bytes = dataBytes;
-  rnode->tupleId = 0;
+  rnode->dataBlockId = 0;
 
   if (NULL == *block) {
     SSDataBlock *res = (SSDataBlock *)calloc(1, sizeof(SSDataBlock));

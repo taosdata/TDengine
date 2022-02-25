@@ -72,6 +72,8 @@ static SNode* columnNodeCopy(const SColumnNode* pSrc, SColumnNode* pDst) {
   COPY_CHAR_ARRAY_FIELD(tableAlias);
   COPY_CHAR_ARRAY_FIELD(colName);
   // COPY_NODE_FIELD(pProjectRef);
+  COPY_SCALAR_FIELD(dataBlockId);
+  COPY_SCALAR_FIELD(slotId);
   return (SNode*)pDst;
 }
 
@@ -143,7 +145,7 @@ static SNode* functionNodeCopy(const SFunctionNode* pSrc, SFunctionNode* pDst) {
 }
 
 static SNode* targetNodeCopy(const STargetNode* pSrc, STargetNode* pDst) {
-  COPY_SCALAR_FIELD(tupleId);
+  COPY_SCALAR_FIELD(dataBlockId);
   COPY_SCALAR_FIELD(slotId);
   COPY_NODE_FIELD(pExpr);
   return (SNode*)pDst;
