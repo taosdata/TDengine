@@ -15,6 +15,8 @@
 
 #include "tdbInt.h"
 
+#define BTREE_MAX_DEPTH 20
+
 struct SBTree {
   SPgno   root;
   int     keyLen;
@@ -24,8 +26,10 @@ struct SBTree {
 };
 
 struct SBtCursor {
-  SBTree *pBt;
-  int8_t  iPage;
+  SBTree *  pBt;
+  i8        iPage;
+  SMemPage *pPage;
+  SMemPage *apPage[BTREE_MAX_DEPTH + 1];
 };
 
 typedef struct SMemPage {
