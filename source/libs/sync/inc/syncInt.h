@@ -29,9 +29,6 @@ extern "C" {
 
 extern int32_t sDebugFlag;
 
-#define sLog(...) \
-  { taosPrintLog("SYN FATAL ", sDebugFlag, __VA_ARGS__); }
-
 #define sFatal(...)                                        \
   {                                                        \
     if (sDebugFlag & DEBUG_FATAL) {                        \
@@ -78,6 +75,12 @@ typedef struct SSyncNode {
   int32_t  refCount;
   int64_t  rid;
 } SSyncNode;
+
+SSyncNode* syncNodeStart(const SSyncInfo* pSyncInfo);
+void       syncNodeStop(SSyncNode* pSyncNode);
+
+// int32_t syncForwardToPeer(int64_t rid, const SRpcMsg* pBuf, bool isWeak);
+int32_t syncNodeForwardToPeer(SSyncNode* pSyncNode, const SSyncBuffer* pBuf, bool isWeak);
 
 #ifdef __cplusplus
 }

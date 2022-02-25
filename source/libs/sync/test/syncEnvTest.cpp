@@ -14,18 +14,8 @@ void *pingFunc(void *param) {
 }
 
 int main() {
-  taosInitLog((char *)"syncTest.log", 100000, 10);
   tsAsyncLog = 0;
-  sDebugFlag = 143 + 64;
-
-  sTrace("sync log test: trace");
-  sDebug("sync log test: debug");
-  sInfo("sync log test: info");
-  sWarn("sync log test: warn");
-  sError("sync log test: error");
-  sFatal("sync log test: fatal");
-
-
+  taosInitLog((char *)"syncTest.log", 100000, 10);
 
   SRaftStore *pRaftStore = raftStoreOpen("./raft_store.json");
   assert(pRaftStore != NULL);
@@ -39,6 +29,9 @@ int main() {
   raftStorePrint(pRaftStore);
 
   raftStorePersist(pRaftStore);
+
+  tsAsyncLog = 0;
+  taosInitLog((char *)"syncTest.log", 100000, 10);
 
   sDebug("sync test");
 
