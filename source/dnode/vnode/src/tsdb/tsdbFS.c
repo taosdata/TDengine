@@ -1229,7 +1229,8 @@ static int tsdbRestoreDFileSet(STsdb *pRepo) {
 
       pDFile->f = *pf;
 
-      if (tsdbOpenDFile(pDFile, O_RDONLY) < 0) {
+      // if (tsdbOpenDFile(pDFile, O_RDONLY) < 0) {
+      if (tsdbOpenDFile(pDFile, TD_FILE_READ) < 0) {
         tsdbError("vgId:%d failed to open DFile %s since %s", REPO_ID(pRepo), TSDB_FILE_FULL_NAME(pDFile),
                   tstrerror(terrno));
         taosArrayDestroy(fArray);
@@ -1338,7 +1339,8 @@ static void tsdbScanAndTryFixDFilesHeader(STsdb *pRepo, int32_t *nExpired) {
     }
     tsdbDebug("vgId:%d scan DFileSet %d header", REPO_ID(pRepo), fset.fid);
 
-    if (tsdbOpenDFileSet(&fset, O_RDWR) < 0) {
+    // if (tsdbOpenDFileSet(&fset, O_RDWR) < 0) {
+    if (tsdbOpenDFileSet(&fset, TD_FILE_WRITE | TD_FILE_READ) < 0) {
       tsdbError("vgId:%d failed to open DFileSet %d since %s, continue", REPO_ID(pRepo), fset.fid, tstrerror(terrno));
       continue;
     }
