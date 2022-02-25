@@ -13,21 +13,4 @@
  * along with this program. If not, see <http://www.gnu.org/licenses/>.
  */
 
-#ifndef _TD_LIBS_SYNC_ELECTION_H
-#define _TD_LIBS_SYNC_ELECTION_H
-
-#ifdef __cplusplus
-extern "C" {
-#endif
-
-#include <stdint.h>
-#include <stdio.h>
-#include <stdlib.h>
-#include "taosdef.h"
-#include "syncInt.h"
-
-#ifdef __cplusplus
-}
-#endif
-
-#endif /*_TD_LIBS_SYNC_ELECTION_H*/
+#include "syncVoteMgr.h"

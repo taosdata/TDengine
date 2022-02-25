@@ -14,7 +14,6 @@
  */
 
 #include "syncRaft.h"
-#include "sync.h"
 
 int32_t raftPropose(SRaft* pRaft, const SSyncBuffer* pBuf, bool isWeak) { return 0; }
 

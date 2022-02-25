@@ -23,7 +23,7 @@ extern "C" {
 #include <stdint.h>
 #include <stdio.h>
 #include <stdlib.h>
-#include "sync.h"
+#include "syncInt.h"
 #include "syncRaftEntry.h"
 #include "taosdef.h"
 

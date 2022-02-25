@@ -25,8 +25,6 @@ int main() {
   sError("sync log test: error");
   sFatal("sync log test: fatal");
 
-
-
   SRaftStore *pRaftStore = raftStoreOpen("./raft_store.json");
   assert(pRaftStore != NULL);
 

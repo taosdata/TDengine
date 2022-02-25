@@ -15,8 +15,6 @@
 
 #include "syncEnv.h"
 #include <assert.h>
-#include "sync.h"
-#include "syncInt.h"
 
 SSyncEnv *gSyncEnv = NULL;
 

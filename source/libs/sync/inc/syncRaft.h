@@ -23,7 +23,7 @@ extern "C" {
 #include <stdint.h>
 #include <stdio.h>
 #include <stdlib.h>
-#include "sync.h"
+#include "syncInt.h"
 #include "syncMessage.h"
 #include "taosdef.h"
 
@@ -34,6 +34,11 @@ typedef struct SRaftId {
 
 typedef struct SRaft {
   SRaftId id;
+
+  SSyncLogStore *logStore;
+  SStateMgr     *stateManager;
+  SSyncFSM      *syncFsm;
+
 } SRaft;
 
 int32_t raftPropose(SRaft* pRaft, const SSyncBuffer* pBuf, bool isWeak);

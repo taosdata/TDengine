@@ -14,7 +14,6 @@
  */
 
 #include <stdint.h>
-#include "sync.h"
 #include "syncEnv.h"
 #include "syncInt.h"
 

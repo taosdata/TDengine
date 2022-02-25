@@ -26,6 +26,7 @@ extern "C" {
 #include "syncMessage.h"
 #include "syncRaft.h"
 #include "taosdef.h"
+#include "syncInt.h"
 
 void onTimeout(SRaft *pRaft, void *pMsg);
 

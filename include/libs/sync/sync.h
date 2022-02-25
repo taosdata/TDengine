@@ -131,10 +131,6 @@ typedef struct SStateMgr {
 typedef struct {
   SyncGroupId   vgId;
   SSyncCfg      syncCfg;
-  SSyncLogStore logStore;
-  SStateMgr     stateManager;
-  SSyncFSM      syncFsm;
-
 } SSyncInfo;
 
 struct SSyncNode;

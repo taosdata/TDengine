@@ -20,6 +20,10 @@
 #include "ttimer.h"
 #include "tutil.h"
 
+int32_t syncIOStart() { return 0; }
+
+int32_t syncIOStop() { return 0; }
+
 static void syncTick(void *param, void *tmrId) {
   SSyncIO *io = (SSyncIO *)param;
   sDebug("syncTick ... ");
@@ -114,16 +118,16 @@ SSyncIO *syncIOCreate() {
   io->pQset = taosOpenQset();
   taosAddIntoQset(io->pQset, io->pMsgQ, NULL);
 
-  io->start = syncIOStart;
-  io->stop = syncIOStop;
-  io->ping = syncIOPing;
-  io->onMessage = syncIOOnMessage;
-  io->destroy = syncIODestroy;
+  io->start = doSyncIOStart;
+  io->stop = doSyncIOStop;
+  io->ping = doSyncIOPing;
+  io->onMessage = doSyncIOOnMessage;
+  io->destroy = doSyncIODestroy;
 
   return io;
 }
 
-static int32_t syncIOStart(SSyncIO *io) {
+static int32_t doSyncIOStart(SSyncIO *io) {
   taosBlockSIGPIPE();
 
   tsRpcForceTcp = 1;
@@ -191,13 +195,13 @@ static int32_t syncIOStart(SSyncIO *io) {
   return 0;
 }
 
-static int32_t syncIOStop(SSyncIO *io) {
+static int32_t doSyncIOStop(SSyncIO *io) {
   atomic_store_8(&io->isStart, 0);
   pthread_join(io->tid, NULL);
   return 0;
 }
 
-static int32_t syncIOPing(SSyncIO *io) {
+static int32_t doSyncIOPing(SSyncIO *io) {
   SRpcMsg rpcMsg, rspMsg;
 
   rpcMsg.pCont = rpcMallocCont(10);
@@ -211,9 +215,9 @@ static int32_t syncIOPing(SSyncIO *io) {
   return 0;
 }
 
-static int32_t syncIOOnMessage(struct SSyncIO *io, void *pParent, SRpcMsg *pMsg, SEpSet *pEpSet) { return 0; }
+static int32_t doSyncIOOnMessage(struct SSyncIO *io, void *pParent, SRpcMsg *pMsg, SEpSet *pEpSet) { return 0; }
 
-static int32_t syncIODestroy(SSyncIO *io) {
+static int32_t doSyncIODestroy(SSyncIO *io) {
   int8_t start = atomic_load_8(&io->isStart);
   assert(start == 0);
 

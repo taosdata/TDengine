@@ -50,13 +50,16 @@ typedef struct SSyncIO {
 
 } SSyncIO;
 
+int32_t syncIOStart();
+int32_t syncIOStop();
+
 SSyncIO *syncIOCreate();
 
-static int32_t syncIOStart(SSyncIO *io);
-static int32_t syncIOStop(SSyncIO *io);
-static int32_t syncIOPing(SSyncIO *io);
-static int32_t syncIOOnMessage(struct SSyncIO *io, void *pParent, SRpcMsg *pMsg, SEpSet *pEpSet);
-static int32_t syncIODestroy(SSyncIO *io);
+static int32_t doSyncIOStart(SSyncIO *io);
+static int32_t doSyncIOStop(SSyncIO *io);
+static int32_t doSyncIOPing(SSyncIO *io);
+static int32_t doSyncIOOnMessage(struct SSyncIO *io, void *pParent, SRpcMsg *pMsg, SEpSet *pEpSet);
+static int32_t doSyncIODestroy(SSyncIO *io);
 
 #ifdef __cplusplus
 }

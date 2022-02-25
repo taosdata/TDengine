@@ -15,7 +15,6 @@
 
 #include "syncRaftStore.h"
 #include "cJSON.h"
-#include "sync.h"
 
 SRaftStore *raftStoreOpen(const char *path) {
   int32_t ret;

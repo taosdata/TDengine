@@ -24,6 +24,7 @@ extern "C" {
 #include <stdio.h>
 #include <stdlib.h>
 #include "taosdef.h"
+#include "syncInt.h"
 
 #ifdef __cplusplus
 }
