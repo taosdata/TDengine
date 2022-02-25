@@ -66,6 +66,14 @@ int32_t cfgLoad(SConfig *pCfg, ECfgSrcType cfgType, const char *sourceStr) {
   }
 }
 
+int32_t cfgLoadArray(SConfig *pCfg, SArray *pArgs) {
+  int32_t size = taosArrayGetSize(pArgs);
+  for (int32_t i = 0; i < size; ++i) {
+    SConfigPair *pPair = taosArrayGet(pArgs, i);
+    cfgSetItem(pCfg, pPair->name, pPair->value, CFG_STYPE_ARG_LIST);
+  }
+}
+
 void cfgCleanup(SConfig *pCfg) {
   if (pCfg != NULL) {
     if (pCfg->hash != NULL) {
@@ -441,8 +449,6 @@ const char *cfgStypeStr(ECfgSrcType type) {
       return "apollo_url";
     case CFG_STYPE_ARG_LIST:
       return "arg_list";
-    case CFG_STYPE_API_OPTION:
-      return "api_option";
     default:
       return "invalid";
   }

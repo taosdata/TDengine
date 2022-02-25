@@ -22,6 +22,7 @@ extern "C" {
 
 #include "tcfg.h"
 #include "tdef.h"
+#include "tarray.h"
 
 // cluster
 extern char     tsFirst[];
@@ -94,8 +95,8 @@ extern SDiskCfg tsDiskCfg[];
 #define NEEDTO_COMPRESSS_MSG(size) (tsCompressMsgSize != -1 && (size) > tsCompressMsgSize)
 
 int32_t taosCreateLog(const char *logname, int32_t logFileNum, const char *cfgDir, const char *envFile,
-                      const char *apolloUrl, bool tsc);
-int32_t taosInitCfg(const char *cfgDir, const char *envFile, const char *apolloUrl, bool tsc);
+                      const char *apolloUrl, SArray *pArgs, bool tsc);
+int32_t taosInitCfg(const char *cfgDir, const char *envFile, const char *apolloUrl, SArray *pArgs, bool tsc);
 void    taosCleanupCfg();
 void    taosCfgDynamicOptions(const char *option, const char *value);
 

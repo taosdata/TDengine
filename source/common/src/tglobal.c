@@ -414,7 +414,7 @@ static void taosSetServerCfg(SConfig *pCfg) {
 }
 
 int32_t taosCreateLog(const char *logname, int32_t logFileNum, const char *cfgDir, const char *envFile,
-                      const char *apolloUrl, bool tsc) {
+                      const char *apolloUrl, SArray *pArgs, bool tsc) {
   osInit();
 
   SConfig *pCfg = cfgInit();
@@ -435,12 +435,13 @@ int32_t taosCreateLog(const char *logname, int32_t logFileNum, const char *cfgDi
 
   if (tsc) {
     taosSetClientLogCfg(pCfg);
-    taosSetAllDebugFlag(cfgGetItem(pCfg, "debugFlag")->i32);
   } else {
     taosSetClientLogCfg(pCfg);
     taosSetServerLogCfg(pCfg);
-    taosSetAllDebugFlag(cfgGetItem(pCfg, "debugFlag")->i32);
   }
+
+  taosSetAllDebugFlag(cfgGetItem(pCfg, "debugFlag")->i32);
+
 
   if (taosInitLog(logname, logFileNum) != 0) {
     printf("failed to init log file since %s\n", terrstr());
@@ -452,7 +453,7 @@ int32_t taosCreateLog(const char *logname, int32_t logFileNum, const char *cfgDi
   return 0;
 }
 
-int32_t taosInitCfg(const char *cfgDir, const char *envFile, const char *apolloUrl, bool tsc) {
+int32_t taosInitCfg(const char *cfgDir, const char *envFile, const char *apolloUrl, SArray *pArgs, bool tsc) {
   if (tsCfg != NULL) return 0;
   tsCfg = cfgInit();
 
