@@ -28,6 +28,8 @@ SDnodeObjCfg dmnGetObjCfg() {
   objCfg.serverPort = (uint16_t)cfgGetItem(pCfg, "serverPort")->i32;
   tstrncpy(objCfg.localFqdn, cfgGetItem(pCfg, "fqdn")->str, sizeof(objCfg.localFqdn));
   snprintf(objCfg.localEp, sizeof(objCfg.localEp), "%s:%u", objCfg.localFqdn, objCfg.serverPort);
+  objCfg.pDisks = tsDiskCfg;
+  objCfg.numOfDisks = tsDiskCfgNum;
   return objCfg;
 }
 
