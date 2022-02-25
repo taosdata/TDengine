@@ -28,18 +28,20 @@ struct SBTree {
 };
 
 typedef struct SPgHdr {
-  u8  flags;
-  u8  nFree;
-  u16 firstFree;
-  u16 nCells;
-  u16 pCell;
-  i32 kLen;
-  i32 vLen;
+  u8    flags;
+  u8    nFree;
+  u16   firstFree;
+  u16   nCells;
+  u16   pCell;
+  i32   kLen;
+  i32   vLen;
+  SPgno rightChild;
 } SPgHdr;
 
 typedef struct SBtPage {
   SPgHdr *pHdr;
   u16 *   aCellIdx;
+  u8 *    aData;
 } SBtPage;
 
 struct SBtCursor {
@@ -48,10 +50,16 @@ struct SBtCursor {
   SBtPage *pPage;
 };
 
+typedef struct SFreeCell {
+  u16 size;
+  u16 next;
+} SFreeCell;
+
 static int tdbBtCursorMoveTo(SBtCursor *pCur, const void *pKey, int kLen);
 static int tdbEncodeLength(u8 *pBuf, uint len);
 static int tdbBtCursorMoveToRoot(SBtCursor *pCur);
 static int tdbInitBtPage(SPage *pPage, SBtPage **ppBtPage);
+static int tdbCompareKeyAndCell(const void *pKey, int kLen, const void *pCell);
 
 int tdbBtreeOpen(SPgno root, SBTree **ppBt) {
   *ppBt = NULL;
@@ -92,10 +100,38 @@ int tdbBtCursorInsert(SBtCursor *pCur, const void *pKey, int kLen, const void *p
 }
 
 static int tdbBtCursorMoveTo(SBtCursor *pCur, const void *pKey, int kLen) {
-  int ret;
+  int      ret;
+  SBtPage *pBtPage;
+  void *   pCell;
 
   ret = tdbBtCursorMoveToRoot(pCur);
-  // TODO
+  if (ret < 0) {
+    return -1;
+  }
+
+  for (;;) {
+    int lidx, ridx, midx, c;
+
+    pBtPage = pCur->pPage;
+    lidx = 0;
+    ridx = pBtPage->pHdr->nCells - 1;
+    while (lidx <= ridx) {
+      midx = (lidx + ridx) >> 1;
+      pCell = (void *)(pBtPage->aData + pBtPage->aCellIdx[midx]);
+
+      c = tdbCompareKeyAndCell(pKey, kLen, pCell);
+      if (c == 0) {
+        break;
+      } else if (c < 0) {
+        lidx = lidx + 1;
+      } else {
+        ridx = ridx - 1;
+      }
+    }
+
+    /* code */
+  }
+
   return 0;
 }
 
@@ -181,6 +217,17 @@ static int tdbBtCursorMoveToRoot(SBtCursor *pCur) {
 }
 
 static int tdbInitBtPage(SPage *pPage, SBtPage **ppBtPage) {
-  // TODO
+  SBtPage *pBtPage;
+
+  pBtPage = (SBtPage *)pPage->pExtra;
+  pBtPage->pHdr = (SPgHdr *)pPage->pData;
+  pBtPage->aCellIdx = (u16 *)(&((pBtPage->pHdr)[1]));
+  pBtPage->aData = (u8 *)pPage->pData;
+
+  *ppBtPage = pBtPage;
+  return 0;
+}
+static int tdbCompareKeyAndCell(const void *pKey, int kLen, const void *pCell) {
+  /* TODO */
   return 0;
 }
