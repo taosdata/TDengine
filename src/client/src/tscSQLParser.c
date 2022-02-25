@@ -1072,7 +1072,7 @@ static bool isTopBottomUniqueQuery(SQueryInfo* pQueryInfo) {
     int32_t functionId = tscExprGet(pQueryInfo, i)->base.functionId;
 
     if (functionId == TSDB_FUNC_TOP || functionId == TSDB_FUNC_BOTTOM
-        || functionId == TSDB_FUNC_UNIQUE) {
+        || functionId == TSDB_FUNC_UNIQUE || functionId == TSDB_FUNC_TAIL) {
       return true;
     }
   }
@@ -2694,6 +2694,7 @@ int32_t addExprAndResultField(SSqlCmd* pCmd, SQueryInfo* pQueryInfo, int32_t col
   const char* msg27 = "factor param cannot be negative or equal to 0/1";
   const char* msg28 = "the second paramter of diff should be 0 or 1";
   const char* msg29 = "key timestamp column cannot be used to unique/mode function";
+  const char* msg30 = "offset is out of range [0, 100]";
 
   switch (functionId) {
     case TSDB_FUNC_COUNT: {
@@ -3105,12 +3106,13 @@ int32_t addExprAndResultField(SSqlCmd* pCmd, SQueryInfo* pQueryInfo, int32_t col
     case TSDB_FUNC_SAMPLE:
     case TSDB_FUNC_PERCT:
     case TSDB_FUNC_APERCT:
-    case TSDB_FUNC_UNIQUE: {
+    case TSDB_FUNC_UNIQUE:
+    case TSDB_FUNC_TAIL: {
       // 1. valid the number of parameters
       bool valid = true;
       if (pItem->pNode->Expr.paramList == NULL) {
         valid = false;
-      } else if (functionId == TSDB_FUNC_APERCT) {
+      } else if (functionId == TSDB_FUNC_APERCT || functionId == TSDB_FUNC_TAIL) {
         size_t cnt = taosArrayGetSize(pItem->pNode->Expr.paramList);
         if (cnt != 2 && cnt != 3) valid = false;
       } else if (functionId == TSDB_FUNC_UNIQUE) {
@@ -3136,7 +3138,7 @@ int32_t addExprAndResultField(SSqlCmd* pCmd, SQueryInfo* pQueryInfo, int32_t col
       if (index.columnIndex == TSDB_TBNAME_COLUMN_INDEX) {
         return invalidOperationMsg(tscGetErrorMsgPayload(pCmd), msg6);
       }
-      if (index.columnIndex == PRIMARYKEY_TIMESTAMP_COL_INDEX && functionId == TSDB_FUNC_UNIQUE) {
+      if (index.columnIndex == PRIMARYKEY_TIMESTAMP_COL_INDEX && (functionId == TSDB_FUNC_UNIQUE || functionId == TSDB_FUNC_TAIL)) {
         return invalidOperationMsg(tscGetErrorMsgPayload(pCmd), msg29);
       }
 
@@ -3149,7 +3151,7 @@ int32_t addExprAndResultField(SSqlCmd* pCmd, SQueryInfo* pQueryInfo, int32_t col
       }
 
       // 2. valid the column type
-      if (functionId != TSDB_FUNC_SAMPLE && functionId != TSDB_FUNC_UNIQUE && !IS_NUMERIC_TYPE(pSchema->type)) {
+      if (functionId != TSDB_FUNC_SAMPLE && functionId != TSDB_FUNC_UNIQUE && functionId != TSDB_FUNC_TAIL && !IS_NUMERIC_TYPE(pSchema->type)) {
         return invalidOperationMsg(tscGetErrorMsgPayload(pCmd), msg1);
       }
 
@@ -3258,13 +3260,13 @@ int32_t addExprAndResultField(SSqlCmd* pCmd, SQueryInfo* pQueryInfo, int32_t col
       } else {
         tVariantDump(pVariant, val, TSDB_DATA_TYPE_BIGINT, true);
 
-        int64_t numRowsSelected = GET_INT32_VAL(val);
+        int64_t numRowsSelected = GET_INT64_VAL(val);
         if (functionId != TSDB_FUNC_UNIQUE && (numRowsSelected <= 0 || numRowsSelected > 100)) {  // todo use macro
           return invalidOperationMsg(tscGetErrorMsgPayload(pCmd), msg12);
         }
 
         if(functionId == TSDB_FUNC_UNIQUE){
-          GET_INT32_VAL(val) = MAX_UNIQUE_RESULT_ROWS;
+          GET_INT64_VAL(val) = MAX_UNIQUE_RESULT_ROWS;
         }
         // todo REFACTOR
         // set the first column ts for top/bottom query
@@ -3282,6 +3284,23 @@ int32_t addExprAndResultField(SSqlCmd* pCmd, SQueryInfo* pQueryInfo, int32_t col
         pExpr = tscExprAppend(pQueryInfo, functionId, &index, resultType, resultSize, getNewResColId(pCmd),
                               resultSize, false);
         tscExprAddParams(&pExpr->base, val, TSDB_DATA_TYPE_BIGINT, sizeof(int64_t));
+        if (functionId == TSDB_FUNC_TAIL){
+          if (taosArrayGetSize(pItem->pNode->Expr.paramList) == 3){
+            tSqlExprItem* para = taosArrayGet(pItem->pNode->Expr.paramList, 2);
+            if (para->pNode->tokenId == TK_ID || para->pNode->value.nType != TSDB_DATA_TYPE_BIGINT) {
+              return invalidOperationMsg(tscGetErrorMsgPayload(pCmd), msg2);
+            }
+            pVariant = &para->pNode->value;
+            tVariantDump(pVariant, val, TSDB_DATA_TYPE_BIGINT, true);
+            int64_t offset = GET_INT64_VAL(val);
+            if (offset < 0 || offset > 100) {
+              return invalidOperationMsg(tscGetErrorMsgPayload(pCmd), msg30);
+            }
+          }else{
+            GET_INT64_VAL(val) = 0;
+          }
+          tscExprAddParams(&pExpr->base, val, TSDB_DATA_TYPE_BIGINT, sizeof(int64_t));
+        }
       }
 
       memset(pExpr->base.aliasName, 0, tListLen(pExpr->base.aliasName));
@@ -4014,7 +4033,8 @@ int32_t tscTansformFuncForSTableQuery(SQueryInfo* pQueryInfo) {
         (functionId == TSDB_FUNC_ELAPSED) ||
         (functionId == TSDB_FUNC_HISTOGRAM) ||
         (functionId == TSDB_FUNC_UNIQUE) ||
-        (functionId == TSDB_FUNC_MODE)) {
+        (functionId == TSDB_FUNC_MODE) ||
+        (functionId == TSDB_FUNC_TAIL)) {
       if (getResultDataInfo(pSrcSchema->type, pSrcSchema->bytes, functionId, (int32_t)pExpr->base.param[0].i64, &type, &bytes,
                             &interBytes, 0, true, NULL) != TSDB_CODE_SUCCESS) {
         return TSDB_CODE_TSC_INVALID_OPERATION;
@@ -8475,7 +8495,7 @@ int32_t doFunctionsCompatibleCheck(SSqlCmd* pCmd, SQueryInfo* pQueryInfo, char* 
       if (IS_MULTIOUTPUT(aAggs[f].status) && f != TSDB_FUNC_TOP && f != TSDB_FUNC_BOTTOM && f != TSDB_FUNC_DIFF &&
           f != TSDB_FUNC_MAVG && f != TSDB_FUNC_CSUM && f != TSDB_FUNC_SAMPLE &&
           f != TSDB_FUNC_DERIVATIVE && f != TSDB_FUNC_TAGPRJ && f != TSDB_FUNC_PRJ &&
-          f != TSDB_FUNC_UNIQUE) {
+          f != TSDB_FUNC_UNIQUE && f != TSDB_FUNC_TAIL) {
         return invalidOperationMsg(msg, msg1);
       }
 

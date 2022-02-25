@@ -690,7 +690,8 @@ bool isSimpleAggregateRv(SQueryInfo* pQueryInfo) {
          functionId == TSDB_FUNC_TS_COMP ||
          functionId == TSDB_FUNC_SAMPLE ||
          functionId == TSDB_FUNC_HISTOGRAM ||
-         functionId == TSDB_FUNC_UNIQUE)) {
+         functionId == TSDB_FUNC_UNIQUE ||
+         functionId == TSDB_FUNC_TAIL)) {
       return true;
     }
   }
@@ -2659,7 +2660,7 @@ int32_t tscExprTopBottomIndex(SQueryInfo* pQueryInfo){
     if (pExpr == NULL)
       continue;
     if (pExpr->base.functionId == TSDB_FUNC_TOP || pExpr->base.functionId == TSDB_FUNC_BOTTOM
-        || pExpr->base.functionId == TSDB_FUNC_UNIQUE) {
+        || pExpr->base.functionId == TSDB_FUNC_UNIQUE || pExpr->base.functionId == TSDB_FUNC_TAIL) {
       return i;
     }
   }
@@ -4938,7 +4939,8 @@ static int32_t createGlobalAggregateExpr(SQueryAttr* pQueryAttr, SQueryInfo* pQu
 
     pse->colType = pExpr->base.resType;
     if(pExpr->base.resBytes > INT16_MAX &&
-        (pExpr->base.functionId == TSDB_FUNC_UNIQUE || pExpr->base.functionId == TSDB_FUNC_MODE)){
+        (pExpr->base.functionId == TSDB_FUNC_UNIQUE || pExpr->base.functionId == TSDB_FUNC_MODE
+         || pExpr->base.functionId == TSDB_FUNC_TAIL)){
       pQueryAttr->interBytesForGlobal = pExpr->base.resBytes;
     }else{
       pse->colBytes = pExpr->base.resBytes;

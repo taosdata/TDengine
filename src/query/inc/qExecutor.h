@@ -224,6 +224,7 @@ typedef struct SQueryAttr {
   bool             stableQuery;      // super table query or not
   bool             topBotQuery;      // TODO used bitwise flag
   bool             uniqueQuery;
+  bool             tailQuery;
   bool             groupbyColumn;    // denote if this is a groupby normal column query
   bool             hasTagResults;    // if there are tag values in final result or not
   bool             timeWindowInterpo;// if the time window start/end required interpolation
@@ -735,4 +736,5 @@ void addTableReadRows(SQueryRuntimeEnv* pEnv, int32_t tid, int32_t rows);
 bool qReadOverCB(void* param, int8_t type, int32_t tid);
 
 bool isUniqueQuery(int32_t numOfOutput, SExprInfo* pExprs);
+bool isTailQuery(int32_t numOfOutput, SExprInfo* pExprs);
 #endif  // TDENGINE_QEXECUTOR_H
