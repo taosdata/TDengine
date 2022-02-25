@@ -261,6 +261,60 @@ _getValueAddr_fn_t getVectorValueAddrFn(int32_t srcType) {
     return p;
 }
 
+static FORCE_INLINE void convertToSigned(char *buf, SScalarParam* pOut, int32_t outType) {
+  int64_t value = strtoll(buf, NULL, 10);
+  SET_TYPED_DATA(pOut->data, outType, value);
+}
+
+static FORCE_INLINE void convertToUnsigned(char *buf, SScalarParam* pOut, int32_t outType) {
+  uint64_t value = strtoull(buf, NULL, 10);
+  SET_TYPED_DATA(pOut->data, outType, value);
+}
+
+static FORCE_INLINE void convertToFloat(char *buf, SScalarParam* pOut, int32_t outType) {
+  double value = strtod(tmp, NULL);
+  SET_TYPED_DATA(output, outType, value);
+}
+
+
+int32_t vectorConvertFromVarData(SScalarParam* pIn, SScalarParam* pOut, int32_t inType, int32_t outType) {
+  int32_t bufSize = 0;
+  char *tmp = NULL;
+  _bufConverteFunc func = NULL;
+
+  if (IS_SIGNED_NUMERIC_TYPE(outType) || TSDB_DATA_TYPE_TIMESTAMP == outType) {
+    func = convertToSigned;
+  } else if (IS_UNSIGNED_NUMERIC_TYPE(outType)) {
+    func = convertToUnsigned;
+  } else if (IS_FLOAT_TYPE(outType)) {
+    func = convertToFloat;
+  } else {
+    sclError("unknown outType:%d", outType);
+    return TSDB_CODE_QRY_APP_ERROR;
+  }
+  
+  for (int32_t i = 0; i < pIn->num; ++i) {
+    sclMoveParamListData(pIn, 1, i);
+    sclMoveParamListData(pOut, 1, i);
+    
+    if (sclIsNull(pIn, i)) {
+      sclSetNull(pOut, i);
+      continue;
+    }
+  
+    if (varDataLen(pIn->data) >= bufSize) {
+      bufSize = varDataLen(pIn->data) + 1;
+      tmp = realloc(tmp, bufSize);
+    }
+    
+    memcpy(tmp, varDataVal(pIn->data), varDataLen(pIn->data));
+    tmp[varDataLen(pIn->data)] = 0;
+
+    (*func)(tmp, pOut, outType);
+  }
+  
+  tfree(tmp);
+}
 
 int32_t vectorConvertImpl(SScalarParam* pIn, SScalarParam* pOut) {
   int16_t inType = pIn->type; 
@@ -278,65 +332,60 @@ int32_t vectorConvertImpl(SScalarParam* pIn, SScalarParam* pOut) {
     case TSDB_DATA_TYPE_BIGINT:
     case TSDB_DATA_TYPE_TIMESTAMP:    
       if (inType == TSDB_DATA_TYPE_BINARY) {
-        int32_t bufSize = varDataLen(input) + 1;
-        char *tmp = malloc(bufSize);
-        if (NULL == tmp) {
-          sclError("malloc %d failed", bufSize);
-          return TSDB_CODE_QRY_OUT_OF_MEMORY;
-        }
+        int32_t bufSize = 0;
+        char *tmp = NULL;
         
         for (int32_t i = 0; i < pIn->num; ++i) {
-          if (isNull(input, inType)) {
-            assignVal(output, getNullValue(outType), 0, outType);
-          } else {
-            if (varDataLen(input) >= bufSize) {
-              bufSize = varDataLen(input) + 1;
-              tmp = realloc(tmp, bufSize);
-            }
-            
-            memcpy(tmp, varDataVal(input), varDataLen(input));
-            tmp[varDataLen(input)] = 0;
-            
-            int64_t value = strtoll(tmp, NULL, 10);
-            SET_TYPED_DATA(output, outType, value);
+          sclMoveParamListData(pIn, 1, i);
+          sclMoveParamListData(pOut, 1, i);
+          
+          if (sclIsNull(pIn, i)) {
+            sclSetNull(pOut, i);
+            continue;
+          }
+
+          if (varDataLen(pIn->data) >= bufSize) {
+            bufSize = varDataLen(pIn->data) + 1;
+            tmp = realloc(tmp, bufSize);
           }
           
-          input += varDataLen(input) + VARSTR_HEADER_SIZE;
-          output += tDataTypes[outType].bytes;
+          memcpy(tmp, varDataVal(pIn->data), varDataLen(pIn->data));
+          tmp[varDataLen(pIn->data)] = 0;
+          
+          int64_t value = strtoll(tmp, NULL, 10);
+          SET_TYPED_DATA(pOut->data, outType, value);
         }
         
         tfree(tmp);
       } else if (inType == TSDB_DATA_TYPE_NCHAR) {      
-        int32_t bufSize = varDataLen(input) * TSDB_NCHAR_SIZE + 1;
-        char *tmp = calloc(1, bufSize);
-        if (NULL == tmp) {
-          sclError("calloc %d failed", bufSize);
-          return TSDB_CODE_QRY_OUT_OF_MEMORY;
-        }
+        int32_t bufSize = 0;
+        char *tmp = NULL;
         
         for (int32_t i = 0; i < pIn->num; ++i) {
-          if (isNull(input, inType)) {
-            assignVal(output, getNullValue(outType), 0, outType);
-          } else {
-            if (varDataLen(input)* TSDB_NCHAR_SIZE >= bufSize) {
-              bufSize = varDataLen(input) * TSDB_NCHAR_SIZE + 1;
-              tmp = realloc(tmp, bufSize);
-            }
+          sclMoveParamListData(pIn, 1, i);
+          sclMoveParamListData(pOut, 1, i);
           
-            int len = taosUcs4ToMbs(varDataVal(input), varDataLen(input), tmp);
-            if (len < 0){
-              sclError("castConvert taosUcs4ToMbs error 1");
-              tfree(tmp);
-              return TSDB_CODE_QRY_APP_ERROR;
-            }
-            
-            tmp[len] = 0;
-            int64_t value = strtoll(tmp, NULL, 10);
-            SET_TYPED_DATA(output, outType, value);
+          if (sclIsNull(pIn, i)) {
+            sclSetNull(pOut, i);
+            continue;
           }
 
-          input += varDataLen(input) + VARSTR_HEADER_SIZE;
-          output += tDataTypes[outType].bytes;
+          if (varDataLen(pIn->data) * TSDB_NCHAR_SIZE >= bufSize) {
+            bufSize = varDataLen(pIn->data) * TSDB_NCHAR_SIZE + 1;
+            tmp = realloc(tmp, bufSize);
+          }
+        
+          int len = taosUcs4ToMbs(varDataVal(pIn->data), varDataLen(pIn->data), tmp);
+          if (len < 0){
+            sclError("castConvert taosUcs4ToMbs error 1");
+            tfree(tmp);
+            return TSDB_CODE_QRY_APP_ERROR;
+          }
+          
+          tmp[len] = 0;
+          
+          int64_t value = strtoll(tmp, NULL, 10);
+          SET_TYPED_DATA(pOut->data, outType, value);
         }
         
         tfree(tmp);
@@ -628,8 +677,8 @@ void vectorAdd(SScalarParam* pLeft, SScalarParam* pRight, void *out, int32_t _or
   int32_t i = ((_ord) == TSDB_ORDER_ASC) ? 0 : TMAX(pLeft->num, pRight->num) - 1;
   int32_t step = ((_ord) == TSDB_ORDER_ASC) ? 1 : -1;
 
-  SScalarParam leftParam = {.type = TSDB_DATA_TYPE_DOUBLE, .num = pLeft->num};
-  SScalarParam rightParam = {.type = TSDB_DATA_TYPE_DOUBLE, .num = pRight->num};
+  SScalarParam leftParam = {.type = TSDB_DATA_TYPE_DOUBLE, .num = pLeft->num, .dataInBlock = false};
+  SScalarParam rightParam = {.type = TSDB_DATA_TYPE_DOUBLE, .num = pRight->num, .dataInBlock = false};
   if (IS_VAR_DATA_TYPE(pLeft->type)) {
     leftParam.data = calloc(leftParam.num, sizeof(double));
     if (NULL == leftParam.data) {
@@ -637,7 +686,7 @@ void vectorAdd(SScalarParam* pLeft, SScalarParam* pRight, void *out, int32_t _or
       return;
     }
 
-    if (pLeft->colData) {
+    if (pLeft->dataInBlock) {
       SColumnInfoData *colInfo = (SColumnInfoData *)pLeft->data;
       pLeft->data = colInfo->pData;
     }
@@ -655,7 +704,7 @@ void vectorAdd(SScalarParam* pLeft, SScalarParam* pRight, void *out, int32_t _or
       return;
     }
     
-    if (pRight->colData) {    
+    if (pRight->dataInBlock) {    
       SColumnInfoData *colInfo = (SColumnInfoData *)pRight->data;
       pRight->data = colInfo->pData;
     }
@@ -719,7 +768,7 @@ void vectorSub(SScalarParam* pLeft, SScalarParam* pRight, void *out, int32_t _or
       return;
     }
 
-    if (pLeft->colData) {
+    if (pLeft->dataInBlock) {
       SColumnInfoData *colInfo = (SColumnInfoData *)pLeft->data;
       pLeft->data = colInfo->pData;
     }
@@ -737,7 +786,7 @@ void vectorSub(SScalarParam* pLeft, SScalarParam* pRight, void *out, int32_t _or
       return;
     }
     
-    if (pRight->colData) {    
+    if (pRight->dataInBlock) {    
       SColumnInfoData *colInfo = (SColumnInfoData *)pRight->data;
       pRight->data = colInfo->pData;
     }
@@ -799,7 +848,7 @@ void vectorMultiply(SScalarParam* pLeft, SScalarParam* pRight, void *out, int32_
       return;
     }
 
-    if (pLeft->colData) {
+    if (pLeft->dataInBlock) {
       SColumnInfoData *colInfo = (SColumnInfoData *)pLeft->data;
       pLeft->data = colInfo->pData;
     }
@@ -817,7 +866,7 @@ void vectorMultiply(SScalarParam* pLeft, SScalarParam* pRight, void *out, int32_
       return;
     }
     
-    if (pRight->colData) {    
+    if (pRight->dataInBlock) {    
       SColumnInfoData *colInfo = (SColumnInfoData *)pRight->data;
       pRight->data = colInfo->pData;
     }
@@ -881,7 +930,7 @@ void vectorDivide(SScalarParam* pLeft, SScalarParam* pRight, void *out, int32_t 
       return;
     }
 
-    if (pLeft->colData) {
+    if (pLeft->dataInBlock) {
       SColumnInfoData *colInfo = (SColumnInfoData *)pLeft->data;
       pLeft->data = colInfo->pData;
     }
@@ -899,7 +948,7 @@ void vectorDivide(SScalarParam* pLeft, SScalarParam* pRight, void *out, int32_t 
       return;
     }
     
-    if (pRight->colData) {    
+    if (pRight->dataInBlock) {    
       SColumnInfoData *colInfo = (SColumnInfoData *)pRight->data;
       pRight->data = colInfo->pData;
     }
@@ -970,7 +1019,7 @@ void vectorRemainder(SScalarParam* pLeft, SScalarParam* pRight, void *out, int32
       return;
     }
 
-    if (pLeft->colData) {
+    if (pLeft->dataInBlock) {
       SColumnInfoData *colInfo = (SColumnInfoData *)pLeft->data;
       pLeft->data = colInfo->pData;
     }
@@ -988,7 +1037,7 @@ void vectorRemainder(SScalarParam* pLeft, SScalarParam* pRight, void *out, int32
       return;
     }
     
-    if (pRight->colData) {    
+    if (pRight->dataInBlock) {    
       SColumnInfoData *colInfo = (SColumnInfoData *)pRight->data;
       pRight->data = colInfo->pData;
     }
@@ -1136,7 +1185,7 @@ void vectorBitAnd(SScalarParam* pLeft, SScalarParam* pRight, void *out, int32_t 
       return;
     }
 
-    if (pLeft->colData) {
+    if (pLeft->dataInBlock) {
       SColumnInfoData *colInfo = (SColumnInfoData *)pLeft->data;
       pLeft->data = colInfo->pData;
     }
@@ -1154,7 +1203,7 @@ void vectorBitAnd(SScalarParam* pLeft, SScalarParam* pRight, void *out, int32_t 
       return;
     }
     
-    if (pRight->colData) {    
+    if (pRight->dataInBlock) {    
       SColumnInfoData *colInfo = (SColumnInfoData *)pRight->data;
       pRight->data = colInfo->pData;
     }
@@ -1218,7 +1267,7 @@ void vectorBitOr(SScalarParam* pLeft, SScalarParam* pRight, void *out, int32_t _
       return;
     }
 
-    if (pLeft->colData) {
+    if (pLeft->dataInBlock) {
       SColumnInfoData *colInfo = (SColumnInfoData *)pLeft->data;
       pLeft->data = colInfo->pData;
     }
@@ -1236,7 +1285,7 @@ void vectorBitOr(SScalarParam* pLeft, SScalarParam* pRight, void *out, int32_t _
       return;
     }
 
-    if (pRight->colData) {    
+    if (pRight->dataInBlock) {    
       SColumnInfoData *colInfo = (SColumnInfoData *)pRight->data;
       pRight->data = colInfo->pData;
     }
@@ -1298,13 +1347,13 @@ void vectorCompareImpl(SScalarParam* pLeft, SScalarParam* pRight, void *out, int
   _getValueAddr_fn_t getVectorValueAddrFnLeft = NULL;
   _getValueAddr_fn_t getVectorValueAddrFnRight = NULL;
 
-  if (IS_VAR_DATA_TYPE(pLeft->type) && !pLeft->colData) {
+  if (IS_VAR_DATA_TYPE(pLeft->type) && !pLeft->dataInBlock) {
     getVectorValueAddrFnLeft = getVectorValueAddr_default;
   } else {
     getVectorValueAddrFnLeft = getVectorValueAddrFn(pLeft->type);
   }
 
-  if (IS_VAR_DATA_TYPE(pRight->type) && !pRight->colData) {
+  if (IS_VAR_DATA_TYPE(pRight->type) && !pRight->dataInBlock) {
     getVectorValueAddrFnRight = getVectorValueAddr_default;
   } else {
     getVectorValueAddrFnRight = getVectorValueAddrFn(pRight->type);
@@ -1436,7 +1485,7 @@ void vectorIsNull(SScalarParam* pLeft, SScalarParam* pRight, void *out, int32_t 
   bool *output=(bool *)out;
   _getValueAddr_fn_t getVectorValueAddrFnLeft = NULL;
 
-  if (IS_VAR_DATA_TYPE(pLeft->type) && !pLeft->colData) {
+  if (IS_VAR_DATA_TYPE(pLeft->type) && !pLeft->dataInBlock) {
     getVectorValueAddrFnLeft = getVectorValueAddr_default;
   } else {
     getVectorValueAddrFnLeft = getVectorValueAddrFn(pLeft->type);
@@ -1462,7 +1511,7 @@ void vectorNotNull(SScalarParam* pLeft, SScalarParam* pRight, void *out, int32_t
   bool *output = (bool *)out;
   _getValueAddr_fn_t getVectorValueAddrFnLeft = NULL;
 
-  if (IS_VAR_DATA_TYPE(pLeft->type) && !pLeft->colData) {
+  if (IS_VAR_DATA_TYPE(pLeft->type) && !pLeft->dataInBlock) {
     getVectorValueAddrFnLeft = getVectorValueAddr_default;
   } else {
     getVectorValueAddrFnLeft = getVectorValueAddrFn(pLeft->type);
@@ -1483,7 +1532,7 @@ void vectorNotNull(SScalarParam* pLeft, SScalarParam* pRight, void *out, int32_t
 void vectorIsTrue(SScalarParam* pLeft, SScalarParam* pRight, void *out, int32_t _ord) {
   SScalarParam output = {.data = out, .num = pLeft->num, .type = TSDB_DATA_TYPE_BOOL};
 
-  if (pLeft->colData) {
+  if (pLeft->dataInBlock) {
     SColumnInfoData *colInfo = (SColumnInfoData *)pLeft->data;
     pLeft->data = colInfo->pData;
   }

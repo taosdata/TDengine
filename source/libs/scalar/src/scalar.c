@@ -87,6 +87,18 @@ _return:
   SCL_RET(code);
 }
 
+bool sclIsNull(SScalarParam* param, int32_t idx) {
+  if (param->dataInBlock) {
+    return colDataIsNull(param->columnData, 0, idx, NULL);
+  }
+
+  return colDataIsNull_f(param->bitmap, idx);
+}
+
+void sclSetNull(SScalarParam* param, int32_t idx) {
+  colDataSetNull_f(param->bitmap, idx);
+}
+
 
 void sclFreeRes(SHashObj *res) {
   SScalarParam *p = NULL;
@@ -116,7 +128,7 @@ int32_t sclInitParam(SNode* node, SScalarParam *param, SScalarCtx *ctx, int32_t 
       param->num = 1;
       param->type = valueNode->node.resType.type;
       param->bytes = valueNode->node.resType.bytes;
-      param->colData = false;
+      param->dataInBlock = false;
       
       break;
     }
@@ -130,7 +142,7 @@ int32_t sclInitParam(SNode* node, SScalarParam *param, SScalarCtx *ctx, int32_t 
       SCL_ERR_RET(scalarGenerateSetFromList(&param->data, node, nodeList->dataType.type));
       param->num = 1;
       param->type = SCL_DATA_TYPE_DUMMY_HASH;
-      param->colData = false;
+      param->dataInBlock = false;
       
       break;
     }
@@ -147,13 +159,9 @@ int32_t sclInitParam(SNode* node, SScalarParam *param, SScalarCtx *ctx, int32_t 
       }
 
       SColumnInfoData *columnData = (SColumnInfoData *)taosArrayGet(ctx->pSrc->pDataBlock, ref->slotId);
-      if (IS_VAR_DATA_TYPE(columnData->info.type)) {
-        param->data = columnData;        
-        param->colData = true;
-      } else {
-        param->data = columnData->pData;        
-        param->colData = false;
-      }
+      param->data = NULL;
+      param->columnData = columnData;
+      param->dataInBlock = true;
       
       param->num = ctx->pSrc->info.rows;
       param->type = columnData->info.type;
@@ -192,20 +200,24 @@ int32_t sclInitParam(SNode* node, SScalarParam *param, SScalarCtx *ctx, int32_t 
   return TSDB_CODE_SUCCESS;
 }
 
-int32_t sclParamMoveNext(SScalarParam *params, int32_t num) {
+int32_t sclMoveParamListData(SScalarParam *params, int32_t listNum, int32_t idx) {
   SScalarParam *param = NULL;
   
-  for (int32_t i = 0; i < num; ++i) {
+  for (int32_t i = 0; i < listNum; ++i) {
     param = params + i;
     
     if (1 == param->num) {
       continue;
     }
 
-    if (IS_VAR_DATA_TYPE(param->type)) {
-      param->data = (char *)(param->data) + varDataTLen(param->data);
-    } else {
-      param->data = (char *)(param->data) + tDataTypes[param->type].bytes;
+    if (param->dataInBlock) {
+      param->data = colDataGet(param->columnData, idx);
+    } else if (idx) {
+      if (IS_VAR_DATA_TYPE(param->type)) {
+        param->data = (char *)(param->data) + varDataTLen(param->data);
+      } else {
+        param->data = (char *)(param->data) + tDataTypes[param->type].bytes;
+      }
     }
   }
 
@@ -281,8 +293,7 @@ int32_t sclExecFuncion(SFunctionNode *node, SScalarCtx *ctx, SScalarParam *outpu
   SScalarFuncExecFuncs ffpSet = {0};
   int32_t code = fmGetScalarFuncExecFuncs(node->funcId, &ffpSet);
   if (code) {
-    sclError(
-"fmGetFuncExecFuncs failed, funcId:%d, code:%s", node->funcId, tstrerror(code));
+    sclError("fmGetFuncExecFuncs failed, funcId:%d, code:%s", node->funcId, tstrerror(code));
     SCL_ERR_RET(code);
   }
 
@@ -298,15 +309,14 @@ int32_t sclExecFuncion(SFunctionNode *node, SScalarCtx *ctx, SScalarParam *outpu
   }
 
   for (int32_t i = 0; i < rowNum; ++i) {
+    sclMoveParamListData(output, 1, i);
+    sclMoveParamListData(params, node->pParameterList->length, i);
+
     code = (*ffpSet.process)(params, node->pParameterList->length, output);
     if (code) {
-      sclError(
-"scalar function exec failed, funcId:%d, code:%s", node->funcId, tstrerror(code));
+      sclError("scalar function exec failed, funcId:%d, code:%s", node->funcId, tstrerror(code));
       SCL_ERR_JRET(code);    
     }
-
-    sclParamMoveNext(output, 1);
-    sclParamMoveNext(params, node->pParameterList->length);
   }
 
   return TSDB_CODE_SUCCESS;
@@ -354,6 +364,9 @@ int32_t sclExecLogic(SLogicConditionNode *node, SScalarCtx *ctx, SScalarParam *o
   bool value = false;
 
   for (int32_t i = 0; i < rowNum; ++i) {
+    sclMoveParamListData(output, 1, i);
+    sclMoveParamListData(params, node->pParameterList->length, i);
+  
     for (int32_t m = 0; m < node->pParameterList->length; ++m) {
       GET_TYPED_DATA(value, bool, params[m].type, params[m].data);
       
@@ -367,9 +380,6 @@ int32_t sclExecLogic(SLogicConditionNode *node, SScalarCtx *ctx, SScalarParam *o
     }
 
     *(bool *)output->data = value;
-
-    sclParamMoveNext(output, 1);    
-    sclParamMoveNext(params, node->pParameterList->length);
   }
 
   output->data = data;
