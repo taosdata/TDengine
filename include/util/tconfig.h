@@ -59,7 +59,6 @@ typedef struct SConfigItem {
     int32_t  i32;
     int64_t  i64;
     char    *str;
-    SArray  *array;  // SDiskCfg
   };
   union {
     int64_t imin;
@@ -69,6 +68,7 @@ typedef struct SConfigItem {
     int64_t imax;
     double  fmax;
   };
+  SArray *array;  // SDiskCfg
 } SConfigItem;
 
 typedef struct {
