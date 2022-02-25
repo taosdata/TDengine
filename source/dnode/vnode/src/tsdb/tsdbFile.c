@@ -356,7 +356,7 @@ int tsdbCreateDFile(STsdb *pRepo, SDFile *pDFile, bool updateHeader) {
   ASSERT(pDFile->info.size == 0 && pDFile->info.magic == TSDB_FILE_INIT_MAGIC);
 
   pDFile->pFile = taosOpenFile(TSDB_FILE_FULL_NAME(pDFile), TD_FILE_CTEATE | TD_FILE_WRITE | TD_FILE_TRUNC);
-  if (pDFile->pFile < 0) {
+  if (pDFile->pFile == NULL) {
     if (errno == ENOENT) {
       // Try to create directory recursively
       char *s = strdup(TSDB_FILE_REL_NAME(pDFile));
@@ -367,7 +367,7 @@ int tsdbCreateDFile(STsdb *pRepo, SDFile *pDFile, bool updateHeader) {
       tfree(s);
 
       pDFile->pFile = taosOpenFile(TSDB_FILE_FULL_NAME(pDFile), TD_FILE_CTEATE | TD_FILE_WRITE | TD_FILE_TRUNC);
-      if (pDFile->pFile < 0) {
+      if (pDFile->pFile == NULL) {
         terrno = TAOS_SYSTEM_ERROR(errno);
         return -1;
       }
