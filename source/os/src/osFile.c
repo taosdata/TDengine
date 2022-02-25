@@ -308,6 +308,7 @@ int64_t taosWriteFile(TdFilePtr pFile, const void *buf, int64_t count) {
 }
 
 int64_t taosLSeekFile(TdFilePtr pFile, int64_t offset, int32_t whence) { 
+  if (pFile == NULL) return -1;
   return (int64_t)lseek(pFile->fd, (long)offset, whence); 
 }
 
