@@ -43,7 +43,7 @@ void processShellMsg() {
     for (int i = 0; i < numOfMsgs; ++i) {
       taosGetQitem(qall, (void **)&pRpcMsg);
 
-      if (pDataFile >= 0) {
+      if (pDataFile != NULL) {
         if (taosWriteFile(pDataFile, pRpcMsg->pCont, pRpcMsg->contLen) < 0) {
           tInfo("failed to write data file, reason:%s", strerror(errno));
         }
