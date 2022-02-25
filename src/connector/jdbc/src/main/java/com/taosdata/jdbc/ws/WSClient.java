@@ -95,7 +95,6 @@ public class WSClient extends WebSocketClient implements AutoCloseable {
         long id = bytes.getLong();
         ResponseFuture remove = inFlightRequest.remove(Action.FETCH_BLOCK.getAction(), id);
         if (null != remove) {
-//            FetchBlockResp fetchBlockResp = new FetchBlockResp(id, bytes.slice());
             FetchBlockResp fetchBlockResp = new FetchBlockResp(id, bytes);
             remove.getFuture().complete(fetchBlockResp);
         }
