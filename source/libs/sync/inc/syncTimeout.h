@@ -23,10 +23,10 @@ extern "C" {
 #include <stdint.h>
 #include <stdio.h>
 #include <stdlib.h>
+#include "syncInt.h"
 #include "syncMessage.h"
 #include "syncRaft.h"
 #include "taosdef.h"
-#include "syncInt.h"
 
 void onTimeout(SRaft *pRaft, void *pMsg);
 

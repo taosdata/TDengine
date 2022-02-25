@@ -35,9 +35,9 @@ typedef struct SRaftId {
 typedef struct SRaft {
   SRaftId id;
 
-  SSyncLogStore *logStore;
-  SStateMgr     *stateManager;
-  SSyncFSM      *syncFsm;
+  SSyncLogStore* logStore;
+  SStateMgr*     stateManager;
+  SSyncFSM*      syncFsm;
 
 } SRaft;
 

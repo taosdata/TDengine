@@ -1,5 +1,5 @@
-#include "syncEnv.h"
 #include <stdio.h>
+#include "syncEnv.h"
 #include "syncIO.h"
 #include "syncInt.h"
 #include "syncRaftStore.h"
@@ -18,6 +18,7 @@ void doSync() {
   syncInfo.vgId = 1;
 
   SSyncCfg* pCfg = &syncInfo.syncCfg;
+  pCfg->myIndex = 0;
   pCfg->replicaNum = 3;
 
   pCfg->nodeInfo[0].nodePort = 7010;
@@ -34,7 +35,7 @@ void doSync() {
 }
 
 int main() {
-  taosInitLog((char*)"syncEnvTest.log", 100000, 10);
+  taosInitLog((char*)"syncPingTest.log", 100000, 10);
   tsAsyncLog = 0;
   sDebugFlag = 143 + 64;
 

@@ -20,12 +20,11 @@
 extern "C" {
 #endif
 
+#include <stdint.h>
 #include <stdio.h>
 #include <stdlib.h>
-#include <stdint.h>
-#include "taosdef.h"
 #include "syncInt.h"
-
+#include "taosdef.h"
 
 #ifdef __cplusplus
 }
