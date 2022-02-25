@@ -42,7 +42,6 @@ void iIntersection(SArray *inters, SArray *final) {
   MergeIndex *mi = calloc(sz, sizeof(MergeIndex));
   for (int i = 0; i < sz; i++) {
     SArray *t = taosArrayGetP(inters, i);
-
     mi[i].len = taosArrayGetSize(t);
     mi[i].idx = 0;
   }
@@ -66,5 +65,47 @@ void iIntersection(SArray *inters, SArray *final) {
       taosArrayPush(final, &tgt);
     }
   }
+  tfree(mi);
+}
+void iUnion(SArray *inters, SArray *final) {
+  int32_t sz = taosArrayGetSize(inters);
+  if (sz <= 0) {
+    return;
+  }
+  MergeIndex *mi = calloc(sz, sizeof(MergeIndex));
+  for (int i = 0; i < sz; i++) {
+    SArray *t = taosArrayGetP(inters, i);
+    mi[i].len = taosArrayGetSize(t);
+    mi[i].idx = 0;
+  }
+  while (1) {
+    uint64_t mVal = UINT_MAX;
+    int      mIdx = -1;
+
+    for (int j = 0; j < sz; j++) {
+      SArray *t = taosArrayGetP(inters, j);
+      if (mi[j].idx >= mi[j].len) {
+        continue;
+      }
+      uint64_t cVal = *(uint64_t *)taosArrayGet(t, mi[j].idx);
+      if (cVal < mVal) {
+        mVal = cVal;
+        mIdx = j;
+      }
+    }
+    if (mIdx != -1) {
+      mi[mIdx].idx++;
+      if (taosArrayGetSize(final) > 0) {
+        uint64_t lVal = *(uint64_t *)taosArrayGetLast(final);
+        if (lVal == mVal) {
+          continue;
+        }
+      }
+      taosArrayPush(final, &mVal);
+    } else {
+      break;
+    }
+  }
+
   tfree(mi);
 }
