@@ -46,7 +46,7 @@ tExtMemBuffer* createExtMemBuffer(int32_t inMemSize, int32_t elemSize, int32_t p
   
   SExtFileInfo *pFMeta = &pMemBuffer->fileMeta;
 
-  pFMeta->pageSize = DEFAULT_PAGE_SIZE;
+  //pFMeta->pageSize = DEFAULT_PAGE_SIZE;
 
   pFMeta->flushoutData.nAllocSize = 4;
   pFMeta->flushoutData.nLength = 0;

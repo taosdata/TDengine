@@ -30,6 +30,7 @@ function TDengineCursor(connection = null) {
   this._fields = null;
   this.data = [];
   this.fields = null;
+  this._stmt = null;
   if (connection != null) {
     this._connection = connection
     this._chandle = connection._chandle //pass through, just need library loaded.
@@ -488,7 +489,6 @@ TDengineCursor.prototype.schemalessInsert = function schemalessInsert(lines, pro
   let errorNo = this._chandle.errno(this._result);
   if (errorNo != 0) {
     throw new errors.InterfaceError(errorNo + ":" + this._chandle.errStr(this._result));
-    this._chandle.freeResult(this._result);
   }
   this._chandle.freeResult(this._result);
 }
@@ -499,7 +499,7 @@ TDengineCursor.prototype.schemalessInsert = function schemalessInsert(lines, pro
  * @returns  Not NULL returned for success, and NULL for failure. 
  * 
  */
- TDengineCursor.prototype.stmtInit = function stmtInit() {
+TDengineCursor.prototype.stmtInit = function stmtInit() {
   let stmt = null
   stmt = this._chandle.stmtInit(this._connection._conn);
   if (stmt == null || stmt == undefined) {
@@ -532,7 +532,7 @@ TDengineCursor.prototype.stmtPrepare = function stmtPrepare(sql) {
  * @param {TaosBind} tableName target table name you want to  bind
  * @returns 0 for success, non-zero for failure.
  */
-TDengineCursor.prototype.stmtSetTbname = function stmtSetTbname(tableName){
+TDengineCursor.prototype.stmtSetTbname = function stmtSetTbname(tableName) {
   if (this._stmt == null) {
     throw new errors.DatabaseError("stmt is null,init stmt first");
   } else {
@@ -552,11 +552,11 @@ TDengineCursor.prototype.stmtSetTbname = function stmtSetTbname(tableName){
  * @param {TaosMultiBind} tags use to set tag value for target table. 
  * @returns 
  */
-TDengineCursor.prototype.stmtSetTbnameTags = function stmtSetTbnameTags(tableName,tags){
+TDengineCursor.prototype.stmtSetTbnameTags = function stmtSetTbnameTags(tableName, tags) {
   if (this._stmt == null) {
     throw new errors.DatabaseError("stmt is null,init stmt first");
   } else {
-    let stmtPrepare = this._chandle.stmtSetTbnameTags(this._stmt, tableName,tags);
+    let stmtPrepare = this._chandle.stmtSetTbnameTags(this._stmt, tableName, tags);
     if (stmtPrepare != 0) {
       throw new errors.DatabaseError(this._chandle.stmtErrStr(this._stmt));
     } else {
@@ -573,7 +573,7 @@ TDengineCursor.prototype.stmtSetTbnameTags = function stmtSetTbnameTags(tableNam
  * @param {*} subTableName table name which is belong to an stable
  * @returns 0 for success, non-zero for failure.
  */
-TDengineCursor.prototype.stmtSetSubTbname = function stmtSetSubTbname(subTableName){
+TDengineCursor.prototype.stmtSetSubTbname = function stmtSetSubTbname(subTableName) {
   if (this._stmt == null) {
     throw new errors.DatabaseError("stmt is null,init stmt first");
   } else {
@@ -594,7 +594,7 @@ TDengineCursor.prototype.stmtSetSubTbname = function stmtSetSubTbname(subTableNa
  * @param {*} binds points to an array contains the whole line data.
  * @returns 	0 for success, non-zero for failure.
  */
-TDengineCursor.prototype.bindParam = function bindParam(binds) {
+TDengineCursor.prototype.stmtBindParam = function stmtBindParam(binds) {
   if (this._stmt == null) {
     throw new errors.DatabaseError("stmt is null,init stmt first");
   } else {
@@ -613,11 +613,11 @@ TDengineCursor.prototype.bindParam = function bindParam(binds) {
  * @param {*} colIndex the column's index in prepared sql statement, it starts from 0.
  * @returns 0 for success, non-zero for failure.
  */
-TDengineCursor.prototype.stmtBindSingleParamBatch = function stmtBindSingleParamBatch(mbind,colIndex){
+TDengineCursor.prototype.stmtBindSingleParamBatch = function stmtBindSingleParamBatch(mbind, colIndex) {
   if (this._stmt == null) {
     throw new errors.DatabaseError("stmt is null,init stmt first");
   } else {
-    let stmtPrepare = this._chandle.stmtBindSingleParamBatch(this._stmt, mbind,colIndex);
+    let stmtPrepare = this._chandle.stmtBindSingleParamBatch(this._stmt, mbind, colIndex);
     if (stmtPrepare != 0) {
       throw new errors.DatabaseError(this._chandle.stmtErrStr(this._stmt));
     } else {
@@ -634,7 +634,7 @@ TDengineCursor.prototype.stmtBindSingleParamBatch = function stmtBindSingleParam
  *            n sql statement. 
  * @returns  0 for success, non-zero for failure.
  */
-TDengineCursor.prototype.stmtBindParamBatch = function stmtBindParamBatch(mbinds){
+TDengineCursor.prototype.stmtBindParamBatch = function stmtBindParamBatch(mbinds) {
   if (this._stmt == null) {
     throw new errors.DatabaseError("stmt is null,init stmt first");
   } else {
@@ -656,7 +656,7 @@ TDengineCursor.prototype.stmtBindParamBatch = function stmtBindParamBatch(mbinds
  * @param {*} stmt 
  * @returns 	0 for success, non-zero for failure.
  */
-TDengineCursor.prototype.addBatch = function addBatch() {
+TDengineCursor.prototype.stmtAddBatch = function stmtAddBatch() {
   if (this._stmt == null) {
     throw new errors.DatabaseError("stmt is null,init stmt first");
   } else {
@@ -694,13 +694,19 @@ TDengineCursor.prototype.stmtExecute = function stmtExecute() {
  * User application should free it with API 'FreeResult' at the end.
  * @returns Not NULL for success, NULL for failure.
  */
-TDengineCursor.prototype.stmtUseResult = function stmtUseResult(){
+TDengineCursor.prototype.stmtUseResult = function stmtUseResult() {
   if (this._stmt != null) {
-    let stmtExecRes = this._chandle.stmtUseResult(this._stmt);
-    if (stmtExecRes != 0) {
-      throw new errors.DatabaseError(this._chandle.stmtErrStr(this._stmt));
+    this._result = this._chandle.stmtUseResult(this._stmt);
+    let res = this._chandle.errno(this._result);
+    if (res != 0) {
+      throw new errors.DatabaseError(this._chandle.errStr(this._stmt));
     } else {
-      console.log("stmtUseResult success.")
+      console.log("stmtUseResult success.");
+      let fieldCount = this._chandle.fieldsCount(this._result);
+      if (fieldCount != 0) {
+        this._fields = this._chandle.useResult(this._result);
+        this.fields = this._fields;
+      }
     }
   } else {
     throw new errors.DatabaseError("stmt is null,init stmt first");
@@ -713,11 +719,11 @@ TDengineCursor.prototype.stmtUseResult = function stmtUseResult(){
  * @param {*} tableList tables need to load meta info are form in an array
  * @returns 0 for success, non-zero for failure.
  */
-TDengineCursor.prototype.loadTableInfo = function loadTableInfo(tableList){
+TDengineCursor.prototype.loadTableInfo = function loadTableInfo(tableList) {
   if (this._connection._conn != null) {
-    let stmtExecRes = this._chandle.loadTableInfo(this._connection._conn,tableList);
+    let stmtExecRes = this._chandle.loadTableInfo(this._connection._conn, tableList);
     if (stmtExecRes != 0) {
-      throw new errors.DatabaseError(this._chandle.stmtErrStr(this._stmt));
+      throw new errors.DatabaseError(`loadTableInfo() failed,code ${stmtExecRes}`);
     } else {
       console.log("loadTableInfo success.")
     }

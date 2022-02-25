@@ -22,6 +22,8 @@ typedef uint32_t (*_hash_fn_t)(const char *, uint32_t);
 
 typedef int32_t (*_equal_fn_t)(const void *a, const void *b, size_t sz); 
 
+typedef void (*_hash_free_fn_t)(void *param);
+
 /**
  * murmur hash algorithm
  * @key  usually string

@@ -293,6 +293,7 @@ int32_t* taosGetErrno();
 #define TSDB_CODE_QRY_SYS_ERROR                 TAOS_DEF_ERROR_CODE(0, 0x070D)  //"System error")
 #define TSDB_CODE_QRY_INVALID_TIME_CONDITION    TAOS_DEF_ERROR_CODE(0, 0x070E)  //"invalid time condition")
 #define TSDB_CODE_QRY_INVALID_SCHEMA_VERSION    TAOS_DEF_ERROR_CODE(0, 0x0710)  //"invalid schema version")
+#define TSDB_CODE_QRY_RESULT_TOO_LARGE          TAOS_DEF_ERROR_CODE(0, 0x0711)  //"result num is too large")
 
 // grant
 #define TSDB_CODE_GRANT_EXPIRED                 TAOS_DEF_ERROR_CODE(0, 0x0800)  //"License expired"

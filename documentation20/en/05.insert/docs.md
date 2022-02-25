@@ -304,16 +304,6 @@ TCollector is a client-side process that gathers data from local collectors and 
 
 Please find taosAdapter configuration and usage from `taosadapter --help` output.
 
-## <a class="anchor" id="bailongma2-prometheus"></a> Insert Prometheus data via Bailongma 2.0
-
-**Notice:**
-TDengine 2.4.0.4+ provides taosAdapter to support Prometheus data writing. Bailongma v2 will be abandoned and no more maintained.
-
-## <a class="anchor" id="bailongma2-telegraf"></a> Insert data via Bailongma 2.0 and Telegraf
-
-**Notice:**
-TDengine 2.3.0.0+ provides taosAdapter to support Telegraf data writing. Bailongma v2 will be abandoned and no more maintained.
-
 ## <a class="anchor" id="emq"></a> Data Writing via EMQ Broker
 
 [EMQ](https://github.com/emqx/emqx) is an open source MQTT Broker software, with no need of coding, only to use "rules" in EMQ Dashboard for simple configuration, and MQTT data can be directly written into TDengine. EMQ X supports storing data to the TDengine by sending it to a Web service, and also provides a native TDengine driver on Enterprise Edition for direct data store. Please refer to [EMQ official documents](https://docs.emqx.io/broker/latest/cn/rule/rule-example.html#%E4%BF%9D%E5%AD%98%E6%95%B0%E6%8D%AE%E5%88%B0-tdengine) for more details.
