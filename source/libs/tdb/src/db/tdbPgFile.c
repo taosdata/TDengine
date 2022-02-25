@@ -95,7 +95,7 @@ int pgFileOpen(SPgFile **ppPgFile, const char *fname, TENV *pEnv) {
 
 int pgFileClose(SPgFile *pPgFile) {
   if (pPgFile) {
-    if (pPgFile->pFile >= 0) {
+    if (pPgFile->pFile != NULL) {
       taosCloseFile(&pPgFile->pFile);
     }
 
