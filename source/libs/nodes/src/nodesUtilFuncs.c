@@ -63,8 +63,6 @@ SNode* nodesMakeNode(ENodeType type) {
       return makeNode(type, sizeof(SNodeListNode));
     case QUERY_NODE_FILL:
       return makeNode(type, sizeof(SFillNode));
-    case QUERY_NODE_COLUMN_REF:
-      return makeNode(type, sizeof(SColumnRefNode));
     case QUERY_NODE_RAW_EXPR:
       return makeNode(type, sizeof(SRawExprNode));
     case QUERY_NODE_SET_OPERATOR:
@@ -93,6 +91,10 @@ SNode* nodesMakeNode(ENodeType type) {
       return makeNode(type, sizeof(STableScanPhysiNode));
     case QUERY_NODE_PHYSICAL_PLAN_PROJECT:
       return makeNode(type, sizeof(SProjectPhysiNode));
+    case QUERY_NODE_PHYSICAL_PLAN_JOIN:
+      return makeNode(type, sizeof(SJoinPhysiNode));
+    case QUERY_NODE_PHYSICAL_PLAN_AGG:
+      return makeNode(type, sizeof(SAggPhysiNode));
     default:
       break;
   }

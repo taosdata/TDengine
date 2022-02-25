@@ -230,10 +230,11 @@ TEST_F(TfsTest, 04_File) {
 
     EXPECT_EQ(tfsMkdir(pTfs, "t3"), 0);
 
-    FILE *fp = fopen(f1.aname, "w");
-    ASSERT_NE(fp, nullptr);
-    fwrite("12345678", 1, 5, fp);
-    fclose(fp);
+    // FILE *fp = fopen(f1.aname, "w");
+    TdFilePtr pFile = taosOpenFile(f1.aname, TD_FILE_CTEATE | TD_FILE_WRITE | TD_FILE_TRUNC);
+    ASSERT_NE(pFile, nullptr);
+    taosWriteFile(pFile, "12345678", 5);
+    taosCloseFile(&pFile);
 
     char base[128] = {0};
     tfsBasename(&f1, base);
@@ -638,10 +639,11 @@ TEST_F(TfsTest, 05_MultiDisk) {
 
       EXPECT_EQ(tfsMkdir(pTfs, "t3"), 0);
 
-      FILE *fp = fopen(f1.aname, "w");
-      ASSERT_NE(fp, nullptr);
-      fwrite("12345678", 1, 5, fp);
-      fclose(fp);
+      // FILE *fp = fopen(f1.aname, "w");
+      TdFilePtr pFile = taosOpenFile(f1.aname, TD_FILE_CTEATE | TD_FILE_WRITE | TD_FILE_TRUNC);
+      ASSERT_NE(pFile, nullptr);
+      taosWriteFile(pFile, "12345678", 5);
+      taosCloseFile(&pFile);
 
       char base[128] = {0};
       tfsBasename(&f1, base);

@@ -142,14 +142,6 @@ static SNode* functionNodeCopy(const SFunctionNode* pSrc, SFunctionNode* pDst) {
   return (SNode*)pDst;
 }
 
-static SNode* columnRefNodeCopy(const SColumnRefNode* pSrc, SColumnRefNode* pDst) {
-  dataTypeCopy(&pSrc->dataType, &pDst->dataType);
-  COPY_SCALAR_FIELD(tupleId);
-  COPY_SCALAR_FIELD(slotId);
-  COPY_SCALAR_FIELD(columnId);
-  return (SNode*)pDst;
-}
-
 static SNode* targetNodeCopy(const STargetNode* pSrc, STargetNode* pDst) {
   COPY_SCALAR_FIELD(tupleId);
   COPY_SCALAR_FIELD(slotId);
@@ -183,8 +175,6 @@ SNode* nodesCloneNode(const SNode* pNode) {
       return logicConditionNodeCopy((const SLogicConditionNode*)pNode, (SLogicConditionNode*)pDst);
     case QUERY_NODE_FUNCTION:
       return functionNodeCopy((const SFunctionNode*)pNode, (SFunctionNode*)pDst);
-    case QUERY_NODE_COLUMN_REF:
-      return columnRefNodeCopy((const SColumnRefNode*)pNode, (SColumnRefNode*)pDst);
     case QUERY_NODE_TARGET:
       return targetNodeCopy((const STargetNode*)pNode, (STargetNode*)pDst);
     case QUERY_NODE_REAL_TABLE:

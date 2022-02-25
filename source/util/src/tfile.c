@@ -24,147 +24,147 @@ static int32_t tsFileRsetId = -1;
 
 static int8_t tfInited = 0;
 
-static void tfCloseFile(void *p) { taosCloseFile((int32_t)(uintptr_t)p); }
+// static void tfCloseFile(void *p) { taosCloseFile((TdFilePtr)(uintptr_t)p); }
 
 int32_t tfInit() {
-  int8_t old = atomic_val_compare_exchange_8(&tfInited, 0, 1);
-  if (old == 1) return 0;
-  tsFileRsetId = taosOpenRef(2000, tfCloseFile);
-  if (tsFileRsetId > 0) {
-    return 0;
-  } else {
-    atomic_store_8(&tfInited, 0);
-    return -1;
-  }
+  // int8_t old = atomic_val_compare_exchange_8(&tfInited, 0, 1);
+  // if (old == 1) return 0;
+  // tsFileRsetId = taosOpenRef(2000, tfCloseFile);
+  // if (tsFileRsetId > 0) {
+  //   return 0;
+  // } else {
+  //   atomic_store_8(&tfInited, 0);
+  //   return -1;
+  // }
 }
 
 void tfCleanup() {
-  atomic_store_8(&tfInited, 0);
-  if (tsFileRsetId >= 0) taosCloseRef(tsFileRsetId);
-  tsFileRsetId = -1;
+  // atomic_store_8(&tfInited, 0);
+  // if (tsFileRsetId >= 0) taosCloseRef(tsFileRsetId);
+  // tsFileRsetId = -1;
 }
 
-static int64_t tfOpenImp(int32_t fd) {
-  if (fd < 0) {
-    terrno = TAOS_SYSTEM_ERROR(errno);
-    return -1;
-  }
+// static int64_t tfOpenImp(TdFilePtr pFile) {
+//   if (pFile == NULL) {
+//     terrno = TAOS_SYSTEM_ERROR(errno);
+//     return -1;
+//   }
 
-  void *  p = (void *)(int64_t)fd;
-  int64_t rid = taosAddRef(tsFileRsetId, p);
-  if (rid < 0) taosCloseFile(fd);
+//   void *  p = (void *)(int64_t)pFile;
+//   int64_t rid = taosAddRef(tsFileRsetId, p);
+//   if (rid < 0) taosCloseFile(&pFile);
 
-  return rid;
-}
+//   return rid;
+// }
 
-int64_t tfOpenRead(const char *pathname, int32_t flags) {
-  int32_t fd = taosOpenFileRead(pathname);
-  return tfOpenImp(fd);
-}
+// int64_t tfOpenRead(const char *pathname, int32_t flags) {
+//   int32_t pFile = taosOpenFile(pathname, TD_FILE_READ);
+//   return tfOpenImp(fd);
+// }
 
-int64_t tfOpenReadWrite(const char *pathname, int32_t flags) {
-  int32_t fd = taosOpenFileReadWrite(pathname);
-  return tfOpenImp(fd);
-}
+// int64_t tfOpenReadWrite(const char *pathname, int32_t flags) {
+//   int32_t pFile = taosOpenFile(pathname, TD_FILE_READ | TD_FILE_WRITE);
+//   return tfOpenImp(fd);
+// }
 
-int64_t tfOpenCreateWrite(const char *pathname, int32_t flags, mode_t mode) {
-  int32_t fd = taosOpenFileCreateWrite(pathname);
-  return tfOpenImp(fd);
-}
+// int64_t tfOpenCreateWrite(const char *pathname, int32_t flags, mode_t mode) {
+//   int32_t pFile = taosOpenFile(pathname, TD_FILE_CTEATE | TD_FILE_WRITE);
+//   return tfOpenImp(fd);
+// }
 
-int64_t tfOpenCreateWriteAppend(const char *pathname, int32_t flags, mode_t mode) {
-  int32_t fd = taosOpenFileCreateWriteAppend(pathname);
-  return tfOpenImp(fd);
-}
+// int64_t tfOpenCreateWriteAppend(const char *pathname, int32_t flags, mode_t mode) {
+//   int32_t pFile = taosOpenFile(pathname, TD_FILE_CTEATE | TD_FILE_WRITE | TD_FILE_APPEND);
+//   return tfOpenImp(fd);
+// }
 
-int64_t tfClose(int64_t tfd) { return taosRemoveRef(tsFileRsetId, tfd); }
+// int64_t tfClose(int64_t tfd) { return taosRemoveRef(tsFileRsetId, tfd); }
 
-int64_t tfWrite(int64_t tfd, void *buf, int64_t count) {
-  void *p = taosAcquireRef(tsFileRsetId, tfd);
-  if (p == NULL) return -1;
+// int64_t tfWrite(int64_t tfd, void *buf, int64_t count) {
+//   void *p = taosAcquireRef(tsFileRsetId, tfd);
+//   if (p == NULL) return -1;
 
-  int32_t fd = (int32_t)(uintptr_t)p;
+//   int32_t pFile = (TdFilePtr)(uintptr_t)p;
 
-  int64_t ret = taosWriteFile(fd, buf, count);
-  if (ret < 0) terrno = TAOS_SYSTEM_ERROR(errno);
+//   int64_t ret = taosWriteFile(pFile, buf, count);
+//   if (ret < 0) terrno = TAOS_SYSTEM_ERROR(errno);
 
-  taosReleaseRef(tsFileRsetId, tfd);
-  return ret;
-}
+//   taosReleaseRef(tsFileRsetId, tfd);
+//   return ret;
+// }
 
-int64_t tfRead(int64_t tfd, void *buf, int64_t count) {
-  void *p = taosAcquireRef(tsFileRsetId, tfd);
-  if (p == NULL) return -1;
+// int64_t tfRead(int64_t tfd, void *buf, int64_t count) {
+//   void *p = taosAcquireRef(tsFileRsetId, tfd);
+//   if (p == NULL) return -1;
 
-  int32_t fd = (int32_t)(uintptr_t)p;
+//   int32_t pFile = (TdFilePtr)(uintptr_t)p;
 
-  int64_t ret = taosReadFile(fd, buf, count);
-  if (ret < 0) terrno = TAOS_SYSTEM_ERROR(errno);
+//   int64_t ret = taosReadFile(pFile, buf, count);
+//   if (ret < 0) terrno = TAOS_SYSTEM_ERROR(errno);
 
-  taosReleaseRef(tsFileRsetId, tfd);
-  return ret;
-}
+//   taosReleaseRef(tsFileRsetId, tfd);
+//   return ret;
+// }
 
-int64_t tfPread(int64_t tfd, void *buf, int64_t count, int32_t offset) {
-  void *p = taosAcquireRef(tsFileRsetId, tfd);
-  if (p == NULL) return -1;
+// int64_t tfPread(int64_t tfd, void *buf, int64_t count, int32_t offset) {
+//   void *p = taosAcquireRef(tsFileRsetId, tfd);
+//   if (p == NULL) return -1;
 
-  int32_t fd = (int32_t)(uintptr_t)p;
+//   int32_t pFile = (TdFilePtr)(uintptr_t)p;
 
-  int64_t ret = pread(fd, buf, count, offset);
-  if (ret < 0) terrno = TAOS_SYSTEM_ERROR(errno);
+//   int64_t ret = pread(fd, buf, count, offset);
+//   if (ret < 0) terrno = TAOS_SYSTEM_ERROR(errno);
 
-  taosReleaseRef(tsFileRsetId, tfd);
-  return ret;
-}
+//   taosReleaseRef(tsFileRsetId, tfd);
+//   return ret;
+// }
 
-int32_t tfFsync(int64_t tfd) {
-  void *p = taosAcquireRef(tsFileRsetId, tfd);
-  if (p == NULL) return -1;
+// int32_t tfFsync(int64_t tfd) {
+//   void *p = taosAcquireRef(tsFileRsetId, tfd);
+//   if (p == NULL) return -1;
 
-  int32_t fd = (int32_t)(uintptr_t)p;
-  int32_t code = taosFsyncFile(fd);
+//   int32_t pFile = (TdFilePtr)(uintptr_t)p;
+//   int32_t code = taosFsyncFile(pFile);
 
-  taosReleaseRef(tsFileRsetId, tfd);
-  return code;
-}
+//   taosReleaseRef(tsFileRsetId, tfd);
+//   return code;
+// }
 
-bool tfValid(int64_t tfd) {
-  void *p = taosAcquireRef(tsFileRsetId, tfd);
-  if (p == NULL) return false;
+// bool tfValid(int64_t tfd) {
+//   void *p = taosAcquireRef(tsFileRsetId, tfd);
+//   if (p == NULL) return false;
 
-  taosReleaseRef(tsFileRsetId, tfd);
-  return true;
-}
+//   taosReleaseRef(tsFileRsetId, tfd);
+//   return true;
+// }
 
-int64_t tfLseek(int64_t tfd, int64_t offset, int32_t whence) {
-  void *p = taosAcquireRef(tsFileRsetId, tfd);
-  if (p == NULL) return -1;
+// int64_t tfLseek(int64_t tfd, int64_t offset, int32_t whence) {
+//   void *p = taosAcquireRef(tsFileRsetId, tfd);
+//   if (p == NULL) return -1;
 
-  int32_t fd = (int32_t)(uintptr_t)p;
-  int64_t ret = taosLSeekFile(fd, offset, whence);
+//   int32_t pFile = (TdFilePtr)(uintptr_t)p;
+//   int64_t ret = taosLSeekFile(fd, offset, whence);
 
-  taosReleaseRef(tsFileRsetId, tfd);
-  return ret;
-}
+//   taosReleaseRef(tsFileRsetId, tfd);
+//   return ret;
+// }
 
-int32_t tfFtruncate(int64_t tfd, int64_t length) {
-  void *p = taosAcquireRef(tsFileRsetId, tfd);
-  if (p == NULL) return -1;
+// int32_t tfFtruncate(int64_t tfd, int64_t length) {
+//   void *p = taosAcquireRef(tsFileRsetId, tfd);
+//   if (p == NULL) return -1;
 
-  int32_t fd = (int32_t)(uintptr_t)p;
-  int32_t code = taosFtruncateFile(fd, length);
+//   int32_t pFile = (TdFilePtr)(uintptr_t)p;
+//   int32_t code = taosFtruncateFile(fd, length);
 
-  taosReleaseRef(tsFileRsetId, tfd);
-  return code;
-}
+//   taosReleaseRef(tsFileRsetId, tfd);
+//   return code;
+// }
 
-void *tfMmapReadOnly(int64_t tfd, int64_t length) {
-  void *p = taosAcquireRef(tsFileRsetId, tfd);
-  if (p == NULL) return NULL;
-  int32_t fd = (int32_t)(uintptr_t)p;
+// void *tfMmapReadOnly(int64_t tfd, int64_t length) {
+//   void *p = taosAcquireRef(tsFileRsetId, tfd);
+//   if (p == NULL) return NULL;
+//   int32_t pFile = (TdFilePtr)(uintptr_t)p;
 
-  void *ptr = mmap(NULL, length, PROT_READ, MAP_SHARED, fd, 0);
-  taosReleaseRef(tsFileRsetId, tfd);
-  return ptr;
-}
+//   void *ptr = mmap(NULL, length, PROT_READ, MAP_SHARED, fd, 0);
+//   taosReleaseRef(tsFileRsetId, tfd);
+//   return ptr;
+// }

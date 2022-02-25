@@ -3961,14 +3961,14 @@ static void ts_comp_finalize(SqlFunctionCtx *pCtx) {
 //  qDebug("total timestamp :%"PRId64, pTSbuf->numOfTotal);
 
   // TODO refactor transfer ownership of current file
-  *(FILE **)pCtx->pOutput = pTSbuf->f;
+  *(TdFilePtr *)pCtx->pOutput = pTSbuf->pFile;
 
   pResInfo->complete = true;
 
   // get the file size
-  struct stat fStat;
-  if ((fstat(fileno(pTSbuf->f), &fStat) == 0)) {
-    pResInfo->numOfRes = fStat.st_size;
+  int64_t file_size;
+  if (taosFStatFile(pTSbuf->pFile, &file_size, NULL) == 0) {
+    pResInfo->numOfRes = (uint32_t )file_size;
   }
 
   pTSbuf->remainOpen = true;

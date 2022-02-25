@@ -27,7 +27,7 @@ struct SDiskbasedBuf {
   int32_t   numOfPages;
   int64_t   totalBufSize;
   uint64_t  fileSize;            // disk file size
-  FILE*     file;
+  TdFilePtr pFile;
   int32_t   allocateId;          // allocated page id
   char*     path;                // file path
   int32_t   pageSize;            // current used page size
@@ -48,8 +48,9 @@ struct SDiskbasedBuf {
 };
 
 static int32_t createDiskFile(SDiskbasedBuf* pBuf) {
-  pBuf->file = fopen(pBuf->path, "wb+");
-  if (pBuf->file == NULL) {
+  // pBuf->file = fopen(pBuf->path, "wb+");
+  pBuf->pFile = taosOpenFile(pBuf->path, TD_FILE_CTEATE | TD_FILE_WRITE | TD_FILE_READ | TD_FILE_TRUNC);
+  if (pBuf->pFile == NULL) {
 //    qError("failed to create tmp file: %s on disk. %s", pBuf->path, strerror(errno));
     return TAOS_SYSTEM_ERROR(errno);
   }
@@ -140,17 +141,17 @@ static char* doFlushPageToDisk(SDiskbasedBuf* pBuf, SPageInfo* pg) {
       pg->offset = allocatePositionInFile(pBuf, size);
       pBuf->nextPos += size;
 
-      int32_t ret = fseek(pBuf->file, pg->offset, SEEK_SET);
-      if (ret != 0) {
-        terrno = TAOS_SYSTEM_ERROR(errno);
-        return NULL;
-      }
+    int32_t ret = taosLSeekFile(pBuf->pFile, pg->offset, SEEK_SET);
+    if (ret != 0) {
+      terrno = TAOS_SYSTEM_ERROR(errno);
+      return NULL;
+    }
 
-      ret = (int32_t)fwrite(t, 1, size, pBuf->file);
-      if (ret != size) {
-        terrno = TAOS_SYSTEM_ERROR(errno);
-        return NULL;
-      }
+    ret = (int32_t) taosWriteFile(pBuf->pFile, t, size);
+    if (ret != size) {
+      terrno = TAOS_SYSTEM_ERROR(errno);
+      return NULL;
+    }
 
       if (pBuf->fileSize < pg->offset + size) {
         pBuf->fileSize = pg->offset + size;
@@ -170,18 +171,18 @@ static char* doFlushPageToDisk(SDiskbasedBuf* pBuf, SPageInfo* pg) {
         pBuf->nextPos += size;
       }
 
-      // 3. write to disk.
-      int32_t ret = fseek(pBuf->file, pg->offset, SEEK_SET);
-      if (ret != 0) {
-        terrno = TAOS_SYSTEM_ERROR(errno);
-        return NULL;
-      }
+    // 3. write to disk.
+    int32_t ret = taosLSeekFile(pBuf->pFile, pg->offset, SEEK_SET);
+    if (ret != 0) {
+      terrno = TAOS_SYSTEM_ERROR(errno);
+      return NULL;
+    }
 
-      ret = (int32_t)fwrite(t, 1, size, pBuf->file);
-      if (ret != size) {
-        terrno = TAOS_SYSTEM_ERROR(errno);
-        return NULL;
-      }
+    ret = (int32_t) taosWriteFile(pBuf->pFile, t, size);
+    if (ret != size) {
+      terrno = TAOS_SYSTEM_ERROR(errno);
+      return NULL;
+    }
 
       if (pBuf->fileSize < pg->offset + size) {
         pBuf->fileSize = pg->offset + size;
@@ -210,7 +211,7 @@ static char* flushPageToDisk(SDiskbasedBuf* pBuf, SPageInfo* pg) {
   int32_t ret = TSDB_CODE_SUCCESS;
   assert(((int64_t) pBuf->numOfPages * pBuf->pageSize) == pBuf->totalBufSize && pBuf->numOfPages >= pBuf->inMemPages);
 
-  if (pBuf->file == NULL) {
+  if (pBuf->pFile == NULL) {
     if ((ret = createDiskFile(pBuf)) != TSDB_CODE_SUCCESS) {
       terrno = ret;
       return NULL;
@@ -226,14 +227,14 @@ static char* flushPageToDisk(SDiskbasedBuf* pBuf, SPageInfo* pg) {
 
 // load file block data in disk
 static int32_t loadPageFromDisk(SDiskbasedBuf* pBuf, SPageInfo* pg) {
-  int32_t ret = fseek(pBuf->file, pg->offset, SEEK_SET);
+  int32_t ret = taosLSeekFile(pBuf->pFile, pg->offset, SEEK_SET);
   if (ret != 0) {
     ret = TAOS_SYSTEM_ERROR(errno);
     return ret;
   }
 
   void* pPage = (void*) GET_DATA_PAYLOAD(pg);
-  ret = (int32_t)fread(pPage, 1, pg->length, pBuf->file);
+  ret = (int32_t)taosReadFile(pBuf->pFile, pPage, pg->length);
   if (ret != pg->length) {
     ret = TAOS_SYSTEM_ERROR(errno);
     return ret;
@@ -373,7 +374,7 @@ int32_t createDiskbasedBuf(SDiskbasedBuf** pBuf, int32_t pagesize, int32_t inMem
   pPBuf->inMemPages   = inMemBufSize/pagesize;    // maximum allowed pages, it is a soft limit.
   pPBuf->allocateId   = -1;
   pPBuf->comp         = true;
-  pPBuf->file         = NULL;
+  pPBuf->pFile        = NULL;
   pPBuf->qId          = qId;
   pPBuf->fileSize     = 0;
   pPBuf->pFree        = taosArrayInit(4, sizeof(SFreeListItem));
@@ -538,12 +539,12 @@ void destroyDiskbasedBuf(SDiskbasedBuf* pBuf) {
 
   dBufPrintStatis(pBuf);
 
-  if (pBuf->file != NULL) {
+  if (pBuf->pFile != NULL) {
   uDebug("Paged buffer closed, total:%.2f Kb (%d Pages), inmem size:%.2f Kb (%d Pages), file size:%.2f Kb, page size:%.2f Kb, %"PRIx64"\n",
       pBuf->totalBufSize/1024.0, pBuf->numOfPages, listNEles(pBuf->lruList) * pBuf->pageSize / 1024.0,
       listNEles(pBuf->lruList), pBuf->fileSize/1024.0, pBuf->pageSize/1024.0f, pBuf->qId);
 
-  fclose(pBuf->file);
+  taosCloseFile(&pBuf->pFile);
   } else {
     uDebug("Paged buffer closed, total:%.2f Kb, no file created, %"PRIx64, pBuf->totalBufSize/1024.0, pBuf->qId);
   }

@@ -30,20 +30,20 @@ void tfCleanup();
 
 // the same syntax as UNIX standard open/close/read/write
 // but FD is int64_t and will never be reused
-int64_t tfOpenRead(const char *pathname);
-int64_t tfOpenReadWrite(const char *pathname);
-int64_t tfOpenCreateWrite(const char *pathname);
-int64_t tfOpenCreateWriteAppend(const char *pathname);
+// int64_t tfOpenRead(const char *pathname);
+// int64_t tfOpenReadWrite(const char *pathname);
+// int64_t tfOpenCreateWrite(const char *pathname);
+// int64_t tfOpenCreateWriteAppend(const char *pathname);
 
-int64_t tfClose(int64_t tfd);
-int64_t tfWrite(int64_t tfd, void *buf, int64_t count);
-int64_t tfRead(int64_t tfd, void *buf, int64_t count);
-int64_t tfPread(int64_t tfd, void *buf, int64_t count, int64_t offset);
-int32_t tfFsync(int64_t tfd);
-bool    tfValid(int64_t tfd);
-int64_t tfLseek(int64_t tfd, int64_t offset, int32_t whence);
-int32_t tfFtruncate(int64_t tfd, int64_t length);
-void *  tfMmapReadOnly(int64_t tfd, int64_t length);
+// int64_t tfClose(int64_t tfd);
+// int64_t tfWrite(int64_t tfd, void *buf, int64_t count);
+// int64_t tfRead(int64_t tfd, void *buf, int64_t count);
+// int64_t tfPread(int64_t tfd, void *buf, int64_t count, int64_t offset);
+// int32_t tfFsync(int64_t tfd);
+// bool    tfValid(int64_t tfd);
+// int64_t tfLseek(int64_t tfd, int64_t offset, int32_t whence);
+// int32_t tfFtruncate(int64_t tfd, int64_t length);
+// void *  tfMmapReadOnly(int64_t tfd, int64_t length);
 #ifdef __cplusplus
 }
 #endif

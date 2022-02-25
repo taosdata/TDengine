@@ -150,17 +150,18 @@ void taosGetSystemTimezone(char *outTimezone) {
   localtime_r(&tx1, &tm1);
 
   /* load time zone string from /etc/timezone */
-  FILE *f = fopen("/etc/timezone", "r");
+  // FILE *f = fopen("/etc/timezone", "r");
+  TdFilePtr pFile = taosOpenFile("/etc/timezone", TD_FILE_READ);
   char  buf[68] = {0};
-  if (f != NULL) {
-    int len = fread(buf, 64, 1, f);
-    if (len < 64 && ferror(f)) {
-      fclose(f);
+  if (pFile != NULL) {
+    int len = taosReadFile(pFile, buf, 64);
+    if (len < 64 && taosGetErrorFile(pFile)) {
+      taosCloseFile(&pFile);
       // printf("read /etc/timezone error, reason:%s", strerror(errno));
       return;
     }
 
-    fclose(f);
+    taosCloseFile(&pFile);
 
     buf[sizeof(buf) - 1] = 0;
     char *lineEnd = strstr(buf, "\n");

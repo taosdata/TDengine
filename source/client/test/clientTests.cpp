@@ -53,8 +53,10 @@ TEST(testCase, driverInit_Test) {
 //  taos_init();
 }
 
-#if 0
+#if 1
 TEST(testCase, connect_Test) {
+//  taos_options(TSDB_OPTION_CONFIGDIR, "/home/ubuntu/first/cfg");
+
   TAOS* pConn = taos_connect("localhost", "root", "taosdata", NULL, 0);
   if (pConn == NULL) {
     printf("failed to connect to server, reason:%s\n", taos_errstr(NULL));

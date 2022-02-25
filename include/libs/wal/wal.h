@@ -120,8 +120,8 @@ typedef struct SWal {
   int32_t fsyncSeq;
   // meta
   SWalVer vers;
-  int64_t writeLogTfd;
-  int64_t writeIdxTfd;
+  TdFilePtr pWriteLogTFile;
+  TdFilePtr pWriteIdxTFile;
   int32_t writeCur;
   SArray *fileInfoSet;
   // status
@@ -138,8 +138,8 @@ typedef struct SWal {
 
 typedef struct SWalReadHandle {
   SWal     *pWal;
-  int64_t   readLogTfd;
-  int64_t   readIdxTfd;
+  TdFilePtr pReadLogTFile;
+  TdFilePtr pReadIdxTFile;
   int64_t   curFileFirstVer;
   int64_t   curVersion;
   int64_t   capacity;

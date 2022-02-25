@@ -69,8 +69,6 @@ typedef struct SSlotDescNode {
   ENodeType type;
   int16_t slotId;
   SDataType dataType;
-  int16_t srcTupleId;
-  int16_t srcSlotId;
   bool reserve;
   bool output;
 } SSlotDescNode;
@@ -114,6 +112,20 @@ typedef struct SProjectPhysiNode {
   SPhysiNode node;
   SNodeList* pProjections;
 } SProjectPhysiNode;
+
+typedef struct SJoinPhysiNode {
+  SPhysiNode node;
+  EJoinType joinType;
+  SNode* pOnConditions; // in or out tuple ?
+  SNodeList* pTargets;
+} SJoinPhysiNode;
+
+typedef struct SAggPhysiNode {
+  SPhysiNode node;
+  SNodeList* pExprs;   // these are expression list of group_by_clause and parameter expression of aggregate function
+  SNodeList* pGroupKeys; // SColumnRefNode list
+  SNodeList* pAggFuncs;
+} SAggPhysiNode;
 
 #ifdef __cplusplus
 }
