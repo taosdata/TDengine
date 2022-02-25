@@ -206,113 +206,120 @@ static int32_t taosLoadCfg(SConfig *pCfg, const char *inputCfgDir, const char *e
   return 0;
 }
 
-static void taosAddClientLogCfg(SConfig *pCfg) {
-  cfgAddDir(pCfg, "logDir", tsLogDir, 1);
-  cfgAddFloat(pCfg, "minimalLogDirGB", 1.0f, 0.001f, 10000000, 1);
-  cfgAddInt32(pCfg, "numOfLogLines", tsNumOfLogLines, 1000, 2000000000, 1);
-  cfgAddBool(pCfg, "asyncLog", tsAsyncLog, 1);
-  cfgAddInt32(pCfg, "logKeepDays", 0, -365000, 365000, 1);
-  cfgAddInt32(pCfg, "cDebugFlag", cDebugFlag, 0, 255, 1);
-  cfgAddInt32(pCfg, "uDebugFlag", uDebugFlag, 0, 255, 1);
-  cfgAddInt32(pCfg, "rpcDebugFlag", rpcDebugFlag, 0, 255, 1);
-  cfgAddInt32(pCfg, "tmrDebugFlag", tmrDebugFlag, 0, 255, 1);
-  cfgAddInt32(pCfg, "jniDebugFlag", jniDebugFlag, 0, 255, 1);
-  cfgAddInt32(pCfg, "simDebugFlag", 143, 0, 255, 1);
-  cfgAddDir(pCfg, "configDir", configDir, 1);
-  cfgAddDir(pCfg, "scriptDir", configDir, 1);
-  cfgAddInt32(pCfg, "debugFlag", 0, 0, 255, 1);
+static int32_t taosAddClientLogCfg(SConfig *pCfg) {
+  if (cfgAddDir(pCfg, "logDir", tsLogDir, 1) != 0) return -1;
+  if (cfgAddFloat(pCfg, "minimalLogDirGB", 1.0f, 0.001f, 10000000, 1) != 0) return -1;
+  if (cfgAddInt32(pCfg, "numOfLogLines", tsNumOfLogLines, 1000, 2000000000, 1) != 0) return -1;
+  if (cfgAddBool(pCfg, "asyncLog", tsAsyncLog, 1) != 0) return -1;
+  if (cfgAddInt32(pCfg, "logKeepDays", 0, -365000, 365000, 1) != 0) return -1;
+  if (cfgAddInt32(pCfg, "cDebugFlag", cDebugFlag, 0, 255, 1) != 0) return -1;
+  if (cfgAddInt32(pCfg, "uDebugFlag", uDebugFlag, 0, 255, 1) != 0) return -1;
+  if (cfgAddInt32(pCfg, "rpcDebugFlag", rpcDebugFlag, 0, 255, 1) != 0) return -1;
+  if (cfgAddInt32(pCfg, "tmrDebugFlag", tmrDebugFlag, 0, 255, 1) != 0) return -1;
+  if (cfgAddInt32(pCfg, "jniDebugFlag", jniDebugFlag, 0, 255, 1) != 0) return -1;
+  if (cfgAddInt32(pCfg, "simDebugFlag", 143, 0, 255, 1) != 0) return -1;
+  if (cfgAddDir(pCfg, "configDir", configDir, 1) != 0) return -1;
+  if (cfgAddDir(pCfg, "scriptDir", configDir, 1) != 0) return -1;
+  if (cfgAddInt32(pCfg, "debugFlag", 0, 0, 255, 1) != 0) return -1;
+  return 0;
 }
 
-static void taosAddServerLogCfg(SConfig *pCfg) {
-  cfgAddInt32(pCfg, "dDebugFlag", dDebugFlag, 0, 255, 0);
-  cfgAddInt32(pCfg, "vDebugFlag", vDebugFlag, 0, 255, 0);
-  cfgAddInt32(pCfg, "mDebugFlag", mDebugFlag, 0, 255, 0);
-  cfgAddInt32(pCfg, "qDebugFlag", qDebugFlag, 0, 255, 0);
-  cfgAddInt32(pCfg, "wDebugFlag", wDebugFlag, 0, 255, 0);
-  cfgAddInt32(pCfg, "sDebugFlag", sDebugFlag, 0, 255, 0);
-  cfgAddInt32(pCfg, "tsdbDebugFlag", tsdbDebugFlag, 0, 255, 0);
-  cfgAddInt32(pCfg, "tqDebugFlag", tqDebugFlag, 0, 255, 0);
-  cfgAddInt32(pCfg, "fsDebugFlag", fsDebugFlag, 0, 255, 0);
+static int32_t taosAddServerLogCfg(SConfig *pCfg) {
+  if (cfgAddInt32(pCfg, "dDebugFlag", dDebugFlag, 0, 255, 0) != 0) return -1;
+  if (cfgAddInt32(pCfg, "vDebugFlag", vDebugFlag, 0, 255, 0) != 0) return -1;
+  if (cfgAddInt32(pCfg, "mDebugFlag", mDebugFlag, 0, 255, 0) != 0) return -1;
+  if (cfgAddInt32(pCfg, "qDebugFlag", qDebugFlag, 0, 255, 0) != 0) return -1;
+  if (cfgAddInt32(pCfg, "wDebugFlag", wDebugFlag, 0, 255, 0) != 0) return -1;
+  if (cfgAddInt32(pCfg, "sDebugFlag", sDebugFlag, 0, 255, 0) != 0) return -1;
+  if (cfgAddInt32(pCfg, "tsdbDebugFlag", tsdbDebugFlag, 0, 255, 0) != 0) return -1;
+  if (cfgAddInt32(pCfg, "tqDebugFlag", tqDebugFlag, 0, 255, 0) != 0) return -1;
+  if (cfgAddInt32(pCfg, "fsDebugFlag", fsDebugFlag, 0, 255, 0) != 0) return -1;
+  return 0;
 }
 
-static void taosAddClientCfg(SConfig *pCfg) {
+static int32_t taosAddClientCfg(SConfig *pCfg) {
   char    defaultFqdn[TSDB_FQDN_LEN] = {0};
   int32_t defaultServerPort = 6030;
   char    defaultFirstEp[TSDB_EP_LEN] = {0};
   char    defaultSecondEp[TSDB_EP_LEN] = {0};
-  taosGetFqdn(defaultFqdn);
+
+  if (taosGetFqdn(defaultFqdn) != 0) return -1;
   snprintf(defaultFirstEp, TSDB_EP_LEN, "%s:%d", defaultFqdn, defaultServerPort);
   snprintf(defaultSecondEp, TSDB_EP_LEN, "%s:%d", defaultFqdn, defaultServerPort);
 
-  cfgAddString(pCfg, "firstEp", defaultFirstEp, 1);
-  cfgAddString(pCfg, "secondEp", defaultSecondEp, 1);
-  cfgAddString(pCfg, "fqdn", defaultFqdn, 1);
-  cfgAddInt32(pCfg, "serverPort", defaultServerPort, 1, 65056, 1);
-  cfgAddDir(pCfg, "tempDir", tsTempDir, 1);
-  cfgAddFloat(pCfg, "minimalTempDirGB", 1.0f, 0.001f, 10000000, 1);
-  cfgAddFloat(pCfg, "numOfThreadsPerCore", tsNumOfThreadsPerCore, 0, 10, 1);
-  cfgAddInt32(pCfg, "maxTmrCtrl", tsMaxTmrCtrl, 8, 2048, 1);
-  cfgAddInt32(pCfg, "rpcTimer", tsRpcTimer, 100, 3000, 1);
-  cfgAddInt32(pCfg, "rpcMaxTime", tsRpcMaxTime, 100, 7200, 1);
-  cfgAddBool(pCfg, "rpcForceTcp", tsRpcForceTcp, 1);
-  cfgAddInt32(pCfg, "shellActivityTimer", tsShellActivityTimer, 1, 120, 1);
-  cfgAddInt32(pCfg, "compressMsgSize", tsCompressMsgSize, -1, 100000000, 1);
-  cfgAddInt32(pCfg, "compressColData", tsCompressColData, -1, 100000000, 1);
-  cfgAddInt32(pCfg, "maxWildCardsLength", tsMaxWildCardsLen, 0, TSDB_MAX_FIELD_LEN, 1);
-  cfgAddInt32(pCfg, "maxRegexStringLen", tsMaxRegexStringLen, 0, TSDB_MAX_FIELD_LEN, 1);
-  cfgAddInt32(pCfg, "maxNumOfOrderedRes", tsMaxNumOfOrderedResults, 128, TSDB_MAX_ALLOWED_SQL_LEN, 1);
-  cfgAddBool(pCfg, "keepColumnName", tsKeepOriginalColumnName, 1);
-  cfgAddInt32(pCfg, "maxBinaryDisplayWidth", tsMaxBinaryDisplayWidth, 1, 65536, 1);
+  if (cfgAddString(pCfg, "firstEp", defaultFirstEp, 1) != 0) return -1;
+  if (cfgAddString(pCfg, "secondEp", defaultSecondEp, 1) != 0) return -1;
+  if (cfgAddString(pCfg, "fqdn", defaultFqdn, 1) != 0) return -1;
+  if (cfgAddInt32(pCfg, "serverPort", defaultServerPort, 1, 65056, 1) != 0) return -1;
+  if (cfgAddDir(pCfg, "tempDir", tsTempDir, 1) != 0) return -1;
+  if (cfgAddFloat(pCfg, "minimalTempDirGB", 1.0f, 0.001f, 10000000, 1) != 0) return -1;
+  if (cfgAddFloat(pCfg, "numOfThreadsPerCore", tsNumOfThreadsPerCore, 0, 10, 1) != 0) return -1;
+  if (cfgAddInt32(pCfg, "maxTmrCtrl", tsMaxTmrCtrl, 8, 2048, 1) != 0) return -1;
+  if (cfgAddInt32(pCfg, "rpcTimer", tsRpcTimer, 100, 3000, 1) != 0) return -1;
+  if (cfgAddInt32(pCfg, "rpcMaxTime", tsRpcMaxTime, 100, 7200, 1) != 0) return -1;
+  if (cfgAddBool(pCfg, "rpcForceTcp", tsRpcForceTcp, 1) != 0) return -1;
+  if (cfgAddInt32(pCfg, "shellActivityTimer", tsShellActivityTimer, 1, 120, 1) != 0) return -1;
+  if (cfgAddInt32(pCfg, "compressMsgSize", tsCompressMsgSize, -1, 100000000, 1) != 0) return -1;
+  if (cfgAddInt32(pCfg, "compressColData", tsCompressColData, -1, 100000000, 1) != 0) return -1;
+  if (cfgAddInt32(pCfg, "maxWildCardsLength", tsMaxWildCardsLen, 0, TSDB_MAX_FIELD_LEN, 1) != 0) return -1;
+  if (cfgAddInt32(pCfg, "maxRegexStringLen", tsMaxRegexStringLen, 0, TSDB_MAX_FIELD_LEN, 1) != 0) return -1;
+  if (cfgAddInt32(pCfg, "maxNumOfOrderedRes", tsMaxNumOfOrderedResults, 128, TSDB_MAX_ALLOWED_SQL_LEN, 1) != 0)
+    return -1;
+  if (cfgAddBool(pCfg, "keepColumnName", tsKeepOriginalColumnName, 1) != 0) return -1;
+  if (cfgAddInt32(pCfg, "maxBinaryDisplayWidth", tsMaxBinaryDisplayWidth, 1, 65536, 1) != 0) return -1;
+  return 0;
 }
 
-static void taosAddSystemInfo(SConfig *pCfg) {
+static int32_t taosAddSystemInfo(SConfig *pCfg) {
   SysNameInfo info = taosGetSysNameInfo();
 
-  cfgAddTimezone(pCfg, "timezone", tsTimezone);
-  cfgAddLocale(pCfg, "locale", tsLocale);
-  cfgAddCharset(pCfg, "charset", tsCharset);
-  cfgAddBool(pCfg, "enableCoreFile", 0, 1);
-  cfgAddInt32(pCfg, "numOfCores", tsNumOfCores, 1, 100000, 1);
-  cfgAddInt32(pCfg, "pageSize(KB)", tsPageSize, 0, INT64_MAX, 1);
-  cfgAddInt64(pCfg, "openMax", tsOpenMax, 0, INT64_MAX, 1);
-  cfgAddInt64(pCfg, "streamMax", tsStreamMax, 0, INT64_MAX, 1);
-  cfgAddInt32(pCfg, "totalMemory(MB)", tsTotalMemoryMB, 0, INT32_MAX, 1);
-  cfgAddString(pCfg, "os sysname", info.sysname, 1);
-  cfgAddString(pCfg, "os nodename", info.nodename, 1);
-  cfgAddString(pCfg, "os release", info.release, 1);
-  cfgAddString(pCfg, "os version", info.version, 1);
-  cfgAddString(pCfg, "os machine", info.machine, 1);
-  cfgAddString(pCfg, "os sysname", info.sysname, 1);
+  if (cfgAddTimezone(pCfg, "timezone", tsTimezone) != 0) return -1;
+  if (cfgAddLocale(pCfg, "locale", tsLocale) != 0) return -1;
+  if (cfgAddCharset(pCfg, "charset", tsCharset) != 0) return -1;
+  if (cfgAddBool(pCfg, "enableCoreFile", 0, 1) != 0) return -1;
+  if (cfgAddInt32(pCfg, "numOfCores", tsNumOfCores, 1, 100000, 1) != 0) return -1;
+  if (cfgAddInt32(pCfg, "pageSize(KB)", tsPageSize, 0, INT64_MAX, 1) != 0) return -1;
+  if (cfgAddInt64(pCfg, "openMax", tsOpenMax, 0, INT64_MAX, 1) != 0) return -1;
+  if (cfgAddInt64(pCfg, "streamMax", tsStreamMax, 0, INT64_MAX, 1) != 0) return -1;
+  if (cfgAddInt32(pCfg, "totalMemory(MB)", tsTotalMemoryMB, 0, INT32_MAX, 1) != 0) return -1;
+  if (cfgAddString(pCfg, "os sysname", info.sysname, 1) != 0) return -1;
+  if (cfgAddString(pCfg, "os nodename", info.nodename, 1) != 0) return -1;
+  if (cfgAddString(pCfg, "os release", info.release, 1) != 0) return -1;
+  if (cfgAddString(pCfg, "os version", info.version, 1) != 0) return -1;
+  if (cfgAddString(pCfg, "os machine", info.machine, 1) != 0) return -1;
+  if (cfgAddString(pCfg, "os sysname", info.sysname, 1) != 0) return -1;
 
-  cfgAddString(pCfg, "version", version, 1);
-  cfgAddString(pCfg, "compatible_version", compatible_version, 1);
-  cfgAddString(pCfg, "gitinfo", gitinfo, 1);
-  cfgAddString(pCfg, "gitinfoOfInternal", gitinfoOfInternal, 1);
-  cfgAddString(pCfg, "buildinfo", buildinfo, 1);
+  if (cfgAddString(pCfg, "version", version, 1) != 0) return -1;
+  if (cfgAddString(pCfg, "compatible_version", compatible_version, 1) != 0) return -1;
+  if (cfgAddString(pCfg, "gitinfo", gitinfo, 1) != 0) return -1;
+  if (cfgAddString(pCfg, "gitinfoOfInternal", gitinfoOfInternal, 1) != 0) return -1;
+  if (cfgAddString(pCfg, "buildinfo", buildinfo, 1) != 0) return -1;
+  return 0;
 }
 
-static void taosAddServerCfg(SConfig *pCfg) {
-  cfgAddInt32(pCfg, "supportVnodes", 256, 0, 65536, 0);
-  cfgAddDir(pCfg, "dataDir", tsDataDir, 0);
-  cfgAddFloat(pCfg, "minimalDataDirGB", 2.0f, 0.001f, 10000000, 0);
-  cfgAddInt32(pCfg, "numOfCommitThreads", tsNumOfCommitThreads, 1, 100, 0);
-  cfgAddFloat(pCfg, "ratioOfQueryCores", tsRatioOfQueryCores, 0, 2, 0);
-  cfgAddInt32(pCfg, "maxNumOfDistinctRes", tsMaxNumOfDistinctResults, 10 * 10000, 10000 * 10000, 0);
-  cfgAddBool(pCfg, "telemetryReporting", tsEnableTelemetryReporting, 0);
-  cfgAddInt32(pCfg, "maxConnections", tsMaxConnections, 1, 100000, 0);
-  cfgAddInt32(pCfg, "maxShellConns", tsMaxShellConns, 10, 50000000, 0);
-  cfgAddInt32(pCfg, "statusInterval", tsStatusInterval, 1, 30, 0);
-  cfgAddInt32(pCfg, "minSlidingTime", tsMinSlidingTime, 10, 1000000, 0);
-  cfgAddInt32(pCfg, "minIntervalTime", tsMinIntervalTime, 1, 1000000, 0);
-  cfgAddInt32(pCfg, "maxStreamCompDelay", tsMaxStreamComputDelay, 10, 1000000000, 0);
-  cfgAddInt32(pCfg, "maxFirstStreamCompDelay", tsStreamCompStartDelay, 1000, 1000000000, 0);
-  cfgAddInt32(pCfg, "retryStreamCompDelay", tsRetryStreamCompDelay, 10, 1000000000, 0);
-  cfgAddFloat(pCfg, "streamCompDelayRatio", tsStreamComputDelayRatio, 0.1, 0.9, 0);
-  cfgAddInt32(pCfg, "queryBufferSize", tsQueryBufferSize, -1, 500000000000, 0);
-  cfgAddBool(pCfg, "retrieveBlockingModel", tsRetrieveBlockingModel, 0);
-  cfgAddBool(pCfg, "printAuth", tsPrintAuth, 0);
-  cfgAddBool(pCfg, "slaveQuery", tsEnableSlaveQuery, 0);
-  cfgAddBool(pCfg, "deadLockKillQuery", tsDeadLockKillQuery, 0);
+static int32_t taosAddServerCfg(SConfig *pCfg) {
+  if (cfgAddInt32(pCfg, "supportVnodes", 256, 0, 65536, 0) != 0) return -1;
+  if (cfgAddDir(pCfg, "dataDir", tsDataDir, 0) != 0) return -1;
+  if (cfgAddFloat(pCfg, "minimalDataDirGB", 2.0f, 0.001f, 10000000, 0) != 0) return -1;
+  if (cfgAddInt32(pCfg, "numOfCommitThreads", tsNumOfCommitThreads, 1, 100, 0) != 0) return -1;
+  if (cfgAddFloat(pCfg, "ratioOfQueryCores", tsRatioOfQueryCores, 0, 2, 0) != 0) return -1;
+  if (cfgAddInt32(pCfg, "maxNumOfDistinctRes", tsMaxNumOfDistinctResults, 10 * 10000, 10000 * 10000, 0) != 0) return -1;
+  if (cfgAddBool(pCfg, "telemetryReporting", tsEnableTelemetryReporting, 0) != 0) return -1;
+  if (cfgAddInt32(pCfg, "maxConnections", tsMaxConnections, 1, 100000, 0) != 0) return -1;
+  if (cfgAddInt32(pCfg, "maxShellConns", tsMaxShellConns, 10, 50000000, 0) != 0) return -1;
+  if (cfgAddInt32(pCfg, "statusInterval", tsStatusInterval, 1, 30, 0) != 0) return -1;
+  if (cfgAddInt32(pCfg, "minSlidingTime", tsMinSlidingTime, 10, 1000000, 0) != 0) return -1;
+  if (cfgAddInt32(pCfg, "minIntervalTime", tsMinIntervalTime, 1, 1000000, 0) != 0) return -1;
+  if (cfgAddInt32(pCfg, "maxStreamCompDelay", tsMaxStreamComputDelay, 10, 1000000000, 0) != 0) return -1;
+  if (cfgAddInt32(pCfg, "maxFirstStreamCompDelay", tsStreamCompStartDelay, 1000, 1000000000, 0) != 0) return -1;
+  if (cfgAddInt32(pCfg, "retryStreamCompDelay", tsRetryStreamCompDelay, 10, 1000000000, 0) != 0) return -1;
+  if (cfgAddFloat(pCfg, "streamCompDelayRatio", tsStreamComputDelayRatio, 0.1, 0.9, 0) != 0) return -1;
+  if (cfgAddInt32(pCfg, "queryBufferSize", tsQueryBufferSize, -1, 500000000000, 0) != 0) return -1;
+  if (cfgAddBool(pCfg, "retrieveBlockingModel", tsRetrieveBlockingModel, 0) != 0) return -1;
+  if (cfgAddBool(pCfg, "printAuth", tsPrintAuth, 0) != 0) return -1;
+  if (cfgAddBool(pCfg, "slaveQuery", tsEnableSlaveQuery, 0) != 0) return -1;
+  if (cfgAddBool(pCfg, "deadLockKillQuery", tsDeadLockKillQuery, 0) != 0) return -1;
+  return 0;
 }
 
 static void taosSetClientLogCfg(SConfig *pCfg) {
@@ -421,10 +428,10 @@ int32_t taosCreateLog(const char *logname, int32_t logFileNum, const char *cfgDi
   if (pCfg == NULL) return -1;
 
   if (tsc) {
-    taosAddClientLogCfg(pCfg);
+    if (taosAddClientLogCfg(pCfg) != 0) return -1;
   } else {
-    taosAddClientLogCfg(pCfg);
-    taosAddServerLogCfg(pCfg);
+    if (taosAddClientLogCfg(pCfg) != 0) return -1;
+    if (taosAddServerLogCfg(pCfg) != 0) return -1;
   }
 
   if (taosLoadCfg(pCfg, cfgDir, envFile, apolloUrl) != 0) {
@@ -442,7 +449,6 @@ int32_t taosCreateLog(const char *logname, int32_t logFileNum, const char *cfgDi
 
   taosSetAllDebugFlag(cfgGetItem(pCfg, "debugFlag")->i32);
 
-
   if (taosInitLog(logname, logFileNum) != 0) {
     printf("failed to init log file since %s\n", terrstr());
     cfgCleanup(pCfg);
@@ -458,13 +464,13 @@ int32_t taosInitCfg(const char *cfgDir, const char *envFile, const char *apolloU
   tsCfg = cfgInit();
 
   if (tsc) {
-    taosAddClientLogCfg(tsCfg);
-    taosAddClientCfg(tsCfg);
+    if (taosAddClientLogCfg(tsCfg) != 0) return -1;
+    if (taosAddClientCfg(tsCfg) != 0) return -1;
   } else {
-    taosAddClientLogCfg(tsCfg);
-    taosAddServerLogCfg(tsCfg);
-    taosAddClientCfg(tsCfg);
-    taosAddServerCfg(tsCfg);
+    if (taosAddClientLogCfg(tsCfg) != 0) return -1;
+    if (taosAddServerLogCfg(tsCfg) != 0) return -1;
+    if (taosAddClientCfg(tsCfg) != 0) return -1;
+    if (taosAddServerCfg(tsCfg) != 0) return -1;
   }
   taosAddSystemInfo(tsCfg);
 

@@ -70,8 +70,12 @@ int32_t cfgLoadArray(SConfig *pCfg, SArray *pArgs) {
   int32_t size = taosArrayGetSize(pArgs);
   for (int32_t i = 0; i < size; ++i) {
     SConfigPair *pPair = taosArrayGet(pArgs, i);
-    cfgSetItem(pCfg, pPair->name, pPair->value, CFG_STYPE_ARG_LIST);
+    if (cfgSetItem(pCfg, pPair->name, pPair->value, CFG_STYPE_ARG_LIST) != 0) {
+      return -1;
+    }
   }
+
+  return 0;
 }
 
 void cfgCleanup(SConfig *pCfg) {
