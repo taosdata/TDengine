@@ -198,7 +198,7 @@ int32_t queryCreateTableMetaFromMsg(STableMetaRsp *msg, bool isSuperTable, STabl
 }
 
 int32_t queryProcessTableMetaRsp(void *output, char *msg, int32_t msgSize) {
-  int32_t       code = -1;
+  int32_t       code = 0;
   STableMetaRsp metaRsp = {0};
 
   if (NULL == output || NULL == msg || msgSize <= 0) {
@@ -216,7 +216,7 @@ int32_t queryProcessTableMetaRsp(void *output, char *msg, int32_t msgSize) {
     goto PROCESS_META_OVER;
   }
 
-  if (!tIsValidSchema(metaRsp.pSchemas, metaRsp.numOfColumns, metaRsp.numOfTags)) {
+  if (0 != strcmp(metaRsp.dbFName, TSDB_INFORMATION_SCHEMA_DB) && !tIsValidSchema(metaRsp.pSchemas, metaRsp.numOfColumns, metaRsp.numOfTags)) {
     code = TSDB_CODE_TSC_INVALID_VALUE;
     goto PROCESS_META_OVER;
   }

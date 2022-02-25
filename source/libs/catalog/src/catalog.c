@@ -509,7 +509,7 @@ int32_t ctgIsTableMetaExistInCache(SCatalog* pCtg, char *dbFName, char* tbName, 
 }
 
 
-int32_t ctgGetTableMetaFromCache(SCatalog* pCtg, const SName* pTableName, STableMeta** pTableMeta, int32_t *exist) {
+int32_t ctgGetTableMetaFromCache(SCatalog* pCtg, const SName* pTableName, STableMeta** pTableMeta, int32_t *exist, int32_t flag) {
   if (NULL == pCtg->dbCache) {
     *exist = 0;
     ctgWarn("empty tbmeta cache, tbName:%s", pTableName->tname);
@@ -517,7 +517,11 @@ int32_t ctgGetTableMetaFromCache(SCatalog* pCtg, const SName* pTableName, STable
   }
 
   char dbFName[TSDB_DB_FNAME_LEN] = {0};
-  tNameGetFullDbName(pTableName, dbFName);
+  if (CTG_IS_INF_DB(flag)) {
+    strcpy(dbFName, pTableName->dbname);
+  } else {
+    tNameGetFullDbName(pTableName, dbFName);
+  }
 
   *pTableMeta = NULL;
 
@@ -590,15 +594,19 @@ int32_t ctgGetTableMetaFromCache(SCatalog* pCtg, const SName* pTableName, STable
   return TSDB_CODE_SUCCESS;
 }
 
-int32_t ctgGetTableTypeFromCache(SCatalog* pCtg, const SName* pTableName, int32_t *tbType) {
+int32_t ctgGetTableTypeFromCache(SCatalog* pCtg, const SName* pTableName, int32_t *tbType, int32_t flag) {
   if (NULL == pCtg->dbCache) {
     ctgWarn("empty db cache, tbName:%s", pTableName->tname);  
     return TSDB_CODE_SUCCESS;
   }
 
   char dbFName[TSDB_DB_FNAME_LEN] = {0};
-  tNameGetFullDbName(pTableName, dbFName);
-
+  if (CTG_IS_INF_DB(flag)) {
+    strcpy(dbFName, pTableName->dbname);
+  } else {
+    tNameGetFullDbName(pTableName, dbFName);
+  }
+  
   SCtgDBCache *dbCache = NULL;
   ctgAcquireDBCache(pCtg, dbFName, &dbCache);
   if (NULL == dbCache) {
@@ -1078,6 +1086,10 @@ int32_t ctgAddNewDBCache(SCatalog *pCtg, const char *dbFName, uint64_t dbId) {
 
   ctgDebug("db added to cache, dbFName:%s, dbId:%"PRIx64, dbFName, dbId);
 
+  if (CTG_IS_INF_DBNAME(dbFName)) {
+    return TSDB_CODE_SUCCESS;
+  }
+
   CTG_ERR_RET(ctgMetaRentAdd(&pCtg->dbRent, &vgVersion, dbId, sizeof(SDbVgVersion)));
 
   ctgDebug("db added to rent, dbFName:%s, vgVersion:%d, dbId:%"PRIx64, dbFName, vgVersion.vgVersion, dbId);
@@ -1544,8 +1556,12 @@ int32_t ctgGetTableMeta(SCatalog* pCtg, void *pRpc, const SEpSet* pMgmtEps, cons
   int32_t exist = 0;
   int32_t code = 0;
 
-  if ((!forceUpdate) || (CTG_IS_INF_DBNAME(pTableName))) {
-    CTG_ERR_RET(ctgGetTableMetaFromCache(pCtg, pTableName, pTableMeta, &exist));
+  if (CTG_IS_INF_DBNAME(pTableName->dbname)) {
+    CTG_SET_INF_DB(flag);
+  }
+
+  if ((!forceUpdate) || (CTG_IS_INF_DB(flag))) {
+    CTG_ERR_RET(ctgGetTableMetaFromCache(pCtg, pTableName, pTableMeta, &exist, flag));
 
     if (exist && CTG_TBTYPE_MATCH(flag, (*pTableMeta)->tableType)) {
       return TSDB_CODE_SUCCESS;
@@ -1555,7 +1571,7 @@ int32_t ctgGetTableMeta(SCatalog* pCtg, void *pRpc, const SEpSet* pMgmtEps, cons
   } else if (CTG_IS_UNKNOWN_STB(flag)) {
     int32_t tbType = 0;
     
-    CTG_ERR_RET(ctgGetTableTypeFromCache(pCtg, pTableName, &tbType));
+    CTG_ERR_RET(ctgGetTableTypeFromCache(pCtg, pTableName, &tbType, flag));
 
     CTG_SET_STB(flag, tbType);
   }
@@ -1588,7 +1604,7 @@ int32_t ctgGetTableMeta(SCatalog* pCtg, void *pRpc, const SEpSet* pMgmtEps, cons
     SName stbName = *pTableName;
     strcpy(stbName.tname, output->tbName);
     
-    CTG_ERR_JRET(ctgGetTableMetaFromCache(pCtg, &stbName, pTableMeta, &exist));
+    CTG_ERR_JRET(ctgGetTableMetaFromCache(pCtg, &stbName, pTableMeta, &exist, flag));
     if (0 == exist) {
       ctgDebug("stb no longer exist, dbFName:%s, tbName:%s", output->dbFName, pTableName->tname);
       continue;
@@ -1669,6 +1685,11 @@ int32_t ctgActUpdateTbl(SCtgMetaAction *action) {
     CTG_ERR_JRET(TSDB_CODE_CTG_INTERNAL_ERROR);
   }    
 
+  char *p = strchr(output->dbFName, '.');
+  if (p && CTG_IS_INF_DBNAME(p + 1)) {
+    memmove(output->dbFName, p + 1, strlen(p + 1));
+  }
+  
   CTG_ERR_JRET(ctgGetAddDBCache(pCtg, output->dbFName, output->dbId, &dbCache));
   if (NULL == dbCache) {
     ctgInfo("conflict db update, ignore this update, dbFName:%s, dbId:%"PRIx64, output->dbFName, output->dbId);
@@ -2232,6 +2253,11 @@ int32_t catalogGetTableDistVgInfo(SCatalog* pCtg, void *pRpc, const SEpSet* pMgm
   if (NULL == pCtg || NULL == pRpc || NULL == pMgmtEps || NULL == pTableName || NULL == pVgList) {
     CTG_API_LEAVE(TSDB_CODE_CTG_INVALID_INPUT);
   }
+
+  if (CTG_IS_INF_DBNAME(pTableName->dbname)) {
+    ctgError("no valid vgInfo for db, dbname:%s", pTableName->dbname);
+    CTG_API_LEAVE(TSDB_CODE_CTG_INVALID_INPUT);
+  }
   
   STableMeta *tbMeta = NULL;
   int32_t code = 0;
@@ -2315,6 +2341,11 @@ _return:
 
 int32_t catalogGetTableHashVgroup(SCatalog *pCtg, void *pTrans, const SEpSet *pMgmtEps, const SName *pTableName, SVgroupInfo *pVgroup) {
   CTG_API_ENTER();
+
+  if (CTG_IS_INF_DBNAME(pTableName->dbname)) {
+    ctgError("no valid vgInfo for db, dbname:%s", pTableName->dbname);
+    CTG_API_LEAVE(TSDB_CODE_CTG_INVALID_INPUT);
+  }
 
   SCtgDBCache* dbCache = NULL;
   int32_t code = 0;

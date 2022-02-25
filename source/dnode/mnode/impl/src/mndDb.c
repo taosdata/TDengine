@@ -937,7 +937,8 @@ static int32_t mndProcessUseDbReq(SMnodeMsg *pReq) {
     goto USE_DB_OVER;
   }
 
-  if (0 == strcmp(usedbReq.db, TSDB_INFORMATION_SCHEMA_DB)) {
+  char *p = strchr(usedbReq.db, '.');
+  if (p && 0 == strcmp(p + 1, TSDB_INFORMATION_SCHEMA_DB)) {
     memcpy(usedbRsp.db, usedbReq.db, TSDB_DB_FNAME_LEN);
   } else {
     pDb = mndAcquireDb(pMnode, usedbReq.db);

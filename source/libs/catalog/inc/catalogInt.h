@@ -198,11 +198,12 @@ typedef struct SCtgAction {
 #define CTG_IS_NOT_STB(_flag) ((_flag) & CTG_FLAG_NOT_STB)
 #define CTG_IS_UNKNOWN_STB(_flag) ((_flag) & CTG_FLAG_UNKNOWN_STB)
 #define CTG_IS_INF_DB(_flag) ((_flag) & CTG_FLAG_INF_DB)
+#define CTG_SET_INF_DB(_flag) ((_flag) |= CTG_FLAG_INF_DB)
 #define CTG_SET_STB(_flag, tbType) do { (_flag) |= ((tbType) == TSDB_SUPER_TABLE) ? CTG_FLAG_STB : ((tbType) > TSDB_SUPER_TABLE ? CTG_FLAG_NOT_STB : CTG_FLAG_UNKNOWN_STB); } while (0)
 #define CTG_GEN_STB_FLAG(_isStb) ((_isStb) == 1) ? CTG_FLAG_STB : ((_isStb) == 0 ? CTG_FLAG_NOT_STB : CTG_FLAG_UNKNOWN_STB)
 #define CTG_TBTYPE_MATCH(_flag, tbType) (CTG_IS_UNKNOWN_STB(_flag) || (CTG_IS_STB(_flag) && (tbType) == TSDB_SUPER_TABLE) || (CTG_IS_NOT_STB(_flag) && (tbType) != TSDB_SUPER_TABLE))
 
-#define CTG_IS_INF_DBNAME(_sname) ((_sname)->dbname[0] == 'i' && 0 == strcmp((_sname)->dbname, TSDB_INFORMATION_SCHEMA_DB))
+#define CTG_IS_INF_DBNAME(_dbname) ((*(_dbname) == 'i') && (0 == strcmp(_dbname, TSDB_INFORMATION_SCHEMA_DB)))
 
 #define CTG_META_SIZE(pMeta) (sizeof(STableMeta) + ((pMeta)->tableInfo.numOfTags + (pMeta)->tableInfo.numOfColumns) * sizeof(SSchema))
 
