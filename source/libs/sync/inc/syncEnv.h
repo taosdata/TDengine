@@ -13,4 +13,35 @@
  * along with this program. If not, see <http://www.gnu.org/licenses/>.
  */
 
-#include "syncOnMessage.h"
+#ifndef _TD_LIBS_SYNC_ENV_H
+#define _TD_LIBS_SYNC_ENV_H
+
+#ifdef __cplusplus
+extern "C" {
+#endif
+
+#include <stdint.h>
+#include <stdio.h>
+#include <stdlib.h>
+#include "syncInt.h"
+#include "taosdef.h"
+#include "trpc.h"
+
+typedef struct SSyncEnv {
+  void *pTimer;
+  void *pTimerManager;
+} SSyncEnv;
+
+int32_t syncEnvStart();
+
+int32_t syncEnvStop();
+
+static int32_t doSyncEnvStart(SSyncEnv *pSyncEnv);
+
+static int32_t doSyncEnvStop(SSyncEnv *pSyncEnv);
+
+#ifdef __cplusplus
+}
+#endif
+
+#endif /*_TD_LIBS_SYNC_ENV_H*/

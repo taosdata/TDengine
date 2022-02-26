@@ -13,4 +13,21 @@
  * along with this program. If not, see <http://www.gnu.org/licenses/>.
  */
 
-#include "syncOnMessage.h"
+#ifndef _TD_LIBS_SYNC_VOTG_MGR_H
+#define _TD_LIBS_SYNC_VOTG_MGR_H
+
+#ifdef __cplusplus
+extern "C" {
+#endif
+
+#include <stdint.h>
+#include <stdio.h>
+#include <stdlib.h>
+#include "syncInt.h"
+#include "taosdef.h"
+
+#ifdef __cplusplus
+}
+#endif
+
+#endif /*_TD_LIBS_SYNC_VOTG_MGR_H*/

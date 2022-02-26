@@ -23,8 +23,11 @@ extern "C" {
 #include <stdint.h>
 #include <stdio.h>
 #include <stdlib.h>
-#include "syncMessage.h"
+#include "sync.h"
 #include "taosdef.h"
+#include "tlog.h"
+
+extern int32_t sDebugFlag;
 
 #define sFatal(...)                                        \
   {                                                        \
@@ -64,6 +67,25 @@ extern "C" {
   }
 
 struct SRaft;
+typedef struct SRaft SRaft;
+
+struct SyncPing;
+typedef struct SyncPing SyncPing;
+
+struct SyncPingReply;
+typedef struct SyncPingReply SyncPingReply;
+
+struct SyncRequestVote;
+typedef struct SyncRequestVote SyncRequestVote;
+
+struct SyncRequestVoteReply;
+typedef struct SyncRequestVoteReply SyncRequestVoteReply;
+
+struct SyncAppendEntries;
+typedef struct SyncAppendEntries SyncAppendEntries;
+
+struct SyncAppendEntriesReply;
+typedef struct SyncAppendEntriesReply SyncAppendEntriesReply;
 
 typedef struct SSyncNode {
   int8_t replica;
@@ -73,7 +95,7 @@ typedef struct SSyncNode {
   SSyncCfg    syncCfg;
   char        path[TSDB_FILENAME_LEN];
 
-  struct SRaft* pRaft;
+  SRaft* pRaft;
 
   int32_t (*FpPing)(struct SSyncNode* ths, const SyncPing* pMsg);
 
@@ -116,6 +138,8 @@ static int32_t doSyncNodeAppendEntries(struct SSyncNode* ths, const SyncAppendEn
 static int32_t onSyncNodeAppendEntries(struct SSyncNode* ths, SyncAppendEntries* pMsg);
 
 static int32_t onSyncNodeAppendEntriesReply(struct SSyncNode* ths, SyncAppendEntriesReply* pMsg);
+
+
 
 #ifdef __cplusplus
 }

@@ -13,4 +13,24 @@
  * along with this program. If not, see <http://www.gnu.org/licenses/>.
  */
 
-#include "syncOnMessage.h"
+#include "syncEnv.h"
+#include <assert.h>
+
+SSyncEnv *gSyncEnv = NULL;
+
+int32_t syncEnvStart() {
+  int32_t ret;
+  gSyncEnv = (SSyncEnv *)malloc(sizeof(SSyncEnv));
+  assert(gSyncEnv != NULL);
+  ret = doSyncEnvStart(gSyncEnv);
+  return ret;
+}
+
+int32_t syncEnvStop() {
+  int32_t ret = doSyncEnvStop(gSyncEnv);
+  return ret;
+}
+
+static int32_t doSyncEnvStart(SSyncEnv *pSyncEnv) { return 0; }
+
+static int32_t doSyncEnvStop(SSyncEnv *pSyncEnv) { return 0; }

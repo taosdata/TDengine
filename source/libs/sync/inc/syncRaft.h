@@ -28,7 +28,7 @@ extern "C" {
 #include "taosdef.h"
 
 typedef struct SRaftId {
-  SyncNodeId  nodeId;
+  SyncNodeId  addr;
   SyncGroupId vgId;
 } SRaftId;
 
