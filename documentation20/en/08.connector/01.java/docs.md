@@ -54,18 +54,16 @@ INSERT INTO test.t1 USING test.weather (ts, temperature) TAGS('beijing') VALUES(
 
 ## JDBC driver version and supported TDengine and JDK versions
 
-| taos-jdbcdriver | TDengine           | JDK    |
-| --------------- |--------------------|--------|
-| 2.0.36          | 2.4.0 and above    | 1.8.x  |
-| 2.0.35          | 2.3.0 and above    | 1.8.x  |
-| 2.0.33 - 2.0.34 | 2.0.3.0 and above  | 1.8.x  |
-| 2.0.31 - 2.0.32 | 2.1.3.0 and above  | 1.8.x  |
-| 2.0.22 - 2.0.30 | 2.0.18.0 - 2.1.2.x | 1.8.x  |
-| 2.0.12 - 2.0.21 | 2.0.8.0 - 2.0.17.x | 1.8.x  |
-| 2.0.4 - 2.0.11  | 2.0.0.0 - 2.0.7.x  | 1.8.x  |
-| 1.0.3           | 1.6.1.x and above  | 1.8.x  |
-| 1.0.2           | 1.6.1.x and above  | 1.8.x  |
-| 1.0.1           | 1.6.1.x and above  | 1.8.x  |
+| taos-jdbcdriver version | TDengine 2.0.x.x version | TDengine 2.2.x.x version | TDengine 2.4.x.x version | JDK version |
+|---------------------| ----------------------| ----------------------| ----------------------| -------- |
+| 2.0.37              |            X          |            X          | 2.4.0.6 以上           | 1.8.x    |
+| 2.0.36              |            X          | 2.2.2.11 以上          | 2.4.0.0 - 2.4.0.5     | 1.8.x    |
+| 2.0.35              |            X          | 2.2.2.11 以上          | 2.3.0.0 - 2.4.0.5     | 1.8.x    |
+| 2.0.33 - 2.0.34     | 2.0.3.0 以上           | 2.2.0.0 以上           | 2.4.0.0 - 2.4.0.5     | 1.8.x    |
+| 2.0.31 - 2.0.32     | 2.1.3.0 - 2.1.7.7     |            X          |            X          | 1.8.x    |
+| 2.0.22 - 2.0.30     | 2.0.18.0 - 2.1.2.1    |            X          |            X          | 1.8.x    |
+| 2.0.12 - 2.0.21     | 2.0.8.0 - 2.0.17.4    |            X          |            X          | 1.8.x    |
+| 2.0.4 - 2.0.11      | 2.0.0.0 - 2.0.7.3     |            X          |            X          | 1.8.x    |
 
 ## DataType in TDengine and Java connector
 
