@@ -70,7 +70,7 @@ INSERT INTO test.t1 USING test.weather (ts, temperature) TAGS('beijing') VALUES(
 The TDengine supports the following data types and Java data types:
 
 | TDengine DataType | JDBCType (driver version < 2.0.24) | JDBCType (driver version >= 2.0.24) |
-|-------------------|------------------------------------| ----------------------------------- |
+| ----------------- | ---------------------------------- | ----------------------------------- |
 | TIMESTAMP         | java.lang.Long                     | java.sql.Timestamp                  |
 | INT               | java.lang.Integer                  | java.lang.Integer                   |
 | BIGINT            | java.lang.Long                     | java.lang.Long                      |
@@ -312,7 +312,8 @@ The Java connector may report three types of error codes: JDBC Driver (error cod
 
 ### Write data through parameter binding
 Starting with version 2.1.2.0, TDengine's JDBC-JNI implementation significantly improves support for data write (INSERT) scenarios with Parameter-Binding. When writing data in this way, you can avoid the resource consumption of SQL parsing, which can significantly improve write performance in many cases.
-Note:
+
+**Note**:
 * Jdbc-restful implementations do not provide Parameter-Binding
 * The following sample code is based on taos-jdbcdriver-2.0.36
 * use setString to bind BINARY data, and use setNString to bind NCHAR data
@@ -320,6 +321,7 @@ Note:
 
 
 Sample Code:
+
 ```java
 public class ParameterBindingDemo {
  
@@ -578,12 +580,15 @@ public void setNString(int columnIndex, ArrayList<String> list, int size) throws
 ```
 
 ### Data Writing via Schemaless
+
 Starting with version 2.2.0.0, TDengine supports schemaless function. schemaless writing protocol is compatible with InfluxDB's Line Protocol, OpenTSDB's telnet and JSON format protocols, Please see [Schemaless Writing](https://www.taosdata.com/docs/en/v2.0/insert#schemaless)
-Note:
+
+**Note**:
 * Jdbc-restful implementations do not provide Schemaless-Writing
 * The following sample code is based on taos-jdbcdriver-2.0.36
 
 Sample Code:
+
 ```java
 public class SchemalessInsertTest {
     private static final String host = "127.0.0.1";
@@ -614,14 +619,16 @@ public class SchemalessInsertTest {
 ```
 
 ### Set client configuration in JDBC
+
 Starting with TDengine-2.3.5.0, JDBC Driver supports setting TDengine client parameters on the first connection of a Java application. The Driver supports jdbcUrl and Properties to set client parameters in JDBC-JNI mode.
 
-Note:
+**Note**:
 * JDBC-RESTful does not support setting client parameters.
 * The client parameters set in the java application are process-level. To update the client parameters, the application needs to be restarted. This is because these client parameters are global that take effect the first time the application is set up.
 * The following sample code is based on taos-jdbcdriver-2.0.36.
 
 Sample Code:
+
 ```java
 public class ClientParameterSetting {
     private static final String host = "127.0.0.1";

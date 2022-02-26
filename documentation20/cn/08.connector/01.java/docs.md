@@ -56,15 +56,15 @@ INSERT INTO test.t1 USING test.weather (ts, temperature) TAGS('beijing') VALUES(
 ## <a class="anchor" id="version"></a>TAOS-JDBCDriver 版本以及支持的 TDengine 版本和 JDK 版本
 
 | taos-jdbcdriver 版本 | TDengine 2.0.x.x 版本 | TDengine 2.2.x.x 版本 | TDengine 2.4.x.x 版本 | JDK 版本 |
-|---------------------| ----------------------| ----------------------| ----------------------| -------- |
-| 2.0.37              |            X          |            X          | 2.4.0.6 以上           | 1.8.x    |
-| 2.0.36              |            X          | 2.2.2.11 以上          | 2.4.0.0 - 2.4.0.5     | 1.8.x    |
-| 2.0.35              |            X          | 2.2.2.11 以上          | 2.3.0.0 - 2.4.0.5     | 1.8.x    |
-| 2.0.33 - 2.0.34     | 2.0.3.0 以上           | 2.2.0.0 以上           | 2.4.0.0 - 2.4.0.5     | 1.8.x    |
-| 2.0.31 - 2.0.32     | 2.1.3.0 - 2.1.7.7     |            X          |            X          | 1.8.x    |
-| 2.0.22 - 2.0.30     | 2.0.18.0 - 2.1.2.1    |            X          |            X          | 1.8.x    |
-| 2.0.12 - 2.0.21     | 2.0.8.0 - 2.0.17.4    |            X          |            X          | 1.8.x    |
-| 2.0.4 - 2.0.11      | 2.0.0.0 - 2.0.7.3     |            X          |            X          | 1.8.x    |
+| -------------------- | --------------------- | --------------------- | --------------------- | -------- |
+| 2.0.37               | X                     | X                     | 2.4.0.6 以上          | 1.8.x    |
+| 2.0.36               | X                     | 2.2.2.11 以上         | 2.4.0.0 - 2.4.0.5     | 1.8.x    |
+| 2.0.35               | X                     | 2.2.2.11 以上         | 2.3.0.0 - 2.4.0.5     | 1.8.x    |
+| 2.0.33 - 2.0.34      | 2.0.3.0 以上          | 2.2.0.0 以上          | 2.4.0.0 - 2.4.0.5     | 1.8.x    |
+| 2.0.31 - 2.0.32      | 2.1.3.0 - 2.1.7.7     | X                     | X                     | 1.8.x    |
+| 2.0.22 - 2.0.30      | 2.0.18.0 - 2.1.2.1    | X                     | X                     | 1.8.x    |
+| 2.0.12 - 2.0.21      | 2.0.8.0 - 2.0.17.4    | X                     | X                     | 1.8.x    |
+| 2.0.4 - 2.0.11       | 2.0.0.0 - 2.0.7.3     | X                     | X                     | 1.8.x    |
 
 
 ## TDengine DataType 和 Java DataType
@@ -72,18 +72,18 @@ INSERT INTO test.t1 USING test.weather (ts, temperature) TAGS('beijing') VALUES(
 TDengine 目前支持时间戳、数字、字符、布尔类型，与 Java 对应类型转换如下：
 
 | TDengine DataType | JDBCType （driver 版本 < 2.0.24） | JDBCType （driver 版本 >= 2.0.24） |
-|-------------------|-------------------------------| ------------------ |
-| TIMESTAMP         | java.lang.Long                | java.sql.Timestamp |
-| INT               | java.lang.Integer             | java.lang.Integer  |
-| BIGINT            | java.lang.Long                | java.lang.Long     |
-| FLOAT             | java.lang.Float               | java.lang.Float    |
-| DOUBLE            | java.lang.Double              | java.lang.Double   |
-| SMALLINT          | java.lang.Short               | java.lang.Short    |
-| TINYINT           | java.lang.Byte                | java.lang.Byte     |
-| BOOL              | java.lang.Boolean             | java.lang.Boolean  |
-| BINARY            | java.lang.String              | byte array         |
-| NCHAR             | java.lang.String              | java.lang.String   |
-| JSON              | -                             | java.lang.String   |
+| ----------------- | --------------------------------- | ---------------------------------- |
+| TIMESTAMP         | java.lang.Long                    | java.sql.Timestamp                 |
+| INT               | java.lang.Integer                 | java.lang.Integer                  |
+| BIGINT            | java.lang.Long                    | java.lang.Long                     |
+| FLOAT             | java.lang.Float                   | java.lang.Float                    |
+| DOUBLE            | java.lang.Double                  | java.lang.Double                   |
+| SMALLINT          | java.lang.Short                   | java.lang.Short                    |
+| TINYINT           | java.lang.Byte                    | java.lang.Byte                     |
+| BOOL              | java.lang.Boolean                 | java.lang.Boolean                  |
+| BINARY            | java.lang.String                  | byte array                         |
+| NCHAR             | java.lang.String                  | java.lang.String                   |
+| JSON              | -                                 | java.lang.String                   |
 
 注意：JSON类型仅在tag中支持。
 
@@ -345,6 +345,7 @@ JDBC连接器可能报错的错误码包括3种：JDBC driver本身的报错（�
 * setString 和 setNString 都要求用户在 size 参数里声明表定义中对应列的列宽
 
 示例代码：
+
 ```java
 public class ParameterBindingDemo {
  
@@ -572,6 +573,7 @@ public class ParameterBindingDemo {
 ```
 
 用于设定 TAGS 取值的方法总共有：
+
 ```java
 public void setTagNull(int index, int type)
 public void setTagBoolean(int index, boolean value)
@@ -587,6 +589,7 @@ public void setTagNString(int index, String value)
 ```
 
 用于设定 VALUES 数据列的取值的方法总共有：
+
 ```java
 public void setInt(int columnIndex, ArrayList<Integer> list) throws SQLException
 public void setFloat(int columnIndex, ArrayList<Float> list) throws SQLException
@@ -603,11 +606,13 @@ public void setNString(int columnIndex, ArrayList<String> list, int size) throws
 ### <a class="anchor" id="schemaless_java"></a>无模式写入
 
 从 2.2.0.0 版本开始，TDengine 增加了对无模式写入功能。无模式写入兼容 InfluxDB 的 行协议（Line Protocol）、OpenTSDB 的 telnet 行协议和 OpenTSDB 的 JSON 格式协议。详情请参见[无模式写入](https://www.taosdata.com/docs/cn/v2.0/insert#schemaless)。
+
 注意：
 * JDBC-RESTful 实现并不提供无模式写入这种使用方式
 * 以下示例代码基于taos-jdbcdriver-2.0.36
 
 示例代码：
+
 ```java
 public class SchemalessInsertTest {
     private static final String host = "127.0.0.1";
@@ -638,13 +643,16 @@ public class SchemalessInsertTest {
 ```
 
 ### <a class="anchor" id="set-client-configuration"></a>设置客户端参数
+
 从TDengine-2.3.5.0版本开始，jdbc driver支持在应用的第一次连接中，设置TDengine的客户端参数。Driver支持JDBC-JNI方式中，通过jdbcUrl和properties两种方式设置client parameter。
+
 注意：
 * JDBC-RESTful不支持设置client parameter的功能。
 * 应用中设置的client parameter为进程级别的，即如果要更新client的参数，需要重启应用。这是因为client parameter是全局参数，仅在应用程序的第一次设置生效。
 * 以下示例代码基于taos-jdbcdriver-2.0.36。
 
 示例代码：
+
 ```java
 public class ClientParameterSetting {
     private static final String host = "127.0.0.1";
