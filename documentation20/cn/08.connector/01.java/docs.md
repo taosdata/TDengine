@@ -177,7 +177,7 @@ url中的配置参数如下：
 * timezone：客户端使用的时区，默认值为系统当前时区。
 * batchfetch: 仅在使用JDBC-JNI时生效。true：在执行查询时批量拉取结果集；false：逐行拉取结果集。默认值为：false。
 * timestampFormat: 仅在使用JDBC-RESTful时生效. 'TIMESTAMP'：结果集中timestamp类型的字段为一个long值; 'UTC'：结果集中timestamp类型的字段为一个UTC时间格式的字符串; 'STRING'：结果集中timestamp类型的字段为一个本地时间格式的字符串。默认值为'STRING'。
-* batchErrorIgnore：true：在执行Statement的executeBatch时，如果中间有一条sql执行失败，继续执行下面的sq了。false：不再执行失败sql后的任何语句。默认值为：false。
+* batchErrorIgnore：true：在执行Statement的executeBatch时，如果中间有一条sql执行失败，继续执行下面的sql了。false：不再执行失败sql后的任何语句。默认值为：false。
 
 #### 指定URL和Properties获取连接
 
@@ -598,6 +598,43 @@ public void setByte(int columnIndex, ArrayList<Byte> list) throws SQLException
 public void setShort(int columnIndex, ArrayList<Short> list) throws SQLException
 public void setString(int columnIndex, ArrayList<String> list, int size) throws SQLException
 public void setNString(int columnIndex, ArrayList<String> list, int size) throws SQLException
+```
+
+### <a class="anchor" id="schemaless_java"></a>无模式写入
+
+从 2.2.0.0 版本开始，TDengine 增加了对无模式写入功能。无模式写入兼容 InfluxDB 的 行协议（Line Protocol）、OpenTSDB 的 telnet 行协议和 OpenTSDB 的 JSON 格式协议。详情请参见[无模式写入](https://www.taosdata.com/docs/cn/v2.0/insert#schemaless)。
+注意：
+* JDBC-RESTful 实现并不提供无模式写入这种使用方式
+* 以下示例代码基于taos-jdbcdriver-2.0.36
+
+示例代码：
+```java
+public class SchemalessInsertTest {
+    private static final String host = "127.0.0.1";
+    private static final String lineDemo = "st,t1=3i64,t2=4f64,t3=\"t3\" c1=3i64,c3=L\"passit\",c2=false,c4=4f64 1626006833639000000";
+    private static final String telnetDemo = "stb0_0 1626006833 4 host=host0 interface=eth0";
+    private static final String jsonDemo = "{\"metric\": \"meter_current\",\"timestamp\": 1346846400,\"value\": 10.3, \"tags\": {\"groupid\": 2, \"location\": \"Beijing\", \"id\": \"d1001\"}}";
+
+    public static void main(String[] args) throws SQLException {
+        final String url = "jdbc:TAOS://" + host + ":6030/?user=root&password=taosdata";
+        try (Connection connection = DriverManager.getConnection(url)) {
+            init(connection);
+
+            SchemalessWriter writer = new SchemalessWriter(connection);
+            writer.write(lineDemo, SchemalessProtocolType.LINE, SchemalessTimestampType.NANO_SECONDS);
+            writer.write(telnetDemo, SchemalessProtocolType.TELNET, SchemalessTimestampType.MILLI_SECONDS);
+            writer.write(jsonDemo, SchemalessProtocolType.JSON, SchemalessTimestampType.NOT_CONFIGURED);
+        }
+    }
+
+    private static void init(Connection connection) throws SQLException {
+        try (Statement stmt = connection.createStatement()) {
+            stmt.executeUpdate("drop database if exists test_schemaless");
+            stmt.executeUpdate("create database if not exists test_schemaless");
+            stmt.executeUpdate("use test_schemaless");
+        }
+    }
+}
 ```
 
 ### <a class="anchor" id="set-client-configuration"></a>设置客户端参数
