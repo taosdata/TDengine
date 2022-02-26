@@ -217,12 +217,12 @@ TEST_F(UtilEnv, 04union) {
     taosArrayPush(f, &arr2[i]);
   }
 
-  uint64_t arr3[] = {20, 21, 30, 100};
+  uint64_t arr3[] = {20, 21, 30, 100, 120};
   f = (SArray *)taosArrayGetP(src, 2);
   for (int i = 0; i < sizeof(arr3) / sizeof(arr3[0]); i++) {
     taosArrayPush(f, &arr3[i]);
   }
 
   iUnion(src, rslt);
-  assert(taosArrayGetSize(rslt) == 11);
+  assert(taosArrayGetSize(rslt) == 12);
 }
