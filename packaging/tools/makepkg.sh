@@ -86,7 +86,8 @@ fi
 
 lib_files="${build_dir}/lib/libtaos.so.${version}"
 header_files="${code_dir}/inc/taos.h ${code_dir}/inc/taosdef.h ${code_dir}/inc/taoserror.h"
-if [ "$verMode" == "cluster" ]; then
+
+if [ "$dbName" != "taos" ]; then
   cfg_dir="${top_dir}/../enterprise/packaging/cfg"
 else
   cfg_dir="${top_dir}/packaging/cfg"
@@ -117,12 +118,12 @@ if [ -f "${cfg_dir}/${serverName}.service" ]; then
   cp ${cfg_dir}/${serverName}.service ${install_dir}/cfg || :
 fi
 
-if [ -f "${cfg_dir}/tarbitratord.service" ]; then
-  cp ${cfg_dir}/tarbitratord.service ${install_dir}/cfg || :
+if [ -f "${top_dir}/packaging/cfg/tarbitratord.service" ]; then
+  cp ${top_dir}/packaging/cfg/tarbitratord.service ${install_dir}/cfg || :
 fi
 
-if [ -f "${cfg_dir}/nginxd.service" ]; then
-  cp ${cfg_dir}/nginxd.service ${install_dir}/cfg || :
+if [ -f "${top_dir}/packaging/cfg/nginxd.service" ]; then
+  cp ${top_dir}/packaging/cfg/nginxd.service ${install_dir}/cfg || :
 fi
 
 mkdir -p ${install_dir}/bin && cp ${bin_files} ${install_dir}/bin && chmod a+x ${install_dir}/bin/* || :
