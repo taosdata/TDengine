@@ -14,6 +14,7 @@
  */
 
 #include "syncAppendEntriesReply.h"
+#include "sync.h"
 
 void onAppendEntriesReply(SRaft *pRaft, const SyncAppendEntriesReply *pMsg) {
   // TLA+ Spec

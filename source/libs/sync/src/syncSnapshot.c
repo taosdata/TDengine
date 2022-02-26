@@ -14,6 +14,7 @@
  */
 
 #include "syncSnapshot.h"
+#include "sync.h"
 #include "syncRaft.h"
 
 int32_t takeSnapshot(SSyncFSM *pFsm, SSnapshot *pSnapshot) { return 0; }

@@ -14,13 +14,10 @@
  */
 
 #include <stdint.h>
-#include "syncEnv.h"
+#include "sync.h"
 #include "syncInt.h"
 
-int32_t syncInit() {
-  int32_t ret = syncEnvStart();
-  return ret;
-}
+int32_t syncInit() { return 0; }
 
 void syncCleanUp() {}
 
@@ -35,8 +32,3 @@ int32_t syncForwardToPeer(int64_t rid, const SSyncBuffer* pBuf, bool isWeak) { r
 ESyncState syncGetMyRole(int64_t rid) { return TAOS_SYNC_STATE_LEADER; }
 
 void syncGetNodesRole(int64_t rid, SNodesRole* pNodeRole) {}
-
-SSyncNode* syncNodeStart(const SSyncInfo* pSyncInfo) { return NULL; }
-void       syncNodeStop(SSyncNode* pSyncNode) {}
-
-int32_t syncNodeForwardToPeer(SSyncNode* pSyncNode, const SSyncBuffer* pBuf, bool isWeak) { return 0; }

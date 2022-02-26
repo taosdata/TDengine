@@ -23,11 +23,7 @@ extern "C" {
 #include <stdint.h>
 #include <stdio.h>
 #include <stdlib.h>
-#include "sync.h"
 #include "taosdef.h"
-#include "tlog.h"
-
-extern int32_t sDebugFlag;
 
 #define sFatal(...)                                        \
   {                                                        \
@@ -75,12 +71,6 @@ typedef struct SSyncNode {
   int32_t  refCount;
   int64_t  rid;
 } SSyncNode;
-
-SSyncNode* syncNodeStart(const SSyncInfo* pSyncInfo);
-void       syncNodeStop(SSyncNode* pSyncNode);
-
-// int32_t syncForwardToPeer(int64_t rid, const SRpcMsg* pBuf, bool isWeak);
-int32_t syncNodeForwardToPeer(SSyncNode* pSyncNode, const SSyncBuffer* pBuf, bool isWeak);
 
 #ifdef __cplusplus
 }

@@ -14,6 +14,7 @@
  */
 
 #include "syncAppendEntries.h"
+#include "sync.h"
 
 void appendEntries(SRaft *pRaft, const SyncAppendEntries *pMsg) {
   // TLA+ Spec

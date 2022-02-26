@@ -14,6 +14,7 @@
  */
 
 #include "syncRequestVote.h"
+#include "sync.h"
 
 void requestVote(SRaft *pRaft, const SyncRequestVote *pMsg) {
   // TLA+ Spec

@@ -14,5 +14,6 @@
  */
 
 #include "syncTimeout.h"
+#include "sync.h"
 
 void onTimeout(SRaft *pRaft, void *pMsg) {}

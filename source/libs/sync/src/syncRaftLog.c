@@ -14,6 +14,7 @@
  */
 
 #include "syncRaftLog.h"
+#include "sync.h"
 
 int32_t raftLogAppendEntry(struct SSyncLogStore* pLogStore, SSyncBuffer* pBuf) { return 0; }
 

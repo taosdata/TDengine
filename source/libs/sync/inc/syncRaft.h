@@ -23,23 +23,58 @@ extern "C" {
 #include <stdint.h>
 #include <stdio.h>
 #include <stdlib.h>
-#include "syncInt.h"
+#include "sync.h"
 #include "syncMessage.h"
 #include "taosdef.h"
 
 typedef struct SRaftId {
-  SyncNodeId  addr;
+  SyncNodeId  nodeId;
   SyncGroupId vgId;
 } SRaftId;
 
 typedef struct SRaft {
   SRaftId id;
+  void*   data;
 
-  SSyncLogStore* logStore;
-  SStateMgr*     stateManager;
-  SSyncFSM*      syncFsm;
+  int32_t (*FpPing)(struct SRaft* ths, const RaftPing* pMsg);
+
+  int32_t (*FpOnPing)(struct SRaft* ths, RaftPing* pMsg);
+
+  int32_t (*FpOnPingReply)(struct SRaft* ths, RaftPingReply* pMsg);
+
+  int32_t (*FpRequestVote)(struct SRaft* ths, const RaftRequestVote* pMsg);
+
+  int32_t (*FpOnRequestVote)(struct SRaft* ths, RaftRequestVote* pMsg);
+
+  int32_t (*FpOnRequestVoteReply)(struct SRaft* ths, RaftRequestVoteReply* pMsg);
+
+  int32_t (*FpAppendEntries)(struct SRaft* ths, const RaftAppendEntries* pMsg);
+
+  int32_t (*FpOnAppendEntries)(struct SRaft* ths, RaftAppendEntries* pMsg);
+
+  int32_t (*FpOnAppendEntriesReply)(struct SRaft* ths, RaftAppendEntriesReply* pMsg);
 
 } SRaft;
+
+SRaft* raftCreate(SRaftId raftId, void* data);
+
+static int32_t doRaftPing(struct SRaft* ths, const RaftPing* pMsg);
+
+static int32_t onRaftPing(struct SRaft* ths, RaftPing* pMsg);
+
+static int32_t onRaftPingReply(struct SRaft* ths, RaftPingReply* pMsg);
+
+static int32_t doRaftRequestVote(struct SRaft* ths, const RaftRequestVote* pMsg);
+
+static int32_t onRaftRequestVote(struct SRaft* ths, RaftRequestVote* pMsg);
+
+static int32_t onRaftRequestVoteReply(struct SRaft* ths, RaftRequestVoteReply* pMsg);
+
+static int32_t doRaftAppendEntries(struct SRaft* ths, const RaftAppendEntries* pMsg);
+
+static int32_t onRaftAppendEntries(struct SRaft* ths, RaftAppendEntries* pMsg);
+
+static int32_t onRaftAppendEntriesReply(struct SRaft* ths, RaftAppendEntriesReply* pMsg);
 
 int32_t raftPropose(SRaft* pRaft, const SSyncBuffer* pBuf, bool isWeak);
 

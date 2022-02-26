@@ -14,6 +14,47 @@
  */
 
 #include "syncRaft.h"
+#include "sync.h"
+
+SRaft* raftCreate(SRaftId raftId, void* data) {
+  SRaft* pRaft = (SRaft*)malloc(sizeof(SRaft));
+  assert(pRaft != NULL);
+
+  pRaft->id = raftId;
+  pRaft->data = data;
+
+  pRaft->FpPing = doRaftPing;
+  pRaft->FpOnPing = onRaftPing;
+  pRaft->FpOnPingReply = onRaftPingReply;
+
+  pRaft->FpRequestVote = doRaftRequestVote;
+  pRaft->FpOnRequestVote = onRaftRequestVote;
+  pRaft->FpOnRequestVoteReply = onRaftRequestVoteReply;
+
+  pRaft->FpAppendEntries = doRaftAppendEntries;
+  pRaft->FpOnAppendEntries = onRaftAppendEntries;
+  pRaft->FpOnAppendEntriesReply = onRaftAppendEntriesReply;
+
+  return pRaft;
+}
+
+static int32_t doRaftPing(struct SRaft* ths, const RaftPing* pMsg) { return 0; }
+
+static int32_t onRaftPing(struct SRaft* ths, RaftPing* pMsg) { return 0; }
+
+static int32_t onRaftPingReply(struct SRaft* ths, RaftPingReply* pMsg) { return 0; }
+
+static int32_t doRaftRequestVote(struct SRaft* ths, const RaftRequestVote* pMsg) { return 0; }
+
+static int32_t onRaftRequestVote(struct SRaft* ths, RaftRequestVote* pMsg) { return 0; }
+
+static int32_t onRaftRequestVoteReply(struct SRaft* ths, RaftRequestVoteReply* pMsg) { return 0; }
+
+static int32_t doRaftAppendEntries(struct SRaft* ths, const RaftAppendEntries* pMsg) { return 0; }
+
+static int32_t onRaftAppendEntries(struct SRaft* ths, RaftAppendEntries* pMsg) { return 0; }
+
+static int32_t onRaftAppendEntriesReply(struct SRaft* ths, RaftAppendEntriesReply* pMsg) { return 0; }
 
 int32_t raftPropose(SRaft* pRaft, const SSyncBuffer* pBuf, bool isWeak) { return 0; }
 

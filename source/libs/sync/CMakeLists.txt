@@ -14,7 +14,3 @@ target_include_directories(
     PUBLIC "${CMAKE_SOURCE_DIR}/include/libs/sync"
     PRIVATE "${CMAKE_CURRENT_SOURCE_DIR}/inc"
 )
-
-if(${BUILD_TEST})
-    add_subdirectory(test)
-endif(${BUILD_TEST})
