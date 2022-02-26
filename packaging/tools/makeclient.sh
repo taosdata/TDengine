@@ -61,7 +61,7 @@ else
 fi
 
 header_files="${code_dir}/inc/taos.h ${code_dir}/inc/taosdef.h ${code_dir}/inc/taoserror.h"
-if [ "$verMode" == "cluster" ]; then
+if [ "$dbName" != "taos" ]; then
   cfg_dir="${top_dir}/../enterprise/packaging/cfg"
 else
   cfg_dir="${top_dir}/packaging/cfg"
