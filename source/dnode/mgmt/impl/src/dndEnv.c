@@ -81,7 +81,7 @@ static TdFilePtr dndCheckRunning(char *dataDir) {
   return pFile;
 }
 
-static int32_t dndCreateImp(SDnode *pDnode, SDnodeObjCfg *pCfg) {
+static int32_t dndInitDir(SDnode *pDnode, SDnodeObjCfg *pCfg) {
   pDnode->pLockFile = dndCheckRunning(pCfg->dataDir);
   if (pDnode->pLockFile == NULL) {
     return -1;
@@ -166,7 +166,7 @@ SDnode *dndCreate(SDnodeObjCfg *pCfg) {
 
   dndSetStat(pDnode, DND_STAT_INIT);
 
-  if (dndCreateImp(pDnode, pCfg) != 0) {
+  if (dndInitDir(pDnode, pCfg) != 0) {
     dError("failed to init dnode dir since %s", terrstr());
     dndClose(pDnode);
     return NULL;
@@ -176,7 +176,14 @@ SDnode *dndCreate(SDnodeObjCfg *pCfg) {
   tstrncpy(dCfg.dir, pDnode->cfg.dataDir, TSDB_FILENAME_LEN);
   dCfg.level = 0;
   dCfg.primary = 1;
-  pDnode->pTfs = tfsOpen(&dCfg, 1);
+  SDiskCfg *pDisks = pDnode->cfg.pDisks;
+  int32_t   numOfDisks = pDnode->cfg.numOfDisks;
+  if (numOfDisks <= 0 || pDisks == NULL) {
+    pDisks = &dCfg;
+    numOfDisks = 1;
+  }
+
+  pDnode->pTfs = tfsOpen(pDisks, numOfDisks);
   if (pDnode->pTfs == NULL) {
     dError("failed to init tfs since %s", terrstr());
     dndClose(pDnode);

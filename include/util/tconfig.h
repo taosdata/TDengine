@@ -18,6 +18,7 @@
 #define _TD_CONFIG_H_
 
 #include "os.h"
+#include "tarray.h"
 
 #ifdef __cplusplus
 extern "C" {
@@ -32,7 +33,6 @@ typedef enum {
   CFG_STYPE_ENV_VAR,
   CFG_STYPE_APOLLO_URL,
   CFG_STYPE_ARG_LIST,
-  CFG_STYPE_API_OPTION
 } ECfgSrcType;
 
 typedef enum {
@@ -68,12 +68,19 @@ typedef struct SConfigItem {
     int64_t imax;
     double  fmax;
   };
+  SArray *array;  // SDiskCfg
 } SConfigItem;
+
+typedef struct {
+  const char *name;
+  const char *value;
+} SConfigPair;
 
 typedef struct SConfig SConfig;
 
 SConfig *cfgInit();
 int32_t  cfgLoad(SConfig *pCfg, ECfgSrcType cfgType, const char *sourceStr);
+int32_t  cfgLoadArray(SConfig *pCfg, SArray *pArgs); // SConfigPair
 void     cfgCleanup(SConfig *pCfg);
 
 int32_t      cfgGetSize(SConfig *pCfg);

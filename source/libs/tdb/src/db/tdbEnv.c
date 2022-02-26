@@ -140,7 +140,7 @@ static int tdbEnvDestroy(TENV *pEnv) {
 
 int tdbEnvBeginTxn(TENV *pEnv) {
   pEnv->jpFile = taosOpenFile(pEnv->jname, TD_FILE_CTEATE | TD_FILE_WRITE | TD_FILE_READ);
-  if (pEnv->jpFile < 0) {
+  if (pEnv->jpFile == NULL) {
     return -1;
   }
 
