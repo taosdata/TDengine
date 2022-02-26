@@ -194,6 +194,7 @@ function install_bin() {
   ${csudo}rm -f ${bin_link_dir}/tarbitrator || :
   ${csudo}rm -f ${bin_link_dir}/set_core || :
   ${csudo}rm -f ${bin_link_dir}/run_${serverName}_and_${adapterName}.sh || :
+  ${csudo}rm -f ${bin_link_dir}/TDinsight.sh || :
 
   ${csudo}cp -r ${script_dir}/bin/* ${install_main_dir}/bin && ${csudo}chmod 0555 ${install_main_dir}/bin/*
 
@@ -201,6 +202,10 @@ function install_bin() {
   [ -x ${install_main_dir}/bin/${clientName} ] && ${csudo}ln -s ${install_main_dir}/bin/${clientName} ${bin_link_dir}/${clientName} || :
   [ -x ${install_main_dir}/bin/${serverName} ] && ${csudo}ln -s ${install_main_dir}/bin/${serverName} ${bin_link_dir}/${serverName} || :
   [ -x ${install_main_dir}/bin/${adapterName} ] && ${csudo}ln -s ${install_main_dir}/bin/${adapterName} ${bin_link_dir}/${adapterName} || :
+  [ -x ${install_main_dir}/bin/taosBenchmark ] && ${csudo}ln -s ${install_main_dir}/bin/taosBenchmark ${bin_link_dir}/taosdemo || :
+  [ -x ${install_main_dir}/bin/taosBenchmark ] && ${csudo}ln -s ${install_main_dir}/bin/taosBenchmark ${bin_link_dir}/taosBenchmark || :
+  [ -x ${install_main_dir}/bin/taosdump ] && ${csudo}ln -s ${install_main_dir}/bin/taosdump ${bin_link_dir}/taosdump || :
+  [ -x ${install_main_dir}/bin/TDinsight.sh ] && ${csudo}ln -s ${install_main_dir}/bin/TDinsight.sh ${bin_link_dir}/TDinsight.sh || :
   [ -x ${install_main_dir}/bin/remove.sh ] && ${csudo}ln -s ${install_main_dir}/bin/remove.sh ${bin_link_dir}/${uninstallScript} || :
   [ -x ${install_main_dir}/bin/set_core.sh ] && ${csudo}ln -s ${install_main_dir}/bin/set_core.sh ${bin_link_dir}/set_core || :
   [ -x ${install_main_dir}/bin/run_${serverName}_and_${adapterName}.sh ] && ${csudo}ln -s ${install_main_dir}/bin/run_${serverName}_and_${adapterName}.sh ${bin_link_dir}/run_${serverName}_and_${adapterName}.sh || :
@@ -542,7 +547,7 @@ function install_data() {
 }
 
 function install_connector() {
-  ${csudo}cp -rf ${script_dir}/connector/ ${install_main_dir}/
+  [ -d "${script_dir}/connector/" ] && ${csudo}cp -rf ${script_dir}/connector/ ${install_main_dir}/
 }
 
 function install_examples() {
@@ -800,9 +805,6 @@ function updateProduct() {
   install_log
   install_header
   install_lib
-  #  if [ "$pagMode" != "lite" ]; then
-  #    install_connector
-  #  fi
   install_examples
   if [ -z $1 ]; then
     install_bin
@@ -857,7 +859,7 @@ function updateProduct() {
     echo -e "\033[44;32;1m${productName} client is updated successfully!${NC}"
   fi
 
-  rm -rf $(tar -tf ${tarName})
+  rm -rf $(tar -tf ${tarName} |grep -v "^\./$")
 }
 
 function installProduct() {
@@ -953,7 +955,7 @@ function installProduct() {
   fi
 
   touch ~/.${historyFile}
-  rm -rf $(tar -tf ${tarName})
+  rm -rf $(tar -tf ${tarName} |grep -v "^\./$")
 }
 
 ## ==============================Main program starts from here============================
