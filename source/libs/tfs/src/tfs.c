@@ -25,7 +25,7 @@ static int32_t   tfsOpendirImpl(STfs *pTfs, STfsDir *pDir);
 static STfsDisk *tfsNextDisk(STfs *pTfs, SDiskIter *pIter);
 
 STfs *tfsOpen(SDiskCfg *pCfg, int32_t ndisk) {
-  if (ndisk < 0 || ndisk > TFS_MAX_DISKS) {
+  if (ndisk <= 0 || ndisk > TFS_MAX_DISKS) {
     terrno = TSDB_CODE_INVALID_PARA;
     return NULL;
   }

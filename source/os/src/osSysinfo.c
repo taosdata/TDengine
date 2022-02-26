@@ -16,11 +16,6 @@
 #define _DEFAULT_SOURCE
 #include "os.h"
 
-int32_t tsTotalMemoryMB = 0;
-int64_t tsPageSize = 0;
-int64_t tsOpenMax = 0;
-int64_t tsStreamMax = 0;
-int32_t tsNumOfCores = 2;
 #if defined(_TD_WINDOWS_64) || defined(_TD_WINDOWS_32)
 
 /*
@@ -111,7 +106,7 @@ int32_t taosGetDiskSize(char *dataDir, SDiskSize *diskSize) {
     diskSize->used = (int64_t)(i64TotalBytes - i64FreeBytes);
     return 0;
   } else {
-    //printf("failed to get disk size, dataDir:%s errno:%s", osDataDir(), strerror(errno));
+    //printf("failed to get disk size, dataDir:%s errno:%s", tsDataDir, strerror(errno));
     terrno = TAOS_SYSTEM_ERROR(errno);
     return -1;
   }
@@ -316,7 +311,7 @@ void taosSetCoreDump() {}
 int32_t taosGetDiskSize(char *dataDir, SDiskSize *diskSize) {
   struct statvfs info;
   if (statvfs(dataDir, &info)) {
-    //printf("failed to get disk size, dataDir:%s errno:%s", osDataDir(), strerror(errno));
+    //printf("failed to get disk size, dataDir:%s errno:%s", tsDataDir, strerror(errno));
     terrno = TAOS_SYSTEM_ERROR(errno);
     return -1;
   } else {

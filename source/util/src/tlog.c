@@ -121,7 +121,7 @@ int32_t taosInitLog(const char *logName, int maxFiles) {
   osUpdate();
 
   char fullName[PATH_MAX] = {0};
-  snprintf(fullName, PATH_MAX, "%s" TD_DIRSEP "%s", osLogDir(), logName);
+  snprintf(fullName, PATH_MAX, "%s" TD_DIRSEP "%s", tsLogDir, logName);
 
   tsLogObj.logHandle = taosLogBuffNew(TSDB_DEFAULT_LOG_BUF_SIZE);
   if (tsLogObj.logHandle == NULL) return -1;
@@ -187,7 +187,7 @@ static void taosKeepOldLog(char *oldName) {
     }
   }
 
-  taosRemoveOldFiles(osLogDir(), TABS(tsLogKeepDays));
+  taosRemoveOldFiles(tsLogDir, TABS(tsLogKeepDays));
 }
 
 static void *taosThreadToOpenNewFile(void *param) {
@@ -416,7 +416,7 @@ void taosPrintLog(const char *flags, int32_t dflag, const char *format, ...) {
   buffer[len++] = '\n';
   buffer[len] = 0;
 
-  if ((dflag & DEBUG_FILE) && tsLogObj.logHandle && tsLogObj.logHandle->pFile >= 0) {
+  if ((dflag & DEBUG_FILE) && tsLogObj.logHandle && tsLogObj.logHandle->pFile != NULL) {
     if (tsAsyncLog) {
       taosPushLogBuffer(tsLogObj.logHandle, buffer, len);
     } else {
@@ -483,7 +483,7 @@ void taosPrintLongString(const char *flags, int32_t dflag, const char *format, .
   buffer[len++] = '\n';
   buffer[len] = 0;
 
-  if ((dflag & DEBUG_FILE) && tsLogObj.logHandle && tsLogObj.logHandle->pFile >= 0) {
+  if ((dflag & DEBUG_FILE) && tsLogObj.logHandle && tsLogObj.logHandle->pFile != NULL) {
     if (tsAsyncLog) {
       taosPushLogBuffer(tsLogObj.logHandle, buffer, len);
     } else {
@@ -744,21 +744,6 @@ cmp_end:
   free(data);
 
   return ret;
-}
-
-void taosPrintOsInfo() {
-  SysNameInfo info = taosGetSysNameInfo();
-
-  uInfo(" os pageSize:            %" PRId64 "(KB)", tsPageSize);
-  uInfo(" os openMax:             %" PRId64, tsOpenMax);
-  uInfo(" os streamMax:           %" PRId64, tsStreamMax);
-  uInfo(" os numOfCores:          %d", tsNumOfCores);
-  uInfo(" os totalMemory:         %d(MB)", tsTotalMemoryMB);
-  uInfo(" os sysname:             %s", info.sysname);
-  uInfo(" os nodename:            %s", info.nodename);
-  uInfo(" os release:             %s", info.release);
-  uInfo(" os version:             %s", info.version);
-  uInfo(" os machine:             %s", info.machine);
 }
 
 void taosSetAllDebugFlag(int32_t flag) {

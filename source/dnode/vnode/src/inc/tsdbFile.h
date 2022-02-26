@@ -215,7 +215,7 @@ static FORCE_INLINE void tsdbCloseDFile(SDFile* pDFile) {
 }
 
 static FORCE_INLINE int64_t tsdbSeekDFile(SDFile* pDFile, int64_t offset, int whence) {
-  ASSERT(TSDB_FILE_OPENED(pDFile));
+  // ASSERT(TSDB_FILE_OPENED(pDFile));
 
   int64_t loffset = taosLSeekFile(TSDB_FILE_PFILE(pDFile), offset, whence);
   if (loffset < 0) {

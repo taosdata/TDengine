@@ -89,7 +89,7 @@ int32_t walRollback(SWal *pWal, int64_t ver) {
 
   walBuildLogName(pWal, walGetCurFileFirstVer(pWal), fnameStr);
   TdFilePtr pLogTFile = taosOpenFile(fnameStr, TD_FILE_WRITE | TD_FILE_READ);
-  if (pLogTFile < 0) {
+  if (pLogTFile == NULL) {
     // TODO
     pthread_mutex_unlock(&pWal->mutex);
     return -1;
@@ -221,13 +221,13 @@ int walRoll(SWal *pWal) {
   char    fnameStr[WAL_FILE_LEN];
   walBuildIdxName(pWal, newFileFirstVersion, fnameStr);
   pIdxTFile = taosOpenFile(fnameStr, TD_FILE_CTEATE | TD_FILE_WRITE | TD_FILE_APPEND);
-  if (pIdxTFile < 0) {
+  if (pIdxTFile == NULL) {
     terrno = TAOS_SYSTEM_ERROR(errno);
     return -1;
   }
   walBuildLogName(pWal, newFileFirstVersion, fnameStr);
   pLogTFile = taosOpenFile(fnameStr, TD_FILE_CTEATE | TD_FILE_WRITE | TD_FILE_APPEND);
-  if (pLogTFile < 0) {
+  if (pLogTFile == NULL) {
     terrno = TAOS_SYSTEM_ERROR(errno);
     return -1;
   }
