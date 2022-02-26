@@ -131,6 +131,9 @@ typedef struct SStateMgr {
 typedef struct SSyncInfo {
   SyncGroupId vgId;
   SSyncCfg    syncCfg;
+  char        path[TSDB_FILENAME_LEN];
+  SSyncFSM*   pFsm;
+
 } SSyncInfo;
 
 struct SSyncNode;

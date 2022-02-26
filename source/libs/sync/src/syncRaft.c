@@ -16,12 +16,12 @@
 #include "syncRaft.h"
 #include "sync.h"
 
-SRaft* raftCreate(SRaftId raftId, void* data) {
+SRaft* raftOpen(SRaftId raftId, SSyncFSM* pFsm) {
   SRaft* pRaft = (SRaft*)malloc(sizeof(SRaft));
   assert(pRaft != NULL);
 
   pRaft->id = raftId;
-  pRaft->data = data;
+  pRaft->pFsm = pFsm;
 
   pRaft->FpPing = doRaftPing;
   pRaft->FpOnPing = onRaftPing;
@@ -36,6 +36,11 @@ SRaft* raftCreate(SRaftId raftId, void* data) {
   pRaft->FpOnAppendEntriesReply = onRaftAppendEntriesReply;
 
   return pRaft;
+}
+
+void raftClose(SRaft* pRaft) {
+  assert(pRaft != NULL);
+  free(pRaft);
 }
 
 static int32_t doRaftPing(struct SRaft* ths, const RaftPing* pMsg) { return 0; }

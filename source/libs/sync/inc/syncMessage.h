@@ -43,7 +43,6 @@ typedef struct SyncPing {
   const SSyncBuffer *pData;
 } SyncPing, RaftPing;
 
-
 typedef struct SyncPingReply {
   ESyncMessageType   msgType;
   const SSyncBuffer *pData;
@@ -62,7 +61,6 @@ typedef struct SyncClientRequestReply {
   const SSyncBuffer *pErrMsg;
   const SSyncBuffer *pLeaderHint;
 } SyncClientRequestReply, RaftClientRequestReply;
-
 
 typedef struct SyncRequestVote {
   ESyncMessageType msgType;

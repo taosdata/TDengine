@@ -33,8 +33,8 @@ typedef struct SRaftId {
 } SRaftId;
 
 typedef struct SRaft {
-  SRaftId id;
-  void*   data;
+  SRaftId   id;
+  SSyncFSM* pFsm;
 
   int32_t (*FpPing)(struct SRaft* ths, const RaftPing* pMsg);
 
@@ -56,7 +56,9 @@ typedef struct SRaft {
 
 } SRaft;
 
-SRaft* raftCreate(SRaftId raftId, void* data);
+SRaft* raftOpen(SRaftId raftId, SSyncFSM* pFsm);
+
+void raftClose(SRaft* pRaft);
 
 static int32_t doRaftPing(struct SRaft* ths, const RaftPing* pMsg);
 
