@@ -14,7 +14,7 @@ void *pingFunc(void *param) {
 }
 
 int main() {
-  taosInitLog((char *)"syncTest.log", 100000, 10);
+  //taosInitLog((char *)"syncTest.log", 100000, 10);
   tsAsyncLog = 0;
   sDebugFlag = 143 + 64;
 

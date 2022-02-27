@@ -34,7 +34,7 @@ void doSync() {
 }
 
 int main() {
-  taosInitLog((char*)"syncEnvTest.log", 100000, 10);
+  //taosInitLog((char*)"syncEnvTest.log", 100000, 10);
   tsAsyncLog = 0;
   sDebugFlag = 143 + 64;
 

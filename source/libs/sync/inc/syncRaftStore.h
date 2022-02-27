@@ -34,7 +34,7 @@ extern "C" {
 typedef struct SRaftStore {
   SyncTerm currentTerm;
   SRaftId  voteFor;
-  FileFd   fd;
+  //FileFd   fd;
   char     path[RAFT_STORE_PATH_LEN];
 } SRaftStore;
 
