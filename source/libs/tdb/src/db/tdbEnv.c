@@ -18,7 +18,7 @@
 struct STDbEnv {
   char *      rootDir;    // root directory of the environment
   char *      jname;      // journal file name
-  int         jfd;        // journal file fd
+  TdFilePtr   jpFile;        // journal file fd
   pgsz_t      pgSize;     // page size
   cachesz_t   cacheSize;  // total cache size
   STDbList    dbList;     // TDB List
@@ -55,7 +55,7 @@ int tdbEnvCreate(TENV **ppEnv, const char *rootDir) {
 
   pEnv->rootDir = (char *)(&pEnv[1]);
   pEnv->jname = pEnv->rootDir + slen + 1;
-  pEnv->jfd = -1;
+  pEnv->jpFile = NULL;
   pEnv->pgSize = TDB_DEFAULT_PGSIZE;
   pEnv->cacheSize = TDB_DEFAULT_CACHE_SIZE;
 
@@ -139,8 +139,8 @@ static int tdbEnvDestroy(TENV *pEnv) {
 }
 
 int tdbEnvBeginTxn(TENV *pEnv) {
-  pEnv->jfd = open(pEnv->jname, O_CREAT | O_RDWR, 0755);
-  if (pEnv->jfd < 0) {
+  pEnv->jpFile = taosOpenFile(pEnv->jname, TD_FILE_CTEATE | TD_FILE_WRITE | TD_FILE_READ);
+  if (pEnv->jpFile == NULL) {
     return -1;
   }
 
@@ -149,8 +149,8 @@ int tdbEnvBeginTxn(TENV *pEnv) {
 
 int tdbEnvCommit(TENV *pEnv) {
   /* TODO */
-  close(pEnv->jfd);
-  pEnv->jfd = -1;
+  taosCloseFile(&pEnv->jpFile);
+  pEnv->jpFile = NULL;
   return 0;
 }
 

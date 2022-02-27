@@ -8,7 +8,7 @@
 #include "tlog.h"
 #include "tglobal.h"
 #include "taoserror.h"
-#include "ulog.h"
+#include "tlog.h"
 
 typedef struct {
   int     refNum;
@@ -158,7 +158,7 @@ int main(int argc, char *argv[]) {
     }
   }
 
-  taosInitLog("tref.log", 5000000, 10);
+  taosInitLog("tref.log", 10);
 
   SRefSpace *pSpaceList = (SRefSpace *) calloc(sizeof(SRefSpace), threads);
   pthread_t *pThreadList = (pthread_t *) calloc(sizeof(pthread_t), threads);

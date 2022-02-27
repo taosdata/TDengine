@@ -16,17 +16,18 @@
 #ifndef _TD_UTIL_COMPARE_H_
 #define _TD_UTIL_COMPARE_H_
 
+#include "os.h"
+
 #ifdef __cplusplus
 extern "C" {
 #endif
 
-#include "os.h"
 
-#define TSDB_PATTERN_MATCH 0
-#define TSDB_PATTERN_NOMATCH 1
-#define TSDB_PATTERN_NOWILDCARDMATCH 2
+#define TSDB_PATTERN_MATCH              0
+#define TSDB_PATTERN_NOMATCH            1
+#define TSDB_PATTERN_NOWILDCARDMATCH    2
 #define TSDB_PATTERN_STRING_DEFAULT_LEN 100
-#define TSDB_REGEX_STRING_DEFAULT_LEN 128
+#define TSDB_REGEX_STRING_DEFAULT_LEN   128
 
 #define FLT_COMPAR_TOL_FACTOR    4
 #define FLT_EQUAL(_x, _y)        (fabs((_x) - (_y)) <= (FLT_COMPAR_TOL_FACTOR * FLT_EPSILON))
@@ -62,7 +63,6 @@ int32_t setChkNotInBytes8(const void *pLeft, const void *pRight);
 int32_t compareChkInString(const void *pLeft, const void *pRight);
 int32_t compareChkNotInString(const void *pLeft, const void *pRight);
 
-
 int32_t compareInt8Val(const void *pLeft, const void *pRight);
 int32_t compareInt16Val(const void *pLeft, const void *pRight);
 int32_t compareInt32Val(const void *pLeft, const void *pRight);
@@ -83,7 +83,6 @@ int32_t compareStrRegexComp(const void *pLeft, const void *pRight);
 int32_t compareStrRegexCompMatch(const void *pLeft, const void *pRight);
 int32_t compareStrRegexCompNMatch(const void *pLeft, const void *pRight);
 
-
 int32_t compareInt8ValDesc(const void *pLeft, const void *pRight);
 int32_t compareInt16ValDesc(const void *pLeft, const void *pRight);
 int32_t compareInt32ValDesc(const void *pLeft, const void *pRight);
@@ -101,7 +100,6 @@ int32_t compareLenPrefixedStrDesc(const void *pLeft, const void *pRight);
 int32_t compareLenPrefixedWStrDesc(const void *pLeft, const void *pRight);
 
 __compar_fn_t getComparFunc(int32_t type, int32_t optr);
-
 
 #ifdef __cplusplus
 }

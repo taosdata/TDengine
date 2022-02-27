@@ -355,8 +355,8 @@ static void *tsdbDecodeSDFileEx(void *buf, SDFile *pDFile) {
 int tsdbCreateDFile(STsdb *pRepo, SDFile *pDFile, bool updateHeader) {
   ASSERT(pDFile->info.size == 0 && pDFile->info.magic == TSDB_FILE_INIT_MAGIC);
 
-  pDFile->fd = open(TSDB_FILE_FULL_NAME(pDFile), O_WRONLY | O_CREAT | O_TRUNC | O_BINARY, 0755);
-  if (pDFile->fd < 0) {
+  pDFile->pFile = taosOpenFile(TSDB_FILE_FULL_NAME(pDFile), TD_FILE_CTEATE | TD_FILE_WRITE | TD_FILE_TRUNC);
+  if (pDFile->pFile == NULL) {
     if (errno == ENOENT) {
       // Try to create directory recursively
       char *s = strdup(TSDB_FILE_REL_NAME(pDFile));
@@ -366,8 +366,8 @@ int tsdbCreateDFile(STsdb *pRepo, SDFile *pDFile, bool updateHeader) {
       }
       tfree(s);
 
-      pDFile->fd = open(TSDB_FILE_FULL_NAME(pDFile), O_WRONLY | O_CREAT | O_TRUNC | O_BINARY, 0755);
-      if (pDFile->fd < 0) {
+      pDFile->pFile = taosOpenFile(TSDB_FILE_FULL_NAME(pDFile), TD_FILE_CTEATE | TD_FILE_WRITE | TD_FILE_TRUNC);
+      if (pDFile->pFile == NULL) {
         terrno = TAOS_SYSTEM_ERROR(errno);
         return -1;
       }
@@ -456,11 +456,12 @@ static int tsdbScanAndTryFixDFile(STsdb *pRepo, SDFile *pDFile) {
   }
 
   if (pDFile->info.size < dfstat.st_size) {
-    if (tsdbOpenDFile(&df, O_WRONLY) < 0) {
+    // if (tsdbOpenDFile(&df, O_WRONLY) < 0) {
+    if (tsdbOpenDFile(&df, TD_FILE_WRITE) < 0) {
       return -1;
     }
 
-    if (taosFtruncateFile(df.fd, df.info.size) < 0) {
+    if (taosFtruncateFile(df.pFile, df.info.size) < 0) {
       terrno = TAOS_SYSTEM_ERROR(errno);
       tsdbCloseDFile(&df);
       return -1;
@@ -537,11 +538,12 @@ static int tsdbApplyDFileChange(SDFile *from, SDFile *to) {
 static int tsdbRollBackDFile(SDFile *pDFile) {
   SDFile df = *pDFile;
 
-  if (tsdbOpenDFile(&df, O_WRONLY) < 0) {
+  // if (tsdbOpenDFile(&df, O_WRONLY) < 0) {
+  if (tsdbOpenDFile(&df, TD_FILE_WRITE) < 0) {
     return -1;
   }
 
-  if (taosFtruncateFile(TSDB_FILE_FD(&df), pDFile->info.size) < 0) {
+  if (taosFtruncateFile(TSDB_FILE_PFILE(&df), pDFile->info.size) < 0) {
     terrno = TAOS_SYSTEM_ERROR(errno);
     tsdbCloseDFile(&df);
     return -1;

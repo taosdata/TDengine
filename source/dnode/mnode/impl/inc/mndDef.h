@@ -123,6 +123,7 @@ typedef enum {
   TRN_TYPE_DROP_TOPIC = 1015,
   TRN_TYPE_SUBSCRIBE = 1016,
   TRN_TYPE_REBALANCE = 1017,
+  TRN_TYPE_COMMIT_OFFSET = 1018,
   TRN_TYPE_BASIC_SCOPE_END,
   TRN_TYPE_GLOBAL_SCOPE = 2000,
   TRN_TYPE_CREATE_DNODE = 2001,
@@ -176,7 +177,7 @@ typedef struct {
   SArray*    undoActions;
   int64_t    createdTime;
   int64_t    lastExecTime;
-  uint64_t   dbUid;
+  int64_t    dbUid;
   char       dbname[TSDB_DB_FNAME_LEN];
   char       lastError[TSDB_TRANS_ERROR_LEN];
 } STrans;
@@ -304,16 +305,16 @@ typedef struct {
 } SDbCfg;
 
 typedef struct {
-  char     name[TSDB_DB_FNAME_LEN];
-  char     acct[TSDB_USER_LEN];
-  char     createUser[TSDB_USER_LEN];
-  int64_t  createdTime;
-  int64_t  updateTime;
-  uint64_t uid;
-  int32_t  cfgVersion;
-  int32_t  vgVersion;
-  int8_t   hashMethod;  // default is 1
-  SDbCfg   cfg;
+  char    name[TSDB_DB_FNAME_LEN];
+  char    acct[TSDB_USER_LEN];
+  char    createUser[TSDB_USER_LEN];
+  int64_t createdTime;
+  int64_t updateTime;
+  int64_t uid;
+  int32_t cfgVersion;
+  int32_t vgVersion;
+  int8_t  hashMethod;  // default is 1
+  SDbCfg  cfg;
 } SDbObj;
 
 typedef struct {
@@ -346,8 +347,8 @@ typedef struct {
   char     db[TSDB_DB_FNAME_LEN];
   int64_t  createdTime;
   int64_t  updateTime;
-  uint64_t uid;
-  uint64_t dbUid;
+  int64_t  uid;
+  int64_t  dbUid;
   int32_t  version;
   int32_t  nextColId;
   int32_t  numOfColumns;
@@ -463,6 +464,24 @@ static FORCE_INLINE void tDeleteSMqSubConsumer(SMqSubConsumer* pSubConsumer) {
     taosArrayDestroyEx(pSubConsumer->vgInfo, (void (*)(void*))tDeleteSMqConsumerEp);
     pSubConsumer->vgInfo = NULL;
   }
+}
+
+typedef struct {
+  char    key[TSDB_PARTITION_KEY_LEN];
+  int64_t offset;
+} SMqOffsetObj;
+
+static FORCE_INLINE int32_t tEncodeSMqOffsetObj(void** buf, const SMqOffsetObj* pOffset) {
+  int32_t tlen = 0;
+  tlen += taosEncodeString(buf, pOffset->key);
+  tlen += taosEncodeFixedI64(buf, pOffset->offset);
+  return tlen;
+}
+
+static FORCE_INLINE void* tDecodeSMqOffsetObj(void* buf, SMqOffsetObj* pOffset) {
+  buf = taosDecodeStringTo(buf, pOffset->key);
+  buf = taosDecodeFixedI64(buf, &pOffset->offset);
+  return buf;
 }
 
 typedef struct {

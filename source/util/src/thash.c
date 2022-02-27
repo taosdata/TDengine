@@ -15,7 +15,7 @@
 
 #include "os.h"
 #include "thash.h"
-#include "ulog.h"
+#include "tlog.h"
 #include "taos.h"
 #include "tdef.h"
 

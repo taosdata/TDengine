@@ -51,10 +51,10 @@ int pgFileOpen(SPgFile **ppPgFile, const char *fname, TENV *pEnv) {
   pPgFile->fname = (char *)(&(pPgFile[1]));
   memcpy(pPgFile->fname, fname, fnameLen);
   pPgFile->fname[fnameLen] = '\0';
-  pPgFile->fd = -1;
+  pPgFile->pFile = NULL;
 
-  pPgFile->fd = open(fname, O_CREAT | O_RDWR, 0755);
-  if (pPgFile->fd < 0) {
+  pPgFile->pFile = taosOpenFile(fname, TD_FILE_CTEATE | TD_FILE_WRITE | TD_FILE_READ);
+  if (pPgFile->pFile == NULL) {
     // TODO: handle error
     return -1;
   }
@@ -95,8 +95,8 @@ int pgFileOpen(SPgFile **ppPgFile, const char *fname, TENV *pEnv) {
 
 int pgFileClose(SPgFile *pPgFile) {
   if (pPgFile) {
-    if (pPgFile->fd >= 0) {
-      close(pPgFile->fd);
+    if (pPgFile->pFile != NULL) {
+      taosCloseFile(&pPgFile->pFile);
     }
 
     tfree(pPgFile->fname);
@@ -201,7 +201,7 @@ static int pgFileRead(SPgFile *pPgFile, pgno_t pgno, uint8_t *pData) {
   pTData = pData;
   szToRead = pgSize;
   for (; szToRead > 0;) {
-    rsize = pread(pPgFile->fd, pTData, szToRead, pgno * pgSize);
+    rsize = pread(pPgFile->pFile, pTData, szToRead, pgno * pgSize);
     if (rsize < 0) {
       if (errno == EINTR) {
         continue;

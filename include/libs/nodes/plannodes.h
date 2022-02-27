@@ -21,6 +21,7 @@ extern "C" {
 #endif
 
 #include "querynodes.h"
+#include "tmsg.h"
 
 typedef struct SLogicNode {
   ENodeType type;
@@ -31,10 +32,20 @@ typedef struct SLogicNode {
   struct SLogicNode* pParent;
 } SLogicNode;
 
+typedef enum EScanType {
+  SCAN_TYPE_TAG,
+  SCAN_TYPE_TABLE,
+  SCAN_TYPE_STABLE,
+  SCAN_TYPE_STREAM
+} EScanType;
+
 typedef struct SScanLogicNode {
   SLogicNode node;
   SNodeList* pScanCols;
   struct STableMeta* pMeta;
+  EScanType scanType;
+  uint8_t scanFlag;         // denotes reversed scan of data or not
+  STimeWindow scanRange;
 } SScanLogicNode;
 
 typedef struct SJoinLogicNode {
@@ -42,10 +53,6 @@ typedef struct SJoinLogicNode {
   EJoinType joinType;
   SNode* pOnConditions;
 } SJoinLogicNode;
-
-typedef struct SFilterLogicNode {
-  SLogicNode node;
-} SFilterLogicNode;
 
 typedef struct SAggLogicNode {
   SLogicNode node;
@@ -57,6 +64,68 @@ typedef struct SProjectLogicNode {
   SLogicNode node;
   SNodeList* pProjections;
 } SProjectLogicNode;
+
+typedef struct SSlotDescNode {
+  ENodeType type;
+  int16_t slotId;
+  SDataType dataType;
+  bool reserve;
+  bool output;
+} SSlotDescNode;
+
+typedef struct STupleDescNode {
+  ENodeType type;
+  int16_t tupleId;
+  SNodeList* pSlots;
+} STupleDescNode;
+
+typedef struct SPhysiNode {
+  ENodeType type;
+  STupleDescNode outputTuple;
+  SNode* pConditions;
+  SNodeList* pChildren;
+  struct SPhysiNode* pParent;
+} SPhysiNode;
+
+typedef struct SScanPhysiNode {
+  SPhysiNode  node;
+  SNodeList* pScanCols;
+  uint64_t uid;           // unique id of the table
+  int8_t tableType;
+  int32_t order;         // scan order: TSDB_ORDER_ASC|TSDB_ORDER_DESC
+  int32_t count;         // repeat count
+  int32_t reverse;       // reverse scan count
+} SScanPhysiNode;
+
+typedef SScanPhysiNode SSystemTableScanPhysiNode;
+typedef SScanPhysiNode STagScanPhysiNode;
+
+typedef struct STableScanPhysiNode {
+  SScanPhysiNode scan;
+  uint8_t scanFlag;         // denotes reversed scan of data or not
+  STimeWindow scanRange;
+} STableScanPhysiNode;
+
+typedef STableScanPhysiNode STableSeqScanPhysiNode;
+
+typedef struct SProjectPhysiNode {
+  SPhysiNode node;
+  SNodeList* pProjections;
+} SProjectPhysiNode;
+
+typedef struct SJoinPhysiNode {
+  SPhysiNode node;
+  EJoinType joinType;
+  SNode* pOnConditions; // in or out tuple ?
+  SNodeList* pTargets;
+} SJoinPhysiNode;
+
+typedef struct SAggPhysiNode {
+  SPhysiNode node;
+  SNodeList* pExprs;   // these are expression list of group_by_clause and parameter expression of aggregate function
+  SNodeList* pGroupKeys; // SColumnRefNode list
+  SNodeList* pAggFuncs;
+} SAggPhysiNode;
 
 #ifdef __cplusplus
 }

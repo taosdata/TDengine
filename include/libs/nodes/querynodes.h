@@ -58,15 +58,24 @@ typedef struct SColumnNode {
   char tableAlias[TSDB_TABLE_NAME_LEN];
   char colName[TSDB_COL_NAME_LEN];
   SNode* pProjectRef;
-} SColumnNode;
-
-typedef struct SColumnRefNode {
-  ENodeType type;
-  SDataType dataType;
   int16_t tupleId;
   int16_t slotId;
-  int16_t columnId;
-} SColumnRefNode;
+} SColumnNode;
+
+// typedef struct SColumnRefNode {
+//   ENodeType type;
+//   SDataType dataType;
+//   int16_t tupleId;
+//   int16_t slotId;
+//   int16_t columnId;
+// } SColumnRefNode;
+
+typedef struct STargetNode {
+  ENodeType type;
+  int16_t tupleId;
+  int16_t slotId;
+  SNode* pExpr;
+} STargetNode;
 
 typedef struct SValueNode {
   SExprNode node; // QUERY_NODE_VALUE
@@ -81,45 +90,6 @@ typedef struct SValueNode {
   } datum;
 } SValueNode;
 
-typedef enum EOperatorType {
-  // arithmetic operator
-  OP_TYPE_ADD = 1,
-  OP_TYPE_SUB,
-  OP_TYPE_MULTI,
-  OP_TYPE_DIV,
-  OP_TYPE_MOD,
-
-  // bit operator
-  OP_TYPE_BIT_AND,
-  OP_TYPE_BIT_OR,
-
-  // comparison operator
-  OP_TYPE_GREATER_THAN,
-  OP_TYPE_GREATER_EQUAL,
-  OP_TYPE_LOWER_THAN,
-  OP_TYPE_LOWER_EQUAL,
-  OP_TYPE_EQUAL,
-  OP_TYPE_NOT_EQUAL,
-  OP_TYPE_IN,
-  OP_TYPE_NOT_IN,
-  OP_TYPE_LIKE,
-  OP_TYPE_NOT_LIKE,
-  OP_TYPE_MATCH,
-  OP_TYPE_NMATCH,
-  OP_TYPE_IS_NULL,
-  OP_TYPE_IS_NOT_NULL,
-  OP_TYPE_IS_TRUE,
-  OP_TYPE_IS_FALSE,
-  OP_TYPE_IS_UNKNOWN,
-  OP_TYPE_IS_NOT_TRUE,
-  OP_TYPE_IS_NOT_FALSE,
-  OP_TYPE_IS_NOT_UNKNOWN,
-
-  // json operator
-  OP_TYPE_JSON_GET_VALUE,
-  OP_TYPE_JSON_CONTAINS
-} EOperatorType;
-
 typedef struct SOperatorNode {
   SExprNode node; // QUERY_NODE_OPERATOR
   EOperatorType opType;
@@ -127,11 +97,6 @@ typedef struct SOperatorNode {
   SNode* pRight;
 } SOperatorNode;
 
-typedef enum ELogicConditionType {
-  LOGIC_COND_TYPE_AND,
-  LOGIC_COND_TYPE_OR,
-  LOGIC_COND_TYPE_NOT,
-} ELogicConditionType;
 
 typedef struct SLogicConditionNode {
   SExprNode node; // QUERY_NODE_LOGIC_CONDITION
@@ -141,6 +106,7 @@ typedef struct SLogicConditionNode {
 
 typedef struct SNodeListNode {
   ENodeType type; // QUERY_NODE_NODE_LIST
+  SDataType dataType;
   SNodeList* pNodeList;
 } SNodeListNode;
 
@@ -306,7 +272,8 @@ bool nodesIsJsonOp(const SOperatorNode* pOp);
 
 bool nodesIsTimeorderQuery(const SNode* pQuery);
 bool nodesIsTimelineQuery(const SNode* pQuery);
-void *nodesGetValueFromNode(SValueNode *pNode);
+
+void* nodesGetValueFromNode(SValueNode *pNode);
 
 #ifdef __cplusplus
 }

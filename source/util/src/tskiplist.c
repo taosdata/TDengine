@@ -14,12 +14,10 @@
  * along with this program. If not, see <http://www.gnu.org/licenses/>.
  */
 
-#include "os.h"
-
 #include "compare.h"
 #include "tskiplist.h"
 #include "tutil.h"
-#include "ulog.h"
+#include "tlog.h"
 
 static int                initForwardBackwardPtr(SSkipList *pSkipList);
 static SSkipListNode *    getPriorNode(SSkipList *pSkipList, const char *val, int32_t order, SSkipListNode **pCur);

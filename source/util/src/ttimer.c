@@ -111,8 +111,7 @@ typedef struct time_wheel_t {
   tmr_obj_t**     slots;
 } time_wheel_t;
 
-int32_t  tmrDebugFlag = 131;
-uint32_t tsMaxTmrCtrl = 512;
+int32_t tsMaxTmrCtrl = 512;
 
 static pthread_once_t  tmrModuleInit = PTHREAD_ONCE_INIT;
 static pthread_mutex_t tmrCtrlMutex;

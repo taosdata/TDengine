@@ -500,22 +500,24 @@ static EDealRes translateColumn(STranslateContext* pCxt, SColumnNode* pCol) {
 }
 
 static int32_t trimStringCopy(const char* src, int32_t len, char* dst) {
+  varDataSetLen(dst, len);
+  char* dstVal = varDataVal(dst);
   // delete escape character: \\, \', \"
   char delim = src[0];
   int32_t cnt = 0;
   int32_t j = 0;
   for (uint32_t k = 1; k < len - 1; ++k) {
     if (src[k] == '\\' || (src[k] == delim && src[k + 1] == delim)) {
-      dst[j] = src[k + 1];
+      dstVal[j] = src[k + 1];
       cnt++;
       j++;
       k++;
       continue;
     }
-    dst[j] = src[k];
+    dstVal[j] = src[k];
     j++;
   }
-  dst[j] = '\0';
+  dstVal[j] = '\0';
   return j;
 }
 
@@ -560,7 +562,7 @@ static EDealRes translateValue(STranslateContext* pCxt, SValueNode* pVal) {
       case TSDB_DATA_TYPE_VARCHAR:
       case TSDB_DATA_TYPE_VARBINARY: {
         int32_t n = strlen(pVal->literal);
-        pVal->datum.p = calloc(1, n);
+        pVal->datum.p = calloc(1, n + VARSTR_HEADER_SIZE);
         if (NULL == pVal->datum.p) {
           generateSyntaxErrMsg(pCxt, TSDB_CODE_OUT_OF_MEMORY);
           return DEAL_RES_ERROR;

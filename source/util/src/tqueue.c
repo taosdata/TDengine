@@ -16,7 +16,7 @@
 #define _DEFAULT_SOURCE
 #include "tqueue.h"
 #include "taoserror.h"
-#include "ulog.h"
+#include "tlog.h"
 
 typedef struct STaosQnode STaosQnode;
 

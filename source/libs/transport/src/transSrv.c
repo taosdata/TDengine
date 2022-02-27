@@ -104,7 +104,6 @@ static void uvStartSendResp(SSrvMsg* msg);
 
 static void destroySmsg(SSrvMsg* smsg);
 // check whether already read complete packet
-static bool      readComplete(SConnBuffer* buf);
 static SSrvConn* createConn(void* hThrd);
 static void      destroyConn(SSrvConn* conn, bool clear /*clear handle or not*/);
 
@@ -123,45 +122,6 @@ void uvAllocReadBufferCb(uv_handle_t* handle, size_t suggested_size, uv_buf_t* b
   SConnBuffer* pBuf = &conn->readBuf;
   transAllocBuffer(pBuf, buf);
 }
-
-// check data read from socket complete or not
-//
-static bool readComplete(SConnBuffer* data) {
-  // TODO(yihao): handle pipeline later
-  if (data->len == data->cap && data->total == data->cap) {
-    return true;
-  }
-  return false;
-  // STransMsgHead head;
-  // int32_t       headLen = sizeof(head);
-  // if (data->len >= headLen) {
-  //  memcpy((char*)&head, data->buf, headLen);
-  //  int32_t msgLen = (int32_t)htonl((uint32_t)head.msgLen);
-  //  if (msgLen > data->len) {
-  //    data->left = msgLen - data->len;
-  //    return false;
-  //  } else if (msgLen == data->len) {
-  //    return true;
-  //  } else if (msgLen < data->len) {
-  //    return false;
-  //    // handle other packet later
-  //  }
-  //} else {
-  //  return false;
-  //}
-}
-
-// static void uvDoProcess(SRecvInfo* pRecv) {
-//  // impl later
-//  STransMsgHead* pHead = (STransMsgHead*)pRecv->msg;
-//  SRpcInfo*      pRpc = (SRpcInfo*)pRecv->shandle;
-//  SSrvConn*         pConn = pRecv->thandle;
-//  tDump(pRecv->msg, pRecv->msgLen);
-//  terrno = 0;
-//  // SRpcReqContext* pContest;
-//
-//  // do auth and check
-//}
 
 static int uvAuthMsg(SSrvConn* pConn, char* msg, int len) {
   STransMsgHead* pHead = (STransMsgHead*)msg;
@@ -283,7 +243,7 @@ void uvOnReadCb(uv_stream_t* cli, ssize_t nread, const uv_buf_t* buf) {
   if (nread > 0) {
     pBuf->len += nread;
     tTrace("server conn %p read summary, total read: %d, current read: %d", conn, pBuf->len, (int)nread);
-    if (readComplete(pBuf)) {
+    if (transReadComplete(pBuf)) {
       tTrace("server conn %p alread read complete packet", conn);
       uvHandleReq(conn);
     } else {
@@ -453,11 +413,6 @@ void uvWorkerAsyncCb(uv_async_t* handle) {
     } else {
       uvStartSendResp(msg);
     }
-    // uv_buf_t wb;
-    // uvPrepareSendData(msg, &wb);
-    // uv_timer_stop(conn->pTimer);
-
-    // uv_write(conn->pWriter, (uv_stream_t*)conn->pTcp, &wb, 1, uvOnWriteCb);
   }
 }
 static void uvAcceptAsyncCb(uv_async_t* async) {
@@ -530,7 +485,6 @@ void uvOnConnectionCb(uv_stream_t* q, ssize_t nread, const uv_buf_t* buf) {
   pConn->pTimer->data = pConn;
 
   pConn->hostThrd = pThrd;
-  // pConn->pWorkerAsync = pThrd->workerAsync;  // thread safty
 
   // init client handle
   pConn->pTcp = (uv_tcp_t*)malloc(sizeof(uv_tcp_t));
@@ -770,14 +724,9 @@ void destroyWorkThrd(SWorkThrdObj* pThrd) {
 }
 void sendQuitToWorkThrd(SWorkThrdObj* pThrd) {
   SSrvMsg* srvMsg = calloc(1, sizeof(SSrvMsg));
-
-  // pthread_mutex_lock(&pThrd->msgMtx);
-  // QUEUE_PUSH(&pThrd->msg, &srvMsg->q);
-  // pthread_mutex_unlock(&pThrd->msgMtx);
   tDebug("send quit msg to work thread");
 
   transSendAsync(pThrd->asyncPool, &srvMsg->q);
-  // uv_async_send(pThrd->workerAsync);
 }
 
 void taosCloseServer(void* arg) {
@@ -814,19 +763,12 @@ void rpcSendResponse(const SRpcMsg* pMsg) {
   SSrvMsg* srvMsg = calloc(1, sizeof(SSrvMsg));
   srvMsg->pConn = pConn;
   srvMsg->msg = *pMsg;
-
-  // pthread_mutex_lock(&pThrd->msgMtx);
-  // QUEUE_PUSH(&pThrd->msg, &srvMsg->q);
-  // pthread_mutex_unlock(&pThrd->msgMtx);
-
   tTrace("server conn %p start to send resp", pConn);
   transSendAsync(pThrd->asyncPool, &srvMsg->q);
-  // uv_async_send(pThrd->workerAsync);
 }
 
 int rpcGetConnInfo(void* thandle, SRpcConnInfo* pInfo) {
   SSrvConn* pConn = thandle;
-  // struct sockaddr* pPeerName = &pConn->peername;
 
   struct sockaddr_in addr = pConn->addr;
   pInfo->clientIp = (uint32_t)(addr.sin_addr.s_addr);

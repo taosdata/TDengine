@@ -84,8 +84,6 @@ static void      addConnToPool(void* pool, char* ip, uint32_t port, SCliConn* co
 
 // register timer in each thread to clear expire conn
 static void clientTimeoutCb(uv_timer_t* handle);
-// check whether already read complete packet from server
-static bool clientReadComplete(SConnBuffer* pBuf);
 // alloc buf for read
 static void clientAllocBufferCb(uv_handle_t* handle, size_t suggested_size, uv_buf_t* buf);
 // callback after read nbytes from socket
@@ -136,8 +134,7 @@ static void clientHandleResp(SCliConn* conn) {
   rpcMsg.msgType = pHead->msgType;
   rpcMsg.ahandle = pCtx->ahandle;
 
-  if (rpcMsg.msgType == TDMT_VND_QUERY_RSP || rpcMsg.msgType == TDMT_VND_FETCH_RSP ||
-      rpcMsg.msgType == TDMT_VND_RES_READY_RSP) {
+  if (pRpc->pfp != NULL && (pRpc->pfp)(pRpc->parent, rpcMsg.msgType)) {
     rpcMsg.handle = conn;
     conn->persist = 1;
     tDebug("client conn %p persist by app", conn);
@@ -187,18 +184,13 @@ static void clientHandleExcept(SCliConn* pConn) {
     clientConnDestroy(pConn, true);
     return;
   }
-  SCliMsg* pMsg = pConn->data;
-
-  tmsg_t msgType = TDMT_MND_CONNECT;
-  if (pMsg != NULL) {
-    msgType = pMsg->msg.msgType;
-  }
+  SCliMsg*       pMsg = pConn->data;
   STransConnCtx* pCtx = pMsg->ctx;
 
   SRpcMsg rpcMsg = {0};
   rpcMsg.ahandle = pCtx->ahandle;
   rpcMsg.code = TSDB_CODE_RPC_NETWORK_UNAVAIL;
-  rpcMsg.msgType = msgType + 1;
+  rpcMsg.msgType = pMsg->msg.msgType + 1;
 
   if (pConn->push != NULL && pConn->ctnRdCnt != 0) {
     (*pConn->push->callback)(pConn->push->arg, &rpcMsg);
@@ -309,32 +301,6 @@ static void addConnToPool(void* pool, char* ip, uint32_t port, SCliConn* conn) {
   assert(plist != NULL);
   QUEUE_PUSH(&plist->conn, &conn->conn);
 }
-static bool clientReadComplete(SConnBuffer* data) {
-  if (data->len >= sizeof(STransMsgHead)) {
-    STransMsgHead head;
-    memcpy((char*)&head, data->buf, sizeof(head));
-    int32_t msgLen = (int32_t)htonl(head.msgLen);
-    data->total = msgLen;
-  }
-
-  if (data->len == data->cap && data->total == data->cap) {
-    return true;
-  }
-  return false;
-  // if (data->len >= headLen) {
-  //  memcpy((char*)&head, data->buf, headLen);
-  //  int32_t msgLen = (int32_t)htonl((uint32_t)head.msgLen);
-  //  if (msgLen > data->len) {
-  //    data->left = msgLen - data->len;
-  //    return false;
-  //  } else if (msgLen == data->len) {
-  //    data->left = 0;
-  //    return true;
-  //  }
-  //} else {
-  //  return false;
-  //}
-}
 static void clientAllocBufferCb(uv_handle_t* handle, size_t suggested_size, uv_buf_t* buf) {
   SCliConn*    conn = handle->data;
   SConnBuffer* pBuf = &conn->readBuf;
@@ -349,7 +315,7 @@ static void clientReadCb(uv_stream_t* handle, ssize_t nread, const uv_buf_t* buf
   SConnBuffer* pBuf = &conn->readBuf;
   if (nread > 0) {
     pBuf->len += nread;
-    if (clientReadComplete(pBuf)) {
+    if (transReadComplete(pBuf)) {
       tTrace("client conn %p read complete", conn);
       clientHandleResp(conn);
     } else {
@@ -473,7 +439,7 @@ static void clientConnCb(uv_connect_t* req, int status) {
   addrlen = sizeof(pConn->locaddr);
   uv_tcp_getsockname((uv_tcp_t*)pConn->stream, (struct sockaddr*)&pConn->locaddr, &addrlen);
 
-  tTrace("client conn %p create", pConn);
+  tTrace("client conn %p connect to server successfully", pConn);
 
   assert(pConn->stream == req->handle);
   clientWrite(pConn);
@@ -552,6 +518,7 @@ static void clientHandleReq(SCliMsg* pMsg, SCliThrdObj* pThrd) {
     struct sockaddr_in addr;
     uv_ip4_addr(pMsg->ctx->ip, pMsg->ctx->port, &addr);
     // handle error in callback if fail to connect
+    tTrace("client conn %p try to connect to %s:%d", conn, pMsg->ctx->ip, pMsg->ctx->port);
     uv_tcp_connect(&conn->connReq, (uv_tcp_t*)(conn->stream), (const struct sockaddr*)&addr, clientConnCb);
   }
 

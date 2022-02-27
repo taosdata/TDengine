@@ -13,17 +13,23 @@
  * along with this program. If not, see <http://www.gnu.org/licenses/>.
  */
 
-#ifndef _TD_COMMON_LOCALE_H_
-#define _TD_COMMON_LOCALE_H_
+#define _DEFAULT_SOURCE
+#include "dmnInt.h"
 
-#ifdef __cplusplus
-extern "C" {
+void dmnGenerateGrant() {
+#if 0
+  grantParseParameter();
 #endif
-
-void tsSetLocale();
-
-#ifdef __cplusplus
 }
-#endif /*_TD_COMMON_LOCALE_H_*/
 
+void dmnPrintVersion() {
+#ifdef TD_ENTERPRISE
+  char *releaseName = "enterprise";
+#else
+  char *releaseName = "community";
 #endif
+  printf("%s version: %s compatible_version: %s\n", releaseName, version, compatible_version);
+  printf("gitinfo: %s\n", gitinfo);
+  printf("gitinfoI: %s\n", gitinfoOfInternal);
+  printf("builuInfo: %s\n", buildinfo);
+}

@@ -142,6 +142,13 @@ static SNode* functionNodeCopy(const SFunctionNode* pSrc, SFunctionNode* pDst) {
   return (SNode*)pDst;
 }
 
+static SNode* targetNodeCopy(const STargetNode* pSrc, STargetNode* pDst) {
+  COPY_SCALAR_FIELD(tupleId);
+  COPY_SCALAR_FIELD(slotId);
+  COPY_NODE_FIELD(pExpr);
+  return (SNode*)pDst;
+}
+
 static SNode* groupingSetNodeCopy(const SGroupingSetNode* pSrc, SGroupingSetNode* pDst) {
   COPY_SCALAR_FIELD(groupingSetType);
   COPY_NODE_LIST_FIELD(pParameterList);
@@ -168,6 +175,8 @@ SNode* nodesCloneNode(const SNode* pNode) {
       return logicConditionNodeCopy((const SLogicConditionNode*)pNode, (SLogicConditionNode*)pDst);
     case QUERY_NODE_FUNCTION:
       return functionNodeCopy((const SFunctionNode*)pNode, (SFunctionNode*)pDst);
+    case QUERY_NODE_TARGET:
+      return targetNodeCopy((const STargetNode*)pNode, (STargetNode*)pDst);
     case QUERY_NODE_REAL_TABLE:
     case QUERY_NODE_TEMP_TABLE:
     case QUERY_NODE_JOIN_TABLE:

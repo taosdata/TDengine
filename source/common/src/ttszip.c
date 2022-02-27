@@ -24,8 +24,9 @@ STSBuf* tsBufCreate(bool autoDelete, int32_t order) {
   pTSBuf->autoDelete = autoDelete;
   
   taosGetTmpfilePath(tsTempDir, "join", pTSBuf->path);
-  pTSBuf->f = fopen(pTSBuf->path, "wb+");
-  if (pTSBuf->f == NULL) {
+  // pTSBuf->pFile = fopen(pTSBuf->path, "wb+");
+  pTSBuf->pFile = taosOpenFile(pTSBuf->path, TD_FILE_CTEATE | TD_FILE_WRITE | TD_FILE_READ | TD_FILE_TRUNC);
+  if (pTSBuf->pFile == NULL) {
     free(pTSBuf);
     return NULL;
   }
@@ -60,8 +61,9 @@ STSBuf* tsBufCreateFromFile(const char* path, bool autoDelete) {
   
   tstrncpy(pTSBuf->path, path, sizeof(pTSBuf->path));
   
-  pTSBuf->f = fopen(pTSBuf->path, "rb+");
-  if (pTSBuf->f == NULL) {
+  // pTSBuf->pFile = fopen(pTSBuf->path, "rb+");
+  pTSBuf->pFile = taosOpenFile(pTSBuf->path, TD_FILE_WRITE | TD_FILE_READ);
+  if (pTSBuf->pFile == NULL) {
     free(pTSBuf);
     return NULL;
   }
@@ -72,9 +74,9 @@ STSBuf* tsBufCreateFromFile(const char* path, bool autoDelete) {
   
   // validate the file magic number
   STSBufFileHeader header = {0};
-  int32_t ret = fseek(pTSBuf->f, 0, SEEK_SET);
+  int32_t ret = taosLSeekFile(pTSBuf->pFile, 0, SEEK_SET);
   UNUSED(ret);
-  size_t sz = fread(&header, 1, sizeof(STSBufFileHeader), pTSBuf->f);
+  size_t sz = taosReadFile(pTSBuf->pFile, &header, sizeof(STSBufFileHeader));
   UNUSED(sz);
 
   // invalid file
@@ -112,8 +114,8 @@ STSBuf* tsBufCreateFromFile(const char* path, bool autoDelete) {
     return NULL; 
   } 
   
-  //int64_t pos = ftell(pTSBuf->f); //pos not used
-  sz = fread(buf, infoSize, 1, pTSBuf->f);
+  //int64_t pos = ftell(pTSBuf->pFile); //pos not used
+  sz = taosReadFile(pTSBuf->pFile, buf, infoSize);
   UNUSED(sz);
   
   // the length value for each vnode is not kept in file, so does not set the length value
@@ -123,22 +125,22 @@ STSBuf* tsBufCreateFromFile(const char* path, bool autoDelete) {
   }
   free(buf);
   
-  ret = fseek(pTSBuf->f, 0, SEEK_END);
+  ret = taosLSeekFile(pTSBuf->pFile, 0, SEEK_END);
   UNUSED(ret);
   
-  struct stat fileStat;
-  if (fstat(fileno(pTSBuf->f), &fileStat) != 0) {
+  int64_t file_size;
+  if (taosFStatFile(pTSBuf->pFile, &file_size, NULL) != 0) {
     tsBufDestroy(pTSBuf);
     return NULL;
   }
   
-  pTSBuf->fileSize = (uint32_t)fileStat.st_size;
+  pTSBuf->fileSize = (uint32_t)file_size;
   tsBufResetPos(pTSBuf);
   
   // ascending by default
   pTSBuf->cur.order = TSDB_ORDER_ASC;
   
-//  tscDebug("create tsBuf from file:%s, fd:%d, size:%d, numOfGroups:%d, autoDelete:%d", pTSBuf->path, fileno(pTSBuf->f),
+//  tscDebug("create tsBuf from file:%s, fd:%d, size:%d, numOfGroups:%d, autoDelete:%d", pTSBuf->path, fileno(pTSBuf->pFile),
 //           pTSBuf->fileSize, pTSBuf->numOfGroups, pTSBuf->autoDelete);
   
   return pTSBuf;
@@ -156,7 +158,7 @@ void* tsBufDestroy(STSBuf* pTSBuf) {
   tfree(pTSBuf->block.payload);
 
   if (!pTSBuf->remainOpen) {
-    fclose(pTSBuf->f);
+    taosCloseFile(&pTSBuf->pFile);
   }
   
   if (pTSBuf->autoDelete) {
@@ -253,7 +255,7 @@ static void writeDataToDisk(STSBuf* pTSBuf) {
       tsCompressTimestamp(pTsData->rawBuf, pTsData->len, pTsData->len/TSDB_KEYSIZE, pBlock->payload, pTsData->allocSize,
           TWO_STAGE_COMP, pTSBuf->assistBuf, pTSBuf->bufSize);
   
-  int64_t r = fseek(pTSBuf->f, pTSBuf->fileSize, SEEK_SET);
+  int64_t r = taosLSeekFile(pTSBuf->pFile, pTSBuf->fileSize, SEEK_SET);
   assert(r == 0);
   
   /*
@@ -264,30 +266,30 @@ static void writeDataToDisk(STSBuf* pTSBuf) {
    * both side has the compressed length is used to support load data forwards/backwords.
    */
   int32_t metaLen = 0;
-  metaLen += (int32_t)fwrite(&pBlock->tag.nType, 1, sizeof(pBlock->tag.nType), pTSBuf->f);
+  metaLen += (int32_t)taosWriteFile(pTSBuf->pFile, &pBlock->tag.nType, sizeof(pBlock->tag.nType));
 
   int32_t trueLen = pBlock->tag.nLen;
   if (pBlock->tag.nType == TSDB_DATA_TYPE_BINARY || pBlock->tag.nType == TSDB_DATA_TYPE_NCHAR) {
-    metaLen += (int32_t)fwrite(&pBlock->tag.nLen, 1, sizeof(pBlock->tag.nLen), pTSBuf->f);
-    metaLen += (int32_t)fwrite(pBlock->tag.pz, 1, (size_t)pBlock->tag.nLen, pTSBuf->f);
+    metaLen += (int32_t)taosWriteFile(pTSBuf->pFile, &pBlock->tag.nLen, sizeof(pBlock->tag.nLen));
+    metaLen += (int32_t)taosWriteFile(pTSBuf->pFile, pBlock->tag.pz, (size_t)pBlock->tag.nLen);
   } else if (pBlock->tag.nType == TSDB_DATA_TYPE_FLOAT) {
-    metaLen += (int32_t)fwrite(&pBlock->tag.nLen, 1, sizeof(pBlock->tag.nLen), pTSBuf->f);
+    metaLen += (int32_t)taosWriteFile(pTSBuf->pFile, &pBlock->tag.nLen, sizeof(pBlock->tag.nLen));
     float tfloat = (float)pBlock->tag.d;
-    metaLen += (int32_t)fwrite(&tfloat, 1, (size_t) pBlock->tag.nLen, pTSBuf->f);  
+    metaLen += (int32_t)taosWriteFile(pTSBuf->pFile, &tfloat, (size_t) pBlock->tag.nLen);  
   } else if (pBlock->tag.nType != TSDB_DATA_TYPE_NULL) {
-    metaLen += (int32_t)fwrite(&pBlock->tag.nLen, 1, sizeof(pBlock->tag.nLen), pTSBuf->f);
-    metaLen += (int32_t)fwrite(&pBlock->tag.i, 1, (size_t) pBlock->tag.nLen, pTSBuf->f);
+    metaLen += (int32_t)taosWriteFile(pTSBuf->pFile, &pBlock->tag.nLen, sizeof(pBlock->tag.nLen));
+    metaLen += (int32_t)taosWriteFile(pTSBuf->pFile, &pBlock->tag.i, (size_t) pBlock->tag.nLen);
   } else {
     trueLen = 0;
-    metaLen += (int32_t)fwrite(&trueLen, 1, sizeof(pBlock->tag.nLen), pTSBuf->f);
+    metaLen += (int32_t)taosWriteFile(pTSBuf->pFile, &trueLen, sizeof(pBlock->tag.nLen));
   }
 
-  fwrite(&pBlock->numOfElem, sizeof(pBlock->numOfElem), 1, pTSBuf->f);
-  fwrite(&pBlock->compLen, sizeof(pBlock->compLen), 1, pTSBuf->f);
-  fwrite(pBlock->payload, (size_t)pBlock->compLen, 1, pTSBuf->f);
-  fwrite(&pBlock->compLen, sizeof(pBlock->compLen), 1, pTSBuf->f);
+  taosWriteFile(pTSBuf->pFile, &pBlock->numOfElem, sizeof(pBlock->numOfElem));
+  taosWriteFile(pTSBuf->pFile, &pBlock->compLen, sizeof(pBlock->compLen));
+  taosWriteFile(pTSBuf->pFile, pBlock->payload, (size_t)pBlock->compLen);
+  taosWriteFile(pTSBuf->pFile, &pBlock->compLen, sizeof(pBlock->compLen));
 
-  metaLen += (int32_t) fwrite(&trueLen, 1, sizeof(pBlock->tag.nLen), pTSBuf->f);
+  metaLen += (int32_t) taosWriteFile(pTSBuf->pFile, &trueLen, sizeof(pBlock->tag.nLen));
   assert(metaLen == getTagAreaLength(&pBlock->tag));
 
   int32_t blockSize = metaLen + sizeof(pBlock->numOfElem) + sizeof(pBlock->compLen) * 2 + pBlock->compLen;
@@ -332,20 +334,20 @@ STSBlock* readDataFromDisk(STSBuf* pTSBuf, int32_t order, bool decomp) {
      * the end of each comp data block
      */
     int32_t prev = -(int32_t) (sizeof(pBlock->padding) + sizeof(pBlock->tag.nLen));
-    int32_t ret = fseek(pTSBuf->f, prev, SEEK_CUR);
-    size_t sz = fread(&pBlock->padding, 1, sizeof(pBlock->padding), pTSBuf->f);
-    sz = fread(&pBlock->tag.nLen, 1, sizeof(pBlock->tag.nLen), pTSBuf->f);
+    int32_t ret = taosLSeekFile(pTSBuf->pFile, prev, SEEK_CUR);
+    size_t sz = taosReadFile(pTSBuf->pFile, &pBlock->padding, sizeof(pBlock->padding));
+    sz = taosReadFile(pTSBuf->pFile, &pBlock->tag.nLen, sizeof(pBlock->tag.nLen));
     UNUSED(sz); 
 
     pBlock->compLen = pBlock->padding;
 
     offset = pBlock->compLen + sizeof(pBlock->compLen) * 2 + sizeof(pBlock->numOfElem) + getTagAreaLength(&pBlock->tag);
-    ret = fseek(pTSBuf->f, -offset, SEEK_CUR);
+    ret = taosLSeekFile(pTSBuf->pFile, -offset, SEEK_CUR);
     UNUSED(ret);
   }
 
-  int32_t ret = fread(&pBlock->tag.nType, sizeof(pBlock->tag.nType), 1, pTSBuf->f);
-  ret = fread(&pBlock->tag.nLen, sizeof(pBlock->tag.nLen), 1, pTSBuf->f);
+  int32_t ret = taosReadFile(pTSBuf->pFile, &pBlock->tag.nType, sizeof(pBlock->tag.nType));
+  ret = taosReadFile(pTSBuf->pFile, &pBlock->tag.nLen, sizeof(pBlock->tag.nLen));
 
   // NOTE: mix types tags are not supported
   size_t sz = 0;
@@ -356,23 +358,23 @@ STSBlock* readDataFromDisk(STSBuf* pTSBuf, int32_t order, bool decomp) {
     memset(tp, 0, pBlock->tag.nLen + 1);
     pBlock->tag.pz = tp;
 
-    sz = fread(pBlock->tag.pz, (size_t)pBlock->tag.nLen, 1, pTSBuf->f);
+    sz = taosReadFile(pTSBuf->pFile, pBlock->tag.pz, (size_t)pBlock->tag.nLen);
     UNUSED(sz);
   } else if (pBlock->tag.nType == TSDB_DATA_TYPE_FLOAT) {
     float tfloat = 0;
-    sz = fread(&tfloat, (size_t) pBlock->tag.nLen, 1, pTSBuf->f);
+    sz = taosReadFile(pTSBuf->pFile, &tfloat, (size_t) pBlock->tag.nLen);
     pBlock->tag.d = (double)tfloat;
     UNUSED(sz);
   } else if (pBlock->tag.nType != TSDB_DATA_TYPE_NULL) { //TODO check the return value
-    sz = fread(&pBlock->tag.i, (size_t) pBlock->tag.nLen, 1, pTSBuf->f);
+    sz = taosReadFile(pTSBuf->pFile, &pBlock->tag.i, (size_t) pBlock->tag.nLen);
     UNUSED(sz);
   }
 
-  sz = fread(&pBlock->numOfElem, sizeof(pBlock->numOfElem), 1, pTSBuf->f);
+  sz = taosReadFile(pTSBuf->pFile, &pBlock->numOfElem, sizeof(pBlock->numOfElem));
   UNUSED(sz);
-  sz = fread(&pBlock->compLen, sizeof(pBlock->compLen), 1, pTSBuf->f);
+  sz = taosReadFile(pTSBuf->pFile, &pBlock->compLen, sizeof(pBlock->compLen));
   UNUSED(sz);
-  sz = fread(pBlock->payload, (size_t)pBlock->compLen, 1, pTSBuf->f);
+  sz = taosReadFile(pTSBuf->pFile, pBlock->payload, (size_t)pBlock->compLen);
 
   if (decomp) {
     pTSBuf->tsData.len =
@@ -381,11 +383,11 @@ STSBlock* readDataFromDisk(STSBuf* pTSBuf, int32_t order, bool decomp) {
   }
   
   // read the comp length at the length of comp block
-  sz = fread(&pBlock->padding, sizeof(pBlock->padding), 1, pTSBuf->f);
+  sz = taosReadFile(pTSBuf->pFile, &pBlock->padding, sizeof(pBlock->padding));
   assert(pBlock->padding == pBlock->compLen);
 
   int32_t n = 0;
-  sz = fread(&n, sizeof(pBlock->tag.nLen), 1, pTSBuf->f);
+  sz = taosReadFile(pTSBuf->pFile, &n, sizeof(pBlock->tag.nLen));
   if (pBlock->tag.nType == TSDB_DATA_TYPE_NULL) {
     assert(n == 0);
   } else {
@@ -396,7 +398,7 @@ STSBlock* readDataFromDisk(STSBuf* pTSBuf, int32_t order, bool decomp) {
   
   // for backwards traverse, set the start position at the end of previous block
   if (order == TSDB_ORDER_DESC) {
-    int32_t r = fseek(pTSBuf->f, -offset, SEEK_CUR);
+    int32_t r = taosLSeekFile(pTSBuf->pFile, -offset, SEEK_CUR);
     UNUSED(r);
   }
   
@@ -512,7 +514,7 @@ static int32_t tsBufFindGroupById(STSGroupBlockInfoEx* pGroupInfoEx, int32_t num
 
 // todo opt performance by cache blocks info
 static int32_t tsBufFindBlock(STSBuf* pTSBuf, STSGroupBlockInfo* pBlockInfo, int32_t blockIndex) {
-  if (fseek(pTSBuf->f, pBlockInfo->offset, SEEK_SET) != 0) {
+  if (taosLSeekFile(pTSBuf->pFile, pBlockInfo->offset, SEEK_SET) != 0) {
     return -1;
   }
   
@@ -531,7 +533,7 @@ static int32_t tsBufFindBlock(STSBuf* pTSBuf, STSGroupBlockInfo* pBlockInfo, int
     STSBlock* pBlock = &pTSBuf->block;
     int32_t   compBlockSize =
         pBlock->compLen + sizeof(pBlock->compLen) * 2 + sizeof(pBlock->numOfElem) + getTagAreaLength(&pBlock->tag);
-    int32_t ret = fseek(pTSBuf->f, -compBlockSize, SEEK_CUR);
+    int32_t ret = taosLSeekFile(pTSBuf->pFile, -compBlockSize, SEEK_CUR);
     UNUSED(ret);
   }
   
@@ -548,7 +550,7 @@ static int32_t tsBufFindBlockByTag(STSBuf* pTSBuf, STSGroupBlockInfo* pBlockInfo
     offset = pBlockInfo->offset + pBlockInfo->compLen;
   }
   
-  if (fseek(pTSBuf->f, (int32_t)offset, SEEK_SET) != 0) {
+  if (taosLSeekFile(pTSBuf->pFile, (int32_t)offset, SEEK_SET) != 0) {
     return -1;
   }
   
@@ -618,11 +620,11 @@ static int32_t doUpdateGroupInfo(STSBuf* pTSBuf, int64_t offset, STSGroupBlockIn
     return -1;
   }
 
-  if (fseek(pTSBuf->f, (int32_t)offset, SEEK_SET) != 0) {
+  if (taosLSeekFile(pTSBuf->pFile, (int32_t)offset, SEEK_SET) != 0) {
     return -1;
   }
 
-  fwrite(pVInfo, sizeof(STSGroupBlockInfo), 1, pTSBuf->f);
+  taosWriteFile(pTSBuf->pFile, pVInfo, sizeof(STSGroupBlockInfo));
   return 0;
 }
 
@@ -636,19 +638,19 @@ STSGroupBlockInfo* tsBufGetGroupBlockInfo(STSBuf* pTSBuf, int32_t id) {
 }
 
 int32_t STSBufUpdateHeader(STSBuf* pTSBuf, STSBufFileHeader* pHeader) {
-  if ((pTSBuf->f == NULL) || pHeader == NULL || pHeader->numOfGroup == 0 || pHeader->magic != TS_COMP_FILE_MAGIC) {
+  if ((pTSBuf->pFile == NULL) || pHeader == NULL || pHeader->numOfGroup == 0 || pHeader->magic != TS_COMP_FILE_MAGIC) {
     return -1;
   }
 
   assert(pHeader->tsOrder == TSDB_ORDER_ASC || pHeader->tsOrder == TSDB_ORDER_DESC);
 
-  int32_t r = fseek(pTSBuf->f, 0, SEEK_SET);
+  int32_t r = taosLSeekFile(pTSBuf->pFile, 0, SEEK_SET);
   if (r != 0) {
 //    qError("fseek failed, errno:%d", errno);
     return -1;
   }
 
-  size_t ws = fwrite(pHeader, sizeof(STSBufFileHeader), 1, pTSBuf->f);
+  size_t ws = taosWriteFile(pTSBuf->pFile, pHeader, sizeof(STSBufFileHeader));
   if (ws != 1) {    
 //    qError("ts update header fwrite failed, size:%d, expected size:%d", (int32_t)ws, (int32_t)sizeof(STSBufFileHeader));
     return -1;
@@ -823,12 +825,12 @@ int32_t tsBufMerge(STSBuf* pDestBuf, const STSBuf* pSrcBuf) {
     pBlockInfoEx->info.id = id;
   }
   
-  int32_t r = fseek(pDestBuf->f, 0, SEEK_END);
+  int32_t r = taosLSeekFile(pDestBuf->pFile, 0, SEEK_END);
   assert(r == 0);
   
   int64_t offset = getDataStartOffset();
   int32_t size = (int32_t)pSrcBuf->fileSize - (int32_t)offset;
-  int64_t written = taosFSendFile(pDestBuf->f, pSrcBuf->f, &offset, size);
+  int64_t written = taosFSendFile(pDestBuf->pFile, pSrcBuf->pFile, &offset, size);
   
   if (written == -1 || written != size) {
     return -1;
@@ -839,17 +841,18 @@ int32_t tsBufMerge(STSBuf* pDestBuf, const STSBuf* pSrcBuf) {
   int32_t oldSize = pDestBuf->fileSize;
 
   // file meta data may be cached, close and reopen the file for accurate file size.
-  fclose(pDestBuf->f);
-  pDestBuf->f = fopen(pDestBuf->path, "rb+");
-  if (pDestBuf->f == NULL) {
+  taosCloseFile(&pDestBuf->pFile);
+  // pDestBuf->pFile = fopen(pDestBuf->path, "rb+");
+  pDestBuf->pFile = taosOpenFile(pDestBuf->path, TD_FILE_WRITE | TD_FILE_READ);
+  if (pDestBuf->pFile == NULL) {
     return -1;
   }
 
-  struct stat fileStat;
-  if (fstat(fileno(pDestBuf->f), &fileStat) != 0) {
+  int64_t file_size;
+  if (taosFStatFile(pDestBuf->pFile, &file_size, NULL) != 0) {
     return -1;  
   }
-  pDestBuf->fileSize = (uint32_t)fileStat.st_size;
+  pDestBuf->fileSize = (uint32_t)file_size;
 
   assert(pDestBuf->fileSize == oldSize + size);
 
@@ -868,13 +871,13 @@ STSBuf* tsBufCreateFromCompBlocks(const char* pData, int32_t numOfBlocks, int32_
   // update prev vnode length info in file
   TSBufUpdateGroupInfo(pTSBuf, pTSBuf->numOfGroups - 1, pBlockInfo);
   
-  int32_t ret = fseek(pTSBuf->f, pBlockInfo->offset, SEEK_SET);
+  int32_t ret = taosLSeekFile(pTSBuf->pFile, pBlockInfo->offset, SEEK_SET);
   if (ret == -1) {
 //    qError("fseek failed, errno:%d", errno);
     tsBufDestroy(pTSBuf);
     return NULL;
   }
-  size_t sz = fwrite((void*)pData, 1, len, pTSBuf->f);
+  size_t sz = taosWriteFile(pTSBuf->pFile, (void*)pData, len);
   if (sz != len) {
 //    qError("ts data fwrite failed, write size:%d, expected size:%d", (int32_t)sz, len);
     tsBufDestroy(pTSBuf);
@@ -893,7 +896,7 @@ STSBuf* tsBufCreateFromCompBlocks(const char* pData, int32_t numOfBlocks, int32_
   }
 
   // TODO taosFsync??
-//  if (taosFsync(fileno(pTSBuf->f)) == -1) {
+//  if (taosFsync(fileno(pTSBuf->pFile)) == -1) {
 ////    qError("fsync failed, errno:%d", errno);
 //    tsBufDestroy(pTSBuf);
 //    return NULL;
@@ -1071,15 +1074,15 @@ int32_t dumpFileBlockByGroupId(STSBuf* pTSBuf, int32_t groupIndex, void* buf, in
   *len = 0;
   *numOfBlocks = 0;
 
-  if (fseek(pTSBuf->f, pBlockInfo->offset, SEEK_SET) != 0) {
-    int code = TAOS_SYSTEM_ERROR(ferror(pTSBuf->f));
+  if (taosLSeekFile(pTSBuf->pFile, pBlockInfo->offset, SEEK_SET) != 0) {
+    int code = TAOS_SYSTEM_ERROR(taosEOFFile(pTSBuf->pFile));
 //    qError("%p: fseek failed: %s", pSql, tstrerror(code));
     return code;
   }
 
-  size_t s = fread(buf, 1, pBlockInfo->compLen, pTSBuf->f);
+  size_t s = taosReadFile(pTSBuf->pFile, buf, pBlockInfo->compLen);
   if (s != pBlockInfo->compLen) {
-    int code = TAOS_SYSTEM_ERROR(ferror(pTSBuf->f));
+    int code = TAOS_SYSTEM_ERROR(taosEOFFile(pTSBuf->pFile));
 //    tscError("%p: fread didn't return expected data: %s", pSql, tstrerror(code));
     return code;
   }

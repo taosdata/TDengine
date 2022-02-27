@@ -21,24 +21,17 @@ extern "C" {
 #endif
 
 #include "os.h"
-  
-#define TSDB_LOCALE_LEN   64
-#define TSDB_TIMEZONE_LEN 96
-
-extern int64_t tsPageSize;
-extern int64_t tsOpenMax;
-extern int64_t tsStreamMax;
-extern int32_t tsNumOfCores;
-extern int32_t tsTotalMemoryMB;
-extern char     tsTimezone[];
-extern char     tsLocale[];
-extern char     tsCharset[];            // default encode string
 
 typedef struct {
   int64_t total;
   int64_t used;
   int64_t avail;
 } SDiskSize;
+
+typedef struct {
+  int64_t   reserved;
+  SDiskSize size;
+} SDiskSpace;
 
 int32_t taosGetDiskSize(char *dataDir, SDiskSize *diskSize);
 int32_t taosGetCpuCores();
@@ -51,7 +44,6 @@ void    taosGetDisk();
 bool    taosGetCpuUsage(float *sysCpuUsage, float *procCpuUsage);
 bool    taosGetProcMemory(float *memoryUsedMB);
 bool    taosGetSysMemory(float *memoryUsedMB);
-void    taosPrintOsInfo();
 int     taosSystem(const char *cmd);
 void    taosKillSystem();
 int32_t taosGetSystemUUID(char *uid, int32_t uidlen);

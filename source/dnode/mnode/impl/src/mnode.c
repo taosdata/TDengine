@@ -23,6 +23,7 @@
 #include "mndDnode.h"
 #include "mndFunc.h"
 #include "mndMnode.h"
+#include "mndOffset.h"
 #include "mndProfile.h"
 #include "mndQnode.h"
 #include "mndShow.h"
@@ -35,6 +36,10 @@
 #include "mndTrans.h"
 #include "mndUser.h"
 #include "mndVgroup.h"
+
+#define MQ_TIMER_MS    3000
+#define TRNAS_TIMER_MS 6000
+#define TELEM_TIMER_MS 86400000
 
 int32_t mndSendReqToDnode(SMnode *pMnode, SEpSet *pEpSet, SRpcMsg *pMsg) {
   if (pMnode == NULL || pMnode->sendReqToDnodeFp == NULL) {
@@ -73,46 +78,60 @@ static void *mndBuildTimerMsg(int32_t *pContLen) {
   return pReq;
 }
 
-static void mndTransReExecute(void *param, void *tmrId) {
+static void mndPullupTrans(void *param, void *tmrId) {
   SMnode *pMnode = param;
   if (mndIsMaster(pMnode)) {
     int32_t contLen = 0;
-    void *  pReq = mndBuildTimerMsg(&contLen);
-    SRpcMsg rpcMsg = {.msgType = TDMT_MND_TRANS, .pCont = pReq, .contLen = contLen};
+    void   *pReq = mndBuildTimerMsg(&contLen);
+    SRpcMsg rpcMsg = {.msgType = TDMT_MND_TRANS_TIMER, .pCont = pReq, .contLen = contLen};
     pMnode->putReqToMWriteQFp(pMnode->pDnode, &rpcMsg);
   }
 
-  taosTmrReset(mndTransReExecute, 3000, pMnode, pMnode->timer, &pMnode->transTimer);
+  taosTmrReset(mndPullupTrans, TRNAS_TIMER_MS, pMnode, pMnode->timer, &pMnode->transTimer);
 }
 
 static void mndCalMqRebalance(void *param, void *tmrId) {
   SMnode *pMnode = param;
   if (mndIsMaster(pMnode)) {
     int32_t contLen = 0;
-    void *  pReq = mndBuildTimerMsg(&contLen);
+    void   *pReq = mndBuildTimerMsg(&contLen);
     SRpcMsg rpcMsg = {.msgType = TDMT_MND_MQ_TIMER, .pCont = pReq, .contLen = contLen};
     pMnode->putReqToMReadQFp(pMnode->pDnode, &rpcMsg);
   }
 
-  taosTmrReset(mndCalMqRebalance, 3000, pMnode, pMnode->timer, &pMnode->mqTimer);
+  taosTmrReset(mndCalMqRebalance, MQ_TIMER_MS, pMnode, pMnode->timer, &pMnode->mqTimer);
+}
+
+static void mndPullupTelem(void *param, void *tmrId) {
+  SMnode *pMnode = param;
+  if (mndIsMaster(pMnode)) {
+    int32_t contLen = 0;
+    void   *pReq = mndBuildTimerMsg(&contLen);
+    SRpcMsg rpcMsg = {.msgType = TDMT_MND_TELEM_TIMER, .pCont = pReq, .contLen = contLen};
+    pMnode->putReqToMReadQFp(pMnode->pDnode, &rpcMsg);
+  }
+
+  taosTmrReset(mndPullupTelem, TELEM_TIMER_MS, pMnode, pMnode->timer, &pMnode->telemTimer);
 }
 
 static int32_t mndInitTimer(SMnode *pMnode) {
-  if (pMnode->timer == NULL) {
-    pMnode->timer = taosTmrInit(5000, 200, 3600000, "MND");
-  }
-
+  pMnode->timer = taosTmrInit(5000, 200, 3600000, "MND");
   if (pMnode->timer == NULL) {
     terrno = TSDB_CODE_OUT_OF_MEMORY;
     return -1;
   }
 
-  if (taosTmrReset(mndTransReExecute, 6000, pMnode, pMnode->timer, &pMnode->transTimer)) {
+  if (taosTmrReset(mndPullupTrans, TRNAS_TIMER_MS, pMnode, pMnode->timer, &pMnode->transTimer)) {
     terrno = TSDB_CODE_OUT_OF_MEMORY;
     return -1;
   }
 
-  if (taosTmrReset(mndCalMqRebalance, 3000, pMnode, pMnode->timer, &pMnode->mqTimer)) {
+  if (taosTmrReset(mndCalMqRebalance, MQ_TIMER_MS, pMnode, pMnode->timer, &pMnode->mqTimer)) {
+    terrno = TSDB_CODE_OUT_OF_MEMORY;
+    return -1;
+  }
+
+  if (taosTmrReset(mndPullupTelem, 60000, pMnode, pMnode->timer, &pMnode->telemTimer)) {
     terrno = TSDB_CODE_OUT_OF_MEMORY;
     return -1;
   }
@@ -126,6 +145,8 @@ static void mndCleanupTimer(SMnode *pMnode) {
     pMnode->transTimer = NULL;
     taosTmrStop(pMnode->mqTimer);
     pMnode->mqTimer = NULL;
+    taosTmrStop(pMnode->telemTimer);
+    pMnode->telemTimer = NULL;
     taosTmrCleanUp(pMnode->timer);
     pMnode->timer = NULL;
   }
@@ -197,6 +218,7 @@ static int32_t mndInitSteps(SMnode *pMnode) {
   if (mndAllocStep(pMnode, "mnode-topic", mndInitTopic, mndCleanupTopic) != 0) return -1;
   if (mndAllocStep(pMnode, "mnode-consumer", mndInitConsumer, mndCleanupConsumer) != 0) return -1;
   if (mndAllocStep(pMnode, "mnode-subscribe", mndInitSubscribe, mndCleanupSubscribe) != 0) return -1;
+  if (mndAllocStep(pMnode, "mnode-offset", mndInitOffset, mndCleanupOffset) != 0) return -1;
   if (mndAllocStep(pMnode, "mnode-vgroup", mndInitVgroup, mndCleanupVgroup) != 0) return -1;
   if (mndAllocStep(pMnode, "mnode-stb", mndInitStb, mndCleanupStb) != 0) return -1;
   if (mndAllocStep(pMnode, "mnode-db", mndInitDb, mndCleanupDb) != 0) return -1;
@@ -268,25 +290,10 @@ static int32_t mndSetOptions(SMnode *pMnode, const SMnodeOpt *pOption) {
   pMnode->sendReqToDnodeFp = pOption->sendReqToDnodeFp;
   pMnode->sendReqToMnodeFp = pOption->sendReqToMnodeFp;
   pMnode->sendRedirectRspFp = pOption->sendRedirectRspFp;
-  pMnode->cfg.sver = pOption->cfg.sver;
-  pMnode->cfg.enableTelem = pOption->cfg.enableTelem;
-  pMnode->cfg.statusInterval = pOption->cfg.statusInterval;
-  pMnode->cfg.shellActivityTimer = pOption->cfg.shellActivityTimer;
-  pMnode->cfg.timezone = strdup(pOption->cfg.timezone);
-  pMnode->cfg.locale = strdup(pOption->cfg.locale);
-  pMnode->cfg.charset = strdup(pOption->cfg.charset);
-  pMnode->cfg.gitinfo = strdup(pOption->cfg.gitinfo);
-  pMnode->cfg.buildinfo = strdup(pOption->cfg.buildinfo);
 
   if (pMnode->sendReqToDnodeFp == NULL || pMnode->sendReqToMnodeFp == NULL || pMnode->sendRedirectRspFp == NULL ||
-      pMnode->putReqToMWriteQFp == NULL || pMnode->dnodeId < 0 || pMnode->clusterId < 0 ||
-      pMnode->cfg.statusInterval < 1) {
+      pMnode->putReqToMWriteQFp == NULL || pMnode->dnodeId < 0 || pMnode->clusterId < 0) {
     terrno = TSDB_CODE_MND_INVALID_OPTIONS;
-    return -1;
-  }
-
-  if (pMnode->cfg.timezone == NULL || pMnode->cfg.locale == NULL || pMnode->cfg.charset == NULL) {
-    terrno = TSDB_CODE_OUT_OF_MEMORY;
     return -1;
   }
 
@@ -359,11 +366,6 @@ void mndClose(SMnode *pMnode) {
     mDebug("start to close mnode");
     mndCleanupSteps(pMnode, -1);
     tfree(pMnode->path);
-    tfree(pMnode->cfg.charset);
-    tfree(pMnode->cfg.locale);
-    tfree(pMnode->cfg.timezone);
-    tfree(pMnode->cfg.gitinfo);
-    tfree(pMnode->cfg.buildinfo);
     tfree(pMnode);
     mDebug("mnode is closed");
   }
@@ -404,8 +406,8 @@ SMnodeMsg *mndInitMsg(SMnode *pMnode, SRpcMsg *pRpcMsg) {
     return NULL;
   }
 
-  if (pRpcMsg->msgType != TDMT_MND_TRANS && pRpcMsg->msgType != TDMT_MND_MQ_TIMER &&
-      pRpcMsg->msgType != TDMT_MND_MQ_DO_REBALANCE) {
+  if (pRpcMsg->msgType != TDMT_MND_TRANS_TIMER && pRpcMsg->msgType != TDMT_MND_MQ_TIMER &&
+      pRpcMsg->msgType != TDMT_MND_MQ_DO_REBALANCE && pRpcMsg->msgType != TDMT_MND_TELEM_TIMER) {
     SRpcConnInfo connInfo = {0};
     if ((pRpcMsg->msgType & 1U) && rpcGetConnInfo(pRpcMsg->handle, &connInfo) != 0) {
       taosFreeQitem(pMsg);
@@ -420,12 +422,14 @@ SMnodeMsg *mndInitMsg(SMnode *pMnode, SRpcMsg *pRpcMsg) {
   pMsg->rpcMsg = *pRpcMsg;
   pMsg->createdTime = taosGetTimestampSec();
 
-  mTrace("msg:%p, is created, app:%p RPC:%p user:%s", pMsg, pRpcMsg->ahandle, pRpcMsg->handle, pMsg->user);
+  if (pRpcMsg != NULL) {
+    mTrace("msg:%p, is created, app:%p RPC:%p user:%s", pMsg, pRpcMsg->ahandle, pRpcMsg->handle, pMsg->user);
+  }
   return pMsg;
 }
 
 void mndCleanupMsg(SMnodeMsg *pMsg) {
-  mTrace("msg:%p, is destroyed, app:%p RPC:%p", pMsg, pMsg->rpcMsg.ahandle, pMsg->rpcMsg.handle);
+  mTrace("msg:%p, is destroyed", pMsg);
   rpcFreeCont(pMsg->rpcMsg.pCont);
   pMsg->rpcMsg.pCont = NULL;
   taosFreeQitem(pMsg);
@@ -440,7 +444,7 @@ void mndProcessMsg(SMnodeMsg *pMsg) {
   SMnode *pMnode = pMsg->pMnode;
   int32_t code = 0;
   tmsg_t  msgType = pMsg->rpcMsg.msgType;
-  void *  ahandle = pMsg->rpcMsg.ahandle;
+  void   *ahandle = pMsg->rpcMsg.ahandle;
   bool    isReq = (msgType & 1U);
 
   mTrace("msg:%p, type:%s will be processed, app:%p", pMsg, TMSG_INFO(msgType), ahandle);

@@ -18,7 +18,7 @@
 #include "tep.h"
 #include "tglobal.h"
 #include "trpc.h"
-#include "ulog.h"
+#include "tlog.h"
 using namespace std;
 
 const char *label = "APP";
@@ -148,7 +148,6 @@ class TransObj {
     wDebugFlag = 0;
     sDebugFlag = 0;
     tsdbDebugFlag = 0;
-    cqDebugFlag = 0;
     tscEmbeddedInUtil = 1;
     tsAsyncLog = 0;
 
@@ -156,9 +155,8 @@ class TransObj {
     taosRemoveDir(path.c_str());
     taosMkDir(path.c_str());
 
-    char temp[PATH_MAX];
-    snprintf(temp, PATH_MAX, "%s/taosdlog", path.c_str());
-    if (taosInitLog(temp, tsNumOfLogLines, 1) != 0) {
+    tstrncpy(tsLogDir, path.c_str(), PATH_MAX);
+    if (taosInitLog("taosdlog", 1) != 0) {
       printf("failed to init log file\n");
     }
     cli = new Client;
