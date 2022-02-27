@@ -68,7 +68,7 @@ int8_t tscEmbeddedInUtil = 0;
 
 int32_t tsLogKeepDays = 0;
 bool    tsAsyncLog = true;
-bool    tsLogInited = false;
+int8_t  tsLogInited = 0;
 int64_t asyncLogLostLines = 0;
 int32_t writeInterval = LOG_DEFAULT_INTERVAL;
 
@@ -115,7 +115,7 @@ static int32_t taosStartLog() {
 }
 
 int32_t taosInitLog(const char *logName, int maxFiles) {
-  if (tsLogInited) return 0;
+  if (atomic_val_compare_exchange_8(&tsLogInited, 0, 1) != 0) return 0;
   osUpdate();
 
   char fullName[PATH_MAX] = {0};
