@@ -58,21 +58,13 @@ typedef struct SColumnNode {
   char tableAlias[TSDB_TABLE_NAME_LEN];
   char colName[TSDB_COL_NAME_LEN];
   SNode* pProjectRef;
-  int16_t tupleId;
+  int16_t dataBlockId;
   int16_t slotId;
 } SColumnNode;
 
-// typedef struct SColumnRefNode {
-//   ENodeType type;
-//   SDataType dataType;
-//   int16_t tupleId;
-//   int16_t slotId;
-//   int16_t columnId;
-// } SColumnRefNode;
-
 typedef struct STargetNode {
   ENodeType type;
-  int16_t tupleId;
+  int16_t dataBlockId;
   int16_t slotId;
   SNode* pExpr;
 } STargetNode;
