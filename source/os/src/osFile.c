@@ -240,6 +240,7 @@ int64_t taosCloseFile(TdFilePtr *ppFile) {
     return 0;
   }
   fflush((*ppFile)->fp);
+  fsync((*ppFile)->fd);
   close((*ppFile)->fd);
   (*ppFile)->fd = -1;
   (*ppFile)->fp = NULL;
@@ -295,12 +296,14 @@ int64_t taosWriteFile(TdFilePtr pFile, const void *buf, int64_t count) {
       if (errno == EINTR) {
         continue;
       }
+      fsync(pFile->fd);
       return -1;
     }
     nleft -= nwritten;
     tbuf += nwritten;
   }
 
+  fsync(pFile->fd);
   return count;
 }
 
