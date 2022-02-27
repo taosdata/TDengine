@@ -296,6 +296,7 @@ int64_t taosWriteFile(TdFilePtr pFile, const void *buf, int64_t count) {
       if (errno == EINTR) {
         continue;
       }
+      fflush(pFile->fp);
       fsync(pFile->fd);
       return -1;
     }
@@ -303,6 +304,7 @@ int64_t taosWriteFile(TdFilePtr pFile, const void *buf, int64_t count) {
     tbuf += nwritten;
   }
 
+  fflush(pFile->fp);
   fsync(pFile->fd);
   return count;
 }
