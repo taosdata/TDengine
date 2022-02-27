@@ -64,16 +64,17 @@ typedef struct {
   pthread_mutex_t logMutex;
 } SLogObj;
 
-int8_t tscEmbeddedInUtil = 0;
+static int8_t  tsLogInited = 0;
+static SLogObj tsLogObj = {.fileNum = 1};
 
+int8_t  tscEmbeddedInUtil = 0;
 int32_t tsLogKeepDays = 0;
 bool    tsAsyncLog = true;
-int8_t  tsLogInited = 0;
-int64_t asyncLogLostLines = 0;
-int32_t writeInterval = LOG_DEFAULT_INTERVAL;
+int32_t tsNumOfLogLines = 10000000;
+int64_t tsAsyncLogLostLines = 0;
+int32_t tsWriteInterval = LOG_DEFAULT_INTERVAL;
 
 // log
-int32_t tsNumOfLogLines = 10000000;
 int32_t dDebugFlag = 135;
 int32_t vDebugFlag = 135;
 int32_t mDebugFlag = 131;
@@ -95,13 +96,11 @@ int64_t dbgSmallWN = 0;
 int64_t dbgBigWN = 0;
 int64_t dbgWSize = 0;
 
-static SLogObj   tsLogObj = {.fileNum = 1};
 static void     *taosAsyncOutputLog(void *param);
 static int32_t   taosPushLogBuffer(SLogBuff *tLogBuff, char *msg, int32_t msgLen);
 static SLogBuff *taosLogBuffNew(int32_t bufSize);
 static void      taosCloseLogByFd(TdFilePtr pFile);
 static int32_t   taosOpenLogFile(char *fn, int32_t maxLines, int32_t maxFileNum);
-extern void      taosPrintCfg();
 static int32_t   taosCompressFile(char *srcFileName, char *destFileName);
 
 static int32_t taosStartLog() {
@@ -125,7 +124,6 @@ int32_t taosInitLog(const char *logName, int maxFiles) {
   if (tsLogObj.logHandle == NULL) return -1;
   if (taosOpenLogFile(fullName, tsNumOfLogLines, maxFiles) < 0) return -1;
   if (taosStartLog() < 0) return -1;
-  tsLogInited = true;
   return 0;
 }
 
@@ -218,7 +216,6 @@ static void *taosThreadToOpenNewFile(void *param) {
 
   uInfo("   new log file:%d is opened", tsLogObj.flag);
   uInfo("==================================");
-  // taosPrintCfg();
   taosKeepOldLog(keepName);
 
   return NULL;
@@ -582,7 +579,7 @@ static int32_t taosPushLogBuffer(SLogBuff *tLogBuff, char *msg, int32_t msgLen) 
 
   if (remainSize <= msgLen || ((lostLine > 0) && (remainSize <= (msgLen + tmpBufLen)))) {
     lostLine++;
-    asyncLogLostLines++;
+    tsAsyncLogLostLines++;
     pthread_mutex_unlock(&LOG_BUF_MUTEX(tLogBuff));
     return -1;
   }
@@ -627,13 +624,13 @@ static void taosWriteLog(SLogBuff *tLogBuff) {
 
       if (start == end) {
         dbgEmptyW++;
-        writeInterval = LOG_MAX_INTERVAL;
+        tsWriteInterval = LOG_MAX_INTERVAL;
         return;
       }
 
       pollSize = taosGetLogRemainSize(tLogBuff, start, end);
       if (pollSize < tLogBuff->minBuffSize) {
-        lastDuration += writeInterval;
+        lastDuration += tsWriteInterval;
         if (lastDuration < LOG_MAX_WAIT_MSEC) {
           break;
         }
@@ -656,15 +653,15 @@ static void taosWriteLog(SLogBuff *tLogBuff) {
 
     if (pollSize < tLogBuff->minBuffSize) {
       dbgSmallWN++;
-      if (writeInterval < LOG_MAX_INTERVAL) {
-        writeInterval += LOG_INTERVAL_STEP;
+      if (tsWriteInterval < LOG_MAX_INTERVAL) {
+        tsWriteInterval += LOG_INTERVAL_STEP;
       }
     } else if (pollSize > LOG_BUF_SIZE(tLogBuff) / 3) {
       dbgBigWN++;
-      writeInterval = LOG_MIN_INTERVAL;
+      tsWriteInterval = LOG_MIN_INTERVAL;
     } else if (pollSize > LOG_BUF_SIZE(tLogBuff) / 4) {
-      if (writeInterval > LOG_MIN_INTERVAL) {
-        writeInterval -= LOG_INTERVAL_STEP;
+      if (tsWriteInterval > LOG_MIN_INTERVAL) {
+        tsWriteInterval -= LOG_INTERVAL_STEP;
       }
     }
 
@@ -678,7 +675,7 @@ static void taosWriteLog(SLogBuff *tLogBuff) {
       break;
     }
 
-    writeInterval = LOG_MIN_INTERVAL;
+    tsWriteInterval = LOG_MIN_INTERVAL;
 
     remainChecked = 1;
   } while (1);
@@ -689,7 +686,7 @@ static void *taosAsyncOutputLog(void *param) {
   setThreadName("log");
 
   while (1) {
-    taosMsleep(writeInterval);
+    taosMsleep(tsWriteInterval);
 
     // Polling the buffer
     taosWriteLog(tLogBuff);

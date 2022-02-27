@@ -366,11 +366,11 @@ int32_t cfgSetItem(SConfig *pCfg, const char *name, const char *value, ECfgSrcTy
 }
 
 SConfigItem *cfgGetItem(SConfig *pCfg, const char *name) {
-  char lowcaseName[CFG_NAME_MAX_LEN + 1] = {0};
-  memcpy(lowcaseName, name, CFG_NAME_MAX_LEN);
-  strntolower(lowcaseName, name, CFG_NAME_MAX_LEN);
+  int32_t len = strlen(name);
+  char    lowcaseName[CFG_NAME_MAX_LEN + 1] = {0};
+  strntolower(lowcaseName, name, TMIN(CFG_NAME_MAX_LEN, len));
 
-  SConfigItem *pItem = taosHashGet(pCfg->hash, lowcaseName, strlen(lowcaseName) + 1);
+  SConfigItem *pItem = taosHashGet(pCfg->hash, lowcaseName, len + 1);
   if (pItem == NULL) {
     terrno = TSDB_CODE_CFG_NOT_FOUND;
   }
@@ -386,11 +386,11 @@ static int32_t cfgAddItem(SConfig *pCfg, SConfigItem *pItem, const char *name) {
     return -1;
   }
 
-  char lowcaseName[CFG_NAME_MAX_LEN + 1] = {0};
-  memcpy(lowcaseName, name, CFG_NAME_MAX_LEN);
-  strntolower(lowcaseName, name, CFG_NAME_MAX_LEN);
+  int32_t len = strlen(name);
+  char    lowcaseName[CFG_NAME_MAX_LEN + 1] = {0};
+  strntolower(lowcaseName, name, TMIN(CFG_NAME_MAX_LEN, len));
 
-  if (taosHashPut(pCfg->hash, lowcaseName, strlen(lowcaseName) + 1, pItem, sizeof(SConfigItem)) != 0) {
+  if (taosHashPut(pCfg->hash, lowcaseName, len + 1, pItem, sizeof(SConfigItem)) != 0) {
     if (pItem->dtype == CFG_DTYPE_STRING) {
       free(pItem->str);
     }
