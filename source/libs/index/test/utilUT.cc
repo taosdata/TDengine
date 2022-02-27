@@ -192,7 +192,6 @@ TEST_F(UtilEnv, 03union) {
   for (int i = 0; i < sizeof(arr2) / sizeof(arr2[0]); i++) {
     taosArrayPush(f, &arr2[i]);
   }
-
   uint64_t arr3[] = {1, 12, 13, 16, 17};
   f = (SArray *)taosArrayGetP(src, 2);
   for (int i = 0; i < sizeof(arr3) / sizeof(arr3[0]); i++) {
