@@ -29,8 +29,8 @@ struct SBTree {
 
 typedef struct SPgHdr {
   u8    flags;
-  u8    nFree;
-  u16   firstFree;
+  u8    fragmentTotalSize;
+  u16   firstFreeCellOffset;
   u16   nCells;
   u16   pCell;
   i32   kLen;
@@ -48,6 +48,10 @@ struct SBtCursor {
   SBTree * pBt;
   i8       iPage;
   SBtPage *pPage;
+  u16      idx;
+  u16      idxStack[BTREE_MAX_DEPTH + 1];
+  SBtPage *pgStack[BTREE_MAX_DEPTH + 1];
+  void *   pBuf;
 };
 
 typedef struct SFreeCell {
@@ -72,16 +76,19 @@ int tdbBtreeClose(SBTree *pBt) {
   return 0;
 }
 
-int tdbBtreeCursor(SBTree *pBt, SBtCursor *pCur) {
+int tdbBtreeCursor(SBtCursor *pCur, SBTree *pBt) {
   pCur->pBt = pBt;
   pCur->iPage = -1;
-  /* TODO */
+  pCur->pPage = NULL;
+  pCur->idx = 0;
+
   return 0;
 }
 
 int tdbBtCursorInsert(SBtCursor *pCur, const void *pKey, int kLen, const void *pVal, int vLen) {
-  int     ret;
-  SPFile *pFile;
+  int      ret;
+  SPFile * pFile;
+  SBtPage *pPage;
 
   ret = tdbBtCursorMoveTo(pCur, pKey, kLen);
   if (ret < 0) {
@@ -89,12 +96,7 @@ int tdbBtCursorInsert(SBtCursor *pCur, const void *pKey, int kLen, const void *p
     return -1;
   }
 
-  pFile = pCur->pBt->pFile;
-  // ret = tdbPFileWrite(pFile, pCur->pPage);
-  // if (ret < 0) {
-  //   // TODO: handle error
-  //   return -1;
-  // }
+  pPage = pCur->pPage;
 
   return 0;
 }
