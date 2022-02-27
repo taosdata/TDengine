@@ -67,6 +67,9 @@ static FORCE_INLINE bool colDataIsNull(const SColumnInfoData* pColumnInfoData, u
   }
 }
 
+#define BitmapLen(_n)     (((_n) + ((1<<NBIT)-1)) >> NBIT)
+
+
 #define colDataGet(p1_, r_)                                                          \
   ((IS_VAR_DATA_TYPE((p1_)->info.type)) ? ((p1_)->pData + (p1_)->varmeta.offset[(r_)]) \
                                         : ((p1_)->pData + ((r_) * (p1_)->info.bytes)))

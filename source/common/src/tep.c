@@ -61,7 +61,6 @@ SEpSet getEpSet_s(SCorEpSet *pEpSet) {
   return ep;
 }
 
-#define BitmapLen(_n)     (((_n) + ((1<<NBIT)-1)) >> NBIT)
 
 int32_t colDataGetSize(const SColumnInfoData* pColumnInfoData, int32_t numOfRows) {
   ASSERT(pColumnInfoData != NULL);

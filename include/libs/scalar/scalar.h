@@ -27,7 +27,7 @@ typedef struct SFilterInfo SFilterInfo;
 
 
 int32_t scalarCalculateConstants(SNode *pNode, SNode **pRes);
-int32_t scalarCalculate(SNode *pNode, SSDataBlock *pSrc, SScalarParam *pDst);
+int32_t scalarCalculate(SNode *pNode, SArray *pBlockList, SScalarParam *pDst);
 int32_t scalarGetOperatorParamNum(EOperatorType type);
 int32_t scalarGenerateSetFromList(void **data, void *pNode, uint32_t type);
 

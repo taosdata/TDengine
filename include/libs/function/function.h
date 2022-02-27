@@ -228,7 +228,10 @@ typedef struct SAggFunctionInfo {
 
 typedef struct SScalarParam {
   void            *data;
-  SColumnInfoData *columnData;
+  union {
+    SColumnInfoData *columnData;
+    void            *data;
+  } orig;  
   char            *bitmap;
   bool             dataInBlock;
   int32_t          num;

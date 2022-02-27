@@ -3668,7 +3668,12 @@ _return:
 bool filterExecute(SFilterInfo *info, SSDataBlock *pSrc, int8_t** p, SColumnDataAgg *statis, int16_t numOfCols) {
   if (info->scalarMode) {
     SScalarParam output = {0};
-    FLT_ERR_RET(scalarCalculate(info->sclCtx.node, pSrc, &output));
+    SArray *pList = taosArrayInit(1, POINTER_BYTES);
+    taosArrayPush(pList, &pSrc);
+    
+    FLT_ERR_RET(scalarCalculate(info->sclCtx.node, pList, &output));
+
+    taosArrayDestroy(pList);
 
     *p = output.data;
 
