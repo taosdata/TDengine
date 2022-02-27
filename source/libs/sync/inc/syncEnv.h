@@ -13,8 +13,8 @@
  * along with this program. If not, see <http://www.gnu.org/licenses/>.
  */
 
-#ifndef _TD_LIBS_SYNC_RAFT_STORE_H
-#define _TD_LIBS_SYNC_RAFT_STORE_H
+#ifndef _TD_LIBS_SYNC_ENV_H
+#define _TD_LIBS_SYNC_ENV_H
 
 #ifdef __cplusplus
 extern "C" {
@@ -23,39 +23,25 @@ extern "C" {
 #include <stdint.h>
 #include <stdio.h>
 #include <stdlib.h>
-#include "cJSON.h"
 #include "syncInt.h"
-#include "syncRaft.h"
 #include "taosdef.h"
+#include "trpc.h"
 
-#define RAFT_STORE_BLOCK_SIZE 512
-#define RAFT_STORE_PATH_LEN 128
+typedef struct SSyncEnv {
+  void *pTimer;
+  void *pTimerManager;
+} SSyncEnv;
 
-typedef struct SRaftStore {
-  SyncTerm currentTerm;
-  SRaftId  voteFor;
-  //FileFd   fd;
-  char     path[RAFT_STORE_PATH_LEN];
-} SRaftStore;
+int32_t syncEnvStart();
 
-SRaftStore *raftStoreOpen(const char *path);
+int32_t syncEnvStop();
 
-static int32_t raftStoreInit(SRaftStore *pRaftStore);
+static int32_t doSyncEnvStart(SSyncEnv *pSyncEnv);
 
-int32_t raftStoreClose(SRaftStore *pRaftStore);
-
-int32_t raftStorePersist(SRaftStore *pRaftStore);
-
-static bool raftStoreFileExist(char *path);
-
-int32_t raftStoreSerialize(SRaftStore *pRaftStore, char *buf, size_t len);
-
-int32_t raftStoreDeserialize(SRaftStore *pRaftStore, char *buf, size_t len);
-
-void raftStorePrint(SRaftStore *pRaftStore);
+static int32_t doSyncEnvStop(SSyncEnv *pSyncEnv);
 
 #ifdef __cplusplus
 }
 #endif
 
-#endif /*_TD_LIBS_SYNC_RAFT_STORE_H*/
+#endif /*_TD_LIBS_SYNC_ENV_H*/
