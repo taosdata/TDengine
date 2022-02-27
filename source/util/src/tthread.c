@@ -14,11 +14,10 @@
  */
 
 #include "tthread.h"
-#include "os.h"
 #include "taoserror.h"
 #include "tdef.h"
 #include "tutil.h"
-#include "ulog.h"
+#include "tlog.h"
 
 // create new thread
 pthread_t* taosCreateThread(void* (*__start_routine)(void*), void* param) {

@@ -22,7 +22,6 @@
 extern "C" {
 #endif
 
-extern bool    tsLogInited;
 extern bool    tsAsyncLog;
 extern int32_t tsNumOfLogLines;
 extern int32_t tsLogKeepDays;
@@ -55,7 +54,7 @@ int32_t taosInitLog(const char *logName, int32_t maxFiles);
 void    taosCloseLog();
 void    taosResetLog();
 void    taosSetAllDebugFlag(int32_t flag);
-void    taosDumpData(unsigned char *msg, int32_t len);
+void    taosDumpData(uint8_t *msg, int32_t len);
 
 void taosPrintLog(const char *flags, int32_t dflag, const char *format, ...)
 #ifdef __GNUC__
@@ -68,6 +67,18 @@ void taosPrintLongString(const char *flags, int32_t dflag, const char *format, .
     __attribute__((format(printf, 3, 4)))
 #endif
     ;
+
+extern int8_t tscEmbeddedInUtil;
+
+#define uFatal(...) { if (uDebugFlag & DEBUG_FATAL) { taosPrintLog("UTL FATAL", tscEmbeddedInUtil ? 255 : uDebugFlag, __VA_ARGS__); }}
+#define uError(...) { if (uDebugFlag & DEBUG_ERROR) { taosPrintLog("UTL ERROR ", tscEmbeddedInUtil ? 255 : uDebugFlag, __VA_ARGS__); }}
+#define uWarn(...)  { if (uDebugFlag & DEBUG_WARN)  { taosPrintLog("UTL WARN ", tscEmbeddedInUtil ? 255 : uDebugFlag, __VA_ARGS__); }}
+#define uInfo(...)  { if (uDebugFlag & DEBUG_INFO)  { taosPrintLog("UTL ", tscEmbeddedInUtil ? 255 : uDebugFlag, __VA_ARGS__); }}
+#define uDebug(...) { if (uDebugFlag & DEBUG_DEBUG) { taosPrintLog("UTL ", uDebugFlag, __VA_ARGS__); }}
+#define uTrace(...) { if (uDebugFlag & DEBUG_TRACE) { taosPrintLog("UTL ", uDebugFlag, __VA_ARGS__); }}
+
+#define pError(...) { taosPrintLog("APP ERROR ", 255, __VA_ARGS__); }
+#define pPrint(...) { taosPrintLog("APP ", 255, __VA_ARGS__); }
 
 #ifdef __cplusplus
 }

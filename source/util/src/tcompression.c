@@ -53,7 +53,7 @@
   #include "td_sz.h"
 #endif
 #include "tcompression.h"
-#include "ulog.h"
+#include "tlog.h"
 
 static const int TEST_NUMBER = 1;
 #define is_bigendian() ((*(char *)&TEST_NUMBER) == 0)

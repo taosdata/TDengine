@@ -24,7 +24,6 @@
 #include "tglobal.h"
 #include "tlog.h"
 #include "tutil.h"
-#include "ulog.h"
 
 SConfig *tsCfg = NULL;
 

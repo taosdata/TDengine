@@ -22,7 +22,7 @@
 #include "regex.h"
 #include "thash.h"
 #include "types.h"
-#include "ulog.h"
+#include "tlog.h"
 #include "tdef.h"
 #include "taos.h"
 
