@@ -20,6 +20,10 @@
 #include "ttimer.h"
 #include "tutil.h"
 
+SSyncIO *gSyncIO = NULL;
+
+int32_t syncIOSendMsg(void *handle, const SEpSet *pEpSet, SRpcMsg *pMsg) { return 0; }
+
 int32_t syncIOStart() { return 0; }
 
 int32_t syncIOStop() { return 0; }
@@ -121,7 +125,7 @@ SSyncIO *syncIOCreate() {
   io->start = doSyncIOStart;
   io->stop = doSyncIOStop;
   io->ping = doSyncIOPing;
-  io->onMessage = doSyncIOOnMessage;
+  io->onMsg = doSyncIOOnMsg;
   io->destroy = doSyncIODestroy;
 
   return io;
@@ -215,7 +219,7 @@ static int32_t doSyncIOPing(SSyncIO *io) {
   return 0;
 }
 
-static int32_t doSyncIOOnMessage(struct SSyncIO *io, void *pParent, SRpcMsg *pMsg, SEpSet *pEpSet) { return 0; }
+static int32_t doSyncIOOnMsg(struct SSyncIO *io, void *pParent, SRpcMsg *pMsg, SEpSet *pEpSet) { return 0; }
 
 static int32_t doSyncIODestroy(SSyncIO *io) {
   int8_t start = atomic_load_8(&io->isStart);

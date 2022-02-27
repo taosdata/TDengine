@@ -115,6 +115,8 @@ typedef struct SSyncNode {
 
   int32_t (*FpOnAppendEntriesReply)(struct SSyncNode* ths, SyncAppendEntriesReply* pMsg);
 
+  int32_t (*FpSendMsg)(void* handle, const SEpSet* pEpSet, SRpcMsg* pMsg);
+
 } SSyncNode;
 
 SSyncNode* syncNodeOpen(const SSyncInfo* pSyncInfo);
@@ -138,8 +140,6 @@ static int32_t doSyncNodeAppendEntries(struct SSyncNode* ths, const SyncAppendEn
 static int32_t onSyncNodeAppendEntries(struct SSyncNode* ths, SyncAppendEntries* pMsg);
 
 static int32_t onSyncNodeAppendEntriesReply(struct SSyncNode* ths, SyncAppendEntriesReply* pMsg);
-
-
 
 #ifdef __cplusplus
 }

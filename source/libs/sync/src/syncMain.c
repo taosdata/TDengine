@@ -38,10 +38,11 @@ ESyncState syncGetMyRole(int64_t rid) { return TAOS_SYNC_STATE_LEADER; }
 
 void syncGetNodesRole(int64_t rid, SNodesRole* pNodeRole) {}
 
-
 SSyncNode* syncNodeOpen(const SSyncInfo* pSyncInfo) {
   SSyncNode* pSyncNode = (SSyncNode*)malloc(sizeof(SSyncNode));
   assert(pSyncNode != NULL);
+
+  pSyncNode->FpSendMsg = pSyncInfo->FpSendMsg;
 
   pSyncNode->FpPing = doSyncNodePing;
   pSyncNode->FpOnPing = onSyncNodePing;
@@ -55,7 +56,6 @@ SSyncNode* syncNodeOpen(const SSyncInfo* pSyncInfo) {
 
   return pSyncNode;
 }
-
 
 void syncNodeClose(SSyncNode* pSyncNode) {
   assert(pSyncNode != NULL);

@@ -14,8 +14,13 @@ void logTest() {
 }
 
 void doSync() {
+  SSyncFSM* pFsm;
+
   SSyncInfo syncInfo;
   syncInfo.vgId = 1;
+  syncInfo.FpSendMsg = syncIOSendMsg;
+  syncInfo.pFsm = pFsm;
+  snprintf(syncInfo.path, sizeof(syncInfo.path), "%s", "./test_sync_ping");
 
   SSyncCfg* pCfg = &syncInfo.syncCfg;
   pCfg->myIndex = 0;
@@ -32,6 +37,9 @@ void doSync() {
 
   SSyncNode* pSyncNode = syncNodeOpen(&syncInfo);
   assert(pSyncNode != NULL);
+
+  gSyncIO->FpOnPing = pSyncNode->FpOnPing;
+  gSyncIO->pSyncNode = pSyncNode;
 }
 
 int main() {

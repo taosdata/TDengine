@@ -21,7 +21,9 @@ extern "C" {
 #endif
 
 #include <stdint.h>
+#include <tep.h>
 #include "taosdef.h"
+#include "trpc.h"
 
 typedef uint64_t SyncNodeId;
 typedef int32_t  SyncGroupId;
@@ -133,6 +135,7 @@ typedef struct SSyncInfo {
   SSyncCfg    syncCfg;
   char        path[TSDB_FILENAME_LEN];
   SSyncFSM*   pFsm;
+  int32_t (*FpSendMsg)(void* handle, const SEpSet* pEpSet, SRpcMsg* pMsg);
 
 } SSyncInfo;
 

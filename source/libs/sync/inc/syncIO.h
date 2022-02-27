@@ -45,20 +45,26 @@ typedef struct SSyncIO {
   int32_t (*start)(struct SSyncIO *ths);
   int32_t (*stop)(struct SSyncIO *ths);
   int32_t (*ping)(struct SSyncIO *ths);
-  int32_t (*onMessage)(struct SSyncIO *ths, void *pParent, SRpcMsg *pMsg, SEpSet *pEpSet);
+
+  int32_t (*onMsg)(struct SSyncIO *ths, void *pParent, SRpcMsg *pMsg, SEpSet *pEpSet);
   int32_t (*destroy)(struct SSyncIO *ths);
+
+  void *pSyncNode;
+  int32_t (*FpOnPing)(struct SSyncNode *ths, SyncPing *pMsg);
 
 } SSyncIO;
 
-int32_t syncIOStart();
-int32_t syncIOStop();
+extern SSyncIO *gSyncIO;
 
+int32_t  syncIOStart();
+int32_t  syncIOStop();
+int32_t  syncIOSendMsg(void *handle, const SEpSet *pEpSet, SRpcMsg *pMsg);
 SSyncIO *syncIOCreate();
 
 static int32_t doSyncIOStart(SSyncIO *io);
 static int32_t doSyncIOStop(SSyncIO *io);
 static int32_t doSyncIOPing(SSyncIO *io);
-static int32_t doSyncIOOnMessage(struct SSyncIO *io, void *pParent, SRpcMsg *pMsg, SEpSet *pEpSet);
+static int32_t doSyncIOOnMsg(struct SSyncIO *io, void *pParent, SRpcMsg *pMsg, SEpSet *pEpSet);
 static int32_t doSyncIODestroy(SSyncIO *io);
 
 #ifdef __cplusplus

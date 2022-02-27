@@ -54,7 +54,6 @@ int32_t raftStoreDeserialize(SRaftStore *pRaftStore, char *buf, size_t len);
 
 void raftStorePrint(SRaftStore *pRaftStore);
 
-
 #ifdef __cplusplus
 }
 #endif
