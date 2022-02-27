@@ -201,6 +201,7 @@ function install_bin() {
   [ -x ${install_main_dir}/bin/${serverName} ] && ${csudo}ln -s ${install_main_dir}/bin/${serverName} ${bin_link_dir}/${serverName} || :
   [ -x ${install_main_dir}/bin/taosadapter ] && ${csudo}ln -s ${install_main_dir}/bin/taosadapter ${bin_link_dir}/taosadapter || :
   [ -x ${install_main_dir}/bin/taosBenchmark ] && ${csudo}ln -s ${install_main_dir}/bin/taosBenchmark ${bin_link_dir}/taosdemo || :
+  [ -x ${install_main_dir}/bin/taosBenchmark ] && ${csudo}ln -s ${install_main_dir}/bin/taosBenchmark ${bin_link_dir}/taosBenchmark || :
   [ -x ${install_main_dir}/bin/taosdump ] && ${csudo}ln -s ${install_main_dir}/bin/taosdump ${bin_link_dir}/taosdump || :
   [ -x ${install_main_dir}/bin/TDinsight.sh ] && ${csudo}ln -s ${install_main_dir}/bin/TDinsight.sh ${bin_link_dir}/TDinsight.sh || :
   [ -x ${install_main_dir}/bin/remove.sh ] && ${csudo}ln -s ${install_main_dir}/bin/remove.sh ${bin_link_dir}/${uninstallScript} || :
@@ -567,7 +568,7 @@ function install_data() {
 }
 
 function install_connector() {
-  ${csudo}cp -rf ${script_dir}/connector/ ${install_main_dir}/
+  [ -d "${script_dir}/connector/" ] && ${csudo}cp -rf ${script_dir}/connector/ ${install_main_dir}/
 }
 
 function install_examples() {
@@ -885,7 +886,7 @@ function update_TDengine() {
     echo -e "\033[44;32;1m${productName} client is updated successfully!${NC}"
   fi
 
-  rm -rf $(tar -tf ${tarName})
+  rm -rf $(tar -tf ${tarName} |grep -v "^\./$")
 }
 
 function install_TDengine() {
@@ -982,7 +983,7 @@ function install_TDengine() {
   fi
 
   touch ~/.${historyFile}
-  rm -rf $(tar -tf ${tarName})
+  rm -rf $(tar -tf ${tarName} |grep -v "^\./$")
 }
 
 ## ==============================Main program starts from here============================

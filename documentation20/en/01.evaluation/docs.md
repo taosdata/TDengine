@@ -2,26 +2,33 @@
 
 ## <a class="anchor" id="intro"></a> About TDengine
 
-TDengine is an innovative Big Data processing product launched by TAOS Data in the face of the fast-growing Internet of Things (IoT) Big Data market and technical challenges. It does not rely on any third-party software, nor does it optimize or package any open-source database or stream computing product. Instead, it is a product independently developed after absorbing the advantages of many traditional relational databases, NoSQL databases, stream computing engines, message queues, and other software. TDengine has its own unique Big Data processing advantages in time-series space.
+TDengine is a high-performance, scalable time-series database with SQL support. Its code including cluster feature is open source under GNU AGPL v3.0. Besides the database, it provides caching, stream processing, data data subscription and other functionalities to reduce the complexity and cost of development and operation. TDengine differentiates itself from other TSDBs with the following advanatages.
 
-One of the modules of TDengine is the time-series database. However, in addition to this,  to reduce the complexity of research and development and the difficulty of system operation, TDengine also provides functions such as caching, message queuing, subscription, stream computing, etc. TDengine provides a full-stack technical solution for the processing of IoT and Industrial Internet BigData. It is an efficient and easy-to-use IoT Big Data platform. Compared with typical Big Data platforms such as Hadoop, TDengine has the following distinct characteristics:
+- **High Peroformance**: TDengine outperforms other time series databases in data ingestion and querying while significantly reducing storage cost and compute costs, with an innovatively designed and purpose-built storage engine.
 
-- **Performance improvement over 10 times**: An innovative data storage structure is defined, with every single core that can process at least 20,000 requests per second, insert millions of data points, and read more than 10 million data points, which is more than 10 times faster than other existing general database.
-- **Reduce the cost of hardware or cloud services to 1/5**: Due to its ultra-performance, TDengine’s computing resources consumption is less than 1/5 of other common Big Data solutions; through columnar storage and advanced compression algorithms, the storage consumption is less than 1/10 of other general databases.
-- **Full-stack time-series data processing engine**: Integrate database, message queue, cache, stream computing, and other functions, and the applications do not need to integrate with software such as Kafka/Redis/HBase/Spark/HDFS, thus greatly reducing the complexity cost of application development and maintenance.
-- **Highly Available and Horizontal Scalable**: With the distributed architecture and consistency algorithm, via multi-replication and clustering features, TDengine ensures high availability and horizontal scalability to support mission-critical applications.
-- **Zero operation cost & zero learning cost**: Installing clusters is simple and quick, with real-time backup built-in, and no need to split libraries or tables. Similar to standard SQL, TDengine can support RESTful, Python/Java/C/C++/C#/Go/Node.js, and similar to MySQL with zero learning cost.
-- **Core is Open Sourced:** Except for some auxiliary features, the core of TDengine is open-sourced. Enterprise won't be locked by the database anymore. The ecosystem is more strong, products are more stable, and developer communities are more active. 
+- **Scalable**: TDengine provides out-of-box scalability and high-availability through its native distributed design. Nodes can be added through simple configuration to achieve greater data processing power. In addition, this feature is open source.
 
-With TDengine, the total cost of ownership of typical IoT, Internet of Vehicles, and Industrial Internet Big Data platforms can be greatly reduced. However, since it makes full use of the characteristics of IoT time-series data, TDengine cannot be used to process general data from web crawlers, microblogs, WeChat, e-commerce, ERP, CRM, and other sources.
+- **SQL Support**: TDengine uses SQL as the query language, thereby reducing learning and migration costs, while adding SQL extensions to handle time-series data better, and supporting convenient and flexible schemaless data ingestion.
+
+- **All in One**: TDengine has built-in caching, stream processing and data subscription functions, it is no longer necessary to integrate Kafka/Redis/HBase/Spark or other software in some scenarios. It makes the system architecture much simpler and easy to maintain.
+
+- **Seamless Integration**: Without a single line of code, TDengine provide seamless integration with third-party tools such as Telegraf, Grafana, EMQ X, Prometheus, StatsD, collectd, etc. More will be integrated.
+
+- **Zero Management**: Installation and cluster setup can be done in seconds. Data partitioning and sharding are executed automatically. TDengine’s running status can be monitored via Grafana or other DevOps tools.
+
+- **Zero Learning Cost**: With SQL as the query language, support for ubiquitous tools like Python, Java, C/C++, Go, Rust, Node.js connectors, there is zero learning cost.
+
+- **Interactive Console**: TDengine provides convenient console access to the database to run ad hoc queries, maintain the database, or manage the cluster without any programming.
+
+TDengine can be widely applied to Internet of Things (IoT), Connected Vehicles, Industrial IoT, DevOps, energy, finance and many other scenarios. With TDengine, the total cost of ownership of time-series data platforms can be greatly reduced. However, since it makes full use of the characteristics of time-series data, TDengine cannot be used to process general data from web crawlers, microblogs, WeChat, e-commerce, ERP, CRM, and other sources.
 
 ![TDengine Technology Ecosystem](../images/eco_system.png)
+<center>Figure 1. TDengine Ecosystem</center>
 
-<center>Figure 1. TDengine Technology Ecosystem</center>
 
 ## <a class="anchor" id="scenes"></a>Overall Scenarios of TDengine
 
-As an IoT Big Data platform, the typical application scenarios of TDengine are mainly presented in the IoT category, with users having a certain amount of data. The following sections of this document are mainly aimed at  IoT-relevant systems. Other systems, such as CRM, ERP, etc., are beyond the scope of this article.
+As a time-series data platform, the typical application scenarios of TDengine are mainly presented in the IoT, connected vehicles, DevOps and Industrial Internet categories, with users having a certain amount of data. The following sections of this document are mainly aimed at  IoT-relevant systems. Other systems, such as CRM, ERP, etc., are beyond the scope of this article.
 
 ### Characteristics and Requirements of Data Sources
 

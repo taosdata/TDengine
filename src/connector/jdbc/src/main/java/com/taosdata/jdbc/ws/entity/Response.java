@@ -11,10 +11,6 @@ public class Response {
     @JSONField(name = "req_id")
     private long reqId;
 
-    public String id() {
-        return action + "_" + reqId;
-    }
-
     public String getAction() {
         return action;
     }
