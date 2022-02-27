@@ -72,6 +72,11 @@ void iUnion(SArray *inters, SArray *final) {
   if (sz <= 0) {
     return;
   }
+  if (sz == 1) {
+    taosArrayAddAll(final, taosArrayGetP(inters, 0));
+    return;
+  }
+
   MergeIndex *mi = calloc(sz, sizeof(MergeIndex));
   for (int i = 0; i < sz; i++) {
     SArray *t = taosArrayGetP(inters, i);
