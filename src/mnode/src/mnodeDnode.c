@@ -271,6 +271,21 @@ int32_t mnodeGetOnlineDnodesNum() {
   return onlineDnodes;
 }
 
+int32_t mnodeGetVnodeDnodesNum() {
+  SDnodeObj *pDnode = NULL;
+  void *     pIter = NULL;
+  int32_t    numOfDnodes = 0;
+
+  while (1) {
+    pIter = mnodeGetNextDnode(pIter, &pDnode);
+    if (pDnode == NULL) break;
+    if (pDnode->alternativeRole != TAOS_DN_ALTERNATIVE_ROLE_MNODE) numOfDnodes++;
+    mnodeDecDnodeRef(pDnode);
+  }
+
+  return numOfDnodes;
+}
+
 void mnodeGetOnlineAndTotalDnodesNum(int32_t *onlineNum, int32_t *totalNum) {
   SDnodeObj *pDnode = NULL;
   void *     pIter = NULL;
