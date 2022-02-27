@@ -19,12 +19,12 @@
 #include "tutil.h"
 #include "ulog.h"
 
-#define MAX_LOGLINE_SIZE (1000)
-#define MAX_LOGLINE_BUFFER_SIZE (MAX_LOGLINE_SIZE + 10)
-#define MAX_LOGLINE_CONTENT_SIZE (MAX_LOGLINE_SIZE - 100)
-#define MAX_LOGLINE_DUMP_SIZE (65 * 1024)
-#define MAX_LOGLINE_DUMP_BUFFER_SIZE (MAX_LOGLINE_DUMP_SIZE + 10)
-#define MAX_LOGLINE_DUMP_CONTENT_SIZE (MAX_LOGLINE_DUMP_SIZE - 100)
+#define LOG_MAX_LINE_SIZE (1000)
+#define LOG_MAX_LINE_BUFFER_SIZE (LOG_MAX_LINE_SIZE + 10)
+#define LOG_MAX_LINE_CONTENT_SIZE (LOG_MAX_LINE_SIZE - 100)
+#define LOG_MAX_LINE_DUMP_SIZE (65 * 1024)
+#define LOG_MAX_LINE_DUMP_BUFFER_SIZE (LOG_MAX_LINE_DUMP_SIZE + 10)
+#define LOG_MAX_LINE_DUMP_CONTENT_SIZE (LOG_MAX_LINE_DUMP_SIZE - 100)
 
 #define LOG_FILE_NAME_LEN 300
 #define TSDB_DEFAULT_LOG_BUF_SIZE (20 * 1024 * 1024)  // 20MB
@@ -383,7 +383,7 @@ void taosPrintLog(const char *flags, int32_t dflag, const char *format, ...) {
   if (!osLogSpaceAvailable()) return;
 
   va_list        argpointer;
-  char           buffer[MAX_LOGLINE_BUFFER_SIZE] = {0};
+  char           buffer[LOG_MAX_LINE_BUFFER_SIZE] = {0};
   int32_t        len;
   struct tm      Tm, *ptm;
   struct timeval timeSecs;
@@ -398,20 +398,20 @@ void taosPrintLog(const char *flags, int32_t dflag, const char *format, ...) {
   len += sprintf(buffer + len, "%s", flags);
 
   va_start(argpointer, format);
-  int32_t writeLen = vsnprintf(buffer + len, MAX_LOGLINE_CONTENT_SIZE, format, argpointer);
+  int32_t writeLen = vsnprintf(buffer + len, LOG_MAX_LINE_CONTENT_SIZE, format, argpointer);
   if (writeLen <= 0) {
-    char tmp[MAX_LOGLINE_DUMP_BUFFER_SIZE] = {0};
-    writeLen = vsnprintf(tmp, MAX_LOGLINE_DUMP_CONTENT_SIZE, format, argpointer);
-    strncpy(buffer + len, tmp, MAX_LOGLINE_CONTENT_SIZE);
-    len += MAX_LOGLINE_CONTENT_SIZE;
-  } else if (writeLen >= MAX_LOGLINE_CONTENT_SIZE) {
-    len += MAX_LOGLINE_CONTENT_SIZE;
+    char tmp[LOG_MAX_LINE_DUMP_BUFFER_SIZE] = {0};
+    writeLen = vsnprintf(tmp, LOG_MAX_LINE_DUMP_CONTENT_SIZE, format, argpointer);
+    strncpy(buffer + len, tmp, LOG_MAX_LINE_CONTENT_SIZE);
+    len += LOG_MAX_LINE_CONTENT_SIZE;
+  } else if (writeLen >= LOG_MAX_LINE_CONTENT_SIZE) {
+    len += LOG_MAX_LINE_CONTENT_SIZE;
   } else {
     len += writeLen;
   }
   va_end(argpointer);
 
-  if (len > MAX_LOGLINE_SIZE) len = MAX_LOGLINE_SIZE;
+  if (len > LOG_MAX_LINE_SIZE) len = LOG_MAX_LINE_SIZE;
 
   buffer[len++] = '\n';
   buffer[len] = 0;
@@ -460,7 +460,7 @@ void taosPrintLongString(const char *flags, int32_t dflag, const char *format, .
   if (!osLogSpaceAvailable()) return;
 
   va_list        argpointer;
-  char           buffer[MAX_LOGLINE_DUMP_BUFFER_SIZE];
+  char           buffer[LOG_MAX_LINE_DUMP_BUFFER_SIZE];
   int32_t        len;
   struct tm      Tm, *ptm;
   struct timeval timeSecs;
@@ -475,10 +475,10 @@ void taosPrintLongString(const char *flags, int32_t dflag, const char *format, .
   len += sprintf(buffer + len, "%s", flags);
 
   va_start(argpointer, format);
-  len += vsnprintf(buffer + len, MAX_LOGLINE_DUMP_CONTENT_SIZE, format, argpointer);
+  len += vsnprintf(buffer + len, LOG_MAX_LINE_DUMP_CONTENT_SIZE, format, argpointer);
   va_end(argpointer);
 
-  if (len > MAX_LOGLINE_DUMP_SIZE) len = MAX_LOGLINE_DUMP_SIZE;
+  if (len > LOG_MAX_LINE_DUMP_SIZE) len = LOG_MAX_LINE_DUMP_SIZE;
 
   buffer[len++] = '\n';
   buffer[len] = 0;

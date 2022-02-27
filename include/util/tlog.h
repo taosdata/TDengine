@@ -22,7 +22,6 @@
 extern "C" {
 #endif
 
-extern bool    tsLogInited;
 extern bool    tsAsyncLog;
 extern int32_t tsNumOfLogLines;
 extern int32_t tsLogKeepDays;
@@ -55,7 +54,7 @@ int32_t taosInitLog(const char *logName, int32_t maxFiles);
 void    taosCloseLog();
 void    taosResetLog();
 void    taosSetAllDebugFlag(int32_t flag);
-void    taosDumpData(unsigned char *msg, int32_t len);
+void    taosDumpData(uint8_t *msg, int32_t len);
 
 void taosPrintLog(const char *flags, int32_t dflag, const char *format, ...)
 #ifdef __GNUC__
