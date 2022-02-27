@@ -96,6 +96,7 @@ void cfgCleanup(SConfig *pCfg) {
       SConfigItem *pItem = taosHashIterate(pCfg->hash, NULL);
       while (pItem != NULL) {
         cfgFreeItem(pItem);
+        tfree(pItem->name);
         pItem = taosHashIterate(pCfg->hash, pItem);
       }
       taosHashCleanup(pCfg->hash);
@@ -249,9 +250,7 @@ static int32_t cfgSetString(SConfigItem *pItem, const char *value, ECfgSrcType s
 }
 
 static int32_t cfgSetDir(SConfigItem *pItem, const char *value, ECfgSrcType stype) {
-  char *tmp = strdup(value);
-  if (tmp == NULL || cfgCheckAndSetDir(pItem, value) != 0) {
-    free(tmp);
+  if (cfgCheckAndSetDir(pItem, value) != 0) {
     terrno = TSDB_CODE_OUT_OF_MEMORY;
     uError("cfg:%s, type:%s src:%s value:%s failed to dup since %s, use last src:%s value:%s", pItem->name,
            cfgDtypeStr(pItem->dtype), cfgStypeStr(stype), value, terrstr(), cfgStypeStr(pItem->stype), pItem->str);
@@ -263,9 +262,7 @@ static int32_t cfgSetDir(SConfigItem *pItem, const char *value, ECfgSrcType styp
 }
 
 static int32_t cfgSetLocale(SConfigItem *pItem, const char *value, ECfgSrcType stype) {
-  char *tmp = strdup(value);
-  if (tmp == NULL || cfgCheckAndSetLocale(pItem, value) != 0) {
-    free(tmp);
+  if (cfgCheckAndSetLocale(pItem, value) != 0) {
     terrno = TSDB_CODE_OUT_OF_MEMORY;
     uError("cfg:%s, type:%s src:%s value:%s failed to dup since %s, use last src:%s value:%s", pItem->name,
            cfgDtypeStr(pItem->dtype), cfgStypeStr(stype), value, terrstr(), cfgStypeStr(pItem->stype), pItem->str);
@@ -277,9 +274,7 @@ static int32_t cfgSetLocale(SConfigItem *pItem, const char *value, ECfgSrcType s
 }
 
 static int32_t cfgSetCharset(SConfigItem *pItem, const char *value, ECfgSrcType stype) {
-  char *tmp = strdup(value);
-  if (tmp == NULL || cfgCheckAndSetCharset(pItem, value) != 0) {
-    free(tmp);
+  if (cfgCheckAndSetCharset(pItem, value) != 0) {
     terrno = TSDB_CODE_OUT_OF_MEMORY;
     uError("cfg:%s, type:%s src:%s value:%s failed to dup since %s, use last src:%s value:%s", pItem->name,
            cfgDtypeStr(pItem->dtype), cfgStypeStr(stype), value, terrstr(), cfgStypeStr(pItem->stype), pItem->str);
@@ -291,9 +286,7 @@ static int32_t cfgSetCharset(SConfigItem *pItem, const char *value, ECfgSrcType 
 }
 
 static int32_t cfgSetTimezone(SConfigItem *pItem, const char *value, ECfgSrcType stype) {
-  char *tmp = strdup(value);
-  if (tmp == NULL || cfgCheckAndSetTimezone(pItem, value) != 0) {
-    free(tmp);
+  if (cfgCheckAndSetTimezone(pItem, value) != 0) {
     terrno = TSDB_CODE_OUT_OF_MEMORY;
     uError("cfg:%s, type:%s src:%s value:%s failed to dup since %s, use last src:%s value:%s", pItem->name,
            cfgDtypeStr(pItem->dtype), cfgStypeStr(stype), value, terrstr(), cfgStypeStr(pItem->stype), pItem->str);

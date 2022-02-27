@@ -135,8 +135,6 @@ static void taosStopLog() {
 
 void taosCloseLog() {
   taosStopLog();
-  // tsem_post(&(tsLogObj.logHandle->buffNotEmpty));
-  taosMsleep(LOG_MAX_INTERVAL / 1000);
   if (taosCheckPthreadValid(tsLogObj.logHandle->asyncThread)) {
     pthread_join(tsLogObj.logHandle->asyncThread, NULL);
   }
@@ -495,12 +493,6 @@ void taosPrintLongString(const char *flags, int32_t dflag, const char *format, .
   if (dflag & DEBUG_SCREEN) write(1, buffer, (uint32_t)len);
 }
 
-#if 0
-void taosCloseLog() { 
-  taosCloseLogByFd(tsLogObj.logHandle->pFile); 
-}
-#endif
-
 static void taosCloseLogByFd(TdFilePtr pFile) {
   if (pFile != NULL) {
     taosUnLockLogFile(pFile);
@@ -532,15 +524,6 @@ _err:
   tfree(tLogBuff);
   return NULL;
 }
-
-#if 0
-static void taosLogBuffDestroy(SLogBuff *tLogBuff) {
-  tsem_destroy(&(tLogBuff->buffNotEmpty));
-  pthread_mutex_destroy(&(tLogBuff->buffMutex));
-  free(tLogBuff->buffer);
-  tfree(tLogBuff);
-}
-#endif
 
 static void taosCopyLogBuffer(SLogBuff *tLogBuff, int32_t start, int32_t end, char *msg, int32_t msgLen) {
   if (start > end) {
