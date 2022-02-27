@@ -222,7 +222,6 @@ TEST_F(UtilEnv, 04union) {
   for (int i = 0; i < sizeof(arr3) / sizeof(arr3[0]); i++) {
     taosArrayPush(f, &arr3[i]);
   }
-
   iUnion(src, rslt);
   assert(taosArrayGetSize(rslt) == 12);
 }
