@@ -14,8 +14,7 @@
  */
 
 #define _DEFAULT_SOURCE
-#include "os.h"
-#include "ulog.h"
+#include "tlog.h"
 #include "taoserror.h"
 #include "tstep.h"
 

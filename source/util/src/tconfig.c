@@ -19,7 +19,7 @@
 #include "tcfg.h"
 #include "thash.h"
 #include "tutil.h"
-#include "ulog.h"
+#include "tlog.h"
 
 #define CFG_NAME_PRINT_LEN 24
 #define CFG_SRC_PRINT_LEN  12

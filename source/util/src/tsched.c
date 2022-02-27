@@ -13,10 +13,9 @@
  * along with this program. If not, see <http://www.gnu.org/licenses/>.
  */
 
-#include "os.h"
 #include "tdef.h"
 #include "tutil.h"
-#include "ulog.h"
+#include "tlog.h"
 #include "tsched.h"
 #include "ttimer.h"
 
