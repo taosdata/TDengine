@@ -16,7 +16,7 @@
 #ifndef _TD_VNODE_DEF_H_
 #define _TD_VNODE_DEF_H_
 
-#include "mallocator.h"
+#include "tmallocator.h"
 // #include "sync.h"
 #include "tcoding.h"
 #include "tfs.h"
