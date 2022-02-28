@@ -230,7 +230,7 @@ int32_t getExprFunctionId(SExprInfo *pExprInfo) {
 }
 
 void assignExprInfo(SExprInfo* dst, const SExprInfo* src) {
-  assert(dst != NULL && src != NULL && src->base.numOfCols > 0);
+  assert(dst != NULL && src != NULL/* && src->base.numOfCols > 0*/);
 
   *dst = *src;
 #if 0
@@ -241,8 +241,10 @@ void assignExprInfo(SExprInfo* dst, const SExprInfo* src) {
 #endif
 
   dst->pExpr = exprdup(src->pExpr);
-  dst->base.pColumns = calloc(src->base.numOfCols, sizeof(SColumn));
-  memcpy(dst->base.pColumns, src->base.pColumns, sizeof(SColumn) * src->base.numOfCols);
+  if (src->base.numOfCols > 0) {
+    dst->base.pColumns = calloc(src->base.numOfCols, sizeof(SColumn));
+    memcpy(dst->base.pColumns, src->base.pColumns, sizeof(SColumn) * src->base.numOfCols);
+  }
 
   memset(dst->base.param, 0, sizeof(SVariant) * tListLen(dst->base.param));
   for (int32_t j = 0; j < src->base.numOfParams; ++j) {
