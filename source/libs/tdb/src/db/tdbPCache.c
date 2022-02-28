@@ -224,6 +224,7 @@ static int tdbPCacheOpenImpl(SPCache *pCache) {
     pPage->pHashNext = NULL;
     pPage->pLruNext = NULL;
     pPage->pLruPrev = NULL;
+    pPage->pDirtyNext = NULL;
 
     pPage->pFreeNext = pCache->pFree;
     pCache->pFree = pPage;
