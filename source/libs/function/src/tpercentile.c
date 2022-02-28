@@ -221,7 +221,7 @@ tMemBucket *tMemBucketCreate(int16_t nElemSize, int16_t dataType, double minval,
   }
 
   pBucket->numOfSlots = DEFAULT_NUM_OF_SLOT;
-  pBucket->bufPageSize = DEFAULT_PAGE_SIZE * 4;   // 4k per page
+  pBucket->bufPageSize = 16384 * 4;   // 16k per page
 
   pBucket->type  = dataType;
   pBucket->bytes = nElemSize;
@@ -254,7 +254,7 @@ tMemBucket *tMemBucketCreate(int16_t nElemSize, int16_t dataType, double minval,
 
   resetSlotInfo(pBucket);
 
-  int32_t ret = createDiskbasedBuffer(&pBucket->pBuffer, pBucket->bufPageSize, pBucket->bufPageSize * 512, 1, tsTempDir);
+  int32_t ret = createDiskbasedBuf(&pBucket->pBuffer, pBucket->bufPageSize, pBucket->bufPageSize * 512, 1, "/tmp");
   if (ret != 0) {
     tMemBucketDestroy(pBucket);
     return NULL;
@@ -269,7 +269,7 @@ void tMemBucketDestroy(tMemBucket *pBucket) {
     return;
   }
 
-  destroyResultBuf(pBucket->pBuffer);
+  destroyDiskbasedBuf(pBucket->pBuffer);
   tfree(pBucket->pSlots);
   tfree(pBucket);
 }
@@ -347,7 +347,7 @@ int32_t tMemBucketPut(tMemBucket *pBucket, const void *data, size_t size) {
         pSlot->info.data = NULL;
       }
 
-      pSlot->info.data = getNewDataBuf(pBucket->pBuffer, groupId, &pageId);
+      pSlot->info.data = getNewBufPage(pBucket->pBuffer, groupId, &pageId);
       pSlot->info.pageId = pageId;
     }
 

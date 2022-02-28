@@ -226,7 +226,7 @@ void* getVectorValueAddr_default(void *src, int32_t index) {
   return src;
 }
 void* getVectorValueAddr_VAR(void *src, int32_t index) {
-  return colDataGet((SColumnInfoData *)src, index);
+  return colDataGetData((SColumnInfoData *)src, index);
 }
 
 _getValueAddr_fn_t getVectorValueAddrFn(int32_t srcType) {
