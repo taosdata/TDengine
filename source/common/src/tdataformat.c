@@ -12,11 +12,10 @@
  * You should have received a copy of the GNU Affero General Public License
  * along with this program. If not, see <http://www.gnu.org/licenses/>.
  */
+
+#define _DEFAULT_SOURCE
 #include "tdataformat.h"
-#include "talgo.h"
-#include "tcoding.h"
-#include "wchar.h"
-#include "tarray.h"
+#include "tcoding.h" 
 #include "tlog.h"
 
 static void dataColSetNEleNull(SDataCol *pCol, int nEle);

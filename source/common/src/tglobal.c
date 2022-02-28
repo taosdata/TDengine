@@ -14,16 +14,11 @@
  */
 
 #define _DEFAULT_SOURCE
-#include "os.h"
-
-#include "taosdef.h"
-#include "taoserror.h"
+#include "tglobal.h"
 #include "tcompare.h"
 #include "tconfig.h"
 #include "tep.h"
-#include "tglobal.h"
 #include "tlog.h"
-#include "tutil.h"
 
 SConfig *tsCfg = NULL;
 

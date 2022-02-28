@@ -17,7 +17,6 @@
 #include "tep.h"
 #include "tcompare.h"
 #include "tglobal.h"
-#include "tlockfree.h"
 
 int32_t taosGetFqdnPortFromEp(const char *ep, SEp* pEp) {
   pEp->port = 0;

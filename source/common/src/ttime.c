@@ -13,20 +13,15 @@
  * along with this program. If not, see <http://www.gnu.org/licenses/>.
  */
 
-#define _BSD_SOURCE
-
 #ifdef DARWIN
 #define _XOPEN_SOURCE
 #else
 #define _XOPEN_SOURCE 500
 #endif
 
+#define _BSD_SOURCE
 #define _DEFAULT_SOURCE
-
-#include "os.h"
-#include "taosdef.h"
 #include "ttime.h"
-#include "tutil.h"
 
 /*
  * mktime64 - Converts date to seconds.
