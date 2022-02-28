@@ -13,24 +13,23 @@
  * along with this program. If not, see <http://www.gnu.org/licenses/>.
  */
 
-#ifndef TDENGINE_TPAGEDBUF_H
-#define TDENGINE_TPAGEDBUF_H
+#ifndef _TD_UTIL_PAGEDBUF_H_
+#define _TD_UTIL_PAGEDBUF_H_
+
+#include "thash.h"
+#include "tlist.h"
+#include "tlockfree.h"
 
 #ifdef __cplusplus
 extern "C" {
 #endif
 
-#include "tlist.h"
-#include "thash.h"
-#include "os.h"
-#include "tlockfree.h"
-
-typedef struct SArray* SIDList;
-typedef struct SPageInfo SPageInfo;
+typedef struct SArray*       SIDList;
+typedef struct SPageInfo     SPageInfo;
 typedef struct SDiskbasedBuf SDiskbasedBuf;
 
-#define DEFAULT_INTERN_BUF_PAGE_SIZE  (1024L)                          // in bytes
-#define DEFAULT_PAGE_SIZE             (16384L)
+#define DEFAULT_INTERN_BUF_PAGE_SIZE (1024L)  // in bytes
+#define DEFAULT_PAGE_SIZE            (16384L)
 
 typedef struct SFilePage {
   int64_t num;
@@ -55,7 +54,8 @@ typedef struct SDiskbasedBufStatis {
  * @param handle
  * @return
  */
-int32_t createDiskbasedBuffer(SDiskbasedBuf** pBuf, int32_t pagesize, int32_t inMemBufSize, uint64_t qId, const char* dir);
+int32_t createDiskbasedBuffer(SDiskbasedBuf** pBuf, int32_t pagesize, int32_t inMemBufSize, uint64_t qId,
+                              const char* dir);
 
 /**
  *
@@ -168,4 +168,4 @@ SDiskbasedBufStatis getDBufStatis(const SDiskbasedBuf* pBuf);
 }
 #endif
 
-#endif  // TDENGINE_TPAGEDBUF_H
+#endif  // _TD_UTIL_PAGEDBUF_H_
