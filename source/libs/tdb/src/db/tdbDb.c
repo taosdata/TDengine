@@ -23,6 +23,7 @@ struct STDb {
 int tdbDbOpen(const char *fname, int keyLen, int valLen, FKeyComparator keyCmprFn, STEnv *pEnv, STDb **ppDb) {
   STDb *  pDb;
   SPFile *pFile;
+  int     ret;
 
   *ppDb = NULL;
 
@@ -31,7 +32,14 @@ int tdbDbOpen(const char *fname, int keyLen, int valLen, FKeyComparator keyCmprF
     return -1;
   }
 
+  // pDb->pEnv
   pDb->pEnv = pEnv;
+
+  // pDb->pBt
+  ret = tdbBtreeOpen(&(pDb->pBt));
+  if (ret < 0) {
+    return -1;
+  }
 
   *ppDb = pDb;
   return 0;

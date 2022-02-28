@@ -63,7 +63,7 @@ static int tdbBtCursorMoveToRoot(SBtCursor *pCur);
 static int tdbInitBtPage(SPage *pPage, SBtPage **ppBtPage);
 static int tdbCompareKeyAndCell(const void *pKey, int kLen, const void *pCell);
 
-int tdbBtreeOpen(SPgno root, SBTree **ppBt) {
+int tdbBtreeOpen(SBTree **ppBt) {
   *ppBt = NULL;
   /* TODO */
   return 0;
