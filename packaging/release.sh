@@ -3,7 +3,7 @@
 # Generate the deb package for ubuntu, or rpm package for centos, or tar.gz package for other linux os
 
 set -e
-#set -x
+set -x
 
 # release.sh  -v [cluster | edge]
 #             -c [aarch32 | aarch64 | x64 | x86 | mips64 ...]
@@ -305,12 +305,12 @@ if [ "$osType" != "Darwin" ]; then
   echo "====do tar.gz package for all systems===="
   cd ${script_dir}/tools
 
-  ${csudo} ./makepkg.sh ${compile_dir} ${verNumber} "${build_time}" ${cpuType} ${osType} ${verMode} ${verType} ${pagMode} ${verNumberComp} ${dbName}
-  #  ${csudo}./makeclient.sh ${compile_dir} ${verNumber} "${build_time}" ${cpuType} ${osType} ${verMode} ${verType} ${pagMode}
-  #  ${csudo}./makearbi.sh ${compile_dir} ${verNumber} "${build_time}" ${cpuType} ${osType} ${verMode} ${verType} ${pagMode}
+  ${csudo}./makepkg.sh ${compile_dir} ${verNumber} "${build_time}" ${cpuType} ${osType} ${verMode} ${verType} ${pagMode} ${verNumberComp} ${dbName}
+  ${csudo}./makeclient.sh ${compile_dir} ${verNumber} "${build_time}" ${cpuType} ${osType} ${verMode} ${verType} ${pagMode} ${dbName}
+  ${csudo}./makearbi.sh ${compile_dir} ${verNumber} "${build_time}" ${cpuType} ${osType} ${verMode} ${verType} ${pagMode}
 
 else
   # only make client for Darwin
   cd ${script_dir}/tools
-  ./makeclient.sh ${compile_dir} ${verNumber} "${build_time}" ${cpuType} ${osType} ${verMode} ${verType} ${dbName}
+  ./makeclient.sh ${compile_dir} ${verNumber} "${build_time}" ${cpuType} ${osType} ${verMode} ${verType} ${pagMode} ${dbName}
 fi
