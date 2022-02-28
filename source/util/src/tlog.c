@@ -14,8 +14,8 @@
  */
 
 #define _DEFAULT_SOURCE
-#include "tutil.h"
 #include "tlog.h"
+#include "tutil.h"
 
 #define LOG_MAX_LINE_SIZE              (1000)
 #define LOG_MAX_LINE_BUFFER_SIZE       (LOG_MAX_LINE_SIZE + 10)

@@ -16,7 +16,6 @@
 #define _DEFAULT_SOURCE
 #include "tthread.h"
 
-// create new thread
 pthread_t* taosCreateThread(void* (*__start_routine)(void*), void* param) {
   pthread_t*     pthread = (pthread_t*)malloc(sizeof(pthread_t));
   pthread_attr_t thattr;
@@ -32,7 +31,6 @@ pthread_t* taosCreateThread(void* (*__start_routine)(void*), void* param) {
   return pthread;
 }
 
-// destory thread
 bool taosDestoryThread(pthread_t* pthread) {
   if (pthread == NULL) return false;
   if (taosThreadRunning(pthread)) {
@@ -44,7 +42,6 @@ bool taosDestoryThread(pthread_t* pthread) {
   return true;
 }
 
-// thread running return true
 bool taosThreadRunning(pthread_t* pthread) {
   if (pthread == NULL) return false;
   int32_t ret = pthread_kill(*pthread, 0);
