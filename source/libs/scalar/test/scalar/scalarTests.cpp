@@ -44,6 +44,10 @@ namespace {
 int64_t scltLeftV = 21, scltRightV = 10;
 double scltLeftVd = 21.0, scltRightVd = 10.0;
 
+void scltFreeDataBlock(void *block) {
+  blockDataDestroy(*(SSDataBlock **)block);
+}
+
 void scltInitLogFile() {
   const char   *defaultLogFileNamePrefix = "taoslog";
   const int32_t maxLogFileNum = 10;
@@ -96,7 +100,7 @@ void scltMakeValueNode(SNode **pNode, int32_t dataType, void *value) {
   if (IS_VAR_DATA_TYPE(dataType)) {
     vnode->datum.p = (char *)malloc(varDataTLen(value));
     varDataCopy(vnode->datum.p, value);
-    vnode->node.resType.bytes = varDataLen(value);
+    vnode->node.resType.bytes = varDataTLen(value);
   } else {
     vnode->node.resType.bytes = tDataTypes[dataType].bytes;
     assignVal((char *)nodesGetValueFromNode(vnode), (const char *)value, 0, dataType);
@@ -250,6 +254,7 @@ TEST(constantTest, bigint_add_bigint) {
   SValueNode *v = (SValueNode *)res;
   ASSERT_EQ(v->node.resType.type, TSDB_DATA_TYPE_DOUBLE);
   ASSERT_EQ(v->datum.d, (scltLeftV + scltRightV));
+  nodesDestroyNode(res);
 }
 
 TEST(constantTest, double_sub_bigint) {
@@ -265,6 +270,7 @@ TEST(constantTest, double_sub_bigint) {
   SValueNode *v = (SValueNode *)res;
   ASSERT_EQ(v->node.resType.type, TSDB_DATA_TYPE_DOUBLE);
   ASSERT_EQ(v->datum.d, (scltLeftVd - scltRightV));
+  nodesDestroyNode(res);  
 }
 
 TEST(constantTest, tinyint_and_smallint) {
@@ -280,6 +286,7 @@ TEST(constantTest, tinyint_and_smallint) {
   SValueNode *v = (SValueNode *)res;
   ASSERT_EQ(v->node.resType.type, TSDB_DATA_TYPE_BIGINT);
   ASSERT_EQ(v->datum.i, (int64_t)scltLeftV & (int64_t)scltRightV);
+  nodesDestroyNode(res);  
 }
 
 TEST(constantTest, bigint_or_double) {
@@ -295,6 +302,7 @@ TEST(constantTest, bigint_or_double) {
   SValueNode *v = (SValueNode *)res;
   ASSERT_EQ(v->node.resType.type, TSDB_DATA_TYPE_BIGINT);
   ASSERT_EQ(v->datum.i, (int64_t)scltLeftV | (int64_t)scltRightVd);
+  nodesDestroyNode(res);
 }
 
 TEST(constantTest, int_or_binary) {
@@ -313,6 +321,7 @@ TEST(constantTest, int_or_binary) {
   SValueNode *v = (SValueNode *)res;
   ASSERT_EQ(v->node.resType.type, TSDB_DATA_TYPE_BIGINT);
   ASSERT_EQ(v->datum.b, scltLeftV | scltRightV);
+  nodesDestroyNode(res);
 }
 
 
@@ -329,6 +338,7 @@ TEST(constantTest, int_greater_double) {
   SValueNode *v = (SValueNode *)res;
   ASSERT_EQ(v->node.resType.type, TSDB_DATA_TYPE_BOOL);
   ASSERT_EQ(v->datum.b, scltLeftV > scltRightVd);
+  nodesDestroyNode(res);
 }
 
 TEST(constantTest, int_greater_equal_binary) {
@@ -347,6 +357,7 @@ TEST(constantTest, int_greater_equal_binary) {
   SValueNode *v = (SValueNode *)res;
   ASSERT_EQ(v->node.resType.type, TSDB_DATA_TYPE_BOOL);
   ASSERT_EQ(v->datum.b, scltLeftV > scltRightVd);
+  nodesDestroyNode(res);
 }
 
 TEST(constantTest, tinyint_lower_ubigint) {
@@ -362,6 +373,7 @@ TEST(constantTest, tinyint_lower_ubigint) {
   SValueNode *v = (SValueNode *)res;
   ASSERT_EQ(v->node.resType.type, TSDB_DATA_TYPE_BOOL);
   ASSERT_EQ(v->datum.b, scltLeftV < scltRightV);
+  nodesDestroyNode(res);
 }
 
 TEST(constantTest, usmallint_lower_equal_ubigint) {
@@ -378,6 +390,7 @@ TEST(constantTest, usmallint_lower_equal_ubigint) {
   SValueNode *v = (SValueNode *)res;
   ASSERT_EQ(v->node.resType.type, TSDB_DATA_TYPE_BOOL);
   ASSERT_EQ(v->datum.b, leftv <= rightv);
+  nodesDestroyNode(res);
 }
 
 TEST(constantTest, int_equal_smallint1) {
@@ -394,6 +407,7 @@ TEST(constantTest, int_equal_smallint1) {
   SValueNode *v = (SValueNode *)res;
   ASSERT_EQ(v->node.resType.type, TSDB_DATA_TYPE_BOOL);
   ASSERT_EQ(v->datum.b, leftv == rightv);
+  nodesDestroyNode(res);
 }
 
 TEST(constantTest, int_equal_smallint2) {
@@ -410,6 +424,7 @@ TEST(constantTest, int_equal_smallint2) {
   SValueNode *v = (SValueNode *)res;
   ASSERT_EQ(v->node.resType.type, TSDB_DATA_TYPE_BOOL);
   ASSERT_EQ(v->datum.b, leftv == rightv);
+  nodesDestroyNode(res);
 }
 
 TEST(constantTest, int_not_equal_smallint1) {
@@ -426,6 +441,7 @@ TEST(constantTest, int_not_equal_smallint1) {
   SValueNode *v = (SValueNode *)res;
   ASSERT_EQ(v->node.resType.type, TSDB_DATA_TYPE_BOOL);
   ASSERT_EQ(v->datum.b, leftv != rightv);
+  nodesDestroyNode(res);
 }
 
 TEST(constantTest, int_not_equal_smallint2) {
@@ -442,6 +458,7 @@ TEST(constantTest, int_not_equal_smallint2) {
   SValueNode *v = (SValueNode *)res;
   ASSERT_EQ(v->node.resType.type, TSDB_DATA_TYPE_BOOL);
   ASSERT_EQ(v->datum.b, leftv != rightv);
+  nodesDestroyNode(res);
 }
 
 
@@ -469,6 +486,7 @@ TEST(constantTest, int_in_smallint1) {
   SValueNode *v = (SValueNode *)res;
   ASSERT_EQ(v->node.resType.type, TSDB_DATA_TYPE_BOOL);
   ASSERT_EQ(v->datum.b, true);
+  nodesDestroyNode(res);
 }
 
 TEST(constantTest, int_in_smallint2) {
@@ -494,6 +512,7 @@ TEST(constantTest, int_in_smallint2) {
   SValueNode *v = (SValueNode *)res;
   ASSERT_EQ(v->node.resType.type, TSDB_DATA_TYPE_BOOL);
   ASSERT_EQ(v->datum.b, false);
+  nodesDestroyNode(res);
 }
 
 TEST(constantTest, int_not_in_smallint1) {
@@ -517,6 +536,7 @@ TEST(constantTest, int_not_in_smallint1) {
   SValueNode *v = (SValueNode *)res;
   ASSERT_EQ(v->node.resType.type, TSDB_DATA_TYPE_BOOL);
   ASSERT_EQ(v->datum.b, false);
+  nodesDestroyNode(res);
 }
 
 TEST(constantTest, int_not_in_smallint2) {
@@ -542,6 +562,7 @@ TEST(constantTest, int_not_in_smallint2) {
   SValueNode *v = (SValueNode *)res;
   ASSERT_EQ(v->node.resType.type, TSDB_DATA_TYPE_BOOL);
   ASSERT_EQ(v->datum.b, true);
+  nodesDestroyNode(res);
 }
 
 TEST(constantTest, binary_like_binary1) {
@@ -562,6 +583,7 @@ TEST(constantTest, binary_like_binary1) {
   SValueNode *v = (SValueNode *)res;
   ASSERT_EQ(v->node.resType.type, TSDB_DATA_TYPE_BOOL);
   ASSERT_EQ(v->datum.b, true);
+  nodesDestroyNode(res);
 }
 
 TEST(constantTest, binary_like_binary2) {
@@ -582,6 +604,7 @@ TEST(constantTest, binary_like_binary2) {
   SValueNode *v = (SValueNode *)res;
   ASSERT_EQ(v->node.resType.type, TSDB_DATA_TYPE_BOOL);
   ASSERT_EQ(v->datum.b, false);
+  nodesDestroyNode(res);
 }
 
 TEST(constantTest, binary_not_like_binary1) {
@@ -602,6 +625,7 @@ TEST(constantTest, binary_not_like_binary1) {
   SValueNode *v = (SValueNode *)res;
   ASSERT_EQ(v->node.resType.type, TSDB_DATA_TYPE_BOOL);
   ASSERT_EQ(v->datum.b, false);
+  nodesDestroyNode(res);
 }
 
 TEST(constantTest, binary_not_like_binary2) {
@@ -622,6 +646,7 @@ TEST(constantTest, binary_not_like_binary2) {
   SValueNode *v = (SValueNode *)res;
   ASSERT_EQ(v->node.resType.type, TSDB_DATA_TYPE_BOOL);
   ASSERT_EQ(v->datum.b, true);
+  nodesDestroyNode(res);
 }
 
 TEST(constantTest, binary_match_binary1) {
@@ -642,6 +667,7 @@ TEST(constantTest, binary_match_binary1) {
   SValueNode *v = (SValueNode *)res;
   ASSERT_EQ(v->node.resType.type, TSDB_DATA_TYPE_BOOL);
   ASSERT_EQ(v->datum.b, true);
+  nodesDestroyNode(res);
 }
 
 TEST(constantTest, binary_match_binary2) {
@@ -662,6 +688,7 @@ TEST(constantTest, binary_match_binary2) {
   SValueNode *v = (SValueNode *)res;
   ASSERT_EQ(v->node.resType.type, TSDB_DATA_TYPE_BOOL);
   ASSERT_EQ(v->datum.b, false);
+  nodesDestroyNode(res);
 }
 
 TEST(constantTest, binary_not_match_binary1) {
@@ -682,6 +709,7 @@ TEST(constantTest, binary_not_match_binary1) {
   SValueNode *v = (SValueNode *)res;
   ASSERT_EQ(v->node.resType.type, TSDB_DATA_TYPE_BOOL);
   ASSERT_EQ(v->datum.b, true);
+  nodesDestroyNode(res);
 }
 
 TEST(constantTest, binary_not_match_binary2) {
@@ -702,6 +730,7 @@ TEST(constantTest, binary_not_match_binary2) {
   SValueNode *v = (SValueNode *)res;
   ASSERT_EQ(v->node.resType.type, TSDB_DATA_TYPE_BOOL);
   ASSERT_EQ(v->datum.b, false);
+  nodesDestroyNode(res);
 }
 
 TEST(constantTest, int_is_null1) {
@@ -717,6 +746,7 @@ TEST(constantTest, int_is_null1) {
   SValueNode *v = (SValueNode *)res;
   ASSERT_EQ(v->node.resType.type, TSDB_DATA_TYPE_BOOL);
   ASSERT_EQ(v->datum.b, false);
+  nodesDestroyNode(res);
 }
 
 TEST(constantTest, int_is_null2) {
@@ -732,6 +762,7 @@ TEST(constantTest, int_is_null2) {
   SValueNode *v = (SValueNode *)res;
   ASSERT_EQ(v->node.resType.type, TSDB_DATA_TYPE_BOOL);
   ASSERT_EQ(v->datum.b, true);
+  nodesDestroyNode(res);
 }
 
 TEST(constantTest, int_is_not_null1) {
@@ -747,6 +778,7 @@ TEST(constantTest, int_is_not_null1) {
   SValueNode *v = (SValueNode *)res;
   ASSERT_EQ(v->node.resType.type, TSDB_DATA_TYPE_BOOL);
   ASSERT_EQ(v->datum.b, true);
+  nodesDestroyNode(res);
 }
 
 TEST(constantTest, int_is_not_null2) {
@@ -762,6 +794,7 @@ TEST(constantTest, int_is_not_null2) {
   SValueNode *v = (SValueNode *)res;
   ASSERT_EQ(v->node.resType.type, TSDB_DATA_TYPE_BOOL);
   ASSERT_EQ(v->datum.b, false);
+  nodesDestroyNode(res);
 }
 
 TEST(constantTest, int_add_int_is_true1) {
@@ -779,6 +812,7 @@ TEST(constantTest, int_add_int_is_true1) {
   SValueNode *v = (SValueNode *)res;
   ASSERT_EQ(v->node.resType.type, TSDB_DATA_TYPE_BOOL);
   ASSERT_EQ(v->datum.b, true);
+  nodesDestroyNode(res);
 }
 
 TEST(constantTest, int_add_int_is_true2) {
@@ -796,6 +830,7 @@ TEST(constantTest, int_add_int_is_true2) {
   SValueNode *v = (SValueNode *)res;
   ASSERT_EQ(v->node.resType.type, TSDB_DATA_TYPE_BOOL);
   ASSERT_EQ(v->datum.b, false);
+  nodesDestroyNode(res);
 }
 
 
@@ -814,6 +849,7 @@ TEST(constantTest, int_greater_int_is_true1) {
   SValueNode *v = (SValueNode *)res;
   ASSERT_EQ(v->node.resType.type, TSDB_DATA_TYPE_BOOL);
   ASSERT_EQ(v->datum.b, false);
+  nodesDestroyNode(res);
 }
 
 TEST(constantTest, int_greater_int_is_true2) {
@@ -831,6 +867,7 @@ TEST(constantTest, int_greater_int_is_true2) {
   SValueNode *v = (SValueNode *)res;
   ASSERT_EQ(v->node.resType.type, TSDB_DATA_TYPE_BOOL);
   ASSERT_EQ(v->datum.b, true);
+  nodesDestroyNode(res);
 }
 
 TEST(constantTest, greater_and_lower) {
@@ -855,6 +892,7 @@ TEST(constantTest, greater_and_lower) {
   SValueNode *v = (SValueNode *)res;
   ASSERT_EQ(v->node.resType.type, TSDB_DATA_TYPE_BOOL);
   ASSERT_EQ(v->datum.b, true);
+  nodesDestroyNode(res);
 }
 
 
@@ -890,6 +928,8 @@ TEST(columnTest, smallint_value_add_int_column) {
   for (int32_t i = 0; i < rowNum; ++i) {
     ASSERT_EQ(*((double *)colDataGet(column, i)), eRes[i]);
   }
+
+  taosArrayDestroyEx(blockList, scltFreeDataBlock);
 }
 
 TEST(columnTest, bigint_column_multi_binary_column) {
@@ -927,6 +967,7 @@ TEST(columnTest, bigint_column_multi_binary_column) {
   for (int32_t i = 0; i < rowNum; ++i) {
     ASSERT_EQ(*((double *)colDataGet(column, i)), eRes[i]);
   }
+  taosArrayDestroyEx(blockList, scltFreeDataBlock);
 }
 
 TEST(columnTest, smallint_column_and_binary_column) {
@@ -963,6 +1004,7 @@ TEST(columnTest, smallint_column_and_binary_column) {
   for (int32_t i = 0; i < rowNum; ++i) {
     ASSERT_EQ(*((int64_t *)colDataGet(column, i)), eRes[i]);
   }
+  taosArrayDestroyEx(blockList, scltFreeDataBlock);
 }
 
 TEST(columnTest, smallint_column_or_float_column) {
@@ -994,6 +1036,7 @@ TEST(columnTest, smallint_column_or_float_column) {
   for (int32_t i = 0; i < rowNum; ++i) {
     ASSERT_EQ(*((int64_t *)colDataGet(column, i)), eRes[i]);
   }
+  taosArrayDestroyEx(blockList, scltFreeDataBlock);
 }
 
 TEST(columnTest, smallint_column_or_double_value) {
@@ -1025,6 +1068,7 @@ TEST(columnTest, smallint_column_or_double_value) {
   for (int32_t i = 0; i < rowNum; ++i) {
     ASSERT_EQ(*((int64_t *)colDataGet(column, i)), eRes[i]);
   }
+  taosArrayDestroyEx(blockList, scltFreeDataBlock);
 }
 
 TEST(columnTest, smallint_column_greater_double_value) {
@@ -1056,6 +1100,7 @@ TEST(columnTest, smallint_column_greater_double_value) {
   for (int32_t i = 0; i < rowNum; ++i) {
     ASSERT_EQ(*((bool *)colDataGet(column, i)), eRes[i]);
   }
+  taosArrayDestroyEx(blockList, scltFreeDataBlock);
 }
 
 TEST(columnTest, int_column_in_double_list) {
@@ -1094,6 +1139,7 @@ TEST(columnTest, int_column_in_double_list) {
   for (int32_t i = 0; i < rowNum; ++i) {
     ASSERT_EQ(*((bool *)colDataGet(column, i)), eRes[i]);
   }
+  taosArrayDestroyEx(blockList, scltFreeDataBlock);
 }
 
 TEST(columnTest, binary_column_in_binary_list) {
@@ -1151,6 +1197,7 @@ TEST(columnTest, binary_column_in_binary_list) {
   for (int32_t i = 0; i < rowNum; ++i) {
     ASSERT_EQ(*((bool *)colDataGet(column, i)), eRes[i]);
   }
+  taosArrayDestroyEx(blockList, scltFreeDataBlock);
 }
 
 TEST(columnTest, binary_column_like_binary) {
@@ -1193,6 +1240,8 @@ TEST(columnTest, binary_column_like_binary) {
   for (int32_t i = 0; i < rowNum; ++i) {
     ASSERT_EQ(*((bool *)colDataGet(column, i)), eRes[i]);
   }
+
+  taosArrayDestroyEx(blockList, scltFreeDataBlock);
 }
 
 
@@ -1232,6 +1281,7 @@ TEST(columnTest, binary_column_is_true) {
   for (int32_t i = 0; i < rowNum; ++i) {
     ASSERT_EQ(*((bool *)colDataGet(column, i)), eRes[i]);
   }
+  taosArrayDestroyEx(blockList, scltFreeDataBlock);
 }
 
 TEST(columnTest, binary_column_is_null) {
@@ -1274,6 +1324,7 @@ TEST(columnTest, binary_column_is_null) {
   for (int32_t i = 0; i < rowNum; ++i) {
     ASSERT_EQ(*((bool *)colDataGet(column, i)), eRes[i]);
   }
+  taosArrayDestroyEx(blockList, scltFreeDataBlock);
 }
 
 TEST(columnTest, binary_column_is_not_null) {
@@ -1315,6 +1366,7 @@ TEST(columnTest, binary_column_is_not_null) {
   for (int32_t i = 0; i < rowNum; ++i) {
     ASSERT_EQ(*((bool *)colDataGet(column, i)), eRes[i]);
   }
+  taosArrayDestroyEx(blockList, scltFreeDataBlock);
 }
 
 TEST(columnTest, greater_and_lower) {
@@ -1355,6 +1407,7 @@ TEST(columnTest, greater_and_lower) {
   for (int32_t i = 0; i < rowNum; ++i) {
     ASSERT_EQ(*((bool *)colDataGet(column, i)), eRes[i]);
   }
+  taosArrayDestroyEx(blockList, scltFreeDataBlock);
 }
 
 

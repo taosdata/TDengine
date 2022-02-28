@@ -231,6 +231,9 @@ static EDealRes rewriteNode(SNode** pRawNode, ETraversalOrder order, FNodeRewrit
     case QUERY_NODE_RAW_EXPR:
       res = rewriteNode(&(((SRawExprNode*)pNode)->pNode), order, rewriter, pContext);
       break;
+    case QUERY_NODE_TARGET:
+      res = rewriteNode(&(((STargetNode*)pNode)->pExpr), order, rewriter, pContext);
+      break;
     default:
       break;
   }

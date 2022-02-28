@@ -1474,6 +1474,9 @@ void vectorCompare(SScalarParam* pLeft, SScalarParam* pRight, SScalarParam *pOut
   }
 
   vectorCompareImpl(param1, param2, pOut, _ord, optr);
+
+  sclFreeParam(&pLeftOut);
+  sclFreeParam(&pRightOut);  
 }
 
 void vectorGreater(SScalarParam* pLeft, SScalarParam* pRight, SScalarParam *pOut, int32_t _ord) {

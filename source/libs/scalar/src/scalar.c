@@ -125,8 +125,13 @@ void sclFreeRes(SHashObj *res) {
   taosHashCleanup(res);
 }
 
-void sclFreeParam(SScalarParam *param) {
+void sclFreeParamNoData(SScalarParam *param) {
   tfree(param->bitmap);
+}
+
+
+void sclFreeParam(SScalarParam *param) {
+  sclFreeParamNoData(param);
   
   if (!param->dataInBlock) {
     if (SCL_DATA_TYPE_DUMMY_HASH == param->type) {
@@ -137,10 +142,28 @@ void sclFreeParam(SScalarParam *param) {
   }
 }
 
+
+int32_t sclCopyValueNodeValue(SValueNode *pNode, void **res) {
+  if (TSDB_DATA_TYPE_NULL == pNode->node.resType.type) {
+    return TSDB_CODE_SUCCESS;
+  }
+  
+  *res = malloc(pNode->node.resType.bytes);
+  if (NULL == (*res)) {
+    sclError("malloc %d failed", pNode->node.resType.bytes);
+    SCL_ERR_RET(TSDB_CODE_QRY_OUT_OF_MEMORY);
+  }
+
+  memcpy(*res, nodesGetValueFromNode(pNode), pNode->node.resType.bytes);
+
+  return TSDB_CODE_SUCCESS;
+}
+
 int32_t sclInitParam(SNode* node, SScalarParam *param, SScalarCtx *ctx, int32_t *rowNum) {
   switch (nodeType(node)) {
     case QUERY_NODE_VALUE: {
       SValueNode *valueNode = (SValueNode *)node;
+      //SCL_ERR_RET(sclCopyValueNodeValue(valueNode, &param->data));
       param->data = nodesGetValueFromNode(valueNode);
       param->orig.data = param->data;
       param->num = 1;
@@ -172,7 +195,6 @@ int32_t sclInitParam(SNode* node, SScalarParam *param, SScalarCtx *ctx, int32_t 
         sclError("taosHashPut nodeList failed, size:%d", (int32_t)sizeof(*param));
         return TSDB_CODE_QRY_OUT_OF_MEMORY;
       }   
-      
       break;
     }
     case QUERY_NODE_COLUMN: {
@@ -353,11 +375,14 @@ int32_t sclExecFuncion(SFunctionNode *node, SScalarCtx *ctx, SScalarParam *outpu
     }
   }
 
-  return TSDB_CODE_SUCCESS;
-
 _return:
 
+  for (int32_t i = 0; i < node->pParameterList->length; ++i) {
+    sclFreeParamNoData(params + i);
+  }
+
   tfree(params);
+  
   SCL_RET(code);
 }
 
@@ -415,9 +440,11 @@ int32_t sclExecLogic(SLogicConditionNode *node, SScalarCtx *ctx, SScalarParam *o
     *(bool *)output->data = value;
   }
 
-  return TSDB_CODE_SUCCESS;
-
 _return:
+
+  for (int32_t i = 0; i < node->pParameterList->length; ++i) {
+    sclFreeParamNoData(params + i);
+  }
 
   tfree(params);
   SCL_RET(code);
@@ -448,11 +475,15 @@ int32_t sclExecOperator(SOperatorNode *node, SScalarCtx *ctx, SScalarParam *outp
   
   OperatorFn(pLeft, pRight, output, TSDB_ORDER_ASC);
 
-  return TSDB_CODE_SUCCESS;
-
 _return:
 
+
+  for (int32_t i = 0; i < paramNum; ++i) {
+    sclFreeParamNoData(params + i);
+  }
+
   tfree(params);
+  
   SCL_RET(code);
 }
 
@@ -665,8 +696,6 @@ EDealRes sclWalkTarget(SNode* pNode, SScalarCtx *ctx) {
     return DEAL_RES_ERROR;
   }
   
-  taosHashRemove(ctx->pRes, (void *)&target->pExpr, POINTER_BYTES);
-
   for (int32_t i = 0; i < res->num; ++i) {
     sclMoveParamListData(res, 1, i);
 
@@ -674,6 +703,8 @@ EDealRes sclWalkTarget(SNode* pNode, SScalarCtx *ctx) {
   }
 
   sclFreeParam(res);
+
+  taosHashRemove(ctx->pRes, (void *)&target->pExpr, POINTER_BYTES);
 
   return DEAL_RES_CONTINUE;
 }
