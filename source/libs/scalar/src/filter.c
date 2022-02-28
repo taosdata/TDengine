@@ -19,6 +19,7 @@
 #include "tcompare.h"
 #include "filterInt.h"
 #include "filter.h"
+#include "tep.h"
 
 OptrStr gOptrStr[] = {
   {0,                                      "invalid"},
@@ -2776,7 +2777,7 @@ bool filterExecuteBasedOnStatisImpl(void *pinfo, int32_t numOfRows, int8_t** p, 
       uint32_t unitNum = *(unitIdx++);
       for (uint32_t u = 0; u < unitNum; ++u) {
         SFilterComUnit *cunit = &info->cunits[*(unitIdx + u)];
-        void *colData = colDataGet((SColumnInfoData *)cunit->colData, i);
+        void *colData = colDataGetData((SColumnInfoData *)cunit->colData, i);
       
         //if (FILTER_UNIT_GET_F(info, uidx)) {
         //  p[i] = FILTER_UNIT_GET_R(info, uidx);
@@ -2874,7 +2875,7 @@ static FORCE_INLINE bool filterExecuteImplIsNull(void *pinfo, int32_t numOfRows,
   
   for (int32_t i = 0; i < numOfRows; ++i) {
     uint32_t uidx = info->groups[0].unitIdxs[0];
-    void *colData = colDataGet((SColumnInfoData *)info->cunits[uidx].colData, i);
+    void *colData = colDataGetData((SColumnInfoData *)info->cunits[uidx].colData, i);
     if(info->cunits[uidx].dataType == TSDB_DATA_TYPE_JSON){
       if (!colData){  // for json->'key' is null
         (*p)[i] = 1;
@@ -2908,7 +2909,7 @@ static FORCE_INLINE bool filterExecuteImplNotNull(void *pinfo, int32_t numOfRows
   
   for (int32_t i = 0; i < numOfRows; ++i) {
     uint32_t uidx = info->groups[0].unitIdxs[0];
-    void *colData = colDataGet((SColumnInfoData *)info->cunits[uidx].colData, i);
+    void *colData = colDataGetData((SColumnInfoData *)info->cunits[uidx].colData, i);
 
     if(info->cunits[uidx].dataType == TSDB_DATA_TYPE_JSON){
       if (!colData) {   // for json->'key' is not null
@@ -2949,7 +2950,7 @@ bool filterExecuteImplRange(void *pinfo, int32_t numOfRows, int8_t** p, SColumnD
   }
   
   for (int32_t i = 0; i < numOfRows; ++i) {    
-    void *colData = colDataGet((SColumnInfoData *)info->cunits[0].colData, i);
+    void *colData = colDataGetData((SColumnInfoData *)info->cunits[0].colData, i);
 
     if (colData == NULL || isNull(colData, info->cunits[0].dataType)) {
       all = false;
@@ -2980,7 +2981,7 @@ bool filterExecuteImplMisc(void *pinfo, int32_t numOfRows, int8_t** p, SColumnDa
   
   for (int32_t i = 0; i < numOfRows; ++i) {
     uint32_t uidx = info->groups[0].unitIdxs[0];
-    void *colData = colDataGet((SColumnInfoData *)info->cunits[uidx].colData, i);
+    void *colData = colDataGetData((SColumnInfoData *)info->cunits[uidx].colData, i);
     if (colData == NULL || isNull(colData, info->cunits[uidx].dataType)) {
       (*p)[i] = 0;
       all = false;
@@ -3031,7 +3032,7 @@ bool filterExecuteImpl(void *pinfo, int32_t numOfRows, int8_t** p, SColumnDataAg
       for (uint32_t u = 0; u < group->unitNum; ++u) {
         uint32_t uidx = group->unitIdxs[u];
         SFilterComUnit *cunit = &info->cunits[uidx];
-        void *colData = colDataGet((SColumnInfoData *)(cunit->colData), i);
+        void *colData = colDataGetData((SColumnInfoData *)(cunit->colData), i);
       
         //if (FILTER_UNIT_GET_F(info, uidx)) {
         //  p[i] = FILTER_UNIT_GET_R(info, uidx);

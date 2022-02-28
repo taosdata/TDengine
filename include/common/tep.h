@@ -18,9 +18,6 @@ typedef struct SBlockOrderInfo {
   int32_t          order;
   int32_t          colIndex;
   SColumnInfoData *pColData;
-//  int32_t          type;
-//  int32_t          bytes;
-//  bool             hasNull;
 } SBlockOrderInfo;
 
 int  taosGetFqdnPortFromEp(const char *ep, SEp *pEp);
@@ -67,16 +64,16 @@ static FORCE_INLINE bool colDataIsNull(const SColumnInfoData* pColumnInfoData, u
   }
 }
 
-#define colDataGet(p1_, r_)                                                          \
-  ((IS_VAR_DATA_TYPE((p1_)->info.type)) ? ((p1_)->pData + (p1_)->varmeta.offset[(r_)]) \
-                                        : ((p1_)->pData + ((r_) * (p1_)->info.bytes)))
+#define colDataGetData(p1_, r_)                                                          \
+  ((IS_VAR_DATA_TYPE((p1_)->info.type)) ? (p1_)->pData + (p1_)->varmeta.offset[(r_)] \
+                                        : (p1_)->pData + ((r_) * (p1_)->info.bytes))
 
 int32_t colDataAppend(SColumnInfoData* pColumnInfoData, uint32_t currentRow, const char* pData, bool isNull);
 int32_t colDataMergeCol(SColumnInfoData* pColumnInfoData, uint32_t numOfRow1, const SColumnInfoData* pSource, uint32_t numOfRow2);
 int32_t blockDataUpdateTsWindow(SSDataBlock* pDataBlock);
 
-int32_t colDataGetSize(const SColumnInfoData* pColumnInfoData, int32_t numOfRows);
-void colDataTrim(SColumnInfoData* pColumnInfoData);
+int32_t colDataGetLength(const SColumnInfoData* pColumnInfoData, int32_t numOfRows);
+void    colDataTrim(SColumnInfoData* pColumnInfoData);
 
 size_t colDataGetNumOfCols(const SSDataBlock* pBlock);
 size_t colDataGetNumOfRows(const SSDataBlock* pBlock);
@@ -93,13 +90,15 @@ size_t blockDataGetRowSize(const SSDataBlock* pBlock);
 double blockDataGetSerialRowSize(const SSDataBlock* pBlock);
 size_t blockDataGetSerialMetaSize(const SSDataBlock* pBlock);
 
-size_t blockDataNumOfRowsForSerialize(const SSDataBlock* pBlock, int32_t blockSize);
+SSchema* blockDataExtractSchema(const SSDataBlock* pBlock, int32_t* numOfCols);
 
 int32_t blockDataSort(SSDataBlock* pDataBlock, SArray* pOrderInfo, bool nullFirst);
 int32_t blockDataSort_rv(SSDataBlock* pDataBlock, SArray* pOrderInfo, bool nullFirst);
 
 int32_t blockDataEnsureCapacity(SSDataBlock* pDataBlock, uint32_t numOfRows);
 void    blockDataClearup(SSDataBlock* pDataBlock, bool hasVarCol);
+SSDataBlock* createOneDataBlock(const SSDataBlock* pDataBlock);
+size_t blockDataGetCapacityInRow(const SSDataBlock* pBlock, size_t pageSize);
 void   *blockDataDestroy(SSDataBlock *pBlock);
 
 #ifdef __cplusplus
