@@ -16,7 +16,7 @@
 #ifndef _TD_COMMON_EP_H_
 #define _TD_COMMON_EP_H_
 
-#include "common.h"
+#include "tcommon.h"
 #include "tmsg.h"
 
 #ifdef __cplusplus

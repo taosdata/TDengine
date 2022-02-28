@@ -1,5 +1,5 @@
 #include "nodes.h"
-#include "common.h"
+#include "tcommon.h"
 #include "querynodes.h"
 #include "function.h"
 #include "functionMgt.h"

@@ -18,7 +18,7 @@
 
 #include "tmallocator.h"
 #include "meta.h"
-#include "common.h"
+#include "tcommon.h"
 #include "tfs.h"
 
 #ifdef __cplusplus

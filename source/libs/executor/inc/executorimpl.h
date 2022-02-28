@@ -21,7 +21,7 @@ extern "C" {
 #endif
 
 #include "os.h"
-#include "common.h"
+#include "tcommon.h"
 #include "tlosertree.h"
 #include "ttszip.h"
 #include "tvariant.h"

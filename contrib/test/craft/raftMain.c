@@ -10,7 +10,7 @@
 #include <raft.h>
 #include <raft/uv.h>
 #include "raftServer.h"
-#include "common.h"
+#include "tcommon.h"
 
 const char *exe_name;
 

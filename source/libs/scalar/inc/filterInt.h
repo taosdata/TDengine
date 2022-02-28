@@ -22,7 +22,7 @@ extern "C" {
 
 #include "thash.h"
 #include "tname.h"
-#include "common.h"
+#include "tcommon.h"
 #include "scalar.h"
 #include "querynodes.h"
 #include "query.h"
