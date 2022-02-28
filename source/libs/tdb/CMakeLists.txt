@@ -1,9 +1,4 @@
-# for tdb
-# set(TDB_SUBDIRS "db")
-# foreach(TDB_SUBDIR ${TDB_SUBDIRS})
-#     aux_source_directory("src/${TDB_SUBDIR}" TDB_SRC)
-# endforeach()
-
+# tdb
 add_library(tdb "")
 target_sources(tdb
     PRIVATE
@@ -11,7 +6,7 @@ target_sources(tdb
     "src/db/tdbPFile.c"
     "src/db/tdbUtil.c"
     "src/db/tdbBtree.c"
-    "src/db/tdb.c"
+    "src/db/tdbDb.c"
     "src/db/tdbEnv.c"
 )
 
@@ -38,5 +33,5 @@ target_include_directories(tdb_sqlite PUBLIC "src/sqliteinc")
 
 # for test
 if(${BUILD_TEST})
-    # add_subdirectory(test)
+    add_subdirectory(test)
 endif(${BUILD_TEST})

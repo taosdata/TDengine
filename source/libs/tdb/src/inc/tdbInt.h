@@ -34,8 +34,6 @@ typedef uint16_t u16;
 typedef uint32_t u32;
 typedef uint64_t u64;
 
-typedef struct SPgFile SPgFile;
-
 // SPgno
 typedef u32 SPgno;
 #define TDB_IVLD_PGNO ((pgno_t)0)
@@ -134,6 +132,8 @@ typedef TD_DLIST_NODE(SPgFile) SPgFileListNode;
 #include "tdbPFile.h"
 
 #include "tdbEnv.h"
+
+#include "tdbDb.h"
 
 #ifdef __cplusplus
 }

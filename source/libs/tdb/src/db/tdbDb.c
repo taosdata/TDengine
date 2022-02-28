@@ -15,6 +15,29 @@
 
 #include "tdbInt.h"
 
+struct STDb {
+  STEnv *pEnv;
+  /* TODO */
+};
+
+int tdbDbOpen(STDb **ppDb) {
+  STDb *pDb;
+
+  *ppDb = NULL;
+  /* TODO */
+  return 0;
+}
+
+int tdbDbClose(STDb *pDb) {
+  // TODO
+  return 0;
+}
+
+int tdbDbInsert(STDb *pDb, const void *pKey, int keyLen, const void *pVal, int valLen) {
+  // TODO
+  return 0;
+}
+
 #if 0
 struct STDb {
   char         dbname[TDB_MAX_DBNAME_LEN];
@@ -112,7 +135,7 @@ int tdbOpen(TDB *pDb, const char *fname, const char *dbname, TENV *pEnv) {
     ret = pgFileAllocatePage(pPgFile, &dbRootPgno);
     if (ret != 0) {
       // TODO: handle error
-    }
+    
     // tdbInsert(pPgFile->pMasterDB, dbname, strlen(dbname), &dbRootPgno, sizeof(dbRootPgno));
   }
 
