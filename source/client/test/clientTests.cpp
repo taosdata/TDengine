@@ -334,7 +334,7 @@ TEST(testCase, create_ctable_Test) {
   }
   taos_free_result(pRes);
 
-  pRes = taos_query(pConn, "create table tm0 using st1 tags(1)");
+  pRes = taos_query(pConn, "create table tu using sts tags('2021-10-10 1:1:1');");
   if (taos_errno(pRes) != 0) {
     printf("failed to create child table tm0, reason:%s\n", taos_errstr(pRes));
   }
