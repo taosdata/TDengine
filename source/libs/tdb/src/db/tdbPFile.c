@@ -25,6 +25,9 @@ struct SPFile {
   SPCache *pCache;
   SPgno    dbFileSize;
   SPgno    dbOrigSize;
+  int      nDirty;
+  SPage *  pDirty;
+  SPage *  pDirtyTail;
 };
 
 static int tdbPFileReadPage(SPFile *pFile, SPage *pPage);

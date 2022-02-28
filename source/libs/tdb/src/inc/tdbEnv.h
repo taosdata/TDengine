@@ -20,13 +20,12 @@
 extern "C" {
 #endif
 
-typedef struct STEnv STEnv;
-struct STEnv {
+typedef struct STEnv {
   char *   rootDir;
   char *   jfname;
   int      jfd;
   SPCache *pCache;
-};
+} STEnv;
 
 int tdbEnvOpen(const char *rootDir, int pageSize, int cacheSize, STEnv **ppEnv);
 int tdbEnvClose(STEnv *pEnv);

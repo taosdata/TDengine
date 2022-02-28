@@ -26,9 +26,6 @@ struct SPCache {
   SPage **        pgHash;
   int             nRecyclable;
   SPage           lru;
-  int             nDirty;
-  SPage *         pDirty;
-  SPage *         pDirtyTail;
 };
 
 #define PCACHE_PAGE_HASH(pPgid)                              \
@@ -247,10 +244,6 @@ static int tdbPCacheOpenImpl(SPCache *pCache) {
   pCache->lru.isAnchor = 1;
   pCache->lru.pLruNext = &(pCache->lru);
   pCache->lru.pLruPrev = &(pCache->lru);
-
-  // Open dirty list
-  pCache->nDirty = 0;
-  pCache->pDirty = pCache->pDirtyTail = NULL;
 
   return 0;
 }
