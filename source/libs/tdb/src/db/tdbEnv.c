@@ -17,6 +17,7 @@
 
 struct STEnv {
   char *   rootDir;
+  char *   jfname;
   int      jfd;
   SPCache *pCache;
 };
@@ -31,7 +32,7 @@ int tdbEnvOpen(const char *rootDir, int pageSize, int cacheSize, STEnv **ppEnv) 
   *ppEnv = NULL;
 
   dsize = strlen(rootDir);
-  zsize = sizeof(*pEnv) + dsize + 1;
+  zsize = sizeof(*pEnv) + dsize * 2 + strlen(TDB_JOURNAL_NAME) + 3;
 
   pPtr = (uint8_t *)calloc(1, zsize);
   if (pPtr == NULL) {
@@ -40,9 +41,17 @@ int tdbEnvOpen(const char *rootDir, int pageSize, int cacheSize, STEnv **ppEnv) 
 
   pEnv = (STEnv *)pPtr;
   pPtr += sizeof(*pEnv);
+  // pEnv->rootDir
   pEnv->rootDir = pPtr;
   memcpy(pEnv->rootDir, rootDir, dsize);
   pEnv->rootDir[dsize] = '\0';
+  pPtr = pPtr + dsize + 1;
+  // pEnv->jfname
+  pEnv->jfname = pPtr;
+  memcpy(pEnv->jfname, rootDir, dsize);
+  pEnv->jfname[dsize] = '/';
+  memcpy(pEnv->jfname + dsize + 1, TDB_JOURNAL_NAME, strlen(TDB_JOURNAL_NAME));
+  pEnv->jfname[dsize + 1 + strlen(TDB_JOURNAL_NAME)] = '\0';
 
   pEnv->jfd = -1;
 

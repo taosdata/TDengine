@@ -68,6 +68,7 @@ int tdbPCacheOpen(int pageSize, int cacheSize, int extraSize, SPCache **ppCache)
     return -1;
   }
 
+  *ppCache = pCache;
   return 0;
 }
 
