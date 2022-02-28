@@ -30,6 +30,7 @@ struct SPage {
   u8       isAnchor;
   u8       isLocalPage;
   u8       isLoad;
+  u8       isDirty;
   i32      nRef;
   SPCache *pCache;
   SPage *  pFreeNext;

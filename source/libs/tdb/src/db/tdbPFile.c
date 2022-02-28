@@ -28,6 +28,7 @@ struct SPFile {
   int      nDirty;
   SPage *  pDirty;
   SPage *  pDirtyTail;
+  u8       inTran;
 };
 
 static int tdbPFileReadPage(SPFile *pFile, SPage *pPage);
@@ -119,8 +120,23 @@ SPage *tdbPFileGet(SPFile *pFile, SPgno pgno) {
 }
 
 int tdbPFileWrite(SPFile *pFile, SPage *pPage) {
-  // TODO: if the page is not in journal, write to journal
-  // mark the page as dirty
+  int ret;
+
+  if (pFile->inTran == 0) {
+    ret = tdbPFileBegin(pFile);
+    if (ret < 0) {
+      return -1;
+    }
+
+    pFile->inTran;
+  }
+
+  if (pPage->isDirty == 0) {
+    pPage->isDirty = 1;
+    // TODO: add the page to the dirty list
+
+    // TODO: write the page to the journal
+  }
   return 0;
 }
 
@@ -143,7 +159,10 @@ int tdbPFileAllocPage(SPFile *pFile, SPage **ppPage, SPgno *ppgno) {
 }
 
 int tdbPFileBegin(SPFile *pFile) {
-  // TODO
+  if (pFile->inTran) {
+    return 0;
+  }
+  /* TODO */
   return 0;
 }
 
