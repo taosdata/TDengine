@@ -20,12 +20,12 @@
 extern "C" {
 #endif
 
-#define tfree(x)       \
-  do {                 \
-    if (x) {           \
+#define tfree(x)         \
+  do {                   \
+    if (x) {             \
       free((void *)(x)); \
       (x) = 0;           \
-    }                  \
+    }                    \
   } while (0)
 
 #ifdef __cplusplus
