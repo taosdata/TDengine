@@ -25,9 +25,6 @@ typedef struct STEnv STEnv;
 int tdbEnvOpen(const char *rootDir, int pageSize, int cacheSize, STEnv **ppEnv);
 int tdbEnvClose(STEnv *pEnv);
 
-int tdbEnvBegin(STEnv *pEnv);
-int tdbEnvCommit(STEnv *pEnv);
-
 #ifdef __cplusplus
 }
 #endif

@@ -56,16 +56,6 @@ int tdbEnvClose(STEnv *pEnv) {
   return 0;
 }
 
-int tdbEnvBegin(STEnv *pEnv) {
-  // TODO
-  return 0;
-}
-
-int tdbEnvCommit(STEnv *pEnv) {
-  // TODO
-  return 0;
-}
-
 #if 0
 struct STDbEnv {
   char *      rootDir;    // root directory of the environment
