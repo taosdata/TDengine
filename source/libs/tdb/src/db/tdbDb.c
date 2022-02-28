@@ -16,15 +16,24 @@
 #include "tdbInt.h"
 
 struct STDb {
-  STEnv *pEnv;
-  /* TODO */
+  STEnv * pEnv;
+  SBTree *pBt;
 };
 
-int tdbDbOpen(STDb **ppDb) {
-  STDb *pDb;
+int tdbDbOpen(const char *fname, int keyLen, int valLen, FKeyComparator keyCmprFn, STEnv *pEnv, STDb **ppDb) {
+  STDb *  pDb;
+  SPFile *pFile;
 
   *ppDb = NULL;
-  /* TODO */
+
+  pDb = (STDb *)calloc(1, sizeof(*pDb));
+  if (pDb == NULL) {
+    return -1;
+  }
+
+  pDb->pEnv = pEnv;
+
+  *ppDb = pDb;
   return 0;
 }
 

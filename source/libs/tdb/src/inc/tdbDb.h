@@ -22,7 +22,7 @@ extern "C" {
 
 typedef struct STDb STDb;
 
-int tdbDbOpen(STDb **ppDb);
+int tdbDbOpen(const char *fname, int keyLen, int valLen, FKeyComparator keyCmprFn, STEnv *pEnv, STDb **ppDb);
 int tdbDbClose(STDb *pDb);
 int tdbDbInsert(STDb *pDb, const void *pKey, int keyLen, const void *pVal, int valLen);
 

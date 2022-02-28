@@ -121,6 +121,8 @@ typedef TD_DLIST_NODE(SPgFile) SPgFileListNode;
     /* TODO */                                                   \
   } while (0)
 
+typedef int (*FKeyComparator)(const void *pKey1, int kLen1, const void *pKey2, int kLen2);
+
 #define TDB_JOURNAL_NAME "tdb.journal"
 
 #include "tdbUtil.h"

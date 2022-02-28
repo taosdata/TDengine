@@ -22,10 +22,11 @@ struct STEnv {
 };
 
 int tdbEnvOpen(const char *rootDir, int pageSize, int cacheSize, STEnv **ppEnv) {
-  STEnv *  pEnv;
-  int      dsize;
-  int      zsize;
-  uint8_t *pPtr;
+  STEnv *pEnv;
+  int    dsize;
+  int    zsize;
+  u8 *   pPtr;
+  int    ret;
 
   *ppEnv = NULL;
 
@@ -45,7 +46,12 @@ int tdbEnvOpen(const char *rootDir, int pageSize, int cacheSize, STEnv **ppEnv) 
 
   pEnv->jfd = -1;
 
-  tdbPCacheOpen(pageSize, cacheSize, 0, &(pEnv->pCache));
+  ret = tdbPCacheOpen(pageSize, cacheSize, 0, &(pEnv->pCache));
+  if (ret < 0) {
+    return -1;
+  }
+
+  mkdir(rootDir, 0755);
 
   *ppEnv = pEnv;
   return 0;

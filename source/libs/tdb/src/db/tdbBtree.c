@@ -17,8 +17,6 @@
 
 #define BTREE_MAX_DEPTH 20
 
-typedef int (*FKeyComparator)(const void *pKey1, int kLen1, const void *pKey2, int kLen2);
-
 struct SBTree {
   SPgno          root;
   int            keyLen;
