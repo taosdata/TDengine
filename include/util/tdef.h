@@ -410,6 +410,12 @@ typedef enum ELogicConditionType {
 enum { TRANS_STAT_INIT = 0, TRANS_STAT_EXECUTING, TRANS_STAT_EXECUTED, TRANS_STAT_ROLLBACKING, TRANS_STAT_ROLLBACKED };
 enum { TRANS_OPER_INIT = 0, TRANS_OPER_EXECUTE, TRANS_OPER_ROLLBACK };
 
+typedef struct {
+  char dir[TSDB_FILENAME_LEN];
+  int  level;
+  int  primary;
+} SDiskCfg;
+
 #ifdef __cplusplus
 }
 #endif

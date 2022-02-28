@@ -16,7 +16,6 @@
 #define _DEFAULT_SOURCE
 #include "tconfig.h"
 #include "taoserror.h"
-#include "tcfg.h"
 #include "thash.h"
 #include "tutil.h"
 #include "tlog.h"
