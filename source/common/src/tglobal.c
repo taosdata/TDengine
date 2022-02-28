@@ -349,11 +349,22 @@ static void taosSetServerLogCfg(SConfig *pCfg) {
 }
 
 static void taosSetClientCfg(SConfig *pCfg) {
-  tstrncpy(tsFirst, cfgGetItem(pCfg, "firstEp")->str, TSDB_EP_LEN);
-  tstrncpy(tsSecond, cfgGetItem(pCfg, "secondEp")->str, TSDB_EP_LEN);
   tstrncpy(tsLocalFqdn, cfgGetItem(pCfg, "fqdn")->str, TSDB_EP_LEN);
   tsServerPort = (uint16_t)cfgGetItem(pCfg, "serverPort")->i32;
   snprintf(tsLocalEp, sizeof(tsLocalEp), "%s:%u", tsLocalFqdn, tsServerPort);
+
+  SConfigItem *pFirstEpItem = cfgGetItem(pCfg, "firstEp");
+  SEp          firstEp = {0};
+  taosGetFqdnPortFromEp(pFirstEpItem->str, &firstEp);
+  snprintf(tsFirst, sizeof(tsFirst), "%s:%u", firstEp.fqdn, firstEp.port);
+  cfgSetItem(pCfg, "firstEp", tsFirst, pFirstEpItem->stype);
+
+  SConfigItem *pSecondpItem = cfgGetItem(pCfg, "secondEp");
+  SEp          secondEp = {0};
+  taosGetFqdnPortFromEp(pSecondpItem->str, &secondEp);
+  snprintf(tsSecond, sizeof(tsSecond), "%s:%u", secondEp.fqdn, secondEp.port);
+  cfgSetItem(pCfg, "secondEp", tsSecond, pSecondpItem->stype);
+
   tstrncpy(tsLogDir, cfgGetItem(pCfg, "tempDir")->str, PATH_MAX);
   tsTempSpace.reserved = cfgGetItem(pCfg, "minimalTempDirGB")->fval;
 
