@@ -3,7 +3,7 @@
 # Generate tar.gz package for all os system
 
 set -e
-set -x
+#set -x
 
 curr_dir=$(pwd)
 compile_dir=$1
@@ -68,9 +68,6 @@ else
 
   bin_files="${build_dir}/bin/${serverName} \
       ${build_dir}/bin/${clientName} \
-      ${build_dir}/bin/taosBenchmark \
-      ${build_dir}/bin/taosdump \
-      ${build_dir}/bin/TDinsight.sh \
       ${taostools_bin_files} \
       ${build_dir}/bin/taosadapter \
       ${build_dir}/bin/tarbitrator\
@@ -130,36 +127,51 @@ mkdir -p ${install_dir}/init.d && cp ${init_file_rpm} ${install_dir}/init.d/${se
 mkdir -p ${install_dir}/init.d && cp ${init_file_tarbitrator_deb} ${install_dir}/init.d/tarbitratord.deb || :
 mkdir -p ${install_dir}/init.d && cp ${init_file_tarbitrator_rpm} ${install_dir}/init.d/tarbitratord.rpm || :
 
-#if [ -n "${taostools_bin_files}" ]; then
-#    mkdir -p ${taostools_install_dir} || echo -e "failed to create ${taostools_install_dir}"
-#    mkdir -p ${taostools_install_dir}/bin \
-#        && cp ${taostools_bin_files} ${taostools_install_dir}/bin \
-#        && chmod a+x ${taostools_install_dir}/bin/* || :
+if [ $adapterName != "taosadapter" ]; then
+  mv ${install_dir}/cfg/taosadapter.toml ${install_dir}/cfg/$adapterName.toml
+  sed -i "s/path = \"\/var\/log\/taos\"/path = \"\/var\/log\/${productName}\"/g" ${install_dir}/cfg/$adapterName.toml
+  sed -i "s/password = \"taosdata\"/password = \"${defaultPasswd}\"/g" ${install_dir}/cfg/$adapterName.toml
 
-#    if [ -f ${top_dir}/src/kit/taos-tools/packaging/tools/install-taostools.sh ]; then
-#        cp ${top_dir}/src/kit/taos-tools/packaging/tools/install-taostools.sh \
-#            ${taostools_install_dir}/ > /dev/null \
-#            && chmod a+x ${taostools_install_dir}/install-taostools.sh \
-#            || echo -e "failed to copy install-taostools.sh"
-#    else
-#        echo -e "install-taostools.sh not found"
-#    fi
+  mv ${install_dir}/cfg/taosadapter.service ${install_dir}/cfg/$adapterName.service
+  sed -i "s/TDengine/${productName}/g" ${install_dir}/cfg/$adapterName.service
+  sed -i "s/taosAdapter/${adapterName}/g" ${install_dir}/cfg/$adapterName.service
+  sed -i "s/taosadapter/${adapterName}/g" ${install_dir}/cfg/$adapterName.service
 
-#    if [ -f ${top_dir}/src/kit/taos-tools/packaging/tools/uninstall-taostools.sh ]; then
-#        cp ${top_dir}/src/kit/taos-tools/packaging/tools/uninstall-taostools.sh \
-#            ${taostools_install_dir}/ > /dev/null \
-#            && chmod a+x ${taostools_install_dir}/uninstall-taostools.sh \
-#            || echo -e "failed to copy uninstall-taostools.sh"
-#    else
-#        echo -e "uninstall-taostools.sh not found"
-#    fi
+  mv ${install_dir}/bin/taosadapter ${install_dir}/bin/${adapterName}
+  mv ${install_dir}/bin/run_taosd_and_taosadapter.sh ${install_dir}/bin/run_${serverName}_and_${adapterName}.sh
+  mv ${install_dir}/bin/taosd-dump-cfg.gdb ${install_dir}/bin/${serverName}-dump-cfg.gdb
+fi
 
-#    if [ -f ${build_dir}/lib/libavro.so.23.0.0 ]; then
-#        mkdir -p ${taostools_install_dir}/avro/{lib,lib/pkgconfig} || echo -e "failed to create ${taostools_install_dir}/avro"
-#        cp ${build_dir}/lib/libavro.* ${taostools_install_dir}/avro/lib
-#        cp ${build_dir}/lib/pkgconfig/avro-c.pc ${taostools_install_dir}/avro/lib/pkgconfig
-#    fi
-#fi
+if [ -n "${taostools_bin_files}" ]; then
+    mkdir -p ${taostools_install_dir} || echo -e "failed to create ${taostools_install_dir}"
+    mkdir -p ${taostools_install_dir}/bin \
+        && cp ${taostools_bin_files} ${taostools_install_dir}/bin \
+        && chmod a+x ${taostools_install_dir}/bin/* || :
+
+    if [ -f ${top_dir}/src/kit/taos-tools/packaging/tools/install-taostools.sh ]; then
+        cp ${top_dir}/src/kit/taos-tools/packaging/tools/install-taostools.sh \
+            ${taostools_install_dir}/ > /dev/null \
+            && chmod a+x ${taostools_install_dir}/install-taostools.sh \
+            || echo -e "failed to copy install-taostools.sh"
+    else
+        echo -e "install-taostools.sh not found"
+    fi
+
+    if [ -f ${top_dir}/src/kit/taos-tools/packaging/tools/uninstall-taostools.sh ]; then
+        cp ${top_dir}/src/kit/taos-tools/packaging/tools/uninstall-taostools.sh \
+            ${taostools_install_dir}/ > /dev/null \
+            && chmod a+x ${taostools_install_dir}/uninstall-taostools.sh \
+            || echo -e "failed to copy uninstall-taostools.sh"
+    else
+        echo -e "uninstall-taostools.sh not found"
+    fi
+
+    if [ -f ${build_dir}/lib/libavro.so.23.0.0 ]; then
+        mkdir -p ${taostools_install_dir}/avro/{lib,lib/pkgconfig} || echo -e "failed to create ${taostools_install_dir}/avro"
+        cp ${build_dir}/lib/libavro.* ${taostools_install_dir}/avro/lib
+        cp ${build_dir}/lib/pkgconfig/avro-c.pc ${taostools_install_dir}/avro/lib/pkgconfig
+    fi
+fi
 
 if [ -f ${build_dir}/bin/jemalloc-config ]; then
     mkdir -p ${install_dir}/jemalloc/{bin,lib,lib/pkgconfig,include/jemalloc,share/doc/jemalloc,share/man/man3}
