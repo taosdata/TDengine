@@ -187,7 +187,6 @@ int32_t taosStatFile(const char *path, int64_t *size, int32_t *mtime) {
 void autoDelFileListAdd(const char *path) { return; }
 
 TdFilePtr taosOpenFile(const char *path, int32_t tdFileOptions) {
-  printf("%s(%d) %s path=%s tdFileOptions=%d\n", __FILE__, __LINE__,__func__,path,tdFileOptions);
 #if defined(_TD_WINDOWS_64) || defined(_TD_WINDOWS_32)
   return NULL;
 #else
@@ -205,7 +204,6 @@ TdFilePtr taosOpenFile(const char *path, int32_t tdFileOptions) {
     assert(!(tdFileOptions & TD_FILE_EXCL));
     fp = fopen(path, mode);
     if (fp == NULL) {
-      printf("%s(%d) %s\n", __FILE__, __LINE__,__func__);
       return NULL;
     }
   } else {
@@ -224,7 +222,6 @@ TdFilePtr taosOpenFile(const char *path, int32_t tdFileOptions) {
     access |= (tdFileOptions & TD_FILE_EXCL) ? O_EXCL : 0;
     fd = open(path, access, S_IRWXU | S_IRWXG | S_IRWXO);
     if (fd == -1) {
-      printf("%s(%d) %s access=%d\n", __FILE__, __LINE__,__func__,access);
       return NULL;
     }
   }
@@ -237,13 +234,11 @@ TdFilePtr taosOpenFile(const char *path, int32_t tdFileOptions) {
   if (pFile == NULL) {
     if (fd >= 0) close(fd);
     if (fp != NULL) fclose(fp);
-    printf("%s(%d) %s\n", __FILE__, __LINE__,__func__);
     return NULL;
   }
   pFile->fd = fd;
   pFile->fp = fp;
   pFile->refId = 0;
-  printf("%s(%d) %s\n", __FILE__, __LINE__,__func__);
   return pFile;
 #endif
 }
