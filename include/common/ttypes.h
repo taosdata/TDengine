@@ -15,11 +15,6 @@ typedef uint8_t  TDRowValT;
 typedef uint16_t col_id_t;
 typedef int8_t   col_type_t;
 
-typedef struct tstr {
-  VarDataLenT len;
-  char        data[];
-} tstr;
-
 #pragma pack(push, 1)
 typedef struct {
   VarDataLenT len;

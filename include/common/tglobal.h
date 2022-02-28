@@ -20,7 +20,6 @@
 extern "C" {
 #endif
 
-#include "tcfg.h"
 #include "tdef.h"
 #include "tarray.h"
 

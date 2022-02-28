@@ -13,17 +13,17 @@
  * along with this program. If not, see <http://www.gnu.org/licenses/>.
  */
 
-#ifndef _TD_UTIL_UTIL_H
-#define _TD_UTIL_UTIL_H
-
-#ifdef __cplusplus
-extern "C" {
-#endif
+#ifndef _TD_UTIL_UTIL_H_
+#define _TD_UTIL_UTIL_H_
 
 #include "os.h"
 #include "tcrc32c.h"
 #include "tdef.h"
 #include "tmd5.h"
+
+#ifdef __cplusplus
+extern "C" {
+#endif
 
 int32_t strdequote(char *src);
 int32_t strndequote(char *dst, const char *z, int32_t len);
@@ -49,7 +49,7 @@ void     taosIpPort2String(uint32_t ip, uint16_t port, char *str);
 static FORCE_INLINE void taosEncryptPass(uint8_t *inBuf, size_t inLen, char *target) {
   T_MD5_CTX context;
   tMD5Init(&context);
-  tMD5Update(&context, inBuf, (unsigned int)inLen);
+  tMD5Update(&context, inBuf, (uint32_t)inLen);
   tMD5Final(&context);
   memcpy(target, context.digest, tListLen(context.digest));
 }
@@ -57,17 +57,17 @@ static FORCE_INLINE void taosEncryptPass(uint8_t *inBuf, size_t inLen, char *tar
 static FORCE_INLINE void taosEncryptPass_c(uint8_t *inBuf, size_t len, char *target) {
   T_MD5_CTX context;
   tMD5Init(&context);
-  tMD5Update(&context, inBuf, (unsigned int)len);
+  tMD5Update(&context, inBuf, (uint32_t)len);
   tMD5Final(&context);
 
-  sprintf(target, "%02x%02x%02x%02x%02x%02x%02x%02x%02x%02x%02x%02x%02x%02x%02x%02x", context.digest[0], context.digest[1], context.digest[2],
-          context.digest[3], context.digest[4], context.digest[5], context.digest[6], context.digest[7],
-          context.digest[8], context.digest[9], context.digest[10], context.digest[11], context.digest[12],
-          context.digest[13], context.digest[14], context.digest[15]);
+  sprintf(target, "%02x%02x%02x%02x%02x%02x%02x%02x%02x%02x%02x%02x%02x%02x%02x%02x", context.digest[0],
+          context.digest[1], context.digest[2], context.digest[3], context.digest[4], context.digest[5],
+          context.digest[6], context.digest[7], context.digest[8], context.digest[9], context.digest[10],
+          context.digest[11], context.digest[12], context.digest[13], context.digest[14], context.digest[15]);
 }
 
 #ifdef __cplusplus
 }
 #endif
 
-#endif /*_TD_UTIL_UTIL_H*/
+#endif /*_TD_UTIL_UTIL_H_*/

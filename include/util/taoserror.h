@@ -13,14 +13,12 @@
  * along with this program. If not, see <http://www.gnu.org/licenses/>.
  */
 
-#ifndef _TD_UTIL_TAOS_ERROR_H_
-#define _TD_UTIL_TAOS_ERROR_H_
+#ifndef _TD_UTIL_ERROR_H_
+#define _TD_UTIL_ERROR_H_
 
 #ifdef __cplusplus
 extern "C" {
 #endif
-
-// clang-format off
 
 #define TAOS_DEF_ERROR_CODE(mod, code) ((int32_t)((0x80000000 | ((mod)<<16) | (code))))
  
@@ -469,4 +467,4 @@ int32_t* taosGetErrno();
 }
 #endif
 
-#endif /*_TD_UTIL_TAOS_ERROR_H_*/
+#endif /*_TD_UTIL_ERROR_H_*/

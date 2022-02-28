@@ -12,11 +12,12 @@
  * You should have received a copy of the GNU Affero General Public License
  * along with this program. If not, see <http://www.gnu.org/licenses/>.
  */
+
 #include "os.h"
 
 #include "tep.h"
 #include "tsort.h"
-#include "exception.h"
+#include "texception.h"
 #include "parser.h"
 #include "tglobal.h"
 #include "tmsg.h"

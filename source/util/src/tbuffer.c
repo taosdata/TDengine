@@ -14,11 +14,8 @@
  */
 
 #define _DEFAULT_SOURCE
-
 #include "tbuffer.h"
-#include "exception.h"
-#include "os.h"
-//#include "taoserror.h"
+#include "texception.h"
 
 typedef union Un4B {
   uint32_t ui;

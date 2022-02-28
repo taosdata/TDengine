@@ -20,7 +20,7 @@
 extern "C" {
 #endif
 
-#include "encode.h"
+#include "tencode.h"
 #include "taosdef.h"
 #include "taoserror.h"
 #include "tarray.h"

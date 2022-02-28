@@ -49,7 +49,6 @@ class FstWriter {
 class FstReadMemory {
  public:
   FstReadMemory(size_t size, const std::string& fileName = "/tmp/tindex.tindex") {
-    tfInit();
     _wc = writerCtxCreate(TFile, fileName.c_str(), true, 64 * 1024);
     _w = fstCountingWriterCreate(_wc);
     _size = size;
@@ -116,7 +115,6 @@ class FstReadMemory {
     fstDestroy(_fst);
     fstSliceDestroy(&_s);
     writerCtxDestroy(_wc, false);
-    tfCleanup();
   }
 
  private:
@@ -170,7 +168,6 @@ void Performance_fstReadRecords(FstReadMemory* m) {
 }
 
 void checkMillonWriteAndReadOfFst() {
-  tfInit();
   FstWriter* fw = new FstWriter;
   Performance_fstWriteRecords(fw);
   delete fw;
@@ -181,11 +178,9 @@ void checkMillonWriteAndReadOfFst() {
   }
 
   Performance_fstReadRecords(fr);
-  tfCleanup();
   delete fr;
 }
 void checkFstLongTerm() {
-  tfInit();
   FstWriter* fw = new FstWriter;
   // Performance_fstWriteRecords(fw);
 
@@ -235,12 +230,10 @@ void checkFstLongTerm() {
   // for (int i = 0; i < result.size(); i++) {
   // assert(result[i] == i);  // check result
   //}
-  tfCleanup();
   // free(ctx);
   // delete m;
 }
 void checkFstCheckIterator() {
-  tfInit();
   FstWriter* fw = new FstWriter;
   int64_t    s = taosGetTimestampUs();
   int        count = 2;
@@ -275,7 +268,6 @@ void checkFstCheckIterator() {
 
   free(ctx);
   delete m;
-  tfCleanup();
 }
 
 void fst_get(Fst* fst) {
@@ -294,8 +286,6 @@ void fst_get(Fst* fst) {
 
 #define NUM_OF_THREAD 10
 void validateTFile(char* arg) {
-  tfInit();
-
   std::thread threads[NUM_OF_THREAD];
   // std::vector<std::thread> threads;
   TFileReader* reader = tfileReaderOpen(arg, 0, 20000000, "tag1");
@@ -309,12 +299,9 @@ void validateTFile(char* arg) {
     // wait join
     threads[i].join();
   }
-  tfCleanup();
 }
 
 void iterTFileReader(char* path, char* ver) {
-  tfInit();
-
   int          version = atoi(ver);
   TFileReader* reader = tfileReaderOpen(path, 0, version, "tag1");
   Iterate*     iter = tfileIteratorCreate(reader);
@@ -331,7 +318,6 @@ void iterTFileReader(char* path, char* ver) {
   printf("total size: %d\n term count: %d\n", count, termCount);
 
   tfileIteratorDestroy(iter);
-  tfCleanup();
 }
 
 int main(int argc, char* argv[]) {

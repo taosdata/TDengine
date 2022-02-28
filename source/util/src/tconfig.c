@@ -16,18 +16,11 @@
 #define _DEFAULT_SOURCE
 #include "tconfig.h"
 #include "taoserror.h"
-#include "tcfg.h"
-#include "thash.h"
-#include "tutil.h"
 #include "tlog.h"
+#include "tutil.h"
 
 #define CFG_NAME_PRINT_LEN 24
 #define CFG_SRC_PRINT_LEN  12
-
-typedef struct SConfig {
-  ECfgSrcType stype;
-  SHashObj   *hash;
-} SConfig;
 
 int32_t cfgLoadFromCfgFile(SConfig *pConfig, const char *filepath);
 int32_t cfgLoadFromEnvFile(SConfig *pConfig, const char *filepath);
@@ -42,8 +35,8 @@ SConfig *cfgInit() {
     return NULL;
   }
 
-  pCfg->hash = taosHashInit(16, MurmurHash3_32, false, HASH_NO_LOCK);
-  if (pCfg->hash == NULL) {
+  pCfg->array = taosArrayInit(32, sizeof(SConfigItem));
+  if (pCfg->array == NULL) {
     free(pCfg);
     terrno = TSDB_CODE_OUT_OF_MEMORY;
     return NULL;
@@ -92,25 +85,18 @@ static void cfgFreeItem(SConfigItem *pItem) {
 
 void cfgCleanup(SConfig *pCfg) {
   if (pCfg != NULL) {
-    if (pCfg->hash != NULL) {
-      SConfigItem *pItem = taosHashIterate(pCfg->hash, NULL);
-      while (pItem != NULL) {
-        cfgFreeItem(pItem);
-        tfree(pItem->name);
-        pItem = taosHashIterate(pCfg->hash, pItem);
-      }
-      taosHashCleanup(pCfg->hash);
-      pCfg->hash == NULL;
+    int32_t size = taosArrayGetSize(pCfg->array);
+    for (int32_t i = 0; i < size; ++i) {
+      SConfigItem *pItem = taosArrayGet(pCfg->array, i);
+      cfgFreeItem(pItem);
+      tfree(pItem->name);
     }
+    taosArrayDestroy(pCfg->array);
     free(pCfg);
   }
 }
 
-int32_t cfgGetSize(SConfig *pCfg) { return taosHashGetSize(pCfg->hash); }
-
-SConfigItem *cfgIterate(SConfig *pCfg, SConfigItem *pIter) { return taosHashIterate(pCfg->hash, pIter); }
-
-void cfgCancelIterate(SConfig *pCfg, SConfigItem *pIter) { return taosHashCancelIterate(pCfg->hash, pIter); }
+int32_t cfgGetSize(SConfig *pCfg) { return taosArrayGetSize(pCfg->array); }
 
 static int32_t cfgCheckAndSetTimezone(SConfigItem *pItem, const char *timezone) {
   cfgFreeItem(pItem);
@@ -359,16 +345,16 @@ int32_t cfgSetItem(SConfig *pCfg, const char *name, const char *value, ECfgSrcTy
 }
 
 SConfigItem *cfgGetItem(SConfig *pCfg, const char *name) {
-  int32_t len = strlen(name);
-  char    lowcaseName[CFG_NAME_MAX_LEN + 1] = {0};
-  strntolower(lowcaseName, name, TMIN(CFG_NAME_MAX_LEN, len));
-
-  SConfigItem *pItem = taosHashGet(pCfg->hash, lowcaseName, len + 1);
-  if (pItem == NULL) {
-    terrno = TSDB_CODE_CFG_NOT_FOUND;
+  int32_t size = taosArrayGetSize(pCfg->array);
+  for (int32_t i = 0; i < size; ++i) {
+    SConfigItem *pItem = taosArrayGet(pCfg->array, i);
+    if (strcasecmp(pItem->name, name) == 0) {
+      return pItem;
+    }
   }
 
-  return pItem;
+  terrno = TSDB_CODE_CFG_NOT_FOUND;
+  return NULL;
 }
 
 static int32_t cfgAddItem(SConfig *pCfg, SConfigItem *pItem, const char *name) {
@@ -383,7 +369,7 @@ static int32_t cfgAddItem(SConfig *pCfg, SConfigItem *pItem, const char *name) {
   char    lowcaseName[CFG_NAME_MAX_LEN + 1] = {0};
   strntolower(lowcaseName, name, TMIN(CFG_NAME_MAX_LEN, len));
 
-  if (taosHashPut(pCfg->hash, lowcaseName, len + 1, pItem, sizeof(SConfigItem)) != 0) {
+  if (taosArrayPush(pCfg->array, pItem) == NULL) {
     if (pItem->dtype == CFG_DTYPE_STRING) {
       free(pItem->str);
     }
@@ -536,8 +522,9 @@ void cfgDumpCfg(SConfig *pCfg, bool tsc, bool dump) {
   char src[CFG_SRC_PRINT_LEN + 1] = {0};
   char name[CFG_NAME_PRINT_LEN + 1] = {0};
 
-  SConfigItem *pItem = cfgIterate(pCfg, NULL);
-  while (pItem != NULL) {
+  int32_t size = taosArrayGetSize(pCfg->array);
+  for (int32_t i = 0; i < size; ++i) {
+    SConfigItem *pItem = taosArrayGet(pCfg->array, i);
     if (tsc && !pItem->tsc) continue;
     tstrncpy(src, cfgStypeStr(pItem->stype), CFG_SRC_PRINT_LEN);
     for (int32_t i = 0; i < CFG_SRC_PRINT_LEN; ++i) {
@@ -596,7 +583,6 @@ void cfgDumpCfg(SConfig *pCfg, bool tsc, bool dump) {
         }
         break;
     }
-    pItem = cfgIterate(pCfg, pItem);
   }
 
   if (dump) {
@@ -619,7 +605,7 @@ int32_t cfgLoadFromEnvFile(SConfig *pConfig, const char *filepath) {
 
 int32_t cfgLoadFromCfgFile(SConfig *pConfig, const char *filepath) {
   char   *line = NULL, *name, *value, *value2, *value3;
-  int     olen, vlen, vlen2, vlen3;
+  int32_t olen, vlen, vlen2, vlen3;
   ssize_t _bytes = 0;
 
   // FILE *fp = fopen(filepath, "r");

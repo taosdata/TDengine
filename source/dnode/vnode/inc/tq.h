@@ -18,9 +18,8 @@
 
 #include "common.h"
 #include "executor.h"
-#include "mallocator.h"
+#include "tmallocator.h"
 #include "meta.h"
-#include "os.h"
 #include "scheduler.h"
 #include "taoserror.h"
 #include "tlist.h"

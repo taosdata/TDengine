@@ -18,7 +18,7 @@
 
 #include "tsort.h"
 #include "tep.h"
-#include "tcfg.h"
+#include "tdef.h"
 #include "tlosertree.h"
 #include "tpagedbuf.h"
 #include "tutil.h"

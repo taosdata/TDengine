@@ -14,7 +14,7 @@
  */
 
 #include "tlinearhash.h"
-#include "tcfg.h"
+#include "tdef.h"
 #include "taoserror.h"
 #include "tpagedbuf.h"
 
