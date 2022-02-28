@@ -20,8 +20,6 @@
 extern "C" {
 #endif
 
-// clang-format off
-
 #define TAOS_DEF_ERROR_CODE(mod, code) ((int32_t)((0x80000000 | ((mod)<<16) | (code))))
  
 #define TAOS_SYSTEM_ERROR(code)             (0x80ff0000 | (code))

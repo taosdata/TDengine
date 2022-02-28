@@ -158,12 +158,12 @@ void taosqsort(void *src, int64_t numOfElem, int64_t size, const void *param, __
   tfree(buf);
 }
 
-void *taosbsearch(const void *key, const void *base, int64_t nmemb, int64_t size, __compar_fn_t compar, int flags) {
+void *taosbsearch(const void *key, const void *base, int64_t nmemb, int64_t size, __compar_fn_t compar, int32_t flags) {
   // TODO: need to check the correctness of this function
-  int l = 0;
-  int r = (int)nmemb;
-  int idx = 0;
-  int comparison;
+  int32_t l = 0;
+  int32_t r = (int32_t)nmemb;
+  int32_t idx = 0;
+  int32_t comparison;
 
   if (flags == TD_EQ) {
     return bsearch(key, base, nmemb, size, compar);
