@@ -244,6 +244,8 @@ void assignExprInfo(SExprInfo* dst, const SExprInfo* src) {
   if (src->base.numOfCols > 0) {
     dst->base.pColumns = calloc(src->base.numOfCols, sizeof(SColumn));
     memcpy(dst->base.pColumns, src->base.pColumns, sizeof(SColumn) * src->base.numOfCols);
+  } else {
+    dst->base.pColumns = NULL;
   }
 
   memset(dst->base.param, 0, sizeof(SVariant) * tListLen(dst->base.param));
