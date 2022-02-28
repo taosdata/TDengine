@@ -23,7 +23,6 @@
 extern "C" {
 #endif
 
-
 typedef struct SCorEpSet {
   int32_t version;
   SEpSet  epSet;
@@ -123,4 +122,4 @@ void*        blockDataDestroy(SSDataBlock* pBlock);
 }
 #endif
 
-#endif  // _TD_COMMON_EP_H_
+#endif  /*_TD_COMMON_EP_H_*/

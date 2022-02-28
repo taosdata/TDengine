@@ -16,7 +16,6 @@
 #ifndef _TD_COMMON_TTSZIP_H_
 #define _TD_COMMON_TTSZIP_H_
 
-
 #include "os.h"
 #include "tdef.h"
 #include "tvariant.h"
@@ -25,8 +24,8 @@
 extern "C" {
 #endif
 
-#define MEM_BUF_SIZE (1 << 20)
-#define TS_COMP_FILE_MAGIC 0x87F5EC4C
+#define MEM_BUF_SIZE           (1 << 20)
+#define TS_COMP_FILE_MAGIC     0x87F5EC4C
 #define TS_COMP_FILE_GROUP_MAX 512
 
 typedef struct STSList {
@@ -62,10 +61,10 @@ typedef struct STSBlock {
  * and the offset of int32_t type is enough
  */
 typedef struct STSGroupBlockInfo {
-  int32_t id;          // group id
-  int32_t offset;      // offset set value in file
-  int32_t numOfBlocks; // number of total blocks
-  int32_t compLen;     // compressed size
+  int32_t id;           // group id
+  int32_t offset;       // offset set value in file
+  int32_t numOfBlocks;  // number of total blocks
+  int32_t compLen;      // compressed size
 } STSGroupBlockInfo;
 
 typedef struct STSGroupBlockInfoEx {
@@ -113,9 +112,9 @@ STSBuf* tsBufClone(STSBuf* pTSBuf);
 
 STSGroupBlockInfo* tsBufGetGroupBlockInfo(STSBuf* pTSBuf, int32_t id);
 
-void    tsBufFlush(STSBuf* pTSBuf);
-void    tsBufResetPos(STSBuf* pTSBuf);
-bool    tsBufNextPos(STSBuf* pTSBuf);
+void tsBufFlush(STSBuf* pTSBuf);
+void tsBufResetPos(STSBuf* pTSBuf);
+bool tsBufNextPos(STSBuf* pTSBuf);
 
 STSElem tsBufGetElem(STSBuf* pTSBuf);
 STSElem tsBufGetElemStartPos(STSBuf* pTSBuf, int32_t id, SVariant* tag);
@@ -145,4 +144,4 @@ bool tsBufIsValidElem(STSElem* pElem);
 }
 #endif
 
-#endif  // _TD_COMMON_TTSZIP_H_
+#endif  /*_TD_COMMON_TTSZIP_H_*/

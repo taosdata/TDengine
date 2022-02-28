@@ -280,4 +280,4 @@ typedef struct SSessionWindow {
 }
 #endif
 
-#endif  // _TD_COMMON_DEF_H_
+#endif  /*_TD_COMMON_DEF_H_*/

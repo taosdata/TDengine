@@ -231,4 +231,4 @@ void *getDataMax(int32_t type);
 }
 #endif
 
-#endif  // _TD_COMMON_TTYPE_H_
+#endif  /*_TD_COMMON_TTYPE_H_*/

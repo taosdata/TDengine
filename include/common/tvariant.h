@@ -64,4 +64,4 @@ int32_t taosVariantTypeSetType(SVariant *pVariant, char type);
 }
 #endif
 
-#endif  // _TD_COMMON_VARIANT_H_
+#endif  /*_TD_COMMON_VARIANT_H_*/

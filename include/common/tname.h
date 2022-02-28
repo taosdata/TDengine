@@ -67,4 +67,4 @@ SSchema createSchema(uint8_t type, int32_t bytes, int32_t colId, const char* nam
 }
 #endif
 
-#endif  // _TD_COMMON_NAME_H_
+#endif  /*_TD_COMMON_NAME_H_*/
