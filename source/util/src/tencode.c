@@ -13,6 +13,7 @@
  * along with this program. If not, see <http://www.gnu.org/licenses/>.
  */
 
+#define _DEFAULT_SOURCE
 #include "tencode.h"
 
 #if __STDC_VERSION__ >= 201112L
@@ -47,7 +48,7 @@ void tCoderClear(SCoder* pCoder) {
   }
 }
 
-int tStartEncode(SCoder* pCoder) {
+int32_t tStartEncode(SCoder* pCoder) {
   struct SCoderNode* pNode;
 
   ASSERT(pCoder->type == TD_ENCODER);
@@ -96,7 +97,7 @@ void tEndEncode(SCoder* pCoder) {
   }
 }
 
-int tStartDecode(SCoder* pCoder) {
+int32_t tStartDecode(SCoder* pCoder) {
   int32_t            len;
   struct SCoderNode* pNode;
 
