@@ -13,8 +13,8 @@
  * along with this program. If not, see <http://www.gnu.org/licenses/>.
  */
 
-#ifndef _TD_UTIL_TAOS_ERROR_H_
-#define _TD_UTIL_TAOS_ERROR_H_
+#ifndef _TD_UTIL_ERROR_H_
+#define _TD_UTIL_ERROR_H_
 
 #ifdef __cplusplus
 extern "C" {
@@ -469,4 +469,4 @@ int32_t* taosGetErrno();
 }
 #endif
 
-#endif /*_TD_UTIL_TAOS_ERROR_H_*/
+#endif /*_TD_UTIL_ERROR_H_*/

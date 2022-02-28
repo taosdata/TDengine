@@ -16,7 +16,6 @@
 #ifndef _TD_UTIL_ARRAY_H
 #define _TD_UTIL_ARRAY_H
 
-#include "os.h"
 #include "talgo.h"
 
 #ifdef __cplusplus

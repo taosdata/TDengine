@@ -13,8 +13,8 @@
  * along with this program. If not, see <http://www.gnu.org/licenses/>.
  */
 
-#ifndef _TD_UTIL_BUFFER_H
-#define _TD_UTIL_BUFFER_H
+#ifndef _TD_UTIL_BUFFER_H_
+#define _TD_UTIL_BUFFER_H_
 
 #include "os.h"
 
@@ -87,12 +87,10 @@ typedef struct SBufferWriter {
   void* (*allocator)(void*, size_t);
 } SBufferWriter;
 
-////////////////////////////////////////////////////////////////////////////////
 // common functions & macros for both reader & writer
 
 #define tbufTell(buf) ((buf)->pos)
 
-////////////////////////////////////////////////////////////////////////////////
 /* ------------------------ BUFFER WRITER FUNCTIONS AND MACROS ------------------------ */
 // *Allocator*, function to allocate memory, will use 'realloc' if NULL
 // *Endian*, if true, writer functions of primitive types will do 'hton' automatically
@@ -167,4 +165,4 @@ double      tbufReadDouble(SBufferReader* buf);
 }
 #endif
 
-#endif /*_TD_UTIL_BUFFER_H*/
+#endif /*_TD_UTIL_BUFFER_H_*/
