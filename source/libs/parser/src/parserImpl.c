@@ -16,9 +16,11 @@
 #include "parserImpl.h"
 
 #include "astCreateContext.h"
+#include "catalog.h"
 #include "functionMgt.h"
-#include "parserInt.h"
+#include "parserUtil.h"
 #include "tglobal.h"
+#include "tname.h"
 #include "ttime.h"
 #include "ttoken.h"
 
@@ -174,20 +176,20 @@ static uint32_t getToken(const char* z, uint32_t* tokenId) {
   return n;
 }
 
-static EStmtType getStmtType(const SNode* pRootNode) {
+static bool isCmd(const SNode* pRootNode) {
   if (NULL == pRootNode) {
-    return STMT_TYPE_CMD;
+    return true;
   }
   switch (nodeType(pRootNode)) {
     case QUERY_NODE_SELECT_STMT:
-      return STMT_TYPE_QUERY;
+      return false;
     default:
       break;
   }
-  return STMT_TYPE_CMD;
+  return true;
 }
 
-int32_t doParse(SParseContext* pParseCxt, SQuery* pQuery) {
+int32_t doParse(SParseContext* pParseCxt, SQuery** pQuery) {
   SAstCreateContext cxt;
   createAstCreateContext(pParseCxt, &cxt);
   void *pParser = NewParseAlloc(malloc);
@@ -236,8 +238,11 @@ int32_t doParse(SParseContext* pParseCxt, SQuery* pQuery) {
 abort_parse:
   NewParseFree(pParser, free);
   destroyAstCreateContext(&cxt);
-  pQuery->stmtType = getStmtType(cxt.pRootNode);
-  pQuery->pRoot = cxt.pRootNode;
+  if (cxt.valid) {
+    *pQuery = calloc(1, sizeof(SQuery));
+    (*pQuery)->isCmd = isCmd(cxt.pRootNode);
+    (*pQuery)->pRoot = cxt.pRootNode;
+  }
   return cxt.valid ? TSDB_CODE_SUCCESS : TSDB_CODE_FAILED;
 }
 
@@ -1054,16 +1059,16 @@ int32_t doTranslate(SParseContext* pParseCxt, SQuery* pQuery) {
   if (TSDB_CODE_SUCCESS == code) {
     code = translateQuery(&cxt, pQuery->pRoot);
   }
-  if (TSDB_CODE_SUCCESS == code && STMT_TYPE_QUERY == pQuery->stmtType) {
+  if (TSDB_CODE_SUCCESS == code && !pQuery->isCmd) {
     code = setReslutSchema(&cxt, pQuery);
   }
   return code;
 }
 
-int32_t parser(SParseContext* pParseCxt, SQuery* pQuery) {
-  int32_t code = doParse(pParseCxt, pQuery);
+int32_t parseQuerySql(SParseContext* pCxt, SQuery** pQuery) {
+  int32_t code = doParse(pCxt, pQuery);
   if (TSDB_CODE_SUCCESS == code) {
-    code = doTranslate(pParseCxt, pQuery);
+    code = doTranslate(pCxt, *pQuery);
   }
   return code;
 }

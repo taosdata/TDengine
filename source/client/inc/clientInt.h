@@ -172,7 +172,7 @@ typedef struct SRequestSendRecvBody {
   SShowReqInfo      showInfo;  // todo this attribute will be removed after the query framework being completed.
   SDataBuf          requestMsg;
   struct SSchJob*   pQueryJob;  // query job, created according to sql query DAG.
-  struct SQueryDag* pDag;       // the query dag, generated according to the sql statement.
+  struct SQueryPlan* pDag;       // the query dag, generated according to the sql statement.
   SReqResultInfo    resInfo;
 } SRequestSendRecvBody;
 
@@ -232,7 +232,7 @@ void setResultDataPtr(SReqResultInfo* pResultInfo, TAOS_FIELD* pFields, int32_t 
 
 int32_t buildRequest(STscObj* pTscObj, const char* sql, int sqlLen, SRequestObj** pRequest);
 
-int32_t parseSql(SRequestObj* pRequest, SQueryNode** pQuery);
+int32_t parseSql(SRequestObj* pRequest, SQuery** pQuery);
 
 // --- heartbeat
 // global, called by mgmt

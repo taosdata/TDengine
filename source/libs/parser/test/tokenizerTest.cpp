@@ -1,3 +1,5 @@
+#if 0
+
 #include <gtest/gtest.h>
 #include <iostream>
 
@@ -724,3 +726,5 @@ TEST(testCase, extractMeta_test) {
 }
 
 #pragma GCC diagnostic pop
+
+#endif

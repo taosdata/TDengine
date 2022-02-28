@@ -20,11 +20,11 @@
 extern "C" {
 #endif
 
-#include "querynodes.h"
-#include "newParser.h"
+#include "parser.h"
 
-int32_t doParse(SParseContext* pParseCxt, SQuery* pQuery);
+int32_t doParse(SParseContext* pParseCxt, SQuery** pQuery);
 int32_t doTranslate(SParseContext* pParseCxt, SQuery* pQuery);
+int32_t parseQuerySql(SParseContext* pCxt, SQuery** pQuery);
 
 #ifdef __cplusplus
 }

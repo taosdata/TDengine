@@ -13,6 +13,8 @@
  * along with this program. If not, see <http://www.gnu.org/licenses/>.
  */
 
+#if 0
+
 #include <function.h>
 #include "function.h"
 #include "os.h"
@@ -664,3 +666,5 @@ int32_t queryPlanToString(struct SQueryPlanNode* pQueryNode, char** str) {
 SQueryPlanNode* queryPlanFromString() {
   return NULL;
 }
+
+#endif

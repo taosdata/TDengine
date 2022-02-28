@@ -60,15 +60,12 @@ protected:
     return code_;
   }
 
-  SVnodeModifOpStmtInfo* reslut() {
-    return res_;
-  }
-
   void dumpReslut() {
-    size_t num = taosArrayGetSize(res_->pDataBlocks);
-    cout << "schemaAttache:" << (int32_t)res_->schemaAttache << ", payloadType:" << (int32_t)res_->payloadType << ", insertType:" << res_->insertType << ", numOfVgs:" << num << endl;    
+    SVnodeModifOpStmt* pStmt = getVnodeModifStmt(res_);
+    size_t num = taosArrayGetSize(pStmt->pDataBlocks);
+    cout << "schemaAttache:" << (int32_t)pStmt->schemaAttache << ", payloadType:" << (int32_t)pStmt->payloadType << ", insertType:" << pStmt->insertType << ", numOfVgs:" << num << endl;    
     for (size_t i = 0; i < num; ++i) {
-      SVgDataBlocks* vg = (SVgDataBlocks*)taosArrayGetP(res_->pDataBlocks, i);
+      SVgDataBlocks* vg = (SVgDataBlocks*)taosArrayGetP(pStmt->pDataBlocks, i);
       cout << "vgId:" << vg->vg.vgId << ", numOfTables:" << vg->numOfTables << ", dataSize:" << vg->size << endl;
       SSubmitReq* submit = (SSubmitReq*)vg->pData;
       cout << "length:" << ntohl(submit->length) << ", numOfBlocks:" << ntohl(submit->numOfBlocks) << endl;
@@ -84,13 +81,14 @@ protected:
   }
 
   void checkReslut(int32_t numOfTables, int16_t numOfRows1, int16_t numOfRows2 = -1) {
-    ASSERT_EQ(res_->schemaAttache, 0);
-    ASSERT_EQ(res_->payloadType, PAYLOAD_TYPE_KV);
-    ASSERT_EQ(res_->insertType, TSDB_QUERY_TYPE_INSERT);
-    size_t num = taosArrayGetSize(res_->pDataBlocks);
+    SVnodeModifOpStmt* pStmt = getVnodeModifStmt(res_);
+    ASSERT_EQ(pStmt->schemaAttache, 0);
+    ASSERT_EQ(pStmt->payloadType, PAYLOAD_TYPE_KV);
+    ASSERT_EQ(pStmt->insertType, TSDB_QUERY_TYPE_INSERT);
+    size_t num = taosArrayGetSize(pStmt->pDataBlocks);
     ASSERT_GE(num, 0);
     for (size_t i = 0; i < num; ++i) {
-      SVgDataBlocks* vg = (SVgDataBlocks*)taosArrayGetP(res_->pDataBlocks, i);
+      SVgDataBlocks* vg = (SVgDataBlocks*)taosArrayGetP(pStmt->pDataBlocks, i);
       ASSERT_EQ(vg->numOfTables, numOfTables);
       ASSERT_GE(vg->size, 0);
       SSubmitReq* submit = (SSubmitReq*)vg->pData;
@@ -115,7 +113,10 @@ private:
     cxt_.pMsg = errMagBuf_;
     cxt_.msgLen = max_err_len;
     code_ = TSDB_CODE_SUCCESS;
-    res_ = nullptr;
+  }
+
+  SVnodeModifOpStmt* getVnodeModifStmt(SQuery* pQuery) {
+    return (SVnodeModifOpStmt*)pQuery->pRoot;
   }
 
   string acctId_;
@@ -124,7 +125,7 @@ private:
   char sqlBuf_[max_sql_len];
   SParseContext cxt_;
   int32_t code_;
-  SVnodeModifOpStmtInfo* res_;
+  SQuery* res_;
 };
 
 // INSERT INTO tb_name VALUES (field1_value, ...)

@@ -13,6 +13,8 @@
  * along with this program. If not, see <http://www.gnu.org/licenses/>.
  */
 
+#if 0
+
 #include "plannerInt.h"
 #include "exception.h"
 #include "parser.h"
@@ -488,3 +490,5 @@ void qDestroySubplan(SSubplan* pSubplan) {
 
   tfree(pSubplan);
 }
+
+#endif

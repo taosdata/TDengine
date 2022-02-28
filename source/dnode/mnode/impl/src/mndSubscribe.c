@@ -760,9 +760,9 @@ static int32_t mndProcessDoRebalanceMsg(SMnodeMsg *pMsg) {
 static int32_t mndInitUnassignedVg(SMnode *pMnode, const SMqTopicObj *pTopic, SMqSubscribeObj *pSub) {
   SSdb      *pSdb = pMnode->pSdb;
   SVgObj    *pVgroup = NULL;
-  SQueryDag *pDag = qStringToDag(pTopic->physicalPlan);
+  SQueryPlan *pPlan = qStringToQueryPlan(pTopic->physicalPlan);
   SArray    *pArray = NULL;
-  SArray    *inner = taosArrayGet(pDag->pSubplans, 0);
+  SArray    *inner = taosArrayGet(pPlan->pSubplans, 0);
   SSubplan  *plan = taosArrayGetP(inner, 0);
   SArray    *unassignedVg = pSub->unassignedVg;
 
@@ -779,7 +779,7 @@ static int32_t mndInitUnassignedVg(SMnode *pMnode, const SMqTopicObj *pTopic, SM
     plan->execNode.nodeId = pVgroup->vgId;
     plan->execNode.epset = mndGetVgroupEpset(pMnode, pVgroup);
 
-    if (schedulerConvertDagToTaskList(pDag, &pArray) < 0) {
+    if (schedulerConvertDagToTaskList(pPlan, &pArray) < 0) {
       terrno = TSDB_CODE_MND_UNSUPPORTED_TOPIC;
       mError("unsupport topic: %s, sql: %s", pTopic->name, pTopic->sql);
       return -1;

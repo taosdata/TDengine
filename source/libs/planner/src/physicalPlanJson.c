@@ -13,6 +13,8 @@
  * along with this program. If not, see <http://www.gnu.org/licenses/>.
  */
 
+#if 0
+
 #include "plannerInt.h"
 #include "parser.h"
 #include "cJSON.h"
@@ -1221,3 +1223,5 @@ SQueryDag* qStringToDag(const char* pStr) {
   cJSON* pRoot = cJSON_Parse(pStr);
   return qJsonToDag(pRoot);
 }
+
+#endif

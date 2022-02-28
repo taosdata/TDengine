@@ -303,7 +303,7 @@ int32_t schRecordTaskExecNode(SSchJob *pJob, SSchTask *pTask, SQueryNodeAddr *ad
 }
 
 
-int32_t schValidateAndBuildJob(SQueryDag *pDag, SSchJob *pJob) {
+int32_t schValidateAndBuildJob(SQueryPlan *pDag, SSchJob *pJob) {
   int32_t code = 0;
   pJob->queryId = pDag->queryId;
   
@@ -1283,7 +1283,7 @@ void schDropJobAllTasks(SSchJob *pJob) {
   schDropTaskInHashList(pJob, pJob->failTasks);
 }
 
-static int32_t schExecJobImpl(void *transport, SArray *pNodeList, SQueryDag* pDag, struct SSchJob** job, const char* sql, bool syncSchedule) {
+static int32_t schExecJobImpl(void *transport, SArray *pNodeList, SQueryPlan* pDag, struct SSchJob** job, const char* sql, bool syncSchedule) {
   qDebug("QID:0x%"PRIx64" job started", pDag->queryId);
 
   if (pNodeList == NULL || (pNodeList && taosArrayGetSize(pNodeList) <= 0)) {
@@ -1398,7 +1398,7 @@ int32_t schedulerInit(SSchedulerCfg *cfg) {
   return TSDB_CODE_SUCCESS;
 }
 
-int32_t schedulerExecJob(void *transport, SArray *nodeList, SQueryDag* pDag, struct SSchJob** pJob, const char* sql, SQueryResult *pRes) {
+int32_t schedulerExecJob(void *transport, SArray *nodeList, SQueryPlan* pDag, struct SSchJob** pJob, const char* sql, SQueryResult *pRes) {
   if (NULL == transport || NULL == pDag || NULL == pDag->pSubplans || NULL == pJob || NULL == pRes) {
     SCH_ERR_RET(TSDB_CODE_QRY_INVALID_INPUT);
   }
@@ -1410,7 +1410,7 @@ int32_t schedulerExecJob(void *transport, SArray *nodeList, SQueryDag* pDag, str
   return TSDB_CODE_SUCCESS;
 }
 
-int32_t schedulerAsyncExecJob(void *transport, SArray *pNodeList, SQueryDag* pDag, const char* sql, struct SSchJob** pJob) {
+int32_t schedulerAsyncExecJob(void *transport, SArray *pNodeList, SQueryPlan* pDag, const char* sql, struct SSchJob** pJob) {
   if (NULL == transport || NULL == pDag || NULL == pDag->pSubplans || NULL == pJob) {
     SCH_ERR_RET(TSDB_CODE_QRY_INVALID_INPUT);
   }
@@ -1419,7 +1419,7 @@ int32_t schedulerAsyncExecJob(void *transport, SArray *pNodeList, SQueryDag* pDa
   return TSDB_CODE_SUCCESS;
 }
 
-int32_t schedulerConvertDagToTaskList(SQueryDag* pDag, SArray **pTasks) {
+int32_t schedulerConvertDagToTaskList(SQueryPlan* pDag, SArray **pTasks) {
   if (NULL == pDag || pDag->numOfSubplans <= 0 || taosArrayGetSize(pDag->pSubplans) == 0) {
     SCH_ERR_RET(TSDB_CODE_QRY_INVALID_INPUT);
   }

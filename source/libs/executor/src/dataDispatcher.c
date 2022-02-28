@@ -39,7 +39,7 @@ typedef struct SDataCacheEntry {
 typedef struct SDataDispatchHandle {
   SDataSinkHandle sink;
   SDataSinkManager* pManager;
-  SDataBlockSchema schema;
+  SDataBlockDescNode schema;
   STaosQueue* pDataBlocks;
   SDataDispatchBuf nextOutput;
   int32_t status;
@@ -48,12 +48,13 @@ typedef struct SDataDispatchHandle {
   pthread_mutex_t mutex;
 } SDataDispatchHandle;
 
-static bool needCompress(const SSDataBlock* pData, const SDataBlockSchema* pSchema) {
+static bool needCompress(const SSDataBlock* pData, const SDataBlockDescNode* pSchema) {
   if (tsCompressColData < 0 || 0 == pData->info.rows) {
     return false;
   }
 
-  for (int32_t col = 0; col < pSchema->numOfCols; ++col) {
+  int32_t numOfCols = LIST_LENGTH(pSchema->pSlots);
+  for (int32_t col = 0; col < numOfCols; ++col) {
     SColumnInfoData* pColRes = taosArrayGet(pData->pDataBlock, col);
     int32_t colSize = pColRes->info.bytes * pData->info.rows;
     if (NEEDTO_COMPRESS_QUERY(colSize)) {
@@ -70,13 +71,14 @@ static int32_t compressColData(SColumnInfoData *pColRes, int32_t numOfRows, char
       pColRes->pData, colSize, numOfRows, data, colSize + COMP_OVERFLOW_BYTES, compressed, NULL, 0);
 }
 
-static void copyData(const SInputData* pInput, const SDataBlockSchema* pSchema, char* data, int8_t compressed, int32_t *compLen) {
+static void copyData(const SInputData* pInput, const SDataBlockDescNode* pSchema, char* data, int8_t compressed, int32_t *compLen) {
+  int32_t numOfCols = LIST_LENGTH(pSchema->pSlots);
   int32_t *compSizes = (int32_t*)data;
   if (compressed) {
-    data += pSchema->numOfCols * sizeof(int32_t);
+    data += numOfCols * sizeof(int32_t);
   }
 
-  for (int32_t col = 0; col < pSchema->numOfCols; ++col) {
+  for (int32_t col = 0; col < numOfCols; ++col) {
     SColumnInfoData* pColRes = taosArrayGet(pInput->pData->pDataBlock, col);
     if (compressed) {
       compSizes[col] = compressColData(pColRes, pInput->pData->info.rows, data, compressed);
@@ -224,7 +226,7 @@ static int32_t destroyDataSinker(SDataSinkHandle* pHandle) {
   pthread_mutex_destroy(&pDispatcher->mutex);
 }
 
-int32_t createDataDispatcher(SDataSinkManager* pManager, const SDataSink* pDataSink, DataSinkHandle* pHandle) {
+int32_t createDataDispatcher(SDataSinkManager* pManager, const SDataSinkNode* pDataSink, DataSinkHandle* pHandle) {
   SDataDispatchHandle* dispatcher = calloc(1, sizeof(SDataDispatchHandle));
   if (NULL == dispatcher) {
     terrno = TSDB_CODE_QRY_OUT_OF_MEMORY;
@@ -236,7 +238,7 @@ int32_t createDataDispatcher(SDataSinkManager* pManager, const SDataSink* pDataS
   dispatcher->sink.fGetData = getDataBlock;
   dispatcher->sink.fDestroy = destroyDataSinker;
   dispatcher->pManager = pManager;
-  dispatcher->schema = pDataSink->schema;
+  dispatcher->schema = pDataSink->inputDataBlockDesc;
   dispatcher->status = DS_BUF_EMPTY;
   dispatcher->queryEnd = false;
   dispatcher->pDataBlocks = taosOpenQueue();

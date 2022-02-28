@@ -139,7 +139,7 @@ int32_t buildRequest(STscObj* pTscObj, const char* sql, int sqlLen, SRequestObj*
   return TSDB_CODE_SUCCESS;
 }
 
-int32_t parseSql(SRequestObj* pRequest, SQueryNode** pQuery) {
+int32_t parseSql(SRequestObj* pRequest, SQuery** pQuery) {
   STscObj* pTscObj = pRequest->pTscObj;
 
   SParseContext cxt = {
@@ -161,54 +161,57 @@ int32_t parseSql(SRequestObj* pRequest, SQueryNode** pQuery) {
   }
 
   code = qParseQuerySql(&cxt, pQuery);
+  if (TSDB_CODE_SUCCESS == code) {
+    setResSchemaInfo(&pRequest->body.resInfo, (*pQuery)->pResSchema, (*pQuery)->numOfResCols);
+  }
 
   tfree(cxt.db);
   return code;
 }
 
-int32_t execDdlQuery(SRequestObj* pRequest, SQueryNode* pQuery) {
-  SDclStmtInfo* pDcl = (SDclStmtInfo*)pQuery;
-  pRequest->type = pDcl->msgType;
-  pRequest->body.requestMsg = (SDataBuf){.pData = pDcl->pMsg, .len = pDcl->msgLen, .handle = NULL};
+int32_t execDdlQuery(SRequestObj* pRequest, SQuery* pQuery) {
+  // SDclStmtInfo* pDcl = (SDclStmtInfo*)pQuery;
+  // pRequest->type = pDcl->msgType;
+  // pRequest->body.requestMsg = (SDataBuf){.pData = pDcl->pMsg, .len = pDcl->msgLen, .handle = NULL};
 
-  STscObj*      pTscObj = pRequest->pTscObj;
-  SMsgSendInfo* pSendMsg = buildMsgInfoImpl(pRequest);
+  // STscObj*      pTscObj = pRequest->pTscObj;
+  // SMsgSendInfo* pSendMsg = buildMsgInfoImpl(pRequest);
 
-  int64_t transporterId = 0;
-  if (pDcl->msgType == TDMT_VND_CREATE_TABLE || pDcl->msgType == TDMT_VND_SHOW_TABLES) {
-    if (pDcl->msgType == TDMT_VND_SHOW_TABLES) {
-      SShowReqInfo* pShowReqInfo = &pRequest->body.showInfo;
-      if (pShowReqInfo->pArray == NULL) {
-        pShowReqInfo->currentIndex = 0;  // set the first vnode/ then iterate the next vnode
-        pShowReqInfo->pArray = pDcl->pExtension;
-      }
-    }
-    asyncSendMsgToServer(pTscObj->pAppInfo->pTransporter, &pDcl->epSet, &transporterId, pSendMsg);
-  } else {
-    asyncSendMsgToServer(pTscObj->pAppInfo->pTransporter, &pDcl->epSet, &transporterId, pSendMsg);
-  }
+  // int64_t transporterId = 0;
+  // if (pDcl->msgType == TDMT_VND_CREATE_TABLE || pDcl->msgType == TDMT_VND_SHOW_TABLES) {
+  //   if (pDcl->msgType == TDMT_VND_SHOW_TABLES) {
+  //     SShowReqInfo* pShowReqInfo = &pRequest->body.showInfo;
+  //     if (pShowReqInfo->pArray == NULL) {
+  //       pShowReqInfo->currentIndex = 0;  // set the first vnode/ then iterate the next vnode
+  //       pShowReqInfo->pArray = pDcl->pExtension;
+  //     }
+  //   }
+  //   asyncSendMsgToServer(pTscObj->pAppInfo->pTransporter, &pDcl->epSet, &transporterId, pSendMsg);
+  // } else {
+  //   asyncSendMsgToServer(pTscObj->pAppInfo->pTransporter, &pDcl->epSet, &transporterId, pSendMsg);
+  // }
 
-  tsem_wait(&pRequest->body.rspSem);
+  // tsem_wait(&pRequest->body.rspSem);
   return TSDB_CODE_SUCCESS;
 }
 
-int32_t getPlan(SRequestObj* pRequest, SQueryNode* pQueryNode, SQueryDag** pDag, SArray* pNodeList) {
-  pRequest->type = pQueryNode->type;
+int32_t getPlan(SRequestObj* pRequest, SQuery* pQuery, SQueryPlan** pDag, SArray* pNodeList) {
+  // pRequest->type = pQuery->type;
 
-  SSchema* pSchema = NULL;
-  int32_t  numOfCols = 0;
-  int32_t  code = qCreateQueryDag(pQueryNode, pDag, &pSchema, &numOfCols, pNodeList, pRequest->requestId);
-  if (code != 0) {
-    return code;
-  }
+  // SSchema* pSchema = NULL;
+  // int32_t  numOfCols = 0;
+  // int32_t  code = qCreateQueryDag(pQuery, pDag, &pSchema, &numOfCols, pNodeList, pRequest->requestId);
+  // if (code != 0) {
+  //   return code;
+  // }
 
-  if (pQueryNode->type == TSDB_SQL_SELECT) {
-    setResSchemaInfo(&pRequest->body.resInfo, pSchema, numOfCols);
-    pRequest->type = TDMT_VND_QUERY;
-  }
+  // if (pQuery->type == TSDB_SQL_SELECT) {
+  //   setResSchemaInfo(&pRequest->body.resInfo, pSchema, numOfCols);
+  //   pRequest->type = TDMT_VND_QUERY;
+  // }
 
-  tfree(pSchema);
-  return code;
+  // tfree(pSchema);
+  // return code;
 }
 
 void setResSchemaInfo(SReqResultInfo* pResInfo, const SSchema* pSchema, int32_t numOfCols) {
@@ -224,7 +227,7 @@ void setResSchemaInfo(SReqResultInfo* pResInfo, const SSchema* pSchema, int32_t 
   }
 }
 
-int32_t scheduleQuery(SRequestObj* pRequest, SQueryDag* pDag, SArray* pNodeList) {
+int32_t scheduleQuery(SRequestObj* pRequest, SQueryPlan* pDag, SArray* pNodeList) {
   void* pTransporter = pRequest->pTscObj->pAppInfo->pTransporter;
   if (TSDB_SQL_INSERT == pRequest->type || TSDB_SQL_CREATE_TABLE == pRequest->type) {
     SQueryResult res = {.code = 0, .numOfRows = 0, .msgSize = ERROR_MSG_BUF_DEFAULT_SIZE, .msg = pRequest->msgBuf};
@@ -254,24 +257,24 @@ TAOS_RES* taos_query_l(TAOS* taos, const char* sql, int sqlLen) {
   }
 
   SRequestObj* pRequest = NULL;
-  SQueryNode*  pQueryNode = NULL;
-  SArray*      pNodeList = taosArrayInit(4, sizeof(struct SQueryNodeAddr));
+  SQuery* pQuery;
+  SArray* pNodeList = taosArrayInit(4, sizeof(struct SQueryNodeAddr));
 
   terrno = TSDB_CODE_SUCCESS;
   CHECK_CODE_GOTO(buildRequest(pTscObj, sql, sqlLen, &pRequest), _return);
-  CHECK_CODE_GOTO(parseSql(pRequest, &pQueryNode), _return);
+  CHECK_CODE_GOTO(parseSql(pRequest, &pQuery), _return);
 
-  if (qIsDdlQuery(pQueryNode)) {
-    CHECK_CODE_GOTO(execDdlQuery(pRequest, pQueryNode), _return);
+  if (pQuery->isCmd) {
+    CHECK_CODE_GOTO(execDdlQuery(pRequest, pQuery), _return);
   } else {
-    CHECK_CODE_GOTO(getPlan(pRequest, pQueryNode, &pRequest->body.pDag, pNodeList), _return);
+    CHECK_CODE_GOTO(getPlan(pRequest, pQuery, &pRequest->body.pDag, pNodeList), _return);
     CHECK_CODE_GOTO(scheduleQuery(pRequest, pRequest->body.pDag, pNodeList), _return);
     pRequest->code = terrno;
   }
 
 _return:
   taosArrayDestroy(pNodeList);
-  qDestroyQuery(pQueryNode);
+  qDestroyQuery(pQuery);
   if (NULL != pRequest && TSDB_CODE_SUCCESS != terrno) {
     pRequest->code = terrno;
   }

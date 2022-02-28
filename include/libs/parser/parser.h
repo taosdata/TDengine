@@ -20,6 +20,8 @@
 extern "C" {
 #endif
 
+#if 0
+
 #include "parsenodes.h"
 
 typedef struct SParseContext {
@@ -93,6 +95,37 @@ SSchema *getOneColumnSchema(const STableMeta* pTableMeta, int32_t colIndex);
 int32_t getNewResColId();
 void addIntoSourceParam(SSourceParam* pSourceParam, tExprNode* pNode, SColumn* pColumn);
 SExprInfo* createBinaryExprInfo(struct tExprNode* pNode, SSchema* pResSchema);
+
+#else
+
+#include "querynodes.h"
+#include "tmsg.h"
+
+typedef struct SParseContext {
+  uint64_t         requestId;
+  int32_t          acctId;
+  const char      *db;
+  void            *pTransporter;
+  SEpSet           mgmtEpSet;
+  const char      *pSql;           // sql string
+  size_t           sqlLen;         // length of the sql string
+  char            *pMsg;           // extended error message if exists to help identifying the problem in sql statement.
+  int32_t          msgLen;         // max length of the msg
+  struct SCatalog *pCatalog;
+} SParseContext;
+
+typedef struct SQuery {
+  bool isCmd;
+  SNode* pRoot;
+  int32_t numOfResCols;
+  SSchema* pResSchema;
+} SQuery;
+
+int32_t qParseQuerySql(SParseContext* pCxt, SQuery** pQuery);
+
+void qDestroyQuery(SQuery* pQueryNode);
+
+#endif
 
 #ifdef __cplusplus
 }

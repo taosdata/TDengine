@@ -18,7 +18,7 @@
 #include <gtest/gtest.h>
 
 #include "plannerImpl.h"
-#include "newParser.h"
+#include "parser.h"
 
 using namespace std;
 using namespace testing;
@@ -46,17 +46,17 @@ protected:
   }
 
   bool run(TestTarget target = TEST_PHYSICAL_PLAN) {
-    int32_t code = parser(&cxt_, &query_);
+    int32_t code = qParseQuerySql(&cxt_, &query_);
 
     if (code != TSDB_CODE_SUCCESS) {
       cout << "sql:[" << cxt_.pSql << "] parser code:" << code << ", strerror:" << tstrerror(code) << ", msg:" << errMagBuf_ << endl;
       return false;
     }
 
-    const string syntaxTreeStr = toString(query_.pRoot, false);
+    const string syntaxTreeStr = toString(query_->pRoot, false);
   
     SLogicNode* pLogicPlan = nullptr;
-    code = createLogicPlan(query_.pRoot, &pLogicPlan);
+    code = createLogicPlan(query_->pRoot, &pLogicPlan);
     if (code != TSDB_CODE_SUCCESS) {
       cout << "sql:[" << cxt_.pSql << "] logic plan code:" << code << ", strerror:" << tstrerror(code) << endl;
       return false;
@@ -110,7 +110,7 @@ private:
   char errMagBuf_[max_err_len];
   string sqlBuf_;
   SParseContext cxt_;
-  SQuery query_;
+  SQuery* query_;
 };
 
 TEST_F(NewPlannerTest, simple) {

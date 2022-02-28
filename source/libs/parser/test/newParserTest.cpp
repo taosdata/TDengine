@@ -50,19 +50,19 @@ protected:
     if (TSDB_CODE_SUCCESS != parseCode) {
       return false;
     }
-    code = doTranslate(&cxt_, &query_);
+    code = doTranslate(&cxt_, query_);
     // cout << "doTranslate return " << code << endl;
     if (code != TSDB_CODE_SUCCESS) {
       cout << "sql:[" << cxt_.pSql << "] code:" << code << ", " << translateCode << ", msg:" << errMagBuf_ << endl;
       return (code == translateCode);
     }
-    if (NULL != query_.pRoot && QUERY_NODE_SELECT_STMT == nodeType(query_.pRoot)) {
+    if (NULL != query_->pRoot && QUERY_NODE_SELECT_STMT == nodeType(query_->pRoot)) {
       cout << "input sql : [" << cxt_.pSql << "]" << endl;
       // string sql;
       // selectToSql(query_.pRoot, sql);
       // cout << "output sql : [" << sql << "]" << endl;
       string str;
-      selectToStr(query_.pRoot, str);
+      selectToStr(query_->pRoot, str);
       cout << "translate str : \n" << str << endl;
     }
     return (TSDB_CODE_SUCCESS == translateCode);
@@ -507,7 +507,7 @@ private:
   char errMagBuf_[max_err_len];
   string sqlBuf_;
   SParseContext cxt_;
-  SQuery query_;
+  SQuery* query_;
 };
 
 TEST_F(NewParserTest, selectSimple) {

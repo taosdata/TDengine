@@ -21,54 +21,19 @@ extern "C" {
 #endif
 
 #include "os.h"
+#include "query.h"
+#include "tmsg.h"
 #include "ttoken.h"
-#include "parserInt.h"
 
-#define UTIL_TABLE_IS_SUPER_TABLE(metaInfo) \
-  (((metaInfo)->pTableMeta != NULL) && ((metaInfo)->pTableMeta->tableType == TSDB_SUPER_TABLE))
-
-#define UTIL_TABLE_IS_CHILD_TABLE(metaInfo) \
-  (((metaInfo)->pTableMeta != NULL) && ((metaInfo)->pTableMeta->tableType == TSDB_CHILD_TABLE))
-
-#define UTIL_TABLE_IS_NORMAL_TABLE(metaInfo) \
-  (!(UTIL_TABLE_IS_SUPER_TABLE(metaInfo) || UTIL_TABLE_IS_CHILD_TABLE(metaInfo)))
-
-#define UTIL_TABLE_IS_TMP_TABLE(metaInfo) \
-  (((metaInfo)->pTableMeta != NULL) && ((metaInfo)->pTableMeta->tableType == TSDB_TEMP_TABLE))
-
-TAOS_FIELD createField(const SSchema* pSchema);
-void setColumn(SColumn* pColumn, uint64_t uid, const char* tableName, int8_t flag, const SSchema* pSchema);
-SColumn createColumn(uint64_t uid, const char* tableName, int8_t flag, const SSchema* pSchema);
-
-SInternalField* insertFieldInfo(SFieldInfo* pFieldInfo, int32_t index, SSchema* field);
-int32_t getNumOfFields(SFieldInfo* pFieldInfo);
-SInternalField* getInternalField(SFieldInfo* pFieldInfo, int32_t index);
-
-int32_t parserValidateIdToken(SToken* pToken);
-int32_t parserValidatePassword(SToken* pToken, SMsgBuf* pMsgBuf);
-int32_t parserValidateNameToken(SToken* pToken);
+typedef struct SMsgBuf {
+  int32_t len;
+  char   *buf;
+} SMsgBuf;
 
 int32_t buildInvalidOperationMsg(SMsgBuf* pMsgBuf, const char* msg);
 int32_t buildSyntaxErrMsg(SMsgBuf* pBuf, const char* additionalInfo,  const char* sourceStr);
 
-STableMetaInfo* addEmptyMetaInfo(SQueryStmtInfo* pQueryInfo);
-
-void columnListCopyAll(SArray* dst, const SArray* src);
-
-SColumn* columnListInsert(SArray* pColumnList, uint64_t uid, SSchema* pSchema, int32_t flag);
-SColumn* insertPrimaryTsColumn(SArray* pColumnList, const char* colName, uint64_t tableUid);
-
-void cleanupTagCond(STagCond* pTagCond);
-void cleanupColumnCond(SArray** pCond);
-
-uint32_t convertRelationalOperator(SToken *pToken);
-int32_t  getExprFunctionId(SExprInfo *pExprInfo);
-
-STableMeta* tableMetaDup(const STableMeta* pTableMeta);
-
-bool isDclSqlStatement(SSqlInfo* pSqlInfo);
-bool isDdlSqlStatement(SSqlInfo* pSqlInfo);
-bool isDqlSqlStatement(SSqlInfo* pSqlInfo);
+int32_t parserValidateIdToken(SToken* pToken);
 
 typedef struct SKvParam {
   SKVRowBuilder *builder;
@@ -78,10 +43,12 @@ typedef struct SKvParam {
 
 int32_t KvRowAppend(const void *value, int32_t len, void *param);
 
-typedef int32_t (*_row_append_fn_t)(const void *value, int32_t len, void *param);
-int32_t parseValueToken(char** end, SToken* pToken, SSchema* pSchema, int16_t timePrec, char* tmpTokenBuf, _row_append_fn_t func, void* param, SMsgBuf* pMsgBuf);
-
-int32_t createSName(SName* pName, SToken* pTableName, SParseContext* pParseCtx, SMsgBuf* pMsgBuf);
+STableMeta* tableMetaDup(const STableMeta* pTableMeta);
+SSchema *getTableColumnSchema(const STableMeta *pTableMeta);
+SSchema *getTableTagSchema(const STableMeta* pTableMeta);
+int32_t  getNumOfColumns(const STableMeta* pTableMeta);
+int32_t  getNumOfTags(const STableMeta* pTableMeta);
+STableComInfo getTableInfo(const STableMeta* pTableMeta);
 
 #ifdef __cplusplus
 }

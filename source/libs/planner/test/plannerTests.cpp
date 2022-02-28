@@ -53,7 +53,7 @@ TEST(testCase, planner_test) {
   char    msg[128] = {0};
   const char* sql = "select top(a*b / 99, 20) from `t.1abc` interval(10s, 1s)";
 
-  SQueryStmtInfo* pQueryInfo = nullptr;
+  // SQueryStmtInfo* pQueryInfo = nullptr;
 //  int32_t code = qParseQuerySql(sql, strlen(sql), &pQueryInfo, 0, msg, sizeof(msg));
 //  ASSERT_EQ(code, 0);
 

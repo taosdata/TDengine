@@ -13,6 +13,7 @@
  * along with this program. If not, see <http://www.gnu.org/licenses/>.
  */
 
+#if 0
 #include "astGenerator.h"
 #include "parserInt.h"
 #include "parserUtil.h"
@@ -260,3 +261,36 @@ void qDestroyQuery(SQueryNode* pQueryNode) {
     destroyQueryInfo(pQueryStmtInfo);
   }
 }
+
+#else
+
+#include "parser.h"
+
+#include "insertParser.h"
+#include "parserImpl.h"
+#include "ttoken.h"
+
+static bool isInsertSql(const char* pStr, size_t length) {
+  int32_t index = 0;
+
+  do {
+    SToken t0 = tStrGetToken((char*) pStr, &index, false);
+    if (t0.type != TK_LP) {
+      return t0.type == TK_INSERT || t0.type == TK_IMPORT;
+    }
+  } while (1);
+}
+
+int32_t qParseQuerySql(SParseContext* pCxt, SQuery** pQuery) {
+  if (isInsertSql(pCxt->pSql, pCxt->sqlLen)) {
+    return parseInsertSql(pCxt, pQuery);
+  } else {
+    return parseQuerySql(pCxt, pQuery);
+  }
+}
+
+void qDestroyQuery(SQuery* pQueryNode) {
+  // todo
+}
+
+#endif

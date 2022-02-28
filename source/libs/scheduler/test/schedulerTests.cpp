@@ -73,7 +73,7 @@ void schtInitLogFile() {
 }
 
 
-void schtBuildQueryDag(SQueryDag *dag) {
+void schtBuildQueryDag(SQueryPlan *dag) {
   uint64_t qId = schtQueryId;
   
   dag->queryId = qId;
@@ -97,7 +97,7 @@ void schtBuildQueryDag(SQueryDag *dag) {
   scanPlan->pChildren = NULL;
   scanPlan->level = 1;
   scanPlan->pParents = taosArrayInit(1, POINTER_BYTES);
-  scanPlan->pNode = (SPhyNode*)calloc(1, sizeof(SPhyNode));
+  scanPlan->pNode = (SPhysiNode*)calloc(1, sizeof(SPhysiNode));
   scanPlan->msgType = TDMT_VND_QUERY;
 
   mergePlan->id.queryId = qId;
@@ -109,7 +109,7 @@ void schtBuildQueryDag(SQueryDag *dag) {
 
   mergePlan->pChildren = taosArrayInit(1, POINTER_BYTES);
   mergePlan->pParents = NULL;
-  mergePlan->pNode = (SPhyNode*)calloc(1, sizeof(SPhyNode));
+  mergePlan->pNode = (SPhysiNode*)calloc(1, sizeof(SPhysiNode));
   mergePlan->msgType = TDMT_VND_QUERY;
 
   SSubplan *mergePointer = (SSubplan *)taosArrayPush(merge, &mergePlan);
@@ -122,12 +122,12 @@ void schtBuildQueryDag(SQueryDag *dag) {
   taosArrayPush(dag->pSubplans, &scan);
 }
 
-void schtFreeQueryDag(SQueryDag *dag) {
+void schtFreeQueryDag(SQueryPlan *dag) {
 
 }
 
 
-void schtBuildInsertDag(SQueryDag *dag) {
+void schtBuildInsertDag(SQueryPlan *dag) {
   uint64_t qId = 0x0000000000000002;
   
   dag->queryId = qId;
@@ -150,7 +150,7 @@ void schtBuildInsertDag(SQueryDag *dag) {
   insertPlan[0].pChildren = NULL;
   insertPlan[0].pParents = NULL;
   insertPlan[0].pNode = NULL;
-  insertPlan[0].pDataSink = (SDataSink*)calloc(1, sizeof(SDataSink));
+  insertPlan[0].pDataSink = (SDataSinkNode*)calloc(1, sizeof(SDataSinkNode));
   insertPlan[0].msgType = TDMT_VND_SUBMIT;
 
   insertPlan[1].id.queryId = qId;
@@ -166,7 +166,7 @@ void schtBuildInsertDag(SQueryDag *dag) {
   insertPlan[1].pChildren = NULL;
   insertPlan[1].pParents = NULL;
   insertPlan[1].pNode = NULL;
-  insertPlan[1].pDataSink = (SDataSink*)calloc(1, sizeof(SDataSink));
+  insertPlan[1].pDataSink = (SDataSinkNode*)calloc(1, sizeof(SDataSinkNode));
   insertPlan[1].msgType = TDMT_VND_SUBMIT;
 
   taosArrayPush(inserta, &insertPlan);
@@ -347,7 +347,7 @@ void* schtRunJobThread(void *aa) {
   char *dbname = "1.db1";
   char *tablename = "table1";
   SVgroupInfo vgInfo = {0};
-  SQueryDag dag = {0};
+  SQueryPlan dag = {0};
 
   schtInitLogFile();
 
@@ -517,7 +517,7 @@ TEST(queryTest, normalCase) {
   char *tablename = "table1";
   SVgroupInfo vgInfo = {0};
   SSchJob *pJob = NULL;
-  SQueryDag dag = {0};
+  SQueryPlan dag = {0};
 
   schtInitLogFile();
 
@@ -620,7 +620,7 @@ TEST(insertTest, normalCase) {
   char *dbname = "1.db1";
   char *tablename = "table1";
   SVgroupInfo vgInfo = {0};
-  SQueryDag dag = {0};
+  SQueryPlan dag = {0};
   uint64_t numOfRows = 0;
 
   schtInitLogFile();

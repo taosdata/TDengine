@@ -21,6 +21,7 @@ extern "C" {
 #endif
 
 #include "querynodes.h"
+#include "query.h"
 #include "tmsg.h"
 
 typedef struct SLogicNode {
@@ -78,6 +79,8 @@ typedef struct SDataBlockDescNode {
   ENodeType type;
   int16_t dataBlockId;
   SNodeList* pSlots;
+  int32_t resultRowSize;
+  int16_t precision;
 } SDataBlockDescNode;
 
 typedef struct SPhysiNode {
@@ -128,6 +131,34 @@ typedef struct SAggPhysiNode {
   SNodeList* pGroupKeys; // SColumnRefNode list
   SNodeList* pAggFuncs;
 } SAggPhysiNode;
+
+typedef struct SDownstreamSource {
+  SQueryNodeAddr addr;
+  uint64_t       taskId;
+  uint64_t       schedId;
+} SDownstreamSource;
+
+typedef struct SExchangePhysiNode {
+  SPhysiNode    node;
+  uint64_t    srcTemplateId;  // template id of datasource suplans
+  SArray* pSrcEndPoints;  // SArray<SDownstreamSource>, scheduler fill by calling qSetSuplanExecutionNode
+} SExchangePhysiNode;
+
+typedef struct SDataSinkNode {
+  ENodeType type;;
+  SDataBlockDescNode inputDataBlockDesc;
+} SDataSinkNode;
+
+typedef struct SDataDispatcherNode {
+  SDataSinkNode sink;
+} SDataDispatcherNode;
+
+typedef struct SDataInserterNode {
+  SDataSinkNode sink;
+  int32_t   numOfTables;
+  uint32_t  size;
+  char     *pData;
+} SDataInserterNode;
 
 #ifdef __cplusplus
 }

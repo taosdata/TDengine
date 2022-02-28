@@ -16,9 +16,7 @@
 #include "insertParser.h"
 
 #include "dataBlockMgt.h"
-#include "parserInt.h"
 #include "parserUtil.h"
-#include "queryInfoUtil.h"
 #include "tglobal.h"
 #include "ttime.h"
 #include "ttoken.h"
@@ -61,8 +59,13 @@ typedef struct SInsertParseContext {
   SArray* pTableDataBlocks;     // global
   SArray* pVgDataBlocks;        // global
   int32_t totalNum;
-  SVnodeModifOpStmtInfo* pOutput;
+  SVnodeModifOpStmt* pOutput;
 } SInsertParseContext;
+
+typedef int32_t (*_row_append_fn_t)(const void *value, int32_t len, void *param);
+
+static uint8_t TRUE_VALUE = (uint8_t)TSDB_TRUE;
+static uint8_t FALSE_VALUE = (uint8_t)TSDB_FALSE;
 
 static int32_t skipInsertInto(SInsertParseContext* pCxt) {
   SToken sToken;
@@ -93,6 +96,66 @@ static int32_t buildName(SInsertParseContext* pCxt, SToken* pStname, char* fullD
   }
 
   return TSDB_CODE_SUCCESS;
+}
+
+static int32_t createSName(SName* pName, SToken* pTableName, SParseContext* pParseCtx, SMsgBuf* pMsgBuf) {
+  const char* msg1 = "name too long";
+  const char* msg2 = "invalid database name";
+  const char* msg3 = "db is not specified";
+
+  int32_t  code = TSDB_CODE_SUCCESS;
+  char* p  = strnchr(pTableName->z, TS_PATH_DELIMITER[0], pTableName->n, true);
+
+  if (p != NULL) { // db has been specified in sql string so we ignore current db path
+    assert(*p == TS_PATH_DELIMITER[0]);
+
+    int32_t dbLen = p - pTableName->z;
+    char name[TSDB_DB_FNAME_LEN] = {0};
+    strncpy(name, pTableName->z, dbLen);
+    dbLen = strdequote(name);
+
+    code = tNameSetDbName(pName, pParseCtx->acctId, name, dbLen);
+    if (code != TSDB_CODE_SUCCESS) {
+      return buildInvalidOperationMsg(pMsgBuf, msg1);
+    }
+
+    int32_t tbLen = pTableName->n - dbLen - 1;
+    char tbname[TSDB_TABLE_FNAME_LEN] = {0};
+    strncpy(tbname, p + 1, tbLen);
+    /*tbLen = */strdequote(tbname);
+
+    code = tNameFromString(pName, tbname, T_NAME_TABLE);
+    if (code != 0) {
+      return buildInvalidOperationMsg(pMsgBuf, msg1);
+    }
+  } else {  // get current DB name first, and then set it into path
+    if (pTableName->n >= TSDB_TABLE_NAME_LEN) {
+      return buildInvalidOperationMsg(pMsgBuf, msg1);
+    }
+
+    assert(pTableName->n < TSDB_TABLE_FNAME_LEN);
+
+    char name[TSDB_TABLE_FNAME_LEN] = {0};
+    strncpy(name, pTableName->z, pTableName->n);
+    strdequote(name);
+
+    if (pParseCtx->db == NULL) {
+      return buildInvalidOperationMsg(pMsgBuf, msg3);
+    }
+
+    code = tNameSetDbName(pName, pParseCtx->acctId, pParseCtx->db, strlen(pParseCtx->db));
+    if (code != TSDB_CODE_SUCCESS) {
+      code = buildInvalidOperationMsg(pMsgBuf, msg2);
+      return code;
+    }
+
+    code = tNameFromString(pName, name, T_NAME_TABLE);
+    if (code != 0) {
+      code = buildInvalidOperationMsg(pMsgBuf, msg1);
+    }
+  }
+
+  return code;
 }
 
 static int32_t getTableMeta(SInsertParseContext* pCxt, SToken* pTname) {
@@ -256,6 +319,231 @@ static int parseTime(char **end, SToken *pToken, int16_t timePrec, int64_t *time
 
   *time = ts;
   return TSDB_CODE_SUCCESS;
+}
+
+static FORCE_INLINE int32_t checkAndTrimValue(SToken* pToken, uint32_t type, char* tmpTokenBuf, SMsgBuf* pMsgBuf) {
+  if ((pToken->type != TK_NOW && pToken->type != TK_INTEGER && pToken->type != TK_STRING && pToken->type != TK_FLOAT && pToken->type != TK_BOOL &&
+       pToken->type != TK_NULL && pToken->type != TK_HEX && pToken->type != TK_OCT && pToken->type != TK_BIN) ||
+      (pToken->n == 0) || (pToken->type == TK_RP)) {
+    return buildSyntaxErrMsg(pMsgBuf, "invalid data or symbol", pToken->z);
+  }
+
+  if (IS_NUMERIC_TYPE(type) && pToken->n == 0) {
+    return buildSyntaxErrMsg(pMsgBuf, "invalid numeric data", pToken->z);
+  }
+
+  // Remove quotation marks
+  if (TSDB_DATA_TYPE_BINARY == type) {
+    if (pToken->n >= TSDB_MAX_BYTES_PER_ROW) {
+      return buildSyntaxErrMsg(pMsgBuf, "too long string", pToken->z);
+    }
+
+    // delete escape character: \\, \', \"
+    char delim = pToken->z[0];
+    int32_t cnt = 0;
+    int32_t j = 0;
+    for (uint32_t k = 1; k < pToken->n - 1; ++k) {
+      if (pToken->z[k] == '\\' || (pToken->z[k] == delim && pToken->z[k + 1] == delim)) {
+        tmpTokenBuf[j] = pToken->z[k + 1];
+        cnt++;
+        j++;
+        k++;
+        continue;
+      }
+      tmpTokenBuf[j] = pToken->z[k];
+      j++;
+    }
+
+    tmpTokenBuf[j] = 0;
+    pToken->z = tmpTokenBuf;
+    pToken->n -= 2 + cnt;
+  }
+
+  return TSDB_CODE_SUCCESS;
+}
+
+static bool isNullStr(SToken *pToken) {
+  return (pToken->type == TK_NULL) || ((pToken->type == TK_STRING) && (pToken->n != 0) &&
+                                       (strncasecmp(TSDB_DATA_NULL_STR_L, pToken->z, pToken->n) == 0));
+}
+
+static FORCE_INLINE int32_t toDouble(SToken *pToken, double *value, char **endPtr) {
+  errno = 0;
+  *value = strtold(pToken->z, endPtr);
+
+  // not a valid integer number, return error
+  if ((*endPtr - pToken->z) != pToken->n) {
+    return TK_ILLEGAL;
+  }
+
+  return pToken->type;
+}
+
+static int32_t parseValueToken(char** end, SToken* pToken, SSchema* pSchema, int16_t timePrec, char* tmpTokenBuf, _row_append_fn_t func, void* param, SMsgBuf* pMsgBuf) {
+  int64_t iv;
+  char   *endptr = NULL;
+  bool    isSigned = false;
+
+  int32_t code = checkAndTrimValue(pToken, pSchema->type, tmpTokenBuf, pMsgBuf);
+  if (code != TSDB_CODE_SUCCESS) {
+    return code;
+  }
+
+  if (isNullStr(pToken)) {
+    if (TSDB_DATA_TYPE_TIMESTAMP == pSchema->type && PRIMARYKEY_TIMESTAMP_COL_ID == pSchema->colId) {
+      int64_t tmpVal = 0;
+      return func(&tmpVal, pSchema->bytes, param);
+    }
+
+    return func(getNullValue(pSchema->type), 0, param);
+  }
+
+  switch (pSchema->type) {
+    case TSDB_DATA_TYPE_BOOL: {
+      if ((pToken->type == TK_BOOL || pToken->type == TK_STRING) && (pToken->n != 0)) {
+        if (strncmp(pToken->z, "true", pToken->n) == 0) {
+          return func(&TRUE_VALUE, pSchema->bytes, param);
+        } else if (strncmp(pToken->z, "false", pToken->n) == 0) {
+          return func(&FALSE_VALUE, pSchema->bytes, param);
+        } else {
+          return buildSyntaxErrMsg(pMsgBuf, "invalid bool data", pToken->z);
+        }
+      } else if (pToken->type == TK_INTEGER) {
+        return func(((strtoll(pToken->z, NULL, 10) == 0) ? &FALSE_VALUE : &TRUE_VALUE), pSchema->bytes, param);
+      } else if (pToken->type == TK_FLOAT) {
+        return func(((strtod(pToken->z, NULL) == 0) ? &FALSE_VALUE : &TRUE_VALUE), pSchema->bytes, param);
+      } else {
+        return buildSyntaxErrMsg(pMsgBuf, "invalid bool data", pToken->z);
+      }
+    }
+
+    case TSDB_DATA_TYPE_TINYINT: {
+      if (TSDB_CODE_SUCCESS != toInteger(pToken->z, pToken->n, 10, &iv, &isSigned)) {
+        return buildSyntaxErrMsg(pMsgBuf, "invalid tinyint data", pToken->z);
+      } else if (!IS_VALID_TINYINT(iv)) {
+        return buildSyntaxErrMsg(pMsgBuf, "tinyint data overflow", pToken->z);
+      }
+
+      uint8_t tmpVal = (uint8_t)iv;
+      return func(&tmpVal, pSchema->bytes, param);
+    }
+
+    case TSDB_DATA_TYPE_UTINYINT:{
+      if (TSDB_CODE_SUCCESS != toInteger(pToken->z, pToken->n, 10, &iv, &isSigned)) {
+        return buildSyntaxErrMsg(pMsgBuf, "invalid unsigned tinyint data", pToken->z);
+      } else if (!IS_VALID_UTINYINT(iv)) {
+        return buildSyntaxErrMsg(pMsgBuf, "unsigned tinyint data overflow", pToken->z);
+      }
+      uint8_t tmpVal = (uint8_t)iv;
+      return func(&tmpVal, pSchema->bytes, param);
+    }
+
+    case TSDB_DATA_TYPE_SMALLINT: {
+      if (TSDB_CODE_SUCCESS != toInteger(pToken->z, pToken->n, 10, &iv, &isSigned)) {
+        return buildSyntaxErrMsg(pMsgBuf, "invalid smallint data", pToken->z);
+      } else if (!IS_VALID_SMALLINT(iv)) {
+        return buildSyntaxErrMsg(pMsgBuf, "smallint data overflow", pToken->z);
+      }
+      int16_t tmpVal = (int16_t)iv;
+      return func(&tmpVal, pSchema->bytes, param);
+    }
+
+    case TSDB_DATA_TYPE_USMALLINT: {
+      if (TSDB_CODE_SUCCESS != toInteger(pToken->z, pToken->n, 10, &iv, &isSigned)) {
+        return buildSyntaxErrMsg(pMsgBuf, "invalid unsigned smallint data", pToken->z);
+      } else if (!IS_VALID_USMALLINT(iv)) {
+        return buildSyntaxErrMsg(pMsgBuf, "unsigned smallint data overflow", pToken->z);
+      }
+      uint16_t tmpVal = (uint16_t)iv;
+      return func(&tmpVal, pSchema->bytes, param);
+    }
+
+    case TSDB_DATA_TYPE_INT: {
+      if (TSDB_CODE_SUCCESS != toInteger(pToken->z, pToken->n, 10, &iv, &isSigned)) {
+        return buildSyntaxErrMsg(pMsgBuf, "invalid int data", pToken->z);
+      } else if (!IS_VALID_INT(iv)) {
+        return buildSyntaxErrMsg(pMsgBuf, "int data overflow", pToken->z);
+      }
+      int32_t tmpVal = (int32_t)iv;
+      return func(&tmpVal, pSchema->bytes, param);
+    }
+
+    case TSDB_DATA_TYPE_UINT: {
+      if (TSDB_CODE_SUCCESS != toInteger(pToken->z, pToken->n, 10, &iv, &isSigned)) {
+        return buildSyntaxErrMsg(pMsgBuf, "invalid unsigned int data", pToken->z);
+      } else if (!IS_VALID_UINT(iv)) {
+        return buildSyntaxErrMsg(pMsgBuf, "unsigned int data overflow", pToken->z);
+      }
+      uint32_t tmpVal = (uint32_t)iv;
+      return func(&tmpVal, pSchema->bytes, param);
+    }
+
+    case TSDB_DATA_TYPE_BIGINT: {
+      if (TSDB_CODE_SUCCESS != toInteger(pToken->z, pToken->n, 10, &iv, &isSigned)) {
+        return buildSyntaxErrMsg(pMsgBuf, "invalid bigint data", pToken->z);
+      } else if (!IS_VALID_BIGINT(iv)) {
+        return buildSyntaxErrMsg(pMsgBuf, "bigint data overflow", pToken->z);
+      }
+      return func(&iv, pSchema->bytes, param);
+    }
+
+    case TSDB_DATA_TYPE_UBIGINT: {
+      if (TSDB_CODE_SUCCESS != toInteger(pToken->z, pToken->n, 10, &iv, &isSigned)) {
+        return buildSyntaxErrMsg(pMsgBuf, "invalid unsigned bigint data", pToken->z);
+      } else if (!IS_VALID_UBIGINT((uint64_t)iv)) {
+        return buildSyntaxErrMsg(pMsgBuf, "unsigned bigint data overflow", pToken->z);
+      }
+      uint64_t tmpVal = (uint64_t)iv;
+      return func(&tmpVal, pSchema->bytes, param);
+    }
+
+    case TSDB_DATA_TYPE_FLOAT: {
+      double dv;
+      if (TK_ILLEGAL == toDouble(pToken, &dv, &endptr)) {
+        return buildSyntaxErrMsg(pMsgBuf, "illegal float data", pToken->z);
+      }
+      if (((dv == HUGE_VAL || dv == -HUGE_VAL) && errno == ERANGE) || dv > FLT_MAX || dv < -FLT_MAX || isinf(dv) || isnan(dv)) {
+        return buildSyntaxErrMsg(pMsgBuf, "illegal float data", pToken->z);
+      }
+      float tmpVal = (float)dv;
+      return func(&tmpVal, pSchema->bytes, param);
+    }
+
+    case TSDB_DATA_TYPE_DOUBLE: {
+      double dv;
+      if (TK_ILLEGAL == toDouble(pToken, &dv, &endptr)) {
+        return buildSyntaxErrMsg(pMsgBuf, "illegal double data", pToken->z);
+      }
+      if (((dv == HUGE_VAL || dv == -HUGE_VAL) && errno == ERANGE) || isinf(dv) || isnan(dv)) {
+        return buildSyntaxErrMsg(pMsgBuf, "illegal double data", pToken->z);
+      }
+      return func(&dv, pSchema->bytes, param);
+    }
+
+    case TSDB_DATA_TYPE_BINARY: {
+      // Too long values will raise the invalid sql error message
+      if (pToken->n + VARSTR_HEADER_SIZE > pSchema->bytes) {
+        return buildSyntaxErrMsg(pMsgBuf, "string data overflow", pToken->z);
+      }
+
+      return func(pToken->z, pToken->n, param);
+    }
+
+    case TSDB_DATA_TYPE_NCHAR: {
+      return func(pToken->z, pToken->n, param);
+    }
+
+    case TSDB_DATA_TYPE_TIMESTAMP: {
+      int64_t tmpVal;
+      if (parseTime(end, pToken, timePrec, &tmpVal, pMsgBuf) != TSDB_CODE_SUCCESS) {
+        return buildSyntaxErrMsg(pMsgBuf, "invalid timestamp", pToken->z);
+      }
+
+      return func(&tmpVal, pSchema->bytes, param);
+    }
+  }
+
+  return TSDB_CODE_FAILED;
 }
 
 typedef struct SMemParam {
@@ -634,7 +922,7 @@ static int32_t parseInsertBody(SInsertParseContext* pCxt) {
 //       [(field1_name, ...)]
 //       VALUES (field1_value, ...) [(field1_value2, ...) ...] | FILE csv_file_path
 //   [...];
-int32_t parseInsertSql(SParseContext* pContext, SVnodeModifOpStmtInfo** pInfo) {
+int32_t parseInsertSql(SParseContext* pContext, SQuery** pQuery) {
   SInsertParseContext context = {
     .pComCxt = pContext,
     .pSql = (char*) pContext->pSql,
@@ -643,7 +931,7 @@ int32_t parseInsertSql(SParseContext* pContext, SVnodeModifOpStmtInfo** pInfo) {
     .pVgroupsHashObj = taosHashInit(128, taosGetDefaultHashFunction(TSDB_DATA_TYPE_INT), true, false),
     .pTableBlockHashObj = taosHashInit(128, taosGetDefaultHashFunction(TSDB_DATA_TYPE_BIGINT), true, false),
     .totalNum = 0,
-    .pOutput = calloc(1, sizeof(SVnodeModifOpStmtInfo))
+    .pOutput = (SVnodeModifOpStmt*)nodesMakeNode(QUERY_NODE_VNODE_MODIF_STMT)
   };
 
   if (NULL == context.pVgroupsHashObj || NULL == context.pTableBlockHashObj || NULL == context.pOutput) {
@@ -651,8 +939,7 @@ int32_t parseInsertSql(SParseContext* pContext, SVnodeModifOpStmtInfo** pInfo) {
     return TSDB_CODE_TSC_OUT_OF_MEMORY;
   }
 
-  *pInfo = context.pOutput;
-  context.pOutput->nodeType = TSDB_SQL_INSERT;
+  (*pQuery)->pRoot = (SNode*)context.pOutput;
   context.pOutput->payloadType = PAYLOAD_TYPE_KV;
 
   int32_t code = skipInsertInto(&context);
