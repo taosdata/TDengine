@@ -16,18 +16,18 @@
 #ifndef _TD_UTIL_JSON_H_
 #define _TD_UTIL_JSON_H_
 
+#include "os.h"
+
 #ifdef __cplusplus
 extern "C" {
 #endif
 
-#include "os.h"
-
 typedef void SJson;
 
 SJson* tjsonCreateObject();
-void tjsonDelete(SJson* pJson);
+void   tjsonDelete(SJson* pJson);
 
-SJson* tjsonAddArrayToObject(SJson* pJson, const char* pName);
+SJson*  tjsonAddArrayToObject(SJson* pJson, const char* pName);
 int32_t tjsonAddIntegerToObject(SJson* pJson, const char* pName, const uint64_t number);
 int32_t tjsonAddDoubleToObject(SJson* pJson, const char* pName, const double number);
 int32_t tjsonAddBoolToObject(SJson* pJson, const char* pName, const bool boolean);
@@ -35,7 +35,7 @@ int32_t tjsonAddStringToObject(SJson* pJson, const char* pName, const char* pVal
 int32_t tjsonAddItemToObject(SJson* pJson, const char* pName, SJson* pItem);
 int32_t tjsonAddItemToArray(SJson* pJson, SJson* pItem);
 
-SJson* tjsonGetObjectItem(const SJson* pJson, const char* pName);
+SJson*  tjsonGetObjectItem(const SJson* pJson, const char* pName);
 int32_t tjsonGetStringValue(const SJson* pJson, const char* pName, char* pVal);
 int32_t tjsonDupStringValue(const SJson* pJson, const char* pName, char** pVal);
 int32_t tjsonGetBigIntValue(const SJson* pJson, const char* pName, int64_t* pVal);
@@ -48,7 +48,7 @@ int32_t tjsonGetBoolValue(const SJson* pJson, const char* pName, bool* pVal);
 int32_t tjsonGetDoubleValue(const SJson* pJson, const char* pName, double* pVal);
 
 int32_t tjsonGetArraySize(const SJson* pJson);
-SJson* tjsonGetArrayItem(const SJson* pJson, int32_t index);
+SJson*  tjsonGetArrayItem(const SJson* pJson, int32_t index);
 
 typedef int32_t (*FToJson)(const void* pObj, SJson* pJson);
 
