@@ -127,8 +127,6 @@ int tdbPFileWrite(SPFile *pFile, SPage *pPage) {
     if (ret < 0) {
       return -1;
     }
-
-    pFile->inTran;
   }
 
   if (pPage->isDirty == 0) {
@@ -136,6 +134,8 @@ int tdbPFileWrite(SPFile *pFile, SPage *pPage) {
     // TODO: add the page to the dirty list
 
     // TODO: write the page to the journal
+    if (1 /*actually load from the file*/) {
+    }
   }
   return 0;
 }
@@ -162,7 +162,17 @@ int tdbPFileBegin(SPFile *pFile) {
   if (pFile->inTran) {
     return 0;
   }
-  /* TODO */
+
+  // Open the journal
+  pFile->jfd = open(pFile->jFileName, O_RDWR | O_CREAT, 0755);
+  if (pFile->jfd < 0) {
+    return -1;
+  }
+
+  // TODO: write the size of the file
+
+  pFile->inTran = 1;
+
   return 0;
 }
 
