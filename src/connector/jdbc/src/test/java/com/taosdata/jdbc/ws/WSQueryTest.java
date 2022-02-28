@@ -32,9 +32,7 @@ public class WSQueryTest {
     public void queryBlock() throws InterruptedException {
         CountDownLatch latch = new CountDownLatch(1000);
         IntStream.range(1, 10000).limit(1000).parallel().forEach(x -> {
-            try {
-                Statement statement = connection.createStatement();
-
+            try (Statement statement = connection.createStatement()) {
                 statement.execute("insert into " + databaseName + "." + tableName + " values(now+100s, 100)");
 
                 ResultSet resultSet = statement.executeQuery("select * from " + databaseName + "." + tableName);

@@ -53,8 +53,12 @@ public class WSStatement extends AbstractStatement {
 
     @Override
     public void close() throws SQLException {
-        if (!isClosed())
+        if (!isClosed()) {
             this.closed = true;
+            if (resultSet != null && !resultSet.isClosed()) {
+                resultSet.close();
+            }
+        }
     }
 
     @Override

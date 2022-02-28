@@ -65,8 +65,7 @@ public class RestfulDriver extends AbstractDriver {
         }
         String loginUrl;
         String batchLoad = info.getProperty(TSDBDriver.PROPERTY_KEY_BATCH_LOAD);
-//        if (Boolean.parseBoolean(batchLoad)) {
-        if (false) {
+        if (Boolean.parseBoolean(batchLoad)) {
             loginUrl = "ws://" + props.getProperty(TSDBDriver.PROPERTY_KEY_HOST)
                     + ":" + props.getProperty(TSDBDriver.PROPERTY_KEY_PORT) + "/rest/ws";
             WSClient client;
