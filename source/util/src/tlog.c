@@ -113,7 +113,7 @@ static int32_t taosStartLog() {
   return 0;
 }
 
-int32_t taosInitLog(const char *logName, int maxFiles) {
+int32_t taosInitLog(const char *logName, int32_t maxFiles) {
   if (atomic_val_compare_exchange_8(&tsLogInited, 0, 1) != 0) return 0;
   osUpdate();
 

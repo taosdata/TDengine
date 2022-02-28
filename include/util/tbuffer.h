@@ -28,7 +28,7 @@ extern "C" {
 #include <stdio.h>
 #include "texception.h"
 
-int main( int argc, char** argv ) {
+int32_t main( int32_t argc, char** argv ) {
   SBufferWriter bw = tbufInitWriter( NULL, false );
 
   TRY( 1 ) {
@@ -39,7 +39,7 @@ int main( int argc, char** argv ) {
     // reserve space for the interger count
     size_t pos = tbufReserve( &bw, sizeof(int32_t) );
     // write 5 integers to the buffer
-    for( int i = 0; i < 5; i++) {
+    for( int32_t i = 0; i < 5; i++) {
       tbufWriteInt32( &bw, i );
     }
     // write the integer count to buffer at reserved position
@@ -55,7 +55,7 @@ int main( int argc, char** argv ) {
     SBufferReader br = tbufInitReader( data, size, false );
     // read & print out all integers
     int32_t count = tbufReadInt32( &br );
-    for( int i = 0; i < count; i++ ) {
+    for( int32_t i = 0; i < count; i++ ) {
       printf( "%d\n", tbufReadInt32(&br) );
     }
     // read & print out a string

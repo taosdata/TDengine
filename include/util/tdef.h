@@ -407,9 +407,9 @@ enum { TRANS_STAT_INIT = 0, TRANS_STAT_EXECUTING, TRANS_STAT_EXECUTED, TRANS_STA
 enum { TRANS_OPER_INIT = 0, TRANS_OPER_EXECUTE, TRANS_OPER_ROLLBACK };
 
 typedef struct {
-  char dir[TSDB_FILENAME_LEN];
-  int  level;
-  int  primary;
+  char    dir[TSDB_FILENAME_LEN];
+  int32_t level;
+  int32_t primary;
 } SDiskCfg;
 
 #ifdef __cplusplus

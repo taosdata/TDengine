@@ -49,7 +49,7 @@ void     taosIpPort2String(uint32_t ip, uint16_t port, char *str);
 static FORCE_INLINE void taosEncryptPass(uint8_t *inBuf, size_t inLen, char *target) {
   T_MD5_CTX context;
   tMD5Init(&context);
-  tMD5Update(&context, inBuf, (unsigned int)inLen);
+  tMD5Update(&context, inBuf, (uint32_t)inLen);
   tMD5Final(&context);
   memcpy(target, context.digest, tListLen(context.digest));
 }
@@ -57,7 +57,7 @@ static FORCE_INLINE void taosEncryptPass(uint8_t *inBuf, size_t inLen, char *tar
 static FORCE_INLINE void taosEncryptPass_c(uint8_t *inBuf, size_t len, char *target) {
   T_MD5_CTX context;
   tMD5Init(&context);
-  tMD5Update(&context, inBuf, (unsigned int)len);
+  tMD5Update(&context, inBuf, (uint32_t)len);
   tMD5Final(&context);
 
   sprintf(target, "%02x%02x%02x%02x%02x%02x%02x%02x%02x%02x%02x%02x%02x%02x%02x%02x", context.digest[0],

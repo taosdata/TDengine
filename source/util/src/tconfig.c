@@ -618,7 +618,7 @@ int32_t cfgLoadFromEnvFile(SConfig *pConfig, const char *filepath) {
 
 int32_t cfgLoadFromCfgFile(SConfig *pConfig, const char *filepath) {
   char   *line = NULL, *name, *value, *value2, *value3;
-  int     olen, vlen, vlen2, vlen3;
+  int32_t olen, vlen, vlen2, vlen3;
   ssize_t _bytes = 0;
 
   // FILE *fp = fopen(filepath, "r");
