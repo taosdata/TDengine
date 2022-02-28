@@ -62,10 +62,30 @@ static int tdbEncodeLength(u8 *pBuf, uint len);
 static int tdbBtCursorMoveToRoot(SBtCursor *pCur);
 static int tdbInitBtPage(SPage *pPage, SBtPage **ppBtPage);
 static int tdbCompareKeyAndCell(const void *pKey, int kLen, const void *pCell);
+static int tdbDefaultKeyCmprFn(const void *pKey1, int keyLen1, const void *pKey2, int keyLen2);
 
-int tdbBtreeOpen(SBTree **ppBt) {
+int tdbBtreeOpen(SPgno rtPgno, int keyLen, int valLen, SPFile *pFile, FKeyComparator kcmpr, SBTree **ppBt) {
+  SBTree *pBt;
+
   *ppBt = NULL;
-  /* TODO */
+
+  pBt = (SBTree *)calloc(1, sizeof(*pBt));
+  if (pBt == NULL) {
+    return -1;
+  }
+
+  // pBt->root
+  pBt->root = rtPgno;
+  // pBt->keyLen
+  pBt->keyLen = keyLen;
+  // pBt->valLen
+  pBt->valLen = valLen;
+  // pBt->pFile
+  pBt->pFile = pFile;
+  // pBt->kcmpr
+  pBt->kcmpr = kcmpr ? kcmpr : tdbDefaultKeyCmprFn;
+
+  *ppBt = pBt;
   return 0;
 }
 
@@ -230,4 +250,24 @@ static int tdbInitBtPage(SPage *pPage, SBtPage **ppBtPage) {
 static int tdbCompareKeyAndCell(const void *pKey, int kLen, const void *pCell) {
   /* TODO */
   return 0;
+}
+
+static int tdbDefaultKeyCmprFn(const void *pKey1, int keyLen1, const void *pKey2, int keyLen2) {
+  int mlen;
+  int cret;
+
+  ASSERT(keyLen1 > 0 && keyLen2 > 0 && pKey1 != NULL && pKey2 != NULL);
+
+  mlen = keyLen1 < keyLen2 ? keyLen1 : keyLen2;
+  cret = memcmp(pKey1, pKey2, mlen);
+  if (cret == 0) {
+    if (keyLen1 < keyLen2) {
+      cret = -1;
+    } else if (keyLen1 > keyLen2) {
+      cret = 1;
+    } else {
+      cret = 0;
+    }
+  }
+  return cret;
 }

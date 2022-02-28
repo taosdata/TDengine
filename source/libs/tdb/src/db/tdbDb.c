@@ -60,10 +60,12 @@ int tdbDbOpen(const char *fname, int keyLen, int valLen, FKeyComparator keyCmprF
     if (ret < 0) {
       return -1;
     }
+  } else {
+    ASSERT(0);
   }
 
   // pDb->pBt
-  ret = tdbBtreeOpen(&(pDb->pBt));
+  ret = tdbBtreeOpen(pgno, keyLen, valLen, pFile, keyCmprFn, &(pDb->pBt));
   if (ret < 0) {
     return -1;
   }
@@ -252,23 +254,4 @@ int tdbInsert(TDB *pDb, const void *pKey, int nKey, const void *pData, int nData
   return 0;
 }
 
-static int tdbDefaultKeyCmprFn(int keyLen1, const void *pKey1, int keyLen2, const void *pKey2) {
-  int mlen;
-  int cret;
-
-  ASSERT(keyLen1 > 0 && keyLen2 > 0 && pKey1 != NULL && pKey2 != NULL);
-
-  mlen = keyLen1 < keyLen2 ? keyLen1 : keyLen2;
-  cret = memcmp(pKey1, pKey2, mlen);
-  if (cret == 0) {
-    if (keyLen1 < keyLen2) {
-      cret = -1;
-    } else if (keyLen1 > keyLen2) {
-      cret = 1;
-    } else {
-      cret = 0;
-    }
-  }
-  return cret;
-}
 #endif

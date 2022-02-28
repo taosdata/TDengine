@@ -34,6 +34,7 @@ int tdbPFileOpen(SPCache *pCache, const char *fileName, SPFile **ppFile) {
   SPFile * pFile;
   int      fsize;
   int      zsize;
+  int      ret;
 
   *ppFile = NULL;
 
@@ -63,6 +64,11 @@ int tdbPFileOpen(SPCache *pCache, const char *fileName, SPFile **ppFile) {
 
   pFile->fd = open(pFile->dbFileName, O_RDWR | O_CREAT, 0755);
   if (pFile->fd < 0) {
+    return -1;
+  }
+
+  ret = tdbGnrtFileID(pFile->dbFileName, pFile->fid, false);
+  if (ret < 0) {
     return -1;
   }
 

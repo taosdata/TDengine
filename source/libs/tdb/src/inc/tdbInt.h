@@ -131,11 +131,11 @@ typedef int (*FKeyComparator)(const void *pKey1, int kLen1, const void *pKey2, i
 
 #include "tdbUtil.h"
 
-#include "tdbBtree.h"
-
 #include "tdbPCache.h"
 
 #include "tdbPFile.h"
+
+#include "tdbBtree.h"
 
 #include "tdbEnv.h"
 
