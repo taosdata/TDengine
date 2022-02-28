@@ -13,8 +13,8 @@
  * along with this program. If not, see <http://www.gnu.org/licenses/>.
  */
 
-#ifndef _TD_UTIL_ARRAY_H
-#define _TD_UTIL_ARRAY_H
+#ifndef _TD_UTIL_ARRAY_H_
+#define _TD_UTIL_ARRAY_H_
 
 #include "talgo.h"
 
@@ -268,4 +268,4 @@ void taosArraySortPWithExt(SArray* pArray, __ext_compar_fn_t fn, const void* par
 }
 #endif
 
-#endif /*_TD_UTIL_ARRAY_H*/
+#endif /*_TD_UTIL_ARRAY_H_*/
