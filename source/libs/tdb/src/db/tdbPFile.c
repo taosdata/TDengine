@@ -48,14 +48,18 @@ int tdbPFileOpen(SPCache *pCache, const char *fileName, SPFile **ppFile) {
 
   pFile = (SPFile *)pPtr;
   pPtr += sizeof(*pFile);
+  // pFile->dbFileName
   pFile->dbFileName = (char *)pPtr;
   memcpy(pFile->dbFileName, fileName, fsize);
   pFile->dbFileName[fsize] = '\0';
   pPtr += fsize + 1;
+  // pFile->jFileName
   pFile->jFileName = (char *)pPtr;
   memcpy(pFile->jFileName, fileName, fsize);
   memcpy(pFile->jFileName + fsize, "-journal", 8);
   pFile->jFileName[fsize + 8] = '\0';
+  // pFile->pCache
+  pFile->pCache = pCache;
 
   pFile->fd = open(pFile->dbFileName, O_RDWR | O_CREAT, 0755);
   if (pFile->fd < 0) {
@@ -103,6 +107,7 @@ SPage *tdbPFileGet(SPFile *pFile, SPgno pgno) {
   ASSERT(pPage->isLoad);
 
   return pPage;
+}
 
 
 int tdbPFileWrite(SPFile *pFile, SPage *pPage) {
