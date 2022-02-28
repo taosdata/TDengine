@@ -15,10 +15,9 @@
 #ifndef __INDEX_CACHE_H__
 #define __INDEX_CACHE_H__
 
-#include "index.h"
 #include "indexInt.h"
-#include "tlockfree.h"
 #include "tskiplist.h"
+
 // ----------------- key structure in skiplist ---------------------
 
 /* A data row, the format is like below

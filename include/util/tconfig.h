@@ -17,7 +17,6 @@
 #ifndef _TD_CONFIG_H_
 #define _TD_CONFIG_H_
 
-#include "os.h"
 #include "tarray.h"
 
 #ifdef __cplusplus
@@ -54,11 +53,11 @@ typedef struct SConfigItem {
   bool         tsc;
   char        *name;
   union {
-    bool     bval;
-    float    fval;
-    int32_t  i32;
-    int64_t  i64;
-    char    *str;
+    bool    bval;
+    float   fval;
+    int32_t i32;
+    int64_t i64;
+    char   *str;
   };
   union {
     int64_t imin;
@@ -80,7 +79,7 @@ typedef struct SConfig SConfig;
 
 SConfig *cfgInit();
 int32_t  cfgLoad(SConfig *pCfg, ECfgSrcType cfgType, const char *sourceStr);
-int32_t  cfgLoadArray(SConfig *pCfg, SArray *pArgs); // SConfigPair
+int32_t  cfgLoadArray(SConfig *pCfg, SArray *pArgs);  // SConfigPair
 void     cfgCleanup(SConfig *pCfg);
 
 int32_t      cfgGetSize(SConfig *pCfg);

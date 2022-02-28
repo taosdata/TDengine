@@ -17,8 +17,8 @@
 #include "tconfig.h"
 #include "taoserror.h"
 #include "thash.h"
-#include "tutil.h"
 #include "tlog.h"
+#include "tutil.h"
 
 #define CFG_NAME_PRINT_LEN 24
 #define CFG_SRC_PRINT_LEN  12

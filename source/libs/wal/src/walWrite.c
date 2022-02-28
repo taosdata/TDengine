@@ -18,7 +18,6 @@
 #include "os.h"
 #include "taoserror.h"
 #include "tchecksum.h"
-#include "tfile.h"
 #include "walInt.h"
 
 int32_t walCommit(SWal *pWal, int64_t ver) {

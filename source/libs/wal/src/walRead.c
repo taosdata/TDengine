@@ -13,7 +13,6 @@
  * along with this program. If not, see <http://www.gnu.org/licenses/>.
  */
 
-#include "tfile.h"
 #include "walInt.h"
 #include "taoserror.h"
 
