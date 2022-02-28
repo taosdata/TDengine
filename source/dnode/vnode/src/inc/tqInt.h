@@ -79,19 +79,19 @@ extern int32_t tqDebugFlag;
 // 4096 - 4080
 #define TQ_IDX_PAGE_HEAD_SIZE 16
 
-#define TQ_ACTION_CONST 0
-#define TQ_ACTION_INUSE 1
+#define TQ_ACTION_CONST      0
+#define TQ_ACTION_INUSE      1
 #define TQ_ACTION_INUSE_CONT 2
-#define TQ_ACTION_INTXN 3
+#define TQ_ACTION_INTXN      3
 
 #define TQ_SVER 0
 
 // TODO: inplace mode is not implemented
 #define TQ_UPDATE_INPLACE 0
-#define TQ_UPDATE_APPEND 1
+#define TQ_UPDATE_APPEND  1
 
 #define TQ_DUP_INTXN_REWRITE 0
-#define TQ_DUP_INTXN_REJECT 2
+#define TQ_DUP_INTXN_REJECT  2
 
 static inline bool tqUpdateAppend(int32_t tqConfigFlag) { return tqConfigFlag & TQ_UPDATE_APPEND; }
 
@@ -160,7 +160,7 @@ struct STQ {
   STqMemRef     tqMemRef;
   STqMetaStore* tqMeta;
   SWal*         pWal;
-  SMeta*        pMeta;
+  SMeta*        pVnodeMeta;
 };
 
 typedef struct {
@@ -190,9 +190,6 @@ typedef struct {
   char*           logicalPlan;
   char*           physicalPlan;
   char*           qmsg;
-  int64_t         persistedOffset;
-  int64_t         committedOffset;
-  int64_t         currentOffset;
   STqBuffer       buffer;
   SWalReadHandle* pReadhandle;
 } STqTopic;
@@ -201,7 +198,7 @@ typedef struct {
   int64_t consumerId;
   int64_t epoch;
   char    cgroup[TSDB_TOPIC_FNAME_LEN];
-  SArray* topics;  // SArray<STqTopicHandle>
+  SArray* topics;  // SArray<STqTopic>
 } STqConsumer;
 
 int32_t tqSerializeConsumer(const STqConsumer*, STqSerializedHead**);

@@ -1380,8 +1380,6 @@ typedef struct SMqCMGetSubEpReq {
   char    cgroup[TSDB_CONSUMER_GROUP_LEN];
 } SMqCMGetSubEpReq;
 
-#pragma pack(pop)
-
 static FORCE_INLINE int32_t tEncodeSMsgHead(void** buf, const SMsgHead* pMsg) {
   int32_t tlen = 0;
   tlen += taosEncodeFixedI32(buf, pMsg->contLen);
@@ -1852,6 +1850,12 @@ typedef struct {
 } SMqTopicData;
 
 typedef struct {
+  int8_t  mqMsgType;
+  int32_t code;
+  int32_t epoch;
+} SMqRspHead;
+
+typedef struct {
   int64_t         consumerId;
   SSchemaWrapper* schemas;
   int64_t         reqOffset;
@@ -1867,6 +1871,7 @@ typedef struct {
 
   int64_t consumerId;
   int64_t blockingTime;
+  int32_t epoch;
   char    cgroup[TSDB_CONSUMER_GROUP_LEN];
 
   int64_t currentOffset;
@@ -1886,10 +1891,17 @@ typedef struct {
 
 typedef struct {
   int64_t consumerId;
-  int32_t epoch;
   char    cgroup[TSDB_CONSUMER_GROUP_LEN];
   SArray* topics;  // SArray<SMqSubTopicEp>
 } SMqCMGetSubEpRsp;
+
+struct tmq_message_t {
+  SMqRspHead head;
+  union {
+    SMqConsumeRsp    consumeRsp;
+    SMqCMGetSubEpRsp getEpRsp;
+  };
+};
 
 static FORCE_INLINE void tDeleteSMqSubTopicEp(SMqSubTopicEp* pSubTopicEp) { taosArrayDestroy(pSubTopicEp->vgs); }
 
@@ -1971,6 +1983,8 @@ static FORCE_INLINE void* tDecodeSMqCMGetSubEpRsp(void* buf, SMqCMGetSubEpRsp* p
   }
   return buf;
 }
+
+#pragma pack(pop)
 
 #ifdef __cplusplus
 }

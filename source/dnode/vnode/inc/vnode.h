@@ -221,7 +221,6 @@ static FORCE_INLINE int tqReadHandleSetTbUidList(STqReadHandle *pHandle, const S
   for (int i = 0; i < taosArrayGetSize(tbUidList); i++) {
     int64_t *pKey = (int64_t *)taosArrayGet(tbUidList, i);
     taosHashPut(pHandle->tbIdHash, pKey, sizeof(int64_t), NULL, 0);
-    // pHandle->tbUid = tbUid;
   }
   return 0;
 }
