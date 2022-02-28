@@ -1090,14 +1090,14 @@ int32_t dumpFileBlockByGroupId(STSBuf* pTSBuf, int32_t groupIndex, void* buf, in
   *numOfBlocks = 0;
 
   if (taosLSeekFile(pTSBuf->pFile, pBlockInfo->offset, SEEK_SET) != 0) {
-    int32_t code = TAOS_SYSTEM_ERROR(taosEOFFile(pTSBuf->pFile));
+    int32_t code = TAOS_SYSTEM_ERROR(taosGetErrorFile(pTSBuf->pFile));
     //    qError("%p: fseek failed: %s", pSql, tstrerror(code));
     return code;
   }
 
   size_t s = taosReadFile(pTSBuf->pFile, buf, pBlockInfo->compLen);
   if (s != pBlockInfo->compLen) {
-    int32_t code = TAOS_SYSTEM_ERROR(taosEOFFile(pTSBuf->pFile));
+    int32_t code = TAOS_SYSTEM_ERROR(taosGetErrorFile(pTSBuf->pFile));
     //    tscError("%p: fread didn't return expected data: %s", pSql, tstrerror(code));
     return code;
   }

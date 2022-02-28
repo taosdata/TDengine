@@ -16,11 +16,11 @@
 #ifndef _TD_OS_FILE_H_
 #define _TD_OS_FILE_H_
 
-#include "osSocket.h"
-
 #ifdef __cplusplus
 extern "C" {
 #endif
+
+#include "osSocket.h"
 
 #ifndef ALLOW_FORBID_FUNC
     #define open OPEN_FUNC_TAOS_FORBID
@@ -43,6 +43,7 @@ typedef struct TdFile *TdFilePtr;
 #define TD_FILE_TEXT      0x0020
 #define TD_FILE_AUTO_DEL  0x0040
 #define TD_FILE_EXCL      0x0080
+#define TD_FILE_STREAM    0x0100   // Only support taosFprintfFile, taosGetLineFile, taosGetLineFile, taosEOFFile
  
 int32_t taosLockFile(TdFilePtr pFile);
 int32_t taosUnLockFile(TdFilePtr pFile);
