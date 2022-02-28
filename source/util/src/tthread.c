@@ -13,11 +13,8 @@
  * along with this program. If not, see <http://www.gnu.org/licenses/>.
  */
 
+#define _DEFAULT_SOURCE
 #include "tthread.h"
-#include "taoserror.h"
-#include "tdef.h"
-#include "tutil.h"
-#include "tlog.h"
 
 // create new thread
 pthread_t* taosCreateThread(void* (*__start_routine)(void*), void* param) {
@@ -50,7 +47,7 @@ bool taosDestoryThread(pthread_t* pthread) {
 // thread running return true
 bool taosThreadRunning(pthread_t* pthread) {
   if (pthread == NULL) return false;
-  int ret = pthread_kill(*pthread, 0);
+  int32_t ret = pthread_kill(*pthread, 0);
   if (ret == ESRCH) return false;
   if (ret == EINVAL) return false;
   // alive
