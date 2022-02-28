@@ -13,8 +13,8 @@
  * along with this program. If not, see <http://www.gnu.org/licenses/>.
  */
 
-#ifndef TDENGINE_PARSERUTIL_H
-#define TDENGINE_PARSERUTIL_H
+#ifndef TDENGINE_PARSER_UTIL_H
+#define TDENGINE_PARSER_UTIL_H
 
 #ifdef __cplusplus
 extern "C" {
@@ -22,7 +22,6 @@ extern "C" {
 
 #include "os.h"
 #include "query.h"
-#include "tmsg.h"
 #include "ttoken.h"
 
 typedef struct SMsgBuf {
@@ -54,4 +53,4 @@ STableComInfo getTableInfo(const STableMeta* pTableMeta);
 }
 #endif
 
-#endif  // TDENGINE_PARSERUTIL_H
+#endif  // TDENGINE_PARSER_UTIL_H

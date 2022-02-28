@@ -267,7 +267,7 @@ void qDestroyQuery(SQueryNode* pQueryNode) {
 #include "parser.h"
 
 #include "insertParser.h"
-#include "parserImpl.h"
+#include "parserInt.h"
 #include "ttoken.h"
 
 static bool isInsertSql(const char* pStr, size_t length) {
@@ -281,11 +281,19 @@ static bool isInsertSql(const char* pStr, size_t length) {
   } while (1);
 }
 
+static int32_t parseSqlIntoAst(SParseContext* pCxt, SQuery** pQuery) {
+  int32_t code = doParse(pCxt, pQuery);
+  if (TSDB_CODE_SUCCESS == code) {
+    code = doTranslate(pCxt, *pQuery);
+  }
+  return code;
+}
+
 int32_t qParseQuerySql(SParseContext* pCxt, SQuery** pQuery) {
   if (isInsertSql(pCxt->pSql, pCxt->sqlLen)) {
     return parseInsertSql(pCxt, pQuery);
   } else {
-    return parseQuerySql(pCxt, pQuery);
+    return parseSqlIntoAst(pCxt, pQuery);
   }
 }
 

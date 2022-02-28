@@ -15,8 +15,22 @@
 
 #include "planner.h"
 
-int32_t qCreateQueryPlan(SPlanContext* pCxt, SQueryPlan** pPlan) {
+#include "plannerInt.h"
 
+int32_t optimize(SPlanContext* pCxt, SLogicNode* pLogicNode) {
+  return TSDB_CODE_SUCCESS;
+}
+
+int32_t qCreateQueryPlan(SPlanContext* pCxt, SQueryPlan** pPlan) {
+  SLogicNode* pLogicNode = NULL;
+  int32_t code = createLogicPlan(pCxt, &pLogicNode);
+  if (TSDB_CODE_SUCCESS == code) {
+    code = optimize(pCxt, pLogicNode);
+  }
+  if (TSDB_CODE_SUCCESS == code) {
+    code = buildPhysiPlan(pCxt, pLogicNode, pPlan);
+  }
+  return code;
 }
 
 void qSetSubplanExecutionNode(SSubplan* subplan, uint64_t templateId, SDownstreamSource* pSource) {

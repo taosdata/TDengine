@@ -22,7 +22,6 @@ extern "C" {
 
 #include "querynodes.h"
 #include "query.h"
-#include "tmsg.h"
 
 typedef struct SLogicNode {
   ENodeType type;

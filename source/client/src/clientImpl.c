@@ -198,20 +198,18 @@ int32_t execDdlQuery(SRequestObj* pRequest, SQuery* pQuery) {
 int32_t getPlan(SRequestObj* pRequest, SQuery* pQuery, SQueryPlan** pDag, SArray* pNodeList) {
   // pRequest->type = pQuery->type;
 
-  // SSchema* pSchema = NULL;
-  // int32_t  numOfCols = 0;
-  // int32_t  code = qCreateQueryDag(pQuery, pDag, &pSchema, &numOfCols, pNodeList, pRequest->requestId);
-  // if (code != 0) {
-  //   return code;
-  // }
+  SPlanContext cxt = { .queryId = pRequest->requestId, .pAstRoot = pQuery->pRoot };
+  int32_t  code = qCreateQueryPlan(&cxt, pDag);
+  if (code != 0) {
+    return code;
+  }
 
   // if (pQuery->type == TSDB_SQL_SELECT) {
   //   setResSchemaInfo(&pRequest->body.resInfo, pSchema, numOfCols);
   //   pRequest->type = TDMT_VND_QUERY;
   // }
 
-  // tfree(pSchema);
-  // return code;
+  return code;
 }
 
 void setResSchemaInfo(SReqResultInfo* pResInfo, const SSchema* pSchema, int32_t numOfCols) {

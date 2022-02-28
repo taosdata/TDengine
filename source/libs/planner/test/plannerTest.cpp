@@ -17,8 +17,8 @@
 
 #include <gtest/gtest.h>
 
-#include "plannerImpl.h"
 #include "parser.h"
+#include "plannerInt.h"
 
 using namespace std;
 using namespace testing;
@@ -56,7 +56,8 @@ protected:
     const string syntaxTreeStr = toString(query_->pRoot, false);
   
     SLogicNode* pLogicPlan = nullptr;
-    code = createLogicPlan(query_->pRoot, &pLogicPlan);
+    SPlanContext cxt = { .queryId = 1, .pAstRoot = query_->pRoot };
+    code = createLogicPlan(&cxt, &pLogicPlan);
     if (code != TSDB_CODE_SUCCESS) {
       cout << "sql:[" << cxt_.pSql << "] logic plan code:" << code << ", strerror:" << tstrerror(code) << endl;
       return false;

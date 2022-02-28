@@ -13,21 +13,29 @@
  * along with this program. If not, see <http://www.gnu.org/licenses/>.
  */
 
-#ifndef _TD_PARSER_IMPL_H_
-#define _TD_PARSER_IMPL_H_
+#include <string>
 
-#ifdef __cplusplus
-extern "C" {
-#endif
+#include <gtest/gtest.h>
 
-#include "parser.h"
+#include "mockCatalog.h"
 
-int32_t doParse(SParseContext* pParseCxt, SQuery** pQuery);
-int32_t doTranslate(SParseContext* pParseCxt, SQuery* pQuery);
-int32_t parseQuerySql(SParseContext* pCxt, SQuery** pQuery);
+class PlannerEnv : public testing::Environment {
+public:
+  virtual void SetUp() {
+    initMetaDataEnv();
+    generateMetaData();
+  }
 
-#ifdef __cplusplus
+  virtual void TearDown() {
+    destroyMetaDataEnv();
+  }
+
+  PlannerEnv() {}
+  virtual ~PlannerEnv() {}
+};
+
+int main(int argc, char* argv[]) {
+	testing::AddGlobalTestEnvironment(new PlannerEnv());
+	testing::InitGoogleTest(&argc, argv);
+	return RUN_ALL_TESTS();
 }
-#endif
-
-#endif /*_TD_PARSER_IMPL_H_*/

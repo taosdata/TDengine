@@ -20,10 +20,17 @@
 extern "C" {
 #endif
 
-#include "querynodes.h"
 #include "nodesShowStmts.h"
-#include "astCreateContext.h"
+#include "parser.h"
+#include "querynodes.h"
 #include "ttoken.h"
+
+typedef struct SAstCreateContext {
+  SParseContext* pQueryCxt;
+  bool notSupport;
+  bool valid;
+  SNode* pRootNode;
+} SAstCreateContext;
 
 extern SToken nil_token;
 

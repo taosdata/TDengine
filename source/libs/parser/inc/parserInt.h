@@ -13,21 +13,20 @@
  * along with this program. If not, see <http://www.gnu.org/licenses/>.
  */
 
-#ifndef _TD_PLANNER_IMPL_H_
-#define _TD_PLANNER_IMPL_H_
+#ifndef _TD_PARSER_INT_H_
+#define _TD_PARSER_INT_H_
 
 #ifdef __cplusplus
 extern "C" {
 #endif
 
-#include "plannodes.h"
-#include "planner.h"
+#include "parser.h"
 
-int32_t createLogicPlan(SNode* pNode, SLogicNode** pLogicNode);
-int32_t createPhysiPlan(SLogicNode* pLogicNode, SPhysiNode** pPhyNode);
+int32_t doParse(SParseContext* pParseCxt, SQuery** pQuery);
+int32_t doTranslate(SParseContext* pParseCxt, SQuery* pQuery);
 
 #ifdef __cplusplus
 }
 #endif
 
-#endif /*_TD_PLANNER_IMPL_H_*/
+#endif /*_TD_PARSER_INT_H_*/
