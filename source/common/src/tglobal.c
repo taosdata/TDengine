@@ -207,6 +207,8 @@ static int32_t taosLoadCfg(SConfig *pCfg, const char *inputCfgDir, const char *e
 }
 
 static int32_t taosAddClientLogCfg(SConfig *pCfg) {
+  if (cfgAddDir(pCfg, "configDir", configDir, 1) != 0) return -1;
+  if (cfgAddDir(pCfg, "scriptDir", configDir, 1) != 0) return -1;
   if (cfgAddDir(pCfg, "logDir", tsLogDir, 1) != 0) return -1;
   if (cfgAddFloat(pCfg, "minimalLogDirGB", 1.0f, 0.001f, 10000000, 1) != 0) return -1;
   if (cfgAddInt32(pCfg, "numOfLogLines", tsNumOfLogLines, 1000, 2000000000, 1) != 0) return -1;
@@ -218,8 +220,6 @@ static int32_t taosAddClientLogCfg(SConfig *pCfg) {
   if (cfgAddInt32(pCfg, "tmrDebugFlag", tmrDebugFlag, 0, 255, 1) != 0) return -1;
   if (cfgAddInt32(pCfg, "jniDebugFlag", jniDebugFlag, 0, 255, 1) != 0) return -1;
   if (cfgAddInt32(pCfg, "simDebugFlag", 143, 0, 255, 1) != 0) return -1;
-  if (cfgAddDir(pCfg, "configDir", configDir, 1) != 0) return -1;
-  if (cfgAddDir(pCfg, "scriptDir", configDir, 1) != 0) return -1;
   if (cfgAddInt32(pCfg, "debugFlag", 0, 0, 255, 1) != 0) return -1;
   return 0;
 }
@@ -488,10 +488,10 @@ int32_t taosInitCfg(const char *cfgDir, const char *envFile, const char *apolloU
     if (taosAddClientLogCfg(tsCfg) != 0) return -1;
     if (taosAddClientCfg(tsCfg) != 0) return -1;
   } else {
-    if (taosAddClientLogCfg(tsCfg) != 0) return -1;
-    if (taosAddServerLogCfg(tsCfg) != 0) return -1;
     if (taosAddClientCfg(tsCfg) != 0) return -1;
     if (taosAddServerCfg(tsCfg) != 0) return -1;
+    if (taosAddClientLogCfg(tsCfg) != 0) return -1;
+    if (taosAddServerLogCfg(tsCfg) != 0) return -1;
   }
   taosAddSystemCfg(tsCfg);
 

@@ -75,7 +75,10 @@ typedef struct {
   const char *value;
 } SConfigPair;
 
-typedef struct SConfig SConfig;
+typedef struct SConfig {
+  ECfgSrcType stype;
+  SArray     *array;
+} SConfig;
 
 SConfig *cfgInit();
 int32_t  cfgLoad(SConfig *pCfg, ECfgSrcType cfgType, const char *sourceStr);
@@ -83,8 +86,6 @@ int32_t  cfgLoadArray(SConfig *pCfg, SArray *pArgs);  // SConfigPair
 void     cfgCleanup(SConfig *pCfg);
 
 int32_t      cfgGetSize(SConfig *pCfg);
-SConfigItem *cfgIterate(SConfig *pCfg, SConfigItem *pIter);
-void         cfgCancelIterate(SConfig *pCfg, SConfigItem *pIter);
 SConfigItem *cfgGetItem(SConfig *pCfg, const char *name);
 int32_t      cfgSetItem(SConfig *pCfg, const char *name, const char *value, ECfgSrcType stype);
 
