@@ -23,7 +23,7 @@
 using namespace std;
 using namespace testing;
 
-class NewParserTest : public Test {
+class ParserTest : public Test {
 protected:
   void setDatabase(const string& acctId, const string& db) {
     acctId_ = acctId;
@@ -510,7 +510,7 @@ private:
   SQuery* query_;
 };
 
-TEST_F(NewParserTest, selectSimple) {
+TEST_F(ParserTest, selectSimple) {
   setDatabase("root", "test");
 
   bind("SELECT * FROM t1");
@@ -529,7 +529,7 @@ TEST_F(NewParserTest, selectSimple) {
   ASSERT_TRUE(run());
 }
 
-TEST_F(NewParserTest, selectConstant) {
+TEST_F(ParserTest, selectConstant) {
   setDatabase("root", "test");
 
   bind("SELECT 123, 20.4, 'abc', \"wxy\", TIMESTAMP '2022-02-09 17:30:20', true, false, 10s FROM t1");
@@ -539,7 +539,7 @@ TEST_F(NewParserTest, selectConstant) {
   ASSERT_TRUE(run());
 }
 
-TEST_F(NewParserTest, selectExpression) {
+TEST_F(ParserTest, selectExpression) {
   setDatabase("root", "test");
 
   bind("SELECT ts + 10s, c1 + 10, concat(c2, 'abc') FROM t1");
@@ -552,7 +552,7 @@ TEST_F(NewParserTest, selectExpression) {
   ASSERT_TRUE(run());
 }
 
-TEST_F(NewParserTest, selectClause) {
+TEST_F(ParserTest, selectClause) {
   setDatabase("root", "test");
 
   // GROUP BY clause
@@ -592,7 +592,7 @@ TEST_F(NewParserTest, selectClause) {
   ASSERT_TRUE(run());
 }
 
-TEST_F(NewParserTest, selectSyntaxError) {
+TEST_F(ParserTest, selectSyntaxError) {
   setDatabase("root", "test");
 
   bind("SELECTT * FROM t1");
@@ -608,7 +608,7 @@ TEST_F(NewParserTest, selectSyntaxError) {
   ASSERT_TRUE(run(TSDB_CODE_FAILED));
 }
 
-TEST_F(NewParserTest, selectSemanticError) {
+TEST_F(ParserTest, selectSemanticError) {
   setDatabase("root", "test");
 
   // TSDB_CODE_PAR_INVALID_COLUMN

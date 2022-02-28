@@ -23,7 +23,7 @@
 using namespace std;
 using namespace testing;
 
-class NewPlannerTest : public Test {
+class PlannerTest : public Test {
 protected:
   enum TestTarget {
     TEST_LOGIC_PLAN,
@@ -114,14 +114,14 @@ private:
   SQuery* query_;
 };
 
-TEST_F(NewPlannerTest, simple) {
+TEST_F(PlannerTest, simple) {
   setDatabase("root", "test");
 
   bind("SELECT * FROM t1");
   ASSERT_TRUE(run());
 }
 
-TEST_F(NewPlannerTest, groupBy) {
+TEST_F(PlannerTest, groupBy) {
   setDatabase("root", "test");
 
   bind("SELECT count(*) FROM t1");
@@ -137,7 +137,7 @@ TEST_F(NewPlannerTest, groupBy) {
   ASSERT_TRUE(run());
 }
 
-TEST_F(NewPlannerTest, subquery) {
+TEST_F(PlannerTest, subquery) {
   setDatabase("root", "test");
 
   bind("SELECT count(*) FROM (SELECT c1 + c3 a, c1 + count(*) b FROM t1 where c2 = 'abc' GROUP BY c1, c3) where a > 100 group by b");
