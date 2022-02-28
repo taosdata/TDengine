@@ -26,7 +26,7 @@ extern "C" {
 // usage example
 /*
 #include <stdio.h>
-#include "exception.h"
+#include "texception.h"
 
 int main( int argc, char** argv ) {
   SBufferWriter bw = tbufInitWriter( NULL, false );

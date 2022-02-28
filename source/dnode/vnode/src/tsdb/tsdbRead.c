@@ -19,7 +19,7 @@
 #include "tsdbLog.h"
 #include "tsdbReadImpl.h"
 #include "ttime.h"
-#include "exception.h"
+#include "texception.h"
 #include "os.h"
 #include "talgo.h"
 #include "tcompare.h"

@@ -13,7 +13,7 @@
  * along with this program. If not, see <http://www.gnu.org/licenses/>.
  */
 #include <tep.h>
-#include "exception.h"
+#include "texception.h"
 #include "os.h"
 #include "parser.h"
 #include "tglobal.h"

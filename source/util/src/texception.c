@@ -14,7 +14,7 @@
  */
 
 #define _DEFAULT_SOURCE
-#include "exception.h"
+#include "texception.h"
 
 static threadlocal SExceptionNode* expList;
 

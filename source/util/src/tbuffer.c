@@ -16,7 +16,7 @@
 #define _DEFAULT_SOURCE
 
 #include "tbuffer.h"
-#include "exception.h"
+#include "texception.h"
 #include "os.h"
 //#include "taoserror.h"
 
