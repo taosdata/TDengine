@@ -16,12 +16,12 @@
 #ifndef _TD_COMMON_GLOBAL_H_
 #define _TD_COMMON_GLOBAL_H_
 
+#include "tarray.h"
+#include "tdef.h"
+
 #ifdef __cplusplus
 extern "C" {
 #endif
-
-#include "tdef.h"
-#include "tarray.h"
 
 // cluster
 extern char     tsFirst[];

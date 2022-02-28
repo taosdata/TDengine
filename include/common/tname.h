@@ -13,26 +13,25 @@
  * along with this program. If not, see <http://www.gnu.org/licenses/>.
  */
 
-#ifndef TDENGINE_TNAME_H
-#define TDENGINE_TNAME_H
+#ifndef _TD_COMMON_NAME_H_
+#define _TD_COMMON_NAME_H_
+
+#include "tdef.h"
+#include "tmsg.h"
 
 #ifdef __cplusplus
 extern "C" {
 #endif
 
+#define TSDB_DB_NAME_T    1
+#define TSDB_TABLE_NAME_T 2
 
-#include "tdef.h"
-#include "tmsg.h"
-
-#define TSDB_DB_NAME_T     1
-#define TSDB_TABLE_NAME_T  2
-
-#define T_NAME_ACCT        0x1u
-#define T_NAME_DB          0x2u
-#define T_NAME_TABLE       0x4u
+#define T_NAME_ACCT  0x1u
+#define T_NAME_DB    0x2u
+#define T_NAME_TABLE 0x4u
 
 typedef struct SName {
-  uint8_t type;  //db_name_t, table_name_t
+  uint8_t type;  // db_name_t, table_name_t
   int32_t acctId;
   char    dbname[TSDB_DB_NAME_LEN];
   char    tname[TSDB_TABLE_NAME_LEN];
@@ -68,5 +67,4 @@ SSchema createSchema(uint8_t type, int32_t bytes, int32_t colId, const char* nam
 }
 #endif
 
-
-#endif  // TDENGINE_TNAME_H
+#endif  /*_TD_COMMON_NAME_H_*/

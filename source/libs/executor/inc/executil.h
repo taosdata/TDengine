@@ -15,7 +15,7 @@
 #ifndef TDENGINE_QUERYUTIL_H
 #define TDENGINE_QUERYUTIL_H
 
-#include "common.h"
+#include "tcommon.h"
 #include "tbuffer.h"
 #include "tpagedbuf.h"
 

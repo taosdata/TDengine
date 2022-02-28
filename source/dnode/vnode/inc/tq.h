@@ -16,7 +16,7 @@
 #ifndef _TD_TQ_H_
 #define _TD_TQ_H_
 
-#include "common.h"
+#include "tcommon.h"
 #include "executor.h"
 #include "tmallocator.h"
 #include "meta.h"

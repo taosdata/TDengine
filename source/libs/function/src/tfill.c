@@ -23,7 +23,7 @@
 #include "tfill.h"
 #include "thash.h"
 #include "function.h"
-#include "common.h"
+#include "tcommon.h"
 #include "ttime.h"
 
 #define FILL_IS_ASC_FILL(_f) ((_f)->order == TSDB_ORDER_ASC)

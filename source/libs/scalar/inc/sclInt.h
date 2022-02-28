@@ -18,7 +18,7 @@
 #ifdef __cplusplus
 extern "C" {
 #endif
-#include "common.h"
+#include "tcommon.h"
 #include "thash.h"
 #include "query.h"
 
