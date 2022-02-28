@@ -763,6 +763,7 @@ int32_t scalarCalculate(SNode *pNode, SArray *pBlockList, SScalarParam *pDst) {
     }
     
     taosHashRemove(ctx.pRes, (void *)&pNode, POINTER_BYTES);
+    sclMoveParamListData(res, 1, 0);
     
     *pDst = *res;
   }

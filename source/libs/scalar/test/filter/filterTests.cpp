@@ -51,6 +51,7 @@ void flttInitLogFile() {
 
   tsAsyncLog = 0;
   qDebugFlag = 159;
+  strcpy(tsLogDir, "/var/log/taos");
 
   if (taosInitLog(defaultLogFileNamePrefix, maxLogFileNum) < 0) {
     printf("failed to open log file in directory:%s\n", tsLogDir);
@@ -75,16 +76,20 @@ void flttMakeValueNode(SNode **pNode, int32_t dataType, void *value) {
   *pNode = (SNode *)vnode;
 }
 
-void flttMakeColRefNode(SNode **pNode, SSDataBlock **block, int32_t dataType, int32_t dataBytes, int32_t rowNum, void *value) {
+void flttMakeColumnNode(SNode **pNode, SSDataBlock **block, int32_t dataType, int32_t dataBytes, int32_t rowNum, void *value) {
+  static uint64_t dbidx = 0;
+  
   SNode *node = nodesMakeNode(QUERY_NODE_COLUMN);
   SColumnNode *rnode = (SColumnNode *)node;
   rnode->node.resType.type = dataType;
   rnode->node.resType.bytes = dataBytes;
   rnode->dataBlockId = 0;
+  
+  sprintf(rnode->dbName, "%" PRIu64, dbidx++);
 
   if (NULL == block) {
     rnode->slotId = 2;
-    rnode->colId = 55;
+    rnode->colId = 3;
     *pNode = (SNode *)rnode;
 
     return;
@@ -99,7 +104,7 @@ void flttMakeColRefNode(SNode **pNode, SSDataBlock **block, int32_t dataType, in
       SColumnInfoData idata = {{0}};
       idata.info.type  = TSDB_DATA_TYPE_NULL;
       idata.info.bytes = 10;
-      idata.info.colId = 0;
+      idata.info.colId = i + 1;
 
       int32_t size = idata.info.bytes * rowNum;
       idata.pData = (char *)calloc(1, size);
@@ -109,18 +114,25 @@ void flttMakeColRefNode(SNode **pNode, SSDataBlock **block, int32_t dataType, in
     SColumnInfoData idata = {{0}};
     idata.info.type  = dataType;
     idata.info.bytes = dataBytes;
-    idata.info.colId = 55;
-    idata.pData = (char *)value;
-    if (IS_VAR_DATA_TYPE(dataType)) {
-      idata.varmeta.offset = (int32_t *)calloc(rowNum, sizeof(int32_t));
-      for (int32_t i = 0; i < rowNum; ++i) {
-        idata.varmeta.offset[i] = (dataBytes + VARSTR_HEADER_SIZE) * i;
+    idata.info.colId = 3;
+    int32_t size = idata.info.bytes * rowNum;
+    idata.pData = (char *)calloc(1, size);
+    taosArrayPush(res->pDataBlock, &idata);
+    
+    blockDataEnsureCapacity(res, rowNum);
+
+    SColumnInfoData *pColumn = (SColumnInfoData *)taosArrayGetLast(res->pDataBlock);
+    for (int32_t i = 0; i < rowNum; ++i) {
+      colDataAppend(pColumn, i, (const char *)value, false);
+      if (IS_VAR_DATA_TYPE(dataType)) {
+        value = (char *)value + varDataTLen(value);
+      } else {
+        value = (char *)value + dataBytes;
       }
     }
-    taosArrayPush(res->pDataBlock, &idata);
 
     rnode->slotId = 2;
-    rnode->colId = 55;
+    rnode->colId = 3;
 
     *block = res;
   } else {
@@ -130,14 +142,26 @@ void flttMakeColRefNode(SNode **pNode, SSDataBlock **block, int32_t dataType, in
     SColumnInfoData idata = {{0}};
     idata.info.type  = dataType;
     idata.info.bytes = dataBytes;
-    idata.info.colId = 55 + idx;
-    idata.pData = (char *)value;
+    idata.info.colId = 1 + idx;
+    int32_t size = idata.info.bytes * rowNum;
+    idata.pData = (char *)calloc(1, size);
     taosArrayPush(res->pDataBlock, &idata);
-
     res->info.numOfCols++;
+    SColumnInfoData *pColumn = (SColumnInfoData *)taosArrayGetLast(res->pDataBlock);
+    
+    blockDataEnsureColumnCapacity(pColumn, rowNum);
+
+    for (int32_t i = 0; i < rowNum; ++i) {
+      colDataAppend(pColumn, i, (const char *)value, false);
+      if (IS_VAR_DATA_TYPE(dataType)) {
+        value = (char *)value + varDataTLen(value);
+      } else {
+        value = (char *)value + dataBytes;
+      }
+    }
     
     rnode->slotId = idx;
-    rnode->colId = 55 + idx;
+    rnode->colId = 1 + idx;
   }
 
   *pNode = (SNode *)rnode;
@@ -200,7 +224,7 @@ TEST(timerangeTest, greater) {
   bool eRes[5] = {false, false, true, true, true};
   SScalarParam res = {0};
   int64_t tsmall = 222, tbig = 333;
-  flttMakeColRefNode(&pcol, NULL, TSDB_DATA_TYPE_TIMESTAMP, sizeof(int64_t), 0, NULL);  
+  flttMakeColumnNode(&pcol, NULL, TSDB_DATA_TYPE_TIMESTAMP, sizeof(int64_t), 0, NULL);  
   flttMakeValueNode(&pval, TSDB_DATA_TYPE_TIMESTAMP, &tsmall);
   flttMakeOpNode(&opNode1, OP_TYPE_GREATER_THAN, TSDB_DATA_TYPE_BOOL, pcol, pval);
 
@@ -219,10 +243,10 @@ TEST(timerangeTest, greater_and_lower) {
   bool eRes[5] = {false, false, true, true, true};
   SScalarParam res = {0};
   int64_t tsmall = 222, tbig = 333;
-  flttMakeColRefNode(&pcol, NULL, TSDB_DATA_TYPE_TIMESTAMP, sizeof(int64_t), 0, NULL);  
+  flttMakeColumnNode(&pcol, NULL, TSDB_DATA_TYPE_TIMESTAMP, sizeof(int64_t), 0, NULL);  
   flttMakeValueNode(&pval, TSDB_DATA_TYPE_TIMESTAMP, &tsmall);
   flttMakeOpNode(&opNode1, OP_TYPE_GREATER_THAN, TSDB_DATA_TYPE_BOOL, pcol, pval);
-  flttMakeColRefNode(&pcol, NULL, TSDB_DATA_TYPE_TIMESTAMP, sizeof(int64_t), 0, NULL);  
+  flttMakeColumnNode(&pcol, NULL, TSDB_DATA_TYPE_TIMESTAMP, sizeof(int64_t), 0, NULL);  
   flttMakeValueNode(&pval, TSDB_DATA_TYPE_TIMESTAMP, &tbig);
   flttMakeOpNode(&opNode2, OP_TYPE_LOWER_THAN, TSDB_DATA_TYPE_BOOL, pcol, pval);
   SNode *list[2] = {0};
@@ -250,7 +274,7 @@ TEST(columnTest, smallint_column_greater_double_value) {
   SSDataBlock *src = NULL;
   SScalarParam res = {0};
   int32_t rowNum = sizeof(leftv)/sizeof(leftv[0]);
-  flttMakeColRefNode(&pLeft, &src, TSDB_DATA_TYPE_SMALLINT, sizeof(int16_t), rowNum, leftv);
+  flttMakeColumnNode(&pLeft, &src, TSDB_DATA_TYPE_SMALLINT, sizeof(int16_t), rowNum, leftv);
   flttMakeValueNode(&pRight, TSDB_DATA_TYPE_DOUBLE, &rightv);
   flttMakeOpNode(&opNode, OP_TYPE_GREATER_THAN, TSDB_DATA_TYPE_BOOL, pLeft, pRight);
   
@@ -301,7 +325,7 @@ TEST(columnTest, int_column_greater_smallint_value) {
   SSDataBlock *src = NULL;
   SScalarParam res = {0};
   int32_t rowNum = sizeof(leftv)/sizeof(leftv[0]);
-  flttMakeColRefNode(&pLeft, &src, TSDB_DATA_TYPE_INT, sizeof(int32_t), rowNum, leftv);
+  flttMakeColumnNode(&pLeft, &src, TSDB_DATA_TYPE_INT, sizeof(int32_t), rowNum, leftv);
   flttMakeValueNode(&pRight, TSDB_DATA_TYPE_SMALLINT, &rightv);
   flttMakeOpNode(&opNode, OP_TYPE_GREATER_THAN, TSDB_DATA_TYPE_BOOL, pLeft, pRight);
   
@@ -353,7 +377,7 @@ TEST(columnTest, int_column_in_double_list) {
   SSDataBlock *src = NULL;  
   SScalarParam res = {0};
   int32_t rowNum = sizeof(leftv)/sizeof(leftv[0]);
-  flttMakeColRefNode(&pLeft, &src, TSDB_DATA_TYPE_INT, sizeof(int32_t), rowNum, leftv);  
+  flttMakeColumnNode(&pLeft, &src, TSDB_DATA_TYPE_INT, sizeof(int32_t), rowNum, leftv);  
   SNodeList* list = nodesMakeList();
   flttMakeValueNode(&pRight, TSDB_DATA_TYPE_DOUBLE, &rightv1);
   nodesListAppend(list, pRight);
@@ -416,7 +440,7 @@ TEST(columnTest, binary_column_in_binary_list) {
   }
   
   int32_t rowNum = sizeof(leftv)/sizeof(leftv[0]);
-  flttMakeColRefNode(&pLeft, &src, TSDB_DATA_TYPE_BINARY, 3, rowNum, leftv);  
+  flttMakeColumnNode(&pLeft, &src, TSDB_DATA_TYPE_BINARY, 3, rowNum, leftv);  
   SNodeList* list = nodesMakeList();
   flttMakeValueNode(&pRight, TSDB_DATA_TYPE_BINARY, rightv[0]);
   nodesListAppend(list, pRight);
@@ -465,7 +489,7 @@ TEST(columnTest, binary_column_like_binary) {
   }  
   
   int32_t rowNum = sizeof(leftv)/sizeof(leftv[0]);
-  flttMakeColRefNode(&pLeft, &src, TSDB_DATA_TYPE_BINARY, 3, rowNum, leftv);  
+  flttMakeColumnNode(&pLeft, &src, TSDB_DATA_TYPE_BINARY, 3, rowNum, leftv);  
 
   sprintf(&rightv[2], "%s", "__0");
   varDataSetLen(rightv, strlen(&rightv[2]));
@@ -499,20 +523,21 @@ TEST(columnTest, binary_column_is_null) {
   char leftv[5][5]= {0};
   SSDataBlock *src = NULL;  
   SScalarParam res = {0};
-  bool eRes[5] = {false, false, false, false, true};  
+  bool eRes[5] = {false, false, true, false, true};  
   
-  for (int32_t i = 0; i < 4; ++i) {
+  for (int32_t i = 0; i < 5; ++i) {
     leftv[i][2] = '0' + i % 2;
     leftv[i][3] = 'a';
     leftv[i][4] = '0' + i % 2;
     varDataSetLen(leftv[i], 3);
   }  
-
-  setVardataNull(leftv[4], TSDB_DATA_TYPE_BINARY);
   
   int32_t rowNum = sizeof(leftv)/sizeof(leftv[0]);
-  flttMakeColRefNode(&pLeft, &src, TSDB_DATA_TYPE_BINARY, 3, rowNum, leftv);  
+  flttMakeColumnNode(&pLeft, &src, TSDB_DATA_TYPE_BINARY, 3, rowNum, leftv);  
 
+  SColumnInfoData *pcolumn = (SColumnInfoData *)taosArrayGetLast(src->pDataBlock);
+  colDataAppend(pcolumn, 2, NULL, true);
+  colDataAppend(pcolumn, 4, NULL, true);
   flttMakeOpNode(&opNode, OP_TYPE_IS_NULL, TSDB_DATA_TYPE_BOOL, pLeft, NULL);
   
   SFilterInfo *filter = NULL;
@@ -543,17 +568,18 @@ TEST(columnTest, binary_column_is_not_null) {
   SScalarParam res = {0};
   bool eRes[5] = {true, true, true, true, false};  
   
-  for (int32_t i = 0; i < 4; ++i) {
+  for (int32_t i = 0; i < 5; ++i) {
     leftv[i][2] = '0' + i % 2;
     leftv[i][3] = 'a';
     leftv[i][4] = '0' + i % 2;
     varDataSetLen(leftv[i], 3);
   }  
-
-  setVardataNull(leftv[4], TSDB_DATA_TYPE_BINARY);
   
   int32_t rowNum = sizeof(leftv)/sizeof(leftv[0]);
-  flttMakeColRefNode(&pLeft, &src, TSDB_DATA_TYPE_BINARY, 3, rowNum, leftv);  
+  flttMakeColumnNode(&pLeft, &src, TSDB_DATA_TYPE_BINARY, 3, rowNum, leftv);  
+
+  SColumnInfoData *pcolumn = (SColumnInfoData *)taosArrayGetLast(src->pDataBlock);
+  colDataAppend(pcolumn, 4, NULL, true);
 
   flttMakeOpNode(&opNode, OP_TYPE_IS_NOT_NULL, TSDB_DATA_TYPE_BOOL, pLeft, NULL);
   
@@ -588,8 +614,8 @@ TEST(opTest, smallint_column_greater_int_column) {
   SSDataBlock *src = NULL;
   SScalarParam res = {0};
   int32_t rowNum = sizeof(rightv)/sizeof(rightv[0]);
-  flttMakeColRefNode(&pLeft, &src, TSDB_DATA_TYPE_SMALLINT, sizeof(int16_t), rowNum, leftv);
-  flttMakeColRefNode(&pRight, &src, TSDB_DATA_TYPE_INT, sizeof(int32_t), rowNum, rightv);
+  flttMakeColumnNode(&pLeft, &src, TSDB_DATA_TYPE_SMALLINT, sizeof(int16_t), rowNum, leftv);
+  flttMakeColumnNode(&pRight, &src, TSDB_DATA_TYPE_INT, sizeof(int32_t), rowNum, rightv);
   flttMakeOpNode(&opNode, OP_TYPE_GREATER_THAN, TSDB_DATA_TYPE_BOOL, pLeft, pRight);
   
   SFilterInfo *filter = NULL;
@@ -623,7 +649,7 @@ TEST(opTest, smallint_value_add_int_column) {
   SScalarParam res = {0};
   int32_t rowNum = sizeof(rightv)/sizeof(rightv[0]);
   flttMakeValueNode(&pLeft, TSDB_DATA_TYPE_INT, &leftv);
-  flttMakeColRefNode(&pRight, &src, TSDB_DATA_TYPE_SMALLINT, sizeof(int16_t), rowNum, rightv);
+  flttMakeColumnNode(&pRight, &src, TSDB_DATA_TYPE_SMALLINT, sizeof(int16_t), rowNum, rightv);
   flttMakeOpNode(&opNode, OP_TYPE_ADD, TSDB_DATA_TYPE_DOUBLE, pLeft, pRight);
   flttMakeOpNode(&opNode, OP_TYPE_IS_TRUE, TSDB_DATA_TYPE_BOOL, opNode, NULL);
   
@@ -663,8 +689,8 @@ TEST(opTest, bigint_column_multi_binary_column) {
   SSDataBlock *src = NULL;
   SScalarParam res = {0};
   int32_t rowNum = sizeof(rightv)/sizeof(rightv[0]);
-  flttMakeColRefNode(&pLeft, &src, TSDB_DATA_TYPE_BIGINT, sizeof(int64_t), rowNum, leftv);
-  flttMakeColRefNode(&pRight, &src, TSDB_DATA_TYPE_BINARY, 5, rowNum, rightv);
+  flttMakeColumnNode(&pLeft, &src, TSDB_DATA_TYPE_BIGINT, sizeof(int64_t), rowNum, leftv);
+  flttMakeColumnNode(&pRight, &src, TSDB_DATA_TYPE_BINARY, 5, rowNum, rightv);
   flttMakeOpNode(&opNode, OP_TYPE_MULTI, TSDB_DATA_TYPE_DOUBLE, pLeft, pRight);
   flttMakeOpNode(&opNode, OP_TYPE_IS_TRUE, TSDB_DATA_TYPE_BOOL, opNode, NULL);
   
@@ -702,8 +728,8 @@ TEST(opTest, smallint_column_and_binary_column) {
   SSDataBlock *src = NULL;
   SScalarParam res = {0};
   int32_t rowNum = sizeof(rightv)/sizeof(rightv[0]);
-  flttMakeColRefNode(&pLeft, &src, TSDB_DATA_TYPE_SMALLINT, sizeof(int16_t), rowNum, leftv);
-  flttMakeColRefNode(&pRight, &src, TSDB_DATA_TYPE_BINARY, 5, rowNum, rightv);
+  flttMakeColumnNode(&pLeft, &src, TSDB_DATA_TYPE_SMALLINT, sizeof(int16_t), rowNum, leftv);
+  flttMakeColumnNode(&pRight, &src, TSDB_DATA_TYPE_BINARY, 5, rowNum, rightv);
   flttMakeOpNode(&opNode, OP_TYPE_BIT_AND, TSDB_DATA_TYPE_BIGINT, pLeft, pRight);
   flttMakeOpNode(&opNode, OP_TYPE_IS_TRUE, TSDB_DATA_TYPE_BOOL, opNode, NULL);
   
@@ -736,8 +762,8 @@ TEST(opTest, smallint_column_or_float_column) {
   SSDataBlock *src = NULL;
   SScalarParam res = {0};
   int32_t rowNum = sizeof(rightv)/sizeof(rightv[0]);
-  flttMakeColRefNode(&pLeft, &src, TSDB_DATA_TYPE_SMALLINT, sizeof(int16_t), rowNum, leftv);
-  flttMakeColRefNode(&pRight, &src, TSDB_DATA_TYPE_FLOAT, sizeof(float), rowNum, rightv);
+  flttMakeColumnNode(&pLeft, &src, TSDB_DATA_TYPE_SMALLINT, sizeof(int16_t), rowNum, leftv);
+  flttMakeColumnNode(&pRight, &src, TSDB_DATA_TYPE_FLOAT, sizeof(float), rowNum, rightv);
   flttMakeOpNode(&opNode, OP_TYPE_BIT_OR, TSDB_DATA_TYPE_BIGINT, pLeft, pRight);
   flttMakeOpNode(&opNode, OP_TYPE_IS_TRUE, TSDB_DATA_TYPE_BOOL, opNode, NULL);
   
@@ -772,7 +798,7 @@ TEST(opTest, smallint_column_or_double_value) {
   SSDataBlock *src = NULL;
   SScalarParam res = {0};
   int32_t rowNum = sizeof(leftv)/sizeof(leftv[0]);
-  flttMakeColRefNode(&pLeft, &src, TSDB_DATA_TYPE_SMALLINT, sizeof(int16_t), rowNum, leftv);
+  flttMakeColumnNode(&pLeft, &src, TSDB_DATA_TYPE_SMALLINT, sizeof(int16_t), rowNum, leftv);
   flttMakeValueNode(&pRight, TSDB_DATA_TYPE_DOUBLE, &rightv);
   flttMakeOpNode(&opNode, OP_TYPE_BIT_OR, TSDB_DATA_TYPE_BIGINT, pLeft, pRight);
   flttMakeOpNode(&opNode, OP_TYPE_IS_TRUE, TSDB_DATA_TYPE_BOOL, opNode, NULL);
@@ -814,7 +840,7 @@ TEST(opTest, binary_column_is_true) {
   }  
   
   int32_t rowNum = sizeof(leftv)/sizeof(leftv[0]);
-  flttMakeColRefNode(&pLeft, &src, TSDB_DATA_TYPE_BINARY, 3, rowNum, leftv);  
+  flttMakeColumnNode(&pLeft, &src, TSDB_DATA_TYPE_BINARY, 3, rowNum, leftv);  
 
   flttMakeOpNode(&opNode, OP_TYPE_IS_TRUE, TSDB_DATA_TYPE_BOOL, pLeft, NULL);
   
@@ -841,6 +867,8 @@ TEST(opTest, binary_column_is_true) {
 
 
 TEST(filterModelogicTest, diff_columns_and_or_and) {
+  flttInitLogFile();
+
   SNode *pLeft1 = NULL, *pRight1 = NULL, *pLeft2 = NULL, *pRight2 = NULL, *opNode1 = NULL, *opNode2 = NULL;
   SNode *logicNode1 = NULL, *logicNode2 = NULL;
   double leftv1[8]= {1, 2, 3, 4, 5,-1,-2,-3}, leftv2[8]= {3.0, 4, 2, 9, -3, 3.9, 4.1, 5.2};
@@ -851,12 +879,12 @@ TEST(filterModelogicTest, diff_columns_and_or_and) {
   SNodeList* list = nodesMakeList();
 
   int32_t rowNum = sizeof(leftv1)/sizeof(leftv1[0]);
-  flttMakeColRefNode(&pLeft1, &src, TSDB_DATA_TYPE_DOUBLE, sizeof(double), rowNum, leftv1);
+  flttMakeColumnNode(&pLeft1, &src, TSDB_DATA_TYPE_DOUBLE, sizeof(double), rowNum, leftv1);
   flttMakeValueNode(&pRight1, TSDB_DATA_TYPE_INT, &rightv1);
   flttMakeOpNode(&opNode1, OP_TYPE_GREATER_THAN, TSDB_DATA_TYPE_BOOL, pLeft1, pRight1);
   nodesListAppend(list, opNode1);
 
-  flttMakeColRefNode(&pLeft2, &src, TSDB_DATA_TYPE_DOUBLE, sizeof(double), rowNum, leftv2);
+  flttMakeColumnNode(&pLeft2, &src, TSDB_DATA_TYPE_DOUBLE, sizeof(double), rowNum, leftv2);
   flttMakeValueNode(&pRight2, TSDB_DATA_TYPE_INT, &rightv2);
   flttMakeOpNode(&opNode2, OP_TYPE_LOWER_EQUAL, TSDB_DATA_TYPE_BOOL, pLeft2, pRight2);
   nodesListAppend(list, opNode2);
@@ -866,12 +894,12 @@ TEST(filterModelogicTest, diff_columns_and_or_and) {
 
   list = nodesMakeList();
   
-  flttMakeColRefNode(&pLeft1, &src, TSDB_DATA_TYPE_DOUBLE, sizeof(double), rowNum, leftv1);
+  flttMakeColumnNode(&pLeft1, &src, TSDB_DATA_TYPE_DOUBLE, sizeof(double), rowNum, leftv1);
   flttMakeValueNode(&pRight1, TSDB_DATA_TYPE_INT, &rightv1);
   flttMakeOpNode(&opNode1, OP_TYPE_LOWER_EQUAL, TSDB_DATA_TYPE_BOOL, pLeft1, pRight1);
   nodesListAppend(list, opNode1);
 
-  flttMakeColRefNode(&pLeft2, &src, TSDB_DATA_TYPE_DOUBLE, sizeof(double), rowNum, leftv2);
+  flttMakeColumnNode(&pLeft2, &src, TSDB_DATA_TYPE_DOUBLE, sizeof(double), rowNum, leftv2);
   flttMakeValueNode(&pRight2, TSDB_DATA_TYPE_INT, &rightv2);
   flttMakeOpNode(&opNode2, OP_TYPE_GREATER_EQUAL, TSDB_DATA_TYPE_BOOL, pLeft2, pRight2);
   nodesListAppend(list, opNode2);
@@ -916,7 +944,7 @@ TEST(filterModelogicTest, same_column_and_or_and) {
   SNodeList* list = nodesMakeList();
 
   int32_t rowNum = sizeof(leftv1)/sizeof(leftv1[0]);
-  flttMakeColRefNode(&pLeft1, &src, TSDB_DATA_TYPE_DOUBLE, sizeof(double), rowNum, leftv1);
+  flttMakeColumnNode(&pLeft1, &src, TSDB_DATA_TYPE_DOUBLE, sizeof(double), rowNum, leftv1);
   flttMakeValueNode(&pRight1, TSDB_DATA_TYPE_INT, &rightv1);
   flttMakeOpNode(&opNode1, OP_TYPE_GREATER_THAN, TSDB_DATA_TYPE_BOOL, pLeft1, pRight1);
   nodesListAppend(list, opNode1);
@@ -979,12 +1007,12 @@ TEST(filterModelogicTest, diff_columns_or_and_or) {
   SNodeList* list = nodesMakeList();
 
   int32_t rowNum = sizeof(leftv1)/sizeof(leftv1[0]);
-  flttMakeColRefNode(&pLeft1, &src, TSDB_DATA_TYPE_DOUBLE, sizeof(double), rowNum, leftv1);
+  flttMakeColumnNode(&pLeft1, &src, TSDB_DATA_TYPE_DOUBLE, sizeof(double), rowNum, leftv1);
   flttMakeValueNode(&pRight1, TSDB_DATA_TYPE_INT, &rightv1);
   flttMakeOpNode(&opNode1, OP_TYPE_GREATER_THAN, TSDB_DATA_TYPE_BOOL, pLeft1, pRight1);
   nodesListAppend(list, opNode1);
 
-  flttMakeColRefNode(&pLeft2, &src, TSDB_DATA_TYPE_DOUBLE, sizeof(double), rowNum, leftv2);
+  flttMakeColumnNode(&pLeft2, &src, TSDB_DATA_TYPE_DOUBLE, sizeof(double), rowNum, leftv2);
   flttMakeValueNode(&pRight2, TSDB_DATA_TYPE_INT, &rightv2);
   flttMakeOpNode(&opNode2, OP_TYPE_LOWER_EQUAL, TSDB_DATA_TYPE_BOOL, pLeft2, pRight2);
   nodesListAppend(list, opNode2);
@@ -994,12 +1022,12 @@ TEST(filterModelogicTest, diff_columns_or_and_or) {
 
   list = nodesMakeList();
   
-  flttMakeColRefNode(&pLeft1, &src, TSDB_DATA_TYPE_DOUBLE, sizeof(double), rowNum, leftv1);
+  flttMakeColumnNode(&pLeft1, &src, TSDB_DATA_TYPE_DOUBLE, sizeof(double), rowNum, leftv1);
   flttMakeValueNode(&pRight1, TSDB_DATA_TYPE_INT, &rightv1);
   flttMakeOpNode(&opNode1, OP_TYPE_LOWER_EQUAL, TSDB_DATA_TYPE_BOOL, pLeft1, pRight1);
   nodesListAppend(list, opNode1);
 
-  flttMakeColRefNode(&pLeft2, &src, TSDB_DATA_TYPE_DOUBLE, sizeof(double), rowNum, leftv2);
+  flttMakeColumnNode(&pLeft2, &src, TSDB_DATA_TYPE_DOUBLE, sizeof(double), rowNum, leftv2);
   flttMakeValueNode(&pRight2, TSDB_DATA_TYPE_INT, &rightv2);
   flttMakeOpNode(&opNode2, OP_TYPE_GREATER_EQUAL, TSDB_DATA_TYPE_BOOL, pLeft2, pRight2);
   nodesListAppend(list, opNode2);
@@ -1044,7 +1072,7 @@ TEST(filterModelogicTest, same_column_or_and_or) {
   SNodeList* list = nodesMakeList();
 
   int32_t rowNum = sizeof(leftv1)/sizeof(leftv1[0]);
-  flttMakeColRefNode(&pLeft1, &src, TSDB_DATA_TYPE_DOUBLE, sizeof(double), rowNum, leftv1);
+  flttMakeColumnNode(&pLeft1, &src, TSDB_DATA_TYPE_DOUBLE, sizeof(double), rowNum, leftv1);
   flttMakeValueNode(&pRight1, TSDB_DATA_TYPE_INT, &rightv1);
   flttMakeOpNode(&opNode1, OP_TYPE_GREATER_THAN, TSDB_DATA_TYPE_BOOL, pLeft1, pRight1);
   nodesListAppend(list, opNode1);
@@ -1110,13 +1138,13 @@ TEST(scalarModelogicTest, diff_columns_or_and_or) {
   SNodeList* list = nodesMakeList();
 
   int32_t rowNum = sizeof(leftv1)/sizeof(leftv1[0]);
-  flttMakeColRefNode(&pLeft1, &src, TSDB_DATA_TYPE_DOUBLE, sizeof(double), rowNum, leftv1);
-  flttMakeColRefNode(&pRight1, &src, TSDB_DATA_TYPE_INT, sizeof(int32_t), rowNum, rightv1);
+  flttMakeColumnNode(&pLeft1, &src, TSDB_DATA_TYPE_DOUBLE, sizeof(double), rowNum, leftv1);
+  flttMakeColumnNode(&pRight1, &src, TSDB_DATA_TYPE_INT, sizeof(int32_t), rowNum, rightv1);
   flttMakeOpNode(&opNode1, OP_TYPE_EQUAL, TSDB_DATA_TYPE_BOOL, pLeft1, pRight1);
   nodesListAppend(list, opNode1);
 
-  flttMakeColRefNode(&pLeft2, &src, TSDB_DATA_TYPE_DOUBLE, sizeof(double), rowNum, leftv2);
-  flttMakeColRefNode(&pRight2, &src, TSDB_DATA_TYPE_INT, sizeof(int32_t), rowNum, rightv2);
+  flttMakeColumnNode(&pLeft2, &src, TSDB_DATA_TYPE_DOUBLE, sizeof(double), rowNum, leftv2);
+  flttMakeColumnNode(&pRight2, &src, TSDB_DATA_TYPE_INT, sizeof(int32_t), rowNum, rightv2);
   flttMakeOpNode(&opNode2, OP_TYPE_LOWER_THAN, TSDB_DATA_TYPE_BOOL, pLeft2, pRight2);
   nodesListAppend(list, opNode2);
   
@@ -1125,13 +1153,13 @@ TEST(scalarModelogicTest, diff_columns_or_and_or) {
 
   list = nodesMakeList();
   
-  flttMakeColRefNode(&pLeft1, &src, TSDB_DATA_TYPE_DOUBLE, sizeof(double), rowNum, leftv1);
-  flttMakeColRefNode(&pRight1, &src, TSDB_DATA_TYPE_INT, sizeof(int32_t), rowNum, rightv1);
+  flttMakeColumnNode(&pLeft1, &src, TSDB_DATA_TYPE_DOUBLE, sizeof(double), rowNum, leftv1);
+  flttMakeColumnNode(&pRight1, &src, TSDB_DATA_TYPE_INT, sizeof(int32_t), rowNum, rightv1);
   flttMakeOpNode(&opNode1, OP_TYPE_GREATER_THAN, TSDB_DATA_TYPE_BOOL, pLeft1, pRight1);
   nodesListAppend(list, opNode1);
 
-  flttMakeColRefNode(&pLeft2, &src, TSDB_DATA_TYPE_DOUBLE, sizeof(double), rowNum, leftv2);
-  flttMakeColRefNode(&pRight2, &src, TSDB_DATA_TYPE_INT, sizeof(int32_t), rowNum, rightv2);
+  flttMakeColumnNode(&pLeft2, &src, TSDB_DATA_TYPE_DOUBLE, sizeof(double), rowNum, leftv2);
+  flttMakeColumnNode(&pRight2, &src, TSDB_DATA_TYPE_INT, sizeof(int32_t), rowNum, rightv2);
   flttMakeOpNode(&opNode2, OP_TYPE_LOWER_EQUAL, TSDB_DATA_TYPE_BOOL, pLeft2, pRight2);
   nodesListAppend(list, opNode2);
   
