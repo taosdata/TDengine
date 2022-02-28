@@ -16,11 +16,11 @@
 #ifndef _TD_OS_FILE_H_
 #define _TD_OS_FILE_H_
 
+#include "osSocket.h"
+
 #ifdef __cplusplus
 extern "C" {
 #endif
-
-#include "osSocket.h"
 
 #ifndef ALLOW_FORBID_FUNC
     #define open OPEN_FUNC_TAOS_FORBID
