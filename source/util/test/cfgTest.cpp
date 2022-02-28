@@ -34,7 +34,6 @@ TEST_F(CfgTest, 01_Str) {
   EXPECT_STREQ(cfgStypeStr(CFG_STYPE_ENV_VAR), "env_var");
   EXPECT_STREQ(cfgStypeStr(CFG_STYPE_APOLLO_URL), "apollo_url");
   EXPECT_STREQ(cfgStypeStr(CFG_STYPE_ARG_LIST), "arg_list");
-  EXPECT_STREQ(cfgStypeStr(CFG_STYPE_API_OPTION), "api_option");
   EXPECT_STREQ(cfgStypeStr(ECfgSrcType(1024)), "invalid");
 
   EXPECT_STREQ(cfgDtypeStr(CFG_DTYPE_NONE), "none");

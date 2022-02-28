@@ -26,10 +26,10 @@
 #include "tmsg.h"
 #include "trpc.h"
 #include "tthread.h"
-#include "ulog.h"
 
 #include "client.h"
 #include "server.h"
+#include "tlog.h"
 
 class Testbase {
  public:

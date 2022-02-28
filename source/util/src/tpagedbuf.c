@@ -1,5 +1,4 @@
-#include "os.h"
-#include "ulog.h"
+#include "tlog.h"
 #include "tpagedbuf.h"
 #include "taoserror.h"
 #include "tcompression.h"

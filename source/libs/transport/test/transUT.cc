@@ -18,7 +18,7 @@
 #include "tep.h"
 #include "tglobal.h"
 #include "trpc.h"
-#include "ulog.h"
+#include "tlog.h"
 using namespace std;
 
 const char *label = "APP";

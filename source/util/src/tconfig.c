@@ -16,9 +16,10 @@
 #define _DEFAULT_SOURCE
 #include "tconfig.h"
 #include "taoserror.h"
+#include "tcfg.h"
 #include "thash.h"
 #include "tutil.h"
-#include "ulog.h"
+#include "tlog.h"
 
 #define CFG_NAME_PRINT_LEN 24
 #define CFG_SRC_PRINT_LEN  12
@@ -66,9 +67,37 @@ int32_t cfgLoad(SConfig *pCfg, ECfgSrcType cfgType, const char *sourceStr) {
   }
 }
 
+int32_t cfgLoadArray(SConfig *pCfg, SArray *pArgs) {
+  int32_t size = taosArrayGetSize(pArgs);
+  for (int32_t i = 0; i < size; ++i) {
+    SConfigPair *pPair = taosArrayGet(pArgs, i);
+    if (cfgSetItem(pCfg, pPair->name, pPair->value, CFG_STYPE_ARG_LIST) != 0) {
+      return -1;
+    }
+  }
+
+  return 0;
+}
+
+static void cfgFreeItem(SConfigItem *pItem) {
+  if (pItem->dtype == CFG_DTYPE_STRING || pItem->dtype == CFG_DTYPE_DIR || pItem->dtype == CFG_DTYPE_LOCALE ||
+      pItem->dtype == CFG_DTYPE_CHARSET || pItem->dtype == CFG_DTYPE_TIMEZONE) {
+    tfree(pItem->str);
+  }
+  if (pItem->array) {
+    taosArrayDestroy(pItem->array);
+    pItem->array = NULL;
+  }
+}
+
 void cfgCleanup(SConfig *pCfg) {
   if (pCfg != NULL) {
     if (pCfg->hash != NULL) {
+      SConfigItem *pItem = taosHashIterate(pCfg->hash, NULL);
+      while (pItem != NULL) {
+        cfgFreeItem(pItem);
+        pItem = taosHashIterate(pCfg->hash, pItem);
+      }
       taosHashCleanup(pCfg->hash);
       pCfg->hash == NULL;
     }
@@ -83,7 +112,7 @@ SConfigItem *cfgIterate(SConfig *pCfg, SConfigItem *pIter) { return taosHashIter
 void cfgCancelIterate(SConfig *pCfg, SConfigItem *pIter) { return taosHashCancelIterate(pCfg->hash, pIter); }
 
 static int32_t cfgCheckAndSetTimezone(SConfigItem *pItem, const char *timezone) {
-  tfree(pItem->str);
+  cfgFreeItem(pItem);
   pItem->str = strdup(timezone);
   if (pItem->str == NULL) {
     terrno = TSDB_CODE_OUT_OF_MEMORY;
@@ -94,7 +123,7 @@ static int32_t cfgCheckAndSetTimezone(SConfigItem *pItem, const char *timezone) 
 }
 
 static int32_t cfgCheckAndSetCharset(SConfigItem *pItem, const char *charset) {
-  tfree(pItem->str);
+  cfgFreeItem(pItem);
   pItem->str = strdup(charset);
   if (pItem->str == NULL) {
     terrno = TSDB_CODE_OUT_OF_MEMORY;
@@ -105,7 +134,7 @@ static int32_t cfgCheckAndSetCharset(SConfigItem *pItem, const char *charset) {
 }
 
 static int32_t cfgCheckAndSetLocale(SConfigItem *pItem, const char *locale) {
-  tfree(pItem->str);
+  cfgFreeItem(pItem);
   pItem->str = strdup(locale);
   if (pItem->str == NULL) {
     terrno = TSDB_CODE_OUT_OF_MEMORY;
@@ -134,7 +163,7 @@ static int32_t cfgCheckAndSetDir(SConfigItem *pItem, const char *inputDir) {
     return -1;
   }
 
-  tfree(pItem->str);
+  cfgFreeItem(pItem);
   pItem->str = strdup(fullDir);
   if (pItem->str == NULL) {
     terrno = TSDB_CODE_OUT_OF_MEMORY;
@@ -268,6 +297,33 @@ static int32_t cfgSetTimezone(SConfigItem *pItem, const char *value, ECfgSrcType
     terrno = TSDB_CODE_OUT_OF_MEMORY;
     uError("cfg:%s, type:%s src:%s value:%s failed to dup since %s, use last src:%s value:%s", pItem->name,
            cfgDtypeStr(pItem->dtype), cfgStypeStr(stype), value, terrstr(), cfgStypeStr(pItem->stype), pItem->str);
+    return -1;
+  }
+
+  pItem->stype = stype;
+  return 0;
+}
+
+static int32_t cfgSetTfsItem(SConfig *pCfg, const char *name, const char *value, const char *level, const char *primary,
+                             ECfgSrcType stype) {
+  SConfigItem *pItem = cfgGetItem(pCfg, name);
+  if (pItem == NULL) return -1;
+
+  if (pItem->array == NULL) {
+    pItem->array = taosArrayInit(16, sizeof(SDiskCfg));
+    if (pItem->array == NULL) {
+      terrno = TSDB_CODE_OUT_OF_MEMORY;
+      return -1;
+    }
+  }
+
+  SDiskCfg cfg = {0};
+  tstrncpy(cfg.dir, value, sizeof(cfg.dir));
+  cfg.level = atoi(level);
+  cfg.primary = atoi(primary);
+  void *ret = taosArrayPush(pItem->array, &cfg);
+  if (ret == NULL) {
+    terrno = TSDB_CODE_OUT_OF_MEMORY;
     return -1;
   }
 
@@ -441,8 +497,6 @@ const char *cfgStypeStr(ECfgSrcType type) {
       return "apollo_url";
     case CFG_STYPE_ARG_LIST:
       return "arg_list";
-    case CFG_STYPE_API_OPTION:
-      return "api_option";
     default:
       return "invalid";
   }
@@ -477,12 +531,12 @@ const char *cfgDtypeStr(ECfgDataType type) {
 
 void cfgDumpCfg(SConfig *pCfg, bool tsc, bool dump) {
   if (dump) {
-    printf("   global config");
+    printf("                     global config");
     printf("\n");
     printf("=================================================================");
     printf("\n");
   } else {
-    uInfo("   global config");
+    uInfo("                     global config");
     uInfo("=================================================================");
   }
 
@@ -583,7 +637,6 @@ int32_t cfgLoadFromCfgFile(SConfig *pConfig, const char *filepath) {
   }
 
   while (!taosEOFFile(pFile)) {
-
     name = value = value2 = value3 = NULL;
     olen = vlen = vlen2 = vlen3 = 0;
 
@@ -610,11 +663,13 @@ int32_t cfgLoadFromCfgFile(SConfig *pConfig, const char *filepath) {
     }
 
     cfgSetItem(pConfig, name, value, CFG_STYPE_CFG_FILE);
-    // taosReadConfigOption(name, value, value2, value3);
+    if (value2 != NULL && value3 != NULL && value2[0] != 0 && value3[0] != 0) {
+      cfgSetTfsItem(pConfig, name, value, value2, value3, CFG_STYPE_CFG_FILE);
+    }
   }
 
   taosCloseFile(&pFile);
-  if(line != NULL) tfree(line);
+  if (line != NULL) tfree(line);
 
   uInfo("load from cfg file %s success", filepath);
   return 0;

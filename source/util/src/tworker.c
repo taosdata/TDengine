@@ -16,7 +16,7 @@
 #define _DEFAULT_SOURCE
 #include "tworker.h"
 #include "taoserror.h"
-#include "ulog.h"
+#include "tlog.h"
 
 typedef void *(*ThreadFp)(void *param);
 

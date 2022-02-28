@@ -13,8 +13,8 @@
  * along with this program. If not, see <http://www.gnu.org/licenses/>.
  */
 
-#ifndef _TD_LIBS_TPL_H
-#define _TD_LIBS_TPL_H
+#ifndef _TD_LIBS_SYNC_RAFT_ENTRY_H
+#define _TD_LIBS_SYNC_RAFT_ENTRY_H
 
 #ifdef __cplusplus
 extern "C" {
@@ -23,7 +23,7 @@ extern "C" {
 #include <stdint.h>
 #include <stdio.h>
 #include <stdlib.h>
-#include "sync.h"
+#include "syncInt.h"
 #include "taosdef.h"
 
 typedef struct SSyncRaftEntry {
@@ -37,4 +37,4 @@ typedef struct SSyncRaftEntry {
 }
 #endif
 
-#endif /*_TD_LIBS_TPL_H*/
+#endif /*_TD_LIBS_SYNC_RAFT_ENTRY_H*/

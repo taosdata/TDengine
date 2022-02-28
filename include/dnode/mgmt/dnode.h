@@ -17,6 +17,7 @@
 #define _TD_DNODE_H_
 
 #include "tdef.h"
+#include "tcfg.h"
 
 #ifdef __cplusplus
 extern "C" {
@@ -40,13 +41,15 @@ void dndCleanup();
 
 /* ------------------------ SDnode ----------------------- */
 typedef struct {
-  int32_t  numOfSupportVnodes;
-  uint16_t serverPort;
-  char     dataDir[TSDB_FILENAME_LEN];
-  char     localEp[TSDB_EP_LEN];
-  char     localFqdn[TSDB_FQDN_LEN];
-  char     firstEp[TSDB_EP_LEN];
-  char     secondEp[TSDB_EP_LEN];
+  int32_t   numOfSupportVnodes;
+  uint16_t  serverPort;
+  char      dataDir[TSDB_FILENAME_LEN];
+  char      localEp[TSDB_EP_LEN];
+  char      localFqdn[TSDB_FQDN_LEN];
+  char      firstEp[TSDB_EP_LEN];
+  char      secondEp[TSDB_EP_LEN];
+  SDiskCfg *pDisks;
+  int32_t   numOfDisks;
 } SDnodeObjCfg;
 
 /**

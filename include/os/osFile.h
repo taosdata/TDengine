@@ -62,7 +62,7 @@ int64_t taosReadFile(TdFilePtr pFile, void *buf, int64_t count);
 int64_t taosPReadFile(TdFilePtr pFile, void *buf, int64_t count, int64_t offset);
 int64_t taosWriteFile(TdFilePtr pFile, const void *buf, int64_t count);
 void taosFprintfFile(TdFilePtr pFile, const char *format, ...);
-size_t taosGetLineFile(TdFilePtr pFile, char ** __restrict__ ptrBuf);
+int64_t taosGetLineFile(TdFilePtr pFile, char ** __restrict__ ptrBuf);
 int32_t taosEOFFile(TdFilePtr pFile);
  
 int64_t taosCloseFile(TdFilePtr *ppFile);

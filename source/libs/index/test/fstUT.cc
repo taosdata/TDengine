@@ -15,7 +15,7 @@
 #include "tglobal.h"
 #include "tskiplist.h"
 #include "tutil.h"
-#include "ulog.h"
+#include "tlog.h"
 
 static std::string dir = "/tmp/index";
 

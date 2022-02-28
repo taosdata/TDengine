@@ -13,8 +13,7 @@
  * along with this program. If not, see <http://www.gnu.org/licenses/>.
  */
 
-#include "os.h"
-#include "ulog.h"
+#include "tlog.h"
 #include "tmempool.h"
 #include "tutil.h"
 

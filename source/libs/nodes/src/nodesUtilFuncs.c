@@ -81,8 +81,8 @@ SNode* nodesMakeNode(ENodeType type) {
       return makeNode(type, sizeof(SProjectLogicNode));
     case QUERY_NODE_TARGET:
       return makeNode(type, sizeof(STargetNode));
-    case QUERY_NODE_TUPLE_DESC:
-      return makeNode(type, sizeof(STupleDescNode));
+    case QUERY_NODE_DATABLOCK_DESC:
+      return makeNode(type, sizeof(SDataBlockDescNode));
     case QUERY_NODE_SLOT_DESC:
       return makeNode(type, sizeof(SSlotDescNode));
     case QUERY_NODE_PHYSICAL_PLAN_TAG_SCAN:
