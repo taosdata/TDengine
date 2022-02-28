@@ -47,11 +47,6 @@
 
 #define MULTI_KEY_DELIM  "-"
 
-#define TIME_WINDOW_COPY(_dst, _src)  do {\
-   (_dst).skey = (_src).skey;\
-   (_dst).ekey = (_src).ekey;\
-} while (0)
-
 enum {
   TS_JOIN_TS_EQUAL       = 0,
   TS_JOIN_TS_NOT_EQUALS  = 1,
@@ -2607,7 +2602,7 @@ static bool onlyOneQueryType(SQueryAttr *pQueryAttr, int32_t functId, int32_t fu
 
 static bool onlyFirstQuery(SQueryAttr *pQueryAttr) { return onlyOneQueryType(pQueryAttr, TSDB_FUNC_FIRST, TSDB_FUNC_FIRST_DST); }
 
-static bool onlyLastQuery(SQueryAttr *pQueryAttr) { return onlyOneQueryType(pQueryAttr, TSDB_FUNC_LAST, TSDB_FUNC_LAST_DST); }
+static bool onlyLastQuery(SQueryAttr *pQueryAttr) { return onlyOneQueryType(pQueryAttr, TSDB_FUNC_LAST, TSDB_FUNC_LAST_DST) || onlyOneQueryType(pQueryAttr, TSDB_FUNC_TAIL, TSDB_FUNC_TAIL); }
 
 static bool notContainSessionOrStateWindow(SQueryAttr *pQueryAttr) { return !(pQueryAttr->sw.gap > 0 || pQueryAttr->stateWindow); }
 
@@ -3955,15 +3950,6 @@ bool isUniqueQuery(int32_t numOfOutput, SExprInfo* pExprs) {
   return false;
 }
 
-bool isTailQuery(int32_t numOfOutput, SExprInfo* pExprs) {
-  for (int32_t i = 0; i < numOfOutput; ++i) {
-    if (pExprs[i].base.functionId == TSDB_FUNC_TAIL) {
-      return true;
-    }
-  }
-  return false;
-}
-
 static bool hasMainOutput(SQueryAttr *pQueryAttr) {
   for (int32_t i = 0; i < pQueryAttr->numOfOutput; ++i) {
     int32_t functionId = pQueryAttr->pExpr1[i].base.functionId;
@@ -5115,18 +5101,13 @@ STsdbQueryCond createTsdbQueryCond(SQueryAttr* pQueryAttr, STimeWindow* win) {
       .numOfCols = pQueryAttr->numOfCols,
       .type      = BLOCK_LOAD_OFFSET_SEQ_ORDER,
       .loadExternalRows = false,
+      .twindow = *win,
   };
 
   // set offset with
   if(pQueryAttr->skipOffset) {
      cond.offset = pQueryAttr->limit.offset;
   }
-
-  if(pQueryAttr->tailQuery) {
-    cond.order = TSDB_ORDER_DESC;
-  }
-
-  TIME_WINDOW_COPY(cond.twindow, *win);
   return cond;
 }
 
@@ -9607,7 +9588,6 @@ SQInfo* createQInfoImpl(SQueryTableMsg* pQueryMsg, SGroupbyExpr* pGroupbyExpr, S
   pQueryAttr->pFilters        = pFilters;
   pQueryAttr->range           = pQueryMsg->range;
   pQueryAttr->uniqueQuery     = isUniqueQuery(numOfOutput, pExprs);
-  pQueryAttr->tailQuery       = isTailQuery(numOfOutput, pExprs);
 
   pQueryAttr->tableCols = calloc(numOfCols, sizeof(SSingleColumnFilterInfo));
   if (pQueryAttr->tableCols == NULL) {

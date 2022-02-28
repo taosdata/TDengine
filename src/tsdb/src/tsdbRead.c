@@ -1855,11 +1855,12 @@ static void mergeTwoRowFromMem(STsdbQueryHandle* pQueryHandle, int32_t capacity,
   while(i < numOfCols && (j < numOfColsOfRow1 || k < numOfColsOfRow2)) {
     SColumnInfoData* pColInfo = taosArrayGet(pQueryHandle->pColumns, i);
 
-    if (ASCENDING_TRAVERSE(pQueryHandle->order)) {
-      pData = (char*)pColInfo->pData + numOfRows * pColInfo->info.bytes;
-    } else {
-      pData = (char*)pColInfo->pData + (capacity - numOfRows - 1) * pColInfo->info.bytes;
-    }
+    pData = (char*)pColInfo->pData + numOfRows * pColInfo->info.bytes;
+//    if (ASCENDING_TRAVERSE(pQueryHandle->order)) {
+//      pData = (char*)pColInfo->pData + numOfRows * pColInfo->info.bytes;
+//    } else {
+//      pData = (char*)pColInfo->pData + (capacity - numOfRows - 1) * pColInfo->info.bytes;
+//    }
 
     int32_t colIdOfRow1;
     if(j >= numOfColsOfRow1) {
@@ -1990,11 +1991,12 @@ static void mergeTwoRowFromMem(STsdbQueryHandle* pQueryHandle, int32_t capacity,
   if(forceSetNull) {
     while (i < numOfCols) { // the remain columns are all null data
       SColumnInfoData* pColInfo = taosArrayGet(pQueryHandle->pColumns, i);
-      if (ASCENDING_TRAVERSE(pQueryHandle->order)) {
-        pData = (char*)pColInfo->pData + numOfRows * pColInfo->info.bytes;
-      } else {
-        pData = (char*)pColInfo->pData + (capacity - numOfRows - 1) * pColInfo->info.bytes;
-      }
+      pData = (char*)pColInfo->pData + numOfRows * pColInfo->info.bytes;
+//      if (ASCENDING_TRAVERSE(pQueryHandle->order)) {
+//        pData = (char*)pColInfo->pData + numOfRows * pColInfo->info.bytes;
+//      } else {
+//        pData = (char*)pColInfo->pData + (capacity - numOfRows - 1) * pColInfo->info.bytes;
+//      }
 
       if (pColInfo->info.type == TSDB_DATA_TYPE_BINARY || pColInfo->info.type == TSDB_DATA_TYPE_NCHAR) {
         setVardataNull(pData, pColInfo->info.type);
@@ -2340,7 +2342,7 @@ static void doMergeTwoLevelData(STsdbQueryHandle* pQueryHandle, STableCheckInfo*
     SWAP(cur->win.skey, cur->win.ekey, TSKEY);
   }
 
-  moveDataToFront(pQueryHandle, numOfRows, numOfCols);
+  //moveDataToFront(pQueryHandle, numOfRows, numOfCols);
   updateInfoAfterMerge(pQueryHandle, pCheckInfo, numOfRows, pos);
   doCheckGeneratedBlockRange(pQueryHandle);
 
@@ -2978,14 +2980,14 @@ static int tsdbReadRowsFromCache(STableCheckInfo* pCheckInfo, TSKEY maxKey, int 
   assert(numOfRows <= maxRowsToRead);
 
   // if the buffer is not full in case of descending order query, move the data in the front of the buffer
-  if (!ASCENDING_TRAVERSE(pQueryHandle->order) && numOfRows < maxRowsToRead) {
-    int32_t emptySize = maxRowsToRead - numOfRows;
-
-    for(int32_t i = 0; i < numOfCols; ++i) {
-      SColumnInfoData* pColInfo = taosArrayGet(pQueryHandle->pColumns, i);
-      memmove((char*)pColInfo->pData, (char*)pColInfo->pData + emptySize * pColInfo->info.bytes, numOfRows * pColInfo->info.bytes);
-    }
-  }
+//  if (!ASCENDING_TRAVERSE(pQueryHandle->order) && numOfRows < maxRowsToRead) {
+//    int32_t emptySize = maxRowsToRead - numOfRows;
+//
+//    for(int32_t i = 0; i < numOfCols; ++i) {
+//      SColumnInfoData* pColInfo = taosArrayGet(pQueryHandle->pColumns, i);
+//      memmove((char*)pColInfo->pData, (char*)pColInfo->pData + emptySize * pColInfo->info.bytes, numOfRows * pColInfo->info.bytes);
+//    }
+//  }
 
   int64_t elapsedTime = taosGetTimestampUs() - st;
   tsdbDebug("%p build data block from cache completed, elapsed time:%"PRId64" us, numOfRows:%d, numOfCols:%d, 0x%"PRIx64, pQueryHandle,
