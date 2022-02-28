@@ -22,11 +22,11 @@
 #include "mndUser.h"
 #include "mndVgroup.h"
 
-#define TSDB_DNODE_VER_NUMBER 1
+#define TSDB_DNODE_VER_NUMBER   1
 #define TSDB_DNODE_RESERVE_SIZE 64
-#define TSDB_CONFIG_OPTION_LEN 16
-#define TSDB_CONIIG_VALUE_LEN 48
-#define TSDB_CONFIG_NUMBER 8
+#define TSDB_CONFIG_OPTION_LEN  16
+#define TSDB_CONIIG_VALUE_LEN   48
+#define TSDB_CONFIG_NUMBER      8
 
 static const char *offlineReason[] = {
     "",
@@ -277,19 +277,19 @@ static int32_t mndCheckClusterCfgPara(SMnode *pMnode, const SClusterCfg *pCfg) {
     return DND_REASON_STATUS_INTERVAL_NOT_MATCH;
   }
 
-  if ((0 != strcasecmp(pCfg->timezone, osTimezone())) && (pMnode->checkTime != pCfg->checkTime)) {
-    mError("timezone [%s - %s] [%" PRId64 " - %" PRId64 "] cfg inconsistent", pCfg->timezone, osTimezone(),
+  if ((0 != strcasecmp(pCfg->timezone, tsTimezone)) && (pMnode->checkTime != pCfg->checkTime)) {
+    mError("timezone [%s - %s] [%" PRId64 " - %" PRId64 "] cfg inconsistent", pCfg->timezone, tsTimezone,
            pCfg->checkTime, pMnode->checkTime);
     return DND_REASON_TIME_ZONE_NOT_MATCH;
   }
 
-  if (0 != strcasecmp(pCfg->locale, osLocale())) {
-    mError("locale [%s - %s]  cfg inconsistent", pCfg->locale, osLocale());
+  if (0 != strcasecmp(pCfg->locale, tsLocale)) {
+    mError("locale [%s - %s]  cfg inconsistent", pCfg->locale, tsLocale);
     return DND_REASON_LOCALE_NOT_MATCH;
   }
 
-  if (0 != strcasecmp(pCfg->charset, osCharset())) {
-    mError("charset [%s - %s] cfg inconsistent.", pCfg->charset, osCharset());
+  if (0 != strcasecmp(pCfg->charset, tsCharset)) {
+    mError("charset [%s - %s] cfg inconsistent.", pCfg->charset, tsCharset);
     return DND_REASON_CHARSET_NOT_MATCH;
   }
 
@@ -631,13 +631,13 @@ static int32_t mndGetConfigMeta(SMnodeMsg *pReq, SShowObj *pShow, STableMetaRsp 
 
   pShow->bytes[cols] = TSDB_CONFIG_OPTION_LEN + VARSTR_HEADER_SIZE;
   pSchema[cols].type = TSDB_DATA_TYPE_BINARY;
-  tstrncpy(pSchema[cols].name, "name", sizeof(pSchema[cols].name));
+    strcpy(pSchema[cols].name, "name");
   pSchema[cols].bytes = pShow->bytes[cols];
   cols++;
 
   pShow->bytes[cols] = TSDB_CONIIG_VALUE_LEN + VARSTR_HEADER_SIZE;
   pSchema[cols].type = TSDB_DATA_TYPE_BINARY;
-  tstrncpy(pSchema[cols].name, "value", sizeof(pSchema[cols].name));
+   strcpy(pSchema[cols].name, "value");
   pSchema[cols].bytes = pShow->bytes[cols];
   cols++;
 
@@ -658,29 +658,30 @@ static int32_t mndGetConfigMeta(SMnodeMsg *pReq, SShowObj *pShow, STableMetaRsp 
 
 static int32_t mndRetrieveConfigs(SMnodeMsg *pReq, SShowObj *pShow, char *data, int32_t rows) {
   SMnode *pMnode = pReq->pMnode;
+  int32_t totalRows = 0;
   int32_t numOfRows = 0;
   char   *cfgOpts[TSDB_CONFIG_NUMBER] = {0};
   char    cfgVals[TSDB_CONFIG_NUMBER][TSDB_CONIIG_VALUE_LEN + 1] = {0};
   char   *pWrite;
   int32_t cols = 0;
 
-  cfgOpts[numOfRows] = "statusInterval";
-  snprintf(cfgVals[numOfRows], TSDB_CONIIG_VALUE_LEN, "%d", tsStatusInterval);
-  numOfRows++;
+  cfgOpts[totalRows] = "statusInterval";
+  snprintf(cfgVals[totalRows], TSDB_CONIIG_VALUE_LEN, "%d", tsStatusInterval);
+  totalRows++;
 
-  cfgOpts[numOfRows] = "timezone";
-  snprintf(cfgVals[numOfRows], TSDB_CONIIG_VALUE_LEN, "%s", osTimezone());
-  numOfRows++;
+  cfgOpts[totalRows] = "timezone";
+  snprintf(cfgVals[totalRows], TSDB_CONIIG_VALUE_LEN, "%s", tsTimezone);
+  totalRows++;
 
-  cfgOpts[numOfRows] = "locale";
-  snprintf(cfgVals[numOfRows], TSDB_CONIIG_VALUE_LEN, "%s", osLocale());
-  numOfRows++;
+  cfgOpts[totalRows] = "locale";
+  snprintf(cfgVals[totalRows], TSDB_CONIIG_VALUE_LEN, "%s", tsLocale);
+  totalRows++;
 
-  cfgOpts[numOfRows] = "charset";
-  snprintf(cfgVals[numOfRows], TSDB_CONIIG_VALUE_LEN, "%s", osCharset());
-  numOfRows++;
+  cfgOpts[totalRows] = "charset";
+  snprintf(cfgVals[totalRows], TSDB_CONIIG_VALUE_LEN, "%s", tsCharset);
+  totalRows++;
 
-  for (int32_t i = 0; i < numOfRows; i++) {
+  for (int32_t i = 0; i < totalRows; i++) {
     cols = 0;
 
     pWrite = data + pShow->offset[cols] * rows + pShow->bytes[cols] * numOfRows;
@@ -690,6 +691,8 @@ static int32_t mndRetrieveConfigs(SMnodeMsg *pReq, SShowObj *pShow, char *data, 
     pWrite = data + pShow->offset[cols] * rows + pShow->bytes[cols] * numOfRows;
     STR_WITH_MAXSIZE_TO_VARSTR(pWrite, cfgVals[i], TSDB_CONIIG_VALUE_LEN);
     cols++;
+
+    numOfRows++;
   }
 
   mndVacuumResult(data, pShow->numOfColumns, numOfRows, rows, pShow);
