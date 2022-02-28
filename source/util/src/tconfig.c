@@ -609,7 +609,7 @@ int32_t cfgLoadFromCfgFile(SConfig *pConfig, const char *filepath) {
   ssize_t _bytes = 0;
 
   // FILE *fp = fopen(filepath, "r");
-  TdFilePtr pFile = taosOpenFile(filepath, TD_FILE_READ);
+  TdFilePtr pFile = taosOpenFile(filepath, TD_FILE_READ | TD_FILE_STREAM);
   if (pFile == NULL) {
     terrno = TAOS_SYSTEM_ERROR(errno);
     return -1;
