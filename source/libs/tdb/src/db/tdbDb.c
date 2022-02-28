@@ -24,6 +24,7 @@ int tdbDbOpen(const char *fname, int keyLen, int valLen, FKeyComparator keyCmprF
   STDb *  pDb;
   SPFile *pFile;
   int     ret;
+  char    fFullName[TDB_FILENAME_LEN];
 
   *ppDb = NULL;
 
@@ -34,6 +35,15 @@ int tdbDbOpen(const char *fname, int keyLen, int valLen, FKeyComparator keyCmprF
 
   // pDb->pEnv
   pDb->pEnv = pEnv;
+
+  pFile = tdbEnvGetPFile(pEnv, fname);
+  if (pFile == NULL) {
+    snprintf(fFullName, TDB_FILENAME_LEN, "%s/%s", pEnv->rootDir, fname);
+    ret = tdbPFileOpen(pEnv->pCache, fFullName, &pFile);
+    if (ret < 0) {
+      return -1;
+    }
+  }
 
   // pDb->pBt
   ret = tdbBtreeOpen(&(pDb->pBt));

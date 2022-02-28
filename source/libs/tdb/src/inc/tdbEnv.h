@@ -21,9 +21,17 @@ extern "C" {
 #endif
 
 typedef struct STEnv STEnv;
+struct STEnv {
+  char *   rootDir;
+  char *   jfname;
+  int      jfd;
+  SPCache *pCache;
+};
 
 int tdbEnvOpen(const char *rootDir, int pageSize, int cacheSize, STEnv **ppEnv);
 int tdbEnvClose(STEnv *pEnv);
+
+SPFile *tdbEnvGetPFile(STEnv *pEnv, const char *fname);
 
 #ifdef __cplusplus
 }

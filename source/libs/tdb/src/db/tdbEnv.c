@@ -15,13 +15,6 @@
 
 #include "tdbInt.h"
 
-struct STEnv {
-  char *   rootDir;
-  char *   jfname;
-  int      jfd;
-  SPCache *pCache;
-};
-
 int tdbEnvOpen(const char *rootDir, int pageSize, int cacheSize, STEnv **ppEnv) {
   STEnv *pEnv;
   int    dsize;
@@ -69,4 +62,9 @@ int tdbEnvOpen(const char *rootDir, int pageSize, int cacheSize, STEnv **ppEnv) 
 int tdbEnvClose(STEnv *pEnv) {
   // TODO
   return 0;
+}
+
+SPFile *tdbEnvGetPFile(STEnv *pEnv, const char *fname) {
+  // TODO
+  return NULL;
 }
