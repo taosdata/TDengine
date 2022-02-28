@@ -69,11 +69,14 @@ else
       || echo "failed to download TDinsight.sh"
 
   taostools_bin_files=" ${build_dir}/bin/taosdump \
+      ${build_dir}/bin/taosBenchmark \
       ${build_dir}/bin/TDinsight.sh "
 
   bin_files="${build_dir}/bin/${serverName} \
       ${build_dir}/bin/${clientName} \
       ${build_dir}/bin/taosBenchmark \
+      ${build_dir}/bin/taosdump \
+      ${build_dir}/bin/TDinsight.sh \
       ${taostools_bin_files} \
       ${build_dir}/bin/taosadapter \
       ${build_dir}/bin/tarbitrator\
