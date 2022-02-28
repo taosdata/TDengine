@@ -325,6 +325,7 @@ static int32_t taosAddServerCfg(SConfig *pCfg) {
 static void taosSetClientLogCfg(SConfig *pCfg) {
   SConfigItem *pItem = cfgGetItem(pCfg, "logDir");
   tstrncpy(tsLogDir, cfgGetItem(pCfg, "logDir")->str, PATH_MAX);
+  taosExpandDir(tsLogDir, tsLogDir, PATH_MAX);
   tsLogSpace.reserved = cfgGetItem(pCfg, "minimalLogDirGB")->fval;
   tsNumOfLogLines = cfgGetItem(pCfg, "numOfLogLines")->i32;
   tsAsyncLog = cfgGetItem(pCfg, "asyncLog")->bval;
@@ -366,6 +367,7 @@ static void taosSetClientCfg(SConfig *pCfg) {
   cfgSetItem(pCfg, "secondEp", tsSecond, pSecondpItem->stype);
 
   tstrncpy(tsLogDir, cfgGetItem(pCfg, "tempDir")->str, PATH_MAX);
+  taosExpandDir(tsLogDir, tsLogDir, PATH_MAX);
   tsTempSpace.reserved = cfgGetItem(pCfg, "minimalTempDirGB")->fval;
 
   tsNumOfThreadsPerCore = cfgGetItem(pCfg, "maxTmrCtrl")->fval;
@@ -406,6 +408,8 @@ static void taosSetSystemCfg(SConfig *pCfg) {
 
 static void taosSetServerCfg(SConfig *pCfg) {
   tstrncpy(tsDataDir, cfgGetItem(pCfg, "dataDir")->str, PATH_MAX);
+  taosExpandDir(tsDataDir, tsDataDir, PATH_MAX);
+
   tsTempSpace.reserved = cfgGetItem(pCfg, "minimalDataDirGB")->fval;
   tsNumOfCommitThreads = cfgGetItem(pCfg, "numOfCommitThreads")->i32;
   tsRatioOfQueryCores = cfgGetItem(pCfg, "ratioOfQueryCores")->fval;
