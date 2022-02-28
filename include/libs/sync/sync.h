@@ -137,7 +137,9 @@ typedef struct SSyncInfo {
   SSyncCfg    syncCfg;
   char        path[TSDB_FILENAME_LEN];
   SSyncFSM*   pFsm;
-  int32_t (*FpSendMsg)(void* handle, const SEpSet* pEpSet, SRpcMsg* pMsg);
+
+  void* rpcClient;
+  int32_t (*FpSendMsg)(void* rpcClient, const SEpSet* pEpSet, SRpcMsg* pMsg);
 
 } SSyncInfo;
 

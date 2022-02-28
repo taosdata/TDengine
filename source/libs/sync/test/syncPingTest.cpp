@@ -18,6 +18,7 @@ SSyncNode* doSync() {
 
   SSyncInfo syncInfo;
   syncInfo.vgId = 1;
+  syncInfo.rpcClient = gSyncIO->clientRpc;
   syncInfo.FpSendMsg = syncIOSendMsg;
   syncInfo.pFsm = pFsm;
   snprintf(syncInfo.path, sizeof(syncInfo.path), "%s", "./test_sync_ping");

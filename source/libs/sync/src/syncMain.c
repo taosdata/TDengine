@@ -18,10 +18,14 @@
 #include "syncEnv.h"
 #include "syncInt.h"
 #include "syncRaft.h"
+#include "syncUtil.h"
 
 static int32_t tsNodeRefId = -1;
 
 // ------ local funciton ---------
+static int32_t doSyncNodeSendMsgById(SRaftId* destRaftId, struct SSyncNode* pSyncNode, SRpcMsg* pMsg);
+static int32_t doSyncNodeSendMsgByInfo(SNodeInfo* nodeInfo, struct SSyncNode* pSyncNode, SRpcMsg* pMsg);
+
 static int32_t doSyncNodePing(struct SSyncNode* ths, const SyncPing* pMsg);
 static int32_t onSyncNodePing(struct SSyncNode* ths, SyncPing* pMsg);
 static int32_t onSyncNodePingReply(struct SSyncNode* ths, SyncPingReply* pMsg);
@@ -68,7 +72,9 @@ SSyncNode* syncNodeOpen(const SSyncInfo* pSyncInfo) {
   pSyncNode->FpPingTimer = syncNodePingTimerCb;
   pSyncNode->pingTimerCounter = 0;
 
+  pSyncNode->rpcClient = pSyncInfo->rpcClient;
   pSyncNode->FpSendMsg = pSyncInfo->FpSendMsg;
+
   pSyncNode->FpOnPing = onSyncNodePing;
   pSyncNode->FpOnPingReply = onSyncNodePingReply;
   pSyncNode->FpOnRequestVote = onSyncNodeRequestVote;
@@ -84,7 +90,11 @@ void syncNodeClose(SSyncNode* pSyncNode) {
   free(pSyncNode);
 }
 
-void syncNodePingAll(SSyncNode* pSyncNode) { sTrace("syncNodePingAll %p ", pSyncNode); }
+void syncNodePingAll(SSyncNode* pSyncNode) {
+  sTrace("syncNodePingAll %p ", pSyncNode);
+  SyncPing msg;
+  doSyncNodePing(pSyncNode, &msg);
+}
 
 void syncNodePingPeers(SSyncNode* pSyncNode) {}
 
@@ -110,8 +120,30 @@ int32_t syncNodeStopPingTimer(SSyncNode* pSyncNode) {
 }
 
 // ------ local funciton ---------
+
+static int32_t doSyncNodeSendMsgById(SRaftId* destRaftId, struct SSyncNode* pSyncNode, SRpcMsg* pMsg) {
+  SEpSet epSet;
+  raftId2EpSet(destRaftId, &epSet);
+  pSyncNode->FpSendMsg(pSyncNode->rpcClient, &epSet, pMsg);
+  return 0;
+}
+
+static int32_t doSyncNodeSendMsgByInfo(SNodeInfo* nodeInfo, struct SSyncNode* pSyncNode, SRpcMsg* pMsg) {
+  SEpSet epSet;
+  nodeInfo2EpSet(nodeInfo, &epSet);
+
+  pSyncNode->FpSendMsg(pSyncNode->rpcClient, &epSet, pMsg);
+  return 0;
+}
+
 static int32_t doSyncNodePing(struct SSyncNode* ths, const SyncPing* pMsg) {
-  int32_t ret = 0;
+  int32_t ret;
+  for (int i = 0; i < ths->syncCfg.replicaNum; ++i) {
+    SRpcMsg* rpcMsg;
+    syncPing2RpcMsg(pMsg, rpcMsg);
+    doSyncNodeSendMsgByInfo(&ths->syncCfg.nodeInfo[i], ths, rpcMsg);
+  }
+
   return ret;
 }
 
@@ -167,6 +199,6 @@ static void syncNodePingTimerCb(void* param, void* tmrId) {
     taosTmrReset(syncNodePingTimerCb, pSyncNode->pingTimerMS, pSyncNode, &gSyncEnv->pTimerManager,
                  &pSyncNode->pPingTimer);
 
-    syncNodePingSelf(pSyncNode);
+    syncNodePingAll(pSyncNode);
   }
 }

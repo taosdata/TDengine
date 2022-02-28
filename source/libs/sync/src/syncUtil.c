@@ -13,42 +13,10 @@
  * along with this program. If not, see <http://www.gnu.org/licenses/>.
  */
 
-#ifndef _TD_LIBS_SYNC_ENV_H
-#define _TD_LIBS_SYNC_ENV_H
+#include "syncUtil.h"
 
-#ifdef __cplusplus
-extern "C" {
-#endif
+void nodeInfo2EpSet(const SNodeInfo* pNodeInfo, SEpSet* pEpSet) {}
 
-#include <stdint.h>
-#include <stdio.h>
-#include <stdlib.h>
-#include "syncInt.h"
-#include "taosdef.h"
-#include "trpc.h"
-#include "ttimer.h"
+void raftId2EpSet(const SRaftId* raftId, SEpSet* pEpSet) {}
 
-#define TIMER_MAX_MS 0x7FFFFFFF
-
-typedef struct SSyncEnv {
-  tmr_h pEnvTickTimer;
-  tmr_h pTimerManager;
-  char  name[128];
-
-} SSyncEnv;
-
-extern SSyncEnv* gSyncEnv;
-
-int32_t syncEnvStart();
-
-int32_t syncEnvStop();
-
-tmr_h syncEnvStartTimer(TAOS_TMR_CALLBACK fp, int mseconds, void* param);
-
-void syncEnvStopTimer(tmr_h* pTimer);
-
-#ifdef __cplusplus
-}
-#endif
-
-#endif /*_TD_LIBS_SYNC_ENV_H*/
+void syncPing2RpcMsg(const SyncPing* pMsg, SRpcMsg* pRpcMsg) {}

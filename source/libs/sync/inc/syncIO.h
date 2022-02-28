@@ -30,10 +30,10 @@ extern "C" {
 #include "trpc.h"
 
 typedef struct SSyncIO {
-  void       *serverRpc;
-  void       *clientRpc;
+  void *      serverRpc;
+  void *      clientRpc;
   STaosQueue *pMsgQ;
-  STaosQset  *pQset;
+  STaosQset * pQset;
   pthread_t   tid;
   int8_t      isStart;
 
