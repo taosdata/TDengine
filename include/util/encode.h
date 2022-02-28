@@ -16,7 +16,7 @@
 #ifndef _TD_UTIL_ENCODE_H_
 #define _TD_UTIL_ENCODE_H_
 
-#include "freelist.h"
+#include "tfreelist.h"
 #include "tcoding.h"
 #include "tmacro.h"
 
