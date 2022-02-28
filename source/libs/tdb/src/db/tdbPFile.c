@@ -109,14 +109,13 @@ SPage *tdbPFileGet(SPFile *pFile, SPgno pgno) {
   return pPage;
 }
 
-
 int tdbPFileWrite(SPFile *pFile, SPage *pPage) {
   // TODO: if the page is not in journal, write to journal
   // mark the page as dirty
   return 0;
 }
 
-int tdbPFileAllocPage(SPFile *pFile, SPage **ppPage) {
+int tdbPFileAllocPage(SPFile *pFile, SPage **ppPage, SPgno *ppgno) {
   SPage *pPage;
   SPgno  pgno;
 
@@ -125,10 +124,12 @@ int tdbPFileAllocPage(SPFile *pFile, SPage **ppPage) {
     pPage = tdbPFileGet(pFile, pgno);
     ASSERT(pPage != NULL);
   } else {
+    /* TODO: allocate from the free list */
     ASSERT(0);
   }
 
   *ppPage = pPage;
+  *ppgno = pgno;
   return 0;
 }
 

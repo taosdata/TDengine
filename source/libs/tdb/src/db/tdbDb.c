@@ -26,6 +26,7 @@ int tdbDbOpen(const char *fname, int keyLen, int valLen, FKeyComparator keyCmprF
   int     ret;
   char    fFullName[TDB_FILENAME_LEN];
   SPage * pPage;
+  SPgno   pgno;
 
   *ppDb = NULL;
 
@@ -50,7 +51,12 @@ int tdbDbOpen(const char *fname, int keyLen, int valLen, FKeyComparator keyCmprF
 
   // TODO: Search if the DB already in the file
   if (1 /*todo: db should be created*/) {
-    ret = tdbPFileAllocPage(pFile, &pPage);
+    ret = tdbPFileAllocPage(pFile, &pPage, &pgno);
+    if (ret < 0) {
+      return -1;
+    }
+
+    ret = tdbPFileWrite(pFile, pPage);
     if (ret < 0) {
       return -1;
     }

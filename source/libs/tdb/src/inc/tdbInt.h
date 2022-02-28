@@ -124,7 +124,10 @@ typedef TD_DLIST_NODE(SPgFile) SPgFileListNode;
 typedef int (*FKeyComparator)(const void *pKey1, int kLen1, const void *pKey2, int kLen2);
 
 #define TDB_JOURNAL_NAME "tdb.journal"
+
 #define TDB_FILENAME_LEN 128
+
+#define TDB_DEFAULT_FANOUT 6
 
 #include "tdbUtil.h"
 
