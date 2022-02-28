@@ -13,7 +13,7 @@
  * along with this program. If not, see <http://www.gnu.org/licenses/>.
  */
 
-#include "encode.h"
+#include "tencode.h"
 
 #if __STDC_VERSION__ >= 201112L
 static_assert(sizeof(float) == sizeof(uint32_t), "sizeof(float) must equal to sizeof(uint32_t)");

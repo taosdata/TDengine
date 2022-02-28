@@ -2,7 +2,7 @@
 
 #include "gtest/gtest.h"
 
-#include "encode.h"
+#include "tencode.h"
 
 #pragma GCC diagnostic push
 #pragma GCC diagnostic ignored "-Wshift-count-overflow"

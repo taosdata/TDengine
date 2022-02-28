@@ -16,8 +16,8 @@
 #ifndef _TD_UTIL_ENCODE_H_
 #define _TD_UTIL_ENCODE_H_
 
-#include "tfreelist.h"
 #include "tcoding.h"
+#include "tfreelist.h"
 #include "tmacro.h"
 
 #ifdef __cplusplus
@@ -71,11 +71,11 @@ typedef struct {
   TD_SLIST(SCoderNode) stack;
 } SCoder;
 
-#define TD_CODER_POS(CODER) ((CODER)->pos)
-#define TD_CODER_CURRENT(CODER) ((CODER)->data + (CODER)->pos)
-#define TD_CODER_MOVE_POS(CODER, MOVE) ((CODER)->pos += (MOVE))
+#define TD_CODER_POS(CODER)                            ((CODER)->pos)
+#define TD_CODER_CURRENT(CODER)                        ((CODER)->data + (CODER)->pos)
+#define TD_CODER_MOVE_POS(CODER, MOVE)                 ((CODER)->pos += (MOVE))
 #define TD_CODER_CHECK_CAPACITY_FAILED(CODER, EXPSIZE) (((CODER)->size - (CODER)->pos) < (EXPSIZE))
-#define TCODER_MALLOC(SIZE, CODER) TFL_MALLOC(SIZE, &((CODER)->fl))
+#define TCODER_MALLOC(SIZE, CODER)                     TFL_MALLOC(SIZE, &((CODER)->fl))
 
 void tCoderInit(SCoder* pCoder, td_endian_t endian, uint8_t* data, int32_t size, td_coder_t type);
 void tCoderClear(SCoder* pCoder);
