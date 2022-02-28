@@ -13,16 +13,17 @@
  * along with this program. If not, see <http://www.gnu.org/licenses/>.
  */
 
-#ifndef TDENGINE_TTSZIP_H
-#define TDENGINE_TTSZIP_H
+#ifndef _TD_COMMON_TTSZIP_H_
+#define _TD_COMMON_TTSZIP_H_
 
-#ifdef __cplusplus
-extern "C" {
-#endif
 
 #include "os.h"
 #include "tdef.h"
 #include "tvariant.h"
+
+#ifdef __cplusplus
+extern "C" {
+#endif
 
 #define MEM_BUF_SIZE (1 << 20)
 #define TS_COMP_FILE_MAGIC 0x87F5EC4C
@@ -144,4 +145,4 @@ bool tsBufIsValidElem(STSElem* pElem);
 }
 #endif
 
-#endif  // TDENGINE_TTSZIP_H
+#endif  // _TD_COMMON_TTSZIP_H_

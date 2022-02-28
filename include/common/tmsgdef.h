@@ -47,7 +47,7 @@ enum {
 #define TD_NEW_MSG_SEG(TYPE) TYPE##_NUM,
 #define TD_DEF_MSG_TYPE(TYPE, MSG, REQ, RSP)
 
-int tMsgDict[] = {
+int32_t tMsgDict[] = {
 
 #elif defined(TD_MSG_SEG_CODE_)
 
