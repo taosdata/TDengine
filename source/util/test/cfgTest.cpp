@@ -88,7 +88,6 @@ TEST_F(CfgTest, 02_Basic) {
         printf("index:%d, cfg:%s invalid cfg dtype:%d\n", size, pItem->name, pItem->dtype);
         break;
     }
-    size++;
   }
   EXPECT_EQ(cfgGetSize(pConfig), 6);
 
