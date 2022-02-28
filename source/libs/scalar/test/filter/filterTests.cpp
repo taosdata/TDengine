@@ -80,7 +80,7 @@ void flttMakeColRefNode(SNode **pNode, SSDataBlock **block, int32_t dataType, in
   SColumnNode *rnode = (SColumnNode *)node;
   rnode->node.resType.type = dataType;
   rnode->node.resType.bytes = dataBytes;
-  rnode->tupleId = 0;
+  rnode->dataBlockId = 0;
 
   if (NULL == block) {
     rnode->slotId = 2;

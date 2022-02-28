@@ -41,26 +41,26 @@ typedef enum ESyncMessageType {
 typedef struct SyncPing {
   ESyncMessageType   msgType;
   const SSyncBuffer *pData;
-} SyncPing;
+} SyncPing, RaftPing;
 
 typedef struct SyncPingReply {
   ESyncMessageType   msgType;
   const SSyncBuffer *pData;
-} SyncPingReply;
+} SyncPingReply, RaftPingReply;
 
 typedef struct SyncClientRequest {
   ESyncMessageType   msgType;
   const SSyncBuffer *pData;
   int64_t            seqNum;
   bool               isWeak;
-} SyncClientRequest;
+} SyncClientRequest, RaftClientRequest;
 
 typedef struct SyncClientRequestReply {
   ESyncMessageType   msgType;
   int32_t            errCode;
   const SSyncBuffer *pErrMsg;
   const SSyncBuffer *pLeaderHint;
-} SyncClientRequestReply;
+} SyncClientRequestReply, RaftClientRequestReply;
 
 typedef struct SyncRequestVote {
   ESyncMessageType msgType;
@@ -69,7 +69,7 @@ typedef struct SyncRequestVote {
   SyncGroupId      vgId;
   SyncIndex        lastLogIndex;
   SyncTerm         lastLogTerm;
-} SyncRequestVote;
+} SyncRequestVote, RaftRequestVote;
 
 typedef struct SyncRequestVoteReply {
   ESyncMessageType msgType;
@@ -77,7 +77,7 @@ typedef struct SyncRequestVoteReply {
   SyncNodeId       nodeId;
   SyncGroupId      vgId;
   bool             voteGranted;
-} SyncRequestVoteReply;
+} SyncRequestVoteReply, RaftRequestVoteReply;
 
 typedef struct SyncAppendEntries {
   ESyncMessageType msgType;
@@ -88,7 +88,7 @@ typedef struct SyncAppendEntries {
   int32_t          entryCount;
   SSyncRaftEntry * logEntries;
   SyncIndex        commitIndex;
-} SyncAppendEntries;
+} SyncAppendEntries, RaftAppendEntries;
 
 typedef struct SyncAppendEntriesReply {
   ESyncMessageType msgType;
@@ -96,7 +96,7 @@ typedef struct SyncAppendEntriesReply {
   SyncNodeId       nodeId;
   bool             success;
   SyncIndex        matchIndex;
-} SyncAppendEntriesReply;
+} SyncAppendEntriesReply, RaftAppendEntriesReply;
 
 #ifdef __cplusplus
 }

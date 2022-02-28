@@ -23,7 +23,11 @@ extern "C" {
 #include <stdint.h>
 #include <stdio.h>
 #include <stdlib.h>
+#include "sync.h"
 #include "taosdef.h"
+#include "tlog.h"
+
+extern int32_t sDebugFlag;
 
 #define sFatal(...)                                        \
   {                                                        \
@@ -62,15 +66,80 @@ extern "C" {
     }                                                \
   }
 
+struct SRaft;
+typedef struct SRaft SRaft;
+
+struct SyncPing;
+typedef struct SyncPing SyncPing;
+
+struct SyncPingReply;
+typedef struct SyncPingReply SyncPingReply;
+
+struct SyncRequestVote;
+typedef struct SyncRequestVote SyncRequestVote;
+
+struct SyncRequestVoteReply;
+typedef struct SyncRequestVoteReply SyncRequestVoteReply;
+
+struct SyncAppendEntries;
+typedef struct SyncAppendEntries SyncAppendEntries;
+
+struct SyncAppendEntriesReply;
+typedef struct SyncAppendEntriesReply SyncAppendEntriesReply;
+
 typedef struct SSyncNode {
-  char     path[TSDB_FILENAME_LEN];
-  int8_t   replica;
-  int8_t   quorum;
-  int8_t   selfIndex;
-  uint32_t vgId;
-  int32_t  refCount;
-  int64_t  rid;
+  int8_t replica;
+  int8_t quorum;
+
+  SyncGroupId vgId;
+  SSyncCfg    syncCfg;
+  char        path[TSDB_FILENAME_LEN];
+
+  SRaft* pRaft;
+
+  int32_t (*FpPing)(struct SSyncNode* ths, const SyncPing* pMsg);
+
+  int32_t (*FpOnPing)(struct SSyncNode* ths, SyncPing* pMsg);
+
+  int32_t (*FpOnPingReply)(struct SSyncNode* ths, SyncPingReply* pMsg);
+
+  int32_t (*FpRequestVote)(struct SSyncNode* ths, const SyncRequestVote* pMsg);
+
+  int32_t (*FpOnRequestVote)(struct SSyncNode* ths, SyncRequestVote* pMsg);
+
+  int32_t (*FpOnRequestVoteReply)(struct SSyncNode* ths, SyncRequestVoteReply* pMsg);
+
+  int32_t (*FpAppendEntries)(struct SSyncNode* ths, const SyncAppendEntries* pMsg);
+
+  int32_t (*FpOnAppendEntries)(struct SSyncNode* ths, SyncAppendEntries* pMsg);
+
+  int32_t (*FpOnAppendEntriesReply)(struct SSyncNode* ths, SyncAppendEntriesReply* pMsg);
+
+  int32_t (*FpSendMsg)(void* handle, const SEpSet* pEpSet, SRpcMsg* pMsg);
+
 } SSyncNode;
+
+SSyncNode* syncNodeOpen(const SSyncInfo* pSyncInfo);
+
+void syncNodeClose(SSyncNode* pSyncNode);
+
+static int32_t doSyncNodePing(struct SSyncNode* ths, const SyncPing* pMsg);
+
+static int32_t onSyncNodePing(struct SSyncNode* ths, SyncPing* pMsg);
+
+static int32_t onSyncNodePingReply(struct SSyncNode* ths, SyncPingReply* pMsg);
+
+static int32_t doSyncNodeRequestVote(struct SSyncNode* ths, const SyncRequestVote* pMsg);
+
+static int32_t onSyncNodeRequestVote(struct SSyncNode* ths, SyncRequestVote* pMsg);
+
+static int32_t onSyncNodeRequestVoteReply(struct SSyncNode* ths, SyncRequestVoteReply* pMsg);
+
+static int32_t doSyncNodeAppendEntries(struct SSyncNode* ths, const SyncAppendEntries* pMsg);
+
+static int32_t onSyncNodeAppendEntries(struct SSyncNode* ths, SyncAppendEntries* pMsg);
+
+static int32_t onSyncNodeAppendEntriesReply(struct SSyncNode* ths, SyncAppendEntriesReply* pMsg);
 
 #ifdef __cplusplus
 }

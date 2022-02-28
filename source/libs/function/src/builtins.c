@@ -30,6 +30,16 @@ const SBuiltinFuncDefinition funcMgtBuiltins[] = {
     .finalizeFunc = NULL
   },
   {
+    .name = "sum",
+    .type = FUNCTION_TYPE_SUM,
+    .classification = FUNC_MGT_AGG_FUNC,
+    .checkFunc = stubCheckAndGetResultType,
+    .getEnvFunc = NULL,
+    .initFunc = NULL,
+    .processFunc = NULL,
+    .finalizeFunc = NULL
+  },
+  {
     .name = "concat",
     .type = FUNCTION_TYPE_CONCAT,
     .classification = FUNC_MGT_SCALAR_FUNC | FUNC_MGT_STRING_FUNC,
