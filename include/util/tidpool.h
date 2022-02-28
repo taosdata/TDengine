@@ -13,31 +13,24 @@
  * along with this program. If not, see <http://www.gnu.org/licenses/>.
  */
 
-#ifndef _TD_UTIL_IDPOOL_H
-#define _TD_UTIL_IDPOOL_H
+#ifndef _TD_UTIL_IDPOOL_H_
+#define _TD_UTIL_IDPOOL_H_
 
 #ifdef __cplusplus
 extern "C" {
 #endif
 
-void *taosInitIdPool(int maxId);
-
-int taosUpdateIdPool(void *handle, int maxId);
-
-int taosIdPoolMaxSize(void *handle);
-
-int taosAllocateId(void *handle);
-
-void taosFreeId(void *handle, int id);
-
-void taosIdPoolCleanUp(void *handle);
-
-int taosIdPoolNumOfUsed(void *handle);
-
-bool taosIdPoolMarkStatus(void *handle, int id);
+void   *taosInitIdPool(int32_t maxId);
+int32_t taosUpdateIdPool(void *handle, int32_t maxId);
+int32_t taosIdPoolMaxSize(void *handle);
+int32_t taosAllocateId(void *handle);
+void    taosFreeId(void *handle, int32_t id);
+void    taosIdPoolCleanUp(void *handle);
+int32_t taosIdPoolNumOfUsed(void *handle);
+bool    taosIdPoolMarkStatus(void *handle, int32_t id);
 
 #ifdef __cplusplus
 }
 #endif
 
-#endif /*_TD_UTIL_IDPOOL_H*/
+#endif /*_TD_UTIL_IDPOOL_H_*/
