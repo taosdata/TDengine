@@ -61,7 +61,6 @@ typedef struct SExceptionNode {
   SCleanupAction*        cleanupActions;
 } SExceptionNode;
 
-////////////////////////////////////////////////////////////////////////////////
 // functions & macros for auto-cleanup
 
 void cleanupPush_void_ptr_ptr(bool failOnly, void* func, void* arg1, void* arg2);
@@ -92,7 +91,6 @@ bool    cleanupExceedLimit();
 #define CLEANUP_EXECUTE_TO(anchor, failed) cleanupExecuteTo((anchor), (failed))
 #define CLEANUP_EXCEED_LIMIT()             cleanupExceedLimit()
 
-////////////////////////////////////////////////////////////////////////////////
 // functions & macros for exception handling
 
 void    exceptionPushNode(SExceptionNode* node);
