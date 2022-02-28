@@ -15,7 +15,7 @@
 
 #include "os.h"
 #include "thash.h"
-#include "compare.h"
+#include "tcompare.h"
 #include "taos.h"
 #include "types.h"
 

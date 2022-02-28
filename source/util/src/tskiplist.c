@@ -14,7 +14,7 @@
  * along with this program. If not, see <http://www.gnu.org/licenses/>.
  */
 
-#include "compare.h"
+#include "tcompare.h"
 #include "tskiplist.h"
 #include "tutil.h"
 #include "tlog.h"

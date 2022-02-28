@@ -81,6 +81,11 @@ typedef uint16_t  VarDataLenT;  // maxVarDataLen: 32767
 
 typedef int32_t VarDataOffsetT;
 
+typedef struct tstr {
+  VarDataLenT len;
+  char        data[];
+} tstr;
+
 #ifdef __cplusplus
 }
 #endif

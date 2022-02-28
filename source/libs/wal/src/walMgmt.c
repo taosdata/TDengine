@@ -14,7 +14,7 @@
  */
 
 #define _DEFAULT_SOURCE
-#include "compare.h"
+#include "tcompare.h"
 #include "os.h"
 #include "taoserror.h"
 #include "tfile.h"

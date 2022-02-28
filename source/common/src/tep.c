@@ -1,5 +1,5 @@
 #include "tep.h"
-#include <compare.h>
+#include "tcompare.h"
 #include "common.h"
 #include "tglobal.h"
 #include "tlockfree.h"
