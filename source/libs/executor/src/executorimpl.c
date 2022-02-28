@@ -17,7 +17,7 @@
 
 #include "tep.h"
 #include "tsort.h"
-#include "exception.h"
+#include "texception.h"
 #include "parser.h"
 #include "tglobal.h"
 #include "tmsg.h"
