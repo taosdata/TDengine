@@ -59,7 +59,7 @@ static int32_t doSyncEnvStart(SSyncEnv *pSyncEnv) {
   // start tmr thread
   pSyncEnv->pTimerManager = taosTmrInit(1000, 50, 10000, "SYNC-ENV");
 
-  pSyncEnv->pEnvTickTimer = taosTmrStart(syncEnvTick, 1000, pSyncEnv, pSyncEnv->pTimerManager);
+  // pSyncEnv->pEnvTickTimer = taosTmrStart(syncEnvTick, 1000, pSyncEnv, pSyncEnv->pTimerManager);
 
   sTrace("SyncEnv start ok, name:%s", pSyncEnv->name);
 

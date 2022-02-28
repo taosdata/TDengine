@@ -88,6 +88,9 @@ typedef struct SyncAppendEntries SyncAppendEntries;
 struct SyncAppendEntriesReply;
 typedef struct SyncAppendEntriesReply SyncAppendEntriesReply;
 
+struct SSyncEnv;
+typedef struct SSyncEnv SSyncEnv;
+
 typedef struct SRaftId {
   SyncNodeId  addr;
   SyncGroupId vgId;
@@ -103,32 +106,46 @@ typedef struct SSyncNode {
   SSyncCfg    syncCfg;
   char        path[TSDB_FILENAME_LEN];
 
+  SNodeInfo me;
+  SNodeInfo peers[TSDB_MAX_REPLICA];
+  int32_t   peersNum;
+
   ESyncRole role;
   SRaftId   raftId;
   SSyncFSM* pFsm;
 
-  tmr_h pPingTimer;
-  tmr_h pElectionTimer;
-  tmr_h pHeartbeatTimer;
+  tmr_h             pPingTimer;
+  int32_t           pingTimerMS;
+  uint8_t           pingTimerStart;
+  TAOS_TMR_CALLBACK FpPingTimer;  // Timer Fp
+  uint64_t          pingTimerCounter;
 
-  int32_t (*FpPing)(struct SSyncNode* ths, const SyncPing* pMsg);
+  tmr_h             pElectTimer;
+  int32_t           electTimerMS;
+  uint8_t           electTimerStart;
+  TAOS_TMR_CALLBACK FpElectTimer;  // Timer Fp
+  uint64_t          electTimerCounter;
 
+  tmr_h             pHeartbeatTimer;
+  int32_t           heartbeatTimerMS;
+  uint8_t           heartbeatTimerStart;
+  TAOS_TMR_CALLBACK FpHeartbeatTimer;  // Timer Fp
+  uint64_t          heartbeatTimerCounter;
+
+  // callback
   int32_t (*FpOnPing)(struct SSyncNode* ths, SyncPing* pMsg);
 
   int32_t (*FpOnPingReply)(struct SSyncNode* ths, SyncPingReply* pMsg);
-
-  int32_t (*FpRequestVote)(struct SSyncNode* ths, const SyncRequestVote* pMsg);
 
   int32_t (*FpOnRequestVote)(struct SSyncNode* ths, SyncRequestVote* pMsg);
 
   int32_t (*FpOnRequestVoteReply)(struct SSyncNode* ths, SyncRequestVoteReply* pMsg);
 
-  int32_t (*FpAppendEntries)(struct SSyncNode* ths, const SyncAppendEntries* pMsg);
-
   int32_t (*FpOnAppendEntries)(struct SSyncNode* ths, SyncAppendEntries* pMsg);
 
   int32_t (*FpOnAppendEntriesReply)(struct SSyncNode* ths, SyncAppendEntriesReply* pMsg);
 
+  // passed from outside
   int32_t (*FpSendMsg)(void* handle, const SEpSet* pEpSet, SRpcMsg* pMsg);
 
 } SSyncNode;
@@ -142,6 +159,10 @@ void syncNodePingAll(SSyncNode* pSyncNode);
 void syncNodePingPeers(SSyncNode* pSyncNode);
 
 void syncNodePingSelf(SSyncNode* pSyncNode);
+
+int32_t syncNodeStartPingTimer(SSyncNode* pSyncNode);
+
+int32_t syncNodeStopPingTimer(SSyncNode* pSyncNode);
 
 #ifdef __cplusplus
 }

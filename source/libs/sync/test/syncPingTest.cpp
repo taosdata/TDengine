@@ -44,8 +44,8 @@ SSyncNode* doSync() {
   return pSyncNode;
 }
 
-void timerPingAll(void *param, void *tmrId) {
-  SSyncNode *pSyncNode = (SSyncNode*)param;
+void timerPingAll(void* param, void* tmrId) {
+  SSyncNode* pSyncNode = (SSyncNode*)param;
   syncNodePingAll(pSyncNode);
 }
 
@@ -64,7 +64,13 @@ int main() {
 
   SSyncNode* pSyncNode = doSync();
 
-  pSyncNode->pPingTimer = syncEnvStartTimer(timerPingAll, 1000, pSyncNode);
+  ret = syncNodeStartPingTimer(pSyncNode);
+  assert(ret == 0);
+
+  taosMsleep(5000);
+
+  ret = syncNodeStopPingTimer(pSyncNode);
+  assert(ret == 0);
 
   while (1) {
     taosMsleep(1000);

@@ -28,11 +28,15 @@ extern "C" {
 #include "trpc.h"
 #include "ttimer.h"
 
+#define TIMER_MAX_MS 0x7FFFFFFF
+
 typedef struct SSyncEnv {
   tmr_h pEnvTickTimer;
   tmr_h pTimerManager;
   char  name[128];
 } SSyncEnv;
+
+extern SSyncEnv *gSyncEnv;
 
 int32_t syncEnvStart();
 

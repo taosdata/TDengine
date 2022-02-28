@@ -23,17 +23,18 @@
 SSyncIO *gSyncIO = NULL;
 
 // local function ------------
-static void *syncConsumer(void *param);
-static int   retrieveAuthInfo(void *parent, char *meterId, char *spi, char *encrypt, char *secret, char *ckey);
-static void  processResponse(void *pParent, SRpcMsg *pMsg, SEpSet *pEpSet);
-static void  processRequestMsg(void *pParent, SRpcMsg *pMsg, SEpSet *pEpSet);
-static void  syncTick(void *param, void *tmrId);
-
 static int32_t doSyncIOStart(SSyncIO *io);
 static int32_t doSyncIOStop(SSyncIO *io);
 static int32_t doSyncIOPing(SSyncIO *io);
 static int32_t doSyncIOOnMsg(struct SSyncIO *io, void *pParent, SRpcMsg *pMsg, SEpSet *pEpSet);
 static int32_t doSyncIODestroy(SSyncIO *io);
+
+static SSyncIO *syncIOCreate();
+static void *   syncIOConsumer(void *param);
+static int      syncIOAuth(void *parent, char *meterId, char *spi, char *encrypt, char *secret, char *ckey);
+static void     syncIODoReply(void *pParent, SRpcMsg *pMsg, SEpSet *pEpSet);
+static void     syncIODoRequest(void *pParent, SRpcMsg *pMsg, SEpSet *pEpSet);
+static void     syncIOTick(void *param, void *tmrId);
 // ----------------------------
 
 int32_t syncIOSendMsg(void *handle, const SEpSet *pEpSet, SRpcMsg *pMsg) { return 0; }
@@ -47,27 +48,10 @@ int32_t syncIOStart() {
 
 int32_t syncIOStop() { return 0; }
 
-SSyncIO *syncIOCreate() {
-  SSyncIO *io = (SSyncIO *)malloc(sizeof(SSyncIO));
-  memset(io, 0, sizeof(*io));
-
-  io->pMsgQ = taosOpenQueue();
-  io->pQset = taosOpenQset();
-  taosAddIntoQset(io->pQset, io->pMsgQ, NULL);
-
-  io->start = doSyncIOStart;
-  io->stop = doSyncIOStop;
-  io->ping = doSyncIOPing;
-  io->onMsg = doSyncIOOnMsg;
-  io->destroy = doSyncIODestroy;
-
-  return io;
-}
-
 // local function ------------
-static void syncTick(void *param, void *tmrId) {
+static void syncIOTick(void *param, void *tmrId) {
   SSyncIO *io = (SSyncIO *)param;
-  sDebug("syncTick ... ");
+  sDebug("syncIOTick ... ");
 
   SRpcMsg rpcMsg;
   rpcMsg.pCont = rpcMallocCont(10);
@@ -83,15 +67,15 @@ static void syncTick(void *param, void *tmrId) {
 
   taosWriteQitem(io->pMsgQ, pTemp);
 
-  bool b = taosTmrReset(syncTick, 1000, io, io->syncTimerManager, io->syncTimer);
+  bool b = taosTmrReset(syncIOTick, 1000, io, io->syncTimerManager, io->syncTimer);
   assert(b);
 }
 
-static void *syncConsumer(void *param) {
+static void *syncIOConsumer(void *param) {
   SSyncIO *io = param;
 
   STaosQall *qall;
-  SRpcMsg   *pRpcMsg, rpcMsg;
+  SRpcMsg *  pRpcMsg, rpcMsg;
   int        type;
 
   qall = taosAllocateQall();
@@ -129,19 +113,19 @@ static void *syncConsumer(void *param) {
   return NULL;
 }
 
-static int retrieveAuthInfo(void *parent, char *meterId, char *spi, char *encrypt, char *secret, char *ckey) {
+static int syncIOAuth(void *parent, char *meterId, char *spi, char *encrypt, char *secret, char *ckey) {
   // app shall retrieve the auth info based on meterID from DB or a data file
   // demo code here only for simple demo
   int ret = 0;
   return ret;
 }
 
-static void processResponse(void *pParent, SRpcMsg *pMsg, SEpSet *pEpSet) {
-  sDebug("processResponse ... ");
+static void syncIODoReply(void *pParent, SRpcMsg *pMsg, SEpSet *pEpSet) {
+  sDebug("syncIODoReply ... ");
   rpcFreeCont(pMsg->pCont);
 }
 
-static void processRequestMsg(void *pParent, SRpcMsg *pMsg, SEpSet *pEpSet) {
+static void syncIODoRequest(void *pParent, SRpcMsg *pMsg, SEpSet *pEpSet) {
   SSyncIO *io = pParent;
   SRpcMsg *pTemp;
 
@@ -150,6 +134,23 @@ static void processRequestMsg(void *pParent, SRpcMsg *pMsg, SEpSet *pEpSet) {
 
   sDebug("request is received, type:%d, contLen:%d, item:%p", pMsg->msgType, pMsg->contLen, pTemp);
   taosWriteQitem(io->pMsgQ, pTemp);
+}
+
+static SSyncIO *syncIOCreate() {
+  SSyncIO *io = (SSyncIO *)malloc(sizeof(SSyncIO));
+  memset(io, 0, sizeof(*io));
+
+  io->pMsgQ = taosOpenQueue();
+  io->pQset = taosOpenQset();
+  taosAddIntoQset(io->pQset, io->pMsgQ, NULL);
+
+  io->start = doSyncIOStart;
+  io->stop = doSyncIOStop;
+  io->ping = doSyncIOPing;
+  io->onMsg = doSyncIOOnMsg;
+  io->destroy = doSyncIODestroy;
+
+  return io;
 }
 
 static int32_t doSyncIOStart(SSyncIO *io) {
@@ -164,7 +165,7 @@ static int32_t doSyncIOStart(SSyncIO *io) {
     rpcInit.localPort = 0;
     rpcInit.label = "SYNC-IO-CLIENT";
     rpcInit.numOfThreads = 1;
-    rpcInit.cfp = processResponse;
+    rpcInit.cfp = syncIODoReply;
     rpcInit.sessions = 100;
     rpcInit.idleTime = 100;
     rpcInit.user = "sync-io";
@@ -187,10 +188,10 @@ static int32_t doSyncIOStart(SSyncIO *io) {
     rpcInit.localPort = 38000;
     rpcInit.label = "SYNC-IO-SERVER";
     rpcInit.numOfThreads = 1;
-    rpcInit.cfp = processRequestMsg;
+    rpcInit.cfp = syncIODoRequest;
     rpcInit.sessions = 1000;
     rpcInit.idleTime = 2 * 1500;
-    rpcInit.afp = retrieveAuthInfo;
+    rpcInit.afp = syncIOAuth;
     rpcInit.parent = io;
     rpcInit.connType = TAOS_CONN_SERVER;
 
@@ -206,7 +207,7 @@ static int32_t doSyncIOStart(SSyncIO *io) {
 
   // start consumer thread
   {
-    if (pthread_create(&io->tid, NULL, syncConsumer, io) != 0) {
+    if (pthread_create(&io->tid, NULL, syncIOConsumer, io) != 0) {
       sError("failed to create sync consumer thread since %s", strerror(errno));
       terrno = TAOS_SYSTEM_ERROR(errno);
       return -1;
@@ -215,7 +216,7 @@ static int32_t doSyncIOStart(SSyncIO *io) {
 
   // start tmr thread
   io->syncTimerManager = taosTmrInit(1000, 50, 10000, "SYNC");
-  io->syncTimer = taosTmrStart(syncTick, 1000, io, io->syncTimerManager);
+  io->syncTimer = taosTmrStart(syncIOTick, 1000, io, io->syncTimerManager);
 
   return 0;
 }

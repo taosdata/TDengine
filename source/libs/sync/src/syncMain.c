@@ -15,6 +15,7 @@
 
 #include <stdint.h>
 #include "sync.h"
+#include "syncEnv.h"
 #include "syncInt.h"
 #include "syncRaft.h"
 
@@ -30,6 +31,7 @@ static int32_t onSyncNodeRequestVoteReply(struct SSyncNode* ths, SyncRequestVote
 static int32_t doSyncNodeAppendEntries(struct SSyncNode* ths, const SyncAppendEntries* pMsg);
 static int32_t onSyncNodeAppendEntries(struct SSyncNode* ths, SyncAppendEntries* pMsg);
 static int32_t onSyncNodeAppendEntriesReply(struct SSyncNode* ths, SyncAppendEntriesReply* pMsg);
+static void    syncNodePingTimerCb(void* param, void* tmrId);
 // ---------------------------------
 
 int32_t syncInit() {
@@ -58,16 +60,19 @@ void syncGetNodesRole(int64_t rid, SNodesRole* pNodeRole) {}
 SSyncNode* syncNodeOpen(const SSyncInfo* pSyncInfo) {
   SSyncNode* pSyncNode = (SSyncNode*)malloc(sizeof(SSyncNode));
   assert(pSyncNode != NULL);
+  memset(pSyncNode, 0, sizeof(SSyncNode));
+
+  pSyncNode->pPingTimer = NULL;
+  pSyncNode->pingTimerMS = 1000;
+  atomic_store_8(&pSyncNode->pingTimerStart, 0);
+  pSyncNode->FpPingTimer = syncNodePingTimerCb;
+  pSyncNode->pingTimerCounter = 0;
 
   pSyncNode->FpSendMsg = pSyncInfo->FpSendMsg;
-
-  pSyncNode->FpPing = doSyncNodePing;
   pSyncNode->FpOnPing = onSyncNodePing;
   pSyncNode->FpOnPingReply = onSyncNodePingReply;
-  pSyncNode->FpRequestVote = doSyncNodeRequestVote;
   pSyncNode->FpOnRequestVote = onSyncNodeRequestVote;
   pSyncNode->FpOnRequestVoteReply = onSyncNodeRequestVoteReply;
-  pSyncNode->FpAppendEntries = doSyncNodeAppendEntries;
   pSyncNode->FpOnAppendEntries = onSyncNodeAppendEntries;
   pSyncNode->FpOnAppendEntriesReply = onSyncNodeAppendEntriesReply;
 
@@ -84,6 +89,25 @@ void syncNodePingAll(SSyncNode* pSyncNode) { sTrace("syncNodePingAll %p ", pSync
 void syncNodePingPeers(SSyncNode* pSyncNode) {}
 
 void syncNodePingSelf(SSyncNode* pSyncNode) {}
+
+int32_t syncNodeStartPingTimer(SSyncNode* pSyncNode) {
+  if (pSyncNode->pPingTimer == NULL) {
+    pSyncNode->pPingTimer =
+        taosTmrStart(pSyncNode->FpPingTimer, pSyncNode->pingTimerCounter, pSyncNode, gSyncEnv->pTimerManager);
+  } else {
+    taosTmrReset(pSyncNode->FpPingTimer, pSyncNode->pingTimerCounter, pSyncNode, gSyncEnv->pTimerManager,
+                 &pSyncNode->pPingTimer);
+  }
+
+  atomic_store_8(&pSyncNode->pingTimerStart, 1);
+  return 0;
+}
+
+int32_t syncNodeStopPingTimer(SSyncNode* pSyncNode) {
+  atomic_store_8(&pSyncNode->pingTimerStart, 0);
+  pSyncNode->pingTimerCounter = TIMER_MAX_MS;
+  return 0;
+}
 
 // ------ local funciton ---------
 static int32_t doSyncNodePing(struct SSyncNode* ths, const SyncPing* pMsg) {
@@ -129,4 +153,20 @@ static int32_t onSyncNodeAppendEntries(struct SSyncNode* ths, SyncAppendEntries*
 static int32_t onSyncNodeAppendEntriesReply(struct SSyncNode* ths, SyncAppendEntriesReply* pMsg) {
   int32_t ret = 0;
   return ret;
+}
+
+static void syncNodePingTimerCb(void* param, void* tmrId) {
+  SSyncNode* pSyncNode = (SSyncNode*)param;
+  if (atomic_load_8(&pSyncNode->pingTimerStart)) {
+    ++(pSyncNode->pingTimerCounter);
+    // pSyncNode->pingTimerMS += 100;
+
+    sTrace("pSyncNode->pingTimerCounter:%lu, pSyncNode->pingTimerMS:%d, pSyncNode->pPingTimer:%p, tmrId:%p ",
+           pSyncNode->pingTimerCounter, pSyncNode->pingTimerMS, pSyncNode->pPingTimer, tmrId);
+
+    taosTmrReset(syncNodePingTimerCb, pSyncNode->pingTimerMS, pSyncNode, &gSyncEnv->pTimerManager,
+                 &pSyncNode->pPingTimer);
+
+    syncNodePingSelf(pSyncNode);
+  }
 }
