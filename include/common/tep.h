@@ -101,6 +101,7 @@ size_t blockDataNumOfRowsForSerialize(const SSDataBlock* pBlock, int32_t blockSi
 int32_t blockDataSort(SSDataBlock* pDataBlock, SArray* pOrderInfo, bool nullFirst);
 int32_t blockDataSort_rv(SSDataBlock* pDataBlock, SArray* pOrderInfo, bool nullFirst);
 
+int32_t blockDataEnsureColumnCapacity(SColumnInfoData* pColumn, uint32_t numOfRows);
 int32_t blockDataEnsureCapacity(SSDataBlock* pDataBlock, uint32_t numOfRows);
 void    blockDataClearup(SSDataBlock* pDataBlock, bool hasVarCol);
 void   *blockDataDestroy(SSDataBlock *pBlock);

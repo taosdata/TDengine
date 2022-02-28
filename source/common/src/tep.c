@@ -120,14 +120,18 @@ int32_t colDataAppend(SColumnInfoData* pColumnInfoData, uint32_t currentRow, con
   } else {
     char* p = pColumnInfoData->pData + pColumnInfoData->info.bytes * currentRow;
     switch(type) {
+      case TSDB_DATA_TYPE_BOOL: {*(bool*) p = *(bool*) pData;break;}
       case TSDB_DATA_TYPE_TINYINT:
       case TSDB_DATA_TYPE_UTINYINT: {*(int8_t*) p = *(int8_t*) pData;break;}
       case TSDB_DATA_TYPE_SMALLINT:
       case TSDB_DATA_TYPE_USMALLINT: {*(int16_t*) p = *(int16_t*) pData;break;}
       case TSDB_DATA_TYPE_INT:
       case TSDB_DATA_TYPE_UINT: {*(int32_t*) p = *(int32_t*) pData;break;}
+      case TSDB_DATA_TYPE_TIMESTAMP:
       case TSDB_DATA_TYPE_BIGINT:
       case TSDB_DATA_TYPE_UBIGINT: {*(int64_t*) p = *(int64_t*) pData;break;}
+      case TSDB_DATA_TYPE_FLOAT: {*(float*) p = *(float*) pData;break;}
+      case TSDB_DATA_TYPE_DOUBLE: {*(double*) p = *(double*) pData;break;}
       default:
         assert(0);
     }
@@ -1040,36 +1044,47 @@ void blockDataClearup(SSDataBlock* pDataBlock, bool hasVarCol) {
   }
 }
 
+int32_t blockDataEnsureColumnCapacity(SColumnInfoData* pColumn, uint32_t numOfRows) {
+  if (IS_VAR_DATA_TYPE(pColumn->info.type)) {
+    char* tmp = realloc(pColumn->varmeta.offset, sizeof(int32_t) * numOfRows);
+    if (tmp == NULL) {
+      return TSDB_CODE_OUT_OF_MEMORY;
+    }
+
+    pColumn->varmeta.offset = (int32_t*)tmp;
+    memset(pColumn->varmeta.offset, 0, sizeof(int32_t) * numOfRows);
+
+    pColumn->varmeta.length = 0;
+    pColumn->varmeta.allocLen = 0;
+    tfree(pColumn->pData);
+  } else {
+    char* tmp = realloc(pColumn->nullbitmap, BitmapLen(numOfRows));
+    if (tmp == NULL) {
+      return TSDB_CODE_OUT_OF_MEMORY;
+    }
+
+    pColumn->nullbitmap = tmp;
+    memset(pColumn->nullbitmap, 0, BitmapLen(numOfRows));
+
+    tmp = realloc(pColumn->pData, numOfRows * pColumn->info.bytes);
+    if (tmp == NULL) {
+      return TSDB_CODE_OUT_OF_MEMORY;
+    }
+
+    pColumn->pData = tmp;
+  }
+
+  return TSDB_CODE_SUCCESS;
+}
+
 int32_t blockDataEnsureCapacity(SSDataBlock* pDataBlock, uint32_t numOfRows) {
+  int32_t code = 0;
+  
   for(int32_t i = 0; i < pDataBlock->info.numOfCols; ++i) {
     SColumnInfoData* p = taosArrayGet(pDataBlock->pDataBlock, i);
-    if (IS_VAR_DATA_TYPE(p->info.type)) {
-      char* tmp = realloc(p->varmeta.offset, sizeof(int32_t) * numOfRows);
-      if (tmp == NULL) {
-        return TSDB_CODE_OUT_OF_MEMORY;
-      }
-
-      p->varmeta.offset = (int32_t*)tmp;
-      memset(p->varmeta.offset, 0, sizeof(int32_t) * numOfRows);
-
-      p->varmeta.length = 0;
-      p->varmeta.allocLen = 0;
-      tfree(p->pData);
-    } else {
-      char* tmp = realloc(p->nullbitmap, BitmapLen(numOfRows));
-      if (tmp == NULL) {
-        return TSDB_CODE_OUT_OF_MEMORY;
-      }
-
-      p->nullbitmap = tmp;
-      memset(p->nullbitmap, 0, BitmapLen(numOfRows));
-
-      tmp = realloc(p->pData, numOfRows * p->info.bytes);
-      if (tmp == NULL) {
-        return TSDB_CODE_OUT_OF_MEMORY;
-      }
-
-      p->pData = tmp;
+    code = blockDataEnsureColumnCapacity(p, numOfRows);
+    if (code) {
+      return code;
     }
   }
 

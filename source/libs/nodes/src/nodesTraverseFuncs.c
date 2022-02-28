@@ -105,6 +105,9 @@ static EDealRes walkNode(SNode* pNode, ETraversalOrder order, FNodeWalker walker
     case QUERY_NODE_RAW_EXPR:
       res = walkNode(((SRawExprNode*)pNode)->pNode, order, walker, pContext);
       break;
+    case QUERY_NODE_TARGET:
+      res = walkNode(((STargetNode*)pNode)->pExpr, order, walker, pContext);
+      break;
     default:
       break;
   }

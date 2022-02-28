@@ -142,9 +142,13 @@ int32_t sclInitParam(SNode* node, SScalarParam *param, SScalarCtx *ctx, int32_t 
     case QUERY_NODE_VALUE: {
       SValueNode *valueNode = (SValueNode *)node;
       param->data = nodesGetValueFromNode(valueNode);
+      param->orig.data = param->data;
       param->num = 1;
       param->type = valueNode->node.resType.type;
       param->bytes = valueNode->node.resType.bytes;
+      if (TSDB_DATA_TYPE_NULL == param->type) {
+        sclSetNull(param, 0);
+      }
       param->dataInBlock = false;
       
       break;
@@ -178,12 +182,12 @@ int32_t sclInitParam(SNode* node, SScalarParam *param, SScalarCtx *ctx, int32_t 
       }
       
       SColumnNode *ref = (SColumnNode *)node;
-      if (ref->tupleId >= taosArrayGetSize(ctx->pBlockList)) {
-        sclError("column tupleId is too big, tupleId:%d, dataBlockNum:%d", ref->tupleId, (int32_t)taosArrayGetSize(ctx->pBlockList));
+      if (ref->dataBlockId >= taosArrayGetSize(ctx->pBlockList)) {
+        sclError("column tupleId is too big, tupleId:%d, dataBlockNum:%d", ref->dataBlockId, (int32_t)taosArrayGetSize(ctx->pBlockList));
         SCL_ERR_RET(TSDB_CODE_QRY_INVALID_INPUT);
       }
 
-      SSDataBlock *block = *(SSDataBlock **)taosArrayGet(ctx->pBlockList, ref->tupleId);
+      SSDataBlock *block = *(SSDataBlock **)taosArrayGet(ctx->pBlockList, ref->dataBlockId);
       
       if (NULL == block || ref->slotId >= taosArrayGetSize(block->pDataBlock)) {
         sclError("column slotId is too big, slodId:%d, dataBlockSize:%d", ref->slotId, (int32_t)taosArrayGetSize(block->pDataBlock));
@@ -639,15 +643,15 @@ EDealRes sclWalkOperator(SNode* pNode, SScalarCtx *ctx) {
 EDealRes sclWalkTarget(SNode* pNode, SScalarCtx *ctx) {
   STargetNode *target = (STargetNode *)pNode;
   
-  if (target->tupleId >= taosArrayGetSize(ctx->pBlockList)) {
-    sclError("target tupleId is too big, tupleId:%d, dataBlockNum:%d", target->tupleId, (int32_t)taosArrayGetSize(ctx->pBlockList));
+  if (target->dataBlockId >= taosArrayGetSize(ctx->pBlockList)) {
+    sclError("target tupleId is too big, tupleId:%d, dataBlockNum:%d", target->dataBlockId, (int32_t)taosArrayGetSize(ctx->pBlockList));
     ctx->code = TSDB_CODE_QRY_INVALID_INPUT;
     return DEAL_RES_ERROR;
   }
 
-  SSDataBlock *block = taosArrayGet(ctx->pBlockList, target->tupleId);
+  SSDataBlock *block = *(SSDataBlock **)taosArrayGet(ctx->pBlockList, target->dataBlockId);
   if (target->slotId >= taosArrayGetSize(block->pDataBlock)) {
-    sclError("target slot not exist, slotId:%d, dataBlockNum:%d", target->slotId, (int32_t)taosArrayGetSize(block->pDataBlock));
+    sclError("target slot not exist, dataBlockId:%d, slotId:%d, dataBlockNum:%d", target->dataBlockId, target->slotId, (int32_t)taosArrayGetSize(block->pDataBlock));
     ctx->code = TSDB_CODE_QRY_INVALID_INPUT;
     return DEAL_RES_ERROR;
   }
@@ -734,7 +738,7 @@ _return:
 }
 
 int32_t scalarCalculate(SNode *pNode, SArray *pBlockList, SScalarParam *pDst) {
-  if (NULL == pNode || NULL == pBlockList || NULL == pDst) {
+  if (NULL == pNode || NULL == pBlockList) {
     SCL_ERR_RET(TSDB_CODE_QRY_INVALID_INPUT);
   }
 
@@ -751,15 +755,17 @@ int32_t scalarCalculate(SNode *pNode, SArray *pBlockList, SScalarParam *pDst) {
 
   SCL_ERR_JRET(ctx.code);
 
-  SScalarParam *res = (SScalarParam *)taosHashGet(ctx.pRes, (void *)&pNode, POINTER_BYTES);
-  if (NULL == res) {
-    sclError("no valid res in hash, node:%p, type:%d", pNode, nodeType(pNode));
-    SCL_ERR_JRET(TSDB_CODE_QRY_APP_ERROR);
+  if (pDst) {
+    SScalarParam *res = (SScalarParam *)taosHashGet(ctx.pRes, (void *)&pNode, POINTER_BYTES);
+    if (NULL == res) {
+      sclError("no valid res in hash, node:%p, type:%d", pNode, nodeType(pNode));
+      SCL_ERR_JRET(TSDB_CODE_QRY_APP_ERROR);
+    }
+    
+    taosHashRemove(ctx.pRes, (void *)&pNode, POINTER_BYTES);
+    
+    *pDst = *res;
   }
-  
-  taosHashRemove(ctx.pRes, (void *)&pNode, POINTER_BYTES);
-  
-  *pDst = *res;
 
 _return:
   
