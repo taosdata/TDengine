@@ -18,23 +18,21 @@
 
 // to complie success: FileIO interface is modified
 
-SRaftStore *raftStoreOpen(const char *path) { return NULL;}
+SRaftStore *raftStoreOpen(const char *path) { return NULL; }
 
-static int32_t raftStoreInit(SRaftStore *pRaftStore) { return 0;}
+static int32_t raftStoreInit(SRaftStore *pRaftStore) { return 0; }
 
-int32_t raftStoreClose(SRaftStore *pRaftStore) { return 0;}
+int32_t raftStoreClose(SRaftStore *pRaftStore) { return 0; }
 
-int32_t raftStorePersist(SRaftStore *pRaftStore) { return 0;}
+int32_t raftStorePersist(SRaftStore *pRaftStore) { return 0; }
 
-static bool raftStoreFileExist(char *path) { return 0;}
+static bool raftStoreFileExist(char *path) { return 0; }
 
-int32_t raftStoreSerialize(SRaftStore *pRaftStore, char *buf, size_t len) { return 0;}
+int32_t raftStoreSerialize(SRaftStore *pRaftStore, char *buf, size_t len) { return 0; }
 
-int32_t raftStoreDeserialize(SRaftStore *pRaftStore, char *buf, size_t len) { return 0;}
+int32_t raftStoreDeserialize(SRaftStore *pRaftStore, char *buf, size_t len) { return 0; }
 
 void raftStorePrint(SRaftStore *pRaftStore) {}
-
-
 
 #if 0
 

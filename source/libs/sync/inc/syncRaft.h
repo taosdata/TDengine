@@ -27,6 +27,8 @@ extern "C" {
 #include "syncMessage.h"
 #include "taosdef.h"
 
+#if 0
+
 typedef struct SRaftId {
   SyncNodeId  addr;
   SyncGroupId vgId;
@@ -81,6 +83,8 @@ static int32_t onRaftAppendEntriesReply(struct SRaft* ths, RaftAppendEntriesRepl
 int32_t raftPropose(SRaft* pRaft, const SSyncBuffer* pBuf, bool isWeak);
 
 static int raftSendMsg(SRaftId destRaftId, const void* pMsg, const SRaft* pRaft);
+
+#endif
 
 #ifdef __cplusplus
 }

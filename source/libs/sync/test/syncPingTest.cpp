@@ -13,7 +13,7 @@ void logTest() {
   sFatal("--- sync log test: fatal");
 }
 
-void doSync() {
+SSyncNode* doSync() {
   SSyncFSM* pFsm;
 
   SSyncInfo syncInfo;
@@ -40,10 +40,17 @@ void doSync() {
 
   gSyncIO->FpOnPing = pSyncNode->FpOnPing;
   gSyncIO->pSyncNode = pSyncNode;
+
+  return pSyncNode;
+}
+
+void timerPingAll(void *param, void *tmrId) {
+  SSyncNode *pSyncNode = (SSyncNode*)param;
+  syncNodePingAll(pSyncNode);
 }
 
 int main() {
-  //taosInitLog((char*)"syncPingTest.log", 100000, 10);
+  // taosInitLog((char*)"syncPingTest.log", 100000, 10);
   tsAsyncLog = 0;
   sDebugFlag = 143 + 64;
 
@@ -55,7 +62,9 @@ int main() {
   ret = syncEnvStart();
   assert(ret == 0);
 
-  doSync();
+  SSyncNode* pSyncNode = doSync();
+
+  pSyncNode->pPingTimer = syncEnvStartTimer(timerPingAll, 1000, pSyncNode);
 
   while (1) {
     taosMsleep(1000);

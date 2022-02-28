@@ -26,6 +26,7 @@ extern "C" {
 #include "sync.h"
 #include "taosdef.h"
 #include "tlog.h"
+#include "ttimer.h"
 
 extern int32_t sDebugFlag;
 
@@ -87,15 +88,28 @@ typedef struct SyncAppendEntries SyncAppendEntries;
 struct SyncAppendEntriesReply;
 typedef struct SyncAppendEntriesReply SyncAppendEntriesReply;
 
+typedef struct SRaftId {
+  SyncNodeId  addr;
+  SyncGroupId vgId;
+} SRaftId;
+
 typedef struct SSyncNode {
-  int8_t replica;
-  int8_t quorum;
+  int8_t  replica;
+  int8_t  quorum;
+  int32_t refCount;
+  int64_t rid;
 
   SyncGroupId vgId;
   SSyncCfg    syncCfg;
   char        path[TSDB_FILENAME_LEN];
 
-  SRaft* pRaft;
+  ESyncRole role;
+  SRaftId   raftId;
+  SSyncFSM* pFsm;
+
+  tmr_h pPingTimer;
+  tmr_h pElectionTimer;
+  tmr_h pHeartbeatTimer;
 
   int32_t (*FpPing)(struct SSyncNode* ths, const SyncPing* pMsg);
 
@@ -123,23 +137,11 @@ SSyncNode* syncNodeOpen(const SSyncInfo* pSyncInfo);
 
 void syncNodeClose(SSyncNode* pSyncNode);
 
-static int32_t doSyncNodePing(struct SSyncNode* ths, const SyncPing* pMsg);
+void syncNodePingAll(SSyncNode* pSyncNode);
 
-static int32_t onSyncNodePing(struct SSyncNode* ths, SyncPing* pMsg);
+void syncNodePingPeers(SSyncNode* pSyncNode);
 
-static int32_t onSyncNodePingReply(struct SSyncNode* ths, SyncPingReply* pMsg);
-
-static int32_t doSyncNodeRequestVote(struct SSyncNode* ths, const SyncRequestVote* pMsg);
-
-static int32_t onSyncNodeRequestVote(struct SSyncNode* ths, SyncRequestVote* pMsg);
-
-static int32_t onSyncNodeRequestVoteReply(struct SSyncNode* ths, SyncRequestVoteReply* pMsg);
-
-static int32_t doSyncNodeAppendEntries(struct SSyncNode* ths, const SyncAppendEntries* pMsg);
-
-static int32_t onSyncNodeAppendEntries(struct SSyncNode* ths, SyncAppendEntries* pMsg);
-
-static int32_t onSyncNodeAppendEntriesReply(struct SSyncNode* ths, SyncAppendEntriesReply* pMsg);
+void syncNodePingSelf(SSyncNode* pSyncNode);
 
 #ifdef __cplusplus
 }

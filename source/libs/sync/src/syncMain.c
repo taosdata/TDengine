@@ -18,9 +18,26 @@
 #include "syncInt.h"
 #include "syncRaft.h"
 
-int32_t syncInit() { return 0; }
+static int32_t tsNodeRefId = -1;
 
-void syncCleanUp() {}
+// ------ local funciton ---------
+static int32_t doSyncNodePing(struct SSyncNode* ths, const SyncPing* pMsg);
+static int32_t onSyncNodePing(struct SSyncNode* ths, SyncPing* pMsg);
+static int32_t onSyncNodePingReply(struct SSyncNode* ths, SyncPingReply* pMsg);
+static int32_t doSyncNodeRequestVote(struct SSyncNode* ths, const SyncRequestVote* pMsg);
+static int32_t onSyncNodeRequestVote(struct SSyncNode* ths, SyncRequestVote* pMsg);
+static int32_t onSyncNodeRequestVoteReply(struct SSyncNode* ths, SyncRequestVoteReply* pMsg);
+static int32_t doSyncNodeAppendEntries(struct SSyncNode* ths, const SyncAppendEntries* pMsg);
+static int32_t onSyncNodeAppendEntries(struct SSyncNode* ths, SyncAppendEntries* pMsg);
+static int32_t onSyncNodeAppendEntriesReply(struct SSyncNode* ths, SyncAppendEntriesReply* pMsg);
+// ---------------------------------
+
+int32_t syncInit() {
+  sTrace("syncInit ok");
+  return 0;
+}
+
+void syncCleanUp() { sTrace("syncCleanUp ok"); }
 
 int64_t syncStart(const SSyncInfo* pSyncInfo) {
   SSyncNode* pSyncNode = syncNodeOpen(pSyncInfo);
@@ -59,51 +76,57 @@ SSyncNode* syncNodeOpen(const SSyncInfo* pSyncInfo) {
 
 void syncNodeClose(SSyncNode* pSyncNode) {
   assert(pSyncNode != NULL);
-  raftClose(pSyncNode->pRaft);
   free(pSyncNode);
 }
 
+void syncNodePingAll(SSyncNode* pSyncNode) { sTrace("syncNodePingAll %p ", pSyncNode); }
+
+void syncNodePingPeers(SSyncNode* pSyncNode) {}
+
+void syncNodePingSelf(SSyncNode* pSyncNode) {}
+
+// ------ local funciton ---------
 static int32_t doSyncNodePing(struct SSyncNode* ths, const SyncPing* pMsg) {
-  int32_t ret = ths->pRaft->FpPing(ths->pRaft, pMsg);
+  int32_t ret = 0;
   return ret;
 }
 
 static int32_t onSyncNodePing(struct SSyncNode* ths, SyncPing* pMsg) {
-  int32_t ret = ths->pRaft->FpOnPing(ths->pRaft, pMsg);
+  int32_t ret = 0;
   return ret;
 }
 
 static int32_t onSyncNodePingReply(struct SSyncNode* ths, SyncPingReply* pMsg) {
-  int32_t ret = ths->pRaft->FpOnPingReply(ths->pRaft, pMsg);
+  int32_t ret = 0;
   return ret;
 }
 
 static int32_t doSyncNodeRequestVote(struct SSyncNode* ths, const SyncRequestVote* pMsg) {
-  int32_t ret = ths->pRaft->FpRequestVote(ths->pRaft, pMsg);
+  int32_t ret = 0;
   return ret;
 }
 
 static int32_t onSyncNodeRequestVote(struct SSyncNode* ths, SyncRequestVote* pMsg) {
-  int32_t ret = ths->pRaft->FpOnRequestVote(ths->pRaft, pMsg);
+  int32_t ret = 0;
   return ret;
 }
 
 static int32_t onSyncNodeRequestVoteReply(struct SSyncNode* ths, SyncRequestVoteReply* pMsg) {
-  int32_t ret = ths->pRaft->FpOnRequestVoteReply(ths->pRaft, pMsg);
+  int32_t ret = 0;
   return ret;
 }
 
 static int32_t doSyncNodeAppendEntries(struct SSyncNode* ths, const SyncAppendEntries* pMsg) {
-  int32_t ret = ths->pRaft->FpAppendEntries(ths->pRaft, pMsg);
+  int32_t ret = 0;
   return ret;
 }
 
 static int32_t onSyncNodeAppendEntries(struct SSyncNode* ths, SyncAppendEntries* pMsg) {
-  int32_t ret = ths->pRaft->FpOnAppendEntries(ths->pRaft, pMsg);
+  int32_t ret = 0;
   return ret;
 }
 
 static int32_t onSyncNodeAppendEntriesReply(struct SSyncNode* ths, SyncAppendEntriesReply* pMsg) {
-  int32_t ret = ths->pRaft->FpOnAppendEntriesReply(ths->pRaft, pMsg);
+  int32_t ret = 0;
   return ret;
 }

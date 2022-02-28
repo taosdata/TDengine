@@ -22,12 +22,49 @@
 
 SSyncIO *gSyncIO = NULL;
 
+// local function ------------
+static void *syncConsumer(void *param);
+static int   retrieveAuthInfo(void *parent, char *meterId, char *spi, char *encrypt, char *secret, char *ckey);
+static void  processResponse(void *pParent, SRpcMsg *pMsg, SEpSet *pEpSet);
+static void  processRequestMsg(void *pParent, SRpcMsg *pMsg, SEpSet *pEpSet);
+static void  syncTick(void *param, void *tmrId);
+
+static int32_t doSyncIOStart(SSyncIO *io);
+static int32_t doSyncIOStop(SSyncIO *io);
+static int32_t doSyncIOPing(SSyncIO *io);
+static int32_t doSyncIOOnMsg(struct SSyncIO *io, void *pParent, SRpcMsg *pMsg, SEpSet *pEpSet);
+static int32_t doSyncIODestroy(SSyncIO *io);
+// ----------------------------
+
 int32_t syncIOSendMsg(void *handle, const SEpSet *pEpSet, SRpcMsg *pMsg) { return 0; }
 
-int32_t syncIOStart() { return 0; }
+int32_t syncIOStart() {
+  gSyncIO = syncIOCreate();
+  assert(gSyncIO != NULL);
+
+  return 0;
+}
 
 int32_t syncIOStop() { return 0; }
 
+SSyncIO *syncIOCreate() {
+  SSyncIO *io = (SSyncIO *)malloc(sizeof(SSyncIO));
+  memset(io, 0, sizeof(*io));
+
+  io->pMsgQ = taosOpenQueue();
+  io->pQset = taosOpenQset();
+  taosAddIntoQset(io->pQset, io->pMsgQ, NULL);
+
+  io->start = doSyncIOStart;
+  io->stop = doSyncIOStop;
+  io->ping = doSyncIOPing;
+  io->onMsg = doSyncIOOnMsg;
+  io->destroy = doSyncIODestroy;
+
+  return io;
+}
+
+// local function ------------
 static void syncTick(void *param, void *tmrId) {
   SSyncIO *io = (SSyncIO *)param;
   sDebug("syncTick ... ");
@@ -46,14 +83,15 @@ static void syncTick(void *param, void *tmrId) {
 
   taosWriteQitem(io->pMsgQ, pTemp);
 
-  io->syncTimer = taosTmrStart(syncTick, 1000, io, io->syncTimerManager);
+  bool b = taosTmrReset(syncTick, 1000, io, io->syncTimerManager, io->syncTimer);
+  assert(b);
 }
 
-void *syncConsumer(void *param) {
+static void *syncConsumer(void *param) {
   SSyncIO *io = param;
 
   STaosQall *qall;
-  SRpcMsg *  pRpcMsg, rpcMsg;
+  SRpcMsg   *pRpcMsg, rpcMsg;
   int        type;
 
   qall = taosAllocateQall();
@@ -112,23 +150,6 @@ static void processRequestMsg(void *pParent, SRpcMsg *pMsg, SEpSet *pEpSet) {
 
   sDebug("request is received, type:%d, contLen:%d, item:%p", pMsg->msgType, pMsg->contLen, pTemp);
   taosWriteQitem(io->pMsgQ, pTemp);
-}
-
-SSyncIO *syncIOCreate() {
-  SSyncIO *io = (SSyncIO *)malloc(sizeof(SSyncIO));
-  memset(io, 0, sizeof(*io));
-
-  io->pMsgQ = taosOpenQueue();
-  io->pQset = taosOpenQset();
-  taosAddIntoQset(io->pQset, io->pMsgQ, NULL);
-
-  io->start = doSyncIOStart;
-  io->stop = doSyncIOStop;
-  io->ping = doSyncIOPing;
-  io->onMsg = doSyncIOOnMsg;
-  io->destroy = doSyncIODestroy;
-
-  return io;
 }
 
 static int32_t doSyncIOStart(SSyncIO *io) {
