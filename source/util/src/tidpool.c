@@ -14,15 +14,8 @@
  */
 
 #define _DEFAULT_SOURCE
+#include "tidpool.h"
 #include "tlog.h"
-
-typedef struct {
-  int32_t         maxId;
-  int32_t         numOfFree;
-  int32_t         freeSlot;
-  bool           *freeList;
-  pthread_mutex_t mutex;
-} id_pool_t;
 
 void *taosInitIdPool(int32_t maxId) {
   id_pool_t *pIdPool = calloc(1, sizeof(id_pool_t));
@@ -45,11 +38,8 @@ void *taosInitIdPool(int32_t maxId) {
   return pIdPool;
 }
 
-int32_t taosAllocateId(void *handle) {
-  id_pool_t *pIdPool = handle;
-  if (handle == NULL) {
-    return -1;
-  }
+int32_t taosAllocateId(id_pool_t *pIdPool) {
+  if (pIdPool == NULL) return -1;
 
   int32_t slot = -1;
   pthread_mutex_lock(&pIdPool->mutex);
@@ -70,9 +60,8 @@ int32_t taosAllocateId(void *handle) {
   return slot + 1;
 }
 
-void taosFreeId(void *handle, int32_t id) {
-  id_pool_t *pIdPool = handle;
-  if (handle == NULL) return;
+void taosFreeId(id_pool_t *pIdPool, int32_t id) {
+  if (pIdPool == NULL) return;
 
   pthread_mutex_lock(&pIdPool->mutex);
 
@@ -85,9 +74,7 @@ void taosFreeId(void *handle, int32_t id) {
   pthread_mutex_unlock(&pIdPool->mutex);
 }
 
-void taosIdPoolCleanUp(void *handle) {
-  id_pool_t *pIdPool = handle;
-
+void taosIdPoolCleanUp(id_pool_t *pIdPool) {
   if (pIdPool == NULL) return;
 
   uDebug("pool:%p is cleaned", pIdPool);
@@ -101,9 +88,7 @@ void taosIdPoolCleanUp(void *handle) {
   free(pIdPool);
 }
 
-int32_t taosIdPoolNumOfUsed(void *handle) {
-  id_pool_t *pIdPool = handle;
-
+int32_t taosIdPoolNumOfUsed(id_pool_t *pIdPool) {
   pthread_mutex_lock(&pIdPool->mutex);
   int32_t ret = pIdPool->maxId - pIdPool->numOfFree;
   pthread_mutex_unlock(&pIdPool->mutex);
@@ -111,9 +96,8 @@ int32_t taosIdPoolNumOfUsed(void *handle) {
   return ret;
 }
 
-bool taosIdPoolMarkStatus(void *handle, int32_t id) {
-  bool       ret = false;
-  id_pool_t *pIdPool = handle;
+bool taosIdPoolMarkStatus(id_pool_t *pIdPool, int32_t id) {
+  bool ret = false;
   pthread_mutex_lock(&pIdPool->mutex);
 
   int32_t slot = (id - 1) % pIdPool->maxId;
@@ -129,8 +113,7 @@ bool taosIdPoolMarkStatus(void *handle, int32_t id) {
   return ret;
 }
 
-int32_t taosUpdateIdPool(id_pool_t *handle, int32_t maxId) {
-  id_pool_t *pIdPool = (id_pool_t *)handle;
+int32_t taosUpdateIdPool(id_pool_t *pIdPool, int32_t maxId) {
   if (maxId <= pIdPool->maxId) {
     return 0;
   }
@@ -155,9 +138,7 @@ int32_t taosUpdateIdPool(id_pool_t *handle, int32_t maxId) {
   return 0;
 }
 
-int32_t taosIdPoolMaxSize(void *handle) {
-  id_pool_t *pIdPool = (id_pool_t *)handle;
-
+int32_t taosIdPoolMaxSize(id_pool_t *pIdPool) {
   pthread_mutex_lock(&pIdPool->mutex);
   int32_t ret = pIdPool->maxId;
   pthread_mutex_unlock(&pIdPool->mutex);

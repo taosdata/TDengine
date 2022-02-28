@@ -17,7 +17,6 @@
 #define _TD_UTIL_CACHE_H_
 
 #include "thash.h"
-#include "tlockfree.h"
 
 #ifdef __cplusplus
 extern "C" {

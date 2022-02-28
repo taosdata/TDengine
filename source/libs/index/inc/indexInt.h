@@ -24,6 +24,7 @@
 #include "tchecksum.h"
 #include "thash.h"
 #include "tlog.h"
+#include "tutil.h"
 
 #ifdef USE_LUCENE
 #include <lucene++/Lucene_c.h>

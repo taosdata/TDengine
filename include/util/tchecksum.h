@@ -17,7 +17,6 @@
 #define _TD_UTIL_CHECKSUM_H_
 
 #include "tcrc32c.h"
-#include "tutil.h"
 
 #ifdef __cplusplus
 extern "C" {
