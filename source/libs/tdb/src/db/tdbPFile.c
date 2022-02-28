@@ -103,7 +103,7 @@ SPage *tdbPFileGet(SPFile *pFile, SPgno pgno) {
   ASSERT(pPage->isLoad);
 
   return pPage;
-}
+
 
 int tdbPFileWrite(SPFile *pFile, SPage *pPage) {
   // TODO: if the page is not in journal, write to journal
@@ -112,8 +112,18 @@ int tdbPFileWrite(SPFile *pFile, SPage *pPage) {
 }
 
 int tdbPFileAllocPage(SPFile *pFile, SPage **ppPage) {
-  // TODO
-  *ppPage = NULL;
+  SPage *pPage;
+  SPgno  pgno;
+
+  if (1 /*TODO: no free page*/) {
+    pgno = ++pFile->dbFileSize;
+    pPage = tdbPFileGet(pFile, pgno);
+    ASSERT(pPage != NULL);
+  } else {
+    ASSERT(0);
+  }
+
+  *ppPage = pPage;
   return 0;
 }
 
