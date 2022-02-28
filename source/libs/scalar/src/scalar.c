@@ -183,7 +183,7 @@ int32_t sclInitParam(SNode* node, SScalarParam *param, SScalarCtx *ctx, int32_t 
         SCL_ERR_RET(TSDB_CODE_QRY_INVALID_INPUT);
       }
 
-      SSDataBlock *block = taosArrayGet(ctx->pBlockList, ref->tupleId);
+      SSDataBlock *block = *(SSDataBlock **)taosArrayGet(ctx->pBlockList, ref->tupleId);
       
       if (NULL == block || ref->slotId >= taosArrayGetSize(block->pDataBlock)) {
         sclError("column slotId is too big, slodId:%d, dataBlockSize:%d", ref->slotId, (int32_t)taosArrayGetSize(block->pDataBlock));
