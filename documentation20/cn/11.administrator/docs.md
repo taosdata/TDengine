@@ -83,32 +83,32 @@ Raw DataSize = numOfTables * rowSizePerTable * rowsPerTable
 
 ### 容错
 
-TDengine支持**WAL**（Write Ahead Log）机制，实现数据的容错能力，保证数据的高可用。
+TDengine 支持 **WAL** （Write Ahead Log）机制，实现数据的容错能力，保证数据的高可用。
 
-TDengine接收到应用的请求数据包时，先将请求的原始数据包写入数据库日志文件，等数据成功写入数据库数据文件后，再删除相应的WAL。这样保证了TDengine能够在断电等因素导致的服务重启时从数据库日志文件中恢复数据，避免数据的丢失。
+TDengine 接收到应用的请求数据包时，先将请求的原始数据包写入数据库日志文件，等数据成功写入数据库数据文件后，再删除相应的 WAL 。这样保证了 TDengine 能够在断电等因素导致的服务重启时从数据库日志文件中恢复数据，避免数据的丢失。
 
 涉及的系统配置参数有两个：
 
-- walLevel：WAL级别，0：不写wal; 1：写wal, 但不执行fsync; 2：写wal, 而且执行fsync。
-- fsync：当walLevel设置为2时，执行fsync的周期。设置为0，表示每次写入，立即执行fsync。
+- walLevel：WAL 级别，0：不写 WAL ; 1：写 wal, 但不执行 fsync; 2：写 wal, 而且执行 fsync。
+- fsync：当 walLevel 设置为 2 时，执行 fsync 的周期。设置为 0，表示每次写入，立即执行 fsync。
 
-如果要100%的保证数据不丢失，需要将walLevel设置为2，fsync设置为0。这时写入速度将会下降。但如果应用侧启动的写数据的线程数达到一定的数量(超过50)，那么写入数据的性能也会很不错，只会比fsync设置为3000毫秒下降30%左右。
+如果要100%的保证数据不丢失，需要将 walLevel 设置为 2，fsync 设置为0。这时写入速度将会下降。但如果应用侧启动的写数据的线程数达到一定的数量（超过 50），那么写入数据的性能也会很不错，只会比 fsync 设置为 3000 毫秒下降 30% 左右。
 
 ### 灾备
 
-TDengine的集群通过多个副本的机制，来提供系统的高可用性，实现灾备能力。
+TDengine 的集群通过多个副本的机制，来提供系统的高可用性，实现灾备能力。
 
-TDengine集群是由mnode负责管理的，为保证mnode的高可靠，可以配置多个mnode副本，副本数由系统配置参数numOfMnodes决定，为了支持高可靠，需要设置大于1。为保证元数据的强一致性，mnode副本之间通过同步方式进行数据复制，保证了元数据的强一致性。
+TDengine 集群是由 mnode 负责管理的，为保证 mnode 的高可靠，可以配置多个 mnode 副本，副本数由系统配置参数 numOfMnodes 决定，为了支持高可靠，需要设置大于 1。为保证元数据的强一致性，mnode 副本之间通过同步方式进行数据复制，保证了元数据的强一致性。
 
-TDengine集群中的时序数据的副本数是与数据库关联的，一个集群里可以有多个数据库，每个数据库可以配置不同的副本数。创建数据库时，通过参数replica 指定副本数。为了支持高可靠，需要设置副本数大于1。
+TDengine 集群中的时序数据的副本数是与数据库关联的，一个集群里可以有多个数据库，每个数据库可以配置不同的副本数。创建数据库时，通过参数 replica 指定副本数。为了支持高可靠，需要设置副本数大于1。
 
-TDengine集群的节点数必须大于等于副本数，否则创建表时将报错。
+TDengine 集群的节点数必须大于等于副本数，否则创建表时将报错。
 
-当TDengine集群中的节点部署在不同的物理机上，并设置多个副本数时，就实现了系统的高可靠性，无需再使用其他软件或工具。TDengine企业版还可以将副本部署在不同机房，从而实现异地容灾。
+当 TDengine 集群中的节点部署在不同的物理机上，并设置多个副本数时，就实现了系统的高可靠性，无需再使用其他软件或工具。TDengine 企业版还可以将副本部署在不同机房，从而实现异地容灾。
 
 ## <a class="anchor" id="config"></a>服务端配置
 
-TDengine系统后台服务由taosd提供，可以在配置文件taos.cfg里修改配置参数，以满足不同场景的需求。配置文件的缺省位置在/etc/taos目录，可以通过taosd命令行执行参数-c指定配置文件目录。比如taosd -c /home/user来指定配置文件位于/home/user这个目录。
+TDengine 系统后台服务由 taosd 提供，可以在配置文件 taos.cfg 里修改配置参数，以满足不同场景的需求。配置文件的缺省位置在 /etc/taos 目录，可以通过 taosd 命令行执行参数-c指定配置文件目录。比如 taosd -c /home/user 来指定配置文件位于 /home/user 这个目录。
 
 另外可以使用 “-C” 显示当前服务器配置参数：
 
@@ -117,7 +117,6 @@ taosd -C
 ```
 
 下面仅仅列出一些重要的配置参数，更多的参数请看配置文件里的说明。各个参数的详细介绍及作用请看前述章节，而且这些参数的缺省配置都是可以工作的，一般无需设置。**注意：配置文件参数修改后，需要重启*taosd*服务，或客户端应用才能生效。**
-
 
 1. **firstEP**
 
@@ -1233,10 +1232,64 @@ taosd -C
    | 缺省值 | 128 |
    | 补充说明 | 2.3 版本新增。 |
 
+111. **lossyColumns**
+
+   | 属性 | 说明 |
+   |---|---|
+   | 内部配置 | No |
+   | 适用范围 | 仅服务端适用 |
+   | 含义 | 配置要进行有损压缩的浮点数据类型 |
+   | 取值范围 | float：只对float类型进行有损压缩<br/>double：只对double类型进行有损压缩<br/>float|double：float double都进行有损压缩  |
+   | 缺省值 | 默认为空字符串，关闭有损压缩 |
+   | 补充说明 | 2.4.0.10版本新增。|
+
+112. **fPrecision**
+
+   | 属性 | 说明 |
+   |---|---|
+   | 内部配置 | No |
+   | 适用范围 | 仅服务端适用 |
+   | 含义 | 设置float类型浮点数压缩精度 |
+   | 取值范围 | 0.1 ~ 0.00000001 |
+   | 缺省值 | 0.00000001（1E-8）|
+   | 补充说明 | 2.4.0.10版本新增。|
+
+113. **dPrecision**
+
+   | 属性 | 说明 |
+   |---|---|
+   | 内部配置 | No |
+   | 适用范围 | 仅服务端适用 |
+   | 含义 | 设置double类型浮点数压缩精度 |
+   | 取值范围 | 0.1 ~ 0.0000000000000001 |
+   | 缺省值 | 0.0000000000000001（1E-16）|
+   | 补充说明 | 2.4.0.10版本新增。|
+
+114. **maxRange**
+
+   | 属性 | 说明 |
+   |---|---|
+   | 内部配置 | No |
+   | 适用范围 | 仅服务端适用 |
+   | 含义 | 要压缩数据可能的最大波动范围 |
+   | 取值范围 | 无限制 |
+   | 缺省值 | 自动预测 |
+   | 补充说明 | 2.4.0.10版本新增。|
+
+115. **Range**
+
+   | 属性 | 说明 |
+   |---|---|
+   | 内部配置 | No |
+   | 适用范围 | 仅服务端适用 |
+   | 含义 | 要压缩数据可能的平均波动范围 |
+   | 取值范围 | 无限制 |
+   | 缺省值 | 自动预测 |
+   | 补充说明 | 2.4.0.10版本新增。|
 
 **注意：** 对于端口，TDengine会使用从serverPort起13个连续的TCP和UDP端口号，请务必在防火墙打开。因此如果是缺省配置，需要打开从6030到6042共13个端口，而且必须TCP和UDP都打开。（详细的端口情况请参见 [TDengine 2.0 端口说明](https://www.taosdata.com/cn/documentation/faq#port)）
 
-不同应用场景的数据往往具有不同的数据特征，比如保留天数、副本数、采集频次、记录大小、采集点的数量、压缩等都可完全不同。为获得在存储上的最高效率，TDengine提供如下存储相关的系统配置参数（既可以作为 create database 指令的参数，也可以写在 taos.cfg 配置文件中用来设定创建新数据库时所采用的默认值）：
+不同应用场景的数据往往具有不同的数据特征，比如保留天数、副本数、采集频次、记录大小、采集点的数量、压缩等都可完全不同。为获得在存储上的最高效率，TDengine 提供如下存储相关的系统配置参数（既可以作为 create database 指令的参数，也可以写在 taos.cfg 配置文件中用来设定创建新数据库时所采用的默认值）：
 
 | **#** | **配置参数名称** | **单位** | **含义**                                                     | **取值范围**                                     | **缺省值** |
 | ----- | ---------------- | -------- | ------------------------------------------------------------ | ------------------------------------------------ | ---------- |
@@ -1248,20 +1301,20 @@ taosd -C
 | 6     | minRows          |          | 文件块中记录的最小条数                                       |                                                  | 100        |
 | 7     | maxRows          |          | 文件块中记录的最大条数                                       |                                                  | 4096       |
 | 8     | comp             |          | （可通过 alter database 修改）文件压缩标志位                                               | 0：关闭，1:一阶段压缩，2:两阶段压缩              | 2          |
-| 9     | walLevel         |          | （作为 database 的参数时名为 wal；在 taos.cfg 中作为参数时需要写作 walLevel）WAL级别          | 1：写wal，但不执行fsync；2：写wal, 而且执行fsync | 1          |
-| 10    | fsync            | 毫秒     | 当wal设置为2时，执行fsync的周期。设置为0，表示每次写入，立即执行fsync。                         |                                                  | 3000       |
+| 9     | walLevel         |          | （作为 database 的参数时名为 wal；在 taos.cfg 中作为参数时需要写作 walLevel）WAL级别          | 1：写 WAL，但不执行 fsync；2：写 WAL, 而且执行 fsync | 1          |
+| 10    | fsync            | 毫秒     | 当 wal 设置为 2 时，执行 fsync 的周期。设置为 0，表示每次写入，立即执行 fsync。                         |                                                  | 3000       |
 | 11    | replica          |          | （可通过 alter database 修改）副本个数                                                     | 1-3                                            | 1          |
 | 12    | precision        |          | 时间戳精度标识（2.1.2.0 版本之前、2.0.20.7 版本之前在 taos.cfg 文件中不支持此参数。）（从 2.1.5.0 版本开始，新增对纳秒时间精度的支持）           | ms 表示毫秒，us 表示微秒，ns 表示纳秒                 | ms         |
 | 13    | update           |          | 是否允许数据更新（从 2.1.7.0 版本开始此参数支持 0～2 的取值范围，在此之前取值只能是 [0, 1]；而 2.0.8.0 之前的版本在 SQL 指令中不支持此参数。）                                                  | 0：不允许；1：允许更新整行；2：允许部分列更新。                                           | 0          |
-| 14    | cacheLast        |          | （可通过 alter database 修改）是否在内存中缓存子表的最近数据（从 2.1.2.0 版本开始此参数支持 0～3 的取值范围，在此之前取值只能是 [0, 1]；而 2.0.11.0 之前的版本在 SQL 指令中不支持此参数。）（2.1.2.0 版本之前、2.0.20.7 版本之前在 taos.cfg 文件中不支持此参数。）                         | 0：关闭；1：缓存子表最近一行数据；2：缓存子表每一列的最近的非NULL值；3：同时打开缓存最近行和列功能               | 0          |
+| 14    | cacheLast        |          | （可通过 alter database 修改）是否在内存中缓存子表的最近数据（从 2.1.2.0 版本开始此参数支持 0～3 的取值范围，在此之前取值只能是 [0, 1]；而 2.0.11.0 之前的版本在 SQL 指令中不支持此参数。）（2.1.2.0 版本之前、2.0.20.7 版本之前在 taos.cfg 文件中不支持此参数。）                         | 0：关闭；1：缓存子表最近一行数据；2：缓存子表每一列的最近的非 NULL 值；3：同时打开缓存最近行和列功能               | 0          |
 
-对于一个应用场景，可能有多种数据特征的数据并存，最佳的设计是将具有相同数据特征的表放在一个库里，这样一个应用有多个库，而每个库可以配置不同的存储参数，从而保证系统有最优的性能。TDengine允许应用在创建库时指定上述存储参数，如果指定，该参数就将覆盖对应的系统配置参数。举例，有下述SQL：
+对于一个应用场景，可能有多种数据特征的数据并存，最佳的设计是将具有相同数据特征的表放在一个库里，这样一个应用有多个库，而每个库可以配置不同的存储参数，从而保证系统有最优的性能。TDengine 允许应用在创建库时指定上述存储参数，如果指定，该参数就将覆盖对应的系统配置参数。举例，有下述 SQL：
 
 ```mysql
  CREATE DATABASE demo DAYS 10 CACHE 32 BLOCKS 8 REPLICA 3 UPDATE 1;
 ```
 
-该SQL创建了一个库demo, 每个数据文件存储10天数据，内存块为32兆字节，每个VNODE占用8个内存块，副本数为3，允许更新，而其他参数与系统配置完全一致。
+该SQL创建了一个库 demo, 每个数据文件存储 10 天数据，内存块为 32 兆字节，每个 VNODE 占用 8 个内存块，副本数为3，允许更新，而其他参数与系统配置完全一致。
 
 一个数据库创建成功后，仅部分参数可以修改并实时生效，其余参数不能修改：
 
@@ -1271,7 +1324,7 @@ taosd -C
 | create time |              |                                                              |                                       |
 | ntables     |              |                                                              |                                       |
 | vgroups     |              |                                                              |                                       |
-| replica     | **YES**      | 在线dnode数目为1：1-1；2：1-2；>=3：1-3                         | ALTER DATABASE <dbname> REPLICA *n*   |
+| replica     | **YES**      | 在线 dnode 数目为 1：1-1；2：1-2；>=3：1-3                         | ALTER DATABASE <dbname> REPLICA *n*   |
 | quorum      | **YES**      | 1-2                                                          | ALTER DATABASE <dbname> QUORUM *n*    |
 | days        |              |                                                              |                                       |
 | keep        | **YES**      | days-365000                                                  | ALTER DATABASE <dbname> KEEP *n*      |
@@ -1289,31 +1342,31 @@ taosd -C
 
 **说明：**在 2.1.3.0 版本之前，通过 ALTER DATABASE 语句修改这些参数后，需要重启服务器才能生效。
 
-TDengine集群中加入一个新的dnode时，涉及集群相关的一些参数必须与已有集群的配置相同，否则不能成功加入到集群中。会进行校验的参数如下：
+TDengine 集群中加入一个新的 dnode 时，涉及集群相关的一些参数必须与已有集群的配置相同，否则不能成功加入到集群中。会进行校验的参数如下：
 
 - numOfMnodes：系统中管理节点个数。默认值：3。（2.0 版本从 2.0.20.11 开始、2.1 及以上版本从 2.1.6.0 开始，numOfMnodes 默认值改为 1。）
-- mnodeEqualVnodeNum: 一个mnode等同于vnode消耗的个数。默认值：4。
-- offlineThreshold: dnode离线阈值，超过该时间将导致该dnode从集群中删除。单位为秒，默认值：86400*10（即10天）。
-- statusInterval: dnode向mnode报告状态时长。单位为秒，默认值：1。
-- maxTablesPerVnode: 每个vnode中能够创建的最大表个数。默认值：1000000。
-- maxVgroupsPerDb: 每个数据库中能够使用的最大vgroup个数。
-- arbitrator: 系统中裁决器的end point，缺省为空。
+- mnodeEqualVnodeNum: 一个 mnode 等同于 vnode 消耗的个数。默认值：4。
+- offlineThreshold: dnode 离线阈值，超过该时间将导致该 dnode 从集群中删除。单位为秒，默认值：86400*10（即10天）。
+- statusInterval: dnode 向 mnode 报告状态时长。单位为秒，默认值：1。
+- maxTablesPerVnode: 每个 vnode 中能够创建的最大表个数。默认值：1000000。
+- maxVgroupsPerDb: 每个数据库中能够使用的最大 vgroup 个数。
+- arbitrator: 系统中裁决器的 end point，缺省为空。
 - timezone、locale、charset 的配置见客户端配置。（2.0.20.0 及以上的版本里，集群中加入新节点已不要求 locale 和 charset 参数取值一致）
 - balance：是否启用负载均衡。0：否，1：是。默认值：1。
 - flowctrl：是否启用非阻塞流控。0：否，1：是。默认值：1。
 - slaveQuery：是否启用 slave vnode 参与查询。0：否，1：是。默认值：1。
 - adjustMaster：是否启用 vnode master 负载均衡。0：否，1：是。默认值：1。
 
-为方便调试，可通过SQL语句临时调整每个dnode的日志配置，系统重启后会失效：
+为方便调试，可通过 SQL 语句临时调整每个 dnode 的日志配置，系统重启后会失效：
 
 ```mysql
 ALTER DNODE <dnode_id> <config>
 ```
 
-- dnode_id: 可以通过SQL语句"SHOW DNODES"命令获取
+- dnode_id: 可以通过 SQL 语句"SHOW DNODES"命令获取
 - config: 要调整的日志参数，在如下列表中取值
     > resetlog 截断旧日志文件，创建一个新日志文件
-    > debugFlag  < 131 | 135 | 143 > 设置debugFlag为131、135或者143
+    > debugFlag  < 131 | 135 | 143 > 设置 debugFlag 为 131、135 或者 143
 
 例如：
 
@@ -1323,7 +1376,7 @@ ALTER DNODE <dnode_id> <config>
 
 ## <a class="anchor" id="client"></a>客户端及应用驱动配置
 
-TDengine系统的前台交互客户端应用程序为taos，以及应用驱动，它与taosd共享同一个配置文件taos.cfg。运行taos时，使用参数-c指定配置文件目录，如taos -c /home/cfg，表示使用/home/cfg/目录下的taos.cfg配置文件中的参数，缺省目录是/etc/taos。更多taos的使用方法请见帮助信息 `taos --help`。本节主要说明 taos 客户端应用在配置文件 taos.cfg 文件中使用到的参数。
+TDengine 系统的前台交互客户端应用程序为 taos，以及应用驱动，它与 taosd 共享同一个配置文件 taos.cfg。运行 taos 时，使用参数 -c 指定配置文件目录，如 taos -c /home/cfg，表示使用/home/cfg/目录下的 taos.cfg 配置文件中的参数，缺省目录是 /etc/taos。更多 taos 的使用方法请见帮助信息 `taos --help`。本节主要说明 taos 客户端应用在配置文件 taos.cfg 文件中使用到的参数。
 
 **2.0.10.0 之后版本支持命令行以下参数显示当前客户端参数的配置**
 
@@ -1333,7 +1386,7 @@ taos -C  或  taos --dump-config
 
 客户端及应用驱动配置参数列表及解释
 
-- firstEp: taos启动时，主动连接的集群中第一个taosd实例的end point, 缺省值为 localhost:6030。
+- firstEp: taos 启动时，主动连接的集群中第一个 taosd 实例的 end point, 缺省值为 localhost:6030。
 
 - secondEp: taos 启动时，如果 firstEp 连不上，将尝试连接 secondEp。
 
@@ -1341,25 +1394,25 @@ taos -C  或  taos --dump-config
 
     默认值：系统中动态获取，如果自动获取失败，需要用户在配置文件设置或通过API设置。
 
-    TDengine为存储中文、日文、韩文等非ASCII编码的宽字符，提供一种专门的字段类型nchar。写入nchar字段的数据将统一采用UCS4-LE格式进行编码并发送到服务器。需要注意的是，编码正确性是客户端来保证。因此，如果用户想要正常使用nchar字段来存储诸如中文、日文、韩文等非ASCII字符，需要正确设置客户端的编码格式。
+    TDengine 为存储中文、日文、韩文等非 ASCII 编码的宽字符，提供一种专门的字段类型 nchar。写入 nchar 字段的数据将统一采用 UCS4-LE 格式进行编码并发送到服务器。需要注意的是，编码正确性是客户端来保证。因此，如果用户想要正常使用 nchar 字段来存储诸如中文、日文、韩文等非 ASCII 字符，需要正确设置客户端的编码格式。
 
-    客户端的输入的字符均采用操作系统当前默认的编码格式，在Linux系统上多为UTF-8，部分中文系统编码则可能是GB18030或GBK等。在docker环境中默认的编码是POSIX。在中文版Windows系统中，编码则是CP936。客户端需要确保正确设置自己所使用的字符集，即客户端运行的操作系统当前编码字符集，才能保证nchar中的数据正确转换为UCS4-LE编码格式。
+    客户端的输入的字符均采用操作系统当前默认的编码格式，在 Linux 系统上多为 UTF-8，部分中文系统编码则可能是 GB18030 或 GBK 等。在 docker 环境中默认的编码是 POSIX。在中文版 Windows 系统中，编码则是 CP936。客户端需要确保正确设置自己所使用的字符集，即客户端运行的操作系统当前编码字符集，才能保证 nchar 中的数据正确转换为 UCS4-LE 编码格式。
 
-    在 Linux 中 locale 的命名规则为: <语言>\_<地区>.<字符集编码> 如：zh_CN.UTF-8，zh代表中文，CN代表大陆地区，UTF-8表示字符集。字符集编码为客户端正确解析本地字符串提供编码转换的说明。Linux系统与 Mac OSX 系统可以通过设置locale来确定系统的字符编码，由于Windows使用的locale中不是POSIX标准的locale格式，因此在Windows下需要采用另一个配置参数charset来指定字符编码。在Linux 系统中也可以使用charset来指定字符编码。
+    在 Linux 中 locale 的命名规则为: <语言>\_<地区>.<字符集编码> 如：zh_CN.UTF-8，zh 代表中文，CN 代表大陆地区，UTF-8 表示字符集。字符集编码为客户端正确解析本地字符串提供编码转换的说明。Linux 系统与 Mac OSX 系统可以通过设置 locale 来确定系统的字符编码，由于 Windows 使用的 locale 中不是 POSIX 标准的 locale 格式，因此在 Windows 下需要采用另一个配置参数 charset 来指定字符编码。在 Linux 系统中也可以使用charset来指定字符编码。
 
 - charset：字符集编码。
 
-    默认值：系统中动态获取，如果自动获取失败，需要用户在配置文件设置或通过API设置。
+    默认值：系统中动态获取，如果自动获取失败，需要用户在配置文件设置或通过 API 设置。
 
-    如果配置文件中不设置charset，在Linux系统中，taos在启动时候，自动读取系统当前的locale信息，并从locale信息中解析提取charset编码格式。如果自动读取locale信息失败，则尝试读取charset配置，如果读取charset配置也失败，则中断启动过程。
+    如果配置文件中不设置 charset，在 Linux 系统中，taos 在启动时候，自动读取系统当前的 locale 信息，并从 locale 信息中解析提取 charset 编码格式。如果自动读取 locale 信息失败，则尝试读取 charset 配置，如果读取 charset 配置也失败，则中断启动过程。
 
-    在Linux系统中，locale信息包含了字符编码信息，因此正确设置了Linux系统locale以后可以不用再单独设置charset。例如：
+    在 Linux 系统中，locale 信息包含了字符编码信息，因此正确设置了 Linux 系统 locale 以后可以不用再单独设置 charset。例如：
 
     ```
     locale zh_CN.UTF-8
     ```
 
-    在Windows系统中，无法从locale获取系统当前编码。如果无法从配置文件中读取字符串编码信息，taos默认设置为字符编码为CP936。其等效在配置文件中添加如下配置：
+    在 Windows 系统中，无法从 locale 获取系统当前编码。如果无法从配置文件中读取字符串编码信息，taos 默认设置为字符编码为 CP936。其等效在配置文件中添加如下配置：
 
     ```
     charset CP936
@@ -1367,29 +1420,29 @@ taos -C  或  taos --dump-config
 
     如果需要调整字符编码，请查阅当前操作系统使用的编码，并在配置文件中正确设置。
 
-    在Linux系统中，如果用户同时设置了locale和字符集编码charset，并且locale和charset的不一致，后设置的值将覆盖前面设置的值。
+    在 Linux 系统中，如果用户同时设置了 locale 和字符集编码 charset，并且 locale 和 charset 的不一致，后设置的值将覆盖前面设置的值。
 
     ```
     locale zh_CN.UTF-8
     charset GBK
     ```
 
-    则charset的有效值是GBK。
+    则 charset 的有效值是 GBK。
 
     ```
     charset GBK
     locale zh_CN.UTF-8
     ```
 
-    charset的有效值是UTF-8。
+    charset 的有效值是 UTF-8。
 
-    日志的配置参数，与server 的配置参数完全一样。
+    日志的配置参数，与 server 的配置参数完全一样。
 
 - timezone
 
     默认值：动态获取当前客户端运行系统所在的时区。
 
-    为应对多时区的数据写入和查询问题，TDengine 采用 Unix 时间戳(Unix Timestamp)来记录和存储时间戳。Unix 时间戳的特点决定了任一时刻不论在任何时区，产生的时间戳均一致。需要注意的是，Unix时间戳是在客户端完成转换和记录。为了确保客户端其他形式的时间转换为正确的 Unix 时间戳，需要设置正确的时区。
+    为应对多时区的数据写入和查询问题，TDengine 采用 Unix 时间戳（Unix Timestamp）来记录和存储时间戳。Unix 时间戳的特点决定了任一时刻不论在任何时区，产生的时间戳均一致。需要注意的是，Unix时间戳是在客户端完成转换和记录。为了确保客户端其他形式的时间转换为正确的 Unix 时间戳，需要设置正确的时区。
 
     在Linux系统中，客户端会自动读取系统设置的时区信息。用户也可以采用多种方式在配置文件设置时区。例如：
 
@@ -1401,35 +1454,35 @@ taos -C  或  taos --dump-config
 
     均是合法的设置东八区时区的格式。但需注意，Windows 下并不支持 `timezone Asia/Shanghai` 这样的写法，而必须写成 `timezone UTC-8`。
 
-    时区的设置对于查询和写入SQL语句中非Unix时间戳的内容（时间戳字符串、关键词now的解析）产生影响。例如：
+    时区的设置对于查询和写入SQL语句中非 Unix 时间戳的内容（时间戳字符串、关键词 now 的解析）产生影响。例如：
 
     ```sql
     SELECT count(*) FROM table_name WHERE TS<'2019-04-11 12:01:08';
     ```
 
-    在东八区，SQL语句等效于
+    在东八区，SQL 语句等效于
 
     ```sql
     SELECT count(*) FROM table_name WHERE TS<1554955268000;
     ```
 
-    在UTC时区，SQL语句等效于
+    在 UTC 时区，SQL 语句等效于
 
     ```sql
     SELECT count(*) FROM table_name WHERE TS<1554984068000;
     ```
 
-    为了避免使用字符串时间格式带来的不确定性，也可以直接使用Unix时间戳。此外，还可以在SQL语句中使用带有时区的时间戳字符串，例如：RFC3339格式的时间戳字符串，2013-04-12T15:52:01.123+08:00或者ISO-8601格式时间戳字符串2013-04-12T15:52:01.123+0800。上述两个字符串转化为Unix时间戳不受系统所在时区的影响。
+    为了避免使用字符串时间格式带来的不确定性，也可以直接使用 Unix 时间戳。此外，还可以在 SQL 语句中使用带有时区的时间戳字符串，例如：RFC3339 格式的时间戳字符串，2013-04-12T15:52:01.123+08:00 或者 ISO-8601 格式时间戳字符串 2013-04-12T15:52:01.123+0800。上述两个字符串转化为 Unix 时间戳不受系统所在时区的影响。
 
-    启动taos时，也可以从命令行指定一个taosd实例的end point，否则就从taos.cfg读取。
+    启动 taos 时，也可以从命令行指定一个 taosd 实例的 end point，否则就从 taos.cfg 读取。
 
 - maxBinaryDisplayWidth
 
-    Shell中 binary 和 nchar 字段的显示宽度上限，超过此限制的部分将被隐藏。默认值：30。可在 taos shell 中通过命令 set max_binary_display_width nn 动态修改此选项。
+    Shell 中 binary 和 nchar 字段的显示宽度上限，超过此限制的部分将被隐藏。默认值：30。可在 taos shell 中通过命令 set max_binary_display_width nn 动态修改此选项。
 
 ## <a class="anchor" id="user"></a>用户管理
 
-系统管理员可以在CLI界面里添加、删除用户，也可以修改密码。CLI里SQL语法如下：
+系统管理员可以在 CLI 界面里添加、删除用户，也可以修改密码。CLI 里 SQL 语法如下：
 
 ```sql
 CREATE USER <user_name> PASS <'password'>;
@@ -1441,7 +1494,7 @@ CREATE USER <user_name> PASS <'password'>;
 DROP USER <user_name>;
 ```
 
-删除用户，限root用户使用
+删除用户，限 root 用户使用
 
 ```sql
 ALTER USER <user_name> PASS <'password'>;
@@ -1467,23 +1520,23 @@ SHOW USERS;
 
 ## <a class="anchor" id="import"></a>数据导入
 
-TDengine提供多种方便的数据导入功能，一种按脚本文件导入，一种按数据文件导入，一种是taosdump工具导入本身导出的文件。
+TDengine 提供多种方便的数据导入功能，一种按脚本文件导入，一种按数据文件导入，一种是 taosdump 工具导入本身导出的文件。
 
 **按脚本文件导入**
 
-TDengine的shell支持source filename命令，用于批量运行文件中的SQL语句。用户可将建库、建表、写数据等SQL命令写在同一个文件中，每条命令单独一行，在shell中运行source命令，即可按顺序批量运行文件中的SQL语句。以‘#’开头的SQL语句被认为是注释，shell将自动忽略。
+TDengine 的 shell 支持 source filename 命令，用于批量运行文件中的 SQL 语句。用户可将建库、建表、写数据等 SQL 命令写在同一个文件中，每条命令单独一行，在 shell 中运行 source 命令，即可按顺序批量运行文件中的SQL语句。以‘#’开头的 SQL 语句被认为是注释，shell 将自动忽略。
 
 **按数据文件导入**
 
-TDengine也支持在shell对已存在的表从CSV文件中进行数据导入。CSV文件只属于一张表且CSV文件中的数据格式需与要导入表的结构相同，在导入的时候，其语法如下：
+TDengine 也支持在 shell 对已存在的表从 CSV 文件中进行数据导入。CSV 文件只属于一张表且 CSV 文件中的数据格式需与要导入表的结构相同，在导入的时候，其语法如下：
 
 ```mysql
 insert into tb1 file 'path/data.csv';
 ```
 
-**注意：如果CSV文件首行存在描述信息，请手动删除后再导入。如某列为空，填NULL，无引号。**
+**注意：如果 CSV 文件首行存在描述信息，请手动删除后再导入。如某列为空，填NULL，无引号。**
 
-例如，现在存在一个子表d1001, 其表结构如下：
+例如，现在存在一个子表 d1001, 其表结构如下：
 
 ```mysql
 taos> DESCRIBE d1001
@@ -1497,7 +1550,7 @@ taos> DESCRIBE d1001
  groupid                        | INT                |           4 | TAG        |
 ```
 
-要导入的data.csv的格式如下：
+要导入的 data.csv 的格式如下：
 
 ```csv
 '2018-10-04 06:38:05.000',10.30000,219,0.31000
@@ -1520,95 +1573,49 @@ Query OK, 9 row(s) affected (0.004763s)
 
 **taosdump工具导入**
 
-TDengine提供了方便的数据库导入导出工具taosdump。用户可以将taosdump从一个系统导出的数据，导入到其他系统中。具体使用方法，请参见：[TDengine 数据备份工具: taosdump](/tools/taosdump)。
+TDengine 提供了方便的数据库导入导出工具 taosdump。用户可以将 taosdump 从一个系统导出的数据，导入到其他系统中。具体使用方法，请参见：[TDengine 数据备份工具: taosdump](/tools/taosdump)。
 
 ## <a class="anchor" id="export"></a>数据导出
 
-为方便数据导出，TDengine提供了两种导出方式，分别是按表导出和用taosdump导出。
+为方便数据导出，TDengine 提供了两种导出方式，分别是按表导出和用 taosdump 导出。
 
 **按表导出CSV文件**
 
-如果用户需要导出一个表或一个STable中的数据，可在taos shell中运行：
+如果用户需要导出一个表或一个 STable 中的数据，可在 taos shell 中运行：
 
 ```mysql
 select * from <tb_name> >> data.csv;
 ```
 
-这样，表tb_name中的数据就会按照CSV格式导出到文件data.csv中。
+这样，表 tb_name 中的数据就会按照 CSV 格式导出到文件 data.csv 中。
 
 **用taosdump导出数据**
 
-利用taosdump，用户可以根据需要选择导出所有数据库、一个数据库或者数据库中的一张表，所有数据或一时间段的数据，甚至仅仅表的定义。
+利用 taosdump，用户可以根据需要选择导出所有数据库、一个数据库或者数据库中的一张表，所有数据或一时间段的数据，甚至仅仅表的定义。
 
-具体使用方法，请参见博客：[TDengine DUMP工具使用指南](https://www.taosdata.com/blog/2020/03/09/1334.html)。
- 
-## <a class="anchor" id="status"></a>TSZ压缩算法
- 
-**TSZ压缩算法简介**
- 
-TSZ压缩算法是TDengine为浮点数据类型提供更加丰富的压缩功能，可以实现浮点数的有损至无损全状态压缩，相比原来在TDengine中原有压缩算法，TSZ压缩算法压缩选项更丰富，压缩率更高，即使切到无损状态下对浮点数压缩，压缩率也会比原来的压缩算法要高一倍。
- 
-**适合场景**
- 
-TSZ压缩算法压缩率比原来的要高，但压缩时间会更长，即开启TSZ压缩算法写入速度会有一些下降，通常情况下会有20%左右的下降。影响写入速度是因为需要更多的CPU计算，所以从原始数据到压缩好数据的交付时间变长，导致写入速度变慢。如果您的服务器CPU配置很高的话，这个影响会变小甚至没有。
- 
-另外如果设备产生了大量的高精度浮点数，存储占用的空间非常庞大，但实际使用并不需要那么高的精度时，可以通过TSZ压缩的有损压缩功能，把精度压缩至指定的长度，节约存储空间。
- 
-总结：采集到了大量浮点数，存储时占用空间过大或出有存储空间不足，需要超高压缩率的场景。
- 
-**使用步骤**
-
-- 检查版本支持，TDengine 版本在2.4.0.10及之后的版本都支持此功能
- 
-- 配置选项开启功能，在TDengine的配置文件taos.cfg增加一行以下内容，打开TSZ功能
- 
- ```TSZ
-lossyColumns     float|double
-```
- 
- - 根据自己需要配置其它选项，如果不配置都会按默认值处理。
- 
- - 重启服务，配置生效。
- 
- - 确认功能已开启，在服务启动过程中输出的信息如果有前面配置的内容，表明功能已生效：
- 
-  ```TSZ Test
-02/22 10:49:27.607990 00002933 UTL  lossyColumns     float|double
-```
- 
- **注意事项**
- 
- - 确认版本是否支持
- 
- - 除了服务器启动时的输出的配置成功信息外，不再会有其它的信息输出是使用的哪种压缩算法，可以通过配置前后数据库文件大小来比较效果
- 
- - 如果浮点数类型列较少，看整体数据文件大小效果会不太明显
- 
- - 此压缩产生的数据文件中浮点数据部分将不能被2.4.0.10以下的版本解析，即不向下兼容，使用时避免更换回旧版本，以免数据不能被读取出来。
- 
- - 在使用过程中允许反复开启和关闭TSZ压缩选项的操作，前后两种压缩算法产生的数据都能正常读取。
+具体使用方法，请参见博客：[TDengine DUMP 工具使用指南](https://www.taosdata.com/blog/2020/03/09/1334.html)。
 
 ## <a class="anchor" id="status"></a>系统连接、任务查询管理
 
-系统管理员可以从CLI查询系统的连接、正在进行的查询、流式计算，并且可以关闭连接、停止正在进行的查询和流式计算。CLI里SQL语法如下：
+系统管理员可以从 CLI 查询系统的连接、正在进行的查询、流式计算，并且可以关闭连接、停止正在进行的查询和流式计算。CLI 里 SQL 语法如下：
 
 ```mysql
 SHOW CONNECTIONS;
 ```
 
-显示数据库的连接，其中一列显示ip:port, 为连接的IP地址和端口号。
+显示数据库的连接，其中一列显示 ip:port, 为连接的 IP 地址和端口号。
 
 ```mysql
 KILL CONNECTION <connection-id>;
 ```
 
-强制关闭数据库连接，其中的connection-id是SHOW CONNECTIONS中显示的第一列的数字。
+强制关闭数据库连接，其中的 connection-id 是 SHOW CONNECTIONS 中显示的第一列的数字。
 
 ```mysql
 SHOW QUERIES;
 ```
 
-显示数据查询，其中第一列显示的以冒号隔开的两个数字为query-id，为发起该query应用连接的connection-id和查询次数。
+显示数据查询，其中第一列显示的以冒号隔开的两个数字为 query-id，为发起该 query 应用连接的 connection-id 和查询次数。
 
 ```mysql
 KILL QUERY <query-id>;
@@ -1620,19 +1627,19 @@ KILL QUERY <query-id>;
 SHOW STREAMS;
 ```
 
-显示流式计算，其中第一列显示的以冒号隔开的两个数字为stream-id, 为启动该stream应用连接的connection-id和发起stream的次数。
+显示流式计算，其中第一列显示的以冒号隔开的两个数字为 stream-id, 为启动该 stream 应用连接的 connection-id 和发起 stream 的次数。
 
 ```mysql
 KILL STREAM <stream-id>;
 ```
 
-强制关闭流式计算，其中的中stream-id是SHOW STREAMS中显示的connection-id:stream-no字串，如103:2，拷贝粘贴即可。
+强制关闭流式计算，其中的中 stream-id 是 SHOW STREAMS 中显示的 connection-id:stream-no 字串，如 103:2，拷贝粘贴即可。
 
 ## <a class="anchor" id="monitoring"></a>系统监控
 
-TDengine启动后，会自动创建一个监测数据库log，并自动将服务器的CPU、内存、硬盘空间、带宽、请求数、磁盘读写速度、慢查询等信息定时写入该数据库。TDengine还将重要的系统操作（比如登录、创建、删除数据库等）日志以及各种错误报警信息记录下来存放在log库里。系统管理员可以从CLI直接查看这个数据库，也可以在WEB通过图形化界面查看这些监测信息。
+TDengine 启动后，会自动创建一个监测数据库 log，并自动将服务器的 CPU、内存、硬盘空间、带宽、请求数、磁盘读写速度、慢查询等信息定时写入该数据库。TDengine 还将重要的系统操作（比如登录、创建、删除数据库等）日志以及各种错误报警信息记录下来存放在 log 库里。系统管理员可以从 CLI 直接查看这个数据库，也可以在 WEB 通过图形化界面查看这些监测信息。
 
-这些监测信息的采集缺省是打开的，但可以修改配置文件里的选项monitor将其关闭或打开。
+这些监测信息的采集缺省是打开的，但可以修改配置文件里的选项 monitor 将其关闭或打开。
 
 ### TDinsight - 使用监控数据库 + Grafana 对 TDengine 进行监控的解决方案
 
@@ -1695,32 +1702,32 @@ COMPACT 命令对指定的一个或多个 VGroup 启动碎片重整，系统会�
 
 ## <a class="anchor" id="directories"></a>文件目录结构
 
-安装TDengine后，默认会在操作系统中生成下列目录或文件：
+安装 TDengine 后，默认会在操作系统中生成下列目录或文件：
 
 | **目录/文件**             | **说明**                                                     |
 | ------------------------- | ------------------------------------------------------------ |
-| /usr/local/taos/bin       | TDengine可执行文件目录。其中的执行文件都会软链接到/usr/bin目录下。 |
-| /usr/local/taos/connector | TDengine各种连接器目录。                                     |
-| /usr/local/taos/driver    | TDengine动态链接库目录。会软链接到/usr/lib目录下。           |
-| /usr/local/taos/examples  | TDengine各种语言应用示例目录。                               |
-| /usr/local/taos/include   | TDengine对外提供的C语言接口的头文件。                        |
-| /etc/taos/taos.cfg        | TDengine默认[配置文件]                                       |
-| /var/lib/taos             | TDengine默认数据文件目录。可通过[配置文件]修改位置。         |
-| /var/log/taos             | TDengine默认日志文件目录。可通过[配置文件]修改位置。         |
+| /usr/local/taos/bin       | TDengine 可执行文件目录。其中的执行文件都会软链接到 /usr/bin 目录下。 |
+| /usr/local/taos/connector | TDengine 各种连接器目录。                                     |
+| /usr/local/taos/driver    | TDengine 动态链接库目录。会软链接到 /usr/lib 目录下。           |
+| /usr/local/taos/examples  | TDengine 各种语言应用示例目录。                               |
+| /usr/local/taos/include   | TDengine 对外提供的 C 语言接口的头文件。                        |
+| /etc/taos/taos.cfg        | TDengine 默认[配置文件]                                       |
+| /var/lib/taos             | TDengine 默认数据文件目录。可通过[配置文件]修改位置。         |
+| /var/log/taos             | TDengine 默认日志文件目录。可通过[配置文件]修改位置。         |
 
 **可执行文件**
 
-TDengine的所有可执行文件默认存放在 _/usr/local/taos/bin_ 目录下。其中包括：
+TDengine 的所有可执行文件默认存放在 _/usr/local/taos/bin_ 目录下。其中包括：
 
-- *taosd*：TDengine服务端可执行文件
-- *taos*：TDengine Shell可执行文件
+- *taosd*：TDengine 服务端可执行文件
+- *taos*：TDengine Shell 可执行文件
 - *taosdump*：数据导入导出工具
-- *taosBenchmark*：TDengine测试工具
-- remove.sh：卸载TDengine的脚本，请谨慎执行，链接到/usr/bin目录下的**rmtaos**命令。会删除TDengine的安装目录/usr/local/taos，但会保留/etc/taos、/var/lib/taos、/var/log/taos。
+- *taosBenchmark*：TDengine 测试工具
+- remove.sh：卸载 TDengine 的脚本，请谨慎执行，链接到 /usr/bin 目录下的 **rmtaos** 命令。会删除 TDengine 的安装目录 /usr/local/taos，但会保留 /etc/taos、/var/lib/taos、/var/log/taos。
 
 注意：2.4.0.0 版本之后的 taosBenchmark 和 taosdump 需要安装独立安装包 taosTools。
 
-您可以通过修改系统配置文件taos.cfg来配置不同的数据目录和日志目录。
+您可以通过修改系统配置文件 taos.cfg 来配置不同的数据目录和日志目录。
 
 ## TDengine 的启动、停止、卸载
 
@@ -1865,10 +1872,10 @@ rmtaos
 - 转义字符使用规则
   1. 标识符里有转义字符（数据库名、表名、列名）
      1. 普通标识符：    直接提示错误的标识符，因为标识符规定必须是数字、字母和下划线，并且不能以数字开头。
-     2. 反引号``标识符： 保持原样，不转义
+     2. 反引号 `` 标识符： 保持原样，不转义
   2. 数据里有转义字符
      1. 遇到上面定义的转义字符会转义（%和_见下面说明），如果没有匹配的转义字符会忽略掉转义符\。
-     2. 对于%和_，因为在like里这两个字符是通配符，所以在模式匹配like里用`\%`%和`\_`表示字符里本身的%和_，如果在like模式匹配上下文之外使用`\%`或`\_`，则它们的计算结果为字符串`\%`和`\_`，而不是%和_。
+     2. 对于 % 和 _，因为在 like 里这两个字符是通配符，所以在模式匹配 like 里用`\%`%和`\_`表示字符里本身的 % 和 _，如果在 like 模式匹配上下文之外使用 `\%` 或 `\_`，则它们的计算结果为字符串 `\%`和 `\_`，而不是 % 和 _。
 
 ## 诊断及其他
 
