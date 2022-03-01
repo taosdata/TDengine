@@ -16,7 +16,7 @@
 #ifndef _TD_META_DEF_H_
 #define _TD_META_DEF_H_
 
-#include "mallocator.h"
+#include "tmallocator.h"
 
 #include "meta.h"
 

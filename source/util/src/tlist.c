@@ -13,15 +13,15 @@
  * along with this program. If not, see <http://www.gnu.org/licenses/>.
  */
 
+#define _DEFAULT_SOURCE
 #include "tlist.h"
-#include "os.h"
 
-void tdListInit(SList *list, int eleSize) {
+void tdListInit(SList *list, int32_t eleSize) {
   TD_DLIST_INIT(list);
   listEleSize(list) = eleSize;
 }
 
-SList *tdListNew(int eleSize) {
+SList *tdListNew(int32_t eleSize) {
   SList *list = (SList *)malloc(sizeof(SList));
   if (list == NULL) return NULL;
 
@@ -50,7 +50,7 @@ void tdListPrependNode(SList *list, SListNode *node) { TD_DLIST_PREPEND(list, no
 
 void tdListAppendNode(SList *list, SListNode *node) { TD_DLIST_APPEND(list, node); }
 
-int tdListPrepend(SList *list, void *data) {
+int32_t tdListPrepend(SList *list, void *data) {
   SListNode *node = (SListNode *)malloc(sizeof(SListNode) + list->eleSize);
   if (node == NULL) return -1;
 
@@ -60,7 +60,7 @@ int tdListPrepend(SList *list, void *data) {
   return 0;
 }
 
-int tdListAppend(SList *list, void *data) {
+int32_t tdListAppend(SList *list, void *data) {
   SListNode *node = (SListNode *)calloc(1, sizeof(SListNode) + list->eleSize);
   if (node == NULL) return -1;
 

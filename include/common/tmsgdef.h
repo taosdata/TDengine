@@ -47,7 +47,7 @@ enum {
 #define TD_NEW_MSG_SEG(TYPE) TYPE##_NUM,
 #define TD_DEF_MSG_TYPE(TYPE, MSG, REQ, RSP)
 
-int tMsgDict[] = {
+int32_t tMsgDict[] = {
 
 #elif defined(TD_MSG_SEG_CODE_)
 
@@ -127,7 +127,7 @@ enum {
   TD_DEF_MSG_TYPE(TDMT_MND_CREATE_STB, "mnode-create-stb", NULL, NULL)
   TD_DEF_MSG_TYPE(TDMT_MND_ALTER_STB, "mnode-alter-stb", NULL, NULL)
   TD_DEF_MSG_TYPE(TDMT_MND_DROP_STB, "mnode-drop-stb", NULL, NULL)
-  TD_DEF_MSG_TYPE(TDMT_MND_STB_META, "mnode-stb-meta", NULL, NULL)
+  TD_DEF_MSG_TYPE(TDMT_MND_TABLE_META, "mnode-table-meta", NULL, NULL)
   TD_DEF_MSG_TYPE(TDMT_MND_VGROUP_LIST, "mnode-vgroup-list", NULL, NULL)
   TD_DEF_MSG_TYPE(TDMT_MND_KILL_QUERY, "mnode-kill-query", NULL, NULL)
   TD_DEF_MSG_TYPE(TDMT_MND_KILL_CONN, "mnode-kill-conn", NULL, NULL)

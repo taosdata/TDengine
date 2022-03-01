@@ -16,7 +16,7 @@
 #if 0
 
 #include "plannerInt.h"
-#include "exception.h"
+#include "texception.h"
 #include "parser.h"
 
 #define STORE_CURRENT_SUBPLAN(cxt) SSubplan* _ = cxt->pCurrentSubplan

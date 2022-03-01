@@ -13,8 +13,8 @@
  * along with this program. If not, see <http://www.gnu.org/licenses/>.
  */
 
-#ifndef TDENGINE_OS_H
-#define TDENGINE_OS_H
+#ifndef _TD_OS_H_
+#define _TD_OS_H_
 
 #ifdef __cplusplus
 extern "C" {
@@ -82,4 +82,4 @@ void osInit();
 }
 #endif
 
-#endif
+#endif /*_TD_OS_H_*/

@@ -18,13 +18,13 @@
 #ifdef __cplusplus
 extern "C" {
 #endif
-#include "common.h"
+#include "tcommon.h"
 #include "thash.h"
 #include "query.h"
 
 typedef struct SScalarCtx {
   int32_t      code;
-  SSDataBlock *pSrc; 
+  SArray      *pBlockList;  /* element is SSDataBlock* */
   SHashObj    *pRes;  /* element is SScalarParam */
 } SScalarCtx;
 
@@ -44,7 +44,10 @@ typedef struct SScalarCtx {
 #define SCL_ERR_JRET(c) do { code = c; if (code != TSDB_CODE_SUCCESS) { terrno = code; goto _return; } } while (0)
 
 
-
+int32_t sclMoveParamListData(SScalarParam *params, int32_t listNum, int32_t idx);
+bool sclIsNull(SScalarParam* param, int32_t idx);
+void sclSetNull(SScalarParam* param, int32_t idx);
+void sclFreeParam(SScalarParam *param);
 
 #ifdef __cplusplus
 }

@@ -63,7 +63,7 @@ static void mndAddCpuInfo(SMnode* pMnode, SBufferWriter* bw) {
   int32_t done = 0;
 
   // FILE* fp = fopen("/proc/cpuinfo", "r");
-  TdFilePtr pFile = taosOpenFile("/proc/cpuinfo", TD_FILE_READ);
+  TdFilePtr pFile = taosOpenFile("/proc/cpuinfo", TD_FILE_READ | TD_FILE_STREAM);
   if (pFile == NULL) {
     return;
   }
@@ -93,7 +93,7 @@ static void mndAddOsInfo(SMnode* pMnode, SBufferWriter* bw) {
   size_t size = 0;
 
   // FILE* fp = fopen("/etc/os-release", "r");
-  TdFilePtr pFile = taosOpenFile("/etc/os-release", TD_FILE_READ);
+  TdFilePtr pFile = taosOpenFile("/etc/os-release", TD_FILE_READ | TD_FILE_STREAM);
   if (pFile == NULL) {
     return;
   }
@@ -120,7 +120,7 @@ static void mndAddMemoryInfo(SMnode* pMnode, SBufferWriter* bw) {
   size_t size = 0;
 
   // FILE* fp = fopen("/proc/meminfo", "r");
-  TdFilePtr pFile = taosOpenFile("/proc/meminfo", TD_FILE_READ);
+  TdFilePtr pFile = taosOpenFile("/proc/meminfo", TD_FILE_READ | TD_FILE_STREAM);
   if (pFile == NULL) {
     return;
   }

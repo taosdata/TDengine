@@ -12,19 +12,20 @@
  * You should have received a copy of the GNU Affero General Public License
  * along with this program. If not, see <http://www.gnu.org/licenses/>.
  */
-#ifndef TDENGINE_HEAP_H
-#define TDENGINE_HEAP_H
+
+#ifndef _TD_UTIL_HEAP_H_
+#define _TD_UTIL_HEAP_H_
+
+#include "os.h"
 
 #ifdef __cplusplus
 extern "C" {
 #endif
 
-#include "os.h"
-
 struct HeapNode;
 
 /* Return non-zero if a < b. */
-typedef int (*HeapCompareFn)(const struct HeapNode* a, const struct HeapNode* b);
+typedef int32_t (*HeapCompareFn)(const struct HeapNode* a, const struct HeapNode* b);
 
 typedef struct HeapNode {
   struct HeapNode* left;
@@ -38,15 +39,14 @@ typedef struct HeapNode {
  *
  */
 typedef struct {
-  HeapNode* min;
-  size_t nelts;
-  HeapCompareFn compFn;  
+  HeapNode*     min;
+  size_t        nelts;
+  HeapCompareFn compFn;
 } Heap;
-
 
 Heap* heapCreate(HeapCompareFn fn);
 
-void heapDestroy(Heap *heap);
+void heapDestroy(Heap* heap);
 
 HeapNode* heapMin(const Heap* heap);
 
@@ -56,10 +56,10 @@ void heapRemove(Heap* heap, struct HeapNode* node);
 
 void heapDequeue(Heap* heap);
 
-size_t heapSize(Heap *heap);
+size_t heapSize(Heap* heap);
 
 #ifdef __cplusplus
 }
 #endif
 
-#endif  // TDENGINE_HASH_H
+#endif /*_TD_UTIL_HEAP_H_*/

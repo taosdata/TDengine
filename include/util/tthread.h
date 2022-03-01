@@ -13,25 +13,21 @@
  * along with this program. If not, see <http://www.gnu.org/licenses/>.
  */
 
-#ifndef _TD_UTIL_THREAD_H
-#define _TD_UTIL_THREAD_H
+#ifndef _TD_UTIL_THREAD_H_
+#define _TD_UTIL_THREAD_H_
+
+#include "os.h"
 
 #ifdef __cplusplus
 extern "C" {
 #endif
 
-#include "os.h"
-#include "tdef.h"
-
-// create new thread
 pthread_t* taosCreateThread(void* (*__start_routine)(void*), void* param);
-// destory thread
-bool taosDestoryThread(pthread_t* pthread);
-// thread running return true
-bool taosThreadRunning(pthread_t* pthread);
+bool       taosDestoryThread(pthread_t* pthread);
+bool       taosThreadRunning(pthread_t* pthread);
 
 #ifdef __cplusplus
 }
 #endif
 
-#endif  /*_TD_UTIL_THREAD_H*/
+#endif /*_TD_UTIL_THREAD_H_*/

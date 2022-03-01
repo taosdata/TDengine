@@ -22,7 +22,7 @@
 #include "tsdbFile.h"
 #include "tskiplist.h"
 #include "tsdbMemory.h"
-#include "common.h"
+#include "tcommon.h"
 
 typedef struct SReadH SReadH;
 
