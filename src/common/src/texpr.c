@@ -112,7 +112,8 @@ int32_t exprTreeValidateExprNode(tExprNode *pExpr) {
       pExpr->_node.optr == TSDB_BINARY_OP_REMAINDER) {
     int16_t leftType = pExpr->_node.pLeft->resultType;
     int16_t rightType = pExpr->_node.pRight->resultType;
-    if (!IS_NUMERIC_TYPE(leftType) || !IS_NUMERIC_TYPE(rightType)) {
+    if ((!IS_NUMERIC_TYPE(leftType) && IS_TIMESTAMP_TYPE(leftType)) ||
+        (!IS_NUMERIC_TYPE(rightType) && IS_TIMESTAMP_TYPE(rightType))) {
       return TSDB_CODE_TSC_INVALID_OPERATION;
     }
     if (IS_TIMESTAMP_TYPE(leftType) || IS_TIMESTAMP_TYPE(rightType)) {
