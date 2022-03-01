@@ -29,6 +29,7 @@ typedef struct __attribute__((__packed__)) {
 } SPageHdr;
 
 typedef struct {
+  void *    pData;
   SPageHdr *pPageHdr;
   void *    pAMHdr;
   u16 *     aCellIdx;

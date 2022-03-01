@@ -22,7 +22,7 @@ extern "C" {
 
 typedef struct SBTree    SBTree;
 typedef struct SBtCursor SBtCursor;
-typedef struct SBtPage SBtPage;
+typedef struct SBtPage   SBtPage;
 
 struct SBtCursor {
   SBTree * pBt;
