@@ -5075,10 +5075,10 @@ static int32_t validateSQLExprItem(SSqlCmd* pCmd, tSqlExpr* pExpr,
       return invalidOperationMsg(tscGetErrorMsgPayload(pCmd), msg3);
     }
 
-    //now allowing now +/- value in select expr
-    //if (pExpr->tokenId == TK_TIMESTAMP) {
-    //  return invalidOperationMsg(tscGetErrorMsgPayload(pCmd), msg3);
-    //}
+    //not allowing now/today keyword arithmetic operation in select expr
+    if (pExpr->exprToken.type == TK_NOW || pExpr->exprToken.type == TK_TODAY) {
+      return invalidOperationMsg(tscGetErrorMsgPayload(pCmd), msg3);
+    }
 
     if (pExpr->type == SQL_NODE_VALUE) {
       *type = SQLEXPR_TYPE_VALUE;
