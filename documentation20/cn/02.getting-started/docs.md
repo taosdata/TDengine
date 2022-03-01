@@ -16,14 +16,18 @@ docker run -d -p 6030-6049:6030-6049 -p 6030-6049:6030-6049/udp tdengine/tdengin
 详细操作方法请参照 [通过 Docker 快速体验 TDengine](https://www.taosdata.com/cn/documentation/getting-started/docker)。
 
 注：暂时不建议生产环境采用 Docker 来部署 TDengine 的客户端或服务端，但在开发环境下或初次尝试时，使用 Docker 方式部署是十分方便的。特别是，利用 Docker，可以方便地在 Mac OS X 和 Windows 环境下尝试 TDengine。
-从2.4.0.10开始，除taosd以外，docker镜像还包含：客户端程序、taosAdapter、taosdump、taosBenchmark、TDinsight安装脚本和示例代码。启动docker容器时，将同时启动taosAdapter和taosd，实现restful的支持。
+
+从2.4.0.10开始，除taosd以外，docker镜像还包含：客户端程序、taosAdapter、taosdump、taosBenchmark、TDinsight安装脚本和示例代码。启动docker容器时，将同时启动taosAdapter和taosd，实现对restful的支持。
 
 
 ### <a class="anchor" id="package-install"></a>通过安装包安装
 
 TDengine 的安装非常简单，从下载到安装成功仅仅只要几秒钟。
+
 为方便使用，从2.4.0.10开始，标准的服务端安装包包含了客户端程序、taosAdapter、taosdump、taosBenchmark、TDinsight安装脚本和示例代码；如果您只需要用到服务端程序和客户端连接的 C/C++ 语言支持，也可以仅下载 lite 版本的安装包。
+
 在安装包格式上，我们提供tar.gz, rpm 和 deb 格式，为企业客户提供 tar.gz 格式安装包，以方便在特定操作系统上使用。需要注意的是，rpm和deb包不含taosdump、taosBenchmark和TDinsight安装脚本，这些工具需要通过安装taosTool包获得。
+
 发布版本包括稳定版和 Beta 版，Beta版含有更多新功能。正式上线或测试建议安装稳定版。您可以根据需要选择下载：
 
 <ul id="server-packageList" class="package-list"></ul>
