@@ -284,7 +284,7 @@ void tVariantAssign(tVariant *pDst, const tVariant *pSrc) {
 
   }
 
-  if (IS_NUMERIC_TYPE(pSrc->nType) || (pSrc->nType == TSDB_DATA_TYPE_BOOL)) {
+  if (IS_NUMERIC_TYPE(pSrc->nType) || IS_TIMESTAMP_TYPE(pSrc->nType) || (pSrc->nType == TSDB_DATA_TYPE_BOOL)) {
     pDst->i64 = pSrc->i64;
   } else if (pSrc->nType == TSDB_DATA_TYPE_POINTER_ARRAY) {  // this is only for string array
     size_t num = taosArrayGetSize(pSrc->arr);
