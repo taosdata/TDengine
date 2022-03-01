@@ -24,6 +24,7 @@ typedef struct SPFile SPFile;
 
 int    tdbPFileOpen(SPCache *pCache, const char *fileName, SPFile **ppFile);
 int    tdbPFileClose(SPFile *pFile);
+int    tdbPFileOpenDB(SPFile *pFile, SPgno *ppgno, bool toCreate);
 SPage *tdbPFileGet(SPFile *pFile, SPgno pgno);
 int    tdbPFileWrite(SPFile *pFile, SPage *pPage);
 int    tdbPFileAllocPage(SPFile *pFile, SPage **ppPage, SPgno *ppgno);

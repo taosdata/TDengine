@@ -31,6 +31,10 @@ struct SPFile {
   u8       inTran;
 };
 
+typedef struct {
+  /* TODO */
+} SFileHdr;
+
 static int tdbPFileReadPage(SPFile *pFile, SPage *pPage);
 
 int tdbPFileOpen(SPCache *pCache, const char *fileName, SPFile **ppFile) {
@@ -84,6 +88,33 @@ int tdbPFileOpen(SPCache *pCache, const char *fileName, SPFile **ppFile) {
 
 int tdbPFileClose(SPFile *pFile) {
   // TODO
+  return 0;
+}
+
+int tdbPFileOpenDB(SPFile *pFile, SPgno *ppgno, bool toCreate) {
+  SPgno  pgno;
+  SPage *pPage;
+  int    ret;
+
+  {
+    // TODO: try to search the main DB to get the page number
+    pgno = 0;
+  }
+
+  if (pgno == 0 && toCreate) {
+    ret = tdbPFileAllocPage(pFile, &pPage, &pgno);
+    if (ret < 0) {
+      return -1;
+    }
+
+    // tdbPFileZeroPage(pPage);
+    ret = tdbPFileWrite(pFile, pPage);
+    if (ret < 0) {
+      return -1;
+    }
+  }
+
+  *ppgno = pgno;
   return 0;
 }
 

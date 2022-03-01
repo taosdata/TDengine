@@ -49,19 +49,9 @@ int tdbDbOpen(const char *fname, int keyLen, int valLen, FKeyComparator keyCmprF
 
   ASSERT(pFile != NULL);
 
-  // TODO: Search if the DB already in the file
-  if (1 /*todo: db should be created*/) {
-    ret = tdbPFileAllocPage(pFile, &pPage, &pgno);
-    if (ret < 0) {
-      return -1;
-    }
-
-    ret = tdbPFileWrite(pFile, pPage);
-    if (ret < 0) {
-      return -1;
-    }
-  } else {
-    ASSERT(0);
+  ret = tdbPFileOpenDB(pFile, &pgno, true);
+  if (ret < 0) {
+    return -1;
   }
 
   // pDb->pBt
