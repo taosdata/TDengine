@@ -30,18 +30,25 @@ static int32_t doSyncIOOnMsg(struct SSyncIO *io, void *pParent, SRpcMsg *pMsg, S
 static int32_t doSyncIODestroy(SSyncIO *io);
 
 static SSyncIO *syncIOCreate();
-static void *   syncIOConsumer(void *param);
+static void    *syncIOConsumer(void *param);
 static int      syncIOAuth(void *parent, char *meterId, char *spi, char *encrypt, char *secret, char *ckey);
 static void     syncIODoReply(void *pParent, SRpcMsg *pMsg, SEpSet *pEpSet);
 static void     syncIODoRequest(void *pParent, SRpcMsg *pMsg, SEpSet *pEpSet);
 static void     syncIOTick(void *param, void *tmrId);
 // ----------------------------
 
-int32_t syncIOSendMsg(void *handle, const SEpSet *pEpSet, SRpcMsg *pMsg) { return 0; }
+int32_t syncIOSendMsg(void *handle, const SEpSet *pEpSet, SRpcMsg *pMsg) {
+  pMsg->handle = NULL;
+  rpcSendRequest(handle, pEpSet, pMsg, NULL);
+  return 0;
+}
 
 int32_t syncIOStart() {
   gSyncIO = syncIOCreate();
   assert(gSyncIO != NULL);
+
+  int32_t ret = doSyncIOStart(gSyncIO);
+  assert(ret == 0);
 
   return 0;
 }
@@ -67,15 +74,14 @@ static void syncIOTick(void *param, void *tmrId) {
 
   taosWriteQitem(io->pMsgQ, pTemp);
 
-  bool b = taosTmrReset(syncIOTick, 1000, io, io->syncTimerManager, io->syncTimer);
-  assert(b);
+  taosTmrReset(syncIOTick, 1000, io, io->syncTimerManager, io->syncTimer);
 }
 
 static void *syncIOConsumer(void *param) {
   SSyncIO *io = param;
 
   STaosQall *qall;
-  SRpcMsg *  pRpcMsg, rpcMsg;
+  SRpcMsg   *pRpcMsg, rpcMsg;
   int        type;
 
   qall = taosAllocateQall();
@@ -215,8 +221,8 @@ static int32_t doSyncIOStart(SSyncIO *io) {
   }
 
   // start tmr thread
-  io->syncTimerManager = taosTmrInit(1000, 50, 10000, "SYNC");
-  io->syncTimer = taosTmrStart(syncIOTick, 1000, io, io->syncTimerManager);
+  // io->syncTimerManager = taosTmrInit(1000, 50, 10000, "SYNC");
+  // io->syncTimer = taosTmrStart(syncIOTick, 1000, io, io->syncTimerManager);
 
   return 0;
 }

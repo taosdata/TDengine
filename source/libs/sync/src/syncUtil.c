@@ -22,7 +22,7 @@
 uint64_t syncUtilAddr2U64(const char* host, uint16_t port) {
   uint64_t u64;
   uint32_t hostU32 = (uint32_t)inet_addr(host);
-  assert(hostU32 != (uint32_t)-1);
+  // assert(hostU32 != (uint32_t)-1);
   u64 = (((uint64_t)hostU32) << 32) | (((uint32_t)port) << 16);
   return u64;
 }

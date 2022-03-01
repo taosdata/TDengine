@@ -97,14 +97,17 @@ typedef struct SRaftId {
 } SRaftId;
 
 typedef struct SSyncNode {
-  int8_t  replica;
-  int8_t  quorum;
-  int32_t refCount;
-  int64_t rid;
-
   SyncGroupId vgId;
   SSyncCfg    syncCfg;
   char        path[TSDB_FILENAME_LEN];
+  SSyncFSM*   pFsm;
+
+  // passed from outside
+  void* rpcClient;
+  int32_t (*FpSendMsg)(void* rpcClient, const SEpSet* pEpSet, SRpcMsg* pMsg);
+
+  int32_t refCount;
+  int64_t rid;
 
   SNodeInfo me;
   SNodeInfo peers[TSDB_MAX_REPLICA];
@@ -112,7 +115,6 @@ typedef struct SSyncNode {
 
   ESyncRole role;
   SRaftId   raftId;
-  SSyncFSM* pFsm;
 
   tmr_h             pPingTimer;
   int32_t           pingTimerMS;
@@ -144,10 +146,6 @@ typedef struct SSyncNode {
   int32_t (*FpOnAppendEntries)(SSyncNode* ths, SyncAppendEntries* pMsg);
 
   int32_t (*FpOnAppendEntriesReply)(SSyncNode* ths, SyncAppendEntriesReply* pMsg);
-
-  // passed from outside
-  void* rpcClient;
-  int32_t (*FpSendMsg)(void* rpcClient, const SEpSet* pEpSet, SRpcMsg* pMsg);
 
 } SSyncNode;
 

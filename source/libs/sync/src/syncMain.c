@@ -69,14 +69,33 @@ SSyncNode* syncNodeOpen(const SSyncInfo* pSyncInfo) {
   assert(pSyncNode != NULL);
   memset(pSyncNode, 0, sizeof(SSyncNode));
 
+  pSyncNode->vgId = pSyncInfo->vgId;
+  pSyncNode->syncCfg = pSyncInfo->syncCfg;
+  memcpy(pSyncNode->path, pSyncInfo->path, sizeof(pSyncNode->path));
+  pSyncNode->pFsm = pSyncInfo->pFsm;
+
+  pSyncNode->rpcClient = pSyncInfo->rpcClient;
+  pSyncNode->FpSendMsg = pSyncInfo->FpSendMsg;
+
+  pSyncNode->me = pSyncInfo->syncCfg.nodeInfo[pSyncInfo->syncCfg.myIndex];
+  pSyncNode->peersNum = pSyncInfo->syncCfg.replicaNum - 1;
+
+  int j = 0;
+  for (int i = 0; i < pSyncInfo->syncCfg.replicaNum; ++i) {
+    if (i != pSyncInfo->syncCfg.myIndex) {
+      pSyncNode->peers[j] = pSyncInfo->syncCfg.nodeInfo[i];
+      j++;
+    }
+  }
+
+  pSyncNode->role = TAOS_SYNC_STATE_FOLLOWER;
+  syncUtilnodeInfo2raftId(&pSyncNode->me, pSyncNode->vgId, &pSyncNode->raftId);
+
   pSyncNode->pPingTimer = NULL;
   pSyncNode->pingTimerMS = 1000;
   atomic_store_8(&pSyncNode->pingTimerStart, 0);
   pSyncNode->FpPingTimer = syncNodePingTimerCb;
   pSyncNode->pingTimerCounter = 0;
-
-  pSyncNode->rpcClient = pSyncInfo->rpcClient;
-  pSyncNode->FpSendMsg = pSyncInfo->FpSendMsg;
 
   pSyncNode->FpOnPing = syncNodeOnPingCb;
   pSyncNode->FpOnPingReply = syncNodeOnPingReplyCb;
@@ -97,10 +116,11 @@ void syncNodePingAll(SSyncNode* pSyncNode) {
   sTrace("syncNodePingAll %p ", pSyncNode);
   int32_t ret = 0;
   for (int i = 0; i < pSyncNode->syncCfg.replicaNum; ++i) {
-    SyncPing* pSyncPing;
-    SRaftId   raftId;
-    syncUtilnodeInfo2raftId(&pSyncNode->syncCfg.nodeInfo[i], pSyncNode->vgId, &raftId);
-    ret = syncNodePing(pSyncNode, &raftId, pSyncPing);
+    SyncPing* pMsg = syncPingBuild(strlen("ping") + 1);
+    memcpy(pMsg->data, "ping", strlen("ping") + 1);
+    syncUtilnodeInfo2raftId(&pSyncNode->syncCfg.nodeInfo[i], pSyncNode->vgId, &pMsg->destId);
+    pMsg->srcId = pSyncNode->raftId;
+    ret = syncNodePing(pSyncNode, &pMsg->destId, pMsg);
     assert(ret == 0);
   }
 }
@@ -118,10 +138,11 @@ void syncNodePingPeers(SSyncNode* pSyncNode) {
 
 void syncNodePingSelf(SSyncNode* pSyncNode) {
   int32_t   ret = 0;
-  SyncPing* pSyncPing;
-  SRaftId   raftId;
-  syncUtilnodeInfo2raftId(&pSyncNode->me, pSyncNode->vgId, &raftId);
-  ret = syncNodePing(pSyncNode, &raftId, pSyncPing);
+  SyncPing* pMsg = syncPingBuild(strlen("ping") + 1);
+  memcpy(pMsg->data, "ping", strlen("ping") + 1);
+  pMsg->destId = pSyncNode->raftId;
+  pMsg->srcId = pSyncNode->raftId;
+  ret = syncNodePing(pSyncNode, &pMsg->destId, pMsg);
   assert(ret == 0);
 }
 
@@ -146,10 +167,10 @@ int32_t syncNodeStopPingTimer(SSyncNode* pSyncNode) {
 
 // ------ local funciton ---------
 static int32_t syncNodePing(SSyncNode* pSyncNode, const SRaftId* destRaftId, SyncPing* pMsg) {
-  int32_t  ret = 0;
-  SRpcMsg* rpcMsg;
-  syncPing2RpcMsg(pMsg, rpcMsg);
-  syncNodeSendMsgById(destRaftId, pSyncNode, rpcMsg);
+  int32_t ret = 0;
+  SRpcMsg rpcMsg;
+  syncPing2RpcMsg(pMsg, &rpcMsg);
+  syncNodeSendMsgById(destRaftId, pSyncNode, &rpcMsg);
   return ret;
 }
 
