@@ -19,136 +19,194 @@
 
 void onMessage(SRaft* pRaft, void* pMsg) {}
 
-// ---- message build ----
+// ---- message process SyncPing----
 SyncPing* syncPingBuild(uint32_t dataLen) {
   uint32_t  bytes = SYNC_PING_FIX_LEN + dataLen;
-  SyncPing* pSyncPing = malloc(bytes);
-  memset(pSyncPing, 0, bytes);
-  pSyncPing->bytes = bytes;
-  pSyncPing->msgType = SYNC_PING;
-  pSyncPing->dataLen = dataLen;
+  SyncPing* pMsg = malloc(bytes);
+  memset(pMsg, 0, bytes);
+  pMsg->bytes = bytes;
+  pMsg->msgType = SYNC_PING;
+  pMsg->dataLen = dataLen;
 }
 
-void syncPingDestroy(SyncPing* pSyncPing) {
-  if (pSyncPing != NULL) {
-    free(pSyncPing);
+void syncPingDestroy(SyncPing* pMsg) {
+  if (pMsg != NULL) {
+    free(pMsg);
   }
 }
 
-void syncPingSerialize(const SyncPing* pSyncPing, char* buf, uint32_t bufLen) {
-  assert(pSyncPing->bytes <= bufLen);
-  memcpy(buf, pSyncPing, pSyncPing->bytes);
+void syncPingSerialize(const SyncPing* pMsg, char* buf, uint32_t bufLen) {
+  assert(pMsg->bytes <= bufLen);
+  memcpy(buf, pMsg, pMsg->bytes);
 }
 
-void syncPingDeserialize(const char* buf, uint32_t len, SyncPing* pSyncPing) {
-  /*
-  uint32_t* pU32 = (uint32_t*)buf;
-  uint32_t  bytes = *pU32;
-  pSyncPing = (SyncPing*)malloc(bytes);
-  */
-  memcpy(pSyncPing, buf, len);
-  assert(len == pSyncPing->bytes);
-  assert(pSyncPing->bytes == SYNC_PING_FIX_LEN + pSyncPing->dataLen);
+void syncPingDeserialize(const char* buf, uint32_t len, SyncPing* pMsg) {
+  memcpy(pMsg, buf, len);
+  assert(len == pMsg->bytes);
+  assert(pMsg->bytes == SYNC_PING_FIX_LEN + pMsg->dataLen);
 }
 
-void syncPing2RpcMsg(const SyncPing* pSyncPing, SRpcMsg* pRpcMsg) {
-  pRpcMsg->msgType = pSyncPing->msgType;
-  pRpcMsg->contLen = pSyncPing->bytes;
+void syncPing2RpcMsg(const SyncPing* pMsg, SRpcMsg* pRpcMsg) {
+  pRpcMsg->msgType = pMsg->msgType;
+  pRpcMsg->contLen = pMsg->bytes;
   pRpcMsg->pCont = rpcMallocCont(pRpcMsg->contLen);
-  syncPingSerialize(pSyncPing, pRpcMsg->pCont, pRpcMsg->contLen);
+  syncPingSerialize(pMsg, pRpcMsg->pCont, pRpcMsg->contLen);
 }
 
-void syncPingFromRpcMsg(const SRpcMsg* pRpcMsg, SyncPing* pSyncPing) {
-  syncPingDeserialize(pRpcMsg->pCont, pRpcMsg->contLen, pSyncPing);
+void syncPingFromRpcMsg(const SRpcMsg* pRpcMsg, SyncPing* pMsg) {
+  syncPingDeserialize(pRpcMsg->pCont, pRpcMsg->contLen, pMsg);
 }
 
-cJSON* syncPing2Json(const SyncPing* pSyncPing) {
+cJSON* syncPing2Json(const SyncPing* pMsg) {
   cJSON* pRoot = cJSON_CreateObject();
-  cJSON_AddNumberToObject(pRoot, "bytes", pSyncPing->bytes);
-  cJSON_AddNumberToObject(pRoot, "msgType", pSyncPing->msgType);
+  cJSON_AddNumberToObject(pRoot, "bytes", pMsg->bytes);
+  cJSON_AddNumberToObject(pRoot, "msgType", pMsg->msgType);
 
   cJSON* pSrcId = cJSON_CreateObject();
-  cJSON_AddNumberToObject(pSrcId, "addr", pSyncPing->srcId.addr);
-  cJSON_AddNumberToObject(pSrcId, "vgId", pSyncPing->srcId.vgId);
+  cJSON_AddNumberToObject(pSrcId, "addr", pMsg->srcId.addr);
+  cJSON_AddNumberToObject(pSrcId, "vgId", pMsg->srcId.vgId);
   cJSON_AddItemToObject(pRoot, "srcId", pSrcId);
 
   cJSON* pDestId = cJSON_CreateObject();
-  cJSON_AddNumberToObject(pDestId, "addr", pSyncPing->destId.addr);
-  cJSON_AddNumberToObject(pDestId, "vgId", pSyncPing->destId.vgId);
+  cJSON_AddNumberToObject(pDestId, "addr", pMsg->destId.addr);
+  cJSON_AddNumberToObject(pDestId, "vgId", pMsg->destId.vgId);
   cJSON_AddItemToObject(pRoot, "srcId", pDestId);
 
-  cJSON_AddNumberToObject(pRoot, "dataLen", pSyncPing->dataLen);
-  cJSON_AddStringToObject(pRoot, "data", pSyncPing->data);
+  cJSON_AddNumberToObject(pRoot, "dataLen", pMsg->dataLen);
+  cJSON_AddStringToObject(pRoot, "data", pMsg->data);
 
-  return pRoot;
+  cJSON* pJson = cJSON_CreateObject();
+  cJSON_AddItemToObject(pJson, "SyncPing", pRoot);
+  return pJson;
+}
+
+// ---- message process SyncPingReply----
+SyncPingReply* syncPingReplyBuild(uint32_t dataLen) {
+  uint32_t       bytes = SYNC_PING_REPLY_FIX_LEN + dataLen;
+  SyncPingReply* pMsg = malloc(bytes);
+  memset(pMsg, 0, bytes);
+  pMsg->bytes = bytes;
+  pMsg->msgType = SYNC_PING;
+  pMsg->dataLen = dataLen;
+}
+
+void syncPingReplyDestroy(SyncPingReply* pMsg) {
+  if (pMsg != NULL) {
+    free(pMsg);
+  }
+}
+
+void syncPingReplySerialize(const SyncPingReply* pMsg, char* buf, uint32_t bufLen) {
+  assert(pMsg->bytes <= bufLen);
+  memcpy(buf, pMsg, pMsg->bytes);
+}
+
+void syncPingReplyDeserialize(const char* buf, uint32_t len, SyncPingReply* pMsg) {
+  memcpy(pMsg, buf, len);
+  assert(len == pMsg->bytes);
+  assert(pMsg->bytes == SYNC_PING_FIX_LEN + pMsg->dataLen);
+}
+
+void syncPingReply2RpcMsg(const SyncPingReply* pMsg, SRpcMsg* pRpcMsg) {
+  pRpcMsg->msgType = pMsg->msgType;
+  pRpcMsg->contLen = pMsg->bytes;
+  pRpcMsg->pCont = rpcMallocCont(pRpcMsg->contLen);
+  syncPingReplySerialize(pMsg, pRpcMsg->pCont, pRpcMsg->contLen);
+}
+
+void syncPingReplyFromRpcMsg(const SRpcMsg* pRpcMsg, SyncPingReply* pMsg) {
+  syncPingReplyDeserialize(pRpcMsg->pCont, pRpcMsg->contLen, pMsg);
+}
+
+cJSON* syncPingReply2Json(const SyncPingReply* pMsg) {
+  cJSON* pRoot = cJSON_CreateObject();
+  cJSON_AddNumberToObject(pRoot, "bytes", pMsg->bytes);
+  cJSON_AddNumberToObject(pRoot, "msgType", pMsg->msgType);
+
+  cJSON* pSrcId = cJSON_CreateObject();
+  cJSON_AddNumberToObject(pSrcId, "addr", pMsg->srcId.addr);
+  cJSON_AddNumberToObject(pSrcId, "vgId", pMsg->srcId.vgId);
+  cJSON_AddItemToObject(pRoot, "srcId", pSrcId);
+
+  cJSON* pDestId = cJSON_CreateObject();
+  cJSON_AddNumberToObject(pDestId, "addr", pMsg->destId.addr);
+  cJSON_AddNumberToObject(pDestId, "vgId", pMsg->destId.vgId);
+  cJSON_AddItemToObject(pRoot, "srcId", pDestId);
+
+  cJSON_AddNumberToObject(pRoot, "dataLen", pMsg->dataLen);
+  cJSON_AddStringToObject(pRoot, "data", pMsg->data);
+
+  cJSON* pJson = cJSON_CreateObject();
+  cJSON_AddItemToObject(pJson, "SyncPingReply", pRoot);
+  return pJson;
 }
 
 #if 0
-void syncPingSerialize(const SyncPing* pSyncPing, char** ppBuf, uint32_t* bufLen) {
-  *bufLen = sizeof(SyncPing) + pSyncPing->dataLen;
+void syncPingSerialize(const SyncPing* pMsg, char** ppBuf, uint32_t* bufLen) {
+  *bufLen = sizeof(SyncPing) + pMsg->dataLen;
   *ppBuf = (char*)malloc(*bufLen);
   void*    pStart = *ppBuf;
   uint32_t allBytes = *bufLen;
 
   int len = 0;
-  len = taosEncodeFixedU32(&pStart, pSyncPing->msgType);
+  len = taosEncodeFixedU32(&pStart, pMsg->msgType);
   allBytes -= len;
   assert(len > 0);
   pStart += len;
 
-  len = taosEncodeFixedU64(&pStart, pSyncPing->srcId.addr);
+  len = taosEncodeFixedU64(&pStart, pMsg->srcId.addr);
   allBytes -= len;
   assert(len > 0);
   pStart += len;
 
-  len = taosEncodeFixedI32(&pStart, pSyncPing->srcId.vgId);
+  len = taosEncodeFixedI32(&pStart, pMsg->srcId.vgId);
   allBytes -= len;
   assert(len > 0);
   pStart += len;
 
-  len = taosEncodeFixedU64(&pStart, pSyncPing->destId.addr);
+  len = taosEncodeFixedU64(&pStart, pMsg->destId.addr);
   allBytes -= len;
   assert(len > 0);
   pStart += len;
 
-  len = taosEncodeFixedI32(&pStart, pSyncPing->destId.vgId);
+  len = taosEncodeFixedI32(&pStart, pMsg->destId.vgId);
   allBytes -= len;
   assert(len > 0);
   pStart += len;
 
-  len = taosEncodeFixedU32(&pStart, pSyncPing->dataLen);
+  len = taosEncodeFixedU32(&pStart, pMsg->dataLen);
   allBytes -= len;
   assert(len > 0);
   pStart += len;
 
-  memcpy(pStart, pSyncPing->data, pSyncPing->dataLen);
-  allBytes -= pSyncPing->dataLen;
+  memcpy(pStart, pMsg->data, pMsg->dataLen);
+  allBytes -= pMsg->dataLen;
   assert(allBytes == 0);
 }
 
 
-void syncPingDeserialize(const char* buf, uint32_t len, SyncPing* pSyncPing) {
+void syncPingDeserialize(const char* buf, uint32_t len, SyncPing* pMsg) {
   void*    pStart = (void*)buf;
   uint64_t u64;
   int32_t  i32;
   uint32_t u32;
 
   pStart = taosDecodeFixedU64(pStart, &u64);
-  pSyncPing->msgType = u64;
+  pMsg->msgType = u64;
 
   pStart = taosDecodeFixedU64(pStart, &u64);
-  pSyncPing->srcId.addr = u64;
+  pMsg->srcId.addr = u64;
 
   pStart = taosDecodeFixedI32(pStart, &i32);
-  pSyncPing->srcId.vgId = i32;
+  pMsg->srcId.vgId = i32;
 
   pStart = taosDecodeFixedU64(pStart, &u64);
-  pSyncPing->destId.addr = u64;
+  pMsg->destId.addr = u64;
 
   pStart = taosDecodeFixedI32(pStart, &i32);
-  pSyncPing->destId.vgId = i32;
+  pMsg->destId.vgId = i32;
 
   pStart = taosDecodeFixedU32(pStart, &u32);
-  pSyncPing->dataLen = u32;
+  pMsg->dataLen = u32;
 }
 #endif

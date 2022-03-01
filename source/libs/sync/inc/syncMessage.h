@@ -58,6 +58,20 @@ typedef struct SyncPing {
 
 #define SYNC_PING_FIX_LEN (sizeof(uint32_t) + sizeof(uint32_t) + sizeof(SRaftId) + sizeof(SRaftId) + sizeof(uint32_t))
 
+SyncPing* syncPingBuild(uint32_t dataLen);
+
+void syncPingDestroy(SyncPing* pMsg);
+
+void syncPingSerialize(const SyncPing* pMsg, char* buf, uint32_t bufLen);
+
+void syncPingDeserialize(const char* buf, uint32_t len, SyncPing* pMsg);
+
+void syncPing2RpcMsg(const SyncPing* pMsg, SRpcMsg* pRpcMsg);
+
+void syncPingFromRpcMsg(const SRpcMsg* pRpcMsg, SyncPing* pMsg);
+
+cJSON* syncPing2Json(const SyncPing* pMsg);
+
 typedef struct SyncPingReply {
   uint32_t bytes;
   uint32_t msgType;
@@ -66,6 +80,23 @@ typedef struct SyncPingReply {
   uint32_t dataLen;
   char     data[];
 } SyncPingReply;
+
+#define SYNC_PING_REPLY_FIX_LEN \
+  (sizeof(uint32_t) + sizeof(uint32_t) + sizeof(SRaftId) + sizeof(SRaftId) + sizeof(uint32_t))
+
+SyncPingReply* syncPingReplyBuild(uint32_t dataLen);
+
+void syncPingReplyDestroy(SyncPingReply* pMsg);
+
+void syncPingReplySerialize(const SyncPingReply* pMsg, char* buf, uint32_t bufLen);
+
+void syncPingReplyDeserialize(const char* buf, uint32_t len, SyncPingReply* pMsg);
+
+void syncPingReply2RpcMsg(const SyncPingReply* pMsg, SRpcMsg* pRpcMsg);
+
+void syncPingReplyFromRpcMsg(const SRpcMsg* pRpcMsg, SyncPingReply* pMsg);
+
+cJSON* syncPingReply2Json(const SyncPingReply* pMsg);
 
 typedef struct SyncClientRequest {
   ESyncMessageType msgType;
@@ -117,21 +148,6 @@ typedef struct SyncAppendEntriesReply {
   bool             success;
   SyncIndex        matchIndex;
 } SyncAppendEntriesReply;
-
-// ---- message build ----
-SyncPing* syncPingBuild(uint32_t dataLen);
-
-void syncPingDestroy(SyncPing* pSyncPing);
-
-void syncPingSerialize(const SyncPing* pSyncPing, char* buf, uint32_t bufLen);
-
-void syncPingDeserialize(const char* buf, uint32_t len, SyncPing* pSyncPing);
-
-void syncPing2RpcMsg(const SyncPing* pSyncPing, SRpcMsg* pRpcMsg);
-
-void syncPingFromRpcMsg(const SRpcMsg* pRpcMsg, SyncPing* pSyncPing);
-
-cJSON* syncPing2Json(const SyncPing* pSyncPing);
 
 #ifdef __cplusplus
 }
