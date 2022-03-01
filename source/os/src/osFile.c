@@ -198,6 +198,8 @@ TdFilePtr taosOpenFile(const char *path, int32_t tdFileOptions) {
       mode = (tdFileOptions & TD_FILE_TEXT) ? "at+" : "ab+";
     }else if (tdFileOptions & TD_FILE_TRUNC) {
       mode = (tdFileOptions & TD_FILE_TEXT) ? "wt+" : "wb+";
+    }else if ((tdFileOptions & TD_FILE_READ) && !(tdFileOptions & TD_FILE_WRITE)) {
+      mode = (tdFileOptions & TD_FILE_TEXT) ? "rt" : "rb";
     }else {
       mode = (tdFileOptions & TD_FILE_TEXT) ? "rt+" : "rb+";
     }
