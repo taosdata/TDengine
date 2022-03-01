@@ -112,8 +112,8 @@ int32_t exprTreeValidateExprNode(tExprNode *pExpr) {
       pExpr->_node.optr == TSDB_BINARY_OP_REMAINDER) {
     int16_t leftType = pExpr->_node.pLeft->resultType;
     int16_t rightType = pExpr->_node.pRight->resultType;
-    if ((!IS_NUMERIC_TYPE(leftType) && IS_TIMESTAMP_TYPE(leftType)) ||
-        (!IS_NUMERIC_TYPE(rightType) && IS_TIMESTAMP_TYPE(rightType))) {
+    if ((!IS_NUMERIC_TYPE(leftType) && !IS_TIMESTAMP_TYPE(leftType)) ||
+        (!IS_NUMERIC_TYPE(rightType) && !IS_TIMESTAMP_TYPE(rightType))) {
       return TSDB_CODE_TSC_INVALID_OPERATION;
     }
     if (IS_TIMESTAMP_TYPE(leftType) || IS_TIMESTAMP_TYPE(rightType)) {
@@ -2295,7 +2295,7 @@ void vectorTimeFunc(int16_t functionId, tExprOperandInfo *pInputs, int32_t numIn
             memmove(fraction, fraction + TSDB_TIME_PRECISION_SEC_DIGITS, TSDB_TIME_PRECISION_SEC_DIGITS);
           }
 
-          struct tm *tmInfo = localtime(&timeVal);
+          struct tm *tmInfo = localtime((const time_t *)&timeVal);
           strftime(buf, sizeof(buf), "%Y-%m-%dT%H:%M:%S%z", tmInfo);
           int32_t len = (int32_t)strlen(buf);
 
