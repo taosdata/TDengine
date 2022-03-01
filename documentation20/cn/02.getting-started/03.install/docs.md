@@ -54,8 +54,8 @@ TDengine is removed successfully!
 
 ### 安装 rpm
 
-1、从官网下载获得rpm安装包，比如TDengine-server-2.0.0.0-Linux-x64.rpm；
-2、进入到TDengine-server-2.0.0.0-Linux-x64.rpm安装包所在目录，执行如下的安装命令：
+1、从官网下载获得 rpm 安装包，比如 TDengine-server-2.0.0.0-Linux-x64.rpm；
+2、进入到 TDengine-server-2.0.0.0-Linux-x64.rpm 安装包所在目录，执行如下的安装命令：
 
 ```
 $ sudo rpm -ivh TDengine-server-2.4.0.7-Linux-x64.rpm
@@ -94,8 +94,8 @@ TDengine is removed successfully!
 
 ### 安装 tar.gz 安装包
 
-1、从官网下载获得tar.gz安装包，比如TDengine-server-2.0.0.0-Linux-x64.tar.gz；
-2、进入到TDengine-server-2.0.0.0-Linux-x64.tar.gz安装包所在目录，先解压文件后，进入子目录，执行其中的install.sh安装脚本：
+1、从官网下载获得 tar.gz 安装包，比如 TDengine-server-2.4.0.7-Linux-x64.tar.gz；
+2、进入到 TDengine-server-2.4.0.7-Linux-x64.tar.gz 安装包所在目录，先解压文件后，进入子目录，执行其中的 install.sh 安装脚本：
 
 ```
 $ tar xvzf TDengine-enterprise-server-2.4.0.7-Linux-x64.tar.gz
@@ -141,7 +141,7 @@ Install taoskeeper as a standalone service
 taoskeeper is installed, enable it by `systemctl enable taoskeeper`
 ```
 
-说明：install.sh 安装脚本在执行过程中，会通过命令行交互界面询问一些配置信息。如果希望采取无交互安装方式，那么可以用 -e no 参数来执行 install.sh 脚本。运行 ./install.sh -h 指令可以查看所有参数的详细说明信息。
+说明：install.sh 安装脚本在执行过程中，会通过命令行交互界面询问一些配置信息。如果希望采取无交互安装方式，那么可以用 -e no 参数来执行 install.sh 脚本。运行 `./install.sh -h` 指令可以查看所有参数的详细说明信息。
 
 ### tar.gz 安装后的卸载
 
@@ -157,7 +157,7 @@ taosKeeper is removed successfully!
 
 ## 安装目录说明
 
-TDengine成功安装后，主安装目录是/usr/local/taos，目录内容如下：
+TDengine 成功安装后，主安装目录是 /usr/local/taos，目录内容如下：
 
 ```
 $ cd /usr/local/taos
@@ -176,24 +176,24 @@ lrwxrwxrwx  1 root root   13 Feb 22 09:34 log -> /var/log/taos/
 ```
 
 - 自动生成配置文件目录、数据库目录、日志目录。
-- 配置文件缺省目录：/etc/taos/taos.cfg， 软链接到/usr/local/taos/cfg/taos.cfg；
-- 数据库缺省目录：/var/lib/taos， 软链接到/usr/local/taos/data；
-- 日志缺省目录：/var/log/taos， 软链接到/usr/local/taos/log；
-- /usr/local/taos/bin目录下的可执行文件，会软链接到/usr/bin目录下；
-- /usr/local/taos/driver目录下的动态库文件，会软链接到/usr/lib目录下；
-- /usr/local/taos/include目录下的头文件，会软链接到到/usr/include目录下；
+- 配置文件缺省目录：/etc/taos/taos.cfg， 软链接到 /usr/local/taos/cfg/taos.cfg；
+- 数据库缺省目录：/var/lib/taos， 软链接到 /usr/local/taos/data；
+- 日志缺省目录：/var/log/taos， 软链接到 /usr/local/taos/log；
+- /usr/local/taos/bin 目录下的可执行文件，会软链接到 /usr/bin 目录下；
+- /usr/local/taos/driver 目录下的动态库文件，会软链接到 /usr/lib 目录下；
+- /usr/local/taos/include 目录下的头文件，会软链接到到 /usr/include 目录下；
 
 ## 卸载和更新文件说明
 
 卸载安装包的时候，将保留配置文件、数据库文件和日志文件，即 /etc/taos/taos.cfg 、 /var/lib/taos 、 /var/log/taos 。如果用户确认后不需保留，可以手工删除，但一定要慎重，因为删除后，数据将永久丢失，不可以恢复！
 
-如果是更新安装，当缺省配置文件（ /etc/taos/taos.cfg ）存在时，仍然使用已有的配置文件，安装包中携带的配置文件修改为taos.cfg.org保存在 /usr/local/taos/cfg/ 目录，可以作为设置配置参数的参考样例；如果不存在配置文件，就使用安装包中自带的配置文件。
+如果是更新安装，当缺省配置文件（ /etc/taos/taos.cfg ）存在时，仍然使用已有的配置文件，安装包中携带的配置文件修改为 taos.cfg.orig 保存在 /usr/local/taos/cfg/ 目录，可以作为设置配置参数的参考样例；如果不存在配置文件，就使用安装包中自带的配置文件。
 
 ## 注意事项
 
 - TDengine提供了多种安装包，但最好不要在一个系统上同时使用 tar.gz 安装包和 deb 或 rpm 安装包。否则会相互影响，导致在使用时出现问题。
 
-- 对于deb包安装后，如果安装目录被手工误删了部分，出现卸载、或重新安装不能成功。此时，需要清除 tdengine 包的安装信息，执行如下命令：
+- 对于deb包安装后，如果安装目录被手工误删了部分，出现卸载、或重新安装不能成功。此时，需要清除 TDengine 包的安装信息，执行如下命令：
 
 ```
 $ sudo rm -f /var/lib/dpkg/info/tdengine*
@@ -201,7 +201,7 @@ $ sudo rm -f /var/lib/dpkg/info/tdengine*
 
 然后再重新进行安装就可以了。
 
-- 对于rpm包安装后，如果安装目录被手工误删了部分，出现卸载、或重新安装不能成功。此时，需要清除tdengine包的安装信息，执行如下命令：
+- 对于 rpm 包安装后，如果安装目录被手工误删了部分，出现卸载、或重新安装不能成功。此时，需要清除 TDengine 包的安装信息，执行如下命令：
 
 ```
 $ sudo rpm -e --noscripts tdengine
