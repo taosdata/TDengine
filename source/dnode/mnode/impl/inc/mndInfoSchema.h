@@ -13,24 +13,33 @@
  * along with this program. If not, see <http://www.gnu.org/licenses/>.
  */
 
-#ifndef _TD_COMMON_BIN_SCALAR_OPERATOR_H_
-#define _TD_COMMON_BIN_SCALAR_OPERATOR_H_
+#ifndef _TD_MND_INFO_SCHEMA_H_
+#define _TD_MND_INFO_SCHEMA_H_
+
+#include "mndInt.h"
 
 #ifdef __cplusplus
 extern "C" {
 #endif
 
-#include "sclfunc.h"
+typedef struct SInfosTableSchema {
+  char   *name;
+  int32_t type;
+  int32_t bytes;
+} SInfosTableSchema;
 
-typedef double (*_mathFunc)(double, double, bool *);
+typedef struct SInfosTableMeta {
+  char                    *name;
+  const SInfosTableSchema *schema;
+  int32_t                  colNum;
+} SInfosTableMeta;
 
-
-typedef void (*_bufConverteFunc)(char *buf, SScalarParam* pOut, int32_t outType);
-typedef void (*_bin_scalar_fn_t)(SScalarParam* pLeft, SScalarParam* pRight, SScalarParam *output, int32_t order);
-_bin_scalar_fn_t getBinScalarOperatorFn(int32_t binOperator);
+int32_t mndBuildInsTableSchema(SMnode *pMnode, const char *dbFName, const char *tbName, STableMetaRsp *pRsp);
+int32_t mndInitInfos(SMnode *pMnode);
+void mndCleanupInfos(SMnode *pMnode);
 
 #ifdef __cplusplus
 }
 #endif
 
-#endif  /*_TD_COMMON_BIN_SCALAR_OPERATOR_H_*/
+#endif /*_TD_MND_INFO_SCHEMA_H_*/

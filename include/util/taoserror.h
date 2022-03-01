@@ -13,12 +13,14 @@
  * along with this program. If not, see <http://www.gnu.org/licenses/>.
  */
 
-#ifndef _TD_UTIL_ERROR_H_
-#define _TD_UTIL_ERROR_H_
+#ifndef _TD_UTIL_TAOS_ERROR_H_
+#define _TD_UTIL_TAOS_ERROR_H_
 
 #ifdef __cplusplus
 extern "C" {
 #endif
+
+// clang-format off
 
 #define TAOS_DEF_ERROR_CODE(mod, code) ((int32_t)((0x80000000 | ((mod)<<16) | (code))))
  
@@ -233,6 +235,9 @@ int32_t* taosGetErrno();
 #define TSDB_CODE_MND_COLUMN_ALREADY_EXIST      TAOS_DEF_ERROR_CODE(0, 0x03AD)
 #define TSDB_CODE_MND_COLUMN_NOT_EXIST          TAOS_DEF_ERROR_CODE(0, 0x03AE)
 
+// mnode-infoSchema
+#define TSDB_CODE_MND_INVALID_INFOS_TBL         TAOS_DEF_ERROR_CODE(0, 0x03B0)
+
 // mnode-func
 #define TSDB_CODE_MND_FUNC_ALREADY_EXIST        TAOS_DEF_ERROR_CODE(0, 0x03C0)
 #define TSDB_CODE_MND_FUNC_NOT_EXIST            TAOS_DEF_ERROR_CODE(0, 0x03C1)
@@ -262,6 +267,8 @@ int32_t* taosGetErrno();
 #define TSDB_CODE_MND_SUBSCRIBE_NOT_EXIST       TAOS_DEF_ERROR_CODE(0, 0x03E9)
 #define TSDB_CODE_MND_OFFSET_NOT_EXIST          TAOS_DEF_ERROR_CODE(0, 0x03EA)
 #define TSDB_CODE_MND_MQ_PLACEHOLDER            TAOS_DEF_ERROR_CODE(0, 0x03F0)
+
+
 
 // dnode
 #define TSDB_CODE_DND_ACTION_IN_PROGRESS        TAOS_DEF_ERROR_CODE(0, 0x0400)
@@ -467,4 +474,4 @@ int32_t* taosGetErrno();
 }
 #endif
 
-#endif /*_TD_UTIL_ERROR_H_*/
+#endif /*_TD_UTIL_TAOS_ERROR_H_*/
