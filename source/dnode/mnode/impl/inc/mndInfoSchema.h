@@ -13,28 +13,33 @@
  * along with this program. If not, see <http://www.gnu.org/licenses/>.
  */
 
-#ifndef _TD_TCOMPARE_H_
-#define _TD_TCOMPARE_H_
+#ifndef _TD_MND_INFO_SCHEMA_H_
+#define _TD_MND_INFO_SCHEMA_H_
 
-#include "compare.h"
-#include "ttypes.h"
+#include "mndInt.h"
 
 #ifdef __cplusplus
 extern "C" {
 #endif
 
-int32_t compareStrPatternMatch(const void* pLeft, const void* pRight);
-int32_t compareStrPatternNotMatch(const void* pLeft, const void* pRight);
+typedef struct SInfosTableSchema {
+  char   *name;
+  int32_t type;
+  int32_t bytes;
+} SInfosTableSchema;
 
-int32_t compareWStrPatternMatch(const void* pLeft, const void* pRight);
-int32_t compareWStrPatternNotMatch(const void* pLeft, const void* pRight);
+typedef struct SInfosTableMeta {
+  char                    *name;
+  const SInfosTableSchema *schema;
+  int32_t                  colNum;
+} SInfosTableMeta;
 
-__compar_fn_t getComparFunc(int32_t type, int32_t optr);
-__compar_fn_t getKeyComparFunc(int32_t keyType, int32_t order);
-int32_t       doCompare(const char* a, const char* b, int32_t type, size_t size);
+int32_t mndBuildInsTableSchema(SMnode *pMnode, const char *dbFName, const char *tbName, STableMetaRsp *pRsp);
+int32_t mndInitInfos(SMnode *pMnode);
+void mndCleanupInfos(SMnode *pMnode);
 
 #ifdef __cplusplus
 }
 #endif
 
-#endif /*_TD_TCOMPARE_H_*/
+#endif /*_TD_MND_INFO_SCHEMA_H_*/

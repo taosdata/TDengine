@@ -21,7 +21,9 @@ extern "C" {
 #endif
 
 #include <stdint.h>
+#include <tep.h>
 #include "taosdef.h"
+#include "trpc.h"
 
 typedef uint64_t SyncNodeId;
 typedef int32_t  SyncGroupId;
@@ -34,23 +36,23 @@ typedef enum {
   TAOS_SYNC_STATE_LEADER = 2,
 } ESyncState;
 
-typedef struct {
+typedef struct SSyncBuffer {
   void*  data;
   size_t len;
 } SSyncBuffer;
 
-typedef struct {
-  SyncNodeId nodeId;
-  uint16_t   nodePort;                 // node sync Port
-  char       nodeFqdn[TSDB_FQDN_LEN];  // node FQDN
+typedef struct SNodeInfo {
+  uint16_t nodePort;                 // node sync Port
+  char     nodeFqdn[TSDB_FQDN_LEN];  // node FQDN
 } SNodeInfo;
 
-typedef struct {
+typedef struct SSyncCfg {
   int32_t   replicaNum;
+  int32_t   myIndex;
   SNodeInfo nodeInfo[TSDB_MAX_REPLICA];
 } SSyncCfg;
 
-typedef struct {
+typedef struct SNodesRole {
   int32_t    replicaNum;
   SNodeInfo  nodeInfo[TSDB_MAX_REPLICA];
   ESyncState role[TSDB_MAX_REPLICA];
@@ -128,12 +130,12 @@ typedef struct SStateMgr {
 
 } SStateMgr;
 
-typedef struct {
-  SyncGroupId   vgId;
-  SSyncCfg      syncCfg;
-  SSyncLogStore logStore;
-  SStateMgr     stateManager;
-  SSyncFSM      syncFsm;
+typedef struct SSyncInfo {
+  SyncGroupId vgId;
+  SSyncCfg    syncCfg;
+  char        path[TSDB_FILENAME_LEN];
+  SSyncFSM*   pFsm;
+  int32_t (*FpSendMsg)(void* handle, const SEpSet* pEpSet, SRpcMsg* pMsg);
 
 } SSyncInfo;
 

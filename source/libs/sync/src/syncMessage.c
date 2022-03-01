@@ -14,7 +14,6 @@
  */
 
 #include "syncMessage.h"
-#include "sync.h"
 #include "syncRaft.h"
 
 void onMessage(SRaft *pRaft, void *pMsg) {}

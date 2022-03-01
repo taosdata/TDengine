@@ -13,12 +13,12 @@
  * along with this program. If not, see <http://www.gnu.org/licenses/>.
  */
 
-#include "common.h"
+#include "tcommon.h"
 #include "query.h"
 
 #include "tsort.h"
 #include "tep.h"
-#include "tcfg.h"
+#include "tdef.h"
 #include "tlosertree.h"
 #include "tpagedbuf.h"
 #include "tutil.h"

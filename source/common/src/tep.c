@@ -1,10 +1,24 @@
-#include "tep.h"
-#include <compare.h>
-#include "common.h"
-#include "tglobal.h"
-#include "tlockfree.h"
+/*
+ * Copyright (c) 2019 TAOS Data, Inc. <jhtao@taosdata.com>
+ *
+ * This program is free software: you can use, redistribute, and/or modify
+ * it under the terms of the GNU Affero General Public License, version 3
+ * or later ("AGPL"), as published by the Free Software Foundation.
+ *
+ * This program is distributed in the hope that it will be useful, but WITHOUT
+ * ANY WARRANTY; without even the implied warranty of MERCHANTABILITY or
+ * FITNESS FOR A PARTICULAR PURPOSE.
+ *
+ * You should have received a copy of the GNU Affero General Public License
+ * along with this program. If not, see <http://www.gnu.org/licenses/>.
+ */
 
-int taosGetFqdnPortFromEp(const char *ep, SEp* pEp) {
+#define _DEFAULT_SOURCE
+#include "tep.h"
+#include "tcompare.h"
+#include "tglobal.h"
+
+int32_t taosGetFqdnPortFromEp(const char *ep, SEp* pEp) {
   pEp->port = 0;
   strcpy(pEp->fqdn, ep);
 
@@ -61,7 +75,6 @@ SEpSet getEpSet_s(SCorEpSet *pEpSet) {
   return ep;
 }
 
-#define BitmapLen(_n)     (((_n) + ((1<<NBIT)-1)) >> NBIT)
 
 int32_t colDataGetLength(const SColumnInfoData* pColumnInfoData, int32_t numOfRows) {
   ASSERT(pColumnInfoData != NULL);
@@ -121,6 +134,7 @@ int32_t colDataAppend(SColumnInfoData* pColumnInfoData, uint32_t currentRow, con
   } else {
     char* p = pColumnInfoData->pData + pColumnInfoData->info.bytes * currentRow;
     switch(type) {
+      case TSDB_DATA_TYPE_BOOL: {*(bool*) p = *(bool*) pData;break;}
       case TSDB_DATA_TYPE_TINYINT:
       case TSDB_DATA_TYPE_UTINYINT: {*(int8_t*) p = *(int8_t*) pData;break;}
       case TSDB_DATA_TYPE_SMALLINT:
@@ -130,6 +144,8 @@ int32_t colDataAppend(SColumnInfoData* pColumnInfoData, uint32_t currentRow, con
       case TSDB_DATA_TYPE_TIMESTAMP:
       case TSDB_DATA_TYPE_BIGINT:
       case TSDB_DATA_TYPE_UBIGINT: {*(int64_t*) p = *(int64_t*) pData;break;}
+      case TSDB_DATA_TYPE_FLOAT: {*(float*) p = *(float*) pData;break;}
+      case TSDB_DATA_TYPE_DOUBLE: {*(double*) p = *(double*) pData;break;}
       default:
         assert(0);
     }
@@ -1057,36 +1073,47 @@ void blockDataClearup(SSDataBlock* pDataBlock, bool hasVarCol) {
   }
 }
 
+int32_t blockDataEnsureColumnCapacity(SColumnInfoData* pColumn, uint32_t numOfRows) {
+  if (IS_VAR_DATA_TYPE(pColumn->info.type)) {
+    char* tmp = realloc(pColumn->varmeta.offset, sizeof(int32_t) * numOfRows);
+    if (tmp == NULL) {
+      return TSDB_CODE_OUT_OF_MEMORY;
+    }
+
+    pColumn->varmeta.offset = (int32_t*)tmp;
+    memset(pColumn->varmeta.offset, 0, sizeof(int32_t) * numOfRows);
+
+    pColumn->varmeta.length = 0;
+    pColumn->varmeta.allocLen = 0;
+    tfree(pColumn->pData);
+  } else {
+    char* tmp = realloc(pColumn->nullbitmap, BitmapLen(numOfRows));
+    if (tmp == NULL) {
+      return TSDB_CODE_OUT_OF_MEMORY;
+    }
+
+    pColumn->nullbitmap = tmp;
+    memset(pColumn->nullbitmap, 0, BitmapLen(numOfRows));
+
+    tmp = realloc(pColumn->pData, numOfRows * pColumn->info.bytes);
+    if (tmp == NULL) {
+      return TSDB_CODE_OUT_OF_MEMORY;
+    }
+
+    pColumn->pData = tmp;
+  }
+
+  return TSDB_CODE_SUCCESS;
+}
+
 int32_t blockDataEnsureCapacity(SSDataBlock* pDataBlock, uint32_t numOfRows) {
+  int32_t code = 0;
+  
   for(int32_t i = 0; i < pDataBlock->info.numOfCols; ++i) {
     SColumnInfoData* p = taosArrayGet(pDataBlock->pDataBlock, i);
-    if (IS_VAR_DATA_TYPE(p->info.type)) {
-      char* tmp = realloc(p->varmeta.offset, sizeof(int32_t) * numOfRows);
-      if (tmp == NULL) {
-        return TSDB_CODE_OUT_OF_MEMORY;
-      }
-
-      p->varmeta.offset = (int32_t*)tmp;
-      memset(p->varmeta.offset, 0, sizeof(int32_t) * numOfRows);
-
-      p->varmeta.length = 0;
-      p->varmeta.allocLen = 0;
-      tfree(p->pData);
-    } else {
-      char* tmp = realloc(p->nullbitmap, BitmapLen(numOfRows));
-      if (tmp == NULL) {
-        return TSDB_CODE_OUT_OF_MEMORY;
-      }
-
-      p->nullbitmap = tmp;
-      memset(p->nullbitmap, 0, BitmapLen(numOfRows));
-
-      tmp = realloc(p->pData, numOfRows * p->info.bytes);
-      if (tmp == NULL) {
-        return TSDB_CODE_OUT_OF_MEMORY;
-      }
-
-      p->pData = tmp;
+    code = blockDataEnsureColumnCapacity(p, numOfRows);
+    if (code) {
+      return code;
     }
   }
 

@@ -14,10 +14,9 @@
  */
 
 #define _DEFAULT_SOURCE
-#include "compare.h"
+#include "tcompare.h"
 #include "os.h"
 #include "taoserror.h"
-#include "tfile.h"
 #include "tref.h"
 #include "walInt.h"
 
@@ -40,15 +39,9 @@ int32_t walInit() {
   int8_t old = atomic_val_compare_exchange_8(&tsWal.inited, 0, 1);
   if (old == 1) return 0;
 
-  int code = tfInit();
-  if (code != 0) {
-    wError("failed to init tfile since %s", tstrerror(code));
-    atomic_store_8(&tsWal.inited, 0);
-    return code;
-  }
   tsWal.refSetId = taosOpenRef(TSDB_MIN_VNODES, walFreeObj);
 
-  code = walCreateThread();
+  int32_t code = walCreateThread();
   if (code != 0) {
     wError("failed to init wal module since %s", tstrerror(code));
     atomic_store_8(&tsWal.inited, 0);

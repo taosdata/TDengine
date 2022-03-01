@@ -12,45 +12,45 @@
  * You should have received a copy of the GNU Affero General Public License
  * along with this program. If not, see <http://www.gnu.org/licenses/>.
  */
-#ifndef _TD_UTIL_FUNCTIONAL_H
-#define _TD_UTIL_FUNCTIONAL_H
+#ifndef _TD_UTIL_FUNCTIONAL_H_
+#define _TD_UTIL_FUNCTIONAL_H_
+
+#include "os.h"
 
 #ifdef __cplusplus
 extern "C" {
 #endif
 
-#include "os.h"
-
-//TODO: hard to use, trying to rewrite it using va_list
+// TODO: hard to use, trying to rewrite it using va_list
 
 typedef void* (*GenericVaFunc)(void* args[]);
-typedef int32_t (*I32VaFunc) (void* args[]);
-typedef void (*VoidVaFunc) (void* args[]);
+typedef int32_t (*I32VaFunc)(void* args[]);
+typedef void (*VoidVaFunc)(void* args[]);
 
 typedef struct GenericSavedFunc {
   GenericVaFunc func;
-  void * args[];
+  void*         args[];
 } tGenericSavedFunc;
 
 typedef struct I32SavedFunc {
   I32VaFunc func;
-  void * args[];
+  void*     args[];
 } tI32SavedFunc;
 
 typedef struct VoidSavedFunc {
   VoidVaFunc func;
-  void * args[];
+  void*      args[];
 } tVoidSavedFunc;
 
-tGenericSavedFunc* genericSavedFuncInit(GenericVaFunc func, int numOfArgs);
-tI32SavedFunc* i32SavedFuncInit(I32VaFunc func, int numOfArgs);
-tVoidSavedFunc* voidSavedFuncInit(VoidVaFunc func, int numOfArgs);
-void* genericInvoke(tGenericSavedFunc* const pSavedFunc);
-int32_t i32Invoke(tI32SavedFunc* const pSavedFunc);
-void voidInvoke(tVoidSavedFunc* const pSavedFunc);
+tGenericSavedFunc* genericSavedFuncInit(GenericVaFunc func, int32_t numOfArgs);
+tI32SavedFunc*     i32SavedFuncInit(I32VaFunc func, int32_t numOfArgs);
+tVoidSavedFunc*    voidSavedFuncInit(VoidVaFunc func, int32_t numOfArgs);
+void*              genericInvoke(tGenericSavedFunc* const pSavedFunc);
+int32_t            i32Invoke(tI32SavedFunc* const pSavedFunc);
+void               voidInvoke(tVoidSavedFunc* const pSavedFunc);
 
 #ifdef __cplusplus
 }
 #endif
 
-#endif /*_TD_UTIL_FUNCTIONAL_H*/
+#endif /*_TD_UTIL_FUNCTIONAL_H_*/

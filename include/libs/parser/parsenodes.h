@@ -21,7 +21,7 @@ extern "C" {
 #endif
 
 #include "catalog.h"
-#include "common.h"
+#include "tcommon.h"
 #include "function.h"
 #include "tmsgtype.h"
 #include "tname.h"

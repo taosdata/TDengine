@@ -36,6 +36,7 @@
 #include "mndTrans.h"
 #include "mndUser.h"
 #include "mndVgroup.h"
+#include "mndInfoSchema.h"
 
 #define MQ_TIMER_MS    3000
 #define TRNAS_TIMER_MS 6000
@@ -221,6 +222,7 @@ static int32_t mndInitSteps(SMnode *pMnode) {
   if (mndAllocStep(pMnode, "mnode-offset", mndInitOffset, mndCleanupOffset) != 0) return -1;
   if (mndAllocStep(pMnode, "mnode-vgroup", mndInitVgroup, mndCleanupVgroup) != 0) return -1;
   if (mndAllocStep(pMnode, "mnode-stb", mndInitStb, mndCleanupStb) != 0) return -1;
+  if (mndAllocStep(pMnode, "mnode-infos", mndInitInfos, mndCleanupInfos) != 0) return -1;
   if (mndAllocStep(pMnode, "mnode-db", mndInitDb, mndCleanupDb) != 0) return -1;
   if (mndAllocStep(pMnode, "mnode-func", mndInitFunc, mndCleanupFunc) != 0) return -1;
   if (pMnode->clusterId <= 0) {
@@ -503,9 +505,17 @@ void mndSetMsgHandle(SMnode *pMnode, tmsg_t msgType, MndMsgFp fp) {
   }
 }
 
+
+// Note: uid 0 is reserved
 uint64_t mndGenerateUid(char *name, int32_t len) {
-  int64_t  us = taosGetTimestampUs();
   int32_t  hashval = MurmurHash3_32(name, len);
-  uint64_t x = (us & 0x000000FFFFFFFFFF) << 24;
-  return x + ((hashval & ((1ul << 16) - 1ul)) << 8) + (taosRand() & ((1ul << 8) - 1ul));
+
+  do {
+    int64_t  us = taosGetTimestampUs();
+    uint64_t x = (us & 0x000000FFFFFFFFFF) << 24;
+    uint64_t uuid = x + ((hashval & ((1ul << 16) - 1ul)) << 8) + (taosRand() & ((1ul << 8) - 1ul));
+    if (uuid) {
+      return uuid;
+    }
+  } while (true);
 }

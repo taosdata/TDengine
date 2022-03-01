@@ -44,18 +44,53 @@ namespace {
 int64_t scltLeftV = 21, scltRightV = 10;
 double scltLeftVd = 21.0, scltRightVd = 10.0;
 
+void scltFreeDataBlock(void *block) {
+  blockDataDestroy(*(SSDataBlock **)block);
+}
+
 void scltInitLogFile() {
   const char   *defaultLogFileNamePrefix = "taoslog";
   const int32_t maxLogFileNum = 10;
 
   tsAsyncLog = 0;
   qDebugFlag = 159;
+  strcpy(tsLogDir, "/var/log/taos");
 
   if (taosInitLog(defaultLogFileNamePrefix, maxLogFileNum) < 0) {
     printf("failed to open log file in directory:%s\n", tsLogDir);
   }
 }
 
+void scltAppendReservedSlot(SArray *pBlockList, int16_t *dataBlockId, int16_t *slotId, bool newBlock, int32_t rows, SColumnInfo *colInfo) {
+  if (newBlock) {
+    SSDataBlock *res = (SSDataBlock *)calloc(1, sizeof(SSDataBlock));
+    res->info.numOfCols = 1;
+    res->info.rows = rows;
+    res->pDataBlock = taosArrayInit(1, sizeof(SColumnInfoData));
+    SColumnInfoData idata = {0};
+    idata.info  = *colInfo;
+
+    taosArrayPush(res->pDataBlock, &idata);
+    taosArrayPush(pBlockList, &res);
+    
+    blockDataEnsureCapacity(res, rows);
+
+    *dataBlockId = taosArrayGetSize(pBlockList) - 1;
+    *slotId = 0;
+  } else {
+    SSDataBlock *res = *(SSDataBlock **)taosArrayGetLast(pBlockList);
+    res->info.numOfCols++;
+    SColumnInfoData idata = {0};
+    idata.info  = *colInfo;
+
+    blockDataEnsureColumnCapacity(&idata, rows);
+
+    taosArrayPush(res->pDataBlock, &idata);
+    
+    *dataBlockId = taosArrayGetSize(pBlockList) - 1;
+    *slotId = taosArrayGetSize(res->pDataBlock) - 1;
+  }
+}
 
 void scltMakeValueNode(SNode **pNode, int32_t dataType, void *value) {
   SNode *node = nodesMakeNode(QUERY_NODE_VALUE);
@@ -65,7 +100,7 @@ void scltMakeValueNode(SNode **pNode, int32_t dataType, void *value) {
   if (IS_VAR_DATA_TYPE(dataType)) {
     vnode->datum.p = (char *)malloc(varDataTLen(value));
     varDataCopy(vnode->datum.p, value);
-    vnode->node.resType.bytes = varDataLen(value);
+    vnode->node.resType.bytes = varDataTLen(value);
   } else {
     vnode->node.resType.bytes = tDataTypes[dataType].bytes;
     assignVal((char *)nodesGetValueFromNode(vnode), (const char *)value, 0, dataType);
@@ -74,12 +109,12 @@ void scltMakeValueNode(SNode **pNode, int32_t dataType, void *value) {
   *pNode = (SNode *)vnode;
 }
 
-void scltMakeColRefNode(SNode **pNode, SSDataBlock **block, int32_t dataType, int32_t dataBytes, int32_t rowNum, void *value) {
+void scltMakeColumnNode(SNode **pNode, SSDataBlock **block, int32_t dataType, int32_t dataBytes, int32_t rowNum, void *value) {
   SNode *node = nodesMakeNode(QUERY_NODE_COLUMN);
   SColumnNode *rnode = (SColumnNode *)node;
   rnode->node.resType.type = dataType;
   rnode->node.resType.bytes = dataBytes;
-  rnode->tupleId = 0;
+  rnode->dataBlockId = 0;
 
   if (NULL == *block) {
     SSDataBlock *res = (SSDataBlock *)calloc(1, sizeof(SSDataBlock));
@@ -90,7 +125,7 @@ void scltMakeColRefNode(SNode **pNode, SSDataBlock **block, int32_t dataType, in
       SColumnInfoData idata = {{0}};
       idata.info.type  = TSDB_DATA_TYPE_NULL;
       idata.info.bytes = 10;
-      idata.info.colId = 0;
+      idata.info.colId = i + 1;
 
       int32_t size = idata.info.bytes * rowNum;
       idata.pData = (char *)calloc(1, size);
@@ -100,18 +135,25 @@ void scltMakeColRefNode(SNode **pNode, SSDataBlock **block, int32_t dataType, in
     SColumnInfoData idata = {{0}};
     idata.info.type  = dataType;
     idata.info.bytes = dataBytes;
-    idata.info.colId = 55;
-    idata.pData = (char *)value;
-    if (IS_VAR_DATA_TYPE(dataType)) {
-      idata.varmeta.offset = (int32_t *)calloc(rowNum, sizeof(int32_t));
-      for (int32_t i = 0; i < rowNum; ++i) {
-        idata.varmeta.offset[i] = (dataBytes + VARSTR_HEADER_SIZE) * i;
+    idata.info.colId = 3;
+    int32_t size = idata.info.bytes * rowNum;
+    idata.pData = (char *)calloc(1, size);
+    taosArrayPush(res->pDataBlock, &idata);
+    
+    blockDataEnsureCapacity(res, rowNum);
+
+    SColumnInfoData *pColumn = (SColumnInfoData *)taosArrayGetLast(res->pDataBlock);
+    for (int32_t i = 0; i < rowNum; ++i) {
+      colDataAppend(pColumn, i, (const char *)value, false);
+      if (IS_VAR_DATA_TYPE(dataType)) {
+        value = (char *)value + varDataTLen(value);
+      } else {
+        value = (char *)value + dataBytes;
       }
     }
-    taosArrayPush(res->pDataBlock, &idata);
 
     rnode->slotId = 2;
-    rnode->colId = 55;
+    rnode->colId = 3;
 
     *block = res;
   } else {
@@ -121,12 +163,26 @@ void scltMakeColRefNode(SNode **pNode, SSDataBlock **block, int32_t dataType, in
     SColumnInfoData idata = {{0}};
     idata.info.type  = dataType;
     idata.info.bytes = dataBytes;
-    idata.info.colId = 55 + idx;
-    idata.pData = (char *)value;
+    idata.info.colId = 1 + idx;
+    int32_t size = idata.info.bytes * rowNum;
+    idata.pData = (char *)calloc(1, size);
     taosArrayPush(res->pDataBlock, &idata);
+    res->info.numOfCols++;
+    SColumnInfoData *pColumn = (SColumnInfoData *)taosArrayGetLast(res->pDataBlock);
+    
+    blockDataEnsureColumnCapacity(pColumn, rowNum);
+
+    for (int32_t i = 0; i < rowNum; ++i) {
+      colDataAppend(pColumn, i, (const char *)value, false);
+      if (IS_VAR_DATA_TYPE(dataType)) {
+        value = (char *)value + varDataTLen(value);
+      } else {
+        value = (char *)value + dataBytes;
+      }
+    }
     
     rnode->slotId = idx;
-    rnode->colId = 55 + idx;
+    rnode->colId = 1 + idx;
   }
 
   *pNode = (SNode *)rnode;
@@ -171,6 +227,17 @@ void scltMakeLogicNode(SNode **pNode, ELogicConditionType opType, SNode **nodeLi
   *pNode = (SNode *)onode;
 }
 
+void scltMakeTargetNode(SNode **pNode, int16_t dataBlockId, int16_t slotId, SNode *snode) {
+  SNode *node = nodesMakeNode(QUERY_NODE_TARGET);
+  STargetNode *onode = (STargetNode *)node;
+  onode->pExpr = snode;
+  onode->dataBlockId = dataBlockId;
+  onode->slotId = slotId;
+  
+  *pNode = (SNode *)onode;
+}
+
+
 
 }
 
@@ -187,6 +254,7 @@ TEST(constantTest, bigint_add_bigint) {
   SValueNode *v = (SValueNode *)res;
   ASSERT_EQ(v->node.resType.type, TSDB_DATA_TYPE_DOUBLE);
   ASSERT_EQ(v->datum.d, (scltLeftV + scltRightV));
+  nodesDestroyNode(res);
 }
 
 TEST(constantTest, double_sub_bigint) {
@@ -202,6 +270,7 @@ TEST(constantTest, double_sub_bigint) {
   SValueNode *v = (SValueNode *)res;
   ASSERT_EQ(v->node.resType.type, TSDB_DATA_TYPE_DOUBLE);
   ASSERT_EQ(v->datum.d, (scltLeftVd - scltRightV));
+  nodesDestroyNode(res);  
 }
 
 TEST(constantTest, tinyint_and_smallint) {
@@ -217,6 +286,7 @@ TEST(constantTest, tinyint_and_smallint) {
   SValueNode *v = (SValueNode *)res;
   ASSERT_EQ(v->node.resType.type, TSDB_DATA_TYPE_BIGINT);
   ASSERT_EQ(v->datum.i, (int64_t)scltLeftV & (int64_t)scltRightV);
+  nodesDestroyNode(res);  
 }
 
 TEST(constantTest, bigint_or_double) {
@@ -232,6 +302,7 @@ TEST(constantTest, bigint_or_double) {
   SValueNode *v = (SValueNode *)res;
   ASSERT_EQ(v->node.resType.type, TSDB_DATA_TYPE_BIGINT);
   ASSERT_EQ(v->datum.i, (int64_t)scltLeftV | (int64_t)scltRightVd);
+  nodesDestroyNode(res);
 }
 
 TEST(constantTest, int_or_binary) {
@@ -250,6 +321,7 @@ TEST(constantTest, int_or_binary) {
   SValueNode *v = (SValueNode *)res;
   ASSERT_EQ(v->node.resType.type, TSDB_DATA_TYPE_BIGINT);
   ASSERT_EQ(v->datum.b, scltLeftV | scltRightV);
+  nodesDestroyNode(res);
 }
 
 
@@ -266,6 +338,7 @@ TEST(constantTest, int_greater_double) {
   SValueNode *v = (SValueNode *)res;
   ASSERT_EQ(v->node.resType.type, TSDB_DATA_TYPE_BOOL);
   ASSERT_EQ(v->datum.b, scltLeftV > scltRightVd);
+  nodesDestroyNode(res);
 }
 
 TEST(constantTest, int_greater_equal_binary) {
@@ -284,6 +357,7 @@ TEST(constantTest, int_greater_equal_binary) {
   SValueNode *v = (SValueNode *)res;
   ASSERT_EQ(v->node.resType.type, TSDB_DATA_TYPE_BOOL);
   ASSERT_EQ(v->datum.b, scltLeftV > scltRightVd);
+  nodesDestroyNode(res);
 }
 
 TEST(constantTest, tinyint_lower_ubigint) {
@@ -299,11 +373,13 @@ TEST(constantTest, tinyint_lower_ubigint) {
   SValueNode *v = (SValueNode *)res;
   ASSERT_EQ(v->node.resType.type, TSDB_DATA_TYPE_BOOL);
   ASSERT_EQ(v->datum.b, scltLeftV < scltRightV);
+  nodesDestroyNode(res);
 }
 
 TEST(constantTest, usmallint_lower_equal_ubigint) {
   SNode *pLeft = NULL, *pRight = NULL, *opNode = NULL, *res = NULL;
-  int32_t leftv = 1, rightv = 1;
+  int32_t leftv = 1;
+  int64_t rightv = 1;
   scltMakeValueNode(&pLeft, TSDB_DATA_TYPE_USMALLINT, &leftv);
   scltMakeValueNode(&pRight, TSDB_DATA_TYPE_UBIGINT, &rightv);
   scltMakeOpNode(&opNode, OP_TYPE_LOWER_EQUAL, TSDB_DATA_TYPE_BOOL, pLeft, pRight);
@@ -315,11 +391,13 @@ TEST(constantTest, usmallint_lower_equal_ubigint) {
   SValueNode *v = (SValueNode *)res;
   ASSERT_EQ(v->node.resType.type, TSDB_DATA_TYPE_BOOL);
   ASSERT_EQ(v->datum.b, leftv <= rightv);
+  nodesDestroyNode(res);
 }
 
 TEST(constantTest, int_equal_smallint1) {
   SNode *pLeft = NULL, *pRight = NULL, *opNode = NULL, *res = NULL;
-  int32_t leftv = 1, rightv = 1;
+  int32_t leftv = 1;
+  int16_t rightv = 1;
   scltMakeValueNode(&pLeft, TSDB_DATA_TYPE_INT, &leftv);
   scltMakeValueNode(&pRight, TSDB_DATA_TYPE_SMALLINT, &rightv);
   scltMakeOpNode(&opNode, OP_TYPE_EQUAL, TSDB_DATA_TYPE_BOOL, pLeft, pRight);
@@ -331,6 +409,7 @@ TEST(constantTest, int_equal_smallint1) {
   SValueNode *v = (SValueNode *)res;
   ASSERT_EQ(v->node.resType.type, TSDB_DATA_TYPE_BOOL);
   ASSERT_EQ(v->datum.b, leftv == rightv);
+  nodesDestroyNode(res);
 }
 
 TEST(constantTest, int_equal_smallint2) {
@@ -347,6 +426,7 @@ TEST(constantTest, int_equal_smallint2) {
   SValueNode *v = (SValueNode *)res;
   ASSERT_EQ(v->node.resType.type, TSDB_DATA_TYPE_BOOL);
   ASSERT_EQ(v->datum.b, leftv == rightv);
+  nodesDestroyNode(res);
 }
 
 TEST(constantTest, int_not_equal_smallint1) {
@@ -363,6 +443,7 @@ TEST(constantTest, int_not_equal_smallint1) {
   SValueNode *v = (SValueNode *)res;
   ASSERT_EQ(v->node.resType.type, TSDB_DATA_TYPE_BOOL);
   ASSERT_EQ(v->datum.b, leftv != rightv);
+  nodesDestroyNode(res);
 }
 
 TEST(constantTest, int_not_equal_smallint2) {
@@ -379,6 +460,7 @@ TEST(constantTest, int_not_equal_smallint2) {
   SValueNode *v = (SValueNode *)res;
   ASSERT_EQ(v->node.resType.type, TSDB_DATA_TYPE_BOOL);
   ASSERT_EQ(v->datum.b, leftv != rightv);
+  nodesDestroyNode(res);
 }
 
 
@@ -406,6 +488,7 @@ TEST(constantTest, int_in_smallint1) {
   SValueNode *v = (SValueNode *)res;
   ASSERT_EQ(v->node.resType.type, TSDB_DATA_TYPE_BOOL);
   ASSERT_EQ(v->datum.b, true);
+  nodesDestroyNode(res);
 }
 
 TEST(constantTest, int_in_smallint2) {
@@ -431,6 +514,7 @@ TEST(constantTest, int_in_smallint2) {
   SValueNode *v = (SValueNode *)res;
   ASSERT_EQ(v->node.resType.type, TSDB_DATA_TYPE_BOOL);
   ASSERT_EQ(v->datum.b, false);
+  nodesDestroyNode(res);
 }
 
 TEST(constantTest, int_not_in_smallint1) {
@@ -454,6 +538,7 @@ TEST(constantTest, int_not_in_smallint1) {
   SValueNode *v = (SValueNode *)res;
   ASSERT_EQ(v->node.resType.type, TSDB_DATA_TYPE_BOOL);
   ASSERT_EQ(v->datum.b, false);
+  nodesDestroyNode(res);
 }
 
 TEST(constantTest, int_not_in_smallint2) {
@@ -479,6 +564,7 @@ TEST(constantTest, int_not_in_smallint2) {
   SValueNode *v = (SValueNode *)res;
   ASSERT_EQ(v->node.resType.type, TSDB_DATA_TYPE_BOOL);
   ASSERT_EQ(v->datum.b, true);
+  nodesDestroyNode(res);
 }
 
 TEST(constantTest, binary_like_binary1) {
@@ -499,6 +585,7 @@ TEST(constantTest, binary_like_binary1) {
   SValueNode *v = (SValueNode *)res;
   ASSERT_EQ(v->node.resType.type, TSDB_DATA_TYPE_BOOL);
   ASSERT_EQ(v->datum.b, true);
+  nodesDestroyNode(res);
 }
 
 TEST(constantTest, binary_like_binary2) {
@@ -519,6 +606,7 @@ TEST(constantTest, binary_like_binary2) {
   SValueNode *v = (SValueNode *)res;
   ASSERT_EQ(v->node.resType.type, TSDB_DATA_TYPE_BOOL);
   ASSERT_EQ(v->datum.b, false);
+  nodesDestroyNode(res);
 }
 
 TEST(constantTest, binary_not_like_binary1) {
@@ -539,6 +627,7 @@ TEST(constantTest, binary_not_like_binary1) {
   SValueNode *v = (SValueNode *)res;
   ASSERT_EQ(v->node.resType.type, TSDB_DATA_TYPE_BOOL);
   ASSERT_EQ(v->datum.b, false);
+  nodesDestroyNode(res);
 }
 
 TEST(constantTest, binary_not_like_binary2) {
@@ -559,6 +648,7 @@ TEST(constantTest, binary_not_like_binary2) {
   SValueNode *v = (SValueNode *)res;
   ASSERT_EQ(v->node.resType.type, TSDB_DATA_TYPE_BOOL);
   ASSERT_EQ(v->datum.b, true);
+  nodesDestroyNode(res);
 }
 
 TEST(constantTest, binary_match_binary1) {
@@ -579,6 +669,7 @@ TEST(constantTest, binary_match_binary1) {
   SValueNode *v = (SValueNode *)res;
   ASSERT_EQ(v->node.resType.type, TSDB_DATA_TYPE_BOOL);
   ASSERT_EQ(v->datum.b, true);
+  nodesDestroyNode(res);
 }
 
 TEST(constantTest, binary_match_binary2) {
@@ -599,6 +690,7 @@ TEST(constantTest, binary_match_binary2) {
   SValueNode *v = (SValueNode *)res;
   ASSERT_EQ(v->node.resType.type, TSDB_DATA_TYPE_BOOL);
   ASSERT_EQ(v->datum.b, false);
+  nodesDestroyNode(res);
 }
 
 TEST(constantTest, binary_not_match_binary1) {
@@ -619,6 +711,7 @@ TEST(constantTest, binary_not_match_binary1) {
   SValueNode *v = (SValueNode *)res;
   ASSERT_EQ(v->node.resType.type, TSDB_DATA_TYPE_BOOL);
   ASSERT_EQ(v->datum.b, true);
+  nodesDestroyNode(res);
 }
 
 TEST(constantTest, binary_not_match_binary2) {
@@ -639,6 +732,7 @@ TEST(constantTest, binary_not_match_binary2) {
   SValueNode *v = (SValueNode *)res;
   ASSERT_EQ(v->node.resType.type, TSDB_DATA_TYPE_BOOL);
   ASSERT_EQ(v->datum.b, false);
+  nodesDestroyNode(res);
 }
 
 TEST(constantTest, int_is_null1) {
@@ -654,12 +748,13 @@ TEST(constantTest, int_is_null1) {
   SValueNode *v = (SValueNode *)res;
   ASSERT_EQ(v->node.resType.type, TSDB_DATA_TYPE_BOOL);
   ASSERT_EQ(v->datum.b, false);
+  nodesDestroyNode(res);
 }
 
 TEST(constantTest, int_is_null2) {
   SNode *pLeft = NULL, *pRight = NULL, *opNode = NULL, *res = NULL;
   int32_t leftv = TSDB_DATA_INT_NULL, rightv = 1;
-  scltMakeValueNode(&pLeft, TSDB_DATA_TYPE_INT, &leftv);
+  scltMakeValueNode(&pLeft, TSDB_DATA_TYPE_NULL, &leftv);
   scltMakeOpNode(&opNode, OP_TYPE_IS_NULL, TSDB_DATA_TYPE_BOOL, pLeft, pRight);
   
   int32_t code = scalarCalculateConstants(opNode, &res);
@@ -669,6 +764,7 @@ TEST(constantTest, int_is_null2) {
   SValueNode *v = (SValueNode *)res;
   ASSERT_EQ(v->node.resType.type, TSDB_DATA_TYPE_BOOL);
   ASSERT_EQ(v->datum.b, true);
+  nodesDestroyNode(res);
 }
 
 TEST(constantTest, int_is_not_null1) {
@@ -684,12 +780,13 @@ TEST(constantTest, int_is_not_null1) {
   SValueNode *v = (SValueNode *)res;
   ASSERT_EQ(v->node.resType.type, TSDB_DATA_TYPE_BOOL);
   ASSERT_EQ(v->datum.b, true);
+  nodesDestroyNode(res);
 }
 
 TEST(constantTest, int_is_not_null2) {
   SNode *pLeft = NULL, *pRight = NULL, *opNode = NULL, *res = NULL;
-  int32_t leftv = TSDB_DATA_INT_NULL, rightv = 1;
-  scltMakeValueNode(&pLeft, TSDB_DATA_TYPE_INT, &leftv);
+  int32_t leftv = 1, rightv = 1;
+  scltMakeValueNode(&pLeft, TSDB_DATA_TYPE_NULL, &leftv);
   scltMakeOpNode(&opNode, OP_TYPE_IS_NOT_NULL, TSDB_DATA_TYPE_BOOL, pLeft, pRight);
   
   int32_t code = scalarCalculateConstants(opNode, &res);
@@ -699,6 +796,7 @@ TEST(constantTest, int_is_not_null2) {
   SValueNode *v = (SValueNode *)res;
   ASSERT_EQ(v->node.resType.type, TSDB_DATA_TYPE_BOOL);
   ASSERT_EQ(v->datum.b, false);
+  nodesDestroyNode(res);
 }
 
 TEST(constantTest, int_add_int_is_true1) {
@@ -716,6 +814,7 @@ TEST(constantTest, int_add_int_is_true1) {
   SValueNode *v = (SValueNode *)res;
   ASSERT_EQ(v->node.resType.type, TSDB_DATA_TYPE_BOOL);
   ASSERT_EQ(v->datum.b, true);
+  nodesDestroyNode(res);
 }
 
 TEST(constantTest, int_add_int_is_true2) {
@@ -733,6 +832,7 @@ TEST(constantTest, int_add_int_is_true2) {
   SValueNode *v = (SValueNode *)res;
   ASSERT_EQ(v->node.resType.type, TSDB_DATA_TYPE_BOOL);
   ASSERT_EQ(v->datum.b, false);
+  nodesDestroyNode(res);
 }
 
 
@@ -751,6 +851,7 @@ TEST(constantTest, int_greater_int_is_true1) {
   SValueNode *v = (SValueNode *)res;
   ASSERT_EQ(v->node.resType.type, TSDB_DATA_TYPE_BOOL);
   ASSERT_EQ(v->datum.b, false);
+  nodesDestroyNode(res);
 }
 
 TEST(constantTest, int_greater_int_is_true2) {
@@ -768,6 +869,7 @@ TEST(constantTest, int_greater_int_is_true2) {
   SValueNode *v = (SValueNode *)res;
   ASSERT_EQ(v->node.resType.type, TSDB_DATA_TYPE_BOOL);
   ASSERT_EQ(v->datum.b, true);
+  nodesDestroyNode(res);
 }
 
 TEST(constantTest, greater_and_lower) {
@@ -792,30 +894,45 @@ TEST(constantTest, greater_and_lower) {
   SValueNode *v = (SValueNode *)res;
   ASSERT_EQ(v->node.resType.type, TSDB_DATA_TYPE_BOOL);
   ASSERT_EQ(v->datum.b, true);
+  nodesDestroyNode(res);
 }
 
 
 
 TEST(columnTest, smallint_value_add_int_column) {
+  scltInitLogFile();
+  
   SNode *pLeft = NULL, *pRight = NULL, *opNode = NULL;
   int32_t leftv = 1;
   int16_t rightv[5]= {0, -5, -4, 23, 100};
   double eRes[5] = {1.0, -4, -3, 24, 101};
   SSDataBlock *src = NULL;
-  SScalarParam res = {0};
   int32_t rowNum = sizeof(rightv)/sizeof(rightv[0]);
   scltMakeValueNode(&pLeft, TSDB_DATA_TYPE_INT, &leftv);
-  scltMakeColRefNode(&pRight, &src, TSDB_DATA_TYPE_SMALLINT, sizeof(int16_t), rowNum, rightv);
+  scltMakeColumnNode(&pRight, &src, TSDB_DATA_TYPE_SMALLINT, sizeof(int16_t), rowNum, rightv);
   scltMakeOpNode(&opNode, OP_TYPE_ADD, TSDB_DATA_TYPE_DOUBLE, pLeft, pRight);
+
+  SArray *blockList = taosArrayInit(2, POINTER_BYTES);
+  taosArrayPush(blockList, &src);
+  SColumnInfo colInfo = {.colId = 1, .type = TSDB_DATA_TYPE_DOUBLE, .bytes = sizeof(double)};
+  int16_t dataBlockId = 0, slotId = 0;
+  scltAppendReservedSlot(blockList, &dataBlockId, &slotId, true, rowNum, &colInfo);
+  scltMakeTargetNode(&opNode, dataBlockId, slotId, opNode);
   
-  int32_t code = scalarCalculate(opNode, src, &res);
+  int32_t code = scalarCalculate(opNode, blockList, NULL);
   ASSERT_EQ(code, 0);
-  ASSERT_EQ(res.num, rowNum);
-  ASSERT_EQ(res.type, TSDB_DATA_TYPE_DOUBLE);
-  ASSERT_EQ(res.bytes, tDataTypes[TSDB_DATA_TYPE_DOUBLE].bytes);
+
+  SSDataBlock *res = *(SSDataBlock **)taosArrayGetLast(blockList);
+  ASSERT_EQ(res->info.rows, rowNum);
+  SColumnInfoData *column = (SColumnInfoData *)taosArrayGetLast(res->pDataBlock);
+  ASSERT_EQ(column->info.type, TSDB_DATA_TYPE_DOUBLE);
+  ASSERT_EQ(column->info.bytes, tDataTypes[TSDB_DATA_TYPE_DOUBLE].bytes);
   for (int32_t i = 0; i < rowNum; ++i) {
-    ASSERT_EQ(*((double *)res.data + i), eRes[i]);
+    ASSERT_EQ(*((double *)colDataGetData(column, i)), eRes[i]);
   }
+
+  taosArrayDestroyEx(blockList, scltFreeDataBlock);
+  nodesDestroyNode(opNode);
 }
 
 TEST(columnTest, bigint_column_multi_binary_column) {
@@ -829,20 +946,32 @@ TEST(columnTest, bigint_column_multi_binary_column) {
   }
   double eRes[5] = {0, 2, 6, 12, 20};
   SSDataBlock *src = NULL;
-  SScalarParam res = {0};
   int32_t rowNum = sizeof(rightv)/sizeof(rightv[0]);
-  scltMakeColRefNode(&pLeft, &src, TSDB_DATA_TYPE_BIGINT, sizeof(int64_t), rowNum, leftv);
-  scltMakeColRefNode(&pRight, &src, TSDB_DATA_TYPE_BINARY, 5, rowNum, rightv);
+  scltMakeColumnNode(&pLeft, &src, TSDB_DATA_TYPE_BIGINT, sizeof(int64_t), rowNum, leftv);
+  scltMakeColumnNode(&pRight, &src, TSDB_DATA_TYPE_BINARY, 5, rowNum, rightv);
   scltMakeOpNode(&opNode, OP_TYPE_MULTI, TSDB_DATA_TYPE_DOUBLE, pLeft, pRight);
+
+
+  SArray *blockList = taosArrayInit(1, POINTER_BYTES);
+  taosArrayPush(blockList, &src);
+  SColumnInfo colInfo = {.colId = 1, .type = TSDB_DATA_TYPE_DOUBLE, .bytes = sizeof(double)};
+  int16_t dataBlockId = 0, slotId = 0;
+  scltAppendReservedSlot(blockList, &dataBlockId, &slotId, false, rowNum, &colInfo);
+  scltMakeTargetNode(&opNode, dataBlockId, slotId, opNode);
   
-  int32_t code = scalarCalculate(opNode, src, &res);
+  int32_t code = scalarCalculate(opNode, blockList, NULL);
   ASSERT_EQ(code, 0);
-  ASSERT_EQ(res.num, rowNum);
-  ASSERT_EQ(res.type, TSDB_DATA_TYPE_DOUBLE);
-  ASSERT_EQ(res.bytes, tDataTypes[TSDB_DATA_TYPE_DOUBLE].bytes);
+
+  SSDataBlock *res = *(SSDataBlock **)taosArrayGetLast(blockList);
+  ASSERT_EQ(res->info.rows, rowNum);
+  SColumnInfoData *column = (SColumnInfoData *)taosArrayGetLast(res->pDataBlock);
+  ASSERT_EQ(column->info.type, TSDB_DATA_TYPE_DOUBLE);
+  ASSERT_EQ(column->info.bytes, tDataTypes[TSDB_DATA_TYPE_DOUBLE].bytes);
   for (int32_t i = 0; i < rowNum; ++i) {
-    ASSERT_EQ(*((double *)res.data + i), eRes[i]);
+    ASSERT_EQ(*((double *)colDataGetData(column, i)), eRes[i]);
   }
+  taosArrayDestroyEx(blockList, scltFreeDataBlock);
+  nodesDestroyNode(opNode);
 }
 
 TEST(columnTest, smallint_column_and_binary_column) {
@@ -856,20 +985,31 @@ TEST(columnTest, smallint_column_and_binary_column) {
   }
   int64_t eRes[5] = {0, 0, 2, 0, 4};
   SSDataBlock *src = NULL;
-  SScalarParam res = {0};
   int32_t rowNum = sizeof(rightv)/sizeof(rightv[0]);
-  scltMakeColRefNode(&pLeft, &src, TSDB_DATA_TYPE_SMALLINT, sizeof(int16_t), rowNum, leftv);
-  scltMakeColRefNode(&pRight, &src, TSDB_DATA_TYPE_BINARY, 5, rowNum, rightv);
+  scltMakeColumnNode(&pLeft, &src, TSDB_DATA_TYPE_SMALLINT, sizeof(int16_t), rowNum, leftv);
+  scltMakeColumnNode(&pRight, &src, TSDB_DATA_TYPE_BINARY, 5, rowNum, rightv);
   scltMakeOpNode(&opNode, OP_TYPE_BIT_AND, TSDB_DATA_TYPE_BIGINT, pLeft, pRight);
   
-  int32_t code = scalarCalculate(opNode, src, &res);
+  SArray *blockList = taosArrayInit(1, POINTER_BYTES);
+  taosArrayPush(blockList, &src);
+  SColumnInfo colInfo = {.colId = 1, .type = TSDB_DATA_TYPE_BIGINT, .bytes = sizeof(int64_t)};
+  int16_t dataBlockId = 0, slotId = 0;
+  scltAppendReservedSlot(blockList, &dataBlockId, &slotId, false, rowNum, &colInfo);
+  scltMakeTargetNode(&opNode, dataBlockId, slotId, opNode);
+  
+  int32_t code = scalarCalculate(opNode, blockList, NULL);
   ASSERT_EQ(code, 0);
-  ASSERT_EQ(res.num, rowNum);
-  ASSERT_EQ(res.type, TSDB_DATA_TYPE_BIGINT);
-  ASSERT_EQ(res.bytes, tDataTypes[TSDB_DATA_TYPE_BIGINT].bytes);
+
+  SSDataBlock *res = *(SSDataBlock **)taosArrayGetLast(blockList);
+  ASSERT_EQ(res->info.rows, rowNum);
+  SColumnInfoData *column = (SColumnInfoData *)taosArrayGetLast(res->pDataBlock);
+  ASSERT_EQ(column->info.type, TSDB_DATA_TYPE_BIGINT);
+  ASSERT_EQ(column->info.bytes, tDataTypes[TSDB_DATA_TYPE_BIGINT].bytes);
   for (int32_t i = 0; i < rowNum; ++i) {
-    ASSERT_EQ(*((int64_t *)res.data + i), eRes[i]);
+    ASSERT_EQ(*((int64_t *)colDataGetData(column, i)), eRes[i]);
   }
+  taosArrayDestroyEx(blockList, scltFreeDataBlock);
+  nodesDestroyNode(opNode);
 }
 
 TEST(columnTest, smallint_column_or_float_column) {
@@ -878,20 +1018,31 @@ TEST(columnTest, smallint_column_or_float_column) {
   float rightv[5]= {2.0, 3.0, 4.1, 5.2, 6.0};
   int64_t eRes[5] = {3, 3, 7, 5, 7};
   SSDataBlock *src = NULL;
-  SScalarParam res = {0};
   int32_t rowNum = sizeof(rightv)/sizeof(rightv[0]);
-  scltMakeColRefNode(&pLeft, &src, TSDB_DATA_TYPE_SMALLINT, sizeof(int16_t), rowNum, leftv);
-  scltMakeColRefNode(&pRight, &src, TSDB_DATA_TYPE_FLOAT, sizeof(float), rowNum, rightv);
+  scltMakeColumnNode(&pLeft, &src, TSDB_DATA_TYPE_SMALLINT, sizeof(int16_t), rowNum, leftv);
+  scltMakeColumnNode(&pRight, &src, TSDB_DATA_TYPE_FLOAT, sizeof(float), rowNum, rightv);
   scltMakeOpNode(&opNode, OP_TYPE_BIT_OR, TSDB_DATA_TYPE_BIGINT, pLeft, pRight);
   
-  int32_t code = scalarCalculate(opNode, src, &res);
+  SArray *blockList = taosArrayInit(1, POINTER_BYTES);
+  taosArrayPush(blockList, &src);
+  SColumnInfo colInfo = {.colId = 1, .type = TSDB_DATA_TYPE_BIGINT, .bytes = sizeof(int64_t)};
+  int16_t dataBlockId = 0, slotId = 0;
+  scltAppendReservedSlot(blockList, &dataBlockId, &slotId, true, rowNum, &colInfo);
+  scltMakeTargetNode(&opNode, dataBlockId, slotId, opNode);
+  
+  int32_t code = scalarCalculate(opNode, blockList, NULL);
   ASSERT_EQ(code, 0);
-  ASSERT_EQ(res.num, rowNum);
-  ASSERT_EQ(res.type, TSDB_DATA_TYPE_BIGINT);
-  ASSERT_EQ(res.bytes, tDataTypes[TSDB_DATA_TYPE_BIGINT].bytes);
+
+  SSDataBlock *res = *(SSDataBlock **)taosArrayGetLast(blockList);
+  ASSERT_EQ(res->info.rows, rowNum);
+  SColumnInfoData *column = (SColumnInfoData *)taosArrayGetLast(res->pDataBlock);
+  ASSERT_EQ(column->info.type, TSDB_DATA_TYPE_BIGINT);
+  ASSERT_EQ(column->info.bytes, tDataTypes[TSDB_DATA_TYPE_BIGINT].bytes);
   for (int32_t i = 0; i < rowNum; ++i) {
-    ASSERT_EQ(*((int64_t *)res.data + i), eRes[i]);
+    ASSERT_EQ(*((int64_t *)colDataGetData(column, i)), eRes[i]);
   }
+  taosArrayDestroyEx(blockList, scltFreeDataBlock);
+  nodesDestroyNode(opNode);
 }
 
 TEST(columnTest, smallint_column_or_double_value) {
@@ -900,20 +1051,31 @@ TEST(columnTest, smallint_column_or_double_value) {
   double rightv= 10.2;
   int64_t eRes[5] = {11, 10, 11, 14, 15};
   SSDataBlock *src = NULL;
-  SScalarParam res = {0};
   int32_t rowNum = sizeof(leftv)/sizeof(leftv[0]);
-  scltMakeColRefNode(&pLeft, &src, TSDB_DATA_TYPE_SMALLINT, sizeof(int16_t), rowNum, leftv);
+  scltMakeColumnNode(&pLeft, &src, TSDB_DATA_TYPE_SMALLINT, sizeof(int16_t), rowNum, leftv);
   scltMakeValueNode(&pRight, TSDB_DATA_TYPE_DOUBLE, &rightv);
   scltMakeOpNode(&opNode, OP_TYPE_BIT_OR, TSDB_DATA_TYPE_BIGINT, pLeft, pRight);
   
-  int32_t code = scalarCalculate(opNode, src, &res);
+  SArray *blockList = taosArrayInit(1, POINTER_BYTES);
+  taosArrayPush(blockList, &src);
+  SColumnInfo colInfo = {.colId = 1, .type = TSDB_DATA_TYPE_BIGINT, .bytes = sizeof(int64_t)};
+  int16_t dataBlockId = 0, slotId = 0;
+  scltAppendReservedSlot(blockList, &dataBlockId, &slotId, true, rowNum, &colInfo);
+  scltMakeTargetNode(&opNode, dataBlockId, slotId, opNode);
+  
+  int32_t code = scalarCalculate(opNode, blockList, NULL);
   ASSERT_EQ(code, 0);
-  ASSERT_EQ(res.num, rowNum);
-  ASSERT_EQ(res.type, TSDB_DATA_TYPE_BIGINT);
-  ASSERT_EQ(res.bytes, tDataTypes[TSDB_DATA_TYPE_BIGINT].bytes);
+
+  SSDataBlock *res = *(SSDataBlock **)taosArrayGetLast(blockList);
+  ASSERT_EQ(res->info.rows, rowNum);
+  SColumnInfoData *column = (SColumnInfoData *)taosArrayGetLast(res->pDataBlock);
+  ASSERT_EQ(column->info.type, TSDB_DATA_TYPE_BIGINT);
+  ASSERT_EQ(column->info.bytes, tDataTypes[TSDB_DATA_TYPE_BIGINT].bytes);
   for (int32_t i = 0; i < rowNum; ++i) {
-    ASSERT_EQ(*((int64_t *)res.data + i), eRes[i]);
+    ASSERT_EQ(*((int64_t *)colDataGetData(column, i)), eRes[i]);
   }
+  taosArrayDestroyEx(blockList, scltFreeDataBlock);
+  nodesDestroyNode(opNode);
 }
 
 TEST(columnTest, smallint_column_greater_double_value) {
@@ -922,20 +1084,31 @@ TEST(columnTest, smallint_column_greater_double_value) {
   double rightv= 2.5;
   bool eRes[5] = {false, false, true, true, true};
   SSDataBlock *src = NULL;
-  SScalarParam res = {0};
   int32_t rowNum = sizeof(leftv)/sizeof(leftv[0]);
-  scltMakeColRefNode(&pLeft, &src, TSDB_DATA_TYPE_SMALLINT, sizeof(int16_t), rowNum, leftv);
+  scltMakeColumnNode(&pLeft, &src, TSDB_DATA_TYPE_SMALLINT, sizeof(int16_t), rowNum, leftv);
   scltMakeValueNode(&pRight, TSDB_DATA_TYPE_DOUBLE, &rightv);
   scltMakeOpNode(&opNode, OP_TYPE_GREATER_THAN, TSDB_DATA_TYPE_BOOL, pLeft, pRight);
   
-  int32_t code = scalarCalculate(opNode, src, &res);
+  SArray *blockList = taosArrayInit(1, POINTER_BYTES);
+  taosArrayPush(blockList, &src);
+  SColumnInfo colInfo = {.colId = 1, .type = TSDB_DATA_TYPE_BOOL, .bytes = sizeof(bool)};
+  int16_t dataBlockId = 0, slotId = 0;
+  scltAppendReservedSlot(blockList, &dataBlockId, &slotId, true, rowNum, &colInfo);
+  scltMakeTargetNode(&opNode, dataBlockId, slotId, opNode);
+  
+  int32_t code = scalarCalculate(opNode, blockList, NULL);
   ASSERT_EQ(code, 0);
-  ASSERT_EQ(res.num, rowNum);
-  ASSERT_EQ(res.type, TSDB_DATA_TYPE_BOOL);
-  ASSERT_EQ(res.bytes, tDataTypes[TSDB_DATA_TYPE_BOOL].bytes);
+
+  SSDataBlock *res = *(SSDataBlock **)taosArrayGetLast(blockList);
+  ASSERT_EQ(res->info.rows, rowNum);
+  SColumnInfoData *column = (SColumnInfoData *)taosArrayGetLast(res->pDataBlock);
+  ASSERT_EQ(column->info.type, TSDB_DATA_TYPE_BOOL);
+  ASSERT_EQ(column->info.bytes, tDataTypes[TSDB_DATA_TYPE_BOOL].bytes);
   for (int32_t i = 0; i < rowNum; ++i) {
-    ASSERT_EQ(*((bool *)res.data + i), eRes[i]);
+    ASSERT_EQ(*((bool *)colDataGetData(column, i)), eRes[i]);
   }
+  taosArrayDestroyEx(blockList, scltFreeDataBlock);
+  nodesDestroyNode(opNode);
 }
 
 TEST(columnTest, int_column_in_double_list) {
@@ -944,9 +1117,8 @@ TEST(columnTest, int_column_in_double_list) {
   double rightv1 = 1.1,rightv2 = 2.2,rightv3 = 3.3;
   bool eRes[5] = {true, true, true, false, false};  
   SSDataBlock *src = NULL;  
-  SScalarParam res = {0};
   int32_t rowNum = sizeof(leftv)/sizeof(leftv[0]);
-  scltMakeColRefNode(&pLeft, &src, TSDB_DATA_TYPE_INT, sizeof(int32_t), rowNum, leftv);  
+  scltMakeColumnNode(&pLeft, &src, TSDB_DATA_TYPE_INT, sizeof(int32_t), rowNum, leftv);  
   SNodeList* list = nodesMakeList();
   scltMakeValueNode(&pRight, TSDB_DATA_TYPE_DOUBLE, &rightv1);
   nodesListAppend(list, pRight);
@@ -956,22 +1128,33 @@ TEST(columnTest, int_column_in_double_list) {
   nodesListAppend(list, pRight);
   scltMakeListNode(&listNode,list, TSDB_DATA_TYPE_INT);
   scltMakeOpNode(&opNode, OP_TYPE_IN, TSDB_DATA_TYPE_BOOL, pLeft, listNode);
+
+  SArray *blockList = taosArrayInit(1, POINTER_BYTES);
+  taosArrayPush(blockList, &src);
+  SColumnInfo colInfo = {.colId = 1, .type = TSDB_DATA_TYPE_BOOL, .bytes = sizeof(bool)};
+  int16_t dataBlockId = 0, slotId = 0;
+  scltAppendReservedSlot(blockList, &dataBlockId, &slotId, true, rowNum, &colInfo);
+  scltMakeTargetNode(&opNode, dataBlockId, slotId, opNode);
   
-  int32_t code = scalarCalculate(opNode, src, &res);
+  int32_t code = scalarCalculate(opNode, blockList, NULL);
   ASSERT_EQ(code, 0);
-  ASSERT_EQ(res.num, rowNum);
-  ASSERT_EQ(res.type, TSDB_DATA_TYPE_BOOL);
-  ASSERT_EQ(res.bytes, tDataTypes[TSDB_DATA_TYPE_BOOL].bytes);
+
+  SSDataBlock *res = *(SSDataBlock **)taosArrayGetLast(blockList);
+  ASSERT_EQ(res->info.rows, rowNum);
+  SColumnInfoData *column = (SColumnInfoData *)taosArrayGetLast(res->pDataBlock);
+  ASSERT_EQ(column->info.type, TSDB_DATA_TYPE_BOOL);
+  ASSERT_EQ(column->info.bytes, tDataTypes[TSDB_DATA_TYPE_BOOL].bytes);
   for (int32_t i = 0; i < rowNum; ++i) {
-    ASSERT_EQ(*((bool *)res.data + i), eRes[i]);
+    ASSERT_EQ(*((bool *)colDataGetData(column, i)), eRes[i]);
   }
+  taosArrayDestroyEx(blockList, scltFreeDataBlock);
+  nodesDestroyNode(opNode);
 }
 
 TEST(columnTest, binary_column_in_binary_list) {
   SNode *pLeft = NULL, *pRight = NULL, *listNode = NULL, *opNode = NULL;
   bool eRes[5] = {true, true, false, false, false};  
   SSDataBlock *src = NULL;  
-  SScalarParam res = {0};
   char leftv[5][5]= {0};
   char rightv[3][5]= {0};
   for (int32_t i = 0; i < 5; ++i) {
@@ -994,7 +1177,7 @@ TEST(columnTest, binary_column_in_binary_list) {
   }
   
   int32_t rowNum = sizeof(leftv)/sizeof(leftv[0]);
-  scltMakeColRefNode(&pLeft, &src, TSDB_DATA_TYPE_BINARY, 3, rowNum, leftv);  
+  scltMakeColumnNode(&pLeft, &src, TSDB_DATA_TYPE_BINARY, 3, rowNum, leftv);  
   SNodeList* list = nodesMakeList();
   scltMakeValueNode(&pRight, TSDB_DATA_TYPE_BINARY, rightv[0]);
   nodesListAppend(list, pRight);
@@ -1005,14 +1188,26 @@ TEST(columnTest, binary_column_in_binary_list) {
   scltMakeListNode(&listNode,list, TSDB_DATA_TYPE_BINARY);
   scltMakeOpNode(&opNode, OP_TYPE_IN, TSDB_DATA_TYPE_BOOL, pLeft, listNode);
   
-  int32_t code = scalarCalculate(opNode, src, &res);
+  SArray *blockList = taosArrayInit(1, POINTER_BYTES);
+  taosArrayPush(blockList, &src);
+  SColumnInfo colInfo = {.colId = 1, .type = TSDB_DATA_TYPE_BOOL, .bytes = sizeof(bool)};
+  int16_t dataBlockId = 0, slotId = 0;
+  scltAppendReservedSlot(blockList, &dataBlockId, &slotId, false, rowNum, &colInfo);
+  scltMakeTargetNode(&opNode, dataBlockId, slotId, opNode);
+  
+  int32_t code = scalarCalculate(opNode, blockList, NULL);
   ASSERT_EQ(code, 0);
-  ASSERT_EQ(res.num, rowNum);
-  ASSERT_EQ(res.type, TSDB_DATA_TYPE_BOOL);
-  ASSERT_EQ(res.bytes, tDataTypes[TSDB_DATA_TYPE_BOOL].bytes);
+
+  SSDataBlock *res = *(SSDataBlock **)taosArrayGetLast(blockList);
+  ASSERT_EQ(res->info.rows, rowNum);
+  SColumnInfoData *column = (SColumnInfoData *)taosArrayGetLast(res->pDataBlock);
+  ASSERT_EQ(column->info.type, TSDB_DATA_TYPE_BOOL);
+  ASSERT_EQ(column->info.bytes, tDataTypes[TSDB_DATA_TYPE_BOOL].bytes);
   for (int32_t i = 0; i < rowNum; ++i) {
-    ASSERT_EQ(*((bool *)res.data + i), eRes[i]);
+    ASSERT_EQ(*((bool *)colDataGetData(column, i)), eRes[i]);
   }
+  taosArrayDestroyEx(blockList, scltFreeDataBlock);
+  nodesDestroyNode(opNode);
 }
 
 TEST(columnTest, binary_column_like_binary) {
@@ -1020,7 +1215,6 @@ TEST(columnTest, binary_column_like_binary) {
   char rightv[64] = {0};
   char leftv[5][5]= {0};
   SSDataBlock *src = NULL;  
-  SScalarParam res = {0};
   bool eRes[5] = {true, false, true, false, true};  
   
   for (int32_t i = 0; i < 5; ++i) {
@@ -1031,28 +1225,41 @@ TEST(columnTest, binary_column_like_binary) {
   }  
   
   int32_t rowNum = sizeof(leftv)/sizeof(leftv[0]);
-  scltMakeColRefNode(&pLeft, &src, TSDB_DATA_TYPE_BINARY, 3, rowNum, leftv);  
+  scltMakeColumnNode(&pLeft, &src, TSDB_DATA_TYPE_BINARY, 3, rowNum, leftv);  
 
   sprintf(&rightv[2], "%s", "__0");
   varDataSetLen(rightv, strlen(&rightv[2]));
   scltMakeValueNode(&pRight, TSDB_DATA_TYPE_BINARY, rightv);
   scltMakeOpNode(&opNode, OP_TYPE_LIKE, TSDB_DATA_TYPE_BOOL, pLeft, pRight);
   
-  int32_t code = scalarCalculate(opNode, src, &res);
+  SArray *blockList = taosArrayInit(1, POINTER_BYTES);
+  taosArrayPush(blockList, &src);
+  SColumnInfo colInfo = {.colId = 1, .type = TSDB_DATA_TYPE_BOOL, .bytes = sizeof(bool)};
+  int16_t dataBlockId = 0, slotId = 0;
+  scltAppendReservedSlot(blockList, &dataBlockId, &slotId, false, rowNum, &colInfo);
+  scltMakeTargetNode(&opNode, dataBlockId, slotId, opNode);
+  
+  int32_t code = scalarCalculate(opNode, blockList, NULL);
   ASSERT_EQ(code, 0);
-  ASSERT_EQ(res.num, rowNum);
-  ASSERT_EQ(res.type, TSDB_DATA_TYPE_BOOL);
-  ASSERT_EQ(res.bytes, tDataTypes[TSDB_DATA_TYPE_BOOL].bytes);
+
+  SSDataBlock *res = *(SSDataBlock **)taosArrayGetLast(blockList);
+  ASSERT_EQ(res->info.rows, rowNum);
+  SColumnInfoData *column = (SColumnInfoData *)taosArrayGetLast(res->pDataBlock);
+  ASSERT_EQ(column->info.type, TSDB_DATA_TYPE_BOOL);
+  ASSERT_EQ(column->info.bytes, tDataTypes[TSDB_DATA_TYPE_BOOL].bytes);
   for (int32_t i = 0; i < rowNum; ++i) {
-    ASSERT_EQ(*((bool *)res.data + i), eRes[i]);
+    ASSERT_EQ(*((bool *)colDataGetData(column, i)), eRes[i]);
   }
+
+  taosArrayDestroyEx(blockList, scltFreeDataBlock);
+  nodesDestroyNode(opNode);
 }
+
 
 TEST(columnTest, binary_column_is_true) {
   SNode *pLeft = NULL, *opNode = NULL;
   char leftv[5][5]= {0};
   SSDataBlock *src = NULL;  
-  SScalarParam res = {0};
   bool eRes[5] = {false, true, false, true, false};  
   
   for (int32_t i = 0; i < 5; ++i) {
@@ -1063,80 +1270,117 @@ TEST(columnTest, binary_column_is_true) {
   }  
   
   int32_t rowNum = sizeof(leftv)/sizeof(leftv[0]);
-  scltMakeColRefNode(&pLeft, &src, TSDB_DATA_TYPE_BINARY, 3, rowNum, leftv);  
+  scltMakeColumnNode(&pLeft, &src, TSDB_DATA_TYPE_BINARY, 3, rowNum, leftv);  
 
   scltMakeOpNode(&opNode, OP_TYPE_IS_TRUE, TSDB_DATA_TYPE_BOOL, pLeft, NULL);
   
-  int32_t code = scalarCalculate(opNode, src, &res);
+  SArray *blockList = taosArrayInit(1, POINTER_BYTES);
+  taosArrayPush(blockList, &src);
+  SColumnInfo colInfo = {.colId = 1, .type = TSDB_DATA_TYPE_BOOL, .bytes = sizeof(bool)};
+  int16_t dataBlockId = 0, slotId = 0;
+  scltAppendReservedSlot(blockList, &dataBlockId, &slotId, false, rowNum, &colInfo);
+  scltMakeTargetNode(&opNode, dataBlockId, slotId, opNode);
+  
+  int32_t code = scalarCalculate(opNode, blockList, NULL);
   ASSERT_EQ(code, 0);
-  ASSERT_EQ(res.num, rowNum);
-  ASSERT_EQ(res.type, TSDB_DATA_TYPE_BOOL);
-  ASSERT_EQ(res.bytes, tDataTypes[TSDB_DATA_TYPE_BOOL].bytes);
+
+  SSDataBlock *res = *(SSDataBlock **)taosArrayGetLast(blockList);
+  ASSERT_EQ(res->info.rows, rowNum);
+  SColumnInfoData *column = (SColumnInfoData *)taosArrayGetLast(res->pDataBlock);
+  ASSERT_EQ(column->info.type, TSDB_DATA_TYPE_BOOL);
+  ASSERT_EQ(column->info.bytes, tDataTypes[TSDB_DATA_TYPE_BOOL].bytes);
   for (int32_t i = 0; i < rowNum; ++i) {
-    ASSERT_EQ(*((bool *)res.data + i), eRes[i]);
+    ASSERT_EQ(*((bool *)colDataGetData(column, i)), eRes[i]);
   }
+  taosArrayDestroyEx(blockList, scltFreeDataBlock);
+  nodesDestroyNode(opNode);
 }
 
 TEST(columnTest, binary_column_is_null) {
   SNode *pLeft = NULL, *opNode = NULL;
   char leftv[5][5]= {0};
   SSDataBlock *src = NULL;  
-  SScalarParam res = {0};
-  bool eRes[5] = {false, false, false, false, true};  
+  bool eRes[5] = {false, false, true, false, true};  
   
-  for (int32_t i = 0; i < 4; ++i) {
+  for (int32_t i = 0; i < 5; ++i) {
     leftv[i][2] = '0' + i % 2;
     leftv[i][3] = 'a';
     leftv[i][4] = '0' + i % 2;
     varDataSetLen(leftv[i], 3);
   }  
-
-  setVardataNull(leftv[4], TSDB_DATA_TYPE_BINARY);
   
   int32_t rowNum = sizeof(leftv)/sizeof(leftv[0]);
-  scltMakeColRefNode(&pLeft, &src, TSDB_DATA_TYPE_BINARY, 3, rowNum, leftv);  
+  scltMakeColumnNode(&pLeft, &src, TSDB_DATA_TYPE_BINARY, 3, rowNum, leftv); 
+
+  SColumnInfoData *pcolumn = (SColumnInfoData *)taosArrayGetLast(src->pDataBlock);
+  colDataAppend(pcolumn, 2, NULL, true);
+  colDataAppend(pcolumn, 4, NULL, true);
 
   scltMakeOpNode(&opNode, OP_TYPE_IS_NULL, TSDB_DATA_TYPE_BOOL, pLeft, NULL);
   
-  int32_t code = scalarCalculate(opNode, src, &res);
+  SArray *blockList = taosArrayInit(1, POINTER_BYTES);
+  taosArrayPush(blockList, &src);
+  SColumnInfo colInfo = {.colId = 1, .type = TSDB_DATA_TYPE_BOOL, .bytes = sizeof(bool)};
+  int16_t dataBlockId = 0, slotId = 0;
+  scltAppendReservedSlot(blockList, &dataBlockId, &slotId, false, rowNum, &colInfo);
+  scltMakeTargetNode(&opNode, dataBlockId, slotId, opNode);
+  
+  int32_t code = scalarCalculate(opNode, blockList, NULL);
   ASSERT_EQ(code, 0);
-  ASSERT_EQ(res.num, rowNum);
-  ASSERT_EQ(res.type, TSDB_DATA_TYPE_BOOL);
-  ASSERT_EQ(res.bytes, tDataTypes[TSDB_DATA_TYPE_BOOL].bytes);
+
+  SSDataBlock *res = *(SSDataBlock **)taosArrayGetLast(blockList);
+  ASSERT_EQ(res->info.rows, rowNum);
+  SColumnInfoData *column = (SColumnInfoData *)taosArrayGetLast(res->pDataBlock);
+  ASSERT_EQ(column->info.type, TSDB_DATA_TYPE_BOOL);
+  ASSERT_EQ(column->info.bytes, tDataTypes[TSDB_DATA_TYPE_BOOL].bytes);
   for (int32_t i = 0; i < rowNum; ++i) {
-    ASSERT_EQ(*((bool *)res.data + i), eRes[i]);
+    ASSERT_EQ(*((bool *)colDataGetData(column, i)), eRes[i]);
   }
+  taosArrayDestroyEx(blockList, scltFreeDataBlock);
+  nodesDestroyNode(opNode);
 }
 
 TEST(columnTest, binary_column_is_not_null) {
   SNode *pLeft = NULL, *opNode = NULL;
   char leftv[5][5]= {0};
   SSDataBlock *src = NULL;  
-  SScalarParam res = {0};
   bool eRes[5] = {true, true, true, true, false};  
   
-  for (int32_t i = 0; i < 4; ++i) {
+  for (int32_t i = 0; i < 5; ++i) {
     leftv[i][2] = '0' + i % 2;
     leftv[i][3] = 'a';
     leftv[i][4] = '0' + i % 2;
     varDataSetLen(leftv[i], 3);
   }  
-
-  setVardataNull(leftv[4], TSDB_DATA_TYPE_BINARY);
   
   int32_t rowNum = sizeof(leftv)/sizeof(leftv[0]);
-  scltMakeColRefNode(&pLeft, &src, TSDB_DATA_TYPE_BINARY, 3, rowNum, leftv);  
+  scltMakeColumnNode(&pLeft, &src, TSDB_DATA_TYPE_BINARY, 3, rowNum, leftv);  
+  
+  SColumnInfoData *pcolumn = (SColumnInfoData *)taosArrayGetLast(src->pDataBlock);
+  colDataAppend(pcolumn, 4, NULL, true);
 
   scltMakeOpNode(&opNode, OP_TYPE_IS_NOT_NULL, TSDB_DATA_TYPE_BOOL, pLeft, NULL);
   
-  int32_t code = scalarCalculate(opNode, src, &res);
+  SArray *blockList = taosArrayInit(1, POINTER_BYTES);
+  taosArrayPush(blockList, &src);
+  SColumnInfo colInfo = {.colId = 1, .type = TSDB_DATA_TYPE_BOOL, .bytes = sizeof(bool)};
+  int16_t dataBlockId = 0, slotId = 0;
+  scltAppendReservedSlot(blockList, &dataBlockId, &slotId, false, rowNum, &colInfo);
+  scltMakeTargetNode(&opNode, dataBlockId, slotId, opNode);
+  
+  int32_t code = scalarCalculate(opNode, blockList, NULL);
   ASSERT_EQ(code, 0);
-  ASSERT_EQ(res.num, rowNum);
-  ASSERT_EQ(res.type, TSDB_DATA_TYPE_BOOL);
-  ASSERT_EQ(res.bytes, tDataTypes[TSDB_DATA_TYPE_BOOL].bytes);
+
+  SSDataBlock *res = *(SSDataBlock **)taosArrayGetLast(blockList);
+  ASSERT_EQ(res->info.rows, rowNum);
+  SColumnInfoData *column = (SColumnInfoData *)taosArrayGetLast(res->pDataBlock);
+  ASSERT_EQ(column->info.type, TSDB_DATA_TYPE_BOOL);
+  ASSERT_EQ(column->info.bytes, tDataTypes[TSDB_DATA_TYPE_BOOL].bytes);
   for (int32_t i = 0; i < rowNum; ++i) {
-    ASSERT_EQ(*((bool *)res.data + i), eRes[i]);
+    ASSERT_EQ(*((bool *)colDataGetData(column, i)), eRes[i]);
   }
+  taosArrayDestroyEx(blockList, scltFreeDataBlock);
+  nodesDestroyNode(opNode);
 }
 
 TEST(columnTest, greater_and_lower) {
@@ -1148,28 +1392,38 @@ TEST(columnTest, greater_and_lower) {
   int32_t v4[5]= {5, 3, 4, 2, 6};
   bool eRes[5] = {false, true, false, false, false};
   SSDataBlock *src = NULL;
-  SScalarParam res = {0};
   int32_t rowNum = sizeof(v1)/sizeof(v1[0]);
-  scltMakeColRefNode(&pcol1, &src, TSDB_DATA_TYPE_SMALLINT, sizeof(int16_t), rowNum, v1);
-  scltMakeColRefNode(&pcol2, &src, TSDB_DATA_TYPE_INT, sizeof(int16_t), rowNum, v2);
+  scltMakeColumnNode(&pcol1, &src, TSDB_DATA_TYPE_SMALLINT, sizeof(int16_t), rowNum, v1);
+  scltMakeColumnNode(&pcol2, &src, TSDB_DATA_TYPE_INT, sizeof(int32_t), rowNum, v2);
   scltMakeOpNode(&opNode1, OP_TYPE_GREATER_THAN, TSDB_DATA_TYPE_BOOL, pcol1, pcol2);
-  scltMakeColRefNode(&pcol1, &src, TSDB_DATA_TYPE_BIGINT, sizeof(int16_t), rowNum, v3);
-  scltMakeColRefNode(&pcol2, &src, TSDB_DATA_TYPE_INT, sizeof(int16_t), rowNum, v4);
+  scltMakeColumnNode(&pcol1, &src, TSDB_DATA_TYPE_BIGINT, sizeof(int64_t), rowNum, v3);
+  scltMakeColumnNode(&pcol2, &src, TSDB_DATA_TYPE_INT, sizeof(int32_t), rowNum, v4);
   scltMakeOpNode(&opNode2, OP_TYPE_LOWER_THAN, TSDB_DATA_TYPE_BOOL, pcol1, pcol2);
   list[0] = opNode1;
   list[1] = opNode2;
   scltMakeLogicNode(&logicNode, LOGIC_COND_TYPE_AND, list, 2);
   
-  int32_t code = scalarCalculate(logicNode, src, &res);
+  SArray *blockList = taosArrayInit(1, POINTER_BYTES);
+  taosArrayPush(blockList, &src);
+  SColumnInfo colInfo = {.colId = 1, .type = TSDB_DATA_TYPE_BOOL, .bytes = sizeof(bool)};
+  int16_t dataBlockId = 0, slotId = 0;
+  scltAppendReservedSlot(blockList, &dataBlockId, &slotId, false, rowNum, &colInfo);
+  scltMakeTargetNode(&logicNode, dataBlockId, slotId, logicNode);
+  
+  int32_t code = scalarCalculate(logicNode, blockList, NULL);
   ASSERT_EQ(code, 0);
-  ASSERT_EQ(res.num, rowNum);
-  ASSERT_EQ(res.type, TSDB_DATA_TYPE_BOOL);
-  ASSERT_EQ(res.bytes, tDataTypes[TSDB_DATA_TYPE_BOOL].bytes);
-  for (int32_t i = 0; i < rowNum; ++i) {
-    ASSERT_EQ(*((bool *)res.data + i), eRes[i]);
-  }
-}
 
+  SSDataBlock *res = *(SSDataBlock **)taosArrayGetLast(blockList);
+  ASSERT_EQ(res->info.rows, rowNum);
+  SColumnInfoData *column = (SColumnInfoData *)taosArrayGetLast(res->pDataBlock);
+  ASSERT_EQ(column->info.type, TSDB_DATA_TYPE_BOOL);
+  ASSERT_EQ(column->info.bytes, tDataTypes[TSDB_DATA_TYPE_BOOL].bytes);
+  for (int32_t i = 0; i < rowNum; ++i) {
+    ASSERT_EQ(*((bool *)colDataGetData(column, i)), eRes[i]);
+  }
+  taosArrayDestroyEx(blockList, scltFreeDataBlock);
+  nodesDestroyNode(logicNode);
+}
 
 
 int main(int argc, char** argv) {

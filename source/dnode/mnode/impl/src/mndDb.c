@@ -937,36 +937,41 @@ static int32_t mndProcessUseDbReq(SMnodeMsg *pReq) {
     goto USE_DB_OVER;
   }
 
-  pDb = mndAcquireDb(pMnode, usedbReq.db);
-  if (pDb == NULL) {
-    terrno = TSDB_CODE_MND_DB_NOT_EXIST;
-    goto USE_DB_OVER;
-  }
+  char *p = strchr(usedbReq.db, '.');
+  if (p && 0 == strcmp(p + 1, TSDB_INFORMATION_SCHEMA_DB)) {
+    memcpy(usedbRsp.db, usedbReq.db, TSDB_DB_FNAME_LEN);
+  } else {
+    pDb = mndAcquireDb(pMnode, usedbReq.db);
+    if (pDb == NULL) {
+      terrno = TSDB_CODE_MND_DB_NOT_EXIST;
+      goto USE_DB_OVER;
+    }
 
-  pUser = mndAcquireUser(pMnode, pReq->user);
-  if (pUser == NULL) {
-    goto USE_DB_OVER;
-  }
+    pUser = mndAcquireUser(pMnode, pReq->user);
+    if (pUser == NULL) {
+      goto USE_DB_OVER;
+    }
 
-  if (mndCheckUseDbAuth(pUser, pDb) != 0) {
-    goto USE_DB_OVER;
-  }
+    if (mndCheckUseDbAuth(pUser, pDb) != 0) {
+      goto USE_DB_OVER;
+    }
 
-  usedbRsp.pVgroupInfos = taosArrayInit(pDb->cfg.numOfVgroups, sizeof(SVgroupInfo));
-  if (usedbRsp.pVgroupInfos == NULL) {
-    terrno = TSDB_CODE_OUT_OF_MEMORY;
-    goto USE_DB_OVER;
-  }
+    usedbRsp.pVgroupInfos = taosArrayInit(pDb->cfg.numOfVgroups, sizeof(SVgroupInfo));
+    if (usedbRsp.pVgroupInfos == NULL) {
+      terrno = TSDB_CODE_OUT_OF_MEMORY;
+      goto USE_DB_OVER;
+    }
 
-  if (usedbReq.vgVersion < pDb->vgVersion) {
-    mndBuildDBVgroupInfo(pDb, pMnode, usedbRsp.pVgroupInfos);
-  }
+    if (usedbReq.vgVersion < pDb->vgVersion) {
+      mndBuildDBVgroupInfo(pDb, pMnode, usedbRsp.pVgroupInfos);
+    }
 
-  memcpy(usedbRsp.db, pDb->name, TSDB_DB_FNAME_LEN);
-  usedbRsp.uid = pDb->uid;
-  usedbRsp.vgVersion = pDb->vgVersion;
-  usedbRsp.vgNum = taosArrayGetSize(usedbRsp.pVgroupInfos);
-  usedbRsp.hashMethod = pDb->hashMethod;
+    memcpy(usedbRsp.db, pDb->name, TSDB_DB_FNAME_LEN);
+    usedbRsp.uid = pDb->uid;
+    usedbRsp.vgVersion = pDb->vgVersion;
+    usedbRsp.vgNum = taosArrayGetSize(usedbRsp.pVgroupInfos);
+    usedbRsp.hashMethod = pDb->hashMethod;
+  }
 
   int32_t contLen = tSerializeSUseDbRsp(NULL, 0, &usedbRsp);
   void   *pRsp = rpcMallocCont(contLen);

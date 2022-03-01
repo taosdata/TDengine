@@ -12,20 +12,5 @@
  * You should have received a copy of the GNU Affero General Public License
  * along with this program. If not, see <http://www.gnu.org/licenses/>.
  */
-#ifndef _TD_UTIL_KEY_H
-#define _TD_UTIL_KEY_H
 
-#ifdef __cplusplus
-extern "C" {
-#endif
-
-unsigned char *base64_decode(const char *value, int inlen, int *outlen);
-char *         base64_encode(const unsigned char *value, int vlen);
-char *         taosDesEncode(int64_t key, char *src, int len);
-char *         taosDesDecode(int64_t key, char *src, int len);
-
-#ifdef __cplusplus
-}
-#endif
-
-#endif /*_TD_UTIL_KEY_H*/
+#include "syncVoteMgr.h"

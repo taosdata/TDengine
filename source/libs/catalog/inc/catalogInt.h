@@ -21,7 +21,7 @@ extern "C" {
 #endif
 
 #include "catalog.h"
-#include "common.h"
+#include "tcommon.h"
 #include "query.h"
 
 #define CTG_DEFAULT_CACHE_CLUSTER_NUMBER 6
@@ -189,11 +189,21 @@ typedef struct SCtgAction {
 #define CTG_IS_META_TABLE(type) ((type) == META_TYPE_TABLE)
 #define CTG_IS_META_BOTH(type) ((type) == META_TYPE_BOTH_TABLE)
 
-#define CTG_IS_STABLE(isSTable) (1 == (isSTable))
-#define CTG_IS_NOT_STABLE(isSTable) (0 == (isSTable))
-#define CTG_IS_UNKNOWN_STABLE(isSTable) ((isSTable) < 0)
-#define CTG_SET_STABLE(isSTable, tbType) do { (isSTable) = ((tbType) == TSDB_SUPER_TABLE) ? 1 : ((tbType) > TSDB_SUPER_TABLE ? 0 : -1); } while (0)
-#define CTG_TBTYPE_MATCH(isSTable, tbType) (CTG_IS_UNKNOWN_STABLE(isSTable) || (CTG_IS_STABLE(isSTable) && (tbType) == TSDB_SUPER_TABLE) || (CTG_IS_NOT_STABLE(isSTable) && (tbType) != TSDB_SUPER_TABLE))
+#define CTG_FLAG_STB         0x1
+#define CTG_FLAG_NOT_STB     0x2
+#define CTG_FLAG_UNKNOWN_STB 0x4
+#define CTG_FLAG_INF_DB      0x8
+
+#define CTG_IS_STB(_flag) ((_flag) & CTG_FLAG_STB)
+#define CTG_IS_NOT_STB(_flag) ((_flag) & CTG_FLAG_NOT_STB)
+#define CTG_IS_UNKNOWN_STB(_flag) ((_flag) & CTG_FLAG_UNKNOWN_STB)
+#define CTG_IS_INF_DB(_flag) ((_flag) & CTG_FLAG_INF_DB)
+#define CTG_SET_INF_DB(_flag) ((_flag) |= CTG_FLAG_INF_DB)
+#define CTG_SET_STB(_flag, tbType) do { (_flag) |= ((tbType) == TSDB_SUPER_TABLE) ? CTG_FLAG_STB : ((tbType) > TSDB_SUPER_TABLE ? CTG_FLAG_NOT_STB : CTG_FLAG_UNKNOWN_STB); } while (0)
+#define CTG_GEN_STB_FLAG(_isStb) ((_isStb) == 1) ? CTG_FLAG_STB : ((_isStb) == 0 ? CTG_FLAG_NOT_STB : CTG_FLAG_UNKNOWN_STB)
+#define CTG_TBTYPE_MATCH(_flag, tbType) (CTG_IS_UNKNOWN_STB(_flag) || (CTG_IS_STB(_flag) && (tbType) == TSDB_SUPER_TABLE) || (CTG_IS_NOT_STB(_flag) && (tbType) != TSDB_SUPER_TABLE))
+
+#define CTG_IS_INF_DBNAME(_dbname) ((*(_dbname) == 'i') && (0 == strcmp(_dbname, TSDB_INFORMATION_SCHEMA_DB)))
 
 #define CTG_META_SIZE(pMeta) (sizeof(STableMeta) + ((pMeta)->tableInfo.numOfTags + (pMeta)->tableInfo.numOfColumns) * sizeof(SSchema))
 

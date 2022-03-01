@@ -16,8 +16,7 @@
 #ifndef _TD_META_H_
 #define _TD_META_H_
 
-#include "mallocator.h"
-#include "os.h"
+#include "tmallocator.h"
 #include "tmsg.h"
 #include "trow.h"
 

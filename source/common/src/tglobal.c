@@ -14,17 +14,11 @@
  */
 
 #define _DEFAULT_SOURCE
-#include "os.h"
-
-#include "taosdef.h"
-#include "taoserror.h"
+#include "tglobal.h"
 #include "tcompare.h"
 #include "tconfig.h"
 #include "tep.h"
-#include "tglobal.h"
 #include "tlog.h"
-#include "tutil.h"
-#include "ulog.h"
 
 SConfig *tsCfg = NULL;
 
@@ -208,6 +202,8 @@ static int32_t taosLoadCfg(SConfig *pCfg, const char *inputCfgDir, const char *e
 }
 
 static int32_t taosAddClientLogCfg(SConfig *pCfg) {
+  if (cfgAddDir(pCfg, "configDir", configDir, 1) != 0) return -1;
+  if (cfgAddDir(pCfg, "scriptDir", configDir, 1) != 0) return -1;
   if (cfgAddDir(pCfg, "logDir", tsLogDir, 1) != 0) return -1;
   if (cfgAddFloat(pCfg, "minimalLogDirGB", 1.0f, 0.001f, 10000000, 1) != 0) return -1;
   if (cfgAddInt32(pCfg, "numOfLogLines", tsNumOfLogLines, 1000, 2000000000, 1) != 0) return -1;
@@ -219,8 +215,6 @@ static int32_t taosAddClientLogCfg(SConfig *pCfg) {
   if (cfgAddInt32(pCfg, "tmrDebugFlag", tmrDebugFlag, 0, 255, 1) != 0) return -1;
   if (cfgAddInt32(pCfg, "jniDebugFlag", jniDebugFlag, 0, 255, 1) != 0) return -1;
   if (cfgAddInt32(pCfg, "simDebugFlag", 143, 0, 255, 1) != 0) return -1;
-  if (cfgAddDir(pCfg, "configDir", configDir, 1) != 0) return -1;
-  if (cfgAddDir(pCfg, "scriptDir", configDir, 1) != 0) return -1;
   if (cfgAddInt32(pCfg, "debugFlag", 0, 0, 255, 1) != 0) return -1;
   return 0;
 }
@@ -326,6 +320,7 @@ static int32_t taosAddServerCfg(SConfig *pCfg) {
 static void taosSetClientLogCfg(SConfig *pCfg) {
   SConfigItem *pItem = cfgGetItem(pCfg, "logDir");
   tstrncpy(tsLogDir, cfgGetItem(pCfg, "logDir")->str, PATH_MAX);
+  taosExpandDir(tsLogDir, tsLogDir, PATH_MAX);
   tsLogSpace.reserved = cfgGetItem(pCfg, "minimalLogDirGB")->fval;
   tsNumOfLogLines = cfgGetItem(pCfg, "numOfLogLines")->i32;
   tsAsyncLog = cfgGetItem(pCfg, "asyncLog")->bval;
@@ -350,12 +345,24 @@ static void taosSetServerLogCfg(SConfig *pCfg) {
 }
 
 static void taosSetClientCfg(SConfig *pCfg) {
-  tstrncpy(tsFirst, cfgGetItem(pCfg, "firstEp")->str, TSDB_EP_LEN);
-  tstrncpy(tsSecond, cfgGetItem(pCfg, "secondEp")->str, TSDB_EP_LEN);
   tstrncpy(tsLocalFqdn, cfgGetItem(pCfg, "fqdn")->str, TSDB_EP_LEN);
   tsServerPort = (uint16_t)cfgGetItem(pCfg, "serverPort")->i32;
   snprintf(tsLocalEp, sizeof(tsLocalEp), "%s:%u", tsLocalFqdn, tsServerPort);
+
+  SConfigItem *pFirstEpItem = cfgGetItem(pCfg, "firstEp");
+  SEp          firstEp = {0};
+  taosGetFqdnPortFromEp(pFirstEpItem->str, &firstEp);
+  snprintf(tsFirst, sizeof(tsFirst), "%s:%u", firstEp.fqdn, firstEp.port);
+  cfgSetItem(pCfg, "firstEp", tsFirst, pFirstEpItem->stype);
+
+  SConfigItem *pSecondpItem = cfgGetItem(pCfg, "secondEp");
+  SEp          secondEp = {0};
+  taosGetFqdnPortFromEp(pSecondpItem->str, &secondEp);
+  snprintf(tsSecond, sizeof(tsSecond), "%s:%u", secondEp.fqdn, secondEp.port);
+  cfgSetItem(pCfg, "secondEp", tsSecond, pSecondpItem->stype);
+
   tstrncpy(tsLogDir, cfgGetItem(pCfg, "tempDir")->str, PATH_MAX);
+  taosExpandDir(tsLogDir, tsLogDir, PATH_MAX);
   tsTempSpace.reserved = cfgGetItem(pCfg, "minimalTempDirGB")->fval;
 
   tsNumOfThreadsPerCore = cfgGetItem(pCfg, "maxTmrCtrl")->fval;
@@ -396,6 +403,8 @@ static void taosSetSystemCfg(SConfig *pCfg) {
 
 static void taosSetServerCfg(SConfig *pCfg) {
   tstrncpy(tsDataDir, cfgGetItem(pCfg, "dataDir")->str, PATH_MAX);
+  taosExpandDir(tsDataDir, tsDataDir, PATH_MAX);
+
   tsTempSpace.reserved = cfgGetItem(pCfg, "minimalDataDirGB")->fval;
   tsNumOfCommitThreads = cfgGetItem(pCfg, "numOfCommitThreads")->i32;
   tsRatioOfQueryCores = cfgGetItem(pCfg, "ratioOfQueryCores")->fval;
@@ -474,10 +483,10 @@ int32_t taosInitCfg(const char *cfgDir, const char *envFile, const char *apolloU
     if (taosAddClientLogCfg(tsCfg) != 0) return -1;
     if (taosAddClientCfg(tsCfg) != 0) return -1;
   } else {
-    if (taosAddClientLogCfg(tsCfg) != 0) return -1;
-    if (taosAddServerLogCfg(tsCfg) != 0) return -1;
     if (taosAddClientCfg(tsCfg) != 0) return -1;
     if (taosAddServerCfg(tsCfg) != 0) return -1;
+    if (taosAddClientLogCfg(tsCfg) != 0) return -1;
+    if (taosAddServerLogCfg(tsCfg) != 0) return -1;
   }
   taosAddSystemCfg(tsCfg);
 

@@ -13,15 +13,24 @@
  * along with this program. If not, see <http://www.gnu.org/licenses/>.
  */
 
-#ifndef _TD_UTIL_INT_H_
-#define _TD_UTIL_INT_H_
+#include "syncEnv.h"
+#include <assert.h>
 
-#ifdef __cplusplus
-extern "C" {
-#endif
+SSyncEnv *gSyncEnv = NULL;
 
-#ifdef __cplusplus
+int32_t syncEnvStart() {
+  int32_t ret;
+  gSyncEnv = (SSyncEnv *)malloc(sizeof(SSyncEnv));
+  assert(gSyncEnv != NULL);
+  ret = doSyncEnvStart(gSyncEnv);
+  return ret;
 }
-#endif
 
-#endif /*_TD_UTIL_INT_H_*/
+int32_t syncEnvStop() {
+  int32_t ret = doSyncEnvStop(gSyncEnv);
+  return ret;
+}
+
+static int32_t doSyncEnvStart(SSyncEnv *pSyncEnv) { return 0; }
+
+static int32_t doSyncEnvStop(SSyncEnv *pSyncEnv) { return 0; }

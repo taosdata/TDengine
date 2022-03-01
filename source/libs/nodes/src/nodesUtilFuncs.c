@@ -81,8 +81,8 @@ SNode* nodesMakeNode(ENodeType type) {
       return makeNode(type, sizeof(SProjectLogicNode));
     case QUERY_NODE_TARGET:
       return makeNode(type, sizeof(STargetNode));
-    case QUERY_NODE_TUPLE_DESC:
-      return makeNode(type, sizeof(STupleDescNode));
+    case QUERY_NODE_DATABLOCK_DESC:
+      return makeNode(type, sizeof(SDataBlockDescNode));
     case QUERY_NODE_SLOT_DESC:
       return makeNode(type, sizeof(SSlotDescNode));
     case QUERY_NODE_PHYSICAL_PLAN_TAG_SCAN:
@@ -101,20 +101,47 @@ SNode* nodesMakeNode(ENodeType type) {
   return NULL;
 }
 
-static EDealRes destroyNode(SNode* pNode, void* pContext) {
-  switch (nodeType(pNode)) {
-    case QUERY_NODE_VALUE:
-      tfree(((SValueNode*)pNode)->literal);
+static EDealRes destroyNode(SNode** pNode, void* pContext) {
+  if (NULL == pNode || NULL == *pNode) {
+    return DEAL_RES_IGNORE_CHILD;
+  }
+  
+  switch (nodeType(*pNode)) {
+    case QUERY_NODE_VALUE: {
+      SValueNode* pValue = (SValueNode*)*pNode;
+      
+      tfree(pValue->literal);
+      if (IS_VAR_DATA_TYPE(pValue->node.resType.type)) {
+        tfree(pValue->datum.p);
+      }
+      
+      break;
+    }
+    case QUERY_NODE_LOGIC_CONDITION:
+      nodesDestroyList(((SLogicConditionNode*)(*pNode))->pParameterList);
+      break;
+    case QUERY_NODE_FUNCTION:
+      nodesDestroyList(((SFunctionNode*)(*pNode))->pParameterList);
+      break;
+    case QUERY_NODE_GROUPING_SET:
+      nodesDestroyList(((SGroupingSetNode*)(*pNode))->pParameterList);
+      break;
+    case QUERY_NODE_NODE_LIST:
+      nodesDestroyList(((SNodeListNode*)(*pNode))->pNodeList);
       break;
     default:
       break;
   }
-  tfree(pNode);
+  tfree(*pNode);
   return DEAL_RES_CONTINUE;
 }
 
 void nodesDestroyNode(SNode* pNode) {
-  nodesWalkNodePostOrder(pNode, destroyNode, NULL);
+  if (NULL == pNode) {
+    return;
+  }
+  
+  nodesRewriteNodePostOrder(&pNode, destroyNode, NULL);
 }
 
 SNodeList* nodesMakeList() {
@@ -191,9 +218,9 @@ SNode* nodesListGetNode(SNodeList* pList, int32_t index) {
 }
 
 void nodesDestroyList(SNodeList* pList) {
-  SNode* node;
-  FOREACH(node, pList) {
-    nodesDestroyNode(node);
+  SListCell* pNext = pList->pHead;
+  while (NULL != pNext) {
+    pNext = nodesListErase(pList, pNext);
   }
   tfree(pList);
 }

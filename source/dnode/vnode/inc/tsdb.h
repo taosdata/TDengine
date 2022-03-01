@@ -16,9 +16,9 @@
 #ifndef _TD_TSDB_H_
 #define _TD_TSDB_H_
 
-#include "mallocator.h"
+#include "tmallocator.h"
 #include "meta.h"
-#include "common.h"
+#include "tcommon.h"
 #include "tfs.h"
 
 #ifdef __cplusplus

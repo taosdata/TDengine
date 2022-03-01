@@ -23,17 +23,36 @@ extern "C" {
 #include <stdint.h>
 #include <stdio.h>
 #include <stdlib.h>
-#include "sync.h"
+#include "cJSON.h"
+#include "syncInt.h"
 #include "syncRaft.h"
 #include "taosdef.h"
 
-int32_t currentTerm(SyncTerm *pCurrentTerm);
+#define RAFT_STORE_BLOCK_SIZE 512
+#define RAFT_STORE_PATH_LEN 128
 
-int32_t persistCurrentTerm(SyncTerm currentTerm);
+typedef struct SRaftStore {
+  SyncTerm currentTerm;
+  SRaftId  voteFor;
+  //FileFd   fd;
+  char     path[RAFT_STORE_PATH_LEN];
+} SRaftStore;
 
-int32_t voteFor(SRaftId *pRaftId);
+SRaftStore *raftStoreOpen(const char *path);
 
-int32_t persistVoteFor(SRaftId *pRaftId);
+static int32_t raftStoreInit(SRaftStore *pRaftStore);
+
+int32_t raftStoreClose(SRaftStore *pRaftStore);
+
+int32_t raftStorePersist(SRaftStore *pRaftStore);
+
+static bool raftStoreFileExist(char *path);
+
+int32_t raftStoreSerialize(SRaftStore *pRaftStore, char *buf, size_t len);
+
+int32_t raftStoreDeserialize(SRaftStore *pRaftStore, char *buf, size_t len);
+
+void raftStorePrint(SRaftStore *pRaftStore);
 
 #ifdef __cplusplus
 }

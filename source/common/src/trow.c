@@ -13,8 +13,8 @@
  * along with this program. If not, see <http://www.gnu.org/licenses/>.
  */
 
+#define _DEFAULT_SOURCE
 #include "trow.h"
-#include "tarray.h"
 
 const uint8_t tdVTypeByte[3] = {
     TD_VTYPE_NORM_BYTE,  // TD_VTYPE_NORM

@@ -404,7 +404,7 @@ bool taosGetSysMemory(float *memoryUsedMB) {
 
 bool taosGetProcMemory(float *memoryUsedMB) {
   // FILE *fp = fopen(tsProcMemFile, "r");
-  TdFilePtr pFile = taosOpenFile(tsProcMemFile, TD_FILE_READ);
+  TdFilePtr pFile = taosOpenFile(tsProcMemFile, TD_FILE_READ | TD_FILE_STREAM);
   if (pFile == NULL) {
     //printf("open file:%s failed", tsProcMemFile);
     return false;
@@ -440,7 +440,7 @@ bool taosGetProcMemory(float *memoryUsedMB) {
 
 static bool taosGetSysCpuInfo(SysCpuInfo *cpuInfo) {
   // FILE *fp = fopen(tsSysCpuFile, "r");
-  TdFilePtr pFile = taosOpenFile(tsSysCpuFile, TD_FILE_READ);
+  TdFilePtr pFile = taosOpenFile(tsSysCpuFile, TD_FILE_READ | TD_FILE_STREAM);
   if (pFile == NULL) {
     //printf("open file:%s failed", tsSysCpuFile);
     return false;
@@ -465,7 +465,7 @@ static bool taosGetSysCpuInfo(SysCpuInfo *cpuInfo) {
 
 static bool taosGetProcCpuInfo(ProcCpuInfo *cpuInfo) {
   // FILE *fp = fopen(tsProcCpuFile, "r");
-  TdFilePtr pFile = taosOpenFile(tsProcCpuFile, TD_FILE_READ);
+  TdFilePtr pFile = taosOpenFile(tsProcCpuFile, TD_FILE_READ | TD_FILE_STREAM);
   if (pFile == NULL) {
     //printf("open file:%s failed", tsProcCpuFile);
     return false;
@@ -550,7 +550,7 @@ int32_t taosGetDiskSize(char *dataDir, SDiskSize *diskSize) {
 bool taosGetCardInfo(int64_t *bytes, int64_t *rbytes, int64_t *tbytes) {
   *bytes = 0;
   // FILE *fp = fopen(tsSysNetFile, "r");
-  TdFilePtr pFile = taosOpenFile(tsSysNetFile, TD_FILE_READ);
+  TdFilePtr pFile = taosOpenFile(tsSysNetFile, TD_FILE_READ | TD_FILE_STREAM);
   if (pFile == NULL) {
     //printf("open file:%s failed", tsSysNetFile);
     return false;
@@ -636,7 +636,7 @@ bool taosGetBandSpeed(float *bandSpeedKb) {
 
 bool taosReadProcIO(int64_t *rchars, int64_t *wchars) {
   // FILE *fp = fopen(tsProcIOFile, "r");
-  TdFilePtr pFile = taosOpenFile(tsProcIOFile, TD_FILE_READ);
+  TdFilePtr pFile = taosOpenFile(tsProcIOFile, TD_FILE_READ | TD_FILE_STREAM);
   if (pFile == NULL) {
     //printf("open file:%s failed", tsProcIOFile);
     return false;

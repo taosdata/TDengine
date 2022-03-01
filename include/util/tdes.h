@@ -13,25 +13,20 @@
  * along with this program. If not, see <http://www.gnu.org/licenses/>.
  */
 
-#ifndef _TD_UTIL_STEP_H_
-#define _TD_UTIL_STEP_H_
+#ifndef _TD_UTIL_DES_H
+#define _TD_UTIL_DES_H
+
+#include "os.h"
 
 #ifdef __cplusplus
 extern "C" {
 #endif
 
-typedef struct SSteps SSteps;
-typedef int32_t (*InitFp)();
-typedef void (*CleanupFp)();
-typedef void (*ReportFp)(char *name, char *desc);
-
-SSteps *taosStepInit(int32_t maxsize, ReportFp fp);
-int32_t taosStepExec(SSteps *steps);
-void    taosStepCleanup(SSteps *steps);
-int32_t taosStepAdd(SSteps *steps, char *name, InitFp initFp, CleanupFp cleanupFp);
+char *taosDesEncode(int64_t key, char *src, int32_t len);
+char *taosDesDecode(int64_t key, char *src, int32_t len);
 
 #ifdef __cplusplus
 }
 #endif
 
-#endif /*_TD_UTIL_STEP_H_*/
+#endif /*_TD_UTIL_DES_H*/

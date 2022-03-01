@@ -13,23 +13,21 @@
  * along with this program. If not, see <http://www.gnu.org/licenses/>.
  */
 
-#ifndef _TD_COMMON_CFG_H_
-#define _TD_COMMON_CFG_H_
+#ifndef _TD_LIBS_SYNC_VOTG_MGR_H
+#define _TD_LIBS_SYNC_VOTG_MGR_H
 
 #ifdef __cplusplus
 extern "C" {
 #endif
 
-#include "tdef.h"
-
-typedef struct {
-  char dir[TSDB_FILENAME_LEN];
-  int  level;
-  int  primary;
-} SDiskCfg;
+#include <stdint.h>
+#include <stdio.h>
+#include <stdlib.h>
+#include "syncInt.h"
+#include "taosdef.h"
 
 #ifdef __cplusplus
 }
 #endif
 
-#endif /*_TD_COMMON_CFG_H_*/
+#endif /*_TD_LIBS_SYNC_VOTG_MGR_H*/

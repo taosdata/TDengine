@@ -14,10 +14,8 @@
  */
 
 #define _DEFAULT_SOURCE
-#include "os.h"
+#include "tversion.h"
 #include "taoserror.h"
-#include "tdef.h"
-#include "ulog.h"
 
 int32_t taosVersionStrToInt(const char *vstr, int32_t *vint) {
   if (vstr == NULL) {

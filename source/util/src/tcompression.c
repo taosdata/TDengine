@@ -16,7 +16,7 @@
 /* README.md   TAOS compression
  *
  * INTEGER Compression Algorithm:
- *   To compress integers (including char, short, int, int64_t), the difference
+ *   To compress integers (including char, short, int32_t, int64_t), the difference
  *   between two integers is calculated at first. Then the difference is
  *   transformed to positive by zig-zag encoding method
  *   (https://gist.github.com/mfuerstenau/ba870a29e16536fdbaba). Then the value is
@@ -47,69 +47,65 @@
  *
  */
 
-#include "os.h"
-#include "lz4.h"
-#ifdef TD_TSZ  
-  #include "td_sz.h"
-#endif
+#define _DEFAULT_SOURCE
 #include "tcompression.h"
-#include "ulog.h"
+#include "lz4.h"
+#include "tlog.h"
 
-static const int TEST_NUMBER = 1;
-#define is_bigendian() ((*(char *)&TEST_NUMBER) == 0)
+#ifdef TD_TSZ
+#include "td_sz.h"
+#endif
+
+static const int32_t TEST_NUMBER = 1;
+#define is_bigendian()     ((*(char *)&TEST_NUMBER) == 0)
 #define SIMPLE8B_MAX_INT64 ((uint64_t)2305843009213693951L)
 
-#define safeInt64Add(a, b) (((a >= 0) && (b <= INT64_MAX - a)) || ((a < 0) && (b >= INT64_MIN - a)))
+#define safeInt64Add(a, b)  (((a >= 0) && (b <= INT64_MAX - a)) || ((a < 0) && (b >= INT64_MIN - a)))
 #define ZIGZAG_ENCODE(T, v) ((u##T)((v) >> (sizeof(T) * 8 - 1))) ^ (((u##T)(v)) << 1)  // zigzag encode
 #define ZIGZAG_DECODE(T, v) ((v) >> 1) ^ -((T)((v)&1))                                 // zigzag decode
 
 #ifdef TD_TSZ
-bool lossyFloat  = false;
+bool lossyFloat = false;
 bool lossyDouble = false;
 
 // init call
-int tsCompressInit(){
-  // config 
-  if(lossyColumns[0] == 0){
+int32_t tsCompressInit() {
+  // config
+  if (lossyColumns[0] == 0) {
     lossyFloat = false;
     lossyDouble = false;
     return 0;
   }
 
-  lossyFloat  = strstr(lossyColumns, "float") != NULL;
+  lossyFloat = strstr(lossyColumns, "float") != NULL;
   lossyDouble = strstr(lossyColumns, "double") != NULL;
 
-  if(lossyFloat == false && lossyDouble == false)
-        return 0;
-  
+  if (lossyFloat == false && lossyDouble == false) return 0;
+
   tdszInit(fPrecision, dPrecision, maxRange, curRange, Compressor);
-  if(lossyFloat)
-     uInfo("lossy compression float  is opened. ");
-  if(lossyDouble)
-     uInfo("lossy compression double is opened. ");
+  if (lossyFloat) uInfo("lossy compression float  is opened. ");
+  if (lossyDouble) uInfo("lossy compression double is opened. ");
   return 1;
 }
 // exit call
-void tsCompressExit(){
-   tdszExit();
-}
+void tsCompressExit() { tdszExit(); }
 
 #endif
 
 /*
  * Compress Integer (Simple8B).
  */
-int tsCompressINTImp(const char *const input, const int nelements, char *const output, const char type) {
+int32_t tsCompressINTImp(const char *const input, const int32_t nelements, char *const output, const char type) {
   // Selector value:              0    1   2   3   4   5   6   7   8  9  10  11
   // 12  13  14  15
-  char bit_per_integer[] = {0, 0, 1, 2, 3, 4, 5, 6, 7, 8, 10, 12, 15, 20, 30, 60};
-  int  selector_to_elems[] = {240, 120, 60, 30, 20, 15, 12, 10, 8, 7, 6, 5, 4, 3, 2, 1};
-  char bit_to_selector[] = {0,  2,  3,  4,  5,  6,  7,  8,  9,  10, 10, 11, 11, 12, 12, 12, 13, 13, 13, 13, 13,
+  char    bit_per_integer[] = {0, 0, 1, 2, 3, 4, 5, 6, 7, 8, 10, 12, 15, 20, 30, 60};
+  int32_t selector_to_elems[] = {240, 120, 60, 30, 20, 15, 12, 10, 8, 7, 6, 5, 4, 3, 2, 1};
+  char    bit_to_selector[] = {0,  2,  3,  4,  5,  6,  7,  8,  9,  10, 10, 11, 11, 12, 12, 12, 13, 13, 13, 13, 13,
                             14, 14, 14, 14, 14, 14, 14, 14, 14, 14, 15, 15, 15, 15, 15, 15, 15, 15, 15, 15, 15,
                             15, 15, 15, 15, 15, 15, 15, 15, 15, 15, 15, 15, 15, 15, 15, 15, 15, 15, 15};
 
   // get the byte limit.
-  int word_length = 0;
+  int32_t word_length = 0;
   switch (type) {
     case TSDB_DATA_TYPE_BIGINT:
       word_length = LONG_BYTES;
@@ -128,17 +124,17 @@ int tsCompressINTImp(const char *const input, const int nelements, char *const o
       return -1;
   }
 
-  int     byte_limit = nelements * word_length + 1;
-  int     opos = 1;
+  int32_t byte_limit = nelements * word_length + 1;
+  int32_t opos = 1;
   int64_t prev_value = 0;
 
-  for (int i = 0; i < nelements;) {
+  for (int32_t i = 0; i < nelements;) {
     char    selector = 0;
     char    bit = 0;
-    int     elems = 0;
+    int32_t elems = 0;
     int64_t prev_value_tmp = prev_value;
 
-    for (int j = i; j < nelements; j++) {
+    for (int32_t j = i; j < nelements; j++) {
       // Read data from the input stream and convert it to INT64 type.
       int64_t curr_value = 0;
       switch (type) {
@@ -172,16 +168,17 @@ int tsCompressINTImp(const char *const input, const int nelements, char *const o
         tmp_bit = (LONG_BYTES * BITS_PER_BYTE) - BUILDIN_CLZL(zigzag_value);
       }
 
-      if (elems + 1 <= selector_to_elems[(int)selector] && elems + 1 <= selector_to_elems[(int)(bit_to_selector[(int)tmp_bit])]) {
+      if (elems + 1 <= selector_to_elems[(int32_t)selector] &&
+          elems + 1 <= selector_to_elems[(int32_t)(bit_to_selector[(int32_t)tmp_bit])]) {
         // If can hold another one.
-        selector = selector > bit_to_selector[(int)tmp_bit] ? selector : bit_to_selector[(int)tmp_bit];
+        selector = selector > bit_to_selector[(int32_t)tmp_bit] ? selector : bit_to_selector[(int32_t)tmp_bit];
         elems++;
-        bit = bit_per_integer[(int)selector];
+        bit = bit_per_integer[(int32_t)selector];
       } else {
         // if cannot hold another one.
-        while (elems < selector_to_elems[(int)selector]) selector++;
-        elems = selector_to_elems[(int)selector];
-        bit = bit_per_integer[(int)selector];
+        while (elems < selector_to_elems[(int32_t)selector]) selector++;
+        elems = selector_to_elems[(int32_t)selector];
+        bit = bit_per_integer[(int32_t)selector];
         break;
       }
       prev_value_tmp = curr_value;
@@ -189,7 +186,7 @@ int tsCompressINTImp(const char *const input, const int nelements, char *const o
 
     uint64_t buffer = 0;
     buffer |= (uint64_t)selector;
-    for (int k = 0; k < elems; k++) {
+    for (int32_t k = 0; k < elems; k++) {
       int64_t curr_value = 0; /* get current values */
       switch (type) {
         case TSDB_DATA_TYPE_TINYINT:
@@ -229,8 +226,8 @@ int tsCompressINTImp(const char *const input, const int nelements, char *const o
   return opos;
 }
 
-int tsDecompressINTImp(const char *const input, const int nelements, char *const output, const char type) {
-  int word_length = 0;
+int32_t tsDecompressINTImp(const char *const input, const int32_t nelements, char *const output, const char type) {
+  int32_t word_length = 0;
   switch (type) {
     case TSDB_DATA_TYPE_BIGINT:
       word_length = LONG_BYTES;
@@ -257,12 +254,12 @@ int tsDecompressINTImp(const char *const input, const int nelements, char *const
 
   // Selector value:              0    1   2   3   4   5   6   7   8  9  10  11
   // 12  13  14  15
-  char bit_per_integer[] = {0, 0, 1, 2, 3, 4, 5, 6, 7, 8, 10, 12, 15, 20, 30, 60};
-  int  selector_to_elems[] = {240, 120, 60, 30, 20, 15, 12, 10, 8, 7, 6, 5, 4, 3, 2, 1};
+  char    bit_per_integer[] = {0, 0, 1, 2, 3, 4, 5, 6, 7, 8, 10, 12, 15, 20, 30, 60};
+  int32_t selector_to_elems[] = {240, 120, 60, 30, 20, 15, 12, 10, 8, 7, 6, 5, 4, 3, 2, 1};
 
   const char *ip = input + 1;
-  int         count = 0;
-  int         _pos = 0;
+  int32_t     count = 0;
+  int32_t     _pos = 0;
   int64_t     prev_value = 0;
 
   while (1) {
@@ -271,11 +268,11 @@ int tsDecompressINTImp(const char *const input, const int nelements, char *const
     uint64_t w = 0;
     memcpy(&w, ip, LONG_BYTES);
 
-    char selector = (char)(w & INT64MASK(4));  // selector = 4
-    char bit = bit_per_integer[(int)selector];      // bit = 3
-    int  elems = selector_to_elems[(int)selector];
+    char    selector = (char)(w & INT64MASK(4));       // selector = 4
+    char    bit = bit_per_integer[(int32_t)selector];  // bit = 3
+    int32_t elems = selector_to_elems[(int32_t)selector];
 
-    for (int i = 0; i < elems; i++) {
+    for (int32_t i = 0; i < elems; i++) {
       uint64_t zigzag_value;
 
       if (selector == 0 || selector == 1) {
@@ -320,11 +317,11 @@ int tsDecompressINTImp(const char *const input, const int nelements, char *const
 /* ----------------------------------------------Bool Compression
  * ---------------------------------------------- */
 // TODO: You can also implement it using RLE method.
-int tsCompressBoolImp(const char *const input, const int nelements, char *const output) {
-  int pos = -1;
-  int ele_per_byte = BITS_PER_BYTE / 2;
+int32_t tsCompressBoolImp(const char *const input, const int32_t nelements, char *const output) {
+  int32_t pos = -1;
+  int32_t ele_per_byte = BITS_PER_BYTE / 2;
 
-  for (int i = 0; i < nelements; i++) {
+  for (int32_t i = 0; i < nelements; i++) {
     if (i % ele_per_byte == 0) {
       pos++;
       output[pos] = 0;
@@ -351,11 +348,11 @@ int tsCompressBoolImp(const char *const input, const int nelements, char *const 
   return pos + 1;
 }
 
-int tsDecompressBoolImp(const char *const input, const int nelements, char *const output) {
-  int ipos = -1, opos = 0;
-  int ele_per_byte = BITS_PER_BYTE / 2;
+int32_t tsDecompressBoolImp(const char *const input, const int32_t nelements, char *const output) {
+  int32_t ipos = -1, opos = 0;
+  int32_t ele_per_byte = BITS_PER_BYTE / 2;
 
-  for (int i = 0; i < nelements; i++) {
+  for (int32_t i = 0; i < nelements; i++) {
     if (i % ele_per_byte == 0) {
       ipos++;
     }
@@ -374,10 +371,10 @@ int tsDecompressBoolImp(const char *const input, const int nelements, char *cons
 }
 
 /* Run Length Encoding(RLE) Method */
-int tsCompressBoolRLEImp(const char *const input, const int nelements, char *const output) {
-  int _pos = 0;
+int32_t tsCompressBoolRLEImp(const char *const input, const int32_t nelements, char *const output) {
+  int32_t _pos = 0;
 
-  for (int i = 0; i < nelements;) {
+  for (int32_t i = 0; i < nelements;) {
     unsigned char counter = 1;
     char          num = input[i];
 
@@ -407,8 +404,8 @@ int tsCompressBoolRLEImp(const char *const input, const int nelements, char *con
   return _pos;
 }
 
-int tsDecompressBoolRLEImp(const char *const input, const int nelements, char *const output) {
-  int ipos = 0, opos = 0;
+int32_t tsDecompressBoolRLEImp(const char *const input, const int32_t nelements, char *const output) {
+  int32_t ipos = 0, opos = 0;
   while (1) {
     char     encode = input[ipos++];
     unsigned counter = (encode >> 1) & INT8MASK(7);
@@ -427,9 +424,9 @@ int tsDecompressBoolRLEImp(const char *const input, const int nelements, char *c
 // Note: the size of the output must be larger than input_size + 1 and
 // LZ4_compressBound(size) + 1;
 // >= max(input_size, LZ4_compressBound(input_size)) + 1;
-int tsCompressStringImp(const char *const input, int inputSize, char *const output, int outputSize) {
+int32_t tsCompressStringImp(const char *const input, int32_t inputSize, char *const output, int32_t outputSize) {
   // Try to compress using LZ4 algorithm.
-  const int compressed_data_size = LZ4_compress_default(input, output + 1, inputSize, outputSize-1);
+  const int32_t compressed_data_size = LZ4_compress_default(input, output + 1, inputSize, outputSize - 1);
 
   // If cannot compress or after compression, data becomes larger.
   if (compressed_data_size <= 0 || compressed_data_size > inputSize) {
@@ -443,12 +440,12 @@ int tsCompressStringImp(const char *const input, int inputSize, char *const outp
   return compressed_data_size + 1;
 }
 
-int tsDecompressStringImp(const char *const input, int compressedSize, char *const output, int outputSize) {
+int32_t tsDecompressStringImp(const char *const input, int32_t compressedSize, char *const output, int32_t outputSize) {
   // compressedSize is the size of data after compression.
-  
+
   if (input[0] == 1) {
     /* It is compressed by LZ4 algorithm */
-    const int decompressed_size = LZ4_decompress_safe(input + 1, output, compressedSize - 1, outputSize);
+    const int32_t decompressed_size = LZ4_decompress_safe(input + 1, output, compressedSize - 1, outputSize);
     if (decompressed_size < 0) {
       uError("Failed to decompress string with LZ4 algorithm, decompressed size:%d", decompressed_size);
       return -1;
@@ -468,24 +465,24 @@ int tsDecompressStringImp(const char *const input, int compressedSize, char *con
 /* --------------------------------------------Timestamp Compression
  * ---------------------------------------------- */
 // TODO: Take care here, we assumes little endian encoding.
-int tsCompressTimestampImp(const char *const input, const int nelements, char *const output) {
-  int _pos = 1;
+int32_t tsCompressTimestampImp(const char *const input, const int32_t nelements, char *const output) {
+  int32_t _pos = 1;
   assert(nelements >= 0);
 
   if (nelements == 0) return 0;
 
   int64_t *istream = (int64_t *)input;
 
-  int64_t  prev_value = istream[0];
-  if(prev_value >= 0x8000000000000000) {
-     uWarn("compression timestamp is over signed long long range. ts = 0x%"PRIx64" \n", prev_value);
-     goto _exit_over;
+  int64_t prev_value = istream[0];
+  if (prev_value >= 0x8000000000000000) {
+    uWarn("compression timestamp is over signed long long range. ts = 0x%" PRIx64 " \n", prev_value);
+    goto _exit_over;
   }
   int64_t  prev_delta = -prev_value;
   uint8_t  flags = 0, flag1 = 0, flag2 = 0;
   uint64_t dd1 = 0, dd2 = 0;
 
-  for (int i = 0; i < nelements; i++) {
+  for (int32_t i = 0; i < nelements; i++) {
     int64_t curr_value = istream[i];
     if (!safeInt64Add(curr_value, -prev_value)) goto _exit_over;
     int64_t curr_delta = curr_value - prev_value;
@@ -564,7 +561,7 @@ _exit_over:
   return nelements * LONG_BYTES + 1;
 }
 
-int tsDecompressTimestampImp(const char *const input, const int nelements, char *const output) {
+int32_t tsDecompressTimestampImp(const char *const input, const int32_t nelements, char *const output) {
   assert(nelements >= 0);
   if (nelements == 0) return 0;
 
@@ -574,7 +571,7 @@ int tsDecompressTimestampImp(const char *const input, const int nelements, char 
   } else if (input[0] == 1) {  // Decompress
     int64_t *ostream = (int64_t *)output;
 
-    int     ipos = 1, opos = 0;
+    int32_t ipos = 1, opos = 0;
     int8_t  nbytes = 0;
     int64_t prev_value = 0;
     int64_t prev_delta = 0;
@@ -635,9 +632,9 @@ int tsDecompressTimestampImp(const char *const input, const int nelements, char 
 }
 /* --------------------------------------------Double Compression
  * ---------------------------------------------- */
-void encodeDoubleValue(uint64_t diff, uint8_t flag, char *const output, int *const pos) {
+void encodeDoubleValue(uint64_t diff, uint8_t flag, char *const output, int32_t *const pos) {
   uint8_t nbytes = (flag & INT8MASK(3)) + 1;
-  int     nshift = (LONG_BYTES * BITS_PER_BYTE - nbytes * BITS_PER_BYTE) * (flag >> 3);
+  int32_t nshift = (LONG_BYTES * BITS_PER_BYTE - nbytes * BITS_PER_BYTE) * (flag >> 3);
   diff >>= nshift;
 
   while (nbytes) {
@@ -647,9 +644,9 @@ void encodeDoubleValue(uint64_t diff, uint8_t flag, char *const output, int *con
   }
 }
 
-int tsCompressDoubleImp(const char *const input, const int nelements, char *const output) {
-  int byte_limit = nelements * DOUBLE_BYTES + 1;
-  int opos = 1;
+int32_t tsCompressDoubleImp(const char *const input, const int32_t nelements, char *const output) {
+  int32_t byte_limit = nelements * DOUBLE_BYTES + 1;
+  int32_t opos = 1;
 
   uint64_t prev_value = 0;
   uint64_t prev_diff = 0;
@@ -658,7 +655,7 @@ int tsCompressDoubleImp(const char *const input, const int nelements, char *cons
   double *istream = (double *)input;
 
   // Main loop
-  for (int i = 0; i < nelements; i++) {
+  for (int32_t i = 0; i < nelements; i++) {
     union {
       double   real;
       uint64_t bits;
@@ -670,8 +667,8 @@ int tsCompressDoubleImp(const char *const input, const int nelements, char *cons
     uint64_t predicted = prev_value;
     uint64_t diff = curr.bits ^ predicted;
 
-    int leading_zeros = LONG_BYTES * BITS_PER_BYTE;
-    int trailing_zeros = leading_zeros;
+    int32_t leading_zeros = LONG_BYTES * BITS_PER_BYTE;
+    int32_t trailing_zeros = leading_zeros;
 
     if (diff) {
       trailing_zeros = BUILDIN_CTZL(diff);
@@ -696,8 +693,8 @@ int tsCompressDoubleImp(const char *const input, const int nelements, char *cons
       prev_diff = diff;
       prev_flag = flag;
     } else {
-      int nbyte1 = (prev_flag & INT8MASK(3)) + 1;
-      int nbyte2 = (flag & INT8MASK(3)) + 1;
+      int32_t nbyte1 = (prev_flag & INT8MASK(3)) + 1;
+      int32_t nbyte2 = (flag & INT8MASK(3)) + 1;
       if (opos + 1 + nbyte1 + nbyte2 <= byte_limit) {
         uint8_t flags = prev_flag | (flag << 4);
         output[opos++] = flags;
@@ -713,8 +710,8 @@ int tsCompressDoubleImp(const char *const input, const int nelements, char *cons
   }
 
   if (nelements % 2) {
-    int nbyte1 = (prev_flag & INT8MASK(3)) + 1;
-    int nbyte2 = 1;
+    int32_t nbyte1 = (prev_flag & INT8MASK(3)) + 1;
+    int32_t nbyte2 = 1;
     if (opos + 1 + nbyte1 + nbyte2 <= byte_limit) {
       uint8_t flags = prev_flag;
       output[opos++] = flags;
@@ -731,19 +728,19 @@ int tsCompressDoubleImp(const char *const input, const int nelements, char *cons
   return opos;
 }
 
-uint64_t decodeDoubleValue(const char *const input, int *const ipos, uint8_t flag) {
+uint64_t decodeDoubleValue(const char *const input, int32_t *const ipos, uint8_t flag) {
   uint64_t diff = 0ul;
-  int      nbytes = (flag & INT8MASK(3)) + 1;
-  for (int i = 0; i < nbytes; i++) {
+  int32_t  nbytes = (flag & INT8MASK(3)) + 1;
+  for (int32_t i = 0; i < nbytes; i++) {
     diff = diff | ((INT64MASK(8) & input[(*ipos)++]) << BITS_PER_BYTE * i);
   }
-  int shift_width = (LONG_BYTES * BITS_PER_BYTE - nbytes * BITS_PER_BYTE) * (flag >> 3);
+  int32_t shift_width = (LONG_BYTES * BITS_PER_BYTE - nbytes * BITS_PER_BYTE) * (flag >> 3);
   diff <<= shift_width;
 
   return diff;
 }
 
-int tsDecompressDoubleImp(const char *const input, const int nelements, char *const output) {
+int32_t tsDecompressDoubleImp(const char *const input, const int32_t nelements, char *const output) {
   // output stream
   double *ostream = (double *)output;
 
@@ -753,11 +750,11 @@ int tsDecompressDoubleImp(const char *const input, const int nelements, char *co
   }
 
   uint8_t  flags = 0;
-  int      ipos = 1;
-  int      opos = 0;
+  int32_t  ipos = 1;
+  int32_t  opos = 0;
   uint64_t prev_value = 0;
 
-  for (int i = 0; i < nelements; i++) {
+  for (int32_t i = 0; i < nelements; i++) {
     if (i % 2 == 0) {
       flags = input[ipos++];
     }
@@ -783,9 +780,9 @@ int tsDecompressDoubleImp(const char *const input, const int nelements, char *co
 
 /* --------------------------------------------Float Compression
  * ---------------------------------------------- */
-void encodeFloatValue(uint32_t diff, uint8_t flag, char *const output, int *const pos) {
+void encodeFloatValue(uint32_t diff, uint8_t flag, char *const output, int32_t *const pos) {
   uint8_t nbytes = (flag & INT8MASK(3)) + 1;
-  int     nshift = (FLOAT_BYTES * BITS_PER_BYTE - nbytes * BITS_PER_BYTE) * (flag >> 3);
+  int32_t nshift = (FLOAT_BYTES * BITS_PER_BYTE - nbytes * BITS_PER_BYTE) * (flag >> 3);
   diff >>= nshift;
 
   while (nbytes) {
@@ -795,17 +792,17 @@ void encodeFloatValue(uint32_t diff, uint8_t flag, char *const output, int *cons
   }
 }
 
-int tsCompressFloatImp(const char *const input, const int nelements, char *const output) {
-  float *istream = (float *)input;
-  int    byte_limit = nelements * FLOAT_BYTES + 1;
-  int    opos = 1;
+int32_t tsCompressFloatImp(const char *const input, const int32_t nelements, char *const output) {
+  float  *istream = (float *)input;
+  int32_t byte_limit = nelements * FLOAT_BYTES + 1;
+  int32_t opos = 1;
 
   uint32_t prev_value = 0;
   uint32_t prev_diff = 0;
   uint8_t  prev_flag = 0;
 
   // Main loop
-  for (int i = 0; i < nelements; i++) {
+  for (int32_t i = 0; i < nelements; i++) {
     union {
       float    real;
       uint32_t bits;
@@ -817,8 +814,8 @@ int tsCompressFloatImp(const char *const input, const int nelements, char *const
     uint32_t predicted = prev_value;
     uint32_t diff = curr.bits ^ predicted;
 
-    int leading_zeros = FLOAT_BYTES * BITS_PER_BYTE;
-    int trailing_zeros = leading_zeros;
+    int32_t leading_zeros = FLOAT_BYTES * BITS_PER_BYTE;
+    int32_t trailing_zeros = leading_zeros;
 
     if (diff) {
       trailing_zeros = BUILDIN_CTZ(diff);
@@ -843,8 +840,8 @@ int tsCompressFloatImp(const char *const input, const int nelements, char *const
       prev_diff = diff;
       prev_flag = flag;
     } else {
-      int nbyte1 = (prev_flag & INT8MASK(3)) + 1;
-      int nbyte2 = (flag & INT8MASK(3)) + 1;
+      int32_t nbyte1 = (prev_flag & INT8MASK(3)) + 1;
+      int32_t nbyte2 = (flag & INT8MASK(3)) + 1;
       if (opos + 1 + nbyte1 + nbyte2 <= byte_limit) {
         uint8_t flags = prev_flag | (flag << 4);
         output[opos++] = flags;
@@ -860,8 +857,8 @@ int tsCompressFloatImp(const char *const input, const int nelements, char *const
   }
 
   if (nelements % 2) {
-    int nbyte1 = (prev_flag & INT8MASK(3)) + 1;
-    int nbyte2 = 1;
+    int32_t nbyte1 = (prev_flag & INT8MASK(3)) + 1;
+    int32_t nbyte2 = 1;
     if (opos + 1 + nbyte1 + nbyte2 <= byte_limit) {
       uint8_t flags = prev_flag;
       output[opos++] = flags;
@@ -878,19 +875,19 @@ int tsCompressFloatImp(const char *const input, const int nelements, char *const
   return opos;
 }
 
-uint32_t decodeFloatValue(const char *const input, int *const ipos, uint8_t flag) {
+uint32_t decodeFloatValue(const char *const input, int32_t *const ipos, uint8_t flag) {
   uint32_t diff = 0ul;
-  int      nbytes = (flag & INT8MASK(3)) + 1;
-  for (int i = 0; i < nbytes; i++) {
+  int32_t  nbytes = (flag & INT8MASK(3)) + 1;
+  for (int32_t i = 0; i < nbytes; i++) {
     diff = diff | ((INT32MASK(8) & input[(*ipos)++]) << BITS_PER_BYTE * i);
   }
-  int shift_width = (FLOAT_BYTES * BITS_PER_BYTE - nbytes * BITS_PER_BYTE) * (flag >> 3);
+  int32_t shift_width = (FLOAT_BYTES * BITS_PER_BYTE - nbytes * BITS_PER_BYTE) * (flag >> 3);
   diff <<= shift_width;
 
   return diff;
 }
 
-int tsDecompressFloatImp(const char *const input, const int nelements, char *const output) {
+int32_t tsDecompressFloatImp(const char *const input, const int32_t nelements, char *const output) {
   float *ostream = (float *)output;
 
   if (input[0] == 1) {
@@ -899,11 +896,11 @@ int tsDecompressFloatImp(const char *const input, const int nelements, char *con
   }
 
   uint8_t  flags = 0;
-  int      ipos = 1;
-  int      opos = 0;
+  int32_t  ipos = 1;
+  int32_t  opos = 0;
   uint32_t prev_value = 0;
 
-  for (int i = 0; i < nelements; i++) {
+  for (int32_t i = 0; i < nelements; i++) {
     if (i % 2 == 0) {
       flags = input[ipos++];
     }
@@ -927,15 +924,15 @@ int tsDecompressFloatImp(const char *const input, const int nelements, char *con
   return nelements * FLOAT_BYTES;
 }
 
-#ifdef TD_TSZ  
+#ifdef TD_TSZ
 //
 //   ----------  float double lossy  -----------
 //
-int tsCompressFloatLossyImp(const char * input, const int nelements, char *const output){
-  // compress with sz 
-  int compressedSize = tdszCompress(SZ_FLOAT, input, nelements, output + 1);
+int32_t tsCompressFloatLossyImp(const char *input, const int32_t nelements, char *const output) {
+  // compress with sz
+  int32_t       compressedSize = tdszCompress(SZ_FLOAT, input, nelements, output + 1);
   unsigned char algo = ALGO_SZ_LOSSY << 1;
-  if (compressedSize == 0 || compressedSize >= nelements*sizeof(float)){
+  if (compressedSize == 0 || compressedSize >= nelements * sizeof(float)) {
     // compressed error or large than original
     output[0] = MODE_NOCOMPRESS | algo;
     memcpy(output + 1, input, nelements * sizeof(float));
@@ -949,25 +946,26 @@ int tsCompressFloatLossyImp(const char * input, const int nelements, char *const
   return compressedSize;
 }
 
-int tsDecompressFloatLossyImp(const char * input, int compressedSize, const int nelements, char *const output){
-  int decompressedSize  = 0;
-  if( HEAD_MODE(input[0]) == MODE_NOCOMPRESS){
+int32_t tsDecompressFloatLossyImp(const char *input, int32_t compressedSize, const int32_t nelements,
+                                  char *const output) {
+  int32_t decompressedSize = 0;
+  if (HEAD_MODE(input[0]) == MODE_NOCOMPRESS) {
     // orginal so memcpy directly
     decompressedSize = nelements * sizeof(float);
     memcpy(output, input + 1, decompressedSize);
 
     return decompressedSize;
-  } 
+  }
 
   // decompressed with sz
   return tdszDecompress(SZ_FLOAT, input + 1, compressedSize - 1, nelements, output);
 }
 
-int tsCompressDoubleLossyImp(const char * input, const int nelements, char *const output){
-   // compress with sz 
-  int compressedSize = tdszCompress(SZ_DOUBLE, input, nelements, output + 1);
+int32_t tsCompressDoubleLossyImp(const char *input, const int32_t nelements, char *const output) {
+  // compress with sz
+  int32_t       compressedSize = tdszCompress(SZ_DOUBLE, input, nelements, output + 1);
   unsigned char algo = ALGO_SZ_LOSSY << 1;
-  if (compressedSize == 0 || compressedSize >= nelements*sizeof(double)) {
+  if (compressedSize == 0 || compressedSize >= nelements * sizeof(double)) {
     // compressed error or large than original
     output[0] = MODE_NOCOMPRESS | algo;
     memcpy(output + 1, input, nelements * sizeof(double));
@@ -978,18 +976,19 @@ int tsCompressDoubleLossyImp(const char * input, const int nelements, char *cons
     compressedSize += 1;
   }
 
-  return compressedSize; 
+  return compressedSize;
 }
 
-int tsDecompressDoubleLossyImp(const char * input, int compressedSize, const int nelements, char *const output){
-  int decompressedSize  = 0;
-  if( HEAD_MODE(input[0]) == MODE_NOCOMPRESS){
+int32_t tsDecompressDoubleLossyImp(const char *input, int32_t compressedSize, const int32_t nelements,
+                                   char *const output) {
+  int32_t decompressedSize = 0;
+  if (HEAD_MODE(input[0]) == MODE_NOCOMPRESS) {
     // orginal so memcpy directly
     decompressedSize = nelements * sizeof(double);
     memcpy(output, input + 1, decompressedSize);
 
     return decompressedSize;
-  } 
+  }
 
   // decompressed with sz
   return tdszDecompress(SZ_DOUBLE, input + 1, compressedSize - 1, nelements, output);
