@@ -3805,6 +3805,7 @@ void* createQInfoFromQueryNode(SQueryInfo* pQueryInfo, STableGroupInfo* pTableGr
   assert(pQueryInfo != NULL);
   SQInfo *pQInfo = (SQInfo *)calloc(1, sizeof(SQInfo));
   if (pQInfo == NULL) {
+    tsdbDestroyTableGroup(pTableGroupInfo);
     goto _cleanup;
   }
 
@@ -3913,6 +3914,7 @@ void* createQInfoFromQueryNode(SQueryInfo* pQueryInfo, STableGroupInfo* pTableGr
   int32_t code = initQInfo(&bufInfo, NULL, pSourceOperator, pQInfo, &param, NULL, 0, merger);
   taosArrayDestroy(&pa);
   if (code != TSDB_CODE_SUCCESS) {
+    pQInfo = NULL;
     goto _cleanup;
   }
 

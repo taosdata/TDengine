@@ -192,6 +192,7 @@ function install_bin() {
   ${csudo}rm -f ${bin_link_dir}/tarbitrator || :
   ${csudo}rm -f ${bin_link_dir}/set_core || :
   ${csudo}rm -f ${bin_link_dir}/run_taosd_and_taosadapter.sh || :
+  ${csudo}rm -f ${bin_link_dir}/TDinsight.sh || :
 
   ${csudo}cp -r ${script_dir}/bin/* ${install_main_dir}/bin && ${csudo}chmod 0555 ${install_main_dir}/bin/*
 
@@ -200,7 +201,9 @@ function install_bin() {
   [ -x ${install_main_dir}/bin/${serverName} ] && ${csudo}ln -s ${install_main_dir}/bin/${serverName} ${bin_link_dir}/${serverName} || :
   [ -x ${install_main_dir}/bin/taosadapter ] && ${csudo}ln -s ${install_main_dir}/bin/taosadapter ${bin_link_dir}/taosadapter || :
   [ -x ${install_main_dir}/bin/taosBenchmark ] && ${csudo}ln -s ${install_main_dir}/bin/taosBenchmark ${bin_link_dir}/taosdemo || :
+  [ -x ${install_main_dir}/bin/taosBenchmark ] && ${csudo}ln -s ${install_main_dir}/bin/taosBenchmark ${bin_link_dir}/taosBenchmark || :
   [ -x ${install_main_dir}/bin/taosdump ] && ${csudo}ln -s ${install_main_dir}/bin/taosdump ${bin_link_dir}/taosdump || :
+  [ -x ${install_main_dir}/bin/TDinsight.sh ] && ${csudo}ln -s ${install_main_dir}/bin/TDinsight.sh ${bin_link_dir}/TDinsight.sh || :
   [ -x ${install_main_dir}/bin/remove.sh ] && ${csudo}ln -s ${install_main_dir}/bin/remove.sh ${bin_link_dir}/${uninstallScript} || :
   [ -x ${install_main_dir}/bin/set_core.sh ] && ${csudo}ln -s ${install_main_dir}/bin/set_core.sh ${bin_link_dir}/set_core || :
   [ -x ${install_main_dir}/bin/run_taosd_and_taosadapter.sh ] && ${csudo}ln -s ${install_main_dir}/bin/run_taosd_and_taosadapter.sh ${bin_link_dir}/run_taosd_and_taosadapter.sh || :
@@ -565,7 +568,7 @@ function install_data() {
 }
 
 function install_connector() {
-  ${csudo}cp -rf ${script_dir}/connector/ ${install_main_dir}/
+  [ -d "${script_dir}/connector/" ] && ${csudo}cp -rf ${script_dir}/connector/ ${install_main_dir}/
 }
 
 function install_examples() {
@@ -690,6 +693,10 @@ function install_service_on_systemd() {
     ${csudo}cp ${script_dir}/cfg/tarbitratord.service \
       ${service_config_dir}/ || :
   ${csudo}systemctl daemon-reload
+
+  [ -f ${script_dir}/cfg/nginxd.service ] &&
+    ${csudo}cp ${script_dir}/cfg/nginxd.service \
+      ${service_config_dir}/ || :
 
   if ! ${csudo}systemctl enable nginxd &>/dev/null; then
     ${csudo}systemctl daemon-reexec
@@ -820,9 +827,9 @@ function update_TDengine() {
   install_log
   install_header
   install_lib
-  if [ "$pagMode" != "lite" ]; then
-    install_connector
-  fi
+#  if [ "$pagMode" != "lite" ]; then
+#    install_connector
+#  fi
   install_examples
   if [ -z $1 ]; then
     install_bin
@@ -879,7 +886,7 @@ function update_TDengine() {
     echo -e "\033[44;32;1m${productName} client is updated successfully!${NC}"
   fi
 
-  rm -rf $(tar -tf ${tarName})
+  rm -rf $(tar -tf ${tarName} |grep -v "^\./$")
 }
 
 function install_TDengine() {
@@ -976,7 +983,7 @@ function install_TDengine() {
   fi
 
   touch ~/.${historyFile}
-  rm -rf $(tar -tf ${tarName})
+  rm -rf $(tar -tf ${tarName} |grep -v "^\./$")
 }
 
 ## ==============================Main program starts from here============================

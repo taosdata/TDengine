@@ -1045,8 +1045,8 @@ int tscBuildQueryMsg(SSqlObj *pSql, SSqlInfo *pInfo) {
   
   SGroupbyExpr *pGroupbyExpr = query.pGroupbyExpr;
   if (pGroupbyExpr != NULL && pGroupbyExpr->numOfGroupCols > 0) {
-    pQueryMsg->orderByIdx = htons(pGroupbyExpr->orderIndex);
-    pQueryMsg->orderType = htons(pGroupbyExpr->orderType);
+    //pQueryMsg->orderByIdx = htons(pGroupbyExpr->orderIndex);
+    pQueryMsg->groupOrderType = htons(pGroupbyExpr->orderType);
 
     for (int32_t j = 0; j < pGroupbyExpr->numOfGroupCols; ++j) {
       SColIndex* pCol = taosArrayGet(pGroupbyExpr->columnInfo, j);
@@ -1254,6 +1254,17 @@ int32_t tscBuildCreateDnodeMsg(SSqlObj *pSql, SSqlInfo *pInfo) {
   return TSDB_CODE_SUCCESS;
 }
 
+static bool tscIsAlterCommand(char* sqlstr) {
+  int32_t index = 0;
+
+  do {
+    SStrToken t0 = tStrGetToken(sqlstr, &index, false);
+    if (t0.type != TK_LP) {
+      return t0.type == TK_ALTER;
+    }
+  } while (1);
+}
+
 int32_t tscBuildAcctMsg(SSqlObj *pSql, SSqlInfo *pInfo) {
   SSqlCmd *pCmd = &pSql->cmd;
   pCmd->payloadLen = sizeof(SCreateAcctMsg);
@@ -1295,7 +1306,12 @@ int32_t tscBuildAcctMsg(SSqlObj *pSql, SSqlInfo *pInfo) {
     }
   }
 
-  pCmd->msgType = TSDB_MSG_TYPE_CM_CREATE_ACCT;
+  if (tscIsAlterCommand(pSql->sqlstr)) {
+    pCmd->msgType = TSDB_MSG_TYPE_CM_ALTER_ACCT;
+  } else {
+    pCmd->msgType = TSDB_MSG_TYPE_CM_CREATE_ACCT;
+  }
+
   return TSDB_CODE_SUCCESS;
 }
 
@@ -1947,7 +1963,6 @@ int tscProcessRetrieveGlobalMergeRsp(SSqlObj *pSql) {
   SQueryInfo *pQueryInfo = tscGetQueryInfo(pCmd);
   if (pQueryInfo->pQInfo == NULL) {
     STableGroupInfo tableGroupInfo = {.numOfTables = 1, .pGroupList = taosArrayInit(1, POINTER_BYTES),};
-    tableGroupInfo.map = taosHashInit(1, taosGetDefaultHashFunction(TSDB_DATA_TYPE_INT), true, HASH_NO_LOCK);
 
     STableKeyInfo tableKeyInfo = {.pTable = NULL, .lastKey = INT64_MIN};
 
@@ -1958,8 +1973,6 @@ int tscProcessRetrieveGlobalMergeRsp(SSqlObj *pSql) {
     tscDebug("0x%"PRIx64" create QInfo 0x%"PRIx64" to execute query processing", pSql->self, pSql->self);
     pQueryInfo->pQInfo = createQInfoFromQueryNode(pQueryInfo, &tableGroupInfo, NULL, NULL, pRes->pMerger, MERGE_STAGE, pSql->self);
     if (pQueryInfo->pQInfo == NULL) {
-      taosHashCleanup(tableGroupInfo.map);
-      taosArrayDestroy(&group);
       tscAsyncResultOnError(pSql);
       pRes->code = TSDB_CODE_QRY_OUT_OF_MEMORY;
       return pRes->code;

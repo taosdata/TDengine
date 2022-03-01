@@ -313,19 +313,9 @@ TCollector 是一个在客户侧收集本地收集器并发送数据到 OpenTSDB
 
 taosAdapter 相关配置参数请参考 taosadapter --help 命令输出以及相关文档。
 
-## <a class="anchor" id="bailongma2-prometheus"></a> 使用 Bailongma 2.0 接入 Prometheus 数据写入
-
-**注意：**
-TDengine 新版本（2.4.0.4+）包含 taosAdapter 组件，提供更简便的 Prometheus 数据写入以及其他更强大的功能，Bailongma v2 及之前版本将逐步不再维护。
-
-## <a class="anchor" id="bailongma2-telegraf"></a> 使用 Bailongma 2.0 接入 Telegraf 数据写入
-
-**注意：**
-TDengine 新版本（2.3.0.0+）包含 taosAdapter 组件，提供更简便的 Telegraf 数据写入以及其他更强大的功能，Bailongma v2 及之前版本将逐步不再维护。
-
 ## <a class="anchor" id="emq"></a>EMQ Broker 直接写入
 
-MQTT是流行的物联网数据传输协议，[EMQ](https://github.com/emqx/emqx)是一开源的MQTT Broker软件，无需任何代码，只需要在EMQ Dashboard里使用“规则”做简单配置，即可将MQTT的数据直接写入TDengine。EMQ X 支持通过 发送到 Web 服务的方式保存数据到 TDEngine，也在企业版上提供原生的 TDEngine 驱动实现直接保存。详细使用方法请参考 [EMQ 官方文档](https://docs.emqx.io/broker/latest/cn/rule/rule-example.html#%E4%BF%9D%E5%AD%98%E6%95%B0%E6%8D%AE%E5%88%B0-tdengine)。
+MQTT是流行的物联网数据传输协议，[EMQ](https://github.com/emqx/emqx)是一开源的MQTT Broker软件，无需任何代码，只需要在EMQ Dashboard里使用“规则”做简单配置，即可将MQTT的数据直接写入TDengine。EMQ X 支持通过 发送到 Web 服务的方式保存数据到 TDengine，也在企业版上提供原生的 TDengine 驱动实现直接保存。详细使用方法请参考 [EMQ 官方文档](https://docs.emqx.com/zh/enterprise/v4.4/rule/backend_tdengine.html#%E4%BF%9D%E5%AD%98%E6%95%B0%E6%8D%AE%E5%88%B0-tdengine)。
 
 ## <a class="anchor" id="hivemq"></a>HiveMQ Broker 直接写入
 

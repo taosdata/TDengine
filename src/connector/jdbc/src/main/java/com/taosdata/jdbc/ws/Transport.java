@@ -25,13 +25,17 @@ public class Transport implements AutoCloseable {
     public CompletableFuture<Response> send(Request request) {
         CompletableFuture<Response> completableFuture = new CompletableFuture<>();
         try {
-            inFlightRequest.put(new ResponseFuture(request.id(), completableFuture));
+            inFlightRequest.put(new ResponseFuture(request.getAction(), request.id(), completableFuture));
             client.send(request.toString());
         } catch (Throwable t) {
-            inFlightRequest.remove(request.id());
+            inFlightRequest.remove(request.getAction(), request.id());
             completableFuture.completeExceptionally(t);
         }
         return completableFuture;
+    }
+
+    public void sendWithoutRep(Request request) {
+        client.send(request.toString());
     }
 
     public boolean isClosed() throws SQLException {

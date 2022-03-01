@@ -185,6 +185,8 @@ Clean up the running environment and call this API before the application exits.
 
 Set client options, currently only time zone setting (_TSDB_OPTIONTIMEZONE) and encoding setting (_TSDB_OPTIONLOCALE) are supported. The time zone and encoding default to the current operating system settings.
 
+When the return value is `0`, it means success, and when it is `-1`, it means failure.
+
 - `char *taos_get_client_info()`
 
 Get version information of the client.
@@ -210,6 +212,8 @@ Get version information of the server-side.
 - `int taos_select_db(TAOS *taos, const char *db)`
 
 Set the current default database to db.
+
+The return value is the error code.
 
 - `void taos_close(TAOS *taos)`
 
@@ -631,7 +635,7 @@ Users can directly view the usage information of the module through Python's hel
 
 - *TDengineConnection* class
 
-Refer to help (taos.TDEngineConnection) in python. This class corresponds to a connection between the client and TDengine. In the scenario of client multithreading, it is recommended that each thread apply for an independent connection instance, but not recommended that multiple threads share a connection.
+Refer to help (taos.TDengineConnection) in python. This class corresponds to a connection between the client and TDengine. In the scenario of client multithreading, it is recommended that each thread apply for an independent connection instance, but not recommended that multiple threads share a connection.
 
 - *TDengineCursor* class
 
@@ -1171,6 +1175,6 @@ promise2.then(function(result) {
 
 ### Example
 
-[node-example.js](https://github.com/taosdata/tests/tree/master/examples/nodejs/node-example.js) provides a code example that uses the NodeJS connector to create a table, insert weather data, and query the inserted data.
+[node-example.js](https://github.com/taosdata/TDengine/blob/master/examples/nodejs/node-example.js) provides a code example that uses the NodeJS connector to create a table, insert weather data, and query the inserted data.
 
-[node-example-raw.js](https://github.com/taosdata/tests/tree/master/examples/nodejs/node-example-raw.js) is also a code example that uses the NodeJS connector to create a table, insert weather data, and query the inserted data, but unlike the above, this example only uses cursor.
+[node-example-raw.js](https://github.com/taosdata/TDengine/blob/master/examples/nodejs/node-example-raw.js) is also a code example that uses the NodeJS connector to create a table, insert weather data, and query the inserted data, but unlike the above, this example only uses cursor.

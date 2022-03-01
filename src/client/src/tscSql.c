@@ -49,7 +49,7 @@ static bool validUserName(const char* user) {
 }
 
 static bool validPassword(const char* passwd) {
-  return validImpl(passwd, TSDB_KEY_LEN - 1);
+  return validImpl(passwd, TSDB_PASS_LEN - 1);
 }
 
 static SSqlObj *taosConnectImpl(const char *ip, const char *user, const char *pass, const char *auth, const char *db,
@@ -64,7 +64,7 @@ static SSqlObj *taosConnectImpl(const char *ip, const char *user, const char *pa
   }
   SRpcCorEpSet corMgmtEpSet;
 
-  char secretEncrypt[32] = {0};
+  char secretEncrypt[TSDB_PASS_LEN] = {0};
   int  secretEncryptLen = 0;
   if (auth == NULL) {
     if (!validPassword(pass)) {
@@ -82,6 +82,11 @@ static SSqlObj *taosConnectImpl(const char *ip, const char *user, const char *pa
       terrno = TSDB_CODE_TSC_INVALID_PASS_LENGTH;
       return NULL;
     } else {
+      if (outlen >= TSDB_PASS_LEN) {
+        terrno = TSDB_CODE_TSC_INVALID_USER_LENGTH;
+        tscError("failed to connect DB, too long length of authentication: %s", base64);
+        return NULL;
+      }
       memcpy(secretEncrypt, base64, outlen);
       free(base64);
     }
@@ -240,11 +245,11 @@ TAOS *taos_connect_c(const char *ip, uint8_t ipLen, const char *user, uint8_t us
                      uint8_t passLen, const char *db, uint8_t dbLen, uint16_t port) {
   char ipBuf[TSDB_EP_LEN] = {0};
   char userBuf[TSDB_USER_LEN] = {0};
-  char passBuf[TSDB_KEY_LEN] = {0};
+  char passBuf[TSDB_PASS_LEN] = {0};
   char dbBuf[TSDB_DB_NAME_LEN] = {0};
   strncpy(ipBuf, ip, MIN(TSDB_EP_LEN - 1, ipLen));
   strncpy(userBuf, user, MIN(TSDB_USER_LEN - 1, userLen));
-  strncpy(passBuf, pass, MIN(TSDB_KEY_LEN - 1, passLen));
+  strncpy(passBuf, pass, MIN(TSDB_PASS_LEN - 1, passLen));
   strncpy(dbBuf, db, MIN(TSDB_DB_NAME_LEN - 1, dbLen));
   return taos_connect(ipBuf, userBuf, passBuf, dbBuf, port);
 }

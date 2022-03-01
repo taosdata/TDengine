@@ -10,6 +10,7 @@
 [submodule "deps/TSZ"]
 	path = deps/TSZ
 	url = https://github.com/taosdata/TSZ.git
+	branch = master
 [submodule "src/kit/taos-tools"]
 	path = src/kit/taos-tools
 	url = https://github.com/taosdata/taos-tools

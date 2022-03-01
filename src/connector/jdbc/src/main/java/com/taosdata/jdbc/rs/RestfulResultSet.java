@@ -302,6 +302,9 @@ public class RestfulResultSet extends AbstractResultSet implements ResultSet {
             this.taos_type = taos_type;
         }
 
+        public int getTaosType() {
+            return taos_type;
+        }
     }
 
     @Override
