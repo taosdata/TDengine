@@ -97,7 +97,7 @@ int main(int argc, char *argv[]) {
   rpcInit.label        = "APP";
   rpcInit.numOfThreads = 1;
   rpcInit.sessions     = 100;
-  rpcInit.idleTime     = tsShellActivityTimer*1000;
+  rpcInit.idleTime     = 3000; //tsShellActivityTimer*1000;
   rpcInit.user         = "michael";
   rpcInit.secret       = secret;
   rpcInit.ckey         = "key";
@@ -148,7 +148,7 @@ int main(int argc, char *argv[]) {
     }
   }
 
-  taosInitLog("client.log", 100000, 10);
+  taosInitLog("client.log", 10);
 
   void *pRpc = rpcOpen(&rpcInit);
   if (pRpc == NULL) {

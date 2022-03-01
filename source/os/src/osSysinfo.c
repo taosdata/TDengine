@@ -16,15 +16,6 @@
 #define _DEFAULT_SOURCE
 #include "os.h"
 
-int32_t tsTotalMemoryMB = 0;
-int64_t tsPageSize = 0;
-int64_t tsOpenMax = 0;
-int64_t tsStreamMax = 0;
-int32_t tsNumOfCores = 1;
-char    tsTimezone[TSDB_TIMEZONE_LEN] = {0};
-char    tsLocale[TSDB_LOCALE_LEN] = {0};
-char    tsCharset[TSDB_LOCALE_LEN] = {0};  // default encode string
-
 #if defined(_TD_WINDOWS_64) || defined(_TD_WINDOWS_32)
 
 /*
@@ -89,25 +80,6 @@ bool taosGetProcMemory(float *memoryUsedMB) {
   return true;
 }
 
-static void taosGetSystemTimezone() {
-  // get and set default timezone
-  char *tz = getenv("TZ");
-  if (tz == NULL || strlen(tz) == 0) {
-    strcpy(tsTimezone, "not configured");
-  } else {
-    strcpy(tsTimezone, tz);
-  }
-}
-
-static void taosGetSystemLocale() {
-  // get and set default locale
-  char *locale = setlocale(LC_CTYPE, "chs");
-  if (locale != NULL) {
-    tstrncpy(tsLocale, locale, TSDB_LOCALE_LEN);
-  }
-
-  strcpy(tsCharset, "cp936");
-}
 
 int32_t taosGetCpuCores() {
   SYSTEM_INFO info;
@@ -200,8 +172,6 @@ void taosGetSystemInfo() {
   taosGetCpuUsage(&tmp1, &tmp2);
   taosGetProcIO(&tmp1, &tmp2);
 
-  taosGetSystemTimezone();
-  taosGetSystemLocale();
 }
 
 void taosKillSystem() {
@@ -273,103 +243,6 @@ char *taosGetCmdlineByPID(int pid) { return ""; }
 #include <errno.h>
 #include <libproc.h>
 
-static void taosGetSystemTimezone() {
-  /* load time zone string from /etc/localtime */
-  char  buf[4096];
-  char *tz = NULL;
-  {
-    int n = readlink("/etc/localtime", buf, sizeof(buf));
-    if (n < 0) {
-      //printf("read /etc/localtime error, reason:%s", strerror(errno));
-      return;
-    }
-    buf[n] = '\0';
-    for (int i = n - 1; i >= 0; --i) {
-      if (buf[i] == '/') {
-        if (tz) {
-          tz = buf + i + 1;
-          break;
-        }
-        tz = buf + i + 1;
-      }
-    }
-    if (!tz || 0 == strchr(tz, '/')) {
-      //printf("parsing /etc/localtime failed");
-      return;
-    }
-
-    setenv("TZ", tz, 1);
-    tzset();
-  }
-
-  /*
-   * NOTE: do not remove it.
-   * Enforce set the correct daylight saving time(DST) flag according
-   * to current time
-   */
-  time_t    tx1 = time(NULL);
-  struct tm tm1;
-  localtime_r(&tx1, &tm1);
-
-  /*
-   * format example:
-   *
-   * Asia/Shanghai   (CST, +0800)
-   * Europe/London   (BST, +0100)
-   */
-  snprintf(tsTimezone, TSDB_TIMEZONE_LEN, "%s (%s, %+03ld00)", tz, tm1.tm_isdst ? tzname[daylight] : tzname[0],
-           -timezone / 3600);
-
-  // cfg_timezone->cfgStatus = TAOS_CFG_CSTATUS_DEFAULT;
-  //printf("timezone not configured, set to system default:%s", tsTimezone);
-}
-
-/*
- * originally from src/os/src/detail/osSysinfo.c
- * POSIX format locale string:
- * (Language Strings)_(Country/Region Strings).(code_page)
- *
- * example: en_US.UTF-8, zh_CN.GB18030, zh_CN.UTF-8,
- *
- * if user does not specify the locale in taos.cfg the program use default LC_CTYPE as system locale.
- *
- * In case of some CentOS systems, their default locale is "en_US.utf8", which is not valid code_page
- * for libiconv that is employed to convert string in this system. This program will automatically use
- * UTF-8 instead as the charset.
- *
- * In case of windows client, the locale string is not valid POSIX format, user needs to set the
- * correct code_page for libiconv. Usually, the code_page of windows system with simple chinese is
- * CP936, CP437 for English charset.
- *
- */
-static void taosGetSystemLocale() {  // get and set default locale
-  char  sep = '.';
-  char *locale = NULL;
-
-  locale = setlocale(LC_CTYPE, "");
-  if (locale == NULL) {
-    //printf("can't get locale from system, set it to en_US.UTF-8 since error:%d:%s", errno, strerror(errno));
-    strcpy(tsLocale, "en_US.UTF-8");
-  } else {
-    tstrncpy(tsLocale, locale, TSDB_LOCALE_LEN);
-    //printf("locale not configured, set to system default:%s", tsLocale);
-  }
-
-  /* if user does not specify the charset, extract it from locale */
-  char *str = strrchr(tsLocale, sep);
-  if (str != NULL) {
-    str++;
-
-    char *revisedCharset = taosCharsetReplace(str);
-    tstrncpy(tsCharset, revisedCharset, TSDB_LOCALE_LEN);
-
-    free(revisedCharset);
-    //printf("charset not configured, set to system default:%s", tsCharset);
-  } else {
-    strcpy(tsCharset, "UTF-8");
-    //printf("can't get locale and charset from system, set it to UTF-8");
-  }
-}
 
 void taosKillSystem() {
   //printf("function taosKillSystem, exit!");
@@ -386,9 +259,6 @@ void taosGetSystemInfo() {
   long page_size = sysconf(_SC_PAGESIZE);
   tsTotalMemoryMB = physical_pages * page_size / (1024 * 1024);
   tsPageSize = page_size;
-
-  taosGetSystemTimezone();
-  taosGetSystemLocale();
 }
 
 bool taosReadProcIO(int64_t *rchars, int64_t *wchars) {
@@ -533,19 +403,17 @@ bool taosGetSysMemory(float *memoryUsedMB) {
 }
 
 bool taosGetProcMemory(float *memoryUsedMB) {
-  FILE *fp = fopen(tsProcMemFile, "r");
-  if (fp == NULL) {
+  // FILE *fp = fopen(tsProcMemFile, "r");
+  TdFilePtr pFile = taosOpenFile(tsProcMemFile, TD_FILE_READ | TD_FILE_STREAM);
+  if (pFile == NULL) {
     //printf("open file:%s failed", tsProcMemFile);
     return false;
   }
 
   ssize_t _bytes = 0;
-  size_t  len;
   char *  line = NULL;
-  while (!feof(fp)) {
-    tfree(line);
-    len = 0;
-    _bytes = getline(&line, &len, fp);
+  while (!taosEOFFile(pFile)) {
+    _bytes = taosGetLineFile(pFile, &line);
     if ((_bytes < 0) || (line == NULL)) {
       break;
     }
@@ -556,7 +424,7 @@ bool taosGetProcMemory(float *memoryUsedMB) {
 
   if (line == NULL) {
     //printf("read file:%s failed", tsProcMemFile);
-    fclose(fp);
+    taosCloseFile(&pFile);
     return false;
   }
 
@@ -565,24 +433,24 @@ bool taosGetProcMemory(float *memoryUsedMB) {
   sscanf(line, "%s %" PRId64, tmp, &memKB);
   *memoryUsedMB = (float)((double)memKB / 1024);
 
-  tfree(line);
-  fclose(fp);
+  if(line != NULL) tfree(line);
+  taosCloseFile(&pFile);
   return true;
 }
 
 static bool taosGetSysCpuInfo(SysCpuInfo *cpuInfo) {
-  FILE *fp = fopen(tsSysCpuFile, "r");
-  if (fp == NULL) {
+  // FILE *fp = fopen(tsSysCpuFile, "r");
+  TdFilePtr pFile = taosOpenFile(tsSysCpuFile, TD_FILE_READ | TD_FILE_STREAM);
+  if (pFile == NULL) {
     //printf("open file:%s failed", tsSysCpuFile);
     return false;
   }
 
-  size_t  len;
   char *  line = NULL;
-  ssize_t _bytes = getline(&line, &len, fp);
+  ssize_t _bytes = taosGetLineFile(pFile, &line);
   if ((_bytes < 0) || (line == NULL)) {
     //printf("read file:%s failed", tsSysCpuFile);
-    fclose(fp);
+    taosCloseFile(&pFile);
     return false;
   }
 
@@ -590,24 +458,24 @@ static bool taosGetSysCpuInfo(SysCpuInfo *cpuInfo) {
   sscanf(line, "%s %" PRIu64 " %" PRIu64 " %" PRIu64 " %" PRIu64, cpu, &cpuInfo->user, &cpuInfo->nice, &cpuInfo->system,
          &cpuInfo->idle);
 
-  tfree(line);
-  fclose(fp);
+  if(line != NULL) tfree(line);
+  taosCloseFile(&pFile);
   return true;
 }
 
 static bool taosGetProcCpuInfo(ProcCpuInfo *cpuInfo) {
-  FILE *fp = fopen(tsProcCpuFile, "r");
-  if (fp == NULL) {
+  // FILE *fp = fopen(tsProcCpuFile, "r");
+  TdFilePtr pFile = taosOpenFile(tsProcCpuFile, TD_FILE_READ | TD_FILE_STREAM);
+  if (pFile == NULL) {
     //printf("open file:%s failed", tsProcCpuFile);
     return false;
   }
 
-  size_t  len = 0;
   char *  line = NULL;
-  ssize_t _bytes = getline(&line, &len, fp);
+  ssize_t _bytes = taosGetLineFile(pFile, &line);
   if ((_bytes < 0) || (line == NULL)) {
     //printf("read file:%s failed", tsProcCpuFile);
-    fclose(fp);
+    taosCloseFile(&pFile);
     return false;
   }
 
@@ -620,115 +488,11 @@ static bool taosGetProcCpuInfo(ProcCpuInfo *cpuInfo) {
     }
   }
 
-  tfree(line);
-  fclose(fp);
+  if(line != NULL) tfree(line);
+  taosCloseFile(&pFile);
   return true;
 }
 
-static void taosGetSystemTimezone() {
-  /*
-   * NOTE: do not remove it.
-   * Enforce set the correct daylight saving time(DST) flag according
-   * to current time
-   */
-  time_t    tx1 = time(NULL);
-  struct tm tm1;
-  localtime_r(&tx1, &tm1);
-
-  /* load time zone string from /etc/timezone */
-  FILE *f = fopen("/etc/timezone", "r");
-  char  buf[68] = {0};
-  if (f != NULL) {
-    int len = fread(buf, 64, 1, f);
-    if (len < 64 && ferror(f)) {
-      fclose(f);
-      //printf("read /etc/timezone error, reason:%s", strerror(errno));
-      return;
-    }
-
-    fclose(f);
-
-    buf[sizeof(buf) - 1] = 0;
-    char *lineEnd = strstr(buf, "\n");
-    if (lineEnd != NULL) {
-      *lineEnd = 0;
-    }
-
-    // for CentOS system, /etc/timezone does not exist. Ignore the TZ environment variables
-    if (strlen(buf) > 0) {
-      setenv("TZ", buf, 1);
-    }
-  }
-  // get and set default timezone
-  tzset();
-
-  /*
-   * get CURRENT time zone.
-   * system current time zone is affected by daylight saving time(DST)
-   *
-   * e.g., the local time zone of London in DST is GMT+01:00,
-   * otherwise is GMT+00:00
-   */
-  int32_t tz = (-timezone * MILLISECOND_PER_SECOND) / MILLISECOND_PER_HOUR;
-  tz += daylight;
-
-  /*
-   * format example:
-   *
-   * Asia/Shanghai   (CST, +0800)
-   * Europe/London   (BST, +0100)
-   */
-  snprintf(tsTimezone, TSDB_TIMEZONE_LEN, "%s (%s, %s%02d00)", buf, tzname[daylight], tz >= 0 ? "+" : "-", abs(tz));
-
-  // cfg_timezone->cfgStatus = TAOS_CFG_CSTATUS_DEFAULT;
-  //printf("timezone not configured, set to system default:%s", tsTimezone);
-}
-
-/*
- * POSIX format locale string:
- * (Language Strings)_(Country/Region Strings).(code_page)
- *
- * example: en_US.UTF-8, zh_CN.GB18030, zh_CN.UTF-8,
- *
- * if user does not specify the locale in taos.cfg the program use default LC_CTYPE as system locale.
- *
- * In case of some CentOS systems, their default locale is "en_US.utf8", which is not valid code_page
- * for libiconv that is employed to convert string in this system. This program will automatically use
- * UTF-8 instead as the charset.
- *
- * In case of windows client, the locale string is not valid POSIX format, user needs to set the
- * correct code_page for libiconv. Usually, the code_page of windows system with simple chinese is
- * CP936, CP437 for English charset.
- *
- */
-static void taosGetSystemLocale() {  // get and set default locale
-  char  sep = '.';
-  char *locale = NULL;
-
-  locale = setlocale(LC_CTYPE, "");
-  if (locale == NULL) {
-    //printf("can't get locale from system, set it to en_US.UTF-8 since error:%d:%s", errno, strerror(errno));
-    strcpy(tsLocale, "en_US.UTF-8");
-  } else {
-    tstrncpy(tsLocale, locale, TSDB_LOCALE_LEN);
-    //printf("locale not configured, set to system default:%s", tsLocale);
-  }
-
-  // if user does not specify the charset, extract it from locale
-  char *str = strrchr(tsLocale, sep);
-  if (str != NULL) {
-    str++;
-
-    char *revisedCharset = taosCharsetReplace(str);
-    tstrncpy(tsCharset, revisedCharset, TSDB_LOCALE_LEN);
-
-    free(revisedCharset);
-    //printf("charset not configured, set to system default:%s", tsCharset);
-  } else {
-    strcpy(tsCharset, "UTF-8");
-    //printf("can't get locale and charset from system, set it to UTF-8");
-  }
-}
 
 int32_t taosGetCpuCores() { return (int32_t)sysconf(_SC_NPROCESSORS_ONLN); }
 
@@ -785,19 +549,17 @@ int32_t taosGetDiskSize(char *dataDir, SDiskSize *diskSize) {
 
 bool taosGetCardInfo(int64_t *bytes, int64_t *rbytes, int64_t *tbytes) {
   *bytes = 0;
-  FILE *fp = fopen(tsSysNetFile, "r");
-  if (fp == NULL) {
+  // FILE *fp = fopen(tsSysNetFile, "r");
+  TdFilePtr pFile = taosOpenFile(tsSysNetFile, TD_FILE_READ | TD_FILE_STREAM);
+  if (pFile == NULL) {
     //printf("open file:%s failed", tsSysNetFile);
     return false;
   }
 
   ssize_t _bytes = 0;
-  size_t  len = 2048;
-  char *  line = calloc(1, len);
+  char *  line = NULL;
 
-  while (!feof(fp)) {
-    memset(line, 0, len);
-
+  while (!taosEOFFile(pFile)) {
     int64_t o_rbytes = 0;
     int64_t rpackts = 0;
     int64_t o_tbytes = 0;
@@ -810,12 +572,12 @@ bool taosGetCardInfo(int64_t *bytes, int64_t *rbytes, int64_t *tbytes) {
     int64_t nouse6 = 0;
     char    nouse0[200] = {0};
 
-    _bytes = getline(&line, &len, fp);
+    _bytes = taosGetLineFile(pFile, &line);
     if (_bytes < 0) {
       break;
     }
 
-    line[len - 1] = 0;
+    line[_bytes - 1] = 0;
 
     if (strstr(line, "lo:") != NULL) {
       continue;
@@ -830,8 +592,8 @@ bool taosGetCardInfo(int64_t *bytes, int64_t *rbytes, int64_t *tbytes) {
     *bytes += (o_rbytes + o_tbytes);
   }
 
-  tfree(line);
-  fclose(fp);
+  if(line != NULL) tfree(line);
+  taosCloseFile(&pFile);
 
   return true;
 }
@@ -873,22 +635,20 @@ bool taosGetBandSpeed(float *bandSpeedKb) {
 }
 
 bool taosReadProcIO(int64_t *rchars, int64_t *wchars) {
-  FILE *fp = fopen(tsProcIOFile, "r");
-  if (fp == NULL) {
+  // FILE *fp = fopen(tsProcIOFile, "r");
+  TdFilePtr pFile = taosOpenFile(tsProcIOFile, TD_FILE_READ | TD_FILE_STREAM);
+  if (pFile == NULL) {
     //printf("open file:%s failed", tsProcIOFile);
     return false;
   }
 
   ssize_t _bytes = 0;
-  size_t  len;
   char *  line = NULL;
   char    tmp[10];
   int     readIndex = 0;
 
-  while (!feof(fp)) {
-    tfree(line);
-    len = 0;
-    _bytes = getline(&line, &len, fp);
+  while (!taosEOFFile(pFile)) {
+    _bytes = taosGetLineFile(pFile, &line);
     if ((_bytes < 0) || (line == NULL)) {
       break;
     }
@@ -904,8 +664,8 @@ bool taosReadProcIO(int64_t *rchars, int64_t *wchars) {
     if (readIndex >= 2) break;
   }
 
-  tfree(line);
-  fclose(fp);
+  if(line != NULL) tfree(line);
+  taosCloseFile(&pFile);
 
   if (readIndex < 2) {
     //printf("read file:%s failed", tsProcIOFile);
@@ -957,8 +717,6 @@ void taosGetSystemInfo() {
   taosGetCpuUsage(&tmp1, &tmp2);
   taosGetProcIO(&tmp1, &tmp2);
 
-  taosGetSystemTimezone();
-  taosGetSystemLocale();
 }
 
 void taosKillSystem() {
@@ -1070,15 +828,15 @@ void taosSetCoreDump(bool enable) {
 }
 
 int32_t taosGetSystemUUID(char *uid, int32_t uidlen) {
-  int fd;
   int len = 0;
 
-  fd = open("/proc/sys/kernel/random/uuid", 0);
-  if (fd < 0) {
+  // fd = open("/proc/sys/kernel/random/uuid", 0);
+  TdFilePtr pFile = taosOpenFile("/proc/sys/kernel/random/uuid", TD_FILE_READ);
+  if (pFile == NULL) {
     return -1;
   } else {
-    len = read(fd, uid, uidlen);
-    close(fd);
+    len = taosReadFile(pFile, uid, uidlen);
+    taosCloseFile(&pFile);
   }
 
   if (len >= 36) {
@@ -1093,16 +851,17 @@ char *taosGetCmdlineByPID(int pid) {
   static char cmdline[1024];
   sprintf(cmdline, "/proc/%d/cmdline", pid);
 
-  int fd = open(cmdline, O_RDONLY);
-  if (fd >= 0) {
-    int n = read(fd, cmdline, sizeof(cmdline) - 1);
+  // int fd = open(cmdline, O_RDONLY);
+  TdFilePtr pFile = taosOpenFile(cmdline, TD_FILE_READ);
+  if (pFile != NULL) {
+    int n = taosReadFile(pFile, cmdline, sizeof(cmdline) - 1);
     if (n < 0) n = 0;
 
     if (n > 0 && cmdline[n - 1] == '\n') --n;
 
     cmdline[n] = 0;
 
-    close(fd);
+    taosCloseFile(&pFile);
   } else {
     cmdline[0] = 0;
   }

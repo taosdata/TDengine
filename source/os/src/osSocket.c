@@ -14,6 +14,7 @@
  */
 
 #define _DEFAULT_SOURCE
+#define ALLOW_FORBID_FUNC
 #include "os.h"
 
 #if defined(_TD_WINDOWS_64) || defined(_TD_WINDOWS_32)
@@ -150,7 +151,7 @@ int32_t taosGetSockOpt(SOCKET socketfd, int32_t level, int32_t optname, void *op
 
 #if !((defined(_TD_WINDOWS_64) || defined(_TD_WINDOWS_32)) && defined(_MSC_VER))
 
-uint32_t taosInetAddr(char *ipAddr) { return inet_addr(ipAddr); }
+uint32_t taosInetAddr(const char *ipAddr) { return inet_addr(ipAddr); }
 
 const char *taosInetNtoa(struct in_addr ipInt) { return inet_ntoa(ipInt); }
 
@@ -240,7 +241,7 @@ int32_t taosSetSockOpt(SOCKET socketfd, int32_t level, int32_t optname, void *op
 #ifdef _MSC_VER
 //#if _MSC_VER >= 1900
 
-uint32_t taosInetAddr(char *ipAddr) {
+uint32_t taosInetAddr(const char *ipAddr) {
   uint32_t value;
   int32_t  ret = inet_pton(AF_INET, ipAddr, &value);
   if (ret <= 0) {

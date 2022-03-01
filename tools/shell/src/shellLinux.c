@@ -18,8 +18,9 @@
 #include "tglobal.h"
 #include "shell.h"
 #include "shellCommand.h"
-#include "tkey.h"
-#include "ulog.h"
+#include "tbase64.h"
+#include "tlog.h"
+#include "version.h"
 
 #include <wordexp.h>
 #include <argp.h>
@@ -183,7 +184,6 @@ static void parse_args(
     for (int i = 1; i < argc; i++) {
         if ((strncmp(argv[i], "-p", 2) == 0)
               || (strncmp(argv[i], "--password", 10) == 0)) {
-            strcpy(tsOsName, "Linux");
             printf(LINUXCLIENT_VERSION, tsOsName, taos_get_client_info());
             if ((strlen(argv[i]) == 2)
                   || (strncmp(argv[i], "--password", 10) == 0)) {

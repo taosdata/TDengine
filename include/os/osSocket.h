@@ -16,10 +16,6 @@
 #ifndef _TD_OS_SOCKET_H_
 #define _TD_OS_SOCKET_H_
 
-#ifdef __cplusplus
-extern "C" {
-#endif
-
 #if defined(_TD_WINDOWS_64) || defined(_TD_WINDOWS_32)
   #include "winsock2.h"
   #include <WS2tcpip.h>
@@ -28,6 +24,10 @@ extern "C" {
 #else
   #include <netinet/in.h>
   #include <sys/epoll.h>
+#endif
+
+#ifdef __cplusplus
+extern "C" {
 #endif
 
 #define TAOS_EPOLL_WAIT_TIME 500
@@ -55,7 +55,7 @@ void    taosSetMaskSIGPIPE();
 int32_t taosSetSockOpt(SOCKET socketfd, int32_t level, int32_t optname, void *optval, int32_t optlen);
 int32_t taosGetSockOpt(SOCKET socketfd, int32_t level, int32_t optname, void *optval, int32_t *optlen);
 
-uint32_t    taosInetAddr(char *ipAddr);
+uint32_t    taosInetAddr(const char *ipAddr);
 const char *taosInetNtoa(struct in_addr ipInt);
 
 #if (defined(_TD_WINDOWS_64) || defined(_TD_WINDOWS_32)) 

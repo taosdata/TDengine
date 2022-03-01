@@ -62,9 +62,8 @@ typedef enum ENodeType {
   QUERY_NODE_NODE_LIST,
   QUERY_NODE_FILL,
   QUERY_NODE_RAW_EXPR, // Only be used in parser module.
-  QUERY_NODE_COLUMN_REF,
   QUERY_NODE_TARGET,
-  QUERY_NODE_TUPLE_DESC,
+  QUERY_NODE_DATABLOCK_DESC,
   QUERY_NODE_SLOT_DESC,
 
   // Statement nodes are used in parser and planner module.
@@ -81,7 +80,9 @@ typedef enum ENodeType {
   // physical plan node
   QUERY_NODE_PHYSICAL_PLAN_TAG_SCAN,
   QUERY_NODE_PHYSICAL_PLAN_TABLE_SCAN,
-  QUERY_NODE_PHYSICAL_PLAN_PROJECT
+  QUERY_NODE_PHYSICAL_PLAN_PROJECT,
+  QUERY_NODE_PHYSICAL_PLAN_JOIN,
+  QUERY_NODE_PHYSICAL_PLAN_AGG
 } ENodeType;
 
 /**

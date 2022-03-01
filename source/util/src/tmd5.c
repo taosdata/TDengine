@@ -33,7 +33,7 @@
  ***********************************************************************
  */
 
-#include "os.h"
+#define _DEFAULT_SOURCE
 #include "tmd5.h"
 
 /* forward declaration */
@@ -98,13 +98,13 @@ void tMD5Init(T_MD5_CTX *mdContext) {
 account for the presence of each of the characters inBuf[0..inLen-1]
 in the message whose digest is being computed.
 */
-void tMD5Update(T_MD5_CTX *mdContext, uint8_t *inBuf, unsigned int inLen) {
-  uint32_t     in[16];
-  int          mdi;
-  unsigned int i, ii;
+void tMD5Update(T_MD5_CTX *mdContext, uint8_t *inBuf, uint32_t inLen) {
+  uint32_t in[16];
+  uint32_t mdi;
+  uint32_t i, ii;
 
   /* compute number of bytes mod 64 */
-  mdi = (int)((mdContext->i[0] >> 3) & 0x3F);
+  mdi = (uint32_t)((mdContext->i[0] >> 3) & 0x3F);
 
   /* update number of bits */
   if ((mdContext->i[0] + ((uint32_t)inLen << 3)) < mdContext->i[0]) mdContext->i[1]++;
@@ -130,17 +130,17 @@ void tMD5Update(T_MD5_CTX *mdContext, uint8_t *inBuf, unsigned int inLen) {
 ends with the desired message digest in mdContext->digest[0...15].
 */
 void tMD5Final(T_MD5_CTX *mdContext) {
-  uint32_t     in[16];
-  int          mdi;
-  unsigned int i, ii;
-  unsigned int padLen;
+  uint32_t in[16];
+  uint32_t mdi;
+  uint32_t i, ii;
+  uint32_t padLen;
 
   /* save number of bits */
   in[14] = mdContext->i[0];
   in[15] = mdContext->i[1];
 
   /* compute number of bytes mod 64 */
-  mdi = (int)((mdContext->i[0] >> 3) & 0x3F);
+  mdi = (uint32_t)((mdContext->i[0] >> 3) & 0x3F);
 
   /* pad out to 56 mod 64 */
   padLen = (mdi < 56) ? (56 - mdi) : (120 - mdi);

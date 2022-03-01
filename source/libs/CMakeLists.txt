@@ -1,3 +1,4 @@
+add_definitions("-D ALLOW_FORBID_FUNC")
 add_subdirectory(transport)
 add_subdirectory(sync)
 add_subdirectory(tdb)

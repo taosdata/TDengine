@@ -16,11 +16,10 @@
 #ifndef _TD_TQ_H_
 #define _TD_TQ_H_
 
-#include "common.h"
+#include "tcommon.h"
 #include "executor.h"
-#include "mallocator.h"
+#include "tmallocator.h"
 #include "meta.h"
-#include "os.h"
 #include "scheduler.h"
 #include "taoserror.h"
 #include "tlist.h"

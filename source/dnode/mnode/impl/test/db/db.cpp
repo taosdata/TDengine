@@ -119,8 +119,8 @@ TEST_F(MndTestDb, 02_Create_Alter_Drop_Db) {
   EXPECT_EQ(test.GetShowRows(), 2);
   CheckInt32(2);
   CheckInt32(3);
-  CheckInt32(0);
-  CheckInt32(0);
+  IgnoreInt32();
+  IgnoreInt32();
   CheckInt16(1);
   CheckInt16(1);
   CheckBinary("master", 9);

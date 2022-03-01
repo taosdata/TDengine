@@ -24,6 +24,8 @@
 #include "tqueue.h"
 #include "ttime.h"
 #include "wal.h"
+#include "version.h"
+#include "tglobal.h"
 
 #ifdef __cplusplus
 extern "C" {
@@ -56,12 +58,9 @@ typedef struct {
 } SProfileMgmt;
 
 typedef struct {
-  int8_t           enable;
-  pthread_mutex_t  lock;
-  pthread_cond_t   cond;
-  volatile int32_t exit;
-  pthread_t        thread;
-  char             email[TSDB_FQDN_LEN];
+  bool     enable;
+  SRWLatch lock;
+  char     email[TSDB_FQDN_LEN];
 } STelemMgmt;
 
 typedef struct {
@@ -81,8 +80,8 @@ typedef struct SMnode {
   tmr_h             timer;
   tmr_h             transTimer;
   tmr_h             mqTimer;
+  tmr_h             telemTimer;
   char             *path;
-  SMnodeCfg         cfg;
   int64_t           checkTime;
   SSdb             *pSdb;
   SDnode           *pDnode;
@@ -91,6 +90,7 @@ typedef struct SMnode {
   SProfileMgmt      profileMgmt;
   STelemMgmt        telemMgmt;
   SSyncMgmt         syncMgmt;
+  SHashObj         *infosMeta;
   MndMsgFp          msgFp[TDMT_MAX];
   SendReqToDnodeFp  sendReqToDnodeFp;
   SendReqToMnodeFp  sendReqToMnodeFp;

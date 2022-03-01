@@ -16,7 +16,7 @@
 #ifndef _TD_TFS_H_
 #define _TD_TFS_H_
 
-#include "tcfg.h"
+#include "tdef.h"
 
 #ifdef __cplusplus
 extern "C" {

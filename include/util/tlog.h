@@ -13,8 +13,8 @@
  * along with this program. If not, see <http://www.gnu.org/licenses/>.
  */
 
-#ifndef _TD_UTIL_LOG_H
-#define _TD_UTIL_LOG_H
+#ifndef _TD_UTIL_LOG_H_
+#define _TD_UTIL_LOG_H_
 
 #include "os.h"
 
@@ -22,8 +22,7 @@
 extern "C" {
 #endif
 
-// log
-extern int8_t  tsAsyncLog;
+extern bool    tsAsyncLog;
 extern int32_t tsNumOfLogLines;
 extern int32_t tsLogKeepDays;
 extern int32_t dDebugFlag;
@@ -32,9 +31,6 @@ extern int32_t mDebugFlag;
 extern int32_t cDebugFlag;
 extern int32_t jniDebugFlag;
 extern int32_t tmrDebugFlag;
-extern int32_t httpDebugFlag;
-extern int32_t mqttDebugFlag;
-extern int32_t monDebugFlag;
 extern int32_t uDebugFlag;
 extern int32_t rpcDebugFlag;
 extern int32_t qDebugFlag;
@@ -42,23 +38,23 @@ extern int32_t wDebugFlag;
 extern int32_t sDebugFlag;
 extern int32_t tsdbDebugFlag;
 extern int32_t tqDebugFlag;
-extern int32_t cqDebugFlag;
-extern int32_t debugFlag;
+extern int32_t fsDebugFlag;
 
-#define DEBUG_FATAL 1U
-#define DEBUG_ERROR DEBUG_FATAL
-#define DEBUG_WARN 2U
-#define DEBUG_INFO DEBUG_WARN
-#define DEBUG_DEBUG 4U
-#define DEBUG_TRACE 8U
-#define DEBUG_DUMP 16U
-
+#define DEBUG_FATAL  1U
+#define DEBUG_ERROR  DEBUG_FATAL
+#define DEBUG_WARN   2U
+#define DEBUG_INFO   DEBUG_WARN
+#define DEBUG_DEBUG  4U
+#define DEBUG_TRACE  8U
+#define DEBUG_DUMP   16U
 #define DEBUG_SCREEN 64U
-#define DEBUG_FILE 128U
+#define DEBUG_FILE   128U
 
-int32_t taosInitLog(char *logName, int32_t numOfLogLines, int32_t maxFiles);
+int32_t taosInitLog(const char *logName, int32_t maxFiles);
 void    taosCloseLog();
 void    taosResetLog();
+void    taosSetAllDebugFlag(int32_t flag);
+void    taosDumpData(uint8_t *msg, int32_t len);
 
 void taosPrintLog(const char *flags, int32_t dflag, const char *format, ...)
 #ifdef __GNUC__
@@ -72,10 +68,20 @@ void taosPrintLongString(const char *flags, int32_t dflag, const char *format, .
 #endif
     ;
 
-void taosDumpData(unsigned char *msg, int32_t len);
+extern int8_t tscEmbeddedInUtil;
+
+#define uFatal(...) { if (uDebugFlag & DEBUG_FATAL) { taosPrintLog("UTL FATAL", tscEmbeddedInUtil ? 255 : uDebugFlag, __VA_ARGS__); }}
+#define uError(...) { if (uDebugFlag & DEBUG_ERROR) { taosPrintLog("UTL ERROR ", tscEmbeddedInUtil ? 255 : uDebugFlag, __VA_ARGS__); }}
+#define uWarn(...)  { if (uDebugFlag & DEBUG_WARN)  { taosPrintLog("UTL WARN ", tscEmbeddedInUtil ? 255 : uDebugFlag, __VA_ARGS__); }}
+#define uInfo(...)  { if (uDebugFlag & DEBUG_INFO)  { taosPrintLog("UTL ", tscEmbeddedInUtil ? 255 : uDebugFlag, __VA_ARGS__); }}
+#define uDebug(...) { if (uDebugFlag & DEBUG_DEBUG) { taosPrintLog("UTL ", uDebugFlag, __VA_ARGS__); }}
+#define uTrace(...) { if (uDebugFlag & DEBUG_TRACE) { taosPrintLog("UTL ", uDebugFlag, __VA_ARGS__); }}
+
+#define pError(...) { taosPrintLog("APP ERROR ", 255, __VA_ARGS__); }
+#define pPrint(...) { taosPrintLog("APP ", 255, __VA_ARGS__); }
 
 #ifdef __cplusplus
 }
 #endif
 
-#endif /*_TD_UTIL_LOG_H*/
+#endif /*_TD_UTIL_LOG_H_*/

@@ -20,7 +20,7 @@
 extern "C" {
 #endif
 
-#include "common.h"
+#include "tcommon.h"
 #include "tvariant.h"
 #include "tbuffer.h"
 
@@ -138,8 +138,10 @@ extern SFunctionFpSet fpSet[1];
 
 // sql function runtime context
 typedef struct SqlFunctionCtx {
+  int32_t      startRow;
   int32_t      size;      // number of rows
-  void *       pInput;    // input data buffer
+  SColumnInfoData* pInput;
+
   uint32_t     order;     // asc|desc
   int16_t      inputType;
   int16_t      inputBytes;
@@ -227,11 +229,16 @@ typedef struct SAggFunctionInfo {
 } SAggFunctionInfo;
 
 typedef struct SScalarParam {
-  void*   data;
-  bool    colData;
-  int32_t num;
-  int32_t type;
-  int32_t bytes;
+  void            *data;
+  union {
+    SColumnInfoData *columnData;
+    void            *data;
+  } orig;  
+  char            *bitmap;
+  bool             dataInBlock;
+  int32_t          num;
+  int32_t          type;
+  int32_t          bytes;
 } SScalarParam;
 
 typedef struct SScalarFunctionInfo {

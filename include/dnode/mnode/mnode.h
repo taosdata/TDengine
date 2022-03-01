@@ -44,25 +44,12 @@ typedef struct SMnodeLoad {
   int64_t compStorage;
 } SMnodeLoad;
 
-typedef struct SMnodeCfg {
-  int32_t sver;
-  int8_t  enableTelem;
-  int32_t statusInterval;
-  int32_t shellActivityTimer;
-  char   *timezone;
-  char   *locale;
-  char   *charset;
-  char   *buildinfo;
-  char   *gitinfo;
-} SMnodeCfg;
-
 typedef struct {
   int32_t           dnodeId;
   int64_t           clusterId;
   int8_t            replica;
   int8_t            selfIndex;
   SReplica          replicas[TSDB_MAX_REPLICA];
-  SMnodeCfg         cfg;
   SDnode           *pDnode;
   PutReqToMWriteQFp putReqToMWriteQFp;
   PutReqToMReadQFp  putReqToMReadQFp;

@@ -22,49 +22,64 @@ extern "C" {
 
 #include "osSocket.h"
 
-#if defined(_TD_WINDOWS_64) || defined(_TD_WINDOWS_32)
-typedef int32_t FileFd;
-#else
-typedef int32_t FileFd;
+#ifndef ALLOW_FORBID_FUNC
+    #define open OPEN_FUNC_TAOS_FORBID
+    #define fopen FOPEN_FUNC_TAOS_FORBID
+    // #define close CLOSE_FUNC_TAOS_FORBID
+    // #define fclose FCLOSE_FUNC_TAOS_FORBID
 #endif
-
-#define FD_INITIALIZER ((int32_t)-1)
 
 #ifndef PATH_MAX
 #define PATH_MAX 256
 #endif
 
-int32_t taosLockFile(FileFd fd);
-int32_t taosUnLockFile(FileFd fd);
-
-int32_t taosUmaskFile(FileFd fd);
-
+typedef struct TdFile *TdFilePtr;
+ 
+#define TD_FILE_CTEATE    0x0001
+#define TD_FILE_WRITE     0x0002
+#define TD_FILE_READ      0x0004
+#define TD_FILE_TRUNC     0x0008
+#define TD_FILE_APPEND    0x0010
+#define TD_FILE_TEXT      0x0020
+#define TD_FILE_AUTO_DEL  0x0040
+#define TD_FILE_EXCL      0x0080
+#define TD_FILE_STREAM    0x0100   // Only support taosFprintfFile, taosGetLineFile, taosGetLineFile, taosEOFFile
+ 
+int32_t taosLockFile(TdFilePtr pFile);
+int32_t taosUnLockFile(TdFilePtr pFile);
+ 
+int32_t taosUmaskFile(int32_t maskVal);
+ 
 int32_t taosStatFile(const char *path, int64_t *size, int32_t *mtime);
-int32_t taosFStatFile(FileFd fd, int64_t *size, int32_t *mtime);
-
-FileFd taosOpenFileWrite(const char *path);
-FileFd taosOpenFileCreateWrite(const char *path);
-FileFd taosOpenFileCreateWriteTrunc(const char *path);
-FileFd taosOpenFileCreateWriteAppend(const char *path);
-FileFd taosOpenFileRead(const char *path);
-FileFd taosOpenFileReadWrite(const char *path);
-
-int64_t taosLSeekFile(FileFd fd, int64_t offset, int32_t whence);
-int32_t taosFtruncateFile(FileFd fd, int64_t length);
-int32_t taosFsyncFile(FileFd fd);
-
-int64_t taosReadFile(FileFd fd, void *buf, int64_t count);
-int64_t taosWriteFile(FileFd fd, const void *buf, int64_t count);
-
-void taosCloseFile(FileFd fd);
-
+int32_t taosFStatFile(TdFilePtr pFile, int64_t *size, int32_t *mtime);
+ 
+TdFilePtr taosOpenFile(const char *path,int32_t tdFileOptions);
+ 
+int64_t taosLSeekFile(TdFilePtr pFile, int64_t offset, int32_t whence);
+int32_t taosFtruncateFile(TdFilePtr pFile, int64_t length);
+int32_t taosFsyncFile(TdFilePtr pFile);
+ 
+int64_t taosReadFile(TdFilePtr pFile, void *buf, int64_t count);
+int64_t taosPReadFile(TdFilePtr pFile, void *buf, int64_t count, int64_t offset);
+int64_t taosWriteFile(TdFilePtr pFile, const void *buf, int64_t count);
+void taosFprintfFile(TdFilePtr pFile, const char *format, ...);
+int64_t taosGetLineFile(TdFilePtr pFile, char ** __restrict__ ptrBuf);
+int32_t taosEOFFile(TdFilePtr pFile);
+ 
+int64_t taosCloseFile(TdFilePtr *ppFile);
+ 
 int32_t taosRenameFile(const char *oldName, const char *newName);
 int64_t taosCopyFile(const char *from, const char *to);
-
+ 
 void taosGetTmpfilePath(const char *inputTmpDir, const char *fileNamePrefix, char *dstPath);
+ 
+int64_t taosSendFile(SocketFd fdDst, TdFilePtr pFileSrc, int64_t *offset, int64_t size);
+int64_t taosFSendFile(TdFilePtr pFileOut, TdFilePtr pFileIn, int64_t *offset, int64_t size);
 
-int64_t taosSendFile(SocketFd dfd, FileFd sfd, int64_t *offset, int64_t size);
-int64_t taosFSendFile(FILE *outfile, FILE *infile, int64_t *offset, int64_t size);
+void *taosMmapReadOnlyFile(TdFilePtr pFile, int64_t length);
+bool taosValidFile(TdFilePtr pFile);
+
+int taosGetErrorFile(TdFilePtr pFile);
 
 #ifdef __cplusplus
 }

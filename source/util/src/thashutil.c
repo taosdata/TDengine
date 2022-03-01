@@ -13,10 +13,9 @@
  * along with this program. If not, see <http://www.gnu.org/licenses/>.
  */
 
-#include "os.h"
+#define _DEFAULT_SOURCE
 #include "thash.h"
-#include "compare.h"
-#include "taos.h"
+#include "tcompare.h"
 #include "types.h"
 
 #define ROTL32(x, r) ((x) << (r) | (x) >> (32u - (r)))
@@ -34,7 +33,7 @@
   
 uint32_t MurmurHash3_32(const char *key, uint32_t len) {
   const uint8_t *data = (const uint8_t *)key;
-  const int nblocks = len >> 2u;
+  const int32_t nblocks = len >> 2u;
 
   uint32_t h1 = 0x12345678;
 
@@ -43,7 +42,7 @@ uint32_t MurmurHash3_32(const char *key, uint32_t len) {
 
   const uint32_t *blocks = (const uint32_t *)(data + nblocks * 4);
 
-  for (int i = -nblocks; i; i++) {
+  for (int32_t i = -nblocks; i; i++) {
     uint32_t k1 = blocks[i];
 
     k1 *= c1;
@@ -92,7 +91,7 @@ uint32_t taosFloatHash(const char *key, uint32_t UNUSED_PARAM(len)) {
     return 0;
   } 
   if (fabs(f) < FLT_MAX/BASE - DLT) {
-   int t = (int)(round(BASE * (f + DLT)));
+   int32_t t = (int32_t)(round(BASE * (f + DLT)));
    return (uint32_t)t;
   } else {
    return 0x7fc00000;
@@ -108,7 +107,7 @@ uint32_t taosDoubleHash(const char *key, uint32_t UNUSED_PARAM(len)) {
     return 0;
   } 
   if (fabs(f) < DBL_MAX/BASE - DLT) {
-   int t = (int)(round(BASE * (f + DLT)));
+   int32_t t = (int32_t)(round(BASE * (f + DLT)));
    return (uint32_t)t;
   } else {
    return 0x7fc00000;

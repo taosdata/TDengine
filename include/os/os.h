@@ -13,8 +13,8 @@
  * along with this program. If not, see <http://www.gnu.org/licenses/>.
  */
 
-#ifndef TDENGINE_OS_H
-#define TDENGINE_OS_H
+#ifndef _TD_OS_H_
+#define _TD_OS_H_
 
 #ifdef __cplusplus
 extern "C" {
@@ -59,6 +59,7 @@ extern "C" {
 #include "osEndian.h"
 #include "osEnv.h"
 #include "osFile.h"
+#include "osLocale.h"
 #include "osLz4.h"
 #include "osMath.h"
 #include "osMemory.h"
@@ -73,6 +74,7 @@ extern "C" {
 #include "osThread.h"
 #include "osTime.h"
 #include "osTimer.h"
+#include "osTimezone.h"
 
 void osInit();
 
@@ -80,4 +82,4 @@ void osInit();
 }
 #endif
 
-#endif
+#endif /*_TD_OS_H_*/

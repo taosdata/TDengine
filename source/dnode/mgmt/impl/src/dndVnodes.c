@@ -219,14 +219,15 @@ static int32_t dndGetVnodesFromFile(SDnode *pDnode, SWrapperCfg **ppCfgs, int32_
 
   snprintf(file, PATH_MAX + 20, "%s/vnodes.json", pDnode->dir.vnodes);
 
-  fp = fopen(file, "r");
-  if (fp == NULL) {
+  // fp = fopen(file, "r");
+  TdFilePtr pFile = taosOpenFile(file, TD_FILE_READ);
+  if (pFile == NULL) {
     dDebug("file %s not exist", file);
     code = 0;
     goto PRASE_VNODE_OVER;
   }
 
-  len = (int32_t)fread(content, 1, maxLen, fp);
+  len = (int32_t)taosReadFile(pFile, content, maxLen);
   if (len <= 0) {
     dError("failed to read %s since content is null", file);
     goto PRASE_VNODE_OVER;
@@ -304,7 +305,7 @@ static int32_t dndGetVnodesFromFile(SDnode *pDnode, SWrapperCfg **ppCfgs, int32_
 PRASE_VNODE_OVER:
   if (content != NULL) free(content);
   if (root != NULL) cJSON_Delete(root);
-  if (fp != NULL) fclose(fp);
+  if (pFile != NULL) taosCloseFile(&pFile);
 
   return code;
 }
@@ -315,8 +316,9 @@ static int32_t dndWriteVnodesToFile(SDnode *pDnode) {
   snprintf(file, PATH_MAX + 20, "%s/vnodes.json.bak", pDnode->dir.vnodes);
   snprintf(realfile, PATH_MAX + 20, "%s/vnodes.json", pDnode->dir.vnodes);
 
-  FILE *fp = fopen(file, "w");
-  if (fp == NULL) {
+  // FILE *fp = fopen(file, "w");
+  TdFilePtr pFile = taosOpenFile(file, TD_FILE_CTEATE | TD_FILE_WRITE | TD_FILE_TRUNC);
+  if (pFile == NULL) {
     terrno = TAOS_SYSTEM_ERROR(errno);
     dError("failed to write %s since %s", file, terrstr());
     return -1;
@@ -347,9 +349,9 @@ static int32_t dndWriteVnodesToFile(SDnode *pDnode) {
   len += snprintf(content + len, maxLen - len, "  ]\n");
   len += snprintf(content + len, maxLen - len, "}\n");
 
-  fwrite(content, 1, len, fp);
-  taosFsyncFile(fileno(fp));
-  fclose(fp);
+  taosWriteFile(pFile, content, len);
+  taosFsyncFile(pFile);
+  taosCloseFile(&pFile);
   free(content);
   terrno = 0;
 
@@ -421,7 +423,7 @@ static int32_t dndOpenVnodes(SDnode *pDnode) {
 
   pMgmt->totalVnodes = numOfVnodes;
 
-  int32_t threadNum = pDnode->env.numOfCores;
+  int32_t threadNum = tsNumOfCores;
 #if 1
   threadNum = 1;
 #endif
@@ -874,11 +876,11 @@ static int32_t dndInitVnodeWorkers(SDnode *pDnode) {
   SVnodesMgmt *pMgmt = &pDnode->vmgmt;
 
   int32_t maxFetchThreads = 4;
-  int32_t minFetchThreads = TMIN(maxFetchThreads, pDnode->env.numOfCores);
-  int32_t minQueryThreads = TMAX((int32_t)(pDnode->env.numOfCores * pDnode->cfg.ratioOfQueryCores), 1);
+  int32_t minFetchThreads = TMIN(maxFetchThreads, tsNumOfCores);
+  int32_t minQueryThreads = TMAX((int32_t)(tsNumOfCores * tsRatioOfQueryCores), 1);
   int32_t maxQueryThreads = minQueryThreads;
-  int32_t maxWriteThreads = TMAX(pDnode->env.numOfCores, 1);
-  int32_t maxSyncThreads = TMAX(pDnode->env.numOfCores / 2, 1);
+  int32_t maxWriteThreads = TMAX(tsNumOfCores, 1);
+  int32_t maxSyncThreads = TMAX(tsNumOfCores / 2, 1);
 
   SQWorkerPool *pQPool = &pMgmt->queryPool;
   pQPool->name = "vnode-query";

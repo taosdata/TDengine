@@ -15,7 +15,6 @@
 #ifndef __INDEX_TFILE_H__
 #define __INDEX_TFILE_H__
 
-#include "index.h"
 #include "indexInt.h"
 #include "index_fst.h"
 #include "index_fst_counting_writer.h"

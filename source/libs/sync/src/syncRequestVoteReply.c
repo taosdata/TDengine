@@ -14,25 +14,22 @@
  */
 
 #include "syncRequestVoteReply.h"
-#include "sync.h"
 
 void onRequestVoteReply(SRaft *pRaft, const SyncRequestVoteReply *pMsg) {
-
-// TLA+ Spec
-//HandleRequestVoteResponse(i, j, m) ==
-//    \* This tallies votes even when the current state is not Candidate, but
-//    \* they won't be looked at, so it doesn't matter.
-//    /\ m.mterm = currentTerm[i]
-//    /\ votesResponded' = [votesResponded EXCEPT ![i] =
-//                              votesResponded[i] \cup {j}]
-//    /\ \/ /\ m.mvoteGranted
-//          /\ votesGranted' = [votesGranted EXCEPT ![i] =
-//                                  votesGranted[i] \cup {j}]
-//          /\ voterLog' = [voterLog EXCEPT ![i] =
-//                              voterLog[i] @@ (j :> m.mlog)]
-//       \/ /\ ~m.mvoteGranted
-//          /\ UNCHANGED <<votesGranted, voterLog>>
-//    /\ Discard(m)
-//    /\ UNCHANGED <<serverVars, votedFor, leaderVars, logVars>>
-
+  // TLA+ Spec
+  // HandleRequestVoteResponse(i, j, m) ==
+  //    \* This tallies votes even when the current state is not Candidate, but
+  //    \* they won't be looked at, so it doesn't matter.
+  //    /\ m.mterm = currentTerm[i]
+  //    /\ votesResponded' = [votesResponded EXCEPT ![i] =
+  //                              votesResponded[i] \cup {j}]
+  //    /\ \/ /\ m.mvoteGranted
+  //          /\ votesGranted' = [votesGranted EXCEPT ![i] =
+  //                                  votesGranted[i] \cup {j}]
+  //          /\ voterLog' = [voterLog EXCEPT ![i] =
+  //                              voterLog[i] @@ (j :> m.mlog)]
+  //       \/ /\ ~m.mvoteGranted
+  //          /\ UNCHANGED <<votesGranted, voterLog>>
+  //    /\ Discard(m)
+  //    /\ UNCHANGED <<serverVars, votedFor, leaderVars, logVars>>
 }

@@ -143,6 +143,7 @@ typedef struct SRpcConn {
 
 static int     tsRpcRefId = -1;
 static int32_t tsRpcNum = 0;
+
 // static pthread_once_t tsRpcInit = PTHREAD_ONCE_INIT;
 
 // server:0 client:1  tcp:2 udp:0
@@ -222,7 +223,7 @@ static void rpcInitImp(void) {
   tsFqdnHash = taosHashInit(64, taosGetDefaultHashFunction(TSDB_DATA_TYPE_BINARY), false, HASH_ENTRY_LOCK);
 }
 
-int32_t rpcInit(void) {
+int32_t rpcInit() {
   pthread_once(&tsRpcInitOnce, rpcInitImp);
   return 0;
 }

@@ -38,7 +38,7 @@ struct SPgFile {
   uint8_t         fileid[TDB_FILE_ID_LEN];  // file id
   pgno_t          lsize;                    // page file logical size (for count)
   pgno_t          fsize;                    // real file size on disk (for rollback)
-  int             fd;
+  TdFilePtr       pFile;
   SPgFileListNode envHash;
   SPgFileListNode envPgfList;
 };

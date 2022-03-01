@@ -69,21 +69,20 @@ typedef struct SSlotDescNode {
   ENodeType type;
   int16_t slotId;
   SDataType dataType;
-  int16_t srcTupleId;
-  int16_t srcSlotId;
   bool reserve;
   bool output;
+  bool tag;
 } SSlotDescNode;
 
-typedef struct STupleDescNode {
+typedef struct SDataBlockDescNode {
   ENodeType type;
-  int16_t tupleId;
+  int16_t dataBlockId;
   SNodeList* pSlots;
-} STupleDescNode;
+} SDataBlockDescNode;
 
 typedef struct SPhysiNode {
   ENodeType type;
-  STupleDescNode outputTuple;
+  SDataBlockDescNode outputDataBlockDesc;
   SNode* pConditions;
   SNodeList* pChildren;
   struct SPhysiNode* pParent;
@@ -106,6 +105,7 @@ typedef struct STableScanPhysiNode {
   SScanPhysiNode scan;
   uint8_t scanFlag;         // denotes reversed scan of data or not
   STimeWindow scanRange;
+  SNode* pScanConditions;
 } STableScanPhysiNode;
 
 typedef STableScanPhysiNode STableSeqScanPhysiNode;
@@ -114,6 +114,20 @@ typedef struct SProjectPhysiNode {
   SPhysiNode node;
   SNodeList* pProjections;
 } SProjectPhysiNode;
+
+typedef struct SJoinPhysiNode {
+  SPhysiNode node;
+  EJoinType joinType;
+  SNode* pOnConditions; // in or out tuple ?
+  SNodeList* pTargets;
+} SJoinPhysiNode;
+
+typedef struct SAggPhysiNode {
+  SPhysiNode node;
+  SNodeList* pExprs;   // these are expression list of group_by_clause and parameter expression of aggregate function
+  SNodeList* pGroupKeys; // SColumnRefNode list
+  SNodeList* pAggFuncs;
+} SAggPhysiNode;
 
 #ifdef __cplusplus
 }

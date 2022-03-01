@@ -49,12 +49,14 @@ int main(int argc, char** argv) {
 }
 
 TEST(testCase, driverInit_Test) {
-  taosInitGlobalCfg();
+  // taosInitGlobalCfg();
 //  taos_init();
 }
 
-#if 0
+#if 1
 TEST(testCase, connect_Test) {
+//  taos_options(TSDB_OPTION_CONFIGDIR, "/home/ubuntu/first/cfg");
+
   TAOS* pConn = taos_connect("localhost", "root", "taosdata", NULL, 0);
   if (pConn == NULL) {
     printf("failed to connect to server, reason:%s\n", taos_errstr(NULL));
@@ -332,7 +334,7 @@ TEST(testCase, create_ctable_Test) {
   }
   taos_free_result(pRes);
 
-  pRes = taos_query(pConn, "create table tm0 using st1 tags(1)");
+  pRes = taos_query(pConn, "create table tu using sts tags('2021-10-10 1:1:1');");
   if (taos_errno(pRes) != 0) {
     printf("failed to create child table tm0, reason:%s\n", taos_errstr(pRes));
   }

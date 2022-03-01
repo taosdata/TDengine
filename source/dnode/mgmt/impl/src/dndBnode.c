@@ -62,14 +62,15 @@ static int32_t dndReadBnodeFile(SDnode *pDnode) {
   char file[PATH_MAX + 20];
   snprintf(file, PATH_MAX + 20, "%s/bnode.json", pDnode->dir.dnode);
 
-  FILE *fp = fopen(file, "r");
-  if (fp == NULL) {
+  // FILE *fp = fopen(file, "r");
+  TdFilePtr pFile = taosOpenFile(file, TD_FILE_READ);
+  if (pFile == NULL) {
     dDebug("file %s not exist", file);
     code = 0;
     goto PRASE_BNODE_OVER;
   }
 
-  len = (int32_t)fread(content, 1, maxLen, fp);
+  len = (int32_t)taosReadFile(pFile, content, maxLen);
   if (len <= 0) {
     dError("failed to read %s since content is null", file);
     goto PRASE_BNODE_OVER;
@@ -102,7 +103,7 @@ static int32_t dndReadBnodeFile(SDnode *pDnode) {
 PRASE_BNODE_OVER:
   if (content != NULL) free(content);
   if (root != NULL) cJSON_Delete(root);
-  if (fp != NULL) fclose(fp);
+  if (pFile != NULL) taosCloseFile(&pFile);
 
   terrno = code;
   return code;
@@ -114,8 +115,9 @@ static int32_t dndWriteBnodeFile(SDnode *pDnode) {
   char file[PATH_MAX + 20];
   snprintf(file, PATH_MAX + 20, "%s/bnode.json", pDnode->dir.dnode);
 
-  FILE *fp = fopen(file, "w");
-  if (fp == NULL) {
+  // FILE *fp = fopen(file, "w");
+  TdFilePtr pFile = taosOpenFile(file, TD_FILE_CTEATE | TD_FILE_WRITE | TD_FILE_TRUNC);
+  if (pFile == NULL) {
     terrno = TSDB_CODE_DND_BNODE_WRITE_FILE_ERROR;
     dError("failed to write %s since %s", file, terrstr());
     return -1;
@@ -130,9 +132,9 @@ static int32_t dndWriteBnodeFile(SDnode *pDnode) {
   len += snprintf(content + len, maxLen - len, "  \"dropped\": %d\n", pMgmt->dropped);
   len += snprintf(content + len, maxLen - len, "}\n");
 
-  fwrite(content, 1, len, fp);
-  taosFsyncFile(fileno(fp));
-  fclose(fp);
+  taosWriteFile(pFile, content, len);
+  taosFsyncFile(pFile);
+  taosCloseFile(&pFile);
   free(content);
 
   char realfile[PATH_MAX + 20];
@@ -179,7 +181,7 @@ static void dndBuildBnodeOption(SDnode *pDnode, SBnodeOpt *pOption) {
   pOption->sendRedirectRspFp = dndSendRedirectRsp;
   pOption->dnodeId = dndGetDnodeId(pDnode);
   pOption->clusterId = dndGetClusterId(pDnode);
-  pOption->sver = pDnode->env.sver;
+  pOption->sver = tsVersion;
 }
 
 static int32_t dndOpenBnode(SDnode *pDnode) {

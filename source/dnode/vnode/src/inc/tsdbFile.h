@@ -28,17 +28,17 @@
 
 #define TSDB_FILE_INFO(tf) (&((tf)->info))
 #define TSDB_FILE_F(tf) (&((tf)->f))
-#define TSDB_FILE_FD(tf) ((tf)->fd)
+#define TSDB_FILE_PFILE(tf) ((tf)->pFile)
 #define TSDB_FILE_FULL_NAME(tf) (TSDB_FILE_F(tf)->aname)
-#define TSDB_FILE_OPENED(tf) (TSDB_FILE_FD(tf) >= 0)
+#define TSDB_FILE_OPENED(tf) (TSDB_FILE_PFILE(tf) != NULL)
 #define TSDB_FILE_CLOSED(tf) (!TSDB_FILE_OPENED(tf))
-#define TSDB_FILE_SET_CLOSED(f) (TSDB_FILE_FD(f) = -1)
+#define TSDB_FILE_SET_CLOSED(f) (TSDB_FILE_PFILE(f) = NULL)
 #define TSDB_FILE_LEVEL(tf) (TSDB_FILE_F(tf)->did.level)
 #define TSDB_FILE_ID(tf) (TSDB_FILE_F(tf)->did.id)
 #define TSDB_FILE_DID(tf) (TSDB_FILE_F(tf)->did)
 #define TSDB_FILE_REL_NAME(tf) (TSDB_FILE_F(tf)->rname)
 #define TSDB_FILE_ABS_NAME(tf) (TSDB_FILE_F(tf)->aname)
-#define TSDB_FILE_FSYNC(tf) taosFsyncFile(TSDB_FILE_FD(tf))
+#define TSDB_FILE_FSYNC(tf) taosFsyncFile(TSDB_FILE_PFILE(tf))
 #define TSDB_FILE_STATE(tf) ((tf)->state)
 #define TSDB_FILE_SET_STATE(tf, s) ((tf)->state = (s))
 #define TSDB_FILE_IS_OK(tf) (TSDB_FILE_STATE(tf) == TSDB_FILE_STATE_OK)
@@ -178,10 +178,10 @@ typedef struct {
 } SDFInfo;
 
 typedef struct {
-  SDFInfo  info;
-  STfsFile f;
-  int      fd;
-  uint8_t  state;
+  SDFInfo   info;
+  STfsFile  f;
+  TdFilePtr pFile;
+  uint8_t   state;
 } SDFile;
 
 void  tsdbInitDFile(STsdb *pRepo, SDFile* pDFile, SDiskID did, int fid, uint32_t ver, TSDB_FILE_T ftype);
@@ -198,8 +198,8 @@ static FORCE_INLINE void tsdbSetDFileInfo(SDFile* pDFile, SDFInfo* pInfo) { pDFi
 static FORCE_INLINE int tsdbOpenDFile(SDFile* pDFile, int flags) {
   ASSERT(!TSDB_FILE_OPENED(pDFile));
 
-  pDFile->fd = open(TSDB_FILE_FULL_NAME(pDFile), flags);
-  if (pDFile->fd < 0) {
+  pDFile->pFile = taosOpenFile(TSDB_FILE_FULL_NAME(pDFile), flags);
+  if (pDFile->pFile == NULL) {
     terrno = TAOS_SYSTEM_ERROR(errno);
     return -1;
   }
@@ -209,15 +209,15 @@ static FORCE_INLINE int tsdbOpenDFile(SDFile* pDFile, int flags) {
 
 static FORCE_INLINE void tsdbCloseDFile(SDFile* pDFile) {
   if (TSDB_FILE_OPENED(pDFile)) {
-    close(pDFile->fd);
+    taosCloseFile(&pDFile->pFile);
     TSDB_FILE_SET_CLOSED(pDFile);
   }
 }
 
 static FORCE_INLINE int64_t tsdbSeekDFile(SDFile* pDFile, int64_t offset, int whence) {
-  ASSERT(TSDB_FILE_OPENED(pDFile));
+  // ASSERT(TSDB_FILE_OPENED(pDFile));
 
-  int64_t loffset = taosLSeekFile(TSDB_FILE_FD(pDFile), offset, whence);
+  int64_t loffset = taosLSeekFile(TSDB_FILE_PFILE(pDFile), offset, whence);
   if (loffset < 0) {
     terrno = TAOS_SYSTEM_ERROR(errno);
     return -1;
@@ -229,7 +229,7 @@ static FORCE_INLINE int64_t tsdbSeekDFile(SDFile* pDFile, int64_t offset, int wh
 static FORCE_INLINE int64_t tsdbWriteDFile(SDFile* pDFile, void* buf, int64_t nbyte) {
   ASSERT(TSDB_FILE_OPENED(pDFile));
 
-  int64_t nwrite = taosWriteFile(pDFile->fd, buf, nbyte);
+  int64_t nwrite = taosWriteFile(pDFile->pFile, buf, nbyte);
   if (nwrite < nbyte) {
     terrno = TAOS_SYSTEM_ERROR(errno);
     return -1;
@@ -271,7 +271,7 @@ static FORCE_INLINE int tsdbRemoveDFile(SDFile* pDFile) { return tfsRemoveFile(T
 static FORCE_INLINE int64_t tsdbReadDFile(SDFile* pDFile, void* buf, int64_t nbyte) {
   ASSERT(TSDB_FILE_OPENED(pDFile));
 
-  int64_t nread = taosReadFile(pDFile->fd, buf, nbyte);
+  int64_t nread = taosReadFile(pDFile->pFile, buf, nbyte);
   if (nread < 0) {
     terrno = TAOS_SYSTEM_ERROR(errno);
     return -1;

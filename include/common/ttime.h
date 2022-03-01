@@ -16,12 +16,12 @@
 #ifndef _TD_COMMON_TIME_H_
 #define _TD_COMMON_TIME_H_
 
+#include "taosdef.h"
+#include "tmsg.h"
+
 #ifdef __cplusplus
 extern "C" {
 #endif
-
-#include "taosdef.h"
-#include "tmsg.h"
 
 #define TIME_IS_VAR_DURATION(_t) ((_t) == 'n' || (_t) == 'y' || (_t) == 'N' || (_t) == 'Y')
 
@@ -35,7 +35,7 @@ static FORCE_INLINE int64_t taosGetTimestamp(int32_t precision) {
     return taosGetTimestampUs();
   } else if (precision == TSDB_TIME_PRECISION_NANO) {
     return taosGetTimestampNs();
-  }else {
+  } else {
     return taosGetTimestampMs();
   }
 }
@@ -56,4 +56,4 @@ int64_t convertTimePrecision(int64_t time, int32_t fromPrecision, int32_t toPrec
 }
 #endif
 
-#endif  /*_TD_COMMON_TIME_H_*/
+#endif /*_TD_COMMON_TIME_H_*/

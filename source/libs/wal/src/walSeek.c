@@ -16,32 +16,31 @@
 #define _DEFAULT_SOURCE
 #include "os.h"
 #include "taoserror.h"
-#include "tfile.h"
 #include "tref.h"
 #include "walInt.h"
 
 static int walSeekWritePos(SWal* pWal, int64_t ver) {
   int code = 0;
 
-  int64_t idxTfd = pWal->writeIdxTfd;
-  int64_t logTfd = pWal->writeLogTfd;
+  TdFilePtr pIdxTFile = pWal->pWriteIdxTFile;
+  TdFilePtr pLogTFile = pWal->pWriteLogTFile;
 
   // seek position
   int64_t idxOff = walGetVerIdxOffset(pWal, ver);
-  code = tfLseek(idxTfd, idxOff, SEEK_SET);
+  code = taosLSeekFile(pIdxTFile, idxOff, SEEK_SET);
   if (code != 0) {
     terrno = TAOS_SYSTEM_ERROR(errno);
     return -1;
   }
   SWalIdxEntry entry;
   // TODO:deserialize
-  code = tfRead(idxTfd, &entry, sizeof(SWalIdxEntry));
+  code = taosReadFile(pIdxTFile, &entry, sizeof(SWalIdxEntry));
   if (code != 0) {
     terrno = TAOS_SYSTEM_ERROR(errno);
     return -1;
   }
   ASSERT(entry.ver == ver);
-  code = tfLseek(logTfd, entry.offset, SEEK_SET);
+  code = taosLSeekFile(pLogTFile, entry.offset, SEEK_SET);
   if (code < 0) {
     terrno = TAOS_SYSTEM_ERROR(errno);
     return -1;
@@ -50,43 +49,43 @@ static int walSeekWritePos(SWal* pWal, int64_t ver) {
 }
 
 int walSetWrite(SWal* pWal) {
-  int64_t       idxTfd, logTfd;
+  TdFilePtr     pIdxTFile, pLogTFile;
   SWalFileInfo* pRet = taosArrayGetLast(pWal->fileInfoSet);
   ASSERT(pRet != NULL);
   int64_t fileFirstVer = pRet->firstVer;
 
   char fnameStr[WAL_FILE_LEN];
   walBuildIdxName(pWal, fileFirstVer, fnameStr);
-  idxTfd = tfOpenCreateWriteAppend(fnameStr);
-  if (idxTfd < 0) {
+  pIdxTFile = taosOpenFile(fnameStr, TD_FILE_CTEATE | TD_FILE_WRITE | TD_FILE_APPEND);
+  if (pIdxTFile == NULL) {
     terrno = TAOS_SYSTEM_ERROR(errno);
     return -1;
   }
   walBuildLogName(pWal, fileFirstVer, fnameStr);
-  logTfd = tfOpenCreateWriteAppend(fnameStr);
-  if (logTfd < 0) {
+  pLogTFile = taosOpenFile(fnameStr, TD_FILE_CTEATE | TD_FILE_WRITE | TD_FILE_APPEND);
+  if (pLogTFile == NULL) {
     terrno = TAOS_SYSTEM_ERROR(errno);
     return -1;
   }
   // switch file
-  pWal->writeIdxTfd = idxTfd;
-  pWal->writeLogTfd = logTfd;
+  pWal->pWriteIdxTFile = pIdxTFile;
+  pWal->pWriteLogTFile = pLogTFile;
   return 0;
 }
 
 int walChangeWrite(SWal* pWal, int64_t ver) {
   int     code = 0;
-  int64_t idxTfd, logTfd;
+  TdFilePtr pIdxTFile, pLogTFile;
   char    fnameStr[WAL_FILE_LEN];
-  if (pWal->writeLogTfd != -1) {
-    code = tfClose(pWal->writeLogTfd);
+  if (pWal->pWriteLogTFile != NULL) {
+    code = taosCloseFile(&pWal->pWriteLogTFile);
     if (code != 0) {
       terrno = TAOS_SYSTEM_ERROR(errno);
       return -1;
     }
   }
-  if (pWal->writeIdxTfd != -1) {
-    code = tfClose(pWal->writeIdxTfd);
+  if (pWal->pWriteIdxTFile != NULL) {
+    code = taosCloseFile(&pWal->pWriteIdxTFile);
     if (code != 0) {
       terrno = TAOS_SYSTEM_ERROR(errno);
       return -1;
@@ -103,23 +102,23 @@ int walChangeWrite(SWal* pWal, int64_t ver) {
 
   int64_t fileFirstVer = pFileInfo->firstVer;
   walBuildIdxName(pWal, fileFirstVer, fnameStr);
-  idxTfd = tfOpenCreateWriteAppend(fnameStr);
-  if (idxTfd < 0) {
+  pIdxTFile = taosOpenFile(fnameStr, TD_FILE_CTEATE | TD_FILE_WRITE | TD_FILE_APPEND);
+  if (pIdxTFile == NULL) {
     terrno = TAOS_SYSTEM_ERROR(errno);
-    pWal->writeIdxTfd = -1;
+    pWal->pWriteIdxTFile = NULL;
     return -1;
   }
   walBuildLogName(pWal, fileFirstVer, fnameStr);
-  logTfd = tfOpenCreateWriteAppend(fnameStr);
-  if (logTfd < 0) {
-    tfClose(idxTfd);
+  pLogTFile = taosOpenFile(fnameStr, TD_FILE_CTEATE | TD_FILE_WRITE | TD_FILE_APPEND);
+  if (pLogTFile == NULL) {
+    taosCloseFile(&pIdxTFile);
     terrno = TAOS_SYSTEM_ERROR(errno);
-    pWal->writeLogTfd = -1;
+    pWal->pWriteLogTFile = NULL;
     return -1;
   }
 
-  pWal->writeLogTfd = logTfd;
-  pWal->writeIdxTfd = idxTfd;
+  pWal->pWriteLogTFile = pLogTFile;
+  pWal->pWriteIdxTFile = pIdxTFile;
   pWal->writeCur = idx;
   return fileFirstVer;
 }

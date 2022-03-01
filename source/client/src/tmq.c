@@ -24,7 +24,6 @@
 #include "tep.h"
 #include "tglobal.h"
 #include "tmsgtype.h"
-#include "tnote.h"
 #include "tpagedbuf.h"
 #include "tqueue.h"
 #include "tref.h"

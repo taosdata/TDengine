@@ -25,26 +25,12 @@ extern "C" {
 /* ------------------------ TYPES EXPOSED ---------------- */
 typedef struct SDnode SDnode;
 
-/* ------------------------ Environment ------------------ */
-typedef struct {
-  int32_t sver;
-  int32_t numOfCores;
-  int16_t numOfCommitThreads;
-  int8_t  enableTelem;
-  char    timezone[TSDB_TIMEZONE_LEN];
-  char    locale[TSDB_LOCALE_LEN];
-  char    charset[TSDB_LOCALE_LEN];
-  char    buildinfo[64];
-  char    gitinfo[48];
-} SDnodeEnvCfg;
-
 /**
  * @brief Initialize the environment
  *
- * @param pOption Option of the environment
  * @return int32_t 0 for success and -1 for failure
  */
-int32_t dndInit(const SDnodeEnvCfg *pCfg);
+int32_t dndInit();
 
 /**
  * @brief clear the environment
@@ -54,17 +40,15 @@ void dndCleanup();
 
 /* ------------------------ SDnode ----------------------- */
 typedef struct {
-  int32_t  numOfSupportVnodes;
-  int32_t  statusInterval;
-  float    numOfThreadsPerCore;
-  float    ratioOfQueryCores;
-  int32_t  maxShellConns;
-  int32_t  shellActivityTimer;
-  uint16_t serverPort;
-  char     dataDir[TSDB_FILENAME_LEN];
-  char     localEp[TSDB_EP_LEN];
-  char     localFqdn[TSDB_FQDN_LEN];
-  char     firstEp[TSDB_EP_LEN];
+  int32_t   numOfSupportVnodes;
+  uint16_t  serverPort;
+  char      dataDir[TSDB_FILENAME_LEN];
+  char      localEp[TSDB_EP_LEN];
+  char      localFqdn[TSDB_FQDN_LEN];
+  char      firstEp[TSDB_EP_LEN];
+  char      secondEp[TSDB_EP_LEN];
+  SDiskCfg *pDisks;
+  int32_t   numOfDisks;
 } SDnodeObjCfg;
 
 /**

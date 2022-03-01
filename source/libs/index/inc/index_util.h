@@ -15,36 +15,46 @@
 #ifndef __INDEX_UTIL_H__
 #define __INDEX_UTIL_H__
 
+#include "indexInt.h"
+
 #ifdef __cplusplus
 extern "C" {
 #endif
 
-#define SERIALIZE_MEM_TO_BUF(buf, key, mem)                   \
-  do {                                                        \
-    memcpy((void*)buf, (void*)(&key->mem), sizeof(key->mem)); \
-    buf += sizeof(key->mem);                                  \
+#define SERIALIZE_MEM_TO_BUF(buf, key, mem)                     \
+  do {                                                          \
+    memcpy((void *)buf, (void *)(&key->mem), sizeof(key->mem)); \
+    buf += sizeof(key->mem);                                    \
   } while (0)
 
 #define SERIALIZE_STR_MEM_TO_BUF(buf, key, mem, len) \
   do {                                               \
-    memcpy((void*)buf, (void*)key->mem, len);        \
+    memcpy((void *)buf, (void *)key->mem, len);      \
     buf += len;                                      \
   } while (0)
 
-#define SERIALIZE_VAR_TO_BUF(buf, var, type)  \
-  do {                                        \
-    type c = var;                             \
-    assert(sizeof(type) == sizeof(c));        \
-    memcpy((void*)buf, (void*)&c, sizeof(c)); \
-    buf += sizeof(c);                         \
+#define SERIALIZE_VAR_TO_BUF(buf, var, type)    \
+  do {                                          \
+    type c = var;                               \
+    assert(sizeof(type) == sizeof(c));          \
+    memcpy((void *)buf, (void *)&c, sizeof(c)); \
+    buf += sizeof(c);                           \
   } while (0)
 
 #define SERIALIZE_STR_VAR_TO_BUF(buf, var, len) \
   do {                                          \
-    memcpy((void*)buf, (void*)var, len);        \
+    memcpy((void *)buf, (void *)var, len);      \
     buf += len;                                 \
   } while (0)
 
+/* multi sorted result intersection
+ * input: [1, 2, 4, 5]
+ *        [2, 3, 4, 5]
+ *        [1, 4, 5]
+ * output:[4, 5]
+ */
+void iIntersection(SArray *interResults, SArray *finalResult);
+void iUnion(SArray *interResults, SArray *finalResult);
 #ifdef __cplusplus
 }
 #endif

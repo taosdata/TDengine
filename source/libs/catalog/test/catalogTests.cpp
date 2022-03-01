@@ -38,7 +38,7 @@
 namespace {
 
 extern "C" int32_t ctgGetTableMetaFromCache(struct SCatalog *pCatalog, const SName *pTableName, STableMeta **pTableMeta,
-                                            int32_t *exist);
+                                            int32_t *exist, int32_t flag);
 extern "C" int32_t ctgDbgGetClusterCacheNum(struct SCatalog* pCatalog, int32_t type);
 extern "C" int32_t ctgActUpdateTbl(SCtgMetaAction *action);
 extern "C" int32_t ctgDbgEnableDebug(char *option);
@@ -131,9 +131,7 @@ void ctgTestInitLogFile() {
 
   ctgDbgEnableDebug("api");
   
-  char temp[128] = {0};
-  sprintf(temp, "%s/%s", tsLogDir, defaultLogFileNamePrefix);
-  if (taosInitLog(temp, tsNumOfLogLines, maxLogFileNum) < 0) {
+  if (taosInitLog(defaultLogFileNamePrefix, maxLogFileNum) < 0) {
     printf("failed to open log file in directory:%s\n", tsLogDir);
   }
 }
@@ -245,6 +243,8 @@ void ctgTestBuildSTableMetaRsp(STableMetaRsp *rspMsg) {
   rspMsg->suid = ctgTestSuid + 1;
   rspMsg->tuid = ctgTestSuid + 1;
   rspMsg->vgId = 1;
+  
+  rspMsg->pSchemas = (SSchema *)calloc(rspMsg->numOfTags + rspMsg->numOfColumns, sizeof(SSchema));
 
   SSchema *s = NULL;
   s = &rspMsg->pSchemas[0];
@@ -772,7 +772,7 @@ void *ctgTestGetCtableMetaThread(void *param) {
   strcpy(cn.tname, ctgTestCTablename);
 
   while (!ctgTestStop) {
-    code = ctgGetTableMetaFromCache(pCtg, &cn, &tbMeta, &exist);
+    code = ctgGetTableMetaFromCache(pCtg, &cn, &tbMeta, &exist, 0);
     if (code || 0 == exist) {
       assert(0);
     }
@@ -828,6 +828,7 @@ void *ctgTestSetCtableMetaThread(void *param) {
 }
 
 #if 0
+
 
 TEST(tableMeta, normalTable) {
   struct SCatalog *pCtg = NULL;
@@ -1291,6 +1292,7 @@ TEST(tableMeta, updateStbMeta) {
 
   code = catalogUpdateSTableMeta(pCtg, &rsp);
   ASSERT_EQ(code, 0);
+  tfree(rsp.pSchemas);
 
   while (true) {
     uint64_t n = 0;

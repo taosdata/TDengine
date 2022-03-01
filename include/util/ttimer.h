@@ -13,8 +13,8 @@
  * along with this program. If not, see <http://www.gnu.org/licenses/>.
  */
 
-#ifndef _TD_UTIL_TIMER_H
-#define _TD_UTIL_TIMER_H
+#ifndef _TD_UTIL_TIMER_H_
+#define _TD_UTIL_TIMER_H_
 
 #include "os.h"
 
@@ -25,24 +25,23 @@ extern "C" {
 typedef void *tmr_h;
 typedef void (*TAOS_TMR_CALLBACK)(void *, void *);
 
-extern int      taosTmrThreads;
-extern uint32_t tsMaxTmrCtrl;
+extern int32_t taosTmrThreads;
 
 #define MSECONDS_PER_TICK 5
 
-void *taosTmrInit(int maxTmr, int resoultion, int longest, const char *label);
+void *taosTmrInit(int32_t maxTmr, int32_t resoultion, int32_t longest, const char *label);
 
-tmr_h taosTmrStart(TAOS_TMR_CALLBACK fp, int mseconds, void *param, void *handle);
+tmr_h taosTmrStart(TAOS_TMR_CALLBACK fp, int32_t mseconds, void *param, void *handle);
 
 bool taosTmrStop(tmr_h tmrId);
 
 bool taosTmrStopA(tmr_h *timerId);
 
-bool taosTmrReset(TAOS_TMR_CALLBACK fp, int mseconds, void *param, void *handle, tmr_h *pTmrId);
+bool taosTmrReset(TAOS_TMR_CALLBACK fp, int32_t mseconds, void *param, void *handle, tmr_h *pTmrId);
 
 void taosTmrCleanUp(void *handle);
 
-int32_t taosInitTimer(void (*callback)(int), int32_t ms);
+int32_t taosInitTimer(void (*callback)(int32_t), int32_t ms);
 
 void taosUninitTimer();
 
@@ -50,4 +49,4 @@ void taosUninitTimer();
 }
 #endif
 
-#endif  /*_TD_UTIL_TIMER_H*/
+#endif /*_TD_UTIL_TIMER_H_*/

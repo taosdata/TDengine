@@ -20,7 +20,7 @@
 extern "C" {
 #endif
 
-#include "common.h"
+#include "tcommon.h"
 #include "tarray.h"
 #include "planner.h"
 #include "parser.h"

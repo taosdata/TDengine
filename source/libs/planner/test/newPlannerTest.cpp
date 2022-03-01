@@ -62,7 +62,7 @@ protected:
       return false;
     }
   
-    cout << "sql : [" << cxt_.pSql << "]" << endl;
+    cout << "====================sql : [" << cxt_.pSql << "]" << endl;
     cout << "syntax test : " << endl;
     cout << syntaxTreeStr << endl;
     cout << "unformatted logic plan : " << endl;
@@ -132,7 +132,7 @@ TEST_F(NewPlannerTest, groupBy) {
   bind("SELECT c1 + c3, c1 + count(*) FROM t1 where c2 = 'abc' GROUP BY c1, c3");
   ASSERT_TRUE(run());
 
-  bind("SELECT c1 + c3, count(*) FROM t1 where concat(c2, 'wwww') = 'abcwww' GROUP BY c1 + c3");
+  bind("SELECT c1 + c3, sum(c4 * c5) FROM t1 where concat(c2, 'wwww') = 'abcwww' GROUP BY c1 + c3");
   ASSERT_TRUE(run());
 }
 

@@ -16,7 +16,7 @@
 #define _DEFAULT_SOURCE
 #include "tqueue.h"
 #include "taoserror.h"
-#include "ulog.h"
+#include "tlog.h"
 
 typedef struct STaosQnode STaosQnode;
 
@@ -30,19 +30,19 @@ typedef struct STaosQueue {
   int32_t         itemSize;
   int32_t         numOfItems;
   int32_t         threadId;
-  STaosQnode *    head;
-  STaosQnode *    tail;
-  STaosQueue *    next;     // for queue set
-  STaosQset *     qset;     // for queue set
-  void *          ahandle;  // for queue set
+  STaosQnode     *head;
+  STaosQnode     *tail;
+  STaosQueue     *next;     // for queue set
+  STaosQset      *qset;     // for queue set
+  void           *ahandle;  // for queue set
   FItem           itemFp;
   FItems          itemsFp;
   pthread_mutex_t mutex;
 } STaosQueue;
 
 typedef struct STaosQset {
-  STaosQueue *    head;
-  STaosQueue *    current;
+  STaosQueue     *head;
+  STaosQueue     *current;
   pthread_mutex_t mutex;
   int32_t         numOfQueues;
   int32_t         numOfItems;
@@ -82,7 +82,7 @@ void taosSetQueueFp(STaosQueue *queue, FItem itemFp, FItems itemsFp) {
 void taosCloseQueue(STaosQueue *queue) {
   if (queue == NULL) return;
   STaosQnode *pTemp;
-  STaosQset * qset;
+  STaosQset  *qset;
 
   pthread_mutex_lock(&queue->mutex);
   STaosQnode *pNode = queue->head;
