@@ -20,7 +20,7 @@ int32_t createDiskbasedResultBuffer(SDiskbasedResultBuf** pResultBuf, int32_t pa
   pResBuf->pageSize     = pagesize;
   pResBuf->numOfPages   = 0;                        // all pages are in buffer in the first place
   pResBuf->totalBufSize = 0;
-  pResBuf->inMemPages   = inMemBufSize/pagesize;    // maximum allowed pages, it is a soft limit.
+  pResBuf->inMemPages   = inMemBufSize/pagesize + 1;    // maximum allowed pages, it is a soft limit.
   pResBuf->allocateId   = -1;
   pResBuf->comp         = true;
   pResBuf->file         = NULL;
@@ -28,7 +28,7 @@ int32_t createDiskbasedResultBuffer(SDiskbasedResultBuf** pResultBuf, int32_t pa
   pResBuf->fileSize     = 0;
 
   // at least more than 2 pages must be in memory
-  assert(inMemBufSize >= pagesize * 2);
+  // assert(inMemBufSize >= pagesize * 2);
 
   pResBuf->lruList = tdListNew(POINTER_BYTES);
 
@@ -257,7 +257,7 @@ static char* evicOneDataPage(SDiskbasedResultBuf* pResultBuf) {
     int32_t prev = pResultBuf->inMemPages;
 
     // increase by 50% of previous mem pages
-    pResultBuf->inMemPages = (int32_t)(pResultBuf->inMemPages * 1.5f);
+    pResultBuf->inMemPages = (int32_t)(pResultBuf->inMemPages * 1.5f) + 1;  // if pResultBuf->inMemPages == 1, *1.5 always == 1
 
     qWarn("%p in memory buf page not sufficient, expand from %d to %d, page size:%d", pResultBuf, prev,
           pResultBuf->inMemPages, pResultBuf->pageSize);
@@ -433,12 +433,12 @@ void destroyResultBuf(SDiskbasedResultBuf* pResultBuf) {
       tfree(pi);
     }
 
-    taosArrayDestroy(*p);
+    taosArrayDestroy(p);
     p = taosHashIterate(pResultBuf->groupSet, p);
   }
 
   tdListFree(pResultBuf->lruList);
-  taosArrayDestroy(pResultBuf->emptyDummyIdList);
+  taosArrayDestroy(&pResultBuf->emptyDummyIdList);
   taosHashCleanup(pResultBuf->groupSet);
   taosHashCleanup(pResultBuf->all);
 

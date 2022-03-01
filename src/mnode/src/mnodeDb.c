@@ -339,8 +339,8 @@ static int32_t mnodeCheckDbCfg(SDbCfg *pCfg) {
     return TSDB_CODE_MND_INVALID_DB_OPTION;
   }
 
-  if (pCfg->replications > mnodeGetDnodesNum()) {
-    mError("no enough dnode to config replica: %d, #dnodes: %d", pCfg->replications, mnodeGetDnodesNum());
+  if (pCfg->replications > mnodeGetVnodeDnodesNum()) {
+    mError("no enough dnode to config replica: %d, #dnodes: %d", pCfg->replications, mnodeGetVnodeDnodesNum());
     return TSDB_CODE_MND_INVALID_DB_OPTION;
   }
 
@@ -1003,7 +1003,6 @@ static SDbCfg mnodeGetAlterDbOption(SDbObj *pDb, SAlterDbMsg *pAlter) {
     newCfg.daysToKeep0 = daysToKeep0;
   }
 
-#ifdef _STORAGE
   if (daysToKeep1 > 0 && (daysToKeep1 != pDb->cfg.daysToKeep1 || newCfg.daysToKeep1 != pDb->cfg.daysToKeep1)) {
     mDebug("db:%s, daysToKeep1:%d change to %d", pDb->name, pDb->cfg.daysToKeep1, daysToKeep1);
     newCfg.daysToKeep1 = daysToKeep1;
@@ -1013,7 +1012,6 @@ static SDbCfg mnodeGetAlterDbOption(SDbObj *pDb, SAlterDbMsg *pAlter) {
     mDebug("db:%s, daysToKeep2:%d change to %d", pDb->name, pDb->cfg.daysToKeep2, daysToKeep2);
     newCfg.daysToKeep2 = daysToKeep2;
   }
-#endif
 
   if (minRows > 0 && minRows != pDb->cfg.minRowsPerFileBlock) {
     mError("db:%s, can't alter minRows option", pDb->name);
@@ -1059,7 +1057,7 @@ static SDbCfg mnodeGetAlterDbOption(SDbObj *pDb, SAlterDbMsg *pAlter) {
       terrno = TSDB_CODE_MND_INVALID_DB_OPTION;
     }
 
-    if (replications > mnodeGetDnodesNum()) {
+    if (replications > mnodeGetVnodeDnodesNum()) {
       mError("db:%s, no enough dnode to change replica:%d", pDb->name, replications);
       terrno = TSDB_CODE_MND_NO_ENOUGH_DNODES;
     }
@@ -1102,7 +1100,6 @@ static SDbCfg mnodeGetAlterDbOption(SDbObj *pDb, SAlterDbMsg *pAlter) {
 
 // community version can only change daysToKeep
 // but enterprise version can change all daysToKeep options
-
 #ifndef _STORAGE
   newCfg.daysToKeep1 = newCfg.daysToKeep0;
   newCfg.daysToKeep2 = newCfg.daysToKeep0;

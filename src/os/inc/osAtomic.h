@@ -36,7 +36,11 @@ extern "C" {
   #define atomic_exchange_8(ptr, val) _InterlockedExchange8((char volatile*)(ptr), (char)(val))
   #define atomic_exchange_16(ptr, val) _InterlockedExchange16((short volatile*)(ptr), (short)(val))
   #define atomic_exchange_32(ptr, val) _InterlockedExchange((long volatile*)(ptr), (long)(val))
+#if _MSC_VER >= 1930
+  #define atomic_exchange_64(ptr, val) InterlockedExchange64((__int64 volatile*)(ptr), (__int64)(val))
+#else
   #define atomic_exchange_64(ptr, val) _InterlockedExchange64((__int64 volatile*)(ptr), (__int64)(val))
+#endif
   #ifdef _WIN64 
     #define atomic_exchange_ptr(ptr, val) _InterlockedExchangePointer((void* volatile*)(ptr), (void*)(val)) 
   #else
@@ -91,7 +95,12 @@ extern "C" {
   #define atomic_fetch_add_8(ptr, val) _InterlockedExchangeAdd8((char volatile*)(ptr), (char)(val))
   #define atomic_fetch_add_16(ptr, val) _InterlockedExchangeAdd16((short volatile*)(ptr), (short)(val))
   #define atomic_fetch_add_32(ptr, val) _InterlockedExchangeAdd((long volatile*)(ptr), (long)(val))
+
+#if _MSC_VER >= 1930
+  #define atomic_fetch_add_64(ptr, val) InterlockedExchangeAdd64((__int64 volatile*)(ptr), (__int64)(val))
+#else
   #define atomic_fetch_add_64(ptr, val) _InterlockedExchangeAdd64((__int64 volatile*)(ptr), (__int64)(val))
+#endif
   
   #define atomic_sub_fetch_8(ptr, val) interlocked_add_fetch_8((char volatile*)(ptr), -(char)(val))
   #define atomic_sub_fetch_16(ptr, val) interlocked_add_fetch_16((short volatile*)(ptr), -(short)(val))

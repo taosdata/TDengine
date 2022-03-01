@@ -76,14 +76,12 @@ extern "C" {
 
 #define TSDB_FUNC_BLKINFO      36
 
-#define TSDB_FUNC_ELAPSED      37 
+#define TSDB_FUNC_ELAPSED      37
+#define TSDB_FUNC_HISTOGRAM    38
+#define TSDB_FUNC_UNIQUE       39
+#define TSDB_FUNC_MODE         40
 
-///////////////////////////////////////////
-// the following functions is not implemented.
-// after implementation, move them before TSDB_FUNC_BLKINFO. also make TSDB_FUNC_BLKINFO the maxium function index
-// #define TSDB_FUNC_HISTOGRAM    40
-// #define TSDB_FUNC_HLL          41
-// #define TSDB_FUNC_MODE         42
+#define TSDB_FUNC_MAX_NUM    41
 
 #define TSDB_FUNCSTATE_SO           0x1u    // single output
 #define TSDB_FUNCSTATE_MO           0x2u    // dynamic number of output, not multinumber of output e.g., TOP/BOTTOM
@@ -151,7 +149,7 @@ typedef struct SResultRowCellInfo {
   int8_t   hasResult;       // result generated, not NULL value
   bool     initialized;     // output buffer has been initialized
   bool     complete;        // query has completed
-  uint32_t numOfRes;        // num of output result in current buffer
+  int32_t  numOfRes;        // num of output result in current buffer
 } SResultRowCellInfo;
 
 typedef struct SPoint1 {
@@ -178,7 +176,7 @@ typedef struct SQLFunctionCtx {
   void *       pInput;    // input data buffer
   uint32_t     order;     // asc|desc
   int16_t      inputType;
-  int16_t      inputBytes;
+  int32_t      inputBytes;
   
   int16_t      outputType;
   int32_t      outputBytes;   // size of results, determined by function and input column data type
@@ -204,6 +202,9 @@ typedef struct SQLFunctionCtx {
   SExtTagsInfo tagInfo;
   SPoint1      start;
   SPoint1      end;
+
+  SHashObj     **pUniqueSet;   // for unique function
+  SHashObj     **pModeSet;     // for mode function
 } SQLFunctionCtx;
 
 typedef struct SAggFunctionInfo {
@@ -253,7 +254,7 @@ void blockDistInfoToBinary(STableBlockDist* pDist, struct SBufferWriter* bw);
 void blockDistInfoFromBinary(const char* data, int32_t len, STableBlockDist* pDist);
 
 /* global sql function array */
-extern struct SAggFunctionInfo aAggs[40];
+extern struct SAggFunctionInfo aAggs[TSDB_FUNC_MAX_NUM];
 
 extern int32_t functionCompatList[]; // compatible check array list
 

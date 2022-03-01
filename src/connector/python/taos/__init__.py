@@ -86,7 +86,7 @@ def fetch_callback(p_param, p_result, num_of_rows):
 
 def query_callback(p_param, p_result, code):
     # type: (c_void_p, c_void_p, c_int) -> None
-    if p_result == None:
+    if p_result is None:
         return
     result = TaosResult(p_result)
     if code == 0:
@@ -335,7 +335,7 @@ from ctypes import *
 def stream_callback(p_param, p_result, p_row):
     # type: (c_void_p, c_void_p, c_void_p) -> None
 
-    if p_result == None or p_row == None:
+    if p_result is None or p_row is None:
         return
     result = TaosResult(p_result)
     row = TaosRow(result, p_row)

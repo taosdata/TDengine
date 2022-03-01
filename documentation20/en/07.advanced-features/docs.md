@@ -9,8 +9,8 @@ Continuous query of TDengine adopts time-driven mode, which can be defined direc
 The continuous query provided by TDengine differs from the time window calculation in ordinary stream computing in the following ways:
 
 - Unlike the real-time feedback calculated results of stream computing, continuous query only starts calculation after the time window is closed. For example, if the time period is 1 day, the results of that day will only be generated after 23:59:59.
-- If a history record is written to the time interval that has been calculated, the continuous query will not re-calculate and will not push the new results to the user again. 
-- TDengine server does not cache or save the client's status, nor does it provide Exactly-Once semantic guarantee. If the application crashes, the continuous query will be pull up again and starting time must be provided by the application. 
+- If a history record is written to the time interval that has been calculated, the continuous query will not re-calculate and will not push the new results to the user again.
+- TDengine server does not cache or save the client's status, nor does it provide Exactly-Once semantic guarantee. If the application crashes, the continuous query will be pull up again and starting time must be provided by the application.
 
 ### How to use continuous query
 
@@ -83,7 +83,7 @@ taos_consume
 taos_unsubscribe
 ```
 
-Please refer to the [C/C++ Connector](https://www.taosdata.com/cn/documentation/connector/) for the documentation of these APIs. The following is still a smart meter scenario as an example to introduce their specific usage (please refer to the previous section "Continuous Query" for the structure of STables and sub-tables). The complete sample code can be found [here](https://github.com/taosdata/TDengine/blob/master/tests/examples/c/subscribe.c).
+Please refer to the [C/C++ Connector](https://www.taosdata.com/cn/documentation/connector/) for the documentation of these APIs. The following is still a smart meter scenario as an example to introduce their specific usage (please refer to the previous section "Continuous Query" for the structure of STables and sub-tables). The complete sample code can be found [here](https://github.com/taosdata/TDengine/blob/master/examples/c/subscribe.c).
 
 If we want to be notified and do some process when the current of a smart meter exceeds a certain limit (e.g. 10A), there are two methods: one is to query each sub-table separately, record the timestamp of the last piece of data after each query, and then only query all data after this timestamp:
 
@@ -210,8 +210,8 @@ After introducing the code, let's take a look at the actual running effect. For 
 You can compile and start the sample program by executing the following command in the directory where the sample code is located:
 
 ```shell
-$ make
-$ ./subscribe -sql='select * from meters where current > 10;'
+make
+./subscribe -sql='select * from meters where current > 10;'
 ```
 
 After the sample program starts, open another terminal window, and the shell that starts TDengine inserts a data with a current of 12A into **D1001**:
@@ -299,8 +299,8 @@ public class SubscribeDemo {
             try {
                 if (null != subscribe)
                     subscribe.close(true); // Close the subscription
-                if (connection != null) 
-                    connection.close(); 
+                if (connection != null)
+                    connection.close();
             } catch (SQLException throwables) {
                 throwables.printStackTrace();
             }
@@ -312,7 +312,7 @@ public class SubscribeDemo {
 Run the sample program. First, it consumes all the historical data that meets the query conditions:
 
 ```shell
-# java -jar subscribe.jar 
+# java -jar subscribe.jar
 
 ts: 1597464000000	current: 12.0	voltage: 220	phase: 1	location: Beijing.Chaoyang	groupid : 2
 ts: 1597464600000	current: 12.3	voltage: 220	phase: 2	location: Beijing.Chaoyang	groupid : 2

@@ -27,11 +27,14 @@
 #include "tskiplist.h"
 #include "texpr.h"
 #include "tarithoperator.h"
+#include "tulog.h"
 
 static int32_t exprValidateMathNode(tExprNode *pExpr);
 static int32_t exprValidateStringConcatNode(tExprNode *pExpr);
 static int32_t exprValidateStringConcatWsNode(tExprNode *pExpr);
 static int32_t exprValidateStringLengthNode(tExprNode *pExpr);
+static int32_t exprValidateStringLowerUpperTrimNode(char* msgBuf, tExprNode *pExpr);
+static int32_t exprValidateStringSubstrNode(char* msgBuf, tExprNode *pExpr);
 static int32_t exprValidateCastNode(char* msgbuf, tExprNode *pExpr);
 
 static int32_t exprInvalidOperationMsg(char *msgbuf, const char *msg) {
@@ -75,6 +78,15 @@ int32_t exprTreeValidateFunctionNode(char* msgbuf, tExprNode *pExpr) {
     }
     case TSDB_FUNC_SCALAR_CONCAT_WS: {
       return exprValidateStringConcatWsNode(pExpr);
+    }
+    case TSDB_FUNC_SCALAR_LOWER:
+    case TSDB_FUNC_SCALAR_UPPER:
+    case TSDB_FUNC_SCALAR_LTRIM:
+    case TSDB_FUNC_SCALAR_RTRIM: {
+      return exprValidateStringLowerUpperTrimNode(msgbuf, pExpr);
+    }
+    case TSDB_FUNC_SCALAR_SUBSTR: {
+      return exprValidateStringSubstrNode(msgbuf, pExpr);
     }
 
     default:
@@ -1041,6 +1053,58 @@ int32_t exprValidateStringLengthNode(tExprNode *pExpr) {
   return TSDB_CODE_SUCCESS;
 }
 
+int32_t exprValidateStringLowerUpperTrimNode(char* msgBuf, tExprNode *pExpr) {
+  if (pExpr->_func.numChildren != 1) {
+    return TSDB_CODE_TSC_INVALID_OPERATION;
+  }
+
+  tExprNode* child1 = pExpr->_func.pChildren[0];
+
+  if (child1->nodeType == TSQL_NODE_VALUE) {
+    child1->resultType = (int16_t)child1->pVal->nType;
+    child1->resultBytes = (int16_t)(child1->pVal->nLen + VARSTR_HEADER_SIZE);
+  }
+
+  if (!IS_VAR_DATA_TYPE(child1->resultType)) {
+    return TSDB_CODE_TSC_INVALID_OPERATION;
+  }
+
+  pExpr->resultType = child1->resultType;
+  pExpr->resultBytes = child1->resultBytes;
+
+  return TSDB_CODE_SUCCESS;
+}
+
+int32_t exprValidateStringSubstrNode(char* msgBuf, tExprNode *pExpr) {
+  if ((pExpr->_func.numChildren != 2) && (pExpr->_func.numChildren != 3)) {
+    return TSDB_CODE_TSC_INVALID_OPERATION;
+  }
+
+  tExprNode* child1 = pExpr->_func.pChildren[0];
+
+  if (child1->nodeType == TSQL_NODE_VALUE) {
+    child1->resultType = (int16_t)child1->pVal->nType;
+    child1->resultBytes = (int16_t)(child1->pVal->nLen + VARSTR_HEADER_SIZE);
+  }
+
+  if (!IS_VAR_DATA_TYPE(child1->resultType)) {
+    return TSDB_CODE_TSC_INVALID_OPERATION;
+  }
+
+  tExprNode* pos = pExpr->_func.pChildren[1];
+  tExprNode* length = (pExpr->_func.numChildren == 3) ? pExpr->_func.pChildren[2] : NULL;
+
+  if (!IS_NUMERIC_TYPE(pos->resultType) ||
+      (length != NULL && !IS_NUMERIC_TYPE(length->resultType))) {
+    return TSDB_CODE_TSC_INVALID_OPERATION;
+  }
+
+  pExpr->resultType = child1->resultType;
+  pExpr->resultBytes = child1->resultBytes;
+
+  return TSDB_CODE_SUCCESS;
+}
+
 int32_t exprValidateCastNode(char* msgbuf, tExprNode *pExpr) {
   const char* msg1 = "invalid param num for cast function";
   const char* msg2 = "the second param should be a valid type name for cast function";
@@ -1274,6 +1338,11 @@ void castConvert(int16_t inputType, int16_t inputBytes, char *input, int16_t Out
       } else if (inputType == TSDB_DATA_TYPE_NCHAR) {
         char *newColData = calloc(1, outputBytes * TSDB_NCHAR_SIZE + 1);
         int len = taosUcs4ToMbs(varDataVal(input), varDataLen(input), newColData);
+        if (len < 0){
+          uError("castConvert taosUcs4ToMbs error 1");
+          tfree(newColData);
+          return;
+        }
         newColData[len] = 0;
         *(int64_t *)output = strtoll(newColData, NULL, 10);
         tfree(newColData);
@@ -1291,6 +1360,11 @@ void castConvert(int16_t inputType, int16_t inputBytes, char *input, int16_t Out
       } else if (inputType == TSDB_DATA_TYPE_NCHAR) {
         char *newColData = calloc(1, outputBytes * TSDB_NCHAR_SIZE + 1);
         int len = taosUcs4ToMbs(varDataVal(input), varDataLen(input), newColData);
+        if (len < 0){
+          uError("castConvert taosUcs4ToMbs error 2");
+          tfree(newColData);
+          return;
+        }
         newColData[len] = 0;
         *(int64_t *)output = strtoull(newColData, NULL, 10);
         tfree(newColData);
@@ -1332,11 +1406,19 @@ void castConvert(int16_t inputType, int16_t inputBytes, char *input, int16_t Out
         if (inputType == TSDB_DATA_TYPE_BOOL) {
           char tmp[8] = {0};
           int32_t len = sprintf(tmp, "%.*s", ncharSize, *(int8_t*)input ? "true" : "false");
-          taosMbsToUcs4(tmp, len, varDataVal(output), outputBytes - VARSTR_HEADER_SIZE, &len);
+          bool ret = taosMbsToUcs4(tmp, len, varDataVal(output), outputBytes - VARSTR_HEADER_SIZE, &len);
+          if(!ret) {
+            uError("castConvert1 taosMbsToUcs4 error");
+            return;
+          }
           varDataSetLen(output, len);
         } else if (inputType == TSDB_DATA_TYPE_BINARY) {
           int32_t len = ncharSize > varDataLen(input) ? varDataLen(input) : ncharSize;
-          taosMbsToUcs4(input + VARSTR_HEADER_SIZE, len, varDataVal(output), outputBytes - VARSTR_HEADER_SIZE, &len);
+          bool ret = taosMbsToUcs4(input + VARSTR_HEADER_SIZE, len, varDataVal(output), outputBytes - VARSTR_HEADER_SIZE, &len);
+          if(!ret) {
+            uError("castConvert2 taosMbsToUcs4 error");
+            return;
+          }
           varDataSetLen(output, len);
         } else if (inputType == TSDB_DATA_TYPE_TIMESTAMP) {
           assert(0);
@@ -1348,7 +1430,11 @@ void castConvert(int16_t inputType, int16_t inputBytes, char *input, int16_t Out
           char tmp[400] = {0};
           NUM_TO_STRING(inputType, input, sizeof(tmp), tmp);
           int32_t len = (int32_t)(ncharSize > strlen(tmp) ? strlen(tmp) : ncharSize);
-          taosMbsToUcs4(tmp, len, varDataVal(output), outputBytes - VARSTR_HEADER_SIZE, &len);
+          bool ret = taosMbsToUcs4(tmp, len, varDataVal(output), outputBytes - VARSTR_HEADER_SIZE, &len);
+          if(!ret) {
+            uError("castConvert3 taosMbsToUcs4 error");
+            return;
+          }
           varDataSetLen(output, len);
         }
         break;
@@ -1382,6 +1468,168 @@ void vectorCharLength(int16_t functionId, tExprOperandInfo *pInputs, int32_t num
       } else if (pInputs[0].type == TSDB_DATA_TYPE_NCHAR) {
         SET_TYPED_DATA(outputData, pOutput->type, result/TSDB_NCHAR_SIZE);
       }
+    }
+  }
+}
+
+void vectorLowerUpperTrimFunc(int16_t functionId, tExprOperandInfo *pInputs, int32_t numInputs, tExprOperandInfo* pOutput, int32_t order) {
+  assert(numInputs == 1);
+  assert(pInputs[0].numOfRows == 1 || pInputs[0].numOfRows == pOutput->numOfRows);
+
+  char* outputData = NULL;
+  char** inputData = calloc(numInputs, sizeof(char*));
+
+  int16_t inputType = pInputs[0].type;
+  for (int i = 0; i < pOutput->numOfRows; ++i) {
+    for (int j = 0; j < numInputs; ++j) {
+      if (pInputs[j].numOfRows == 1) {
+        inputData[j] = pInputs[j].data;
+      } else {
+        inputData[j] = pInputs[j].data + i * pInputs[j].bytes;
+      }
+    }
+
+    outputData = pOutput->data + i * pOutput->bytes;
+    bool hasNullInputs = false;
+    for (int j = 0; j < numInputs; ++j) {
+      if (isNull(inputData[j], pInputs[j].type)) {
+        hasNullInputs = true;
+        setNull(outputData, pOutput->type, pOutput->bytes);
+      }
+    }
+    if (!hasNullInputs) {
+      switch (functionId) {
+        case TSDB_FUNC_SCALAR_LOWER:
+        case TSDB_FUNC_SCALAR_UPPER: {
+          assert(numInputs == 1);
+
+          int32_t len = varDataLen(inputData[0]);
+          varDataSetLen(outputData, len);
+
+          if (inputType == TSDB_DATA_TYPE_BINARY) {
+            char* pInputChar = varDataVal(inputData[0]);
+            char* pOutputChar = varDataVal(outputData);
+            for (int32_t k = 0; k < len; ++k) {
+              if (functionId == TSDB_FUNC_SCALAR_LOWER)
+                *(pOutputChar + k) = tolower(*(pInputChar + k));
+              else
+                *(pOutputChar + k) = toupper(*(pInputChar + k));
+            }
+          } else if (inputType == TSDB_DATA_TYPE_NCHAR) {
+            uint32_t* pInputChar = (uint32_t*)varDataVal(inputData[0]);
+            uint32_t* pOutputChar = (uint32_t*)varDataVal(outputData);
+            for (int32_t k = 0; k < len / TSDB_NCHAR_SIZE; ++k) {
+              if (functionId == TSDB_FUNC_SCALAR_LOWER)
+                *(pOutputChar + k) = towlower(*(pInputChar + k));
+              else
+                *(pOutputChar + k) = towupper((*(pInputChar + k)));
+            }
+          }
+          break;
+        }
+        case TSDB_FUNC_SCALAR_LTRIM: {
+          int32_t len = varDataLen(inputData[0]);
+          int32_t charLen = (inputType == TSDB_DATA_TYPE_BINARY) ? len : len / TSDB_NCHAR_SIZE;
+
+          int32_t k = 0;
+          for (; k < charLen; ++k) {
+            if (inputType == TSDB_DATA_TYPE_BINARY) {
+              char* pInputChar = (char*) varDataVal(inputData[0]);
+              if (!isspace(*(pInputChar + k))) {
+                break;
+              }
+            } else {
+              uint32_t* pInputChar = (uint32_t*)varDataVal(inputData[0]);
+              if (!iswspace(*(pInputChar + k))) {
+                break;
+              }
+            }
+          }
+
+          int32_t resultCharLen = charLen - k;
+          int32_t resultByteLen = (inputType == TSDB_DATA_TYPE_BINARY) ? resultCharLen : resultCharLen * TSDB_NCHAR_SIZE;
+          int32_t beginByteLen = (inputType == TSDB_DATA_TYPE_BINARY) ? k : k * TSDB_NCHAR_SIZE;
+          varDataSetLen(outputData, resultByteLen);
+          memcpy((char*)varDataVal(outputData),(char*)varDataVal(inputData[0])+beginByteLen, resultByteLen);
+          break;
+        }
+
+        case TSDB_FUNC_SCALAR_RTRIM: {
+          int32_t len = varDataLen(inputData[0]);
+          int32_t charLen = (inputType == TSDB_DATA_TYPE_BINARY) ? len : len / TSDB_NCHAR_SIZE;
+
+          int32_t k = charLen-1;
+          for (; k >=0; --k) {
+            if (inputType == TSDB_DATA_TYPE_BINARY) {
+              char* pInputChar = (char*) varDataVal(inputData[0]);
+              if (!isspace(*(pInputChar + k))) {
+                break;
+              }
+            } else {
+              uint32_t* pInputChar = (uint32_t*)varDataVal(inputData[0]);
+              if (!iswspace(*(pInputChar + k))) {
+                break;
+              }
+            }
+          }
+
+          int32_t resultCharLen = k + 1;
+          int32_t resultByteLen = (inputType == TSDB_DATA_TYPE_BINARY) ? resultCharLen : resultCharLen * TSDB_NCHAR_SIZE;
+          varDataSetLen(outputData, resultByteLen);
+          memcpy(varDataVal(outputData),varDataVal(inputData[0]), resultByteLen);
+          break;
+        }
+        default: {
+          break;
+        }
+      }
+    }
+  }
+  free(inputData);
+}
+
+void vectorSubstrFunc(int16_t functionId, tExprOperandInfo *pInputs, int32_t numInputs, tExprOperandInfo* pOutput, int32_t order) {
+  int32_t subPosChar = 0;
+  GET_TYPED_DATA(subPosChar, int32_t, pInputs[1].type, pInputs[1].data);
+
+  int32_t subLenChar = INT16_MAX;
+  if (numInputs == 3) {
+    GET_TYPED_DATA(subLenChar, int32_t, pInputs[2].type, pInputs[2].data);
+  }
+
+  for (int32_t i = 0; i < pOutput->numOfRows; ++i) {
+    char* inputData = NULL;
+    if (pInputs[0].numOfRows == 1) {
+      inputData = pInputs[0].data;
+    } else {
+      inputData = pInputs[0].data + i * pInputs[0].bytes;
+    }
+    char* outputData = pOutput->data + i * pOutput->bytes;
+    if (isNull(inputData, pInputs[0].type)) {
+      setNull(outputData, pOutput->type, pOutput->bytes);
+      continue;
+    }
+
+    int16_t strBytes = varDataLen(inputData);
+    int32_t resultStartBytes = 0;
+    if (subPosChar > 0) {
+      int32_t subPosBytes = (pInputs[0].type == TSDB_DATA_TYPE_BINARY) ? subPosChar-1 : (subPosChar-1) * TSDB_NCHAR_SIZE;
+      resultStartBytes = MIN(subPosBytes, strBytes);
+    } else {
+      int32_t subPosBytes = (pInputs[0].type == TSDB_DATA_TYPE_BINARY) ? strBytes + subPosChar : (strBytes) + subPosChar * TSDB_NCHAR_SIZE;
+      resultStartBytes = MAX(subPosBytes, 0);
+    }
+    int32_t subLenBytes = 0;
+    if (subLenChar > 0) {
+      subLenBytes = (pInputs[0].type == TSDB_DATA_TYPE_BINARY) ? subLenChar : subLenChar * TSDB_NCHAR_SIZE;
+    } else {
+      subLenBytes = 0;
+    }
+    int32_t resultLenBytes = MIN(subLenBytes, strBytes - resultStartBytes);
+
+    varDataSetLen(outputData, resultLenBytes);
+    if (resultLenBytes > 0) {
+      memcpy((char*)varDataVal(outputData), (char*)varDataVal(inputData) + resultStartBytes, resultLenBytes);
     }
   }
 }
@@ -1606,7 +1854,7 @@ void vectorMathFunc(int16_t functionId, tExprOperandInfo *pInputs, int32_t numIn
 _expr_scalar_function_t getExprScalarFunction(uint16_t funcId) {
   assert(TSDB_FUNC_IS_SCALAR(funcId));
   int16_t scalaIdx = TSDB_FUNC_SCALAR_INDEX(funcId);
-  assert(scalaIdx>=0 && scalaIdx <= TSDB_FUNC_SCALAR_MAX_NUM);
+  assert(scalaIdx>=0 && scalaIdx <= TSDB_FUNC_SCALAR_NUM_FUNCTIONS);
   return aScalarFunctions[scalaIdx].scalarFunc;
 }
 
@@ -1701,4 +1949,30 @@ tScalarFunctionInfo aScalarFunctions[] = {
         "cast",
         vectorMathFunc
     },
+    {
+        TSDB_FUNC_SCALAR_LOWER,
+        "lower",
+        vectorLowerUpperTrimFunc
+    },
+    {
+        TSDB_FUNC_SCALAR_UPPER,
+        "upper",
+        vectorLowerUpperTrimFunc
+    },
+    {
+        TSDB_FUNC_SCALAR_LTRIM,
+        "ltrim",
+        vectorLowerUpperTrimFunc
+    },
+    {
+        TSDB_FUNC_SCALAR_RTRIM,
+        "rtrim",
+        vectorLowerUpperTrimFunc
+    },
+    {
+        TSDB_FUNC_SCALAR_SUBSTR,
+        "substr",
+        vectorSubstrFunc
+    },
+
 };

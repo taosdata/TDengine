@@ -121,7 +121,7 @@ bool checkTzPresent(char *str, int32_t len) {
 
 }
 
-inline int32_t taos_parse_time(char* timestr, int64_t* time, int32_t len, int32_t timePrec, int8_t day_light) {
+FORCE_INLINE int32_t taos_parse_time(char* timestr, int64_t* time, int32_t len, int32_t timePrec, int8_t day_light) {
     return taosParseTime(timestr, time, len, timePrec, day_light);
 }
 

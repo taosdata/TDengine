@@ -98,6 +98,11 @@ void *tsdbCommitData(STsdbRepo *pRepo) {
   }
   tsdbStartCommit(pRepo);
 
+  if (tsShortcutFlag & TSDB_SHORTCUT_RB_TSDB_COMMIT) {
+    tsdbEndCommit(pRepo, terrno);
+    return NULL;
+  }
+
   // Commit to update meta file
   if (tsdbCommitMeta(pRepo) < 0) {
     tsdbError("vgId:%d error occurs while committing META data since %s", REPO_ID(pRepo), tstrerror(terrno));
@@ -123,7 +128,7 @@ _err:
 
 int tsdbApplyRtnOnFSet(STsdbRepo *pRepo, SDFileSet *pSet, SRtn *pRtn) {
   SDiskID   did;
-  SDFileSet nSet;
+  SDFileSet nSet = {0};
   STsdbFS * pfs = REPO_FS(pRepo);
   int       level;
 
@@ -892,9 +897,9 @@ static int tsdbInitCommitH(SCommitH *pCommith, STsdbRepo *pRepo) {
 
 static void tsdbDestroyCommitH(SCommitH *pCommith) {
   pCommith->pDataCols = tdFreeDataCols(pCommith->pDataCols);
-  pCommith->aSubBlk = taosArrayDestroy(pCommith->aSubBlk);
-  pCommith->aSupBlk = taosArrayDestroy(pCommith->aSupBlk);
-  pCommith->aBlkIdx = taosArrayDestroy(pCommith->aBlkIdx);
+  pCommith->aSubBlk = taosArrayDestroy(&pCommith->aSubBlk);
+  pCommith->aSupBlk = taosArrayDestroy(&pCommith->aSupBlk);
+  pCommith->aBlkIdx = taosArrayDestroy(&pCommith->aBlkIdx);
   tsdbDestroyCommitIters(pCommith);
   tsdbDestroyReadH(&(pCommith->readh));
   tsdbCloseDFileSet(TSDB_COMMIT_WRITE_FSET(pCommith));

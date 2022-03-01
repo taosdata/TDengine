@@ -107,7 +107,7 @@ cmd ::= SHOW dbPrefix(X) TABLES.         {
     setShowOptions(pInfo, TSDB_MGMT_TABLE_TABLE, &X, 0);
 }
 
-cmd ::= SHOW dbPrefix(X) TABLES LIKE ids(Y).         {
+cmd ::= SHOW dbPrefix(X) TABLES LIKE STRING(Y).         {
     setShowOptions(pInfo, TSDB_MGMT_TABLE_TABLE, &X, &Y);
 }
 
@@ -115,7 +115,7 @@ cmd ::= SHOW dbPrefix(X) STABLES.      {
     setShowOptions(pInfo, TSDB_MGMT_TABLE_METRIC, &X, 0);
 }
 
-cmd ::= SHOW dbPrefix(X) STABLES LIKE ids(Y).      {
+cmd ::= SHOW dbPrefix(X) STABLES LIKE STRING(Y).      {
     SStrToken token;
     tSetDbName(&token, &X);
     setShowOptions(pInfo, TSDB_MGMT_TABLE_METRIC, &token, &Y);
@@ -247,7 +247,7 @@ acct_optr(Y) ::= pps(C) tseries(D) storage(P) streams(F) qtime(Q) dbs(E) users(K
 }
 
 %type intitemlist {SArray*}
-%destructor intitemlist {taosArrayDestroy($$);}
+%destructor intitemlist {taosArrayDestroy(&$$);}
 
 %type intitem {tVariant}
 intitemlist(A) ::= intitemlist(X) COMMA intitem(Y). { A = tVariantListAppend(X, &Y, -1);    }
@@ -256,7 +256,7 @@ intitemlist(A) ::= intitem(X).                      { A = tVariantListAppend(NUL
 intitem(A) ::= INTEGER(X).      { toTSDBType(X.type); tVariantCreate(&A, &X); }
 
 %type keep {SArray*}
-%destructor keep {taosArrayDestroy($$);}
+%destructor keep {taosArrayDestroy(&$$);}
 keep(Y)    ::= KEEP intitemlist(X).           { Y = X; }
 
 cache(Y)   ::= CACHE INTEGER(X).              { Y = X; }
@@ -405,23 +405,37 @@ create_from_stable(A) ::= ifnotexists(U) ids(V) cpxName(Z) USING ids(X) cpxName(
 }
 
 %type tagNamelist{SArray*}
-%destructor tagNamelist {taosArrayDestroy($$);}
+%destructor tagNamelist {taosArrayDestroy(&$$);}
 tagNamelist(A) ::= tagNamelist(X) COMMA ids(Y).  {taosArrayPush(X, &Y); A = X;  }
 tagNamelist(A) ::= ids(X).                      {A = taosArrayInit(4, sizeof(SStrToken)); taosArrayPush(A, &X);}
 
 // create stream
 // create table table_name as select count(*) from super_table_name interval(time)
-create_table_args(A) ::= ifnotexists(U) ids(V) cpxName(Z) AS select(S). {
+create_table_args(A) ::= ifnotexists(U) ids(V) cpxName(Z) to_opt(E) split_opt(F) AS select(S). {
   A = tSetCreateTableInfo(NULL, NULL, S, TSQL_CREATE_STREAM);
   setSqlInfo(pInfo, A, NULL, TSDB_SQL_CREATE_TABLE);
 
+  setCreatedStreamOpt(pInfo, &E, &F);
   V.n += Z.n;
   setCreatedTableName(pInfo, &V, &U);
 }
 
+// to_opt
+%type to_opt {SStrToken}
+to_opt(A) ::= . {A.n = 0;}
+to_opt(A) ::= TO ids(X) cpxName(Y). {
+   A = X;
+   A.n += Y.n;
+}
+
+// split_opt
+%type to_split {SStrToken}
+split_opt(A) ::= . {A.n = 0;}
+split_opt(A) ::= SPLIT ids(X). { A = X;}
+
 %type column{TAOS_FIELD}
 %type columnlist{SArray*}
-%destructor columnlist {taosArrayDestroy($$);}
+%destructor columnlist {taosArrayDestroy(&$$);}
 columnlist(A) ::= columnlist(X) COMMA column(Y).  {taosArrayPush(X, &Y); A = X;  }
 columnlist(A) ::= column(X).                      {A = taosArrayInit(4, sizeof(TAOS_FIELD)); taosArrayPush(A, &X);}
 
@@ -432,7 +446,7 @@ column(A) ::= ids(X) typename(Y).          {
 }
 
 %type tagitemlist {SArray*}
-%destructor tagitemlist {taosArrayDestroy($$);}
+%destructor tagitemlist {taosArrayDestroy(&$$);}
 
 %type tagitem {tVariant}
 tagitemlist(A) ::= tagitemlist(X) COMMA tagitem(Y). { A = tVariantListAppend(X, &Y, -1);    }
@@ -614,7 +628,7 @@ windowstate_option(X) ::= .                                                { X.c
 windowstate_option(X) ::= STATE_WINDOW LP ids(V) RP.                       { X.col = V; }
 
 %type fill_opt {SArray*}
-%destructor fill_opt {taosArrayDestroy($$);}
+%destructor fill_opt {taosArrayDestroy(&$$);}
 fill_opt(N) ::= .                                           { N = 0;     }
 fill_opt(N) ::= FILL LP ID(Y) COMMA tagitemlist(X) RP.      {
     tVariant A = {0};
@@ -635,10 +649,10 @@ sliding_opt(K) ::= SLIDING LP tmvar(E) RP.      {K = E;     }
 sliding_opt(K) ::= .                            {K.n = 0; K.z = NULL; K.type = 0;   }
 
 %type orderby_opt {SArray*}
-%destructor orderby_opt {taosArrayDestroy($$);}
+%destructor orderby_opt {taosArrayDestroy(&$$);}
 
 %type sortlist {SArray*}
-%destructor sortlist {taosArrayDestroy($$);}
+%destructor sortlist {taosArrayDestroy(&$$);}
 
 orderby_opt(A) ::= .                          {A = 0;}
 orderby_opt(A) ::= ORDER BY sortlist(X).      {A = X;}
@@ -677,9 +691,9 @@ sortorder(A) ::= .              { A = TSDB_ORDER_ASC; }  // Ascending order by d
 
 //group by clause
 %type groupby_opt {SArray*}
-%destructor groupby_opt {taosArrayDestroy($$);}
+%destructor groupby_opt {taosArrayDestroy(&$$);}
 %type grouplist {SArray*}
-%destructor grouplist {taosArrayDestroy($$);}
+%destructor grouplist {taosArrayDestroy(&$$);}
 
 groupby_opt(A) ::= .                       { A = 0;}
 groupby_opt(A) ::= GROUP BY grouplist(X).  { A = X;}
@@ -859,7 +873,7 @@ cmd ::= ALTER TABLE ids(X) cpxName(Z) DROP TAG ids(Y).          {
     X.n += Z.n;
 
     toTSDBType(Y.type);
-    SArray* A = tVariantListAppendToken(NULL, &Y, -1, true);
+    SArray* A = tVariantListAppendToken(NULL, &Y, -1, false);
 
     SAlterTableInfo* pAlterTable = tSetAlterTableInfo(&X, NULL, A, TSDB_ALTER_TABLE_DROP_TAG_COLUMN, -1);
     setSqlInfo(pInfo, pAlterTable, NULL, TSDB_SQL_ALTER_TABLE);
@@ -869,10 +883,10 @@ cmd ::= ALTER TABLE ids(X) cpxName(F) CHANGE TAG ids(Y) ids(Z). {
     X.n += F.n;
 
     toTSDBType(Y.type);
-    SArray* A = tVariantListAppendToken(NULL, &Y, -1, true);
+    SArray* A = tVariantListAppendToken(NULL, &Y, -1, false);
 
     toTSDBType(Z.type);
-    A = tVariantListAppendToken(A, &Z, -1, true);
+    A = tVariantListAppendToken(A, &Z, -1, false);
 
     SAlterTableInfo* pAlterTable = tSetAlterTableInfo(&X, NULL, A, TSDB_ALTER_TABLE_CHANGE_TAG_COLUMN, -1);
     setSqlInfo(pInfo, pAlterTable, NULL, TSDB_SQL_ALTER_TABLE);
@@ -882,7 +896,7 @@ cmd ::= ALTER TABLE ids(X) cpxName(F) SET TAG ids(Y) EQ tagitem(Z).     {
     X.n += F.n;
 
     toTSDBType(Y.type);
-    SArray* A = tVariantListAppendToken(NULL, &Y, -1, true);
+    SArray* A = tVariantListAppendToken(NULL, &Y, -1, false);
     A = tVariantListAppend(A, &Z, -1);
 
     SAlterTableInfo* pAlterTable = tSetAlterTableInfo(&X, NULL, A, TSDB_ALTER_TABLE_UPDATE_TAG_VAL, -1);
@@ -906,7 +920,7 @@ cmd ::= ALTER STABLE ids(X) cpxName(F) DROP COLUMN ids(A).     {
     X.n += F.n;
 
     toTSDBType(A.type);
-    SArray* K = tVariantListAppendToken(NULL, &A, -1, true);
+    SArray* K = tVariantListAppendToken(NULL, &A, -1, false);
 
     SAlterTableInfo* pAlterTable = tSetAlterTableInfo(&X, NULL, K, TSDB_ALTER_TABLE_DROP_COLUMN, TSDB_SUPER_TABLE);
     setSqlInfo(pInfo, pAlterTable, NULL, TSDB_SQL_ALTER_TABLE);
@@ -928,7 +942,7 @@ cmd ::= ALTER STABLE ids(X) cpxName(Z) DROP TAG ids(Y).          {
     X.n += Z.n;
 
     toTSDBType(Y.type);
-    SArray* A = tVariantListAppendToken(NULL, &Y, -1, true);
+    SArray* A = tVariantListAppendToken(NULL, &Y, -1, false);
 
     SAlterTableInfo* pAlterTable = tSetAlterTableInfo(&X, NULL, A, TSDB_ALTER_TABLE_DROP_TAG_COLUMN, TSDB_SUPER_TABLE);
     setSqlInfo(pInfo, pAlterTable, NULL, TSDB_SQL_ALTER_TABLE);
@@ -938,10 +952,10 @@ cmd ::= ALTER STABLE ids(X) cpxName(F) CHANGE TAG ids(Y) ids(Z). {
     X.n += F.n;
 
     toTSDBType(Y.type);
-    SArray* A = tVariantListAppendToken(NULL, &Y, -1, true);
+    SArray* A = tVariantListAppendToken(NULL, &Y, -1, false);
 
     toTSDBType(Z.type);
-    A = tVariantListAppendToken(A, &Z, -1, true);
+    A = tVariantListAppendToken(A, &Z, -1, false);
 
     SAlterTableInfo* pAlterTable = tSetAlterTableInfo(&X, NULL, A, TSDB_ALTER_TABLE_CHANGE_TAG_COLUMN, TSDB_SUPER_TABLE);
     setSqlInfo(pInfo, pAlterTable, NULL, TSDB_SQL_ALTER_TABLE);
@@ -951,7 +965,7 @@ cmd ::= ALTER STABLE ids(X) cpxName(F) SET TAG ids(Y) EQ tagitem(Z).     {
     X.n += F.n;
 
     toTSDBType(Y.type);
-    SArray* A = tVariantListAppendToken(NULL, &Y, -1, true);
+    SArray* A = tVariantListAppendToken(NULL, &Y, -1, false);
     A = tVariantListAppend(A, &Z, -1);
 
     SAlterTableInfo* pAlterTable = tSetAlterTableInfo(&X, NULL, A, TSDB_ALTER_TABLE_UPDATE_TAG_VAL, TSDB_SUPER_TABLE);

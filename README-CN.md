@@ -6,23 +6,34 @@
 
 [![TDengine](TDenginelogo.png)](https://www.taosdata.com)
 
-简体中文 | [English](./README.md) 
-很多职位正在热招中，请看[这里](https://www.taosdata.com/cn/careers/) 
+简体中文 | [English](./README.md)
+很多职位正在热招中，请看[这里](https://www.taosdata.com/cn/careers/)
 
 # TDengine 简介
 
-TDengine是涛思数据专为物联网、车联网、工业互联网、IT运维等设计和优化的大数据平台。除核心的快10倍以上的时序数据库功能外，还提供缓存、数据订阅、流式计算等功能，最大程度减少研发和运维的复杂度，且核心代码，包括集群功能全部开源（开源协议，AGPL v3.0）。
+TDengine是一款高性能、分布式、支持SQL的时序数据库。而且除时序数据库功能外，它还提供缓存、数据订阅、流式计算等功能，最大程度减少研发和运维的复杂度，且核心代码，包括集群功能全部开源（开源协议，AGPL v3.0）。与其他时序数据数据库相比，TDengine有以下特点：
 
-- 10 倍以上性能提升。定义了创新的数据存储结构，单核每秒就能处理至少2万次请求，插入数百万个数据点，读出一千万以上数据点，比现有通用数据库快了十倍以上。
-- 硬件或云服务成本降至1/5。由于超强性能，计算资源不到通用大数据方案的1/5；通过列式存储和先进的压缩算法，存储空间不到通用数据库的1/10。
-- 全栈时序数据处理引擎。将数据库、消息队列、缓存、流式计算等功能融合一起，应用无需再集成Kafka/Redis/HBase/Spark等软件，大幅降低应用开发和维护成本。
-- 强大的分析功能。无论是十年前还是一秒钟前的数据，指定时间范围即可查询。数据可在时间轴上或多个设备上进行聚合。即席查询可通过Shell/Python/R/Matlab随时进行。
-- 与第三方工具无缝连接。不用一行代码，即可与Telegraf, Grafana, EMQ X, Prometheus, Matlab, R集成。后续还将支持MQTT, OPC, Hadoop，Spark等, BI工具也将无缝连接。
-- 零运维成本、零学习成本。安装、集群一秒搞定，无需分库分表，实时备份。标准SQL，支持JDBC,RESTful，支持Python/Java/C/C++/Go/Node.JS, 与MySQL相似，零学习成本。
+- **高性能**：通过创新的存储引擎设计，无论是数据写入还是查询，TDengine 的性能比通用数据库快10倍以上，也远超其他时序数据库，而且存储空间也大为节省。
+
+- **分布式**：通过原生分布式的设计，TDengine 提供了水平扩展的能力，只需要增加节点就能获得更强的数据处理能力，同时通过多副本机制保证了系统的高可用。
+
+- **支持SQL**：TDengine 采用 SQL 作为数据查询语言，减少学习和迁移成本，同时提供 SQL扩展来处理时序数据特有的分析，而且支持方便灵活的 schemaless 数据写入。
+
+- **All in One**。将数据库、消息队列、缓存、流式计算等功能融合一起，应用无需再集成Kafka/Redis/HBase/Spark等软件，大幅降低应用开发和维护成本。
+
+- **零管理**：安装、集群几秒搞定，无任何依赖，不用分库分表，系统运行状态监测能与 Grafana 或其他运维工具无缝集成。
+
+- **零学习成本**：采用SQL查询语言，支持Python, Java, C/C++, Go, Rust, Node.JS等多种编程语言,与MySQL相似，零学习成本。
+
+- **无缝集成**：不用一行代码，即可与 Telegraf, Grafana, EMQ X, Prometheus, StatsD, collectd, Matlab, R 等第三方工具无缝集成。
+
+- **互动Console**: 通过命令行 console，不用编程，执行 SQL 语句就能做即席查询、各种数据库的操作、管理以及集群的维护.
+
+TDengine可以广泛应用于物联网、工业互联网、车联网、IT运维、能源、金融等领域, 让大量设备、数据采集器每天产生的高达TB甚至PB级的数据能得到高效实时的处理，对业务的运行状态进行实时的监测、预警，从大数据中挖掘出商业价值。
 
 # 文档
 
-TDengine是一个高效的存储、查询、分析时序大数据的平台，专为物联网、车联网、工业互联网、运维监测等优化而设计。您可以像使用关系型数据库MySQL一样来使用它，但建议您在使用前仔细阅读一遍下面的文档，特别是 [数据模型](https://www.taosdata.com/cn/documentation/architecture) 与 [数据建模](https://www.taosdata.com/cn/documentation/model)。除本文档之外，欢迎 [下载产品白皮书](https://www.taosdata.com/downloads/TDengine%20White%20Paper.pdf)。
+TDengine采用传统的关系数据库模型，您可以像使用关系型数据库MySQL一样来使用它。但由于引入了超级表，一个采集点一张表的概念，建议您在使用前仔细阅读一遍下面的文档，特别是 [数据模型](https://www.taosdata.com/cn/documentation/architecture) 与 [数据建模](https://www.taosdata.com/cn/documentation/model)。除本文档之外，欢迎 [下载产品白皮书](https://www.taosdata.com/downloads/TDengine%20White%20Paper.pdf)。
 
 # 构建
 
@@ -57,6 +68,18 @@ sudo apt-get install -y openjdk-8-jdk
 sudo apt-get install -y  maven
 ```
 
+#### 为 taos-tools 安装编译需要的软件
+
+taosTools 是用于 TDengine 的辅助工具软件集合。目前它包含 taosBenchmark（曾命名为 taosdemo）和 taosdump 两个软件。
+
+默认 TDengine 编译不包含 taosTools。您可以在编译 TDengine 时使用`cmake .. -DBUILD_TOOLS=true` 来同时编译 taosTools。
+
+为了在 Ubuntu/Debian 系统上编译 [taos-tools](https://github.com/taosdata/taos-tools) 需要安装如下软件：
+
+```bash
+sudo apt install build-essential libjansson-dev libsnappy-dev liblzma-dev libz-dev pkg-config
+```
+
 ### CentOS 7：
 
 ```bash
@@ -75,7 +98,7 @@ sudo yum install -y java-1.8.0-openjdk
 sudo yum install -y maven
 ```
 
-### CentOS 8 & Fedora:
+### CentOS 8 & Fedora
 
 ```bash
 sudo dnf install -y gcc gcc-c++ make cmake epel-release git
@@ -93,6 +116,18 @@ sudo dnf install -y java-1.8.0-openjdk
 sudo dnf install -y maven
 ```
 
+#### 在 CentOS 上构建 taosTools 安装依赖软件
+
+为了在 CentOS 上构建 [taosTools](https://github.com/taosdata/taos-tools) 需要安装如下依赖软件
+
+```bash
+sudo yum install zlib-devel xz-devel snappy-devel jansson-devel pkgconfig libatomic libstdc++-static
+```
+
+注意：由于 snappy 缺乏 pkg-config 支持
+（参考 [链接](https://github.com/google/snappy/pull/86)），会导致
+ cmake 提示无法发现 libsnappy，实际上工作正常。
+
 ## 获取源码
 
 首先，你需要从 GitHub 克隆源码：
@@ -109,6 +144,7 @@ git submodule update --init --recursive
 ```
 
 如果使用 https 协议下载比较慢，可以通过修改 ~/.gitconfig 文件添加以下两行设置使用 ssh 协议下载。需要首先上传 ssh 密钥到 GitHub，详细方法请参考 GitHub 官方文档。
+
 ```
 [url "git@github.com:"]
     insteadOf = https://github.com/
@@ -123,7 +159,8 @@ mkdir debug && cd debug
 cmake .. && cmake --build .
 ```
 
-您可以选择使用 Jemalloc 作为内存分配器，替代默认的 glibc：
+您可以选择使用 jemalloc 作为内存分配器，替代默认的 glibc：
+
 ```bash
 apt install autoconf
 cmake .. -DJEMALLOC_ENABLED=true
@@ -292,4 +329,4 @@ TDengine 官方社群「物联网大数据群」对外开放，欢迎您加入�
 
 # [谁在使用TDengine](https://github.com/taosdata/TDengine/issues/2432)
 
-欢迎所有 TDengine 用户及贡献者在 [这里](https://github.com/taosdata/TDengine/issues/2432) 分享您在当前工作中开发/使用 TDengine 的故事。 
+欢迎所有 TDengine 用户及贡献者在 [这里](https://github.com/taosdata/TDengine/issues/2432) 分享您在当前工作中开发/使用 TDengine 的故事。
