@@ -185,6 +185,8 @@ Clean up the running environment and call this API before the application exits.
 
 Set client options, currently only time zone setting (_TSDB_OPTIONTIMEZONE) and encoding setting (_TSDB_OPTIONLOCALE) are supported. The time zone and encoding default to the current operating system settings.
 
+When the return value is `0`, it means success, and when it is `-1`, it means failure.
+
 - `char *taos_get_client_info()`
 
 Get version information of the client.
@@ -210,6 +212,8 @@ Get version information of the server-side.
 - `int taos_select_db(TAOS *taos, const char *db)`
 
 Set the current default database to db.
+
+The return value is the error code.
 
 - `void taos_close(TAOS *taos)`
 
