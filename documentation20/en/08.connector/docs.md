@@ -1,6 +1,6 @@
 # Connectors
 
-TDengine provides many connectors for development, including C/C++, JAVA, Python, RESTful, Go, Node.JS, etc.
+TDengine provides many connectors for development, including C/C++, JAVA, Python, RESTful, Go, Node.js, etc.
 
 ![image-connector](../images/connector.png)
 
@@ -13,7 +13,7 @@ At present, TDengine connectors support a wide range of platforms, including har
 | **JDBC**    | ●             | ●             | ●             | ○             | ●         | ●         | ○               | ○                | ○                   |
 | **Python**  | ●             | ●             | ●             | ○             | ●         | ●         | ○               | --               | ○                   |
 | **Go**      | ●             | ●             | ●             | ○             | ●         | ●         | ○               | --               | --                  |
-| **NodeJs**  | ●             | ●             | ○             | ○             | ●         | ●         | ○               | --               | --                  |
+| **Node.js**  | ●             | ●             | ○             | ○             | ●         | ●         | ○               | --               | --                  |
 | **C#**      | ○             | ●             | ●             | ○             | ○         | ○         | ○               | --               | --                  |
 | **RESTful** | ●             | ●             | ●             | ●             | ●         | ●         | ○               | ○                | ○                   |
 
@@ -22,7 +22,7 @@ Note: ● stands for that has been verified by official tests; ○ stands for th
 Note:
 
 - To access the TDengine database through connectors (except RESTful) in the system without TDengine server software, it is necessary to install the corresponding version of the client installation package to make the application driver (the file name is libtaos.so in Linux system and taos.dll in Windows system) installed in the system, otherwise, the error that the corresponding library file cannot be found will occur.
-- All APIs that execute SQL statements, such as `tao_query`, `taos_query_a`, `taos_subscribe` in C/C++ Connector, and APIs corresponding to them in other languages, can only execute one SQL statement at a time. If the actual parameters contain multiple statements, their behavior is undefined.
+- All APIs that execute SQL statements, such as `tao_query()`, `taos_query_a()`, `taos_subscribe()` in C/C++ Connector, and APIs corresponding to them in other languages, can only execute one SQL statement at a time. If the actual parameters contain multiple statements, their behavior is undefined.
 - Users upgrading to TDengine 2.0. 8.0 must update the JDBC connection. TDengine must upgrade taos-jdbcdriver to 2.0.12 and above.
 - No matter which programming language connector is selected, TDengine version 2.0 and above recommends that each thread of database application establish an independent connection or establish a connection pool based on threads to avoid mutual interference between threads of "USE statement" state variables in the connection (but query and write operations of the connection are thread-safe).
 
@@ -101,7 +101,7 @@ Default installation path is: C:\TDengine, with following files(directories):
 
 **4. Configure taos.cfg**
 
-Edit the taos.cfg file (default path/etc/taos/taos.cfg) and change firstEP to End Point of the TDengine server, for example: [h1.taos.com](http://h1.taos.com/):6030.
+Edit the taos.cfg file (default path/etc/taos/taos.cfg) and change firstEP to End Point of the TDengine server, for example: h1.taos.com:6030.
 
 **Note:**
 
@@ -115,7 +115,7 @@ After the above installation and configuration completed, and confirm that the T
 
 **Linux environment:**
 
-If you execute taos directly under Linux shell, you should be able to connect to tdengine service normally and jump to taos shell interface. For Example:
+If you execute taos directly under Linux shell, you should be able to connect to TDengine service normally and jump to taos shell interface. For Example:
 
 ```mysql
 $ taos
@@ -132,7 +132,7 @@ taos>
 
 **Windows (x64/x86) environment:**
 
-Under cmd, enter the c:\TDengine directory and directly execute taos.exe, and you should be able to connect to tdengine service normally and jump to taos shell interface. For example:
+Under cmd, enter the c:\TDengine directory and directly execute taos.exe, and you should be able to connect to TDengine service normally and jump to taos shell interface. For example:
 
 ```mysql
   C:\TDengine>taos
@@ -175,7 +175,7 @@ The basic API is used to create database connections and provide a runtime envir
 
 - `void taos_init()`
 
-Initialize the running environment. If the application does not actively call the API, the API will be automatically called when the application call taos_connect, so the application generally does not need to call the API manually.
+Initialize the running environment. If the application does not actively call the API, the API will be automatically called when the application call `taos_connect()`, so the application generally does not need to call the API manually.
 
 - `void taos_cleanup()`
 
@@ -216,7 +216,7 @@ The return value is the error code.
 
 - `void taos_close(TAOS *taos)`
 
-Close the connection, where `taos` is the pointer returned by `taos_connect` function.
+Close the connection, where `taos` is the pointer returned by `taos_connect()` function.
 
 ### Synchronous query API
 
@@ -224,7 +224,7 @@ Traditional database operation APIs all make synchronous operations. After the a
 
 - `TAOS_RES* taos_query(TAOS *taos, const char *sql)`
 
-This API is used to execute SQL statements, which can be DQL, DML or DDL statements. Where `taos` parameter is a pointer obtained through `taos_connect`. You can't judge whether the execution result fails by whether the return value is NULL, but to use `taos_errno` function to parse the error code in the result set.
+This API is used to execute SQL statements, which can be DQL, DML or DDL statements. Where `taos` parameter is a pointer obtained through `taos_connect()`. You can't judge whether the execution result fails by whether the return value is NULL, but to use `taos_errno()` function to parse the error code in the result set.
 
 - `int taos_result_precision(TAOS_RES *res)`
 
@@ -252,7 +252,7 @@ Get the number of rows affected by the executed SQL statement.
 
 - `TAOS_FIELD *taos_fetch_fields(TAOS_RES *res)`
 
-Get the attributes (data type, name, number of bytes) of each column of data in the query result set, which can be used in conjunction with `taos_num_files` to parse the data of a tuple (one row) returned by `taos_fetch_row`. The structure of `TAOS_FIELD` is as follows:
+Get the attributes (data type, name, number of bytes) of each column of data in the query result set, which can be used in conjunction with `taos_num_files` to parse the data of a tuple (one row) returned by `taos_fetch_row()`. The structure of `TAOS_FIELD` is as follows:
 
 ```c
 typedef struct taosField {
@@ -268,7 +268,7 @@ Stop the execution of a query.
 
 - `void taos_free_result(TAOS_RES *res)`
 
-Release the query result set and related resources. After the query is completed, be sure to call the API to release resources, otherwise it may lead to application memory leakage. However, it should also be noted that after releasing resources, if you call functions such as `taos_consume` to obtain query results, it will lead the application to Crash.
+Release the query result set and related resources. After the query is completed, be sure to call the API to release resources, otherwise it may lead to application memory leakage. However, it should also be noted that after releasing resources, if you call functions such as `taos_consume()` to obtain query results, it will lead the application to Crash.
 
 - `char *taos_errstr(TAOS_RES *res)`
 
@@ -278,7 +278,7 @@ Get the reason why the last API call failed, and the return value is a string.
 
 Get the reason why the last API call failed, and the return value is the error code.
 
-**Note:** TDengine 2.0 and above recommends that each thread of a database application establish an independent connection or establish a connection pool based on threads. It is not recommended to pass the connection (TAOS\*) structure to different threads for sharing in applications. Query and write operations based on TAOS structure have multithread safety, but state variables such as "USE statement" may interfere with each other among threads. In addition, C connector can dynamically establish new database-oriented connections according to requirements (this process is not visible to users), and it is recommended to call `taos_close` to close the connection only when the program finally exits.
+**Note:** TDengine 2.0 and above recommends that each thread of a database application establish an independent connection or establish a connection pool based on threads. It is not recommended to pass the connection (TAOS\*) structure to different threads for sharing in applications. Query and write operations based on TAOS structure have multithread safety, but state variables such as "USE statement" may interfere with each other among threads. In addition, C connector can dynamically establish new database-oriented connections according to requirements (this process is not visible to users), and it is recommended to call `taos_close()` to close the connection only when the program finally exits.
 
 ### Asynchronous query API
 
@@ -291,23 +291,23 @@ Asynchronous APIs have relatively high requirements for users, who can selective
 - `void taos_query_a(TAOS *taos, const char *sql, void (*fp)(void *param, TAOS_RES *, int code), void *param);`
   Execute SQL statement asynchronously.
 
-  * taos: The database connection returned by calling `taos_connect`
+  * taos: The database connection returned by calling `taos_connect()`
   * sql: The SQL statement needed to execute
-  * fp: User-defined callback function, whose third parameter `code` is used to indicate whether the operation is successful, `0` for success, and negative number for failure (call `taos_errstr` to get the reason for failure). When defining the callback function, it mainly handles the second parameter `TAOS_RES *`, which is the result set returned by the query
+  * fp: User-defined callback function, whose third parameter `code` is used to indicate whether the operation is successful, `0` for success, and negative number for failure (call `taos_errstr()` to get the reason for failure). When defining the callback function, it mainly handles the second parameter `TAOS_RES *`, which is the result set returned by the query
   * param：the parameter for the callback
 
 - `void taos_fetch_rows_a(TAOS_RES *res, void (*fp)(void *param, TAOS_RES *, int numOfRows), void *param);`
-  Get the result set of asynchronous queries in batch, which can only be used with `taos_query_a`. Within:
+  Get the result set of asynchronous queries in batch, which can only be used with `taos_query_a()`. Within:
 
-  * res: The result set returned when backcall `taos_query_a`
-  * fp: Callback function. Its parameter `param` is a user-definable parameter construct passed to the callback function; `numOfRows` is the number of rows of data obtained (not a function of the entire query result set). In the callback function, applications can get each row of the batch records by calling `taos_fetch_rows` forward iteration. After reading all the records in a block, the application needs to continue calling `taos_fetch_rows_a` in the callback function to obtain the next batch of records for processing until the number of records returned (`numOfRows`) is zero (the result is returned) or the number of records is negative (the query fails).
+  * res: The result set returned when `taos_query_a()` callback.
+  * fp: Callback function. Its parameter `param` is a user-definable parameter construct passed to the callback function; `numOfRows` is the number of rows of data obtained (not a function of the entire query result set). In the callback function, applications can get each row of the batch records by calling `taos_fetch_rows()` forward iteration. After reading all the records in a block, the application needs to continue calling `taos_fetch_rows_a()` in the callback function to obtain the next batch of records for processing until the number of records returned (`numOfRows`) is zero (the result is returned) or the number of records is negative (the query fails).
 
 The asynchronous APIs of TDengine all use non-blocking calling mode. Applications can use multithreading to open multiple tables at the same time, and can query or insert to each open table at the same time. It should be pointed out that the **application client must ensure that the operation on the same table is completely serialized**, that is, when the insertion or query operation on the same table is not completed (when no result returned), the second insertion or query operation cannot be performed.
 
 <a class="anchor" id="stmt"></a>
 ### Parameter binding API
 
-In addition to calling `taos_query` directly for queries, TDengine also provides a Prepare API that supports parameter binding. Like MySQL, these APIs currently only support using question mark `?` to represent the parameters to be bound, as follows:
+In addition to calling `taos_query()` directly for queries, TDengine also provides a Prepare API that supports parameter binding. Like MySQL, these APIs currently only support using question mark `?` to represent the parameters to be bound, as follows:
 
 - `TAOS_STMT* taos_stmt_init(TAOS *taos)`
 
@@ -333,7 +333,7 @@ typedef struct TAOS_BIND {
 } TAOS_BIND;
 ```
 
-Add the current bound parameters to the batch. After calling this function, you can call `taos_stmt_bind_param` again to bind the new parameters. It should be noted that this function only supports insert/import statements, and if it is other SQL statements such as select, it will return errors.
+Add the current bound parameters to the batch. After calling this function, you can call `taos_stmt_bind_param()` again to bind the new parameters. It should be noted that this function only supports insert/import statements, and if it is other SQL statements such as select, it will return errors.
 
 - `int taos_stmt_execute(TAOS_STMT *stmt)`
 
@@ -341,7 +341,7 @@ Execute the prepared statement. At the moment, a statement can only be executed 
 
 - `TAOS_RES* taos_stmt_use_result(TAOS_STMT *stmt)`
 
-Gets the result set of the statement. The result set is used in the same way as when calling nonparameterized. After using it, `taos_free_result` should be called to release resources.
+Gets the result set of the statement. The result set is used in the same way as when calling non-parameterized. After using it, `taos_free_result()` should be called to release resources.
 
 - `int taos_stmt_close(TAOS_STMT *stmt)`
 
@@ -357,7 +357,7 @@ This API is used to create data streams where:
 
   * taos: Database connection established
   * sql: SQL query statement (query statement only)
-  * fp: user-defined callback function pointer. After each stream computing is completed, TDengine passes the query result (TAOS_ROW), query status (TAOS_RES), and user-defined parameters (PARAM) to the callback function. In the callback function, the user can use taos_num_fields to obtain the number of columns in the result set, and taos_fetch_fields to obtain the type of data in each column of the result set.
+  * fp: user-defined callback function pointer. After each stream computing is completed, TDengine passes the query result (TAOS_ROW), query status (TAOS_RES), and user-defined parameters (PARAM) to the callback function. In the callback function, the user can use `taos_num_fields()` to obtain the number of columns in the result set, and `taos_fetch_fields()` to obtain the type of data in each column of the result set.
   * stime: The time when stream computing starts. If it is 0, it means starting from now. If it is not zero, it means starting from the specified time (the number of milliseconds from 1970/1/1 UTC time).
   * param: It is a parameter provided by the application for callback. During callback, the parameter is provided to the application
   * callback: The second callback function is called when the continuous query stop automatically.
@@ -366,7 +366,7 @@ The return value is NULL, indicating creation failed; the return value is not NU
 
 - `void taos_close_stream (TAOS_STREAM *tstr)`
 
-Close the data flow, where the parameter provided is the return value of `taos_open_stream`. When the user stops stream computing, be sure to close the data flow.
+Close the data flow, where the parameter provided is the return value of `taos_open_stream()`. When the user stops stream computing, be sure to close the data flow.
 
 ### Data subscription interface
 
@@ -382,7 +382,7 @@ This function is for starting the subscription service, returning the subscripti
   * sql: The query statement subscribed. This statement can only be a select statement. It should only query the original data, and can only query the data in positive time sequence
   * fp: The callback function when the query result is received (the function prototype will be introduced later). It is only used when calling asynchronously, and this parameter should be passed to NULL when calling synchronously
   * param: The additional parameter when calling the callback function, which is passed to the callback function as it is by the system API without any processing
-  * interval: Polling period in milliseconds. During asynchronous call, the callback function will be called periodically according to this parameter; In order to avoid affecting system performance, it is not recommended to set this parameter too small; When calling synchronously, if the interval between two calls to taos_consume is less than this period, the API will block until the interval exceeds this period.
+  * interval: Polling period in milliseconds. During asynchronous call, the callback function will be called periodically according to this parameter; In order to avoid affecting system performance, it is not recommended to set this parameter too small; When calling synchronously, if the interval between two calls to `taos_consume()` is less than this period, the API will block until the interval exceeds this period.
 
 - `typedef void (*TAOS_SUBSCRIBE_CALLBACK)(TAOS_SUB* tsub, TAOS_RES *res, void* param, int code)`
 
@@ -390,16 +390,16 @@ In asynchronous mode, the prototype of the callback function has the following p
 
   * tsub: Subscription object
   * res: Query the result set. Note that there may be no records in the result set
-  * param: Additional parameters supplied by the client when  `taos_subscribe` is called
+  * param: Additional parameters supplied by the client when  `taos_subscribe()` is called
   * code: Error code
 
 - `TAOS_RES *taos_consume(TAOS_SUB *tsub)`
 
-In synchronous mode, this function is used to get the results of subscription. The user application places it in a loop. If the interval between two calls to `taos_consume` is less than the polling cycle of the subscription, the API will block until the interval exceeds this cycle. If a new record arrives in the database, the API will return the latest record, otherwise it will return an empty result set with no records. If the return value is NULL, it indicates a system error. In asynchronous mode, user program should not call this API.
+In synchronous mode, this function is used to get the results of subscription. The user application places it in a loop. If the interval between two calls to `taos_consume()` is less than the polling cycle of the subscription, the API will block until the interval exceeds this cycle. If a new record arrives in the database, the API will return the latest record, otherwise it will return an empty result set with no records. If the return value is NULL, it indicates a system error. In asynchronous mode, user program should not call this API.
 
 - `void taos_unsubscribe(TAOS_SUB *tsub, int keepProgress)`
 
-Unsubscribe. If the parameter `keepProgress` is not 0, the API will keep the progress information of subscription, and the subsequent call to `taos_subscribe` can continue based on this progress; otherwise, the progress information will be deleted and the data can only be read again.
+Unsubscribe. If the parameter `keepProgress` is not 0, the API will keep the progress information of subscription, and the subsequent call to `taos_subscribe()` can continue based on this progress; otherwise, the progress information will be deleted and the data can only be read again.
 
 ## <a class="anchor" id="python"></a>Python Connector
 
@@ -538,8 +538,8 @@ Functions:
 
 - `fetch_all()`: get all data as tuple array.
 - `fetch_all_into_dict()`: get all data as dict array, added since v2.1.1
-- `blocks_iter()`: provides iterator by C `taos_fetch_blocks` API
-- `rows_iter()`: provides iterator by C `taos_fetch_row` API
+- `blocks_iter()`: provides iterator by C `taos_fetch_blocks()` API
+- `rows_iter()`: provides iterator by C `taos_fetch_row()` API
 - `fetch_rows_a`: fetch rows by async API in taosc.
 - `errno`: error code if failed.
 - `errstr`: error string if failed.
@@ -653,9 +653,9 @@ In the `examples/python` directory, we provide a sample Python program read_exam
 
 - Execute SQL statements for writing or querying through the `execute()` method of the cursor object.
 
-- If a write statement is executed, `execute` returns the number of rows successfully written affected rows.
+- If a write statement is executed, `execute()` returns the number of rows successfully written affected rows.
 
-- If the query statement is executed, the result set needs to be pulled through the fetchall method after the execution is successful.
+- If the query statement is executed, the result set needs to be pulled through the `fetchall()` method after the execution is successful.
 
   You can refer to the sample code for specific methods.
 
@@ -892,7 +892,7 @@ Only some configuration parameters related to RESTful interface are listed below
 you can find sample code under follow directions:
 
 * {client_install_directory}/examples/C#
-* [github C# example source code](https://github.com/taosdata/TDengine/tree/develop/examples/C%2523)
+* [GitHub C# example source code](https://github.com/taosdata/TDengine/tree/develop/examples/C%2523)
 
 **Tips:** TDengineTest.cs       One of C# connector's sample code that include basic examples like connection,sql executions and so on.
 
@@ -1030,15 +1030,15 @@ See the [video tutorial](https://www.taosdata.com/blog/2020/11/11/1957.html) for
 
 Users can install it through [npm](https://www.npmjs.com/) or through the source code src/connector/nodejs/. The specific installation steps are as follows:
 
-First, install the node.js connector through [npm](https://www.npmjs.com/).
+First, install the Node.js connector through [npm](https://www.npmjs.com/).
 
 ```bash
 npm install td2.0-connector
 ```
 
-We recommend that use npm to install the node.js connector. If you do not have npm installed, you can copy src/connector/nodejs/ to your nodejs project directory.
+We recommend that use npm to install the Node.js connector. If you do not have npm installed, you can copy src/connector/nodejs/ to your nodejs project directory.
 
-We use [node-gyp](https://github.com/nodejs/node-gyp) to interact with the TDengine server. Before installing the node.js connector, you also need to install the following software:
+We use [node-gyp](https://github.com/nodejs/node-gyp) to interact with the TDengine server. Before installing the Node.js connector, you also need to install the following software:
 
 ### Linux
 
@@ -1069,15 +1069,15 @@ If you use ARM64 Node.js on Windows 10 ARM, you also need to add "Visual C++ com
 
 The sample program source code is located in install_directory/examples/nodejs, and there are:
 
-Node-example.js node.js sample source code Node-example-raw. js
+Node-example.js Node.js sample source code Node-example-raw.js
 
 ### Installation verification
 
-After installing the TDengine client, the nodejsChecker.js program can verify whether the current environment supports access to TDengine via nodejs.
+After installing the TDengine client, the nodejsChecker.js program can verify whether the current environment supports access to TDengine via Node.js.
 
 Steps:
 
-1. Create a new installation verification directory, for example: `~/tdengine-test`, copy the nodejsChecker.js source program on github. Download address: `https://github.com/taosdata/TDengine/tree/develop/examples/nodejs/nodejsChecker.js`.
+1. Create a new installation verification directory, for example: `~/tdengine-test`, copy the nodejsChecker.js source program on GitHub. Download address: `https://github.com/taosdata/TDengine/tree/develop/examples/nodejs/nodejsChecker.js`.
 
 2. Execute the following command:
 
@@ -1087,15 +1087,15 @@ Steps:
    node nodejsChecker.js host=localhost
    ```
 
-3. After performing the above steps, the nodejs connection Tdengine instance will be outputted on the command line, and the short-answer of insertion and query will be executed.
+3. After performing the above steps, the nodejs connection TDengine instance will be outputted on the command line, and the short-answer of insertion and query will be executed.
 
 ### How to use Node.js
 
-The following are some basic uses of node.js connector. Please refer to [TDengine Node.js connector](https://github.com/taosdata/TDengine/tree/develop/src/connector/nodejs)for details.
+The following are some basic uses of Node.js connector. Please refer to [TDengine Node.js connector](https://github.com/taosdata/TDengine/tree/develop/src/connector/nodejs)for details.
 
 ### Create connection
 
-When using the node.js connector, you must execute <em>require</em> `td2.0-connector`, and then use the `taos.connect` function. The parameter that `taos.connect` function must provide is `host`, and other parameters will use the following default values if they are not provided. Finally, the `cursor` needs to be initialized to communicate with the TDengine server-side.
+When using the Node.js connector, you must execute <em>require</em> `td2.0-connector`, and then use the `taos.connect` function. The parameter that `taos.connect` function must provide is `host`, and other parameters will use the following default values if they are not provided. Finally, the `cursor` needs to be initialized to communicate with the TDengine server-side.
 
 ```javascript
 const taos = require('td2.0-connector');
@@ -1146,7 +1146,7 @@ promise.then(function(result) {
 });
 ```
 
-You can also use the `bind` method of `query` to format query statements. For example: `query` automatically fills the `?` with the value provided in the query statement .
+You can also use the `bind` method of `query` to format query statements. For example: `query()` automatically fills the `?` with the value provided in the query statement .
 
 ```javascript
 var query = cursor.query('select * from meterinfo.meters where ts <= ? and areaid = ?;').bind(new Date(), 5);
@@ -1155,7 +1155,7 @@ query.execute().then(function(result) {
 })
 ```
 
-If you provide the second parameter in the `query` statement and set it to `true`, you can also get the query results immediately. As follows:
+If you provide the second parameter in the `query()` statement and set it to `true`, you can also get the query results immediately. As follows:
 
 ```javascript
 var promise = cursor.query('select * from meterinfo.meters where v1 = 30;', true)
@@ -1166,7 +1166,7 @@ promise.then(function(result) {
 
 #### Asynchronous function
 
-The operation of asynchronous query database is similar to the above, only by adding `_a` after `cursor.execute`, `TaosQuery.execute` and other functions.
+The operation of asynchronous query database is similar to the above, only by adding `_a` after `cursor.execute()`, `TaosQuery.execute()` and other functions.
 
 ```javascript
 var promise1 = cursor.query('select count(*), avg(v1), avg(v2) from meter1;').execute_a()
@@ -1181,6 +1181,6 @@ promise2.then(function(result) {
 
 ### Example
 
-[node-example.js](https://github.com/taosdata/TDengine/blob/master/examples/nodejs/node-example.js) provides a code example that uses the NodeJS connector to create a table, insert weather data, and query the inserted data.
+[node-example.js](https://github.com/taosdata/TDengine/blob/master/examples/nodejs/node-example.js) provides a code example that uses the Node.js connector to create a table, insert weather data, and query the inserted data.
 
-[node-example-raw.js](https://github.com/taosdata/TDengine/blob/master/examples/nodejs/node-example-raw.js) is also a code example that uses the NodeJS connector to create a table, insert weather data, and query the inserted data, but unlike the above, this example only uses cursor.
+[node-example-raw.js](https://github.com/taosdata/TDengine/blob/master/examples/nodejs/node-example-raw.js) is also a code example that uses the Node.js connector to create a table, insert weather data, and query the inserted data, but unlike the above, this example only uses cursor.
