@@ -2,8 +2,8 @@
  * Copyright (c) 2019 TAOS Data, Inc. <jhtao@taosdata.com>
  *
  * This program is free software: you can use, redistribute, and/or modify
- * it under the terms of the GNU Affero General Public License, version 3
- * or later ("AGPL"), as published by the Free Software Foundation.
+ * it under the terms of the GNU Affero General Public License, version 3 * or later ("AGPL"), as published by the Free
+ * Software Foundation.
  *
  * This program is distributed in the hope that it will be useful, but WITHOUT
  * ANY WARRANTY; without even the implied warranty of MERCHANTABILITY or
@@ -29,6 +29,8 @@
 #define INDEX_QUEUE_SIZE 200
 
 void* indexQhandle = NULL;
+
+static char JSON_COLUMN[] = "JSON";
 
 void indexInit() {
   // refactor later
@@ -62,6 +64,9 @@ static int indexGenTFile(SIndex* index, IndexCache* cache, SArray* batch);
 // merge cache and tfile by opera type
 static void indexMergeCacheAndTFile(SArray* result, IterateValue* icache, IterateValue* iTfv);
 static void indexMergeSameKey(SArray* result, TFileValue* tv);
+
+static int32_t indexSerialTermKey(SIndexTerm* itm, char* buf);
+int32_t        indexSerialKey(ICacheKey* key, char* buf);
 
 int indexOpen(SIndexOpts* opts, const char* path, SIndex** index) {
   pthread_once(&isInit, indexInit);
@@ -147,9 +152,8 @@ int indexPut(SIndex* index, SIndexMultiTerm* fVals, uint64_t uid) {
   for (int i = 0; i < taosArrayGetSize(fVals); i++) {
     SIndexTerm* p = taosArrayGetP(fVals, i);
 
-    char      buf[128] = {0};
-    ICacheKey key = {.suid = p->suid, .colName = p->colName, .nColName = strlen(p->colName)};
-    int32_t   sz = indexSerialCacheKey(&key, buf);
+    char    buf[128] = {0};
+    int32_t sz = indexSerialTermKey(p, buf);
 
     IndexCache** cache = taosHashGet(index->colObj, buf, sz);
     if (cache == NULL) {
@@ -162,9 +166,9 @@ int indexPut(SIndex* index, SIndexMultiTerm* fVals, uint64_t uid) {
   for (int i = 0; i < taosArrayGetSize(fVals); i++) {
     SIndexTerm* p = taosArrayGetP(fVals, i);
 
-    char      buf[128] = {0};
-    ICacheKey key = {.suid = p->suid, .colName = p->colName, .nColName = strlen(p->colName)};
-    int32_t   sz = indexSerialCacheKey(&key, buf);
+    char buf[128] = {0};
+    // ICacheKey key = {.suid = p->suid, .colName = p->colName, .nColName = strlen(p->colName)};
+    int32_t sz = indexSerialTermKey(p, buf);
 
     IndexCache** cache = taosHashGet(index->colObj, buf, sz);
     assert(*cache != NULL);
@@ -554,7 +558,24 @@ END:
   return -1;
 }
 
-int32_t indexSerialCacheKey(ICacheKey* key, char* buf) {
+int32_t indexSerialTermKeyOfTag(SIndexTerm* p, char* buf) {
+  ICacheKey key = {.suid = p->suid, .colName = p->colName, .nColName = strlen(p->colName)};
+  return indexSerialKey(&key, buf);
+}
+int32_t indexSerilaTermKeyOfJson(SIndexTerm* p, char* buf) {
+  ICacheKey key = {.suid = p->suid, .colName = JSON_COLUMN, .nColName = strlen(JSON_COLUMN)};
+  return indexSerialKey(&key, buf);
+}
+
+int32_t indexSerialTermKey(SIndexTerm* itm, char* buf) {
+  bool hasJson = INDEX_TYPE_CONTAIN_EXTERN_TYPE(itm->colType, TSDB_DATA_TYPE_JSON);
+  if (hasJson) {
+    return indexSerilaTermKeyOfJson(itm, buf);
+  } else {
+    return indexSerialTermKeyOfTag(itm, buf);
+  }
+}
+int32_t indexSerialKey(ICacheKey* key, char* buf) {
   char* p = buf;
   SERIALIZE_MEM_TO_BUF(buf, key, suid);
   SERIALIZE_VAR_TO_BUF(buf, '_', char);
@@ -563,3 +584,13 @@ int32_t indexSerialCacheKey(ICacheKey* key, char* buf) {
   SERIALIZE_STR_MEM_TO_BUF(buf, key, colName, key->nColName);
   return buf - p;
 }
+
+// int32_t indexSerialCacheKey(ICacheKey* key, char* buf) {
+//  char* p = buf;
+//  SERIALIZE_MEM_TO_BUF(buf, key, suid);
+//  SERIALIZE_VAR_TO_BUF(buf, '_', char);
+//  // SERIALIZE_MEM_TO_BUF(buf, key, colType);
+//  // SERIALIZE_VAR_TO_BUF(buf, '_', char);
+//  SERIALIZE_STR_MEM_TO_BUF(buf, key, colName, key->nColName);
+//  return buf - p;
+//}

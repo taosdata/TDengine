@@ -205,7 +205,11 @@ int tfileReaderSearch(TFileReader* reader, SIndexTermQuery* query, SArray* resul
   } else if (qtype == QUERY_PREFIX) {
     // handle later
     //
-  } else {
+  } else if (qtype == QUERY_SUFFIX) {
+    // handle later
+  } else if (qtype == QUERY_REGEX) {
+    // handle later
+  } else if (qtype == QUERY_RANGE) {
     // handle later
   }
   tfileReaderUnRef(reader);
@@ -586,11 +590,10 @@ static int tfileReaderLoadHeader(TFileReader* reader) {
 
   int64_t nread = reader->ctx->readFrom(reader->ctx, buf, sizeof(buf), 0);
   if (nread == -1) {
-    indexError("actual Read: %d, to read: %d, errno: %d, filename: %s", (int)(nread), (int)sizeof(buf),
-               errno, reader->ctx->file.buf);
+    indexError("actual Read: %d, to read: %d, errno: %d, filename: %s", (int)(nread), (int)sizeof(buf), errno,
+               reader->ctx->file.buf);
   } else {
-    indexInfo("actual Read: %d, to read: %d, filename: %s", (int)(nread), (int)sizeof(buf),
-              reader->ctx->file.buf);
+    indexInfo("actual Read: %d, to read: %d, filename: %s", (int)(nread), (int)sizeof(buf), reader->ctx->file.buf);
   }
   // assert(nread == sizeof(buf));
   memcpy(&reader->header, buf, sizeof(buf));

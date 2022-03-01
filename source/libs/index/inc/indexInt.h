@@ -120,29 +120,50 @@ int indexFlushCacheToTFile(SIndex* sIdx, void*);
 
 int32_t indexSerialCacheKey(ICacheKey* key, char* buf);
 
-#define indexFatal(...)                                                               \
-  do {                                                                                \
-    if (sDebugFlag & DEBUG_FATAL) { taosPrintLog("index FATAL ", 255, __VA_ARGS__); } \
+#define indexFatal(...)                               \
+  do {                                                \
+    if (sDebugFlag & DEBUG_FATAL) {                   \
+      taosPrintLog("index FATAL ", 255, __VA_ARGS__); \
+    }                                                 \
   } while (0)
-#define indexError(...)                                                               \
-  do {                                                                                \
-    if (sDebugFlag & DEBUG_ERROR) { taosPrintLog("index ERROR ", 255, __VA_ARGS__); } \
+#define indexError(...)                               \
+  do {                                                \
+    if (sDebugFlag & DEBUG_ERROR) {                   \
+      taosPrintLog("index ERROR ", 255, __VA_ARGS__); \
+    }                                                 \
   } while (0)
-#define indexWarn(...)                                                              \
-  do {                                                                              \
-    if (sDebugFlag & DEBUG_WARN) { taosPrintLog("index WARN ", 255, __VA_ARGS__); } \
+#define indexWarn(...)                               \
+  do {                                               \
+    if (sDebugFlag & DEBUG_WARN) {                   \
+      taosPrintLog("index WARN ", 255, __VA_ARGS__); \
+    }                                                \
   } while (0)
-#define indexInfo(...)                                                         \
-  do {                                                                         \
-    if (sDebugFlag & DEBUG_INFO) { taosPrintLog("index ", 255, __VA_ARGS__); } \
+#define indexInfo(...)                          \
+  do {                                          \
+    if (sDebugFlag & DEBUG_INFO) {              \
+      taosPrintLog("index ", 255, __VA_ARGS__); \
+    }                                           \
   } while (0)
-#define indexDebug(...)                                                                \
-  do {                                                                                 \
-    if (sDebugFlag & DEBUG_DEBUG) { taosPrintLog("index ", sDebugFlag, __VA_ARGS__); } \
+#define indexDebug(...)                                \
+  do {                                                 \
+    if (sDebugFlag & DEBUG_DEBUG) {                    \
+      taosPrintLog("index ", sDebugFlag, __VA_ARGS__); \
+    }                                                  \
   } while (0)
-#define indexTrace(...)                                                                \
-  do {                                                                                 \
-    if (sDebugFlag & DEBUG_TRACE) { taosPrintLog("index ", sDebugFlag, __VA_ARGS__); } \
+#define indexTrace(...)                                \
+  do {                                                 \
+    if (sDebugFlag & DEBUG_TRACE) {                    \
+      taosPrintLog("index ", sDebugFlag, __VA_ARGS__); \
+    }                                                  \
+  } while (0)
+
+#define INDEX_TYPE_CONTAIN_EXTERN_TYPE(ty, exTy) (((ty >> 4) & (exTy)) != 0)
+#define INDEX_TYPE_GET_TYPE(ty) (ty & 0x0F)
+#define INDEX_TYPE_ADD_EXTERN_TYPE(ty, exTy) \
+  do {                                       \
+    uint8_t oldTy = ty;                      \
+    ty = (ty >> 4) | exTy;                   \
+    ty = (ty << 4) | oldTy;                  \
   } while (0)
 
 #ifdef __cplusplus

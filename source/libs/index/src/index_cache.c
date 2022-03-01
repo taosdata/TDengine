@@ -24,6 +24,8 @@
 #define MEM_THRESHOLD 1024 * 1024
 #define MEM_ESTIMATE_RADIO 1.5
 
+static char JSON_COLUMN[] = "JSON";
+
 static void indexMemRef(MemTable* tbl);
 static void indexMemUnRef(MemTable* tbl);
 
@@ -45,7 +47,7 @@ IndexCache* indexCacheCreate(SIndex* idx, uint64_t suid, const char* colName, in
     return NULL;
   };
   cache->mem = indexInternalCacheCreate(type);
-  cache->colName = tstrdup(colName);
+  cache->colName = INDEX_TYPE_CONTAIN_EXTERN_TYPE(type, TSDB_DATA_TYPE_JSON) ? tstrdup(JSON_COLUMN) : tstrdup(colName);
   cache->type = type;
   cache->index = idx;
   cache->version = 0;
