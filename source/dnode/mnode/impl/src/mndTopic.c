@@ -438,6 +438,33 @@ static int32_t mndGetNumOfTopics(SMnode *pMnode, char *dbName, int32_t *pNumOfTo
 }
 #endif
 
+static int32_t mndGetNumOfTopics(SMnode *pMnode, char *dbName, int32_t *pNumOfTopics) {
+  SSdb   *pSdb = pMnode->pSdb;
+  SDbObj *pDb = mndAcquireDb(pMnode, dbName);
+  if (pDb == NULL) {
+    terrno = TSDB_CODE_MND_DB_NOT_SELECTED;
+    return -1;
+  }
+
+  int32_t numOfTopics = 0;
+  void   *pIter = NULL;
+  while (1) {
+    SMqTopicObj *pTopic = NULL;
+    pIter = sdbFetch(pSdb, SDB_TOPIC, pIter, (void **)&pTopic);
+    if (pIter == NULL) break;
+
+    if (pTopic->dbUid == pDb->uid) {
+      numOfTopics++;
+    }
+
+    sdbRelease(pSdb, pTopic);
+  }
+
+  *pNumOfTopics = numOfTopics;
+  mndReleaseDb(pMnode, pDb);
+  return 0;
+}
+
 static int32_t mndGetTopicMeta(SMnodeMsg *pReq, SShowObj *pShow, STableMetaRsp *pMeta) {
   SMnode *pMnode = pReq->pMnode;
   SSdb   *pSdb = pMnode->pSdb;

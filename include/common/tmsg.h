@@ -1901,6 +1901,7 @@ struct tmq_message_t {
     SMqConsumeRsp    consumeRsp;
     SMqCMGetSubEpRsp getEpRsp;
   };
+  void* extra;
 };
 
 static FORCE_INLINE void tDeleteSMqSubTopicEp(SMqSubTopicEp* pSubTopicEp) { taosArrayDestroy(pSubTopicEp->vgs); }
@@ -1955,7 +1956,6 @@ static FORCE_INLINE void* tDecodeSMqSubTopicEp(void* buf, SMqSubTopicEp* pTopicE
 static FORCE_INLINE int32_t tEncodeSMqCMGetSubEpRsp(void** buf, const SMqCMGetSubEpRsp* pRsp) {
   int32_t tlen = 0;
   tlen += taosEncodeFixedI64(buf, pRsp->consumerId);
-  tlen += taosEncodeFixedI32(buf, pRsp->epoch);
   tlen += taosEncodeString(buf, pRsp->cgroup);
   int32_t sz = taosArrayGetSize(pRsp->topics);
   tlen += taosEncodeFixedI32(buf, sz);
@@ -1968,7 +1968,6 @@ static FORCE_INLINE int32_t tEncodeSMqCMGetSubEpRsp(void** buf, const SMqCMGetSu
 
 static FORCE_INLINE void* tDecodeSMqCMGetSubEpRsp(void* buf, SMqCMGetSubEpRsp* pRsp) {
   buf = taosDecodeFixedI64(buf, &pRsp->consumerId);
-  buf = taosDecodeFixedI32(buf, &pRsp->epoch);
   buf = taosDecodeStringTo(buf, pRsp->cgroup);
   int32_t sz;
   buf = taosDecodeFixedI32(buf, &sz);
