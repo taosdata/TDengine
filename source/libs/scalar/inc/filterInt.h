@@ -253,6 +253,7 @@ typedef struct SFilterInfo {
   uint32_t         *blkUnits;
   int8_t           *blkUnitRes;
   void             *pTable;
+  SArray           *blkList;
 
   SFilterPCtx       pctx;
 } SFilterInfo;

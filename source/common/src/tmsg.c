@@ -1524,6 +1524,10 @@ int32_t tDeserializeSUseDbRspImp(SCoder *pDecoder, SUseDbRsp *pRsp) {
   if (tDecodeI32(pDecoder, &pRsp->vgNum) < 0) return -1;
   if (tDecodeI8(pDecoder, &pRsp->hashMethod) < 0) return -1;
 
+  if (pRsp->vgNum <= 0) {
+    return 0;
+  }
+  
   pRsp->pVgroupInfos = taosArrayInit(pRsp->vgNum, sizeof(SVgroupInfo));
   if (pRsp->pVgroupInfos == NULL) {
     terrno = TSDB_CODE_OUT_OF_MEMORY;

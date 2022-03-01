@@ -79,9 +79,12 @@ static FORCE_INLINE bool colDataIsNull(const SColumnInfoData* pColumnInfoData, u
   }
 }
 
-#define colDataGetData(p1_, r_)                                                      \
-  ((IS_VAR_DATA_TYPE((p1_)->info.type)) ? (p1_)->pData + (p1_)->varmeta.offset[(r_)] \
-                                        : (p1_)->pData + ((r_) * (p1_)->info.bytes))
+#define BitmapLen(_n)     (((_n) + ((1<<NBIT)-1)) >> NBIT)
+
+
+#define colDataGetData(p1_, r_)                                                          \
+  ((IS_VAR_DATA_TYPE((p1_)->info.type)) ? ((p1_)->pData + (p1_)->varmeta.offset[(r_)]) \
+                                        : ((p1_)->pData + ((r_) * (p1_)->info.bytes)))
 
 int32_t colDataAppend(SColumnInfoData* pColumnInfoData, uint32_t currentRow, const char* pData, bool isNull);
 int32_t colDataMergeCol(SColumnInfoData* pColumnInfoData, uint32_t numOfRow1, const SColumnInfoData* pSource,
@@ -112,6 +115,7 @@ SSchema* blockDataExtractSchema(const SSDataBlock* pBlock, int32_t* numOfCols);
 int32_t blockDataSort(SSDataBlock* pDataBlock, SArray* pOrderInfo, bool nullFirst);
 int32_t blockDataSort_rv(SSDataBlock* pDataBlock, SArray* pOrderInfo, bool nullFirst);
 
+int32_t      blockDataEnsureColumnCapacity(SColumnInfoData* pColumn, uint32_t numOfRows);
 int32_t      blockDataEnsureCapacity(SSDataBlock* pDataBlock, uint32_t numOfRows);
 void         blockDataClearup(SSDataBlock* pDataBlock, bool hasVarCol);
 SSDataBlock* createOneDataBlock(const SSDataBlock* pDataBlock);
