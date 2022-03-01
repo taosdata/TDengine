@@ -174,18 +174,6 @@ namespace Sample.UtilsTools
             List<TDengineMeta> metas = TDengine.FetchFields(res);
             return metas;
         }
-        public static void AssertEqual(string expectVal, string actualVal)
-        {
-            if (expectVal == actualVal)
-            {
-                Console.WriteLine("{0}=={1} pass", expectVal, actualVal);
-            }
-            else
-            {
-                Console.WriteLine("{0}=={1} failed", expectVal, actualVal);
-                ExitProgram();
-            }
-        }
         public static void ExitProgram()
         {
             TDengine.Cleanup();
@@ -202,84 +190,6 @@ namespace Sample.UtilsTools
             List<TDengineMeta> metas = GetResField(res);
             dataRaw = QueryRes(res, metas);
             return dataRaw;
-        }
-
-        public static TDengineMeta ConstructTDengineMeta(string name, string type)
-        {
-
-            TDengineMeta _meta = new TDengineMeta();
-            _meta.name = name;
-            char[] separators = new char[] { '(', ')' };
-            string[] subs = type.Split(separators, StringSplitOptions.RemoveEmptyEntries);
-
-            switch (subs[0].ToUpper())
-            {
-                case "BOOL":
-                    _meta.type = 1;
-                    _meta.size = 1;
-                    break;
-                case "TINYINT":
-                    _meta.type = 2;
-                    _meta.size = 1;
-                    break;
-                case "SMALLINT":
-                    _meta.type = 3;
-                    _meta.size = 2;
-                    break;
-                case "INT":
-                    _meta.type = 4;
-                    _meta.size = 4;
-                    break;
-                case "BIGINT":
-                    _meta.type = 5;
-                    _meta.size = 8;
-                    break;
-                case "TINYINT UNSIGNED":
-                    _meta.type = 11;
-                    _meta.size = 1;
-                    break;
-                case "SMALLINT UNSIGNED":
-                    _meta.type = 12;
-                    _meta.size = 2;
-                    break;
-                case "INT UNSIGNED":
-                    _meta.type = 13;
-                    _meta.size = 4;
-                    break;
-                case "BIGINT UNSIGNED":
-                    _meta.type = 14;
-                    _meta.size = 8;
-                    break;
-                case "FLOAT":
-                    _meta.type = 6;
-                    _meta.size = 4;
-                    break;
-                case "DOUBLE":
-                    _meta.type = 7;
-                    _meta.size = 8;
-                    break;
-                case "BINARY":
-                    _meta.type = 8;
-                    _meta.size = short.Parse(subs[1]);
-                    break;
-                case "TIMESTAMP":
-                    _meta.type = 9;
-                    _meta.size = 8;
-                    break;
-                case "NCHAR":
-                    _meta.type = 10;
-                    _meta.size = short.Parse(subs[1]);
-                    break;
-                case "JSON":
-                    _meta.type = 15;
-                    _meta.size = 4096;
-                    break;
-                default:
-                    _meta.type = byte.MaxValue;
-                    _meta.size = 0;
-                    break;
-            }
-            return _meta;
         }
 
         private static List<Object> QueryRes(IntPtr res, List<TDengineMeta> metas)
@@ -300,89 +210,6 @@ namespace Sample.UtilsTools
             return dataRaw;
         }
 
-        // Generate insert sql for the with the coldata and tag data 
-        public static string ConstructInsertSql(string table, string stable, List<Object> colData, List<Object> tagData, int numOfRows)
-        {
-            int numofFileds = colData.Count / numOfRows;
-            StringBuilder insertSql;
-
-            if (stable == "")
-            {
-                insertSql = new StringBuilder($"insert into {table} values(");
-            }
-            else
-            {
-                insertSql = new StringBuilder($"insert into {table} using {stable} tags(");
-
-                for (int j = 0; j < tagData.Count; j++)
-                {
-                    if (tagData[j] is String)
-                    {
-                        insertSql.Append('\'');
-                        insertSql.Append(tagData[j]);
-                        insertSql.Append('\'');
-                    }
-                    else
-                    {
-                        insertSql.Append(tagData[j]);
-                    }
-                    if (j + 1 != tagData.Count)
-                    {
-                        insertSql.Append(',');
-                    }
-                }
-
-                insertSql.Append(")values(");
-            }
-            for (int i = 0; i < colData.Count; i++)
-            {
-
-                if (colData[i] is String)
-                {
-                    insertSql.Append('\'');
-                    insertSql.Append(colData[i]);
-                    insertSql.Append('\'');
-                }
-                else
-                {
-                    insertSql.Append(colData[i]);
-                }
-
-                if ((i + 1) % numofFileds == 0 && (i + 1) != colData.Count)
-                {
-                    insertSql.Append(")(");
-                }
-                else if ((i + 1) == colData.Count)
-                {
-                    insertSql.Append(')');
-                }
-                else
-                {
-                    insertSql.Append(',');
-                }
-            }
-            insertSql.Append(';');
-            //Console.WriteLine(insertSql.ToString());
-
-            return insertSql.ToString();
-        }
-
-        public static List<object> CombineColAndTagData(List<object> colData, List<object> tagData, int numOfRows)
-        {
-            var list = new List<Object>();
-            for (int i = 0; i < colData.Count; i++)
-            {
-                list.Add(colData[i]);
-                if ((i + 1) % (colData.Count / numOfRows) == 0)
-                {
-                    for (int j = 0; j < tagData.Count; j++)
-                    {
-                        list.Add(tagData[j]);
-                    }
-                }
-            }
-            return list;
-        }
 
         public static List<Object> FetchRow(IntPtr taosRow, IntPtr taosRes)//, List<TDengineMeta> metaList, int numOfFiled
         {
