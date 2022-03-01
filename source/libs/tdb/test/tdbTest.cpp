@@ -16,13 +16,11 @@ TEST(tdb_test, simple_test) {
   GTEST_ASSERT_EQ(ret, 0);
 
   // // Insert some data
-  // ret = tdbDbInsert(pDb, "1", 1, "world", 5);
-  // GTEST_ASSERT_EQ(ret, 0);
+  ret = tdbDbInsert(pDb, "1", 1, "world", 5);
+  GTEST_ASSERT_EQ(ret, 0);
 
   ret = tdbDbDrop(pDb);
-  if (pDb == NULL) {
-    return -1;
-  }
+  GTEST_ASSERT_EQ(ret, 0);
 
   // Close a database
   tdbDbClose(pDb);

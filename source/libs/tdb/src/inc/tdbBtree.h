@@ -22,9 +22,21 @@ extern "C" {
 
 typedef struct SBTree    SBTree;
 typedef struct SBtCursor SBtCursor;
+typedef struct SBtPage SBtPage;
+
+struct SBtCursor {
+  SBTree * pBt;
+  i8       iPage;
+  SBtPage *pPage;
+  u16      idx;
+  u16      idxStack[BTREE_MAX_DEPTH + 1];
+  SBtPage *pgStack[BTREE_MAX_DEPTH + 1];
+  void *   pBuf;
+};
 
 int tdbBtreeOpen(SPgno rtPgno, int keyLen, int valLen, SPFile *pFile, FKeyComparator kcmpr, SBTree **ppBt);
 int tdbBtreeClose(SBTree *pBt);
+int tdbBtreeCursor(SBtCursor *pCur, SBTree *pBt);
 int tdbBtCursorInsert(SBtCursor *pCur, const void *pKey, int kLen, const void *pVal, int vLen);
 
 #ifdef __cplusplus

@@ -75,6 +75,20 @@ int tdbDbDrop(STDb *pDb) {
 }
 
 int tdbDbInsert(STDb *pDb, const void *pKey, int keyLen, const void *pVal, int valLen) {
-  // TODO
+  SBtCursor btc;
+  SBtCursor *pCur;
+  int ret;
+
+  pCur = &btc;
+  ret = tdbBtreeCursor(pCur, pDb->pBt);
+  if (ret < 0) {
+    return -1;
+  }
+
+  ret = tdbBtCursorInsert(pCur, pKey, keyLen, pVal, valLen);
+  if (ret < 0) {
+    return -1;
+  }
+
   return 0;
 }
