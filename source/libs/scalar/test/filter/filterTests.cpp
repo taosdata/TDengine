@@ -220,7 +220,7 @@ void flttMakeListNode(SNode **pNode, SNodeList *list, int32_t resType) {
 }
 
 TEST(timerangeTest, greater) {
-  SNode *pcol = NULL, *pval = NULL, *opNode1 = NULL, *opNode2 = NULL, *logicNode = NULL;
+  SNode *pcol = NULL, *pval = NULL, *opNode1 = NULL;
   bool eRes[5] = {false, false, true, true, true};
   SScalarParam res = {0};
   int64_t tsmall = 222, tbig = 333;
@@ -236,6 +236,8 @@ TEST(timerangeTest, greater) {
   ASSERT_EQ(code, 0);
   ASSERT_EQ(win.skey, tsmall);
   ASSERT_EQ(win.ekey, INT64_MAX); 
+  filterFreeInfo(filter);
+  nodesDestroyNode(opNode1);
 }
 
 TEST(timerangeTest, greater_and_lower) {
@@ -263,6 +265,8 @@ TEST(timerangeTest, greater_and_lower) {
   ASSERT_EQ(code, 0);
   ASSERT_EQ(win.skey, tsmall);
   ASSERT_EQ(win.ekey, tbig); 
+  filterFreeInfo(filter);
+  nodesDestroyNode(logicNode);
 }
 
 
@@ -315,6 +319,10 @@ TEST(columnTest, smallint_column_greater_double_value) {
   for (int32_t i = 0; i < rowNum; ++i) {
     ASSERT_EQ(*((int8_t *)rowRes + i), eRes[i]);
   }
+  tfree(rowRes);
+  filterFreeInfo(filter);
+  blockDataDestroy(src);
+  nodesDestroyNode(opNode);
 }
 
 TEST(columnTest, int_column_greater_smallint_value) {
@@ -366,6 +374,10 @@ TEST(columnTest, int_column_greater_smallint_value) {
   for (int32_t i = 0; i < rowNum; ++i) {
     ASSERT_EQ(*((int8_t *)rowRes + i), eRes[i]);
   }
+  tfree(rowRes);
+  filterFreeInfo(filter);
+  nodesDestroyNode(opNode);
+  blockDataDestroy(src);
 }
 
 
@@ -408,7 +420,10 @@ TEST(columnTest, int_column_in_double_list) {
     ASSERT_EQ(*((int8_t *)rowRes + i), eRes[i]);
   }
 
-  
+  tfree(rowRes);
+  filterFreeInfo(filter);
+  nodesDestroyNode(opNode);
+  blockDataDestroy(src);
 }
 
 
@@ -470,6 +485,10 @@ TEST(columnTest, binary_column_in_binary_list) {
   for (int32_t i = 0; i < rowNum; ++i) {
     ASSERT_EQ(*((int8_t *)rowRes + i), eRes[i]);
   }
+  tfree(rowRes);
+  filterFreeInfo(filter);
+  nodesDestroyNode(opNode);
+  blockDataDestroy(src);
 }
 
 
@@ -515,6 +534,10 @@ TEST(columnTest, binary_column_like_binary) {
   for (int32_t i = 0; i < rowNum; ++i) {
     ASSERT_EQ(*((int8_t *)rowRes + i), eRes[i]);
   }
+  tfree(rowRes);
+  filterFreeInfo(filter);
+  nodesDestroyNode(opNode);
+  blockDataDestroy(src);
 }
 
 
@@ -559,6 +582,10 @@ TEST(columnTest, binary_column_is_null) {
   for (int32_t i = 0; i < rowNum; ++i) {
     ASSERT_EQ(*((int8_t *)rowRes + i), eRes[i]);
   }
+  tfree(rowRes);
+  filterFreeInfo(filter);
+  nodesDestroyNode(opNode);
+  blockDataDestroy(src);
 }
 
 TEST(columnTest, binary_column_is_not_null) {
@@ -602,6 +629,10 @@ TEST(columnTest, binary_column_is_not_null) {
   for (int32_t i = 0; i < rowNum; ++i) {
     ASSERT_EQ(*((int8_t *)rowRes + i), eRes[i]);
   }
+  tfree(rowRes);
+  filterFreeInfo(filter);
+  nodesDestroyNode(opNode);
+  blockDataDestroy(src);
 }
 
 
@@ -637,6 +668,10 @@ TEST(opTest, smallint_column_greater_int_column) {
   for (int32_t i = 0; i < rowNum; ++i) {
     ASSERT_EQ(*((int8_t *)rowRes + i), eRes[i]);
   }
+  tfree(rowRes);
+  filterFreeInfo(filter);
+  nodesDestroyNode(opNode);
+  blockDataDestroy(src);
 }
 
 
@@ -672,6 +707,10 @@ TEST(opTest, smallint_value_add_int_column) {
   for (int32_t i = 0; i < rowNum; ++i) {
     ASSERT_EQ(*((int8_t *)rowRes + i), eRes[i]);
   }
+  tfree(rowRes);
+  filterFreeInfo(filter);
+  nodesDestroyNode(opNode);
+  blockDataDestroy(src);
 }
 
 
@@ -713,6 +752,10 @@ TEST(opTest, bigint_column_multi_binary_column) {
   for (int32_t i = 0; i < rowNum; ++i) {
     ASSERT_EQ(*((int8_t *)rowRes + i), eRes[i]);
   }
+  tfree(rowRes);
+  filterFreeInfo(filter);
+  nodesDestroyNode(opNode);
+  blockDataDestroy(src);
 }
 
 TEST(opTest, smallint_column_and_binary_column) {
@@ -752,6 +795,10 @@ TEST(opTest, smallint_column_and_binary_column) {
   for (int32_t i = 0; i < rowNum; ++i) {
     ASSERT_EQ(*((int8_t *)rowRes + i), eRes[i]);
   }
+  tfree(rowRes);
+  filterFreeInfo(filter);
+  nodesDestroyNode(opNode);
+  blockDataDestroy(src);
 }
 
 TEST(opTest, smallint_column_or_float_column) {
@@ -786,6 +833,10 @@ TEST(opTest, smallint_column_or_float_column) {
   for (int32_t i = 0; i < rowNum; ++i) {
     ASSERT_EQ(*((int8_t *)rowRes + i), eRes[i]);
   }
+  tfree(rowRes);
+  filterFreeInfo(filter);
+  nodesDestroyNode(opNode);
+  blockDataDestroy(src);
 }
 
 
@@ -822,6 +873,10 @@ TEST(opTest, smallint_column_or_double_value) {
   for (int32_t i = 0; i < rowNum; ++i) {
     ASSERT_EQ(*((int8_t *)rowRes + i), eRes[i]);
   }
+  tfree(rowRes);
+  filterFreeInfo(filter);
+  nodesDestroyNode(opNode);
+  blockDataDestroy(src);
 }
 
 
@@ -863,6 +918,10 @@ TEST(opTest, binary_column_is_true) {
   for (int32_t i = 0; i < rowNum; ++i) {
     ASSERT_EQ(*((int8_t *)rowRes + i), eRes[i]);
   }
+  tfree(rowRes);
+  filterFreeInfo(filter);
+  nodesDestroyNode(opNode);
+  blockDataDestroy(src);
 }
 
 
@@ -931,6 +990,10 @@ TEST(filterModelogicTest, diff_columns_and_or_and) {
   for (int32_t i = 0; i < rowNum; ++i) {
     ASSERT_EQ(*((int8_t *)rowRes + i), eRes[i]);
   }
+  tfree(rowRes);
+  filterFreeInfo(filter);
+  nodesDestroyNode(logicNode1);
+  blockDataDestroy(src);
 }
 
 TEST(filterModelogicTest, same_column_and_or_and) {
@@ -993,6 +1056,10 @@ TEST(filterModelogicTest, same_column_and_or_and) {
   for (int32_t i = 0; i < rowNum; ++i) {
     ASSERT_EQ(*((int8_t *)rowRes + i), eRes[i]);
   }
+  tfree(rowRes);
+  filterFreeInfo(filter);
+  nodesDestroyNode(logicNode1);
+  blockDataDestroy(src);
 }
 
 
@@ -1059,6 +1126,10 @@ TEST(filterModelogicTest, diff_columns_or_and_or) {
   for (int32_t i = 0; i < rowNum; ++i) {
     ASSERT_EQ(*((int8_t *)rowRes + i), eRes[i]);
   }
+  tfree(rowRes);
+  filterFreeInfo(filter);
+  nodesDestroyNode(logicNode1);
+  blockDataDestroy(src);
 }
 
 TEST(filterModelogicTest, same_column_or_and_or) {
@@ -1121,6 +1192,10 @@ TEST(filterModelogicTest, same_column_or_and_or) {
   for (int32_t i = 0; i < rowNum; ++i) {
     ASSERT_EQ(*((int8_t *)rowRes + i), eRes[i]);
   }
+  tfree(rowRes);
+  filterFreeInfo(filter);
+  nodesDestroyNode(logicNode1);
+  blockDataDestroy(src);
 }
 
 
@@ -1190,6 +1265,10 @@ TEST(scalarModelogicTest, diff_columns_or_and_or) {
   for (int32_t i = 0; i < rowNum; ++i) {
     ASSERT_EQ(*((int8_t *)rowRes + i), eRes[i]);
   }
+  tfree(rowRes);
+  filterFreeInfo(filter);
+  nodesDestroyNode(logicNode1);
+  blockDataDestroy(src);
 }
 
 

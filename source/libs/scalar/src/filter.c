@@ -18,6 +18,7 @@
 //#include "queryLog.h"
 #include "tcompare.h"
 #include "filterInt.h"
+#include "sclInt.h"
 #include "filter.h"
 
 OptrStr gOptrStr[] = {
@@ -1677,7 +1678,7 @@ void filterFreeInfo(SFilterInfo *info) {
   tfree(info->cunits);
   tfree(info->blkUnitRes);
   tfree(info->blkUnits);
-  
+
   for (int32_t i = 0; i < FLD_TYPE_MAX; ++i) {
     for (uint32_t f = 0; f < info->fields[i].num; ++f) {
       filterFreeField(&info->fields[i].fields[f], i);
@@ -2783,7 +2784,7 @@ bool filterExecuteBasedOnStatisImpl(void *pinfo, int32_t numOfRows, int8_t** p, 
         //} else {
           uint8_t optr = cunit->optr;
 
-          if (isNull(colData, cunit->dataType)) {
+          if (colDataIsNull((SColumnInfoData *)(cunit->colData), 0, i, NULL)) {
             (*p)[i] = optr == OP_TYPE_IS_NULL ? true : false;
           } else {
             if (optr == OP_TYPE_IS_NOT_NULL) {
@@ -2880,12 +2881,12 @@ static FORCE_INLINE bool filterExecuteImplIsNull(void *pinfo, int32_t numOfRows,
         (*p)[i] = 1;
       }else if( *(char*)colData == TSDB_DATA_TYPE_JSON){  // for json is null
         colData = POINTER_SHIFT(colData, CHAR_BYTES);
-        (*p)[i] = isNull(colData, info->cunits[uidx].dataType);
+        (*p)[i] = colDataIsNull((SColumnInfoData *)info->cunits[uidx].colData, 0, i, NULL);
       }else{
         (*p)[i] = 0;
       }
     }else{
-      (*p)[i] = ((colData == NULL) || isNull(colData, info->cunits[uidx].dataType));
+      (*p)[i] = ((colData == NULL) || colDataIsNull((SColumnInfoData *)info->cunits[uidx].colData, 0, i, NULL));
     }
     if ((*p)[i] == 0) {
       all = false;
@@ -2915,12 +2916,12 @@ static FORCE_INLINE bool filterExecuteImplNotNull(void *pinfo, int32_t numOfRows
         (*p)[i] = 0;
       }else if( *(char*)colData == TSDB_DATA_TYPE_JSON){   // for json is not null
         colData = POINTER_SHIFT(colData, CHAR_BYTES);
-        (*p)[i] = !isNull(colData, info->cunits[uidx].dataType);
+        (*p)[i] = !colDataIsNull((SColumnInfoData *)info->cunits[uidx].colData, 0, i, NULL);
       }else{    // for json->'key' is not null
         (*p)[i] = 1;
       }
     }else {
-      (*p)[i] = ((colData != NULL) && !isNull(colData, info->cunits[uidx].dataType));
+      (*p)[i] = ((colData != NULL) && !colDataIsNull((SColumnInfoData *)info->cunits[uidx].colData, 0, i, NULL));
     }
 
     if ((*p)[i] == 0) {
@@ -2951,7 +2952,7 @@ bool filterExecuteImplRange(void *pinfo, int32_t numOfRows, int8_t** p, SColumnD
   for (int32_t i = 0; i < numOfRows; ++i) {    
     void *colData = colDataGet((SColumnInfoData *)info->cunits[0].colData, i);
 
-    if (colData == NULL || isNull(colData, info->cunits[0].dataType)) {
+    if (colData == NULL || colDataIsNull((SColumnInfoData *)info->cunits[0].colData, 0, i, NULL)) {
       all = false;
       continue;
     }
@@ -2981,7 +2982,7 @@ bool filterExecuteImplMisc(void *pinfo, int32_t numOfRows, int8_t** p, SColumnDa
   for (int32_t i = 0; i < numOfRows; ++i) {
     uint32_t uidx = info->groups[0].unitIdxs[0];
     void *colData = colDataGet((SColumnInfoData *)info->cunits[uidx].colData, i);
-    if (colData == NULL || isNull(colData, info->cunits[uidx].dataType)) {
+    if (colData == NULL || colDataIsNull((SColumnInfoData *)info->cunits[uidx].colData, 0, i, NULL)) {
       (*p)[i] = 0;
       all = false;
       continue;
@@ -3038,7 +3039,7 @@ bool filterExecuteImpl(void *pinfo, int32_t numOfRows, int8_t** p, SColumnDataAg
         //} else {
           uint8_t optr = cunit->optr;
 
-          if (colData == NULL || isNull(colData, cunit->dataType)) {
+          if (colData == NULL || colDataIsNull((SColumnInfoData *)(cunit->colData), 0, i, NULL)) {
             (*p)[i] = optr == OP_TYPE_IS_NULL ? true : false;
           } else {
             if (optr == OP_TYPE_IS_NOT_NULL) {
@@ -3675,7 +3676,10 @@ bool filterExecute(SFilterInfo *info, SSDataBlock *pSrc, int8_t** p, SColumnData
 
     taosArrayDestroy(pList);
 
-    *p = output.data;
+    *p = output.orig.data;
+    output.orig.data = NULL;
+
+    sclFreeParam(&output);
 
     int8_t *r = output.data;
     for (int32_t i = 0; i < output.num; ++i) {
@@ -3692,4 +3696,3 @@ bool filterExecute(SFilterInfo *info, SSDataBlock *pSrc, int8_t** p, SColumnData
 
 
 
-                                                                                                                                                                                                                                    

@@ -378,7 +378,8 @@ TEST(constantTest, tinyint_lower_ubigint) {
 
 TEST(constantTest, usmallint_lower_equal_ubigint) {
   SNode *pLeft = NULL, *pRight = NULL, *opNode = NULL, *res = NULL;
-  int32_t leftv = 1, rightv = 1;
+  int32_t leftv = 1;
+  int64_t rightv = 1;
   scltMakeValueNode(&pLeft, TSDB_DATA_TYPE_USMALLINT, &leftv);
   scltMakeValueNode(&pRight, TSDB_DATA_TYPE_UBIGINT, &rightv);
   scltMakeOpNode(&opNode, OP_TYPE_LOWER_EQUAL, TSDB_DATA_TYPE_BOOL, pLeft, pRight);
@@ -395,7 +396,8 @@ TEST(constantTest, usmallint_lower_equal_ubigint) {
 
 TEST(constantTest, int_equal_smallint1) {
   SNode *pLeft = NULL, *pRight = NULL, *opNode = NULL, *res = NULL;
-  int32_t leftv = 1, rightv = 1;
+  int32_t leftv = 1;
+  int16_t rightv = 1;
   scltMakeValueNode(&pLeft, TSDB_DATA_TYPE_INT, &leftv);
   scltMakeValueNode(&pRight, TSDB_DATA_TYPE_SMALLINT, &rightv);
   scltMakeOpNode(&opNode, OP_TYPE_EQUAL, TSDB_DATA_TYPE_BOOL, pLeft, pRight);
@@ -930,6 +932,7 @@ TEST(columnTest, smallint_value_add_int_column) {
   }
 
   taosArrayDestroyEx(blockList, scltFreeDataBlock);
+  nodesDestroyNode(opNode);
 }
 
 TEST(columnTest, bigint_column_multi_binary_column) {
@@ -968,6 +971,7 @@ TEST(columnTest, bigint_column_multi_binary_column) {
     ASSERT_EQ(*((double *)colDataGet(column, i)), eRes[i]);
   }
   taosArrayDestroyEx(blockList, scltFreeDataBlock);
+  nodesDestroyNode(opNode);
 }
 
 TEST(columnTest, smallint_column_and_binary_column) {
@@ -1005,6 +1009,7 @@ TEST(columnTest, smallint_column_and_binary_column) {
     ASSERT_EQ(*((int64_t *)colDataGet(column, i)), eRes[i]);
   }
   taosArrayDestroyEx(blockList, scltFreeDataBlock);
+  nodesDestroyNode(opNode);
 }
 
 TEST(columnTest, smallint_column_or_float_column) {
@@ -1037,6 +1042,7 @@ TEST(columnTest, smallint_column_or_float_column) {
     ASSERT_EQ(*((int64_t *)colDataGet(column, i)), eRes[i]);
   }
   taosArrayDestroyEx(blockList, scltFreeDataBlock);
+  nodesDestroyNode(opNode);
 }
 
 TEST(columnTest, smallint_column_or_double_value) {
@@ -1069,6 +1075,7 @@ TEST(columnTest, smallint_column_or_double_value) {
     ASSERT_EQ(*((int64_t *)colDataGet(column, i)), eRes[i]);
   }
   taosArrayDestroyEx(blockList, scltFreeDataBlock);
+  nodesDestroyNode(opNode);
 }
 
 TEST(columnTest, smallint_column_greater_double_value) {
@@ -1101,6 +1108,7 @@ TEST(columnTest, smallint_column_greater_double_value) {
     ASSERT_EQ(*((bool *)colDataGet(column, i)), eRes[i]);
   }
   taosArrayDestroyEx(blockList, scltFreeDataBlock);
+  nodesDestroyNode(opNode);
 }
 
 TEST(columnTest, int_column_in_double_list) {
@@ -1140,6 +1148,7 @@ TEST(columnTest, int_column_in_double_list) {
     ASSERT_EQ(*((bool *)colDataGet(column, i)), eRes[i]);
   }
   taosArrayDestroyEx(blockList, scltFreeDataBlock);
+  nodesDestroyNode(opNode);
 }
 
 TEST(columnTest, binary_column_in_binary_list) {
@@ -1198,6 +1207,7 @@ TEST(columnTest, binary_column_in_binary_list) {
     ASSERT_EQ(*((bool *)colDataGet(column, i)), eRes[i]);
   }
   taosArrayDestroyEx(blockList, scltFreeDataBlock);
+  nodesDestroyNode(opNode);
 }
 
 TEST(columnTest, binary_column_like_binary) {
@@ -1242,6 +1252,7 @@ TEST(columnTest, binary_column_like_binary) {
   }
 
   taosArrayDestroyEx(blockList, scltFreeDataBlock);
+  nodesDestroyNode(opNode);
 }
 
 
@@ -1282,6 +1293,7 @@ TEST(columnTest, binary_column_is_true) {
     ASSERT_EQ(*((bool *)colDataGet(column, i)), eRes[i]);
   }
   taosArrayDestroyEx(blockList, scltFreeDataBlock);
+  nodesDestroyNode(opNode);
 }
 
 TEST(columnTest, binary_column_is_null) {
@@ -1325,6 +1337,7 @@ TEST(columnTest, binary_column_is_null) {
     ASSERT_EQ(*((bool *)colDataGet(column, i)), eRes[i]);
   }
   taosArrayDestroyEx(blockList, scltFreeDataBlock);
+  nodesDestroyNode(opNode);
 }
 
 TEST(columnTest, binary_column_is_not_null) {
@@ -1367,6 +1380,7 @@ TEST(columnTest, binary_column_is_not_null) {
     ASSERT_EQ(*((bool *)colDataGet(column, i)), eRes[i]);
   }
   taosArrayDestroyEx(blockList, scltFreeDataBlock);
+  nodesDestroyNode(opNode);
 }
 
 TEST(columnTest, greater_and_lower) {
@@ -1408,6 +1422,7 @@ TEST(columnTest, greater_and_lower) {
     ASSERT_EQ(*((bool *)colDataGet(column, i)), eRes[i]);
   }
   taosArrayDestroyEx(blockList, scltFreeDataBlock);
+  nodesDestroyNode(logicNode);
 }
 
 

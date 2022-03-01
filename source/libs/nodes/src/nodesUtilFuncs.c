@@ -102,6 +102,10 @@ SNode* nodesMakeNode(ENodeType type) {
 }
 
 static EDealRes destroyNode(SNode** pNode, void* pContext) {
+  if (NULL == pNode || NULL == *pNode) {
+    return DEAL_RES_IGNORE_CHILD;
+  }
+  
   switch (nodeType(*pNode)) {
     case QUERY_NODE_VALUE: {
       SValueNode* pValue = (SValueNode*)*pNode;
@@ -133,6 +137,10 @@ static EDealRes destroyNode(SNode** pNode, void* pContext) {
 }
 
 void nodesDestroyNode(SNode* pNode) {
+  if (NULL == pNode) {
+    return;
+  }
+  
   nodesRewriteNodePostOrder(&pNode, destroyNode, NULL);
 }
 
