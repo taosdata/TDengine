@@ -3,7 +3,7 @@
 
 %name NewParse
 
-%token_prefix NEW_TK_
+%token_prefix TK_
 %token_type { SToken }
 %default_type { SNode* }
 %default_destructor { PARSER_DESTRUCTOR_TRACE; nodesDestroyNode($$); }
@@ -57,14 +57,44 @@
 %left AND.
 //%right NOT.
 %left UNION ALL MINUS EXCEPT INTERSECT.
-//%left BITAND BITOR LSHIFT RSHIFT.
+%left NK_BITAND NK_BITOR NK_LSHIFT NK_RSHIFT.
 %left NK_PLUS NK_MINUS.
 //%left DIVIDE TIMES.
 %left NK_STAR NK_SLASH NK_REM.
-//%left CONCAT.
-//%right UMINUS UPLUS BITNOT.
+%left NK_CONCAT.
+//%right NK_BITNOT.
 
-cmd ::= SHOW DATABASES.                                                           { PARSER_TRACE; createShowStmt(pCxt, SHOW_TYPE_DATABASE); }
+/************************************************ create database *****************************************************/
+cmd ::= CREATE DATABASE exists_opt(A) db_name(B) db_options(C).                   { PARSER_TRACE; pCxt->pRootNode = createCreateDatabaseStmt(pCxt, A, &B, C);}
+
+%type exists_opt                                                                  { bool }
+exists_opt(A) ::= IF NOT EXISTS.                                                  { A = true; }
+exists_opt(A) ::= .                                                               { A = false; }
+
+%type db_options                                                                  { SDatabaseOptions* }
+%destructor db_options                                                            { tfree($$); }
+db_options(A) ::= .                                                               { A = createDefaultDatabaseOptions(pCxt);}
+db_options(A) ::= db_options(B) BLOCKS NK_INTEGER(C).                             { A = setDatabaseOption(pCxt, B, DB_OPTION_BLOCKS, &C); }
+db_options(A) ::= db_options(B) CACHE NK_INTEGER(C).                              { A = setDatabaseOption(pCxt, B, DB_OPTION_CACHE, &C); }
+db_options(A) ::= db_options(B) CACHELAST NK_INTEGER(X)(C).                       { A = setDatabaseOption(pCxt, B, DB_OPTION_CACHELAST, &C); }
+db_options(A) ::= db_options(B) COMP NK_INTEGER(C).                               { A = setDatabaseOption(pCxt, B, DB_OPTION_COMP, &C); }
+db_options(A) ::= db_options(B) DAYS NK_INTEGER(C).                               { A = setDatabaseOption(pCxt, B, DB_OPTION_DAYS, &C); }
+db_options(A) ::= db_options(B) FSYNC NK_INTEGER(C).                              { A = setDatabaseOption(pCxt, B, DB_OPTION_FSYNC, &C); }
+db_options(A) ::= db_options(B) MAXROWS NK_INTEGER(C).                            { A = setDatabaseOption(pCxt, B, DB_OPTION_MAXROWS, &C); }
+db_options(A) ::= db_options(B) MINROWS NK_INTEGER(C).                            { A = setDatabaseOption(pCxt, B, DB_OPTION_MINROWS, &C); }
+db_options(A) ::= db_options(B) KEEP NK_INTEGER(C).                               { A = setDatabaseOption(pCxt, B, DB_OPTION_KEEP, &C); }
+db_options(A) ::= db_options(B) PRECISION NK_STRING(C).                           { A = setDatabaseOption(pCxt, B, DB_OPTION_PRECISION, &C); }
+db_options(A) ::= db_options(B) QUORUM NK_INTEGER(C).                             { A = setDatabaseOption(pCxt, B, DB_OPTION_QUORUM, &C); }
+db_options(A) ::= db_options(B) REPLICA NK_INTEGER(C).                            { A = setDatabaseOption(pCxt, B, DB_OPTION_REPLICA, &C); }
+db_options(A) ::= db_options(B) TTL NK_INTEGER(C).                                { A = setDatabaseOption(pCxt, B, DB_OPTION_TTL, &C); }
+db_options(A) ::= db_options(B) WAL NK_INTEGER(C).                                { A = setDatabaseOption(pCxt, B, DB_OPTION_WAL, &C); }
+db_options(A) ::= db_options(B) VGROUPS NK_INTEGER(C).                            { A = setDatabaseOption(pCxt, B, DB_OPTION_VGROUPS, &C); }
+db_options(A) ::= db_options(B) SINGLESTABLE NK_INTEGER(C).                       { A = setDatabaseOption(pCxt, B, DB_OPTION_SINGLESTABLE, &C); }
+db_options(A) ::= db_options(B) STREAMMODE NK_INTEGER(C).                         { A = setDatabaseOption(pCxt, B, DB_OPTION_STREAMMODE, &C); }
+
+//cmd ::= SHOW DATABASES.                                                           { PARSER_TRACE; createShowStmt(pCxt, SHOW_TYPE_DATABASE); }
+
+/************************************************ select *************************************************************/
 cmd ::= query_expression(A).                                                      { PARSER_TRACE; pCxt->pRootNode = A; }
 
 /************************************************ literal *************************************************************/

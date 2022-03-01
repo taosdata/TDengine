@@ -34,6 +34,243 @@
 
 SToken nil_token = { .type = TK_NIL, .n = 0, .z = NULL };
 
+typedef SDatabaseOptions* (*FSetDatabaseOption)(SAstCreateContext* pCxt, SDatabaseOptions* pOptions, const SToken* pVal);
+
+static FSetDatabaseOption setDbOptionFuncs[DB_OPTION_MAX];
+
+static SDatabaseOptions* setDbBlocks(SAstCreateContext* pCxt, SDatabaseOptions* pOptions, const SToken* pVal) {
+  int64_t val = strtol(pVal->z, NULL, 10);
+  if (val < TSDB_MIN_TOTAL_BLOCKS || val > TSDB_MAX_TOTAL_BLOCKS) {
+    snprintf(pCxt->pQueryCxt->pMsg, pCxt->pQueryCxt->msgLen,
+        "invalid db option totalBlocks: %d valid range: [%d, %d]", val, TSDB_MIN_TOTAL_BLOCKS, TSDB_MAX_TOTAL_BLOCKS);
+    pCxt->valid = false;
+    return pOptions;
+  }
+  pOptions->numOfBlocks = val;
+  return pOptions;
+}
+
+static SDatabaseOptions* setDbCache(SAstCreateContext* pCxt, SDatabaseOptions* pOptions, const SToken* pVal) {
+  int64_t val = strtol(pVal->z, NULL, 10);
+  if (val < TSDB_MIN_CACHE_BLOCK_SIZE || val > TSDB_MAX_CACHE_BLOCK_SIZE) {
+    snprintf(pCxt->pQueryCxt->pMsg, pCxt->pQueryCxt->msgLen,
+        "invalid db option cacheBlockSize: %d valid range: [%d, %d]", val, TSDB_MIN_CACHE_BLOCK_SIZE, TSDB_MAX_CACHE_BLOCK_SIZE);
+    pCxt->valid = false;
+    return pOptions;
+  }
+  pOptions->cacheBlockSize = val;
+  return pOptions;
+}
+
+static SDatabaseOptions* setDbCacheLast(SAstCreateContext* pCxt, SDatabaseOptions* pOptions, const SToken* pVal) {
+  int64_t val = strtol(pVal->z, NULL, 10);
+  if (val < TSDB_MIN_DB_CACHE_LAST_ROW || val > TSDB_MAX_DB_CACHE_LAST_ROW) {
+    snprintf(pCxt->pQueryCxt->pMsg, pCxt->pQueryCxt->msgLen,
+        "invalid db option cacheLast: %d valid range: [%d, %d]", val, TSDB_MIN_DB_CACHE_LAST_ROW, TSDB_MAX_DB_CACHE_LAST_ROW);
+    pCxt->valid = false;
+    return pOptions;
+  }
+  pOptions->cachelast = val;
+  return pOptions;
+}
+
+static SDatabaseOptions* setDbComp(SAstCreateContext* pCxt, SDatabaseOptions* pOptions, const SToken* pVal) {
+  int64_t val = strtol(pVal->z, NULL, 10);
+  if (val < TSDB_MIN_COMP_LEVEL || val > TSDB_MAX_COMP_LEVEL) {
+    snprintf(pCxt->pQueryCxt->pMsg, pCxt->pQueryCxt->msgLen,
+        "invalid db option compression: %d valid range: [%d, %d]", val, TSDB_MIN_COMP_LEVEL, TSDB_MAX_COMP_LEVEL);
+    pCxt->valid = false;
+    return pOptions;
+  }
+  pOptions->compressionLevel = val;
+  return pOptions;
+}
+
+static SDatabaseOptions* setDbDays(SAstCreateContext* pCxt, SDatabaseOptions* pOptions, const SToken* pVal) {
+  int64_t val = strtol(pVal->z, NULL, 10);
+  if (val < TSDB_MIN_DAYS_PER_FILE || val > TSDB_MAX_DAYS_PER_FILE) {
+    snprintf(pCxt->pQueryCxt->pMsg, pCxt->pQueryCxt->msgLen,
+        "invalid db option daysPerFile: %d valid range: [%d, %d]", val, TSDB_MIN_DAYS_PER_FILE, TSDB_MAX_DAYS_PER_FILE);
+    pCxt->valid = false;
+    return pOptions;
+  }
+  pOptions->daysPerFile = val;
+  return pOptions;
+}
+
+static SDatabaseOptions* setDbFsync(SAstCreateContext* pCxt, SDatabaseOptions* pOptions, const SToken* pVal) {
+  int64_t val = strtol(pVal->z, NULL, 10);
+  if (val < TSDB_MIN_FSYNC_PERIOD || val > TSDB_MAX_FSYNC_PERIOD) {
+    snprintf(pCxt->pQueryCxt->pMsg, pCxt->pQueryCxt->msgLen,
+        "invalid db option fsyncPeriod: %d valid range: [%d, %d]", val, TSDB_MIN_FSYNC_PERIOD, TSDB_MAX_FSYNC_PERIOD);
+    pCxt->valid = false;
+    return pOptions;
+  }
+  pOptions->fsyncPeriod = val;
+  return pOptions;
+}
+
+static SDatabaseOptions* setDbMaxRows(SAstCreateContext* pCxt, SDatabaseOptions* pOptions, const SToken* pVal) {
+  int64_t val = strtol(pVal->z, NULL, 10);
+  if (val < TSDB_MIN_MAX_ROW_FBLOCK || val > TSDB_MAX_MAX_ROW_FBLOCK) {
+    snprintf(pCxt->pQueryCxt->pMsg, pCxt->pQueryCxt->msgLen,
+        "invalid db option maxRowsPerBlock: %d valid range: [%d, %d]", val, TSDB_MIN_MAX_ROW_FBLOCK, TSDB_MAX_MAX_ROW_FBLOCK);
+    pCxt->valid = false;
+    return pOptions;
+  }
+  pOptions->maxRowsPerBlock = val;
+  return pOptions;
+}
+
+static SDatabaseOptions* setDbMinRows(SAstCreateContext* pCxt, SDatabaseOptions* pOptions, const SToken* pVal) {
+  int64_t val = strtol(pVal->z, NULL, 10);
+  if (val < TSDB_MIN_MIN_ROW_FBLOCK || val > TSDB_MAX_MIN_ROW_FBLOCK) {
+    snprintf(pCxt->pQueryCxt->pMsg, pCxt->pQueryCxt->msgLen,
+        "invalid db option minRowsPerBlock: %d valid range: [%d, %d]", val, TSDB_MIN_MIN_ROW_FBLOCK, TSDB_MAX_MIN_ROW_FBLOCK);
+    pCxt->valid = false;
+    return pOptions;
+  }
+  pOptions->minRowsPerBlock = val;
+  return pOptions;
+}
+
+static SDatabaseOptions* setDbKeep(SAstCreateContext* pCxt, SDatabaseOptions* pOptions, const SToken* pVal) {
+  int64_t val = strtol(pVal->z, NULL, 10);
+  if (val < TSDB_MIN_KEEP || val > TSDB_MAX_KEEP) {
+    snprintf(pCxt->pQueryCxt->pMsg, pCxt->pQueryCxt->msgLen,
+        "invalid db option keep: %d valid range: [%d, %d]", val, TSDB_MIN_KEEP, TSDB_MAX_KEEP);
+    pCxt->valid = false;
+    return pOptions;
+  }
+  pOptions->keep = val;
+  return pOptions;
+}
+
+static SDatabaseOptions* setDbPrecision(SAstCreateContext* pCxt, SDatabaseOptions* pOptions, const SToken* pVal) {
+  if (0 == strncmp(pVal->z, TSDB_TIME_PRECISION_MILLI_STR, pVal->n) && strlen(TSDB_TIME_PRECISION_MILLI_STR) == pVal->n) {
+    pOptions->precision = TSDB_TIME_PRECISION_MILLI;
+  } else if (0 == strncmp(pVal->z, TSDB_TIME_PRECISION_MICRO_STR, pVal->n) && strlen(TSDB_TIME_PRECISION_MICRO_STR) == pVal->n) {
+    pOptions->precision = TSDB_TIME_PRECISION_MICRO;
+  } else if (0 == strncmp(pVal->z, TSDB_TIME_PRECISION_NANO_STR, pVal->n) && strlen(TSDB_TIME_PRECISION_NANO_STR) == pVal->n) {
+    pOptions->precision = TSDB_TIME_PRECISION_NANO;
+  } else {
+    char tmp[10];
+    strncpy(tmp, pVal->z, pVal->n);
+    snprintf(pCxt->pQueryCxt->pMsg, pCxt->pQueryCxt->msgLen, "invalid db option precision: %s", tmp);
+    pCxt->valid = false;
+  }
+  return pOptions;
+}
+
+static SDatabaseOptions* setDbQuorum(SAstCreateContext* pCxt, SDatabaseOptions* pOptions, const SToken* pVal) {
+  int64_t val = strtol(pVal->z, NULL, 10);
+  if (val < TSDB_MIN_DB_QUORUM_OPTION || val > TSDB_MAX_DB_QUORUM_OPTION) {
+    snprintf(pCxt->pQueryCxt->pMsg, pCxt->pQueryCxt->msgLen,
+        "invalid db option quorum: %d valid range: [%d, %d]", val, TSDB_MIN_DB_QUORUM_OPTION, TSDB_MAX_DB_QUORUM_OPTION);
+    pCxt->valid = false;
+    return pOptions;
+  }
+  pOptions->quorum = val;
+  return pOptions;
+}
+
+static SDatabaseOptions* setDbReplica(SAstCreateContext* pCxt, SDatabaseOptions* pOptions, const SToken* pVal) {
+  int64_t val = strtol(pVal->z, NULL, 10);
+  if (val < TSDB_MIN_DB_REPLICA_OPTION || val > TSDB_MAX_DB_REPLICA_OPTION) {
+    snprintf(pCxt->pQueryCxt->pMsg, pCxt->pQueryCxt->msgLen,
+        "invalid db option replications: %d valid range: [%d, %d]", val, TSDB_MIN_DB_REPLICA_OPTION, TSDB_MAX_DB_REPLICA_OPTION);
+    pCxt->valid = false;
+    return pOptions;
+  }
+  pOptions->replica = val;
+  return pOptions;
+}
+
+static SDatabaseOptions* setDbTtl(SAstCreateContext* pCxt, SDatabaseOptions* pOptions, const SToken* pVal) {
+  int64_t val = strtol(pVal->z, NULL, 10);
+  if (val < TSDB_MIN_DB_TTL_OPTION) {
+    snprintf(pCxt->pQueryCxt->pMsg, pCxt->pQueryCxt->msgLen,
+        "invalid db option ttl: %d, should be greater than or equal to %d", val, TSDB_MIN_DB_TTL_OPTION);
+    pCxt->valid = false;
+    return pOptions;
+  }
+  pOptions->ttl = val;
+  return pOptions;
+}
+
+static SDatabaseOptions* setDbWal(SAstCreateContext* pCxt, SDatabaseOptions* pOptions, const SToken* pVal) {
+  int64_t val = strtol(pVal->z, NULL, 10);
+  if (val < TSDB_MIN_WAL_LEVEL || val > TSDB_MAX_WAL_LEVEL) {
+    snprintf(pCxt->pQueryCxt->pMsg, pCxt->pQueryCxt->msgLen, "invalid db option walLevel: %d, only 1-2 allowed", val);
+    pCxt->valid = false;
+    return pOptions;
+  }
+  pOptions->walLevel = val;
+  return pOptions;
+}
+
+static SDatabaseOptions* setDbVgroups(SAstCreateContext* pCxt, SDatabaseOptions* pOptions, const SToken* pVal) {
+  int64_t val = strtol(pVal->z, NULL, 10);
+  if (val < TSDB_MIN_VNODES_PER_DB || val > TSDB_MAX_VNODES_PER_DB) {
+    snprintf(pCxt->pQueryCxt->pMsg, pCxt->pQueryCxt->msgLen,
+        "invalid db option vgroups: %d valid range: [%d, %d]", val, TSDB_MIN_VNODES_PER_DB, TSDB_MAX_VNODES_PER_DB);
+    pCxt->valid = false;
+    return pOptions;
+  }
+  pOptions->numOfVgroups = val;
+  return pOptions;
+}
+
+static SDatabaseOptions* setDbSingleStable(SAstCreateContext* pCxt, SDatabaseOptions* pOptions, const SToken* pVal) {
+  int64_t val = strtol(pVal->z, NULL, 10);
+  if (val < TSDB_MIN_DB_SINGLE_STABLE_OPTION || val > TSDB_MAX_DB_SINGLE_STABLE_OPTION) {
+    snprintf(pCxt->pQueryCxt->pMsg, pCxt->pQueryCxt->msgLen, "invalid db option singleStable: %d, only 0-1 allowed", val);
+    pCxt->valid = false;
+    return pOptions;
+  }
+  pOptions->singleStable = val;
+  return pOptions;
+}
+
+static SDatabaseOptions* setDbStreamMode(SAstCreateContext* pCxt, SDatabaseOptions* pOptions, const SToken* pVal) {
+  int64_t val = strtol(pVal->z, NULL, 10);
+  if (val < TSDB_MIN_DB_STREAM_MODE_OPTION || val > TSDB_MAX_DB_STREAM_MODE_OPTION) {
+    snprintf(pCxt->pQueryCxt->pMsg, pCxt->pQueryCxt->msgLen, "invalid db option streamMode: %d, only 0-1 allowed", val);
+    pCxt->valid = false;
+    return pOptions;
+  }
+  pOptions->streamMode = val;
+  return pOptions;
+}
+
+static void initSetDatabaseOptionFp() {
+  setDbOptionFuncs[DB_OPTION_BLOCKS] = setDbBlocks;
+  setDbOptionFuncs[DB_OPTION_CACHE] = setDbCache;
+  setDbOptionFuncs[DB_OPTION_CACHELAST] = setDbCacheLast;
+  setDbOptionFuncs[DB_OPTION_COMP] = setDbComp;
+  setDbOptionFuncs[DB_OPTION_DAYS] = setDbDays;
+  setDbOptionFuncs[DB_OPTION_FSYNC] = setDbFsync;
+  setDbOptionFuncs[DB_OPTION_MAXROWS] = setDbMaxRows;
+  setDbOptionFuncs[DB_OPTION_MINROWS] = setDbMinRows;
+  setDbOptionFuncs[DB_OPTION_KEEP] = setDbKeep;
+  setDbOptionFuncs[DB_OPTION_PRECISION] = setDbPrecision;
+  setDbOptionFuncs[DB_OPTION_QUORUM] = setDbQuorum;
+  setDbOptionFuncs[DB_OPTION_REPLICA] = setDbReplica;
+  setDbOptionFuncs[DB_OPTION_TTL] = setDbTtl;
+  setDbOptionFuncs[DB_OPTION_WAL] = setDbWal;
+  setDbOptionFuncs[DB_OPTION_VGROUPS] = setDbVgroups;
+  setDbOptionFuncs[DB_OPTION_SINGLESTABLE] = setDbSingleStable;
+  setDbOptionFuncs[DB_OPTION_STREAMMODE] = setDbStreamMode;
+}
+
+void initAstCreateContext(SParseContext* pParseCxt, SAstCreateContext* pCxt) {
+  pCxt->pQueryCxt = pParseCxt;
+  pCxt->notSupport = false;
+  pCxt->valid = true;
+  pCxt->pRootNode = NULL;
+  initSetDatabaseOptionFp();
+}
+
 static bool checkDbName(SAstCreateContext* pCxt, const SToken* pDbName) {
   if (NULL == pDbName) {
     return true;
@@ -376,9 +613,41 @@ SNode* createSetOperator(SAstCreateContext* pCxt, ESetOperatorType type, SNode* 
   return (SNode*)setOp;
 }
 
-SNode* createShowStmt(SAstCreateContext* pCxt, EShowStmtType type) {
-  SShowStmt* show = (SShowStmt*)nodesMakeNode(QUERY_NODE_SHOW_STMT);
-  CHECK_OUT_OF_MEM(show);
-  show->showType = type;
-  return (SNode*)show;
+SDatabaseOptions* createDefaultDatabaseOptions(SAstCreateContext* pCxt) {
+  SDatabaseOptions* pOptions = calloc(1, sizeof(SDatabaseOptions));
+  CHECK_OUT_OF_MEM(pOptions);
+  pOptions->numOfBlocks = TSDB_DEFAULT_TOTAL_BLOCKS;
+  pOptions->cacheBlockSize = TSDB_DEFAULT_CACHE_BLOCK_SIZE;
+  pOptions->cachelast = TSDB_DEFAULT_CACHE_LAST_ROW;
+  pOptions->compressionLevel = TSDB_DEFAULT_COMP_LEVEL;
+  pOptions->daysPerFile = TSDB_DEFAULT_DAYS_PER_FILE;
+  pOptions->fsyncPeriod = TSDB_DEFAULT_FSYNC_PERIOD;
+  pOptions->maxRowsPerBlock = TSDB_DEFAULT_MAX_ROW_FBLOCK;
+  pOptions->minRowsPerBlock = TSDB_DEFAULT_MIN_ROW_FBLOCK;
+  pOptions->keep = TSDB_DEFAULT_KEEP;
+  pOptions->precision = TSDB_TIME_PRECISION_MILLI;
+  pOptions->quorum = TSDB_DEFAULT_DB_QUORUM_OPTION;
+  pOptions->replica = TSDB_DEFAULT_DB_REPLICA_OPTION;
+  pOptions->ttl = TSDB_DEFAULT_DB_TTL_OPTION;
+  pOptions->walLevel = TSDB_DEFAULT_WAL_LEVEL;
+  pOptions->numOfVgroups = TSDB_DEFAULT_VN_PER_DB;
+  pOptions->singleStable = TSDB_DEFAULT_DB_SINGLE_STABLE_OPTION;
+  pOptions->streamMode = TSDB_DEFAULT_DB_STREAM_MODE_OPTION;
+  return pOptions;
+}
+
+SDatabaseOptions* setDatabaseOption(SAstCreateContext* pCxt, SDatabaseOptions* pOptions, EDatabaseOptionType type, const SToken* pVal) {
+  return setDbOptionFuncs[type](pCxt, pOptions, pVal);
+}
+
+SNode* createCreateDatabaseStmt(SAstCreateContext* pCxt, bool ignoreExists, const SToken* pDbName, SDatabaseOptions* pOptions) {
+  if (!checkDbName(pCxt, pDbName)) {
+    return NULL;
+  }
+  SCreateDatabaseStmt* pStmt = (SCreateDatabaseStmt*)nodesMakeNode(QUERY_NODE_CREATE_DATABASE_STMT);
+  CHECK_OUT_OF_MEM(pStmt);
+  strncpy(pStmt->dbName, pDbName->z, pDbName->n);
+  pStmt->ignoreExists = ignoreExists;
+  pStmt->options = *pOptions;
+  return (SNode*)pStmt;
 }

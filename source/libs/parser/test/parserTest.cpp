@@ -612,10 +612,10 @@ TEST_F(ParserTest, selectSemanticError) {
   setDatabase("root", "test");
 
   // TSDB_CODE_PAR_INVALID_COLUMN
-  bind("SELECT c1, c3 FROM t1");
+  bind("SELECT c1, cc1 FROM t1");
   ASSERT_TRUE(run(TSDB_CODE_SUCCESS, TSDB_CODE_PAR_INVALID_COLUMN));
 
-  bind("SELECT t1.c1, t1.c3 FROM t1");
+  bind("SELECT t1.c1, t1.cc1 FROM t1");
   ASSERT_TRUE(run(TSDB_CODE_SUCCESS, TSDB_CODE_PAR_INVALID_COLUMN));
 
   // TSDB_CODE_PAR_TABLE_NOT_EXIST

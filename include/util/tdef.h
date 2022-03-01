@@ -338,6 +338,17 @@ typedef enum ELogicConditionType {
 #define TSDB_MAX_DB_CACHE_LAST_ROW      3
 #define TSDB_DEFAULT_CACHE_LAST_ROW     0
 
+#define TSDB_MIN_DB_TTL_OPTION          1
+#define TSDB_DEFAULT_DB_TTL_OPTION      0
+
+#define TSDB_MIN_DB_SINGLE_STABLE_OPTION          0
+#define TSDB_MAX_DB_SINGLE_STABLE_OPTION          1
+#define TSDB_DEFAULT_DB_SINGLE_STABLE_OPTION      0
+
+#define TSDB_MIN_DB_STREAM_MODE_OPTION          0
+#define TSDB_MAX_DB_STREAM_MODE_OPTION          1
+#define TSDB_DEFAULT_DB_STREAM_MODE_OPTION      0
+
 #define TSDB_MAX_JOIN_TABLE_NUM         10
 #define TSDB_MAX_UNION_CLAUSE           5
 

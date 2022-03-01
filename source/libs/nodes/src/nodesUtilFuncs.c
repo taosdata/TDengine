@@ -200,6 +200,9 @@ SNode* nodesListGetNode(SNodeList* pList, int32_t index) {
 }
 
 void nodesDestroyList(SNodeList* pList) {
+  if (NULL == pList) {
+    return;
+  }
   SListCell* pNext = pList->pHead;
   while (NULL != pNext) {
     pNext = nodesListErase(pList, pNext);

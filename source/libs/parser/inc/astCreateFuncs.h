@@ -20,7 +20,7 @@
 extern "C" {
 #endif
 
-#include "nodesShowStmts.h"
+#include "cmdnodes.h"
 #include "parser.h"
 #include "querynodes.h"
 #include "ttoken.h"
@@ -33,6 +33,8 @@ typedef struct SAstCreateContext {
 } SAstCreateContext;
 
 extern SToken nil_token;
+
+void initAstCreateContext(SParseContext* pParseCxt, SAstCreateContext* pCxt);
 
 SNode* createRawExprNode(SAstCreateContext* pCxt, const SToken* pToken, SNode* pNode);
 SNode* createRawExprNodeExt(SAstCreateContext* pCxt, const SToken* pStart, const SToken* pEnd, SNode* pNode);
@@ -74,7 +76,33 @@ SNode* addLimitClause(SAstCreateContext* pCxt, SNode* pStmt, SNode* pLimit);
 SNode* createSelectStmt(SAstCreateContext* pCxt, bool isDistinct, SNodeList* pProjectionList, SNode* pTable);
 SNode* createSetOperator(SAstCreateContext* pCxt, ESetOperatorType type, SNode* pLeft, SNode* pRight);
 
-SNode* createShowStmt(SAstCreateContext* pCxt, EShowStmtType type);
+SDatabaseOptions* createDefaultDatabaseOptions(SAstCreateContext* pCxt);
+
+typedef enum EDatabaseOptionType {
+  DB_OPTION_BLOCKS = 0,
+  DB_OPTION_CACHE,
+  DB_OPTION_CACHELAST,
+  DB_OPTION_COMP,
+  DB_OPTION_DAYS,
+  DB_OPTION_FSYNC,
+  DB_OPTION_MAXROWS,
+  DB_OPTION_MINROWS,
+  DB_OPTION_KEEP,
+  DB_OPTION_PRECISION,
+  DB_OPTION_QUORUM,
+  DB_OPTION_REPLICA,
+  DB_OPTION_TTL,
+  DB_OPTION_WAL,
+  DB_OPTION_VGROUPS,
+  DB_OPTION_SINGLESTABLE,
+  DB_OPTION_STREAMMODE,
+
+  DB_OPTION_MAX
+} EDatabaseOptionType;
+
+SDatabaseOptions* setDatabaseOption(SAstCreateContext* pCxt, SDatabaseOptions* pOptions, EDatabaseOptionType type, const SToken* pVal);
+
+SNode* createCreateDatabaseStmt(SAstCreateContext* pCxt, bool ignoreExists, const SToken* pDbName, SDatabaseOptions* pOptions);
 
 
 #ifdef __cplusplus

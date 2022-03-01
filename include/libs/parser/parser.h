@@ -35,11 +35,19 @@ typedef struct SParseContext {
   struct SCatalog *pCatalog;
 } SParseContext;
 
+typedef struct SCmdMsgInfo {
+  int16_t msgType;
+  SEpSet epSet;
+  char* pMsg;
+  int32_t msgLen;
+} SCmdMsgInfo;
+
 typedef struct SQuery {
   bool isCmd;
   SNode* pRoot;
   int32_t numOfResCols;
   SSchema* pResSchema;
+  SCmdMsgInfo* pCmdMsg;
 } SQuery;
 
 int32_t qParseQuerySql(SParseContext* pCxt, SQuery** pQuery);

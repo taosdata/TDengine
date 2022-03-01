@@ -16,6 +16,7 @@
 #include "parserInt.h"
 
 #include "catalog.h"
+#include "cmdnodes.h"
 #include "functionMgt.h"
 #include "parserUtil.h"
 #include "ttime.h"
@@ -36,6 +37,7 @@ typedef struct STranslateContext {
   int32_t currLevel;
   ESqlClause currClause;
   SSelectStmt* pCurrStmt;
+  SCmdMsgInfo* pCmdMsg;
 } STranslateContext;
 
 static int32_t translateSubquery(STranslateContext* pCxt, SNode* pNode);
@@ -278,9 +280,12 @@ static EDealRes translateColumn(STranslateContext* pCxt, SColumnNode* pCol) {
   return found ? DEAL_RES_CONTINUE : translateColumnWithoutPrefix(pCxt, pCol);
 }
 
-static int32_t trimStringCopy(const char* src, int32_t len, char* dst) {
-  varDataSetLen(dst, len);
-  char* dstVal = varDataVal(dst);
+static int32_t trimStringCopy(const char* src, int32_t len, bool format, char* dst) {
+  char* dstVal = dst;
+  if (format) {
+    varDataSetLen(dst, len);
+    dstVal = varDataVal(dst);
+  }
   // delete escape character: \\, \', \"
   char delim = src[0];
   int32_t cnt = 0;
@@ -346,7 +351,7 @@ static EDealRes translateValue(STranslateContext* pCxt, SValueNode* pVal) {
           generateSyntaxErrMsg(pCxt, TSDB_CODE_OUT_OF_MEMORY);
           return DEAL_RES_ERROR;
         }
-        trimStringCopy(pVal->literal, n, pVal->datum.p);
+        trimStringCopy(pVal->literal, n, true, pVal->datum.p);
         break;
       }
       case TSDB_DATA_TYPE_TIMESTAMP: {
@@ -356,7 +361,7 @@ static EDealRes translateValue(STranslateContext* pCxt, SValueNode* pVal) {
           generateSyntaxErrMsg(pCxt, TSDB_CODE_OUT_OF_MEMORY);
           return DEAL_RES_ERROR;
         }
-        int32_t len = trimStringCopy(pVal->literal, n, tmp);
+        int32_t len = trimStringCopy(pVal->literal, n, false, tmp);
         if (taosParseTime(tmp, &pVal->datum.i, len, pVal->node.resType.precision, tsDaylight) != TSDB_CODE_SUCCESS) {
           tfree(tmp);
           generateSyntaxErrMsg(pCxt, TSDB_CODE_PAR_WRONG_VALUE_TYPE, pVal->literal);
@@ -777,11 +782,61 @@ static int32_t translateSelect(STranslateContext* pCxt, SSelectStmt* pSelect) {
   return code;
 }
 
+static void buildCreateDbReq(STranslateContext* pCxt, SCreateDatabaseStmt* pStmt, SCreateDbReq* pReq) {
+  SName name = {0};
+  tNameSetDbName(&name, pCxt->pParseCxt->acctId, pStmt->dbName, strlen(pStmt->dbName));
+  tNameGetFullDbName(&name, pReq->db);
+  pReq->numOfVgroups = pStmt->options.numOfVgroups;
+  pReq->cacheBlockSize = pStmt->options.cacheBlockSize;
+  pReq->totalBlocks = pStmt->options.numOfBlocks;
+  pReq->daysPerFile = pStmt->options.daysPerFile;
+  pReq->daysToKeep0 = pStmt->options.keep;
+  pReq->daysToKeep1 = -1;
+  pReq->daysToKeep2 = -1;
+  pReq->minRows = pStmt->options.minRowsPerBlock;
+  pReq->maxRows = pStmt->options.maxRowsPerBlock;
+  pReq->commitTime = -1;
+  pReq->fsyncPeriod = pStmt->options.fsyncPeriod;
+  pReq->walLevel = pStmt->options.walLevel;
+  pReq->precision = pStmt->options.precision;
+  pReq->compression = pStmt->options.compressionLevel;
+  pReq->replications = pStmt->options.replica;
+  pReq->quorum = pStmt->options.quorum;
+  pReq->update = -1;
+  pReq->cacheLastRow = pStmt->options.cachelast;
+  pReq->ignoreExist = pStmt->ignoreExists;
+  pReq->streamMode = pStmt->options.streamMode;
+  return;
+}
+
+static int32_t translateCreateDatabase(STranslateContext* pCxt, SCreateDatabaseStmt* pStmt) {
+  SCreateDbReq createReq = {0};
+  buildCreateDbReq(pCxt, pStmt, &createReq);
+
+  pCxt->pCmdMsg = malloc(sizeof(SCmdMsgInfo));
+  if (NULL== pCxt->pCmdMsg) {
+    return TSDB_CODE_OUT_OF_MEMORY;
+  }
+  pCxt->pCmdMsg->epSet = pCxt->pParseCxt->mgmtEpSet;
+  pCxt->pCmdMsg->msgType = TDMT_MND_CREATE_DB;
+  pCxt->pCmdMsg->msgLen = tSerializeSCreateDbReq(NULL, 0, &createReq);
+  pCxt->pCmdMsg->pMsg = malloc(pCxt->pCmdMsg->msgLen);
+  if (NULL== pCxt->pCmdMsg->pMsg) {
+    return TSDB_CODE_OUT_OF_MEMORY;
+  }
+  tSerializeSCreateDbReq(pCxt->pCmdMsg->pMsg, pCxt->pCmdMsg->msgLen, &createReq);
+
+  return TSDB_CODE_SUCCESS;
+}
+
 static int32_t translateQuery(STranslateContext* pCxt, SNode* pNode) {
   int32_t code = TSDB_CODE_SUCCESS;
   switch (nodeType(pNode)) {
     case QUERY_NODE_SELECT_STMT:
       code = translateSelect(pCxt, (SSelectStmt*)pNode);
+      break;
+    case QUERY_NODE_CREATE_DATABASE_STMT:
+      code = translateCreateDatabase(pCxt, (SCreateDatabaseStmt*)pNode);
       break;
     default:
       break;
@@ -820,6 +875,14 @@ int32_t setReslutSchema(STranslateContext* pCxt, SQuery* pQuery) {
   return TSDB_CODE_SUCCESS;
 }
 
+void destroyTranslateContext(STranslateContext* pCxt) {
+  taosArrayDestroy(pCxt->pNsLevel);
+  if (NULL != pCxt->pCmdMsg) {
+    tfree(pCxt->pCmdMsg->pMsg);
+    tfree(pCxt->pCmdMsg);
+  }
+}
+
 int32_t doTranslate(SParseContext* pParseCxt, SQuery* pQuery) {
   STranslateContext cxt = {
     .pParseCxt = pParseCxt,
@@ -833,8 +896,14 @@ int32_t doTranslate(SParseContext* pParseCxt, SQuery* pQuery) {
   if (TSDB_CODE_SUCCESS == code) {
     code = translateQuery(&cxt, pQuery->pRoot);
   }
-  if (TSDB_CODE_SUCCESS == code && !pQuery->isCmd) {
-    code = setReslutSchema(&cxt, pQuery);
+  if (TSDB_CODE_SUCCESS == code) {
+    if (pQuery->isCmd) {
+      pQuery->pCmdMsg = cxt.pCmdMsg;
+      cxt.pCmdMsg = NULL;
+    } else {
+      code = setReslutSchema(&cxt, pQuery);
+    }
   }
+  destroyTranslateContext(&cxt);
   return code;
 }

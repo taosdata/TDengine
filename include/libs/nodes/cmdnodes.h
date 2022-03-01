@@ -13,8 +13,8 @@
  * along with this program. If not, see <http://www.gnu.org/licenses/>.
  */
 
-#ifndef _TD_NODES_SHOW_STMTS_H_
-#define _TD_NODES_SHOW_STMTS_H_
+#ifndef _TD_PLANN_NODES_H_
+#define _TD_PLANN_NODES_H_
 
 #ifdef __cplusplus
 extern "C" {
@@ -22,17 +22,35 @@ extern "C" {
 
 #include "nodes.h"
 
-typedef enum EShowStmtType {
-  SHOW_TYPE_DATABASE = 1
-} EShowStmtType;
+typedef struct SDatabaseOptions {
+  int32_t numOfBlocks;
+  int32_t cacheBlockSize;
+  int8_t cachelast;
+  int32_t compressionLevel;
+  int32_t daysPerFile;
+  int32_t fsyncPeriod;
+  int32_t maxRowsPerBlock;
+  int32_t minRowsPerBlock;
+  int32_t keep;
+  int32_t precision;
+  int32_t quorum;
+  int32_t replica;
+  int32_t ttl;
+  int32_t walLevel;
+  int32_t numOfVgroups;
+  int8_t singleStable;
+  int8_t streamMode;
+} SDatabaseOptions;
 
-typedef struct SShowStmt {
-  ENodeType type; // QUERY_NODE_SHOW_STMT
-  EShowStmtType showType;
-} SShowStmt;
+typedef struct SCreateDatabaseStmt {
+  ENodeType type;
+  char dbName[TSDB_DB_NAME_LEN];
+  bool ignoreExists;
+  SDatabaseOptions options;
+} SCreateDatabaseStmt;
 
 #ifdef __cplusplus
 }
 #endif
 
-#endif /*_TD_NODES_SHOW_STMTS_H_*/
+#endif /*_TD_PLANN_NODES_H_*/

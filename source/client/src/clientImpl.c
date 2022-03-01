@@ -161,7 +161,7 @@ int32_t parseSql(SRequestObj* pRequest, SQuery** pQuery) {
   }
 
   code = qParseQuerySql(&cxt, pQuery);
-  if (TSDB_CODE_SUCCESS == code) {
+  if (TSDB_CODE_SUCCESS == code && !((*pQuery)->isCmd)) {
     setResSchemaInfo(&pRequest->body.resInfo, (*pQuery)->pResSchema, (*pQuery)->numOfResCols);
   }
 
@@ -170,28 +170,16 @@ int32_t parseSql(SRequestObj* pRequest, SQuery** pQuery) {
 }
 
 int32_t execDdlQuery(SRequestObj* pRequest, SQuery* pQuery) {
-  // SDclStmtInfo* pDcl = (SDclStmtInfo*)pQuery;
-  // pRequest->type = pDcl->msgType;
-  // pRequest->body.requestMsg = (SDataBuf){.pData = pDcl->pMsg, .len = pDcl->msgLen, .handle = NULL};
+  SCmdMsgInfo* pMsgInfo = pQuery->pCmdMsg;
+  pRequest->type = pMsgInfo->msgType;
+  pRequest->body.requestMsg = (SDataBuf){.pData = pMsgInfo->pMsg, .len = pMsgInfo->msgLen, .handle = NULL};
 
-  // STscObj*      pTscObj = pRequest->pTscObj;
-  // SMsgSendInfo* pSendMsg = buildMsgInfoImpl(pRequest);
+  STscObj*      pTscObj = pRequest->pTscObj;
+  SMsgSendInfo* pSendMsg = buildMsgInfoImpl(pRequest);
+  int64_t transporterId = 0;
+  asyncSendMsgToServer(pTscObj->pAppInfo->pTransporter, &pMsgInfo->epSet, &transporterId, pSendMsg);
 
-  // int64_t transporterId = 0;
-  // if (pDcl->msgType == TDMT_VND_CREATE_TABLE || pDcl->msgType == TDMT_VND_SHOW_TABLES) {
-  //   if (pDcl->msgType == TDMT_VND_SHOW_TABLES) {
-  //     SShowReqInfo* pShowReqInfo = &pRequest->body.showInfo;
-  //     if (pShowReqInfo->pArray == NULL) {
-  //       pShowReqInfo->currentIndex = 0;  // set the first vnode/ then iterate the next vnode
-  //       pShowReqInfo->pArray = pDcl->pExtension;
-  //     }
-  //   }
-  //   asyncSendMsgToServer(pTscObj->pAppInfo->pTransporter, &pDcl->epSet, &transporterId, pSendMsg);
-  // } else {
-  //   asyncSendMsgToServer(pTscObj->pAppInfo->pTransporter, &pDcl->epSet, &transporterId, pSendMsg);
-  // }
-
-  // tsem_wait(&pRequest->body.rspSem);
+  tsem_wait(&pRequest->body.rspSem);
   return TSDB_CODE_SUCCESS;
 }
 

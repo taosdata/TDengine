@@ -263,7 +263,7 @@ static int parseTime(char **end, SToken *pToken, int16_t timePrec, int64_t *time
 
   if (pToken->type == TK_NOW) {
     ts = taosGetTimestamp(timePrec);
-  } else if (pToken->type == TK_INTEGER) {
+  } else if (pToken->type == TK_NK_INTEGER) {
     bool isSigned = false;
     toInteger(pToken->z, pToken->n, 10, &ts, &isSigned);
   } else { // parse the RFC-3339/ISO-8601 timestamp format string
@@ -294,7 +294,7 @@ static int parseTime(char **end, SToken *pToken, int16_t timePrec, int64_t *time
   sToken = tStrGetToken(pTokenEnd, &index, false);
   pTokenEnd += index;
 
-  if (sToken.type == TK_MINUS || sToken.type == TK_PLUS) {
+  if (sToken.type == TK_MINUS || sToken.type == TK_NK_PLUS) {
     index = 0;
     valueToken = tStrGetToken(pTokenEnd, &index, false);
     pTokenEnd += index;
@@ -308,7 +308,7 @@ static int parseTime(char **end, SToken *pToken, int16_t timePrec, int64_t *time
       return TSDB_CODE_TSC_INVALID_OPERATION;
     }
 
-    if (sToken.type == TK_PLUS) {
+    if (sToken.type == TK_NK_PLUS) {
       ts += interval;
     } else {
       ts = ts - interval;
@@ -322,9 +322,9 @@ static int parseTime(char **end, SToken *pToken, int16_t timePrec, int64_t *time
 }
 
 static FORCE_INLINE int32_t checkAndTrimValue(SToken* pToken, uint32_t type, char* tmpTokenBuf, SMsgBuf* pMsgBuf) {
-  if ((pToken->type != TK_NOW && pToken->type != TK_INTEGER && pToken->type != TK_STRING && pToken->type != TK_FLOAT && pToken->type != TK_BOOL &&
+  if ((pToken->type != TK_NOW && pToken->type != TK_NK_INTEGER && pToken->type != TK_NK_STRING && pToken->type != TK_NK_FLOAT && pToken->type != TK_NK_BOOL &&
        pToken->type != TK_NULL && pToken->type != TK_HEX && pToken->type != TK_OCT && pToken->type != TK_BIN) ||
-      (pToken->n == 0) || (pToken->type == TK_RP)) {
+      (pToken->n == 0) || (pToken->type == TK_NK_RP)) {
     return buildSyntaxErrMsg(pMsgBuf, "invalid data or symbol", pToken->z);
   }
 
@@ -363,7 +363,7 @@ static FORCE_INLINE int32_t checkAndTrimValue(SToken* pToken, uint32_t type, cha
 }
 
 static bool isNullStr(SToken *pToken) {
-  return (pToken->type == TK_NULL) || ((pToken->type == TK_STRING) && (pToken->n != 0) &&
+  return (pToken->type == TK_NULL) || ((pToken->type == TK_NK_STRING) && (pToken->n != 0) &&
                                        (strncasecmp(TSDB_DATA_NULL_STR_L, pToken->z, pToken->n) == 0));
 }
 
@@ -400,7 +400,7 @@ static int32_t parseValueToken(char** end, SToken* pToken, SSchema* pSchema, int
 
   switch (pSchema->type) {
     case TSDB_DATA_TYPE_BOOL: {
-      if ((pToken->type == TK_BOOL || pToken->type == TK_STRING) && (pToken->n != 0)) {
+      if ((pToken->type == TK_NK_BOOL || pToken->type == TK_NK_STRING) && (pToken->n != 0)) {
         if (strncmp(pToken->z, "true", pToken->n) == 0) {
           return func(&TRUE_VALUE, pSchema->bytes, param);
         } else if (strncmp(pToken->z, "false", pToken->n) == 0) {
@@ -408,9 +408,9 @@ static int32_t parseValueToken(char** end, SToken* pToken, SSchema* pSchema, int
         } else {
           return buildSyntaxErrMsg(pMsgBuf, "invalid bool data", pToken->z);
         }
-      } else if (pToken->type == TK_INTEGER) {
+      } else if (pToken->type == TK_NK_INTEGER) {
         return func(((strtoll(pToken->z, NULL, 10) == 0) ? &FALSE_VALUE : &TRUE_VALUE), pSchema->bytes, param);
-      } else if (pToken->type == TK_FLOAT) {
+      } else if (pToken->type == TK_NK_FLOAT) {
         return func(((strtod(pToken->z, NULL) == 0) ? &FALSE_VALUE : &TRUE_VALUE), pSchema->bytes, param);
       } else {
         return buildSyntaxErrMsg(pMsgBuf, "invalid bool data", pToken->z);
@@ -592,7 +592,7 @@ static int32_t parseBoundColumns(SInsertParseContext* pCxt, SParsedDataColInfo* 
   while (1) {
     NEXT_TOKEN(pCxt->pSql, sToken);
 
-    if (TK_RP == sToken.type) {
+    if (TK_NK_RP == sToken.type) {
       break;
     }
 
@@ -692,7 +692,7 @@ static int32_t parseUsingClause(SInsertParseContext* pCxt, SToken* pTbnameToken)
 
   // pSql -> [(tag1_name, ...)] TAGS (tag1_value, ...)
   NEXT_TOKEN(pCxt->pSql, sToken);
-  if (TK_LP == sToken.type) {
+  if (TK_NK_LP == sToken.type) {
     CHECK_CODE(parseBoundColumns(pCxt, &pCxt->tags, pTagsSchema));
     NEXT_TOKEN(pCxt->pSql, sToken);
   }
@@ -702,7 +702,7 @@ static int32_t parseUsingClause(SInsertParseContext* pCxt, SToken* pTbnameToken)
   }
   // pSql -> (tag1_value, ...)
   NEXT_TOKEN(pCxt->pSql, sToken);
-  if (TK_LP != sToken.type) {
+  if (TK_NK_LP != sToken.type) {
     return buildSyntaxErrMsg(&pCxt->msg, "( is expected", sToken.z);
   }
   CHECK_CODE(parseTagsClause(pCxt, pTagsSchema, getTableInfo(pCxt->pTableMeta).precision));
@@ -766,7 +766,7 @@ static int32_t parseValues(SInsertParseContext* pCxt, STableDataBlocks* pDataBlo
   while (1) {
     int32_t index = 0;
     NEXT_TOKEN_KEEP_SQL(pCxt->pSql, sToken, index);
-    if (TK_LP != sToken.type) {
+    if (TK_NK_LP != sToken.type) {
       break;
     }
     pCxt->pSql += index;
@@ -783,7 +783,7 @@ static int32_t parseValues(SInsertParseContext* pCxt, STableDataBlocks* pDataBlo
     pDataBlock->size += extendedRowSize; //len;
 
     NEXT_TOKEN(pCxt->pSql, sToken);
-    if (TK_RP != sToken.type) {
+    if (TK_NK_RP != sToken.type) {
       return buildSyntaxErrMsg(&pCxt->msg, ") expected", sToken.z);
     }
 
@@ -882,7 +882,7 @@ static int32_t parseInsertBody(SInsertParseContext* pCxt) {
     CHECK_CODE(getDataBlockFromList(pCxt->pTableBlockHashObj, pCxt->pTableMeta->uid, TSDB_DEFAULT_PAYLOAD_SIZE,
         sizeof(SSubmitBlk), getTableInfo(pCxt->pTableMeta).rowSize, pCxt->pTableMeta, &dataBuf, NULL));
 
-    if (TK_LP == sToken.type) {
+    if (TK_NK_LP == sToken.type) {
       // pSql -> field1_name, ...)
       CHECK_CODE(parseBoundColumns(pCxt, &dataBuf->boundColumnInfo, getTableColumnSchema(pCxt->pTableMeta)));
       NEXT_TOKEN(pCxt->pSql, sToken);
@@ -899,7 +899,7 @@ static int32_t parseInsertBody(SInsertParseContext* pCxt) {
     if (TK_FILE == sToken.type) {
       // pSql -> csv_file_path
       NEXT_TOKEN(pCxt->pSql, sToken);
-      if (0 == sToken.n || (TK_STRING != sToken.type && TK_ID != sToken.type)) {
+      if (0 == sToken.n || (TK_NK_STRING != sToken.type && TK_NK_ID != sToken.type)) {
         return buildSyntaxErrMsg(&pCxt->msg, "file path is required following keyword FILE", sToken.z);
       }
       // todo

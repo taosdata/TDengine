@@ -36,7 +36,7 @@ typedef struct SToken {
  * @return
  */
 #define isNumber(tk) \
-((tk)->type == TK_INTEGER || (tk)->type == TK_FLOAT || (tk)->type == TK_HEX || (tk)->type == TK_BIN)
+((tk)->type == TK_NK_INTEGER || (tk)->type == TK_NK_FLOAT || (tk)->type == TK_HEX || (tk)->type == TK_BIN)
 
 /**
  * tokenizer for sql string
@@ -102,7 +102,7 @@ static FORCE_INLINE int32_t tGetNumericStringType(const SToken* pToken) {
           }
         }
 
-        type = TK_FLOAT;
+        type = TK_NK_FLOAT;
         goto _end;
       }
 
@@ -131,7 +131,7 @@ static FORCE_INLINE int32_t tGetNumericStringType(const SToken* pToken) {
       case '7':
       case '8':
       case '9': {
-        type = TK_INTEGER;
+        type = TK_NK_INTEGER;
         for (; isdigit(z[i]); i++) {
         }
 
@@ -144,7 +144,7 @@ static FORCE_INLINE int32_t tGetNumericStringType(const SToken* pToken) {
           }
 
           seg++;
-          type = TK_FLOAT;
+          type = TK_NK_FLOAT;
         }
 
         if (seg > 1) {
@@ -158,7 +158,7 @@ static FORCE_INLINE int32_t tGetNumericStringType(const SToken* pToken) {
             i++;
           }
 
-          type = TK_FLOAT;
+          type = TK_NK_FLOAT;
         }
 
         goto _end;

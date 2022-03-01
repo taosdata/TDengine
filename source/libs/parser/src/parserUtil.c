@@ -46,7 +46,7 @@ int32_t buildSyntaxErrMsg(SMsgBuf* pBuf, const char* additionalInfo, const char*
 }
 
 int32_t parserValidateIdToken(SToken* pToken) {
-  if (pToken == NULL || pToken->z == NULL || pToken->type != TK_ID) {
+  if (pToken == NULL || pToken->z == NULL || pToken->type != TK_NK_ID) {
     return TSDB_CODE_TSC_INVALID_OPERATION;
   }
 
@@ -75,7 +75,7 @@ int32_t parserValidateIdToken(SToken* pToken) {
       return TSDB_CODE_TSC_INVALID_OPERATION;
     }
 
-    if (pToken->type != TK_ID) {
+    if (pToken->type != TK_NK_ID) {
       return TSDB_CODE_TSC_INVALID_OPERATION;
     }
 
@@ -84,7 +84,7 @@ int32_t parserValidateIdToken(SToken* pToken) {
     pToken->z = sep + 1;
     pToken->n = (uint32_t)(oldLen - (sep - pStr) - 1);
     int32_t len = tGetToken(pToken->z, &pToken->type);
-    if (len != pToken->n || pToken->type != TK_ID) {
+    if (len != pToken->n || pToken->type != TK_NK_ID) {
       return TSDB_CODE_TSC_INVALID_OPERATION;
     }
 
