@@ -4,10 +4,11 @@ using Sample.UtilsTools;
 using System.Runtime.InteropServices;
 using System.Threading;
 
-namespace Example{
+namespace Example
+{
     public class AsyncQuerySample
     {
-        public void RunQueryAsync(IntPtr conn,string table)
+        public void RunQueryAsync(IntPtr conn, string table)
         {
             QueryAsyncCallback queryAsyncCallback = new QueryAsyncCallback(QueryCallback);
             PrepareData(conn, table);
@@ -27,17 +28,17 @@ namespace Example{
             string insert3 = $"insert into {tableName}_s03 using {tableName} tags('tag3','标签3') values(now,1,2,3,4)(now+1m,5,6,7,8)(now+2m,9,0,-1,-2)(now+3m,-3,-4,-5,-6)(now+4m,-7,-8,-9,0)";
             string insert4 = $"insert into {tableName}_s04 using {tableName} tags('tag4','标签4') values(now,1,2,3,4)(now+1m,5,6,7,8)(now+2m,9,0,-1,-2)(now+3m,-3,-4,-5,-6)(now+4m,-7,-8,-9,0)";
             string insert5 = $"insert into {tableName}_s05 using {tableName} tags('tag5','标签5') values(now,1,2,3,4)(now+1m,5,6,7,8)(now+2m,9,0,-1,-2)(now+3m,-3,-4,-5,-6)(now+4m,-7,-8,-9,0)";
-            
-            UtilsTools.ExecuteUpdate(conn,createTable);
-            UtilsTools.ExecuteUpdate(conn,insert1);
+
+            UtilsTools.ExecuteUpdate(conn, createTable);
+            UtilsTools.ExecuteUpdate(conn, insert1);
             Thread.Sleep(100);
-            UtilsTools.ExecuteUpdate(conn,insert2);
+            UtilsTools.ExecuteUpdate(conn, insert2);
             Thread.Sleep(100);
-            UtilsTools.ExecuteUpdate(conn,insert3);
+            UtilsTools.ExecuteUpdate(conn, insert3);
             Thread.Sleep(100);
-            UtilsTools.ExecuteUpdate(conn,insert4);
+            UtilsTools.ExecuteUpdate(conn, insert4);
             Thread.Sleep(100);
-            UtilsTools.ExecuteUpdate(conn,insert5);
+            UtilsTools.ExecuteUpdate(conn, insert5);
 
         }
 
@@ -46,25 +47,26 @@ namespace Example{
             if (code == 0 && taosRes != IntPtr.Zero)
             {
                 FetchRowAsyncCallback fetchRowAsyncCallback = new FetchRowAsyncCallback(FetchCallback);
-                TDengine.FetchRowAsync(taosRes,fetchRowAsyncCallback,param);
-            }else
+                TDengine.FetchRowAsync(taosRes, fetchRowAsyncCallback, param);
+            }
+            else
             {
                 Console.WriteLine($"async query data failed, failed code {code}");
             }
         }
-        
+
         // Iteratively call this interface until "numOfRows" is no greater than 0.
         public void FetchCallback(IntPtr param, IntPtr taosRes, int numOfRows)
         {
-            if(numOfRows>0)
+            if (numOfRows > 0)
             {
                 Console.WriteLine($"{numOfRows} rows async retrieved");
                 UtilsTools.DisplayRes(taosRes);
-                TDengine.FetchRowAsync(taosRes,FetchCallback,param);
+                TDengine.FetchRowAsync(taosRes, FetchCallback, param);
             }
             else
             {
-                if(numOfRows == 0)
+                if (numOfRows == 0)
                 {
                     Console.WriteLine("async retrieve complete.");
 
