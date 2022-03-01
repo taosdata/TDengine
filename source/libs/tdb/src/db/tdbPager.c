@@ -41,19 +41,19 @@ typedef struct __attribute__((__packed__)) {
 
 TDB_STATIC_ASSERT(sizeof(SFileHdr) == 128, "Size of file header is not correct");
 
-static int tdbPagerReadPage(SPager *pFile, SPage *pPage);
+static int tdbPagerReadPage(SPager *pPager, SPage *pPage);
 
-int tdbPagerOpen(SPCache *pCache, const char *fileName, SPager **ppFile) {
+int tdbPagerOpen(SPCache *pCache, const char *fileName, SPager **ppPager) {
   uint8_t *pPtr;
-  SPager * pFile;
+  SPager * pPager;
   int      fsize;
   int      zsize;
   int      ret;
 
-  *ppFile = NULL;
+  *ppPager = NULL;
 
   fsize = strlen(fileName);
-  zsize = sizeof(*pFile)   /* SPager */
+  zsize = sizeof(*pPager)  /* SPager */
           + fsize + 1      /* dbFileName */
           + fsize + 8 + 1; /* jFileName */
   pPtr = (uint8_t *)calloc(1, zsize);
@@ -61,43 +61,43 @@ int tdbPagerOpen(SPCache *pCache, const char *fileName, SPager **ppFile) {
     return -1;
   }
 
-  pFile = (SPager *)pPtr;
-  pPtr += sizeof(*pFile);
-  // pFile->dbFileName
-  pFile->dbFileName = (char *)pPtr;
-  memcpy(pFile->dbFileName, fileName, fsize);
-  pFile->dbFileName[fsize] = '\0';
+  pPager = (SPager *)pPtr;
+  pPtr += sizeof(*pPager);
+  // pPager->dbFileName
+  pPager->dbFileName = (char *)pPtr;
+  memcpy(pPager->dbFileName, fileName, fsize);
+  pPager->dbFileName[fsize] = '\0';
   pPtr += fsize + 1;
-  // pFile->jFileName
-  pFile->jFileName = (char *)pPtr;
-  memcpy(pFile->jFileName, fileName, fsize);
-  memcpy(pFile->jFileName + fsize, "-journal", 8);
-  pFile->jFileName[fsize + 8] = '\0';
-  // pFile->pCache
-  pFile->pCache = pCache;
+  // pPager->jFileName
+  pPager->jFileName = (char *)pPtr;
+  memcpy(pPager->jFileName, fileName, fsize);
+  memcpy(pPager->jFileName + fsize, "-journal", 8);
+  pPager->jFileName[fsize + 8] = '\0';
+  // pPager->pCache
+  pPager->pCache = pCache;
 
-  pFile->fd = open(pFile->dbFileName, O_RDWR | O_CREAT, 0755);
-  if (pFile->fd < 0) {
+  pPager->fd = open(pPager->dbFileName, O_RDWR | O_CREAT, 0755);
+  if (pPager->fd < 0) {
     return -1;
   }
 
-  ret = tdbGnrtFileID(pFile->dbFileName, pFile->fid, false);
+  ret = tdbGnrtFileID(pPager->dbFileName, pPager->fid, false);
   if (ret < 0) {
     return -1;
   }
 
-  pFile->jfd = -1;
+  pPager->jfd = -1;
 
-  *ppFile = pFile;
+  *ppPager = pPager;
   return 0;
 }
 
-int tdbPagerClose(SPager *pFile) {
+int tdbPagerClose(SPager *pPager) {
   // TODO
   return 0;
 }
 
-int tdbPagerOpenDB(SPager *pFile, SPgno *ppgno, bool toCreate) {
+int tdbPagerOpenDB(SPager *pPager, SPgno *ppgno, bool toCreate) {
   SPgno  pgno;
   SPage *pPage;
   int    ret;
@@ -108,13 +108,13 @@ int tdbPagerOpenDB(SPager *pFile, SPgno *ppgno, bool toCreate) {
   }
 
   if (pgno == 0 && toCreate) {
-    ret = tdbPagerAllocPage(pFile, &pPage, &pgno);
+    ret = tdbPagerAllocPage(pPager, &pPage, &pgno);
     if (ret < 0) {
       return -1;
     }
 
-    // tdbPFileZeroPage(pPage);
-    ret = tdbPagerWrite(pFile, pPage);
+    // tdbpPagerZeroPage(pPage);
+    ret = tdbPagerWrite(pPager, pPage);
     if (ret < 0) {
       return -1;
     }
@@ -124,25 +124,25 @@ int tdbPagerOpenDB(SPager *pFile, SPgno *ppgno, bool toCreate) {
   return 0;
 }
 
-SPage *tdbPagerGet(SPager *pFile, SPgno pgno) {
+SPage *tdbPagerGet(SPager *pPager, SPgno pgno) {
   SPgid  pgid;
   SPage *pPage;
 
-  memcpy(pgid.fileid, pFile->fid, TDB_FILE_ID_LEN);
+  memcpy(pgid.fileid, pPager->fid, TDB_FILE_ID_LEN);
   pgid.pgno = pgno;
 
-  pPage = tdbPCacheFetch(pFile->pCache, &pgid, 1);
+  pPage = tdbPCacheFetch(pPager->pCache, &pgid, 1);
   if (pPage == NULL) {
     // TODO
     ASSERT(0);
   }
-  tdbPCacheFetchFinish(pFile->pCache, pPage);
+  tdbPCacheFetchFinish(pPager->pCache, pPage);
 
   if (!(pPage->isLoad)) {
-    if (pgno > pFile->dbFileSize /*TODO*/) {
-      memset(pPage->pData, 0, pFile->pageSize);
+    if (pgno > pPager->dbFileSize /*TODO*/) {
+      memset(pPage->pData, 0, pPager->pageSize);
     } else {
-      if (tdbPagerReadPage(pFile, pPage) < 0) {
+      if (tdbPagerReadPage(pPager, pPage) < 0) {
         // TODO: handle error
         return NULL;
       }
@@ -156,11 +156,11 @@ SPage *tdbPagerGet(SPager *pFile, SPgno pgno) {
   return pPage;
 }
 
-int tdbPagerWrite(SPager *pFile, SPage *pPage) {
+int tdbPagerWrite(SPager *pPager, SPage *pPage) {
   int ret;
 
-  if (pFile->inTran == 0) {
-    ret = tdbPagerBegin(pFile);
+  if (pPager->inTran == 0) {
+    ret = tdbPagerBegin(pPager);
     if (ret < 0) {
       return -1;
     }
@@ -177,13 +177,13 @@ int tdbPagerWrite(SPager *pFile, SPage *pPage) {
   return 0;
 }
 
-int tdbPagerAllocPage(SPager *pFile, SPage **ppPage, SPgno *ppgno) {
+int tdbPagerAllocPage(SPager *pPager, SPage **ppPage, SPgno *ppgno) {
   SPage *pPage;
   SPgno  pgno;
 
   if (1 /*TODO: no free page*/) {
-    pgno = ++pFile->dbFileSize;
-    pPage = tdbPagerGet(pFile, pgno);
+    pgno = ++pPager->dbFileSize;
+    pPage = tdbPagerGet(pPager, pgno);
     ASSERT(pPage != NULL);
   } else {
     /* TODO: allocate from the free list */
@@ -195,37 +195,37 @@ int tdbPagerAllocPage(SPager *pFile, SPage **ppPage, SPgno *ppgno) {
   return 0;
 }
 
-int tdbPagerBegin(SPager *pFile) {
-  if (pFile->inTran) {
+int tdbPagerBegin(SPager *pPager) {
+  if (pPager->inTran) {
     return 0;
   }
 
   // Open the journal
-  pFile->jfd = open(pFile->jFileName, O_RDWR | O_CREAT, 0755);
-  if (pFile->jfd < 0) {
+  pPager->jfd = open(pPager->jFileName, O_RDWR | O_CREAT, 0755);
+  if (pPager->jfd < 0) {
     return -1;
   }
 
   // TODO: write the size of the file
 
-  pFile->inTran = 1;
+  pPager->inTran = 1;
 
   return 0;
 }
 
-int tdbPagerCommit(SPager *pFile) {
+int tdbPagerCommit(SPager *pPager) {
   // TODO
   return 0;
 }
 
-static int tdbPagerReadPage(SPager *pFile, SPage *pPage) {
+static int tdbPagerReadPage(SPager *pPager, SPage *pPage) {
   i64 offset;
   int ret;
 
-  ASSERT(memcmp(pFile->fid, pPage->pgid.fileid, TDB_FILE_ID_LEN) == 0);
+  ASSERT(memcmp(pPager->fid, pPage->pgid.fileid, TDB_FILE_ID_LEN) == 0);
 
-  offset = (pPage->pgid.pgno - 1) * (i64)(pFile->pageSize);
-  ret = tdbPRead(pFile->fd, pPage->pData, pFile->pageSize, offset);
+  offset = (pPage->pgid.pgno - 1) * (i64)(pPager->pageSize);
+  ret = tdbPRead(pPager->fd, pPage->pData, pPager->pageSize, offset);
   if (ret < 0) {
     // TODO: handle error
     return -1;
