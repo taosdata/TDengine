@@ -1012,6 +1012,7 @@ TEST(filterModelogicTest, same_column_and_or_and) {
   flttMakeOpNode(&opNode1, OP_TYPE_GREATER_THAN, TSDB_DATA_TYPE_BOOL, pLeft1, pRight1);
   nodesListAppend(list, opNode1);
 
+  flttMakeColumnNode(&pLeft1, &src, TSDB_DATA_TYPE_DOUBLE, sizeof(double), rowNum, leftv1);
   flttMakeValueNode(&pRight2, TSDB_DATA_TYPE_INT, &rightv2);
   flttMakeOpNode(&opNode2, OP_TYPE_LOWER_EQUAL, TSDB_DATA_TYPE_BOOL, pLeft1, pRight2);
   nodesListAppend(list, opNode2);
@@ -1020,11 +1021,13 @@ TEST(filterModelogicTest, same_column_and_or_and) {
 
 
   list = nodesMakeList();
-  
+
+  flttMakeColumnNode(&pLeft1, &src, TSDB_DATA_TYPE_DOUBLE, sizeof(double), rowNum, leftv1);  
   flttMakeValueNode(&pRight1, TSDB_DATA_TYPE_INT, &rightv3);
   flttMakeOpNode(&opNode1, OP_TYPE_LOWER_EQUAL, TSDB_DATA_TYPE_BOOL, pLeft1, pRight1);
   nodesListAppend(list, opNode1);
 
+  flttMakeColumnNode(&pLeft1, &src, TSDB_DATA_TYPE_DOUBLE, sizeof(double), rowNum, leftv1);
   flttMakeValueNode(&pRight2, TSDB_DATA_TYPE_INT, &rightv4);
   flttMakeOpNode(&opNode2, OP_TYPE_GREATER_EQUAL, TSDB_DATA_TYPE_BOOL, pLeft1, pRight2);
   nodesListAppend(list, opNode2);
@@ -1148,6 +1151,7 @@ TEST(filterModelogicTest, same_column_or_and_or) {
   flttMakeOpNode(&opNode1, OP_TYPE_GREATER_THAN, TSDB_DATA_TYPE_BOOL, pLeft1, pRight1);
   nodesListAppend(list, opNode1);
 
+  flttMakeColumnNode(&pLeft1, &src, TSDB_DATA_TYPE_DOUBLE, sizeof(double), rowNum, leftv1);
   flttMakeValueNode(&pRight2, TSDB_DATA_TYPE_INT, &rightv2);
   flttMakeOpNode(&opNode2, OP_TYPE_LOWER_EQUAL, TSDB_DATA_TYPE_BOOL, pLeft1, pRight2);
   nodesListAppend(list, opNode2);
@@ -1157,10 +1161,12 @@ TEST(filterModelogicTest, same_column_or_and_or) {
 
   list = nodesMakeList();
   
+  flttMakeColumnNode(&pLeft1, &src, TSDB_DATA_TYPE_DOUBLE, sizeof(double), rowNum, leftv1);
   flttMakeValueNode(&pRight1, TSDB_DATA_TYPE_INT, &rightv3);
   flttMakeOpNode(&opNode1, OP_TYPE_LOWER_EQUAL, TSDB_DATA_TYPE_BOOL, pLeft1, pRight1);
   nodesListAppend(list, opNode1);
 
+  flttMakeColumnNode(&pLeft1, &src, TSDB_DATA_TYPE_DOUBLE, sizeof(double), rowNum, leftv1);
   flttMakeValueNode(&pRight2, TSDB_DATA_TYPE_INT, &rightv4);
   flttMakeOpNode(&opNode2, OP_TYPE_GREATER_EQUAL, TSDB_DATA_TYPE_BOOL, pLeft1, pRight2);
   nodesListAppend(list, opNode2);
