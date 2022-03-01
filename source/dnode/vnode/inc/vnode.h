@@ -216,13 +216,15 @@ static FORCE_INLINE void tqReadHandleSetColIdList(STqReadHandle *pReadHandle, SA
 static FORCE_INLINE int tqReadHandleSetTbUidList(STqReadHandle *pHandle, const SArray *tbUidList) {
   pHandle->tbIdHash = taosHashInit(64, taosGetDefaultHashFunction(TSDB_DATA_TYPE_BIGINT), true, HASH_NO_LOCK);
   if (pHandle->tbIdHash == NULL) {
+    terrno = TSDB_CODE_OUT_OF_MEMORY;
     return -1;
   }
+
   for (int i = 0; i < taosArrayGetSize(tbUidList); i++) {
     int64_t *pKey = (int64_t *)taosArrayGet(tbUidList, i);
     taosHashPut(pHandle->tbIdHash, pKey, sizeof(int64_t), NULL, 0);
-    // pHandle->tbUid = tbUid;
   }
+
   return 0;
 }
 

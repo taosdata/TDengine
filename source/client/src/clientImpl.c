@@ -215,23 +215,27 @@ void setResSchemaInfo(SReqResultInfo* pResInfo, const SSchema* pSchema, int32_t 
 
 int32_t scheduleQuery(SRequestObj* pRequest, SQueryPlan* pDag, SArray* pNodeList) {
   void* pTransporter = pRequest->pTscObj->pAppInfo->pTransporter;
-  if (TSDB_SQL_INSERT == pRequest->type || TSDB_SQL_CREATE_TABLE == pRequest->type) {
-    SQueryResult res = {.code = 0, .numOfRows = 0, .msgSize = ERROR_MSG_BUF_DEFAULT_SIZE, .msg = pRequest->msgBuf};
-    int32_t      code = schedulerExecJob(pTransporter, NULL, pDag, &pRequest->body.pQueryJob, pRequest->sqlstr, &res);
-    if (code != TSDB_CODE_SUCCESS) {
-      // handle error and retry
-    } else {
-      if (pRequest->body.pQueryJob != NULL) {
-        schedulerFreeJob(pRequest->body.pQueryJob);
-      }
+  SQueryResult res = {.code = 0, .numOfRows = 0, .msgSize = ERROR_MSG_BUF_DEFAULT_SIZE, .msg = pRequest->msgBuf};
+  int32_t      code = schedulerExecJob(pTransporter, pNodeList, pDag, &pRequest->body.pQueryJob, pRequest->sqlstr, &res);
+  if (code != TSDB_CODE_SUCCESS) {
+    if (pRequest->body.pQueryJob != NULL) {
+      schedulerFreeJob(pRequest->body.pQueryJob);
     }
 
-    pRequest->body.resInfo.numOfRows = res.numOfRows;
-    pRequest->code = res.code;
+    pRequest->code = code;
     return pRequest->code;
   }
 
-  return schedulerAsyncExecJob(pTransporter, pNodeList, pDag, pRequest->sqlstr, &pRequest->body.pQueryJob);
+  if (TSDB_SQL_INSERT == pRequest->type || TSDB_SQL_CREATE_TABLE == pRequest->type) {
+    pRequest->body.resInfo.numOfRows = res.numOfRows;
+    
+    if (pRequest->body.pQueryJob != NULL) {
+      schedulerFreeJob(pRequest->body.pQueryJob);
+    }
+  }
+  
+  pRequest->code = res.code;
+  return pRequest->code;
 }
 
 TAOS_RES* taos_query_l(TAOS* taos, const char* sql, int sqlLen) {

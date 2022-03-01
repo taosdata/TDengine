@@ -13,28 +13,32 @@
  * along with this program. If not, see <http://www.gnu.org/licenses/>.
  */
 
-#ifndef _TD_TCOMPARE_H_
-#define _TD_TCOMPARE_H_
-
-#include "compare.h"
-#include "ttypes.h"
+#ifndef TDENGINE_TLINEARHASH_H
+#define TDENGINE_TLINEARHASH_H
 
 #ifdef __cplusplus
 extern "C" {
 #endif
 
-int32_t compareStrPatternMatch(const void* pLeft, const void* pRight);
-int32_t compareStrPatternNotMatch(const void* pLeft, const void* pRight);
+#include "thash.h"
 
-int32_t compareWStrPatternMatch(const void* pLeft, const void* pRight);
-int32_t compareWStrPatternNotMatch(const void* pLeft, const void* pRight);
+enum {
+  LINEAR_HASH_STATIS = 0x1,
+  LINEAR_HASH_DATA   = 0x2,
+};
 
-__compar_fn_t getComparFunc(int32_t type, int32_t optr);
-__compar_fn_t getKeyComparFunc(int32_t keyType, int32_t order);
-int32_t       doCompare(const char* a, const char* b, int32_t type, size_t size);
+typedef struct SLHashObj SLHashObj;
+
+SLHashObj* tHashInit(int32_t inMemPages, int32_t pageSize, _hash_fn_t fn, int32_t numOfTuplePerPage);
+void*      tHashCleanup(SLHashObj* pHashObj);
+
+int32_t    tHashPut(SLHashObj* pHashObj, const void *key, size_t keyLen, void *data, size_t size);
+char*      tHashGet(SLHashObj* pHashObj, const void *key, size_t keyLen);
+int32_t    tHashRemove(SLHashObj* pHashObj, const void *key, size_t keyLen);
+
+void       tHashPrint(const SLHashObj* pHashObj, int32_t type);
 
 #ifdef __cplusplus
 }
 #endif
-
-#endif /*_TD_TCOMPARE_H_*/
+#endif  // TDENGINE_TLINEARHASH_H

@@ -517,7 +517,7 @@ static int dumpResultToFile(const char *fname, TAOS_RES *tres) {
   }
 
   // FILE *fp = fopen(full_path.we_wordv[0], "w");
-  TdFilePtr pFile = taosOpenFile(full_path.we_wordv[0], TD_FILE_CTEATE | TD_FILE_WRITE | TD_FILE_TRUNC);
+  TdFilePtr pFile = taosOpenFile(full_path.we_wordv[0], TD_FILE_CTEATE | TD_FILE_WRITE | TD_FILE_TRUNC | TD_FILE_STREAM);
   if (pFile == NULL) {
     fprintf(stderr, "ERROR: failed to open file: %s\n", full_path.we_wordv[0]);
     wordfree(&full_path);
@@ -904,7 +904,7 @@ void read_history() {
   get_history_path(f_history);
 
   // FILE *f = fopen(f_history, "r");
-  TdFilePtr pFile = taosOpenFile(f_history, TD_FILE_READ);
+  TdFilePtr pFile = taosOpenFile(f_history, TD_FILE_READ | TD_FILE_STREAM);
   if (pFile == NULL) {
 #ifndef WINDOWS
     if (errno != ENOENT) {
@@ -934,7 +934,7 @@ void write_history() {
   get_history_path(f_history);
 
   // FILE *f = fopen(f_history, "w");
-  TdFilePtr pFile = taosOpenFile(f_history, TD_FILE_CTEATE | TD_FILE_WRITE | TD_FILE_TRUNC);
+  TdFilePtr pFile = taosOpenFile(f_history, TD_FILE_CTEATE | TD_FILE_WRITE | TD_FILE_TRUNC | TD_FILE_STREAM);
   if (pFile == NULL) {
 #ifndef WINDOWS
     fprintf(stderr, "Failed to open file %s for write, reason:%s\n", f_history, strerror(errno));
@@ -991,7 +991,7 @@ void source_file(TAOS *con, char *fptr) {
   */
 
   // FILE *f = fopen(fname, "r");
-  TdFilePtr pFile = taosOpenFile(fname, TD_FILE_READ);
+  TdFilePtr pFile = taosOpenFile(fname, TD_FILE_READ | TD_FILE_STREAM);
   if (pFile == NULL) {
     fprintf(stderr, "ERROR: failed to open file %s\n", fname);
     wordfree(&full_path);

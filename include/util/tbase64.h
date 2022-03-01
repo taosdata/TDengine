@@ -12,20 +12,21 @@
  * You should have received a copy of the GNU Affero General Public License
  * along with this program. If not, see <http://www.gnu.org/licenses/>.
  */
-#ifndef _TD_UTIL_KEY_H
-#define _TD_UTIL_KEY_H
+
+#ifndef _TD_UTIL_BASE64_H_
+#define _TD_UTIL_BASE64_H_
+
+#include "os.h"
 
 #ifdef __cplusplus
 extern "C" {
 #endif
 
-unsigned char *base64_decode(const char *value, int inlen, int *outlen);
-char *         base64_encode(const unsigned char *value, int vlen);
-char *         taosDesEncode(int64_t key, char *src, int len);
-char *         taosDesDecode(int64_t key, char *src, int len);
+uint8_t *base64_decode(const char *value, int32_t inlen, int32_t *outlen);
+char    *base64_encode(const uint8_t *value, int32_t vlen);
 
 #ifdef __cplusplus
 }
 #endif
 
-#endif /*_TD_UTIL_KEY_H*/
+#endif /*_TD_UTIL_BASE64_H_*/

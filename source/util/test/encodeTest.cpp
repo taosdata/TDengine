@@ -2,7 +2,7 @@
 
 #include "gtest/gtest.h"
 
-#include "encode.h"
+#include "tencode.h"
 
 #pragma GCC diagnostic push
 #pragma GCC diagnostic ignored "-Wshift-count-overflow"
@@ -12,41 +12,41 @@
 #define BUF_SIZE 64
 td_endian_t endian_arr[2] = {TD_LITTLE_ENDIAN, TD_BIG_ENDIAN};
 
-static int encode(SCoder *pCoder, int8_t val) { return tEncodeI8(pCoder, val); }
-static int encode(SCoder *pCoder, uint8_t val) { return tEncodeU8(pCoder, val); }
-static int encode(SCoder *pCoder, int16_t val) { return tEncodeI16(pCoder, val); }
-static int encode(SCoder *pCoder, uint16_t val) { return tEncodeU16(pCoder, val); }
-static int encode(SCoder *pCoder, int32_t val) { return tEncodeI32(pCoder, val); }
-static int encode(SCoder *pCoder, uint32_t val) { return tEncodeU32(pCoder, val); }
-static int encode(SCoder *pCoder, int64_t val) { return tEncodeI64(pCoder, val); }
-static int encode(SCoder *pCoder, uint64_t val) { return tEncodeU64(pCoder, val); }
+static int32_t encode(SCoder *pCoder, int8_t val) { return tEncodeI8(pCoder, val); }
+static int32_t encode(SCoder *pCoder, uint8_t val) { return tEncodeU8(pCoder, val); }
+static int32_t encode(SCoder *pCoder, int16_t val) { return tEncodeI16(pCoder, val); }
+static int32_t encode(SCoder *pCoder, uint16_t val) { return tEncodeU16(pCoder, val); }
+static int32_t encode(SCoder *pCoder, int32_t val) { return tEncodeI32(pCoder, val); }
+static int32_t encode(SCoder *pCoder, uint32_t val) { return tEncodeU32(pCoder, val); }
+static int32_t encode(SCoder *pCoder, int64_t val) { return tEncodeI64(pCoder, val); }
+static int32_t encode(SCoder *pCoder, uint64_t val) { return tEncodeU64(pCoder, val); }
 
-static int decode(SCoder *pCoder, int8_t *val) { return tDecodeI8(pCoder, val); }
-static int decode(SCoder *pCoder, uint8_t *val) { return tDecodeU8(pCoder, val); }
-static int decode(SCoder *pCoder, int16_t *val) { return tDecodeI16(pCoder, val); }
-static int decode(SCoder *pCoder, uint16_t *val) { return tDecodeU16(pCoder, val); }
-static int decode(SCoder *pCoder, int32_t *val) { return tDecodeI32(pCoder, val); }
-static int decode(SCoder *pCoder, uint32_t *val) { return tDecodeU32(pCoder, val); }
-static int decode(SCoder *pCoder, int64_t *val) { return tDecodeI64(pCoder, val); }
-static int decode(SCoder *pCoder, uint64_t *val) { return tDecodeU64(pCoder, val); }
+static int32_t decode(SCoder *pCoder, int8_t *val) { return tDecodeI8(pCoder, val); }
+static int32_t decode(SCoder *pCoder, uint8_t *val) { return tDecodeU8(pCoder, val); }
+static int32_t decode(SCoder *pCoder, int16_t *val) { return tDecodeI16(pCoder, val); }
+static int32_t decode(SCoder *pCoder, uint16_t *val) { return tDecodeU16(pCoder, val); }
+static int32_t decode(SCoder *pCoder, int32_t *val) { return tDecodeI32(pCoder, val); }
+static int32_t decode(SCoder *pCoder, uint32_t *val) { return tDecodeU32(pCoder, val); }
+static int32_t decode(SCoder *pCoder, int64_t *val) { return tDecodeI64(pCoder, val); }
+static int32_t decode(SCoder *pCoder, uint64_t *val) { return tDecodeU64(pCoder, val); }
 
-static int encodev(SCoder *pCoder, int8_t val) { return tEncodeI8(pCoder, val); }
-static int encodev(SCoder *pCoder, uint8_t val) { return tEncodeU8(pCoder, val); }
-static int encodev(SCoder *pCoder, int16_t val) { return tEncodeI16v(pCoder, val); }
-static int encodev(SCoder *pCoder, uint16_t val) { return tEncodeU16v(pCoder, val); }
-static int encodev(SCoder *pCoder, int32_t val) { return tEncodeI32v(pCoder, val); }
-static int encodev(SCoder *pCoder, uint32_t val) { return tEncodeU32v(pCoder, val); }
-static int encodev(SCoder *pCoder, int64_t val) { return tEncodeI64v(pCoder, val); }
-static int encodev(SCoder *pCoder, uint64_t val) { return tEncodeU64v(pCoder, val); }
+static int32_t encodev(SCoder *pCoder, int8_t val) { return tEncodeI8(pCoder, val); }
+static int32_t encodev(SCoder *pCoder, uint8_t val) { return tEncodeU8(pCoder, val); }
+static int32_t encodev(SCoder *pCoder, int16_t val) { return tEncodeI16v(pCoder, val); }
+static int32_t encodev(SCoder *pCoder, uint16_t val) { return tEncodeU16v(pCoder, val); }
+static int32_t encodev(SCoder *pCoder, int32_t val) { return tEncodeI32v(pCoder, val); }
+static int32_t encodev(SCoder *pCoder, uint32_t val) { return tEncodeU32v(pCoder, val); }
+static int32_t encodev(SCoder *pCoder, int64_t val) { return tEncodeI64v(pCoder, val); }
+static int32_t encodev(SCoder *pCoder, uint64_t val) { return tEncodeU64v(pCoder, val); }
 
-static int decodev(SCoder *pCoder, int8_t *val) { return tDecodeI8(pCoder, val); }
-static int decodev(SCoder *pCoder, uint8_t *val) { return tDecodeU8(pCoder, val); }
-static int decodev(SCoder *pCoder, int16_t *val) { return tDecodeI16v(pCoder, val); }
-static int decodev(SCoder *pCoder, uint16_t *val) { return tDecodeU16v(pCoder, val); }
-static int decodev(SCoder *pCoder, int32_t *val) { return tDecodeI32v(pCoder, val); }
-static int decodev(SCoder *pCoder, uint32_t *val) { return tDecodeU32v(pCoder, val); }
-static int decodev(SCoder *pCoder, int64_t *val) { return tDecodeI64v(pCoder, val); }
-static int decodev(SCoder *pCoder, uint64_t *val) { return tDecodeU64v(pCoder, val); }
+static int32_t decodev(SCoder *pCoder, int8_t *val) { return tDecodeI8(pCoder, val); }
+static int32_t decodev(SCoder *pCoder, uint8_t *val) { return tDecodeU8(pCoder, val); }
+static int32_t decodev(SCoder *pCoder, int16_t *val) { return tDecodeI16v(pCoder, val); }
+static int32_t decodev(SCoder *pCoder, uint16_t *val) { return tDecodeU16v(pCoder, val); }
+static int32_t decodev(SCoder *pCoder, int32_t *val) { return tDecodeI32v(pCoder, val); }
+static int32_t decodev(SCoder *pCoder, uint32_t *val) { return tDecodeU32v(pCoder, val); }
+static int32_t decodev(SCoder *pCoder, int64_t *val) { return tDecodeI64v(pCoder, val); }
+static int32_t decodev(SCoder *pCoder, uint64_t *val) { return tDecodeU64v(pCoder, val); }
 
 template <typename T>
 static void simple_encode_decode_func(bool var_len) {
@@ -211,7 +211,7 @@ typedef struct {
   char *  A_c;
 } SStructA_v1;
 
-static int tSStructA_v1_encode(SCoder *pCoder, const SStructA_v1 *pSAV1) {
+static int32_t tSStructA_v1_encode(SCoder *pCoder, const SStructA_v1 *pSAV1) {
   if (tStartEncode(pCoder) < 0) return -1;
 
   if (tEncodeI32(pCoder, pSAV1->A_a) < 0) return -1;
@@ -222,7 +222,7 @@ static int tSStructA_v1_encode(SCoder *pCoder, const SStructA_v1 *pSAV1) {
   return 0;
 }
 
-static int tSStructA_v1_decode(SCoder *pCoder, SStructA_v1 *pSAV1) {
+static int32_t tSStructA_v1_decode(SCoder *pCoder, SStructA_v1 *pSAV1) {
   if (tStartDecode(pCoder) < 0) return -1;
 
   if (tDecodeI32(pCoder, &pSAV1->A_a) < 0) return -1;
@@ -246,7 +246,7 @@ typedef struct {
   int16_t A_e;
 } SStructA_v2;
 
-static int tSStructA_v2_encode(SCoder *pCoder, const SStructA_v2 *pSAV2) {
+static int32_t tSStructA_v2_encode(SCoder *pCoder, const SStructA_v2 *pSAV2) {
   if (tStartEncode(pCoder) < 0) return -1;
 
   if (tEncodeI32(pCoder, pSAV2->A_a) < 0) return -1;
@@ -261,7 +261,7 @@ static int tSStructA_v2_encode(SCoder *pCoder, const SStructA_v2 *pSAV2) {
   return 0;
 }
 
-static int tSStructA_v2_decode(SCoder *pCoder, SStructA_v2 *pSAV2) {
+static int32_t tSStructA_v2_decode(SCoder *pCoder, SStructA_v2 *pSAV2) {
   if (tStartDecode(pCoder) < 0) return -1;
 
   if (tDecodeI32(pCoder, &pSAV2->A_a) < 0) return -1;
@@ -291,7 +291,7 @@ typedef struct {
   int8_t       v_b;
 } SFinalReq_v1;
 
-static int tSFinalReq_v1_encode(SCoder *pCoder, const SFinalReq_v1 *ps1) {
+static int32_t tSFinalReq_v1_encode(SCoder *pCoder, const SFinalReq_v1 *ps1) {
   if (tStartEncode(pCoder) < 0) return -1;
 
   if (tSStructA_v1_encode(pCoder, ps1->pA) < 0) return -1;
@@ -302,7 +302,7 @@ static int tSFinalReq_v1_encode(SCoder *pCoder, const SFinalReq_v1 *ps1) {
   return 0;
 }
 
-static int tSFinalReq_v1_decode(SCoder *pCoder, SFinalReq_v1 *ps1) {
+static int32_t tSFinalReq_v1_decode(SCoder *pCoder, SFinalReq_v1 *ps1) {
   if (tStartDecode(pCoder) < 0) return -1;
 
   ps1->pA = (SStructA_v1 *)TCODER_MALLOC(sizeof(*(ps1->pA)), pCoder);
@@ -322,7 +322,7 @@ typedef struct {
   int16_t v_c;
 } SFinalReq_v2;
 
-static int tSFinalReq_v2_encode(SCoder *pCoder, const SFinalReq_v2 *ps2) {
+static int32_t tSFinalReq_v2_encode(SCoder *pCoder, const SFinalReq_v2 *ps2) {
   if (tStartEncode(pCoder) < 0) return -1;
 
   if (tSStructA_v2_encode(pCoder, ps2->pA) < 0) return -1;
@@ -336,7 +336,7 @@ static int tSFinalReq_v2_encode(SCoder *pCoder, const SFinalReq_v2 *ps2) {
   return 0;
 }
 
-static int tSFinalReq_v2_decode(SCoder *pCoder, SFinalReq_v2 *ps2) {
+static int32_t tSFinalReq_v2_decode(SCoder *pCoder, SFinalReq_v2 *ps2) {
   if (tStartDecode(pCoder) < 0) return -1;
 
   ps2->pA = (SStructA_v2 *)TCODER_MALLOC(sizeof(*(ps2->pA)), pCoder);

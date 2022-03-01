@@ -24,7 +24,7 @@ extern "C" {
 #include "taosdef.h"
 #include "query.h"
 #include "tname.h"
-#include "common.h"
+#include "tcommon.h"
 #include "tarray.h"
 #include "thash.h"
 #include "tmsg.h"

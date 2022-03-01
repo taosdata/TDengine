@@ -22,11 +22,11 @@ SDnodeObjCfg dmnGetObjCfg() {
   SDnodeObjCfg objCfg = {0};
 
   objCfg.numOfSupportVnodes = cfgGetItem(pCfg, "supportVnodes")->i32;
-  tstrncpy(objCfg.dataDir, cfgGetItem(pCfg, "dataDir")->str, sizeof(objCfg.dataDir));
-  tstrncpy(objCfg.firstEp, cfgGetItem(pCfg, "firstEp")->str, sizeof(objCfg.firstEp));
-  tstrncpy(objCfg.secondEp, cfgGetItem(pCfg, "secondEp")->str, sizeof(objCfg.firstEp));
-  objCfg.serverPort = (uint16_t)cfgGetItem(pCfg, "serverPort")->i32;
-  tstrncpy(objCfg.localFqdn, cfgGetItem(pCfg, "fqdn")->str, sizeof(objCfg.localFqdn));
+  tstrncpy(objCfg.dataDir, tsDataDir, sizeof(objCfg.dataDir));
+  tstrncpy(objCfg.firstEp, tsFirst, sizeof(objCfg.firstEp));
+  tstrncpy(objCfg.secondEp, tsSecond, sizeof(objCfg.firstEp));
+  objCfg.serverPort = tsServerPort;
+  tstrncpy(objCfg.localFqdn, tsLocalFqdn, sizeof(objCfg.localFqdn));
   snprintf(objCfg.localEp, sizeof(objCfg.localEp), "%s:%u", objCfg.localFqdn, objCfg.serverPort);
   objCfg.pDisks = tsDiskCfg;
   objCfg.numOfDisks = tsDiskCfgNum;

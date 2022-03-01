@@ -13,7 +13,8 @@
  * along with this program. If not, see <http://www.gnu.org/licenses/>.
  */
 
-#include "mallocator.h"
+#define _DEFAULT_SOURCE
+#include "tmallocator.h"
 
 /* ------------------------ HEAP ALLOCATOR ------------------------ */
 #if 0

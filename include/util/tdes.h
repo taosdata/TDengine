@@ -13,23 +13,20 @@
  * along with this program. If not, see <http://www.gnu.org/licenses/>.
  */
 
-#ifndef _TD_COMMON_CFG_H_
-#define _TD_COMMON_CFG_H_
+#ifndef _TD_UTIL_DES_H
+#define _TD_UTIL_DES_H
+
+#include "os.h"
 
 #ifdef __cplusplus
 extern "C" {
 #endif
 
-#include "tdef.h"
-
-typedef struct {
-  char dir[TSDB_FILENAME_LEN];
-  int  level;
-  int  primary;
-} SDiskCfg;
+char *taosDesEncode(int64_t key, char *src, int32_t len);
+char *taosDesDecode(int64_t key, char *src, int32_t len);
 
 #ifdef __cplusplus
 }
 #endif
 
-#endif /*_TD_COMMON_CFG_H_*/
+#endif /*_TD_UTIL_DES_H*/

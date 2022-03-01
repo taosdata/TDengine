@@ -578,7 +578,7 @@ int32_t schProcessOnJobFailureImpl(SSchJob *pJob, int32_t status, int32_t errCod
     atomic_store_32(&pJob->errCode, errCode);
   }
 
-  if (atomic_load_8(&pJob->userFetch) || ((!SCH_JOB_NEED_FETCH(&pJob->attr)) && pJob->attr.syncSchedule)) {
+  if (atomic_load_8(&pJob->userFetch) || pJob->attr.syncSchedule) {
     tsem_post(&pJob->rspSem);
   }
 
@@ -638,7 +638,7 @@ int32_t schProcessOnJobPartialSuccess(SSchJob *pJob) {
   
   SCH_ERR_RET(schCheckAndUpdateJobStatus(pJob, JOB_TASK_STATUS_PARTIAL_SUCCEED));
 
-  if ((!SCH_JOB_NEED_FETCH(&pJob->attr)) && pJob->attr.syncSchedule) {
+  if (pJob->attr.syncSchedule) {
     tsem_post(&pJob->rspSem);
   }
   

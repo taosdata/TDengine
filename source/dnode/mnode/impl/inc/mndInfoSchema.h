@@ -13,15 +13,33 @@
  * along with this program. If not, see <http://www.gnu.org/licenses/>.
  */
 
-#ifndef _TD_TYPE_H_
-#define _TD_TYPE_H_
+#ifndef _TD_MND_INFO_SCHEMA_H_
+#define _TD_MND_INFO_SCHEMA_H_
+
+#include "mndInt.h"
 
 #ifdef __cplusplus
 extern "C" {
 #endif
 
+typedef struct SInfosTableSchema {
+  char   *name;
+  int32_t type;
+  int32_t bytes;
+} SInfosTableSchema;
+
+typedef struct SInfosTableMeta {
+  char                    *name;
+  const SInfosTableSchema *schema;
+  int32_t                  colNum;
+} SInfosTableMeta;
+
+int32_t mndBuildInsTableSchema(SMnode *pMnode, const char *dbFName, const char *tbName, STableMetaRsp *pRsp);
+int32_t mndInitInfos(SMnode *pMnode);
+void mndCleanupInfos(SMnode *pMnode);
+
 #ifdef __cplusplus
 }
 #endif
 
-#endif /*_TD_TYPE_H_*/
+#endif /*_TD_MND_INFO_SCHEMA_H_*/

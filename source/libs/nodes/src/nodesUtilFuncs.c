@@ -103,9 +103,16 @@ SNode* nodesMakeNode(ENodeType type) {
 
 static EDealRes destroyNode(SNode** pNode, void* pContext) {
   switch (nodeType(*pNode)) {
-    case QUERY_NODE_VALUE:
-      tfree(((SValueNode*)(*pNode))->literal);
+    case QUERY_NODE_VALUE: {
+      SValueNode* pValue = (SValueNode*)*pNode;
+      
+      tfree(pValue->literal);
+      if (IS_VAR_DATA_TYPE(pValue->node.resType.type)) {
+        tfree(pValue->datum.p);
+      }
+      
       break;
+    }
     case QUERY_NODE_LOGIC_CONDITION:
       nodesDestroyList(((SLogicConditionNode*)(*pNode))->pParameterList);
       break;
@@ -115,6 +122,9 @@ static EDealRes destroyNode(SNode** pNode, void* pContext) {
     case QUERY_NODE_GROUPING_SET:
       nodesDestroyList(((SGroupingSetNode*)(*pNode))->pParameterList);
       break;
+    case QUERY_NODE_NODE_LIST:
+      nodesDestroyList(((SNodeListNode*)(*pNode))->pNodeList);
+      break;
     default:
       break;
   }
@@ -123,6 +133,9 @@ static EDealRes destroyNode(SNode** pNode, void* pContext) {
 }
 
 void nodesDestroyNode(SNode* pNode) {
+  if (NULL == pNode) {
+    return;
+  }
   nodesRewriteNodePostOrder(&pNode, destroyNode, NULL);
 }
 
@@ -203,6 +216,7 @@ void nodesDestroyList(SNodeList* pList) {
   if (NULL == pList) {
     return;
   }
+
   SListCell* pNext = pList->pHead;
   while (NULL != pNext) {
     pNext = nodesListErase(pList, pNext);

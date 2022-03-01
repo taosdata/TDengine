@@ -19,7 +19,7 @@
 #include "tsdbLog.h"
 #include "tsdbReadImpl.h"
 #include "ttime.h"
-#include "exception.h"
+#include "texception.h"
 #include "os.h"
 #include "talgo.h"
 #include "tcompare.h"
@@ -88,7 +88,7 @@ typedef struct STableCheckInfo {
   int32_t       compSize;
   int32_t       numOfBlocks:29; // number of qualified data blocks not the original blocks
   uint8_t       chosen:2;       // indicate which iterator should move forward
-  bool          initBuf;        // whether to initialize the in-memory skip list iterator or not
+  bool          initBuf:1;        // whether to initialize the in-memory skip list iterator or not
   SSkipListIterator* iter;      // mem buffer skip list iterator
   SSkipListIterator* iiter;     // imem buffer skip list iterator
 } STableCheckInfo;

@@ -13,8 +13,8 @@
  * along with this program. If not, see <http://www.gnu.org/licenses/>.
  */
 
-#ifndef TDENGINE_TTOKENDEF_H
-#define TDENGINE_TTOKENDEF_H
+#ifndef _TD_COMMON_TOKEN_H_
+#define _TD_COMMON_TOKEN_H_
 
 #define TK_OR                               1
 #define TK_AND                              2
@@ -135,6 +135,4 @@
 
 #define TK_NIL                            65535
 
-#endif
-
-
+#endif /*_TD_COMMON_TOKEN_H_*/

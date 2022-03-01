@@ -29,9 +29,10 @@
 #include "tcompression.h"
 //#include "queryLog.h"
 #include "tudf.h"
+#include "tep.h"
 
 #define GET_INPUT_DATA_LIST(x) ((char *)((x)->pInput))
-#define GET_INPUT_DATA(x, y) (GET_INPUT_DATA_LIST(x) + (y) * (x)->inputBytes)
+#define GET_INPUT_DATA(x, y) ((char*) colDataGetData((x)->pInput, (y)))
 
 #define GET_TS_LIST(x)    ((TSKEY*)((x)->ptsList))
 #define GET_TS_DATA(x, y) (GET_TS_LIST(x)[(y)])
@@ -3818,7 +3819,7 @@ static void interp_function_impl(SqlFunctionCtx *pCtx) {
             skey = ekey;
           }
         }
-        assignVal(pCtx->pOutput, pCtx->pInput, pCtx->resDataInfo.bytes, pCtx->inputType);
+//        assignVal(pCtx->pOutput, pCtx->pInput, pCtx->resDataInfo.bytes, pCtx->inputType);
       } else if (type == TSDB_FILL_NEXT) {
         TSKEY ekey = skey;
         char* val = NULL;
@@ -4395,7 +4396,7 @@ SFunctionFpSet fpSet[1] = {
       .addInput = count_function,
       .finalize = doFinalizer,
       .combine = count_func_merge,
-    }
+    },
 };
 
 SAggFunctionInfo aggFunc[35] = {{

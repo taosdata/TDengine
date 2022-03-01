@@ -13,9 +13,8 @@
  * along with this program. If not, see <http://www.gnu.org/licenses/>.
  */
 
+#define _DEFAULT_SOURCE
 #include "ttypes.h"
-#include "../../../include/client/taos.h"
-#include "os.h"
 #include "tcompression.h"
 
 const int32_t TYPE_BYTES[15] = {

@@ -23,6 +23,7 @@
 #include "mndTrans.h"
 #include "mndUser.h"
 #include "mndVgroup.h"
+#include "mndInfoSchema.h"
 #include "tname.h"
 
 #define TSDB_STB_VER_NUMBER 1
@@ -38,7 +39,7 @@ static int32_t  mndProcessMDropStbReq(SMnodeMsg *pReq);
 static int32_t  mndProcessVCreateStbRsp(SMnodeMsg *pRsp);
 static int32_t  mndProcessVAlterStbRsp(SMnodeMsg *pRsp);
 static int32_t  mndProcessVDropStbRsp(SMnodeMsg *pRsp);
-static int32_t  mndProcessStbMetaReq(SMnodeMsg *pReq);
+static int32_t  mndProcessTableMetaReq(SMnodeMsg *pReq);
 static int32_t  mndGetStbMeta(SMnodeMsg *pReq, SShowObj *pShow, STableMetaRsp *pMeta);
 static int32_t  mndRetrieveStb(SMnodeMsg *pReq, SShowObj *pShow, char *data, int32_t rows);
 static void     mndCancelGetNextStb(SMnode *pMnode, void *pIter);
@@ -58,7 +59,7 @@ int32_t mndInitStb(SMnode *pMnode) {
   mndSetMsgHandle(pMnode, TDMT_VND_CREATE_STB_RSP, mndProcessVCreateStbRsp);
   mndSetMsgHandle(pMnode, TDMT_VND_ALTER_STB_RSP, mndProcessVAlterStbRsp);
   mndSetMsgHandle(pMnode, TDMT_VND_DROP_STB_RSP, mndProcessVDropStbRsp);
-  mndSetMsgHandle(pMnode, TDMT_MND_STB_META, mndProcessStbMetaReq);
+  mndSetMsgHandle(pMnode, TDMT_MND_TABLE_META, mndProcessTableMetaReq);
 
   mndAddShowMetaHandle(pMnode, TSDB_MGMT_TABLE_STB, mndGetStbMeta);
   mndAddShowRetrieveHandle(pMnode, TSDB_MGMT_TABLE_STB, mndRetrieveStb);
@@ -1310,7 +1311,7 @@ static int32_t mndBuildStbSchema(SMnode *pMnode, const char *dbFName, const char
   return code;
 }
 
-static int32_t mndProcessStbMetaReq(SMnodeMsg *pReq) {
+static int32_t mndProcessTableMetaReq(SMnodeMsg *pReq) {
   SMnode       *pMnode = pReq->pMnode;
   int32_t       code = -1;
   STableInfoReq infoReq = {0};
@@ -1321,9 +1322,16 @@ static int32_t mndProcessStbMetaReq(SMnodeMsg *pReq) {
     goto RETRIEVE_META_OVER;
   }
 
-  mDebug("stb:%s.%s, start to retrieve meta", infoReq.dbFName, infoReq.tbName);
-  if (mndBuildStbSchema(pMnode, infoReq.dbFName, infoReq.tbName, &metaRsp) != 0) {
-    goto RETRIEVE_META_OVER;
+  if (0 == strcmp(infoReq.dbFName, TSDB_INFORMATION_SCHEMA_DB)) {
+    mDebug("information_schema table:%s.%s, start to retrieve meta", infoReq.dbFName, infoReq.tbName);
+    if (mndBuildInsTableSchema(pMnode, infoReq.dbFName, infoReq.tbName, &metaRsp) != 0) {
+      goto RETRIEVE_META_OVER;
+    }
+  } else {
+    mDebug("stb:%s.%s, start to retrieve meta", infoReq.dbFName, infoReq.tbName);
+    if (mndBuildStbSchema(pMnode, infoReq.dbFName, infoReq.tbName, &metaRsp) != 0) {
+      goto RETRIEVE_META_OVER;
+    }
   }
 
   int32_t rspLen = tSerializeSTableMetaRsp(NULL, 0, &metaRsp);
