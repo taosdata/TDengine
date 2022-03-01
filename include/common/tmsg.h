@@ -167,6 +167,7 @@ typedef struct {
 
 typedef struct {
   char    db[TSDB_DB_FNAME_LEN];
+  int64_t dbId;
   int32_t vgVersion;
 } SBuildUseDBInput;
 
@@ -563,6 +564,7 @@ int32_t tDeserializeSDropDbRsp(void* buf, int32_t bufLen, SDropDbRsp* pRsp);
 
 typedef struct {
   char    db[TSDB_DB_FNAME_LEN];
+  int64_t dbId;
   int32_t vgVersion;
 } SUseDbReq;
 
