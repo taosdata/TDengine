@@ -23,6 +23,7 @@ extern "C" {
 #include <stdint.h>
 #include <stdio.h>
 #include <stdlib.h>
+#include "cJSON.h"
 #include "sync.h"
 #include "syncRaftEntry.h"
 #include "taosdef.h"
@@ -52,7 +53,7 @@ typedef struct SyncPing {
   SRaftId  srcId;
   SRaftId  destId;
   uint32_t dataLen;
-  char*    data;
+  char     data[];
 } SyncPing;
 
 #define SYNC_PING_FIX_LEN (sizeof(uint32_t) + sizeof(uint32_t) + sizeof(SRaftId) + sizeof(SRaftId) + sizeof(uint32_t))
@@ -63,7 +64,7 @@ typedef struct SyncPingReply {
   SRaftId  srcId;
   SRaftId  destId;
   uint32_t dataLen;
-  char*    data;
+  char     data[];
 } SyncPingReply;
 
 typedef struct SyncClientRequest {
@@ -127,6 +128,8 @@ void syncPingSerialize(const SyncPing* pSyncPing, char* buf, uint32_t bufLen);
 void syncPingDeserialize(const char* buf, uint32_t len, SyncPing* pSyncPing);
 
 void syncPing2RpcMsg(const SyncPing* pSyncPing, SRpcMsg* pRpcMsg);
+
+cJSON* syncPing2Json(const SyncPing* pSyncPing);
 
 #ifdef __cplusplus
 }

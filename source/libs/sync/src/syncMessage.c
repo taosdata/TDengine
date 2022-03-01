@@ -41,9 +41,11 @@ void syncPingSerialize(const SyncPing* pSyncPing, char* buf, uint32_t bufLen) {
 }
 
 void syncPingDeserialize(const char* buf, uint32_t len, SyncPing* pSyncPing) {
+  /*
   uint32_t* pU32 = (uint32_t*)buf;
   uint32_t  bytes = *pU32;
   pSyncPing = (SyncPing*)malloc(bytes);
+  */
   memcpy(pSyncPing, buf, len);
   assert(len == pSyncPing->bytes);
   assert(pSyncPing->bytes == SYNC_PING_FIX_LEN + pSyncPing->dataLen);
@@ -60,23 +62,28 @@ void syncPing2RpcMsg(const SyncPing* pSyncPing, SRpcMsg* pRpcMsg) {
   free(buf);
 }
 
-/*
-typedef struct SRaftId {
-  SyncNodeId  addr;  // typedef uint64_t SyncNodeId;
-  SyncGroupId vgId;  // typedef int32_t  SyncGroupId;
-} SRaftId;
+cJSON* syncPing2Json(const SyncPing* pSyncPing) {
+  cJSON* pRoot = cJSON_CreateObject();
+  cJSON_AddNumberToObject(pRoot, "bytes", pSyncPing->bytes);
+  cJSON_AddNumberToObject(pRoot, "msgType", pSyncPing->msgType);
 
-typedef struct SyncPing {
-  uint32_t bytes;
-  uint32_t msgType;
-  SRaftId  srcId;
-  SRaftId  destId;
-  uint32_t dataLen;
-  char*    data;
-} SyncPing;
-*/
+  cJSON* pSrcId = cJSON_CreateObject();
+  cJSON_AddNumberToObject(pSrcId, "addr", pSyncPing->srcId.addr);
+  cJSON_AddNumberToObject(pSrcId, "vgId", pSyncPing->srcId.vgId);
+  cJSON_AddItemToObject(pRoot, "srcId", pSrcId);
 
-/*
+  cJSON* pDestId = cJSON_CreateObject();
+  cJSON_AddNumberToObject(pDestId, "addr", pSyncPing->destId.addr);
+  cJSON_AddNumberToObject(pDestId, "vgId", pSyncPing->destId.vgId);
+  cJSON_AddItemToObject(pRoot, "srcId", pDestId);
+
+  cJSON_AddNumberToObject(pRoot, "dataLen", pSyncPing->dataLen);
+  cJSON_AddStringToObject(pRoot, "data", pSyncPing->data);
+
+  return pRoot;
+}
+
+#if 0
 void syncPingSerialize(const SyncPing* pSyncPing, char** ppBuf, uint32_t* bufLen) {
   *bufLen = sizeof(SyncPing) + pSyncPing->dataLen;
   *ppBuf = (char*)malloc(*bufLen);
@@ -144,4 +151,4 @@ void syncPingDeserialize(const char* buf, uint32_t len, SyncPing* pSyncPing) {
   pStart = taosDecodeFixedU32(pStart, &u32);
   pSyncPing->dataLen = u32;
 }
-*/
+#endif
