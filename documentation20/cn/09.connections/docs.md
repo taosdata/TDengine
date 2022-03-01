@@ -2,7 +2,7 @@
 
 ## <a class="anchor" id="grafana"></a>Grafana
 
-TDengine 能够与开源数据可视化系统 [Grafana](https://www.grafana.com/)快速集成搭建数据监测报警系统，整个过程无需任何代码开发，TDengine 中数据表中内容可以在仪表盘(DashBoard)上进行可视化展现。关于TDengine插件的使用您可以在[GitHub](https://github.com/taosdata/grafanaplugin/blob/master/README.md)中了解更多。
+TDengine 能够与开源数据可视化系统 [Grafana](https://www.grafana.com/) 快速集成搭建数据监测报警系统，整个过程无需任何代码开发，TDengine 中数据表中内容可以在仪表盘(DashBoard)上进行可视化展现。关于 TDengine 插件的使用您可以在 [GitHub](https://github.com/taosdata/grafanaplugin/blob/master/README.md) 中了解更多。
 
 ### 安装Grafana
 
@@ -10,7 +10,7 @@ TDengine 能够与开源数据可视化系统 [Grafana](https://www.grafana.com/
 
 ### 配置Grafana
 
-TDengine 的 Grafana 插件托管在GitHub，可从 <https://github.com/taosdata/grafanaplugin/releases/latest> 下载，当前最新版本为 3.1.3。
+TDengine 的 Grafana 插件托管在 GitHub，可从 <https://github.com/taosdata/grafanaplugin/releases/latest> 下载，当前最新版本为 3.1.3。
 
 推荐使用 [`grafana-cli` 命令行工具](https://grafana.com/docs/grafana/latest/administration/cli/) 进行插件安装。
 
@@ -40,7 +40,7 @@ Grafana 7.3+ / 8.x 版本会对插件进行签名检查，因此还需要在 gra
 allow_loading_unsigned_plugins = tdengine-datasource
 ```
 
-在Docker环境下，可以使用如下的环境变量设置自动安装并设置 TDengine 插件：
+在 Docker 环境下，可以使用如下的环境变量设置自动安装并设置 TDengine 插件：
 
 ```bash
 GF_INSTALL_PLUGINS=https://github.com/taosdata/grafanaplugin/releases/download/v3.1.3/tdengine-datasource-3.1.3.zip;tdengine-datasource
@@ -77,9 +77,9 @@ GF_PLUGINS_ALLOW_LOADING_UNSIGNED_PLUGINS=tdengine-datasource
 
 ![img](../images/connections/create_dashboard1.jpg)
 
-如上图所示，在 Query 中选中 `TDengine` 数据源，在下方查询框可输入相应 sql 进行查询，具体说明如下：
+如上图所示，在 Query 中选中 `TDengine` 数据源，在下方查询框可输入相应 SQL 进行查询，具体说明如下：
 
-* INPUT SQL：输入要查询的语句（该 SQL 语句的结果集应为两列多行），例如：`select avg(mem_system) from log.dn where  ts >= $from and ts < $to interval($interval)` ，其中，from、to 和 interval 为 TDengine插件的内置变量，表示从Grafana插件面板获取的查询范围和时间间隔。除了内置变量外，`也支持可以使用自定义模板变量`。
+* INPUT SQL：输入要查询的语句（该 SQL 语句的结果集应为两列多行），例如：`select avg(mem_system) from log.dn where  ts >= $from and ts < $to interval($interval)` ，其中，from、to 和 interval 为 TDengine 插件的内置变量，表示从 Grafana 插件面板获取的查询范围和时间间隔。除了内置变量外，`也支持可以使用自定义模板变量`。
 * ALIAS BY：可设置当前查询别名。
 * GENERATE SQL： 点击该按钮会自动替换相应变量，并生成最终执行的语句。
 
@@ -87,7 +87,7 @@ GF_PLUGINS_ALLOW_LOADING_UNSIGNED_PLUGINS=tdengine-datasource
 
 ![img](../images/connections/create_dashboard2.jpg)
 
-> 关于如何使用Grafana创建相应的监测界面以及更多有关使用Grafana的信息，请参考Grafana官方的[文档](https://grafana.com/docs/)。
+> 关于如何使用 Grafana 创建相应的监测界面以及更多有关使用 Grafana 的信息，请参考 Grafana 官方的[文档](https://grafana.com/docs/)。
 
 #### 导入 Dashboard
 
