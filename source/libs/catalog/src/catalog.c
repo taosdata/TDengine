@@ -162,8 +162,7 @@ void ctgDbgShowDBCache(SHashObj *dbHash) {
     size_t len = 0;
     
     dbCache = (SCtgDBCache *)pIter;
-
-    taosHashGetKey(dbCache, (void **)&dbFName, &len);
+    dbFName = taosHashGetKey(dbCache, &len);
     
     CTG_CACHE_DEBUG("** %dth db [%.*s][%"PRIx64"] **", i, (int32_t)len, dbFName, dbCache->dbId);
     
@@ -532,9 +531,9 @@ int32_t ctgGetTableMetaFromCache(SCatalog* pCtg, const SName* pTableName, STable
     return TSDB_CODE_SUCCESS;
   }
   
-  size_t sz = 0;  
+  int32_t sz = 0;
   CTG_LOCK(CTG_READ, &dbCache->tbCache.metaLock);
-  STableMeta *tbMeta = taosHashGetCloneExt(dbCache->tbCache.metaCache, pTableName->tname, strlen(pTableName->tname), NULL, (void **)pTableMeta, &sz);
+  int32_t code = taosHashGetDup_m(dbCache->tbCache.metaCache, pTableName->tname, strlen(pTableName->tname), (void **)pTableMeta, &sz);
   CTG_UNLOCK(CTG_READ, &dbCache->tbCache.metaLock);
 
   if (NULL == *pTableMeta) {
@@ -545,8 +544,7 @@ int32_t ctgGetTableMetaFromCache(SCatalog* pCtg, const SName* pTableName, STable
   }
 
   *exist = 1;
-  
-  tbMeta = *pTableMeta;
+  STableMeta* tbMeta = *pTableMeta;
 
   if (tbMeta->tableType != TSDB_CHILD_TABLE) {
     ctgReleaseDBCache(pCtg, dbCache);
@@ -1110,7 +1108,7 @@ void ctgRemoveStbRent(SCatalog* pCtg, SCtgTbMetaCache *cache) {
     void *pIter = taosHashIterate(cache->stbCache, NULL);
     while (pIter) {
       uint64_t *suid = NULL;
-      taosHashGetKey(pIter, (void **)&suid, NULL);
+      suid = taosHashGetKey(pIter, NULL);
 
       if (TSDB_CODE_SUCCESS == ctgMetaRentRemove(&pCtg->stbRent, *suid, ctgStbVersionCompare)) {
         ctgDebug("stb removed from rent, suid:%"PRIx64, *suid);
@@ -1305,7 +1303,7 @@ int32_t ctgUpdateTblMeta(SCatalog *pCtg, SCtgDBCache *dbCache, char *dbFName, ui
   if (taosHashPut(tbCache->stbCache, &meta->suid, sizeof(meta->suid), &tbMeta, POINTER_BYTES) != 0) {
     CTG_UNLOCK(CTG_WRITE, &tbCache->stbLock);
     CTG_UNLOCK(CTG_READ, &tbCache->metaLock);    
-    ctgError("taosHashPutExt stable to stable cache failed, suid:%"PRIx64, meta->suid);
+    ctgError("taosHashPut stable to stable cache failed, suid:%"PRIx64, meta->suid);
     CTG_ERR_RET(TSDB_CODE_CTG_MEM_ERROR);
   }
   
@@ -1343,7 +1341,7 @@ int32_t ctgCloneVgInfo(SDBVgInfo *src, SDBVgInfo **dst) {
   int32_t *vgId = NULL;
   void *pIter = taosHashIterate(src->vgHash, NULL);
   while (pIter) {
-    taosHashGetKey(pIter, (void **)&vgId, NULL);
+    vgId = taosHashGetKey(pIter, NULL);
 
     if (taosHashPut((*dst)->vgHash, (void *)vgId, sizeof(int32_t), pIter, sizeof(SVgroupInfo))) {
       qError("taosHashPut failed, hashSize:%d", (int32_t)hashSize);
@@ -2296,7 +2294,7 @@ int32_t catalogGetTableDistVgInfo(SCatalog* pCtg, void *pRpc, const SEpSet* pMgm
     CTG_ERR_JRET(ctgGenerateVgList(pCtg, vgHash, pVgList));
   } else {
     int32_t vgId = tbMeta->vgId;
-    if (NULL == taosHashGetClone(vgHash, &vgId, sizeof(vgId), &vgroupInfo)) {
+    if (taosHashGetDup(vgHash, &vgId, sizeof(vgId), &vgroupInfo) != 0) {
       ctgError("table's vgId not found in vgroup list, vgId:%d, tbName:%s", vgId, tNameGetTableName(pTableName));
       CTG_ERR_JRET(TSDB_CODE_CTG_INTERNAL_ERROR);    
     }

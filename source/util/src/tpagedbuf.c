@@ -42,8 +42,8 @@ struct SDiskbasedBuf {
   bool      comp;              // compressed before flushed to disk
   uint64_t  nextPos;           // next page flush position
 
-  uint64_t            qId;          // for debug purpose
-  bool                printStatis;  // Print statistics info when closing this buffer.
+  char*     id;          // for debug purpose
+  bool      printStatis;  // Print statistics info when closing this buffer.
   SDiskbasedBufStatis statis;
 };
 
@@ -356,7 +356,7 @@ static SPageInfo* getPageInfoFromPayload(void* page) {
   return ppi;
 }
 
-int32_t createDiskbasedBuf(SDiskbasedBuf** pBuf, int32_t pagesize, int32_t inMemBufSize, uint64_t qId,
+int32_t createDiskbasedBuf(SDiskbasedBuf** pBuf, int32_t pagesize, int32_t inMemBufSize, const char* id,
                            const char* dir) {
   *pBuf = calloc(1, sizeof(SDiskbasedBuf));
 
@@ -366,13 +366,13 @@ int32_t createDiskbasedBuf(SDiskbasedBuf** pBuf, int32_t pagesize, int32_t inMem
   }
 
   pPBuf->pageSize = pagesize;
-  pPBuf->numOfPages = 0;  // all pages are in buffer in the first place
+  pPBuf->numOfPages   = 0;  // all pages are in buffer in the first place
   pPBuf->totalBufSize = 0;
   pPBuf->inMemPages = inMemBufSize / pagesize;  // maximum allowed pages, it is a soft limit.
   pPBuf->allocateId = -1;
-  pPBuf->comp = true;
-  pPBuf->pFile = NULL;
-  pPBuf->qId = qId;
+  pPBuf->comp     = true;
+  pPBuf->pFile    = NULL;
+  pPBuf->id       = strdup(id);
   pPBuf->fileSize = 0;
   pPBuf->pFree = taosArrayInit(4, sizeof(SFreeListItem));
   pPBuf->freePgList = tdListNew(POINTER_BYTES);
@@ -540,13 +540,13 @@ void destroyDiskbasedBuf(SDiskbasedBuf* pBuf) {
   if (pBuf->pFile != NULL) {
     uDebug(
         "Paged buffer closed, total:%.2f Kb (%d Pages), inmem size:%.2f Kb (%d Pages), file size:%.2f Kb, page "
-        "size:%.2f Kb, %" PRIx64 "\n",
+        "size:%.2f Kb, %s\n",
         pBuf->totalBufSize / 1024.0, pBuf->numOfPages, listNEles(pBuf->lruList) * pBuf->pageSize / 1024.0,
-        listNEles(pBuf->lruList), pBuf->fileSize / 1024.0, pBuf->pageSize / 1024.0f, pBuf->qId);
+        listNEles(pBuf->lruList), pBuf->fileSize / 1024.0, pBuf->pageSize / 1024.0f, pBuf->id);
 
     taosCloseFile(&pBuf->pFile);
   } else {
-    uDebug("Paged buffer closed, total:%.2f Kb, no file created, %" PRIx64, pBuf->totalBufSize / 1024.0, pBuf->qId);
+    uDebug("Paged buffer closed, total:%.2f Kb, no file created, %s", pBuf->totalBufSize / 1024.0, pBuf->id);
   }
 
   // print the statistics information
@@ -584,6 +584,7 @@ void destroyDiskbasedBuf(SDiskbasedBuf* pBuf) {
   taosHashCleanup(pBuf->groupSet);
   taosHashCleanup(pBuf->all);
 
+  tfree(pBuf->id);
   tfree(pBuf->assistBuf);
   tfree(pBuf);
 }
@@ -639,9 +640,9 @@ void dBufPrintStatis(const SDiskbasedBuf* pBuf) {
 
   printf(
       "Paged buffer closed, total:%.2f Kb (%d Pages), inmem size:%.2f Kb (%d Pages), file size:%.2f Kb, page size:%.2f "
-      "Kb, %" PRIx64 "\n",
+      "Kb, %s\n",
       pBuf->totalBufSize / 1024.0, pBuf->numOfPages, listNEles(pBuf->lruList) * pBuf->pageSize / 1024.0,
-      listNEles(pBuf->lruList), pBuf->fileSize / 1024.0, pBuf->pageSize / 1024.0f, pBuf->qId);
+      listNEles(pBuf->lruList), pBuf->fileSize / 1024.0, pBuf->pageSize / 1024.0f, pBuf->id);
 
   printf(
       "Get/Release pages:%d/%d, flushToDisk:%.2f Kb (%d Pages), loadFromDisk:%.2f Kb (%d Pages), avgPageSize:%.2f Kb\n",

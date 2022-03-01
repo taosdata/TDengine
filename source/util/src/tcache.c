@@ -305,8 +305,9 @@ void *taosCacheAcquireByKey(SCacheObj *pCacheObj, const void *key, size_t keyLen
     return NULL;
   }
 
+  // TODO remove it
   SCacheDataNode *ptNode = NULL;
-  taosHashGetClone(pCacheObj->pHashTable, key, keyLen, &ptNode);
+  ptNode = taosHashAcquire(pCacheObj->pHashTable, key, keyLen);
   //  taosHashGetClone(pCacheObj->pHashTable, key, keyLen, incRefFn, &ptNode);
 
   void *pData = (ptNode != NULL) ? ptNode->data : NULL;
@@ -535,7 +536,7 @@ static bool travHashTableEmptyFn(void *param, void *data) {
 void taosCacheEmpty(SCacheObj *pCacheObj) {
   SHashTravSupp sup = {.pCacheObj = pCacheObj, .fp = NULL, .time = taosGetTimestampMs()};
 
-  //  taosHashCondTraverse(pCacheObj->pHashTable, travHashTableEmptyFn, &sup);
+//  taosHashCondTraverse(pCacheObj->pHashTable, travHashTableEmptyFn, &sup);
   taosTrashcanEmpty(pCacheObj, false);
 }
 

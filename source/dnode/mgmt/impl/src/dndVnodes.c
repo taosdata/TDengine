@@ -85,7 +85,7 @@ static SVnodeObj *dndAcquireVnode(SDnode *pDnode, int32_t vgId) {
   int32_t      refCount = 0;
 
   taosRLockLatch(&pMgmt->latch);
-  taosHashGetClone(pMgmt->hash, &vgId, sizeof(int32_t), (void *)&pVnode);
+  taosHashGetDup(pMgmt->hash, &vgId, sizeof(int32_t), (void *)&pVnode);
   if (pVnode == NULL) {
     terrno = TSDB_CODE_VND_INVALID_VGROUP_ID;
   } else {
