@@ -134,7 +134,7 @@ typedef struct {
 tmq_conf_t* tmq_conf_new() {
   tmq_conf_t* conf = calloc(1, sizeof(tmq_conf_t));
   conf->auto_commit = false;
-  conf->resetOffset = TMQ_CONF__RESET_OFFSET__LATEST;
+  conf->resetOffset = TMQ_CONF__RESET_OFFSET__EARLIEAST;
   return conf;
 }
 
@@ -651,13 +651,17 @@ int32_t tmqPollCb(void* param, const SDataBuf* pMsg, int32_t code) {
   /*SMqConsumeRsp* pRsp = calloc(1, sizeof(SMqConsumeRsp));*/
   tmq_message_t* pRsp = taosAllocateQitem(sizeof(tmq_message_t));
   if (pRsp == NULL) {
+    printf("fail\n");
     return -1;
   }
   memcpy(pRsp, pMsg->pData, sizeof(SMqRspHead));
   tDecodeSMqConsumeRsp(POINTER_SHIFT(pMsg->pData, sizeof(SMqRspHead)), &pRsp->consumeRsp);
   /*printf("rsp commit off:%ld rsp off:%ld has data:%d\n", pRsp->committedOffset, pRsp->rspOffset, pRsp->numOfTopics);*/
   if (pRsp->consumeRsp.numOfTopics == 0) {
-    /*printf("no data\n");*/
+    printf("no data\n");
+    if (pParam->epoch == tmq->epoch) {
+      atomic_store_32(&pVg->vgStatus, TMQ_VG_STATUS__IDLE);
+    }
     taosFreeQitem(pRsp);
     return 0;
   }
@@ -732,7 +736,7 @@ int32_t tmqAskEpCb(void* param, const SDataBuf* pMsg, int32_t code) {
       return -1;
     }
     memcpy(pRsp, pMsg->pData, sizeof(SMqRspHead));
-    tDecodeSMqCMGetSubEpRsp(pMsg->pData, &pRsp->getEpRsp);
+    tDecodeSMqCMGetSubEpRsp(POINTER_SHIFT(pMsg->pData, sizeof(SMqRspHead)), &pRsp->getEpRsp);
     taosWriteQitem(tmq->mqueue, pRsp);
   }
   return 0;
@@ -973,13 +977,18 @@ tmq_message_t* tmq_consumer_poll(tmq_t* tmq, int64_t blocking_time) {
   tmqPollImpl(tmq, blocking_time);
 
   while (1) {
+    /*printf("cycle\n");*/
     taosReadAllQitems(tmq->mqueue, tmq->qall);
-    tmqHandleAllRsp(tmq, blocking_time, true);
-    int64_t endTime = taosGetTimestampMs();
-    if (endTime - startTime > blocking_time) {
-      printf("cycle end\n");
-      usleep(1000 * 1000);
-      return NULL;
+    rspMsg = tmqHandleAllRsp(tmq, blocking_time, true);
+    if (rspMsg) {
+      return rspMsg;
+    }
+    if (blocking_time != 0) {
+      int64_t endTime = taosGetTimestampMs();
+      if (endTime - startTime > blocking_time) {
+        printf("normal exit\n");
+        return NULL;
+      }
     }
   }
 }

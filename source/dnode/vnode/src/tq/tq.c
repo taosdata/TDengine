@@ -278,14 +278,16 @@ int32_t tqProcessConsumeReq(STQ* pTq, SRpcMsg* pMsg) {
         rsp.numOfTopics = 1;
         rsp.pBlockData = pRes;
 
-        int32_t tlen = tEncodeSMqConsumeRsp(NULL, &rsp);
+        int32_t tlen = sizeof(SMqRspHead) + tEncodeSMqConsumeRsp(NULL, &rsp);
         void*   buf = rpcMallocCont(tlen);
         if (buf == NULL) {
           pMsg->code = -1;
           return -1;
         }
+        ((SMqRspHead*)buf)->mqMsgType = TMQ_MSG_TYPE__POLL_RSP;
+        ((SMqRspHead*)buf)->epoch = pReq->epoch;
 
-        void* abuf = buf;
+        void* abuf = POINTER_SHIFT(buf, sizeof(SMqRspHead));
         tEncodeSMqConsumeRsp(&abuf, &rsp);
         taosArrayDestroyEx(rsp.pBlockData, (void (*)(void*))tDeleteSSDataBlock);
         pMsg->pCont = buf;
