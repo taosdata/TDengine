@@ -14,7 +14,7 @@ docker run -d -p 6030-6049:6030-6049 -p 6030-6049:6030-6049/udp tdengine/tdengin
 
 Please refer to [Quickly Taste TDengine with Docker](https://www.taosdata.com/en/documentation/getting-started/docker) for the details.
 
-For the time being, we do not recommend using Docker to deploy the TDengine server or client in production environments. However it is a convenient way to deploy TDengine for development purposes. In particular, it is easy to try TDengine in Mac OS X and Windows environments with Docker.
+For the time being, we do not recommend using Docker to deploy the TDengine server or client in production environments. However it is a convenient way to deploy TDengine for development purposes. In particular, it is easy to try TDengine in macOS and Windows environments with Docker.
 
 ### <a class="anchor" id="package-install"></a>Install from Package
 
