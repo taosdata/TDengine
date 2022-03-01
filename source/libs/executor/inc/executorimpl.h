@@ -233,7 +233,7 @@ typedef struct STaskAttr {
   SArray*         pUdfInfo;  // no need to free
 } STaskAttr;
 
-typedef int32_t (*__optr_prepare_fn_t)(void* param);
+typedef int32_t (*__optr_open_fn_t)(void* param);
 typedef SSDataBlock* (*__operator_fn_t)(void* param, bool* newgroup);
 typedef void (*__optr_cleanup_fn_t)(void* param, int32_t num);
 
@@ -318,7 +318,7 @@ typedef struct SOperatorInfo {
 
   struct SOperatorInfo** pDownstream;      // downstram pointer list
   int32_t                numOfDownstream;  // number of downstream. The value is always ONE expect for join operator
-  __optr_prepare_fn_t    prepareFn;
+  __optr_open_fn_t    prepareFn;
   __operator_fn_t        exec;
   __optr_cleanup_fn_t    cleanupFn;
 } SOperatorInfo;
