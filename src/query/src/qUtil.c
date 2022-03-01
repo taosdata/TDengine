@@ -92,6 +92,10 @@ void cleanupResultRowInfo(SResultRowInfo *pResultRowInfo) {
         taosHashCleanup(pResultRowInfo->pResult[i]->uniqueHash);
         pResultRowInfo->pResult[i]->uniqueHash = NULL;
       }
+      if (pResultRowInfo->pResult[i]->modeHash){
+        taosHashCleanup(pResultRowInfo->pResult[i]->modeHash);
+        pResultRowInfo->pResult[i]->modeHash = NULL;
+      }
     }
   }
   
@@ -205,7 +209,7 @@ SResultRowPool* initResultRowPool(size_t size) {
     qError("ResultRow blockSize is too large:%" PRId64, tmp);
     tmp = 128*1024*1024;
   }
-  p->blockSize = tmp;
+  p->blockSize = (int32_t)tmp;
   p->position.pos = 0;
 
   p->pData = taosArrayInit(8, POINTER_BYTES);

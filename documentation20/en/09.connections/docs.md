@@ -137,7 +137,7 @@ sql1 = [‘insert into tb values (now, 1)’]
 exec(conn, sql1)
 ```
 
-For more detailed examples, please refer to the examples\Matlab\TDEngineDemo.m file in the package.
+For more detailed examples, please refer to the examples\matlab\TDengineDemo.m file in the package.
 
 ## <a class="anchor" id="r"></a> R 
 

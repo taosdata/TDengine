@@ -157,7 +157,7 @@ Logical structure diagram of TDengine distributed architecture as following:
 ![TDengine architecture diagram](../images/architecture/structure.png)
 <center> Figure 1: TDengine architecture diagram </center>
 
-A complete TDengine system runs on one or more physical nodes. Logically, it includes data node (dnode), TDEngine application driver (TAOSC) and application (app). There are one or more data nodes in the system, which form a cluster. The application interacts with the TDengine cluster through TAOSC's API. The following is a brief introduction to each logical unit.
+A complete TDengine system runs on one or more physical nodes. Logically, it includes data node (dnode), TDengine application driver (TAOSC) and application (app). There are one or more data nodes in the system, which form a cluster. The application interacts with the TDengine cluster through TAOSC's API. The following is a brief introduction to each logical unit.
 
 **Physical node (pnode)**: A pnode is a computer that runs independently and has its own computing, storage and network capabilities. It can be a physical machine, virtual machine, or Docker container installed with OS. The physical node is identified by its configured FQDN (Fully Qualified Domain Name). TDengine relies entirely on FQDN for network communication. If you don't know about FQDN, please read the blog post "[All about FQDN of TDengine](https://www.taosdata.com/blog/2020/09/11/1824.html)".
 
