@@ -64,7 +64,7 @@ int tdbEnvClose(STEnv *pEnv) {
   return 0;
 }
 
-SPager *tdbEnvGetPFile(STEnv *pEnv, const char *fname) {
+SPager *tdbEnvGetPager(STEnv *pEnv, const char *fname) {
   // TODO
   return NULL;
 }

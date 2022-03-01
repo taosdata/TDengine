@@ -117,23 +117,27 @@ static int tdbBtCursorMoveTo(SBtCursor *pCur, const void *pKey, int kLen) {
     return -1;
   }
 
-  for (;;) {
-    int lidx, ridx, midx, c;
+  if (pCur->pPage->pHdr->nCells == 0) {
+    // Tree is empty
+  } else {
+    for (;;) {
+      int lidx, ridx, midx, c;
 
-    pBtPage = pCur->pPage;
-    lidx = 0;
-    ridx = pBtPage->pHdr->nCells - 1;
-    while (lidx <= ridx) {
-      midx = (lidx + ridx) >> 1;
-      pCell = (void *)(pBtPage->aData + pBtPage->aCellIdx[midx]);
+      pBtPage = pCur->pPage;
+      lidx = 0;
+      ridx = pBtPage->pHdr->nCells - 1;
+      while (lidx <= ridx) {
+        midx = (lidx + ridx) >> 1;
+        pCell = (void *)(pBtPage->aData + pBtPage->aCellIdx[midx]);
 
-      c = tdbCompareKeyAndCell(pKey, kLen, pCell);
-      if (c == 0) {
-        break;
-      } else if (c < 0) {
-        lidx = lidx + 1;
-      } else {
-        ridx = ridx - 1;
+        c = tdbCompareKeyAndCell(pKey, kLen, pCell);
+        if (c == 0) {
+          break;
+        } else if (c < 0) {
+          lidx = lidx + 1;
+        } else {
+          ridx = ridx - 1;
+        }
       }
     }
 
