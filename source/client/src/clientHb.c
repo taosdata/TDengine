@@ -524,7 +524,7 @@ int hbMgrInit() {
 }
 
 void hbMgrCleanUp() {
-  /*return;*/
+  return;
   hbStopThread();
 
   // destroy all appHbMgr
