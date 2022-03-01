@@ -1,3 +1,6 @@
+[submodule "src/connector/go"]
+    path = src/connector/go
+    url = https://github.com/taosdata/driver-go.git
 [submodule "src/connector/hivemq-tdengine-extension"]
 	path = src/connector/hivemq-tdengine-extension
 	url = https://github.com/taosdata/hivemq-tdengine-extension.git
@@ -14,3 +17,10 @@
 [submodule "src/plugins/taosadapter"]
 	path = src/plugins/taosadapter
 	url = https://github.com/taosdata/taosadapter
+[submodule "tests"]
+	path = tests
+	url = https://github.com/taosdata/tests
+	branch = develop
+[submodule "examples/rust"]
+	path = examples/rust
+	url = https://github.com/songtianyi/tdengine-rust-bindings.git
