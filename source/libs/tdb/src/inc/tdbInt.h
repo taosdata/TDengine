@@ -131,7 +131,10 @@ typedef int (*FKeyComparator)(const void *pKey1, int kLen1, const void *pKey2, i
 
 #define BTREE_MAX_DEPTH 20
 
+
 #include "tdbUtil.h"
+
+#include "tdbPage.h"
 
 #include "tdbPCache.h"
 
