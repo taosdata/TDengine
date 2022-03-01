@@ -3283,22 +3283,23 @@ int32_t addExprAndResultField(SSqlCmd* pCmd, SQueryInfo* pQueryInfo, int32_t col
 
         pExpr = tscExprAppend(pQueryInfo, functionId, &index, resultType, resultSize, getNewResColId(pCmd),
                               resultSize, false);
-        tscExprAddParams(&pExpr->base, val, TSDB_DATA_TYPE_BIGINT, sizeof(int64_t));
         if (functionId == TSDB_FUNC_TAIL){
+          int64_t offset = 0;
           if (taosArrayGetSize(pItem->pNode->Expr.paramList) == 3){
             tSqlExprItem* para = taosArrayGet(pItem->pNode->Expr.paramList, 2);
             if (para->pNode->tokenId == TK_ID || para->pNode->value.nType != TSDB_DATA_TYPE_BIGINT) {
               return invalidOperationMsg(tscGetErrorMsgPayload(pCmd), msg2);
             }
-            pVariant = &para->pNode->value;
-            tVariantDump(pVariant, val, TSDB_DATA_TYPE_BIGINT, true);
-            int64_t offset = GET_INT64_VAL(val);
+            offset = para->pNode->value.i64;
             if (offset < 0 || offset > 100) {
               return invalidOperationMsg(tscGetErrorMsgPayload(pCmd), msg30);
             }
-          }else{
-            GET_INT64_VAL(val) = 0;
           }
+          GET_INT64_VAL(val) = numRowsSelected + offset;
+          tscExprAddParams(&pExpr->base, val, TSDB_DATA_TYPE_BIGINT, sizeof(int64_t));
+          GET_INT64_VAL(val) = offset;
+          tscExprAddParams(&pExpr->base, val, TSDB_DATA_TYPE_BIGINT, sizeof(int64_t));
+        }else{
           tscExprAddParams(&pExpr->base, val, TSDB_DATA_TYPE_BIGINT, sizeof(int64_t));
         }
       }

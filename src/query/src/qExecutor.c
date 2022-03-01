@@ -2602,7 +2602,7 @@ static bool onlyOneQueryType(SQueryAttr *pQueryAttr, int32_t functId, int32_t fu
 
 static bool onlyFirstQuery(SQueryAttr *pQueryAttr) { return onlyOneQueryType(pQueryAttr, TSDB_FUNC_FIRST, TSDB_FUNC_FIRST_DST); }
 
-static bool onlyLastQuery(SQueryAttr *pQueryAttr) { return onlyOneQueryType(pQueryAttr, TSDB_FUNC_LAST, TSDB_FUNC_LAST_DST) || onlyOneQueryType(pQueryAttr, TSDB_FUNC_TAIL, TSDB_FUNC_TAIL); }
+static bool onlyLastQuery(SQueryAttr *pQueryAttr) { return onlyOneQueryType(pQueryAttr, TSDB_FUNC_LAST, TSDB_FUNC_LAST_DST); }
 
 static bool notContainSessionOrStateWindow(SQueryAttr *pQueryAttr) { return !(pQueryAttr->sw.gap > 0 || pQueryAttr->stateWindow); }
 
@@ -3941,9 +3941,9 @@ void finalizeQueryResult(SOperatorInfo* pOperator, SQLFunctionCtx* pCtx, SResult
   }
 }
 
-bool isUniqueQuery(int32_t numOfOutput, SExprInfo* pExprs) {
+bool isFunctionQuery(int32_t numOfOutput, SExprInfo* pExprs, int16_t functionId) {
   for (int32_t i = 0; i < numOfOutput; ++i) {
-    if (pExprs[i].base.functionId == TSDB_FUNC_UNIQUE) {
+    if (pExprs[i].base.functionId == functionId) {
       return true;
     }
   }
@@ -9587,7 +9587,8 @@ SQInfo* createQInfoImpl(SQueryTableMsg* pQueryMsg, SGroupbyExpr* pGroupbyExpr, S
   pQueryAttr->vgId            = vgId;
   pQueryAttr->pFilters        = pFilters;
   pQueryAttr->range           = pQueryMsg->range;
-  pQueryAttr->uniqueQuery     = isUniqueQuery(numOfOutput, pExprs);
+  pQueryAttr->uniqueQuery     = isFunctionQuery(numOfOutput, pExprs, TSDB_FUNC_UNIQUE);
+  pQueryAttr->tailQuery       = isFunctionQuery(numOfOutput, pExprs, TSDB_FUNC_TAIL);
 
   pQueryAttr->tableCols = calloc(numOfCols, sizeof(SSingleColumnFilterInfo));
   if (pQueryAttr->tableCols == NULL) {

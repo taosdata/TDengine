@@ -5467,10 +5467,10 @@ static int32_t tailComparFn(const void *p1, const void *p2, const void *param) {
 
 static void tailSwapFn(void *dst, void *src, const void *param)
 {
-  tValuePair  **vdst = (tValuePair **) dst;
-  tValuePair  **vsrc = (tValuePair **) src;
+  TailUnit  **vdst = (TailUnit **) dst;
+  TailUnit  **vsrc = (TailUnit **) src;
 
-  tValuePair  *tmp = *vdst;
+  TailUnit  *tmp = *vdst;
   *vdst = *vsrc;
   *vsrc = tmp;
 }
@@ -5485,7 +5485,7 @@ static void do_tail_function_add(STailInfo *pInfo, int32_t maxLen, void *pData, 
     taosheapsort((void *) pList, sizeof(TailUnit **), pInfo->num + 1, NULL, tailComparFn, NULL, tailSwapFn, 0);
 
     pInfo->num++;
-  } else {
+  } else if(pList[0]->timestamp < ts) {
     valueTailAssign(pList[0], bytes, pData, ts, pTagInfo, pTags, stage);
     taosheapadjust((void *) pList, sizeof(TailUnit **), 0, maxLen - 1, NULL, tailComparFn, NULL, tailSwapFn, 0);
   }
@@ -5504,36 +5504,36 @@ static bool tail_function_setup(SQLFunctionCtx *pCtx, SResultRowCellInfo* pResIn
 static void tail_function(SQLFunctionCtx *pCtx) {
   STailInfo *pRes = getOutputInfo(pCtx);
 
-  if (pCtx->stableQuery){
+//  if (pCtx->stableQuery){
     for (int32_t i = 0; i < pCtx->size; ++i) {
       char *data = GET_INPUT_DATA(pCtx, i);
 
       TSKEY ts = (pCtx->ptsList != NULL)? GET_TS_DATA(pCtx, i):0;
-      do_tail_function_add(pRes, (int32_t)(pCtx->param[0].i64 + pCtx->param[1].i64), data, ts,
+      do_tail_function_add(pRes, (int32_t)pCtx->param[0].i64, data, ts,
                            pCtx->inputBytes, &pCtx->tagInfo, NULL, pCtx->currentStage);
     }
-  }else{
-    for (int32_t i = pCtx->size - 1; i >= 0; --i) {
-      if (pRes->offset++ < (int32_t)pCtx->param[1].i64){
-        continue;
-      }
-      if (pRes->num >= (int32_t)pCtx->param[0].i64){    // query complete
-        pCtx->resultInfo->complete = true;
-        for (int32_t j = 0; j < pCtx->tagInfo.numOfTagCols; ++j) {
-          SQLFunctionCtx *ctx = pCtx->tagInfo.pTagCtxList[j];
-          ctx->resultInfo->complete = true;
-        }
-        break;
-      }
-      char *data = GET_INPUT_DATA(pCtx, i);
-
-      TSKEY ts = (pCtx->ptsList != NULL)? GET_TS_DATA(pCtx, i):0;
-
-      valueTailAssign(pRes->res[pRes->num], pCtx->inputBytes, data, ts, &pCtx->tagInfo, NULL, pCtx->currentStage);
-
-      pRes->num++;
-    }
-  }
+//  }else{
+//    for (int32_t i = pCtx->size - 1; i >= 0; --i) {
+//      if (pRes->offset++ < (int32_t)pCtx->param[1].i64){
+//        continue;
+//      }
+//      if (pRes->num >= (int32_t)(pCtx->param[0].i64 - pCtx->param[1].i64)){    // query complete
+//        pCtx->resultInfo->complete = true;
+//        for (int32_t j = 0; j < pCtx->tagInfo.numOfTagCols; ++j) {
+//          SQLFunctionCtx *ctx = pCtx->tagInfo.pTagCtxList[j];
+//          ctx->resultInfo->complete = true;
+//        }
+//        break;
+//      }
+//      char *data = GET_INPUT_DATA(pCtx, i);
+//
+//      TSKEY ts = (pCtx->ptsList != NULL)? GET_TS_DATA(pCtx, i):0;
+//
+//      valueTailAssign(pRes->res[pRes->num], pCtx->inputBytes, data, ts, &pCtx->tagInfo, NULL, pCtx->currentStage);
+//
+//      pRes->num++;
+//    }
+//  }
 
   // treat the result as only one result
   GET_RES_INFO(pCtx)->numOfRes = 1;
@@ -5549,7 +5549,7 @@ static void tail_func_merge(SQLFunctionCtx *pCtx) {
 
   // the intermediate result is binary, we only use the output data type
   for (int32_t i = 0; i < pInput->num; ++i) {
-    do_tail_function_add(pOutput, (int32_t)(pCtx->param[0].i64 + pCtx->param[1].i64), pInput->res[i]->data, pInput->res[i]->timestamp,
+    do_tail_function_add(pOutput, (int32_t)pCtx->param[0].i64, pInput->res[i]->data, pInput->res[i]->timestamp,
                         pCtx->outputBytes, &pCtx->tagInfo, pInput->res[i]->data + pCtx->outputBytes, pCtx->currentStage);
   }
 
@@ -5562,34 +5562,25 @@ static void tail_func_finalizer(SQLFunctionCtx *pCtx) {
   // data in temporary list is less than the required number of results, not enough qualified number of results
   STailInfo *pRes = GET_ROWCELL_INTERBUF(pResInfo);
 
-  if(pCtx->stableQuery){
-    GET_RES_INFO(pCtx)->numOfRes = pRes->num - pCtx->param[1].i64;
-  }else{
-    GET_RES_INFO(pCtx)->numOfRes = pRes->num;
-  }
-
   int32_t bytes = 0;
   int32_t type = 0;
-  int32_t start = 0;
   if (pCtx->currentStage == MERGE_STAGE) {
     bytes = pCtx->outputBytes;
     type = pCtx->outputType;
-    start = pCtx->param[1].i64;
     assert(pCtx->inputType == TSDB_DATA_TYPE_BINARY);
   } else {
     bytes = pCtx->inputBytes;
     type = pCtx->inputType;
   }
 
-  SortSupporter support = {0};
-  // user specify the order of output by sort the result according to timestamp
-  if (pCtx->param[2].i64 == PRIMARYKEY_TIMESTAMP_COL_INDEX) {
-    support.dataOffset = 0;
-    support.comparFn = compareInt64Val;
-  } else{
-    support.dataOffset = sizeof(int64_t);
-    support.comparFn = getComparFunc(type, 0);
-  }
+//  if(pCtx->stableQuery){
+    GET_RES_INFO(pCtx)->numOfRes = pRes->num - pCtx->param[1].i64;
+//  }else{
+//    GET_RES_INFO(pCtx)->numOfRes = pRes->num;
+//  }
+  if (GET_RES_INFO(pCtx)->numOfRes <= 0) return;
+
+  taosqsort(pRes->res, pRes->num, POINTER_BYTES, NULL, tailComparFn);
 
   size_t size = sizeof(int64_t) + bytes + pCtx->tagInfo.tagsLen;
   void *data = calloc(size, GET_RES_INFO(pCtx)->numOfRes);
@@ -5597,10 +5588,18 @@ static void tail_func_finalizer(SQLFunctionCtx *pCtx) {
     qError("calloc error in tail_func_finalizer: size:%d, num:%d", (int32_t)size, GET_RES_INFO(pCtx)->numOfRes);
     return;
   }
-  for(int32_t i = 0; start < pRes->num; start++, i++){
-    memcpy(data + i * size, pRes->res[start], size);
+  for(int32_t i = 0; i < GET_RES_INFO(pCtx)->numOfRes; i++){
+    memcpy(data + i * size, pRes->res[i], size);
   }
-  taosqsort(data, (size_t)GET_RES_INFO(pCtx)->numOfRes, size, &support, sortCompareFn);
+
+  SortSupporter support = {0};
+  // user specify the order of output by sort the result according to timestamp
+  if (pCtx->param[2].i64 != PRIMARYKEY_TIMESTAMP_COL_INDEX) {
+    support.dataOffset = sizeof(int64_t);
+    support.comparFn = getComparFunc(type, 0);
+    taosqsort(data, (size_t)GET_RES_INFO(pCtx)->numOfRes, size, &support, sortCompareFn);
+  }
+
   copyRes(pCtx, data, bytes);
   free(data);
   doFinalizer(pCtx);
