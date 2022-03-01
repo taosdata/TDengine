@@ -681,9 +681,5 @@ int32_t taosEOFFile(TdFilePtr pFile) {
   }
   assert(pFile->fp != NULL);
 
-<<<<<<< Updated upstream
-  return feof(pFile->fp); 
-=======
   return feof(pFile->fp);
->>>>>>> Stashed changes
 }

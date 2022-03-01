@@ -659,12 +659,9 @@ int32_t tmqPollCb(void* param, const SDataBuf* pMsg, int32_t code) {
   /*printf("rsp commit off:%ld rsp off:%ld has data:%d\n", pRsp->committedOffset, pRsp->rspOffset, pRsp->numOfTopics);*/
   if (pRsp->consumeRsp.numOfTopics == 0) {
     printf("no data\n");
-<<<<<<< Updated upstream
     if (pParam->epoch == tmq->epoch) {
       atomic_store_32(&pVg->vgStatus, TMQ_VG_STATUS__IDLE);
     }
-=======
->>>>>>> Stashed changes
     taosFreeQitem(pRsp);
     return 0;
   }
@@ -982,7 +979,6 @@ tmq_message_t* tmq_consumer_poll(tmq_t* tmq, int64_t blocking_time) {
   while (1) {
     /*printf("cycle\n");*/
     taosReadAllQitems(tmq->mqueue, tmq->qall);
-<<<<<<< Updated upstream
     rspMsg = tmqHandleAllRsp(tmq, blocking_time, true);
     if (rspMsg) {
       return rspMsg;
@@ -994,14 +990,6 @@ tmq_message_t* tmq_consumer_poll(tmq_t* tmq, int64_t blocking_time) {
         return NULL;
       }
     }
-=======
-    tmqHandleAllRsp(tmq, blocking_time, true);
-    /*if (blocking_time != 0 && endTime - startTime > blocking_time) {*/
-    /*int64_t endTime = taosGetTimestampMs();*/
-    /*printf("normal exit\n");*/
-    /*return NULL;*/
-    /*}*/
->>>>>>> Stashed changes
   }
 }
 
