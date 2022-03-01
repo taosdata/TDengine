@@ -135,7 +135,7 @@ typedef int (*FKeyComparator)(const void *pKey1, int kLen1, const void *pKey2, i
 
 #include "tdbPCache.h"
 
-#include "tdbPFile.h"
+#include "tdbPager.h"
 
 #include "tdbBtree.h"
 

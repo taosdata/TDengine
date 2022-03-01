@@ -3,7 +3,7 @@ add_library(tdb "")
 target_sources(tdb
     PRIVATE
     "src/db/tdbPCache.c"
-    "src/db/tdbPFile.c"
+    "src/db/tdbPager.c"
     "src/db/tdbUtil.c"
     "src/db/tdbBtree.c"
     "src/db/tdbDb.c"

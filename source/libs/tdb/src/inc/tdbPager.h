@@ -13,8 +13,8 @@
  * along with this program. If not, see <http://www.gnu.org/licenses/>.
  */
 
-#ifndef _TD_PAGE_FILE_H_
-#define _TD_PAGE_FILE_H_
+#ifndef _TDB_PAGER_H_
+#define _TDB_PAGER_H_
 
 #ifdef __cplusplus
 extern "C" {
@@ -35,4 +35,4 @@ int    tdbPagerCommit(SPager *pFile);
 }
 #endif
 
-#endif /*_TD_PAGE_FILE_H_*/
+#endif /*_TDB_PAGER_H_*/
