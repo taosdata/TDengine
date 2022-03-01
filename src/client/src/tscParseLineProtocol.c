@@ -2140,7 +2140,7 @@ static int32_t parseSmlKey(TAOS_SML_KV *pKV, const char **index, SHashObj *pHash
 
 static int32_t parseSmlValue(TAOS_SML_KV *pKV, const char **index,
                           bool *is_last_kv, SSmlLinesInfo* info, bool isTag) {
-  const char *start, *cur;
+  const char *start, *cur, *tmp;
   int32_t ret = TSDB_CODE_SUCCESS;
   char *value = NULL;
   int16_t len = 0;
@@ -2188,8 +2188,11 @@ static int32_t parseSmlValue(TAOS_SML_KV *pKV, const char **index,
     }
     //Escape special character
     if (*cur == '\\') {
+      tmp = cur;
       escapeSpecialCharacter(isTag ? 2 : 3, &cur);
-      len++;
+      if (tmp != cur) {
+        continue;
+      }
     }
     cur++;
     len++;
