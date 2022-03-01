@@ -24,6 +24,7 @@ typedef struct STDb STDb;
 
 int tdbDbOpen(const char *fname, int keyLen, int valLen, FKeyComparator keyCmprFn, STEnv *pEnv, STDb **ppDb);
 int tdbDbClose(STDb *pDb);
+int tdbDbDrop(STDb *pDb);
 int tdbDbInsert(STDb *pDb, const void *pKey, int keyLen, const void *pVal, int valLen);
 
 #ifdef __cplusplus

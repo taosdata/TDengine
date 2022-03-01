@@ -69,6 +69,11 @@ int tdbDbClose(STDb *pDb) {
   return 0;
 }
 
+int tdbDbDrop(STDb *pDb) {
+  // TODO
+  return 0;
+}
+
 int tdbDbInsert(STDb *pDb, const void *pKey, int keyLen, const void *pVal, int valLen) {
   // TODO
   return 0;

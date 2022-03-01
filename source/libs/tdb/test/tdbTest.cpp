@@ -15,9 +15,14 @@ TEST(tdb_test, simple_test) {
   ret = tdbDbOpen("db.db", TDB_VARIANT_LEN, TDB_VARIANT_LEN, NULL, pEnv, &pDb);
   GTEST_ASSERT_EQ(ret, 0);
 
-  // Insert some data
-  ret = tdbDbInsert(pDb, "1", 1, "world", 5);
-  GTEST_ASSERT_EQ(ret, 0);
+  // // Insert some data
+  // ret = tdbDbInsert(pDb, "1", 1, "world", 5);
+  // GTEST_ASSERT_EQ(ret, 0);
+
+  ret = tdbDbDrop(pDb);
+  if (pDb == NULL) {
+    return -1;
+  }
 
   // Close a database
   tdbDbClose(pDb);

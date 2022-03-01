@@ -31,9 +31,15 @@ struct SPFile {
   u8       inTran;
 };
 
-typedef struct {
-  /* TODO */
+typedef struct __attribute__((__packed__)) {
+  u8    hdrString[16];
+  u16   pageSize;
+  SPgno freePage;
+  u32   nFreePages;
+  u8    reserved[102];
 } SFileHdr;
+
+TDB_STATIC_ASSERT(sizeof(SFileHdr) == 128, "Size of file header is not correct");
 
 static int tdbPFileReadPage(SPFile *pFile, SPage *pPage);
 
