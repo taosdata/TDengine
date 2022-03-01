@@ -122,9 +122,7 @@ int32_t tNameExtractFullName(const SName* name, char* dst) {
     return -1;
   }
 
-  int32_t len = 0;
-
-  snprintf(dst, TSDB_DB_FNAME_LEN, "%d.%s", name->acctId, name->dbname);
+  int32_t len = snprintf(dst, TSDB_DB_FNAME_LEN, "%d.%s", name->acctId, name->dbname);
 
   size_t tnameLen = strlen(name->tname);
   if (tnameLen > 0) {
