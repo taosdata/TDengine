@@ -5504,20 +5504,35 @@ static bool tail_function_setup(SQLFunctionCtx *pCtx, SResultRowCellInfo* pResIn
 static void tail_function(SQLFunctionCtx *pCtx) {
   STailInfo *pRes = getOutputInfo(pCtx);
 
-  for (int32_t i = 0; i < pCtx->size; ++i) {
-    if (pRes->offset++ < (int32_t)pCtx->param[1].i64){
-      continue;
+  if (pCtx->stableQuery){
+    for (int32_t i = 0; i < pCtx->size; ++i) {
+      char *data = GET_INPUT_DATA(pCtx, i);
+
+      TSKEY ts = (pCtx->ptsList != NULL)? GET_TS_DATA(pCtx, i):0;
+      do_tail_function_add(pRes, (int32_t)(pCtx->param[0].i64 + pCtx->param[1].i64), data, ts,
+                           pCtx->inputBytes, &pCtx->tagInfo, NULL, pCtx->currentStage);
     }
-    if (pRes->num >= (int32_t)pCtx->param[0].i64){
-      break;
+  }else{
+    for (int32_t i = pCtx->size - 1; i >= 0; --i) {
+      if (pRes->offset++ < (int32_t)pCtx->param[1].i64){
+        continue;
+      }
+      if (pRes->num >= (int32_t)pCtx->param[0].i64){    // query complete
+        pCtx->resultInfo->complete = true;
+        for (int32_t j = 0; j < pCtx->tagInfo.numOfTagCols; ++j) {
+          SQLFunctionCtx *ctx = pCtx->tagInfo.pTagCtxList[j];
+          ctx->resultInfo->complete = true;
+        }
+        break;
+      }
+      char *data = GET_INPUT_DATA(pCtx, i);
+
+      TSKEY ts = (pCtx->ptsList != NULL)? GET_TS_DATA(pCtx, i):0;
+
+      valueTailAssign(pRes->res[pRes->num], pCtx->inputBytes, data, ts, &pCtx->tagInfo, NULL, pCtx->currentStage);
+
+      pRes->num++;
     }
-    char *data = GET_INPUT_DATA(pCtx, i);
-
-    TSKEY ts = (pCtx->ptsList != NULL)? GET_TS_DATA(pCtx, i):0;
-
-    valueTailAssign(pRes->res[pRes->num], pCtx->inputBytes, data, ts, &pCtx->tagInfo, NULL, pCtx->currentStage);
-
-    pRes->num++;
   }
 
   // treat the result as only one result
@@ -5534,7 +5549,7 @@ static void tail_func_merge(SQLFunctionCtx *pCtx) {
 
   // the intermediate result is binary, we only use the output data type
   for (int32_t i = 0; i < pInput->num; ++i) {
-    do_tail_function_add(pOutput, (int32_t)pCtx->param[0].i64, pInput->res[i]->data, pInput->res[i]->timestamp,
+    do_tail_function_add(pOutput, (int32_t)(pCtx->param[0].i64 + pCtx->param[1].i64), pInput->res[i]->data, pInput->res[i]->timestamp,
                         pCtx->outputBytes, &pCtx->tagInfo, pInput->res[i]->data + pCtx->outputBytes, pCtx->currentStage);
   }
 
@@ -5555,9 +5570,11 @@ static void tail_func_finalizer(SQLFunctionCtx *pCtx) {
 
   int32_t bytes = 0;
   int32_t type = 0;
+  int32_t start = 0;
   if (pCtx->currentStage == MERGE_STAGE) {
     bytes = pCtx->outputBytes;
     type = pCtx->outputType;
+    start = pCtx->param[1].i64;
     assert(pCtx->inputType == TSDB_DATA_TYPE_BINARY);
   } else {
     bytes = pCtx->inputBytes;
@@ -5580,7 +5597,7 @@ static void tail_func_finalizer(SQLFunctionCtx *pCtx) {
     qError("calloc error in tail_func_finalizer: size:%d, num:%d", (int32_t)size, GET_RES_INFO(pCtx)->numOfRes);
     return;
   }
-  for(int32_t start = pCtx->param[1].i64, i = 0; start < pRes->num; start++, i++){
+  for(int32_t i = 0; start < pRes->num; start++, i++){
     memcpy(data + i * size, pRes->res[start], size);
   }
   taosqsort(data, (size_t)GET_RES_INFO(pCtx)->numOfRes, size, &support, sortCompareFn);
