@@ -92,8 +92,8 @@ struct SSyncEnv;
 typedef struct SSyncEnv SSyncEnv;
 
 typedef struct SRaftId {
-  SyncNodeId  addr;
-  SyncGroupId vgId;
+  SyncNodeId  addr;  // typedef uint64_t SyncNodeId;
+  SyncGroupId vgId;  // typedef int32_t  SyncGroupId;
 } SRaftId;
 
 typedef struct SSyncNode {
@@ -133,17 +133,17 @@ typedef struct SSyncNode {
   uint64_t          heartbeatTimerCounter;
 
   // callback
-  int32_t (*FpOnPing)(struct SSyncNode* ths, SyncPing* pMsg);
+  int32_t (*FpOnPing)(SSyncNode* ths, SyncPing* pMsg);
 
-  int32_t (*FpOnPingReply)(struct SSyncNode* ths, SyncPingReply* pMsg);
+  int32_t (*FpOnPingReply)(SSyncNode* ths, SyncPingReply* pMsg);
 
-  int32_t (*FpOnRequestVote)(struct SSyncNode* ths, SyncRequestVote* pMsg);
+  int32_t (*FpOnRequestVote)(SSyncNode* ths, SyncRequestVote* pMsg);
 
-  int32_t (*FpOnRequestVoteReply)(struct SSyncNode* ths, SyncRequestVoteReply* pMsg);
+  int32_t (*FpOnRequestVoteReply)(SSyncNode* ths, SyncRequestVoteReply* pMsg);
 
-  int32_t (*FpOnAppendEntries)(struct SSyncNode* ths, SyncAppendEntries* pMsg);
+  int32_t (*FpOnAppendEntries)(SSyncNode* ths, SyncAppendEntries* pMsg);
 
-  int32_t (*FpOnAppendEntriesReply)(struct SSyncNode* ths, SyncAppendEntriesReply* pMsg);
+  int32_t (*FpOnAppendEntriesReply)(SSyncNode* ths, SyncAppendEntriesReply* pMsg);
 
   // passed from outside
   void* rpcClient;

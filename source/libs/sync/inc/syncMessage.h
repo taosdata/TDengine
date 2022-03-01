@@ -27,6 +27,7 @@ extern "C" {
 #include "syncRaftEntry.h"
 #include "taosdef.h"
 
+// encode as uint64
 typedef enum ESyncMessageType {
   SYNC_PING = 0,
   SYNC_PING_REPLY,
@@ -38,29 +39,47 @@ typedef enum ESyncMessageType {
   SYNC_APPEND_ENTRIES_REPLY,
 } ESyncMessageType;
 
+/*
+typedef struct SRaftId {
+  SyncNodeId  addr;  // typedef uint64_t SyncNodeId;
+  SyncGroupId vgId;  // typedef int32_t  SyncGroupId;
+} SRaftId;
+*/
+
 typedef struct SyncPing {
-  ESyncMessageType   msgType;
-  const SSyncBuffer *pData;
-} SyncPing, RaftPing;
+  uint32_t bytes;
+  uint32_t msgType;
+  SRaftId  srcId;
+  SRaftId  destId;
+  uint32_t dataLen;
+  char*    data;
+} SyncPing;
+
+#define SYNC_PING_FIX_LEN (sizeof(uint32_t) + sizeof(uint32_t) + sizeof(SRaftId) + sizeof(SRaftId) + sizeof(uint32_t))
 
 typedef struct SyncPingReply {
-  ESyncMessageType   msgType;
-  const SSyncBuffer *pData;
-} SyncPingReply, RaftPingReply;
+  uint32_t bytes;
+  uint32_t msgType;
+  SRaftId  srcId;
+  SRaftId  destId;
+  uint32_t dataLen;
+  char*    data;
+} SyncPingReply;
 
 typedef struct SyncClientRequest {
-  ESyncMessageType   msgType;
-  const SSyncBuffer *pData;
-  int64_t            seqNum;
-  bool               isWeak;
-} SyncClientRequest, RaftClientRequest;
+  ESyncMessageType msgType;
+  char*            data;
+  uint32_t         dataLen;
+  int64_t          seqNum;
+  bool             isWeak;
+} SyncClientRequest;
 
 typedef struct SyncClientRequestReply {
-  ESyncMessageType   msgType;
-  int32_t            errCode;
-  const SSyncBuffer *pErrMsg;
-  const SSyncBuffer *pLeaderHint;
-} SyncClientRequestReply, RaftClientRequestReply;
+  ESyncMessageType msgType;
+  int32_t          errCode;
+  SSyncBuffer*     pErrMsg;
+  SSyncBuffer*     pLeaderHint;
+} SyncClientRequestReply;
 
 typedef struct SyncRequestVote {
   ESyncMessageType msgType;
@@ -69,7 +88,7 @@ typedef struct SyncRequestVote {
   SyncGroupId      vgId;
   SyncIndex        lastLogIndex;
   SyncTerm         lastLogTerm;
-} SyncRequestVote, RaftRequestVote;
+} SyncRequestVote;
 
 typedef struct SyncRequestVoteReply {
   ESyncMessageType msgType;
@@ -77,7 +96,7 @@ typedef struct SyncRequestVoteReply {
   SyncNodeId       nodeId;
   SyncGroupId      vgId;
   bool             voteGranted;
-} SyncRequestVoteReply, RaftRequestVoteReply;
+} SyncRequestVoteReply;
 
 typedef struct SyncAppendEntries {
   ESyncMessageType msgType;
@@ -86,9 +105,9 @@ typedef struct SyncAppendEntries {
   SyncIndex        prevLogIndex;
   SyncTerm         prevLogTerm;
   int32_t          entryCount;
-  SSyncRaftEntry * logEntries;
+  SSyncRaftEntry*  logEntries;
   SyncIndex        commitIndex;
-} SyncAppendEntries, RaftAppendEntries;
+} SyncAppendEntries;
 
 typedef struct SyncAppendEntriesReply {
   ESyncMessageType msgType;
@@ -96,7 +115,18 @@ typedef struct SyncAppendEntriesReply {
   SyncNodeId       nodeId;
   bool             success;
   SyncIndex        matchIndex;
-} SyncAppendEntriesReply, RaftAppendEntriesReply;
+} SyncAppendEntriesReply;
+
+// ---- message build ----
+SyncPing* syncPingBuild(uint32_t dataLen);
+
+void syncPingDestroy(SyncPing* pSyncPing);
+
+void syncPingSerialize(const SyncPing* pSyncPing, char* buf, uint32_t bufLen);
+
+void syncPingDeserialize(const char* buf, uint32_t len, SyncPing* pSyncPing);
+
+void syncPing2RpcMsg(const SyncPing* pSyncPing, SRpcMsg* pRpcMsg);
 
 #ifdef __cplusplus
 }

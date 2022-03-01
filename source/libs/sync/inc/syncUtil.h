@@ -27,11 +27,28 @@ extern "C" {
 #include "syncMessage.h"
 #include "taosdef.h"
 
-void nodeInfo2EpSet(const SNodeInfo* pNodeInfo, SEpSet* pEpSet);
+// ---- encode / decode
 
-void raftId2EpSet(const SRaftId* raftId, SEpSet* pEpSet);
+uint64_t syncUtilAddr2U64(const char* host, uint16_t port);
 
-void syncPing2RpcMsg(const SyncPing* pMsg, SRpcMsg* pRpcMsg);
+void syncUtilU642Addr(uint64_t u64, char* host, size_t len, uint16_t* port);
+
+void syncUtilnodeInfo2EpSet(const SNodeInfo* pNodeInfo, SEpSet* pEpSet);
+
+void syncUtilraftId2EpSet(const SRaftId* raftId, SEpSet* pEpSet);
+
+void syncUtilnodeInfo2raftId(const SNodeInfo* pNodeInfo, SyncGroupId vgId, SRaftId* raftId);
+
+// ---- SSyncBuffer ----
+#if 0
+void syncUtilbufBuild(SSyncBuffer* syncBuf, size_t len);
+
+void syncUtilbufDestroy(SSyncBuffer* syncBuf);
+
+void syncUtilbufCopy(const SSyncBuffer* src, SSyncBuffer* dest);
+
+void syncUtilbufCopyDeep(const SSyncBuffer* src, SSyncBuffer* dest);
+#endif
 
 #ifdef __cplusplus
 }

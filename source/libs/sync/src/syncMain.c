@@ -23,19 +23,20 @@
 static int32_t tsNodeRefId = -1;
 
 // ------ local funciton ---------
-static int32_t doSyncNodeSendMsgById(SRaftId* destRaftId, struct SSyncNode* pSyncNode, SRpcMsg* pMsg);
-static int32_t doSyncNodeSendMsgByInfo(SNodeInfo* nodeInfo, struct SSyncNode* pSyncNode, SRpcMsg* pMsg);
-
-static int32_t doSyncNodePing(struct SSyncNode* ths, const SyncPing* pMsg);
-static int32_t onSyncNodePing(struct SSyncNode* ths, SyncPing* pMsg);
-static int32_t onSyncNodePingReply(struct SSyncNode* ths, SyncPingReply* pMsg);
-static int32_t doSyncNodeRequestVote(struct SSyncNode* ths, const SyncRequestVote* pMsg);
-static int32_t onSyncNodeRequestVote(struct SSyncNode* ths, SyncRequestVote* pMsg);
-static int32_t onSyncNodeRequestVoteReply(struct SSyncNode* ths, SyncRequestVoteReply* pMsg);
-static int32_t doSyncNodeAppendEntries(struct SSyncNode* ths, const SyncAppendEntries* pMsg);
-static int32_t onSyncNodeAppendEntries(struct SSyncNode* ths, SyncAppendEntries* pMsg);
-static int32_t onSyncNodeAppendEntriesReply(struct SSyncNode* ths, SyncAppendEntriesReply* pMsg);
+static int32_t syncNodeSendMsgById(const SRaftId* destRaftId, SSyncNode* pSyncNode, SRpcMsg* pMsg);
+static int32_t syncNodeSendMsgByInfo(const SNodeInfo* nodeInfo, SSyncNode* pSyncNode, SRpcMsg* pMsg);
 static void    syncNodePingTimerCb(void* param, void* tmrId);
+
+static int32_t syncNodePing(SSyncNode* pSyncNode, const SRaftId* destRaftId, SyncPing* pMsg);
+static int32_t syncNodeRequestVote(SSyncNode* ths, const SyncRequestVote* pMsg);
+static int32_t syncNodeAppendEntries(SSyncNode* ths, const SyncAppendEntries* pMsg);
+
+static int32_t syncNodeOnPingCb(SSyncNode* ths, SyncPing* pMsg);
+static int32_t syncNodeOnPingReplyCb(SSyncNode* ths, SyncPingReply* pMsg);
+static int32_t syncNodeOnRequestVoteCb(SSyncNode* ths, SyncRequestVote* pMsg);
+static int32_t syncNodeOnRequestVoteReplyCb(SSyncNode* ths, SyncRequestVoteReply* pMsg);
+static int32_t syncNodeOnAppendEntriesCb(SSyncNode* ths, SyncAppendEntries* pMsg);
+static int32_t syncNodeOnAppendEntriesReplyCb(SSyncNode* ths, SyncAppendEntriesReply* pMsg);
 // ---------------------------------
 
 int32_t syncInit() {
@@ -55,7 +56,9 @@ void syncStop(int64_t rid) {}
 
 int32_t syncReconfig(int64_t rid, const SSyncCfg* pSyncCfg) { return 0; }
 
-int32_t syncForwardToPeer(int64_t rid, const SSyncBuffer* pBuf, bool isWeak) { return 0; }
+// int32_t syncForwardToPeer(int64_t rid, const SSyncBuffer* pBuf, bool isWeak) { return 0; }
+
+int32_t syncForwardToPeer(int64_t rid, const SRpcMsg* pBuf, bool isWeak) { return 0; }
 
 ESyncState syncGetMyRole(int64_t rid) { return TAOS_SYNC_STATE_LEADER; }
 
@@ -75,12 +78,12 @@ SSyncNode* syncNodeOpen(const SSyncInfo* pSyncInfo) {
   pSyncNode->rpcClient = pSyncInfo->rpcClient;
   pSyncNode->FpSendMsg = pSyncInfo->FpSendMsg;
 
-  pSyncNode->FpOnPing = onSyncNodePing;
-  pSyncNode->FpOnPingReply = onSyncNodePingReply;
-  pSyncNode->FpOnRequestVote = onSyncNodeRequestVote;
-  pSyncNode->FpOnRequestVoteReply = onSyncNodeRequestVoteReply;
-  pSyncNode->FpOnAppendEntries = onSyncNodeAppendEntries;
-  pSyncNode->FpOnAppendEntriesReply = onSyncNodeAppendEntriesReply;
+  pSyncNode->FpOnPing = syncNodeOnPingCb;
+  pSyncNode->FpOnPingReply = syncNodeOnPingReplyCb;
+  pSyncNode->FpOnRequestVote = syncNodeOnRequestVoteCb;
+  pSyncNode->FpOnRequestVoteReply = syncNodeOnRequestVoteReplyCb;
+  pSyncNode->FpOnAppendEntries = syncNodeOnAppendEntriesCb;
+  pSyncNode->FpOnAppendEntriesReply = syncNodeOnAppendEntriesReplyCb;
 
   return pSyncNode;
 }
@@ -92,13 +95,35 @@ void syncNodeClose(SSyncNode* pSyncNode) {
 
 void syncNodePingAll(SSyncNode* pSyncNode) {
   sTrace("syncNodePingAll %p ", pSyncNode);
-  SyncPing msg;
-  doSyncNodePing(pSyncNode, &msg);
+  int32_t ret = 0;
+  for (int i = 0; i < pSyncNode->syncCfg.replicaNum; ++i) {
+    SyncPing* pSyncPing;
+    SRaftId   raftId;
+    syncUtilnodeInfo2raftId(&pSyncNode->syncCfg.nodeInfo[i], pSyncNode->vgId, &raftId);
+    ret = syncNodePing(pSyncNode, &raftId, pSyncPing);
+    assert(ret == 0);
+  }
 }
 
-void syncNodePingPeers(SSyncNode* pSyncNode) {}
+void syncNodePingPeers(SSyncNode* pSyncNode) {
+  int32_t ret = 0;
+  for (int i = 0; i < pSyncNode->peersNum; ++i) {
+    SyncPing* pSyncPing;
+    SRaftId   raftId;
+    syncUtilnodeInfo2raftId(&pSyncNode->peers[i], pSyncNode->vgId, &raftId);
+    ret = syncNodePing(pSyncNode, &raftId, pSyncPing);
+    assert(ret == 0);
+  }
+}
 
-void syncNodePingSelf(SSyncNode* pSyncNode) {}
+void syncNodePingSelf(SSyncNode* pSyncNode) {
+  int32_t   ret = 0;
+  SyncPing* pSyncPing;
+  SRaftId   raftId;
+  syncUtilnodeInfo2raftId(&pSyncNode->me, pSyncNode->vgId, &raftId);
+  ret = syncNodePing(pSyncNode, &raftId, pSyncPing);
+  assert(ret == 0);
+}
 
 int32_t syncNodeStartPingTimer(SSyncNode* pSyncNode) {
   if (pSyncNode->pPingTimer == NULL) {
@@ -120,69 +145,64 @@ int32_t syncNodeStopPingTimer(SSyncNode* pSyncNode) {
 }
 
 // ------ local funciton ---------
+static int32_t syncNodePing(SSyncNode* pSyncNode, const SRaftId* destRaftId, SyncPing* pMsg) {
+  int32_t  ret = 0;
+  SRpcMsg* rpcMsg;
+  syncPing2RpcMsg(pMsg, rpcMsg);
+  syncNodeSendMsgById(destRaftId, pSyncNode, rpcMsg);
+  return ret;
+}
 
-static int32_t doSyncNodeSendMsgById(SRaftId* destRaftId, struct SSyncNode* pSyncNode, SRpcMsg* pMsg) {
+static int32_t syncNodeRequestVote(SSyncNode* ths, const SyncRequestVote* pMsg) {
+  int32_t ret = 0;
+  return ret;
+}
+
+static int32_t syncNodeAppendEntries(SSyncNode* ths, const SyncAppendEntries* pMsg) {
+  int32_t ret = 0;
+  return ret;
+}
+
+static int32_t syncNodeSendMsgById(const SRaftId* destRaftId, SSyncNode* pSyncNode, SRpcMsg* pMsg) {
   SEpSet epSet;
-  raftId2EpSet(destRaftId, &epSet);
+  syncUtilraftId2EpSet(destRaftId, &epSet);
   pSyncNode->FpSendMsg(pSyncNode->rpcClient, &epSet, pMsg);
   return 0;
 }
 
-static int32_t doSyncNodeSendMsgByInfo(SNodeInfo* nodeInfo, struct SSyncNode* pSyncNode, SRpcMsg* pMsg) {
+static int32_t syncNodeSendMsgByInfo(const SNodeInfo* nodeInfo, SSyncNode* pSyncNode, SRpcMsg* pMsg) {
   SEpSet epSet;
-  nodeInfo2EpSet(nodeInfo, &epSet);
-
+  syncUtilnodeInfo2EpSet(nodeInfo, &epSet);
   pSyncNode->FpSendMsg(pSyncNode->rpcClient, &epSet, pMsg);
   return 0;
 }
 
-static int32_t doSyncNodePing(struct SSyncNode* ths, const SyncPing* pMsg) {
-  int32_t ret;
-  for (int i = 0; i < ths->syncCfg.replicaNum; ++i) {
-    SRpcMsg* rpcMsg;
-    syncPing2RpcMsg(pMsg, rpcMsg);
-    doSyncNodeSendMsgByInfo(&ths->syncCfg.nodeInfo[i], ths, rpcMsg);
-  }
-
-  return ret;
-}
-
-static int32_t onSyncNodePing(struct SSyncNode* ths, SyncPing* pMsg) {
+static int32_t syncNodeOnPingCb(SSyncNode* ths, SyncPing* pMsg) {
   int32_t ret = 0;
   return ret;
 }
 
-static int32_t onSyncNodePingReply(struct SSyncNode* ths, SyncPingReply* pMsg) {
+static int32_t syncNodeOnPingReplyCb(SSyncNode* ths, SyncPingReply* pMsg) {
   int32_t ret = 0;
   return ret;
 }
 
-static int32_t doSyncNodeRequestVote(struct SSyncNode* ths, const SyncRequestVote* pMsg) {
+static int32_t syncNodeOnRequestVoteCb(SSyncNode* ths, SyncRequestVote* pMsg) {
   int32_t ret = 0;
   return ret;
 }
 
-static int32_t onSyncNodeRequestVote(struct SSyncNode* ths, SyncRequestVote* pMsg) {
+static int32_t syncNodeOnRequestVoteReplyCb(SSyncNode* ths, SyncRequestVoteReply* pMsg) {
   int32_t ret = 0;
   return ret;
 }
 
-static int32_t onSyncNodeRequestVoteReply(struct SSyncNode* ths, SyncRequestVoteReply* pMsg) {
+static int32_t syncNodeOnAppendEntriesCb(SSyncNode* ths, SyncAppendEntries* pMsg) {
   int32_t ret = 0;
   return ret;
 }
 
-static int32_t doSyncNodeAppendEntries(struct SSyncNode* ths, const SyncAppendEntries* pMsg) {
-  int32_t ret = 0;
-  return ret;
-}
-
-static int32_t onSyncNodeAppendEntries(struct SSyncNode* ths, SyncAppendEntries* pMsg) {
-  int32_t ret = 0;
-  return ret;
-}
-
-static int32_t onSyncNodeAppendEntriesReply(struct SSyncNode* ths, SyncAppendEntriesReply* pMsg) {
+static int32_t syncNodeOnAppendEntriesReplyCb(SSyncNode* ths, SyncAppendEntriesReply* pMsg) {
   int32_t ret = 0;
   return ret;
 }
