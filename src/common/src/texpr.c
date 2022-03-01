@@ -117,6 +117,9 @@ int32_t exprTreeValidateExprNode(tExprNode *pExpr) {
       return TSDB_CODE_TSC_INVALID_OPERATION;
     }
     if (IS_TIMESTAMP_TYPE(leftType) || IS_TIMESTAMP_TYPE(rightType)) {
+      if (pExpr->_node.pLeft->nodeType == TSQL_NODE_COL && pExpr->_node.pRight->nodeType == TSQL_NODE_COL) {
+        return TSDB_CODE_TSC_INVALID_OPERATION;
+      }
       //timestamp cannot be used in arithmetic
       //operation with other data types
       if (!IS_TIMESTAMP_TYPE(leftType) || !IS_TIMESTAMP_TYPE(rightType) ||
