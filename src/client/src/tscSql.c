@@ -679,7 +679,11 @@ char *taos_errstr(TAOS_RES *tres) {
   }
 
   if (hasAdditionalErrorInfo(pSql->res.code, &pSql->cmd) || pSql->res.code == TSDB_CODE_RPC_FQDN_ERROR) {
-    return pSql->cmd.payload;
+    if (pSql->cmd.payload[0] != '\0') {
+      return pSql->cmd.payload;
+    }
+
+    return (char*)tstrerror(pSql->res.code);
   } else {
     return (char*)tstrerror(pSql->res.code);
   }
