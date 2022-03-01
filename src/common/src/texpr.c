@@ -2395,13 +2395,13 @@ void vectorTimeFunc(int16_t functionId, tExprOperandInfo *pInputs, int32_t numIn
               } else if (tsDigits <= TSDB_TIME_PRECISION_SEC_DIGITS) {
                 timeVal = timeVal * factor;
               } else {
-                timeVal = timeVal;
+                timeVal = timeVal * 1;
               }
               break;
             }
             case 1: { /* 1a */
               if (tsDigits == TSDB_TIME_PRECISION_MILLI_DIGITS) {
-                timeVal = timeVal;
+                timeVal = timeVal * 1;
               } else if (tsDigits == TSDB_TIME_PRECISION_MICRO_DIGITS) {
                 timeVal = timeVal / 1000 * 1000;
               } else if (tsDigits == TSDB_TIME_PRECISION_NANO_DIGITS) {
@@ -2484,7 +2484,7 @@ void vectorTimeFunc(int16_t functionId, tExprOperandInfo *pInputs, int32_t numIn
               break;
             }
             default: {
-              timeVal = timeVal;
+              timeVal = timeVal * 1;
               break;
             }
           }
@@ -2583,7 +2583,7 @@ void vectorTimeFunc(int16_t functionId, tExprOperandInfo *pInputs, int32_t numIn
                 break;
               }
               case TSDB_TIME_PRECISION_NANO: {
-                result = result;
+                result = result / 1;
                 break;
               }
             }
