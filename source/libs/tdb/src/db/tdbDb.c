@@ -22,7 +22,7 @@ struct STDb {
 
 int tdbDbOpen(const char *fname, int keyLen, int valLen, FKeyComparator keyCmprFn, STEnv *pEnv, STDb **ppDb) {
   STDb *  pDb;
-  SPFile *pFile;
+  SPager *pFile;
   int     ret;
   char    fFullName[TDB_FILENAME_LEN];
   SPage * pPage;
@@ -41,7 +41,7 @@ int tdbDbOpen(const char *fname, int keyLen, int valLen, FKeyComparator keyCmprF
   pFile = tdbEnvGetPFile(pEnv, fname);
   if (pFile == NULL) {
     snprintf(fFullName, TDB_FILENAME_LEN, "%s/%s", pEnv->rootDir, fname);
-    ret = tdbPFileOpen(pEnv->pCache, fFullName, &pFile);
+    ret = tdbPagerOpen(pEnv->pCache, fFullName, &pFile);
     if (ret < 0) {
       return -1;
     }
@@ -49,7 +49,7 @@ int tdbDbOpen(const char *fname, int keyLen, int valLen, FKeyComparator keyCmprF
 
   ASSERT(pFile != NULL);
 
-  ret = tdbPFileOpenDB(pFile, &pgno, true);
+  ret = tdbPagerOpenDB(pFile, &pgno, true);
   if (ret < 0) {
     return -1;
   }

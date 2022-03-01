@@ -15,7 +15,7 @@
 
 #include "tdbInt.h"
 
-struct SPFile {
+struct SPager {
   char *   dbFileName;
   char *   jFileName;
   int      pageSize;
@@ -41,11 +41,11 @@ typedef struct __attribute__((__packed__)) {
 
 TDB_STATIC_ASSERT(sizeof(SFileHdr) == 128, "Size of file header is not correct");
 
-static int tdbPFileReadPage(SPFile *pFile, SPage *pPage);
+static int tdbPagerReadPage(SPager *pFile, SPage *pPage);
 
-int tdbPFileOpen(SPCache *pCache, const char *fileName, SPFile **ppFile) {
+int tdbPagerOpen(SPCache *pCache, const char *fileName, SPager **ppFile) {
   uint8_t *pPtr;
-  SPFile * pFile;
+  SPager * pFile;
   int      fsize;
   int      zsize;
   int      ret;
@@ -53,7 +53,7 @@ int tdbPFileOpen(SPCache *pCache, const char *fileName, SPFile **ppFile) {
   *ppFile = NULL;
 
   fsize = strlen(fileName);
-  zsize = sizeof(*pFile)   /* SPFile */
+  zsize = sizeof(*pFile)   /* SPager */
           + fsize + 1      /* dbFileName */
           + fsize + 8 + 1; /* jFileName */
   pPtr = (uint8_t *)calloc(1, zsize);
@@ -61,7 +61,7 @@ int tdbPFileOpen(SPCache *pCache, const char *fileName, SPFile **ppFile) {
     return -1;
   }
 
-  pFile = (SPFile *)pPtr;
+  pFile = (SPager *)pPtr;
   pPtr += sizeof(*pFile);
   // pFile->dbFileName
   pFile->dbFileName = (char *)pPtr;
@@ -92,12 +92,12 @@ int tdbPFileOpen(SPCache *pCache, const char *fileName, SPFile **ppFile) {
   return 0;
 }
 
-int tdbPFileClose(SPFile *pFile) {
+int tdbPagerClose(SPager *pFile) {
   // TODO
   return 0;
 }
 
-int tdbPFileOpenDB(SPFile *pFile, SPgno *ppgno, bool toCreate) {
+int tdbPagerOpenDB(SPager *pFile, SPgno *ppgno, bool toCreate) {
   SPgno  pgno;
   SPage *pPage;
   int    ret;
@@ -108,13 +108,13 @@ int tdbPFileOpenDB(SPFile *pFile, SPgno *ppgno, bool toCreate) {
   }
 
   if (pgno == 0 && toCreate) {
-    ret = tdbPFileAllocPage(pFile, &pPage, &pgno);
+    ret = tdbPagerAllocPage(pFile, &pPage, &pgno);
     if (ret < 0) {
       return -1;
     }
 
     // tdbPFileZeroPage(pPage);
-    ret = tdbPFileWrite(pFile, pPage);
+    ret = tdbPagerWrite(pFile, pPage);
     if (ret < 0) {
       return -1;
     }
@@ -124,7 +124,7 @@ int tdbPFileOpenDB(SPFile *pFile, SPgno *ppgno, bool toCreate) {
   return 0;
 }
 
-SPage *tdbPFileGet(SPFile *pFile, SPgno pgno) {
+SPage *tdbPagerGet(SPager *pFile, SPgno pgno) {
   SPgid  pgid;
   SPage *pPage;
 
@@ -142,7 +142,7 @@ SPage *tdbPFileGet(SPFile *pFile, SPgno pgno) {
     if (pgno > pFile->dbFileSize /*TODO*/) {
       memset(pPage->pData, 0, pFile->pageSize);
     } else {
-      if (tdbPFileReadPage(pFile, pPage) < 0) {
+      if (tdbPagerReadPage(pFile, pPage) < 0) {
         // TODO: handle error
         return NULL;
       }
@@ -156,11 +156,11 @@ SPage *tdbPFileGet(SPFile *pFile, SPgno pgno) {
   return pPage;
 }
 
-int tdbPFileWrite(SPFile *pFile, SPage *pPage) {
+int tdbPagerWrite(SPager *pFile, SPage *pPage) {
   int ret;
 
   if (pFile->inTran == 0) {
-    ret = tdbPFileBegin(pFile);
+    ret = tdbPagerBegin(pFile);
     if (ret < 0) {
       return -1;
     }
@@ -177,13 +177,13 @@ int tdbPFileWrite(SPFile *pFile, SPage *pPage) {
   return 0;
 }
 
-int tdbPFileAllocPage(SPFile *pFile, SPage **ppPage, SPgno *ppgno) {
+int tdbPagerAllocPage(SPager *pFile, SPage **ppPage, SPgno *ppgno) {
   SPage *pPage;
   SPgno  pgno;
 
   if (1 /*TODO: no free page*/) {
     pgno = ++pFile->dbFileSize;
-    pPage = tdbPFileGet(pFile, pgno);
+    pPage = tdbPagerGet(pFile, pgno);
     ASSERT(pPage != NULL);
   } else {
     /* TODO: allocate from the free list */
@@ -195,7 +195,7 @@ int tdbPFileAllocPage(SPFile *pFile, SPage **ppPage, SPgno *ppgno) {
   return 0;
 }
 
-int tdbPFileBegin(SPFile *pFile) {
+int tdbPagerBegin(SPager *pFile) {
   if (pFile->inTran) {
     return 0;
   }
@@ -213,17 +213,12 @@ int tdbPFileBegin(SPFile *pFile) {
   return 0;
 }
 
-int tdbPFileCommit(SPFile *pFile) {
+int tdbPagerCommit(SPager *pFile) {
   // TODO
   return 0;
 }
 
-int tdbPFileRollback(SPFile *pFile) {
-  // TODO
-  return 0;
-}
-
-static int tdbPFileReadPage(SPFile *pFile, SPage *pPage) {
+static int tdbPagerReadPage(SPager *pFile, SPage *pPage) {
   i64 offset;
   int ret;
 

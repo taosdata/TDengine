@@ -20,17 +20,16 @@
 extern "C" {
 #endif
 
-typedef struct SPFile SPFile;
+typedef struct SPager SPager;
 
-int    tdbPFileOpen(SPCache *pCache, const char *fileName, SPFile **ppFile);
-int    tdbPFileClose(SPFile *pFile);
-int    tdbPFileOpenDB(SPFile *pFile, SPgno *ppgno, bool toCreate);
-SPage *tdbPFileGet(SPFile *pFile, SPgno pgno);
-int    tdbPFileWrite(SPFile *pFile, SPage *pPage);
-int    tdbPFileAllocPage(SPFile *pFile, SPage **ppPage, SPgno *ppgno);
-int    tdbPFileBegin(SPFile *pFile);
-int    tdbPFileCommit(SPFile *pFile);
-int    tdbPFileRollback(SPFile *pFile);
+int    tdbPagerOpen(SPCache *pCache, const char *fileName, SPager **ppFile);
+int    tdbPagerClose(SPager *pFile);
+int    tdbPagerOpenDB(SPager *pFile, SPgno *ppgno, bool toCreate);
+SPage *tdbPagerGet(SPager *pFile, SPgno pgno);
+int    tdbPagerWrite(SPager *pFile, SPage *pPage);
+int    tdbPagerAllocPage(SPager *pFile, SPage **ppPage, SPgno *ppgno);
+int    tdbPagerBegin(SPager *pFile);
+int    tdbPagerCommit(SPager *pFile);
 
 #ifdef __cplusplus
 }

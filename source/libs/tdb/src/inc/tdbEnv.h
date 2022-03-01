@@ -30,7 +30,7 @@ typedef struct STEnv {
 int tdbEnvOpen(const char *rootDir, int pageSize, int cacheSize, STEnv **ppEnv);
 int tdbEnvClose(STEnv *pEnv);
 
-SPFile *tdbEnvGetPFile(STEnv *pEnv, const char *fname);
+SPager *tdbEnvGetPFile(STEnv *pEnv, const char *fname);
 
 #ifdef __cplusplus
 }
