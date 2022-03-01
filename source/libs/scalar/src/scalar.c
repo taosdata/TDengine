@@ -1,5 +1,5 @@
 #include "nodes.h"
-#include "common.h"
+#include "tcommon.h"
 #include "querynodes.h"
 #include "function.h"
 #include "functionMgt.h"
@@ -264,7 +264,7 @@ int32_t sclMoveParamListData(SScalarParam *params, int32_t listNum, int32_t idx)
     }
 
     if (param->dataInBlock) {
-      param->data = colDataGet(param->orig.columnData, idx);
+      param->data = colDataGetData(param->orig.columnData, idx);
     } else if (idx) {
       if (IS_VAR_DATA_TYPE(param->type)) {
         param->data = (char *)(param->data) + varDataTLen(param->data);

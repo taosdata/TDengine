@@ -928,7 +928,7 @@ TEST(columnTest, smallint_value_add_int_column) {
   ASSERT_EQ(column->info.type, TSDB_DATA_TYPE_DOUBLE);
   ASSERT_EQ(column->info.bytes, tDataTypes[TSDB_DATA_TYPE_DOUBLE].bytes);
   for (int32_t i = 0; i < rowNum; ++i) {
-    ASSERT_EQ(*((double *)colDataGet(column, i)), eRes[i]);
+    ASSERT_EQ(*((double *)colDataGetData(column, i)), eRes[i]);
   }
 
   taosArrayDestroyEx(blockList, scltFreeDataBlock);
@@ -968,7 +968,7 @@ TEST(columnTest, bigint_column_multi_binary_column) {
   ASSERT_EQ(column->info.type, TSDB_DATA_TYPE_DOUBLE);
   ASSERT_EQ(column->info.bytes, tDataTypes[TSDB_DATA_TYPE_DOUBLE].bytes);
   for (int32_t i = 0; i < rowNum; ++i) {
-    ASSERT_EQ(*((double *)colDataGet(column, i)), eRes[i]);
+    ASSERT_EQ(*((double *)colDataGetData(column, i)), eRes[i]);
   }
   taosArrayDestroyEx(blockList, scltFreeDataBlock);
   nodesDestroyNode(opNode);
@@ -1006,7 +1006,7 @@ TEST(columnTest, smallint_column_and_binary_column) {
   ASSERT_EQ(column->info.type, TSDB_DATA_TYPE_BIGINT);
   ASSERT_EQ(column->info.bytes, tDataTypes[TSDB_DATA_TYPE_BIGINT].bytes);
   for (int32_t i = 0; i < rowNum; ++i) {
-    ASSERT_EQ(*((int64_t *)colDataGet(column, i)), eRes[i]);
+    ASSERT_EQ(*((int64_t *)colDataGetData(column, i)), eRes[i]);
   }
   taosArrayDestroyEx(blockList, scltFreeDataBlock);
   nodesDestroyNode(opNode);
@@ -1039,7 +1039,7 @@ TEST(columnTest, smallint_column_or_float_column) {
   ASSERT_EQ(column->info.type, TSDB_DATA_TYPE_BIGINT);
   ASSERT_EQ(column->info.bytes, tDataTypes[TSDB_DATA_TYPE_BIGINT].bytes);
   for (int32_t i = 0; i < rowNum; ++i) {
-    ASSERT_EQ(*((int64_t *)colDataGet(column, i)), eRes[i]);
+    ASSERT_EQ(*((int64_t *)colDataGetData(column, i)), eRes[i]);
   }
   taosArrayDestroyEx(blockList, scltFreeDataBlock);
   nodesDestroyNode(opNode);
@@ -1072,7 +1072,7 @@ TEST(columnTest, smallint_column_or_double_value) {
   ASSERT_EQ(column->info.type, TSDB_DATA_TYPE_BIGINT);
   ASSERT_EQ(column->info.bytes, tDataTypes[TSDB_DATA_TYPE_BIGINT].bytes);
   for (int32_t i = 0; i < rowNum; ++i) {
-    ASSERT_EQ(*((int64_t *)colDataGet(column, i)), eRes[i]);
+    ASSERT_EQ(*((int64_t *)colDataGetData(column, i)), eRes[i]);
   }
   taosArrayDestroyEx(blockList, scltFreeDataBlock);
   nodesDestroyNode(opNode);
@@ -1105,7 +1105,7 @@ TEST(columnTest, smallint_column_greater_double_value) {
   ASSERT_EQ(column->info.type, TSDB_DATA_TYPE_BOOL);
   ASSERT_EQ(column->info.bytes, tDataTypes[TSDB_DATA_TYPE_BOOL].bytes);
   for (int32_t i = 0; i < rowNum; ++i) {
-    ASSERT_EQ(*((bool *)colDataGet(column, i)), eRes[i]);
+    ASSERT_EQ(*((bool *)colDataGetData(column, i)), eRes[i]);
   }
   taosArrayDestroyEx(blockList, scltFreeDataBlock);
   nodesDestroyNode(opNode);
@@ -1145,7 +1145,7 @@ TEST(columnTest, int_column_in_double_list) {
   ASSERT_EQ(column->info.type, TSDB_DATA_TYPE_BOOL);
   ASSERT_EQ(column->info.bytes, tDataTypes[TSDB_DATA_TYPE_BOOL].bytes);
   for (int32_t i = 0; i < rowNum; ++i) {
-    ASSERT_EQ(*((bool *)colDataGet(column, i)), eRes[i]);
+    ASSERT_EQ(*((bool *)colDataGetData(column, i)), eRes[i]);
   }
   taosArrayDestroyEx(blockList, scltFreeDataBlock);
   nodesDestroyNode(opNode);
@@ -1204,7 +1204,7 @@ TEST(columnTest, binary_column_in_binary_list) {
   ASSERT_EQ(column->info.type, TSDB_DATA_TYPE_BOOL);
   ASSERT_EQ(column->info.bytes, tDataTypes[TSDB_DATA_TYPE_BOOL].bytes);
   for (int32_t i = 0; i < rowNum; ++i) {
-    ASSERT_EQ(*((bool *)colDataGet(column, i)), eRes[i]);
+    ASSERT_EQ(*((bool *)colDataGetData(column, i)), eRes[i]);
   }
   taosArrayDestroyEx(blockList, scltFreeDataBlock);
   nodesDestroyNode(opNode);
@@ -1248,7 +1248,7 @@ TEST(columnTest, binary_column_like_binary) {
   ASSERT_EQ(column->info.type, TSDB_DATA_TYPE_BOOL);
   ASSERT_EQ(column->info.bytes, tDataTypes[TSDB_DATA_TYPE_BOOL].bytes);
   for (int32_t i = 0; i < rowNum; ++i) {
-    ASSERT_EQ(*((bool *)colDataGet(column, i)), eRes[i]);
+    ASSERT_EQ(*((bool *)colDataGetData(column, i)), eRes[i]);
   }
 
   taosArrayDestroyEx(blockList, scltFreeDataBlock);
@@ -1290,7 +1290,7 @@ TEST(columnTest, binary_column_is_true) {
   ASSERT_EQ(column->info.type, TSDB_DATA_TYPE_BOOL);
   ASSERT_EQ(column->info.bytes, tDataTypes[TSDB_DATA_TYPE_BOOL].bytes);
   for (int32_t i = 0; i < rowNum; ++i) {
-    ASSERT_EQ(*((bool *)colDataGet(column, i)), eRes[i]);
+    ASSERT_EQ(*((bool *)colDataGetData(column, i)), eRes[i]);
   }
   taosArrayDestroyEx(blockList, scltFreeDataBlock);
   nodesDestroyNode(opNode);
@@ -1334,7 +1334,7 @@ TEST(columnTest, binary_column_is_null) {
   ASSERT_EQ(column->info.type, TSDB_DATA_TYPE_BOOL);
   ASSERT_EQ(column->info.bytes, tDataTypes[TSDB_DATA_TYPE_BOOL].bytes);
   for (int32_t i = 0; i < rowNum; ++i) {
-    ASSERT_EQ(*((bool *)colDataGet(column, i)), eRes[i]);
+    ASSERT_EQ(*((bool *)colDataGetData(column, i)), eRes[i]);
   }
   taosArrayDestroyEx(blockList, scltFreeDataBlock);
   nodesDestroyNode(opNode);
@@ -1377,7 +1377,7 @@ TEST(columnTest, binary_column_is_not_null) {
   ASSERT_EQ(column->info.type, TSDB_DATA_TYPE_BOOL);
   ASSERT_EQ(column->info.bytes, tDataTypes[TSDB_DATA_TYPE_BOOL].bytes);
   for (int32_t i = 0; i < rowNum; ++i) {
-    ASSERT_EQ(*((bool *)colDataGet(column, i)), eRes[i]);
+    ASSERT_EQ(*((bool *)colDataGetData(column, i)), eRes[i]);
   }
   taosArrayDestroyEx(blockList, scltFreeDataBlock);
   nodesDestroyNode(opNode);
@@ -1419,7 +1419,7 @@ TEST(columnTest, greater_and_lower) {
   ASSERT_EQ(column->info.type, TSDB_DATA_TYPE_BOOL);
   ASSERT_EQ(column->info.bytes, tDataTypes[TSDB_DATA_TYPE_BOOL].bytes);
   for (int32_t i = 0; i < rowNum; ++i) {
-    ASSERT_EQ(*((bool *)colDataGet(column, i)), eRes[i]);
+    ASSERT_EQ(*((bool *)colDataGetData(column, i)), eRes[i]);
   }
   taosArrayDestroyEx(blockList, scltFreeDataBlock);
   nodesDestroyNode(logicNode);

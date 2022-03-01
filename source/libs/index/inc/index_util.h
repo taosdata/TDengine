@@ -15,7 +15,7 @@
 #ifndef __INDEX_UTIL_H__
 #define __INDEX_UTIL_H__
 
-#include "tarray.h"
+#include "indexInt.h"
 
 #ifdef __cplusplus
 extern "C" {

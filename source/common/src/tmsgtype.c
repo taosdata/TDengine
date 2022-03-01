@@ -13,6 +13,6 @@
  * along with this program. If not, see <http://www.gnu.org/licenses/>.
  */
 
+#define _DEFAULT_SOURCE
 #define TSDB_SQL_C
-
 #include "tmsgtype.h"

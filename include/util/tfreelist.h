@@ -16,7 +16,6 @@
 #ifndef _TD_UTIL_FREELIST_H_
 #define _TD_UTIL_FREELIST_H_
 
-#include "os.h"
 #include "tlist.h"
 
 #ifdef __cplusplus

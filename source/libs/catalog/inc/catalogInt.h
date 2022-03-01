@@ -21,7 +21,7 @@ extern "C" {
 #endif
 
 #include "catalog.h"
-#include "common.h"
+#include "tcommon.h"
 #include "query.h"
 
 #define CTG_DEFAULT_CACHE_CLUSTER_NUMBER 6

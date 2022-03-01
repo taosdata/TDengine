@@ -17,7 +17,6 @@
 #define _TD_DNODE_H_
 
 #include "tdef.h"
-#include "tcfg.h"
 
 #ifdef __cplusplus
 extern "C" {

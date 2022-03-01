@@ -14,6 +14,7 @@
  */
 
 #include <executorimpl.h>
+#include <function.h>
 #include <gtest/gtest.h>
 #include <tglobal.h>
 #include <iostream>
@@ -37,21 +38,29 @@
 
 namespace {
 
+enum {
+  data_rand = 0x1,
+  data_asc  = 0x2,
+  data_desc = 0x3,
+};
+
 typedef struct SDummyInputInfo {
-  int32_t max;
-  int32_t current;
-  int32_t startVal;
+  int32_t      totalPages;     // numOfPages
+  int32_t      current;
+  int32_t      startVal;
+  int32_t      type;
+  int32_t      numOfRowsPerPage;
+  int32_t      numOfCols;      // number of columns
+  int64_t      tsStart;
   SSDataBlock* pBlock;
 } SDummyInputInfo;
 
 SSDataBlock* getDummyBlock(void* param, bool* newgroup) {
   SOperatorInfo* pOperator = static_cast<SOperatorInfo*>(param);
   SDummyInputInfo* pInfo = static_cast<SDummyInputInfo*>(pOperator->info);
-  if (pInfo->current >= pInfo->max) {
+  if (pInfo->current >= pInfo->totalPages) {
     return NULL;
   }
-
-  int32_t numOfRows = 1000;
 
   if (pInfo->pBlock == NULL) {
     pInfo->pBlock = static_cast<SSDataBlock*>(calloc(1, sizeof(SSDataBlock)));
@@ -62,8 +71,8 @@ SSDataBlock* getDummyBlock(void* param, bool* newgroup) {
     colInfo.info.type = TSDB_DATA_TYPE_INT;
     colInfo.info.bytes = sizeof(int32_t);
     colInfo.info.colId = 1;
-    colInfo.pData = static_cast<char*>(calloc(numOfRows, sizeof(int32_t)));
-    colInfo.nullbitmap = static_cast<char*>(calloc(1, (numOfRows + 7) / 8));
+    colInfo.pData = static_cast<char*>(calloc(pInfo->numOfRowsPerPage, sizeof(int32_t)));
+    colInfo.nullbitmap = static_cast<char*>(calloc(1, (pInfo->numOfRowsPerPage + 7) / 8));
 
     taosArrayPush(pInfo->pBlock->pDataBlock, &colInfo);
 
@@ -85,10 +94,18 @@ SSDataBlock* getDummyBlock(void* param, bool* newgroup) {
 
   char buf[128] = {0};
   char b1[128] = {0};
-  for(int32_t i = 0; i < numOfRows; ++i) {
+  int32_t v = 0;
+  for(int32_t i = 0; i < pInfo->numOfRowsPerPage; ++i) {
     SColumnInfoData* pColInfo = static_cast<SColumnInfoData*>(TARRAY_GET_ELEM(pBlock->pDataBlock, 0));
 
-    int32_t v = (--pInfo->startVal);
+    if (pInfo->type == data_desc) {
+      v = (--pInfo->startVal);
+    } else if (pInfo->type == data_asc) {
+      v = ++pInfo->startVal;
+    } else if (pInfo->type == data_rand) {
+      v = random();
+    }
+
     colDataAppend(pColInfo, i, reinterpret_cast<const char*>(&v), false);
 
 //    sprintf(buf, "this is %d row", i);
@@ -98,21 +115,103 @@ SSDataBlock* getDummyBlock(void* param, bool* newgroup) {
 //    colDataAppend(pColInfo2, i, b1, false);
   }
 
-  pBlock->info.rows = numOfRows;
+  pBlock->info.rows = pInfo->numOfRowsPerPage;
   pBlock->info.numOfCols = 1;
 
   pInfo->current += 1;
   return pBlock;
 }
 
-SOperatorInfo* createDummyOperator(int32_t numOfBlocks) {
+SSDataBlock* get2ColsDummyBlock(void* param, bool* newgroup) {
+  SOperatorInfo* pOperator = static_cast<SOperatorInfo*>(param);
+  SDummyInputInfo* pInfo = static_cast<SDummyInputInfo*>(pOperator->info);
+  if (pInfo->current >= pInfo->totalPages) {
+    return NULL;
+  }
+
+  if (pInfo->pBlock == NULL) {
+    pInfo->pBlock = static_cast<SSDataBlock*>(calloc(1, sizeof(SSDataBlock)));
+
+    pInfo->pBlock->pDataBlock = taosArrayInit(4, sizeof(SColumnInfoData));
+
+    SColumnInfoData colInfo = {0};
+    colInfo.info.type = TSDB_DATA_TYPE_TIMESTAMP;
+    colInfo.info.bytes = sizeof(int64_t);
+    colInfo.info.colId = 1;
+    colInfo.pData = static_cast<char*>(calloc(pInfo->numOfRowsPerPage, sizeof(int64_t)));
+//    colInfo.nullbitmap = static_cast<char*>(calloc(1, (pInfo->numOfRowsPerPage + 7) / 8));
+
+    taosArrayPush(pInfo->pBlock->pDataBlock, &colInfo);
+
+    SColumnInfoData colInfo1 = {0};
+    colInfo1.info.type = TSDB_DATA_TYPE_INT;
+    colInfo1.info.bytes = 4;
+    colInfo1.info.colId = 2;
+
+    colInfo1.pData = static_cast<char*>(calloc(pInfo->numOfRowsPerPage, sizeof(int32_t)));
+    colInfo1.nullbitmap = static_cast<char*>(calloc(1, (pInfo->numOfRowsPerPage + 7) / 8));
+
+    taosArrayPush(pInfo->pBlock->pDataBlock, &colInfo1);
+  } else {
+    blockDataClearup(pInfo->pBlock, false);
+  }
+
+  SSDataBlock* pBlock = pInfo->pBlock;
+
+  char buf[128] = {0};
+  char b1[128] = {0};
+  int64_t ts = 0;
+  int32_t v  = 0;
+  for(int32_t i = 0; i < pInfo->numOfRowsPerPage; ++i) {
+    SColumnInfoData* pColInfo = static_cast<SColumnInfoData*>(TARRAY_GET_ELEM(pBlock->pDataBlock, 0));
+
+    ts = (++pInfo->tsStart);
+    colDataAppend(pColInfo, i, reinterpret_cast<const char*>(&ts), false);
+
+    SColumnInfoData* pColInfo1 = static_cast<SColumnInfoData*>(TARRAY_GET_ELEM(pBlock->pDataBlock, 1));
+    if (pInfo->type == data_desc) {
+      v = (--pInfo->startVal);
+    } else if (pInfo->type == data_asc) {
+      v = ++pInfo->startVal;
+    } else if (pInfo->type == data_rand) {
+      v = random();
+    }
+
+    colDataAppend(pColInfo1, i, reinterpret_cast<const char*>(&v), false);
+
+//    sprintf(buf, "this is %d row", i);
+//    STR_TO_VARSTR(b1, buf);
+//
+//    SColumnInfoData* pColInfo2 = static_cast<SColumnInfoData*>(TARRAY_GET_ELEM(pBlock->pDataBlock, 1));
+//    colDataAppend(pColInfo2, i, b1, false);
+  }
+
+  pBlock->info.rows = pInfo->numOfRowsPerPage;
+  pBlock->info.numOfCols = 1;
+
+  pInfo->current += 1;
+
+  blockDataUpdateTsWindow(pBlock);
+  return pBlock;
+
+}
+
+SOperatorInfo* createDummyOperator(int32_t startVal, int32_t numOfBlocks, int32_t rowsPerPage, int32_t type, int32_t numOfCols) {
   SOperatorInfo* pOperator = static_cast<SOperatorInfo*>(calloc(1, sizeof(SOperatorInfo)));
   pOperator->name = "dummyInputOpertor4Test";
-  pOperator->exec = getDummyBlock;
+
+  if (numOfCols == 1) {
+    pOperator->exec = getDummyBlock;
+  } else {
+    pOperator->exec = get2ColsDummyBlock;
+  }
 
   SDummyInputInfo *pInfo = (SDummyInputInfo*) calloc(1, sizeof(SDummyInputInfo));
-  pInfo->max = numOfBlocks;
-  pInfo->startVal = 1500000;
+  pInfo->totalPages = numOfBlocks;
+  pInfo->startVal   = startVal;
+  pInfo->numOfRowsPerPage = rowsPerPage;
+  pInfo->type       = type;
+  pInfo->tsStart    = 1620000000000;
 
   pOperator->info = pInfo;
   return pOperator;
@@ -123,6 +222,7 @@ int main(int argc, char** argv) {
   return RUN_ALL_TESTS();
 }
 
+#if 0
 TEST(testCase, build_executor_tree_Test) {
   const char* msg = "{\n"
                     "\t\"Id\":\t{\n"
@@ -218,34 +318,34 @@ TEST(testCase, build_executor_tree_Test) {
 //  int32_t code = qCreateExecTask(&handle, 2, 1, NULL, (void**) &pTaskInfo, &sinkHandle);
 }
 
-//TEST(testCase, inMem_sort_Test) {
-//  SArray* pOrderVal = taosArrayInit(4, sizeof(SOrder));
-//  SOrder o = {.order = TSDB_ORDER_ASC};
-//  o.col.info.colId = 1;
-//  o.col.info.type = TSDB_DATA_TYPE_INT;
-//  taosArrayPush(pOrderVal, &o);
-//
-//  SArray* pExprInfo = taosArrayInit(4, sizeof(SExprInfo));
-//  SExprInfo *exp = static_cast<SExprInfo*>(calloc(1, sizeof(SExprInfo)));
-//  exp->base.resSchema = createSchema(TSDB_DATA_TYPE_INT, sizeof(int32_t), 1, "res");
-//  taosArrayPush(pExprInfo, &exp);
-//
-//  SExprInfo *exp1 = static_cast<SExprInfo*>(calloc(1, sizeof(SExprInfo)));
-//  exp1->base.resSchema = createSchema(TSDB_DATA_TYPE_BINARY, 40, 2, "res1");
-//  taosArrayPush(pExprInfo, &exp1);
-//
-//  SOperatorInfo* pOperator = createOrderOperatorInfo(createDummyOperator(5), pExprInfo, pOrderVal);
-//
-//  bool newgroup = false;
-//  SSDataBlock* pRes = pOperator->exec(pOperator, &newgroup);
-//
-//  SColumnInfoData* pCol1 = static_cast<SColumnInfoData*>(taosArrayGet(pRes->pDataBlock, 0));
-//  SColumnInfoData* pCol2 = static_cast<SColumnInfoData*>(taosArrayGet(pRes->pDataBlock, 1));
-//  for(int32_t i = 0; i < pRes->info.rows; ++i) {
-//    char* p = colDataGet(pCol2, i);
-//    printf("%d: %d, %s\n", i, ((int32_t*)pCol1->pData)[i], (char*)varDataVal(p));
-//  }
-//}
+TEST(testCase, inMem_sort_Test) {
+  SArray* pOrderVal = taosArrayInit(4, sizeof(SOrder));
+  SOrder o = {.order = TSDB_ORDER_ASC};
+  o.col.info.colId = 1;
+  o.col.info.type = TSDB_DATA_TYPE_INT;
+  taosArrayPush(pOrderVal, &o);
+
+  SArray* pExprInfo = taosArrayInit(4, sizeof(SExprInfo));
+  SExprInfo *exp = static_cast<SExprInfo*>(calloc(1, sizeof(SExprInfo)));
+  exp->base.resSchema = createSchema(TSDB_DATA_TYPE_INT, sizeof(int32_t), 1, "res");
+  taosArrayPush(pExprInfo, &exp);
+
+  SExprInfo *exp1 = static_cast<SExprInfo*>(calloc(1, sizeof(SExprInfo)));
+  exp1->base.resSchema = createSchema(TSDB_DATA_TYPE_BINARY, 40, 2, "res1");
+  taosArrayPush(pExprInfo, &exp1);
+
+  SOperatorInfo* pOperator = createOrderOperatorInfo(createDummyOperator(5), pExprInfo, pOrderVal, NULL);
+
+  bool newgroup = false;
+  SSDataBlock* pRes = pOperator->exec(pOperator, &newgroup);
+
+  SColumnInfoData* pCol1 = static_cast<SColumnInfoData*>(taosArrayGet(pRes->pDataBlock, 0));
+  SColumnInfoData* pCol2 = static_cast<SColumnInfoData*>(taosArrayGet(pRes->pDataBlock, 1));
+  for(int32_t i = 0; i < pRes->info.rows; ++i) {
+    char* p = colDataGetData(pCol2, i);
+    printf("%d: %d, %s\n", i, ((int32_t*)pCol1->pData)[i], (char*)varDataVal(p));
+  }
+}
 
 typedef struct su {
   int32_t v;
@@ -300,7 +400,7 @@ TEST(testCase, external_sort_Test) {
   exp1->base.resSchema = createSchema(TSDB_DATA_TYPE_BINARY, 40, 2, "res1");
 //  taosArrayPush(pExprInfo, &exp1);
 
-  SOperatorInfo* pOperator = createOrderOperatorInfo(createDummyOperator(1500), pExprInfo, pOrderVal);
+  SOperatorInfo* pOperator = createOrderOperatorInfo(createDummyOperator(1500), pExprInfo, pOrderVal, NULL);
 
   bool newgroup = false;
   SSDataBlock* pRes = NULL;
@@ -326,13 +426,11 @@ TEST(testCase, external_sort_Test) {
     SColumnInfoData* pCol1 = static_cast<SColumnInfoData*>(taosArrayGet(pRes->pDataBlock, 0));
 //    SColumnInfoData* pCol2 = static_cast<SColumnInfoData*>(taosArrayGet(pRes->pDataBlock, 1));
     for (int32_t i = 0; i < pRes->info.rows; ++i) {
-//      char* p = colDataGet(pCol2, i);
+//      char* p = colDataGetData(pCol2, i);
       printf("%d: %d\n", total++, ((int32_t*)pCol1->pData)[i]);
 //      printf("%d: %d, %s\n", total++, ((int32_t*)pCol1->pData)[i], (char*)varDataVal(p));
     }
   }
-
-  printStatisBeforeClose(((SOrderOperatorInfo*) pOperator->info)->pSortInternalBuf);
 
   int64_t s2 = taosGetTimestampUs();
   printf("total:%ld\n", s2 - s1);
@@ -343,4 +441,153 @@ TEST(testCase, external_sort_Test) {
   taosArrayDestroy(pExprInfo);
   taosArrayDestroy(pOrderVal);
 }
+
+TEST(testCase, sorted_merge_Test) {
+  srand(time(NULL));
+
+  SArray* pOrderVal = taosArrayInit(4, sizeof(SOrder));
+  SOrder o = {0};
+  o.order = TSDB_ORDER_ASC;
+  o.col.info.colId = 1;
+  o.col.info.type = TSDB_DATA_TYPE_INT;
+  taosArrayPush(pOrderVal, &o);
+
+  SArray* pExprInfo = taosArrayInit(4, sizeof(SExprInfo));
+  SExprInfo *exp = static_cast<SExprInfo*>(calloc(1, sizeof(SExprInfo)));
+  exp->base.resSchema = createSchema(TSDB_DATA_TYPE_BIGINT, sizeof(int64_t), 1, "count_result");
+  exp->base.pColumns = static_cast<SColumn*>(calloc(1, sizeof(SColumn)));
+  exp->base.pColumns->flag = TSDB_COL_NORMAL;
+  exp->base.pColumns->info = (SColumnInfo) {.colId = 1, .type = TSDB_DATA_TYPE_INT, .bytes = 4};
+  exp->base.numOfCols = 1;
+
+  taosArrayPush(pExprInfo, &exp);
+
+  SExprInfo *exp1 = static_cast<SExprInfo*>(calloc(1, sizeof(SExprInfo)));
+  exp1->base.resSchema = createSchema(TSDB_DATA_TYPE_BINARY, 40, 2, "res1");
+//  taosArrayPush(pExprInfo, &exp1);
+
+  int32_t numOfSources = 10;
+  SOperatorInfo** plist = (SOperatorInfo**) calloc(numOfSources, sizeof(void*));
+  for(int32_t i = 0; i < numOfSources; ++i) {
+    plist[i] = createDummyOperator(1, 1, 1, data_asc);
+  }
+
+  SOperatorInfo* pOperator = createSortedMergeOperatorInfo(plist, numOfSources, pExprInfo, pOrderVal, NULL, NULL);
+
+  bool newgroup = false;
+  SSDataBlock* pRes = NULL;
+
+  int32_t total = 1;
+
+  int64_t s1 = taosGetTimestampUs();
+  int32_t t = 1;
+
+  while(1) {
+    int64_t s = taosGetTimestampUs();
+    pRes = pOperator->exec(pOperator, &newgroup);
+
+    int64_t e = taosGetTimestampUs();
+    if (t++ == 1) {
+      printf("---------------elapsed:%ld\n", e - s);
+    }
+
+    if (pRes == NULL) {
+      break;
+    }
+
+    SColumnInfoData* pCol1 = static_cast<SColumnInfoData*>(taosArrayGet(pRes->pDataBlock, 0));
+//    SColumnInfoData* pCol2 = static_cast<SColumnInfoData*>(taosArrayGet(pRes->pDataBlock, 1));
+    for (int32_t i = 0; i < pRes->info.rows; ++i) {
+//      char* p = colDataGetData(pCol2, i);
+      printf("%d: %ld\n", total++, ((int64_t*)pCol1->pData)[i]);
+//      printf("%d: %d, %s\n", total++, ((int32_t*)pCol1->pData)[i], (char*)varDataVal(p));
+    }
+  }
+
+  int64_t s2 = taosGetTimestampUs();
+  printf("total:%ld\n", s2 - s1);
+
+  pOperator->cleanupFn(pOperator->info, 2);
+  tfree(exp);
+  tfree(exp1);
+  taosArrayDestroy(pExprInfo);
+  taosArrayDestroy(pOrderVal);
+}
+
+#endif
+
+TEST(testCase, time_interval_Operator_Test) {
+  srand(time(NULL));
+
+  SArray* pOrderVal = taosArrayInit(4, sizeof(SOrder));
+  SOrder o = {0};
+  o.order = TSDB_ORDER_ASC;
+  o.col.info.colId = 1;
+  o.col.info.type = TSDB_DATA_TYPE_INT;
+  taosArrayPush(pOrderVal, &o);
+
+  SArray* pExprInfo = taosArrayInit(4, sizeof(SExprInfo));
+  SExprInfo *exp = static_cast<SExprInfo*>(calloc(1, sizeof(SExprInfo)));
+  exp->base.resSchema = createSchema(TSDB_DATA_TYPE_TIMESTAMP, sizeof(int64_t), 1, "ts");
+  exp->base.pColumns = static_cast<SColumn*>(calloc(1, sizeof(SColumn)));
+  exp->base.pColumns->flag = TSDB_COL_NORMAL;
+  exp->base.pColumns->info = (SColumnInfo) {.colId = 1, .type = TSDB_DATA_TYPE_TIMESTAMP, .bytes = 8};
+  exp->base.numOfCols = 1;
+
+  taosArrayPush(pExprInfo, &exp);
+
+  SExprInfo *exp1 = static_cast<SExprInfo*>(calloc(1, sizeof(SExprInfo)));
+  exp1->base.resSchema = createSchema(TSDB_DATA_TYPE_BIGINT, 8, 2, "res1");
+  exp1->base.pColumns = static_cast<SColumn*>(calloc(1, sizeof(SColumn)));
+  exp1->base.pColumns->flag = TSDB_COL_NORMAL;
+  exp1->base.pColumns->info = (SColumnInfo) {.colId = 1, .type = TSDB_DATA_TYPE_INT, .bytes = 4};
+  exp1->base.numOfCols = 1;
+
+  taosArrayPush(pExprInfo, &exp1);
+
+  SOperatorInfo* p = createDummyOperator(1, 1, 2000, data_asc, 2);
+
+  SExecTaskInfo ti = {0};
+  SOperatorInfo* pOperator = createIntervalOperatorInfo(p, pExprInfo, &ti);
+
+  bool newgroup = false;
+  SSDataBlock* pRes = NULL;
+
+  int32_t total = 1;
+
+  int64_t s1 = taosGetTimestampUs();
+  int32_t t = 1;
+
+  while(1) {
+    int64_t s = taosGetTimestampUs();
+    pRes = pOperator->exec(pOperator, &newgroup);
+
+    int64_t e = taosGetTimestampUs();
+    if (t++ == 1) {
+      printf("---------------elapsed:%ld\n", e - s);
+    }
+
+    if (pRes == NULL) {
+      break;
+    }
+
+    SColumnInfoData* pCol1 = static_cast<SColumnInfoData*>(taosArrayGet(pRes->pDataBlock, 0));
+//    SColumnInfoData* pCol2 = static_cast<SColumnInfoData*>(taosArrayGet(pRes->pDataBlock, 1));
+    for (int32_t i = 0; i < pRes->info.rows; ++i) {
+//      char* p = colDataGetData(pCol2, i);
+      printf("%d: %ld\n", total++, ((int64_t*)pCol1->pData)[i]);
+//      printf("%d: %d, %s\n", total++, ((int32_t*)pCol1->pData)[i], (char*)varDataVal(p));
+    }
+  }
+
+  int64_t s2 = taosGetTimestampUs();
+  printf("total:%ld\n", s2 - s1);
+
+  pOperator->cleanupFn(pOperator->info, 2);
+  tfree(exp);
+  tfree(exp1);
+  taosArrayDestroy(pExprInfo);
+  taosArrayDestroy(pOrderVal);
+}
+
 #pragma GCC diagnostic pop

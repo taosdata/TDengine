@@ -16,12 +16,15 @@
 #ifndef _TD_INDEX_INT_H_
 #define _TD_INDEX_INT_H_
 
+#include "os.h"
+
 #include "index.h"
-#include "index_fst.h"
 #include "taos.h"
+#include "tarray.h"
 #include "tchecksum.h"
 #include "thash.h"
 #include "tlog.h"
+#include "tutil.h"
 
 #ifdef USE_LUCENE
 #include <lucene++/Lucene_c.h>

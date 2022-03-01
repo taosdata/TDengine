@@ -47,5 +47,6 @@ OP_ENUM_MACRO(AllTimeWindow)
 OP_ENUM_MACRO(AllMultiTableTimeInterval)
 OP_ENUM_MACRO(Order)
 OP_ENUM_MACRO(Exchange)
+OP_ENUM_MACRO(SortedMerge)
 
 //OP_ENUM_MACRO(TableScan)

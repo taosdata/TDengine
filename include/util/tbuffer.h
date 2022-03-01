@@ -13,8 +13,8 @@
  * along with this program. If not, see <http://www.gnu.org/licenses/>.
  */
 
-#ifndef _TD_UTIL_BUFFER_H
-#define _TD_UTIL_BUFFER_H
+#ifndef _TD_UTIL_BUFFER_H_
+#define _TD_UTIL_BUFFER_H_
 
 #include "os.h"
 
@@ -26,9 +26,9 @@ extern "C" {
 // usage example
 /*
 #include <stdio.h>
-#include "exception.h"
+#include "texception.h"
 
-int main( int argc, char** argv ) {
+int32_t main( int32_t argc, char** argv ) {
   SBufferWriter bw = tbufInitWriter( NULL, false );
 
   TRY( 1 ) {
@@ -39,7 +39,7 @@ int main( int argc, char** argv ) {
     // reserve space for the interger count
     size_t pos = tbufReserve( &bw, sizeof(int32_t) );
     // write 5 integers to the buffer
-    for( int i = 0; i < 5; i++) {
+    for( int32_t i = 0; i < 5; i++) {
       tbufWriteInt32( &bw, i );
     }
     // write the integer count to buffer at reserved position
@@ -55,7 +55,7 @@ int main( int argc, char** argv ) {
     SBufferReader br = tbufInitReader( data, size, false );
     // read & print out all integers
     int32_t count = tbufReadInt32( &br );
-    for( int i = 0; i < count; i++ ) {
+    for( int32_t i = 0; i < count; i++ ) {
       printf( "%d\n", tbufReadInt32(&br) );
     }
     // read & print out a string
@@ -87,12 +87,10 @@ typedef struct SBufferWriter {
   void* (*allocator)(void*, size_t);
 } SBufferWriter;
 
-////////////////////////////////////////////////////////////////////////////////
 // common functions & macros for both reader & writer
 
 #define tbufTell(buf) ((buf)->pos)
 
-////////////////////////////////////////////////////////////////////////////////
 /* ------------------------ BUFFER WRITER FUNCTIONS AND MACROS ------------------------ */
 // *Allocator*, function to allocate memory, will use 'realloc' if NULL
 // *Endian*, if true, writer functions of primitive types will do 'hton' automatically
@@ -167,4 +165,4 @@ double      tbufReadDouble(SBufferReader* buf);
 }
 #endif
 
-#endif /*_TD_UTIL_BUFFER_H*/
+#endif /*_TD_UTIL_BUFFER_H_*/

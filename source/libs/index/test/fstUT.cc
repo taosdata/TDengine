@@ -24,8 +24,6 @@ static char tindex[PATH_MAX] = {0};
 static char tindexDir[PATH_MAX] = {0};
 
 static void EnvInit() {
-  tfInit();
-
   std::string path = dir;
   taosRemoveDir(path.c_str());
   taosMkDir(path.c_str());
@@ -136,7 +134,6 @@ class FstReadMemory {
     fstDestroy(_fst);
     fstSliceDestroy(&_s);
     writerCtxDestroy(_wc, false);
-    // tfCleanup();
   }
 
  private:

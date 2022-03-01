@@ -16,11 +16,11 @@
 #ifndef _TD_OS_SYSINFO_H_
 #define _TD_OS_SYSINFO_H_
 
+#include "os.h"
+
 #ifdef __cplusplus
 extern "C" {
 #endif
-
-#include "os.h"
 
 typedef struct {
   int64_t total;
