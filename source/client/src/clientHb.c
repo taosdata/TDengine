@@ -288,7 +288,7 @@ int32_t hbQueryHbReqHandle(SClientHbKey *connKey, void *param, SClientHbReq *req
   return TSDB_CODE_SUCCESS;
 }
 
-int32_t hbMqHbReqHandle(SClientHbKey *connKey, void *param, SClientHbReq *req) { return 0; }
+int32_t hbMqHbReqHandle(SClientHbKey *connKey, void *param, SClientHbReq *req) {}
 
 void hbMgrInitMqHbHandle() {
   clientHbMgr.reqHandle[HEARTBEAT_TYPE_QUERY] = hbQueryHbReqHandle;
@@ -448,7 +448,7 @@ static void hbStopThread() {
 }
 
 SAppHbMgr *appHbMgrInit(SAppInstInfo *pAppInstInfo, char *key) {
-  /*return NULL;*/
+  return NULL;
   hbMgrInit();
   SAppHbMgr *pAppHbMgr = malloc(sizeof(SAppHbMgr));
   if (pAppHbMgr == NULL) {
@@ -506,7 +506,7 @@ void appHbMgrCleanup(void) {
 }
 
 int hbMgrInit() {
-  /*return 0;*/
+  return 0;
   // init once
   int8_t old = atomic_val_compare_exchange_8(&clientHbMgr.inited, 0, 1);
   if (old == 1) return 0;
@@ -524,7 +524,7 @@ int hbMgrInit() {
 }
 
 void hbMgrCleanUp() {
-  /*return;*/
+  return;
   hbStopThread();
 
   // destroy all appHbMgr
@@ -563,7 +563,7 @@ int hbRegisterConnImpl(SAppHbMgr *pAppHbMgr, SClientHbKey connKey, SHbConnInfo *
 }
 
 int hbRegisterConn(SAppHbMgr *pAppHbMgr, int32_t connId, int64_t clusterId, int32_t hbType) {
-  /*return 0;*/
+  return 0;
   SClientHbKey connKey = {.connId = connId, .hbType = HEARTBEAT_TYPE_QUERY};
   SHbConnInfo  info = {0};
 
@@ -586,7 +586,7 @@ int hbRegisterConn(SAppHbMgr *pAppHbMgr, int32_t connId, int64_t clusterId, int3
 }
 
 void hbDeregisterConn(SAppHbMgr *pAppHbMgr, SClientHbKey connKey) {
-  /*return;*/
+  return;
   int32_t code = 0;
   code = taosHashRemove(pAppHbMgr->activeInfo, &connKey, sizeof(SClientHbKey));
   code = taosHashRemove(pAppHbMgr->connInfo, &connKey, sizeof(SClientHbKey));
