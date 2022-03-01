@@ -53,13 +53,13 @@ void syncPingDeserialize(const char* buf, uint32_t len, SyncPing* pSyncPing) {
 
 void syncPing2RpcMsg(const SyncPing* pSyncPing, SRpcMsg* pRpcMsg) {
   pRpcMsg->msgType = pSyncPing->msgType;
-  uint32_t bufLen = pSyncPing->bytes;
-  char*    buf = malloc(bufLen);
-  syncPingSerialize(pSyncPing, buf, bufLen);
-  pRpcMsg->contLen = bufLen;
+  pRpcMsg->contLen = pSyncPing->bytes;
   pRpcMsg->pCont = rpcMallocCont(pRpcMsg->contLen);
-  memcpy(pRpcMsg->pCont, buf, pRpcMsg->contLen);
-  free(buf);
+  syncPingSerialize(pSyncPing, pRpcMsg->pCont, pRpcMsg->contLen);
+}
+
+void syncPingFromRpcMsg(const SRpcMsg* pRpcMsg, SyncPing* pSyncPing) {
+  syncPingDeserialize(pRpcMsg->pCont, pRpcMsg->contLen, pSyncPing);
 }
 
 cJSON* syncPing2Json(const SyncPing* pSyncPing) {

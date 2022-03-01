@@ -129,6 +129,8 @@ void syncPingDeserialize(const char* buf, uint32_t len, SyncPing* pSyncPing);
 
 void syncPing2RpcMsg(const SyncPing* pSyncPing, SRpcMsg* pRpcMsg);
 
+void syncPingFromRpcMsg(const SRpcMsg* pRpcMsg, SyncPing* pSyncPing);
+
 cJSON* syncPing2Json(const SyncPing* pSyncPing);
 
 #ifdef __cplusplus
