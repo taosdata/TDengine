@@ -2332,7 +2332,11 @@ void vectorTimeFunc(int16_t functionId, tExprOperandInfo *pInputs, int32_t numIn
           int64_t timePrec;
           GET_TYPED_DATA(timePrec, int64_t, pInputs[1].type, inputData[1]);
           if (pInputs[0].type == TSDB_DATA_TYPE_BINARY) {
-            taosParseTime((char *)varDataVal(inputData[0]), &timeVal, pInputs[0].bytes, timePrec, 0);
+            int32_t charLen = varDataLen(inputData[0]);
+            char *newColData = calloc(1,  charLen + 1);
+            memcpy(newColData, varDataVal(inputData[0]), charLen);
+            taosParseTime(newColData, &timeVal, charLen, timePrec, 0);
+            tfree(newColData);
           } else {
             int32_t charLen = varDataLen(inputData[0]);
             char *newColData = calloc(1,  charLen / TSDB_NCHAR_SIZE + 1);
@@ -2368,7 +2372,25 @@ void vectorTimeFunc(int16_t functionId, tExprOperandInfo *pInputs, int32_t numIn
 
           if (pInputs[0].type == TSDB_DATA_TYPE_BINARY ||
               pInputs[0].type == TSDB_DATA_TYPE_NCHAR) { /* datetime format strings */
-            taosParseTime((char *)varDataVal(inputData[0]), &timeVal, pInputs[0].bytes, TSDB_TIME_PRECISION_NANO, 0);
+            if (pInputs[0].type == TSDB_DATA_TYPE_BINARY) {
+              int32_t charLen = varDataLen(inputData[0]);
+              char *newColData = calloc(1,  charLen + 1);
+              memcpy(newColData, varDataVal(inputData[0]), charLen);
+              taosParseTime(newColData, &timeVal, charLen, TSDB_TIME_PRECISION_NANO, 0);
+              tfree(newColData);
+            } else {
+              int32_t charLen = varDataLen(inputData[0]);
+              char *newColData = calloc(1,  charLen / TSDB_NCHAR_SIZE + 1);
+              int len = taosUcs4ToMbs(varDataVal(inputData[0]), charLen, newColData);
+              if (len < 0){
+                uError("vectorTimeFunc taosUcs4ToMbs error");
+                tfree(newColData);
+                return;
+              }
+              newColData[len] = 0;
+              taosParseTime(newColData, &timeVal, len + 1, TSDB_TIME_PRECISION_NANO, 0);
+              tfree(newColData);
+            }
             //If converted value is less than 10digits in second, use value in second instead
             int64_t timeValSec = timeVal / 1000000000;
             if (timeValSec < 1000000000) {
@@ -2545,9 +2567,24 @@ void vectorTimeFunc(int16_t functionId, tExprOperandInfo *pInputs, int32_t numIn
                    pInputs[j].type == TSDB_DATA_TYPE_BINARY ||
                    pInputs[j].type == TSDB_DATA_TYPE_NCHAR);
 
-            if (pInputs[j].type == TSDB_DATA_TYPE_BINARY || /* datetime format strings */
-                pInputs[j].type == TSDB_DATA_TYPE_NCHAR) {
-              taosParseTime((char *)varDataVal(inputData[j]), &timeVal[j], pInputs[j].bytes, TSDB_TIME_PRECISION_NANO, 0);
+            if (pInputs[j].type == TSDB_DATA_TYPE_BINARY) { /* datetime format strings */
+              int32_t charLen = varDataLen(inputData[j]);
+              char *newColData = calloc(1,  charLen + 1);
+              memcpy(newColData, varDataVal(inputData[j]), charLen);
+              taosParseTime(newColData, &timeVal[j], charLen, TSDB_TIME_PRECISION_NANO, 0);
+              tfree(newColData);
+            } else if (pInputs[j].type == TSDB_DATA_TYPE_NCHAR) {
+              int32_t charLen = varDataLen(inputData[j]);
+              char *newColData = calloc(1,  charLen / TSDB_NCHAR_SIZE + 1);
+              int len = taosUcs4ToMbs(varDataVal(inputData[j]), charLen, newColData);
+              if (len < 0){
+                uError("vectorTimeFunc taosUcs4ToMbs error");
+                tfree(newColData);
+                return;
+              }
+              newColData[len] = 0;
+              taosParseTime(newColData, &timeVal[j], len + 1, TSDB_TIME_PRECISION_NANO, 0);
+              tfree(newColData);
             } else if (pInputs[j].type == TSDB_DATA_TYPE_BIGINT ||
                        pInputs[j].type == TSDB_DATA_TYPE_TIMESTAMP) { /* unix timestamp or ts column*/
               GET_TYPED_DATA(timeVal[j], int64_t, pInputs[j].type, inputData[j]);
