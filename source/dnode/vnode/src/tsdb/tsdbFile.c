@@ -19,6 +19,8 @@ static const char *TSDB_FNAME_SUFFIX[] = {
     "head",  // TSDB_FILE_HEAD
     "data",  // TSDB_FILE_DATA
     "last",  // TSDB_FILE_LAST
+    "smad",  // TSDB_FILE_SMAD
+    "smal",  // TSDB_FILE_SMAL
     "",      // TSDB_FILE_MAX
     "meta",  // TSDB_FILE_META
 };
@@ -304,6 +306,7 @@ void tsdbInitDFile(STsdb *pRepo, SDFile *pDFile, SDiskID did, int fid, uint32_t 
 
   memset(&(pDFile->info), 0, sizeof(pDFile->info));
   pDFile->info.magic = TSDB_FILE_INIT_MAGIC;
+  pDFile->info.fver = tsdbGetDFSVersion(ftype);
 
   tsdbGetFilename(pRepo->vgId, fid, ver, ftype, fname);
   tfsInitFile(pRepo->pTfs, &(pDFile->f), did, fname);
@@ -341,7 +344,7 @@ static int tsdbEncodeSDFileEx(void **buf, SDFile *pDFile) {
 }
 
 static void *tsdbDecodeSDFileEx(void *buf, SDFile *pDFile) {
-  char *aname;
+  char *aname = NULL;
 
   buf = tsdbDecodeDFInfo(buf, &(pDFile->info));
   buf = taosDecodeString(buf, &aname);
@@ -352,7 +355,7 @@ static void *tsdbDecodeSDFileEx(void *buf, SDFile *pDFile) {
   return buf;
 }
 
-int tsdbCreateDFile(STsdb *pRepo, SDFile *pDFile, bool updateHeader) {
+int tsdbCreateDFile(STsdb *pRepo, SDFile *pDFile, bool updateHeader, TSDB_FILE_T fType) {
   ASSERT(pDFile->info.size == 0 && pDFile->info.magic == TSDB_FILE_INIT_MAGIC);
 
   pDFile->pFile = taosOpenFile(TSDB_FILE_FULL_NAME(pDFile), TD_FILE_CTEATE | TD_FILE_WRITE | TD_FILE_TRUNC);
@@ -382,6 +385,7 @@ int tsdbCreateDFile(STsdb *pRepo, SDFile *pDFile, bool updateHeader) {
   }
 
   pDFile->info.size += TSDB_FILE_HEAD_SIZE;
+  pDFile->info.fver = tsdbGetDFSVersion(fType);
 
   if (tsdbUpdateDFileHeader(pDFile) < 0) {
     tsdbCloseDFile(pDFile);
@@ -493,6 +497,7 @@ static int tsdbEncodeDFInfo(void **buf, SDFInfo *pInfo) {
   int tlen = 0;
 
   tlen += taosEncodeFixedU32(buf, pInfo->magic);
+  tlen += taosEncodeFixedU32(buf, pInfo->fver);
   tlen += taosEncodeFixedU32(buf, pInfo->len);
   tlen += taosEncodeFixedU32(buf, pInfo->totalBlocks);
   tlen += taosEncodeFixedU32(buf, pInfo->totalSubBlocks);
@@ -505,6 +510,7 @@ static int tsdbEncodeDFInfo(void **buf, SDFInfo *pInfo) {
 
 static void *tsdbDecodeDFInfo(void *buf, SDFInfo *pInfo) {
   buf = taosDecodeFixedU32(buf, &(pInfo->magic));
+  buf = taosDecodeFixedU32(buf, &(pInfo->fver));
   buf = taosDecodeFixedU32(buf, &(pInfo->len));
   buf = taosDecodeFixedU32(buf, &(pInfo->totalBlocks));
   buf = taosDecodeFixedU32(buf, &(pInfo->totalSubBlocks));
@@ -562,8 +568,10 @@ static int tsdbRollBackDFile(SDFile *pDFile) {
 
 // ============== Operations on SDFileSet
 void tsdbInitDFileSet(STsdb *pRepo, SDFileSet *pSet, SDiskID did, int fid, uint32_t ver) {
-  pSet->fid = fid;
-  pSet->state = 0;
+  TSDB_FSET_FID(pSet) = fid;
+  TSDB_FSET_VER(pSet) = TSDB_LATEST_FSET_VER;
+  TSDB_FSET_STATE(pSet) = 0;
+  pSet->reserve = 0;
 
   for (TSDB_FILE_T ftype = 0; ftype < TSDB_FILE_MAX; ftype++) {
     SDFile *pDFile = TSDB_DFILE_IN_SET(pSet, ftype);
@@ -572,7 +580,7 @@ void tsdbInitDFileSet(STsdb *pRepo, SDFileSet *pSet, SDiskID did, int fid, uint3
 }
 
 void tsdbInitDFileSetEx(SDFileSet *pSet, SDFileSet *pOSet) {
-  pSet->fid = pOSet->fid;
+  TSDB_FSET_FID(pSet) = TSDB_FSET_FID(pOSet);
   for (TSDB_FILE_T ftype = 0; ftype < TSDB_FILE_MAX; ftype++) {
     tsdbInitDFileEx(TSDB_DFILE_IN_SET(pSet, ftype), TSDB_DFILE_IN_SET(pOSet, ftype));
   }
@@ -581,7 +589,10 @@ void tsdbInitDFileSetEx(SDFileSet *pSet, SDFileSet *pOSet) {
 int tsdbEncodeDFileSet(void **buf, SDFileSet *pSet) {
   int tlen = 0;
 
-  tlen += taosEncodeFixedI32(buf, pSet->fid);
+  tlen += taosEncodeFixedI32(buf, TSDB_FSET_FID(pSet));
+  // state not included
+  tlen += taosEncodeFixedU8(buf, TSDB_FSET_VER(pSet));
+  tlen += taosEncodeFixedU16(buf, pSet->reserve);
   for (TSDB_FILE_T ftype = 0; ftype < TSDB_FILE_MAX; ftype++) {
     tlen += tsdbEncodeSDFile(buf, TSDB_DFILE_IN_SET(pSet, ftype));
   }
@@ -590,11 +601,11 @@ int tsdbEncodeDFileSet(void **buf, SDFileSet *pSet) {
 }
 
 void *tsdbDecodeDFileSet(STsdb *pRepo, void *buf, SDFileSet *pSet) {
-  int32_t fid;
+  buf = taosDecodeFixedI32(buf, &(TSDB_FSET_FID(pSet)));
+  TSDB_FSET_STATE(pSet) = 0;
+  buf = taosDecodeFixedU8(buf, &(TSDB_FSET_VER(pSet)));
+  buf = taosDecodeFixedU16(buf, &(pSet->reserve));
 
-  buf = taosDecodeFixedI32(buf, &(fid));
-  pSet->state = 0;
-  pSet->fid = fid;
   for (TSDB_FILE_T ftype = 0; ftype < TSDB_FILE_MAX; ftype++) {
     buf = tsdbDecodeSDFile(pRepo, buf, TSDB_DFILE_IN_SET(pSet, ftype));
   }
@@ -604,7 +615,9 @@ void *tsdbDecodeDFileSet(STsdb *pRepo, void *buf, SDFileSet *pSet) {
 int tsdbEncodeDFileSetEx(void **buf, SDFileSet *pSet) {
   int tlen = 0;
 
-  tlen += taosEncodeFixedI32(buf, pSet->fid);
+  tlen += taosEncodeFixedI32(buf, TSDB_FSET_FID(pSet));
+  tlen += taosEncodeFixedU8(buf, TSDB_FSET_VER(pSet));
+  tlen += taosEncodeFixedU16(buf, pSet->reserve);
   for (TSDB_FILE_T ftype = 0; ftype < TSDB_FILE_MAX; ftype++) {
     tlen += tsdbEncodeSDFileEx(buf, TSDB_DFILE_IN_SET(pSet, ftype));
   }
@@ -613,10 +626,10 @@ int tsdbEncodeDFileSetEx(void **buf, SDFileSet *pSet) {
 }
 
 void *tsdbDecodeDFileSetEx(void *buf, SDFileSet *pSet) {
-  int32_t fid;
+  buf = taosDecodeFixedI32(buf, &(TSDB_FSET_FID(pSet)));
+  buf = taosDecodeFixedU8(buf, &(TSDB_FSET_VER(pSet)));
+  buf = taosDecodeFixedU16(buf, &(pSet->reserve));
 
-  buf = taosDecodeFixedI32(buf, &(fid));
-  pSet->fid = fid;
   for (TSDB_FILE_T ftype = 0; ftype < TSDB_FILE_MAX; ftype++) {
     buf = tsdbDecodeSDFileEx(buf, TSDB_DFILE_IN_SET(pSet, ftype));
   }
@@ -637,7 +650,7 @@ int tsdbApplyDFileSetChange(SDFileSet *from, SDFileSet *to) {
 
 int tsdbCreateDFileSet(STsdb *pRepo, SDFileSet *pSet, bool updateHeader) {
   for (TSDB_FILE_T ftype = 0; ftype < TSDB_FILE_MAX; ftype++) {
-    if (tsdbCreateDFile(pRepo, TSDB_DFILE_IN_SET(pSet, ftype), updateHeader) < 0) {
+    if (tsdbCreateDFile(pRepo, TSDB_DFILE_IN_SET(pSet, ftype), updateHeader, ftype) < 0) {
       tsdbCloseDFileSet(pSet);
       tsdbRemoveDFileSet(pSet);
       return -1;
