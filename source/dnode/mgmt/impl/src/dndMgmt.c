@@ -473,19 +473,39 @@ void dndProcessStartupReq(SDnode *pDnode, SRpcMsg *pReq) {
   rpcSendResponse(&rpcRsp);
 }
 
+static void dndSendMonitorReport(SDnode *pDnode) {
+  if (!tsEnableMonitor || tsMonitorFqdn[0] == 0) return;
+
+  dTrace("pDnode:%p, send monitor report to %s:%u", pDnode, tsMonitorFqdn, tsMonitorPort);
+}
+
 static void *dnodeThreadRoutine(void *param) {
   SDnode     *pDnode = param;
   SDnodeMgmt *pMgmt = &pDnode->dmgmt;
-  int32_t     ms = tsStatusInterval * 1000;
+  int64_t     lastStatusTime = taosGetTimestampMs();
+  int64_t     lastMonitorTime = lastStatusTime;
 
   setThreadName("dnode-hb");
 
   while (true) {
     pthread_testcancel();
-    taosMsleep(ms);
+    taosMsleep(200);
+    if (dndGetStat(pDnode) != DND_STAT_RUNNING || pMgmt->dropped) {
+      continue;
+    }
 
-    if (dndGetStat(pDnode) == DND_STAT_RUNNING && !pMgmt->statusSent && !pMgmt->dropped) {
+    int64_t curTime = taosGetTimestampMs();
+
+    float statusInterval = (curTime - lastStatusTime) / 1000.0f;
+    if (statusInterval >= tsStatusInterval && !pMgmt->statusSent) {
       dndSendStatusReq(pDnode);
+      lastStatusTime = curTime;
+    }
+
+    float monitorInterval = (curTime - lastMonitorTime) / 1000.0f;
+    if (monitorInterval >= tsMonitorInterval) {
+      dndSendMonitorReport(pDnode);
+      lastMonitorTime = curTime;
     }
   }
 }

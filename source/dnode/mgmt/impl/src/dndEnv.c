@@ -140,7 +140,7 @@ static int32_t dndInitDir(SDnode *pDnode, SDnodeObjCfg *pCfg) {
   return 0;
 }
 
-static void dndCloseImp(SDnode *pDnode) {
+static void dndCloseDir(SDnode *pDnode) {
   tfree(pDnode->dir.mnode);
   tfree(pDnode->dir.vnodes);
   tfree(pDnode->dir.dnode);
@@ -260,7 +260,7 @@ void dndClose(SDnode *pDnode) {
   dndCleanupMgmt(pDnode);
   tfsClose(pDnode->pTfs);
 
-  dndCloseImp(pDnode);
+  dndCloseDir(pDnode);
   free(pDnode);
   dInfo("dnode object is closed, data:%p", pDnode);
 }
@@ -288,9 +288,8 @@ int32_t dndInit() {
     return -1;
   }
 
-  SVnodeOpt vnodeOpt = {.nthreads = tsNumOfCommitThreads,
-                        .putReqToVQueryQFp = dndPutReqToVQueryQ,
-                        .sendReqToDnodeFp = dndSendReqToDnode};
+  SVnodeOpt vnodeOpt = {
+      .nthreads = tsNumOfCommitThreads, .putReqToVQueryQFp = dndPutReqToVQueryQ, .sendReqToDnodeFp = dndSendReqToDnode};
 
   if (vnodeInit(&vnodeOpt) != 0) {
     dError("failed to init vnode since %s", terrstr());
