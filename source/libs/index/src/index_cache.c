@@ -222,7 +222,7 @@ static char* indexCachePackJsonData(SIndexTerm* itm) {
   char*   buf = (char*)calloc(1, sz);
   char*   p = buf;
 
-  memcpy(p, itm->colVal, itm->nColName);
+  memcpy(p, itm->colName, itm->nColName);
   p += itm->nColName;
 
   memcpy(p, &JSON_VALUE_DELIM, sizeof(JSON_VALUE_DELIM));
@@ -329,12 +329,21 @@ int indexCacheSearch(void* cache, SIndexTermQuery* query, SArray* result, STermV
 
   SIndexTerm*     term = query->term;
   EIndexQueryType qtype = query->qType;
-  CacheTerm       ct = {.colVal = term->colVal, .version = atomic_load_32(&pCache->version)};
+
+  bool  hasJson = INDEX_TYPE_CONTAIN_EXTERN_TYPE(term->colType, TSDB_DATA_TYPE_JSON);
+  char* p = term->colVal;
+  if (hasJson) {
+    p = indexCachePackJsonData(term);
+  }
+  CacheTerm ct = {.colVal = p, .version = atomic_load_32(&pCache->version)};
 
   int ret = indexQueryMem(mem, &ct, qtype, result, s);
   if (ret == 0 && *s != kTypeDeletion) {
     // continue search in imm
     ret = indexQueryMem(imm, &ct, qtype, result, s);
+  }
+  if (hasJson) {
+    tfree(p);
   }
 
   indexMemUnRef(mem);
