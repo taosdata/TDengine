@@ -201,9 +201,9 @@ SOperatorInfo* createDummyOperator(int32_t startVal, int32_t numOfBlocks, int32_
   pOperator->name = "dummyInputOpertor4Test";
 
   if (numOfCols == 1) {
-    pOperator->exec = getDummyBlock;
+    pOperator->nextDataFn = getDummyBlock;
   } else {
-    pOperator->exec = get2ColsDummyBlock;
+    pOperator->nextDataFn = get2ColsDummyBlock;
   }
 
   SDummyInputInfo *pInfo = (SDummyInputInfo*) calloc(1, sizeof(SDummyInputInfo));
@@ -435,7 +435,7 @@ TEST(testCase, external_sort_Test) {
   int64_t s2 = taosGetTimestampUs();
   printf("total:%ld\n", s2 - s1);
 
-  pOperator->cleanupFn(pOperator->info, 2);
+  pOperator->closeFn(pOperator->info, 2);
   tfree(exp);
   tfree(exp1);
   taosArrayDestroy(pExprInfo);
@@ -507,7 +507,7 @@ TEST(testCase, sorted_merge_Test) {
   int64_t s2 = taosGetTimestampUs();
   printf("total:%ld\n", s2 - s1);
 
-  pOperator->cleanupFn(pOperator->info, 2);
+  pOperator->closeFn(pOperator->info, 2);
   tfree(exp);
   tfree(exp1);
   taosArrayDestroy(pExprInfo);
@@ -560,7 +560,7 @@ TEST(testCase, time_interval_Operator_Test) {
 
   while(1) {
     int64_t s = taosGetTimestampUs();
-    pRes = pOperator->exec(pOperator, &newgroup);
+    pRes = pOperator->nextDataFn(pOperator, &newgroup);
 
     int64_t e = taosGetTimestampUs();
     if (t++ == 1) {
@@ -583,7 +583,7 @@ TEST(testCase, time_interval_Operator_Test) {
   int64_t s2 = taosGetTimestampUs();
   printf("total:%ld\n", s2 - s1);
 
-  pOperator->cleanupFn(pOperator->info, 2);
+  pOperator->closeFn(pOperator->info, 2);
   tfree(exp);
   tfree(exp1);
   taosArrayDestroy(pExprInfo);
