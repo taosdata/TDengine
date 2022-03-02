@@ -65,8 +65,7 @@ public class RestfulDriver extends AbstractDriver {
         }
         String loginUrl;
         String batchLoad = info.getProperty(TSDBDriver.PROPERTY_KEY_BATCH_LOAD);
-//        if (Boolean.parseBoolean(batchLoad)) {
-        if (false) {
+        if (Boolean.parseBoolean(batchLoad)) {
             loginUrl = "ws://" + props.getProperty(TSDBDriver.PROPERTY_KEY_HOST)
                     + ":" + props.getProperty(TSDBDriver.PROPERTY_KEY_PORT) + "/rest/ws";
             WSClient client;
@@ -99,7 +98,6 @@ public class RestfulDriver extends AbstractDriver {
             } catch (InterruptedException e) {
                 throw new SQLException("creat websocket connection has been Interrupted ", e);
             }
-            // TODO fetch Type from config
             props.setProperty(TSDBDriver.PROPERTY_KEY_TIMESTAMP_FORMAT, String.valueOf(TimestampFormat.TIMESTAMP));
             return new WSConnection(url, props, transport, database);
         }

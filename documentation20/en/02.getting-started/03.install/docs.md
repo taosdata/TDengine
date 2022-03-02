@@ -1,5 +1,5 @@
 
-# How to install/uninstall TDengine with installtion package
+# How to install/uninstall TDengine with installation package
 
 TDengine open source version provides `deb` and `rpm` format installation packages. Our users can choose the appropriate installation package according to their own running environment. The `deb` supports Debian/Ubuntu etc. and the `rpm` supports CentOS/RHEL/SUSE etc. We also provide `tar.gz` format installers for enterprise users.
 
@@ -51,7 +51,7 @@ Removing tdengine (2.4.0.7) ...
 TDengine is removed successfully!
 ```
 
-## Install and unstall rpm package
+## Install and uninstall rpm package
 
 ### Install rpm
 
@@ -177,9 +177,9 @@ lrwxrwxrwx  1 root root   13 Feb 22 09:34 log -> /var/log/taos/
 ```
 
 - Automatically generates the configuration file directory, database directory, and log directory.
-- Configuration file default directory: /etc/taos/taos.cfg, softlinked to /usr/local/taos/cfg/taos.cfg.
-- Database default directory: /var/lib/taos, softlinked to /usr/local/taos/data.
-- Log default directory: /var/log/taos, softlinked to /usr/local/taos/log.
+- Configuration file default directory: /etc/taos/taos.cfg, soft-linked to /usr/local/taos/cfg/taos.cfg.
+- Database default directory: /var/lib/taos, soft-linked to /usr/local/taos/data.
+- Log default directory: /var/log/taos, soft-linked to /usr/local/taos/log.
 - executables in the /usr/local/taos/bin directory, which are soft-linked to the /usr/bin directory.
 - Dynamic library files in the /usr/local/taos/driver directory, which are soft-linked to the /usr/lib directory.
 - header files in the /usr/local/taos/include directory, which are soft-linked to the /usr/include directory.
@@ -188,14 +188,13 @@ lrwxrwxrwx  1 root root   13 Feb 22 09:34 log -> /var/log/taos/
 
 When uninstalling the installation package, the configuration files, database files and log files will be kept, i.e. /etc/taos/taos.cfg, /var/lib/taos, /var/log/taos. If users confirm that they do not need to keep them, they can delete them manually, but must be careful, because after deletion, the data will be permanently lost and cannot be recovered!
 
-If the installation is updated, when the default configuration file (/etc/taos/taos.cfg) exists, the existing configuration file is still used. The configuration file carried in the installation package is modified to taos.cfg.org and saved in the /usr/local/taos/cfg/ directory, which can be used as a reference sample for setting configuration parameters; if the configuration file does not exist, the Use the configuration file that comes with the installation package
-file that comes with the installation package.
+If the installation is updated, when the default configuration file (/etc/taos/taos.cfg) exists, the existing configuration file is still used. The configuration file carried in the installation package is modified to taos.cfg.orig and saved in the /usr/local/taos/cfg/ directory, which can be used as a reference sample for setting configuration parameters; if the configuration file does not exist, the use the configuration file that comes with the installation package file that comes with the installation package.
 
 ## Caution
 
 - TDengine provides several installers, but it is best not to use both the tar.gz installer and the deb or rpm installer on one system. Otherwise, they may affect each other and cause problems when using them.
 
-- For deb package installation, if the installation directory is manually deleted by mistake, the uninstallation, or reinstallation cannot be successful. In this case, you need to clear the installation information of the tdengine package by executing the following command:
+- For deb package installation, if the installation directory is manually deleted by mistake, the uninstallation, or reinstallation cannot be successful. In this case, you need to clear the installation information of the TDengine package by executing the following command:
 
 ```
 $ sudo rm -f /var/lib/dpkg/info/tdengine*
@@ -203,7 +202,7 @@ $ sudo rm -f /var/lib/dpkg/info/tdengine*
 
 Then just reinstall it.
 
-- For the rpm package after installation, if the installation directory is manually deleted by mistake part of the uninstallation, or reinstallation can not be successful. In this case, you need to clear the installation information of the tdengine package by executing the following command:
+- For the rpm package after installation, if the installation directory is manually deleted by mistake part of the uninstallation, or reinstallation can not be successful. In this case, you need to clear the installation information of the TDengine package by executing the following command:
 
 ```
 $ sudo rpm -e --noscripts tdengine

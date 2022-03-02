@@ -2,7 +2,8 @@
 
 ## <a class="anchor" id="install"></a>快捷安装
 
-TDengine 包括服务端、客户端和周边生态工具软件，目前 2.0 版服务端仅在 Linux 系统上安装和运行，后续将支持 Windows、Mac OS 等系统。客户端可以在 Windows 或 Linux 上安装和运行。在任何操作系统上的应用都可以使用 RESTful 接口连接服务端程序 taosd，其中 2.4 之后版本默认使用单独运行的独立组件 taosAdapter 提供 http 服务和更多数据写入方式。taosAdapter 需要手动启动。而之前版本 TDengine 使用内置 http 服务。
+TDengine 包括服务端、客户端和周边生态工具软件，目前 2.0 版服务端仅在 Linux 系统上安装和运行，后续将支持 Windows、macOS 等系统。客户端可以在 Windows 或 Linux 上安装和运行。在任何操作系统上的应用都可以使用 RESTful 接口连接服务端程序 taosd，其中 2.4 之后版本默认使用单独运行的独立组件 taosAdapter 提供 http 服务和更多数据写入方式。taosAdapter 需要手动启动。
+之前版本 TDengine 服务端，以及所有服务端lite版，均使用内置 http 服务。
 
 TDengine 支持 X64/ARM64/MIPS64/Alpha64 硬件平台，后续将支持 ARM32、RISC-V 等 CPU 架构。
 
@@ -14,11 +15,20 @@ docker run -d -p 6030-6049:6030-6049 -p 6030-6049:6030-6049/udp tdengine/tdengin
 
 详细操作方法请参照 [通过 Docker 快速体验 TDengine](https://www.taosdata.com/cn/documentation/getting-started/docker)。
 
-注：暂时不建议生产环境采用 Docker 来部署 TDengine 的客户端或服务端，但在开发环境下或初次尝试时，使用 Docker 方式部署是十分方便的。特别是，利用 Docker，可以方便地在 Mac OS X 和 Windows 环境下尝试 TDengine。
+注：暂时不建议生产环境采用 Docker 来部署 TDengine 的客户端或服务端，但在开发环境下或初次尝试时，使用 Docker 方式部署是十分方便的。特别是，利用 Docker，可以方便地在 macOS 和 Windows 环境下尝试 TDengine。
+
+从 2.4.0.10 开始，除taosd以外，docker镜像还包含：taos、taosAdapter、taosdump、taosBenchmark、TDinsight安装脚本和示例代码。启动docker容器时，将同时启动taosAdapter和taosd，实现对restful的支持。
+
 
 ### <a class="anchor" id="package-install"></a>通过安装包安装
 
-TDengine 的安装非常简单，从下载到安装成功仅仅只要几秒钟。为方便使用，标准的服务端安装包包含了客户端程序和示例代码；如果您只需要用到服务端程序和客户端连接的 C/C++ 语言支持，也可以仅下载 lite 版本的安装包。在安装包格式上，我们提供 rpm 和 deb 格式，也为企业客户提供 tar.gz 格式安装包，以方便在特定操作系统上使用。发布版本包括稳定版和 Beta 版，Beta版含有更多新功能。正式上线或测试建议安装稳定版。您可以根据需要选择下载：
+TDengine 的安装非常简单，从下载到安装成功仅仅只要几秒钟。
+
+为方便使用，从 2.4.0.10 开始，标准的服务端安装包包含了taos、taosd、taosAdapter、taosdump、taosBenchmark、TDinsight安装脚本和示例代码；如果您只需要用到服务端程序和客户端连接的 C/C++ 语言支持，也可以仅下载 lite 版本的安装包。
+
+在安装包格式上，我们提供tar.gz, rpm 和 deb 格式，为企业客户提供 tar.gz 格式安装包，以方便在特定操作系统上使用。需要注意的是，rpm和deb包不含taosdump、taosBenchmark和TDinsight安装脚本，这些工具需要通过安装taosTool包获得。
+
+发布版本包括稳定版和 Beta 版，Beta版含有更多新功能。正式上线或测试建议安装稳定版。您可以根据需要选择下载：
 
 <ul id="server-packageList" class="package-list"></ul>
 

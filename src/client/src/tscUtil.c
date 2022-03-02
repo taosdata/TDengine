@@ -2535,7 +2535,7 @@ void tscFieldInfoCopy(SFieldInfo* pFieldInfo, const SFieldInfo* pSrc, const SArr
 
 
 SExprInfo* tscExprCreate(STableMetaInfo* pTableMetaInfo, int16_t functionId, SColumnIndex* pColIndex, int16_t type,
-                         int16_t size, int16_t resColId, int16_t interSize, int32_t colType) {
+                         int16_t size, int16_t resColId, int32_t interSize, int32_t colType) {
   SExprInfo* pExpr = calloc(1, sizeof(SExprInfo));
   if (pExpr == NULL) {
     return NULL;
@@ -2592,7 +2592,7 @@ SExprInfo* tscExprCreate(STableMetaInfo* pTableMetaInfo, int16_t functionId, SCo
 }
 
 SExprInfo* tscExprInsert(SQueryInfo* pQueryInfo, int32_t index, int16_t functionId, SColumnIndex* pColIndex, int16_t type,
-                           int16_t size, int16_t resColId, int16_t interSize, bool isTagCol) {
+                           int16_t size, int16_t resColId, int32_t interSize, bool isTagCol) {
   int32_t num = (int32_t)taosArrayGetSize(pQueryInfo->exprList);
   if (index == num) {
     return tscExprAppend(pQueryInfo, functionId, pColIndex, type, size, resColId, interSize, isTagCol);
@@ -2605,7 +2605,7 @@ SExprInfo* tscExprInsert(SQueryInfo* pQueryInfo, int32_t index, int16_t function
 }
 
 SExprInfo* tscExprAppend(SQueryInfo* pQueryInfo, int16_t functionId, SColumnIndex* pColIndex, int16_t type,
-                           int16_t size, int16_t resColId, int16_t interSize, bool isTagCol) {
+                           int16_t size, int16_t resColId, int32_t interSize, bool isTagCol) {
   STableMetaInfo* pTableMetaInfo = tscGetMetaInfo(pQueryInfo, pColIndex->tableIndex);
   SExprInfo* pExpr = tscExprCreate(pTableMetaInfo, functionId, pColIndex, type, size, resColId, interSize, isTagCol);
   taosArrayPush(pQueryInfo->exprList, &pExpr);
@@ -4937,7 +4937,8 @@ static int32_t createGlobalAggregateExpr(SQueryAttr* pQueryAttr, SQueryInfo* pQu
     pse->colInfo.colIndex = i;
 
     pse->colType = pExpr->base.resType;
-    if(pExpr->base.resBytes > INT16_MAX && pExpr->base.functionId == TSDB_FUNC_UNIQUE){
+    if(pExpr->base.resBytes > INT16_MAX &&
+        (pExpr->base.functionId == TSDB_FUNC_UNIQUE || pExpr->base.functionId == TSDB_FUNC_MODE)){
       pQueryAttr->interBytesForGlobal = pExpr->base.resBytes;
     }else{
       pse->colBytes = pExpr->base.resBytes;

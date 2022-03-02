@@ -431,9 +431,8 @@ bool toAnotherTable(STscObj *pTscObj, char *superName, TAOS_FIELD *fields, int32
     SArray *arr = *(SArray**)pIter;
     if(arr) {
       // get key as tableName
-      SHashNode *pNode = (SHashNode *)GET_HASH_PNODE(pIter);
-      char *data = (char *)GET_HASH_NODE_KEY(pNode);
-      uint32_t len = pNode->keyLen;
+      char *data = (char *)taosHashGetDataKey(tbHash, pIter);
+      uint32_t len = taosHashGetDataKeyLen(tbHash, pIter);
       char *key = tmalloc(len + 1);
       memcpy(key, data, len);
       key[len] = 0; // string end '\0'

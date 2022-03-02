@@ -159,6 +159,7 @@ static SKeyword keywordTable[] = {
     {"SOFFSET",      TK_SOFFSET},
     {"WHERE",        TK_WHERE},
     {"NOW",          TK_NOW},
+    {"TODAY",        TK_TODAY},
     {"INSERT",       TK_INSERT},
     {"INTO",         TK_INTO},
     {"VALUES",       TK_VALUES},
@@ -591,6 +592,7 @@ uint32_t tGetToken(char* z, uint32_t* tokenId) {
       for (i = 1; ((z[i] & 0x80) == 0) && isIdChar[(uint8_t) z[i]]; i++) {
       }
       *tokenId = tKeywordCode(z, i);
+
       return i;
     }
   }
@@ -665,6 +667,12 @@ SStrToken tStrGetToken(char* str, int32_t* i, bool isPrevOptr) {
       break;
     }
 #endif
+  }
+
+  //for now(),today() function used in insert clause
+  if ((t0.type == TK_NOW || t0.type == TK_TODAY) &&
+      str[*i + t0.n] == '(' && str[*i + t0.n + 1] == ')') {
+    t0.n += 2;
   }
 
   if (t0.type == TK_SEMI) {
