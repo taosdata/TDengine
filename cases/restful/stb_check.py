@@ -13,34 +13,38 @@
 
 from taostest import TDCase, T
 from taostest.util.common import TDCom
+from taostest.util.rest import TDRest
 import copy
+
 class TestStb(TDCase):
     def init(self):
-        super().init()
         self.tdCom = TDCom(self.tdSql)
+        self.tdRest = TDRest()
+        self.dbname = self.get_default_database()
+        self.tdRest.request(f'create database if not exists {self.dbname}')
     
     def stbname_length_check(self):
         '''
             max length: 192
         '''
         stbname = self.tdCom.get_long_name(len=192, mode="letters")
-        self.tdSql.execute(f'create stable if not exists {stbname} (ts timestamp, c1 int) tags (t1 int)')
-        self.tdSql.error(f'create stable {stbname} (ts timestamp, c1 int) tags (t1 int)')
-        self.tdSql.query('show stables')
-        self.tdSql.checkEqual(self.tdSql.query_data[0][0], stbname)
+        self.tdRest.request(f'create stable if not exists {self.dbname}.{stbname} (ts timestamp, c1 int) tags (t1 int)')
+        self.tdRest.error(f'create stable {self.dbname}.{stbname} (ts timestamp, c1 int) tags (t1 int)')
+        self.tdRest.request(f'show {self.dbname}.stables')
+        self.tdSql.checkEqual(self.tdRest.resp["data"][0][0], stbname)
         dbname_exceed = self.tdCom.get_long_name(len=193, mode="letters")
-        self.tdSql.error(f'create stable if not exists {dbname_exceed} (ts timestamp, c1 int) tags (t1 int)')
+        self.tdRest.error(f'create stable if not exists {self.dbname}.{dbname_exceed} (ts timestamp, c1 int) tags (t1 int)')
 
     def stbname_with_backquote(self):
         '''
             backquote supported
         '''
-        self.tdCom.cleanTb()
+        self.tdCom.cleanTb(type="restful", dbname=self.dbname)
         stbname = '1' + self.tdCom.get_long_name(len=10, mode="letters")
-        self.tdSql.execute(f'create stable if not exists `{stbname}` (ts timestamp, c1 int) tags (t1 int)')
-        self.tdSql.query('show stables')
-        self.tdSql.checkEqual(self.tdSql.query_data[0][0], stbname)
-        self.tdSql.execute(f'drop table if exists `{stbname}`')
+        self.tdRest.request(f'create stable if not exists {self.dbname}.`{stbname}` (ts timestamp, c1 int) tags (t1 int)')
+        self.tdRest.request(f'show {self.dbname}.stables')
+        self.tdSql.checkEqual(self.tdRest.resp["data"][0][0], stbname)
+        self.tdRest.request(f'drop table if exists {self.dbname}.`{stbname}`')
         stbname = self.tdCom.get_long_name(len=3, mode="letters")
         symbol_list = self.tdCom.gen_symbol_list()
         symbol_list.remove('`')
@@ -50,18 +54,18 @@ class TestStb(TDCase):
                 d_list_new = copy.deepcopy(d_list)
                 d_list_new.insert(i, insert_str)
                 stbname_new = ''.join(d_list_new)
-                self.tdSql.execute(f'create stable if not exists `{stbname_new}` (ts timestamp, c1 int) tags (t1 int)')
-                self.tdSql.query('show stables')
-                self.tdSql.checkEqual(self.tdSql.query_data[0][0], stbname_new)
-                self.tdSql.execute(f'drop table if exists `{stbname_new}`')
+                self.tdRest.request(f'create stable if not exists {self.dbname}.`{stbname_new}` (ts timestamp, c1 int) tags (t1 int)')
+                self.tdRest.request(f'show {self.dbname}.stables')
+                self.tdSql.checkEqual(self.tdRest.resp["data"][0][0], stbname_new)
+                self.tdRest.request(f'drop table if exists {self.dbname}.`{stbname_new}`')
 
     def stbname_without_backquote(self):
         '''
             error occured when illegal stbname without backquote
         '''
-        self.tdCom.cleanTb()
+        self.tdCom.cleanTb(type="restful", dbname=self.dbname)
         stbname = '1' + self.tdCom.get_long_name(len=10, mode="letters")
-        self.tdSql.error(f'create stable if not exists {stbname} (ts timestamp, c1 int) tags (t1 int)')
+        self.tdRest.error(f'create stable if not exists  {self.dbname}.{stbname} (ts timestamp, c1 int) tags (t1 int)')
         stbname = self.tdCom.get_long_name(len=3, mode="letters")
         symbol_list = self.tdCom.gen_symbol_list()
         symbol_list.remove(' ')
@@ -71,7 +75,7 @@ class TestStb(TDCase):
                 d_list_new = copy.deepcopy(d_list)
                 d_list_new.insert(i, insert_str)
                 stbname_new = ''.join(d_list_new)
-                self.tdSql.error(f'create stable if not exists {stbname_new} (ts timestamp, c1 int) tags (t1 int)')
+                self.tdRest.error(f'create stable if not exists  {self.dbname}.{stbname_new} (ts timestamp, c1 int) tags (t1 int)')
 
     def upper_lower_stbname_check(self):
         '''
@@ -79,16 +83,16 @@ class TestStb(TDCase):
             with backquote: keep upper or mixed
         '''
         for stbname in [self.tdCom.get_long_name(len=10, mode="letters_mixed"), self.tdCom.get_long_name(len=10, mode="letters_mixed").upper()]:
-            self.tdSql.execute(f'create stable if not exists {stbname} (ts timestamp, c1 int) tags (t1 int)')
-            self.tdSql.query('show stables')
-            self.tdSql.checkEqual(self.tdSql.query_data[0][0], stbname.lower())
-            self.tdSql.execute(f'drop stable if exists `{stbname.lower()}`')
+            self.tdRest.request(f'create stable if not exists {self.dbname}.{stbname} (ts timestamp, c1 int) tags (t1 int)')
+            self.tdRest.request(f'show {self.dbname}.stables')
+            self.tdSql.checkEqual(self.tdRest.resp["data"][0][0], stbname.lower())
+            self.tdRest.request(f'drop stable if exists {self.dbname}.`{stbname.lower()}`')
         
         for stbname in [self.tdCom.get_long_name(len=10, mode="letters_mixed"), self.tdCom.get_long_name(len=10, mode="letters_mixed").upper()]:
-            self.tdSql.execute(f'create stable if not exists `{stbname}` (ts timestamp, c1 int) tags (t1 int)')
-            self.tdSql.query('show stables')
-            self.tdSql.checkEqual(self.tdSql.query_data[0][0], stbname)
-            self.tdSql.execute(f'drop stable if exists `{stbname}`')
+            self.tdRest.request(f'create stable if not exists {self.dbname}.`{stbname}` (ts timestamp, c1 int) tags (t1 int)')
+            self.tdRest.request(f'show {self.dbname}.stables')
+            self.tdSql.checkEqual(self.tdRest.resp["data"][0][0], stbname)
+            self.tdRest.request(f'drop stable if exists {self.dbname}.`{stbname}`')
 
     def illegal_stbsql_check(self):
         '''
@@ -96,7 +100,7 @@ class TestStb(TDCase):
             mixed space
         '''
         dbname = self.tdCom.get_long_name(len=10, mode="letters")
-        self.tdSql.execute(f'create database if not exists {dbname}')
+        self.tdRest.request(f'create database if not exists {dbname}')
         stbname = self.tdCom.get_long_name(len=3, mode="letters")
         base_sql = f'create stable if not exists {dbname}.{stbname} (col_ts timestamp, c1 tinyint, c2 smallint, c3 int, c4 bigint, c5 tinyint unsigned, c6 smallint unsigned, \
                 c7 int unsigned, c8 bigint unsigned, c9 float, c10 double, c11 binary(16), c12 nchar(16), c13 bool) tags (tag_ts timestamp, t1 tinyint, t2 smallint, t3 int, \
@@ -112,8 +116,8 @@ class TestStb(TDCase):
                 d_list_new = copy.deepcopy(d_list)
                 d_list_new.insert(i, insert_str)
                 sql_new = ''.join(d_list_new)
-                self.tdSql.error(sql_new)
-        self.tdSql.execute(f'drop stable if exists `{dbname}`')
+                self.tdRest.error(sql_new)
+        self.tdRest.request(f'drop stable if exists {dbname}.`{dbname}`')
 
     def run(self):
         self.stbname_length_check()
@@ -124,11 +128,11 @@ class TestStb(TDCase):
 
     def desc(self) -> str:
         case_description = '''
-            stbname_length_check <jayden>: [TD-13419] : stb name length check (max 192);\n
-            stbname_with_backquote <jayden>: [TD-13419] : backquote supported;\n
-            stbname_without_backquote <jayden>: [TD-13419] : error occured when illegal stbname without backquote;\n
-            upper_lower_stbname_check <jayden>: [TD-13419] : upper lower stbname check;\n
-            illegal_stbsql_check <jayden>: [TD-13419] : illegal stbsql check;
+            stbname_length_check <jayden>: [TD-12748] : stb name length check (max 192);\n
+            stbname_with_backquote <jayden>: [TD-12748] : backquote supported;\n
+            stbname_without_backquote <jayden>: [TD-12748] : error occured when illegal stbname without backquote;\n
+            upper_lower_stbname_check <jayden>: [TD-12748] : upper lower stbname check;\n
+            illegal_stbsql_check <jayden>: [TD-12748] : illegal stbsql check;
         '''
         return case_description
     
@@ -136,4 +140,4 @@ class TestStb(TDCase):
         return "Jayden"
     
     def tags(self):
-        return T.Write.Database.Create, T.Write.Database.Drop, T.Write.RestfulSql 
+        return T.Write.Stable.Create, T.Write.Stable.Drop, T.Write.RestfulSql 

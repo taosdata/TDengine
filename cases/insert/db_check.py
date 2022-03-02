@@ -103,3 +103,9 @@ class TestDB(TDCase):
             illegal_dbsql_check <jayden>: [TD-13419] : illegal dbname check;
         '''
         return case_description
+    
+    def author(self) -> str:
+        return super().author()
+    
+    def tags(self):
+        return super().tags()
