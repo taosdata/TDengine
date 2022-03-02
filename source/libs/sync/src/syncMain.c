@@ -168,8 +168,19 @@ int32_t syncNodeStopPingTimer(SSyncNode* pSyncNode) {
 static int32_t syncNodePing(SSyncNode* pSyncNode, const SRaftId* destRaftId, SyncPing* pMsg) {
   sTrace("syncNodePing pSyncNode:%p ", pSyncNode);
   int32_t ret = 0;
+
   SRpcMsg rpcMsg;
   syncPing2RpcMsg(pMsg, &rpcMsg);
+
+  /*
+    SRpcMsg rpcMsg;
+    rpcMsg.contLen = 64;
+    rpcMsg.pCont = rpcMallocCont(rpcMsg.contLen);
+    snprintf((char*)rpcMsg.pCont, rpcMsg.contLen, "%s", "xxxxxxxxxxxxxx");
+    rpcMsg.handle = NULL;
+    rpcMsg.msgType = 1;
+  */
+
   syncNodeSendMsgById(destRaftId, pSyncNode, &rpcMsg);
 
   {
@@ -219,6 +230,7 @@ static int32_t syncNodeSendMsgByInfo(const SNodeInfo* nodeInfo, SSyncNode* pSync
 
 static int32_t syncNodeOnPingCb(SSyncNode* ths, SyncPing* pMsg) {
   int32_t ret = 0;
+  sTrace("syncNodeOnPingCb ---- =========");
   return ret;
 }
 

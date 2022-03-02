@@ -28,7 +28,7 @@ int main() {
   for (int i = 0; i < 10; ++i) {
     SEpSet epSet;
     epSet.inUse = 0;
-    epSet.numOfEps = 1;
+    epSet.numOfEps = 0;
     addEpIntoEpSet(&epSet, "127.0.0.1", 7010);
 
     SRpcMsg rpcMsg;

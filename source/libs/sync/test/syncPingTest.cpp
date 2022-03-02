@@ -67,6 +67,7 @@ int main() {
   assert(ret == 0);
 
   SSyncNode* pSyncNode = doSync();
+  gSyncIO->FpOnSyncPing = pSyncNode->FpOnPing;
 
   ret = syncNodeStartPingTimer(pSyncNode);
   assert(ret == 0);

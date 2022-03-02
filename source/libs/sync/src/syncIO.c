@@ -41,8 +41,11 @@ static void    syncIOTickPingFunc(void *param, void *tmrId);
 
 // public function ------------
 int32_t syncIOSendMsg(void *clientRpc, const SEpSet *pEpSet, SRpcMsg *pMsg) {
-  sTrace("<--- syncIOSendMsg ---> clientRpc:%p, numOfEps:%d, inUse:%d, destAddr:%s-%u", clientRpc, pEpSet->numOfEps,
-         pEpSet->inUse, pEpSet->eps[0].fqdn, pEpSet->eps[0].port);
+  sTrace(
+      "<--- syncIOSendMsg ---> clientRpc:%p, numOfEps:%d, inUse:%d, destAddr:%s-%u, pMsg->ahandle:%p, pMsg->handle:%p, "
+      "pMsg->msgType:%d, pMsg->contLen:%d",
+      clientRpc, pEpSet->numOfEps, pEpSet->inUse, pEpSet->eps[0].fqdn, pEpSet->eps[0].port, pMsg->ahandle, pMsg->handle,
+      pMsg->msgType, pMsg->contLen);
   pMsg->handle = NULL;
   rpcSendRequest(clientRpc, pEpSet, pMsg, NULL);
   return 0;

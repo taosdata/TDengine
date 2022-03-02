@@ -47,6 +47,7 @@ void syncPingDeserialize(const char* buf, uint32_t len, SyncPing* pMsg) {
 }
 
 void syncPing2RpcMsg(const SyncPing* pMsg, SRpcMsg* pRpcMsg) {
+  memset(pRpcMsg, 0, sizeof(*pRpcMsg));
   pRpcMsg->msgType = pMsg->msgType;
   pRpcMsg->contLen = pMsg->bytes;
   pRpcMsg->pCont = rpcMallocCont(pRpcMsg->contLen);
