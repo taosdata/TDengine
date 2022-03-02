@@ -270,7 +270,7 @@ int32_t tDeserializeSClientHbBatchRsp(void *buf, int32_t bufLen, SClientHbBatchR
   int32_t rspNum = 0;
   if (tDecodeI32(&decoder, &rspNum) < 0) return -1;
   if (pBatchRsp->rsps == NULL) {
-    pBatchRsp->rsps = taosArrayInit(rspNum, sizeof(SClientHbReq));
+    pBatchRsp->rsps = taosArrayInit(rspNum, sizeof(SClientHbRsp));
   }
   for (int32_t i = 0; i < rspNum; i++) {
     SClientHbRsp rsp = {0};
@@ -1529,7 +1529,7 @@ int32_t tDeserializeSUseDbRspImp(SCoder *pDecoder, SUseDbRsp *pRsp) {
   if (pRsp->vgNum <= 0) {
     return 0;
   }
-  
+
   pRsp->pVgroupInfos = taosArrayInit(pRsp->vgNum, sizeof(SVgroupInfo));
   if (pRsp->pVgroupInfos == NULL) {
     terrno = TSDB_CODE_OUT_OF_MEMORY;

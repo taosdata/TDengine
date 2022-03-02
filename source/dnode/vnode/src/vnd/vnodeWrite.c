@@ -59,7 +59,7 @@ int vnodeApplyWMsg(SVnode *pVnode, SRpcMsg *pMsg, SRpcMsg **pRsp) {
   // todo: change the interface here
   int64_t ver;
   taosDecodeFixedI64(POINTER_SHIFT(pMsg->pCont, sizeof(SMsgHead)), &ver);
-  if (tqPushMsg(pVnode->pTq, ptr, ver) < 0) {
+  if (tqPushMsg(pVnode->pTq, ptr, pMsg->msgType, ver) < 0) {
     // TODO: handle error
   }
 
