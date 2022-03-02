@@ -48,7 +48,8 @@ typedef struct {
   int16_t numOfCols;  // not including timestamp column
   TSKEY   keyFirst;
   TSKEY   keyLast;
-} SBlock;
+} SBlockX;
+
 #else
 
 typedef enum {
@@ -59,9 +60,6 @@ typedef enum {
 #define SBlockVerLatest TSDB_SBLK_VER_0
 
 typedef struct {
-  int64_t  offset;
-  int32_t  algorithm : 8;
-  int32_t  numOfRows : 24;
   uint8_t  last : 1;
   uint8_t  blkVer : 7;
   uint8_t  numOfSubBlocks;
@@ -69,6 +67,9 @@ typedef struct {
   uint32_t len;          // data block length
   uint32_t keyLen : 24;  // key column length, keyOffset = offset+sizeof(SBlockData)+sizeof(SBlockCol)*numOfCols
   uint32_t reserve : 8;
+  int32_t  algorithm : 8;
+  int32_t  numOfRows : 24;
+  int64_t  offset;
   uint64_t aggrStat : 1;
   uint64_t aggrOffset : 63;
   TSKEY    keyFirst;
