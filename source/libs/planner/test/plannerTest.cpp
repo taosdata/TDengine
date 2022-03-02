@@ -78,6 +78,14 @@ protected:
       }
       cout << "unformatted physical plan : " << endl;
       cout << toString((const SNode*)pPlan, false) << endl;
+      SNode* pNode;
+      FOREACH(pNode, pPlan->pSubplans) {
+        SNode* pSubplan;
+        FOREACH(pSubplan, ((SNodeListNode*)pNode)->pNodeList) {
+          cout << "unformatted physical subplan : " << endl;
+          cout << toString(pSubplan, false) << endl;
+        }
+      }
     }
 
     return true;
