@@ -32,7 +32,7 @@ function stmtBindParamBatchSample() {
         `f32 float,` +
         `d64 double,` +
         `bnr binary(20),` +
-        `blob nchar(20),` +
+        `nchr nchar(20),` +
         `u8 tinyint unsigned,` +
         `u16 smallint unsigned,` +
         `u32 int unsigned,` +
@@ -46,7 +46,7 @@ function stmtBindParamBatchSample() {
         `t_f32 float,` +
         `t_d64 double,` +
         `t_bnr binary(20),` +
-        `t_blob nchar(20),` +
+        `t_nchr nchar(20),` +
         `t_u8 tinyint unsigned,` +
         `t_u16 smallint unsigned,` +
         `t_u32 int unsigned,` +
@@ -89,7 +89,7 @@ function stmtBindParamBatchSample() {
     tags.bindNchar('TDengine数据');
     tags.bindUTinyInt(254);
     tags.bindUSmallInt(65534);
-    tags.bindUInt(4294967290 / 2);
+    tags.bindUInt(4294967290);
     tags.bindUBigInt(164243520000011111n);
 
     cursor.stmtInit();

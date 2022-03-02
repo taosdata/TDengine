@@ -1,6 +1,6 @@
 #!/bin/bash
 #
-# Script to stop the service and uninstall TDengine, but retain the config, data and log files.
+# Script to stop and uninstall the service, but retain the config, data and log files.
 
 set -e
 #set -x

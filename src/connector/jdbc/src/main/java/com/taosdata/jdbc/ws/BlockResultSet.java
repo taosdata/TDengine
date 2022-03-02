@@ -3,24 +3,17 @@ package com.taosdata.jdbc.ws;
 import com.google.common.primitives.Ints;
 import com.google.common.primitives.Longs;
 import com.google.common.primitives.Shorts;
-import com.taosdata.jdbc.TSDBConstants;
-import com.taosdata.jdbc.TSDBDriver;
-import com.taosdata.jdbc.TSDBError;
-import com.taosdata.jdbc.TSDBErrorNumbers;
-import com.taosdata.jdbc.enums.TimestampFormat;
+import com.taosdata.jdbc.*;
 import com.taosdata.jdbc.enums.TimestampPrecision;
+import com.taosdata.jdbc.utils.NullType;
 import com.taosdata.jdbc.utils.Utils;
 import com.taosdata.jdbc.ws.entity.*;
 
+import java.io.UnsupportedEncodingException;
 import java.math.BigDecimal;
-import java.nio.Buffer;
 import java.nio.ByteBuffer;
-import java.nio.ByteOrder;
-import java.nio.charset.StandardCharsets;
 import java.sql.*;
 import java.time.Instant;
-import java.time.ZoneOffset;
-import java.time.ZonedDateTime;
 import java.time.format.DateTimeParseException;
 import java.util.ArrayList;
 import java.util.Arrays;
@@ -39,7 +32,7 @@ public class BlockResultSet extends AbstractWSResultSet {
     }
 
     @Override
-    public List<List<Object>> fetchJsonData() throws SQLException, ExecutionException, InterruptedException {
+    public List<List<Object>> fetchJsonData() throws ExecutionException, InterruptedException {
         Request blockRequest = factory.generateFetchBlock(queryId);
         CompletableFuture<Response> fetchFuture = transport.send(blockRequest);
         FetchBlockResp resp = (FetchBlockResp) fetchFuture.get();
@@ -51,30 +44,27 @@ public class BlockResultSet extends AbstractWSResultSet {
                 int type = fields.get(i).getTaosType();
                 switch (type) {
                     case TSDB_DATA_TYPE_BOOL:
-                        for (int j = 0; j < numOfRows; j++) {
-                            col.add(buffer.get() == 1);
-                        }
-                        break;
-                    case TSDB_DATA_TYPE_UTINYINT:
                     case TSDB_DATA_TYPE_TINYINT:
+                    case TSDB_DATA_TYPE_UTINYINT:
                         for (int j = 0; j < numOfRows; j++) {
                             col.add(buffer.get());
                         }
                         break;
-                    case TSDB_DATA_TYPE_USMALLINT:
                     case TSDB_DATA_TYPE_SMALLINT:
+                    case TSDB_DATA_TYPE_USMALLINT:
                         for (int j = 0; j < numOfRows; j++) {
                             col.add(buffer.getShort());
                         }
                         break;
-                    case TSDB_DATA_TYPE_UINT:
                     case TSDB_DATA_TYPE_INT:
+                    case TSDB_DATA_TYPE_UINT:
                         for (int j = 0; j < numOfRows; j++) {
                             col.add(buffer.getInt());
                         }
                         break;
-                    case TSDB_DATA_TYPE_UBIGINT:
                     case TSDB_DATA_TYPE_BIGINT:
+                    case TSDB_DATA_TYPE_UBIGINT:
+                    case TSDB_DATA_TYPE_TIMESTAMP:
                         for (int j = 0; j < numOfRows; j++) {
                             col.add(buffer.getLong());
                         }
@@ -94,7 +84,13 @@ public class BlockResultSet extends AbstractWSResultSet {
                         for (int j = 0; j < numOfRows; j++) {
                             short s = buffer.getShort();
                             buffer.get(bytes);
-                            col.add(Arrays.copyOf(bytes, s));
+
+                            byte[] tmp = Arrays.copyOf(bytes, s);
+                            if (NullType.isBinaryNull(tmp, s)) {
+                                col.add(null);
+                                continue;
+                            }
+                            col.add(tmp);
                         }
                         break;
                     }
@@ -104,19 +100,19 @@ public class BlockResultSet extends AbstractWSResultSet {
                         for (int j = 0; j < numOfRows; j++) {
                             short s = buffer.getShort();
                             buffer.get(bytes);
-                            col.add(new String(Arrays.copyOf(bytes, s), StandardCharsets.UTF_8));
-                        }
-                        break;
-                    }
-                    case TSDB_DATA_TYPE_TIMESTAMP: {
-                        byte[] bytes = new byte[fieldLength.get(i)];
-                        for (int j = 0; j < numOfRows; j++) {
-                            buffer.get(bytes);
-                            col.add(parseTimestampColumnData(bytes));
+
+                            byte[] tmp = Arrays.copyOf(bytes, s);
+                            if (NullType.isNcharNull(tmp, s)) {
+                                col.add(null);
+                                continue;
+                            }
+                            col.add(tmp);
                         }
                         break;
                     }
                     default:
+                        // unknown type, do nothing
+                        col.add(null);
                         break;
                 }
                 list.add(col);
@@ -125,81 +121,130 @@ public class BlockResultSet extends AbstractWSResultSet {
         return list;
     }
 
-    public static long bytesToLong(byte[] bytes) {
-        ByteBuffer buffer = ByteBuffer.allocate(8);
-        buffer.put(bytes, 0, bytes.length);
-        buffer.flip();//need flip
-        buffer.order(ByteOrder.LITTLE_ENDIAN);
-        return buffer.getLong();
+    private Timestamp parseTimestampColumnData(long value) {
+        if (TimestampPrecision.MS == this.timestampPrecision)
+            return new Timestamp(value);
+
+        if (TimestampPrecision.US == this.timestampPrecision) {
+            long epochSec = value / 1000_000L;
+            long nanoAdjustment = value % 1000_000L * 1000L;
+            return Timestamp.from(Instant.ofEpochSecond(epochSec, nanoAdjustment));
+        }
+        if (TimestampPrecision.NS == this.timestampPrecision) {
+            long epochSec = value / 1000_000_000L;
+            long nanoAdjustment = value % 1000_000_000L;
+            return Timestamp.from(Instant.ofEpochSecond(epochSec, nanoAdjustment));
+        }
+        return null;
     }
 
-    private Timestamp parseTimestampColumnData(byte[] bytes) throws SQLException {
-        if (bytes == null || bytes.length < 1)
+    public Object parseValue(int columnIndex) {
+        Object source = result.get(columnIndex - 1).get(rowIndex);
+        if (null == source)
             return null;
-        String tsFormatUpperCase = this.statement.getConnection().getClientInfo(TSDBDriver.PROPERTY_KEY_TIMESTAMP_FORMAT).toUpperCase();
-        TimestampFormat timestampFormat = TimestampFormat.valueOf(tsFormatUpperCase);
-        switch (timestampFormat) {
-            case TIMESTAMP: {
-                long value = bytesToLong(bytes);
-                if (TimestampPrecision.MS == this.timestampPrecision)
-                    return new Timestamp(value);
 
-                if (TimestampPrecision.US == this.timestampPrecision) {
-                    long epochSec = value / 1000_000L;
-                    long nanoAdjustment = value % 1000_000L * 1000L;
-                    return Timestamp.from(Instant.ofEpochSecond(epochSec, nanoAdjustment));
+        int type = fields.get(columnIndex - 1).getTaosType();
+        switch (type) {
+            case TSDB_DATA_TYPE_BOOL: {
+                byte val = (byte) source;
+                if (NullType.isBooleanNull(val)) {
+                    return null;
                 }
-                if (TimestampPrecision.NS == this.timestampPrecision) {
-                    long epochSec = value / 1000_000_000L;
-                    long nanoAdjustment = value % 1000_000_000L;
-                    return Timestamp.from(Instant.ofEpochSecond(epochSec, nanoAdjustment));
+                return (val == 0x0) ? Boolean.FALSE : Boolean.TRUE;
+            }
+            case TSDB_DATA_TYPE_TINYINT: {
+                byte val = (byte) source;
+                if (NullType.isTinyIntNull(val)) {
+                    return null;
+                }
+                return val;
+            }
+            case TSDB_DATA_TYPE_UTINYINT: {
+                byte val = (byte) source;
+                if (NullType.isUnsignedTinyIntNull(val)) {
+                    return null;
+                }
+                return (short) val & 0xFF;
+            }
+            case TSDB_DATA_TYPE_SMALLINT: {
+                short val = (short) source;
+                if (NullType.isSmallIntNull(val)) {
+                    return null;
+                }
+                return val;
+            }
+            case TSDB_DATA_TYPE_USMALLINT: {
+                short val = (short) source;
+                if (NullType.isUnsignedSmallIntNull(val)) {
+                    return null;
+                }
+                return val & 0xFFFF;
+            }
+            case TSDB_DATA_TYPE_INT: {
+                int val = (int) source;
+                if (NullType.isIntNull(val)) {
+                    return null;
+                }
+                return val;
+            }
+            case TSDB_DATA_TYPE_UINT: {
+                int val = (int) source;
+                if (NullType.isUnsignedIntNull(val)) {
+                    return null;
+                }
+                return val & 0xFFFFFFFFL;
+            }
+            case TSDB_DATA_TYPE_BIGINT: {
+                long val = (long) source;
+                if (NullType.isBigIntNull(val)) {
+                    return null;
+                }
+                return val;
+            }
+            case TSDB_DATA_TYPE_TIMESTAMP: {
+                long val = (long) source;
+                if (NullType.isBigIntNull(val)) {
+                    return null;
+                }
+                return parseTimestampColumnData(val);
+            }
+            case TSDB_DATA_TYPE_UBIGINT: {
+                long val = (long) source;
+                if (NullType.isUnsignedBigIntNull(val)) {
+                    return null;
+                }
+                BigDecimal tmp = new BigDecimal(val >>> 1).multiply(new BigDecimal(2));
+                return (val & 0x1) == 0x1 ? tmp.add(new BigDecimal(1)) : tmp;
+            }
+            case TSDB_DATA_TYPE_FLOAT: {
+                float val = (float) source;
+                if (NullType.isFloatNull(val)) {
+                    return null;
+                }
+                return val;
+            }
+            case TSDB_DATA_TYPE_DOUBLE: {
+                double val = (double) source;
+                if (NullType.isDoubleNull(val)) {
+                    return null;
+                }
+                return val;
+            }
+            case TSDB_DATA_TYPE_BINARY: {
+                return source;
+            }
+            case TSDB_DATA_TYPE_NCHAR:
+            case TSDB_DATA_TYPE_JSON: {
+                String charset = TaosGlobalConfig.getCharset();
+                try {
+                    return new String((byte[]) source, charset);
+                } catch (UnsupportedEncodingException e) {
+                    throw new RuntimeException(e.getMessage());
                 }
             }
-            case UTC: {
-                String value = new String(bytes);
-                if (value.lastIndexOf(":") > 19) {
-                    ZonedDateTime parse = ZonedDateTime.parse(value, rfc3339Parser);
-                    return Timestamp.from(parse.toInstant());
-                } else {
-                    long epochSec = Timestamp.valueOf(value.substring(0, 19).replace("T", " ")).getTime() / 1000;
-                    int fractionalSec = Integer.parseInt(value.substring(20, value.length() - 5));
-                    long nanoAdjustment;
-                    if (TimestampPrecision.NS == this.timestampPrecision) {
-                        // ns timestamp: yyyy-MM-ddTHH:mm:ss.SSSSSSSSS+0x00
-                        nanoAdjustment = fractionalSec;
-                    } else if (TimestampPrecision.US == this.timestampPrecision) {
-                        // ms timestamp: yyyy-MM-ddTHH:mm:ss.SSSSSS+0x00
-                        nanoAdjustment = fractionalSec * 1000L;
-                    } else {
-                        // ms timestamp: yyyy-MM-ddTHH:mm:ss.SSS+0x00
-                        nanoAdjustment = fractionalSec * 1000_000L;
-                    }
-                    ZoneOffset zoneOffset = ZoneOffset.of(value.substring(value.length() - 5));
-                    Instant instant = Instant.ofEpochSecond(epochSec, nanoAdjustment).atOffset(zoneOffset).toInstant();
-                    return Timestamp.from(instant);
-                }
-            }
-            case STRING:
-            default: {
-                String value = new String(bytes, StandardCharsets.UTF_8);
-                if (TimestampPrecision.MS == this.timestampPrecision) {
-                    // ms timestamp: yyyy-MM-dd HH:mm:ss.SSS
-                    return Timestamp.valueOf(value);
-                }
-                if (TimestampPrecision.US == this.timestampPrecision) {
-                    // us timestamp: yyyy-MM-dd HH:mm:ss.SSSSSS
-                    long epochSec = Timestamp.valueOf(value.substring(0, 19)).getTime() / 1000;
-                    long nanoAdjustment = Integer.parseInt(value.substring(20)) * 1000L;
-                    return Timestamp.from(Instant.ofEpochSecond(epochSec, nanoAdjustment));
-                }
-                if (TimestampPrecision.NS == this.timestampPrecision) {
-                    // ms timestamp: yyyy-MM-dd HH:mm:ss.SSSSSSSSS
-                    long epochSec = Timestamp.valueOf(value.substring(0, 19)).getTime() / 1000;
-                    long nanoAdjustment = Integer.parseInt(value.substring(20));
-                    return Timestamp.from(Instant.ofEpochSecond(epochSec, nanoAdjustment));
-                }
-                throw TSDBError.createSQLException(TSDBErrorNumbers.ERROR_UNKNOWN_TIMESTAMP_PRECISION);
-            }
+            default:
+                // unknown type, do nothing
+                return null;
         }
     }
 
@@ -207,14 +252,23 @@ public class BlockResultSet extends AbstractWSResultSet {
     public String getString(int columnIndex) throws SQLException {
         checkAvailability(columnIndex, fields.size());
 
-        Object value = result.get(columnIndex - 1).get(rowIndex);
-        wasNull = value == null;
-        if (value == null)
+        Object value = parseValue(columnIndex);
+        if (value == null) {
+            wasNull = true;
+//            return new NullType().toString();
             return null;
+        }
         if (value instanceof String)
             return (String) value;
-        if (value instanceof byte[])
-            return new String((byte[]) value);
+
+        if (value instanceof byte[]) {
+            String charset = TaosGlobalConfig.getCharset();
+            try {
+                return new String((byte[]) value, charset);
+            } catch (UnsupportedEncodingException e) {
+                throw new RuntimeException(e.getMessage());
+            }
+        }
         return value.toString();
     }
 
@@ -222,83 +276,295 @@ public class BlockResultSet extends AbstractWSResultSet {
     public boolean getBoolean(int columnIndex) throws SQLException {
         checkAvailability(columnIndex, fields.size());
 
-        Object value = result.get(columnIndex - 1).get(rowIndex);
-        wasNull = value == null;
-        if (value == null)
+        Object value = parseValue(columnIndex);
+        if (value == null) {
+            wasNull = true;
             return false;
+        }
         if (value instanceof Boolean)
             return (boolean) value;
-        return Boolean.parseBoolean(value.toString());
+
+        int taosType = fields.get(columnIndex - 1).getTaosType();
+        switch (taosType) {
+            case TSDB_DATA_TYPE_TINYINT:
+                return ((byte) value == 0) ? Boolean.FALSE : Boolean.TRUE;
+            case TSDB_DATA_TYPE_UTINYINT:
+            case TSDB_DATA_TYPE_SMALLINT:
+                return ((short) value == 0) ? Boolean.FALSE : Boolean.TRUE;
+            case TSDB_DATA_TYPE_USMALLINT:
+            case TSDB_DATA_TYPE_INT:
+                return ((int) value == 0) ? Boolean.FALSE : Boolean.TRUE;
+            case TSDB_DATA_TYPE_UINT:
+            case TSDB_DATA_TYPE_BIGINT:
+            case TSDB_DATA_TYPE_TIMESTAMP:
+                return (((long) value) == 0L) ? Boolean.FALSE : Boolean.TRUE;
+            case TSDB_DATA_TYPE_UBIGINT:
+                return value.equals(new BigDecimal(0)) ? Boolean.FALSE : Boolean.TRUE;
+
+            case TSDB_DATA_TYPE_FLOAT:
+                return (((float) value) == 0) ? Boolean.FALSE : Boolean.TRUE;
+            case TSDB_DATA_TYPE_DOUBLE: {
+                return (((double) value) == 0) ? Boolean.FALSE : Boolean.TRUE;
+            }
+
+            case TSDB_DATA_TYPE_NCHAR:
+            case TSDB_DATA_TYPE_JSON: {
+                if ("TRUE".compareToIgnoreCase((String) value) == 0) {
+                    return Boolean.TRUE;
+                } else if ("FALSE".compareToIgnoreCase((String) value) == 0) {
+                    return Boolean.TRUE;
+                } else {
+                    throw new SQLDataException();
+                }
+            }
+            case TSDB_DATA_TYPE_BINARY: {
+                String charset = TaosGlobalConfig.getCharset();
+                String tmp;
+                try {
+                    tmp = new String((byte[]) value, charset);
+                } catch (UnsupportedEncodingException e) {
+                    throw new RuntimeException(e.getMessage());
+                }
+                if ("TRUE".compareToIgnoreCase(tmp) == 0) {
+                    return Boolean.TRUE;
+                } else if ("FALSE".compareToIgnoreCase(tmp) == 0) {
+                    return Boolean.TRUE;
+                } else {
+                    throw new SQLDataException();
+                }
+            }
+        }
+
+        return Boolean.FALSE;
     }
 
     @Override
     public byte getByte(int columnIndex) throws SQLException {
         checkAvailability(columnIndex, fields.size());
 
-        Object value = result.get(columnIndex - 1).get(rowIndex);
-        wasNull = value == null;
-        if (value == null)
+        Object value = parseValue(columnIndex);
+        if (value == null) {
+            wasNull = true;
             return 0;
+        }
         if (value instanceof Byte)
             return (byte) value;
-        long valueAsLong = Long.parseLong(value.toString());
-        if (valueAsLong == Byte.MIN_VALUE)
-            return 0;
-        if (valueAsLong < Byte.MIN_VALUE || valueAsLong > Byte.MAX_VALUE)
-            throwRangeException(value.toString(), columnIndex, Types.TINYINT);
 
-        return (byte) valueAsLong;
+        int taosType = fields.get(columnIndex - 1).getTaosType();
+        switch (taosType) {
+            case TSDB_DATA_TYPE_BOOL:
+                return (boolean) value ? (byte) 1 : (byte) 0;
+            case TSDB_DATA_TYPE_UTINYINT:
+            case TSDB_DATA_TYPE_SMALLINT: {
+                short tmp = (short) value;
+                if (tmp < Byte.MIN_VALUE || tmp > Byte.MAX_VALUE)
+                    throwRangeException(value.toString(), columnIndex, Types.TINYINT);
+                return (byte) tmp;
+            }
+            case TSDB_DATA_TYPE_USMALLINT:
+            case TSDB_DATA_TYPE_INT: {
+                int tmp = (int) value;
+                if (tmp < Byte.MIN_VALUE || tmp > Byte.MAX_VALUE)
+                    throwRangeException(value.toString(), columnIndex, Types.TINYINT);
+                return (byte) tmp;
+            }
+
+            case TSDB_DATA_TYPE_BIGINT:
+            case TSDB_DATA_TYPE_UINT: {
+                long tmp = (long) value;
+                if (tmp < Byte.MIN_VALUE || tmp > Byte.MAX_VALUE)
+                    throwRangeException(value.toString(), columnIndex, Types.TINYINT);
+                return (byte) tmp;
+            }
+            case TSDB_DATA_TYPE_UBIGINT: {
+                BigDecimal tmp = (BigDecimal) value;
+                if (tmp.compareTo(new BigDecimal(Byte.MIN_VALUE)) < 0 || tmp.compareTo(new BigDecimal(Byte.MAX_VALUE)) > 0)
+                    throwRangeException(value.toString(), columnIndex, Types.TINYINT);
+
+                return tmp.byteValue();
+            }
+            case TSDB_DATA_TYPE_FLOAT: {
+                float tmp = (float) value;
+                if (tmp < Byte.MIN_VALUE || tmp > Byte.MAX_VALUE)
+                    throwRangeException(value.toString(), columnIndex, Types.TINYINT);
+                return (byte) tmp;
+            }
+            case TSDB_DATA_TYPE_DOUBLE: {
+                double tmp = (double) value;
+                if (tmp < Byte.MIN_VALUE || tmp > Byte.MAX_VALUE)
+                    throwRangeException(value.toString(), columnIndex, Types.TINYINT);
+                return (byte) tmp;
+            }
+
+            case TSDB_DATA_TYPE_NCHAR:
+            case TSDB_DATA_TYPE_JSON:
+                return Byte.parseByte((String) value);
+            case TSDB_DATA_TYPE_BINARY: {
+                String charset = TaosGlobalConfig.getCharset();
+                String tmp;
+                try {
+                    tmp = new String((byte[]) value, charset);
+                } catch (UnsupportedEncodingException e) {
+                    throw new RuntimeException(e.getMessage());
+                }
+                return Byte.parseByte(tmp);
+            }
+        }
+
+        return 0;
     }
 
     private void throwRangeException(String valueAsString, int columnIndex, int jdbcType) throws SQLException {
         throw TSDBError.createSQLException(TSDBErrorNumbers.ERROR_NUMERIC_VALUE_OUT_OF_RANGE,
-                "'" + valueAsString + "' in column '" + columnIndex + "' is outside valid range for the jdbcType " + TSDBConstants.jdbcType2TaosTypeName(jdbcType));
+                "'" + valueAsString + "' in column '" + columnIndex + "' is outside valid range for the jdbcType " + jdbcType2TaosTypeName(jdbcType));
     }
 
     @Override
     public short getShort(int columnIndex) throws SQLException {
         checkAvailability(columnIndex, fields.size());
 
-        Object value = result.get(columnIndex - 1).get(rowIndex);
-        wasNull = value == null;
-        if (value == null)
+        Object value = parseValue(columnIndex);
+        if (value == null) {
+            wasNull = true;
             return 0;
+        }
         if (value instanceof Short)
             return (short) value;
-        long valueAsLong = Long.parseLong(value.toString());
-        if (valueAsLong == Short.MIN_VALUE)
-            return 0;
-        if (valueAsLong < Short.MIN_VALUE || valueAsLong > Short.MAX_VALUE)
-            throwRangeException(value.toString(), columnIndex, Types.SMALLINT);
-        return (short) valueAsLong;
+
+        int taosType = fields.get(columnIndex - 1).getTaosType();
+        switch (taosType) {
+            case TSDB_DATA_TYPE_BOOL:
+                return (boolean) value ? (short) 1 : (short) 0;
+            case TSDB_DATA_TYPE_TINYINT:
+                return (byte) value;
+            case TSDB_DATA_TYPE_USMALLINT:
+            case TSDB_DATA_TYPE_INT: {
+                int tmp = (int) value;
+                if (tmp < Short.MIN_VALUE || tmp > Short.MAX_VALUE)
+                    throwRangeException(value.toString(), columnIndex, Types.SMALLINT);
+                return (short) tmp;
+            }
+
+            case TSDB_DATA_TYPE_BIGINT:
+            case TSDB_DATA_TYPE_UINT: {
+                long tmp = (long) value;
+                if (tmp < Short.MIN_VALUE || tmp > Short.MAX_VALUE)
+                    throwRangeException(value.toString(), columnIndex, Types.SMALLINT);
+                return (short) tmp;
+            }
+            case TSDB_DATA_TYPE_UBIGINT: {
+                BigDecimal tmp = (BigDecimal) value;
+                if (tmp.compareTo(new BigDecimal(Short.MIN_VALUE)) < 0 || tmp.compareTo(new BigDecimal(Short.MAX_VALUE)) > 0)
+                    throwRangeException(value.toString(), columnIndex, Types.SMALLINT);
+                return tmp.shortValue();
+            }
+            case TSDB_DATA_TYPE_FLOAT: {
+                float tmp = (float) value;
+                if (tmp < Short.MIN_VALUE || tmp > Short.MAX_VALUE)
+                    throwRangeException(value.toString(), columnIndex, Types.SMALLINT);
+                return (short) tmp;
+            }
+            case TSDB_DATA_TYPE_DOUBLE: {
+                double tmp = (double) value;
+                if (tmp < Short.MIN_VALUE || tmp > Short.MAX_VALUE)
+                    throwRangeException(value.toString(), columnIndex, Types.SMALLINT);
+                return (short) tmp;
+            }
+
+            case TSDB_DATA_TYPE_NCHAR:
+            case TSDB_DATA_TYPE_JSON:
+                return Short.parseShort((String) value);
+            case TSDB_DATA_TYPE_BINARY: {
+                String charset = TaosGlobalConfig.getCharset();
+                String tmp;
+                try {
+                    tmp = new String((byte[]) value, charset);
+                } catch (UnsupportedEncodingException e) {
+                    throw new RuntimeException(e.getMessage());
+                }
+                return Short.parseShort(tmp);
+            }
+        }
+        return 0;
     }
 
     @Override
     public int getInt(int columnIndex) throws SQLException {
         checkAvailability(columnIndex, fields.size());
 
-        Object value = result.get(columnIndex - 1).get(rowIndex);
-        wasNull = value == null;
-        if (value == null)
+        Object value = parseValue(columnIndex);
+        if (value == null) {
+            wasNull = true;
             return 0;
+        }
         if (value instanceof Integer)
             return (int) value;
-        long valueAsLong = Long.parseLong(value.toString());
-        if (valueAsLong == Integer.MIN_VALUE)
-            return 0;
-        if (valueAsLong < Integer.MIN_VALUE || valueAsLong > Integer.MAX_VALUE)
-            throwRangeException(value.toString(), columnIndex, Types.INTEGER);
-        return (int) valueAsLong;
+
+        int taosType = fields.get(columnIndex - 1).getTaosType();
+        switch (taosType) {
+            case TSDB_DATA_TYPE_BOOL:
+                return (boolean) value ? 1 : 0;
+            case TSDB_DATA_TYPE_TINYINT:
+                return (byte) value;
+            case TSDB_DATA_TYPE_UTINYINT:
+            case TSDB_DATA_TYPE_SMALLINT:
+                return (short) value;
+            case TSDB_DATA_TYPE_USMALLINT:
+            case TSDB_DATA_TYPE_INT:
+                return (int) value;
+
+            case TSDB_DATA_TYPE_BIGINT:
+            case TSDB_DATA_TYPE_UINT: {
+                long tmp = (long) value;
+                if (tmp < Integer.MIN_VALUE || tmp > Integer.MAX_VALUE)
+                    throwRangeException(value.toString(), columnIndex, Types.INTEGER);
+                return (int) tmp;
+            }
+            case TSDB_DATA_TYPE_UBIGINT: {
+                BigDecimal tmp = (BigDecimal) value;
+                if (tmp.compareTo(new BigDecimal(Integer.MIN_VALUE)) < 0 || tmp.compareTo(new BigDecimal(Integer.MAX_VALUE)) > 0)
+                    throwRangeException(value.toString(), columnIndex, Types.INTEGER);
+                return tmp.intValue();
+            }
+            case TSDB_DATA_TYPE_FLOAT: {
+                float tmp = (float) value;
+                if (tmp < Integer.MIN_VALUE || tmp > Integer.MAX_VALUE)
+                    throwRangeException(value.toString(), columnIndex, Types.INTEGER);
+                return (int) tmp;
+            }
+            case TSDB_DATA_TYPE_DOUBLE: {
+                double tmp = (double) value;
+                if (tmp < Integer.MIN_VALUE || tmp > Integer.MAX_VALUE)
+                    throwRangeException(value.toString(), columnIndex, Types.INTEGER);
+                return (int) tmp;
+            }
+
+            case TSDB_DATA_TYPE_NCHAR:
+            case TSDB_DATA_TYPE_JSON:
+                return Integer.parseInt((String) value);
+            case TSDB_DATA_TYPE_BINARY: {
+                String charset = TaosGlobalConfig.getCharset();
+                String tmp;
+                try {
+                    tmp = new String((byte[]) value, charset);
+                } catch (UnsupportedEncodingException e) {
+                    throw new RuntimeException(e.getMessage());
+                }
+                return Integer.parseInt(tmp);
+            }
+        }
+        return 0;
     }
 
     @Override
     public long getLong(int columnIndex) throws SQLException {
         checkAvailability(columnIndex, fields.size());
 
-        Object value = result.get(columnIndex - 1).get(rowIndex);
-        wasNull = value == null;
-        if (value == null)
+        Object value = parseValue(columnIndex);
+        if (value == null) {
+            wasNull = true;
             return 0;
+        }
         if (value instanceof Long)
             return (long) value;
         if (value instanceof Timestamp) {
@@ -313,54 +579,178 @@ public class BlockResultSet extends AbstractWSResultSet {
                     return ts.getTime() * 1000_000 + ts.getNanos() % 1000_000;
             }
         }
-        long valueAsLong = 0;
-        try {
-            valueAsLong = Long.parseLong(value.toString());
-            if (valueAsLong == Long.MIN_VALUE)
-                return 0;
-        } catch (NumberFormatException e) {
-            throwRangeException(value.toString(), columnIndex, Types.BIGINT);
+
+        int taosType = fields.get(columnIndex - 1).getTaosType();
+        switch (taosType) {
+            case TSDB_DATA_TYPE_BOOL:
+                return (boolean) value ? 1 : 0;
+            case TSDB_DATA_TYPE_TINYINT:
+                return (byte) value;
+            case TSDB_DATA_TYPE_UTINYINT:
+            case TSDB_DATA_TYPE_SMALLINT:
+                return (short) value;
+            case TSDB_DATA_TYPE_USMALLINT:
+            case TSDB_DATA_TYPE_INT:
+                return (int) value;
+            case TSDB_DATA_TYPE_BIGINT:
+            case TSDB_DATA_TYPE_UINT:
+                return (long) value;
+
+            case TSDB_DATA_TYPE_UBIGINT: {
+                BigDecimal tmp = (BigDecimal) value;
+                if (tmp.compareTo(new BigDecimal(Long.MIN_VALUE)) < 0 || tmp.compareTo(new BigDecimal(Long.MAX_VALUE)) > 0)
+                    throwRangeException(value.toString(), columnIndex, Types.BIGINT);
+                return tmp.longValue();
+            }
+            case TSDB_DATA_TYPE_TIMESTAMP:
+                return ((Timestamp) value).getTime();
+            case TSDB_DATA_TYPE_FLOAT: {
+                float tmp = (float) value;
+                if (tmp < Long.MIN_VALUE || tmp > Long.MAX_VALUE)
+                    throwRangeException(value.toString(), columnIndex, Types.BIGINT);
+                return (long) tmp;
+            }
+            case TSDB_DATA_TYPE_DOUBLE: {
+                double tmp = (Double) value;
+                if (tmp < Long.MIN_VALUE || tmp > Long.MAX_VALUE)
+                    throwRangeException(value.toString(), columnIndex, Types.BIGINT);
+                return (long) tmp;
+            }
+
+            case TSDB_DATA_TYPE_NCHAR:
+            case TSDB_DATA_TYPE_JSON:
+                return Long.parseLong((String) value);
+            case TSDB_DATA_TYPE_BINARY: {
+                String charset = TaosGlobalConfig.getCharset();
+                String tmp;
+                try {
+                    tmp = new String((byte[]) value, charset);
+                } catch (UnsupportedEncodingException e) {
+                    throw new RuntimeException(e.getMessage());
+                }
+                return Long.parseLong(tmp);
+            }
         }
-        return valueAsLong;
+        return 0;
     }
 
     @Override
     public float getFloat(int columnIndex) throws SQLException {
         checkAvailability(columnIndex, fields.size());
 
-        Object value = result.get(columnIndex - 1).get(rowIndex);
-        wasNull = value == null;
-        if (value == null)
+        Object value = parseValue(columnIndex);
+        if (value == null) {
+            wasNull = true;
             return 0;
+        }
         if (value instanceof Float)
             return (float) value;
         if (value instanceof Double)
-            return new Float((Double) value);
-        return Float.parseFloat(value.toString());
+            return (float) (double) value;
+
+        int taosType = fields.get(columnIndex - 1).getTaosType();
+        switch (taosType) {
+            case TSDB_DATA_TYPE_BOOL:
+                return (boolean) value ? (float) 1 : (float) 0;
+            case TSDB_DATA_TYPE_TINYINT:
+                return (byte) value;
+            case TSDB_DATA_TYPE_UTINYINT:
+            case TSDB_DATA_TYPE_SMALLINT:
+                return (short) value;
+            case TSDB_DATA_TYPE_USMALLINT:
+            case TSDB_DATA_TYPE_INT:
+                return (int) value;
+            case TSDB_DATA_TYPE_BIGINT:
+            case TSDB_DATA_TYPE_UINT:
+                return (long) value;
+
+            case TSDB_DATA_TYPE_UBIGINT: {
+                BigDecimal tmp = (BigDecimal) value;
+                if (tmp.compareTo(new BigDecimal(Float.MIN_VALUE)) < 0 || tmp.compareTo(new BigDecimal(Float.MAX_VALUE)) > 0)
+                    throwRangeException(value.toString(), columnIndex, Types.FLOAT);
+                return tmp.floatValue();
+            }
+
+            case TSDB_DATA_TYPE_NCHAR:
+            case TSDB_DATA_TYPE_JSON:
+                return Float.parseFloat(value.toString());
+            case TSDB_DATA_TYPE_BINARY: {
+                String charset = TaosGlobalConfig.getCharset();
+                String tmp;
+                try {
+                    tmp = new String((byte[]) value, charset);
+                } catch (UnsupportedEncodingException e) {
+                    throw new RuntimeException(e.getMessage());
+                }
+                return Float.parseFloat(tmp);
+            }
+        }
+        return 0;
     }
 
     @Override
     public double getDouble(int columnIndex) throws SQLException {
         checkAvailability(columnIndex, fields.size());
 
-        Object value = result.get(columnIndex - 1).get(rowIndex);
-        wasNull = value == null;
+        Object value = parseValue(columnIndex);
         if (value == null) {
+            wasNull = true;
             return 0;
         }
-        if (value instanceof Double || value instanceof Float)
+        if (value instanceof Double)
             return (double) value;
-        return Double.parseDouble(value.toString());
+        if (value instanceof Float)
+            return (float) value;
+
+        int taosType = fields.get(columnIndex - 1).getTaosType();
+        switch (taosType) {
+            case TSDB_DATA_TYPE_BOOL:
+                return (boolean) value ? 1 : 0;
+            case TSDB_DATA_TYPE_TINYINT:
+                return (byte) value;
+            case TSDB_DATA_TYPE_UTINYINT:
+            case TSDB_DATA_TYPE_SMALLINT:
+                return (short) value;
+            case TSDB_DATA_TYPE_USMALLINT:
+            case TSDB_DATA_TYPE_INT:
+                return (int) value;
+            case TSDB_DATA_TYPE_BIGINT:
+            case TSDB_DATA_TYPE_UINT:
+                return (long) value;
+
+            case TSDB_DATA_TYPE_UBIGINT: {
+                BigDecimal tmp = (BigDecimal) value;
+                if (tmp.compareTo(new BigDecimal(Double.MIN_VALUE)) < 0 || tmp.compareTo(new BigDecimal(Double.MAX_VALUE)) > 0)
+                    throwRangeException(value.toString(), columnIndex, Types.DOUBLE);
+                return tmp.floatValue();
+            }
+
+            case TSDB_DATA_TYPE_NCHAR:
+            case TSDB_DATA_TYPE_JSON:
+                return Double.parseDouble(value.toString());
+            case TSDB_DATA_TYPE_BINARY: {
+                String charset = TaosGlobalConfig.getCharset();
+                String tmp;
+                try {
+                    tmp = new String((byte[]) value, charset);
+                } catch (UnsupportedEncodingException e) {
+                    throw new RuntimeException(e.getMessage());
+                }
+                return Double.parseDouble(tmp);
+            }
+        }
+        return 0;
     }
 
     @Override
     public byte[] getBytes(int columnIndex) throws SQLException {
         checkAvailability(columnIndex, fields.size());
 
-        Object value = result.get(columnIndex - 1).get(rowIndex);
-        wasNull = value == null;
-        if (value == null)
+        Object value = parseValue(columnIndex);
+        if (value == null) {
+            wasNull = true;
             return null;
+        }
         if (value instanceof byte[])
             return (byte[]) value;
         if (value instanceof String)
@@ -384,10 +774,11 @@ public class BlockResultSet extends AbstractWSResultSet {
     public Date getDate(int columnIndex) throws SQLException {
         checkAvailability(columnIndex, fields.size());
 
-        Object value = result.get(columnIndex - 1).get(rowIndex);
-        wasNull = value == null;
-        if (value == null)
+        Object value = parseValue(columnIndex);
+        if (value == null) {
+            wasNull = true;
             return null;
+        }
         if (value instanceof Timestamp)
             return new Date(((Timestamp) value).getTime());
         return Utils.parseDate(value.toString());
@@ -397,16 +788,18 @@ public class BlockResultSet extends AbstractWSResultSet {
     public Time getTime(int columnIndex) throws SQLException {
         checkAvailability(columnIndex, fields.size());
 
-        Object value = result.get(columnIndex - 1).get(rowIndex);
-        wasNull = value == null;
-        if (value == null)
+        Object value = parseValue(columnIndex);
+        if (value == null) {
+            wasNull = true;
             return null;
+        }
         if (value instanceof Timestamp)
             return new Time(((Timestamp) value).getTime());
         Time time = null;
         try {
             time = Utils.parseTime(value.toString());
-        } catch (DateTimeParseException ignored) {
+        } catch (DateTimeParseException e) {
+            throw new RuntimeException(e.getMessage());
         }
         return time;
     }
@@ -415,18 +808,15 @@ public class BlockResultSet extends AbstractWSResultSet {
     public Timestamp getTimestamp(int columnIndex) throws SQLException {
         checkAvailability(columnIndex, fields.size());
 
-        Object value = result.get(columnIndex - 1).get(rowIndex);
-        wasNull = value == null;
-        if (value == null)
+        Object value = parseValue(columnIndex);
+        if (value == null) {
+            wasNull = true;
             return null;
+        }
         if (value instanceof Timestamp)
             return (Timestamp) value;
         if (value instanceof Long) {
-            if (1_0000_0000_0000_0L > (long) value)
-                return Timestamp.from(Instant.ofEpochMilli((long) value));
-            long epochSec = (long) value / 1000_000L;
-            long nanoAdjustment = (long) value % 1000_000L * 1000;
-            return Timestamp.from(Instant.ofEpochSecond(epochSec, nanoAdjustment));
+            return parseTimestampColumnData((long) value);
         }
         Timestamp ret;
         try {
@@ -439,17 +829,10 @@ public class BlockResultSet extends AbstractWSResultSet {
     }
 
     @Override
-    public ResultSetMetaData getMetaData() throws SQLException {
-        if (isClosed())
-            throw TSDBError.createSQLException(TSDBErrorNumbers.ERROR_RESULTSET_CLOSED);
-        return this.metaData;
-    }
-
-    @Override
     public Object getObject(int columnIndex) throws SQLException {
         checkAvailability(columnIndex, fields.size());
 
-        Object value = result.get(columnIndex - 1).get(rowIndex);
+        Object value = parseValue(columnIndex);
         wasNull = value == null;
         return value;
     }
@@ -469,23 +852,54 @@ public class BlockResultSet extends AbstractWSResultSet {
     public BigDecimal getBigDecimal(int columnIndex) throws SQLException {
         checkAvailability(columnIndex, fields.size());
 
-        Object value = result.get(columnIndex - 1).get(rowIndex);
-        wasNull = value == null;
-        if (value == null)
+        Object value = parseValue(columnIndex);
+        if (value == null) {
+            wasNull = true;
             return null;
-        if (value instanceof Long || value instanceof Integer || value instanceof Short || value instanceof Byte)
-            return new BigDecimal(Long.parseLong(value.toString()));
-        if (value instanceof Double || value instanceof Float)
-            return BigDecimal.valueOf(Double.parseDouble(value.toString()));
-        if (value instanceof Timestamp)
-            return new BigDecimal(((Timestamp) value).getTime());
-        BigDecimal ret;
-        try {
-            ret = new BigDecimal(value.toString());
-        } catch (Exception e) {
-            ret = null;
         }
-        return ret;
+        if (value instanceof BigDecimal)
+            return (BigDecimal) value;
+
+
+        int taosType = fields.get(columnIndex - 1).getTaosType();
+        switch (taosType) {
+            case TSDB_DATA_TYPE_BOOL:
+                return (boolean) value ? new BigDecimal(1) : new BigDecimal(0);
+            case TSDB_DATA_TYPE_TINYINT:
+                return new BigDecimal((byte) value);
+            case TSDB_DATA_TYPE_UTINYINT:
+            case TSDB_DATA_TYPE_SMALLINT:
+                return new BigDecimal((short) value);
+            case TSDB_DATA_TYPE_USMALLINT:
+            case TSDB_DATA_TYPE_INT:
+                return new BigDecimal((int) value);
+            case TSDB_DATA_TYPE_BIGINT:
+            case TSDB_DATA_TYPE_UINT:
+                return new BigDecimal((long) value);
+
+            case TSDB_DATA_TYPE_FLOAT:
+                return BigDecimal.valueOf((float) value);
+            case TSDB_DATA_TYPE_DOUBLE:
+                return BigDecimal.valueOf((double) value);
+
+            case TSDB_DATA_TYPE_TIMESTAMP:
+                return new BigDecimal(((Timestamp) value).getTime());
+            case TSDB_DATA_TYPE_NCHAR:
+            case TSDB_DATA_TYPE_JSON:
+                return new BigDecimal(value.toString());
+            case TSDB_DATA_TYPE_BINARY: {
+                String charset = TaosGlobalConfig.getCharset();
+                String tmp;
+                try {
+                    tmp = new String((byte[]) value, charset);
+                } catch (UnsupportedEncodingException e) {
+                    throw new RuntimeException(e.getMessage());
+                }
+                return new BigDecimal(tmp);
+            }
+        }
+
+        return new BigDecimal(0);
     }
 
     @Override
@@ -620,7 +1034,6 @@ public class BlockResultSet extends AbstractWSResultSet {
 
     @Override
     public Timestamp getTimestamp(int columnIndex, Calendar cal) throws SQLException {
-        //TODO：did not use the specified timezone in cal
         return getTimestamp(columnIndex);
     }
 }

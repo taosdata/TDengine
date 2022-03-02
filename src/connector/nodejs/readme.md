@@ -69,7 +69,7 @@ To target native ARM64 Node.js on Windows 10 on ARM, add the  components "Visual
 
 ## Usage
 
-The following is a short summary of the basic usage of the connector, the  full api and documentation can be found [here](http://docs.taosdata.com/node)
+The following is a short summary of the basic usage of the connector, the  full api and documentation can be found [here](https://www.taosdata.com/docs/cn/v2.0/connector#nodejs)
 
 ### Connection
 
@@ -152,9 +152,9 @@ promise2.then(function(result) {
 
 ## Example
 
-An example of using the NodeJS connector to create a table with weather data and create and execute queries can be found [here](https://github.com/taosdata/TDengine/tree/master/tests/examples/nodejs/node-example.js) (The preferred method for using the connector)
+An example of using the NodeJS connector to create a table with weather data and create and execute queries can be found [here](https://github.com/taosdata/TDengine/blob/master/examples/nodejs/node-example.js) (The preferred method for using the connector)
 
-An example of using the NodeJS connector to achieve the same things but without all the object wrappers that wrap around the data returned to achieve higher functionality can be found [here](https://github.com/taosdata/TDengine/tree/master/tests/examples/nodejs/node-example-raw.js)
+An example of using the NodeJS connector to achieve the same things but without all the object wrappers that wrap around the data returned to achieve higher functionality can be found [here](https://github.com/taosdata/TDengine/blob/master/examples/nodejs/node-example-raw.js)
 
 ## Contributing to TDengine
 

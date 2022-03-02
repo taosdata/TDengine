@@ -36,7 +36,7 @@ For the SQL INSERT Grammar, please refer to  [Taos SQL insert](https://www.taosd
 **Introduction**
 <br/> In many IoT applications, data collection is often used in intelligent control, business analysis and device monitoring etc. As fast application upgrade and iteration, or hardware adjustment, data collection metrics can change rapidly over time. To provide solutions to such use cases, from version 2.2.0.0, TDengine supports writing data via Schemaless. When using Schemaless, action of pre-creating table before inserting data is no longer needed anymore. Tables, data columns and tags can be created automatically. Schemaless can also add additional data columns to tables if necessary, to make sure data can be properly stored into TDengine.
 
-<br/> TDengine C/C++ Connector provides Schemaless API. Please see [Schemaless data writting API](https://www.taosdata.com/en/documentation/connector#schemaless) for detailed data writing format.
+<br/> TDengine C/C++ Connector provides Schemaless API. Please see [Schemaless data writing API](https://www.taosdata.com/en/documentation/connector#schemaless) for detailed data writing format.
 <br/> Super table and corresponding child tables created via Schemaless are identical to the ones created via SQL, so inserting data into these tables via SQL is also supported. Note that child table names are generated via Schemaless are following special rules through tags mapping. Therefore, child table names are usually not meaningful in terms of readability.
 
 **Schemaless writing protocols**
@@ -115,7 +115,7 @@ After MD5 value "md5_val" calculated using the above string, prefix "t_" is prep
 | 3      | TSDB_SML_TIMESTAMP_MINUTES            |   minute       |
 | 4      | TSDB_SML_TIMESTAMP_SECONDS            |   second       |
 | 5      | TSDB_SML_TIMESTAMP_MILLI_SECONDS      |   millisecond  |
-| 6      | TSDB_SML_TIMESTAMP_MICRO_SECONDS      |   microsecon   |
+| 6      | TSDB_SML_TIMESTAMP_MICRO_SECONDS      |   microsecond  |
 | 7      | TSDB_SML_TIMESTAMP_NANO_SECONDS       |   nanosecond   |
 
 When SML_TELNET_PROTOCOL or SML_JSON_PROTOCOL used，timestamp precision is determined by how many digits used in timestamp（following OpenTSDB convention），precision from user input will be ignored。
@@ -136,7 +136,7 @@ create stable st (_ts timestamp, c1 bigint, c2 bool, c3 binary(6), c4 bigint) ta
 **Schemaless data alternation rules**
 <br/>This section describes several data alternation scenarios:
 
-When column with one line has certain type, and following lines attemp to change the data type of this column, an error will be reported by the API:
+When column with one line has certain type, and following lines attempt to change the data type of this column, an error will be reported by the API:
 
 ```json
 st,t1=3,t2=4,t3=t3 c1=3i64,c3="passit",c2=false,c4=4    1626006833639000000
@@ -255,7 +255,7 @@ sudo systemctl start collectd
 
 Please find taosAdapter configuration and usage from `taosadapter --help` output.
 
-## <a class="anchor" id="statsd"></a> Data Writting via StatsD and taosAdapter
+## <a class="anchor" id="statsd"></a> Data Writing via StatsD and taosAdapter
 
 Please refer to [official document](https://github.com/statsd/statsd) for StatsD installation.
 
@@ -278,7 +278,7 @@ port: 8125
 }
 ```
 
-## <a class="anchor" id="cinga2"></a> Data Writting via icinga2 and taosAdapter
+## <a class="anchor" id="cinga2"></a> Data Writing via icinga2 and taosAdapter
 
 Use icinga2 to collect check result metrics and performance data
 
@@ -295,7 +295,7 @@ object OpenTsdbWriter "opentsdb" {
 
 Please find taosAdapter configuration and usage from `taosadapter --help` output.
 
-## <a class="anchor" id="tcollector"></a> Data Writting via TCollector and taosAdapter
+## <a class="anchor" id="tcollector"></a> Data Writing via TCollector and taosAdapter
 
 TCollector is a client-side process that gathers data from local collectors and pushes the data to OpenTSDB. You run it on all your hosts, and it does the work of sending each host’s data to the TSD (OpenTSDB backend process).
 

@@ -1861,7 +1861,7 @@ static int32_t handleScalarTypeExpr(SSqlCmd* pCmd, SQueryInfo* pQueryInfo, int32
     if (tscGetErrorMsgLength(pCmd) > 0) {
       return ret;
     }
-    
+
     return invalidOperationMsg(tscGetErrorMsgPayload(pCmd), msg2);
   }
 
@@ -1872,7 +1872,7 @@ static int32_t handleScalarTypeExpr(SSqlCmd* pCmd, SQueryInfo* pQueryInfo, int32
     if (TSDB_COL_IS_TAG(pIndex->flag)) {
       tExprTreeDestroy(pNode, NULL);
       taosArrayDestroy(&colList);
-      
+
       return invalidOperationMsg(tscGetErrorMsgPayload(pCmd), msg3);
     }
   }
@@ -1884,7 +1884,7 @@ static int32_t handleScalarTypeExpr(SSqlCmd* pCmd, SQueryInfo* pQueryInfo, int32
     if (tscGetErrorMsgLength(pCmd) > 0) {
       return ret;
     }
-    
+
     return invalidOperationMsg(tscGetErrorMsgPayload(pCmd), msg2);
   }
 
@@ -2601,14 +2601,14 @@ static int32_t setExprInfoForFunctions(SSqlCmd* pCmd, SQueryInfo* pQueryInfo, SS
 void setResultColName(char* name, tSqlExprItem* pItem, int32_t functionId, SStrToken* pToken, bool multiCols) {
   if (pItem->aliasName != NULL) {
     tstrncpy(name, pItem->aliasName, TSDB_COL_NAME_LEN);
-  } else if (multiCols) {
+  } else {
     char uname[TSDB_COL_NAME_LEN] = {0};
     int32_t len = MIN(pToken->n + 1, TSDB_COL_NAME_LEN);
     tstrncpy(uname, pToken->z, len);
 
     if (tsKeepOriginalColumnName) { // keep the original column name
       tstrncpy(name, uname, TSDB_COL_NAME_LEN);
-    } else {
+    } else if (multiCols) {
       if (!TSDB_FUNC_IS_SCALAR(functionId)) {
         int32_t size = TSDB_COL_NAME_LEN + tListLen(aAggs[functionId].name) + 2 + 1;
         char    tmp[TSDB_COL_NAME_LEN + tListLen(aAggs[functionId].name) + 2 + 1] = {0};
@@ -2623,10 +2623,10 @@ void setResultColName(char* name, tSqlExprItem* pItem, int32_t functionId, SStrT
 
         tstrncpy(name, tmp, TSDB_COL_NAME_LEN);
       }
+    } else  { // use the user-input result column name
+      len = MIN(pItem->pNode->exprToken.n + 1, TSDB_COL_NAME_LEN);
+      tstrncpy(name, pItem->pNode->exprToken.z, len);
     }
-  } else  { // use the user-input result column name
-    int32_t len = MIN(pItem->pNode->exprToken.n + 1, TSDB_COL_NAME_LEN);
-    tstrncpy(name, pItem->pNode->exprToken.z, len);
   }
 }
 
@@ -5099,8 +5099,8 @@ static int32_t validateSQLExprItem(SSqlCmd* pCmd, tSqlExpr* pExpr,
       return invalidOperationMsg(tscGetErrorMsgPayload(pCmd), msg3);
     }
 
-    //now allowing now +/- value in select expr
-    if (pExpr->tokenId == TK_TIMESTAMP) {
+    //not allowing now/today keyword arithmetic operation in select expr
+    if (pExpr->exprToken.type == TK_NOW || pExpr->exprToken.type == TK_TODAY) {
       return invalidOperationMsg(tscGetErrorMsgPayload(pCmd), msg3);
     }
 
@@ -5479,6 +5479,7 @@ static int32_t handleExprInQueryCond(SSqlCmd* pCmd, SQueryInfo* pQueryInfo, tSql
   }else{
     colName = &(pLeft->columnName);
   }
+
   int32_t ret = TSDB_CODE_SUCCESS;
 
   SColumnIndex index = COLUMN_INDEX_INITIALIZER;
@@ -5719,7 +5720,7 @@ int32_t getQueryCondExpr(SSqlCmd* pCmd, SQueryInfo* pQueryInfo, tSqlExpr** pExpr
 
     if (columnLeft && columnRight) {
       setNormalExprToCond(&columnLeft, columnRight, (*pExpr)->tokenId);
-      
+
       *columnExpr = columnLeft;
     } else {
       *columnExpr = columnLeft ? columnLeft : columnRight;
@@ -5727,7 +5728,7 @@ int32_t getQueryCondExpr(SSqlCmd* pCmd, SQueryInfo* pQueryInfo, tSqlExpr** pExpr
 
     if (tsLeft && tsRight) {
       setNormalExprToCond(&tsLeft, tsRight, (*pExpr)->tokenId);
-      
+
       *tsExpr = tsLeft;
     } else {
       *tsExpr = tsLeft ? tsLeft : tsRight;
@@ -5737,7 +5738,7 @@ int32_t getQueryCondExpr(SSqlCmd* pCmd, SQueryInfo* pQueryInfo, tSqlExpr** pExpr
       *type = leftType|rightType;
     }
     *tbIdx = (leftTbIdx == rightTbIdx) ? leftTbIdx : -1;
-    
+
     return TSDB_CODE_SUCCESS;
   }
 
@@ -5759,9 +5760,9 @@ int32_t getQueryCondExpr(SSqlCmd* pCmd, SQueryInfo* pQueryInfo, tSqlExpr** pExpr
   }
 
   return TSDB_CODE_SUCCESS;
-  
+
 err_ret:
-  
+
   tSqlExprDestroy(columnLeft);
   tSqlExprDestroy(columnRight);
   tSqlExprDestroy(tsLeft);
@@ -5774,7 +5775,7 @@ static void doExtractExprForSTable(SSqlCmd* pCmd, tSqlExpr** pExpr, SQueryInfo* 
     *pOut = NULL;
     return;
   }
-  
+
   if (tSqlExprIsParentOfLeaf(*pExpr)) {
     tSqlExpr* pLeft = (*pExpr)->pLeft;
 
@@ -10460,6 +10461,10 @@ int32_t exprTreeFromSqlExpr(SSqlCmd* pCmd, tExprNode **pExpr, const tSqlExpr* pS
       (*pExpr)->pVal = calloc(1, sizeof(tVariant));
       tVariantAssign((*pExpr)->pVal, &pSqlExpr->value);
 
+      STableMetaInfo* pTableMetaInfo = tscGetMetaInfo(pQueryInfo, pQueryInfo->curTableIdx);
+      STableComInfo tinfo = tscGetTableInfo(pTableMetaInfo->pTableMeta);
+      (*pExpr)->precision = tinfo.precision;
+
       STableMeta* pTableMeta = tscGetMetaInfo(pQueryInfo, pQueryInfo->curTableIdx)->pTableMeta;
       if (pCols != NULL) {
         size_t colSize = taosArrayGetSize(pCols);
@@ -10622,6 +10627,11 @@ int32_t exprTreeFromSqlExpr(SSqlCmd* pCmd, tExprNode **pExpr, const tSqlExpr* pS
       *pExpr = calloc(1, sizeof(tExprNode));
       (*pExpr)->nodeType = TSQL_NODE_FUNC;
       (*pExpr)->_func.functionId = pSqlExpr->functionId;
+
+      STableMetaInfo* pTableMetaInfo = tscGetMetaInfo(pQueryInfo, pQueryInfo->curTableIdx);
+      STableComInfo tinfo = tscGetTableInfo(pTableMetaInfo->pTableMeta);
+      (*pExpr)->precision = tinfo.precision;
+
       SArray* paramList = pSqlExpr->Expr.paramList;
       size_t paramSize = paramList ? taosArrayGetSize(paramList) : 0;
       if (paramSize > 0) {

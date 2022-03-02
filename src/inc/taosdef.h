@@ -106,6 +106,11 @@ extern const int32_t TYPE_BYTES[16];
 #define TSDB_TIME_PRECISION_MICRO_STR "us"
 #define TSDB_TIME_PRECISION_NANO_STR  "ns"
 
+#define TSDB_TIME_PRECISION_SEC_DIGITS 10
+#define TSDB_TIME_PRECISION_MILLI_DIGITS 13
+#define TSDB_TIME_PRECISION_MICRO_DIGITS 16
+#define TSDB_TIME_PRECISION_NANO_DIGITS 19
+
 #define TSDB_TICK_PER_SECOND(precision) ((int64_t)((precision)==TSDB_TIME_PRECISION_MILLI ? 1e3L : ((precision)==TSDB_TIME_PRECISION_MICRO ? 1e6L : 1e9L)))
 
 #define T_MEMBER_SIZE(type, member) sizeof(((type *)0)->member)
@@ -133,19 +138,21 @@ do { \
   float  taos_align_get_float(const char* pBuf);
   double taos_align_get_double(const char* pBuf);
 
-  #define GET_FLOAT_VAL(x)       taos_align_get_float(x)
-  #define GET_DOUBLE_VAL(x)      taos_align_get_double(x)
-  #define SET_FLOAT_VAL(x, y)  { float z = (float)(y);   (*(int32_t*) x = *(int32_t*)(&z)); }
-  #define SET_DOUBLE_VAL(x, y) { double z = (double)(y); (*(int64_t*) x = *(int64_t*)(&z)); }
-  #define SET_FLOAT_PTR(x, y)  { (*(int32_t*) x = *(int32_t*)y); }
-  #define SET_DOUBLE_PTR(x, y) { (*(int64_t*) x = *(int64_t*)y); }
+  #define GET_FLOAT_VAL(x)        taos_align_get_float(x)
+  #define GET_DOUBLE_VAL(x)       taos_align_get_double(x)
+  #define SET_FLOAT_VAL(x, y)     { float z = (float)(y);   (*(int32_t*) x = *(int32_t*)(&z)); }
+  #define SET_DOUBLE_VAL(x, y)    { double z = (double)(y); (*(int64_t*) x = *(int64_t*)(&z)); }
+  #define SET_TIMESTAMP_VAL(x, y) { int64_t z = (int64_t)(y); (*(int64_t*) x = *(int64_t*)(&z)); }
+  #define SET_FLOAT_PTR(x, y)     { (*(int32_t*) x = *(int32_t*)y); }
+  #define SET_DOUBLE_PTR(x, y)    { (*(int64_t*) x = *(int64_t*)y); }
 #else
-  #define GET_FLOAT_VAL(x)       (*(float *)(x))
-  #define GET_DOUBLE_VAL(x)      (*(double *)(x))
-  #define SET_FLOAT_VAL(x, y)  { (*(float *)(x))  = (float)(y);       }
-  #define SET_DOUBLE_VAL(x, y) { (*(double *)(x)) = (double)(y);      }
-  #define SET_FLOAT_PTR(x, y)  { (*(float *)(x))  = (*(float *)(y));  }
-  #define SET_DOUBLE_PTR(x, y) { (*(double *)(x)) = (*(double *)(y)); }
+  #define GET_FLOAT_VAL(x)        (*(float *)(x))
+  #define GET_DOUBLE_VAL(x)       (*(double *)(x))
+  #define SET_FLOAT_VAL(x, y)     { (*(float *)(x))  = (float)(y);       }
+  #define SET_DOUBLE_VAL(x, y)    { (*(double *)(x)) = (double)(y);      }
+  #define SET_TIMESTAMP_VAL(x, y) { (*(int64_t *)(x)) = (int64_t)(y);    }
+  #define SET_FLOAT_PTR(x, y)     { (*(float *)(x))  = (*(float *)(y));  }
+  #define SET_DOUBLE_PTR(x, y)    { (*(double *)(x)) = (*(double *)(y)); }
 #endif
 
 // TODO: check if below is necessary

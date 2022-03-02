@@ -652,7 +652,7 @@ static int32_t tscRebuildDDLForNormalTable(SSqlObj *pSql, const char *tableName,
   SSchema *pSchema = tscGetTableSchema(pMeta);
 
   char *result = ddl;
-  sprintf(result, "create table `%s` (", tableName);
+  sprintf(result, "CREATE TABLE `%s` (", tableName);
   for (int32_t i = 0; i < numOfRows; ++i) {
     uint8_t type = pSchema[i].type;
     if (type == TSDB_DATA_TYPE_BINARY || type == TSDB_DATA_TYPE_NCHAR) {
@@ -679,7 +679,7 @@ static int32_t tscRebuildDDLForSuperTable(SSqlObj *pSql, const char *tableName, 
   int32_t totalRows = numOfRows + tscGetNumOfTags(pMeta);
   SSchema *pSchema = tscGetTableSchema(pMeta);
 
-  sprintf(result, "create table `%s` (", tableName);
+  sprintf(result, "CREATE TABLE `%s` (", tableName);
   for (int32_t i = 0; i < numOfRows; ++i) {
     uint8_t type = pSchema[i].type;
     if (type == TSDB_DATA_TYPE_BINARY || type == TSDB_DATA_TYPE_NCHAR) {

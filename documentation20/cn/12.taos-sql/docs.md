@@ -4,7 +4,7 @@
 
 TAOS SQL 是用户对 TDengine 进行数据写入和查询的主要工具。TAOS SQL 为了便于用户快速上手，在一定程度上提供类似于标准 SQL 类似的风格和模式。严格意义上，TAOS SQL 并不是也不试图提供 SQL 标准的语法。此外，由于 TDengine 针对的时序性结构化数据不提供删除功能，因此在 TAO SQL 中不提供数据删除的相关功能。
 
-TAOS SQL 不支持关键字的缩写，例如 DESCRIBE 不能缩写为 DESC。 
+TAOS SQL 目前仅支持 DESCRIBE 关键字的缩写，DESCRIBE 可以缩写为 DESC。
 
 本章节 SQL 语法遵循如下约定：
 
@@ -135,7 +135,7 @@ CREATE DATABASE db_name PRECISION 'ns';
     ```mysql
     ALTER DATABASE db_name BLOCKS 100;
     ```
-    BLOCKS 参数是每个 VNODE (TSDB) 中有多少 cache 大小的内存块，因此一个 VNODE 的用的内存大小粗略为（cache * blocks）。取值范围 [3, 1000]。
+    BLOCKS 参数是每个 VNODE (TSDB) 中有多少 cache 大小的内存块，因此一个 VNODE 的用的内存大小粗略为（cache * blocks）。取值范围 [3, 10000]。
 
     ```mysql
     ALTER DATABASE db_name CACHELAST 0;
