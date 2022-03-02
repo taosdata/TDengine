@@ -37,6 +37,10 @@ typedef struct {
   SPageHdr *pPageHdr;
   void *    pAMHdr;
   u16 *     aCellIdx;
+  int       kLen;
+  int       vLen;
+  int       maxLocal;
+  int       minLocal;
 } SPageHandle;
 
 #ifdef __cplusplus
