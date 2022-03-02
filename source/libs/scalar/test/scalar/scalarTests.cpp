@@ -93,7 +93,7 @@ void scltAppendReservedSlot(SArray *pBlockList, int16_t *dataBlockId, int16_t *s
 }
 
 void scltMakeValueNode(SNode **pNode, int32_t dataType, void *value) {
-  SNode *node = nodesMakeNode(QUERY_NODE_VALUE);
+  SNode *node = (SNode*)nodesMakeNode(QUERY_NODE_VALUE);
   SValueNode *vnode = (SValueNode *)node;
   vnode->node.resType.type = dataType;
 
@@ -110,7 +110,7 @@ void scltMakeValueNode(SNode **pNode, int32_t dataType, void *value) {
 }
 
 void scltMakeColumnNode(SNode **pNode, SSDataBlock **block, int32_t dataType, int32_t dataBytes, int32_t rowNum, void *value) {
-  SNode *node = nodesMakeNode(QUERY_NODE_COLUMN);
+  SNode *node = (SNode*)nodesMakeNode(QUERY_NODE_COLUMN);
   SColumnNode *rnode = (SColumnNode *)node;
   rnode->node.resType.type = dataType;
   rnode->node.resType.bytes = dataBytes;
@@ -189,7 +189,7 @@ void scltMakeColumnNode(SNode **pNode, SSDataBlock **block, int32_t dataType, in
 }
 
 void scltMakeOpNode(SNode **pNode, EOperatorType opType, int32_t resType, SNode *pLeft, SNode *pRight) {
-  SNode *node = nodesMakeNode(QUERY_NODE_OPERATOR);
+  SNode *node = (SNode*)nodesMakeNode(QUERY_NODE_OPERATOR);
   SOperatorNode *onode = (SOperatorNode *)node;
   onode->node.resType.type = resType;
   onode->node.resType.bytes = tDataTypes[resType].bytes;
@@ -203,7 +203,7 @@ void scltMakeOpNode(SNode **pNode, EOperatorType opType, int32_t resType, SNode 
 
 
 void scltMakeListNode(SNode **pNode, SNodeList *list, int32_t resType) {
-  SNode *node = nodesMakeNode(QUERY_NODE_NODE_LIST);
+  SNode *node = (SNode*)nodesMakeNode(QUERY_NODE_NODE_LIST);
   SNodeListNode *lnode = (SNodeListNode *)node;
   lnode->dataType.type = resType;
   lnode->pNodeList = list;
@@ -213,7 +213,7 @@ void scltMakeListNode(SNode **pNode, SNodeList *list, int32_t resType) {
 
 
 void scltMakeLogicNode(SNode **pNode, ELogicConditionType opType, SNode **nodeList, int32_t nodeNum) {
-  SNode *node = nodesMakeNode(QUERY_NODE_LOGIC_CONDITION);
+  SNode *node = (SNode*)nodesMakeNode(QUERY_NODE_LOGIC_CONDITION);
   SLogicConditionNode *onode = (SLogicConditionNode *)node;
   onode->condType = opType;
   onode->node.resType.type = TSDB_DATA_TYPE_BOOL;
@@ -228,7 +228,7 @@ void scltMakeLogicNode(SNode **pNode, ELogicConditionType opType, SNode **nodeLi
 }
 
 void scltMakeTargetNode(SNode **pNode, int16_t dataBlockId, int16_t slotId, SNode *snode) {
-  SNode *node = nodesMakeNode(QUERY_NODE_TARGET);
+  SNode *node = (SNode*)nodesMakeNode(QUERY_NODE_TARGET);
   STargetNode *onode = (STargetNode *)node;
   onode->pExpr = snode;
   onode->dataBlockId = dataBlockId;

@@ -157,7 +157,7 @@ static SNode* groupingSetNodeCopy(const SGroupingSetNode* pSrc, SGroupingSetNode
   return (SNode*)pDst;
 }
 
-SNode* nodesCloneNode(const SNode* pNode) {
+SNodeptr nodesCloneNode(const SNodeptr pNode) {
   if (NULL == pNode) {
     return NULL;
   }

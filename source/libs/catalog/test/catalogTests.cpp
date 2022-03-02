@@ -128,6 +128,7 @@ void ctgTestInitLogFile() {
 
   tsAsyncLog = 0;
   qDebugFlag = 159;
+  strcpy(tsLogDir, "/var/log/taos");
 
   ctgDbgEnableDebug("api");
   
@@ -1498,7 +1499,7 @@ TEST(dbVgroup, getSetDbVgroupCase) {
   ASSERT_EQ(code, 0);
   ASSERT_EQ(taosArrayGetSize((const SArray *)vgList), ctgTestVgNum);
 
-  while (0 == ctgDbgGetClusterCacheNum(pCtg, CTG_DBG_DB_NUM)) {
+  while (0 == ctgDbgGetClusterCacheNum(pCtg, CTG_DBG_DB_RENT_NUM)) {
     usleep(10000);
   }
 
