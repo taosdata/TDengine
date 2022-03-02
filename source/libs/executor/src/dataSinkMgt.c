@@ -26,7 +26,7 @@ int32_t dsDataSinkMgtInit(SDataSinkMgtCfg *cfg) {
 }
 
 int32_t dsCreateDataSinker(const SDataSinkNode *pDataSink, DataSinkHandle* pHandle) {
-  if (QUERY_NODE_DSINK_DISPATCH == nodeType(pDataSink)) {
+  if (QUERY_NODE_PHYSICAL_PLAN_DISPATCH == nodeType(pDataSink)) {
     return createDataDispatcher(&gDataSinkManager, pDataSink, pHandle);
   }
   return TSDB_CODE_FAILED;

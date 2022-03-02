@@ -32,6 +32,7 @@ static bool isCmd(const SNode* pRootNode) {
   }
   switch (nodeType(pRootNode)) {
     case QUERY_NODE_SELECT_STMT:
+    case QUERY_NODE_CREATE_TABLE_STMT:
       return false;
     default:
       break;
@@ -74,7 +75,7 @@ int32_t doParse(SParseContext* pParseCxt, SQuery** pQuery) {
       }
       default:
         NewParse(pParser, t0.type, t0, &cxt);
-        NewParseTrace(stdout, "");
+        // NewParseTrace(stdout, "");
         if (!cxt.valid) {
           goto abort_parse;
         }

@@ -35,8 +35,10 @@
 SToken nil_token = { .type = TK_NIL, .n = 0, .z = NULL };
 
 typedef SDatabaseOptions* (*FSetDatabaseOption)(SAstCreateContext* pCxt, SDatabaseOptions* pOptions, const SToken* pVal);
-
 static FSetDatabaseOption setDbOptionFuncs[DB_OPTION_MAX];
+
+typedef STableOptions* (*FSetTableOption)(SAstCreateContext* pCxt, STableOptions* pOptions, const SToken* pVal);
+static FSetTableOption setTableOptionFuncs[TABLE_OPTION_MAX];
 
 static SDatabaseOptions* setDbBlocks(SAstCreateContext* pCxt, SDatabaseOptions* pOptions, const SToken* pVal) {
   int64_t val = strtol(pVal->z, NULL, 10);
@@ -263,12 +265,54 @@ static void initSetDatabaseOptionFp() {
   setDbOptionFuncs[DB_OPTION_STREAMMODE] = setDbStreamMode;
 }
 
+static STableOptions* setTableKeep(SAstCreateContext* pCxt, STableOptions* pOptions, const SToken* pVal) {
+  int64_t val = strtol(pVal->z, NULL, 10);
+  if (val < TSDB_MIN_KEEP || val > TSDB_MAX_KEEP) {
+    snprintf(pCxt->pQueryCxt->pMsg, pCxt->pQueryCxt->msgLen,
+        "invalid table option keep: %d valid range: [%d, %d]", val, TSDB_MIN_KEEP, TSDB_MAX_KEEP);
+    pCxt->valid = false;
+    return pOptions;
+  }
+  pOptions->keep = val;
+  return pOptions;
+}
+
+static STableOptions* setTableTtl(SAstCreateContext* pCxt, STableOptions* pOptions, const SToken* pVal) {
+  int64_t val = strtol(pVal->z, NULL, 10);
+  if (val < TSDB_MIN_DB_TTL_OPTION) {
+    snprintf(pCxt->pQueryCxt->pMsg, pCxt->pQueryCxt->msgLen,
+        "invalid table option ttl: %d, should be greater than or equal to %d", val, TSDB_MIN_DB_TTL_OPTION);
+    pCxt->valid = false;
+    return pOptions;
+  }
+  pOptions->ttl = val;
+  return pOptions;
+}
+
+static STableOptions* setTableComment(SAstCreateContext* pCxt, STableOptions* pOptions, const SToken* pVal) {
+  if (pVal->n >= sizeof(pOptions->comments)) {
+    snprintf(pCxt->pQueryCxt->pMsg, pCxt->pQueryCxt->msgLen,
+        "invalid table option comment, length cannot exceed %d", sizeof(pOptions->comments) - 1);
+    pCxt->valid = false;
+    return pOptions;
+  }
+  strncpy(pOptions->comments, pVal->z, pVal->n);
+  return pOptions;
+}
+
+static void initSetTableOptionFp() {
+  setTableOptionFuncs[TABLE_OPTION_KEEP] = setTableKeep;
+  setTableOptionFuncs[TABLE_OPTION_TTL] = setTableTtl;
+  setTableOptionFuncs[TABLE_OPTION_COMMENT] = setTableComment;
+}
+
 void initAstCreateContext(SParseContext* pParseCxt, SAstCreateContext* pCxt) {
   pCxt->pQueryCxt = pParseCxt;
   pCxt->notSupport = false;
   pCxt->valid = true;
   pCxt->pRootNode = NULL;
   initSetDatabaseOptionFp();
+  initSetTableOptionFp();
 }
 
 static bool checkDbName(SAstCreateContext* pCxt, const SToken* pDbName) {
@@ -648,6 +692,43 @@ SNode* createCreateDatabaseStmt(SAstCreateContext* pCxt, bool ignoreExists, cons
   CHECK_OUT_OF_MEM(pStmt);
   strncpy(pStmt->dbName, pDbName->z, pDbName->n);
   pStmt->ignoreExists = ignoreExists;
+  pStmt->options = *pOptions;
+  return (SNode*)pStmt;
+}
+
+STableOptions* createDefaultTableOptions(SAstCreateContext* pCxt) {
+  STableOptions* pOptions = calloc(1, sizeof(STableOptions));
+  CHECK_OUT_OF_MEM(pOptions);
+  pOptions->keep = TSDB_DEFAULT_KEEP;
+  pOptions->ttl = TSDB_DEFAULT_DB_TTL_OPTION;
+  return pOptions;
+}
+
+STableOptions* setTableOption(SAstCreateContext* pCxt, STableOptions* pOptions, ETableOptionType type, const SToken* pVal) {
+  return setTableOptionFuncs[type](pCxt, pOptions, pVal);
+}
+
+SNode* createColumnDefNode(SAstCreateContext* pCxt, const SToken* pColName, SDataType dataType, const SToken* pComment) {
+  SColumnDefNode* pCol = (SColumnDefNode*)nodesMakeNode(QUERY_NODE_COLUMN_DEF);
+  CHECK_OUT_OF_MEM(pCol);
+  strncpy(pCol->colName, pColName->z, pColName->n);
+  pCol->dataType = dataType;
+  if (NULL != pComment) {
+    strncpy(pCol->colName, pColName->z, pColName->n);
+  }
+  return (SNode*)pCol;
+}
+
+SNode* createCreateTableStmt(SAstCreateContext* pCxt,
+    bool ignoreExists, const STokenPair* pFullTableName, SNodeList* pCols, STableOptions* pOptions) {
+  SCreateTableStmt* pStmt = (SCreateTableStmt*)nodesMakeNode(QUERY_NODE_CREATE_TABLE_STMT);
+  CHECK_OUT_OF_MEM(pStmt);
+  if (TK_NIL != pFullTableName->first.type) {
+    strncpy(pStmt->dbName, pFullTableName->first.z, pFullTableName->first.n);
+  }
+  strncpy(pStmt->tableName, pFullTableName->second.z, pFullTableName->second.n);
+  pStmt->ignoreExists = ignoreExists;
+  pStmt->pCols = pCols;
   pStmt->options = *pOptions;
   return (SNode*)pStmt;
 }

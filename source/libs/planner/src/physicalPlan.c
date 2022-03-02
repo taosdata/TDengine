@@ -497,23 +497,13 @@ void qDestroySubplan(SSubplan* pSubplan) {
 
 #include "functionMgt.h"
 
-typedef struct SSubLogicPlan {
-  SNode* pRoot; // SLogicNode
-  bool haveSuperTable;
-  bool haveSystemTable;
-} SSubLogicPlan;
-
-int32_t splitLogicPlan(SSubLogicPlan* pLogicPlan) {
-  // todo
-  return TSDB_CODE_SUCCESS;
-}
-
 typedef struct SSlotIndex {
   int16_t dataBlockId;
   int16_t slotId;
 } SSlotIndex;
 
 typedef struct SPhysiPlanContext {
+  SPlanContext* pPlanCxt;
   int32_t errCode;
   int16_t nextDataBlockId;
   SArray* pLocationHelper;
@@ -956,19 +946,94 @@ static SPhysiNode* createPhysiNode(SPhysiPlanContext* pCxt, SLogicNode* pLogicPl
   return pPhyNode;
 }
 
-int32_t createPhysiPlan(SLogicNode* pLogicNode, SPhysiNode** pPhyNode) {
-  SPhysiPlanContext cxt = { .errCode = TSDB_CODE_SUCCESS, .nextDataBlockId = 0, .pLocationHelper = taosArrayInit(32, POINTER_BYTES) };
+static SSubplan* createPhysiSubplan(SPhysiPlanContext* pCxt, SSubLogicPlan* pLogicSubplan) {
+  SSubplan* pSubplan = (SSubplan*)nodesMakeNode(QUERY_NODE_PHYSICAL_SUBPLAN);
+  pSubplan->pNode = createPhysiNode(pCxt, pLogicSubplan->pNode);
+  return pSubplan;
+}
+
+static SQueryLogicPlan* createRawQueryLogicPlan(SPhysiPlanContext* pCxt, SLogicNode* pLogicNode) {
+  SQueryLogicPlan* pLogicPlan = (SQueryLogicPlan*)nodesMakeNode(QUERY_NODE_LOGIC_PLAN);
+  CHECK_ALLOC(pLogicPlan, NULL);
+  pLogicPlan->pSubplans = nodesMakeList();
+  CHECK_ALLOC(pLogicPlan->pSubplans, pLogicPlan);
+  SNodeListNode* pTopSubplans = (SNodeListNode*)nodesMakeNode(QUERY_NODE_NODE_LIST);
+  CHECK_ALLOC(pTopSubplans, pLogicPlan);
+  if (TSDB_CODE_SUCCESS != nodesListAppend(pLogicPlan->pSubplans, (SNode*)pTopSubplans)) {
+    nodesDestroyNode((SNode*)pTopSubplans);
+    return pLogicPlan;
+  }
+  pTopSubplans->pNodeList = nodesMakeList();
+  CHECK_ALLOC(pTopSubplans->pNodeList, pLogicPlan);
+  SSubLogicPlan* pSubplan = (SSubLogicPlan*)nodesMakeNode(QUERY_NODE_LOGIC_SUBPLAN);
+  CHECK_ALLOC(pSubplan, pLogicPlan);
+  if (TSDB_CODE_SUCCESS != nodesListAppend(pTopSubplans->pNodeList, (SNode*)pSubplan)) {
+    nodesDestroyNode((SNode*)pSubplan);
+    return pLogicPlan;
+  }
+  pSubplan->pNode = (SLogicNode*)nodesCloneNode((SNode*)pLogicNode);
+  CHECK_ALLOC(pSubplan->pNode, pLogicPlan);
+  return pLogicPlan;
+}
+
+static int32_t splitLogicPlan(SPhysiPlanContext* pCxt, SLogicNode* pLogicNode, SQueryLogicPlan** pLogicPlan) {
+  SQueryLogicPlan* pPlan = createRawQueryLogicPlan(pCxt, pLogicNode);
+  if (TSDB_CODE_SUCCESS != pCxt->errCode) {
+    nodesDestroyNode((SNode*)pPlan);
+    return pCxt->errCode;
+  }
+  // todo split
+  *pLogicPlan = pPlan;
+  return TSDB_CODE_SUCCESS;
+}
+
+static int32_t buildPhysiPlan(SPhysiPlanContext* pCxt, SQueryLogicPlan* pLogicPlan, SQueryPlan** pPlan) {
+  SQueryPlan* pQueryPlan = (SQueryPlan*)nodesMakeNode(QUERY_NODE_PHYSICAL_PLAN);
+  CHECK_ALLOC(pQueryPlan, TSDB_CODE_OUT_OF_MEMORY);
+  *pPlan = pQueryPlan;
+  pQueryPlan->queryId = pCxt->pPlanCxt->queryId;
+
+  pQueryPlan->pSubplans = nodesMakeList();
+  CHECK_ALLOC(pQueryPlan->pSubplans, TSDB_CODE_OUT_OF_MEMORY);
+  SNode* pNode;
+  FOREACH(pNode, pLogicPlan->pSubplans) {
+    SNodeListNode* pLevelSubplans = (SNodeListNode*)nodesMakeNode(QUERY_NODE_NODE_LIST);
+    CHECK_ALLOC(pLevelSubplans, TSDB_CODE_OUT_OF_MEMORY);
+    if (TSDB_CODE_SUCCESS != nodesListAppend(pQueryPlan->pSubplans, (SNode*)pLevelSubplans)) {
+      nodesDestroyNode((SNode*)pLevelSubplans);
+      return TSDB_CODE_OUT_OF_MEMORY;
+    }
+    SNode* pLogicSubplan;
+    FOREACH(pLogicSubplan, ((SNodeListNode*)pNode)->pNodeList) {
+      SSubplan* pSubplan = createPhysiSubplan(pCxt, (SSubLogicPlan*)pLogicSubplan);
+      CHECK_ALLOC(pSubplan, TSDB_CODE_OUT_OF_MEMORY);
+      if (TSDB_CODE_SUCCESS != nodesListAppend(pLevelSubplans->pNodeList, (SNode*)pSubplan)) {
+        nodesDestroyNode((SNode*)pSubplan);
+        return TSDB_CODE_OUT_OF_MEMORY;
+      }
+      ++(pQueryPlan->numOfSubplans);
+    }
+  }
+  return TSDB_CODE_SUCCESS;
+}
+
+int32_t createPhysiPlan(SPlanContext* pCxt, SLogicNode* pLogicNode, SQueryPlan** pPlan) {
+  SPhysiPlanContext cxt = {
+    .pPlanCxt = pCxt,
+    .errCode = TSDB_CODE_SUCCESS,
+    .nextDataBlockId = 0,
+    .pLocationHelper = taosArrayInit(32, POINTER_BYTES)
+  };
   if (NULL == cxt.pLocationHelper) {
     return TSDB_CODE_OUT_OF_MEMORY;
   }
-  *pPhyNode = createPhysiNode(&cxt, pLogicNode);
-  return cxt.errCode;
-}
-
-int32_t buildPhysiPlan(SPlanContext* pCxt, SLogicNode* pLogicNode, SQueryPlan** pPlan) {
-  // split
-  // scale out
-  // maping
-  // create
-  return TSDB_CODE_SUCCESS;
+  SQueryLogicPlan* pLogicPlan;
+  int32_t code = splitLogicPlan(&cxt, pLogicNode, &pLogicPlan);
+  // todo scale out
+  // todo maping
+  if (TSDB_CODE_SUCCESS == code) {
+    code = buildPhysiPlan(&cxt, pLogicPlan, pPlan);
+  }
+  nodesDestroyNode((SNode*)pLogicPlan);
+  return code;
 }

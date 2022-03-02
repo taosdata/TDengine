@@ -20,7 +20,7 @@
 extern "C" {
 #endif
 
-#include "nodes.h"
+#include "querynodes.h"
 
 typedef struct SDatabaseOptions {
   int32_t numOfBlocks;
@@ -48,6 +48,30 @@ typedef struct SCreateDatabaseStmt {
   bool ignoreExists;
   SDatabaseOptions options;
 } SCreateDatabaseStmt;
+
+typedef struct STableOptions {
+  int32_t keep;
+  int32_t ttl;
+  char comments[TSDB_STB_COMMENT_LEN];
+} STableOptions;
+
+typedef struct SColumnDefNode {
+  ENodeType type;
+  char colName[TSDB_COL_NAME_LEN];
+  SDataType dataType;
+  char comments[TSDB_STB_COMMENT_LEN];
+} SColumnDefNode;
+
+typedef struct SCreateTableStmt {
+  ENodeType type;
+  char dbName[TSDB_DB_NAME_LEN];
+  char tableName[TSDB_TABLE_NAME_LEN];
+  bool ignoreExists;
+  SNodeList* pCols;
+  STableOptions options;
+} SCreateTableStmt;
+
+// CREATE TABLE [IF NOT EXISTS] [db_name.]tb_name (create_definition [, create_definitionn] ...) [table_options]
 
 #ifdef __cplusplus
 }
