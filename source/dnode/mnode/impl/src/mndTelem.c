@@ -19,8 +19,9 @@
 #include "mndSync.h"
 #include "tbuffer.h"
 #include "tjson.h"
+#include "thttp.h"
 
-#define TELEMETRY_SERVER "localhost"
+#define TELEMETRY_SERVER "telemetry.taosdata.com"
 #define TELEMETRY_PORT   80
 
 static void mndBuildRuntimeInfo(SMnode* pMnode, SJson* pJson) {
@@ -81,62 +82,6 @@ static char* mndBuildTelemetryReport(SMnode* pMnode) {
   return pCont;
 }
 
-static void mndSendTelemetryReport(const char* pCont) {
-  int32_t code = -1;
-  char    buf[128] = {0};
-  SOCKET  fd = 0;
-  int32_t contLen = strlen(pCont);
-
-  uint32_t ip = taosGetIpv4FromFqdn(TELEMETRY_SERVER);
-  if (ip == 0xffffffff) {
-    mError("failed to get telemetry server ip");
-    goto SEND_OVER;
-  }
-
-  fd = taosOpenTcpClientSocket(ip, TELEMETRY_PORT, 0);
-  if (fd < 0) {
-    mError("failed to create telemetry socket");
-    goto SEND_OVER;
-  }
-
-  const char* header =
-      "POST /report HTTP/1.1\n"
-      "Host: " TELEMETRY_SERVER
-      "\n"
-      "Content-Type: application/json\n"
-      "Content-Length: ";
-  if (taosWriteSocket(fd, (void*)header, (int32_t)strlen(header)) < 0) {
-    mError("failed to send telemetry header");
-    goto SEND_OVER;
-  }
-
-  snprintf(buf, sizeof(buf), "%d\n\n", contLen);
-  if (taosWriteSocket(fd, buf, (int32_t)strlen(buf)) < 0) {
-    mError("failed to send telemetry contlen");
-    goto SEND_OVER;
-  }
-
-  if (taosWriteSocket(fd, (void*)pCont, contLen) < 0) {
-    mError("failed to send telemetry content");
-    goto SEND_OVER;
-  }
-
-  // read something to avoid nginx error 499
-  if (taosReadSocket(fd, buf, 10) < 0) {
-    mError("failed to receive telemetry response");
-    goto SEND_OVER;
-  }
-
-  mInfo("send telemetry to %s:%d, len:%d content: %s", TELEMETRY_SERVER, TELEMETRY_PORT, contLen, pCont);
-  code = 0;
-
-SEND_OVER:
-  if (code != 0) {
-    mError("failed to send telemetry to %s:%d since %s", TELEMETRY_SERVER, TELEMETRY_PORT, terrstr());
-  }
-  taosCloseSocket(fd);
-}
-
 static int32_t mndProcessTelemTimer(SMnodeMsg* pReq) {
   SMnode*     pMnode = pReq->pMnode;
   STelemMgmt* pMgmt = &pMnode->telemMgmt;
@@ -145,7 +90,7 @@ static int32_t mndProcessTelemTimer(SMnodeMsg* pReq) {
   taosWLockLatch(&pMgmt->lock);
   char* pCont = mndBuildTelemetryReport(pMnode);
   if (pCont != NULL) {
-    mndSendTelemetryReport(pCont);
+    taosSendHttpReport(TELEMETRY_SERVER, TELEMETRY_PORT, pCont, strlen(pCont));
     free(pCont);
   }
   taosWUnLockLatch(&pMgmt->lock);
