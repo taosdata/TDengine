@@ -20,12 +20,10 @@
 extern "C" {
 #endif
 
-typedef struct SPager SPager;
-
 int    tdbPagerOpen(SPCache *pCache, const char *fileName, SPager **ppFile);
 int    tdbPagerClose(SPager *pFile);
 int    tdbPagerOpenDB(SPager *pFile, SPgno *ppgno, bool toCreate);
-SPage *tdbPagerGet(SPager *pFile, SPgno pgno);
+SPage *tdbPagerGet(SPager *pPager, SPgno pgno, bool toLoad);
 int    tdbPagerWrite(SPager *pFile, SPage *pPage);
 int    tdbPagerAllocPage(SPager *pFile, SPage **ppPage, SPgno *ppgno);
 int    tdbPagerBegin(SPager *pFile);

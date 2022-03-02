@@ -132,6 +132,8 @@ typedef int (*FKeyComparator)(const void *pKey1, int kLen1, const void *pKey2, i
 
 #include "tdbPage.h"
 
+typedef struct SPager SPager;
+
 #include "tdbPCache.h"
 
 #include "tdbPager.h"

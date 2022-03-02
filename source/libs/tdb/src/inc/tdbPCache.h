@@ -37,7 +37,7 @@ struct SPage {
   SPage *  pLruNext;
   SPage *  pLruPrev;
   SPage *  pDirtyNext;
-  SPage *  pPager;
+  SPager * pPager;
 };
 
 int    tdbPCacheOpen(int pageSize, int cacheSize, int extraSize, SPCache **ppCache);

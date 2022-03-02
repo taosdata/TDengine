@@ -211,7 +211,7 @@ static int tdbBtCursorMoveToRoot(SBtCursor *pCur) {
   pBt = pCur->pBt;
   pPager = pBt->pPager;
 
-  pPage = tdbPagerGet(pPager, pBt->root);
+  pPage = tdbPagerGet(pPager, pBt->root, true);
   if (pPage == NULL) {
     // TODO: handle error
   }
