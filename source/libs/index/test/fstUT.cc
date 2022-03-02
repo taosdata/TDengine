@@ -238,3 +238,19 @@ TEST_F(FstEnv, writeNormal) {
   assert(fst->Search(ctx, rlt) == true);
 }
 TEST_F(FstEnv, WriteMillonrRecord) {}
+TEST_F(FstEnv, writeAbNormal) {
+  fst->CreateWriter();
+  std::string str1("voltage&\b&ab");
+  std::string str2("voltbge&\b&ab");
+
+  fst->Put(str1, 1);
+  fst->Put(str2, 2);
+
+  fst->DestroyWriter();
+
+  fst->CreateReader();
+  uint64_t val;
+  assert(fst->Get("1", &val) == false);
+  assert(fst->Get("voltage&\b&ab", &val) == true);
+  assert(val == 1);
+}

@@ -14,6 +14,7 @@
  */
 
 #include "index_cache.h"
+#include "index_comm.h"
 #include "index_util.h"
 #include "tcompare.h"
 #include "tsched.h"
@@ -23,9 +24,6 @@
 #define MEM_TERM_LIMIT 10 * 10000
 #define MEM_THRESHOLD 1024 * 1024
 #define MEM_ESTIMATE_RADIO 1.5
-
-static char JSON_COLUMN[] = "JSON";
-static char JSON_VALUE_DELIM = '&';
 
 static void indexMemRef(MemTable* tbl);
 static void indexMemUnRef(MemTable* tbl);
@@ -211,33 +209,6 @@ static void indexCacheMakeRoomForWrite(IndexCache* cache) {
     }
   }
 }
-static char* indexCachePackJsonData(SIndexTerm* itm) {
-  /*
-   * |<-----colname---->|<-----dataType---->|<--------colVal---------->|
-   * |<-----string----->|<-----uint8_t----->|<----depend on dataType-->|
-   */
-  uint8_t ty = INDEX_TYPE_GET_TYPE(itm->colType);
-
-  int32_t sz = itm->nColName + itm->nColVal + sizeof(uint8_t) + sizeof(JSON_VALUE_DELIM) * 2 + 1;
-  char*   buf = (char*)calloc(1, sz);
-  char*   p = buf;
-
-  memcpy(p, itm->colName, itm->nColName);
-  p += itm->nColName;
-
-  memcpy(p, &JSON_VALUE_DELIM, sizeof(JSON_VALUE_DELIM));
-  p += sizeof(JSON_VALUE_DELIM);
-
-  memcpy(p, &ty, sizeof(ty));
-  p += sizeof(ty);
-
-  memcpy(p, &JSON_VALUE_DELIM, sizeof(JSON_VALUE_DELIM));
-  p += sizeof(JSON_VALUE_DELIM);
-
-  memcpy(p, itm->colVal, itm->nColVal);
-
-  return buf;
-}
 int indexCachePut(void* cache, SIndexTerm* term, uint64_t uid) {
   if (cache == NULL) {
     return -1;
@@ -254,7 +225,7 @@ int indexCachePut(void* cache, SIndexTerm* term, uint64_t uid) {
   // set up key
   ct->colType = term->colType;
   if (hasJson) {
-    ct->colVal = indexCachePackJsonData(term);
+    ct->colVal = indexPackJsonData(term);
   } else {
     ct->colVal = (char*)calloc(1, sizeof(char) * (term->nColVal + 1));
     memcpy(ct->colVal, term->colVal, term->nColVal);
@@ -333,7 +304,7 @@ int indexCacheSearch(void* cache, SIndexTermQuery* query, SArray* result, STermV
   bool  hasJson = INDEX_TYPE_CONTAIN_EXTERN_TYPE(term->colType, TSDB_DATA_TYPE_JSON);
   char* p = term->colVal;
   if (hasJson) {
-    p = indexCachePackJsonData(term);
+    p = indexPackJsonData(term);
   }
   CacheTerm ct = {.colVal = p, .version = atomic_load_32(&pCache->version)};
 

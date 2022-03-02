@@ -15,6 +15,7 @@ p *
 
 #include "index_tfile.h"
 #include "index.h"
+#include "index_comm.h"
 #include "index_fst.h"
 #include "index_fst_counting_writer.h"
 #include "index_util.h"
@@ -186,13 +187,20 @@ void tfileReaderDestroy(TFileReader* reader) {
 
 int tfileReaderSearch(TFileReader* reader, SIndexTermQuery* query, SArray* result) {
   SIndexTerm*     term = query->term;
+  bool            hasJson = INDEX_TYPE_CONTAIN_EXTERN_TYPE(term->colType, TSDB_DATA_TYPE_JSON);
   EIndexQueryType qtype = query->qType;
 
   int ret = -1;
   // refactor to callback later
   if (qtype == QUERY_TERM) {
     uint64_t offset;
-    FstSlice key = fstSliceCreate(term->colVal, term->nColVal);
+    char*    p = term->colVal;
+    uint64_t sz = term->nColVal;
+    if (hasJson) {
+      p = indexPackJsonData(term);
+      sz = strlen(p);
+    }
+    FstSlice key = fstSliceCreate(p, sz);
     if (fstGet(reader->fst, &key, &offset)) {
       indexInfo("index: %" PRIu64 ", col: %s, colVal: %s, found table info in tindex", term->suid, term->colName,
                 term->colVal);
@@ -202,6 +210,9 @@ int tfileReaderSearch(TFileReader* reader, SIndexTermQuery* query, SArray* resul
                 term->colVal);
     }
     fstSliceDestroy(&key);
+    if (hasJson) {
+      free(p);
+    }
   } else if (qtype == QUERY_PREFIX) {
     // handle later
     //

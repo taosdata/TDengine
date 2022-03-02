@@ -21,6 +21,8 @@ class JsonEnv : public ::testing::Test {
  protected:
   virtual void SetUp() {
     taosRemoveDir(dir.c_str());
+    taosMkDir(dir.c_str());
+
     opts = indexOptsCreate();
     int ret = tIndexJsonOpen(opts, dir.c_str(), &index);
     assert(ret == 0);
@@ -87,6 +89,33 @@ TEST_F(JsonEnv, testWrite) {
     assert(100 == taosArrayGetSize(result));
     indexMultiTermQueryDestroy(mq);
   }
+}
+TEST_F(JsonEnv, testWriteMillonData) {
+  {
+    std::string colName("voltagefdadfa");
+    std::string colVal("abxxxxxxxxxxxx");
+    SIndexTerm* term = indexTermCreate(1, ADD_VALUE, TSDB_DATA_TYPE_BINARY, colName.c_str(), colName.size(),
+                                       colVal.c_str(), colVal.size());
 
-  // SIndexTermQuery query = {.term = term, .qType = QUERY_TERM};
+    SIndexMultiTerm* terms = indexMultiTermCreate();
+    indexMultiTermAdd(terms, term);
+    for (size_t i = 0; i < 1000000; i++) {
+      tIndexJsonPut(index, terms, i);
+    }
+    indexMultiTermDestroy(terms);
+  }
+  {
+    std::string colName("voltage");
+    std::string colVal("ab");
+
+    SIndexMultiTermQuery* mq = indexMultiTermQueryCreate(MUST);
+    SIndexTerm*           q = indexTermCreate(1, ADD_VALUE, TSDB_DATA_TYPE_BINARY, colName.c_str(), colName.size(),
+                                    colVal.c_str(), colVal.size());
+
+    SArray* result = taosArrayInit(1, sizeof(uint64_t));
+    indexMultiTermQueryAdd(mq, q, QUERY_TERM);
+    tIndexJsonSearch(index, mq, result);
+    assert(100 == taosArrayGetSize(result));
+    indexMultiTermQueryDestroy(mq);
+  }
 }
