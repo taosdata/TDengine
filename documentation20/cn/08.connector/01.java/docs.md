@@ -23,7 +23,7 @@ TDengine 的 JDBC 驱动实现尽可能与关系型数据库驱动保持一致�
 <tr align="center"><th>对比项</th><th>JDBC-JNI</th><th>JDBC-RESTful</th></tr>
 <tr align="center">
   <td>支持的操作系统</td>
-  <td>linux、windows</td>
+  <td>Linux、Windows</td>
   <td>全平台</td>
 </tr>
 <tr align="center">

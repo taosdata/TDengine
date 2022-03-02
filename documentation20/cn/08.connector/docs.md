@@ -55,14 +55,14 @@ TDengine 提供了丰富的应用程序开发接口，其中包括 C/C++、Java�
 ​    *install_client.sh*：安装脚本，用于应用驱动程序
 ​    *taos.tar.gz*：应用驱动安装包
 ​    *driver*：TDengine应用驱动driver
-​    *connector*: 各种编程语言连接器（go/nodejs/python/JDBC）
-​    *examples*: 各种编程语言的示例程序(c/C#/go/JDBC/MATLAB/python/R)
+​    *connector*: 各种编程语言连接器（Go/Node.js/Python/JDBC）
+​    *examples*: 各种编程语言的示例程序（c/C#/Go/JDBC/MATLAB/Python/R）
 
 运行install_client.sh进行安装。
 
 **4.   配置taos.cfg**
 
-编辑 taos.cfg 文件(默认路径/etc/taos/taos.cfg)，将 firstEP 修改为 TDengine 服务器的 End Point，例如：h1.taos.com:6030
+编辑 taos.cfg 文件（默认路径/etc/taos/taos.cfg），将 firstEP 修改为 TDengine 服务器的 End Point，例如：h1.taos.com:6030
 
 **提示：**
 
@@ -1099,7 +1099,7 @@ HTTP 请求 URL 采用 `sqlutc` 时，返回结果集的时间戳将采用 UTC �
 
 ### 安装验证
 
-需要先安装 .Net SDK
+需要先安装 .NET SDK
 
 ```cmd
 cd {client_install_directory}/examples/C#/C#Checker
@@ -1141,7 +1141,7 @@ using TDengineDriver;
 
 ### 第三方驱动
 
-Maikebing.Data.Taos 是一个 TDengine 的 ADO.Net 提供器，支持 linux，windows。该开发包由热心贡献者`麦壳饼@@maikebing`提供，具体请参考
+Maikebing.Data.Taos 是一个 TDengine 的 ADO.NET 提供器，支持 Linux，Windows。该开发包由热心贡献者`麦壳饼@@maikebing`提供，具体请参考
 
 ```
 //接口下载
@@ -1380,7 +1380,7 @@ Node.js 连接器的使用参见[视频教程](https://www.taosdata.com/blog/202
 npm install td2.0-connector
 ```
 
-我们建议用户使用 npm 安装 Node.js 连接器。如果您没有安装 npm，可以将 *src/connector/nodejs/* 拷贝到您的 nodejs 项目目录下。
+我们建议用户使用 npm 安装 Node.js 连接器。如果您没有安装 npm，可以将 *src/connector/nodejs/* 拷贝到您的 Node.js 项目目录下。
 
 我们使用 [node-gyp](https://github.com/nodejs/node-gyp) 和 TDengine 服务端进行交互。安装 Node.js 连接器之前，还需要根据具体操作系统来安装下文提到的一些依赖工具。
 
@@ -1418,7 +1418,7 @@ Node-example-raw.js
 
 ### 安装验证
 
-在安装好 TDengine 客户端后，使用 nodejsChecker.js 程序能够验证当前环境是否支持 nodejs 方式访问 TDengine。
+在安装好 TDengine 客户端后，使用 nodejsChecker.js 程序能够验证当前环境是否支持 Node.js 方式访问 TDengine。
 
 验证方法：
 
@@ -1432,7 +1432,7 @@ npm install td2.0-connector
 node nodejsChecker.js host=localhost
 ```
 
-3. 执行以上步骤后，在命令行会输出 nodejs 连接 TDengine 实例，并执行简答插入和查询的结果。
+3. 执行以上步骤后，在命令行会输出 Node.js 连接 TDengine 实例，并执行简答插入和查询的结果。
 
 ### Node.js连接器的使用
 
@@ -1530,6 +1530,6 @@ promise2.then(function(result) {
 
 ### 示例
 
-[node-example.js](https://github.com/taosdata/TDengine/blob/master/examples/nodejs/node-example.js) 提供了一个使用NodeJS 连接器建表，插入天气数据并查询插入的数据的代码示例。
+[node-example.js](https://github.com/taosdata/TDengine/blob/master/examples/nodejs/node-example.js) 提供了一个使用 Node.js 连接器建表，插入天气数据并查询插入的数据的代码示例。
 
-[node-example-raw.js](https://github.com/taosdata/TDengine/blob/master/examples/nodejs/node-example-raw.js) 同样是一个使用 NodeJS 连接器建表，插入天气数据并查询插入的数据的代码示例，但和上面不同的是，该示例只使用 `cursor`。
+[node-example-raw.js](https://github.com/taosdata/TDengine/blob/master/examples/nodejs/node-example-raw.js) 同样是一个使用 Node.js 连接器建表，插入天气数据并查询插入的数据的代码示例，但和上面不同的是，该示例只使用 `cursor`。
