@@ -9589,7 +9589,6 @@ SQInfo* createQInfoImpl(SQueryTableMsg* pQueryMsg, SGroupbyExpr* pGroupbyExpr, S
   pQueryAttr->pFilters        = pFilters;
   pQueryAttr->range           = pQueryMsg->range;
   pQueryAttr->uniqueQuery     = isFunctionQuery(numOfOutput, pExprs, TSDB_FUNC_UNIQUE);
-  pQueryAttr->tailQuery       = isFunctionQuery(numOfOutput, pExprs, TSDB_FUNC_TAIL);
 
   pQueryAttr->tableCols = calloc(numOfCols, sizeof(SSingleColumnFilterInfo));
   if (pQueryAttr->tableCols == NULL) {

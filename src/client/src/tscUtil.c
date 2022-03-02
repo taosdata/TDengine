@@ -5121,7 +5121,6 @@ int32_t tscCreateQueryFromQueryInfo(SQueryInfo* pQueryInfo, SQueryAttr* pQueryAt
   }
 
   pQueryAttr->uniqueQuery       = isFunctionQuery(numOfOutput, pQueryAttr->pExpr1, TSDB_FUNC_UNIQUE);
-  pQueryAttr->tailQuery         = isFunctionQuery(numOfOutput, pQueryAttr->pExpr1, TSDB_FUNC_TAIL);
 
   pQueryAttr->tableCols = calloc(numOfCols, sizeof(SColumnInfo));
   for(int32_t i = 0; i < numOfCols; ++i) {
