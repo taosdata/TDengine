@@ -5100,10 +5100,10 @@ static void histogram_func_finalizer(SQLFunctionCtx *pCtx) {
     int sz;
     if (!pRes->normalized) {
       int64_t count = (int64_t)pRes->orderedBins[i].count;
-      sz = sprintf(pCtx->pOutput + VARSTR_HEADER_SIZE, "(%g:%g]:%"PRId64,
+      sz = sprintf(pCtx->pOutput + VARSTR_HEADER_SIZE, "{\"lower_bin\":%g, \"upper_bin\":%g, \"count\":%"PRId64"}",
                    pRes->orderedBins[i].lower, pRes->orderedBins[i].upper, count);
     } else {
-      sz = sprintf(pCtx->pOutput + VARSTR_HEADER_SIZE, "(%g:%g]:%lf",
+      sz = sprintf(pCtx->pOutput + VARSTR_HEADER_SIZE, "{\"lower_bin\":%g, \"upper_bin\":%g, \"count\":%lf}",
                    pRes->orderedBins[i].lower, pRes->orderedBins[i].upper, pRes->orderedBins[i].count);
     }
     varDataSetLen(pCtx->pOutput, sz);
