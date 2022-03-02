@@ -32,7 +32,7 @@ int32_t taosSendHttpReport(const char* server, uint16_t port, const char* pCont,
   fd = taosOpenTcpClientSocket(ip, port, 0);
   if (fd < 0) {
     terrno = TAOS_SYSTEM_ERROR(errno);
-    uError("failed to create socket to %s:%u since %s", server, port, terrstr());
+    uError("failed to create http socket to %s:%u since %s", server, port, terrstr());
     goto SEND_OVER;
   }
 

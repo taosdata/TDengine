@@ -96,8 +96,22 @@ void monSetBasicInfo(SMonInfo *pMonitor, SMonBasicInfo *pInfo) {
   tjsonAddStringToObject(pJson, "ts", buf);
 }
 
-void monSetClusterInfo(SMonInfo *pMonitor, SMonClusterInfo *pInfo);
-void monSetDnodeInfo(SMonInfo *pMonitor, SMonDnodeInfo *pInfo);
-void monSetDiskInfo(SMonInfo *pMonitor, SMonDiskInfo *pInfo);
-void monSetVgroupInfo(SMonInfo *pMonitor, SMonVgroupInfo *pInfo);
-void monSetGrantInfo(SMonInfo *pMonitor, SMonVgroupInfo *pInfo);
+void monSetClusterInfo(SMonInfo *pMonitor, SMonClusterInfo *pInfo) {
+
+}
+
+void monSetVgroupInfo(SMonInfo *pMonitor, SMonVgroupInfo *pInfo) {
+
+}
+
+void monSetGrantInfo(SMonInfo *pMonitor, SMonGrantInfo *pInfo) {
+
+}
+
+void monSetDnodeInfo(SMonInfo *pMonitor, SMonDnodeInfo *pInfo) {
+
+}
+
+void monSetDiskInfo(SMonInfo *pMonitor, SMonDiskInfo *pInfo) {
+    
+}

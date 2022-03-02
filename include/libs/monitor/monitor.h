@@ -56,6 +56,30 @@ typedef struct {
 } SMonClusterInfo;
 
 typedef struct {
+  int32_t dnode_id;
+  int8_t  vnode_online;
+  char    vnode_role[8];
+} SMonVnodeDesc;
+
+typedef struct {
+  int32_t       vgroup_id;
+  SMonVnodeDesc vnodes[TSDB_MAX_REPLICA];
+} SMonVgroupDesc;
+
+typedef struct {
+  char    database_name[TSDB_DB_NAME_LEN];
+  int32_t tables_num;
+  int8_t  status;
+  SArray *vgroups;  // array of SMonVgroupDesc
+} SMonVgroupInfo;
+
+typedef struct {
+  int32_t expire_time;
+  int32_t timeseries_used;
+  int32_t timeseries_total;
+} SMonGrantInfo;
+
+typedef struct {
   float   uptime;  // day
   float   cpu_engine;
   float   cpu_system;
@@ -97,34 +121,10 @@ typedef struct {
 } SMonDiskInfo;
 
 typedef struct {
-  int32_t dnode_id;
-  int8_t  vnode_online;
-  char    vnode_role[8];
-} SMonVnodeDesc;
-
-typedef struct {
-  int32_t       vgroup_id;
-  SMonVnodeDesc vnodes[TSDB_MAX_REPLICA];
-} SMonVgroupDesc;
-
-typedef struct {
-  char    database_name[TSDB_DB_NAME_LEN];
-  int32_t tables_num;
-  int8_t  status;
-  SArray *vgroups;  // array of SMonVgroupDesc
-} SMonVgroupInfo;
-
-typedef struct {
   int64_t ts;
   int8_t  level;
   char    content[1024];
 } SMonLogItem;
-
-typedef struct {
-  int32_t expire_time;
-  int32_t timeseries_used;
-  int32_t timeseries_total;
-} SMonGrantInfo;
 
 typedef struct SMonInfo SMonInfo;
 
@@ -141,10 +141,10 @@ void    monAddLogItem(SMonLogItem *pItem);
 SMonInfo *monCreateMonitorInfo();
 void      monSetBasicInfo(SMonInfo *pMonitor, SMonBasicInfo *pInfo);
 void      monSetClusterInfo(SMonInfo *pMonitor, SMonClusterInfo *pInfo);
+void      monSetVgroupInfo(SMonInfo *pMonitor, SMonVgroupInfo *pInfo);
+void      monSetGrantInfo(SMonInfo *pMonitor, SMonGrantInfo *pInfo);
 void      monSetDnodeInfo(SMonInfo *pMonitor, SMonDnodeInfo *pInfo);
 void      monSetDiskInfo(SMonInfo *pMonitor, SMonDiskInfo *pInfo);
-void      monSetVgroupInfo(SMonInfo *pMonitor, SMonVgroupInfo *pInfo);
-void      monSetGrantInfo(SMonInfo *pMonitor, SMonVgroupInfo *pInfo);
 void      monSendReport(SMonInfo *pMonitor);
 void      monCleanupMonitorInfo(SMonInfo *pMonitor);
 

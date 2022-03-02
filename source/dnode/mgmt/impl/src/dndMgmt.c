@@ -474,6 +474,11 @@ void dndProcessStartupReq(SDnode *pDnode, SRpcMsg *pReq) {
   rpcSendResponse(&rpcRsp);
 }
 
+void dndGetBasicInfo(SDnode *pDnode, SMonBasicInfo *pInfo) {
+  pInfo->dnode_id = dndGetDnodeId(pDnode);
+  tstrncpy(pInfo->dnode_ep, tsLocalEp, TSDB_EP_LEN);
+}
+
 static void dndSendMonitorReport(SDnode *pDnode) {
   if (!tsEnableMonitor || tsMonitorFqdn[0] == 0) return;
   SMonInfo *pMonitor = monCreateMonitorInfo();
@@ -481,9 +486,18 @@ static void dndSendMonitorReport(SDnode *pDnode) {
 
   dTrace("pDnode:%p, send monitor report to %s:%u", pDnode, tsMonitorFqdn, tsMonitorPort);
 
-  SMonBasicInfo basicInfo = {.dnode_id = dndGetDnodeId(pDnode)};
-  tstrncpy(basicInfo.dnode_ep, tsLocalEp, TSDB_EP_LEN);
+  SMonBasicInfo basicInfo = {0};
+  dndGetBasicInfo(pDnode, &basicInfo);
   monSetBasicInfo(pMonitor, &basicInfo);
+
+  SMonClusterInfo clusterInfo = {0};
+  SMonVgroupInfo  vgroupInfo = {0};
+  SMonGrantInfo   grantInfo = {0};
+  if (dndGetMnodeMonitorInfo(pDnode, &clusterInfo, &vgroupInfo, &grantInfo) == 0) {
+    monSetClusterInfo(pMonitor, &clusterInfo);
+    monSetVgroupInfo(pMonitor, &vgroupInfo);
+    monSetGrantInfo(pMonitor, &grantInfo);
+  }
 
   monSendReport(pMonitor);
   monCleanupMonitorInfo(pMonitor);

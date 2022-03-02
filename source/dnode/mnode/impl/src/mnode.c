@@ -22,6 +22,7 @@
 #include "mndDb.h"
 #include "mndDnode.h"
 #include "mndFunc.h"
+#include "mndInfoSchema.h"
 #include "mndMnode.h"
 #include "mndOffset.h"
 #include "mndProfile.h"
@@ -36,7 +37,6 @@
 #include "mndTrans.h"
 #include "mndUser.h"
 #include "mndVgroup.h"
-#include "mndInfoSchema.h"
 
 #define MQ_TIMER_MS    3000
 #define TRNAS_TIMER_MS 6000
@@ -400,6 +400,11 @@ int32_t mndGetLoad(SMnode *pMnode, SMnodeLoad *pLoad) {
   return 0;
 }
 
+int32_t mndGetMonitorInfo(SMnode *pMnode, SMonClusterInfo *pClusterInfo, SMonVgroupInfo *pVgroupInfo,
+                          SMonGrantInfo *pGrantInfo) {
+                            return 0;
+                          }
+
 SMnodeMsg *mndInitMsg(SMnode *pMnode, SRpcMsg *pRpcMsg) {
   SMnodeMsg *pMsg = taosAllocateQitem(sizeof(SMnodeMsg));
   if (pMsg == NULL) {
@@ -505,10 +510,9 @@ void mndSetMsgHandle(SMnode *pMnode, tmsg_t msgType, MndMsgFp fp) {
   }
 }
 
-
 // Note: uid 0 is reserved
 uint64_t mndGenerateUid(char *name, int32_t len) {
-  int32_t  hashval = MurmurHash3_32(name, len);
+  int32_t hashval = MurmurHash3_32(name, len);
 
   do {
     int64_t  us = taosGetTimestampUs();
