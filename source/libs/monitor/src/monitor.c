@@ -18,6 +18,7 @@
 #include "taoserror.h"
 #include "thttp.h"
 #include "tlog.h"
+#include "ttime.h"
 
 static SMonitor tsMonitor = {0};
 
@@ -56,7 +57,7 @@ SMonInfo *monCreateMonitorInfo() {
   if (pMonitor == NULL) return NULL;
 
   taosWLockLatch(&tsMonitor.lock);
-  pMonitor->logs = taosArrayDup(pMonitor->logs);
+  pMonitor->logs = taosArrayDup(tsMonitor.logs);
   taosArrayClear(tsMonitor.logs);
   taosWUnLockLatch(&tsMonitor.lock);
 
@@ -88,6 +89,11 @@ void monSetBasicInfo(SMonInfo *pMonitor, SMonBasicInfo *pInfo) {
   SJson *pJson = pMonitor->pJson;
   tjsonAddDoubleToObject(pJson, "dnode_id", pInfo->dnode_id);
   tjsonAddStringToObject(pJson, "dnode_ep", pInfo->dnode_ep);
+
+  int64_t ms = taosGetTimestampMs();
+  char    buf[40] = {0};
+  taosFormatUtcTime(buf, sizeof(buf), ms, TSDB_TIME_PRECISION_MILLI);
+  tjsonAddStringToObject(pJson, "ts", buf);
 }
 
 void monSetClusterInfo(SMonInfo *pMonitor, SMonClusterInfo *pInfo);
