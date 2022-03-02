@@ -45,6 +45,7 @@ static SPage *tdbPCacheFetchImpl(SPCache *pCache, const SPgid *pPgid, bool alcNe
 static void   tdbPCachePinPage(SPage *pPage);
 static void   tdbPCacheRemovePageFromHash(SPage *pPage);
 static void   tdbPCacheAddPageToHash(SPage *pPage);
+static void   tdbPCacheUnpinPage(SPage *pPage);
 
 int tdbPCacheOpen(int pageSize, int cacheSize, int extraSize, SPCache **ppCache) {
   SPCache *pCache;
@@ -89,8 +90,16 @@ void tdbPCacheFetchFinish(SPCache *pCache, SPage *pPage) {
   pPage->nRef++;  // TODO: do we need atomic operation???
 }
 
-void tdbPCacheRelease(SPage *pHdr) {
-  // TODO
+void tdbPCacheRelease(SPage *pPage) {
+  pPage->nRef--;
+  if (pPage->nRef == 0) {
+    if (1 /*TODO: page still clean*/) {
+      tdbPCacheUnpinPage(pPage);
+    } else {
+      // TODO
+      ASSERT(0);
+    }
+  }
 }
 
 static void tdbPCacheInitLock(SPCache *pCache) { pthread_mutex_init(&(pCache->mutex), NULL); }
@@ -165,6 +174,18 @@ static void tdbPCachePinPage(SPage *pPage) {
 
     pCache->nRecyclable--;
   }
+}
+
+static void tdbPCacheUnpinPage(SPage *pPage) {
+  // Add current page to the LRU list
+  SPCache *pCache;
+
+  pPage->pLruPrev = &(pCache->lru);
+  pPage->pLruNext = pCache->lru.pLruNext;
+  pCache->lru.pLruNext->pLruPrev = pPage;
+  pCache->lru.pLruNext = pPage;
+
+  pCache->nRecyclable++;
 }
 
 static void tdbPCacheRemovePageFromHash(SPage *pPage) {
