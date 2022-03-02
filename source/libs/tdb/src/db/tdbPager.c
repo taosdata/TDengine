@@ -133,25 +133,10 @@ SPage *tdbPagerGet(SPager *pPager, SPgno pgno) {
 
   pPage = tdbPCacheFetch(pPager->pCache, &pgid, 1);
   if (pPage == NULL) {
-    // TODO
-    ASSERT(0);
+    // TODO: handle error
+    return NULL;
   }
   tdbPCacheFetchFinish(pPager->pCache, pPage);
-
-  if (!(pPage->isLoad)) {
-    if (pgno > pPager->dbFileSize /*TODO*/) {
-      memset(pPage->pData, 0, pPager->pageSize);
-    } else {
-      if (tdbPagerReadPage(pPager, pPage) < 0) {
-        // TODO: handle error
-        return NULL;
-      }
-    }
-
-    pPage->isLoad = 1;
-  }
-
-  ASSERT(pPage->isLoad);
 
   return pPage;
 }

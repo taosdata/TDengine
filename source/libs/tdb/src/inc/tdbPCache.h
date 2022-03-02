@@ -29,7 +29,6 @@ struct SPage {
   SPgid    pgid;
   u8       isAnchor;
   u8       isLocalPage;
-  u8       isLoad;
   u8       isDirty;
   i32      nRef;
   SPCache *pCache;
@@ -38,6 +37,7 @@ struct SPage {
   SPage *  pLruNext;
   SPage *  pLruPrev;
   SPage *  pDirtyNext;
+  SPage *  pPager;
 };
 
 int    tdbPCacheOpen(int pageSize, int cacheSize, int extraSize, SPCache **ppCache);

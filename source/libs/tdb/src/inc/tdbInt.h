@@ -70,9 +70,6 @@ static FORCE_INLINE int tdbCmprPgId(const void *p1, const void *p2) {
 
 #define TDB_IS_SAME_PAGE(pPgid1, pPgid2) (tdbCmprPgId(pPgid1, pPgid2) == 0)
 
-// framd_id_t
-typedef int32_t frame_id_t;
-
 // pgsz_t
 #define TDB_MIN_PGSIZE       512
 #define TDB_MAX_PGSIZE       65536
@@ -130,7 +127,6 @@ typedef int (*FKeyComparator)(const void *pKey1, int kLen1, const void *pKey2, i
 #define TDB_DEFAULT_FANOUT 6
 
 #define BTREE_MAX_DEPTH 20
-
 
 #include "tdbUtil.h"
 

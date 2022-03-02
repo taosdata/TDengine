@@ -119,7 +119,6 @@ static SPage *tdbPCacheFetchImpl(SPCache *pCache, const SPgid *pPgid, bool alcNe
 
   if (pPage || !alcNewPage) {
     if (pPage) {
-      ASSERT(pPage->isLoad == 1);
       tdbPCachePinPage(pPage);
     }
     return pPage;
@@ -148,7 +147,7 @@ static SPage *tdbPCacheFetchImpl(SPCache *pCache, const SPgid *pPgid, bool alcNe
   if (pPage) {
     memcpy(&(pPage->pgid), pPgid, sizeof(*pPgid));
     pPage->pLruNext = NULL;
-    pPage->isLoad = 0;
+    pPage->pPager = NULL;
     tdbPCacheAddPageToHash(pPage);
   }
 
