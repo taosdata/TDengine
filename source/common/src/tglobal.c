@@ -467,6 +467,12 @@ int32_t taosCreateLog(const char *logname, int32_t logFileNum, const char *cfgDi
 
   taosSetAllDebugFlag(cfgGetItem(pCfg, "debugFlag")->i32);
 
+  if (taosMkDir(tsLogDir) != 0) {
+    uError("failed to create dir:%s since %s", tsLogDir, terrstr());
+    cfgCleanup(pCfg);
+    return -1;
+  }
+
   if (taosInitLog(logname, logFileNum) != 0) {
     uError("failed to init log file since %s", terrstr());
     cfgCleanup(pCfg);
@@ -513,6 +519,16 @@ int32_t taosInitCfg(const char *cfgDir, const char *envFile, const char *apolloU
     taosSetTfsCfg(tsCfg);
   }
   taosSetSystemCfg(tsCfg);
+
+  if (taosMkDir(tsTempDir) != 0) {
+    uError("failed to create dir:%s since %s", tsTempDir, terrstr());
+    return -1;
+  }
+
+  if (!tsc && taosMkDir(tsDataDir) != 0) {
+    uError("failed to create dir:%s since %s", tsDataDir, terrstr());
+    return -1;
+  }
 
   cfgDumpCfg(tsCfg, tsc, false);
   return 0;

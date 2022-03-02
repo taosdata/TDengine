@@ -145,10 +145,12 @@ static int32_t cfgCheckAndSetDir(SConfigItem *pItem, const char *inputDir) {
     return -1;
   }
 
+#if 0
   if (taosMkDir(fullDir) != 0) {
     uError("failed to create dir:%s realpath:%s since %s", inputDir, fullDir, terrstr());
     return -1;
   }
+#endif
 
   cfgFreeItem(pItem);
   pItem->str = strdup(fullDir);
