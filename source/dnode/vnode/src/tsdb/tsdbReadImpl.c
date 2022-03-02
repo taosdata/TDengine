@@ -349,6 +349,42 @@ int tsdbLoadBlockStatis(SReadH *pReadh, SBlock *pBlock) {
   return 0;
 }
 
+int tsdbLoadBlockOffset(SReadH *pReadh, SBlock *pBlock) {
+  ASSERT(pBlock->numOfSubBlocks <= 1);
+  SDFile *pDFile = (pBlock->last) ? TSDB_READ_LAST_FILE(pReadh) : TSDB_READ_DATA_FILE(pReadh);
+  if (tsdbSeekDFile(pDFile, pBlock->offset, SEEK_SET) < 0) {
+    tsdbError("vgId:%d failed to load block statis part while seek file %s to offset %" PRId64 " since %s",
+              TSDB_READ_REPO_ID(pReadh), TSDB_FILE_FULL_NAME(pDFile), (int64_t)pBlock->offset, tstrerror(terrno));
+    return -1;
+  }
+
+  size_t size = tsdbBlockStatisSize(pBlock->numOfCols, (uint32_t)pBlock->blkVer);
+  if (tsdbMakeRoom((void **)(&(pReadh->pBlkData)), size) < 0) return -1;
+
+  int64_t nread = tsdbReadDFile(pDFile, (void *)(pReadh->pBlkData), size);
+  if (nread < 0) {
+    tsdbError("vgId:%d failed to load block statis part while read file %s since %s, offset:%" PRId64 " len :%" PRIzu,
+              TSDB_READ_REPO_ID(pReadh), TSDB_FILE_FULL_NAME(pDFile), tstrerror(terrno), (int64_t)pBlock->offset, size);
+    return -1;
+  }
+
+  if (nread < size) {
+    terrno = TSDB_CODE_TDB_FILE_CORRUPTED;
+    tsdbError("vgId:%d block statis part in file %s is corrupted, offset:%" PRId64 " expected bytes:%" PRIzu
+              " read bytes: %" PRId64,
+              TSDB_READ_REPO_ID(pReadh), TSDB_FILE_FULL_NAME(pDFile), (int64_t)pBlock->offset, size, nread);
+    return -1;
+  }
+
+  if (!taosCheckChecksumWhole((uint8_t *)(pReadh->pBlkData), (uint32_t)size)) {
+    terrno = TSDB_CODE_TDB_FILE_CORRUPTED;
+    tsdbError("vgId:%d block statis part in file %s is corrupted since wrong checksum, offset:%" PRId64 " len :%" PRIzu,
+              TSDB_READ_REPO_ID(pReadh), TSDB_FILE_FULL_NAME(pDFile), (int64_t)pBlock->offset, size);
+    return -1;
+  }
+  return 0;
+}
+
 int tsdbEncodeSBlockIdx(void **buf, SBlockIdx *pIdx) {
   int tlen = 0;
 
@@ -631,7 +667,7 @@ static int tsdbLoadBlockDataColsImpl(SReadH *pReadh, SBlock *pBlock, SDataCols *
   tdResetDataCols(pDataCols);
 
   // If only load timestamp column, no need to load SBlockData part
-  if (numOfColIds > 1 && tsdbLoadBlockStatis(pReadh, pBlock) < 0) return -1;
+  if (numOfColIds > 1 && tsdbLoadBlockOffset(pReadh, pBlock) < 0) return -1;
 
   pDataCols->numOfRows = pBlock->numOfRows;
 
