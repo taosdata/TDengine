@@ -288,12 +288,9 @@ int32_t dndInit() {
     return -1;
   }
 
-  SVnodeOpt vnodeOpt = {
-      .sver = tsVersion,
-      .nthreads = tsNumOfCommitThreads,
-      .putReqToVQueryQFp = dndPutReqToVQueryQ,
-      .sendReqToDnodeFp = dndSendReqToDnode
-  };
+  SVnodeOpt vnodeOpt = {.nthreads = tsNumOfCommitThreads,
+                        .putReqToVQueryQFp = dndPutReqToVQueryQ,
+                        .sendReqToDnodeFp = dndSendReqToDnode};
 
   if (vnodeInit(&vnodeOpt) != 0) {
     dError("failed to init vnode since %s", terrstr());
@@ -317,16 +314,4 @@ void dndCleanup() {
 
   taosStopCacheRefreshWorker();
   dInfo("dnode env is cleaned up");
-}
-
-// OTHER FUNCTIONS ===================================
-void taosGetDisk() {
-#if 0  
-  const double unit = 1024 * 1024 * 1024;
-  
-  SDiskSize    diskSize = tfsGetSize(pTfs);
-  
-  tfsUpdateSize(&fsMeta);
-
-#endif
 }

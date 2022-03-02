@@ -42,7 +42,6 @@ bool    taosGetCpuUsage(float *sysCpuUsage, float *procCpuUsage);
 bool    taosGetTotalSysMemoryKB(uint64_t *kb);
 bool    taosGetProcMemory(float *memoryUsedMB);  //
 bool    taosGetSysMemory(float *memoryUsedMB);   //
-void    taosGetDisk();
 int32_t taosGetDiskSize(char *dataDir, SDiskSize *diskSize);
 bool    taosReadProcIO(int64_t *rchars, int64_t *wchars);
 bool    taosGetProcIO(float *readKB, float *writeKB);
