@@ -18,6 +18,23 @@
 
 #include "monitor.h"
 
+#include "tarray.h"
+#include "tlockfree.h"
+#include "tjson.h"
+
+typedef struct {
+  SRWLatch    lock;
+  SArray     *logs;  // array of SMonLogItem
+  int32_t     maxLogs;
+  const char *server;
+  uint16_t    port;
+} SMonitor;
+
+typedef struct SMonInfo {
+  SArray *logs;  // array of SMonLogItem
+  SJson  *pJson;
+} SMonInfo;
+
 #ifdef __cplusplus
 }
 #endif

@@ -57,6 +57,7 @@ extern bool     tsEnableMonitor;
 extern int32_t  tsMonitorInterval;
 extern char     tsMonitorFqdn[];
 extern uint16_t tsMonitorPort;
+extern int32_t  tsMonitorMaxLogs;
 
 // query buffer management
 extern int32_t tsQueryBufferSize;  // maximum allowed usage buffer size in MB for each data node during query processing

@@ -51,6 +51,7 @@ bool     tsEnableMonitor = 1;
 int32_t  tsMonitorInterval = 5;
 char     tsMonitorFqdn[TSDB_FQDN_LEN] = {0};
 uint16_t tsMonitorPort = 6043;
+int32_t  tsMonitorMaxLogs = 100;
 
 /*
  * denote if the server needs to compress response message at the application layer to client, including query rsp,
@@ -325,6 +326,7 @@ static int32_t taosAddServerCfg(SConfig *pCfg) {
   if (cfgAddInt32(pCfg, "monitorInterval", tsMonitorInterval, 1, 360000, 0) != 0) return -1;
   if (cfgAddString(pCfg, "monitorFqdn", tsMonitorFqdn, 0) != 0) return -1;
   if (cfgAddInt32(pCfg, "monitorPort", tsMonitorPort, 1, 65056, 0) != 0) return -1;
+  if (cfgAddInt32(pCfg, "monitorMaxLogs", tsMonitorMaxLogs, 1, 1000000, 0) != 0) return -1;
 
   return 0;
 }
@@ -441,6 +443,7 @@ static void taosSetServerCfg(SConfig *pCfg) {
   tsMonitorInterval = cfgGetItem(pCfg, "monitorInterval")->i32;
   tstrncpy(tsMonitorFqdn, cfgGetItem(pCfg, "monitorFqdn")->str, TSDB_FQDN_LEN);
   tsMonitorPort = (uint16_t)cfgGetItem(pCfg, "monitorPort")->i32;
+  tsMonitorMaxLogs = cfgGetItem(pCfg, "monitorMaxLogs")->i32;
 
   if (tsQueryBufferSize >= 0) {
     tsQueryBufferSizeBytes = tsQueryBufferSize * 1048576UL;

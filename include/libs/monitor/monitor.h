@@ -23,8 +23,6 @@
 extern "C" {
 #endif
 
-typedef struct SMonitor SMonitor;
-
 typedef struct {
   int32_t dnode_id;
   char    dnode_ep[TSDB_EP_LEN];
@@ -123,14 +121,32 @@ typedef struct {
 } SMonLogItem;
 
 typedef struct {
-  SArray *logs;  // array of SMonLogItem
-} SMonLogInfo;
-
-typedef struct {
   int32_t expire_time;
   int32_t timeseries_used;
   int32_t timeseries_total;
 } SMonGrantInfo;
+
+typedef struct SMonInfo SMonInfo;
+
+typedef struct {
+  const char *server;
+  uint16_t    port;
+  int32_t     maxLogs;
+} SMonCfg;
+
+int32_t monInit(const SMonCfg *pCfg);
+void    monCleanup();
+void    monAddLogItem(SMonLogItem *pItem);
+
+SMonInfo *monCreateMonitorInfo();
+void      monSetBasicInfo(SMonInfo *pMonitor, SMonBasicInfo *pInfo);
+void      monSetClusterInfo(SMonInfo *pMonitor, SMonClusterInfo *pInfo);
+void      monSetDnodeInfo(SMonInfo *pMonitor, SMonDnodeInfo *pInfo);
+void      monSetDiskInfo(SMonInfo *pMonitor, SMonDiskInfo *pInfo);
+void      monSetVgroupInfo(SMonInfo *pMonitor, SMonVgroupInfo *pInfo);
+void      monSetGrantInfo(SMonInfo *pMonitor, SMonVgroupInfo *pInfo);
+void      monSendReport(SMonInfo *pMonitor);
+void      monCleanupMonitorInfo(SMonInfo *pMonitor);
 
 #ifdef __cplusplus
 }

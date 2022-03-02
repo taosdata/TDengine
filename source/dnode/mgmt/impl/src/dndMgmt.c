@@ -22,6 +22,7 @@
 #include "dndTransport.h"
 #include "dndVnodes.h"
 #include "dndWorker.h"
+#include "monitor.h"
 
 static void dndProcessMgmtQueue(SDnode *pDnode, SRpcMsg *pMsg);
 
@@ -475,8 +476,17 @@ void dndProcessStartupReq(SDnode *pDnode, SRpcMsg *pReq) {
 
 static void dndSendMonitorReport(SDnode *pDnode) {
   if (!tsEnableMonitor || tsMonitorFqdn[0] == 0) return;
+  SMonInfo *pMonitor = monCreateMonitorInfo();
+  if (pMonitor == NULL) return;
 
   dTrace("pDnode:%p, send monitor report to %s:%u", pDnode, tsMonitorFqdn, tsMonitorPort);
+
+  SMonBasicInfo basicInfo = {.dnode_id = dndGetDnodeId(pDnode)};
+  tstrncpy(basicInfo.dnode_ep, tsLocalEp, TSDB_EP_LEN);
+  monSetBasicInfo(pMonitor, &basicInfo);
+
+  monSendReport(pMonitor);
+  monCleanupMonitorInfo(pMonitor);
 }
 
 static void *dnodeThreadRoutine(void *param) {

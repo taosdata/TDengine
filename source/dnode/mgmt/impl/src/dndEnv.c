@@ -21,6 +21,7 @@
 #include "dndSnode.h"
 #include "dndTransport.h"
 #include "dndVnodes.h"
+#include "monitor.h"
 #include "sync.h"
 #include "tfs.h"
 #include "wal.h"
@@ -297,6 +298,13 @@ int32_t dndInit() {
     return -1;
   }
 
+  SMonCfg monCfg = {.maxLogs = tsMonitorMaxLogs, .port = tsMonitorPort, .server = tsMonitorFqdn};
+  if (monInit(&monCfg) != 0) {
+    dError("failed to init monitor since %s", terrstr());
+    dndCleanup();
+    return -1;
+  }
+
   dInfo("dnode env is initialized");
   return 0;
 }
@@ -310,6 +318,7 @@ void dndCleanup() {
   walCleanUp();
   vnodeCleanup();
   rpcCleanup();
+  monCleanup();
 
   taosStopCacheRefreshWorker();
   dInfo("dnode env is cleaned up");

@@ -12,6 +12,7 @@ target_link_libraries(
     PUBLIC sync
     PUBLIC taos
     PUBLIC tfs
+    PUBLIC monitor
 )
 target_include_directories(
     dnode

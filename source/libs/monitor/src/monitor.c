@@ -15,4 +15,83 @@
 
 #define _DEFAULT_SOURCE
 #include "monInt.h"
+#include "taoserror.h"
+#include "thttp.h"
+#include "tlog.h"
 
+static SMonitor tsMonitor = {0};
+
+int32_t monInit(const SMonCfg *pCfg) {
+  tsMonitor.logs = taosArrayInit(16, sizeof(SMonInfo));
+  if (tsMonitor.logs == NULL) {
+    terrno = TSDB_CODE_OUT_OF_MEMORY;
+    return -1;
+  }
+
+  tsMonitor.maxLogs = pCfg->maxLogs;
+  tsMonitor.server = pCfg->server;
+  tsMonitor.port = pCfg->port;
+  taosInitRWLatch(&tsMonitor.lock);
+  return 0;
+}
+
+void monCleanup() {
+  taosArrayDestroy(tsMonitor.logs);
+  tsMonitor.logs = NULL;
+}
+
+void monAddLogItem(SMonLogItem *pItem) {
+  taosWLockLatch(&tsMonitor.lock);
+  int32_t size = taosArrayGetSize(tsMonitor.logs);
+  if (size > tsMonitor.maxLogs) {
+    uInfo("too many logs for monitor");
+  } else {
+    taosArrayPush(tsMonitor.logs, pItem);
+  }
+  taosWUnLockLatch(&tsMonitor.lock);
+}
+
+SMonInfo *monCreateMonitorInfo() {
+  SMonInfo *pMonitor = calloc(1, sizeof(SMonInfo));
+  if (pMonitor == NULL) return NULL;
+
+  taosWLockLatch(&tsMonitor.lock);
+  pMonitor->logs = taosArrayDup(pMonitor->logs);
+  taosArrayClear(tsMonitor.logs);
+  taosWUnLockLatch(&tsMonitor.lock);
+
+  pMonitor->pJson = tjsonCreateObject();
+  if (pMonitor->pJson == NULL || pMonitor->logs == NULL) {
+    terrno = TSDB_CODE_OUT_OF_MEMORY;
+    monCleanupMonitorInfo(pMonitor);
+    return NULL;
+  }
+
+  return pMonitor;
+}
+
+void monCleanupMonitorInfo(SMonInfo *pMonitor) {
+  taosArrayDestroy(pMonitor->logs);
+  tjsonDelete(pMonitor->pJson);
+  free(pMonitor);
+}
+
+void monSendReport(SMonInfo *pMonitor) {
+  char *pCont = tjsonToString(pMonitor->pJson);
+  if (pCont != NULL) {
+    taosSendHttpReport(tsMonitor.server, tsMonitor.port, pCont, strlen(pCont));
+    free(pCont);
+  }
+}
+
+void monSetBasicInfo(SMonInfo *pMonitor, SMonBasicInfo *pInfo) {
+  SJson *pJson = pMonitor->pJson;
+  tjsonAddDoubleToObject(pJson, "dnode_id", pInfo->dnode_id);
+  tjsonAddStringToObject(pJson, "dnode_ep", pInfo->dnode_ep);
+}
+
+void monSetClusterInfo(SMonInfo *pMonitor, SMonClusterInfo *pInfo);
+void monSetDnodeInfo(SMonInfo *pMonitor, SMonDnodeInfo *pInfo);
+void monSetDiskInfo(SMonInfo *pMonitor, SMonDiskInfo *pInfo);
+void monSetVgroupInfo(SMonInfo *pMonitor, SMonVgroupInfo *pInfo);
+void monSetGrantInfo(SMonInfo *pMonitor, SMonVgroupInfo *pInfo);
