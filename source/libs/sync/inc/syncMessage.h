@@ -72,6 +72,10 @@ void syncPingFromRpcMsg(const SRpcMsg* pRpcMsg, SyncPing* pMsg);
 
 cJSON* syncPing2Json(const SyncPing* pMsg);
 
+SyncPing* syncPingBuild2(const SRaftId* srcId, const SRaftId* destId, const char* str);
+
+SyncPing* syncPingBuild3(const SRaftId* srcId, const SRaftId* destId);
+
 typedef struct SyncPingReply {
   uint32_t bytes;
   uint32_t msgType;

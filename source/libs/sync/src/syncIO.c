@@ -38,6 +38,7 @@ static void     syncIOTick(void *param, void *tmrId);
 // ----------------------------
 
 int32_t syncIOSendMsg(void *handle, const SEpSet *pEpSet, SRpcMsg *pMsg) {
+  sTrace("syncIOSendMsg ... ");
   pMsg->handle = NULL;
   rpcSendRequest(handle, pEpSet, pMsg, NULL);
   return 0;
@@ -74,7 +75,7 @@ static void syncIOTick(void *param, void *tmrId) {
 
   taosWriteQitem(io->pMsgQ, pTemp);
 
-  taosTmrReset(syncIOTick, 1000, io, io->syncTimerManager, io->syncTimer);
+  taosTmrReset(syncIOTick, 1000, io, io->syncTimerManager, &io->syncTimer);
 }
 
 static void *syncIOConsumer(void *param) {
@@ -191,7 +192,7 @@ static int32_t doSyncIOStart(SSyncIO *io) {
   {
     SRpcInit rpcInit;
     memset(&rpcInit, 0, sizeof(rpcInit));
-    rpcInit.localPort = 38000;
+    rpcInit.localPort = 7010;
     rpcInit.label = "SYNC-IO-SERVER";
     rpcInit.numOfThreads = 1;
     rpcInit.cfp = syncIODoRequest;
@@ -209,7 +210,7 @@ static int32_t doSyncIOStart(SSyncIO *io) {
   }
 
   io->epSet.inUse = 0;
-  addEpIntoEpSet(&io->epSet, "127.0.0.1", 38000);
+  addEpIntoEpSet(&io->epSet, "127.0.0.1", 7010);
 
   // start consumer thread
   {
@@ -221,8 +222,8 @@ static int32_t doSyncIOStart(SSyncIO *io) {
   }
 
   // start tmr thread
-  // io->syncTimerManager = taosTmrInit(1000, 50, 10000, "SYNC");
-  // io->syncTimer = taosTmrStart(syncIOTick, 1000, io, io->syncTimerManager);
+  io->syncTimerManager = taosTmrInit(1000, 50, 10000, "SYNC");
+  io->syncTimer = taosTmrStart(syncIOTick, 1000, io, io->syncTimerManager);
 
   return 0;
 }

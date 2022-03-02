@@ -113,37 +113,36 @@ void syncNodeClose(SSyncNode* pSyncNode) {
 }
 
 void syncNodePingAll(SSyncNode* pSyncNode) {
-  sTrace("syncNodePingAll %p ", pSyncNode);
+  sTrace("syncNodePingAll pSyncNode:%p ", pSyncNode);
   int32_t ret = 0;
   for (int i = 0; i < pSyncNode->syncCfg.replicaNum; ++i) {
-    SyncPing* pMsg = syncPingBuild(strlen("ping") + 1);
-    memcpy(pMsg->data, "ping", strlen("ping") + 1);
-    syncUtilnodeInfo2raftId(&pSyncNode->syncCfg.nodeInfo[i], pSyncNode->vgId, &pMsg->destId);
-    pMsg->srcId = pSyncNode->raftId;
-    ret = syncNodePing(pSyncNode, &pMsg->destId, pMsg);
+    SRaftId destId;
+    syncUtilnodeInfo2raftId(&pSyncNode->syncCfg.nodeInfo[i], pSyncNode->vgId, &destId);
+    SyncPing* pMsg = syncPingBuild3(&pSyncNode->raftId, &destId);
+    ret = syncNodePing(pSyncNode, &destId, pMsg);
     assert(ret == 0);
+    syncPingDestroy(pMsg);
   }
 }
 
 void syncNodePingPeers(SSyncNode* pSyncNode) {
   int32_t ret = 0;
   for (int i = 0; i < pSyncNode->peersNum; ++i) {
-    SyncPing* pSyncPing;
-    SRaftId   raftId;
-    syncUtilnodeInfo2raftId(&pSyncNode->peers[i], pSyncNode->vgId, &raftId);
-    ret = syncNodePing(pSyncNode, &raftId, pSyncPing);
+    SRaftId destId;
+    syncUtilnodeInfo2raftId(&pSyncNode->peers[i], pSyncNode->vgId, &destId);
+    SyncPing* pMsg = syncPingBuild3(&pSyncNode->raftId, &destId);
+    ret = syncNodePing(pSyncNode, &destId, pMsg);
     assert(ret == 0);
+    syncPingDestroy(pMsg);
   }
 }
 
 void syncNodePingSelf(SSyncNode* pSyncNode) {
-  int32_t   ret = 0;
-  SyncPing* pMsg = syncPingBuild(strlen("ping") + 1);
-  memcpy(pMsg->data, "ping", strlen("ping") + 1);
-  pMsg->destId = pSyncNode->raftId;
-  pMsg->srcId = pSyncNode->raftId;
+  int32_t   ret;
+  SyncPing* pMsg = syncPingBuild3(&pSyncNode->raftId, &pSyncNode->raftId);
   ret = syncNodePing(pSyncNode, &pMsg->destId, pMsg);
   assert(ret == 0);
+  syncPingDestroy(pMsg);
 }
 
 int32_t syncNodeStartPingTimer(SSyncNode* pSyncNode) {
@@ -167,10 +166,29 @@ int32_t syncNodeStopPingTimer(SSyncNode* pSyncNode) {
 
 // ------ local funciton ---------
 static int32_t syncNodePing(SSyncNode* pSyncNode, const SRaftId* destRaftId, SyncPing* pMsg) {
+  sTrace("syncNodePing pSyncNode:%p ", pSyncNode);
   int32_t ret = 0;
   SRpcMsg rpcMsg;
   syncPing2RpcMsg(pMsg, &rpcMsg);
   syncNodeSendMsgById(destRaftId, pSyncNode, &rpcMsg);
+
+  {
+    cJSON* pJson = syncPing2Json(pMsg);
+    char*  serialized = cJSON_Print(pJson);
+    sTrace("syncNodePing pMsg:%s ", serialized);
+    free(serialized);
+    cJSON_Delete(pJson);
+  }
+
+  {
+    SyncPing* pMsg2 = rpcMsg.pCont;
+    cJSON*    pJson = syncPing2Json(pMsg2);
+    char*     serialized = cJSON_Print(pJson);
+    sTrace("syncNodePing pMsg2:%s ", serialized);
+    free(serialized);
+    cJSON_Delete(pJson);
+  }
+
   return ret;
 }
 
@@ -185,6 +203,7 @@ static int32_t syncNodeAppendEntries(SSyncNode* ths, const SyncAppendEntries* pM
 }
 
 static int32_t syncNodeSendMsgById(const SRaftId* destRaftId, SSyncNode* pSyncNode, SRpcMsg* pMsg) {
+  sTrace("syncNodeSendMsgById pSyncNode:%p ", pSyncNode);
   SEpSet epSet;
   syncUtilraftId2EpSet(destRaftId, &epSet);
   pSyncNode->FpSendMsg(pSyncNode->rpcClient, &epSet, pMsg);

@@ -80,6 +80,20 @@ cJSON* syncPing2Json(const SyncPing* pMsg) {
   return pJson;
 }
 
+SyncPing* syncPingBuild2(const SRaftId* srcId, const SRaftId* destId, const char* str) {
+  uint32_t  dataLen = strlen(str) + 1;
+  SyncPing* pMsg = syncPingBuild(dataLen);
+  pMsg->srcId = *srcId;
+  pMsg->destId = *destId;
+  snprintf(pMsg->data, pMsg->dataLen, "%s", str);
+  return pMsg;
+}
+
+SyncPing* syncPingBuild3(const SRaftId* srcId, const SRaftId* destId) {
+  SyncPing* pMsg = syncPingBuild2(srcId, destId, "ping");
+  return pMsg;
+}
+
 // ---- message process SyncPingReply----
 SyncPingReply* syncPingReplyBuild(uint32_t dataLen) {
   uint32_t       bytes = SYNC_PING_REPLY_FIX_LEN + dataLen;

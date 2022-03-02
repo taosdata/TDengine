@@ -25,7 +25,7 @@ SSyncNode* doSync() {
 
   SSyncCfg* pCfg = &syncInfo.syncCfg;
   pCfg->myIndex = 0;
-  pCfg->replicaNum = 3;
+  pCfg->replicaNum = 1;
 
   pCfg->nodeInfo[0].nodePort = 7010;
   taosGetFqdn(pCfg->nodeInfo[0].nodeFqdn);
@@ -63,6 +63,7 @@ int main() {
   ret = syncEnvStart();
   assert(ret == 0);
 
+/*
   SSyncNode* pSyncNode = doSync();
 
   ret = syncNodeStartPingTimer(pSyncNode);
@@ -72,6 +73,7 @@ int main() {
 
   ret = syncNodeStopPingTimer(pSyncNode);
   assert(ret == 0);
+*/
 
   while (1) {
     taosMsleep(1000);
