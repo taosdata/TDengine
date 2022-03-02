@@ -188,7 +188,7 @@ static void *syncIOConsumerFunc(void *param) {
   SSyncIO *io = param;
 
   STaosQall *qall;
-  SRpcMsg *  pRpcMsg, rpcMsg;
+  SRpcMsg   *pRpcMsg, rpcMsg;
   int        type;
 
   qall = taosAllocateQall();

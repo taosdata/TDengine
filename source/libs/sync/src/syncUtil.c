@@ -46,12 +46,25 @@ void syncUtilraftId2EpSet(const SRaftId* raftId, SEpSet* pEpSet) {
   uint16_t port;
 
   syncUtilU642Addr(raftId->addr, host, sizeof(host), &port);
+
+  /*
+    pEpSet->numOfEps = 1;
+    pEpSet->inUse = 0;
+    pEpSet->eps[0].port = port;
+    snprintf(epSet.eps[0].fqdn, sizeof(epSet.eps[0].fqdn), host);
+  */
+
   pEpSet->inUse = 0;
+  pEpSet->numOfEps = 1;
   addEpIntoEpSet(pEpSet, host, port);
 }
 
 void syncUtilnodeInfo2raftId(const SNodeInfo* pNodeInfo, SyncGroupId vgId, SRaftId* raftId) {
-  raftId->addr = syncUtilAddr2U64(pNodeInfo->nodeFqdn, pNodeInfo->nodePort);
+  uint32_t ipv4 = taosGetIpv4FromFqdn(pNodeInfo->nodeFqdn);
+  assert(ipv4 != 0xFFFFFFFF);
+  char ipbuf[128];
+  tinet_ntoa(ipbuf, ipv4);
+  raftId->addr = syncUtilAddr2U64(ipbuf, pNodeInfo->nodePort);
   raftId->vgId = vgId;
 }
 
