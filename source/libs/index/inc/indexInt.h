@@ -119,6 +119,8 @@ typedef struct TFileCacheKey {
 int indexFlushCacheToTFile(SIndex* sIdx, void*);
 
 int32_t indexSerialCacheKey(ICacheKey* key, char* buf);
+// int32_t indexSerialKey(ICacheKey* key, char* buf);
+// int32_t indexSerialTermKey(SIndexTerm* itm, char* buf);
 
 #define indexFatal(...)                               \
   do {                                                \

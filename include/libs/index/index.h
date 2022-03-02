@@ -125,10 +125,10 @@ int tIndexJsonOpen(SIndexJsonOpts* opts, const char* path, SIndexJson** index);
 /*
  * close index
  * @param index (input, index to be closed)
- * @return error code
+ * @return void
  */
 
-int tIndexJsonClose(SIndexJson* index);
+void tIndexJsonClose(SIndexJson* index);
 
 /*
  * insert terms into index

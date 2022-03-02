@@ -65,8 +65,8 @@ static int indexGenTFile(SIndex* index, IndexCache* cache, SArray* batch);
 static void indexMergeCacheAndTFile(SArray* result, IterateValue* icache, IterateValue* iTfv);
 static void indexMergeSameKey(SArray* result, TFileValue* tv);
 
-static int32_t indexSerialTermKey(SIndexTerm* itm, char* buf);
-int32_t        indexSerialKey(ICacheKey* key, char* buf);
+// static int32_t indexSerialTermKey(SIndexTerm* itm, char* buf);
+// int32_t        indexSerialKey(ICacheKey* key, char* buf);
 
 int indexOpen(SIndexOpts* opts, const char* path, SIndex** index) {
   pthread_once(&isInit, indexInit);
@@ -152,8 +152,9 @@ int indexPut(SIndex* index, SIndexMultiTerm* fVals, uint64_t uid) {
   for (int i = 0; i < taosArrayGetSize(fVals); i++) {
     SIndexTerm* p = taosArrayGetP(fVals, i);
 
-    char    buf[128] = {0};
-    int32_t sz = indexSerialTermKey(p, buf);
+    char      buf[128] = {0};
+    ICacheKey key = {.suid = p->suid, .colName = p->colName, .nColName = strlen(p->colName), .colType = p->colType};
+    int32_t   sz = indexSerialCacheKey(&key, buf);
 
     IndexCache** cache = taosHashGet(index->colObj, buf, sz);
     if (cache == NULL) {
@@ -166,9 +167,9 @@ int indexPut(SIndex* index, SIndexMultiTerm* fVals, uint64_t uid) {
   for (int i = 0; i < taosArrayGetSize(fVals); i++) {
     SIndexTerm* p = taosArrayGetP(fVals, i);
 
-    char buf[128] = {0};
-    // ICacheKey key = {.suid = p->suid, .colName = p->colName, .nColName = strlen(p->colName)};
-    int32_t sz = indexSerialTermKey(p, buf);
+    char      buf[128] = {0};
+    ICacheKey key = {.suid = p->suid, .colName = p->colName, .nColName = strlen(p->colName), .colType = p->colType};
+    int32_t   sz = indexSerialCacheKey(&key, buf);
 
     IndexCache** cache = taosHashGet(index->colObj, buf, sz);
     assert(*cache != NULL);
@@ -334,8 +335,9 @@ static int indexTermSearch(SIndex* sIdx, SIndexTermQuery* query, SArray** result
   IndexCache* cache = NULL;
 
   char      buf[128] = {0};
-  ICacheKey key = {.suid = term->suid, .colName = term->colName, .nColName = strlen(term->colName)};
-  int32_t   sz = indexSerialCacheKey(&key, buf);
+  ICacheKey key = {
+      .suid = term->suid, .colName = term->colName, .nColName = strlen(term->colName), .colType = term->colType};
+  int32_t sz = indexSerialCacheKey(&key, buf);
 
   pthread_mutex_lock(&sIdx->mtx);
   IndexCache** pCache = taosHashGet(sIdx->colObj, buf, sz);
@@ -558,39 +560,18 @@ END:
   return -1;
 }
 
-int32_t indexSerialTermKeyOfTag(SIndexTerm* p, char* buf) {
-  ICacheKey key = {.suid = p->suid, .colName = p->colName, .nColName = strlen(p->colName)};
-  return indexSerialKey(&key, buf);
-}
-int32_t indexSerilaTermKeyOfJson(SIndexTerm* p, char* buf) {
-  ICacheKey key = {.suid = p->suid, .colName = JSON_COLUMN, .nColName = strlen(JSON_COLUMN)};
-  return indexSerialKey(&key, buf);
-}
+int32_t indexSerialCacheKey(ICacheKey* key, char* buf) {
+  bool hasJson = INDEX_TYPE_CONTAIN_EXTERN_TYPE(key->colType, TSDB_DATA_TYPE_JSON);
 
-int32_t indexSerialTermKey(SIndexTerm* itm, char* buf) {
-  bool hasJson = INDEX_TYPE_CONTAIN_EXTERN_TYPE(itm->colType, TSDB_DATA_TYPE_JSON);
-  if (hasJson) {
-    return indexSerilaTermKeyOfJson(itm, buf);
-  } else {
-    return indexSerialTermKeyOfTag(itm, buf);
-  }
-}
-int32_t indexSerialKey(ICacheKey* key, char* buf) {
   char* p = buf;
   SERIALIZE_MEM_TO_BUF(buf, key, suid);
   SERIALIZE_VAR_TO_BUF(buf, '_', char);
   // SERIALIZE_MEM_TO_BUF(buf, key, colType);
   // SERIALIZE_VAR_TO_BUF(buf, '_', char);
-  SERIALIZE_STR_MEM_TO_BUF(buf, key, colName, key->nColName);
+  if (hasJson) {
+    SERIALIZE_STR_VAR_TO_BUF(buf, JSON_COLUMN, strlen(JSON_COLUMN));
+  } else {
+    SERIALIZE_STR_MEM_TO_BUF(buf, key, colName, key->nColName);
+  }
   return buf - p;
 }
-
-// int32_t indexSerialCacheKey(ICacheKey* key, char* buf) {
-//  char* p = buf;
-//  SERIALIZE_MEM_TO_BUF(buf, key, suid);
-//  SERIALIZE_VAR_TO_BUF(buf, '_', char);
-//  // SERIALIZE_MEM_TO_BUF(buf, key, colType);
-//  // SERIALIZE_VAR_TO_BUF(buf, '_', char);
-//  SERIALIZE_STR_MEM_TO_BUF(buf, key, colName, key->nColName);
-//  return buf - p;
-//}
