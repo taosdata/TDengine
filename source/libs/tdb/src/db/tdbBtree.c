@@ -19,7 +19,7 @@ struct SBTree {
   SPgno          root;
   int            keyLen;
   int            valLen;
-  SPager *       pFile;
+  SPager *       pPager;
   FKeyComparator kcmpr;
 };
 
@@ -52,7 +52,7 @@ static int tdbInitBtPage(SPage *pPage, SBtPage **ppBtPage);
 static int tdbCompareKeyAndCell(const void *pKey, int kLen, const void *pCell);
 static int tdbDefaultKeyCmprFn(const void *pKey1, int keyLen1, const void *pKey2, int keyLen2);
 
-int tdbBtreeOpen(SPgno rtPgno, int keyLen, int valLen, SPager *pFile, FKeyComparator kcmpr, SBTree **ppBt) {
+int tdbBtreeOpen(SPgno rtPgno, int keyLen, int valLen, SPager *pPager, FKeyComparator kcmpr, SBTree **ppBt) {
   SBTree *pBt;
 
   *ppBt = NULL;
@@ -68,8 +68,8 @@ int tdbBtreeOpen(SPgno rtPgno, int keyLen, int valLen, SPager *pFile, FKeyCompar
   pBt->keyLen = keyLen;
   // pBt->valLen
   pBt->valLen = valLen;
-  // pBt->pFile
-  pBt->pFile = pFile;
+  // pBt->pPager
+  pBt->pPager = pPager;
   // pBt->kcmpr
   pBt->kcmpr = kcmpr ? kcmpr : tdbDefaultKeyCmprFn;
 
@@ -93,7 +93,7 @@ int tdbBtreeCursor(SBtCursor *pCur, SBTree *pBt) {
 
 int tdbBtCursorInsert(SBtCursor *pCur, const void *pKey, int kLen, const void *pVal, int vLen) {
   int      ret;
-  SPager * pFile;
+  SPager * pPager;
   SBtPage *pPage;
 
   ret = tdbBtCursorMoveTo(pCur, pKey, kLen);
@@ -203,15 +203,15 @@ static int tdbEncodeLength(u8 *pBuf, uint len) {
 
 static int tdbBtCursorMoveToRoot(SBtCursor *pCur) {
   SBTree * pBt;
-  SPager * pFile;
+  SPager * pPager;
   SPage *  pPage;
   SBtPage *pBtPage;
   int      ret;
 
   pBt = pCur->pBt;
-  pFile = pBt->pFile;
+  pPager = pBt->pPager;
 
-  pPage = tdbPagerGet(pFile, pBt->root);
+  pPage = tdbPagerGet(pPager, pBt->root);
   if (pPage == NULL) {
     // TODO: handle error
   }

@@ -22,7 +22,7 @@ struct STDb {
 
 int tdbDbOpen(const char *fname, int keyLen, int valLen, FKeyComparator keyCmprFn, STEnv *pEnv, STDb **ppDb) {
   STDb *  pDb;
-  SPager *pFile;
+  SPager *pPager;
   int     ret;
   char    fFullName[TDB_FILENAME_LEN];
   SPage * pPage;
@@ -38,24 +38,24 @@ int tdbDbOpen(const char *fname, int keyLen, int valLen, FKeyComparator keyCmprF
   // pDb->pEnv
   pDb->pEnv = pEnv;
 
-  pFile = tdbEnvGetPager(pEnv, fname);
-  if (pFile == NULL) {
+  pPager = tdbEnvGetPager(pEnv, fname);
+  if (pPager == NULL) {
     snprintf(fFullName, TDB_FILENAME_LEN, "%s/%s", pEnv->rootDir, fname);
-    ret = tdbPagerOpen(pEnv->pCache, fFullName, &pFile);
+    ret = tdbPagerOpen(pEnv->pCache, fFullName, &pPager);
     if (ret < 0) {
       return -1;
     }
   }
 
-  ASSERT(pFile != NULL);
+  ASSERT(pPager != NULL);
 
-  ret = tdbPagerOpenDB(pFile, &pgno, true);
+  ret = tdbPagerOpenDB(pPager, &pgno, true);
   if (ret < 0) {
     return -1;
   }
 
   // pDb->pBt
-  ret = tdbBtreeOpen(pgno, keyLen, valLen, pFile, keyCmprFn, &(pDb->pBt));
+  ret = tdbBtreeOpen(pgno, keyLen, valLen, pPager, keyCmprFn, &(pDb->pBt));
   if (ret < 0) {
     return -1;
   }
@@ -75,9 +75,9 @@ int tdbDbDrop(STDb *pDb) {
 }
 
 int tdbDbInsert(STDb *pDb, const void *pKey, int keyLen, const void *pVal, int valLen) {
-  SBtCursor btc;
+  SBtCursor  btc;
   SBtCursor *pCur;
-  int ret;
+  int        ret;
 
   pCur = &btc;
   ret = tdbBtreeCursor(pCur, pDb->pBt);
