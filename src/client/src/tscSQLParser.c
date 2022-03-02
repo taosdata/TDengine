@@ -3546,12 +3546,8 @@ int32_t addExprAndResultField(SSqlCmd* pCmd, SQueryInfo* pQueryInfo, int32_t col
         }
 
         if (infinity->valueint == true) {
-          intervals[0] = -DBL_MAX;
-          intervals[numBins - 1] = DBL_MAX;
-          if (isinf(intervals[0]) || isinf(intervals[numBins - 1])) {
-            tfree(intervals);
-            return invalidOperationMsg(tscGetErrorMsgPayload(pCmd), msg23);
-          }
+          intervals[0] = -INFINITY;
+          intervals[numBins - 1] = INFINITY;
           // in case of desc bin orders, -inf/inf should be swapped
           assert(numBins >= 4);
           if (intervals[1] > intervals[numBins - 2]) {
