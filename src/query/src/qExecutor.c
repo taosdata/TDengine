@@ -6923,7 +6923,7 @@ static void doStateWindowAggImpl(SOperatorInfo* pOperator, SStateWindowOperatorI
 
   bool    masterScan = IS_MASTER_SCAN(pRuntimeEnv);
   int16_t     bytes = pColInfoData->info.bytes;
-  int16_t     type = pColInfoData->info.type;
+//  int16_t     type = pColInfoData->info.type;
 
   SColumnInfoData* pTsColInfoData = taosArrayGet(pSDataBlock->pDataBlock, 0);
   TSKEY* tsList = (TSKEY*)pTsColInfoData->pData;
@@ -6935,9 +6935,9 @@ static void doStateWindowAggImpl(SOperatorInfo* pOperator, SStateWindowOperatorI
   pInfo->numOfRows = 0;
   for (int32_t j = 0; j < pSDataBlock->info.rows; ++j) {
     char* val = ((char*)pColInfoData->pData) + bytes * j;
-    if (isNull(val, type)) {
-      continue;
-    }
+//    if (isNull(val, type)) {
+//      continue;
+//    }
     if (pInfo->prevData == NULL) {
       pInfo->prevData = malloc(bytes);
       memcpy(pInfo->prevData, val, bytes);

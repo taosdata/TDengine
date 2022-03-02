@@ -2693,7 +2693,7 @@ int32_t addExprAndResultField(SSqlCmd* pCmd, SQueryInfo* pQueryInfo, int32_t col
   const char* msg26 = "start param cannot be 0 with 'log_bin'";
   const char* msg27 = "factor param cannot be negative or equal to 0/1";
   const char* msg28 = "the second paramter of diff should be 0 or 1";
-  const char* msg29 = "key timestamp column cannot be used to unique/mode function";
+  const char* msg29 = "key timestamp column cannot be used to unique/mode/tail function";
   const char* msg30 = "offset is out of range [0, 100]";
 
   switch (functionId) {
@@ -2854,7 +2854,8 @@ int32_t addExprAndResultField(SSqlCmd* pCmd, SQueryInfo* pQueryInfo, int32_t col
       // 2. check if sql function can be applied on this column data type
       SSchema* pSchema = tscGetTableColumnSchema(pTableMetaInfo->pTableMeta, index.columnIndex);
 
-      if (functionId == TSDB_FUNC_MODE && pColumnSchema->colId == PRIMARYKEY_TIMESTAMP_COL_INDEX ){
+      if (functionId == TSDB_FUNC_MODE && pColumnSchema->colId == PRIMARYKEY_TIMESTAMP_COL_INDEX &&
+          pColumnSchema->type == TSDB_DATA_TYPE_TIMESTAMP){
         return invalidOperationMsg(tscGetErrorMsgPayload(pCmd), msg29);
       } else if (!IS_NUMERIC_TYPE(pSchema->type) && (functionId != TSDB_FUNC_ELAPSED) && (functionId != TSDB_FUNC_MODE)) {
         return invalidOperationMsg(tscGetErrorMsgPayload(pCmd), msg1);
@@ -3138,12 +3139,14 @@ int32_t addExprAndResultField(SSqlCmd* pCmd, SQueryInfo* pQueryInfo, int32_t col
       if (index.columnIndex == TSDB_TBNAME_COLUMN_INDEX) {
         return invalidOperationMsg(tscGetErrorMsgPayload(pCmd), msg6);
       }
-      if (index.columnIndex == PRIMARYKEY_TIMESTAMP_COL_INDEX && (functionId == TSDB_FUNC_UNIQUE || functionId == TSDB_FUNC_TAIL)) {
-        return invalidOperationMsg(tscGetErrorMsgPayload(pCmd), msg29);
-      }
 
       pTableMetaInfo = tscGetMetaInfo(pQueryInfo, index.tableIndex);
       SSchema* pSchema = tscGetTableColumnSchema(pTableMetaInfo->pTableMeta, index.columnIndex);
+
+      if (index.columnIndex == PRIMARYKEY_TIMESTAMP_COL_INDEX && pSchema->type == TSDB_DATA_TYPE_TIMESTAMP &&
+          (functionId == TSDB_FUNC_UNIQUE || functionId == TSDB_FUNC_TAIL)) {
+        return invalidOperationMsg(tscGetErrorMsgPayload(pCmd), msg29);
+      }
 
       // functions can not be applied to tags
       if (index.columnIndex >= tscGetNumOfColumns(pTableMetaInfo->pTableMeta)) {
@@ -10100,7 +10103,7 @@ int32_t validateSqlNode(SSqlObj* pSql, SSqlNode* pSqlNode, SQueryInfo* pQueryInf
   const char* msg4 = "interval query not supported, since the result of sub query not include valid timestamp column";
   const char* msg5 = "only tag query not compatible with normal column filter";
   const char* msg6 = "not support stddev/percentile in the outer query yet";
-  const char* msg7 = "derivative/twa/rate/irate/diff requires timestamp column exists in subquery";
+  const char* msg7 = "derivative/twa/rate/irate/diff/tail requires timestamp column exists in subquery";
   const char* msg8 = "condition missing for join query";
   const char* msg9 = "not support 3 level select";
 
@@ -10188,7 +10191,7 @@ int32_t validateSqlNode(SSqlObj* pSql, SSqlNode* pSqlNode, SQueryInfo* pQueryInf
 
         int32_t f = pExpr->base.functionId;
         if (f == TSDB_FUNC_DERIVATIVE || f == TSDB_FUNC_TWA || f == TSDB_FUNC_IRATE ||
-            f == TSDB_FUNC_RATE       || f == TSDB_FUNC_DIFF) {
+            f == TSDB_FUNC_RATE       || f == TSDB_FUNC_DIFF || f == TSDB_FUNC_TAIL) {
           return invalidOperationMsg(tscGetErrorMsgPayload(pCmd), msg7);
         }
       }
