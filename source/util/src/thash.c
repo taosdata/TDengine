@@ -21,7 +21,6 @@
 
 // the add ref count operation may trigger the warning if the reference count is greater than the MAX_WARNING_REF_COUNT
 #define MAX_WARNING_REF_COUNT    10000
-#define EXT_SIZE                 1024
 #define HASH_MAX_CAPACITY        (1024 * 1024 * 16)
 #define HASH_DEFAULT_LOAD_FACTOR (0.75)
 #define HASH_INDEX(v, c)         ((v) & ((c)-1))
@@ -211,14 +210,14 @@ static void pushfrontNodeInEntryList(SHashEntry *pEntry, SHashNode *pNode);
 static FORCE_INLINE bool taosHashTableEmpty(const SHashObj *pHashObj);
 
 /**
- * initialize a hash table
  *
- * @param capacity   initial capacity of the hash table
- * @param fn         hash function
- * @param update     whether the hash table allows in place update
- * @param type       whether the hash table has per entry lock
- * @return           hash table object
+ * @param pHashObj
+ * @return
  */
+static FORCE_INLINE bool taosHashTableEmpty(const SHashObj *pHashObj) {
+  return taosHashGetSize(pHashObj) == 0;
+}
+
 SHashObj *taosHashInit(size_t capacity, _hash_fn_t fn, bool update, SHashLockTypeE type) {
   if (fn == NULL) {
     assert(0);
@@ -296,10 +295,6 @@ int32_t taosHashGetSize(const SHashObj *pHashObj) {
   return (int32_t)atomic_load_64(&pHashObj->size);
 }
 
-static FORCE_INLINE bool taosHashTableEmpty(const SHashObj *pHashObj) {
-  return taosHashGetSize(pHashObj) == 0;
-}
-
 int32_t taosHashPut(SHashObj *pHashObj, const void *key, size_t keyLen, void *data, size_t size) {
   if (pHashObj == NULL || key == NULL || keyLen == 0) {
     return -1;
@@ -318,6 +313,7 @@ int32_t taosHashPut(SHashObj *pHashObj, const void *key, size_t keyLen, void *da
     taosHashWUnlock(pHashObj);
   }
 
+  // disable resize
   taosHashRLock(pHashObj);
 
   int32_t     slot = HASH_INDEX(hashVal, pHashObj->capacity);
@@ -326,11 +322,13 @@ int32_t taosHashPut(SHashObj *pHashObj, const void *key, size_t keyLen, void *da
   taosHashEntryWLock(pHashObj, pe);
 
   SHashNode *pNode = pe->next;
+#if 0
   if (pe->num > 0) {
     assert(pNode != NULL);
   } else {
     assert(pNode == NULL);
   }
+#endif
 
   SHashNode* prev = NULL;
   while (pNode) {
@@ -369,7 +367,6 @@ int32_t taosHashPut(SHashObj *pHashObj, const void *key, size_t keyLen, void *da
 
     // enable resize
     taosHashRUnlock(pHashObj);
-
     return pHashObj->enableUpdate ? 0 : -1;
   }
 }
@@ -530,49 +527,6 @@ int32_t taosHashRemoveWithData(SHashObj *pHashObj, const void *key, size_t keyLe
 
 int32_t taosHashRemove(SHashObj *pHashObj, const void *key, size_t keyLen) {
   return taosHashRemoveWithData(pHashObj, key, keyLen, NULL, 0);
-}
-
-void taosHashCondTraverse(SHashObj *pHashObj, bool (*fp)(void *, void *), void *param) {
-  if (pHashObj == NULL || taosHashTableEmpty(pHashObj) || fp == NULL) {
-    return;
-  }
-
-  // disable the resize process
-  taosHashRLock(pHashObj);
-
-  int32_t numOfEntries = (int32_t)pHashObj->capacity;
-  for (int32_t i = 0; i < numOfEntries; ++i) {
-    SHashEntry *pEntry = pHashObj->hashList[i];
-    if (pEntry->num == 0) {
-      continue;
-    }
-
-    taosHashEntryWLock(pHashObj, pEntry);
-
-    SHashNode *pPrevNode = NULL;
-    SHashNode *pNode = pEntry->next;
-    while (pNode != NULL) {
-      if (fp(param, GET_HASH_NODE_DATA(pNode))) {
-        pPrevNode = pNode;
-        pNode = pNode->next;
-      } else {
-        if (pPrevNode == NULL) {
-          pEntry->next = pNode->next;
-        } else {
-          pPrevNode->next = pNode->next;
-        }
-        pEntry->num -= 1;
-        atomic_sub_fetch_64(&pHashObj->size, 1);
-        SHashNode *next = pNode->next;
-        FREE_HASH_NODE(pNode);
-        pNode = next;
-      }
-    }
-
-    taosHashEntryWUnlock(pHashObj, pEntry);
-  }
-
-  taosHashRUnlock(pHashObj);
 }
 
 void taosHashClear(SHashObj *pHashObj) {
@@ -897,6 +851,7 @@ void taosHashCancelIterate(SHashObj *pHashObj, void *p) {
   taosHashRUnlock(pHashObj);
 }
 
+//TODO remove it
 void *taosHashAcquire(SHashObj *pHashObj, const void *key, size_t keyLen) {
   void* p = NULL;
   return taosHashGetImpl(pHashObj, key, keyLen, &p, 0, true);

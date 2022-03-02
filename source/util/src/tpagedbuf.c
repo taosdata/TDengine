@@ -269,11 +269,12 @@ static SPageInfo* registerPage(SDiskbasedBuf* pBuf, int32_t groupId, int32_t pag
   SPageInfo* ppi = malloc(sizeof(SPageInfo));
 
   ppi->pageId = pageId;
-  ppi->pData = NULL;
+  ppi->pData  = NULL;
   ppi->offset = -1;
   ppi->length = -1;
-  ppi->used = true;
-  ppi->pn = NULL;
+  ppi->used   = true;
+  ppi->pn     = NULL;
+  ppi->dirty  = false;
 
   return *(SPageInfo**)taosArrayPush(list, &ppi);
 }
@@ -471,7 +472,7 @@ void* getBufPage(SDiskbasedBuf* pBuf, int32_t id) {
 
     return (void*)(GET_DATA_PAYLOAD(*pi));
   } else {  // not in memory
-    assert((*pi)->pData == NULL && (*pi)->pn == NULL && (*pi)->length >= 0 && (*pi)->offset >= 0);
+    assert((*pi)->pData == NULL && (*pi)->pn == NULL && (((*pi)->length >= 0 && (*pi)->offset >= 0) || ((*pi)->length == -1 && (*pi)->offset == -1)));
 
     char* availablePage = NULL;
     if (NO_IN_MEM_AVAILABLE_PAGES(pBuf)) {
@@ -493,9 +494,12 @@ void* getBufPage(SDiskbasedBuf* pBuf, int32_t id) {
     lruListPushFront(pBuf->lruList, *pi);
     (*pi)->used = true;
 
-    int32_t code = loadPageFromDisk(pBuf, *pi);
-    if (code != 0) {
-      return NULL;
+    // some data has been flushed to disk, and needs to be loaded into buffer again.
+    if ((*pi)->length > 0 && (*pi)->offset >= 0) {
+      int32_t code = loadPageFromDisk(pBuf, *pi);
+      if (code != 0) {
+        return NULL;
+      }
     }
 
     return (void*)(GET_DATA_PAYLOAD(*pi));

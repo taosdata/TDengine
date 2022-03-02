@@ -40,55 +40,9 @@ typedef struct SCacheStatis {
   int64_t refreshCount;
 } SCacheStatis;
 
+typedef struct SCacheObj SCacheObj;
+
 struct STrashElem;
-
-typedef struct SCacheDataNode {
-  uint64_t           addedTime;   // the added time when this element is added or updated into cache
-  uint64_t           lifespan;    // life duration when this element should be remove from cache
-  uint64_t           expireTime;  // expire time
-  uint64_t           signature;
-  struct STrashElem *pTNodeHeader;    // point to trash node head
-  uint16_t           keySize : 15;    // max key size: 32kb
-  bool               inTrashcan : 1;  // denote if it is in trash or not
-  uint32_t           size;            // allocated size for current SCacheDataNode
-  T_REF_DECLARE()
-  char *key;
-  char  data[];
-} SCacheDataNode;
-
-typedef struct STrashElem {
-  struct STrashElem *prev;
-  struct STrashElem *next;
-  SCacheDataNode    *pData;
-} STrashElem;
-
-/*
- * to accommodate the old data which has the same key value of new one in hashList
- * when an new node is put into cache, if an existed one with the same key:
- * 1. if the old one does not be referenced, update it.
- * 2. otherwise, move the old one to pTrash, addedTime the new one.
- *
- * when the node in pTrash does not be referenced, it will be release at the expired expiredTime
- */
-typedef struct {
-  int64_t           totalSize;  // total allocated buffer in this hash table, SCacheObj is not included.
-  int64_t           refreshTime;
-  STrashElem       *pTrash;
-  char             *name;
-  SCacheStatis      statistics;
-  SHashObj         *pHashTable;
-  __cache_free_fn_t freeFp;
-  uint32_t          numOfElemsInTrash;  // number of element in trash
-  uint8_t           deleting;           // set the deleting flag to stop refreshing ASAP.
-  pthread_t         refreshWorker;
-  bool              extendLifespan;  // auto extend life span when one item is accessed.
-  int64_t           checkTick;       // tick used to record the check times of the refresh threads
-#if defined(LINUX)
-  pthread_rwlock_t lock;
-#else
-  pthread_mutex_t lock;
-#endif
-} SCacheObj;
 
 /**
  * initialize the cache object
@@ -141,7 +95,7 @@ void *taosCacheAcquireByData(SCacheObj *pCacheObj, void *data);
  * @param data
  * @return
  */
-void *taosCacheTransfer(SCacheObj *pCacheObj, void **data);
+void *taosCacheTransferData(SCacheObj *pCacheObj, void **data);
 
 /**
  * remove data in cache, the data will not be removed immediately.

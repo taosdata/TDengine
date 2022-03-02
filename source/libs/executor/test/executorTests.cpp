@@ -548,7 +548,11 @@ TEST(testCase, time_interval_Operator_Test) {
   SOperatorInfo* p = createDummyOperator(1, 1, 2000, data_asc, 2);
 
   SExecTaskInfo ti = {0};
-  SOperatorInfo* pOperator = createIntervalOperatorInfo(p, pExprInfo, &ti);
+  SInterval interval = {0};
+  interval.sliding = interval.interval = 1000;
+  interval.slidingUnit = interval.intervalUnit = 'a';
+
+  SOperatorInfo* pOperator = createIntervalOperatorInfo(p, pExprInfo, &interval, &ti);
 
   bool newgroup = false;
   SSDataBlock* pRes = NULL;

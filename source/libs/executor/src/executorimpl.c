@@ -6224,7 +6224,7 @@ static SSDataBlock* doProjectOperation(void* param, bool* newgroup) {
 
     // the pDataBlock are always the same one, no need to call this again
     setInputDataBlock(pOperator, pInfo->pCtx, pBlock, order);
-    updateOutputBuf(&pProjectInfo->binfo, &pProjectInfo->bufCapacity, pBlock->info.rows);
+    updateOutputBuf(pInfo, &pInfo->capacity, pBlock->info.rows);
 
     projectApplyFunctions(pRuntimeEnv, pInfo->pCtx, pOperator->numOfOutput);
 
@@ -6274,7 +6274,7 @@ static SSDataBlock* doProjectOperation(void* param, bool* newgroup) {
 
     // the pDataBlock are always the same one, no need to call this again
     setInputDataBlock(pOperator, pInfo->pCtx, pBlock, order);
-    updateOutputBuf(&pProjectInfo->binfo, &pProjectInfo->bufCapacity, pBlock->info.rows);
+    updateOutputBuf(pInfo, &pInfo->capacity, pBlock->info.rows);
 
     projectApplyFunctions(pRuntimeEnv, pInfo->pCtx, pOperator->numOfOutput);
     pRes->info.rows = getNumOfResult(pInfo->pCtx, pOperator->numOfOutput);
@@ -7273,24 +7273,18 @@ SOperatorInfo* createLimitOperatorInfo(STaskRuntimeEnv* pRuntimeEnv, SOperatorIn
   return pOperator;
 }
 
-SOperatorInfo* createIntervalOperatorInfo(SOperatorInfo* downstream, SArray* pExprInfo, SExecTaskInfo* pTaskInfo) {
+SOperatorInfo* createIntervalOperatorInfo(SOperatorInfo* downstream, SArray* pExprInfo, SInterval* pInterval, SExecTaskInfo* pTaskInfo) {
   STableIntervalOperatorInfo* pInfo = calloc(1, sizeof(STableIntervalOperatorInfo));
 
   initAggSup(&pInfo->aggSup, pExprInfo);
 
-  // todo:
   pInfo->order = TSDB_ORDER_ASC;
   pInfo->precision = TSDB_TIME_PRECISION_MICRO;
-  pInfo->win.skey = INT64_MIN;
-  pInfo->win.ekey = INT64_MAX;
-  pInfo->interval.intervalUnit = 's';
-  pInfo->interval.slidingUnit  = 's';
-  pInfo->interval.interval = 1000;
-  pInfo->interval.sliding  = 1000;
+  pInfo->win   = pTaskInfo->window;
+  pInfo->interval = *pInterval;
 
-  int32_t code = createDiskbasedBuf(&pInfo->pResultBuf, 4096, 4096 * 256, 0, "/tmp/");
+  int32_t code = createDiskbasedBuf(&pInfo->pResultBuf, 4096, 4096 * 256, pTaskInfo->id.str, "/tmp/");
 
-  int32_t numOfOutput = taosArrayGetSize(pExprInfo);
   pInfo->binfo.pCtx = createSqlFunctionCtx_rv(pExprInfo, &pInfo->binfo.rowCellInfoOffset, &pInfo->binfo.resRowSize);
   pInfo->binfo.pRes = createOutputBuf_rv(pExprInfo, pInfo->binfo.capacity);
 
@@ -7305,15 +7299,14 @@ SOperatorInfo* createIntervalOperatorInfo(SOperatorInfo* downstream, SArray* pEx
   pOperator->pExpr        = exprArrayDup(pExprInfo);
 
   pOperator->pTaskInfo    = pTaskInfo;
-  pOperator->numOfOutput  = numOfOutput;
+  pOperator->numOfOutput  = taosArrayGetSize(pExprInfo);
   pOperator->info         = pInfo;
-  pOperator->nextDataFn = doIntervalAgg;
-  pOperator->closeFn = destroyBasicOperatorInfo;
+  pOperator->nextDataFn   = doIntervalAgg;
+  pOperator->closeFn      = destroyBasicOperatorInfo;
 
   code = appendDownstream(pOperator, &downstream, 1);
   return pOperator;
 }
-
 
 SOperatorInfo* createAllTimeIntervalOperatorInfo(STaskRuntimeEnv* pRuntimeEnv, SOperatorInfo* downstream, SExprInfo* pExpr, int32_t numOfOutput) {
   STableIntervalOperatorInfo* pInfo = calloc(1, sizeof(STableIntervalOperatorInfo));
