@@ -427,7 +427,7 @@ void tsdbGetBlockStatis(SReadH *pReadh, SDataStatis *pStatis, int numOfCols, SBl
   for (int i = 0, j = 0; i < numOfCols;) {
     if (j >= pBlockData->numOfCols) {
       pStatis[i].numOfNull = -1;
-      i++;
+      ++i;
       continue;
     }
 
@@ -438,13 +438,13 @@ void tsdbGetBlockStatis(SReadH *pReadh, SDataStatis *pStatis, int numOfCols, SBl
       pStatis[i].maxIndex = pBlockData->cols[j].maxIndex;
       pStatis[i].minIndex = pBlockData->cols[j].minIndex;
       pStatis[i].numOfNull = pBlockData->cols[j].numOfNull;
-      i++;
-      j++;
+      ++i;
+      ++j;
     } else if (pStatis[i].colId < pBlockData->cols[j].colId) {
       pStatis[i].numOfNull = -1;
-      i++;
+      ++i;
     } else {
-      j++;
+      ++j;
     }
   }
 #else
@@ -454,7 +454,7 @@ void tsdbGetBlockStatis(SReadH *pReadh, SDataStatis *pStatis, int numOfCols, SBl
     for (int i = 0, j = 0; i < numOfCols;) {
       if (j >= pBlock->numOfCols) {
         pStatis[i].numOfNull = -1;
-        i++;
+        ++i;
         continue;
       }
       SAggrBlkCol *pAggrBlkCol = ((SAggrBlkCol *)(pAggrBlkData)) + j;
@@ -465,13 +465,13 @@ void tsdbGetBlockStatis(SReadH *pReadh, SDataStatis *pStatis, int numOfCols, SBl
         pStatis[i].maxIndex = pAggrBlkCol->maxIndex;
         pStatis[i].minIndex = pAggrBlkCol->minIndex;
         pStatis[i].numOfNull = pAggrBlkCol->numOfNull;
-        i++;
-        j++;
+        ++i;
+        ++j;
       } else if (pStatis[i].colId < pAggrBlkCol->colId) {
         pStatis[i].numOfNull = -1;
-        i++;
+        ++i;
       } else {
-        j++;
+        ++j;
       }
     }
   }
