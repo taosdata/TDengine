@@ -28,7 +28,7 @@ int32_t qCreateQueryPlan(SPlanContext* pCxt, SQueryPlan** pPlan) {
     code = optimize(pCxt, pLogicNode);
   }
   if (TSDB_CODE_SUCCESS == code) {
-    code = buildPhysiPlan(pCxt, pLogicNode, pPlan);
+    code = createPhysiPlan(pCxt, pLogicNode, pPlan);
   }
   return code;
 }
@@ -38,11 +38,11 @@ void qSetSubplanExecutionNode(SSubplan* subplan, uint64_t templateId, SDownstrea
 }
 
 int32_t qSubPlanToString(const SSubplan* subplan, char** str, int32_t* len) {
-
+  return nodesNodeToString((const SNode*)subplan, false, str, len);
 }
 
 int32_t qStringToSubplan(const char* str, SSubplan** subplan) {
-
+  return nodesStringToNode(str, (SNode**)subplan);
 }
 
 char* qQueryPlanToString(const SQueryPlan* pPlan) {

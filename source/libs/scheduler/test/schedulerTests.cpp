@@ -78,9 +78,9 @@ void schtBuildQueryDag(SQueryPlan *dag) {
   
   dag->queryId = qId;
   dag->numOfSubplans = 2;
-  dag->pSubplans = taosArrayInit(dag->numOfSubplans, POINTER_BYTES);
-  SArray *scan = taosArrayInit(1, POINTER_BYTES);
-  SArray *merge = taosArrayInit(1, POINTER_BYTES);
+  dag->pSubplans = nodesMakeList();
+  SNodeListNode *scan = (SNodeListNode*)nodesMakeNode(QUERY_NODE_NODE_LIST);
+  SNodeListNode *merge = (SNodeListNode*)nodesMakeNode(QUERY_NODE_NODE_LIST);
   
   SSubplan *scanPlan = (SSubplan *)calloc(1, sizeof(SSubplan));
   SSubplan *mergePlan = (SSubplan *)calloc(1, sizeof(SSubplan));
@@ -88,7 +88,7 @@ void schtBuildQueryDag(SQueryPlan *dag) {
   scanPlan->id.queryId = qId;
   scanPlan->id.templateId = 0x0000000000000002;
   scanPlan->id.subplanId = 0x0000000000000003;
-  scanPlan->type = QUERY_TYPE_SCAN;
+  scanPlan->subplanType = SUBPLAN_TYPE_SCAN;
 
   scanPlan->execNode.nodeId = 1;
   scanPlan->execNode.epset.inUse = 0;
@@ -96,30 +96,30 @@ void schtBuildQueryDag(SQueryPlan *dag) {
 
   scanPlan->pChildren = NULL;
   scanPlan->level = 1;
-  scanPlan->pParents = taosArrayInit(1, POINTER_BYTES);
+  scanPlan->pParents = nodesMakeList();
   scanPlan->pNode = (SPhysiNode*)calloc(1, sizeof(SPhysiNode));
   scanPlan->msgType = TDMT_VND_QUERY;
 
   mergePlan->id.queryId = qId;
   mergePlan->id.templateId = schtMergeTemplateId;
-  mergePlan->id.subplanId = 0x5555555555;
-  mergePlan->type = QUERY_TYPE_MERGE;
+  mergePlan->id.subplanId = 0x5555;
+  mergePlan->subplanType = SUBPLAN_TYPE_MERGE;
   mergePlan->level = 0;
   mergePlan->execNode.epset.numOfEps = 0;
 
-  mergePlan->pChildren = taosArrayInit(1, POINTER_BYTES);
+  mergePlan->pChildren = nodesMakeList();
   mergePlan->pParents = NULL;
   mergePlan->pNode = (SPhysiNode*)calloc(1, sizeof(SPhysiNode));
   mergePlan->msgType = TDMT_VND_QUERY;
 
-  SSubplan *mergePointer = (SSubplan *)taosArrayPush(merge, &mergePlan);
-  SSubplan *scanPointer = (SSubplan *)taosArrayPush(scan, &scanPlan);
+  nodesListAppend(merge->pNodeList, (SNode*)mergePlan);
+  nodesListAppend(scan->pNodeList, (SNode*)scanPlan);
 
-  taosArrayPush(mergePlan->pChildren, &scanPlan);
-  taosArrayPush(scanPlan->pParents, &mergePlan);
+  nodesListAppend(mergePlan->pChildren, (SNode*)scanPlan);
+  nodesListAppend(scanPlan->pParents, (SNode*)mergePlan);
 
-  taosArrayPush(dag->pSubplans, &merge);  
-  taosArrayPush(dag->pSubplans, &scan);
+  nodesListAppend(dag->pSubplans, (SNode*)merge);  
+  nodesListAppend(dag->pSubplans, (SNode*)scan);
 }
 
 void schtFreeQueryDag(SQueryPlan *dag) {
@@ -132,15 +132,15 @@ void schtBuildInsertDag(SQueryPlan *dag) {
   
   dag->queryId = qId;
   dag->numOfSubplans = 2;
-  dag->pSubplans = taosArrayInit(1, POINTER_BYTES);
-  SArray *inserta = taosArrayInit(dag->numOfSubplans, POINTER_BYTES);
+  dag->pSubplans = nodesMakeList();
+  SNodeListNode *inserta = (SNodeListNode*)nodesMakeNode(QUERY_NODE_NODE_LIST);
   
   SSubplan *insertPlan = (SSubplan *)calloc(2, sizeof(SSubplan));
 
   insertPlan[0].id.queryId = qId;
   insertPlan[0].id.templateId = 0x0000000000000003;
   insertPlan[0].id.subplanId = 0x0000000000000004;
-  insertPlan[0].type = QUERY_TYPE_MODIFY;
+  insertPlan[0].subplanType = SUBPLAN_TYPE_MODIFY;
   insertPlan[0].level = 0;
 
   insertPlan[0].execNode.nodeId = 1;
@@ -156,7 +156,7 @@ void schtBuildInsertDag(SQueryPlan *dag) {
   insertPlan[1].id.queryId = qId;
   insertPlan[1].id.templateId = 0x0000000000000003;
   insertPlan[1].id.subplanId = 0x0000000000000005;
-  insertPlan[1].type = QUERY_TYPE_MODIFY;
+  insertPlan[1].subplanType = SUBPLAN_TYPE_MODIFY;
   insertPlan[1].level = 0;
 
   insertPlan[1].execNode.nodeId = 1;
@@ -169,11 +169,11 @@ void schtBuildInsertDag(SQueryPlan *dag) {
   insertPlan[1].pDataSink = (SDataSinkNode*)calloc(1, sizeof(SDataSinkNode));
   insertPlan[1].msgType = TDMT_VND_SUBMIT;
 
-  taosArrayPush(inserta, &insertPlan);
+  nodesListAppend(inserta->pNodeList, (SNode*)insertPlan);
   insertPlan += 1;
-  taosArrayPush(inserta, &insertPlan);
+  nodesListAppend(inserta->pNodeList, (SNode*)insertPlan);
 
-  taosArrayPush(dag->pSubplans, &inserta);  
+  nodesListAppend(dag->pSubplans, (SNode*)inserta);  
 }
 
 
@@ -347,7 +347,7 @@ void* schtRunJobThread(void *aa) {
   char *dbname = "1.db1";
   char *tablename = "table1";
   SVgroupInfo vgInfo = {0};
-  SQueryPlan dag = {0};
+  SQueryPlan dag;
 
   schtInitLogFile();
 
@@ -517,7 +517,7 @@ TEST(queryTest, normalCase) {
   char *tablename = "table1";
   SVgroupInfo vgInfo = {0};
   SSchJob *pJob = NULL;
-  SQueryPlan dag = {0};
+  SQueryPlan dag;
 
   schtInitLogFile();
 
@@ -620,7 +620,7 @@ TEST(insertTest, normalCase) {
   char *dbname = "1.db1";
   char *tablename = "table1";
   SVgroupInfo vgInfo = {0};
-  SQueryPlan dag = {0};
+  SQueryPlan dag;
   uint64_t numOfRows = 0;
 
   schtInitLogFile();

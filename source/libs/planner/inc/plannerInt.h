@@ -41,8 +41,7 @@ extern "C" {
 
 int32_t createLogicPlan(SPlanContext* pCxt, SLogicNode** pLogicNode);
 int32_t optimize(SPlanContext* pCxt, SLogicNode* pLogicNode);
-int32_t createPhysiPlan(SLogicNode* pLogicNode, SPhysiNode** pPhyNode);
-int32_t buildPhysiPlan(SPlanContext* pCxt, SLogicNode* pLogicNode, SQueryPlan** pPlan);
+int32_t createPhysiPlan(SPlanContext* pCxt, SLogicNode* pLogicNode, SQueryPlan** pPlan);
 
 #ifdef __cplusplus
 }

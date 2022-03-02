@@ -762,8 +762,8 @@ static int32_t mndInitUnassignedVg(SMnode *pMnode, const SMqTopicObj *pTopic, SM
   SVgObj    *pVgroup = NULL;
   SQueryPlan *pPlan = qStringToQueryPlan(pTopic->physicalPlan);
   SArray    *pArray = NULL;
-  SArray    *inner = taosArrayGet(pPlan->pSubplans, 0);
-  SSubplan  *plan = taosArrayGetP(inner, 0);
+  SNodeListNode    *inner = (SNodeListNode*)nodesListGetNode(pPlan->pSubplans, 0);
+  SSubplan  *plan = (SSubplan*)nodesListGetNode(inner->pNodeList, 0);
   SArray    *unassignedVg = pSub->unassignedVg;
 
   void *pIter = NULL;

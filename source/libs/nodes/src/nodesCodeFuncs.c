@@ -90,6 +90,10 @@ static char* nodeName(ENodeType type) {
       return "PhysiJoin";
     case QUERY_NODE_PHYSICAL_PLAN_AGG:
       return "PhysiAgg";
+    case QUERY_NODE_PHYSICAL_SUBPLAN:
+      return "PhysiSubplan";
+    case QUERY_NODE_PHYSICAL_PLAN:
+      return "PhysiPlan";
     default:
       break;
   }
@@ -457,6 +461,164 @@ static int32_t jsonToPhysiAggNode(const SJson* pJson, void* pObj) {
   }
   if (TSDB_CODE_SUCCESS == code) {
     code = jsonToNodeList(pJson, jkAggPhysiPlanAggFuncs, &pNode->pAggFuncs);
+  }
+
+  return code;
+}
+
+static const char* jkSubplanIdQueryId = "QueryId";
+static const char* jkSubplanIdTemplateId = "TemplateId";
+static const char* jkSubplanIdSubplanId = "SubplanId";
+
+static int32_t subplanIdToJson(const void* pObj, SJson* pJson) {
+  const SSubplanId* pNode = (const SSubplanId*)pObj;
+
+  int32_t code = tjsonAddIntegerToObject(pJson, jkSubplanIdQueryId, pNode->queryId);
+  if (TSDB_CODE_SUCCESS == code) {
+    code = tjsonAddIntegerToObject(pJson, jkSubplanIdTemplateId, pNode->templateId);
+  }
+  if (TSDB_CODE_SUCCESS == code) {
+    code = tjsonAddIntegerToObject(pJson, jkSubplanIdSubplanId, pNode->subplanId);
+  }
+
+  return code;
+}
+
+static int32_t jsonToSubplanId(const SJson* pJson, void* pObj) {
+  SSubplanId* pNode = (SSubplanId*)pObj;
+
+  int32_t code = tjsonGetUBigIntValue(pJson, jkSubplanIdQueryId, &pNode->queryId);
+  if (TSDB_CODE_SUCCESS == code) {
+    code = tjsonGetIntValue(pJson, jkSubplanIdTemplateId, &pNode->templateId);
+  }
+  if (TSDB_CODE_SUCCESS == code) {
+    code = tjsonGetIntValue(pJson, jkSubplanIdSubplanId, &pNode->subplanId);
+  }
+
+  return code;
+}
+
+static const char* jkEndPointFqdn = "Fqdn";
+static const char* jkEndPointPort = "Port";
+
+static int32_t epToJson(const void* pObj, SJson* pJson) {
+  const SEp* pNode = (const SEp*)pObj;
+
+  int32_t code = tjsonAddStringToObject(pJson, jkEndPointFqdn, pNode->fqdn);
+  if (TSDB_CODE_SUCCESS == code) {
+    code = tjsonAddIntegerToObject(pJson, jkEndPointPort, pNode->port);
+  }
+
+  return code;
+}
+
+static int32_t jsonToEp(const SJson* pJson, void* pObj) {
+  SEp* pNode = (SEp*)pObj;
+
+  int32_t code = tjsonGetStringValue(pJson, jkEndPointFqdn, pNode->fqdn);
+  if (TSDB_CODE_SUCCESS == code) {
+    code = tjsonGetSmallIntValue(pJson, jkEndPointPort, &pNode->port);
+  }
+
+  return code;
+}
+
+static const char* jkQueryNodeAddrId = "Id";
+static const char* jkQueryNodeAddrInUse = "InUse";
+static const char* jkQueryNodeAddrNumOfEps = "NumOfEps";
+static const char* jkQueryNodeAddrEps = "Eps";
+
+static int32_t queryNodeAddrToJson(const void* pObj, SJson* pJson) {
+  const SQueryNodeAddr* pNode = (const SQueryNodeAddr*)pObj;
+
+  int32_t code = tjsonAddIntegerToObject(pJson, jkQueryNodeAddrId, pNode->nodeId);
+  if (TSDB_CODE_SUCCESS == code) {
+    code = tjsonAddIntegerToObject(pJson, jkQueryNodeAddrInUse, pNode->epset.inUse);
+  }
+  if (TSDB_CODE_SUCCESS == code) {
+    code = tjsonAddIntegerToObject(pJson, jkQueryNodeAddrNumOfEps, pNode->epset.numOfEps);
+  }
+  if (TSDB_CODE_SUCCESS == code) {
+    code = tjsonAddArray(pJson, jkQueryNodeAddrEps, epToJson, pNode->epset.eps, sizeof(SEp), pNode->epset.numOfEps);
+  }
+
+  return code;
+}
+
+static int32_t jsonToQueryNodeAddr(const SJson* pJson, void* pObj) {
+  SQueryNodeAddr* pNode = (SQueryNodeAddr*)pObj;
+
+  int32_t code = tjsonGetIntValue(pJson, jkQueryNodeAddrId, &pNode->nodeId);
+  if (TSDB_CODE_SUCCESS == code) {
+    code = tjsonGetTinyIntValue(pJson, jkQueryNodeAddrInUse, &pNode->epset.inUse);
+  }
+  if (TSDB_CODE_SUCCESS == code) {
+    code = tjsonGetTinyIntValue(pJson, jkQueryNodeAddrNumOfEps, &pNode->epset.numOfEps);
+  }
+  if (TSDB_CODE_SUCCESS == code) {
+    code = tjsonToArray(pJson, jkQueryNodeAddrEps, jsonToEp, pNode->epset.eps, sizeof(SEp));
+  }
+
+  return code;
+}
+
+static const char* jkSubplanId = "Id";
+static const char* jkSubplanType = "SubplanType";
+static const char* jkSubplanMsgType = "MsgType";
+static const char* jkSubplanLevel = "Level";
+static const char* jkSubplanNodeAddr = "NodeAddr";
+static const char* jkSubplanRootNode = "RootNode";
+static const char* jkSubplanDataSink = "DataSink";
+
+static int32_t subplanToJson(const void* pObj, SJson* pJson) {
+  const SSubplan* pNode = (const SSubplan*)pObj;
+
+  int32_t code = tjsonAddObject(pJson, jkSubplanId, subplanIdToJson, &pNode->id);
+  if (TSDB_CODE_SUCCESS == code) {
+    code = tjsonAddIntegerToObject(pJson, jkSubplanType, pNode->subplanType);
+  }
+  if (TSDB_CODE_SUCCESS == code) {
+    code = tjsonAddIntegerToObject(pJson, jkSubplanMsgType, pNode->msgType);
+  }
+  if (TSDB_CODE_SUCCESS == code) {
+    code = tjsonAddIntegerToObject(pJson, jkSubplanLevel, pNode->level);
+  }
+  if (TSDB_CODE_SUCCESS == code) {
+    code = tjsonAddObject(pJson, jkSubplanNodeAddr, queryNodeAddrToJson, &pNode->execNode);
+  }
+  if (TSDB_CODE_SUCCESS == code) {
+    code = tjsonAddObject(pJson, jkSubplanRootNode, nodeToJson, pNode->pNode);
+  }
+  if (TSDB_CODE_SUCCESS == code) {
+    code = tjsonAddObject(pJson, jkSubplanDataSink, nodeToJson, pNode->pDataSink);
+  }
+
+  return code;
+}
+
+static int32_t jsonToSubplan(const SJson* pJson, void* pObj) {
+  SSubplan* pNode = (SSubplan*)pObj;
+
+  int32_t code = tjsonToObject(pJson, jkSubplanId, jsonToSubplanId, &pNode->id);
+  if (TSDB_CODE_SUCCESS == code) {
+    int32_t val;
+    code = tjsonGetIntValue(pJson, jkSubplanType, &val);
+    pNode->subplanType = val;
+  }
+  if (TSDB_CODE_SUCCESS == code) {
+    code = tjsonGetIntValue(pJson, jkSubplanMsgType, &pNode->msgType);
+  }
+  if (TSDB_CODE_SUCCESS == code) {
+    code = tjsonGetIntValue(pJson, jkSubplanLevel, &pNode->level);
+  }
+  if (TSDB_CODE_SUCCESS == code) {
+    code = tjsonToObject(pJson, jkSubplanNodeAddr, jsonToQueryNodeAddr, &pNode->execNode);
+  }
+  if (TSDB_CODE_SUCCESS == code) {
+    code = jsonToNodeObject(pJson, jkSubplanRootNode, (SNode**)&pNode->pNode);
+  }
+  if (TSDB_CODE_SUCCESS == code) {
+    code = jsonToNodeObject(pJson, jkSubplanDataSink, (SNode**)&pNode->pDataSink);
   }
 
   return code;
@@ -1064,6 +1226,8 @@ static int32_t specificNodeToJson(const void* pObj, SJson* pJson) {
       return physiJoinNodeToJson(pObj, pJson);
     case QUERY_NODE_PHYSICAL_PLAN_AGG:
       return physiAggNodeToJson(pObj, pJson);
+    case QUERY_NODE_PHYSICAL_SUBPLAN:
+      return subplanToJson(pObj, pJson);
     default:
       break;
   }
@@ -1127,13 +1291,15 @@ static int32_t jsonToSpecificNode(const SJson* pJson, void* pObj) {
       return jsonToPhysiJoinNode(pJson, pObj);
     case QUERY_NODE_PHYSICAL_PLAN_AGG:
       return jsonToPhysiAggNode(pJson, pObj);
+    case QUERY_NODE_PHYSICAL_SUBPLAN:
+      return jsonToSubplan(pJson, pObj);
     default:
       break;
   }
   return TSDB_CODE_SUCCESS;
 }
 
-static const char* jkNodeType = "Type";
+static const char* jkNodeType = "NodeType";
 static const char* jkNodeName = "Name";
 
 static int32_t nodeToJson(const void* pObj, SJson* pJson) {

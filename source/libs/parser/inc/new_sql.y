@@ -65,7 +65,7 @@
 //%right NK_BITNOT.
 
 /************************************************ create database *****************************************************/
-cmd ::= CREATE DATABASE exists_opt(A) db_name(B) db_options(C).                   { PARSER_TRACE; pCxt->pRootNode = createCreateDatabaseStmt(pCxt, A, &B, C);}
+cmd ::= CREATE DATABASE exists_opt(A) db_name(B) db_options(C).                   { pCxt->pRootNode = createCreateDatabaseStmt(pCxt, A, &B, C);}
 
 %type exists_opt                                                                  { bool }
 exists_opt(A) ::= IF NOT EXISTS.                                                  { A = true; }
@@ -73,7 +73,7 @@ exists_opt(A) ::= .                                                             
 
 %type db_options                                                                  { SDatabaseOptions* }
 %destructor db_options                                                            { tfree($$); }
-db_options(A) ::= .                                                               { A = createDefaultDatabaseOptions(pCxt);}
+db_options(A) ::= .                                                               { A = createDefaultDatabaseOptions(pCxt); }
 db_options(A) ::= db_options(B) BLOCKS NK_INTEGER(C).                             { A = setDatabaseOption(pCxt, B, DB_OPTION_BLOCKS, &C); }
 db_options(A) ::= db_options(B) CACHE NK_INTEGER(C).                              { A = setDatabaseOption(pCxt, B, DB_OPTION_CACHE, &C); }
 db_options(A) ::= db_options(B) CACHELAST NK_INTEGER(X)(C).                       { A = setDatabaseOption(pCxt, B, DB_OPTION_CACHELAST, &C); }
@@ -91,6 +91,55 @@ db_options(A) ::= db_options(B) WAL NK_INTEGER(C).                              
 db_options(A) ::= db_options(B) VGROUPS NK_INTEGER(C).                            { A = setDatabaseOption(pCxt, B, DB_OPTION_VGROUPS, &C); }
 db_options(A) ::= db_options(B) SINGLESTABLE NK_INTEGER(C).                       { A = setDatabaseOption(pCxt, B, DB_OPTION_SINGLESTABLE, &C); }
 db_options(A) ::= db_options(B) STREAMMODE NK_INTEGER(C).                         { A = setDatabaseOption(pCxt, B, DB_OPTION_STREAMMODE, &C); }
+
+/************************************************ create table *******************************************************/
+cmd ::= CREATE TABLE exists_opt(A) full_table_name(B)
+  NK_LP column_def_list(C) NK_RP table_options(D).                                { pCxt->pRootNode = createCreateTableStmt(pCxt, A, &B, C, D);}
+
+%type full_table_name                                                             { STokenPair }
+%destructor full_table_name                                                       { }
+full_table_name(A) ::= NK_ID(B).                                                  { A = { .first = B, .second = nil_token}; }
+full_table_name(A) ::= NK_ID(B) NK_DOT NK_ID(C).                                  { A = { .first = B, .second = C}; }
+
+%type column_def_list                                                             { SNodeList* }
+%destructor column_def_list                                                       { nodesDestroyList($$); }
+column_def_list(A) ::= column_def(B).                                             { A = createNodeList(pCxt, B); }
+column_def_list(A) ::= column_def_list(B) NK_COMMA column_def(C).                 { A = addNodeToList(pCxt, B, C); }
+
+column_def(A) ::= column_name(B) type_name(C).                                    { A = createColumnDefNode(pCxt, B, C, NULL); }
+column_def(A) ::= column_name(B) type_name(C) COMMENT NK_STRING(D).               { A = createColumnDefNode(pCxt, B, C, &D); }
+
+%type type_name                                                                   { SDataType }
+%destructor type_name                                                             { }
+type_name(A) ::= BOOL.                                                            { A = createDataType(TSDB_DATA_TYPE_BOOL); }
+type_name(A) ::= TINYINT.                                                         { A = createDataType(TSDB_DATA_TYPE_TINYINT); }
+type_name(A) ::= SMALLINT.                                                        { A = createDataType(TSDB_DATA_TYPE_SMALLINT); }
+type_name(A) ::= INT.                                                             { A = createDataType(TSDB_DATA_TYPE_INT); }
+type_name(A) ::= BIGINT.                                                          { A = createDataType(TSDB_DATA_TYPE_BIGINT); }
+type_name(A) ::= FLOAT.                                                           { A = createDataType(TSDB_DATA_TYPE_FLOAT); }
+type_name(A) ::= DOUBLE.                                                          { A = createDataType(TSDB_DATA_TYPE_DOUBLE); }
+type_name(A) ::= BINARY NK_LP NK_INTEGER(B) NK_RP.                                { A = createVarLenDataType(TSDB_DATA_TYPE_BINARY, &B); }
+type_name(A) ::= TIMESTAMP.                                                       { A = createDataType(TSDB_DATA_TYPE_TIMESTAMP); }
+type_name(A) ::= NCHAR NK_LP NK_INTEGER(B) NK_RP.                                 { A = createVarLenDataType(TSDB_DATA_TYPE_NCHAR, &B); }
+type_name(A) ::= TINYINT UNSIGNED.                                                { A = createDataType(TSDB_DATA_TYPE_UTINYINT); }
+type_name(A) ::= SMALLINT UNSIGNED.                                               { A = createDataType(TSDB_DATA_TYPE_USMALLINT); }
+type_name(A) ::= INT UNSIGNED.                                                    { A = createDataType(TSDB_DATA_TYPE_UINT); }
+type_name(A) ::= BIGINT UNSIGNED.                                                 { A = createDataType(TSDB_DATA_TYPE_UBIGINT); }
+type_name(A) ::= JSON.                                                            { A = createDataType(TSDB_DATA_TYPE_JSON); }
+type_name(A) ::= VARCHAR NK_LP NK_INTEGER(B) NK_RP.                               { A = createVarLenDataType(TSDB_DATA_TYPE_VARCHAR, &B); }
+type_name(A) ::= MEDIUMBLOB.                                                      { A = createDataType(TSDB_DATA_TYPE_MEDIUMBLOB); }
+type_name(A) ::= BLOB.                                                            { A = createDataType(TSDB_DATA_TYPE_BLOB); }
+type_name(A) ::= VARBINARY NK_LP NK_INTEGER(B) NK_RP.                             { A = createVarLenDataType(TSDB_DATA_TYPE_VARBINARY, &B); }
+type_name(A) ::= DECIMAL.                                                         { A = createDataType(TSDB_DATA_TYPE_DECIMAL); }
+type_name(A) ::= DECIMAL NK_LP NK_INTEGER NK_RP.                                  { A = createDataType(TSDB_DATA_TYPE_DECIMAL); }
+type_name(A) ::= DECIMAL NK_LP NK_INTEGER NK_COMMA NK_INTEGER NK_RP.              { A = createDataType(TSDB_DATA_TYPE_DECIMAL); }
+
+%type table_options                                                               { SDatabaseOptions* }
+%destructor table_options                                                         { tfree($$); }
+table_options(A) ::= .                                                            { A = createDefaultTableOptions(pCxt);}
+table_options(A) ::= table_options(B) COMMENT NK_INTEGER(C).                      { A = setTableOption(pCxt, B, TABLE_OPTION_COMMENT, &C); }
+table_options(A) ::= table_options(B) KEEP NK_INTEGER(C).                         { A = setTableOption(pCxt, B, TABLE_OPTION_KEEP, &C); }
+table_options(A) ::= table_options(B) TTL NK_INTEGER(C).                          { A = setTableOption(pCxt, B, TABLE_OPTION_TTL, &C); }
 
 //cmd ::= SHOW DATABASES.                                                           { PARSER_TRACE; createShowStmt(pCxt, SHOW_TYPE_DATABASE); }
 

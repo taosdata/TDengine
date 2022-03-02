@@ -32,6 +32,11 @@ typedef struct SAstCreateContext {
   SNode* pRootNode;
 } SAstCreateContext;
 
+typedef struct STokenPair {
+  SToken first;
+  SToken second;
+} STokenPair;
+
 extern SToken nil_token;
 
 void initAstCreateContext(SParseContext* pParseCxt, SAstCreateContext* pCxt);
@@ -76,8 +81,6 @@ SNode* addLimitClause(SAstCreateContext* pCxt, SNode* pStmt, SNode* pLimit);
 SNode* createSelectStmt(SAstCreateContext* pCxt, bool isDistinct, SNodeList* pProjectionList, SNode* pTable);
 SNode* createSetOperator(SAstCreateContext* pCxt, ESetOperatorType type, SNode* pLeft, SNode* pRight);
 
-SDatabaseOptions* createDefaultDatabaseOptions(SAstCreateContext* pCxt);
-
 typedef enum EDatabaseOptionType {
   DB_OPTION_BLOCKS = 0,
   DB_OPTION_CACHE,
@@ -99,11 +102,21 @@ typedef enum EDatabaseOptionType {
 
   DB_OPTION_MAX
 } EDatabaseOptionType;
-
+SDatabaseOptions* createDefaultDatabaseOptions(SAstCreateContext* pCxt);
 SDatabaseOptions* setDatabaseOption(SAstCreateContext* pCxt, SDatabaseOptions* pOptions, EDatabaseOptionType type, const SToken* pVal);
-
 SNode* createCreateDatabaseStmt(SAstCreateContext* pCxt, bool ignoreExists, const SToken* pDbName, SDatabaseOptions* pOptions);
 
+typedef enum ETableOptionType {
+  TABLE_OPTION_KEEP = 0,
+  TABLE_OPTION_TTL,
+  TABLE_OPTION_COMMENT,
+
+  TABLE_OPTION_MAX
+} ETableOptionType;
+STableOptions* createDefaultTableOptions(SAstCreateContext* pCxt);
+STableOptions* setTableOption(SAstCreateContext* pCxt, STableOptions* pOptions, ETableOptionType type, const SToken* pVal);
+SNode* createColumnDefNode(SAstCreateContext* pCxt, const SToken* pColName, SDataType dataType, const SToken* pComment);
+SNode* createCreateTableStmt(SAstCreateContext* pCxt, bool ignoreExists, const STokenPair* pFullTableName, SNodeList* pCols, STableOptions* pOptions);
 
 #ifdef __cplusplus
 }

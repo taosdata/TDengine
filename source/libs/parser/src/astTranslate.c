@@ -829,6 +829,10 @@ static int32_t translateCreateDatabase(STranslateContext* pCxt, SCreateDatabaseS
   return TSDB_CODE_SUCCESS;
 }
 
+static int32_t translateCreateTable(STranslateContext* pCxt, SCreateTableStmt* pStmt) {
+  return TSDB_CODE_SUCCESS;
+}
+
 static int32_t translateQuery(STranslateContext* pCxt, SNode* pNode) {
   int32_t code = TSDB_CODE_SUCCESS;
   switch (nodeType(pNode)) {
@@ -837,6 +841,9 @@ static int32_t translateQuery(STranslateContext* pCxt, SNode* pNode) {
       break;
     case QUERY_NODE_CREATE_DATABASE_STMT:
       code = translateCreateDatabase(pCxt, (SCreateDatabaseStmt*)pNode);
+      break;
+    case QUERY_NODE_CREATE_TABLE_STMT:
+      code = translateCreateTable(pCxt, (SCreateTableStmt*)pNode);
       break;
     default:
       break;

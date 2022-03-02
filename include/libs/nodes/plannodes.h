@@ -65,6 +65,18 @@ typedef struct SProjectLogicNode {
   SNodeList* pProjections;
 } SProjectLogicNode;
 
+typedef struct SSubLogicPlan {
+  ENodeType type;
+  SNodeList* pChildren;
+  SNodeList* pParents;
+  SLogicNode* pNode;
+} SSubLogicPlan;
+
+typedef struct SQueryLogicPlan {
+  ENodeType type;;
+  SNodeList* pSubplans;
+} SQueryLogicPlan;
+
 typedef struct SSlotDescNode {
   ENodeType type;
   int16_t slotId;
@@ -98,6 +110,7 @@ typedef struct SScanPhysiNode {
   int32_t order;         // scan order: TSDB_ORDER_ASC|TSDB_ORDER_DESC
   int32_t count;         // repeat count
   int32_t reverse;       // reverse scan count
+  char tableName[TSDB_TABLE_NAME_LEN]; 
 } SScanPhysiNode;
 
 typedef SScanPhysiNode SSystemTableScanPhysiNode;
@@ -158,6 +171,39 @@ typedef struct SDataInserterNode {
   uint32_t  size;
   char     *pData;
 } SDataInserterNode;
+
+typedef struct SSubplanId {
+  uint64_t queryId;
+  int32_t templateId;
+  int32_t subplanId;
+} SSubplanId;
+
+typedef enum ESubplanType {
+  SUBPLAN_TYPE_MERGE = 1,
+  SUBPLAN_TYPE_PARTIAL,
+  SUBPLAN_TYPE_SCAN,
+  SUBPLAN_TYPE_MODIFY
+} ESubplanType;
+
+typedef struct SSubplan {
+  ENodeType type;
+  SSubplanId id;           // unique id of the subplan
+  ESubplanType subplanType;
+  int32_t msgType;      // message type for subplan, used to denote the send message type to vnode.
+  int32_t level;        // the execution level of current subplan, starting from 0 in a top-down manner.
+  SQueryNodeAddr execNode;    // for the scan/modify subplan, the optional execution node
+  SNodeList* pChildren;    // the datasource subplan,from which to fetch the result
+  SNodeList* pParents;     // the data destination subplan, get data from current subplan
+  SPhysiNode* pNode;        // physical plan of current subplan
+  SDataSinkNode* pDataSink;    // data of the subplan flow into the datasink
+} SSubplan;
+
+typedef struct SQueryPlan {
+  ENodeType type;;
+  uint64_t queryId;
+  int32_t  numOfSubplans;
+  SNodeList* pSubplans; // SNodeListNode. The execution level of subplan, starting from 0.
+} SQueryPlan;
 
 #ifdef __cplusplus
 }

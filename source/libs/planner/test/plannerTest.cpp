@@ -70,14 +70,14 @@ protected:
     cout << toString((const SNode*)pLogicPlan, false) << endl;
 
     if (TEST_PHYSICAL_PLAN == target) {
-      SPhysiNode* pPhyPlan = nullptr;
-      code = createPhysiPlan(pLogicPlan, &pPhyPlan);
+      SQueryPlan* pPlan = nullptr;
+      code = createPhysiPlan(&cxt, pLogicPlan, &pPlan);
       if (code != TSDB_CODE_SUCCESS) {
         cout << "sql:[" << cxt_.pSql << "] physical plan code:" << code << ", strerror:" << tstrerror(code) << endl;
         return false;
       }
       cout << "unformatted physical plan : " << endl;
-      cout << toString((const SNode*)pPhyPlan, false) << endl;
+      cout << toString((const SNode*)pPlan, false) << endl;
     }
 
     return true;

@@ -111,7 +111,7 @@ typedef struct SSchJob {
   void            *transport;
   SArray          *nodeList;   // qnode/vnode list, element is SQueryNodeAddr
   SArray          *levels;    // Element is SQueryLevel, starting from 0. SArray<SSchLevel>
-  SArray          *subPlans;  // subplan pointer copied from DAG, no need to free it in scheduler
+  SNodeList       *subPlans;  // subplan pointer copied from DAG, no need to free it in scheduler
 
   int32_t          levelIdx;
   SEpSet           dataSrcEps;
@@ -135,9 +135,9 @@ typedef struct SSchJob {
 
 #define SCH_TASK_READY_TO_LUNCH(readyNum, task) ((readyNum) >= taosArrayGetSize((task)->children))
 
-#define SCH_IS_DATA_SRC_TASK(task) ((task)->plan->type == QUERY_TYPE_SCAN)
-#define SCH_TASK_NEED_WAIT_ALL(task) ((task)->plan->type == QUERY_TYPE_MODIFY)
-#define SCH_TASK_NO_NEED_DROP(task) ((task)->plan->type == QUERY_TYPE_MODIFY)
+#define SCH_IS_DATA_SRC_TASK(task) ((task)->plan->subplanType == SUBPLAN_TYPE_SCAN)
+#define SCH_TASK_NEED_WAIT_ALL(task) ((task)->plan->subplanType == SUBPLAN_TYPE_MODIFY)
+#define SCH_TASK_NO_NEED_DROP(task) ((task)->plan->subplanType == SUBPLAN_TYPE_MODIFY)
 
 #define SCH_SET_TASK_STATUS(task, st) atomic_store_8(&(task)->status, st)
 #define SCH_GET_TASK_STATUS(task) atomic_load_8(&(task)->status)
@@ -145,7 +145,7 @@ typedef struct SSchJob {
 #define SCH_SET_JOB_STATUS(job, st) atomic_store_8(&(job)->status, st)
 #define SCH_GET_JOB_STATUS(job) atomic_load_8(&(job)->status)
 
-#define SCH_SET_JOB_TYPE(pAttr, type) (pAttr)->queryJob = ((type) != QUERY_TYPE_MODIFY)
+#define SCH_SET_JOB_TYPE(pAttr, type) (pAttr)->queryJob = ((type) != SUBPLAN_TYPE_MODIFY)
 #define SCH_JOB_NEED_FETCH(pAttr) ((pAttr)->queryJob)
 
 #define SCH_JOB_ELOG(param, ...) qError("QID:0x%" PRIx64 " " param, pJob->queryId, __VA_ARGS__)

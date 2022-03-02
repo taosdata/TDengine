@@ -95,6 +95,10 @@ SNode* nodesMakeNode(ENodeType type) {
       return makeNode(type, sizeof(SJoinPhysiNode));
     case QUERY_NODE_PHYSICAL_PLAN_AGG:
       return makeNode(type, sizeof(SAggPhysiNode));
+    case QUERY_NODE_PHYSICAL_SUBPLAN:
+      return makeNode(type, sizeof(SSubplan));
+    case QUERY_NODE_PHYSICAL_PLAN:
+      return makeNode(type, sizeof(SQueryPlan));
     default:
       break;
   }

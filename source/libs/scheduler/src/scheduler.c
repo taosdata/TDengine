@@ -203,8 +203,8 @@ int32_t schBuildTaskRalation(SSchJob *pJob, SHashObj *planToTask) {
     for (int32_t m = 0; m < pLevel->taskNum; ++m) {
       SSchTask *pTask = taosArrayGet(pLevel->subTasks, m);
       SSubplan *pPlan = pTask->plan;
-      int32_t childNum = pPlan->pChildren ? (int32_t)taosArrayGetSize(pPlan->pChildren) : 0;
-      int32_t parentNum = pPlan->pParents ? (int32_t)taosArrayGetSize(pPlan->pParents) : 0;
+      int32_t childNum = pPlan->pChildren ? (int32_t)LIST_LENGTH(pPlan->pChildren) : 0;
+      int32_t parentNum = pPlan->pParents ? (int32_t)LIST_LENGTH(pPlan->pParents) : 0;
 
       if (childNum > 0) {
         if (pJob->levelIdx == pLevel->level) {
@@ -220,8 +220,8 @@ int32_t schBuildTaskRalation(SSchJob *pJob, SHashObj *planToTask) {
       }
 
       for (int32_t n = 0; n < childNum; ++n) {
-        SSubplan **child = taosArrayGet(pPlan->pChildren, n);
-        SSchTask **childTask = taosHashGet(planToTask, child, POINTER_BYTES);
+        SSubplan *child = (SSubplan*)nodesListGetNode(pPlan->pChildren, n);
+        SSchTask **childTask = taosHashGet(planToTask, &child, POINTER_BYTES);
         if (NULL == childTask || NULL == *childTask) {
           SCH_TASK_ELOG("subplan children relationship error, level:%d, taskIdx:%d, childIdx:%d", i, m, n);
           SCH_ERR_RET(TSDB_CODE_SCH_INTERNAL_ERROR);
@@ -252,8 +252,8 @@ int32_t schBuildTaskRalation(SSchJob *pJob, SHashObj *planToTask) {
       }
 
       for (int32_t n = 0; n < parentNum; ++n) {
-        SSubplan **parent = taosArrayGet(pPlan->pParents, n);
-        SSchTask **parentTask = taosHashGet(planToTask, parent, POINTER_BYTES);
+        SSubplan *parent = (SSubplan*)nodesListGetNode(pPlan->pParents, n);
+        SSchTask **parentTask = taosHashGet(planToTask, &parent, POINTER_BYTES);
         if (NULL == parentTask || NULL == *parentTask) {
           SCH_TASK_ELOG("subplan parent relationship error, level:%d, taskIdx:%d, childIdx:%d", i, m, n);
           SCH_ERR_RET(TSDB_CODE_SCH_INTERNAL_ERROR);
@@ -312,7 +312,7 @@ int32_t schValidateAndBuildJob(SQueryPlan *pDag, SSchJob *pJob) {
     SCH_ERR_RET(TSDB_CODE_QRY_INVALID_INPUT);
   }
   
-  int32_t levelNum = (int32_t)taosArrayGetSize(pDag->pSubplans);
+  int32_t levelNum = (int32_t)LIST_LENGTH(pDag->pSubplans);
   if (levelNum <= 0) {
     SCH_JOB_ELOG("invalid level num:%d", levelNum);
     SCH_ERR_RET(TSDB_CODE_QRY_INVALID_INPUT);
@@ -336,7 +336,7 @@ int32_t schValidateAndBuildJob(SQueryPlan *pDag, SSchJob *pJob) {
   pJob->subPlans = pDag->pSubplans;
 
   SSchLevel level = {0};
-  SArray *plans = NULL;
+  SNodeListNode *plans = NULL;
   int32_t taskNum = 0;
   SSchLevel *pLevel = NULL;
 
@@ -351,13 +351,13 @@ int32_t schValidateAndBuildJob(SQueryPlan *pDag, SSchJob *pJob) {
     pLevel = taosArrayGet(pJob->levels, i);
     pLevel->level = i;
     
-    plans = taosArrayGetP(pDag->pSubplans, i);
+    plans = (SNodeListNode*)nodesListGetNode(pDag->pSubplans, i);
     if (NULL == plans) {
       SCH_JOB_ELOG("empty level plan, level:%d", i);
       SCH_ERR_JRET(TSDB_CODE_QRY_INVALID_INPUT);
     }
 
-    taskNum = (int32_t)taosArrayGetSize(plans);
+    taskNum = (int32_t)LIST_LENGTH(plans->pNodeList);
     if (taskNum <= 0) {
       SCH_JOB_ELOG("invalid level plan number:%d, level:%d", taskNum, i);
       SCH_ERR_JRET(TSDB_CODE_QRY_INVALID_INPUT);
@@ -372,9 +372,9 @@ int32_t schValidateAndBuildJob(SQueryPlan *pDag, SSchJob *pJob) {
     }
     
     for (int32_t n = 0; n < taskNum; ++n) {
-      SSubplan *plan = taosArrayGetP(plans, n);
+      SSubplan *plan = (SSubplan*)nodesListGetNode(plans->pNodeList, n);
 
-      SCH_SET_JOB_TYPE(&pJob->attr, plan->type);
+      SCH_SET_JOB_TYPE(&pJob->attr, plan->subplanType);
 
       SSchTask  task = {0};
       SSchTask *pTask = &task;
@@ -1420,18 +1420,18 @@ int32_t schedulerAsyncExecJob(void *transport, SArray *pNodeList, SQueryPlan* pD
 }
 
 int32_t schedulerConvertDagToTaskList(SQueryPlan* pDag, SArray **pTasks) {
-  if (NULL == pDag || pDag->numOfSubplans <= 0 || taosArrayGetSize(pDag->pSubplans) == 0) {
+  if (NULL == pDag || pDag->numOfSubplans <= 0 || LIST_LENGTH(pDag->pSubplans) == 0) {
     SCH_ERR_RET(TSDB_CODE_QRY_INVALID_INPUT);
   }
 
-  int32_t levelNum = taosArrayGetSize(pDag->pSubplans);
+  int32_t levelNum = LIST_LENGTH(pDag->pSubplans);
   if (1 != levelNum) {
     qError("invalid level num: %d", levelNum);
     SCH_ERR_RET(TSDB_CODE_QRY_INVALID_INPUT);
   }
 
-  SArray *plans = taosArrayGet(pDag->pSubplans, 0);
-  int32_t taskNum = taosArrayGetSize(plans);
+  SNodeListNode *plans = (SNodeListNode*)nodesListGetNode(pDag->pSubplans, 0);
+  int32_t taskNum = LIST_LENGTH(plans->pNodeList);
   if (taskNum <= 0) {
     qError("invalid task num: %d", taskNum);
     SCH_ERR_RET(TSDB_CODE_QRY_INVALID_INPUT);
@@ -1449,7 +1449,7 @@ int32_t schedulerConvertDagToTaskList(SQueryPlan* pDag, SArray **pTasks) {
   int32_t code = 0;
   
   for (int32_t i = 0; i < taskNum; ++i) {
-    SSubplan *plan = taosArrayGetP(plans, i);
+    SSubplan *plan = (SSubplan*)nodesListGetNode(plans->pNodeList, i);
     tInfo.addr = plan->execNode;
 
     code = qSubPlanToString(plan, &msg, &msgLen);

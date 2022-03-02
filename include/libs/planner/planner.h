@@ -22,35 +22,6 @@ extern "C" {
 
 #include "plannodes.h"
 
-#define QUERY_TYPE_MERGE       1
-#define QUERY_TYPE_PARTIAL     2
-#define QUERY_TYPE_SCAN        3
-#define QUERY_TYPE_MODIFY      4
-
-typedef struct SSubplanId {
-  uint64_t queryId;
-  uint64_t templateId;
-  uint64_t subplanId;
-} SSubplanId;
-
-typedef struct SSubplan {
-  SSubplanId id;           // unique id of the subplan
-  int32_t    type;         // QUERY_TYPE_MERGE|QUERY_TYPE_PARTIAL|QUERY_TYPE_SCAN|QUERY_TYPE_MODIFY
-  int32_t    msgType;      // message type for subplan, used to denote the send message type to vnode.
-  int32_t    level;        // the execution level of current subplan, starting from 0 in a top-down manner.
-  SQueryNodeAddr execNode;    // for the scan/modify subplan, the optional execution node
-  SArray* pChildren;    // the datasource subplan,from which to fetch the result
-  SArray* pParents;     // the data destination subplan, get data from current subplan
-  SPhysiNode* pNode;        // physical plan of current subplan
-  SDataSinkNode* pDataSink;    // data of the subplan flow into the datasink
-} SSubplan;
-
-typedef struct SQueryPlan {
-  uint64_t queryId;
-  int32_t  numOfSubplans;
-  SArray* pSubplans; // SArray*<SArray*<SSubplan*>>. The execution level of subplan, starting from 0.
-} SQueryPlan;
-
 typedef struct SPlanContext {
   uint64_t queryId;
   SNode* pAstRoot;
