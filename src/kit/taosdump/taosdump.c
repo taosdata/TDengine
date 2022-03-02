@@ -2074,13 +2074,28 @@ static int getTableDes(
                 break;
 
             case TSDB_DATA_TYPE_NCHAR:
-                {
-                    memset(tableDes->cols[i].value, 0, sizeof(tableDes->cols[i].note));
-                    char tbuf[COL_NOTE_LEN-2];    // need reserve 2 bytes for ' '
-                    convertNCharToReadable((char *)row[TSDB_SHOW_TABLES_NAME_INDEX], length[0], tbuf, COL_NOTE_LEN);
-                    sprintf(tableDes->cols[i].value, "%s", tbuf);
-                    break;
+                memset(tableDes->cols[i].value, 0,
+                        sizeof(tableDes->cols[i].value));
+                len = strlen((char *)row[0]);
+                if (len <= COL_VALUEBUF_LEN / 4 - 1) {
+                    convertNCharToReadable(
+                            (char *)row[0],
+                            length[0],
+                            tableDes->cols[i].value,
+                            len);
+                } else {
+                    tableDes->cols[i].var_value = calloc(1, len * 4 + 1);
+                    if (tableDes->cols[i].var_value == NULL) {
+                        errorPrint("%s() LN%d, memory alalocation failed!\n",
+                                __func__, __LINE__);
+                        taos_free_result(res);
+                        return -1;
+                    }
+                    convertNCharToReadable((char *)row[0],
+                            length[0],
+                            (char *)(tableDes->cols[i].var_value), len);
                 }
+                break;
             case TSDB_DATA_TYPE_TIMESTAMP:
                 sprintf(tableDes->cols[i].value, "%" PRId64 "", *(int64_t *)row[TSDB_SHOW_TABLES_NAME_INDEX]);
 #if 0
