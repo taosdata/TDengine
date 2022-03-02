@@ -2,6 +2,8 @@ add_executable(syncTest "")
 add_executable(syncEnvTest "")
 add_executable(syncPingTest "")
 add_executable(syncEncodeTest "")
+add_executable(syncIOTickQ "")
+add_executable(syncIOTickPing "")
 
 
 target_sources(syncTest
@@ -19,6 +21,14 @@ target_sources(syncPingTest
 target_sources(syncEncodeTest
     PRIVATE
     "syncEncodeTest.cpp"
+)
+target_sources(syncIOTickQ
+    PRIVATE
+    "syncIOTickQ.cpp"
+)
+target_sources(syncIOTickPing
+    PRIVATE
+    "syncIOTickPing.cpp"
 )
 
 
@@ -42,6 +52,16 @@ target_include_directories(syncEncodeTest
     "${CMAKE_SOURCE_DIR}/include/libs/sync"
     "${CMAKE_CURRENT_SOURCE_DIR}/../inc"
 )
+target_include_directories(syncIOTickQ
+    PUBLIC
+    "${CMAKE_SOURCE_DIR}/include/libs/sync"
+    "${CMAKE_CURRENT_SOURCE_DIR}/../inc"
+)
+target_include_directories(syncIOTickPing
+    PUBLIC
+    "${CMAKE_SOURCE_DIR}/include/libs/sync"
+    "${CMAKE_CURRENT_SOURCE_DIR}/../inc"
+)
 
 
 target_link_libraries(syncTest
@@ -57,6 +77,14 @@ target_link_libraries(syncPingTest
     gtest_main
 )
 target_link_libraries(syncEncodeTest
+    sync
+    gtest_main
+)
+target_link_libraries(syncIOTickQ
+    sync
+    gtest_main
+)
+target_link_libraries(syncIOTickPing
     sync
     gtest_main
 )

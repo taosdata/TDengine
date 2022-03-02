@@ -8,7 +8,7 @@ void *pingFunc(void *param) {
   SSyncIO *io = (SSyncIO *)param;
   while (1) {
     sDebug("io->ping");
-    io->ping(io);
+    // io->ping(io);
     sleep(1);
   }
   return NULL;

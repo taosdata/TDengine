@@ -39,7 +39,7 @@ SSyncNode* doSync() {
   SSyncNode* pSyncNode = syncNodeOpen(&syncInfo);
   assert(pSyncNode != NULL);
 
-  gSyncIO->FpOnPing = pSyncNode->FpOnPing;
+  gSyncIO->FpOnSyncPing = pSyncNode->FpOnPing;
   gSyncIO->pSyncNode = pSyncNode;
 
   return pSyncNode;
@@ -57,23 +57,23 @@ int main() {
 
   logTest();
 
-  int32_t ret = syncIOStart();
+  int32_t ret = syncIOStart((char*)"127.0.0.1", 7010);
   assert(ret == 0);
 
   ret = syncEnvStart();
   assert(ret == 0);
 
-/*
-  SSyncNode* pSyncNode = doSync();
+  /*
+    SSyncNode* pSyncNode = doSync();
 
-  ret = syncNodeStartPingTimer(pSyncNode);
-  assert(ret == 0);
+    ret = syncNodeStartPingTimer(pSyncNode);
+    assert(ret == 0);
 
-  taosMsleep(5000);
+    taosMsleep(5000);
 
-  ret = syncNodeStopPingTimer(pSyncNode);
-  assert(ret == 0);
-*/
+    ret = syncNodeStopPingTimer(pSyncNode);
+    assert(ret == 0);
+  */
 
   while (1) {
     taosMsleep(1000);
