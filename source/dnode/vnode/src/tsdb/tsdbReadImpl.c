@@ -19,6 +19,7 @@
 
 static void tsdbResetReadTable(SReadH *pReadh);
 static void tsdbResetReadFile(SReadH *pReadh);
+static int  tsdbLoadBlockOffset(SReadH *pReadh, SBlock *pBlock);
 static int  tsdbLoadBlockDataImpl(SReadH *pReadh, SBlock *pBlock, SDataCols *pDataCols);
 static int  tsdbCheckAndDecodeColumnData(SDataCol *pDataCol, void *content, int32_t len, int8_t comp, int numOfRows,
                                          int numOfBitmaps, int lenOfBitmaps, int maxPoints, char *buffer,
@@ -349,7 +350,7 @@ int tsdbLoadBlockStatis(SReadH *pReadh, SBlock *pBlock) {
   return 0;
 }
 
-int tsdbLoadBlockOffset(SReadH *pReadh, SBlock *pBlock) {
+static int tsdbLoadBlockOffset(SReadH *pReadh, SBlock *pBlock) {
   ASSERT(pBlock->numOfSubBlocks <= 1);
   SDFile *pDFile = (pBlock->last) ? TSDB_READ_LAST_FILE(pReadh) : TSDB_READ_DATA_FILE(pReadh);
   if (tsdbSeekDFile(pDFile, pBlock->offset, SEEK_SET) < 0) {

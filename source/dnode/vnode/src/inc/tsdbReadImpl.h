@@ -219,7 +219,6 @@ int   tsdbLoadBlockInfo(SReadH *pReadh, void *pTarget);
 int   tsdbLoadBlockData(SReadH *pReadh, SBlock *pBlock, SBlockInfo *pBlockInfo);
 int   tsdbLoadBlockDataCols(SReadH *pReadh, SBlock *pBlock, SBlockInfo *pBlkInfo, const int16_t *colIds, int numOfColsIds);
 int   tsdbLoadBlockStatis(SReadH *pReadh, SBlock *pBlock);
-int   tsdbLoadBlockOffset(SReadH *pReadh, SBlock *pBlock);
 int   tsdbEncodeSBlockIdx(void **buf, SBlockIdx *pIdx);
 void *tsdbDecodeSBlockIdx(void *buf, SBlockIdx *pIdx);
 void  tsdbGetBlockStatis(SReadH *pReadh, SDataStatis *pStatis, int numOfCols, SBlock *pBlock);
