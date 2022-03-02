@@ -828,7 +828,7 @@ void *ctgTestSetCtableMetaThread(void *param) {
   return NULL;
 }
 
-#if 1
+#if 0
 
 
 TEST(tableMeta, normalTable) {
