@@ -7171,31 +7171,27 @@ SOperatorInfo* createMultiTableAggOperatorInfo(SOperatorInfo* downstream, SArray
   return pOperator;
 }
 
-SOperatorInfo* createProjectOperatorInfo(STaskRuntimeEnv* pRuntimeEnv, SOperatorInfo* downstream, SExprInfo* pExpr, int32_t numOfOutput) {
+SOperatorInfo* createProjectOperatorInfo(SOperatorInfo* downstream, SArray* pExprInfo, SExecTaskInfo* pTaskInfo) {
   SProjectOperatorInfo* pInfo = calloc(1, sizeof(SProjectOperatorInfo));
 
-  pInfo->seed = rand();
-  pInfo->bufCapacity = pRuntimeEnv->resultInfo.capacity;
+  int32_t numOfRows = 4096;
+  pInfo->binfo.pRes = createOutputBuf_rv(pExprInfo, numOfRows);
+  pInfo->binfo.pCtx = createSqlFunctionCtx_rv(pExprInfo, &pInfo->binfo.rowCellInfoOffset, &pInfo->binfo.resRowSize);
 
-  SOptrBasicInfo* pBInfo = &pInfo->binfo;
-  pBInfo->pRes  = createOutputBuf(pExpr, numOfOutput, pInfo->bufCapacity);
-  pBInfo->pCtx  = createSqlFunctionCtx(pRuntimeEnv, pExpr, numOfOutput, &pBInfo->rowCellInfoOffset);
-
-  initResultRowInfo(&pBInfo->resultRowInfo, 8);
-  setDefaultOutputBuf(pRuntimeEnv, pBInfo, pInfo->seed, MAIN_SCAN);
+//  initResultRowInfo(&pBInfo->resultRowInfo, 8);
+//  setDefaultOutputBuf_rv(pBInfo, MAIN_SCAN);
 
   SOperatorInfo* pOperator = calloc(1, sizeof(SOperatorInfo));
   pOperator->name         = "ProjectOperator";
-//  pOperator->operatorType = OP_Project;
+  pOperator->operatorType = OP_Project;
   pOperator->blockingOptr = false;
   pOperator->status       = OP_IN_EXECUTING;
   pOperator->info         = pInfo;
-  pOperator->pExpr        = pExpr;
-  pOperator->numOfOutput  = numOfOutput;
-  pOperator->pRuntimeEnv  = pRuntimeEnv;
+  pOperator->pExpr        = exprArrayDup(pExprInfo);
+  pOperator->numOfOutput  = taosArrayGetSize(pExprInfo);
 
-  pOperator->nextDataFn = doProjectOperation;
-  pOperator->closeFn = destroyProjectOperatorInfo;
+  pOperator->nextDataFn   = doProjectOperation;
+  pOperator->closeFn      = destroyProjectOperatorInfo;
   int32_t code = appendDownstream(pOperator, &downstream, 1);
 
   return pOperator;
