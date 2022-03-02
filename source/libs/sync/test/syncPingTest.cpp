@@ -63,17 +63,15 @@ int main() {
   ret = syncEnvStart();
   assert(ret == 0);
 
-  /*
-    SSyncNode* pSyncNode = doSync();
+  SSyncNode* pSyncNode = doSync();
 
-    ret = syncNodeStartPingTimer(pSyncNode);
-    assert(ret == 0);
+  ret = syncNodeStartPingTimer(pSyncNode);
+  assert(ret == 0);
 
-    taosMsleep(5000);
+  taosMsleep(5000);
 
-    ret = syncNodeStopPingTimer(pSyncNode);
-    assert(ret == 0);
-  */
+  ret = syncNodeStopPingTimer(pSyncNode);
+  assert(ret == 0);
 
   while (1) {
     taosMsleep(1000);
