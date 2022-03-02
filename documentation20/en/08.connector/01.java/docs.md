@@ -23,7 +23,7 @@ In terms of implementation, the JDBC driver of TDengine is as consistent as poss
 <tr align="center"><th>Difference</th><th>JDBC-JNI</th><th>JDBC-RESTful</th></tr>
 <tr align="center">
   <td>Supported OS</td>
-  <td>linux、windows</td>
+  <td>Linux, Windows</td>
   <td>all platform</td>
 </tr>
 <tr align="center">
@@ -83,6 +83,7 @@ The TDengine supports the following data types and Java data types:
 | NCHAR             | java.lang.String                   | java.lang.String                    |
 | JSON              | -                                  | java.lang.String                    |
 **Note**: JSON type can only be used in tag.
+
 ## Install Java connector
 
 ### Runtime Requirements
@@ -102,7 +103,7 @@ To run TDengine's Java connector, the following requirements shall be met:
 
 ### Obtain JDBC driver by maven
 
-To Java delevopers, TDengine provides `taos-jdbcdriver` according to the JDBC(3.0) API. Users can find and download it through [Sonatype Repository](https://search.maven.org/artifact/com.taosdata.jdbc/taos-jdbcdriver). Add the following dependencies in pom.xml for your maven projects.
+To Java developers, TDengine provides `taos-jdbcdriver` according to the JDBC(3.0) API. Users can find and download it through [Sonatype Repository](https://search.maven.org/artifact/com.taosdata.jdbc/taos-jdbcdriver). Add the following dependencies in pom.xml for your maven projects.
 
 ```xml
 <dependencies>
@@ -172,7 +173,7 @@ The configuration parameters in the URL are as follows:
 * charset: character set used by the client. The default value is the system character set.
 * locale: client locale. The default value is the current system locale.
 * timezone: timezone used by the client. The default value is the current timezone of the system.
-* batchfetch: only valid for JDBC-JNI. True if batch ResultSet fetching is enabled; false if row-by-row ResultSet fetching is enabled. Default value is flase.
+* batchfetch: only valid for JDBC-JNI. True if batch ResultSet fetching is enabled; false if row-by-row ResultSet fetching is enabled. Default value is false.
 * timestampFormat: only valid for JDBC-RESTful. 'TIMESTAMP' if you want to get a long value in a ResultSet; 'UTC' if you want to get a string in UTC date-time format in a ResultSet; 'STRING' if you want to get a local date-time format string in ResultSet. Default value is 'STRING'.
 * batchErrorIgnore: true if you want to continue executing the rest of the SQL when error happens during execute the executeBatch method in Statement; false, false if the remaining SQL statements are not executed. Default value is false.
 
@@ -203,7 +204,7 @@ The configuration parameters in properties are as follows:
 * TSDBDriver.PROPERTY_KEY_CHARSET: character set used by the client. The default value is the system character set.
 * TSDBDriver.PROPERTY_KEY_LOCALE: client locale. The default value is the current system locale.
 * TSDBDriver.PROPERTY_KEY_TIME_ZONE: timezone used by the client. The default value is the current timezone of the system.
-* TSDBDriver.PROPERTY_KEY_BATCH_LOAD: only valid for JDBC-JNI. True if batch ResultSet fetching is enabled; false if row-by-row ResultSet fetching is enabled. Default value is flase.
+* TSDBDriver.PROPERTY_KEY_BATCH_LOAD: only valid for JDBC-JNI. True if batch ResultSet fetching is enabled; false if row-by-row ResultSet fetching is enabled. Default value is false.
 * TSDBDriver.PROPERTY_KEY_TIMESTAMP_FORMAT: only valid for JDBC-RESTful. 'TIMESTAMP' if you want to get a long value in a ResultSet; 'UTC' if you want to get a string in UTC date-time format in a ResultSet; 'STRING' if you want to get a local date-time format string in ResultSet. Default value is 'STRING'.
 * TSDBDriver.PROPERTY_KEY_BATCH_ERROR_IGNORE: true if you want to continue executing the rest of the SQL when error happens during execute the executeBatch method in Statement; false, false if the remaining SQL statements are not executed. Default value is false.
 
@@ -307,18 +308,19 @@ try (Statement statement = connection.createStatement()) {
 
 The Java connector may report three types of error codes: JDBC Driver (error codes ranging from 0x2301 to 0x2350), JNI method (error codes ranging from 0x2351 to 0x2400), and TDengine Error. For details about the error code, see:
 
-- https://github.com/taosdata/TDengine/blob/develop/src/connector/jdbc/src/main/java/com/taosdata/jdbc/TSDBErrorNumbers.java
-- https://github.com/taosdata/TDengine/blob/develop/src/inc/taoserror.h
+- `https://github.com/taosdata/TDengine/blob/develop/src/connector/jdbc/src/main/java/com/taosdata/jdbc/TSDBErrorNumbers.java`
+- `https://github.com/taosdata/TDengine/blob/develop/src/inc/taoserror.h`
 
 ### Write data through parameter binding
+
 Starting with version 2.1.2.0, TDengine's JDBC-JNI implementation significantly improves support for data write (INSERT) scenarios with Parameter-Binding. When writing data in this way, you can avoid the resource consumption of SQL parsing, which can significantly improve write performance in many cases.
 
 **Note**:
-* Jdbc-restful implementations do not provide Parameter-Binding
+
+* JDBC-RESTful implementations do not provide Parameter-Binding
 * The following sample code is based on taos-jdbcdriver-2.0.36
 * use setString to bind BINARY data, and use setNString to bind NCHAR data
 * Both setString and setNString require the user to declare the column width of the corresponding column in the table definition in the size parameter
-
 
 Sample Code:
 
@@ -584,7 +586,8 @@ public void setNString(int columnIndex, ArrayList<String> list, int size) throws
 Starting with version 2.2.0.0, TDengine supports schemaless function. schemaless writing protocol is compatible with InfluxDB's Line Protocol, OpenTSDB's telnet and JSON format protocols, Please see [Schemaless Writing](https://www.taosdata.com/docs/en/v2.0/insert#schemaless)
 
 **Note**:
-* Jdbc-restful implementations do not provide Schemaless-Writing
+
+* JDBC-RESTful implementations do not provide Schemaless-Writing
 * The following sample code is based on taos-jdbcdriver-2.0.36
 
 Sample Code:
@@ -623,6 +626,7 @@ public class SchemalessInsertTest {
 Starting with TDengine-2.3.5.0, JDBC Driver supports setting TDengine client parameters on the first connection of a Java application. The Driver supports jdbcUrl and Properties to set client parameters in JDBC-JNI mode.
 
 **Note**:
+
 * JDBC-RESTful does not support setting client parameters.
 * The client parameters set in the java application are process-level. To update the client parameters, the application needs to be restarted. This is because these client parameters are global that take effect the first time the application is set up.
 * The following sample code is based on taos-jdbcdriver-2.0.36.
@@ -679,10 +683,9 @@ public class ClientParameterSetting {
 }
 ```
 
-
 ## Data Subscription
 
-#### Subscribe
+### Subscribe
 
 ```java
 TSDBSubscribe sub = ((TSDBConnection)conn).subscribe("topic", "select * from meters", false);
@@ -696,7 +699,7 @@ parameters:
 
 In the example above, a subscription named 'topic' is created which use the SQL statement 'select * from meters'. If the subscription already exists, it will continue with the previous query progress, rather than consuming all the data from scratch.
 
-#### Consume
+### Consume
 
 ```java
 int total = 0;
@@ -714,7 +717,7 @@ while(true) {
 
 The consume method returns a result set containing all the new data so far since the last consume. Make sure to call consume as often as you need (like Thread.sleep(1000) in the example), otherwise you will put unnecessary stress on the server.
 
-#### Close
+### Close
 
 ```java
 sub.close(true);
@@ -803,6 +806,7 @@ Query OK, 1 row(s) in set (0.000141s)
 you see sample code here: [JDBC example](https://github.com/taosdata/TDengine/tree/develop/examples/JDBC)
 
 ## FAQ
+
 - Why does not addBatch and executeBatch provide a performance benefit for executing "batch writes/updates"?
   **Cause**:In TDengine's JDBC implementation, SQL statements submitted through the addBatch method are executed in the order in which they are added. This method does not reduce the number of interactions with the server and does not improve performance.
   **Answer**：1. Concatenate multiple values in an INSERT statement; 2. Use multi-threaded concurrent insertion; 3. Use the parameter-binding to write

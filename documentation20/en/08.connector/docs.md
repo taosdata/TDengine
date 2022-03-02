@@ -56,9 +56,9 @@ After extracting the package, you will see the following files (directories) in 
 
 *driver*: TDengine application driver
 
-*connector*: Connectors for various programming languages (go/grafanaplugin/nodejs/python/JDBC)
+*connector*: Connectors for various programming languages (Go/grafanaplugin/Node.js/Python/JDBC)
 
-*Examples*: Sample programs for various programming languages (C/C #/go/JDBC/MATLAB/python/R)
+*Examples*: Sample programs for various programming languages (C/C#/Go/JDBC/MATLAB/Python/R)
 
 Run install_client.sh to install.
 
@@ -900,7 +900,7 @@ you can find sample code under follow directions:
 
 Run {client_install_directory}/examples/C#/C#Checker/C#Checker.cs
 
-Need install .Net SDK first
+Need install .NET SDK first
 
 ```cmd
 cd {client_install_directory}/examples/C#/C#Checker
@@ -944,7 +944,7 @@ using TDengineDriver;
 
 ### Third-party Driver
 
-Maikebing.Data.Taos is an ADO.Net provider for TDengine that supports Linux, Windows. This development package is provided by enthusiastic contributor 麦壳饼@@maikebing. For more details:
+Maikebing.Data.Taos is an ADO.NET provider for TDengine that supports Linux, Windows. This development package is provided by enthusiastic contributor 麦壳饼@@maikebing. For more details:
 
 ```
 // Download
@@ -1036,7 +1036,7 @@ First, install the Node.js connector through [npm](https://www.npmjs.com/).
 npm install td2.0-connector
 ```
 
-We recommend that use npm to install the Node.js connector. If you do not have npm installed, you can copy src/connector/nodejs/ to your nodejs project directory.
+We recommend that use npm to install the Node.js connector. If you do not have npm installed, you can copy src/connector/nodejs/ to your Node.js project directory.
 
 We use [node-gyp](https://github.com/nodejs/node-gyp) to interact with the TDengine server. Before installing the Node.js connector, you also need to install the following software:
 
@@ -1087,11 +1087,11 @@ Steps:
    node nodejsChecker.js host=localhost
    ```
 
-3. After performing the above steps, the nodejs connection TDengine instance will be outputted on the command line, and the short-answer of insertion and query will be executed.
+3. After performing the above steps, the Node.js connection TDengine instance will be outputted on the command line, and the short-answer of insertion and query will be executed.
 
 ### How to use Node.js
 
-The following are some basic uses of Node.js connector. Please refer to [TDengine Node.js connector](https://github.com/taosdata/TDengine/tree/develop/src/connector/nodejs)for details.
+The following are some basic uses of Node.js connector. Please refer to [TDengine Node.js connector](https://github.com/taosdata/TDengine/tree/develop/src/connector/nodejs) for details.
 
 ### Create connection
 

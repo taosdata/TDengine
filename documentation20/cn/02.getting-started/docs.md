@@ -17,7 +17,7 @@ docker run -d -p 6030-6049:6030-6049 -p 6030-6049:6030-6049/udp tdengine/tdengin
 
 注：暂时不建议生产环境采用 Docker 来部署 TDengine 的客户端或服务端，但在开发环境下或初次尝试时，使用 Docker 方式部署是十分方便的。特别是，利用 Docker，可以方便地在 macOS 和 Windows 环境下尝试 TDengine。
 
-从 2.4.0.10 开始，除taosd以外，docker镜像还包含：taos、taosAdapter、taosdump、taosBenchmark、TDinsight安装脚本和示例代码。启动docker容器时，将同时启动taosAdapter和taosd，实现对restful的支持。
+从 2.4.0.10 开始，除 taosd 以外，docker 镜像还包含：taos、taosAdapter、taosdump、taosBenchmark、TDinsight 安装脚本和示例代码。启动 docker 容器时，将同时启动 taosAdapter 和 taosd，实现对 RESTful 的支持。
 
 
 ### <a class="anchor" id="package-install"></a>通过安装包安装

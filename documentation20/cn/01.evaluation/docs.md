@@ -16,7 +16,7 @@ TDengine 是一款高性能、分布式、支持 SQL 的时序数据库。而且
 
 - **零学习成本**：采用 SQL 查询语言，支持 Python, Java, C/C++, Go, Rust, Node.js 等多种编程语言,与 MySQL 相似，零学习成本。
 
-- **无缝集成**：不用一行代码，即可与 Telegraf, Grafana, EMQ X, Prometheus, StatsD, collectd, Matlab, R 等第三方工具无缝集成。
+- **无缝集成**：不用一行代码，即可与 Telegraf, Grafana, EMQX, Prometheus, StatsD, collectd, Matlab, R 等第三方工具无缝集成。
 
 - **互动 Console**: 通过命令行 console，不用编程，执行 SQL 语句就能做即席查询、各种数据库的操作、管理以及集群的维护.
 

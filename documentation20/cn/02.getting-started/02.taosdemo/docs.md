@@ -228,7 +228,7 @@ taosBenchmark 的参数是为了满足数据模拟的需求来设计的。下面
 ```
 -t, --tables=NUMBER           The number of tables. Default is 10000.
 -n, --records=NUMBER          The number of records per table. Default is 10000.
--M, --random                  The value of records generated are totally random. The default is to simulate power equipment senario.
+-M, --random                  The value of records generated are totally random. The default is to simulate power equipment scenario.
 ```
 
 前面提到 taosBenchmark 默认创建 10000 个表，每个表写入 10000 条记录。可以通过 -t 和 -n 设置表的数量和每个表的记录的数量。默认无参数生成的数据为模拟真实场景，模拟生成的数据为电流电压相位值增加一定的抖动，可以更真实表现 TDengine 高效的数据压缩能力。如果需要模拟生成完全随机数据，可以通过 -M 参数。
@@ -253,7 +253,7 @@ taosBenchmark 的参数是为了满足数据模拟的需求来设计的。下面
 如果对 taosBenchmark 写入数据过程感兴趣或者数据写入结果不符合预期，可以使用 -g 参数使 taosBenchmark 打印执行过程中间调试信息到屏幕上，或通过 Linux 重定向命令导入到另外一个文件，方便找到发生问题的原因。另外 taosBenchmark 在执行失败后也会把相应执行的语句和调试原因输出到屏幕。可以搜索 reason 来找到 TDengine 服务端返回的错误原因信息。
 
 ```
--x, --aggr-func               Test aggregation funtions after insertion.
+-x, --aggr-func               Test aggregation functions after insertion.
 ```
 
 TDengine 不仅仅是插入性能非常强大，由于其先进的数据库引擎设计使查询性能也异常强大。taosBenchmark 提供一个 -x 函数，可以在插入数据结束后进行常用查询操作并输出查询消耗时间。以下为在前述服务器上进行插入一亿条记录后进行常用查询的结果。
@@ -399,7 +399,7 @@ taosBenchmark 不仅仅可以进行数据写入，也可以执行查询和订阅
 
 ```
 "query_times": 每种查询类型的查询次数
-"query_mode": 查询数据接口，"taosc"：调用TDengine的c接口；“resetful”：使用restfule接口。可选项。缺省是“taosc”。
+"query_mode": 查询数据接口，"taosc"：调用TDengine的c接口；“restful”：使用 RESTful 接口。可选项。缺省是“taosc”。
 "specified_table_query": { 指定表的查询
 "query_interval": 执行sqls的间隔，单位是秒。可选项，缺省是0。
 "concurrent": 并发执行sqls的线程数，可选项，缺省是1。每个线程都执行所有的sqls。
@@ -468,7 +468,7 @@ taosBenchmark 不仅仅可以进行数据写入，也可以执行查询和订阅
 
 ## 结语
 
-TDengine是涛思数据专为物联网、车联网、工业互联网、IT运维等设计和优化的大数据平台。TDengine 由于数据库内核中创新的数据存储和查询引擎设计，展现出远超同类产品的高效性能。并且由于支持 SQL 语法和多种编程语言的连接器（目前支持 Java, Python, Go, C#, NodeJS, Rust 等），易用性极强，学习成本为零。为了便于运维需求，我们还提供数据迁移和监控功能等相关生态工具软件。
+TDengine是涛思数据专为物联网、车联网、工业互联网、IT运维等设计和优化的大数据平台。TDengine 由于数据库内核中创新的数据存储和查询引擎设计，展现出远超同类产品的高效性能。并且由于支持 SQL 语法和多种编程语言的连接器（目前支持 Java, Python, Go, C#, Node.js, Rust 等），易用性极强，学习成本为零。为了便于运维需求，我们还提供数据迁移和监控功能等相关生态工具软件。
 
 为了刚接触 TDengine 的使用者方便进行技术评估和压力测试，我们为 taosBenchmark 开发了丰富的特性。本文即为对 taosBenchmark 的一个简单介绍，随着 TDengine 新功能的不断增加，taosBenchmark 也会继续演化和改进。taosBenchmark 的代码做为 TDengine 的一部分在 GitHub 上完全开源。欢迎就 taosBenchmark 或 TDengine 的使用或实现在 GitHub 或者涛思数据的用户群提出建议或批评。
 
@@ -601,7 +601,7 @@ taosBenchmark支持3种功能的测试，包括插入、查询、订阅。但一
             "start_timestamp": "2020-10-01 00:00:00.000",
             "sample_format": "csv",
             "sample_file": "./sample.csv",
-               "use_sameple_ts": "no",
+               "use_sample_ts": "no",
             "tags_file": "",
             "columns": [{"type": "INT"}, {"type": "DOUBLE", "count":10}, {"type": "BINARY", "len": 16, "count":3}, {"type": "BINARY", "len": 32, "count":6}],
             "tags": [{"type": "TINYINT", "count":2}, {"type": "BINARY", "len": 16, "count":5}]
@@ -684,7 +684,7 @@ taosBenchmark支持3种功能的测试，包括插入、查询、订阅。但一
 
 "data_source": 插入数据来源，"rand"：实例随机生成；“sample”：从样例文件中读取。可选项。缺省是“rand”。
 
-"insert_mode": 插入数据接口，"taosc"：调用TDengine的c接口；“rest”：使用restful接口；“stmt”：使用 stmt （参数绑定）接口 （目前仅在 develop 分支代码中）。可选项。缺省是“taosc”。
+"insert_mode": 插入数据接口，"taosc"：调用TDengine的c接口；“rest”：使用 RESTful 接口；“stmt”：使用 stmt （参数绑定）接口 （目前仅在 develop 分支代码中）。可选项。缺省是“taosc”。
 
 "insert_rows": 插入记录数，0：一直插入，永不退出；>0：每个子表插入记录数，完成后实例退出。可选项，缺省是0。
 
@@ -794,7 +794,7 @@ taosBenchmark支持3种功能的测试，包括插入、查询、订阅。但一
 
 "query_times": 每种查询类型的查询次数
 
-"query_mode": 查询数据接口，"taosc"：调用TDengine的c接口；“resetful”：使用restfule接口。可选项。缺省是“taosc”。
+"query_mode": 查询数据接口，"taosc"：调用TDengine的c接口；“restful”：使用 RESTful 接口。可选项。缺省是“taosc”。
 
 "specified_table_query": { 指定表的查询
 

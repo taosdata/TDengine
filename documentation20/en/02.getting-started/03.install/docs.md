@@ -138,7 +138,7 @@ To start TDengine     : sudo systemctl start taosd
 To access TDengine    : use taos -h shuduo-1804 in shell OR from http://127.0.0.1:6060
 
 TDengine is updated successfully!
-Install taoskeeper as a stand-alone service
+Install taoskeeper as a standalone service
 taoskeeper is installed, enable it by `systemctl enable taoskeeper`
 ```
 
