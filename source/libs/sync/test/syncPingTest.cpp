@@ -68,10 +68,11 @@ int main() {
   ret = syncNodeStartPingTimer(pSyncNode);
   assert(ret == 0);
 
-  taosMsleep(5000);
-
+  /*
+  taosMsleep(10000);
   ret = syncNodeStopPingTimer(pSyncNode);
   assert(ret == 0);
+  */
 
   while (1) {
     taosMsleep(1000);

@@ -112,7 +112,7 @@ static int32_t syncIOStartInternal(SSyncIO *io) {
   {
     SRpcInit rpcInit;
     memset(&rpcInit, 0, sizeof(rpcInit));
-    rpcInit.localPort = 7010;
+    rpcInit.localPort = io->myAddr.eps[0].port;
     rpcInit.label = "SYNC-IO-SERVER";
     rpcInit.numOfThreads = 1;
     rpcInit.cfp = syncIOProcessRequest;
