@@ -140,4 +140,13 @@ int32_t taosRealPath(char *dirname, int32_t maxlen) {
   return 0;
 }
 
+bool taosIsDir(const char *dirname) {
+  DIR *dir = opendir(dirname);
+  if (dir != NULL) {
+    closedir(dir);
+    return true;
+  }
+  return false;
+}
+
 #endif

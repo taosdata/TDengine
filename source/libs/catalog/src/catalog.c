@@ -166,6 +166,28 @@ void ctgDbgShowDBCache(SHashObj *dbHash) {
     taosHashGetKey(dbCache, (void **)&dbFName, &len);
     
     CTG_CACHE_DEBUG("** %dth db [%.*s][%"PRIx64"] **", i, (int32_t)len, dbFName, dbCache->dbId);
+
+    CTG_CACHE_DEBUG("deleted: %d", dbCache->deleted);
+    if (dbCache->vgInfo) {
+      CTG_CACHE_DEBUG("vgVersion: %d", dbCache->vgInfo->vgVersion);
+      CTG_CACHE_DEBUG("hashMethod: %d", dbCache->vgInfo->hashMethod);
+      if (dbCache->vgInfo->vgHash) {
+        CTG_CACHE_DEBUG("vgNum: %d", taosHashGetSize(dbCache->vgInfo->vgHash));
+        //TODO
+      } else {
+        CTG_CACHE_DEBUG("vgHash: %p", dbCache->vgInfo->vgHash);
+      }
+    } else {
+      CTG_CACHE_DEBUG("vgInfo: %p", dbCache->vgInfo);
+    }
+
+    if (dbCache->tbCache.metaCache) {
+      CTG_CACHE_DEBUG("metaNum: %d", taosHashGetSize(dbCache->tbCache.metaCache));
+    }
+
+    if (dbCache->tbCache.stbCache) {
+      CTG_CACHE_DEBUG("stbNum: %d", taosHashGetSize(dbCache->tbCache.stbCache));
+    }
     
     pIter = taosHashIterate(dbHash, pIter);
   }
@@ -239,6 +261,34 @@ void ctgFreeMetaRent(SCtgRentMgmt *mgmt) {
   }
 
   tfree(mgmt->slots);
+}
+
+
+int32_t ctgPushRmDBMsgInQueue(SCatalog* pCtg, const char *dbFName, int64_t dbId) {
+  int32_t code = 0;
+  SCtgMetaAction action= {.act = CTG_ACT_REMOVE_DB};
+  SCtgRemoveDBMsg *msg = malloc(sizeof(SCtgRemoveDBMsg));
+  if (NULL == msg) {
+    ctgError("malloc %d failed", (int32_t)sizeof(SCtgRemoveDBMsg));
+    CTG_ERR_RET(TSDB_CODE_CTG_MEM_ERROR);
+  }
+
+  msg->pCtg = pCtg;
+  strncpy(msg->dbFName, dbFName, sizeof(msg->dbFName));
+  msg->dbId = dbId;
+
+  action.data = msg;
+
+  CTG_ERR_JRET(ctgPushAction(&action));
+
+  ctgDebug("action [%s] added into queue", gCtgAction[action.act].name);
+
+  return TSDB_CODE_SUCCESS;
+
+_return:
+  
+  tfree(action.data);
+  CTG_RET(code);  
 }
 
 
@@ -452,12 +502,7 @@ int32_t ctgGetDBVgInfoFromMnode(SCatalog* pCtg, void *pRpc, const SEpSet* pMgmtE
 
   rpcSendRecv(pRpc, (SEpSet*)pMgmtEps, &rpcMsg, &rpcRsp);
   if (TSDB_CODE_SUCCESS != rpcRsp.code) {
-    if (CTG_DB_NOT_EXIST(rpcRsp.code)) {
-      ctgDebug("db not exist in mnode, dbFName:%s", input->db);
-      return rpcRsp.code;
-    }
-  
-    ctgError("error rsp for use db, code:%s, db:%s", tstrerror(rpcRsp.code), input->db);
+    ctgError("error rsp for use db, error:%s, db:%s", tstrerror(rpcRsp.code), input->db);
     CTG_ERR_RET(rpcRsp.code);
   }
 
@@ -1365,20 +1410,33 @@ int32_t ctgCloneVgInfo(SDBVgInfo *src, SDBVgInfo **dst) {
 int32_t ctgGetDBVgInfo(SCatalog* pCtg, void *pRpc, const SEpSet* pMgmtEps, const char* dbFName, bool forceUpdate, SCtgDBCache** dbCache, SDBVgInfo **pInfo) {
   bool inCache = false;
   int32_t code = 0;
-  if (!forceUpdate) {
-    CTG_ERR_RET(ctgAcquireVgInfoFromCache(pCtg, dbFName, dbCache, &inCache));
-    if (inCache) {
-      return TSDB_CODE_SUCCESS;
-    }
+
+  CTG_ERR_RET(ctgAcquireVgInfoFromCache(pCtg, dbFName, dbCache, &inCache));
+
+  if (inCache && !forceUpdate) {
+    return TSDB_CODE_SUCCESS;
   }
 
   SUseDbOutput DbOut = {0};
   SBuildUseDBInput input = {0};
 
   tstrncpy(input.db, dbFName, tListLen(input.db));
-  input.vgVersion = CTG_DEFAULT_INVALID_VERSION;
+  if (inCache) {
+    input.dbId = (*dbCache)->dbId;
+    input.vgVersion = (*dbCache)->vgInfo->vgVersion;
+  } else {
+    input.vgVersion = CTG_DEFAULT_INVALID_VERSION;
+  }
 
-  CTG_ERR_RET(ctgGetDBVgInfoFromMnode(pCtg, pRpc, pMgmtEps, &input, &DbOut));
+  code = ctgGetDBVgInfoFromMnode(pCtg, pRpc, pMgmtEps, &input, &DbOut);
+  if (code) {
+    if (CTG_DB_NOT_EXIST(code) && input.vgVersion > CTG_DEFAULT_INVALID_VERSION) {
+      ctgDebug("db no longer exist, dbFName:%s, dbId:%" PRIx64, input.db, input.dbId);
+      ctgPushRmDBMsgInQueue(pCtg, input.db, input.dbId);
+    }
+
+    CTG_ERR_RET(code);
+  }
 
   CTG_ERR_JRET(ctgCloneVgInfo(DbOut.dbVgroup, pInfo));
   
@@ -1772,7 +1830,6 @@ int32_t ctgActRemoveTbl(SCtgMetaAction *action) {
 }
 
 
-
 void* ctgUpdateThreadFunc(void* param) {
   setThreadName("catalog");
 
@@ -1964,10 +2021,10 @@ void catalogFreeHandle(SCatalog* pCtg) {
   ctgInfo("handle freed, culsterId:%"PRIx64, clusterId);
 }
 
-int32_t catalogGetDBVgVersion(SCatalog* pCtg, const char* dbFName, int32_t* version) {
+int32_t catalogGetDBVgVersion(SCatalog* pCtg, const char* dbFName, int32_t* version, int64_t* dbId) {
   CTG_API_ENTER();
 
-  if (NULL == pCtg || NULL == dbFName || NULL == version) {
+  if (NULL == pCtg || NULL == dbFName || NULL == version || NULL == dbId) {
     CTG_API_LEAVE(TSDB_CODE_CTG_INVALID_INPUT);
   }
 
@@ -1994,6 +2051,7 @@ int32_t catalogGetDBVgVersion(SCatalog* pCtg, const char* dbFName, int32_t* vers
   }
 
   *version = dbCache->vgInfo->vgVersion;
+  *dbId = dbCache->dbId;
 
   ctgReleaseVgInfo(dbCache);
   ctgReleaseDBCache(pCtg, dbCache);
@@ -2099,28 +2157,11 @@ int32_t catalogRemoveDB(SCatalog* pCtg, const char* dbFName, uint64_t dbId) {
     CTG_API_LEAVE(TSDB_CODE_SUCCESS);
   }
 
-  SCtgMetaAction action= {.act = CTG_ACT_REMOVE_DB};
-  SCtgRemoveDBMsg *msg = malloc(sizeof(SCtgRemoveDBMsg));
-  if (NULL == msg) {
-    ctgError("malloc %d failed", (int32_t)sizeof(SCtgRemoveDBMsg));
-    CTG_API_LEAVE(TSDB_CODE_CTG_MEM_ERROR);
-  }
-
-  msg->pCtg = pCtg;
-  strncpy(msg->dbFName, dbFName, sizeof(msg->dbFName));
-  msg->dbId = dbId;
-
-  action.data = msg;
-
-  CTG_ERR_JRET(ctgPushAction(&action));
-
-  ctgDebug("action [%s] added into queue", gCtgAction[action.act].name);
+  CTG_ERR_JRET(ctgPushRmDBMsgInQueue(pCtg, dbFName, dbId));
 
   CTG_API_LEAVE(TSDB_CODE_SUCCESS);
   
 _return:
-
-  tfree(action.data);
 
   CTG_API_LEAVE(code);
 }

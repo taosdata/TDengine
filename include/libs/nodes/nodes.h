@@ -118,14 +118,16 @@ typedef struct SNodeList {
   SListCell* pTail;
 } SNodeList;
 
-SNode* nodesMakeNode(ENodeType type);
-void nodesDestroyNode(SNode* pNode);
+#define SNodeptr void*  
+
+SNodeptr nodesMakeNode(ENodeType type);
+void nodesDestroyNode(SNodeptr pNode);
 
 SNodeList* nodesMakeList();
-int32_t nodesListAppend(SNodeList* pList, SNode* pNode);
+int32_t nodesListAppend(SNodeList* pList, SNodeptr pNode);
 int32_t nodesListAppendList(SNodeList* pTarget, SNodeList* pSrc);
 SListCell* nodesListErase(SNodeList* pList, SListCell* pCell);
-SNode* nodesListGetNode(SNodeList* pList, int32_t index);
+SNodeptr nodesListGetNode(SNodeList* pList, int32_t index);
 void nodesDestroyList(SNodeList* pList);
 
 typedef enum EDealRes {
@@ -135,9 +137,9 @@ typedef enum EDealRes {
 } EDealRes;
 
 typedef EDealRes (*FNodeWalker)(SNode* pNode, void* pContext);
-void nodesWalkNode(SNode* pNode, FNodeWalker walker, void* pContext);
+void nodesWalkNode(SNodeptr pNode, FNodeWalker walker, void* pContext);
 void nodesWalkList(SNodeList* pList, FNodeWalker walker, void* pContext);
-void nodesWalkNodePostOrder(SNode* pNode, FNodeWalker walker, void* pContext);
+void nodesWalkNodePostOrder(SNodeptr pNode, FNodeWalker walker, void* pContext);
 void nodesWalkListPostOrder(SNodeList* pList, FNodeWalker walker, void* pContext);
 
 typedef EDealRes (*FNodeRewriter)(SNode** pNode, void* pContext);
@@ -146,12 +148,12 @@ void nodesRewriteList(SNodeList* pList, FNodeRewriter rewriter, void* pContext);
 void nodesRewriteNodePostOrder(SNode** pNode, FNodeRewriter rewriter, void* pContext);
 void nodesRewriteListPostOrder(SNodeList* pList, FNodeRewriter rewriter, void* pContext);
 
-bool nodesEqualNode(const SNode* a, const SNode* b);
+bool nodesEqualNode(const SNodeptr a, const SNodeptr b);
 
-SNode* nodesCloneNode(const SNode* pNode);
+SNodeptr nodesCloneNode(const SNodeptr pNode);
 SNodeList* nodesCloneList(const SNodeList* pList);
 
-int32_t nodesNodeToString(const SNode* pNode, bool format, char** pStr, int32_t* pLen);
+int32_t nodesNodeToString(const SNodeptr pNode, bool format, char** pStr, int32_t* pLen);
 int32_t nodesStringToNode(const char* pStr, SNode** pNode);
 
 #ifdef __cplusplus

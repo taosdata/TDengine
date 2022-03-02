@@ -29,7 +29,7 @@ static SNode* makeNode(ENodeType type, size_t size) {
   return p;
 }
 
-SNode* nodesMakeNode(ENodeType type) {
+SNodeptr nodesMakeNode(ENodeType type) {
   switch (type) {
     case QUERY_NODE_COLUMN:
       return makeNode(type, sizeof(SColumnNode));
@@ -136,11 +136,11 @@ static EDealRes destroyNode(SNode** pNode, void* pContext) {
   return DEAL_RES_CONTINUE;
 }
 
-void nodesDestroyNode(SNode* pNode) {
+void nodesDestroyNode(SNodeptr pNode) {
   if (NULL == pNode) {
     return;
   }
-  nodesRewriteNodePostOrder(&pNode, destroyNode, NULL);
+  nodesRewriteNodePostOrder((SNode**)&pNode, destroyNode, NULL);
 }
 
 SNodeList* nodesMakeList() {
@@ -151,7 +151,7 @@ SNodeList* nodesMakeList() {
   return p;
 }
 
-int32_t nodesListAppend(SNodeList* pList, SNode* pNode) {
+int32_t nodesListAppend(SNodeList* pList, SNodeptr pNode) {
   if (NULL == pList || NULL == pNode) {
     return TSDB_CODE_SUCCESS;
   }
@@ -206,7 +206,7 @@ SListCell* nodesListErase(SNodeList* pList, SListCell* pCell) {
   return pNext;
 }
 
-SNode* nodesListGetNode(SNodeList* pList, int32_t index) {
+SNodeptr nodesListGetNode(SNodeList* pList, int32_t index) {
   SNode* node;
   FOREACH(node, pList) {
     if (0 == index--) {

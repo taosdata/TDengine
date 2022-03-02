@@ -207,7 +207,7 @@ private:
   }
 
   void groupingSetToStr(SGroupingSetNode* pGroup, string& str) {
-    nodeToStr(nodesListGetNode(pGroup->pParameterList, 0), str, false);
+    nodeToStr((SNode*)nodesListGetNode(pGroup->pParameterList, 0), str, false);
   }
 
   void orderByExprToStr(SOrderByExprNode* pOrderBy, string& str) {

@@ -13,23 +13,19 @@
  * along with this program. If not, see <http://www.gnu.org/licenses/>.
  */
 
-#ifndef _TD_OS_DIR_H_
-#define _TD_OS_DIR_H_
+#ifndef _TD_UTIL_HTTP_H_
+#define _TD_UTIL_HTTP_H_
+
+#include "os.h"
 
 #ifdef __cplusplus
 extern "C" {
 #endif
 
-void    taosRemoveDir(const char *dirname);
-int32_t taosDirExist(char *dirname);
-int32_t taosMkDir(const char *dirname);
-void    taosRemoveOldFiles(const char *dirname, int32_t keepDays);
-int32_t taosExpandDir(const char *dirname, char *outname, int32_t maxlen);
-int32_t taosRealPath(char *dirname, int32_t maxlen);
-bool    taosIsDir(const char *dirname);
+int32_t taosSendHttpReport(const char* server, uint16_t port, const char* pCont, int32_t contLen);
 
 #ifdef __cplusplus
 }
 #endif
 
-#endif /*_TD_OS_DIR_H_*/
+#endif /*_TD_UTIL_UTIL_H_*/

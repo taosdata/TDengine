@@ -196,11 +196,11 @@ TdFilePtr taosOpenFile(const char *path, int32_t tdFileOptions) {
     char *mode = NULL;
     if (tdFileOptions & TD_FILE_APPEND) {
       mode = (tdFileOptions & TD_FILE_TEXT) ? "at+" : "ab+";
-    }else if (tdFileOptions & TD_FILE_TRUNC) {
+    } else if (tdFileOptions & TD_FILE_TRUNC) {
       mode = (tdFileOptions & TD_FILE_TEXT) ? "wt+" : "wb+";
-    }else if ((tdFileOptions & TD_FILE_READ) && !(tdFileOptions & TD_FILE_WRITE)) {
+    } else if ((tdFileOptions & TD_FILE_READ) && !(tdFileOptions & TD_FILE_WRITE)) {
       mode = (tdFileOptions & TD_FILE_TEXT) ? "rt" : "rb";
-    }else {
+    } else {
       mode = (tdFileOptions & TD_FILE_TEXT) ? "rt+" : "rb+";
     }
     assert(!(tdFileOptions & TD_FILE_EXCL));
@@ -326,7 +326,7 @@ int64_t taosWriteFile(TdFilePtr pFile, const void *buf, int64_t count) {
     nleft -= nwritten;
     tbuf += nwritten;
   }
-  fsync(pFile->fd);
+
   return count;
 }
 
@@ -637,7 +637,7 @@ void taosFprintfFile(TdFilePtr pFile, const char *format, ...) {
   }
   assert(pFile->fp != NULL);
 
-  char           buffer[MAX_FPRINTFLINE_BUFFER_SIZE] = {0};
+  char    buffer[MAX_FPRINTFLINE_BUFFER_SIZE] = {0};
   va_list ap;
   va_start(ap, format);
   vfprintf(pFile->fp, format, ap);
@@ -675,11 +675,11 @@ int64_t taosGetLineFile(TdFilePtr pFile, char **__restrict__ ptrBuf) {
   size_t len = 0;
   return getline(ptrBuf, &len, pFile->fp);
 }
-int32_t taosEOFFile(TdFilePtr pFile) { 
+int32_t taosEOFFile(TdFilePtr pFile) {
   if (pFile == NULL) {
     return 0;
   }
   assert(pFile->fp != NULL);
 
-  return feof(pFile->fp); 
+  return feof(pFile->fp);
 }
