@@ -28,6 +28,10 @@ typedef struct __attribute__((__packed__)) {
   u16 nFree;
 } SPageHdr;
 
+typedef struct __attribute__((__packed__)) {
+  SPgno nPgno;
+} SOfPageHdr;
+
 typedef struct {
   void *    pData;
   SPageHdr *pPageHdr;
