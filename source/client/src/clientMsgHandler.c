@@ -19,6 +19,7 @@
 #include "clientInt.h"
 #include "clientLog.h"
 #include "catalog.h"
+#include "query.h"
 
 int32_t (*handleRequestRspFp[TDMT_MAX])(void*, const SDataBuf* pMsg, int32_t code);
 
@@ -243,6 +244,23 @@ int32_t processCreateDbRsp(void* param, const SDataBuf* pMsg, int32_t code) {
 int32_t processUseDbRsp(void* param, const SDataBuf* pMsg, int32_t code) {
   SRequestObj* pRequest = param;
 
+  if (TSDB_CODE_MND_DB_NOT_EXIST == code) {
+    SUseDbRsp usedbRsp = {0};
+    tDeserializeSUseDbRsp(pMsg->pData, pMsg->len, &usedbRsp);
+    struct SCatalog *pCatalog = NULL;
+
+    if (usedbRsp.vgVersion >= 0) {
+      int32_t code = catalogGetHandle(pRequest->pTscObj->pAppInfo->clusterId, &pCatalog);
+      if (code != TSDB_CODE_SUCCESS) {
+        tscWarn("catalogGetHandle failed, clusterId:%"PRIx64", error:%s", pRequest->pTscObj->pAppInfo->clusterId, tstrerror(code));
+      } else {
+        catalogRemoveDB(pCatalog, usedbRsp.db, usedbRsp.uid);
+      }
+    }
+
+    tFreeSUsedbRsp(&usedbRsp);    
+  }
+
   if (code != TSDB_CODE_SUCCESS) {
     free(pMsg->pData);
     setErrno(pRequest, code);
@@ -255,6 +273,26 @@ int32_t processUseDbRsp(void* param, const SDataBuf* pMsg, int32_t code) {
 
   SName name = {0};
   tNameFromString(&name, usedbRsp.db, T_NAME_ACCT|T_NAME_DB);
+
+  SUseDbOutput output = {0};
+  code = queryBuildUseDbOutput(&output, &usedbRsp);
+
+  if (code != 0) {
+    terrno = code;
+    if (output.dbVgroup) taosHashCleanup(output.dbVgroup->vgHash);
+    tfree(output.dbVgroup);
+
+    tscError("failed to build use db output since %s", terrstr());
+  } else {
+    struct SCatalog *pCatalog = NULL;
+    
+    int32_t code = catalogGetHandle(pRequest->pTscObj->pAppInfo->clusterId, &pCatalog);
+    if (code != TSDB_CODE_SUCCESS) {
+      tscWarn("catalogGetHandle failed, clusterId:%"PRIx64", error:%s", pRequest->pTscObj->pAppInfo->clusterId, tstrerror(code));
+    } else {
+      catalogUpdateDBVgInfo(pCatalog, output.db, output.dbId, output.dbVgroup);
+    }
+  }
 
   tFreeSUsedbRsp(&usedbRsp);
 

@@ -326,7 +326,7 @@ int64_t taosWriteFile(TdFilePtr pFile, const void *buf, int64_t count) {
     nleft -= nwritten;
     tbuf += nwritten;
   }
-  fsync(pFile->fd);
+
   return count;
 }
 

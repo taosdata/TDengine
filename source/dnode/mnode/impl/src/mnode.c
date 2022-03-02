@@ -494,7 +494,7 @@ PROCESS_RPC_END:
     if (code == TSDB_CODE_APP_NOT_READY) {
       mndSendRedirectRsp(pMnode, &pMsg->rpcMsg);
     } else if (code != 0) {
-      SRpcMsg rpcRsp = {.handle = pMsg->rpcMsg.handle, .code = code};
+      SRpcMsg rpcRsp = {.handle = pMsg->rpcMsg.handle, .contLen = pMsg->contLen, .pCont = pMsg->pCont, .code = code};
       rpcSendResponse(&rpcRsp);
     } else {
       SRpcMsg rpcRsp = {.handle = pMsg->rpcMsg.handle, .contLen = pMsg->contLen, .pCont = pMsg->pCont};
