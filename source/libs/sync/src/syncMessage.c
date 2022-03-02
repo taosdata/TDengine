@@ -15,6 +15,7 @@
 
 #include "syncMessage.h"
 #include "syncRaft.h"
+#include "syncUtil.h"
 #include "tcoding.h"
 
 void onMessage(SRaft* pRaft, void* pMsg) {}
@@ -65,11 +66,29 @@ cJSON* syncPing2Json(const SyncPing* pMsg) {
 
   cJSON* pSrcId = cJSON_CreateObject();
   cJSON_AddNumberToObject(pSrcId, "addr", pMsg->srcId.addr);
+  {
+    uint64_t u64 = pMsg->srcId.addr;
+    cJSON*   pTmp = pSrcId;
+    char     host[128];
+    uint16_t port;
+    syncUtilU642Addr(u64, host, sizeof(host), &port);
+    cJSON_AddStringToObject(pTmp, "addr_host", host);
+    cJSON_AddNumberToObject(pTmp, "addr_port", port);
+  }
   cJSON_AddNumberToObject(pSrcId, "vgId", pMsg->srcId.vgId);
   cJSON_AddItemToObject(pRoot, "srcId", pSrcId);
 
   cJSON* pDestId = cJSON_CreateObject();
   cJSON_AddNumberToObject(pDestId, "addr", pMsg->destId.addr);
+  {
+    uint64_t u64 = pMsg->destId.addr;
+    cJSON*   pTmp = pDestId;
+    char     host[128];
+    uint16_t port;
+    syncUtilU642Addr(u64, host, sizeof(host), &port);
+    cJSON_AddStringToObject(pTmp, "addr_host", host);
+    cJSON_AddNumberToObject(pTmp, "addr_port", port);
+  }
   cJSON_AddNumberToObject(pDestId, "vgId", pMsg->destId.vgId);
   cJSON_AddItemToObject(pRoot, "destId", pDestId);
 
@@ -101,7 +120,7 @@ SyncPingReply* syncPingReplyBuild(uint32_t dataLen) {
   SyncPingReply* pMsg = malloc(bytes);
   memset(pMsg, 0, bytes);
   pMsg->bytes = bytes;
-  pMsg->msgType = SYNC_PING;
+  pMsg->msgType = SYNC_PING_REPLY;
   pMsg->dataLen = dataLen;
 }
 
@@ -123,6 +142,7 @@ void syncPingReplyDeserialize(const char* buf, uint32_t len, SyncPingReply* pMsg
 }
 
 void syncPingReply2RpcMsg(const SyncPingReply* pMsg, SRpcMsg* pRpcMsg) {
+  memset(pRpcMsg, 0, sizeof(*pRpcMsg));
   pRpcMsg->msgType = pMsg->msgType;
   pRpcMsg->contLen = pMsg->bytes;
   pRpcMsg->pCont = rpcMallocCont(pRpcMsg->contLen);
@@ -140,11 +160,29 @@ cJSON* syncPingReply2Json(const SyncPingReply* pMsg) {
 
   cJSON* pSrcId = cJSON_CreateObject();
   cJSON_AddNumberToObject(pSrcId, "addr", pMsg->srcId.addr);
+  {
+    uint64_t u64 = pMsg->srcId.addr;
+    cJSON*   pTmp = pSrcId;
+    char     host[128];
+    uint16_t port;
+    syncUtilU642Addr(u64, host, sizeof(host), &port);
+    cJSON_AddStringToObject(pTmp, "addr_host", host);
+    cJSON_AddNumberToObject(pTmp, "addr_port", port);
+  }
   cJSON_AddNumberToObject(pSrcId, "vgId", pMsg->srcId.vgId);
   cJSON_AddItemToObject(pRoot, "srcId", pSrcId);
 
   cJSON* pDestId = cJSON_CreateObject();
   cJSON_AddNumberToObject(pDestId, "addr", pMsg->destId.addr);
+  {
+    uint64_t u64 = pMsg->destId.addr;
+    cJSON*   pTmp = pDestId;
+    char     host[128];
+    uint16_t port;
+    syncUtilU642Addr(u64, host, sizeof(host), &port);
+    cJSON_AddStringToObject(pTmp, "addr_host", host);
+    cJSON_AddNumberToObject(pTmp, "addr_port", port);
+  }
   cJSON_AddNumberToObject(pDestId, "vgId", pMsg->destId.vgId);
   cJSON_AddItemToObject(pRoot, "destId", pDestId);
 
@@ -154,6 +192,20 @@ cJSON* syncPingReply2Json(const SyncPingReply* pMsg) {
   cJSON* pJson = cJSON_CreateObject();
   cJSON_AddItemToObject(pJson, "SyncPingReply", pRoot);
   return pJson;
+}
+
+SyncPingReply* syncPingReplyBuild2(const SRaftId* srcId, const SRaftId* destId, const char* str) {
+  uint32_t       dataLen = strlen(str) + 1;
+  SyncPingReply* pMsg = syncPingReplyBuild(dataLen);
+  pMsg->srcId = *srcId;
+  pMsg->destId = *destId;
+  snprintf(pMsg->data, pMsg->dataLen, "%s", str);
+  return pMsg;
+}
+
+SyncPingReply* syncPingReplyBuild3(const SRaftId* srcId, const SRaftId* destId) {
+  SyncPingReply* pMsg = syncPingReplyBuild2(srcId, destId, "pang");
+  return pMsg;
 }
 
 #if 0

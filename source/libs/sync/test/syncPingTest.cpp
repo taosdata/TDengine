@@ -25,7 +25,7 @@ SSyncNode* doSync() {
 
   SSyncCfg* pCfg = &syncInfo.syncCfg;
   pCfg->myIndex = 0;
-  pCfg->replicaNum = 1;
+  pCfg->replicaNum = 2;
 
   pCfg->nodeInfo[0].nodePort = 7010;
   snprintf(pCfg->nodeInfo[0].nodeFqdn, sizeof(pCfg->nodeInfo[0].nodeFqdn), "%s", "127.0.0.1");
@@ -68,6 +68,7 @@ int main() {
 
   SSyncNode* pSyncNode = doSync();
   gSyncIO->FpOnSyncPing = pSyncNode->FpOnPing;
+  gSyncIO->FpOnSyncPingReply = pSyncNode->FpOnPingReply;
 
   ret = syncNodeStartPingTimer(pSyncNode);
   assert(ret == 0);

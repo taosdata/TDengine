@@ -102,6 +102,10 @@ void syncPingReplyFromRpcMsg(const SRpcMsg* pRpcMsg, SyncPingReply* pMsg);
 
 cJSON* syncPingReply2Json(const SyncPingReply* pMsg);
 
+SyncPingReply* syncPingReplyBuild2(const SRaftId* srcId, const SRaftId* destId, const char* str);
+
+SyncPingReply* syncPingReplyBuild3(const SRaftId* srcId, const SRaftId* destId);
+
 typedef struct SyncClientRequest {
   ESyncMessageType msgType;
   char*            data;

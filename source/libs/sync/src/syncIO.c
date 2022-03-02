@@ -226,7 +226,10 @@ static void *syncIOConsumerFunc(void *param) {
       } else if (pRpcMsg->msgType == SYNC_PING_REPLY) {
         SyncPingReply *pSyncMsg = syncPingReplyBuild(pRpcMsg->contLen);
         syncPingReplyFromRpcMsg(pRpcMsg, pSyncMsg);
-        io->FpOnSyncPingReply(io->pSyncNode, pSyncMsg);
+
+        if (io->FpOnSyncPingReply != NULL) {
+          io->FpOnSyncPingReply(io->pSyncNode, pSyncMsg);
+        }
       } else {
         ;
       }

@@ -240,11 +240,26 @@ static int32_t syncNodeOnPingCb(SSyncNode* ths, SyncPing* pMsg) {
     cJSON_Delete(pJson);
   }
 
+  SyncPingReply* pMsgReply = syncPingReplyBuild3(&ths->raftId, &pMsg->srcId);
+  SRpcMsg        rpcMsg;
+  syncPingReply2RpcMsg(pMsgReply, &rpcMsg);
+  syncNodeSendMsgById(&pMsgReply->destId, ths, &rpcMsg);
+
   return ret;
 }
 
 static int32_t syncNodeOnPingReplyCb(SSyncNode* ths, SyncPingReply* pMsg) {
   int32_t ret = 0;
+  sTrace("<-- syncNodeOnPingReplyCb -->");
+
+  {
+    cJSON* pJson = syncPingReply2Json(pMsg);
+    char*  serialized = cJSON_Print(pJson);
+    sTrace("syncNodeOnPingReplyCb syncNodePing pMsg:%s ", serialized);
+    free(serialized);
+    cJSON_Delete(pJson);
+  }
+
   return ret;
 }
 

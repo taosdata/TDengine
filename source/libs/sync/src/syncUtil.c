@@ -38,6 +38,7 @@ void syncUtilU642Addr(uint64_t u64, char* host, size_t len, uint16_t* port) {
 
 void syncUtilnodeInfo2EpSet(const SNodeInfo* pNodeInfo, SEpSet* pEpSet) {
   pEpSet->inUse = 0;
+  pEpSet->numOfEps = 0;
   addEpIntoEpSet(pEpSet, pNodeInfo->nodeFqdn, pNodeInfo->nodePort);
 }
 
