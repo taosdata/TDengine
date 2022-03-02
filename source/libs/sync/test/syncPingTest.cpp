@@ -28,13 +28,16 @@ SSyncNode* doSync() {
   pCfg->replicaNum = 1;
 
   pCfg->nodeInfo[0].nodePort = 7010;
-  taosGetFqdn(pCfg->nodeInfo[0].nodeFqdn);
+  snprintf(pCfg->nodeInfo[0].nodeFqdn, sizeof(pCfg->nodeInfo[0].nodeFqdn), "%s", "127.0.0.1");
+  // taosGetFqdn(pCfg->nodeInfo[0].nodeFqdn);
 
   pCfg->nodeInfo[1].nodePort = 7110;
-  taosGetFqdn(pCfg->nodeInfo[1].nodeFqdn);
+  snprintf(pCfg->nodeInfo[1].nodeFqdn, sizeof(pCfg->nodeInfo[1].nodeFqdn), "%s", "127.0.0.1");
+  // taosGetFqdn(pCfg->nodeInfo[1].nodeFqdn);
 
   pCfg->nodeInfo[2].nodePort = 7210;
-  taosGetFqdn(pCfg->nodeInfo[2].nodeFqdn);
+  snprintf(pCfg->nodeInfo[2].nodeFqdn, sizeof(pCfg->nodeInfo[2].nodeFqdn), "%s", "127.0.0.1");
+  // taosGetFqdn(pCfg->nodeInfo[2].nodeFqdn);
 
   SSyncNode* pSyncNode = syncNodeOpen(&syncInfo);
   assert(pSyncNode != NULL);

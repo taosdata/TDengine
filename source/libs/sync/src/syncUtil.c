@@ -51,11 +51,10 @@ void syncUtilraftId2EpSet(const SRaftId* raftId, SEpSet* pEpSet) {
     pEpSet->numOfEps = 1;
     pEpSet->inUse = 0;
     pEpSet->eps[0].port = port;
-    snprintf(epSet.eps[0].fqdn, sizeof(epSet.eps[0].fqdn), host);
+    snprintf(pEpSet->eps[0].fqdn, sizeof(pEpSet->eps[0].fqdn), "%s", host);
   */
-
   pEpSet->inUse = 0;
-  pEpSet->numOfEps = 1;
+  pEpSet->numOfEps = 0;
   addEpIntoEpSet(pEpSet, host, port);
 }
 

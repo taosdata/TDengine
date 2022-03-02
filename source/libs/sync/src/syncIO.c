@@ -41,7 +41,8 @@ static void    syncIOTickPingFunc(void *param, void *tmrId);
 
 // public function ------------
 int32_t syncIOSendMsg(void *clientRpc, const SEpSet *pEpSet, SRpcMsg *pMsg) {
-  sTrace("syncIOSendMsg ... ");
+  sTrace("<--- syncIOSendMsg ---> clientRpc:%p, numOfEps:%d, inUse:%d, destAddr:%s-%u", clientRpc, pEpSet->numOfEps,
+         pEpSet->inUse, pEpSet->eps[0].fqdn, pEpSet->eps[0].port);
   pMsg->handle = NULL;
   rpcSendRequest(clientRpc, pEpSet, pMsg, NULL);
   return 0;
@@ -54,6 +55,7 @@ int32_t syncIOStart(char *host, uint16_t port) {
   int32_t ret = syncIOStartInternal(gSyncIO);
   assert(ret == 0);
 
+  sTrace("syncIOStart ok, gSyncIO:%p gSyncIO->clientRpc:%p", gSyncIO, gSyncIO->clientRpc);
   return 0;
 }
 

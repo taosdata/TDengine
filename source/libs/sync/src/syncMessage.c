@@ -70,7 +70,7 @@ cJSON* syncPing2Json(const SyncPing* pMsg) {
   cJSON* pDestId = cJSON_CreateObject();
   cJSON_AddNumberToObject(pDestId, "addr", pMsg->destId.addr);
   cJSON_AddNumberToObject(pDestId, "vgId", pMsg->destId.vgId);
-  cJSON_AddItemToObject(pRoot, "srcId", pDestId);
+  cJSON_AddItemToObject(pRoot, "destId", pDestId);
 
   cJSON_AddNumberToObject(pRoot, "dataLen", pMsg->dataLen);
   cJSON_AddStringToObject(pRoot, "data", pMsg->data);
@@ -145,7 +145,7 @@ cJSON* syncPingReply2Json(const SyncPingReply* pMsg) {
   cJSON* pDestId = cJSON_CreateObject();
   cJSON_AddNumberToObject(pDestId, "addr", pMsg->destId.addr);
   cJSON_AddNumberToObject(pDestId, "vgId", pMsg->destId.vgId);
-  cJSON_AddItemToObject(pRoot, "srcId", pDestId);
+  cJSON_AddItemToObject(pRoot, "destId", pDestId);
 
   cJSON_AddNumberToObject(pRoot, "dataLen", pMsg->dataLen);
   cJSON_AddStringToObject(pRoot, "data", pMsg->data);

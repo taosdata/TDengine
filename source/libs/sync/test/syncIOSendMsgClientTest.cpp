@@ -34,7 +34,7 @@ int main() {
     SRpcMsg rpcMsg;
     rpcMsg.contLen = 64;
     rpcMsg.pCont = rpcMallocCont(rpcMsg.contLen);
-    snprintf((char*)rpcMsg.pCont, rpcMsg.contLen, "%s", "syncIOSendMsgTest");
+    snprintf((char *)rpcMsg.pCont, rpcMsg.contLen, "%s", "syncIOSendMsgTest");
     rpcMsg.handle = NULL;
     rpcMsg.msgType = 77;
 

@@ -184,7 +184,7 @@ static int32_t syncNodePing(SSyncNode* pSyncNode, const SRaftId* destRaftId, Syn
     SyncPing* pMsg2 = rpcMsg.pCont;
     cJSON*    pJson = syncPing2Json(pMsg2);
     char*     serialized = cJSON_Print(pJson);
-    sTrace("syncNodePing pMsg2:%s ", serialized);
+    sTrace("syncNodePing rpcMsg.pCont:%s ", serialized);
     free(serialized);
     cJSON_Delete(pJson);
   }
@@ -253,12 +253,16 @@ static void syncNodePingTimerCb(void* param, void* tmrId) {
     ++(pSyncNode->pingTimerCounter);
     // pSyncNode->pingTimerMS += 100;
 
-    sTrace("pSyncNode->pingTimerCounter:%lu, pSyncNode->pingTimerMS:%d, pSyncNode->pPingTimer:%p, tmrId:%p ",
-           pSyncNode->pingTimerCounter, pSyncNode->pingTimerMS, pSyncNode->pPingTimer, tmrId);
+    sTrace(
+        "syncNodePingTimerCb: pSyncNode->pingTimerCounter:%lu, pSyncNode->pingTimerMS:%d, pSyncNode->pPingTimer:%p, "
+        "tmrId:%p ",
+        pSyncNode->pingTimerCounter, pSyncNode->pingTimerMS, pSyncNode->pPingTimer, tmrId);
+
+    syncNodePingAll(pSyncNode);
 
     taosTmrReset(syncNodePingTimerCb, pSyncNode->pingTimerMS, pSyncNode, &gSyncEnv->pTimerManager,
                  &pSyncNode->pPingTimer);
-
-    syncNodePingAll(pSyncNode);
+  } else {
+    sTrace("syncNodePingTimerCb: pingTimerStart:%u ", pSyncNode->pingTimerStart);
   }
 }
