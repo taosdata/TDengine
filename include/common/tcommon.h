@@ -49,6 +49,11 @@ enum {
   TMQ_CONF__RESET_OFFSET__NONE = -3,
 };
 
+enum {
+  TMQ_MSG_TYPE__POLL_RSP = 0,
+  TMQ_MSG_TYPE__EP_RSP,
+};
+
 typedef struct {
   uint32_t  numOfTables;
   SArray*   pGroupList;
