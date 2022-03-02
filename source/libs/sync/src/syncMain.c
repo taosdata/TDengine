@@ -230,7 +230,16 @@ static int32_t syncNodeSendMsgByInfo(const SNodeInfo* nodeInfo, SSyncNode* pSync
 
 static int32_t syncNodeOnPingCb(SSyncNode* ths, SyncPing* pMsg) {
   int32_t ret = 0;
-  sTrace("syncNodeOnPingCb ---- =========");
+  sTrace("<-- syncNodeOnPingCb -->");
+
+  {
+    cJSON* pJson = syncPing2Json(pMsg);
+    char*  serialized = cJSON_Print(pJson);
+    sTrace("syncNodeOnPingCb syncNodePing pMsg:%s ", serialized);
+    free(serialized);
+    cJSON_Delete(pJson);
+  }
+
   return ret;
 }
 

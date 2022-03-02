@@ -30,8 +30,8 @@ extern "C" {
 
 // encode as uint64
 typedef enum ESyncMessageType {
-  SYNC_PING = 100,
-  SYNC_PING_REPLY,
+  SYNC_PING = 101,
+  SYNC_PING_REPLY = 103,
   SYNC_CLIENT_REQUEST,
   SYNC_CLIENT_REQUEST_REPLY,
   SYNC_REQUEST_VOTE,

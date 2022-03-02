@@ -216,19 +216,10 @@ static void *syncIOConsumerFunc(void *param) {
           memcpy(&tmpRpcMsg, pRpcMsg, sizeof(SRpcMsg));
           pSyncMsg = syncPingBuild(tmpRpcMsg.contLen);
 
-          // syncPingFromRpcMsg(pRpcMsg, pSyncMsg);
+          syncPingFromRpcMsg(pRpcMsg, pSyncMsg);
 
-          memcpy(pSyncMsg, tmpRpcMsg.pCont, tmpRpcMsg.contLen);
+          // memcpy(pSyncMsg, tmpRpcMsg.pCont, tmpRpcMsg.contLen);
 
-#if 0
-          {
-            cJSON *pJson = syncPing2Json(pSyncMsg);
-            char  *serialized = cJSON_Print(pJson);
-            sTrace("syncIOConsumerFunc syncNodePing pMsg:%s ", serialized);
-            free(serialized);
-            cJSON_Delete(pJson);
-          }
-#endif
           io->FpOnSyncPing(io->pSyncNode, pSyncMsg);
         }
 
