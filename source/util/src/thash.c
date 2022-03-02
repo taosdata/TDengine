@@ -274,7 +274,6 @@ SHashObj *taosHashInit(size_t capacity, _hash_fn_t fn, bool update, SHashLockTyp
   }
 
   taosArrayPush(pHashObj->pMemBlock, &p);
-
   return pHashObj;
 }
 
@@ -302,7 +301,7 @@ static FORCE_INLINE bool taosHashTableEmpty(const SHashObj *pHashObj) {
 }
 
 int32_t taosHashPut(SHashObj *pHashObj, const void *key, size_t keyLen, void *data, size_t size) {
-  if (pHashObj == NULL || key == NULL || keyLen == 0 || data == NULL || size == 0) {
+  if (pHashObj == NULL || key == NULL || keyLen == 0) {
     return -1;
   }
 
