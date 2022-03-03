@@ -37,7 +37,6 @@ typedef struct SFreeCell {
 static int tdbBtCursorMoveTo(SBtCursor *pCur, const void *pKey, int kLen);
 static int tdbEncodeLength(u8 *pBuf, uint32_t len);
 static int tdbBtCursorMoveToRoot(SBtCursor *pCur);
-static int tdbInitBtPage(SPage *pPage, SBtPage **ppBtPage);
 static int tdbCompareKeyAndCell(const void *pKey, int kLen, const void *pCell);
 static int tdbDefaultKeyCmprFn(const void *pKey1, int keyLen1, const void *pKey2, int keyLen2);
 static int tdbBtreeOpenImpl(SBTree *pBt);
@@ -224,34 +223,23 @@ static int tdbBtCursorMoveToRoot(SBtCursor *pCur) {
   pBt = pCur->pBt;
   pPager = pBt->pPager;
 
-  pPage = tdbPagerGet(pPager, pBt->root, true);
-  if (pPage == NULL) {
-    // TODO: handle error
-  }
+  // pPage = tdbPagerGet(pPager, pBt->root, true);
+  // if (pPage == NULL) {
+  //   // TODO: handle error
+  // }
 
-  ret = tdbInitBtPage(pPage, &pBtPage);
-  if (ret < 0) {
-    // TODO
-    return 0;
-  }
+  // ret = tdbInitBtPage(pPage, &pBtPage);
+  // if (ret < 0) {
+  //   // TODO
+  //   return 0;
+  // }
 
-  pCur->pPage = pBtPage;
-  pCur->iPage = 0;
+  // pCur->pPage = pBtPage;
+  // pCur->iPage = 0;
 
   return 0;
 }
 
-static int tdbInitBtPage(SPage *pPage, SBtPage **ppBtPage) {
-  SBtPage *pBtPage;
-
-  // pBtPage = (SBtPage *)pPage->pExtra;
-  // pBtPage->pHdr = (SPgHdr *)pPage->pData;
-  // pBtPage->aCellIdx = (u16 *)(&((pBtPage->pHdr)[1]));
-  // pBtPage->aData = (u8 *)pPage->pData;
-
-  *ppBtPage = pBtPage;
-  return 0;
-}
 static int tdbCompareKeyAndCell(const void *pKey, int kLen, const void *pCell) {
   /* TODO */
   return 0;
@@ -302,6 +290,51 @@ static int tdbBtreeOpenImpl(SBTree *pBt) {
 
   ASSERT(pgno != 0);
   pBt->root = pgno;
+
+  return 0;
+}
+
+static int tdbBtreeZeroPage(SPage *pPage, void *arg) {
+  pPage->pPageHdr = (SPageHdr *)pPage->pData;
+  pPage->aCellIdx = (u16 *)(&(pPage->pPageHdr[1]));
+
+  // Init the page header
+  {
+#if 0
+    pPage->pPageHdr->flags = 0;
+    pPage->pPageHdr->nCells = 0;
+    pPage->pPageHdr->cellCont = 0;
+    pPage->pPageHdr->freeCell = 0;
+    pPage->pPageHdr->nFree = 0;
+#endif
+  }
+
+  // Init other fields
+  {
+#if 0
+  pPage->kLen = pBt->keyLen;
+  pPage->vLen = pBt->valLen;
+  pPage->maxLocal = pBt->maxLocal;
+  pPage->minLocal = pBt->minLocal;
+#endif
+  }
+
+  return 0;
+}
+
+static int tdbBtreeInitPage(SPage *pPage, void *arg) {
+  pPage->pPageHdr = (SPageHdr *)pPage->pData;
+  pPage->aCellIdx = (u16 *)(&(pPage->pPageHdr[1]));
+
+  // Init other fields
+  {
+#if 0
+  pPage->kLen = pBt->keyLen;
+  pPage->vLen = pBt->valLen;
+  pPage->maxLocal = pBt->maxLocal;
+  pPage->minLocal = pBt->minLocal;
+#endif
+  }
 
   return 0;
 }
