@@ -34,7 +34,7 @@ struct SBtCursor {
   void *   pBuf;
 };
 
-int tdbBtreeOpen(SPgno rtPgno, int keyLen, int valLen, SPager *pFile, FKeyComparator kcmpr, SBTree **ppBt);
+int tdbBtreeOpen(int keyLen, int valLen, SPager *pFile, FKeyComparator kcmpr, SBTree **ppBt);
 int tdbBtreeClose(SBTree *pBt);
 int tdbBtreeCursor(SBtCursor *pCur, SBTree *pBt);
 int tdbBtCursorInsert(SBtCursor *pCur, const void *pKey, int kLen, const void *pVal, int vLen);

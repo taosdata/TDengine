@@ -40,9 +40,11 @@ static int tdbBtCursorMoveToRoot(SBtCursor *pCur);
 static int tdbInitBtPage(SPage *pPage, SBtPage **ppBtPage);
 static int tdbCompareKeyAndCell(const void *pKey, int kLen, const void *pCell);
 static int tdbDefaultKeyCmprFn(const void *pKey1, int keyLen1, const void *pKey2, int keyLen2);
+static int tdbBtreeOpenImpl(SBTree *pBt);
 
-int tdbBtreeOpen(SPgno rtPgno, int keyLen, int valLen, SPager *pPager, FKeyComparator kcmpr, SBTree **ppBt) {
+int tdbBtreeOpen(int keyLen, int valLen, SPager *pPager, FKeyComparator kcmpr, SBTree **ppBt) {
   SBTree *pBt;
+  int     ret;
 
   *ppBt = NULL;
 
@@ -51,8 +53,6 @@ int tdbBtreeOpen(SPgno rtPgno, int keyLen, int valLen, SPager *pPager, FKeyCompa
     return -1;
   }
 
-  // pBt->root
-  pBt->root = rtPgno;
   // pBt->keyLen
   pBt->keyLen = keyLen;
   // pBt->valLen
@@ -78,6 +78,13 @@ int tdbBtreeOpen(SPgno rtPgno, int keyLen, int valLen, SPager *pPager, FKeyCompa
   pBt->maxLeaf = pBt->pageSize - sizeof(SPageHdr);
   // pBt->minLeaf
   pBt->minLeaf = pBt->minLocal;
+
+  // TODO: pBt->root
+  ret = tdbBtreeOpenImpl(pBt);
+  if (ret < 0) {
+    free(pBt);
+    return -1;
+  }
 
   *ppBt = pBt;
   return 0;
@@ -268,4 +275,33 @@ static int tdbDefaultKeyCmprFn(const void *pKey1, int keyLen1, const void *pKey2
     }
   }
   return cret;
+}
+
+static int tdbBtreeOpenImpl(SBTree *pBt) {
+  // Try to get the root page of the an existing btree
+
+  SPgno  pgno;
+  SPage *pPage;
+  int    ret;
+
+  {
+    // TODO: Search the main DB to check if the DB exists
+    pgno = 0;
+  }
+
+  if (pgno != 0) {
+    pBt->root = pgno;
+    return 0;
+  }
+
+  // Try to create a new database
+  ret = tdbPagerNewPage(pBt->pPager, &pgno, &pPage);
+  if (ret < 0) {
+    return -1;
+  }
+
+  ASSERT(pgno != 0);
+  pBt->root = pgno;
+
+  return 0;
 }

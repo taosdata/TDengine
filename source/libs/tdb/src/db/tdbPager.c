@@ -187,24 +187,6 @@ int tdbPagerWrite(SPager *pPager, SPage *pPage) {
   return 0;
 }
 
-// int tdbPagerAllocPage(SPager *pPager, SPage **ppPage, SPgno *ppgno) {
-//   SPage *pPage;
-//   SPgno  pgno;
-
-//   if (1 /*TODO: no free page*/) {
-//     pgno = ++pPager->dbFileSize;
-//     pPage = tdbPagerGet(pPager, pgno, false);
-//     ASSERT(pPage != NULL);
-//   } else {
-//     /* TODO: allocate from the free list */
-//     ASSERT(0);
-//   }
-
-//   *ppPage = pPage;
-//   *ppgno = pgno;
-//   return 0;
-// }
-
 int tdbPagerBegin(SPager *pPager) {
   if (pPager->inTran) {
     return 0;

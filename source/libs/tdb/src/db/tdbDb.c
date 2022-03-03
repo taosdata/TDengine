@@ -50,7 +50,7 @@ int tdbDbOpen(const char *fname, int keyLen, int valLen, FKeyComparator keyCmprF
   ASSERT(pPager != NULL);
 
   // pDb->pBt
-  ret = tdbBtreeOpen(pgno, keyLen, valLen, pPager, keyCmprFn, &(pDb->pBt));
+  ret = tdbBtreeOpen(keyLen, valLen, pPager, keyCmprFn, &(pDb->pBt));
   if (ret < 0) {
     return -1;
   }
