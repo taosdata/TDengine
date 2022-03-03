@@ -6755,6 +6755,7 @@ int32_t setAlterTableInfo(SSqlObj* pSql, struct SSqlInfo* pInfo) {
   const char* msg24 = "invalid binary/nchar column length";
 
   const char* msg25 = "json type error, should be string";
+  const char* msg26 = "illegal value or data overflow";
 
   int32_t code = TSDB_CODE_SUCCESS;
 
@@ -6919,7 +6920,19 @@ int32_t setAlterTableInfo(SSqlObj* pSql, struct SSqlInfo* pInfo) {
 
     if (IS_VAR_DATA_TYPE(pTagsSchema->type) && (pItem->pVar.nLen > pTagsSchema->bytes)) {
       return invalidOperationMsg(pMsg, msg14);
+    } else if (pTagsSchema->type == TSDB_DATA_TYPE_TIMESTAMP) {
+      STableComInfo tinfo = tscGetTableInfo(pTableMeta);
+
+      if (pItem->pVar.nType == TSDB_DATA_TYPE_BINARY) {
+	code = convertTimestampStrToInt64(&(pItem->pVar), tinfo.precision);
+	if (code != TSDB_CODE_SUCCESS) {
+	  return invalidOperationMsg(tscGetErrorMsgPayload(pCmd), msg26);
+	}
+      } else if (pItem->pVar.nType == TSDB_DATA_TYPE_TIMESTAMP) {
+	pItem->pVar.i64 = convertTimePrecision(pItem->pVar.i64, TSDB_TIME_PRECISION_NANO, tinfo.precision);
+      }
     }
+
     SKVRowBuilder kvRowBuilder = {0};
     if (pTagsSchema->type == TSDB_DATA_TYPE_JSON) {
       if (pItem->pVar.nType != TSDB_DATA_TYPE_BINARY && pItem->pVar.nType != TSDB_DATA_TYPE_NULL) {
