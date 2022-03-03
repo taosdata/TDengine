@@ -1,0 +1,18 @@
+[package]
+name = "taos-sys"
+version = "0.1.0"
+edition = "2021"
+
+build = "build.rs"
+
+# See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
+
+[dependencies]
+
+[build-dependencies]
+dotenv = "0.15.0"
+libloading = "0.7.3"
+
+[features]
+default = ["backport"]
+backport = []
