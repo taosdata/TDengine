@@ -21,16 +21,12 @@ extern "C" {
 #endif
 
 typedef struct __attribute__((__packed__)) {
-  u8  flags;
+  u16 flags;
   u16 nCells;
   u16 cellCont;
   u16 freeCell;
   u16 nFree;
 } SPageHdr;
-
-typedef struct __attribute__((__packed__)) {
-  SPgno nPgno;
-} SOfPageHdr;
 
 typedef struct {
   void *    pData;
@@ -41,7 +37,7 @@ typedef struct {
   int       vLen;
   int       maxLocal;
   int       minLocal;
-} SPageHandle;
+} SMemPage;
 
 #ifdef __cplusplus
 }

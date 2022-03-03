@@ -268,3 +268,5 @@ static int tdbPCacheOpenImpl(SPCache *pCache) {
 
   return 0;
 }
+
+int tdbPCacheGetPageSize(SPCache *pCache) { return pCache->pageSize; }

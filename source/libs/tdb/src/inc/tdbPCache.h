@@ -45,6 +45,7 @@ int    tdbPCacheClose(SPCache *pCache);
 SPage *tdbPCacheFetch(SPCache *pCache, const SPgid *pPgid, bool alcNewPage);
 void   tdbPCacheFetchFinish(SPCache *pCache, SPage *pPage);
 void   tdbPCacheRelease(SPage *pPage);
+int    tdbPCacheGetPageSize(SPCache *pCache);
 
 #ifdef __cplusplus
 }

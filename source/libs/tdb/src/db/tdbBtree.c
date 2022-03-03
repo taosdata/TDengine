@@ -22,11 +22,11 @@ struct SBTree {
   SPager *       pPager;
   FKeyComparator kcmpr;
   u8             fanout;
+  int            pageSize;
   int            maxLocal;
   int            minLocal;
   int            maxLeaf;
   int            minLeaf;
-  int            nPayload;
 };
 
 typedef struct SPgHdr {
@@ -85,6 +85,16 @@ int tdbBtreeOpen(SPgno rtPgno, int keyLen, int valLen, SPager *pPager, FKeyCompa
     ASSERT(0);
     // TODO: pBt->fanout = 0;
   }
+  // pBt->pageSize
+  pBt->pageSize = tdbPagerGetPageSize(pPager);
+  // pBt->maxLocal
+  pBt->maxLocal = (pBt->pageSize - sizeof(SPageHdr)) / pBt->fanout;
+  // pBt->minLocal
+  pBt->minLocal = (pBt->pageSize - sizeof(SPageHdr)) / pBt->fanout / 2;
+  // pBt->maxLeaf
+  pBt->maxLeaf = pBt->pageSize - sizeof(SPageHdr);
+  // pBt->minLeaf
+  pBt->minLeaf = pBt->minLocal;
 
   *ppBt = pBt;
   return 0;
@@ -277,11 +287,11 @@ static int tdbDefaultKeyCmprFn(const void *pKey1, int keyLen1, const void *pKey2
   return cret;
 }
 
-static void tdbBtreeZeroPage(SPageHandle *pPage, int flags) {
+static void tdbBtreeZeroPage(SMemPage *pPage, int flags) {
   // TODO
 }
 
-static int tdbBtreeInitPage(SPageHandle *pPage) {
+static int tdbBtreeInitPage(SMemPage *pPage) {
   // TODO
   return 0;
 }

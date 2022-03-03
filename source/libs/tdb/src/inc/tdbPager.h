@@ -28,6 +28,7 @@ int    tdbPagerWrite(SPager *pFile, SPage *pPage);
 int    tdbPagerAllocPage(SPager *pFile, SPage **ppPage, SPgno *ppgno);
 int    tdbPagerBegin(SPager *pFile);
 int    tdbPagerCommit(SPager *pFile);
+int    tdbPagerGetPageSize(SPager *pPager);
 
 #ifdef __cplusplus
 }
