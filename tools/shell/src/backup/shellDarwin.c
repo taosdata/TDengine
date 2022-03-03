@@ -19,7 +19,7 @@
 
 #include "shell.h"
 #include "shellCommand.h"
-#include "tkey.h"
+#include "tbase64.h"
 
 #include "tscLog.h"
 

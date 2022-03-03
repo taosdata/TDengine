@@ -19,6 +19,7 @@
 extern "C" {
 #endif
 
+#include "indexInt.h"
 #include "index_fst_util.h"
 
 typedef struct AutomationCtx AutomationCtx;

@@ -18,8 +18,6 @@
 
 #include "tsdbFile.h"
 
-#define TSDB_FS_VERSION 0
-
 // ================== TSDB global config
 extern bool tsdbForceKeepFile;
 

@@ -8,7 +8,7 @@
 #include "tlog.h"
 #include "tglobal.h"
 #include "taoserror.h"
-#include "ulog.h"
+#include "tlog.h"
 
 typedef struct {
   int     refNum;

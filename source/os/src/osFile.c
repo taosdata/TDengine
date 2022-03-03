@@ -15,8 +15,6 @@
 #define ALLOW_FORBID_FUNC
 #include "os.h"
 
-#define MAX_FPRINTFLINE_BUFFER_SIZE (1000)
-
 #if defined(_TD_WINDOWS_64) || defined(_TD_WINDOWS_32)
 #include <io.h>
 
@@ -46,10 +44,15 @@ extern int openU(const char *, int, ...); /* MsvcLibX UTF-8 version of open */
 
 typedef int32_t FileFd;
 
+#define FILE_WITH_LOCK 1
+
 typedef struct TdFile {
-  int    refId;
-  FileFd fd;
-  FILE  *fp;
+#if FILE_WITH_LOCK
+  pthread_rwlock_t rwlock;
+#endif
+  int      refId;
+  FileFd   fd;
+  FILE    *fp;
 } * TdFilePtr, TdFile;
 
 void taosGetTmpfilePath(const char *inputTmpDir, const char *fileNamePrefix, char *dstPath) {
@@ -190,41 +193,57 @@ TdFilePtr taosOpenFile(const char *path, int32_t tdFileOptions) {
 #if defined(_TD_WINDOWS_64) || defined(_TD_WINDOWS_32)
   return NULL;
 #else
-  int access = O_BINARY;
-  char *mode = NULL;
-  access |= (tdFileOptions & TD_FILE_CTEATE) ? O_CREAT : 0;
-  if ((tdFileOptions & TD_FILE_WRITE) && (tdFileOptions & TD_FILE_READ)) {
-    access |= O_RDWR;
-    mode = (tdFileOptions & TD_FILE_TEXT) ? "rt+" : "rb+";
-  } else if (tdFileOptions & TD_FILE_WRITE) {
-    access |= O_WRONLY;
-    mode = (tdFileOptions & TD_FILE_TEXT) ? "wt" : "wb";
-  } else if (tdFileOptions & TD_FILE_READ) {
-    access |= O_RDONLY;
-    mode = (tdFileOptions & TD_FILE_TEXT) ? "rt" : "rb";
+  int fd = -1;
+  FILE *fp = NULL;
+  if (tdFileOptions & TD_FILE_STREAM) {
+    char *mode = NULL;
+    if (tdFileOptions & TD_FILE_APPEND) {
+      mode = (tdFileOptions & TD_FILE_TEXT) ? "at+" : "ab+";
+    } else if (tdFileOptions & TD_FILE_TRUNC) {
+      mode = (tdFileOptions & TD_FILE_TEXT) ? "wt+" : "wb+";
+    } else if ((tdFileOptions & TD_FILE_READ) && !(tdFileOptions & TD_FILE_WRITE)) {
+      mode = (tdFileOptions & TD_FILE_TEXT) ? "rt" : "rb";
+    } else {
+      mode = (tdFileOptions & TD_FILE_TEXT) ? "rt+" : "rb+";
+    }
+    assert(!(tdFileOptions & TD_FILE_EXCL));
+    fp = fopen(path, mode);
+    if (fp == NULL) {
+      return NULL;
+    }
+  } else {
+    int access = O_BINARY;
+    access |= (tdFileOptions & TD_FILE_CTEATE) ? O_CREAT : 0;
+    if ((tdFileOptions & TD_FILE_WRITE) && (tdFileOptions & TD_FILE_READ)) {
+      access |= O_RDWR;
+    } else if (tdFileOptions & TD_FILE_WRITE) {
+      access |= O_WRONLY;
+    } else if (tdFileOptions & TD_FILE_READ) {
+      access |= O_RDONLY;
+    }
+    access |= (tdFileOptions & TD_FILE_TRUNC) ? O_TRUNC : 0;
+    access |= (tdFileOptions & TD_FILE_APPEND) ? O_APPEND : 0;
+    access |= (tdFileOptions & TD_FILE_TEXT) ? O_TEXT : 0;
+    access |= (tdFileOptions & TD_FILE_EXCL) ? O_EXCL : 0;
+    fd = open(path, access, S_IRWXU | S_IRWXG | S_IRWXO);
+    if (fd == -1) {
+      return NULL;
+    }
   }
-  access |= (tdFileOptions & TD_FILE_TRUNC) ? O_TRUNC : 0;
-  access |= (tdFileOptions & TD_FILE_APPEND) ? O_APPEND : 0;
-  access |= (tdFileOptions & TD_FILE_TEXT) ? O_TEXT : 0;
-  access |= (tdFileOptions & TD_FILE_EXCL) ? O_EXCL : 0;
+
   if (tdFileOptions & TD_FILE_AUTO_DEL) {
     autoDelFileListAdd(path);
   }
-  int fd = open(path, access, S_IRWXU | S_IRWXG | S_IRWXO);
-  if (fd == -1) {
-    return NULL;
-  }
-  FILE *fp = fdopen(fd, mode);
-  if (fp == NULL) {
-    close(fd);
-    return NULL;
-  }
+
   TdFilePtr pFile = (TdFilePtr)malloc(sizeof(TdFile));
   if (pFile == NULL) {
-    close(fd);
-    fclose(fp);
+    if (fd >= 0) close(fd);
+    if (fp != NULL) fclose(fp);
     return NULL;
   }
+#if FILE_WITH_LOCK
+  pthread_rwlock_init(&(pFile->rwlock),NULL);
+#endif
   pFile->fd = fd;
   pFile->fp = fp;
   pFile->refId = 0;
@@ -236,14 +255,30 @@ int64_t taosCloseFile(TdFilePtr *ppFile) {
 #if defined(_TD_WINDOWS_64) || defined(_TD_WINDOWS_32)
   return 0;
 #else
+  if (ppFile == NULL || *ppFile == NULL) {
+    return 0;
+  }
+#if FILE_WITH_LOCK
+  pthread_rwlock_wrlock(&((*ppFile)->rwlock));
+#endif
   if (ppFile == NULL || *ppFile == NULL || (*ppFile)->fd == -1) {
     return 0;
   }
-  fflush((*ppFile)->fp);
-  close((*ppFile)->fd);
-  (*ppFile)->fd = -1;
-  (*ppFile)->fp = NULL;
+  if ((*ppFile)->fp != NULL) {
+    fflush((*ppFile)->fp);
+    fclose((*ppFile)->fp);
+    (*ppFile)->fp = NULL;
+  }
+  if ((*ppFile)->fd >= 0) {
+    fsync((*ppFile)->fd);
+    close((*ppFile)->fd);
+    (*ppFile)->fd = -1;
+  }
   (*ppFile)->refId = 0;
+#if FILE_WITH_LOCK
+  pthread_rwlock_unlock(&((*ppFile)->rwlock));
+  pthread_rwlock_destroy(&((*ppFile)->rwlock));
+#endif
   free(*ppFile);
   *ppFile = NULL;
   return 0;
@@ -254,6 +289,10 @@ int64_t taosReadFile(TdFilePtr pFile, void *buf, int64_t count) {
   if (pFile == NULL) {
     return 0;
   }
+#if FILE_WITH_LOCK
+  pthread_rwlock_rdlock(&(pFile->rwlock));
+#endif
+  assert(pFile->fd >= 0);
   int64_t leftbytes = count;
   int64_t readbytes;
   char   *tbuf = (char *)buf;
@@ -264,9 +303,15 @@ int64_t taosReadFile(TdFilePtr pFile, void *buf, int64_t count) {
       if (errno == EINTR) {
         continue;
       } else {
+#if FILE_WITH_LOCK
+        pthread_rwlock_unlock(&(pFile->rwlock));
+#endif
         return -1;
       }
     } else if (readbytes == 0) {
+#if FILE_WITH_LOCK
+      pthread_rwlock_unlock(&(pFile->rwlock));
+#endif
       return (int64_t)(count - leftbytes);
     }
 
@@ -274,6 +319,9 @@ int64_t taosReadFile(TdFilePtr pFile, void *buf, int64_t count) {
     tbuf += readbytes;
   }
 
+#if FILE_WITH_LOCK
+  pthread_rwlock_unlock(&(pFile->rwlock));
+#endif
   return count;
 }
 
@@ -281,10 +329,26 @@ int64_t taosPReadFile(TdFilePtr pFile, void *buf, int64_t count, int64_t offset)
   if (pFile == NULL) {
     return 0;
   }
-  return pread(pFile->fd, buf, count, offset);
+#if FILE_WITH_LOCK
+  pthread_rwlock_rdlock(&(pFile->rwlock));
+#endif
+  assert(pFile->fd >= 0);
+  int64_t ret = pread(pFile->fd, buf, count, offset);
+#if FILE_WITH_LOCK
+  pthread_rwlock_unlock(&(pFile->rwlock));
+#endif
+  return ret;
 }
 
 int64_t taosWriteFile(TdFilePtr pFile, const void *buf, int64_t count) {
+  if (pFile == NULL) {
+    return 0;
+  }
+#if FILE_WITH_LOCK
+  pthread_rwlock_wrlock(&(pFile->rwlock));
+#endif
+  assert(pFile->fd >= 0);
+
   int64_t nleft = count;
   int64_t nwritten = 0;
   char   *tbuf = (char *)buf;
@@ -295,24 +359,45 @@ int64_t taosWriteFile(TdFilePtr pFile, const void *buf, int64_t count) {
       if (errno == EINTR) {
         continue;
       }
+#if FILE_WITH_LOCK
+      pthread_rwlock_unlock(&(pFile->rwlock));
+#endif
       return -1;
     }
     nleft -= nwritten;
     tbuf += nwritten;
   }
 
+#if FILE_WITH_LOCK
+  pthread_rwlock_unlock(&(pFile->rwlock));
+#endif
   return count;
 }
 
 int64_t taosLSeekFile(TdFilePtr pFile, int64_t offset, int32_t whence) {
-  if (pFile == NULL) return -1;
-  return (int64_t)lseek(pFile->fd, (long)offset, whence);
+  if (pFile == NULL) {
+    return 0;
+  }
+#if FILE_WITH_LOCK
+  pthread_rwlock_rdlock(&(pFile->rwlock));
+#endif
+  assert(pFile->fd >= 0);
+  int64_t ret = lseek(pFile->fd, (long)offset, whence);
+#if FILE_WITH_LOCK
+  pthread_rwlock_unlock(&(pFile->rwlock));
+#endif
+  return ret;
 }
 
 int32_t taosFStatFile(TdFilePtr pFile, int64_t *size, int32_t *mtime) {
 #if defined(_TD_WINDOWS_64) || defined(_TD_WINDOWS_32)
   return 0;
 #else
+  if (pFile == NULL) {
+    return 0;
+  }
+  assert(pFile->fd >= 0);
+
   struct stat fileStat;
   int32_t code = fstat(pFile->fd, &fileStat);
   if (code < 0) {
@@ -335,6 +420,11 @@ int32_t taosLockFile(TdFilePtr pFile) {
 #if defined(_TD_WINDOWS_64) || defined(_TD_WINDOWS_32)
   return 0;
 #else
+  if (pFile == NULL) {
+    return 0;
+  }
+  assert(pFile->fd >= 0);
+
   return (int32_t)flock(pFile->fd, LOCK_EX | LOCK_NB);
 #endif
 }
@@ -343,6 +433,11 @@ int32_t taosUnLockFile(TdFilePtr pFile) {
 #if defined(_TD_WINDOWS_64) || defined(_TD_WINDOWS_32)
   return 0;
 #else
+  if (pFile == NULL) {
+    return 0;
+  }
+  assert(pFile->fd >= 0);
+
   return (int32_t)flock(pFile->fd, LOCK_UN | LOCK_NB);
 #endif
 }
@@ -398,6 +493,11 @@ int32_t taosFtruncateFile(TdFilePtr pFile, int64_t l_size) {
 
   return 0;
 #else
+  if (pFile == NULL) {
+    return 0;
+  }
+  assert(pFile->fd >= 0);
+
   return ftruncate(pFile->fd, l_size);
 #endif
 }
@@ -414,7 +514,14 @@ int32_t taosFsyncFile(TdFilePtr pFile) {
 
   return FlushFileBuffers(h);
 #else
-  return fflush(pFile->fp);
+  if (pFile == NULL) {
+    return 0;
+  }
+
+  if (pFile->fp != NULL) return fflush(pFile->fp);
+  if (pFile->fp >= 0) return fsync(pFile->fd);
+
+  return 0;
 #endif
 }
 
@@ -538,6 +645,11 @@ int64_t taosSendFile(SocketFd dfd, FileFd sfd, int64_t *offset, int64_t count) {
 #else
 
 int64_t taosSendFile(SocketFd fdDst, TdFilePtr pFileSrc, int64_t *offset, int64_t size) {
+  if (pFileSrc == NULL) {
+    return 0;
+  }
+  assert(pFileSrc->fd >= 0);
+
   int64_t leftbytes = size;
   int64_t sentbytes;
 
@@ -560,13 +672,22 @@ int64_t taosSendFile(SocketFd fdDst, TdFilePtr pFileSrc, int64_t *offset, int64_
 }
 
 int64_t taosFSendFile(TdFilePtr pFileOut, TdFilePtr pFileIn, int64_t *offset, int64_t size) {
+  if (pFileOut == NULL || pFileIn == NULL) {
+    return 0;
+  }
+  assert(pFileOut->fd >= 0);
+
   return taosSendFile(pFileOut->fd, pFileIn, offset, size);
 }
 
 #endif
 
 void taosFprintfFile(TdFilePtr pFile, const char *format, ...) {
-  char           buffer[MAX_FPRINTFLINE_BUFFER_SIZE] = {0};
+  if (pFile == NULL) {
+    return;
+  }
+  assert(pFile->fp != NULL);
+
   va_list ap;
   va_start(ap, format);
   vfprintf(pFile->fp, format, ap);
@@ -575,7 +696,10 @@ void taosFprintfFile(TdFilePtr pFile, const char *format, ...) {
 }
 
 void *taosMmapReadOnlyFile(TdFilePtr pFile, int64_t length) {
-  if (pFile == NULL) return NULL;
+  if (pFile == NULL) {
+    return NULL;
+  }
+  assert(pFile->fd >= 0);
 
   void *ptr = mmap(NULL, length, PROT_READ, MAP_SHARED, pFile->fd, 0);
   return ptr;
@@ -593,7 +717,19 @@ int32_t taosUmaskFile(int32_t maskVal) {
 
 int32_t taosGetErrorFile(TdFilePtr pFile) { return errno; }
 int64_t taosGetLineFile(TdFilePtr pFile, char **__restrict__ ptrBuf) {
+  if (pFile == NULL) {
+    return -1;
+  }
+  assert(pFile->fp != NULL);
+
   size_t len = 0;
   return getline(ptrBuf, &len, pFile->fp);
 }
-int32_t taosEOFFile(TdFilePtr pFile) { return feof(pFile->fp); }
+int32_t taosEOFFile(TdFilePtr pFile) {
+  if (pFile == NULL) {
+    return 0;
+  }
+  assert(pFile->fp != NULL);
+
+  return feof(pFile->fp);
+}

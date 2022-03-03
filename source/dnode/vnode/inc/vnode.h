@@ -57,13 +57,12 @@ typedef struct {
   SMetaCfg metaCfg;
   STqCfg   tqCfg;
   SWalCfg  walCfg;
+  uint32_t hashBegin;
+  uint32_t hashEnd;
+  int8_t   hashMethod;  
 } SVnodeCfg;
 
 typedef struct {
-  int32_t           sver;
-  const char       *timezone;
-  const char       *locale;
-  const char       *charset;
   uint16_t          nthreads;  // number of commit threads. 0 for no threads and a schedule queue should be given (TODO)
   PutReqToVQueryQFp putReqToVQueryQFp;
   SendReqToDnodeFp  sendReqToDnodeFp;
@@ -216,13 +215,15 @@ static FORCE_INLINE void tqReadHandleSetColIdList(STqReadHandle *pReadHandle, SA
 static FORCE_INLINE int tqReadHandleSetTbUidList(STqReadHandle *pHandle, const SArray *tbUidList) {
   pHandle->tbIdHash = taosHashInit(64, taosGetDefaultHashFunction(TSDB_DATA_TYPE_BIGINT), true, HASH_NO_LOCK);
   if (pHandle->tbIdHash == NULL) {
+    terrno = TSDB_CODE_OUT_OF_MEMORY;
     return -1;
   }
+
   for (int i = 0; i < taosArrayGetSize(tbUidList); i++) {
     int64_t *pKey = (int64_t *)taosArrayGet(tbUidList, i);
     taosHashPut(pHandle->tbIdHash, pKey, sizeof(int64_t), NULL, 0);
-    // pHandle->tbUid = tbUid;
   }
+
   return 0;
 }
 

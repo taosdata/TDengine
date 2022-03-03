@@ -127,7 +127,7 @@ static void clientHandleResp(SCliConn* conn) {
   // buf's mem alread translated to rpcMsg.pCont
   transClearBuffer(&conn->readBuf);
 
-  SRpcMsg rpcMsg;
+  SRpcMsg rpcMsg = {0};
   rpcMsg.contLen = transContLenFromMsg(pHead->msgLen);
   rpcMsg.pCont = transContFromHead((char*)pHead);
   rpcMsg.code = pHead->code;

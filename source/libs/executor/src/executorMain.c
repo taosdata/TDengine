@@ -15,7 +15,7 @@
 
 #include <tsdb.h>
 #include "dataSinkMgt.h"
-#include "exception.h"
+#include "texception.h"
 #include "os.h"
 #include "tarray.h"
 #include "tcache.h"

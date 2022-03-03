@@ -15,31 +15,29 @@
 
 #define _DEFAULT_SOURCE
 #include "tlog.h"
-#include "os.h"
 #include "tutil.h"
-#include "ulog.h"
 
-#define MAX_LOGLINE_SIZE (1000)
-#define MAX_LOGLINE_BUFFER_SIZE (MAX_LOGLINE_SIZE + 10)
-#define MAX_LOGLINE_CONTENT_SIZE (MAX_LOGLINE_SIZE - 100)
-#define MAX_LOGLINE_DUMP_SIZE (65 * 1024)
-#define MAX_LOGLINE_DUMP_BUFFER_SIZE (MAX_LOGLINE_DUMP_SIZE + 10)
-#define MAX_LOGLINE_DUMP_CONTENT_SIZE (MAX_LOGLINE_DUMP_SIZE - 100)
+#define LOG_MAX_LINE_SIZE              (1000)
+#define LOG_MAX_LINE_BUFFER_SIZE       (LOG_MAX_LINE_SIZE + 10)
+#define LOG_MAX_LINE_CONTENT_SIZE      (LOG_MAX_LINE_SIZE - 100)
+#define LOG_MAX_LINE_DUMP_SIZE         (65 * 1024)
+#define LOG_MAX_LINE_DUMP_BUFFER_SIZE  (LOG_MAX_LINE_DUMP_SIZE + 10)
+#define LOG_MAX_LINE_DUMP_CONTENT_SIZE (LOG_MAX_LINE_DUMP_SIZE - 100)
 
-#define LOG_FILE_NAME_LEN 300
-#define TSDB_DEFAULT_LOG_BUF_SIZE (20 * 1024 * 1024)  // 20MB
+#define LOG_FILE_NAME_LEN    300
+#define LOG_DEFAULT_BUF_SIZE (20 * 1024 * 1024)  // 20MB
 
-#define DEFAULT_LOG_INTERVAL 25
-#define LOG_INTERVAL_STEP 5
-#define MIN_LOG_INTERVAL 5
-#define MAX_LOG_INTERVAL 25
-#define LOG_MAX_WAIT_MSEC 1000
+#define LOG_DEFAULT_INTERVAL 25
+#define LOG_INTERVAL_STEP    5
+#define LOG_MIN_INTERVAL     5
+#define LOG_MAX_INTERVAL     25
+#define LOG_MAX_WAIT_MSEC    1000
 
 #define LOG_BUF_BUFFER(x) ((x)->buffer)
-#define LOG_BUF_START(x) ((x)->buffStart)
-#define LOG_BUF_END(x) ((x)->buffEnd)
-#define LOG_BUF_SIZE(x) ((x)->buffSize)
-#define LOG_BUF_MUTEX(x) ((x)->buffMutex)
+#define LOG_BUF_START(x)  ((x)->buffStart)
+#define LOG_BUF_END(x)    ((x)->buffEnd)
+#define LOG_BUF_SIZE(x)   ((x)->buffSize)
+#define LOG_BUF_MUTEX(x)  ((x)->buffMutex)
 
 typedef struct {
   char           *buffer;
@@ -66,16 +64,17 @@ typedef struct {
   pthread_mutex_t logMutex;
 } SLogObj;
 
-int8_t tscEmbeddedInUtil = 0;
+static int8_t  tsLogInited = 0;
+static SLogObj tsLogObj = {.fileNum = 1};
 
+int8_t  tscEmbeddedInUtil = 0;
 int32_t tsLogKeepDays = 0;
 bool    tsAsyncLog = true;
-bool    tsLogInited = false;
-int64_t asyncLogLostLines = 0;
-int32_t writeInterval = DEFAULT_LOG_INTERVAL;
+int32_t tsNumOfLogLines = 10000000;
+int64_t tsAsyncLogLostLines = 0;
+int32_t tsWriteInterval = LOG_DEFAULT_INTERVAL;
 
 // log
-int32_t tsNumOfLogLines = 10000000;
 int32_t dDebugFlag = 135;
 int32_t vDebugFlag = 135;
 int32_t mDebugFlag = 131;
@@ -97,13 +96,11 @@ int64_t dbgSmallWN = 0;
 int64_t dbgBigWN = 0;
 int64_t dbgWSize = 0;
 
-static SLogObj   tsLogObj = {.fileNum = 1};
 static void     *taosAsyncOutputLog(void *param);
 static int32_t   taosPushLogBuffer(SLogBuff *tLogBuff, char *msg, int32_t msgLen);
 static SLogBuff *taosLogBuffNew(int32_t bufSize);
 static void      taosCloseLogByFd(TdFilePtr pFile);
 static int32_t   taosOpenLogFile(char *fn, int32_t maxLines, int32_t maxFileNum);
-extern void      taosPrintCfg();
 static int32_t   taosCompressFile(char *srcFileName, char *destFileName);
 
 static int32_t taosStartLog() {
@@ -116,18 +113,17 @@ static int32_t taosStartLog() {
   return 0;
 }
 
-int32_t taosInitLog(const char *logName, int maxFiles) {
-  if (tsLogInited) return 0;
+int32_t taosInitLog(const char *logName, int32_t maxFiles) {
+  if (atomic_val_compare_exchange_8(&tsLogInited, 0, 1) != 0) return 0;
   osUpdate();
 
   char fullName[PATH_MAX] = {0};
   snprintf(fullName, PATH_MAX, "%s" TD_DIRSEP "%s", tsLogDir, logName);
 
-  tsLogObj.logHandle = taosLogBuffNew(TSDB_DEFAULT_LOG_BUF_SIZE);
+  tsLogObj.logHandle = taosLogBuffNew(LOG_DEFAULT_BUF_SIZE);
   if (tsLogObj.logHandle == NULL) return -1;
   if (taosOpenLogFile(fullName, tsNumOfLogLines, maxFiles) < 0) return -1;
   if (taosStartLog() < 0) return -1;
-  tsLogInited = true;
   return 0;
 }
 
@@ -139,8 +135,6 @@ static void taosStopLog() {
 
 void taosCloseLog() {
   taosStopLog();
-  // tsem_post(&(tsLogObj.logHandle->buffNotEmpty));
-  taosMsleep(MAX_LOG_INTERVAL / 1000);
   if (taosCheckPthreadValid(tsLogObj.logHandle->asyncThread)) {
     pthread_join(tsLogObj.logHandle->asyncThread, NULL);
   }
@@ -220,7 +214,6 @@ static void *taosThreadToOpenNewFile(void *param) {
 
   uInfo("   new log file:%d is opened", tsLogObj.flag);
   uInfo("==================================");
-  // taosPrintCfg();
   taosKeepOldLog(keepName);
 
   return NULL;
@@ -383,7 +376,7 @@ void taosPrintLog(const char *flags, int32_t dflag, const char *format, ...) {
   if (!osLogSpaceAvailable()) return;
 
   va_list        argpointer;
-  char           buffer[MAX_LOGLINE_BUFFER_SIZE] = {0};
+  char           buffer[LOG_MAX_LINE_BUFFER_SIZE] = {0};
   int32_t        len;
   struct tm      Tm, *ptm;
   struct timeval timeSecs;
@@ -398,20 +391,20 @@ void taosPrintLog(const char *flags, int32_t dflag, const char *format, ...) {
   len += sprintf(buffer + len, "%s", flags);
 
   va_start(argpointer, format);
-  int32_t writeLen = vsnprintf(buffer + len, MAX_LOGLINE_CONTENT_SIZE, format, argpointer);
+  int32_t writeLen = vsnprintf(buffer + len, LOG_MAX_LINE_CONTENT_SIZE, format, argpointer);
   if (writeLen <= 0) {
-    char tmp[MAX_LOGLINE_DUMP_BUFFER_SIZE] = {0};
-    writeLen = vsnprintf(tmp, MAX_LOGLINE_DUMP_CONTENT_SIZE, format, argpointer);
-    strncpy(buffer + len, tmp, MAX_LOGLINE_CONTENT_SIZE);
-    len += MAX_LOGLINE_CONTENT_SIZE;
-  } else if (writeLen >= MAX_LOGLINE_CONTENT_SIZE) {
-    len += MAX_LOGLINE_CONTENT_SIZE;
+    char tmp[LOG_MAX_LINE_DUMP_BUFFER_SIZE] = {0};
+    writeLen = vsnprintf(tmp, LOG_MAX_LINE_DUMP_CONTENT_SIZE, format, argpointer);
+    strncpy(buffer + len, tmp, LOG_MAX_LINE_CONTENT_SIZE);
+    len += LOG_MAX_LINE_CONTENT_SIZE;
+  } else if (writeLen >= LOG_MAX_LINE_CONTENT_SIZE) {
+    len += LOG_MAX_LINE_CONTENT_SIZE;
   } else {
     len += writeLen;
   }
   va_end(argpointer);
 
-  if (len > MAX_LOGLINE_SIZE) len = MAX_LOGLINE_SIZE;
+  if (len > LOG_MAX_LINE_SIZE) len = LOG_MAX_LINE_SIZE;
 
   buffer[len++] = '\n';
   buffer[len] = 0;
@@ -460,7 +453,7 @@ void taosPrintLongString(const char *flags, int32_t dflag, const char *format, .
   if (!osLogSpaceAvailable()) return;
 
   va_list        argpointer;
-  char           buffer[MAX_LOGLINE_DUMP_BUFFER_SIZE];
+  char           buffer[LOG_MAX_LINE_DUMP_BUFFER_SIZE];
   int32_t        len;
   struct tm      Tm, *ptm;
   struct timeval timeSecs;
@@ -475,10 +468,10 @@ void taosPrintLongString(const char *flags, int32_t dflag, const char *format, .
   len += sprintf(buffer + len, "%s", flags);
 
   va_start(argpointer, format);
-  len += vsnprintf(buffer + len, MAX_LOGLINE_DUMP_CONTENT_SIZE, format, argpointer);
+  len += vsnprintf(buffer + len, LOG_MAX_LINE_DUMP_CONTENT_SIZE, format, argpointer);
   va_end(argpointer);
 
-  if (len > MAX_LOGLINE_DUMP_SIZE) len = MAX_LOGLINE_DUMP_SIZE;
+  if (len > LOG_MAX_LINE_DUMP_SIZE) len = LOG_MAX_LINE_DUMP_SIZE;
 
   buffer[len++] = '\n';
   buffer[len] = 0;
@@ -499,12 +492,6 @@ void taosPrintLongString(const char *flags, int32_t dflag, const char *format, .
 
   if (dflag & DEBUG_SCREEN) write(1, buffer, (uint32_t)len);
 }
-
-#if 0
-void taosCloseLog() { 
-  taosCloseLogByFd(tsLogObj.logHandle->pFile); 
-}
-#endif
 
 static void taosCloseLogByFd(TdFilePtr pFile) {
   if (pFile != NULL) {
@@ -537,15 +524,6 @@ _err:
   tfree(tLogBuff);
   return NULL;
 }
-
-#if 0
-static void taosLogBuffDestroy(SLogBuff *tLogBuff) {
-  tsem_destroy(&(tLogBuff->buffNotEmpty));
-  pthread_mutex_destroy(&(tLogBuff->buffMutex));
-  free(tLogBuff->buffer);
-  tfree(tLogBuff);
-}
-#endif
 
 static void taosCopyLogBuffer(SLogBuff *tLogBuff, int32_t start, int32_t end, char *msg, int32_t msgLen) {
   if (start > end) {
@@ -584,7 +562,7 @@ static int32_t taosPushLogBuffer(SLogBuff *tLogBuff, char *msg, int32_t msgLen) 
 
   if (remainSize <= msgLen || ((lostLine > 0) && (remainSize <= (msgLen + tmpBufLen)))) {
     lostLine++;
-    asyncLogLostLines++;
+    tsAsyncLogLostLines++;
     pthread_mutex_unlock(&LOG_BUF_MUTEX(tLogBuff));
     return -1;
   }
@@ -629,13 +607,13 @@ static void taosWriteLog(SLogBuff *tLogBuff) {
 
       if (start == end) {
         dbgEmptyW++;
-        writeInterval = MAX_LOG_INTERVAL;
+        tsWriteInterval = LOG_MAX_INTERVAL;
         return;
       }
 
       pollSize = taosGetLogRemainSize(tLogBuff, start, end);
       if (pollSize < tLogBuff->minBuffSize) {
-        lastDuration += writeInterval;
+        lastDuration += tsWriteInterval;
         if (lastDuration < LOG_MAX_WAIT_MSEC) {
           break;
         }
@@ -658,15 +636,15 @@ static void taosWriteLog(SLogBuff *tLogBuff) {
 
     if (pollSize < tLogBuff->minBuffSize) {
       dbgSmallWN++;
-      if (writeInterval < MAX_LOG_INTERVAL) {
-        writeInterval += LOG_INTERVAL_STEP;
+      if (tsWriteInterval < LOG_MAX_INTERVAL) {
+        tsWriteInterval += LOG_INTERVAL_STEP;
       }
     } else if (pollSize > LOG_BUF_SIZE(tLogBuff) / 3) {
       dbgBigWN++;
-      writeInterval = MIN_LOG_INTERVAL;
+      tsWriteInterval = LOG_MIN_INTERVAL;
     } else if (pollSize > LOG_BUF_SIZE(tLogBuff) / 4) {
-      if (writeInterval > MIN_LOG_INTERVAL) {
-        writeInterval -= LOG_INTERVAL_STEP;
+      if (tsWriteInterval > LOG_MIN_INTERVAL) {
+        tsWriteInterval -= LOG_INTERVAL_STEP;
       }
     }
 
@@ -680,7 +658,7 @@ static void taosWriteLog(SLogBuff *tLogBuff) {
       break;
     }
 
-    writeInterval = MIN_LOG_INTERVAL;
+    tsWriteInterval = LOG_MIN_INTERVAL;
 
     remainChecked = 1;
   } while (1);
@@ -691,7 +669,7 @@ static void *taosAsyncOutputLog(void *param) {
   setThreadName("log");
 
   while (1) {
-    taosMsleep(writeInterval);
+    taosMsleep(tsWriteInterval);
 
     // Polling the buffer
     taosWriteLog(tLogBuff);
@@ -707,7 +685,7 @@ int32_t taosCompressFile(char *srcFileName, char *destFileName) {
   int32_t ret = 0;
   int32_t len = 0;
   char   *data = malloc(compressSize);
-//  gzFile  dstFp = NULL;
+  //  gzFile  dstFp = NULL;
 
   // srcFp = fopen(srcFileName, "r");
   TdFilePtr pSrcFile = taosOpenFile(srcFileName, TD_FILE_READ);
@@ -722,25 +700,25 @@ int32_t taosCompressFile(char *srcFileName, char *destFileName) {
     goto cmp_end;
   }
 
-//  dstFp = gzdopen(fd, "wb6f");
-//  if (dstFp == NULL) {
-//    ret = -3;
-//    close(fd);
-//    goto cmp_end;
-//  }
-//
-//  while (!feof(srcFp)) {
-//    len = (int32_t)fread(data, 1, compressSize, srcFp);
-//    (void)gzwrite(dstFp, data, len);
-//  }
+  //  dstFp = gzdopen(fd, "wb6f");
+  //  if (dstFp == NULL) {
+  //    ret = -3;
+  //    close(fd);
+  //    goto cmp_end;
+  //  }
+  //
+  //  while (!feof(srcFp)) {
+  //    len = (int32_t)fread(data, 1, compressSize, srcFp);
+  //    (void)gzwrite(dstFp, data, len);
+  //  }
 
 cmp_end:
   if (pSrcFile) {
     taosCloseFile(&pSrcFile);
   }
-//  if (dstFp) {
-//    gzclose(dstFp);
-//  }
+  //  if (dstFp) {
+  //    gzclose(dstFp);
+  //  }
   free(data);
 
   return ret;

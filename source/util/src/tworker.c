@@ -16,7 +16,7 @@
 #define _DEFAULT_SOURCE
 #include "tworker.h"
 #include "taoserror.h"
-#include "ulog.h"
+#include "tlog.h"
 
 typedef void *(*ThreadFp)(void *param);
 
@@ -71,8 +71,8 @@ static void *tQWorkerThreadFp(SQWorker *worker) {
   SQWorkerPool *pool = worker->pool;
   FItem         fp = NULL;
 
-  void *  msg = NULL;
-  void *  ahandle = NULL;
+  void   *msg = NULL;
+  void   *ahandle = NULL;
   int32_t code = 0;
 
   taosBlockSIGPIPE();
@@ -151,8 +151,8 @@ static void *tFWorkerThreadFp(SQWorker *worker) {
   SQWorkerPool *pool = worker->pool;
 
   FItem   fp = NULL;
-  void *  msg = NULL;
-  void *  ahandle = NULL;
+  void   *msg = NULL;
+  void   *ahandle = NULL;
   int32_t code = 0;
 
   taosBlockSIGPIPE();
@@ -240,8 +240,8 @@ static void *tWWorkerThreadFp(SWWorker *worker) {
   SWWorkerPool *pool = worker->pool;
   FItems        fp = NULL;
 
-  void *  msg = NULL;
-  void *  ahandle = NULL;
+  void   *msg = NULL;
+  void   *ahandle = NULL;
   int32_t numOfMsgs = 0;
   int32_t qtype = 0;
 

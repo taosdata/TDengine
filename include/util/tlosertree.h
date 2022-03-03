@@ -13,14 +13,16 @@
  * along with this program. If not, see <http://www.gnu.org/licenses/>.
  */
 
-#ifndef _TD_UTIL_LOSERTREE_H
-#define _TD_UTIL_LOSERTREE_H
+#ifndef _TD_UTIL_LOSERTREE_H_
+#define _TD_UTIL_LOSERTREE_H_
+
+#include "os.h"
 
 #ifdef __cplusplus
 extern "C" {
 #endif
 
-typedef int (*__merge_compare_fn_t)(const void *, const void *, void *param);
+typedef int32_t (*__merge_compare_fn_t)(const void *, const void *, void *param);
 
 typedef struct STreeNode {
   int32_t index;
@@ -31,16 +33,17 @@ typedef struct SMultiwayMergeTreeInfo {
   int32_t              numOfSources;
   int32_t              totalSources;
   __merge_compare_fn_t comparFn;
-  void *               param;
+  void                *param;
   struct STreeNode    *pNode;
 } SMultiwayMergeTreeInfo;
 
 #define tMergeTreeGetChosenIndex(t_) ((t_)->pNode[0].index)
 #define tMergeTreeGetAdjustIndex(t_) (tMergeTreeGetChosenIndex(t_) + (t_)->numOfSources)
 
-int32_t tMergeTreeCreate(SMultiwayMergeTreeInfo **pTree, uint32_t numOfEntries, void *param, __merge_compare_fn_t compareFn);
+int32_t tMergeTreeCreate(SMultiwayMergeTreeInfo **pTree, uint32_t numOfEntries, void *param,
+                         __merge_compare_fn_t compareFn);
 
-void tMergeTreeDestroy(SMultiwayMergeTreeInfo* pTree);
+void tMergeTreeDestroy(SMultiwayMergeTreeInfo *pTree);
 
 void tMergeTreeAdjust(SMultiwayMergeTreeInfo *pTree, int32_t idx);
 
@@ -52,4 +55,4 @@ void tMergeTreePrint(const SMultiwayMergeTreeInfo *pTree);
 }
 #endif
 
-#endif  /*_TD_UTIL_LOSERTREE_H*/
+#endif /*_TD_UTIL_LOSERTREE_H_*/

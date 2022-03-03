@@ -24,7 +24,7 @@ extern "C" {
 
 // Module init/clear MACRO definitions
 #define TD_MOD_UNINITIALIZED 0
-#define TD_MOD_INITIALIZED 1
+#define TD_MOD_INITIALIZED   1
 
 typedef int8_t td_mode_flag_t;
 

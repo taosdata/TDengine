@@ -13,37 +13,34 @@
  * along with this program. If not, see <http://www.gnu.org/licenses/>.
  */
 
+#define _DEFAULT_SOURCE
 #include "tfunctional.h"
 
-tGenericSavedFunc* genericSavedFuncInit(GenericVaFunc func, int numOfArgs) {
+tGenericSavedFunc* genericSavedFuncInit(GenericVaFunc func, int32_t numOfArgs) {
   tGenericSavedFunc* pSavedFunc = malloc(sizeof(tGenericSavedFunc) + numOfArgs * (sizeof(void*)));
-  if(pSavedFunc == NULL) return NULL;
+  if (pSavedFunc == NULL) return NULL;
   pSavedFunc->func = func;
   return pSavedFunc;
 }
 
-tI32SavedFunc* i32SavedFuncInit(I32VaFunc func, int numOfArgs) {
-  tI32SavedFunc* pSavedFunc = malloc(sizeof(tI32SavedFunc) + numOfArgs * sizeof(void *));
-  if(pSavedFunc == NULL) return NULL;
+tI32SavedFunc* i32SavedFuncInit(I32VaFunc func, int32_t numOfArgs) {
+  tI32SavedFunc* pSavedFunc = malloc(sizeof(tI32SavedFunc) + numOfArgs * sizeof(void*));
+  if (pSavedFunc == NULL) return NULL;
   pSavedFunc->func = func;
   return pSavedFunc;
 }
 
-tVoidSavedFunc* voidSavedFuncInit(VoidVaFunc func, int numOfArgs) {
+tVoidSavedFunc* voidSavedFuncInit(VoidVaFunc func, int32_t numOfArgs) {
   tVoidSavedFunc* pSavedFunc = malloc(sizeof(tVoidSavedFunc) + numOfArgs * sizeof(void*));
-  if(pSavedFunc == NULL) return NULL;
+  if (pSavedFunc == NULL) return NULL;
   pSavedFunc->func = func;
   return pSavedFunc;
 }
 
-FORCE_INLINE void* genericInvoke(tGenericSavedFunc* const pSavedFunc) {
-  return pSavedFunc->func(pSavedFunc->args);
-}
+FORCE_INLINE void* genericInvoke(tGenericSavedFunc* const pSavedFunc) { return pSavedFunc->func(pSavedFunc->args); }
 
-FORCE_INLINE int32_t i32Invoke(tI32SavedFunc* const pSavedFunc) {
-  return pSavedFunc->func(pSavedFunc->args);
-}
+FORCE_INLINE int32_t i32Invoke(tI32SavedFunc* const pSavedFunc) { return pSavedFunc->func(pSavedFunc->args); }
 
 FORCE_INLINE void voidInvoke(tVoidSavedFunc* const pSavedFunc) {
-  if(pSavedFunc) pSavedFunc->func(pSavedFunc->args);
+  if (pSavedFunc) pSavedFunc->func(pSavedFunc->args);
 }

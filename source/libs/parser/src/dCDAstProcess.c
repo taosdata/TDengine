@@ -260,8 +260,11 @@ static int32_t doParseSerializeTagValue(SSchema* pTagSchema, int32_t numOfInputT
     SKvParam param = {.builder = pKvRowBuilder, .schema = pSchema};
 
     SToken* pItem = taosArrayGet(pTagValList, i);
-    code = parseValueToken(&endPtr, pItem, pSchema, tsPrecision, tmpTokenBuf, KvRowAppend, &param, pMsgBuf);
+    if (pSchema->type == TSDB_DATA_TYPE_TIMESTAMP && pItem->z[0] == '\'') {
+      pItem->z += 1;
+    }
 
+    code = parseValueToken(&endPtr, pItem, pSchema, tsPrecision, tmpTokenBuf, KvRowAppend, &param, pMsgBuf);
     if (code != TSDB_CODE_SUCCESS) {
       return buildInvalidOperationMsg(pMsgBuf, msg1);
     }
@@ -759,6 +762,7 @@ SDclStmtInfo* qParserValidateDclSqlNode(SSqlInfo* pInfo, SParseContext* pCtx, ch
 
       SUseDbReq usedbReq = {0};
       tNameExtractFullName(&n, usedbReq.db);
+      catalogGetDBVgVersion(pCtx->pCatalog, usedbReq.db, &usedbReq.vgVersion, &usedbReq.dbId);
 
       int32_t bufLen = tSerializeSUseDbReq(NULL, 0, &usedbReq);
       void*   pBuf = malloc(bufLen);

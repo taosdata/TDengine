@@ -16,11 +16,10 @@
 #ifndef _TD_TQ_H_
 #define _TD_TQ_H_
 
-#include "common.h"
+#include "tcommon.h"
 #include "executor.h"
-#include "mallocator.h"
+#include "tmallocator.h"
 #include "meta.h"
-#include "os.h"
 #include "scheduler.h"
 #include "taoserror.h"
 #include "tlist.h"
@@ -52,7 +51,7 @@ STQ* tqOpen(const char* path, SWal* pWal, SMeta* pMeta, STqCfg* tqConfig, SMemAl
 void tqClose(STQ*);
 
 // required by vnode
-int tqPushMsg(STQ*, void* msg, int64_t version);
+int tqPushMsg(STQ*, void* msg, tmsg_t msgType, int64_t version);
 int tqCommit(STQ*);
 
 int32_t tqProcessConsumeReq(STQ* pTq, SRpcMsg* pMsg);

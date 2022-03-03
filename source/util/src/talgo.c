@@ -13,30 +13,33 @@
  * along with this program. If not, see <http://www.gnu.org/licenses/>.
  */
 
-#include "os.h"
+#define _DEFAULT_SOURCE
 #include "talgo.h"
 
-#define doswap(__left, __right, __size, __buf) do {\
-  memcpy((__buf), (__left), (__size));\
-  memcpy((__left), (__right),(__size));\
-  memcpy((__right), (__buf), (__size));\
-} while (0);
+#define doswap(__left, __right, __size, __buf) \
+  do {                                         \
+    memcpy((__buf), (__left), (__size));       \
+    memcpy((__left), (__right), (__size));     \
+    memcpy((__right), (__buf), (__size));      \
+  } while (0);
 
-static void median(void *src, size_t size, size_t s, size_t e, const void *param, __ext_compar_fn_t comparFn, void* buf) {
+static void median(void *src, int64_t size, int64_t s, int64_t e, const void *param, __ext_compar_fn_t comparFn,
+                   void *buf) {
   int32_t mid = ((int32_t)(e - s) >> 1u) + (int32_t)s;
-  
+
   if (comparFn(elePtrAt(src, size, mid), elePtrAt(src, size, s), param) == 1) {
     doswap(elePtrAt(src, size, mid), elePtrAt(src, size, s), size, buf);
   }
-  
+
   if (comparFn(elePtrAt(src, size, mid), elePtrAt(src, size, e), param) == 1) {
     doswap(elePtrAt(src, size, mid), elePtrAt(src, size, s), size, buf);
     doswap(elePtrAt(src, size, mid), elePtrAt(src, size, e), size, buf);
   } else if (comparFn(elePtrAt(src, size, s), elePtrAt(src, size, e), param) == 1) {
     doswap(elePtrAt(src, size, s), elePtrAt(src, size, e), size, buf);
   }
-  
-  assert(comparFn(elePtrAt(src, size, mid), elePtrAt(src, size, s), param) <= 0 && comparFn(elePtrAt(src, size, s), elePtrAt(src, size, e), param) <= 0);
+
+  assert(comparFn(elePtrAt(src, size, mid), elePtrAt(src, size, s), param) <= 0 &&
+         comparFn(elePtrAt(src, size, s), elePtrAt(src, size, e), param) <= 0);
 
 #ifdef _DEBUG_VIEW
 //  tTagsPrints(src[s], pOrderDesc->pColumnModel, &pOrderDesc->orderIdx);
@@ -45,8 +48,8 @@ static void median(void *src, size_t size, size_t s, size_t e, const void *param
 #endif
 }
 
-static void tInsertSort(void *src, size_t size, int32_t s, int32_t e, const void *param, __ext_compar_fn_t comparFn,
-                        void* buf) {
+static void tInsertSort(void *src, int64_t size, int32_t s, int32_t e, const void *param, __ext_compar_fn_t comparFn,
+                        void *buf) {
   for (int32_t i = s + 1; i <= e; ++i) {
     for (int32_t j = i; j > s; --j) {
       if (comparFn(elePtrAt(src, size, j), elePtrAt(src, size, j - 1), param) == -1) {
@@ -58,117 +61,117 @@ static void tInsertSort(void *src, size_t size, int32_t s, int32_t e, const void
   }
 }
 
-static void tqsortImpl(void *src, int32_t start, int32_t end, size_t size, const void *param, __ext_compar_fn_t comparFn,
-                void* buf) {
+static void tqsortImpl(void *src, int32_t start, int32_t end, int64_t size, const void *param,
+                       __ext_compar_fn_t comparFn, void *buf) {
   // short array sort, incur another sort procedure instead of quick sort process
   const int32_t THRESHOLD_SIZE = 6;
   if (end - start + 1 <= THRESHOLD_SIZE) {
     tInsertSort(src, size, start, end, param, comparFn, buf);
     return;
   }
-  
+
   median(src, size, start, end, param, comparFn, buf);
-  
+
   int32_t s = start, e = end;
   int32_t endRightS = end, startLeftS = start;
-  
+
   while (s < e) {
     while (e > s) {
       int32_t ret = comparFn(elePtrAt(src, size, e), elePtrAt(src, size, s), param);
       if (ret < 0) {
         break;
       }
-      
-      //move the data that equals to pivotal value to the right end of the list
+
+      // move the data that equals to pivotal value to the right end of the list
       if (ret == 0 && e != endRightS) {
         doswap(elePtrAt(src, size, e), elePtrAt(src, size, endRightS), size, buf);
         endRightS--;
       }
-      
+
       e--;
     }
-    
+
     if (e != s) {
       doswap(elePtrAt(src, size, e), elePtrAt(src, size, s), size, buf);
     }
-    
+
     while (s < e) {
       int32_t ret = comparFn(elePtrAt(src, size, s), elePtrAt(src, size, e), param);
       if (ret > 0) {
         break;
       }
-      
+
       if (ret == 0 && s != startLeftS) {
         doswap(elePtrAt(src, size, s), elePtrAt(src, size, startLeftS), size, buf);
         startLeftS++;
       }
       s++;
     }
-    
+
     if (e != s) {
       doswap(elePtrAt(src, size, s), elePtrAt(src, size, e), size, buf);
     }
   }
-  
+
   int32_t rightPartStart = e + 1;
   if (endRightS != end && e < end) {
     int32_t left = rightPartStart;
     int32_t right = end;
-    
+
     while (right > endRightS && left <= endRightS) {
       doswap(elePtrAt(src, size, left), elePtrAt(src, size, right), size, buf);
-      
+
       left++;
       right--;
     }
-    
+
     rightPartStart += (end - endRightS);
   }
-  
+
   int32_t leftPartEnd = e - 1;
   if (startLeftS != end && s > start) {
     int32_t left = start;
     int32_t right = leftPartEnd;
-    
+
     while (left < startLeftS && right >= startLeftS) {
       doswap(elePtrAt(src, size, left), elePtrAt(src, size, right), size, buf);
-      
+
       left++;
       right--;
     }
-    
+
     leftPartEnd -= (startLeftS - start);
   }
-  
+
   if (leftPartEnd > start) {
     tqsortImpl(src, start, leftPartEnd, size, param, comparFn, buf);
   }
-  
+
   if (rightPartStart < end) {
     tqsortImpl(src, rightPartStart, end, size, param, comparFn, buf);
   }
 }
 
-void taosqsort(void *src, size_t numOfElem, size_t size, const void* param, __ext_compar_fn_t comparFn) {
-  char *buf = calloc(1, size);   // prepare the swap buffer
+void taosqsort(void *src, int64_t numOfElem, int64_t size, const void *param, __ext_compar_fn_t comparFn) {
+  char *buf = calloc(1, size);  // prepare the swap buffer
   tqsortImpl(src, 0, (int32_t)numOfElem - 1, (int32_t)size, param, comparFn, buf);
   tfree(buf);
 }
 
-void * taosbsearch(const void *key, const void *base, size_t nmemb, size_t size, __compar_fn_t compar, int flags) {
+void *taosbsearch(const void *key, const void *base, int64_t nmemb, int64_t size, __compar_fn_t compar, int32_t flags) {
   // TODO: need to check the correctness of this function
-  int l = 0;
-  int r = (int)nmemb;
-  int idx = 0;
-  int comparison;
-  
+  int32_t l = 0;
+  int32_t r = (int32_t)nmemb;
+  int32_t idx = 0;
+  int32_t comparison;
+
   if (flags == TD_EQ) {
     return bsearch(key, base, nmemb, size, compar);
   } else if (flags == TD_GE) {
     if (nmemb <= 0) return NULL;
     if ((*compar)(key, elePtrAt(base, size, 0)) <= 0) return elePtrAt(base, size, 0);
     if ((*compar)(key, elePtrAt(base, size, nmemb - 1)) > 0) return NULL;
-    
+
     while (l < r) {
       idx = (l + r) / 2;
       comparison = (*compar)(key, elePtrAt(base, size, idx));
@@ -180,7 +183,7 @@ void * taosbsearch(const void *key, const void *base, size_t nmemb, size_t size,
         return elePtrAt(base, size, idx);
       }
     }
-    
+
     if ((*compar)(key, elePtrAt(base, size, idx)) < 0) {
       return elePtrAt(base, size, idx);
     } else {
@@ -194,7 +197,7 @@ void * taosbsearch(const void *key, const void *base, size_t nmemb, size_t size,
     if (nmemb <= 0) return NULL;
     if ((*compar)(key, elePtrAt(base, size, nmemb - 1)) >= 0) return elePtrAt(base, size, nmemb - 1);
     if ((*compar)(key, elePtrAt(base, size, 0)) < 0) return NULL;
-    
+
     while (l < r) {
       idx = (l + r) / 2;
       comparison = (*compar)(key, elePtrAt(base, size, idx));
@@ -206,7 +209,7 @@ void * taosbsearch(const void *key, const void *base, size_t nmemb, size_t size,
         return elePtrAt(base, size, idx);
       }
     }
-    
+
     if ((*compar)(key, elePtrAt(base, size, idx)) > 0) {
       return elePtrAt(base, size, idx);
     } else {
@@ -216,20 +219,20 @@ void * taosbsearch(const void *key, const void *base, size_t nmemb, size_t size,
         return elePtrAt(base, size, idx - 1);
       }
     }
-    
+
   } else {
     assert(0);
     return NULL;
   }
-  
+
   return NULL;
 }
 
-void taosheapadjust(void *base, int32_t size, int32_t start, int32_t end, const void *parcompar, __ext_compar_fn_t compar, const void *parswap, __ext_swap_fn_t swap, bool maxroot)
-{
-  int32_t  parent;
-  int32_t  child;
-  char    *buf;
+void taosheapadjust(void *base, int32_t size, int32_t start, int32_t end, const void *parcompar,
+                    __ext_compar_fn_t compar, const void *parswap, __ext_swap_fn_t swap, bool maxroot) {
+  int32_t parent;
+  int32_t child;
+  char   *buf;
 
   if (base && size > 0 && compar) {
     parent = start;
@@ -244,7 +247,8 @@ void taosheapadjust(void *base, int32_t size, int32_t start, int32_t end, const 
 
     if (maxroot) {
       while (child <= end) {
-        if (child + 1 <= end && (*compar)(elePtrAt(base, size, child), elePtrAt(base, size, child + 1), parcompar) < 0) {
+        if (child + 1 <= end &&
+            (*compar)(elePtrAt(base, size, child), elePtrAt(base, size, child + 1), parcompar) < 0) {
           child++;
         }
 
@@ -263,7 +267,8 @@ void taosheapadjust(void *base, int32_t size, int32_t start, int32_t end, const 
       }
     } else {
       while (child <= end) {
-        if (child + 1 <= end && (*compar)(elePtrAt(base, size, child), elePtrAt(base, size, child + 1), parcompar) > 0) {
+        if (child + 1 <= end &&
+            (*compar)(elePtrAt(base, size, child), elePtrAt(base, size, child + 1), parcompar) > 0) {
           child++;
         }
 
@@ -288,9 +293,9 @@ void taosheapadjust(void *base, int32_t size, int32_t start, int32_t end, const 
   }
 }
 
-void taosheapsort(void *base, int32_t size, int32_t len, const void *parcompar, __ext_compar_fn_t compar, const void *parswap, __ext_swap_fn_t swap, bool maxroot)
-{
-  int32_t  i;
+void taosheapsort(void *base, int32_t size, int32_t len, const void *parcompar, __ext_compar_fn_t compar,
+                  const void *parswap, __ext_swap_fn_t swap, bool maxroot) {
+  int32_t i;
 
   if (base && size > 0) {
     for (i = len / 2 - 1; i >= 0; i--) {
@@ -298,15 +303,14 @@ void taosheapsort(void *base, int32_t size, int32_t len, const void *parcompar, 
     }
   }
 
-/*
-  char *buf = calloc(1, size);
+  /*
+    char *buf = calloc(1, size);
 
-  for (i = len - 1; i > 0; i--) {
-    doswap(elePtrAt(base, size, 0), elePtrAt(base, size, i));
-    taosheapadjust(base, size, 0, i - 1, parcompar, compar, parswap, swap, maxroot);
-  }
+    for (i = len - 1; i > 0; i--) {
+      doswap(elePtrAt(base, size, 0), elePtrAt(base, size, i));
+      taosheapadjust(base, size, 0, i - 1, parcompar, compar, parswap, swap, maxroot);
+    }
 
-  tfree(buf);
-*/
+    tfree(buf);
+  */
 }
-

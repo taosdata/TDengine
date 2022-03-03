@@ -24,7 +24,7 @@ extern "C" {
 #include "taosdef.h"
 #include "query.h"
 #include "tname.h"
-#include "common.h"
+#include "tcommon.h"
 #include "tarray.h"
 #include "thash.h"
 #include "tmsg.h"
@@ -95,7 +95,7 @@ int32_t catalogGetHandle(uint64_t clusterId, SCatalog** catalogHandle);
  */
 void catalogFreeHandle(SCatalog* pCatalog);
 
-int32_t catalogGetDBVgVersion(SCatalog* pCatalog, const char* dbName, int32_t* version);
+int32_t catalogGetDBVgVersion(SCatalog* pCtg, const char* dbFName, int32_t* version, int64_t* dbId);
 
 /**
  * Get a DB's all vgroup info.

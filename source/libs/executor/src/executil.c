@@ -53,8 +53,7 @@ int32_t getOutputInterResultBufSize(STaskAttr* pQueryAttr) {
   return size;
 }
 
-int32_t initResultRowInfo(SResultRowInfo *pResultRowInfo, int32_t size, int16_t type) {
-  pResultRowInfo->type     = type;
+int32_t initResultRowInfo(SResultRowInfo *pResultRowInfo, int32_t size) {
   pResultRowInfo->size     = 0;
   pResultRowInfo->curPos  = -1;
   pResultRowInfo->capacity = size;
@@ -93,7 +92,7 @@ void resetResultRowInfo(STaskRuntimeEnv *pRuntimeEnv, SResultRowInfo *pResultRow
 
   for (int32_t i = 0; i < pResultRowInfo->size; ++i) {
     SResultRow *pWindowRes = pResultRowInfo->pResult[i];
-    clearResultRow(pRuntimeEnv, pWindowRes, pResultRowInfo->type);
+    clearResultRow(pRuntimeEnv, pWindowRes);
 
     int32_t groupIndex = 0;
     int64_t uid = 0;
@@ -136,7 +135,7 @@ void closeResultRow(SResultRowInfo *pResultRowInfo, int32_t slot) {
   getResultRow(pResultRowInfo, slot)->closed = true;
 }
 
-void clearResultRow(STaskRuntimeEnv *pRuntimeEnv, SResultRow *pResultRow, int16_t type) {
+void clearResultRow(STaskRuntimeEnv *pRuntimeEnv, SResultRow *pResultRow) {
   if (pResultRow == NULL) {
     return;
   }

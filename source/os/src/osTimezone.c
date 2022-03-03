@@ -46,6 +46,8 @@
 #endif
 
 void taosSetSystemTimezone(const char *inTimezone, char *outTimezone, int8_t *outDaylight) {
+  if (inTimezone == NULL || inTimezone[0] == 0) return;
+
 #ifdef WINDOWS
   char winStr[TD_LOCALE_LEN * 2];
   sprintf(winStr, "TZ=%s", inTimezone);

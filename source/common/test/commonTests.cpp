@@ -1,4 +1,4 @@
-#include <common.h>
+#include "tcommon.h"
 #include <gtest/gtest.h>
 #include <tep.h>
 #include <iostream>
@@ -162,7 +162,7 @@ TEST(testCase, Datablock_test) {
   ASSERT_EQ(colDataGetNumOfCols(b), 2);
   ASSERT_EQ(colDataGetNumOfRows(b), 40);
 
-  char* pData = colDataGet(p1, 3);
+  char* pData = colDataGetData(p1, 3);
   printf("the second row of binary:%s, length:%d\n", (char*)varDataVal(pData), varDataLen(pData));
 
   SArray* pOrderInfo = taosArrayInit(3, sizeof(SBlockOrderInfo));

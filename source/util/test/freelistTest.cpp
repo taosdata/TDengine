@@ -1,6 +1,6 @@
 #include "gtest/gtest.h"
 
-#include "freelist.h"
+#include "tfreelist.h"
 
 TEST(TD_UTIL_FREELIST_TEST, simple_test) {
   SFreeList fl;

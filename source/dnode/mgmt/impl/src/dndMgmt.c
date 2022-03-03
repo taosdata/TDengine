@@ -22,6 +22,7 @@
 #include "dndTransport.h"
 #include "dndVnodes.h"
 #include "dndWorker.h"
+#include "monitor.h"
 
 static void dndProcessMgmtQueue(SDnode *pDnode, SRpcMsg *pMsg);
 
@@ -473,19 +474,62 @@ void dndProcessStartupReq(SDnode *pDnode, SRpcMsg *pReq) {
   rpcSendResponse(&rpcRsp);
 }
 
+void dndGetBasicInfo(SDnode *pDnode, SMonBasicInfo *pInfo) {
+  pInfo->dnode_id = dndGetDnodeId(pDnode);
+  tstrncpy(pInfo->dnode_ep, tsLocalEp, TSDB_EP_LEN);
+}
+
+static void dndSendMonitorReport(SDnode *pDnode) {
+  if (!tsEnableMonitor || tsMonitorFqdn[0] == 0) return;
+  SMonInfo *pMonitor = monCreateMonitorInfo();
+  if (pMonitor == NULL) return;
+
+  dTrace("pDnode:%p, send monitor report to %s:%u", pDnode, tsMonitorFqdn, tsMonitorPort);
+
+  SMonBasicInfo basicInfo = {0};
+  dndGetBasicInfo(pDnode, &basicInfo);
+  monSetBasicInfo(pMonitor, &basicInfo);
+
+  SMonClusterInfo clusterInfo = {0};
+  SMonVgroupInfo  vgroupInfo = {0};
+  SMonGrantInfo   grantInfo = {0};
+  if (dndGetMnodeMonitorInfo(pDnode, &clusterInfo, &vgroupInfo, &grantInfo) == 0) {
+    monSetClusterInfo(pMonitor, &clusterInfo);
+    monSetVgroupInfo(pMonitor, &vgroupInfo);
+    monSetGrantInfo(pMonitor, &grantInfo);
+  }
+
+  monSendReport(pMonitor);
+  monCleanupMonitorInfo(pMonitor);
+}
+
 static void *dnodeThreadRoutine(void *param) {
   SDnode     *pDnode = param;
   SDnodeMgmt *pMgmt = &pDnode->dmgmt;
-  int32_t     ms = tsStatusInterval * 1000;
+  int64_t     lastStatusTime = taosGetTimestampMs();
+  int64_t     lastMonitorTime = lastStatusTime;
 
   setThreadName("dnode-hb");
 
   while (true) {
     pthread_testcancel();
-    taosMsleep(ms);
+    taosMsleep(200);
+    if (dndGetStat(pDnode) != DND_STAT_RUNNING || pMgmt->dropped) {
+      continue;
+    }
 
-    if (dndGetStat(pDnode) == DND_STAT_RUNNING && !pMgmt->statusSent && !pMgmt->dropped) {
+    int64_t curTime = taosGetTimestampMs();
+
+    float statusInterval = (curTime - lastStatusTime) / 1000.0f;
+    if (statusInterval >= tsStatusInterval && !pMgmt->statusSent) {
       dndSendStatusReq(pDnode);
+      lastStatusTime = curTime;
+    }
+
+    float monitorInterval = (curTime - lastMonitorTime) / 1000.0f;
+    if (monitorInterval >= tsMonitorInterval) {
+      dndSendMonitorReport(pDnode);
+      lastMonitorTime = curTime;
     }
   }
 }

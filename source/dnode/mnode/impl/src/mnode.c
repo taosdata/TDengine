@@ -22,6 +22,7 @@
 #include "mndDb.h"
 #include "mndDnode.h"
 #include "mndFunc.h"
+#include "mndInfoSchema.h"
 #include "mndMnode.h"
 #include "mndOffset.h"
 #include "mndProfile.h"
@@ -221,6 +222,7 @@ static int32_t mndInitSteps(SMnode *pMnode) {
   if (mndAllocStep(pMnode, "mnode-offset", mndInitOffset, mndCleanupOffset) != 0) return -1;
   if (mndAllocStep(pMnode, "mnode-vgroup", mndInitVgroup, mndCleanupVgroup) != 0) return -1;
   if (mndAllocStep(pMnode, "mnode-stb", mndInitStb, mndCleanupStb) != 0) return -1;
+  if (mndAllocStep(pMnode, "mnode-infos", mndInitInfos, mndCleanupInfos) != 0) return -1;
   if (mndAllocStep(pMnode, "mnode-db", mndInitDb, mndCleanupDb) != 0) return -1;
   if (mndAllocStep(pMnode, "mnode-func", mndInitFunc, mndCleanupFunc) != 0) return -1;
   if (pMnode->clusterId <= 0) {
@@ -398,6 +400,11 @@ int32_t mndGetLoad(SMnode *pMnode, SMnodeLoad *pLoad) {
   return 0;
 }
 
+int32_t mndGetMonitorInfo(SMnode *pMnode, SMonClusterInfo *pClusterInfo, SMonVgroupInfo *pVgroupInfo,
+                          SMonGrantInfo *pGrantInfo) {
+                            return 0;
+                          }
+
 SMnodeMsg *mndInitMsg(SMnode *pMnode, SRpcMsg *pRpcMsg) {
   SMnodeMsg *pMsg = taosAllocateQitem(sizeof(SMnodeMsg));
   if (pMsg == NULL) {
@@ -487,7 +494,7 @@ PROCESS_RPC_END:
     if (code == TSDB_CODE_APP_NOT_READY) {
       mndSendRedirectRsp(pMnode, &pMsg->rpcMsg);
     } else if (code != 0) {
-      SRpcMsg rpcRsp = {.handle = pMsg->rpcMsg.handle, .code = code};
+      SRpcMsg rpcRsp = {.handle = pMsg->rpcMsg.handle, .contLen = pMsg->contLen, .pCont = pMsg->pCont, .code = code};
       rpcSendResponse(&rpcRsp);
     } else {
       SRpcMsg rpcRsp = {.handle = pMsg->rpcMsg.handle, .contLen = pMsg->contLen, .pCont = pMsg->pCont};
@@ -503,9 +510,16 @@ void mndSetMsgHandle(SMnode *pMnode, tmsg_t msgType, MndMsgFp fp) {
   }
 }
 
+// Note: uid 0 is reserved
 uint64_t mndGenerateUid(char *name, int32_t len) {
-  int64_t  us = taosGetTimestampUs();
-  int32_t  hashval = MurmurHash3_32(name, len);
-  uint64_t x = (us & 0x000000FFFFFFFFFF) << 24;
-  return x + ((hashval & ((1ul << 16) - 1ul)) << 8) + (taosRand() & ((1ul << 8) - 1ul));
+  int32_t hashval = MurmurHash3_32(name, len);
+
+  do {
+    int64_t  us = taosGetTimestampUs();
+    uint64_t x = (us & 0x000000FFFFFFFFFF) << 24;
+    uint64_t uuid = x + ((hashval & ((1ul << 16) - 1ul)) << 8) + (taosRand() & ((1ul << 8) - 1ul));
+    if (uuid) {
+      return uuid;
+    }
+  } while (true);
 }

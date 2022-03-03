@@ -1,5 +1,5 @@
 aux_source_directory(src SCHEDULER_SRC)
-add_library(scheduler ${SCHEDULER_SRC})
+add_library(scheduler STATIC ${SCHEDULER_SRC})
 
 target_include_directories(
         scheduler
