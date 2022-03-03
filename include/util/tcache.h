@@ -40,9 +40,9 @@ typedef struct SCacheStatis {
   int64_t refreshCount;
 } SCacheStatis;
 
-typedef struct SCacheObj SCacheObj;
-
-struct STrashElem;
+typedef struct SCacheObj  SCacheObj;
+typedef struct SCacheIter SCacheIter;
+typedef struct STrashElem STrashElem;
 
 /**
  * initialize the cache object
@@ -107,6 +107,13 @@ void *taosCacheTransferData(SCacheObj *pCacheObj, void **data);
 void taosCacheRelease(SCacheObj *pCacheObj, void **data, bool _remove);
 
 /**
+ *
+ * @param pCacheObj
+ * @return
+ */
+size_t taosCacheGetNumOfObj(const SCacheObj* pCacheObj);
+
+/**
  *  move all data node into trash, clear node in trash can if it is not referenced by any clients
  * @param handle
  */
@@ -137,6 +144,12 @@ void taosCacheRefresh(SCacheObj *pCacheObj, __cache_trav_fn_t fp, void *param1);
  * stop background refresh worker thread
  */
 void taosStopCacheRefreshWorker();
+
+SCacheIter* taosCacheCreateIter(const SCacheObj* pCacheObj);
+bool taosCacheIterNext(SCacheIter* pIter);
+void* taosCacheIterGetData(const SCacheIter* pIter, size_t* dataLen);
+void* taosCacheIterGetKey(const SCacheIter* pIter, size_t* keyLen);
+void taosCacheDestroyIter(SCacheIter* pIter);
 
 #ifdef __cplusplus
 }
