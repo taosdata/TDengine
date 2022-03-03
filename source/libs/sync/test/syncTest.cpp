@@ -1,21 +1,21 @@
 #include <stdio.h>
+#include "gtest/gtest.h"
 #include "syncIO.h"
 #include "syncInt.h"
 #include "syncRaftStore.h"
-#include "gtest/gtest.h"
 
 void *pingFunc(void *param) {
   SSyncIO *io = (SSyncIO *)param;
   while (1) {
     sDebug("io->ping");
-    io->ping(io);
+    // io->ping(io);
     sleep(1);
   }
   return NULL;
 }
 
 int main() {
-  //taosInitLog((char *)"syncTest.log", 100000, 10);
+  // taosInitLog((char *)"syncTest.log", 100000, 10);
   tsAsyncLog = 0;
   sDebugFlag = 143 + 64;
 

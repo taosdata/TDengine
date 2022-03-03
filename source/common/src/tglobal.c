@@ -46,6 +46,13 @@ int32_t tsMaxBinaryDisplayWidth = 30;
 bool    tsEnableSlaveQuery = 1;
 bool    tsPrintAuth = 0;
 
+// monitor
+bool     tsEnableMonitor = 1;
+int32_t  tsMonitorInterval = 5;
+char     tsMonitorFqdn[TSDB_FQDN_LEN] = {0};
+uint16_t tsMonitorPort = 6043;
+int32_t  tsMonitorMaxLogs = 100;
+
 /*
  * denote if the server needs to compress response message at the application layer to client, including query rsp,
  * metricmeta rsp, and multi-meter query rsp message body. The client compress the submit message to server.
@@ -177,24 +184,24 @@ static int32_t taosLoadCfg(SConfig *pCfg, const char *inputCfgDir, const char *e
   snprintf(cfgFile, sizeof(cfgFile), "%s" TD_DIRSEP "taos.cfg", cfgDir);
 
   if (cfgLoad(pCfg, CFG_STYPE_APOLLO_URL, apolloUrl) != 0) {
-    uError("failed to load from apollo url:%s since %s\n", apolloUrl, terrstr());
+    uError("failed to load from apollo url:%s since %s", apolloUrl, terrstr());
     return -1;
   }
 
-  if (cfgLoad(pCfg, CFG_STYPE_CFG_FILE, cfgFile) != 0) {
-    if (cfgLoad(pCfg, CFG_STYPE_CFG_FILE, cfgDir) != 0) {
-      uError("failed to load from config file:%s since %s\n", cfgFile, terrstr());
-      return -1;
+  if (cfgLoad(pCfg, CFG_STYPE_CFG_FILE, cfgDir) != 0) {
+    if (cfgLoad(pCfg, CFG_STYPE_CFG_FILE, cfgFile) != 0) {
+      uError("failed to load from config file:%s since %s", cfgFile, terrstr());
+      return 0;
     }
   }
 
   if (cfgLoad(pCfg, CFG_STYPE_ENV_FILE, envFile) != 0) {
-    uError("failed to load from env file:%s since %s\n", envFile, terrstr());
+    uError("failed to load from env file:%s since %s", envFile, terrstr());
     return -1;
   }
 
   if (cfgLoad(pCfg, CFG_STYPE_ENV_VAR, NULL) != 0) {
-    uError("failed to load from global env variables since %s\n", terrstr());
+    uError("failed to load from global env variables since %s", terrstr());
     return -1;
   }
 
@@ -271,7 +278,7 @@ static int32_t taosAddSystemCfg(SConfig *pCfg) {
   if (cfgAddTimezone(pCfg, "timezone", tsTimezone) != 0) return -1;
   if (cfgAddLocale(pCfg, "locale", tsLocale) != 0) return -1;
   if (cfgAddCharset(pCfg, "charset", tsCharset) != 0) return -1;
-  if (cfgAddBool(pCfg, "enableCoreFile", 0, 1) != 0) return -1;
+  if (cfgAddBool(pCfg, "enableCoreFile", 1, 1) != 0) return -1;
   if (cfgAddInt32(pCfg, "numOfCores", tsNumOfCores, 1, 100000, 1) != 0) return -1;
   if (cfgAddInt32(pCfg, "pageSize(KB)", tsPageSize, 0, INT64_MAX, 1) != 0) return -1;
   if (cfgAddInt64(pCfg, "openMax", tsOpenMax, 0, INT64_MAX, 1) != 0) return -1;
@@ -314,6 +321,13 @@ static int32_t taosAddServerCfg(SConfig *pCfg) {
   if (cfgAddBool(pCfg, "printAuth", tsPrintAuth, 0) != 0) return -1;
   if (cfgAddBool(pCfg, "slaveQuery", tsEnableSlaveQuery, 0) != 0) return -1;
   if (cfgAddBool(pCfg, "deadLockKillQuery", tsDeadLockKillQuery, 0) != 0) return -1;
+
+  if (cfgAddBool(pCfg, "monitor", tsEnableMonitor, 0) != 0) return -1;
+  if (cfgAddInt32(pCfg, "monitorInterval", tsMonitorInterval, 1, 360000, 0) != 0) return -1;
+  if (cfgAddString(pCfg, "monitorFqdn", tsMonitorFqdn, 0) != 0) return -1;
+  if (cfgAddInt32(pCfg, "monitorPort", tsMonitorPort, 1, 65056, 0) != 0) return -1;
+  if (cfgAddInt32(pCfg, "monitorMaxLogs", tsMonitorMaxLogs, 1, 1000000, 0) != 0) return -1;
+
   return 0;
 }
 
@@ -345,7 +359,7 @@ static void taosSetServerLogCfg(SConfig *pCfg) {
 }
 
 static void taosSetClientCfg(SConfig *pCfg) {
-  tstrncpy(tsLocalFqdn, cfgGetItem(pCfg, "fqdn")->str, TSDB_EP_LEN);
+  tstrncpy(tsLocalFqdn, cfgGetItem(pCfg, "fqdn")->str, TSDB_FQDN_LEN);
   tsServerPort = (uint16_t)cfgGetItem(pCfg, "serverPort")->i32;
   snprintf(tsLocalEp, sizeof(tsLocalEp), "%s:%u", tsLocalFqdn, tsServerPort);
 
@@ -425,6 +439,12 @@ static void taosSetServerCfg(SConfig *pCfg) {
   tsEnableSlaveQuery = cfgGetItem(pCfg, "slaveQuery")->bval;
   tsDeadLockKillQuery = cfgGetItem(pCfg, "deadLockKillQuery")->bval;
 
+  tsEnableMonitor = cfgGetItem(pCfg, "monitor")->bval;
+  tsMonitorInterval = cfgGetItem(pCfg, "monitorInterval")->i32;
+  tstrncpy(tsMonitorFqdn, cfgGetItem(pCfg, "monitorFqdn")->str, TSDB_FQDN_LEN);
+  tsMonitorPort = (uint16_t)cfgGetItem(pCfg, "monitorPort")->i32;
+  tsMonitorMaxLogs = cfgGetItem(pCfg, "monitorMaxLogs")->i32;
+
   if (tsQueryBufferSize >= 0) {
     tsQueryBufferSizeBytes = tsQueryBufferSize * 1048576UL;
   }
@@ -438,8 +458,10 @@ int32_t taosCreateLog(const char *logname, int32_t logFileNum, const char *cfgDi
   if (pCfg == NULL) return -1;
 
   if (tsc) {
+    tscEmbeddedInUtil = 0;
     if (taosAddClientLogCfg(pCfg) != 0) return -1;
   } else {
+    tscEmbeddedInUtil = 1;
     if (taosAddClientLogCfg(pCfg) != 0) return -1;
     if (taosAddServerLogCfg(pCfg) != 0) return -1;
   }
@@ -450,7 +472,7 @@ int32_t taosCreateLog(const char *logname, int32_t logFileNum, const char *cfgDi
     return -1;
   }
 
-  if (cfgLoadArray(pCfg, pArgs) != 0) {
+  if (cfgLoadFromArray(pCfg, pArgs) != 0) {
     uError("failed to load cfg from array since %s", terrstr());
     cfgCleanup(pCfg);
     return -1;
@@ -465,8 +487,14 @@ int32_t taosCreateLog(const char *logname, int32_t logFileNum, const char *cfgDi
 
   taosSetAllDebugFlag(cfgGetItem(pCfg, "debugFlag")->i32);
 
+  if (taosMkDir(tsLogDir) != 0) {
+    uError("failed to create dir:%s since %s", tsLogDir, terrstr());
+    cfgCleanup(pCfg);
+    return -1;
+  }
+
   if (taosInitLog(logname, logFileNum) != 0) {
-    printf("failed to init log file since %s\n", terrstr());
+    uError("failed to init log file since %s", terrstr());
     cfgCleanup(pCfg);
     return -1;
   }
@@ -497,7 +525,7 @@ int32_t taosInitCfg(const char *cfgDir, const char *envFile, const char *apolloU
     return -1;
   }
 
-  if (cfgLoadArray(tsCfg, pArgs) != 0) {
+  if (cfgLoadFromArray(tsCfg, pArgs) != 0) {
     uError("failed to load cfg from array since %s", terrstr());
     cfgCleanup(tsCfg);
     return -1;
@@ -511,6 +539,16 @@ int32_t taosInitCfg(const char *cfgDir, const char *envFile, const char *apolloU
     taosSetTfsCfg(tsCfg);
   }
   taosSetSystemCfg(tsCfg);
+
+  if (taosMkDir(tsTempDir) != 0) {
+    uError("failed to create dir:%s since %s", tsTempDir, terrstr());
+    return -1;
+  }
+
+  if (!tsc && taosMkDir(tsDataDir) != 0) {
+    uError("failed to create dir:%s since %s", tsDataDir, terrstr());
+    return -1;
+  }
 
   cfgDumpCfg(tsCfg, tsc, false);
   return 0;

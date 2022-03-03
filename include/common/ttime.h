@@ -52,6 +52,8 @@ void    deltaToUtcInitOnce();
 
 int64_t convertTimePrecision(int64_t time, int32_t fromPrecision, int32_t toPrecision);
 
+void taosFormatUtcTime(char *buf, int32_t bufLen, int64_t time, int32_t precision);
+
 #ifdef __cplusplus
 }
 #endif

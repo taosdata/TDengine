@@ -630,3 +630,13 @@ int32_t dndGetUserAuthFromMnode(SDnode *pDnode, char *user, char *spi, char *enc
   dTrace("user:%s, retrieve auth spi:%d encrypt:%d", user, *spi, *encrypt);
   return code;
 }
+
+int32_t dndGetMnodeMonitorInfo(SDnode *pDnode, SMonClusterInfo *pClusterInfo, SMonVgroupInfo *pVgroupInfo,
+                               SMonGrantInfo *pGrantInfo) {
+  SMnode *pMnode = dndAcquireMnode(pDnode);
+  if (pMnode == NULL) return -1;
+
+  int32_t code = mndGetMonitorInfo(pMnode, pClusterInfo, pVgroupInfo, pGrantInfo);
+  dndReleaseMnode(pDnode, pMnode);
+  return code;
+}

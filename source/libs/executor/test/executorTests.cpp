@@ -222,7 +222,6 @@ int main(int argc, char** argv) {
   return RUN_ALL_TESTS();
 }
 
-#if 0
 TEST(testCase, build_executor_tree_Test) {
   const char* msg = "{\n"
                     "\t\"Id\":\t{\n"
@@ -315,7 +314,10 @@ TEST(testCase, build_executor_tree_Test) {
   DataSinkHandle sinkHandle = nullptr;
   SReadHandle handle = {.reader = reinterpret_cast<void*>(0x1), .meta = reinterpret_cast<void*>(0x1)};
 
-//  int32_t code = qCreateExecTask(&handle, 2, 1, NULL, (void**) &pTaskInfo, &sinkHandle);
+  SSubplan* plan = NULL;
+  qStringToSubplan(msg, &plan);
+
+  int32_t code = qCreateExecTask(&handle, 2, 1, NULL, (void**) &pTaskInfo, &sinkHandle);
 }
 
 TEST(testCase, inMem_sort_Test) {
@@ -334,10 +336,10 @@ TEST(testCase, inMem_sort_Test) {
   exp1->base.resSchema = createSchema(TSDB_DATA_TYPE_BINARY, 40, 2, "res1");
   taosArrayPush(pExprInfo, &exp1);
 
-  SOperatorInfo* pOperator = createOrderOperatorInfo(createDummyOperator(5), pExprInfo, pOrderVal, NULL);
+  SOperatorInfo* pOperator = createOrderOperatorInfo(createDummyOperator(10000, 5, 1000, data_asc, 1), pExprInfo, pOrderVal, NULL);
 
   bool newgroup = false;
-  SSDataBlock* pRes = pOperator->exec(pOperator, &newgroup);
+  SSDataBlock* pRes = pOperator->nextDataFn(pOperator, &newgroup);
 
   SColumnInfoData* pCol1 = static_cast<SColumnInfoData*>(taosArrayGet(pRes->pDataBlock, 0));
   SColumnInfoData* pCol2 = static_cast<SColumnInfoData*>(taosArrayGet(pRes->pDataBlock, 1));
@@ -400,7 +402,7 @@ TEST(testCase, external_sort_Test) {
   exp1->base.resSchema = createSchema(TSDB_DATA_TYPE_BINARY, 40, 2, "res1");
 //  taosArrayPush(pExprInfo, &exp1);
 
-  SOperatorInfo* pOperator = createOrderOperatorInfo(createDummyOperator(1500), pExprInfo, pOrderVal, NULL);
+  SOperatorInfo* pOperator = createOrderOperatorInfo(createDummyOperator(10000, 1500, 1000, data_desc, 1), pExprInfo, pOrderVal, NULL);
 
   bool newgroup = false;
   SSDataBlock* pRes = NULL;
@@ -412,7 +414,7 @@ TEST(testCase, external_sort_Test) {
 
   while(1) {
     int64_t s = taosGetTimestampUs();
-    pRes = pOperator->exec(pOperator, &newgroup);
+    pRes = pOperator->nextDataFn(pOperator, &newgroup);
 
     int64_t e = taosGetTimestampUs();
     if (t++ == 1) {
@@ -469,7 +471,7 @@ TEST(testCase, sorted_merge_Test) {
   int32_t numOfSources = 10;
   SOperatorInfo** plist = (SOperatorInfo**) calloc(numOfSources, sizeof(void*));
   for(int32_t i = 0; i < numOfSources; ++i) {
-    plist[i] = createDummyOperator(1, 1, 1, data_asc);
+    plist[i] = createDummyOperator(1, 1, 1, data_asc, 1);
   }
 
   SOperatorInfo* pOperator = createSortedMergeOperatorInfo(plist, numOfSources, pExprInfo, pOrderVal, NULL, NULL);
@@ -484,7 +486,7 @@ TEST(testCase, sorted_merge_Test) {
 
   while(1) {
     int64_t s = taosGetTimestampUs();
-    pRes = pOperator->exec(pOperator, &newgroup);
+    pRes = pOperator->nextDataFn(pOperator, &newgroup);
 
     int64_t e = taosGetTimestampUs();
     if (t++ == 1) {
@@ -513,8 +515,6 @@ TEST(testCase, sorted_merge_Test) {
   taosArrayDestroy(pExprInfo);
   taosArrayDestroy(pOrderVal);
 }
-
-#endif
 
 TEST(testCase, time_interval_Operator_Test) {
   srand(time(NULL));

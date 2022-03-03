@@ -160,7 +160,7 @@ void sync_consume_loop(tmq_t* tmq, tmq_list_t* topics) {
   }
 
   while (running) {
-    tmq_message_t* tmqmessage = tmq_consumer_poll(tmq, 500);
+    tmq_message_t* tmqmessage = tmq_consumer_poll(tmq, 1000);
     if (tmqmessage) {
       msg_process(tmqmessage);
       tmq_message_destroy(tmqmessage);

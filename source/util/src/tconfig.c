@@ -60,7 +60,7 @@ int32_t cfgLoad(SConfig *pCfg, ECfgSrcType cfgType, const char *sourceStr) {
   }
 }
 
-int32_t cfgLoadArray(SConfig *pCfg, SArray *pArgs) {
+int32_t cfgLoadFromArray(SConfig *pCfg, SArray *pArgs) {
   int32_t size = taosArrayGetSize(pArgs);
   for (int32_t i = 0; i < size; ++i) {
     SConfigPair *pPair = taosArrayGet(pArgs, i);
@@ -145,10 +145,12 @@ static int32_t cfgCheckAndSetDir(SConfigItem *pItem, const char *inputDir) {
     return -1;
   }
 
+#if 0
   if (taosMkDir(fullDir) != 0) {
     uError("failed to create dir:%s realpath:%s since %s", inputDir, fullDir, terrstr());
     return -1;
   }
+#endif
 
   cfgFreeItem(pItem);
   pItem->str = strdup(fullDir);
@@ -608,7 +610,10 @@ int32_t cfgLoadFromCfgFile(SConfig *pConfig, const char *filepath) {
   int32_t olen, vlen, vlen2, vlen3;
   ssize_t _bytes = 0;
 
-  // FILE *fp = fopen(filepath, "r");
+  if (taosIsDir(filepath)) {
+    return -1;
+  }
+
   TdFilePtr pFile = taosOpenFile(filepath, TD_FILE_READ | TD_FILE_STREAM);
   if (pFile == NULL) {
     terrno = TAOS_SYSTEM_ERROR(errno);

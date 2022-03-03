@@ -523,6 +523,9 @@ static void dndGenerateVnodeCfg(SCreateVnodeReq *pCreate, SVnodeCfg *pCfg) {
   pCfg->walCfg.rollPeriod = 128;
   pCfg->walCfg.segSize = 128;
   pCfg->walCfg.vgId = pCreate->vgId;
+  pCfg->hashBegin = pCreate->hashBegin;
+  pCfg->hashEnd = pCreate->hashEnd;
+  pCfg->hashMethod = pCreate->hashMethod;
 }
 
 static void dndGenerateWrapperCfg(SDnode *pDnode, SCreateVnodeReq *pCreate, SWrapperCfg *pCfg) {

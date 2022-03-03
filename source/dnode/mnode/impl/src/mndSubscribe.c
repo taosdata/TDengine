@@ -270,9 +270,8 @@ static int32_t mndProcessGetSubEpReq(SMnodeMsg *pMsg) {
 
   strcpy(rsp.cgroup, pReq->cgroup);
   rsp.consumerId = consumerId;
-  rsp.epoch = pConsumer->epoch;
-  if (epoch != rsp.epoch) {
-    mInfo("send new assignment to consumer, consumer epoch %d, server epoch %d", epoch, rsp.epoch);
+  if (epoch != pConsumer->epoch) {
+    mInfo("send new assignment to consumer, consumer epoch %d, server epoch %d", epoch, pConsumer->epoch);
     SArray *pTopics = pConsumer->currentTopics;
     int32_t sz = taosArrayGetSize(pTopics);
     rsp.topics = taosArrayInit(sz, sizeof(SMqSubTopicEp));
@@ -308,13 +307,16 @@ static int32_t mndProcessGetSubEpReq(SMnodeMsg *pMsg) {
       mndReleaseSubscribe(pMnode, pSub);
     }
   }
-  int32_t tlen = tEncodeSMqCMGetSubEpRsp(NULL, &rsp);
+  int32_t tlen = sizeof(SMqRspHead) + tEncodeSMqCMGetSubEpRsp(NULL, &rsp);
   void   *buf = rpcMallocCont(tlen);
   if (buf == NULL) {
     terrno = TSDB_CODE_OUT_OF_MEMORY;
     return -1;
   }
-  void *abuf = buf;
+  ((SMqRspHead *)buf)->mqMsgType = TMQ_MSG_TYPE__EP_RSP;
+  ((SMqRspHead *)buf)->epoch = pConsumer->epoch;
+
+  void *abuf = POINTER_SHIFT(buf, sizeof(SMqRspHead));
   tEncodeSMqCMGetSubEpRsp(&abuf, &rsp);
   tDeleteSMqCMGetSubEpRsp(&rsp);
   mndReleaseConsumer(pMnode, pConsumer);

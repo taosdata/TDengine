@@ -26,6 +26,12 @@ extern "C" {
 #include "syncInt.h"
 #include "taosdef.h"
 
+typedef struct SVotesGranted {
+} SVotesGranted;
+
+typedef struct SVotesResponded {
+} SVotesResponded;
+
 #ifdef __cplusplus
 }
 #endif

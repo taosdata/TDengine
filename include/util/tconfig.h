@@ -82,7 +82,7 @@ typedef struct SConfig {
 
 SConfig *cfgInit();
 int32_t  cfgLoad(SConfig *pCfg, ECfgSrcType cfgType, const char *sourceStr);
-int32_t  cfgLoadArray(SConfig *pCfg, SArray *pArgs);  // SConfigPair
+int32_t  cfgLoadFromArray(SConfig *pCfg, SArray *pArgs);  // SConfigPair
 void     cfgCleanup(SConfig *pCfg);
 
 int32_t      cfgGetSize(SConfig *pCfg);

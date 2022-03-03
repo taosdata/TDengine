@@ -167,6 +167,7 @@ typedef struct {
 
 typedef struct {
   char    db[TSDB_DB_FNAME_LEN];
+  int64_t dbId;
   int32_t vgVersion;
 } SBuildUseDBInput;
 
@@ -563,6 +564,7 @@ int32_t tDeserializeSDropDbRsp(void* buf, int32_t bufLen, SDropDbRsp* pRsp);
 
 typedef struct {
   char    db[TSDB_DB_FNAME_LEN];
+  int64_t dbId;
   int32_t vgVersion;
 } SUseDbReq;
 
@@ -737,6 +739,9 @@ typedef struct {
   int32_t  maxRows;
   int32_t  commitTime;
   int32_t  fsyncPeriod;
+  uint32_t hashBegin;
+  uint32_t hashEnd;
+  int8_t   hashMethod;  
   int8_t   walLevel;
   int8_t   precision;
   int8_t   compression;
@@ -747,6 +752,7 @@ typedef struct {
   int8_t   selfIndex;
   int8_t   streamMode;
   SReplica replicas[TSDB_MAX_REPLICA];
+  
 } SCreateVnodeReq, SAlterVnodeReq;
 
 int32_t tSerializeSCreateVnodeReq(void* buf, int32_t bufLen, SCreateVnodeReq* pReq);
@@ -1380,8 +1386,6 @@ typedef struct SMqCMGetSubEpReq {
   char    cgroup[TSDB_CONSUMER_GROUP_LEN];
 } SMqCMGetSubEpReq;
 
-#pragma pack(pop)
-
 static FORCE_INLINE int32_t tEncodeSMsgHead(void** buf, const SMsgHead* pMsg) {
   int32_t tlen = 0;
   tlen += taosEncodeFixedI32(buf, pMsg->contLen);
@@ -1852,6 +1856,12 @@ typedef struct {
 } SMqTopicData;
 
 typedef struct {
+  int8_t  mqMsgType;
+  int32_t code;
+  int32_t epoch;
+} SMqRspHead;
+
+typedef struct {
   int64_t         consumerId;
   SSchemaWrapper* schemas;
   int64_t         reqOffset;
@@ -1867,6 +1877,7 @@ typedef struct {
 
   int64_t consumerId;
   int64_t blockingTime;
+  int32_t epoch;
   char    cgroup[TSDB_CONSUMER_GROUP_LEN];
 
   int64_t currentOffset;
@@ -1886,10 +1897,18 @@ typedef struct {
 
 typedef struct {
   int64_t consumerId;
-  int32_t epoch;
   char    cgroup[TSDB_CONSUMER_GROUP_LEN];
   SArray* topics;  // SArray<SMqSubTopicEp>
 } SMqCMGetSubEpRsp;
+
+struct tmq_message_t {
+  SMqRspHead head;
+  union {
+    SMqConsumeRsp    consumeRsp;
+    SMqCMGetSubEpRsp getEpRsp;
+  };
+  void* extra;
+};
 
 static FORCE_INLINE void tDeleteSMqSubTopicEp(SMqSubTopicEp* pSubTopicEp) { taosArrayDestroy(pSubTopicEp->vgs); }
 
@@ -1943,7 +1962,6 @@ static FORCE_INLINE void* tDecodeSMqSubTopicEp(void* buf, SMqSubTopicEp* pTopicE
 static FORCE_INLINE int32_t tEncodeSMqCMGetSubEpRsp(void** buf, const SMqCMGetSubEpRsp* pRsp) {
   int32_t tlen = 0;
   tlen += taosEncodeFixedI64(buf, pRsp->consumerId);
-  tlen += taosEncodeFixedI32(buf, pRsp->epoch);
   tlen += taosEncodeString(buf, pRsp->cgroup);
   int32_t sz = taosArrayGetSize(pRsp->topics);
   tlen += taosEncodeFixedI32(buf, sz);
@@ -1956,7 +1974,6 @@ static FORCE_INLINE int32_t tEncodeSMqCMGetSubEpRsp(void** buf, const SMqCMGetSu
 
 static FORCE_INLINE void* tDecodeSMqCMGetSubEpRsp(void* buf, SMqCMGetSubEpRsp* pRsp) {
   buf = taosDecodeFixedI64(buf, &pRsp->consumerId);
-  buf = taosDecodeFixedI32(buf, &pRsp->epoch);
   buf = taosDecodeStringTo(buf, pRsp->cgroup);
   int32_t sz;
   buf = taosDecodeFixedI32(buf, &sz);
@@ -1971,6 +1988,8 @@ static FORCE_INLINE void* tDecodeSMqCMGetSubEpRsp(void* buf, SMqCMGetSubEpRsp* p
   }
   return buf;
 }
+
+#pragma pack(pop)
 
 #ifdef __cplusplus
 }
