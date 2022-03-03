@@ -627,3 +627,50 @@ const char* fmtts(int64_t ts) {
 
   return buf;
 }
+
+void taosFormatUtcTime(char* buf, int32_t bufLen, int64_t t, int32_t precision) {
+  char       ts[40] = {0};
+  struct tm* ptm;
+
+  int32_t fractionLen;
+  char*   format = NULL;
+  time_t  quot = 0;
+  long    mod = 0;
+
+  switch (precision) {
+    case TSDB_TIME_PRECISION_MILLI: {
+      quot = t / 1000;
+      fractionLen = 5;
+      format = ".%03" PRId64;
+      mod = t % 1000;
+      break;
+    }
+
+    case TSDB_TIME_PRECISION_MICRO: {
+      quot = t / 1000000;
+      fractionLen = 8;
+      format = ".%06" PRId64;
+      mod = t % 1000000;
+      break;
+    }
+
+    case TSDB_TIME_PRECISION_NANO: {
+      quot = t / 1000000000;
+      fractionLen = 11;
+      format = ".%09" PRId64;
+      mod = t % 1000000000;
+      break;
+    }
+
+    default:
+      fractionLen = 0;
+      assert(false);
+  }
+
+  ptm = localtime(&quot);
+  int32_t length = (int32_t)strftime(ts, 40, "%Y-%m-%dT%H:%M:%S", ptm);
+  length += snprintf(ts + length, fractionLen, format, mod);
+  length += (int32_t)strftime(ts + length, 40 - length, "%z", ptm);
+
+  tstrncpy(buf, ts, bufLen);
+}

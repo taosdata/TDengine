@@ -1,17 +1,7 @@
 aux_source_directory(src DNODE_SRC)
 add_library(dnode STATIC ${DNODE_SRC})
 target_link_libraries(
-    dnode
-    PUBLIC cjson
-    PUBLIC mnode
-    PUBLIC vnode
-    PUBLIC qnode
-    PUBLIC snode
-    PUBLIC bnode
-    PUBLIC wal
-    PUBLIC sync
-    PUBLIC taos
-    PUBLIC tfs
+    dnode cjson mnode vnode qnode snode bnode wal sync taos tfs monitor
 )
 target_include_directories(
     dnode

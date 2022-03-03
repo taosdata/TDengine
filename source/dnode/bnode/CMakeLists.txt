@@ -1,5 +1,5 @@
 aux_source_directory(src BNODE_SRC)
-add_library(bnode ${BNODE_SRC})
+add_library(bnode STATIC ${BNODE_SRC})
 target_include_directories(
     bnode
     PUBLIC "${CMAKE_SOURCE_DIR}/include/dnode/bnode"

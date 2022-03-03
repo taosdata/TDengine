@@ -2112,6 +2112,9 @@ int32_t tSerializeSCreateVnodeReq(void *buf, int32_t bufLen, SCreateVnodeReq *pR
   if (tEncodeI32(&encoder, pReq->maxRows) < 0) return -1;
   if (tEncodeI32(&encoder, pReq->commitTime) < 0) return -1;
   if (tEncodeI32(&encoder, pReq->fsyncPeriod) < 0) return -1;
+  if (tEncodeU32(&encoder, pReq->hashBegin) < 0) return -1;
+  if (tEncodeU32(&encoder, pReq->hashEnd) < 0) return -1;
+  if (tEncodeI8(&encoder, pReq->hashMethod) < 0) return -1;
   if (tEncodeI8(&encoder, pReq->walLevel) < 0) return -1;
   if (tEncodeI8(&encoder, pReq->precision) < 0) return -1;
   if (tEncodeI8(&encoder, pReq->compression) < 0) return -1;
@@ -2152,6 +2155,9 @@ int32_t tDeserializeSCreateVnodeReq(void *buf, int32_t bufLen, SCreateVnodeReq *
   if (tDecodeI32(&decoder, &pReq->maxRows) < 0) return -1;
   if (tDecodeI32(&decoder, &pReq->commitTime) < 0) return -1;
   if (tDecodeI32(&decoder, &pReq->fsyncPeriod) < 0) return -1;
+  if (tDecodeU32(&decoder, &pReq->hashBegin) < 0) return -1;
+  if (tDecodeU32(&decoder, &pReq->hashEnd) < 0) return -1;
+  if (tDecodeI8(&decoder, &pReq->hashMethod) < 0) return -1;
   if (tDecodeI8(&decoder, &pReq->walLevel) < 0) return -1;
   if (tDecodeI8(&decoder, &pReq->precision) < 0) return -1;
   if (tDecodeI8(&decoder, &pReq->compression) < 0) return -1;

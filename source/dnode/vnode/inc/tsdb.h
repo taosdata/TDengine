@@ -27,12 +27,12 @@ extern "C" {
 
 typedef struct SDataStatis {
   int16_t colId;
-  int64_t sum;
-  int64_t max;
-  int64_t min;
   int16_t maxIndex;
   int16_t minIndex;
   int16_t numOfNull;
+  int64_t sum;
+  int64_t max;
+  int64_t min;
 } SDataStatis;
 
 typedef struct STable {
@@ -53,6 +53,8 @@ typedef struct STsdb STsdb;
 
 typedef struct STsdbCfg {
   int8_t   precision;
+  int8_t   update;
+  int8_t   compression;
   uint64_t lruCacheSize;
   int32_t  daysPerFile;
   int32_t  minRowsPerFileBlock;
@@ -60,8 +62,6 @@ typedef struct STsdbCfg {
   int32_t  keep;
   int32_t  keep1;
   int32_t  keep2;
-  int8_t   update;
-  int8_t   compression;
 } STsdbCfg;
 
 // query condition to build multi-table data block iterator
