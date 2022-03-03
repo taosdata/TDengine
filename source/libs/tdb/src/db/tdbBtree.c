@@ -112,7 +112,6 @@ int tdbBtreeCursor(SBtCursor *pCur, SBTree *pBt) {
 int tdbBtCursorInsert(SBtCursor *pCur, const void *pKey, int kLen, const void *pVal, int vLen) {
   int      ret;
   SPager * pPager;
-  SBtPage *pPage;
 
   ret = tdbBtCursorMoveTo(pCur, pKey, kLen);
   if (ret < 0) {
@@ -120,20 +119,17 @@ int tdbBtCursorInsert(SBtCursor *pCur, const void *pKey, int kLen, const void *p
     return -1;
   }
 
-  pPage = pCur->pPage;
-
   return 0;
 }
 
 static int tdbBtCursorMoveTo(SBtCursor *pCur, const void *pKey, int kLen) {
   int      ret;
-  SBtPage *pBtPage;
   void *   pCell;
 
-  ret = tdbBtCursorMoveToRoot(pCur);
-  if (ret < 0) {
-    return -1;
-  }
+  // ret = tdbBtCursorMoveToRoot(pCur);
+  // if (ret < 0) {
+  //   return -1;
+  // }
 
   // if (pCur->pPage->pHdr->nCells == 0) {
   //   // Tree is empty
@@ -220,11 +216,10 @@ static int tdbEncodeLength(u8 *pBuf, uint32_t len) {
 }
 
 static int tdbBtCursorMoveToRoot(SBtCursor *pCur) {
-  SBTree * pBt;
-  SPager * pPager;
-  SPage *  pPage;
-  SBtPage *pBtPage;
-  int      ret;
+  SBTree *pBt;
+  SPager *pPager;
+  SPage * pPage;
+  int     ret;
 
   pBt = pCur->pBt;
   pPager = pBt->pPager;
