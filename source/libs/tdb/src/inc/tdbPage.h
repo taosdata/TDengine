@@ -28,16 +28,30 @@ typedef struct __attribute__((__packed__)) {
   u16 nFree;
 } SPageHdr;
 
-typedef struct {
-  void *    pData;
+typedef struct SPage SPage;
+struct SPage {
+  // Fields below used by page cache
+  void *   pData;
+  SPgid    pgid;
+  u8       isAnchor;
+  u8       isLocalPage;
+  u8       isDirty;
+  i32      nRef;
+  SPCache *pCache;
+  SPage *  pFreeNext;
+  SPage *  pHashNext;
+  SPage *  pLruNext;
+  SPage *  pLruPrev;
+  SPage *  pDirtyNext;
+  SPager * pPager;
+  // Fields below used by pager and am
   SPageHdr *pPageHdr;
-  void *    pAMHdr;
   u16 *     aCellIdx;
   int       kLen;
   int       vLen;
   int       maxLocal;
   int       minLocal;
-} SMemPage;
+};
 
 #ifdef __cplusplus
 }

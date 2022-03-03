@@ -236,7 +236,6 @@ static int tdbPCacheOpenImpl(SPCache *pCache) {
 
     pPage = (SPage *)(&(pPtr[pCache->pageSize]));
     pPage->pData = (void *)pPtr;
-    pPage->pExtra = (void *)(&(pPage[1]));
     // pPage->pgid = 0;
     pPage->isAnchor = 0;
     pPage->isLocalPage = 1;

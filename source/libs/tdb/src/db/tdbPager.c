@@ -114,7 +114,8 @@ int tdbPagerOpenDB(SPager *pPager, SPgno *ppgno, bool toCreate) {
       return -1;
     }
 
-    // tdbpPagerZeroPage(pPage);
+    // TODO: Need to zero the page
+
     ret = tdbPagerWrite(pPager, pPage);
     if (ret < 0) {
       return -1;

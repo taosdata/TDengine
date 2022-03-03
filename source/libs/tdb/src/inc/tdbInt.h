@@ -128,11 +128,12 @@ typedef int (*FKeyComparator)(const void *pKey1, int kLen1, const void *pKey2, i
 
 #define BTREE_MAX_DEPTH 20
 
+typedef struct SPager  SPager;
+typedef struct SPCache SPCache;
+
 #include "tdbUtil.h"
 
 #include "tdbPage.h"
-
-typedef struct SPager SPager;
 
 #include "tdbPCache.h"
 

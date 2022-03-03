@@ -20,26 +20,6 @@
 extern "C" {
 #endif
 
-typedef struct SPCache SPCache;
-typedef struct SPage   SPage;
-
-struct SPage {
-  void *   pData;
-  void *   pExtra;
-  SPgid    pgid;
-  u8       isAnchor;
-  u8       isLocalPage;
-  u8       isDirty;
-  i32      nRef;
-  SPCache *pCache;
-  SPage *  pFreeNext;
-  SPage *  pHashNext;
-  SPage *  pLruNext;
-  SPage *  pLruPrev;
-  SPage *  pDirtyNext;
-  SPager * pPager;
-};
-
 int    tdbPCacheOpen(int pageSize, int cacheSize, int extraSize, SPCache **ppCache);
 int    tdbPCacheClose(SPCache *pCache);
 SPage *tdbPCacheFetch(SPCache *pCache, const SPgid *pPgid, bool alcNewPage);

@@ -269,12 +269,3 @@ static int tdbDefaultKeyCmprFn(const void *pKey1, int keyLen1, const void *pKey2
   }
   return cret;
 }
-
-static void tdbBtreeZeroPage(SMemPage *pPage, int flags) {
-  // TODO
-}
-
-static int tdbBtreeInitPage(SMemPage *pPage) {
-  // TODO
-  return 0;
-}
