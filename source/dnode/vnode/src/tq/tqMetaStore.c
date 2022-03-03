@@ -90,7 +90,7 @@ STqMetaStore* tqStoreOpen(STQ* pTq, const char* path, FTqSerialize serializer, F
   char name[pathLen + 10];
 
   strcpy(name, path);
-  if (taosDirExist(name) != 0 && taosMkDir(name) != 0) {
+  if (!taosDirExist(name) && taosMkDir(name) != 0) {
     terrno = TSDB_CODE_TQ_FAILED_TO_CREATE_DIR;
     tqError("failed to create dir:%s since %s ", name, terrstr());
   }

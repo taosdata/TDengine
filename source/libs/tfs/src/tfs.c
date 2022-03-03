@@ -389,7 +389,6 @@ static int32_t tfsMount(STfs *pTfs, SDiskCfg *pCfg) {
 
 static int32_t tfsCheckAndFormatCfg(STfs *pTfs, SDiskCfg *pCfg) {
   char        dirName[TSDB_FILENAME_LEN] = "\0";
-  struct stat pstat;
 
   if (pCfg->level < 0 || pCfg->level >= TFS_MAX_TIERS) {
     fError("failed to mount %s to FS since invalid level %d", pCfg->dir, pCfg->level);
@@ -422,19 +421,13 @@ static int32_t tfsCheckAndFormatCfg(STfs *pTfs, SDiskCfg *pCfg) {
     return -1;
   }
 
-  if (access(dirName, W_OK | R_OK | F_OK) != 0) {
+  if (!taosCheckAccessFile(dirName, TD_FILE_ACCESS_EXIST_OK | TD_FILE_ACCESS_READ_OK | TD_FILE_ACCESS_WRITE_OK)) {
     fError("failed to mount %s to FS since no R/W access rights", pCfg->dir);
     terrno = TSDB_CODE_FS_INVLD_CFG;
     return -1;
   }
 
-  if (stat(dirName, &pstat) < 0) {
-    fError("failed to mount %s to FS since %s", pCfg->dir, strerror(errno));
-    terrno = TAOS_SYSTEM_ERROR(errno);
-    return -1;
-  }
-
-  if (!S_ISDIR(pstat.st_mode)) {
+  if (!taosIsDir(dirName)) {
     fError("failed to mount %s to FS since not a directory", pCfg->dir);
     terrno = TSDB_CODE_FS_INVLD_CFG;
     return -1;
