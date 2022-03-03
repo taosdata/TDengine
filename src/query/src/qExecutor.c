@@ -283,48 +283,23 @@ static int compareRowData(const void *a, const void *b, const void *userData) {
   return (in1 != NULL && in2 != NULL) ? supporter->comFunc(in1, in2) : 0;
 }
 
-static void sortGroupResByOrderList(SGroupResInfo *pGroupResInfo, SQueryRuntimeEnv *pRuntimeEnv, SSDataBlock* pDataBlock, SQLFunctionCtx *pCtx) {
-  int32_t size = pRuntimeEnv->pQueryAttr->pGroupbyExpr == NULL? 0: pRuntimeEnv->pQueryAttr->pGroupbyExpr->numOfGroupCols;
-  if (pRuntimeEnv->pQueryAttr->interval.interval > 0) size++;
-
-  if (size <= 0) {
+static void sortGroupResByOrderList(SGroupResInfo *pGroupResInfo, SQueryRuntimeEnv *pRuntimeEnv, SSDataBlock* pDataBlock) {
+  if (pRuntimeEnv->pQueryAttr->pGroupbyExpr == NULL || pRuntimeEnv->pQueryAttr->pGroupbyExpr->numOfGroupCols <= 0){
     return;
   }
+  SColIndex* pColIndex = taosArrayGet(pRuntimeEnv->pQueryAttr->pGroupbyExpr->columnInfo, 0);
 
-  int32_t orderId = pRuntimeEnv->pQueryAttr->order.orderColId;
-  if (orderId <= 0) {
-    return;
-  }
-
-  int32_t orderIndex = -1;
-  for (int32_t j = 0; j < pDataBlock->info.numOfCols; ++j) {
-    if (pCtx[j].colId == orderId) {
-      orderIndex = j;
-      break;
-    }
-  }
-  if (orderIndex < 0) {
-    return;
-  }
-
-  bool found = false;
   int16_t dataOffset = 0;
-
+  int16_t type = 0;
   for (int32_t j = 0; j < pDataBlock->info.numOfCols; ++j) {
     SColumnInfoData* pColInfoData = (SColumnInfoData *)taosArrayGet(pDataBlock->pDataBlock, j);
-    if (orderIndex == j) {
-      found = true;
+    if (pColInfoData->info.colId == pColIndex->colId) {
+      type = pColInfoData->info.type;
       break;
     }
 
     dataOffset += pColInfoData->info.bytes;
   }
-
-  if (found == false) {
-    return;
-  }
-
-  int16_t type = pRuntimeEnv->pQueryAttr->pExpr1[orderIndex].base.resType;
   SRowCompSupporter support = {.pRuntimeEnv = pRuntimeEnv, .dataOffset = dataOffset, .comFunc = getComparFunc(type, 0)};
   taosArraySortPWithExt(pGroupResInfo->pRows, compareRowData, &support);
 }
@@ -7159,7 +7134,7 @@ static SSDataBlock* hashGroupbyAggregate(void* param, bool* newgroup) {
 
   initGroupResInfo(&pRuntimeEnv->groupResInfo, &pInfo->binfo.resultRowInfo);
   if (!pRuntimeEnv->pQueryAttr->stableQuery) {
-    sortGroupResByOrderList(&pRuntimeEnv->groupResInfo, pRuntimeEnv, pInfo->binfo.pRes, pInfo->binfo.pCtx);
+    sortGroupResByOrderList(&pRuntimeEnv->groupResInfo, pRuntimeEnv, pInfo->binfo.pRes);
   }
 
   toSSDataBlock(&pRuntimeEnv->groupResInfo, pRuntimeEnv, pInfo->binfo.pRes);
