@@ -323,3 +323,5 @@ void dndCleanup() {
   taosStopCacheRefreshWorker();
   dInfo("dnode env is cleaned up");
 }
+
+int32_t dndGetDiskInfo(SDnode *pDnode, SMonDiskInfo *pInfo) { return 0; }
