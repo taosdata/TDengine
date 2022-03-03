@@ -474,13 +474,13 @@ void dndProcessStartupReq(SDnode *pDnode, SRpcMsg *pReq) {
   rpcSendResponse(&rpcRsp);
 }
 
-static int32_t dndGetBasicInfo(SDnode *pDnode, SMonBasicInfo *pInfo) {
+static int32_t dndGetMonitorBasicInfo(SDnode *pDnode, SMonBasicInfo *pInfo) {
   pInfo->dnode_id = dndGetDnodeId(pDnode);
   tstrncpy(pInfo->dnode_ep, tsLocalEp, TSDB_EP_LEN);
   return 0;
 }
 
-static int32_t dndGetDnodeInfo(SDnode *pDnode, SMonDnodeInfo *pInfo) { return 0; }
+static int32_t dndGetMonitorDnodeInfo(SDnode *pDnode, SMonDnodeInfo *pInfo) { return 0; }
 
 static void dndSendMonitorReport(SDnode *pDnode) {
   if (!tsEnableMonitor || tsMonitorFqdn[0] == 0 || tsMonitorPort == 0) return;
@@ -490,7 +490,7 @@ static void dndSendMonitorReport(SDnode *pDnode) {
   if (pMonitor == NULL) return;
 
   SMonBasicInfo basicInfo = {0};
-  if (dndGetBasicInfo(pDnode, &basicInfo) == 0) {
+  if (dndGetMonitorBasicInfo(pDnode, &basicInfo) == 0) {
     monSetBasicInfo(pMonitor, &basicInfo);
   }
 
@@ -504,14 +504,19 @@ static void dndSendMonitorReport(SDnode *pDnode) {
   }
 
   SMonDnodeInfo dnodeInfo = {0};
-  if (dndGetDnodeInfo(pDnode, &dnodeInfo) == 0) {
+  if (dndGetMonitorDnodeInfo(pDnode, &dnodeInfo) == 0) {
     monSetDnodeInfo(pMonitor, &dnodeInfo);
   }
 
   SMonDiskInfo diskInfo = {0};
-  if (dndGetDiskInfo(pDnode, &diskInfo) == 0) {
+  if (dndGetMonitorDiskInfo(pDnode, &diskInfo) == 0) {
     monSetDiskInfo(pMonitor, &diskInfo);
   }
+
+  taosArrayDestroy(clusterInfo.dnodes);
+  taosArrayDestroy(clusterInfo.mnodes);
+  taosArrayDestroy(vgroupInfo.vgroups);
+  taosArrayDestroy(diskInfo.datadirs);
 
   monSendReport(pMonitor);
   monCleanupMonitorInfo(pMonitor);
