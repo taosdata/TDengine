@@ -13,6 +13,7 @@
  * along with this program. If not, see <http://www.gnu.org/licenses/>.
  */
 
+#include "cmdnodes.h"
 #include "querynodes.h"
 #include "plannodes.h"
 #include "taos.h"
@@ -65,12 +66,28 @@ SNodeptr nodesMakeNode(ENodeType type) {
       return makeNode(type, sizeof(SFillNode));
     case QUERY_NODE_RAW_EXPR:
       return makeNode(type, sizeof(SRawExprNode));
+    case QUERY_NODE_TARGET:
+      return makeNode(type, sizeof(STargetNode));
+    case QUERY_NODE_DATABLOCK_DESC:
+      return makeNode(type, sizeof(SDataBlockDescNode));
+    case QUERY_NODE_SLOT_DESC:
+      return makeNode(type, sizeof(SSlotDescNode));
+    case QUERY_NODE_COLUMN_DEF:
+      return makeNode(type, sizeof(SColumnDefNode));
     case QUERY_NODE_SET_OPERATOR:
       return makeNode(type, sizeof(SSetOperator));
     case QUERY_NODE_SELECT_STMT:
       return makeNode(type, sizeof(SSelectStmt));
-    // case QUERY_NODE_SHOW_STMT:
-    //   return makeNode(type, sizeof(SShowStmt));
+    case QUERY_NODE_VNODE_MODIF_STMT:
+      return makeNode(type, sizeof(SVnodeModifOpStmt));
+    case QUERY_NODE_CREATE_DATABASE_STMT:
+      return makeNode(type, sizeof(SCreateDatabaseStmt));
+    case QUERY_NODE_CREATE_TABLE_STMT:
+      return makeNode(type, sizeof(SCreateTableStmt));
+    case QUERY_NODE_USE_DATABASE_STMT:
+      return makeNode(type, sizeof(SUseDatabaseStmt));
+    case QUERY_NODE_SHOW_DATABASE_STMT:
+      return makeNode(type, sizeof(SNode));;
     case QUERY_NODE_LOGIC_PLAN_SCAN:
       return makeNode(type, sizeof(SScanLogicNode));
     case QUERY_NODE_LOGIC_PLAN_JOIN:
@@ -79,26 +96,34 @@ SNodeptr nodesMakeNode(ENodeType type) {
       return makeNode(type, sizeof(SAggLogicNode));
     case QUERY_NODE_LOGIC_PLAN_PROJECT:
       return makeNode(type, sizeof(SProjectLogicNode));
+    case QUERY_NODE_LOGIC_PLAN_VNODE_MODIF:
+      return makeNode(type, sizeof(SVnodeModifLogicNode));
     case QUERY_NODE_LOGIC_SUBPLAN:
       return makeNode(type, sizeof(SSubLogicPlan));
     case QUERY_NODE_LOGIC_PLAN:
       return makeNode(type, sizeof(SQueryLogicPlan));
-    case QUERY_NODE_TARGET:
-      return makeNode(type, sizeof(STargetNode));
-    case QUERY_NODE_DATABLOCK_DESC:
-      return makeNode(type, sizeof(SDataBlockDescNode));
-    case QUERY_NODE_SLOT_DESC:
-      return makeNode(type, sizeof(SSlotDescNode));
     case QUERY_NODE_PHYSICAL_PLAN_TAG_SCAN:
       return makeNode(type, sizeof(STagScanPhysiNode));
     case QUERY_NODE_PHYSICAL_PLAN_TABLE_SCAN:
       return makeNode(type, sizeof(STableScanPhysiNode));
+    case QUERY_NODE_PHYSICAL_PLAN_TABLE_SEQ_SCAN:
+      return makeNode(type, sizeof(STableSeqScanPhysiNode));
+    case QUERY_NODE_PHYSICAL_PLAN_STREAM_SCAN:
+      return makeNode(type, sizeof(SNode));
     case QUERY_NODE_PHYSICAL_PLAN_PROJECT:
       return makeNode(type, sizeof(SProjectPhysiNode));
     case QUERY_NODE_PHYSICAL_PLAN_JOIN:
       return makeNode(type, sizeof(SJoinPhysiNode));
     case QUERY_NODE_PHYSICAL_PLAN_AGG:
       return makeNode(type, sizeof(SAggPhysiNode));
+    case QUERY_NODE_PHYSICAL_PLAN_EXCHANGE:
+      return makeNode(type, sizeof(SExchangePhysiNode));
+    case QUERY_NODE_PHYSICAL_PLAN_SORT:
+      return makeNode(type, sizeof(SNode));
+    case QUERY_NODE_PHYSICAL_PLAN_DISPATCH:
+      return makeNode(type, sizeof(SDataDispatcherNode));
+    case QUERY_NODE_PHYSICAL_PLAN_INSERT:
+      return makeNode(type, sizeof(SDataInserterNode));
     case QUERY_NODE_PHYSICAL_SUBPLAN:
       return makeNode(type, sizeof(SSubplan));
     case QUERY_NODE_PHYSICAL_PLAN:

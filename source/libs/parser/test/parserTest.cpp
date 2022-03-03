@@ -696,3 +696,23 @@ TEST_F(ParserTest, selectSemanticError) {
   bind("SELECT DISTINCT c2 FROM t1 WHERE c1 > 0 ORDER BY count(c2)");
   ASSERT_TRUE(run(TSDB_CODE_SUCCESS, TSDB_CODE_PAR_NOT_SELECTED_EXPRESSION));
 }
+
+TEST_F(ParserTest, createDatabase) {
+  bind("create database wxy_db");
+  ASSERT_TRUE(run());
+}
+
+TEST_F(ParserTest, showDatabase) {
+  bind("show databases");
+  ASSERT_TRUE(run());
+}
+
+TEST_F(ParserTest, useDatabase) {
+  bind("use wxy_db");
+  ASSERT_TRUE(run());
+}
+
+TEST_F(ParserTest, createTable) {
+  bind("create table t1(ts timestamp, c1 int)");
+  ASSERT_TRUE(run());
+}

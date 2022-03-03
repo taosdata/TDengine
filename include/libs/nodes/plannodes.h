@@ -65,11 +65,28 @@ typedef struct SProjectLogicNode {
   SNodeList* pProjections;
 } SProjectLogicNode;
 
+typedef struct SVnodeModifLogicNode {
+  ENodeType type;;
+  int32_t msgType;
+  SArray* pDataBlocks;
+  SVgDataBlocks* pVgDataBlocks;
+} SVnodeModifLogicNode;
+
+typedef enum ESubplanType {
+  SUBPLAN_TYPE_MERGE = 1,
+  SUBPLAN_TYPE_PARTIAL,
+  SUBPLAN_TYPE_SCAN,
+  SUBPLAN_TYPE_MODIFY
+} ESubplanType;
+
 typedef struct SSubLogicPlan {
   ENodeType type;
   SNodeList* pChildren;
   SNodeList* pParents;
   SLogicNode* pNode;
+  SQueryNodeAddr execNode;
+  ESubplanType subplanType;
+  int32_t level;
 } SSubLogicPlan;
 
 typedef struct SQueryLogicPlan {
@@ -177,13 +194,6 @@ typedef struct SSubplanId {
   int32_t templateId;
   int32_t subplanId;
 } SSubplanId;
-
-typedef enum ESubplanType {
-  SUBPLAN_TYPE_MERGE = 1,
-  SUBPLAN_TYPE_PARTIAL,
-  SUBPLAN_TYPE_SCAN,
-  SUBPLAN_TYPE_MODIFY
-} ESubplanType;
 
 typedef struct SSubplan {
   ENodeType type;

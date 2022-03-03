@@ -348,10 +348,20 @@ static SLogicNode* createSelectLogicNode(SLogicPlanContext* pCxt, SSelectStmt* p
   return pRoot;
 }
 
+static SLogicNode* createVnodeModifLogicNode(SLogicPlanContext* pCxt, SVnodeModifOpStmt* pStmt) {
+  SVnodeModifLogicNode* pModif = (SVnodeModifLogicNode*)nodesMakeNode(QUERY_NODE_LOGIC_PLAN_VNODE_MODIF);
+  CHECK_ALLOC(pModif, NULL);
+  pModif->pDataBlocks = pStmt->pDataBlocks;
+  pModif->msgType = (QUERY_NODE_CREATE_TABLE_STMT == pStmt->sqlNodeType ? TDMT_VND_CREATE_TABLE : TDMT_VND_SUBMIT);
+  return (SLogicNode*)pModif;
+}
+
 static SLogicNode* createQueryLogicNode(SLogicPlanContext* pCxt, SNode* pStmt) {
   switch (nodeType(pStmt)) {
     case QUERY_NODE_SELECT_STMT:
-      return createSelectLogicNode(pCxt, (SSelectStmt*)pStmt);    
+      return createSelectLogicNode(pCxt, (SSelectStmt*)pStmt);
+    case QUERY_NODE_VNODE_MODIF_STMT:
+      return createVnodeModifLogicNode(pCxt, (SVnodeModifOpStmt*)pStmt);
     default:
       break;
   }

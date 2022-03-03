@@ -30,18 +30,18 @@ typedef struct SKeyword {
 // keywords in sql string
 static SKeyword keywordTable[] = {
     // {"ID",           TK_ID},
-    // {"BOOL",         TK_BOOL},
-//    {"TINYINT",      TK_TINYINT},
-//    {"SMALLINT",     TK_SMALLINT},
-    // {"INTEGER",      TK_INTEGER},
-    // {"INT",          TK_INTEGER},
-//    {"BIGINT",       TK_BIGINT},
-    // {"FLOAT",        TK_FLOAT},
-//    {"DOUBLE",       TK_DOUBLE},
+    {"BOOL",         TK_BOOL},
+   {"TINYINT",      TK_TINYINT},
+   {"SMALLINT",     TK_SMALLINT},
+    {"INTEGER",      TK_INTEGER},
+    {"INT",          TK_INTEGER},
+   {"BIGINT",       TK_BIGINT},
+    {"FLOAT",        TK_FLOAT},
+   {"DOUBLE",       TK_DOUBLE},
     // {"STRING",       TK_STRING},
     {"TIMESTAMP",    TK_TIMESTAMP},
-//    {"BINARY",       TK_BINARY},
-//    {"NCHAR",        TK_NCHAR},
+   {"BINARY",       TK_BINARY},
+   {"NCHAR",        TK_NCHAR},
     {"OR",           TK_OR},
     {"AND",          TK_AND},
     {"NOT",          TK_NOT},
@@ -74,8 +74,8 @@ static SKeyword keywordTable[] = {
     // {"UMINUS",       TK_UMINUS},
     // {"UPLUS",        TK_UPLUS},
     // {"BITNOT",       TK_BITNOT},
-    // {"SHOW",         TK_SHOW},
-    // {"DATABASES",    TK_DATABASES},
+    {"SHOW",         TK_SHOW},
+    {"DATABASES",    TK_DATABASES},
     // {"MNODES",       TK_MNODES},
     // {"DNODES",       TK_DNODES},
     // {"ACCOUNTS",     TK_ACCOUNTS},
@@ -92,12 +92,12 @@ static SKeyword keywordTable[] = {
     // {"STABLES",      TK_STABLES},
     {"VGROUPS",      TK_VGROUPS},
     // {"DROP",         TK_DROP},
-    // {"TABLE",        TK_TABLE},
+    {"TABLE",        TK_TABLE},
     {"DATABASE",     TK_DATABASE},
     // {"DNODE",        TK_DNODE},
     // {"USER",         TK_USER},
     // {"ACCOUNT",      TK_ACCOUNT},
-    // {"USE",          TK_USE},
+    {"USE",          TK_USE},
     // {"DESCRIBE",     TK_DESCRIBE},
     // {"SYNCDB",       TK_SYNCDB},
     // {"ALTER",        TK_ALTER},
@@ -309,7 +309,7 @@ uint32_t tGetToken(const char* z, uint32_t* tokenId) {
       if (z[1] == '-') {
         for (i = 2; z[i] && z[i] != '\n'; i++) {
         }
-        *tokenId = TK_COMMENT;
+        *tokenId = TK_NK_COMMENT;
         return i;
       }
       *tokenId = TK_MINUS;
@@ -343,7 +343,7 @@ uint32_t tGetToken(const char* z, uint32_t* tokenId) {
       for (i = 3; z[i] && (z[i] != '/' || z[i - 1] != '*'); i++) {
       }
       if (z[i]) i++;
-      *tokenId = TK_COMMENT;
+      *tokenId = TK_NK_COMMENT;
       return i;
     }
     case '%': {
