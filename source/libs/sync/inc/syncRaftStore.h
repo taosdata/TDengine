@@ -35,7 +35,8 @@ typedef struct SRaftStore {
   SyncTerm currentTerm;
   SRaftId  voteFor;
   // FileFd   fd;
-  char path[RAFT_STORE_PATH_LEN];
+  TdFilePtr pFile;
+  char      path[RAFT_STORE_PATH_LEN];
 } SRaftStore;
 
 SRaftStore *raftStoreOpen(const char *path);
