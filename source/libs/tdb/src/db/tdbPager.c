@@ -260,17 +260,23 @@ int tdbPagerFetchPage(SPager *pPager, SPgno pgno, SPage **ppPage) {
   if (pPage->pPager == NULL) {
     ASSERT(pgno < pPager->dbOrigSize);
 
-    ret = tdbPagerReadPage(pPager, pPage);
-    if (ret < 0) {
-      return -1;
+    // tdbWLockPage(pPage);
+
+    if (pPage->pPager == NULL) {
+      ret = tdbPagerReadPage(pPager, pPage);
+      if (ret < 0) {
+        return -1;
+      }
+
+      // ret = (*initPage)(pPage);
+      // if (ret < 0) {
+      //   return -1;
+      // }
+
+      pPage->pPager = pPager;
     }
 
-    // ret = (*initPage)(pPage);
-    // if (ret < 0) {
-    //   return -1;
-    // }
-
-    pPage->pPager = pPager;
+    // tdbWUnlockPage(pPage);
   } else {
     ASSERT(pPage->pPager == pPager);
   }
@@ -302,8 +308,17 @@ int tdbPagerNewPage(SPager *pPager, SPgno *ppgno, SPage **ppPage) {
 
   ASSERT(pPage->pPager == NULL);
 
+  // TODO: a race condition problem may occur here
+
+  // tdbWLockPage(pPage);
+
   // TODO: zero init the new page
   // (*initNewPage)(pPage, arg);
+
+  pPage->pPager = NULL;
+
+  // tdbWunlockPage(pPage);
+
 
   *ppPage = pPage;
   return 0;
