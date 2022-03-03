@@ -42,6 +42,7 @@ typedef struct __attribute__((__packed__)) {
 TDB_STATIC_ASSERT(sizeof(SFileHdr) == 128, "Size of file header is not correct");
 
 static int tdbPagerReadPage(SPager *pPager, SPage *pPage);
+static int tdbPagerAllocPage(SPager *pPager, SPgno *ppgno);
 
 int tdbPagerOpen(SPCache *pCache, const char *fileName, SPager **ppPager) {
   uint8_t *pPtr;
@@ -318,7 +319,6 @@ int tdbPagerNewPage(SPager *pPager, SPgno *ppgno, SPage **ppPage) {
   pPage->pPager = NULL;
 
   // tdbWunlockPage(pPage);
-
 
   *ppPage = pPage;
   return 0;
