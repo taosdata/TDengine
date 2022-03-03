@@ -23,6 +23,11 @@
 extern "C" {
 #endif
 
+#define MON_STATUS_LEN 8
+#define MON_ROLE_LEN   9
+#define MON_VER_LEN    12
+#define MON_LOG_LEN    1024
+
 typedef struct {
   int32_t dnode_id;
   char    dnode_ep[TSDB_EP_LEN];
@@ -31,19 +36,19 @@ typedef struct {
 typedef struct {
   int32_t dnode_id;
   char    dnode_ep[TSDB_EP_LEN];
-  char    status[8];
+  char    status[MON_STATUS_LEN];
 } SMonDnodeDesc;
 
 typedef struct {
   int32_t mnode_id;
   char    mnode_ep[TSDB_EP_LEN];
-  char    role[8];
+  char    role[MON_ROLE_LEN];
 } SMonMnodeDesc;
 
 typedef struct {
   char    first_ep[TSDB_EP_LEN];
   int32_t first_ep_dnode_id;
-  char    version[12];
+  char    version[MON_VER_LEN];
   float   master_uptime;     // day
   int32_t monitor_interval;  // sec
   int32_t vgroups_total;
@@ -57,19 +62,18 @@ typedef struct {
 
 typedef struct {
   int32_t dnode_id;
-  int8_t  vnode_online;
-  char    vnode_role[8];
+  char    vnode_role[MON_ROLE_LEN];
 } SMonVnodeDesc;
 
 typedef struct {
   int32_t       vgroup_id;
+  char          database_name[TSDB_DB_NAME_LEN];
+  int32_t       tables_num;
+  char          status[MON_STATUS_LEN];
   SMonVnodeDesc vnodes[TSDB_MAX_REPLICA];
 } SMonVgroupDesc;
 
 typedef struct {
-  char    database_name[TSDB_DB_NAME_LEN];
-  int32_t tables_num;
-  int8_t  status;
   SArray *vgroups;  // array of SMonVgroupDesc
 } SMonVgroupInfo;
 
@@ -107,7 +111,7 @@ typedef struct {
   int32_t errors;
   int32_t vnodes_num;
   int32_t masters;
-  int32_t has_mnode;
+  int8_t  has_mnode;
 } SMonDnodeInfo;
 
 typedef struct {
@@ -117,13 +121,15 @@ typedef struct {
 } SMonDiskDesc;
 
 typedef struct {
-  SArray *disks;  // array of SMonDiskDesc
+  SArray      *datadirs;  // array of SMonDiskDesc
+  SMonDiskDesc logdir;
+  SMonDiskDesc tempdir;
 } SMonDiskInfo;
 
 typedef struct {
   int64_t ts;
   int8_t  level;
-  char    content[1024];
+  char    content[MON_LOG_LEN];
 } SMonLogItem;
 
 typedef struct SMonInfo SMonInfo;
