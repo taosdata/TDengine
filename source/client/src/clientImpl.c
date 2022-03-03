@@ -227,10 +227,10 @@ void setResSchemaInfo(SReqResultInfo* pResInfo, const SSchema* pSchema, int32_t 
 int32_t scheduleQuery(SRequestObj* pRequest, SQueryDag* pDag, SArray* pNodeList) {
   void* pTransporter = pRequest->pTscObj->pAppInfo->pTransporter;
   SQueryResult res = {.code = 0, .numOfRows = 0, .msgSize = ERROR_MSG_BUF_DEFAULT_SIZE, .msg = pRequest->msgBuf};
-  int32_t      code = schedulerExecJob(pTransporter, pNodeList, pDag, &pRequest->body.pQueryJob, pRequest->sqlstr, &res);
+  int32_t      code = schedulerExecJob(pTransporter, pNodeList, pDag, &pRequest->body.queryJob, pRequest->sqlstr, &res);
   if (code != TSDB_CODE_SUCCESS) {
-    if (pRequest->body.pQueryJob != NULL) {
-      schedulerFreeJob(pRequest->body.pQueryJob);
+    if (pRequest->body.queryJob != 0) {
+      schedulerFreeJob(pRequest->body.queryJob);
     }
 
     pRequest->code = code;
@@ -240,8 +240,8 @@ int32_t scheduleQuery(SRequestObj* pRequest, SQueryDag* pDag, SArray* pNodeList)
   if (TSDB_SQL_INSERT == pRequest->type || TSDB_SQL_CREATE_TABLE == pRequest->type) {
     pRequest->body.resInfo.numOfRows = res.numOfRows;
     
-    if (pRequest->body.pQueryJob != NULL) {
-      schedulerFreeJob(pRequest->body.pQueryJob);
+    if (pRequest->body.queryJob != 0) {
+      schedulerFreeJob(pRequest->body.queryJob);
     }
   }
   
@@ -494,7 +494,7 @@ void* doFetchRow(SRequestObj* pRequest) {
       }
 
       SReqResultInfo* pResInfo = &pRequest->body.resInfo;
-      int32_t         code = schedulerFetchRows(pRequest->body.pQueryJob, (void**)&pResInfo->pData);
+      int32_t         code = schedulerFetchRows(pRequest->body.queryJob, (void**)&pResInfo->pData);
       if (code != TSDB_CODE_SUCCESS) {
         pRequest->code = code;
         return NULL;
