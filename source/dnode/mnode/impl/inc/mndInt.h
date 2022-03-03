@@ -21,11 +21,11 @@
 #include "sdb.h"
 #include "tcache.h"
 #include "tep.h"
+#include "tglobal.h"
 #include "tqueue.h"
 #include "ttime.h"
-#include "wal.h"
 #include "version.h"
-#include "tglobal.h"
+#include "wal.h"
 
 #ifdef __cplusplus
 extern "C" {
@@ -37,6 +37,20 @@ typedef void (*MndCleanupFp)(SMnode *pMnode);
 typedef int32_t (*ShowMetaFp)(SMnodeMsg *pMsg, SShowObj *pShow, STableMetaRsp *pMeta);
 typedef int32_t (*ShowRetrieveFp)(SMnodeMsg *pMsg, SShowObj *pShow, char *data, int32_t rows);
 typedef void (*ShowFreeIterFp)(SMnode *pMnode, void *pIter);
+
+typedef struct SMnodeLoad {
+  int64_t numOfDnode;
+  int64_t numOfMnode;
+  int64_t numOfVgroup;
+  int64_t numOfDatabase;
+  int64_t numOfSuperTable;
+  int64_t numOfChildTable;
+  int64_t numOfNormalTable;
+  int64_t numOfColumn;
+  int64_t totalPoints;
+  int64_t totalStorage;
+  int64_t compStorage;
+} SMnodeLoad;
 
 typedef struct {
   const char  *name;
@@ -104,7 +118,9 @@ int32_t mndSendReqToMnode(SMnode *pMnode, SRpcMsg *pMsg);
 void    mndSendRedirectRsp(SMnode *pMnode, SRpcMsg *pMsg);
 void    mndSetMsgHandle(SMnode *pMnode, tmsg_t msgType, MndMsgFp fp);
 
-uint64_t mndGenerateUid(char *name, int32_t len) ;
+uint64_t mndGenerateUid(char *name, int32_t len);
+
+int32_t mndGetLoad(SMnode *pMnode, SMnodeLoad *pLoad);
 
 #ifdef __cplusplus
 }

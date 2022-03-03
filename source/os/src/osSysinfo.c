@@ -167,11 +167,9 @@ void taosGetSystemInfo() {
   tsTotalMemoryMB = taosGetTotalMemory();
 
   float tmp1, tmp2;
-  // taosGetDisk();
   taosGetBandSpeed(&tmp1);
   taosGetCpuUsage(&tmp1, &tmp2);
   taosGetProcIO(&tmp1, &tmp2);
-
 }
 
 void taosKillSystem() {
@@ -712,7 +710,6 @@ void taosGetSystemInfo() {
   float tmp1, tmp2;
   taosGetSysMemory(&tmp1);
   taosGetProcMemory(&tmp2);
-  // taosGetDisk();
   taosGetBandSpeed(&tmp1);
   taosGetCpuUsage(&tmp1, &tmp2);
   taosGetProcIO(&tmp1, &tmp2);

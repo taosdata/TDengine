@@ -1,5 +1,5 @@
 aux_source_directory(src SYNC_SRC)
-add_library(sync ${SYNC_SRC})
+add_library(sync STATIC ${SYNC_SRC})
 
 target_link_libraries(
     sync

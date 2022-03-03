@@ -46,6 +46,13 @@ int32_t tsMaxBinaryDisplayWidth = 30;
 bool    tsEnableSlaveQuery = 1;
 bool    tsPrintAuth = 0;
 
+// monitor
+bool     tsEnableMonitor = 1;
+int32_t  tsMonitorInterval = 5;
+char     tsMonitorFqdn[TSDB_FQDN_LEN] = {0};
+uint16_t tsMonitorPort = 6043;
+int32_t  tsMonitorMaxLogs = 100;
+
 /*
  * denote if the server needs to compress response message at the application layer to client, including query rsp,
  * metricmeta rsp, and multi-meter query rsp message body. The client compress the submit message to server.
@@ -314,6 +321,13 @@ static int32_t taosAddServerCfg(SConfig *pCfg) {
   if (cfgAddBool(pCfg, "printAuth", tsPrintAuth, 0) != 0) return -1;
   if (cfgAddBool(pCfg, "slaveQuery", tsEnableSlaveQuery, 0) != 0) return -1;
   if (cfgAddBool(pCfg, "deadLockKillQuery", tsDeadLockKillQuery, 0) != 0) return -1;
+
+  if (cfgAddBool(pCfg, "monitor", tsEnableMonitor, 0) != 0) return -1;
+  if (cfgAddInt32(pCfg, "monitorInterval", tsMonitorInterval, 1, 360000, 0) != 0) return -1;
+  if (cfgAddString(pCfg, "monitorFqdn", tsMonitorFqdn, 0) != 0) return -1;
+  if (cfgAddInt32(pCfg, "monitorPort", tsMonitorPort, 1, 65056, 0) != 0) return -1;
+  if (cfgAddInt32(pCfg, "monitorMaxLogs", tsMonitorMaxLogs, 1, 1000000, 0) != 0) return -1;
+
   return 0;
 }
 
@@ -345,7 +359,7 @@ static void taosSetServerLogCfg(SConfig *pCfg) {
 }
 
 static void taosSetClientCfg(SConfig *pCfg) {
-  tstrncpy(tsLocalFqdn, cfgGetItem(pCfg, "fqdn")->str, TSDB_EP_LEN);
+  tstrncpy(tsLocalFqdn, cfgGetItem(pCfg, "fqdn")->str, TSDB_FQDN_LEN);
   tsServerPort = (uint16_t)cfgGetItem(pCfg, "serverPort")->i32;
   snprintf(tsLocalEp, sizeof(tsLocalEp), "%s:%u", tsLocalFqdn, tsServerPort);
 
@@ -424,6 +438,12 @@ static void taosSetServerCfg(SConfig *pCfg) {
   tsPrintAuth = cfgGetItem(pCfg, "printAuth")->bval;
   tsEnableSlaveQuery = cfgGetItem(pCfg, "slaveQuery")->bval;
   tsDeadLockKillQuery = cfgGetItem(pCfg, "deadLockKillQuery")->bval;
+
+  tsEnableMonitor = cfgGetItem(pCfg, "monitor")->bval;
+  tsMonitorInterval = cfgGetItem(pCfg, "monitorInterval")->i32;
+  tstrncpy(tsMonitorFqdn, cfgGetItem(pCfg, "monitorFqdn")->str, TSDB_FQDN_LEN);
+  tsMonitorPort = (uint16_t)cfgGetItem(pCfg, "monitorPort")->i32;
+  tsMonitorMaxLogs = cfgGetItem(pCfg, "monitorMaxLogs")->i32;
 
   if (tsQueryBufferSize >= 0) {
     tsQueryBufferSizeBytes = tsQueryBufferSize * 1048576UL;

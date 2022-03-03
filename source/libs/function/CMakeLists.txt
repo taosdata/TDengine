@@ -1,5 +1,5 @@
 aux_source_directory(src FUNCTION_SRC)
-add_library(function ${FUNCTION_SRC})
+add_library(function STATIC ${FUNCTION_SRC})
 target_include_directories(
     function
     PUBLIC "${CMAKE_SOURCE_DIR}/include/libs/function"
