@@ -34,9 +34,9 @@ typedef struct {
 } SDiskSpace;
 
 void    taosGetSystemInfo();
-bool    taosGetEmail(char *email, int32_t maxLen);
-bool    taosGetOsReleaseName(char *releaseName, int32_t maxLen);
-bool    taosGetCpuInfo(char *cpuModel, int32_t maxLen, int32_t *numOfCores);
+int32_t taosGetEmail(char *email, int32_t maxLen);
+int32_t taosGetOsReleaseName(char *releaseName, int32_t maxLen);
+int32_t taosGetCpuInfo(char *cpuModel, int32_t maxLen, int32_t *numOfCores);
 int32_t taosGetCpuCores();
 bool    taosGetCpuUsage(float *sysCpuUsage, float *procCpuUsage);
 bool    taosGetTotalSysMemoryKB(uint64_t *kb);

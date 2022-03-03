@@ -52,12 +52,12 @@ static char* mndBuildTelemetryReport(SMnode* pMnode) {
   tjsonAddStringToObject(pJson, "instanceId", clusterName);
   tjsonAddDoubleToObject(pJson, "reportVersion", 1);
 
-  if (taosGetOsReleaseName(tmp, sizeof(tmp))) {
+  if (taosGetOsReleaseName(tmp, sizeof(tmp)) == 0) {
     tjsonAddStringToObject(pJson, "os", tmp);
   }
 
   int32_t numOfCores = 0;
-  if (taosGetCpuInfo(tmp, sizeof(tmp), &numOfCores)) {
+  if (taosGetCpuInfo(tmp, sizeof(tmp), &numOfCores) == 0) {
     tjsonAddStringToObject(pJson, "cpuModel", tmp);
     tjsonAddDoubleToObject(pJson, "numOfCpu", numOfCores);
   } else {
