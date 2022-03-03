@@ -6,3 +6,5 @@ src/test/XUnitTest/bin/
 src/test/XUnitTest/obj/
 src/test/doc/
 NugetPackTest/
+examples/bin/
+examples/obj/
