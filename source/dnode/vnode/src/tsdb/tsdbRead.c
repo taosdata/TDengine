@@ -3276,8 +3276,12 @@ int32_t tsdbRetrieveDataBlockStatisInfo(tsdbReaderT* pTsdbReadHandle, SDataStati
   }
 
   int64_t stime = taosGetTimestampUs();
-  if (tsdbLoadBlockStatis(&pHandle->rhelper, pBlockInfo->compBlock) < 0) {
+  int     statisStatus = tsdbLoadBlockStatis(&pHandle->rhelper, pBlockInfo->compBlock);
+  if (statisStatus < TSDB_STATIS_OK) {
     return terrno;
+  } else if (statisStatus > TSDB_STATIS_OK) {
+    *pBlockStatis = NULL;
+    return TSDB_CODE_SUCCESS;
   }
 
   int16_t* colIds = pHandle->defaultLoadColumn->pData;
@@ -3288,7 +3292,7 @@ int32_t tsdbRetrieveDataBlockStatisInfo(tsdbReaderT* pTsdbReadHandle, SDataStati
     pHandle->statis[i].colId = colIds[i];
   }
 
-  tsdbGetBlockStatis(&pHandle->rhelper, pHandle->statis, (int)numOfCols);
+  tsdbGetBlockStatis(&pHandle->rhelper, pHandle->statis, (int)numOfCols, pBlockInfo->compBlock);
 
   // always load the first primary timestamp column data
   SDataStatis* pPrimaryColStatis = &pHandle->statis[0];
