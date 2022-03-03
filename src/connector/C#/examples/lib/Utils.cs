@@ -41,7 +41,7 @@ namespace Sample.UtilsTools
             }
             else if (OperatingSystem.IsOSPlatform("macOS"))
             {
-                configDir = "/etc/taos";
+                configDir = "/usr/local/etc/taos";
             }
             return configDir;
         }
