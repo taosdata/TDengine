@@ -22,118 +22,72 @@
 
 SSyncIO *gSyncIO = NULL;
 
-int32_t syncIOSendMsg(void *handle, const SEpSet *pEpSet, SRpcMsg *pMsg) { return 0; }
+// local function ------------
+static int32_t  syncIOStartInternal(SSyncIO *io);
+static int32_t  syncIOStopInternal(SSyncIO *io);
+static SSyncIO *syncIOCreate(char *host, uint16_t port);
+static int32_t  syncIODestroy(SSyncIO *io);
 
-int32_t syncIOStart() { return 0; }
+static void *syncIOConsumerFunc(void *param);
+static int   syncIOAuth(void *parent, char *meterId, char *spi, char *encrypt, char *secret, char *ckey);
+static void  syncIOProcessRequest(void *pParent, SRpcMsg *pMsg, SEpSet *pEpSet);
+static void  syncIOProcessReply(void *pParent, SRpcMsg *pMsg, SEpSet *pEpSet);
 
-int32_t syncIOStop() { return 0; }
+static int32_t syncIOTickQInternal(SSyncIO *io);
+static void    syncIOTickQFunc(void *param, void *tmrId);
+static int32_t syncIOTickPingInternal(SSyncIO *io);
+static void    syncIOTickPingFunc(void *param, void *tmrId);
+// ----------------------------
 
-static void syncTick(void *param, void *tmrId) {
-  SSyncIO *io = (SSyncIO *)param;
-  sDebug("syncTick ... ");
-
-  SRpcMsg rpcMsg;
-  rpcMsg.pCont = rpcMallocCont(10);
-  snprintf(rpcMsg.pCont, 10, "TICK");
-  rpcMsg.contLen = 10;
-  rpcMsg.handle = NULL;
-  rpcMsg.msgType = 2;
-
-  SRpcMsg *pTemp;
-
-  pTemp = taosAllocateQitem(sizeof(SRpcMsg));
-  memcpy(pTemp, &rpcMsg, sizeof(SRpcMsg));
-
-  taosWriteQitem(io->pMsgQ, pTemp);
-
-  io->syncTimer = taosTmrStart(syncTick, 1000, io, io->syncTimerManager);
+// public function ------------
+int32_t syncIOSendMsg(void *clientRpc, const SEpSet *pEpSet, SRpcMsg *pMsg) {
+  sTrace(
+      "<--- syncIOSendMsg ---> clientRpc:%p, numOfEps:%d, inUse:%d, destAddr:%s-%u, pMsg->ahandle:%p, pMsg->handle:%p, "
+      "pMsg->msgType:%d, pMsg->contLen:%d",
+      clientRpc, pEpSet->numOfEps, pEpSet->inUse, pEpSet->eps[0].fqdn, pEpSet->eps[0].port, pMsg->ahandle, pMsg->handle,
+      pMsg->msgType, pMsg->contLen);
+  pMsg->handle = NULL;
+  rpcSendRequest(clientRpc, pEpSet, pMsg, NULL);
+  return 0;
 }
 
-void *syncConsumer(void *param) {
-  SSyncIO *io = param;
+int32_t syncIOStart(char *host, uint16_t port) {
+  gSyncIO = syncIOCreate(host, port);
+  assert(gSyncIO != NULL);
 
-  STaosQall *qall;
-  SRpcMsg *  pRpcMsg, rpcMsg;
-  int        type;
+  int32_t ret = syncIOStartInternal(gSyncIO);
+  assert(ret == 0);
 
-  qall = taosAllocateQall();
-
-  while (1) {
-    int numOfMsgs = taosReadAllQitemsFromQset(io->pQset, qall, NULL, NULL);
-    sDebug("%d sync-io msgs are received", numOfMsgs);
-    if (numOfMsgs <= 0) break;
-
-    for (int i = 0; i < numOfMsgs; ++i) {
-      taosGetQitem(qall, (void **)&pRpcMsg);
-      sDebug("sync-io recv type:%d msg:%s", pRpcMsg->msgType, (char *)(pRpcMsg->pCont));
-    }
-
-    taosResetQitems(qall);
-    for (int i = 0; i < numOfMsgs; ++i) {
-      taosGetQitem(qall, (void **)&pRpcMsg);
-      rpcFreeCont(pRpcMsg->pCont);
-
-      if (pRpcMsg->handle != NULL) {
-        int msgSize = 128;
-        memset(&rpcMsg, 0, sizeof(rpcMsg));
-        rpcMsg.pCont = rpcMallocCont(msgSize);
-        rpcMsg.contLen = msgSize;
-        rpcMsg.handle = pRpcMsg->handle;
-        rpcMsg.code = 0;
-        rpcSendResponse(&rpcMsg);
-      }
-
-      taosFreeQitem(pRpcMsg);
-    }
-  }
-
-  taosFreeQall(qall);
-  return NULL;
+  sTrace("syncIOStart ok, gSyncIO:%p gSyncIO->clientRpc:%p", gSyncIO, gSyncIO->clientRpc);
+  return 0;
 }
 
-static int retrieveAuthInfo(void *parent, char *meterId, char *spi, char *encrypt, char *secret, char *ckey) {
-  // app shall retrieve the auth info based on meterID from DB or a data file
-  // demo code here only for simple demo
-  int ret = 0;
+int32_t syncIOStop() {
+  int32_t ret = syncIOStopInternal(gSyncIO);
+  assert(ret == 0);
+
+  ret = syncIODestroy(gSyncIO);
+  assert(ret == 0);
   return ret;
 }
 
-static void processResponse(void *pParent, SRpcMsg *pMsg, SEpSet *pEpSet) {
-  sDebug("processResponse ... ");
-  rpcFreeCont(pMsg->pCont);
+int32_t syncIOTickQ() {
+  int32_t ret = syncIOTickQInternal(gSyncIO);
+  assert(ret == 0);
+  return ret;
 }
 
-static void processRequestMsg(void *pParent, SRpcMsg *pMsg, SEpSet *pEpSet) {
-  SSyncIO *io = pParent;
-  SRpcMsg *pTemp;
-
-  pTemp = taosAllocateQitem(sizeof(SRpcMsg));
-  memcpy(pTemp, pMsg, sizeof(SRpcMsg));
-
-  sDebug("request is received, type:%d, contLen:%d, item:%p", pMsg->msgType, pMsg->contLen, pTemp);
-  taosWriteQitem(io->pMsgQ, pTemp);
+int32_t syncIOTickPing() {
+  int32_t ret = syncIOTickPingInternal(gSyncIO);
+  assert(ret == 0);
+  return ret;
 }
 
-SSyncIO *syncIOCreate() {
-  SSyncIO *io = (SSyncIO *)malloc(sizeof(SSyncIO));
-  memset(io, 0, sizeof(*io));
-
-  io->pMsgQ = taosOpenQueue();
-  io->pQset = taosOpenQset();
-  taosAddIntoQset(io->pQset, io->pMsgQ, NULL);
-
-  io->start = doSyncIOStart;
-  io->stop = doSyncIOStop;
-  io->ping = doSyncIOPing;
-  io->onMsg = doSyncIOOnMsg;
-  io->destroy = doSyncIODestroy;
-
-  return io;
-}
-
-static int32_t doSyncIOStart(SSyncIO *io) {
+// local function ------------
+static int32_t syncIOStartInternal(SSyncIO *io) {
   taosBlockSIGPIPE();
 
+  rpcInit();
   tsRpcForceTcp = 1;
 
   // cient rpc init
@@ -143,7 +97,7 @@ static int32_t doSyncIOStart(SSyncIO *io) {
     rpcInit.localPort = 0;
     rpcInit.label = "SYNC-IO-CLIENT";
     rpcInit.numOfThreads = 1;
-    rpcInit.cfp = processResponse;
+    rpcInit.cfp = syncIOProcessReply;
     rpcInit.sessions = 100;
     rpcInit.idleTime = 100;
     rpcInit.user = "sync-io";
@@ -163,13 +117,13 @@ static int32_t doSyncIOStart(SSyncIO *io) {
   {
     SRpcInit rpcInit;
     memset(&rpcInit, 0, sizeof(rpcInit));
-    rpcInit.localPort = 38000;
+    rpcInit.localPort = io->myAddr.eps[0].port;
     rpcInit.label = "SYNC-IO-SERVER";
     rpcInit.numOfThreads = 1;
-    rpcInit.cfp = processRequestMsg;
+    rpcInit.cfp = syncIOProcessRequest;
     rpcInit.sessions = 1000;
     rpcInit.idleTime = 2 * 1500;
-    rpcInit.afp = retrieveAuthInfo;
+    rpcInit.afp = syncIOAuth;
     rpcInit.parent = io;
     rpcInit.connType = TAOS_CONN_SERVER;
 
@@ -180,12 +134,9 @@ static int32_t doSyncIOStart(SSyncIO *io) {
     }
   }
 
-  io->epSet.inUse = 0;
-  addEpIntoEpSet(&io->epSet, "127.0.0.1", 38000);
-
   // start consumer thread
   {
-    if (pthread_create(&io->tid, NULL, syncConsumer, io) != 0) {
+    if (pthread_create(&io->consumerTid, NULL, syncIOConsumerFunc, io) != 0) {
       sError("failed to create sync consumer thread since %s", strerror(errno));
       terrno = TAOS_SYSTEM_ERROR(errno);
       return -1;
@@ -193,35 +144,32 @@ static int32_t doSyncIOStart(SSyncIO *io) {
   }
 
   // start tmr thread
-  io->syncTimerManager = taosTmrInit(1000, 50, 10000, "SYNC");
-  io->syncTimer = taosTmrStart(syncTick, 1000, io, io->syncTimerManager);
+  io->ioTimerManager = taosTmrInit(1000, 50, 10000, "SYNC");
 
   return 0;
 }
 
-static int32_t doSyncIOStop(SSyncIO *io) {
+static int32_t syncIOStopInternal(SSyncIO *io) {
   atomic_store_8(&io->isStart, 0);
-  pthread_join(io->tid, NULL);
+  pthread_join(io->consumerTid, NULL);
   return 0;
 }
 
-static int32_t doSyncIOPing(SSyncIO *io) {
-  SRpcMsg rpcMsg, rspMsg;
+static SSyncIO *syncIOCreate(char *host, uint16_t port) {
+  SSyncIO *io = (SSyncIO *)malloc(sizeof(SSyncIO));
+  memset(io, 0, sizeof(*io));
 
-  rpcMsg.pCont = rpcMallocCont(10);
-  snprintf(rpcMsg.pCont, 10, "ping");
-  rpcMsg.contLen = 10;
-  rpcMsg.handle = NULL;
-  rpcMsg.msgType = 1;
+  io->pMsgQ = taosOpenQueue();
+  io->pQset = taosOpenQset();
+  taosAddIntoQset(io->pQset, io->pMsgQ, NULL);
 
-  rpcSendRequest(io->clientRpc, &io->epSet, &rpcMsg, NULL);
+  io->myAddr.inUse = 0;
+  addEpIntoEpSet(&io->myAddr, host, port);
 
-  return 0;
+  return io;
 }
 
-static int32_t doSyncIOOnMsg(struct SSyncIO *io, void *pParent, SRpcMsg *pMsg, SEpSet *pEpSet) { return 0; }
-
-static int32_t doSyncIODestroy(SSyncIO *io) {
+static int32_t syncIODestroy(SSyncIO *io) {
   int8_t start = atomic_load_8(&io->isStart);
   assert(start == 0);
 
@@ -235,15 +183,149 @@ static int32_t doSyncIODestroy(SSyncIO *io) {
     io->clientRpc = NULL;
   }
 
-  if (io->pMsgQ != NULL) {
-    free(io->pMsgQ);
-    io->pMsgQ = NULL;
-  }
-
-  if (io->pQset != NULL) {
-    free(io->pQset);
-    io->pQset = NULL;
-  }
+  taosCloseQueue(io->pMsgQ);
+  taosCloseQset(io->pQset);
 
   return 0;
+}
+
+static void *syncIOConsumerFunc(void *param) {
+  SSyncIO *io = param;
+
+  STaosQall *qall;
+  SRpcMsg *  pRpcMsg, rpcMsg;
+  int        type;
+
+  qall = taosAllocateQall();
+
+  while (1) {
+    int numOfMsgs = taosReadAllQitemsFromQset(io->pQset, qall, NULL, NULL);
+    sTrace("syncIOConsumerFunc %d msgs are received", numOfMsgs);
+    if (numOfMsgs <= 0) break;
+
+    for (int i = 0; i < numOfMsgs; ++i) {
+      taosGetQitem(qall, (void **)&pRpcMsg);
+      sTrace("syncIOConsumerFunc get item from queue: msgType:%d contLen:%d msg:%s", pRpcMsg->msgType, pRpcMsg->contLen,
+             (char *)(pRpcMsg->pCont));
+
+      if (pRpcMsg->msgType == SYNC_PING) {
+        if (io->FpOnSyncPing != NULL) {
+          SyncPing *pSyncMsg;
+
+          SRpcMsg tmpRpcMsg;
+          memcpy(&tmpRpcMsg, pRpcMsg, sizeof(SRpcMsg));
+          pSyncMsg = syncPingBuild(tmpRpcMsg.contLen);
+
+          syncPingFromRpcMsg(pRpcMsg, pSyncMsg);
+
+          // memcpy(pSyncMsg, tmpRpcMsg.pCont, tmpRpcMsg.contLen);
+
+          io->FpOnSyncPing(io->pSyncNode, pSyncMsg);
+        }
+
+      } else if (pRpcMsg->msgType == SYNC_PING_REPLY) {
+        SyncPingReply *pSyncMsg = syncPingReplyBuild(pRpcMsg->contLen);
+        syncPingReplyFromRpcMsg(pRpcMsg, pSyncMsg);
+
+        if (io->FpOnSyncPingReply != NULL) {
+          io->FpOnSyncPingReply(io->pSyncNode, pSyncMsg);
+        }
+      } else {
+        ;
+      }
+    }
+
+    taosResetQitems(qall);
+    for (int i = 0; i < numOfMsgs; ++i) {
+      taosGetQitem(qall, (void **)&pRpcMsg);
+      rpcFreeCont(pRpcMsg->pCont);
+
+      if (pRpcMsg->handle != NULL) {
+        int msgSize = 128;
+        memset(&rpcMsg, 0, sizeof(rpcMsg));
+        rpcMsg.pCont = rpcMallocCont(msgSize);
+        rpcMsg.contLen = msgSize;
+        snprintf(rpcMsg.pCont, rpcMsg.contLen, "%s", "give a reply");
+        rpcMsg.handle = pRpcMsg->handle;
+        rpcMsg.code = 0;
+
+        sTrace("syncIOConsumerFunc rpcSendResponse ... msgType:%d contLen:%d", pRpcMsg->msgType, rpcMsg.contLen);
+        rpcSendResponse(&rpcMsg);
+      }
+
+      taosFreeQitem(pRpcMsg);
+    }
+  }
+
+  taosFreeQall(qall);
+  return NULL;
+}
+
+static int syncIOAuth(void *parent, char *meterId, char *spi, char *encrypt, char *secret, char *ckey) {
+  // app shall retrieve the auth info based on meterID from DB or a data file
+  // demo code here only for simple demo
+  int ret = 0;
+  return ret;
+}
+
+static void syncIOProcessRequest(void *pParent, SRpcMsg *pMsg, SEpSet *pEpSet) {
+  sTrace("<-- syncIOProcessRequest --> type:%d, contLen:%d, cont:%s", pMsg->msgType, pMsg->contLen,
+         (char *)pMsg->pCont);
+
+  SSyncIO *io = pParent;
+  SRpcMsg *pTemp;
+
+  pTemp = taosAllocateQitem(sizeof(SRpcMsg));
+  memcpy(pTemp, pMsg, sizeof(SRpcMsg));
+
+  taosWriteQitem(io->pMsgQ, pTemp);
+}
+
+static void syncIOProcessReply(void *pParent, SRpcMsg *pMsg, SEpSet *pEpSet) {
+  sTrace("syncIOProcessReply: type:%d, contLen:%d msg:%s", pMsg->msgType, pMsg->contLen, (char *)pMsg->pCont);
+  rpcFreeCont(pMsg->pCont);
+}
+
+static int32_t syncIOTickQInternal(SSyncIO *io) {
+  io->ioTimerTickQ = taosTmrStart(syncIOTickQFunc, 1000, io, io->ioTimerManager);
+  return 0;
+}
+
+static void syncIOTickQFunc(void *param, void *tmrId) {
+  SSyncIO *io = (SSyncIO *)param;
+  sTrace("<-- syncIOTickQFunc -->");
+
+  SRpcMsg rpcMsg;
+  rpcMsg.contLen = 64;
+  rpcMsg.pCont = rpcMallocCont(rpcMsg.contLen);
+  snprintf(rpcMsg.pCont, rpcMsg.contLen, "%s", "syncIOTickQ");
+  rpcMsg.handle = NULL;
+  rpcMsg.msgType = 55;
+
+  SRpcMsg *pTemp;
+  pTemp = taosAllocateQitem(sizeof(SRpcMsg));
+  memcpy(pTemp, &rpcMsg, sizeof(SRpcMsg));
+
+  taosWriteQitem(io->pMsgQ, pTemp);
+  taosTmrReset(syncIOTickQFunc, 1000, io, io->ioTimerManager, &io->ioTimerTickQ);
+}
+
+static int32_t syncIOTickPingInternal(SSyncIO *io) {
+  io->ioTimerTickPing = taosTmrStart(syncIOTickPingFunc, 1000, io, io->ioTimerManager);
+  return 0;
+}
+
+static void syncIOTickPingFunc(void *param, void *tmrId) {
+  SSyncIO *io = (SSyncIO *)param;
+  sTrace("<-- syncIOTickPingFunc -->");
+
+  SRpcMsg rpcMsg;
+  rpcMsg.contLen = 64;
+  rpcMsg.pCont = rpcMallocCont(rpcMsg.contLen);
+  snprintf(rpcMsg.pCont, rpcMsg.contLen, "%s", "syncIOTickPing");
+  rpcMsg.handle = NULL;
+  rpcMsg.msgType = 77;
+
+  rpcSendRequest(io->clientRpc, &io->myAddr, &rpcMsg, NULL);
+  taosTmrReset(syncIOTickPingFunc, 1000, io, io->ioTimerManager, &io->ioTimerTickPing);
 }

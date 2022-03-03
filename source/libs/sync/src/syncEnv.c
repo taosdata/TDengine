@@ -18,6 +18,14 @@
 
 SSyncEnv *gSyncEnv = NULL;
 
+// local function -----------------
+static void    syncEnvTick(void *param, void *tmrId);
+static int32_t doSyncEnvStart(SSyncEnv *pSyncEnv);
+static int32_t doSyncEnvStop(SSyncEnv *pSyncEnv);
+static tmr_h   doSyncEnvStartTimer(SSyncEnv *pSyncEnv, TAOS_TMR_CALLBACK fp, int mseconds, void *param);
+static void    doSyncEnvStopTimer(SSyncEnv *pSyncEnv, tmr_h *pTimer);
+// --------------------------------
+
 int32_t syncEnvStart() {
   int32_t ret;
   gSyncEnv = (SSyncEnv *)malloc(sizeof(SSyncEnv));
@@ -31,6 +39,40 @@ int32_t syncEnvStop() {
   return ret;
 }
 
-static int32_t doSyncEnvStart(SSyncEnv *pSyncEnv) { return 0; }
+tmr_h syncEnvStartTimer(TAOS_TMR_CALLBACK fp, int mseconds, void *param) {
+  return doSyncEnvStartTimer(gSyncEnv, fp, mseconds, param);
+}
 
-static int32_t doSyncEnvStop(SSyncEnv *pSyncEnv) { return 0; }
+void syncEnvStopTimer(tmr_h *pTimer) { doSyncEnvStopTimer(gSyncEnv, pTimer); }
+
+// local function -----------------
+static void syncEnvTick(void *param, void *tmrId) {
+  SSyncEnv *pSyncEnv = (SSyncEnv *)param;
+  sTrace("syncEnvTick ... name:%s ", pSyncEnv->name);
+
+  pSyncEnv->pEnvTickTimer = taosTmrStart(syncEnvTick, 1000, pSyncEnv, pSyncEnv->pTimerManager);
+}
+
+static int32_t doSyncEnvStart(SSyncEnv *pSyncEnv) {
+  snprintf(pSyncEnv->name, sizeof(pSyncEnv->name), "SyncEnv_%p", pSyncEnv);
+
+  // start tmr thread
+  pSyncEnv->pTimerManager = taosTmrInit(1000, 50, 10000, "SYNC-ENV");
+
+  // pSyncEnv->pEnvTickTimer = taosTmrStart(syncEnvTick, 1000, pSyncEnv, pSyncEnv->pTimerManager);
+
+  sTrace("SyncEnv start ok, name:%s", pSyncEnv->name);
+
+  return 0;
+}
+
+static int32_t doSyncEnvStop(SSyncEnv *pSyncEnv) {
+  taosTmrCleanUp(pSyncEnv->pTimerManager);
+  return 0;
+}
+
+static tmr_h doSyncEnvStartTimer(SSyncEnv *pSyncEnv, TAOS_TMR_CALLBACK fp, int mseconds, void *param) {
+  return taosTmrStart(fp, mseconds, pSyncEnv, pSyncEnv->pTimerManager);
+}
+
+static void doSyncEnvStopTimer(SSyncEnv *pSyncEnv, tmr_h *pTimer) {}
