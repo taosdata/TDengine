@@ -88,7 +88,7 @@ SSyncNode* syncNodeOpen(const SSyncInfo* pSyncInfo) {
     }
   }
 
-  pSyncNode->role = TAOS_SYNC_STATE_FOLLOWER;
+  pSyncNode->state = TAOS_SYNC_STATE_FOLLOWER;
   syncUtilnodeInfo2raftId(&pSyncNode->me, pSyncNode->vgId, &pSyncNode->raftId);
 
   pSyncNode->pPingTimer = NULL;
