@@ -287,6 +287,11 @@ static void sortGroupResByOrderList(SGroupResInfo *pGroupResInfo, SQueryRuntimeE
   if (pRuntimeEnv->pQueryAttr->pGroupbyExpr == NULL || pRuntimeEnv->pQueryAttr->pGroupbyExpr->numOfGroupCols <= 0){
     return;
   }
+
+  if (pRuntimeEnv->pQueryAttr->order.orderColId <= 0){
+    return;
+  }
+  
   SColIndex* pColIndex = taosArrayGet(pRuntimeEnv->pQueryAttr->pGroupbyExpr->columnInfo, 0);
 
   int16_t dataOffset = 0;
