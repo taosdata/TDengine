@@ -15,8 +15,6 @@
 #define ALLOW_FORBID_FUNC
 #include "os.h"
 
-#define MAX_FPRINTFLINE_BUFFER_SIZE (1000)
-
 #if defined(_TD_WINDOWS_64) || defined(_TD_WINDOWS_32)
 #include <io.h>
 
@@ -46,10 +44,15 @@ extern int openU(const char *, int, ...); /* MsvcLibX UTF-8 version of open */
 
 typedef int32_t FileFd;
 
+#define FILE_WITH_LOCK 1
+
 typedef struct TdFile {
-  int    refId;
-  FileFd fd;
-  FILE  *fp;
+#if FILE_WITH_LOCK
+  pthread_rwlock_t rwlock;
+#endif
+  int      refId;
+  FileFd   fd;
+  FILE    *fp;
 } * TdFilePtr, TdFile;
 
 void taosGetTmpfilePath(const char *inputTmpDir, const char *fileNamePrefix, char *dstPath) {
@@ -238,6 +241,9 @@ TdFilePtr taosOpenFile(const char *path, int32_t tdFileOptions) {
     if (fp != NULL) fclose(fp);
     return NULL;
   }
+#if FILE_WITH_LOCK
+  pthread_rwlock_init(&(pFile->rwlock),NULL);
+#endif
   pFile->fd = fd;
   pFile->fp = fp;
   pFile->refId = 0;
@@ -249,6 +255,12 @@ int64_t taosCloseFile(TdFilePtr *ppFile) {
 #if defined(_TD_WINDOWS_64) || defined(_TD_WINDOWS_32)
   return 0;
 #else
+  if (ppFile == NULL || *ppFile == NULL) {
+    return 0;
+  }
+#if FILE_WITH_LOCK
+  pthread_rwlock_wrlock(&((*ppFile)->rwlock));
+#endif
   if (ppFile == NULL || *ppFile == NULL || (*ppFile)->fd == -1) {
     return 0;
   }
@@ -263,6 +275,10 @@ int64_t taosCloseFile(TdFilePtr *ppFile) {
     (*ppFile)->fd = -1;
   }
   (*ppFile)->refId = 0;
+#if FILE_WITH_LOCK
+  pthread_rwlock_unlock(&((*ppFile)->rwlock));
+  pthread_rwlock_destroy(&((*ppFile)->rwlock));
+#endif
   free(*ppFile);
   *ppFile = NULL;
   return 0;
@@ -273,6 +289,9 @@ int64_t taosReadFile(TdFilePtr pFile, void *buf, int64_t count) {
   if (pFile == NULL) {
     return 0;
   }
+#if FILE_WITH_LOCK
+  pthread_rwlock_rdlock(&(pFile->rwlock));
+#endif
   assert(pFile->fd >= 0);
   int64_t leftbytes = count;
   int64_t readbytes;
@@ -284,9 +303,15 @@ int64_t taosReadFile(TdFilePtr pFile, void *buf, int64_t count) {
       if (errno == EINTR) {
         continue;
       } else {
+#if FILE_WITH_LOCK
+        pthread_rwlock_unlock(&(pFile->rwlock));
+#endif
         return -1;
       }
     } else if (readbytes == 0) {
+#if FILE_WITH_LOCK
+      pthread_rwlock_unlock(&(pFile->rwlock));
+#endif
       return (int64_t)(count - leftbytes);
     }
 
@@ -294,6 +319,9 @@ int64_t taosReadFile(TdFilePtr pFile, void *buf, int64_t count) {
     tbuf += readbytes;
   }
 
+#if FILE_WITH_LOCK
+  pthread_rwlock_unlock(&(pFile->rwlock));
+#endif
   return count;
 }
 
@@ -301,14 +329,24 @@ int64_t taosPReadFile(TdFilePtr pFile, void *buf, int64_t count, int64_t offset)
   if (pFile == NULL) {
     return 0;
   }
+#if FILE_WITH_LOCK
+  pthread_rwlock_rdlock(&(pFile->rwlock));
+#endif
   assert(pFile->fd >= 0);
-  return pread(pFile->fd, buf, count, offset);
+  int64_t ret = pread(pFile->fd, buf, count, offset);
+#if FILE_WITH_LOCK
+  pthread_rwlock_unlock(&(pFile->rwlock));
+#endif
+  return ret;
 }
 
 int64_t taosWriteFile(TdFilePtr pFile, const void *buf, int64_t count) {
   if (pFile == NULL) {
     return 0;
   }
+#if FILE_WITH_LOCK
+  pthread_rwlock_wrlock(&(pFile->rwlock));
+#endif
   assert(pFile->fd >= 0);
 
   int64_t nleft = count;
@@ -321,12 +359,18 @@ int64_t taosWriteFile(TdFilePtr pFile, const void *buf, int64_t count) {
       if (errno == EINTR) {
         continue;
       }
+#if FILE_WITH_LOCK
+      pthread_rwlock_unlock(&(pFile->rwlock));
+#endif
       return -1;
     }
     nleft -= nwritten;
     tbuf += nwritten;
   }
-  fsync(pFile->fd);
+
+#if FILE_WITH_LOCK
+  pthread_rwlock_unlock(&(pFile->rwlock));
+#endif
   return count;
 }
 
@@ -334,8 +378,15 @@ int64_t taosLSeekFile(TdFilePtr pFile, int64_t offset, int32_t whence) {
   if (pFile == NULL) {
     return 0;
   }
+#if FILE_WITH_LOCK
+  pthread_rwlock_rdlock(&(pFile->rwlock));
+#endif
   assert(pFile->fd >= 0);
-  return (int64_t)lseek(pFile->fd, (long)offset, whence);
+  int64_t ret = lseek(pFile->fd, (long)offset, whence);
+#if FILE_WITH_LOCK
+  pthread_rwlock_unlock(&(pFile->rwlock));
+#endif
+  return ret;
 }
 
 int32_t taosFStatFile(TdFilePtr pFile, int64_t *size, int32_t *mtime) {
@@ -637,7 +688,6 @@ void taosFprintfFile(TdFilePtr pFile, const char *format, ...) {
   }
   assert(pFile->fp != NULL);
 
-  char    buffer[MAX_FPRINTFLINE_BUFFER_SIZE] = {0};
   va_list ap;
   va_start(ap, format);
   vfprintf(pFile->fp, format, ap);
