@@ -85,6 +85,11 @@ typedef struct {
   ESyncState state;
 } SSyncMgmt;
 
+typedef struct {
+  int64_t expireTimeMS;
+  int64_t timeseriesAllowed;
+} SGrantInfo;
+
 typedef struct SMnode {
   int32_t           dnodeId;
   int64_t           clusterId;
@@ -105,6 +110,7 @@ typedef struct SMnode {
   STelemMgmt        telemMgmt;
   SSyncMgmt         syncMgmt;
   SHashObj         *infosMeta;
+  SGrantInfo        grant;
   MndMsgFp          msgFp[TDMT_MAX];
   SendReqToDnodeFp  sendReqToDnodeFp;
   SendReqToMnodeFp  sendReqToMnodeFp;
@@ -120,7 +126,7 @@ void    mndSetMsgHandle(SMnode *pMnode, tmsg_t msgType, MndMsgFp fp);
 
 uint64_t mndGenerateUid(char *name, int32_t len);
 
-int32_t mndGetLoad(SMnode *pMnode, SMnodeLoad *pLoad);
+void mndGetLoad(SMnode *pMnode, SMnodeLoad *pLoad);
 
 #ifdef __cplusplus
 }

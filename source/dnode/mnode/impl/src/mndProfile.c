@@ -916,3 +916,5 @@ static void mndCancelGetNextQuery(SMnode *pMnode, void *pIter) {
   SProfileMgmt *pMgmt = &pMnode->profileMgmt;
   taosHashCancelIterate(pMgmt->cache->pHashTable, pIter);
 }
+
+int32_t mndGetNumOfConnections(SMnode *pMnode) { return taosHashGetSize(pMnode->profileMgmt.cache->pHashTable); }
