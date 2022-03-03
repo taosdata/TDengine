@@ -491,10 +491,9 @@ static void dndGetMonitorDnodeInfo(SDnode *pDnode, SMonDnodeInfo *pInfo) {
   pInfo->disk_total = 4.3;
   pInfo->net_in = 5.1;
   pInfo->net_out = 5.2;
-  pInfo->io_read = 6.1;
-  pInfo->io_write = 6.2;
-  pInfo->io_read_disk = 7.1;
-  pInfo->io_write_disk = 7.2;
+  taosGetProcIO(&pInfo->io_read, &pInfo->io_write);
+  pInfo->io_read_disk = 0;
+  pInfo->io_write_disk = 0;
   pInfo->req_select = 8;
   pInfo->req_select_rate = 8.1;
   pInfo->req_insert = 9;
