@@ -28,30 +28,25 @@ extern "C" {
 #include "syncRaftEntry.h"
 #include "taosdef.h"
 
-// encode as uint64
+// encode as uint32
 typedef enum ESyncMessageType {
   SYNC_PING = 101,
   SYNC_PING_REPLY = 103,
-  SYNC_CLIENT_REQUEST,
-  SYNC_CLIENT_REQUEST_REPLY,
-  SYNC_REQUEST_VOTE,
-  SYNC_REQUEST_VOTE_REPLY,
-  SYNC_APPEND_ENTRIES,
-  SYNC_APPEND_ENTRIES_REPLY,
+  SYNC_CLIENT_REQUEST = 105,
+  SYNC_CLIENT_REQUEST_REPLY = 107,
+  SYNC_REQUEST_VOTE = 109,
+  SYNC_REQUEST_VOTE_REPLY = 111,
+  SYNC_APPEND_ENTRIES = 113,
+  SYNC_APPEND_ENTRIES_REPLY = 115,
 } ESyncMessageType;
 
-/*
-typedef struct SRaftId {
-  SyncNodeId  addr;  // typedef uint64_t SyncNodeId;
-  SyncGroupId vgId;  // typedef int32_t  SyncGroupId;
-} SRaftId;
-*/
-
+// ---------------------------------------------
 typedef struct SyncPing {
   uint32_t bytes;
   uint32_t msgType;
   SRaftId  srcId;
   SRaftId  destId;
+  // private data
   uint32_t dataLen;
   char     data[];
 } SyncPing;
@@ -59,28 +54,22 @@ typedef struct SyncPing {
 #define SYNC_PING_FIX_LEN (sizeof(uint32_t) + sizeof(uint32_t) + sizeof(SRaftId) + sizeof(SRaftId) + sizeof(uint32_t))
 
 SyncPing* syncPingBuild(uint32_t dataLen);
-
-void syncPingDestroy(SyncPing* pMsg);
-
-void syncPingSerialize(const SyncPing* pMsg, char* buf, uint32_t bufLen);
-
-void syncPingDeserialize(const char* buf, uint32_t len, SyncPing* pMsg);
-
-void syncPing2RpcMsg(const SyncPing* pMsg, SRpcMsg* pRpcMsg);
-
-void syncPingFromRpcMsg(const SRpcMsg* pRpcMsg, SyncPing* pMsg);
-
-cJSON* syncPing2Json(const SyncPing* pMsg);
-
+void      syncPingDestroy(SyncPing* pMsg);
+void      syncPingSerialize(const SyncPing* pMsg, char* buf, uint32_t bufLen);
+void      syncPingDeserialize(const char* buf, uint32_t len, SyncPing* pMsg);
+void      syncPing2RpcMsg(const SyncPing* pMsg, SRpcMsg* pRpcMsg);
+void      syncPingFromRpcMsg(const SRpcMsg* pRpcMsg, SyncPing* pMsg);
+cJSON*    syncPing2Json(const SyncPing* pMsg);
 SyncPing* syncPingBuild2(const SRaftId* srcId, const SRaftId* destId, const char* str);
-
 SyncPing* syncPingBuild3(const SRaftId* srcId, const SRaftId* destId);
 
+// ---------------------------------------------
 typedef struct SyncPingReply {
   uint32_t bytes;
   uint32_t msgType;
   SRaftId  srcId;
   SRaftId  destId;
+  // private data
   uint32_t dataLen;
   char     data[];
 } SyncPingReply;
@@ -89,72 +78,95 @@ typedef struct SyncPingReply {
   (sizeof(uint32_t) + sizeof(uint32_t) + sizeof(SRaftId) + sizeof(SRaftId) + sizeof(uint32_t))
 
 SyncPingReply* syncPingReplyBuild(uint32_t dataLen);
-
-void syncPingReplyDestroy(SyncPingReply* pMsg);
-
-void syncPingReplySerialize(const SyncPingReply* pMsg, char* buf, uint32_t bufLen);
-
-void syncPingReplyDeserialize(const char* buf, uint32_t len, SyncPingReply* pMsg);
-
-void syncPingReply2RpcMsg(const SyncPingReply* pMsg, SRpcMsg* pRpcMsg);
-
-void syncPingReplyFromRpcMsg(const SRpcMsg* pRpcMsg, SyncPingReply* pMsg);
-
-cJSON* syncPingReply2Json(const SyncPingReply* pMsg);
-
+void           syncPingReplyDestroy(SyncPingReply* pMsg);
+void           syncPingReplySerialize(const SyncPingReply* pMsg, char* buf, uint32_t bufLen);
+void           syncPingReplyDeserialize(const char* buf, uint32_t len, SyncPingReply* pMsg);
+void           syncPingReply2RpcMsg(const SyncPingReply* pMsg, SRpcMsg* pRpcMsg);
+void           syncPingReplyFromRpcMsg(const SRpcMsg* pRpcMsg, SyncPingReply* pMsg);
+cJSON*         syncPingReply2Json(const SyncPingReply* pMsg);
 SyncPingReply* syncPingReplyBuild2(const SRaftId* srcId, const SRaftId* destId, const char* str);
-
 SyncPingReply* syncPingReplyBuild3(const SRaftId* srcId, const SRaftId* destId);
 
+// ---------------------------------------------
 typedef struct SyncClientRequest {
-  ESyncMessageType msgType;
-  char*            data;
-  uint32_t         dataLen;
-  int64_t          seqNum;
-  bool             isWeak;
+  uint32_t bytes;
+  uint32_t msgType;
+  int64_t  seqNum;
+  bool     isWeak;
+  uint32_t dataLen;
+  char     data[];
 } SyncClientRequest;
 
+// ---------------------------------------------
 typedef struct SyncClientRequestReply {
-  ESyncMessageType msgType;
-  int32_t          errCode;
-  SSyncBuffer*     pErrMsg;
-  SSyncBuffer*     pLeaderHint;
+  uint32_t bytes;
+  uint32_t msgType;
+  int32_t  errCode;
+  SRaftId  leaderHint;
 } SyncClientRequestReply;
 
+// ---------------------------------------------
 typedef struct SyncRequestVote {
-  ESyncMessageType msgType;
-  SyncTerm         currentTerm;
-  SyncNodeId       nodeId;
-  SyncGroupId      vgId;
-  SyncIndex        lastLogIndex;
-  SyncTerm         lastLogTerm;
+  uint32_t bytes;
+  uint32_t msgType;
+  SRaftId  srcId;
+  SRaftId  destId;
+  // private data
+  SyncTerm  currentTerm;
+  SyncIndex lastLogIndex;
+  SyncTerm  lastLogTerm;
 } SyncRequestVote;
 
+SyncRequestVote* syncRequestVoteBuild();
+void             syncRequestVoteDestroy(SyncRequestVote* pMsg);
+void             syncRequestVoteSerialize(const SyncRequestVote* pMsg, char* buf, uint32_t bufLen);
+void             syncRequestVoteDeserialize(const char* buf, uint32_t len, SyncRequestVote* pMsg);
+void             syncRequestVote2RpcMsg(const SyncRequestVote* pMsg, SRpcMsg* pRpcMsg);
+void             syncRequestVoteFromRpcMsg(const SRpcMsg* pRpcMsg, SyncRequestVote* pMsg);
+cJSON*           syncRequestVote2Json(const SyncRequestVote* pMsg);
+
+// ---------------------------------------------
 typedef struct SyncRequestVoteReply {
-  ESyncMessageType msgType;
-  SyncTerm         currentTerm;
-  SyncNodeId       nodeId;
-  SyncGroupId      vgId;
-  bool             voteGranted;
+  uint32_t bytes;
+  uint32_t msgType;
+  SRaftId  srcId;
+  SRaftId  destId;
+  // private data
+  SyncTerm term;
+  bool     voteGranted;
 } SyncRequestVoteReply;
 
+SyncRequestVoteReply* SyncRequestVoteReplyBuild();
+void                  syncRequestVoteReplyDestroy(SyncRequestVoteReply* pMsg);
+void                  syncRequestVoteReplySerialize(const SyncRequestVoteReply* pMsg, char* buf, uint32_t bufLen);
+void                  syncRequestVoteReplyDeserialize(const char* buf, uint32_t len, SyncRequestVoteReply* pMsg);
+void                  syncRequestVoteReply2RpcMsg(const SyncRequestVoteReply* pMsg, SRpcMsg* pRpcMsg);
+void                  syncRequestVoteReplyFromRpcMsg(const SRpcMsg* pRpcMsg, SyncRequestVoteReply* pMsg);
+cJSON*                syncRequestVoteReply2Json(const SyncRequestVoteReply* pMsg);
+
+// ---------------------------------------------
 typedef struct SyncAppendEntries {
-  ESyncMessageType msgType;
-  SyncTerm         currentTerm;
-  SyncNodeId       nodeId;
-  SyncIndex        prevLogIndex;
-  SyncTerm         prevLogTerm;
-  int32_t          entryCount;
-  SSyncRaftEntry*  logEntries;
-  SyncIndex        commitIndex;
+  uint32_t bytes;
+  uint32_t msgType;
+  SRaftId  srcId;
+  SRaftId  destId;
+  // private data
+  SyncIndex prevLogIndex;
+  SyncTerm  prevLogTerm;
+  SyncIndex commitIndex;
+  uint32_t  dataLen;
+  char      data[];
 } SyncAppendEntries;
 
+// ---------------------------------------------
 typedef struct SyncAppendEntriesReply {
-  ESyncMessageType msgType;
-  SyncTerm         currentTerm;
-  SyncNodeId       nodeId;
-  bool             success;
-  SyncIndex        matchIndex;
+  uint32_t bytes;
+  uint32_t msgType;
+  SRaftId  srcId;
+  SRaftId  destId;
+  // private data
+  bool      success;
+  SyncIndex matchIndex;
 } SyncAppendEntriesReply;
 
 #ifdef __cplusplus
