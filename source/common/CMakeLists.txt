@@ -1,5 +1,5 @@
 aux_source_directory(src COMMON_SRC)
-add_library(common ${COMMON_SRC})
+add_library(common STATIC ${COMMON_SRC})
 target_include_directories(
     common
     PUBLIC "${CMAKE_SOURCE_DIR}/include/common"

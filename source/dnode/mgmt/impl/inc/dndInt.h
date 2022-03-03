@@ -36,6 +36,7 @@ extern "C" {
 #include "ttime.h"
 #include "tworker.h"
 #include "tglobal.h"
+#include "monitor.h"
 
 #include "dnode.h"
 

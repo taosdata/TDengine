@@ -1,5 +1,5 @@
 aux_source_directory(src PLANNER_SRC)
-add_library(planner ${PLANNER_SRC})
+add_library(planner STATIC ${PLANNER_SRC})
 target_include_directories(
     planner
     PUBLIC "${CMAKE_SOURCE_DIR}/include/libs/planner"

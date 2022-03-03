@@ -1,5 +1,5 @@
 aux_source_directory(src QUERY_SRC)
-add_library(qcom ${QUERY_SRC})
+add_library(qcom STATIC ${QUERY_SRC})
 target_include_directories(
     qcom
     PUBLIC "${CMAKE_SOURCE_DIR}/include/libs/qcom"

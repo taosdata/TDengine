@@ -26,6 +26,7 @@ extern "C" {
 #include "sync.h"
 #include "taosdef.h"
 #include "tlog.h"
+#include "ttimer.h"
 
 extern int32_t sDebugFlag;
 
@@ -47,23 +48,23 @@ extern int32_t sDebugFlag;
       taosPrintLog("SYN WARN ", sDebugFlag, __VA_ARGS__); \
     }                                                     \
   }
-#define sInfo(...)                                   \
-  {                                                  \
-    if (sDebugFlag & DEBUG_INFO) {                   \
-      taosPrintLog("SYN ", sDebugFlag, __VA_ARGS__); \
-    }                                                \
+#define sInfo(...)                                        \
+  {                                                       \
+    if (sDebugFlag & DEBUG_INFO) {                        \
+      taosPrintLog("SYN INFO ", sDebugFlag, __VA_ARGS__); \
+    }                                                     \
   }
-#define sDebug(...)                                  \
-  {                                                  \
-    if (sDebugFlag & DEBUG_DEBUG) {                  \
-      taosPrintLog("SYN ", sDebugFlag, __VA_ARGS__); \
-    }                                                \
+#define sDebug(...)                                        \
+  {                                                        \
+    if (sDebugFlag & DEBUG_DEBUG) {                        \
+      taosPrintLog("SYN DEBUG ", sDebugFlag, __VA_ARGS__); \
+    }                                                      \
   }
-#define sTrace(...)                                  \
-  {                                                  \
-    if (sDebugFlag & DEBUG_TRACE) {                  \
-      taosPrintLog("SYN ", sDebugFlag, __VA_ARGS__); \
-    }                                                \
+#define sTrace(...)                                        \
+  {                                                        \
+    if (sDebugFlag & DEBUG_TRACE) {                        \
+      taosPrintLog("SYN TRACE ", sDebugFlag, __VA_ARGS__); \
+    }                                                      \
   }
 
 struct SRaft;
@@ -87,35 +88,64 @@ typedef struct SyncAppendEntries SyncAppendEntries;
 struct SyncAppendEntriesReply;
 typedef struct SyncAppendEntriesReply SyncAppendEntriesReply;
 
-typedef struct SSyncNode {
-  int8_t replica;
-  int8_t quorum;
+struct SSyncEnv;
+typedef struct SSyncEnv SSyncEnv;
 
+typedef struct SRaftId {
+  SyncNodeId  addr;  // typedef uint64_t SyncNodeId;
+  SyncGroupId vgId;  // typedef int32_t  SyncGroupId;
+} SRaftId;
+
+typedef struct SSyncNode {
   SyncGroupId vgId;
   SSyncCfg    syncCfg;
   char        path[TSDB_FILENAME_LEN];
+  SSyncFSM*   pFsm;
 
-  SRaft* pRaft;
+  // passed from outside
+  void* rpcClient;
+  int32_t (*FpSendMsg)(void* rpcClient, const SEpSet* pEpSet, SRpcMsg* pMsg);
 
-  int32_t (*FpPing)(struct SSyncNode* ths, const SyncPing* pMsg);
+  int32_t refCount;
+  int64_t rid;
 
-  int32_t (*FpOnPing)(struct SSyncNode* ths, SyncPing* pMsg);
+  SNodeInfo me;
+  SNodeInfo peers[TSDB_MAX_REPLICA];
+  int32_t   peersNum;
 
-  int32_t (*FpOnPingReply)(struct SSyncNode* ths, SyncPingReply* pMsg);
+  ESyncRole role;
+  SRaftId   raftId;
 
-  int32_t (*FpRequestVote)(struct SSyncNode* ths, const SyncRequestVote* pMsg);
+  tmr_h             pPingTimer;
+  int32_t           pingTimerMS;
+  uint8_t           pingTimerStart;
+  TAOS_TMR_CALLBACK FpPingTimer;  // Timer Fp
+  uint64_t          pingTimerCounter;
 
-  int32_t (*FpOnRequestVote)(struct SSyncNode* ths, SyncRequestVote* pMsg);
+  tmr_h             pElectTimer;
+  int32_t           electTimerMS;
+  uint8_t           electTimerStart;
+  TAOS_TMR_CALLBACK FpElectTimer;  // Timer Fp
+  uint64_t          electTimerCounter;
 
-  int32_t (*FpOnRequestVoteReply)(struct SSyncNode* ths, SyncRequestVoteReply* pMsg);
+  tmr_h             pHeartbeatTimer;
+  int32_t           heartbeatTimerMS;
+  uint8_t           heartbeatTimerStart;
+  TAOS_TMR_CALLBACK FpHeartbeatTimer;  // Timer Fp
+  uint64_t          heartbeatTimerCounter;
 
-  int32_t (*FpAppendEntries)(struct SSyncNode* ths, const SyncAppendEntries* pMsg);
+  // callback
+  int32_t (*FpOnPing)(SSyncNode* ths, SyncPing* pMsg);
 
-  int32_t (*FpOnAppendEntries)(struct SSyncNode* ths, SyncAppendEntries* pMsg);
+  int32_t (*FpOnPingReply)(SSyncNode* ths, SyncPingReply* pMsg);
 
-  int32_t (*FpOnAppendEntriesReply)(struct SSyncNode* ths, SyncAppendEntriesReply* pMsg);
+  int32_t (*FpOnRequestVote)(SSyncNode* ths, SyncRequestVote* pMsg);
 
-  int32_t (*FpSendMsg)(void* handle, const SEpSet* pEpSet, SRpcMsg* pMsg);
+  int32_t (*FpOnRequestVoteReply)(SSyncNode* ths, SyncRequestVoteReply* pMsg);
+
+  int32_t (*FpOnAppendEntries)(SSyncNode* ths, SyncAppendEntries* pMsg);
+
+  int32_t (*FpOnAppendEntriesReply)(SSyncNode* ths, SyncAppendEntriesReply* pMsg);
 
 } SSyncNode;
 
@@ -123,23 +153,15 @@ SSyncNode* syncNodeOpen(const SSyncInfo* pSyncInfo);
 
 void syncNodeClose(SSyncNode* pSyncNode);
 
-static int32_t doSyncNodePing(struct SSyncNode* ths, const SyncPing* pMsg);
+void syncNodePingAll(SSyncNode* pSyncNode);
 
-static int32_t onSyncNodePing(struct SSyncNode* ths, SyncPing* pMsg);
+void syncNodePingPeers(SSyncNode* pSyncNode);
 
-static int32_t onSyncNodePingReply(struct SSyncNode* ths, SyncPingReply* pMsg);
+void syncNodePingSelf(SSyncNode* pSyncNode);
 
-static int32_t doSyncNodeRequestVote(struct SSyncNode* ths, const SyncRequestVote* pMsg);
+int32_t syncNodeStartPingTimer(SSyncNode* pSyncNode);
 
-static int32_t onSyncNodeRequestVote(struct SSyncNode* ths, SyncRequestVote* pMsg);
-
-static int32_t onSyncNodeRequestVoteReply(struct SSyncNode* ths, SyncRequestVoteReply* pMsg);
-
-static int32_t doSyncNodeAppendEntries(struct SSyncNode* ths, const SyncAppendEntries* pMsg);
-
-static int32_t onSyncNodeAppendEntries(struct SSyncNode* ths, SyncAppendEntries* pMsg);
-
-static int32_t onSyncNodeAppendEntriesReply(struct SSyncNode* ths, SyncAppendEntriesReply* pMsg);
+int32_t syncNodeStopPingTimer(SSyncNode* pSyncNode);
 
 #ifdef __cplusplus
 }

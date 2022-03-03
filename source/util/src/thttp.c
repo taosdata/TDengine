@@ -32,7 +32,7 @@ int32_t taosSendHttpReport(const char* server, uint16_t port, const char* pCont,
   fd = taosOpenTcpClientSocket(ip, port, 0);
   if (fd < 0) {
     terrno = TAOS_SYSTEM_ERROR(errno);
-    uError("failed to create http socket since %s", terrstr());
+    uError("failed to create http socket to %s:%u since %s", server, port, terrstr());
     goto SEND_OVER;
   }
 
@@ -46,24 +46,24 @@ int32_t taosSendHttpReport(const char* server, uint16_t port, const char* pCont,
 
   if (taosWriteSocket(fd, (void*)header, headLen) < 0) {
     terrno = TAOS_SYSTEM_ERROR(errno);
-    uError("failed to send http header since %s", terrstr());
+    uError("failed to send http header to %s:%u since %s", server, port, terrstr());
     goto SEND_OVER;
   }
 
   if (taosWriteSocket(fd, (void*)pCont, contLen) < 0) {
     terrno = TAOS_SYSTEM_ERROR(errno);
-    uError("failed to send http content since %s", terrstr());
+    uError("failed to send http content to %s:%u since %s", server, port, terrstr());
     goto SEND_OVER;
   }
 
   // read something to avoid nginx error 499
   if (taosReadSocket(fd, header, 10) < 0) {
     terrno = TAOS_SYSTEM_ERROR(errno);
-    uError("failed to receive response since %s", terrstr());
+    uError("failed to receive response from %s:%u since %s", server, port, terrstr());
     goto SEND_OVER;
   }
 
-  uInfo("send http to %s:%d, len:%d content: %s", server, port, contLen, pCont);
+  uInfo("send http to %s:%u, len:%d content: %s", server, port, contLen, pCont);
   code = 0;
 
 SEND_OVER:
