@@ -474,10 +474,13 @@ void dndProcessStartupReq(SDnode *pDnode, SRpcMsg *pReq) {
   rpcSendResponse(&rpcRsp);
 }
 
-void dndGetBasicInfo(SDnode *pDnode, SMonBasicInfo *pInfo) {
+static int32_t dndGetBasicInfo(SDnode *pDnode, SMonBasicInfo *pInfo) {
   pInfo->dnode_id = dndGetDnodeId(pDnode);
   tstrncpy(pInfo->dnode_ep, tsLocalEp, TSDB_EP_LEN);
+  return 0;
 }
+
+static int32_t dndGetDnodeInfo(SDnode *pDnode, SMonDnodeInfo *pInfo) { return 0; }
 
 static void dndSendMonitorReport(SDnode *pDnode) {
   if (!tsEnableMonitor || tsMonitorFqdn[0] == 0) return;
@@ -487,8 +490,9 @@ static void dndSendMonitorReport(SDnode *pDnode) {
   dTrace("pDnode:%p, send monitor report to %s:%u", pDnode, tsMonitorFqdn, tsMonitorPort);
 
   SMonBasicInfo basicInfo = {0};
-  dndGetBasicInfo(pDnode, &basicInfo);
-  monSetBasicInfo(pMonitor, &basicInfo);
+  if (dndGetBasicInfo(pDnode, &basicInfo) == 0) {
+    monSetBasicInfo(pMonitor, &basicInfo);
+  }
 
   SMonClusterInfo clusterInfo = {0};
   SMonVgroupInfo  vgroupInfo = {0};
@@ -497,6 +501,16 @@ static void dndSendMonitorReport(SDnode *pDnode) {
     monSetClusterInfo(pMonitor, &clusterInfo);
     monSetVgroupInfo(pMonitor, &vgroupInfo);
     monSetGrantInfo(pMonitor, &grantInfo);
+  }
+
+  SMonDnodeInfo dnodeInfo = {0};
+  if (dndGetDnodeInfo(pDnode, &dnodeInfo) == 0) {
+    monSetDnodeInfo(pMonitor, &dnodeInfo);
+  }
+
+  SMonDiskInfo diskInfo = {0};
+  if (dndGetDiskInfo(pDnode, &diskInfo) == 0) {
+    monSetDiskInfo(pMonitor, &diskInfo);
   }
 
   monSendReport(pMonitor);

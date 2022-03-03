@@ -137,6 +137,9 @@ typedef struct SDnode {
   SStartupReq  startup;
 } SDnode;
 
+
+int32_t dndGetDiskInfo(SDnode *pDnode, SMonDiskInfo *pInfo);
+
 #ifdef __cplusplus
 }
 #endif

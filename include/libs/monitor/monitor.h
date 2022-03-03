@@ -57,7 +57,6 @@ typedef struct {
 
 typedef struct {
   int32_t dnode_id;
-  int8_t  vnode_online;
   char    vnode_role[8];
 } SMonVnodeDesc;
 
@@ -69,7 +68,7 @@ typedef struct {
 typedef struct {
   char    database_name[TSDB_DB_NAME_LEN];
   int32_t tables_num;
-  int8_t  status;
+  char    status[10];
   SArray *vgroups;  // array of SMonVgroupDesc
 } SMonVgroupInfo;
 
@@ -107,7 +106,7 @@ typedef struct {
   int32_t errors;
   int32_t vnodes_num;
   int32_t masters;
-  int32_t has_mnode;
+  int8_t  has_mnode;
 } SMonDnodeInfo;
 
 typedef struct {
@@ -117,7 +116,9 @@ typedef struct {
 } SMonDiskDesc;
 
 typedef struct {
-  SArray *disks;  // array of SMonDiskDesc
+  SArray      *datadirs;  // array of SMonDiskDesc
+  SMonDiskDesc logdir;
+  SMonDiskDesc tempdir;
 } SMonDiskInfo;
 
 typedef struct {
