@@ -13,10 +13,8 @@
  * along with this program. If not, see <http://www.gnu.org/licenses/>.
  */
 
-#include <function.h>
 #include <gtest/gtest.h>
 #include <iostream>
-#include "tglobal.h"
 
 #pragma GCC diagnostic push
 #pragma GCC diagnostic ignored "-Wwrite-strings"
@@ -25,6 +23,8 @@
 #pragma GCC diagnostic ignored "-Wsign-compare"
 #include "os.h"
 
+#include "function.h"
+#include "tglobal.h"
 #include "astGenerator.h"
 #include "parserInt.h"
 #include "taos.h"

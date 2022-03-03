@@ -186,6 +186,27 @@ int32_t taosStatFile(const char *path, int64_t *size, int32_t *mtime) {
   return 0;
 #endif
 }
+int32_t taosDevInoFile(const char *path, int64_t *stDev, int64_t *stIno) {
+#if defined(_TD_WINDOWS_64) || defined(_TD_WINDOWS_32)
+  return 0;
+#else
+  struct stat fileStat;
+  int32_t code = stat(path, &fileStat);
+  if (code < 0) {
+    return code;
+  }
+
+  if (stDev != NULL) {
+    *stDev = fileStat.st_dev;
+  }
+
+  if (stIno != NULL) {
+    *stIno = fileStat.st_ino;
+  }
+
+  return 0;
+#endif
+}
 
 void autoDelFileListAdd(const char *path) { return; }
 
@@ -733,3 +754,21 @@ int32_t taosEOFFile(TdFilePtr pFile) {
 
   return feof(pFile->fp);
 }
+bool taosCheckAccessFile(const char *pathname, int32_t tdFileAccessOptions) {
+  int flags = 0;
+
+  if (tdFileAccessOptions & TD_FILE_ACCESS_EXIST_OK) {
+    flags |= F_OK;
+  }
+
+  if (tdFileAccessOptions & TD_FILE_ACCESS_READ_OK) {
+    flags |= R_OK;
+  }
+
+  if (tdFileAccessOptions & TD_FILE_ACCESS_WRITE_OK) {
+    flags |= W_OK;
+  }
+
+  return access(pathname, flags) == 0;
+}
+bool taosCheckExistFile(const char *pathname) { return taosCheckAccessFile(pathname, TD_FILE_ACCESS_EXIST_OK); };

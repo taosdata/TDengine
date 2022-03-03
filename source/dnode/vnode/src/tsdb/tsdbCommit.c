@@ -580,7 +580,7 @@ static int tsdbSetAndOpenCommitFile(SCommitH *pCommith, SDFileSet *pSet, int fid
     SDFile *pRSmadF = TSDB_READ_SMAD_FILE(&(pCommith->readh));
     SDFile *pWSmadF = TSDB_COMMIT_SMAD_FILE(pCommith);
 
-    if (access(TSDB_FILE_FULL_NAME(pRSmadF), F_OK) != 0) {
+    if (!taosCheckExistFile(TSDB_FILE_FULL_NAME(pRSmadF))) {
       tsdbDebug("vgId:%d create data file %s as not exist", REPO_ID(pRepo), TSDB_FILE_FULL_NAME(pRSmadF));
       tsdbInitDFile(pRepo, pWSmadF, did, fid, FS_TXN_VERSION(REPO_FS(pRepo)), TSDB_FILE_SMAD);
 
@@ -614,7 +614,7 @@ static int tsdbSetAndOpenCommitFile(SCommitH *pCommith, SDFileSet *pSet, int fid
     SDFile *pRSmalF = TSDB_READ_SMAL_FILE(&(pCommith->readh));
     SDFile *pWSmalF = TSDB_COMMIT_SMAL_FILE(pCommith);
 
-    if ((pCommith->isLFileSame) && access(TSDB_FILE_FULL_NAME(pRSmalF), F_OK) == 0) {
+    if ((pCommith->isLFileSame) && taosCheckExistFile(TSDB_FILE_FULL_NAME(pRSmalF))) {
       tsdbInitDFileEx(pWSmalF, pRSmalF);
       if (tsdbOpenDFile(pWSmalF, O_RDWR) < 0) {
         tsdbError("vgId:%d failed to open file %s to commit since %s", REPO_ID(pRepo), TSDB_FILE_FULL_NAME(pWSmalF),
