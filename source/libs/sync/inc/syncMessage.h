@@ -158,6 +158,18 @@ typedef struct SyncAppendEntries {
   char      data[];
 } SyncAppendEntries;
 
+#define SYNC_APPEND_ENTRIES_FIX_LEN                                                                                 \
+  (sizeof(uint32_t) + sizeof(uint32_t) + sizeof(SRaftId) + sizeof(SRaftId) + sizeof(SyncIndex) + sizeof(SyncTerm) + \
+   sizeof(SyncIndex) + sizeof(uint32_t))
+
+SyncAppendEntries* syncAppendEntriesBuild(uint32_t dataLen);
+void               syncAppendEntriesDestroy(SyncAppendEntries* pMsg);
+void               syncAppendEntriesSerialize(const SyncAppendEntries* pMsg, char* buf, uint32_t bufLen);
+void               syncAppendEntriesDeserialize(const char* buf, uint32_t len, SyncAppendEntries* pMsg);
+void               syncAppendEntries2RpcMsg(const SyncAppendEntries* pMsg, SRpcMsg* pRpcMsg);
+void               syncAppendEntriesFromRpcMsg(const SRpcMsg* pRpcMsg, SyncAppendEntries* pMsg);
+cJSON*             syncAppendEntries2Json(const SyncAppendEntries* pMsg);
+
 // ---------------------------------------------
 typedef struct SyncAppendEntriesReply {
   uint32_t bytes;
@@ -168,6 +180,14 @@ typedef struct SyncAppendEntriesReply {
   bool      success;
   SyncIndex matchIndex;
 } SyncAppendEntriesReply;
+
+SyncAppendEntriesReply* syncAppendEntriesReplyBuild();
+void                    syncAppendEntriesReplyDestroy(SyncAppendEntriesReply* pMsg);
+void                    syncAppendEntriesReplySerialize(const SyncAppendEntriesReply* pMsg, char* buf, uint32_t bufLen);
+void                    syncAppendEntriesReplyDeserialize(const char* buf, uint32_t len, SyncAppendEntriesReply* pMsg);
+void                    syncAppendEntriesReply2RpcMsg(const SyncAppendEntriesReply* pMsg, SRpcMsg* pRpcMsg);
+void                    syncAppendEntriesReplyFromRpcMsg(const SRpcMsg* pRpcMsg, SyncAppendEntriesReply* pMsg);
+cJSON*                  syncAppendEntriesReply2Json(const SyncAppendEntriesReply* pMsg);
 
 #ifdef __cplusplus
 }
