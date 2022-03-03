@@ -16,11 +16,11 @@
 #ifndef __INDEX_FST_COUNTING_WRITER_H__
 #define __INDEX_FST_COUNTING_WRITER_H__
 
+#include "indexInt.h"
+
 #ifdef __cplusplus
 extern "C" {
 #endif
-
-#include "tfile.h"
 
 //#define USE_MMAP 1
 

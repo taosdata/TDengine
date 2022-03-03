@@ -13,15 +13,19 @@
  * along with this program. If not, see <http://www.gnu.org/licenses/>.
  */
 
-#ifndef _TD_UTIL_INT_H_
-#define _TD_UTIL_INT_H_
+#ifndef _TD_UTIL_HTTP_H_
+#define _TD_UTIL_HTTP_H_
+
+#include "os.h"
 
 #ifdef __cplusplus
 extern "C" {
 #endif
 
+int32_t taosSendHttpReport(const char* server, uint16_t port, const char* pCont, int32_t contLen);
+
 #ifdef __cplusplus
 }
 #endif
 
-#endif /*_TD_UTIL_INT_H_*/
+#endif /*_TD_UTIL_UTIL_H_*/

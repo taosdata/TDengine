@@ -13,8 +13,8 @@
  * along with this program. If not, see <http://www.gnu.org/licenses/>.
  */
 
-#ifndef _TD_UTIL_LOG_H
-#define _TD_UTIL_LOG_H
+#ifndef _TD_UTIL_LOG_H_
+#define _TD_UTIL_LOG_H_
 
 #include "os.h"
 
@@ -84,4 +84,4 @@ extern int8_t tscEmbeddedInUtil;
 }
 #endif
 
-#endif /*_TD_UTIL_LOG_H*/
+#endif /*_TD_UTIL_LOG_H_*/

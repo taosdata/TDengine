@@ -18,8 +18,10 @@
 	  3. This notice may not be removed or altered from any source distribution.
 	*/
 
-#ifndef _TD_UTIL_CRC32_H
-#define _TD_UTIL_CRC32_H
+#ifndef _TD_UTIL_CRC32_H_
+#define _TD_UTIL_CRC32_H_
+
+#include "os.h"
 
 #ifdef __cplusplus
 extern "C" {
@@ -39,4 +41,4 @@ void taosResolveCRC();
 }
 #endif
 
-#endif  /*_TD_UTIL_CRC32_H*/
+#endif  /*_TD_UTIL_CRC32_H_*/

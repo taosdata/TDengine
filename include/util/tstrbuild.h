@@ -13,12 +13,10 @@
  * along with this program. If not, see <http://www.gnu.org/licenses/>.
  */
 
-#ifndef _TD_UTIL_STRING_BUILDER_H
-#define _TD_UTIL_STRING_BUILDER_H 
+#ifndef _TD_UTIL_STRING_BUILDER_H_
+#define _TD_UTIL_STRING_BUILDER_H_
 
-#include <stddef.h>
-#include <stdint.h>
-#include <setjmp.h>
+#include "os.h"
 
 #ifdef __cplusplus
 extern "C" {
@@ -26,16 +24,16 @@ extern "C" {
 
 typedef struct SStringBuilder {
   jmp_buf jb;
-  size_t size;
-  size_t pos;
-  char* buf;
+  size_t  size;
+  size_t  pos;
+  char*   buf;
 } SStringBuilder;
 
 #define taosStringBuilderSetJmp(sb) setjmp((sb)->jb)
 
-void taosStringBuilderEnsureCapacity(SStringBuilder* sb, size_t size);
+void  taosStringBuilderEnsureCapacity(SStringBuilder* sb, size_t size);
 char* taosStringBuilderGetResult(SStringBuilder* sb, size_t* len);
-void taosStringBuilderDestroy(SStringBuilder* sb);
+void  taosStringBuilderDestroy(SStringBuilder* sb);
 
 void taosStringBuilderAppend(SStringBuilder* sb, const void* data, size_t len);
 void taosStringBuilderAppendChar(SStringBuilder* sb, char c);
@@ -49,4 +47,4 @@ void taosStringBuilderAppendDouble(SStringBuilder* sb, double v);
 }
 #endif
 
-#endif /*_TD_UTIL_STRING_BUILDER_H*/
+#endif /*_TD_UTIL_STRING_BUILDER_H_*/

@@ -16,10 +16,6 @@
 #ifndef _TD_OS_SOCKET_H_
 #define _TD_OS_SOCKET_H_
 
-#ifdef __cplusplus
-extern "C" {
-#endif
-
 #if defined(_TD_WINDOWS_64) || defined(_TD_WINDOWS_32)
   #include "winsock2.h"
   #include <WS2tcpip.h>
@@ -28,6 +24,10 @@ extern "C" {
 #else
   #include <netinet/in.h>
   #include <sys/epoll.h>
+#endif
+
+#ifdef __cplusplus
+extern "C" {
 #endif
 
 #define TAOS_EPOLL_WAIT_TIME 500

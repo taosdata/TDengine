@@ -13,17 +13,18 @@
  * along with this program. If not, see <http://www.gnu.org/licenses/>.
  */
 
-#ifndef TDENGINE_COMMON_H
-#define TDENGINE_COMMON_H
-
-#ifdef __cplusplus
-extern "C" {
-#endif
+#ifndef _TD_COMMON_DEF_H_
+#define _TD_COMMON_DEF_H_
 
 #include "taosdef.h"
 #include "tarray.h"
 #include "tmsg.h"
 #include "tvariant.h"
+
+#ifdef __cplusplus
+extern "C" {
+#endif
+
 // typedef struct STimeWindow {
 //   TSKEY skey;
 //   TSKEY ekey;
@@ -46,6 +47,11 @@ enum {
   TMQ_CONF__RESET_OFFSET__LATEST = -1,
   TMQ_CONF__RESET_OFFSET__EARLIEAST = -2,
   TMQ_CONF__RESET_OFFSET__NONE = -3,
+};
+
+enum {
+  TMQ_MSG_TYPE__POLL_RSP = 0,
+  TMQ_MSG_TYPE__EP_RSP,
 };
 
 typedef struct {
@@ -214,7 +220,7 @@ static FORCE_INLINE void tDeleteSMqConsumeRsp(SMqConsumeRsp* pRsp) {
   }
   taosArrayDestroyEx(pRsp->pBlockData, (void (*)(void*))tDeleteSSDataBlock);
   pRsp->pBlockData = NULL;
-  // for (int i = 0; i < taosArrayGetSize(pRsp->pBlockData); i++) {
+  // for (int32_t i = 0; i < taosArrayGetSize(pRsp->pBlockData); i++) {
   // SSDataBlock* pDataBlock = (SSDataBlock*)taosArrayGet(pRsp->pBlockData, i);
   // tDeleteSSDataBlock(pDataBlock);
   //}
@@ -279,4 +285,4 @@ typedef struct SSessionWindow {
 }
 #endif
 
-#endif  // TDENGINE_COMMON_H
+#endif  /*_TD_COMMON_DEF_H_*/

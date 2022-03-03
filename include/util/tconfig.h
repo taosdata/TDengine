@@ -17,7 +17,6 @@
 #ifndef _TD_CONFIG_H_
 #define _TD_CONFIG_H_
 
-#include "os.h"
 #include "tarray.h"
 
 #ifdef __cplusplus
@@ -54,11 +53,11 @@ typedef struct SConfigItem {
   bool         tsc;
   char        *name;
   union {
-    bool     bval;
-    float    fval;
-    int32_t  i32;
-    int64_t  i64;
-    char    *str;
+    bool    bval;
+    float   fval;
+    int32_t i32;
+    int64_t i64;
+    char   *str;
   };
   union {
     int64_t imin;
@@ -76,16 +75,17 @@ typedef struct {
   const char *value;
 } SConfigPair;
 
-typedef struct SConfig SConfig;
+typedef struct SConfig {
+  ECfgSrcType stype;
+  SArray     *array;
+} SConfig;
 
 SConfig *cfgInit();
 int32_t  cfgLoad(SConfig *pCfg, ECfgSrcType cfgType, const char *sourceStr);
-int32_t  cfgLoadArray(SConfig *pCfg, SArray *pArgs); // SConfigPair
+int32_t  cfgLoadFromArray(SConfig *pCfg, SArray *pArgs);  // SConfigPair
 void     cfgCleanup(SConfig *pCfg);
 
 int32_t      cfgGetSize(SConfig *pCfg);
-SConfigItem *cfgIterate(SConfig *pCfg, SConfigItem *pIter);
-void         cfgCancelIterate(SConfig *pCfg, SConfigItem *pIter);
 SConfigItem *cfgGetItem(SConfig *pCfg, const char *name);
 int32_t      cfgSetItem(SConfig *pCfg, const char *name, const char *value, ECfgSrcType stype);
 

@@ -1,5 +1,5 @@
 #include <stdlib.h>
-#include "common.h"
+#include "tcommon.h"
 #include "raftServer.h"
 
 char *keys;

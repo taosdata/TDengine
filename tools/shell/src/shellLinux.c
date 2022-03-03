@@ -18,7 +18,7 @@
 #include "tglobal.h"
 #include "shell.h"
 #include "shellCommand.h"
-#include "tkey.h"
+#include "tbase64.h"
 #include "tlog.h"
 #include "version.h"
 

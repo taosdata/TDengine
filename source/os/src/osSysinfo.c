@@ -404,7 +404,7 @@ bool taosGetSysMemory(float *memoryUsedMB) {
 
 bool taosGetProcMemory(float *memoryUsedMB) {
   // FILE *fp = fopen(tsProcMemFile, "r");
-  TdFilePtr pFile = taosOpenFile(tsProcMemFile, TD_FILE_READ);
+  TdFilePtr pFile = taosOpenFile(tsProcMemFile, TD_FILE_READ | TD_FILE_STREAM);
   if (pFile == NULL) {
     //printf("open file:%s failed", tsProcMemFile);
     return false;
@@ -440,7 +440,7 @@ bool taosGetProcMemory(float *memoryUsedMB) {
 
 static bool taosGetSysCpuInfo(SysCpuInfo *cpuInfo) {
   // FILE *fp = fopen(tsSysCpuFile, "r");
-  TdFilePtr pFile = taosOpenFile(tsSysCpuFile, TD_FILE_READ);
+  TdFilePtr pFile = taosOpenFile(tsSysCpuFile, TD_FILE_READ | TD_FILE_STREAM);
   if (pFile == NULL) {
     //printf("open file:%s failed", tsSysCpuFile);
     return false;
@@ -465,7 +465,7 @@ static bool taosGetSysCpuInfo(SysCpuInfo *cpuInfo) {
 
 static bool taosGetProcCpuInfo(ProcCpuInfo *cpuInfo) {
   // FILE *fp = fopen(tsProcCpuFile, "r");
-  TdFilePtr pFile = taosOpenFile(tsProcCpuFile, TD_FILE_READ);
+  TdFilePtr pFile = taosOpenFile(tsProcCpuFile, TD_FILE_READ | TD_FILE_STREAM);
   if (pFile == NULL) {
     //printf("open file:%s failed", tsProcCpuFile);
     return false;
@@ -550,7 +550,7 @@ int32_t taosGetDiskSize(char *dataDir, SDiskSize *diskSize) {
 bool taosGetCardInfo(int64_t *bytes, int64_t *rbytes, int64_t *tbytes) {
   *bytes = 0;
   // FILE *fp = fopen(tsSysNetFile, "r");
-  TdFilePtr pFile = taosOpenFile(tsSysNetFile, TD_FILE_READ);
+  TdFilePtr pFile = taosOpenFile(tsSysNetFile, TD_FILE_READ | TD_FILE_STREAM);
   if (pFile == NULL) {
     //printf("open file:%s failed", tsSysNetFile);
     return false;
@@ -636,7 +636,7 @@ bool taosGetBandSpeed(float *bandSpeedKb) {
 
 bool taosReadProcIO(int64_t *rchars, int64_t *wchars) {
   // FILE *fp = fopen(tsProcIOFile, "r");
-  TdFilePtr pFile = taosOpenFile(tsProcIOFile, TD_FILE_READ);
+  TdFilePtr pFile = taosOpenFile(tsProcIOFile, TD_FILE_READ | TD_FILE_STREAM);
   if (pFile == NULL) {
     //printf("open file:%s failed", tsProcIOFile);
     return false;
@@ -886,6 +886,101 @@ SysNameInfo taosGetSysNameInfo() {
   }
 
   return info;
+}
+
+bool taosGetEmail(char *email, int32_t maxLen) {
+  const char *filepath = "/usr/local/taos/email";
+
+  TdFilePtr pFile = taosOpenFile(filepath, TD_FILE_READ);
+  if (pFile == NULL) return false;
+
+  if (taosReadFile(pFile, (void *)email, maxLen) < 0) {
+    taosCloseFile(&pFile);
+    return false;
+  }
+
+  taosCloseFile(&pFile);
+  return true;
+}
+
+bool taosGetOsReleaseName(char *releaseName, int32_t maxLen) {
+  char  *line = NULL;
+  size_t size = 0;
+  bool   ret = false;
+
+  TdFilePtr pFile = taosOpenFile("/etc/os-release", TD_FILE_READ | TD_FILE_STREAM);
+  if (pFile == NULL) return false;
+
+  while ((size = taosGetLineFile(pFile, &line)) != -1) {
+    line[size - 1] = '\0';
+    if (strncmp(line, "PRETTY_NAME", 11) == 0) {
+      const char *p = strchr(line, '=') + 1;
+      if (*p == '"') {
+        p++;
+        line[size - 2] = 0;
+      }
+      tstrncpy(releaseName, p, maxLen);
+      ret = true;
+      break;
+    }
+  }
+
+  if (line != NULL) free(line);
+  taosCloseFile(&pFile);
+  return ret;
+}
+
+bool taosGetCpuInfo(char *cpuModel, int32_t maxLen, int32_t *numOfCores) {
+  char   *line = NULL;
+  size_t  size = 0;
+  int32_t done = 0;
+  bool    ret = false;
+
+  TdFilePtr pFile = taosOpenFile("/proc/cpuinfo", TD_FILE_READ | TD_FILE_STREAM);
+  if (pFile == NULL) return false;
+
+  while (done != 3 && (size = taosGetLineFile(pFile, &line)) != -1) {
+    line[size - 1] = '\0';
+    if (((done & 1) == 0) && strncmp(line, "model name", 10) == 0) {
+      const char *v = strchr(line, ':') + 2;
+      tstrncpy(cpuModel, v, maxLen);
+      ret = true;
+      done |= 1;
+    } else if (((done & 2) == 0) && strncmp(line, "cpu cores", 9) == 0) {
+      const char *v = strchr(line, ':') + 2;
+      *numOfCores = atoi(v);
+      done |= 2;
+    }
+  }
+
+  if (line != NULL) free(line);
+  taosCloseFile(&pFile);
+
+  return ret;
+}
+
+bool taosGetTotalSysMemoryKB(uint64_t *kb) {
+  char  *line = NULL;
+  size_t size = 0;
+  bool   ret = false;
+
+  TdFilePtr pFile = taosOpenFile("/proc/meminfo", TD_FILE_READ | TD_FILE_STREAM);
+  if (pFile == NULL) return false;
+
+  while ((size = taosGetLineFile(pFile, &line)) != -1) {
+    line[size - 1] = '\0';
+    if (strncmp(line, "MemTotal", 8) == 0) {
+      const char *p = strchr(line, ':') + 1;
+      while (*p == ' ') p++;
+      ret = true;
+      *kb = atoll(p);
+      break;
+    }
+  }
+
+  if (line != NULL) free(line);
+  taosCloseFile(&pFile);
+  return ret;
 }
 
 #endif

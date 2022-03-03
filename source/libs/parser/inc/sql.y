@@ -449,10 +449,10 @@ tagitemlist1(A) ::= tagitemlist1(X) COMMA tagitem1(Y). { taosArrayPush(X, &Y); A
 tagitemlist1(A) ::= tagitem1(Y). { A = taosArrayInit(4, sizeof(SToken)); taosArrayPush(A, &Y); }
 
 %type tagitem1 {SToken}
-tagitem1(A) ::= MINUS(X) INTEGER(Y). { A.n = X.n + Y.n; A.type = Y.type; }
-tagitem1(A) ::= MINUS(X) FLOAT(Y).   { A.n = X.n + Y.n; A.type = Y.type; }
-tagitem1(A) ::= PLUS(X) INTEGER(Y).  { A.n = X.n + Y.n; A.type = Y.type; }
-tagitem1(A) ::= PLUS(X)   FLOAT(Y).  { A.n = X.n + Y.n; A.type = Y.type; }
+tagitem1(A) ::= MINUS(X) INTEGER(Y). { A.n = X.n + Y.n; A.type = Y.type; A.z = X.z;}
+tagitem1(A) ::= MINUS(X) FLOAT(Y).   { A.n = X.n + Y.n; A.type = Y.type; A.z = X.z;}
+tagitem1(A) ::= PLUS(X) INTEGER(Y).  { A.n = X.n + Y.n; A.type = Y.type; A.z = X.z;}
+tagitem1(A) ::= PLUS(X)   FLOAT(Y).  { A.n = X.n + Y.n; A.type = Y.type; A.z = X.z;}
 tagitem1(A) ::= INTEGER(X).      { A = X; }
 tagitem1(A) ::= FLOAT(X).        { A = X; }
 tagitem1(A) ::= STRING(X).       { A = X; }

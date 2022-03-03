@@ -420,7 +420,6 @@ class IndexTFileEnv : public ::testing::Test {
   virtual void SetUp() {
     taosRemoveDir(dir.c_str());
     taosMkDir(dir.c_str());
-    tfInit();
     fObj = new TFileObj(dir, colName);
   }
 
@@ -428,7 +427,6 @@ class IndexTFileEnv : public ::testing::Test {
     // indexClose(index);
     // indexeptsDestroy(opts);
     delete fObj;
-    tfCleanup();
     // tfileWriterDestroy(twrite);
   }
   TFileObj*   fObj;
@@ -800,13 +798,10 @@ class IndexObj {
 class IndexEnv2 : public ::testing::Test {
  protected:
   virtual void SetUp() {
-    tfInit();
     index = new IndexObj();
-    //
   }
   virtual void TearDown() {
     delete index;
-    tfCleanup();
   }
   IndexObj* index;
 };

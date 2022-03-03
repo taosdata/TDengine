@@ -937,41 +937,54 @@ static int32_t mndProcessUseDbReq(SMnodeMsg *pReq) {
     goto USE_DB_OVER;
   }
 
-  pDb = mndAcquireDb(pMnode, usedbReq.db);
-  if (pDb == NULL) {
-    terrno = TSDB_CODE_MND_DB_NOT_EXIST;
-    goto USE_DB_OVER;
-  }
+  char *p = strchr(usedbReq.db, '.');
+  if (p && 0 == strcmp(p + 1, TSDB_INFORMATION_SCHEMA_DB)) {
+    memcpy(usedbRsp.db, usedbReq.db, TSDB_DB_FNAME_LEN);
+    code = 0;
+  } else {
+    pDb = mndAcquireDb(pMnode, usedbReq.db);
+    if (pDb == NULL) {
+      terrno = TSDB_CODE_MND_DB_NOT_EXIST;
 
-  pUser = mndAcquireUser(pMnode, pReq->user);
-  if (pUser == NULL) {
-    goto USE_DB_OVER;
-  }
+      memcpy(usedbRsp.db, usedbReq.db, TSDB_DB_FNAME_LEN);
+      usedbRsp.uid = usedbReq.dbId;
+      usedbRsp.vgVersion = usedbReq.vgVersion;
 
-  if (mndCheckUseDbAuth(pUser, pDb) != 0) {
-    goto USE_DB_OVER;
-  }
+      mError("db:%s, failed to process use db req since %s", usedbReq.db, terrstr());
+    } else {
+      pUser = mndAcquireUser(pMnode, pReq->user);
+      if (pUser == NULL) {
+        goto USE_DB_OVER;
+      }
 
-  usedbRsp.pVgroupInfos = taosArrayInit(pDb->cfg.numOfVgroups, sizeof(SVgroupInfo));
-  if (usedbRsp.pVgroupInfos == NULL) {
-    terrno = TSDB_CODE_OUT_OF_MEMORY;
-    goto USE_DB_OVER;
-  }
+      if (mndCheckUseDbAuth(pUser, pDb) != 0) {
+        goto USE_DB_OVER;
+      }
 
-  if (usedbReq.vgVersion < pDb->vgVersion) {
-    mndBuildDBVgroupInfo(pDb, pMnode, usedbRsp.pVgroupInfos);
-  }
+      usedbRsp.pVgroupInfos = taosArrayInit(pDb->cfg.numOfVgroups, sizeof(SVgroupInfo));
+      if (usedbRsp.pVgroupInfos == NULL) {
+        terrno = TSDB_CODE_OUT_OF_MEMORY;
+        goto USE_DB_OVER;
+      }
 
-  memcpy(usedbRsp.db, pDb->name, TSDB_DB_FNAME_LEN);
-  usedbRsp.uid = pDb->uid;
-  usedbRsp.vgVersion = pDb->vgVersion;
-  usedbRsp.vgNum = taosArrayGetSize(usedbRsp.pVgroupInfos);
-  usedbRsp.hashMethod = pDb->hashMethod;
+      if (usedbReq.vgVersion < pDb->vgVersion || usedbReq.dbId != pDb->uid) {
+        mndBuildDBVgroupInfo(pDb, pMnode, usedbRsp.pVgroupInfos);
+      }
+
+      memcpy(usedbRsp.db, pDb->name, TSDB_DB_FNAME_LEN);
+      usedbRsp.uid = pDb->uid;
+      usedbRsp.vgVersion = pDb->vgVersion;
+      usedbRsp.vgNum = taosArrayGetSize(usedbRsp.pVgroupInfos);
+      usedbRsp.hashMethod = pDb->hashMethod;
+      code = 0;
+    }
+  }
 
   int32_t contLen = tSerializeSUseDbRsp(NULL, 0, &usedbRsp);
   void   *pRsp = rpcMallocCont(contLen);
   if (pRsp == NULL) {
     terrno = TSDB_CODE_OUT_OF_MEMORY;
+    code = -1;
     goto USE_DB_OVER;
   }
 
@@ -979,7 +992,6 @@ static int32_t mndProcessUseDbReq(SMnodeMsg *pReq) {
 
   pReq->pCont = pRsp;
   pReq->contLen = contLen;
-  code = 0;
 
 USE_DB_OVER:
   if (code != 0) {

@@ -171,7 +171,7 @@ static void shellSourceFile(TAOS *con, char *fptr) {
   */
 
   // FILE *f = fopen(fname, "r");
-  TdFilePtr pFile = taosOpenFile(fname, TD_FILE_READ);
+  TdFilePtr pFile = taosOpenFile(fname, TD_FILE_READ | TD_FILE_STREAM);
   if (pFile == NULL) {
     fprintf(stderr, "ERROR: failed to open file %s\n", fname);
     wordfree(&full_path);

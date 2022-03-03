@@ -25,6 +25,12 @@
 #ifndef _TD_UTIL_MD5_H
 #define _TD_UTIL_MD5_H
 
+#include "os.h"
+
+#ifdef __cplusplus
+extern "C" {
+#endif
+
 typedef struct {
   uint32_t i[2];       /* number of _bits_ handled mod 2^64 */
   uint32_t buf[4];     /* scratch buffer */
@@ -33,7 +39,11 @@ typedef struct {
 } T_MD5_CTX;
 
 void tMD5Init(T_MD5_CTX *mdContext);
-void tMD5Update(T_MD5_CTX *mdContext, uint8_t *inBuf, unsigned int inLen);
+void tMD5Update(T_MD5_CTX *mdContext, uint8_t *inBuf, uint32_t inLen);
 void tMD5Final(T_MD5_CTX *mdContext);
+
+#ifdef __cplusplus
+}
+#endif
 
 #endif /*_TD_UTIL_MD5_H*/

@@ -17,11 +17,11 @@
 #define _TD_UTIL_COMPARE_H_
 
 #include "os.h"
+#include "taos.h"
 
 #ifdef __cplusplus
 extern "C" {
 #endif
-
 
 #define TSDB_PATTERN_MATCH              0
 #define TSDB_PATTERN_NOMATCH            1
@@ -99,7 +99,15 @@ int32_t compareUint64ValDesc(const void *pLeft, const void *pRight);
 int32_t compareLenPrefixedStrDesc(const void *pLeft, const void *pRight);
 int32_t compareLenPrefixedWStrDesc(const void *pLeft, const void *pRight);
 
+int32_t compareStrPatternMatch(const void *pLeft, const void *pRight);
+int32_t compareStrPatternNotMatch(const void *pLeft, const void *pRight);
+
+int32_t compareWStrPatternMatch(const void *pLeft, const void *pRight);
+int32_t compareWStrPatternNotMatch(const void *pLeft, const void *pRight);
+
 __compar_fn_t getComparFunc(int32_t type, int32_t optr);
+__compar_fn_t getKeyComparFunc(int32_t keyType, int32_t order);
+int32_t       doCompare(const char *a, const char *b, int32_t type, size_t size);
 
 #ifdef __cplusplus
 }
