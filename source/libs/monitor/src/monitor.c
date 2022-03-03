@@ -23,7 +23,7 @@
 static SMonitor tsMonitor = {0};
 
 int32_t monInit(const SMonCfg *pCfg) {
-  tsMonitor.logs = taosArrayInit(16, sizeof(SMonInfo));
+  tsMonitor.logs = taosArrayInit(16, sizeof(SMonLogItem));
   if (tsMonitor.logs == NULL) {
     terrno = TSDB_CODE_OUT_OF_MEMORY;
     return -1;
@@ -44,7 +44,7 @@ void monCleanup() {
 void monAddLogItem(SMonLogItem *pItem) {
   taosWLockLatch(&tsMonitor.lock);
   int32_t size = taosArrayGetSize(tsMonitor.logs);
-  if (size > tsMonitor.maxLogs) {
+  if (size >= tsMonitor.maxLogs) {
     uInfo("too many logs for monitor");
   } else {
     taosArrayPush(tsMonitor.logs, pItem);
@@ -118,9 +118,9 @@ void monSetClusterInfo(SMonInfo *pMonitor, SMonClusterInfo *pInfo) {
     if (pDnodeJson == NULL) continue;
 
     SMonDnodeDesc *pDnodeDesc = taosArrayGet(pInfo->dnodes, i);
-    if (tjsonAddDoubleToObject(pDnodesJson, "dnode_id", pDnodeDesc->dnode_id) != 0) tjsonDelete(pDnodeJson);
-    if (tjsonAddStringToObject(pDnodesJson, "dnode_ep", pDnodeDesc->dnode_ep) != 0) tjsonDelete(pDnodeJson);
-    if (tjsonAddStringToObject(pDnodesJson, "status", pDnodeDesc->status) != 0) tjsonDelete(pDnodeJson);
+    tjsonAddDoubleToObject(pDnodeJson, "dnode_id", pDnodeDesc->dnode_id);
+    tjsonAddStringToObject(pDnodeJson, "dnode_ep", pDnodeDesc->dnode_ep);
+    tjsonAddStringToObject(pDnodeJson, "status", pDnodeDesc->status);
 
     if (tjsonAddItemToArray(pDnodesJson, pDnodeJson) != 0) tjsonDelete(pDnodeJson);
   }
@@ -133,48 +133,44 @@ void monSetClusterInfo(SMonInfo *pMonitor, SMonClusterInfo *pInfo) {
     if (pMnodeJson == NULL) continue;
 
     SMonMnodeDesc *pMnodeDesc = taosArrayGet(pInfo->dnodes, i);
-    if (tjsonAddDoubleToObject(pMnodesJson, "mnode_id", pMnodeDesc->mnode_id) != 0) tjsonDelete(pMnodeJson);
-    if (tjsonAddStringToObject(pMnodesJson, "mnode_ep", pMnodeDesc->mnode_ep) != 0) tjsonDelete(pMnodeJson);
-    if (tjsonAddStringToObject(pMnodesJson, "role", pMnodeDesc->role) != 0) tjsonDelete(pMnodeJson);
+    tjsonAddDoubleToObject(pMnodeJson, "mnode_id", pMnodeDesc->mnode_id);
+    tjsonAddStringToObject(pMnodeJson, "mnode_ep", pMnodeDesc->mnode_ep);
+    tjsonAddStringToObject(pMnodeJson, "role", pMnodeDesc->role);
 
     if (tjsonAddItemToArray(pMnodesJson, pMnodeJson) != 0) tjsonDelete(pMnodeJson);
   }
 }
 
 void monSetVgroupInfo(SMonInfo *pMonitor, SMonVgroupInfo *pInfo) {
-  SJson *pJson = tjsonCreateObject();
+  SJson *pJson = tjsonAddArrayToObject(pMonitor->pJson, "vgroup_infos");
   if (pJson == NULL) return;
-  if (tjsonAddItemToObject(pMonitor->pJson, "vgroup_infos", pJson) != 0) {
-    tjsonDelete(pJson);
-    return;
-  }
-
-  tjsonAddStringToObject(pJson, "database_name", pInfo->database_name);
-  tjsonAddDoubleToObject(pJson, "tables_num", pInfo->tables_num);
-  tjsonAddStringToObject(pJson, "status", pInfo->status);
-
-  SJson *pVgroupsJson = tjsonAddArrayToObject(pJson, "vgroups");
-  if (pVgroupsJson == NULL) return;
 
   for (int32_t i = 0; i < taosArrayGetSize(pInfo->vgroups); ++i) {
     SJson *pVgroupJson = tjsonCreateObject();
     if (pVgroupJson == NULL) continue;
+    if (tjsonAddItemToArray(pJson, pVgroupJson) != 0) {
+      tjsonDelete(pVgroupJson);
+      continue;
+    }
 
     SMonVgroupDesc *pVgroupDesc = taosArrayGet(pInfo->vgroups, i);
-    if (tjsonAddDoubleToObject(pVgroupJson, "vgroup_id", pVgroupDesc->vgroup_id) != 0) tjsonDelete(pVgroupJson);
+    tjsonAddDoubleToObject(pVgroupJson, "vgroup_id", pVgroupDesc->vgroup_id);
+    tjsonAddStringToObject(pVgroupJson, "database_name", pVgroupDesc->database_name);
+    tjsonAddDoubleToObject(pVgroupJson, "tables_num", pVgroupDesc->tables_num);
+    tjsonAddStringToObject(pVgroupJson, "status", pVgroupDesc->status);
 
     SJson *pVnodesJson = tjsonAddArrayToObject(pVgroupJson, "vnodes");
-    if (pVnodesJson == NULL) tjsonDelete(pVgroupJson);
+    if (pVnodesJson == NULL) continue;
 
     for (int32_t j = 0; j < TSDB_MAX_REPLICA; ++j) {
       SMonVnodeDesc *pVnodeDesc = &pVgroupDesc->vnodes[j];
-      if (pVnodeDesc[j].dnode_id <= 0) continue;
+      if (pVnodeDesc->dnode_id <= 0) continue;
 
       SJson *pVnodeJson = tjsonCreateObject();
       if (pVnodeJson == NULL) continue;
 
-      if (tjsonAddDoubleToObject(pVnodeJson, "dnode_id", pVnodeDesc->dnode_id) != 0) tjsonDelete(pVnodeJson);
-      if (tjsonAddStringToObject(pVnodeJson, "vnode_role", pVnodeDesc->vnode_role) != 0) tjsonDelete(pVnodeJson);
+      tjsonAddDoubleToObject(pVnodeJson, "dnode_id", pVnodeDesc->dnode_id);
+      tjsonAddStringToObject(pVnodeJson, "vnode_role", pVnodeDesc->vnode_role);
 
       if (tjsonAddItemToArray(pVnodesJson, pVnodeJson) != 0) tjsonDelete(pVnodeJson);
     }
@@ -235,7 +231,7 @@ void monSetDnodeInfo(SMonInfo *pMonitor, SMonDnodeInfo *pInfo) {
 void monSetDiskInfo(SMonInfo *pMonitor, SMonDiskInfo *pInfo) {
   SJson *pJson = tjsonCreateObject();
   if (pJson == NULL) return;
-  if (tjsonAddItemToObject(pMonitor->pJson, "disks_infos", pJson) != 0) {
+  if (tjsonAddItemToObject(pMonitor->pJson, "disk_infos", pJson) != 0) {
     tjsonDelete(pJson);
     return;
   }
@@ -261,7 +257,6 @@ void monSetDiskInfo(SMonInfo *pMonitor, SMonDiskInfo *pInfo) {
   if (pLogdirJson == NULL) return;
   if (tjsonAddItemToObject(pJson, "logdir", pLogdirJson) != 0) return;
   tjsonAddStringToObject(pLogdirJson, "name", pInfo->logdir.name);
-  tjsonAddDoubleToObject(pLogdirJson, "level", pInfo->logdir.level);
   tjsonAddDoubleToObject(pLogdirJson, "avail", pInfo->logdir.size.avail);
   tjsonAddDoubleToObject(pLogdirJson, "used", pInfo->logdir.size.used);
   tjsonAddDoubleToObject(pLogdirJson, "total", pInfo->logdir.size.total);
@@ -270,7 +265,6 @@ void monSetDiskInfo(SMonInfo *pMonitor, SMonDiskInfo *pInfo) {
   if (pTempdirJson == NULL) return;
   if (tjsonAddItemToObject(pJson, "tempdir", pTempdirJson) != 0) return;
   tjsonAddStringToObject(pTempdirJson, "name", pInfo->tempdir.name);
-  tjsonAddDoubleToObject(pTempdirJson, "level", pInfo->tempdir.level);
   tjsonAddDoubleToObject(pTempdirJson, "avail", pInfo->tempdir.size.avail);
   tjsonAddDoubleToObject(pTempdirJson, "used", pInfo->tempdir.size.used);
   tjsonAddDoubleToObject(pTempdirJson, "total", pInfo->tempdir.size.total);
@@ -296,9 +290,9 @@ static void monSetLogInfo(SMonInfo *pMonitor) {
     char buf[40] = {0};
     taosFormatUtcTime(buf, sizeof(buf), pLogItem->ts, TSDB_TIME_PRECISION_MILLI);
 
-    if (tjsonAddStringToObject(pLogItem, "ts", buf) != 0) tjsonDelete(pLogJson);
-    if (tjsonAddDoubleToObject(pLogItem, "level", pLogItem->level) != 0) tjsonDelete(pLogJson);
-    if (tjsonAddStringToObject(pLogItem, "content", pLogItem->content) != 0) tjsonDelete(pLogJson);
+    tjsonAddStringToObject(pLogJson, "ts", buf);
+    tjsonAddDoubleToObject(pLogJson, "level", pLogItem->level);
+    tjsonAddStringToObject(pLogJson, "content", pLogItem->content);
 
     if (tjsonAddItemToArray(pLogsJson, pLogJson) != 0) tjsonDelete(pLogJson);
   }
