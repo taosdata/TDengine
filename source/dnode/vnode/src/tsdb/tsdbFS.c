@@ -422,7 +422,7 @@ static int tsdbSaveFSStatus(STsdb *pRepo, SFSStatus *pStatus) {
     return -1;
   }
 
-  fsheader.version = TSDB_FS_VERSION;
+  fsheader.version = TSDB_LATEST_SFS_VER;
   if (taosArrayGetSize(pStatus->df) == 0) {
     fsheader.len = 0;
   } else {
@@ -697,7 +697,7 @@ static int tsdbOpenFSFromCurrent(STsdb *pRepo) {
   ptr = tsdbDecodeFSHeader(ptr, &fsheader);
   ptr = tsdbDecodeFSMeta(ptr, &(pStatus->meta));
 
-  if (fsheader.version != TSDB_FS_VERSION) {
+  if (fsheader.version != TSDB_LATEST_SFS_VER) {
     // TODO: handle file version change
   }
 

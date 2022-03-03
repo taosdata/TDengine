@@ -13,8 +13,8 @@
  * along with this program. If not, see <http://www.gnu.org/licenses/>.
  */
 
-#ifndef _TD_LIBS_SYNC_ENV_H
-#define _TD_LIBS_SYNC_ENV_H
+#ifndef _TD_LIBS_SYNC_UTIL_H
+#define _TD_LIBS_SYNC_UTIL_H
 
 #ifdef __cplusplus
 extern "C" {
@@ -24,31 +24,34 @@ extern "C" {
 #include <stdio.h>
 #include <stdlib.h>
 #include "syncInt.h"
+#include "syncMessage.h"
 #include "taosdef.h"
-#include "trpc.h"
-#include "ttimer.h"
 
-#define TIMER_MAX_MS 0x7FFFFFFF
+// ---- encode / decode
 
-typedef struct SSyncEnv {
-  tmr_h pEnvTickTimer;
-  tmr_h pTimerManager;
-  char  name[128];
+uint64_t syncUtilAddr2U64(const char* host, uint16_t port);
 
-} SSyncEnv;
+void syncUtilU642Addr(uint64_t u64, char* host, size_t len, uint16_t* port);
 
-extern SSyncEnv* gSyncEnv;
+void syncUtilnodeInfo2EpSet(const SNodeInfo* pNodeInfo, SEpSet* pEpSet);
 
-int32_t syncEnvStart();
+void syncUtilraftId2EpSet(const SRaftId* raftId, SEpSet* pEpSet);
 
-int32_t syncEnvStop();
+void syncUtilnodeInfo2raftId(const SNodeInfo* pNodeInfo, SyncGroupId vgId, SRaftId* raftId);
 
-tmr_h syncEnvStartTimer(TAOS_TMR_CALLBACK fp, int mseconds, void* param);
+// ---- SSyncBuffer ----
+#if 0
+void syncUtilbufBuild(SSyncBuffer* syncBuf, size_t len);
 
-void syncEnvStopTimer(tmr_h* pTimer);
+void syncUtilbufDestroy(SSyncBuffer* syncBuf);
+
+void syncUtilbufCopy(const SSyncBuffer* src, SSyncBuffer* dest);
+
+void syncUtilbufCopyDeep(const SSyncBuffer* src, SSyncBuffer* dest);
+#endif
 
 #ifdef __cplusplus
 }
 #endif
 
-#endif /*_TD_LIBS_SYNC_ENV_H*/
+#endif /*_TD_LIBS_SYNC_UTIL_H*/
