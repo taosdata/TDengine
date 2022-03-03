@@ -483,11 +483,11 @@ static int32_t dndGetBasicInfo(SDnode *pDnode, SMonBasicInfo *pInfo) {
 static int32_t dndGetDnodeInfo(SDnode *pDnode, SMonDnodeInfo *pInfo) { return 0; }
 
 static void dndSendMonitorReport(SDnode *pDnode) {
-  if (!tsEnableMonitor || tsMonitorFqdn[0] == 0) return;
+  if (!tsEnableMonitor || tsMonitorFqdn[0] == 0 || tsMonitorPort == 0) return;
+  dTrace("pDnode:%p, send monitor report to %s:%u", pDnode, tsMonitorFqdn, tsMonitorPort);
+
   SMonInfo *pMonitor = monCreateMonitorInfo();
   if (pMonitor == NULL) return;
-
-  dTrace("pDnode:%p, send monitor report to %s:%u", pDnode, tsMonitorFqdn, tsMonitorPort);
 
   SMonBasicInfo basicInfo = {0};
   if (dndGetBasicInfo(pDnode, &basicInfo) == 0) {
