@@ -116,7 +116,13 @@ typedef enum ETableOptionType {
 STableOptions* createDefaultTableOptions(SAstCreateContext* pCxt);
 STableOptions* setTableOption(SAstCreateContext* pCxt, STableOptions* pOptions, ETableOptionType type, const SToken* pVal);
 SNode* createColumnDefNode(SAstCreateContext* pCxt, const SToken* pColName, SDataType dataType, const SToken* pComment);
+SDataType createDataType(uint8_t type);
+SDataType createVarLenDataType(uint8_t type, const SToken* pLen);
 SNode* createCreateTableStmt(SAstCreateContext* pCxt, bool ignoreExists, const STokenPair* pFullTableName, SNodeList* pCols, STableOptions* pOptions);
+
+SNode* createUseDatabaseStmt(SAstCreateContext* pCxt, const SToken* pDbName);
+
+SNode* createShowStmt(SAstCreateContext* pCxt, ENodeType type);
 
 #ifdef __cplusplus
 }

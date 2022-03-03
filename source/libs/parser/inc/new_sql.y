@@ -92,22 +92,25 @@ db_options(A) ::= db_options(B) VGROUPS NK_INTEGER(C).                          
 db_options(A) ::= db_options(B) SINGLESTABLE NK_INTEGER(C).                       { A = setDatabaseOption(pCxt, B, DB_OPTION_SINGLESTABLE, &C); }
 db_options(A) ::= db_options(B) STREAMMODE NK_INTEGER(C).                         { A = setDatabaseOption(pCxt, B, DB_OPTION_STREAMMODE, &C); }
 
+/************************************************ create database *****************************************************/
+cmd ::= USE db_name(A).                                                           { pCxt->pRootNode = createUseDatabaseStmt(pCxt, &A);}
+
 /************************************************ create table *******************************************************/
 cmd ::= CREATE TABLE exists_opt(A) full_table_name(B)
   NK_LP column_def_list(C) NK_RP table_options(D).                                { pCxt->pRootNode = createCreateTableStmt(pCxt, A, &B, C, D);}
 
 %type full_table_name                                                             { STokenPair }
 %destructor full_table_name                                                       { }
-full_table_name(A) ::= NK_ID(B).                                                  { A = { .first = B, .second = nil_token}; }
-full_table_name(A) ::= NK_ID(B) NK_DOT NK_ID(C).                                  { A = { .first = B, .second = C}; }
+full_table_name(A) ::= NK_ID(B).                                                  { STokenPair t = { .first = B, .second = nil_token}; A = t; }
+full_table_name(A) ::= NK_ID(B) NK_DOT NK_ID(C).                                  { STokenPair t = { .first = B, .second = C}; A = t; }
 
 %type column_def_list                                                             { SNodeList* }
 %destructor column_def_list                                                       { nodesDestroyList($$); }
 column_def_list(A) ::= column_def(B).                                             { A = createNodeList(pCxt, B); }
 column_def_list(A) ::= column_def_list(B) NK_COMMA column_def(C).                 { A = addNodeToList(pCxt, B, C); }
 
-column_def(A) ::= column_name(B) type_name(C).                                    { A = createColumnDefNode(pCxt, B, C, NULL); }
-column_def(A) ::= column_name(B) type_name(C) COMMENT NK_STRING(D).               { A = createColumnDefNode(pCxt, B, C, &D); }
+column_def(A) ::= column_name(B) type_name(C).                                    { A = createColumnDefNode(pCxt, &B, C, NULL); }
+column_def(A) ::= column_name(B) type_name(C) COMMENT NK_STRING(D).               { A = createColumnDefNode(pCxt, &B, C, &D); }
 
 %type type_name                                                                   { SDataType }
 %destructor type_name                                                             { }
@@ -115,6 +118,7 @@ type_name(A) ::= BOOL.                                                          
 type_name(A) ::= TINYINT.                                                         { A = createDataType(TSDB_DATA_TYPE_TINYINT); }
 type_name(A) ::= SMALLINT.                                                        { A = createDataType(TSDB_DATA_TYPE_SMALLINT); }
 type_name(A) ::= INT.                                                             { A = createDataType(TSDB_DATA_TYPE_INT); }
+type_name(A) ::= INTEGER.                                                         { A = createDataType(TSDB_DATA_TYPE_INT); }
 type_name(A) ::= BIGINT.                                                          { A = createDataType(TSDB_DATA_TYPE_BIGINT); }
 type_name(A) ::= FLOAT.                                                           { A = createDataType(TSDB_DATA_TYPE_FLOAT); }
 type_name(A) ::= DOUBLE.                                                          { A = createDataType(TSDB_DATA_TYPE_DOUBLE); }
@@ -134,14 +138,15 @@ type_name(A) ::= DECIMAL.                                                       
 type_name(A) ::= DECIMAL NK_LP NK_INTEGER NK_RP.                                  { A = createDataType(TSDB_DATA_TYPE_DECIMAL); }
 type_name(A) ::= DECIMAL NK_LP NK_INTEGER NK_COMMA NK_INTEGER NK_RP.              { A = createDataType(TSDB_DATA_TYPE_DECIMAL); }
 
-%type table_options                                                               { SDatabaseOptions* }
+%type table_options                                                               { STableOptions* }
 %destructor table_options                                                         { tfree($$); }
 table_options(A) ::= .                                                            { A = createDefaultTableOptions(pCxt);}
 table_options(A) ::= table_options(B) COMMENT NK_INTEGER(C).                      { A = setTableOption(pCxt, B, TABLE_OPTION_COMMENT, &C); }
 table_options(A) ::= table_options(B) KEEP NK_INTEGER(C).                         { A = setTableOption(pCxt, B, TABLE_OPTION_KEEP, &C); }
 table_options(A) ::= table_options(B) TTL NK_INTEGER(C).                          { A = setTableOption(pCxt, B, TABLE_OPTION_TTL, &C); }
 
-//cmd ::= SHOW DATABASES.                                                           { PARSER_TRACE; createShowStmt(pCxt, SHOW_TYPE_DATABASE); }
+/************************************************ show ***************************************************************/
+cmd ::= SHOW DATABASES.                                                           { pCxt->pRootNode = createShowStmt(pCxt, QUERY_NODE_SHOW_DATABASE_STMT); }
 
 /************************************************ select *************************************************************/
 cmd ::= query_expression(A).                                                      { PARSER_TRACE; pCxt->pRootNode = A; }

@@ -161,7 +161,7 @@ int32_t parseSql(SRequestObj* pRequest, SQuery** pQuery) {
   }
 
   code = qParseQuerySql(&cxt, pQuery);
-  if (TSDB_CODE_SUCCESS == code && !((*pQuery)->isCmd)) {
+  if (TSDB_CODE_SUCCESS == code && ((*pQuery)->haveResultSet)) {
     setResSchemaInfo(&pRequest->body.resInfo, (*pQuery)->pResSchema, (*pQuery)->numOfResCols);
   }
 
@@ -184,19 +184,12 @@ int32_t execDdlQuery(SRequestObj* pRequest, SQuery* pQuery) {
 }
 
 int32_t getPlan(SRequestObj* pRequest, SQuery* pQuery, SQueryPlan** pDag, SArray* pNodeList) {
-  // pRequest->type = pQuery->type;
-
+  pRequest->type = pQuery->sqlNodeType;
   SPlanContext cxt = { .queryId = pRequest->requestId, .pAstRoot = pQuery->pRoot };
   int32_t  code = qCreateQueryPlan(&cxt, pDag);
   if (code != 0) {
     return code;
   }
-
-  // if (pQuery->type == TSDB_SQL_SELECT) {
-  //   setResSchemaInfo(&pRequest->body.resInfo, pSchema, numOfCols);
-  //   pRequest->type = TDMT_VND_QUERY;
-  // }
-
   return code;
 }
 
@@ -254,7 +247,7 @@ TAOS_RES* taos_query_l(TAOS* taos, const char* sql, int sqlLen) {
   CHECK_CODE_GOTO(buildRequest(pTscObj, sql, sqlLen, &pRequest), _return);
   CHECK_CODE_GOTO(parseSql(pRequest, &pQuery), _return);
 
-  if (pQuery->isCmd) {
+  if (pQuery->directRpc) {
     CHECK_CODE_GOTO(execDdlQuery(pRequest, pQuery), _return);
   } else {
     CHECK_CODE_GOTO(getPlan(pRequest, pQuery, &pRequest->body.pDag, pNodeList), _return);

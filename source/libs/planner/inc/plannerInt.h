@@ -39,6 +39,15 @@ extern "C" {
     } \
   } while (0)
 
+#define CHECK_CODE_EXT(exec) \
+  do { \
+    int32_t code = (exec); \
+    if (TSDB_CODE_SUCCESS != code) { \
+      pCxt->errCode = code; \
+      return code; \
+    } \
+  } while (0)
+
 int32_t createLogicPlan(SPlanContext* pCxt, SLogicNode** pLogicNode);
 int32_t optimize(SPlanContext* pCxt, SLogicNode* pLogicNode);
 int32_t createPhysiPlan(SPlanContext* pCxt, SLogicNode* pLogicNode, SQueryPlan** pPlan);

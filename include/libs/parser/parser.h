@@ -43,7 +43,9 @@ typedef struct SCmdMsgInfo {
 } SCmdMsgInfo;
 
 typedef struct SQuery {
-  bool isCmd;
+  bool directRpc;
+  bool haveResultSet;
+  ENodeType sqlNodeType;
   SNode* pRoot;
   int32_t numOfResCols;
   SSchema* pResSchema;

@@ -719,6 +719,16 @@ SNode* createColumnDefNode(SAstCreateContext* pCxt, const SToken* pColName, SDat
   return (SNode*)pCol;
 }
 
+SDataType createDataType(uint8_t type) {
+  SDataType dt = { .type = type, .precision = 0, .scale = 0, .bytes = 0 };
+  return dt;
+}
+
+SDataType createVarLenDataType(uint8_t type, const SToken* pLen) {
+  SDataType dt = { .type = type, .precision = 0, .scale = 0, .bytes = 0 };
+  return dt;
+}
+
 SNode* createCreateTableStmt(SAstCreateContext* pCxt,
     bool ignoreExists, const STokenPair* pFullTableName, SNodeList* pCols, STableOptions* pOptions) {
   SCreateTableStmt* pStmt = (SCreateTableStmt*)nodesMakeNode(QUERY_NODE_CREATE_TABLE_STMT);
@@ -731,4 +741,17 @@ SNode* createCreateTableStmt(SAstCreateContext* pCxt,
   pStmt->pCols = pCols;
   pStmt->options = *pOptions;
   return (SNode*)pStmt;
+}
+
+SNode* createUseDatabaseStmt(SAstCreateContext* pCxt, const SToken* pDbName) {
+  SUseDatabaseStmt* pStmt = (SUseDatabaseStmt*)nodesMakeNode(QUERY_NODE_USE_DATABASE_STMT);
+  CHECK_OUT_OF_MEM(pStmt);
+  strncpy(pStmt->dbName, pDbName->z, pDbName->n);
+  return (SNode*)pStmt;
+}
+
+SNode* createShowStmt(SAstCreateContext* pCxt, ENodeType type) {
+  SNode* pStmt = nodesMakeNode(QUERY_NODE_SHOW_DATABASE_STMT);;
+  CHECK_OUT_OF_MEM(pStmt);
+  return pStmt;
 }

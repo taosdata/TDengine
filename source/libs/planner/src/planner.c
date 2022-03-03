@@ -38,6 +38,13 @@ void qSetSubplanExecutionNode(SSubplan* subplan, uint64_t templateId, SDownstrea
 }
 
 int32_t qSubPlanToString(const SSubplan* subplan, char** str, int32_t* len) {
+  if (SUBPLAN_TYPE_MODIFY == subplan->subplanType) {
+    SDataInserterNode* insert = (SDataInserterNode*)subplan->pDataSink;
+    *len = insert->size;
+    *str = insert->pData;
+    insert->pData = NULL;
+    return TSDB_CODE_SUCCESS;
+  }
   return nodesNodeToString((const SNode*)subplan, false, str, len);
 }
 
