@@ -6,4 +6,4 @@ target_include_directories(
     PRIVATE "${CMAKE_CURRENT_SOURCE_DIR}/inc"
 )
 
-target_link_libraries(taosd dnode util os)
+target_link_libraries(taosd dnode)

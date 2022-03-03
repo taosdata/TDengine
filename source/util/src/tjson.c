@@ -26,7 +26,11 @@ SJson* tjsonCreateObject() {
   return pJson;
 }
 
-void tjsonDelete(SJson* pJson) { cJSON_Delete((cJSON*)pJson); }
+void tjsonDelete(SJson* pJson) {
+  if (pJson != NULL) {
+    cJSON_Delete((cJSON*)pJson);
+  }
+}
 
 int32_t tjsonAddIntegerToObject(SJson* pJson, const char* pName, const uint64_t number) {
   char tmp[40] = {0};

@@ -60,10 +60,6 @@ typedef struct {
 } SVnodeCfg;
 
 typedef struct {
-  int32_t           sver;
-  const char       *timezone;
-  const char       *locale;
-  const char       *charset;
   uint16_t          nthreads;  // number of commit threads. 0 for no threads and a schedule queue should be given (TODO)
   PutReqToVQueryQFp putReqToVQueryQFp;
   SendReqToDnodeFp  sendReqToDnodeFp;
