@@ -17,16 +17,25 @@ namespace Example
             string topic = $"{table}_topic";
             string sql = $"select * from {table}";
             SubscribeCallback subscribeCallback = new SubscribeCallback(SubCallback);
-            DateTime begin = DateTime.Now;
-            IntPtr subscribe = TDengine.Subscribe(conn, false, topic, sql, subscribeCallback, IntPtr.Zero, 1000);
+            
+            // Subscribe from earliest timestamp in the table.
+            IntPtr subscribe = TDengine.Subscribe(conn, true, topic, sql, subscribeCallback, IntPtr.Zero, 1000);
 
-            for (int i = 0; i < 10; i++)
+            // Add new data.
+            for (int i = 0; i < 4; i++)
             {
                 InsertData(conn, table);
             }
-            DateTime end = DateTime.Now;
-            TimeSpan interval = end - begin;
-            Console.WriteLine($"Subscribe cost time {interval} ms.");
+            Console.WriteLine("Unsubscribe and keep the subscribe progress ");
+            TDengine.Unsubscribe(subscribe, true);
+            
+            Console.WriteLine("Subscribe from last subscribe progress");
+            subscribe = TDengine.Subscribe(conn, false, topic, sql, subscribeCallback, IntPtr.Zero, 1000);
+            for (int i = 0; i < 4; i++)
+            {
+                InsertData(conn, table);
+            }
+            Console.WriteLine("Unsubscribe and remove the subscribe progress ");
             TDengine.Unsubscribe(subscribe, false);
         }
 
