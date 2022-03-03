@@ -6875,7 +6875,6 @@ int32_t validateOrderbyNode(SSqlCmd* pCmd, SQueryInfo* pQueryInfo, SSqlNode* pSq
 
       pQueryInfo->order.order = pItem->sortOrder;
       pQueryInfo->order.orderColId = pSchema[index.columnIndex].colId;
-      return TSDB_CODE_SUCCESS;
     } else {
       if (udf) {
         return invalidOperationMsg(pMsgBuf, msg11);
