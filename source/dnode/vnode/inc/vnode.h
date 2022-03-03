@@ -57,6 +57,9 @@ typedef struct {
   SMetaCfg metaCfg;
   STqCfg   tqCfg;
   SWalCfg  walCfg;
+  uint32_t hashBegin;
+  uint32_t hashEnd;
+  int8_t   hashMethod;  
 } SVnodeCfg;
 
 typedef struct {

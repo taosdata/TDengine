@@ -30,6 +30,9 @@ SVnode *vnodeOpen(const char *path, const SVnodeCfg *pVnodeCfg) {
     cfg.pDnode = pVnodeCfg->pDnode;
     cfg.pTfs = pVnodeCfg->pTfs;
     cfg.dbId = pVnodeCfg->dbId;
+    cfg.hashBegin = pVnodeCfg->hashBegin;
+    cfg.hashEnd = pVnodeCfg->hashEnd;
+    cfg.hashMethod = pVnodeCfg->hashMethod;
   }
 
   // Validate options

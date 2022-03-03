@@ -215,6 +215,9 @@ void *mndBuildCreateVnodeReq(SMnode *pMnode, SDnodeObj *pDnode, SDbObj *pDb, SVg
   createReq.replica = pVgroup->replica;
   createReq.selfIndex = -1;
   createReq.streamMode = pVgroup->streamMode;
+  createReq.hashBegin = pVgroup->hashBegin;
+  createReq.hashEnd = pVgroup->hashEnd;
+  createReq.hashMethod = pDb->hashMethod;
 
   for (int32_t v = 0; v < pVgroup->replica; ++v) {
     SReplica  *pReplica = &createReq.replicas[v];
