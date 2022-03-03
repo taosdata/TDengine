@@ -21,6 +21,12 @@ struct SBTree {
   int            valLen;
   SPager *       pPager;
   FKeyComparator kcmpr;
+  u8             fanout;
+  int            maxLocal;
+  int            minLocal;
+  int            maxLeaf;
+  int            minLeaf;
+  int            nPayload;
 };
 
 typedef struct SPgHdr {
@@ -46,7 +52,7 @@ typedef struct SFreeCell {
 } SFreeCell;
 
 static int tdbBtCursorMoveTo(SBtCursor *pCur, const void *pKey, int kLen);
-static int tdbEncodeLength(u8 *pBuf, uint len);
+static int tdbEncodeLength(u8 *pBuf, uint32_t len);
 static int tdbBtCursorMoveToRoot(SBtCursor *pCur);
 static int tdbInitBtPage(SPage *pPage, SBtPage **ppBtPage);
 static int tdbCompareKeyAndCell(const void *pKey, int kLen, const void *pCell);
@@ -72,6 +78,13 @@ int tdbBtreeOpen(SPgno rtPgno, int keyLen, int valLen, SPager *pPager, FKeyCompa
   pBt->pPager = pPager;
   // pBt->kcmpr
   pBt->kcmpr = kcmpr ? kcmpr : tdbDefaultKeyCmprFn;
+  // pBt->fanout
+  if (keyLen == TDB_VARIANT_LEN) {
+    pBt->fanout = TDB_DEFAULT_FANOUT;
+  } else {
+    ASSERT(0);
+    // TODO: pBt->fanout = 0;
+  }
 
   *ppBt = pBt;
   return 0;
@@ -188,7 +201,7 @@ static int tdbDecodeKeyValue(const void *pBuf, void *pKey, int *kLen, void *pVal
   return 0;
 }
 
-static int tdbEncodeLength(u8 *pBuf, uint len) {
+static int tdbEncodeLength(u8 *pBuf, uint32_t len) {
   int iCount = 0;
 
   while (len > 127) {
@@ -262,4 +275,13 @@ static int tdbDefaultKeyCmprFn(const void *pKey1, int keyLen1, const void *pKey2
     }
   }
   return cret;
+}
+
+static void tdbBtreeZeroPage(SPageHandle *pPage, int flags) {
+  // TODO
+}
+
+static int tdbBtreeInitPage(SPageHandle *pPage) {
+  // TODO
+  return 0;
 }
