@@ -20,14 +20,14 @@
 extern "C" {
 #endif
 
-int    tdbPagerOpen(SPCache *pCache, const char *fileName, SPager **ppFile);
-int    tdbPagerClose(SPager *pFile);
-int    tdbPagerOpenDB(SPager *pFile, SPgno *ppgno, bool toCreate);
+int    tdbPagerOpen(SPCache *pCache, const char *fileName, SPager **ppPager);
+int    tdbPagerClose(SPager *pPager);
+int    tdbPagerOpenDB(SPager *pPager, SPgno *ppgno, bool toCreate);
 SPage *tdbPagerGet(SPager *pPager, SPgno pgno, bool toLoad);
-int    tdbPagerWrite(SPager *pFile, SPage *pPage);
-int    tdbPagerAllocPage(SPager *pFile, SPage **ppPage, SPgno *ppgno);
-int    tdbPagerBegin(SPager *pFile);
-int    tdbPagerCommit(SPager *pFile);
+int    tdbPagerWrite(SPager *pPager, SPage *pPage);
+int    tdbPagerAllocPage(SPager *pPager, SPage **ppPage, SPgno *ppgno);
+int    tdbPagerBegin(SPager *pPager);
+int    tdbPagerCommit(SPager *pPager);
 int    tdbPagerGetPageSize(SPager *pPager);
 
 #ifdef __cplusplus

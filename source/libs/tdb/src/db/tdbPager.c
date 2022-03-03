@@ -243,3 +243,18 @@ static int tdbPagerReadPage(SPager *pPager, SPage *pPage) {
 }
 
 int tdbPagerGetPageSize(SPager *pPager) { return pPager->pageSize; }
+
+static void tdbPagerZeroPage(SPage *pPage, int flags) {
+  SPager *pPager;
+
+  pPager = pPage->pPager;
+  memset(pPage->pData, 0, pPager->pageSize);
+  pPage->pPageHdr = (SPageHdr *)(pPage->pData);
+  pPage->aCellIdx = (u16 *)(&(pPage->pPageHdr[1]));
+  /* TODO */
+}
+
+static int tdbPagerInitPage(SPage *pPage) {
+  // TODO
+  return 0;
+}

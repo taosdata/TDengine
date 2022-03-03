@@ -49,9 +49,14 @@ int tdbDbOpen(const char *fname, int keyLen, int valLen, FKeyComparator keyCmprF
 
   ASSERT(pPager != NULL);
 
+  // Try to open the database
   ret = tdbPagerOpenDB(pPager, &pgno, true);
   if (ret < 0) {
     return -1;
+  }
+
+  if (pgno == 0) {
+    // TODO: Try to create a new database
   }
 
   // pDb->pBt
