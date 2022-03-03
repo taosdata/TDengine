@@ -22,7 +22,7 @@ class JsonEnv : public ::testing::Test {
   virtual void SetUp() {
     taosRemoveDir(dir.c_str());
     taosMkDir(dir.c_str());
-
+    printf("set up\n");
     opts = indexOptsCreate();
     int ret = tIndexJsonOpen(opts, dir.c_str(), &index);
     assert(ret == 0);
@@ -30,6 +30,7 @@ class JsonEnv : public ::testing::Test {
   virtual void TearDown() {
     tIndexJsonClose(index);
     indexOptsDestroy(opts);
+    printf("destory\n");
   }
   SIndexJsonOpts* opts;
   SIndexJson*     index;
@@ -37,7 +38,7 @@ class JsonEnv : public ::testing::Test {
 
 TEST_F(JsonEnv, testWrite) {
   {
-    std::string colName("voltage");
+    std::string colName("test");
     std::string colVal("ab");
     SIndexTerm* term = indexTermCreate(1, ADD_VALUE, TSDB_DATA_TYPE_BINARY, colName.c_str(), colName.size(),
                                        colVal.c_str(), colVal.size());
@@ -76,7 +77,7 @@ TEST_F(JsonEnv, testWrite) {
     indexMultiTermDestroy(terms);
   }
   {
-    std::string colName("voltage");
+    std::string colName("test");
     std::string colVal("ab");
 
     SIndexMultiTermQuery* mq = indexMultiTermQueryCreate(MUST);
@@ -92,6 +93,19 @@ TEST_F(JsonEnv, testWrite) {
 }
 TEST_F(JsonEnv, testWriteMillonData) {
   {
+    std::string colName("test");
+    std::string colVal("ab");
+    SIndexTerm* term = indexTermCreate(1, ADD_VALUE, TSDB_DATA_TYPE_BINARY, colName.c_str(), colName.size(),
+                                       colVal.c_str(), colVal.size());
+
+    SIndexMultiTerm* terms = indexMultiTermCreate();
+    indexMultiTermAdd(terms, term);
+    for (size_t i = 0; i < 100; i++) {
+      tIndexJsonPut(index, terms, i);
+    }
+    indexMultiTermDestroy(terms);
+  }
+  {
     std::string colName("voltagefdadfa");
     std::string colVal("abxxxxxxxxxxxx");
     SIndexTerm* term = indexTermCreate(1, ADD_VALUE, TSDB_DATA_TYPE_BINARY, colName.c_str(), colName.size(),
@@ -105,7 +119,7 @@ TEST_F(JsonEnv, testWriteMillonData) {
     indexMultiTermDestroy(terms);
   }
   {
-    std::string colName("voltage");
+    std::string colName("test");
     std::string colVal("ab");
 
     SIndexMultiTermQuery* mq = indexMultiTermQueryCreate(MUST);
