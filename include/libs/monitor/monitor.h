@@ -88,18 +88,18 @@ typedef struct {
   float   cpu_engine;
   float   cpu_system;
   float   cpu_cores;
-  float   mem_engine;     // MB
-  float   mem_system;     // MB
-  float   mem_total;      // MB
+  int64_t mem_engine;     // KB
+  int64_t mem_system;     // KB
+  int64_t mem_total;      // KB
   float   disk_engine;    // GB
   float   disk_used;      // GB
   float   disk_total;     // GB
-  float   net_in;         // Kb/s
-  float   net_out;        // Kb/s
-  float   io_read;        // Mb/s
-  float   io_write;       // Mb/s
-  float   io_read_disk;   // Mb/s
-  float   io_write_disk;  // Mb/s
+  int64_t net_in;
+  int64_t net_out;
+  float   io_read;
+  float   io_write;
+  float   io_read_disk;
+  float   io_write_disk;
   int32_t req_select;
   float   req_select_rate;
   int32_t req_insert;

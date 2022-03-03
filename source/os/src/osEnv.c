@@ -31,11 +31,11 @@ char       tsLocale[TD_LOCALE_LEN] = {0};
 char       tsCharset[TD_CHARSET_LEN] = {0};
 int8_t     tsDaylight = 0;
 bool       tsEnableCoreFile = 0;
-int64_t    tsPageSize = 0;
+int64_t    tsPageSizeKB = 0;
 int64_t    tsOpenMax = 0;
 int64_t    tsStreamMax = 0;
-int32_t    tsNumOfCores = 0;
-int32_t    tsTotalMemoryMB = 0;
+float      tsNumOfCores = 0;
+int64_t    tsTotalMemoryKB = 0;
 
 void osInit() {
   srand(taosSafeRand());
@@ -43,6 +43,11 @@ void osInit() {
   taosGetSystemTimezone(tsTimezone);
   taosSetSystemTimezone(tsTimezone, tsTimezone, &tsDaylight);
   taosGetSystemInfo();
+
+  // deadlock in query
+  if (tsNumOfCores < 2) {
+    tsNumOfCores = 2;
+  }
 
 #if defined(_TD_WINDOWS_64) || defined(_TD_WINDOWS_32)
   taosWinSocketInit();

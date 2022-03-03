@@ -544,3 +544,24 @@ static STfsDisk *tfsNextDisk(STfs *pTfs, SDiskIter *pIter) {
 
   return pDisk;
 }
+
+int32_t tfsGetMonitorInfo(STfs *pTfs, SMonDiskInfo *pInfo) {
+  pInfo->datadirs = taosArrayInit(32, sizeof(SMonDiskDesc));
+  if (pInfo->datadirs == NULL) return -1;
+
+  tfsUpdateSize(pTfs);
+
+  tfsLock(pTfs);
+  for (int32_t level = 0; level < pTfs->nlevel; level++) {
+    STfsTier *pTier = &pTfs->tiers[level];
+    for (int32_t disk = 0; disk < pTier->ndisk; ++disk) {
+      STfsDisk    *pDisk = pTier->disks[disk];
+      SMonDiskDesc dinfo = {0};
+      dinfo.size = pDisk->size;
+      dinfo.level = pDisk->level;
+      tstrncpy(dinfo.name, pDisk->path, sizeof(dinfo.name));
+      taosArrayPush(pInfo->datadirs, &dinfo);
+    }
+  }
+  tfsUnLock(pTfs);
+}
