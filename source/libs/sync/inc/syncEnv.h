@@ -26,19 +26,26 @@ extern "C" {
 #include "syncInt.h"
 #include "taosdef.h"
 #include "trpc.h"
+#include "ttimer.h"
+
+#define TIMER_MAX_MS 0x7FFFFFFF
 
 typedef struct SSyncEnv {
-  void *pTimer;
-  void *pTimerManager;
+  tmr_h pEnvTickTimer;
+  tmr_h pTimerManager;
+  char  name[128];
+
 } SSyncEnv;
+
+extern SSyncEnv* gSyncEnv;
 
 int32_t syncEnvStart();
 
 int32_t syncEnvStop();
 
-static int32_t doSyncEnvStart(SSyncEnv *pSyncEnv);
+tmr_h syncEnvStartTimer(TAOS_TMR_CALLBACK fp, int mseconds, void* param);
 
-static int32_t doSyncEnvStop(SSyncEnv *pSyncEnv);
+void syncEnvStopTimer(tmr_h* pTimer);
 
 #ifdef __cplusplus
 }

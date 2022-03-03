@@ -34,19 +34,20 @@ void doSync() {
 }
 
 int main() {
-  //taosInitLog((char*)"syncEnvTest.log", 100000, 10);
+  // taosInitLog((char*)"syncEnvTest.log", 100000, 10);
   tsAsyncLog = 0;
   sDebugFlag = 143 + 64;
+  int32_t ret;
 
   logTest();
 
-  int32_t ret = syncIOStart();
-  assert(ret == 0);
+  // ret = syncIOStart();
+  // assert(ret == 0);
 
   ret = syncEnvStart();
   assert(ret == 0);
 
-  doSync();
+  // doSync();
 
   while (1) {
     taosMsleep(1000);

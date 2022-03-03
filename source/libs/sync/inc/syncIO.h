@@ -30,42 +30,37 @@ extern "C" {
 #include "trpc.h"
 
 typedef struct SSyncIO {
-  void *      serverRpc;
-  void *      clientRpc;
   STaosQueue *pMsgQ;
   STaosQset * pQset;
-  pthread_t   tid;
-  int8_t      isStart;
+  pthread_t   consumerTid;
 
-  SEpSet epSet;
+  void * serverRpc;
+  void * clientRpc;
+  SEpSet myAddr;
 
-  void *syncTimer;
-  void *syncTimerManager;
-
-  int32_t (*start)(struct SSyncIO *ths);
-  int32_t (*stop)(struct SSyncIO *ths);
-  int32_t (*ping)(struct SSyncIO *ths);
-
-  int32_t (*onMsg)(struct SSyncIO *ths, void *pParent, SRpcMsg *pMsg, SEpSet *pEpSet);
-  int32_t (*destroy)(struct SSyncIO *ths);
+  void *ioTimerTickQ;
+  void *ioTimerTickPing;
+  void *ioTimerManager;
 
   void *pSyncNode;
-  int32_t (*FpOnPing)(struct SSyncNode *ths, SyncPing *pMsg);
+  int32_t (*FpOnSyncPing)(SSyncNode *pSyncNode, SyncPing *pMsg);
+  int32_t (*FpOnSyncPingReply)(SSyncNode *pSyncNode, SyncPingReply *pMsg);
+  int32_t (*FpOnSyncRequestVote)(SSyncNode *pSyncNode, SyncRequestVote *pMsg);
+  int32_t (*FpOnSyncRequestVoteReply)(SSyncNode *pSyncNode, SyncRequestVoteReply *pMsg);
+  int32_t (*FpOnSyncAppendEntries)(SSyncNode *pSyncNode, SyncAppendEntries *pMsg);
+  int32_t (*FpOnSyncAppendEntriesReply)(SSyncNode *pSyncNode, SyncAppendEntriesReply *pMsg);
+
+  int8_t isStart;
 
 } SSyncIO;
 
 extern SSyncIO *gSyncIO;
 
-int32_t  syncIOStart();
-int32_t  syncIOStop();
-int32_t  syncIOSendMsg(void *handle, const SEpSet *pEpSet, SRpcMsg *pMsg);
-SSyncIO *syncIOCreate();
-
-static int32_t doSyncIOStart(SSyncIO *io);
-static int32_t doSyncIOStop(SSyncIO *io);
-static int32_t doSyncIOPing(SSyncIO *io);
-static int32_t doSyncIOOnMsg(struct SSyncIO *io, void *pParent, SRpcMsg *pMsg, SEpSet *pEpSet);
-static int32_t doSyncIODestroy(SSyncIO *io);
+int32_t syncIOStart(char *host, uint16_t port);
+int32_t syncIOStop();
+int32_t syncIOSendMsg(void *clientRpc, const SEpSet *pEpSet, SRpcMsg *pMsg);
+int32_t syncIOTickQ();
+int32_t syncIOTickPing();
 
 #ifdef __cplusplus
 }

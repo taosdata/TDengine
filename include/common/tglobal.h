@@ -52,6 +52,13 @@ extern bool    tsEnableSlaveQuery;
 extern bool    tsPrintAuth;
 extern int64_t tsTickPerDay[3];
 
+// monitor
+extern bool     tsEnableMonitor;
+extern int32_t  tsMonitorInterval;
+extern char     tsMonitorFqdn[];
+extern uint16_t tsMonitorPort;
+extern int32_t  tsMonitorMaxLogs;
+
 // query buffer management
 extern int32_t tsQueryBufferSize;  // maximum allowed usage buffer size in MB for each data node during query processing
 extern int64_t tsQueryBufferSizeBytes;   // maximum allowed usage buffer size in byte for each data node

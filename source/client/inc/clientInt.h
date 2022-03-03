@@ -167,13 +167,13 @@ typedef struct SShowReqInfo {
 } SShowReqInfo;
 
 typedef struct SRequestSendRecvBody {
-  tsem_t            rspSem;  // not used now
-  void*             fp;
-  SShowReqInfo      showInfo;  // todo this attribute will be removed after the query framework being completed.
-  SDataBuf          requestMsg;
-  struct SSchJob*   pQueryJob;  // query job, created according to sql query DAG.
+  tsem_t             rspSem;  // not used now
+  void*              fp;
+  SShowReqInfo       showInfo;  // todo this attribute will be removed after the query framework being completed.
+  SDataBuf           requestMsg;
+  int64_t            queryJob;  // query job, created according to sql query DAG.
   struct SQueryPlan* pDag;       // the query dag, generated according to the sql statement.
-  SReqResultInfo    resInfo;
+  SReqResultInfo     resInfo;
 } SRequestSendRecvBody;
 
 #define ERROR_MSG_BUF_DEFAULT_SIZE 512

@@ -36,6 +36,11 @@ enum {
   SCH_WRITE,
 };
 
+typedef struct SSchTrans {
+  void *transInst;
+  void *transHandle;
+} SSchTrans;
+
 typedef struct SSchApiStat {
 
 } SSchApiStat;
@@ -59,12 +64,13 @@ typedef struct SSchedulerMgmt {
   uint64_t       taskId; // sequential taksId
   uint64_t       sId;    // schedulerId
   SSchedulerCfg  cfg;
-  SHashObj      *jobs;   // key: queryId, value: SQueryJob*
+  int32_t        jobRef;
   SSchedulerStat stat;
 } SSchedulerMgmt;
 
 typedef struct SSchCallbackParam {
   uint64_t queryId;
+  int64_t  refId;
   uint64_t taskId;
 } SSchCallbackParam;
 
@@ -75,7 +81,8 @@ typedef struct SSchLevel {
   int32_t  taskFailed;
   int32_t  taskSucceed;
   int32_t  taskNum;
-  SArray  *subTasks;  // Element is SQueryTask
+  int32_t  taskLaunchIdx; // launch startup index
+  SArray  *subTasks;      // Element is SQueryTask
 } SSchLevel;
 
 typedef struct SSchTask {
@@ -105,6 +112,7 @@ typedef struct SSchJobAttr {
 } SSchJobAttr;
 
 typedef struct SSchJob {
+  int64_t          refId;
   uint64_t         queryId;
   SSchJobAttr      attr;
   int32_t          levelNum;
@@ -119,7 +127,6 @@ typedef struct SSchJob {
   SHashObj        *succTasks; // succeed tasks, key:taskid, value:SQueryTask*
   SHashObj        *failTasks; // failed tasks, key:taskid, value:SQueryTask*
 
-  int32_t          ref;
   int8_t           status;  
   SQueryNodeAddr   resNode;
   tsem_t           rspSem;
@@ -168,6 +175,8 @@ typedef struct SSchJob {
 
 static int32_t schLaunchTask(SSchJob *job, SSchTask *task);
 static int32_t schBuildAndSendMsg(SSchJob *job, SSchTask *task, SQueryNodeAddr *addr, int32_t msgType);
+SSchJob *schAcquireJob(int64_t refId);
+int32_t schReleaseJob(int64_t refId);
 
 #ifdef __cplusplus
 }

@@ -34,7 +34,9 @@ typedef enum {
   TAOS_SYNC_STATE_FOLLOWER = 0,
   TAOS_SYNC_STATE_CANDIDATE = 1,
   TAOS_SYNC_STATE_LEADER = 2,
-} ESyncState;
+} ESyncRole;
+
+typedef ESyncRole ESyncState;
 
 typedef struct SSyncBuffer {
   void*  data;
@@ -69,15 +71,15 @@ typedef struct SSyncFSM {
 
   // when value in pBuf finish a raft flow, FpCommitCb is called, code indicates the result
   // user can do something according to the code and isWeak. for example, write data into tsdb
-  void (*FpCommitCb)(struct SSyncFSM* pFsm, const SSyncBuffer* pBuf, SyncIndex index, bool isWeak, int32_t code);
+  void (*FpCommitCb)(struct SSyncFSM* pFsm, const SRpcMsg* pBuf, SyncIndex index, bool isWeak, int32_t code);
 
   // when value in pBuf has been written into local log store, FpPreCommitCb is called, code indicates the result
   // user can do something according to the code and isWeak. for example, write data into tsdb
-  void (*FpPreCommitCb)(struct SSyncFSM* pFsm, const SSyncBuffer* pBuf, SyncIndex index, bool isWeak, int32_t code);
+  void (*FpPreCommitCb)(struct SSyncFSM* pFsm, const SRpcMsg* pBuf, SyncIndex index, bool isWeak, int32_t code);
 
   // when log entry is updated by a new one, FpRollBackCb is called
   // user can do something to roll back. for example, delete data from tsdb, or just ignore it
-  void (*FpRollBackCb)(struct SSyncFSM* pFsm, const SSyncBuffer* pBuf, SyncIndex index, bool isWeak, int32_t code);
+  void (*FpRollBackCb)(struct SSyncFSM* pFsm, const SRpcMsg* pBuf, SyncIndex index, bool isWeak, int32_t code);
 
   // user should implement this function, use "data" to take snapshot into "snapshot"
   int32_t (*FpTakeSnapshot)(SSnapshot* snapshot);
@@ -93,10 +95,10 @@ typedef struct SSyncLogStore {
   void* data;
 
   // append one log entry
-  int32_t (*appendEntry)(struct SSyncLogStore* pLogStore, SSyncBuffer* pBuf);
+  int32_t (*appendEntry)(struct SSyncLogStore* pLogStore, SRpcMsg* pBuf);
 
   // get one log entry, user need to free pBuf->data
-  int32_t (*getEntry)(struct SSyncLogStore* pLogStore, SyncIndex index, SSyncBuffer* pBuf);
+  int32_t (*getEntry)(struct SSyncLogStore* pLogStore, SyncIndex index, SRpcMsg* pBuf);
 
   // update log store commit index with "index"
   int32_t (*updateCommitIndex)(struct SSyncLogStore* pLogStore, SyncIndex index);
@@ -135,7 +137,9 @@ typedef struct SSyncInfo {
   SSyncCfg    syncCfg;
   char        path[TSDB_FILENAME_LEN];
   SSyncFSM*   pFsm;
-  int32_t (*FpSendMsg)(void* handle, const SEpSet* pEpSet, SRpcMsg* pMsg);
+
+  void* rpcClient;
+  int32_t (*FpSendMsg)(void* rpcClient, const SEpSet* pEpSet, SRpcMsg* pMsg);
 
 } SSyncInfo;
 
@@ -149,8 +153,8 @@ int64_t syncStart(const SSyncInfo* pSyncInfo);
 void    syncStop(int64_t rid);
 int32_t syncReconfig(int64_t rid, const SSyncCfg* pSyncCfg);
 
-// int32_t syncForwardToPeer(int64_t rid, const SRpcMsg* pBuf, bool isWeak);
-int32_t syncForwardToPeer(int64_t rid, const SSyncBuffer* pBuf, bool isWeak);
+int32_t syncForwardToPeer(int64_t rid, const SRpcMsg* pBuf, bool isWeak);
+// int32_t syncForwardToPeer(int64_t rid, const SSyncBuffer* pBuf, bool isWeak);
 
 ESyncState syncGetMyRole(int64_t rid);
 void       syncGetNodesRole(int64_t rid, SNodesRole* pNodeRole);
