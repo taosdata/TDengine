@@ -50,7 +50,8 @@ enum {
 };
 
 enum {
-  TMQ_MSG_TYPE__POLL_RSP = 0,
+  TMQ_MSG_TYPE__DUMMY = 0,
+  TMQ_MSG_TYPE__POLL_RSP,
   TMQ_MSG_TYPE__EP_RSP,
 };
 
@@ -285,4 +286,4 @@ typedef struct SSessionWindow {
 }
 #endif
 
-#endif  /*_TD_COMMON_DEF_H_*/
+#endif /*_TD_COMMON_DEF_H_*/
