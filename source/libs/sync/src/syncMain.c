@@ -171,16 +171,6 @@ static int32_t syncNodePing(SSyncNode* pSyncNode, const SRaftId* destRaftId, Syn
 
   SRpcMsg rpcMsg;
   syncPing2RpcMsg(pMsg, &rpcMsg);
-
-  /*
-    SRpcMsg rpcMsg;
-    rpcMsg.contLen = 64;
-    rpcMsg.pCont = rpcMallocCont(rpcMsg.contLen);
-    snprintf((char*)rpcMsg.pCont, rpcMsg.contLen, "%s", "xxxxxxxxxxxxxx");
-    rpcMsg.handle = NULL;
-    rpcMsg.msgType = 1;
-  */
-
   syncNodeSendMsgById(destRaftId, pSyncNode, &rpcMsg);
 
   {
