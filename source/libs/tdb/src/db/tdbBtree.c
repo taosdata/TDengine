@@ -15,6 +15,12 @@
 
 #include "tdbInt.h"
 
+#define TDB_BTREE_ROOT 0x1
+#define TDB_BTREE_LEAF 0x2
+
+#define TDB_BTREE_PAGE_IS_ROOT(flags) TDB_FLAG_HAS(flags, TDB_BTREE_ROOT)
+#define TDB_BTREE_PAGE_IS_LEAF(flags) TDB_FLAG_HAS(flags, TDB_BTREE_LEAF)
+
 struct SBTree {
   SPgno          root;
   int            keyLen;

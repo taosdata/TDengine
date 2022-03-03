@@ -128,6 +128,11 @@ typedef int (*FKeyComparator)(const void *pKey1, int kLen1, const void *pKey2, i
 
 #define BTREE_MAX_DEPTH 20
 
+#define TDB_FLAG_HAS(flags, flag)    (((flags) & (flag)) != 0)
+#define TDB_FLAG_NO(flags, flag)     ((flags) & (flag) == 0)
+#define TDB_FLAG_ADD(flags, flag)    ((flags) |= (flag))
+#define TDB_FLAG_REMOVE(flags, flag) ((flags) &= (~(flag)))
+
 typedef struct SPager  SPager;
 typedef struct SPCache SPCache;
 
