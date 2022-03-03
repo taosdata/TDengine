@@ -474,13 +474,40 @@ void dndProcessStartupReq(SDnode *pDnode, SRpcMsg *pReq) {
   rpcSendResponse(&rpcRsp);
 }
 
-static int32_t dndGetMonitorBasicInfo(SDnode *pDnode, SMonBasicInfo *pInfo) {
+static void dndGetMonitorBasicInfo(SDnode *pDnode, SMonBasicInfo *pInfo) {
   pInfo->dnode_id = dndGetDnodeId(pDnode);
   tstrncpy(pInfo->dnode_ep, tsLocalEp, TSDB_EP_LEN);
-  return 0;
 }
 
-static int32_t dndGetMonitorDnodeInfo(SDnode *pDnode, SMonDnodeInfo *pInfo) { return 0; }
+static void dndGetMonitorDnodeInfo(SDnode *pDnode, SMonDnodeInfo *pInfo) {
+  pInfo->uptime = (taosGetTimestampMs() - pDnode->dmgmt.rebootTime) / (86400000.0f);
+  taosGetCpuUsage(&pInfo->cpu_engine, &pInfo->cpu_system);
+  pInfo->cpu_cores = tsNumOfCores;
+  taosGetProcMemory(&pInfo->mem_engine);
+  taosGetSysMemory(&pInfo->mem_system);
+  pInfo->mem_total = tsTotalMemoryKB;
+  pInfo->disk_engine = 4.1;
+  pInfo->disk_used = 4.2;
+  pInfo->disk_total = 4.3;
+  pInfo->net_in = 5.1;
+  pInfo->net_out = 5.2;
+  pInfo->io_read = 6.1;
+  pInfo->io_write = 6.2;
+  pInfo->io_read_disk = 7.1;
+  pInfo->io_write_disk = 7.2;
+  pInfo->req_select = 8;
+  pInfo->req_select_rate = 8.1;
+  pInfo->req_insert = 9;
+  pInfo->req_insert_success = 10;
+  pInfo->req_insert_rate = 10.1;
+  pInfo->req_insert_batch = 11;
+  pInfo->req_insert_batch_success = 12;
+  pInfo->req_insert_batch_rate = 12.3;
+  pInfo->errors = 4;
+  pInfo->vnodes_num = 5;
+  pInfo->masters = 6;
+  pInfo->has_mnode = 1;
+}
 
 static void dndSendMonitorReport(SDnode *pDnode) {
   if (!tsEnableMonitor || tsMonitorFqdn[0] == 0 || tsMonitorPort == 0) return;
@@ -490,9 +517,8 @@ static void dndSendMonitorReport(SDnode *pDnode) {
   if (pMonitor == NULL) return;
 
   SMonBasicInfo basicInfo = {0};
-  if (dndGetMonitorBasicInfo(pDnode, &basicInfo) == 0) {
-    monSetBasicInfo(pMonitor, &basicInfo);
-  }
+  dndGetMonitorBasicInfo(pDnode, &basicInfo);
+  monSetBasicInfo(pMonitor, &basicInfo);
 
   SMonClusterInfo clusterInfo = {0};
   SMonVgroupInfo  vgroupInfo = {0};
@@ -504,9 +530,8 @@ static void dndSendMonitorReport(SDnode *pDnode) {
   }
 
   SMonDnodeInfo dnodeInfo = {0};
-  if (dndGetMonitorDnodeInfo(pDnode, &dnodeInfo) == 0) {
-    monSetDnodeInfo(pMonitor, &dnodeInfo);
-  }
+  dndGetMonitorDnodeInfo(pDnode, &dnodeInfo);
+  monSetDnodeInfo(pMonitor, &dnodeInfo);
 
   SMonDiskInfo diskInfo = {0};
   if (dndGetMonitorDiskInfo(pDnode, &diskInfo) == 0) {

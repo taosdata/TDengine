@@ -88,9 +88,9 @@ typedef struct {
   float   cpu_engine;
   float   cpu_system;
   float   cpu_cores;
-  float   mem_engine;     // MB
-  float   mem_system;     // MB
-  float   mem_total;      // MB
+  int64_t mem_engine;     // KB
+  int64_t mem_system;     // KB
+  int64_t mem_total;      // KB
   float   disk_engine;    // GB
   float   disk_used;      // GB
   float   disk_total;     // GB

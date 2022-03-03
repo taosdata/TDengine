@@ -39,32 +39,32 @@
 #include <DbgHelp.h>
 #pragma warning(pop)
 
-static int32_t taosGetTotalMemory() {
+int32_t taosGetTotalMemory(int64_t *totalKB) {
   MEMORYSTATUSEX memsStat;
   memsStat.dwLength = sizeof(memsStat);
   if (!GlobalMemoryStatusEx(&memsStat)) {
-    return 0;
+    return -1;
   }
 
-  float nMemTotal = memsStat.ullTotalPhys / (1024.0f * 1024.0f);
-  return (int32_t)nMemTotal;
+  *totalKB = memsStat.ullTotalPhys / 1024;
+  return 0;
 }
 
-bool taosGetSysMemory(float *memoryUsedMB) {
+int32_t taosGetSysMemory(int64_t *usedKB) {
   MEMORYSTATUSEX memsStat;
   memsStat.dwLength = sizeof(memsStat);
   if (!GlobalMemoryStatusEx(&memsStat)) {
-    return false;
+    return -1;
   }
 
-  float nMemFree = memsStat.ullAvailPhys / (1024.0f * 1024.0f);
-  float nMemTotal = memsStat.ullTotalPhys / (1024.0f * 1024.0f);
+  int64_t nMemFree = memsStat.ullAvailPhys / 1024;
+  int64_t nMemTotal = memsStat.ullTotalPhys / 1024.0;
 
-  *memoryUsedMB = nMemTotal - nMemFree;
-  return true;
+  *usedKB = nMemTotal - nMemFree;
+  return 0;
 }
 
-bool taosGetProcMemory(float *memoryUsedMB) {
+int32_t taosGetProcMemory(int64_t *usedKB) {
   unsigned bytes_used = 0;
 
 #if defined(_WIN64) && defined(_MSC_VER)
@@ -76,20 +76,21 @@ bool taosGetProcMemory(float *memoryUsedMB) {
   }
 #endif
 
-  *memoryUsedMB = (float)bytes_used / 1024 / 1024;
-  return true;
+  *usedKB = bytes_used / 1024;
+  return 0;
 }
 
-int32_t taosGetCpuCores() {
+int32_t taosGetCpuCores(float *numOfCores) {
   SYSTEM_INFO info;
   GetSystemInfo(&info);
-  return (int32_t)info.dwNumberOfProcessors;
+  *numOfCores = info.dwNumberOfProcessors;
+  return 0;
 }
 
-bool taosGetCpuUsage(float *sysCpuUsage, float *procCpuUsage) {
+int32_t taosGetCpuUsage(float *sysCpuUsage, float *procCpuUsage) {
   *sysCpuUsage = 0;
   *procCpuUsage = 0;
-  return true;
+  return 0;
 }
 
 int32_t taosGetDiskSize(char *dataDir, SDiskSize *diskSize) {
@@ -162,8 +163,8 @@ bool taosGetProcIO(float *readKB, float *writeKB) {
 }
 
 void taosGetSystemInfo() {
-  tsNumOfCores = taosGetCpuCores();
-  tsTotalMemoryMB = taosGetTotalMemory();
+  taosGetCpuCores(&tsNumOfCores);
+  taosGetTotalMemory(&tsTotalMemoryKB);
 
   float tmp1, tmp2;
   taosGetBandSpeed(&tmp1);
@@ -245,16 +246,17 @@ void taosKillSystem() {
   exit(0);
 }
 
-int32_t taosGetCpuCores() { return sysconf(_SC_NPROCESSORS_ONLN); }
+int32_t taosGetCpuCores(float *numOfCores) {
+  *numOfCores = sysconf(_SC_NPROCESSORS_ONLN);
+  return 0;
+}
 
 void taosGetSystemInfo() {
-  // taosGetProcInfos();
-
-  tsNumOfCores = sysconf(_SC_NPROCESSORS_ONLN);
   long physical_pages = sysconf(_SC_PHYS_PAGES);
   long page_size = sysconf(_SC_PAGESIZE);
-  tsTotalMemoryMB = physical_pages * page_size / (1024 * 1024);
-  tsPageSize = page_size;
+  tsTotalMemoryKB = physical_pages * page_size / 1024;
+  tsPageSizeKB = page_size / 1024;
+  tsNumOfCores = sysconf(_SC_NPROCESSORS_ONLN);
 }
 
 bool taosReadProcIO(int64_t *rchars, int64_t *wchars) {
@@ -281,20 +283,20 @@ bool taosGetBandSpeed(float *bandSpeedKb) {
   return true;
 }
 
-bool taosGetCpuUsage(float *sysCpuUsage, float *procCpuUsage) {
+int32_t taosGetCpuUsage(float *sysCpuUsage, float *procCpuUsage) {
   *sysCpuUsage = 0;
   *procCpuUsage = 0;
-  return true;
+  return 0;
 }
 
-bool taosGetProcMemory(float *memoryUsedMB) {
-  *memoryUsedMB = 0;
-  return true;
+int32_t taosGetProcMemory(int64_t *usedKB) {
+  *usedKB = 0;
+  return 0;
 }
 
-bool taosGetSysMemory(float *memoryUsedMB) {
-  *memoryUsedMB = 0;
-  return true;
+int32_t taosGetSysMemory(int64_t *usedKB) {
+  *usedKB = 0;
+  return 0;
 }
 
 int taosSystem(const char *cmd) {
@@ -375,35 +377,34 @@ static char  tsSysCpuFile[] = "/proc/stat";
 static char  tsProcCpuFile[25] = {0};
 static char  tsProcMemFile[25] = {0};
 static char  tsProcIOFile[25] = {0};
-static float tsPageSizeKB = 0;
 
 static void taosGetProcInfos() {
-  tsPageSize = sysconf(_SC_PAGESIZE);
+  tsPageSizeKB = sysconf(_SC_PAGESIZE) / 1024;
   tsOpenMax = sysconf(_SC_OPEN_MAX);
   tsStreamMax = sysconf(_SC_STREAM_MAX);
-
   tsProcId = (pid_t)syscall(SYS_gettid);
-  tsPageSizeKB = (float)(sysconf(_SC_PAGESIZE)) / 1024;
 
-  snprintf(tsProcMemFile, 25, "/proc/%d/status", tsProcId);
-  snprintf(tsProcCpuFile, 25, "/proc/%d/stat", tsProcId);
-  snprintf(tsProcIOFile, 25, "/proc/%d/io", tsProcId);
+  snprintf(tsProcMemFile, sizeof(tsProcMemFile), "/proc/%d/status", tsProcId);
+  snprintf(tsProcCpuFile, sizeof(tsProcCpuFile), "/proc/%d/stat", tsProcId);
+  snprintf(tsProcIOFile, sizeof(tsProcIOFile), "/proc/%d/io", tsProcId);
 }
 
-static int32_t taosGetTotalMemory() { return (int32_t)((float)sysconf(_SC_PHYS_PAGES) * tsPageSizeKB / 1024); }
-
-bool taosGetSysMemory(float *memoryUsedMB) {
-  float memoryAvailMB = (float)sysconf(_SC_AVPHYS_PAGES) * tsPageSizeKB / 1024;
-  *memoryUsedMB = (float)tsTotalMemoryMB - memoryAvailMB;
-  return true;
+int32_t taosGetTotalMemory(int64_t *totalKB) {
+  *totalKB = (int64_t)(sysconf(_SC_PHYS_PAGES) * tsPageSizeKB);
+  return 0;
 }
 
-bool taosGetProcMemory(float *memoryUsedMB) {
+int32_t taosGetSysMemory(int64_t *usedKB) {
+  *usedKB = sysconf(_SC_AVPHYS_PAGES) * tsPageSizeKB;
+  return 0;
+}
+
+int32_t taosGetProcMemory(int64_t *usedKB) {
   // FILE *fp = fopen(tsProcMemFile, "r");
   TdFilePtr pFile = taosOpenFile(tsProcMemFile, TD_FILE_READ | TD_FILE_STREAM);
   if (pFile == NULL) {
     // printf("open file:%s failed", tsProcMemFile);
-    return false;
+    return -1;
   }
 
   ssize_t _bytes = 0;
@@ -421,25 +422,23 @@ bool taosGetProcMemory(float *memoryUsedMB) {
   if (line == NULL) {
     // printf("read file:%s failed", tsProcMemFile);
     taosCloseFile(&pFile);
-    return false;
+    return -1;
   }
 
-  int64_t memKB = 0;
-  char    tmp[10];
-  sscanf(line, "%s %" PRId64, tmp, &memKB);
-  *memoryUsedMB = (float)((double)memKB / 1024);
+  char tmp[10];
+  sscanf(line, "%s %" PRId64, tmp, usedKB);
 
   if (line != NULL) tfree(line);
   taosCloseFile(&pFile);
-  return true;
+  return 0;
 }
 
-static bool taosGetSysCpuInfo(SysCpuInfo *cpuInfo) {
+static int32_t taosGetSysCpuInfo(SysCpuInfo *cpuInfo) {
   // FILE *fp = fopen(tsSysCpuFile, "r");
   TdFilePtr pFile = taosOpenFile(tsSysCpuFile, TD_FILE_READ | TD_FILE_STREAM);
   if (pFile == NULL) {
     // printf("open file:%s failed", tsSysCpuFile);
-    return false;
+    return -1;
   }
 
   char   *line = NULL;
@@ -447,7 +446,7 @@ static bool taosGetSysCpuInfo(SysCpuInfo *cpuInfo) {
   if ((_bytes < 0) || (line == NULL)) {
     // printf("read file:%s failed", tsSysCpuFile);
     taosCloseFile(&pFile);
-    return false;
+    return -1;
   }
 
   char cpu[10] = {0};
@@ -456,15 +455,15 @@ static bool taosGetSysCpuInfo(SysCpuInfo *cpuInfo) {
 
   if (line != NULL) tfree(line);
   taosCloseFile(&pFile);
-  return true;
+  return 0;
 }
 
-static bool taosGetProcCpuInfo(ProcCpuInfo *cpuInfo) {
+static int32_t taosGetProcCpuInfo(ProcCpuInfo *cpuInfo) {
   // FILE *fp = fopen(tsProcCpuFile, "r");
   TdFilePtr pFile = taosOpenFile(tsProcCpuFile, TD_FILE_READ | TD_FILE_STREAM);
   if (pFile == NULL) {
     // printf("open file:%s failed", tsProcCpuFile);
-    return false;
+    return -1;
   }
 
   char   *line = NULL;
@@ -472,7 +471,7 @@ static bool taosGetProcCpuInfo(ProcCpuInfo *cpuInfo) {
   if ((_bytes < 0) || (line == NULL)) {
     // printf("read file:%s failed", tsProcCpuFile);
     taosCloseFile(&pFile);
-    return false;
+    return -1;
   }
 
   for (int i = 0, blank = 0; line[i] != 0; ++i) {
@@ -486,23 +485,26 @@ static bool taosGetProcCpuInfo(ProcCpuInfo *cpuInfo) {
 
   if (line != NULL) tfree(line);
   taosCloseFile(&pFile);
-  return true;
+  return 0;
 }
 
-int32_t taosGetCpuCores() { return (int32_t)sysconf(_SC_NPROCESSORS_ONLN); }
+int32_t taosGetCpuCores(float *numOfCores) {
+  *numOfCores = sysconf(_SC_NPROCESSORS_ONLN);
+  return 0;
+}
 
-bool taosGetCpuUsage(float *sysCpuUsage, float *procCpuUsage) {
+int32_t taosGetCpuUsage(float *cpu_system, float *cpu_engine) {
   static uint64_t lastSysUsed = 0;
   static uint64_t lastSysTotal = 0;
   static uint64_t lastProcTotal = 0;
 
   SysCpuInfo  sysCpu;
   ProcCpuInfo procCpu;
-  if (!taosGetSysCpuInfo(&sysCpu)) {
-    return false;
+  if (taosGetSysCpuInfo(&sysCpu) != 0) {
+    return -1;
   }
-  if (!taosGetProcCpuInfo(&procCpu)) {
-    return false;
+  if (taosGetProcCpuInfo(&procCpu) != 0) {
+    return -1;
   }
 
   uint64_t curSysUsed = sysCpu.user + sysCpu.nice + sysCpu.system;
@@ -513,21 +515,21 @@ bool taosGetCpuUsage(float *sysCpuUsage, float *procCpuUsage) {
     lastSysUsed = curSysUsed > 1 ? curSysUsed : 1;
     lastSysTotal = curSysTotal > 1 ? curSysTotal : 1;
     lastProcTotal = curProcTotal > 1 ? curProcTotal : 1;
-    return false;
+    return -1;
   }
 
   if (curSysTotal == lastSysTotal) {
-    return false;
+    return -1;
   }
 
-  *sysCpuUsage = (float)((double)(curSysUsed - lastSysUsed) / (double)(curSysTotal - lastSysTotal) * 100);
-  *procCpuUsage = (float)((double)(curProcTotal - lastProcTotal) / (double)(curSysTotal - lastSysTotal) * 100);
+  *cpu_engine = (float)((double)(curSysUsed - lastSysUsed) / (double)(curSysTotal - lastSysTotal) * 100);
+  *cpu_system = (float)((double)(curProcTotal - lastProcTotal) / (double)(curSysTotal - lastSysTotal) * 100);
 
   lastSysUsed = curSysUsed;
   lastSysTotal = curSysTotal;
   lastProcTotal = curProcTotal;
 
-  return true;
+  return 0;
 }
 
 int32_t taosGetDiskSize(char *dataDir, SDiskSize *diskSize) {
@@ -700,13 +702,10 @@ bool taosGetProcIO(float *readKB, float *writeKB) {
 
 void taosGetSystemInfo() {
   taosGetProcInfos();
-
-  tsNumOfCores = taosGetCpuCores();
-  tsTotalMemoryMB = taosGetTotalMemory();
+  taosGetCpuCores(&tsNumOfCores);
+  taosGetTotalMemory(&tsTotalMemoryKB);
 
   float tmp1, tmp2;
-  taosGetSysMemory(&tmp1);
-  taosGetProcMemory(&tmp2);
   taosGetBandSpeed(&tmp1);
   taosGetCpuUsage(&tmp1, &tmp2);
   taosGetProcIO(&tmp1, &tmp2);
@@ -923,7 +922,7 @@ int32_t taosGetOsReleaseName(char *releaseName, int32_t maxLen) {
   return code;
 }
 
-int32_t taosGetCpuInfo(char *cpuModel, int32_t maxLen, int32_t *numOfCores) {
+int32_t taosGetCpuInfo(char *cpuModel, int32_t maxLen, float *numOfCores) {
   char   *line = NULL;
   size_t  size = 0;
   int32_t done = 0;
@@ -941,7 +940,7 @@ int32_t taosGetCpuInfo(char *cpuModel, int32_t maxLen, int32_t *numOfCores) {
       done |= 1;
     } else if (((done & 2) == 0) && strncmp(line, "cpu cores", 9) == 0) {
       const char *v = strchr(line, ':') + 2;
-      *numOfCores = atoi(v);
+      *numOfCores = atof(v);
       done |= 2;
     }
   }
@@ -950,30 +949,6 @@ int32_t taosGetCpuInfo(char *cpuModel, int32_t maxLen, int32_t *numOfCores) {
   taosCloseFile(&pFile);
 
   return code;
-}
-
-bool taosGetTotalSysMemoryKB(uint64_t *kb) {
-  char  *line = NULL;
-  size_t size = 0;
-  bool   ret = false;
-
-  TdFilePtr pFile = taosOpenFile("/proc/meminfo", TD_FILE_READ | TD_FILE_STREAM);
-  if (pFile == NULL) return false;
-
-  while ((size = taosGetLineFile(pFile, &line)) != -1) {
-    line[size - 1] = '\0';
-    if (strncmp(line, "MemTotal", 8) == 0) {
-      const char *p = strchr(line, ':') + 1;
-      while (*p == ' ') p++;
-      ret = true;
-      *kb = atoll(p);
-      break;
-    }
-  }
-
-  if (line != NULL) free(line);
-  taosCloseFile(&pFile);
-  return ret;
 }
 
 #endif

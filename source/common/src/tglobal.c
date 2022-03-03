@@ -279,11 +279,11 @@ static int32_t taosAddSystemCfg(SConfig *pCfg) {
   if (cfgAddLocale(pCfg, "locale", tsLocale) != 0) return -1;
   if (cfgAddCharset(pCfg, "charset", tsCharset) != 0) return -1;
   if (cfgAddBool(pCfg, "enableCoreFile", 1, 1) != 0) return -1;
-  if (cfgAddInt32(pCfg, "numOfCores", tsNumOfCores, 1, 100000, 1) != 0) return -1;
-  if (cfgAddInt32(pCfg, "pageSize(KB)", tsPageSize, 0, INT64_MAX, 1) != 0) return -1;
+  if (cfgAddFloat(pCfg, "numOfCores", tsNumOfCores, 0, 100000, 1) != 0) return -1;
   if (cfgAddInt64(pCfg, "openMax", tsOpenMax, 0, INT64_MAX, 1) != 0) return -1;
   if (cfgAddInt64(pCfg, "streamMax", tsStreamMax, 0, INT64_MAX, 1) != 0) return -1;
-  if (cfgAddInt32(pCfg, "totalMemory(MB)", tsTotalMemoryMB, 0, INT32_MAX, 1) != 0) return -1;
+  if (cfgAddInt32(pCfg, "pageSize(KB)", tsPageSizeKB, 0, INT64_MAX, 1) != 0) return -1;
+  if (cfgAddInt64(pCfg, "totalMemory(KB)", tsTotalMemoryKB, 0, INT64_MAX, 1) != 0) return -1;
   if (cfgAddString(pCfg, "os sysname", info.sysname, 1) != 0) return -1;
   if (cfgAddString(pCfg, "os nodename", info.nodename, 1) != 0) return -1;
   if (cfgAddString(pCfg, "os release", info.release, 1) != 0) return -1;
@@ -403,10 +403,6 @@ static void taosSetSystemCfg(SConfig *pCfg) {
   const char *locale = cfgGetItem(pCfg, "locale")->str;
   const char *charset = cfgGetItem(pCfg, "charset")->str;
   taosSetSystemLocale(locale, charset);
-
-  if (tsNumOfCores <= 1) {
-    tsNumOfCores = 2;
-  }
 
   bool enableCore = cfgGetItem(pCfg, "enableCoreFile")->bval;
   taosSetConsoleEcho(enableCore);

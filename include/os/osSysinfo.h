@@ -36,12 +36,12 @@ typedef struct {
 void    taosGetSystemInfo();
 int32_t taosGetEmail(char *email, int32_t maxLen);
 int32_t taosGetOsReleaseName(char *releaseName, int32_t maxLen);
-int32_t taosGetCpuInfo(char *cpuModel, int32_t maxLen, int32_t *numOfCores);
-int32_t taosGetCpuCores();
-bool    taosGetCpuUsage(float *sysCpuUsage, float *procCpuUsage);
-bool    taosGetTotalSysMemoryKB(uint64_t *kb);
-bool    taosGetProcMemory(float *memoryUsedMB);  //
-bool    taosGetSysMemory(float *memoryUsedMB);   //
+int32_t taosGetCpuInfo(char *cpuModel, int32_t maxLen, float *numOfCores);
+int32_t taosGetCpuCores(float *numOfCores);
+int32_t taosGetCpuUsage(float *cpu_system, float *cpu_engine);
+int32_t taosGetTotalMemory(int64_t *totalKB);
+int32_t taosGetProcMemory(int64_t *usedKB);
+int32_t taosGetSysMemory(int64_t *usedKB);
 int32_t taosGetDiskSize(char *dataDir, SDiskSize *diskSize);
 bool    taosReadProcIO(int64_t *rchars, int64_t *wchars);
 bool    taosGetProcIO(float *readKB, float *writeKB);
