@@ -112,16 +112,16 @@ int32_t taosGetDiskSize(char *dataDir, SDiskSize *diskSize) {
   }
 }
 
-bool taosGetCardInfo(int64_t *bytes, int64_t *rbytes, int64_t *tbytes) {
+int32_t taosGetCardInfo(int64_t *bytes, int64_t *rbytes, int64_t *tbytes) {
   if (bytes) *bytes = 0;
   if (rbytes) *rbytes = 0;
   if (tbytes) *tbytes = 0;
-  return true;
+  return 0;
 }
 
-bool taosGetBandSpeed(float *bandSpeedKb) {
+int32_t taosGetBandSpeed(float *bandSpeedKb) {
   *bandSpeedKb = 0;
-  return true;
+  return 0;
 }
 
 int32_t taosReadProcIO(int64_t *readbyte, int64_t *writebyte) {
@@ -271,16 +271,16 @@ int32_t taosGetProcIO(float *readKB, float *writeKB) {
   return 0;
 }
 
-bool taosGetCardInfo(int64_t *bytes, int64_t *rbytes, int64_t *tbytes) {
+int32_t taosGetCardInfo(int64_t *bytes, int64_t *rbytes, int64_t *tbytes) {
   if (bytes) *bytes = 0;
   if (rbytes) *rbytes = 0;
   if (tbytes) *tbytes = 0;
-  return true;
+  return 0;
 }
 
-bool taosGetBandSpeed(float *bandSpeedKb) {
+int32_t taosGetBandSpeed(float *bandSpeedKb) {
   *bandSpeedKb = 0;
-  return true;
+  return 0;
 }
 
 int32_t taosGetCpuUsage(float *sysCpuUsage, float *procCpuUsage) {
@@ -544,13 +544,13 @@ int32_t taosGetDiskSize(char *dataDir, SDiskSize *diskSize) {
   }
 }
 
-bool taosGetCardInfo(int64_t *bytes, int64_t *rbytes, int64_t *tbytes) {
-  *bytes = 0;
+int32_t taosGetCardInfo(int64_t *bytes, int64_t *rbytes, int64_t *tbytes) {
+  if (bytes) *bytes = 0;
   // FILE *fp = fopen(tsSysNetFile, "r");
   TdFilePtr pFile = taosOpenFile(tsSysNetFile, TD_FILE_READ | TD_FILE_STREAM);
   if (pFile == NULL) {
     // printf("open file:%s failed", tsSysNetFile);
-    return false;
+    return -1;
   }
 
   ssize_t _bytes = 0;
@@ -586,37 +586,37 @@ bool taosGetCardInfo(int64_t *bytes, int64_t *rbytes, int64_t *tbytes) {
            nouse0, &o_rbytes, &rpackts, &nouse1, &nouse2, &nouse3, &nouse4, &nouse5, &nouse6, &o_tbytes, &tpackets);
     if (rbytes) *rbytes = o_rbytes;
     if (tbytes) *tbytes = o_tbytes;
-    *bytes += (o_rbytes + o_tbytes);
+    if (bytes)  *bytes += (o_rbytes + o_tbytes);
   }
 
   if (line != NULL) tfree(line);
   taosCloseFile(&pFile);
 
-  return true;
+  return 0;
 }
 
-bool taosGetBandSpeed(float *bandSpeedKb) {
+int32_t taosGetBandSpeed(float *bandSpeedKb) {
   static int64_t lastBytes = 0;
   static time_t  lastTime = 0;
   int64_t        curBytes = 0;
   time_t         curTime = time(NULL);
 
-  if (!taosGetCardInfo(&curBytes, NULL, NULL)) {
-    return false;
+  if (taosGetCardInfo(&curBytes, NULL, NULL) != 0) {
+    return -1;
   }
 
   if (lastTime == 0 || lastBytes == 0) {
     lastTime = curTime;
     lastBytes = curBytes;
     *bandSpeedKb = 0;
-    return true;
+    return 0;
   }
 
   if (lastTime >= curTime || lastBytes > curBytes) {
     lastTime = curTime;
     lastBytes = curBytes;
     *bandSpeedKb = 0;
-    return true;
+    return 0;
   }
 
   double totalBytes = (double)(curBytes - lastBytes) / 1024 * 8;  // Kb
@@ -628,7 +628,7 @@ bool taosGetBandSpeed(float *bandSpeedKb) {
   lastTime = curTime;
   lastBytes = curBytes;
 
-  return true;
+  return 0;
 }
 
 int32_t taosReadProcIO(int64_t *rchars, int64_t *wchars) {

@@ -486,26 +486,25 @@ static void dndGetMonitorDnodeInfo(SDnode *pDnode, SMonDnodeInfo *pInfo) {
   taosGetProcMemory(&pInfo->mem_engine);
   taosGetSysMemory(&pInfo->mem_system);
   pInfo->mem_total = tsTotalMemoryKB;
-  pInfo->disk_engine = 4.1;
-  pInfo->disk_used = 4.2;
-  pInfo->disk_total = 4.3;
-  pInfo->net_in = 5.1;
-  pInfo->net_out = 5.2;
+  pInfo->disk_engine = 0;
+  pInfo->disk_used = tsDataSpace.size.used / (1024 * 1024 * 1024.0);
+  pInfo->disk_total = tsDataSpace.size.avail / (1024 * 1024 * 1024.0);
+  taosGetCardInfo(NULL, &pInfo->net_in, &pInfo->net_out);
   taosGetProcIO(&pInfo->io_read, &pInfo->io_write);
   pInfo->io_read_disk = 0;
   pInfo->io_write_disk = 0;
-  pInfo->req_select = 8;
-  pInfo->req_select_rate = 8.1;
-  pInfo->req_insert = 9;
-  pInfo->req_insert_success = 10;
-  pInfo->req_insert_rate = 10.1;
-  pInfo->req_insert_batch = 11;
-  pInfo->req_insert_batch_success = 12;
-  pInfo->req_insert_batch_rate = 12.3;
-  pInfo->errors = 4;
-  pInfo->vnodes_num = 5;
-  pInfo->masters = 6;
-  pInfo->has_mnode = 1;
+  pInfo->req_select = 0;
+  pInfo->req_select_rate = 0;
+  pInfo->req_insert = 0;
+  pInfo->req_insert_success = 0;
+  pInfo->req_insert_rate = 0;
+  pInfo->req_insert_batch = 0;
+  pInfo->req_insert_batch_success = 0;
+  pInfo->req_insert_batch_rate = 0;
+  pInfo->errors = 0;
+  pInfo->vnodes_num = 0;
+  pInfo->masters = 0;
+  pInfo->has_mnode = dndIsMnode(pDnode);
 }
 
 static void dndSendMonitorReport(SDnode *pDnode) {
