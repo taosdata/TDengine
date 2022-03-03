@@ -29,23 +29,6 @@ struct SBTree {
   int            minLeaf;
 };
 
-typedef struct SPgHdr {
-  u8    flags;
-  u8    fragmentTotalSize;
-  u16   firstFreeCellOffset;
-  u16   nCells;
-  u16   pCell;
-  i32   kLen;
-  i32   vLen;
-  SPgno rightChild;
-} SPgHdr;
-
-struct SBtPage {
-  SPgHdr *pHdr;
-  u16 *   aCellIdx;
-  u8 *    aData;
-};
-
 typedef struct SFreeCell {
   u16 size;
   u16 next;
@@ -140,32 +123,32 @@ static int tdbBtCursorMoveTo(SBtCursor *pCur, const void *pKey, int kLen) {
     return -1;
   }
 
-  if (pCur->pPage->pHdr->nCells == 0) {
-    // Tree is empty
-  } else {
-    for (;;) {
-      int lidx, ridx, midx, c;
+  // if (pCur->pPage->pHdr->nCells == 0) {
+  //   // Tree is empty
+  // } else {
+  //   for (;;) {
+  //     int lidx, ridx, midx, c;
 
-      pBtPage = pCur->pPage;
-      lidx = 0;
-      ridx = pBtPage->pHdr->nCells - 1;
-      while (lidx <= ridx) {
-        midx = (lidx + ridx) >> 1;
-        pCell = (void *)(pBtPage->aData + pBtPage->aCellIdx[midx]);
+  //     pBtPage = pCur->pPage;
+  //     lidx = 0;
+  //     ridx = pBtPage->pHdr->nCells - 1;
+  //     while (lidx <= ridx) {
+  //       midx = (lidx + ridx) >> 1;
+  //       pCell = (void *)(pBtPage->aData + pBtPage->aCellIdx[midx]);
 
-        c = tdbCompareKeyAndCell(pKey, kLen, pCell);
-        if (c == 0) {
-          break;
-        } else if (c < 0) {
-          lidx = lidx + 1;
-        } else {
-          ridx = ridx - 1;
-        }
-      }
-    }
+  //       c = tdbCompareKeyAndCell(pKey, kLen, pCell);
+  //       if (c == 0) {
+  //         break;
+  //       } else if (c < 0) {
+  //         lidx = lidx + 1;
+  //       } else {
+  //         ridx = ridx - 1;
+  //       }
+  //     }
+  //   }
 
-    /* code */
-  }
+  //   /* code */
+  // }
 
   return 0;
 }
@@ -254,10 +237,10 @@ static int tdbBtCursorMoveToRoot(SBtCursor *pCur) {
 static int tdbInitBtPage(SPage *pPage, SBtPage **ppBtPage) {
   SBtPage *pBtPage;
 
-  pBtPage = (SBtPage *)pPage->pExtra;
-  pBtPage->pHdr = (SPgHdr *)pPage->pData;
-  pBtPage->aCellIdx = (u16 *)(&((pBtPage->pHdr)[1]));
-  pBtPage->aData = (u8 *)pPage->pData;
+  // pBtPage = (SBtPage *)pPage->pExtra;
+  // pBtPage->pHdr = (SPgHdr *)pPage->pData;
+  // pBtPage->aCellIdx = (u16 *)(&((pBtPage->pHdr)[1]));
+  // pBtPage->aData = (u8 *)pPage->pData;
 
   *ppBtPage = pBtPage;
   return 0;
