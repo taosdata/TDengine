@@ -25,7 +25,6 @@ int    tdbPagerClose(SPager *pPager);
 int    tdbPagerOpenDB(SPager *pPager, SPgno *ppgno, bool toCreate);
 SPage *tdbPagerGet(SPager *pPager, SPgno pgno, bool toLoad);
 int    tdbPagerWrite(SPager *pPager, SPage *pPage);
-int    tdbPagerAllocPage(SPager *pPager, SPage **ppPage, SPgno *ppgno);
 int    tdbPagerBegin(SPager *pPager);
 int    tdbPagerCommit(SPager *pPager);
 int    tdbPagerGetPageSize(SPager *pPager);

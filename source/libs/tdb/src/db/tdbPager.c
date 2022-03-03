@@ -108,19 +108,19 @@ int tdbPagerOpenDB(SPager *pPager, SPgno *ppgno, bool toCreate) {
     pgno = 0;
   }
 
-  if (pgno == 0 && toCreate) {
-    ret = tdbPagerAllocPage(pPager, &pPage, &pgno);
-    if (ret < 0) {
-      return -1;
-    }
+  // if (pgno == 0 && toCreate) {
+  //   ret = tdbPagerAllocPage(pPager, &pPage, &pgno);
+  //   if (ret < 0) {
+  //     return -1;
+  //   }
 
-    // TODO: Need to zero the page
+  //   // TODO: Need to zero the page
 
-    ret = tdbPagerWrite(pPager, pPage);
-    if (ret < 0) {
-      return -1;
-    }
-  }
+  //   ret = tdbPagerWrite(pPager, pPage);
+  //   if (ret < 0) {
+  //     return -1;
+  //   }
+  // }
 
   *ppgno = pgno;
   return 0;
@@ -186,23 +186,23 @@ int tdbPagerWrite(SPager *pPager, SPage *pPage) {
   return 0;
 }
 
-int tdbPagerAllocPage(SPager *pPager, SPage **ppPage, SPgno *ppgno) {
-  SPage *pPage;
-  SPgno  pgno;
+// int tdbPagerAllocPage(SPager *pPager, SPage **ppPage, SPgno *ppgno) {
+//   SPage *pPage;
+//   SPgno  pgno;
 
-  if (1 /*TODO: no free page*/) {
-    pgno = ++pPager->dbFileSize;
-    pPage = tdbPagerGet(pPager, pgno, false);
-    ASSERT(pPage != NULL);
-  } else {
-    /* TODO: allocate from the free list */
-    ASSERT(0);
-  }
+//   if (1 /*TODO: no free page*/) {
+//     pgno = ++pPager->dbFileSize;
+//     pPage = tdbPagerGet(pPager, pgno, false);
+//     ASSERT(pPage != NULL);
+//   } else {
+//     /* TODO: allocate from the free list */
+//     ASSERT(0);
+//   }
 
-  *ppPage = pPage;
-  *ppgno = pgno;
-  return 0;
-}
+//   *ppPage = pPage;
+//   *ppgno = pgno;
+//   return 0;
+// }
 
 int tdbPagerBegin(SPager *pPager) {
   if (pPager->inTran) {
@@ -244,17 +244,101 @@ static int tdbPagerReadPage(SPager *pPager, SPage *pPage) {
 
 int tdbPagerGetPageSize(SPager *pPager) { return pPager->pageSize; }
 
-static void tdbPagerZeroPage(SPage *pPage, int flags) {
-  SPager *pPager;
+int tdbPagerFetchPage(SPager *pPager, SPgno pgno, SPage **ppPage) {
+  SPage *pPage;
+  SPgid  pgid;
+  int    ret;
 
-  pPager = pPage->pPager;
-  memset(pPage->pData, 0, pPager->pageSize);
-  pPage->pPageHdr = (SPageHdr *)(pPage->pData);
-  pPage->aCellIdx = (u16 *)(&(pPage->pPageHdr[1]));
-  /* TODO */
+  // Fetch a page container from the page cache
+  memcpy(&pgid, pPager->fid, TDB_FILE_ID_LEN);
+  pgid.pgno = pgno;
+  pPage = tdbPCacheFetch(pPager->pCache, &pgid, 1);
+  if (pPage == NULL) {
+    return -1;
+  }
+
+  if (pPage->pPager == NULL) {
+    ASSERT(pgno < pPager->dbOrigSize);
+
+    ret = tdbPagerReadPage(pPager, pPage);
+    if (ret < 0) {
+      return -1;
+    }
+
+    // ret = (*initPage)(pPage);
+    // if (ret < 0) {
+    //   return -1;
+    // }
+
+    pPage->pPager = pPager;
+  } else {
+    ASSERT(pPage->pPager == pPager);
+  }
+
+  *ppPage = pPage;
+  return 0;
 }
 
-static int tdbPagerInitPage(SPage *pPage) {
-  // TODO
+int tdbPagerNewPage(SPager *pPager, SPgno *ppgno, SPage **ppPage) {
+  int    ret;
+  SPage *pPage;
+  SPgid  pgid;
+
+  // Allocate a page number
+  ret = tdbPagerAllocPage(pPager, ppgno);
+  if (ret < 0) {
+    return -1;
+  }
+
+  ASSERT(*ppgno != 0);
+
+  // Fetch a page container from the page cache
+  memcpy(&pgid, pPager->fid, TDB_FILE_ID_LEN);
+  pgid.pgno = *ppgno;
+  pPage = tdbPCacheFetch(pPager->pCache, &pgid, 1);
+  if (pPage == NULL) {
+    return -1;
+  }
+
+  ASSERT(pPage->pPager == NULL);
+
+  // TODO: zero init the new page
+  // (*initNewPage)(pPage, arg);
+
+  *ppPage = pPage;
+  return 0;
+}
+
+static int tdbPagerAllocFreePage(SPager *pPager, SPgno *ppgno) {
+  // TODO: Allocate a page from the free list
+  return 0;
+}
+
+static int tdbPagerAllocNewPage(SPager *pPager, SPgno *ppgno) {
+  *ppgno = ++pPager->dbFileSize;
+  return 0;
+}
+
+static int tdbPagerAllocPage(SPager *pPager, SPgno *ppgno) {
+  int ret;
+
+  *ppgno = 0;
+
+  // Try to allocate from the free list of the pager
+  ret = tdbPagerAllocFreePage(pPager, ppgno);
+  if (ret < 0) {
+    return -1;
+  }
+
+  if (*ppgno != 0) return 0;
+
+  // Allocate the page by extending the pager
+  ret = tdbPagerAllocNewPage(pPager, ppgno);
+  if (ret < 0) {
+    return -1;
+  }
+
+  ASSERT(*ppgno != 0);
+
   return 0;
 }
