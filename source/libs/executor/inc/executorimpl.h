@@ -233,9 +233,9 @@ typedef struct STaskAttr {
   SArray*         pUdfInfo;  // no need to free
 } STaskAttr;
 
-typedef int32_t (*__optr_prepare_fn_t)(void* param);
-typedef SSDataBlock* (*__operator_fn_t)(void* param, bool* newgroup);
-typedef void (*__optr_cleanup_fn_t)(void* param, int32_t num);
+typedef int32_t (*__optr_open_fn_t)(void* param);
+typedef SSDataBlock* (*__optr_fn_t)(void* param, bool* newgroup);
+typedef void (*__optr_close_fn_t)(void* param, int32_t num);
 
 struct SOperatorInfo;
 
@@ -306,21 +306,21 @@ enum {
 };
 
 typedef struct SOperatorInfo {
-  uint8_t          operatorType;
-  bool             blockingOptr;  // block operator or not
-  uint8_t          status;        // denote if current operator is completed
-  int32_t          numOfOutput;   // number of columns of the current operator results
-  char*            name;          // name, used to show the query execution plan
-  void*            info;          // extension attribution
-  SExprInfo*       pExpr;
-  STaskRuntimeEnv* pRuntimeEnv;  // todo remove it
-  SExecTaskInfo*   pTaskInfo;
+  uint8_t                operatorType;
+  bool                   blockingOptr;  // block operator or not
+  uint8_t                status;        // denote if current operator is completed
+  int32_t                numOfOutput;   // number of columns of the current operator results
+  char*                  name;          // name, used to show the query execution plan
+  void*                  info;          // extension attribution
+  SExprInfo*             pExpr;
+  STaskRuntimeEnv*       pRuntimeEnv;  // todo remove it
+  SExecTaskInfo*         pTaskInfo;
 
   struct SOperatorInfo** pDownstream;      // downstram pointer list
   int32_t                numOfDownstream;  // number of downstream. The value is always ONE expect for join operator
-  __optr_prepare_fn_t    prepareFn;
-  __operator_fn_t        exec;
-  __optr_cleanup_fn_t    cleanupFn;
+  __optr_open_fn_t       openFn;
+  __optr_fn_t            nextDataFn;
+  __optr_close_fn_t      closeFn;
 } SOperatorInfo;
 
 typedef struct {
@@ -479,9 +479,6 @@ typedef struct SAggOperatorInfo {
 
 typedef struct SProjectOperatorInfo {
   SOptrBasicInfo binfo;
-  int32_t        bufCapacity;
-  uint32_t       seed;
-
   SSDataBlock* existDataBlock;
 } SProjectOperatorInfo;
 
@@ -615,10 +612,10 @@ SOperatorInfo* createTableScanOperatorInfo(void* pTsdbReadHandle, int32_t order,
 SOperatorInfo* createTableSeqScanOperatorInfo(void* pTsdbReadHandle, STaskRuntimeEnv* pRuntimeEnv);
 SOperatorInfo* createAggregateOperatorInfo(SOperatorInfo* downstream, SArray* pExprInfo, SExecTaskInfo* pTaskInfo, const STableGroupInfo* pTableGroupInfo);
 SOperatorInfo* createMultiTableAggOperatorInfo(SOperatorInfo* downstream, SArray* pExprInfo, SExecTaskInfo* pTaskInfo, const STableGroupInfo* pTableGroupInfo);
-SOperatorInfo* createProjectOperatorInfo(STaskRuntimeEnv* pRuntimeEnv, SOperatorInfo* downstream, SExprInfo* pExpr,
-                                         int32_t numOfOutput);
+SOperatorInfo* createProjectOperatorInfo(SOperatorInfo* downstream, SArray* pExprInfo, SExecTaskInfo* pTaskInfo);
+
 SOperatorInfo* createLimitOperatorInfo(STaskRuntimeEnv* pRuntimeEnv, SOperatorInfo* downstream);
-SOperatorInfo* createIntervalOperatorInfo(SOperatorInfo* downstream, SArray* pExprInfo, SExecTaskInfo* pTaskInfo);
+SOperatorInfo* createIntervalOperatorInfo(SOperatorInfo* downstream, SArray* pExprInfo, SInterval* pInterval, SExecTaskInfo* pTaskInfo);
 
 SOperatorInfo* createAllTimeIntervalOperatorInfo(STaskRuntimeEnv* pRuntimeEnv, SOperatorInfo* downstream,
                                                  SExprInfo* pExpr, int32_t numOfOutput);
@@ -654,8 +651,6 @@ SOperatorInfo* createJoinOperatorInfo(SOperatorInfo** pdownstream, int32_t numOf
 SOperatorInfo* createOrderOperatorInfo(SOperatorInfo* downstream, SArray* pExprInfo, SArray* pOrderVal, SExecTaskInfo* pTaskInfo);
 SOperatorInfo* createSortedMergeOperatorInfo(SOperatorInfo** downstream, int32_t numOfDownstream, SArray* pExprInfo, SArray* pOrderVal, SArray* pGroupInfo, SExecTaskInfo* pTaskInfo);
 
-// SSDataBlock* doGlobalAggregate(void* param, bool* newgroup);
-// SSDataBlock* doMultiwayMergeSort(void* param, bool* newgroup);
 // SSDataBlock* doSLimit(void* param, bool* newgroup);
 
 // int32_t doCreateFilterInfo(SColumnInfo* pCols, int32_t numOfCols, int32_t numOfFilterCols, SSingleColumnFilterInfo** pFilterInfo, uint64_t qId);

@@ -29,8 +29,8 @@ typedef struct SLHashBucket {
 typedef struct SLHashObj {
   SDiskbasedBuf *pBuf;
   _hash_fn_t     hashFn;
-  int32_t        tuplesPerPage;
   SLHashBucket **pBucket;         // entry list
+  int32_t        tuplesPerPage;
   int32_t        numOfAlloc;      // number of allocated bucket ptr slot
   int32_t        bits;            // the number of bits used in hash
   int32_t        numOfBuckets;    // the number of buckets
@@ -142,7 +142,7 @@ static void doRemoveFromBucket(SFilePage* pPage, SLHashNode* pNode, SLHashBucket
   pBucket->size -= 1;
 }
 
-static void doCompressBucketPages(SLHashObj *pHashObj, SLHashBucket* pBucket) {
+static void doTrimBucketPages(SLHashObj *pHashObj, SLHashBucket* pBucket) {
   size_t numOfPages = taosArrayGetSize(pBucket->pPageIdList);
   if (numOfPages <= 1) {
     return;
@@ -253,6 +253,7 @@ SLHashObj* tHashInit(int32_t inMemPages, int32_t pageSize, _hash_fn_t fn, int32_
     return NULL;
   }
 
+  // disable compress when flushing to disk
   setBufPageCompressOnDisk(pHashObj->pBuf, false);
 
   /**
@@ -367,7 +368,7 @@ int32_t tHashPut(SLHashObj* pHashObj, const void *key, size_t keyLen, void *data
       releaseBufPage(pHashObj->pBuf, p);
     }
 
-    doCompressBucketPages(pHashObj, pBucket);
+    doTrimBucketPages(pHashObj, pBucket);
   }
 
   return TSDB_CODE_SUCCESS;
