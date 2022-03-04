@@ -128,6 +128,7 @@ static SLogicNode* createScanLogicNode(SLogicPlanContext* pCxt, SSelectStmt* pSe
   pScan->node.id = pCxt->planNodeId++;
 
   pScan->pMeta = pRealTable->pMeta;
+  pScan->pVgroupList = pRealTable->pVgroupList;
 
   // set columns to scan
   SNodeList* pCols = NULL;

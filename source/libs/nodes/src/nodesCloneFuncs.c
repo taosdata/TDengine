@@ -160,7 +160,6 @@ static SNode* groupingSetNodeCopy(const SGroupingSetNode* pSrc, SGroupingSetNode
 
 static SNode* logicSubplanCopy(const SSubLogicPlan* pSrc, SSubLogicPlan* pDst) {
   COPY_NODE_FIELD(pNode);
-  COPY_SCALAR_FIELD(execNode);
   COPY_SCALAR_FIELD(subplanType);
   return (SNode*)pDst;
 }

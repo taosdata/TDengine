@@ -43,6 +43,7 @@ typedef struct SScanLogicNode {
   SLogicNode node;
   SNodeList* pScanCols;
   struct STableMeta* pMeta;
+  SVgroupsInfo* pVgroupList;
   EScanType scanType;
   uint8_t scanFlag;         // denotes reversed scan of data or not
   STimeWindow scanRange;
@@ -84,7 +85,6 @@ typedef struct SSubLogicPlan {
   SNodeList* pChildren;
   SNodeList* pParents;
   SLogicNode* pNode;
-  SQueryNodeAddr execNode;
   ESubplanType subplanType;
   int32_t level;
 } SSubLogicPlan;

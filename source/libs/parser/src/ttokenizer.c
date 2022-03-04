@@ -88,7 +88,7 @@ static SKeyword keywordTable[] = {
     // {"SCORES",       TK_SCORES},
     // {"GRANTS",       TK_GRANTS},
     // {"DOT",          TK_DOT},
-    // {"TABLES",       TK_TABLES},
+    {"TABLES",       TK_TABLES},
     // {"STABLES",      TK_STABLES},
     {"VGROUPS",      TK_VGROUPS},
     // {"DROP",         TK_DROP},

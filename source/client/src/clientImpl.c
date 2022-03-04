@@ -176,6 +176,14 @@ int32_t execDdlQuery(SRequestObj* pRequest, SQuery* pQuery) {
 
   STscObj*      pTscObj = pRequest->pTscObj;
   SMsgSendInfo* pSendMsg = buildMsgInfoImpl(pRequest);
+
+  if (pMsgInfo->msgType == TDMT_VND_SHOW_TABLES) {
+    SShowReqInfo* pShowReqInfo = &pRequest->body.showInfo;
+    if (pShowReqInfo->pArray == NULL) {
+      pShowReqInfo->currentIndex = 0;  // set the first vnode/ then iterate the next vnode
+      pShowReqInfo->pArray = pMsgInfo->pExtension;
+    }
+  }
   int64_t transporterId = 0;
   asyncSendMsgToServer(pTscObj->pAppInfo->pTransporter, &pMsgInfo->epSet, &transporterId, pSendMsg);
 
@@ -183,10 +191,10 @@ int32_t execDdlQuery(SRequestObj* pRequest, SQuery* pQuery) {
   return TSDB_CODE_SUCCESS;
 }
 
-int32_t getPlan(SRequestObj* pRequest, SQuery* pQuery, SQueryPlan** pDag, SArray* pNodeList) {
-  pRequest->type = pQuery->sqlNodeType;
+int32_t getPlan(SRequestObj* pRequest, SQuery* pQuery, SQueryPlan** pPlan, SArray* pNodeList) {
+  pRequest->type = pQuery->msgType;
   SPlanContext cxt = { .queryId = pRequest->requestId, .pAstRoot = pQuery->pRoot };
-  int32_t  code = qCreateQueryPlan(&cxt, pDag);
+  int32_t  code = qCreateQueryPlan(&cxt, pPlan, pNodeList);
   if (code != 0) {
     return code;
   }
@@ -219,7 +227,7 @@ int32_t scheduleQuery(SRequestObj* pRequest, SQueryPlan* pDag, SArray* pNodeList
     return pRequest->code;
   }
 
-  if (TSDB_SQL_INSERT == pRequest->type || TSDB_SQL_CREATE_TABLE == pRequest->type) {
+  if (TDMT_VND_SUBMIT == pRequest->type || TDMT_VND_CREATE_TABLE == pRequest->type) {
     pRequest->body.resInfo.numOfRows = res.numOfRows;
     
     if (pRequest->body.queryJob != 0) {
