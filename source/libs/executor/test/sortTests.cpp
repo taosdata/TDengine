@@ -29,8 +29,8 @@
 #include "executor.h"
 #include "stub.h"
 #include "taos.h"
+#include "tdatablock.h"
 #include "tdef.h"
-#include "tep.h"
 #include "trpc.h"
 #include "tvariant.h"
 

@@ -19,13 +19,13 @@
 
 #include "os.h"
 
-#include "taos.h"
-#include "tdef.h"
-#include "tvariant.h"
 #include "catalog.h"
 #include "scheduler.h"
-#include "tep.h"
+#include "taos.h"
+#include "tdatablock.h"
+#include "tdef.h"
 #include "trpc.h"
+#include "tvariant.h"
 
 #pragma GCC diagnostic push
 #pragma GCC diagnostic ignored "-Wwrite-strings"

@@ -15,10 +15,10 @@
 
 #include "mockCatalogService.h"
 
-#include "tep.h"
 #include <iomanip>
 #include <iostream>
 #include <map>
+#include "tdatablock.h"
 
 #include "tname.h"
 #include "ttypes.h"

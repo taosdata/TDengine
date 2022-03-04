@@ -26,15 +26,15 @@
 #pragma GCC diagnostic ignored "-Wsign-compare"
 #include "os.h"
 
-#include "taos.h"
-#include "tdef.h"
-#include "tvariant.h"
-#include "tep.h"
-#include "trpc.h"
-#include "stub.h"
 #include "executor.h"
+#include "stub.h"
+#include "taos.h"
+#include "tdatablock.h"
+#include "tdef.h"
 #include "tmsg.h"
 #include "tname.h"
+#include "trpc.h"
+#include "tvariant.h"
 
 namespace {
 

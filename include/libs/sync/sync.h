@@ -21,7 +21,7 @@ extern "C" {
 #endif
 
 #include <stdint.h>
-#include <tep.h>
+#include <tdatablock.h>
 #include "taosdef.h"
 #include "trpc.h"
 

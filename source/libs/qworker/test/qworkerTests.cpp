@@ -29,18 +29,17 @@
 
 #include "os.h"
 
-#include "taos.h"
-#include "tdef.h"
-#include "tvariant.h"
-#include "tep.h"
-#include "trpc.h"
+#include "addr_any.h"
+#include "dataSinkMgt.h"
+#include "executor.h"
 #include "planner.h"
 #include "qworker.h"
 #include "stub.h"
-#include "addr_any.h"
-#include "executor.h"
-#include "dataSinkMgt.h"
-
+#include "taos.h"
+#include "tdatablock.h"
+#include "tdef.h"
+#include "trpc.h"
+#include "tvariant.h"
 
 namespace {
 
