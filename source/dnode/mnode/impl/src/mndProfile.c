@@ -48,7 +48,7 @@ static SConnObj *mndCreateConn(SMnode *pMnode, SRpcConnInfo *pInfo, int32_t pid,
 static void      mndFreeConn(SConnObj *pConn);
 static SConnObj *mndAcquireConn(SMnode *pMnode, int32_t connId);
 static void      mndReleaseConn(SMnode *pMnode, SConnObj *pConn);
-static void     *mndGetNextConn(SMnode *pMnode, void *pIter, SConnObj **pConn);
+static void     *mndGetNextConn(SMnode *pMnode, SCacheIter *pIter);
 static void      mndCancelGetNextConn(SMnode *pMnode, void *pIter);
 static int32_t   mndProcessHeartBeatReq(SMnodeMsg *pReq);
 static int32_t   mndProcessConnectReq(SMnodeMsg *pReq);
@@ -158,27 +158,23 @@ static void mndReleaseConn(SMnode *pMnode, SConnObj *pConn) {
   taosCacheRelease(pMgmt->cache, (void **)&pConn, false);
 }
 
-static void *mndGetNextConn(SMnode *pMnode, void *pIter, SConnObj **pConn) {
-  SProfileMgmt *pMgmt = &pMnode->profileMgmt;
-
-  *pConn = NULL;
-
-  pIter = taosHashIterate(pMgmt->cache->pHashTable, pIter);
-  if (pIter == NULL) return NULL;
-
-  SCacheDataNode **pNode = pIter;
-  if (pNode == NULL || *pNode == NULL) {
-    taosHashCancelIterate(pMgmt->cache->pHashTable, pIter);
-    return NULL;
+void *mndGetNextConn(SMnode *pMnode, SCacheIter *pIter) {
+  SConnObj* pConn = NULL;
+  bool hasNext = taosCacheIterNext(pIter);
+  if (hasNext) {
+    size_t dataLen = 0;
+    pConn = taosCacheIterGetData(pIter, &dataLen);
+  } else {
+    taosCacheDestroyIter(pIter);
   }
 
-  *pConn = (SConnObj *)((*pNode)->data);
-  return pIter;
+  return pConn;
 }
 
 static void mndCancelGetNextConn(SMnode *pMnode, void *pIter) {
-  SProfileMgmt *pMgmt = &pMnode->profileMgmt;
-  taosHashCancelIterate(pMgmt->cache->pHashTable, pIter);
+  if (pIter != NULL) {
+    taosCacheDestroyIter(pIter);
+  }
 }
 
 static int32_t mndProcessConnectReq(SMnodeMsg *pReq) {
@@ -376,8 +372,8 @@ static int32_t mndProcessHeartBeatReq(SMnodeMsg *pReq) {
             int32_t rspLen = 0;
             mndValidateDbInfo(pMnode, kv->value, kv->valueLen / sizeof(SDbVgVersion), &rspMsg, &rspLen);
             if (rspMsg && rspLen > 0) {
-              SKv kv = {.key = HEARTBEAT_KEY_DBINFO, .valueLen = rspLen, .value = rspMsg};
-              taosArrayPush(hbRsp.info, &kv);
+              SKv kv1 = {.key = HEARTBEAT_KEY_DBINFO, .valueLen = rspLen, .value = rspMsg};
+              taosArrayPush(hbRsp.info, &kv1);
             }
             break;
           }
@@ -386,8 +382,8 @@ static int32_t mndProcessHeartBeatReq(SMnodeMsg *pReq) {
             int32_t rspLen = 0;
             mndValidateStbInfo(pMnode, kv->value, kv->valueLen / sizeof(SSTableMetaVersion), &rspMsg, &rspLen);
             if (rspMsg && rspLen > 0) {
-              SKv kv = {.key = HEARTBEAT_KEY_STBINFO, .valueLen = rspLen, .value = rspMsg};
-              taosArrayPush(hbRsp.info, &kv);
+              SKv kv1 = {.key = HEARTBEAT_KEY_STBINFO, .valueLen = rspLen, .value = rspMsg};
+              taosArrayPush(hbRsp.info, &kv1);
             }
             break;
           }
@@ -638,7 +634,7 @@ static int32_t mndGetConnsMeta(SMnodeMsg *pReq, SShowObj *pShow, STableMetaRsp *
     pShow->offset[i] = pShow->offset[i - 1] + pShow->bytes[i - 1];
   }
 
-  pShow->numOfRows = taosHashGetSize(pMgmt->cache->pHashTable);
+  pShow->numOfRows = taosCacheGetNumOfObj(pMgmt->cache);
   pShow->rowSize = pShow->offset[cols - 1] + pShow->bytes[cols - 1];
   strcpy(pMeta->tbName, mndShowStr(pShow->type));
 
@@ -653,8 +649,13 @@ static int32_t mndRetrieveConns(SMnodeMsg *pReq, SShowObj *pShow, char *data, in
   char     *pWrite;
   char      ipStr[TSDB_IPv4ADDR_LEN + 6];
 
+  if (pShow->pIter == NULL) {
+    SProfileMgmt *pMgmt = &pMnode->profileMgmt;
+    pShow->pIter = taosCacheCreateIter(pMgmt->cache);
+  }
+
   while (numOfRows < rows) {
-    pShow->pIter = mndGetNextConn(pMnode, pShow->pIter, &pConn);
+    pConn = mndGetNextConn(pMnode, pShow->pIter);
     if (pConn == NULL) break;
 
     cols = 0;
@@ -823,19 +824,24 @@ static int32_t mndRetrieveQueries(SMnodeMsg *pReq, SShowObj *pShow, char *data, 
   void     *pIter;
   char      str[TSDB_IPv4ADDR_LEN + 6] = {0};
 
+  if (pShow->pIter == NULL) {
+    SProfileMgmt *pMgmt = &pMnode->profileMgmt;
+    pShow->pIter = taosCacheCreateIter(pMgmt->cache);
+  }
+
   while (numOfRows < rows) {
-    pIter = mndGetNextConn(pMnode, pShow->pIter, &pConn);
+    pConn = mndGetNextConn(pMnode, pShow->pIter);
     if (pConn == NULL) {
-      pShow->pIter = pIter;
+      pShow->pIter = NULL;
       break;
     }
 
     if (numOfRows + pConn->numOfQueries >= rows) {
-      mndCancelGetNextConn(pMnode, pIter);
+      taosCacheDestroyIter(pShow->pIter);
+      pShow->pIter = NULL;
       break;
     }
 
-    pShow->pIter = pIter;
     for (int32_t i = 0; i < pConn->numOfQueries; ++i) {
       SQueryDesc *pDesc = pConn->pQueries + i;
       cols = 0;
@@ -913,8 +919,9 @@ static int32_t mndRetrieveQueries(SMnodeMsg *pReq, SShowObj *pShow, char *data, 
 }
 
 static void mndCancelGetNextQuery(SMnode *pMnode, void *pIter) {
-  SProfileMgmt *pMgmt = &pMnode->profileMgmt;
-  taosHashCancelIterate(pMgmt->cache->pHashTable, pIter);
+  if (pIter != NULL) {
+    taosCacheDestroyIter(pIter);
+  }
 }
 
 int32_t mndGetNumOfConnections(SMnode *pMnode) { return taosHashGetSize(pMnode->profileMgmt.cache->pHashTable); }

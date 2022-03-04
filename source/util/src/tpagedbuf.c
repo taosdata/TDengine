@@ -42,8 +42,8 @@ struct SDiskbasedBuf {
   bool      comp;              // compressed before flushed to disk
   uint64_t  nextPos;           // next page flush position
 
-  uint64_t            qId;          // for debug purpose
-  bool                printStatis;  // Print statistics info when closing this buffer.
+  char*     id;          // for debug purpose
+  bool      printStatis;  // Print statistics info when closing this buffer.
   SDiskbasedBufStatis statis;
 };
 
@@ -269,11 +269,12 @@ static SPageInfo* registerPage(SDiskbasedBuf* pBuf, int32_t groupId, int32_t pag
   SPageInfo* ppi = malloc(sizeof(SPageInfo));
 
   ppi->pageId = pageId;
-  ppi->pData = NULL;
+  ppi->pData  = NULL;
   ppi->offset = -1;
   ppi->length = -1;
-  ppi->used = true;
-  ppi->pn = NULL;
+  ppi->used   = true;
+  ppi->pn     = NULL;
+  ppi->dirty  = false;
 
   return *(SPageInfo**)taosArrayPush(list, &ppi);
 }
@@ -356,7 +357,7 @@ static SPageInfo* getPageInfoFromPayload(void* page) {
   return ppi;
 }
 
-int32_t createDiskbasedBuf(SDiskbasedBuf** pBuf, int32_t pagesize, int32_t inMemBufSize, uint64_t qId,
+int32_t createDiskbasedBuf(SDiskbasedBuf** pBuf, int32_t pagesize, int32_t inMemBufSize, const char* id,
                            const char* dir) {
   *pBuf = calloc(1, sizeof(SDiskbasedBuf));
 
@@ -366,13 +367,13 @@ int32_t createDiskbasedBuf(SDiskbasedBuf** pBuf, int32_t pagesize, int32_t inMem
   }
 
   pPBuf->pageSize = pagesize;
-  pPBuf->numOfPages = 0;  // all pages are in buffer in the first place
+  pPBuf->numOfPages   = 0;  // all pages are in buffer in the first place
   pPBuf->totalBufSize = 0;
   pPBuf->inMemPages = inMemBufSize / pagesize;  // maximum allowed pages, it is a soft limit.
   pPBuf->allocateId = -1;
-  pPBuf->comp = true;
-  pPBuf->pFile = NULL;
-  pPBuf->qId = qId;
+  pPBuf->comp     = true;
+  pPBuf->pFile    = NULL;
+  pPBuf->id       = strdup(id);
   pPBuf->fileSize = 0;
   pPBuf->pFree = taosArrayInit(4, sizeof(SFreeListItem));
   pPBuf->freePgList = tdListNew(POINTER_BYTES);
@@ -471,7 +472,7 @@ void* getBufPage(SDiskbasedBuf* pBuf, int32_t id) {
 
     return (void*)(GET_DATA_PAYLOAD(*pi));
   } else {  // not in memory
-    assert((*pi)->pData == NULL && (*pi)->pn == NULL && (*pi)->length >= 0 && (*pi)->offset >= 0);
+    assert((*pi)->pData == NULL && (*pi)->pn == NULL && (((*pi)->length >= 0 && (*pi)->offset >= 0) || ((*pi)->length == -1 && (*pi)->offset == -1)));
 
     char* availablePage = NULL;
     if (NO_IN_MEM_AVAILABLE_PAGES(pBuf)) {
@@ -493,9 +494,12 @@ void* getBufPage(SDiskbasedBuf* pBuf, int32_t id) {
     lruListPushFront(pBuf->lruList, *pi);
     (*pi)->used = true;
 
-    int32_t code = loadPageFromDisk(pBuf, *pi);
-    if (code != 0) {
-      return NULL;
+    // some data has been flushed to disk, and needs to be loaded into buffer again.
+    if ((*pi)->length > 0 && (*pi)->offset >= 0) {
+      int32_t code = loadPageFromDisk(pBuf, *pi);
+      if (code != 0) {
+        return NULL;
+      }
     }
 
     return (void*)(GET_DATA_PAYLOAD(*pi));
@@ -540,13 +544,13 @@ void destroyDiskbasedBuf(SDiskbasedBuf* pBuf) {
   if (pBuf->pFile != NULL) {
     uDebug(
         "Paged buffer closed, total:%.2f Kb (%d Pages), inmem size:%.2f Kb (%d Pages), file size:%.2f Kb, page "
-        "size:%.2f Kb, %" PRIx64 "\n",
+        "size:%.2f Kb, %s\n",
         pBuf->totalBufSize / 1024.0, pBuf->numOfPages, listNEles(pBuf->lruList) * pBuf->pageSize / 1024.0,
-        listNEles(pBuf->lruList), pBuf->fileSize / 1024.0, pBuf->pageSize / 1024.0f, pBuf->qId);
+        listNEles(pBuf->lruList), pBuf->fileSize / 1024.0, pBuf->pageSize / 1024.0f, pBuf->id);
 
     taosCloseFile(&pBuf->pFile);
   } else {
-    uDebug("Paged buffer closed, total:%.2f Kb, no file created, %" PRIx64, pBuf->totalBufSize / 1024.0, pBuf->qId);
+    uDebug("Paged buffer closed, total:%.2f Kb, no file created, %s", pBuf->totalBufSize / 1024.0, pBuf->id);
   }
 
   // print the statistics information
@@ -584,6 +588,7 @@ void destroyDiskbasedBuf(SDiskbasedBuf* pBuf) {
   taosHashCleanup(pBuf->groupSet);
   taosHashCleanup(pBuf->all);
 
+  tfree(pBuf->id);
   tfree(pBuf->assistBuf);
   tfree(pBuf);
 }
@@ -639,9 +644,9 @@ void dBufPrintStatis(const SDiskbasedBuf* pBuf) {
 
   printf(
       "Paged buffer closed, total:%.2f Kb (%d Pages), inmem size:%.2f Kb (%d Pages), file size:%.2f Kb, page size:%.2f "
-      "Kb, %" PRIx64 "\n",
+      "Kb, %s\n",
       pBuf->totalBufSize / 1024.0, pBuf->numOfPages, listNEles(pBuf->lruList) * pBuf->pageSize / 1024.0,
-      listNEles(pBuf->lruList), pBuf->fileSize / 1024.0, pBuf->pageSize / 1024.0f, pBuf->qId);
+      listNEles(pBuf->lruList), pBuf->fileSize / 1024.0, pBuf->pageSize / 1024.0f, pBuf->id);
 
   printf(
       "Get/Release pages:%d/%d, flushToDisk:%.2f Kb (%d Pages), loadFromDisk:%.2f Kb (%d Pages), avgPageSize:%.2f Kb\n",
