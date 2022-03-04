@@ -109,6 +109,14 @@ private:
       cout << "sql:[" << cxt_.pSql << "] toString code:" << code << ", strerror:" << tstrerror(code) << endl;
       return string();
     }
+    SNode* pNode;
+    code = nodesStringToNode(pStr, &pNode);
+    if (code != TSDB_CODE_SUCCESS) {
+      tfree(pStr);
+      cout << "sql:[" << cxt_.pSql << "] toObject code:" << code << ", strerror:" << tstrerror(code) << endl;
+      return string();
+    }
+    nodesDestroyNode(pNode);
     string str(pStr);
     tfree(pStr);
     return str;
@@ -149,10 +157,5 @@ TEST_F(PlannerTest, subquery) {
   setDatabase("root", "test");
 
   bind("SELECT count(*) FROM (SELECT c1 + c3 a, c1 + count(*) b FROM t1 where c2 = 'abc' GROUP BY c1, c3) where a > 100 group by b");
-  ASSERT_TRUE(run());
-}
-
-TEST_F(PlannerTest, createTable) {
-  bind("create table t1(ts timestamp, c1 int)");
   ASSERT_TRUE(run());
 }

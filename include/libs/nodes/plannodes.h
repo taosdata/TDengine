@@ -113,7 +113,7 @@ typedef struct SDataBlockDescNode {
 
 typedef struct SPhysiNode {
   ENodeType type;
-  SDataBlockDescNode outputDataBlockDesc;
+  SDataBlockDescNode* pOutputDataBlockDesc;
   SNode* pConditions;
   SNodeList* pChildren;
   struct SPhysiNode* pParent;
@@ -175,7 +175,7 @@ typedef struct SExchangePhysiNode {
 
 typedef struct SDataSinkNode {
   ENodeType type;;
-  SDataBlockDescNode inputDataBlockDesc;
+  SDataBlockDescNode* pInputDataBlockDesc;
 } SDataSinkNode;
 
 typedef struct SDataDispatcherNode {

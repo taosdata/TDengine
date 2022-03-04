@@ -131,6 +131,7 @@ SNodeptr nodesMakeNode(ENodeType type) {
     default:
       break;
   }
+  printf("================================ nodesMakeNode unknown node = %s\n", nodesNodeName(type));
   return NULL;
 }
 

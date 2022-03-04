@@ -14,7 +14,6 @@
  */
 
 #include <gtest/gtest.h>
-#include <tglobal.h>
 #include <iostream>
 
 #pragma GCC diagnostic push
@@ -26,9 +25,11 @@
 #pragma GCC diagnostic ignored "-Wformat"
 #pragma GCC diagnostic ignored "-Wint-to-pointer-cast"
 #pragma GCC diagnostic ignored "-Wpointer-arith"
+#include <addr_any.h>
 
 #include "os.h"
 
+#include "tglobal.h"
 #include "taos.h"
 #include "tdef.h"
 #include "tvariant.h"
@@ -37,7 +38,6 @@
 #include "planner.h"
 #include "qworker.h"
 #include "stub.h"
-#include "addr_any.h"
 #include "executor.h"
 #include "dataSinkMgt.h"
 

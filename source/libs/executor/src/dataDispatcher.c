@@ -39,7 +39,7 @@ typedef struct SDataCacheEntry {
 typedef struct SDataDispatchHandle {
   SDataSinkHandle sink;
   SDataSinkManager* pManager;
-  SDataBlockDescNode schema;
+  SDataBlockDescNode* pSchema;
   STaosQueue* pDataBlocks;
   SDataDispatchBuf nextOutput;
   int32_t status;
@@ -109,14 +109,14 @@ static void copyData(const SInputData* pInput, const SDataBlockDescNode* pSchema
 // data format: SDataCacheEntry | col1_data col2_data ... | numOfTables | STableIdInfo STableIdInfo ...
 static void toDataCacheEntry(const SDataDispatchHandle* pHandle, const SInputData* pInput, SDataDispatchBuf* pBuf) {
   SDataCacheEntry* pEntry = (SDataCacheEntry*)pBuf->pData;
-  pEntry->compressed = (int8_t)needCompress(pInput->pData, &(pHandle->schema));
+  pEntry->compressed = (int8_t)needCompress(pInput->pData, pHandle->pSchema);
   pEntry->numOfRows = pInput->pData->info.rows;
   pEntry->dataLen = 0;
 
   pBuf->useSize = DATA_META_LENGTH(pInput->pTableRetrieveTsMap);
-  copyData(pInput, &pHandle->schema, pEntry->data, pEntry->compressed, &pEntry->dataLen);
+  copyData(pInput, pHandle->pSchema, pEntry->data, pEntry->compressed, &pEntry->dataLen);
   if (0 == pEntry->compressed) {
-    pEntry->dataLen = pHandle->schema.resultRowSize * pInput->pData->info.rows;
+    pEntry->dataLen = pHandle->pSchema->resultRowSize * pInput->pData->info.rows;
   }
   pBuf->useSize += pEntry->dataLen;
   // todo completed
@@ -130,7 +130,7 @@ static bool allocBuf(SDataDispatchHandle* pDispatcher, const SInputData* pInput,
     return false;
   }
 
-  pBuf->allocSize = DATA_META_LENGTH(pInput->pTableRetrieveTsMap) + pDispatcher->schema.resultRowSize * pInput->pData->info.rows;
+  pBuf->allocSize = DATA_META_LENGTH(pInput->pTableRetrieveTsMap) + pDispatcher->pSchema->resultRowSize * pInput->pData->info.rows;
   pBuf->pData = malloc(pBuf->allocSize);
   if (pBuf->pData == NULL) {
     qError("SinkNode failed to malloc memory, size:%d, code:%d", pBuf->allocSize, TAOS_SYSTEM_ERROR(errno));
@@ -196,7 +196,7 @@ static int32_t getDataBlock(SDataSinkHandle* pHandle, SOutputData* pOutput) {
   if (NULL == pDispatcher->nextOutput.pData) {
     assert(pDispatcher->queryEnd);
     pOutput->useconds = pDispatcher->useconds;
-    pOutput->precision = pDispatcher->schema.precision;
+    pOutput->precision = pDispatcher->pSchema->precision;
     return TSDB_CODE_SUCCESS;
   }
   SDataCacheEntry* pEntry = (SDataCacheEntry*)(pDispatcher->nextOutput.pData);
@@ -208,7 +208,7 @@ static int32_t getDataBlock(SDataSinkHandle* pHandle, SOutputData* pOutput) {
   pthread_mutex_lock(&pDispatcher->mutex);
   pOutput->queryEnd = pDispatcher->queryEnd;
   pOutput->useconds = pDispatcher->useconds;
-  pOutput->precision = pDispatcher->schema.precision;
+  pOutput->precision = pDispatcher->pSchema->precision;
   pthread_mutex_unlock(&pDispatcher->mutex);
   return TSDB_CODE_SUCCESS;
 }
@@ -238,7 +238,7 @@ int32_t createDataDispatcher(SDataSinkManager* pManager, const SDataSinkNode* pD
   dispatcher->sink.fGetData = getDataBlock;
   dispatcher->sink.fDestroy = destroyDataSinker;
   dispatcher->pManager = pManager;
-  dispatcher->schema = pDataSink->inputDataBlockDesc;
+  dispatcher->pSchema = pDataSink->pInputDataBlockDesc;
   dispatcher->status = DS_BUF_EMPTY;
   dispatcher->queryEnd = false;
   dispatcher->pDataBlocks = taosOpenQueue();

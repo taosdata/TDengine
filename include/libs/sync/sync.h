@@ -34,9 +34,7 @@ typedef enum {
   TAOS_SYNC_STATE_FOLLOWER = 0,
   TAOS_SYNC_STATE_CANDIDATE = 1,
   TAOS_SYNC_STATE_LEADER = 2,
-} ESyncRole;
-
-typedef ESyncRole ESyncState;
+} ESyncState;
 
 typedef struct SSyncBuffer {
   void*  data;
