@@ -116,7 +116,7 @@ typedef struct {
 
 typedef struct {
   char      name[TSDB_FILENAME_LEN];
-  int32_t   level;
+  int8_t    level;
   SDiskSize size;
 } SMonDiskDesc;
 
@@ -126,10 +126,17 @@ typedef struct {
   SMonDiskDesc tempdir;
 } SMonDiskInfo;
 
+typedef enum {
+  MON_LEVEL_ERROR = 0,
+  MON_LEVEL_INFO = 1,
+  MON_LEVEL_DEBUG = 2,
+  MON_LEVEL_TRACE = 3,
+} EMonLogLevel;
+
 typedef struct {
-  int64_t ts;
-  int8_t  level;
-  char    content[MON_LOG_LEN];
+  int64_t      ts;
+  EMonLogLevel level;
+  char         content[MON_LOG_LEN];
 } SMonLogItem;
 
 typedef struct SMonInfo SMonInfo;
