@@ -533,7 +533,7 @@ void mndGetLoad(SMnode *pMnode, SMnodeLoad *pLoad) {
 
 int32_t mndGetMonitorInfo(SMnode *pMnode, SMonClusterInfo *pClusterInfo, SMonVgroupInfo *pVgroupInfo,
                           SMonGrantInfo *pGrantInfo) {
-  if (!mndIsMaster(pMnode)) return;
+  if (!mndIsMaster(pMnode)) return -1;
 
   SSdb   *pSdb = pMnode->pSdb;
   int64_t ms = taosGetTimestampMs();

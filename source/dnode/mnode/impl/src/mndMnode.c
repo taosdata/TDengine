@@ -99,7 +99,7 @@ void mndUpdateMnodeRole(SMnode *pMnode) {
     pIter = sdbFetch(pSdb, SDB_MNODE, pIter, (void **)&pObj);
     if (pIter == NULL) break;
 
-    ESyncRole lastRole = pObj->role;
+    ESyncState lastRole = pObj->role;
     if (pObj->id == 1) {
       pObj->role = TAOS_SYNC_STATE_LEADER;
     } else {
