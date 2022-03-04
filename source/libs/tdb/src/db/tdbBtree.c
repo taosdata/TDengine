@@ -299,8 +299,8 @@ static int tdbBtreeOpenImpl(SBTree *pBt) {
   //   return -1;
   // }
 
-  ASSERT(pgno != 0);
-  pBt->root = pgno;
+  // ASSERT(pgno != 0);
+  // pBt->root = pgno;
 
   return 0;
 }

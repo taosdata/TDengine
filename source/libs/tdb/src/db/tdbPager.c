@@ -41,8 +41,11 @@ typedef struct __attribute__((__packed__)) {
 
 TDB_STATIC_ASSERT(sizeof(SFileHdr) == 128, "Size of file header is not correct");
 
+#define TDB_PAGE_INITIALIZED(pPage) ((pPage)->pPager != NULL)
+
 static int tdbPagerReadPage(SPager *pPager, SPage *pPage);
 static int tdbPagerAllocPage(SPager *pPager, SPgno *ppgno);
+static int tdbPagerInitPage(SPager *pPager, SPage *pPage, int (*initPage)(SPage *, void *), void *arg);
 
 int tdbPagerOpen(SPCache *pCache, const char *fileName, SPager **ppPager) {
   uint8_t *pPtr;
@@ -240,29 +243,16 @@ int tdbPagerFetchPage(SPager *pPager, SPgno pgno, SPage **ppPage, int (*initPage
     return -1;
   }
 
-  if (pPage->pPager == NULL) {
-    ASSERT(pgno < pPager->dbOrigSize);
-
-    // tdbWLockPage(pPage);
-
-    if (pPage->pPager == NULL) {
-      ret = tdbPagerReadPage(pPager, pPage);
-      if (ret < 0) {
-        return -1;
-      }
-
-      ret = (*initPage)(pPage, arg);
-      if (ret < 0) {
-        return -1;
-      }
-
-      pPage->pPager = pPager;
+  // Initialize the page if need
+  if (!TDB_PAGE_INITIALIZED(pPage)) {
+    ret = tdbPagerInitPage(pPager, pPage, initPage, arg);
+    if (ret < 0) {
+      return -1;
     }
-
-    // tdbWUnlockPage(pPage);
-  } else {
-    ASSERT(pPage->pPager == pPager);
   }
+
+  ASSERT(TDB_PAGE_INITIALIZED(pPage));
+  ASSERT(pPage->pPager == pPager);
 
   *ppPage = pPage;
   return 0;
@@ -289,18 +279,16 @@ int tdbPagerNewPage(SPager *pPager, SPgno *ppgno, SPage **ppPage, int (*initPage
     return -1;
   }
 
-  ASSERT(pPage->pPager == NULL);
+  ASSERT(!TDB_PAGE_INITIALIZED(pPage));
 
-  // TODO: a race condition problem may occur here
+  // Initialize the page if need
+  ret = tdbPagerInitPage(pPager, pPage, initPage, arg);
+  if (ret < 0) {
+    return -1;
+  }
 
-  // tdbWLockPage(pPage);
-
-  // TODO: zero init the new page
-  (*initPage)(pPage, arg);
-
-  pPage->pPager = NULL;
-
-  // tdbWunlockPage(pPage);
+  ASSERT(TDB_PAGE_INITIALIZED(pPage));
+  ASSERT(pPage->pPager == pPager);
 
   *ppPage = pPage;
   return 0;
@@ -336,6 +324,33 @@ static int tdbPagerAllocPage(SPager *pPager, SPgno *ppgno) {
   }
 
   ASSERT(*ppgno != 0);
+
+  return 0;
+}
+
+static int tdbPagerInitPage(SPager *pPager, SPage *pPage, int (*initPage)(SPage *, void *), void *arg) {
+  int ret;
+
+  ret = TDB_TRY_LOCK_PAGE(pPage);
+  if (ret == 0) {
+    if (TDB_PAGE_INITIALIZED(pPage)) {
+      TDB_UNLOCK_PAGE(pPage);
+      return 0;
+    }
+
+    ret = (*initPage)(pPage, arg);
+    if (ret < 0) {
+      TDB_UNLOCK_PAGE(pPage);
+      return -1;
+    }
+
+    pPage->pPager = pPager;
+
+    TDB_UNLOCK_PAGE(pPage);
+  } else {
+    while (!TDB_PAGE_INITIALIZED(pPage))
+      ;
+  }
 
   return 0;
 }

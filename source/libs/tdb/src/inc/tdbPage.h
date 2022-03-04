@@ -30,6 +30,7 @@ typedef struct __attribute__((__packed__)) {
 
 typedef struct SPage SPage;
 struct SPage {
+  pthread_spinlock_t lock;
   // Fields below used by page cache
   void *   pData;
   SPgid    pgid;
@@ -52,6 +53,12 @@ struct SPage {
   int       maxLocal;
   int       minLocal;
 };
+
+#define TDB_INIT_PAGE_LOCK(pPage)    pthread_spin_init(&((pPage)->lock), 0) // TODO: use the macros
+#define TDB_DESTROY_PAGE_LOCK(pPage) pthread_spin_destroy(&((pPage)->lock))
+#define TDB_LOCK_PAGE(pPage)         pthread_spin_lock(&((pPage)->lock))
+#define TDB_TRY_LOCK_PAGE(pPage)     pthread_spin_trylock(&((pPage)->lock))
+#define TDB_UNLOCK_PAGE(pPage)       pthread_spin_unlock(&((pPage)->lock))
 
 #ifdef __cplusplus
 }
