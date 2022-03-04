@@ -17,10 +17,10 @@
 #include "tlog.h"
 #include "tutil.h"
 
-#define LOG_MAX_LINE_SIZE              (1024)
-#define LOG_MAX_LINE_BUFFER_SIZE       (LOG_MAX_LINE_SIZE + 3)
-#define LOG_MAX_LINE_DUMP_SIZE         (65 * 1024)
-#define LOG_MAX_LINE_DUMP_BUFFER_SIZE  (LOG_MAX_LINE_DUMP_SIZE + 3)
+#define LOG_MAX_LINE_SIZE             (1024)
+#define LOG_MAX_LINE_BUFFER_SIZE      (LOG_MAX_LINE_SIZE + 3)
+#define LOG_MAX_LINE_DUMP_SIZE        (65 * 1024)
+#define LOG_MAX_LINE_DUMP_BUFFER_SIZE (LOG_MAX_LINE_DUMP_SIZE + 3)
 
 #define LOG_FILE_NAME_LEN    300
 #define LOG_DEFAULT_BUF_SIZE (20 * 1024 * 1024)  // 20MB
@@ -100,7 +100,7 @@ int64_t dbgBigWN = 0;
 int64_t dbgWSize = 0;
 
 static void     *taosAsyncOutputLog(void *param);
-static int32_t   taosPushLogBuffer(SLogBuff *tLogBuff, char *msg, int32_t msgLen);
+static int32_t   taosPushLogBuffer(SLogBuff *tLogBuff, const char *msg, int32_t msgLen);
 static SLogBuff *taosLogBuffNew(int32_t bufSize);
 static void      taosCloseLogByFd(TdFilePtr pFile);
 static int32_t   taosOpenLogFile(char *fn, int32_t maxLines, int32_t maxFileNum);
@@ -395,33 +395,19 @@ static void taosUpdateLogNums(ELogLevel level) {
   }
 }
 
-void taosPrintLog(const char *flags, ELogLevel level, int32_t dflag, const char *format, ...) {
-  if (!osLogSpaceAvailable()) return;
-
-  va_list        argpointer;
-  char           buffer[LOG_MAX_LINE_BUFFER_SIZE];
-  int32_t        len;
+static inline int32_t taosBuildLogHead(char *buffer, const char *flags) {
   struct tm      Tm, *ptm;
   struct timeval timeSecs;
-  time_t         curTime;
 
   taosGetTimeOfDay(&timeSecs);
-  curTime = timeSecs.tv_sec;
+  time_t curTime = timeSecs.tv_sec;
   ptm = localtime_r(&curTime, &Tm);
 
-  len = sprintf(buffer, "%02d/%02d %02d:%02d:%02d.%06d %08" PRId64 " ", ptm->tm_mon + 1, ptm->tm_mday, ptm->tm_hour,
-                ptm->tm_min, ptm->tm_sec, (int32_t)timeSecs.tv_usec, taosGetSelfPthreadId());
-  len += sprintf(buffer + len, "%s", flags);
+  return sprintf(buffer, "%02d/%02d %02d:%02d:%02d.%06d %08" PRId64 " %s", ptm->tm_mon + 1, ptm->tm_mday, ptm->tm_hour,
+                 ptm->tm_min, ptm->tm_sec, (int32_t)timeSecs.tv_usec, taosGetSelfPthreadId(), flags);
+}
 
-  va_start(argpointer, format);
-  len += vsnprintf(buffer + len, LOG_MAX_LINE_BUFFER_SIZE - len, format, argpointer);
-  va_end(argpointer);
-
-  if (len > LOG_MAX_LINE_SIZE) len = LOG_MAX_LINE_SIZE;
-
-  buffer[len++] = '\n';
-  buffer[len] = 0;
-
+static inline void taosPrintLogImp(ELogLevel level, int32_t dflag, const char *buffer, int32_t len) {
   if ((dflag & DEBUG_FILE) && tsLogObj.logHandle && tsLogObj.logHandle->pFile != NULL) {
     taosUpdateLogNums(level);
     if (tsAsyncLog) {
@@ -432,14 +418,51 @@ void taosPrintLog(const char *flags, ELogLevel level, int32_t dflag, const char 
 
     if (tsLogObj.maxLines > 0) {
       atomic_add_fetch_32(&tsLogObj.lines, 1);
-
-      if ((tsLogObj.lines > tsLogObj.maxLines) && (tsLogObj.openInProgress == 0)) taosOpenNewLogFile();
+      if ((tsLogObj.lines > tsLogObj.maxLines) && (tsLogObj.openInProgress == 0)) {
+        taosOpenNewLogFile();
+      }
     }
   }
 
   if (dflag & DEBUG_SCREEN) {
     write(1, buffer, (uint32_t)len);
   }
+}
+
+void taosPrintLog(const char *flags, ELogLevel level, int32_t dflag, const char *format, ...) {
+  if (!osLogSpaceAvailable()) return;
+
+  char    buffer[LOG_MAX_LINE_BUFFER_SIZE];
+  int32_t len = taosBuildLogHead(buffer, flags);
+
+  va_list argpointer;
+  va_start(argpointer, format);
+  len += vsnprintf(buffer + len, LOG_MAX_LINE_BUFFER_SIZE - len, format, argpointer);
+  va_end(argpointer);
+
+  if (len > LOG_MAX_LINE_SIZE) len = LOG_MAX_LINE_SIZE;
+  buffer[len++] = '\n';
+  buffer[len] = 0;
+
+  taosPrintLogImp(level, dflag, buffer, len);
+}
+
+void taosPrintLongString(const char *flags, ELogLevel level, int32_t dflag, const char *format, ...) {
+  if (!osLogSpaceAvailable()) return;
+
+  char    buffer[LOG_MAX_LINE_DUMP_BUFFER_SIZE];
+  int32_t len = taosBuildLogHead(buffer, flags);
+
+  va_list argpointer;
+  va_start(argpointer, format);
+  len += vsnprintf(buffer + len, LOG_MAX_LINE_DUMP_BUFFER_SIZE - len, format, argpointer);
+  va_end(argpointer);
+
+  if (len > LOG_MAX_LINE_DUMP_SIZE) len = LOG_MAX_LINE_DUMP_SIZE;
+  buffer[len++] = '\n';
+  buffer[len] = 0;
+
+  taosPrintLogImp(level, dflag, buffer, len);
 }
 
 void taosDumpData(unsigned char *msg, int32_t len) {
@@ -464,53 +487,6 @@ void taosDumpData(unsigned char *msg, int32_t len) {
   temp[pos++] = '\n';
 
   taosWriteFile(tsLogObj.logHandle->pFile, temp, (uint32_t)pos);
-}
-
-void taosPrintLongString(const char *flags, ELogLevel level, int32_t dflag, const char *format, ...) {
-  if (!osLogSpaceAvailable()) return;
-
-  va_list        argpointer;
-  char           buffer[LOG_MAX_LINE_DUMP_BUFFER_SIZE];
-  int32_t        len;
-  struct tm      Tm, *ptm;
-  struct timeval timeSecs;
-  time_t         curTime;
-
-  taosGetTimeOfDay(&timeSecs);
-  curTime = timeSecs.tv_sec;
-  ptm = localtime_r(&curTime, &Tm);
-
-  len = sprintf(buffer, "%02d/%02d %02d:%02d:%02d.%06d %08" PRId64 " ", ptm->tm_mon + 1, ptm->tm_mday, ptm->tm_hour,
-                ptm->tm_min, ptm->tm_sec, (int32_t)timeSecs.tv_usec, taosGetSelfPthreadId());
-  len += sprintf(buffer + len, "%s", flags);
-
-  va_start(argpointer, format);
-  len += vsnprintf(buffer + len, LOG_MAX_LINE_DUMP_BUFFER_SIZE, format, argpointer);
-  va_end(argpointer);
-
-  if (len > LOG_MAX_LINE_DUMP_SIZE) len = LOG_MAX_LINE_DUMP_SIZE;
-
-  buffer[len++] = '\n';
-  buffer[len] = 0;
-
-  if ((dflag & DEBUG_FILE) && tsLogObj.logHandle && tsLogObj.logHandle->pFile != NULL) {
-    taosUpdateLogNums(level);
-    if (tsAsyncLog) {
-      taosPushLogBuffer(tsLogObj.logHandle, buffer, len);
-    } else {
-      taosWriteFile(tsLogObj.logHandle->pFile, buffer, len);
-    }
-
-    if (tsLogObj.maxLines > 0) {
-      atomic_add_fetch_32(&tsLogObj.lines, 1);
-
-      if ((tsLogObj.lines > tsLogObj.maxLines) && (tsLogObj.openInProgress == 0)) taosOpenNewLogFile();
-    }
-  }
-
-  if (dflag & DEBUG_SCREEN) {
-    write(1, buffer, (uint32_t)len);
-  }
 }
 
 static void taosCloseLogByFd(TdFilePtr pFile) {
@@ -545,7 +521,7 @@ _err:
   return NULL;
 }
 
-static void taosCopyLogBuffer(SLogBuff *tLogBuff, int32_t start, int32_t end, char *msg, int32_t msgLen) {
+static void taosCopyLogBuffer(SLogBuff *tLogBuff, int32_t start, int32_t end, const char *msg, int32_t msgLen) {
   if (start > end) {
     memcpy(LOG_BUF_BUFFER(tLogBuff) + end, msg, msgLen);
   } else {
@@ -559,7 +535,7 @@ static void taosCopyLogBuffer(SLogBuff *tLogBuff, int32_t start, int32_t end, ch
   LOG_BUF_END(tLogBuff) = (LOG_BUF_END(tLogBuff) + msgLen) % LOG_BUF_SIZE(tLogBuff);
 }
 
-static int32_t taosPushLogBuffer(SLogBuff *tLogBuff, char *msg, int32_t msgLen) {
+static int32_t taosPushLogBuffer(SLogBuff *tLogBuff, const char *msg, int32_t msgLen) {
   int32_t        start = 0;
   int32_t        end = 0;
   int32_t        remainSize = 0;
