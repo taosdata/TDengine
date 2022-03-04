@@ -128,11 +128,11 @@ void monSetClusterInfo(SMonInfo *pMonitor, SMonClusterInfo *pInfo) {
   SJson *pMnodesJson = tjsonAddArrayToObject(pJson, "mnodes");
   if (pMnodesJson == NULL) return;
 
-  for (int32_t i = 0; i < taosArrayGetSize(pInfo->dnodes); ++i) {
+  for (int32_t i = 0; i < taosArrayGetSize(pInfo->mnodes); ++i) {
     SJson *pMnodeJson = tjsonCreateObject();
     if (pMnodeJson == NULL) continue;
 
-    SMonMnodeDesc *pMnodeDesc = taosArrayGet(pInfo->dnodes, i);
+    SMonMnodeDesc *pMnodeDesc = taosArrayGet(pInfo->mnodes, i);
     tjsonAddDoubleToObject(pMnodeJson, "mnode_id", pMnodeDesc->mnode_id);
     tjsonAddStringToObject(pMnodeJson, "mnode_ep", pMnodeDesc->mnode_ep);
     tjsonAddStringToObject(pMnodeJson, "role", pMnodeDesc->role);

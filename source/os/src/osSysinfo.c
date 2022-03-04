@@ -539,7 +539,7 @@ int32_t taosGetDiskSize(char *dataDir, SDiskSize *diskSize) {
   } else {
     diskSize->total = info.f_blocks * info.f_frsize;
     diskSize->avail = info.f_bavail * info.f_frsize;
-    diskSize->used = (info.f_blocks - info.f_bfree) * info.f_frsize;
+    diskSize->used = diskSize->total - diskSize->avail;
     return 0;
   }
 }
