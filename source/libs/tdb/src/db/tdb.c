@@ -90,7 +90,7 @@ int tdbOpen(TDB *pDb, const char *fname, const char *dbname, TENV *pEnv) {
   // get page file from the env, if not opened yet, open it
   pPgFile = NULL;
   snprintf(dbfname, 128, "%s/%s", tdbEnvGetRootDir(pEnv), fname);
-  fileExist = (tdbCheckFileAccess(fname, TDB_F_OK) == 0);
+  fileExist = taosCheckExistFile(fname);
   if (fileExist) {
     tdbGnrtFileID(dbfname, fileid, false);
     pPgFile = tdbEnvGetPageFile(pEnv, fileid);

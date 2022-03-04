@@ -301,13 +301,18 @@ void validateTFile(char* arg) {
   }
 }
 
-void iterTFileReader(char* path, char* ver) {
-  int          version = atoi(ver);
-  TFileReader* reader = tfileReaderOpen(path, 0, version, "tag1");
-  Iterate*     iter = tfileIteratorCreate(reader);
-  bool         tn = iter ? iter->next(iter) : false;
-  int          count = 0;
-  int          termCount = 0;
+void iterTFileReader(char* path, char* uid, char* colName, char* ver) {
+  // tfInit();
+
+  uint64_t suid = atoi(uid);
+  int      version = atoi(ver);
+
+  TFileReader* reader = tfileReaderOpen(path, suid, version, colName);
+
+  Iterate* iter = tfileIteratorCreate(reader);
+  bool     tn = iter ? iter->next(iter) : false;
+  int      count = 0;
+  int      termCount = 0;
   while (tn == true) {
     count++;
     IterateValue* cv = iter->getValue(iter);
@@ -323,9 +328,9 @@ void iterTFileReader(char* path, char* ver) {
 int main(int argc, char* argv[]) {
   // tool to check all kind of fst test
   // if (argc > 1) { validateTFile(argv[1]); }
-  if (argc > 2) {
-    // opt
-    iterTFileReader(argv[1], argv[2]);
+  if (argc > 4) {
+    // path suid colName ver
+    iterTFileReader(argv[1], argv[2], argv[3], argv[4]);
   }
   // checkFstCheckIterator();
   // checkFstLongTerm();

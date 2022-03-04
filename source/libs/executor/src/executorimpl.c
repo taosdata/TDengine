@@ -2215,10 +2215,10 @@ static void destroyTsComp(STaskRuntimeEnv *pRuntimeEnv, STaskAttr *pQueryAttr) {
   if (pQueryAttr->tsCompQuery && pRuntimeEnv->outputBuf && pRuntimeEnv->outputBuf->pDataBlock && taosArrayGetSize(pRuntimeEnv->outputBuf->pDataBlock) > 0) {
     SColumnInfoData* pColInfoData = taosArrayGet(pRuntimeEnv->outputBuf->pDataBlock, 0);
     if (pColInfoData) {
-      FILE *f = *(FILE **)pColInfoData->pData;  // TODO refactor
-      if (f) {
-        fclose(f);
-        *(FILE **)pColInfoData->pData = NULL;
+      TdFilePtr pFile = *(TdFilePtr *)pColInfoData->pData;  // TODO refactor
+      if (pFile != NULL) {
+        taosCloseFile(&pFile);
+        *(TdFilePtr *)pColInfoData->pData = NULL;
       }
     }
   }

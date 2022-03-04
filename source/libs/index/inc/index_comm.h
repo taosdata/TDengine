@@ -13,43 +13,20 @@
  * along with this program. If not, see <http://www.gnu.org/licenses/>.
  */
 
-#ifndef _TD_OS_ENV_H_
-#define _TD_OS_ENV_H_
-
-#include "osSysinfo.h"
+#ifndef _TD_INDEX_COMM_H_
+#define _TD_INDEX_COMM_H_
 
 #ifdef __cplusplus
 extern "C" {
 #endif
 
-extern char    tsOsName[];
-extern char    tsTimezone[];
-extern char    tsCharset[];
-extern char    tsLocale[];
-extern int8_t  tsDaylight;
-extern bool    tsEnableCoreFile;
-extern int64_t tsPageSizeKB;
-extern int64_t tsOpenMax;
-extern int64_t tsStreamMax;
-extern float   tsNumOfCores;
-extern int64_t tsTotalMemoryKB;
+extern char JSON_COLUMN[];
+extern char JSON_VALUE_DELIM;
 
-extern char configDir[];
-extern char tsDataDir[];
-extern char tsLogDir[];
-extern char tsTempDir[];
-
-extern SDiskSpace tsDataSpace;
-extern SDiskSpace tsLogSpace;
-extern SDiskSpace tsTempSpace;
-
-void osInit();
-void osUpdate();
-bool osLogSpaceAvailable();
-void osSetTimezone(const char *timezone);
+char* indexPackJsonData(SIndexTerm* itm);
 
 #ifdef __cplusplus
 }
 #endif
 
-#endif /*_TD_OS_ENV_H_*/
+#endif

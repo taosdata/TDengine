@@ -52,23 +52,20 @@ static char* mndBuildTelemetryReport(SMnode* pMnode) {
   tjsonAddStringToObject(pJson, "instanceId", clusterName);
   tjsonAddDoubleToObject(pJson, "reportVersion", 1);
 
-  if (taosGetOsReleaseName(tmp, sizeof(tmp))) {
+  if (taosGetOsReleaseName(tmp, sizeof(tmp)) == 0) {
     tjsonAddStringToObject(pJson, "os", tmp);
   }
 
-  int32_t numOfCores = 0;
-  if (taosGetCpuInfo(tmp, sizeof(tmp), &numOfCores)) {
+  float numOfCores = 0;
+  if (taosGetCpuInfo(tmp, sizeof(tmp), &numOfCores) == 0) {
     tjsonAddStringToObject(pJson, "cpuModel", tmp);
     tjsonAddDoubleToObject(pJson, "numOfCpu", numOfCores);
   } else {
-    tjsonAddDoubleToObject(pJson, "numOfCpu", taosGetCpuCores());
+    tjsonAddDoubleToObject(pJson, "numOfCpu", tsNumOfCores);
   }
 
-  uint64_t memoryKB = 0;
-  if (taosGetTotalSysMemoryKB(&memoryKB)) {
-    snprintf(tmp, sizeof(tmp), "%" PRIu64 " kB", memoryKB);
-    tjsonAddStringToObject(pJson, "memory", tmp);
-  }
+  snprintf(tmp, sizeof(tmp), "%" PRId64 " kB", tsTotalMemoryKB);
+  tjsonAddStringToObject(pJson, "memory", tmp);
 
   tjsonAddStringToObject(pJson, "version", version);
   tjsonAddStringToObject(pJson, "buildInfo", buildinfo);

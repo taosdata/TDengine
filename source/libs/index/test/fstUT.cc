@@ -213,21 +213,21 @@ class FstEnv : public ::testing::Test {
 
 TEST_F(FstEnv, writeNormal) {
   fst->CreateWriter();
-  std::string str("aa");
+  std::string str("11");
   for (int i = 0; i < 10; i++) {
-    str[0] = 'a' + i;
+    str[0] = '1' + i;
     str.resize(2);
     assert(fst->Put(str, i) == true);
   }
   // order failed
-  assert(fst->Put("aa", 1) == false);
+  assert(fst->Put("11", 1) == false);
 
   fst->DestroyWriter();
 
   fst->CreateReader();
   uint64_t val;
-  assert(fst->Get("a", &val) == false);
-  assert(fst->Get("aa", &val) == true);
+  assert(fst->Get("1", &val) == false);
+  assert(fst->Get("11", &val) == true);
   assert(val == 0);
 
   std::vector<uint64_t> rlt;
@@ -235,3 +235,19 @@ TEST_F(FstEnv, writeNormal) {
   assert(fst->Search(ctx, rlt) == true);
 }
 TEST_F(FstEnv, WriteMillonrRecord) {}
+TEST_F(FstEnv, writeAbNormal) {
+  fst->CreateWriter();
+  std::string str1("voltage&\b&ab");
+  std::string str2("voltbge&\b&ab");
+
+  fst->Put(str1, 1);
+  fst->Put(str2, 2);
+
+  fst->DestroyWriter();
+
+  fst->CreateReader();
+  uint64_t val;
+  assert(fst->Get("1", &val) == false);
+  assert(fst->Get("voltage&\b&ab", &val) == true);
+  assert(val == 1);
+}
