@@ -54,11 +54,18 @@ struct SPage {
   int       minLocal;
 };
 
-#define TDB_INIT_PAGE_LOCK(pPage)    pthread_spin_init(&((pPage)->lock), 0) // TODO: use the macros
+// For page lock
+#define TDB_INIT_PAGE_LOCK(pPage)    pthread_spin_init(&((pPage)->lock), 0)
 #define TDB_DESTROY_PAGE_LOCK(pPage) pthread_spin_destroy(&((pPage)->lock))
 #define TDB_LOCK_PAGE(pPage)         pthread_spin_lock(&((pPage)->lock))
 #define TDB_TRY_LOCK_PAGE(pPage)     pthread_spin_trylock(&((pPage)->lock))
 #define TDB_UNLOCK_PAGE(pPage)       pthread_spin_unlock(&((pPage)->lock))
+
+// For page ref (TODO: Need atomic operation)
+#define TDB_INIT_PAGE_REF(pPage) ((pPage)->nRef = 0)
+#define TDB_REF_PAGE(pPage)      (++(pPage)->nRef)
+#define TDB_UNREF_PAGE(pPage)    (--(pPage)->nRef)
+#define TDB_PAGE_REF(pPage)      ((pPage)->nRef)
 
 #ifdef __cplusplus
 }

@@ -85,11 +85,6 @@ SPage *tdbPCacheFetch(SPCache *pCache, const SPgid *pPgid, bool alcNewPage) {
   return pPage;
 }
 
-void tdbPCacheFetchFinish(SPCache *pCache, SPage *pPage) {
-  /* TODO */
-  pPage->nRef++;  // TODO: do we need atomic operation???
-}
-
 void tdbPCacheRelease(SPage *pPage) {
   pPage->nRef--;
   if (pPage->nRef == 0) {
