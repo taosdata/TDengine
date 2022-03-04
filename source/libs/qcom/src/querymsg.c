@@ -247,7 +247,7 @@ int32_t queryProcessTableMetaRsp(void *output, char *msg, int32_t msgSize) {
 
 PROCESS_META_OVER:
   if (code != 0) {
-    qError("failed to process table meta rsp since %s", terrstr());
+    qError("failed to process table meta rsp since %s", tstrerror(code));
   }
 
   tFreeSTableMetaRsp(&metaRsp);

@@ -74,8 +74,8 @@ typedef struct SDbVgVersion {
   char    dbFName[TSDB_DB_FNAME_LEN];
   int64_t dbId;
   int32_t vgVersion;
+  int32_t numOfTable; // unit is TSDB_TABLE_NUM_UNIT
 } SDbVgVersion;
-
 
 int32_t catalogInit(SCatalogCfg *cfg);
 
