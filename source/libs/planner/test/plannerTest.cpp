@@ -71,7 +71,7 @@ protected:
 
     if (TEST_PHYSICAL_PLAN == target) {
       SQueryPlan* pPlan = nullptr;
-      code = createPhysiPlan(&cxt, pLogicPlan, &pPlan);
+      code = createPhysiPlan(&cxt, pLogicPlan, &pPlan, NULL);
       if (code != TSDB_CODE_SUCCESS) {
         cout << "sql:[" << cxt_.pSql << "] physical plan code:" << code << ", strerror:" << tstrerror(code) << endl;
         return false;

@@ -561,6 +561,29 @@ static int32_t checkAggColCoexist(STranslateContext* pCxt, SSelectStmt* pSelect)
   return TSDB_CODE_SUCCESS;
 }
 
+static int32_t setTableVgroupList(STranslateContext *pCxt, SName* name, SVgroupsInfo **pVgList) {
+  SArray* vgroupList = NULL;
+  int32_t code = catalogGetTableDistVgInfo(pCxt->pParseCxt->pCatalog, pCxt->pParseCxt->pTransporter, &(pCxt->pParseCxt->mgmtEpSet), name, &vgroupList);
+  if (code != TSDB_CODE_SUCCESS) {
+    return code;
+  }
+  
+  size_t vgroupNum = taosArrayGetSize(vgroupList);
+
+  SVgroupsInfo *vgList = calloc(1, sizeof(SVgroupsInfo) + sizeof(SVgroupInfo) * vgroupNum);
+  vgList->numOfVgroups = vgroupNum;
+  
+  for (int32_t i = 0; i < vgroupNum; ++i) {
+    SVgroupInfo *vg = taosArrayGet(vgroupList, i);
+    vgList->vgroups[i] = *vg;
+  }
+
+  *pVgList = vgList;
+  taosArrayDestroy(vgroupList);
+
+  return TSDB_CODE_SUCCESS;
+}
+
 static int32_t translateTable(STranslateContext* pCxt, SNode* pTable) {
   int32_t code = TSDB_CODE_SUCCESS;
   switch (nodeType(pTable)) {
@@ -571,6 +594,10 @@ static int32_t translateTable(STranslateContext* pCxt, SNode* pTable) {
           toName(pCxt->pParseCxt->acctId, pRealTable, &name), &(pRealTable->pMeta));
       if (TSDB_CODE_SUCCESS != code) {
         return generateSyntaxErrMsg(pCxt, TSDB_CODE_PAR_TABLE_NOT_EXIST, pRealTable->table.tableName);
+      }
+      code = setTableVgroupList(pCxt, &name, &(pRealTable->pVgroupList));
+      if (TSDB_CODE_SUCCESS != code) {
+        return code;
       }
       code = addNamespace(pCxt, pRealTable);
       break;
@@ -852,11 +879,7 @@ static int32_t translateUseDatabase(STranslateContext* pCxt, SUseDatabaseStmt* p
   return TSDB_CODE_SUCCESS;
 }
 
-static int32_t translateCreateTable(STranslateContext* pCxt, SCreateTableStmt* pStmt) {
-  return TSDB_CODE_SUCCESS;
-}
-
-static int32_t translateShow(STranslateContext* pCxt) {
+static int32_t translateShowDatabases(STranslateContext* pCxt) {
   SShowReq showReq = { .type = TSDB_MGMT_TABLE_DB };
 
   pCxt->pCmdMsg = malloc(sizeof(SCmdMsgInfo));
@@ -875,6 +898,34 @@ static int32_t translateShow(STranslateContext* pCxt) {
   return TSDB_CODE_SUCCESS;
 }
 
+static int32_t translateShowTables(STranslateContext* pCxt) {
+  SName name = {0};
+  SVShowTablesReq* pShowReq = calloc(1, sizeof(SVShowTablesReq));
+  tNameSetDbName(&name, pCxt->pParseCxt->acctId, pCxt->pParseCxt->db, strlen(pCxt->pParseCxt->db));
+  char dbFname[TSDB_DB_FNAME_LEN] = {0};
+  tNameGetFullDbName(&name, dbFname);
+
+  SArray* array = NULL;
+  int32_t code = catalogGetDBVgInfo(pCxt->pParseCxt->pCatalog, pCxt->pParseCxt->pTransporter, &pCxt->pParseCxt->mgmtEpSet, dbFname, false, &array);
+  if (code != TSDB_CODE_SUCCESS) {
+    return code;
+  }
+  SVgroupInfo* info = taosArrayGet(array, 0);
+  pShowReq->head.vgId = htonl(info->vgId);
+
+  pCxt->pCmdMsg = malloc(sizeof(SCmdMsgInfo));
+  if (NULL== pCxt->pCmdMsg) {
+    return TSDB_CODE_OUT_OF_MEMORY;
+  }
+  pCxt->pCmdMsg->epSet = info->epset;
+  pCxt->pCmdMsg->msgType = TDMT_VND_SHOW_TABLES;
+  pCxt->pCmdMsg->msgLen = sizeof(SVShowTablesReq);
+  pCxt->pCmdMsg->pMsg = pShowReq;
+  pCxt->pCmdMsg->pExtension = array;
+
+  return TSDB_CODE_SUCCESS;
+}
+
 static int32_t translateQuery(STranslateContext* pCxt, SNode* pNode) {
   int32_t code = TSDB_CODE_SUCCESS;
   switch (nodeType(pNode)) {
@@ -887,10 +938,11 @@ static int32_t translateQuery(STranslateContext* pCxt, SNode* pNode) {
     case QUERY_NODE_USE_DATABASE_STMT:
       code = translateUseDatabase(pCxt, (SUseDatabaseStmt*)pNode);
       break;
-    case QUERY_NODE_SHOW_DATABASE_STMT:
-      code = translateShow(pCxt);
-    case QUERY_NODE_CREATE_TABLE_STMT:
-      code = translateCreateTable(pCxt, (SCreateTableStmt*)pNode);
+    case QUERY_NODE_SHOW_DATABASES_STMT:
+      code = translateShowDatabases(pCxt);
+      break;
+    case QUERY_NODE_SHOW_TABLES_STMT:
+      code = translateShowTables(pCxt);
       break;
     default:
       break;
@@ -942,9 +994,10 @@ typedef struct SVgroupTablesBatch {
   SVgroupInfo        info;
 } SVgroupTablesBatch;
 
-static void toSchema(const SColumnNode* pCol, SSchema* pSchema) {
-  pSchema->type = pCol->node.resType.type;
-  pSchema->bytes = pCol->node.resType.bytes;
+static void toSchema(const SColumnDefNode* pCol, int32_t colId, SSchema* pSchema) {
+  pSchema->colId = colId;
+  pSchema->type = pCol->dataType.type;
+  pSchema->bytes = pCol->dataType.bytes;
   strcpy(pSchema->name, pCol->colName);
 }
 
@@ -960,7 +1013,8 @@ static int32_t doBuildSingleTableBatchReq(SName* pTableName, SNodeList* pColumns
   SNode* pCol;
   int32_t index = 0;
   FOREACH(pCol, pColumns) {
-    toSchema((SColumnNode*)pCol, req.ntbCfg.pSchema + index++);
+    toSchema((SColumnDefNode*)pCol, index + 1, req.ntbCfg.pSchema + index);
+    ++index;
   }
 
   pBatch->info = *pVgroupInfo;
@@ -1018,7 +1072,11 @@ static int32_t rewriteQuery(STranslateContext* pCxt, SQuery* pQuery) {
     SCreateTableStmt* pStmt = (SCreateTableStmt*)pQuery->pRoot;
 
     SName tableName = { .type = TSDB_TABLE_NAME_T, .acctId = pCxt->pParseCxt->acctId };
-    strcpy(tableName.dbname, pStmt->dbName);
+    if ('\0' == pStmt->dbName[0]) {
+      strcpy(tableName.dbname, pCxt->pParseCxt->db);
+    } else {
+      strcpy(tableName.dbname, pStmt->dbName);
+    }
     strcpy(tableName.tname, pStmt->tableName);
     SVgroupInfo info = {0};
     catalogGetTableHashVgroup(pCxt->pParseCxt->pCatalog, pCxt->pParseCxt->pTransporter, &pCxt->pParseCxt->mgmtEpSet, &tableName, &info);

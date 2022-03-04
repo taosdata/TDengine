@@ -101,8 +101,8 @@ cmd ::= CREATE TABLE exists_opt(A) full_table_name(B)
 
 %type full_table_name                                                             { STokenPair }
 %destructor full_table_name                                                       { }
-full_table_name(A) ::= NK_ID(B).                                                  { STokenPair t = { .first = B, .second = nil_token}; A = t; }
-full_table_name(A) ::= NK_ID(B) NK_DOT NK_ID(C).                                  { STokenPair t = { .first = B, .second = C}; A = t; }
+full_table_name(A) ::= NK_ID(B).                                                  { STokenPair t = { .first = nil_token, .second = B }; A = t; }
+full_table_name(A) ::= NK_ID(B) NK_DOT NK_ID(C).                                  { STokenPair t = { .first = B, .second = C }; A = t; }
 
 %type column_def_list                                                             { SNodeList* }
 %destructor column_def_list                                                       { nodesDestroyList($$); }
@@ -146,7 +146,8 @@ table_options(A) ::= table_options(B) KEEP NK_INTEGER(C).                       
 table_options(A) ::= table_options(B) TTL NK_INTEGER(C).                          { A = setTableOption(pCxt, B, TABLE_OPTION_TTL, &C); }
 
 /************************************************ show ***************************************************************/
-cmd ::= SHOW DATABASES.                                                           { pCxt->pRootNode = createShowStmt(pCxt, QUERY_NODE_SHOW_DATABASE_STMT); }
+cmd ::= SHOW DATABASES.                                                           { pCxt->pRootNode = createShowStmt(pCxt, QUERY_NODE_SHOW_DATABASES_STMT); }
+cmd ::= SHOW TABLES.                                                              { pCxt->pRootNode = createShowStmt(pCxt, QUERY_NODE_SHOW_TABLES_STMT); }
 
 /************************************************ select *************************************************************/
 cmd ::= query_expression(A).                                                      { PARSER_TRACE; pCxt->pRootNode = A; }

@@ -39,6 +39,7 @@ static void setQuery(SAstCreateContext* pCxt, SQuery* pQuery) {
     pQuery->haveResultSet = false;
     pQuery->directRpc = true;
   }
+  pQuery->msgType = (QUERY_NODE_CREATE_TABLE_STMT == type ? TDMT_VND_CREATE_TABLE : TDMT_VND_QUERY);
 }
 
 int32_t doParse(SParseContext* pParseCxt, SQuery** pQuery) {

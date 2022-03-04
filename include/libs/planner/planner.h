@@ -28,7 +28,7 @@ typedef struct SPlanContext {
 } SPlanContext;
 
 // Create the physical plan for the query, according to the AST.
-int32_t qCreateQueryPlan(SPlanContext* pCxt, SQueryPlan** pPlan);
+int32_t qCreateQueryPlan(SPlanContext* pCxt, SQueryPlan** pPlan, SArray* pExecNodeList);
 
 // Set datasource of this subplan, multiple calls may be made to a subplan.
 // @subplan subplan to be schedule

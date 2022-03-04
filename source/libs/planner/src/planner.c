@@ -21,14 +21,14 @@ int32_t optimize(SPlanContext* pCxt, SLogicNode* pLogicNode) {
   return TSDB_CODE_SUCCESS;
 }
 
-int32_t qCreateQueryPlan(SPlanContext* pCxt, SQueryPlan** pPlan) {
+int32_t qCreateQueryPlan(SPlanContext* pCxt, SQueryPlan** pPlan, SArray* pExecNodeList) {
   SLogicNode* pLogicNode = NULL;
   int32_t code = createLogicPlan(pCxt, &pLogicNode);
   if (TSDB_CODE_SUCCESS == code) {
     code = optimize(pCxt, pLogicNode);
   }
   if (TSDB_CODE_SUCCESS == code) {
-    code = createPhysiPlan(pCxt, pLogicNode, pPlan);
+    code = createPhysiPlan(pCxt, pLogicNode, pPlan, pExecNodeList);
   }
   return code;
 }

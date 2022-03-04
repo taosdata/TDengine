@@ -714,18 +714,18 @@ SNode* createColumnDefNode(SAstCreateContext* pCxt, const SToken* pColName, SDat
   strncpy(pCol->colName, pColName->z, pColName->n);
   pCol->dataType = dataType;
   if (NULL != pComment) {
-    strncpy(pCol->colName, pColName->z, pColName->n);
+    strncpy(pCol->comments, pComment->z, pComment->n);
   }
   return (SNode*)pCol;
 }
 
 SDataType createDataType(uint8_t type) {
-  SDataType dt = { .type = type, .precision = 0, .scale = 0, .bytes = 0 };
+  SDataType dt = { .type = type, .precision = 0, .scale = 0, .bytes = tDataTypes[type].bytes };
   return dt;
 }
 
 SDataType createVarLenDataType(uint8_t type, const SToken* pLen) {
-  SDataType dt = { .type = type, .precision = 0, .scale = 0, .bytes = 0 };
+  SDataType dt = { .type = type, .precision = 0, .scale = 0, .bytes = tDataTypes[type].bytes };
   return dt;
 }
 
@@ -751,7 +751,7 @@ SNode* createUseDatabaseStmt(SAstCreateContext* pCxt, const SToken* pDbName) {
 }
 
 SNode* createShowStmt(SAstCreateContext* pCxt, ENodeType type) {
-  SNode* pStmt = nodesMakeNode(QUERY_NODE_SHOW_DATABASE_STMT);;
+  SNode* pStmt = nodesMakeNode(type);;
   CHECK_OUT_OF_MEM(pStmt);
   return pStmt;
 }

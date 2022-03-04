@@ -38,8 +38,9 @@ typedef struct SParseContext {
 typedef struct SCmdMsgInfo {
   int16_t msgType;
   SEpSet epSet;
-  char* pMsg;
+  void* pMsg;
   int32_t msgLen;
+  void* pExtension;  // todo remove it soon
 } SCmdMsgInfo;
 
 typedef struct SQuery {
@@ -50,6 +51,7 @@ typedef struct SQuery {
   int32_t numOfResCols;
   SSchema* pResSchema;
   SCmdMsgInfo* pCmdMsg;
+  int32_t msgType;
 } SQuery;
 
 int32_t qParseQuerySql(SParseContext* pCxt, SQuery** pQuery);

@@ -86,7 +86,8 @@ SNodeptr nodesMakeNode(ENodeType type) {
       return makeNode(type, sizeof(SCreateTableStmt));
     case QUERY_NODE_USE_DATABASE_STMT:
       return makeNode(type, sizeof(SUseDatabaseStmt));
-    case QUERY_NODE_SHOW_DATABASE_STMT:
+    case QUERY_NODE_SHOW_DATABASES_STMT:
+    case QUERY_NODE_SHOW_TABLES_STMT:
       return makeNode(type, sizeof(SNode));;
     case QUERY_NODE_LOGIC_PLAN_SCAN:
       return makeNode(type, sizeof(SScanLogicNode));
@@ -200,6 +201,17 @@ int32_t nodesListAppend(SNodeList* pList, SNodeptr pNode) {
   pList->pTail = p;
   ++(pList->length);
   return TSDB_CODE_SUCCESS;
+}
+
+int32_t nodesListStrictAppend(SNodeList* pList, SNodeptr pNode) {
+  if (NULL == pNode) {
+    return TSDB_CODE_OUT_OF_MEMORY;
+  }
+  int32_t code = nodesListAppend(pList, pNode);
+  if (TSDB_CODE_SUCCESS != code) {
+    nodesDestroyNode(pNode);
+  }
+  return code;
 }
 
 int32_t nodesListAppendList(SNodeList* pTarget, SNodeList* pSrc) {

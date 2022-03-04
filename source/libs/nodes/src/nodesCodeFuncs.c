@@ -80,8 +80,10 @@ const char* nodesNodeName(ENodeType type) {
       return "CreateTableStmt";
     case QUERY_NODE_USE_DATABASE_STMT:
       return "UseDatabaseStmt";
-    case QUERY_NODE_SHOW_DATABASE_STMT:
+    case QUERY_NODE_SHOW_DATABASES_STMT:
       return "ShowDatabaseStmt";
+    case QUERY_NODE_SHOW_TABLES_STMT:
+      return "ShowTablesStmt";
     case QUERY_NODE_LOGIC_PLAN_SCAN:
       return "LogicScan";
     case QUERY_NODE_LOGIC_PLAN_JOIN:
@@ -1322,7 +1324,8 @@ static int32_t specificNodeToJson(const void* pObj, SJson* pJson) {
     case QUERY_NODE_CREATE_DATABASE_STMT:
     case QUERY_NODE_CREATE_TABLE_STMT:
     case QUERY_NODE_USE_DATABASE_STMT:
-    case QUERY_NODE_SHOW_DATABASE_STMT:
+    case QUERY_NODE_SHOW_DATABASES_STMT:
+    case QUERY_NODE_SHOW_TABLES_STMT:
       break;
     case QUERY_NODE_LOGIC_PLAN_SCAN:
       return logicScanNodeToJson(pObj, pJson);
