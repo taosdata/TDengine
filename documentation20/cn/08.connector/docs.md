@@ -1093,7 +1093,7 @@ HTTP 请求 URL 采用 `sqlutc` 时，返回结果集的时间戳将采用 UTC �
 示例程序源码位于
 
 * {client_install_directory}/examples/C#
-* [github C# example source code](https://github.com/taosdata/TDengine/tree/develop/examples/C%2523)
+* [C# example source code on GitHub](https://github.com/taosdata/TDengine/tree/develop/examples/C%2523)
 
 **注意:** TDengineTest.cs       C# 示例源程序，包含了数据库连接参数，以及如何执行数据插入、查询等操作。
 
@@ -1422,7 +1422,7 @@ Node-example-raw.js
 
 验证方法：
 
-1. 新建安装验证目录，例如：`~/tdengine-test`，拷贝 github 上 nodejsChecker.js 源程序。下载地址：`https://github.com/taosdata/TDengine/tree/develop/examples/nodejs/nodejsChecker.js`。
+1. 新建安装验证目录，例如：`~/tdengine-test`，拷贝 GitHub 上 nodejsChecker.js 源程序。下载地址：`https://github.com/taosdata/TDengine/tree/develop/examples/nodejs/nodejsChecker.js`。
 
 2. 在命令行中执行以下命令：
 

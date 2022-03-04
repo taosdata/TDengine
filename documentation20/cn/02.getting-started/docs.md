@@ -24,11 +24,11 @@ docker run -d -p 6030-6049:6030-6049 -p 6030-6049:6030-6049/udp tdengine/tdengin
 
 TDengine 的安装非常简单，从下载到安装成功仅仅只要几秒钟。
 
-为方便使用，从 2.4.0.10 开始，标准的服务端安装包包含了taos、taosd、taosAdapter、taosdump、taosBenchmark、TDinsight安装脚本和示例代码；如果您只需要用到服务端程序和客户端连接的 C/C++ 语言支持，也可以仅下载 lite 版本的安装包。
+为方便使用，从 2.4.0.10 开始，标准的服务端安装包包含了 taos、taosd、taosAdapter、taosdump、taosBenchmark、TDinsight 安装脚本和示例代码；如果您只需要用到服务端程序和客户端连接的 C/C++ 语言支持，也可以仅下载 lite 版本的安装包。
 
 在安装包格式上，我们提供 tar.gz, rpm 和 deb 格式，为企业客户提供 tar.gz 格式安装包，以方便在特定操作系统上使用。需要注意的是，rpm 和 deb 包不含 taosdump、taosBenchmark 和 TDinsight 安装脚本，这些工具需要通过安装 taosTool 包获得。
 
-发布版本包括稳定版和 Beta 版，Beta版含有更多新功能。正式上线或测试建议安装稳定版。您可以根据需要选择下载：
+发布版本包括稳定版和 Beta 版，Beta 版含有更多新功能。正式上线或测试建议安装稳定版。您可以根据需要选择下载：
 
 <ul id="server-packageList" class="package-list"></ul>
 
@@ -57,7 +57,7 @@ sudo apt-get install tdengine
 
 ### <a class="anchor" id="source-install"></a>通过源码安装
 
-如果您希望对 TDengine 贡献代码或对内部实现感兴趣，请参考我们的 [TDengine github 主页](https://github.com/taosdata/TDengine) 下载源码构建和安装.
+如果您希望对 TDengine 贡献代码或对内部实现感兴趣，请参考我们的 [TDengine GitHub 主页](https://github.com/taosdata/TDengine) 下载源码构建和安装.
 
 **下载其他组件、最新 Beta 版及之前版本的安装包，请点击[这里](https://www.taosdata.com/cn/all-downloads/)**
 
@@ -176,7 +176,7 @@ taosBenchmark
 
 taosBenchmark 命令本身带有很多选项，配置表的数目、记录条数等等，请执行 `taosBenchmark --help` 详细列出。您可以设置不同参数进行体验。
 
-taosBenchmark 详细使用方法请参照 [如何使用taosBenchmark对TDengine进行性能测试](https://www.taosdata.com/docs/cn/v2.0/getting-started/taosdemo)。
+taosBenchmark 详细使用方法请参照 [如何使用 taosBenchmark 进行性能测试](https://www.taosdata.com/docs/cn/v2.0/getting-started/taosdemo)。
 
 ### <a class="anchor" id="taosshell"></a> 使用 taos shell 体验查询速度
 
