@@ -23,7 +23,6 @@ extern "C" {
 int    tdbPagerOpen(SPCache *pCache, const char *fileName, SPager **ppPager);
 int    tdbPagerClose(SPager *pPager);
 int    tdbPagerOpenDB(SPager *pPager, SPgno *ppgno, bool toCreate);
-SPage *tdbPagerGet(SPager *pPager, SPgno pgno, bool toLoad);
 int    tdbPagerWrite(SPager *pPager, SPage *pPage);
 int    tdbPagerBegin(SPager *pPager);
 int    tdbPagerCommit(SPager *pPager);

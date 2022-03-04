@@ -130,45 +130,6 @@ int tdbPagerOpenDB(SPager *pPager, SPgno *ppgno, bool toCreate) {
   return 0;
 }
 
-SPage *tdbPagerGet(SPager *pPager, SPgno pgno, bool toLoad) {
-  SPgid  pgid;
-  SPage *pPage;
-  int    ret;
-
-  memcpy(pgid.fileid, pPager->fid, TDB_FILE_ID_LEN);
-  pgid.pgno = pgno;
-
-  // Get page frame from the SPCache
-  pPage = tdbPCacheFetch(pPager->pCache, &pgid, 1);
-  if (pPage == NULL) {
-    // TODO: handle error
-    return NULL;
-  }
-  tdbPCacheFetchFinish(pPager->pCache, pPage);
-
-  // Zero the page or load page content from backend
-  // according to the options
-  if (pPage->pPager == NULL || !toLoad) {
-    if (!toLoad || pgno >= pPager->dbFileSize) {
-      memset(pPage->pData, 0, pPager->pageSize);
-    } else {
-      ret = tdbPagerReadPage(pPager, pPage);
-      if (ret < 0) {
-        // TODO: Need to drop the page
-        return NULL;
-      }
-    }
-
-    if (pPage->pPager) {
-      ASSERT(pPage->pPager == pPager);
-    } else {
-      pPage->pPager = pPager;
-    }
-  }
-
-  return pPage;
-}
-
 int tdbPagerWrite(SPager *pPager, SPage *pPage) {
   int ret;
 

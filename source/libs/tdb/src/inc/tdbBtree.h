@@ -27,7 +27,7 @@ struct SBtCursor {
   SBTree *pBt;
   i8      iPage;
   SPage * pPage;
-  u16     idx;
+  int     idx;
   u16     idxStack[BTREE_MAX_DEPTH + 1];
   SPage * pgStack[BTREE_MAX_DEPTH + 1];
   void *  pBuf;

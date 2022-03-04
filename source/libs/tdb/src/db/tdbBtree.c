@@ -50,7 +50,6 @@ typedef struct {
 
 static int tdbBtCursorMoveTo(SBtCursor *pCur, const void *pKey, int kLen);
 static int tdbEncodeLength(u8 *pBuf, uint32_t len);
-static int tdbBtCursorMoveToRoot(SBtCursor *pCur);
 static int tdbCompareKeyAndCell(const void *pKey, int kLen, const void *pCell);
 static int tdbDefaultKeyCmprFn(const void *pKey1, int keyLen1, const void *pKey2, int keyLen2);
 static int tdbBtreeOpenImpl(SBTree *pBt);
@@ -114,7 +113,7 @@ int tdbBtreeCursor(SBtCursor *pCur, SBTree *pBt) {
   pCur->pBt = pBt;
   pCur->iPage = -1;
   pCur->pPage = NULL;
-  pCur->idx = 0;
+  pCur->idx = -1;
 
   return 0;
 }
@@ -129,44 +128,81 @@ int tdbBtCursorInsert(SBtCursor *pCur, const void *pKey, int kLen, const void *p
     return -1;
   }
 
+  if (pCur->idx == -1) {
+    ASSERT(pCur->pPage->pPageHdr->nCells == 0);
+    // TODO: insert the K-V pair to idx 0
+  }
+
   return 0;
 }
 
 static int tdbBtCursorMoveTo(SBtCursor *pCur, const void *pKey, int kLen) {
-  int   ret;
-  void *pCell;
+  int     ret;
+  SBTree *pBt;
+  SPager *pPager;
 
-  // ret = tdbBtCursorMoveToRoot(pCur);
-  // if (ret < 0) {
-  //   return -1;
-  // }
+  pBt = pCur->pBt;
+  pPager = pBt->pPager;
 
-  // if (pCur->pPage->pHdr->nCells == 0) {
-  //   // Tree is empty
-  // } else {
-  //   for (;;) {
-  //     int lidx, ridx, midx, c;
+  if (pCur->iPage < 0) {
+    ASSERT(pCur->iPage == -1);
+    ASSERT(pCur->idx == -1);
 
-  //     pBtPage = pCur->pPage;
-  //     lidx = 0;
-  //     ridx = pBtPage->pHdr->nCells - 1;
-  //     while (lidx <= ridx) {
-  //       midx = (lidx + ridx) >> 1;
-  //       pCell = (void *)(pBtPage->aData + pBtPage->aCellIdx[midx]);
+    // Move from the root
+    ret = tdbPagerFetchPage(pPager, pBt->root, &(pCur->pPage), tdbBtreeInitPage, pBt);
+    if (ret < 0) {
+      ASSERT(0);
+      return -1;
+    }
 
-  //       c = tdbCompareKeyAndCell(pKey, kLen, pCell);
-  //       if (c == 0) {
-  //         break;
-  //       } else if (c < 0) {
-  //         lidx = lidx + 1;
-  //       } else {
-  //         ridx = ridx - 1;
-  //       }
-  //     }
-  //   }
+    pCur->iPage = 0;
 
-  //   /* code */
-  // }
+    if (pCur->pPage->pPageHdr->nCells == 0) {
+      // Current page is empty
+      ASSERT(TDB_FLAG_IS(pCur->pPage->pPageHdr->flags, TDB_BTREE_ROOT | TDB_BTREE_LEAF));
+      return 0;
+    }
+
+    // Search from root page down to leaf
+    {
+      // TODO
+      ASSERT(0);
+      // ret = tdbBtCursorMoveToRoot(pCur);
+      // if (ret < 0) {
+      //   return -1;
+      // }
+
+      // if (pCur->pPage->pHdr->nCells == 0) {
+      //   // Tree is empty
+      // } else {
+      //   for (;;) {
+      //     int lidx, ridx, midx, c;
+
+      //     pBtPage = pCur->pPage;
+      //     lidx = 0;
+      //     ridx = pBtPage->pHdr->nCells - 1;
+      //     while (lidx <= ridx) {
+      //       midx = (lidx + ridx) >> 1;
+      //       pCell = (void *)(pBtPage->aData + pBtPage->aCellIdx[midx]);
+
+      //       c = tdbCompareKeyAndCell(pKey, kLen, pCell);
+      //       if (c == 0) {
+      //         break;
+      //       } else if (c < 0) {
+      //         lidx = lidx + 1;
+      //       } else {
+      //         ridx = ridx - 1;
+      //       }
+      //     }
+      //   }
+
+      //   /* code */
+      // }
+    }
+
+  } else {
+    // TODO: Move the cursor from a some position instead of a clear state
+  }
 
   return 0;
 }

@@ -16,7 +16,7 @@ TEST(tdb_test, simple_test) {
   GTEST_ASSERT_EQ(ret, 0);
 
   // // Insert some data
-  ret = tdbDbInsert(pDb, "1", 1, "world", 5);
+  ret = tdbDbInsert(pDb, "key1", 4, "value1", 6);
   GTEST_ASSERT_EQ(ret, 0);
 
   ret = tdbDbDrop(pDb);
