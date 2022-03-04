@@ -20,6 +20,9 @@
 
 #define TDB_BTREE_PAGE_IS_ROOT(flags) TDB_FLAG_HAS(flags, TDB_BTREE_ROOT)
 #define TDB_BTREE_PAGE_IS_LEAF(flags) TDB_FLAG_HAS(flags, TDB_BTREE_LEAF)
+#define TDB_BTREE_ASSERT_FLAG(flags)                                                 \
+  ASSERT(TDB_FLAG_IS(flags, TDB_BTREE_ROOT) || TDB_FLAG_IS(flags, TDB_BTREE_LEAF) || \
+         TDB_FLAG_IS(flags, TDB_BTREE_ROOT | TDB_BTREE_LEAF) || TDB_FLAG_IS(flags, 0))
 
 struct SBTree {
   SPgno          root;
@@ -315,11 +318,23 @@ static int tdbBtreeZeroPage(SPage *pPage, void *arg) {
   // Init the page header
   pPage->pPageHdr->flags = flags;
   pPage->pPageHdr->nCells = 0;
-  pPage->pPageHdr->cellCont = 0;
+  pPage->pPageHdr->cellCont = pBt->pageSize;
   pPage->pPageHdr->freeCell = 0;
   pPage->pPageHdr->nFree = 0;
 
-  tdbBtreeInitPage(pPage, (void *)pBt);
+  TDB_BTREE_ASSERT_FLAG(flags);
+
+  if (TDB_BTREE_PAGE_IS_LEAF(pPage->pPageHdr->flags)) {
+    pPage->kLen = pBt->keyLen;
+    pPage->vLen = pBt->valLen;
+    pPage->maxLocal = pBt->maxLeaf;
+    pPage->minLocal = pBt->minLeaf;
+  } else {
+    pPage->kLen = pBt->keyLen;
+    pPage->vLen = sizeof(SPgno);
+    pPage->maxLocal = pBt->maxLocal;
+    pPage->minLocal = pBt->minLocal;
+  }
 
   return 0;
 }
@@ -331,6 +346,8 @@ static int tdbBtreeInitPage(SPage *pPage, void *arg) {
 
   pPage->pPageHdr = (SPageHdr *)pPage->pData;
   pPage->aCellIdx = (u16 *)(&(pPage->pPageHdr[1]));
+
+  TDB_BTREE_ASSERT_FLAG(pPage->pPageHdr->flags);
 
   // Init other fields
   if (TDB_BTREE_PAGE_IS_LEAF(pPage->pPageHdr->flags)) {
