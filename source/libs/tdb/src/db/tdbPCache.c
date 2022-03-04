@@ -235,6 +235,7 @@ static int tdbPCacheOpenImpl(SPCache *pCache) {
     }
 
     pPage = (SPage *)(&(pPtr[pCache->pageSize]));
+    TDB_INIT_PAGE_LOCK(pPage);
     pPage->pData = (void *)pPtr;
     // pPage->pgid = 0;
     pPage->isAnchor = 0;

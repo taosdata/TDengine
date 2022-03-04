@@ -284,7 +284,7 @@ static int tdbBtreeOpenImpl(SBTree *pBt) {
   int    ret;
 
   {
-    // TODO: Search the main DB to check if the DB exists
+    // 1. TODO: Search the main DB to check if the DB exists
     pgno = 0;
   }
 
@@ -294,13 +294,16 @@ static int tdbBtreeOpenImpl(SBTree *pBt) {
   }
 
   // Try to create a new database
-  // ret = tdbPagerNewPage(pBt->pPager, &pgno, &pPage);
-  // if (ret < 0) {
-  //   return -1;
-  // }
+  SBtreeZeroPageArg zArg = {.flags = TDB_BTREE_ROOT | TDB_BTREE_LEAF, .pBt = pBt};
+  ret = tdbPagerNewPage(pBt->pPager, &pgno, &pPage, tdbBtreeZeroPage, &zArg);
+  if (ret < 0) {
+    return -1;
+  }
 
-  // ASSERT(pgno != 0);
-  // pBt->root = pgno;
+  // TODO: Unref the page
+
+  ASSERT(pgno != 0);
+  pBt->root = pgno;
 
   return 0;
 }
