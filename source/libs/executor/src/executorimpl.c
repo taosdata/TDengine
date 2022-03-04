@@ -208,6 +208,9 @@ static void destroyOrderOperatorInfo(void* param, int32_t numOfOutput);
 static void destroySWindowOperatorInfo(void* param, int32_t numOfOutput);
 static void destroyStateWindowOperatorInfo(void* param, int32_t numOfOutput);
 static void destroyAggOperatorInfo(void* param, int32_t numOfOutput);
+static void destroyExchangeOperatorInfo(void* param, int32_t numOfOutput);
+static void destroyConditionOperatorInfo(void* param, int32_t numOfOutput);
+
 static void destroyOperatorInfo(SOperatorInfo* pOperator);
 
 static void doSetOperatorCompleted(SOperatorInfo* pOperator) {
@@ -215,6 +218,10 @@ static void doSetOperatorCompleted(SOperatorInfo* pOperator) {
   if (pOperator->pTaskInfo != NULL) {
     setTaskStatus(pOperator->pTaskInfo, TASK_COMPLETED);
   }
+}
+
+static void dummyOperatorOpenFn() {
+  return;
 }
 
 static int32_t doCopyToSDataBlock(SDiskbasedBuf *pBuf, SGroupResInfo* pGroupResInfo, int32_t orderType, SSDataBlock* pBlock, int32_t rowCapacity);
@@ -5236,28 +5243,10 @@ static SSDataBlock* doLoadRemoteData(void* param, bool* newgroup) {
 
 static SSDataBlock* createResultDataBlock(const SArray* pExprInfo);
 
-SOperatorInfo* createExchangeOperatorInfo(const SArray* pSources, const SArray* pExprInfo, SExecTaskInfo* pTaskInfo) {
-  SExchangeInfo* pInfo    = calloc(1, sizeof(SExchangeInfo));
-  SOperatorInfo* pOperator = calloc(1, sizeof(SOperatorInfo));
-
-  if (pInfo == NULL || pOperator == NULL) {
-    tfree(pInfo);
-    tfree(pOperator);
-    terrno = TSDB_CODE_QRY_OUT_OF_MEMORY;
-    return NULL;
-  }
-
-  size_t numOfSources = taosArrayGetSize(pSources);
-
-  pInfo->pSources = taosArrayDup(pSources);
+static int32_t initDataSource(int32_t numOfSources, SExchangeInfo* pInfo) {
   pInfo->pSourceDataInfo = taosArrayInit(numOfSources, sizeof(SSourceDataInfo));
-  if (pInfo->pSourceDataInfo == NULL || pInfo->pSources == NULL) {
-    tfree(pInfo);
-    tfree(pOperator);
-    taosArrayDestroy(pInfo->pSources);
-    taosArrayDestroy(pInfo->pSourceDataInfo);
-    terrno = TSDB_CODE_QRY_OUT_OF_MEMORY;
-    return NULL;
+  if (pInfo->pSourceDataInfo == NULL) {
+    return TSDB_CODE_OUT_OF_MEMORY;
   }
 
   for(int32_t i = 0; i < numOfSources; ++i) {
@@ -5266,13 +5255,41 @@ SOperatorInfo* createExchangeOperatorInfo(const SArray* pSources, const SArray* 
     dataInfo.pEx    = pInfo;
     dataInfo.index  = i;
 
-    taosArrayPush(pInfo->pSourceDataInfo, &dataInfo);
+    void* ret = taosArrayPush(pInfo->pSourceDataInfo, &dataInfo);
+    if (ret == NULL) {
+      taosArrayDestroy(pInfo->pSourceDataInfo);
+      return TSDB_CODE_OUT_OF_MEMORY;
+    }
   }
 
-  size_t size = taosArrayGetSize(pExprInfo);
-  pInfo->pResult = createResultDataBlock(pExprInfo);
-  pInfo->seqLoadData = true;
+  return TSDB_CODE_SUCCESS;
+}
 
+SOperatorInfo* createExchangeOperatorInfo(const SArray* pSources, const SArray* pExprInfo, SExecTaskInfo* pTaskInfo) {
+  SExchangeInfo* pInfo     = calloc(1, sizeof(SExchangeInfo));
+  SOperatorInfo* pOperator = calloc(1, sizeof(SOperatorInfo));
+
+  if (pInfo == NULL || pOperator == NULL) {
+    goto _error;
+  }
+
+  pInfo->pSources = taosArrayDup(pSources);
+  if (pInfo->pSources == NULL) {
+    goto _error;
+  }
+
+  size_t numOfSources = taosArrayGetSize(pSources);
+  int32_t code = initDataSource(numOfSources, pInfo);
+  if (code != TSDB_CODE_SUCCESS) {
+    goto _error;
+  }
+
+  pInfo->pResult = createResultDataBlock(pExprInfo);
+  if (pInfo->pResult == NULL) {
+    goto _error;
+  }
+
+  pInfo->seqLoadData = true; // sequentially load data from the source node
   tsem_init(&pInfo->ready, 0, 0);
 
   pOperator->name         = "ExchangeOperator";
@@ -5280,9 +5297,11 @@ SOperatorInfo* createExchangeOperatorInfo(const SArray* pSources, const SArray* 
   pOperator->blockingOptr = false;
   pOperator->status       = OP_IN_EXECUTING;
   pOperator->info         = pInfo;
-  pOperator->numOfOutput  = size;
-  pOperator->nextDataFn = doLoadRemoteData;
+  pOperator->numOfOutput  = taosArrayGetSize(pExprInfo);
   pOperator->pTaskInfo    = pTaskInfo;
+  pOperator->openFn       = NULL;  // assign a dummy function.
+  pOperator->nextDataFn   = doLoadRemoteData;
+  pOperator->closeFn      = destroyExchangeOperatorInfo;
 
 #if 1
   { // todo refactor
@@ -5308,6 +5327,16 @@ SOperatorInfo* createExchangeOperatorInfo(const SArray* pSources, const SArray* 
 #endif
 
   return pOperator;
+
+  _error:
+  if (pInfo != NULL) {
+    destroyExchangeOperatorInfo(pInfo, 0);
+  }
+
+  tfree(pInfo);
+  tfree(pOperator);
+  terrno = TSDB_CODE_QRY_OUT_OF_MEMORY;
+  return NULL;
 }
 
 SSDataBlock* createResultDataBlock(const SArray* pExprInfo) {
@@ -7115,17 +7144,17 @@ static void destroyGroupbyOperatorInfo(void* param, int32_t numOfOutput) {
   tfree(pInfo->prevData);
 }
 
-static void destroyProjectOperatorInfo(void* param, int32_t numOfOutput) {
+void destroyProjectOperatorInfo(void* param, int32_t numOfOutput) {
   SProjectOperatorInfo* pInfo = (SProjectOperatorInfo*) param;
   doDestroyBasicInfo(&pInfo->binfo, numOfOutput);
 }
 
-static void destroyTagScanOperatorInfo(void* param, int32_t numOfOutput) {
+void destroyTagScanOperatorInfo(void* param, int32_t numOfOutput) {
   STagScanInfo* pInfo = (STagScanInfo*) param;
   pInfo->pRes = blockDataDestroy(pInfo->pRes);
 }
 
-static void destroyOrderOperatorInfo(void* param, int32_t numOfOutput) {
+void destroyOrderOperatorInfo(void* param, int32_t numOfOutput) {
   SOrderOperatorInfo* pInfo = (SOrderOperatorInfo*) param;
   pInfo->pDataBlock = blockDataDestroy(pInfo->pDataBlock);
 
@@ -7143,6 +7172,17 @@ static void destroyDistinctOperatorInfo(void* param, int32_t numOfOutput) {
   tfree(pInfo->buf);
   taosArrayDestroy(pInfo->pDistinctDataInfo);
   pInfo->pRes = blockDataDestroy(pInfo->pRes);
+}
+
+void destroyExchangeOperatorInfo(void* param, int32_t numOfOutput) {
+  SExchangeInfo* pExInfo = (SExchangeInfo*) param;
+  taosArrayDestroy(pExInfo->pSources);
+  taosArrayDestroy(pExInfo->pSourceDataInfo);
+  if (pExInfo->pResult != NULL) {
+    blockDataDestroy(pExInfo->pResult);
+  }
+
+  tsem_destroy(&pExInfo->ready);
 }
 
 SOperatorInfo* createMultiTableAggOperatorInfo(SOperatorInfo* downstream, SArray* pExprInfo, SExecTaskInfo* pTaskInfo, const STableGroupInfo* pTableGroupInfo) {
@@ -7268,7 +7308,7 @@ SOperatorInfo* createLimitOperatorInfo(STaskRuntimeEnv* pRuntimeEnv, SOperatorIn
   pOperator->nextDataFn = doLimit;
   pOperator->info         = pInfo;
   pOperator->pRuntimeEnv  = pRuntimeEnv;
-    int32_t code = appendDownstream(pOperator, &downstream, 1);
+  int32_t code = appendDownstream(pOperator, &downstream, 1);
 
   return pOperator;
 }
