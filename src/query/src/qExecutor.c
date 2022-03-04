@@ -291,7 +291,7 @@ static void sortGroupResByOrderList(SGroupResInfo *pGroupResInfo, SQueryRuntimeE
   if (pRuntimeEnv->pQueryAttr->order.orderColId <= 0){
     return;
   }
-  
+
   SColIndex* pColIndex = taosArrayGet(pRuntimeEnv->pQueryAttr->pGroupbyExpr->columnInfo, 0);
 
   int16_t dataOffset = 0;
@@ -3162,7 +3162,7 @@ int32_t loadDataBlockOnDemand(SQueryRuntimeEnv* pRuntimeEnv, STableScanInfo* pTa
   if ((*status) != BLK_DATA_ALL_NEEDED) {
     // the pCtx[i] result is belonged to previous time window since the outputBuf has not been set yet,
     // the filter result may be incorrect. So in case of interval query, we need to set the correct time output buffer
-    if (QUERY_IS_INTERVAL_QUERY(pQueryAttr) && (!pQueryAttr->pointInterpQuery) && (!pQueryAttr->uniqueQuery)) {
+    if (QUERY_IS_INTERVAL_QUERY(pQueryAttr) && (!pQueryAttr->pointInterpQuery)) {
       SResultRow* pResult = NULL;
 
       bool  masterScan = IS_MASTER_SCAN(pRuntimeEnv);
@@ -3174,7 +3174,7 @@ int32_t loadDataBlockOnDemand(SQueryRuntimeEnv* pRuntimeEnv, STableScanInfo* pTa
                                   pTableScanInfo->rowCellInfoOffset) != TSDB_CODE_SUCCESS) {
         longjmp(pRuntimeEnv->env, TSDB_CODE_QRY_OUT_OF_MEMORY);
       }
-    } else if (pQueryAttr->stableQuery && (!pQueryAttr->tsCompQuery) && (!pQueryAttr->diffQuery) && (!pQueryAttr->pointInterpQuery) && (!pQueryAttr->uniqueQuery)) { // stable aggregate, not interval aggregate or normal column aggregate
+    } else if (pQueryAttr->stableQuery && (!pQueryAttr->tsCompQuery) && (!pQueryAttr->diffQuery) && (!pQueryAttr->pointInterpQuery)) { // stable aggregate, not interval aggregate or normal column aggregate
       doSetTableGroupOutputBuf(pRuntimeEnv, pTableScanInfo->pResultRowInfo, pTableScanInfo->pCtx,
                                pTableScanInfo->rowCellInfoOffset, pTableScanInfo->numOfOutput,
                                pRuntimeEnv->current->groupIndex);
@@ -3920,15 +3920,6 @@ void finalizeQueryResult(SOperatorInfo* pOperator, SQLFunctionCtx* pCtx, SResult
       }
     }
   }
-}
-
-bool isFunctionQuery(int32_t numOfOutput, SExprInfo* pExprs, int16_t functionId) {
-  for (int32_t i = 0; i < numOfOutput; ++i) {
-    if (pExprs[i].base.functionId == functionId) {
-      return true;
-    }
-  }
-  return false;
 }
 
 static bool hasMainOutput(SQueryAttr *pQueryAttr) {
@@ -5255,8 +5246,6 @@ static SSDataBlock* doTableScan(void* param, bool *newgroup) {
 
     qDebug("QInfo:0x%"PRIx64" start to reverse scan data blocks due to query func required, qrange:%" PRId64 "-%" PRId64,
            GET_QID(pRuntimeEnv), cond.twindow.skey, cond.twindow.ekey);
-
-    pRuntimeEnv->scanFlag = REVERSE_SCAN;
 
     pTableScanInfo->times = 1;
     pTableScanInfo->current = 0;
@@ -6852,7 +6841,6 @@ static SSDataBlock* doSTableIntervalAgg(void* param, bool* newgroup) {
   }
 
   SQueryAttr* pQueryAttr = pRuntimeEnv->pQueryAttr;
-  int32_t order = pQueryAttr->order.order;
 
   SOperatorInfo* upstream = pOperator->upstream[0];
 
@@ -6883,7 +6871,6 @@ static SSDataBlock* doSTableIntervalAgg(void* param, bool* newgroup) {
   }
 
   pOperator->status = OP_RES_TO_RETURN;
-  pQueryAttr->order.order = order;   // TODO : restore the order
   doCloseAllTimeWindow(pRuntimeEnv);
   setQueryStatus(pRuntimeEnv, QUERY_COMPLETED);
 
@@ -9568,7 +9555,6 @@ SQInfo* createQInfoImpl(SQueryTableMsg* pQueryMsg, SGroupbyExpr* pGroupbyExpr, S
   pQueryAttr->vgId            = vgId;
   pQueryAttr->pFilters        = pFilters;
   pQueryAttr->range           = pQueryMsg->range;
-  pQueryAttr->uniqueQuery     = isFunctionQuery(numOfOutput, pExprs, TSDB_FUNC_UNIQUE);
 
   pQueryAttr->tableCols = calloc(numOfCols, sizeof(SSingleColumnFilterInfo));
   if (pQueryAttr->tableCols == NULL) {

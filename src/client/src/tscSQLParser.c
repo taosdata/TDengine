@@ -10117,12 +10117,6 @@ int32_t validateSqlNode(SSqlObj* pSql, SSqlNode* pSqlNode, SQueryInfo* pQueryInf
       if (f == TSDB_FUNC_STDDEV || f == TSDB_FUNC_PERCT) {
         return invalidOperationMsg(tscGetErrorMsgPayload(pCmd), msg6);
       }
-
-      if ((timeWindowQuery || pQueryInfo->stateWindow) && f == TSDB_FUNC_LAST) {
-        pExpr->base.numOfParams = 1;
-        pExpr->base.param[0].i64 = TSDB_ORDER_ASC;
-        pExpr->base.param[0].nType = TSDB_DATA_TYPE_INT;
-      }
     }
 
     STableMeta* pTableMeta = tscGetMetaInfo(pQueryInfo, 0)->pTableMeta;
