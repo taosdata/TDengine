@@ -158,8 +158,9 @@ int32_t tjsonGetBigIntValue(const SJson* pJson, const char* pName, int64_t* pVal
   if (NULL == p) {
     return TSDB_CODE_FAILED;
   }
+
   *pVal = strtol(p, NULL, 10);
-  return TSDB_CODE_SUCCESS;
+  return (errno == EINVAL || errno == ERANGE) ? TSDB_CODE_FAILED:TSDB_CODE_SUCCESS;
 }
 
 int32_t tjsonGetIntValue(const SJson* pJson, const char* pName, int32_t* pVal) {
@@ -188,8 +189,9 @@ int32_t tjsonGetUBigIntValue(const SJson* pJson, const char* pName, uint64_t* pV
   if (NULL == p) {
     return TSDB_CODE_FAILED;
   }
+
   *pVal = strtoul(p, NULL, 10);
-  return TSDB_CODE_SUCCESS;
+  return (errno == ERANGE||errno == EINVAL) ? TSDB_CODE_FAILED:TSDB_CODE_SUCCESS;
 }
 
 int32_t tjsonGetUTinyIntValue(const SJson* pJson, const char* pName, uint8_t* pVal) {
