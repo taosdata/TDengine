@@ -28,8 +28,8 @@ int    tdbPagerWrite(SPager *pPager, SPage *pPage);
 int    tdbPagerBegin(SPager *pPager);
 int    tdbPagerCommit(SPager *pPager);
 int    tdbPagerGetPageSize(SPager *pPager);
-int    tdbPagerFetchPage(SPager *pPager, SPgno pgno, SPage **ppPage);
-int    tdbPagerNewPage(SPager *pPager, SPgno *ppgno, SPage **ppPage);
+int    tdbPagerFetchPage(SPager *pPager, SPgno pgno, SPage **ppPage, int (*initPage)(SPage *, void *), void *arg);
+int    tdbPagerNewPage(SPager *pPager, SPgno *ppgno, SPage **ppPage, int (*initPage)(SPage *, void *), void *arg);
 
 #ifdef __cplusplus
 }

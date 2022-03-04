@@ -227,7 +227,7 @@ static int tdbPagerReadPage(SPager *pPager, SPage *pPage) {
 
 int tdbPagerGetPageSize(SPager *pPager) { return pPager->pageSize; }
 
-int tdbPagerFetchPage(SPager *pPager, SPgno pgno, SPage **ppPage) {
+int tdbPagerFetchPage(SPager *pPager, SPgno pgno, SPage **ppPage, int (*initPage)(SPage *, void *), void *arg) {
   SPage *pPage;
   SPgid  pgid;
   int    ret;
@@ -251,10 +251,10 @@ int tdbPagerFetchPage(SPager *pPager, SPgno pgno, SPage **ppPage) {
         return -1;
       }
 
-      // ret = (*initPage)(pPage);
-      // if (ret < 0) {
-      //   return -1;
-      // }
+      ret = (*initPage)(pPage, arg);
+      if (ret < 0) {
+        return -1;
+      }
 
       pPage->pPager = pPager;
     }
@@ -268,7 +268,7 @@ int tdbPagerFetchPage(SPager *pPager, SPgno pgno, SPage **ppPage) {
   return 0;
 }
 
-int tdbPagerNewPage(SPager *pPager, SPgno *ppgno, SPage **ppPage) {
+int tdbPagerNewPage(SPager *pPager, SPgno *ppgno, SPage **ppPage, int (*initPage)(SPage *, void *), void *arg) {
   int    ret;
   SPage *pPage;
   SPgid  pgid;
@@ -296,7 +296,7 @@ int tdbPagerNewPage(SPager *pPager, SPgno *ppgno, SPage **ppPage) {
   // tdbWLockPage(pPage);
 
   // TODO: zero init the new page
-  // (*initNewPage)(pPage, arg);
+  (*initPage)(pPage, arg);
 
   pPage->pPager = NULL;
 

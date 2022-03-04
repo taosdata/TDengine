@@ -294,10 +294,10 @@ static int tdbBtreeOpenImpl(SBTree *pBt) {
   }
 
   // Try to create a new database
-  ret = tdbPagerNewPage(pBt->pPager, &pgno, &pPage);
-  if (ret < 0) {
-    return -1;
-  }
+  // ret = tdbPagerNewPage(pBt->pPager, &pgno, &pPage);
+  // if (ret < 0) {
+  //   return -1;
+  // }
 
   ASSERT(pgno != 0);
   pBt->root = pgno;
