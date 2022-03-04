@@ -22,7 +22,6 @@
 extern "C" {
 #endif
 
-
 // typedef struct STDb       TDB;
 // typedef struct STDbEnv    TENV;
 // typedef struct STDbCurosr TDBC;
