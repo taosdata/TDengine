@@ -224,3 +224,84 @@ TEST_F(UtilEnv, 04union) {
   iUnion(src, rslt);
   assert(taosArrayGetSize(rslt) == 12);
 }
+TEST_F(UtilEnv, 01Except) {
+  SArray *total = taosArrayInit(4, sizeof(uint64_t));
+  {
+    uint64_t arr1[] = {1, 4, 5, 6};
+    for (int i = 0; i < sizeof(arr1) / sizeof(arr1[0]); i++) {
+      taosArrayPush(total, &arr1[i]);
+    }
+  }
+
+  SArray *except = taosArrayInit(4, sizeof(uint64_t));
+  {
+    uint64_t arr1[] = {1, 4, 5, 6};
+    for (int i = 0; i < sizeof(arr1) / sizeof(arr1[0]); i++) {
+      taosArrayPush(except, &arr1[i]);
+    }
+  }
+  iExcept(total, except);
+  ASSERT_EQ(taosArrayGetSize(total), 0);
+
+  taosArrayClear(total);
+  taosArrayClear(except);
+
+  {
+    uint64_t arr1[] = {1, 4, 5, 6, 7, 8};
+    for (int i = 0; i < sizeof(arr1) / sizeof(arr1[0]); i++) {
+      taosArrayPush(total, &arr1[i]);
+    }
+  }
+
+  {
+    uint64_t arr1[] = {2, 4, 5, 6};
+    for (int i = 0; i < sizeof(arr1) / sizeof(arr1[0]); i++) {
+      taosArrayPush(except, &arr1[i]);
+    }
+  }
+  iExcept(total, except);
+  ASSERT_EQ(taosArrayGetSize(total), 3);
+
+  taosArrayClear(total);
+  taosArrayClear(except);
+  {
+    uint64_t arr1[] = {1, 4, 5, 6, 7, 8, 10, 100};
+    for (int i = 0; i < sizeof(arr1) / sizeof(arr1[0]); i++) {
+      taosArrayPush(total, &arr1[i]);
+    }
+  }
+
+  {
+    uint64_t arr1[] = {2, 4, 5, 6};
+    for (int i = 0; i < sizeof(arr1) / sizeof(arr1[0]); i++) {
+      taosArrayPush(except, &arr1[i]);
+    }
+  }
+  iExcept(total, except);
+  ASSERT_EQ(taosArrayGetSize(total), 5);
+  ASSERT_EQ(*(uint64_t *)taosArrayGet(total, 0), 1);
+  ASSERT_EQ(*(uint64_t *)taosArrayGet(total, 1), 7);
+  ASSERT_EQ(*(uint64_t *)taosArrayGet(total, 2), 8);
+  ASSERT_EQ(*(uint64_t *)taosArrayGet(total, 3), 10);
+  ASSERT_EQ(*(uint64_t *)taosArrayGet(total, 4), 100);
+
+  taosArrayClear(total);
+  taosArrayClear(except);
+  {
+    uint64_t arr1[] = {1, 100};
+    for (int i = 0; i < sizeof(arr1) / sizeof(arr1[0]); i++) {
+      taosArrayPush(total, &arr1[i]);
+    }
+  }
+
+  {
+    uint64_t arr1[] = {2, 4, 5, 6};
+    for (int i = 0; i < sizeof(arr1) / sizeof(arr1[0]); i++) {
+      taosArrayPush(except, &arr1[i]);
+    }
+  }
+  iExcept(total, except);
+  ASSERT_EQ(taosArrayGetSize(total), 2);
+  ASSERT_EQ(*(uint64_t *)taosArrayGet(total, 0), 1);
+  ASSERT_EQ(*(uint64_t *)taosArrayGet(total, 1), 100);
+}
