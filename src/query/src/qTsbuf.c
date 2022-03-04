@@ -493,10 +493,10 @@ void tsBufAppend(STSBuf* pTSBuf, int32_t id, tVariant* tag, const char* pData, i
 }
 
 void tsBufFlush(STSBuf* pTSBuf) {
-  if (pTSBuf->tsData.len <= 0) {
+  if (pTSBuf->numOfGroups <= 0) {
     return;
   }
-  
+
   writeDataToDisk(pTSBuf);
   shrinkBuffer(&pTSBuf->tsData);
   
