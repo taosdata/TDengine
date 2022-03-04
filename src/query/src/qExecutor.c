@@ -6841,7 +6841,7 @@ static SSDataBlock* doSTableIntervalAgg(void* param, bool* newgroup) {
   }
 
   SQueryAttr* pQueryAttr = pRuntimeEnv->pQueryAttr;
-
+  int32_t order = pQueryAttr->order.order;
   SOperatorInfo* upstream = pOperator->upstream[0];
 
   STableId prevId = {0, 0};
@@ -6871,6 +6871,7 @@ static SSDataBlock* doSTableIntervalAgg(void* param, bool* newgroup) {
   }
 
   pOperator->status = OP_RES_TO_RETURN;
+  pQueryAttr->order.order = order; // TODO : restore the order
   doCloseAllTimeWindow(pRuntimeEnv);
   setQueryStatus(pRuntimeEnv, QUERY_COMPLETED);
 

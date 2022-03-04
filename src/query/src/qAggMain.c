@@ -249,7 +249,6 @@ typedef struct {
 } TailUnit;
 
 typedef struct STailInfo {
-  int32_t      offset;
   int32_t      num;
   TailUnit     **res;
 } STailInfo;
@@ -966,6 +965,23 @@ static int32_t lastDistFuncRequired(SQLFunctionCtx *pCtx, STimeWindow* w, int32_
     return BLK_DATA_ALL_NEEDED;
   } else {
     return (pInfo->ts >= w->ekey) ? BLK_DATA_NO_NEEDED : BLK_DATA_ALL_NEEDED;
+  }
+}
+
+static int32_t tailFuncRequired(SQLFunctionCtx *pCtx, STimeWindow* w, int32_t colId) {
+  // not initialized yet, it is the first block, load it.
+  if (pCtx->pOutput == NULL) {
+    return BLK_DATA_ALL_NEEDED;
+  }
+
+  // the pCtx should be set to current Ctx and output buffer before call this function. Otherwise, pCtx->pOutput is
+  // the previous windowRes output buffer, not current unloaded block. In this case, the following filter is invalid
+  STailInfo *pInfo = (STailInfo*) (pCtx->pOutput);
+  TailUnit **pList = pInfo->res;
+  if (pInfo->num >= pCtx->param[0].i64 && pList[0]->timestamp > w->ekey){
+    return BLK_DATA_NO_NEEDED;
+  } else {
+    return BLK_DATA_ALL_NEEDED;
   }
 }
 
@@ -6140,6 +6156,6 @@ SAggFunctionInfo aAggs[TSDB_FUNC_MAX_NUM] = {{
                              tail_function,
                              tail_func_finalizer,
                              tail_func_merge,
-                             dataBlockRequired,
+                             tailFuncRequired,
                          }
 };
