@@ -211,23 +211,17 @@ static void *syncIOConsumerFunc(void *param) {
       if (pRpcMsg->msgType == SYNC_PING) {
         if (io->FpOnSyncPing != NULL) {
           SyncPing *pSyncMsg;
-
-          SRpcMsg tmpRpcMsg;
-          memcpy(&tmpRpcMsg, pRpcMsg, sizeof(SRpcMsg));
-          pSyncMsg = syncPingBuild(tmpRpcMsg.contLen);
-
+          pSyncMsg = syncPingBuild(pRpcMsg->contLen);
           syncPingFromRpcMsg(pRpcMsg, pSyncMsg);
-
           // memcpy(pSyncMsg, tmpRpcMsg.pCont, tmpRpcMsg.contLen);
-
           io->FpOnSyncPing(io->pSyncNode, pSyncMsg);
         }
 
       } else if (pRpcMsg->msgType == SYNC_PING_REPLY) {
-        SyncPingReply *pSyncMsg = syncPingReplyBuild(pRpcMsg->contLen);
-        syncPingReplyFromRpcMsg(pRpcMsg, pSyncMsg);
-
         if (io->FpOnSyncPingReply != NULL) {
+          SyncPingReply *pSyncMsg;
+          pSyncMsg = syncPingReplyBuild(pRpcMsg->contLen);
+          syncPingReplyFromRpcMsg(pRpcMsg, pSyncMsg);
           io->FpOnSyncPingReply(io->pSyncNode, pSyncMsg);
         }
       } else {

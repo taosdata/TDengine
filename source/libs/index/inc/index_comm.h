@@ -13,23 +13,20 @@
  * along with this program. If not, see <http://www.gnu.org/licenses/>.
  */
 
-#ifndef _TD_OS_DIR_H_
-#define _TD_OS_DIR_H_
+#ifndef _TD_INDEX_COMM_H_
+#define _TD_INDEX_COMM_H_
 
 #ifdef __cplusplus
 extern "C" {
 #endif
 
-void    taosRemoveDir(const char *dirname);
-bool    taosDirExist(char *dirname);
-int32_t taosMkDir(const char *dirname);
-void    taosRemoveOldFiles(const char *dirname, int32_t keepDays);
-int32_t taosExpandDir(const char *dirname, char *outname, int32_t maxlen);
-int32_t taosRealPath(char *dirname, int32_t maxlen);
-bool    taosIsDir(const char *dirname);
+extern char JSON_COLUMN[];
+extern char JSON_VALUE_DELIM;
+
+char* indexPackJsonData(SIndexTerm* itm);
 
 #ifdef __cplusplus
 }
 #endif
 
-#endif /*_TD_OS_DIR_H_*/
+#endif

@@ -286,15 +286,17 @@ void uvOnWriteCb(uv_write_t* req, int status) {
   transClearBuffer(&conn->readBuf);
   if (status == 0) {
     tTrace("server conn %p data already was written on stream", conn);
-    assert(taosArrayGetSize(conn->srvMsgs) >= 1);
-    SSrvMsg* msg = taosArrayGetP(conn->srvMsgs, 0);
-    taosArrayRemove(conn->srvMsgs, 0);
-    destroySmsg(msg);
+    if (conn->srvMsgs != NULL) {
+      assert(taosArrayGetSize(conn->srvMsgs) >= 1);
+      SSrvMsg* msg = taosArrayGetP(conn->srvMsgs, 0);
+      taosArrayRemove(conn->srvMsgs, 0);
+      destroySmsg(msg);
 
-    // send second data, just use for push
-    if (taosArrayGetSize(conn->srvMsgs) > 0) {
-      msg = (SSrvMsg*)taosArrayGetP(conn->srvMsgs, 0);
-      uvStartSendRespInternal(msg);
+      // send second data, just use for push
+      if (taosArrayGetSize(conn->srvMsgs) > 0) {
+        msg = (SSrvMsg*)taosArrayGetP(conn->srvMsgs, 0);
+        uvStartSendRespInternal(msg);
+      }
     }
   } else {
     tError("server conn %p failed to write data, %s", conn, uv_err_name(status));
@@ -615,7 +617,7 @@ static void destroyConn(SSrvConn* conn, bool clear) {
     SSrvMsg* msg = taosArrayGetP(conn->srvMsgs, i);
     destroySmsg(msg);
   }
-  taosArrayDestroy(conn->srvMsgs);
+  conn->srvMsgs = taosArrayDestroy(conn->srvMsgs);
   QUEUE_REMOVE(&conn->queue);
 
   if (clear) {
