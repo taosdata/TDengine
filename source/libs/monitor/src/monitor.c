@@ -22,6 +22,21 @@
 
 static SMonitor tsMonitor = {0};
 
+void monRecordLog(int64_t ts, ELogLevel level, const char *content) {
+  pthread_rwlock_rdlock(&tsMonitor.rwlock);
+  int32_t size = taosArrayGetSize(tsMonitor.logs);
+  if (size >= tsMonitor.maxLogs) {
+    uInfo("too many logs for monitor");
+  } else {
+    SMonLogItem  item = {.ts = ts, .level = level};
+    SMonLogItem *pItem = taosArrayPush(tsMonitor.logs, &item);
+    if (pItem != NULL) {
+      tstrncpy(pItem->content, content, sizeof(item.content));
+    }
+  }
+  pthread_rwlock_unlock(&tsMonitor.rwlock);
+}
+
 int32_t monInit(const SMonCfg *pCfg) {
   tsMonitor.logs = taosArrayInit(16, sizeof(SMonLogItem));
   if (tsMonitor.logs == NULL) {
@@ -32,24 +47,15 @@ int32_t monInit(const SMonCfg *pCfg) {
   tsMonitor.maxLogs = pCfg->maxLogs;
   tsMonitor.server = pCfg->server;
   tsMonitor.port = pCfg->port;
-  taosInitRWLatch(&tsMonitor.lock);
+  tsLogFp = monRecordLog;
+  pthread_rwlock_init(&tsMonitor.rwlock, NULL);
   return 0;
 }
 
 void monCleanup() {
   taosArrayDestroy(tsMonitor.logs);
   tsMonitor.logs = NULL;
-}
-
-void monAddLogItem(SMonLogItem *pItem) {
-  taosWLockLatch(&tsMonitor.lock);
-  int32_t size = taosArrayGetSize(tsMonitor.logs);
-  if (size >= tsMonitor.maxLogs) {
-    uInfo("too many logs for monitor");
-  } else {
-    taosArrayPush(tsMonitor.logs, pItem);
-  }
-  taosWUnLockLatch(&tsMonitor.lock);
+  pthread_rwlock_wrlock(&tsMonitor.rwlock);
 }
 
 SMonInfo *monCreateMonitorInfo() {
@@ -59,10 +65,10 @@ SMonInfo *monCreateMonitorInfo() {
     return NULL;
   }
 
-  taosWLockLatch(&tsMonitor.lock);
+  pthread_rwlock_wrlock(&tsMonitor.rwlock);
   pMonitor->logs = taosArrayDup(tsMonitor.logs);
   taosArrayClear(tsMonitor.logs);
-  taosWUnLockLatch(&tsMonitor.lock);
+  pthread_rwlock_unlock(&tsMonitor.rwlock);
 
   pMonitor->pJson = tjsonCreateObject();
   if (pMonitor->pJson == NULL || pMonitor->logs == NULL) {

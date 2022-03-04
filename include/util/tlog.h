@@ -34,10 +34,13 @@ typedef enum {
   DEBUG_FILE = 128
 } ELogLevel;
 
+typedef void (*LogFp)(int64_t ts, ELogLevel level, const char *content);
+
 extern bool    tsLogEmbedded;
 extern bool    tsAsyncLog;
 extern int32_t tsNumOfLogLines;
 extern int32_t tsLogKeepDays;
+extern LogFp   tsLogFp;
 extern int64_t tsNumOfErrorLogs;
 extern int64_t tsNumOfInfoLogs;
 extern int64_t tsNumOfDebugLogs;

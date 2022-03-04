@@ -127,12 +127,6 @@ typedef struct {
   SMonDiskDesc tempdir;
 } SMonDiskInfo;
 
-typedef struct {
-  int64_t   ts;
-  ELogLevel level;
-  char      content[MON_LOG_LEN];
-} SMonLogItem;
-
 typedef struct SMonInfo SMonInfo;
 
 typedef struct {
@@ -143,7 +137,7 @@ typedef struct {
 
 int32_t monInit(const SMonCfg *pCfg);
 void    monCleanup();
-void    monAddLogItem(SMonLogItem *pItem);
+void    monRecordLog(int64_t ts, ELogLevel level, const char *content);
 
 SMonInfo *monCreateMonitorInfo();
 void      monSetBasicInfo(SMonInfo *pMonitor, SMonBasicInfo *pInfo);

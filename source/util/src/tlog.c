@@ -73,6 +73,7 @@ bool    tsLogEmbedded = 0;
 bool    tsAsyncLog = true;
 int32_t tsNumOfLogLines = 10000000;
 int32_t tsLogKeepDays = 0;
+LogFp   tsLogFp = NULL;
 int64_t tsNumOfErrorLogs = 0;
 int64_t tsNumOfInfoLogs = 0;
 int64_t tsNumOfDebugLogs = 0;
