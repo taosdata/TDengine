@@ -39,11 +39,25 @@ typedef enum ESyncMessageType {
   SYNC_REQUEST_VOTE_REPLY = 111,
   SYNC_APPEND_ENTRIES = 113,
   SYNC_APPEND_ENTRIES_REPLY = 115,
+  SYNC_TIMEOUT = 117,
 } ESyncMessageType;
 
 // ---------------------------------------------
 cJSON* syncRpcMsg2Json(SRpcMsg* pRpcMsg);
 cJSON* syncRpcUnknownMsg2Json();
+
+// ---------------------------------------------
+typedef enum ESyncTimeoutType {
+  SYNC_TIMEOUT_PING = 0,
+  SYNC_TIMEOUT_ELECTION,
+  SYNC_TIMEOUT_HEARTBEAT,
+
+} ESyncTimeoutType;
+
+typedef struct SyncTimeout {
+  ESyncTimeoutType type;
+  void*            data;
+} SyncTimeout;
 
 // ---------------------------------------------
 typedef struct SyncPing {

@@ -85,7 +85,7 @@ int main(int argc, char** argv) {
 
   for (int i = 0; i < 10; ++i) {
     SyncPingReply* pSyncMsg = syncPingReplyBuild3(&pSyncNode->raftId, &pSyncNode->raftId);
-    SRpcMsg   rpcMsg;
+    SRpcMsg        rpcMsg;
     syncPingReply2RpcMsg(pSyncMsg, &rpcMsg);
     pSyncNode->FpEqMsg(pSyncNode->queue, &rpcMsg);
     taosMsleep(1000);

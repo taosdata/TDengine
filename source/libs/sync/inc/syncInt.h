@@ -71,6 +71,9 @@ extern int32_t sDebugFlag;
 struct SRaft;
 typedef struct SRaft SRaft;
 
+struct SyncTimeout;
+typedef struct SyncTimeout SyncTimeout;
+
 struct SyncPing;
 typedef struct SyncPing SyncPing;
 
@@ -174,6 +177,7 @@ typedef struct SSyncNode {
   int32_t (*FpOnRequestVoteReply)(SSyncNode* ths, SyncRequestVoteReply* pMsg);
   int32_t (*FpOnAppendEntries)(SSyncNode* ths, SyncAppendEntries* pMsg);
   int32_t (*FpOnAppendEntriesReply)(SSyncNode* ths, SyncAppendEntriesReply* pMsg);
+  int32_t (*FpOnTimeout)(SSyncNode* pSyncNode, SyncTimeout* pMsg);
 
 } SSyncNode;
 
