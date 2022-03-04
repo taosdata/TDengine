@@ -63,7 +63,7 @@ int32_t taosSendHttpReport(const char* server, uint16_t port, const char* pCont,
     goto SEND_OVER;
   }
 
-  uInfo("send http to %s:%u, len:%d content: %s", server, port, contLen, pCont);
+  uTrace("send http to %s:%u, len:%d content: %s", server, port, contLen, pCont);
   code = 0;
 
 SEND_OVER:

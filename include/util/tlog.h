@@ -22,15 +22,17 @@
 extern "C" {
 #endif
 
-#define DEBUG_FATAL  1U
-#define DEBUG_ERROR  DEBUG_FATAL
-#define DEBUG_WARN   2U
-#define DEBUG_INFO   DEBUG_WARN
-#define DEBUG_DEBUG  4U
-#define DEBUG_TRACE  8U
-#define DEBUG_DUMP   16U
-#define DEBUG_SCREEN 64U
-#define DEBUG_FILE   128U
+typedef enum {
+  DEBUG_FATAL = 1,
+  DEBUG_ERROR = 1,
+  DEBUG_WARN = 2,
+  DEBUG_INFO = 2,
+  DEBUG_DEBUG = 4,
+  DEBUG_TRACE = 8,
+  DEBUG_DUMP = 16,
+  DEBUG_SCREEN = 64,
+  DEBUG_FILE = 128
+} ELogLevel;
 
 extern bool    tsLogEmbedded;
 extern bool    tsAsyncLog;
@@ -61,27 +63,27 @@ void    taosResetLog();
 void    taosSetAllDebugFlag(int32_t flag);
 void    taosDumpData(uint8_t *msg, int32_t len);
 
-void taosPrintLog(const char *flags, int32_t dflag, const char *format, ...)
+void taosPrintLog(const char *flags, ELogLevel level, int32_t dflag, const char *format, ...)
 #ifdef __GNUC__
-    __attribute__((format(printf, 3, 4)))
+    __attribute__((format(printf, 4, 5)))
 #endif
     ;
 
-void taosPrintLongString(const char *flags, int32_t dflag, const char *format, ...)
+void taosPrintLongString(const char *flags, ELogLevel level, int32_t dflag, const char *format, ...)
 #ifdef __GNUC__
-    __attribute__((format(printf, 3, 4)))
+    __attribute__((format(printf, 4, 5)))
 #endif
     ;
 
-#define uFatal(...) { if (uDebugFlag & DEBUG_FATAL) { taosPrintLog("UTL FATAL", tsLogEmbedded ? 255 : uDebugFlag, __VA_ARGS__); }}
-#define uError(...) { if (uDebugFlag & DEBUG_ERROR) { taosPrintLog("UTL ERROR ", tsLogEmbedded ? 255 : uDebugFlag, __VA_ARGS__); }}
-#define uWarn(...)  { if (uDebugFlag & DEBUG_WARN)  { taosPrintLog("UTL WARN ", tsLogEmbedded ? 255 : uDebugFlag, __VA_ARGS__); }}
-#define uInfo(...)  { if (uDebugFlag & DEBUG_INFO)  { taosPrintLog("UTL ", tsLogEmbedded ? 255 : uDebugFlag, __VA_ARGS__); }}
-#define uDebug(...) { if (uDebugFlag & DEBUG_DEBUG) { taosPrintLog("UTL ", uDebugFlag, __VA_ARGS__); }}
-#define uTrace(...) { if (uDebugFlag & DEBUG_TRACE) { taosPrintLog("UTL ", uDebugFlag, __VA_ARGS__); }}
+#define uFatal(...) { if (uDebugFlag & DEBUG_FATAL) { taosPrintLog("UTL FATAL", DEBUG_FATAL, tsLogEmbedded ? 255 : uDebugFlag, __VA_ARGS__); }}
+#define uError(...) { if (uDebugFlag & DEBUG_ERROR) { taosPrintLog("UTL ERROR ", DEBUG_ERROR, tsLogEmbedded ? 255 : uDebugFlag, __VA_ARGS__); }}
+#define uWarn(...)  { if (uDebugFlag & DEBUG_WARN)  { taosPrintLog("UTL WARN ", DEBUG_WARN, tsLogEmbedded ? 255 : uDebugFlag, __VA_ARGS__); }}
+#define uInfo(...)  { if (uDebugFlag & DEBUG_INFO)  { taosPrintLog("UTL ", DEBUG_INFO, tsLogEmbedded ? 255 : uDebugFlag, __VA_ARGS__); }}
+#define uDebug(...) { if (uDebugFlag & DEBUG_DEBUG) { taosPrintLog("UTL ", DEBUG_DEBUG, uDebugFlag, __VA_ARGS__); }}
+#define uTrace(...) { if (uDebugFlag & DEBUG_TRACE) { taosPrintLog("UTL ", DEBUG_TRACE, uDebugFlag, __VA_ARGS__); }}
 
-#define pError(...) { taosPrintLog("APP ERROR ", 255, __VA_ARGS__); }
-#define pPrint(...) { taosPrintLog("APP ", 255, __VA_ARGS__); }
+#define pError(...) { taosPrintLog("APP ERROR ", DEBUG_ERROR, 255, __VA_ARGS__); }
+#define pPrint(...) { taosPrintLog("APP ", DEBUG_INFO, 255, __VA_ARGS__); }
 
 #ifdef __cplusplus
 }

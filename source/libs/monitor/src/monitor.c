@@ -270,15 +270,15 @@ void monSetDiskInfo(SMonInfo *pMonitor, SMonDiskInfo *pInfo) {
   tjsonAddDoubleToObject(pTempdirJson, "total", pInfo->tempdir.size.total);
 }
 
-static const char *monLogLevelStr(EMonLogLevel level) {
+static const char *monLogLevelStr(ELogLevel level) {
   switch (level) {
-    case MON_LEVEL_ERROR:
+    case DEBUG_ERROR:
       return "error";
-    case MON_LEVEL_INFO:
+    case DEBUG_INFO:
       return "info";
-    case MON_LEVEL_DEBUG:
+    case DEBUG_DEBUG:
       return "debug";
-    case MON_LEVEL_TRACE:
+    case DEBUG_TRACE:
       return "trace";
     default:
       return "undefine";
@@ -318,25 +318,25 @@ static void monSetLogInfo(SMonInfo *pMonitor) {
   SJson *pLogError = tjsonCreateObject();
   if (pLogError == NULL) return;
   tjsonAddStringToObject(pLogError, "level", "error");
-  tjsonAddDoubleToObject(pLogError, "total", 1);
+  tjsonAddDoubleToObject(pLogError, "total", tsNumOfErrorLogs);
   if (tjsonAddItemToArray(pSummaryJson, pLogError) != 0) tjsonDelete(pLogError);
 
   SJson *pLogInfo = tjsonCreateObject();
   if (pLogInfo == NULL) return;
   tjsonAddStringToObject(pLogInfo, "level", "info");
-  tjsonAddDoubleToObject(pLogInfo, "total", 1);
+  tjsonAddDoubleToObject(pLogInfo, "total", tsNumOfInfoLogs);
   if (tjsonAddItemToArray(pSummaryJson, pLogInfo) != 0) tjsonDelete(pLogInfo);
 
   SJson *pLogDebug = tjsonCreateObject();
   if (pLogDebug == NULL) return;
   tjsonAddStringToObject(pLogDebug, "level", "debug");
-  tjsonAddDoubleToObject(pLogDebug, "total", 1);
+  tjsonAddDoubleToObject(pLogDebug, "total", tsNumOfDebugLogs);
   if (tjsonAddItemToArray(pSummaryJson, pLogDebug) != 0) tjsonDelete(pLogDebug);
 
   SJson *pLogTrace = tjsonCreateObject();
   if (pLogTrace == NULL) return;
   tjsonAddStringToObject(pLogTrace, "level", "trace");
-  tjsonAddDoubleToObject(pLogTrace, "total", 1);
+  tjsonAddDoubleToObject(pLogTrace, "total", tsNumOfTraceLogs);
   if (tjsonAddItemToArray(pSummaryJson, pLogTrace) != 0) tjsonDelete(pLogTrace);
 }
 
