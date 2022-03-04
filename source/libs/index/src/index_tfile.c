@@ -429,6 +429,7 @@ static bool tfileIteratorNext(Iterate* iiter) {
     return false;
   }
 
+  iv->type = ADD_VALUE;  // value in tfile always ADD_VALUE
   iv->colVal = colVal;
   return true;
   // std::string key(ch, sz);
