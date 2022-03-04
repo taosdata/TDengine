@@ -30,6 +30,7 @@ extern "C" {
 
 // encode as uint32
 typedef enum ESyncMessageType {
+  SYNC_UNKNOWN = 99,
   SYNC_PING = 101,
   SYNC_PING_REPLY = 103,
   SYNC_CLIENT_REQUEST = 105,
@@ -39,6 +40,10 @@ typedef enum ESyncMessageType {
   SYNC_APPEND_ENTRIES = 113,
   SYNC_APPEND_ENTRIES_REPLY = 115,
 } ESyncMessageType;
+
+// ---------------------------------------------
+cJSON* syncRpcMsg2Json(SRpcMsg* pRpcMsg);
+cJSON* syncRpcUnknownMsg2Json();
 
 // ---------------------------------------------
 typedef struct SyncPing {

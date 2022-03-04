@@ -20,6 +20,59 @@
 
 void onMessage(SRaft* pRaft, void* pMsg) {}
 
+// ---------------------------------------------
+cJSON* syncRpcMsg2Json(SRpcMsg* pRpcMsg) {
+  cJSON* pRoot;
+
+  if (pRpcMsg->msgType == SYNC_PING) {
+    SyncPing* pSyncMsg = (SyncPing*)pRpcMsg->pCont;
+    pRoot = syncPing2Json(pSyncMsg);
+
+  } else if (pRpcMsg->msgType == SYNC_PING_REPLY) {
+    SyncPingReply* pSyncMsg = (SyncPingReply*)pRpcMsg->pCont;
+    pRoot = syncPingReply2Json(pSyncMsg);
+
+  } else if (pRpcMsg->msgType == SYNC_CLIENT_REQUEST) {
+    pRoot = syncRpcUnknownMsg2Json();
+
+  } else if (pRpcMsg->msgType == SYNC_CLIENT_REQUEST_REPLY) {
+    pRoot = syncRpcUnknownMsg2Json();
+
+  } else if (pRpcMsg->msgType == SYNC_REQUEST_VOTE) {
+    SyncRequestVote* pSyncMsg = (SyncRequestVote*)pRpcMsg->pCont;
+    pRoot = syncRequestVote2Json(pSyncMsg);
+
+  } else if (pRpcMsg->msgType == SYNC_REQUEST_VOTE_REPLY) {
+    SyncRequestVoteReply* pSyncMsg = (SyncRequestVoteReply*)pRpcMsg->pCont;
+    pRoot = syncRequestVoteReply2Json(pSyncMsg);
+
+  } else if (pRpcMsg->msgType == SYNC_APPEND_ENTRIES) {
+    SyncAppendEntries* pSyncMsg = (SyncAppendEntries*)pRpcMsg->pCont;
+    pRoot = syncAppendEntries2Json(pSyncMsg);
+
+  } else if (pRpcMsg->msgType == SYNC_APPEND_ENTRIES_REPLY) {
+    SyncAppendEntriesReply* pSyncMsg = (SyncAppendEntriesReply*)pRpcMsg->pCont;
+    pRoot = syncAppendEntriesReply2Json(pSyncMsg);
+
+  } else {
+    pRoot = syncRpcUnknownMsg2Json();
+  }
+
+  cJSON* pJson = cJSON_CreateObject();
+  cJSON_AddItemToObject(pJson, "RpcMsg", pRoot);
+  return pJson;
+}
+
+cJSON* syncRpcUnknownMsg2Json() {
+  cJSON* pRoot = cJSON_CreateObject();
+  cJSON_AddNumberToObject(pRoot, "msgType", SYNC_UNKNOWN);
+  cJSON_AddStringToObject(pRoot, "data", "known message");
+
+  cJSON* pJson = cJSON_CreateObject();
+  cJSON_AddItemToObject(pJson, "SyncPing", pRoot);
+  return pJson;
+}
+
 // ---- message process SyncPing----
 SyncPing* syncPingBuild(uint32_t dataLen) {
   uint32_t  bytes = SYNC_PING_FIX_LEN + dataLen;

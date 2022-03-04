@@ -58,9 +58,10 @@ extern SSyncIO *gSyncIO;
 
 int32_t syncIOStart(char *host, uint16_t port);
 int32_t syncIOStop();
-int32_t syncIOSendMsg(void *clientRpc, const SEpSet *pEpSet, SRpcMsg *pMsg);
 int32_t syncIOTickQ();
 int32_t syncIOTickPing();
+int32_t syncIOSendMsg(void *clientRpc, const SEpSet *pEpSet, SRpcMsg *pMsg);
+int32_t syncIOEqMsg(void *queue, SRpcMsg *pMsg);
 
 #ifdef __cplusplus
 }

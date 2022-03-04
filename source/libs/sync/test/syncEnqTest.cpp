@@ -67,6 +67,10 @@ int main(int argc, char** argv) {
   int myIndex = 0;
   if (argc >= 2) {
     myIndex = atoi(argv[1]);
+    if (myIndex > 2 || myIndex < 0) {
+      fprintf(stderr, "myIndex:%d error. should be 0 - 2", myIndex);
+      return 1;
+    }
   }
 
   int32_t ret = syncIOStart((char*)"127.0.0.1", ports[myIndex]);
@@ -79,12 +83,13 @@ int main(int argc, char** argv) {
   gSyncIO->FpOnSyncPing = pSyncNode->FpOnPing;
   gSyncIO->FpOnSyncPingReply = pSyncNode->FpOnPingReply;
 
-  ret = syncNodeStartPingTimer(pSyncNode);
-  assert(ret == 0);
-
-  taosMsleep(10000);
-  ret = syncNodeStopPingTimer(pSyncNode);
-  assert(ret == 0);
+  for (int i = 0; i < 10; ++i) {
+    SyncPingReply* pSyncMsg = syncPingReplyBuild3(&pSyncNode->raftId, &pSyncNode->raftId);
+    SRpcMsg   rpcMsg;
+    syncPingReply2RpcMsg(pSyncMsg, &rpcMsg);
+    pSyncNode->FpEqMsg(pSyncNode->queue, &rpcMsg);
+    taosMsleep(1000);
+  }
 
   while (1) {
     taosMsleep(1000);

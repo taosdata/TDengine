@@ -14,3 +14,5 @@
  */
 
 #include "syncReplication.h"
+
+void syncNodeAppendEntriesPeers(SSyncNode* pSyncNode) {}
