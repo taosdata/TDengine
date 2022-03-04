@@ -35,7 +35,6 @@ enum {
   JOB_TASK_STATUS_CANCELLING,
   JOB_TASK_STATUS_CANCELLED,
   JOB_TASK_STATUS_DROPPING,
-  JOB_TASK_STATUS_FREEING,
 };
 
 enum {
@@ -132,6 +131,10 @@ typedef struct SQueryNodeAddr {
   int32_t nodeId;  // vgId or qnodeId
   SEpSet  epset;
 } SQueryNodeAddr;
+
+typedef struct SQueryNodeStat {
+  double tableNum; //table number in million
+} SQueryNodeStat;
 
 int32_t initTaskQueue();
 int32_t cleanupTaskQueue();

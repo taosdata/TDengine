@@ -535,7 +535,7 @@ TEST(queryTest, normalCase) {
   char *tablename = "table1";
   SVgroupInfo vgInfo = {0};
   int64_t job = 0;
-  SQueryPlan dag = {0};
+  SQueryPlan dag;
 
   schtInitLogFile();
 

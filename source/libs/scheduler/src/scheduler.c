@@ -91,6 +91,18 @@ void schFreeTask(SSchTask* pTask) {
 }
 
 
+static FORCE_INLINE bool schJobNeedToStop(SSchJob *pJob, int8_t *pStatus) {
+  int8_t status = SCH_GET_JOB_STATUS(pJob);
+  if (pStatus) {
+    *pStatus = status;
+  }
+
+  return (status == JOB_TASK_STATUS_FAILED || status == JOB_TASK_STATUS_CANCELLED 
+       || status == JOB_TASK_STATUS_CANCELLING || status == JOB_TASK_STATUS_DROPPING
+       || status == JOB_TASK_STATUS_SUCCEED);
+}
+
+
 int32_t schValidateTaskReceivedMsgType(SSchJob *pJob, SSchTask *pTask, int32_t msgType) {
   int32_t lastMsgType = atomic_load_32(&pTask->lastMsgType);
   
@@ -197,6 +209,7 @@ int32_t schCheckAndUpdateJobStatus(SSchJob *pJob, int8_t newStatus) {
 _return:
 
   SCH_JOB_ELOG("invalid job status update, from %d to %d", oriStatus, newStatus);
+  
   SCH_ERR_RET(code);
 }
 
@@ -275,7 +288,7 @@ int32_t schBuildTaskRalation(SSchJob *pJob, SHashObj *planToTask) {
   }
 
   SSchLevel *pLevel = taosArrayGet(pJob->levels, 0);
-  if (pJob->attr.queryJob && pLevel->taskNum > 1) {
+  if (SCH_IS_QUERY_JOB(pJob) && pLevel->taskNum > 1) {
     SCH_JOB_ELOG("invalid query plan, level:0, taskNum:%d", pLevel->taskNum);
     SCH_ERR_RET(TSDB_CODE_SCH_INTERNAL_ERROR);
   }
@@ -285,10 +298,9 @@ int32_t schBuildTaskRalation(SSchJob *pJob, SHashObj *planToTask) {
 
 
 int32_t schRecordTaskSucceedNode(SSchJob *pJob, SSchTask *pTask) {
-  int32_t idx = atomic_load_8(&pTask->candidateIdx);
-  SQueryNodeAddr *addr = taosArrayGet(pTask->candidateAddrs, idx);
+  SQueryNodeAddr *addr = taosArrayGet(pTask->candidateAddrs, pTask->candidateIdx);
   if (NULL == addr) {
-    SCH_TASK_ELOG("taosArrayGet candidate addr failed, idx:%d, size:%d", idx, (int32_t)taosArrayGetSize(pTask->candidateAddrs));
+    SCH_TASK_ELOG("taosArrayGet candidate addr failed, idx:%d, size:%d", pTask->candidateIdx, (int32_t)taosArrayGetSize(pTask->candidateAddrs));
     SCH_ERR_RET(TSDB_CODE_SCH_INTERNAL_ERROR);
   }
 
@@ -323,9 +335,9 @@ int32_t schValidateAndBuildJob(SQueryPlan *pDag, SSchJob *pJob) {
     SCH_ERR_RET(TSDB_CODE_QRY_INVALID_INPUT);
   }
 
-  SHashObj *planToTask = taosHashInit(SCHEDULE_DEFAULT_TASK_NUMBER, taosGetDefaultHashFunction(POINTER_BYTES == sizeof(int64_t) ? TSDB_DATA_TYPE_BIGINT : TSDB_DATA_TYPE_INT), false, HASH_NO_LOCK);
+  SHashObj *planToTask = taosHashInit(SCHEDULE_DEFAULT_MAX_TASK_NUM, taosGetDefaultHashFunction(POINTER_BYTES == sizeof(int64_t) ? TSDB_DATA_TYPE_BIGINT : TSDB_DATA_TYPE_INT), false, HASH_NO_LOCK);
   if (NULL == planToTask) {
-    SCH_JOB_ELOG("taosHashInit %d failed", SCHEDULE_DEFAULT_TASK_NUMBER);
+    SCH_JOB_ELOG("taosHashInit %d failed", SCHEDULE_DEFAULT_MAX_TASK_NUM);
     SCH_ERR_RET(TSDB_CODE_QRY_OUT_OF_MEMORY);
   }
 
@@ -379,7 +391,7 @@ int32_t schValidateAndBuildJob(SQueryPlan *pDag, SSchJob *pJob) {
     for (int32_t n = 0; n < taskNum; ++n) {
       SSubplan *plan = (SSubplan*)nodesListGetNode(plans->pNodeList, n);
 
-      SCH_SET_JOB_TYPE(&pJob->attr, plan->subplanType);
+      SCH_SET_JOB_TYPE(pJob, plan->subplanType);
 
       SSchTask  task = {0};
       SSchTask *pTask = &task;
@@ -564,13 +576,43 @@ int32_t schMoveTaskToExecList(SSchJob *pJob, SSchTask *pTask, bool *moved) {
 }
 
 
-int32_t schTaskCheckAndSetRetry(SSchJob *job, SSchTask *task, int32_t errCode, bool *needRetry) {
+int32_t schTaskCheckSetRetry(SSchJob *pJob, SSchTask *pTask, int32_t errCode, bool *needRetry) {
   // TODO set retry or not based on task type/errCode/retry times/job status/available eps...
-  // TODO if needRetry, set task retry info
-  // TODO set condidateIdx
-  // TODO record failed but tried task
 
   *needRetry = false;
+
+  return TSDB_CODE_SUCCESS;
+
+  //TODO CHECK epList/condidateList
+  if (SCH_IS_DATA_SRC_TASK(pTask)) {
+
+  } else {
+    int32_t candidateNum = taosArrayGetSize(pTask->candidateAddrs);
+    
+    if ((pTask->candidateIdx + 1) >= candidateNum) {
+      return TSDB_CODE_SUCCESS;
+    }
+
+    ++pTask->candidateIdx;
+  }
+
+
+}
+
+int32_t schHandleTaskRetry(SSchJob *pJob, SSchTask *pTask) {
+  atomic_sub_fetch_32(&pTask->level->taskLaunchedNum, 1);
+
+  if (SCH_TASK_NEED_FLOW_CTRL(pJob, pTask)) {
+    SCH_ERR_RET(schDecTaskFlowQuota(pJob, pTask));
+  }
+
+  if (SCH_IS_DATA_SRC_TASK(pTask)) {
+    SCH_SWITCH_EPSET(&pTask->plan->execNode);
+  } else {
+    ++pTask->candidateIdx;
+  }
+
+  SCH_ERR_RET(schLaunchTask(pJob, pTask));
 
   return TSDB_CODE_SUCCESS;
 }
@@ -588,14 +630,14 @@ int32_t schProcessOnJobFailureImpl(SSchJob *pJob, int32_t status, int32_t errCod
   }
 
   int32_t code = atomic_load_32(&pJob->errCode);
-  SCH_ERR_RET(code);
 
-  SCH_JOB_ELOG("job errCode is invalid, errCode:%d", code);
+  SCH_JOB_DLOG("job failed with error: %s", tstrerror(code));
+  
+  SCH_RET(code);
 }
 
 
-
-// Note: no more error processing, handled in function internal
+// Note: no more task error processing, handled in function internal
 int32_t schProcessOnJobFailure(SSchJob *pJob, int32_t errCode) {
   SCH_RET(schProcessOnJobFailureImpl(pJob, JOB_TASK_STATUS_FAILED, errCode));
 }
@@ -606,38 +648,8 @@ int32_t schProcessOnJobDropped(SSchJob *pJob, int32_t errCode) {
 }
 
 
-// Note: no more error processing, handled in function internal
-int32_t schFetchFromRemote(SSchJob *pJob) {
-  int32_t code = 0;
-  
-  if (atomic_val_compare_exchange_32(&pJob->remoteFetch, 0, 1) != 0) {
-    SCH_JOB_ELOG("prior fetching not finished, remoteFetch:%d", atomic_load_32(&pJob->remoteFetch));
-    return TSDB_CODE_SUCCESS;
-  }
 
-  void *res = atomic_load_ptr(&pJob->res);
-  if (res) {
-    atomic_val_compare_exchange_32(&pJob->remoteFetch, 1, 0);
-
-    SCH_JOB_DLOG("res already fetched, res:%p", res);
-    return TSDB_CODE_SUCCESS;
-  }
-
-  SCH_ERR_JRET(schBuildAndSendMsg(pJob, pJob->fetchTask, &pJob->resNode, TDMT_VND_FETCH));
-
-  return TSDB_CODE_SUCCESS;
-  
-_return:
-
-  atomic_val_compare_exchange_32(&pJob->remoteFetch, 1, 0);
-
-  schProcessOnJobFailure(pJob, code);
-
-  return code;
-}
-
-
-// Note: no more error processing, handled in function internal
+// Note: no more task error processing, handled in function internal
 int32_t schProcessOnJobPartialSuccess(SSchJob *pJob) {
   int32_t code = 0;
   
@@ -655,9 +667,7 @@ int32_t schProcessOnJobPartialSuccess(SSchJob *pJob) {
 
 _return:
 
-  SCH_ERR_RET(schProcessOnJobFailure(pJob, code));
-
-  SCH_RET(code);
+  SCH_RET(schProcessOnJobFailure(pJob, code));
 }
 
 int32_t schProcessOnDataFetched(SSchJob *job) {
@@ -665,8 +675,16 @@ int32_t schProcessOnDataFetched(SSchJob *job) {
   tsem_post(&job->rspSem);
 }
 
-// Note: no more error processing, handled in function internal
+// Note: no more task error processing, handled in function internal
 int32_t schProcessOnTaskFailure(SSchJob *pJob, SSchTask *pTask, int32_t errCode) {
+  int8_t status = 0;
+  
+  if (schJobNeedToStop(pJob, &status)) {
+    SCH_TASK_DLOG("task failed not processed cause of job status, job status:%d", status);
+    
+    SCH_RET(atomic_load_32(&pJob->errCode));
+  }
+
   bool needRetry = false;
   bool moved = false;
   int32_t taskDone = 0;
@@ -674,16 +692,16 @@ int32_t schProcessOnTaskFailure(SSchJob *pJob, SSchTask *pTask, int32_t errCode)
 
   SCH_TASK_DLOG("taskOnFailure, code:%s", tstrerror(errCode));
   
-  SCH_ERR_JRET(schTaskCheckAndSetRetry(pJob, pTask, errCode, &needRetry));
+  SCH_ERR_JRET(schTaskCheckSetRetry(pJob, pTask, errCode, &needRetry));
   
   if (!needRetry) {
     SCH_TASK_ELOG("task failed and no more retry, code:%s", tstrerror(errCode));
 
     if (SCH_GET_TASK_STATUS(pTask) == JOB_TASK_STATUS_EXECUTING) {
-      code = schMoveTaskToFailList(pJob, pTask, &moved);
-      if (code && moved) {
-        SCH_ERR_RET(errCode);
-      }
+      SCH_ERR_JRET(schMoveTaskToFailList(pJob, pTask, &moved));
+    } else {
+      SCH_TASK_DLOG("task already done, no more failure process, status:%d", SCH_GET_TASK_STATUS(pTask));
+      return TSDB_CODE_SUCCESS;
     }
 
     SCH_SET_TASK_STATUS(pTask, JOB_TASK_STATUS_FAILED);
@@ -702,35 +720,29 @@ int32_t schProcessOnTaskFailure(SSchJob *pJob, SSchTask *pTask, int32_t errCode)
       }
     }
   } else {
-    // Note: no more error processing, already handled
-    SCH_ERR_RET(schLaunchTask(pJob, pTask));
+    SCH_ERR_JRET(schHandleTaskRetry(pJob, pTask));
     
     return TSDB_CODE_SUCCESS;
   }
 
 _return:
 
-  SCH_ERR_RET(schProcessOnJobFailure(pJob, errCode));
-
-  SCH_ERR_RET(errCode);
+  SCH_RET(schProcessOnJobFailure(pJob, errCode));
 }
 
-
-// Note: no more error processing, handled in function internal
+// Note: no more task error processing, handled in function internal
 int32_t schProcessOnTaskSuccess(SSchJob *pJob, SSchTask *pTask) {
   bool moved = false;
   int32_t code = 0;
-  SSchTask *pErrTask = pTask;
 
-  code = schMoveTaskToSuccList(pJob, pTask, &moved);
-  if (code && moved) {
-    SCH_ERR_RET(code);
-  }
+  SCH_ERR_JRET(schMoveTaskToSuccList(pJob, pTask, &moved));
 
   SCH_SET_TASK_STATUS(pTask, JOB_TASK_STATUS_PARTIAL_SUCCEED);
 
   SCH_ERR_JRET(schRecordTaskSucceedNode(pJob, pTask));
-  
+
+  SCH_ERR_JRET(schLaunchTasksInFlowCtrlList(pJob, pTask));
+    
   int32_t parentNum = pTask->parents ? (int32_t)taosArrayGetSize(pTask->parents) : 0;
   if (parentNum == 0) {
     int32_t taskDone = 0;
@@ -759,14 +771,9 @@ int32_t schProcessOnTaskSuccess(SSchJob *pJob, SSchTask *pTask) {
 
     pJob->fetchTask = pTask;
 
-    code = schMoveTaskToExecList(pJob, pTask, &moved);
-    if (code && moved) {
-      SCH_ERR_RET(code);
-    }
+    SCH_ERR_JRET(schMoveTaskToExecList(pJob, pTask, &moved));
     
-    SCH_ERR_RET(schProcessOnJobPartialSuccess(pJob));
-
-    return TSDB_CODE_SUCCESS;
+    SCH_RET(schProcessOnJobPartialSuccess(pJob));
   }
 
 /*
@@ -780,8 +787,6 @@ int32_t schProcessOnTaskSuccess(SSchJob *pJob, SSchTask *pTask) {
 
   for (int32_t i = 0; i < parentNum; ++i) {
     SSchTask *par = *(SSchTask **)taosArrayGet(pTask->parents, i);
-    pErrTask = par;
-    
     int32_t readyNum = atomic_add_fetch_32(&par->childReady, 1);
 
     SCH_LOCK(SCH_WRITE, &par->lock);
@@ -790,7 +795,7 @@ int32_t schProcessOnTaskSuccess(SSchJob *pJob, SSchTask *pTask) {
     SCH_UNLOCK(SCH_WRITE, &par->lock);
     
     if (SCH_TASK_READY_TO_LUNCH(readyNum, par)) {
-      SCH_ERR_RET(schLaunchTask(pJob, par));
+      SCH_ERR_RET(schLaunchTaskImpl(pJob, par));
     }
   }
 
@@ -798,22 +803,55 @@ int32_t schProcessOnTaskSuccess(SSchJob *pJob, SSchTask *pTask) {
 
 _return:
 
-  SCH_ERR_RET(schProcessOnTaskFailure(pJob, pErrTask, code));
-
-  SCH_ERR_RET(code);
+  SCH_RET(schProcessOnJobFailure(pJob, code));
 }
 
+
+// Note: no more error processing, handled in function internal
+int32_t schFetchFromRemote(SSchJob *pJob) {
+  int32_t code = 0;
+  
+  if (atomic_val_compare_exchange_32(&pJob->remoteFetch, 0, 1) != 0) {
+    SCH_JOB_ELOG("prior fetching not finished, remoteFetch:%d", atomic_load_32(&pJob->remoteFetch));
+    return TSDB_CODE_SUCCESS;
+  }
+
+  void *res = atomic_load_ptr(&pJob->res);
+  if (res) {
+    atomic_val_compare_exchange_32(&pJob->remoteFetch, 1, 0);
+
+    SCH_JOB_DLOG("res already fetched, res:%p", res);
+    return TSDB_CODE_SUCCESS;
+  }
+
+  SCH_ERR_JRET(schBuildAndSendMsg(pJob, pJob->fetchTask, &pJob->resNode, TDMT_VND_FETCH));
+
+  return TSDB_CODE_SUCCESS;
+  
+_return:
+
+  atomic_val_compare_exchange_32(&pJob->remoteFetch, 1, 0);
+
+  SCH_RET(schProcessOnTaskFailure(pJob, pJob->fetchTask, code));
+}
+
+
+// Note: no more task error processing, handled in function internal
 int32_t schHandleResponseMsg(SSchJob *pJob, SSchTask *pTask, int32_t msgType, char *msg, int32_t msgSize, int32_t rspCode) {
   int32_t code = 0;
+  int8_t status = 0;
+  
+  if (schJobNeedToStop(pJob, &status)) {
+    SCH_TASK_ELOG("rsp not processed cause of job status, job status:%d", status);
+    
+    SCH_RET(atomic_load_32(&pJob->errCode));
+  }
 
   SCH_ERR_JRET(schValidateTaskReceivedMsgType(pJob, pTask, msgType));
 
   switch (msgType) {
     case TDMT_VND_CREATE_TABLE_RSP: {
-        if (rspCode != TSDB_CODE_SUCCESS) {
-          SCH_ERR_RET(schProcessOnTaskFailure(pJob, pTask, rspCode));
-        }
-        
+        SCH_ERR_JRET(rspCode);
         SCH_ERR_RET(schProcessOnTaskSuccess(pJob, pTask));
 
         break;
@@ -828,9 +866,7 @@ int32_t schHandleResponseMsg(SSchJob *pJob, SSchTask *pTask, int32_t msgType, ch
 
         pJob->resNumOfRows += rsp->affectedRows;
         #else
-        if (rspCode != TSDB_CODE_SUCCESS) {
-          SCH_ERR_RET(schProcessOnTaskFailure(pJob, pTask, rspCode));
-        }
+        SCH_ERR_JRET(rspCode);
 
         SSubmitRsp *rsp = (SSubmitRsp *)msg;
         if (rsp) {
@@ -845,9 +881,11 @@ int32_t schHandleResponseMsg(SSchJob *pJob, SSchTask *pTask, int32_t msgType, ch
     case TDMT_VND_QUERY_RSP: {
         SQueryTableRsp *rsp = (SQueryTableRsp *)msg;
         
-        if (rspCode != TSDB_CODE_SUCCESS || NULL == msg || rsp->code != TSDB_CODE_SUCCESS) {
-          SCH_ERR_RET(schProcessOnTaskFailure(pJob, pTask, rspCode));
+        SCH_ERR_JRET(rspCode);
+        if (NULL == msg) {
+          SCH_ERR_JRET(TSDB_CODE_QRY_INVALID_INPUT);
         }
+        SCH_ERR_JRET(rsp->code);
         
         SCH_ERR_JRET(schBuildAndSendMsg(pJob, pTask, NULL, TDMT_VND_RES_READY));
         
@@ -856,9 +894,11 @@ int32_t schHandleResponseMsg(SSchJob *pJob, SSchTask *pTask, int32_t msgType, ch
     case TDMT_VND_RES_READY_RSP: {
         SResReadyRsp *rsp = (SResReadyRsp *)msg;
         
-        if (rspCode != TSDB_CODE_SUCCESS || NULL == msg || rsp->code != TSDB_CODE_SUCCESS) {
-          SCH_ERR_RET(schProcessOnTaskFailure(pJob, pTask, rspCode));
+        SCH_ERR_JRET(rspCode);
+        if (NULL == msg) {
+          SCH_ERR_JRET(TSDB_CODE_QRY_INVALID_INPUT);
         }
+        SCH_ERR_JRET(rsp->code);
         
         SCH_ERR_RET(schProcessOnTaskSuccess(pJob, pTask));
         
@@ -867,14 +907,15 @@ int32_t schHandleResponseMsg(SSchJob *pJob, SSchTask *pTask, int32_t msgType, ch
     case TDMT_VND_FETCH_RSP: {
         SRetrieveTableRsp *rsp = (SRetrieveTableRsp *)msg;
 
-        if (rspCode != TSDB_CODE_SUCCESS || NULL == msg) {
-          SCH_ERR_RET(schProcessOnTaskFailure(pJob, pTask, rspCode));
+        SCH_ERR_JRET(rspCode);
+        if (NULL == msg) {
+          SCH_ERR_JRET(TSDB_CODE_QRY_INVALID_INPUT);
         }
-
+        
         if (pJob->res) {
           SCH_TASK_ELOG("got fetch rsp while res already exists, res:%p", pJob->res);
           tfree(rsp);
-          SCH_ERR_RET(TSDB_CODE_SCH_STATUS_ERROR);
+          SCH_ERR_JRET(TSDB_CODE_SCH_STATUS_ERROR);
         }
 
         atomic_store_ptr(&pJob->res, rsp);
@@ -886,7 +927,7 @@ int32_t schHandleResponseMsg(SSchJob *pJob, SSchTask *pTask, int32_t msgType, ch
 
         SCH_TASK_DLOG("got fetch rsp, rows:%d, complete:%d", htonl(rsp->numOfRows), rsp->completed);
 
-        SCH_ERR_JRET(schProcessOnDataFetched(pJob));
+        schProcessOnDataFetched(pJob);
         break;
       }
     case TDMT_VND_DROP_TASK_RSP: {
@@ -904,9 +945,7 @@ int32_t schHandleResponseMsg(SSchJob *pJob, SSchTask *pTask, int32_t msgType, ch
 
 _return:
 
-  SCH_ERR_RET(schProcessOnTaskFailure(pJob, pTask, code));
-  
-  SCH_RET(code);
+  SCH_RET(schProcessOnTaskFailure(pJob, pTask, code));
 }
 
 
@@ -1057,7 +1096,7 @@ int32_t schBuildAndSendMsg(SSchJob *pJob, SSchTask *pTask, SQueryNodeAddr *addr,
   int32_t code = 0;
   bool isCandidateAddr = false;
   if (NULL == addr) {
-    addr = taosArrayGet(pTask->candidateAddrs, atomic_load_8(&pTask->candidateIdx));
+    addr = taosArrayGet(pTask->candidateAddrs, pTask->candidateIdx);
     isCandidateAddr = true;
   }
 
@@ -1177,28 +1216,17 @@ _return:
   SCH_RET(code);
 }
 
-static FORCE_INLINE bool schJobNeedToStop(SSchJob *pJob, int8_t *pStatus) {
-  int8_t status = SCH_GET_JOB_STATUS(pJob);
-  if (pStatus) {
-    *pStatus = status;
-  }
 
-  return (status == JOB_TASK_STATUS_FAILED || status == JOB_TASK_STATUS_CANCELLED 
-       || status == JOB_TASK_STATUS_CANCELLING || status == JOB_TASK_STATUS_DROPPING);
-}
-
-
-// Note: no more error processing, handled in function internal
-int32_t schLaunchTask(SSchJob *pJob, SSchTask *pTask) {
+int32_t schLaunchTaskImpl(SSchJob *pJob, SSchTask *pTask) {
   int8_t status = 0;
   int32_t code = 0;
+
+  atomic_add_fetch_32(&pTask->level->taskLaunchedNum, 1);
   
   if (schJobNeedToStop(pJob, &status)) {
-    SCH_TASK_ELOG("no need to launch task cause of job status, job status:%d", status);
+    SCH_TASK_DLOG("no need to launch task cause of job status, job status:%d", status);
     
-    code = atomic_load_32(&pJob->errCode);
-    SCH_ERR_RET(code);
-    SCH_RET(TSDB_CODE_SCH_STATUS_ERROR);
+    SCH_RET(atomic_load_32(&pJob->errCode));
   }
   
   SSubplan *plan = pTask->plan;
@@ -1207,38 +1235,69 @@ int32_t schLaunchTask(SSchJob *pJob, SSchTask *pTask) {
     code = qSubPlanToString(plan, &pTask->msg, &pTask->msgLen);
     if (TSDB_CODE_SUCCESS != code || NULL == pTask->msg || pTask->msgLen <= 0) {
       SCH_TASK_ELOG("failed to create physical plan, code:%s, msg:%p, len:%d", tstrerror(code), pTask->msg, pTask->msgLen);
-      SCH_ERR_JRET(code);
+      SCH_ERR_RET(code);
     } else {
       SCH_TASK_DLOG("physical plan len:%d, %s", pTask->msgLen, pTask->msg);
     }
   }
   
-  SCH_ERR_JRET(schSetTaskCandidateAddrs(pJob, pTask));
+  SCH_ERR_RET(schSetTaskCandidateAddrs(pJob, pTask));
 
   // NOTE: race condition: the task should be put into the hash table before send msg to server
   if (SCH_GET_TASK_STATUS(pTask) != JOB_TASK_STATUS_EXECUTING) {
-    SCH_ERR_JRET(schPushTaskToExecList(pJob, pTask));
+    SCH_ERR_RET(schPushTaskToExecList(pJob, pTask));
     SCH_SET_TASK_STATUS(pTask, JOB_TASK_STATUS_EXECUTING);
   }
 
-  SCH_ERR_JRET(schBuildAndSendMsg(pJob, pTask, NULL, plan->msgType));
+
+  SCH_ERR_RET(schBuildAndSendMsg(pJob, pTask, NULL, plan->msgType));
+  
+  return TSDB_CODE_SUCCESS;
+}
+
+// Note: no more error processing, handled in function internal
+int32_t schLaunchTask(SSchJob *pJob, SSchTask *pTask) {
+  bool enough = false;
+  int32_t code = 0;
+
+  if (SCH_TASK_NEED_FLOW_CTRL(pJob, pTask)) {
+    SCH_ERR_JRET(schCheckIncTaskFlowQuota(pJob, pTask, &enough));
+
+    if (enough) {
+      SCH_ERR_JRET(schLaunchTaskImpl(pJob, pTask));
+    }
+  } else {
+    SCH_ERR_JRET(schLaunchTaskImpl(pJob, pTask));
+  }
+
   return TSDB_CODE_SUCCESS;
 
 _return:
-  SCH_ERR_RET(schProcessOnTaskFailure(pJob, pTask, code));
-  SCH_RET(code);
+
+  SCH_RET(schProcessOnTaskFailure(pJob, pTask, code));
 }
+
+int32_t schLaunchLevelTasks(SSchJob *pJob, SSchLevel *level) {
+  for (int32_t i = 0; i < level->taskNum; ++i) {
+    SSchTask *pTask = taosArrayGet(level->subTasks, i);
+
+    SCH_ERR_RET(schLaunchTask(pJob, pTask));
+  }
+
+  return TSDB_CODE_SUCCESS;
+}
+
+
 
 int32_t schLaunchJob(SSchJob *pJob) {
   SSchLevel *level = taosArrayGet(pJob->levels, pJob->levelIdx);
-
+  
   SCH_ERR_RET(schCheckAndUpdateJobStatus(pJob, JOB_TASK_STATUS_EXECUTING));
-  
-  for (int32_t i = 0; i < level->taskNum; ++i) {
-    SSchTask *pTask = taosArrayGet(level->subTasks, i);
-    SCH_ERR_RET(schLaunchTask(pJob, pTask));
-  }
-  
+
+  SCH_ERR_RET(schCheckJobNeedFlowCtrl(pJob, level));
+
+  SCH_ERR_RET(schLaunchLevelTasks(pJob, level));
+
   return TSDB_CODE_SUCCESS;
 }
 
@@ -1312,6 +1371,8 @@ void schFreeJobImpl(void *job) {
   for(int32_t i = 0; i < numOfLevels; ++i) {
     SSchLevel *pLevel = taosArrayGet(pJob->levels, i);
 
+    schFreeFlowCtrl(pLevel);
+    
     int32_t numOfTasks = taosArrayGetSize(pLevel->subTasks);
     for(int32_t j = 0; j < numOfTasks; ++j) {
       SSchTask* pTask = taosArrayGet(pLevel->subTasks, j);
@@ -1423,10 +1484,11 @@ int32_t schedulerInit(SSchedulerCfg *cfg) {
     schMgmt.cfg = *cfg;
     
     if (schMgmt.cfg.maxJobNum == 0) {
-      schMgmt.cfg.maxJobNum = SCHEDULE_DEFAULT_JOB_NUMBER;
+      schMgmt.cfg.maxJobNum = SCHEDULE_DEFAULT_MAX_JOB_NUM;
     }
   } else {
-    schMgmt.cfg.maxJobNum = SCHEDULE_DEFAULT_JOB_NUMBER;
+    schMgmt.cfg.maxJobNum = SCHEDULE_DEFAULT_MAX_JOB_NUM;
+    schMgmt.cfg.maxNodeTableNum = SCHEDULE_DEFAULT_MAX_NODE_TABLE_NUM;
   }
   
   schMgmt.jobRef = taosOpenRef(schMgmt.cfg.maxJobNum, schFreeJobImpl);
@@ -1611,7 +1673,7 @@ int32_t schedulerFetchRows(int64_t job, void** pData) {
     SCH_ERR_RET(TSDB_CODE_SCH_STATUS_ERROR);
   }
 
-  if (!SCH_JOB_NEED_FETCH(&pJob->attr)) {
+  if (!SCH_JOB_NEED_FETCH(pJob)) {
     SCH_JOB_ELOG("no need to fetch data, status:%d", SCH_GET_JOB_STATUS(pJob));
     taosReleaseRef(schMgmt.jobRef, job);
     SCH_ERR_RET(TSDB_CODE_QRY_APP_ERROR);
