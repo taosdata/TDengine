@@ -29,43 +29,41 @@ extern "C" {
 #include "tlog.h"
 #include "ttimer.h"
 
-extern int32_t sDebugFlag;
-
-#define sFatal(...)                                        \
-  {                                                        \
-    if (sDebugFlag & DEBUG_FATAL) {                        \
-      taosPrintLog("SYN FATAL ", sDebugFlag, __VA_ARGS__); \
-    }                                                      \
+#define sFatal(...)                                              \
+  {                                                              \
+    if (sDebugFlag & DEBUG_FATAL) {                              \
+      taosPrintLog("SYN FATAL ", DEBUG_FATAL, 255, __VA_ARGS__); \
+    }                                                            \
   }
-#define sError(...)                                        \
-  {                                                        \
-    if (sDebugFlag & DEBUG_ERROR) {                        \
-      taosPrintLog("SYN ERROR ", sDebugFlag, __VA_ARGS__); \
-    }                                                      \
+#define sError(...)                                              \
+  {                                                              \
+    if (sDebugFlag & DEBUG_ERROR) {                              \
+      taosPrintLog("SYN ERROR ", DEBUG_ERROR, 255, __VA_ARGS__); \
+    }                                                            \
   }
-#define sWarn(...)                                        \
-  {                                                       \
-    if (sDebugFlag & DEBUG_WARN) {                        \
-      taosPrintLog("SYN WARN ", sDebugFlag, __VA_ARGS__); \
-    }                                                     \
+#define sWarn(...)                                             \
+  {                                                            \
+    if (sDebugFlag & DEBUG_WARN) {                             \
+      taosPrintLog("SYN WARN ", DEBUG_WARN, 255, __VA_ARGS__); \
+    }                                                          \
   }
-#define sInfo(...)                                        \
-  {                                                       \
-    if (sDebugFlag & DEBUG_INFO) {                        \
-      taosPrintLog("SYN INFO ", sDebugFlag, __VA_ARGS__); \
-    }                                                     \
+#define sInfo(...)                                             \
+  {                                                            \
+    if (sDebugFlag & DEBUG_INFO) {                             \
+      taosPrintLog("SYN INFO ", DEBUG_INFO, 255, __VA_ARGS__); \
+    }                                                          \
   }
-#define sDebug(...)                                        \
-  {                                                        \
-    if (sDebugFlag & DEBUG_DEBUG) {                        \
-      taosPrintLog("SYN DEBUG ", sDebugFlag, __VA_ARGS__); \
-    }                                                      \
+#define sDebug(...)                                                     \
+  {                                                                     \
+    if (sDebugFlag & DEBUG_DEBUG) {                                     \
+      taosPrintLog("SYN DEBUG ", DEBUG_DEBUG, sDebugFlag, __VA_ARGS__); \
+    }                                                                   \
   }
-#define sTrace(...)                                        \
-  {                                                        \
-    if (sDebugFlag & DEBUG_TRACE) {                        \
-      taosPrintLog("SYN TRACE ", sDebugFlag, __VA_ARGS__); \
-    }                                                      \
+#define sTrace(...)                                                     \
+  {                                                                     \
+    if (sDebugFlag & DEBUG_TRACE) {                                     \
+      taosPrintLog("SYN TRACE ", DEBUG_TRACE, sDebugFlag, __VA_ARGS__); \
+    }                                                                   \
   }
 
 struct SRaft;

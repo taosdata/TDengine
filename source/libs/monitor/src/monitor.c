@@ -22,6 +22,21 @@
 
 static SMonitor tsMonitor = {0};
 
+void monRecordLog(int64_t ts, ELogLevel level, const char *content) {
+  pthread_rwlock_rdlock(&tsMonitor.rwlock);
+  int32_t size = taosArrayGetSize(tsMonitor.logs);
+  if (size >= tsMonitor.maxLogs) {
+    uInfo("too many logs for monitor");
+  } else {
+    SMonLogItem  item = {.ts = ts, .level = level};
+    SMonLogItem *pItem = taosArrayPush(tsMonitor.logs, &item);
+    if (pItem != NULL) {
+      tstrncpy(pItem->content, content, sizeof(item.content));
+    }
+  }
+  pthread_rwlock_unlock(&tsMonitor.rwlock);
+}
+
 int32_t monInit(const SMonCfg *pCfg) {
   tsMonitor.logs = taosArrayInit(16, sizeof(SMonLogItem));
   if (tsMonitor.logs == NULL) {
@@ -32,24 +47,15 @@ int32_t monInit(const SMonCfg *pCfg) {
   tsMonitor.maxLogs = pCfg->maxLogs;
   tsMonitor.server = pCfg->server;
   tsMonitor.port = pCfg->port;
-  taosInitRWLatch(&tsMonitor.lock);
+  tsLogFp = monRecordLog;
+  pthread_rwlock_init(&tsMonitor.rwlock, NULL);
   return 0;
 }
 
 void monCleanup() {
   taosArrayDestroy(tsMonitor.logs);
   tsMonitor.logs = NULL;
-}
-
-void monAddLogItem(SMonLogItem *pItem) {
-  taosWLockLatch(&tsMonitor.lock);
-  int32_t size = taosArrayGetSize(tsMonitor.logs);
-  if (size >= tsMonitor.maxLogs) {
-    uInfo("too many logs for monitor");
-  } else {
-    taosArrayPush(tsMonitor.logs, pItem);
-  }
-  taosWUnLockLatch(&tsMonitor.lock);
+  pthread_rwlock_wrlock(&tsMonitor.rwlock);
 }
 
 SMonInfo *monCreateMonitorInfo() {
@@ -59,10 +65,10 @@ SMonInfo *monCreateMonitorInfo() {
     return NULL;
   }
 
-  taosWLockLatch(&tsMonitor.lock);
+  pthread_rwlock_wrlock(&tsMonitor.rwlock);
   pMonitor->logs = taosArrayDup(tsMonitor.logs);
   taosArrayClear(tsMonitor.logs);
-  taosWUnLockLatch(&tsMonitor.lock);
+  pthread_rwlock_unlock(&tsMonitor.rwlock);
 
   pMonitor->pJson = tjsonCreateObject();
   if (pMonitor->pJson == NULL || pMonitor->logs == NULL) {
@@ -270,15 +276,15 @@ void monSetDiskInfo(SMonInfo *pMonitor, SMonDiskInfo *pInfo) {
   tjsonAddDoubleToObject(pTempdirJson, "total", pInfo->tempdir.size.total);
 }
 
-static const char *monLogLevelStr(EMonLogLevel level) {
+static const char *monLogLevelStr(ELogLevel level) {
   switch (level) {
-    case MON_LEVEL_ERROR:
+    case DEBUG_ERROR:
       return "error";
-    case MON_LEVEL_INFO:
+    case DEBUG_INFO:
       return "info";
-    case MON_LEVEL_DEBUG:
+    case DEBUG_DEBUG:
       return "debug";
-    case MON_LEVEL_TRACE:
+    case DEBUG_TRACE:
       return "trace";
     default:
       return "undefine";
@@ -318,25 +324,25 @@ static void monSetLogInfo(SMonInfo *pMonitor) {
   SJson *pLogError = tjsonCreateObject();
   if (pLogError == NULL) return;
   tjsonAddStringToObject(pLogError, "level", "error");
-  tjsonAddDoubleToObject(pLogError, "total", 1);
+  tjsonAddDoubleToObject(pLogError, "total", tsNumOfErrorLogs);
   if (tjsonAddItemToArray(pSummaryJson, pLogError) != 0) tjsonDelete(pLogError);
 
   SJson *pLogInfo = tjsonCreateObject();
   if (pLogInfo == NULL) return;
   tjsonAddStringToObject(pLogInfo, "level", "info");
-  tjsonAddDoubleToObject(pLogInfo, "total", 1);
+  tjsonAddDoubleToObject(pLogInfo, "total", tsNumOfInfoLogs);
   if (tjsonAddItemToArray(pSummaryJson, pLogInfo) != 0) tjsonDelete(pLogInfo);
 
   SJson *pLogDebug = tjsonCreateObject();
   if (pLogDebug == NULL) return;
   tjsonAddStringToObject(pLogDebug, "level", "debug");
-  tjsonAddDoubleToObject(pLogDebug, "total", 1);
+  tjsonAddDoubleToObject(pLogDebug, "total", tsNumOfDebugLogs);
   if (tjsonAddItemToArray(pSummaryJson, pLogDebug) != 0) tjsonDelete(pLogDebug);
 
   SJson *pLogTrace = tjsonCreateObject();
   if (pLogTrace == NULL) return;
   tjsonAddStringToObject(pLogTrace, "level", "trace");
-  tjsonAddDoubleToObject(pLogTrace, "total", 1);
+  tjsonAddDoubleToObject(pLogTrace, "total", tsNumOfTraceLogs);
   if (tjsonAddItemToArray(pSummaryJson, pLogTrace) != 0) tjsonDelete(pLogTrace);
 }
 

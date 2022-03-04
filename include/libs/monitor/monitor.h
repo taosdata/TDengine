@@ -18,6 +18,7 @@
 
 #include "tarray.h"
 #include "tdef.h"
+#include "tlog.h"
 
 #ifdef __cplusplus
 extern "C" {
@@ -126,19 +127,6 @@ typedef struct {
   SMonDiskDesc tempdir;
 } SMonDiskInfo;
 
-typedef enum {
-  MON_LEVEL_ERROR = 0,
-  MON_LEVEL_INFO = 1,
-  MON_LEVEL_DEBUG = 2,
-  MON_LEVEL_TRACE = 3,
-} EMonLogLevel;
-
-typedef struct {
-  int64_t      ts;
-  EMonLogLevel level;
-  char         content[MON_LOG_LEN];
-} SMonLogItem;
-
 typedef struct SMonInfo SMonInfo;
 
 typedef struct {
@@ -149,7 +137,7 @@ typedef struct {
 
 int32_t monInit(const SMonCfg *pCfg);
 void    monCleanup();
-void    monAddLogItem(SMonLogItem *pItem);
+void    monRecordLog(int64_t ts, ELogLevel level, const char *content);
 
 SMonInfo *monCreateMonitorInfo();
 void      monSetBasicInfo(SMonInfo *pMonitor, SMonBasicInfo *pInfo);
