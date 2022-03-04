@@ -195,19 +195,19 @@ void MonitorTest::GetDiskInfo(SMonInfo *pMonitor, SMonDiskInfo *pInfo) {
 void MonitorTest::AddLogInfo1() {
   SMonLogItem log1 = {0};
   log1.ts = taosGetTimestampMs();
-  log1.level = 1;
+  log1.level = MON_LEVEL_INFO;
   strcpy(log1.content, "1 -------------------------- a");
   monAddLogItem(&log1);
 
   SMonLogItem log2 = {0};
   log2.ts = taosGetTimestampMs();
-  log2.level = 1;
+  log2.level = MON_LEVEL_ERROR;
   strcpy(log2.content, "1 ------------------------ b");
   monAddLogItem(&log2);
 
   SMonLogItem log3 = {0};
   log3.ts = taosGetTimestampMs();
-  log3.level = 1;
+  log3.level = MON_LEVEL_DEBUG;
   strcpy(log3.content, "1 ------- c");
   monAddLogItem(&log3);
 }
@@ -215,13 +215,13 @@ void MonitorTest::AddLogInfo1() {
 void MonitorTest::AddLogInfo2() {
   SMonLogItem log1;
   log1.ts = taosGetTimestampMs();
-  log1.level = 01;
+  log1.level = MON_LEVEL_ERROR;
   strcpy(log1.content, "2 ------- a");
   monAddLogItem(&log1);
 
   SMonLogItem log2;
   log2.ts = taosGetTimestampMs();
-  log2.level = 0;
+  log2.level = MON_LEVEL_ERROR;
   strcpy(log2.content, "2 ------- b");
   monAddLogItem(&log2);
 }

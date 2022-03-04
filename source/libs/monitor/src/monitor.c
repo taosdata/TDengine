@@ -270,6 +270,21 @@ void monSetDiskInfo(SMonInfo *pMonitor, SMonDiskInfo *pInfo) {
   tjsonAddDoubleToObject(pTempdirJson, "total", pInfo->tempdir.size.total);
 }
 
+static const char *monLogLevelStr(EMonLogLevel level) {
+  switch (level) {
+    case MON_LEVEL_ERROR:
+      return "error";
+    case MON_LEVEL_INFO:
+      return "info";
+    case MON_LEVEL_DEBUG:
+      return "debug";
+    case MON_LEVEL_TRACE:
+      return "trace";
+    default:
+      return "undefine";
+  }
+}
+
 static void monSetLogInfo(SMonInfo *pMonitor) {
   SJson *pJson = tjsonCreateObject();
   if (pJson == NULL) return;
@@ -291,7 +306,7 @@ static void monSetLogInfo(SMonInfo *pMonitor) {
     taosFormatUtcTime(buf, sizeof(buf), pLogItem->ts, TSDB_TIME_PRECISION_MILLI);
 
     tjsonAddStringToObject(pLogJson, "ts", buf);
-    tjsonAddDoubleToObject(pLogJson, "level", pLogItem->level);
+    tjsonAddStringToObject(pLogJson, "level", monLogLevelStr(pLogItem->level));
     tjsonAddStringToObject(pLogJson, "content", pLogItem->content);
 
     if (tjsonAddItemToArray(pLogsJson, pLogJson) != 0) tjsonDelete(pLogJson);
