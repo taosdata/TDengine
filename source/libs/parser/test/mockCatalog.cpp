@@ -58,6 +58,10 @@ int32_t __catalogGetTableHashVgroup(struct SCatalog* pCatalog, void *pRpc, const
   return mockCatalogService->catalogGetTableHashVgroup(pTableName, vgInfo);
 }
 
+int32_t __catalogGetTableDistVgInfo(SCatalog* pCtg, void *pRpc, const SEpSet* pMgmtEps, const SName* pTableName, SArray** pVgList) {
+  return mockCatalogService->catalogGetTableDistVgInfo(pTableName, pVgList);
+}
+
 void initMetaDataEnv() {
   mockCatalogService.reset(new MockCatalogService());
 
@@ -65,6 +69,8 @@ void initMetaDataEnv() {
   stub.set(catalogGetHandle, __catalogGetHandle);
   stub.set(catalogGetTableMeta, __catalogGetTableMeta);
   stub.set(catalogGetTableHashVgroup, __catalogGetTableHashVgroup);
+  stub.set(catalogGetTableDistVgInfo, __catalogGetTableDistVgInfo);
+
   {
     AddrAny any("libcatalog.so");
     std::map<std::string,void*> result;
