@@ -34,11 +34,11 @@ typedef struct SMonInfo {
 } SMonInfo;
 
 typedef struct {
-  pthread_rwlock_t rwlock;
-  SArray          *logs;  // array of SMonLogItem
-  int32_t          maxLogs;
-  const char      *server;
-  uint16_t         port;
+  pthread_mutex_t lock;
+  SArray         *logs;  // array of SMonLogItem
+  int32_t         maxLogs;
+  const char     *server;
+  uint16_t        port;
 } SMonitor;
 
 #ifdef __cplusplus
