@@ -116,7 +116,7 @@ typedef struct {
 
 typedef struct {
   char      name[TSDB_FILENAME_LEN];
-  int32_t   level;
+  int8_t    level;
   SDiskSize size;
 } SMonDiskDesc;
 
