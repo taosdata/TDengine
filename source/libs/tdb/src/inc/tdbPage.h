@@ -78,9 +78,15 @@ struct SPage {
 
 // For page ref (TODO: Need atomic operation)
 #define TDB_INIT_PAGE_REF(pPage) ((pPage)->nRef = 0)
-#define TDB_REF_PAGE(pPage)      (++(pPage)->nRef)
-#define TDB_UNREF_PAGE(pPage)    (--(pPage)->nRef)
-#define TDB_PAGE_REF(pPage)      ((pPage)->nRef)
+#if 0
+#define TDB_REF_PAGE(pPage)   (++(pPage)->nRef)
+#define TDB_UNREF_PAGE(pPage) (--(pPage)->nRef)
+#define TDB_PAGE_REF(pPage)   ((pPage)->nRef)
+#else
+#define TDB_REF_PAGE(pPage)   atomic_add_fetch_32(&((pPage)->nRef), 1)
+#define TDB_UNREF_PAGE(pPage) atomic_sub_fetch_32(&((pPage)->nRef), 1)
+#define TDB_PAGE_REF(pPage)   atomic_load_32(&((pPage)->nRef))
+#endif
 
 #ifdef __cplusplus
 }
