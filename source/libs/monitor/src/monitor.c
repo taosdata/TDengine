@@ -25,13 +25,11 @@ static SMonitor tsMonitor = {0};
 void monRecordLog(int64_t ts, ELogLevel level, const char *content) {
   pthread_mutex_lock(&tsMonitor.lock);
   int32_t size = taosArrayGetSize(tsMonitor.logs);
-  if (size >= tsMonitor.maxLogs) {
-    uInfo("too many logs for monitor");
-  } else {
+  if (size < tsMonitor.maxLogs) {
     SMonLogItem  item = {.ts = ts, .level = level};
     SMonLogItem *pItem = taosArrayPush(tsMonitor.logs, &item);
     if (pItem != NULL) {
-      tstrncpy(pItem->content, content, sizeof(item.content));
+      tstrncpy(pItem->content, content, MON_LOG_LEN);
     }
   }
   pthread_mutex_unlock(&tsMonitor.lock);
@@ -53,6 +51,7 @@ int32_t monInit(const SMonCfg *pCfg) {
 }
 
 void monCleanup() {
+  tsLogFp = NULL;
   taosArrayDestroy(tsMonitor.logs);
   tsMonitor.logs = NULL;
   pthread_mutex_destroy(&tsMonitor.lock);

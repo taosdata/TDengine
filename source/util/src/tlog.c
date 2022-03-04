@@ -431,24 +431,31 @@ static inline void taosPrintLogImp(ELogLevel level, int32_t dflag, const char *b
 
 void taosPrintLog(const char *flags, ELogLevel level, int32_t dflag, const char *format, ...) {
   if (!osLogSpaceAvailable()) return;
+  if (!(dflag & DEBUG_FILE) && !(dflag & DEBUG_SCREEN)) return;
 
   char    buffer[LOG_MAX_LINE_BUFFER_SIZE];
   int32_t len = taosBuildLogHead(buffer, flags);
 
   va_list argpointer;
   va_start(argpointer, format);
-  len += vsnprintf(buffer + len, LOG_MAX_LINE_BUFFER_SIZE - len, format, argpointer);
+  int32_t writeLen = len + vsnprintf(buffer + len, LOG_MAX_LINE_BUFFER_SIZE - len, format, argpointer);
   va_end(argpointer);
 
-  if (len > LOG_MAX_LINE_SIZE) len = LOG_MAX_LINE_SIZE;
-  buffer[len++] = '\n';
-  buffer[len] = 0;
+  if (writeLen > LOG_MAX_LINE_SIZE) writeLen = LOG_MAX_LINE_SIZE;
+  buffer[writeLen++] = '\n';
+  buffer[writeLen] = 0;
 
-  taosPrintLogImp(level, dflag, buffer, len);
+  taosPrintLogImp(level, dflag, buffer, writeLen);
+
+  if (tsLogFp && level <= DEBUG_INFO) {
+    buffer[writeLen - 1] = 0;
+    (*tsLogFp)(taosGetTimestampMs(), level, buffer + len);
+  }
 }
 
 void taosPrintLongString(const char *flags, ELogLevel level, int32_t dflag, const char *format, ...) {
   if (!osLogSpaceAvailable()) return;
+  if (!(dflag & DEBUG_FILE) && !(dflag & DEBUG_SCREEN)) return;
 
   char    buffer[LOG_MAX_LINE_DUMP_BUFFER_SIZE];
   int32_t len = taosBuildLogHead(buffer, flags);
