@@ -145,14 +145,7 @@ static int32_t cfgCheckAndSetDir(SConfigItem *pItem, const char *inputDir) {
     return -1;
   }
 
-#if 0
-  if (taosMkDir(fullDir) != 0) {
-    uError("failed to create dir:%s realpath:%s since %s", inputDir, fullDir, terrstr());
-    return -1;
-  }
-#endif
-
-  cfgFreeItem(pItem);
+  tfree(pItem->str);
   pItem->str = strdup(fullDir);
   if (pItem->str == NULL) {
     terrno = TSDB_CODE_OUT_OF_MEMORY;
@@ -647,7 +640,7 @@ int32_t cfgLoadFromCfgFile(SConfig *pConfig, const char *filepath) {
     }
 
     cfgSetItem(pConfig, name, value, CFG_STYPE_CFG_FILE);
-    if (value2 != NULL && value3 != NULL && value2[0] != 0 && value3[0] != 0) {
+    if (value2 != NULL && value3 != NULL && value2[0] != 0 && value3[0] != 0 && strcasecmp(name, "dataDir") == 0) {
       cfgSetTfsItem(pConfig, name, value, value2, value3, CFG_STYPE_CFG_FILE);
     }
   }

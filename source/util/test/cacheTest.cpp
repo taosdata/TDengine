@@ -1,7 +1,7 @@
-#include "os.h"
 #include <iostream>
 #include <gtest/gtest.h>
 
+#include "os.h"
 #include "taos.h"
 #include "tcache.h"
 

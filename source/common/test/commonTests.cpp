@@ -1,7 +1,5 @@
 #include <gtest/gtest.h>
-#include <tdatablock.h>
 #include <iostream>
-#include "tcommon.h"
 
 #pragma GCC diagnostic push
 #pragma GCC diagnostic ignored "-Wwrite-strings"
@@ -10,6 +8,9 @@
 #pragma GCC diagnostic ignored "-Wsign-compare"
 #include "os.h"
 
+#include "tcommon.h"
+#include "tdatablock.h"
+#include "tcommon.h"
 #include "taos.h"
 #include "tvariant.h"
 #include "tdef.h"

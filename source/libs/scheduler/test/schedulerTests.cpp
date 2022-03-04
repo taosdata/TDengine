@@ -14,11 +14,24 @@
  */
 
 #include <gtest/gtest.h>
-#include <tglobal.h>
 #include <iostream>
+
+#pragma GCC diagnostic push
+#pragma GCC diagnostic ignored "-Wwrite-strings"
+#pragma GCC diagnostic ignored "-Wunused-function"
+#pragma GCC diagnostic ignored "-Wunused-variable"
+#pragma GCC diagnostic ignored "-Wsign-compare"
+#pragma GCC diagnostic ignored "-Wreturn-type"
+#pragma GCC diagnostic ignored "-Wformat"
+#include <addr_any.h>
+
 
 #include "os.h"
 
+#include "tglobal.h"
+#include "taos.h"
+#include "tdef.h"
+#include "tvariant.h"
 #include "catalog.h"
 #include "scheduler.h"
 #include "taos.h"
@@ -37,7 +50,6 @@
 
 #include "schedulerInt.h"
 #include "stub.h"
-#include "addr_any.h"
 #include "tref.h"
 
 namespace {
