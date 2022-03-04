@@ -940,8 +940,13 @@ bool taosCacheIterNext(SCacheIter* pIter) {
       pIter->pCurrent[i] = NULL;
     }
 
-    while(1) {
-      SCacheEntry *pEntry = &pCacheObj->pEntryList[++pIter->entryIndex];
+    while (1) {
+      pIter->entryIndex++;
+      if (pIter->entryIndex >= pCacheObj->capacity) {
+        return false;
+      }
+
+      SCacheEntry *pEntry = &pCacheObj->pEntryList[pIter->entryIndex];
       taosRLockLatch(&pEntry->latch);
 
       if (pEntry->num == 0) {

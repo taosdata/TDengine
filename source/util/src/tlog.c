@@ -17,12 +17,10 @@
 #include "tlog.h"
 #include "tutil.h"
 
-#define LOG_MAX_LINE_SIZE              (1000)
-#define LOG_MAX_LINE_BUFFER_SIZE       (LOG_MAX_LINE_SIZE + 10)
-#define LOG_MAX_LINE_CONTENT_SIZE      (LOG_MAX_LINE_SIZE - 100)
+#define LOG_MAX_LINE_SIZE              (1024)
+#define LOG_MAX_LINE_BUFFER_SIZE       (LOG_MAX_LINE_SIZE + 3)
 #define LOG_MAX_LINE_DUMP_SIZE         (65 * 1024)
-#define LOG_MAX_LINE_DUMP_BUFFER_SIZE  (LOG_MAX_LINE_DUMP_SIZE + 10)
-#define LOG_MAX_LINE_DUMP_CONTENT_SIZE (LOG_MAX_LINE_DUMP_SIZE - 100)
+#define LOG_MAX_LINE_DUMP_BUFFER_SIZE  (LOG_MAX_LINE_DUMP_SIZE + 3)
 
 #define LOG_FILE_NAME_LEN    300
 #define LOG_DEFAULT_BUF_SIZE (20 * 1024 * 1024)  // 20MB
@@ -401,7 +399,7 @@ void taosPrintLog(const char *flags, ELogLevel level, int32_t dflag, const char 
   if (!osLogSpaceAvailable()) return;
 
   va_list        argpointer;
-  char           buffer[LOG_MAX_LINE_BUFFER_SIZE] = {0};
+  char           buffer[LOG_MAX_LINE_BUFFER_SIZE];
   int32_t        len;
   struct tm      Tm, *ptm;
   struct timeval timeSecs;
@@ -416,17 +414,7 @@ void taosPrintLog(const char *flags, ELogLevel level, int32_t dflag, const char 
   len += sprintf(buffer + len, "%s", flags);
 
   va_start(argpointer, format);
-  int32_t writeLen = vsnprintf(buffer + len, LOG_MAX_LINE_CONTENT_SIZE, format, argpointer);
-  if (writeLen <= 0) {
-    char tmp[LOG_MAX_LINE_DUMP_BUFFER_SIZE] = {0};
-    writeLen = vsnprintf(tmp, LOG_MAX_LINE_DUMP_CONTENT_SIZE, format, argpointer);
-    strncpy(buffer + len, tmp, LOG_MAX_LINE_CONTENT_SIZE);
-    len += LOG_MAX_LINE_CONTENT_SIZE;
-  } else if (writeLen >= LOG_MAX_LINE_CONTENT_SIZE) {
-    len += LOG_MAX_LINE_CONTENT_SIZE;
-  } else {
-    len += writeLen;
-  }
+  len += vsnprintf(buffer + len, LOG_MAX_LINE_BUFFER_SIZE - len, format, argpointer);
   va_end(argpointer);
 
   if (len > LOG_MAX_LINE_SIZE) len = LOG_MAX_LINE_SIZE;
@@ -497,7 +485,7 @@ void taosPrintLongString(const char *flags, ELogLevel level, int32_t dflag, cons
   len += sprintf(buffer + len, "%s", flags);
 
   va_start(argpointer, format);
-  len += vsnprintf(buffer + len, LOG_MAX_LINE_DUMP_CONTENT_SIZE, format, argpointer);
+  len += vsnprintf(buffer + len, LOG_MAX_LINE_DUMP_BUFFER_SIZE, format, argpointer);
   va_end(argpointer);
 
   if (len > LOG_MAX_LINE_DUMP_SIZE) len = LOG_MAX_LINE_DUMP_SIZE;
