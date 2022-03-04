@@ -22,9 +22,24 @@
 extern "C" {
 #endif
 
+#define DEBUG_FATAL  1U
+#define DEBUG_ERROR  DEBUG_FATAL
+#define DEBUG_WARN   2U
+#define DEBUG_INFO   DEBUG_WARN
+#define DEBUG_DEBUG  4U
+#define DEBUG_TRACE  8U
+#define DEBUG_DUMP   16U
+#define DEBUG_SCREEN 64U
+#define DEBUG_FILE   128U
+
+extern bool    tsLogEmbedded;
 extern bool    tsAsyncLog;
 extern int32_t tsNumOfLogLines;
 extern int32_t tsLogKeepDays;
+extern int64_t tsNumOfErrorLogs;
+extern int64_t tsNumOfInfoLogs;
+extern int64_t tsNumOfDebugLogs;
+extern int64_t tsNumOfTraceLogs;
 extern int32_t dDebugFlag;
 extern int32_t vDebugFlag;
 extern int32_t mDebugFlag;
@@ -39,16 +54,6 @@ extern int32_t sDebugFlag;
 extern int32_t tsdbDebugFlag;
 extern int32_t tqDebugFlag;
 extern int32_t fsDebugFlag;
-
-#define DEBUG_FATAL  1U
-#define DEBUG_ERROR  DEBUG_FATAL
-#define DEBUG_WARN   2U
-#define DEBUG_INFO   DEBUG_WARN
-#define DEBUG_DEBUG  4U
-#define DEBUG_TRACE  8U
-#define DEBUG_DUMP   16U
-#define DEBUG_SCREEN 64U
-#define DEBUG_FILE   128U
 
 int32_t taosInitLog(const char *logName, int32_t maxFiles);
 void    taosCloseLog();
@@ -68,12 +73,10 @@ void taosPrintLongString(const char *flags, int32_t dflag, const char *format, .
 #endif
     ;
 
-extern int8_t tscEmbeddedInUtil;
-
-#define uFatal(...) { if (uDebugFlag & DEBUG_FATAL) { taosPrintLog("UTL FATAL", tscEmbeddedInUtil ? 255 : uDebugFlag, __VA_ARGS__); }}
-#define uError(...) { if (uDebugFlag & DEBUG_ERROR) { taosPrintLog("UTL ERROR ", tscEmbeddedInUtil ? 255 : uDebugFlag, __VA_ARGS__); }}
-#define uWarn(...)  { if (uDebugFlag & DEBUG_WARN)  { taosPrintLog("UTL WARN ", tscEmbeddedInUtil ? 255 : uDebugFlag, __VA_ARGS__); }}
-#define uInfo(...)  { if (uDebugFlag & DEBUG_INFO)  { taosPrintLog("UTL ", tscEmbeddedInUtil ? 255 : uDebugFlag, __VA_ARGS__); }}
+#define uFatal(...) { if (uDebugFlag & DEBUG_FATAL) { taosPrintLog("UTL FATAL", tsLogEmbedded ? 255 : uDebugFlag, __VA_ARGS__); }}
+#define uError(...) { if (uDebugFlag & DEBUG_ERROR) { taosPrintLog("UTL ERROR ", tsLogEmbedded ? 255 : uDebugFlag, __VA_ARGS__); }}
+#define uWarn(...)  { if (uDebugFlag & DEBUG_WARN)  { taosPrintLog("UTL WARN ", tsLogEmbedded ? 255 : uDebugFlag, __VA_ARGS__); }}
+#define uInfo(...)  { if (uDebugFlag & DEBUG_INFO)  { taosPrintLog("UTL ", tsLogEmbedded ? 255 : uDebugFlag, __VA_ARGS__); }}
 #define uDebug(...) { if (uDebugFlag & DEBUG_DEBUG) { taosPrintLog("UTL ", uDebugFlag, __VA_ARGS__); }}
 #define uTrace(...) { if (uDebugFlag & DEBUG_TRACE) { taosPrintLog("UTL ", uDebugFlag, __VA_ARGS__); }}
 

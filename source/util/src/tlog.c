@@ -66,13 +66,17 @@ typedef struct {
 
 static int8_t  tsLogInited = 0;
 static SLogObj tsLogObj = {.fileNum = 1};
+static int64_t tsAsyncLogLostLines = 0;
+static int32_t tsWriteInterval = LOG_DEFAULT_INTERVAL;
 
-int8_t  tscEmbeddedInUtil = 0;
-int32_t tsLogKeepDays = 0;
+bool    tsLogEmbedded = 0;
 bool    tsAsyncLog = true;
 int32_t tsNumOfLogLines = 10000000;
-int64_t tsAsyncLogLostLines = 0;
-int32_t tsWriteInterval = LOG_DEFAULT_INTERVAL;
+int32_t tsLogKeepDays = 0;
+int64_t tsNumOfErrorLogs = 0;
+int64_t tsNumOfInfoLogs = 0;
+int64_t tsNumOfDebugLogs = 0;
+int64_t tsNumOfTraceLogs = 0;
 
 // log
 int32_t dDebugFlag = 135;

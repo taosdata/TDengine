@@ -478,10 +478,10 @@ int32_t taosCreateLog(const char *logname, int32_t logFileNum, const char *cfgDi
   if (pCfg == NULL) return -1;
 
   if (tsc) {
-    tscEmbeddedInUtil = 0;
+    tsLogEmbedded = 0;
     if (taosAddClientLogCfg(pCfg) != 0) return -1;
   } else {
-    tscEmbeddedInUtil = 1;
+    tsLogEmbedded = 1;
     if (taosAddClientLogCfg(pCfg) != 0) return -1;
     if (taosAddServerLogCfg(pCfg) != 0) return -1;
   }
