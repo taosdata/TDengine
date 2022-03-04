@@ -85,7 +85,7 @@ static SVnodeObj *dndAcquireVnode(SDnode *pDnode, int32_t vgId) {
   int32_t      refCount = 0;
 
   taosRLockLatch(&pMgmt->latch);
-  taosHashGetClone(pMgmt->hash, &vgId, sizeof(int32_t), (void *)&pVnode);
+  taosHashGetDup(pMgmt->hash, &vgId, sizeof(int32_t), (void *)&pVnode);
   if (pVnode == NULL) {
     terrno = TSDB_CODE_VND_INVALID_VGROUP_ID;
   } else {
@@ -523,6 +523,9 @@ static void dndGenerateVnodeCfg(SCreateVnodeReq *pCreate, SVnodeCfg *pCfg) {
   pCfg->walCfg.rollPeriod = 128;
   pCfg->walCfg.segSize = 128;
   pCfg->walCfg.vgId = pCreate->vgId;
+  pCfg->hashBegin = pCreate->hashBegin;
+  pCfg->hashEnd = pCreate->hashEnd;
+  pCfg->hashMethod = pCreate->hashMethod;
 }
 
 static void dndGenerateWrapperCfg(SDnode *pDnode, SCreateVnodeReq *pCreate, SWrapperCfg *pCfg) {

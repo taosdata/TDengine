@@ -93,8 +93,7 @@ static void shellCheckTablesSQLFile(const char *directoryName)
 {
   sprintf(shellTablesSQLFile, "%s/tables.sql", directoryName);
 
-  struct stat fstat;
-  if (stat(shellTablesSQLFile, &fstat) < 0) {
+  if (taosFStatFile(shellTablesSQLFile, NULL, NULL) < 0) {
     shellTablesSQLFile[0] = 0;
   }
 }
@@ -109,13 +108,12 @@ static void shellMallocSQLFiles()
 
 static void shellGetDirectoryFileList(char *inputDir)
 {
-  struct stat fileStat;
-  if (stat(inputDir, &fileStat) < 0) {
+  if (!taosDirExist(inputDir)) {
     fprintf(stderr, "ERROR: %s not exist\n", inputDir);
     exit(0);
   }
 
-  if (fileStat.st_mode & S_IFDIR) {
+  if (taosIsDir(inputDir)) {
     shellCheckTablesSQLFile(inputDir);
     shellSQLFileNum = shellGetFilesNum(inputDir, "sql");
     int totalSQLFileNum = shellSQLFileNum;

@@ -28,11 +28,11 @@ extern char    tsCharset[];
 extern char    tsLocale[];
 extern int8_t  tsDaylight;
 extern bool    tsEnableCoreFile;
-extern int64_t tsPageSize;
+extern int64_t tsPageSizeKB;
 extern int64_t tsOpenMax;
 extern int64_t tsStreamMax;
-extern int32_t tsNumOfCores;
-extern int32_t tsTotalMemoryMB;
+extern float   tsNumOfCores;
+extern int64_t tsTotalMemoryKB;
 
 extern char configDir[];
 extern char tsDataDir[];

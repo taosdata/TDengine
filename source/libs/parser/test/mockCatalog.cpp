@@ -13,19 +13,17 @@
  * along with this program. If not, see <http://www.gnu.org/licenses/>.
  */
 
-#include "mockCatalog.h"
-
 #include <iostream>
-
 #include "stub.h"
 
 #pragma GCC diagnostic push
 #pragma GCC diagnostic ignored "-Wformat"
 
-#include "addr_any.h"
+#include <addr_any.h>
 
 #pragma GCC diagnostic pop
 
+#include "mockCatalog.h"
 namespace {
 
 void generateTestT1(MockCatalogService* mcs) {

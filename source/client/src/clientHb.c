@@ -480,7 +480,8 @@ SAppHbMgr *appHbMgrInit(SAppInstInfo *pAppInstInfo, char *key) {
     free(pAppHbMgr);
     return NULL;
   }
-  pAppHbMgr->activeInfo->freeFp = tFreeClientHbReq;
+
+  taosHashSetFreeFp(pAppHbMgr->activeInfo, tFreeClientHbReq);
   // init getInfoFunc
   pAppHbMgr->connInfo = taosHashInit(64, hbKeyHashFunc, 1, HASH_ENTRY_LOCK);
 

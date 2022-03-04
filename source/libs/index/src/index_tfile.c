@@ -15,6 +15,7 @@ p *
 
 #include "index_tfile.h"
 #include "index.h"
+#include "index_comm.h"
 #include "index_fst.h"
 #include "index_fst_counting_writer.h"
 #include "index_util.h"
@@ -186,13 +187,20 @@ void tfileReaderDestroy(TFileReader* reader) {
 
 int tfileReaderSearch(TFileReader* reader, SIndexTermQuery* query, SArray* result) {
   SIndexTerm*     term = query->term;
+  bool            hasJson = INDEX_TYPE_CONTAIN_EXTERN_TYPE(term->colType, TSDB_DATA_TYPE_JSON);
   EIndexQueryType qtype = query->qType;
 
   int ret = -1;
   // refactor to callback later
   if (qtype == QUERY_TERM) {
     uint64_t offset;
-    FstSlice key = fstSliceCreate(term->colVal, term->nColVal);
+    char*    p = term->colVal;
+    uint64_t sz = term->nColVal;
+    if (hasJson) {
+      p = indexPackJsonData(term);
+      sz = strlen(p);
+    }
+    FstSlice key = fstSliceCreate(p, sz);
     if (fstGet(reader->fst, &key, &offset)) {
       indexInfo("index: %" PRIu64 ", col: %s, colVal: %s, found table info in tindex", term->suid, term->colName,
                 term->colVal);
@@ -202,10 +210,17 @@ int tfileReaderSearch(TFileReader* reader, SIndexTermQuery* query, SArray* resul
                 term->colVal);
     }
     fstSliceDestroy(&key);
+    if (hasJson) {
+      free(p);
+    }
   } else if (qtype == QUERY_PREFIX) {
     // handle later
     //
-  } else {
+  } else if (qtype == QUERY_SUFFIX) {
+    // handle later
+  } else if (qtype == QUERY_REGEX) {
+    // handle later
+  } else if (qtype == QUERY_RANGE) {
     // handle later
   }
   tfileReaderUnRef(reader);
@@ -260,6 +275,7 @@ int tfileWriterPut(TFileWriter* tw, void* data, bool order) {
     __compar_fn_t fn;
 
     int8_t colType = tw->header.colType;
+    colType = INDEX_TYPE_GET_TYPE(colType);
     if (colType == TSDB_DATA_TYPE_BINARY || colType == TSDB_DATA_TYPE_NCHAR) {
       fn = tfileStrCompare;
     } else {
@@ -557,6 +573,8 @@ static int tfileWriteHeader(TFileWriter* writer) {
 static int tfileWriteData(TFileWriter* write, TFileValue* tval) {
   TFileHeader* header = &write->header;
   uint8_t      colType = header->colType;
+
+  colType = INDEX_TYPE_GET_TYPE(colType);
   if (colType == TSDB_DATA_TYPE_BINARY || colType == TSDB_DATA_TYPE_NCHAR) {
     FstSlice key = fstSliceCreate((uint8_t*)(tval->colVal), (size_t)strlen(tval->colVal));
     if (fstBuilderInsert(write->fb, key, tval->offset)) {
@@ -586,11 +604,10 @@ static int tfileReaderLoadHeader(TFileReader* reader) {
 
   int64_t nread = reader->ctx->readFrom(reader->ctx, buf, sizeof(buf), 0);
   if (nread == -1) {
-    indexError("actual Read: %d, to read: %d, errno: %d, filename: %s", (int)(nread), (int)sizeof(buf),
-               errno, reader->ctx->file.buf);
+    indexError("actual Read: %d, to read: %d, errno: %d, filename: %s", (int)(nread), (int)sizeof(buf), errno,
+               reader->ctx->file.buf);
   } else {
-    indexInfo("actual Read: %d, to read: %d, filename: %s", (int)(nread), (int)sizeof(buf),
-              reader->ctx->file.buf);
+    indexInfo("actual Read: %d, to read: %d, filename: %s", (int)(nread), (int)sizeof(buf), reader->ctx->file.buf);
   }
   // assert(nread == sizeof(buf));
   memcpy(&reader->header, buf, sizeof(buf));

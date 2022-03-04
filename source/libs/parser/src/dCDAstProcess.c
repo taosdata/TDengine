@@ -762,6 +762,7 @@ SDclStmtInfo* qParserValidateDclSqlNode(SSqlInfo* pInfo, SParseContext* pCtx, ch
 
       SUseDbReq usedbReq = {0};
       tNameExtractFullName(&n, usedbReq.db);
+      catalogGetDBVgVersion(pCtx->pCatalog, usedbReq.db, &usedbReq.vgVersion, &usedbReq.dbId);
 
       int32_t bufLen = tSerializeSUseDbReq(NULL, 0, &usedbReq);
       void*   pBuf = malloc(bufLen);

@@ -24,8 +24,8 @@ extern "C" {
 #include "query.h"
 #include "taos.h"
 #include "tcommon.h"
+#include "tdatablock.h"
 #include "tdef.h"
-#include "tep.h"
 #include "thash.h"
 #include "tlist.h"
 #include "tmsg.h"
@@ -167,8 +167,8 @@ typedef struct SRequestSendRecvBody {
   void*             fp;
   SShowReqInfo      showInfo;  // todo this attribute will be removed after the query framework being completed.
   SDataBuf          requestMsg;
-  struct SSchJob*   pQueryJob;  // query job, created according to sql query DAG.
-  struct SQueryDag* pDag;       // the query dag, generated according to the sql statement.
+  int64_t           queryJob;  // query job, created according to sql query DAG.
+  struct SQueryDag* pDag;      // the query dag, generated according to the sql statement.
   SReqResultInfo    resInfo;
 } SRequestSendRecvBody;
 

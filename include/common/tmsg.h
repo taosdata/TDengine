@@ -167,6 +167,7 @@ typedef struct {
 
 typedef struct {
   char    db[TSDB_DB_FNAME_LEN];
+  int64_t dbId;
   int32_t vgVersion;
 } SBuildUseDBInput;
 
@@ -563,6 +564,7 @@ int32_t tDeserializeSDropDbRsp(void* buf, int32_t bufLen, SDropDbRsp* pRsp);
 
 typedef struct {
   char    db[TSDB_DB_FNAME_LEN];
+  int64_t dbId;
   int32_t vgVersion;
 } SUseDbReq;
 
@@ -737,6 +739,9 @@ typedef struct {
   int32_t  maxRows;
   int32_t  commitTime;
   int32_t  fsyncPeriod;
+  uint32_t hashBegin;
+  uint32_t hashEnd;
+  int8_t   hashMethod;  
   int8_t   walLevel;
   int8_t   precision;
   int8_t   compression;
@@ -747,6 +752,7 @@ typedef struct {
   int8_t   selfIndex;
   int8_t   streamMode;
   SReplica replicas[TSDB_MAX_REPLICA];
+  
 } SCreateVnodeReq, SAlterVnodeReq;
 
 int32_t tSerializeSCreateVnodeReq(void* buf, int32_t bufLen, SCreateVnodeReq* pReq);
