@@ -38,6 +38,7 @@ struct SMetaDB {
   // DB
   DB *pTbDB;
   DB *pSchemaDB;
+
   // IDX
   DB *pNameIdx;
   DB *pStbIdx;
