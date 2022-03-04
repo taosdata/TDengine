@@ -1054,7 +1054,7 @@ int tsdbWriteBlockIdx(SDFile *pHeadf, SArray *pIdxA, void **ppBuf) {
 //     pfs->metaCacheComp = NULL;
 //   } else {
 //     // remove meta.tmp file
-//     remove(mf.f.aname);
+//     taosRemoveFile(mf.f.aname);
 //     taosHashCleanup(pfs->metaCacheComp);
 //     pfs->metaCacheComp = NULL;
 //   }

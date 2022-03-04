@@ -379,7 +379,7 @@ int walSaveMeta(SWal* pWal) {
   // delete old file
   if (metaVer > -1) {
     walBuildMetaName(pWal, metaVer, fnameStr);
-    remove(fnameStr);
+    taosRemoveFile(fnameStr);
   }
   free(serialized);
   return 0;

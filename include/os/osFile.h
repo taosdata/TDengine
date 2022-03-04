@@ -22,6 +22,7 @@ extern "C" {
 
 #include "osSocket.h"
 
+// If the error is in a third-party library, place this header file under the third-party library header file.
 #ifndef ALLOW_FORBID_FUNC
     #define open OPEN_FUNC_TAOS_FORBID
     #define fopen FOPEN_FUNC_TAOS_FORBID
@@ -31,6 +32,8 @@ extern "C" {
     #define fstat FSTAT_FUNC_TAOS_FORBID
     #define close CLOSE_FUNC_TAOS_FORBID
     #define fclose FCLOSE_FUNC_TAOS_FORBID
+    #define fsync FSYNC_FUNC_TAOS_FORBID
+    // #define fflush FFLUSH_FUNC_TAOS_FORBID
 #endif
 
 #ifndef PATH_MAX
@@ -47,13 +50,13 @@ typedef struct TdFile *TdFilePtr;
 #define TD_FILE_TEXT      0x0020
 #define TD_FILE_AUTO_DEL  0x0040
 #define TD_FILE_EXCL      0x0080
-#define TD_FILE_STREAM    0x0100   // Only support taosFprintfFile, taosGetLineFile, taosGetLineFile, taosEOFFile
+#define TD_FILE_STREAM    0x0100   // Only support taosFprintfFile, taosGetLineFile, taosEOFFile
 TdFilePtr taosOpenFile(const char *path,int32_t tdFileOptions);
 
 #define TD_FILE_ACCESS_EXIST_OK 0x1
 #define TD_FILE_ACCESS_READ_OK  0x2
 #define TD_FILE_ACCESS_WRITE_OK 0x4
-bool taosCheckAccessFile(const char *pathname, int mode);
+bool    taosCheckAccessFile(const char *pathname, int mode);
  
 int32_t taosLockFile(TdFilePtr pFile);
 int32_t taosUnLockFile(TdFilePtr pFile);
@@ -80,6 +83,7 @@ int64_t taosCloseFile(TdFilePtr *ppFile);
  
 int32_t taosRenameFile(const char *oldName, const char *newName);
 int64_t taosCopyFile(const char *from, const char *to);
+int32_t taosRemoveFile(const char *path);
  
 void    taosGetTmpfilePath(const char *inputTmpDir, const char *fileNamePrefix, char *dstPath);
  
