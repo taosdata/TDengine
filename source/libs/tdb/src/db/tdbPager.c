@@ -291,10 +291,11 @@ static int tdbPagerAllocPage(SPager *pPager, SPgno *ppgno) {
 
 static int tdbPagerInitPage(SPager *pPager, SPage *pPage, int (*initPage)(SPage *, void *), void *arg) {
   int ret;
+  int lcode;
   int nLoops;
 
-  ret = TDB_TRY_LOCK_PAGE(pPage);
-  if (ret == 0) {
+  lcode = TDB_TRY_LOCK_PAGE(pPage);
+  if (lcode == P_LOCK_SUCC) {
     if (TDB_PAGE_INITIALIZED(pPage)) {
       TDB_UNLOCK_PAGE(pPage);
       return 0;
@@ -309,10 +310,7 @@ static int tdbPagerInitPage(SPager *pPager, SPage *pPage, int (*initPage)(SPage 
     pPage->pPager = pPager;
 
     TDB_UNLOCK_PAGE(pPage);
-  } else {
-    // TODO: Here, we still use the pthread API here
-    if (errno != EBUSY) return -1;
-
+  } else if (lcode == P_LOCK_BUSY) {
     nLoops = 0;
     for (;;) {
       if (TDB_PAGE_INITIALIZED(pPage)) break;
@@ -322,6 +320,8 @@ static int tdbPagerInitPage(SPager *pPager, SPage *pPage, int (*initPage)(SPage 
         nLoops = 0;
       }
     }
+  } else {
+    return -1;
   }
 
   return 0;

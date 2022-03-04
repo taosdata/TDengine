@@ -55,11 +55,26 @@ struct SPage {
 };
 
 // For page lock
+#define P_LOCK_SUCC 0
+#define P_LOCK_BUSY 1
+#define P_LOCK_FAIL -1
+
 #define TDB_INIT_PAGE_LOCK(pPage)    pthread_spin_init(&((pPage)->lock), 0)
 #define TDB_DESTROY_PAGE_LOCK(pPage) pthread_spin_destroy(&((pPage)->lock))
 #define TDB_LOCK_PAGE(pPage)         pthread_spin_lock(&((pPage)->lock))
-#define TDB_TRY_LOCK_PAGE(pPage)     pthread_spin_trylock(&((pPage)->lock))
 #define TDB_UNLOCK_PAGE(pPage)       pthread_spin_unlock(&((pPage)->lock))
+#define TDB_TRY_LOCK_PAGE(pPage)                       \
+  ({                                                   \
+    int ret;                                           \
+    if (pthread_spin_trylock(&((pPage)->lock)) == 0) { \
+      ret = P_LOCK_SUCC;                               \
+    } else if (errno == EBUSY) {                       \
+      ret = P_LOCK_BUSY;                               \
+    } else {                                           \
+      ret = P_LOCK_FAIL;                               \
+    }                                                  \
+    ret;                                               \
+  })
 
 // For page ref (TODO: Need atomic operation)
 #define TDB_INIT_PAGE_REF(pPage) ((pPage)->nRef = 0)
