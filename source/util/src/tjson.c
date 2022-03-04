@@ -161,7 +161,7 @@ int32_t tjsonGetBigIntValue(const SJson* pJson, const char* pName, int64_t* pVal
   }
   char* pEnd = NULL;
   *pVal = strtol(p, &pEnd, 10);
-  return (NULL == pEnd ? TSDB_CODE_SUCCESS : TSDB_CODE_FAILED);
+  return (errno == EINVAL || errno == ERANGE)? TSDB_CODE_FAILED:TSDB_CODE_SUCCESS;
 }
 
 int32_t tjsonGetIntValue(const SJson* pJson, const char* pName, int32_t* pVal) {
@@ -192,7 +192,7 @@ int32_t tjsonGetUBigIntValue(const SJson* pJson, const char* pName, uint64_t* pV
   }
   char* pEnd = NULL;
   *pVal = strtoul(p, &pEnd, 10);
-  return (NULL == pEnd ? TSDB_CODE_SUCCESS : TSDB_CODE_FAILED);
+  return (errno == ERANGE||errno == EINVAL)? TSDB_CODE_FAILED:TSDB_CODE_SUCCESS;
 }
 
 int32_t tjsonGetUTinyIntValue(const SJson* pJson, const char* pName, uint8_t* pVal) {
@@ -204,7 +204,7 @@ int32_t tjsonGetUTinyIntValue(const SJson* pJson, const char* pName, uint8_t* pV
 
 int32_t tjsonGetBoolValue(const SJson* pJson, const char* pName, bool* pVal) {
   const SJson* pObject = tjsonGetObjectItem(pJson, pName);
-  if (cJSON_IsBool(pObject)) {
+  if (!cJSON_IsBool(pObject)) {
     return TSDB_CODE_FAILED;
   }
   *pVal = cJSON_IsTrue(pObject) ? true : false;
