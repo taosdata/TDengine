@@ -86,8 +86,12 @@ SPage *tdbPCacheFetch(SPCache *pCache, const SPgid *pPgid, bool alcNewPage) {
 }
 
 void tdbPCacheRelease(SPage *pPage) {
-  pPage->nRef--;
-  if (pPage->nRef == 0) {
+  i32 nRef;
+
+  nRef = TDB_UNREF_PAGE(pPage);
+  ASSERT(nRef >= 0);
+
+  if (nRef == 0) {
     if (1 /*TODO: page still clean*/) {
       tdbPCacheUnpinPage(pPage);
     } else {
@@ -125,6 +129,7 @@ static SPage *tdbPCacheFetchImpl(SPCache *pCache, const SPgid *pPgid, bool alcNe
     if (pPage) {
       tdbPCachePinPage(pPage);
     }
+    TDB_REF_PAGE(pPage);
     return pPage;
   }
 
@@ -153,6 +158,7 @@ static SPage *tdbPCacheFetchImpl(SPCache *pCache, const SPgid *pPgid, bool alcNe
     pPage->pLruNext = NULL;
     pPage->pPager = NULL;
     tdbPCacheAddPageToHash(pPage);
+    TDB_REF_PAGE(pPage);
   }
 
   return pPage;
@@ -172,15 +178,28 @@ static void tdbPCachePinPage(SPage *pPage) {
 }
 
 static void tdbPCacheUnpinPage(SPage *pPage) {
-  // Add current page to the LRU list
   SPCache *pCache;
+  i32      nRef;
 
-  pPage->pLruPrev = &(pCache->lru);
-  pPage->pLruNext = pCache->lru.pLruNext;
-  pCache->lru.pLruNext->pLruPrev = pPage;
-  pCache->lru.pLruNext = pPage;
+  pCache = pPage->pCache;
+
+  tdbPCacheLock(pCache);
+
+  nRef = TDB_PAGE_REF(pPage);
+  ASSERT(nRef >= 0);
+  if (nRef == 0) {
+    // Add the page to LRU list
+    ASSERT(pPage->pLruNext == NULL);
+
+    pPage->pLruPrev = &(pCache->lru);
+    pPage->pLruNext = pCache->lru.pLruNext;
+    pCache->lru.pLruNext->pLruPrev = pPage;
+    pCache->lru.pLruNext = pPage;
+  }
 
   pCache->nRecyclable++;
+
+  tdbPCacheUnlock(pCache);
 }
 
 static void tdbPCacheRemovePageFromHash(SPage *pPage) {
@@ -236,6 +255,7 @@ static int tdbPCacheOpenImpl(SPCache *pCache) {
     pPage->isAnchor = 0;
     pPage->isLocalPage = 1;
     pPage->pCache = pCache;
+    TDB_INIT_PAGE_REF(pPage);
     pPage->pHashNext = NULL;
     pPage->pLruNext = NULL;
     pPage->pLruPrev = NULL;
