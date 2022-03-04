@@ -14,7 +14,7 @@
  */
 
 #include "syncIO.h"
-#include <tep.h>
+#include <tdatablock.h>
 #include "syncOnMessage.h"
 #include "tglobal.h"
 #include "ttimer.h"

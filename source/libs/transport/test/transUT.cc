@@ -15,10 +15,10 @@
 #include <gtest/gtest.h>
 #include <cstdio>
 #include <cstring>
-#include "tep.h"
+#include "tdatablock.h"
 #include "tglobal.h"
-#include "trpc.h"
 #include "tlog.h"
+#include "trpc.h"
 using namespace std;
 
 const char *label = "APP";

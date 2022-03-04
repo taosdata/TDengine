@@ -15,12 +15,12 @@
 #ifndef TDENGINE_EXECUTORIMPL_H
 #define TDENGINE_EXECUTORIMPL_H
 
-#include "tsort.h"
 #ifdef __cplusplus
 extern "C" {
 #endif
 
 #include "os.h"
+#include "tsort.h"
 #include "tcommon.h"
 #include "tlosertree.h"
 #include "ttszip.h"
@@ -156,6 +156,13 @@ typedef struct STaskCostInfo {
   SArray*   queryProfEvents;      // SArray<SQueryProfEvent>
   SHashObj* operatorProfResults;  // map<operator_type, SQueryProfEvent>
 } STaskCostInfo;
+
+typedef struct SOperatorCostInfo {
+  uint64_t openCost;
+  uint64_t execCost;
+  uint64_t totalRows;
+  uint64_t totalBytes;
+} SOperatorCostInfo;
 
 typedef struct {
   int64_t vgroupLimit;

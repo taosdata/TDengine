@@ -8,7 +8,8 @@
 #pragma GCC diagnostic ignored "-Wsign-compare"
 #include "os.h"
 
-#include "tep.h"
+#include "tcommon.h"
+#include "tdatablock.h"
 #include "tcommon.h"
 #include "taos.h"
 #include "tvariant.h"

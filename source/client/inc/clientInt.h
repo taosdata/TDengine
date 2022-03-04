@@ -20,12 +20,12 @@
 extern "C" {
 #endif
 
-#include "tcommon.h"
 #include "parser.h"
 #include "query.h"
 #include "taos.h"
+#include "tcommon.h"
+#include "tdatablock.h"
 #include "tdef.h"
-#include "tep.h"
 #include "thash.h"
 #include "tlist.h"
 #include "tmsg.h"

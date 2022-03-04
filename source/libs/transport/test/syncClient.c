@@ -14,7 +14,7 @@
  */
 #include <sys/time.h>
 
-#include <tep.h>
+#include <tdatablock.h>
 #include "os.h"
 #include "rpcLog.h"
 #include "taoserror.h"
