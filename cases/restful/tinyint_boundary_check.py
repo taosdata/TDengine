@@ -20,9 +20,9 @@ class TestTinyintBoundary(TDCase):
         self.tdCom = TDCom(self.tdSql)
         self.tdRest = TDRest()
 
-    def tinyint_length_check(self):
+    def tinyint_boundary_check(self):
         '''
-            max length: 16374
+            max: +- 127
         '''
         dbname = self.tdCom.get_long_name(len=10, mode="letters")
         self.tdRest.request(f'create database if not exists {dbname}')
@@ -48,14 +48,14 @@ class TestTinyintBoundary(TDCase):
         self.tdRest.request(f'drop database if exists {dbname}')
 
     def run(self):
-        self.tinyint_length_check()
+        self.tinyint_boundary_check()
 
     def cleanup(self):
         pass
 
     def desc(self) -> str:
         case_description = '''
-            tinyint_length_check <jayden>: [TD-12748] : binary length check (max 16374);
+            tinyint_boundary_check <jayden>: [TD-12748] : tinyint boundary check (max 127);
         '''
         return case_description
         
