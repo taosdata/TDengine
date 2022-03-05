@@ -256,7 +256,7 @@ int indexCacheDel(void* cache, const char* fieldValue, int32_t fvlen, uint64_t u
   return 0;
 }
 
-static int indexQueryMem(MemTable* mem, CacheTerm* ct, EIndexQueryType qtype, SArray* result, STermValueType* s) {
+static int indexQueryMem(MemTable* mem, CacheTerm* ct, EIndexQueryType qtype, SIdxTempResult* tr, STermValueType* s) {
   if (mem == NULL) {
     return 0;
   }
@@ -267,28 +267,23 @@ static int indexQueryMem(MemTable* mem, CacheTerm* ct, EIndexQueryType qtype, SA
     SSkipListNode* node = tSkipListIterGet(iter);
     if (node != NULL) {
       CacheTerm* c = (CacheTerm*)SL_GET_NODE_DATA(node);
-      // if (c->operaType == ADD_VALUE) {
-      //} else if (c->operaType == DEL_VALUE) {
-      //}
-
-      if (c->operaType == ADD_VALUE || qtype == QUERY_TERM) {
-        if (strcmp(c->colVal, ct->colVal) == 0) {
-          taosArrayPush(result, &c->uid);
-          *s = kTypeValue;
-        } else {
-          break;
+      if (qtype == QUERY_TERM) {
+        if (0 == strcmp(c->colVal, ct->colVal)) {
+          if (c->operaType == ADD_VALUE) {
+            INDEX_MERGE_ADD_DEL(tr->deled, tr->added, c->uid)
+            // taosArrayPush(result, &c->uid);
+            *s = kTypeValue;
+          } else if (c->operaType == DEL_VALUE) {
+            INDEX_MERGE_ADD_DEL(tr->added, tr->deled, c->uid)
+          }
         }
-      } else if (c->operaType == DEL_VALUE) {
-        // table is del, not need
-        *s = kTypeDeletion;
-        break;
       }
     }
   }
   tSkipListDestroyIter(iter);
   return 0;
 }
-int indexCacheSearch(void* cache, SIndexTermQuery* query, SArray* result, STermValueType* s) {
+int indexCacheSearch(void* cache, SIndexTermQuery* query, SIdxTempResult* result, STermValueType* s) {
   if (cache == NULL) {
     return 0;
   }
@@ -416,6 +411,7 @@ static bool indexCacheIteratorNext(Iterate* itera) {
     CacheTerm*     ct = (CacheTerm*)SL_GET_NODE_DATA(node);
 
     iv->type = ct->operaType;
+    iv->ver = ct->version;
     iv->colVal = tstrdup(ct->colVal);
 
     taosArrayPush(iv->val, &ct->uid);
