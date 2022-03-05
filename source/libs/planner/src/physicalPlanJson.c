@@ -972,6 +972,8 @@ static bool inserterFromJson(const cJSON* json, void* obj) {
   inserter->numOfTables = getNumber(json, jkInserterNumOfTables);
   inserter->size = getNumber(json, jkInserterDataSize);
   // todo pData
+
+  return true;
 }
 
 static bool specificDataSinkToJson(const void* obj, cJSON* json) {

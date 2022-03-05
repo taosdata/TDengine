@@ -15,6 +15,8 @@
 
 #define _DEFAULT_SOURCE
 #include "os.h"
+#include "taosdef.h"
+#include "taoserror.h"
 
 #if defined(_TD_WINDOWS_64) || defined(_TD_WINDOWS_32)
 
@@ -260,7 +262,7 @@ int taosSystem(const char *cmd) {
   return -1;
 }
 
-void taosSetCoreDump() {}
+void taosSetCoreDump(bool enable) {}
 
 int32_t taosGetDiskSize(char *dataDir, SDiskSize *diskSize) {
   struct statvfs info;
@@ -269,7 +271,7 @@ int32_t taosGetDiskSize(char *dataDir, SDiskSize *diskSize) {
     terrno = TAOS_SYSTEM_ERROR(errno);
     return -1;
   } else {
-    diskSize->tsize = info.f_blocks * info.f_frsize;
+    diskSize->total = info.f_blocks * info.f_frsize;
     diskSize->avail = info.f_bavail * info.f_frsize;
     diskSize->used = (info.f_blocks - info.f_bfree) * info.f_frsize;
     return 0;

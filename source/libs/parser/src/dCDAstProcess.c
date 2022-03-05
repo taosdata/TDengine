@@ -525,6 +525,8 @@ static int32_t serializeVgroupTablesBatchImpl(SVgroupTablesBatch* pTbBatch, SArr
   pVgData->numOfTables = (int32_t) taosArrayGetSize(pTbBatch->req.pArray);
 
   taosArrayPush(pBufArray, &pVgData);
+
+  return 0;
 }
 
 static int32_t doBuildSingleTableBatchReq(SName* pTableName, SArray* pColumns, SVgroupInfo* pVgroupInfo, SVgroupTablesBatch* pBatch) {

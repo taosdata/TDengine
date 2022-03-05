@@ -16,5 +16,7 @@ target_include_directories(
 )
 
 if(${BUILD_TEST})
-    add_subdirectory(test)
+    IF (NOT TD_DARWIN)
+        add_subdirectory(test)
+    ENDIF ()
 endif(${BUILD_TEST})

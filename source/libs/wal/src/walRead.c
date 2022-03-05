@@ -169,7 +169,7 @@ int32_t walReadWithHandle(SWalReadHandle *pRead, int64_t ver) {
   }
 
   if (pRead->pHead->head.version != ver) {
-    wError("unexpected wal log version: %ld, read request version:%ld", pRead->pHead->head.version, ver);
+    wError("unexpected wal log version: %" PRId64 ", read request version:%" PRId64 "", pRead->pHead->head.version, ver);
     pRead->curVersion = -1;
     terrno = TSDB_CODE_WAL_FILE_CORRUPTED;
     return -1;

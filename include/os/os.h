@@ -45,15 +45,17 @@ extern "C" {
 #include <sys/types.h>
 #include <sys/utsname.h>
 #include <sys/param.h>
+#include <sys/statvfs.h>
 #include <unistd.h>
 #include <wchar.h>
+#include <termios.h>
 #include <wctype.h>
 #include <wordexp.h>
 #include <libgen.h>
 
 #include <sys/mman.h>
 
-#if defined(_TD_DARWIN)
+#if !defined(_TD_DARWIN_64)
 #include <sys/prctl.h>
 #endif
 

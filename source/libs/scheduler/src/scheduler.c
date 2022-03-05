@@ -198,6 +198,8 @@ _return:
 
   SCH_JOB_ELOG("invalid job status update, from %d to %d", oriStatus, newStatus);
   SCH_ERR_RET(code);
+
+  return TSDB_CODE_SCH_STATUS_ERROR;
 }
 
 
@@ -591,6 +593,8 @@ int32_t schProcessOnJobFailureImpl(SSchJob *pJob, int32_t status, int32_t errCod
   SCH_ERR_RET(code);
 
   SCH_JOB_ELOG("job errCode is invalid, errCode:%d", code);
+
+  return -1;
 }
 
 
@@ -663,6 +667,8 @@ _return:
 int32_t schProcessOnDataFetched(SSchJob *job) {
   atomic_val_compare_exchange_32(&job->remoteFetch, 1, 0);
   tsem_post(&job->rspSem);
+
+  return 0;
 }
 
 // Note: no more error processing, handled in function internal
@@ -713,6 +719,8 @@ _return:
   SCH_ERR_RET(schProcessOnJobFailure(pJob, errCode));
 
   SCH_ERR_RET(errCode);
+
+  return TSDB_CODE_SCH_STATUS_ERROR;
 }
 
 
@@ -801,6 +809,8 @@ _return:
   SCH_ERR_RET(schProcessOnTaskFailure(pJob, pErrTask, code));
 
   SCH_ERR_RET(code);
+
+  return TSDB_CODE_SCH_STATUS_ERROR;
 }
 
 int32_t schHandleResponseMsg(SSchJob *pJob, SSchTask *pTask, int32_t msgType, char *msg, int32_t msgSize, int32_t rspCode) {
@@ -972,6 +982,8 @@ int32_t schHandleReadyCallback(void* param, const SDataBuf* pMsg, int32_t code) 
 int32_t schHandleDropCallback(void* param, const SDataBuf* pMsg, int32_t code) {  
   SSchCallbackParam *pParam = (SSchCallbackParam *)param;
   qDebug("QID:%"PRIx64",TID:%"PRIx64" drop task rsp received, code:%x", pParam->queryId, pParam->taskId, code);
+
+  return 0;
 }
 
 int32_t schGetCallbackFp(int32_t msgType, __async_send_cb_fn_t *fp) {
@@ -1290,6 +1302,7 @@ int32_t schCancelJob(SSchJob *pJob) {
 
   //TODO MOVE ALL TASKS FROM EXEC LIST TO FAIL LIST
 
+    return 0;
 }
 
 void schFreeJobImpl(void *job) {

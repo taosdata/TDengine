@@ -68,6 +68,8 @@ int32_t taosCloseSocket(SocketFd fd) { closesocket((SOCKET)fd) }
     if (fd > -1) {
       close(fd);
     }
+
+    return 0;
   }
 #endif
 
@@ -137,25 +139,7 @@ void taosSetMaskSIGPIPE() {
 
 #endif
 
-#if !(defined(_TD_WINDOWS_64) || defined(_TD_WINDOWS_32) || defined(_TD_DARWIN_32))
-
-int32_t taosSetSockOpt(SOCKET socketfd, int32_t level, int32_t optname, void *optval, int32_t optlen) {
-  return setsockopt(socketfd, level, optname, optval, (socklen_t)optlen);
-}
-
-int32_t taosGetSockOpt(SOCKET socketfd, int32_t level, int32_t optname, void *optval, int32_t *optlen) {
-  return getsockopt(socketfd, level, optname, optval, (socklen_t *)optlen);
-}
-
-#endif
-
-#if !((defined(_TD_WINDOWS_64) || defined(_TD_WINDOWS_32)) && defined(_MSC_VER))
-
-uint32_t taosInetAddr(const char *ipAddr) { return inet_addr(ipAddr); }
-
-const char *taosInetNtoa(struct in_addr ipInt) { return inet_ntoa(ipInt); }
-
-#endif
+#if !(defined(_TD_WINDOWS_64) || defined(_TD_WINDOWS_32))
 
 #if defined(_TD_DARWIN_64)
 
@@ -174,6 +158,25 @@ int taosSetSockOpt(SOCKET socketfd, int level, int optname, void *optval, int op
 
   return setsockopt(socketfd, level, optname, optval, (socklen_t)optlen);
 }
+#else
+
+int32_t taosSetSockOpt(SOCKET socketfd, int32_t level, int32_t optname, void *optval, int32_t optlen) {
+  return setsockopt(socketfd, level, optname, optval, (socklen_t)optlen);
+}
+
+int32_t taosGetSockOpt(SOCKET socketfd, int32_t level, int32_t optname, void *optval, int32_t *optlen) {
+  return getsockopt(socketfd, level, optname, optval, (socklen_t *)optlen);
+}
+
+#endif
+#endif
+
+#if !((defined(_TD_WINDOWS_64) || defined(_TD_WINDOWS_32)) && defined(_MSC_VER))
+
+uint32_t taosInetAddr(const char *ipAddr) { return inet_addr(ipAddr); }
+
+const char *taosInetNtoa(struct in_addr ipInt) { return inet_ntoa(ipInt); }
+
 #endif
 
 #if defined(_TD_WINDOWS_64) || defined(_TD_WINDOWS_32)

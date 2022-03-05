@@ -103,6 +103,7 @@ typedef struct {
 
 typedef struct {
   // TODO
+    int tmp; // for clang compile
 } STpRow;  // tuple
 
 #pragma pack(push, 1)

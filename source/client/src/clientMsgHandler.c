@@ -33,7 +33,7 @@ int32_t genericRspCallback(void* param, const SDataBuf* pMsg, int32_t code) {
   setErrno(pRequest, code);
 
   free(pMsg->pData);
-  sem_post(&pRequest->body.rspSem);
+  tsem_post(&pRequest->body.rspSem);
   return code;
 }
 
@@ -42,7 +42,7 @@ int32_t processConnectRsp(void* param, const SDataBuf* pMsg, int32_t code) {
   if (code != TSDB_CODE_SUCCESS) {
     free(pMsg->pData);
     setErrno(pRequest, code);
-    sem_post(&pRequest->body.rspSem);
+    tsem_post(&pRequest->body.rspSem);
     return code;
   }
 
@@ -78,7 +78,7 @@ int32_t processConnectRsp(void* param, const SDataBuf* pMsg, int32_t code) {
            pTscObj->pAppInfo->numOfConns);
 
   free(pMsg->pData);
-  sem_post(&pRequest->body.rspSem);
+  tsem_post(&pRequest->body.rspSem);
   return 0;
 }
 
@@ -239,6 +239,8 @@ int32_t processCreateDbRsp(void* param, const SDataBuf* pMsg, int32_t code) {
   SRequestObj* pRequest = param;
   free(pMsg->pData);
   tsem_post(&pRequest->body.rspSem);
+
+  return 0;
 }
 
 int32_t processUseDbRsp(void* param, const SDataBuf* pMsg, int32_t code) {

@@ -20,6 +20,7 @@
 #include "tarray.h"
 #include "tmsg.h"
 #include "tvariant.h"
+#include "taoserror.h"
 
 #ifdef __cplusplus
 extern "C" {

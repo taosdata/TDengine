@@ -335,7 +335,7 @@ const STfsFile *tfsReaddir(STfsDir *pDir) {
       // Skip . and ..
       if (strcmp(dp->d_name, ".") == 0 || strcmp(dp->d_name, "..") == 0) continue;
 
-      if (pDir->dirname == NULL || pDir->dirname[0] == 0) {
+      if (pDir->dirname[0] == 0) {
         snprintf(bname, TMPNAME_LEN * 2, "%s", dp->d_name);
       } else {
         snprintf(bname, TMPNAME_LEN * 2, "%s%s%s", pDir->dirname, TD_DIRSEP, dp->d_name);
@@ -557,4 +557,6 @@ int32_t tfsGetMonitorInfo(STfs *pTfs, SMonDiskInfo *pInfo) {
     }
   }
   tfsUnLock(pTfs);
+
+  return 0;
 }

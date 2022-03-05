@@ -29,7 +29,9 @@ endif(${BUILD_WITH_UV})
 endif(${BUILD_WITH_UV_TRANS})  
 
 if (${BUILD_TEST})
-  add_subdirectory(test)
+    IF (NOT TD_DARWIN)
+        add_subdirectory(test)
+    ENDIF()
 endif(${BUILD_TEST})
 
 

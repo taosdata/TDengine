@@ -36,10 +36,6 @@ int32_t* taosGetErrno() { return &tsErrno; }
 #define TAOS_DEFINE_ERROR(name, mod, code, msg) static const int32_t name = TAOS_DEF_ERROR_CODE(mod, code);
 #endif
 
-#define TAOS_SYSTEM_ERROR(code) (0x80ff0000 | (code))
-#define TAOS_SUCCEEDED(err)     ((err) >= 0)
-#define TAOS_FAILED(err)        ((err) < 0)
-
 #ifdef TAOS_ERROR_C
 STaosError errors[] = {
     {.val = 0, .str = "success"},

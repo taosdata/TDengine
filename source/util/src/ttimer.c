@@ -628,6 +628,8 @@ void taosTmrCleanUp(void* handle) {
 
     tmrCtrls = NULL;
     unusedTmrCtrl = NULL;
+#if !defined(_TD_DARWIN_64)
     tmrModuleInit = PTHREAD_ONCE_INIT;  // to support restart
+#endif
   }
 }

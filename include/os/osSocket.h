@@ -22,6 +22,7 @@
   #include <winbase.h>
   #include <Winsock2.h>
 #else
+    #include <netinet/in.h>
     #include <sys/socket.h>
 
     #if defined(_TD_DARWIN_64)

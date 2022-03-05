@@ -614,6 +614,8 @@ int32_t checkForUnsupportedQuery(SQueryStmtInfo* pQueryInfo, SMsgBuf* pMsgBuf) {
     }
 #endif
   }
+
+  return 0;
 }
 
 int32_t validateWhereNode(SQueryStmtInfo *pQueryInfo, tSqlExpr* pWhereExpr, SMsgBuf* pMsgBuf) {
@@ -1927,6 +1929,8 @@ int32_t checkForInvalidExpr(SQueryStmtInfo* pQueryInfo, SMsgBuf* pMsgBuf) {
       }
     }
   }
+
+  return 0;
 }
 
 int32_t addResColumnInfo(SQueryStmtInfo* pQueryInfo, int32_t outputIndex, SSchema* pSchema, SExprInfo* pSqlExpr) {
@@ -2142,6 +2146,8 @@ static int32_t doAddAllColumnExprInSelectClause(SQueryStmtInfo *pQueryInfo, STab
 
     (*colIndex)++;
   }
+
+  return 0;
 }
 
 static int32_t doHandleOneParam(SQueryStmtInfo *pQueryInfo, tSqlExprItem* pItem, tSqlExprItem* pParamElem, int32_t functionId,
@@ -2182,6 +2188,8 @@ static int32_t doHandleOneParam(SQueryStmtInfo *pQueryInfo, tSqlExprItem* pItem,
       return TSDB_CODE_TSC_INVALID_OPERATION;
     }
   }
+
+  return 0;
 }
 
 static int32_t multiColumnListInsert(SQueryStmtInfo* pQueryInfo, SArray* pColumnList, SMsgBuf* pMsgBuf);

@@ -1319,6 +1319,7 @@ typedef struct SVCreateTbReq {
 } SVCreateTbReq, SVUpdateTbReq;
 
 typedef struct {
+    int tmp; // for clang compile
 } SVCreateTbRsp, SVUpdateTbRsp;
 
 int32_t tSerializeSVCreateTbReq(void** buf, SVCreateTbReq* pReq);
@@ -1330,6 +1331,7 @@ typedef struct {
 } SVCreateTbBatchReq;
 
 typedef struct {
+    int tmp; // for clang compile
 } SVCreateTbBatchRsp;
 
 int32_t tSerializeSVCreateTbBatchReq(void** buf, SVCreateTbBatchReq* pReq);
@@ -1343,6 +1345,7 @@ typedef struct {
 } SVDropTbReq;
 
 typedef struct {
+    int tmp; // for clang compile
 } SVDropTbRsp;
 
 int32_t tSerializeSVDropTbReq(void** buf, SVDropTbReq* pReq);
