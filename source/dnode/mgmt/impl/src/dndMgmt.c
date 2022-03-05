@@ -487,12 +487,10 @@ static void dndGetMonitorDnodeInfo(SDnode *pDnode, SMonDnodeInfo *pInfo) {
   taosGetSysMemory(&pInfo->mem_system);
   pInfo->mem_total = tsTotalMemoryKB;
   pInfo->disk_engine = 0;
-  pInfo->disk_used = tsDataSpace.size.used / (1024 * 1024 * 1024.0);
-  pInfo->disk_total = tsDataSpace.size.avail / (1024 * 1024 * 1024.0);
-  taosGetCardInfo(NULL, &pInfo->net_in, &pInfo->net_out);
-  taosGetProcIO(&pInfo->io_read, &pInfo->io_write);
-  pInfo->io_read_disk = 0;
-  pInfo->io_write_disk = 0;
+  pInfo->disk_used = tsDataSpace.size.used;
+  pInfo->disk_total = tsDataSpace.size.total;
+  taosGetBandSpeed(&pInfo->net_in, &pInfo->net_out);
+  taosGetIOSpeed(&pInfo->io_read, &pInfo->io_write, &pInfo->io_read_disk, &pInfo->io_write_disk);
   pInfo->req_select = 0;
   pInfo->req_select_rate = 0;
   pInfo->req_insert = 0;
@@ -501,9 +499,9 @@ static void dndGetMonitorDnodeInfo(SDnode *pDnode, SMonDnodeInfo *pInfo) {
   pInfo->req_insert_batch = 0;
   pInfo->req_insert_batch_success = 0;
   pInfo->req_insert_batch_rate = 0;
-  pInfo->errors = 0;
-  pInfo->vnodes_num = 0;
-  pInfo->masters = 0;
+  pInfo->errors = tsNumOfErrorLogs;
+  pInfo->vnodes_num = pDnode->vmgmt.totalVnodes;
+  pInfo->masters = pDnode->vmgmt.masterNum;
   pInfo->has_mnode = dndIsMnode(pDnode);
 }
 

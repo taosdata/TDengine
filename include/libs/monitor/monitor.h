@@ -86,21 +86,21 @@ typedef struct {
 
 typedef struct {
   float   uptime;  // day
-  float   cpu_engine;
-  float   cpu_system;
+  double  cpu_engine;
+  double  cpu_system;
   float   cpu_cores;
-  int64_t mem_engine;     // KB
-  int64_t mem_system;     // KB
-  int64_t mem_total;      // KB
-  float   disk_engine;    // GB
-  float   disk_used;      // GB
-  float   disk_total;     // GB
-  int64_t net_in;
-  int64_t net_out;
-  float   io_read;
-  float   io_write;
-  float   io_read_disk;
-  float   io_write_disk;
+  int64_t mem_engine;   // KB
+  int64_t mem_system;   // KB
+  int64_t mem_total;    // KB
+  int64_t disk_engine;  // Byte
+  int64_t disk_used;    // Byte
+  int64_t disk_total;   // Byte
+  double  net_in;       // bytes per second
+  double  net_out;      // bytes per second
+  double  io_read;
+  double  io_write;
+  double  io_read_disk;
+  double  io_write_disk;
   int32_t req_select;
   float   req_select_rate;
   int32_t req_insert;

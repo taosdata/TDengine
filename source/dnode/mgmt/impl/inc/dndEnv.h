@@ -108,6 +108,7 @@ typedef struct {
   SHashObj    *hash;
   int32_t      openVnodes;
   int32_t      totalVnodes;
+  int32_t      masterNum;
   SRWLatch     latch;
   SQWorkerPool queryPool;
   SFWorkerPool fetchPool;
