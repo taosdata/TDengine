@@ -110,15 +110,20 @@ typedef enum ETableOptionType {
   TABLE_OPTION_KEEP = 0,
   TABLE_OPTION_TTL,
   TABLE_OPTION_COMMENT,
+  TABLE_OPTION_SMA,
 
   TABLE_OPTION_MAX
 } ETableOptionType;
 STableOptions* createDefaultTableOptions(SAstCreateContext* pCxt);
 STableOptions* setTableOption(SAstCreateContext* pCxt, STableOptions* pOptions, ETableOptionType type, const SToken* pVal);
+STableOptions* setTableSmaOption(SAstCreateContext* pCxt, STableOptions* pOptions, SNodeList* pSma);
 SNode* createColumnDefNode(SAstCreateContext* pCxt, const SToken* pColName, SDataType dataType, const SToken* pComment);
 SDataType createDataType(uint8_t type);
 SDataType createVarLenDataType(uint8_t type, const SToken* pLen);
-SNode* createCreateTableStmt(SAstCreateContext* pCxt, bool ignoreExists, const STokenPair* pFullTableName, SNodeList* pCols, STableOptions* pOptions);
+SNode* createCreateTableStmt(SAstCreateContext* pCxt, bool ignoreExists, const STokenPair* pFullTableName, SNodeList* pCols, SNodeList* pTags, STableOptions* pOptions);
+SNode* createCreateSubTableStmt(SAstCreateContext* pCxt, bool ignoreExists,
+    const STokenPair* pFullTableName, const STokenPair* pUseFullTableName, SNodeList* pSpecificTags, SNodeList* pValsOfTags);
+SNode* createCreateMultiTableStmt(SAstCreateContext* pCxt, SNodeList* pSubTables);
 
 SNode* createUseDatabaseStmt(SAstCreateContext* pCxt, const SToken* pDbName);
 

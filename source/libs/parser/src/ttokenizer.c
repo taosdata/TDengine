@@ -29,32 +29,102 @@ typedef struct SKeyword {
 
 // keywords in sql string
 static SKeyword keywordTable[] = {
+    {"ALL",           TK_ALL},
+    {"AND",           TK_AND},
+    {"AS",            TK_AS},
+    {"ASC",           TK_ASC},
+    {"BETWEEN",       TK_BETWEEN},
+    {"BINARY",        TK_BINARY},
+    {"BIGINT",        TK_BIGINT},
+    {"BLOCKS",        TK_BLOCKS},
+    {"BOOL",          TK_BOOL},
+    {"BY",            TK_BY},
+    {"CACHE",         TK_CACHE},
+    {"CACHELAST",     TK_CACHELAST},
+    {"COMMENT",       TK_COMMENT},
+    {"COMP",          TK_COMP},
+    {"CREATE",        TK_CREATE},
+    {"DATABASE",      TK_DATABASE},
+    {"DATABASES",     TK_DATABASES},
+    {"DAYS",          TK_DAYS},
+    {"DESC",          TK_DESC},
+    {"DISTINCT",      TK_DISTINCT},
+    {"DOUBLE",        TK_DOUBLE},
+    {"EXISTS",        TK_EXISTS},
+    // {"FILE",          TK_FILE},
+    {"FILL",          TK_FILL},
+    {"FLOAT",         TK_FLOAT},
+    {"FROM",          TK_FROM},
+    {"FSYNC",         TK_FSYNC},
+    {"GROUP",         TK_GROUP},
+    {"HAVING",        TK_HAVING},
+    {"IF",            TK_IF},
+    {"IMPORT",        TK_IMPORT},
+    {"IN",            TK_IN},
+    {"INNER",         TK_INNER},
+    {"INT",           TK_INT},
+    {"INSERT",        TK_INSERT},
+    {"INTEGER",       TK_INTEGER},
+    {"INTERVAL",      TK_INTERVAL},
+    {"INTO",          TK_INTO},
+    {"IS",            TK_IS},
+    {"JOIN",          TK_JOIN},
+    {"JSON",          TK_JSON},
+    {"KEEP",          TK_KEEP},
+    {"LIKE",          TK_LIKE},
+    {"LIMIT",         TK_LIMIT},
+    {"LINEAR",        TK_LINEAR},
+    {"MATCH",         TK_MATCH},
+    {"MAXROWS",       TK_MAXROWS},
+    {"MINROWS",       TK_MINROWS},
+    {"MINUS",         TK_MINUS},
+    {"NCHAR",         TK_NCHAR},
+    {"NMATCH",        TK_NMATCH},
+    {"NONE",          TK_NONE},
+    {"NOT",           TK_NOT},
+    {"NOW",           TK_NOW},
+    {"NULL",          TK_NULL},
+    {"OFFSET",        TK_OFFSET},
+    {"PRECISION",     TK_PRECISION},
+    {"PREV",          TK_PREV},
+    {"ON",            TK_ON},
+    {"OR",            TK_OR},
+    {"ORDER",         TK_ORDER},
+    {"QUORUM",        TK_QUORUM},
+    {"REPLICA",       TK_REPLICA},
+    {"SELECT",        TK_SELECT},
+    {"SESSION",       TK_SESSION},
+    {"SHOW",          TK_SHOW},
+    {"SINGLE_STABLE", TK_SINGLE_STABLE},
+    {"SLIDING",       TK_SLIDING},
+    {"SLIMIT",        TK_SLIMIT},
+    {"SMA",           TK_SMA},
+    {"SMALLINT",      TK_SMALLINT},
+    {"SOFFSET",       TK_SOFFSET},
+    {"STATE_WINDOW",  TK_STATE_WINDOW},
+    {"STREAM_MODE",   TK_STREAM_MODE},
+    {"TABLE",         TK_TABLE},
+    {"TABLES",        TK_TABLES},
+    {"TAGS",          TK_TAGS},
+    {"TIMESTAMP",     TK_TIMESTAMP},
+    {"TINYINT",       TK_TINYINT},
+    {"TTL",           TK_TTL},
+    {"UNION",         TK_UNION},
+    {"UNSIGNED",      TK_UNSIGNED},
+    {"USE",           TK_USE},
+    {"USING",         TK_USING},
+    {"VALUES",        TK_VALUES},
+    {"VARCHAR",       TK_VARCHAR},
+    {"VGROUPS",       TK_VGROUPS},
+    {"WAL",           TK_WAL},
+    {"WHERE",         TK_WHERE},
     // {"ID",           TK_ID},
-    {"BOOL",         TK_BOOL},
-   {"TINYINT",      TK_TINYINT},
-   {"SMALLINT",     TK_SMALLINT},
-    {"INTEGER",      TK_INTEGER},
-    {"INT",          TK_INTEGER},
-   {"BIGINT",       TK_BIGINT},
-    {"FLOAT",        TK_FLOAT},
-   {"DOUBLE",       TK_DOUBLE},
     // {"STRING",       TK_STRING},
-    {"TIMESTAMP",    TK_TIMESTAMP},
-   {"BINARY",       TK_BINARY},
-   {"NCHAR",        TK_NCHAR},
-    {"OR",           TK_OR},
-    {"AND",          TK_AND},
-    {"NOT",          TK_NOT},
     // {"EQ",           TK_EQ},
     // {"NE",           TK_NE},
     // {"ISNULL",       TK_ISNULL},
     // {"NOTNULL",      TK_NOTNULL},
-    {"IS",           TK_IS},
-    {"LIKE",         TK_LIKE},
-    {"MATCH",        TK_MATCH},
     // {"GLOB",         TK_GLOB},
-    {"BETWEEN",      TK_BETWEEN},
-    {"IN",           TK_IN},
     // {"GT",           TK_GT},
     // {"GE",           TK_GE},
     // {"LT",           TK_LT},
@@ -64,7 +134,6 @@ static SKeyword keywordTable[] = {
     // {"LSHIFT",       TK_LSHIFT},
     // {"RSHIFT",       TK_RSHIFT},
     // {"PLUS",         TK_PLUS},
-    {"MINUS",        TK_MINUS},
     // {"DIVIDE",       TK_DIVIDE},
     // {"TIMES",        TK_TIMES},
     // {"STAR",         TK_STAR},
@@ -74,8 +143,6 @@ static SKeyword keywordTable[] = {
     // {"UMINUS",       TK_UMINUS},
     // {"UPLUS",        TK_UPLUS},
     // {"BITNOT",       TK_BITNOT},
-    {"SHOW",         TK_SHOW},
-    {"DATABASES",    TK_DATABASES},
     // {"MNODES",       TK_MNODES},
     // {"DNODES",       TK_DNODES},
     // {"ACCOUNTS",     TK_ACCOUNTS},
@@ -88,25 +155,17 @@ static SKeyword keywordTable[] = {
     // {"SCORES",       TK_SCORES},
     // {"GRANTS",       TK_GRANTS},
     // {"DOT",          TK_DOT},
-    {"TABLES",       TK_TABLES},
     // {"STABLES",      TK_STABLES},
-    {"VGROUPS",      TK_VGROUPS},
     // {"DROP",         TK_DROP},
-    {"TABLE",        TK_TABLE},
-    {"DATABASE",     TK_DATABASE},
     // {"DNODE",        TK_DNODE},
     // {"USER",         TK_USER},
     // {"ACCOUNT",      TK_ACCOUNT},
-    {"USE",          TK_USE},
     // {"DESCRIBE",     TK_DESCRIBE},
     // {"SYNCDB",       TK_SYNCDB},
     // {"ALTER",        TK_ALTER},
     // {"PASS",         TK_PASS},
     // {"PRIVILEGE",    TK_PRIVILEGE},
     // {"LOCAL",        TK_LOCAL},
-    {"IF",           TK_IF},
-    {"EXISTS",       TK_EXISTS},
-    {"CREATE",       TK_CREATE},
     // {"PPS",          TK_PPS},
     // {"TSERIES",      TK_TSERIES},
     // {"DBS",          TK_DBS},
@@ -114,51 +173,13 @@ static SKeyword keywordTable[] = {
     // {"QTIME",        TK_QTIME},
     // {"CONNS",        TK_CONNS},
     // {"STATE",        TK_STATE},
-    {"KEEP",         TK_KEEP},
-    {"REPLICA",      TK_REPLICA},
-    {"QUORUM",       TK_QUORUM},
-    {"DAYS",         TK_DAYS},
-    {"MINROWS",      TK_MINROWS},
-    {"MAXROWS",      TK_MAXROWS},
-    {"BLOCKS",       TK_BLOCKS},
-    {"CACHE",        TK_CACHE},
     // {"CTIME",        TK_CTIME},
-    {"WAL",          TK_WAL},
-    {"FSYNC",        TK_FSYNC},
-    {"COMP",         TK_COMP},
-    {"PRECISION",    TK_PRECISION},
     // {"LP",           TK_LP},
     // {"RP",           TK_RP},
-    // {"UNSIGNED",     TK_UNSIGNED},
-    {"TAGS",         TK_TAGS},
-    {"USING",        TK_USING},
-    {"AS",           TK_AS},
+    
     // {"COMMA",        TK_COMMA},
-    {"NULL",         TK_NULL},
-    {"SELECT",       TK_SELECT},
     // {"EVERY",        TK_EVERY},
-    {"FROM",         TK_FROM},
     // {"VARIABLE",     TK_VARIABLE},
-    {"INTERVAL",     TK_INTERVAL},
-    {"SESSION",      TK_SESSION},
-    {"STATE_WINDOW", TK_STATE_WINDOW},
-    {"FILL",         TK_FILL},
-    {"SLIDING",      TK_SLIDING},
-    {"ORDER",        TK_ORDER},
-    {"BY",           TK_BY},
-    {"ASC",          TK_ASC},
-    {"DESC",         TK_DESC},
-    {"GROUP",        TK_GROUP},
-    {"HAVING",       TK_HAVING},
-    {"LIMIT",        TK_LIMIT},
-    {"OFFSET",       TK_OFFSET},
-    {"SLIMIT",       TK_SLIMIT},
-    {"SOFFSET",      TK_SOFFSET},
-    {"WHERE",        TK_WHERE},
-    {"NOW",          TK_NOW},
-    {"INSERT",       TK_INSERT},
-    {"INTO",         TK_INTO},
-    {"VALUES",       TK_VALUES},
     // {"UPDATE",       TK_UPDATE},
     // {"RESET",        TK_RESET},
     // {"QUERY",        TK_QUERY},
@@ -192,8 +213,6 @@ static SKeyword keywordTable[] = {
     // {"IMMEDIATE",    TK_IMMEDIATE},
     // {"INITIALLY",    TK_INITIALLY},
     // {"INSTEAD",      TK_INSTEAD},
-    {"MATCH",        TK_MATCH},
-    {"NMATCH",       TK_NMATCH},
     // {"KEY",          TK_KEY},
     // {"OF",           TK_OF},
     // {"RAISE",        TK_RAISE},
@@ -203,20 +222,10 @@ static SKeyword keywordTable[] = {
     // {"STATEMENT",    TK_STATEMENT},
     // {"TRIGGER",      TK_TRIGGER},
     // {"VIEW",         TK_VIEW},
-    {"ALL",          TK_ALL},
     // {"SEMI",         TK_SEMI},
-    {"NONE",         TK_NONE},
-    {"PREV",         TK_PREV},
-    {"LINEAR",       TK_LINEAR},
-    {"IMPORT",       TK_IMPORT},
     // {"TBNAME",       TK_TBNAME},
-    {"JOIN",         TK_JOIN},
     // {"STABLE",       TK_STABLE},
-    {"FILE",         TK_FILE},
     // {"VNODES",       TK_VNODES},
-    {"UNION",        TK_UNION},
-    {"CACHELAST",    TK_CACHELAST},
-    {"DISTINCT",     TK_DISTINCT},
 //    {"PARTITIONS",   TK_PARTITIONS},
     // {"TOPIC",        TK_TOPIC},
     // {"TOPICS",       TK_TOPICS},
@@ -228,8 +237,6 @@ static SKeyword keywordTable[] = {
     // {"AGGREGATE",    TK_AGGREGATE},
     // {"BUFSIZE",      TK_BUFSIZE},
     // {"PORT",         TK_PORT},
-    {"INNER",        TK_INNER},
-    {"ON",           TK_ON},
     // {"MODE",         TK_MODE},
 };
 
@@ -277,7 +284,7 @@ static int32_t tKeywordCode(const char* z, int n) {
   }
 
   if (keywordHashTable == NULL) {
-    return TK_ILLEGAL;
+    return TK_NK_ILLEGAL;
   }
 
   SKeyword** pKey = (SKeyword**)taosHashGet(keywordHashTable, key, n);
@@ -298,7 +305,7 @@ uint32_t tGetToken(const char* z, uint32_t* tokenId) {
     case '\r': {
       for (i = 1; isspace(z[i]); i++) {
       }
-      *tokenId = TK_SPACE;
+      *tokenId = TK_NK_SPACE;
       return i;
     }
     case ':': {
@@ -383,7 +390,7 @@ uint32_t tGetToken(const char* z, uint32_t* tokenId) {
     }
     case '!': {
       if (z[1] != '=') {
-        *tokenId = TK_ILLEGAL;
+        *tokenId = TK_NK_ILLEGAL;
         return 2;
       } else {
         *tokenId = TK_NK_NE;
@@ -412,7 +419,7 @@ uint32_t tGetToken(const char* z, uint32_t* tokenId) {
       return 1;
     }
     case '?': {
-      *tokenId = TK_QUESTION;
+      *tokenId = TK_NK_QUESTION;
       return 1;
     }
     case '`':
@@ -475,7 +482,7 @@ uint32_t tGetToken(const char* z, uint32_t* tokenId) {
       char next = z[1];
 
       if (next == 'b') { // bin number
-        *tokenId = TK_BIN;
+        *tokenId = TK_NK_BIN;
         for (i = 2; (z[i] == '0' || z[i] == '1'); ++i) {
         }
 
@@ -485,7 +492,7 @@ uint32_t tGetToken(const char* z, uint32_t* tokenId) {
 
         return i;
       } else if (next == 'x') {  //hex number
-        *tokenId = TK_HEX;
+        *tokenId = TK_NK_HEX;
         for (i = 2; isdigit(z[i]) || (z[i] >= 'a' && z[i] <= 'f') || (z[i] >= 'A' && z[i] <= 'F'); ++i) {
         }
 
@@ -574,7 +581,7 @@ uint32_t tGetToken(const char* z, uint32_t* tokenId) {
     }
   }
 
-  *tokenId = TK_ILLEGAL;
+  *tokenId = TK_NK_ILLEGAL;
   return 0;
 }
 
@@ -608,7 +615,7 @@ SToken tStrGetToken(const char* str, int32_t* i, bool isPrevOptr) {
     return t0;
   }
 
-  // IGNORE TK_SPACE, TK_COMMA, and specified tokens
+  // IGNORE TK_NK_SPACE, TK_NK_COMMA, and specified tokens
   while (1) {
     *i += t0.n;
 
@@ -656,7 +663,7 @@ SToken tStrGetToken(const char* str, int32_t* i, bool isPrevOptr) {
 
     // only id and string are valid
     if ((TK_NK_STRING != t0.type) && (TK_NK_ID != t0.type)) {
-      t0.type = TK_ILLEGAL;
+      t0.type = TK_NK_ILLEGAL;
       t0.n = 0;
 
       return t0;

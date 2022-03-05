@@ -280,29 +280,13 @@ static EDealRes translateColumn(STranslateContext* pCxt, SColumnNode* pCol) {
   return found ? DEAL_RES_CONTINUE : translateColumnWithoutPrefix(pCxt, pCol);
 }
 
-static int32_t trimStringCopy(const char* src, int32_t len, bool format, char* dst) {
+static int32_t trimStringWithVarFormat(const char* src, int32_t len, bool format, char* dst) {
   char* dstVal = dst;
   if (format) {
     varDataSetLen(dst, len);
     dstVal = varDataVal(dst);
   }
-  // delete escape character: \\, \', \"
-  char delim = src[0];
-  int32_t cnt = 0;
-  int32_t j = 0;
-  for (uint32_t k = 1; k < len - 1; ++k) {
-    if (src[k] == '\\' || (src[k] == delim && src[k + 1] == delim)) {
-      dstVal[j] = src[k + 1];
-      cnt++;
-      j++;
-      k++;
-      continue;
-    }
-    dstVal[j] = src[k];
-    j++;
-  }
-  dstVal[j] = '\0';
-  return j;
+  return trimString(src, len, dstVal, len);
 }
 
 static EDealRes translateValue(STranslateContext* pCxt, SValueNode* pVal) {
@@ -351,7 +335,7 @@ static EDealRes translateValue(STranslateContext* pCxt, SValueNode* pVal) {
           generateSyntaxErrMsg(pCxt, TSDB_CODE_OUT_OF_MEMORY);
           return DEAL_RES_ERROR;
         }
-        trimStringCopy(pVal->literal, n, true, pVal->datum.p);
+        trimStringWithVarFormat(pVal->literal, n, true, pVal->datum.p);
         break;
       }
       case TSDB_DATA_TYPE_TIMESTAMP: {
@@ -361,7 +345,7 @@ static EDealRes translateValue(STranslateContext* pCxt, SValueNode* pVal) {
           generateSyntaxErrMsg(pCxt, TSDB_CODE_OUT_OF_MEMORY);
           return DEAL_RES_ERROR;
         }
-        int32_t len = trimStringCopy(pVal->literal, n, false, tmp);
+        int32_t len = trimStringWithVarFormat(pVal->literal, n, false, tmp);
         if (taosParseTime(tmp, &pVal->datum.i, len, pVal->node.resType.precision, tsDaylight) != TSDB_CODE_SUCCESS) {
           tfree(tmp);
           generateSyntaxErrMsg(pCxt, TSDB_CODE_PAR_WRONG_VALUE_TYPE, pVal->literal);
@@ -378,6 +362,7 @@ static EDealRes translateValue(STranslateContext* pCxt, SValueNode* pVal) {
         break;
     }
   }
+  pVal->translate = true;
   return DEAL_RES_CONTINUE;
 }
 
@@ -856,6 +841,47 @@ static int32_t translateCreateDatabase(STranslateContext* pCxt, SCreateDatabaseS
   return TSDB_CODE_SUCCESS;
 }
 
+static int32_t columnNodeToField(SNodeList* pList, SArray** pArray) {
+  *pArray = taosArrayInit(LIST_LENGTH(pList), sizeof(SField));
+  SNode* pNode;
+  FOREACH(pNode, pList) {
+    SColumnDefNode* pCol = (SColumnDefNode*)pNode;
+    SField field = { .type = pCol->dataType.type, .bytes = pCol->dataType.bytes };
+    strcpy(field.name, pCol->colName);
+    taosArrayPush(*pArray, &field);
+  }
+  return TSDB_CODE_SUCCESS;
+}
+
+static int32_t translateCreateSTable(STranslateContext* pCxt, SCreateTableStmt* pStmt) {
+  SMCreateStbReq createReq = {0};
+  createReq.igExists = pStmt->ignoreExists;
+  columnNodeToField(pStmt->pCols, &createReq.pColumns);
+  columnNodeToField(pStmt->pTags, &createReq.pTags);
+  createReq.numOfColumns = LIST_LENGTH(pStmt->pCols);
+  createReq.numOfTags = LIST_LENGTH(pStmt->pTags);
+
+  SName tableName = { .type = TSDB_TABLE_NAME_T, .acctId = pCxt->pParseCxt->acctId };
+  strcpy(tableName.dbname, pStmt->dbName);
+  strcpy(tableName.tname, pStmt->tableName);
+  tNameExtractFullName(&tableName, createReq.name);
+
+  pCxt->pCmdMsg = malloc(sizeof(SCmdMsgInfo));
+  if (NULL== pCxt->pCmdMsg) {
+    return TSDB_CODE_OUT_OF_MEMORY;
+  }
+  pCxt->pCmdMsg->epSet = pCxt->pParseCxt->mgmtEpSet;
+  pCxt->pCmdMsg->msgType = TDMT_MND_CREATE_STB;
+  pCxt->pCmdMsg->msgLen = tSerializeSMCreateStbReq(NULL, 0, &createReq);
+  pCxt->pCmdMsg->pMsg = malloc(pCxt->pCmdMsg->msgLen);
+  if (NULL== pCxt->pCmdMsg->pMsg) {
+    return TSDB_CODE_OUT_OF_MEMORY;
+  }
+  tSerializeSMCreateStbReq(pCxt->pCmdMsg->pMsg, pCxt->pCmdMsg->msgLen, &createReq);
+
+  return TSDB_CODE_SUCCESS;
+}
+
 static int32_t translateUseDatabase(STranslateContext* pCxt, SUseDatabaseStmt* pStmt) {
   SName name = {0};
   tNameSetDbName(&name, pCxt->pParseCxt->acctId, pStmt->dbName, strlen(pStmt->dbName));
@@ -934,6 +960,9 @@ static int32_t translateQuery(STranslateContext* pCxt, SNode* pNode) {
       break;
     case QUERY_NODE_CREATE_DATABASE_STMT:
       code = translateCreateDatabase(pCxt, (SCreateDatabaseStmt*)pNode);
+      break;
+    case QUERY_NODE_CREATE_TABLE_STMT:
+      code = translateCreateSTable(pCxt, (SCreateTableStmt*)pNode);
       break;
     case QUERY_NODE_USE_DATABASE_STMT:
       code = translateUseDatabase(pCxt, (SUseDatabaseStmt*)pNode);
@@ -1020,7 +1049,7 @@ static int32_t doBuildSingleTableBatchReq(SName* pTableName, SNodeList* pColumns
   pBatch->info = *pVgroupInfo;
   pBatch->req.pArray = taosArrayInit(1, sizeof(struct SVCreateTbReq));
   if (pBatch->req.pArray == NULL) {
-    return TSDB_CODE_QRY_OUT_OF_MEMORY;
+    return TSDB_CODE_OUT_OF_MEMORY;
   }
 
   taosArrayPush(pBatch->req.pArray, &req);
@@ -1031,7 +1060,7 @@ static int32_t serializeVgroupTablesBatchImpl(SVgroupTablesBatch* pTbBatch, SArr
   int tlen = sizeof(SMsgHead) + tSerializeSVCreateTbBatchReq(NULL, &(pTbBatch->req));
   void* buf = malloc(tlen);
   if (buf == NULL) {
-    // TODO: handle error
+    return TSDB_CODE_OUT_OF_MEMORY;
   }
 
   ((SMsgHead*)buf)->vgId = htonl(pTbBatch->info.vgId);
@@ -1068,15 +1097,11 @@ static void destroyCreateTbReqBatch(SVgroupTablesBatch* pTbBatch) {
 }
 
 static int32_t rewriteQuery(STranslateContext* pCxt, SQuery* pQuery) {
-  if (QUERY_NODE_CREATE_TABLE_STMT == nodeType(pQuery->pRoot)) {
+  if (QUERY_NODE_CREATE_TABLE_STMT == nodeType(pQuery->pRoot) && NULL == ((SCreateTableStmt*)pQuery->pRoot)->pTags) {
     SCreateTableStmt* pStmt = (SCreateTableStmt*)pQuery->pRoot;
 
     SName tableName = { .type = TSDB_TABLE_NAME_T, .acctId = pCxt->pParseCxt->acctId };
-    if ('\0' == pStmt->dbName[0]) {
-      strcpy(tableName.dbname, pCxt->pParseCxt->db);
-    } else {
-      strcpy(tableName.dbname, pStmt->dbName);
-    }
+    strcpy(tableName.dbname, pStmt->dbName);
     strcpy(tableName.tname, pStmt->tableName);
     SVgroupInfo info = {0};
     catalogGetTableHashVgroup(pCxt->pParseCxt->pCatalog, pCxt->pParseCxt->pTransporter, &pCxt->pParseCxt->mgmtEpSet, &tableName, &info);
@@ -1089,13 +1114,16 @@ static int32_t rewriteQuery(STranslateContext* pCxt, SQuery* pQuery) {
 
     SArray* pBufArray = taosArrayInit(1, POINTER_BYTES);
     if (pBufArray == NULL) {
-      return TSDB_CODE_QRY_OUT_OF_MEMORY;
+      return TSDB_CODE_OUT_OF_MEMORY;
     }
 
     serializeVgroupTablesBatchImpl(&tbatch, pBufArray);
     destroyCreateTbReqBatch(&tbatch);
 
     SVnodeModifOpStmt* pNewStmt = nodesMakeNode(QUERY_NODE_VNODE_MODIF_STMT);
+    if (pNewStmt == NULL) {
+      return TSDB_CODE_OUT_OF_MEMORY;
+    }
     pNewStmt->sqlNodeType = nodeType(pQuery->pRoot);
     pNewStmt->pDataBlocks = pBufArray;
     pQuery->sqlNodeType = nodeType(pQuery->pRoot);
@@ -1103,6 +1131,31 @@ static int32_t rewriteQuery(STranslateContext* pCxt, SQuery* pQuery) {
     pQuery->pRoot = (SNode*)pNewStmt;
   }
   return TSDB_CODE_SUCCESS;
+}
+
+static int32_t setQuery(STranslateContext* pCxt, SQuery* pQuery) {
+  int32_t code = TSDB_CODE_SUCCESS;
+  switch (nodeType(pQuery->pRoot)) {
+    case QUERY_NODE_SELECT_STMT:
+      pQuery->haveResultSet = true;
+      pQuery->directRpc = false;
+      pQuery->msgType = TDMT_VND_QUERY;
+      code = setReslutSchema(pCxt, pQuery);
+      break;
+    case QUERY_NODE_VNODE_MODIF_STMT:
+      pQuery->haveResultSet = false;
+      pQuery->directRpc = false;
+      pQuery->msgType = TDMT_VND_CREATE_TABLE;
+      break;
+    default:
+      pQuery->haveResultSet = false;
+      pQuery->directRpc = true;
+      pQuery->pCmdMsg = pCxt->pCmdMsg;
+      pCxt->pCmdMsg = NULL;
+      pQuery->msgType = pQuery->pCmdMsg->msgType;
+      break;
+  }
+  return code;
 }
 
 int32_t doTranslate(SParseContext* pParseCxt, SQuery* pQuery) {
@@ -1122,13 +1175,7 @@ int32_t doTranslate(SParseContext* pParseCxt, SQuery* pQuery) {
     code = translateQuery(&cxt, pQuery->pRoot);
   }
   if (TSDB_CODE_SUCCESS == code) {
-    if (pQuery->directRpc) {
-      pQuery->pCmdMsg = cxt.pCmdMsg;
-      cxt.pCmdMsg = NULL;
-    }
-    if (pQuery->haveResultSet) {
-      code = setReslutSchema(&cxt, pQuery);
-    }
+    code = setQuery(&cxt, pQuery);
   }
   destroyTranslateContext(&cxt);
   return code;

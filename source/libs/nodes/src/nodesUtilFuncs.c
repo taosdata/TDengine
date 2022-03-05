@@ -14,11 +14,11 @@
  */
 
 #include "cmdnodes.h"
-#include "querynodes.h"
+#include "nodesint.h"
 #include "plannodes.h"
+#include "querynodes.h"
 #include "taos.h"
 #include "taoserror.h"
-#include "taos.h"
 #include "thash.h"
 
 static SNode* makeNode(ENodeType type, size_t size) {
@@ -84,6 +84,10 @@ SNodeptr nodesMakeNode(ENodeType type) {
       return makeNode(type, sizeof(SCreateDatabaseStmt));
     case QUERY_NODE_CREATE_TABLE_STMT:
       return makeNode(type, sizeof(SCreateTableStmt));
+    case QUERY_NODE_CREATE_SUBTABLE_STMT:
+      return makeNode(type, sizeof(SCreateSubTableStmt));
+    case QUERY_NODE_CREATE_MULTI_TABLE_STMT:
+      return makeNode(type, sizeof(SCreateMultiTableStmt));
     case QUERY_NODE_USE_DATABASE_STMT:
       return makeNode(type, sizeof(SUseDatabaseStmt));
     case QUERY_NODE_SHOW_DATABASES_STMT:
@@ -132,7 +136,7 @@ SNodeptr nodesMakeNode(ENodeType type) {
     default:
       break;
   }
-  printf("================================ nodesMakeNode unknown node = %s\n", nodesNodeName(type));
+  nodesError("nodesMakeNode unknown node = %s", nodesNodeName(type));
   return NULL;
 }
 

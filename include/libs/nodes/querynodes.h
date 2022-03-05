@@ -74,6 +74,7 @@ typedef struct SValueNode {
   SExprNode node; // QUERY_NODE_VALUE
   char* literal;
   bool isDuration;
+  bool translate;
   union {
     bool b;
     int64_t i;

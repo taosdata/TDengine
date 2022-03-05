@@ -58,6 +58,11 @@ int32_t __catalogGetTableHashVgroup(struct SCatalog* pCatalog, void *pRpc, const
   return mockCatalogService->catalogGetTableHashVgroup(pTableName, vgInfo);
 }
 
+int32_t __catalogGetTableDistVgInfo(SCatalog* pCatalog, void *pTransporter, const SEpSet* pMgmtEps, const SName* pTableName, SArray** pVgroupList) {
+  // return mockCatalogService->catalogGetTableDistVgInfo(pTableName, pVgroupList);
+  return 0;
+}
+
 void initMetaDataEnv() {
   mockCatalogService.reset(new MockCatalogService());
 
@@ -65,6 +70,7 @@ void initMetaDataEnv() {
   stub.set(catalogGetHandle, __catalogGetHandle);
   stub.set(catalogGetTableMeta, __catalogGetTableMeta);
   stub.set(catalogGetTableHashVgroup, __catalogGetTableHashVgroup);
+  stub.set(catalogGetTableDistVgInfo, __catalogGetTableDistVgInfo);
   {
     AddrAny any("libcatalog.so");
     std::map<std::string,void*> result;
@@ -87,6 +93,14 @@ void initMetaDataEnv() {
     any.get_global_func_addr_dynsym("^catalogGetTableHashVgroup$", result);
     for (const auto& f : result) {
       stub.set(f.second, __catalogGetTableHashVgroup);
+    }
+  }
+  {
+    AddrAny any("libcatalog.so");
+    std::map<std::string,void*> result;
+    any.get_global_func_addr_dynsym("^catalogGetTableDistVgInfo$", result);
+    for (const auto& f : result) {
+      stub.set(f.second, __catalogGetTableDistVgInfo);
     }
   }
 }

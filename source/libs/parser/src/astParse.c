@@ -26,22 +26,6 @@ extern void NewParse(void*, int, SToken, void*);
 extern void NewParseFree(void*, FFree);
 extern void NewParseTrace(FILE*, char*);
 
-static void setQuery(SAstCreateContext* pCxt, SQuery* pQuery) {
-  pQuery->pRoot = pCxt->pRootNode;
-  ENodeType type = nodeType(pCxt->pRootNode);
-  if (QUERY_NODE_SELECT_STMT == type) {
-    pQuery->haveResultSet = true;
-    pQuery->directRpc = false;
-  } else if (QUERY_NODE_CREATE_TABLE_STMT == type) {
-    pQuery->haveResultSet = false;
-    pQuery->directRpc = false;
-  } else {
-    pQuery->haveResultSet = false;
-    pQuery->directRpc = true;
-  }
-  pQuery->msgType = (QUERY_NODE_CREATE_TABLE_STMT == type ? TDMT_VND_CREATE_TABLE : TDMT_VND_QUERY);
-}
-
 int32_t doParse(SParseContext* pParseCxt, SQuery** pQuery) {
   SAstCreateContext cxt;
   initAstCreateContext(pParseCxt, &cxt);
@@ -58,23 +42,23 @@ int32_t doParse(SParseContext* pParseCxt, SQuery** pQuery) {
     i += t0.n;
 
     switch (t0.type) {
-      case TK_SPACE:
-      case TK_COMMENT: {
+      case TK_NK_SPACE:
+      case TK_NK_COMMENT: {
         break;
       }
       case TK_SEMI: {
         NewParse(pParser, 0, t0, &cxt);
         goto abort_parse;
       }
-      case TK_QUESTION:
-      case TK_ILLEGAL: {
+      case TK_NK_QUESTION:
+      case TK_NK_ILLEGAL: {
         snprintf(cxt.pQueryCxt->pMsg, cxt.pQueryCxt->msgLen, "unrecognized token: \"%s\"", t0.z);
         cxt.valid = false;
         goto abort_parse;
       }
-      case TK_HEX:
-      case TK_OCT:
-      case TK_BIN: {
+      case TK_NK_HEX:
+      case TK_NK_OCT:
+      case TK_NK_BIN: {
         snprintf(cxt.pQueryCxt->pMsg, cxt.pQueryCxt->msgLen, "unsupported token: \"%s\"", t0.z);
         cxt.valid = false;
         goto abort_parse;
@@ -95,7 +79,7 @@ abort_parse:
     if (NULL == *pQuery) {
       return TSDB_CODE_OUT_OF_MEMORY;
     }
-    setQuery(&cxt, *pQuery);
+    (*pQuery)->pRoot = cxt.pRootNode;
   }
   return cxt.valid ? TSDB_CODE_SUCCESS : TSDB_CODE_FAILED;
 }
