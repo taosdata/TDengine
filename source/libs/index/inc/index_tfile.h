@@ -19,6 +19,7 @@
 #include "index_fst.h"
 #include "index_fst_counting_writer.h"
 #include "index_tfile.h"
+#include "index_util.h"
 #include "tlockfree.h"
 
 #ifdef __cplusplus
@@ -103,7 +104,7 @@ TFileReader* tfileGetReaderByCol(IndexTFile* tf, uint64_t suid, char* colName);
 TFileReader* tfileReaderOpen(char* path, uint64_t suid, int32_t version, const char* colName);
 TFileReader* tfileReaderCreate(WriterCtx* ctx);
 void         tfileReaderDestroy(TFileReader* reader);
-int          tfileReaderSearch(TFileReader* reader, SIndexTermQuery* query, SArray* result);
+int          tfileReaderSearch(TFileReader* reader, SIndexTermQuery* query, SIdxTempResult* tr);
 void         tfileReaderRef(TFileReader* reader);
 void         tfileReaderUnRef(TFileReader* reader);
 
@@ -118,7 +119,7 @@ int          tfileWriterFinish(TFileWriter* tw);
 IndexTFile* indexTFileCreate(const char* path);
 void        indexTFileDestroy(IndexTFile* tfile);
 int         indexTFilePut(void* tfile, SIndexTerm* term, uint64_t uid);
-int         indexTFileSearch(void* tfile, SIndexTermQuery* query, SArray* result);
+int         indexTFileSearch(void* tfile, SIndexTermQuery* query, SIdxTempResult* tr);
 
 Iterate* tfileIteratorCreate(TFileReader* reader);
 void     tfileIteratorDestroy(Iterate* iterator);
