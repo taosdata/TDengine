@@ -16,16 +16,16 @@
 #include "tdbInt.h"
 
 struct STDb {
-  STEnv * pEnv;
+  STEnv  *pEnv;
   SBTree *pBt;
 };
 
 int tdbDbOpen(const char *fname, int keyLen, int valLen, FKeyComparator keyCmprFn, STEnv *pEnv, STDb **ppDb) {
-  STDb *  pDb;
+  STDb   *pDb;
   SPager *pPager;
   int     ret;
   char    fFullName[TDB_FILENAME_LEN];
-  SPage * pPage;
+  SPage  *pPage;
   SPgno   pgno;
 
   *ppDb = NULL;

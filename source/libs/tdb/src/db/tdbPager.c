@@ -16,8 +16,8 @@
 #include "tdbInt.h"
 
 struct SPager {
-  char *   dbFileName;
-  char *   jFileName;
+  char    *dbFileName;
+  char    *jFileName;
   int      pageSize;
   uint8_t  fid[TDB_FILE_ID_LEN];
   int      fd;
@@ -26,8 +26,8 @@ struct SPager {
   SPgno    dbFileSize;
   SPgno    dbOrigSize;
   int      nDirty;
-  SPage *  pDirty;
-  SPage *  pDirtyTail;
+  SPage   *pDirty;
+  SPage   *pDirtyTail;
   u8       inTran;
 };
 
@@ -49,7 +49,7 @@ static int tdbPagerInitPage(SPager *pPager, SPage *pPage, int (*initPage)(SPage 
 
 int tdbPagerOpen(SPCache *pCache, const char *fileName, SPager **ppPager) {
   uint8_t *pPtr;
-  SPager * pPager;
+  SPager  *pPager;
   int      fsize;
   int      zsize;
   int      ret;

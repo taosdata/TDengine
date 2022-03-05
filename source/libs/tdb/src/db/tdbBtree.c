@@ -28,7 +28,7 @@ struct SBTree {
   SPgno          root;
   int            keyLen;
   int            valLen;
-  SPager *       pPager;
+  SPager        *pPager;
   FKeyComparator kcmpr;
   u8             fanout;
   int            pageSize;
@@ -264,7 +264,7 @@ static int tdbEncodeLength(u8 *pBuf, uint32_t len) {
 static int tdbBtCursorMoveToRoot(SBtCursor *pCur) {
   SBTree *pBt;
   SPager *pPager;
-  SPage * pPage;
+  SPage  *pPage;
   int     ret;
 
   pBt = pCur->pBt;

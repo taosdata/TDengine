@@ -20,10 +20,10 @@ struct SPCache {
   int             extraSize;
   pthread_mutex_t mutex;
   int             nFree;
-  SPage *         pFree;
+  SPage          *pFree;
   int             nPage;
   int             nHash;
-  SPage **        pgHash;
+  SPage         **pgHash;
   int             nRecyclable;
   SPage           lru;
 };
@@ -49,8 +49,8 @@ static void   tdbPCacheUnpinPage(SPage *pPage);
 
 int tdbPCacheOpen(int pageSize, int cacheSize, int extraSize, SPCache **ppCache) {
   SPCache *pCache;
-  void *   pPtr;
-  SPage *  pPgHdr;
+  void    *pPtr;
+  SPage   *pPgHdr;
 
   pCache = (SPCache *)calloc(1, sizeof(*pCache));
   if (pCache == NULL) {
@@ -204,7 +204,7 @@ static void tdbPCacheUnpinPage(SPage *pPage) {
 
 static void tdbPCacheRemovePageFromHash(SPage *pPage) {
   SPCache *pCache;
-  SPage ** ppPage;
+  SPage  **ppPage;
   int      h;
 
   pCache = pPage->pCache;
@@ -232,7 +232,7 @@ static void tdbPCacheAddPageToHash(SPage *pPage) {
 
 static int tdbPCacheOpenImpl(SPCache *pCache) {
   SPage *pPage;
-  u8 *   pPtr;
+  u8    *pPtr;
   int    tsize;
 
   tdbPCacheInitLock(pCache);
