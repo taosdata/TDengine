@@ -488,9 +488,9 @@ static void dndGetMonitorDnodeInfo(SDnode *pDnode, SMonDnodeInfo *pInfo) {
   pInfo->mem_total = tsTotalMemoryKB;
   pInfo->disk_engine = 0;
   pInfo->disk_used = tsDataSpace.size.used;
-  pInfo->disk_total = tsDataSpace.size.avail;
-  taosGetCardInfo(NULL, &pInfo->net_in, &pInfo->net_out);
-  taosGetProcIOSpeed(&pInfo->io_read, &pInfo->io_write, &pInfo->io_read_disk, &pInfo->io_write_disk);
+  pInfo->disk_total = tsDataSpace.size.total;
+  taosGetBandSpeed(&pInfo->net_in, &pInfo->net_out);
+  taosGetIOSpeed(&pInfo->io_read, &pInfo->io_write, &pInfo->io_read_disk, &pInfo->io_write_disk);
   pInfo->req_select = 0;
   pInfo->req_select_rate = 0;
   pInfo->req_insert = 0;
