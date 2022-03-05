@@ -92,11 +92,11 @@ typedef struct {
   int64_t mem_engine;     // KB
   int64_t mem_system;     // KB
   int64_t mem_total;      // KB
-  float   disk_engine;    // GB
-  float   disk_used;      // GB
-  float   disk_total;     // GB
-  int64_t net_in;
-  int64_t net_out;
+  int64_t disk_engine;    // Byte
+  int64_t disk_used;      // Byte
+  int64_t disk_total;     // Byte
+  int64_t net_in;         // Byte
+  int64_t net_out;        // Byte
   float   io_read;
   float   io_write;
   float   io_read_disk;
