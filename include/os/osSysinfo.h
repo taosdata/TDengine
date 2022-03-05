@@ -52,6 +52,9 @@ int32_t taosGetSystemUUID(char *uid, int32_t uidlen);
 char   *taosGetCmdlineByPID(int32_t pid);
 void    taosSetCoreDump(bool enable);
 
+#if defined(_TD_DARWIN_64)
+    #define _UTSNAME_MACHINE_LENGTH     65
+#endif
 typedef struct {
   char sysname[_UTSNAME_MACHINE_LENGTH];
   char nodename[_UTSNAME_MACHINE_LENGTH];

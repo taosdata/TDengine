@@ -52,7 +52,10 @@ extern "C" {
 #include <libgen.h>
 
 #include <sys/mman.h>
+
+#if !defined(_TD_DARWIN)
 #include <sys/prctl.h>
+#endif
 
 #include "osAtomic.h"
 #include "osDef.h"
