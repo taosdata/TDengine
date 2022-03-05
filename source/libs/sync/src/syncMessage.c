@@ -24,7 +24,12 @@ void onMessage(SRaft* pRaft, void* pMsg) {}
 cJSON* syncRpcMsg2Json(SRpcMsg* pRpcMsg) {
   cJSON* pRoot;
 
-  if (pRpcMsg->msgType == SYNC_PING) {
+  // in compiler optimization, switch case = if else constants
+  if (pRpcMsg->msgType == SYNC_TIMEOUT) {
+    SyncTimeout* pSyncMsg = (SyncTimeout*)pRpcMsg->pCont;
+    pRoot = syncTimeout2Json(pSyncMsg);
+
+  } else if (pRpcMsg->msgType == SYNC_PING) {
     SyncPing* pSyncMsg = (SyncPing*)pRpcMsg->pCont;
     pRoot = syncPing2Json(pSyncMsg);
 
@@ -71,6 +76,66 @@ cJSON* syncRpcUnknownMsg2Json() {
   cJSON* pJson = cJSON_CreateObject();
   cJSON_AddItemToObject(pJson, "SyncPing", pRoot);
   return pJson;
+}
+
+// ---- message process SyncTimeout----
+SyncTimeout* syncTimeoutBuild() {
+  uint32_t     bytes = sizeof(SyncTimeout);
+  SyncTimeout* pMsg = malloc(bytes);
+  memset(pMsg, 0, bytes);
+  pMsg->bytes = bytes;
+  pMsg->msgType = SYNC_TIMEOUT;
+  return pMsg;
+}
+
+void syncTimeoutDestroy(SyncTimeout* pMsg) {
+  if (pMsg != NULL) {
+    free(pMsg);
+  }
+}
+
+void syncTimeoutSerialize(const SyncTimeout* pMsg, char* buf, uint32_t bufLen) {
+  assert(pMsg->bytes <= bufLen);
+  memcpy(buf, pMsg, pMsg->bytes);
+}
+
+void syncTimeoutDeserialize(const char* buf, uint32_t len, SyncTimeout* pMsg) {
+  memcpy(pMsg, buf, len);
+  assert(len == pMsg->bytes);
+}
+
+void syncTimeout2RpcMsg(const SyncTimeout* pMsg, SRpcMsg* pRpcMsg) {
+  memset(pRpcMsg, 0, sizeof(*pRpcMsg));
+  pRpcMsg->msgType = pMsg->msgType;
+  pRpcMsg->contLen = pMsg->bytes;
+  pRpcMsg->pCont = rpcMallocCont(pRpcMsg->contLen);
+  syncTimeoutSerialize(pMsg, pRpcMsg->pCont, pRpcMsg->contLen);
+}
+
+void syncTimeoutFromRpcMsg(const SRpcMsg* pRpcMsg, SyncTimeout* pMsg) {
+  syncTimeoutDeserialize(pRpcMsg->pCont, pRpcMsg->contLen, pMsg);
+}
+
+cJSON* syncTimeout2Json(const SyncTimeout* pMsg) {
+  char u64buf[128];
+
+  cJSON* pRoot = cJSON_CreateObject();
+  cJSON_AddNumberToObject(pRoot, "bytes", pMsg->bytes);
+  cJSON_AddNumberToObject(pRoot, "msgType", pMsg->msgType);
+  cJSON_AddNumberToObject(pRoot, "timeoutType", pMsg->timeoutType);
+  snprintf(u64buf, sizeof(u64buf), "%p", pMsg->data);
+  cJSON_AddStringToObject(pRoot, "data", u64buf);
+
+  cJSON* pJson = cJSON_CreateObject();
+  cJSON_AddItemToObject(pJson, "SyncTimeout", pRoot);
+  return pJson;
+}
+
+SyncTimeout* syncTimeoutBuild2(ESyncTimeoutType timeoutType, void* data) {
+  SyncTimeout* pMsg = syncTimeoutBuild();
+  pMsg->timeoutType = timeoutType;
+  pMsg->data = data;
+  return pMsg;
 }
 
 // ---- message process SyncPing----

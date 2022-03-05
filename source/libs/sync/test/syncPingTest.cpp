@@ -78,6 +78,7 @@ int main(int argc, char** argv) {
   SSyncNode* pSyncNode = doSync(myIndex);
   gSyncIO->FpOnSyncPing = pSyncNode->FpOnPing;
   gSyncIO->FpOnSyncPingReply = pSyncNode->FpOnPingReply;
+  gSyncIO->FpOnSyncTimeout = pSyncNode->FpOnTimeout;
 
   ret = syncNodeStartPingTimer(pSyncNode);
   assert(ret == 0);

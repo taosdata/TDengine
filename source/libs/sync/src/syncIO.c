@@ -246,7 +246,14 @@ static void *syncIOConsumerFunc(void *param) {
         }
 
       } else if (pRpcMsg->msgType == SYNC_TIMEOUT) {
-            } else {
+        if (io->FpOnSyncTimeout != NULL) {
+          SyncTimeout *pSyncMsg;
+          pSyncMsg = syncTimeoutBuild();
+          syncTimeoutFromRpcMsg(pRpcMsg, pSyncMsg);
+          io->FpOnSyncTimeout(io->pSyncNode, pSyncMsg);
+          syncTimeoutDestroy(pSyncMsg);
+        }
+      } else {
         ;
       }
     }
