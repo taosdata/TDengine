@@ -42,10 +42,11 @@ void schFreeFlowCtrl(SSchLevel *pLevel) {
 
 int32_t schCheckJobNeedFlowCtrl(SSchJob *pJob, SSchLevel *pLevel) {
   if (!SCH_IS_QUERY_JOB(pJob)) {
+    SCH_JOB_DLOG("job no need flow ctrl, queryJob:%d", SCH_IS_QUERY_JOB(pJob));
     return TSDB_CODE_SUCCESS;
   }
 
-  double sum = 0;
+  int32_t sum = 0;
   
   for (int32_t i = 0; i < pLevel->taskNum; ++i) {
     SSchTask *pTask = taosArrayGet(pLevel->subTasks, i);
@@ -54,6 +55,7 @@ int32_t schCheckJobNeedFlowCtrl(SSchJob *pJob, SSchLevel *pLevel) {
   }
 
   if (sum < schMgmt.cfg.maxNodeTableNum) {
+    SCH_JOB_DLOG("job no need flow ctrl, totalTableNum:%d", sum);
     return TSDB_CODE_SUCCESS;
   }
 
@@ -64,6 +66,8 @@ int32_t schCheckJobNeedFlowCtrl(SSchJob *pJob, SSchLevel *pLevel) {
   }
 
   SCH_SET_JOB_NEED_FLOW_CTRL(pJob);
+
+  SCH_JOB_DLOG("job NEED flow ctrl, totalTableNum:%d", sum);
 
   return TSDB_CODE_SUCCESS;
 }
@@ -89,6 +93,9 @@ int32_t schDecTaskFlowQuota(SSchJob *pJob, SSchTask *pTask) {
   --ctrl->execTaskNum;
   ctrl->tableNumSum -= pTask->plan->execNodeStat.tableNum;
 
+  SCH_TASK_DLOG("task quota removed, fqdn:%s, port:%d, tableNum:%d, remainNum:%d, remainExecTaskNum:%d", 
+     ep->fqdn, ep->port, pTask->plan->execNodeStat.tableNum, ctrl->tableNumSum, ctrl->execTaskNum);
+
 _return:
 
   SCH_UNLOCK(SCH_WRITE, &ctrl->lock);
@@ -100,13 +107,14 @@ int32_t schCheckIncTaskFlowQuota(SSchJob *pJob, SSchTask *pTask, bool *enough) {
   SSchLevel *pLevel = pTask->level;
   int32_t code = 0;
   SSchFlowControl *ctrl = NULL;
+  SEp *ep = SCH_GET_CUR_EP(&pTask->plan->execNode);
   
   do {
-    ctrl = (SSchFlowControl *)taosHashGet(pLevel->flowCtrl, SCH_GET_CUR_EP(&pTask->plan->execNode), sizeof(SEp));
+    ctrl = (SSchFlowControl *)taosHashGet(pLevel->flowCtrl, ep, sizeof(SEp));
     if (NULL == ctrl) {
       SSchFlowControl nctrl = {.tableNumSum = pTask->plan->execNodeStat.tableNum, .execTaskNum = 1};
 
-      code = taosHashPut(pLevel->flowCtrl, SCH_GET_CUR_EP(&pTask->plan->execNode), sizeof(SEp), &nctrl, sizeof(nctrl));
+      code = taosHashPut(pLevel->flowCtrl, ep, sizeof(SEp), &nctrl, sizeof(nctrl));
       if (code) {
         if (HASH_NODE_EXIST(code)) {
           continue;
@@ -115,6 +123,9 @@ int32_t schCheckIncTaskFlowQuota(SSchJob *pJob, SSchTask *pTask, bool *enough) {
         SCH_TASK_ELOG("taosHashPut flowCtrl failed, size:%d", (int32_t)sizeof(nctrl));
         SCH_ERR_RET(TSDB_CODE_QRY_OUT_OF_MEMORY);
       }
+
+      SCH_TASK_DLOG("task quota added, fqdn:%s, port:%d, tableNum:%d, remainNum:%d, remainExecTaskNum:%d", 
+         ep->fqdn, ep->port, pTask->plan->execNodeStat.tableNum, nctrl.tableNumSum, nctrl.execTaskNum);
 
       *enough = true;
       return TSDB_CODE_SUCCESS;
@@ -130,7 +141,7 @@ int32_t schCheckIncTaskFlowQuota(SSchJob *pJob, SSchTask *pTask, bool *enough) {
       break;
     }
     
-    double sum = pTask->plan->execNodeStat.tableNum + ctrl->tableNumSum;
+    int32_t sum = pTask->plan->execNodeStat.tableNum + ctrl->tableNumSum;
     
     if (sum <= schMgmt.cfg.maxNodeTableNum) {
       ctrl->tableNumSum = sum;
@@ -159,6 +170,9 @@ int32_t schCheckIncTaskFlowQuota(SSchJob *pJob, SSchTask *pTask, bool *enough) {
   } while (true);
 
 _return:
+
+  SCH_TASK_DLOG("task quota %s added, fqdn:%s, port:%d, tableNum:%d, remainNum:%d, remainExecTaskNum:%d", 
+     ((*enough)?"":"NOT"), ep->fqdn, ep->port, pTask->plan->execNodeStat.tableNum, ctrl->tableNumSum, ctrl->execTaskNum);
 
   SCH_UNLOCK(SCH_WRITE, &ctrl->lock);
   

@@ -130,6 +130,8 @@ int32_t schValidateTaskReceivedMsgType(SSchJob *pJob, SSchTask *pTask, int32_t m
       SCH_ERR_RET(TSDB_CODE_QRY_INVALID_INPUT);
   }
 
+  atomic_store_32(&pTask->lastMsgType, -1);
+
   return TSDB_CODE_SUCCESS;
 }
 
@@ -500,6 +502,8 @@ int32_t schPushTaskToExecList(SSchJob *pJob, SSchTask *pTask) {
 int32_t schMoveTaskToSuccList(SSchJob *pJob, SSchTask *pTask, bool *moved) {
   if (0 != taosHashRemove(pJob->execTasks, &pTask->taskId, sizeof(pTask->taskId))) {
     SCH_TASK_WLOG("remove task from execTask list failed, may not exist, status:%d", SCH_GET_TASK_STATUS(pTask));
+  } else {
+    SCH_TASK_DLOG("task removed from execTask list, numOfTasks:%d", taosHashGetSize(pJob->execTasks));
   }
 
   int32_t code = taosHashPut(pJob->succTasks, &pTask->taskId, sizeof(pTask->taskId), &pTask, POINTER_BYTES);
@@ -734,6 +738,8 @@ _return:
 int32_t schProcessOnTaskSuccess(SSchJob *pJob, SSchTask *pTask) {
   bool moved = false;
   int32_t code = 0;
+
+  SCH_TASK_DLOG("taskOnSuccess, status:%d", SCH_GET_TASK_STATUS(pTask));
 
   SCH_ERR_JRET(schMoveTaskToSuccList(pJob, pTask, &moved));
 
@@ -1689,7 +1695,7 @@ int32_t schedulerFetchRows(int64_t job, void** pData) {
     SCH_JOB_ELOG("job failed or dropping, status:%d", status);
     SCH_ERR_JRET(atomic_load_32(&pJob->errCode));
   } else if (status == JOB_TASK_STATUS_SUCCEED) {
-    SCH_JOB_ELOG("job already succeed, status:%d", status);
+    SCH_JOB_DLOG("job already succeed, status:%d", status);
     goto _return;
   } else if (status == JOB_TASK_STATUS_PARTIAL_SUCCEED) {
     SCH_ERR_JRET(schFetchFromRemote(pJob));

@@ -134,7 +134,7 @@ typedef struct SQueryNodeAddr {
 } SQueryNodeAddr;
 
 typedef struct SQueryNodeStat {
-  double tableNum; // vg table number, unit is TSDB_TABLE_NUM_UNIT
+  int32_t tableNum; // vg table number, unit is TSDB_TABLE_NUM_UNIT
 } SQueryNodeStat;
 
 int32_t initTaskQueue();

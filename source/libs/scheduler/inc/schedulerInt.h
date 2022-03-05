@@ -28,7 +28,8 @@ extern "C" {
 
 #define SCHEDULE_DEFAULT_MAX_JOB_NUM 1000
 #define SCHEDULE_DEFAULT_MAX_TASK_NUM 1000
-#define SCHEDULE_DEFAULT_MAX_NODE_TABLE_NUM 20.0 /* in million */
+#define SCHEDULE_DEFAULT_MAX_NODE_TABLE_NUM 20  // unit is TSDB_TABLE_NUM_UNIT
+
 
 #define SCH_MAX_CANDIDATE_EP_NUM TSDB_MAX_REPLICA
 
@@ -78,7 +79,7 @@ typedef struct SSchCallbackParam {
 
 typedef struct SSchFlowControl {
   SRWLatch  lock;
-  double    tableNumSum;
+  int32_t   tableNumSum;
   uint32_t  execTaskNum;
   SArray   *taskList;      // Element is SQueryTask*
 } SSchFlowControl;
