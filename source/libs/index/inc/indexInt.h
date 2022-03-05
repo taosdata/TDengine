@@ -96,7 +96,7 @@ typedef struct SIndexTermQuery {
 typedef struct Iterate Iterate;
 
 typedef struct IterateValue {
-  int8_t  type;
+  int8_t  type;  // opera type, ADD_VALUE/DELETE_VALUE
   char*   colVal;
   SArray* val;
 } IterateValue;

@@ -108,6 +108,22 @@ TEST_F(JsonEnv, testWriteMillonData) {
   {
     std::string colName("voltagefdadfa");
     std::string colVal("abxxxxxxxxxxxx");
+    for (uint i = 0; i < 1000; i++) {
+      colVal[i % colVal.size()] = '0' + i % 128;
+      SIndexTerm* term = indexTermCreate(1, ADD_VALUE, TSDB_DATA_TYPE_BINARY, colName.c_str(), colName.size(),
+                                         colVal.c_str(), colVal.size());
+
+      SIndexMultiTerm* terms = indexMultiTermCreate();
+      indexMultiTermAdd(terms, term);
+      for (size_t i = 0; i < 1000; i++) {
+        tIndexJsonPut(index, terms, i);
+      }
+      indexMultiTermDestroy(terms);
+    }
+  }
+  {
+    std::string colName("voltagefdadfa");
+    std::string colVal("abxxxxxxxxxxxx");
     SIndexTerm* term = indexTermCreate(1, ADD_VALUE, TSDB_DATA_TYPE_BINARY, colName.c_str(), colName.size(),
                                        colVal.c_str(), colVal.size());
 

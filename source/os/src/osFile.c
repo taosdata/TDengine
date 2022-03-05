@@ -142,10 +142,12 @@ int64_t taosCopyFile(const char *from, const char *to) {
 _err:
   if (pFileFrom != NULL) taosCloseFile(&pFileFrom);
   if (pFileTo != NULL) taosCloseFile(&pFileTo);
-  remove(to);
+  taosRemoveFile(to);
   return -1;
 #endif
 }
+
+int32_t taosRemoveFile(const char *path) { return remove(path); }
 
 int32_t taosRenameFile(const char *oldName, const char *newName) {
 #if defined(_TD_WINDOWS_64) || defined(_TD_WINDOWS_32)

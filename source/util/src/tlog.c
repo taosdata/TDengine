@@ -180,7 +180,7 @@ static void taosKeepOldLog(char *oldName) {
     char compressFileName[LOG_FILE_NAME_LEN + 20];
     snprintf(compressFileName, LOG_FILE_NAME_LEN + 20, "%s.%" PRId64 ".gz", tsLogObj.logName, fileSec);
     if (taosCompressFile(fileName, compressFileName) == 0) {
-      (void)remove(fileName);
+      (void)taosRemoveFile(fileName);
     }
   }
 
@@ -251,7 +251,7 @@ void taosResetLog() {
   tsLogObj.lines = tsLogObj.maxLines + 10;
 
   taosOpenNewLogFile();
-  (void)remove(lastName);
+  (void)taosRemoveFile(lastName);
 
   uInfo("==================================");
   uInfo("   reset log file ");

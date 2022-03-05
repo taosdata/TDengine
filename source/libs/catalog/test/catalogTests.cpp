@@ -27,13 +27,13 @@
 #include "os.h"
 #include "tglobal.h"
 #include "catalog.h"
+#include "catalogInt.h"
 #include "stub.h"
 #include "taos.h"
+#include "tdatablock.h"
 #include "tdef.h"
-#include "tep.h"
 #include "trpc.h"
 #include "tvariant.h"
-#include "catalogInt.h"
 
 namespace {
 

@@ -70,7 +70,7 @@ typedef uint16_t tmsg_t;
 
 typedef enum {
   HEARTBEAT_TYPE_MQ = 0,
-  HEARTBEAT_TYPE_QUERY = 1,
+  HEARTBEAT_TYPE_QUERY,
   // types can be added here
   //
   HEARTBEAT_TYPE_MAX

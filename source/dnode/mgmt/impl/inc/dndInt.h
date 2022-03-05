@@ -23,9 +23,11 @@ extern "C" {
 #include "os.h"
 
 #include "cJSON.h"
+#include "monitor.h"
 #include "tcache.h"
 #include "tcrc32c.h"
-#include "tep.h"
+#include "tdatablock.h"
+#include "tglobal.h"
 #include "thash.h"
 #include "tlockfree.h"
 #include "tlog.h"
@@ -35,8 +37,6 @@ extern "C" {
 #include "tthread.h"
 #include "ttime.h"
 #include "tworker.h"
-#include "tglobal.h"
-#include "monitor.h"
 
 #include "dnode.h"
 

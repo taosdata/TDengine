@@ -28,8 +28,8 @@
 #include "tbuffer.h"
 #include "tcompression.h"
 //#include "queryLog.h"
+#include "tdatablock.h"
 #include "tudf.h"
-#include "tep.h"
 
 #define GET_INPUT_DATA_LIST(x) ((char *)((x)->pInput))
 #define GET_INPUT_DATA(x, y) ((char*) colDataGetData((x)->pInput, (y)))

@@ -28,7 +28,8 @@ typedef int32_t (*_equal_fn_t)(const void *, const void *, size_t len);
 typedef void (*_hash_before_fn_t)(void *);
 typedef void (*_hash_free_fn_t)(void *);
 
-#define HASH_NODE_EXIST(code) (code == -2)
+#define HASH_KEY_ALREADY_EXISTS (-2)
+#define HASH_NODE_EXIST(code) (code == HASH_KEY_ALREADY_EXISTS)
 
 /**
  * murmur hash algorithm
@@ -49,24 +50,14 @@ uint32_t taosIntHash_32(const char *key, uint32_t len);
 uint32_t taosIntHash_64(const char *key, uint32_t len);
 
 _hash_fn_t taosGetDefaultHashFunction(int32_t type);
-
 _equal_fn_t taosGetDefaultEqualFunction(int32_t type);
-
-typedef struct SHashNode {
-  struct SHashNode *next;
-  uint32_t          hashVal;  // the hash value of key
-  uint32_t          dataLen;  // length of data
-  uint32_t          keyLen;   // length of the key
-  uint16_t          refCount; // reference count
-  int8_t            removed;  // flag to indicate removed
-  char              data[];
-} SHashNode;
 
 typedef enum SHashLockTypeE {
   HASH_NO_LOCK = 0,
   HASH_ENTRY_LOCK = 1,
 } SHashLockTypeE;
 
+typedef struct SHashNode SHashNode;
 typedef struct SHashObj SHashObj;
 
 /**

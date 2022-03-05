@@ -24,8 +24,8 @@
 extern "C" {
 #endif
 
-#define META_SUPER_TABLE TD_SUPER_TABLE
-#define META_CHILD_TABLE TD_CHILD_TABLE
+#define META_SUPER_TABLE  TD_SUPER_TABLE
+#define META_CHILD_TABLE  TD_CHILD_TABLE
 #define META_NORMAL_TABLE TD_NORMAL_TABLE
 
 // Types exported
@@ -50,14 +50,14 @@ int    metaDropTable(SMeta *pMeta, tb_uid_t uid);
 int    metaCommit(SMeta *pMeta);
 
 // For Query
-STbCfg *        metaGetTbInfoByUid(SMeta *pMeta, tb_uid_t uid);
-STbCfg *        metaGetTbInfoByName(SMeta *pMeta, char *tbname, tb_uid_t *uid);
+STbCfg         *metaGetTbInfoByUid(SMeta *pMeta, tb_uid_t uid);
+STbCfg         *metaGetTbInfoByName(SMeta *pMeta, char *tbname, tb_uid_t *uid);
 SSchemaWrapper *metaGetTableSchema(SMeta *pMeta, tb_uid_t uid, int32_t sver, bool isinline);
-STSchema *      metaGetTbTSchema(SMeta *pMeta, tb_uid_t uid, int32_t sver);
+STSchema       *metaGetTbTSchema(SMeta *pMeta, tb_uid_t uid, int32_t sver);
 
 SMTbCursor *metaOpenTbCursor(SMeta *pMeta);
 void        metaCloseTbCursor(SMTbCursor *pTbCur);
-char *      metaTbCursorNext(SMTbCursor *pTbCur);
+char       *metaTbCursorNext(SMTbCursor *pTbCur);
 
 SMCtbCursor *metaOpenCtbCursor(SMeta *pMeta, tb_uid_t uid);
 void         metaCloseCtbCurosr(SMCtbCursor *pCtbCur);

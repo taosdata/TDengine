@@ -563,7 +563,7 @@ void destroyDiskbasedBuf(SDiskbasedBuf* pBuf) {
         ps->loadPages, ps->loadBytes / (1024.0 * ps->loadPages));
   }
 
-  remove(pBuf->path);
+  taosRemoveFile(pBuf->path);
   tfree(pBuf->path);
 
   SArray** p = taosHashIterate(pBuf->groupSet, NULL);

@@ -23,7 +23,7 @@ static SClientHbMgr clientHbMgr = {0};
 static int32_t hbCreateThread();
 static void    hbStopThread();
 
-static int32_t hbMqHbRspHandle(struct SAppHbMgr *pAppHbMgr, SClientHbRsp *pRsp) { return 0; }
+static int32_t hbMqHbRspHandle(SAppHbMgr *pAppHbMgr, SClientHbRsp *pRsp) { return 0; }
 
 static int32_t hbProcessDBInfoRsp(void *value, int32_t valueLen, struct SCatalog *pCatalog) {
   int32_t code = 0;
@@ -104,7 +104,7 @@ static int32_t hbProcessStbInfoRsp(void *value, int32_t valueLen, struct SCatalo
   return TSDB_CODE_SUCCESS;
 }
 
-static int32_t hbQueryHbRspHandle(struct SAppHbMgr *pAppHbMgr, SClientHbRsp *pRsp) {
+static int32_t hbQueryHbRspHandle(SAppHbMgr *pAppHbMgr, SClientHbRsp *pRsp) {
   SHbConnInfo *info = taosHashGet(pAppHbMgr->connInfo, &pRsp->connKey, sizeof(SClientHbKey));
   if (NULL == info) {
     tscWarn("fail to get connInfo, may be dropped, connId:%d, type:%d", pRsp->connKey.connId, pRsp->connKey.hbType);
@@ -163,7 +163,7 @@ static int32_t hbQueryHbRspHandle(struct SAppHbMgr *pAppHbMgr, SClientHbRsp *pRs
   return TSDB_CODE_SUCCESS;
 }
 
-static int32_t hbMqAsyncCallBack(void *param, const SDataBuf *pMsg, int32_t code) {
+static int32_t hbAsyncCallBack(void *param, const SDataBuf *pMsg, int32_t code) {
   static int32_t emptyRspNum = 0;
   if (code != 0) {
     tfree(param);
@@ -226,7 +226,11 @@ int32_t hbGetExpiredDBInfo(SClientHbKey *connKey, struct SCatalog *pCatalog, SCl
     db->vgVersion = htonl(db->vgVersion);
   }
 
-  SKv kv = {.key = HEARTBEAT_KEY_DBINFO, .valueLen = sizeof(SDbVgVersion) * dbNum, .value = dbs};
+  SKv kv = {
+      .key = HEARTBEAT_KEY_DBINFO,
+      .valueLen = sizeof(SDbVgVersion) * dbNum,
+      .value = dbs,
+  };
 
   tscDebug("hb got %d expired db, valueLen:%d", dbNum, kv.valueLen);
 
@@ -256,7 +260,11 @@ int32_t hbGetExpiredStbInfo(SClientHbKey *connKey, struct SCatalog *pCatalog, SC
     stb->tversion = htons(stb->tversion);
   }
 
-  SKv kv = {.key = HEARTBEAT_KEY_STBINFO, .valueLen = sizeof(SSTableMetaVersion) * stbNum, .value = stbs};
+  SKv kv = {
+      .key = HEARTBEAT_KEY_STBINFO,
+      .valueLen = sizeof(SSTableMetaVersion) * stbNum,
+      .value = stbs,
+  };
 
   tscDebug("hb got %d expired stb, valueLen:%d", stbNum, kv.valueLen);
 
@@ -288,7 +296,7 @@ int32_t hbQueryHbReqHandle(SClientHbKey *connKey, void *param, SClientHbReq *req
   return TSDB_CODE_SUCCESS;
 }
 
-int32_t hbMqHbReqHandle(SClientHbKey *connKey, void *param, SClientHbReq *req) {}
+int32_t hbMqHbReqHandle(SClientHbKey *connKey, void *param, SClientHbReq *req) { return 0; }
 
 void hbMgrInitMqHbHandle() {
   clientHbMgr.reqHandle[HEARTBEAT_TYPE_QUERY] = hbQueryHbReqHandle;
@@ -396,7 +404,7 @@ static void *hbThreadFunc(void *param) {
         free(buf);
         break;
       }
-      pInfo->fp = hbMqAsyncCallBack;
+      pInfo->fp = hbAsyncCallBack;
       pInfo->msgInfo.pData = buf;
       pInfo->msgInfo.len = tlen;
       pInfo->msgType = TDMT_MND_HEARTBEAT;
@@ -448,7 +456,6 @@ static void hbStopThread() {
 }
 
 SAppHbMgr *appHbMgrInit(SAppInstInfo *pAppInstInfo, char *key) {
-  /*return NULL;*/
   hbMgrInit();
   SAppHbMgr *pAppHbMgr = malloc(sizeof(SAppHbMgr));
   if (pAppHbMgr == NULL) {
@@ -507,7 +514,6 @@ void appHbMgrCleanup(void) {
 }
 
 int hbMgrInit() {
-  /*return 0;*/
   // init once
   int8_t old = atomic_val_compare_exchange_8(&clientHbMgr.inited, 0, 1);
   if (old == 1) return 0;
@@ -525,7 +531,7 @@ int hbMgrInit() {
 }
 
 void hbMgrCleanUp() {
-  return;
+#if 0
   hbStopThread();
 
   // destroy all appHbMgr
@@ -538,6 +544,7 @@ void hbMgrCleanUp() {
   pthread_mutex_unlock(&clientHbMgr.lock);
 
   clientHbMgr.appHbMgrs = NULL;
+#endif
 }
 
 int hbRegisterConnImpl(SAppHbMgr *pAppHbMgr, SClientHbKey connKey, SHbConnInfo *info) {
@@ -564,9 +571,11 @@ int hbRegisterConnImpl(SAppHbMgr *pAppHbMgr, SClientHbKey connKey, SHbConnInfo *
 }
 
 int hbRegisterConn(SAppHbMgr *pAppHbMgr, int32_t connId, int64_t clusterId, int32_t hbType) {
-  /*return 0;*/
-  SClientHbKey connKey = {.connId = connId, .hbType = HEARTBEAT_TYPE_QUERY};
-  SHbConnInfo  info = {0};
+  SClientHbKey connKey = {
+      .connId = connId,
+      .hbType = HEARTBEAT_TYPE_QUERY,
+  };
+  SHbConnInfo info = {0};
 
   switch (hbType) {
     case HEARTBEAT_TYPE_QUERY: {
@@ -587,7 +596,6 @@ int hbRegisterConn(SAppHbMgr *pAppHbMgr, int32_t connId, int64_t clusterId, int3
 }
 
 void hbDeregisterConn(SAppHbMgr *pAppHbMgr, SClientHbKey connKey) {
-  /*return;*/
   int32_t code = 0;
   code = taosHashRemove(pAppHbMgr->activeInfo, &connKey, sizeof(SClientHbKey));
   code = taosHashRemove(pAppHbMgr->connInfo, &connKey, sizeof(SClientHbKey));
@@ -599,7 +607,6 @@ void hbDeregisterConn(SAppHbMgr *pAppHbMgr, SClientHbKey connKey) {
 
 int hbAddConnInfo(SAppHbMgr *pAppHbMgr, SClientHbKey connKey, void *key, void *value, int32_t keyLen,
                   int32_t valueLen) {
-  return 0;
   // find req by connection id
   SClientHbReq *pReq = taosHashGet(pAppHbMgr->activeInfo, &connKey, sizeof(SClientHbKey));
   ASSERT(pReq != NULL);

@@ -36,25 +36,35 @@
     tfree(_n);             \
   } while (0);
 
+struct SHashNode {
+  SHashNode        *next;
+  uint32_t          hashVal;  // the hash value of key
+  uint32_t          dataLen;  // length of data
+  uint32_t          keyLen;   // length of the key
+  uint16_t          refCount; // reference count
+  int8_t            removed;  // flag to indicate removed
+  char              data[];
+};
+
 typedef struct SHashEntry {
-  int32_t    num;      // number of elements in current entry
-  SRWLatch   latch;    // entry latch
-  SHashNode *next;
+  int32_t           num;      // number of elements in current entry
+  SRWLatch          latch;    // entry latch
+  SHashNode        *next;
 } SHashEntry;
 
-typedef struct SHashObj {
-  SHashEntry     **hashList;
-  size_t           capacity;     // number of slots
-  size_t           size;         // number of elements in hash table
-  _hash_fn_t       hashFp;       // hash function
-  _equal_fn_t      equalFp;      // equal function
-  _hash_free_fn_t  freeFp;       // hash node free callback function
-  SRWLatch         lock;         // read-write spin lock
-  SHashLockTypeE   type;         // lock type
-  bool             enableUpdate; // enable update
-  SArray          *pMemBlock;    // memory block allocated for SHashEntry
-  _hash_before_fn_t callbackFp;  // function invoked before return the value to caller
-} SHashObj;
+struct SHashObj {
+  SHashEntry **     hashList;
+  size_t            capacity;      // number of slots
+  size_t            size;          // number of elements in hash table
+  _hash_fn_t        hashFp;        // hash function
+  _equal_fn_t       equalFp;       // equal function
+  _hash_free_fn_t   freeFp;        // hash node free callback function
+  SRWLatch          lock;          // read-write spin lock
+  SHashLockTypeE    type;          // lock type
+  bool              enableUpdate;  // enable update
+  SArray *          pMemBlock;     // memory block allocated for SHashEntry
+  _hash_before_fn_t callbackFp;    // function invoked before return the value to caller
+};
 
 /*
  * Function definition
@@ -367,7 +377,7 @@ int32_t taosHashPut(SHashObj *pHashObj, const void *key, size_t keyLen, void *da
 
     // enable resize
     taosHashRUnlock(pHashObj);
-    return pHashObj->enableUpdate ? 0 : -1;
+    return pHashObj->enableUpdate ? 0 : -2;
   }
 }
 
@@ -464,7 +474,7 @@ void* taosHashGetImpl(SHashObj *pHashObj, const void *key, size_t keyLen, void**
   return data;
 }
 
-int32_t taosHashRemoveWithData(SHashObj *pHashObj, const void *key, size_t keyLen, void *data, size_t dsize) {
+int32_t taosHashRemove(SHashObj *pHashObj, const void *key, size_t keyLen) {
   if (pHashObj == NULL || taosHashTableEmpty(pHashObj) || key == NULL || keyLen == 0) {
     return -1;
   }
@@ -507,8 +517,6 @@ int32_t taosHashRemoveWithData(SHashObj *pHashObj, const void *key, size_t keyLe
           prevNode->next = pNode->next;
         }
 
-        if (data) memcpy(data, GET_HASH_NODE_DATA(pNode), dsize);
-
         pe->num--;
         atomic_sub_fetch_64(&pHashObj->size, 1);
         FREE_HASH_NODE(pNode);
@@ -523,10 +531,6 @@ int32_t taosHashRemoveWithData(SHashObj *pHashObj, const void *key, size_t keyLe
   taosHashRUnlock(pHashObj);
 
   return code;
-}
-
-int32_t taosHashRemove(SHashObj *pHashObj, const void *key, size_t keyLen) {
-  return taosHashRemoveWithData(pHashObj, key, keyLen, NULL, 0);
 }
 
 void taosHashClear(SHashObj *pHashObj) {

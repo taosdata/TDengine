@@ -15,12 +15,12 @@
 
 #include "os.h"
 
-#include "tep.h"
-#include "tsort.h"
-#include "texception.h"
 #include "parser.h"
+#include "tdatablock.h"
+#include "texception.h"
 #include "tglobal.h"
 #include "tmsg.h"
+#include "tsort.h"
 #include "ttime.h"
 
 #include "executorimpl.h"
@@ -8730,10 +8730,8 @@ static void doSetTagValueToResultBuf(char* output, const char* val, int16_t type
 
 static int64_t getQuerySupportBufSize(size_t numOfTables) {
   size_t s1 = sizeof(STableQueryInfo);
-  size_t s2 = sizeof(SHashNode);
-
 //  size_t s3 = sizeof(STableCheckInfo);  buffer consumption in tsdb
-  return (int64_t)((s1 + s2) * 1.5 * numOfTables);
+  return (int64_t)(s1* 1.5 * numOfTables);
 }
 
 int32_t checkForQueryBuf(size_t numOfTables) {
