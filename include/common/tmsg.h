@@ -171,6 +171,7 @@ typedef struct {
   char    db[TSDB_DB_FNAME_LEN];
   int64_t dbId;
   int32_t vgVersion;
+  int32_t numOfTable;      // unit is TSDB_TABLE_NUM_UNIT
 } SBuildUseDBInput;
 
 typedef struct SField {
@@ -568,7 +569,7 @@ typedef struct {
   char    db[TSDB_DB_FNAME_LEN];
   int64_t dbId;
   int32_t vgVersion;
-  int32_t numOfTable;
+  int32_t numOfTable;    // unit is TSDB_TABLE_NUM_UNIT
 } SUseDbReq;
 
 int32_t tSerializeSUseDbReq(void* buf, int32_t bufLen, SUseDbReq* pReq);

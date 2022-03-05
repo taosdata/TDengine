@@ -82,6 +82,7 @@ typedef struct STableMeta {
 typedef struct SDBVgInfo {
   int32_t   vgVersion;  
   int8_t    hashMethod;
+  int32_t   numOfTable;  // DB's table num, unit is TSDB_TABLE_NUM_UNIT
   SHashObj *vgHash;  //key:vgId, value:SVgroupInfo
 } SDBVgInfo;
 
@@ -133,7 +134,7 @@ typedef struct SQueryNodeAddr {
 } SQueryNodeAddr;
 
 typedef struct SQueryNodeStat {
-  double tableNum; //table number in million
+  double tableNum; // vg table number, unit is TSDB_TABLE_NUM_UNIT
 } SQueryNodeStat;
 
 int32_t initTaskQueue();

@@ -1331,7 +1331,7 @@ int32_t ctgUpdateDBVgInfo(SCatalog* pCtg, const char* dbFName, uint64_t dbId, SD
   }
 
   bool newAdded = false;
-  SDbVgVersion vgVersion = {.dbId = dbId, .vgVersion = dbInfo->vgVersion};
+  SDbVgVersion vgVersion = {.dbId = dbId, .vgVersion = dbInfo->vgVersion, .numOfTable = dbInfo->numOfTable};
 
   SCtgDBCache *dbCache = NULL;
   CTG_ERR_RET(ctgGetAddDBCache(pCtg, dbFName, dbId, &dbCache));
@@ -1344,8 +1344,15 @@ int32_t ctgUpdateDBVgInfo(SCatalog* pCtg, const char* dbFName, uint64_t dbId, SD
   CTG_ERR_RET(ctgWAcquireVgInfo(pCtg, dbCache));
   
   if (dbCache->vgInfo) {
-    if (dbInfo->vgVersion <= dbCache->vgInfo->vgVersion) {
-      ctgInfo("db vgVersion is old, dbFName:%s, vgVersion:%d, currentVersion:%d", dbFName, dbInfo->vgVersion, dbCache->vgInfo->vgVersion);
+    if (dbInfo->vgVersion < dbCache->vgInfo->vgVersion) {
+      ctgDebug("db vgVersion is old, dbFName:%s, vgVersion:%d, currentVersion:%d", dbFName, dbInfo->vgVersion, dbCache->vgInfo->vgVersion);
+      ctgWReleaseVgInfo(dbCache);
+      
+      return TSDB_CODE_SUCCESS;
+    }
+
+    if (dbInfo->vgVersion == dbCache->vgInfo->vgVersion && dbInfo->numOfTable == dbCache->vgInfo->numOfTable) {
+      ctgDebug("no new db vgVersion or numOfTable, dbFName:%s, vgVersion:%d, numOfTable:%d", dbFName, dbInfo->vgVersion, dbInfo->numOfTable);
       ctgWReleaseVgInfo(dbCache);
       
       return TSDB_CODE_SUCCESS;
@@ -1511,6 +1518,7 @@ int32_t ctgGetDBVgInfo(SCatalog* pCtg, void *pRpc, const SEpSet* pMgmtEps, const
   if (inCache) {
     input.dbId = (*dbCache)->dbId;
     input.vgVersion = (*dbCache)->vgInfo->vgVersion;
+    input.numOfTable = (*dbCache)->vgInfo->numOfTable;
   } else {
     input.vgVersion = CTG_DEFAULT_INVALID_VERSION;
   }

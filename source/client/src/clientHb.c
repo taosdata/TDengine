@@ -224,6 +224,7 @@ int32_t hbGetExpiredDBInfo(SClientHbKey *connKey, struct SCatalog *pCatalog, SCl
     SDbVgVersion *db = &dbs[i];
     db->dbId = htobe64(db->dbId);
     db->vgVersion = htonl(db->vgVersion);
+    db->numOfTable = htonl(db->numOfTable);
   }
 
   SKv kv = {.key = HEARTBEAT_KEY_DBINFO, .valueLen = sizeof(SDbVgVersion) * dbNum, .value = dbs};
