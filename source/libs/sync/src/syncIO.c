@@ -40,17 +40,6 @@ static void    syncIOTickPingFunc(void *param, void *tmrId);
 // ----------------------------
 
 // public function ------------
-int32_t syncIOSendMsg(void *clientRpc, const SEpSet *pEpSet, SRpcMsg *pMsg) {
-  sTrace(
-      "<--- syncIOSendMsg ---> clientRpc:%p, numOfEps:%d, inUse:%d, destAddr:%s-%u, pMsg->ahandle:%p, pMsg->handle:%p, "
-      "pMsg->msgType:%d, pMsg->contLen:%d",
-      clientRpc, pEpSet->numOfEps, pEpSet->inUse, pEpSet->eps[0].fqdn, pEpSet->eps[0].port, pMsg->ahandle, pMsg->handle,
-      pMsg->msgType, pMsg->contLen);
-  pMsg->handle = NULL;
-  rpcSendRequest(clientRpc, pEpSet, pMsg, NULL);
-  return 0;
-}
-
 int32_t syncIOStart(char *host, uint16_t port) {
   gSyncIO = syncIOCreate(host, port);
   assert(gSyncIO != NULL);
@@ -81,6 +70,35 @@ int32_t syncIOTickPing() {
   int32_t ret = syncIOTickPingInternal(gSyncIO);
   assert(ret == 0);
   return ret;
+}
+
+int32_t syncIOSendMsg(void *clientRpc, const SEpSet *pEpSet, SRpcMsg *pMsg) {
+  sTrace(
+      "<--- syncIOSendMsg ---> clientRpc:%p, numOfEps:%d, inUse:%d, destAddr:%s-%u, pMsg->ahandle:%p, pMsg->handle:%p, "
+      "pMsg->msgType:%d, pMsg->contLen:%d",
+      clientRpc, pEpSet->numOfEps, pEpSet->inUse, pEpSet->eps[0].fqdn, pEpSet->eps[0].port, pMsg->ahandle, pMsg->handle,
+      pMsg->msgType, pMsg->contLen);
+  {
+    cJSON *pJson = syncRpcMsg2Json(pMsg);
+    char  *serialized = cJSON_Print(pJson);
+    sTrace("process syncMessage send: pMsg:%s ", serialized);
+    free(serialized);
+    cJSON_Delete(pJson);
+  }
+  pMsg->handle = NULL;
+  rpcSendRequest(clientRpc, pEpSet, pMsg, NULL);
+  return 0;
+}
+
+int32_t syncIOEqMsg(void *queue, SRpcMsg *pMsg) {
+  SRpcMsg *pTemp;
+  pTemp = taosAllocateQitem(sizeof(SRpcMsg));
+  memcpy(pTemp, pMsg, sizeof(SRpcMsg));
+
+  STaosQueue *pMsgQ = queue;
+  taosWriteQitem(pMsgQ, pTemp);
+
+  return 0;
 }
 
 // local function ------------
@@ -193,7 +211,7 @@ static void *syncIOConsumerFunc(void *param) {
   SSyncIO *io = param;
 
   STaosQall *qall;
-  SRpcMsg *  pRpcMsg, rpcMsg;
+  SRpcMsg   *pRpcMsg, rpcMsg;
   int        type;
 
   qall = taosAllocateQall();
@@ -215,6 +233,7 @@ static void *syncIOConsumerFunc(void *param) {
           syncPingFromRpcMsg(pRpcMsg, pSyncMsg);
           // memcpy(pSyncMsg, tmpRpcMsg.pCont, tmpRpcMsg.contLen);
           io->FpOnSyncPing(io->pSyncNode, pSyncMsg);
+          syncPingDestroy(pSyncMsg);
         }
 
       } else if (pRpcMsg->msgType == SYNC_PING_REPLY) {
@@ -223,6 +242,16 @@ static void *syncIOConsumerFunc(void *param) {
           pSyncMsg = syncPingReplyBuild(pRpcMsg->contLen);
           syncPingReplyFromRpcMsg(pRpcMsg, pSyncMsg);
           io->FpOnSyncPingReply(io->pSyncNode, pSyncMsg);
+          syncPingReplyDestroy(pSyncMsg);
+        }
+
+      } else if (pRpcMsg->msgType == SYNC_TIMEOUT) {
+        if (io->FpOnSyncTimeout != NULL) {
+          SyncTimeout *pSyncMsg;
+          pSyncMsg = syncTimeoutBuild();
+          syncTimeoutFromRpcMsg(pRpcMsg, pSyncMsg);
+          io->FpOnSyncTimeout(io->pSyncNode, pSyncMsg);
+          syncTimeoutDestroy(pSyncMsg);
         }
       } else {
         ;
