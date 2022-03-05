@@ -980,6 +980,7 @@ void dndCleanupVnodes(SDnode *pDnode) {
 
 void dndGetVnodeLoads(SDnode *pDnode, SArray *pLoads) {
   SVnodesMgmt *pMgmt = &pDnode->vmgmt;
+  SVnodesStat *pStat = &pMgmt->stat;
   int32_t      totalVnodes = 0;
   int32_t      masterNum = 0;
   int64_t      numOfSelectReqs = 0;
@@ -990,7 +991,7 @@ void dndGetVnodeLoads(SDnode *pDnode, SArray *pLoads) {
 
   taosRLockLatch(&pMgmt->latch);
 
-  void   *pIter = taosHashIterate(pMgmt->hash, NULL);
+  void *pIter = taosHashIterate(pMgmt->hash, NULL);
   while (pIter) {
     SVnodeObj **ppVnode = pIter;
     if (ppVnode == NULL || *ppVnode == NULL) continue;
@@ -1013,25 +1014,8 @@ void dndGetVnodeLoads(SDnode *pDnode, SArray *pLoads) {
 
   taosRUnLockLatch(&pMgmt->latch);
 
-  SVnodesStat *pStat = &pMgmt->stat;
   pStat->totalVnodes = totalVnodes;
   pStat->masterNum = masterNum;
-
-  int64_t curTime = taosGetTimestampMs();
-  if (pStat->lastTime == 0 || pStat->lastTime >= curTime) {
-    pStat->lastTime = curTime;
-    pStat->numOfSelectReqs = numOfSelectReqs;
-    pStat->numOfInsertReqs = numOfInsertReqs;
-    pStat->numOfInsertSuccessReqs = numOfInsertSuccessReqs;
-    pStat->numOfBatchInsertReqs = numOfBatchInsertReqs;
-    pStat->numOfBatchInsertSuccessReqs = numOfBatchInsertSuccessReqs;
-    return;
-  }
-
-  double interval = (curTime - pStat->lastTime) * 1000.0;
-  pStat->speedOfSelectReqs = (numOfSelectReqs - pStat->numOfSelectReqs) / interval;
-  pStat->speedOfInsertReqs = (numOfInsertReqs - pStat->numOfInsertReqs) / interval;
-  pStat->speedOfBatchInsertReqs = (numOfBatchInsertReqs - pStat->numOfBatchInsertReqs) / interval;
   pStat->numOfSelectReqs = numOfSelectReqs;
   pStat->numOfInsertReqs = numOfInsertReqs;
   pStat->numOfInsertSuccessReqs = numOfInsertSuccessReqs;

@@ -489,18 +489,15 @@ static void dndGetMonitorDnodeInfo(SDnode *pDnode, SMonDnodeInfo *pInfo) {
   pInfo->disk_engine = 0;
   pInfo->disk_used = tsDataSpace.size.used;
   pInfo->disk_total = tsDataSpace.size.total;
-  taosGetBandSpeed(&pInfo->net_in, &pInfo->net_out);
-  taosGetIOSpeed(&pInfo->io_read, &pInfo->io_write, &pInfo->io_read_disk, &pInfo->io_write_disk);
+  taosGetCardInfo(&pInfo->net_in, &pInfo->net_out);
+  taosGetProcIO(&pInfo->io_read, &pInfo->io_write, &pInfo->io_read_disk, &pInfo->io_write_disk);
 
   SVnodesStat *pStat = &pDnode->vmgmt.stat;
   pInfo->req_select = pStat->numOfSelectReqs;
-  pInfo->req_select_rate = pStat->speedOfSelectReqs;
   pInfo->req_insert = pStat->numOfInsertReqs;
   pInfo->req_insert_success = pStat->numOfInsertSuccessReqs;
-  pInfo->req_insert_rate = pStat->speedOfInsertReqs;
   pInfo->req_insert_batch = pStat->numOfBatchInsertReqs;
   pInfo->req_insert_batch_success = pStat->numOfBatchInsertSuccessReqs;
-  pInfo->req_insert_batch_rate = pStat->speedOfBatchInsertReqs;
   pInfo->errors = tsNumOfErrorLogs;
   pInfo->vnodes_num = pStat->totalVnodes;
   pInfo->masters = pStat->masterNum;
