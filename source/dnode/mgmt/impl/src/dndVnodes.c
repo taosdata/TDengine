@@ -382,7 +382,7 @@ static void *dnodeOpenVnodeFunc(void *param) {
 
     char stepDesc[TSDB_STEP_DESC_LEN] = {0};
     snprintf(stepDesc, TSDB_STEP_DESC_LEN, "vgId:%d, start to restore, %d of %d have been opened", pCfg->vgId,
-             pMgmt->openVnodes, pMgmt->totalVnodes);
+             pMgmt->stat.openVnodes, pMgmt->stat.totalVnodes);
     dndReportStartup(pDnode, "open-vnodes", stepDesc);
 
     SVnodeCfg cfg = {.pDnode = pDnode, .pTfs = pDnode->pTfs, .vgId = pCfg->vgId, .dbId = pCfg->dbUid};
@@ -396,7 +396,7 @@ static void *dnodeOpenVnodeFunc(void *param) {
       pThread->opened++;
     }
 
-    atomic_add_fetch_32(&pMgmt->openVnodes, 1);
+    atomic_add_fetch_32(&pMgmt->stat.openVnodes, 1);
   }
 
   dDebug("thread:%d, total vnodes:%d, opened:%d failed:%d", pThread->threadIndex, pThread->vnodeNum, pThread->opened,
@@ -422,7 +422,7 @@ static int32_t dndOpenVnodes(SDnode *pDnode) {
     return -1;
   }
 
-  pMgmt->totalVnodes = numOfVnodes;
+  pMgmt->stat.totalVnodes = numOfVnodes;
 
   int32_t threadNum = tsNumOfCores;
 #if 1
@@ -470,11 +470,11 @@ static int32_t dndOpenVnodes(SDnode *pDnode) {
   free(threads);
   free(pCfgs);
 
-  if (pMgmt->openVnodes != pMgmt->totalVnodes) {
-    dError("there are total vnodes:%d, opened:%d", pMgmt->totalVnodes, pMgmt->openVnodes);
+  if (pMgmt->stat.openVnodes != pMgmt->stat.totalVnodes) {
+    dError("there are total vnodes:%d, opened:%d", pMgmt->stat.totalVnodes, pMgmt->stat.openVnodes);
     return -1;
   } else {
-    dInfo("total vnodes:%d open successfully", pMgmt->totalVnodes);
+    dInfo("total vnodes:%d open successfully", pMgmt->stat.totalVnodes);
     return 0;
   }
 }
@@ -980,13 +980,18 @@ void dndCleanupVnodes(SDnode *pDnode) {
 
 void dndGetVnodeLoads(SDnode *pDnode, SArray *pLoads) {
   SVnodesMgmt *pMgmt = &pDnode->vmgmt;
+  SVnodesStat *pStat = &pMgmt->stat;
   int32_t      totalVnodes = 0;
   int32_t      masterNum = 0;
+  int64_t      numOfSelectReqs = 0;
+  int64_t      numOfInsertReqs = 0;
+  int64_t      numOfInsertSuccessReqs = 0;
+  int64_t      numOfBatchInsertReqs = 0;
+  int64_t      numOfBatchInsertSuccessReqs = 0;
 
   taosRLockLatch(&pMgmt->latch);
 
-  int32_t v = 0;
-  void   *pIter = taosHashIterate(pMgmt->hash, NULL);
+  void *pIter = taosHashIterate(pMgmt->hash, NULL);
   while (pIter) {
     SVnodeObj **ppVnode = pIter;
     if (ppVnode == NULL || *ppVnode == NULL) continue;
@@ -996,12 +1001,24 @@ void dndGetVnodeLoads(SDnode *pDnode, SArray *pLoads) {
     vnodeGetLoad(pVnode->pImpl, &vload);
     taosArrayPush(pLoads, &vload);
 
+    numOfSelectReqs += vload.numOfSelectReqs;
+    numOfInsertReqs += vload.numOfInsertReqs;
+    numOfInsertSuccessReqs += vload.numOfInsertSuccessReqs;
+    numOfBatchInsertReqs += vload.numOfBatchInsertReqs;
+    numOfBatchInsertSuccessReqs += vload.numOfBatchInsertSuccessReqs;
     totalVnodes++;
     if (vload.role == TAOS_SYNC_STATE_LEADER) masterNum++;
+
     pIter = taosHashIterate(pMgmt->hash, pIter);
   }
 
   taosRUnLockLatch(&pMgmt->latch);
-  pMgmt->totalVnodes = totalVnodes;
-  pMgmt->masterNum = masterNum;
+
+  pStat->totalVnodes = totalVnodes;
+  pStat->masterNum = masterNum;
+  pStat->numOfSelectReqs = numOfSelectReqs;
+  pStat->numOfInsertReqs = numOfInsertReqs;
+  pStat->numOfInsertSuccessReqs = numOfInsertSuccessReqs;
+  pStat->numOfBatchInsertReqs = numOfBatchInsertReqs;
+  pStat->numOfBatchInsertSuccessReqs = numOfBatchInsertSuccessReqs;
 }

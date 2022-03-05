@@ -95,20 +95,17 @@ typedef struct {
   int64_t disk_engine;  // Byte
   int64_t disk_used;    // Byte
   int64_t disk_total;   // Byte
-  double  net_in;       // bytes per second
-  double  net_out;      // bytes per second
-  double  io_read;
-  double  io_write;
-  double  io_read_disk;
-  double  io_write_disk;
-  int32_t req_select;
-  float   req_select_rate;
-  int32_t req_insert;
-  int32_t req_insert_success;
-  float   req_insert_rate;
-  int32_t req_insert_batch;
-  int32_t req_insert_batch_success;
-  float   req_insert_batch_rate;
+  int64_t net_in;       // bytes
+  int64_t net_out;      // bytes
+  int64_t io_read;      // bytes
+  int64_t io_write;     // bytes
+  int64_t io_read_disk;   // bytes
+  int64_t io_write_disk;  // bytes
+  int64_t req_select;
+  int64_t req_insert;
+  int64_t req_insert_success;
+  int64_t req_insert_batch;
+  int64_t req_insert_batch_success;
   int32_t errors;
   int32_t vnodes_num;
   int32_t masters;
