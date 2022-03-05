@@ -113,6 +113,9 @@ void schtBuildQueryDag(SQueryPlan *dag) {
   mergePlan->pNode = (SPhysiNode*)calloc(1, sizeof(SPhysiNode));
   mergePlan->msgType = TDMT_VND_QUERY;
 
+  merge->pNodeList = nodesMakeList();
+  scan->pNodeList = nodesMakeList();
+
   nodesListAppend(merge->pNodeList, (SNode*)mergePlan);
   nodesListAppend(scan->pNodeList, (SNode*)scanPlan);
 
@@ -169,6 +172,8 @@ void schtBuildInsertDag(SQueryPlan *dag) {
   insertPlan[1].pNode = NULL;
   insertPlan[1].pDataSink = (SDataSinkNode*)calloc(1, sizeof(SDataSinkNode));
   insertPlan[1].msgType = TDMT_VND_SUBMIT;
+
+  inserta->pNodeList = nodesMakeList();
 
   nodesListAppend(inserta->pNodeList, (SNode*)insertPlan);
   insertPlan += 1;
@@ -537,8 +542,6 @@ TEST(queryTest, normalCase) {
   int64_t job = 0;
   SQueryPlan dag;
 
-  schtInitLogFile();
-
   SArray *qnodeList = taosArrayInit(1, sizeof(SEp));
 
   SEp qnodeAddr = {0};
@@ -675,7 +678,8 @@ TEST(queryTest, flowCtrlCase) {
     code = schHandleResponseMsg(pJob, task, TDMT_VND_QUERY_RSP, (char *)&rsp, sizeof(rsp), 0);
     
     ASSERT_EQ(code, 0);
-    pIter = taosHashIterate(pJob->execTasks, pIter);
+    taosHashCancelIterate(pJob->execTasks, pIter);
+    pIter = NULL;
   }    
 
   pIter = taosHashIterate(pJob->execTasks, NULL);
@@ -686,7 +690,8 @@ TEST(queryTest, flowCtrlCase) {
     code = schHandleResponseMsg(pJob, task, TDMT_VND_RES_READY_RSP, (char *)&rsp, sizeof(rsp), 0);
     printf("code:%d", code);
     ASSERT_EQ(code, 0);
-    pIter = taosHashIterate(pJob->execTasks, pIter);
+    taosHashCancelIterate(pJob->execTasks, pIter);
+    pIter = NULL;
   }  
 
   pIter = taosHashIterate(pJob->execTasks, NULL);
@@ -697,7 +702,8 @@ TEST(queryTest, flowCtrlCase) {
     code = schHandleResponseMsg(pJob, task, TDMT_VND_QUERY_RSP, (char *)&rsp, sizeof(rsp), 0);
     
     ASSERT_EQ(code, 0);
-    pIter = taosHashIterate(pJob->execTasks, pIter);
+    taosHashCancelIterate(pJob->execTasks, pIter);
+    pIter = NULL;
   }    
 
   pIter = taosHashIterate(pJob->execTasks, NULL);
@@ -708,7 +714,8 @@ TEST(queryTest, flowCtrlCase) {
     code = schHandleResponseMsg(pJob, task, TDMT_VND_RES_READY_RSP, (char *)&rsp, sizeof(rsp), 0);
     ASSERT_EQ(code, 0);
     
-    pIter = taosHashIterate(pJob->execTasks, pIter);
+    taosHashCancelIterate(pJob->execTasks, pIter);
+    pIter = NULL;
   }  
 
   pthread_attr_t thattr;
@@ -749,8 +756,6 @@ TEST(insertTest, normalCase) {
   SVgroupInfo vgInfo = {0};
   SQueryPlan dag;
   uint64_t numOfRows = 0;
-
-  schtInitLogFile();
 
   SArray *qnodeList = taosArrayInit(1, sizeof(SEp));
 
