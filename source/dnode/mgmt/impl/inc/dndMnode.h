@@ -34,6 +34,7 @@ int32_t dndProcessDropMnodeReq(SDnode *pDnode, SRpcMsg *pRpcMsg);
 
 int32_t dndGetMnodeMonitorInfo(SDnode *pDnode, SMonClusterInfo *pClusterInfo, SMonVgroupInfo *pVgroupInfo,
                                SMonGrantInfo *pGrantInfo);
+int8_t  dndIsMnode(SDnode *pDnode);
 
 #ifdef __cplusplus
 }

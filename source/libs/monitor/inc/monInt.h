@@ -23,17 +23,23 @@
 #include "tjson.h"
 
 typedef struct {
-  SRWLatch    lock;
-  SArray     *logs;  // array of SMonLogItem
-  int32_t     maxLogs;
-  const char *server;
-  uint16_t    port;
-} SMonitor;
+  int64_t   ts;
+  ELogLevel level;
+  char      content[MON_LOG_LEN];
+} SMonLogItem;
 
 typedef struct SMonInfo {
   SArray *logs;  // array of SMonLogItem
   SJson  *pJson;
 } SMonInfo;
+
+typedef struct {
+  pthread_mutex_t lock;
+  SArray         *logs;  // array of SMonLogItem
+  int32_t         maxLogs;
+  const char     *server;
+  uint16_t        port;
+} SMonitor;
 
 #ifdef __cplusplus
 }

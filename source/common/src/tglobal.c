@@ -17,7 +17,7 @@
 #include "tglobal.h"
 #include "tcompare.h"
 #include "tconfig.h"
-#include "tep.h"
+#include "tdatablock.h"
 #include "tlog.h"
 
 SConfig *tsCfg = NULL;
@@ -155,21 +155,40 @@ static void taosAddDataDir(int32_t index, char *v1, int32_t level, int32_t prima
   uTrace("dataDir:%s, level:%d primary:%d is configured", v1, level, primary);
 }
 
-static void taosSetTfsCfg(SConfig *pCfg) {
+static int32_t taosSetTfsCfg(SConfig *pCfg) {
   SConfigItem *pItem = cfgGetItem(pCfg, "dataDir");
-  if (pItem == NULL) return;
+  memset(tsDataDir, 0, PATH_MAX);
 
   int32_t size = taosArrayGetSize(pItem->array);
   if (size <= 0) {
     tsDiskCfgNum = 1;
     taosAddDataDir(0, pItem->str, 0, 1);
+    tstrncpy(tsDataDir, pItem->str, PATH_MAX);
+    if (taosMkDir(tsDataDir) != 0) {
+      uError("failed to create dataDir:%s since %s", tsDataDir, terrstr());
+      return -1;
+    }
   } else {
     tsDiskCfgNum = size < TFS_MAX_DISKS ? size : TFS_MAX_DISKS;
     for (int32_t index = 0; index < tsDiskCfgNum; ++index) {
       SDiskCfg *pCfg = taosArrayGet(pItem->array, index);
       memcpy(&tsDiskCfg[index], pCfg, sizeof(SDiskCfg));
+      if (pCfg->level == 0 && pCfg->primary == 1) {
+        tstrncpy(tsDataDir, pCfg->dir, PATH_MAX);
+      }
+      if (taosMkDir(pCfg->dir) != 0) {
+        uError("failed to create tfsDir:%s since %s", tsDataDir, terrstr());
+        return -1;
+      }
     }
   }
+
+  if (tsDataDir[0] == 0) {
+    uError("datadir not set");
+    return -1;
+  }
+
+  return 0;
 }
 
 struct SConfig *taosGetCfg() {
@@ -279,11 +298,11 @@ static int32_t taosAddSystemCfg(SConfig *pCfg) {
   if (cfgAddLocale(pCfg, "locale", tsLocale) != 0) return -1;
   if (cfgAddCharset(pCfg, "charset", tsCharset) != 0) return -1;
   if (cfgAddBool(pCfg, "enableCoreFile", 1, 1) != 0) return -1;
-  if (cfgAddInt32(pCfg, "numOfCores", tsNumOfCores, 1, 100000, 1) != 0) return -1;
-  if (cfgAddInt32(pCfg, "pageSize(KB)", tsPageSize, 0, INT64_MAX, 1) != 0) return -1;
+  if (cfgAddFloat(pCfg, "numOfCores", tsNumOfCores, 0, 100000, 1) != 0) return -1;
   if (cfgAddInt64(pCfg, "openMax", tsOpenMax, 0, INT64_MAX, 1) != 0) return -1;
   if (cfgAddInt64(pCfg, "streamMax", tsStreamMax, 0, INT64_MAX, 1) != 0) return -1;
-  if (cfgAddInt32(pCfg, "totalMemory(MB)", tsTotalMemoryMB, 0, INT32_MAX, 1) != 0) return -1;
+  if (cfgAddInt32(pCfg, "pageSize(KB)", tsPageSizeKB, 0, INT64_MAX, 1) != 0) return -1;
+  if (cfgAddInt64(pCfg, "totalMemory(KB)", tsTotalMemoryKB, 0, INT64_MAX, 1) != 0) return -1;
   if (cfgAddString(pCfg, "os sysname", info.sysname, 1) != 0) return -1;
   if (cfgAddString(pCfg, "os nodename", info.nodename, 1) != 0) return -1;
   if (cfgAddString(pCfg, "os release", info.release, 1) != 0) return -1;
@@ -358,7 +377,7 @@ static void taosSetServerLogCfg(SConfig *pCfg) {
   fsDebugFlag = cfgGetItem(pCfg, "fsDebugFlag")->i32;
 }
 
-static void taosSetClientCfg(SConfig *pCfg) {
+static int32_t taosSetClientCfg(SConfig *pCfg) {
   tstrncpy(tsLocalFqdn, cfgGetItem(pCfg, "fqdn")->str, TSDB_FQDN_LEN);
   tsServerPort = (uint16_t)cfgGetItem(pCfg, "serverPort")->i32;
   snprintf(tsLocalEp, sizeof(tsLocalEp), "%s:%u", tsLocalFqdn, tsServerPort);
@@ -375,9 +394,13 @@ static void taosSetClientCfg(SConfig *pCfg) {
   snprintf(tsSecond, sizeof(tsSecond), "%s:%u", secondEp.fqdn, secondEp.port);
   cfgSetItem(pCfg, "secondEp", tsSecond, pSecondpItem->stype);
 
-  tstrncpy(tsLogDir, cfgGetItem(pCfg, "tempDir")->str, PATH_MAX);
-  taosExpandDir(tsLogDir, tsLogDir, PATH_MAX);
+  tstrncpy(tsTempDir, cfgGetItem(pCfg, "tempDir")->str, PATH_MAX);
+  taosExpandDir(tsTempDir, tsTempDir, PATH_MAX);
   tsTempSpace.reserved = cfgGetItem(pCfg, "minimalTempDirGB")->fval;
+  if (taosMkDir(tsTempDir) != 0) {
+    uError("failed to create tempDir:%s since %s", tsTempDir, terrstr());
+    return -1;
+  }
 
   tsNumOfThreadsPerCore = cfgGetItem(pCfg, "maxTmrCtrl")->fval;
   tsMaxTmrCtrl = cfgGetItem(pCfg, "maxTmrCtrl")->i32;
@@ -392,6 +415,8 @@ static void taosSetClientCfg(SConfig *pCfg) {
   tsMaxNumOfOrderedResults = cfgGetItem(pCfg, "maxNumOfOrderedRes")->i32;
   tsKeepOriginalColumnName = cfgGetItem(pCfg, "keepColumnName")->bval;
   tsMaxBinaryDisplayWidth = cfgGetItem(pCfg, "maxBinaryDisplayWidth")->i32;
+
+  return 0;
 }
 
 static void taosSetSystemCfg(SConfig *pCfg) {
@@ -404,10 +429,6 @@ static void taosSetSystemCfg(SConfig *pCfg) {
   const char *charset = cfgGetItem(pCfg, "charset")->str;
   taosSetSystemLocale(locale, charset);
 
-  if (tsNumOfCores <= 1) {
-    tsNumOfCores = 2;
-  }
-
   bool enableCore = cfgGetItem(pCfg, "enableCoreFile")->bval;
   taosSetConsoleEcho(enableCore);
 
@@ -415,11 +436,8 @@ static void taosSetSystemCfg(SConfig *pCfg) {
   tsVersion = 30000000;
 }
 
-static void taosSetServerCfg(SConfig *pCfg) {
-  tstrncpy(tsDataDir, cfgGetItem(pCfg, "dataDir")->str, PATH_MAX);
-  taosExpandDir(tsDataDir, tsDataDir, PATH_MAX);
-
-  tsTempSpace.reserved = cfgGetItem(pCfg, "minimalDataDirGB")->fval;
+static int32_t taosSetServerCfg(SConfig *pCfg) {
+  tsDataSpace.reserved = cfgGetItem(pCfg, "minimalDataDirGB")->fval;
   tsNumOfCommitThreads = cfgGetItem(pCfg, "numOfCommitThreads")->i32;
   tsRatioOfQueryCores = cfgGetItem(pCfg, "ratioOfQueryCores")->fval;
   tsMaxNumOfDistinctResults = cfgGetItem(pCfg, "maxNumOfDistinctRes")->i32;
@@ -448,6 +466,8 @@ static void taosSetServerCfg(SConfig *pCfg) {
   if (tsQueryBufferSize >= 0) {
     tsQueryBufferSizeBytes = tsQueryBufferSize * 1048576UL;
   }
+
+  return 0;
 }
 
 int32_t taosCreateLog(const char *logname, int32_t logFileNum, const char *cfgDir, const char *envFile,
@@ -458,10 +478,10 @@ int32_t taosCreateLog(const char *logname, int32_t logFileNum, const char *cfgDi
   if (pCfg == NULL) return -1;
 
   if (tsc) {
-    tscEmbeddedInUtil = 0;
+    tsLogEmbedded = 0;
     if (taosAddClientLogCfg(pCfg) != 0) return -1;
   } else {
-    tscEmbeddedInUtil = 1;
+    tsLogEmbedded = 1;
     if (taosAddClientLogCfg(pCfg) != 0) return -1;
     if (taosAddServerLogCfg(pCfg) != 0) return -1;
   }
@@ -508,8 +528,8 @@ int32_t taosInitCfg(const char *cfgDir, const char *envFile, const char *apolloU
   tsCfg = cfgInit();
 
   if (tsc) {
-    if (taosAddClientLogCfg(tsCfg) != 0) return -1;
     if (taosAddClientCfg(tsCfg) != 0) return -1;
+    if (taosAddClientLogCfg(tsCfg) != 0) return -1;
   } else {
     if (taosAddClientCfg(tsCfg) != 0) return -1;
     if (taosAddServerCfg(tsCfg) != 0) return -1;
@@ -532,23 +552,13 @@ int32_t taosInitCfg(const char *cfgDir, const char *envFile, const char *apolloU
   }
 
   if (tsc) {
-    taosSetClientCfg(tsCfg);
+    if (taosSetClientCfg(tsCfg)) return -1;
   } else {
-    taosSetClientCfg(tsCfg);
-    taosSetServerCfg(tsCfg);
-    taosSetTfsCfg(tsCfg);
+    if (taosSetClientCfg(tsCfg)) return -1;
+    if (taosSetServerCfg(tsCfg)) return -1;
+    if (taosSetTfsCfg(tsCfg) != 0) return -1;
   }
   taosSetSystemCfg(tsCfg);
-
-  if (taosMkDir(tsTempDir) != 0) {
-    uError("failed to create dir:%s since %s", tsTempDir, terrstr());
-    return -1;
-  }
-
-  if (!tsc && taosMkDir(tsDataDir) != 0) {
-    uError("failed to create dir:%s since %s", tsDataDir, terrstr());
-    return -1;
-  }
 
   cfgDumpCfg(tsCfg, tsc, false);
   return 0;

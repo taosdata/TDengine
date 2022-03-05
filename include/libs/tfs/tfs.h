@@ -17,6 +17,7 @@
 #define _TD_TFS_H_
 
 #include "tdef.h"
+#include "monitor.h"
 
 #ifdef __cplusplus
 extern "C" {
@@ -236,6 +237,14 @@ const STfsFile *tfsReaddir(STfsDir *pDir);
  * @param pDir The dir object.
  */
 void tfsClosedir(STfsDir *pDir);
+
+/**
+ * @brief Get disk info of tfs.
+ *
+ * @param pTfs The fs object.
+ * @param pInfo The info object.
+ */
+int32_t tfsGetMonitorInfo(STfs *pTfs, SMonDiskInfo *pInfo);
 
 #ifdef __cplusplus
 }

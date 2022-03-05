@@ -63,9 +63,9 @@ static int writeCtxDoReadFrom(WriterCtx* ctx, uint8_t* buf, int len, int32_t off
 }
 static int writeCtxGetSize(WriterCtx* ctx) {
   if (ctx->type == TFile) {
-    struct stat fstat;
-    stat(ctx->file.buf, &fstat);
-    return fstat.st_size;
+    int64_t file_size = 0;
+    taosStatFile(ctx->file.buf, &file_size, NULL);
+    return (int)file_size;
   }
   return 0;
 }
@@ -99,9 +99,9 @@ WriterCtx* writerCtxCreate(WriterType type, const char* path, bool readOnly, int
       // ctx->file.pFile = open(path, O_RDONLY, S_IRWXU | S_IRWXG | S_IRWXO);
       ctx->file.pFile = taosOpenFile(path, TD_FILE_READ);
 
-      struct stat fstat;
-      stat(path, &fstat);
-      ctx->file.size = fstat.st_size;
+      int64_t file_size = 0;
+      taosFStatFile(ctx->file.pFile, &file_size, NULL);
+      ctx->file.size = (int)file_size;
 #ifdef USE_MMAP
       ctx->file.ptr = (char*)tfMmapReadOnly(ctx->file.pFile, ctx->file.size);
 #endif
@@ -142,8 +142,10 @@ void writerCtxDestroy(WriterCtx* ctx, bool remove) {
 #endif
     }
     if (ctx->file.readOnly == false) {
-      struct stat fstat;
-      stat(ctx->file.buf, &fstat);
+      int64_t file_size = 0;
+      taosStatFile(ctx->file.buf, &file_size, NULL);
+      // struct stat fstat;
+      // stat(ctx->file.buf, &fstat);
       // indexError("write file size: %d", (int)(fstat.st_size));
     }
     if (remove) { unlink(ctx->file.buf); }

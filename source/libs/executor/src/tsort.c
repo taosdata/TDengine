@@ -16,11 +16,11 @@
 #include "tcommon.h"
 #include "query.h"
 
-#include "tsort.h"
-#include "tep.h"
+#include "tdatablock.h"
 #include "tdef.h"
 #include "tlosertree.h"
 #include "tpagedbuf.h"
+#include "tsort.h"
 #include "tutil.h"
 
 typedef struct STupleHandle {

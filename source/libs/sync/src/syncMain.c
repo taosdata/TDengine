@@ -88,7 +88,7 @@ SSyncNode* syncNodeOpen(const SSyncInfo* pSyncInfo) {
     }
   }
 
-  pSyncNode->role = TAOS_SYNC_STATE_FOLLOWER;
+  pSyncNode->state = TAOS_SYNC_STATE_FOLLOWER;
   syncUtilnodeInfo2raftId(&pSyncNode->me, pSyncNode->vgId, &pSyncNode->raftId);
 
   pSyncNode->pPingTimer = NULL;
@@ -171,16 +171,6 @@ static int32_t syncNodePing(SSyncNode* pSyncNode, const SRaftId* destRaftId, Syn
 
   SRpcMsg rpcMsg;
   syncPing2RpcMsg(pMsg, &rpcMsg);
-
-  /*
-    SRpcMsg rpcMsg;
-    rpcMsg.contLen = 64;
-    rpcMsg.pCont = rpcMallocCont(rpcMsg.contLen);
-    snprintf((char*)rpcMsg.pCont, rpcMsg.contLen, "%s", "xxxxxxxxxxxxxx");
-    rpcMsg.handle = NULL;
-    rpcMsg.msgType = 1;
-  */
-
   syncNodeSendMsgById(destRaftId, pSyncNode, &rpcMsg);
 
   {

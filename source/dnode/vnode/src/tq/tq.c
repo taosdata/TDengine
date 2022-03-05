@@ -72,6 +72,8 @@ void tqClose(STQ* pTq) {
 }
 
 int tqPushMsg(STQ* pTq, void* msg, tmsg_t msgType, int64_t version) {
+  // if waiting
+  // memcpy and send msg to fetch thread
   // TODO: add reference
   // if handle waiting, launch query and response to consumer
   //
@@ -210,7 +212,7 @@ int32_t tqProcessConsumeReq(STQ* pTq, SRpcMsg* pMsg) {
   SMqConsumeReq* pReq = pMsg->pCont;
   int64_t        consumerId = pReq->consumerId;
   int64_t        fetchOffset;
-  /*int64_t        blockingTime = pReq->blockingTime;*/
+  int64_t        blockingTime = pReq->blockingTime;
 
   if (pReq->currentOffset == TMQ_CONF__RESET_OFFSET__EARLIEAST) {
     fetchOffset = 0;

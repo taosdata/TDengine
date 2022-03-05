@@ -64,10 +64,10 @@ static int      metaStbIdxCb(DB *pIdx, const DBT *pKey, const DBT *pValue, DBT *
 static int      metaNtbIdxCb(DB *pIdx, const DBT *pKey, const DBT *pValue, DBT *pSKey);
 static int      metaCtbIdxCb(DB *pIdx, const DBT *pKey, const DBT *pValue, DBT *pSKey);
 static int      metaEncodeTbInfo(void **buf, STbCfg *pTbCfg);
-static void *   metaDecodeTbInfo(void *buf, STbCfg *pTbCfg);
+static void    *metaDecodeTbInfo(void *buf, STbCfg *pTbCfg);
 static void     metaClearTbCfg(STbCfg *pTbCfg);
 static int      metaEncodeSchema(void **buf, SSchemaWrapper *pSW);
-static void *   metaDecodeSchema(void *buf, SSchemaWrapper *pSW);
+static void    *metaDecodeSchema(void *buf, SSchemaWrapper *pSW);
 static void     metaDBWLock(SMetaDB *pDB);
 static void     metaDBRLock(SMetaDB *pDB);
 static void     metaDBULock(SMetaDB *pDB);
@@ -150,7 +150,7 @@ int metaSaveTableToDB(SMeta *pMeta, STbCfg *pTbCfg) {
   tb_uid_t uid;
   char     buf[512];
   char     buf1[512];
-  void *   pBuf;
+  void    *pBuf;
   DBT      key1, value1;
   DBT      key2, value2;
   SSchema *pSchema = NULL;
@@ -402,7 +402,7 @@ static int metaNtbIdxCb(DB *pIdx, const DBT *pKey, const DBT *pValue, DBT *pSKey
 
 static int metaCtbIdxCb(DB *pIdx, const DBT *pKey, const DBT *pValue, DBT *pSKey) {
   STbCfg *pTbCfg = (STbCfg *)(pValue->app_data);
-  DBT *   pDbt;
+  DBT    *pDbt;
 
   if (pTbCfg->type == META_CHILD_TABLE) {
     // pDbt = calloc(2, sizeof(DBT));
@@ -487,7 +487,7 @@ static void metaClearTbCfg(STbCfg *pTbCfg) {
 
 /* ------------------------ FOR QUERY ------------------------ */
 STbCfg *metaGetTbInfoByUid(SMeta *pMeta, tb_uid_t uid) {
-  STbCfg * pTbCfg = NULL;
+  STbCfg  *pTbCfg = NULL;
   SMetaDB *pDB = pMeta->pDB;
   DBT      key = {0};
   DBT      value = {0};
@@ -517,7 +517,7 @@ STbCfg *metaGetTbInfoByUid(SMeta *pMeta, tb_uid_t uid) {
 }
 
 STbCfg *metaGetTbInfoByName(SMeta *pMeta, char *tbname, tb_uid_t *uid) {
-  STbCfg * pTbCfg = NULL;
+  STbCfg  *pTbCfg = NULL;
   SMetaDB *pDB = pMeta->pDB;
   DBT      key = {0};
   DBT      pkey = {0};
@@ -551,10 +551,10 @@ STbCfg *metaGetTbInfoByName(SMeta *pMeta, char *tbname, tb_uid_t *uid) {
 SSchemaWrapper *metaGetTableSchema(SMeta *pMeta, tb_uid_t uid, int32_t sver, bool isinline) {
   uint32_t        nCols;
   SSchemaWrapper *pSW = NULL;
-  SMetaDB *       pDB = pMeta->pDB;
+  SMetaDB        *pDB = pMeta->pDB;
   int             ret;
-  void *          pBuf;
-  SSchema *       pSchema;
+  void           *pBuf;
+  SSchema        *pSchema;
   SSchemaKey      schemaKey = {uid, sver, 0};
   DBT             key = {0};
   DBT             value = {0};
@@ -586,7 +586,7 @@ struct SMTbCursor {
 
 SMTbCursor *metaOpenTbCursor(SMeta *pMeta) {
   SMTbCursor *pTbCur = NULL;
-  SMetaDB *   pDB = pMeta->pDB;
+  SMetaDB    *pDB = pMeta->pDB;
 
   pTbCur = (SMTbCursor *)calloc(1, sizeof(*pTbCur));
   if (pTbCur == NULL) {
@@ -617,7 +617,7 @@ char *metaTbCursorNext(SMTbCursor *pTbCur) {
   DBT    key = {0};
   DBT    value = {0};
   STbCfg tbCfg;
-  void * pBuf;
+  void  *pBuf;
 
   for (;;) {
     if (pTbCur->pCur->get(pTbCur->pCur, &key, &value, DB_NEXT) == 0) {
@@ -639,10 +639,10 @@ char *metaTbCursorNext(SMTbCursor *pTbCur) {
 
 STSchema *metaGetTbTSchema(SMeta *pMeta, tb_uid_t uid, int32_t sver) {
   STSchemaBuilder sb;
-  STSchema *      pTSchema = NULL;
-  SSchema *       pSchema;
+  STSchema       *pTSchema = NULL;
+  SSchema        *pSchema;
   SSchemaWrapper *pSW;
-  STbCfg *        pTbCfg;
+  STbCfg         *pTbCfg;
   tb_uid_t        quid;
 
   pTbCfg = metaGetTbInfoByUid(pMeta, uid);
@@ -670,13 +670,13 @@ STSchema *metaGetTbTSchema(SMeta *pMeta, tb_uid_t uid, int32_t sver) {
 }
 
 struct SMCtbCursor {
-  DBC *    pCur;
+  DBC     *pCur;
   tb_uid_t suid;
 };
 
 SMCtbCursor *metaOpenCtbCursor(SMeta *pMeta, tb_uid_t uid) {
   SMCtbCursor *pCtbCur = NULL;
-  SMetaDB *    pDB = pMeta->pDB;
+  SMetaDB     *pDB = pMeta->pDB;
   int          ret;
 
   pCtbCur = (SMCtbCursor *)calloc(1, sizeof(*pCtbCur));
@@ -708,7 +708,7 @@ tb_uid_t metaCtbCursorNext(SMCtbCursor *pCtbCur) {
   DBT    skey = {0};
   DBT    pkey = {0};
   DBT    pval = {0};
-  void * pBuf;
+  void  *pBuf;
   STbCfg tbCfg;
 
   // Set key

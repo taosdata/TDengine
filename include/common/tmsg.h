@@ -70,7 +70,7 @@ typedef uint16_t tmsg_t;
 
 typedef enum {
   HEARTBEAT_TYPE_MQ = 0,
-  HEARTBEAT_TYPE_QUERY = 1,
+  HEARTBEAT_TYPE_QUERY,
   // types can be added here
   //
   HEARTBEAT_TYPE_MAX
@@ -739,6 +739,9 @@ typedef struct {
   int32_t  maxRows;
   int32_t  commitTime;
   int32_t  fsyncPeriod;
+  uint32_t hashBegin;
+  uint32_t hashEnd;
+  int8_t   hashMethod;  
   int8_t   walLevel;
   int8_t   precision;
   int8_t   compression;
@@ -749,6 +752,7 @@ typedef struct {
   int8_t   selfIndex;
   int8_t   streamMode;
   SReplica replicas[TSDB_MAX_REPLICA];
+  
 } SCreateVnodeReq, SAlterVnodeReq;
 
 int32_t tSerializeSCreateVnodeReq(void* buf, int32_t bufLen, SCreateVnodeReq* pReq);

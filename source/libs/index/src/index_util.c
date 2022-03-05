@@ -14,6 +14,7 @@
  */
 #include "index_util.h"
 #include "index.h"
+
 typedef struct MergeIndex {
   int idx;
   int len;
@@ -111,6 +112,26 @@ void iUnion(SArray *inters, SArray *final) {
       break;
     }
   }
-
   tfree(mi);
+}
+
+void iExcept(SArray *total, SArray *except) {
+  int32_t tsz = taosArrayGetSize(total);
+  int32_t esz = taosArrayGetSize(except);
+  if (esz == 0 || tsz == 0) {
+    return;
+  }
+
+  int vIdx = 0;
+  for (int i = 0; i < tsz; i++) {
+    uint64_t val = *(uint64_t *)taosArrayGet(total, i);
+    int      idx = iBinarySearch(except, 0, esz - 1, val);
+    if (idx >= 0 && idx < esz && *(uint64_t *)taosArrayGet(except, idx) == val) {
+      continue;
+    }
+    taosArraySet(total, vIdx, &val);
+    vIdx += 1;
+  }
+
+  taosArrayPopTailBatch(total, tsz - vIdx);
 }

@@ -20,13 +20,13 @@
 extern "C" {
 #endif
 
+#include "query.h"
+#include "querynodes.h"
+#include "scalar.h"
+#include "tcommon.h"
+#include "tdatablock.h"
 #include "thash.h"
 #include "tname.h"
-#include "tcommon.h"
-#include "scalar.h"
-#include "querynodes.h"
-#include "query.h"
-#include "tep.h"
 
 #define FILTER_DEFAULT_GROUP_SIZE 4
 #define FILTER_DEFAULT_UNIT_SIZE 4
