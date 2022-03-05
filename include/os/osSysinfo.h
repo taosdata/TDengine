@@ -34,19 +34,19 @@ typedef struct {
 } SDiskSpace;
 
 void    taosGetSystemInfo();
-bool    taosGetEmail(char *email, int32_t maxLen);
-bool    taosGetOsReleaseName(char *releaseName, int32_t maxLen);
-bool    taosGetCpuInfo(char *cpuModel, int32_t maxLen, int32_t *numOfCores);
-int32_t taosGetCpuCores();
-bool    taosGetCpuUsage(float *sysCpuUsage, float *procCpuUsage);
-bool    taosGetTotalSysMemoryKB(uint64_t *kb);
-bool    taosGetProcMemory(float *memoryUsedMB);  //
-bool    taosGetSysMemory(float *memoryUsedMB);   //
+int32_t taosGetEmail(char *email, int32_t maxLen);
+int32_t taosGetOsReleaseName(char *releaseName, int32_t maxLen);
+int32_t taosGetCpuInfo(char *cpuModel, int32_t maxLen, float *numOfCores);
+int32_t taosGetCpuCores(float *numOfCores);
+int32_t taosGetCpuUsage(double *cpu_system, double *cpu_engine);
+int32_t taosGetTotalMemory(int64_t *totalKB);
+int32_t taosGetProcMemory(int64_t *usedKB);
+int32_t taosGetSysMemory(int64_t *usedKB);
 int32_t taosGetDiskSize(char *dataDir, SDiskSize *diskSize);
-bool    taosReadProcIO(int64_t *rchars, int64_t *wchars);
-bool    taosGetProcIO(float *readKB, float *writeKB);
-bool    taosGetCardInfo(int64_t *bytes, int64_t *rbytes, int64_t *tbytes);
-bool    taosGetBandSpeed(float *bandSpeedKb);
+int32_t taosReadProcIO(int64_t *rchars, int64_t *wchars, int64_t *read_bytes, int64_t *write_bytes);
+int32_t taosGetIOSpeed(double *readKB, double *writeKB, double *readDiskKB, double *writeDiskKB);
+int32_t taosGetCardInfo(int64_t *receive_bytes, int64_t *transmit_bytes);
+int32_t taosGetBandSpeed(double *receive_bytes_per_sec, double *transmit_bytes_per_sec);
 
 int32_t taosSystem(const char *cmd);
 void    taosKillSystem();

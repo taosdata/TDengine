@@ -1,6 +1,6 @@
 #include <iostream>
 
-#include "gtest/gtest.h"
+#include <gtest/gtest.h>
 
 #include "tencode.h"
 
@@ -201,8 +201,8 @@ TEST(td_encode_test, encode_decode_cstr) {
     }
   }
 
-  delete buf;
-  delete cstr;
+  delete[] buf;
+  delete[] cstr;
 }
 
 typedef struct {
@@ -354,7 +354,7 @@ static int32_t tSFinalReq_v2_decode(SCoder *pCoder, SFinalReq_v2 *ps2) {
   tEndDecode(pCoder);
   return 0;
 }
-
+#if 0
 TEST(td_encode_test, compound_struct_encode_test) {
   SCoder       encoder, decoder;
   uint8_t *    buf1;
@@ -436,5 +436,5 @@ TEST(td_encode_test, compound_struct_encode_test) {
   GTEST_ASSERT_EQ(dreq21.v_b, req2.v_b);
   tCoderClear(&decoder);
 }
-
+#endif
 #pragma GCC diagnostic pop

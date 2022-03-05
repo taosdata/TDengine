@@ -267,6 +267,10 @@ static int indexQueryMem(MemTable* mem, CacheTerm* ct, EIndexQueryType qtype, SA
     SSkipListNode* node = tSkipListIterGet(iter);
     if (node != NULL) {
       CacheTerm* c = (CacheTerm*)SL_GET_NODE_DATA(node);
+      // if (c->operaType == ADD_VALUE) {
+      //} else if (c->operaType == DEL_VALUE) {
+      //}
+
       if (c->operaType == ADD_VALUE || qtype == QUERY_TERM) {
         if (strcmp(c->colVal, ct->colVal) == 0) {
           taosArrayPush(result, &c->uid);
@@ -411,17 +415,8 @@ static bool indexCacheIteratorNext(Iterate* itera) {
     SSkipListNode* node = tSkipListIterGet(iter);
     CacheTerm*     ct = (CacheTerm*)SL_GET_NODE_DATA(node);
 
-    // equal func
-    // if (iv->colVal != NULL && ct->colVal != NULL) {
-    //  if (0 == strcmp(iv->colVal, ct->colVal)) { if (iv->type == ADD_VALUE) }
-    //} else {
-    //  tIterVal.colVal = calloc(1, strlen(ct->colVal) + 1);
-    //  tIterval.colVal = tstrdup(ct->colVal);
-    //}
     iv->type = ct->operaType;
     iv->colVal = tstrdup(ct->colVal);
-    // iv->colVal = calloc(1, strlen(ct->colVal) + 1);
-    // memcpy(iv->colVal, ct->colVal, strlen(ct->colVal));
 
     taosArrayPush(iv->val, &ct->uid);
   }

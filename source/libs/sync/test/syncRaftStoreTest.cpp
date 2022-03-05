@@ -1,6 +1,6 @@
-#include "syncRaftStore.h"
 #include <stdio.h>
-#include "gtest/gtest.h"
+#include <gtest/gtest.h>
+#include "syncRaftStore.h"
 #include "syncIO.h"
 #include "syncInt.h"
 

@@ -20,7 +20,7 @@
 
 #include "sdb.h"
 #include "tcache.h"
-#include "tep.h"
+#include "tdatablock.h"
 #include "tglobal.h"
 #include "tqueue.h"
 #include "ttime.h"
@@ -30,6 +30,13 @@
 #ifdef __cplusplus
 extern "C" {
 #endif
+
+#define mFatal(...) { if (mDebugFlag & DEBUG_FATAL) { taosPrintLog("MND FATAL ", DEBUG_FATAL, 255, __VA_ARGS__); }}
+#define mError(...) { if (mDebugFlag & DEBUG_ERROR) { taosPrintLog("MND ERROR ", DEBUG_ERROR, 255, __VA_ARGS__); }}
+#define mWarn(...)  { if (mDebugFlag & DEBUG_WARN)  { taosPrintLog("MND WARN ", DEBUG_WARN, 255, __VA_ARGS__); }}
+#define mInfo(...)  { if (mDebugFlag & DEBUG_INFO)  { taosPrintLog("MND ", DEBUG_INFO, 255, __VA_ARGS__); }}
+#define mDebug(...) { if (mDebugFlag & DEBUG_DEBUG) { taosPrintLog("MND ", DEBUG_DEBUG, mDebugFlag, __VA_ARGS__); }}
+#define mTrace(...) { if (mDebugFlag & DEBUG_TRACE) { taosPrintLog("MND ", DEBUG_TRACE, mDebugFlag, __VA_ARGS__); }}
 
 typedef int32_t (*MndMsgFp)(SMnodeMsg *pMsg);
 typedef int32_t (*MndInitFp)(SMnode *pMnode);
@@ -85,6 +92,11 @@ typedef struct {
   ESyncState state;
 } SSyncMgmt;
 
+typedef struct {
+  int64_t expireTimeMS;
+  int64_t timeseriesAllowed;
+} SGrantInfo;
+
 typedef struct SMnode {
   int32_t           dnodeId;
   int64_t           clusterId;
@@ -105,6 +117,7 @@ typedef struct SMnode {
   STelemMgmt        telemMgmt;
   SSyncMgmt         syncMgmt;
   SHashObj         *infosMeta;
+  SGrantInfo        grant;
   MndMsgFp          msgFp[TDMT_MAX];
   SendReqToDnodeFp  sendReqToDnodeFp;
   SendReqToMnodeFp  sendReqToMnodeFp;
@@ -120,7 +133,7 @@ void    mndSetMsgHandle(SMnode *pMnode, tmsg_t msgType, MndMsgFp fp);
 
 uint64_t mndGenerateUid(char *name, int32_t len);
 
-int32_t mndGetLoad(SMnode *pMnode, SMnodeLoad *pLoad);
+void mndGetLoad(SMnode *pMnode, SMnodeLoad *pLoad);
 
 #ifdef __cplusplus
 }

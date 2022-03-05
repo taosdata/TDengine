@@ -13,7 +13,6 @@
  * along with this program. If not, see <http://www.gnu.org/licenses/>.
  */
 
-#include <executorimpl.h>
 #include <gtest/gtest.h>
 #include <tglobal.h>
 #include <tsort.h>
@@ -26,11 +25,12 @@
 #pragma GCC diagnostic ignored "-Wsign-compare"
 #include "os.h"
 
+#include "executorimpl.h"
 #include "executor.h"
 #include "stub.h"
 #include "taos.h"
+#include "tdatablock.h"
 #include "tdef.h"
-#include "tep.h"
 #include "trpc.h"
 #include "tvariant.h"
 

@@ -14,9 +14,7 @@
  */
 
 #include <gtest/gtest.h>
-#include <tglobal.h>
 #include <iostream>
-#include "os.h"
 
 #pragma GCC diagnostic push
 #pragma GCC diagnostic ignored "-Wwrite-strings"
@@ -24,16 +22,18 @@
 #pragma GCC diagnostic ignored "-Wunused-variable"
 #pragma GCC diagnostic ignored "-Wsign-compare"
 #pragma GCC diagnostic ignored "-Wformat"
+#include <addr_any.h>
 
-#include "addr_any.h"
+#include "os.h"
+#include "tglobal.h"
 #include "catalog.h"
+#include "catalogInt.h"
 #include "stub.h"
 #include "taos.h"
+#include "tdatablock.h"
 #include "tdef.h"
-#include "tep.h"
 #include "trpc.h"
 #include "tvariant.h"
-#include "catalogInt.h"
 
 namespace {
 

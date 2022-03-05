@@ -54,7 +54,22 @@ extern "C" {
  * output:[4, 5]
  */
 void iIntersection(SArray *interResults, SArray *finalResult);
+
+/* multi sorted result intersection
+ * input: [1, 2, 4, 5]
+ *        [2, 3, 4, 5]
+ *        [1, 4, 5]
+ * output:[1, 2, 3, 4, 5]
+ */
 void iUnion(SArray *interResults, SArray *finalResult);
+
+/*  sorted array
+ * total:   [1, 2, 4, 5, 7, 8]
+ * except:  [4, 5]
+ * return:  [1, 2, 7, 8]
+ */
+
+void iExcept(SArray *total, SArray *except);
 #ifdef __cplusplus
 }
 #endif

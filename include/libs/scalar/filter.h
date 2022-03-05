@@ -19,9 +19,11 @@
 extern "C" {
 #endif
 
+#include "tcommon.h"
+#include "nodes.h"
+
 typedef struct SFilterInfo SFilterInfo;
 typedef int32_t (*filer_get_col_from_id)(void *, int32_t, void **);
-
 
 enum {
   FLT_OPTION_NO_REWRITE = 1,
@@ -33,7 +35,6 @@ typedef struct SFilterColumnParam{
   int32_t numOfCols;
   SArray* pDataBlock;
 } SFilterColumnParam;
-
 
 extern int32_t filterInitFromNode(SNode *pNode, SFilterInfo **pinfo, uint32_t options);
 extern bool filterExecute(SFilterInfo *info, SSDataBlock *pSrc, int8_t** p, SColumnDataAgg *statis, int16_t numOfCols);

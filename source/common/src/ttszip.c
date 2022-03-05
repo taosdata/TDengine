@@ -46,7 +46,7 @@ STSBuf* tsBufCreate(bool autoDelete, int32_t order) {
   }
 
   if (!autoDelete) {
-    remove(pTSBuf->path);
+    taosRemoveFile(pTSBuf->path);
   }
 
   if (NULL == allocResForTSBuf(pTSBuf)) {
@@ -178,7 +178,7 @@ void* tsBufDestroy(STSBuf* pTSBuf) {
 
   if (pTSBuf->autoDelete) {
     //    ("tsBuf %p destroyed, delete tmp file:%s", pTSBuf, pTSBuf->path);
-    remove(pTSBuf->path);
+    taosRemoveFile(pTSBuf->path);
   } else {
     //    tscDebug("tsBuf %p destroyed, tmp file:%s, remains", pTSBuf, pTSBuf->path);
   }

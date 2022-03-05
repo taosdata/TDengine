@@ -17,6 +17,7 @@
 #include "dndVnodes.h"
 #include "dndMgmt.h"
 #include "dndTransport.h"
+#include "sync.h"
 
 typedef struct {
   int32_t  vgId;
@@ -85,7 +86,7 @@ static SVnodeObj *dndAcquireVnode(SDnode *pDnode, int32_t vgId) {
   int32_t      refCount = 0;
 
   taosRLockLatch(&pMgmt->latch);
-  taosHashGetClone(pMgmt->hash, &vgId, sizeof(int32_t), (void *)&pVnode);
+  taosHashGetDup(pMgmt->hash, &vgId, sizeof(int32_t), (void *)&pVnode);
   if (pVnode == NULL) {
     terrno = TSDB_CODE_VND_INVALID_VGROUP_ID;
   } else {
@@ -979,6 +980,8 @@ void dndCleanupVnodes(SDnode *pDnode) {
 
 void dndGetVnodeLoads(SDnode *pDnode, SArray *pLoads) {
   SVnodesMgmt *pMgmt = &pDnode->vmgmt;
+  int32_t      totalVnodes = 0;
+  int32_t      masterNum = 0;
 
   taosRLockLatch(&pMgmt->latch);
 
@@ -993,8 +996,12 @@ void dndGetVnodeLoads(SDnode *pDnode, SArray *pLoads) {
     vnodeGetLoad(pVnode->pImpl, &vload);
     taosArrayPush(pLoads, &vload);
 
+    totalVnodes++;
+    if (vload.role == TAOS_SYNC_STATE_LEADER) masterNum++;
     pIter = taosHashIterate(pMgmt->hash, pIter);
   }
 
   taosRUnLockLatch(&pMgmt->latch);
+  pMgmt->totalVnodes = totalVnodes;
+  pMgmt->masterNum = masterNum;
 }

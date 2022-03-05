@@ -20,12 +20,12 @@
 extern "C" {
 #endif
 
-#include "tcommon.h"
 #include "parser.h"
 #include "query.h"
 #include "taos.h"
+#include "tcommon.h"
+#include "tdatablock.h"
 #include "tdef.h"
-#include "tep.h"
 #include "thash.h"
 #include "tlist.h"
 #include "tmsg.h"
@@ -47,12 +47,12 @@ extern "C" {
 
 typedef struct SAppInstInfo SAppInstInfo;
 
-typedef struct SHbConnInfo {
+typedef struct {
   void*         param;
   SClientHbReq* req;
 } SHbConnInfo;
 
-typedef struct SAppHbMgr {
+typedef struct {
   char* key;
   // statistics
   int32_t reportCnt;
@@ -68,11 +68,11 @@ typedef struct SAppHbMgr {
   SHashObj* connInfo;    // hash<SClientHbKey, SHbConnInfo>
 } SAppHbMgr;
 
-typedef int32_t (*FHbRspHandle)(struct SAppHbMgr* pAppHbMgr, SClientHbRsp* pRsp);
+typedef int32_t (*FHbRspHandle)(SAppHbMgr* pAppHbMgr, SClientHbRsp* pRsp);
 
 typedef int32_t (*FHbReqHandle)(SClientHbKey* connKey, void* param, SClientHbReq* req);
 
-typedef struct SClientHbMgr {
+typedef struct {
   int8_t inited;
   // ctl
   int8_t          threadStop;
@@ -108,13 +108,13 @@ typedef struct SHeartBeatInfo {
 } SHeartBeatInfo;
 
 struct SAppInstInfo {
-  int64_t           numOfConns;
-  SCorEpSet         mgmtEp;
-  SInstanceSummary  summary;
-  SList*            pConnList;  // STscObj linked list
-  int64_t           clusterId;
-  void*             pTransporter;
-  struct SAppHbMgr* pAppHbMgr;
+  int64_t          numOfConns;
+  SCorEpSet        mgmtEp;
+  SInstanceSummary summary;
+  SList*           pConnList;  // STscObj linked list
+  int64_t          clusterId;
+  void*            pTransporter;
+  SAppHbMgr*       pAppHbMgr;
 };
 
 typedef struct SAppInfo {
@@ -140,10 +140,6 @@ typedef struct STscObj {
   int32_t         numOfReqs;  // number of sqlObj bound to this connection
   SAppInstInfo*   pAppInfo;
 } STscObj;
-
-typedef struct SMqConsumer {
-  STscObj* pTscObj;
-} SMqConsumer;
 
 typedef struct SReqResultInfo {
   const char* pRspMsg;
@@ -172,7 +168,7 @@ typedef struct SRequestSendRecvBody {
   SShowReqInfo      showInfo;  // todo this attribute will be removed after the query framework being completed.
   SDataBuf          requestMsg;
   int64_t           queryJob;  // query job, created according to sql query DAG.
-  struct SQueryDag* pDag;       // the query dag, generated according to the sql statement.
+  struct SQueryDag* pDag;      // the query dag, generated according to the sql statement.
   SReqResultInfo    resInfo;
 } SRequestSendRecvBody;
 

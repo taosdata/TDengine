@@ -22,6 +22,19 @@
 
 static SMonitor tsMonitor = {0};
 
+void monRecordLog(int64_t ts, ELogLevel level, const char *content) {
+  pthread_mutex_lock(&tsMonitor.lock);
+  int32_t size = taosArrayGetSize(tsMonitor.logs);
+  if (size < tsMonitor.maxLogs) {
+    SMonLogItem  item = {.ts = ts, .level = level};
+    SMonLogItem *pItem = taosArrayPush(tsMonitor.logs, &item);
+    if (pItem != NULL) {
+      tstrncpy(pItem->content, content, MON_LOG_LEN);
+    }
+  }
+  pthread_mutex_unlock(&tsMonitor.lock);
+}
+
 int32_t monInit(const SMonCfg *pCfg) {
   tsMonitor.logs = taosArrayInit(16, sizeof(SMonLogItem));
   if (tsMonitor.logs == NULL) {
@@ -32,24 +45,16 @@ int32_t monInit(const SMonCfg *pCfg) {
   tsMonitor.maxLogs = pCfg->maxLogs;
   tsMonitor.server = pCfg->server;
   tsMonitor.port = pCfg->port;
-  taosInitRWLatch(&tsMonitor.lock);
+  tsLogFp = monRecordLog;
+  pthread_mutex_init(&tsMonitor.lock, NULL);
   return 0;
 }
 
 void monCleanup() {
+  tsLogFp = NULL;
   taosArrayDestroy(tsMonitor.logs);
   tsMonitor.logs = NULL;
-}
-
-void monAddLogItem(SMonLogItem *pItem) {
-  taosWLockLatch(&tsMonitor.lock);
-  int32_t size = taosArrayGetSize(tsMonitor.logs);
-  if (size >= tsMonitor.maxLogs) {
-    uInfo("too many logs for monitor");
-  } else {
-    taosArrayPush(tsMonitor.logs, pItem);
-  }
-  taosWUnLockLatch(&tsMonitor.lock);
+  pthread_mutex_destroy(&tsMonitor.lock);
 }
 
 SMonInfo *monCreateMonitorInfo() {
@@ -59,10 +64,10 @@ SMonInfo *monCreateMonitorInfo() {
     return NULL;
   }
 
-  taosWLockLatch(&tsMonitor.lock);
+  pthread_mutex_lock(&tsMonitor.lock);
   pMonitor->logs = taosArrayDup(tsMonitor.logs);
   taosArrayClear(tsMonitor.logs);
-  taosWUnLockLatch(&tsMonitor.lock);
+  pthread_mutex_unlock(&tsMonitor.lock);
 
   pMonitor->pJson = tjsonCreateObject();
   if (pMonitor->pJson == NULL || pMonitor->logs == NULL) {
@@ -128,11 +133,11 @@ void monSetClusterInfo(SMonInfo *pMonitor, SMonClusterInfo *pInfo) {
   SJson *pMnodesJson = tjsonAddArrayToObject(pJson, "mnodes");
   if (pMnodesJson == NULL) return;
 
-  for (int32_t i = 0; i < taosArrayGetSize(pInfo->dnodes); ++i) {
+  for (int32_t i = 0; i < taosArrayGetSize(pInfo->mnodes); ++i) {
     SJson *pMnodeJson = tjsonCreateObject();
     if (pMnodeJson == NULL) continue;
 
-    SMonMnodeDesc *pMnodeDesc = taosArrayGet(pInfo->dnodes, i);
+    SMonMnodeDesc *pMnodeDesc = taosArrayGet(pInfo->mnodes, i);
     tjsonAddDoubleToObject(pMnodeJson, "mnode_id", pMnodeDesc->mnode_id);
     tjsonAddStringToObject(pMnodeJson, "mnode_ep", pMnodeDesc->mnode_ep);
     tjsonAddStringToObject(pMnodeJson, "role", pMnodeDesc->role);
@@ -270,6 +275,21 @@ void monSetDiskInfo(SMonInfo *pMonitor, SMonDiskInfo *pInfo) {
   tjsonAddDoubleToObject(pTempdirJson, "total", pInfo->tempdir.size.total);
 }
 
+static const char *monLogLevelStr(ELogLevel level) {
+  switch (level) {
+    case DEBUG_ERROR:
+      return "error";
+    case DEBUG_INFO:
+      return "info";
+    case DEBUG_DEBUG:
+      return "debug";
+    case DEBUG_TRACE:
+      return "trace";
+    default:
+      return "undefine";
+  }
+}
+
 static void monSetLogInfo(SMonInfo *pMonitor) {
   SJson *pJson = tjsonCreateObject();
   if (pJson == NULL) return;
@@ -291,7 +311,7 @@ static void monSetLogInfo(SMonInfo *pMonitor) {
     taosFormatUtcTime(buf, sizeof(buf), pLogItem->ts, TSDB_TIME_PRECISION_MILLI);
 
     tjsonAddStringToObject(pLogJson, "ts", buf);
-    tjsonAddDoubleToObject(pLogJson, "level", pLogItem->level);
+    tjsonAddStringToObject(pLogJson, "level", monLogLevelStr(pLogItem->level));
     tjsonAddStringToObject(pLogJson, "content", pLogItem->content);
 
     if (tjsonAddItemToArray(pLogsJson, pLogJson) != 0) tjsonDelete(pLogJson);
@@ -303,25 +323,25 @@ static void monSetLogInfo(SMonInfo *pMonitor) {
   SJson *pLogError = tjsonCreateObject();
   if (pLogError == NULL) return;
   tjsonAddStringToObject(pLogError, "level", "error");
-  tjsonAddDoubleToObject(pLogError, "total", 1);
+  tjsonAddDoubleToObject(pLogError, "total", tsNumOfErrorLogs);
   if (tjsonAddItemToArray(pSummaryJson, pLogError) != 0) tjsonDelete(pLogError);
 
   SJson *pLogInfo = tjsonCreateObject();
   if (pLogInfo == NULL) return;
   tjsonAddStringToObject(pLogInfo, "level", "info");
-  tjsonAddDoubleToObject(pLogInfo, "total", 1);
+  tjsonAddDoubleToObject(pLogInfo, "total", tsNumOfInfoLogs);
   if (tjsonAddItemToArray(pSummaryJson, pLogInfo) != 0) tjsonDelete(pLogInfo);
 
   SJson *pLogDebug = tjsonCreateObject();
   if (pLogDebug == NULL) return;
   tjsonAddStringToObject(pLogDebug, "level", "debug");
-  tjsonAddDoubleToObject(pLogDebug, "total", 1);
+  tjsonAddDoubleToObject(pLogDebug, "total", tsNumOfDebugLogs);
   if (tjsonAddItemToArray(pSummaryJson, pLogDebug) != 0) tjsonDelete(pLogDebug);
 
   SJson *pLogTrace = tjsonCreateObject();
   if (pLogTrace == NULL) return;
   tjsonAddStringToObject(pLogTrace, "level", "trace");
-  tjsonAddDoubleToObject(pLogTrace, "total", 1);
+  tjsonAddDoubleToObject(pLogTrace, "total", tsNumOfTraceLogs);
   if (tjsonAddItemToArray(pSummaryJson, pLogTrace) != 0) tjsonDelete(pLogTrace);
 }
 

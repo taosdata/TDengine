@@ -13,7 +13,6 @@
  * along with this program. If not, see <http://www.gnu.org/licenses/>.
  */
 
-#include <function.h>
 #include <gtest/gtest.h>
 #include <tglobal.h>
 #include <iostream>
@@ -25,6 +24,7 @@
 #pragma GCC diagnostic ignored "-Wsign-compare"
 #include "os.h"
 
+#include "function.h"
 #include "astGenerator.h"
 #include "parserInt.h"
 #include "taos.h"
