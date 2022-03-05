@@ -1942,6 +1942,8 @@ static FORCE_INLINE void* tDecodeTSma(void* buf, STSma* pSma) {
     for (uint16_t i = 0; i < pSma->numOfColIds; ++i) {
       buf = taosDecodeFixedU16(buf, pSma->colIds + i);
     }
+  } else {
+    pSma->colIds = NULL;
   }
 
   if (pSma->numOfFuncIds > 0) {
@@ -1952,6 +1954,8 @@ static FORCE_INLINE void* tDecodeTSma(void* buf, STSma* pSma) {
     for (uint16_t i = 0; i < pSma->numOfFuncIds; ++i) {
       buf = taosDecodeFixedU16(buf, pSma->funcIds + i);
     }
+  } else {
+    pSma->funcIds = NULL;
   }
 
   return buf;
