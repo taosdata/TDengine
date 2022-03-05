@@ -25,7 +25,6 @@ static int32_t tsNodeRefId = -1;
 // ------ local funciton ---------
 static int32_t syncNodeSendMsgById(const SRaftId* destRaftId, SSyncNode* pSyncNode, SRpcMsg* pMsg);
 static int32_t syncNodeSendMsgByInfo(const SNodeInfo* nodeInfo, SSyncNode* pSyncNode, SRpcMsg* pMsg);
-static void    syncNodePingTimerCb(void* param, void* tmrId);
 
 static void syncNodeEqPingTimer(void* param, void* tmrId);
 static void syncNodeEqElectTimer(void* param, void* tmrId);
@@ -356,25 +355,6 @@ static int32_t syncNodeOnTimeoutCb(SSyncNode* ths, SyncTimeout* pMsg) {
   }
 
   return ret;
-}
-
-static void syncNodePingTimerCb(void* param, void* tmrId) {
-  SSyncNode* pSyncNode = (SSyncNode*)param;
-  if (atomic_load_8(&pSyncNode->pingTimerEnable)) {
-    ++(pSyncNode->pingTimerCounter);
-
-    sTrace(
-        "syncNodePingTimerCb: pSyncNode->pingTimerCounter:%lu, pSyncNode->pingTimerMS:%d, pSyncNode->pPingTimer:%p, "
-        "tmrId:%p ",
-        pSyncNode->pingTimerCounter, pSyncNode->pingTimerMS, pSyncNode->pPingTimer, tmrId);
-
-    syncNodePingAll(pSyncNode);
-
-    taosTmrReset(syncNodePingTimerCb, pSyncNode->pingTimerMS, pSyncNode, &gSyncEnv->pTimerManager,
-                 &pSyncNode->pPingTimer);
-  } else {
-    sTrace("syncNodePingTimerCb: pingTimerEnable:%u ", pSyncNode->pingTimerEnable);
-  }
 }
 
 static void syncNodeEqPingTimer(void* param, void* tmrId) {

@@ -121,14 +121,17 @@ typedef struct SSyncNode {
 
   // init internal
   SNodeInfo me;
+  SRaftId   raftId;
+
   int32_t   peersNum;
   SNodeInfo peers[TSDB_MAX_REPLICA];
+  SRaftId   peersId[TSDB_MAX_REPLICA];
+
+  int32_t replicaNum;
+  SRaftId replicasId[TSDB_MAX_REPLICA];
 
   // raft algorithm
   SSyncFSM* pFsm;
-  SRaftId   raftId;
-  SRaftId   peersId[TSDB_MAX_REPLICA];
-  int32_t   replicaNum;
   int32_t   quorum;
 
   // life cycle
