@@ -102,7 +102,7 @@ typedef struct SCatalog {
 } SCatalog;
 
 typedef struct SCtgApiStat {
-
+    int tmp; // for clang compile
 } SCtgApiStat;
 
 typedef struct SCtgRuntimeStat {
@@ -111,7 +111,7 @@ typedef struct SCtgRuntimeStat {
 } SCtgRuntimeStat;
 
 typedef struct SCtgCacheStat {
-
+    int tmp; // for clang compile
 } SCtgCacheStat;
 
 typedef struct SCatalogStat {

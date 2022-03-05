@@ -42,15 +42,15 @@ typedef struct SSchTrans {
 } SSchTrans;
 
 typedef struct SSchApiStat {
-
+    int tmp; // for clang compile
 } SSchApiStat;
 
 typedef struct SSchRuntimeStat {
-
+    int tmp; // for clang compile
 } SSchRuntimeStat;
 
 typedef struct SSchJobStat {
-
+    int tmp; // for clang compile
 } SSchJobStat;
 
 typedef struct SSchedulerStat {

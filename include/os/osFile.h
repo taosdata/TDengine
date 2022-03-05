@@ -40,9 +40,7 @@ extern "C" {
 #define PATH_MAX 256
 #endif
 
-#if defined(_TD_DARWIN_64)
 typedef int32_t FileFd;
-#endif
 
 typedef struct TdFile {
   pthread_rwlock_t rwlock;
