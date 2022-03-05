@@ -159,12 +159,9 @@ static int32_t createSName(SName* pName, SToken* pTableName, SParseContext* pPar
 }
 
 static int32_t getTableMeta(SInsertParseContext* pCxt, SToken* pTname) {
-  SName name = {0};
-  createSName(&name, pTname, pCxt->pComCxt, &pCxt->msg);
-
-  char tableName[TSDB_TABLE_FNAME_LEN] = {0};
-  tNameExtractFullName(&name, tableName);
   SParseContext* pBasicCtx = pCxt->pComCxt;
+  SName name = {0};
+  createSName(&name, pTname, pBasicCtx, &pCxt->msg);  
   CHECK_CODE(catalogGetTableMeta(pBasicCtx->pCatalog, pBasicCtx->pTransporter, &pBasicCtx->mgmtEpSet, &name, &pCxt->pTableMeta));
   SVgroupInfo vg;
   CHECK_CODE(catalogGetTableHashVgroup(pBasicCtx->pCatalog, pBasicCtx->pTransporter, &pBasicCtx->mgmtEpSet, &name, &vg));
@@ -939,6 +936,13 @@ int32_t parseInsertSql(SParseContext* pContext, SQuery** pQuery) {
     return TSDB_CODE_TSC_OUT_OF_MEMORY;
   }
 
+  *pQuery = calloc(1, sizeof(SQuery));
+  if (NULL == *pQuery) {
+    return TSDB_CODE_OUT_OF_MEMORY;
+  }
+  (*pQuery)->directRpc = false;
+  (*pQuery)->haveResultSet = false;
+  (*pQuery)->msgType = TDMT_VND_SUBMIT;
   (*pQuery)->pRoot = (SNode*)context.pOutput;
   context.pOutput->payloadType = PAYLOAD_TYPE_KV;
 

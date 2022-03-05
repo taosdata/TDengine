@@ -27,6 +27,7 @@ typedef struct SPhysiPlanContext {
   int32_t errCode;
   int16_t nextDataBlockId;
   SArray* pLocationHelper;
+  SArray* pExecNodeList;
 } SPhysiPlanContext;
 
 static int32_t getSlotKey(SNode* pNode, char* pKey) {
@@ -153,17 +154,20 @@ static SNodeList* setListSlotId(SPhysiPlanContext* pCxt, int16_t leftDataBlockId
 
 static SPhysiNode* makePhysiNode(SPhysiPlanContext* pCxt, ENodeType type) {
   SPhysiNode* pPhysiNode = (SPhysiNode*)nodesMakeNode(type);
-  if (NULL == pPhysiNode) {
+  CHECK_ALLOC(pPhysiNode, NULL);
+  pPhysiNode->pOutputDataBlockDesc = nodesMakeNode(QUERY_NODE_DATABLOCK_DESC);
+  if (NULL == pPhysiNode->pOutputDataBlockDesc) {
+    nodesDestroyNode(pPhysiNode);
     return NULL;
   }
-  pPhysiNode->outputDataBlockDesc.dataBlockId = pCxt->nextDataBlockId++;
-  pPhysiNode->outputDataBlockDesc.type = QUERY_NODE_DATABLOCK_DESC;
+  pPhysiNode->pOutputDataBlockDesc->dataBlockId = pCxt->nextDataBlockId++;
+  pPhysiNode->pOutputDataBlockDesc->type = QUERY_NODE_DATABLOCK_DESC;
   return pPhysiNode;
 }
 
 static int32_t setConditionsSlotId(SPhysiPlanContext* pCxt, const SLogicNode* pLogicNode, SPhysiNode* pPhysiNode) {
   if (NULL != pLogicNode->pConditions) {
-    pPhysiNode->pConditions = setNodeSlotId(pCxt, pPhysiNode->outputDataBlockDesc.dataBlockId, -1, pLogicNode->pConditions);
+    pPhysiNode->pConditions = setNodeSlotId(pCxt, pPhysiNode->pOutputDataBlockDesc->dataBlockId, -1, pLogicNode->pConditions);
     CHECK_ALLOC(pPhysiNode->pConditions, TSDB_CODE_OUT_OF_MEMORY);
   }
   return TSDB_CODE_SUCCESS;
@@ -182,17 +186,47 @@ static int32_t setSlotOutput(SPhysiPlanContext* pCxt, SNodeList* pTargets, SData
   return TSDB_CODE_SUCCESS;
 }
 
+static SNodeptr createPrimaryKeyCol(SPhysiPlanContext* pCxt, uint64_t tableId) {
+  SColumnNode* pCol = nodesMakeNode(QUERY_NODE_COLUMN);
+  CHECK_ALLOC(pCol, NULL);
+  pCol->node.resType.type = TSDB_DATA_TYPE_TIMESTAMP;
+  pCol->node.resType.bytes = tDataTypes[TSDB_DATA_TYPE_TIMESTAMP].bytes;
+  pCol->tableId = tableId;
+  pCol->colId = PRIMARYKEY_TIMESTAMP_COL_ID;
+  pCol->colType = COLUMN_TYPE_COLUMN;
+  return pCol;
+}
+
+static int32_t addPrimaryKeyCol(SPhysiPlanContext* pCxt, SScanPhysiNode* pScanPhysiNode) {
+  if (NULL == pScanPhysiNode->pScanCols) {
+    pScanPhysiNode->pScanCols = nodesMakeList();
+    CHECK_ALLOC(pScanPhysiNode->pScanCols, TSDB_CODE_OUT_OF_MEMORY);
+    CHECK_CODE_EXT(nodesListStrictAppend(pScanPhysiNode->pScanCols, createPrimaryKeyCol(pCxt, pScanPhysiNode->uid)));
+    return TSDB_CODE_SUCCESS;
+  }
+  SNode* pNode;
+  FOREACH(pNode, pScanPhysiNode->pScanCols) {
+    if (PRIMARYKEY_TIMESTAMP_COL_ID == ((SColumnNode*)pNode)->colId) {
+      return TSDB_CODE_SUCCESS;
+    }
+  }
+  CHECK_CODE_EXT(nodesListStrictAppend(pScanPhysiNode->pScanCols, createPrimaryKeyCol(pCxt, pScanPhysiNode->uid)));
+  return TSDB_CODE_SUCCESS;
+}
+
 static int32_t initScanPhysiNode(SPhysiPlanContext* pCxt, SScanLogicNode* pScanLogicNode, SScanPhysiNode* pScanPhysiNode) {
   if (NULL != pScanLogicNode->pScanCols) {
     pScanPhysiNode->pScanCols = nodesCloneList(pScanLogicNode->pScanCols);
     CHECK_ALLOC(pScanPhysiNode->pScanCols, TSDB_CODE_OUT_OF_MEMORY);
   }
+  CHECK_CODE(addPrimaryKeyCol(pCxt, pScanPhysiNode), TSDB_CODE_OUT_OF_MEMORY);
+
   // Data block describe also needs to be set without scanning column, such as SELECT COUNT(*) FROM t
-  CHECK_CODE(addDataBlockDesc(pCxt, pScanPhysiNode->pScanCols, &pScanPhysiNode->node.outputDataBlockDesc), TSDB_CODE_OUT_OF_MEMORY);
+  CHECK_CODE(addDataBlockDesc(pCxt, pScanPhysiNode->pScanCols, pScanPhysiNode->node.pOutputDataBlockDesc), TSDB_CODE_OUT_OF_MEMORY);
 
   CHECK_CODE(setConditionsSlotId(pCxt, (const SLogicNode*)pScanLogicNode, (SPhysiNode*)pScanPhysiNode), TSDB_CODE_OUT_OF_MEMORY);
 
-  CHECK_CODE(setSlotOutput(pCxt, pScanLogicNode->node.pTargets, &pScanPhysiNode->node.outputDataBlockDesc), TSDB_CODE_OUT_OF_MEMORY);
+  CHECK_CODE(setSlotOutput(pCxt, pScanLogicNode->node.pTargets, pScanPhysiNode->node.pOutputDataBlockDesc), TSDB_CODE_OUT_OF_MEMORY);
 
   pScanPhysiNode->uid = pScanLogicNode->pMeta->uid;
   pScanPhysiNode->tableType = pScanLogicNode->pMeta->tableType;
@@ -203,6 +237,11 @@ static int32_t initScanPhysiNode(SPhysiPlanContext* pCxt, SScanLogicNode* pScanL
   return TSDB_CODE_SUCCESS;
 }
 
+static void vgroupInfoToNodeAddr(const SVgroupInfo* vg, SQueryNodeAddr* pNodeAddr) {
+  pNodeAddr->nodeId = vg->vgId;
+  pNodeAddr->epset  = vg->epset;
+}
+
 static SPhysiNode* createTagScanPhysiNode(SPhysiPlanContext* pCxt, SScanLogicNode* pScanLogicNode) {
   STagScanPhysiNode* pTagScan = (STagScanPhysiNode*)makePhysiNode(pCxt, QUERY_NODE_PHYSICAL_PLAN_TAG_SCAN);
   CHECK_ALLOC(pTagScan, NULL);
@@ -210,21 +249,23 @@ static SPhysiNode* createTagScanPhysiNode(SPhysiPlanContext* pCxt, SScanLogicNod
   return (SPhysiNode*)pTagScan;
 }
 
-static SPhysiNode* createTableScanPhysiNode(SPhysiPlanContext* pCxt, SScanLogicNode* pScanLogicNode) {
+static SPhysiNode* createTableScanPhysiNode(SPhysiPlanContext* pCxt, SSubplan* pSubplan, SScanLogicNode* pScanLogicNode) {
   STableScanPhysiNode* pTableScan = (STableScanPhysiNode*)makePhysiNode(pCxt, QUERY_NODE_PHYSICAL_PLAN_TABLE_SCAN);
   CHECK_ALLOC(pTableScan, NULL);
   CHECK_CODE(initScanPhysiNode(pCxt, pScanLogicNode, (SScanPhysiNode*)pTableScan), (SPhysiNode*)pTableScan);
   pTableScan->scanFlag = pScanLogicNode->scanFlag;
   pTableScan->scanRange = pScanLogicNode->scanRange;
+  vgroupInfoToNodeAddr(pScanLogicNode->pVgroupList->vgroups, &pSubplan->execNode);
+  taosArrayPush(pCxt->pExecNodeList, &pSubplan->execNode);
   return (SPhysiNode*)pTableScan;
 }
 
-static SPhysiNode* createScanPhysiNode(SPhysiPlanContext* pCxt, SScanLogicNode* pScanLogicNode) {
+static SPhysiNode* createScanPhysiNode(SPhysiPlanContext* pCxt, SSubplan* pSubplan, SScanLogicNode* pScanLogicNode) {
   switch (pScanLogicNode->scanType) {
     case SCAN_TYPE_TAG:
       return createTagScanPhysiNode(pCxt, pScanLogicNode);
     case SCAN_TYPE_TABLE:
-      return createTableScanPhysiNode(pCxt, pScanLogicNode);
+      return createTableScanPhysiNode(pCxt, pSubplan, pScanLogicNode);
     case SCAN_TYPE_STABLE:
     case SCAN_TYPE_STREAM:
       break;
@@ -276,18 +317,18 @@ static SPhysiNode* createJoinPhysiNode(SPhysiPlanContext* pCxt, SNodeList* pChil
   SJoinPhysiNode* pJoin = (SJoinPhysiNode*)makePhysiNode(pCxt, QUERY_NODE_PHYSICAL_PLAN_JOIN);
   CHECK_ALLOC(pJoin, NULL);
 
-  SDataBlockDescNode* pLeftDesc = &((SPhysiNode*)nodesListGetNode(pChildren, 0))->outputDataBlockDesc;
-  SDataBlockDescNode* pRightDesc = &((SPhysiNode*)nodesListGetNode(pChildren, 1))->outputDataBlockDesc;
+  SDataBlockDescNode* pLeftDesc = ((SPhysiNode*)nodesListGetNode(pChildren, 0))->pOutputDataBlockDesc;
+  SDataBlockDescNode* pRightDesc = ((SPhysiNode*)nodesListGetNode(pChildren, 1))->pOutputDataBlockDesc;
   pJoin->pOnConditions = setNodeSlotId(pCxt, pLeftDesc->dataBlockId, pRightDesc->dataBlockId, pJoinLogicNode->pOnConditions);
   CHECK_ALLOC(pJoin->pOnConditions, (SPhysiNode*)pJoin);
 
   pJoin->pTargets = createJoinOutputCols(pCxt, pLeftDesc, pRightDesc);
   CHECK_ALLOC(pJoin->pTargets, (SPhysiNode*)pJoin);
-  CHECK_CODE(addDataBlockDesc(pCxt, pJoin->pTargets, &pJoin->node.outputDataBlockDesc), (SPhysiNode*)pJoin);
+  CHECK_CODE(addDataBlockDesc(pCxt, pJoin->pTargets, pJoin->node.pOutputDataBlockDesc), (SPhysiNode*)pJoin);
 
   CHECK_CODE(setConditionsSlotId(pCxt, (const SLogicNode*)pJoinLogicNode, (SPhysiNode*)pJoin), (SPhysiNode*)pJoin);
 
-  CHECK_CODE(setSlotOutput(pCxt, pJoinLogicNode->node.pTargets, &pJoin->node.outputDataBlockDesc), (SPhysiNode*)pJoin);
+  CHECK_CODE(setSlotOutput(pCxt, pJoinLogicNode->node.pTargets, pJoin->node.pOutputDataBlockDesc), (SPhysiNode*)pJoin);
 
   return (SPhysiNode*)pJoin;
 }
@@ -385,8 +426,8 @@ static SPhysiNode* createAggPhysiNode(SPhysiPlanContext* pCxt, SNodeList* pChild
   CHECK_CODE(rewritePrecalcExprs(pCxt, pAggLogicNode->pGroupKeys, &pPrecalcExprs, &pGroupKeys), (SPhysiNode*)pAgg);
   CHECK_CODE(rewritePrecalcExprs(pCxt, pAggLogicNode->pAggFuncs, &pPrecalcExprs, &pAggFuncs), (SPhysiNode*)pAgg);
 
-  SDataBlockDescNode* pChildTupe = &(((SPhysiNode*)nodesListGetNode(pChildren, 0))->outputDataBlockDesc);
-  // push down expression to outputDataBlockDesc of child node
+  SDataBlockDescNode* pChildTupe = (((SPhysiNode*)nodesListGetNode(pChildren, 0))->pOutputDataBlockDesc);
+  // push down expression to pOutputDataBlockDesc of child node
   if (NULL != pPrecalcExprs) {
     pAgg->pExprs = setListSlotId(pCxt, pChildTupe->dataBlockId, -1, pPrecalcExprs);
     CHECK_ALLOC(pAgg->pExprs, (SPhysiNode*)pAgg);
@@ -396,18 +437,18 @@ static SPhysiNode* createAggPhysiNode(SPhysiPlanContext* pCxt, SNodeList* pChild
   if (NULL != pGroupKeys) {
     pAgg->pGroupKeys = setListSlotId(pCxt, pChildTupe->dataBlockId, -1, pGroupKeys);
     CHECK_ALLOC(pAgg->pGroupKeys, (SPhysiNode*)pAgg);
-    CHECK_CODE(addDataBlockDesc(pCxt, pAgg->pGroupKeys, &pAgg->node.outputDataBlockDesc), (SPhysiNode*)pAgg);
+    CHECK_CODE(addDataBlockDesc(pCxt, pAgg->pGroupKeys, pAgg->node.pOutputDataBlockDesc), (SPhysiNode*)pAgg);
   }
 
   if (NULL != pAggFuncs) {
     pAgg->pAggFuncs = setListSlotId(pCxt, pChildTupe->dataBlockId, -1, pAggFuncs);
     CHECK_ALLOC(pAgg->pAggFuncs, (SPhysiNode*)pAgg);
-    CHECK_CODE(addDataBlockDesc(pCxt, pAgg->pAggFuncs, &pAgg->node.outputDataBlockDesc), (SPhysiNode*)pAgg);
+    CHECK_CODE(addDataBlockDesc(pCxt, pAgg->pAggFuncs, pAgg->node.pOutputDataBlockDesc), (SPhysiNode*)pAgg);
   }
 
   CHECK_CODE(setConditionsSlotId(pCxt, (const SLogicNode*)pAggLogicNode, (SPhysiNode*)pAgg), (SPhysiNode*)pAgg);
 
-  CHECK_CODE(setSlotOutput(pCxt, pAggLogicNode->node.pTargets, &pAgg->node.outputDataBlockDesc), (SPhysiNode*)pAgg);
+  CHECK_CODE(setSlotOutput(pCxt, pAggLogicNode->node.pTargets, pAgg->node.pOutputDataBlockDesc), (SPhysiNode*)pAgg);
 
   return (SPhysiNode*)pAgg;
 }
@@ -416,22 +457,22 @@ static SPhysiNode* createProjectPhysiNode(SPhysiPlanContext* pCxt, SNodeList* pC
   SProjectPhysiNode* pProject = (SProjectPhysiNode*)makePhysiNode(pCxt, QUERY_NODE_PHYSICAL_PLAN_PROJECT);
   CHECK_ALLOC(pProject, NULL);
 
-  pProject->pProjections = setListSlotId(pCxt, ((SPhysiNode*)nodesListGetNode(pChildren, 0))->outputDataBlockDesc.dataBlockId, -1, pProjectLogicNode->pProjections);
+  pProject->pProjections = setListSlotId(pCxt, ((SPhysiNode*)nodesListGetNode(pChildren, 0))->pOutputDataBlockDesc->dataBlockId, -1, pProjectLogicNode->pProjections);
   CHECK_ALLOC(pProject->pProjections, (SPhysiNode*)pProject);
-  CHECK_CODE(addDataBlockDesc(pCxt, pProject->pProjections, &pProject->node.outputDataBlockDesc), (SPhysiNode*)pProject);
+  CHECK_CODE(addDataBlockDesc(pCxt, pProject->pProjections, pProject->node.pOutputDataBlockDesc), (SPhysiNode*)pProject);
 
   CHECK_CODE(setConditionsSlotId(pCxt, (const SLogicNode*)pProjectLogicNode, (SPhysiNode*)pProject), (SPhysiNode*)pProject);
 
   return (SPhysiNode*)pProject;
 }
 
-static SPhysiNode* createPhysiNode(SPhysiPlanContext* pCxt, SLogicNode* pLogicPlan) {
+static SPhysiNode* createPhysiNode(SPhysiPlanContext* pCxt, SSubplan* pSubplan, SLogicNode* pLogicPlan) {
   SNodeList* pChildren = nodesMakeList();
   CHECK_ALLOC(pChildren, NULL);
 
   SNode* pLogicChild;
   FOREACH(pLogicChild, pLogicPlan->pChildren) {
-    SNode* pChildPhyNode = (SNode*)createPhysiNode(pCxt, (SLogicNode*)pLogicChild);
+    SNode* pChildPhyNode = (SNode*)createPhysiNode(pCxt, pSubplan, (SLogicNode*)pLogicChild);
     if (TSDB_CODE_SUCCESS != nodesListAppend(pChildren, pChildPhyNode)) {
       pCxt->errCode = TSDB_CODE_OUT_OF_MEMORY;
       nodesDestroyList(pChildren);
@@ -442,7 +483,7 @@ static SPhysiNode* createPhysiNode(SPhysiPlanContext* pCxt, SLogicNode* pLogicPl
   SPhysiNode* pPhyNode = NULL;
   switch (nodeType(pLogicPlan)) {
     case QUERY_NODE_LOGIC_PLAN_SCAN:
-      pPhyNode = createScanPhysiNode(pCxt, (SScanLogicNode*)pLogicPlan);
+      pPhyNode = createScanPhysiNode(pCxt, pSubplan, (SScanLogicNode*)pLogicPlan);
       break;
     case QUERY_NODE_LOGIC_PLAN_JOIN:
       pPhyNode = createJoinPhysiNode(pCxt, pChildren, (SJoinLogicNode*)pLogicPlan);
@@ -466,91 +507,184 @@ static SPhysiNode* createPhysiNode(SPhysiPlanContext* pCxt, SLogicNode* pLogicPl
   return pPhyNode;
 }
 
+static SDataSinkNode* createDataInserter(SPhysiPlanContext* pCxt, SVgDataBlocks* pBlocks) {
+  SDataInserterNode* pInserter = nodesMakeNode(QUERY_NODE_PHYSICAL_PLAN_INSERT);
+  CHECK_ALLOC(pInserter, NULL);
+  pInserter->numOfTables = pBlocks->numOfTables;
+  pInserter->size = pBlocks->size;
+  TSWAP(pInserter->pData, pBlocks->pData, char*);
+  return (SDataSinkNode*)pInserter;
+}
+
+static SDataSinkNode* createDataDispatcher(SPhysiPlanContext* pCxt, const SPhysiNode* pRoot) {
+  SDataDispatcherNode* pDispatcher = nodesMakeNode(QUERY_NODE_PHYSICAL_PLAN_DISPATCH);
+  CHECK_ALLOC(pDispatcher, NULL);
+  pDispatcher->sink.pInputDataBlockDesc = nodesCloneNode(pRoot->pOutputDataBlockDesc);
+  CHECK_ALLOC(pDispatcher->sink.pInputDataBlockDesc, (SDataSinkNode*)pDispatcher);
+  return (SDataSinkNode*)pDispatcher;
+}
+
 static SSubplan* createPhysiSubplan(SPhysiPlanContext* pCxt, SSubLogicPlan* pLogicSubplan) {
   SSubplan* pSubplan = (SSubplan*)nodesMakeNode(QUERY_NODE_PHYSICAL_SUBPLAN);
   CHECK_ALLOC(pSubplan, NULL);
-  pSubplan->pNode = createPhysiNode(pCxt, pLogicSubplan->pNode);
+  if (SUBPLAN_TYPE_MODIFY == pLogicSubplan->subplanType) {
+    SVnodeModifLogicNode* pModif = (SVnodeModifLogicNode*)pLogicSubplan->pNode;
+    pSubplan->pDataSink = createDataInserter(pCxt, pModif->pVgDataBlocks);
+    pSubplan->msgType = pModif->msgType;
+    pSubplan->execNode.epset = pModif->pVgDataBlocks->vg.epset;
+    taosArrayPush(pCxt->pExecNodeList, &pSubplan->execNode);
+  } else {
+    pSubplan->pNode = createPhysiNode(pCxt, pSubplan, pLogicSubplan->pNode);
+    pSubplan->pDataSink = createDataDispatcher(pCxt, pSubplan->pNode);
+    pSubplan->msgType = TDMT_VND_QUERY;
+  }
+  pSubplan->subplanType = pLogicSubplan->subplanType;
   return pSubplan;
 }
 
-static int32_t strictListAppend(SNodeList* pList, SNodeptr pNode) {
-  if (NULL == pNode) {
-    return TSDB_CODE_OUT_OF_MEMORY;
+static int32_t splitLogicPlan(SPhysiPlanContext* pCxt, SLogicNode* pLogicNode, SSubLogicPlan** pSubLogicPlan) {
+  *pSubLogicPlan = (SSubLogicPlan*)nodesMakeNode(QUERY_NODE_LOGIC_SUBPLAN);
+  CHECK_ALLOC(*pSubLogicPlan, TSDB_CODE_OUT_OF_MEMORY);
+  // todo pSubplan->pNode = nodesCloneNode(pLogicNode);
+  (*pSubLogicPlan)->pNode = pLogicNode;
+  if (QUERY_NODE_LOGIC_PLAN_VNODE_MODIF == nodeType(pLogicNode)) {
+    (*pSubLogicPlan)->subplanType = SUBPLAN_TYPE_MODIFY;
   }
-  int32_t code = nodesListAppend(pList, pNode);
-  if (TSDB_CODE_SUCCESS != code) {
-    nodesDestroyNode(pNode);
-  }
-  return code;
+  // todo split
+  return TSDB_CODE_SUCCESS;
 }
 
-static SQueryLogicPlan* createRawQueryLogicPlan(SPhysiPlanContext* pCxt, SLogicNode* pLogicNode) {
+static int32_t pushSubplan(SPhysiPlanContext* pCxt, SNodeptr pSubplan, int32_t level, SNodeList* pSubplans) {
+  SNodeListNode* pGroup;
+  if (level >= LIST_LENGTH(pSubplans)) {
+    pGroup = nodesMakeNode(QUERY_NODE_NODE_LIST);
+    CHECK_ALLOC(pGroup, TSDB_CODE_OUT_OF_MEMORY);
+    CHECK_CODE(nodesListStrictAppend(pSubplans, pGroup), TSDB_CODE_OUT_OF_MEMORY);
+  } else {
+    pGroup = nodesListGetNode(pSubplans, level);
+  }
+  if (NULL == pGroup->pNodeList) {
+    pGroup->pNodeList = nodesMakeList();
+    CHECK_ALLOC(pGroup->pNodeList, TSDB_CODE_OUT_OF_MEMORY);
+  }
+  CHECK_CODE(nodesListStrictAppend(pGroup->pNodeList, pSubplan), TSDB_CODE_OUT_OF_MEMORY);
+}
+
+SSubLogicPlan* singleCloneSubLogicPlan(SPhysiPlanContext* pCxt, SSubLogicPlan* pSrc, int32_t level) {
+  SSubLogicPlan* pDst = nodesMakeNode(QUERY_NODE_LOGIC_SUBPLAN);
+  CHECK_ALLOC(pDst, NULL);
+  // todo pDst->pNode = nodesCloneNode(pSrc->pNode);
+  pDst->pNode = pSrc->pNode;
+  if (NULL == pDst->pNode) {
+    nodesDestroyNode(pDst);
+    return NULL;
+  }
+  pDst->subplanType = pSrc->subplanType;
+  pDst->level = level;
+  return pDst;
+}
+
+static int32_t doScaleOut(SPhysiPlanContext* pCxt, SSubLogicPlan* pSubplan, int32_t level, SQueryLogicPlan* pLogicPlan) {
+  if (SUBPLAN_TYPE_MODIFY == pSubplan->subplanType) {
+    SVnodeModifLogicNode* pNode = (SVnodeModifLogicNode*)pSubplan->pNode;
+    size_t numOfVgroups = taosArrayGetSize(pNode->pDataBlocks);
+    for (int32_t i = 0; i < numOfVgroups; ++i) {
+      SSubLogicPlan* pNewSubplan = singleCloneSubLogicPlan(pCxt, pSubplan, level);
+      CHECK_ALLOC(pNewSubplan, TSDB_CODE_OUT_OF_MEMORY);
+      SVgDataBlocks* blocks = (SVgDataBlocks*)taosArrayGetP(pNode->pDataBlocks, i);
+      ((SVnodeModifLogicNode*)pNewSubplan->pNode)->pVgDataBlocks = blocks;
+      CHECK_CODE_EXT(pushSubplan(pCxt, pNewSubplan, level, pLogicPlan->pSubplans));
+    }
+  } else {
+    SSubLogicPlan* pNewSubplan = singleCloneSubLogicPlan(pCxt, pSubplan, level);
+    CHECK_ALLOC(pNewSubplan, TSDB_CODE_OUT_OF_MEMORY);
+    CHECK_CODE_EXT(pushSubplan(pCxt, pNewSubplan, level, pLogicPlan->pSubplans));
+  }
+
+  SNode* pChild;
+  FOREACH(pChild, pSubplan->pChildren) {
+    CHECK_CODE_EXT(doScaleOut(pCxt, (SSubLogicPlan*)pChild, level + 1, pLogicPlan));
+  }
+
+  return TSDB_CODE_SUCCESS;
+}
+
+static SQueryLogicPlan* makeQueryLogicPlan(SPhysiPlanContext* pCxt) {
   SQueryLogicPlan* pLogicPlan = (SQueryLogicPlan*)nodesMakeNode(QUERY_NODE_LOGIC_PLAN);
   CHECK_ALLOC(pLogicPlan, NULL);
   pLogicPlan->pSubplans = nodesMakeList();
-  CHECK_ALLOC(pLogicPlan->pSubplans, pLogicPlan);
-  SNodeListNode* pTopSubplans = (SNodeListNode*)nodesMakeNode(QUERY_NODE_NODE_LIST);
-  CHECK_ALLOC(pTopSubplans, pLogicPlan);
-  CHECK_CODE(strictListAppend(pLogicPlan->pSubplans, pTopSubplans), pLogicPlan);
-  pTopSubplans->pNodeList = nodesMakeList();
-  CHECK_ALLOC(pTopSubplans->pNodeList, pLogicPlan);
-  SSubLogicPlan* pSubplan = (SSubLogicPlan*)nodesMakeNode(QUERY_NODE_LOGIC_SUBPLAN);
-  CHECK_ALLOC(pSubplan, pLogicPlan);
-  CHECK_CODE(strictListAppend(pTopSubplans->pNodeList, pSubplan), pLogicPlan);
-  pSubplan->pNode = pLogicNode;
-  CHECK_ALLOC(pSubplan->pNode, pLogicPlan);
+  if (NULL == pLogicPlan->pSubplans) {
+    nodesDestroyNode(pLogicPlan);
+    return NULL;
+  }
   return pLogicPlan;
 }
 
-static int32_t splitLogicPlan(SPhysiPlanContext* pCxt, SLogicNode* pLogicNode, SQueryLogicPlan** pLogicPlan) {
-  SQueryLogicPlan* pPlan = createRawQueryLogicPlan(pCxt, pLogicNode);
-  if (TSDB_CODE_SUCCESS != pCxt->errCode) {
-    nodesDestroyNode((SNode*)pPlan);
-    return pCxt->errCode;
+static int32_t scaleOutLogicPlan(SPhysiPlanContext* pCxt, SSubLogicPlan* pRootSubLogicPlan, SQueryLogicPlan** pLogicPlan) {
+  *pLogicPlan = makeQueryLogicPlan(pCxt);
+  CHECK_ALLOC(*pLogicPlan, TSDB_CODE_OUT_OF_MEMORY);
+  return doScaleOut(pCxt, pRootSubLogicPlan, 0, *pLogicPlan);
+}
+
+typedef struct SBuildPhysiSubplanCxt {
+  int32_t errCode;
+  SQueryPlan* pQueryPlan;
+  SPhysiPlanContext* pPhyCxt;
+} SBuildPhysiSubplanCxt;
+
+static EDealRes doBuildPhysiSubplan(SNode* pNode, void* pContext) {
+  SBuildPhysiSubplanCxt* pCxt = (SBuildPhysiSubplanCxt*)pContext;
+  if (QUERY_NODE_LOGIC_SUBPLAN == nodeType(pNode)) {
+    SSubplan* pSubplan = createPhysiSubplan(pCxt->pPhyCxt, (SSubLogicPlan*)pNode);
+    CHECK_ALLOC(pSubplan, DEAL_RES_ERROR);
+    CHECK_CODE(pushSubplan(pCxt->pPhyCxt, pSubplan, ((SSubLogicPlan*)pNode)->level, pCxt->pQueryPlan->pSubplans), DEAL_RES_ERROR);
+    ++(pCxt->pQueryPlan->numOfSubplans);
+    return DEAL_RES_IGNORE_CHILD;
   }
-  // todo split
-  *pLogicPlan = pPlan;
-  return TSDB_CODE_SUCCESS;
+  return DEAL_RES_CONTINUE;
+}
+
+static SQueryPlan* makeQueryPhysiPlan(SPhysiPlanContext* pCxt) {
+  SQueryPlan* pPlan = nodesMakeNode(QUERY_NODE_PHYSICAL_PLAN);
+  CHECK_ALLOC(pPlan, NULL);
+  pPlan->pSubplans = nodesMakeList();
+  if (NULL == pPlan->pSubplans) {
+    nodesDestroyNode(pPlan);
+    return NULL;
+  }
+  pPlan->queryId = pCxt->pPlanCxt->queryId;
+  return pPlan;
 }
 
 static int32_t buildPhysiPlan(SPhysiPlanContext* pCxt, SQueryLogicPlan* pLogicPlan, SQueryPlan** pPlan) {
-  SQueryPlan* pQueryPlan = (SQueryPlan*)nodesMakeNode(QUERY_NODE_PHYSICAL_PLAN);
-  CHECK_ALLOC(pQueryPlan, TSDB_CODE_OUT_OF_MEMORY);
-  *pPlan = pQueryPlan;
-  pQueryPlan->queryId = pCxt->pPlanCxt->queryId;
-
-  pQueryPlan->pSubplans = nodesMakeList();
-  CHECK_ALLOC(pQueryPlan->pSubplans, TSDB_CODE_OUT_OF_MEMORY);
-  SNode* pNode;
-  FOREACH(pNode, pLogicPlan->pSubplans) {
-    SNodeListNode* pLevelSubplans = (SNodeListNode*)nodesMakeNode(QUERY_NODE_NODE_LIST);
-    CHECK_ALLOC(pLevelSubplans, TSDB_CODE_OUT_OF_MEMORY);
-    CHECK_CODE(strictListAppend(pQueryPlan->pSubplans, pLevelSubplans), TSDB_CODE_OUT_OF_MEMORY);
-    pLevelSubplans->pNodeList = nodesMakeList();
-    CHECK_ALLOC(pLevelSubplans->pNodeList, TSDB_CODE_OUT_OF_MEMORY);
-    SNode* pLogicSubplan;
-    FOREACH(pLogicSubplan, ((SNodeListNode*)pNode)->pNodeList) {
-      CHECK_CODE(strictListAppend(pLevelSubplans->pNodeList,
-          createPhysiSubplan(pCxt, (SSubLogicPlan*)pLogicSubplan)), TSDB_CODE_OUT_OF_MEMORY);
-      ++(pQueryPlan->numOfSubplans);
-    }
+  SBuildPhysiSubplanCxt cxt = { .errCode = TSDB_CODE_SUCCESS, .pQueryPlan = makeQueryPhysiPlan(pCxt), .pPhyCxt = pCxt };
+  CHECK_ALLOC(cxt.pQueryPlan, TSDB_CODE_OUT_OF_MEMORY);
+  nodesWalkList(pLogicPlan->pSubplans, doBuildPhysiSubplan, &cxt);
+  if (TSDB_CODE_SUCCESS != cxt.errCode) {
+    nodesDestroyNode(cxt.pQueryPlan);
+    return cxt.errCode;
   }
+  *pPlan = cxt.pQueryPlan;
   return TSDB_CODE_SUCCESS;
 }
 
-int32_t createPhysiPlan(SPlanContext* pCxt, SLogicNode* pLogicNode, SQueryPlan** pPlan) {
+int32_t createPhysiPlan(SPlanContext* pCxt, SLogicNode* pLogicNode, SQueryPlan** pPlan, SArray* pExecNodeList) {
   SPhysiPlanContext cxt = {
     .pPlanCxt = pCxt,
     .errCode = TSDB_CODE_SUCCESS,
     .nextDataBlockId = 0,
-    .pLocationHelper = taosArrayInit(32, POINTER_BYTES)
+    .pLocationHelper = taosArrayInit(32, POINTER_BYTES),
+    .pExecNodeList = pExecNodeList
   };
   if (NULL == cxt.pLocationHelper) {
     return TSDB_CODE_OUT_OF_MEMORY;
   }
   SQueryLogicPlan* pLogicPlan;
-  int32_t code = splitLogicPlan(&cxt, pLogicNode, &pLogicPlan);
-  // todo scale out
+  SSubLogicPlan* pSubLogicPlan;
+  int32_t code = splitLogicPlan(&cxt, pLogicNode, &pSubLogicPlan);
+  if (TSDB_CODE_SUCCESS == code) {
+    code = scaleOutLogicPlan(&cxt, pSubLogicPlan, &pLogicPlan);
+  }
   // todo maping
   if (TSDB_CODE_SUCCESS == code) {
     code = buildPhysiPlan(&cxt, pLogicPlan, pPlan);

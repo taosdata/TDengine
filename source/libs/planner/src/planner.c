@@ -21,14 +21,14 @@ int32_t optimize(SPlanContext* pCxt, SLogicNode* pLogicNode) {
   return TSDB_CODE_SUCCESS;
 }
 
-int32_t qCreateQueryPlan(SPlanContext* pCxt, SQueryPlan** pPlan) {
+int32_t qCreateQueryPlan(SPlanContext* pCxt, SQueryPlan** pPlan, SArray* pExecNodeList) {
   SLogicNode* pLogicNode = NULL;
   int32_t code = createLogicPlan(pCxt, &pLogicNode);
   if (TSDB_CODE_SUCCESS == code) {
     code = optimize(pCxt, pLogicNode);
   }
   if (TSDB_CODE_SUCCESS == code) {
-    code = createPhysiPlan(pCxt, pLogicNode, pPlan);
+    code = createPhysiPlan(pCxt, pLogicNode, pPlan, pExecNodeList);
   }
   return code;
 }
@@ -38,6 +38,13 @@ void qSetSubplanExecutionNode(SSubplan* subplan, uint64_t templateId, SDownstrea
 }
 
 int32_t qSubPlanToString(const SSubplan* subplan, char** str, int32_t* len) {
+  if (SUBPLAN_TYPE_MODIFY == subplan->subplanType) {
+    SDataInserterNode* insert = (SDataInserterNode*)subplan->pDataSink;
+    *len = insert->size;
+    *str = insert->pData;
+    insert->pData = NULL;
+    return TSDB_CODE_SUCCESS;
+  }
   return nodesNodeToString((const SNode*)subplan, false, str, len);
 }
 

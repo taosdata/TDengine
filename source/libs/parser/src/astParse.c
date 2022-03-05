@@ -26,18 +26,20 @@ extern void NewParse(void*, int, SToken, void*);
 extern void NewParseFree(void*, FFree);
 extern void NewParseTrace(FILE*, char*);
 
-static bool isCmd(const SNode* pRootNode) {
-  if (NULL == pRootNode) {
-    return true;
+static void setQuery(SAstCreateContext* pCxt, SQuery* pQuery) {
+  pQuery->pRoot = pCxt->pRootNode;
+  ENodeType type = nodeType(pCxt->pRootNode);
+  if (QUERY_NODE_SELECT_STMT == type) {
+    pQuery->haveResultSet = true;
+    pQuery->directRpc = false;
+  } else if (QUERY_NODE_CREATE_TABLE_STMT == type) {
+    pQuery->haveResultSet = false;
+    pQuery->directRpc = false;
+  } else {
+    pQuery->haveResultSet = false;
+    pQuery->directRpc = true;
   }
-  switch (nodeType(pRootNode)) {
-    case QUERY_NODE_SELECT_STMT:
-    case QUERY_NODE_CREATE_TABLE_STMT:
-      return false;
-    default:
-      break;
-  }
-  return true;
+  pQuery->msgType = (QUERY_NODE_CREATE_TABLE_STMT == type ? TDMT_VND_CREATE_TABLE : TDMT_VND_QUERY);
 }
 
 int32_t doParse(SParseContext* pParseCxt, SQuery** pQuery) {
@@ -59,6 +61,10 @@ int32_t doParse(SParseContext* pParseCxt, SQuery** pQuery) {
       case TK_SPACE:
       case TK_COMMENT: {
         break;
+      }
+      case TK_SEMI: {
+        NewParse(pParser, 0, t0, &cxt);
+        goto abort_parse;
       }
       case TK_QUESTION:
       case TK_ILLEGAL: {
@@ -89,8 +95,7 @@ abort_parse:
     if (NULL == *pQuery) {
       return TSDB_CODE_OUT_OF_MEMORY;
     }
-    (*pQuery)->isCmd = isCmd(cxt.pRootNode);
-    (*pQuery)->pRoot = cxt.pRootNode;
+    setQuery(&cxt, *pQuery);
   }
   return cxt.valid ? TSDB_CODE_SUCCESS : TSDB_CODE_FAILED;
 }

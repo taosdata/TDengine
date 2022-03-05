@@ -419,7 +419,11 @@ typedef struct {
  * But for data in vnode side, we need all the following information.
  */
 typedef struct {
-  int16_t           colId;
+  union {
+    int16_t colId;
+    int16_t slotId;
+  };
+
   int16_t           type;
   int16_t           bytes;
   SColumnFilterList flist;

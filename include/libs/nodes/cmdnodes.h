@@ -13,8 +13,8 @@
  * along with this program. If not, see <http://www.gnu.org/licenses/>.
  */
 
-#ifndef _TD_PLANN_NODES_H_
-#define _TD_PLANN_NODES_H_
+#ifndef _TD_CMD_NODES_H_
+#define _TD_CMD_NODES_H_
 
 #ifdef __cplusplus
 extern "C" {
@@ -49,6 +49,11 @@ typedef struct SCreateDatabaseStmt {
   SDatabaseOptions options;
 } SCreateDatabaseStmt;
 
+typedef struct SUseDatabaseStmt {
+  ENodeType type;
+  char dbName[TSDB_DB_NAME_LEN];
+} SUseDatabaseStmt;
+
 typedef struct STableOptions {
   int32_t keep;
   int32_t ttl;
@@ -77,4 +82,4 @@ typedef struct SCreateTableStmt {
 }
 #endif
 
-#endif /*_TD_PLANN_NODES_H_*/
+#endif /*_TD_CMD_NODES_H_*/

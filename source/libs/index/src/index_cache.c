@@ -14,6 +14,7 @@
  */
 
 #include "index_cache.h"
+#include "index_comm.h"
 #include "index_util.h"
 #include "tcompare.h"
 #include "tsched.h"
@@ -44,8 +45,9 @@ IndexCache* indexCacheCreate(SIndex* idx, uint64_t suid, const char* colName, in
     indexError("failed to create index cache");
     return NULL;
   };
+
   cache->mem = indexInternalCacheCreate(type);
-  cache->colName = tstrdup(colName);
+  cache->colName = INDEX_TYPE_CONTAIN_EXTERN_TYPE(type, TSDB_DATA_TYPE_JSON) ? tstrdup(JSON_COLUMN) : tstrdup(colName);
   cache->type = type;
   cache->index = idx;
   cache->version = 0;
@@ -207,11 +209,11 @@ static void indexCacheMakeRoomForWrite(IndexCache* cache) {
     }
   }
 }
-
 int indexCachePut(void* cache, SIndexTerm* term, uint64_t uid) {
   if (cache == NULL) {
     return -1;
   }
+  bool hasJson = INDEX_TYPE_CONTAIN_EXTERN_TYPE(term->colType, TSDB_DATA_TYPE_JSON);
 
   IndexCache* pCache = cache;
   indexCacheRef(pCache);
@@ -222,8 +224,12 @@ int indexCachePut(void* cache, SIndexTerm* term, uint64_t uid) {
   }
   // set up key
   ct->colType = term->colType;
-  ct->colVal = (char*)calloc(1, sizeof(char) * (term->nColVal + 1));
-  memcpy(ct->colVal, term->colVal, term->nColVal);
+  if (hasJson) {
+    ct->colVal = indexPackJsonData(term);
+  } else {
+    ct->colVal = (char*)calloc(1, sizeof(char) * (term->nColVal + 1));
+    memcpy(ct->colVal, term->colVal, term->nColVal);
+  }
   ct->version = atomic_add_fetch_32(&pCache->version, 1);
   // set value
   ct->uid = uid;
@@ -294,12 +300,21 @@ int indexCacheSearch(void* cache, SIndexTermQuery* query, SArray* result, STermV
 
   SIndexTerm*     term = query->term;
   EIndexQueryType qtype = query->qType;
-  CacheTerm       ct = {.colVal = term->colVal, .version = atomic_load_32(&pCache->version)};
+
+  bool  hasJson = INDEX_TYPE_CONTAIN_EXTERN_TYPE(term->colType, TSDB_DATA_TYPE_JSON);
+  char* p = term->colVal;
+  if (hasJson) {
+    p = indexPackJsonData(term);
+  }
+  CacheTerm ct = {.colVal = p, .version = atomic_load_32(&pCache->version)};
 
   int ret = indexQueryMem(mem, &ct, qtype, result, s);
   if (ret == 0 && *s != kTypeDeletion) {
     // continue search in imm
     ret = indexQueryMem(imm, &ct, qtype, result, s);
+  }
+  if (hasJson) {
+    tfree(p);
   }
 
   indexMemUnRef(mem);
@@ -367,6 +382,8 @@ static int32_t indexCacheTermCompare(const void* l, const void* r) {
 }
 
 static MemTable* indexInternalCacheCreate(int8_t type) {
+  type = INDEX_TYPE_CONTAIN_EXTERN_TYPE(type, TSDB_DATA_TYPE_JSON) ? TSDB_DATA_TYPE_BINARY : type;
+
   MemTable* tbl = calloc(1, sizeof(MemTable));
   indexMemRef(tbl);
   if (type == TSDB_DATA_TYPE_BINARY || type == TSDB_DATA_TYPE_NCHAR) {
@@ -389,9 +406,6 @@ static bool indexCacheIteratorNext(Iterate* itera) {
   IterateValue* iv = &itera->val;
   iterateValueDestroy(iv, false);
 
-  // IterateValue* iv = &itera->val;
-  // IterateValue tIterVal = {.colVal = NULL, .val = taosArrayInit(1, sizeof(uint64_t))};
-
   bool next = tSkipListIterNext(iter);
   if (next) {
     SSkipListNode* node = tSkipListIterGet(iter);
@@ -411,10 +425,6 @@ static bool indexCacheIteratorNext(Iterate* itera) {
 
     taosArrayPush(iv->val, &ct->uid);
   }
-  // IterateValue* iv = &itera->val;
-  // iterateValueDestroy(iv, true);
-  //*iv = tIterVal;
-
   return next;
 }
 

@@ -1,9 +1,9 @@
-#include "os.h"
 #include <gtest/gtest.h>
 #include <limits.h>
-#include <taosdef.h>
 #include <iostream>
 
+#include "os.h"
+#include "taosdef.h"
 #include "thash.h"
 #include "taos.h"
 

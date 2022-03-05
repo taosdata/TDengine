@@ -314,7 +314,7 @@ int tsdbOpenFS(STsdb *pRepo) {
   tsdbGetTxnFname(pRepo, TSDB_TXN_CURR_FILE, current);
 
   tsdbGetRtnSnap(pRepo, &pRepo->rtn);
-  if (access(current, F_OK) == 0) {
+  if (taosCheckExistFile(current)) {
     if (tsdbOpenFSFromCurrent(pRepo) < 0) {
       tsdbError("vgId:%d failed to open FS since %s", REPO_ID(pRepo), tstrerror(terrno));
       return -1;

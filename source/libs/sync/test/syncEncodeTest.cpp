@@ -3,6 +3,7 @@
 #include "syncIO.h"
 #include "syncInt.h"
 #include "syncMessage.h"
+#include "syncUtil.h"
 
 void logTest() {
   sTrace("--- sync log test: trace");
@@ -14,6 +15,7 @@ void logTest() {
 }
 
 #define PING_MSG_LEN 20
+#define APPEND_ENTRIES_VALUE_LEN 32
 
 void test1() {
   sTrace("test1: ---- syncPingSerialize, syncPingDeserialize");
@@ -21,16 +23,16 @@ void test1() {
   char msg[PING_MSG_LEN];
   snprintf(msg, sizeof(msg), "%s", "test ping");
   SyncPing* pMsg = syncPingBuild(PING_MSG_LEN);
-  pMsg->srcId.addr = 1;
-  pMsg->srcId.vgId = 2;
-  pMsg->destId.addr = 3;
-  pMsg->destId.vgId = 4;
+  pMsg->srcId.addr = syncUtilAddr2U64("127.0.0.1", 1111);
+  pMsg->srcId.vgId = 100;
+  pMsg->destId.addr = syncUtilAddr2U64("127.0.0.1", 2222);
+  pMsg->destId.vgId = 100;
   memcpy(pMsg->data, msg, PING_MSG_LEN);
 
   {
     cJSON* pJson = syncPing2Json(pMsg);
     char*  serialized = cJSON_Print(pJson);
-    printf("SyncPing: \n%s\n\n", serialized);
+    printf("\n%s\n\n", serialized);
     free(serialized);
     cJSON_Delete(pJson);
   }
@@ -45,7 +47,7 @@ void test1() {
   {
     cJSON* pJson = syncPing2Json(pMsg2);
     char*  serialized = cJSON_Print(pJson);
-    printf("SyncPing2: \n%s\n\n", serialized);
+    printf("\n%s\n\n", serialized);
     free(serialized);
     cJSON_Delete(pJson);
   }
@@ -61,16 +63,16 @@ void test2() {
   char msg[PING_MSG_LEN];
   snprintf(msg, sizeof(msg), "%s", "hello raft");
   SyncPing* pMsg = syncPingBuild(PING_MSG_LEN);
-  pMsg->srcId.addr = 100;
+  pMsg->srcId.addr = syncUtilAddr2U64("127.0.0.1", 3333);
   pMsg->srcId.vgId = 200;
-  pMsg->destId.addr = 300;
-  pMsg->destId.vgId = 400;
+  pMsg->destId.addr = syncUtilAddr2U64("127.0.0.1", 4444);
+  pMsg->destId.vgId = 200;
   memcpy(pMsg->data, msg, PING_MSG_LEN);
 
   {
     cJSON* pJson = syncPing2Json(pMsg);
     char*  serialized = cJSON_Print(pJson);
-    printf("SyncPing: \n%s\n\n", serialized);
+    printf("\n%s\n\n", serialized);
     free(serialized);
     cJSON_Delete(pJson);
   }
@@ -84,7 +86,7 @@ void test2() {
   {
     cJSON* pJson = syncPing2Json(pMsg2);
     char*  serialized = cJSON_Print(pJson);
-    printf("SyncPing2: \n%s\n\n", serialized);
+    printf("\n%s\n\n", serialized);
     free(serialized);
     cJSON_Delete(pJson);
   }
@@ -99,16 +101,16 @@ void test3() {
   char msg[PING_MSG_LEN];
   snprintf(msg, sizeof(msg), "%s", "test ping");
   SyncPingReply* pMsg = syncPingReplyBuild(PING_MSG_LEN);
-  pMsg->srcId.addr = 19;
-  pMsg->srcId.vgId = 29;
-  pMsg->destId.addr = 39;
-  pMsg->destId.vgId = 49;
+  pMsg->srcId.addr = syncUtilAddr2U64("127.0.0.1", 5555);
+  pMsg->srcId.vgId = 100;
+  pMsg->destId.addr = syncUtilAddr2U64("127.0.0.1", 6666);
+  pMsg->destId.vgId = 100;
   memcpy(pMsg->data, msg, PING_MSG_LEN);
 
   {
     cJSON* pJson = syncPingReply2Json(pMsg);
     char*  serialized = cJSON_Print(pJson);
-    printf("SyncPingReply: \n%s\n\n", serialized);
+    printf("\n%s\n\n", serialized);
     free(serialized);
     cJSON_Delete(pJson);
   }
@@ -123,7 +125,7 @@ void test3() {
   {
     cJSON* pJson = syncPingReply2Json(pMsg2);
     char*  serialized = cJSON_Print(pJson);
-    printf("SyncPingReply2: \n%s\n\n", serialized);
+    printf("\n%s\n\n", serialized);
     free(serialized);
     cJSON_Delete(pJson);
   }
@@ -139,16 +141,16 @@ void test4() {
   char msg[PING_MSG_LEN];
   snprintf(msg, sizeof(msg), "%s", "hello raft");
   SyncPingReply* pMsg = syncPingReplyBuild(PING_MSG_LEN);
-  pMsg->srcId.addr = 66;
-  pMsg->srcId.vgId = 77;
-  pMsg->destId.addr = 88;
-  pMsg->destId.vgId = 99;
+  pMsg->srcId.addr = syncUtilAddr2U64("127.0.0.1", 7777);
+  pMsg->srcId.vgId = 100;
+  pMsg->destId.addr = syncUtilAddr2U64("127.0.0.1", 8888);
+  pMsg->destId.vgId = 100;
   memcpy(pMsg->data, msg, PING_MSG_LEN);
 
   {
     cJSON* pJson = syncPingReply2Json(pMsg);
     char*  serialized = cJSON_Print(pJson);
-    printf("SyncPingReply: \n%s\n\n", serialized);
+    printf("\n%s\n\n", serialized);
     free(serialized);
     cJSON_Delete(pJson);
   }
@@ -162,7 +164,7 @@ void test4() {
   {
     cJSON* pJson = syncPingReply2Json(pMsg2);
     char*  serialized = cJSON_Print(pJson);
-    printf("SyncPingReply2: \n%s\n\n", serialized);
+    printf("\n%s\n\n", serialized);
     free(serialized);
     cJSON_Delete(pJson);
   }
@@ -170,6 +172,321 @@ void test4() {
   syncPingReplyDestroy(pMsg);
   syncPingReplyDestroy(pMsg2);
 }
+
+void test5() {
+  sTrace("test5: ---- syncRequestVoteSerialize, syncRequestVoteDeserialize");
+
+  SyncRequestVote* pMsg = syncRequestVoteBuild();
+  pMsg->srcId.addr = syncUtilAddr2U64("127.0.0.1", 1234);
+  pMsg->srcId.vgId = 100;
+  pMsg->destId.addr = syncUtilAddr2U64("8.8.8.8", 5678);
+  pMsg->destId.vgId = 100;
+  pMsg->currentTerm = 20;
+  pMsg->lastLogIndex = 21;
+  pMsg->lastLogTerm = 22;
+
+  {
+    cJSON* pJson = syncRequestVote2Json(pMsg);
+    char*  serialized = cJSON_Print(pJson);
+    printf("\n%s\n\n", serialized);
+    free(serialized);
+    cJSON_Delete(pJson);
+  }
+
+  uint32_t bufLen = pMsg->bytes;
+  char*    buf = (char*)malloc(bufLen);
+  syncRequestVoteSerialize(pMsg, buf, bufLen);
+
+  SyncRequestVote* pMsg2 = (SyncRequestVote*)malloc(pMsg->bytes);
+  syncRequestVoteDeserialize(buf, bufLen, pMsg2);
+
+  {
+    cJSON* pJson = syncRequestVote2Json(pMsg2);
+    char*  serialized = cJSON_Print(pJson);
+    printf("\n%s\n\n", serialized);
+    free(serialized);
+    cJSON_Delete(pJson);
+  }
+
+  syncRequestVoteDestroy(pMsg);
+  syncRequestVoteDestroy(pMsg2);
+  free(buf);
+}
+
+void test6() {
+  sTrace("test6: ---- syncRequestVote2RpcMsg, syncRequestVoteFromRpcMsg");
+
+  SyncRequestVote* pMsg = syncRequestVoteBuild();
+  pMsg->srcId.addr = syncUtilAddr2U64("127.0.0.1", 1234);
+  pMsg->srcId.vgId = 100;
+  pMsg->destId.addr = syncUtilAddr2U64("8.8.8.8", 5678);
+  pMsg->destId.vgId = 100;
+  pMsg->currentTerm = 20;
+  pMsg->lastLogIndex = 21;
+  pMsg->lastLogTerm = 22;
+
+  {
+    cJSON* pJson = syncRequestVote2Json(pMsg);
+    char*  serialized = cJSON_Print(pJson);
+    printf("\n%s\n\n", serialized);
+    free(serialized);
+    cJSON_Delete(pJson);
+  }
+
+  SRpcMsg rpcMsg;
+  syncRequestVote2RpcMsg(pMsg, &rpcMsg);
+  SyncRequestVote* pMsg2 = (SyncRequestVote*)malloc(pMsg->bytes);
+  syncRequestVoteFromRpcMsg(&rpcMsg, pMsg2);
+  rpcFreeCont(rpcMsg.pCont);
+
+  {
+    cJSON* pJson = syncRequestVote2Json(pMsg2);
+    char*  serialized = cJSON_Print(pJson);
+    printf("\n%s\n\n", serialized);
+    free(serialized);
+    cJSON_Delete(pJson);
+  }
+
+  syncRequestVoteDestroy(pMsg);
+  syncRequestVoteDestroy(pMsg2);
+}
+
+void test7() {
+  sTrace("test7: ---- syncRequestVoteReplySerialize, syncRequestVoteReplyDeserialize");
+
+  SyncRequestVoteReply* pMsg = SyncRequestVoteReplyBuild();
+  pMsg->srcId.addr = syncUtilAddr2U64("127.0.0.1", 1234);
+  pMsg->srcId.vgId = 100;
+  pMsg->destId.addr = syncUtilAddr2U64("8.8.8.8", 5678);
+  pMsg->destId.vgId = 100;
+  pMsg->term = 20;
+  pMsg->voteGranted = 1;
+
+  {
+    cJSON* pJson = syncRequestVoteReply2Json(pMsg);
+    char*  serialized = cJSON_Print(pJson);
+    printf("\n%s\n\n", serialized);
+    free(serialized);
+    cJSON_Delete(pJson);
+  }
+
+  uint32_t bufLen = pMsg->bytes;
+  char*    buf = (char*)malloc(bufLen);
+  syncRequestVoteReplySerialize(pMsg, buf, bufLen);
+
+  SyncRequestVoteReply* pMsg2 = (SyncRequestVoteReply*)malloc(pMsg->bytes);
+  syncRequestVoteReplyDeserialize(buf, bufLen, pMsg2);
+
+  {
+    cJSON* pJson = syncRequestVoteReply2Json(pMsg2);
+    char*  serialized = cJSON_Print(pJson);
+    printf("\n%s\n\n", serialized);
+    free(serialized);
+    cJSON_Delete(pJson);
+  }
+
+  syncRequestVoteReplyDestroy(pMsg);
+  syncRequestVoteReplyDestroy(pMsg2);
+  free(buf);
+}
+
+void test8() {
+  sTrace("test8: ---- syncRequestVoteReply2RpcMsg, syncRequestVoteReplyFromRpcMsg");
+
+  SyncRequestVoteReply* pMsg = SyncRequestVoteReplyBuild();
+  pMsg->srcId.addr = syncUtilAddr2U64("127.0.0.1", 1234);
+  pMsg->srcId.vgId = 100;
+  pMsg->destId.addr = syncUtilAddr2U64("8.8.8.8", 5678);
+  pMsg->destId.vgId = 100;
+  pMsg->term = 20;
+  pMsg->voteGranted = 1;
+
+  {
+    cJSON* pJson = syncRequestVoteReply2Json(pMsg);
+    char*  serialized = cJSON_Print(pJson);
+    printf("\n%s\n\n", serialized);
+    free(serialized);
+    cJSON_Delete(pJson);
+  }
+
+  SRpcMsg rpcMsg;
+  syncRequestVoteReply2RpcMsg(pMsg, &rpcMsg);
+  SyncRequestVoteReply* pMsg2 = (SyncRequestVoteReply*)malloc(pMsg->bytes);
+  syncRequestVoteReplyFromRpcMsg(&rpcMsg, pMsg2);
+  rpcFreeCont(rpcMsg.pCont);
+
+  {
+    cJSON* pJson = syncRequestVoteReply2Json(pMsg2);
+    char*  serialized = cJSON_Print(pJson);
+    printf("\n%s\n\n", serialized);
+    free(serialized);
+    cJSON_Delete(pJson);
+  }
+
+  syncRequestVoteReplyDestroy(pMsg);
+  syncRequestVoteReplyDestroy(pMsg2);
+}
+
+void test9() {
+  sTrace("test9: ---- syncAppendEntriesSerialize, syncAppendEntriesDeserialize");
+
+  char msg[APPEND_ENTRIES_VALUE_LEN];
+  snprintf(msg, sizeof(msg), "%s", "test value");
+  SyncAppendEntries* pMsg = syncAppendEntriesBuild(APPEND_ENTRIES_VALUE_LEN);
+  pMsg->srcId.addr = syncUtilAddr2U64("127.0.0.1", 1111);
+  pMsg->srcId.vgId = 100;
+  pMsg->destId.addr = syncUtilAddr2U64("127.0.0.1", 2222);
+  pMsg->destId.vgId = 100;
+  pMsg->prevLogIndex = 55;
+  pMsg->prevLogTerm = 66;
+  pMsg->commitIndex = 77;
+  memcpy(pMsg->data, msg, APPEND_ENTRIES_VALUE_LEN);
+
+  {
+    cJSON* pJson = syncAppendEntries2Json(pMsg);
+    char*  serialized = cJSON_Print(pJson);
+    printf("\n%s\n\n", serialized);
+    free(serialized);
+    cJSON_Delete(pJson);
+  }
+
+  uint32_t bufLen = pMsg->bytes;
+  char*    buf = (char*)malloc(bufLen);
+  syncAppendEntriesSerialize(pMsg, buf, bufLen);
+
+  SyncAppendEntries* pMsg2 = (SyncAppendEntries*)malloc(pMsg->bytes);
+  syncAppendEntriesDeserialize(buf, bufLen, pMsg2);
+
+  {
+    cJSON* pJson = syncAppendEntries2Json(pMsg2);
+    char*  serialized = cJSON_Print(pJson);
+    printf("\n%s\n\n", serialized);
+    free(serialized);
+    cJSON_Delete(pJson);
+  }
+
+  syncAppendEntriesDestroy(pMsg);
+  syncAppendEntriesDestroy(pMsg2);
+  free(buf);
+}
+
+void test10() {
+  sTrace("test10: ---- syncAppendEntries2RpcMsg, syncAppendEntriesFromRpcMsg");
+
+  char msg[APPEND_ENTRIES_VALUE_LEN];
+  snprintf(msg, sizeof(msg), "%s", "test value");
+  SyncAppendEntries* pMsg = syncAppendEntriesBuild(APPEND_ENTRIES_VALUE_LEN);
+  pMsg->srcId.addr = syncUtilAddr2U64("127.0.0.1", 1111);
+  pMsg->srcId.vgId = 100;
+  pMsg->destId.addr = syncUtilAddr2U64("127.0.0.1", 2222);
+  pMsg->destId.vgId = 100;
+  pMsg->prevLogIndex = 55;
+  pMsg->prevLogTerm = 66;
+  pMsg->commitIndex = 77;
+  memcpy(pMsg->data, msg, APPEND_ENTRIES_VALUE_LEN);
+
+  {
+    cJSON* pJson = syncAppendEntries2Json(pMsg);
+    char*  serialized = cJSON_Print(pJson);
+    printf("\n%s\n\n", serialized);
+    free(serialized);
+    cJSON_Delete(pJson);
+  }
+
+  SRpcMsg rpcMsg;
+  syncAppendEntries2RpcMsg(pMsg, &rpcMsg);
+  SyncAppendEntries* pMsg2 = (SyncAppendEntries*)malloc(pMsg->bytes);
+  syncAppendEntriesFromRpcMsg(&rpcMsg, pMsg2);
+  rpcFreeCont(rpcMsg.pCont);
+
+  {
+    cJSON* pJson = syncAppendEntries2Json(pMsg2);
+    char*  serialized = cJSON_Print(pJson);
+    printf("\n%s\n\n", serialized);
+    free(serialized);
+    cJSON_Delete(pJson);
+  }
+
+  syncAppendEntriesDestroy(pMsg);
+  syncAppendEntriesDestroy(pMsg2);
+}
+
+void test11() {
+  sTrace("test11: ---- syncAppendEntriesReplySerialize, syncAppendEntriesReplyDeserialize");
+
+  SyncAppendEntriesReply* pMsg = syncAppendEntriesReplyBuild();
+  pMsg->srcId.addr = syncUtilAddr2U64("127.0.0.1", 1111);
+  pMsg->srcId.vgId = 100;
+  pMsg->destId.addr = syncUtilAddr2U64("127.0.0.1", 2222);
+  pMsg->destId.vgId = 100;
+  pMsg->success = 1;
+  pMsg->matchIndex = 23;
+
+  {
+    cJSON* pJson = syncAppendEntriesReply2Json(pMsg);
+    char*  serialized = cJSON_Print(pJson);
+    printf("\n%s\n\n", serialized);
+    free(serialized);
+    cJSON_Delete(pJson);
+  }
+
+  uint32_t bufLen = pMsg->bytes;
+  char*    buf = (char*)malloc(bufLen);
+  syncAppendEntriesReplySerialize(pMsg, buf, bufLen);
+
+  SyncAppendEntriesReply* pMsg2 = (SyncAppendEntriesReply*)malloc(pMsg->bytes);
+  syncAppendEntriesReplyDeserialize(buf, bufLen, pMsg2);
+
+  {
+    cJSON* pJson = syncAppendEntriesReply2Json(pMsg2);
+    char*  serialized = cJSON_Print(pJson);
+    printf("\n%s\n\n", serialized);
+    free(serialized);
+    cJSON_Delete(pJson);
+  }
+
+  syncAppendEntriesReplyDestroy(pMsg);
+  syncAppendEntriesReplyDestroy(pMsg2);
+  free(buf);
+}
+
+void test12() {
+  sTrace("test12: ---- syncAppendEntriesReply2RpcMsg, syncAppendEntriesReplyFromRpcMsg");
+
+  SyncAppendEntriesReply* pMsg = syncAppendEntriesReplyBuild();
+  pMsg->srcId.addr = syncUtilAddr2U64("127.0.0.1", 1111);
+  pMsg->srcId.vgId = 100;
+  pMsg->destId.addr = syncUtilAddr2U64("127.0.0.1", 2222);
+  pMsg->destId.vgId = 100;
+  pMsg->success = 1;
+  pMsg->matchIndex = 23;
+
+  {
+    cJSON* pJson = syncAppendEntriesReply2Json(pMsg);
+    char*  serialized = cJSON_Print(pJson);
+    printf("\n%s\n\n", serialized);
+    free(serialized);
+    cJSON_Delete(pJson);
+  }
+
+  SRpcMsg rpcMsg;
+  syncAppendEntriesReply2RpcMsg(pMsg, &rpcMsg);
+  SyncAppendEntriesReply* pMsg2 = (SyncAppendEntriesReply*)malloc(pMsg->bytes);
+  syncAppendEntriesReplyFromRpcMsg(&rpcMsg, pMsg2);
+  rpcFreeCont(rpcMsg.pCont);
+
+  {
+    cJSON* pJson = syncAppendEntriesReply2Json(pMsg2);
+    char*  serialized = cJSON_Print(pJson);
+    printf("\n%s\n\n", serialized);
+    free(serialized);
+    cJSON_Delete(pJson);
+  }
+
+  syncAppendEntriesReplyDestroy(pMsg);
+  syncAppendEntriesReplyDestroy(pMsg2);
+}
+
 int main() {
   // taosInitLog((char*)"syncPingTest.log", 100000, 10);
   tsAsyncLog = 0;
@@ -179,6 +496,14 @@ int main() {
   test2();
   test3();
   test4();
+  test5();
+  test6();
+  test7();
+  test8();
+  test9();
+  test10();
+  test11();
+  test12();
 
   return 0;
 }

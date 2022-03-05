@@ -24,7 +24,7 @@ static int32_t jsonToNode(const SJson* pJson, void* pObj);
 static int32_t jsonToNodeObject(const SJson* pJson, const char* pName, SNode** pNode);
 static int32_t makeNodeByJson(const SJson* pJson, SNode** pNode);
 
-static char* nodeName(ENodeType type) {
+const char* nodesNodeName(ENodeType type) {
   switch (type) {
     case QUERY_NODE_COLUMN:
       return "Column";    
@@ -58,20 +58,32 @@ static char* nodeName(ENodeType type) {
       return "NodeList";
     case QUERY_NODE_FILL:
       return "Fill";
-    case QUERY_NODE_TARGET:
-      return "Target";
     case QUERY_NODE_RAW_EXPR:
       return "RawExpr";
+    case QUERY_NODE_TARGET:
+      return "Target";
     case QUERY_NODE_DATABLOCK_DESC:
       return "TupleDesc";
     case QUERY_NODE_SLOT_DESC:
       return "SlotDesc";
+    case QUERY_NODE_COLUMN_DEF:
+      return "ColumnDef";
     case QUERY_NODE_SET_OPERATOR:
       return "SetOperator";
     case QUERY_NODE_SELECT_STMT:
       return "SelectStmt";
-    case QUERY_NODE_SHOW_STMT:
-      return "ShowStmt";
+    case QUERY_NODE_VNODE_MODIF_STMT:
+      return "VnodeModifStmt";
+    case QUERY_NODE_CREATE_DATABASE_STMT:
+      return "CreateDatabaseStmt";
+    case QUERY_NODE_CREATE_TABLE_STMT:
+      return "CreateTableStmt";
+    case QUERY_NODE_USE_DATABASE_STMT:
+      return "UseDatabaseStmt";
+    case QUERY_NODE_SHOW_DATABASES_STMT:
+      return "ShowDatabaseStmt";
+    case QUERY_NODE_SHOW_TABLES_STMT:
+      return "ShowTablesStmt";
     case QUERY_NODE_LOGIC_PLAN_SCAN:
       return "LogicScan";
     case QUERY_NODE_LOGIC_PLAN_JOIN:
@@ -80,16 +92,34 @@ static char* nodeName(ENodeType type) {
       return "LogicAgg";
     case QUERY_NODE_LOGIC_PLAN_PROJECT:
       return "LogicProject";
+    case QUERY_NODE_LOGIC_PLAN_VNODE_MODIF:
+      return "LogicVnodeModif";
+    case QUERY_NODE_LOGIC_SUBPLAN:
+      return "LogicSubplan";
+    case QUERY_NODE_LOGIC_PLAN:
+      return "LogicPlan";
     case QUERY_NODE_PHYSICAL_PLAN_TAG_SCAN:
       return "PhysiTagScan";
     case QUERY_NODE_PHYSICAL_PLAN_TABLE_SCAN:
       return "PhysiTableScan";
+    case QUERY_NODE_PHYSICAL_PLAN_TABLE_SEQ_SCAN:
+      return "PhysiTableSeqScan";
+    case QUERY_NODE_PHYSICAL_PLAN_STREAM_SCAN:
+      return "PhysiSreamScan";
     case QUERY_NODE_PHYSICAL_PLAN_PROJECT:
       return "PhysiProject";
     case QUERY_NODE_PHYSICAL_PLAN_JOIN:
       return "PhysiJoin";
     case QUERY_NODE_PHYSICAL_PLAN_AGG:
       return "PhysiAgg";
+    case QUERY_NODE_PHYSICAL_PLAN_EXCHANGE:
+      return "PhysiExchange";
+    case QUERY_NODE_PHYSICAL_PLAN_SORT:
+      return "PhysiSort";
+    case QUERY_NODE_PHYSICAL_PLAN_DISPATCH:
+      return "PhysiDispatch";
+    case QUERY_NODE_PHYSICAL_PLAN_INSERT:
+      return "PhysiInsert";
     case QUERY_NODE_PHYSICAL_SUBPLAN:
       return "PhysiSubplan";
     case QUERY_NODE_PHYSICAL_PLAN:
@@ -234,7 +264,7 @@ static const char* jkPhysiPlanChildren = "Children";
 static int32_t physicPlanNodeToJson(const void* pObj, SJson* pJson) {
   const SPhysiNode* pNode = (const SPhysiNode*)pObj;
 
-  int32_t code = tjsonAddObject(pJson, jkPhysiPlanOutputDataBlockDesc, nodeToJson, &pNode->outputDataBlockDesc);
+  int32_t code = tjsonAddObject(pJson, jkPhysiPlanOutputDataBlockDesc, nodeToJson, pNode->pOutputDataBlockDesc);
   if (TSDB_CODE_SUCCESS == code) {
     code = tjsonAddObject(pJson, jkPhysiPlanConditions, nodeToJson, pNode->pConditions);
   }
@@ -248,7 +278,7 @@ static int32_t physicPlanNodeToJson(const void* pObj, SJson* pJson) {
 static int32_t jsonToPhysicPlanNode(const SJson* pJson, void* pObj) {
   SPhysiNode* pNode = (SPhysiNode*)pObj;
 
-  int32_t code = tjsonToObject(pJson, jkPhysiPlanOutputDataBlockDesc, jsonToNode, &pNode->outputDataBlockDesc);
+  int32_t code = jsonToNodeObject(pJson, jkPhysiPlanOutputDataBlockDesc, (SNode**)&pNode->pOutputDataBlockDesc);
   if (TSDB_CODE_SUCCESS == code) {
     code = jsonToNodeObject(pJson, jkPhysiPlanConditions, &pNode->pConditions);
   }
@@ -464,6 +494,26 @@ static int32_t jsonToPhysiAggNode(const SJson* pJson, void* pObj) {
   }
 
   return code;
+}
+
+static const char* jkDataSinkInputDataBlockDesc = "InputDataBlockDesc";
+
+static int32_t physicDataSinkNodeToJson(const void* pObj, SJson* pJson) {
+  const SDataSinkNode* pNode = (const SDataSinkNode*)pObj;
+  return tjsonAddObject(pJson, jkDataSinkInputDataBlockDesc, nodeToJson, pNode->pInputDataBlockDesc);
+}
+
+static int32_t jsonToPhysicDataSinkNode(const SJson* pJson, void* pObj) {
+  SDataSinkNode* pNode = (SDataSinkNode*)pObj;
+  return jsonToNodeObject(pJson, jkDataSinkInputDataBlockDesc, (SNode**)&pNode->pInputDataBlockDesc);
+}
+
+static int32_t physiDispatchNodeToJson(const void* pObj, SJson* pJson) {
+  return physicDataSinkNodeToJson(pObj, pJson);
+}
+
+static int32_t jsonToPhysiDispatchNode(const SJson* pJson, void* pObj) {
+  return jsonToPhysicDataSinkNode(pJson, pObj);
 }
 
 static const char* jkSubplanIdQueryId = "QueryId";
@@ -833,41 +883,43 @@ static int32_t valueNodeToJson(const void* pObj, SJson* pJson) {
   if (TSDB_CODE_SUCCESS == code) {
     code = tjsonAddBoolToObject(pJson, jkValueDuration, pNode->isDuration);
   }
-  switch (pNode->node.resType.type) {
-    case TSDB_DATA_TYPE_NULL:
-      break;
-    case TSDB_DATA_TYPE_BOOL:
-      code = tjsonAddIntegerToObject(pJson, jkValueDuration, pNode->datum.b);
-      break;
-    case TSDB_DATA_TYPE_TINYINT:
-    case TSDB_DATA_TYPE_SMALLINT:
-    case TSDB_DATA_TYPE_INT:
-    case TSDB_DATA_TYPE_BIGINT:
-    case TSDB_DATA_TYPE_TIMESTAMP:
-      code = tjsonAddIntegerToObject(pJson, jkValueDuration, pNode->datum.i);
-      break;
-    case TSDB_DATA_TYPE_UTINYINT:
-    case TSDB_DATA_TYPE_USMALLINT:
-    case TSDB_DATA_TYPE_UINT:
-    case TSDB_DATA_TYPE_UBIGINT:
-      code = tjsonAddIntegerToObject(pJson, jkValueDuration, pNode->datum.u);
-      break;
-    case TSDB_DATA_TYPE_FLOAT:
-    case TSDB_DATA_TYPE_DOUBLE:
-      code = tjsonAddDoubleToObject(pJson, jkValueDuration, pNode->datum.d);
-      break;
-    case TSDB_DATA_TYPE_BINARY:
-    case TSDB_DATA_TYPE_NCHAR:
-    case TSDB_DATA_TYPE_VARCHAR:
-    case TSDB_DATA_TYPE_VARBINARY:
-      code = tjsonAddStringToObject(pJson, jkValueLiteral, pNode->datum.p);
-      break;
-    case TSDB_DATA_TYPE_JSON:
-    case TSDB_DATA_TYPE_DECIMAL:
-    case TSDB_DATA_TYPE_BLOB:
-      // todo
-    default:
-      break;
+  if (TSDB_CODE_SUCCESS == code) {
+    switch (pNode->node.resType.type) {
+      case TSDB_DATA_TYPE_NULL:
+        break;
+      case TSDB_DATA_TYPE_BOOL:
+        code = tjsonAddIntegerToObject(pJson, jkValueDatum, pNode->datum.b);
+        break;
+      case TSDB_DATA_TYPE_TINYINT:
+      case TSDB_DATA_TYPE_SMALLINT:
+      case TSDB_DATA_TYPE_INT:
+      case TSDB_DATA_TYPE_BIGINT:
+      case TSDB_DATA_TYPE_TIMESTAMP:
+        code = tjsonAddIntegerToObject(pJson, jkValueDatum, pNode->datum.i);
+        break;
+      case TSDB_DATA_TYPE_UTINYINT:
+      case TSDB_DATA_TYPE_USMALLINT:
+      case TSDB_DATA_TYPE_UINT:
+      case TSDB_DATA_TYPE_UBIGINT:
+        code = tjsonAddIntegerToObject(pJson, jkValueDatum, pNode->datum.u);
+        break;
+      case TSDB_DATA_TYPE_FLOAT:
+      case TSDB_DATA_TYPE_DOUBLE:
+        code = tjsonAddDoubleToObject(pJson, jkValueDatum, pNode->datum.d);
+        break;
+      case TSDB_DATA_TYPE_BINARY:
+      case TSDB_DATA_TYPE_NCHAR:
+      case TSDB_DATA_TYPE_VARCHAR:
+      case TSDB_DATA_TYPE_VARBINARY:
+        code = tjsonAddStringToObject(pJson, jkValueDatum, pNode->datum.p);
+        break;
+      case TSDB_DATA_TYPE_JSON:
+      case TSDB_DATA_TYPE_DECIMAL:
+      case TSDB_DATA_TYPE_BLOB:
+        // todo
+      default:
+        break;
+    }
   }
 
   return code;
@@ -883,41 +935,43 @@ static int32_t jsonToValueNode(const SJson* pJson, void* pObj) {
   if (TSDB_CODE_SUCCESS == code) {
     code = tjsonGetBoolValue(pJson, jkValueDuration, &pNode->isDuration);
   }
-  switch (pNode->node.resType.type) {
-    case TSDB_DATA_TYPE_NULL:
-      break;
-    case TSDB_DATA_TYPE_BOOL:
-      code = tjsonGetBoolValue(pJson, jkValueDuration, &pNode->datum.b);
-      break;
-    case TSDB_DATA_TYPE_TINYINT:
-    case TSDB_DATA_TYPE_SMALLINT:
-    case TSDB_DATA_TYPE_INT:
-    case TSDB_DATA_TYPE_BIGINT:
-    case TSDB_DATA_TYPE_TIMESTAMP:
-      code = tjsonGetBigIntValue(pJson, jkValueDuration, &pNode->datum.i);
-      break;
-    case TSDB_DATA_TYPE_UTINYINT:
-    case TSDB_DATA_TYPE_USMALLINT:
-    case TSDB_DATA_TYPE_UINT:
-    case TSDB_DATA_TYPE_UBIGINT:
-      code = tjsonGetUBigIntValue(pJson, jkValueDuration, &pNode->datum.u);
-      break;
-    case TSDB_DATA_TYPE_FLOAT:
-    case TSDB_DATA_TYPE_DOUBLE:
-      code = tjsonGetDoubleValue(pJson, jkValueDuration, &pNode->datum.d);
-      break;
-    case TSDB_DATA_TYPE_BINARY:
-    case TSDB_DATA_TYPE_NCHAR:
-    case TSDB_DATA_TYPE_VARCHAR:
-    case TSDB_DATA_TYPE_VARBINARY:
-      code = tjsonDupStringValue(pJson, jkValueLiteral, &pNode->datum.p);
-      break;
-    case TSDB_DATA_TYPE_JSON:
-    case TSDB_DATA_TYPE_DECIMAL:
-    case TSDB_DATA_TYPE_BLOB:
-      // todo
-    default:
-      break;
+  if (TSDB_CODE_SUCCESS == code) {
+    switch (pNode->node.resType.type) {
+      case TSDB_DATA_TYPE_NULL:
+        break;
+      case TSDB_DATA_TYPE_BOOL:
+        code = tjsonGetBoolValue(pJson, jkValueDatum, &pNode->datum.b);
+        break;
+      case TSDB_DATA_TYPE_TINYINT:
+      case TSDB_DATA_TYPE_SMALLINT:
+      case TSDB_DATA_TYPE_INT:
+      case TSDB_DATA_TYPE_BIGINT:
+      case TSDB_DATA_TYPE_TIMESTAMP:
+        code = tjsonGetBigIntValue(pJson, jkValueDatum, &pNode->datum.i);
+        break;
+      case TSDB_DATA_TYPE_UTINYINT:
+      case TSDB_DATA_TYPE_USMALLINT:
+      case TSDB_DATA_TYPE_UINT:
+      case TSDB_DATA_TYPE_UBIGINT:
+        code = tjsonGetUBigIntValue(pJson, jkValueDatum, &pNode->datum.u);
+        break;
+      case TSDB_DATA_TYPE_FLOAT:
+      case TSDB_DATA_TYPE_DOUBLE:
+        code = tjsonGetDoubleValue(pJson, jkValueDatum, &pNode->datum.d);
+        break;
+      case TSDB_DATA_TYPE_BINARY:
+      case TSDB_DATA_TYPE_NCHAR:
+      case TSDB_DATA_TYPE_VARCHAR:
+      case TSDB_DATA_TYPE_VARBINARY:
+        code = tjsonDupStringValue(pJson, jkValueDatum, &pNode->datum.p);
+        break;
+      case TSDB_DATA_TYPE_JSON:
+      case TSDB_DATA_TYPE_DECIMAL:
+      case TSDB_DATA_TYPE_BLOB:
+        // todo
+      default:
+        break;
+    }
   }
 
   return code;
@@ -1249,23 +1303,29 @@ static int32_t specificNodeToJson(const void* pObj, SJson* pJson) {
     case QUERY_NODE_STATE_WINDOW:
     case QUERY_NODE_SESSION_WINDOW:
     case QUERY_NODE_INTERVAL_WINDOW:
+      break;
     case QUERY_NODE_NODE_LIST:
       return nodeListNodeToJson(pObj, pJson);
     case QUERY_NODE_FILL:
+    case QUERY_NODE_RAW_EXPR:
       break;
     case QUERY_NODE_TARGET:
       return targetNodeToJson(pObj, pJson);
-    case QUERY_NODE_RAW_EXPR:
-      break;
     case QUERY_NODE_DATABLOCK_DESC:
       return dataBlockDescNodeToJson(pObj, pJson);
     case QUERY_NODE_SLOT_DESC:
       return slotDescNodeToJson(pObj, pJson);
+    case QUERY_NODE_COLUMN_DEF:
     case QUERY_NODE_SET_OPERATOR:
       break;
     case QUERY_NODE_SELECT_STMT:
       return selectStmtTojson(pObj, pJson);
-    case QUERY_NODE_SHOW_STMT:
+    case QUERY_NODE_VNODE_MODIF_STMT:
+    case QUERY_NODE_CREATE_DATABASE_STMT:
+    case QUERY_NODE_CREATE_TABLE_STMT:
+    case QUERY_NODE_USE_DATABASE_STMT:
+    case QUERY_NODE_SHOW_DATABASES_STMT:
+    case QUERY_NODE_SHOW_TABLES_STMT:
       break;
     case QUERY_NODE_LOGIC_PLAN_SCAN:
       return logicScanNodeToJson(pObj, pJson);
@@ -1275,16 +1335,29 @@ static int32_t specificNodeToJson(const void* pObj, SJson* pJson) {
       return logicAggNodeToJson(pObj, pJson);
     case QUERY_NODE_LOGIC_PLAN_PROJECT:
       return logicProjectNodeToJson(pObj, pJson);
+    case QUERY_NODE_LOGIC_PLAN_VNODE_MODIF:
+    case QUERY_NODE_LOGIC_SUBPLAN:
+    case QUERY_NODE_LOGIC_PLAN:
+      break;
     case QUERY_NODE_PHYSICAL_PLAN_TAG_SCAN:
       return physiTagScanNodeToJson(pObj, pJson);
     case QUERY_NODE_PHYSICAL_PLAN_TABLE_SCAN:
       return physiTableScanNodeToJson(pObj, pJson);
+    case QUERY_NODE_PHYSICAL_PLAN_TABLE_SEQ_SCAN:
+    case QUERY_NODE_PHYSICAL_PLAN_STREAM_SCAN:
+      break;
     case QUERY_NODE_PHYSICAL_PLAN_PROJECT:
       return physiProjectNodeToJson(pObj, pJson);
     case QUERY_NODE_PHYSICAL_PLAN_JOIN:
       return physiJoinNodeToJson(pObj, pJson);
     case QUERY_NODE_PHYSICAL_PLAN_AGG:
       return physiAggNodeToJson(pObj, pJson);
+    case QUERY_NODE_PHYSICAL_PLAN_EXCHANGE:
+    case QUERY_NODE_PHYSICAL_PLAN_SORT:
+    case QUERY_NODE_PHYSICAL_PLAN_DISPATCH:
+      return physiDispatchNodeToJson(pObj, pJson);
+    case QUERY_NODE_PHYSICAL_PLAN_INSERT:
+      break;
     case QUERY_NODE_PHYSICAL_SUBPLAN:
       return subplanToJson(pObj, pJson);
     case QUERY_NODE_PHYSICAL_PLAN:
@@ -1292,7 +1365,7 @@ static int32_t specificNodeToJson(const void* pObj, SJson* pJson) {
     default:
       break;
   }
-  printf("================================ specificNodeToJson unknown node = %s\n", nodeName(nodeType(pObj)));
+  printf("================================ specificNodeToJson unknown node = %s\n", nodesNodeName(nodeType(pObj)));
   return TSDB_CODE_SUCCESS;
 }
 
@@ -1334,8 +1407,6 @@ static int32_t jsonToSpecificNode(const SJson* pJson, void* pObj) {
     //   break;
     // case QUERY_NODE_SELECT_STMT:
     //   return jsonToSelectStmt(pJson, pObj);
-    // case QUERY_NODE_SHOW_STMT:
-    //   break;
     // case QUERY_NODE_LOGIC_PLAN_SCAN:
     //   return jsonToLogicScanNode(pJson, pObj);
     // case QUERY_NODE_LOGIC_PLAN_JOIN:
@@ -1354,6 +1425,8 @@ static int32_t jsonToSpecificNode(const SJson* pJson, void* pObj) {
       return jsonToPhysiJoinNode(pJson, pObj);
     case QUERY_NODE_PHYSICAL_PLAN_AGG:
       return jsonToPhysiAggNode(pJson, pObj);
+    case QUERY_NODE_PHYSICAL_PLAN_DISPATCH:
+      return jsonToPhysiDispatchNode(pJson, pObj);
     case QUERY_NODE_PHYSICAL_SUBPLAN:
       return jsonToSubplan(pJson, pObj);
     case QUERY_NODE_PHYSICAL_PLAN:
@@ -1361,6 +1434,7 @@ static int32_t jsonToSpecificNode(const SJson* pJson, void* pObj) {
     default:
       break;
   }
+  printf("================================ jsonToSpecificNode unknown node = %s\n", nodesNodeName(nodeType(pObj)));
   return TSDB_CODE_SUCCESS;
 }
 
@@ -1372,10 +1446,10 @@ static int32_t nodeToJson(const void* pObj, SJson* pJson) {
 
   int32_t code = tjsonAddIntegerToObject(pJson, jkNodeType, pNode->type);
   if (TSDB_CODE_SUCCESS == code) {
-    code = tjsonAddStringToObject(pJson, jkNodeName, nodeName(pNode->type));
+    code = tjsonAddStringToObject(pJson, jkNodeName, nodesNodeName(pNode->type));
   }
   if (TSDB_CODE_SUCCESS == code) {
-    code = tjsonAddObject(pJson, nodeName(pNode->type), specificNodeToJson, pNode);
+    code = tjsonAddObject(pJson, nodesNodeName(pNode->type), specificNodeToJson, pNode);
   }
 
   return code;
@@ -1388,7 +1462,10 @@ static int32_t jsonToNode(const SJson* pJson, void* pObj) {
   int32_t code = tjsonGetIntValue(pJson, jkNodeType, &val);
   pNode->type = val;
   if (TSDB_CODE_SUCCESS == code) {
-    code = tjsonToObject(pJson, nodeName(pNode->type), jsonToSpecificNode, pNode);
+    code = tjsonToObject(pJson, nodesNodeName(pNode->type), jsonToSpecificNode, pNode);
+    if (TSDB_CODE_SUCCESS != code) {
+      printf("%s toNode error\n", nodesNodeName(pNode->type));
+    }
   }
 
   return code;
@@ -1411,7 +1488,7 @@ static int32_t makeNodeByJson(const SJson* pJson, SNode** pNode) {
 static int32_t jsonToNodeObject(const SJson* pJson, const char* pName, SNode** pNode) {
   SJson* pJsonNode = tjsonGetObjectItem(pJson, pName);
   if (NULL == pJsonNode) {
-    return TSDB_CODE_FAILED;
+    return TSDB_CODE_SUCCESS;
   }
   return makeNodeByJson(pJsonNode, pNode);
 }

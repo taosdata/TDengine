@@ -323,3 +323,12 @@ void dndCleanup() {
   taosStopCacheRefreshWorker();
   dInfo("dnode env is cleaned up");
 }
+
+int32_t dndGetMonitorDiskInfo(SDnode *pDnode, SMonDiskInfo *pInfo) {
+  tstrncpy(pInfo->logdir.name, tsLogDir, sizeof(pInfo->logdir.name));
+  pInfo->logdir.size = tsLogSpace.size;
+  tstrncpy(pInfo->tempdir.name, tsTempDir, sizeof(pInfo->tempdir.name));
+  pInfo->tempdir.size = tsTempSpace.size;
+
+  return tfsGetMonitorInfo(pDnode->pTfs, pInfo);
+}

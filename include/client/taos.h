@@ -51,6 +51,7 @@ typedef void **TAOS_ROW;
 #define TSDB_DATA_TYPE_JSON      17  // json
 #define TSDB_DATA_TYPE_DECIMAL   18  // decimal
 #define TSDB_DATA_TYPE_BLOB      19  // binary
+#define TSDB_DATA_TYPE_MEDIUMBLOB 20
 
 typedef enum {
   TSDB_OPTION_LOCALE,

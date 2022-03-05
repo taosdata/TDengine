@@ -43,6 +43,7 @@ typedef struct SScanLogicNode {
   SLogicNode node;
   SNodeList* pScanCols;
   struct STableMeta* pMeta;
+  SVgroupsInfo* pVgroupList;
   EScanType scanType;
   uint8_t scanFlag;         // denotes reversed scan of data or not
   STimeWindow scanRange;
@@ -65,11 +66,27 @@ typedef struct SProjectLogicNode {
   SNodeList* pProjections;
 } SProjectLogicNode;
 
+typedef struct SVnodeModifLogicNode {
+  ENodeType type;;
+  int32_t msgType;
+  SArray* pDataBlocks;
+  SVgDataBlocks* pVgDataBlocks;
+} SVnodeModifLogicNode;
+
+typedef enum ESubplanType {
+  SUBPLAN_TYPE_MERGE = 1,
+  SUBPLAN_TYPE_PARTIAL,
+  SUBPLAN_TYPE_SCAN,
+  SUBPLAN_TYPE_MODIFY
+} ESubplanType;
+
 typedef struct SSubLogicPlan {
   ENodeType type;
   SNodeList* pChildren;
   SNodeList* pParents;
   SLogicNode* pNode;
+  ESubplanType subplanType;
+  int32_t level;
 } SSubLogicPlan;
 
 typedef struct SQueryLogicPlan {
@@ -96,7 +113,7 @@ typedef struct SDataBlockDescNode {
 
 typedef struct SPhysiNode {
   ENodeType type;
-  SDataBlockDescNode outputDataBlockDesc;
+  SDataBlockDescNode* pOutputDataBlockDesc;
   SNode* pConditions;
   SNodeList* pChildren;
   struct SPhysiNode* pParent;
@@ -158,7 +175,7 @@ typedef struct SExchangePhysiNode {
 
 typedef struct SDataSinkNode {
   ENodeType type;;
-  SDataBlockDescNode inputDataBlockDesc;
+  SDataBlockDescNode* pInputDataBlockDesc;
 } SDataSinkNode;
 
 typedef struct SDataDispatcherNode {
@@ -177,13 +194,6 @@ typedef struct SSubplanId {
   int32_t templateId;
   int32_t subplanId;
 } SSubplanId;
-
-typedef enum ESubplanType {
-  SUBPLAN_TYPE_MERGE = 1,
-  SUBPLAN_TYPE_PARTIAL,
-  SUBPLAN_TYPE_SCAN,
-  SUBPLAN_TYPE_MODIFY
-} ESubplanType;
 
 typedef struct SSubplan {
   ENodeType type;

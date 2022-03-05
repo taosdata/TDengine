@@ -1,6 +1,4 @@
-#include "tcommon.h"
 #include <gtest/gtest.h>
-#include <tep.h>
 #include <iostream>
 
 #pragma GCC diagnostic push
@@ -10,6 +8,8 @@
 #pragma GCC diagnostic ignored "-Wsign-compare"
 #include "os.h"
 
+#include "tep.h"
+#include "tcommon.h"
 #include "taos.h"
 #include "tvariant.h"
 #include "tdef.h"

@@ -60,7 +60,7 @@ void taosRemoveDir(const char *dirname) {
   //printf("dir:%s is removed\n", dirname);
 }
 
-int32_t taosDirExist(char *dirname) { return access(dirname, F_OK); }
+bool taosDirExist(char *dirname) { return taosCheckExistFile(dirname); }
 
 int32_t taosMkDir(const char *dirname) {
   int32_t code = mkdir(dirname, 0755);

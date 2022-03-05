@@ -13,19 +13,17 @@
  * along with this program. If not, see <http://www.gnu.org/licenses/>.
  */
 
-#include "mockCatalog.h"
-
 #include <iostream>
-
 #include "stub.h"
 
 #pragma GCC diagnostic push
 #pragma GCC diagnostic ignored "-Wformat"
 
-#include "addr_any.h"
+#include <addr_any.h>
 
 #pragma GCC diagnostic pop
 
+#include "mockCatalog.h"
 namespace {
 
 void generateTestT1(MockCatalogService* mcs) {
@@ -60,6 +58,10 @@ int32_t __catalogGetTableHashVgroup(struct SCatalog* pCatalog, void *pRpc, const
   return mockCatalogService->catalogGetTableHashVgroup(pTableName, vgInfo);
 }
 
+int32_t __catalogGetTableDistVgInfo(SCatalog* pCtg, void *pRpc, const SEpSet* pMgmtEps, const SName* pTableName, SArray** pVgList) {
+  return mockCatalogService->catalogGetTableDistVgInfo(pTableName, pVgList);
+}
+
 void initMetaDataEnv() {
   mockCatalogService.reset(new MockCatalogService());
 
@@ -67,6 +69,8 @@ void initMetaDataEnv() {
   stub.set(catalogGetHandle, __catalogGetHandle);
   stub.set(catalogGetTableMeta, __catalogGetTableMeta);
   stub.set(catalogGetTableHashVgroup, __catalogGetTableHashVgroup);
+  stub.set(catalogGetTableDistVgInfo, __catalogGetTableDistVgInfo);
+
   {
     AddrAny any("libcatalog.so");
     std::map<std::string,void*> result;

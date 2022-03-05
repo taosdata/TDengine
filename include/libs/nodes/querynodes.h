@@ -123,6 +123,7 @@ struct STableMeta;
 typedef struct SRealTableNode {
   STableNode table; // QUERY_NODE_REAL_TABLE
   struct STableMeta* pMeta;
+  SVgroupsInfo* pVgroupList;
 } SRealTableNode;
 
 typedef struct STempTableNode {
@@ -264,6 +265,7 @@ typedef struct SVgDataBlocks {
 
 typedef struct SVnodeModifOpStmt {
   ENodeType   nodeType;
+  ENodeType   sqlNodeType;
   SArray*     pDataBlocks;         // data block for each vgroup, SArray<SVgDataBlocks*>.
   int8_t      schemaAttache;       // denote if submit block is built with table schema or not
   uint8_t     payloadType;         // EPayloadType. 0: K-V payload for non-prepare insert, 1: rawPayload for prepare insert

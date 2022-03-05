@@ -59,6 +59,7 @@ public:
 
   int32_t catalogGetTableMeta(const SName* pTableName, STableMeta** pTableMeta) const;
   int32_t catalogGetTableHashVgroup(const SName* pTableName, SVgroupInfo* vgInfo) const;
+  int32_t catalogGetTableDistVgInfo(const SName* pTableName, SArray** pVgList) const;
 
 private:
   std::unique_ptr<MockCatalogServiceImpl> impl_;

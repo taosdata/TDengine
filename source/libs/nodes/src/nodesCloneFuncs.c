@@ -13,6 +13,7 @@
  * along with this program. If not, see <http://www.gnu.org/licenses/>.
  */
 
+#include "plannodes.h"
 #include "querynodes.h"
 #include "taos.h"
 #include "taoserror.h"
@@ -157,6 +158,29 @@ static SNode* groupingSetNodeCopy(const SGroupingSetNode* pSrc, SGroupingSetNode
   return (SNode*)pDst;
 }
 
+static SNode* logicSubplanCopy(const SSubLogicPlan* pSrc, SSubLogicPlan* pDst) {
+  COPY_NODE_FIELD(pNode);
+  COPY_SCALAR_FIELD(subplanType);
+  return (SNode*)pDst;
+}
+
+static SNode* dataBlockDescCopy(const SDataBlockDescNode* pSrc, SDataBlockDescNode* pDst) {
+  COPY_SCALAR_FIELD(dataBlockId);
+  COPY_NODE_LIST_FIELD(pSlots);
+  COPY_SCALAR_FIELD(resultRowSize);
+  COPY_SCALAR_FIELD(precision);
+  return (SNode*)pDst;
+}
+
+static SNode* slotDescCopy(const SSlotDescNode* pSrc, SSlotDescNode* pDst) {
+  COPY_SCALAR_FIELD(slotId);
+  dataTypeCopy(&pSrc->dataType, &pDst->dataType);
+  COPY_SCALAR_FIELD(reserve);
+  COPY_SCALAR_FIELD(output);
+  COPY_SCALAR_FIELD(tag);
+  return (SNode*)pDst;
+}
+
 SNodeptr nodesCloneNode(const SNodeptr pNode) {
   if (NULL == pNode) {
     return NULL;
@@ -187,9 +211,17 @@ SNodeptr nodesCloneNode(const SNodeptr pNode) {
       return groupingSetNodeCopy((const SGroupingSetNode*)pNode, (SGroupingSetNode*)pDst);
     case QUERY_NODE_ORDER_BY_EXPR:
     case QUERY_NODE_LIMIT:
+      break;
+    case QUERY_NODE_DATABLOCK_DESC:
+      return dataBlockDescCopy((const SDataBlockDescNode*)pNode, (SDataBlockDescNode*)pDst);
+    case QUERY_NODE_SLOT_DESC:
+      return slotDescCopy((const SSlotDescNode*)pNode, (SSlotDescNode*)pDst);
+    case QUERY_NODE_LOGIC_SUBPLAN:
+      return logicSubplanCopy((const SSubLogicPlan*)pNode, (SSubLogicPlan*)pDst);
     default:
       break;
   }
+  printf("nodesCloneNode unknown node = %s\n", nodesNodeName(nodeType(pNode)));
   return pDst;
 }
 
