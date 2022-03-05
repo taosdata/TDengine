@@ -671,6 +671,11 @@ typedef struct {
   int64_t totalStorage;
   int64_t compStorage;
   int64_t pointsWritten;
+  int64_t numOfSelectReqs;
+  int64_t numOfInsertReqs;
+  int64_t numOfInsertSuccessReqs;
+  int64_t numOfBatchInsertReqs;
+  int64_t numOfBatchInsertSuccessReqs;
 } SVnodeLoad;
 
 typedef struct {
