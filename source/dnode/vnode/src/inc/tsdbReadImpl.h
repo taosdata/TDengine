@@ -24,6 +24,10 @@
 #include "tsdbMemory.h"
 #include "tcommon.h"
 
+#ifdef __cplusplus
+extern "C" {
+#endif
+
 typedef struct SReadH SReadH;
 
 typedef struct {
@@ -243,5 +247,9 @@ static FORCE_INLINE int tsdbMakeRoom(void **ppBuf, size_t size) {
 
   return 0;
 }
+
+#ifdef __cplusplus
+}
+#endif
 
 #endif /*_TD_TSDB_READ_IMPL_H_*/

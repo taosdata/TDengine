@@ -1833,7 +1833,20 @@ static FORCE_INLINE void* tDecodeSSchemaWrapper(void* buf, SSchemaWrapper* pSW) 
   }
   return buf;
 }
-
+typedef enum {
+  TD_TIME_UNIT_UNKNOWN = -1,
+  TD_TIME_UNIT_YEAR = 0,
+  TD_TIME_UNIT_SEASON = 1,
+  TD_TIME_UNIT_MONTH = 2,
+  TD_TIME_UNIT_WEEK = 3,
+  TD_TIME_UNIT_DAY = 4,
+  TD_TIME_UNIT_HOUR = 5,
+  TD_TIME_UNIT_MINUTE = 6,
+  TD_TIME_UNIT_SEC = 7,
+  TD_TIME_UNIT_MILLISEC = 8,
+  TD_TIME_UNIT_MICROSEC = 9,
+  TD_TIME_UNIT_NANOSEC = 10
+} ETDTimeUnit;
 typedef struct {
   uint8_t   version;  // for compatibility
   uint8_t   intervalUnit;
@@ -1863,6 +1876,15 @@ static FORCE_INLINE void tdDestroyTSma(STSma* pSma, bool releaseSelf) {
   }
 }
 
+static FORCE_INLINE void tdDestroyWrapper(STSmaWrapper* pSW) {
+  if (pSW && pSW->tSma) {
+    for (uint32_t i = 0; i < pSW->number; ++i) {
+      tdDestroyTSma(pSW->tSma + i, false);
+    }
+    tfree(pSW->tSma);
+  }
+}
+
 static FORCE_INLINE int32_t tEncodeTSma(void** buf, const STSma* pSma) {
   int32_t tlen = 0;
 
@@ -1876,12 +1898,14 @@ static FORCE_INLINE int32_t tEncodeTSma(void** buf, const STSma* pSma) {
   tlen += taosEncodeFixedI64(buf, pSma->interval);
   tlen += taosEncodeFixedI64(buf, pSma->sliding);
 
-  for (uint16_t i = 0; i < pSma->numOfColIds; ++i) {
+  for (col_id_t i = 0; i < pSma->numOfColIds; ++i) {
     tlen += taosEncodeFixedU16(buf, *(pSma->colIds + i));
   }
+
   for (uint16_t i = 0; i < pSma->numOfFuncIds; ++i) {
     tlen += taosEncodeFixedU16(buf, *(pSma->funcIds + i));
   }
+
   return tlen;
 }
 
@@ -1948,20 +1972,6 @@ static FORCE_INLINE void* tDecodeTSmaWrapper(void* buf, STSmaWrapper* pSW) {
   }
   return buf;
 }
-
-// RSma: Time-range-wise Rollup SMA
-typedef struct {
-  int64_t  interval;
-  int32_t  retention;  // unit: day
-  uint16_t days;       // unit: day
-  int8_t   intervalUnit;
-} SSmaParams;
-
-typedef struct {
-  STSma   tsma;
-  float   xFilesFactor;
-  SArray* smaParams;  // SSmaParams
-} SRSma;
 
 typedef struct {
   int64_t uid;
