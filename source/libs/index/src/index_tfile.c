@@ -102,7 +102,6 @@ void tfileCacheDestroy(TFileCache* tcache) {
   if (tcache == NULL) {
     return;
   }
-
   // free table cache
   TFileReader** reader = taosHashIterate(tcache->tableCache, NULL);
   while (reader) {

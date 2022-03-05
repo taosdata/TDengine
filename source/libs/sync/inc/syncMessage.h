@@ -30,6 +30,8 @@ extern "C" {
 
 // encode as uint32
 typedef enum ESyncMessageType {
+  SYNC_UNKNOWN = 77,
+  SYNC_TIMEOUT = 99,
   SYNC_PING = 101,
   SYNC_PING_REPLY = 103,
   SYNC_CLIENT_REQUEST = 105,
@@ -38,7 +40,36 @@ typedef enum ESyncMessageType {
   SYNC_REQUEST_VOTE_REPLY = 111,
   SYNC_APPEND_ENTRIES = 113,
   SYNC_APPEND_ENTRIES_REPLY = 115,
+
 } ESyncMessageType;
+
+// ---------------------------------------------
+cJSON* syncRpcMsg2Json(SRpcMsg* pRpcMsg);
+cJSON* syncRpcUnknownMsg2Json();
+
+// ---------------------------------------------
+typedef enum ESyncTimeoutType {
+  SYNC_TIMEOUT_PING = 100,
+  SYNC_TIMEOUT_ELECTION,
+  SYNC_TIMEOUT_HEARTBEAT,
+
+} ESyncTimeoutType;
+
+typedef struct SyncTimeout {
+  uint32_t         bytes;
+  uint32_t         msgType;
+  ESyncTimeoutType timeoutType;
+  void*            data;
+} SyncTimeout;
+
+SyncTimeout* syncTimeoutBuild();
+void         syncTimeoutDestroy(SyncTimeout* pMsg);
+void         syncTimeoutSerialize(const SyncTimeout* pMsg, char* buf, uint32_t bufLen);
+void         syncTimeoutDeserialize(const char* buf, uint32_t len, SyncTimeout* pMsg);
+void         syncTimeout2RpcMsg(const SyncTimeout* pMsg, SRpcMsg* pRpcMsg);
+void         syncTimeoutFromRpcMsg(const SRpcMsg* pRpcMsg, SyncTimeout* pMsg);
+cJSON*       syncTimeout2Json(const SyncTimeout* pMsg);
+SyncTimeout* syncTimeoutBuild2(ESyncTimeoutType timeoutType, void* data);
 
 // ---------------------------------------------
 typedef struct SyncPing {

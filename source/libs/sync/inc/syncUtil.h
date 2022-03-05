@@ -39,8 +39,9 @@ void syncUtilraftId2EpSet(const SRaftId* raftId, SEpSet* pEpSet);
 
 void syncUtilnodeInfo2raftId(const SNodeInfo* pNodeInfo, SyncGroupId vgId, SRaftId* raftId);
 
+bool syncUtilSameId(const SRaftId* pId1, const SRaftId* pId2);
+
 // ---- SSyncBuffer ----
-#if 0
 void syncUtilbufBuild(SSyncBuffer* syncBuf, size_t len);
 
 void syncUtilbufDestroy(SSyncBuffer* syncBuf);
@@ -48,7 +49,6 @@ void syncUtilbufDestroy(SSyncBuffer* syncBuf);
 void syncUtilbufCopy(const SSyncBuffer* src, SSyncBuffer* dest);
 
 void syncUtilbufCopyDeep(const SSyncBuffer* src, SSyncBuffer* dest);
-#endif
 
 #ifdef __cplusplus
 }
