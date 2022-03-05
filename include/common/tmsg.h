@@ -1842,6 +1842,149 @@ static FORCE_INLINE void* tDecodeSSchemaWrapper(void* buf, SSchemaWrapper* pSW) 
   }
   return buf;
 }
+typedef enum {
+  TD_TIME_UNIT_UNKNOWN = -1,
+  TD_TIME_UNIT_YEAR = 0,
+  TD_TIME_UNIT_SEASON = 1,
+  TD_TIME_UNIT_MONTH = 2,
+  TD_TIME_UNIT_WEEK = 3,
+  TD_TIME_UNIT_DAY = 4,
+  TD_TIME_UNIT_HOUR = 5,
+  TD_TIME_UNIT_MINUTE = 6,
+  TD_TIME_UNIT_SEC = 7,
+  TD_TIME_UNIT_MILLISEC = 8,
+  TD_TIME_UNIT_MICROSEC = 9,
+  TD_TIME_UNIT_NANOSEC = 10
+} ETDTimeUnit;
+typedef struct {
+  uint8_t   version;  // for compatibility
+  uint8_t   intervalUnit;
+  uint8_t   slidingUnit;
+  char      indexName[TSDB_INDEX_NAME_LEN + 1];
+  col_id_t  numOfColIds;
+  uint16_t  numOfFuncIds;
+  uint64_t  tableUid;  // super/common table uid
+  int64_t   interval;
+  int64_t   sliding;
+  col_id_t* colIds;   // N.B. sorted column ids
+  uint16_t* funcIds;  // N.B. sorted sma function ids
+} STSma;              // Time-range-wise SMA
+
+typedef struct {
+  uint32_t number;
+  STSma*   tSma;
+} STSmaWrapper;
+
+static FORCE_INLINE void tdDestroyTSma(STSma* pSma, bool releaseSelf) {
+  if (pSma) {
+    tfree(pSma->colIds);
+    tfree(pSma->funcIds);
+    if (releaseSelf) {
+      free(pSma);
+    }
+  }
+}
+
+static FORCE_INLINE void tdDestroyWrapper(STSmaWrapper* pSW) {
+  if (pSW && pSW->tSma) {
+    for (uint32_t i = 0; i < pSW->number; ++i) {
+      tdDestroyTSma(pSW->tSma + i, false);
+    }
+    tfree(pSW->tSma);
+  }
+}
+
+static FORCE_INLINE int32_t tEncodeTSma(void** buf, const STSma* pSma) {
+  int32_t tlen = 0;
+
+  tlen += taosEncodeFixedU8(buf, pSma->version);
+  tlen += taosEncodeFixedU8(buf, pSma->intervalUnit);
+  tlen += taosEncodeFixedU8(buf, pSma->slidingUnit);
+  tlen += taosEncodeString(buf, pSma->indexName);
+  tlen += taosEncodeFixedU16(buf, pSma->numOfColIds);
+  tlen += taosEncodeFixedU16(buf, pSma->numOfFuncIds);
+  tlen += taosEncodeFixedU64(buf, pSma->tableUid);
+  tlen += taosEncodeFixedI64(buf, pSma->interval);
+  tlen += taosEncodeFixedI64(buf, pSma->sliding);
+
+  for (col_id_t i = 0; i < pSma->numOfColIds; ++i) {
+    tlen += taosEncodeFixedU16(buf, *(pSma->colIds + i));
+  }
+
+  for (uint16_t i = 0; i < pSma->numOfFuncIds; ++i) {
+    tlen += taosEncodeFixedU16(buf, *(pSma->funcIds + i));
+  }
+
+  return tlen;
+}
+
+static FORCE_INLINE int32_t tEncodeTSmaWrapper(void** buf, const STSmaWrapper* pSW) {
+  int32_t tlen = 0;
+
+  tlen += taosEncodeFixedU32(buf, pSW->number);
+  for (uint32_t i = 0; i < pSW->number; ++i) {
+    tlen += tEncodeTSma(buf, pSW->tSma + i);
+  }
+  return tlen;
+}
+
+static FORCE_INLINE void* tDecodeTSma(void* buf, STSma* pSma) {
+  buf = taosDecodeFixedU8(buf, &pSma->version);
+  buf = taosDecodeFixedU8(buf, &pSma->intervalUnit);
+  buf = taosDecodeFixedU8(buf, &pSma->slidingUnit);
+  buf = taosDecodeStringTo(buf, pSma->indexName);
+  buf = taosDecodeFixedU16(buf, &pSma->numOfColIds);
+  buf = taosDecodeFixedU16(buf, &pSma->numOfFuncIds);
+  buf = taosDecodeFixedU64(buf, &pSma->tableUid);
+  buf = taosDecodeFixedI64(buf, &pSma->interval);
+  buf = taosDecodeFixedI64(buf, &pSma->sliding);
+
+  if (pSma->numOfColIds > 0) {
+    pSma->colIds = (col_id_t*)calloc(pSma->numOfColIds, sizeof(STSma));
+    if (pSma->colIds == NULL) {
+      return NULL;
+    }
+    for (uint16_t i = 0; i < pSma->numOfColIds; ++i) {
+      buf = taosDecodeFixedU16(buf, pSma->colIds + i);
+    }
+  } else {
+    pSma->colIds = NULL;
+  }
+
+  if (pSma->numOfFuncIds > 0) {
+    pSma->funcIds = (uint16_t*)calloc(pSma->numOfFuncIds, sizeof(STSma));
+    if (pSma->funcIds == NULL) {
+      return NULL;
+    }
+    for (uint16_t i = 0; i < pSma->numOfFuncIds; ++i) {
+      buf = taosDecodeFixedU16(buf, pSma->funcIds + i);
+    }
+  } else {
+    pSma->funcIds = NULL;
+  }
+
+  return buf;
+}
+
+static FORCE_INLINE void* tDecodeTSmaWrapper(void* buf, STSmaWrapper* pSW) {
+  buf = taosDecodeFixedU32(buf, &pSW->number);
+
+  pSW->tSma = (STSma*)calloc(pSW->number, sizeof(STSma));
+  if (pSW->tSma == NULL) {
+    return NULL;
+  }
+
+  for (uint32_t i = 0; i < pSW->number; ++i) {
+    if ((buf = tDecodeTSma(buf, pSW->tSma + i)) == NULL) {
+      for (uint32_t j = i; j >= 0; --i) {
+        tdDestroyTSma(pSW->tSma + j, false);
+      }
+      free(pSW->tSma);
+      return NULL;
+    }
+  }
+  return buf;
+}
 
 typedef struct {
   int64_t uid;

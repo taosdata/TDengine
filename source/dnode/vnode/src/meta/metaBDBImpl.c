@@ -38,6 +38,8 @@ struct SMetaDB {
   // DB
   DB *pTbDB;
   DB *pSchemaDB;
+  DB *pSmaDB;
+
   // IDX
   DB *pNameIdx;
   DB *pStbIdx;
@@ -100,6 +102,11 @@ int metaOpenDB(SMeta *pMeta) {
     return -1;
   }
 
+  if (metaOpenBDBDb(&(pDB->pSmaDB), pDB->pEvn, "sma.db", false) < 0) {
+    metaCloseDB(pMeta);
+    return -1;
+  }
+
   // Open Indices
   if (metaOpenBDBIdx(&(pDB->pNameIdx), pDB->pEvn, "name.index", pDB->pTbDB, &metaNameIdxCb, false) < 0) {
     metaCloseDB(pMeta);
@@ -130,6 +137,7 @@ void metaCloseDB(SMeta *pMeta) {
     metaCloseBDBIdx(pMeta->pDB->pNtbIdx);
     metaCloseBDBIdx(pMeta->pDB->pStbIdx);
     metaCloseBDBIdx(pMeta->pDB->pNameIdx);
+    metaCloseBDBDb(pMeta->pDB->pSmaDB);
     metaCloseBDBDb(pMeta->pDB->pSchemaDB);
     metaCloseBDBDb(pMeta->pDB->pTbDB);
     metaCloseBDBEnv(pMeta->pDB->pEvn);
