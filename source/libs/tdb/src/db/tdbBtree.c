@@ -403,3 +403,80 @@ static int tdbBtreeInitPage(SPage *pPage, void *arg) {
 
   return 0;
 }
+
+#ifndef TDB_BTREE_BALANCE
+static int tdbBtreeCopyPageContent(SPage *pFrom, SPage *pTo) {
+  /* TODO */
+
+  return 0;
+}
+
+static int tdbBtreeBalanceDeeper(SBTree *pBt, SPage *pRoot, SPage **ppChild) {
+  SPager           *pPager;
+  SPage            *pChild;
+  SPgno             pgnoChild;
+  int               ret;
+  SBtreeZeroPageArg zArg;
+
+  pPager = pRoot->pPager;
+
+  // Allocate a new child page
+  zArg.flags = TDB_BTREE_LEAF;
+  zArg.pBt = pBt;
+  ret = tdbPagerNewPage(pPager, &pgnoChild, &pChild, tdbBtreeZeroPage, &zArg);
+  if (ret < 0) {
+    return -1;
+  }
+
+  // Copy the root page content to the child page
+  ret = tdbBtreeCopyPageContent(pRoot, pChild);
+  if (ret < 0) {
+    return -1;
+  }
+
+  {
+    // TODO: Copy the over flow part of the page
+  }
+
+  // Reinitialize the root page
+  zArg.flags = TDB_BTREE_ROOT;
+  zArg.pBt = pBt;
+  ret = tdbBtreeZeroPage(pRoot, &zArg);
+  if (ret < 0) {
+    return -1;
+  }
+
+  return 0;
+}
+
+static int tdbBtreeBalance(SBtCursor *pCur) {
+  int    iPage;
+  SPage *pPage;
+
+  // Main loop to balance the BTree
+  for (;;) {
+    iPage = pCur->iPage;
+    pPage = pCur->pPage;
+
+    // TODO: Get the page free space if not get yet
+    // if (pPage->nFree < 0) {
+    //   if (tdbBtreeComputeFreeSpace(pPage) < 0) {
+    //     return -1;
+    //   }
+    // }
+
+    if (0 /*TODO: balance is over*/) {
+      break;
+    }
+
+    if (iPage == 0) {
+      // Balance the root page
+      ASSERT(TDB_BTREE_PAGE_IS_ROOT(pPage->pPageHdr->flags));
+
+    } else {
+    }
+  }
+
+  return 0;
+}
+#endif
