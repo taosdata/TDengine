@@ -1885,7 +1885,7 @@ static FORCE_INLINE void tdDestroyTSma(STSma* pSma, bool releaseSelf) {
   }
 }
 
-static FORCE_INLINE void tdDestroyWrapper(STSmaWrapper* pSW) {
+static FORCE_INLINE void tdDestroyTSmaWrapper(STSmaWrapper* pSW) {
   if (pSW && pSW->tSma) {
     for (uint32_t i = 0; i < pSW->number; ++i) {
       tdDestroyTSma(pSW->tSma + i, false);
