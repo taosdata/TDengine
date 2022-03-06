@@ -15,6 +15,7 @@
  */
 
 #include "astCreateFuncs.h"
+#include "parserUtil.h"
 
 #define CHECK_OUT_OF_MEM(p) \
   do { \
@@ -149,16 +150,16 @@ static SDatabaseOptions* setDbKeep(SAstCreateContext* pCxt, SDatabaseOptions* pO
 }
 
 static SDatabaseOptions* setDbPrecision(SAstCreateContext* pCxt, SDatabaseOptions* pOptions, const SToken* pVal) {
-  if (0 == strncmp(pVal->z, TSDB_TIME_PRECISION_MILLI_STR, pVal->n) && strlen(TSDB_TIME_PRECISION_MILLI_STR) == pVal->n) {
+  char val[10] = {0};
+  trimString(pVal->z, pVal->n, val, sizeof(val));
+  if (0 == strcmp(val, TSDB_TIME_PRECISION_MILLI_STR)) {
     pOptions->precision = TSDB_TIME_PRECISION_MILLI;
-  } else if (0 == strncmp(pVal->z, TSDB_TIME_PRECISION_MICRO_STR, pVal->n) && strlen(TSDB_TIME_PRECISION_MICRO_STR) == pVal->n) {
+  } else if (0 == strcmp(val, TSDB_TIME_PRECISION_MICRO_STR)) {
     pOptions->precision = TSDB_TIME_PRECISION_MICRO;
-  } else if (0 == strncmp(pVal->z, TSDB_TIME_PRECISION_NANO_STR, pVal->n) && strlen(TSDB_TIME_PRECISION_NANO_STR) == pVal->n) {
+  } else if (0 == strcmp(val, TSDB_TIME_PRECISION_NANO_STR)) {
     pOptions->precision = TSDB_TIME_PRECISION_NANO;
   } else {
-    char tmp[10];
-    strncpy(tmp, pVal->z, pVal->n);
-    snprintf(pCxt->pQueryCxt->pMsg, pCxt->pQueryCxt->msgLen, "invalid db option precision: %s", tmp);
+    snprintf(pCxt->pQueryCxt->pMsg, pCxt->pQueryCxt->msgLen, "invalid db option precision: %s", val);
     pCxt->valid = false;
   }
   return pOptions;
@@ -296,7 +297,7 @@ static STableOptions* setTableComment(SAstCreateContext* pCxt, STableOptions* pO
     pCxt->valid = false;
     return pOptions;
   }
-  strncpy(pOptions->comments, pVal->z, pVal->n);
+  trimString(pVal->z, pVal->n, pOptions->comments, sizeof(pOptions->comments));
   return pOptions;
 }
 
@@ -413,6 +414,8 @@ SNode* createValueNode(SAstCreateContext* pCxt, int32_t dataType, const SToken* 
   if (TSDB_DATA_TYPE_TIMESTAMP == dataType) {
     val->node.resType.precision = TSDB_TIME_PRECISION_MILLI;
   }
+  val->isDuration = false;
+  val->translate = false;
   return (SNode*)val;
 }
 
@@ -422,6 +425,7 @@ SNode* createDurationValueNode(SAstCreateContext* pCxt, const SToken* pLiteral) 
   val->literal = strndup(pLiteral->z, pLiteral->n);
   CHECK_OUT_OF_MEM(val->literal);
   val->isDuration = true;
+  val->translate = false;
   val->node.resType.type = TSDB_DATA_TYPE_BIGINT;
   val->node.resType.bytes = tDataTypes[TSDB_DATA_TYPE_BIGINT].bytes;
   val->node.resType.precision = TSDB_TIME_PRECISION_MILLI;
@@ -708,13 +712,18 @@ STableOptions* setTableOption(SAstCreateContext* pCxt, STableOptions* pOptions, 
   return setTableOptionFuncs[type](pCxt, pOptions, pVal);
 }
 
+STableOptions* setTableSmaOption(SAstCreateContext* pCxt, STableOptions* pOptions, SNodeList* pSma) {
+  pOptions->pSma = pSma;
+  return pOptions;
+}
+
 SNode* createColumnDefNode(SAstCreateContext* pCxt, const SToken* pColName, SDataType dataType, const SToken* pComment) {
   SColumnDefNode* pCol = (SColumnDefNode*)nodesMakeNode(QUERY_NODE_COLUMN_DEF);
   CHECK_OUT_OF_MEM(pCol);
   strncpy(pCol->colName, pColName->z, pColName->n);
   pCol->dataType = dataType;
   if (NULL != pComment) {
-    strncpy(pCol->comments, pComment->z, pComment->n);
+    trimString(pComment->z, pComment->n, pCol->comments, sizeof(pCol->comments));
   }
   return (SNode*)pCol;
 }
@@ -730,16 +739,48 @@ SDataType createVarLenDataType(uint8_t type, const SToken* pLen) {
 }
 
 SNode* createCreateTableStmt(SAstCreateContext* pCxt,
-    bool ignoreExists, const STokenPair* pFullTableName, SNodeList* pCols, STableOptions* pOptions) {
+    bool ignoreExists, const STokenPair* pFullTableName, SNodeList* pCols, SNodeList* pTags, STableOptions* pOptions) {
   SCreateTableStmt* pStmt = (SCreateTableStmt*)nodesMakeNode(QUERY_NODE_CREATE_TABLE_STMT);
   CHECK_OUT_OF_MEM(pStmt);
   if (TK_NIL != pFullTableName->first.type) {
     strncpy(pStmt->dbName, pFullTableName->first.z, pFullTableName->first.n);
+  } else {
+    strcpy(pStmt->dbName, pCxt->pQueryCxt->db);
   }
   strncpy(pStmt->tableName, pFullTableName->second.z, pFullTableName->second.n);
   pStmt->ignoreExists = ignoreExists;
   pStmt->pCols = pCols;
+  pStmt->pTags = pTags;
   pStmt->options = *pOptions;
+  return (SNode*)pStmt;
+}
+
+SNode* createCreateSubTableClause(SAstCreateContext* pCxt, bool ignoreExists,
+    const STokenPair* pFullTableName, const STokenPair* pUseFullTableName, SNodeList* pSpecificTags, SNodeList* pValsOfTags) {
+  SCreateSubTableClause* pStmt = nodesMakeNode(QUERY_NODE_CREATE_SUBTABLE_CLAUSE);
+  CHECK_OUT_OF_MEM(pStmt);
+  if (TK_NIL != pFullTableName->first.type) {
+    strncpy(pStmt->dbName, pFullTableName->first.z, pFullTableName->first.n);
+  } else {
+    strcpy(pStmt->dbName, pCxt->pQueryCxt->db);
+  }
+  strncpy(pStmt->tableName, pFullTableName->second.z, pFullTableName->second.n);
+  if (TK_NIL != pUseFullTableName->first.type) {
+    strncpy(pStmt->useDbName, pUseFullTableName->first.z, pUseFullTableName->first.n);
+  } else {
+    strcpy(pStmt->useDbName, pCxt->pQueryCxt->db);
+  }
+  strncpy(pStmt->useTableName, pUseFullTableName->second.z, pUseFullTableName->second.n);
+  pStmt->ignoreExists = ignoreExists;
+  pStmt->pSpecificTags = pSpecificTags;
+  pStmt->pValsOfTags = pValsOfTags;
+  return (SNode*)pStmt;
+}
+
+SNode* createCreateMultiTableStmt(SAstCreateContext* pCxt, SNodeList* pSubTables) {
+  SCreateMultiTableStmt* pStmt = nodesMakeNode(QUERY_NODE_CREATE_MULTI_TABLE_STMT);
+  CHECK_OUT_OF_MEM(pStmt);
+  pStmt->pSubTables = pSubTables;
   return (SNode*)pStmt;
 }
 
