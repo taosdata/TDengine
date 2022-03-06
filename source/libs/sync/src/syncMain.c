@@ -41,6 +41,9 @@ static void syncNodeFollower2Candidate(SSyncNode* pSyncNode);
 static void syncNodeCandidate2Leader(SSyncNode* pSyncNode);
 static void syncNodeLeader2Follower(SSyncNode* pSyncNode);
 static void syncNodeCandidate2Follower(SSyncNode* pSyncNode);
+
+void syncNodeRequestVotePeers(SSyncNode* pSyncNode);
+void syncNodeAppendEntriesPeers(SSyncNode* pSyncNode);
 // ---------------------------------
 
 int32_t syncInit() {
@@ -366,3 +369,7 @@ static void syncNodeCandidate2Leader(SSyncNode* pSyncNode) {}
 static void syncNodeLeader2Follower(SSyncNode* pSyncNode) {}
 
 static void syncNodeCandidate2Follower(SSyncNode* pSyncNode) {}
+
+void syncNodeRequestVotePeers(SSyncNode* pSyncNode) {}
+
+void syncNodeAppendEntriesPeers(SSyncNode* pSyncNode) {}
