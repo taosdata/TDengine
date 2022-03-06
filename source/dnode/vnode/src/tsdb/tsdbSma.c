@@ -548,5 +548,3 @@ int32_t tsdbRemoveTSmaData(STsdb *pTsdb, STSma *param, STimeWindow *pWin) {
   // }
   return TSDB_CODE_SUCCESS;
 }
-
-#endif
