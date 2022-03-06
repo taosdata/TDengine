@@ -79,7 +79,12 @@ SPage *tdbPCacheFetch(SPCache *pCache, const SPgid *pPgid, bool alcNewPage) {
   SPage *pPage;
 
   tdbPCacheLock(pCache);
+
   pPage = tdbPCacheFetchImpl(pCache, pPgid, alcNewPage);
+  if (pPage) {
+    TDB_REF_PAGE(pPage);
+  }
+
   tdbPCacheUnlock(pCache);
 
   return pPage;
@@ -129,7 +134,6 @@ static SPage *tdbPCacheFetchImpl(SPCache *pCache, const SPgid *pPgid, bool alcNe
     if (pPage) {
       tdbPCachePinPage(pPage);
     }
-    TDB_REF_PAGE(pPage);
     return pPage;
   }
 
@@ -158,7 +162,6 @@ static SPage *tdbPCacheFetchImpl(SPCache *pCache, const SPgid *pPgid, bool alcNe
     pPage->pLruNext = NULL;
     pPage->pPager = NULL;
     tdbPCacheAddPageToHash(pPage);
-    TDB_REF_PAGE(pPage);
   }
 
   return pPage;
