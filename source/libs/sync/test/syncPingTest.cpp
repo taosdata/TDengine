@@ -84,6 +84,17 @@ int main(int argc, char** argv) {
   assert(ret == 0);
 
   taosMsleep(10000);
+
+  ret = syncNodeStopPingTimer(pSyncNode);
+  assert(ret == 0);
+
+  taosMsleep(10000);
+
+  ret = syncNodeStartPingTimer(pSyncNode);
+  assert(ret == 0);
+
+  taosMsleep(10000);
+
   ret = syncNodeStopPingTimer(pSyncNode);
   assert(ret == 0);
 

@@ -15,7 +15,7 @@
 
 #include "syncAppendEntries.h"
 
-void appendEntries(SRaft *pRaft, const SyncAppendEntries *pMsg) {
+int32_t syncNodeAppendEntries(SSyncNode* ths, const SyncAppendEntries* pMsg) {
   // TLA+ Spec
   // AppendEntries(i, j) ==
   //    /\ i /= j
@@ -42,7 +42,7 @@ void appendEntries(SRaft *pRaft, const SyncAppendEntries *pMsg) {
   //    /\ UNCHANGED <<serverVars, candidateVars, leaderVars, logVars>>
 }
 
-void onAppendEntries(SRaft *pRaft, const SyncAppendEntries *pMsg) {
+int32_t syncNodeOnAppendEntriesCb(SSyncNode* ths, SyncAppendEntries* pMsg) {
   // TLA+ Spec
   // HandleAppendEntriesRequest(i, j, m) ==
   //    LET logOk == \/ m.mprevLogIndex = 0
