@@ -29,6 +29,7 @@ extern "C" {
 #include "ttimer.h"
 
 #define TIMER_MAX_MS 0x7FFFFFFF
+#define PING_TIMER_MS 1000
 
 typedef struct SSyncEnv {
   tmr_h pEnvTickTimer;
