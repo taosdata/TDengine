@@ -640,10 +640,3 @@ int32_t dndGetMnodeMonitorInfo(SDnode *pDnode, SMonClusterInfo *pClusterInfo, SM
   dndReleaseMnode(pDnode, pMnode);
   return code;
 }
-
-int8_t dndIsMnode(SDnode *pDnode) {
-  SMnode *pMnode = dndAcquireMnode(pDnode);
-  if (pMnode == NULL) return 0;
-  dndReleaseMnode(pDnode, pMnode);
-  return 1;
-}

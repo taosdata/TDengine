@@ -18,6 +18,10 @@
 
 #include "tsdbFile.h"
 
+#ifdef __cplusplus
+extern "C" {
+#endif
+
 // ================== TSDB global config
 extern bool tsdbForceKeepFile;
 
@@ -110,5 +114,9 @@ static FORCE_INLINE int tsdbUnLockFS(STsdbFS *pFs) {
   }
   return 0;
 }
+
+#ifdef __cplusplus
+}
+#endif
 
 #endif /* _TD_TSDB_FS_H_ */

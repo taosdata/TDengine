@@ -142,13 +142,10 @@ void MonitorTest::GetDnodeInfo(SMonInfo *pMonitor, SMonDnodeInfo *pInfo) {
   pInfo->io_read_disk = 7.1;
   pInfo->io_write_disk = 7.2;
   pInfo->req_select = 8;
-  pInfo->req_select_rate = 8.1;
   pInfo->req_insert = 9;
   pInfo->req_insert_success = 10;
-  pInfo->req_insert_rate = 10.1;
   pInfo->req_insert_batch = 11;
   pInfo->req_insert_batch_success = 12;
-  pInfo->req_insert_batch_rate = 12.3;
   pInfo->errors = 4;
   pInfo->vnodes_num = 5;
   pInfo->masters = 6;

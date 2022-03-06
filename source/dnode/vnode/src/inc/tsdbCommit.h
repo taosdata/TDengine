@@ -16,6 +16,10 @@
 #ifndef _TD_TSDB_COMMIT_H_
 #define _TD_TSDB_COMMIT_H_
 
+#ifdef __cplusplus
+extern "C" {
+#endif
+
 typedef struct {
   int   minFid;
   int   midFid;
@@ -64,6 +68,10 @@ int tsdbWriteBlockImpl(STsdbRepo *pRepo, STable *pTable, SDFile *pDFile, SDataCo
                        bool isLast, bool isSuper, void **ppBuf, void **ppCBuf);
 int   tsdbApplyRtn(STsdbRepo *pRepo);
 
+#endif
+
+#ifdef __cplusplus
+}
 #endif
 
 #endif /* _TD_TSDB_COMMIT_H_ */
