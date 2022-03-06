@@ -154,9 +154,11 @@ typedef struct SSyncNode {
   SyncIndex      commitIndex;
 
   // timer
-  tmr_h             pPingTimer;
-  int32_t           pingTimerMS;
-  uint8_t           pingTimerEnable;
+  tmr_h   pPingTimer;
+  int32_t pingTimerMS;
+  // uint8_t           pingTimerEnable;
+  uint64_t          pingTimerLogicClock;
+  uint64_t          pingTimerLogicClockUser;
   TAOS_TMR_CALLBACK FpPingTimer;  // Timer Fp
   uint64_t          pingTimerCounter;
 

@@ -80,7 +80,7 @@ int32_t syncIOSendMsg(void *clientRpc, const SEpSet *pEpSet, SRpcMsg *pMsg) {
       pMsg->msgType, pMsg->contLen);
   {
     cJSON *pJson = syncRpcMsg2Json(pMsg);
-    char  *serialized = cJSON_Print(pJson);
+    char * serialized = cJSON_Print(pJson);
     sTrace("process syncMessage send: pMsg:%s ", serialized);
     free(serialized);
     cJSON_Delete(pJson);
@@ -211,7 +211,7 @@ static void *syncIOConsumerFunc(void *param) {
   SSyncIO *io = param;
 
   STaosQall *qall;
-  SRpcMsg   *pRpcMsg, rpcMsg;
+  SRpcMsg *  pRpcMsg, rpcMsg;
   int        type;
 
   qall = taosAllocateQall();

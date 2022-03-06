@@ -99,8 +99,9 @@ SSyncNode* syncNodeOpen(const SSyncInfo* pSyncInfo) {
   syncUtilnodeInfo2raftId(&pSyncNode->me, pSyncNode->vgId, &pSyncNode->raftId);
 
   pSyncNode->pPingTimer = NULL;
-  pSyncNode->pingTimerMS = 1000;
-  atomic_store_8(&pSyncNode->pingTimerEnable, 0);
+  pSyncNode->pingTimerMS = PING_TIMER_MS;
+  atomic_store_64(&pSyncNode->pingTimerLogicClock, 0);
+  atomic_store_64(&pSyncNode->pingTimerLogicClockUser, 0);
   pSyncNode->FpPingTimer = syncNodeEqPingTimer;
   pSyncNode->pingTimerCounter = 0;
 
@@ -154,6 +155,9 @@ void syncNodePingSelf(SSyncNode* pSyncNode) {
 }
 
 int32_t syncNodeStartPingTimer(SSyncNode* pSyncNode) {
+  atomic_store_64(&pSyncNode->pingTimerLogicClock, pSyncNode->pingTimerLogicClockUser);
+  pSyncNode->pingTimerMS = PING_TIMER_MS;
+
   if (pSyncNode->pPingTimer == NULL) {
     pSyncNode->pPingTimer =
         taosTmrStart(pSyncNode->FpPingTimer, pSyncNode->pingTimerMS, pSyncNode, gSyncEnv->pTimerManager);
@@ -162,12 +166,11 @@ int32_t syncNodeStartPingTimer(SSyncNode* pSyncNode) {
                  &pSyncNode->pPingTimer);
   }
 
-  atomic_store_8(&pSyncNode->pingTimerEnable, 1);
   return 0;
 }
 
 int32_t syncNodeStopPingTimer(SSyncNode* pSyncNode) {
-  atomic_store_8(&pSyncNode->pingTimerEnable, 0);
+  atomic_add_fetch_64(&pSyncNode->pingTimerLogicClockUser, 1);
   pSyncNode->pingTimerMS = TIMER_MAX_MS;
   return 0;
 }
@@ -301,7 +304,7 @@ static int32_t syncNodeOnTimeoutCb(SSyncNode* ths, SyncTimeout* pMsg) {
   }
 
   if (pMsg->timeoutType == SYNC_TIMEOUT_PING) {
-    if (atomic_load_8(&ths->pingTimerEnable)) {
+    if (atomic_load_64(&ths->pingTimerLogicClockUser) <= pMsg->logicClock) {
       ++(ths->pingTimerCounter);
       syncNodePingAll(ths);
     }
@@ -316,11 +319,13 @@ static int32_t syncNodeOnTimeoutCb(SSyncNode* ths, SyncTimeout* pMsg) {
 
 static void syncNodeEqPingTimer(void* param, void* tmrId) {
   SSyncNode* pSyncNode = (SSyncNode*)param;
-  if (atomic_load_8(&pSyncNode->pingTimerEnable)) {
+  if (atomic_load_64(&pSyncNode->pingTimerLogicClockUser) <= atomic_load_64(&pSyncNode->pingTimerLogicClock)) {
     // pSyncNode->pingTimerMS += 100;
 
-    SyncTimeout* pSyncMsg = syncTimeoutBuild2(SYNC_TIMEOUT_PING, pSyncNode);
-    SRpcMsg      rpcMsg;
+    SyncTimeout* pSyncMsg =
+        syncTimeoutBuild2(SYNC_TIMEOUT_PING, atomic_load_64(&pSyncNode->pingTimerLogicClock), pSyncNode);
+
+    SRpcMsg rpcMsg;
     syncTimeout2RpcMsg(pSyncMsg, &rpcMsg);
     pSyncNode->FpEqMsg(pSyncNode->queue, &rpcMsg);
     syncTimeoutDestroy(pSyncMsg);
@@ -328,7 +333,8 @@ static void syncNodeEqPingTimer(void* param, void* tmrId) {
     taosTmrReset(syncNodeEqPingTimer, pSyncNode->pingTimerMS, pSyncNode, &gSyncEnv->pTimerManager,
                  &pSyncNode->pPingTimer);
   } else {
-    sTrace("syncNodeEqPingTimer: pingTimerEnable:%u ", pSyncNode->pingTimerEnable);
+    sTrace("syncNodeEqPingTimer: pingTimerLogicClock:%lu, pingTimerLogicClockUser:%lu", pSyncNode->pingTimerLogicClock,
+           pSyncNode->pingTimerLogicClockUser);
   }
 }
 
