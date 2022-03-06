@@ -84,8 +84,8 @@ SNodeptr nodesMakeNode(ENodeType type) {
       return makeNode(type, sizeof(SCreateDatabaseStmt));
     case QUERY_NODE_CREATE_TABLE_STMT:
       return makeNode(type, sizeof(SCreateTableStmt));
-    case QUERY_NODE_CREATE_SUBTABLE_STMT:
-      return makeNode(type, sizeof(SCreateSubTableStmt));
+    case QUERY_NODE_CREATE_SUBTABLE_CLAUSE:
+      return makeNode(type, sizeof(SCreateSubTableClause));
     case QUERY_NODE_CREATE_MULTI_TABLE_STMT:
       return makeNode(type, sizeof(SCreateMultiTableStmt));
     case QUERY_NODE_USE_DATABASE_STMT:

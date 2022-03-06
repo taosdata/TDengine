@@ -755,9 +755,9 @@ SNode* createCreateTableStmt(SAstCreateContext* pCxt,
   return (SNode*)pStmt;
 }
 
-SNode* createCreateSubTableStmt(SAstCreateContext* pCxt, bool ignoreExists,
+SNode* createCreateSubTableClause(SAstCreateContext* pCxt, bool ignoreExists,
     const STokenPair* pFullTableName, const STokenPair* pUseFullTableName, SNodeList* pSpecificTags, SNodeList* pValsOfTags) {
-  SCreateSubTableStmt* pStmt = nodesMakeNode(QUERY_NODE_CREATE_SUBTABLE_STMT);
+  SCreateSubTableClause* pStmt = nodesMakeNode(QUERY_NODE_CREATE_SUBTABLE_CLAUSE);
   CHECK_OUT_OF_MEM(pStmt);
   if (TK_NIL != pFullTableName->first.type) {
     strncpy(pStmt->dbName, pFullTableName->first.z, pFullTableName->first.n);

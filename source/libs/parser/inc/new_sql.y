@@ -100,7 +100,7 @@ multi_create_clause(A) ::= multi_create_clause(B) create_subtable_clause(C).    
 
 create_subtable_clause(A) ::=
   exists_opt(B) full_table_name(C) USING full_table_name(D)
-  specific_tags_opt(E) TAGS NK_LP literal_list(F) NK_RP.                          { A = createCreateSubTableStmt(pCxt, B, &C, &D, E, F); }
+  specific_tags_opt(E) TAGS NK_LP literal_list(F) NK_RP.                          { A = createCreateSubTableClause(pCxt, B, &C, &D, E, F); }
 
 %type specific_tags_opt                                                           { SNodeList* }
 %destructor specific_tags_opt                                                     { nodesDestroyList($$); }

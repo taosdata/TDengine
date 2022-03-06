@@ -101,6 +101,7 @@ static SKeyword keywordTable[] = {
     {"SMA",           TK_SMA},
     {"SMALLINT",      TK_SMALLINT},
     {"SOFFSET",       TK_SOFFSET},
+    {"STABLE",        TK_STABLE},
     {"STATE_WINDOW",  TK_STATE_WINDOW},
     {"STREAM_MODE",   TK_STREAM_MODE},
     {"TABLE",         TK_TABLE},
@@ -176,7 +177,6 @@ static SKeyword keywordTable[] = {
     // {"CTIME",        TK_CTIME},
     // {"LP",           TK_LP},
     // {"RP",           TK_RP},
-    
     // {"COMMA",        TK_COMMA},
     // {"EVERY",        TK_EVERY},
     // {"VARIABLE",     TK_VARIABLE},
@@ -224,7 +224,6 @@ static SKeyword keywordTable[] = {
     // {"VIEW",         TK_VIEW},
     // {"SEMI",         TK_SEMI},
     // {"TBNAME",       TK_TBNAME},
-    // {"STABLE",       TK_STABLE},
     // {"VNODES",       TK_VNODES},
 //    {"PARTITIONS",   TK_PARTITIONS},
     // {"TOPIC",        TK_TOPIC},

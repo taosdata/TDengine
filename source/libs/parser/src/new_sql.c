@@ -1918,7 +1918,7 @@ static YYACTIONTYPE yy_reduce(
   yymsp[-1].minor.yy182 = yylhsminor.yy182;
         break;
       case 27: /* create_subtable_clause ::= exists_opt full_table_name USING full_table_name specific_tags_opt TAGS NK_LP literal_list NK_RP */
-{ yylhsminor.yy210 = createCreateSubTableStmt(pCxt, yymsp[-8].minor.yy187, &yymsp[-7].minor.yy341, &yymsp[-5].minor.yy341, yymsp[-4].minor.yy182, yymsp[-1].minor.yy182); }
+{ yylhsminor.yy210 = createCreateSubTableClause(pCxt, yymsp[-8].minor.yy187, &yymsp[-7].minor.yy341, &yymsp[-5].minor.yy341, yymsp[-4].minor.yy182, yymsp[-1].minor.yy182); }
   yymsp[-8].minor.yy210 = yylhsminor.yy210;
         break;
       case 28: /* specific_tags_opt ::= */

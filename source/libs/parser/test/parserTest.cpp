@@ -346,5 +346,16 @@ TEST_F(ParserTest, createTable) {
        "if not exists test.t3 using test.st1 (tc1, tc2, tc3) tags(3, 2.0, 'abc', TIMESTAMP '2022-3-6 11:20:23')"
       );
   ASSERT_TRUE(run());
+
+  bind("create stable t1(ts timestamp, c1 int) TAGS(id int)");
+  ASSERT_TRUE(run());
+
+  bind("create stable if not exists test.t1("
+       "ts TIMESTAMP, c1 INT, c2 INT UNSIGNED, c3 BIGINT, c4 BIGINT UNSIGNED, c5 FLOAT, c6 DOUBLE, c7 BINARY(20), c8 SMALLINT, "
+       "c9 SMALLINT UNSIGNED COMMENT 'test column comment', c10 TINYINT, c11 TINYINT UNSIGNED, c12 BOOL, c13 NCHAR(30), c14 JSON, c15 VARCHAR(50)) "
+       "TAGS (tsa TIMESTAMP, a1 INT, a2 INT UNSIGNED, a3 BIGINT, a4 BIGINT UNSIGNED, a5 FLOAT, a6 DOUBLE, a7 BINARY(20), a8 SMALLINT, "
+       "a9 SMALLINT UNSIGNED COMMENT 'test column comment', a10 TINYINT, a11 TINYINT UNSIGNED, a12 BOOL, a13 NCHAR(30), a14 JSON, a15 VARCHAR(50)) "
+       "KEEP 100 TTL 100 COMMENT 'test create table' SMA(c1, c2, c3)"
+      );
+  ASSERT_TRUE(run());
 }
- 
