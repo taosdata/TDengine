@@ -1866,9 +1866,58 @@ typedef struct {
   uint64_t  tableUid;  // super/common table uid
   int64_t   interval;
   int64_t   sliding;
-  col_id_t* colIds;   // N.B. sorted column ids
-  uint16_t* funcIds;  // N.B. sorted sma function ids
+  col_id_t* colIds;   // sorted column ids
+  uint16_t* funcIds;  // sorted sma function ids
 } STSma;              // Time-range-wise SMA
+
+typedef struct {
+  int8_t      msgType;  // 0 create, 1 recreate
+  STSma       tSma;
+  STimeWindow window;
+} SCreateTSmaMsg;
+
+typedef struct {
+  STimeWindow window;
+  char        indexName[TSDB_INDEX_NAME_LEN + 1];
+} SDropTSmaMsg;
+
+typedef struct {
+  STimeWindow tsWindow;     // [skey, ekey]
+  uint64_t    tableUid;     // sub/common table uid
+  int32_t     numOfBlocks;  // number of sma blocks for each column, total number is numOfBlocks*numOfColId
+  int32_t     dataLen;      // total data length
+  col_id_t*   colIds;       // e.g. 2,4,9,10
+  col_id_t    numOfColIds;  // e.g. 4
+  char        data[];       // the sma blocks
+} STSmaData;
+
+// TODO: move to the final location afte schema of STSma/STSmaData defined
+static FORCE_INLINE void tdDestroySmaData(STSmaData* pSmaData) {
+  if (pSmaData) {
+    if (pSmaData->colIds) {
+      tfree(pSmaData->colIds);
+    }
+    tfree(pSmaData);
+  }
+}
+
+// RSma: Time-range-wise Rollup SMA
+// TODO: refactor when rSma grammar defined finally =>
+typedef struct {
+  int64_t  interval;
+  int32_t  retention;  // unit: day
+  uint16_t days;       // unit: day
+  int8_t   intervalUnit;
+} SSmaParams;
+// TODO: refactor when rSma grammar defined finally <=
+
+typedef struct {
+  // TODO: refactor to use the real schema =>
+  STSma   tsma;
+  float   xFilesFactor;
+  SArray* smaParams;  // SSmaParams
+  // TODO: refactor to use the real schema <=
+} SRSma;
 
 typedef struct {
   uint32_t number;
@@ -1885,12 +1934,17 @@ static FORCE_INLINE void tdDestroyTSma(STSma* pSma, bool releaseSelf) {
   }
 }
 
-static FORCE_INLINE void tdDestroyTSmaWrapper(STSmaWrapper* pSW) {
-  if (pSW && pSW->tSma) {
-    for (uint32_t i = 0; i < pSW->number; ++i) {
-      tdDestroyTSma(pSW->tSma + i, false);
+static FORCE_INLINE void tdDestroyTSmaWrapper(STSmaWrapper* pSW, bool releaseSelf) {
+  if (pSW) {
+    if (pSW->tSma) {
+      for (uint32_t i = 0; i < pSW->number; ++i) {
+        tdDestroyTSma(pSW->tSma + i, false);
+      }
+      tfree(pSW->tSma);
     }
-    tfree(pSW->tSma);
+    if (releaseSelf) {
+      free(pSW);
+    }
   }
 }
 
