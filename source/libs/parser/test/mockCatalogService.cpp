@@ -126,6 +126,19 @@ public:
     return 0;
   }
 
+  int32_t catalogGetTableDistVgInfo(const SName* pTableName, SArray** pVgList) const {
+    SVgroupInfo info = {0};
+    info.vgId = 1;
+    addEpIntoEpSet(&info.epset, "node1", 6030);
+
+    info.hashBegin = 0;
+    info.hashEnd = 1;
+    *pVgList = taosArrayInit(4, sizeof(SVgroupInfo));
+
+    taosArrayPush(*pVgList, &info);
+    return 0;
+  }
+
   TableBuilder& createTableBuilder(const std::string& db, const std::string& tbname, int8_t tableType, int32_t numOfColumns, int32_t numOfTags) {
     builder_ = TableBuilder::createTableBuilder(tableType, numOfColumns, numOfTags);
     meta_[db][tbname] = builder_->table();
@@ -313,4 +326,8 @@ int32_t MockCatalogService::catalogGetTableMeta(const SName* pTableName, STableM
 
 int32_t MockCatalogService::catalogGetTableHashVgroup(const SName* pTableName, SVgroupInfo* vgInfo) const {
   return impl_->catalogGetTableHashVgroup(pTableName, vgInfo);
+}
+
+int32_t MockCatalogService::catalogGetTableDistVgInfo(const SName* pTableName, SArray** pVgList) const {
+  return impl_->catalogGetTableDistVgInfo(pTableName, pVgList);
 }

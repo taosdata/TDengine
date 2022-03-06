@@ -58,9 +58,8 @@ int32_t __catalogGetTableHashVgroup(struct SCatalog* pCatalog, void *pRpc, const
   return mockCatalogService->catalogGetTableHashVgroup(pTableName, vgInfo);
 }
 
-int32_t __catalogGetTableDistVgInfo(SCatalog* pCatalog, void *pTransporter, const SEpSet* pMgmtEps, const SName* pTableName, SArray** pVgroupList) {
-  // return mockCatalogService->catalogGetTableDistVgInfo(pTableName, pVgroupList);
-  return 0;
+int32_t __catalogGetTableDistVgInfo(SCatalog* pCtg, void *pRpc, const SEpSet* pMgmtEps, const SName* pTableName, SArray** pVgList) {
+  return mockCatalogService->catalogGetTableDistVgInfo(pTableName, pVgList);
 }
 
 void initMetaDataEnv() {

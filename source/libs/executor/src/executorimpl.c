@@ -315,8 +315,6 @@ SSDataBlock* createOutputBuf(SExprInfo* pExpr, int32_t numOfOutput, int32_t numO
 }
 
 SSDataBlock* createOutputBuf_rv(SArray* pExprInfo, int32_t numOfRows) {
-  const static int32_t minSize = 8;
-
   size_t numOfOutput = taosArrayGetSize(pExprInfo);
 
   SSDataBlock *res = calloc(1, sizeof(SSDataBlock));
@@ -330,13 +328,26 @@ SSDataBlock* createOutputBuf_rv(SArray* pExprInfo, int32_t numOfRows) {
     idata.info.type  = pExpr->base.resSchema.type;
     idata.info.bytes = pExpr->base.resSchema.bytes;
     idata.info.colId = pExpr->base.resSchema.colId;
-
-    int32_t size = TMAX(idata.info.bytes * numOfRows, minSize);
-    idata.pData = calloc(1, size);  // at least to hold a pointer on x64 platform
     taosArrayPush(res->pDataBlock, &idata);
   }
 
+  blockDataEnsureCapacity(res, numOfRows);
   return res;
+}
+
+SSDataBlock* createOutputBuf_rv1(SDataBlockDescNode* pNode) {
+  int32_t numOfCols = LIST_LENGTH(pNode->pSlots);
+  SSDataBlock* pBlock = calloc(1, sizeof(SSDataBlock));
+  pBlock->info.numOfCols = numOfCols;
+  pBlock->pDataBlock = taosArrayInit(numOfCols, sizeof(SColumnInfoData));
+
+  for(int32_t i = 0; i < numOfCols; ++i) {
+    SColumnInfoData idata = {{0}};
+    SSlotDescNode* pDescNode = nodesListGetNode(pNode->pSlots, i);
+    idata.info.type  = pDescNode->dataType.type;
+    idata.info.bytes = pDescNode->dataType.bytes;
+    idata.info.slotId = pDescNode->slotId;
+  }
 }
 
 static bool isSelectivityWithTagsQuery(SqlFunctionCtx *pCtx, int32_t numOfOutput) {
@@ -8041,6 +8052,10 @@ static tsdbReaderT doCreateDataReader(STableScanPhysiNode* pTableScanNode, SRead
 static int32_t doCreateTableGroup(void* metaHandle, int32_t tableType, uint64_t tableUid, STableGroupInfo* pGroupInfo, uint64_t queryId, uint64_t taskId);
 
 SOperatorInfo* doCreateOperatorTreeNode(SPhysiNode* pPhyNode, SExecTaskInfo* pTaskInfo, SReadHandle* pHandle, uint64_t queryId, uint64_t taskId, STableGroupInfo* pTableGroupInfo) {
+  if (nodeType(pPhyNode) == QUERY_NODE_PHYSICAL_PLAN_PROJECT) { // ignore the project node
+    pPhyNode = nodesListGetNode(pPhyNode->pChildren, 0);
+  }
+
   if (pPhyNode->pChildren == NULL || LIST_LENGTH(pPhyNode->pChildren) == 0) {
     if (QUERY_NODE_PHYSICAL_PLAN_TABLE_SCAN == nodeType(pPhyNode)) {
       SScanPhysiNode* pScanPhyNode = (SScanPhysiNode*)pPhyNode;
@@ -8119,15 +8134,15 @@ static tsdbReaderT createDataReaderImpl(STableScanPhysiNode* pTableScanNode, STa
 
   cond.twindow = pTableScanNode->scanRange;
   cond.type = BLOCK_LOAD_OFFSET_SEQ_ORDER;
+//  cond.type = pTableScanNode->scanFlag;
 
   for (int32_t i = 0; i < cond.numOfCols; ++i) {
-    // SExprInfo* pExprInfo = taosArrayGetP(pTableScanNode->scan.node.pTargets, i);
-    // assert(pExprInfo->pExpr->nodeType == TEXPR_COL_NODE);
+    STargetNode* pNode = (STargetNode*)nodesListGetNode(pTableScanNode->scan.pScanCols, i);
 
-    // SSchema* pSchema = pExprInfo->pExpr->pSchema;
-    // cond.colList[i].type = pSchema->type;
-    // cond.colList[i].bytes = pSchema->bytes;
-    // cond.colList[i].colId = pSchema->colId;
+    SColumnNode* pColNode = (SColumnNode*)pNode->pExpr;
+    cond.colList[i].type = pColNode->colType;
+    cond.colList[i].bytes = pColNode->node.resType.type;
+    cond.colList[i].colId = pColNode->colId;
   }
 
   return tsdbQueryTables(readHandle, &cond, pGroupInfo, queryId, taskId);
