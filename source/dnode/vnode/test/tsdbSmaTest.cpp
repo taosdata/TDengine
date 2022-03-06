@@ -95,7 +95,7 @@ TEST(testCase, tSmaEncodeDecodeTest) {
 
   // resource release
   tdDestroyTSma(&tSma, false);
-  tdDestroyTSmaWrapper(&dstTSmaWrapper);
+  tdDestroyTSmaWrapper(&dstTSmaWrapper, false);
 }
 
 TEST(testCase, tSma_DB_Put_Get_Del_Test) {
@@ -161,7 +161,7 @@ TEST(testCase, tSma_DB_Put_Get_Del_Test) {
   EXPECT_EQ(qSmaCfg->interval, tSma.interval);
   tdDestroyTSma(qSmaCfg, true);
 
-  // get value by table uid
+  // get index name by table uid
   SMSmaCursor *pSmaCur = metaOpenSmaCursor(pMeta, tbUid);
   assert(pSmaCur != NULL);
   uint32_t indexCnt = 0;
@@ -175,6 +175,15 @@ TEST(testCase, tSma_DB_Put_Get_Del_Test) {
   }
   EXPECT_EQ(indexCnt, 2);
   metaCloseSmaCurosr(pSmaCur);
+
+  // get wrapper by table uid
+  STSmaWrapper *pSW = metaGetSmaInfoByUid(pMeta, tbUid);
+  assert(pSW != NULL);
+  EXPECT_EQ(pSW->number, 2);
+  EXPECT_STRCASEEQ(pSW->tSma->indexName, smaIndexName1);
+  EXPECT_EQ(pSW->tSma->tableUid, tSma.tableUid);
+  EXPECT_STRCASEEQ((pSW->tSma + 1)->indexName, smaIndexName2);
+  EXPECT_EQ((pSW->tSma + 1)->tableUid, tSma.tableUid);
 
   // resource release
   metaRemoveSmaFromDb(pMeta, smaIndexName1);
@@ -197,15 +206,15 @@ TEST(testCase, tSmaInsertTest) {
 
   int32_t blockSize = tSma.numOfFuncIds * sizeof(int64_t);
   int32_t numOfColIds = 3;
-  int32_t numOfSmaBlocks = 10;
+  int32_t numOfBlocks = 10;
 
-  int32_t dataLen = numOfColIds * numOfSmaBlocks * blockSize;
+  int32_t dataLen = numOfColIds * numOfBlocks * blockSize;
 
   pSmaData = (STSmaData*)malloc(sizeof(STSmaData) + dataLen);
   ASSERT_EQ(pSmaData != NULL, true);
   pSmaData->tableUid = 3232329230;
   pSmaData->numOfColIds = numOfColIds;
-  pSmaData->numOfSmaBlocks = numOfSmaBlocks;
+  pSmaData->numOfBlocks = numOfBlocks;
   pSmaData->dataLen = dataLen;
   pSmaData->tsWindow.skey = 1640000000;
   pSmaData->tsWindow.ekey = 1645788649;
