@@ -28,8 +28,6 @@ extern "C" {
 #include "syncRaft.h"
 #include "taosdef.h"
 
-void onRequestVoteReply(SRaft *pRaft, const SyncRequestVoteReply *pMsg);
-
 #ifdef __cplusplus
 }
 #endif

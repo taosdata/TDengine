@@ -245,6 +245,42 @@ static void *syncIOConsumerFunc(void *param) {
           syncPingReplyDestroy(pSyncMsg);
         }
 
+      } else if (pRpcMsg->msgType == SYNC_REQUEST_VOTE) {
+        if (io->FpOnSyncRequestVote) {
+          SyncRequestVote *pSyncMsg;
+          pSyncMsg = syncRequestVoteBuild(pRpcMsg->contLen);
+          syncRequestVoteFromRpcMsg(pRpcMsg, pSyncMsg);
+          io->FpOnSyncRequestVote(io->pSyncNode, pSyncMsg);
+          syncRequestVoteDestroy(pSyncMsg);
+        }
+
+      } else if (pRpcMsg->msgType == SYNC_REQUEST_VOTE_REPLY) {
+        if (io->FpOnSyncRequestVoteReply) {
+          SyncRequestVoteReply *pSyncMsg;
+          pSyncMsg = SyncRequestVoteReplyBuild();
+          syncRequestVoteReplyFromRpcMsg(pRpcMsg, pSyncMsg);
+          io->FpOnSyncRequestVoteReply(io->pSyncNode, pSyncMsg);
+          syncRequestVoteReplyDestroy(pSyncMsg);
+        }
+
+      } else if (pRpcMsg->msgType == SYNC_APPEND_ENTRIES) {
+        if (io->FpOnSyncAppendEntries) {
+          SyncAppendEntries *pSyncMsg;
+          pSyncMsg = syncAppendEntriesBuild(pRpcMsg->contLen);
+          syncAppendEntriesFromRpcMsg(pRpcMsg, pSyncMsg);
+          io->FpOnSyncAppendEntries(io->pSyncNode, pSyncMsg);
+          syncAppendEntriesDestroy(pSyncMsg);
+        }
+
+      } else if (pRpcMsg->msgType == SYNC_APPEND_ENTRIES_REPLY) {
+        if (io->FpOnSyncAppendEntriesReply) {
+          SyncAppendEntriesReply *pSyncMsg;
+          pSyncMsg = syncAppendEntriesReplyBuild();
+          syncAppendEntriesReplyFromRpcMsg(pRpcMsg, pSyncMsg);
+          io->FpOnSyncAppendEntriesReply(io->pSyncNode, pSyncMsg);
+          syncAppendEntriesReplyDestroy(pSyncMsg);
+        }
+
       } else if (pRpcMsg->msgType == SYNC_TIMEOUT) {
         if (io->FpOnSyncTimeout != NULL) {
           SyncTimeout *pSyncMsg;

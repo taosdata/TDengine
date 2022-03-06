@@ -30,7 +30,7 @@ extern "C" {
 
 // encode as uint32
 typedef enum ESyncMessageType {
-  SYNC_UNKNOWN = 77,
+  SYNC_UNKNOWN = 9999,
   SYNC_TIMEOUT = 99,
   SYNC_PING = 101,
   SYNC_PING_REPLY = 103,

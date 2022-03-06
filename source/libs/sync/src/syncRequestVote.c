@@ -15,7 +15,7 @@
 
 #include "syncRequestVote.h"
 
-void requestVote(SRaft *pRaft, const SyncRequestVote *pMsg) {
+int32_t syncNodeRequestVote(SSyncNode* ths, const SyncRequestVote* pMsg) {
   // TLA+ Spec
   // RequestVote(i, j) ==
   //    /\ state[i] = Candidate
@@ -29,7 +29,7 @@ void requestVote(SRaft *pRaft, const SyncRequestVote *pMsg) {
   //    /\ UNCHANGED <<serverVars, candidateVars, leaderVars, logVars>>
 }
 
-void onRequestVote(SRaft *pRaft, const SyncRequestVote *pMsg) {
+int32_t syncNodeOnRequestVoteCb(SSyncNode* ths, SyncRequestVote* pMsg) {
   // TLA+ Spec
   // HandleRequestVoteRequest(i, j, m) ==
   //    LET logOk == \/ m.mlastLogTerm > LastTerm(log[i])

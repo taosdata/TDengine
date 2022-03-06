@@ -131,6 +131,7 @@ typedef struct SSyncNode {
   // raft algorithm
   SSyncFSM* pFsm;
   int32_t   quorum;
+  SRaftId   leaderCache;
 
   // life cycle
   int32_t refCount;
@@ -193,18 +194,16 @@ int32_t syncNodeStopPingTimer(SSyncNode* pSyncNode);
 
 int32_t syncNodeStartElectTimer(SSyncNode* pSyncNode);
 int32_t syncNodeStopElectTimer(SSyncNode* pSyncNode);
-int32_t syncNodeResetElectTimer(SSyncNode* pSyncNode, int32_t ms);
 
 int32_t syncNodeStartHeartbeatTimer(SSyncNode* pSyncNode);
 int32_t syncNodeStopHeartbeatTimer(SSyncNode* pSyncNode);
-int32_t syncNodeResetHeartbeatTimer(SSyncNode* pSyncNode, int32_t ms);
 
-void syncNodeBecomeFollower(SSyncNode* pSyncNode);
-void syncNodeBecomeLeader(SSyncNode* pSyncNode);
-void syncNodeFollower2Candidate(SSyncNode* pSyncNode);
-void syncNodeCandidate2Leader(SSyncNode* pSyncNode);
-void syncNodeLeader2Follower(SSyncNode* pSyncNode);
-void syncNodeCandidate2Follower(SSyncNode* pSyncNode);
+int32_t syncNodeRequestVote(SSyncNode* ths, const SyncRequestVote* pMsg);
+int32_t syncNodeOnRequestVoteCb(SSyncNode* ths, SyncRequestVote* pMsg);
+int32_t syncNodeOnRequestVoteReplyCb(SSyncNode* ths, SyncRequestVoteReply* pMsg);
+int32_t syncNodeAppendEntries(SSyncNode* ths, const SyncAppendEntries* pMsg);
+int32_t syncNodeOnAppendEntriesCb(SSyncNode* ths, SyncAppendEntries* pMsg);
+int32_t syncNodeOnAppendEntriesReplyCb(SSyncNode* ths, SyncAppendEntriesReply* pMsg);
 
 #ifdef __cplusplus
 }
