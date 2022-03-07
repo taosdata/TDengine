@@ -14,6 +14,7 @@ stopTaosd
 rm -rf /var/lib/taos/*
 rm -rf /var/log/taos/*
 nohup taosd -c /etc/taos/ > /dev/null 2>&1 &
+nohup taosadapter > /dev/null 2>&1 &
 sleep 10
 cd ../../
 WKC=`pwd`

@@ -33,7 +33,9 @@ class TDTestCase:
 
         tdSql.error("create user tdenginetdenginetdengine PASS 'test' ")
 
-        tdSql.error("create user tdenginet PASS '1234512345123456' ")
+        tdSql.execute("create user tdenginet PASS '1234512345123456' ")
+
+        tdSql.error("create user tenginet PASS 'abcdefghijklmnopqrstuvwxyz1234567890abcdefghijklmnopqrstuvwxyz1234567890abcdefghijklmnopqrstuvwxyz1234567890abcdefghijklmnopqrstuvwxyz1234567890' ")
 
         try:
             tdSql.execute("create account a&cc PASS 'pass123'")

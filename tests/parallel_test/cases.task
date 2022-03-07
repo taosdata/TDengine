@@ -1,10 +1,6 @@
-113,,pytest,python3 test.py -f update/append_commit_data.py
 # 20,,pytest,python3 insert/retentionpolicy.py change date time
-368,,develop-test/3-connectors/java,bash test.sh 
 299,,pytest,python3 test.py -f update/merge_commit_data-0.py 
 290,,pytest,python3 test.py -f update/merge_commit_data.py 
-263,,script,./test.sh -f general/stream/stream_3.sim 
-259,,script,./test.sh -f general/stream/restart_stream.sim 
 241,,pytest,python3 test.py -f update/merge_commit_data2.py 
 224,,pytest,python3 test.py -f query/queryNullValueTest.py 
 221,,pytest,python3 test.py -f query/nestedQuery/nestedQuery.py 
@@ -13,20 +9,19 @@
 203,,pytest,python3 test.py -f update/merge_commit_last-0.py 
 191,,pytest,python3 test.py -f stream/stream1.py 
 188,,pytest,python3 test.py -f stream/stream2.py 
+160,,script,./test.sh -f general/stream/restart_stream.sim
+153,,script,./test.sh -f general/stream/stream_3.sim
 151,,script,./test.sh -f unique/vnode/replica3_repeat.sim 
-143,,script,./test.sh -f general/stream/stream_restart.sim 
 138,,pytest,python3 test.py -f insert/randomNullCommit.py 
 132,,pytest,python3 test.py -f functions/function_interp.py 
 131,,system-test,bash 3-connectors/python/test.sh 
 128,,develop-test,bash 3-connectors/python/test.sh 
-127,,script,./test.sh -f general/stream/table_replica1_vnoden.sim 
-127,,script,./test.sh -f general/stream/table_del.sim 
-127,,script,./test.sh -f general/stream/metrics_replica1_vnoden.sim 
-127,,script,./test.sh -f general/stream/metrics_del.sim 
 127,,pytest,python3 test.py -f query/queryConnection.py 
+124,,develop-test/3-connectors/java,bash test.sh 
 121,2,script,./test.sh -f unique/cluster/balance3.sim 
 114,,script,./test.sh -f general/db/alter_tables_d2.sim 
 113,,pytest,python3 test.py -f update/append_commit_last.py 
+113,,pytest,python3 test.py -f update/append_commit_data.py
 111,,script,./test.sh -f unique/vnode/replica2_repeat.sim 
 111,,script,./test.sh -f unique/vnode/many.sim 
 110,,pytest,python3 test.py -f update/append_commit_last-0.py 
@@ -49,12 +44,15 @@
 78,,script,./test.sh -f unique/cluster/balance1.sim 
 76,,script,./test.sh -f unique/import/replica3.sim 
 76,,script,./test.sh -f unique/db/replica_add13.sim 
+76,,script,./test.sh -f general/stream/table_replica1_vnoden.sim
 75,,script,./test.sh -f unique/db/replica_reduce32.sim 
 75,,script,./test.sh -f unique/db/replica_add23.sim 
 75,,script,./test.sh -f unique/account/usage.sim 
 74,,script,./test.sh -f unique/arbitrator/dn3_mn1_replica_change.sim 
 74,,script,./test.sh -f unique/arbitrator/dn3_mn1_r3_vnode_delDir.sim 
+74,,script,./test.sh -f general/stream/metrics_replica1_vnoden.sim
 71,,script,./test.sh -f unique/mnode/mgmtr2.sim 
+70,,script,./test.sh -f general/stream/stream_restart.sim 
 69,,script,./test.sh -f unique/import/replica3.sim 
 69,,script,./test.sh -f unique/arbitrator/check_cluster_cfg_para.sim 
 69,,pytest,python3 test.py -f functions/function_sample.py -r 1 
@@ -100,6 +98,7 @@
 55,,script,./test.sh -f general/db/delete_reusevnode.sim 
 55,,pytest,python3 test.py -f stream/metric_n.py 
 55,,develop-test,python3 ./test.py -f 1-insert/batchInsert.py 
+54,,script,./test.sh -f general/stream/table_del.sim
 ,,pytest,python3 ./test.py -f query/queryNcharNull.py
 ,,pytest,python3 ./test.py -f alter/alterBackQuoteCol.py
 ,,pytest,python3 ./test.py -f tsdb/tsdbComp.py
@@ -304,6 +303,13 @@
 20,,script,./test.sh -f general/parser/auto_create_tb_drop_tb.sim 
 20,,script,./test.sh -f general/import/basic.sim 
 20,2,script,./test.sh -f general/alter/dnode.sim 
+20,,script,./test.sh -f general/compute/cast.sim 
+20,,script,./test.sh -f general/compute/string_funcs.sim 
+20,,develop-test,python3 test.py -f 2-query/lower_func.py
+20,,develop-test,python3 test.py -f 2-query/upper_func.py
+20,,develop-test,python3 test.py -f 2-query/ltrim_func.py
+20,,develop-test,python3 test.py -f 2-query/rtrim_func.py
+20,,develop-test,python3 test.py -f 2-query/substr_func.py
 20,,pytest,python3 test.py -f query/query.py 
 20,,pytest,python3 test.py -f import_merge/importLastTO.py 
 20,,pytest,python3 test.py -f import_merge/importDataSub.py 
@@ -395,6 +401,7 @@
 15,,pytest,python3 test.py -f functions/function_max.py -r 1 
 15,,pytest,python3 test.py -f functions/function_last.py -r 1 
 15,,pytest,python3 test.py -f functions/function_avg.py -r 1 
+14,,script,./test.sh -f general/stream/metrics_del.sim
 14,,system-test,python3 ./test.py -f 5-taos-tools/TD-12478.py 
 14,,script,./test.sh -f unique/account/basic.sim 
 14,,script,./test.sh -f general/table/limit.sim 
@@ -553,6 +560,8 @@
 10,,script,./test.sh -f unique/stable/replica2_vnode3.sim 
 10,,pytest,python3 testCompress.py 
 10,,pytest,python3 test.py -f client/client.py 
+10,,script,./test.sh -f general/parser/scalar_expression.sim 
+10,,script,./test.sh -f general/compute/scalar_pow.sim 
 9,,script,./test.sh -f general/parser/alter1.sim 
 9,,script,./test.sh -f general/db/delete.sim 
 9,,pytest,python3 test.py -f tools/taosdemoTestLimitOffset.py 
@@ -587,6 +596,8 @@
 7,,develop-test,python3 ./test.py -f 5-taos-tools/taosdump/taosdumpTestTypeJson.py 
 7,,develop-test,python3 ./test.py -f 5-taos-tools/taosdump/taosdumpTestTypeBool.py 
 7,,develop-test,python3 ./test.py -f 5-taos-tools/taosdump/taosdumpTestTypeBigInt.py 
+7,,develop-test,python3 ./test.py -f 2-query/function_timetruncate.py
+7,,develop-test,python3 ./test.py -f 2-query/function_timediff.py
 6,,system-test,python3 ./test.py -f 2-query/TD-12229.py 
 6,,system-test,python3 ./test.py -f 2-query/TD-11943.py 
 6,,system-test,python3 ./test.py -f 2-query/function_elapsed.py 
@@ -691,9 +702,16 @@
 5,,develop-test,python3 ./test.py -f 2-query/union-order.py 
 5,,develop-test,python3 ./test.py -f 2-query/timeline_agg_func_groupby.py 
 5,,develop-test,python3 ./test.py -f 2-query/session_two_stage.py 
+5,,develop-test,python3 ./test.py -f 2-query/function_histogram.py
 5,,develop-test,python3 ./test.py -f 0-others/TD-12435.py 
 5,,develop-test,python3 ./test.py -f 0-others/json_tag.py 
-4,,system-test,python3 test.py -f 4-taosAdapter/TD-12163.py 
+5,,develop-test,python3 ./test.py -f 2-query/function_mode.py
+5,,develop-test,python3 ./test.py -f 2-query/function_now.py
+5,,develop-test,python3 ./test.py -f 2-query/function_today.py
+5,,develop-test,python3 ./test.py -f 2-query/function_timezone.py
+5,,develop-test,python3 ./test.py -f 2-query/function_to_iso8601.py
+5,,develop-test,python3 ./test.py -f 2-query/function_to_unixtimestamp.py
+4,,system-test,python3 test.py -f 4-taosAdapter/TD-12163.py
 4,,system-test,python3 ./test.py -f 3-connectors/restful/restful_binddbname.py 
 4,,system-test,python3 ./test.py -f 2-query/TD-12614.py 
 4,,system-test,python3 ./test.py -f 2-query/TD-12014.py 
@@ -768,3 +786,8 @@
 3,,pytest,python3 test.py -f tag_lite/binary.py 
 3,,pytest,python3 test.py -f query/filterAllIntTypes.py 
 3,,develop-test,python3 ./test.py -f 2-query/ts_hidden_column.py 
+3,,script,./test.sh -f general/compute/scalar_triangle.sim 
+3,,script,./test.sh -f general/compute/scalar_str_concat_len.sim
+3,,develop-test,python3 ./test.py -f 2-query/function_tail.py
+2,,develop-test,python3 ./test.py -f 2-query/function_unique.py
+1,,develop-test,python3 ./test.py -f 5-taos-tools/taosbenchmark/demo.py

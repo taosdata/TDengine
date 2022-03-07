@@ -22,7 +22,7 @@
   "super_table_query": {
     "stblname": "stb",
     "query_interval": 1,
-    "threads": 1,
+    "concurrent": 1,
     "sqls": [
       {
         "sql": "select count(*) from xxxx",

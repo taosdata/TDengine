@@ -76,8 +76,8 @@ endw
 sql drop table $mt
 
 print =============== step4
-print sleep 120 seconds
-sleep 120000 
+print sleep 10 seconds
+sleep 10000 
 
 print =============== step5
 $st = $stPrefix . c3

@@ -11,7 +11,7 @@
     "query_mode": "taosc",
     "specified_table_query": {
       "query_interval": 1,
-      "concurrent": 2,
+      "threads": 2,
       "sqls": [
         {
           "sql": "select count(*) from stb0 where ts>\"2021-07-01 00:01:00.000000000 \" ;",

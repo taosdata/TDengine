@@ -53,7 +53,7 @@ class TDTestCase:
         # check stable stb0
 
         os.system(
-            "%staosBenchmark -f tools/taosdemoAllTest/NanoTestCase/taosdemoTestNanoDatabase.json -y " %
+            "%staosBenchmark -f 5-taos-tools/taosbenchmark/NanoTestCase/taosdemoTestNanoDatabase.json -y " %
             binPath)
         tdSql.execute("use nsdb")
         tdSql.query("show stables")
@@ -88,7 +88,7 @@ class TDTestCase:
 
         # check stable stb0
         os.system(
-            "%staosBenchmark -f tools/taosdemoAllTest/NanoTestCase/taosdemoTestNanoDatabaseNow.json -y " %
+            "%staosBenchmark -f 5-taos-tools/taosbenchmark/NanoTestCase/taosdemoTestNanoDatabaseNow.json -y " %
             binPath)
 
         tdSql.execute("use nsdb2")
@@ -109,7 +109,7 @@ class TDTestCase:
 
     
         os.system(
-            "%staosBenchmark -f tools/taosdemoAllTest/NanoTestCase/taosdemoTestNanoDatabasecsv.json  -y " %
+            "%staosBenchmark -f 5-taos-tools/taosbenchmark/NanoTestCase/taosdemoTestNanoDatabasecsv.json  -y " %
             binPath)
         tdSql.execute("use nsdbcsv")
         tdSql.query("show stables")

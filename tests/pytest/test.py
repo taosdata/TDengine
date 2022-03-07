@@ -23,6 +23,7 @@ from fabric2 import Connection
 from util.log import *
 from util.dnodes import *
 from util.cases import *
+from util.dockerNodes import *
 
 import taos
 
@@ -36,14 +37,17 @@ if __name__ == "__main__":
     logSql = True
     stop = 0
     restart = False
+    docker = False
+    dataDir = "/data"
     windows = 0
-    opts, args = getopt.gnu_getopt(sys.argv[1:], 'f:p:m:l:scghrw', [
-        'file=', 'path=', 'master', 'logSql', 'stop', 'cluster', 'valgrind', 'help', 'windows'])
+    opts, args = getopt.gnu_getopt(sys.argv[1:], 'f:d:p:m:l:scghrw', [
+        'file=', 'docker=', 'path=', 'master', 'logSql', 'stop', 'cluster', 'valgrind', 'help', 'windows'])
     for key, value in opts:
         if key in ['-h', '--help']:
             tdLog.printNoPrefix(
                 'A collection of test cases written using Python')
             tdLog.printNoPrefix('-f Name of test case file written by Python')
+            tdLog.printNoPrefix('-d docker cluster test')
             tdLog.printNoPrefix('-p Deploy Path for Simulator')
             tdLog.printNoPrefix('-m Master Ip for Simulator')
             tdLog.printNoPrefix('-l <True:False> logSql Flag')
@@ -51,7 +55,7 @@ if __name__ == "__main__":
             tdLog.printNoPrefix('-c Test Cluster Flag')
             tdLog.printNoPrefix('-g valgrind Test Flag')
             tdLog.printNoPrefix('-r taosd restart test')
-            tdLog.printNoPrefix('-w taos on windows')
+            tdLog.printNoPrefix('-w taos on windows')            
             sys.exit(0)
 
         if key in ['-r', '--restart']:
@@ -59,6 +63,11 @@ if __name__ == "__main__":
 
         if key in ['-f', '--file']:
             fileName = os.path.normpath(value)
+            print(fileName)
+        
+        if key in ['-d', '--docker']:
+            fileName = os.path.normpath(value)            
+            docker = True
 
         if key in ['-p', '--path']:
             deployPath = value
@@ -82,7 +91,7 @@ if __name__ == "__main__":
             valgrind = 1
 
         if key in ['-s', '--stop']:
-            stop = 1
+            stop = 1        
 
         if key in ['-w', '--windows']:
             windows = 1
@@ -120,10 +129,43 @@ if __name__ == "__main__":
     if masterIp == "":
         host = '127.0.0.1'
     else:
-        host = masterIp
+        host = masterIp    
 
     tdLog.info("Procedures for tdengine deployed in %s" % (host)) 
-    if windows:
+    if docker:        
+        tdCases.logSql(logSql)
+        tdLog.info("Procedures for testing self-deployment")             
+        is_test_framework = 0
+        key_word = 'tdCases.addLinux'
+        try:
+            if key_word in open(fileName).read():
+                is_test_framework = 1
+        except BaseException:
+            pass
+        if is_test_framework:
+            moduleName = fileName.replace(".py", "").replace(os.sep, ".")
+            uModule = importlib.import_module(moduleName)
+            try:
+                ucase = uModule.TDTestCase()                
+                numOfNodes = ucase.updatecfgDict.get('numOfNodes')                
+                cluster.init(numOfNodes, dataDir)                    
+                cluster.prepardBuild()
+
+                for i in range(numOfNodes):
+                    if ucase.updatecfgDict.get('%d' % (i + 1)) != None:
+                        config = dict (ucase.updatecfgDict.get('%d' % (i + 1)))
+                        print(config)
+                        for key, value in config.items():
+                            print(key, value, i + 1)
+                            cluster.cfg(key, value, i + 1)                           
+                cluster.run()
+                conn = cluster.conn
+            except Exception as e:
+                print(e.args)
+                print(str(e))
+                exit(1)
+        tdCases.runOneLinux(conn, fileName)
+    elif windows:
         tdCases.logSql(logSql)
         tdLog.info("Procedures for testing self-deployment")
         td_clinet = TDSimClient("C:\\TDengine")
@@ -160,6 +202,8 @@ if __name__ == "__main__":
             host="%s" % (host),
             config=td_clinet.cfgDir)
         tdCases.runOneWindows(conn, fileName)
+        tdCases.logSql(logSql)
+
     else:
         tdDnodes.init(deployPath)
         tdDnodes.setTestCluster(testCluster)

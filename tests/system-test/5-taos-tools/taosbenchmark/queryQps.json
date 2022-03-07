@@ -10,7 +10,7 @@
     "query_times": 1,
     "specified_table_query": {
         "query_interval": 10000,
-        "concurrent": 4,
+        "threads": 4,
         "sqls": [
           {    
               "sql": "select last_row(*) from stb00_0",

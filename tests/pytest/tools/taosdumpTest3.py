@@ -116,24 +116,24 @@ class TDTestCase:
 
 
         # #  taosdump stable and  general table
-        os.system("%staosdump  -o ./taosdumptest/tmp1 -D dp1,dp2 -T 8 -B 1000" % binPath)
-        os.system("%staosdump  -o ./taosdumptest/tmp2 dp1 st0 gt0   -T 8 -B 1000" % binPath)
-        os.system("%staosdump  -o ./taosdumptest/tmp3 dp2 st0 st1_0 gt0  -T 8 -B 1000"  % binPath)
-        os.system("%staosdump  -o ./taosdumptest/tmp4 dp2 st0 st2 gt0 gt2  -T 8 -B 1000" % binPath)
+        os.system("%staosdump  -o ./taosdumptest/tmp1 -D dp1,dp2 -T 8 " % binPath)
+        os.system("%staosdump  -o ./taosdumptest/tmp2 dp1 st0 gt0   -T 8 " % binPath)
+        os.system("%staosdump  -o ./taosdumptest/tmp3 dp2 st0 st1_0 gt0  -T 8 "  % binPath)
+        os.system("%staosdump  -o ./taosdumptest/tmp4 dp2 st0 st2 gt0 gt2  -T 8 " % binPath)
 
         # verify ns 
-        os.system("%staosdump  -o ./taosdumptest/tmp6 dp3 st0_0  -T 8 -B 1000" % binPath)
+        os.system("%staosdump  -o ./taosdumptest/tmp6 dp3 st0_0  -T 8 " % binPath)
 
         # verify -D:--database
-        assert os.system("%staosdump  -o ./taosdumptest/tmp5  --databases dp1,dp2   -T 8 -B 1000" % binPath) == 0
+        assert os.system("%staosdump  -o ./taosdumptest/tmp5  --databases dp1,dp2   -T 8 " % binPath) == 0
         # verify mixed -D:--database and dbname tbname
-        assert os.system("%staosdump --databases dp1 -o ./taosdumptest/tmp5 dp2 st0 st1_0 gt0  -T 8 -B 1000" % binPath) != 0
+        assert os.system("%staosdump --databases dp1 -o ./taosdumptest/tmp5 dp2 st0 st1_0 gt0  -T 8 " % binPath) != 0
 
         # verify -N
-        os.system("%staosdump  -o ./taosdumptest/tmp7 dp3 st0_0 -N -d null  -T 8 -B 1000" % binPath)
+        os.system("%staosdump  -o ./taosdumptest/tmp7 dp3 st0_0 -N -d null  -T 8 " % binPath)
 
         # verify -N -s
-        os.system("%staosdump  -o ./taosdumptest/tmp8 dp3 st0_0 -N  -s  -T 8 -B 1000" % binPath)
+        os.system("%staosdump  -o ./taosdumptest/tmp8 dp3 st0_0 -N  -s  -T 8 " % binPath)
 
         #check taosdumptest/tmp1
         tdSql.execute("drop database  dp1")

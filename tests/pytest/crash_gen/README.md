@@ -24,7 +24,7 @@ This tool can also use to start a TDengine service, either in stand-alone mode o
 cluster mode. The features include:
 
 1. User specified number of D-Nodes to create/use.
-
+2. User can set run path  by -z or --set-path .
 # Preparation
 
 To run this tool, please ensure the followed preparation work is done first.
@@ -117,7 +117,7 @@ usage: crash_gen_bootstrap.py [-h] [-a] [-b MAX_DBS] [-c CONNECTOR_TYPE] [-d] [-
 TDengine Auto Crash Generator (PLEASE NOTICE the Prerequisites Below)
 ---------------------------------------------------------------------
 1. You build TDengine in the top level ./build directory, as described in offical docs
-2. You run the server there before this script: ./build/bin/taosd -c test/cfg
+2. You run the server there before this script: ./build/bin/taosd -c test/cfg ,you can also set run path by -z or --set-path
 
 optional arguments:
   -h, --help            show this help message and exit
@@ -152,5 +152,8 @@ optional arguments:
   -w, --use-shadow-db   Use a shaddow database to verify data integrity (default: false)
   -x, --continue-on-exception
                         Continue execution after encountering unexpected/disallowed errors/exceptions (default: false)
+  -z SET_PATH, --set-path SET_PATH
+                        set crash_gen run path instead of defalut path
+                        
 ```
 
