@@ -16,11 +16,6 @@
 #include "syncElection.h"
 #include "syncMessage.h"
 
-int32_t syncNodeElect(SSyncNode* pSyncNode) {
-  // start election
-  syncNodeRequestVotePeers(pSyncNode);
-}
-
 // TLA+ Spec
 // RequestVote(i, j) ==
 //    /\ state[i] = Candidate
@@ -32,7 +27,13 @@ int32_t syncNodeElect(SSyncNode* pSyncNode) {
 //             msource       |-> i,
 //             mdest         |-> j])
 //    /\ UNCHANGED <<serverVars, candidateVars, leaderVars, logVars>>
+//
 int32_t syncNodeRequestVotePeers(SSyncNode* pSyncNode) {}
+
+int32_t syncNodeElect(SSyncNode* pSyncNode) {
+  // start election
+  syncNodeRequestVotePeers(pSyncNode);
+}
 
 int32_t syncNodeRequestVote(SSyncNode* pSyncNode, const SRaftId* destRaftId, const SyncRequestVote* pMsg) {
   sTrace("syncNodeRequestVote pSyncNode:%p ", pSyncNode);

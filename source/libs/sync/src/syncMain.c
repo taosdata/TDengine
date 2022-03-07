@@ -177,7 +177,7 @@ int32_t syncNodePing(SSyncNode* pSyncNode, const SRaftId* destRaftId, SyncPing* 
   return ret;
 }
 
-void syncNodePingAll(SSyncNode* pSyncNode) {
+int32_t syncNodePingAll(SSyncNode* pSyncNode) {
   sTrace("syncNodePingAll pSyncNode:%p ", pSyncNode);
   int32_t ret = 0;
   for (int i = 0; i < pSyncNode->syncCfg.replicaNum; ++i) {
@@ -190,7 +190,7 @@ void syncNodePingAll(SSyncNode* pSyncNode) {
   }
 }
 
-void syncNodePingPeers(SSyncNode* pSyncNode) {
+int32_t syncNodePingPeers(SSyncNode* pSyncNode) {
   int32_t ret = 0;
   for (int i = 0; i < pSyncNode->peersNum; ++i) {
     SRaftId destId;
@@ -202,7 +202,7 @@ void syncNodePingPeers(SSyncNode* pSyncNode) {
   }
 }
 
-void syncNodePingSelf(SSyncNode* pSyncNode) {
+int32_t syncNodePingSelf(SSyncNode* pSyncNode) {
   int32_t   ret;
   SyncPing* pMsg = syncPingBuild3(&pSyncNode->raftId, &pSyncNode->raftId);
   ret = syncNodePing(pSyncNode, &pMsg->destId, pMsg);

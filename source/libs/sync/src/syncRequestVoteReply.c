@@ -31,4 +31,5 @@
 //          /\ UNCHANGED <<votesGranted, voterLog>>
 //    /\ Discard(m)
 //    /\ UNCHANGED <<serverVars, votedFor, leaderVars, logVars>>
+//
 int32_t syncNodeOnRequestVoteReplyCb(SSyncNode* ths, SyncRequestVoteReply* pMsg) {}
