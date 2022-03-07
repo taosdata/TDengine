@@ -1,0 +1,146 @@
+system sh/stop_dnodes.sh
+system sh/deploy.sh -n dnode1 -i 1
+system sh/deploy.sh -n dnode2 -i 2
+system sh/deploy.sh -n dnode3 -i 3
+
+system sh/cfg.sh -n dnode1 -c numOfMnodes -v 3
+system sh/cfg.sh -n dnode2 -c numOfMnodes -v 3
+system sh/cfg.sh -n dnode3 -c numOfMnodes -v 3
+
+system sh/cfg.sh -n dnode1 -c maxTables -v 4
+system sh/cfg.sh -n dnode2 -c maxTables -v 4
+system sh/cfg.sh -n dnode3 -c maxTables -v 4
+
+system sh/cfg.sh -n dnode1 -c mnodeEqualVnodeNum -v 0
+system sh/cfg.sh -n dnode2 -c mnodeEqualVnodeNum -v 0
+system sh/cfg.sh -n dnode3 -c mnodeEqualVnodeNum -v 0
+
+print ============================== step1
+system sh/exec.sh -n dnode1 -s start
+sql connect
+
+print ============================== step2
+print ========= start dnode2
+sql create dnode $hostname2
+system sh/exec.sh -n dnode2 -s start
+sql create dnode $hostname3
+system sh/exec.sh -n dnode3 -s start
+
+$maxNum = 102
+$maxNum = 12
+
+$x = 0
+show2: 
+	$x = $x + 1
+	sleep 2000
+	if $x == 10 then
+		return -1
+	endi
+	
+sql show mnodes
+$dnode1Role = $data2_1
+$dnode2Role = $data2_2
+$dnode3Role = $data2_3
+
+print $dnode1Role
+print $dnode2Role 
+print $dnode3Role 
+
+if $dnode1Role != master then
+	goto show2
+endi
+if $dnode2Role != slave then
+	goto show2
+endi
+if $dnode3Role != slave then
+	goto show2
+endi
+
+print ============================== step3
+$count = 2
+while $count < $maxNum
+  $db = d . $count
+  $tb = $db . .t
+  $tb2 = $db . .t2
+  sql create database $db replica 3 cache 1 blocks 3
+  sql create table $tb (ts timestamp, i int)
+  sql insert into $tb values(now, 1)
+  sql create table $tb2 as select count(*) from $tb interval(10s)
+  $count = $count + 1
+  print insert into $tb values(now, 1) ==> finished
+endw
+
+print ============================== step4
+
+$count = 2
+while $count < $maxNum
+  $db = d . $count
+  $tb = $db . .t
+  sql select * from $tb
+  if $rows != 1 then
+    print select * from $tb
+    return -1
+  endi
+  $count = $count + 1
+  print select * from $tb ==> rows: $rows 
+endw
+
+print ============================== step5
+system sh/exec.sh -n dnode1 -s stop  -x SIGINT
+system sh/exec.sh -n dnode2 -s stop  -x SIGINT
+system sh/exec.sh -n dnode3 -s stop  -x SIGINT
+
+print ============================== step6
+system sh/exec.sh -n dnode1 -s start
+system sh/exec.sh -n dnode2 -s start
+system sh/exec.sh -n dnode3 -s start
+
+print ============================== step7
+
+$x = 0
+show7: 
+	$x = $x + 1
+	sleep 2000
+	if $x == 50 then
+		return -1
+	endi
+	
+sql show mnodes -x show7
+$dnode1Role = $data2_1
+$dnode2Role = $data2_2
+$dnode3Role = $data2_3
+if $dnode1Role != master then
+	goto show7
+endi
+if $dnode2Role != slave then
+	goto show7
+endi
+if $dnode2Role != slave then
+	goto show7
+endi
+
+print ============================== step8
+$x = 0
+show8: 
+	$x = $x + 1
+	sleep 2000
+	if $x == 20 then
+		return -1
+	endi
+
+$count = 2
+while $count < $maxNum
+  $db = d . $count
+  $tb = $db . .t
+  sql select * from $tb
+  if $rows != 1 then
+    print select * from $tb
+    goto show8
+  endi
+  $count = $count + 1
+  print select * from $tb ==> rows: $rows 
+endw
+
+system sh/exec.sh -n dnode1 -s stop  -x SIGINT
+system sh/exec.sh -n dnode2 -s stop  -x SIGINT
+system sh/exec.sh -n dnode3 -s stop  -x SIGINT

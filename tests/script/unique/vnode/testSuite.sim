@@ -1,0 +1,6 @@
+run unique/vnode/many.sim
+run unique/vnode/replica2_basic2.sim
+run unique/vnode/replica2_repeat.sim
+run unique/vnode/replica3_basic.sim
+run unique/vnode/replica3_repeat.sim
+run unique/vnode/replica3_vgroup.sim
