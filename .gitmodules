@@ -13,10 +13,3 @@
 [submodule "deps/jemalloc"]
 	path = deps/jemalloc
 	url = https://github.com/jemalloc/jemalloc
-[submodule "tests"]
-	path = tests
-	url = https://github.com/taosdata/tests
-	branch = 2.0
-[submodule "examples/rust"]
-	path = examples/rust
-	url = https://github.com/songtianyi/tdengine-rust-bindings.git
