@@ -833,6 +833,7 @@ SMSmaCursor *metaOpenSmaCursor(SMeta *pMeta, tb_uid_t uid) {
   }
 
   pCur->uid = uid;
+  // TODO: lock?
   ret = pDB->pCtbIdx->cursor(pDB->pSmaIdx, NULL, &(pCur->pCur), 0);
   if (ret != 0) {
     free(pCur);
@@ -852,25 +853,68 @@ void metaCloseSmaCurosr(SMSmaCursor *pCur) {
   }
 }
 
-const char* metaSmaCursorNext(SMSmaCursor *pCur) {
-  DBT    skey = {0};
-  DBT    pkey = {0};
-  DBT    pval = {0};
-  void  *pBuf;
+const char *metaSmaCursorNext(SMSmaCursor *pCur) {
+  DBT skey = {0};
+  DBT pkey = {0};
+  DBT pval = {0};
 
   // Set key
   skey.data = &(pCur->uid);
   skey.size = sizeof(pCur->uid);
-
+  // TODO: lock?
   if (pCur->pCur->pget(pCur->pCur, &skey, &pkey, &pval, DB_NEXT) == 0) {
-    const char* indexName = (const char *)pkey.data;
+    const char *indexName = (const char *)pkey.data;
     assert(indexName != NULL);
     return indexName;
   } else {
-    return 0;
+    return NULL;
   }
 }
 
+STSmaWrapper *metaGetSmaInfoByUid(SMeta *pMeta, tb_uid_t uid) {
+  STSmaWrapper *pSW = NULL;
+
+  pSW = calloc(sizeof(*pSW), 1);
+  if (pSW == NULL) {
+    return NULL;
+  }
+
+  SMSmaCursor *pCur = metaOpenSmaCursor(pMeta, uid);
+  if (pCur == NULL) {
+    free(pSW);
+    return NULL;
+  }
+
+  DBT   skey = {.data = &(pCur->uid)};
+  DBT   pval = {.size = sizeof(pCur->uid)};
+  void *pBuf = NULL;
+
+  while (true) {
+    // TODO: lock?
+    if (pCur->pCur->pget(pCur->pCur, &skey, NULL, &pval, DB_NEXT) == 0) {
+      ++pSW->number;
+      STSma *tptr = (STSma *)realloc(pSW->tSma, pSW->number * sizeof(STSma));
+      if (tptr == NULL) {
+        metaCloseSmaCurosr(pCur);
+        tdDestroyTSmaWrapper(pSW, true);
+        return NULL;
+      }
+      pSW->tSma = tptr;
+      pBuf = pval.data;
+      if (tDecodeTSma(pBuf, pSW->tSma + pSW->number - 1) == NULL) {
+        metaCloseSmaCurosr(pCur);
+        tdDestroyTSmaWrapper(pSW, true);
+        return NULL;
+      }
+      continue;
+    }
+    break;
+  }
+
+  metaCloseSmaCurosr(pCur);
+
+  return pSW;
+}
 
 static void metaDBWLock(SMetaDB *pDB) {
 #if IMPL_WITH_LOCK

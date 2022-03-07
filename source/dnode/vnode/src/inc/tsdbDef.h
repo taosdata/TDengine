@@ -35,6 +35,7 @@
 #include "tsdbMemory.h"
 #include "tsdbOptions.h"
 #include "tsdbReadImpl.h"
+#include "tsdbSma.h"
 
 #ifdef __cplusplus
 extern "C" {
