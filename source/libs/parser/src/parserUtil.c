@@ -15,6 +15,63 @@
 
 #include "parserUtil.h"
 
+static char* getSyntaxErrFormat(int32_t errCode) {
+  switch (errCode) {
+    case TSDB_CODE_PAR_SYNTAX_ERROR:
+      return "syntax error near \"%s\"";
+    case TSDB_CODE_PAR_INCOMPLETE_SQL:
+      return "Incomplete SQL statement";
+    case TSDB_CODE_PAR_INVALID_COLUMN:
+      return "Invalid column name : %s";
+    case TSDB_CODE_PAR_TABLE_NOT_EXIST:
+      return "Table does not exist : %s";
+    case TSDB_CODE_PAR_AMBIGUOUS_COLUMN:
+      return "Column ambiguously defined : %s";
+    case TSDB_CODE_PAR_WRONG_VALUE_TYPE:
+      return "Invalid value type : %s";
+    case TSDB_CODE_PAR_INVALID_FUNTION:
+      return "Invalid function name : %s";
+    case TSDB_CODE_PAR_FUNTION_PARA_NUM:
+      return "Invalid number of arguments : %s";
+    case TSDB_CODE_PAR_FUNTION_PARA_TYPE:
+      return "Inconsistent datatypes : %s";
+    case TSDB_CODE_PAR_ILLEGAL_USE_AGG_FUNCTION:
+      return "There mustn't be aggregation";
+    case TSDB_CODE_PAR_WRONG_NUMBER_OF_SELECT:
+      return "ORDER BY item must be the number of a SELECT-list expression";
+    case TSDB_CODE_PAR_GROUPBY_LACK_EXPRESSION:
+      return "Not a GROUP BY expression";
+    case TSDB_CODE_PAR_NOT_SELECTED_EXPRESSION:
+      return "Not SELECTed expression";
+    case TSDB_CODE_PAR_NOT_SINGLE_GROUP:
+      return "Not a single-group group function";
+    case TSDB_CODE_PAR_TAGS_NOT_MATCHED:
+      return "tags number not matched";
+    case TSDB_CODE_PAR_INVALID_TAG_NAME:
+      return "invalid tag name : %s";
+    case TSDB_CODE_PAR_NAME_OR_PASSWD_TOO_LONG:
+      return "name or password too long";
+    case TSDB_CODE_PAR_PASSWD_EMPTY:
+      return "password can not be empty";
+    case TSDB_CODE_PAR_INVALID_PORT:
+      return "port should be an integer that is less than 65535 and greater than 0";
+    case TSDB_CODE_PAR_INVALID_ENDPOINT:
+      return "endpoint should be in the format of 'fqdn:port'";
+    case TSDB_CODE_OUT_OF_MEMORY:
+      return "Out of memory";
+    default:
+      return "Unknown error";
+  }
+}
+
+int32_t generateSyntaxErrMsg(SMsgBuf* pBuf, int32_t errCode, ...) {
+  va_list vArgList;
+  va_start(vArgList, errCode);
+  vsnprintf(pBuf->buf, pBuf->len, getSyntaxErrFormat(errCode), vArgList);
+  va_end(vArgList);
+  return errCode;
+}
+
 int32_t buildInvalidOperationMsg(SMsgBuf* pBuf, const char* msg) {
   strncpy(pBuf->buf, msg, pBuf->len);
   return TSDB_CODE_TSC_INVALID_OPERATION;
