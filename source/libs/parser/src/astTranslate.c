@@ -863,6 +863,8 @@ static int32_t translateUseDatabase(STranslateContext* pCxt, SUseDatabaseStmt* p
   SUseDbReq usedbReq = {0};
   tNameExtractFullName(&name, usedbReq.db);
 
+  catalogGetDBVgVersion(pCxt->pParseCxt->pCatalog, usedbReq.db, &usedbReq.vgVersion, &usedbReq.dbId, &usedbReq.numOfTable);
+
   pCxt->pCmdMsg = malloc(sizeof(SCmdMsgInfo));
   if (NULL== pCxt->pCmdMsg) {
     return TSDB_CODE_OUT_OF_MEMORY;

@@ -165,6 +165,7 @@ int32_t schCheckIncTaskFlowQuota(SSchJob *pJob, SSchTask *pTask, bool *enough) {
     }
 
     *enough = false;
+    ctrl->sorted = false;
     
     break;
   } while (true);
@@ -179,31 +180,89 @@ _return:
   SCH_RET(code);
 }
 
+int32_t schTaskTableNumCompare(const void* key1, const void* key2) {
+  SSchTask *pTask1 = *(SSchTask **)key1;
+  SSchTask *pTask2 = *(SSchTask **)key2;
+  
+  if (pTask1->plan->execNodeStat.tableNum < pTask2->plan->execNodeStat.tableNum) {
+    return 1;
+  } else if (pTask1->plan->execNodeStat.tableNum > pTask2->plan->execNodeStat.tableNum) {
+    return -1;
+  } else {
+    return 0;
+  }
+}
+
+
 int32_t schLaunchTasksInFlowCtrlListImpl(SSchJob *pJob, SSchFlowControl *ctrl) {
-  do {
-    SCH_LOCK(SCH_WRITE, &ctrl->lock);
-    
-    if (NULL == ctrl->taskList || taosArrayGetSize(ctrl->taskList) <= 0) {
-      SCH_UNLOCK(SCH_WRITE, &ctrl->lock);
-      return TSDB_CODE_SUCCESS;
-    }
-
-    SSchTask *pTask = *(SSchTask **)taosArrayPop(ctrl->taskList);
-    
+  SCH_LOCK(SCH_WRITE, &ctrl->lock);
+  
+  if (NULL == ctrl->taskList || taosArrayGetSize(ctrl->taskList) <= 0) {
     SCH_UNLOCK(SCH_WRITE, &ctrl->lock);
+    return TSDB_CODE_SUCCESS;
+  }
 
-    bool enough = false;  
-    SCH_ERR_RET(schCheckIncTaskFlowQuota(pJob, pTask, &enough));
+  int32_t remainNum = schMgmt.cfg.maxNodeTableNum - ctrl->tableNumSum;
+  int32_t taskNum = taosArrayGetSize(ctrl->taskList);
+  int32_t code = 0;
+  SSchTask *pTask = NULL;
+  
+  if (taskNum > 1 && !ctrl->sorted) {
+    taosArraySort(ctrl->taskList, schTaskTableNumCompare); // desc order
+  }
 
-    if (enough) {
-      SCH_ERR_RET(schLaunchTaskImpl(pJob, pTask));
+  for (int32_t i = 0; i < taskNum; ++i) {
+    pTask = *(SSchTask **)taosArrayGet(ctrl->taskList, i);
+    SEp *ep = SCH_GET_CUR_EP(&pTask->plan->execNode);
+
+    if (pTask->plan->execNodeStat.tableNum > remainNum && ctrl->execTaskNum > 0) {
+      SCH_TASK_DLOG("task NOT to launch, fqdn:%s, port:%d, tableNum:%d, remainNum:%d, remainExecTaskNum:%d", 
+         ep->fqdn, ep->port, pTask->plan->execNodeStat.tableNum, ctrl->tableNumSum, ctrl->execTaskNum);
+
       continue;
     }
+    
+    ctrl->tableNumSum += pTask->plan->execNodeStat.tableNum;
+    ++ctrl->execTaskNum;
 
-    break;
-  } while (true);
+    taosArrayRemove(ctrl->taskList, i);
+    
+    SCH_TASK_DLOG("task to launch, fqdn:%s, port:%d, tableNum:%d, remainNum:%d, remainExecTaskNum:%d", 
+       ep->fqdn, ep->port, pTask->plan->execNodeStat.tableNum, ctrl->tableNumSum, ctrl->execTaskNum);
+    
+    SCH_ERR_JRET(schLaunchTaskImpl(pJob, pTask));
+    
+    remainNum -= pTask->plan->execNodeStat.tableNum;
+    if (remainNum <= 0) {
+      SCH_TASK_DLOG("no more task to launch, fqdn:%s, port:%d, remainNum:%d, remainExecTaskNum:%d", 
+         ep->fqdn, ep->port, ctrl->tableNumSum, ctrl->execTaskNum);
+    
+      break;
+    }
 
-  return TSDB_CODE_SUCCESS;
+    if (i < (taskNum - 1)) {
+      SSchTask *pLastTask = *(SSchTask **)taosArrayGetLast(ctrl->taskList);
+      if (remainNum < pLastTask->plan->execNodeStat.tableNum) {
+        SCH_TASK_DLOG("no more task to launch, fqdn:%s, port:%d, remainNum:%d, remainExecTaskNum:%d, smallestInList:%d", 
+           ep->fqdn, ep->port, ctrl->tableNumSum, ctrl->execTaskNum, pLastTask->plan->execNodeStat.tableNum);
+      
+        break;
+      }
+    }
+
+    --i;
+    --taskNum;
+  }
+  
+_return:
+
+  SCH_UNLOCK(SCH_WRITE, &ctrl->lock);
+
+  if (code) {
+    code = schProcessOnTaskFailure(pJob, pTask, code);
+  }
+  
+  SCH_RET(code);
 }
 
 

@@ -608,6 +608,7 @@ int32_t schHandleTaskRetry(SSchJob *pJob, SSchTask *pTask) {
 
   if (SCH_TASK_NEED_FLOW_CTRL(pJob, pTask)) {
     SCH_ERR_RET(schDecTaskFlowQuota(pJob, pTask));
+    SCH_ERR_RET(schLaunchTasksInFlowCtrlList(pJob, pTask));
   }
 
   if (SCH_IS_DATA_SRC_TASK(pTask)) {

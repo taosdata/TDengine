@@ -79,9 +79,10 @@ typedef struct SSchCallbackParam {
 
 typedef struct SSchFlowControl {
   SRWLatch  lock;
+  bool      sorted;
   int32_t   tableNumSum;
   uint32_t  execTaskNum;
-  SArray   *taskList;      // Element is SQueryTask*
+  SArray   *taskList;      // Element is SSchTask*
 } SSchFlowControl;
 
 typedef struct SSchLevel {
@@ -207,6 +208,7 @@ int32_t schCheckIncTaskFlowQuota(SSchJob *pJob, SSchTask *pTask, bool *enough);
 int32_t schLaunchTasksInFlowCtrlList(SSchJob *pJob, SSchTask *pTask);
 int32_t schLaunchTaskImpl(SSchJob *pJob, SSchTask *pTask);
 int32_t schFetchFromRemote(SSchJob *pJob);
+int32_t schProcessOnTaskFailure(SSchJob *pJob, SSchTask *pTask, int32_t errCode);
 
 
 #ifdef __cplusplus
