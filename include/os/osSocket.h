@@ -34,15 +34,9 @@
   #include <sys/epoll.h>
 #endif
 
-#ifdef USE_UV
-  #include <uv.h>
-#endif
-
 #ifdef __cplusplus
 extern "C" {
 #endif
-
-#ifndef USE_UV
 
 #define TAOS_EPOLL_WAIT_TIME 500
 typedef int32_t SOCKET;
@@ -91,8 +85,6 @@ SOCKET  taosOpenUdpSocket(uint32_t localIp, uint16_t localPort);
 SOCKET  taosOpenTcpClientSocket(uint32_t ip, uint16_t port, uint32_t localIp);
 SOCKET  taosOpenTcpServerSocket(uint32_t ip, uint16_t port);
 int32_t taosKeepTcpAlive(SOCKET sockFd);
-
-#endif
 
 void    taosBlockSIGPIPE();
 uint32_t taosGetIpv4FromFqdn(const char *);

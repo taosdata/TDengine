@@ -34,8 +34,6 @@
   #include <unistd.h>
 #endif
 
-#ifndef USE_UV
-
 // typedef struct TdSocketServer {
 // #if SOCKET_WITH_LOCK
 //   pthread_rwlock_t rwlock;
@@ -685,10 +683,6 @@ int64_t taosCopyFds(SOCKET sfd, int32_t dfd, int64_t len) {
 
   return len;
 }
-
-#endif
-
-
 
 void taosBlockSIGPIPE() {
 #if defined(_TD_WINDOWS_64) || defined(_TD_WINDOWS_32)
