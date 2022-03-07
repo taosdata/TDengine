@@ -28,6 +28,18 @@ extern "C" {
 #include "syncRaft.h"
 #include "taosdef.h"
 
+// TLA+ Spec
+// Timeout(i) == /\ state[i] \in {Follower, Candidate}
+//               /\ state' = [state EXCEPT ![i] = Candidate]
+//               /\ currentTerm' = [currentTerm EXCEPT ![i] = currentTerm[i] + 1]
+//               \* Most implementations would probably just set the local vote
+//               \* atomically, but messaging localhost for it is weaker.
+//               /\ votedFor' = [votedFor EXCEPT ![i] = Nil]
+//               /\ votesResponded' = [votesResponded EXCEPT ![i] = {}]
+//               /\ votesGranted'   = [votesGranted EXCEPT ![i] = {}]
+//               /\ voterLog'       = [voterLog EXCEPT ![i] = [j \in {} |-> <<>>]]
+//               /\ UNCHANGED <<messages, leaderVars, logVars>>
+//
 int32_t syncNodeOnTimeoutCb(SSyncNode* ths, SyncTimeout* pMsg);
 
 #ifdef __cplusplus
