@@ -48,7 +48,7 @@ bool    tsPrintAuth = 0;
 
 // monitor
 bool     tsEnableMonitor = 1;
-int32_t  tsMonitorInterval = 5;
+int32_t  tsMonitorInterval = 30;
 char     tsMonitorFqdn[TSDB_FQDN_LEN] = {0};
 uint16_t tsMonitorPort = 6043;
 int32_t  tsMonitorMaxLogs = 100;
@@ -314,7 +314,6 @@ static int32_t taosAddSystemCfg(SConfig *pCfg) {
   if (cfgAddString(pCfg, "version", version, 1) != 0) return -1;
   if (cfgAddString(pCfg, "compatible_version", compatible_version, 1) != 0) return -1;
   if (cfgAddString(pCfg, "gitinfo", gitinfo, 1) != 0) return -1;
-  if (cfgAddString(pCfg, "gitinfoOfInternal", gitinfoOfInternal, 1) != 0) return -1;
   if (cfgAddString(pCfg, "buildinfo", buildinfo, 1) != 0) return -1;
   return 0;
 }

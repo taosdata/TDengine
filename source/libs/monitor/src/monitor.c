@@ -99,6 +99,9 @@ void monSetBasicInfo(SMonInfo *pMonitor, SMonBasicInfo *pInfo) {
   tjsonAddStringToObject(pJson, "ts", buf);
   tjsonAddDoubleToObject(pJson, "dnode_id", pInfo->dnode_id);
   tjsonAddStringToObject(pJson, "dnode_ep", pInfo->dnode_ep);
+  snprintf(buf, sizeof(buf), "%" PRId64, pInfo->cluster_id);
+  tjsonAddStringToObject(pJson, "cluster_id", buf);
+  tjsonAddDoubleToObject(pJson, "protocol", pInfo->protocol);
 }
 
 void monSetClusterInfo(SMonInfo *pMonitor, SMonClusterInfo *pInfo) {
