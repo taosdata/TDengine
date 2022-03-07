@@ -74,37 +74,9 @@ def pre_test(){
     git pull >/dev/null
     git fetch origin +refs/pull/${CHANGE_ID}/merge
     git checkout -qf FETCH_HEAD
-    git submodule update --init --recursive --remote
+    git submodule update --init --recursive
     '''
-    script {
-      if (env.CHANGE_TARGET == 'master') {
-        sh '''
-        cd ${WKCT}
-        git checkout master
-        '''
-        }
-      else if(env.CHANGE_TARGET == '2.0'){
-        sh '''
-        cd ${WKCT}
-        git checkout 2.0
-        '''
-      }
-      else if(env.CHANGE_TARGET == '3.0'){
-        sh '''
-        cd ${WKCT}
-        git checkout 3.0
-        '''
-      } 
-      else{
-        sh '''
-        cd ${WKCT}
-        git checkout develop
-        '''
-      }
-    }
     sh'''
-    cd ${WKCT}
-    git pull >/dev/null
     cd ${WKC}
     export TZ=Asia/Harbin
     date
@@ -123,7 +95,6 @@ pipeline {
   environment{
       WK = '/var/lib/jenkins/workspace/TDinternal'
       WKC= '/var/lib/jenkins/workspace/TDengine'
-      WKCT= '/var/lib/jenkins/workspace/TDengine/tests'
   }
   stages {
       stage('pre_build'){

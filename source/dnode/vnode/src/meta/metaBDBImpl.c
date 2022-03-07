@@ -896,14 +896,16 @@ STSmaWrapper *metaGetSmaInfoByUid(SMeta *pMeta, tb_uid_t uid) {
       STSma *tptr = (STSma *)realloc(pSW->tSma, pSW->number * sizeof(STSma));
       if (tptr == NULL) {
         metaCloseSmaCurosr(pCur);
-        tdDestroyTSmaWrapper(pSW, true);
+        tdDestroyTSmaWrapper(pSW);
+        tfree(pSW);
         return NULL;
       }
       pSW->tSma = tptr;
       pBuf = pval.data;
       if (tDecodeTSma(pBuf, pSW->tSma + pSW->number - 1) == NULL) {
         metaCloseSmaCurosr(pCur);
-        tdDestroyTSmaWrapper(pSW, true);
+        tdDestroyTSmaWrapper(pSW);
+        tfree(pSW);
         return NULL;
       }
       continue;

@@ -363,6 +363,24 @@ static void syncNodeBecomeFollower(SSyncNode* pSyncNode) {
   syncNodeStartElectTimer(pSyncNode, electMS);
 }
 
+// TLA+ Spec
+// \* Candidate i transitions to leader.
+// BecomeLeader(i) ==
+//     /\ state[i] = Candidate
+//     /\ votesGranted[i] \in Quorum
+//     /\ state'      = [state EXCEPT ![i] = Leader]
+//     /\ nextIndex'  = [nextIndex EXCEPT ![i] =
+//                          [j \in Server |-> Len(log[i]) + 1]]
+//     /\ matchIndex' = [matchIndex EXCEPT ![i] =
+//                          [j \in Server |-> 0]]
+//     /\ elections'  = elections \cup
+//                          {[eterm     |-> currentTerm[i],
+//                            eleader   |-> i,
+//                            elog      |-> log[i],
+//                            evotes    |-> votesGranted[i],
+//                            evoterLog |-> voterLog[i]]}
+//     /\ UNCHANGED <<messages, currentTerm, votedFor, candidateVars, logVars>>
+//
 static void syncNodeBecomeLeader(SSyncNode* pSyncNode) {
   pSyncNode->state = TAOS_SYNC_STATE_LEADER;
   pSyncNode->leaderCache = pSyncNode->raftId;
