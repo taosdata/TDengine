@@ -1,0 +1,14 @@
+# run general/field/single.sim
+run general/field/bool.sim
+run general/field/smallint.sim
+run general/field/tinyint.sim
+run general/field/int.sim
+run general/field/bigint.sim
+run general/field/float.sim
+run general/field/double.sim
+# run general/field/binary.sim
+# run general/field/2.sim
+# run general/field/3.sim
+# run general/field/4.sim
+# run general/field/5.sim
+# run general/field/6.sim

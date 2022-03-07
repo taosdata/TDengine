@@ -1,0 +1,107 @@
+system sh/stop_dnodes.sh
+
+system sh/deploy.sh -n dnode1 -i 1
+system sh/cfg.sh -n dnode1 -c walLevel            -v 2
+system sh/deploy.sh -n dnode2 -i 2
+system sh/cfg.sh -n dnode1 -c walLevel            -v 2
+system sh/cfg.sh -n dnode1 -c maxTablesPerVnode -v 4
+system sh/cfg.sh -n dnode2 -c maxTablesPerVnode -v 4
+
+print ==========  prepare data
+system sh/exec.sh -n dnode1 -s start
+system sh/exec.sh -n dnode2 -s start
+
+sleep 2000
+sql connect 
+
+sql create dnode $hostname2
+sleep 2000
+
+sql create database db
+sql use db
+
+print ==========  step1
+sql create table mt (ts timestamp, tbcol int) TAGS(tgcol int)
+sql create table db.t1 using db.mt tags(1)
+sql create table db.t2 using db.mt tags(2)
+sql create table db.t3 using db.mt tags(3)
+sql create table db.t4 using db.mt tags(4)
+sql create table db.t5 using db.mt tags(5)
+sql create table db.t6 using db.mt tags(6)
+sql create table db.t7 using db.mt tags(7)
+sql create table db.t8 using db.mt tags(8)
+sql create table db.t9 using db.mt tags(9)
+sql create table db.t10 using db.mt tags(10)
+sql create table db.t11 using db.mt tags(11)
+sql create table db.t12 using db.mt tags(12)
+sql create table db.t13 using db.mt tags(13)
+sql create table db.t14 using db.mt tags(14)
+sql create table db.t15 using db.mt tags(15)
+sql create table db.t16 using db.mt tags(16)
+
+sql insert into db.t1 values(now, 1)
+sql insert into db.t2 values(now, 1)
+sql insert into db.t3 values(now, 1)
+sql insert into db.t4 values(now, 1)
+sql insert into db.t5 values(now, 1)
+sql insert into db.t6 values(now, 1)
+sql insert into db.t7 values(now, 1)
+sql insert into db.t8 values(now, 1)
+sql insert into db.t9 values(now, 1)
+sql insert into db.t10 values(now, 1)
+sql insert into db.t11 values(now, 1)
+sql insert into db.t12 values(now, 1)
+sql insert into db.t13 values(now, 1)
+sql insert into db.t14 values(now, 1)
+sql insert into db.t15 values(now, 1)
+sql insert into db.t16 values(now, 1)
+
+print ========== step2
+sql show tables
+print $rows
+if $rows != 16 then
+  return -1
+endi  
+
+sql select * from mt
+print $rows
+if $rows != 16 then
+  return -1
+endi  
+
+print ========== step3
+
+system sh/exec.sh -n dnode2 -s stop -x SIGINT
+sleep 3000
+sql drop dnode $hostname2
+sleep 2000
+
+print ========== step3
+
+sql show tables
+print $rows
+if $rows != 8 then
+  return -1
+endi  
+
+sql select * from mt
+print $rows
+if $rows != 8 then
+  return -1
+endi  
+
+sql select * from db.t5
+if $rows != 1 then
+  return -1
+endi  
+
+sql select * from db.t13
+if $rows != 1 then
+  return -1
+endi  
+
+sql_error select * from db.t1
+sql_error select * from db.t9
+
+system sh/exec.sh -n dnode1 -s stop -x SIGINT
+system sh/exec.sh -n dnode2 -s stop -x SIGINT

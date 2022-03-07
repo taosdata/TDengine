@@ -1,0 +1,99 @@
+system sh/stop_dnodes.sh
+system sh/deploy.sh -n dnode1 -i 1
+system sh/exec.sh -n dnode1 -s start
+system sh/deploy.sh -n dnode2 -i 2
+system sh/exec.sh -n dnode2 -s start
+sql connect
+
+print ========== create dnodes
+sql create dnode $hostname port 7200
+
+$x = 0
+create1:
+	$x = $x + 1
+	sleep 1000
+	if $x == 10 then
+		return -1
+	endi
+
+sql show dnodes
+if $data4_2 != ready then
+	goto create1
+endi
+
+print ========== stop dnode2
+system sh/exec.sh -n dnode2 -s stop -x SIGKILL
+
+print =============== create database
+sql_error create database d1 vgroups 4
+
+print ========== start dnode2
+system sh/exec.sh -n dnode2 -s start
+
+print =============== re-create database
+$x = 0
+re-create1:
+	$x = $x + 1
+	sleep 1000
+	if $x == 10 then
+		return -1
+	endi
+
+sql create database d1 vgroups 2 -x re-create1
+
+sql show databases
+if $rows != 1 then 
+  return -1
+endi
+
+if $data00 != d1 then 
+  return -1
+endi
+
+if $data02 != 2 then 
+  return -1
+endi
+
+if $data03 != 0 then 
+  return -1
+endi
+
+print ========== stop dnode2
+system sh/exec.sh -n dnode2 -s stop -x SIGKILL
+
+print =============== create database
+sql_error drop database d1
+
+print ========== start dnode2
+system sh/exec.sh -n dnode2 -s start
+
+print =============== re-create database
+$x = 0
+re-create2:
+	$x = $x + 1
+	sleep 1000
+	if $x == 10 then
+		return -1
+	endi
+
+sql create database d1 vgroups 5 -x re-create2
+
+sql show databases
+if $rows != 1 then 
+  return -1
+endi
+
+if $data00 != d1 then 
+  return -1
+endi
+
+if $data02 != 5 then 
+  return -1
+endi
+
+if $data03 != 0 then 
+  return -1
+endi
+
+system sh/exec.sh -n dnode1 -s stop -x SIGINT
+system sh/exec.sh -n dnode2 -s stop -x SIGINT
