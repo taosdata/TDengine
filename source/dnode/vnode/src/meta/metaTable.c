@@ -50,3 +50,4 @@ int metaDropTable(SMeta *pMeta, tb_uid_t uid) {
 
   return 0;
 }
+
