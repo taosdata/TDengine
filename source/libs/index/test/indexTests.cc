@@ -1058,6 +1058,45 @@ TEST_F(IndexEnv2, testIndex_read_performance4) {
   std::cout << "reader sz: " << index->SearchOne("tag1", "Hello") << std::endl;
   assert(3 == index->SearchOne("tag10", "Hello"));
 }
+TEST_F(IndexEnv2, testIndex_cache_del) {
+  std::string path = "/tmp/cache_and_tfile";
+  if (index->Init(path) != 0) {
+  }
+  for (int i = 0; i < 100; i++) {
+    index->PutOneTarge("tag10", "Hello", i);
+  }
+  index->Del("tag10", "Hello", 12);
+  index->Del("tag10", "Hello", 11);
+
+  // index->WriteMultiMillonData("tag10", "xxxxxxxxxxxxxx", 100 * 10000);
+  index->Del("tag10", "Hello", 17);
+  EXPECT_EQ(97, index->SearchOne("tag10", "Hello"));
+
+  index->PutOneTarge("tag10", "Hello", 17);  // add again
+  EXPECT_EQ(98, index->SearchOne("tag10", "Hello"));
+
+  // del all
+  for (int i = 0; i < 200; i++) {
+    index->Del("tag10", "Hello", i);
+  }
+  EXPECT_EQ(0, index->SearchOne("tag10", "Hello"));
+
+  // add other item
+  for (int i = 0; i < 2000; i++) {
+    index->PutOneTarge("tag10", "World", i);
+  }
+
+  for (int i = 0; i < 2000; i++) {
+    index->PutOneTarge("tag10", "Hello", i);
+  }
+  EXPECT_EQ(2000, index->SearchOne("tag10", "Hello"));
+
+  for (int i = 0; i < 2000; i++) {
+    index->Del("tag10", "Hello", i);
+  }
+  EXPECT_EQ(0, index->SearchOne("tag10", "Hello"));
+}
+
 TEST_F(IndexEnv2, testIndex_del) {
   std::string path = "/tmp/cache_and_tfile";
   if (index->Init(path) != 0) {
@@ -1069,8 +1108,6 @@ TEST_F(IndexEnv2, testIndex_del) {
   index->Del("tag10", "Hello", 11);
 
   index->WriteMultiMillonData("tag10", "xxxxxxxxxxxxxx", 100 * 10000);
-
-  EXPECT_EQ(98, index->SearchOne("tag10", "Hello"));
-  // std::cout << "reader sz: " << index->SearchOne("tag1", "Hello") << std::endl;
-  // assert(3 == index->SearchOne("tag10", "Hello"));
+  index->Del("tag10", "Hello", 17);
+  EXPECT_EQ(97, index->SearchOne("tag10", "Hello"));
 }
