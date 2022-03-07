@@ -45,6 +45,7 @@ int32_t monInit(const SMonCfg *pCfg) {
   tsMonitor.maxLogs = pCfg->maxLogs;
   tsMonitor.server = pCfg->server;
   tsMonitor.port = pCfg->port;
+  tsMonitor.comp = pCfg->comp;
   tsLogFp = monRecordLog;
   tsMonitor.state.time = taosGetTimestampMs();
   pthread_mutex_init(&tsMonitor.lock, NULL);
@@ -375,7 +376,8 @@ void monSendReport(SMonInfo *pMonitor) {
 
   char *pCont = tjsonToString(pMonitor->pJson);
   if (pCont != NULL) {
-    taosSendHttpReport(tsMonitor.server, tsMonitor.port, pCont, strlen(pCont));
+    EHttpCompFlag flag = tsMonitor.comp ? HTTP_GZIP : HTTP_FLAT;
+    taosSendHttpReport(tsMonitor.server, tsMonitor.port, pCont, strlen(pCont), flag);
     free(pCont);
   }
 }

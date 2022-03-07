@@ -298,7 +298,7 @@ int32_t dndInit() {
     return -1;
   }
 
-  SMonCfg monCfg = {.maxLogs = tsMonitorMaxLogs, .port = tsMonitorPort, .server = tsMonitorFqdn};
+  SMonCfg monCfg = {.maxLogs = tsMonitorMaxLogs, .port = tsMonitorPort, .server = tsMonitorFqdn, .comp = tsMonitorComp};
   if (monInit(&monCfg) != 0) {
     dError("failed to init monitor since %s", terrstr());
     dndCleanup();

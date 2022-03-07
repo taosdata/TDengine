@@ -130,6 +130,7 @@ typedef struct {
   const char *server;
   uint16_t    port;
   int32_t     maxLogs;
+  bool        comp;
 } SMonCfg;
 
 int32_t monInit(const SMonCfg *pCfg);
