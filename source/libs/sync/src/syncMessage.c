@@ -18,8 +18,6 @@
 #include "syncUtil.h"
 #include "tcoding.h"
 
-void onMessage(SRaft* pRaft, void* pMsg) {}
-
 // ---------------------------------------------
 cJSON* syncRpcMsg2Json(SRpcMsg* pRpcMsg) {
   cJSON* pRoot;

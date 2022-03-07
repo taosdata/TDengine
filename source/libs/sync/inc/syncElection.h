@@ -27,7 +27,6 @@ extern "C" {
 #include "taosdef.h"
 
 void syncNodeElect(SSyncNode* pSyncNode);
-void syncNodeRequestVotePeers(SSyncNode* pSyncNode);
 
 #ifdef __cplusplus
 }

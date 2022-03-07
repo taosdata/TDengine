@@ -15,6 +15,7 @@
 
 #include "syncElection.h"
 
-void syncNodeElect(SSyncNode* pSyncNode) {}
-
-void syncNodeRequestVotePeers(SSyncNode* pSyncNode) {}
+void syncNodeElect(SSyncNode* pSyncNode) {
+  // start election
+  syncNodeRequestVotePeers(pSyncNode);
+}

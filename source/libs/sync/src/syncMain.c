@@ -18,6 +18,7 @@
 #include "syncEnv.h"
 #include "syncInt.h"
 #include "syncRaft.h"
+#include "syncTimeout.h"
 #include "syncUtil.h"
 
 static int32_t tsNodeRefId = -1;
@@ -33,7 +34,6 @@ static void syncNodeEqHeartbeatTimer(void* param, void* tmrId);
 static int32_t syncNodePing(SSyncNode* pSyncNode, const SRaftId* destRaftId, SyncPing* pMsg);
 static int32_t syncNodeOnPingCb(SSyncNode* ths, SyncPing* pMsg);
 static int32_t syncNodeOnPingReplyCb(SSyncNode* ths, SyncPingReply* pMsg);
-static int32_t syncNodeOnTimeoutCb(SSyncNode* ths, SyncTimeout* pMsg);
 
 static void syncNodeBecomeFollower(SSyncNode* pSyncNode);
 static void syncNodeBecomeLeader(SSyncNode* pSyncNode);
@@ -41,9 +41,6 @@ static void syncNodeFollower2Candidate(SSyncNode* pSyncNode);
 static void syncNodeCandidate2Leader(SSyncNode* pSyncNode);
 static void syncNodeLeader2Follower(SSyncNode* pSyncNode);
 static void syncNodeCandidate2Follower(SSyncNode* pSyncNode);
-
-void syncNodeRequestVotePeers(SSyncNode* pSyncNode);
-void syncNodeAppendEntriesPeers(SSyncNode* pSyncNode);
 // ---------------------------------
 
 int32_t syncInit() {
@@ -170,6 +167,10 @@ void syncNodePingSelf(SSyncNode* pSyncNode) {
   assert(ret == 0);
   syncPingDestroy(pMsg);
 }
+
+void syncNodeRequestVotePeers(SSyncNode* pSyncNode) {}
+
+void syncNodeAppendEntriesPeers(SSyncNode* pSyncNode) {}
 
 int32_t syncNodeStartPingTimer(SSyncNode* pSyncNode) {
   atomic_store_64(&pSyncNode->pingTimerLogicClock, pSyncNode->pingTimerLogicClockUser);
@@ -311,32 +312,6 @@ static int32_t syncNodeOnPingReplyCb(SSyncNode* ths, SyncPingReply* pMsg) {
   return ret;
 }
 
-static int32_t syncNodeOnTimeoutCb(SSyncNode* ths, SyncTimeout* pMsg) {
-  int32_t ret = 0;
-  sTrace("<-- syncNodeOnTimeoutCb -->");
-
-  {
-    cJSON* pJson = syncTimeout2Json(pMsg);
-    char*  serialized = cJSON_Print(pJson);
-    sTrace("process syncMessage recv: syncNodeOnTimeoutCb pMsg:%s ", serialized);
-    free(serialized);
-    cJSON_Delete(pJson);
-  }
-
-  if (pMsg->timeoutType == SYNC_TIMEOUT_PING) {
-    if (atomic_load_64(&ths->pingTimerLogicClockUser) <= pMsg->logicClock) {
-      ++(ths->pingTimerCounter);
-      syncNodePingAll(ths);
-    }
-
-  } else if (pMsg->timeoutType == SYNC_TIMEOUT_ELECTION) {
-  } else if (pMsg->timeoutType == SYNC_TIMEOUT_HEARTBEAT) {
-  } else {
-  }
-
-  return ret;
-}
-
 static void syncNodeEqPingTimer(void* param, void* tmrId) {
   SSyncNode* pSyncNode = (SSyncNode*)param;
   if (atomic_load_64(&pSyncNode->pingTimerLogicClockUser) <= atomic_load_64(&pSyncNode->pingTimerLogicClock)) {
@@ -415,7 +390,3 @@ static void syncNodeCandidate2Leader(SSyncNode* pSyncNode) {}
 static void syncNodeLeader2Follower(SSyncNode* pSyncNode) {}
 
 static void syncNodeCandidate2Follower(SSyncNode* pSyncNode) {}
-
-void syncNodeRequestVotePeers(SSyncNode* pSyncNode) {}
-
-void syncNodeAppendEntriesPeers(SSyncNode* pSyncNode) {}

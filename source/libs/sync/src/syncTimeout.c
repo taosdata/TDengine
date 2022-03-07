@@ -14,5 +14,40 @@
  */
 
 #include "syncTimeout.h"
+#include "syncElection.h"
 
-void onTimeout(SRaft *pRaft, void *pMsg) {}
+int32_t syncNodeOnTimeoutCb(SSyncNode* ths, SyncTimeout* pMsg) {
+  int32_t ret = 0;
+  sTrace("<-- syncNodeOnTimeoutCb -->");
+
+  {
+    cJSON* pJson = syncTimeout2Json(pMsg);
+    char*  serialized = cJSON_Print(pJson);
+    sTrace("process syncMessage recv: syncNodeOnTimeoutCb pMsg:%s ", serialized);
+    free(serialized);
+    cJSON_Delete(pJson);
+  }
+
+  if (pMsg->timeoutType == SYNC_TIMEOUT_PING) {
+    if (atomic_load_64(&ths->pingTimerLogicClockUser) <= pMsg->logicClock) {
+      ++(ths->pingTimerCounter);
+      syncNodePingAll(ths);
+    }
+
+  } else if (pMsg->timeoutType == SYNC_TIMEOUT_ELECTION) {
+    if (atomic_load_64(&ths->electTimerLogicClockUser) <= pMsg->logicClock) {
+      ++(ths->electTimerCounter);
+      syncNodeElect(ths);
+    }
+
+  } else if (pMsg->timeoutType == SYNC_TIMEOUT_HEARTBEAT) {
+    if (atomic_load_64(&ths->heartbeatTimerLogicClockUser) <= pMsg->logicClock) {
+      ++(ths->heartbeatTimerCounter);
+      syncNodeAppendEntriesPeers(ths);
+    }
+  } else {
+    sTrace("unknown timeoutType:%d", pMsg->timeoutType);
+  }
+
+  return ret;
+}

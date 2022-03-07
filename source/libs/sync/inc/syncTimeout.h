@@ -28,7 +28,7 @@ extern "C" {
 #include "syncRaft.h"
 #include "taosdef.h"
 
-void onTimeout(SRaft *pRaft, void *pMsg);
+int32_t syncNodeOnTimeoutCb(SSyncNode* ths, SyncTimeout* pMsg);
 
 #ifdef __cplusplus
 }

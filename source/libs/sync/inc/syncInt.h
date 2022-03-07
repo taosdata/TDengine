@@ -191,6 +191,8 @@ void       syncNodeClose(SSyncNode* pSyncNode);
 void       syncNodePingAll(SSyncNode* pSyncNode);
 void       syncNodePingPeers(SSyncNode* pSyncNode);
 void       syncNodePingSelf(SSyncNode* pSyncNode);
+void       syncNodeRequestVotePeers(SSyncNode* pSyncNode);
+void       syncNodeAppendEntriesPeers(SSyncNode* pSyncNode);
 
 int32_t syncNodeStartPingTimer(SSyncNode* pSyncNode);
 int32_t syncNodeStopPingTimer(SSyncNode* pSyncNode);
