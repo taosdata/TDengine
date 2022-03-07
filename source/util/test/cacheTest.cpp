@@ -6,7 +6,7 @@
 #include "tcache.h"
 
 // test cache
-TEST(testCase, client_cache_test) {
+TEST(cacheTest, client_cache_test) {
   const int32_t REFRESH_TIME_IN_SEC = 2;
   SCacheObj* tscMetaCache = taosCacheInit(TSDB_DATA_TYPE_BINARY, REFRESH_TIME_IN_SEC, 0, NULL, "test");
 
@@ -92,7 +92,7 @@ TEST(testCase, client_cache_test) {
   taosCacheCleanup(tscMetaCache);
 }
 
-TEST(testCase, cache_resize_test) {
+TEST(cacheTest, cache_iter_test) {
   const int32_t REFRESH_TIME_IN_SEC = 2;
   auto* pCache = taosCacheInit(TSDB_DATA_TYPE_BINARY, REFRESH_TIME_IN_SEC, false, NULL, "test");
 
@@ -107,6 +107,7 @@ TEST(testCase, cache_resize_test) {
     int32_t len = sprintf(key, "abc_%7d", i);
     taosCachePut(pCache, key, strlen(key), data, len, 3600);
   }
+
   uint64_t endTime = taosGetTimestampUs();
 
   printf("add %d object cost:%" PRIu64 " us, avg:%f us\n", num, endTime - startTime, (endTime-startTime)/(double)num);
@@ -119,6 +120,23 @@ TEST(testCase, cache_resize_test) {
   }
   endTime = taosGetTimestampUs();
   printf("retrieve %d object cost:%" PRIu64 " us,avg:%f\n", num, endTime - startTime, (endTime - startTime)/(double)num);
+
+  int32_t count = 0;
+  SCacheIter* pIter = taosCacheCreateIter(pCache);
+  while(taosCacheIterNext(pIter)) {
+    size_t keyLen = 0;
+    size_t dataLen = 0;
+
+    char* key1 = static_cast<char*>(taosCacheIterGetKey(pIter, &keyLen));
+    char* data1 = static_cast<char*>(taosCacheIterGetData(pIter, &dataLen));
+
+//    char d[256] = {0};
+//    memcpy(d, data1, dataLen);
+//    char k[256] = {0};
+//    memcpy(k, key1, keyLen);
+  }
+
+  ASSERT_EQ(count, num);
 
   taosCacheCleanup(pCache);
 }

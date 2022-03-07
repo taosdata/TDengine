@@ -1423,6 +1423,7 @@ int32_t tSerializeSUseDbReq(void *buf, int32_t bufLen, SUseDbReq *pReq) {
   if (tEncodeCStr(&encoder, pReq->db) < 0) return -1;
   if (tEncodeI64(&encoder, pReq->dbId) < 0) return -1;
   if (tEncodeI32(&encoder, pReq->vgVersion) < 0) return -1;
+  if (tEncodeI32(&encoder, pReq->numOfTable) < 0) return -1;
   tEndEncode(&encoder);
 
   int32_t tlen = encoder.pos;
@@ -1438,6 +1439,7 @@ int32_t tDeserializeSUseDbReq(void *buf, int32_t bufLen, SUseDbReq *pReq) {
   if (tDecodeCStrTo(&decoder, pReq->db) < 0) return -1;
   if (tDecodeI64(&decoder, &pReq->dbId) < 0) return -1;
   if (tDecodeI32(&decoder, &pReq->vgVersion) < 0) return -1;
+  if (tDecodeI32(&decoder, &pReq->numOfTable) < 0) return -1;
   tEndDecode(&decoder);
 
   tCoderClear(&decoder);
@@ -1482,6 +1484,7 @@ static int32_t tSerializeSUseDbRspImp(SCoder *pEncoder, SUseDbRsp *pRsp) {
     if (tEncodeU32(pEncoder, pVgInfo->hashBegin) < 0) return -1;
     if (tEncodeU32(pEncoder, pVgInfo->hashEnd) < 0) return -1;
     if (tEncodeSEpSet(pEncoder, &pVgInfo->epset) < 0) return -1;
+    if (tEncodeI32(pEncoder, pVgInfo->numOfTable) < 0) return -1;
   }
 
   return 0;
@@ -1542,6 +1545,7 @@ int32_t tDeserializeSUseDbRspImp(SCoder *pDecoder, SUseDbRsp *pRsp) {
     if (tDecodeU32(pDecoder, &vgInfo.hashBegin) < 0) return -1;
     if (tDecodeU32(pDecoder, &vgInfo.hashEnd) < 0) return -1;
     if (tDecodeSEpSet(pDecoder, &vgInfo.epset) < 0) return -1;
+    if (tDecodeI32(pDecoder, &vgInfo.numOfTable) < 0) return -1;
     taosArrayPush(pRsp->pVgroupInfos, &vgInfo);
   }
 

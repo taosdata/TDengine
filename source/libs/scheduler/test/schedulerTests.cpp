@@ -34,8 +34,20 @@
 #include "tvariant.h"
 #include "catalog.h"
 #include "scheduler.h"
-#include "tep.h"
+#include "taos.h"
+#include "tdatablock.h"
+#include "tdef.h"
 #include "trpc.h"
+#include "tvariant.h"
+
+#pragma GCC diagnostic push
+#pragma GCC diagnostic ignored "-Wwrite-strings"
+#pragma GCC diagnostic ignored "-Wunused-function"
+#pragma GCC diagnostic ignored "-Wunused-variable"
+#pragma GCC diagnostic ignored "-Wsign-compare"
+#pragma GCC diagnostic ignored "-Wreturn-type"
+#pragma GCC diagnostic ignored "-Wformat"
+
 #include "schedulerInt.h"
 #include "stub.h"
 #include "tref.h"
@@ -113,6 +125,9 @@ void schtBuildQueryDag(SQueryPlan *dag) {
   mergePlan->pNode = (SPhysiNode*)calloc(1, sizeof(SPhysiNode));
   mergePlan->msgType = TDMT_VND_QUERY;
 
+  merge->pNodeList = nodesMakeList();
+  scan->pNodeList = nodesMakeList();
+
   nodesListAppend(merge->pNodeList, (SNode*)mergePlan);
   nodesListAppend(scan->pNodeList, (SNode*)scanPlan);
 
@@ -122,6 +137,68 @@ void schtBuildQueryDag(SQueryPlan *dag) {
   nodesListAppend(dag->pSubplans, (SNode*)merge);  
   nodesListAppend(dag->pSubplans, (SNode*)scan);
 }
+
+void schtBuildQueryFlowCtrlDag(SQueryPlan *dag) {
+  uint64_t qId = schtQueryId;
+  int32_t scanPlanNum = 20;
+  
+  dag->queryId = qId;
+  dag->numOfSubplans = 2;
+  dag->pSubplans = nodesMakeList();
+  SNodeListNode *scan = (SNodeListNode*)nodesMakeNode(QUERY_NODE_NODE_LIST);
+  SNodeListNode *merge = (SNodeListNode*)nodesMakeNode(QUERY_NODE_NODE_LIST);
+  
+  SSubplan *scanPlan = (SSubplan *)calloc(scanPlanNum, sizeof(SSubplan));
+  SSubplan *mergePlan = (SSubplan *)calloc(1, sizeof(SSubplan));
+
+  merge->pNodeList = nodesMakeList();
+  scan->pNodeList = nodesMakeList();
+
+  mergePlan->pChildren = nodesMakeList();
+
+  for (int32_t i = 0; i < scanPlanNum; ++i) {
+    scanPlan[i].id.queryId = qId;
+    scanPlan[i].id.templateId = 0x0000000000000002;
+    scanPlan[i].id.subplanId = 0x0000000000000003 + i;
+    scanPlan[i].subplanType = SUBPLAN_TYPE_SCAN;
+
+    scanPlan[i].execNode.nodeId = 1 + i;
+    scanPlan[i].execNode.epset.inUse = 0;
+    scanPlan[i].execNodeStat.tableNum = rand() % 30;
+    addEpIntoEpSet(&scanPlan[i].execNode.epset, "ep0", 6030);
+    addEpIntoEpSet(&scanPlan[i].execNode.epset, "ep1", 6030);
+    addEpIntoEpSet(&scanPlan[i].execNode.epset, "ep2", 6030);
+    scanPlan[i].execNode.epset.inUse = rand() % 3;
+
+    scanPlan[i].pChildren = NULL;
+    scanPlan[i].level = 1;
+    scanPlan[i].pParents = nodesMakeList();
+    scanPlan[i].pNode = (SPhysiNode*)calloc(1, sizeof(SPhysiNode));
+    scanPlan[i].msgType = TDMT_VND_QUERY;
+
+    nodesListAppend(scanPlan[i].pParents, (SNode*)mergePlan);
+    nodesListAppend(mergePlan->pChildren, (SNode*)(scanPlan + i));
+
+    nodesListAppend(scan->pNodeList, (SNode*)(scanPlan + i));
+  }
+
+  mergePlan->id.queryId = qId;
+  mergePlan->id.templateId = schtMergeTemplateId;
+  mergePlan->id.subplanId = 0x5555;
+  mergePlan->subplanType = SUBPLAN_TYPE_MERGE;
+  mergePlan->level = 0;
+  mergePlan->execNode.epset.numOfEps = 0;
+
+  mergePlan->pParents = NULL;
+  mergePlan->pNode = (SPhysiNode*)calloc(1, sizeof(SPhysiNode));
+  mergePlan->msgType = TDMT_VND_QUERY;
+
+  nodesListAppend(merge->pNodeList, (SNode*)mergePlan);
+
+  nodesListAppend(dag->pSubplans, (SNode*)merge);  
+  nodesListAppend(dag->pSubplans, (SNode*)scan);
+}
+
 
 void schtFreeQueryDag(SQueryPlan *dag) {
 
@@ -169,6 +246,8 @@ void schtBuildInsertDag(SQueryPlan *dag) {
   insertPlan[1].pNode = NULL;
   insertPlan[1].pDataSink = (SDataSinkNode*)calloc(1, sizeof(SDataSinkNode));
   insertPlan[1].msgType = TDMT_VND_SUBMIT;
+
+  inserta->pNodeList = nodesMakeList();
 
   nodesListAppend(inserta->pNodeList, (SNode*)insertPlan);
   insertPlan += 1;
@@ -535,11 +614,9 @@ TEST(queryTest, normalCase) {
   char *tablename = "table1";
   SVgroupInfo vgInfo = {0};
   int64_t job = 0;
-
   SQueryPlan dag;
-  memset(&dag, 0, sizeof(dag));
 
-  schtInitLogFile();
+  memset(&dag, 0, sizeof(dag));
 
   SArray *qnodeList = taosArrayInit(1, sizeof(SEp));
 
@@ -636,6 +713,101 @@ TEST(queryTest, normalCase) {
   schedulerDestroy();
 }
 
+TEST(queryTest, flowCtrlCase) {
+  void *mockPointer = (void *)0x1;
+  char *clusterId = "cluster1";
+  char *dbname = "1.db1";
+  char *tablename = "table1";
+  SVgroupInfo vgInfo = {0};
+  int64_t job = 0;
+  SQueryPlan dag;
+
+  schtInitLogFile();
+
+  srand(time(NULL));
+  
+  SArray *qnodeList = taosArrayInit(1, sizeof(SEp));
+
+  SEp qnodeAddr = {0};
+  strcpy(qnodeAddr.fqdn, "qnode0.ep");
+  qnodeAddr.port = 6031;
+  taosArrayPush(qnodeList, &qnodeAddr);
+  
+  int32_t code = schedulerInit(NULL);
+  ASSERT_EQ(code, 0);
+
+  schtBuildQueryFlowCtrlDag(&dag);
+
+  schtSetPlanToString();
+  schtSetExecNode();
+  schtSetAsyncSendMsgToServer();
+  
+  code = schedulerAsyncExecJob(mockPointer, qnodeList, &dag, "select * from tb", &job);
+  ASSERT_EQ(code, 0);
+
+  
+  SSchJob *pJob = schAcquireJob(job);
+
+  bool queryDone = false;
+  
+  while (!queryDone) {
+    void *pIter = taosHashIterate(pJob->execTasks, NULL);
+    if (NULL == pIter) {
+      break;
+    }
+    
+    while (pIter) {
+      SSchTask *task = *(SSchTask **)pIter;
+
+      taosHashCancelIterate(pJob->execTasks, pIter);
+
+      if (task->lastMsgType == TDMT_VND_QUERY) {
+        SQueryTableRsp rsp = {0};
+        code = schHandleResponseMsg(pJob, task, TDMT_VND_QUERY_RSP, (char *)&rsp, sizeof(rsp), 0);
+        
+        ASSERT_EQ(code, 0);
+      } else if (task->lastMsgType == TDMT_VND_RES_READY) {
+        SResReadyRsp rsp = {0};
+        code = schHandleResponseMsg(pJob, task, TDMT_VND_RES_READY_RSP, (char *)&rsp, sizeof(rsp), 0);
+        ASSERT_EQ(code, 0);
+      } else {
+        queryDone = true;
+        break;
+      }
+      
+      pIter = NULL;
+    }    
+  }
+
+
+  pthread_attr_t thattr;
+  pthread_attr_init(&thattr);
+
+  pthread_t thread1;
+  pthread_create(&(thread1), &thattr, schtCreateFetchRspThread, &job);
+
+  void *data = NULL;  
+  code = schedulerFetchRows(job, &data);
+  ASSERT_EQ(code, 0);
+
+  SRetrieveTableRsp *pRsp = (SRetrieveTableRsp *)data;
+  ASSERT_EQ(pRsp->completed, 1);
+  ASSERT_EQ(pRsp->numOfRows, 10);
+  tfree(data);
+
+  data = NULL;
+  code = schedulerFetchRows(job, &data);
+  ASSERT_EQ(code, 0);
+  ASSERT_TRUE(data == NULL);
+
+  schReleaseJob(job);
+
+  schedulerFreeJob(job);
+
+  schtFreeQueryDag(&dag);
+
+  schedulerDestroy();
+}
 
 
 TEST(insertTest, normalCase) {
@@ -646,8 +818,6 @@ TEST(insertTest, normalCase) {
   SVgroupInfo vgInfo = {0};
   SQueryPlan dag;
   uint64_t numOfRows = 0;
-
-  schtInitLogFile();
 
   SArray *qnodeList = taosArrayInit(1, sizeof(SEp));
 

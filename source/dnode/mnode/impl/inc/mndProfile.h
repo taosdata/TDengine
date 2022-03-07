@@ -24,6 +24,7 @@ extern "C" {
 
 int32_t mndInitProfile(SMnode *pMnode);
 void    mndCleanupProfile(SMnode *pMnode);
+int32_t mndGetNumOfConnections(SMnode *pMnode);
 
 #ifdef __cplusplus
 }

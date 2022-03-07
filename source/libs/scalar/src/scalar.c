@@ -1,11 +1,11 @@
-#include "nodes.h"
-#include "tcommon.h"
-#include "querynodes.h"
 #include "function.h"
 #include "functionMgt.h"
-#include "sclvector.h"
+#include "nodes.h"
+#include "querynodes.h"
 #include "sclInt.h"
-#include "tep.h"
+#include "sclvector.h"
+#include "tcommon.h"
+#include "tdatablock.h"
 
 int32_t scalarGetOperatorParamNum(EOperatorType type) {
   if (OP_TYPE_IS_NULL == type || OP_TYPE_IS_NOT_NULL == type || OP_TYPE_IS_TRUE == type || OP_TYPE_IS_NOT_TRUE == type 

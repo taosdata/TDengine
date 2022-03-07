@@ -439,7 +439,7 @@ static int tsdbSaveFSStatus(STsdb *pRepo, SFSStatus *pStatus) {
   if (taosWriteFile(pFile, hbuf, TSDB_FILE_HEAD_SIZE) < TSDB_FILE_HEAD_SIZE) {
     terrno = TAOS_SYSTEM_ERROR(errno);
     taosCloseFile(&pFile);
-    remove(tfname);
+    taosRemoveFile(tfname);
     return -1;
   }
 
@@ -447,7 +447,7 @@ static int tsdbSaveFSStatus(STsdb *pRepo, SFSStatus *pStatus) {
   if (fsheader.len > 0) {
     if (tsdbMakeRoom(&(pBuf), fsheader.len) < 0) {
       taosCloseFile(&pFile);
-      remove(tfname);
+      taosRemoveFile(tfname);
       return -1;
     }
 
@@ -458,7 +458,7 @@ static int tsdbSaveFSStatus(STsdb *pRepo, SFSStatus *pStatus) {
     if (taosWriteFile(pFile, pBuf, fsheader.len) < fsheader.len) {
       terrno = TAOS_SYSTEM_ERROR(errno);
       taosCloseFile(&pFile);
-      (void)remove(tfname);
+      (void)taosRemoveFile(tfname);
       taosTZfree(pBuf);
       return -1;
     }
@@ -468,7 +468,7 @@ static int tsdbSaveFSStatus(STsdb *pRepo, SFSStatus *pStatus) {
   if (taosFsyncFile(pFile) < 0) {
     terrno = TAOS_SYSTEM_ERROR(errno);
     taosCloseFile(&pFile);
-    remove(tfname);
+    taosRemoveFile(tfname);
     taosTZfree(pBuf);
     return -1;
   }

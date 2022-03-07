@@ -47,6 +47,19 @@ extern "C" {
     buf += len;                                 \
   } while (0)
 
+#define INDEX_MERGE_ADD_DEL(src, dst, tgt)            \
+  {                                                   \
+    bool f = false;                                   \
+    for (int i = 0; i < taosArrayGetSize(src); i++) { \
+      if (*(uint64_t *)taosArrayGet(src, i) == tgt) { \
+        f = true;                                     \
+      }                                               \
+    }                                                 \
+    if (f == false) {                                 \
+      taosArrayPush(dst, &tgt);                       \
+    }                                                 \
+  }
+
 /* multi sorted result intersection
  * input: [1, 2, 4, 5]
  *        [2, 3, 4, 5]
@@ -54,7 +67,44 @@ extern "C" {
  * output:[4, 5]
  */
 void iIntersection(SArray *interResults, SArray *finalResult);
+
+/* multi sorted result intersection
+ * input: [1, 2, 4, 5]
+ *        [2, 3, 4, 5]
+ *        [1, 4, 5]
+ * output:[1, 2, 3, 4, 5]
+ */
 void iUnion(SArray *interResults, SArray *finalResult);
+
+/*  sorted array
+ * total:   [1, 2, 4, 5, 7, 8]
+ * except:  [4, 5]
+ * return:  [1, 2, 7, 8] saved in total
+ */
+
+void iExcept(SArray *total, SArray *except);
+
+int uidCompare(const void *a, const void *b);
+
+// data with ver
+typedef struct {
+  uint32_t ver;
+  uint64_t data;
+} SIdxVerdata;
+
+typedef struct {
+  SArray *total;
+  SArray *added;
+  SArray *deled;
+} SIdxTempResult;
+
+SIdxTempResult *sIdxTempResultCreate();
+
+void sIdxTempResultClear(SIdxTempResult *tr);
+
+void sIdxTempResultDestroy(SIdxTempResult *tr);
+
+void sIdxTempResultMergeTo(SArray *result, SIdxTempResult *tr);
 #ifdef __cplusplus
 }
 #endif

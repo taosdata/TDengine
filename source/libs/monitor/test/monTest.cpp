@@ -142,13 +142,10 @@ void MonitorTest::GetDnodeInfo(SMonInfo *pMonitor, SMonDnodeInfo *pInfo) {
   pInfo->io_read_disk = 7.1;
   pInfo->io_write_disk = 7.2;
   pInfo->req_select = 8;
-  pInfo->req_select_rate = 8.1;
   pInfo->req_insert = 9;
   pInfo->req_insert_success = 10;
-  pInfo->req_insert_rate = 10.1;
   pInfo->req_insert_batch = 11;
   pInfo->req_insert_batch_success = 12;
-  pInfo->req_insert_batch_rate = 12.3;
   pInfo->errors = 4;
   pInfo->vnodes_num = 5;
   pInfo->masters = 6;
@@ -193,37 +190,14 @@ void MonitorTest::GetDiskInfo(SMonInfo *pMonitor, SMonDiskInfo *pInfo) {
 }
 
 void MonitorTest::AddLogInfo1() {
-  SMonLogItem log1 = {0};
-  log1.ts = taosGetTimestampMs();
-  log1.level = 1;
-  strcpy(log1.content, "1 -------------------------- a");
-  monAddLogItem(&log1);
-
-  SMonLogItem log2 = {0};
-  log2.ts = taosGetTimestampMs();
-  log2.level = 1;
-  strcpy(log2.content, "1 ------------------------ b");
-  monAddLogItem(&log2);
-
-  SMonLogItem log3 = {0};
-  log3.ts = taosGetTimestampMs();
-  log3.level = 1;
-  strcpy(log3.content, "1 ------- c");
-  monAddLogItem(&log3);
+  monRecordLog(taosGetTimestampMs(), DEBUG_INFO, "1 -------------------------- a");
+  monRecordLog(taosGetTimestampMs(), DEBUG_ERROR, "1 ------------------------ b");
+  monRecordLog(taosGetTimestampMs(), DEBUG_DEBUG, "1 ------- c");
 }
 
 void MonitorTest::AddLogInfo2() {
-  SMonLogItem log1;
-  log1.ts = taosGetTimestampMs();
-  log1.level = 01;
-  strcpy(log1.content, "2 ------- a");
-  monAddLogItem(&log1);
-
-  SMonLogItem log2;
-  log2.ts = taosGetTimestampMs();
-  log2.level = 0;
-  strcpy(log2.content, "2 ------- b");
-  monAddLogItem(&log2);
+  monRecordLog(taosGetTimestampMs(), DEBUG_ERROR, "2 ------- a");
+  monRecordLog(taosGetTimestampMs(), DEBUG_ERROR, "2 ------- b");
 }
 
 TEST_F(MonitorTest, 01_Full) {

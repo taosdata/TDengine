@@ -90,25 +90,6 @@ int32_t qExecTask(qTaskInfo_t tinfo, SSDataBlock** pRes, uint64_t *useconds);
 int32_t qRetrieveQueryResultInfo(qTaskInfo_t tinfo, bool* buildRes, void* pRspContext);
 
 /**
- *
- * Retrieve the actual results to fill the response message payload.
- * Note that this function must be executed after qRetrieveQueryResultInfo is invoked.
- *
- * @param tinfo  tinfo object
- * @param pRsp    response message
- * @param contLen payload length
- * @return
- */
-//int32_t qDumpRetrieveResult(qTaskInfo_t tinfo, SRetrieveTableRsp** pRsp, int32_t* contLen, bool* continueExec);
-
-/**
- * return the transporter context (RPC)
- * @param tinfo
- * @return
- */
-void* qGetResultRetrieveMsg(qTaskInfo_t tinfo);
-
-/**
  * kill the ongoing query and free the query handle and corresponding resources automatically
  * @param tinfo  qhandle
  * @return
