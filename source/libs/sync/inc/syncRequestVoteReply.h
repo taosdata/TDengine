@@ -28,6 +28,8 @@ extern "C" {
 #include "syncRaft.h"
 #include "taosdef.h"
 
+int32_t syncNodeOnRequestVoteReplyCb(SSyncNode* ths, SyncRequestVoteReply* pMsg);
+
 #ifdef __cplusplus
 }
 #endif

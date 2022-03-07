@@ -15,6 +15,7 @@
 
 #include "syncTimeout.h"
 #include "syncElection.h"
+#include "syncReplication.h"
 
 int32_t syncNodeOnTimeoutCb(SSyncNode* ths, SyncTimeout* pMsg) {
   int32_t ret = 0;

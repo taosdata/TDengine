@@ -15,23 +15,23 @@
 
 #include <stdint.h>
 #include "sync.h"
+#include "syncAppendEntries.h"
+#include "syncAppendEntriesReply.h"
 #include "syncEnv.h"
 #include "syncInt.h"
 #include "syncRaft.h"
+#include "syncRequestVote.h"
+#include "syncRequestVoteReply.h"
 #include "syncTimeout.h"
 #include "syncUtil.h"
 
 static int32_t tsNodeRefId = -1;
 
 // ------ local funciton ---------
-static int32_t syncNodeSendMsgById(const SRaftId* destRaftId, SSyncNode* pSyncNode, SRpcMsg* pMsg);
-static int32_t syncNodeSendMsgByInfo(const SNodeInfo* nodeInfo, SSyncNode* pSyncNode, SRpcMsg* pMsg);
-
 static void syncNodeEqPingTimer(void* param, void* tmrId);
 static void syncNodeEqElectTimer(void* param, void* tmrId);
 static void syncNodeEqHeartbeatTimer(void* param, void* tmrId);
 
-static int32_t syncNodePing(SSyncNode* pSyncNode, const SRaftId* destRaftId, SyncPing* pMsg);
 static int32_t syncNodeOnPingCb(SSyncNode* ths, SyncPing* pMsg);
 static int32_t syncNodeOnPingReplyCb(SSyncNode* ths, SyncPingReply* pMsg);
 
@@ -135,6 +135,48 @@ void syncNodeClose(SSyncNode* pSyncNode) {
   free(pSyncNode);
 }
 
+int32_t syncNodeSendMsgById(const SRaftId* destRaftId, SSyncNode* pSyncNode, SRpcMsg* pMsg) {
+  SEpSet epSet;
+  syncUtilraftId2EpSet(destRaftId, &epSet);
+  pSyncNode->FpSendMsg(pSyncNode->rpcClient, &epSet, pMsg);
+  return 0;
+}
+
+int32_t syncNodeSendMsgByInfo(const SNodeInfo* nodeInfo, SSyncNode* pSyncNode, SRpcMsg* pMsg) {
+  SEpSet epSet;
+  syncUtilnodeInfo2EpSet(nodeInfo, &epSet);
+  pSyncNode->FpSendMsg(pSyncNode->rpcClient, &epSet, pMsg);
+  return 0;
+}
+
+int32_t syncNodePing(SSyncNode* pSyncNode, const SRaftId* destRaftId, SyncPing* pMsg) {
+  sTrace("syncNodePing pSyncNode:%p ", pSyncNode);
+  int32_t ret = 0;
+
+  SRpcMsg rpcMsg;
+  syncPing2RpcMsg(pMsg, &rpcMsg);
+  syncNodeSendMsgById(destRaftId, pSyncNode, &rpcMsg);
+
+  {
+    cJSON* pJson = syncPing2Json(pMsg);
+    char*  serialized = cJSON_Print(pJson);
+    sTrace("syncNodePing pMsg:%s ", serialized);
+    free(serialized);
+    cJSON_Delete(pJson);
+  }
+
+  {
+    SyncPing* pMsg2 = rpcMsg.pCont;
+    cJSON*    pJson = syncPing2Json(pMsg2);
+    char*     serialized = cJSON_Print(pJson);
+    sTrace("syncNodePing rpcMsg.pCont:%s ", serialized);
+    free(serialized);
+    cJSON_Delete(pJson);
+  }
+
+  return ret;
+}
+
 void syncNodePingAll(SSyncNode* pSyncNode) {
   sTrace("syncNodePingAll pSyncNode:%p ", pSyncNode);
   int32_t ret = 0;
@@ -167,10 +209,6 @@ void syncNodePingSelf(SSyncNode* pSyncNode) {
   assert(ret == 0);
   syncPingDestroy(pMsg);
 }
-
-void syncNodeRequestVotePeers(SSyncNode* pSyncNode) {}
-
-void syncNodeAppendEntriesPeers(SSyncNode* pSyncNode) {}
 
 int32_t syncNodeStartPingTimer(SSyncNode* pSyncNode) {
   atomic_store_64(&pSyncNode->pingTimerLogicClock, pSyncNode->pingTimerLogicClockUser);
@@ -235,48 +273,6 @@ int32_t syncNodeStopHeartbeatTimer(SSyncNode* pSyncNode) {
 }
 
 // ------ local funciton ---------
-static int32_t syncNodePing(SSyncNode* pSyncNode, const SRaftId* destRaftId, SyncPing* pMsg) {
-  sTrace("syncNodePing pSyncNode:%p ", pSyncNode);
-  int32_t ret = 0;
-
-  SRpcMsg rpcMsg;
-  syncPing2RpcMsg(pMsg, &rpcMsg);
-  syncNodeSendMsgById(destRaftId, pSyncNode, &rpcMsg);
-
-  {
-    cJSON* pJson = syncPing2Json(pMsg);
-    char*  serialized = cJSON_Print(pJson);
-    sTrace("syncNodePing pMsg:%s ", serialized);
-    free(serialized);
-    cJSON_Delete(pJson);
-  }
-
-  {
-    SyncPing* pMsg2 = rpcMsg.pCont;
-    cJSON*    pJson = syncPing2Json(pMsg2);
-    char*     serialized = cJSON_Print(pJson);
-    sTrace("syncNodePing rpcMsg.pCont:%s ", serialized);
-    free(serialized);
-    cJSON_Delete(pJson);
-  }
-
-  return ret;
-}
-
-static int32_t syncNodeSendMsgById(const SRaftId* destRaftId, SSyncNode* pSyncNode, SRpcMsg* pMsg) {
-  SEpSet epSet;
-  syncUtilraftId2EpSet(destRaftId, &epSet);
-  pSyncNode->FpSendMsg(pSyncNode->rpcClient, &epSet, pMsg);
-  return 0;
-}
-
-static int32_t syncNodeSendMsgByInfo(const SNodeInfo* nodeInfo, SSyncNode* pSyncNode, SRpcMsg* pMsg) {
-  SEpSet epSet;
-  syncUtilnodeInfo2EpSet(nodeInfo, &epSet);
-  pSyncNode->FpSendMsg(pSyncNode->rpcClient, &epSet, pMsg);
-  return 0;
-}
-
 static int32_t syncNodeOnPingCb(SSyncNode* ths, SyncPing* pMsg) {
   int32_t ret = 0;
   sTrace("<-- syncNodeOnPingCb -->");

@@ -188,28 +188,21 @@ typedef struct SSyncNode {
 
 SSyncNode* syncNodeOpen(const SSyncInfo* pSyncInfo);
 void       syncNodeClose(SSyncNode* pSyncNode);
-void       syncNodePingAll(SSyncNode* pSyncNode);
-void       syncNodePingPeers(SSyncNode* pSyncNode);
-void       syncNodePingSelf(SSyncNode* pSyncNode);
-void       syncNodeRequestVotePeers(SSyncNode* pSyncNode);
-void       syncNodeAppendEntriesPeers(SSyncNode* pSyncNode);
+
+int32_t syncNodeSendMsgById(const SRaftId* destRaftId, SSyncNode* pSyncNode, SRpcMsg* pMsg);
+int32_t syncNodeSendMsgByInfo(const SNodeInfo* nodeInfo, SSyncNode* pSyncNode, SRpcMsg* pMsg);
+int32_t syncNodePing(SSyncNode* pSyncNode, const SRaftId* destRaftId, SyncPing* pMsg);
+void    syncNodePingAll(SSyncNode* pSyncNode);
+void    syncNodePingPeers(SSyncNode* pSyncNode);
+void    syncNodePingSelf(SSyncNode* pSyncNode);
 
 int32_t syncNodeStartPingTimer(SSyncNode* pSyncNode);
 int32_t syncNodeStopPingTimer(SSyncNode* pSyncNode);
-
 int32_t syncNodeStartElectTimer(SSyncNode* pSyncNode, int32_t ms);
 int32_t syncNodeStopElectTimer(SSyncNode* pSyncNode);
 int32_t syncNodeRestartElectTimer(SSyncNode* pSyncNode, int32_t ms);
-
 int32_t syncNodeStartHeartbeatTimer(SSyncNode* pSyncNode);
 int32_t syncNodeStopHeartbeatTimer(SSyncNode* pSyncNode);
-
-int32_t syncNodeRequestVote(SSyncNode* ths, const SyncRequestVote* pMsg);
-int32_t syncNodeOnRequestVoteCb(SSyncNode* ths, SyncRequestVote* pMsg);
-int32_t syncNodeOnRequestVoteReplyCb(SSyncNode* ths, SyncRequestVoteReply* pMsg);
-int32_t syncNodeAppendEntries(SSyncNode* ths, const SyncAppendEntries* pMsg);
-int32_t syncNodeOnAppendEntriesCb(SSyncNode* ths, SyncAppendEntries* pMsg);
-int32_t syncNodeOnAppendEntriesReplyCb(SSyncNode* ths, SyncAppendEntriesReply* pMsg);
 
 #ifdef __cplusplus
 }

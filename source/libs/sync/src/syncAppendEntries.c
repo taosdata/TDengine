@@ -15,33 +15,6 @@
 
 #include "syncAppendEntries.h"
 
-int32_t syncNodeAppendEntries(SSyncNode* ths, const SyncAppendEntries* pMsg) {
-  // TLA+ Spec
-  // AppendEntries(i, j) ==
-  //    /\ i /= j
-  //    /\ state[i] = Leader
-  //    /\ LET prevLogIndex == nextIndex[i][j] - 1
-  //           prevLogTerm == IF prevLogIndex > 0 THEN
-  //                              log[i][prevLogIndex].term
-  //                          ELSE
-  //                              0
-  //           \* Send up to 1 entry, constrained by the end of the log.
-  //           lastEntry == Min({Len(log[i]), nextIndex[i][j]})
-  //           entries == SubSeq(log[i], nextIndex[i][j], lastEntry)
-  //       IN Send([mtype          |-> AppendEntriesRequest,
-  //                mterm          |-> currentTerm[i],
-  //                mprevLogIndex  |-> prevLogIndex,
-  //                mprevLogTerm   |-> prevLogTerm,
-  //                mentries       |-> entries,
-  //                \* mlog is used as a history variable for the proof.
-  //                \* It would not exist in a real implementation.
-  //                mlog           |-> log[i],
-  //                mcommitIndex   |-> Min({commitIndex[i], lastEntry}),
-  //                msource        |-> i,
-  //                mdest          |-> j])
-  //    /\ UNCHANGED <<serverVars, candidateVars, leaderVars, logVars>>
-}
-
 int32_t syncNodeOnAppendEntriesCb(SSyncNode* ths, SyncAppendEntries* pMsg) {
   // TLA+ Spec
   // HandleAppendEntriesRequest(i, j, m) ==

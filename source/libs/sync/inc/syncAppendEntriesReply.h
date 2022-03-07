@@ -28,6 +28,8 @@ extern "C" {
 #include "syncRaft.h"
 #include "taosdef.h"
 
+int32_t syncNodeOnAppendEntriesReplyCb(SSyncNode* ths, SyncAppendEntriesReply* pMsg);
+
 #ifdef __cplusplus
 }
 #endif

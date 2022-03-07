@@ -15,20 +15,6 @@
 
 #include "syncRequestVote.h"
 
-int32_t syncNodeRequestVote(SSyncNode* ths, const SyncRequestVote* pMsg) {
-  // TLA+ Spec
-  // RequestVote(i, j) ==
-  //    /\ state[i] = Candidate
-  //    /\ j \notin votesResponded[i]
-  //    /\ Send([mtype         |-> RequestVoteRequest,
-  //             mterm         |-> currentTerm[i],
-  //             mlastLogTerm  |-> LastTerm(log[i]),
-  //             mlastLogIndex |-> Len(log[i]),
-  //             msource       |-> i,
-  //             mdest         |-> j])
-  //    /\ UNCHANGED <<serverVars, candidateVars, leaderVars, logVars>>
-}
-
 int32_t syncNodeOnRequestVoteCb(SSyncNode* ths, SyncRequestVote* pMsg) {
   // TLA+ Spec
   // HandleRequestVoteRequest(i, j, m) ==

@@ -26,7 +26,9 @@ extern "C" {
 #include "syncInt.h"
 #include "taosdef.h"
 
-void syncNodeAppendEntriesPeers(SSyncNode* pSyncNode);
+int32_t syncNodeAppendEntriesPeers(SSyncNode* pSyncNode);
+
+int32_t syncNodeAppendEntries(SSyncNode* pSyncNode, const SRaftId* destRaftId, const SyncAppendEntries* pMsg);
 
 #ifdef __cplusplus
 }
