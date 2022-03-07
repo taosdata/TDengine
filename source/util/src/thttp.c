@@ -19,10 +19,7 @@
 #include "tlog.h"
 
 #ifdef USE_UV
-
-#include <uv.h>
-
-void clientConnCb(uv_connect_t* req, int status) {
+static void clientConnCb(uv_connect_t* req, int32_t status) {
   if(status < 0) {
     terrno = TAOS_SYSTEM_ERROR(status);
     uError("Connection error %s\n",uv_strerror(status));
@@ -45,20 +42,20 @@ int32_t taosSendHttpReport(const char* server, uint16_t port, const char* pCont,
     terrno = TAOS_SYSTEM_ERROR(errno);
     uError("failed to get http server:%s ip since %s", server, terrstr());
     return -1;
-    // goto SEND_OVER;
   }
-  char ipv4Buf[128];
+
+  char ipv4Buf[128] = {0};
   tinet_ntoa(ipv4Buf, ipv4);
 
-  struct sockaddr_in dest;
+  struct sockaddr_in dest = {0};
   uv_ip4_addr(ipv4Buf, port, &dest);
 
-  uv_tcp_t socket_tcp;
+  uv_tcp_t socket_tcp = {0};
   uv_loop_t *loop = uv_default_loop();
   uv_tcp_init(loop, &socket_tcp);
   uv_connect_t* connect = (uv_connect_t*)malloc(sizeof(uv_connect_t));
 
-  char    header[4096] = {0};
+  char    header[1024] = {0};
   int32_t headLen = snprintf(header, sizeof(header),
                              "POST /report HTTP/1.1\n"
                              "Host: %s\n"

@@ -34,6 +34,10 @@
   #include <sys/epoll.h>
 #endif
 
+#ifdef USE_UV
+  #include <uv.h>
+#endif
+
 #ifdef __cplusplus
 extern "C" {
 #endif
