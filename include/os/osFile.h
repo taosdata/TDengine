@@ -87,7 +87,6 @@ int32_t taosRemoveFile(const char *path);
  
 void    taosGetTmpfilePath(const char *inputTmpDir, const char *fileNamePrefix, char *dstPath);
  
-int64_t taosSendFile(SocketFd fdDst, TdFilePtr pFileSrc, int64_t *offset, int64_t size);
 int64_t taosFSendFile(TdFilePtr pFileOut, TdFilePtr pFileIn, int64_t *offset, int64_t size);
 
 void *taosMmapReadOnlyFile(TdFilePtr pFile, int64_t length);
