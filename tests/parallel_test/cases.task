@@ -1,0 +1,745 @@
+# 20,,pytest,insert/retentionpolicy.py change date time
+299,,pytest,python3 test.py -f update/merge_commit_data-0.py 
+290,,pytest,python3 test.py -f update/merge_commit_data.py 
+263,,script,./test.sh -f general/stream/stream_3.sim 
+259,,script,./test.sh -f general/stream/restart_stream.sim 
+241,,pytest,python3 test.py -f update/merge_commit_data2.py 
+224,,pytest,python3 test.py -f query/queryNullValueTest.py 
+221,,pytest,python3 test.py -f query/nestedQuery/nestedQuery.py 
+220,,pytest,python3 test.py -f update/merge_commit_data2_update0.py 
+208,,pytest,python3 test.py -f update/merge_commit_last.py 
+203,,pytest,python3 test.py -f update/merge_commit_last-0.py 
+201,,pytest,python3 ./test.py -f tsdb/tsdbComp.py
+191,,pytest,python3 test.py -f stream/stream1.py 
+188,,pytest,python3 test.py -f stream/stream2.py
+151,,script,./test.sh -f unique/vnode/replica3_repeat.sim 
+143,,script,./test.sh -f general/stream/stream_restart.sim 
+138,,pytest,python3 test.py -f insert/randomNullCommit.py 
+132,,pytest,python3 test.py -f functions/function_interp.py 
+131,,system-test,bash 3-connectors/python/test.sh 
+128,,develop-test,bash 3-connectors/python/test.sh 
+127,,script,./test.sh -f general/stream/table_replica1_vnoden.sim 
+127,,script,./test.sh -f general/stream/table_del.sim 
+127,,script,./test.sh -f general/stream/metrics_replica1_vnoden.sim 
+127,,script,./test.sh -f general/stream/metrics_del.sim 
+127,,pytest,python3 test.py -f query/queryConnection.py 
+124,,develop-test/3-connectors/java,bash test.sh 
+121,2,script,./test.sh -f unique/cluster/balance3.sim 
+114,,script,./test.sh -f general/db/alter_tables_d2.sim 
+113,,pytest,python3 test.py -f update/append_commit_last.py 
+113,,pytest,python3 test.py -f update/append_commit_data.py
+111,,script,./test.sh -f unique/vnode/replica2_repeat.sim 
+111,,script,./test.sh -f unique/vnode/many.sim 
+110,,pytest,python3 test.py -f update/append_commit_last-0.py 
+109,,script,./test.sh -f unique/cluster/vgroup100.sim 
+102,,script,./test.sh -f general/parser/selectResNum.sim 
+99,,script,./test.sh -f general/parser/repeatAlter.sim 
+89,,script,./test.sh -f unique/big/balance.sim 
+86,,script,./test.sh -f unique/dnode/balance1.sim 
+86,,script,./test.sh -f unique/cluster/balance2.sim 
+85,,pytest,python3 test.py -f insert/boundary2.py 
+83,,script,./test.sh -f general/parser/limit2.sim 
+83,,script,./test.sh -f general/parser/limit1_tblocks100.sim 
+82,,script,./test.sh -f general/parser/limit1.sim 
+82,,pytest,python3 test.py -f query/last_row_cache.py 
+81,,develop-test,timeout 180 bash 3-connectors/c#/test.sh 
+80,,develop-test,timeout 180 bash 3-connectors/nodejs/test.sh 
+79,,script,./test.sh -f general/db/alter_tables_v4.sim 
+79,,pytest,python3 test.py -f insert/verifyMemToDiskCrash.py 
+78,2,script,./test.sh -f unique/dnode/balance3.sim 
+78,,script,./test.sh -f unique/cluster/balance1.sim 
+76,,script,./test.sh -f unique/import/replica3.sim 
+76,,script,./test.sh -f unique/db/replica_add13.sim 
+75,,script,./test.sh -f unique/db/replica_reduce32.sim 
+75,,script,./test.sh -f unique/db/replica_add23.sim 
+75,,script,./test.sh -f unique/account/usage.sim 
+74,,script,./test.sh -f unique/arbitrator/dn3_mn1_replica_change.sim 
+74,,script,./test.sh -f unique/arbitrator/dn3_mn1_r3_vnode_delDir.sim 
+71,,script,./test.sh -f unique/mnode/mgmtr2.sim 
+69,,script,./test.sh -f unique/import/replica3.sim 
+69,,script,./test.sh -f unique/arbitrator/check_cluster_cfg_para.sim 
+69,,pytest,python3 test.py -f functions/function_sample.py -r 1 
+68,,script,./test.sh -f unique/mnode/mgmt20.sim 
+68,,script,./test.sh -f general/parser/groupby.sim 
+67,,script,./test.sh -f unique/dnode/data1.sim 
+67,,pytest,python3 test.py -f client/taoshellCheckCase.py 
+66,,script,./test.sh -f unique/db/delete.sim 
+66,,script,./test.sh -f unique/account/authority.sim 
+66,,script,./test.sh -f general/db/alter_tables_v1.sim 
+65,,script,./test.sh -f unique/vnode/replica3_basic.sim 
+65,,script,./test.sh -f unique/import/replica2.sim 
+65,2,script,./test.sh -f unique/dnode/m2.sim 
+65,,script,./test.sh -f unique/db/delete_part.sim 
+65,,script,./test.sh -f issue/TD-2713.sim 
+64,,script,./test.sh -f unique/arbitrator/dn3_mn1_vnode_delDir.sim 
+63,2,script,./test.sh -f unique/dnode/m3.sim 
+63,,script,./test.sh -f unique/db/replica_reduce31.sim 
+63,,script,./test.sh -f unique/arbitrator/dn3_mn1_vnode_noCorruptFile_offline.sim 
+63,,script,./test.sh -f general/parser/where.sim 
+63,,script,./test.sh -f general/parser/union.sim 
+63,,pytest,python3 test.py -f stream/new.py 
+62,,script,./test.sh -f unique/dnode/vnode_clean.sim 
+61,,script,./test.sh -f unique/db/replica_part.sim 
+61,,pytest,python3 test.py -f stream/cqSupportBefore1970.py 
+60,,script,./test.sh -f unique/vnode/replica2_basic2.sim 
+60,,script,./test.sh -f general/parser/first_last.sim 
+60,,script,./test.sh -f general/db/delete_reuse1.sim 
+60,,pytest,python3 test.py -f tools/taosdemoAllTest/TD-5213/insert4096columns_not_use_taosdemo.py 
+60,,pytest,python3 test.py -f stream/sys.py 
+59,,script,./test.sh -f unique/import/replica2.sim 
+59,,script,./test.sh -f unique/dnode/balance2.sim 
+59,,script,./test.sh -f general/parser/projection_limit_offset.sim 
+58,,script,./test.sh -f unique/dnode/balancex.sim 
+58,,pytest,python3 test.py -f stream/table_1.py 
+57,,script,./test.sh -f unique/dnode/offline2.sim 
+57,,script,./test.sh -f unique/arbitrator/replica_changeWithArbitrator.sim 
+57,,script,./test.sh -f unique/arbitrator/dn3_mn1_replica_change_dropDnod.sim 
+57,,script,./test.sh -f general/db/delete_writing1.sim 
+56,,script,./test.sh -f general/parser/commit.sim 
+55,,script,./test.sh -f unique/dnode/remove2.sim 
+55,,script,./test.sh -f unique/dnode/remove1.sim 
+55,,script,./test.sh -f general/db/delete_reusevnode.sim 
+55,,pytest,python3 test.py -f stream/metric_n.py 
+55,,develop-test,python3 ./test.py -f 1-insert/batchInsert.py 
+,,pytest,python3 ./test.py  -f functions/function_elapsed.py
+,,pytest,python3 ./test.py -f alter/alterBackQuoteCol.py
+,,develop-test,python3 ./test.py -f 2-query/TD-13246.py
+54,,script,./test.sh -f unique/arbitrator/dn3_mn1_vnode_nomaster.sim 
+54,,script,./test.sh -f unique/arbitrator/dn3_mn1_r2_vnode_delDir.sim 
+54,,script,./test.sh -f unique/arbitrator/dn3_mn1_multiCreateDropTable.sim 
+54,,script,./test.sh -f general/parser/sliding.sim 
+54,,script,./test.sh -f general/parser/interp_full.sim 
+54,,pytest,python3 test.py -f stream/table_n.py 
+54,,pytest,python3 test.py -f stream/metric_1.py 
+53,,script,./test.sh -f unique/mnode/mgmt26.sim 
+53,,script,./test.sh -f unique/mnode/mgmt23.sim 
+53,,script,./test.sh -f unique/mnode/mgmt22.sim 
+53,,script,./test.sh -f unique/db/replica_add12.sim 
+52,,script,./test.sh -f unique/account/pass_alter.sim 
+52,,script,./test.sh -f general/parser/topbot.sim 
+52,,script,./test.sh -f general/parser/join_manyblocks.sim 
+51,,script,./test.sh -f unique/dnode/reason.sim 
+51,,script,./test.sh -f unique/cluster/alter.sim 
+50,,script,./test.sh -f unique/mnode/mgmt34.sim 
+50,,script,./test.sh -f unique/dnode/datatrans_3node_2.sim 
+49,,system-test,python3 ./test.py -f 5-taos-tools/taosbenchmark/taosdemoTestInsertWithJson-illegalData.py
+49,,script,./test.sh -f unique/db/commit.sim 
+48,,script,./test.sh -f unique/dnode/datatrans_3node.sim 
+48,,script,./test.sh -f unique/big/tcp.sim 
+48,,script,./test.sh -f general/parser/nestquery.sim 
+48,,script,./test.sh -f general/parser/col_arithmetic_operation.sim 
+48,,pytest,python3 test.py -f query/queryStateWindow.py 
+47,,system-test,python3 ./test.py -f 5-taos-tools/taosbenchmark/taosdemoTestInsertWithJsonSml-illegalData.py 
+47,,script,./test.sh -f unique/stable/balance_replica1.sim 
+47,,script,./test.sh -f unique/migrate/mn2_vn2_repl2_rmMnodeVnodeDir.sim 
+47,,script,./test.sh -f unique/migrate/mn2_vn2_repl2_rmMnodeDir.sim 
+47,,script,./test.sh -f unique/dnode/monitor.sim 
+47,,script,./test.sh -f unique/big/maxvnodes.sim 
+47,,pytest,python3 test.py -f tools/taosdemoAllTest/NanoTestCase/taosdemoTestSupportNanosubscribe.py 
+46,,system-test,python3 ./test.py  -f  5-taos-tools/taosbenchmark/taosdemoTestQueryWithJson.py
+45,,script,./test.sh -f unique/mnode/mgmt24.sim 
+45,,pytest,python3 test.py -f tools/taosdemoAllTest/TD-5213/insertSigcolumnsNum4096.py 
+44,,script,./test.sh -f unique/vnode/replica3_vgroup.sim 
+44,,script,./test.sh -f unique/mnode/mgmt33.sim 
+44,,pytest,python3 test.py -f wal/sdbComp.py 
+43,,script,./test.sh -f unique/migrate/mn2_vn2_repl2_rmVnodeDir.sim 
+43,,script,./test.sh -f unique/dnode/offline1.sim 
+43,,script,./test.sh -f general/import/replica1.sim 
+43,,pytest,python3 test.py -f query/select_last_crash.py 
+43,,pytest,python3 test.py -f import_merge/import_update_2.py 
+42,,script,./test.sh -f unique/dnode/monitor_bug.sim 
+42,,script,./test.sh -f unique/arbitrator/sync_replica3_alterTable_drop.sim 
+42,,script,./test.sh -f general/wal/kill.sim 
+41,,script,./test.sh -f unique/dnode/lossdata.sim 
+41,,script,./test.sh -f unique/arbitrator/sync_replica3_dropDb.sim 
+41,,script,./test.sh -f unique/arbitrator/sync_replica2_alterTable_drop.sim 
+41,,script,./test.sh -f general/alter/count.sim 
+41,,pytest,python3 test.py -f import_merge/import_update_0.py 
+40,,script,./test.sh -f unique/arbitrator/sync_replica3_dropTable.sim 
+40,,script,./test.sh -f unique/arbitrator/sync_replica3_alterTable_add.sim 
+40,,script,./test.sh -f unique/arbitrator/sync_replica2_dropTable.sim 
+39,,script,./test.sh -f unique/mnode/mgmt25.sim 
+39,,script,./test.sh -f unique/arbitrator/offline_replica3_alterTable_online.sim 
+39,,script,./test.sh -f general/wal/kill.sim 
+39,,script,./test.sh -f general/db/alter_vgroups.sim 
+39,,pytest,python3 test.py -f update/allow_update.py 
+39,,pytest,python3 test.py -f query/last_cache.py 
+38,,script,./test.sh -f unique/dnode/offline3.sim 
+38,,script,./test.sh -f unique/arbitrator/sync_replica2_dropDb.sim 
+38,,script,./test.sh -f general/table/delete_reuse2.sim 
+38,,script,./test.sh -f general/insert/insert_drop.sim 
+37,,script,./test.sh -f unique/mnode/mgmt30.sim 
+37,,script,./test.sh -f unique/column/replica3.sim 
+37,,script,./test.sh -f unique/arbitrator/offline_replica2_createTable_online.sim 
+37,,script,./test.sh -f unique/arbitrator/offline_replica2_alterTable_online.sim 
+37,,script,./test.sh -f general/table/delete_reuse1.sim 
+37,,script,./test.sh -f general/db/delete_reuse2.sim 
+36,,script,./test.sh -f unique/stable/replica3_vnode3.sim 
+36,,script,./test.sh -f unique/stable/dnode2_stop.sim 
+36,,script,./test.sh -f unique/arbitrator/sync_replica2_alterTable_add.sim 
+36,,script,./test.sh -f unique/arbitrator/offline_replica3_createTable_online.sim 
+36,,script,./test.sh -f unique/arbitrator/offline_replica2_dropTable_online.sim 
+36,,script,./test.sh -f general/parser/tbnameIn.sim 
+36,,pytest,python3 test.py -f tools/taosdumpTestNanoSupport.py 
+35,,script,./test.sh -f unique/migrate/mn2_vn2_repl2_rmMnodeVnodeDir_stopAll_starAll.sim 
+35,,script,./test.sh -f unique/arbitrator/offline_replica3_alterTag_online.sim 
+35,,script,./test.sh -f unique/arbitrator/offline_replica2_alterTag_online.sim 
+35,,script,./test.sh -f issue/TD-2680.sim 
+35,,pytest,python3 test.py -f update/update_options.py 
+35,,pytest,python3 test.py -f insert/flushwhiledrop.py 
+35,,pytest,python3 test.py -f import_merge/import_update_1.py 
+34,,script,./test.sh -f unique/dnode/alternativeRole.sim 
+34,,script,./test.sh -f unique/arbitrator/offline_replica3_dropTable_online.sim 
+34,,script,./test.sh -f unique/arbitrator/offline_replica2_dropDb_online.sim 
+34,,script,./test.sh -f issue/TD-2677.sim 
+33,,script,./test.sh -f general/table/delete_writing.sim 
+33,,script,./test.sh -f general/parser/slimit.sim 
+33,,script,./test.sh -f general/db/topic1.sim 
+32,,script,./test.sh -f unique/mnode/mgmt21.sim 
+32,,script,./test.sh -f unique/arbitrator/offline_replica3_dropDb_online.sim 
+32,,script,./test.sh -f unique/arbitrator/dn3_mn2_killDnode.sim 
+32,,script,./test.sh -f general/db/delete_reusevnode2.sim 
+32,,script,./test.sh -f general/compress/compress.sim 
+32,,script,./test.sh -f general/compress/commitlog.sim 
+32,,pytest,python3 test.py -f tools/taosdemoAllTest/taosdemoTestInsertAllType.py 
+31,,script,./test.sh -f general/user/pass_alter.sim 
+31,,script,./test.sh -f general/stable/disk.sim 
+31,,script,./test.sh -f general/parser/lastrow.sim 
+31,,script,./test.sh -f general/db/delete_writing2.sim 
+31,,script,./test.sh -f general/alter/cached_schema_after_alter.sim 
+30,2,script,./test.sh -f unique/dnode/simple.sim 
+30,,script,./test.sh -f unique/account/account_delete.sim 
+30,,script,./test.sh -f general/import/commit.sim 
+30,,script,./test.sh -f general/compute/diff2.sim 
+29,,system-test,python3 ./test.py -f 0-others/create_col_tag.py 
+29,,script,./test.sh -f unique/arbitrator/dn3_mn1_full_createTableFail.sim 
+29,,script,./test.sh -f general/wal/maxtables.sim 
+29,,script,./test.sh -f general/compress/compress2.sim 
+29,,script,./test.sh -f general/alter/insert1.sim 
+29,,pytest,python3 test.py -f functions/function_mavg.py 
+28,,script,./test.sh -f general/user/authority.sim 
+28,,script,./test.sh -f general/parser/select_with_tags.sim 
+28,,script,./test.sh -f general/insert/query_multi_file.sim 
+28,,script,./test.sh -f general/compress/uncompress.sim 
+28,,script,./test.sh -f general/column/commit.sim 
+28,,pytest,python3 test.py -f queryCount.py 
+28,,pytest,python3 test.py -f alter/alter_table.py 
+27,,script,./test.sh -f unique/cluster/cache.sim 
+27,,script,./test.sh -f general/user/monitor.sim 
+27,,script,./test.sh -f general/parser/slimit_alter_tags.sim 
+27,,script,./test.sh -f general/column/table.sim 
+27,,script,./test.sh -f general/column/metrics.sim 
+27,,script,./test.sh -f general/alter/cached_schema_after_alter.sim 
+27,,pytest,python3 test.py -f functions/function_csum.py 
+26,,script,./test.sh -f general/parser/set_tag_vals.sim 
+26,,script,./test.sh -f general/db/nosuchfile.sim 
+26,,script,./test.sh -f general/alter/table.sim 
+26,,pytest,python3 test.py -f stable/query_after_reset.py 
+26,,develop-test,python3 ./test.py -f 5-taos-tools/taosbenchmark/commandline.py
+25,,script,./test.sh -f unique/stable/dnode3.sim 
+25,,script,./test.sh -f general/parser/auto_create_tb.sim 
+25,,script,./test.sh -f general/alter/metrics.sim 
+25,,pytest,python3 test.py -f tools/taosdemoTestInterlace.py 
+25,,pytest,python3 test.py -f alter/alter_cacheLastRow.py 
+25,,develop-test,bash 3-connectors/go/test.sh 
+24,,script,./test.sh -f general/wal/maxtables.sim 
+24,,script,./test.sh -f general/connection/test_old_data.sim 
+24,,script,./test.sh -f general/cache/restart_metrics.sim 
+24,,script,./test.sh -f general/alter/insert2.sim 
+24,,pytest,python3 test.py -f tag_lite/datatype-without-alter.py 
+23,,script,./test.sh -f general/parser/select_from_cache_disk.sim 
+23,,script,./test.sh -f general/parser/mixed_blocks.sim 
+23,,script,./test.sh -f general/import/large.sim 
+22,,script,./test.sh -f general/stable/metrics.sim 
+22,,script,./test.sh -f general/parser/slimit1.sim 
+22,,script,./test.sh -f general/parser/limit.sim 
+22,,script,./test.sh -f general/insert/tcp.sim 
+22,,script,./test.sh -f general/cache/restart_table.sim 
+22,,pytest,python3 test.py -f tools/taosdemoAllTest/taosdemoTestInsertShell.py 
+22,,pytest,python3 test.py -f tag_lite/datatype.py 
+22,,pytest,python3 test.py -f import_merge/importDataLastH.py 
+22,,pytest,python3 test.py -f import_merge/importDataHO2.py 
+22,,pytest,python3 test.py -f import_merge/importCacheFileH.py 
+21,,script,./test.sh -f general/parser/single_row_in_tb.sim 
+21,,script,./test.sh -f general/parser/last_cache.sim 
+21,,script,./test.sh -f general/parser/join_multivnode.sim 
+21,,script,./test.sh -f general/db/repeat.sim 
+21,,pytest,python3 test.py -f import_merge/importLastT.py 
+21,,pytest,python3 test.py -f import_merge/importDataLastS.py 
+21,,pytest,python3 test.py -f import_merge/importDataLastHPO.py 
+21,,pytest,python3 test.py -f import_merge/importDataHO.py 
+21,,pytest,python3 test.py -f import_merge/importDataH2.py 
+21,,pytest,python3 test.py -f import_merge/importCacheFileT.py 
+21,,pytest,python3 test.py -f import_merge/importCacheFileTPO.py 
+21,,pytest,python3 test.py -f import_merge/importCacheFileTO.py 
+21,,pytest,python3 test.py -f import_merge/importCacheFileSub.py 
+21,,pytest,python3 test.py -f import_merge/importCacheFileS.py 
+21,,pytest,python3 test.py -f import_merge/importCacheFileHPO.py 
+21,,pytest,python3 test.py -f import_merge/importCacheFileHO.py 
+20,,script,./test.sh -f unique/account/user_create.sim 
+20,,script,./test.sh -f general/parser/auto_create_tb_drop_tb.sim 
+20,,script,./test.sh -f general/import/basic.sim 
+20,2,script,./test.sh -f general/alter/dnode.sim 
+20,,pytest,python3 test.py -f query/query.py 
+20,,pytest,python3 test.py -f import_merge/importLastTO.py 
+20,,pytest,python3 test.py -f import_merge/importDataSub.py 
+20,,pytest,python3 test.py -f import_merge/importDataLastSub.py 
+19,,script,./test.sh -f unique/stable/dnode2.sim 
+19,,script,./test.sh -f general/db/vnodes.sim 
+19,,pytest,python3 test.py -f tools/taosdumpTest3.py 
+19,,pytest,python3 test.py -f query/udf.py 
+19,,pytest,python3 test.py -f import_merge/importLastTPO.py 
+19,,pytest,python3 test.py -f import_merge/importDataLastHO.py 
+19,,pytest,python3 test.py -f import_merge/importDataHPO.py 
+19,,pytest,python3 test.py -f import_merge/importCSV.py 
+19,,pytest,python3 test.py -f functions/function_operations.py -r 1 
+18,,script,./test.sh -f unique/stable/replica3_dnode6.sim 
+18,,script,./test.sh -f general/vector/table_field.sim 
+18,,script,./test.sh -f general/vector/single.sim 
+18,,script,./test.sh -f general/parser/join.sim 
+18,,script,./test.sh -f general/insert/query_block2_file.sim 
+18,,script,./test.sh -f general/db/tables.sim 
+18,,pytest,python3 test.py -f tools/taosdemoAllTest/TD-4985/query-limit-offset.py
+18,,pytest,python3 test.py -f stream/history.py
+18,,pytest,python3 test.py -f query/queryTscomputWithNow.py
+18,,pytest,python3 test.py -f query/queryInterval.py
+18,,develop-test,python3 ./test.py -f 5-taos-tools/taosbenchmark/sml_telnet_alltypes.py
+17,,system-test,python3 ./test.py -f 5-taos-tools/taosbenchmark/taosdemoTestInsertWithJsonStmt-illegalData.py 
+17,,script,./test.sh -f unique/account/user_len.sim 
+17,,script,./test.sh -f general/vector/metrics_mix.sim 
+17,,script,./test.sh -f general/user/user_create.sim 
+17,,script,./test.sh -f general/parser/import_commit3.sim 
+17,,script,./test.sh -f general/parser/function.sim 
+17,,script,./test.sh -f general/insert/query_file_memory.sim 
+17,,script,./test.sh -f general/field/binary.sim 
+17,,script,./test.sh -f general/field/4.sim 
+17,,pytest,python3 test.py -f subscribe/supertable.py 
+17,,pytest,python3 test.py -f query/query1970YearsAf.py 
+16,,script,./test.sh -f unique/account/account_len.sim 
+16,,script,./test.sh -f general/vector/table_time.sim 
+16,,script,./test.sh -f general/vector/multi.sim 
+16,,script,./test.sh -f general/vector/metrics_time.sim 
+16,,script,./test.sh -f general/vector/metrics_tag.sim 
+16,,script,./test.sh -f general/vector/metrics_query.sim 
+16,,script,./test.sh -f general/vector/metrics_field.sim 
+16,,script,./test.sh -f general/user/pass_len.sim 
+16,,script,./test.sh -f general/stable/show.sim 
+16,,script,./test.sh -f general/stable/dnode3.sim 
+16,,script,./test.sh -f general/parser/import_commit2.sim 
+16,,script,./test.sh -f general/parser/import_commit1.sim 
+16,,script,./test.sh -f general/parser/fill_stb.sim 
+16,,script,./test.sh -f general/parser/create_mt.sim 
+16,,script,./test.sh -f general/insert/query_block1_file.sim 
+16,,script,./test.sh -f general/field/single.sim 
+16,,script,./test.sh -f general/field/6.sim 
+16,2,script,./test.sh -f general/db/topic2.sim 
+16,,script,./test.sh -f general/connection/connection.sim 
+16,,pytest,python3 test.py -f query/bug1471.py 
+16,,pytest,python3 test.py -f import_merge/importSRestart.py 
+16,,pytest,python3 test.py -f functions/function_last_row.py -r 1 
+16,,pytest,python3 test.py -f functions/function_first.py -r 1 
+15,,system-test,python3 ./test.py -f 5-taos-tools/taosbenchmark/taosdemoTestInsertWithJson.py
+15,,system-test,python3 ./test.py -f 4-taosAdapter/taosAdapter_query.py 
+15,,script,./test.sh -f unique/db/replica_reduce21.sim 
+15,,script,./test.sh -f unique/account/paras.sim 
+15,,script,./test.sh -f unique/account/account_create.sim 
+15,,script,./test.sh -f general/vector/table_query.sim 
+15,,script,./test.sh -f general/vector/table_mix.sim 
+15,,script,./test.sh -f general/user/user_len.sim 
+15,,script,./test.sh -f general/parser/timestamp.sim 
+15,,script,./test.sh -f general/parser/tags_filter.sim 
+15,,script,./test.sh -f general/parser/select_across_vnodes.sim 
+15,,script,./test.sh -f general/parser/nchar.sim 
+15,,script,./test.sh -f general/parser/dbtbnameValidate.sim 
+15,,script,./test.sh -f general/parser/binary_escapeCharacter.sim 
+15,,script,./test.sh -f general/parser/alter_stable.sim 
+15,,script,./test.sh -f general/insert/query_block2_memory.sim 
+15,,script,./test.sh -f general/insert/query_block1_memory.sim 
+15,,script,./test.sh -f general/insert/basic.sim 
+15,,script,./test.sh -f general/field/tinyint.sim 
+15,,script,./test.sh -f general/field/bool.sim 
+15,,script,./test.sh -f general/field/5.sim 
+15,,script,./test.sh -f general/cache/new_metrics.sim 
+15,,script,./test.sh -f general/alter/import.sim 
+15,,pytest,python3 test.py -f tools/taosdemoTestTblAlt.py 
+15,,pytest,python3 test.py -f query/queryNormal.py 
+15,,pytest,python3 test.py -f query/queryLimit.py 
+15,,pytest,python3 test.py -f query/distinctOneColTb.py 
+15,,pytest,python3 test.py -f functions/function_sum.py -r 1 
+15,,pytest,python3 test.py -f functions/function_spread.py -r 1 
+15,,pytest,python3 test.py -f functions/function_min.py -r 1 
+15,,pytest,python3 test.py -f functions/function_max.py -r 1 
+15,,pytest,python3 test.py -f functions/function_last.py -r 1 
+15,,pytest,python3 test.py -f functions/function_avg.py -r 1 
+14,,script,./test.sh -f unique/account/basic.sim 
+14,,script,./test.sh -f general/table/limit.sim 
+14,,script,./test.sh -f general/table/createmulti.sim 
+14,,script,./test.sh -f general/parser/null_char.sim 
+14,,script,./test.sh -f general/parser/insert_tb.sim 
+14,,script,./test.sh -f general/parser/fill.sim 
+14,,script,./test.sh -f general/parser/create_tb.sim 
+14,,script,./test.sh -f general/parser/create_db.sim 
+14,,script,./test.sh -f general/parser/alter.sim 
+14,,script,./test.sh -f general/field/smallint.sim 
+14,,script,./test.sh -f general/field/bigint.sim 
+14,,script,./test.sh -f general/field/3.sim 
+14,,script,./test.sh -f general/field/2.sim 
+14,,script,./test.sh -f general/compute/avg.sim 
+14,,system-test,python3 ./test.py -f 5-taos-tools/taosbenchmark/taosdemoTestInsertWithJsonSml.py
+14,,system-test,python3 ./test.py -f 5-taos-tools/taosbenchmark/taosdemoTestInsertWithJson-chinese.py
+14,,pytest,python3 test.py -f query/queryWithTaosdKilled.py 
+14,,pytest,python3 test.py -f query/queryStddevWithGroupby.py 
+14,,pytest,python3 test.py -f query/queryJoin10tables.py 
+14,,pytest,python3 test.py -f insert/insertFromCSV.py 
+14,,pytest,python3 test.py -f import_merge/importSubRestart.py 
+14,,pytest,python3 test.py -f import_merge/importBlock1T.py 
+14,,pytest,python3 test.py -f functions/function_twa.py -r 1 
+14,,pytest,python3 test.py -f functions/function_top.py -r 1 
+14,,pytest,python3 test.py -f functions/function_stddev.py -r 1 
+14,,pytest,python3 test.py -f functions/function_percentile.py -r 1 
+14,,pytest,python3 test.py -f functions/function_leastsquares.py -r 1 
+14,,pytest,python3 test.py -f functions/function_diff.py -r 1 
+14,,pytest,python3 test.py -f functions/function_count.py -r 1 
+14,,pytest,python3 test.py -f client/noConnectionErrorTest.py 
+14,,develop-test,bash 3-connectors/rust/test.sh 
+13,,system-test,python3 ./test.py -f 5-taos-tools/basic.py 
+13,,system-test,bash 3-connectors/go/test.sh 
+13,,script,./test.sh -f unique/account/pass_len.sim 
+13,,script,./test.sh -f general/table/vgroup.sim 
+13,,script,./test.sh -f general/table/tinyint.sim 
+13,,script,./test.sh -f general/table/float.sim 
+13,,script,./test.sh -f general/stable/vnode3.sim 
+13,,script,./test.sh -f general/stable/values.sim 
+13,,script,./test.sh -f general/stable/refcount.sim 
+13,,script,./test.sh -f general/parser/tags_dynamically_specifiy.sim 
+13,,script,./test.sh -f general/parser/select_distinct_tag.sim 
+13,,script,./test.sh -f general/compute/sum.sim 
+13,,script,./test.sh -f general/compute/percentile.sim 
+13,,script,./test.sh -f general/compute/min.sim 
+13,,script,./test.sh -f general/compute/last.sim 
+13,,script,./test.sh -f general/compute/bottom.sim 
+13,,pytest,python3 test.py -f tools/taosdemoAllTest/NanoTestCase/taosdemoTestSupportNanoQuery.py 
+13,,pytest,python3 test.py -f query/queryInsertValue.py 
+13,,pytest,python3 test.py -f query/queryGroupTbname.py 
+13,,pytest,python3 test.py -f insert/openTsdbTelnetLinesInsert.py 
+13,,pytest,python3 test.py -f insert/metadataUpdate.py 
+13,,pytest,python3 test.py -f insert/before_1970.py 
+13,,pytest,python3 test.py -f import_merge/importTRestart.py 
+13,,pytest,python3 test.py -f import_merge/importTPORestart.py 
+13,,pytest,python3 test.py -f import_merge/importTORestart.py 
+13,,pytest,python3 test.py -f import_merge/importTailPartOverlap.py 
+13,,pytest,python3 test.py -f import_merge/importLastSub.py 
+13,,pytest,python3 test.py -f import_merge/importHead.py 
+13,,pytest,python3 test.py -f import_merge/importDataLastT.py 
+13,,pytest,python3 test.py -f import_merge/importBlockbetween.py 
+13,,pytest,python3 test.py -f import_merge/importBlock2T.py 
+13,,pytest,python3 test.py -f import_merge/importBlock2TO.py 
+13,,pytest,python3 test.py -f import_merge/importBlock2Sub.py 
+13,,pytest,python3 test.py -f import_merge/importBlock1TO.py 
+13,,pytest,python3 test.py -f import_merge/importBlock1S.py 
+13,,pytest,python3 test.py -f import_merge/importBlock1HO.py 
+13,,pytest,python3 test.py -f functions/function_bottom.py -r 1 
+13,,develop-test,bash 3-connectors/restful/test.sh 
+12,,system-test,bash 3-connectors/rust/test.sh 
+12,,system-test,bash 3-connectors/restful/test.sh 
+12,,system-test,bash 3-connectors/java/test.sh 
+12,,script,./test.sh -f general/table/table.sim 
+12,,script,./test.sh -f general/table/table_len.sim 
+12,,script,./test.sh -f general/table/int.sim 
+12,,script,./test.sh -f general/table/double.sim 
+12,,script,./test.sh -f general/table/describe.sim 
+12,,script,./test.sh -f general/table/date.sim 
+12,,script,./test.sh -f general/table/column_num.sim 
+12,,script,./test.sh -f general/table/column_name.sim 
+12,,script,./test.sh -f general/table/column2.sim 
+12,,script,./test.sh -f general/table/bool.sim 
+12,,script,./test.sh -f general/table/binary.sim 
+12,,script,./test.sh -f general/table/bigint.sim 
+12,,script,./test.sh -f general/table/basic3.sim 
+12,,script,./test.sh -f general/table/basic2.sim 
+12,,script,./test.sh -f general/parser/udf.sim 
+12,,script,./test.sh -f general/parser/udf_dll.sim 
+12,,script,./test.sh -f general/parser/columnValue.sim 
+12,,script,./test.sh -f general/db/len.sim 
+12,,script,./test.sh -f general/db/basic.sim 
+12,,script,./test.sh -f general/db/basic5.sim 
+12,,script,./test.sh -f general/db/basic3.sim 
+12,,script,./test.sh -f general/db/basic2.sim 
+12,,script,./test.sh -f general/db/basic1.sim 
+12,,script,./test.sh -f general/db/alter_option.sim 
+12,,script,./test.sh -f general/compute/top.sim 
+12,,script,./test.sh -f general/compute/stddev.sim 
+12,,script,./test.sh -f general/compute/null.sim 
+12,,script,./test.sh -f general/compute/max.sim 
+12,,script,./test.sh -f general/compute/leastsquare.sim 
+12,,script,./test.sh -f general/compute/interval.sim 
+12,,script,./test.sh -f general/compute/first.sim 
+12,,script,./test.sh -f general/compute/diff.sim 
+12,,script,./test.sh -f general/compute/count.sim 
+12,,pytest,python3 test.py -f update/allow_update-0.py 
+12,,pytest,python3 test.py -f table/alter_wal0.py 
+12,,pytest,python3 test.py -f import_merge/importTail.py 
+12,,pytest,python3 test.py -f import_merge/importTailOverlap.py 
+12,,pytest,python3 test.py -f import_merge/importSpan.py 
+12,,pytest,python3 test.py -f import_merge/importLastS.py 
+12,,pytest,python3 test.py -f import_merge/importLastH.py 
+12,,pytest,python3 test.py -f import_merge/importLastHO.py 
+12,,pytest,python3 test.py -f import_merge/importInsertThenImport.py 
+12,,pytest,python3 test.py -f import_merge/importDataT.py 
+12,,pytest,python3 test.py -f import_merge/importDataTPO.py 
+12,,pytest,python3 test.py -f import_merge/importDataS.py 
+12,,pytest,python3 test.py -f import_merge/importDataLastTPO.py 
+12,,pytest,python3 test.py -f import_merge/importDataLastTO.py 
+12,,pytest,python3 test.py -f import_merge/importBlock2TPO.py 
+12,,pytest,python3 test.py -f import_merge/importBlock2S.py 
+12,,pytest,python3 test.py -f import_merge/importBlock2H.py 
+12,,pytest,python3 test.py -f import_merge/importBlock2HPO.py 
+12,,pytest,python3 test.py -f import_merge/importBlock2HO.py 
+12,,pytest,python3 test.py -f import_merge/importBlock1TPO.py 
+12,,pytest,python3 test.py -f import_merge/importBlock1H.py 
+12,,pytest,python3 test.py -f import_merge/importBlock1HPO.py 
+12,,pytest,python3 test.py -f functions/variable_httpDbNameMandatory.py 
+12,,pytest,python3 test.py -f functions/function_round.py 
+12,,pytest,python3 test.py -f functions/function_percentile2.py 
+12,,pytest,python3 test.py -f functions/function_ceil.py 
+11,,script,./test.sh -f unique/stable/replica2_dnode4.sim 
+11,,script,./test.sh -f general/table/smallint.sim 
+11,,script,./test.sh -f general/table/db.table.sim 
+11,,script,./test.sh -f general/table/column_value.sim 
+11,,script,./test.sh -f general/table/basic1.sim 
+11,,script,./test.sh -f general/table/autocreate.sim 
+11,,script,./test.sh -f general/parser/udf_dll_stable.sim 
+11,,script,./test.sh -f general/parser/stableOp.sim 
+11,,script,./test.sh -f general/parser/having.sim 
+11,,script,./test.sh -f general/parser/having_child.sim 
+11,,script,./test.sh -f general/parser/between_and.sim 
+11,,script,./test.sh -f general/db/basic4.sim 
+11,,pytest,python3 testNoCompress.py 
+11,,pytest,python3 test.py -f import_merge/importToCommit.py 
+11,,pytest,python3 test.py -f import_merge/importLastHPO.py 
+11,,pytest,python3 test.py -f import_merge/importDataTO.py 
+11,,pytest,python3 test.py -f import_merge/importBlock1Sub.py
+10,,system-test,python3 ./test.py -f 5-taos-tools/taosbenchmark/taosdemoTestInsertWithJsonStmt-otherPara.py
+10,,system-test,python3 ./test.py -f 5-taos-tools/taosbenchmark/taosdemoTestInsertWithJsonStmt.py
+10,,system-test,python3 ./test.py -f 5-taos-tools/taosbenchmark/taosdemoTestInsertWithJson-autoCreate.py
+10,,system-test,python3 ./test.py -f 5-taos-tools/taosbenchmark/taosdemoTestInsertWithJson-otherPara.py
+10,,system-test,python3 ./test.py -f 5-taos-tools/taosbenchmark/taosdemoTestInsertWithJson-childTable.py
+10,,system-test,python3 ./test.py -f 2-query/TD-12344.py 
+10,,script,./test.sh -f unique/stable/replica2_vnode3.sim 
+10,,pytest,python3 testCompress.py 
+10,,pytest,python3 test.py -f client/client.py 
+9,,script,./test.sh -f general/parser/alter1.sim 
+9,,script,./test.sh -f general/db/delete.sim 
+9,,pytest,python3 test.py -f tools/taosdemoTestLimitOffset.py 
+9,,pytest,python3 test.py -f tools/taosdemoAllTest/NanoTestCase/taosdemoTestSupportNanoInsert.py 
+9,,pytest,python3 test.py -f stream/showStreamExecTimeisNull.py 
+9,,pytest,python3 test.py -f query/bug1876.py 
+9,,pytest,python3 test.py -f alter/alter_table_crash.py 
+9,,develop-test,python3 ./test.py -f 5-taos-tools/taosdump/taosdumpTestTypeSmallInt.py 
+9,,develop-test,python3 ./test.py -f 5-taos-tools/taosdump/taosdumpTestTypeFloat.py
+9,,develop-test,python3 ./test.py -f 5-taos-tools/taosbenchmark/sml_json_alltypes.py
+8,,pytest,python3 test.py -f tools/taosdumpTest.py 
+8,,pytest,python3 test.py -f query/unionAllTest.py 
+8,,pytest,python3 test.py -f query/queryFilterTswithDateUnit.py 
+8,,pytest,python3 test.py -f query/queryDiffColsTagsAndOr.py 
+8,2,pytest,python3 test.py -f query/nestedQuery/nestedQuery_datacheck.py 
+8,,pytest,python3 test.py -f query/bug1874.py 
+8,,pytest,python3 test.py -f functions/function_floor.py 
+8,,develop-test,python3 ./test.py -f 5-taos-tools/taosdump/taosdumpTestTypeUnsignedTinyInt.py 
+8,,develop-test,python3 ./test.py -f 5-taos-tools/taosdump/taosdumpTestTypeUnsignedBigInt.py 
+8,,develop-test,python3 ./test.py -f 5-taos-tools/taosdump/taosdumpTestTypeTinyInt.py 
+8,,develop-test,python3 ./test.py -f 5-taos-tools/taosdump/taosdumpTestTypeInt.py 
+8,,develop-test,python3 ./test.py -f 5-taos-tools/taosdump/taosdumpTestTypeDouble.py 
+8,,develop-test,python3 ./test.py -f 5-taos-tools/taosbenchmark/insert_alltypes_json.py
+8,,develop-test,python3 ./test.py -f 5-taos-tools/taosbenchmark/query_json.py
+8,,develop-test,python3 ./test.py -f 5-taos-tools/taosbenchmark/sml_interlace.py
+8,,develop-test,python3 ./test.py -f 5-taos-tools/taosbenchmark/subscripe_json.py
+8,,develop-test,python3 ./test.py -f 5-taos-tools/taosbenchmark/invalid_commandline.py
+7,,system-test,python3 ./test.py -f 5-taos-tools/taosbenchmark/taosdemoTestInsertWithJsonSml-otherPara.py 
+7,,pytest,python3 test.py -f tools/taosdumpTest2.py 
+7,,pytest,python3 test.py -f tools/taosdemoTestdatatype.py 
+7,,pytest,python3 test.py -f tag_lite/unsignedInt.py 
+7,,pytest,python3 test.py -f query/bug1875.py 
+7,,pytest,python3 test.py -f functions/function_stateWindow.py 
+7,,pytest,python3 test.py -f client/version.py 
+7,,pytest,python3 client/twoClients.py 
+7,,develop-test,python3 ./test.py -f 5-taos-tools/taosdump/taosdumpTestTypeUnsignedSmallInt.py 
+7,,develop-test,python3 ./test.py -f 5-taos-tools/taosdump/taosdumpTestTypeUnsignedInt.py 
+7,,develop-test,python3 ./test.py -f 5-taos-tools/taosdump/taosdumpTestTypeJson.py 
+7,,develop-test,python3 ./test.py -f 5-taos-tools/taosdump/taosdumpTestTypeBool.py 
+7,,develop-test,python3 ./test.py -f 5-taos-tools/taosdump/taosdumpTestTypeBigInt.py 
+7,,develop-test,python3 ./test.py -f 2-query/constant_compare.py
+7,,develop-test,python3 ./test.py -f 5-taos-tools/taosbenchmark/limit_offset_json.py
+6,,pytest,python3 test.py -f wal/addOldWalTest.py 
+6,,pytest,python3 test.py -f topic/topicQuery.py 
+6,,pytest,python3 test.py -f tools/taosdemoTestWithoutMetric.py 
+6,,pytest,python3 test.py -f tools/taosdemoTest.py 
+6,,pytest,python3 test.py -f tag_lite/unsignedSmallint.py 
+6,,pytest,python3 test.py -f tag_lite/double.py 
+6,,pytest,python3 test.py -f tag_lite/alter_tag.py 
+6,,pytest,python3 test.py -f tag_lite/add.py 
+6,,pytest,python3 test.py -f tag_lite/6.py 
+6,,pytest,python3 test.py -f table/boundary.py 
+6,,pytest,python3 test.py -f query/subqueryFilter.py 
+6,,pytest,python3 test.py -f query/queryStableJoin.py 
+6,,pytest,python3 test.py -f query/querySort.py 
+6,,pytest,python3 test.py -f query/queryJoin.py 
+6,,pytest,python3 test.py -f query/queryGroupbySort.py 
+6,,pytest,python3 test.py -f query/queryFillTest.py 
+6,,pytest,python3 test.py -f query/filterAllUnsignedIntTypes.py 
+6,,pytest,python3 test.py -f query/bug2218.py 
+6,,pytest,python3 test.py -f query/bug2118.py 
+6,,pytest,python3 test.py -f query/bug2117.py 
+6,,pytest,python3 test.py -f perfbenchmark/bug3433.py 
+6,,pytest,python3 test.py -f insert/insert_before_use_db.py 
+6,,pytest,python3 test.py -f import_merge/importHPORestart.py 
+6,,pytest,python3 test.py -f import_merge/importHORestart.py 
+6,,pytest,python3 test.py -f functions/showOfflineThresholdIs864000.py 
+6,,pytest,python3 test.py -f alter/alterColMultiTimes.py 
+6,,develop-test,python3 ./test.py -f 2-query/ts_2016.py 
+6,,develop-test,python3 ./test.py -f 2-query/escape.py 
+6,,develop-test,python3 ./test.py -f 2-query/func_compare.py
+6,,develop-test,python3 ./test.py -f 5-taos-tools/taosbenchmark/auto_create_table_json.py
+6,,develop-test,python3 ./test.py -f 5-taos-tools/taosbenchmark/json_tag.py
+6,,develop-test,python3 ./test.py -f 5-taos-tools/taosbenchmark/default_json.py
+5,,system-test,python3 ./test.py -f 4-taosAdapter/taosAdapter_insert.py 
+5,,system-test,python3 ./test.py -f 2-query/TD-12340-12342.py 
+5,,system-test,python3 ./test.py -f 2-query/TD-11945_crash.py 
+5,,system-test,python3 ./test.py -f 2-query/TD-11256.py 
+5,,system-test,python3 test.py -f 1-insert/TD-11970.py 
+5,,pytest,python3 test.py -f user/user_create.py 
+5,,pytest,python3 test.py -f tools/taosdemoTestWithJson.py 
+5,,pytest,python3 test.py -f tools/taosdemoTestSampleData.py 
+5,,pytest,python3 test.py -f tools/taosdemoAllTest/NanoTestCase/taosdemoTestInsertTime_step.py 
+5,,pytest,python3 testMinTablesPerVnode.py 
+5,,pytest,python3 test.py -f tag_lite/unsignedTinyint.py 
+5,,pytest,python3 test.py -f tag_lite/timestamp.py 
+5,,pytest,python3 test.py -f tag_lite/TestModifyTag.py 
+5,,pytest,python3 test.py -f tag_lite/json_tag_extra.py 
+5,,pytest,python3 test.py -f tag_lite/int_binary.py 
+5,,pytest,python3 test.py -f tag_lite/float.py 
+5,,pytest,python3 test.py -f tag_lite/drop_auto_create.py 
+5,,pytest,python3 test.py -f tag_lite/create.py 
+5,,pytest,python3 test.py -f tag_lite/change.py 
+5,,pytest,python3 test.py -f tag_lite/bool.py 
+5,,pytest,python3 test.py -f tag_lite/bool_binary.py 
+5,,pytest,python3 test.py -f tag_lite/5.py 
+5,,pytest,python3 test.py -f tag_lite/4.py 
+5,,pytest,python3 test.py -f table/db_table.py 
+5,,pytest,python3 test.py -f table/create_sensitive.py 
+5,,pytest,python3 test.py -f table/column_num.py 
+5,,pytest,python3 test.py -f subscribe/singlemeter.py 
+5,,pytest,python3 test.py -f stable/insert.py 
+5,,pytest,python3 test.py -f query/querySession.py 
+5,,pytest,python3 test.py -f query/querySecondtscolumnTowherenow.py 
+5,,pytest,python3 test.py -f query/queryRegex.py 
+5,,pytest,python3 test.py -f query/queryGroupbyWithInterval.py 
+5,,pytest,python3 test.py -f query/queryCountCSVData.py 
+5,,pytest,python3 test.py -f query/queryCnameDisplay.py 
+5,,pytest,python3 test.py -f query/queryBetweenAnd.py 
+5,,pytest,python3 test.py -f query/nestquery_last_row.py 
+5,,pytest,python3 test.py -f query/nestedQuery/queryWithSpread.py 
+5,,pytest,python3 test.py -f query/nestedQuery/queryInterval.py 
+5,,pytest,python3 test.py -f query/isNullTest.py 
+5,,pytest,python3 test.py -f query/filterOtherTypes.py 
+5,,pytest,python3 test.py -f query/filterFloatAndDouble.py 
+5,,pytest,python3 test.py -f query/computeErrorinWhere.py 
+5,,pytest,python3 test.py -f query/bug6586.py 
+5,,pytest,python3 test.py -f query/bug2143.py 
+5,,pytest,python3 test.py -f query/bug2119.py 
+5,,pytest,python3 test.py -f insert/unsignedTinyint.py 
+5,,pytest,python3 test.py -f insert/unsignedSmallint.py 
+5,,pytest,python3 test.py -f insert/unsignedInt.py 
+5,,pytest,python3 test.py -f insert/nchar-unicode.py 
+5,,pytest,python3 test.py -f insert/insert_locking.py 
+5,,pytest,python3 test.py -f insert/in_function.py 
+5,,pytest,python3 test.py -f insert/binary.py 
+5,,pytest,python3 test.py -f import_merge/importHRestart.py 
+5,,pytest,python3 test.py -f import_merge/importHeadOverlap.py 
+5,,pytest,python3 test.py -f functions/function_twa_test2.py 
+5,,pytest,python3 test.py -f functions/function_irate.py 
+5,,pytest,python3 test.py -f functions/function_derivative.py 
+5,,pytest,python3 test.py -f functions/function_count_last_stab.py 
+5,,pytest,python3 test.py -f functions/all_null_value.py 
+5,,pytest,python3 test.py -f client/nettest.py 
+5,,pytest,python3 test.py -f client/alterDatabase.py 
+5,,pytest,python3 test.py -f alter/alterTimestampColDataProcess.py 
+5,,pytest,python3 test.py -f alter/alter_keep.py 
+5,,pytest,python3 test.py -f account/account_create.py 
+5,,develop-test,python3 ./test.py -f 2-query/union-order.py 
+5,,develop-test,python3 ./test.py -f 2-query/timeline_agg_func_groupby.py 
+5,,develop-test,python3 ./test.py -f 2-query/session_two_stage.py 
+5,,develop-test,python3 ./test.py -f 0-others/TD-12435.py 
+5,,develop-test,python3 ./test.py -f 0-others/json_tag.py 
+5,,system-test,python3 ./test.py -f 2-query/TD-12909.py
+5,,develop-test,python3 ./test.py -f 2-query/function_mavg.py
+4,,system-test,python3 test.py -f 4-taosAdapter/TD-12163.py 
+4,,pytest,python3 test.py -f user/pass_len.py 
+4,,pytest,python3 test.py -f TimeZone/TestCaseTimeZone.py 
+4,,pytest,python3 test.py -f tag_lite/unsignedBigint.py 
+4,,pytest,python3 test.py -f tag_lite/tinyint.py 
+4,,pytest,python3 test.py -f tag_lite/smallint.py 
+4,,pytest,python3 test.py -f tag_lite/set.py 
+4,,pytest,python3 test.py -f tag_lite/int.py 
+4,,pytest,python3 test.py -f tag_lite/int_float.py 
+4,,pytest,python3 test.py -f tag_lite/filter.py 
+4,,pytest,python3 test.py -f tag_lite/delete.py 
+4,,pytest,python3 test.py -f tag_lite/create-tags-boundary.py 
+4,,pytest,python3 test.py -f tag_lite/commit.py 
+4,,pytest,python3 test.py -f tag_lite/column.py 
+4,,pytest,python3 test.py -f tag_lite/bool_int.py 
+4,,pytest,python3 test.py -f tag_lite/binary_binary.py 
+4,,pytest,python3 test.py -f tag_lite/bigint.py 
+4,,pytest,python3 test.py -f tag_lite/3.py 
+4,,pytest,python3 test.py -f table/tablename-boundary.py 
+4,,pytest,python3 test.py -f table/max_table_length.py 
+4,,pytest,python3 test.py -f table/del_stable.py 
+4,,pytest,python3 test.py -f table/create_db_from_normal_db.py 
+4,,pytest,python3 test.py -f table/column_name.py 
+4,,pytest,python3 test.py -f table/alter_column.py 
+4,,pytest,python3 test.py -f query/sliding.py 
+4,,pytest,python3 test.py -f query/queryWildcardLength.py 
+4,,pytest,python3 test.py -f query/queryTsisNull.py 
+4,,pytest,python3 test.py -f query/queryTbnameUpperLower.py 
+4,,pytest,python3 test.py -f query/queryPriKey.py 
+4,,pytest,python3 test.py -f query/queryError.py 
+4,,pytest,python3 test.py -f query/queryBase.py 
+4,,pytest,python3 test.py -f query/natualInterval.py 
+4,,pytest,python3 test.py -f query/floatCompare.py 
+4,,pytest,python3 test.py -f query/filter.py 
+4,,pytest,python3 test.py -f query/filterCombo.py 
+4,,pytest,python3 test.py -f query/bug3375.py 
+4,,pytest,python3 test.py -f query/bug3351.py 
+4,,pytest,python3 test.py -f query/bug2281.py 
+4,,pytest,python3 test.py -f insert/unsignedBigint.py 
+4,,pytest,python3 test.py -f insert/tinyint.py 
+4,,pytest,python3 test.py -f insert/timestamp.py 
+4,,pytest,python3 test.py -f insert/specialSql.py 
+4,,pytest,python3 test.py -f insert/special_character_show.py 
+4,,pytest,python3 test.py -f insert/smallint.py 
+4,,pytest,python3 test.py -f insert/nchar.py 
+4,,pytest,python3 test.py -f insert/multi.py 
+4,,pytest,python3 test.py -f insert/modify_column.py 
+4,,pytest,python3 test.py -f insert/int.py 
+4,,pytest,python3 test.py -f insert/insertIntoTwoTables.py 
+4,,pytest,python3 test.py -f insert/insertDynamicColBeforeVal.py 
+4,,pytest,python3 test.py -f insert/float.py 
+4,,pytest,python3 test.py -f insert/double.py 
+4,,pytest,python3 test.py -f insert/date.py 
+4,,pytest,python3 test.py -f insert/bug3654.py 
+4,,pytest,python3 test.py -f insert/bool.py 
+4,,pytest,python3 test.py -f insert/bigint.py 
+4,,pytest,python3 test.py -f insert/basic.py 
+4,,pytest,python3 test.py -f insert/alterTableAndInsert.py 
+4,,pytest,python3 test.py -f import_merge/importHeadPartOverlap.py 
+4,,pytest,python3 test.py -f functions/function_stddev_td2555.py 
+4,,pytest,python3 test.py -f dbmgmt/nanoSecondCheck.py 
+4,,pytest,python3 bug2265.py 
+4,,pytest,python3 test.py -f alter/alterTabAddTagWithNULL.py 
+4,,pytest,python3 test.py -f alter/alter_debugFlag.py 
+4,,pytest,python3 test.py -f alter/alter_create_exception.py 
+3,,pytest,python3 test.py -f tag_lite/binary.py 
+3,,pytest,python3 test.py -f query/filterAllIntTypes.py 
+3,,pytest,python3 ./test.py -f query/queryNcharNull.py
+3,,develop-test,python3 ./test.py -f 2-query/ts_hidden_column.py 
+3,,develop-test,python3 ./test.py -f 1-insert/uppercase_in_stmt.py

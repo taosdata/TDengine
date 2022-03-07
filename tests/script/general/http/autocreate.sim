@@ -1,0 +1,33 @@
+system sh/stop_dnodes.sh
+sleep 2000
+system sh/deploy.sh -n dnode1 -i 1
+system sh/cfg.sh -n dnode1 -c wallevel -v 0
+system sh/cfg.sh -n dnode1 -c http -v 1
+system sh/cfg.sh -n dnode1 -c httpEnableRecordSql -v 1
+system sh/exec.sh -n dnode1 -s start
+
+sleep 2000
+sql connect
+
+print ============================ dnode1 start
+
+print ===============  step1 - prepare data
+sql create database db
+sql use db
+sql create table if not exists db.win_cpu(ts timestamp,f_percent_dpc_time double,f_percent_idle_time double,f_percent_interrupt_time double,f_percent_privileged_time double,f_percent_processor_time double,f_percent_user_time double) tags(t_host binary(32),t_instance binary(32),t_objectname binary(32));
+
+print ===============  step2 - auto create
+
+system_content curl -H 'Authorization: Taosd /KfeAzX/f9na8qdtNZmtONryp201ma04bEl8LcvLUd7a8qdtNZmtONryp201ma04' -d 'import into db.win_cpu_windows_1_processor using db.win_cpu tags('windows','1','Processor') values(1564641722000,0.000000,95.598305,0.000000,0.000000,0.000000,0.000000);' 127.0.0.1:7111/rest/sql
+print curl 127.0.0.1:7111/rest/sql -----> $system_content
+#if $system_content != @{"status":"succ","head":["ts","i"],"data":[["2017-12-25 21:28:41.022",1],["2017-12-25 21:28:42.022",2],["2017-12-25 21:28:43.022",3],["2017-12-25 21:28:44.022",4],["2017-12-25 21:28:45.022",5],["2017-12-25 21:28:46.022",6],["2017-12-25 21:28:47.022",7],["2017-12-25 21:28:48.022",8],["2017-12-25 21:28:49.022",9],["2017-12-25 21:28:50.022",10],["2017-12-25 21:28:51.022",11]],"rows":11}@ then
+#  return -1
+#endi
+
+sql select * from db.win_cpu_windows_1_processor
+print rows: $rows
+if $rows != 1 then
+  return -1
+endi
+
+#system sh/exec.sh -n dnode1 -s stop -x SIGINT

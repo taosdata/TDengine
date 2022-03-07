@@ -1,0 +1,90 @@
+system sh/stop_dnodes.sh
+system sh/deploy.sh -n dnode1 -i 1
+system sh/deploy.sh -n dnode2 -i 2
+system sh/exec.sh -n dnode1 -s start
+system sh/exec.sh -n dnode2 -s start
+sql connect
+
+print =============== show dnodes
+sql show dnodes;
+if $rows != 1 then 
+  return -1
+endi
+
+if $data00 != 1 then 
+  return -1
+endi
+
+if $data01 != 192.168.0.1 then 
+  return -1
+endi
+
+sql show mnodes;
+if $rows != 1 then 
+  return -1
+endi
+
+if $data00 != 1 then 
+  return -1
+endi
+
+if $data01 != 192.168.0.1 then 
+  return -1
+endi
+
+print =============== create dnodes
+sql create dnode $hostname2
+sql show dnodes;
+if $rows != 2 then 
+  return -1
+endi
+
+if $data00 != 1 then 
+  return -1
+endi
+
+if $data01 != 192.168.0.1 then 
+  return -1
+endi
+
+if $data10 != 2 then 
+  return -1
+endi
+
+if $data11 != 192.168.0.2 then 
+  return -1
+endi
+
+sql show mnodes;
+if $rows != 1 then 
+  return -1
+endi
+
+if $data00 != 1 then 
+  return -1
+endi
+
+if $data01 != 192.168.0.1 then 
+  return -1
+endi
+
+print =============== create table
+sql create database d1;
+sql create database d2;
+sql create database d3;
+sql create database d4;
+sql create database d5;
+
+sql create table d1.t1 (ts timestamp, i int);
+sql create table d2.t1 (ts timestamp, i int);
+sql create table d3.t1 (ts timestamp, i int);
+sql create table d4.t1 (ts timestamp, i int);
+
+sql show dnodes;
+if $data05 != 2 then 
+  return -1
+endi
+
+if $data15 != 2 then 
+  return -1
+endi

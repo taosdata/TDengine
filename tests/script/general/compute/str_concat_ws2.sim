@@ -1,0 +1,211 @@
+sleep 100
+sql connect
+sql use db
+
+$emptyString = @@
+print execute sql select concat_ws('sepa',stb1.c8,stb1.c14),pow(stba.c2,stba.c5) from stb1,stba where stb1.t1=stba.t1 and stb1.ts=stba.ts;
+sql select concat_ws('sepa',stb1.c8,stb1.c14),pow(stba.c2,stba.c5) from stb1,stba where stb1.t1=stba.t1 and stb1.ts=stba.ts;
+if $data00 != @123sepa1@ then
+  return -1 
+endi
+if $data01 != @1.000000000@ then
+  return -1 
+endi
+if $data10 != $emptyString then
+  return -1 
+endi
+if $data11 != @4.000000000@ then
+  return -1 
+endi
+if $data20 != @234sepa2@ then
+  return -1 
+endi
+if $data21 != @27.000000000@ then
+  return -1 
+endi
+if $data30 != $emptyString then
+  return -1 
+endi
+if $data31 != @256.000000000@ then
+  return -1 
+endi
+if $data40 != @456sepa4@ then
+  return -1 
+endi
+if $data41 != @3125.000000000@ then
+  return -1 
+endi
+if $data50 != @567sepa27@ then
+  return -1 
+endi
+if $data51 != @46656.000000000@ then
+  return -1 
+endi
+if $data60 != @678sepa@ then
+  return -1 
+endi
+if $data61 != @823543.000000000@ then
+  return -1 
+endi
+print execute sql select concat_ws('sepa', c8,c14) as a from stb1 union all select concat(c8,c14) as a from stba;
+sql select concat_ws('sepa', c8,c14) as a from stb1 union all select concat(c8,c14) as a from stba;
+if $data00 != @123sepa1@ then
+  return -1 
+endi
+if $data10 != $emptyString then
+  return -1 
+endi
+if $data20 != @234sepa2@ then
+  return -1 
+endi
+if $data30 != $emptyString then
+  return -1 
+endi
+if $data40 != @456sepa4@ then
+  return -1 
+endi
+if $data50 != @567sepa27@ then
+  return -1 
+endi
+if $data60 != @678sepa@ then
+  return -1 
+endi
+if $data70 != @111sepa1@ then
+  return -1 
+endi
+if $data80 != @222sepa2@ then
+  return -1 
+endi
+if $data90 != @333sepa3@ then
+  return -1 
+endi
+print execute sql select concat_ws('sepa', c8,c14) from stba;
+sql select concat_ws('sepa', c8,c14) from stba;
+if $data00 != @111sepa1@ then
+  return -1 
+endi
+if $data10 != @222sepa2@ then
+  return -1 
+endi
+if $data20 != @333sepa3@ then
+  return -1 
+endi
+if $data30 != @444sepa4@ then
+  return -1 
+endi
+if $data40 != @555sepa5@ then
+  return -1 
+endi
+if $data50 != @666sepa6@ then
+  return -1 
+endi
+if $data60 != @777sepa7@ then
+  return -1 
+endi
+if $data70 != @888sepa8@ then
+  return -1 
+endi
+if $data80 != @999sepa9@ then
+  return -1 
+endi
+if $data90 != @000sepa0@ then
+  return -1 
+endi
+print execute sql select concat_ws('sepa','c8',cast(min(c2) as binary(10))) from tba1;
+sql select concat_ws('sepa','c8',cast(min(c2) as binary(10))) from tba1;
+if $data00 != @c8sepa0@ then
+  return -1 
+endi
+print execute sql select concat_ws('sepa','c8',cast(max(c2) as binary(10))) from tba1;
+sql select concat_ws('sepa','c8',cast(max(c2) as binary(10))) from tba1;
+if $data00 != @c8sepa9@ then
+  return -1 
+endi
+print execute sql select concat_ws('sepa','c8',cast(count(c2) as binary(10))) from tba1;
+sql select concat_ws('sepa','c8',cast(count(c2) as binary(10))) from tba1;
+if $data00 != @c8sepa30@ then
+  return -1 
+endi
+print execute sql select concat_ws('sepa','c8',cast(sum(c2) as binary(10))) from tba1;
+sql select concat_ws('sepa','c8',cast(sum(c2) as binary(10))) from tba1;
+if $data00 != @c8sepa135@ then
+  return -1 
+endi
+print execute sql select concat_ws('sepa','c8',cast(avg(c2) as binary(10))) from tba1;
+sql select concat_ws('sepa','c8',cast(avg(c2) as binary(10))) from tba1;
+if $data00 != @c8sepa4.500000@ then
+  return -1 
+endi
+print execute sql select concat_ws('sepa','c8',cast(percentile(c2, 10) as binary(10))) from tba1;
+sql select concat_ws('sepa','c8',cast(percentile(c2, 10) as binary(10))) from tba1;
+if $data00 != @c8sepa0.900000@ then
+  return -1 
+endi
+print execute sql select concat_ws('sepa','c8',cast(apercentile(c2, 10) as binary(10))) from tba1;
+sql select concat_ws('sepa','c8',cast(apercentile(c2, 10) as binary(10))) from tba1;
+if $data00 != @c8sepa0.000000@ then
+  return -1 
+endi
+print execute sql select concat_ws('sepa','c8',cast(stddev(c2) as binary(10))) from tba1;
+sql select concat_ws('sepa','c8',cast(stddev(c2) as binary(10))) from tba1;
+if $data00 != @c8sepa2.872281@ then
+  return -1 
+endi
+print execute sql select concat_ws('sepa','c8',cast(spread(c2) as binary(10))) from tba1;
+sql select concat_ws('sepa','c8',cast(spread(c2) as binary(10))) from tba1;
+if $data00 != @c8sepa9.000000@ then
+  return -1 
+endi
+print execute sql select concat_ws('sepa','c8',cast(twa(c2) as binary(10))) from tba1;
+sql select concat_ws('sepa','c8',cast(twa(c2) as binary(10))) from tba1;
+if $data00 != @c8sepa4.637931@ then
+  return -1 
+endi
+print execute sql select concat_ws('sepa','c8',cast(elapsed(ts) as binary(10))) from tba1;
+sql select concat_ws('sepa','c8',cast(elapsed(ts) as binary(10))) from tba1;
+if $data00 != @c8sepa29000.0000@ then
+  return -1 
+endi
+print execute sql select concat_ws('sepa','c8',cast(rate(c2) as binary(10))) from tba1;
+sql select concat_ws('sepa','c8',cast(rate(c2) as binary(10))) from tba1;
+if $data00 != @c8sepa0.896552@ then
+  return -1 
+endi
+print execute sql select concat_ws('sepa','c8',cast(irate(c2) as binary(10))) from tba1;
+sql select concat_ws('sepa','c8',cast(irate(c2) as binary(10))) from tba1;
+if $data00 != @c8sepa0.000000@ then
+  return -1 
+endi
+print execute sql select concat_ws('sepa','c8',cast(first(c2) as binary(10))) from tba1;
+sql select concat_ws('sepa','c8',cast(first(c2) as binary(10))) from tba1;
+if $data00 != @c8sepa1@ then
+  return -1 
+endi
+print execute sql select concat_ws('sepa','c8',cast(last(c2) as binary(10))) from tba1;
+sql select concat_ws('sepa','c8',cast(last(c2) as binary(10))) from tba1;
+if $data00 != @c8sepa0@ then
+  return -1 
+endi
+print execute sql select concat_ws('sepa','c8',cast(last_row(c2) as binary(10))) from tba1;
+sql select concat_ws('sepa','c8',cast(last_row(c2) as binary(10))) from tba1;
+if $data00 != @c8sepa0@ then
+  return -1 
+endi
+print execute sql select concat_ws('sepa','c8',cast(top(c2, 1) as binary(10))) from tba1;
+sql_error select concat_ws('sepa','c8',cast(top(c2, 1) as binary(10))) from tba1;
+print execute sql select concat_ws('sepa','c8',cast(bottom(c2, 1) as binary(10))) from tba1;
+sql_error select concat_ws('sepa','c8',cast(bottom(c2, 1) as binary(10))) from tba1;
+print execute sql select concat_ws('sepa','c8',cast(leastsquares(c2, 1, 1) as binary(10))) from tba1;
+sql_error select concat_ws('sepa','c8',cast(leastsquares(c2, 1, 1) as binary(10))) from tba1;
+print execute sql select concat_ws('sepa','c8',cast(derivative(c2, 1s, 0) as binary(10))) from tba1;
+sql_error select concat_ws('sepa','c8',cast(derivative(c2, 1s, 0) as binary(10))) from tba1;
+print execute sql select concat_ws('sepa','c8',cast(diff(c2) as binary(10))) from tba1;
+sql_error select concat_ws('sepa','c8',cast(diff(c2) as binary(10))) from tba1;
+print execute sql select concat_ws('sepa','c8',cast(csum(c2) as binary(10))) from tba1;
+sql_error select concat_ws('sepa','c8',cast(csum(c2) as binary(10))) from tba1;
+print execute sql select concat_ws('sepa','c8',cast(mavg(c2,2) as binary(10))) from tba1;
+sql_error select concat_ws('sepa','c8',cast(mavg(c2,2) as binary(10))) from tba1;
+print execute sql select concat_ws('sepa','c8',cast(sample(c2,2) as binary(10))) from tba1;
+sql_error select concat_ws('sepa','c8',cast(sample(c2,2) as binary(10))) from tba1;
+print execute sql select concat_ws('sepa','c8',cast(_block_dist() as binary(10))) from tba1;
+sql_error select concat_ws('sepa','c8',cast(_block_dist() as binary(10))) from tba1;

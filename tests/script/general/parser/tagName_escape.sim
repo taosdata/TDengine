@@ -1,0 +1,237 @@
+system sh/stop_dnodes.sh
+
+
+system sh/deploy.sh -n dnode1 -i 1
+system sh/cfg.sh -n dnode1 -c walLevel -v 1
+system sh/exec.sh -n dnode1 -s start
+
+sleep 100
+sql connect
+print ======================== dnode1 start
+
+sql create database tagesc;
+
+sql use tagesc;
+
+print ======================= test create table/stable
+
+sql create stable stb0 (ts timestamp, c0 int) tags (`123` int, `123 456` int, `123.abc` int)
+sql create stable stb1 (ts timestamp, c1 int) tags (`!%^&*()` int)
+sql create stable stb2 (ts timestamp, c2 int) tags (`int` int, `bool` int, `double` int, `INTO` int, `COLUMN` int)
+
+sql create table ctb0 using stb0 (`123`, `123 456`, `123.abc`) tags (1, 1, 1)
+sql create table ctb1 using stb1 (`!%^&*()`) tags (1)
+sql create table ctb2 using stb2 (`int`, `bool`, `double`, `INTO`, `COLUMN`) tags (1, 1, 1, 1, 1)
+
+##check table
+sql describe ctb0;
+if $rows != 5 then
+  return -1
+endi
+if $data20 != @123@ then
+  return -1
+endi
+if $data30 != @123 456@ then
+  return -1
+endi
+if $data40 != @123.abc@ then
+  return -1
+endi
+
+sql describe ctb1;
+if $rows != 3 then
+  return -1
+endi
+if $data20 != @!%^&*()@ then
+  return -1
+endi
+
+sql describe ctb2;
+if $rows != 7 then
+  return -1
+endi
+if $data20 != @int@ then
+  return -1
+endi
+if $data30 != @bool@ then
+  return -1
+endi
+if $data40 != @double@ then
+  return -1
+endi
+if $data50 != @INTO@ then
+  return -1
+endi
+if $data60 != @COLUMN@ then
+  return -1
+endi
+
+print ======================= test Alter tags for stable
+
+##ADD TAG
+sql_error alter stable stb0 add tag `123` int
+sql_error alter stable stb0 add tag `123 456` int
+sql_error alter stable stb0 add tag `123.abc` int
+
+sql alter stable stb0 add tag `!%^&*()` int
+sql alter stable stb0 add tag `int` int
+sql alter stable stb0 add tag `bool` int
+sql alter stable stb0 add tag `double` int
+sql alter stable stb0 add tag `INTO` int
+sql alter stable stb0 add tag `COLUMN` int
+
+
+sql describe stb0;
+if $rows != 11 then
+  return -1
+endi
+if $data50 != @!%^&*()@ then
+  return -1
+endi
+if $data60 != @int@ then
+  return -1
+endi
+if $data70 != @bool@ then
+  return -1
+endi
+if $data80 != @double@ then
+  return -1
+endi
+if $data90 != @INTO@ then
+  return -1
+endi
+
+
+##DROP TAG
+sql alter stable stb0 drop tag `!%^&*()`
+sql alter stable stb0 drop tag `int`
+sql alter stable stb0 drop tag `bool`
+sql alter stable stb0 drop tag `double`
+sql alter stable stb0 drop tag `INTO`
+sql alter stable stb0 drop tag `COLUMN`
+
+
+sql describe stb0;
+if $rows != 5 then
+  return -1
+endi
+if $data20 != @123@ then
+  return -1
+endi
+if $data30 != @123 456@ then
+  return -1
+endi
+if $data40 != @123.abc@ then
+  return -1
+endi
+
+
+##CHANGE TAG
+
+sql alter stable stb0 change tag `123` `321`
+sql alter stable stb0 change tag `123 456` `456 123`
+#sql alter stable stb0 change tag `123.abc` `abc.123`
+#change tag has bug when using dot in tagname
+
+sql describe stb0;
+if $rows != 5 then
+  return -1
+endi
+if $data20 != @321@ then
+  return -1
+endi
+if $data30 != @456 123@ then
+  return -1
+endi
+
+##MODIFY TAG
+
+sql alter stable stb0 add tag `key` binary(10)
+sql alter stable stb0 add tag `value` nchar(10)
+sql alter stable stb0 modify tag `key` binary(15)
+sql alter stable stb0 modify tag `value` nchar(15)
+
+sql describe stb0;
+if $rows != 7 then
+  return -1
+endi
+if $data52 != 15 then
+  return -1
+endi
+if $data62 != 15 then
+  return -1
+endi
+
+
+##SET TAG
+
+sql insert into ctb0 values (now, 1)
+sql insert into ctb1 values (now, 1)
+sql insert into ctb2 values (now, 1)
+
+sql alter table ctb0 set tag `321`=2
+sql alter table ctb0 set tag `456 123`=2
+#sql alter table ctb0 set tag `abc.123`=2
+#change tag has bug when using dot in tagname
+
+
+print ======================= test insert specific tags automatically create table
+
+sql alter table ctb0 set tag `321`=2
+sql alter table ctb0 set tag `321`=2
+sql insert into ctb0_0 using stb0 (`321`, `456 123`, `123.abc`) tags (1, 1, 1) values (now + 10s, 5)
+sql insert into ctb1_0 using stb1 (`!%^&*()`) tags (1) values (now + 10s, 5)
+sql insert into ctb2_0 using stb2 (`int`, `bool`, `double`, `INTO`, `COLUMN`) tags (1, 1, 1, 1, 1) values (now + 10s, 5)
+sql insert into ctb2_1 using stb2 (`int`, `bool`, `INTO`, `COLUMN`) tags (1, 1, 1, 1) values (now + 10s, 5)
+
+sql select * from stb0;
+if $rows != 2 then
+  return -1
+endi
+
+sql select * from stb1;
+if $rows != 2 then
+  return -1
+endi
+
+sql select * from stb2;
+if $rows != 3 then
+  return -1
+endi
+
+if $data24 != NULL then
+  return -1
+endi
+
+print ======================= test show create table/stable
+sql create stable stb3 (ts timestamp, c0 int) tags (`123` int, `123 456` int, `123.abc` int)
+sql create table ctb3 using stb3 (`123`, `123 456`, `123.abc`) tags (1, 1, 1)
+
+sql show create table stb3;
+if $rows != 1 then
+  return -1
+endi
+
+if $data00 != @stb3@ then
+  return -1
+endi
+
+if $data01 != @create table `stb3` (`ts` TIMESTAMP,`c0` INT) TAGS (`123` INT,`123 456` INT,`123.abc` INT)@ then
+  return -1
+endi
+
+sql show create table ctb3;
+if $rows != 1 then
+  return -1
+endi
+
+if $data00 != @ctb3@ then
+  return -1
+endi
+
+if $data01 != @CREATE TABLE `ctb3` USING `stb3` TAGS (1,1,1)@ then
+  return -1
+endi
+
+system sh/exec.sh -n dnode1 -s stop -x SIGINT
+
