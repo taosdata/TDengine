@@ -30,12 +30,17 @@ extern "C" {
 
 #define TIMER_MAX_MS 0x7FFFFFFF
 #define PING_TIMER_MS 1000
+#define ELECT_TIMER_MS_MIN 150
+#define ELECT_TIMER_MS_MAX 300
+#define ELECT_TIMER_MS_RANGE (ELECT_TIMER_MS_MAX - ELECT_TIMER_MS_MIN)
+#define HEARTBEAT_TIMER_MS 30
+
+#define EMPTY_RAFT_ID ((SRaftId){.addr = 0, .vgId = 0})
 
 typedef struct SSyncEnv {
   tmr_h pEnvTickTimer;
   tmr_h pTimerManager;
   char  name[128];
-
 } SSyncEnv;
 
 extern SSyncEnv* gSyncEnv;

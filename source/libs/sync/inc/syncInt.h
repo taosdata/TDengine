@@ -154,9 +154,8 @@ typedef struct SSyncNode {
   SyncIndex      commitIndex;
 
   // timer
-  tmr_h   pPingTimer;
-  int32_t pingTimerMS;
-  // uint8_t           pingTimerEnable;
+  tmr_h             pPingTimer;
+  int32_t           pingTimerMS;
   uint64_t          pingTimerLogicClock;
   uint64_t          pingTimerLogicClockUser;
   TAOS_TMR_CALLBACK FpPingTimer;  // Timer Fp
@@ -164,13 +163,15 @@ typedef struct SSyncNode {
 
   tmr_h             pElectTimer;
   int32_t           electTimerMS;
-  uint8_t           electTimerEnable;
+  uint64_t          electTimerLogicClock;
+  uint64_t          electTimerLogicClockUser;
   TAOS_TMR_CALLBACK FpElectTimer;  // Timer Fp
   uint64_t          electTimerCounter;
 
   tmr_h             pHeartbeatTimer;
   int32_t           heartbeatTimerMS;
-  uint8_t           heartbeatTimerEnable;
+  uint64_t          heartbeatTimerLogicClock;
+  uint64_t          heartbeatTimerLogicClockUser;
   TAOS_TMR_CALLBACK FpHeartbeatTimer;  // Timer Fp
   uint64_t          heartbeatTimerCounter;
 
@@ -194,8 +195,9 @@ void       syncNodePingSelf(SSyncNode* pSyncNode);
 int32_t syncNodeStartPingTimer(SSyncNode* pSyncNode);
 int32_t syncNodeStopPingTimer(SSyncNode* pSyncNode);
 
-int32_t syncNodeStartElectTimer(SSyncNode* pSyncNode);
+int32_t syncNodeStartElectTimer(SSyncNode* pSyncNode, int32_t ms);
 int32_t syncNodeStopElectTimer(SSyncNode* pSyncNode);
+int32_t syncNodeRestartElectTimer(SSyncNode* pSyncNode, int32_t ms);
 
 int32_t syncNodeStartHeartbeatTimer(SSyncNode* pSyncNode);
 int32_t syncNodeStopHeartbeatTimer(SSyncNode* pSyncNode);
