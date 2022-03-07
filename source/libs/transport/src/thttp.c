@@ -111,24 +111,22 @@ _OVER:
 }
 
 #ifdef USE_UV
+#include <uv.h>
 static void clientConnCb(uv_connect_t* req, int32_t status) {
   if (status < 0) {
     terrno = TAOS_SYSTEM_ERROR(status);
     uError("Connection error %s\n", uv_strerror(status));
+    uv_close((uv_handle_t*)req->handle, NULL);
     return;
   }
-
-  // impl later
   uv_buf_t* wb = req->data;
-  if (wb == NULL) {
-    uv_close((uv_handle_t*)req->handle, NULL);
-  }
+  assert(wb != NULL);
   uv_write_t write_req;
   uv_write(&write_req, req->handle, wb, 2, NULL);
   uv_close((uv_handle_t*)req->handle, NULL);
 }
 
-int32_t taosSendHttpReport(const char* server, uint16_t port, const char* pCont, int32_t contLen, EHttpCompFlag flag) {
+int32_t taosSendHttpReport(const char* server, uint16_t port, char* pCont, int32_t contLen, EHttpCompFlag flag) {
   uint32_t ipv4 = taosGetIpv4FromFqdn(server);
   if (ipv4 == 0xffffffff) {
     terrno = TAOS_SYSTEM_ERROR(errno);
