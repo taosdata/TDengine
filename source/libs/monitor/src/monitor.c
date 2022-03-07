@@ -376,7 +376,8 @@ void monSendReport(SMonInfo *pMonitor) {
 
   char *pCont = tjsonToString(pMonitor->pJson);
   if (pCont != NULL) {
-    taosSendHttpReport(tsMonitor.server, tsMonitor.port, pCont, strlen(pCont), tsMonitor.comp);
+    EHttpCompFlag flag = tsMonitor.comp ? HTTP_GZIP : HTTP_FLAT;
+    taosSendHttpReport(tsMonitor.server, tsMonitor.port, pCont, strlen(pCont), flag);
     free(pCont);
   }
 }
