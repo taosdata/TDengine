@@ -1,0 +1,590 @@
+system sh/stop_dnodes.sh
+system sh/deploy.sh -n dnode1 -i 1
+system sh/deploy.sh -n dnode2 -i 2
+system sh/deploy.sh -n dnode3 -i 3
+system sh/deploy.sh -n dnode4 -i 4
+system sh/deploy.sh -n dnode5 -i 5
+system sh/deploy.sh -n dnode6 -i 6
+system sh/deploy.sh -n dnode7 -i 7
+system sh/deploy.sh -n dnode8 -i 8
+
+system sh/cfg.sh -n dnode1 -c numOfMnodes -v 3
+system sh/cfg.sh -n dnode2 -c numOfMnodes -v 3
+system sh/cfg.sh -n dnode3 -c numOfMnodes -v 3
+system sh/cfg.sh -n dnode4 -c numOfMnodes -v 3
+system sh/cfg.sh -n dnode5 -c numOfMnodes -v 3
+system sh/cfg.sh -n dnode6 -c numOfMnodes -v 3
+system sh/cfg.sh -n dnode7 -c numOfMnodes -v 3
+system sh/cfg.sh -n dnode8 -c numOfMnodes -v 3
+
+system sh/cfg.sh -n dnode1 -c mnodeEqualVnodeNum -v 0
+system sh/cfg.sh -n dnode2 -c mnodeEqualVnodeNum -v 0
+system sh/cfg.sh -n dnode3 -c mnodeEqualVnodeNum -v 0
+system sh/cfg.sh -n dnode4 -c mnodeEqualVnodeNum -v 0
+system sh/cfg.sh -n dnode5 -c mnodeEqualVnodeNum -v 0
+system sh/cfg.sh -n dnode6 -c mnodeEqualVnodeNum -v 0
+system sh/cfg.sh -n dnode7 -c mnodeEqualVnodeNum -v 0
+system sh/cfg.sh -n dnode8 -c mnodeEqualVnodeNum -v 0
+
+system sh/cfg.sh -n dnode1 -c wallevel -v 1
+system sh/cfg.sh -n dnode2 -c wallevel -v 1
+system sh/cfg.sh -n dnode3 -c wallevel -v 1
+system sh/cfg.sh -n dnode4 -c wallevel -v 1
+system sh/cfg.sh -n dnode5 -c wallevel -v 1
+system sh/cfg.sh -n dnode6 -c wallevel -v 1
+system sh/cfg.sh -n dnode7 -c wallevel -v 1
+system sh/cfg.sh -n dnode8 -c wallevel -v 1
+
+system sh/cfg.sh -n dnode1 -c maxTablesPerVnode -v 4
+system sh/cfg.sh -n dnode2 -c maxTablesPerVnode -v 4
+system sh/cfg.sh -n dnode3 -c maxTablesPerVnode -v 4
+system sh/cfg.sh -n dnode4 -c maxTablesPerVnode -v 4
+system sh/cfg.sh -n dnode5 -c maxTablesPerVnode -v 4
+system sh/cfg.sh -n dnode6 -c maxTablesPerVnode -v 4
+system sh/cfg.sh -n dnode7 -c maxTablesPerVnode -v 4
+system sh/cfg.sh -n dnode8 -c maxTablesPerVnode -v 4
+
+
+print ============== step1
+print ========= start dnode1
+system sh/exec.sh -n dnode1 -s start
+sql connect
+
+sql create database c_b1_d1 
+sql use c_b1_d1
+
+sql create table c_b1_t1 (t timestamp, i int)
+sql insert into c_b1_t1 values(1520000020015, 15)
+sql insert into c_b1_t1 values(1520000021014, 14)
+sql insert into c_b1_t1 values(1520000022013, 13)
+sql insert into c_b1_t1 values(1520000023012, 12)
+sql insert into c_b1_t1 values(1520000024011, 11)
+
+sql create database c_b1_d2 
+sql use c_b1_d2
+sql create table c_b1_t2 (t timestamp, i int)
+sql insert into c_b1_t2 values(1520000020025, 25)
+sql insert into c_b1_t2 values(1520000021024, 24)
+sql insert into c_b1_t2 values(1520000022023, 23)
+sql insert into c_b1_t2 values(1520000023022, 22)
+sql insert into c_b1_t2 values(1520000024021, 21)
+
+sql show dnodes
+$dnode1Vnodes = $data2_1
+print dnode1 $dnode1Vnodes
+$dnode2Vnodes = $data2_2
+print dnode2 $dnode2Vnodes
+
+if $dnode1Vnodes != 2 then
+  return -1
+endi
+if $dnode2Vnodes != null then
+  return -1
+endi
+
+print ============================== step2
+print ========= start dnode2
+sql create dnode $hostname2
+system sh/exec.sh -n dnode2 -s start
+
+$x = 0
+show2: 
+	$x = $x + 1
+	sleep 1000
+	if $x == 40 then
+	  return -1
+	endi
+sql show dnodes -x show2
+$dnode1Vnodes = $data2_1
+print dnode1 $dnode1Vnodes
+$dnode2Vnodes = $data2_2
+print dnode2 $dnode2Vnodes
+
+if $dnode1Vnodes != 1 then
+  goto show2
+endi
+if $dnode2Vnodes != 1 then
+  goto show2
+endi
+
+sql show mnodes
+$dnode1Role = $data2_1
+$dnode2Role = $data2_2
+print dnode1 ==> $dnode1Role
+print dnode2 ==> $dnode2Role
+
+print ============================== step3
+print ========= add db3
+sql create database c_b1_d3 
+sql use c_b1_d3
+sql create table c_b1_t3 (t timestamp, i int)
+sql insert into c_b1_t3 values(1520000020035, 35)
+sql insert into c_b1_t3 values(1520000021034, 34)
+sql insert into c_b1_t3 values(1520000022033, 33)
+sql insert into c_b1_t3 values(1520000023032, 32)
+sql insert into c_b1_t3 values(1520000024031, 31)
+
+print ============================== step4
+print ========= drop dnode2
+sql drop dnode $hostname2
+
+$x = 0
+show4: 
+	$x = $x + 1
+	sleep 1000
+	if $x == 40 then
+	  return -1
+	endi
+sql show dnodes -x show4
+$dnode1Vnodes = $data2_1
+print dnode1 $dnode1Vnodes
+$dnode2Vnodes = $data2_2
+print dnode2 $dnode2Vnodes
+
+if $dnode1Vnodes != 3 then
+  goto show4
+endi
+if $dnode2Vnodes != null then
+  goto show4
+endi
+
+sql show mnodes
+$dnode1Role = $data2_1
+$dnode2Role = $data2_2
+$dnode3Role = $data2_3
+$dnode4Role = $data2_4
+print dnode1 ==> $dnode1Role
+print dnode2 ==> $dnode2Role
+print dnode3 ==> $dnode3Role
+print dnode4 ==> $dnode4Role
+
+print ============================== step5
+print ========= add dnode2
+system sh/exec.sh -n dnode2 -s stop -x SIGINT
+system sh/exec.sh -n dnode3 -s start
+sql create dnode $hostname3
+
+$x = 0
+show5: 
+	$x = $x + 1
+	sleep 1000
+	if $x == 40 then 
+	  return -1
+	endi
+sql show dnodes -x show5
+$dnode1Vnodes = $data2_1
+print dnode1 $dnode1Vnodes
+$dnode3Vnodes = $data2_3
+print dnode2 $dnode3Vnodes
+
+if $dnode1Vnodes != 2 then
+  goto show5
+endi
+if $dnode3Vnodes != 1 then
+  goto show5
+endi
+
+sql show mnodes
+$dnode1Role = $data2_1
+$dnode3Role = $data2_3
+$dnode4Role = $data2_4
+print dnode1 ==> $dnode1Role
+print dnode3 ==> $dnode3Role
+print dnode4 ==> $dnode4Role
+
+if $dnode1Role != master then
+  return -1
+endi
+if $dnode3Role != slave then
+  return -1
+endi
+
+print ============================== step6
+sql_error drop dnode $hostname1
+
+print ============================== step7
+sql_error create dnode $hostname1
+
+print ============================== step8
+sql drop dnode $hostname3
+
+$x = 0
+show8: 
+	$x = $x + 1
+	sleep 1000
+	if $x == 40 then
+	  return -1
+	endi
+sql show dnodes -x show8
+$dnode1Vnodes = $data2_1
+print dnode1 $dnode1Vnodes
+$dnode3Vnodes = $data2_3
+print dnode3 $dnode3Vnodes
+
+if $dnode1Vnodes != 3 then
+  goto show8
+endi
+if $dnode3Vnodes != null then
+  goto show8
+endi
+
+sql show mnodes
+$dnode1Role = $data2_1
+$dnode3Role = $data2_3
+$dnode4Role = $data2_4
+print dnode1 ==> $dnode1Role
+print dnode3 ==> $dnode3Role
+print dnode4 ==> $dnode4Role
+
+if $dnode1Role != master then
+  return -1
+endi
+
+if $dnode3Role != null then
+  return -1
+endi
+
+print ============================== step9
+sql create dnode $hostname4
+system sh/exec.sh -n dnode4 -s start
+
+$x = 0
+show9: 
+	$x = $x + 1
+	sleep 1000
+	if $x == 40 then
+	  return -1
+	endi
+sql show dnodes -x show9
+$dnode1Vnodes = $data2_1
+print dnode1 $dnode1Vnodes
+$dnode4Vnodes = $data2_4
+print dnode4 $dnode4Vnodes
+
+if $dnode1Vnodes != 2 then
+  goto show9
+endi
+if $dnode4Vnodes != 1 then
+  goto show9
+endi
+
+sql show mnodes
+$dnode1Role = $data2_1
+$dnode4Role = $data2_4
+print dnode1 ==> $dnode1Role
+print dnode4 ==> $dnode4Role
+
+if $dnode1Role != master then
+  return -1
+endi
+
+if $dnode4Role != slave then
+  return -1
+endi
+
+print ============================== step10
+sql create database c_b1_d4 
+sql use c_b1_d4
+sql create table c_b1_t4 (t timestamp, i int)
+sql insert into c_b1_t4 values(1520000020045, 45)
+sql insert into c_b1_t4 values(1520000021044, 44)
+sql insert into c_b1_t4 values(1520000022043, 43)
+sql insert into c_b1_t4 values(1520000023042, 42)
+sql insert into c_b1_t4 values(1520000024041, 41)
+
+$x = 0
+show10: 
+	$x = $x + 1
+	sleep 1000
+	if $x == 40 then
+	  return -1
+	endi
+sql show dnodes -x show10
+$dnode1Vnodes = $data2_1
+print dnode1 $dnode1Vnodes
+$dnode4Vnodes = $data2_4
+print dnode4 $dnode4Vnodes
+
+if $dnode1Vnodes != 2 then
+   goto show10
+endi
+if $dnode4Vnodes != 2 then
+   goto show10
+endi
+
+sql reset query cache
+
+sql use c_b1_d3
+sql insert into c_b1_t3 values(1520000025036, 36)
+
+sql use c_b1_d2
+sql insert into c_b1_t2 values(1520000025026, 26)
+
+print ============================== step12
+sql create database c_b1_d5 
+sql use c_b1_d5
+sql_error create table c_b1_t5 (t timestamp, i int) -x error3
+
+print ============================== step13
+sql create dnode $hostname5
+system sh/exec.sh -n dnode5 -s start
+$x = 0
+step13: 
+	$x = $x + 1
+	sleep 1000
+	if $x == 40 then
+	  return -1
+	endi
+sql show dnodes
+print dnode1 $data4_1
+print dnode2 $data4_2
+print dnode3 $data4_3
+print dnode4 $data4_4
+print dnode5 $data4_5
+
+if $data4_5 != ready then
+  goto step13
+endi  
+
+sql show mnodes
+$dnode1Role = $data2_1
+$dnode4Role = $data2_4
+$dnode5Role = $data2_5
+print dnode1 ==> $dnode1Role
+print dnode4 ==> $dnode4Role
+print dnode5 ==> $dnode5Role
+
+sql use c_b1_d5;
+sql create table c_b1_t5 (t timestamp, i int)
+sql insert into c_b1_t5 values(1520000020055, 55)
+sql insert into c_b1_t5 values(1520000021054, 54)
+sql insert into c_b1_t5 values(1520000022053, 53)
+sql insert into c_b1_t5 values(1520000023052, 52)
+sql insert into c_b1_t5 values(1520000024051, 51)
+
+sql create database c_b1_d6 
+sql use c_b1_d6
+sql create table c_b1_t6 (t timestamp, i int)
+sql insert into c_b1_t6 values(1520000020065, 65)
+sql insert into c_b1_t6 values(1520000021064, 64)
+sql insert into c_b1_t6 values(1520000022063, 63)
+sql insert into c_b1_t6 values(1520000023062, 62)
+sql insert into c_b1_t6 values(1520000024061, 61)
+
+sql show dnodes
+$dnode1Vnodes = $data2_1
+print dnode1 $dnode1Vnodes
+$dnode4Vnodes = $data2_4
+print dnode4 $dnode2Vnodes
+$dnode5Vnodes = $data2_5
+print dnode5 $dnode2Vnodes
+
+if $dnode1Vnodes != 2 then
+  goto step13
+endi
+if $dnode4Vnodes != 2 then
+  goto step13
+endi
+if $dnode5Vnodes != 2 then
+  goto step13
+endi
+
+print ============================== step14
+sql create dnode $hostname6
+system sh/exec.sh -n dnode6 -s start
+$x = 0
+step14: 
+	$x = $x + 1
+	sleep 1000
+	if $x == 40 then
+	  return -1
+	endi
+sql show dnodes
+print dnode1 $data4_1
+print dnode2 $data4_2
+print dnode3 $data4_3
+print dnode4 $data4_4
+print dnode4 $data4_5
+
+if $data4_6 != ready then
+  goto step14
+endi  
+
+sql create database c_b1_d7 
+sql use c_b1_d7
+sql create table c_b1_t7 (t timestamp, i int)
+sql insert into c_b1_t7 values(1520000020075, 75)
+sql insert into c_b1_t7 values(1520000021074, 74)
+sql insert into c_b1_t7 values(1520000022073, 73)
+sql insert into c_b1_t7 values(1520000023072, 72)
+sql insert into c_b1_t7 values(1520000024071, 71)
+
+sql create database c_b1_d8 
+sql use c_b1_d8
+sql create table c_b1_t8 (t timestamp, i int)
+sql insert into c_b1_t8 values(1520000020085, 85)
+sql insert into c_b1_t8 values(1520000021084, 84)
+sql insert into c_b1_t8 values(1520000022083, 83)
+sql insert into c_b1_t8 values(1520000023082, 82)
+sql insert into c_b1_t8 values(1520000024081, 81)
+
+$x = 0
+show14: 
+	$x = $x + 1
+	sleep 1000
+	if $x == 30 then
+	  return -1
+	endi
+sql show dnodes -x show14
+$dnode1Vnodes = $data2_1
+print dnode1 $dnode1Vnodes
+$dnode4Vnodes = $data2_4
+print dnode4 $dnode4Vnodes
+$dnode5Vnodes = $data2_5
+print dnode5 $dnode5Vnodes
+$dnode6Vnodes = $data2_6
+print dnode6 $dnode6Vnodes
+
+if $dnode1Vnodes != 2 then
+  goto show14
+endi
+if $dnode4Vnodes != 2 then
+  goto show14
+endi
+if $dnode5Vnodes != 2 then
+  goto show14
+endi
+if $dnode6Vnodes != 2 then
+  goto show14
+endi
+
+sql reset query cache
+sleep 1000
+
+print ============================== step17
+print ========= check data
+
+sql reset query cache
+sleep 100
+
+sql use c_b1_d1
+sql select * from c_b1_d1.c_b1_t1
+print $rows 
+print $data01 $data11 $data21 $data31 $data41
+if $rows != 5 then
+  return -1
+endi
+
+sql use c_b1_d2
+sql select * from c_b1_d2.c_b1_t2
+print $rows 
+print $data01 $data11 $data21 $data31 $data41
+if $rows != 6 then
+  return -1
+endi
+
+sql use c_b1_d3
+sql select * from c_b1_d3.c_b1_t3 order by t desc
+print $rows 
+print $data01 $data11 $data21 $data31 $data41
+if $rows != 6 then
+  return -1
+endi
+if $data01 != 36 then
+  return -1
+endi
+
+sql use c_b1_d4
+sql select * from c_b1_d4.c_b1_t4 order by t desc
+print $rows 
+print $data01 $data11 $data21 $data31 $data41
+
+sql use c_b1_d5
+sql select * from c_b1_d5.c_b1_t5 order by t desc
+print $rows 
+print $data01 $data11 $data21 $data31 $data41
+if $data01 != 51 then
+  return -1
+endi
+if $data11 != 52 then
+  return -1
+endi
+if $data21 != 53 then
+  return -1
+endi
+if $data31 != 54 then
+  return -1
+endi
+if $data41 != 55 then
+  return -1
+endi
+
+sql use c_b1_d6
+sql select * from c_b1_d6.c_b1_t6 order by t desc
+print $rows 
+print $data01 $data11 $data21 $data31 $data41
+if $data01 != 61 then
+  return -1
+endi
+if $data11 != 62 then
+  return -1
+endi
+if $data21 != 63 then
+  return -1
+endi
+if $data31 != 64 then
+  return -1
+endi
+if $data41 != 65 then
+  return -1
+endi
+
+sql use c_b1_d7
+sql select * from c_b1_d7.c_b1_t7 order by t desc
+print $rows 
+print $data01 $data11 $data21 $data31 $data41
+if $data01 != 71 then
+  return -1
+endi
+if $data11 != 72 then
+  return -1
+endi
+if $data21 != 73 then
+  return -1
+endi
+if $data31 != 74 then
+  return -1
+endi
+if $data41 != 75 then
+  return -1
+endi
+
+sql use c_b1_d8
+sql select * from c_b1_d8.c_b1_t8 order by t desc
+print $rows 
+print $data01 $data11 $data21 $data31 $data41
+if $data01 != 81 then
+  return -1
+endi
+if $data11 != 82 then
+  return -1
+endi
+if $data21 != 83 then
+  return -1
+endi
+if $data31 != 84 then
+  return -1
+endi
+if $data41 != 85 then
+  return -1
+endi
+
+print ============================================ over=
+system sh/exec.sh -n dnode1 -s stop  -x SIGINT
+system sh/exec.sh -n dnode2 -s stop  -x SIGINT
+system sh/exec.sh -n dnode3 -s stop  -x SIGINT
+system sh/exec.sh -n dnode4 -s stop  -x SIGINT
+system sh/exec.sh -n dnode5 -s stop  -x SIGINT
+system sh/exec.sh -n dnode6 -s stop  -x SIGINT
+system sh/exec.sh -n dnode7 -s stop  -x SIGINT
+system sh/exec.sh -n dnode8 -s stop  -x SIGINT

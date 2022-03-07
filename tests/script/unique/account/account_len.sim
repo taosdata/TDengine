@@ -1,0 +1,92 @@
+system sh/stop_dnodes.sh
+system sh/deploy.sh -n dnode1 -i 1
+system sh/cfg.sh -n dnode1 -c wallevel -v 0
+system sh/exec.sh -n dnode1 -s start
+
+sleep 2000
+sql connect
+
+$i = 0
+$dbPrefix = aldb
+$tbPrefix = altb
+$db = $dbPrefix . $i
+$tb = $tbPrefix . $i
+
+print =============== step1
+sql drop account ac -x step0
+	return -1
+step0:
+
+sql create account PASS 123 -x step1
+	return -1
+step1:
+
+sql show accounts
+if $rows != 1 then 
+  return -1
+endi
+
+print =============== step2
+sql drop account a -x step2
+step2:
+sql create account a PASS '123'
+sql show accounts
+if $rows != 2 then 
+  return -1
+endi
+
+sql drop account a
+sql show accounts
+if $rows != 1 then 
+  return -1
+endi
+
+print =============== step3
+sql drop account abc01234567890123456789 -x step3
+step3:
+sql create account abc01234567890123456789 PASS '123'
+sql show accounts
+if $rows != 2 then 
+  return -1
+endi
+
+sql drop account abc01234567890123456789
+sql show accounts
+if $rows != 1 then 
+  return -1
+endi
+
+print =============== step4
+sql create account abcd01234567890123456789012345689012345 PASS '123' -x step4
+	return -1
+step4:
+sql show accounts
+if $rows != 1 then 
+  return -1
+endi
+
+print =============== step5
+sql drop account 123 -x step5
+step5:
+sql create account 123 pass '123' -x step51
+  return -1
+step51:
+
+sql create account a123 PASS '123'
+sql show accounts
+if $rows != 2 then 
+  return -1
+endi
+
+sql drop account a123
+sql show accounts
+if $rows != 1 then 
+  return -1
+endi
+
+sql show users
+if $rows != 3 then 
+  return -1
+endi
+
+system sh/exec.sh -n dnode1 -s stop  -x SIGINT

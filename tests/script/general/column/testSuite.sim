@@ -1,0 +1,3 @@
+run general/column/commit.sim
+run general/column/metrics.sim
+run general/column/table.sim

@@ -1,0 +1,62 @@
+system sh/stop_dnodes.sh
+system sh/deploy.sh -n dnode1 -i 1
+system sh/exec.sh -n dnode1 -s start
+sleep 2000
+sql connect
+
+print =============== create database
+sql create database d1
+sql show databases
+if $rows != 1 then 
+  return -1
+endi
+
+if $data00 != d1 then 
+  return -1
+endi
+
+if $data02 != 0 then 
+  return -1
+endi
+
+if $data03 != 0 then 
+  return -1
+endi
+
+print =============== drop database
+sql drop database d1
+sql show databases
+if $rows != 0 then 
+  return -1
+endi
+
+print =============== more databases
+sql create database d2
+sql create database d3
+sql create database d4
+sql show databases
+if $rows != 3 then 
+  return -1
+endi
+
+print =============== drop database
+sql drop database d2
+sql drop database d3
+sql show databases
+if $rows != 1 then 
+  return -1
+endi
+
+if $data00 != d4 then 
+  return -1
+endi
+
+if $data02 != 0 then 
+  return -1
+endi
+
+if $data03 != 0 then 
+  return -1
+endi
+
+system sh/exec.sh -n dnode1 -s stop -x SIGINT

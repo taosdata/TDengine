@@ -1,0 +1,53 @@
+system sh/stop_dnodes.sh
+sleep 2000
+system sh/deploy.sh -n dnode1 -i 1
+system sh/cfg.sh -n dnode1 -c walLevel -v 1
+system sh/cfg.sh -n dnode1 -c http -v 1
+system sh/cfg.sh -n dnode1 -c httpEnableRecordSql -v 1
+system sh/exec.sh -n dnode1 -s start
+
+sleep 2000
+sql connect
+
+print ============================ dnode1 start
+
+print ===============  step1 - prepare data
+sql create database d1
+sql use d1
+
+sql create table d1.table_rest0 (ts timestamp, i int)
+sql create table d1.table_rest1 (ts timestamp, i int)
+sql create table d1.table_rest2 (ts timestamp, i int)
+sql create table d1.table_rest3 (ts timestamp, i int)
+sql create table d1.table_rest4 (ts timestamp, i int)
+sql create table d1.table_rest5 (ts timestamp, i int)
+sql create table d1.table_rest6 (ts timestamp, i int)
+sql create table d1.table_rest7 (ts timestamp, i int)
+sql create table d1.table_rest8 (ts timestamp, i int)
+sql create table d1.table_rest9 (ts timestamp, i int)
+
+print ===============  step2 - login
+
+system_content curl 127.0.0.1:7111/rest/login/root/taosdata
+print curl 127.0.0.1:7111/rest/login/root/taosdata -----> $system_content
+
+if $system_content != {"status":"succ","code":0,"desc":"/KfeAzX/f9na8qdtNZmtONryp201ma04bEl8LcvLUd7a8qdtNZmtONryp201ma04"} then
+  return -1
+endi
+
+print ===============  step3 - query data
+
+system_content curl -H 'Authorization: Taosd /KfeAzX/f9na8qdtNZmtONryp201ma04bEl8LcvLUd7a8qdtNZmtONryp201ma04' -d 'insert into d1.table_rest1 values('now+1s', 1) d1.table_rest2 values('now+1s', 1) d1.table_rest3 values('now+1s', 1) d1.table_rest4 values('now+1s', 1) ' 127.0.0.1:7111/rest/sql
+system_content curl -H 'Authorization: Taosd /KfeAzX/f9na8qdtNZmtONryp201ma04bEl8LcvLUd7a8qdtNZmtONryp201ma04' -d 'insert into d1.table_rest1 values('now+1s', 1) d1.table_rest2 values('now+1s', 1) d1.table_rest3 values('now+1s', 1) d1.table_rest4 values('now+1s', 1) ' 127.0.0.1:7111/rest/sql
+system_content curl -H 'Authorization: Taosd /KfeAzX/f9na8qdtNZmtONryp201ma04bEl8LcvLUd7a8qdtNZmtONryp201ma04' -d 'insert into d1.table_rest1 values('now+1s', 1) d1.table_rest2 values('now+1s', 1) d1.table_rest3 values('now+1s', 1) d1.table_rest4 values('now+1s', 1) ' 127.0.0.1:7111/rest/sql
+system_content curl -H 'Authorization: Taosd /KfeAzX/f9na8qdtNZmtONryp201ma04bEl8LcvLUd7a8qdtNZmtONryp201ma04' -d 'insert into d1.table_rest1 values('now+1s', 1) d1.table_rest2 values('now+1s', 1) d1.table_rest3 values('now+1s', 1) d1.table_rest4 values('now+1s', 1) ' 127.0.0.1:7111/rest/sql
+system_content curl -H 'Authorization: Taosd /KfeAzX/f9na8qdtNZmtONryp201ma04bEl8LcvLUd7a8qdtNZmtONryp201ma04' -d 'insert into d1.table_rest1 values('now+1s', 1) d1.table_rest2 values('now+1s', 1) d1.table_rest3 values('now+1s', 1) d1.table_rest4 values('now+1s', 1) ' 127.0.0.1:7111/rest/sql
+system_content curl -H 'Authorization: Taosd /KfeAzX/f9na8qdtNZmtONryp201ma04bEl8LcvLUd7a8qdtNZmtONryp201ma04' -d 'insert into d1.table_rest1 values('now+1s', 1) d1.table_rest2 values('now+1s', 1) d1.table_rest3 values('now+1s', 1) d1.table_rest4 values('now+1s', 1) ' 127.0.0.1:7111/rest/sql
+system_content curl -H 'Authorization: Taosd /KfeAzX/f9na8qdtNZmtONryp201ma04bEl8LcvLUd7a8qdtNZmtONryp201ma04' -d 'insert into d1.table_rest1 values('now+1s', 1) d1.table_rest2 values('now+1s', 1) d1.table_rest3 values('now+1s', 1) d1.table_rest4 values('now+1s', 1) ' 127.0.0.1:7111/rest/sql
+
+print ===============  step5 - query data
+
+system_content curl -H 'Authorization: Taosd /KfeAzX/f9na8qdtNZmtONryp201ma04bEl8LcvLUd7a8qdtNZmtONryp201ma04' -d 'select * from d1.table_rest1' 127.0.0.1:7111/rest/sql
+print curl 127.0.0.1:7111/rest/sql -----> $system_content
+
+system sh/exec.sh -n dnode1 -s stop -x SIGINT

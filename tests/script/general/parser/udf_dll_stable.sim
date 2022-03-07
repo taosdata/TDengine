@@ -1,0 +1,1250 @@
+system sh/stop_dnodes.sh
+system sh/deploy.sh -n dnode1 -i 1
+system sh/cfg.sh -n dnode1 -c walLevel -v 1
+system sh/cfg.sh -n dnode1 -c maxtablesPerVnode -v 1
+system sh/exec.sh -n dnode1 -s start
+system sh/prepare_udf.sh
+
+sleep 100
+sql connect
+print ======================== dnode1 start
+
+sql create function add_one as '/tmp/add_one.so' outputtype int;
+sql create function add_one_64232 as '/tmp/add_one_64232.so' outputtype int;
+sql create aggregate function sum_double as '/tmp/sum_double.so' outputtype bigint;
+sql show functions;
+if $rows != 3 then
+  return -1
+endi
+
+sql create database db;
+sql use db;
+sql create stable stb1 (ts timestamp, f1 int, f2 bool, f3 binary(10)) tags(id1 int);
+sql create table tb1 using stb1 tags(1);
+sql insert into tb1 values ('2021-03-23 17:17:19.660', 1, true, 'tb1-1');
+sql insert into tb1 values ('2021-03-23 19:23:28.595', 2, false, 'tb1-2');
+sql insert into tb1 values ('2021-03-23 19:33:39.070', 3, true, 'tb1-3');
+sql insert into tb1 values ('2021-03-23 19:34:37.670', 4, false, 'tb1-4');
+sql insert into tb1 values ('2021-03-24 19:08:06.609', 5, true, 'tb1-5');
+sql insert into tb1 values ('2021-03-24 19:26:38.231', 6, false, 'tb1-6');
+sql insert into tb1 values ('2021-03-25 10:03:17.688', 7, true, 'tb1-7');
+sql create table tb2 using stb1 tags(2);
+sql create table tb3 using stb1 tags(3);
+sql create table tb4 using stb1 tags(4);
+sql create table tb5 using stb1 tags(5);
+sql create table tb6 using stb1 tags(6);
+sql create table tb7 using stb1 tags(7);
+sql create table tb8 using stb1 tags(8);
+sql create table tb9 using stb1 tags(9);
+sql insert into tb2 values ('2021-03-03 17:17:19.660', 1, true, 'tb2-1');
+sql insert into tb2 values ('2021-03-13 19:23:28.595', 2, false, 'tb2-2');
+sql insert into tb3 values ('2021-03-23 19:33:39.070', 3, true, 'tb3-1');
+sql insert into tb3 values ('2021-03-24 19:34:37.670', 4, false, 'tb3-2');
+sql insert into tb5 values ('2021-03-25 19:08:06.609', 1, true, 'tb5-1');
+sql insert into tb5 values ('2021-04-01 19:26:38.231', 2, false, 'tb5-2');
+sql insert into tb5 values ('2021-04-08 10:03:17.688', 3, true, 'tb5-3');
+sql insert into tb6 values ('2021-04-08 11:03:17.688', 1, true, 'tb6-1');
+sql insert into tb6 values ('2021-04-08 12:03:17.688', 2, true, 'tb6-2');
+sql insert into tb9 values ('2021-04-08 16:03:17.688', 4, true, 'tb9-1');
+
+sql select add_one(f1) from tb1;
+if $rows != 7 then
+  return -1
+endi
+
+if $data00 != 2 then 
+   return -1
+endi
+if $data10 != 3 then 
+   return -1
+endi
+if $data20 != 4 then 
+   return -1
+endi
+if $data30 != 5 then 
+   return -1
+endi
+if $data40 != 6 then 
+   return -1
+endi
+if $data50 != 7 then 
+   return -1
+endi
+if $data60 != 8 then 
+   return -1
+endi
+
+
+sql select sum_double(f1) from tb1;
+if $rows != 1 then
+  return -1
+endi
+
+if $data00 != 56 then 
+   return -1
+endi
+
+
+sql select ts,add_one(f1),f1 from tb1;
+if $rows != 7 then
+  return -1
+endi
+
+if $data00 != @21-03-23 17:17:19.660@ then 
+   return -1
+endi
+if $data01 != 2 then 
+   return -1
+endi
+if $data02 != 1 then 
+   return -1
+endi
+if $data10 != @21-03-23 19:23:28.595@ then 
+   return -1
+endi
+if $data11 != 3 then 
+   return -1
+endi
+if $data12 != 2 then 
+   return -1
+endi
+if $data20 != @21-03-23 19:33:39.070@ then 
+   return -1
+endi
+if $data21 != 4 then 
+   return -1
+endi
+if $data22 != 3 then 
+   return -1
+endi
+if $data30 != @21-03-23 19:34:37.670@ then 
+   return -1
+endi
+if $data31 != 5 then 
+   return -1
+endi
+if $data32 != 4 then 
+   return -1
+endi
+if $data40 != @21-03-24 19:08:06.609@ then 
+   return -1
+endi
+if $data41 != 6 then 
+   return -1
+endi
+if $data42 != 5 then 
+   return -1
+endi
+if $data50 != @21-03-24 19:26:38.231@ then 
+   return -1
+endi
+if $data51 != 7 then 
+   return -1
+endi
+if $data52 != 6 then 
+   return -1
+endi
+if $data60 != @21-03-25 10:03:17.688@ then 
+   return -1
+endi
+if $data61 != 8 then 
+   return -1
+endi
+if $data62 != 7 then 
+   return -1
+endi
+
+
+
+
+sql select add_one(f1),add_one(f1) from tb1;
+if $rows != 7 then
+  return -1
+endi
+
+if $data00 != 2 then 
+   return -1
+endi
+if $data01 != 2 then 
+   return -1
+endi
+if $data10 != 3 then 
+   return -1
+endi
+if $data11 != 3 then 
+   return -1
+endi
+if $data20 != 4 then 
+   return -1
+endi
+if $data21 != 4 then 
+   return -1
+endi
+if $data30 != 5 then 
+   return -1
+endi
+if $data31 != 5 then 
+   return -1
+endi
+if $data40 != 6 then 
+   return -1
+endi
+if $data41 != 6 then 
+   return -1
+endi
+if $data50 != 7 then 
+   return -1
+endi
+if $data51 != 7 then 
+   return -1
+endi
+if $data60 != 8 then 
+   return -1
+endi
+if $data61 != 8 then 
+   return -1
+endi
+
+
+sql select add_one(f1)+1 from tb1;
+if $rows != 7 then
+  return -1
+endi
+
+if $data00 != 3.000000000 then 
+   return -1
+endi
+if $data10 != 4.000000000 then 
+   return -1
+endi
+if $data20 != 5.000000000 then 
+   return -1
+endi
+if $data30 != 6.000000000 then 
+   return -1
+endi
+if $data40 != 7.000000000 then 
+   return -1
+endi
+if $data50 != 8.000000000 then 
+   return -1
+endi
+if $data60 != 9.000000000 then 
+   return -1
+endi
+
+
+sql select sum_double(f1)+1 from tb1;
+if $rows != 1 then
+  return -1
+endi
+
+if $data00 != 57.000000000 then 
+   return -1
+endi
+
+
+sql select add_one(f1)+1,f1 from tb1;
+if $rows != 7 then
+  return -1
+endi
+
+if $data00 != 3.000000000 then 
+   return -1
+endi
+if $data01 != 1 then 
+   return -1
+endi
+if $data10 != 4.000000000 then 
+   return -1
+endi
+if $data11 != 2 then 
+   return -1
+endi
+if $data20 != 5.000000000 then 
+   return -1
+endi
+if $data21 != 3 then 
+   return -1
+endi
+if $data30 != 6.000000000 then 
+   return -1
+endi
+if $data31 != 4 then 
+   return -1
+endi
+if $data40 != 7.000000000 then 
+   return -1
+endi
+if $data41 != 5 then 
+   return -1
+endi
+if $data50 != 8.000000000 then 
+   return -1
+endi
+if $data51 != 6 then 
+   return -1
+endi
+if $data60 != 9.000000000 then 
+   return -1
+endi
+if $data61 != 7 then 
+   return -1
+endi
+
+
+sql select sum_double(f1) from tb1 interval (10a);
+if $rows != 7 then
+  return -1
+endi
+
+if $data00 != @21-03-23 17:17:19.660@ then 
+   return -1
+endi
+if $data01 != 2 then 
+   return -1
+endi
+if $data10 != @21-03-23 19:23:28.590@ then 
+   return -1
+endi
+if $data11 != 4 then 
+   return -1
+endi
+if $data20 != @21-03-23 19:33:39.070@ then 
+   return -1
+endi
+if $data21 != 6 then 
+   return -1
+endi
+if $data30 != @21-03-23 19:34:37.670@ then 
+   return -1
+endi
+if $data31 != 8 then 
+   return -1
+endi
+if $data40 != @21-03-24 19:08:06.600@ then 
+   return -1
+endi
+if $data41 != 10 then 
+   return -1
+endi
+if $data50 != @21-03-24 19:26:38.230@ then 
+   return -1
+endi
+if $data51 != 12 then 
+   return -1
+endi
+if $data60 != @21-03-25 10:03:17.680@ then 
+   return -1
+endi
+if $data61 != 14 then 
+   return -1
+endi
+
+sql select ts,add_one(f1) from tb1 where ts>="2021-03-23 17:00:00.000" and ts<="2021-03-24 20:00:00.000";
+if $rows != 6 then
+  return -1
+endi
+
+if $data00 != @21-03-23 17:17:19.660@ then 
+   return -1
+endi
+if $data01 != 2 then 
+   return -1
+endi
+if $data10 != @21-03-23 19:23:28.595@ then 
+   return -1
+endi
+if $data11 != 3 then 
+   return -1
+endi
+if $data20 != @21-03-23 19:33:39.070@ then 
+   return -1
+endi
+if $data21 != 4 then 
+   return -1
+endi
+if $data30 != @21-03-23 19:34:37.670@ then 
+   return -1
+endi
+if $data31 != 5 then 
+   return -1
+endi
+if $data40 != @21-03-24 19:08:06.609@ then 
+   return -1
+endi
+if $data41 != 6 then 
+   return -1
+endi
+if $data50 != @21-03-24 19:26:38.231@ then 
+   return -1
+endi
+if $data51 != 7 then 
+   return -1
+endi
+
+sql select sum_double(f1) from tb1 where ts>="2021-03-23 17:00:00.000" and ts<="2021-03-24 20:00:00.000" interval (1h);
+if $rows != 3 then
+  return -1
+endi
+
+if $data00 != @21-03-23 17:00:00.000@ then 
+   return -1
+endi
+if $data01 != 2 then 
+   return -1
+endi
+if $data10 != @21-03-23 19:00:00.000@ then 
+   return -1
+endi
+if $data11 != 18 then 
+   return -1
+endi
+if $data20 != @21-03-24 19:00:00.000@ then 
+   return -1
+endi
+if $data21 != 22 then 
+   return -1
+endi
+
+
+sql select sum_double(f1) from tb1 where ts>="2021-03-23 17:00:00.000" and ts<="2021-03-24 20:00:00.000" interval (1h) fill(value,999);
+if $rows != 28 then
+  return -1
+endi
+
+sql_error select add_one(f1) from tb1 group by f1;
+
+sql select sum_double(f1) from tb1 group by f1;
+if $rows != 7 then
+  return -1
+endi
+
+if $data00 != 2 then 
+   return -1
+endi
+if $data10 != 4 then 
+   return -1
+endi
+if $data20 != 6 then 
+   return -1
+endi
+if $data30 != 8 then 
+   return -1
+endi
+if $data40 != 10 then 
+   return -1
+endi
+if $data50 != 12 then 
+   return -1
+endi
+if $data60 != 14 then 
+   return -1
+endi
+
+sql select sum_double(f1) from tb1 interval (1h) order by ts desc;
+if $rows != 4 then
+  return -1
+endi
+
+if $data00 != @21-03-25 10:00:00.000@ then 
+   return -1
+endi
+if $data01 != 14 then 
+   return -1
+endi
+if $data10 != @21-03-24 19:00:00.000@ then 
+   return -1
+endi
+if $data11 != 22 then 
+   return -1
+endi
+if $data20 != @21-03-23 19:00:00.000@ then 
+   return -1
+endi
+if $data21 != 18 then 
+   return -1
+endi
+if $data30 != @21-03-23 17:00:00.000@ then 
+   return -1
+endi
+if $data31 != 2 then 
+   return -1
+endi
+
+
+sql select add_one(f1) from tb1 limit 2;
+if $rows != 2 then
+  return -1
+endi
+
+if $data00 != 2 then 
+   return -1
+endi
+if $data10 != 3 then 
+   return -1
+endi
+
+
+sql select sum_double(f1) from tb1 interval (1d) limit 2;
+if $rows != 2 then
+  return -1
+endi
+
+if $data00 != @21-03-23 00:00:00.000@ then 
+   return -1
+endi
+if $data01 != 20 then 
+   return -1
+endi
+if $data10 != @21-03-24 00:00:00.000@ then 
+   return -1
+endi
+if $data11 != 22 then 
+   return -1
+endi
+
+
+sql_error select ts,sum_double(f1),f1 from tb1;
+sql_error select add_one(f1),count(f1) from tb1;
+sql_error select sum_double(f1),count(f1) from tb1;
+sql_error select add_one(f1),top(f1,3) from tb1;
+sql_error select add_one(f1) from tb1 interval(10a);
+
+
+sql select add_one(f1) from stb1;
+if $rows != 17 then
+  return -1
+endi
+
+if $data00 != 2 then 
+   return -1
+endi
+if $data10 != 3 then 
+   return -1
+endi
+if $data20 != 4 then 
+   return -1
+endi
+if $data30 != 5 then 
+   return -1
+endi
+if $data40 != 6 then 
+   return -1
+endi
+if $data50 != 7 then 
+   return -1
+endi
+if $data60 != 8 then 
+   return -1
+endi
+if $data70 != 2 then 
+   return -1
+endi
+if $data80 != 3 then 
+   return -1
+endi
+if $data90 != 4 then 
+   return -1
+endi
+
+
+sql select sum_double(f1) from stb1;
+if $rows != 1 then
+  return -1
+endi
+
+if $data00 != 102 then 
+   return -1
+endi
+
+
+sql select ts,add_one(f1),f1 from stb1;
+if $rows != 17 then
+  return -1
+endi
+
+if $data00 != @21-03-23 17:17:19.660@ then 
+   return -1
+endi
+if $data01 != 2 then 
+   return -1
+endi
+if $data02 != 1 then 
+   return -1
+endi
+if $data10 != @21-03-23 19:23:28.595@ then 
+   return -1
+endi
+if $data11 != 3 then 
+   return -1
+endi
+if $data12 != 2 then 
+   return -1
+endi
+if $data20 != @21-03-23 19:33:39.070@ then 
+   return -1
+endi
+if $data21 != 4 then 
+   return -1
+endi
+if $data22 != 3 then 
+   return -1
+endi
+if $data30 != @21-03-23 19:34:37.670@ then 
+   return -1
+endi
+if $data31 != 5 then 
+   return -1
+endi
+if $data32 != 4 then 
+   return -1
+endi
+if $data40 != @21-03-24 19:08:06.609@ then 
+   return -1
+endi
+if $data41 != 6 then 
+   return -1
+endi
+if $data42 != 5 then 
+   return -1
+endi
+if $data50 != @21-03-24 19:26:38.231@ then 
+   return -1
+endi
+if $data51 != 7 then 
+   return -1
+endi
+if $data52 != 6 then 
+   return -1
+endi
+if $data60 != @21-03-25 10:03:17.688@ then 
+   return -1
+endi
+if $data61 != 8 then 
+   return -1
+endi
+if $data62 != 7 then 
+   return -1
+endi
+
+
+
+
+sql select add_one(f1),add_one(f1) from stb1;
+if $rows != 17 then
+  return -1
+endi
+
+if $data00 != 2 then 
+   return -1
+endi
+if $data01 != 2 then 
+   return -1
+endi
+if $data10 != 3 then 
+   return -1
+endi
+if $data11 != 3 then 
+   return -1
+endi
+if $data20 != 4 then 
+   return -1
+endi
+if $data21 != 4 then 
+   return -1
+endi
+if $data30 != 5 then 
+   return -1
+endi
+if $data31 != 5 then 
+   return -1
+endi
+if $data40 != 6 then 
+   return -1
+endi
+if $data41 != 6 then 
+   return -1
+endi
+if $data50 != 7 then 
+   return -1
+endi
+if $data51 != 7 then 
+   return -1
+endi
+if $data60 != 8 then 
+   return -1
+endi
+if $data61 != 8 then 
+   return -1
+endi
+
+sql select add_one(f1)+1 from stb1;
+if $rows != 17 then
+  return -1
+endi
+
+if $data00 != 3.000000000 then 
+   return -1
+endi
+if $data10 != 4.000000000 then 
+   return -1
+endi
+if $data20 != 5.000000000 then 
+   return -1
+endi
+if $data30 != 6.000000000 then 
+   return -1
+endi
+if $data40 != 7.000000000 then 
+   return -1
+endi
+if $data50 != 8.000000000 then 
+   return -1
+endi
+if $data60 != 9.000000000 then 
+   return -1
+endi
+
+
+sql select sum_double(f1)+1 from stb1;
+if $rows != 1 then
+  return -1
+endi
+
+if $data00 != 103.000000000 then 
+   return -1
+endi
+
+
+sql select add_one(f1)+1,f1 from stb1;
+if $rows != 17 then
+  return -1
+endi
+
+if $data00 != 3.000000000 then 
+   return -1
+endi
+if $data01 != 1 then 
+   return -1
+endi
+if $data10 != 4.000000000 then 
+   return -1
+endi
+if $data11 != 2 then 
+   return -1
+endi
+if $data20 != 5.000000000 then 
+   return -1
+endi
+if $data21 != 3 then 
+   return -1
+endi
+if $data30 != 6.000000000 then 
+   return -1
+endi
+if $data31 != 4 then 
+   return -1
+endi
+if $data40 != 7.000000000 then 
+   return -1
+endi
+if $data41 != 5 then 
+   return -1
+endi
+if $data50 != 8.000000000 then 
+   return -1
+endi
+if $data51 != 6 then 
+   return -1
+endi
+if $data60 != 9.000000000 then 
+   return -1
+endi
+if $data61 != 7 then 
+   return -1
+endi
+
+
+sql select sum_double(f1) from stb1 interval (10a);
+if $rows != 16 then
+  return -1
+endi
+
+if $data00 != @21-03-03 17:17:19.660@ then 
+   return -1
+endi
+if $data01 != 2 then 
+   return -1
+endi
+if $data10 != @21-03-13 19:23:28.590@ then 
+   return -1
+endi
+if $data11 != 4 then 
+   return -1
+endi
+if $data20 != @21-03-23 17:17:19.660@ then 
+   return -1
+endi
+if $data21 != 2 then 
+   return -1
+endi
+if $data30 != @21-03-23 19:23:28.590@ then 
+   return -1
+endi
+if $data31 != 4 then 
+   return -1
+endi
+if $data40 != @21-03-23 19:33:39.070@ then 
+   return -1
+endi
+if $data41 != 12 then 
+   return -1
+endi
+if $data50 != @21-03-23 19:34:37.670@ then 
+   return -1
+endi
+if $data51 != 8 then 
+   return -1
+endi
+if $data60 != @21-03-24 19:08:06.600@ then 
+   return -1
+endi
+if $data61 != 10 then 
+   return -1
+endi
+if $data70 != @21-03-24 19:26:38.230@ then 
+   return -1
+endi
+if $data71 != 12 then 
+   return -1
+endi
+if $data80 != @21-03-24 19:34:37.670@ then 
+   return -1
+endi
+if $data81 != 8 then 
+   return -1
+endi
+if $data90 != @21-03-25 10:03:17.680@ then 
+   return -1
+endi
+if $data91 != 14 then 
+   return -1
+endi
+
+
+sql select ts,add_one(f1) from stb1 where ts>="2021-03-23 17:00:00.000" and ts<="2021-03-24 20:00:00.000";
+if $rows != 8 then
+  return -1
+endi
+
+if $data00 != @21-03-23 17:17:19.660@ then 
+   return -1
+endi
+if $data01 != 2 then 
+   return -1
+endi
+if $data10 != @21-03-23 19:23:28.595@ then 
+   return -1
+endi
+if $data11 != 3 then 
+   return -1
+endi
+if $data20 != @21-03-23 19:33:39.070@ then 
+   return -1
+endi
+if $data21 != 4 then 
+   return -1
+endi
+if $data30 != @21-03-23 19:34:37.670@ then 
+   return -1
+endi
+if $data31 != 5 then 
+   return -1
+endi
+if $data40 != @21-03-24 19:08:06.609@ then 
+   return -1
+endi
+if $data41 != 6 then 
+   return -1
+endi
+if $data50 != @21-03-24 19:26:38.231@ then 
+   return -1
+endi
+if $data51 != 7 then 
+   return -1
+endi
+if $data60 != @21-03-23 19:33:39.070@ then 
+   return -1
+endi
+if $data61 != 4 then 
+   return -1
+endi
+if $data70 != @21-03-24 19:34:37.670@ then 
+   return -1
+endi
+if $data71 != 5 then 
+   return -1
+endi
+
+sql select sum_double(f1) from stb1 where ts>="2021-03-23 17:00:00.000" and ts<="2021-03-24 20:00:00.000" interval (1h);
+if $rows != 3 then
+  return -1
+endi
+
+if $data00 != @21-03-23 17:00:00.000@ then 
+   return -1
+endi
+if $data01 != 2 then 
+   return -1
+endi
+if $data10 != @21-03-23 19:00:00.000@ then 
+   return -1
+endi
+if $data11 != 24 then 
+   return -1
+endi
+if $data20 != @21-03-24 19:00:00.000@ then 
+   return -1
+endi
+if $data21 != 30 then 
+   return -1
+endi
+
+
+sql select sum_double(f1) from stb1 where ts>="2021-03-23 17:00:00.000" and ts<="2021-03-24 20:00:00.000" interval (1h) fill(value,999);
+if $rows != 28 then
+  return -1
+endi
+if $data00 != @21-03-23 17:00:00.000@ then 
+   return -1
+endi
+if $data01 != 2 then 
+   return -1
+endi
+if $data10 != @21-03-23 18:00:00.000@ then 
+   return -1
+endi
+if $data11 != 999 then 
+   return -1
+endi
+if $data20 != @21-03-23 19:00:00.000@ then 
+   return -1
+endi
+if $data21 != 24 then 
+   return -1
+endi
+
+sql_error select add_one(f1) from stb1 group by f1;
+
+sql select sum_double(f1) from stb1 group by f1;
+if $rows != 7 then
+  return -1
+endi
+
+if $data00 != 8 then 
+   return -1
+endi
+if $data10 != 16 then 
+   return -1
+endi
+if $data20 != 18 then 
+   return -1
+endi
+if $data30 != 24 then 
+   return -1
+endi
+if $data40 != 10 then 
+   return -1
+endi
+if $data50 != 12 then 
+   return -1
+endi
+if $data60 != 14 then 
+   return -1
+endi
+
+sql select sum_double(f1) from stb1 interval (1h) order by ts desc;
+if $rows != 12 then
+  return -1
+endi
+
+if $data00 != @21-04-08 16:00:00.000@ then 
+   return -1
+endi
+if $data01 != 8 then 
+   return -1
+endi
+if $data10 != @21-04-08 12:00:00.000@ then 
+   return -1
+endi
+if $data11 != 4 then 
+   return -1
+endi
+if $data20 != @21-04-08 11:00:00.000@ then 
+   return -1
+endi
+if $data21 != 2 then 
+   return -1
+endi
+if $data30 != @21-04-08 10:00:00.000@ then 
+   return -1
+endi
+if $data31 != 6 then 
+   return -1
+endi
+if $data40 != @21-04-01 19:00:00.000@ then 
+   return -1
+endi
+if $data41 != 4 then 
+   return -1
+endi
+if $data50 != @21-03-25 19:00:00.000@ then 
+   return -1
+endi
+if $data51 != 2 then 
+   return -1
+endi
+if $data60 != @21-03-25 10:00:00.000@ then 
+   return -1
+endi
+if $data61 != 14 then 
+   return -1
+endi
+if $data70 != @21-03-24 19:00:00.000@ then 
+   return -1
+endi
+if $data71 != 30 then 
+   return -1
+endi
+if $data80 != @21-03-23 19:00:00.000@ then 
+   return -1
+endi
+if $data81 != 24 then 
+   return -1
+endi
+if $data90 != @21-03-23 17:00:00.000@ then 
+   return -1
+endi
+if $data91 != 2 then 
+   return -1
+endi
+
+
+sql select add_one(f1) from stb1 limit 2;
+if $rows != 2 then
+  return -1
+endi
+
+if $data00 != 2 then 
+   return -1
+endi
+if $data10 != 3 then 
+   return -1
+endi
+
+
+sql select sum_double(f1) from stb1 interval (1d) limit 2;
+if $rows != 2 then
+  return -1
+endi
+
+if $data00 != @21-03-03 00:00:00.000@ then 
+   return -1
+endi
+if $data01 != 2 then 
+   return -1
+endi
+if $data10 != @21-03-13 00:00:00.000@ then 
+   return -1
+endi
+if $data11 != 4 then 
+   return -1
+endi
+
+sql select sum_double(f1) from stb1 group by id1;
+
+if $rows != 6 then
+  return -1
+endi
+
+if $data00 != 56 then 
+   return -1
+endi
+if $data01 != 1 then 
+   return -1
+endi
+if $data10 != 6 then 
+   return -1
+endi
+if $data11 != 2 then 
+   return -1
+endi
+if $data20 != 14 then 
+   return -1
+endi
+if $data21 != 3 then 
+   return -1
+endi
+if $data30 != 12 then 
+   return -1
+endi
+if $data31 != 5 then 
+   return -1
+endi
+if $data40 != 6 then 
+   return -1
+endi
+if $data41 != 6 then 
+   return -1
+endi
+if $data50 != 8 then 
+   return -1
+endi
+if $data51 != 9 then 
+   return -1
+endi
+
+
+sql select sum_double(f1) from tb1 where ts>="2021-03-23 17:00:00.000" and ts<="2021-03-24 20:00:00.000" interval (1h) sliding (30m);
+if $rows != 7 then
+  return -1
+endi
+
+if $data00 != @21-03-23 16:30:00.000@ then 
+   return -1
+endi
+if $data01 != 2 then 
+   return -1
+endi
+if $data10 != @21-03-23 17:00:00.000@ then 
+   return -1
+endi
+if $data11 != 2 then 
+   return -1
+endi
+if $data20 != @21-03-23 18:30:00.000@ then 
+   return -1
+endi
+if $data21 != 4 then 
+   return -1
+endi
+if $data30 != @21-03-23 19:00:00.000@ then 
+   return -1
+endi
+if $data31 != 18 then 
+   return -1
+endi
+if $data40 != @21-03-23 19:30:00.000@ then 
+   return -1
+endi
+if $data41 != 14 then 
+   return -1
+endi
+if $data50 != @21-03-24 18:30:00.000@ then 
+   return -1
+endi
+if $data51 != 22 then 
+   return -1
+endi
+if $data60 != @21-03-24 19:00:00.000@ then 
+   return -1
+endi
+if $data61 != 22 then 
+   return -1
+endi
+
+sql_error select sum_double(f1),add_one(f1) from tb1 where ts>="2021-03-23 17:00:00.000" and ts<="2021-03-24 20:00:00.000" interval (1h) sliding (30m);
+
+sql select add_one(f1) from (select * from tb1);
+if $rows != 7 then
+  return -1
+endi
+
+if $data00 != 2 then 
+   return -1
+endi
+if $data10 != 3 then 
+   return -1
+endi
+if $data20 != 4 then 
+   return -1
+endi
+if $data30 != 5 then 
+   return -1
+endi
+if $data40 != 6 then 
+   return -1
+endi
+if $data50 != 7 then 
+   return -1
+endi
+if $data60 != 8 then 
+   return -1
+endi
+
+sql select add_one(ff1) from (select add_one(f1) as ff1 from tb1);
+if $rows != 7 then
+  return -1
+endi
+
+if $data00 != 3 then 
+   return -1
+endi
+if $data10 != 4 then 
+   return -1
+endi
+if $data20 != 5 then 
+   return -1
+endi
+if $data30 != 6 then 
+   return -1
+endi
+if $data40 != 7 then 
+   return -1
+endi
+if $data50 != 8 then 
+   return -1
+endi
+if $data60 != 9 then 
+   return -1
+endi
+
+sql_error select add_one(f1),sub_one(f1) from tb1;
+
+
+sql create table taaa (ts timestamp, f1 bigint);
+sql insert into taaa values (now, 1);
+sleep 100
+sql insert into taaa values (now, 10);
+sleep 100
+sql insert into taaa values (now, 1000);
+sleep 100
+sql insert into taaa values (now, 100);
+
+sql select add_one_64232(f1) from taaa;
+if $rows != 4 then
+  return -1
+endi
+
+if $data00 != 2 then 
+   return -1
+endi
+if $data10 != 11 then 
+   return -1
+endi
+if $data20 != 1001 then 
+   return -1
+endi
+if $data30 != 101 then 
+   return -1
+endi
+
+
+system sh/exec.sh -n dnode1 -s stop -x SIGINT
+
+
+
+
+
+
