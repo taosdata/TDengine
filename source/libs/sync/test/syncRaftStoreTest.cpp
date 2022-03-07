@@ -4,14 +4,13 @@
 #include "syncIO.h"
 #include "syncInt.h"
 
-void *pingFunc(void *param) {
-  SSyncIO *io = (SSyncIO *)param;
-  while (1) {
-    sDebug("io->ping");
-    // io->ping(io);
-    sleep(1);
-  }
-  return NULL;
+void logTest() {
+  sTrace("--- sync log test: trace");
+  sDebug("--- sync log test: debug");
+  sInfo("--- sync log test: info");
+  sWarn("--- sync log test: warn");
+  sError("--- sync log test: error");
+  sFatal("--- sync log test: fatal");
 }
 
 int main() {
@@ -19,12 +18,7 @@ int main() {
   tsAsyncLog = 0;
   sDebugFlag = 143 + 64;
 
-  sTrace("sync log test: trace");
-  sDebug("sync log test: debug");
-  sInfo("sync log test: info");
-  sWarn("sync log test: warn");
-  sError("sync log test: error");
-  sFatal("sync log test: fatal");
+  logTest();
 
   SRaftStore *pRaftStore = raftStoreOpen("./raft_store.json");
   assert(pRaftStore != NULL);
