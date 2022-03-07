@@ -54,5 +54,5 @@ elseif(${META_DB_IMPL} STREQUAL "TDB")
 endif()
 
 if(${BUILD_TEST})
-    # add_subdirectory(test)
+    add_subdirectory(test)
 endif(${BUILD_TEST})

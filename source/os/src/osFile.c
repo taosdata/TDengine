@@ -142,10 +142,12 @@ int64_t taosCopyFile(const char *from, const char *to) {
 _err:
   if (pFileFrom != NULL) taosCloseFile(&pFileFrom);
   if (pFileTo != NULL) taosCloseFile(&pFileTo);
-  remove(to);
+  taosRemoveFile(to);
   return -1;
 #endif
 }
+
+int32_t taosRemoveFile(const char *path) { return remove(path); }
 
 int32_t taosRenameFile(const char *oldName, const char *newName) {
 #if defined(_TD_WINDOWS_64) || defined(_TD_WINDOWS_32)
@@ -665,17 +667,43 @@ int64_t taosSendFile(SocketFd dfd, FileFd sfd, int64_t *offset, int64_t count) {
 
 #else
 
-int64_t taosSendFile(SocketFd fdDst, TdFilePtr pFileSrc, int64_t *offset, int64_t size) {
-  if (pFileSrc == NULL) {
+// int64_t taosSendFile(int fdDst, TdFilePtr pFileSrc, int64_t *offset, int64_t size) {
+//   if (pFileSrc == NULL) {
+//     return 0;
+//   }
+//   assert(pFileSrc->fd >= 0);
+
+//   int64_t leftbytes = size;
+//   int64_t sentbytes;
+
+//   while (leftbytes > 0) {
+//     sentbytes = sendfile(fdDst, pFileSrc->fd, offset, leftbytes);
+//     if (sentbytes == -1) {
+//       if (errno == EINTR || errno == EAGAIN || errno == EWOULDBLOCK) {
+//         continue;
+//       } else {
+//         return -1;
+//       }
+//     } else if (sentbytes == 0) {
+//       return (int64_t)(size - leftbytes);
+//     }
+
+//     leftbytes -= sentbytes;
+//   }
+
+//   return size;
+// }
+
+int64_t taosFSendFile(TdFilePtr pFileOut, TdFilePtr pFileIn, int64_t *offset, int64_t size) {
+  if (pFileOut == NULL || pFileIn == NULL) {
     return 0;
   }
-  assert(pFileSrc->fd >= 0);
-
+  assert(pFileIn->fd >= 0 && pFileOut->fd >= 0);
   int64_t leftbytes = size;
   int64_t sentbytes;
 
   while (leftbytes > 0) {
-    sentbytes = sendfile(fdDst, pFileSrc->fd, offset, leftbytes);
+    sentbytes = sendfile(pFileOut->fd, pFileIn->fd, offset, leftbytes);
     if (sentbytes == -1) {
       if (errno == EINTR || errno == EAGAIN || errno == EWOULDBLOCK) {
         continue;
@@ -690,15 +718,6 @@ int64_t taosSendFile(SocketFd fdDst, TdFilePtr pFileSrc, int64_t *offset, int64_
   }
 
   return size;
-}
-
-int64_t taosFSendFile(TdFilePtr pFileOut, TdFilePtr pFileIn, int64_t *offset, int64_t size) {
-  if (pFileOut == NULL || pFileIn == NULL) {
-    return 0;
-  }
-  assert(pFileOut->fd >= 0);
-
-  return taosSendFile(pFileOut->fd, pFileIn, offset, size);
 }
 
 #endif

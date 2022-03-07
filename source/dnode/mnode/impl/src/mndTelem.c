@@ -18,15 +18,15 @@
 #include "mndCluster.h"
 #include "mndSync.h"
 #include "tbuffer.h"
-#include "tjson.h"
 #include "thttp.h"
+#include "tjson.h"
 
 #define TELEMETRY_SERVER "telemetry.taosdata.com"
 #define TELEMETRY_PORT   80
 
 static void mndBuildRuntimeInfo(SMnode* pMnode, SJson* pJson) {
   SMnodeLoad load = {0};
-  if (mndGetLoad(pMnode, &load) != 0) return;
+  mndGetLoad(pMnode, &load);
 
   tjsonAddDoubleToObject(pJson, "numOfDnode", load.numOfDnode);
   tjsonAddDoubleToObject(pJson, "numOfMnode", load.numOfMnode);

@@ -24,8 +24,6 @@
 #include "rpcCache.h"
 #include "rpcHead.h"
 #include "rpcLog.h"
-#include "rpcTcp.h"
-#include "rpcUdp.h"
 #include "taoserror.h"
 #include "tglobal.h"
 #include "thash.h"

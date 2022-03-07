@@ -25,24 +25,6 @@
 extern "C" {
 #endif
 
-// typedef struct STimeWindow {
-//   TSKEY skey;
-//   TSKEY ekey;
-// } STimeWindow;
-
-// typedef struct {
-//   int32_t dataLen;
-//   char    name[TSDB_TABLE_FNAME_LEN];
-//   char   *data;
-// } STagData;
-
-// typedef struct SSchema {
-//   uint8_t type;
-//   char    name[TSDB_COL_NAME_LEN];
-//   int16_t colId;
-//   int16_t bytes;
-// } SSchema;
-
 enum {
   TMQ_CONF__RESET_OFFSET__LATEST = -1,
   TMQ_CONF__RESET_OFFSET__EARLIEAST = -2,
@@ -50,7 +32,8 @@ enum {
 };
 
 enum {
-  TMQ_MSG_TYPE__POLL_RSP = 0,
+  TMQ_MSG_TYPE__DUMMY = 0,
+  TMQ_MSG_TYPE__POLL_RSP,
   TMQ_MSG_TYPE__EP_RSP,
 };
 
@@ -285,4 +268,4 @@ typedef struct SSessionWindow {
 }
 #endif
 
-#endif  /*_TD_COMMON_DEF_H_*/
+#endif /*_TD_COMMON_DEF_H_*/

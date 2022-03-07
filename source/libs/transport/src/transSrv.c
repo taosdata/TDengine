@@ -56,7 +56,7 @@ typedef struct SSrvMsg {
 typedef struct SWorkThrdObj {
   pthread_t   thread;
   uv_pipe_t*  pipe;
-  int         fd;
+  uv_os_fd_t  fd;
   uv_loop_t*  loop;
   SAsyncPool* asyncPool;
   // uv_async_t*     workerAsync;  //

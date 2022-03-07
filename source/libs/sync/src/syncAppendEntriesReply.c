@@ -15,7 +15,7 @@
 
 #include "syncAppendEntriesReply.h"
 
-void onAppendEntriesReply(SRaft *pRaft, const SyncAppendEntriesReply *pMsg) {
+int32_t syncNodeOnAppendEntriesReplyCb(SSyncNode* ths, SyncAppendEntriesReply* pMsg) {
   // TLA+ Spec
   // HandleAppendEntriesResponse(i, j, m) ==
   //    /\ m.mterm = currentTerm[i]

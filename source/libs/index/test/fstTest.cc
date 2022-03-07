@@ -19,7 +19,7 @@ static std::string fileName = "/tmp/tindex.tindex";
 class FstWriter {
  public:
   FstWriter() {
-    remove(fileName.c_str());
+    taosRemoveFile(fileName.c_str());
     _wc = writerCtxCreate(TFile, fileName.c_str(), false, 64 * 1024 * 1024);
     _b = fstBuilderCreate(_wc, 0);
   }

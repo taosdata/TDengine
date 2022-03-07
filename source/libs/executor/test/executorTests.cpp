@@ -29,7 +29,7 @@
 #include "taos.h"
 #include "tdef.h"
 #include "tvariant.h"
-#include "tep.h"
+#include "tdatablock.h"
 #include "trpc.h"
 #include "stub.h"
 #include "executor.h"
@@ -201,9 +201,9 @@ SOperatorInfo* createDummyOperator(int32_t startVal, int32_t numOfBlocks, int32_
   pOperator->name = "dummyInputOpertor4Test";
 
   if (numOfCols == 1) {
-    pOperator->exec = getDummyBlock;
+    pOperator->nextDataFn = getDummyBlock;
   } else {
-    pOperator->exec = get2ColsDummyBlock;
+    pOperator->nextDataFn = get2ColsDummyBlock;
   }
 
   SDummyInputInfo *pInfo = (SDummyInputInfo*) calloc(1, sizeof(SDummyInputInfo));
@@ -968,10 +968,10 @@ TEST(testCase, inMem_sort_Test) {
   exp1->base.resSchema = createSchema(TSDB_DATA_TYPE_BINARY, 40, 2, "res1");
   taosArrayPush(pExprInfo, &exp1);
 
-  SOperatorInfo* pOperator = createOrderOperatorInfo(createDummyOperator(5), pExprInfo, pOrderVal, NULL);
+  SOperatorInfo* pOperator = createOrderOperatorInfo(createDummyOperator(10000, 5, 1000, data_asc, 1), pExprInfo, pOrderVal, NULL);
 
   bool newgroup = false;
-  SSDataBlock* pRes = pOperator->exec(pOperator, &newgroup);
+  SSDataBlock* pRes = pOperator->nextDataFn(pOperator, &newgroup);
 
   SColumnInfoData* pCol1 = static_cast<SColumnInfoData*>(taosArrayGet(pRes->pDataBlock, 0));
   SColumnInfoData* pCol2 = static_cast<SColumnInfoData*>(taosArrayGet(pRes->pDataBlock, 1));
@@ -1037,7 +1037,7 @@ TEST(testCase, external_sort_Test) {
   exp1->base.resSchema = createSchema(TSDB_DATA_TYPE_BINARY, 40, 2, "res1");
 //  taosArrayPush(pExprInfo, &exp1);
 
-  SOperatorInfo* pOperator = createOrderOperatorInfo(createDummyOperator(1500), pExprInfo, pOrderVal, NULL);
+  SOperatorInfo* pOperator = createOrderOperatorInfo(createDummyOperator(10000, 1500, 1000, data_desc, 1), pExprInfo, pOrderVal, NULL);
 
   bool newgroup = false;
   SSDataBlock* pRes = NULL;
@@ -1049,7 +1049,7 @@ TEST(testCase, external_sort_Test) {
 
   while(1) {
     int64_t s = taosGetTimestampUs();
-    pRes = pOperator->exec(pOperator, &newgroup);
+    pRes = pOperator->nextDataFn(pOperator, &newgroup);
 
     int64_t e = taosGetTimestampUs();
     if (t++ == 1) {
@@ -1072,7 +1072,7 @@ TEST(testCase, external_sort_Test) {
   int64_t s2 = taosGetTimestampUs();
   printf("total:%ld\n", s2 - s1);
 
-  pOperator->cleanupFn(pOperator->info, 2);
+  pOperator->closeFn(pOperator->info, 2);
   tfree(exp);
   tfree(exp1);
   taosArrayDestroy(pExprInfo);
@@ -1106,7 +1106,7 @@ TEST(testCase, sorted_merge_Test) {
   int32_t numOfSources = 10;
   SOperatorInfo** plist = (SOperatorInfo**) calloc(numOfSources, sizeof(void*));
   for(int32_t i = 0; i < numOfSources; ++i) {
-    plist[i] = createDummyOperator(1, 1, 1, data_asc);
+    plist[i] = createDummyOperator(1, 1, 1, data_asc, 1);
   }
 
   SOperatorInfo* pOperator = createSortedMergeOperatorInfo(plist, numOfSources, pExprInfo, pOrderVal, NULL, NULL);
@@ -1121,7 +1121,7 @@ TEST(testCase, sorted_merge_Test) {
 
   while(1) {
     int64_t s = taosGetTimestampUs();
-    pRes = pOperator->exec(pOperator, &newgroup);
+    pRes = pOperator->nextDataFn(pOperator, &newgroup);
 
     int64_t e = taosGetTimestampUs();
     if (t++ == 1) {
@@ -1144,7 +1144,7 @@ TEST(testCase, sorted_merge_Test) {
   int64_t s2 = taosGetTimestampUs();
   printf("total:%ld\n", s2 - s1);
 
-  pOperator->cleanupFn(pOperator->info, 2);
+  pOperator->closeFn(pOperator->info, 2);
   tfree(exp);
   tfree(exp1);
   taosArrayDestroy(pExprInfo);
@@ -1183,7 +1183,11 @@ TEST(testCase, time_interval_Operator_Test) {
   SOperatorInfo* p = createDummyOperator(1, 1, 2000, data_asc, 2);
 
   SExecTaskInfo ti = {0};
-  SOperatorInfo* pOperator = createIntervalOperatorInfo(p, pExprInfo, &ti);
+  SInterval interval = {0};
+  interval.sliding = interval.interval = 1000;
+  interval.slidingUnit = interval.intervalUnit = 'a';
+
+  SOperatorInfo* pOperator = createIntervalOperatorInfo(p, pExprInfo, &interval, &ti);
 
   bool newgroup = false;
   SSDataBlock* pRes = NULL;
@@ -1195,7 +1199,7 @@ TEST(testCase, time_interval_Operator_Test) {
 
   while(1) {
     int64_t s = taosGetTimestampUs();
-    pRes = pOperator->exec(pOperator, &newgroup);
+    pRes = pOperator->nextDataFn(pOperator, &newgroup);
 
     int64_t e = taosGetTimestampUs();
     if (t++ == 1) {
@@ -1218,7 +1222,7 @@ TEST(testCase, time_interval_Operator_Test) {
   int64_t s2 = taosGetTimestampUs();
   printf("total:%ld\n", s2 - s1);
 
-  pOperator->cleanupFn(pOperator->info, 2);
+  pOperator->closeFn(pOperator->info, 2);
   tfree(exp);
   tfree(exp1);
   taosArrayDestroy(pExprInfo);

@@ -41,10 +41,8 @@ int vnodeProcessWMsgs(SVnode *pVnode, SArray *pMsgs) {
   return 0;
 }
 
-int vnodeApplyWMsg(SVnode *pVnode, SRpcMsg *pMsg, SRpcMsg **pRsp) {
-  SVCreateTbReq      vCreateTbReq;
-  SVCreateTbBatchReq vCreateTbBatchReq;
-  void              *ptr = NULL;
+int  vnodeApplyWMsg(SVnode *pVnode, SRpcMsg *pMsg, SRpcMsg **pRsp) {
+  void *ptr = NULL;
 
   if (pVnode->config.streamMode == 0) {
     ptr = vnodeMalloc(pVnode, pMsg->contLen);
@@ -64,7 +62,8 @@ int vnodeApplyWMsg(SVnode *pVnode, SRpcMsg *pMsg, SRpcMsg **pRsp) {
   }
 
   switch (pMsg->msgType) {
-    case TDMT_VND_CREATE_STB:
+    case TDMT_VND_CREATE_STB: {
+      SVCreateTbReq      vCreateTbReq = {0};
       tDeserializeSVCreateTbReq(POINTER_SHIFT(pMsg->pCont, sizeof(SMsgHead)), &vCreateTbReq);
       if (metaCreateTable(pVnode->pMeta, &(vCreateTbReq)) < 0) {
         // TODO: handle error
@@ -75,7 +74,9 @@ int vnodeApplyWMsg(SVnode *pVnode, SRpcMsg *pMsg, SRpcMsg **pRsp) {
       free(vCreateTbReq.stbCfg.pTagSchema);
       free(vCreateTbReq.name);
       break;
-    case TDMT_VND_CREATE_TABLE:
+    }
+    case TDMT_VND_CREATE_TABLE: {
+      SVCreateTbBatchReq vCreateTbBatchReq = {0};
       tDeserializeSVCreateTbBatchReq(POINTER_SHIFT(pMsg->pCont, sizeof(SMsgHead)), &vCreateTbBatchReq);
       for (int i = 0; i < taosArrayGetSize(vCreateTbBatchReq.pArray); i++) {
         SVCreateTbReq *pCreateTbReq = taosArrayGet(vCreateTbBatchReq.pArray, i);
@@ -97,14 +98,16 @@ int vnodeApplyWMsg(SVnode *pVnode, SRpcMsg *pMsg, SRpcMsg **pRsp) {
       vTrace("vgId:%d process create %" PRIzu " tables", pVnode->vgId, taosArrayGetSize(vCreateTbBatchReq.pArray));
       taosArrayDestroy(vCreateTbBatchReq.pArray);
       break;
-
-    case TDMT_VND_ALTER_STB:
+    }
+    case TDMT_VND_ALTER_STB: {
+      SVCreateTbReq      vAlterTbReq = {0};
       vTrace("vgId:%d, process alter stb req", pVnode->vgId);
-      tDeserializeSVCreateTbReq(POINTER_SHIFT(pMsg->pCont, sizeof(SMsgHead)), &vCreateTbReq);
-      free(vCreateTbReq.stbCfg.pSchema);
-      free(vCreateTbReq.stbCfg.pTagSchema);
-      free(vCreateTbReq.name);
+      tDeserializeSVCreateTbReq(POINTER_SHIFT(pMsg->pCont, sizeof(SMsgHead)), &vAlterTbReq);
+      free(vAlterTbReq.stbCfg.pSchema);
+      free(vAlterTbReq.stbCfg.pTagSchema);
+      free(vAlterTbReq.name);
       break;
+    }
     case TDMT_VND_DROP_STB:
       vTrace("vgId:%d, process drop stb req", pVnode->vgId);
       break;
@@ -128,6 +131,15 @@ int vnodeApplyWMsg(SVnode *pVnode, SRpcMsg *pMsg, SRpcMsg **pRsp) {
     case TDMT_VND_MQ_REB: {
       if (tqProcessRebReq(pVnode->pTq, POINTER_SHIFT(pMsg->pCont, sizeof(SMsgHead))) < 0) {
       }
+    } break;
+    case TDMT_VND_CREATE_SMA: {  // timeRangeSMA
+      // 1. tdCreateSmaMeta(pVnode->pMeta,...);
+      // 2. tdCreateSmaDataInit();
+      // 3. tdCreateSmaData
+    } break;
+    case TDMT_VND_CANCEL_SMA: {  // timeRangeSMA
+    } break;
+    case TDMT_VND_DROP_SMA: {  // timeRangeSMA
     } break;
     default:
       ASSERT(0);

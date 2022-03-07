@@ -24,43 +24,41 @@
 extern "C" {
 #endif
 
-extern int32_t wDebugFlag;
-
-#define wFatal(...)                                 \
-  {                                                 \
-    if (wDebugFlag & DEBUG_FATAL) {                 \
-      taosPrintLog("WAL FATAL ", 255, __VA_ARGS__); \
-    }                                               \
+#define wFatal(...)                                              \
+  {                                                              \
+    if (wDebugFlag & DEBUG_FATAL) {                              \
+      taosPrintLog("WAL FATAL ", DEBUG_FATAL, 255, __VA_ARGS__); \
+    }                                                            \
   }
-#define wError(...)                                 \
-  {                                                 \
-    if (wDebugFlag & DEBUG_ERROR) {                 \
-      taosPrintLog("WAL ERROR ", 255, __VA_ARGS__); \
-    }                                               \
+#define wError(...)                                              \
+  {                                                              \
+    if (wDebugFlag & DEBUG_ERROR) {                              \
+      taosPrintLog("WAL ERROR ", DEBUG_ERROR, 255, __VA_ARGS__); \
+    }                                                            \
   }
-#define wWarn(...)                                 \
-  {                                                \
-    if (wDebugFlag & DEBUG_WARN) {                 \
-      taosPrintLog("WAL WARN ", 255, __VA_ARGS__); \
-    }                                              \
+#define wWarn(...)                                             \
+  {                                                            \
+    if (wDebugFlag & DEBUG_WARN) {                             \
+      taosPrintLog("WAL WARN ", DEBUG_WARN, 255, __VA_ARGS__); \
+    }                                                          \
   }
-#define wInfo(...)                            \
-  {                                           \
-    if (wDebugFlag & DEBUG_INFO) {            \
-      taosPrintLog("WAL ", 255, __VA_ARGS__); \
-    }                                         \
+#define wInfo(...)                                        \
+  {                                                       \
+    if (wDebugFlag & DEBUG_INFO) {                        \
+      taosPrintLog("WAL ", DEBUG_INFO, 255, __VA_ARGS__); \
+    }                                                     \
   }
-#define wDebug(...)                                  \
-  {                                                  \
-    if (wDebugFlag & DEBUG_DEBUG) {                  \
-      taosPrintLog("WAL ", wDebugFlag, __VA_ARGS__); \
-    }                                                \
+#define wDebug(...)                                               \
+  {                                                               \
+    if (wDebugFlag & DEBUG_DEBUG) {                               \
+      taosPrintLog("WAL ", DEBUG_DEBUG, wDebugFlag, __VA_ARGS__); \
+    }                                                             \
   }
-#define wTrace(...)                                  \
-  {                                                  \
-    if (wDebugFlag & DEBUG_TRACE) {                  \
-      taosPrintLog("WAL ", wDebugFlag, __VA_ARGS__); \
-    }                                                \
+#define wTrace(...)                                               \
+  {                                                               \
+    if (wDebugFlag & DEBUG_TRACE) {                               \
+      taosPrintLog("WAL ", DEBUG_TRACE, wDebugFlag, __VA_ARGS__); \
+    }                                                             \
   }
 
 #define WAL_HEAD_VER 0
