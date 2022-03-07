@@ -8,6 +8,3 @@ target_include_directories(
 target_link_libraries(
     os pthread dl rt m
 )
-if(${BUILD_WITH_UV})
-    add_definitions(-DUSE_UV) 
-endif(${BUILD_TEST})
