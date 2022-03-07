@@ -44,6 +44,11 @@ function gitPullBranchInfo () {
 ##  git submodule update --init --recursive 
   git pull origin $branch_name ||:
   echo "==== git pull $branch_name end ===="
+  git pull --recurse-submodules
+  cd tests
+  git checkout $branch_name
+  git pull
+  cd ..
 }
 
 function compileTDengineVersion() {
@@ -68,14 +73,16 @@ compileTDengineVersion
 
 taos_dir=${projectDir}/debug/tools/shell
 taosd_dir=${projectDir}/debug/source/dnode/mgmt/daemon
-create_table_dir=${projectDir}/debug/tests/test/c
+exec_process_dir=${projectDir}/debug/tests/test/c
 
 rm -f /usr/bin/taos
 rm -f /usr/bin/taosd
 rm -f /usr/bin/create_table
+rm -f /usr/bin/tmq_demo
 
 ln -s $taos_dir/taos /usr/bin/taos
 ln -s $taosd_dir/taosd /usr/bin/taosd
-ln -s $create_table_dir/create_table /usr/bin/create_table
+ln -s $exec_process_dir/create_table /usr/bin/create_table
+ln -s $exec_process_dir/tmq_demo /usr/bin/tmq_demo
 
 

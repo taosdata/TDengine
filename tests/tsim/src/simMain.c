@@ -14,9 +14,7 @@
  */
 
 #define _DEFAULT_SOURCE
-#include "os.h"
-#include "sim.h"
-#include "tglobal.h"
+#include "simInt.h"
 
 bool simExecSuccess = false;
 bool abortExecution = false;
@@ -24,8 +22,6 @@ bool abortExecution = false;
 void simHandleSignal(int32_t signo, void *sigInfo, void *context) {
   simSystemCleanUp();
   abortExecution = true;
-  //  runningScript->killed = true;
-  //  exit(1);
 }
 
 int32_t main(int32_t argc, char *argv[]) {

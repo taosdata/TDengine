@@ -14,37 +14,41 @@
  */
 
 #define _DEFAULT_SOURCE
-#include "cJSON.h"
-#include "os.h"
-#include "sim.h"
-#include "taos.h"
-#include "taoserror.h"
-#include "tglobal.h"
-#include "ttypes.h"
-#include "tutil.h"
+#include "simInt.h"
 
 void simLogSql(char *sql, bool useSharp) {
-  static FILE *fp = NULL;
+  static TdFilePtr pFile = NULL;
   char         filename[256];
-  sprintf(filename, "%s/sim.sql", tsScriptDir);
-  if (fp == NULL) {
-    fp = fopen(filename, "w");
-    if (fp == NULL) {
+  sprintf(filename, "%s/sim.sql", simScriptDir);
+  if (pFile == NULL) {
+    // fp = fopen(filename, "w");
+    pFile = taosOpenFile(filename, TD_FILE_CTEATE | TD_FILE_WRITE | TD_FILE_TRUNC | TD_FILE_STREAM);
+    if (pFile == NULL) {
       fprintf(stderr, "ERROR: failed to open file: %s\n", filename);
       return;
     }
   }
   if (useSharp) {
-    fprintf(fp, "# %s;\n", sql);
+    taosFprintfFile(pFile, "# %s;\n", sql);
   } else {
-    fprintf(fp, "%s;\n", sql);
+    taosFprintfFile(pFile, "%s;\n", sql);
   }
 
-  fflush(fp);
+  taosFsyncFile(pFile);
 }
 
-char *simParseArbitratorName(char *varName);
-char *simParseHostName(char *varName);
+char *simParseArbitratorName(char *varName) {
+  static char hostName[140];
+  sprintf(hostName, "%s:%d", "localhost", 8000);
+  return hostName;
+}
+
+char *simParseHostName(char *varName) {
+  static char hostName[140];
+  sprintf(hostName, "%s", "localhost");
+  return hostName;
+}
+
 char *simGetVariable(SScript *script, char *varName, int32_t varLen) {
   if (strncmp(varName, "hostname", 8) == 0) {
     return simParseHostName(varName);
@@ -326,10 +330,10 @@ bool simExecuteSystemCmd(SScript *script, char *option) {
   char buf[4096] = {0};
 
 #ifndef WINDOWS
-  sprintf(buf, "cd %s; ", tsScriptDir);
+  sprintf(buf, "cd %s; ", simScriptDir);
   simVisuallizeOption(script, option, buf + strlen(buf));
 #else
-  sprintf(buf, "%s%s", tsScriptDir, option);
+  sprintf(buf, "%s%s", simScriptDir, option);
   simReplaceShToBat(buf);
 #endif
 
@@ -354,10 +358,11 @@ bool simExecuteSystemCmd(SScript *script, char *option) {
 void simStoreSystemContentResult(SScript *script, char *filename) {
   memset(script->system_ret_content, 0, MAX_SYSTEM_RESULT_LEN);
 
-  FILE *fd;
-  if ((fd = fopen(filename, "r")) != NULL) {
-    fread(script->system_ret_content, 1, MAX_SYSTEM_RESULT_LEN - 1, fd);
-    fclose(fd);
+  TdFilePtr pFile;
+  // if ((fd = fopen(filename, "r")) != NULL) {
+  if ((pFile = taosOpenFile(filename, TD_FILE_READ)) != NULL) {
+    taosReadFile(pFile, script->system_ret_content, MAX_SYSTEM_RESULT_LEN - 1);
+    taosCloseFile(&pFile);
     char rmCmd[MAX_FILE_NAME_LEN] = {0};
     sprintf(rmCmd, "rm -f %s", filename);
     system(rmCmd);
@@ -368,9 +373,9 @@ bool simExecuteSystemContentCmd(SScript *script, char *option) {
   char buf[4096] = {0};
   char buf1[4096 + 512] = {0};
   char filename[400] = {0};
-  sprintf(filename, "%s/%s.tmp", tsScriptDir, script->fileName);
+  sprintf(filename, "%s/%s.tmp", simScriptDir, script->fileName);
 
-  sprintf(buf, "cd %s; ", tsScriptDir);
+  sprintf(buf, "cd %s; ", simScriptDir);
   simVisuallizeOption(script, option, buf + strlen(buf));
   sprintf(buf1, "%s > %s 2>/dev/null", buf, filename);
 
@@ -761,11 +766,12 @@ bool simExecuteSqlSlowCmd(SScript *script, char *rest) {
 }
 
 bool simExecuteRestfulCmd(SScript *script, char *rest) {
-  FILE *fp = NULL;
+  TdFilePtr pFile = NULL;
   char  filename[256];
-  sprintf(filename, "%s/tmp.sql", tsScriptDir);
-  fp = fopen(filename, "w");
-  if (fp == NULL) {
+  sprintf(filename, "%s/tmp.sql", simScriptDir);
+  // fp = fopen(filename, "w");
+  pFile = taosOpenFile(filename, TD_FILE_CTEATE | TD_FILE_WRITE | TD_FILE_TRUNC | TD_FILE_STREAM);
+  if (pFile == NULL) {
     fprintf(stderr, "ERROR: failed to open file: %s\n", filename);
     return false;
   }
@@ -777,13 +783,13 @@ bool simExecuteRestfulCmd(SScript *script, char *rest) {
   int32_t times;
   sscanf(rest, "%s %s %d %d %s", db, tb, &ts, &times, gzip);
 
-  fprintf(fp, "insert into %s.%s values ", db, tb);
+  taosFprintfFile(pFile, "insert into %s.%s values ", db, tb);
   for (int32_t i = 0; i < times; ++i) {
-    fprintf(fp, "(%d000, %d)", ts + i, ts);
+    taosFprintfFile(pFile, "(%d000, %d)", ts + i, ts);
   }
-  fprintf(fp, "  \n");
-  fflush(fp);
-  fclose(fp);
+  taosFprintfFile(pFile, "  \n");
+  taosFsyncFile(pFile);
+  taosCloseFile(&pFile);
 
   char cmd[1024] = {0};
   if (strcmp(gzip, "gzip") == 0) {

@@ -14,45 +14,31 @@
  */
 
 #define _DEFAULT_SOURCE
-#include "os.h"
-#include "sim.h"
-#include "taos.h"
-#include "taoserror.h"
-#include "tglobal.h"
-#include "ttimer.h"
-#include "tutil.h"
-#include "tglobal.h"
+#include "simInt.h"
 #include "tconfig.h"
 
 SScript *simScriptList[MAX_MAIN_SCRIPT_NUM];
 SCommand simCmdList[SIM_CMD_END];
 int32_t  simScriptPos = -1;
 int32_t  simScriptSucced = 0;
-int32_t  simDebugFlag = 135;
+int32_t  simDebugFlag = 143;
 void     simCloseTaosdConnect(SScript *script);
-char     simHostName[128];
+char     simScriptDir[PATH_MAX] = {0};
 
 extern bool simExecSuccess;
 
-char *simParseArbitratorName(char *varName) {
-  static char hostName[140];
-  sprintf(hostName, "%s:%d", simHostName, 8000);
-  return hostName;
-}
+int32_t simInitCfg() {
+  taosCreateLog("simlog", 1, configDir, NULL, NULL, NULL, 1);
+  taosInitCfg(configDir, NULL, NULL, NULL, 1);
 
-char *simParseHostName(char *varName) {
-  static char hostName[140];
-  //sprintf(hostName, "%s", simHostName);
-  sprintf(hostName, "%s", "localhost");
-  return hostName;
+  SConfig *pCfg = taosGetCfg();
+  simDebugFlag = cfgGetItem(pCfg, "simDebugFlag")->i32;
+  tstrncpy(simScriptDir, cfgGetItem(pCfg, "scriptDir")->str, PATH_MAX);
+  return 0;
 }
 
 bool simSystemInit() {
-  taosGetFqdn(simHostName);
-
-  taosInitGlobalCfg();
-  taosReadCfgFromFile();
-
+  simInitCfg();
   simInitsimCmdList();
   memset(simScriptList, 0, sizeof(SScript *) * MAX_MAIN_SCRIPT_NUM);
   return true;

@@ -16,13 +16,15 @@
 #ifndef _TD_SIM_PARSE_H_
 #define _TD_SIM_PARSE_H_
 
-#define MAX_NUM_CMD 64
-#define MAX_NUM_LABLES 100
-#define MAX_LABEL_LEN 40
-#define MAX_NUM_BLOCK 100
-#define MAX_NUM_JUMP 100
-#define MAX_LINE_LEN 3000
-#define MAX_CMD_LINES 2048
+#include "simInt.h"
+
+#define MAX_NUM_CMD       64
+#define MAX_NUM_LABLES    100
+#define MAX_LABEL_LEN     40
+#define MAX_NUM_BLOCK     100
+#define MAX_NUM_JUMP      100
+#define MAX_LINE_LEN      3000
+#define MAX_CMD_LINES     2048
 #define MAX_OPTION_BUFFER 64000
 
 enum {

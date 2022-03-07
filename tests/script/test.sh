@@ -92,7 +92,8 @@ TAOS_CFG=$PRG_DIR/cfg/taos.cfg
 touch -f $TAOS_CFG
 TAOS_FLAG=$PRG_DIR/flag
 
-HOSTNAME=`hostname -f`
+#HOSTNAME=`hostname -f`
+HOSTNAME=localhost
 
 echo " "                                          >> $TAOS_CFG
 echo "firstEp            ${HOSTNAME}:7100"        >> $TAOS_CFG

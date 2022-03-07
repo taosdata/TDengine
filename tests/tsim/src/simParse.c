@@ -58,10 +58,6 @@
  */
 
 #define _DEFAULT_SOURCE
-#include "os.h"
-#include "sim.h"
-#include "tutil.h"
-
 #include "simParse.h"
 
 static SCommand *cmdHashList[MAX_NUM_CMD];
@@ -177,27 +173,28 @@ SScript *simBuildScriptObj(char *fileName) {
 }
 
 SScript *simParseScript(char *fileName) {
-  FILE     *fd;
+  TdFilePtr pFile;
   int32_t   tokenLen, lineNum = 0;
-  char      buffer[MAX_LINE_LEN], name[128], *token, *rest;
+  char     *buffer = NULL, name[128], *token, *rest;
   SCommand *pCmd;
   SScript  *script;
 
   if ((fileName[0] == '.') || (fileName[0] == '/')) {
     strcpy(name, fileName);
   } else {
-    sprintf(name, "%s/%s", tsScriptDir, fileName);
+    sprintf(name, "%s" TD_DIRSEP "%s", simScriptDir, fileName);
   }
 
-  if ((fd = fopen(name, "r")) == NULL) {
+  // if ((fd = fopen(name, "r")) == NULL) {
+  if ((pFile = taosOpenFile(name, TD_FILE_READ | TD_FILE_STREAM)) == NULL) {
     simError("failed to open file:%s", name);
     return NULL;
   }
 
   simResetParser();
 
-  while (!feof(fd)) {
-    if (fgets(buffer, sizeof(buffer), fd) == NULL) continue;
+  while (!taosEOFFile(pFile)) {
+    if (taosGetLineFile(pFile, &buffer) == -1) continue;
 
     lineNum++;
     int32_t cmdlen = (int32_t)strlen(buffer);
@@ -242,8 +239,8 @@ SScript *simParseScript(char *fileName) {
       return NULL;
     }
   }
-
-  fclose(fd);
+  if(buffer != NULL) free(buffer);
+  taosCloseFile(&pFile);
 
   script = simBuildScriptObj(fileName);
   if (script == NULL) simError("script:%s %s", fileName, parseErr);
