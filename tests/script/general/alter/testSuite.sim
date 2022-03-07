@@ -1,0 +1,7 @@
+run general/alter/cached_schema_after_alter.sim
+run general/alter/count.sim
+run general/alter/import.sim
+run general/alter/insert1.sim
+run general/alter/insert2.sim
+run general/alter/metrics.sim
+run general/alter/table.sim

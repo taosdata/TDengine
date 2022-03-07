@@ -1,0 +1,86 @@
+system sh/stop_dnodes.sh
+
+system sh/deploy.sh -n dnode1 -i 1
+system sh/cfg.sh -n dnode1 -c walLevel -v 1
+system sh/exec.sh -n dnode1 -s start
+sleep 100
+sql connect
+
+$dbPrefix = intp_db
+$tbPrefix = intp_tb
+$stbPrefix = intp_stb
+$tbNum = 4
+$rowNum = 10000
+$totalNum = $tbNum * $rowNum
+$ts0 = 1537146000000
+$delta = 600000
+print ========== interp.sim
+$i = 0
+$db = $dbPrefix . $i
+$stb = $stbPrefix . $i
+
+sql drop database $db -x step1
+step1:
+sql create database $db 
+print ====== create tables
+sql use $db
+sql create table $stb (ts timestamp, c1 int, c2 bigint, c3 float, c4 double, c5 smallint, c6 tinyint, c7 bool, c8 binary(10), c9 nchar(10)) tags(t1 int)
+
+$i = 0
+$ts = $ts0
+$halfNum = $tbNum / 2
+while $i < $halfNum
+  $tbId = $i + $halfNum
+  $tb = $tbPrefix . $i
+  $tb1 = $tbPrefix . $tbId
+  sql create table $tb using $stb tags( $i )
+  sql create table $tb1 using $stb tags( $tbId )
+ 
+  $x = 0
+  while $x < $rowNum
+    $xs = $x * $delta
+    $ts = $ts0 + $xs
+    $c = $x / 10
+    $c = $c * 10
+    $c = $x - $c
+    $binary = 'binary . $c
+    $binary = $binary . '
+    $nchar = 'nchar . $c
+    $nchar = $nchar . '
+    sql insert into $tb values ( $ts , $c , $c , $c , $c , $c , $c , true, $binary , $nchar )  $tb1 values ( $ts , $c , NULL , $c , NULL , $c , $c , true, $binary , $nchar )
+    $x = $x + 1
+  endw 
+
+  $i = $i + 1
+endw 
+print ====== tables created
+
+sql create table ap1 (ts timestamp, pav float);
+sql INSERT INTO ap1 VALUES ('2021-07-25 02:19:54.100',1) ('2021-07-25 02:19:54.200',2) ('2021-07-25 02:19:54.300',3) ('2021-07-25 02:19:56.500',4) ('2021-07-25 02:19:57.500',5) ('2021-07-25 02:19:57.600',6) ('2021-07-25 02:19:57.900',7) ('2021-07-25 02:19:58.100',8) ('2021-07-25 02:19:58.300',9) ('2021-07-25 02:19:59.100',10) ('2021-07-25 02:19:59.300',11) ('2021-07-25 02:19:59.500',12) ('2021-07-25 02:19:59.700',13) ('2021-07-25 02:19:59.900',14) ('2021-07-25 02:20:05.000', 20) ('2021-07-25 02:25:00.000', 10000);
+
+run general/parser/interp_test.sim
+
+print ================== restart server to commit data into disk
+system sh/exec.sh -n dnode1 -s stop -x SIGINT
+sleep 500
+system sh/exec.sh -n dnode1 -s start
+print ================== server restart completed
+
+run general/parser/interp_test.sim
+
+print ================= TD-5931
+sql create stable st5931(ts timestamp, f int) tags(t int)
+sql create table ct5931 using st5931 tags(1)
+sql create table nt5931(ts timestamp, f int)
+
+sql select interp(*) from nt5931 where ts=now
+
+sql select interp(*) from st5931 where ts=now
+
+sql select interp(*) from ct5931 where ts=now
+
+if $rows != 0 then
+  return -1
+endi
+
+system sh/exec.sh -n dnode1 -s stop -x SIGINT

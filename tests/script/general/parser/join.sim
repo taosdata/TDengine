@@ -1,0 +1,523 @@
+system sh/stop_dnodes.sh
+
+system sh/deploy.sh -n dnode1 -i 1
+system sh/cfg.sh -n dnode1 -c walLevel -v 1
+system sh/cfg.sh -n dnode1 -c debugFlag -v 135
+system sh/cfg.sh -n dnode1 -c rpcDebugFlag -v 135
+system sh/cfg.sh -n dnode1 -c maxtablespervnode -v 4
+
+system sh/exec.sh -n dnode1 -s start
+sleep 100
+sql connect
+
+$dbPrefix = join_db
+$tbPrefix = join_tb
+$mtPrefix = join_mt
+$tbNum = 2
+$rowNum = 1000
+$totalNum = $tbNum * $rowNum
+
+print =============== join.sim
+$i = 0
+$db = $dbPrefix . $i
+$mt = $mtPrefix . $i
+
+$tstart = 100000
+
+sql drop database if exists $db -x step1
+step1:
+sql create database if not exists $db keep 36500
+sql use $db
+sql create table $mt (ts timestamp, c1 int, c2 float, c3 bigint, c4 smallint, c5 tinyint, c6 double, c7 bool, c8 binary(10), c9 nchar(9)) TAGS(t1 int, t2 binary(12))
+
+$i = 0
+while $i < $tbNum
+  $tb = $tbPrefix . $i
+  $tg2 = ' . abc
+  $tg2 = $tg2 . '
+  sql create table $tb using $mt tags( $i , $tg2 )
+
+  $x = 0
+  while $x < $rowNum
+    $ms = $x . m
+    $c = $x / 100
+    $c = $c * 100
+    $c = $x - $c
+
+    $binary = ' . binary
+    $binary = $binary . $c
+    $binary = $binary . '
+
+    $nchar = ' . nchar
+    $nchar = $nchar . $c
+    $nchar = $nchar . '
+
+    sql insert into $tb values ($tstart , $c , $c , $c , $c , $c , $c , $c , $binary , $nchar )
+    $tstart = $tstart + 1
+    $x = $x + 1
+  endw
+
+  $i = $i + 1
+  $tstart = 100000
+endw
+
+sleep 100
+
+$tstart = 100000
+$mt = $mtPrefix . 1 . $i
+sql create table $mt (ts timestamp, c1 int, c2 float, c3 bigint, c4 smallint, c5 tinyint, c6 double, c7 bool, c8 binary(10), c9 nchar(9)) TAGS(t1 int, t2 binary(12), t3 int)
+
+$i = 0
+$tbPrefix = join_1_tb
+
+while $i < $tbNum
+  $tb = $tbPrefix . $i
+  $c = $i
+  $t3 = $i + 1
+
+  $binary = ' . abc
+  $binary = $binary . $i
+  $binary = $binary . '
+
+  print $binary
+  sql create table $tb using $mt tags( $i , $binary , $t3 )
+
+  $x = 0
+  while $x < $rowNum
+    $ms = $x . m
+    $c = $x / 100
+    $c = $c * 100
+    $c = $x - $c
+
+    $binary = ' . binary
+    $binary = $binary . $c
+    $binary = $binary . '
+
+    $nchar = ' . nchar
+    $nchar = $nchar . $c
+    $nchar = $nchar . '
+
+    sql insert into $tb values ($tstart , $c , $c , $c , $c , $c , $c , $c , $binary , $nchar )
+    $tstart = $tstart + 1
+    $x = $x + 1
+  endw
+
+  $i = $i + 1
+  $tstart = 100000
+endw
+
+sleep 100
+
+$i1 = 1
+$i2 = 0
+
+$db = $dbPrefix . $i
+$mt = $mtPrefix . $i
+
+$dbPrefix = join_db
+$tbPrefix = join_tb
+$mtPrefix = join_mt
+
+$tb1 = $tbPrefix . $i1
+$tb2 = $tbPrefix . $i2
+$ts1 = $tb1 . .ts
+$ts2 = $tb2 . .ts
+
+#single table join sql
+
+# select duplicate columns
+sql select $ts1 , $ts2 from $tb1 , $tb2 where $ts1 = $ts2
+
+$val = $rowNum
+if $rows != $val then
+  return -1
+endi
+
+# select star1
+sql select join_tb1.*, join_tb0.ts from $tb1 , $tb2 where $ts1 = $ts2
+
+$val = $rowNum
+if $rows != $val then
+  return -1
+endi
+
+# select star2
+sql select join_tb1.*, join_tb0.* from $tb1 , $tb2 where $ts1 = $ts2
+
+$val = $rowNum
+if $rows != $val then
+  return -1
+endi
+
+# select star2
+sql select join_tb1.*, join_tb0.* from $tb1 , $tb2 where $ts1 = $ts2 limit 10;
+
+$val = 10
+if $rows != $val then
+  return -1
+endi
+
+# select star2
+sql select join_tb1.*, join_tb0.* from $tb1 , $tb2 where $ts1 = $ts2 limit 10;
+
+$val = 10
+if $rows != $val then
+  return -1
+endi
+
+# select star2
+sql select join_tb1.*, join_tb0.* from $tb1 , $tb2 where $ts1 = $ts2 limit 0;
+
+$val = 0
+if $rows != $val then
+  return -1
+endi
+
+# select star2
+sql select join_tb1.*, join_tb0.* from $tb1 , $tb2 where $ts1 = $ts2 limit 0;
+
+$val = 0
+if $rows != $val then
+  return -1
+endi
+
+#select + where condition
+sql select join_tb1.*, join_tb0.* from $tb1 , $tb2 where $ts1 = $ts2 and join_tb1.ts = 100000 limit 10;
+
+$val = 1
+if $rows != $val then
+  return -1
+endi
+
+#select + where condition
+sql select join_tb1.*, join_tb0.* from $tb1 , $tb2 where $ts1 = $ts2 and join_tb1.ts >= 100000 and join_tb0.c7 = false limit 10;
+
+$val = 10
+if $rows != $val then
+  return -1
+endi
+
+#select + where condition
+sql select join_tb1.*, join_tb0.* from $tb1 , $tb2 where $ts1 = $ts2 and join_tb1.ts >= 100000 and join_tb0.c7 = false limit 10 offset 1;
+print $rows
+if $rows != 9 then
+  return -1
+endi
+
+if $data00 != @70-01-01 08:01:40.100@ then
+  print $data00
+  return -1
+endi
+
+if $data10 != @70-01-01 08:01:40.200@ then
+  print $data10
+  return -1
+endi
+
+print data06 = $data06
+print data07 = $data07
+print data08 = $data08
+print data00 = $data00
+
+if $data07 != 0 then
+  return  -1
+endi
+
+#select + where condition   ======reverse query
+sql select join_tb1.*, join_tb0.* from $tb1 , $tb2 where $ts1 = $ts2 and join_tb1.ts >= 100000 and join_tb0.c7 = true order by join_tb0.ts asc limit 1;
+
+$val = 1
+if $rows != $val then
+  return -1
+endi
+
+$val = @70-01-01 08:01:40.001@
+print $data00, $data01
+
+if $data00 != $val then
+  return -1
+endi
+
+print 1
+#select + where condition + interval query
+sql select count(join_tb1.*) from $tb1 , $tb2 where $ts1 = $ts2 and join_tb1.ts >= 100000 and join_tb0.c7 = true interval(10a) order by join_tb0.ts desc;
+
+$val = 100
+if $rows != $val then
+  return -1
+endi
+
+print 2
+#===========================aggregation===================================
+#select + where condition
+sql select count(join_tb1.*), count(join_tb0.*) from $tb1 , $tb2 where $ts1 = $ts2 and join_tb1.ts >= 100000 and join_tb0.c7 = false;
+
+$val = 10
+if $data00 != $val then
+  return -1
+endi
+
+if $data01 != $val then
+  return -1
+endi
+
+sql select count(join_tb1.*) + count(join_tb0.*) from join_tb1 , join_tb0 where join_tb1.ts = join_tb0.ts and join_tb1.ts >= 100000 and join_tb0.c7 = false;;
+if $rows != 1 then
+  return -1
+endi
+
+if $data00 != 20.000000000 then
+  print expect 20.000000000 actual $data00
+  return -1
+endi
+
+sql select count(join_tb1.*)/10 from join_tb1 , join_tb0 where join_tb1.ts = join_tb0.ts and join_tb1.ts >= 100000 and join_tb0.c7 = false;;
+if $data00 != 1.000000000 then
+  return -1
+endi
+
+print 3
+#agg + where condition
+sql select count(join_tb1.c3), count(join_tb0.ts) from $tb1 , $tb2 where $ts1 = $ts2 and join_tb1.ts <= 100002 and join_tb0.c7 = true;
+if $rows != 1 then
+  return -1
+endi
+
+print $data00
+
+if $data00 != 2 then
+  return -1
+endi
+
+if $data01 != 2 then
+  return -1
+endi
+
+print 4
+#agg + where condition
+sql select count(join_tb1.c3), count(join_tb0.ts), sum(join_tb0.c1), first(join_tb0.c7), last(join_tb1.c3), first(join_tb0.*) from $tb1 , $tb2 where $ts1 = $ts2 and join_tb1.ts <= 100002 and join_tb0.c7 = true;
+
+$val = 2
+if $data00 != $val then
+  return -1
+endi
+
+if $data01 != $val then
+  return -1
+endi
+
+if $data02 != 3 then
+  return -1
+endi
+
+if $data03 != 1 then
+  return -1
+endi
+
+if $data04 != 2 then
+  return -1
+endi
+
+print =============== join.sim -- error sql
+
+sql_error select count(join_tb1.c3), count(join_tb0.ts), sum(join_tb0.c1), first(join_tb0.c7), last(join_tb1.c3) from $tb1 , $tb2 where join_tb1.ts <= 100002 and join_tb0.c7 = true;
+sql_error select count(join_tb1.c3), last(join_tb1.c3) from $tb1 , $tb2 where join_tb1.ts = join_tb0.ts or join_tb1.ts <= 100002 and join_tb0.c7 = true;
+sql_error select count(join_tb3.*) from $tb1 , $tb2 where join_tb1.ts = join_tb0.ts and join_tb1.ts <= 100002 and join_tb0.c7 = true;
+sql_error select first(join_tb1.*) from $tb1 , $tb2 where join_tb1.ts = join_tb0.ts and join_tb1.ts <= 100002 or join_tb0.c7 = true;
+sql_error select join_tb3.* from $tb1 , $tb2 where join_tb1.ts = join_tb0.ts and join_tb1.ts <= 100002 and join_tb0.c7 = true;
+sql_error select join_tb1.* from $tb1 , $tb2 where join_tb1.ts = join_tb0.ts and join_tb1.ts = join_tb0.c1;
+sql_error select join_tb1.* from $tb1 , $tb2 where join_tb1.ts = join_tb0.c1;
+sql_error select join_tb1.* from $tb1 , $tb2 where join_tb1.c7 = join_tb0.c1;
+sql_error select join_tb1.* from $tb1 , $tb2 where join_tb1.ts > join_tb0.ts;
+sql_error select join_tb1.* from $tb1 , $tb2 where join_tb1.ts <> join_tb0.ts;
+sql_error select join_tb1.* from $tb1 , $tb2 where join_tb1.ts != join_tb0.ts and join_tb1.ts > 100000;
+sql_error select join_tb1.* from $tb1 , $tb1 where join_tb1.ts = join_tb1.ts and join_tb1.ts >= 100000;
+sql_error select join_tb1.* from $tb1 , $tb1 where join_tb1.ts = join_tb1.ts order by ts;
+sql_error select join_tb1.* from $tb1 , $tb1 where join_tb1.ts = join_tb1.ts order by join_tb1.c7;
+sql_error select * from join_tb0, join_tb1
+sql_error select last_row(*) from join_tb0, join_tb1
+sql_error select last_row(*) from $tb1, $tb2 where join_tb1.ts < now
+sql_error select last_row(*) from $tb1, $tb2 where join_tb1.ts = join_tb2.ts
+
+print ==================================super table join ==============================
+# select duplicate columns
+sql select join_mt0.* from join_mt0, join_mt1 where join_mt0.ts = join_mt1.ts and join_mt0.t1=join_mt1.t1;
+
+$val = $rowNum  + $rowNum
+print $val
+print $rows
+if $rows != $val then
+  print expect $val , actual:$rows
+  return -1
+endi
+
+sql select join_mt0.* from join_mt0, join_mt1 where join_mt0.ts = join_mt1.ts and join_mt0.t1=join_mt1.t1 and join_mt0.ts = 100000;
+
+$val = 2
+if $rows != $val then
+  return -1
+endi
+
+sql select join_mt1.* from join_mt1
+
+print $rows
+if $rows != 2000 then
+  return -1
+endi
+
+sql select join_mt0.* from join_mt0, join_mt1 where join_mt0.ts = join_mt1.ts and join_mt0.t1=join_mt1.t1;
+
+$val = 2000
+if $rows != $val then
+  return -1
+endi
+
+sql select join_mt0.* from join_mt0, join_mt1 where join_mt0.ts = join_mt1.ts and join_mt0.t1=join_mt1.t1 and join_mt0.c2=99;
+
+$val = 20
+if $rows != $val then
+  return -1
+endi
+
+sql select count(*) from join_mt0, join_mt1 where join_mt0.ts = join_mt1.ts and join_mt0.t1=join_mt1.t1 and join_mt0.c2=99;
+
+$val = 20
+if $data00 != $val then
+  print expect 20, actual:$data00
+  return -1
+endi
+
+sql select count(*) from join_mt0, join_mt1 where join_mt0.ts = join_mt1.ts and join_mt0.t1=join_mt1.t1 and join_mt0.c2=99 and join_mt1.ts=100999;
+
+$val = 2
+if $data00 != $val then
+  return -1
+endi
+
+# agg
+sql select sum(join_mt0.c1) from join_mt0, join_mt1 where join_mt0.ts = join_mt1.ts and join_mt0.t1=join_mt1.t1 and join_mt0.c2=99 and join_mt1.ts=100999;
+
+$val = 198
+if $data00 != $val then
+  return -1
+endi
+
+sql select sum(join_mt0.c1)+sum(join_mt0.c1) from join_mt0, join_mt1 where join_mt0.ts = join_mt1.ts and join_mt0.t1=join_mt1.t1 and join_mt0.c2=99 and join_mt1.ts=100999;
+if $rows != 1 then
+  return -1
+endi
+
+if $data00 != 396.000000000 then
+  return -1
+endi
+
+# first/last
+sql select count(join_mt0.c1), sum(join_mt1.c2), first(join_mt0.c5), last(join_mt1.c7) from join_mt0, join_mt1 where join_mt0.t1=join_mt1.t1 and join_mt0.ts=join_mt1.ts and join_mt0.t1=1 interval(10a) order by join_mt0.ts asc;
+
+$val = 100
+if $rows != $val then
+   print $rows
+   return -1
+endi
+
+$val = 10
+if $data01 != $val then
+   return -1
+endi
+
+$val = 45.000000000
+print $data02
+if $data02 != $val then
+   return -1
+endi
+
+$val = 0
+if $data03 != 0 then
+   return -1
+endi
+
+# order by first/last
+sql select count(join_mt0.c1), sum(join_mt1.c2), first(join_mt0.c5), last(join_mt1.c7) from join_mt0, join_mt1 where join_mt0.t1=join_mt1.t1 and join_mt0.ts=join_mt1.ts and join_mt0.t1=1 interval(10a) order by join_mt0.ts desc;
+
+$val = 100
+if $rows != $val then
+  return -1
+endi
+
+print ================>TD-5600
+sql select first(join_tb0.c8),first(join_tb0.c9) from join_tb1 , join_tb0 where join_tb1.ts = join_tb0.ts and join_tb1.ts <= 100002 and join_tb1.ts>=100000 interval(1s);
+
+
+#===============================================================
+sql select first(join_tb0.c8),first(join_tb0.c9) from join_tb1 , join_tb0 where join_tb1.ts = join_tb0.ts and join_tb1.ts <= 100002 and join_tb0.c7 = true
+
+#====================group by=========================================
+print =================>"group by not supported"
+
+
+
+#======================limit offset===================================
+# tag values not int
+sql_error select count(*) from join_mt0, join_mt1 where join_mt0.ts=join_mt1.ts and join_mt0.t2=join_mt1.t2;
+
+# tag type not identical
+sql_error select count(*) from join_mt0, join_mt1 where join_mt1.t2 = join_mt0.t1 and join_mt1.ts=join_mt0.ts;
+
+# table/super table join
+sql_error select count(join_mt0.c1) from join_mt0, join_tb1 where join_mt0.ts=join_tb1.ts
+
+# multi-condition
+
+
+# self join
+sql_error select count(join_mt0.c1), count(join_mt0.c2) from join_mt0, join_mt0 where join_mt0.ts=join_mt0.ts and join_mt0.t1=join_mt0.t1;
+
+# missing ts equals
+sql_error select sum(join_mt1.c2) from join_mt0, join_mt1 where join_mt0.t1=join_mt1.t1;
+
+# missing tag equals
+sql_error select count(join_mt1.c3) from join_mt0, join_mt1 where join_mt0.ts=join_mt1.ts;
+
+# tag values are identical error
+sql create table m1(ts timestamp, k int) tags(a int);
+sql create table m2(ts timestamp, k int) tags(a int);
+
+sql create table tm1 using m1 tags(1);
+sql create table tm2 using m1 tags(1);
+
+sql insert into tm1 using m1 tags(1) values(1000000, 1)(2000000, 2);
+sql insert into tm2 using m1 tags(1) values(1000000, 1)(2000000, 2);
+
+sql insert into um1 using m2 tags(1) values(1000001, 10)(2000000, 20);
+sql insert into um2 using m2 tags(9) values(1000001, 10)(2000000, 20);
+
+sql_error select count(*) from m1,m2 where m1.a=m2.a and m1.ts=m2.ts;
+
+print ====> empty table/empty super-table join test, add for no result join test
+sql create database ux1;
+sql use ux1;
+sql create table m1(ts timestamp, k int) tags(a binary(12), b int);
+sql create table tm0 using m1 tags('abc', 1);
+sql create table m2(ts timestamp, k int) tags(a int, b binary(12));
+
+sql select count(*) from m1, m2 where m1.ts=m2.ts and m1.b=m2.a;
+if $rows != 0 then
+  return -1
+endi
+
+sql create table tm2 using m2 tags(2, 'abc');
+sql select count(*) from tm0, tm2 where tm0.ts=tm2.ts;
+if $rows != 0 then
+  return -1
+endi
+
+sql select count(*) from m1, m2 where m1.ts=m2.ts and m1.b=m2.a;
+if $rows != 0 then
+  return -1
+endi
+
+sql drop table tm2;
+sql select count(*) from m1, m2 where m1.ts=m2.ts and m1.b=m2.a;
+sql drop database ux1;
+
+system sh/exec.sh -n dnode1 -s stop -x SIGINT
