@@ -281,7 +281,8 @@ static int indexQueryMem(MemTable* mem, CacheTerm* ct, EIndexQueryType qtype, SI
         }
       } else if (qtype == QUERY_PREFIX) {
       } else if (qtype == QUERY_SUFFIX) {
-      } else if (qtype == QUERY_RANGE)
+      } else if (qtype == QUERY_RANGE) {
+      }
     }
   }
   tSkipListDestroyIter(iter);
