@@ -20,6 +20,7 @@
 #include "mndDnode.h"
 #include "mndMnode.h"
 #include "mndOffset.h"
+#include "mndScheduler.h"
 #include "mndShow.h"
 #include "mndStb.h"
 #include "mndTopic.h"
@@ -97,12 +98,21 @@ static SMqSubscribeObj *mndCreateSubscription(SMnode *pMnode, const SMqTopicObj 
   strcpy(pSub->key, key);
   free(key);
 
+  if (mndSchedInitSubEp(pMnode, pTopic, pSub) < 0) {
+    terrno = TSDB_CODE_MND_UNSUPPORTED_TOPIC;
+    tDeleteSMqSubscribeObj(pSub);
+    free(pSub);
+    return NULL;
+  }
+
+#if 0
   if (mndInitUnassignedVg(pMnode, pTopic, pSub) < 0) {
     terrno = TSDB_CODE_OUT_OF_MEMORY;
     tDeleteSMqSubscribeObj(pSub);
     free(pSub);
     return NULL;
   }
+#endif
   // TODO: disable alter subscribed table
   return pSub;
 }
