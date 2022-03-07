@@ -1,0 +1,39 @@
+system sh/stop_dnodes.sh
+sleep 2000
+system sh/deploy.sh -n dnode1 -i 1
+system sh/cfg.sh -n dnode1 -c wallevel -v 0
+system sh/cfg.sh -n dnode1 -c http -v 1
+system sh/cfg.sh -n dnode1 -c maxSQLLength -v 340032
+system sh/exec.sh -n dnode1 -s start
+
+sleep 2000
+sql connect
+
+print ============================ dnode1 start
+
+print ===============  step1 - prepare data
+sql create database d1
+sql use d1
+
+sql create table table_rest (ts timestamp, i int) 
+print sql length is 270KB
+restful d1 table_rest 1591072800 10000 gzip
+restful d1 table_rest 1591172800 10000 gzip
+restful d1 table_rest 1591272800 10000 gzip
+restful d1 table_rest 1591372800 10000 gzip
+restful d1 table_rest 1591472800 10000 gzip
+restful d1 table_rest 1591572800 10000 gzip
+restful d1 table_rest 1591672800 10000 gzip
+restful d1 table_rest 1591772800 10000 gzip
+restful d1 table_rest 1591872800 10000 gzip
+restful d1 table_rest 1591972800 10000 gzip
+
+sql select * from table_rest;
+print rows: $rows
+if $rows != 100000 then
+  return -1
+endi
+
+system curl -H 'Authorization: Taosd /KfeAzX/f9na8qdtNZmtONryp201ma04bEl8LcvLUd7a8qdtNZmtONryp201ma04' -d 'select * from d1.table_rest' 127.0.0.1:7111/rest/sql --compressed
+
+system sh/exec.sh -n dnode1 -s stop -x SIGINT

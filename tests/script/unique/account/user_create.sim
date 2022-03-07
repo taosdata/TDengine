@@ -1,0 +1,84 @@
+system sh/stop_dnodes.sh
+system sh/deploy.sh -n dnode1 -i 1
+system sh/cfg.sh -n dnode1 -c wallevel -v 0
+system sh/exec.sh -n dnode1 -s start
+
+sleep 2000
+sql connect
+
+print =============== step1
+sql show users
+if $rows != 3 then 
+  return -1
+endi
+
+sql create user read PASS 'pass123'
+sql create user read PASS 'pass123' -x step1
+	return -1
+step1:
+
+sql show users
+if $rows != 4 then 
+  return -1
+endi
+
+sql alter user read PASS 'taosdata'
+
+print =============== step2
+sql close
+sql connect read
+sleep 2000
+
+sql alter user read PASS 'taosdata'
+
+print =============== step3
+sql drop user read -x step31
+  return -1
+step31:
+sql drop user _root -x step32
+  return -1
+step32:
+sql drop user monitor -x step33
+  return -1
+step33:
+
+print =============== step4
+sql close
+sql connect
+sleep 2000
+
+sql alter user read privilege read
+sql show users
+print $data1_read
+if $data1_read != readable then 
+  return -1
+endi
+
+sql_error alter user read privilege super
+sql show users
+print $data1_read
+if $data1_read != readable then
+  return -1
+endi
+
+sql alter user read privilege write
+sql show users
+if $data1_read != writable then 
+  return -1
+endi
+
+sql alter user read privilege 1 -x step43
+  return -1
+step43:
+
+sql drop user _root -x step41
+  return -1
+step41:
+
+sql drop user monitor -x step42
+  return -1
+step42:
+
+sql drop user read
+
+system sh/exec.sh -n dnode1 -s stop  -x SIGINT
