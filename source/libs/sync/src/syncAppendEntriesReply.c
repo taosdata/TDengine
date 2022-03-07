@@ -27,4 +27,5 @@
 //          /\ UNCHANGED <<matchIndex>>
 //    /\ Discard(m)
 //    /\ UNCHANGED <<serverVars, candidateVars, logVars, elections>>
+//
 int32_t syncNodeOnAppendEntriesReplyCb(SSyncNode* ths, SyncAppendEntriesReply* pMsg) {}
