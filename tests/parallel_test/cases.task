@@ -1,6 +1,4 @@
-113,,pytest,python3 test.py -f update/append_commit_data.py
 # 20,,pytest,insert/retentionpolicy.py change date time
-368,,develop-test/3-connectors/java,bash test.sh 
 299,,pytest,python3 test.py -f update/merge_commit_data-0.py 
 290,,pytest,python3 test.py -f update/merge_commit_data.py 
 263,,script,./test.sh -f general/stream/stream_3.sim 
@@ -25,9 +23,11 @@
 127,,script,./test.sh -f general/stream/metrics_replica1_vnoden.sim 
 127,,script,./test.sh -f general/stream/metrics_del.sim 
 127,,pytest,python3 test.py -f query/queryConnection.py 
+124,,develop-test/3-connectors/java,bash test.sh 
 121,2,script,./test.sh -f unique/cluster/balance3.sim 
 114,,script,./test.sh -f general/db/alter_tables_d2.sim 
 113,,pytest,python3 test.py -f update/append_commit_last.py 
+113,,pytest,python3 test.py -f update/append_commit_data.py
 111,,script,./test.sh -f unique/vnode/replica2_repeat.sim 
 111,,script,./test.sh -f unique/vnode/many.sim 
 110,,pytest,python3 test.py -f update/append_commit_last-0.py 

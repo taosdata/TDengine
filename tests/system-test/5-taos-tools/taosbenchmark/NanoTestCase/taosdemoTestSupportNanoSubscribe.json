@@ -9,9 +9,9 @@
   "confirm_parameter_prompt": "no",
   "specified_table_query":
     {
-     "concurrent":2, 
+     "threads":2, 
      "mode":"sync", 
-     "interval":10000, 
+     "interval":2000, 
      "restart":"yes", 
      "keepProgress":"yes",
      "sqls": [

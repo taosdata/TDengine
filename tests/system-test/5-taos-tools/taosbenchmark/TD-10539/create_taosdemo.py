@@ -112,7 +112,7 @@ class TDTestCase:
         tdSql.checkRows(11)
         tdSql.query("show create table test.`%s1` ; " %self.tsdemo)
         tdSql.checkData(0, 0, self.tsdemo+str(1))
-        tdSql.checkData(0, 1, "create table `%s1` (ts TIMESTAMP,c0 FLOAT,c1 INT,c2 FLOAT,c3 INT,c4 INT,c5 INT,c6 INT,c7 INT,c8 INT,c9 INT)" %self.tsdemo)
+        tdSql.checkData(0, 1, "CREATE TABLE `%s1` (ts TIMESTAMP,c0 FLOAT,c1 INT,c2 FLOAT,c3 INT,c4 INT,c5 INT,c6 INT,c7 INT,c8 INT,c9 INT)" %self.tsdemo)
 
         print("==============drop table\stable")
         try:
