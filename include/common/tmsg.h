@@ -140,6 +140,8 @@ typedef enum _mgmt_table {
 
 #define TSDB_KILL_MSG_LEN 30
 
+#define TSDB_TABLE_NUM_UNIT 100000
+
 #define TSDB_VN_READ_ACCCESS  ((char)0x1)
 #define TSDB_VN_WRITE_ACCCESS ((char)0x2)
 #define TSDB_VN_ALL_ACCCESS   (TSDB_VN_READ_ACCCESS | TSDB_VN_WRITE_ACCCESS)
@@ -169,6 +171,7 @@ typedef struct {
   char    db[TSDB_DB_FNAME_LEN];
   int64_t dbId;
   int32_t vgVersion;
+  int32_t numOfTable;      // unit is TSDB_TABLE_NUM_UNIT
 } SBuildUseDBInput;
 
 typedef struct SField {
@@ -570,6 +573,7 @@ typedef struct {
   char    db[TSDB_DB_FNAME_LEN];
   int64_t dbId;
   int32_t vgVersion;
+  int32_t numOfTable;    // unit is TSDB_TABLE_NUM_UNIT
 } SUseDbReq;
 
 int32_t tSerializeSUseDbReq(void* buf, int32_t bufLen, SUseDbReq* pReq);
@@ -800,7 +804,9 @@ typedef struct SVgroupInfo {
   uint32_t hashBegin;
   uint32_t hashEnd;
   SEpSet   epset;
+  int32_t  numOfTable;  // unit is TSDB_TABLE_NUM_UNIT
 } SVgroupInfo;
+
 
 typedef struct {
   int32_t     numOfVgroups;

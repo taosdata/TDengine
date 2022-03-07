@@ -42,6 +42,7 @@ int32_t queryBuildUseDbOutput(SUseDbOutput *pOut, SUseDbRsp *usedbRsp) {
 
   for (int32_t i = 0; i < usedbRsp->vgNum; ++i) {
     SVgroupInfo *pVgInfo = taosArrayGet(usedbRsp->pVgroupInfos, i);
+    pOut->dbVgroup->numOfTable += pVgInfo->numOfTable;
     if (0 != taosHashPut(pOut->dbVgroup->vgHash, &pVgInfo->vgId, sizeof(int32_t), pVgInfo, sizeof(SVgroupInfo))) {
       return TSDB_CODE_TSC_OUT_OF_MEMORY;
     }
@@ -84,6 +85,7 @@ int32_t queryBuildUseDbMsg(void *input, char **msg, int32_t msgSize, int32_t *ms
   usedbReq.db[sizeof(usedbReq.db) - 1] = 0;
   usedbReq.vgVersion = pInput->vgVersion;
   usedbReq.dbId = pInput->dbId;
+  usedbReq.numOfTable = pInput->numOfTable;
 
   int32_t bufLen = tSerializeSUseDbReq(NULL, 0, &usedbReq);
   void   *pBuf = rpcMallocCont(bufLen);
@@ -247,7 +249,7 @@ int32_t queryProcessTableMetaRsp(void *output, char *msg, int32_t msgSize) {
 
 PROCESS_META_OVER:
   if (code != 0) {
-    qError("failed to process table meta rsp since %s", terrstr());
+    qError("failed to process table meta rsp since %s", tstrerror(code));
   }
 
   tFreeSTableMetaRsp(&metaRsp);
