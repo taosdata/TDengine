@@ -4533,21 +4533,13 @@ void getJsonTagValueAll(void* data, void* dst, int16_t bytes) {
     return;
   }
 
-  char *p = NULL;
-  char* str = malloc(strlen(json) + 3);
-  if (str) {
-    snprintf(str, len + 3, "'%s'", json);
-  }
-
-  p = str ? str : json;
   int32_t length = 0;
-  if(!taosMbsToUcs4(p, strlen(p), varDataVal(tagData), bytes - VARSTR_HEADER_SIZE - CHAR_BYTES, &length)){
+  if(!taosMbsToUcs4(json, strlen(json), varDataVal(tagData), bytes - VARSTR_HEADER_SIZE - CHAR_BYTES, &length)){
     tsdbError("getJsonTagValueAll mbstoucs4 error! length:%d", length);
   }
   varDataSetLen(tagData, length);
   assert(varDataTLen(tagData) <= bytes);
   tfree(json);
-  tfree(str);
 }
 
 char* parseTagDatatoJson(void *p){
