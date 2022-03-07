@@ -1924,26 +1924,20 @@ typedef struct {
   STSma*   tSma;
 } STSmaWrapper;
 
-static FORCE_INLINE void tdDestroyTSma(STSma* pSma, bool releaseSelf) {
+static FORCE_INLINE void tdDestroyTSma(STSma* pSma) {
   if (pSma) {
     tfree(pSma->colIds);
     tfree(pSma->funcIds);
-    if (releaseSelf) {
-      free(pSma);
-    }
   }
 }
 
-static FORCE_INLINE void tdDestroyTSmaWrapper(STSmaWrapper* pSW, bool releaseSelf) {
+static FORCE_INLINE void tdDestroyTSmaWrapper(STSmaWrapper* pSW) {
   if (pSW) {
     if (pSW->tSma) {
       for (uint32_t i = 0; i < pSW->number; ++i) {
-        tdDestroyTSma(pSW->tSma + i, false);
+        tdDestroyTSma(pSW->tSma + i);
       }
       tfree(pSW->tSma);
-    }
-    if (releaseSelf) {
-      free(pSW);
     }
   }
 }
@@ -2031,7 +2025,7 @@ static FORCE_INLINE void* tDecodeTSmaWrapper(void* buf, STSmaWrapper* pSW) {
   for (uint32_t i = 0; i < pSW->number; ++i) {
     if ((buf = tDecodeTSma(buf, pSW->tSma + i)) == NULL) {
       for (uint32_t j = i; j >= 0; --i) {
-        tdDestroyTSma(pSW->tSma + j, false);
+        tdDestroyTSma(pSW->tSma + j);
       }
       free(pSW->tSma);
       return NULL;

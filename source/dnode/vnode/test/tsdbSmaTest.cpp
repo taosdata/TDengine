@@ -94,8 +94,8 @@ TEST(testCase, tSmaEncodeDecodeTest) {
   }
 
   // resource release
-  tdDestroyTSma(&tSma, false);
-  tdDestroyTSmaWrapper(&dstTSmaWrapper, false);
+  tdDestroyTSma(&tSma);
+  tdDestroyTSmaWrapper(&dstTSmaWrapper);
 }
 
 TEST(testCase, tSma_DB_Put_Get_Del_Test) {
@@ -152,14 +152,16 @@ TEST(testCase, tSma_DB_Put_Get_Del_Test) {
   printf("name1 = %s\n", qSmaCfg->indexName);
   EXPECT_STRCASEEQ(qSmaCfg->indexName, smaIndexName1);
   EXPECT_EQ(qSmaCfg->tableUid, tSma.tableUid);
-  tdDestroyTSma(qSmaCfg, true);
+  tdDestroyTSma(qSmaCfg);
+  free(qSmaCfg);
 
   qSmaCfg = metaGetSmaInfoByName(pMeta, smaIndexName2);
   assert(qSmaCfg != NULL);
   printf("name2 = %s\n", qSmaCfg->indexName);
   EXPECT_STRCASEEQ(qSmaCfg->indexName, smaIndexName2);
   EXPECT_EQ(qSmaCfg->interval, tSma.interval);
-  tdDestroyTSma(qSmaCfg, true);
+  tdDestroyTSma(qSmaCfg);
+  free(qSmaCfg);
 
   // get index name by table uid
   SMSmaCursor *pSmaCur = metaOpenSmaCursor(pMeta, tbUid);
@@ -189,7 +191,7 @@ TEST(testCase, tSma_DB_Put_Get_Del_Test) {
   metaRemoveSmaFromDb(pMeta, smaIndexName1);
   metaRemoveSmaFromDb(pMeta, smaIndexName2);
 
-  tdDestroyTSma(&tSma, false);
+  tdDestroyTSma(&tSma);
   metaClose(pMeta);
 }
 
