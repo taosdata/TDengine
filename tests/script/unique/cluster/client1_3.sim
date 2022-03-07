@@ -1,0 +1,52 @@
+$tblStart = 30000
+$tblEnd = 40000
+$tsStart = 1325347200000  # 2012-01-01 00:00:00.000
+###############################################################
+
+sql connect
+
+$db = db1
+$stb = stb1
+
+sql use $db
+
+
+######sql create table $stb (ts timestamp, c1 int) tags(t1 int, t2 binary(8))
+$tagPrex = ' . tag
+
+$i = $tblStart
+while $i < $tblEnd
+  $tb = tb . $i
+  $tagBinary = $tagPrex . $i
+  $tagBinary = $tagBinary . '
+  sql create table if not exists  $tb using $stb tags ($i, $tagBinary)
+  $i = $i + 1
+endw 
+
+$rowsPerLoop = 100
+$ts = $tsStart
+
+$i = $tblStart
+while $i < $tblEnd
+  $tb = tb . $i
+  $x = 0
+  while $x < $rowsPerLoop
+    sql insert into $tb values ( $ts + 0a , $x ) ( $ts + 2a , $x ) ( $ts + 4a , $x ) ( $ts + 6a , $x ) ( $ts + 8a , $x ) ( $ts + 10a , $x ) ( $ts + 12a , $x ) ( $ts + 14a , $x ) ( $ts + 16a , $x ) ( $ts + 18a , $x ) ( $ts + 20a , $x ) ( $ts + 22a , $x ) ( $ts + 24a , $x ) ( $ts + 26a , $x ) ( $ts + 28a , $x ) ( $ts + 30a , $x ) ( $ts + 32a , $x ) ( $ts + 34a , $x ) ( $ts + 36a , $x ) ( $ts + 38a , $x )
+    $x = $x + 20
+    $ts = $ts + 40a
+  endw 
+
+  $totalRows = $totalRows + $x
+  $i = $i + 1
+  
+  if $i == $tblEnd then
+    $i = $tblStart
+    
+    sql select count(*) from $stb -x continue_loop
+    print data00 $data00 totalRows $totalRows
+    if $data00 < $totalRows then
+	    print **********************  select error **********************
+    endi
+    continue_loop:
+  endi
+endw 

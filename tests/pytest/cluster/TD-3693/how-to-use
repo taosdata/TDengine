@@ -1,0 +1,9 @@
+execute:
+cd TDengine/tests/pytest  &&  python3  ./test.py  -f cluster/TD-3693/multClient.py && python3 cluster/TD-3693/multQuery.py
+
+1. 使用测试的集群，三个节点fc1、fct2、fct4。
+2. 用taosdemo建两个库db1和db2，副本数目为1，插入一定数据。
+3. db1在mnode的master上（fct2），db2在mnode的slave上（fct4）。
+4. 珲哥修改taosdemo，变成多线程查询，修改后的软件我命名成taosdemoMul，然后做持续多线程查询db2上的数据，建立多个连接
+5. 4中查询过程放到后台，同时再次在db2执行建表、插入，查询操作。循环执行查询10次，每次间隔91s。
+6. 然后查询taosd的log日志，看是否还存在上述问题“send auth msg to mnodes”。

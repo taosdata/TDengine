@@ -1,0 +1,290 @@
+system sh/stop_dnodes.sh
+
+
+system sh/deploy.sh -n dnode1 -i 1
+system sh/cfg.sh -n dnode1 -c walLevel -v 1
+system sh/exec.sh -n dnode1 -s start
+
+sleep 100
+sql connect
+print ======================== dnode1 start
+
+sql create database dbesc;
+
+sql use dbesc;
+
+sql_error create stable `dbesc`.stba (ts timestamp, f1 int) tags(t1 int);
+
+sql create stable `!.!.!` (ts timestamp, f1 int) tags(t1 int);
+sql create stable 'st1' (ts timestamp, f1 int) tags(t1 int)  ;
+sql create stable `st2` (ts timestamp, f1 int) tags(t1 int)  ;
+sql create stable dbesc.`st3` (ts timestamp, f1 int) tags(t1 int)  ;
+sql create table `***` (ts timestamp, f1 int) tags(t1 int);
+sql create table `.,@` (ts timestamp, f1 int);
+
+sql_error create table ',?,?,?' using dbesc.`!.!.!` tags(1);
+sql_error create table `ab`` using dbesc.`!.!.!` tags(2);
+
+sql create table `,?,?,?` using dbesc.`!.!.!` tags(1);
+sql create table `~!@#\$%^&*()_+|\][{}a,./<>?0` using dbesc.`!.!.!` tags(2);
+sql_error create table 'tb1' using `dbesc`.`!.!.!` tags(2);
+
+sql create table 'tb2' using `!.!.!` tags(2);
+sql create table 'tb3' using 'dbesc'.`!.!.!` tags(3);
+sql create table 'tb4' using "dbesc".`!.!.!` tags(3);
+
+sql insert into 'tb5' using 'st1' tags (3) values ('2021-09-22 10:10:11', 1);
+sql insert into dbesc.'tb6' using dbesc.'st1' tags (3) values ('2021-09-22 10:10:12', 2);
+
+sql insert into `.....` using `!.!.!` tags (3) values ('2021-09-22 10:10:13', 3);
+sql insert into dbesc.`.....,` using dbesc.`!.!.!` tags (4) values ('2021-09-22 10:10:13', 4);
+sql insert into "dbesc".`.....,,` using 'dbesc'.`!.!.!` tags (5) values ('2021-09-22 10:10:14', 5);
+
+sql_error insert into `dbesc`.`.....,,,` using 'dbesc'.`!.!.!` tags (6) values ('2021-09-22 10:10:15', 6);
+sql_error insert into dbesc.`.....,,,` using `dbesc`.`!.!.!` tags (7) values ('2021-09-22 10:10:16', 7);
+
+sql insert into dbesc.`.....,,,1` using "dbesc".`!.!.!` tags (8) values ('2021-09-22 10:10:17', 8);
+
+sql select * from `.....`;
+if $rows != 1 then
+  return -1
+endi
+if $data00 != @21-09-22 10:10:13.000@ then
+  return -1
+endi
+
+sql select `.....`.* from `.....`;
+if $rows != 1 then
+  return -1
+endi
+if $data00 != @21-09-22 10:10:13.000@ then
+  return -1
+endi
+
+sql select `.....`.*, `.....,`.* from `.....`,`.....,` where `.....`.ts=`.....,`.ts;
+if $rows != 1 then
+  return -1
+endi
+if $data00 != @21-09-22 10:10:13.000@ then
+  return -1
+endi
+
+sql select `.....`.*, `.....,`.* from dbesc.`.....`,dbesc.`.....,` where `.....`.ts=`.....,`.ts;
+if $rows != 1 then
+  return -1
+endi
+if $data00 != @21-09-22 10:10:13.000@ then
+  return -1
+endi
+
+sql select a.*, b.* from dbesc.`.....` a,dbesc.`.....,` b where a.ts=b.ts;
+if $rows != 1 then
+  return -1
+endi
+if $data00 != @21-09-22 10:10:13.000@ then
+  return -1
+endi
+
+#!!!!
+sql select a.*, b.* from dbesc.`.....` 'a',dbesc.`.....,` 'b' where a.ts=b.ts;
+if $rows != 1 then
+  return -1
+endi
+if $data00 != @21-09-22 10:10:13.000@ then
+  return -1
+endi
+
+sql select a.*, b.* from `.....` a,`.....,` b where a.ts=b.ts;
+if $rows != 1 then
+  return -1
+endi
+if $data00 != @21-09-22 10:10:13.000@ then
+  return -1
+endi
+
+sql insert into dbesc.`.....` values ('2021-09-22 10:10:18', 9);
+sql insert into 'dbesc'.`.....` values ('2021-09-22 10:10:19', 10);
+sql insert into "dbesc".`.....` values ('2021-09-22 10:10:20', 11);
+
+sql_error select * from `!.!.!` where tbname = `.....`;
+
+sql select * from `!.!.!` where tbname = '.....';
+if $rows != 4 then
+  return -1
+endi
+if $data00 != @21-09-22 10:10:13.000@ then
+  return -1
+endi
+if $data10 != @21-09-22 10:10:18.000@ then
+  return -1
+endi
+if $data20 != @21-09-22 10:10:19.000@ then
+  return -1
+endi
+if $data30 != @21-09-22 10:10:20.000@ then
+  return -1
+endi
+
+sql select * from `!.!.!` where tbname = ".....";
+if $rows != 4 then
+  return -1
+endi
+if $data00 != @21-09-22 10:10:13.000@ then
+  return -1
+endi
+if $data10 != @21-09-22 10:10:18.000@ then
+  return -1
+endi
+if $data20 != @21-09-22 10:10:19.000@ then
+  return -1
+endi
+if $data30 != @21-09-22 10:10:20.000@ then
+  return -1
+endi
+
+sql select * from `!.!.!` where tbname in (".....");
+if $rows != 4 then
+  return -1
+endi
+if $data00 != @21-09-22 10:10:13.000@ then
+  return -1
+endi
+if $data10 != @21-09-22 10:10:18.000@ then
+  return -1
+endi
+if $data20 != @21-09-22 10:10:19.000@ then
+  return -1
+endi
+if $data30 != @21-09-22 10:10:20.000@ then
+  return -1
+endi
+
+sql select * from `!.!.!` where tbname like ".....";
+if $rows != 4 then
+  return -1
+endi
+if $data00 != @21-09-22 10:10:13.000@ then
+  return -1
+endi
+if $data10 != @21-09-22 10:10:18.000@ then
+  return -1
+endi
+if $data20 != @21-09-22 10:10:19.000@ then
+  return -1
+endi
+if $data30 != @21-09-22 10:10:20.000@ then
+  return -1
+endi
+
+sql select * from `!.!.!` where tbname like "....%";
+if $rows != 7 then
+  return -1
+endi
+if $data00 != @21-09-22 10:10:13.000@ then
+  return -1
+endi
+if $data10 != @21-09-22 10:10:18.000@ then
+  return -1
+endi
+if $data20 != @21-09-22 10:10:19.000@ then
+  return -1
+endi
+if $data30 != @21-09-22 10:10:20.000@ then
+  return -1
+endi
+if $data40 != @21-09-22 10:10:13.000@ then
+  return -1
+endi
+if $data50 != @21-09-22 10:10:14.000@ then
+  return -1
+endi
+if $data60 != @21-09-22 10:10:17.000@ then
+  return -1
+endi
+
+sql create table `select * from st1` (ts timestamp, f1 int);
+sql create table `'"'"` (ts timestamp, f1 int);
+sql create table `''""` using `!.!.!` tags (9);
+
+sql SHOW CREATE TABLE `.....`;
+sql SHOW CREATE TABLE dbesc.`.....`;
+sql SHOW CREATE TABLE 'dbesc'.`.....`;
+sql SHOW CREATE TABLE `!.!.!`;
+sql SHOW CREATE TABLE `select * from st1`;
+sql SHOW CREATE TABLE `'"'"`;
+sql show create table `''""`;
+
+sql_error SHOW CREATE STABLE `.....`;
+sql SHOW CREATE STABLE `!.!.!`;
+
+sql SHOW dbesc.TABLES LIKE '***';
+if $rows != 0 then
+  return -1
+endi
+
+sql SHOW dbesc.STABLES LIKE '***';
+if $rows != 1 then
+  return -1
+endi
+
+sql SHOW dbesc.TABLES LIKE '.....';
+if $rows != 1 then
+  return -1
+endi
+
+sql SHOW dbesc.STABLES LIKE '.....';
+if $rows != 0 then
+  return -1
+endi
+
+sql_error SHOW dbesc.TABLES LIKE `.....`;
+sql_error SHOW dbesc.STABLES LIKE `***`;
+
+sql show tables;
+if $rows != 15 then
+  return -1
+endi
+
+sql_error drop table dbesc.'.....,,,1';
+sql drop table dbesc.`.....,,,1`;
+sql_error drop table dbesc.'.....,,';
+sql drop table `.....,,`;
+sql drop stable dbesc.'st1';
+sql drop stable dbesc.`st2`;
+sql drop stable dbesc.st3;
+
+sql describe `.....`;
+sql_error desc '.....';
+
+sql_error ALTER TABLE `.....` ADD COLUMN f2 float;
+sql ALTER TABLE `!.!.!` ADD COLUMN f2 float;
+sql describe `!.!.!`;
+if $rows != 4 then
+  return -1
+endi
+
+sql ALTER TABLE `!.!.!` DROP COLUMN f2;
+sql_error ALTER TABLE `!.!.!` MODIFY COLUMN f2 int;
+sql ALTER TABLE `!.!.!` ADD COLUMN f3 binary(10);
+sql ALTER TABLE `!.!.!` MODIFY COLUMN f3 binary(11);
+
+sql ALTER TABLE `!.!.!` ADD TAG t2 int;
+sql ALTER TABLE `!.!.!` DROP TAG t2;
+sql ALTER TABLE `!.!.!` ADD TAG ta binary(10);
+sql ALTER TABLE `!.!.!` CHANGE TAG ta tb;
+sql_error ALTER TABLE `!.!.!` SET TAG t1=99;
+sql ALTER TABLE `.....` SET TAG t1=99;
+sql ALTER TABLE `!.!.!` ADD TAG t3 binary(10);
+sql ALTER TABLE `!.!.!` MODIFY TAG t3 binary(11);
+sql ALTER STABLE `!.!.!` ADD COLUMN f4 binary(10);
+sql ALTER STABLE `!.!.!` DROP COLUMN f4;
+sql ALTER STABLE `!.!.!` ADD COLUMN f5 binary(10);
+sql ALTER STABLE `!.!.!` MODIFY COLUMN f5 binary(12);
+sql ALTER STABLE `!.!.!` ADD TAG t4 double;
+sql ALTER STABLE `!.!.!` DROP TAG t4;
+sql ALTER STABLE `!.!.!` ADD TAG t5 binary(1);
+sql ALTER STABLE `!.!.!` CHANGE TAG t5 t6;
+sql_error ALTER STABLE `!.!.!` SET TAG t6=999;
+sql ALTER STABLE `!.!.!` MODIFY TAG t6 binary(12);
+
+system sh/exec.sh -n dnode1 -s stop -x SIGINT

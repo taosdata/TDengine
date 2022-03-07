@@ -1,0 +1,1315 @@
+sleep 100
+sql connect
+sql use db
+
+$emptyString = @@
+print execute sql select length(*) from tb1;
+sql_error select length(*) from tb1;
+print execute sql select length(*) + 1 as a from tb1;
+sql_error select length(*) + 1 as a from tb1;
+print execute sql select length(tb1.*) + 1 as a from tb1;
+sql_error select length(tb1.*) + 1 as a from tb1;
+print execute sql select length(*) from tb1;
+sql_error select length(*) from tb1;
+print execute sql select length(c1) from tb1;
+sql_error select length(c1) from tb1;
+print execute sql select length(13) from tb1;
+sql_error select length(13) from tb1;
+print execute sql select length(c1) from tb1;
+sql_error select length(c1) from tb1;
+print execute sql select length(c2) from tb1;
+sql_error select length(c2) from tb1;
+print execute sql select length(c3) from tb1;
+sql_error select length(c3) from tb1;
+print execute sql select length(c4) from tb1;
+sql_error select length(c4) from tb1;
+print execute sql select length(c5) from tb1;
+sql_error select length(c5) from tb1;
+print execute sql select length(c6) from tb1;
+sql_error select length(c6) from tb1;
+print execute sql select length(c7) from tb1;
+sql_error select length(c7) from tb1;
+print execute sql select length(c8) from tb1;
+sql select length(c8) from tb1;
+if $data00 != @3@ then
+  return -1 
+endi
+if $data10 != @NULL@ then
+  return -1 
+endi
+if $data20 != @3@ then
+  return -1 
+endi
+if $data30 != @NULL@ then
+  return -1 
+endi
+if $data40 != @3@ then
+  return -1 
+endi
+if $data50 != @3@ then
+  return -1 
+endi
+if $data60 != @3@ then
+  return -1 
+endi
+print execute sql select length(c14) from tb1;
+sql select length(c14) from tb1;
+if $data00 != @1@ then
+  return -1 
+endi
+if $data10 != @NULL@ then
+  return -1 
+endi
+if $data20 != @1@ then
+  return -1 
+endi
+if $data30 != @NULL@ then
+  return -1 
+endi
+if $data40 != @1@ then
+  return -1 
+endi
+if $data50 != @2@ then
+  return -1 
+endi
+if $data60 != @0@ then
+  return -1 
+endi
+print execute sql select length(c10) from tb1;
+sql_error select length(c10) from tb1;
+print execute sql select length(c11) from tb1;
+sql_error select length(c11) from tb1;
+print execute sql select length(c12) from tb1;
+sql_error select length(c12) from tb1;
+print execute sql select length(c13) from tb1;
+sql_error select length(c13) from tb1;
+print execute sql select length('12345678900000000000000000') from tb1;
+sql select length('12345678900000000000000000') from tb1;
+if $data00 != @26@ then
+  return -1 
+endi
+if $data10 != @26@ then
+  return -1 
+endi
+if $data20 != @26@ then
+  return -1 
+endi
+if $data30 != @26@ then
+  return -1 
+endi
+if $data40 != @26@ then
+  return -1 
+endi
+if $data50 != @26@ then
+  return -1 
+endi
+if $data60 != @26@ then
+  return -1 
+endi
+print execute sql select distinct length(123) from tb1;
+sql_error select distinct length(123) from tb1;
+print execute sql select length(t1) from stb1;
+sql_error select length(t1) from stb1;
+print execute sql select length(c8),avg(c3) from tb1;
+sql_error select length(c8),avg(c3) from tb1;
+print execute sql select length(c8),top(c3,1) from tb1;
+sql_error select length(c8),top(c3,1) from tb1;
+print execute sql select length(concat(c8,c14)) from tb1 session(ts, 1s);
+sql_error select length(concat(c8,c14)) from tb1 session(ts, 1s);
+print execute sql select length(concat(c8,c14)) from tb1 STATE_WINDOW(c1);
+sql_error select length(concat(c8,c14)) from tb1 STATE_WINDOW(c1);
+print execute sql select length(concat(c8,c14)) from tb1 interval(1s) sliding(1s) fill(NULL);
+sql_error select length(concat(c8,c14)) from tb1 interval(1s) sliding(1s) fill(NULL);
+print execute sql select length(concat(c8,c14)) from stb1 group by t1;
+sql_error select length(concat(c8,c14)) from stb1 group by t1;
+print execute sql select length(concat(c8,c14)) from stb1 group by ts;
+sql_error select length(concat(c8,c14)) from stb1 group by ts;
+print execute sql select length(concat(c8,c14)) from stb1 group by c1;
+sql_error select length(concat(c8,c14)) from stb1 group by c1;
+print execute sql select length(concat(c8,c14)) from stb1 group by tbname;
+sql_error select length(concat(c8,c14)) from stb1 group by tbname;
+print execute sql select length(concat(c8,c14)) from tb1 order by c2;
+sql_error select length(concat(c8,c14)) from tb1 order by c2;
+print execute sql select length(c8),length(c14) from tbn;
+sql select length(c8),length(c14) from tbn;
+if $data00 != @3@ then
+  return -1 
+endi
+if $data01 != @1@ then
+  return -1 
+endi
+if $data10 != @3@ then
+  return -1 
+endi
+if $data11 != @1@ then
+  return -1 
+endi
+if $data20 != @3@ then
+  return -1 
+endi
+if $data21 != @1@ then
+  return -1 
+endi
+if $data30 != @3@ then
+  return -1 
+endi
+if $data31 != @1@ then
+  return -1 
+endi
+if $data40 != @3@ then
+  return -1 
+endi
+if $data41 != @1@ then
+  return -1 
+endi
+if $data50 != @3@ then
+  return -1 
+endi
+if $data51 != @1@ then
+  return -1 
+endi
+if $data60 != @3@ then
+  return -1 
+endi
+if $data61 != @1@ then
+  return -1 
+endi
+print execute sql select length(ts) from (select avg(c2) as a from stb1 interval(1s));
+sql_error select length(ts) from (select avg(c2) as a from stb1 interval(1s));
+print execute sql select length(cast(a as binary(10))) from (select abs(c2) as a from tb1);
+sql select length(cast(a as binary(10))) from (select abs(c2) as a from tb1);
+if $data00 != @1@ then
+  return -1 
+endi
+if $data10 != @NULL@ then
+  return -1 
+endi
+if $data20 != @1@ then
+  return -1 
+endi
+if $data30 != @NULL@ then
+  return -1 
+endi
+if $data40 != @1@ then
+  return -1 
+endi
+if $data50 != @3@ then
+  return -1 
+endi
+if $data60 != @3@ then
+  return -1 
+endi
+print execute sql select length("abc") from tb1;
+sql select length("abc") from tb1;
+if $data00 != @3@ then
+  return -1 
+endi
+if $data10 != @3@ then
+  return -1 
+endi
+if $data20 != @3@ then
+  return -1 
+endi
+if $data30 != @3@ then
+  return -1 
+endi
+if $data40 != @3@ then
+  return -1 
+endi
+if $data50 != @3@ then
+  return -1 
+endi
+if $data60 != @3@ then
+  return -1 
+endi
+print execute sql select length(concat(c8,c14)) from tb1;
+sql select length(concat(c8,c14)) from tb1;
+if $data00 != @4@ then
+  return -1 
+endi
+if $data10 != @NULL@ then
+  return -1 
+endi
+if $data20 != @4@ then
+  return -1 
+endi
+if $data30 != @NULL@ then
+  return -1 
+endi
+if $data40 != @4@ then
+  return -1 
+endi
+if $data50 != @5@ then
+  return -1 
+endi
+if $data60 != @3@ then
+  return -1 
+endi
+print execute sql select length((concat(c8,c14))) from tb1;
+sql select length((concat(c8,c14))) from tb1;
+if $data00 != @4@ then
+  return -1 
+endi
+if $data10 != @NULL@ then
+  return -1 
+endi
+if $data20 != @4@ then
+  return -1 
+endi
+if $data30 != @NULL@ then
+  return -1 
+endi
+if $data40 != @4@ then
+  return -1 
+endi
+if $data50 != @5@ then
+  return -1 
+endi
+if $data60 != @3@ then
+  return -1 
+endi
+print execute sql select length('11')+c2 from tb1;
+sql select length('11')+c2 from tb1;
+if $data00 != @3.000000000@ then
+  return -1 
+endi
+if $data10 != @NULL@ then
+  return -1 
+endi
+if $data20 != @4.000000000@ then
+  return -1 
+endi
+if $data30 != @NULL@ then
+  return -1 
+endi
+if $data40 != @6.000000000@ then
+  return -1 
+endi
+if $data50 != @129.000000000@ then
+  return -1 
+endi
+if $data60 != @-125.000000000@ then
+  return -1 
+endi
+print execute sql select length(c8)+c2 from tb1;
+sql select length(c8)+c2 from tb1;
+if $data00 != @4.000000000@ then
+  return -1 
+endi
+if $data10 != @NULL@ then
+  return -1 
+endi
+if $data20 != @5.000000000@ then
+  return -1 
+endi
+if $data30 != @NULL@ then
+  return -1 
+endi
+if $data40 != @7.000000000@ then
+  return -1 
+endi
+if $data50 != @130.000000000@ then
+  return -1 
+endi
+if $data60 != @-124.000000000@ then
+  return -1 
+endi
+print execute sql select length(c14)+11 from tb1;
+sql select length(c14)+11 from tb1;
+if $data00 != @12.000000000@ then
+  return -1 
+endi
+if $data10 != @NULL@ then
+  return -1 
+endi
+if $data20 != @12.000000000@ then
+  return -1 
+endi
+if $data30 != @NULL@ then
+  return -1 
+endi
+if $data40 != @12.000000000@ then
+  return -1 
+endi
+if $data50 != @13.000000000@ then
+  return -1 
+endi
+if $data60 != @11.000000000@ then
+  return -1 
+endi
+print execute sql select length(c8),c8,c2 from tb1;
+sql select length(c8),c8,c2 from tb1;
+if $data00 != @3@ then
+  return -1 
+endi
+if $data01 != @123@ then
+  return -1 
+endi
+if $data02 != @1@ then
+  return -1 
+endi
+if $data10 != @NULL@ then
+  return -1 
+endi
+if $data11 != @NULL@ then
+  return -1 
+endi
+if $data12 != @NULL@ then
+  return -1 
+endi
+if $data20 != @3@ then
+  return -1 
+endi
+if $data21 != @234@ then
+  return -1 
+endi
+if $data22 != @2@ then
+  return -1 
+endi
+if $data30 != @NULL@ then
+  return -1 
+endi
+if $data31 != @NULL@ then
+  return -1 
+endi
+if $data32 != @NULL@ then
+  return -1 
+endi
+if $data40 != @3@ then
+  return -1 
+endi
+if $data41 != @456@ then
+  return -1 
+endi
+if $data42 != @4@ then
+  return -1 
+endi
+if $data50 != @3@ then
+  return -1 
+endi
+if $data51 != @567@ then
+  return -1 
+endi
+if $data52 != @127@ then
+  return -1 
+endi
+if $data60 != @3@ then
+  return -1 
+endi
+if $data61 != @678@ then
+  return -1 
+endi
+if $data62 != @-127@ then
+  return -1 
+endi
+print execute sql select length(c8),t1,ts,tbname,_C0,_c0 from tb1;
+sql select length(c8),t1,ts,tbname,_C0,_c0 from tb1;
+if $data00 != @3@ then
+  return -1 
+endi
+if $data01 != @1@ then
+  return -1 
+endi
+if $data02 != @21-11-11 09:00:00.000@ then
+  return -1 
+endi
+if $data03 != @tb1@ then
+  return -1 
+endi
+if $data04 != @21-11-11 09:00:00.000@ then
+  return -1 
+endi
+if $data05 != @21-11-11 09:00:00.000@ then
+  return -1 
+endi
+if $data10 != @NULL@ then
+  return -1 
+endi
+if $data11 != @1@ then
+  return -1 
+endi
+if $data12 != @21-11-11 09:00:01.000@ then
+  return -1 
+endi
+if $data13 != @tb1@ then
+  return -1 
+endi
+if $data14 != @21-11-11 09:00:01.000@ then
+  return -1 
+endi
+if $data15 != @21-11-11 09:00:01.000@ then
+  return -1 
+endi
+if $data20 != @3@ then
+  return -1 
+endi
+if $data21 != @1@ then
+  return -1 
+endi
+if $data22 != @21-11-11 09:00:02.000@ then
+  return -1 
+endi
+if $data23 != @tb1@ then
+  return -1 
+endi
+if $data24 != @21-11-11 09:00:02.000@ then
+  return -1 
+endi
+if $data25 != @21-11-11 09:00:02.000@ then
+  return -1 
+endi
+if $data30 != @NULL@ then
+  return -1 
+endi
+if $data31 != @1@ then
+  return -1 
+endi
+if $data32 != @21-11-11 09:00:03.000@ then
+  return -1 
+endi
+if $data33 != @tb1@ then
+  return -1 
+endi
+if $data34 != @21-11-11 09:00:03.000@ then
+  return -1 
+endi
+if $data35 != @21-11-11 09:00:03.000@ then
+  return -1 
+endi
+if $data40 != @3@ then
+  return -1 
+endi
+if $data41 != @1@ then
+  return -1 
+endi
+if $data42 != @21-11-11 09:00:04.000@ then
+  return -1 
+endi
+if $data43 != @tb1@ then
+  return -1 
+endi
+if $data44 != @21-11-11 09:00:04.000@ then
+  return -1 
+endi
+if $data45 != @21-11-11 09:00:04.000@ then
+  return -1 
+endi
+if $data50 != @3@ then
+  return -1 
+endi
+if $data51 != @1@ then
+  return -1 
+endi
+if $data52 != @21-11-11 09:00:05.000@ then
+  return -1 
+endi
+if $data53 != @tb1@ then
+  return -1 
+endi
+if $data54 != @21-11-11 09:00:05.000@ then
+  return -1 
+endi
+if $data55 != @21-11-11 09:00:05.000@ then
+  return -1 
+endi
+if $data60 != @3@ then
+  return -1 
+endi
+if $data61 != @1@ then
+  return -1 
+endi
+if $data62 != @21-11-11 09:00:06.000@ then
+  return -1 
+endi
+if $data63 != @tb1@ then
+  return -1 
+endi
+if $data64 != @21-11-11 09:00:06.000@ then
+  return -1 
+endi
+if $data65 != @21-11-11 09:00:06.000@ then
+  return -1 
+endi
+print execute sql select length(c8),floor(c3) from tb1;
+sql select length(c8),floor(c3) from tb1;
+if $data00 != @3@ then
+  return -1 
+endi
+if $data01 != @1@ then
+  return -1 
+endi
+if $data10 != @NULL@ then
+  return -1 
+endi
+if $data11 != @NULL@ then
+  return -1 
+endi
+if $data20 != @3@ then
+  return -1 
+endi
+if $data21 != @NULL@ then
+  return -1 
+endi
+if $data30 != @NULL@ then
+  return -1 
+endi
+if $data31 != @3@ then
+  return -1 
+endi
+if $data40 != @3@ then
+  return -1 
+endi
+if $data41 != @4@ then
+  return -1 
+endi
+if $data50 != @3@ then
+  return -1 
+endi
+if $data51 != @32767@ then
+  return -1 
+endi
+if $data60 != @3@ then
+  return -1 
+endi
+if $data61 != @-32767@ then
+  return -1 
+endi
+print execute sql select length(c8),length(concat(c8,c14)) from tb1;
+sql select length(c8),length(concat(c8,c14)) from tb1;
+if $data00 != @3@ then
+  return -1 
+endi
+if $data01 != @4@ then
+  return -1 
+endi
+if $data10 != @NULL@ then
+  return -1 
+endi
+if $data11 != @NULL@ then
+  return -1 
+endi
+if $data20 != @3@ then
+  return -1 
+endi
+if $data21 != @4@ then
+  return -1 
+endi
+if $data30 != @NULL@ then
+  return -1 
+endi
+if $data31 != @NULL@ then
+  return -1 
+endi
+if $data40 != @3@ then
+  return -1 
+endi
+if $data41 != @4@ then
+  return -1 
+endi
+if $data50 != @3@ then
+  return -1 
+endi
+if $data51 != @5@ then
+  return -1 
+endi
+if $data60 != @3@ then
+  return -1 
+endi
+if $data61 != @3@ then
+  return -1 
+endi
+print execute sql select length(concat(c8,c14)) from tb1 where c9 is not null and c15 is not null;
+sql select length(concat(c8,c14)) from tb1 where c9 is not null and c15 is not null;
+if $data00 != @4@ then
+  return -1 
+endi
+if $data10 != @NULL@ then
+  return -1 
+endi
+if $data20 != @4@ then
+  return -1 
+endi
+if $data30 != @5@ then
+  return -1 
+endi
+if $data40 != @3@ then
+  return -1 
+endi
+print execute sql select length(c14) from tb1 order by ts desc;
+sql select length(c14) from tb1 order by ts desc;
+if $data00 != @0@ then
+  return -1 
+endi
+if $data10 != @2@ then
+  return -1 
+endi
+if $data20 != @1@ then
+  return -1 
+endi
+if $data30 != @NULL@ then
+  return -1 
+endi
+if $data40 != @1@ then
+  return -1 
+endi
+if $data50 != @NULL@ then
+  return -1 
+endi
+if $data60 != @1@ then
+  return -1 
+endi
+print execute sql select length(concat(c8,c14)) from tb1 order by ts desc;
+sql select length(concat(c8,c14)) from tb1 order by ts desc;
+if $data00 != @3@ then
+  return -1 
+endi
+if $data10 != @5@ then
+  return -1 
+endi
+if $data20 != @4@ then
+  return -1 
+endi
+if $data30 != @NULL@ then
+  return -1 
+endi
+if $data40 != @4@ then
+  return -1 
+endi
+if $data50 != @NULL@ then
+  return -1 
+endi
+if $data60 != @4@ then
+  return -1 
+endi
+print execute sql select length(concat(c8,c14)) from tb1 order by ts desc limit 3 offset 2;
+sql select length(concat(c8,c14)) from tb1 order by ts desc limit 3 offset 2;
+if $data00 != @4@ then
+  return -1 
+endi
+if $data10 != @NULL@ then
+  return -1 
+endi
+if $data20 != @4@ then
+  return -1 
+endi
+print execute sql select length(c14) from stb1;
+sql select length(c14) from stb1;
+if $data00 != @1@ then
+  return -1 
+endi
+if $data10 != @NULL@ then
+  return -1 
+endi
+if $data20 != @1@ then
+  return -1 
+endi
+if $data30 != @NULL@ then
+  return -1 
+endi
+if $data40 != @1@ then
+  return -1 
+endi
+if $data50 != @2@ then
+  return -1 
+endi
+if $data60 != @0@ then
+  return -1 
+endi
+if $data70 != @1@ then
+  return -1 
+endi
+if $data80 != @1@ then
+  return -1 
+endi
+if $data90 != @1@ then
+  return -1 
+endi
+print execute sql select length(c14) from stb1 order by ts desc;
+sql select length(c14) from stb1 order by ts desc;
+if $data00 != @1@ then
+  if $data00 != @0@ then
+    return -1 
+  endi
+endi
+if $data20 != @1@ then
+  if $data20 != @2@ then
+    return -1 
+  endi
+endi
+if $data40 != @1@ then
+  if $data40 != @1@ then
+    return -1 
+  endi
+endi
+if $data60 != @1@ then
+  if $data60 != @NULL@ then
+    return -1 
+  endi
+endi
+if $data80 != @1@ then
+  if $data80 != @1@ then
+    return -1 
+  endi
+endi
+print execute sql select length(c14),t1 from stb1 order by ts desc;
+sql select length(c14),t1 from stb1 order by ts desc;
+if $data00 != @1@ then
+  if $data00 != @0@ then
+    return -1 
+  endi
+endi
+if $data01 != @2@ then
+  if $data01 != @1@ then
+    return -1 
+  endi
+endi
+if $data20 != @1@ then
+  if $data20 != @2@ then
+    return -1 
+  endi
+endi
+if $data21 != @2@ then
+  if $data21 != @1@ then
+    return -1 
+  endi
+endi
+if $data40 != @1@ then
+  if $data40 != @1@ then
+    return -1 
+  endi
+endi
+if $data41 != @2@ then
+  if $data41 != @1@ then
+    return -1 
+  endi
+endi
+if $data60 != @1@ then
+  if $data60 != @NULL@ then
+    return -1 
+  endi
+endi
+if $data61 != @2@ then
+  if $data61 != @1@ then
+    return -1 
+  endi
+endi
+if $data80 != @1@ then
+  if $data80 != @1@ then
+    return -1 
+  endi
+endi
+if $data81 != @2@ then
+  if $data81 != @1@ then
+    return -1 
+  endi
+endi
+print execute sql select length(c15),tbname from stb1;
+sql select length(c15),tbname from stb1;
+if $data00 != @4@ then
+  return -1 
+endi
+if $data01 != @tb1@ then
+  return -1 
+endi
+if $data10 != @NULL@ then
+  return -1 
+endi
+if $data11 != @tb1@ then
+  return -1 
+endi
+if $data20 != @NULL@ then
+  return -1 
+endi
+if $data21 != @tb1@ then
+  return -1 
+endi
+if $data30 != @4@ then
+  return -1 
+endi
+if $data31 != @tb1@ then
+  return -1 
+endi
+if $data40 != @4@ then
+  return -1 
+endi
+if $data41 != @tb1@ then
+  return -1 
+endi
+if $data50 != @12@ then
+  return -1 
+endi
+if $data51 != @tb1@ then
+  return -1 
+endi
+if $data60 != @0@ then
+  return -1 
+endi
+if $data61 != @tb1@ then
+  return -1 
+endi
+if $data70 != @4@ then
+  return -1 
+endi
+if $data71 != @tb2@ then
+  return -1 
+endi
+if $data80 != @4@ then
+  return -1 
+endi
+if $data81 != @tb2@ then
+  return -1 
+endi
+if $data90 != @4@ then
+  return -1 
+endi
+if $data91 != @tb2@ then
+  return -1 
+endi
+print execute sql select length(c15),tbname from stb1 where t1 > 1;
+sql select length(c15),tbname from stb1 where t1 > 1;
+if $data00 != @4@ then
+  return -1 
+endi
+if $data01 != @tb2@ then
+  return -1 
+endi
+if $data10 != @4@ then
+  return -1 
+endi
+if $data11 != @tb2@ then
+  return -1 
+endi
+if $data20 != @4@ then
+  return -1 
+endi
+if $data21 != @tb2@ then
+  return -1 
+endi
+if $data30 != @4@ then
+  return -1 
+endi
+if $data31 != @tb2@ then
+  return -1 
+endi
+if $data40 != @4@ then
+  return -1 
+endi
+if $data41 != @tb2@ then
+  return -1 
+endi
+if $data50 != @4@ then
+  return -1 
+endi
+if $data51 != @tb2@ then
+  return -1 
+endi
+if $data60 != @4@ then
+  return -1 
+endi
+if $data61 != @tb2@ then
+  return -1 
+endi
+print execute sql select length(c8),length(c14) from tbn;
+sql select length(c8),length(c14) from tbn;
+if $data00 != @3@ then
+  return -1 
+endi
+if $data01 != @1@ then
+  return -1 
+endi
+if $data10 != @3@ then
+  return -1 
+endi
+if $data11 != @1@ then
+  return -1 
+endi
+if $data20 != @3@ then
+  return -1 
+endi
+if $data21 != @1@ then
+  return -1 
+endi
+if $data30 != @3@ then
+  return -1 
+endi
+if $data31 != @1@ then
+  return -1 
+endi
+if $data40 != @3@ then
+  return -1 
+endi
+if $data41 != @1@ then
+  return -1 
+endi
+if $data50 != @3@ then
+  return -1 
+endi
+if $data51 != @1@ then
+  return -1 
+endi
+if $data60 != @3@ then
+  return -1 
+endi
+if $data61 != @1@ then
+  return -1 
+endi
+print execute sql select length(c8),length(c14) from tbn order by ts desc;
+sql select length(c8),length(c14) from tbn order by ts desc;
+if $data00 != @3@ then
+  return -1 
+endi
+if $data01 != @1@ then
+  return -1 
+endi
+if $data10 != @3@ then
+  return -1 
+endi
+if $data11 != @1@ then
+  return -1 
+endi
+if $data20 != @3@ then
+  return -1 
+endi
+if $data21 != @1@ then
+  return -1 
+endi
+if $data30 != @3@ then
+  return -1 
+endi
+if $data31 != @1@ then
+  return -1 
+endi
+if $data40 != @3@ then
+  return -1 
+endi
+if $data41 != @1@ then
+  return -1 
+endi
+if $data50 != @3@ then
+  return -1 
+endi
+if $data51 != @1@ then
+  return -1 
+endi
+if $data60 != @3@ then
+  return -1 
+endi
+if $data61 != @1@ then
+  return -1 
+endi
+print execute sql select length(length(c8)) from tbn;
+sql_error select length(length(c8)) from tbn;
+print execute sql select length(cast(a as binary(10))) from (select avg(c2) as a from stb1 interval(1s));
+sql select length(cast(a as binary(10))) from (select avg(c2) as a from stb1 interval(1s));
+if $data00 != @8@ then
+  return -1 
+endi
+if $data10 != @8@ then
+  return -1 
+endi
+if $data20 != @8@ then
+  return -1 
+endi
+if $data30 != @8@ then
+  return -1 
+endi
+if $data40 != @8@ then
+  return -1 
+endi
+if $data50 != @9@ then
+  return -1 
+endi
+if $data60 != @10@ then
+  return -1 
+endi
+print execute sql select length(c14) from (select * from stb1);
+sql select length(c14) from (select * from stb1);
+if $data00 != @1@ then
+  return -1 
+endi
+if $data10 != @NULL@ then
+  return -1 
+endi
+if $data20 != @1@ then
+  return -1 
+endi
+if $data30 != @NULL@ then
+  return -1 
+endi
+if $data40 != @1@ then
+  return -1 
+endi
+if $data50 != @2@ then
+  return -1 
+endi
+if $data60 != @0@ then
+  return -1 
+endi
+if $data70 != @1@ then
+  return -1 
+endi
+if $data80 != @1@ then
+  return -1 
+endi
+if $data90 != @1@ then
+  return -1 
+endi
+print execute sql select length(cast(a as binary(10))) from (select avg(c2) as a from stb1 where ts >= '2021-11-11 09:00:00.000' and ts <= '2021-11-11 09:00:09.000' interval(1s) fill(null));
+sql select length(cast(a as binary(10))) from (select avg(c2) as a from stb1 where ts >= '2021-11-11 09:00:00.000' and ts <= '2021-11-11 09:00:09.000' interval(1s) fill(null));
+if $data00 != @8@ then
+  return -1 
+endi
+if $data10 != @8@ then
+  return -1 
+endi
+if $data20 != @8@ then
+  return -1 
+endi
+if $data30 != @8@ then
+  return -1 
+endi
+if $data40 != @8@ then
+  return -1 
+endi
+if $data50 != @9@ then
+  return -1 
+endi
+if $data60 != @10@ then
+  return -1 
+endi
+if $data70 != @NULL@ then
+  return -1 
+endi
+if $data80 != @NULL@ then
+  return -1 
+endi
+if $data90 != @NULL@ then
+  return -1 
+endi
+print execute sql select length(cast(a as binary(10))) from (select avg(c2) as a from stb1 where ts >= '2021-11-11 09:00:00.000' and ts <= '2021-11-11 09:00:09.000' interval(1s) fill(null)) order by ts;
+sql select length(cast(a as binary(10))) from (select avg(c2) as a from stb1 where ts >= '2021-11-11 09:00:00.000' and ts <= '2021-11-11 09:00:09.000' interval(1s) fill(null)) order by ts;
+if $data00 != @8@ then
+  return -1 
+endi
+if $data10 != @8@ then
+  return -1 
+endi
+if $data20 != @8@ then
+  return -1 
+endi
+if $data30 != @8@ then
+  return -1 
+endi
+if $data40 != @8@ then
+  return -1 
+endi
+if $data50 != @9@ then
+  return -1 
+endi
+if $data60 != @10@ then
+  return -1 
+endi
+if $data70 != @NULL@ then
+  return -1 
+endi
+if $data80 != @NULL@ then
+  return -1 
+endi
+if $data90 != @NULL@ then
+  return -1 
+endi
+print execute sql select length(cast(a as binary(10))) from (select avg(c2) as a from stb1 where ts >= '2021-11-11 09:00:00.000' and ts <= '2021-11-11 09:00:09.000' interval(1s) fill(null)) order by ts desc;
+sql select length(cast(a as binary(10))) from (select avg(c2) as a from stb1 where ts >= '2021-11-11 09:00:00.000' and ts <= '2021-11-11 09:00:09.000' interval(1s) fill(null)) order by ts desc;
+if $data00 != @NULL@ then
+  return -1 
+endi
+if $data10 != @NULL@ then
+  return -1 
+endi
+if $data20 != @NULL@ then
+  return -1 
+endi
+if $data30 != @10@ then
+  return -1 
+endi
+if $data40 != @9@ then
+  return -1 
+endi
+if $data50 != @8@ then
+  return -1 
+endi
+if $data60 != @8@ then
+  return -1 
+endi
+if $data70 != @8@ then
+  return -1 
+endi
+if $data80 != @8@ then
+  return -1 
+endi
+if $data90 != @8@ then
+  return -1 
+endi
+print execute sql select length(cast(a as binary(10))) from (select avg(c2) as a from stb1 where ts >= '2021-11-11 09:00:00.000' and ts <= '2021-11-11 09:00:09.000' interval(1s) fill(null)) order by a desc;
+sql select length(cast(a as binary(10))) from (select avg(c2) as a from stb1 where ts >= '2021-11-11 09:00:00.000' and ts <= '2021-11-11 09:00:09.000' interval(1s) fill(null)) order by a desc;
+if $data00 != @NULL@ then
+  return -1 
+endi
+if $data10 != @NULL@ then
+  return -1 
+endi
+if $data20 != @NULL@ then
+  return -1 
+endi
+if $data30 != @9@ then
+  return -1 
+endi
+if $data40 != @8@ then
+  return -1 
+endi
+if $data50 != @8@ then
+  return -1 
+endi
+if $data60 != @8@ then
+  return -1 
+endi
+if $data70 != @8@ then
+  return -1 
+endi
+if $data80 != @8@ then
+  return -1 
+endi
+if $data90 != @10@ then
+  return -1 
+endi
+print execute sql select length(cast(a as binary(10))) from (select avg(c2) as a from stb1 where ts >= '2021-11-11 09:00:00.000' and ts <= '2021-11-11 09:00:09.000' interval(1s) fill(null)) order by a;
+sql select length(cast(a as binary(10))) from (select avg(c2) as a from stb1 where ts >= '2021-11-11 09:00:00.000' and ts <= '2021-11-11 09:00:09.000' interval(1s) fill(null)) order by a;
+if $data00 != @10@ then
+  return -1 
+endi
+if $data10 != @8@ then
+  return -1 
+endi
+if $data20 != @8@ then
+  return -1 
+endi
+if $data30 != @8@ then
+  return -1 
+endi
+if $data40 != @8@ then
+  return -1 
+endi
+if $data50 != @8@ then
+  return -1 
+endi
+if $data60 != @9@ then
+  return -1 
+endi
+if $data70 != @NULL@ then
+  return -1 
+endi
+if $data80 != @NULL@ then
+  return -1 
+endi
+if $data90 != @NULL@ then
+  return -1 
+endi
+print execute sql select length(cast(a as binary(10))) from (select abs(c2) as a from tb1);
+sql select length(cast(a as binary(10))) from (select abs(c2) as a from tb1);
+if $data00 != @1@ then
+  return -1 
+endi
+if $data10 != @NULL@ then
+  return -1 
+endi
+if $data20 != @1@ then
+  return -1 
+endi
+if $data30 != @NULL@ then
+  return -1 
+endi
+if $data40 != @1@ then
+  return -1 
+endi
+if $data50 != @3@ then
+  return -1 
+endi
+if $data60 != @3@ then
+  return -1 
+endi
+print execute sql select length(tb1.c15),length(tb2.c15) from tb1,tb2 where tb1.ts=tb2.ts;
+sql select length(tb1.c15),length(tb2.c15) from tb1,tb2 where tb1.ts=tb2.ts;
+if $data00 != @4@ then
+  return -1 
+endi
+if $data01 != @4@ then
+  return -1 
+endi
+if $data10 != @NULL@ then
+  return -1 
+endi
+if $data11 != @4@ then
+  return -1 
+endi
+if $data20 != @NULL@ then
+  return -1 
+endi
+if $data21 != @4@ then
+  return -1 
+endi
+if $data30 != @4@ then
+  return -1 
+endi
+if $data31 != @4@ then
+  return -1 
+endi
+if $data40 != @4@ then
+  return -1 
+endi
+if $data41 != @4@ then
+  return -1 
+endi
+if $data50 != @12@ then
+  return -1 
+endi
+if $data51 != @4@ then
+  return -1 
+endi
+if $data60 != @0@ then
+  return -1 
+endi
+if $data61 != @4@ then
+  return -1 
+endi
+print execute sql select length(c15) from tb1 union all select length(c15) from tb2;
+sql select length(c15) from tb1 union all select length(c15) from tb2;
+if $data00 != @4@ then
+  return -1 
+endi
+if $data10 != @NULL@ then
+  return -1 
+endi
+if $data20 != @NULL@ then
+  return -1 
+endi
+if $data30 != @4@ then
+  return -1 
+endi
+if $data40 != @4@ then
+  return -1 
+endi
+if $data50 != @12@ then
+  return -1 
+endi
+if $data60 != @0@ then
+  return -1 
+endi
+if $data70 != @4@ then
+  return -1 
+endi
+if $data80 != @4@ then
+  return -1 
+endi
+if $data90 != @4@ then
+  return -1 
+endi

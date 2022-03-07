@@ -1,0 +1,292 @@
+deploy_mode: no
+taosd_autodeploy: False
+install_package: /home/ubuntu/TDengine/release/TDengine-server-2.3.4.0-beta-Linux-x64.tar.gz
+clean_env: True
+hostname_prefix: vm
+timeout: 10
+taosd_dnode1: 
+  ip: 192.168.1.85
+  port: 22
+  restful_port: 6041
+  telnet_port: 6051
+  username: root
+  password: ******
+  modify_cfg: False
+  cfg: 
+    dataDir: /data/lib/taos
+    logDir: /data/log/taos
+
+taosd_cluster: False
+taosadapter_separate_deploy: True
+taosd_dnode2: 
+  ip: 192.168.1.83
+  port: 22
+  restful_port: 6041
+  telnet_port: 6046
+  username: root
+  password: ******
+  modify_cfg: False
+  cfg: 
+    dataDir: /data/lib/taos
+    logDir: /data/log/taos
+
+taosd_dnode3: 
+  ip: 192.168.1.84
+  port: 22
+  restful_port: 6041
+  telnet_port: 6046
+  username: root
+  password: ******
+  modify_cfg: False
+  cfg: 
+    dataDir: /data/lib/taos
+    logDir: /data/log/taos
+
+taosd_dnode4: 
+  ip: 192.168.1.86
+  port: 22
+  restful_port: 6041
+  telnet_port: 6046
+  username: root
+  password: ******
+  modify_cfg: False
+  cfg: 
+    dataDir: /data/lib/taos
+    logDir: /data/log/taos
+
+prometheus:
+  autodeploy: True
+  ip: 192.168.1.101
+  port: 22
+  username: root
+  password: ******
+  scrape_interval: 3s
+  evaluation_interval: 1s
+  scrape_timeout: 3s
+  prometheus_addr: http://39.105.163.10:9000/prometheus-2.31.1.linux-amd64.tar.gz
+  node_exporter_addr: https://github.com/prometheus/node_exporter/releases/download/v1.3.1/node_exporter-1.3.1.linux-amd64.tar.gz
+  process_exporter_addr: https://github.com/ncabatoff/process-exporter/releases/download/v0.7.10/process-exporter-0.7.10.linux-amd64.tar.gz
+
+jmeter:
+  autodeploy: False
+  aggregate_report: True
+  clean_aggregate_report: True
+  ip: 127.0.0.1
+  port: 22
+  username: root
+  password: ******
+  jmeter_addr: https://dlcdn.apache.org//jmeter/binaries/apache-jmeter-5.4.1.tgz
+
+testcases:
+  testcase1:
+    threads: 24
+    protocol: telnet-restful
+    taosadapter_count: 1
+    stb_count: 1
+    tb_count: 1
+    row_count: 3000000
+    sleep_time: 60s
+    tag_count: 10
+    col_count: 1
+  testcase2:
+    threads: 32
+    protocol: telnet-restful
+    taosadapter_count: 1
+    stb_count: 1
+    tb_count: 1
+    row_count: 3000000
+    sleep_time: 60s
+    tag_count: 10
+    col_count: 1
+  testcase3:
+    threads: 64
+    protocol: telnet-restful
+    taosadapter_count: 1
+    stb_count: 1
+    tb_count: 1
+    row_count: 3000000
+    sleep_time: 60s
+    tag_count: 10
+    col_count: 1
+  testcase4:
+    threads: 100
+    protocol: telnet-restful
+    taosadapter_count: 1
+    stb_count: 1
+    tb_count: 1
+    row_count: 5000000
+    sleep_time: 60s
+    tag_count: 10
+    col_count: 1
+  
+  testcase5:
+    threads: 100
+    protocol: telnet-restful
+    taosadapter_count: 2
+    stb_count: 1
+    tb_count: 1
+    row_count: 5000000
+    sleep_time: 60s
+    tag_count: 10
+    col_count: 1
+  testcase6:
+    threads: 100
+    protocol: telnet-restful
+    taosadapter_count: 3
+    stb_count: 1
+    tb_count: 1
+    row_count: 5000000
+    sleep_time: 60s
+    tag_count: 10
+    col_count: 1
+
+  testcase7:
+    threads: 100
+    protocol: telnet-restful
+    taosadapter_count: 1
+    stb_count: 1000000
+    tb_count: 1
+    row_count: 1
+    sleep_time: 60s
+    tag_count: 10
+    col_count: 1
+  testcase8:
+    threads: 100
+    protocol: telnet-restful
+    taosadapter_count: 1
+    stb_count: 1
+    tb_count: 5000000
+    row_count: 1
+    sleep_time: 60s
+    tag_count: 10
+    col_count: 1
+
+  testcase9:
+    threads: 100
+    protocol: telnet-restful
+    taosadapter_count: 1
+    stb_count: 1
+    tb_count: 100000
+    row_count: 1000
+    sleep_time: 60s
+    tag_count: 10
+    col_count: 1
+
+  testcase10:
+    threads: 100
+    protocol: telnet-restful
+    taosadapter_count: 1
+    stb_count: 1
+    tb_count: 10
+    row_count: 10000000
+    sleep_time: 60s
+    tag_count: 10
+    col_count: 1
+  testcase11:
+    threads: 24
+    protocol: json
+    taosadapter_count: 1
+    stb_count: 1
+    tb_count: 1
+    row_count: 3000000
+    sleep_time: 60s
+    tag_count: 10
+    col_count: 1
+  testcase12:
+    threads: 32
+    protocol: json
+    taosadapter_count: 1
+    stb_count: 1
+    tb_count: 1
+    row_count: 3000000
+    sleep_time: 60s
+    tag_count: 10
+    col_count: 1
+  testcase13:
+    threads: 64
+    protocol: json
+    taosadapter_count: 1
+    stb_count: 1
+    tb_count: 1
+    row_count: 3000000
+    sleep_time: 60s
+    tag_count: 10
+    col_count: 1
+  testcase14:
+    threads: 100
+    protocol: json
+    taosadapter_count: 1
+    stb_count: 1
+    tb_count: 1
+    row_count: 5000000
+    sleep_time: 60s
+    tag_count: 10
+    col_count: 1
+  
+  testcase15:
+    threads: 100
+    protocol: json
+    taosadapter_count: 2
+    stb_count: 1
+    tb_count: 1
+    row_count: 5000000
+    sleep_time: 60s
+    tag_count: 10
+    col_count: 1
+  testcase16:
+    threads: 100
+    protocol: json
+    taosadapter_count: 3
+    stb_count: 1
+    tb_count: 1
+    row_count: 5000000
+    sleep_time: 60s
+    tag_count: 10
+    col_count: 1
+
+  testcase17:
+    threads: 100
+    protocol: json
+    taosadapter_count: 1
+    stb_count: 1000000
+    tb_count: 1
+    row_count: 1
+    sleep_time: 60s
+    tag_count: 10
+    col_count: 1
+  testcase18:
+    threads: 100
+    protocol: json
+    taosadapter_count: 1
+    stb_count: 1
+    tb_count: 5000000
+    row_count: 1
+    sleep_time: 60s
+    tag_count: 10
+    col_count: 1
+
+  testcase19:
+    threads: 100
+    protocol: json
+    taosadapter_count: 1
+    stb_count: 1
+    tb_count: 100000
+    row_count: 1000
+    sleep_time: 60s
+    tag_count: 10
+    col_count: 1
+
+  testcase20:
+    threads: 100
+    protocol: json
+    taosadapter_count: 1
+    stb_count: 1
+    tb_count: 10
+    row_count: 10000000
+    sleep_time: 60s
+    tag_count: 10
+    col_count: 1
+
+  
+
+

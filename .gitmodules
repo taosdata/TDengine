@@ -17,10 +17,3 @@
 [submodule "src/plugins/taosadapter"]
 	path = src/plugins/taosadapter
 	url = https://github.com/taosdata/taosadapter
-[submodule "tests"]
-	path = tests
-	url = https://github.com/taosdata/tests
-	branch = 2.4
-[submodule "examples/rust"]
-	path = examples/rust
-	url = https://github.com/songtianyi/tdengine-rust-bindings.git

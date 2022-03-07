@@ -1,0 +1,165 @@
+system sh/stop_dnodes.sh
+
+system sh/deploy.sh -n dnode1 -i 1
+system sh/cfg.sh -n dnode1 -c walLevel -v 1
+system sh/exec.sh -n dnode1 -s start
+sleep 200
+sql connect
+
+$dbPrefix = m_db
+$tbPrefix = m_tb
+$mtPrefix = m_mt
+$tbNum = 10
+$rowNum = 20
+$totalNum = 200
+
+print =============== step1
+$i = 0
+$db = $dbPrefix . $i
+$mt = $mtPrefix . $i
+
+sql drop database $db -x step1
+step1:
+sql create database $db
+sql use $db
+sql create table $mt (ts timestamp, tbcol int, bin binary(43), nch nchar(43)) TAGS(tgcol int)
+
+$i = 0
+while $i < $tbNum
+  $tb = $tbPrefix . $i
+  sql create table $tb using $mt tags( $i )
+  
+  $x = 0
+  while $x < $rowNum
+    $cc = $x * 60000
+    $ms = 1601481600000 + $cc
+
+    sql insert into $tb values ($ms , $x , 'binary' , 'nchar' ) 
+    $x = $x + 1
+  endw 
+ 
+  $i = $i + 1
+endw 
+
+sleep 100
+
+print =============== step2
+$i = 1
+$tb = $tbPrefix . $i
+
+sql select sample(tbcol, 1) from $tb
+if $rows != 1 then
+  return -1
+endi
+if $data01 > 19 then 
+  return -1
+endi
+sql select sample(bin, 1) from $tb
+if $rows != 1 then
+  return -1
+endi
+if $data01 != @binary@ then
+  return -1
+endi
+sql select sample(nch, 1) from $tb
+if $rows != 1 then
+  return -1
+endi
+if $data01 != @nchar@ then
+  return -1
+endi
+
+print =============== step3
+$cc = 4 * 60000
+$ms = 1601481600000 + $cc
+
+sql select sample(tbcol, 1) from $tb where ts <= $ms
+if $data01 > 4 then 
+  return -1
+endi
+sql select sample(bin, 1) from $tb where ts <= $ms
+if $data01 != @binary@ then 
+  return -1
+endi
+sql select sample(nch, 1) from $tb where ts <= $ms
+if $data01 != @nchar@ then 
+  return -1
+endi
+
+print =============== step4
+sql select sample(tbcol, 1) as b from $tb
+if $data01 > 19 then 
+  return -1
+endi
+
+sql select sample(bin, 1) as b from $tb
+
+print =============== step5
+sql select sample(tbcol, 2) as b from $tb 
+if $rows != 2 then
+  return -1
+endi
+if $data01 > 19 then 
+  return -1
+endi
+if $data11 > 19 then 
+  return -1
+endi
+sql_error select sample(nchar, 2) as b from $tb 
+sql select sample(nch, 2) as b from $tb 
+if $rows != 2 then
+  return -1
+endi
+print =====> $data01 , $data11
+if $data01 != @nchar@ then 
+  return -1
+endi
+if $data11 != @nchar@ then 
+  return -1
+endi
+sql select sample(bin, 2) as b from $tb 
+if $rows != 2 then
+  return -1
+endi
+if $data01 != @binary@ then 
+  return -1
+endi
+if $data11 != @binary@ then 
+  return -1
+endi
+
+print =============== step6
+$cc = 4 * 60000
+$ms = 1601481600000 + $cc
+
+sql select sample(tbcol, 2) as b from $tb where ts <= $ms
+if $rows != 2 then
+  return -1
+endi
+if $data01 > 4 then 
+  return -1
+endi
+if $data11 > 4 then 
+  return -1
+endi
+sql select sample(bin, 2) as b from $tb where ts <= $ms
+if $rows != 2 then
+  return -1
+endi
+sql select sample(nch, 2) as b from $tb where ts <= $ms
+if $rows != 2 then
+  return -1
+endi
+
+sql select sample(tbcol, 1001) as b from $tb -x step6
+  return -1
+step6:
+
+print =============== clear
+sql drop database $db
+sql show databases
+if $rows != 0 then 
+  return -1
+endi
+
+system sh/exec.sh -n dnode1 -s stop -x SIGINT
