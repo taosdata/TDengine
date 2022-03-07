@@ -80,6 +80,68 @@ static int32_t skipInsertInto(SInsertParseContext* pCxt) {
   return TSDB_CODE_SUCCESS;
 }
 
+static int32_t parserValidateIdToken(SToken* pToken) {
+  if (pToken == NULL || pToken->z == NULL || pToken->type != TK_NK_ID) {
+    return TSDB_CODE_TSC_INVALID_OPERATION;
+  }
+
+  // it is a token quoted with escape char '`'
+  if (pToken->z[0] == TS_ESCAPE_CHAR && pToken->z[pToken->n - 1] == TS_ESCAPE_CHAR) {
+    return TSDB_CODE_SUCCESS;
+  }
+
+  char* sep = strnchr(pToken->z, TS_PATH_DELIMITER[0], pToken->n, true);
+  if (sep == NULL) {  // It is a single part token, not a complex type
+    if (isNumber(pToken)) {
+      return TSDB_CODE_TSC_INVALID_OPERATION;
+    }
+
+    strntolower(pToken->z, pToken->z, pToken->n);
+  } else {  // two part
+    int32_t oldLen = pToken->n;
+    char*   pStr = pToken->z;
+
+    if (pToken->type == TK_NK_SPACE) {
+      pToken->n = (uint32_t)strtrim(pToken->z);
+    }
+
+    pToken->n = tGetToken(pToken->z, &pToken->type);
+    if (pToken->z[pToken->n] != TS_PATH_DELIMITER[0]) {
+      return TSDB_CODE_TSC_INVALID_OPERATION;
+    }
+
+    if (pToken->type != TK_NK_ID) {
+      return TSDB_CODE_TSC_INVALID_OPERATION;
+    }
+
+    int32_t firstPartLen = pToken->n;
+
+    pToken->z = sep + 1;
+    pToken->n = (uint32_t)(oldLen - (sep - pStr) - 1);
+    int32_t len = tGetToken(pToken->z, &pToken->type);
+    if (len != pToken->n || pToken->type != TK_NK_ID) {
+      return TSDB_CODE_TSC_INVALID_OPERATION;
+    }
+
+    // re-build the whole name string
+    if (pStr[firstPartLen] == TS_PATH_DELIMITER[0]) {
+      // first part do not have quote do nothing
+    } else {
+      pStr[firstPartLen] = TS_PATH_DELIMITER[0];
+      memmove(&pStr[firstPartLen + 1], pToken->z, pToken->n);
+      uint32_t offset = (uint32_t)(pToken->z - (pStr + firstPartLen + 1));
+      memset(pToken->z + pToken->n - offset, ' ', offset);
+    }
+
+    pToken->n += (firstPartLen + sizeof(TS_PATH_DELIMITER[0]));
+    pToken->z = pStr;
+
+    strntolower(pToken->z, pToken->z, pToken->n);
+  }
+
+  return TSDB_CODE_SUCCESS;
+}
+
 static int32_t buildName(SInsertParseContext* pCxt, SToken* pStname, char* fullDbName, char* tableName) {
   if (parserValidateIdToken(pStname) != TSDB_CODE_SUCCESS) {
     return buildSyntaxErrMsg(&pCxt->msg, "invalid table name", pStname->z);
@@ -320,7 +382,7 @@ static int parseTime(char **end, SToken *pToken, int16_t timePrec, int64_t *time
 
 static FORCE_INLINE int32_t checkAndTrimValue(SToken* pToken, uint32_t type, char* tmpTokenBuf, SMsgBuf* pMsgBuf) {
   if ((pToken->type != TK_NOW && pToken->type != TK_NK_INTEGER && pToken->type != TK_NK_STRING && pToken->type != TK_NK_FLOAT && pToken->type != TK_NK_BOOL &&
-       pToken->type != TK_NULL && pToken->type != TK_HEX && pToken->type != TK_OCT && pToken->type != TK_BIN) ||
+       pToken->type != TK_NULL && pToken->type != TK_NK_HEX && pToken->type != TK_NK_OCT && pToken->type != TK_NK_BIN) ||
       (pToken->n == 0) || (pToken->type == TK_NK_RP)) {
     return buildSyntaxErrMsg(pMsgBuf, "invalid data or symbol", pToken->z);
   }
@@ -370,7 +432,7 @@ static FORCE_INLINE int32_t toDouble(SToken *pToken, double *value, char **endPt
 
   // not a valid integer number, return error
   if ((*endPtr - pToken->z) != pToken->n) {
-    return TK_ILLEGAL;
+    return TK_NK_ILLEGAL;
   }
 
   return pToken->type;
@@ -496,7 +558,7 @@ static int32_t parseValueToken(char** end, SToken* pToken, SSchema* pSchema, int
 
     case TSDB_DATA_TYPE_FLOAT: {
       double dv;
-      if (TK_ILLEGAL == toDouble(pToken, &dv, &endptr)) {
+      if (TK_NK_ILLEGAL == toDouble(pToken, &dv, &endptr)) {
         return buildSyntaxErrMsg(pMsgBuf, "illegal float data", pToken->z);
       }
       if (((dv == HUGE_VAL || dv == -HUGE_VAL) && errno == ERANGE) || dv > FLT_MAX || dv < -FLT_MAX || isinf(dv) || isnan(dv)) {
@@ -508,7 +570,7 @@ static int32_t parseValueToken(char** end, SToken* pToken, SSchema* pSchema, int
 
     case TSDB_DATA_TYPE_DOUBLE: {
       double dv;
-      if (TK_ILLEGAL == toDouble(pToken, &dv, &endptr)) {
+      if (TK_NK_ILLEGAL == toDouble(pToken, &dv, &endptr)) {
         return buildSyntaxErrMsg(pMsgBuf, "illegal double data", pToken->z);
       }
       if (((dv == HUGE_VAL || dv == -HUGE_VAL) && errno == ERANGE) || isinf(dv) || isnan(dv)) {
@@ -642,6 +704,37 @@ static int32_t parseBoundColumns(SInsertParseContext* pCxt, SParsedDataColInfo* 
   }
 
   memset(&pColList->boundedColumns[pColList->numOfBound], 0, sizeof(int32_t) * (pColList->numOfCols - pColList->numOfBound));
+
+  return TSDB_CODE_SUCCESS;
+}
+
+typedef struct SKvParam {
+  SKVRowBuilder *builder;
+  SSchema       *schema;
+  char           buf[TSDB_MAX_TAGS_LEN];
+} SKvParam;
+
+static int32_t KvRowAppend(const void *value, int32_t len, void *param) {
+  SKvParam* pa = (SKvParam*) param;
+
+  int32_t type  = pa->schema->type;
+  int32_t colId = pa->schema->colId;
+
+  if (TSDB_DATA_TYPE_BINARY == type) {
+    STR_WITH_SIZE_TO_VARSTR(pa->buf, value, len);
+    tdAddColToKVRow(pa->builder, colId, type, pa->buf);
+  } else if (TSDB_DATA_TYPE_NCHAR == type) {
+    // if the converted output len is over than pColumnModel->bytes, return error: 'Argument list too long'
+    int32_t output = 0;
+    if (!taosMbsToUcs4(value, len, varDataVal(pa->buf), pa->schema->bytes - VARSTR_HEADER_SIZE, &output)) {
+      return TSDB_CODE_TSC_SQL_SYNTAX_ERROR;
+    }
+
+    varDataSetLen(pa->buf, output);
+    tdAddColToKVRow(pa->builder, colId, type, pa->buf);
+  } else {
+    tdAddColToKVRow(pa->builder, colId, type, value);
+  }
 
   return TSDB_CODE_SUCCESS;
 }
@@ -893,7 +986,7 @@ static int32_t parseInsertBody(SInsertParseContext* pCxt) {
     }
 
     // FILE csv_file_path
-    if (TK_FILE == sToken.type) {
+    if (TK_NK_FILE == sToken.type) {
       // pSql -> csv_file_path
       NEXT_TOKEN(pCxt->pSql, sToken);
       if (0 == sToken.n || (TK_NK_STRING != sToken.type && TK_NK_ID != sToken.type)) {

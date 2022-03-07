@@ -13,6 +13,7 @@
  * along with this program. If not, see <http://www.gnu.org/licenses/>.
  */
 
+#include "nodesint.h"
 #include "plannodes.h"
 #include "querynodes.h"
 #include "taos.h"
@@ -221,7 +222,7 @@ SNodeptr nodesCloneNode(const SNodeptr pNode) {
     default:
       break;
   }
-  printf("nodesCloneNode unknown node = %s\n", nodesNodeName(nodeType(pNode)));
+  nodesWarn("nodesCloneNode unknown node = %s", nodesNodeName(nodeType(pNode)));
   return pDst;
 }
 

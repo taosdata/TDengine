@@ -32,22 +32,14 @@ typedef struct SMsgBuf {
 int32_t buildInvalidOperationMsg(SMsgBuf* pMsgBuf, const char* msg);
 int32_t buildSyntaxErrMsg(SMsgBuf* pBuf, const char* additionalInfo,  const char* sourceStr);
 
-int32_t parserValidateIdToken(SToken* pToken);
-
-typedef struct SKvParam {
-  SKVRowBuilder *builder;
-  SSchema       *schema;
-  char           buf[TSDB_MAX_TAGS_LEN];
-} SKvParam;
-
-int32_t KvRowAppend(const void *value, int32_t len, void *param);
-
 STableMeta* tableMetaDup(const STableMeta* pTableMeta);
 SSchema *getTableColumnSchema(const STableMeta *pTableMeta);
 SSchema *getTableTagSchema(const STableMeta* pTableMeta);
 int32_t  getNumOfColumns(const STableMeta* pTableMeta);
 int32_t  getNumOfTags(const STableMeta* pTableMeta);
 STableComInfo getTableInfo(const STableMeta* pTableMeta);
+
+int32_t trimString(const char* src, int32_t len, char* dst, int32_t dlen);
 
 #ifdef __cplusplus
 }

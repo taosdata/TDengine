@@ -13,6 +13,7 @@
  * along with this program. If not, see <http://www.gnu.org/licenses/>.
  */
 
+#include "nodesint.h"
 #include "plannodes.h"
 #include "querynodes.h"
 #include "query.h"
@@ -127,9 +128,8 @@ const char* nodesNodeName(ENodeType type) {
     default:
       break;
   }
-  static char tmp[20];
-  snprintf(tmp, sizeof(tmp), "Unknown %d", type);
-  return tmp;
+  nodesWarn("nodesNodeName unknown node = %d", type);
+  return "UnknownNode";
 }
 
 static int32_t nodeListToJson(SJson* pJson, const char* pName, const SNodeList* pList) {
@@ -871,7 +871,52 @@ static int32_t jsonToColumnNode(const SJson* pJson, void* pObj) {
 
 static const char* jkValueLiteral = "Literal";
 static const char* jkValueDuration = "Duration";
+static const char* jkValueTranslate = "Translate";
 static const char* jkValueDatum = "Datum";
+
+static int32_t datumToJson(const void* pObj, SJson* pJson) {
+  const SValueNode* pNode = (const SValueNode*)pObj;
+
+  int32_t code = TSDB_CODE_SUCCESS;
+  switch (pNode->node.resType.type) {
+    case TSDB_DATA_TYPE_NULL:
+      break;
+    case TSDB_DATA_TYPE_BOOL:
+      code = tjsonAddIntegerToObject(pJson, jkValueDatum, pNode->datum.b);
+      break;
+    case TSDB_DATA_TYPE_TINYINT:
+    case TSDB_DATA_TYPE_SMALLINT:
+    case TSDB_DATA_TYPE_INT:
+    case TSDB_DATA_TYPE_BIGINT:
+    case TSDB_DATA_TYPE_TIMESTAMP:
+      code = tjsonAddIntegerToObject(pJson, jkValueDatum, pNode->datum.i);
+      break;
+    case TSDB_DATA_TYPE_UTINYINT:
+    case TSDB_DATA_TYPE_USMALLINT:
+    case TSDB_DATA_TYPE_UINT:
+    case TSDB_DATA_TYPE_UBIGINT:
+      code = tjsonAddIntegerToObject(pJson, jkValueDatum, pNode->datum.u);
+      break;
+    case TSDB_DATA_TYPE_FLOAT:
+    case TSDB_DATA_TYPE_DOUBLE:
+      code = tjsonAddDoubleToObject(pJson, jkValueDatum, pNode->datum.d);
+      break;
+    case TSDB_DATA_TYPE_BINARY:
+    case TSDB_DATA_TYPE_NCHAR:
+    case TSDB_DATA_TYPE_VARCHAR:
+    case TSDB_DATA_TYPE_VARBINARY:
+      code = tjsonAddStringToObject(pJson, jkValueDatum, pNode->datum.p);
+      break;
+    case TSDB_DATA_TYPE_JSON:
+    case TSDB_DATA_TYPE_DECIMAL:
+    case TSDB_DATA_TYPE_BLOB:
+      // todo
+    default:
+      break;
+  }
+
+  return code ;
+}
 
 static int32_t valueNodeToJson(const void* pObj, SJson* pJson) {
   const SValueNode* pNode = (const SValueNode*)pObj;
@@ -884,42 +929,54 @@ static int32_t valueNodeToJson(const void* pObj, SJson* pJson) {
     code = tjsonAddBoolToObject(pJson, jkValueDuration, pNode->isDuration);
   }
   if (TSDB_CODE_SUCCESS == code) {
-    switch (pNode->node.resType.type) {
-      case TSDB_DATA_TYPE_NULL:
-        break;
-      case TSDB_DATA_TYPE_BOOL:
-        code = tjsonAddIntegerToObject(pJson, jkValueDatum, pNode->datum.b);
-        break;
-      case TSDB_DATA_TYPE_TINYINT:
-      case TSDB_DATA_TYPE_SMALLINT:
-      case TSDB_DATA_TYPE_INT:
-      case TSDB_DATA_TYPE_BIGINT:
-      case TSDB_DATA_TYPE_TIMESTAMP:
-        code = tjsonAddIntegerToObject(pJson, jkValueDatum, pNode->datum.i);
-        break;
-      case TSDB_DATA_TYPE_UTINYINT:
-      case TSDB_DATA_TYPE_USMALLINT:
-      case TSDB_DATA_TYPE_UINT:
-      case TSDB_DATA_TYPE_UBIGINT:
-        code = tjsonAddIntegerToObject(pJson, jkValueDatum, pNode->datum.u);
-        break;
-      case TSDB_DATA_TYPE_FLOAT:
-      case TSDB_DATA_TYPE_DOUBLE:
-        code = tjsonAddDoubleToObject(pJson, jkValueDatum, pNode->datum.d);
-        break;
-      case TSDB_DATA_TYPE_BINARY:
-      case TSDB_DATA_TYPE_NCHAR:
-      case TSDB_DATA_TYPE_VARCHAR:
-      case TSDB_DATA_TYPE_VARBINARY:
-        code = tjsonAddStringToObject(pJson, jkValueDatum, pNode->datum.p);
-        break;
-      case TSDB_DATA_TYPE_JSON:
-      case TSDB_DATA_TYPE_DECIMAL:
-      case TSDB_DATA_TYPE_BLOB:
-        // todo
-      default:
-        break;
-    }
+    code = tjsonAddBoolToObject(pJson, jkValueTranslate, pNode->translate);
+  }
+  if (TSDB_CODE_SUCCESS == code && pNode->translate) {
+    code = datumToJson(pNode, pJson);
+  }
+
+  return code;
+}
+
+static int32_t jsonToDatum(const SJson* pJson, void* pObj) {
+  SValueNode* pNode = (SValueNode*)pObj;
+
+  int32_t code = TSDB_CODE_SUCCESS;
+  switch (pNode->node.resType.type) {
+    case TSDB_DATA_TYPE_NULL:
+      break;
+    case TSDB_DATA_TYPE_BOOL:
+      code = tjsonGetBoolValue(pJson, jkValueDatum, &pNode->datum.b);
+      break;
+    case TSDB_DATA_TYPE_TINYINT:
+    case TSDB_DATA_TYPE_SMALLINT:
+    case TSDB_DATA_TYPE_INT:
+    case TSDB_DATA_TYPE_BIGINT:
+    case TSDB_DATA_TYPE_TIMESTAMP:
+      code = tjsonGetBigIntValue(pJson, jkValueDatum, &pNode->datum.i);
+      break;
+    case TSDB_DATA_TYPE_UTINYINT:
+    case TSDB_DATA_TYPE_USMALLINT:
+    case TSDB_DATA_TYPE_UINT:
+    case TSDB_DATA_TYPE_UBIGINT:
+      code = tjsonGetUBigIntValue(pJson, jkValueDatum, &pNode->datum.u);
+      break;
+    case TSDB_DATA_TYPE_FLOAT:
+    case TSDB_DATA_TYPE_DOUBLE:
+      code = tjsonGetDoubleValue(pJson, jkValueDatum, &pNode->datum.d);
+      break;
+    case TSDB_DATA_TYPE_BINARY:
+    case TSDB_DATA_TYPE_NCHAR:
+    case TSDB_DATA_TYPE_VARCHAR:
+    case TSDB_DATA_TYPE_VARBINARY:
+      code = tjsonDupStringValue(pJson, jkValueDatum, &pNode->datum.p);
+      break;
+    case TSDB_DATA_TYPE_JSON:
+    case TSDB_DATA_TYPE_DECIMAL:
+    case TSDB_DATA_TYPE_BLOB:
+      // todo
+    default:
+      break;
   }
 
   return code;
@@ -936,42 +993,10 @@ static int32_t jsonToValueNode(const SJson* pJson, void* pObj) {
     code = tjsonGetBoolValue(pJson, jkValueDuration, &pNode->isDuration);
   }
   if (TSDB_CODE_SUCCESS == code) {
-    switch (pNode->node.resType.type) {
-      case TSDB_DATA_TYPE_NULL:
-        break;
-      case TSDB_DATA_TYPE_BOOL:
-        code = tjsonGetBoolValue(pJson, jkValueDatum, &pNode->datum.b);
-        break;
-      case TSDB_DATA_TYPE_TINYINT:
-      case TSDB_DATA_TYPE_SMALLINT:
-      case TSDB_DATA_TYPE_INT:
-      case TSDB_DATA_TYPE_BIGINT:
-      case TSDB_DATA_TYPE_TIMESTAMP:
-        code = tjsonGetBigIntValue(pJson, jkValueDatum, &pNode->datum.i);
-        break;
-      case TSDB_DATA_TYPE_UTINYINT:
-      case TSDB_DATA_TYPE_USMALLINT:
-      case TSDB_DATA_TYPE_UINT:
-      case TSDB_DATA_TYPE_UBIGINT:
-        code = tjsonGetUBigIntValue(pJson, jkValueDatum, &pNode->datum.u);
-        break;
-      case TSDB_DATA_TYPE_FLOAT:
-      case TSDB_DATA_TYPE_DOUBLE:
-        code = tjsonGetDoubleValue(pJson, jkValueDatum, &pNode->datum.d);
-        break;
-      case TSDB_DATA_TYPE_BINARY:
-      case TSDB_DATA_TYPE_NCHAR:
-      case TSDB_DATA_TYPE_VARCHAR:
-      case TSDB_DATA_TYPE_VARBINARY:
-        code = tjsonDupStringValue(pJson, jkValueDatum, &pNode->datum.p);
-        break;
-      case TSDB_DATA_TYPE_JSON:
-      case TSDB_DATA_TYPE_DECIMAL:
-      case TSDB_DATA_TYPE_BLOB:
-        // todo
-      default:
-        break;
-    }
+    code = tjsonGetBoolValue(pJson, jkValueTranslate, &pNode->translate);
+  }
+  if (TSDB_CODE_SUCCESS == code && pNode->translate) {
+    code = jsonToDatum(pJson, pNode);
   }
 
   return code;
@@ -1365,7 +1390,7 @@ static int32_t specificNodeToJson(const void* pObj, SJson* pJson) {
     default:
       break;
   }
-  printf("================================ specificNodeToJson unknown node = %s\n", nodesNodeName(nodeType(pObj)));
+  nodesWarn("specificNodeToJson unknown node = %s", nodesNodeName(nodeType(pObj)));
   return TSDB_CODE_SUCCESS;
 }
 
@@ -1434,7 +1459,7 @@ static int32_t jsonToSpecificNode(const SJson* pJson, void* pObj) {
     default:
       break;
   }
-  printf("================================ jsonToSpecificNode unknown node = %s\n", nodesNodeName(nodeType(pObj)));
+  nodesWarn("jsonToSpecificNode unknown node = %s", nodesNodeName(nodeType(pObj)));
   return TSDB_CODE_SUCCESS;
 }
 
@@ -1450,6 +1475,9 @@ static int32_t nodeToJson(const void* pObj, SJson* pJson) {
   }
   if (TSDB_CODE_SUCCESS == code) {
     code = tjsonAddObject(pJson, nodesNodeName(pNode->type), specificNodeToJson, pNode);
+    if (TSDB_CODE_SUCCESS != code) {
+      nodesError("%s ToJson error", nodesNodeName(pNode->type));
+    }
   }
 
   return code;
@@ -1464,7 +1492,7 @@ static int32_t jsonToNode(const SJson* pJson, void* pObj) {
   if (TSDB_CODE_SUCCESS == code) {
     code = tjsonToObject(pJson, nodesNodeName(pNode->type), jsonToSpecificNode, pNode);
     if (TSDB_CODE_SUCCESS != code) {
-      printf("%s toNode error\n", nodesNodeName(pNode->type));
+      nodesError("%s toNode error", nodesNodeName(pNode->type));
     }
   }
 

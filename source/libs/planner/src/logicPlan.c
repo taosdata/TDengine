@@ -349,11 +349,15 @@ static SLogicNode* createSelectLogicNode(SLogicPlanContext* pCxt, SSelectStmt* p
   return pRoot;
 }
 
+static int32_t getMsgType(ENodeType sqlType) {
+  return (QUERY_NODE_CREATE_TABLE_STMT == sqlType || QUERY_NODE_CREATE_MULTI_TABLE_STMT == sqlType) ? TDMT_VND_CREATE_TABLE : TDMT_VND_SUBMIT;
+}
+
 static SLogicNode* createVnodeModifLogicNode(SLogicPlanContext* pCxt, SVnodeModifOpStmt* pStmt) {
   SVnodeModifLogicNode* pModif = (SVnodeModifLogicNode*)nodesMakeNode(QUERY_NODE_LOGIC_PLAN_VNODE_MODIF);
   CHECK_ALLOC(pModif, NULL);
   pModif->pDataBlocks = pStmt->pDataBlocks;
-  pModif->msgType = (QUERY_NODE_CREATE_TABLE_STMT == pStmt->sqlNodeType ? TDMT_VND_CREATE_TABLE : TDMT_VND_SUBMIT);
+  pModif->msgType = getMsgType(pStmt->sqlNodeType);
   return (SLogicNode*)pModif;
 }
 

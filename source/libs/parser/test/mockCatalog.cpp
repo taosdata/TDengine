@@ -70,7 +70,6 @@ void initMetaDataEnv() {
   stub.set(catalogGetTableMeta, __catalogGetTableMeta);
   stub.set(catalogGetTableHashVgroup, __catalogGetTableHashVgroup);
   stub.set(catalogGetTableDistVgInfo, __catalogGetTableDistVgInfo);
-
   {
     AddrAny any("libcatalog.so");
     std::map<std::string,void*> result;
@@ -93,6 +92,14 @@ void initMetaDataEnv() {
     any.get_global_func_addr_dynsym("^catalogGetTableHashVgroup$", result);
     for (const auto& f : result) {
       stub.set(f.second, __catalogGetTableHashVgroup);
+    }
+  }
+  {
+    AddrAny any("libcatalog.so");
+    std::map<std::string,void*> result;
+    any.get_global_func_addr_dynsym("^catalogGetTableDistVgInfo$", result);
+    for (const auto& f : result) {
+      stub.set(f.second, __catalogGetTableDistVgInfo);
     }
   }
 }

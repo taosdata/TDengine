@@ -36,7 +36,7 @@ typedef struct SToken {
  * @return
  */
 #define isNumber(tk) \
-((tk)->type == TK_NK_INTEGER || (tk)->type == TK_NK_FLOAT || (tk)->type == TK_HEX || (tk)->type == TK_BIN)
+((tk)->type == TK_NK_INTEGER || (tk)->type == TK_NK_FLOAT || (tk)->type == TK_NK_HEX || (tk)->type == TK_NK_BIN)
 
 /**
  * tokenizer for sql string
@@ -67,11 +67,11 @@ bool taosIsKeyWordToken(const char *z, int32_t len);
 /**
  * check if it is a token or not
  * @param   pToken
- * @return  token type, if it is not a number, TK_ILLEGAL will return
+ * @return  token type, if it is not a number, TK_NK_ILLEGAL will return
  */
 static FORCE_INLINE int32_t tGetNumericStringType(const SToken* pToken) {
   const char* z = pToken->z;
-  int32_t type = TK_ILLEGAL;
+  int32_t type = TK_NK_ILLEGAL;
 
   uint32_t i = 0;
   for(; i < pToken->n; ++i) {
@@ -88,7 +88,7 @@ static FORCE_INLINE int32_t tGetNumericStringType(const SToken* pToken) {
          * .123e4
          */
         if (!isdigit(z[i+1])) {
-          return TK_ILLEGAL;
+          return TK_NK_ILLEGAL;
         }
 
         for (i += 2; isdigit(z[i]); i++) {
@@ -109,13 +109,13 @@ static FORCE_INLINE int32_t tGetNumericStringType(const SToken* pToken) {
       case '0': {
         char next = z[i + 1];
         if (next == 'b') { // bin number
-          type = TK_BIN;
+          type = TK_NK_BIN;
           for (i += 2; (z[i] == '0' || z[i] == '1'); ++i) {
           }
 
           goto _end;
         } else if (next == 'x') {  //hex number
-          type = TK_HEX;
+          type = TK_NK_HEX;
           for (i += 2; isdigit(z[i]) || (z[i] >= 'a' && z[i] <= 'f') || (z[i] >= 'A' && z[i] <= 'F'); ++i) {
           }
 
@@ -148,7 +148,7 @@ static FORCE_INLINE int32_t tGetNumericStringType(const SToken* pToken) {
         }
 
         if (seg > 1) {
-          return TK_ILLEGAL;
+          return TK_NK_ILLEGAL;
         }
 
         if ((z[i] == 'e' || z[i] == 'E') &&
@@ -164,12 +164,12 @@ static FORCE_INLINE int32_t tGetNumericStringType(const SToken* pToken) {
         goto _end;
       }
       default:
-        return TK_ILLEGAL;
+        return TK_NK_ILLEGAL;
     }
   }
 
   _end:
-  return (i < pToken->n)? TK_ILLEGAL:type;
+  return (i < pToken->n)? TK_NK_ILLEGAL:type;
 }
 
 void taosCleanupKeywordsTable();
