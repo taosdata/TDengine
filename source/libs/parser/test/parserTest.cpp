@@ -281,7 +281,26 @@ TEST_F(ParserTest, selectSemanticError) {
   ASSERT_TRUE(run(TSDB_CODE_SUCCESS, TSDB_CODE_PAR_NOT_SELECTED_EXPRESSION));
 }
 
+TEST_F(ParserTest, createUser) {
+  setDatabase("root", "test");
+
+  bind("create user wxy pass '123456'");
+  ASSERT_TRUE(run());
+}
+
+TEST_F(ParserTest, createDnode) {
+  setDatabase("root", "test");
+
+  bind("create dnode abc1 port 7000");
+  ASSERT_TRUE(run());
+
+  bind("create dnode 1.1.1.1 port 9000");
+  ASSERT_TRUE(run());
+}
+
 TEST_F(ParserTest, createDatabase) {
+  setDatabase("root", "test");
+
   bind("create database wxy_db");
   ASSERT_TRUE(run());
 
@@ -308,16 +327,22 @@ TEST_F(ParserTest, createDatabase) {
 }
 
 TEST_F(ParserTest, showDatabase) {
+  setDatabase("root", "test");
+
   bind("show databases");
   ASSERT_TRUE(run());
 }
 
 TEST_F(ParserTest, useDatabase) {
+  setDatabase("root", "test");
+
   bind("use wxy_db");
   ASSERT_TRUE(run());
 }
 
 TEST_F(ParserTest, createTable) {
+  setDatabase("root", "test");
+
   bind("create table t1(ts timestamp, c1 int)");
   ASSERT_TRUE(run());
 
@@ -337,13 +362,13 @@ TEST_F(ParserTest, createTable) {
       );
   ASSERT_TRUE(run());
   
-  bind("create table if not exists t1 using st1 tags(1)");
+  bind("create table if not exists t1 using st1 tags(1, 'wxy')");
   ASSERT_TRUE(run());
 
   bind("create table "
-       "if not exists test.t1 using test.st1 (tc1, tc2, tc3) tags(1, 2.0, 'abc', TIMESTAMP '2022-3-6 11:20:23') "
-       "if not exists test.t2 using test.st1 (tc1, tc2, tc3) tags(2, 2.0, 'abc', TIMESTAMP '2022-3-6 11:20:23') "
-       "if not exists test.t3 using test.st1 (tc1, tc2, tc3) tags(3, 2.0, 'abc', TIMESTAMP '2022-3-6 11:20:23')"
+       "if not exists test.t1 using test.st1 (tag1, tag2) tags(1, 'abc') "
+       "if not exists test.t2 using test.st1 (tag1, tag2) tags(2, 'abc') "
+       "if not exists test.t3 using test.st1 (tag1, tag2) tags(3, 'abc')"
       );
   ASSERT_TRUE(run());
 

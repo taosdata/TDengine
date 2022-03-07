@@ -46,7 +46,7 @@ int32_t doParse(SParseContext* pParseCxt, SQuery** pQuery) {
       case TK_NK_COMMENT: {
         break;
       }
-      case TK_SEMI: {
+      case TK_NK_SEMI: {
         NewParse(pParser, 0, t0, &cxt);
         goto abort_parse;
       }
