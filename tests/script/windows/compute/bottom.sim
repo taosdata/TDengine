@@ -1,0 +1,99 @@
+sql connect
+sleep 2000
+
+sql show databases
+sql drop database $data00 -x e1
+e1:
+sql show databases
+sql drop database $data00 -x e2
+e2:
+
+$dbPrefix = m_bo_db
+$tbPrefix = m_bo_tb
+$mtPrefix = m_bo_mt
+$tbNum = 10
+$rowNum = 20
+$totalNum = 200
+
+print =============== step1
+$i = 0
+$db = $dbPrefix . $i
+$mt = $mtPrefix . $i
+
+sql drop database $db -x step1
+step1:
+sql create database $db
+sql use $db
+sql create table $mt (ts timestamp, tbcol int) TAGS(tgcol int)
+
+$i = 0
+while $i < $tbNum
+  $tb = $tbPrefix . $i
+  sql create table $tb using $mt tags( $i )
+  
+  $x = 0
+  while $x < $rowNum
+    $ms = $x . m 
+    sql insert into $tb values (now + $ms , $x ) 
+    $x = $x + 1
+  endw 
+ 
+  $i = $i + 1
+endw 
+
+sleep 100
+
+print =============== step2
+$i = 1
+$tb = $tbPrefix . $i
+
+sql select bottom(tbcol, 1) from $tb
+print ===> $data01
+if $data01 != 0 then 
+  return -1
+endi
+
+print =============== step3
+sql select bottom(tbcol, 1) from $tb where ts > now + 4m
+print ===> $data01
+if $data01 != 5 then 
+  return -1
+endi
+
+print =============== step4
+sql select bottom(tbcol, 1) as b from $tb
+print ===> $data01
+if $data01 != 0 then 
+  return -1
+endi
+
+print =============== step5
+sql select bottom(tbcol, 2) as b from $tb 
+print ===> $data01  $data11
+if $data01 != 0 then 
+  return -1
+endi
+if $data11 != 1 then 
+  return -1
+endi
+
+print =============== step6
+sql select bottom(tbcol, 2) as b from $tb where ts > now + 4m
+print ===> $data01  $data11
+if $data01 != 5 then 
+  return -1
+endi
+if $data11 != 6 then 
+  return -1
+endi
+
+sql select bottom(tbcol, 122) as b from $tb -x step6
+	return -1
+step6:
+
+print =============== clear
+sql drop database $db
+sql show databases
+if $rows != 0 then 
+  return -1
+endi

@@ -1,0 +1,90 @@
+system sh/stop_dnodes.sh
+system sh/deploy.sh -n dnode1 -i 1
+system sh/cfg.sh -n dnode1 -c walLevel -v 1
+system sh/exec.sh -n dnode1 -s start
+
+sleep 2000
+sql connect
+
+$i = 0
+$dbPrefix = lm_da_db
+$tbPrefix = lm_da_tb
+$db = $dbPrefix . $i
+$tb = $tbPrefix . $i
+
+print =============== step1
+sql create database $db
+sql use $db
+
+sql create table $tb (ts timestamp, speed int)
+sql insert into $tb values ('2017-01-01 08:00:00.001', 1)
+sql select ts from $tb
+if $rows != 1 then 
+  return -1
+endi
+if $data00 != @17-01-01 08:00:00.001@ then
+  return -1
+endi
+
+print =============== step2
+sql insert into $tb values ('2017-08-28 00:23:46.429+ 1a', 2) 
+#sql insert into $tb values ('2017-08-28 00:23:46cd .429', 2) 
+sql select ts from $tb
+if $rows != 2 then 
+  return -1
+endi
+
+print =============== step3
+#sql insert into $tb values ('1970-01-01 08:00:00.000', 3)
+#sql insert into $tb values ('1970-01-01 08:00:00.000', 3)
+sql select ts from $tb
+if $rows != 2 then 
+  return -1
+endi
+
+print =============== step4
+sql insert into $tb values(now, 4);
+sql insert into $tb values(now+1a, 5);
+sql insert into $tb values(now+1s, 6);
+sql insert into $tb values(now+1m, 7);
+sql insert into $tb values(now+1h, 8);
+sql insert into $tb values(now+1d, 9);
+sql_error insert into $tb values(now+3w, 10);
+sql_error insert into $tb values(now+1n, 11);
+sql_error insert into $tb values(now+1y, 12);
+
+print =============== step5
+sql_error insert into $tb values ('9999-12-31 213:59:59.999', 13)
+sql select ts from $tb
+print $rows
+if $rows != 8 then
+  return -1
+endi
+
+print =============== step6
+sql_error insert into $tb values ('9999-12-99 23:59:59.999', 13)
+
+sql select ts from $tb
+if $rows != 8 then
+  return -1
+endi
+
+print =============== step7
+$i = 1
+$tb = $tbPrefix . $i
+sql create table $tb (ts timestamp, ts2 timestamp)
+
+print =============== step8
+sql insert into $tb values (now, now)
+sql select * from $tb 
+if $rows != 1 then 
+  return -1
+endi
+
+sql drop database $db
+sql show databases
+if $rows != 0 then 
+  return -1
+endi
+
+system sh/exec.sh -n dnode1 -s stop -x SIGINT

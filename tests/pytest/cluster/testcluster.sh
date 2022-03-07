@@ -1,0 +1,12 @@
+python3 basicTest.py
+python3 bananceTest.py
+python3 changeReplicaTest.py
+python3 dataFileRecoveryTest.py
+python3 fullDnodesTest.py
+python3 killAndRestartDnodesTest.py
+python3 offlineThresholdTest.py
+python3 oneReplicaOfflineTest.py
+python3 queryTimeTest.py
+python3 stopAllDnodesTest.py
+python3 stopTwoDnodesTest.py
+python3 syncingTest.py
