@@ -26,7 +26,7 @@ For the SQL INSERT Grammar, please refer to  [Taos SQL insert](https://www.taosd
 
 **Tips:**
 
-- To improve writing efficiency, batch writing is required. The more records written in a batch, the higher the insertion efficiency. However, a record size cannot exceed 16K, and the total length of an SQL statement cannot exceed 64K (it can be configured by parameter maxSQLLength, and the maximum can be configured to 1M).
+- To improve writing efficiency, batch writing is required. The more records written in a batch, the higher the insertion efficiency. However, a record size cannot exceed 48K (it's 16K prior to 2.1.7.0, and the total length of an SQL statement cannot exceed 64K (it can be configured by parameter maxSQLLength, and the maximum can be configured to 1M).
 - TDengine supports multi-thread parallel writing. To further improve writing speed, a client needs to open more than 20 threads to write parallelly. However, after the number of threads reaches a certain threshold, it cannot be increased or even become decreased, because too much thread switching brings extra overhead.
 - For the same table, if the timestamp of a newly inserted record already exists, the new record will be discarded as default (database option update = 0), that is, the timestamp must be unique in a table. If an application automatically generates records, it is very likely that the generated timestamps will be the same, so the number of records successfully inserted will be smaller than the number of records the application try to insert. If you use UPDATE 1 option when creating a database, inserting a new record with the same timestamp will overwrite the original record.
 - The timestamp of written data must be greater than the current time minus the time of configuration parameter keep. If keep is configured for 3650 days, data older than 3650 days cannot be written. The timestamp for writing data cannot be greater than the current time plus configuration parameter days. If days is configured to 2, data 2 days later than the current time cannot be written.
@@ -95,7 +95,7 @@ After MD5 value "md5_val" calculated using the above string, prefix "t_" is prep
 <br/>8. If any error occurs during processing, error code will be returned.
 
 **Note**
-<br/>Schemaless will follow TDengine data structure limitations. For example, each table row cannot exceed 16KB. For detailed TDengine limitations please refer to `https://www.taosdata.com/en/documentation/taos-sql#limitation`.
+<br/>Schemaless will follow TDengine data structure limitations. For example, each table row cannot exceed 48KB (it's 16K prior to 2.1.7.0. For detailed TDengine limitations please refer to `https://www.taosdata.com/en/documentation/taos-sql#limitation`.
 
 **Timestamp precisions**
 <br/>Following protocols are supported in Schemaless:
