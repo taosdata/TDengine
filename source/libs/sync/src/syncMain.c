@@ -15,25 +15,25 @@
 
 #include <stdint.h>
 #include "sync.h"
+#include "syncAppendEntries.h"
+#include "syncAppendEntriesReply.h"
 #include "syncEnv.h"
 #include "syncInt.h"
 #include "syncRaft.h"
+#include "syncRequestVote.h"
+#include "syncRequestVoteReply.h"
+#include "syncTimeout.h"
 #include "syncUtil.h"
 
 static int32_t tsNodeRefId = -1;
 
 // ------ local funciton ---------
-static int32_t syncNodeSendMsgById(const SRaftId* destRaftId, SSyncNode* pSyncNode, SRpcMsg* pMsg);
-static int32_t syncNodeSendMsgByInfo(const SNodeInfo* nodeInfo, SSyncNode* pSyncNode, SRpcMsg* pMsg);
-
 static void syncNodeEqPingTimer(void* param, void* tmrId);
 static void syncNodeEqElectTimer(void* param, void* tmrId);
 static void syncNodeEqHeartbeatTimer(void* param, void* tmrId);
 
-static int32_t syncNodePing(SSyncNode* pSyncNode, const SRaftId* destRaftId, SyncPing* pMsg);
 static int32_t syncNodeOnPingCb(SSyncNode* ths, SyncPing* pMsg);
 static int32_t syncNodeOnPingReplyCb(SSyncNode* ths, SyncPingReply* pMsg);
-static int32_t syncNodeOnTimeoutCb(SSyncNode* ths, SyncTimeout* pMsg);
 
 static void syncNodeBecomeFollower(SSyncNode* pSyncNode);
 static void syncNodeBecomeLeader(SSyncNode* pSyncNode);
@@ -41,9 +41,6 @@ static void syncNodeFollower2Candidate(SSyncNode* pSyncNode);
 static void syncNodeCandidate2Leader(SSyncNode* pSyncNode);
 static void syncNodeLeader2Follower(SSyncNode* pSyncNode);
 static void syncNodeCandidate2Follower(SSyncNode* pSyncNode);
-
-void syncNodeRequestVotePeers(SSyncNode* pSyncNode);
-void syncNodeAppendEntriesPeers(SSyncNode* pSyncNode);
 // ---------------------------------
 
 int32_t syncInit() {
@@ -98,12 +95,29 @@ SSyncNode* syncNodeOpen(const SSyncInfo* pSyncInfo) {
   pSyncNode->state = TAOS_SYNC_STATE_FOLLOWER;
   syncUtilnodeInfo2raftId(&pSyncNode->me, pSyncNode->vgId, &pSyncNode->raftId);
 
+  // init ping timer
   pSyncNode->pPingTimer = NULL;
   pSyncNode->pingTimerMS = PING_TIMER_MS;
   atomic_store_64(&pSyncNode->pingTimerLogicClock, 0);
   atomic_store_64(&pSyncNode->pingTimerLogicClockUser, 0);
   pSyncNode->FpPingTimer = syncNodeEqPingTimer;
   pSyncNode->pingTimerCounter = 0;
+
+  // init elect timer
+  pSyncNode->pElectTimer = NULL;
+  pSyncNode->electTimerMS = syncUtilElectRandomMS();
+  atomic_store_64(&pSyncNode->electTimerLogicClock, 0);
+  atomic_store_64(&pSyncNode->electTimerLogicClockUser, 0);
+  pSyncNode->FpElectTimer = syncNodeEqElectTimer;
+  pSyncNode->electTimerCounter = 0;
+
+  // init heartbeat timer
+  pSyncNode->pHeartbeatTimer = NULL;
+  pSyncNode->heartbeatTimerMS = HEARTBEAT_TIMER_MS;
+  atomic_store_64(&pSyncNode->heartbeatTimerLogicClock, 0);
+  atomic_store_64(&pSyncNode->heartbeatTimerLogicClockUser, 0);
+  pSyncNode->FpHeartbeatTimer = syncNodeEqHeartbeatTimer;
+  pSyncNode->heartbeatTimerCounter = 0;
 
   pSyncNode->FpOnPing = syncNodeOnPingCb;
   pSyncNode->FpOnPingReply = syncNodeOnPingReplyCb;
@@ -119,6 +133,48 @@ SSyncNode* syncNodeOpen(const SSyncInfo* pSyncInfo) {
 void syncNodeClose(SSyncNode* pSyncNode) {
   assert(pSyncNode != NULL);
   free(pSyncNode);
+}
+
+int32_t syncNodeSendMsgById(const SRaftId* destRaftId, SSyncNode* pSyncNode, SRpcMsg* pMsg) {
+  SEpSet epSet;
+  syncUtilraftId2EpSet(destRaftId, &epSet);
+  pSyncNode->FpSendMsg(pSyncNode->rpcClient, &epSet, pMsg);
+  return 0;
+}
+
+int32_t syncNodeSendMsgByInfo(const SNodeInfo* nodeInfo, SSyncNode* pSyncNode, SRpcMsg* pMsg) {
+  SEpSet epSet;
+  syncUtilnodeInfo2EpSet(nodeInfo, &epSet);
+  pSyncNode->FpSendMsg(pSyncNode->rpcClient, &epSet, pMsg);
+  return 0;
+}
+
+int32_t syncNodePing(SSyncNode* pSyncNode, const SRaftId* destRaftId, SyncPing* pMsg) {
+  sTrace("syncNodePing pSyncNode:%p ", pSyncNode);
+  int32_t ret = 0;
+
+  SRpcMsg rpcMsg;
+  syncPing2RpcMsg(pMsg, &rpcMsg);
+  syncNodeSendMsgById(destRaftId, pSyncNode, &rpcMsg);
+
+  {
+    cJSON* pJson = syncPing2Json(pMsg);
+    char*  serialized = cJSON_Print(pJson);
+    sTrace("syncNodePing pMsg:%s ", serialized);
+    free(serialized);
+    cJSON_Delete(pJson);
+  }
+
+  {
+    SyncPing* pMsg2 = rpcMsg.pCont;
+    cJSON*    pJson = syncPing2Json(pMsg2);
+    char*     serialized = cJSON_Print(pJson);
+    sTrace("syncNodePing rpcMsg.pCont:%s ", serialized);
+    free(serialized);
+    cJSON_Delete(pJson);
+  }
+
+  return ret;
 }
 
 void syncNodePingAll(SSyncNode* pSyncNode) {
@@ -157,7 +213,6 @@ void syncNodePingSelf(SSyncNode* pSyncNode) {
 int32_t syncNodeStartPingTimer(SSyncNode* pSyncNode) {
   atomic_store_64(&pSyncNode->pingTimerLogicClock, pSyncNode->pingTimerLogicClockUser);
   pSyncNode->pingTimerMS = PING_TIMER_MS;
-
   if (pSyncNode->pPingTimer == NULL) {
     pSyncNode->pPingTimer =
         taosTmrStart(pSyncNode->FpPingTimer, pSyncNode->pingTimerMS, pSyncNode, gSyncEnv->pTimerManager);
@@ -165,7 +220,6 @@ int32_t syncNodeStartPingTimer(SSyncNode* pSyncNode) {
     taosTmrReset(pSyncNode->FpPingTimer, pSyncNode->pingTimerMS, pSyncNode, gSyncEnv->pTimerManager,
                  &pSyncNode->pPingTimer);
   }
-
   return 0;
 }
 
@@ -175,7 +229,9 @@ int32_t syncNodeStopPingTimer(SSyncNode* pSyncNode) {
   return 0;
 }
 
-int32_t syncNodeStartElectTimer(SSyncNode* pSyncNode) {
+int32_t syncNodeStartElectTimer(SSyncNode* pSyncNode, int32_t ms) {
+  pSyncNode->electTimerMS = ms;
+  atomic_store_64(&pSyncNode->electTimerLogicClock, pSyncNode->electTimerLogicClockUser);
   if (pSyncNode->pElectTimer == NULL) {
     pSyncNode->pElectTimer =
         taosTmrStart(pSyncNode->FpElectTimer, pSyncNode->electTimerMS, pSyncNode, gSyncEnv->pTimerManager);
@@ -183,18 +239,23 @@ int32_t syncNodeStartElectTimer(SSyncNode* pSyncNode) {
     taosTmrReset(pSyncNode->FpElectTimer, pSyncNode->electTimerMS, pSyncNode, gSyncEnv->pTimerManager,
                  &pSyncNode->pElectTimer);
   }
-
-  atomic_store_8(&pSyncNode->electTimerEnable, 1);
   return 0;
 }
 
 int32_t syncNodeStopElectTimer(SSyncNode* pSyncNode) {
-  atomic_store_8(&pSyncNode->electTimerEnable, 0);
+  atomic_add_fetch_64(&pSyncNode->electTimerLogicClockUser, 1);
   pSyncNode->electTimerMS = TIMER_MAX_MS;
   return 0;
 }
 
+int32_t syncNodeRestartElectTimer(SSyncNode* pSyncNode, int32_t ms) {
+  syncNodeStopElectTimer(pSyncNode);
+  syncNodeStartElectTimer(pSyncNode, ms);
+  return 0;
+}
+
 int32_t syncNodeStartHeartbeatTimer(SSyncNode* pSyncNode) {
+  atomic_store_64(&pSyncNode->heartbeatTimerLogicClock, pSyncNode->heartbeatTimerLogicClockUser);
   if (pSyncNode->pHeartbeatTimer == NULL) {
     pSyncNode->pHeartbeatTimer =
         taosTmrStart(pSyncNode->FpHeartbeatTimer, pSyncNode->heartbeatTimerMS, pSyncNode, gSyncEnv->pTimerManager);
@@ -202,60 +263,16 @@ int32_t syncNodeStartHeartbeatTimer(SSyncNode* pSyncNode) {
     taosTmrReset(pSyncNode->FpHeartbeatTimer, pSyncNode->heartbeatTimerMS, pSyncNode, gSyncEnv->pTimerManager,
                  &pSyncNode->pHeartbeatTimer);
   }
-
-  atomic_store_8(&pSyncNode->heartbeatTimerEnable, 1);
   return 0;
 }
 
 int32_t syncNodeStopHeartbeatTimer(SSyncNode* pSyncNode) {
-  atomic_store_8(&pSyncNode->heartbeatTimerEnable, 0);
+  atomic_add_fetch_64(&pSyncNode->heartbeatTimerLogicClockUser, 1);
   pSyncNode->heartbeatTimerMS = TIMER_MAX_MS;
   return 0;
 }
 
 // ------ local funciton ---------
-static int32_t syncNodePing(SSyncNode* pSyncNode, const SRaftId* destRaftId, SyncPing* pMsg) {
-  sTrace("syncNodePing pSyncNode:%p ", pSyncNode);
-  int32_t ret = 0;
-
-  SRpcMsg rpcMsg;
-  syncPing2RpcMsg(pMsg, &rpcMsg);
-  syncNodeSendMsgById(destRaftId, pSyncNode, &rpcMsg);
-
-  {
-    cJSON* pJson = syncPing2Json(pMsg);
-    char*  serialized = cJSON_Print(pJson);
-    sTrace("syncNodePing pMsg:%s ", serialized);
-    free(serialized);
-    cJSON_Delete(pJson);
-  }
-
-  {
-    SyncPing* pMsg2 = rpcMsg.pCont;
-    cJSON*    pJson = syncPing2Json(pMsg2);
-    char*     serialized = cJSON_Print(pJson);
-    sTrace("syncNodePing rpcMsg.pCont:%s ", serialized);
-    free(serialized);
-    cJSON_Delete(pJson);
-  }
-
-  return ret;
-}
-
-static int32_t syncNodeSendMsgById(const SRaftId* destRaftId, SSyncNode* pSyncNode, SRpcMsg* pMsg) {
-  SEpSet epSet;
-  syncUtilraftId2EpSet(destRaftId, &epSet);
-  pSyncNode->FpSendMsg(pSyncNode->rpcClient, &epSet, pMsg);
-  return 0;
-}
-
-static int32_t syncNodeSendMsgByInfo(const SNodeInfo* nodeInfo, SSyncNode* pSyncNode, SRpcMsg* pMsg) {
-  SEpSet epSet;
-  syncUtilnodeInfo2EpSet(nodeInfo, &epSet);
-  pSyncNode->FpSendMsg(pSyncNode->rpcClient, &epSet, pMsg);
-  return 0;
-}
-
 static int32_t syncNodeOnPingCb(SSyncNode* ths, SyncPing* pMsg) {
   int32_t ret = 0;
   sTrace("<-- syncNodeOnPingCb -->");
@@ -291,44 +308,18 @@ static int32_t syncNodeOnPingReplyCb(SSyncNode* ths, SyncPingReply* pMsg) {
   return ret;
 }
 
-static int32_t syncNodeOnTimeoutCb(SSyncNode* ths, SyncTimeout* pMsg) {
-  int32_t ret = 0;
-  sTrace("<-- syncNodeOnTimeoutCb -->");
-
-  {
-    cJSON* pJson = syncTimeout2Json(pMsg);
-    char*  serialized = cJSON_Print(pJson);
-    sTrace("process syncMessage recv: syncNodeOnTimeoutCb pMsg:%s ", serialized);
-    free(serialized);
-    cJSON_Delete(pJson);
-  }
-
-  if (pMsg->timeoutType == SYNC_TIMEOUT_PING) {
-    if (atomic_load_64(&ths->pingTimerLogicClockUser) <= pMsg->logicClock) {
-      ++(ths->pingTimerCounter);
-      syncNodePingAll(ths);
-    }
-
-  } else if (pMsg->timeoutType == SYNC_TIMEOUT_ELECTION) {
-  } else if (pMsg->timeoutType == SYNC_TIMEOUT_HEARTBEAT) {
-  } else {
-  }
-
-  return ret;
-}
-
 static void syncNodeEqPingTimer(void* param, void* tmrId) {
   SSyncNode* pSyncNode = (SSyncNode*)param;
   if (atomic_load_64(&pSyncNode->pingTimerLogicClockUser) <= atomic_load_64(&pSyncNode->pingTimerLogicClock)) {
-    // pSyncNode->pingTimerMS += 100;
-
-    SyncTimeout* pSyncMsg =
-        syncTimeoutBuild2(SYNC_TIMEOUT_PING, atomic_load_64(&pSyncNode->pingTimerLogicClock), pSyncNode);
-
-    SRpcMsg rpcMsg;
+    SyncTimeout* pSyncMsg = syncTimeoutBuild2(SYNC_TIMEOUT_PING, atomic_load_64(&pSyncNode->pingTimerLogicClock),
+                                              pSyncNode->pingTimerMS, pSyncNode);
+    SRpcMsg      rpcMsg;
     syncTimeout2RpcMsg(pSyncMsg, &rpcMsg);
     pSyncNode->FpEqMsg(pSyncNode->queue, &rpcMsg);
     syncTimeoutDestroy(pSyncMsg);
+
+    // reset timer ms
+    // pSyncNode->pingTimerMS += 100;
 
     taosTmrReset(syncNodeEqPingTimer, pSyncNode->pingTimerMS, pSyncNode, &gSyncEnv->pTimerManager,
                  &pSyncNode->pPingTimer);
@@ -338,18 +329,38 @@ static void syncNodeEqPingTimer(void* param, void* tmrId) {
   }
 }
 
-static void syncNodeEqElectTimer(void* param, void* tmrId) {}
+static void syncNodeEqElectTimer(void* param, void* tmrId) {
+  SSyncNode* pSyncNode = (SSyncNode*)param;
+  if (atomic_load_64(&pSyncNode->electTimerLogicClockUser) <= atomic_load_64(&pSyncNode->electTimerLogicClock)) {
+    SyncTimeout* pSyncMsg = syncTimeoutBuild2(SYNC_TIMEOUT_ELECTION, atomic_load_64(&pSyncNode->electTimerLogicClock),
+                                              pSyncNode->electTimerMS, pSyncNode);
+
+    SRpcMsg rpcMsg;
+    syncTimeout2RpcMsg(pSyncMsg, &rpcMsg);
+    pSyncNode->FpEqMsg(pSyncNode->queue, &rpcMsg);
+    syncTimeoutDestroy(pSyncMsg);
+
+    // reset timer ms
+    pSyncNode->electTimerMS = syncUtilElectRandomMS();
+
+    taosTmrReset(syncNodeEqPingTimer, pSyncNode->pingTimerMS, pSyncNode, &gSyncEnv->pTimerManager,
+                 &pSyncNode->pPingTimer);
+  } else {
+    sTrace("syncNodeEqElectTimer: electTimerLogicClock:%lu, electTimerLogicClockUser:%lu",
+           pSyncNode->electTimerLogicClock, pSyncNode->electTimerLogicClockUser);
+  }
+}
 
 static void syncNodeEqHeartbeatTimer(void* param, void* tmrId) {}
 
 static void syncNodeBecomeFollower(SSyncNode* pSyncNode) {
   if (pSyncNode->state == TAOS_SYNC_STATE_LEADER) {
-    pSyncNode->leaderCache.addr = 0;
-    pSyncNode->leaderCache.vgId = 0;
+    pSyncNode->leaderCache = EMPTY_RAFT_ID;
   }
 
   syncNodeStopHeartbeatTimer(pSyncNode);
-  syncNodeStartElectTimer(pSyncNode);
+  int32_t electMS = syncUtilElectRandomMS();
+  syncNodeStartElectTimer(pSyncNode, electMS);
 }
 
 static void syncNodeBecomeLeader(SSyncNode* pSyncNode) {
@@ -375,7 +386,3 @@ static void syncNodeCandidate2Leader(SSyncNode* pSyncNode) {}
 static void syncNodeLeader2Follower(SSyncNode* pSyncNode) {}
 
 static void syncNodeCandidate2Follower(SSyncNode* pSyncNode) {}
-
-void syncNodeRequestVotePeers(SSyncNode* pSyncNode) {}
-
-void syncNodeAppendEntriesPeers(SSyncNode* pSyncNode) {}
