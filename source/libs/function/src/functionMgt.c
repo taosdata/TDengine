@@ -27,6 +27,7 @@ typedef struct SFuncMgtService {
 
 static SFuncMgtService gFunMgtService;
 
+// todo refactor
 int32_t fmFuncMgtInit() {
   gFunMgtService.pFuncNameHashTable = taosHashInit(funcMgtBuiltinsNum, taosGetDefaultHashFunction(TSDB_DATA_TYPE_BINARY), true, HASH_NO_LOCK);
   if (NULL == gFunMgtService.pFuncNameHashTable) {

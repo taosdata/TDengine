@@ -8140,8 +8140,8 @@ static tsdbReaderT createDataReaderImpl(STableScanPhysiNode* pTableScanNode, STa
     STargetNode* pNode = (STargetNode*)nodesListGetNode(pTableScanNode->scan.pScanCols, i);
 
     SColumnNode* pColNode = (SColumnNode*)pNode->pExpr;
-    cond.colList[i].type = pColNode->colType;
-    cond.colList[i].bytes = pColNode->node.resType.type;
+    cond.colList[i].type  = pColNode->node.resType.type;
+    cond.colList[i].bytes = pColNode->node.resType.bytes;
     cond.colList[i].colId = pColNode->colId;
   }
 

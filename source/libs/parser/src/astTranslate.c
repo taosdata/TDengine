@@ -162,7 +162,7 @@ static void setColumnInfoByExpr(const STableNode* pTable, SExprNode* pExpr, SCol
 static int32_t createColumnNodeByTable(STranslateContext* pCxt, const STableNode* pTable, SNodeList* pList) {
   if (QUERY_NODE_REAL_TABLE == nodeType(pTable)) {
     const STableMeta* pMeta = ((SRealTableNode*)pTable)->pMeta;
-    int32_t nums = pMeta->tableInfo.numOfTags + pMeta->tableInfo.numOfColumns;
+    int32_t nums = pMeta->tableInfo.numOfColumns + ((TSDB_SUPER_TABLE == pMeta->tableType)? pMeta->tableInfo.numOfTags:0);
     for (int32_t i = 0; i < nums; ++i) {
       SColumnNode* pCol = (SColumnNode*)nodesMakeNode(QUERY_NODE_COLUMN);
       if (NULL == pCol) {
@@ -1009,6 +1009,7 @@ static int32_t setReslutSchema(STranslateContext* pCxt, SQuery* pQuery) {
       pQuery->pResSchema[index].type = pExpr->resType.type;
       pQuery->pResSchema[index].bytes = pExpr->resType.bytes;
       strcpy(pQuery->pResSchema[index].name, pExpr->aliasName);
+      index +=1;
     }
   }
   return TSDB_CODE_SUCCESS;

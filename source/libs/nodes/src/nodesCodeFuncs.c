@@ -1232,11 +1232,16 @@ static int32_t jsonToSlotDescNode(const SJson* pJson, void* pObj) {
 
 static const char* jkDataBlockDescDataBlockId = "DataBlockId";
 static const char* jkDataBlockDescSlots = "Slots";
+static const char* jkDataBlockResultRowSize = "ResultRowSize";
 
 static int32_t dataBlockDescNodeToJson(const void* pObj, SJson* pJson) {
   const SDataBlockDescNode* pNode = (const SDataBlockDescNode*)pObj;
 
   int32_t code = tjsonAddIntegerToObject(pJson, jkDataBlockDescDataBlockId, pNode->dataBlockId);
+  if (TSDB_CODE_SUCCESS == code) {
+    code = tjsonAddIntegerToObject(pJson, jkDataBlockResultRowSize, pNode->resultRowSize);
+  }
+
   if (TSDB_CODE_SUCCESS == code) {
     code = nodeListToJson(pJson, jkDataBlockDescSlots, pNode->pSlots);
   }
@@ -1248,6 +1253,10 @@ static int32_t jsonToDataBlockDescNode(const SJson* pJson, void* pObj) {
   SDataBlockDescNode* pNode = (SDataBlockDescNode*)pObj;
 
   int32_t code = tjsonGetSmallIntValue(pJson, jkDataBlockDescDataBlockId, &pNode->dataBlockId);
+  if (TSDB_CODE_SUCCESS == code) {
+    code = tjsonGetIntValue(pJson, jkDataBlockResultRowSize, &pNode->resultRowSize);
+  }
+
   if (TSDB_CODE_SUCCESS == code) {
     code = jsonToNodeList(pJson, jkDataBlockDescSlots, &pNode->pSlots);
   }

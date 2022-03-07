@@ -96,7 +96,8 @@ static int32_t addDataBlockDesc(SPhysiPlanContext* pCxt, SNodeList* pList, SData
     SNode* pTarget = createTarget(pNode, pDataBlockDesc->dataBlockId, slotId);
     CHECK_ALLOC(pTarget, TSDB_CODE_OUT_OF_MEMORY);
     REPLACE_NODE(pTarget);
-  
+
+    pDataBlockDesc->resultRowSize += ((SSlotDescNode*)pSlot)->dataType.bytes;
     ++slotId;
   }
   return TSDB_CODE_SUCCESS;
