@@ -31,11 +31,11 @@ extern "C" {
 
 typedef struct SSyncIO {
   STaosQueue *pMsgQ;
-  STaosQset * pQset;
+  STaosQset  *pQset;
   pthread_t   consumerTid;
 
-  void * serverRpc;
-  void * clientRpc;
+  void  *serverRpc;
+  void  *clientRpc;
   SEpSet myAddr;
 
   void *ioTimerTickQ;

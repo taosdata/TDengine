@@ -192,9 +192,9 @@ void       syncNodeClose(SSyncNode* pSyncNode);
 int32_t syncNodeSendMsgById(const SRaftId* destRaftId, SSyncNode* pSyncNode, SRpcMsg* pMsg);
 int32_t syncNodeSendMsgByInfo(const SNodeInfo* nodeInfo, SSyncNode* pSyncNode, SRpcMsg* pMsg);
 int32_t syncNodePing(SSyncNode* pSyncNode, const SRaftId* destRaftId, SyncPing* pMsg);
-void    syncNodePingAll(SSyncNode* pSyncNode);
-void    syncNodePingPeers(SSyncNode* pSyncNode);
-void    syncNodePingSelf(SSyncNode* pSyncNode);
+int32_t syncNodePingAll(SSyncNode* pSyncNode);
+int32_t syncNodePingPeers(SSyncNode* pSyncNode);
+int32_t syncNodePingSelf(SSyncNode* pSyncNode);
 
 int32_t syncNodeStartPingTimer(SSyncNode* pSyncNode);
 int32_t syncNodeStopPingTimer(SSyncNode* pSyncNode);
