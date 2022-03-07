@@ -436,7 +436,7 @@ static int32_t mndProcessDoRebalanceMsg(SMnodeMsg *pMsg) {
     for (int32_t i = 0; i < taosArrayGetSize(pRebSub->lostConsumers); i++) {
       int64_t lostConsumerId = *(int64_t *)taosArrayGet(pRebSub->lostConsumers, i);
 
-      mInfo("mq remove lost consumer %ld", lostConsumerId);
+      mInfo("mq remove lost consumer %" PRId64 "", lostConsumerId);
 
       for (int32_t j = 0; j < taosArrayGetSize(pSub->consumers); j++) {
         SMqSubConsumer *pSubConsumer = taosArrayGet(pSub->consumers, j);
@@ -467,7 +467,7 @@ static int32_t mndProcessDoRebalanceMsg(SMnodeMsg *pMsg) {
         else
           vgThisConsumerAfterRb = vgEachConsumer;
 
-        mInfo("mq consumer:%ld, connectted vgroup number change from %d to %d", pSubConsumer->consumerId,
+        mInfo("mq consumer:%" PRId64 ", connectted vgroup number change from %d to %d", pSubConsumer->consumerId,
               vgThisConsumerBeforeRb, vgThisConsumerAfterRb);
 
         while (taosArrayGetSize(pSubConsumer->vgInfo) > vgThisConsumerAfterRb) {
@@ -491,7 +491,7 @@ static int32_t mndProcessDoRebalanceMsg(SMnodeMsg *pMsg) {
             atomic_store_32(&pRebConsumer->status, MQ_CONSUMER_STATUS__IDLE);
           }
 
-          mInfo("mq consumer:%ld, status change from %d to %d", pRebConsumer->consumerId, status, pRebConsumer->status);
+          mInfo("mq consumer:%" PRId64 ", status change from %d to %d", pRebConsumer->consumerId, status, pRebConsumer->status);
 
           SSdbRaw *pConsumerRaw = mndConsumerActionEncode(pRebConsumer);
           sdbSetRawStatus(pConsumerRaw, SDB_STATUS_READY);
@@ -525,7 +525,7 @@ static int32_t mndProcessDoRebalanceMsg(SMnodeMsg *pMsg) {
               mndSplitSubscribeKey(pSub->key, &topic, &cgroup);
               SMqTopicObj *pTopic = mndAcquireTopic(pMnode, topic);
 
-              mInfo("mq set conn: assign vgroup %d of topic %s to consumer %ld", pConsumerEp->vgId, topic,
+              mInfo("mq set conn: assign vgroup %d of topic %s to consumer %" PRId64 "", pConsumerEp->vgId, topic,
                     pConsumerEp->consumerId);
 
               mndPersistMqSetConnReq(pMnode, pTrans, pTopic, cgroup, pConsumerEp);
@@ -533,7 +533,7 @@ static int32_t mndProcessDoRebalanceMsg(SMnodeMsg *pMsg) {
               free(topic);
               free(cgroup);
             } else {
-              mInfo("mq rebalance: assign vgroup %d, from consumer %ld to consumer %ld", pConsumerEp->vgId,
+              mInfo("mq rebalance: assign vgroup %d, from consumer %" PRId64 " to consumer %" PRId64 "", pConsumerEp->vgId,
                     pConsumerEp->oldConsumerId, pConsumerEp->consumerId);
 
               mndPersistRebalanceMsg(pMnode, pTrans, pConsumerEp);
@@ -1091,7 +1091,7 @@ static int32_t mndProcessSubscribeReq(SMnodeMsg *pMsg) {
       SMqSubscribeObj *pSub = mndAcquireSubscribe(pMnode, cgroup, newTopicName);
       bool             createSub = false;
       if (pSub == NULL) {
-        mDebug("create new subscription by consumer %ld, group: %s, topic %s", consumerId, cgroup, newTopicName);
+        mDebug("create new subscription by consumer %" PRId64 ", group: %s, topic %s", consumerId, cgroup, newTopicName);
         pSub = mndCreateSubscription(pMnode, pTopic, cgroup);
         createSub = true;
 
@@ -1110,7 +1110,7 @@ static int32_t mndProcessSubscribeReq(SMnodeMsg *pMsg) {
         pConsumerEp->consumerId = consumerId;
         taosArrayPush(mqSubConsumer.vgInfo, pConsumerEp);
         if (pConsumerEp->oldConsumerId == -1) {
-          mInfo("mq set conn: assign vgroup %d of topic %s to consumer %ld", pConsumerEp->vgId, newTopicName,
+          mInfo("mq set conn: assign vgroup %d of topic %s to consumer %" PRId64 "", pConsumerEp->vgId, newTopicName,
                 pConsumerEp->consumerId);
           mndPersistMqSetConnReq(pMnode, pTrans, pTopic, cgroup, pConsumerEp);
         } else {

@@ -230,7 +230,7 @@ endif(${BUILD_WITH_SQLITE})
 # Build test
 # ================================================================================================
 if(${BUILD_DEPENDENCY_TESTS})
-    IF (NOT ${CMAKE_SYSTEM_NAME} MATCHES "Darwin")
+    IF (NOT TD_DARWIN)
         add_subdirectory(test)
     ENDIF ()
 endif(${BUILD_DEPENDENCY_TESTS})

@@ -121,6 +121,8 @@ void tsortDestroySortHandle(SSortHandle* pSortHandle) {
 
 int32_t tsortAddSource(SSortHandle* pSortHandle, void* pSource) {
   taosArrayPush(pSortHandle->pOrderedSource, &pSource);
+
+  return 0;
 }
 
 static int32_t doAddNewExternalMemSource(SDiskbasedBuf *pBuf, SArray* pAllSources, SSDataBlock* pBlock, int32_t* sourceId) {
@@ -186,6 +188,8 @@ static int32_t doAddToBuf(SSDataBlock* pDataBlock, SSortHandle* pHandle) {
   if (code != TSDB_CODE_SUCCESS) {
     return code;
   }
+
+  return 0;
 }
 
 static int32_t sortComparInit(SMsortComparParam* cmpParam, SArray* pSources, int32_t startIndex, int32_t endIndex, SSortHandle* pHandle) {
@@ -234,6 +238,8 @@ static int32_t sortComparClearup(SMsortComparParam* cmpParam) {
   }
 
   cmpParam->numOfSources = 0;
+
+  return 0;
 }
 
 static void appendOneRowToDataBlock(SSDataBlock *pBlock, const SSDataBlock* pSource, int32_t* rowIndex) {
@@ -306,6 +312,7 @@ static int32_t adjustMergeTreeForNextTuple(SExternalMemSource *pSource, SMultiwa
   printf("\nafter adjust:\t");
   tMergeTreePrint(pTree);
 #endif
+  return 0;
 }
 
 static SSDataBlock* getSortedBlockData(SSortHandle* pHandle, SMsortComparParam* cmpParam, int32_t capacity) {
@@ -408,6 +415,8 @@ int32_t msortComparFn(const void *pLeft, const void *pRight, void *param) {
         assert(0);
     }
   }
+
+  return 0;
 }
 
 static int32_t doInternalMergeSort(SSortHandle* pHandle) {
@@ -609,18 +618,25 @@ int32_t tsortOpen(SSortHandle* pHandle) {
   if (code != TSDB_CODE_SUCCESS) {
     return code;
   }
+
+  return 0;
 }
 
 int32_t tsortClose(SSortHandle* pHandle) {
   // do nothing
+    return 0;
 }
 
 int32_t tsortSetFetchRawDataFp(SSortHandle* pHandle, _sort_fetch_block_fn_t fp) {
   pHandle->fetchfp = fp;
+
+  return 0;
 }
 
 int32_t tsortSetComparFp(SSortHandle* pHandle, _sort_merge_compar_fn_t fp) {
   pHandle->comparFn = fp;
+
+  return 0;
 }
 
 STupleHandle* tsortNextTuple(SSortHandle* pHandle) {

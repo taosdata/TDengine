@@ -86,7 +86,7 @@ typedef struct {
 
 typedef struct {
   int32_t    errCode;
-  sem_t      syncSem;
+  tsem_t     syncSem;
   SWal      *pWal;
   SSyncNode *pSyncNode;
   ESyncState state;

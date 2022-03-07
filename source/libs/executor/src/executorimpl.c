@@ -4884,6 +4884,8 @@ static SSDataBlock* doBlockInfoScan(void* param, bool* newgroup) {
   pOperator->status = OP_EXEC_DONE;
   return pBlock;
 #endif
+
+  return NULL;
 }
 
 static SSDataBlock* doStreamBlockScan(void* param, bool* newgroup) {
@@ -4935,6 +4937,8 @@ int32_t loadRemoteDataCallback(void* param, const SDataBuf* pMsg, int32_t code) 
 
   pSourceDataInfo->status = DATA_READY;
   tsem_post(&pSourceDataInfo->pEx->ready);
+
+  return 0;
 }
 
 static void destroySendMsgInfo(SMsgSendInfo* pMsgBody) {
@@ -7678,6 +7682,7 @@ static SSDataBlock* doTagScan(void* param, bool* newgroup) {
   return (pRes->info.rows == 0)? NULL:pInfo->pRes;
 
 #endif
+  return NULL;
 }
 
 SOperatorInfo* createTagScanOperatorInfo(STaskRuntimeEnv* pRuntimeEnv, SExprInfo* pExpr, int32_t numOfOutput) {
@@ -8078,6 +8083,8 @@ SOperatorInfo* doCreateOperatorTreeNode(SPhyNode* pPhyNode, SExecTaskInfo* pTask
       return createMultiTableAggOperatorInfo(op, pPhyNode->pTargets, pTaskInfo, pTableGroupInfo);
     }
   }
+
+  return NULL;
 }
 
 static tsdbReaderT createDataReaderImpl(STableScanPhyNode* pTableScanNode, STableGroupInfo* pGroupInfo, void* readHandle, uint64_t queryId, uint64_t taskId) {
@@ -8383,6 +8390,8 @@ int32_t createQueryFilter(char *data, uint16_t len, SFilterInfo** pFilters) {
 //  tExprTreeDestroy(expr, NULL);
 
 //  return ret;
+
+  return 0;
 }
 
 SGroupbyExpr *createGroupbyExprFromMsg(SQueryTableReq *pQueryMsg, SColIndex *pColIndex, int32_t *code) {

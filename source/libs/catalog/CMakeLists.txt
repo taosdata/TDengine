@@ -12,5 +12,7 @@ target_link_libraries(
 )
 
 if(${BUILD_TEST})
-    ADD_SUBDIRECTORY(test)
+    IF (NOT TD_DARWIN)
+        ADD_SUBDIRECTORY(test)
+    ENDIF ()
 endif(${BUILD_TEST})

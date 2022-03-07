@@ -504,6 +504,8 @@ int32_t qWorkerProcessShowMsg(void *node, void *qWorkerMgmt, SRpcMsg *pMsg) {
   int32_t code = 0;
   SVShowTablesReq *pReq = pMsg->pCont;
   QW_ERR_RET(qwBuildAndSendShowRsp(pMsg, code));
+
+  return TSDB_CODE_SUCCESS;
 }
 
 int32_t qWorkerProcessShowFetchMsg(void *node, void *qWorkerMgmt, SRpcMsg *pMsg) {
@@ -513,6 +515,8 @@ int32_t qWorkerProcessShowFetchMsg(void *node, void *qWorkerMgmt, SRpcMsg *pMsg)
 
   SVShowTablesFetchReq *pFetchReq = pMsg->pCont;
   QW_ERR_RET(qwBuildAndSendShowFetchRsp(pMsg, pFetchReq));
+
+  return TSDB_CODE_SUCCESS;
 }
 
 

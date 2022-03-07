@@ -56,6 +56,7 @@ extern "C" {
 #include <sys/mman.h>
 
 #if !defined(_TD_DARWIN_64)
+#include <endian.h>
 #include <sys/prctl.h>
 #endif
 

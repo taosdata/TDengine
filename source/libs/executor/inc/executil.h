@@ -125,6 +125,7 @@ static FORCE_INLINE char* getPosInResultPage(struct STaskAttr* pQueryAttr, SFile
 
 //  int32_t numOfRows = (int32_t)getRowNumForMultioutput(pQueryAttr, pQueryAttr->topBotQuery, pQueryAttr->stableQuery);
 //  return ((char *)page->data) + rowOffset + offset * numOfRows;
+  return NULL;
 }
 
 static FORCE_INLINE char* getPosInResultPage_rv(SFilePage* page, int32_t rowOffset, int32_t offset) {

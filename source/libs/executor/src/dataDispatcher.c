@@ -222,6 +222,8 @@ static int32_t destroyDataSinker(SDataSinkHandle* pHandle) {
   }
   taosCloseQueue(pDispatcher->pDataBlocks);
   pthread_mutex_destroy(&pDispatcher->mutex);
+
+  return 0;
 }
 
 int32_t createDataDispatcher(SDataSinkManager* pManager, const SDataSink* pDataSink, DataSinkHandle* pHandle) {

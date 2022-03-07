@@ -623,6 +623,7 @@ static int32_t mndProcessConfigDnodeReq(SMnodeMsg *pReq) {
 
 static int32_t mndProcessConfigDnodeRsp(SMnodeMsg *pRsp) {
   mInfo("app:%p config rsp from dnode", pRsp->rpcMsg.ahandle);
+  return 0;
 }
 
 static int32_t mndGetConfigMeta(SMnodeMsg *pReq, SShowObj *pShow, STableMetaRsp *pMeta) {

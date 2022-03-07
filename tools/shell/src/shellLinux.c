@@ -23,8 +23,9 @@
 #include "version.h"
 
 #include <wordexp.h>
+
+#if !defined(_TD_DARWIN_64)
 #include <argp.h>
-#include <termio.h>
 
 #define OPT_ABORT 1 /* �Cabort */
 
@@ -32,7 +33,7 @@ int indicator = 1;
 struct termios oldtio;
 
 extern int wcwidth(wchar_t c);
-void insertChar(Command *cmd, char *c, int size);
+extern void insertChar(Command *cmd, char *c, int size);
 const char *argp_program_version = version;
 const char *argp_program_bug_address = "<support@taosdata.com>";
 static char doc[] = "";
@@ -206,10 +207,13 @@ static void parse_args(
     }
 }
 
+#endif
+
 void shellParseArgument(int argc, char *argv[], SShellArguments *arguments) {
   static char verType[32] = {0};
   sprintf(verType, "version: %s\n", version);
 
+#if !defined(_TD_DARWIN_64)
   argp_program_version = verType;
 
   if (argc > 1) {
@@ -226,6 +230,7 @@ void shellParseArgument(int argc, char *argv[], SShellArguments *arguments) {
       abort();
     #endif
   }
+#endif
 }
 
 int32_t shellReadCommand(TAOS *con, char *command) {
