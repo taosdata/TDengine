@@ -18,6 +18,28 @@
 #include "taoserror.h"
 #include "tlog.h"
 
+static int32_t taosBuildHttpHeader(const char* server, int32_t contLen, char* pHead, int32_t headLen,
+                                   EHttpCompFlag flag) {
+  if (flag == HTTP_FLAT) {
+    return snprintf(pHead, headLen,
+                    "POST /report HTTP/1.1\n"
+                    "Host: %s\n"
+                    "Content-Type: application/json\n"
+                    "Content-Length: %d\n\n",
+                    server, contLen);
+  } else if (flag == HTTP_GZIP) {
+    return snprintf(pHead, headLen,
+                    "POST /report HTTP/1.1\n"
+                    "Host: %s\n"
+                    "Content-Type: application/json\n"
+                    "Content-Encoding: gzip\n"
+                    "Content-Length: %d\n\n",
+                    server, contLen);
+  } else {
+    return -1;
+  }
+}
+
 #ifdef USE_UV
 static void clientConnCb(uv_connect_t* req, int32_t status) {
   if(status < 0) {
@@ -36,7 +58,7 @@ static void clientConnCb(uv_connect_t* req, int32_t status) {
   uv_close((uv_handle_t *)req->handle,NULL);
 }
 
-int32_t taosSendHttpReport(const char* server, uint16_t port, const char* pCont, int32_t contLen) {
+int32_t taosSendHttpReport(const char* server, uint16_t port, const char* pCont, int32_t contLen, EHttpCompFlag flag) {
   uint32_t ipv4 = taosGetIpv4FromFqdn(server);
   if (ipv4 == 0xffffffff) {
     terrno = TAOS_SYSTEM_ERROR(errno);
@@ -50,18 +72,14 @@ int32_t taosSendHttpReport(const char* server, uint16_t port, const char* pCont,
   struct sockaddr_in dest = {0};
   uv_ip4_addr(ipv4Buf, port, &dest);
 
-  uv_tcp_t socket_tcp = {0};
-  uv_loop_t *loop = uv_default_loop();
+  uv_tcp_t   socket_tcp = {0};
+  uv_loop_t* loop = uv_default_loop();
   uv_tcp_init(loop, &socket_tcp);
   uv_connect_t* connect = (uv_connect_t*)malloc(sizeof(uv_connect_t));
 
   char    header[1024] = {0};
-  int32_t headLen = snprintf(header, sizeof(header),
-                             "POST /report HTTP/1.1\n"
-                             "Host: %s\n"
-                             "Content-Type: application/json\n"
-                             "Content-Length: %d\n\n",
-                             server, contLen);
+  int32_t headLen = taosBuildHttpHeader(server, contLen, header, sizeof(header), flag);
+
   uv_buf_t wb[2];
   wb[0] = uv_buf_init((char*)header, headLen);
   wb[1] = uv_buf_init((char*)pCont, contLen);
@@ -76,7 +94,7 @@ int32_t taosSendHttpReport(const char* server, uint16_t port, const char* pCont,
 }
 
 #else
-int32_t taosSendHttpReport(const char* server, uint16_t port, const char* pCont, int32_t contLen) {
+int32_t taosSendHttpReport(const char* server, uint16_t port, const char* pCont, int32_t contLen, EHttpCompFlag flag) {
   int32_t code = -1;
   SOCKET  fd = 0;
 
@@ -94,15 +112,10 @@ int32_t taosSendHttpReport(const char* server, uint16_t port, const char* pCont,
     goto SEND_OVER;
   }
 
-  char    header[4096] = {0};
-  int32_t headLen = snprintf(header, sizeof(header),
-                             "POST /report HTTP/1.1\n"
-                             "Host: %s\n"
-                             "Content-Type: application/json\n"
-                             "Content-Length: %d\n\n",
-                             server, contLen);
+  char    header[1024] = {0};
+  int32_t headLen = taosBuildHttpHeader(server, contLen, header, sizeof(header), flag);
 
-  if (taosWriteSocket(fd, (void*)header, headLen) < 0) {
+  if (taosWriteSocket(fd, header, headLen) < 0) {
     terrno = TAOS_SYSTEM_ERROR(errno);
     uError("failed to send http header to %s:%u since %s", server, port, terrstr());
     goto SEND_OVER;

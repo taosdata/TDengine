@@ -22,7 +22,9 @@
 extern "C" {
 #endif
 
-int32_t taosSendHttpReport(const char* server, uint16_t port, const char* pCont, int32_t contLen);
+typedef enum { HTTP_GZIP, HTTP_FLAT } EHttpCompFlag;
+
+int32_t taosSendHttpReport(const char* server, uint16_t port, const char* pCont, int32_t contLen, EHttpCompFlag flag);
 
 #ifdef __cplusplus
 }
