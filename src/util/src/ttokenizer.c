@@ -570,12 +570,6 @@ uint32_t tGetToken(char* z, uint32_t* tokenId) {
       *tokenId = TK_ID;
       return i;
     }
-    case '{': {
-      for (i = 1; z[i] && z[i - 1] != '}'; i++) {
-      }
-      *tokenId = TK_STRING;
-      return i;
-    }
     case 'T':
     case 't':
     case 'F':
