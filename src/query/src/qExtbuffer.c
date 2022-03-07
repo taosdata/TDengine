@@ -366,7 +366,7 @@ static int32_t tsCompareFunc(TSKEY k1, TSKEY k2, int32_t order) {
   }
 }
 
-int32_t columnValueAscendingComparator(char *f1, char *f2, int32_t type, int32_t bytes) {
+int32_t columnValueAscendingComparator(char *f1, char *f2, int32_t type, int32_t bytes, bool lenFirst) {
   if (type == TSDB_DATA_TYPE_JSON){
     bool canReturn = true;
     int32_t result = jsonCompareUnit(f1, f2, &canReturn);
@@ -388,6 +388,13 @@ int32_t columnValueAscendingComparator(char *f1, char *f2, int32_t type, int32_t
       int32_t len1 = varDataLen(f1);
       int32_t len2 = varDataLen(f2);
 
+      // length first compare
+      if(lenFirst) {
+        if(len1 > len2)
+         return 1;
+        else if( len1 < len2)
+         return -1;
+      }
       // compare zero length
       if (len1 == 0 && len2 == 0)
         return 0;
@@ -406,6 +413,13 @@ int32_t columnValueAscendingComparator(char *f1, char *f2, int32_t type, int32_t
       int32_t len1 = varDataLen(f1);
       int32_t len2 = varDataLen(f2);
 
+      // length first compare
+      if(lenFirst) {
+        if(len1 > len2)
+         return 1;
+        else if( len1 < len2)
+         return -1;
+      }
       // compare zero length
       if (len1 == 0 && len2 == 0)
         return 0;
@@ -449,7 +463,7 @@ int32_t compare_a(tOrderDescriptor *pDescriptor, int32_t numOfRows1, int32_t s1,
       }
     } else {
       SSchemaEx *pSchema = &pDescriptor->pColumnModel->pFields[colIdx];
-      int32_t  ret = columnValueAscendingComparator(f1, f2, pSchema->field.type, pSchema->field.bytes);
+      int32_t  ret = columnValueAscendingComparator(f1, f2, pSchema->field.type, pSchema->field.bytes, strcmp(pSchema->field.name, TSQL_TBNAME_L) == 0);
       if (ret == 0) {
         continue;
       } else {
@@ -478,7 +492,7 @@ int32_t compare_aRv(SSDataBlock* pBlock, SArray* colIndex, int32_t numOfCols, in
         return ret;
       }
     } else {
-      int32_t ret = columnValueAscendingComparator(data, buffer[i], pColInfo->info.type, pColInfo->info.bytes);
+      int32_t ret = columnValueAscendingComparator(data, buffer[i], pColInfo->info.type, pColInfo->info.bytes, false);
       if (ret == 0) {
         continue;
       } else {
@@ -510,7 +524,7 @@ int32_t compare_d(tOrderDescriptor *pDescriptor, int32_t numOfRows1, int32_t s1,
       }
     } else {
       SSchemaEx *pSchema = &pDescriptor->pColumnModel->pFields[colIdx];
-      int32_t  ret = columnValueAscendingComparator(f1, f2, pSchema->field.type, pSchema->field.bytes);
+      int32_t  ret = columnValueAscendingComparator(f1, f2, pSchema->field.type, pSchema->field.bytes, strcmp(pSchema->field.name, TSQL_TBNAME_L) == 0);
       if (ret == 0) {
         continue;
       } else {
