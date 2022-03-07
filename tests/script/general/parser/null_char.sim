@@ -1,0 +1,511 @@
+#### TBASE-679
+system sh/stop_dnodes.sh
+
+system sh/deploy.sh -n dnode1 -i 1
+system sh/cfg.sh -n dnode1 -c walLevel -v 1
+system sh/exec.sh -n dnode1 -s start
+
+sleep 100
+sql connect
+
+print ========== NULL_char.sim
+
+$db = db
+sql drop database if exists $db
+sql create database $db
+sql use $db
+
+#### case 0: field NULL, or 'NULL'
+sql create table mt1 (ts timestamp, col1 int, col2 bigint, col3 float, col4 double, col5 binary(8), col6 bool, col7 smallint, col8 tinyint, col9 nchar(8)) tags (tag1 binary(8), tag2 nchar(8), tag3 int, tag4 bigint, tag5 bool, tag6 float)
+sql create table st1 using mt1 tags (NULL, 'NULL', 100, 1000, 'false', 9.123)
+sql insert into st1 values ('2019-01-01 09:00:00.000', 123, -123, 3.0, 4.0, 'binary', true, 1000, 121, 'nchar')
+sql insert into st1 values ('2019-01-01 09:00:01.000', '456', '456', '3.33', '4.444', 'binary', 'true', '1001', '122', 'nchar')
+sql insert into st1 values ('2019-01-01 09:00:02.000', NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL)
+sql insert into st1 values ('2019-01-01 09:00:03.000', NULL, NULL, NULL, NULL, 'NULL', 'NULL', 2002, 127, 'NULL')
+
+sql select * from mt1
+if $rows != 4 then
+  return -1
+endi
+if $data21 != NULL then
+  return -1
+endi
+if $data22 != NULL then
+  return -1
+endi
+if $data23 != NULL then
+  return -1
+endi
+if $data24 != NULL then
+  return -1
+endi
+if $data25 != NULL then
+  return -1
+endi
+if $data26 != NULL then
+  return -1
+endi
+if $data27 != NULL then
+  return -1
+endi
+if $data28 != NULL then
+  return -1
+endi
+if $data29 != NULL then
+  return -1
+endi
+
+if $data31 != NULL then
+  return -1
+endi
+if $data32 != NULL then
+  return -1
+endi
+#if $data33 != 0.00000 then
+#  print === expect 0.00000, actually $data33
+#  return -1
+#endi
+#if $data34 != 0.000000000 then
+#  print === expect 0.00000, actually $data34
+#  return -1
+#endi
+if $data35 != NULL then
+  return -1
+endi
+if $data36 != NULL then
+  return -1
+endi
+if $data39 != NULL then
+  return -1
+endi
+
+
+#### case 1: tag NULL, or 'NULL'
+sql create table mt2 (ts timestamp, col1 int, col3 float, col5 binary(8), col6 bool, col9 nchar(8)) tags (tag1 binary(8), tag2 nchar(8), tag3 int, tag5 bool)
+sql create table st2 using mt2 tags (NULL, 'NULL', 102, 'true')
+sql select tag1, tag2, tag3, tag5 from st2
+if $rows != 1 then
+  return -1
+endi
+if $data00 != NULL then
+  print ==1== expect: NULL, actually: $data00
+  return -1
+endi
+if $data01 != NULL then
+  print ==2== expect: NULL, actually: $data01
+  return -1
+endi
+if $data02 != 102 then
+  print ==3== expect: NULL, actually: $data02
+  return -1
+endi
+if $data03 != 1 then
+  print ==4== expect: 1, actually: $data03
+  return -1
+endi
+
+sql select tag1 from st2 limit 20 offset 1
+if $rows != 0 then
+  return -1
+endi
+
+sql select tag1 from st2 limit 10 offset 2
+if $rows != 0 then
+  return -1
+endi
+
+sql select tag1 from st2 limit 0 offset 0
+if $rows != 0 then
+  return -1
+endi
+
+sql create table st3 using mt2 tags (NULL, 'ABC', 103, 'FALSE')
+sql select tag1, tag2, tag3, tag5 from st3
+if $rows != 1 then
+  return -1
+endi
+if $data00 != NULL then
+  print ==5== expect: NULL, actually: $data00
+  return -1
+endi
+if $data01 != ABC then
+  return -1
+endi
+if $data02 != 103 then
+  return -1
+endi
+if $data03 != 0 then
+  return -1
+endi
+
+### bool:
+sql_error create table stx using mt2 tags ('NULL', '123aBc', 104, '123')
+sql_error create table sty using mt2 tags ('NULL', '123aBc', 104, 'xtz')
+sql create table st4 using mt2 tags ('NULL', '123aBc', 104, 'NULL')
+sql select tag1,tag2,tag3,tag5 from st4
+if $rows != 1 then
+  return -1
+endi
+if $data00 != NULL then
+  return -1
+endi
+if $data01 != 123aBc then
+  return -1
+endi
+if $data02 != 104 then
+  return -1
+endi
+if $data03 != NULL then
+  print ==6== expect: NULL, actually: $data03
+  return -1
+endi
+
+sql create table st5 using mt2 tags ('NULL', '123aBc', 105, NULL)
+sql select tag1,tag2,tag3,tag5 from st5
+if $rows != 1 then
+  return -1
+endi
+if $data00 != NULL then
+  return -1
+endi
+if $data01 != 123aBc then
+  return -1
+endi
+if $data02 != 105 then
+  return -1
+endi
+if $data03 != NULL then
+  return -1
+endi
+
+
+
+#### case 2: dynamic create table using super table when insert into
+sql create table mt3 (ts timestamp, col1 int, col3 float, col5 binary(8), col6 bool, col9 nchar(8)) tags (tag1 binary(8), tag2 nchar(8), tag3 int, tag5 bool)
+sql_error insert into st31 using mt3 tags (NULL, 'NULL', 102, 'true')     values (now+1s, 31, 31, 'bin_31', '123', 'nchar_31')
+sql_error insert into st32 using mt3 tags (NULL, 'ABC', 103, 'FALSE')     values (now+2s, 32, 32.12345, 'bin_32', 'abc', 'nchar_32')
+sql_error insert into st33 using mt3 tags ('NULL', '123aBc', 104, 'NULL') values (now+3s, 33, 33, 'bin_33', 'false123', 'nchar_33')
+sql_error insert into st34 using mt3 tags ('NULL', '123aBc', 105, NULL)   values (now+4s, 34, 34.12345, 'bin_34', 'true123', 'nchar_34')
+
+
+#### case 3: set tag value
+sql create table mt4 (ts timestamp, c1 int) tags (tag_binary binary(16), tag_nchar nchar(16), tag_int int, tag_bool bool, tag_float float, tag_double double)
+sql create table st41 using mt4 tags ("beijing", 'nchar_tag', 100, false, 9.12345, 7.123456789)
+sql select tag_binary, tag_nchar, tag_int, tag_bool, tag_float, tag_double from st41
+if $rows != 1 then
+  return -1
+endi
+if $data00 != beijing then
+  return -1
+endi
+if $data01 != nchar_tag then
+  return -1
+endi
+if $data02 != 100 then
+  return -1
+endi
+if $data03 != 0 then
+  return -1
+endi
+
+if $data04 != 9.12345 then
+  print expect 9.12345 , actual: $data04
+  return -1
+endi
+
+if $data05 != 7.123456789 then
+  print expect 7.123456789 , actual: $data05
+  return -1
+endi
+
+################# binary
+sql alter table st41 set tag tag_binary = "shanghai"
+sql select tag_binary, tag_nchar, tag_int, tag_bool, tag_float, tag_double from  st41
+if $data00 != shanghai then
+  return -1
+endi
+
+##### test 'space' case
+system_content echo '   ' | sed 's/ //g' | tr -d '\n' # Construct an empty result for later result checking
+sql alter table st41 set tag tag_binary = ""
+sql select tag_binary, tag_nchar, tag_int, tag_bool, tag_float, tag_double from  st41
+if $data00 != $system_content  then
+  print expect [ $system_content ], actual [ $data00 ]
+  return -1
+endi
+
+sql alter table st41 set tag tag_binary = "NULL"
+sql select tag_binary, tag_nchar, tag_int, tag_bool, tag_float, tag_double from  st41
+if $data00 != NULL then
+  return -1
+endi
+
+sql alter table st41 set tag tag_binary = NULL
+sql select tag_binary, tag_nchar, tag_int, tag_bool, tag_float, tag_double from  st41
+if $data00 != NULL then
+  print ==8== expect: NULL, actually: $data23
+  return -1
+endi
+
+################### nchar
+sql alter table st41 set tag tag_nchar = "��˼����"
+sql select tag_binary, tag_nchar, tag_int, tag_bool, tag_float, tag_double from  st41
+#sleep 100
+#if $data01 != ��˼���� then
+#  print ==== expect ��˼����, actually $data01
+#  return -1
+#endi
+##### test 'space' case
+#$tagvalue = '
+#$tagvalue = $tagvalue '
+sql alter table st41 set tag tag_nchar = ''
+#sql select tag_binary, tag_nchar, tag_int, tag_bool, tag_float, tag_double from  st41
+#if $data01 != $tagvalue then
+#  return -1
+#endi
+sql alter table st41 set tag tag_nchar = "NULL"
+sql select tag_binary, tag_nchar, tag_int, tag_bool, tag_float, tag_double from  st41
+if $data01 != NULL then
+  return -1
+endi
+sql alter table st41 set tag tag_nchar = NULL
+#sql select tag_binary, tag_nchar, tag_int, tag_bool, tag_float, tag_double from  st41
+#if $data01 !=   then
+#  print ==9== expect  , actually $data01
+#   return -1
+#endi
+
+################### int
+sql alter table st41 set tag tag_int = -2147483647
+sql select tag_binary, tag_nchar, tag_int, tag_bool, tag_float, tag_double from  st41
+if $data02 != -2147483647 then
+  return -1
+endi
+sql alter table st41 set tag tag_int = 2147483647
+sql select tag_binary, tag_nchar, tag_int, tag_bool, tag_float, tag_double from  st41
+if $data02 != 2147483647 then
+  return -1
+endi
+
+sql_error alter table st41 set tag tag_int = -2147483648
+sql_error alter table st41 set tag tag_int = 2147483648
+
+sql alter table st41 set tag tag_int = '-379'
+sql select tag_binary, tag_nchar, tag_int, tag_bool, tag_float, tag_double from  st41
+if $data02 != -379 then
+  return -1
+endi
+sql alter table st41 set tag tag_int = -2000
+sql select tag_binary, tag_nchar, tag_int, tag_bool, tag_float, tag_double from  st41
+if $data02 != -2000 then
+  return -1
+endi
+sql alter table st41 set tag tag_int = NULL
+sql select tag_binary, tag_nchar, tag_int, tag_bool, tag_float, tag_double from  st41
+if $data02 != NULL then
+  print ==10== expect: NULL, actually: $data02
+  return -1
+endi
+sql alter table st41 set tag tag_int = 'NULL'
+sql_error alter table st41 set tag tag_int = ''
+sql_error alter table st41 set tag tag_int = abc379
+
+################### bool
+sql alter table st41 set tag tag_bool = 'true'
+sql select tag_binary, tag_nchar, tag_int, tag_bool, tag_float, tag_double from  st41
+if $data03 != 1 then
+  return -1
+endi
+sql alter table st41 set tag tag_bool = 'false'
+sql select tag_binary, tag_nchar, tag_int, tag_bool, tag_float, tag_double from  st41
+if $data03 != 0 then
+  return -1
+endi
+sql alter table st41 set tag tag_bool = 0
+sql select tag_binary, tag_nchar, tag_int, tag_bool, tag_float, tag_double from  st41
+if $data03 != 0 then
+  return -1
+endi
+sql alter table st41 set tag tag_bool = 123
+sql select tag_binary, tag_nchar, tag_int, tag_bool, tag_float, tag_double from  st41
+if $data03 != 1 then
+  return -1
+endi
+sql alter table st41 set tag tag_bool = 'NULL'
+sql select tag_binary, tag_nchar, tag_int, tag_bool, tag_float, tag_double from  st41
+if $data03 != NULL then
+  print ==14== expect: NULL, actually: $data03
+  return -1
+endi
+sql alter table st41 set tag tag_bool = NULL
+sql select tag_binary, tag_nchar, tag_int, tag_bool, tag_float, tag_double from  st41
+if $data03 != NULL then
+  return -1
+endi
+
+sql_error alter table st41 set tag tag_bool = '123'
+sql_error alter table st41 set tag tag_bool = ''
+sql_error alter table st41 set tag tag_bool = abc379
+
+################### float
+sql alter table st41 set tag tag_float = -32
+sql select tag_binary, tag_nchar, tag_int, tag_bool, tag_float, tag_double from  st41
+if $data04 != -32.00000 then
+  print expect -32.00000 actual $data04
+  return -1
+endi
+sql alter table st41 set tag tag_float = 54.123456
+sql select tag_binary, tag_nchar, tag_int, tag_bool, tag_float, tag_double from  st41
+if $data04 != 54.123455 then
+  print ==15== expect: 54.123455, actually: $data04
+#  return -1
+endi
+sql alter table st41 set tag tag_float = 54.12345
+sql select tag_binary, tag_nchar, tag_int, tag_bool, tag_float, tag_double from  st41
+if $data04 != 54.12345 then
+  print ==16== expect: 54.12345, actually: $data04
+  return -1
+endi
+sql alter table st41 set tag tag_float = 54.12345678
+sql select tag_binary, tag_nchar, tag_int, tag_bool, tag_float, tag_double from  st41
+if $data04 != 54.12346 then
+  print ==11== expect: 54.12346, actually : $data04
+  return -1
+endi
+sql alter table st41 set tag tag_float = NULL
+sql select tag_binary, tag_nchar, tag_int, tag_bool, tag_float, tag_double from  st41
+if $data04 != NULL then
+  print ==12== expect: NULL, actually : $data04
+  return -1
+endi
+sql alter table st41 set tag tag_float = 'NULL'
+sql select tag_binary, tag_nchar, tag_int, tag_bool, tag_float, tag_double from  st41
+if $data04 != NULL then
+  print ==17== expect: NULL, actually : $data04
+  return -1
+endi
+sql alter table st41 set tag tag_float = '54.123456'
+sql select tag_binary, tag_nchar, tag_int, tag_bool, tag_float, tag_double from  st41
+if $data04 != 54.12346 then
+  print ==18== expect: 54.12346, actually : $data04
+  return -1
+endi
+sql alter table st41 set tag tag_float = '-54.123456'
+sql select tag_binary, tag_nchar, tag_int, tag_bool, tag_float, tag_double from  st41
+if $data04 != -54.12346 then
+  print ==19== expect: -54.12346, actually : $data04
+  return -1
+endi
+sql_error alter table st41 set tag tag_float = ''
+
+sql_error alter table st41 set tag tag_float = 'abc'
+sql_error alter table st41 set tag tag_float = '123abc'
+sql_error alter table st41 set tag tag_float = abc
+
+################### double
+sql alter table st41 set tag tag_double = -92
+sql select tag_binary, tag_nchar, tag_int, tag_bool, tag_float, tag_double from  st41
+if $data05 != -92.000000000 then
+  print expect -92.000000000 actual $data05
+  return -1
+endi
+sql alter table st41 set tag tag_double = 184
+sql select tag_binary, tag_nchar, tag_int, tag_bool, tag_float, tag_double from  st41
+if $data05 != 184.000000000 then
+  print expect 184.000000000 actual $data05
+  return -1
+endi
+sql alter table st41 set tag tag_double = '-2456'
+sql select tag_binary, tag_nchar, tag_int, tag_bool, tag_float, tag_double from  st41
+if $data05 != -2456.000000000 then
+  return -1
+endi
+sql alter table st41 set tag tag_double = NULL
+sql select tag_binary, tag_nchar, tag_int, tag_bool, tag_float, tag_double from  st41
+if $data05 != NULL then
+  print ==13== expect: NULL, actually : $data05
+  return -1
+endi
+sql alter table st41 set tag tag_double = 'NULL'
+sql select tag_binary, tag_nchar, tag_int, tag_bool, tag_float, tag_double from  st41
+if $data05 != NULL then
+  print ==20== expect: NULL, actually : $data05
+  return -1
+endi
+sql_error alter table st41 set tag tag_double = ''
+
+
+sql_error alter table st41 set tag tag_double = 'abc'
+sql_error alter table st41 set tag tag_double = '123abc' 
+sql_error alter table st41 set tag tag_double = abc
+
+################### bigint smallint tinyint
+sql create table mt5 (ts timestamp, c1 int) tags (tag_bigint bigint, tag_smallint smallint, tag_tinyint tinyint)
+sql create table st51 using mt5 tags (1, 2, 3)
+sql alter table st51 set tag tag_bigint = '-379'
+sql alter table st51 set tag tag_bigint = -2000
+sql alter table st51 set tag tag_bigint = NULL
+sql alter table st51 set tag tag_bigint = 9223372036854775807
+sql select tag_bigint, tag_smallint, tag_tinyint from st51
+if $data00 != 9223372036854775807 then
+  return -1
+endi
+sql_error alter table st51 set tag tag_bigint = 9223372036854775808
+
+sql alter table st51 set tag tag_bigint = -9223372036854775807
+sql select tag_bigint, tag_smallint, tag_tinyint from st51
+if $data00 != -9223372036854775807 then
+  return -1
+endi
+sql_error alter table st51 set tag tag_bigint = -9223372036854775808
+
+sql alter table st51 set tag tag_bigint = 'NULL'
+sql_error alter table st51 set tag tag_bigint = ''
+sql_error alter table st51 set tag tag_bigint = abc379
+
+####
+sql alter table st51 set tag tag_smallint = -2000
+sql alter table st51 set tag tag_smallint = NULL
+sql alter table st51 set tag tag_smallint = 32767
+sql select tag_bigint, tag_smallint, tag_tinyint from st51
+if $data01 != 32767 then
+  return -1
+endi
+sql_error alter table st51 set tag tag_smallint = 32768
+
+sql alter table st51 set tag tag_smallint = -32767
+sql select tag_bigint, tag_smallint, tag_tinyint from st51
+if $data01 != -32767 then
+  return -1
+endi
+sql_error alter table st51 set tag tag_smallint = -32768
+
+sql alter table st51 set tag tag_smallint = 'NULL'
+sql_error alter table st51 set tag tag_smallint = ''
+sql_error alter table st51 set tag tag_smallint = abc379
+
+####
+sql alter table st51 set tag tag_tinyint = -127
+sql alter table st51 set tag tag_tinyint = NULL
+sql alter table st51 set tag tag_tinyint = 127
+sql select tag_bigint, tag_smallint, tag_tinyint from st51
+if $data02 != 127 then
+  return -1
+endi
+sql alter table st51 set tag tag_tinyint = -127
+sql select tag_bigint, tag_smallint, tag_tinyint from st51
+if $data02 != -127 then
+  return -1
+endi
+sql_error alter table st51 set tag tag_tinyint = '-128'
+sql_error alter table st51 set tag tag_tinyint = 128
+sql alter table st51 set tag tag_tinyint = 'NULL'
+sql_error alter table st51 set tag tag_tinyint = ''
+sql_error alter table st51 set tag tag_tinyint = abc379
+
+
+# test end   
+#sql drop database $db
+
+
+system sh/exec.sh -n dnode1 -s stop -x SIGINT

@@ -1,0 +1,3 @@
+run general/cache/new_metrics.sim
+run general/cache/restart_table.sim
+run general/cache/restart_metrics.sim
