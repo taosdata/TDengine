@@ -314,7 +314,6 @@ static int32_t taosAddSystemCfg(SConfig *pCfg) {
   if (cfgAddString(pCfg, "version", version, 1) != 0) return -1;
   if (cfgAddString(pCfg, "compatible_version", compatible_version, 1) != 0) return -1;
   if (cfgAddString(pCfg, "gitinfo", gitinfo, 1) != 0) return -1;
-  if (cfgAddString(pCfg, "gitinfoOfInternal", gitinfoOfInternal, 1) != 0) return -1;
   if (cfgAddString(pCfg, "buildinfo", buildinfo, 1) != 0) return -1;
   return 0;
 }

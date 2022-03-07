@@ -84,7 +84,6 @@ extern int64_t tsMaxRetentWindow;
 extern char version[];
 extern char compatible_version[];
 extern char gitinfo[];
-extern char gitinfoOfInternal[];
 extern char buildinfo[];
 
 // lossy
