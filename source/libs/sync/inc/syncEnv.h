@@ -46,12 +46,9 @@ typedef struct SSyncEnv {
 extern SSyncEnv* gSyncEnv;
 
 int32_t syncEnvStart();
-
 int32_t syncEnvStop();
-
-tmr_h syncEnvStartTimer(TAOS_TMR_CALLBACK fp, int mseconds, void* param);
-
-void syncEnvStopTimer(tmr_h* pTimer);
+tmr_h   syncEnvStartTimer(TAOS_TMR_CALLBACK fp, int mseconds, void* param);
+void    syncEnvStopTimer(tmr_h* pTimer);
 
 #ifdef __cplusplus
 }
