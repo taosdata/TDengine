@@ -24,7 +24,6 @@ mac/
 *.orig
 src/connector/nodejs/node_modules/
 src/connector/nodejs/out/
-tests/test/
 tests/taoshebei/
 tests/taoscsv/
 tests/taosdalipu/
