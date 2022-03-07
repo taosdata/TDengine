@@ -376,7 +376,10 @@ int32_t tqProcessSetConnReq(STQ* pTq, char* msg) {
   for (int i = 0; i < TQ_BUFFER_SIZE; i++) {
     pTopic->buffer.output[i].status = 0;
     STqReadHandle* pReadHandle = tqInitSubmitMsgScanner(pTq->pVnodeMeta);
-    SReadHandle    handle = {.reader = pReadHandle, .meta = pTq->pVnodeMeta};
+    SReadHandle    handle = {
+           .reader = pReadHandle,
+           .meta = pTq->pVnodeMeta,
+    };
     pTopic->buffer.output[i].pReadHandle = pReadHandle;
     pTopic->buffer.output[i].task = qCreateStreamExecTaskInfo(req.qmsg, &handle);
   }

@@ -661,6 +661,9 @@ static FORCE_INLINE void* tDecodeSMqConsumerObj(void* buf, SMqConsumerObj* pCons
   return buf;
 }
 
+typedef struct {
+} SStreamScheduler;
+
 typedef struct SMnodeMsg {
   char    user[TSDB_USER_LEN];
   char    db[TSDB_DB_FNAME_LEN];
