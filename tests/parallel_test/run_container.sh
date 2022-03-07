@@ -91,7 +91,7 @@ docker run \
     -v $REPDIR/src:$CONTAINER_TESTDIR/src \
     -v $REPDIR/src/inc/taos.h:/usr/include/taos.h:ro \
     $TAOSADAPTER_TOML \
-    -v $REPDIR/tests/examples:$CONTAINER_TESTDIR/tests/examples \
+    -v $REPDIR/examples:$CONTAINER_TESTDIR/tests/examples \
     -v $REPDIR/snap:$CONTAINER_TESTDIR/snap:ro \
     -v $REPDIR/alert:$CONTAINER_TESTDIR/alert:ro \
     -v $REPDIR/packaging/cfg/taos.cfg:/etc/taos/taos.cfg:ro \
