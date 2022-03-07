@@ -18,6 +18,7 @@
 #include <tglobal.h>
 #include <iostream>
 
+#include <metaDef.h>
 #include <tmsg.h>
 
 #pragma GCC diagnostic push
@@ -93,8 +94,105 @@ TEST(testCase, tSmaEncodeDecodeTest) {
   }
 
   // resource release
-  tdDestroyTSma(&tSma, false);
-  tdDestroyWrapper(&dstTSmaWrapper);
+  tdDestroyTSma(&tSma);
+  tdDestroyTSmaWrapper(&dstTSmaWrapper);
+}
+
+TEST(testCase, tSma_DB_Put_Get_Del_Test) {
+  const char *smaIndexName1 = "sma_index_test_1";
+  const char *smaIndexName2 = "sma_index_test_2";
+  const char *smaTestDir = "./smaTest";
+  const uint64_t tbUid = 1234567890;
+  // encode
+  STSma tSma = {0};
+  tSma.version = 0;
+  tSma.intervalUnit = TD_TIME_UNIT_DAY;
+  tSma.interval = 1;
+  tSma.slidingUnit = TD_TIME_UNIT_HOUR;
+  tSma.sliding = 0;
+  tstrncpy(tSma.indexName, smaIndexName1, TSDB_INDEX_NAME_LEN);
+  tSma.tableUid = tbUid;
+  tSma.numOfColIds = 2;
+  tSma.numOfFuncIds = 5;  // sum/min/max/avg/last
+  tSma.colIds = (col_id_t *)calloc(tSma.numOfColIds, sizeof(col_id_t));
+  tSma.funcIds = (uint16_t *)calloc(tSma.numOfFuncIds, sizeof(uint16_t));
+
+  for (int32_t i = 0; i < tSma.numOfColIds; ++i) {
+    *(tSma.colIds + i) = (i + PRIMARYKEY_TIMESTAMP_COL_ID);
+  }
+  for (int32_t i = 0; i < tSma.numOfFuncIds; ++i) {
+    *(tSma.funcIds + i) = (i + 2);
+  }
+
+  SMeta *         pMeta = NULL;
+  SSmaCfg *       pSmaCfg = &tSma;
+  const SMetaCfg *pMetaCfg = &defaultMetaOptions;
+
+  taosRemoveDir(smaTestDir);
+
+  pMeta = metaOpen(smaTestDir, pMetaCfg, NULL);
+  assert(pMeta != NULL);
+  // save index 1
+  metaSaveSmaToDB(pMeta, pSmaCfg);
+
+  tstrncpy(pSmaCfg->indexName, smaIndexName2, TSDB_INDEX_NAME_LEN);
+  pSmaCfg->version = 1;
+  pSmaCfg->intervalUnit = TD_TIME_UNIT_HOUR;
+  pSmaCfg->interval = 1;
+  pSmaCfg->slidingUnit = TD_TIME_UNIT_MINUTE;
+  pSmaCfg->sliding = 5;
+
+  // save index 2
+  metaSaveSmaToDB(pMeta, pSmaCfg);
+
+  // get value by indexName
+  SSmaCfg *qSmaCfg = NULL;
+  qSmaCfg = metaGetSmaInfoByName(pMeta, smaIndexName1);
+  assert(qSmaCfg != NULL);
+  printf("name1 = %s\n", qSmaCfg->indexName);
+  EXPECT_STRCASEEQ(qSmaCfg->indexName, smaIndexName1);
+  EXPECT_EQ(qSmaCfg->tableUid, tSma.tableUid);
+  tdDestroyTSma(qSmaCfg);
+  free(qSmaCfg);
+
+  qSmaCfg = metaGetSmaInfoByName(pMeta, smaIndexName2);
+  assert(qSmaCfg != NULL);
+  printf("name2 = %s\n", qSmaCfg->indexName);
+  EXPECT_STRCASEEQ(qSmaCfg->indexName, smaIndexName2);
+  EXPECT_EQ(qSmaCfg->interval, tSma.interval);
+  tdDestroyTSma(qSmaCfg);
+  free(qSmaCfg);
+
+  // get index name by table uid
+  SMSmaCursor *pSmaCur = metaOpenSmaCursor(pMeta, tbUid);
+  assert(pSmaCur != NULL);
+  uint32_t indexCnt = 0;
+  while (1) {
+    const char* indexName = metaSmaCursorNext(pSmaCur);
+    if (indexName == NULL) {
+      break;
+    }
+    printf("indexName = %s\n", indexName);
+    ++indexCnt;
+  }
+  EXPECT_EQ(indexCnt, 2);
+  metaCloseSmaCurosr(pSmaCur);
+
+  // get wrapper by table uid
+  STSmaWrapper *pSW = metaGetSmaInfoByUid(pMeta, tbUid);
+  assert(pSW != NULL);
+  EXPECT_EQ(pSW->number, 2);
+  EXPECT_STRCASEEQ(pSW->tSma->indexName, smaIndexName1);
+  EXPECT_EQ(pSW->tSma->tableUid, tSma.tableUid);
+  EXPECT_STRCASEEQ((pSW->tSma + 1)->indexName, smaIndexName2);
+  EXPECT_EQ((pSW->tSma + 1)->tableUid, tSma.tableUid);
+
+  // resource release
+  metaRemoveSmaFromDb(pMeta, smaIndexName1);
+  metaRemoveSmaFromDb(pMeta, smaIndexName2);
+
+  tdDestroyTSma(&tSma);
+  metaClose(pMeta);
 }
 
 #if 0
@@ -110,15 +208,15 @@ TEST(testCase, tSmaInsertTest) {
 
   int32_t blockSize = tSma.numOfFuncIds * sizeof(int64_t);
   int32_t numOfColIds = 3;
-  int32_t numOfSmaBlocks = 10;
+  int32_t numOfBlocks = 10;
 
-  int32_t dataLen = numOfColIds * numOfSmaBlocks * blockSize;
+  int32_t dataLen = numOfColIds * numOfBlocks * blockSize;
 
   pSmaData = (STSmaData*)malloc(sizeof(STSmaData) + dataLen);
   ASSERT_EQ(pSmaData != NULL, true);
   pSmaData->tableUid = 3232329230;
   pSmaData->numOfColIds = numOfColIds;
-  pSmaData->numOfSmaBlocks = numOfSmaBlocks;
+  pSmaData->numOfBlocks = numOfBlocks;
   pSmaData->dataLen = dataLen;
   pSmaData->tsWindow.skey = 1640000000;
   pSmaData->tsWindow.ekey = 1645788649;

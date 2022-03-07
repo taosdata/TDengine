@@ -32,6 +32,8 @@ extern "C" {
 typedef struct {
   int32_t dnode_id;
   char    dnode_ep[TSDB_EP_LEN];
+  int64_t cluster_id;
+  int32_t protocol;
 } SMonBasicInfo;
 
 typedef struct {
@@ -130,6 +132,7 @@ typedef struct {
   const char *server;
   uint16_t    port;
   int32_t     maxLogs;
+  bool        comp;
 } SMonCfg;
 
 int32_t monInit(const SMonCfg *pCfg);

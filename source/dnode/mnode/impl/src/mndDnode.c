@@ -340,8 +340,15 @@ static int32_t mndProcessStatusReq(SMnodeMsg *pReq) {
         pVgroup->compStorage = pVload->compStorage;
         pVgroup->pointsWritten = pVload->pointsWritten;
       }
+      bool roleChanged = false;
       for (int32_t vg = 0; vg < pVgroup->replica; ++vg) {
+        if (pVgroup->vnodeGid[vg].role != pVload->role) {
+          roleChanged = true;
+        }
         pVgroup->vnodeGid[vg].role = pVload->role;
+      }
+      if (roleChanged) {
+        // notify scheduler role has changed
       }
     }
 
@@ -632,13 +639,13 @@ static int32_t mndGetConfigMeta(SMnodeMsg *pReq, SShowObj *pShow, STableMetaRsp 
 
   pShow->bytes[cols] = TSDB_CONFIG_OPTION_LEN + VARSTR_HEADER_SIZE;
   pSchema[cols].type = TSDB_DATA_TYPE_BINARY;
-    strcpy(pSchema[cols].name, "name");
+  strcpy(pSchema[cols].name, "name");
   pSchema[cols].bytes = pShow->bytes[cols];
   cols++;
 
   pShow->bytes[cols] = TSDB_CONIIG_VALUE_LEN + VARSTR_HEADER_SIZE;
   pSchema[cols].type = TSDB_DATA_TYPE_BINARY;
-   strcpy(pSchema[cols].name, "value");
+  strcpy(pSchema[cols].name, "value");
   pSchema[cols].bytes = pShow->bytes[cols];
   cols++;
 

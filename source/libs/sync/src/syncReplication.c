@@ -14,5 +14,41 @@
  */
 
 #include "syncReplication.h"
+#include "syncMessage.h"
 
-void syncNodeAppendEntriesPeers(SSyncNode* pSyncNode) {}
+// TLA+ Spec
+// AppendEntries(i, j) ==
+//    /\ i /= j
+//    /\ state[i] = Leader
+//    /\ LET prevLogIndex == nextIndex[i][j] - 1
+//           prevLogTerm == IF prevLogIndex > 0 THEN
+//                              log[i][prevLogIndex].term
+//                          ELSE
+//                              0
+//           \* Send up to 1 entry, constrained by the end of the log.
+//           lastEntry == Min({Len(log[i]), nextIndex[i][j]})
+//           entries == SubSeq(log[i], nextIndex[i][j], lastEntry)
+//       IN Send([mtype          |-> AppendEntriesRequest,
+//                mterm          |-> currentTerm[i],
+//                mprevLogIndex  |-> prevLogIndex,
+//                mprevLogTerm   |-> prevLogTerm,
+//                mentries       |-> entries,
+//                \* mlog is used as a history variable for the proof.
+//                \* It would not exist in a real implementation.
+//                mlog           |-> log[i],
+//                mcommitIndex   |-> Min({commitIndex[i], lastEntry}),
+//                msource        |-> i,
+//                mdest          |-> j])
+//    /\ UNCHANGED <<serverVars, candidateVars, leaderVars, logVars>>
+//
+int32_t syncNodeAppendEntriesPeers(SSyncNode* pSyncNode) {return 0;}
+
+int32_t syncNodeAppendEntries(SSyncNode* pSyncNode, const SRaftId* destRaftId, const SyncAppendEntries* pMsg) {
+  sTrace("syncNodeAppendEntries pSyncNode:%p ", pSyncNode);
+  int32_t ret = 0;
+
+  SRpcMsg rpcMsg;
+  syncAppendEntries2RpcMsg(pMsg, &rpcMsg);
+  syncNodeSendMsgById(destRaftId, pSyncNode, &rpcMsg);
+  return ret;
+}

@@ -106,3 +106,20 @@ int metaRemoveTableFromIdx(SMeta *pMeta, tb_uid_t uid) {
   // TODO
   return 0;
 }
+
+int metaCreateSma(SMeta *pMeta, SSmaCfg *pSmaCfg) {
+  // Validate the tbOptions
+  // if (metaValidateTbCfg(pMeta, pTbCfg) < 0) {
+  //   // TODO: handle error
+  //   return -1;
+  // }
+
+  // TODO: add atomicity
+
+  if (metaSaveSmaToDB(pMeta, pSmaCfg) < 0) {
+    // TODO: handle error
+    return -1;
+  }
+
+  return 0;
+}

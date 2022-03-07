@@ -64,6 +64,7 @@ TAOS_DEFINE_ERROR(TSDB_CODE_RPC_INVALID_TIME_STAMP,       "Client and server's t
 TAOS_DEFINE_ERROR(TSDB_CODE_APP_NOT_READY,                "Database not ready")
 TAOS_DEFINE_ERROR(TSDB_CODE_RPC_FQDN_ERROR,               "Unable to resolve FQDN")
 TAOS_DEFINE_ERROR(TSDB_CODE_RPC_INVALID_VERSION,          "Invalid app version")
+TAOS_DEFINE_ERROR(TSDB_CODE_COMPRESS_ERROR,               "Failed to compress msg")
 
 //common & util
 TAOS_DEFINE_ERROR(TSDB_CODE_OPS_NOT_SUPPORT,              "Operation not supported")
@@ -262,7 +263,7 @@ TAOS_DEFINE_ERROR(TSDB_CODE_MND_TRANS_INVALID_STAGE,      "Invalid stage to kill
 TAOS_DEFINE_ERROR(TSDB_CODE_MND_TRANS_CANT_PARALLEL,      "Invalid stage to kill")
 
 // mnode-topic
-TAOS_DEFINE_ERROR(TSDB_CODE_MND_UNSUPPORTED_TOPIC,        "Topic with STable not supported yet")
+TAOS_DEFINE_ERROR(TSDB_CODE_MND_UNSUPPORTED_TOPIC,        "Topic with aggregation is unsupported")
 
 // dnode
 TAOS_DEFINE_ERROR(TSDB_CODE_DND_ACTION_IN_PROGRESS,       "Action in progress")

@@ -131,6 +131,7 @@ typedef struct SSyncNode {
   // raft algorithm
   SSyncFSM* pFsm;
   int32_t   quorum;
+  SRaftId   leaderCache;
 
   // life cycle
   int32_t refCount;
@@ -155,19 +156,22 @@ typedef struct SSyncNode {
   // timer
   tmr_h             pPingTimer;
   int32_t           pingTimerMS;
-  uint8_t           pingTimerEnable;
+  uint64_t          pingTimerLogicClock;
+  uint64_t          pingTimerLogicClockUser;
   TAOS_TMR_CALLBACK FpPingTimer;  // Timer Fp
   uint64_t          pingTimerCounter;
 
   tmr_h             pElectTimer;
   int32_t           electTimerMS;
-  uint8_t           electTimerEnable;
+  uint64_t          electTimerLogicClock;
+  uint64_t          electTimerLogicClockUser;
   TAOS_TMR_CALLBACK FpElectTimer;  // Timer Fp
   uint64_t          electTimerCounter;
 
   tmr_h             pHeartbeatTimer;
   int32_t           heartbeatTimerMS;
-  uint8_t           heartbeatTimerEnable;
+  uint64_t          heartbeatTimerLogicClock;
+  uint64_t          heartbeatTimerLogicClockUser;
   TAOS_TMR_CALLBACK FpHeartbeatTimer;  // Timer Fp
   uint64_t          heartbeatTimerCounter;
 
@@ -184,27 +188,21 @@ typedef struct SSyncNode {
 
 SSyncNode* syncNodeOpen(const SSyncInfo* pSyncInfo);
 void       syncNodeClose(SSyncNode* pSyncNode);
-void       syncNodePingAll(SSyncNode* pSyncNode);
-void       syncNodePingPeers(SSyncNode* pSyncNode);
-void       syncNodePingSelf(SSyncNode* pSyncNode);
+
+int32_t syncNodeSendMsgById(const SRaftId* destRaftId, SSyncNode* pSyncNode, SRpcMsg* pMsg);
+int32_t syncNodeSendMsgByInfo(const SNodeInfo* nodeInfo, SSyncNode* pSyncNode, SRpcMsg* pMsg);
+int32_t syncNodePing(SSyncNode* pSyncNode, const SRaftId* destRaftId, SyncPing* pMsg);
+int32_t syncNodePingAll(SSyncNode* pSyncNode);
+int32_t syncNodePingPeers(SSyncNode* pSyncNode);
+int32_t syncNodePingSelf(SSyncNode* pSyncNode);
 
 int32_t syncNodeStartPingTimer(SSyncNode* pSyncNode);
 int32_t syncNodeStopPingTimer(SSyncNode* pSyncNode);
-
-int32_t syncNodeStartElectTimer(SSyncNode* pSyncNode);
+int32_t syncNodeStartElectTimer(SSyncNode* pSyncNode, int32_t ms);
 int32_t syncNodeStopElectTimer(SSyncNode* pSyncNode);
-int32_t syncNodeResetElectTimer(SSyncNode* pSyncNode, int32_t ms);
-
+int32_t syncNodeRestartElectTimer(SSyncNode* pSyncNode, int32_t ms);
 int32_t syncNodeStartHeartbeatTimer(SSyncNode* pSyncNode);
 int32_t syncNodeStopHeartbeatTimer(SSyncNode* pSyncNode);
-int32_t syncNodeResetHeartbeatTimer(SSyncNode* pSyncNode, int32_t ms);
-
-void syncNodeBecomeFollower(SSyncNode* pSyncNode);
-void syncNodeBecomeLeader(SSyncNode* pSyncNode);
-void syncNodeFollower2Candidate(SSyncNode* pSyncNode);
-void syncNodeCandidate2Leader(SSyncNode* pSyncNode);
-void syncNodeLeader2Follower(SSyncNode* pSyncNode);
-void syncNodeCandidate2Follower(SSyncNode* pSyncNode);
 
 #ifdef __cplusplus
 }

@@ -42,6 +42,7 @@ typedef struct {
 typedef struct {
   STsdbFSMeta meta;  // FS meta
   SArray *    df;    // data file array
+  SArray *    smaf;  // sma data file array
 } SFSStatus;
 
 typedef struct {

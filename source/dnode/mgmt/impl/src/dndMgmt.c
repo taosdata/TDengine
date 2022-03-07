@@ -477,6 +477,8 @@ void dndProcessStartupReq(SDnode *pDnode, SRpcMsg *pReq) {
 static void dndGetMonitorBasicInfo(SDnode *pDnode, SMonBasicInfo *pInfo) {
   pInfo->dnode_id = dndGetDnodeId(pDnode);
   tstrncpy(pInfo->dnode_ep, tsLocalEp, TSDB_EP_LEN);
+  pInfo->cluster_id = dndGetClusterId(pDnode);
+  pInfo->protocol = 1;
 }
 
 static void dndGetMonitorDnodeInfo(SDnode *pDnode, SMonDnodeInfo *pInfo) {

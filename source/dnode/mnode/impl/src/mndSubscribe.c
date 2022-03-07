@@ -20,6 +20,7 @@
 #include "mndDnode.h"
 #include "mndMnode.h"
 #include "mndOffset.h"
+#include "mndScheduler.h"
 #include "mndShow.h"
 #include "mndStb.h"
 #include "mndTopic.h"
@@ -39,7 +40,7 @@ enum {
   MQ_SUBSCRIBE_STATUS__DELETED,
 };
 
-static char *mndMakeSubscribeKey(const char *cgroup, const char *topicName);
+static int32_t mndMakeSubscribeKey(char *key, const char *cgroup, const char *topicName);
 
 static SSdbRaw *mndSubActionEncode(SMqSubscribeObj *);
 static SSdbRow *mndSubActionDecode(SSdbRaw *pRaw);
@@ -87,22 +88,25 @@ static SMqSubscribeObj *mndCreateSubscription(SMnode *pMnode, const SMqTopicObj 
     terrno = TSDB_CODE_OUT_OF_MEMORY;
     return NULL;
   }
-  char *key = mndMakeSubscribeKey(cgroup, pTopic->name);
-  if (key == NULL) {
-    terrno = TSDB_CODE_OUT_OF_MEMORY;
+  char key[TSDB_SUBSCRIBE_KEY_LEN];
+  mndMakeSubscribeKey(key, cgroup, pTopic->name);
+  strcpy(pSub->key, key);
+
+  if (mndSchedInitSubEp(pMnode, pTopic, pSub) < 0) {
+    terrno = TSDB_CODE_MND_UNSUPPORTED_TOPIC;
     tDeleteSMqSubscribeObj(pSub);
     free(pSub);
     return NULL;
   }
-  strcpy(pSub->key, key);
-  free(key);
 
+#if 0
   if (mndInitUnassignedVg(pMnode, pTopic, pSub) < 0) {
     terrno = TSDB_CODE_OUT_OF_MEMORY;
     tDeleteSMqSubscribeObj(pSub);
     free(pSub);
     return NULL;
   }
+#endif
   // TODO: disable alter subscribed table
   return pSub;
 }
@@ -325,15 +329,14 @@ static int32_t mndProcessGetSubEpReq(SMnodeMsg *pMsg) {
   return 0;
 }
 
-static int32_t mndSplitSubscribeKey(char *key, char **topic, char **cgroup) {
+static int32_t mndSplitSubscribeKey(const char *key, char *topic, char *cgroup) {
   int32_t i = 0;
-  while (key[i] != ':') {
+  while (key[i] != TMQ_SEPARATOR) {
     i++;
   }
-  key[i] = 0;
-  *cgroup = strdup(key);
-  key[i] = ':';
-  *topic = strdup(&key[i + 1]);
+  memcpy(topic, key, i - 1);
+  topic[i] = 0;
+  strcpy(cgroup, &key[i + 1]);
   return 0;
 }
 
@@ -369,8 +372,9 @@ static int32_t mndProcessMqTimerMsg(SMnodeMsg *pMsg) {
         // get all topics of that topic
         int32_t sz = taosArrayGetSize(pConsumer->currentTopics);
         for (int32_t i = 0; i < sz; i++) {
-          char            *topic = taosArrayGetP(pConsumer->currentTopics, i);
-          char            *key = mndMakeSubscribeKey(pConsumer->cgroup, topic);
+          char *topic = taosArrayGetP(pConsumer->currentTopics, i);
+          char  key[TSDB_SUBSCRIBE_KEY_LEN];
+          mndMakeSubscribeKey(key, pConsumer->cgroup, topic);
           SMqRebSubscribe *pRebSub = mndGetOrCreateRebSub(pRebMsg->rebSubHash, key);
           taosArrayPush(pRebSub->lostConsumers, &pConsumer->consumerId);
         }
@@ -386,8 +390,9 @@ static int32_t mndProcessMqTimerMsg(SMnodeMsg *pMsg) {
       }
       int32_t sz = taosArrayGetSize(rebSubs);
       for (int32_t i = 0; i < sz; i++) {
-        char            *topic = taosArrayGetP(rebSubs, i);
-        char            *key = mndMakeSubscribeKey(pConsumer->cgroup, topic);
+        char *topic = taosArrayGetP(rebSubs, i);
+        char  key[TSDB_SUBSCRIBE_KEY_LEN];
+        mndMakeSubscribeKey(key, pConsumer->cgroup, topic);
         SMqRebSubscribe *pRebSub = mndGetOrCreateRebSub(pRebMsg->rebSubHash, key);
         if (status == MQ_CONSUMER_STATUS__INIT) {
           taosArrayPush(pRebSub->newConsumers, &pConsumer->consumerId);
@@ -520,9 +525,9 @@ static int32_t mndProcessDoRebalanceMsg(SMnodeMsg *pMsg) {
             taosArrayPush(pSubConsumer->vgInfo, pConsumerEp);
 
             if (pConsumerEp->oldConsumerId == -1) {
-              char *topic;
-              char *cgroup;
-              mndSplitSubscribeKey(pSub->key, &topic, &cgroup);
+              char topic[TSDB_TOPIC_FNAME_LEN];
+              char cgroup[TSDB_CGROUP_LEN];
+              mndSplitSubscribeKey(pSub->key, topic, cgroup);
               SMqTopicObj *pTopic = mndAcquireTopic(pMnode, topic);
 
               mInfo("mq set conn: assign vgroup %d of topic %s to consumer %" PRId64 "", pConsumerEp->vgId, topic,
@@ -530,8 +535,6 @@ static int32_t mndProcessDoRebalanceMsg(SMnodeMsg *pMsg) {
 
               mndPersistMqSetConnReq(pMnode, pTrans, pTopic, cgroup, pConsumerEp);
               mndReleaseTopic(pMnode, pTopic);
-              free(topic);
-              free(cgroup);
             } else {
               mInfo("mq rebalance: assign vgroup %d, from consumer %" PRId64 " to consumer %" PRId64 "", pConsumerEp->vgId,
                     pConsumerEp->oldConsumerId, pConsumerEp->consumerId);
@@ -759,6 +762,7 @@ static int32_t mndProcessDoRebalanceMsg(SMnodeMsg *pMsg) {
 }
 #endif
 
+#if 0
 static int32_t mndInitUnassignedVg(SMnode *pMnode, const SMqTopicObj *pTopic, SMqSubscribeObj *pSub) {
   SSdb      *pSdb = pMnode->pSdb;
   SVgObj    *pVgroup = NULL;
@@ -804,6 +808,7 @@ static int32_t mndInitUnassignedVg(SMnode *pMnode, const SMqTopicObj *pTopic, SM
   /*qDestroyQueryDag(pDag);*/
   return 0;
 }
+#endif
 
 static int32_t mndPersistMqSetConnReq(SMnode *pMnode, STrans *pTrans, const SMqTopicObj *pTopic, const char *cgroup,
                                       const SMqConsumerEp *pConsumerEp) {
@@ -949,23 +954,19 @@ static int32_t mndSubActionUpdate(SSdb *pSdb, SMqSubscribeObj *pOldSub, SMqSubsc
   return 0;
 }
 
-static char *mndMakeSubscribeKey(const char *cgroup, const char *topicName) {
-  char *key = malloc(TSDB_SHOW_SUBQUERY_LEN);
-  if (key == NULL) {
-    return NULL;
-  }
+static int32_t mndMakeSubscribeKey(char *key, const char *cgroup, const char *topicName) {
   int32_t tlen = strlen(cgroup);
   memcpy(key, cgroup, tlen);
-  key[tlen] = ':';
+  key[tlen] = TMQ_SEPARATOR;
   strcpy(key + tlen + 1, topicName);
-  return key;
+  return 0;
 }
 
 SMqSubscribeObj *mndAcquireSubscribe(SMnode *pMnode, const char *cgroup, const char *topicName) {
-  SSdb            *pSdb = pMnode->pSdb;
-  char            *key = mndMakeSubscribeKey(cgroup, topicName);
+  SSdb *pSdb = pMnode->pSdb;
+  char  key[TSDB_SUBSCRIBE_KEY_LEN];
+  mndMakeSubscribeKey(key, cgroup, topicName);
   SMqSubscribeObj *pSub = sdbAcquire(pSdb, SDB_SUBSCRIBE, key);
-  free(key);
   if (pSub == NULL) {
     terrno = TSDB_CODE_MND_SUBSCRIBE_NOT_EXIST;
   }

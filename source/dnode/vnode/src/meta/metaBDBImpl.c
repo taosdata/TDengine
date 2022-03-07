@@ -45,6 +45,7 @@ struct SMetaDB {
   DB *pStbIdx;
   DB *pNtbIdx;
   DB *pCtbIdx;
+  DB *pSmaIdx;
   // ENV
   DB_ENV *pEvn;
 };
@@ -63,6 +64,7 @@ static int      metaNameIdxCb(DB *pIdx, const DBT *pKey, const DBT *pValue, DBT 
 static int      metaStbIdxCb(DB *pIdx, const DBT *pKey, const DBT *pValue, DBT *pSKey);
 static int      metaNtbIdxCb(DB *pIdx, const DBT *pKey, const DBT *pValue, DBT *pSKey);
 static int      metaCtbIdxCb(DB *pIdx, const DBT *pKey, const DBT *pValue, DBT *pSKey);
+static int      metaSmaIdxCb(DB *pIdx, const DBT *pKey, const DBT *pValue, DBT *pSKey);
 static int      metaEncodeTbInfo(void **buf, STbCfg *pTbCfg);
 static void    *metaDecodeTbInfo(void *buf, STbCfg *pTbCfg);
 static void     metaClearTbCfg(STbCfg *pTbCfg);
@@ -128,11 +130,17 @@ int metaOpenDB(SMeta *pMeta) {
     return -1;
   }
 
+  if (metaOpenBDBIdx(&(pDB->pSmaIdx), pDB->pEvn, "sma.index", pDB->pSmaDB, &metaSmaIdxCb, true) < 0) {
+    metaCloseDB(pMeta);
+    return -1;
+  }
+
   return 0;
 }
 
 void metaCloseDB(SMeta *pMeta) {
   if (pMeta->pDB) {
+    metaCloseBDBIdx(pMeta->pDB->pSmaIdx);
     metaCloseBDBIdx(pMeta->pDB->pCtbIdx);
     metaCloseBDBIdx(pMeta->pDB->pNtbIdx);
     metaCloseBDBIdx(pMeta->pDB->pStbIdx);
@@ -215,6 +223,49 @@ int metaSaveTableToDB(SMeta *pMeta, STbCfg *pTbCfg) {
 
 int metaRemoveTableFromDb(SMeta *pMeta, tb_uid_t uid) {
   // TODO
+  return 0;
+}
+
+int metaSaveSmaToDB(SMeta *pMeta, SSmaCfg *pSmaCfg) {
+  char  buf[512] = {0};  // TODO: may overflow
+  void *pBuf = NULL;
+  DBT   key1 = {0}, value1 = {0};
+
+  {
+    // save sma info
+    pBuf = buf;
+
+    key1.data = pSmaCfg->indexName;
+    key1.size = strlen(key1.data);
+
+    tEncodeTSma(&pBuf, pSmaCfg);
+
+    value1.data = buf;
+    value1.size = POINTER_DISTANCE(pBuf, buf);
+    value1.app_data = pSmaCfg;
+  }
+
+  metaDBWLock(pMeta->pDB);
+  pMeta->pDB->pSmaDB->put(pMeta->pDB->pSmaDB, NULL, &key1, &value1, 0);
+  metaDBULock(pMeta->pDB);
+
+  return 0;
+}
+
+int metaRemoveSmaFromDb(SMeta *pMeta, const char *indexName) {
+  // TODO
+#if 0
+  DBT key = {0};
+
+  key.data = (void *)indexName;
+  key.size = strlen(indexName);
+
+  metaDBWLock(pMeta->pDB);
+  // TODO: No guarantee of consistence.
+  // Use transaction or DB->sync() for some guarantee.
+  pMeta->pDB->pSmaDB->del(pMeta->pDB->pSmaDB, NULL, &key, 0);
+  metaDBULock(pMeta->pDB);
+#endif
   return 0;
 }
 
@@ -433,6 +484,16 @@ static int metaCtbIdxCb(DB *pIdx, const DBT *pKey, const DBT *pValue, DBT *pSKey
   }
 }
 
+static int metaSmaIdxCb(DB *pIdx, const DBT *pKey, const DBT *pValue, DBT *pSKey) {
+  SSmaCfg *pSmaCfg = (SSmaCfg *)(pValue->app_data);
+
+  memset(pSKey, 0, sizeof(*pSKey));
+  pSKey->data = &(pSmaCfg->tableUid);
+  pSKey->size = sizeof(pSmaCfg->tableUid);
+
+  return 0;
+}
+
 static int metaEncodeTbInfo(void **buf, STbCfg *pTbCfg) {
   int tsize = 0;
 
@@ -546,6 +607,36 @@ STbCfg *metaGetTbInfoByName(SMeta *pMeta, char *tbname, tb_uid_t *uid) {
   metaDecodeTbInfo(pvalue.data, pTbCfg);
 
   return pTbCfg;
+}
+
+SSmaCfg *metaGetSmaInfoByName(SMeta *pMeta, const char *indexName) {
+  SSmaCfg *pCfg = NULL;
+  SMetaDB *pDB = pMeta->pDB;
+  DBT      key = {0};
+  DBT      value = {0};
+  int      ret;
+
+  // Set key/value
+  key.data = (void *)indexName;
+  key.size = strlen(indexName);
+
+  // Query
+  metaDBRLock(pDB);
+  ret = pDB->pTbDB->get(pDB->pSmaDB, NULL, &key, &value, 0);
+  metaDBULock(pDB);
+  if (ret != 0) {
+    return NULL;
+  }
+
+  // Decode
+  pCfg = (SSmaCfg *)malloc(sizeof(SSmaCfg));
+  if (pCfg == NULL) {
+    return NULL;
+  }
+
+  tDecodeTSma(value.data, pCfg);
+
+  return pCfg;
 }
 
 SSchemaWrapper *metaGetTableSchema(SMeta *pMeta, tb_uid_t uid, int32_t sver, bool isinline) {
@@ -724,6 +815,107 @@ tb_uid_t metaCtbCursorNext(SMCtbCursor *pCtbCur) {
   } else {
     return 0;
   }
+}
+
+struct SMSmaCursor {
+  DBC     *pCur;
+  tb_uid_t uid;
+};
+
+SMSmaCursor *metaOpenSmaCursor(SMeta *pMeta, tb_uid_t uid) {
+  SMSmaCursor *pCur = NULL;
+  SMetaDB     *pDB = pMeta->pDB;
+  int          ret;
+
+  pCur = (SMSmaCursor *)calloc(1, sizeof(*pCur));
+  if (pCur == NULL) {
+    return NULL;
+  }
+
+  pCur->uid = uid;
+  // TODO: lock?
+  ret = pDB->pCtbIdx->cursor(pDB->pSmaIdx, NULL, &(pCur->pCur), 0);
+  if (ret != 0) {
+    free(pCur);
+    return NULL;
+  }
+
+  return pCur;
+}
+
+void metaCloseSmaCurosr(SMSmaCursor *pCur) {
+  if (pCur) {
+    if (pCur->pCur) {
+      pCur->pCur->close(pCur->pCur);
+    }
+
+    free(pCur);
+  }
+}
+
+const char *metaSmaCursorNext(SMSmaCursor *pCur) {
+  DBT skey = {0};
+  DBT pkey = {0};
+  DBT pval = {0};
+
+  // Set key
+  skey.data = &(pCur->uid);
+  skey.size = sizeof(pCur->uid);
+  // TODO: lock?
+  if (pCur->pCur->pget(pCur->pCur, &skey, &pkey, &pval, DB_NEXT) == 0) {
+    const char *indexName = (const char *)pkey.data;
+    assert(indexName != NULL);
+    return indexName;
+  } else {
+    return NULL;
+  }
+}
+
+STSmaWrapper *metaGetSmaInfoByUid(SMeta *pMeta, tb_uid_t uid) {
+  STSmaWrapper *pSW = NULL;
+
+  pSW = calloc(sizeof(*pSW), 1);
+  if (pSW == NULL) {
+    return NULL;
+  }
+
+  SMSmaCursor *pCur = metaOpenSmaCursor(pMeta, uid);
+  if (pCur == NULL) {
+    free(pSW);
+    return NULL;
+  }
+
+  DBT   skey = {.data = &(pCur->uid)};
+  DBT   pval = {.size = sizeof(pCur->uid)};
+  void *pBuf = NULL;
+
+  while (true) {
+    // TODO: lock?
+    if (pCur->pCur->pget(pCur->pCur, &skey, NULL, &pval, DB_NEXT) == 0) {
+      ++pSW->number;
+      STSma *tptr = (STSma *)realloc(pSW->tSma, pSW->number * sizeof(STSma));
+      if (tptr == NULL) {
+        metaCloseSmaCurosr(pCur);
+        tdDestroyTSmaWrapper(pSW);
+        tfree(pSW);
+        return NULL;
+      }
+      pSW->tSma = tptr;
+      pBuf = pval.data;
+      if (tDecodeTSma(pBuf, pSW->tSma + pSW->number - 1) == NULL) {
+        metaCloseSmaCurosr(pCur);
+        tdDestroyTSmaWrapper(pSW);
+        tfree(pSW);
+        return NULL;
+      }
+      continue;
+    }
+    break;
+  }
+
+  metaCloseSmaCurosr(pCur);
+
+  return pSW;
 }
 
 static void metaDBWLock(SMetaDB *pDB) {

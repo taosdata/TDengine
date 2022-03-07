@@ -594,7 +594,7 @@ typedef struct {
   int64_t  consumerId;
   int64_t  connId;
   SRWLatch lock;
-  char     cgroup[TSDB_CONSUMER_GROUP_LEN];
+  char     cgroup[TSDB_CGROUP_LEN];
   SArray*  currentTopics;        // SArray<char*>
   SArray*  recentRemovedTopics;  // SArray<char*>
   int32_t  epoch;
@@ -660,6 +660,9 @@ static FORCE_INLINE void* tDecodeSMqConsumerObj(void* buf, SMqConsumerObj* pCons
   }
   return buf;
 }
+
+typedef struct {
+} SStreamScheduler;
 
 typedef struct SMnodeMsg {
   char    user[TSDB_USER_LEN];

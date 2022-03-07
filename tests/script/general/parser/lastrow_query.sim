@@ -1,0 +1,230 @@
+sleep 100
+sql connect
+
+$dbPrefix = lr_db
+$tbPrefix = lr_tb
+$stbPrefix = lr_stb
+$tbNum = 8
+$rowNum = 60 * 24
+$totalNum = $tbNum * $rowNum
+$ts0 = 1537146000000
+$delta = 60000
+print ========== lastrow_query.sim
+$i = 0
+$db = $dbPrefix . $i
+$stb = $stbPrefix . $i
+
+sql use $db
+
+print ========>TD-3231 last_row with group by column error
+sql_error select last_row(c1) from $stb group by c1;
+
+##### select lastrow from STable with two vnodes, timestamp decreases from tables in vnode0 to tables in vnode1
+sql select last_row(*) from $stb
+if $rows != 1 then
+  return -1
+endi
+if $data00 != @18-09-25 09:00:00.000@ then
+  return -1
+endi
+if $data01 != 1439 then
+  return -1   
+endi  
+if $data02 != NULL then
+  return -1  
+endi 
+if $data03 != 1439.00000 then
+  return -1  
+endi    
+if $data04 != 1439.000000000 then
+  return -1
+endi
+if $data06 != 31 then
+  return -1
+endi 
+if $data07 != 1 then
+  return -1
+endi
+if $data08 != BINARY then
+  print expect BINARY actual: $data08
+  return -1
+endi
+if $data09 != NCHAR then
+  print expect NCHAR actual: $data09
+  return -1
+endi
+
+# regression test case 1
+sql select count(*) from lr_tb1 where ts>'2018-09-18 08:45:00.1' and ts<'2018-09-18 08:45:00.2'
+if $row != 0 then
+  return -1
+endi
+
+# regression test case 2
+sql select count(*) from lr_db0.lr_stb0 where ts>'2018-9-18 8:00:00' and ts<'2018-9-18 14:00:00' interval(1s) fill(NULL);
+if $row != 21600 then
+  return -1
+endi
+
+#regression test case 3
+sql select t1,t1,count(*),t1,t1 from lr_stb0 where ts>'2018-09-24 00:00:00.000' and ts<'2018-09-25 00:00:00.000' interval(1h) fill(NULL) group by t1 limit 1
+if $row != 2 then
+  return -1
+endi
+
+if $data01 != 7 then
+  return -1
+endi
+
+if $data02 != 7 then
+  return -1
+endi
+
+if $data03 != 59 then
+  print expect 59, actual: $data03
+  return -1
+endi
+
+if $data04 != 7 then
+  return -1
+endi
+
+if $data11 != 8 then
+  return -1
+endi
+
+if $data12 != 8 then
+  return -1
+endi
+
+if  $data13 != NULL then
+  return -1
+endi
+
+sql select t1,t1,count(*),t1,t1 from lr_stb0 where ts>'2018-09-24 00:00:00.000' and ts<'2018-09-25 00:00:00.000' interval(1h) fill(NULL) group by t1 limit 9
+if $rows != 18 then
+  return -1
+endi
+
+sql select t1,t1,count(*),t1,t1 from lr_stb0 where ts>'2018-09-24 00:00:00.000' and ts<'2018-09-25 00:00:00.000' interval(1h) fill(NULL) group by t1 limit 12
+if $rows != 24 then
+  return -1
+endi
+
+sql select t1,t1,count(*),t1,t1 from lr_stb0 where ts>'2018-09-24 00:00:00.000' and ts<'2018-09-25 00:00:00.000' interval(1h) fill(NULL) group by t1 limit 25
+if $rows != 48 then
+  return -1
+endi
+
+sql select t1,t1,count(*),t1,t1 from lr_stb0 where ts>'2018-09-24 00:00:00.000' and ts<'2018-09-25 00:00:00.000' interval(1h) fill(NULL) group by t1 limit 25 offset 1
+if $rows != 46 then
+  return -1
+endi
+
+sql select t1,t1,count(*),tbname,t1,t1,tbname from lr_stb0 where ts>'2018-09-24 00:00:00.000' and ts<'2018-09-25 00:00:00.000' interval(1s) fill(NULL) group by tbname, t1 slimit 2 soffset 0 limit 250000 offset 1
+if $rows != 172798 then
+  return -1
+endi
+
+sql select t1,t1,count(*),tbname,t1,t1,tbname from lr_stb0 where ts>'2018-09-24 00:00:00.000' and ts<'2018-09-25 00:00:00.000' interval(1s) fill(NULL) group by tbname, t1 slimit 1 soffset 1 limit 250000 offset 1
+if $rows != 86399 then
+  return -1
+endi
+
+sql select t1,t1,count(*),t1,t1 from lr_stb0 where ts>'2018-09-24 00:00:00.000' and ts<'2018-09-25 00:00:00.000' interval(1h) fill(NULL) group by t1 order by ts DESC limit 30
+if $rows != 48 then
+  return -1
+endi
+
+sql select t1,t1,count(*),t1,t1 from lr_stb0 where ts>'2018-09-24 00:00:00.000' and ts<'2018-09-25 00:00:00.000' interval(1h) fill(NULL) group by t1 order by ts DESC limit 2
+if $rows != 4 then
+  return -1
+endi
+
+sql select t1,t1,count(*),tbname,t1,t1,tbname from lr_stb0 where ts>'2018-09-24 00:00:00.000' and ts<'2018-09-25 00:00:00.000' interval(1s) fill(NULL) group by tbname, t1 order by ts desc slimit 1 soffset 1 limit 250000 offset 1
+if $rows != 86399 then
+  return -1
+endi
+
+sql select t1,t1,count(*),t1,t1 from lr_stb0 where ts>'2018-09-24 00:00:00.000' and ts<'2018-09-25 00:00:00.000' interval(1h) fill(NULL) group by t1 order by ts desc limit 1
+if $rows != 2 then
+  return -1
+endi
+
+sql select t1,t1,count(*),t1,t1 from lr_stb0 where ts>'2018-09-24 00:00:00.000' and ts<'2018-09-25 00:00:00.000' interval(1h) fill(NULL) group by t1 order by ts desc limit 25 offset 1
+if $rows != 46 then
+  return -1
+endi
+
+print ========>td-1317, empty table last_row query crashed
+sql drop table if exists m1;
+sql create table m1(ts timestamp, k int) tags (a int);
+sql create table t1 using m1 tags(1);
+sql create table t2 using m1 tags(2);
+
+sql select last_row(*) from t1
+if $rows != 0 then
+  return -1
+endi
+
+sql select last_row(*) from m1
+if $rows != 0 then
+  return -1
+endi
+
+sql select last_row(*) from m1 where tbname in ('t1')
+if $rows != 0 then
+  return -1
+endi
+
+sql insert into t1 values('2019-1-1 1:1:1', 1);
+print ===================> last_row query against normal table along with ts/tbname
+sql select last_row(*),ts,'k' from t1;
+if $rows != 1 then
+  return -1
+endi
+
+print ===================> last_row + user-defined column + normal tables
+sql select last_row(ts), 'abc', 1234.9384, ts from t1
+if $rows != 1 then
+  return -1
+endi
+
+if $data01 != @abc@ then
+  print expect abc, actual $data02
+  return -1
+endi
+
+if $data02 !=  1234.938400000 then
+  return -1
+endi
+
+if $data03 != @19-01-01 01:01:01.000@ then
+  print expect 19-01-01 01:01:01.000, actual:$data03
+  return -1
+endi
+
+print ===================> last_row + stable + ts/tag column + condition + udf
+sql select last_row(*), ts, 'abc', 123.981, tbname from m1
+if $rows != 1 then
+  return -1
+endi
+
+if $data02 != @19-01-01 01:01:01.000@ then
+    return -1
+endi
+
+if $data03 != @abc@ then
+    return -1
+endi
+
+if $data04 != 123.981000000 then
+    print expect 123.981000000, actual: $data04
+    return -1
+endi
+
+sql create table tu(ts timestamp, k int)
+sql select last_row(*) from tu
+if $row != 0 then
+  return -1
+endi

@@ -26,8 +26,6 @@ extern "C" {
 #include "syncRaft.h"
 #include "taosdef.h"
 
-void onMessage(SRaft *pRaft, void *pMsg);
-
 #ifdef __cplusplus
 }
 #endif

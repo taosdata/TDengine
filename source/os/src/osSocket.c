@@ -34,6 +34,24 @@
   #include <unistd.h>
 #endif
 
+#ifndef USE_UV
+
+// typedef struct TdSocketServer {
+// #if SOCKET_WITH_LOCK
+//   pthread_rwlock_t rwlock;
+// #endif
+//   int        refId;
+//   SocketFd   fd;
+// } * TdSocketServerPtr, TdSocketServer;
+
+// typedef struct TdSocketConnector {
+// #if SOCKET_WITH_LOCK
+//   pthread_rwlock_t rwlock;
+// #endif
+//   int        refId;
+//   SocketFd   fd;
+// } * TdSocketConnectorPtr, TdSocketConnector;
+
 #if defined(_TD_WINDOWS_64) || defined(_TD_WINDOWS_32)
 
 #define taosSend(sockfd, buf, len, flags) send((SOCKET)sockfd, buf, len, flags)
@@ -117,15 +135,6 @@ int32_t taosSetNonblocking(SOCKET sock, int32_t on) {
 
 void taosIgnSIGPIPE() { signal(SIGPIPE, SIG_IGN); }
 
-void taosBlockSIGPIPE() {
-  sigset_t signal_mask;
-  sigemptyset(&signal_mask);
-  sigaddset(&signal_mask, SIGPIPE);
-  int32_t rc = pthread_sigmask(SIG_BLOCK, &signal_mask, NULL);
-  if (rc != 0) {
-    //printf("failed to block SIGPIPE");
-  }
-}
 
 void taosSetMaskSIGPIPE() {
   sigset_t signal_mask;
@@ -218,7 +227,6 @@ int32_t taosSetNonblocking(SOCKET sock, int32_t on) {
 }
 
 void taosIgnSIGPIPE() {}
-void taosBlockSIGPIPE() {}
 void taosSetMaskSIGPIPE() {}
 
 int32_t taosSetSockOpt(SOCKET socketfd, int32_t level, int32_t optname, void *optval, int32_t optlen) {
@@ -789,3 +797,21 @@ int64_t taosCopyFds(SOCKET sfd, int32_t dfd, int64_t len) {
 
   return len;
 }
+
+#endif
+
+
+
+#if !(defined(_TD_WINDOWS_64) || defined(_TD_WINDOWS_32))
+void taosBlockSIGPIPE() {
+  sigset_t signal_mask;
+  sigemptyset(&signal_mask);
+  sigaddset(&signal_mask, SIGPIPE);
+  int32_t rc = pthread_sigmask(SIG_BLOCK, &signal_mask, NULL);
+  if (rc != 0) {
+    //printf("failed to block SIGPIPE");
+  }
+}
+#else
+void taosBlockSIGPIPE() {}
+#endif

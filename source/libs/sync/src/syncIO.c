@@ -44,6 +44,7 @@ int32_t syncIOStart(char *host, uint16_t port) {
   gSyncIO = syncIOCreate(host, port);
   assert(gSyncIO != NULL);
 
+  srand(time(NULL));
   int32_t ret = syncIOStartInternal(gSyncIO);
   assert(ret == 0);
 
@@ -80,7 +81,7 @@ int32_t syncIOSendMsg(void *clientRpc, const SEpSet *pEpSet, SRpcMsg *pMsg) {
       pMsg->msgType, pMsg->contLen);
   {
     cJSON *pJson = syncRpcMsg2Json(pMsg);
-    char  *serialized = cJSON_Print(pJson);
+    char * serialized = cJSON_Print(pJson);
     sTrace("process syncMessage send: pMsg:%s ", serialized);
     free(serialized);
     cJSON_Delete(pJson);
@@ -211,7 +212,7 @@ static void *syncIOConsumerFunc(void *param) {
   SSyncIO *io = param;
 
   STaosQall *qall;
-  SRpcMsg   *pRpcMsg, rpcMsg;
+  SRpcMsg *  pRpcMsg, rpcMsg;
   int        type;
 
   qall = taosAllocateQall();
@@ -243,6 +244,42 @@ static void *syncIOConsumerFunc(void *param) {
           syncPingReplyFromRpcMsg(pRpcMsg, pSyncMsg);
           io->FpOnSyncPingReply(io->pSyncNode, pSyncMsg);
           syncPingReplyDestroy(pSyncMsg);
+        }
+
+      } else if (pRpcMsg->msgType == SYNC_REQUEST_VOTE) {
+        if (io->FpOnSyncRequestVote) {
+          SyncRequestVote *pSyncMsg;
+          pSyncMsg = syncRequestVoteBuild(pRpcMsg->contLen);
+          syncRequestVoteFromRpcMsg(pRpcMsg, pSyncMsg);
+          io->FpOnSyncRequestVote(io->pSyncNode, pSyncMsg);
+          syncRequestVoteDestroy(pSyncMsg);
+        }
+
+      } else if (pRpcMsg->msgType == SYNC_REQUEST_VOTE_REPLY) {
+        if (io->FpOnSyncRequestVoteReply) {
+          SyncRequestVoteReply *pSyncMsg;
+          pSyncMsg = SyncRequestVoteReplyBuild();
+          syncRequestVoteReplyFromRpcMsg(pRpcMsg, pSyncMsg);
+          io->FpOnSyncRequestVoteReply(io->pSyncNode, pSyncMsg);
+          syncRequestVoteReplyDestroy(pSyncMsg);
+        }
+
+      } else if (pRpcMsg->msgType == SYNC_APPEND_ENTRIES) {
+        if (io->FpOnSyncAppendEntries) {
+          SyncAppendEntries *pSyncMsg;
+          pSyncMsg = syncAppendEntriesBuild(pRpcMsg->contLen);
+          syncAppendEntriesFromRpcMsg(pRpcMsg, pSyncMsg);
+          io->FpOnSyncAppendEntries(io->pSyncNode, pSyncMsg);
+          syncAppendEntriesDestroy(pSyncMsg);
+        }
+
+      } else if (pRpcMsg->msgType == SYNC_APPEND_ENTRIES_REPLY) {
+        if (io->FpOnSyncAppendEntriesReply) {
+          SyncAppendEntriesReply *pSyncMsg;
+          pSyncMsg = syncAppendEntriesReplyBuild();
+          syncAppendEntriesReplyFromRpcMsg(pRpcMsg, pSyncMsg);
+          io->FpOnSyncAppendEntriesReply(io->pSyncNode, pSyncMsg);
+          syncAppendEntriesReplyDestroy(pSyncMsg);
         }
 
       } else if (pRpcMsg->msgType == SYNC_TIMEOUT) {

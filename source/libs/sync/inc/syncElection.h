@@ -26,8 +26,22 @@ extern "C" {
 #include "syncInt.h"
 #include "taosdef.h"
 
-void syncNodeElect(SSyncNode* pSyncNode);
-void syncNodeRequestVotePeers(SSyncNode* pSyncNode);
+// TLA+ Spec
+// RequestVote(i, j) ==
+//    /\ state[i] = Candidate
+//    /\ j \notin votesResponded[i]
+//    /\ Send([mtype         |-> RequestVoteRequest,
+//             mterm         |-> currentTerm[i],
+//             mlastLogTerm  |-> LastTerm(log[i]),
+//             mlastLogIndex |-> Len(log[i]),
+//             msource       |-> i,
+//             mdest         |-> j])
+//    /\ UNCHANGED <<serverVars, candidateVars, leaderVars, logVars>>
+//
+int32_t syncNodeRequestVotePeers(SSyncNode* pSyncNode);
+
+int32_t syncNodeElect(SSyncNode* pSyncNode);
+int32_t syncNodeRequestVote(SSyncNode* pSyncNode, const SRaftId* destRaftId, const SyncRequestVote* pMsg);
 
 #ifdef __cplusplus
 }

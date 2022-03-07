@@ -87,6 +87,27 @@ int    tsdbInsertData(STsdb *pTsdb, SSubmitReq *pMsg, SSubmitRsp *pRsp);
 int    tsdbPrepareCommit(STsdb *pTsdb);
 int    tsdbCommit(STsdb *pTsdb);
 
+/**
+ * @brief Insert tSma(Time-range-wise SMA) data from stream computing engine
+ * 
+ * @param pTsdb 
+ * @param param 
+ * @param pData 
+ * @return int32_t 
+ */
+int32_t tsdbInsertTSmaData(STsdb *pTsdb, STSma *param, STSmaData *pData);
+
+/**
+ * @brief Insert RSma(Time-range-wise Rollup SMA) data.
+ * 
+ * @param pTsdb 
+ * @param param 
+ * @param pData 
+ * @return int32_t 
+ */
+int32_t tsdbInsertRSmaData(STsdb *pTsdb, SRSma *param, STSmaData *pData);
+
+
 // STsdbCfg
 int  tsdbOptionsInit(STsdbCfg *);
 void tsdbOptionsClear(STsdbCfg *);

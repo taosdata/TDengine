@@ -30,7 +30,7 @@ extern "C" {
 
 // encode as uint32
 typedef enum ESyncMessageType {
-  SYNC_UNKNOWN = 77,
+  SYNC_UNKNOWN = 9999,
   SYNC_TIMEOUT = 99,
   SYNC_PING = 101,
   SYNC_PING_REPLY = 103,
@@ -52,13 +52,14 @@ typedef enum ESyncTimeoutType {
   SYNC_TIMEOUT_PING = 100,
   SYNC_TIMEOUT_ELECTION,
   SYNC_TIMEOUT_HEARTBEAT,
-
 } ESyncTimeoutType;
 
 typedef struct SyncTimeout {
   uint32_t         bytes;
   uint32_t         msgType;
   ESyncTimeoutType timeoutType;
+  uint64_t         logicClock;
+  int32_t          timerMS;
   void*            data;
 } SyncTimeout;
 
@@ -69,7 +70,7 @@ void         syncTimeoutDeserialize(const char* buf, uint32_t len, SyncTimeout* 
 void         syncTimeout2RpcMsg(const SyncTimeout* pMsg, SRpcMsg* pRpcMsg);
 void         syncTimeoutFromRpcMsg(const SRpcMsg* pRpcMsg, SyncTimeout* pMsg);
 cJSON*       syncTimeout2Json(const SyncTimeout* pMsg);
-SyncTimeout* syncTimeoutBuild2(ESyncTimeoutType timeoutType, void* data);
+SyncTimeout* syncTimeoutBuild2(ESyncTimeoutType timeoutType, uint64_t logicClock, int32_t timerMS, void* data);
 
 // ---------------------------------------------
 typedef struct SyncPing {
