@@ -1,4 +1,3 @@
-113,,pytest,python3 test.py -f update/append_commit_data.py
 # 20,,pytest,insert/retentionpolicy.py change date time
 440,,pytest,python3 test.py -f tools/taosdemoTestQuery.py
 432,,pytest,python3 test.py -f tools/taosdemoTestLimitOffset.py
@@ -34,6 +33,7 @@
 129,,script,./test.sh -f general/stream/metrics_del.sim
 129,,pytest,python3 ./test.py -f insert/boundary2.py
 115,,script,./test.sh -f unique/vnode/many.sim
+113,,pytest,python3 test.py -f update/append_commit_data.py
 108,,pytest,python3 ./test.py -f update/append_commit_last.py
 108,,pytest,python3 ./test.py -f update/append_commit_last-0.py
 106,,script,./test.sh -f general/db/alter_tables_d2.sim
