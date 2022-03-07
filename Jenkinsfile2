@@ -11,90 +11,95 @@ def sync_source() {
     sh '''
         cd ${WKC}
         [ -f src/connector/grafanaplugin/README.md ] && rm -f src/connector/grafanaplugin/README.md > /dev/null || echo "failed to remove grafanaplugin README.md"
-        git reset --hard >/dev/null
-    '''
-    script {
-        if (env.CHANGE_TARGET == 'master') {
-            sh '''
-                cd ${WKC}
-                git checkout master
-            '''
-        } else if (env.CHANGE_TARGET == '2.0') {
-            sh '''
-                cd ${WKC}
-                git checkout 2.0
-            '''
-        } else if (env.CHANGE_TARGET == '2.4') {
-            sh '''
-                cd ${WKC}
-                git checkout 2.4
-            '''
-        } else {
-            sh '''
-                cd ${WKC}
-                git checkout develop
-            '''
-        }
-    }
-    sh '''
-        cd ${WKC}
         git reset --hard
-        git remote prune origin
-        [ -f src/connector/grafanaplugin/README.md ] && rm -f src/connector/grafanaplugin/README.md > /dev/null || echo "failed to remove grafanaplugin README.md"
-        git pull >/dev/null
-        git fetch origin +refs/pull/${CHANGE_ID}/merge
-        git checkout -qf FETCH_HEAD
-        git reset --hard
-        git clean -dfx
-        git submodule update --init --recursive --remote
-        git submodule update --init --recursive
+        git fetch
         cd ${WK}
         git reset --hard
-    '''
-    sh '''
-        cd ${WKCT}
-        git reset --hard
+        git fetch
     '''
     script {
         if (env.CHANGE_TARGET == 'master') {
             sh '''
-                cd ${WK}
-                git checkout master
-                cd ${WKCT}
+                cd ${WKC}
                 git checkout master
             '''
         } else if (env.CHANGE_TARGET == '2.0') {
             sh '''
-                cd ${WK}
-                git checkout 2.0
-                cd ${WKCT}
+                cd ${WKC}
                 git checkout 2.0
             '''
         } else if (env.CHANGE_TARGET == '2.4') {
             sh '''
-                cd ${WK}
-                git checkout 2.4
-                cd ${WKCT}
+                cd ${WKC}
                 git checkout 2.4
             '''
         } else {
             sh '''
-                cd ${WK}
-                git checkout develop
-                cd ${WKCT}
+                cd ${WKC}
                 git checkout develop
             '''
         }
     }
     sh '''
         export TZ=Asia/Harbin
+        cd ${WKC}
+        git remote prune origin
+        [ -f src/connector/grafanaplugin/README.md ] && rm -f src/connector/grafanaplugin/README.md > /dev/null || echo "failed to remove grafanaplugin README.md"
+        git pull >/dev/null
+        git clean -dfx
+    '''
+    script {
+        if (env.CHANGE_TARGET == 'master') {
+            sh '''
+                cd ${WK}
+                git checkout master
+            '''
+        } else if (env.CHANGE_TARGET == '2.0') {
+            sh '''
+                cd ${WK}
+                git checkout 2.0
+            '''
+        } else if (env.CHANGE_TARGET == '2.4') {
+            sh '''
+                cd ${WK}
+                git checkout 2.4
+            '''
+        } else {
+            sh '''
+                cd ${WK}
+                git checkout develop
+            '''
+        }
+    }
+    sh '''
         cd ${WK}
         git pull >/dev/null
         git clean -dfx
-        cd ${WKCT}
-        git pull >/dev/null
-        git clean -dfx
-        date
+    '''
+    script {
+        if (env.CHANGE_URL =~ /\/TDengine\//) {
+            sh '''
+                echo "match /TDengine/ repository"
+                cd ${WKC}
+                git fetch origin +refs/pull/${CHANGE_ID}/merge
+                git checkout -qf FETCH_HEAD
+            '''
+        } else if (env.CHANGE_URL =~ /\/TDinternal\//) {
+            sh '''
+                echo "match /TDinternal/ repository"
+                cd ${WK}
+                git fetch origin +refs/pull/${CHANGE_ID}/merge
+                git checkout -qf FETCH_HEAD
+            '''
+        } else {
+            sh '''
+                echo "unmatched reposiotry ${CHANGE_URL}"
+            '''
+        }
+    }
+    sh '''
+        cd ${WKC}
+        git submodule update --init --recursive
     '''
 }
 def pre_test() {
@@ -129,7 +134,6 @@ pipeline {
     environment{
         WK = '/var/data/jenkins/workspace/TDinternal'
         WKC = '/var/data/jenkins/workspace/TDinternal/community'
-        WKCT = '/var/data/jenkins/workspace/TDinternal/community/tests'
         LOGDIR = '/var/data/jenkins/workspace/log'
     }
     stages {
@@ -248,7 +252,7 @@ pipeline {
             }
             parallel {
                 stage ('build worker08_arm32') {
-                    agent {label " worker08_arm32 "}
+                    agent {label " worker08_arm32"}
                     steps {
                         timeout(time: 20, unit: 'MINUTES') {
                             pre_test()
