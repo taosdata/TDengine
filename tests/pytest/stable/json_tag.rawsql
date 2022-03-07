@@ -1,0 +1,163 @@
+create database db_json_tag_test;
+drop table if exists db_json_tag_test.jsons1;
+drop table if exists db_json_tag_test.jsons2;
+drop table if exists db_json_tag_test.jsons3;
+drop table if exists db_json_tag_test.jsons1_1;
+drop table if exists db_json_tag_test.jsons1_2;
+drop table if exists db_json_tag_test.jsons1_3;
+drop table if exists db_json_tag_test.jsons1_4;
+drop table if exists db_json_tag_test.jsons1_5;
+drop table if exists db_json_tag_test.jsons1_6;
+drop table if exists db_json_tag_test.jsons1_7;
+drop table if exists db_json_tag_test.jsons1_8;
+drop table if exists db_json_tag_test.jsons1_9;
+drop table if exists db_json_tag_test.jsons1_10;
+drop table if exists db_json_tag_test.jsons1_11;
+drop table if exists db_json_tag_test.jsons1_12;
+drop table if exists db_json_tag_test.jsons1_13;
+drop table if exists db_json_tag_test.jsons1_20;
+drop table if exists db_json_tag_test.jsons1_21;
+drop table if exists db_json_tag_test.jsons1_22;
+create table if not exists db_json_tag_test.jsons1(ts timestamp, dataInt int, dataBool bool, dataStr nchar(50)) tags(jtag json);
+CREATE TABLE if not exists db_json_tag_test.jsons1_1 using db_json_tag_test.jsons1 tags('{"loc":"fff","id":5}');
+insert into db_json_tag_test.jsons1_2 using db_json_tag_test.jsons1 tags('{"num":5,"location":"beijing"}') values (now, 2, true, 'json2');
+insert into db_json_tag_test.jsons1_1 values(now, 1, false, 'json1');
+insert into db_json_tag_test.jsons1_3 using db_json_tag_test.jsons1 tags('{"num":34,"location":"beijing","level":"l1"}') values (now, 3, false 'json3');
+insert into db_json_tag_test.jsons1_4 using db_json_tag_test.jsons1 tags('{"class":55,"location":"shanghai","name":"name4"}') values (now, 4, true, 'json4');
+
+ALTER TABLE db_json_tag_test.jsons1_1 SET TAG jtag='{"sex":"femail","age":35, "isKey":true}';
+select jtag from db_json_tag_test.jsons1_1;
+
+select * from db_json_tag_test.jsons1;
+
+select jtag->'location' from db_json_tag_test.jsons1_2;
+
+select jtag->'location' from db_json_tag_test.jsons1;
+
+select jtag from db_json_tag_test.jsons1_1;
+
+# test json string value
+select * from db_json_tag_test.jsons1 where jtag->'location'='beijing';
+
+select * from db_json_tag_test.jsons1 where jtag->'location'!='beijing';
+
+select jtag->'num' from db_json_tag_test.jsons1 where jtag->'level'='l1';
+
+select *,tbname from db_json_tag_test.jsons1 where jtag->'class'>5 and jtag->'class'<9;        tdSql.checkRows(0)
+
+select *,tbname from db_json_tag_test.jsons1 where jtag->'class'>5 and jtag->'class'<92;
+
+select * from db_json_tag_test.jsons1 where jtag?'sex' or jtag?'num';
+
+select * from db_json_tag_test.jsons1 where jtag?'sex' or jtag?'numww';
+
+select * from db_json_tag_test.jsons1 where jtag?'sex' and jtag?'num';
+
+select jtag->'sex' from db_json_tag_test.jsons1 where jtag?'sex' or jtag?'num';
+
+select *,tbname from db_json_tag_test.jsons1 where jtag->'location'='beijing';
+
+select *,tbname from db_json_tag_test.jsons1 where jtag->'num'=5 or jtag?'sex';
+
+select * from db_json_tag_test.jsons1 where tbname = 'jsons1_1';
+
+select * from db_json_tag_test.jsons1 where tbname = 'jsons1_1' or jtag?'num';
+
+select * from db_json_tag_test.jsons1 where tbname = 'jsons1_1' and jtag?'num';
+
+select * from db_json_tag_test.jsons1 where tbname = 'jsons1_1' or jtag->'num'=5;
+
+select *,tbname from db_json_tag_test.jsons1 where jtag->'location' like 'bei%';
+
+select *,tbname from db_json_tag_test.jsons1 where jtag->'location' like 'bei%' and jtag->'location'='beijin';
+
+select *,tbname from db_json_tag_test.jsons1 where jtag->'location' like 'bei%' or jtag->'location'='beijin';
+
+select *,tbname from db_json_tag_test.jsons1 where jtag->'location' like 'bei%' and jtag->'num'=34;
+
+select *,tbname from db_json_tag_test.jsons1 where (jtag->'location' like 'bei%' or jtag->'num'=34) and jtag->'class'=55;
+
+select * from db_json_tag_test.jsons1 where jtag->'location' in ('beijing');
+
+select * from db_json_tag_test.jsons1 where jtag->'num' in (5,34);
+
+select * from db_json_tag_test.jsons1 where jtag->'location' in ('shanghai') and jtag->'class'=55;
+
+select * from db_json_tag_test.jsons1 where jtag->'location' match 'jin$';
+
+select * from db_json_tag_test.jsons1 where jtag->'location' match 'jin';
+
+select * from db_json_tag_test.jsons1 where datastr match 'json' and jtag->'location' match 'jin';
+
+CREATE TABLE if not exists db_json_tag_test.jsons1_5 using db_json_tag_test.jsons1 tags('\t');
+CREATE TABLE if not exists db_json_tag_test.jsons1_6 using db_json_tag_test.jsons1 tags('');
+
+select jtag from db_json_tag_test.jsons1_6;
+
+CREATE TABLE if not exists db_json_tag_test.jsons1_7 using db_json_tag_test.jsons1 tags('{}');
+select jtag from db_json_tag_test.jsons1_7;
+
+CREATE TABLE if not exists db_json_tag_test.jsons1_8 using db_json_tag_test.jsons1 tags('null');
+select jtag from db_json_tag_test.jsons1_8;
+
+CREATE TABLE if not exists db_json_tag_test.jsons1_9 using db_json_tag_test.jsons1 tags('{"":4, "time":null}');
+select jtag from db_json_tag_test.jsons1_9;
+
+CREATE TABLE if not exists db_json_tag_test.jsons1_10 using db_json_tag_test.jsons1 tags('{"k1":"","k1":"v1","k2":true,"k3":false,"k4":55}');
+select jtag from db_json_tag_test.jsons1_10;
+
+select jtag->'k2' from db_json_tag_test.jsons1_10;
+
+select jtag from db_json_tag_test.jsons1 where jtag->'k1'='';
+
+select jtag from db_json_tag_test.jsons1 where jtag->'k2'=true;
+
+select jtag from db_json_tag_test.jsons1 where jtag is null;
+
+select jtag from db_json_tag_test.jsons1 where jtag is not null;
+
+select * from db_json_tag_test.jsons1 where jtag->'location' is not null;
+
+select tbname,jtag from db_json_tag_test.jsons1 where jtag->'location' is null;
+
+select * from db_json_tag_test.jsons1 where jtag->'num' is not null;
+
+select * from db_json_tag_test.jsons1 where jtag->'location'='null';
+
+select distinct jtag from db_json_tag_test.jsons1;
+
+select distinct jtag->'location' from db_json_tag_test.jsons1;
+
+CREATE TABLE if not exists db_json_tag_test.jsons1_11 using db_json_tag_test.jsons1 tags('{"k1":"中国","k5":"是是是"}');
+
+select tbname,jtag from db_json_tag_test.jsons1 where jtag->'k1' match '中';
+
+select tbname,jtag from db_json_tag_test.jsons1 where jtag->'k1'='中国';
+
+INSERT INTO db_json_tag_test.jsons1_12 using db_json_tag_test.jsons1 tags('{"tbname":"tt","databool":true,"dataStr":"是是是"}') values(now, 4, false, "你就会;;
+
+select *,tbname,jtag from db_json_tag_test.jsons1 where jtag->'dataStr' match '是';
+
+select tbname,jtag->'tbname' from db_json_tag_test.jsons1 where jtag->'tbname'='tt';
+
+select *,tbname,jtag from db_json_tag_test.jsons1 where dataBool=true;
+
+CREATE TABLE if not exists db_json_tag_test.jsons1_13 using db_json_tag_test.jsons1 tags('{"1loc":"fff",";id":5}');
+
+create table if not exists db_json_tag_test.jsons2(ts timestamp, dataInt int, dataBool bool, dataStr nchar(50)) tags(jtag json);
+create table if not exists db_json_tag_test.jsons3(ts timestamp, dataInt int, dataBool bool, dataStr nchar(50)) tags(jtag json);
+CREATE TABLE if not exists db_json_tag_test.jsons2_1 using db_json_tag_test.jsons2 tags('{"loc":"fff","id":5}');
+insert into db_json_tag_test.jsons3_1 using db_json_tag_test.jsons3 tags('{"loc":"fff","num":5,"location":"beijing"}') values ('2020-04-18 15:00:00.000', 2, true, 'json2');
+insert into db_json_tag_test.jsons2_1 values('2020-04-18 15:00:00.000', 1, false, 'json1');
+select 'sss',33,a.jtag->'loc' from db_json_tag_test.jsons2 a,db_json_tag_test.jsons3 b where a.ts=b.ts and a.jtag->'loc'=b.jtag->'loc';
+
+select avg(dataint),count(*) from db_json_tag_test.jsons1 group by jtag->'location' order by jtag->'location' desc;
+INSERT INTO db_json_tag_test.jsons1_20 using db_json_tag_test.jsons1 tags('{"tagint":1}') values(now, 1, false, "你就会;;
+INSERT INTO db_json_tag_test.jsons1_21 using db_json_tag_test.jsons1 tags('{"tagint":11}') values(now, 11, false, "你就会;;
+INSERT INTO db_json_tag_test.jsons1_22 using db_json_tag_test.jsons1 tags('{"tagint":2}') values(now, 2, false, "你就会;;
+select avg(dataint),count(*) from db_json_tag_test.jsons1 group by jtag->'tagint' order by jtag->'tagint' desc;
+select avg(dataint),count(*) from db_json_tag_test.jsons1 group by jtag->'tagint' order by jtag->'tagint';
+insert into db_json_tag_test.jsons1_9 values('2020-04-17 15:20:00.000', 5, false, 'json19');
+select * from db_json_tag_test.jsons1;
+select * from db_json_tag_test.jsons1 where jtag->'time' is null;
+select * from db_json_tag_test.jsons1 where jtag->'time'=null;

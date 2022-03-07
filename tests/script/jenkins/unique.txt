@@ -1,0 +1,127 @@
+cd ../../../debug; cmake ..
+cd ../../../debug; make
+
+./test.sh -f unique/big/balance.sim
+./test.sh -f unique/big/maxvnodes.sim
+./test.sh -f unique/big/tcp.sim
+
+./test.sh -f unique/cluster/alter.sim
+./test.sh -f unique/cluster/balance1.sim
+./test.sh -f unique/cluster/balance2.sim
+./test.sh -f unique/cluster/balance3.sim
+./test.sh -f unique/cluster/cache.sim
+./test.sh -f unique/cluster/vgroup100.sim
+
+./test.sh -f unique/column/replica3.sim
+
+./test.sh -f unique/db/commit.sim
+./test.sh -f unique/db/delete.sim
+./test.sh -f unique/db/delete_part.sim
+./test.sh -f unique/db/replica_add12.sim
+./test.sh -f unique/db/replica_add13.sim
+./test.sh -f unique/db/replica_add23.sim
+./test.sh -f unique/db/replica_reduce21.sim
+./test.sh -f unique/db/replica_reduce32.sim
+./test.sh -f unique/db/replica_reduce31.sim
+./test.sh -f unique/db/replica_part.sim
+
+./test.sh -f unique/dnode/alternativeRole.sim
+./test.sh -f unique/dnode/monitor.sim
+./test.sh -f unique/dnode/monitor_bug.sim
+./test.sh -f unique/dnode/simple.sim
+./test.sh -f unique/dnode/balance1.sim
+./test.sh -f unique/dnode/balance2.sim
+./test.sh -f unique/dnode/balance3.sim
+./test.sh -f unique/dnode/balancex.sim
+./test.sh -f unique/dnode/data1.sim
+./test.sh -f unique/dnode/m2.sim
+./test.sh -f unique/dnode/m3.sim
+./test.sh -f unique/dnode/lossdata.sim
+./test.sh -f unique/dnode/offline1.sim
+./test.sh -f unique/dnode/offline2.sim
+./test.sh -f unique/dnode/offline3.sim
+./test.sh -f unique/dnode/reason.sim
+./test.sh -f unique/dnode/remove1.sim
+./test.sh -f unique/dnode/remove2.sim
+./test.sh -f unique/dnode/vnode_clean.sim
+
+./test.sh -f unique/http/admin.sim
+./test.sh -f unique/http/opentsdb.sim
+
+./test.sh -f unique/import/replica2.sim
+./test.sh -f unique/import/replica3.sim
+
+./test.sh -f unique/stable/balance_replica1.sim
+./test.sh -f unique/stable/dnode2_stop.sim
+./test.sh -f unique/stable/dnode2.sim
+./test.sh -f unique/stable/dnode3.sim
+./test.sh -f unique/stable/replica2_dnode4.sim
+./test.sh -f unique/stable/replica2_vnode3.sim
+./test.sh -f unique/stable/replica3_dnode6.sim
+./test.sh -f unique/stable/replica3_vnode3.sim
+
+./test.sh -f unique/mnode/mgmt20.sim
+./test.sh -f unique/mnode/mgmt21.sim
+./test.sh -f unique/mnode/mgmt22.sim
+./test.sh -f unique/mnode/mgmt23.sim
+./test.sh -f unique/mnode/mgmt24.sim
+./test.sh -f unique/mnode/mgmt25.sim
+./test.sh -f unique/mnode/mgmt26.sim
+./test.sh -f unique/mnode/mgmt30.sim
+./test.sh -f unique/mnode/mgmt33.sim
+./test.sh -f unique/mnode/mgmt34.sim
+./test.sh -f unique/mnode/mgmtr2.sim
+
+./test.sh -f unique/vnode/many.sim
+./test.sh -f unique/vnode/replica2_basic2.sim
+./test.sh -f unique/vnode/replica2_repeat.sim
+./test.sh -f unique/vnode/replica3_basic.sim
+./test.sh -f unique/vnode/replica3_repeat.sim
+./test.sh -f unique/vnode/replica3_vgroup.sim
+
+./test.sh -f unique/arbitrator/check_cluster_cfg_para.sim
+#./test.sh -f unique/arbitrator/dn2_mn1_cache_file_sync.sim
+./test.sh -f unique/arbitrator/dn3_mn1_full_createTableFail.sim
+./test.sh -f unique/arbitrator/dn3_mn1_multiCreateDropTable.sim
+#./test.sh -f unique/arbitrator/dn3_mn1_nw_disable_timeout_autoDropDnode.sim
+#./test.sh -f unique/arbitrator/dn3_mn1_replica2_wal1_AddDelDnode.sim
+./test.sh -f unique/arbitrator/dn3_mn1_replica_change_dropDnod.sim
+./test.sh -f unique/arbitrator/dn3_mn1_replica_change.sim
+#./test.sh -f unique/arbitrator/dn3_mn1_stopDnode_timeout.sim
+# lower the priority while file corruption
+#./test.sh -f unique/arbitrator/dn3_mn1_vnode_change.sim
+#./test.sh -f unique/arbitrator/dn3_mn1_vnode_corruptFile_offline.sim
+#./test.sh -f unique/arbitrator/dn3_mn1_vnode_corruptFile_online.sim
+#./test.sh -f unique/arbitrator/dn3_mn1_vnode_createErrData_online.sim
+./test.sh -f unique/arbitrator/dn3_mn1_vnode_noCorruptFile_offline.sim
+./test.sh -f unique/arbitrator/dn3_mn1_vnode_delDir.sim
+./test.sh -f unique/arbitrator/dn3_mn1_r2_vnode_delDir.sim
+./test.sh -f unique/arbitrator/dn3_mn1_r3_vnode_delDir.sim
+./test.sh -f unique/arbitrator/dn3_mn1_vnode_nomaster.sim
+./test.sh -f unique/arbitrator/dn3_mn2_killDnode.sim
+./test.sh -f unique/arbitrator/insert_duplicationTs.sim
+./test.sh -f unique/arbitrator/offline_replica2_alterTable_online.sim
+./test.sh -f unique/arbitrator/offline_replica2_alterTag_online.sim
+./test.sh -f unique/arbitrator/offline_replica2_createTable_online.sim
+./test.sh -f unique/arbitrator/offline_replica2_dropDb_online.sim
+./test.sh -f unique/arbitrator/offline_replica2_dropTable_online.sim
+./test.sh -f unique/arbitrator/offline_replica3_alterTable_online.sim
+./test.sh -f unique/arbitrator/offline_replica3_alterTag_online.sim
+./test.sh -f unique/arbitrator/offline_replica3_createTable_online.sim
+./test.sh -f unique/arbitrator/offline_replica3_dropDb_online.sim
+./test.sh -f unique/arbitrator/offline_replica3_dropTable_online.sim
+./test.sh -f unique/arbitrator/replica_changeWithArbitrator.sim
+./test.sh -f unique/arbitrator/sync_replica2_alterTable_add.sim
+./test.sh -f unique/arbitrator/sync_replica2_alterTable_drop.sim
+
+./test.sh -f unique/arbitrator/sync_replica2_dropDb.sim
+./test.sh -f unique/arbitrator/sync_replica2_dropTable.sim
+./test.sh -f unique/arbitrator/sync_replica3_alterTable_add.sim
+./test.sh -f unique/arbitrator/sync_replica3_alterTable_drop.sim
+./test.sh -f unique/arbitrator/sync_replica3_dropDb.sim
+./test.sh -f unique/arbitrator/sync_replica3_dropTable.sim
+
+./test.sh -f unique/migrate/mn2_vn2_repl2_rmMnodeDir.sim
+./test.sh -f unique/migrate/mn2_vn2_repl2_rmMnodeVnodeDir.sim
+./test.sh -f unique/migrate/mn2_vn2_repl2_rmMnodeVnodeDir_stopAll_starAll.sim
+./test.sh -f unique/migrate/mn2_vn2_repl2_rmVnodeDir.sim

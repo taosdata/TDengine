@@ -1,0 +1,292 @@
+system sh/stop_dnodes.sh
+sleep 2000
+system sh/deploy.sh -n dnode1 -i 1
+system sh/cfg.sh -n dnode1 -c walLevel -v 1
+system sh/cfg.sh -n dnode1 -c http -v 1
+system sh/cfg.sh -n dnode1 -c httpEnableRecordSql -v 1
+system sh/cfg.sh -n dnode1 -c telegrafUseFieldNum -v 0
+system sh/exec.sh -n dnode1 -s start
+
+sleep 2000
+sql connect
+
+print ============================ dnode1 start
+
+print ===============  step1 - parse
+system_content curl -u root:taosdata -d '{"fields":{"Percent_DPC_Time":0,"Percent_Idle_Time":95.59830474853516,"Percent_Interrupt_Time":0,"Percent_Privileged_Time":0,"Percent_Processor_Time":0,"Percent_User_Time":0},"name":"win_cpu","tags":{"host":"windows","instance":"1","objectname":"Processor"},"timestamp":1535784122}' 127.0.0.1:7111/telegraf/
+print $system_content
+
+if $system_content != @{"status":"error","code":4448,"desc":"database name can not be null"}@ then
+  return -1
+endi
+
+system_content curl -H 'Authorization: Taosd /KfeAzX/f9na8qdtNZmtONryp201ma04bEl8LcvLUd7a8qdtNZmtONryp201ma04' -d 'select * from d1.table_admin' -d '{"fields":{"Percent_DPC_Time":0,"Percent_Idle_Time":95.59830474853516,"Percent_Interrupt_Time":0,"Percent_Privileged_Time":0,"Percent_Processor_Time":0,"Percent_User_Time":0},"name":"win_cpu","tags":{"host":"windows","instance":"1","objectname":"Processor"},"timestamp":1535784122}' 127.0.0.1:7111/telegraf/
+print $system_content
+
+if $system_content != @{"status":"error","code":4448,"desc":"database name can not be null"}@ then
+  return -1
+endi
+
+system_content curl -H 'Authorization: Taosd /KfeAzX/f9na8qdtNZmtONryp201ma04bEl8LcvLUd7a8qdtNZmtONryp201ma04' -d 'select * from d1.table_admin' -d '{"fields":{"Percent_DPC_Time":0,"Percent_Idle_Time":95.59830474853516,"Percent_Interrupt_Time":0,"Percent_Privileged_Time":0,"Percent_Processor_Time":0,"Percent_User_Time":0},"name":"win_cpu","tags":{"host":"windows","instance":"1","objectname":"Processor"},"timestamp":1535784122}' 127.0.0.1:7111/telegraf/d123456789012345678901234567890123456
+print $system_content
+
+if $system_content != @{"status":"error","code":4449,"desc":"database name too long"}@ then
+  return -1
+endi
+
+system_content curl -u root:taosdata -d  '[]' 127.0.0.1:7111/telegraf/db/root/taosdata1
+print $system_content
+
+if $system_content != @{"status":"error","code":4453,"desc":"metric name not find"}@ then
+  return -1
+endi
+
+system_content curl -u root:taosdata -d  '{}' 127.0.0.1:7111/telegraf/db/root/taosdata1
+print $system_content
+
+if $system_content != @{"status":"error","code":4453,"desc":"metric name not find"}@ then
+  return -1
+endi
+
+system_content curl -u root:taosdata -d  '[{}]' 127.0.0.1:7111/telegraf/db/root/taosdata1
+print $system_content
+
+if $system_content != @{"status":"error","code":4453,"desc":"metric name not find"}@ then
+  return -1
+endi
+
+system_content curl -u root:taosdata -d  '{"metrics": []}' 127.0.0.1:7111/telegraf/db/root/taosdata1
+print $system_content
+
+if $system_content != @{"status":"error","code":4451,"desc":"metrics size is 0"}@ then
+  return -1
+endi
+
+system_content curl -u root:taosdata -d  '{"metrics": [{}]}' 127.0.0.1:7111/telegraf/db/root/taosdata1
+print $system_content
+
+if $system_content != @{"status":"error","code":4453,"desc":"metric name not find"}@ then
+  return -1
+endi
+
+system_content curl -u root:taosdata -d  '{"metrics": 12}' 127.0.0.1:7111/telegraf/db/root/taosdata1
+print $system_content
+
+if $system_content != @{"status":"error","code":4451,"desc":"metrics size is 0"}@ then
+  return -1
+endi
+
+#system_content curl -u root:taosdata -d  '{"metrics": [{},{},{},{},{},{},{},{},{},{},{},{},{},{},{},{},{},{},{},{},{},{},{},{},{},{},{},{},{},{},{},{},{},{},{},{},{},{},{},{},{},{},{},{},{},{},{},{},{},{},{},{},{},{},{},{},{},{},{},{},{},{},{},{},{},{},{},{},{},{},{},{},{},{},{},{},{},{},{},{},{},{},{},{},{},{},{},{},{},{},{},{},{},{},{},{},{},{},{},{},{},{},{},{},{},{},{},{},{},{},{},{},{},{},{},{}]}' 127.0.0.1:7111/telegraf/db/root/taosdata1
+#print $system_content
+
+#if $system_content != @{"status":"error","code":4452,"desc":"metrics size can not more than 50"}@ then
+#  return -1
+#endi
+
+system_content curl -u root:taosdata -d  '{"fields":{"Percent_DPC_Time":0,"Percent_Idle_Time":95.59830474853516,"Percent_Interrupt_Time":0,"Percent_Privileged_Time":0,"Percent_Processor_Time":0,"Percent_User_Time":0},"tags":{"host":"windows","instance":"1","objectname":"Processor"},"timestamp":1535784122}' 127.0.0.1:7111/telegraf/db/root/taosdata1
+print $system_content
+
+if $system_content != @{"status":"error","code":4453,"desc":"metric name not find"}@ then
+  return -1
+endi
+
+system_content curl -u root:taosdata -d  '{"fields":{"Percent_DPC_Time":0,"Percent_Idle_Time":95.59830474853516,"Percent_Interrupt_Time":0,"Percent_Privileged_Time":0,"Percent_Processor_Time":0,"Percent_User_Time":0},"name":111,"tags":{"host":"windows","instance":"1","objectname":"Processor"},"timestamp":1535784122}' 127.0.0.1:7111/telegraf/db/root/taosdata1
+print $system_content
+
+if $system_content != @{"status":"error","code":4454,"desc":"metric name type should be string"}@ then
+  return -1
+endi
+
+system_content curl -u root:taosdata -d  '{"fields":{"Percent_DPC_Time":0,"Percent_Idle_Time":95.59830474853516,"Percent_Interrupt_Time":0,"Percent_Privileged_Time":0,"Percent_Processor_Time":0,"Percent_User_Time":0},"name":"","tags":{"host":"windows","instance":"1","objectname":"Processor"},"timestamp":1535784122}' 127.0.0.1:7111/telegraf/db/root/taosdata1
+print $system_content
+
+if $system_content != @{"status":"error","code":4455,"desc":"metric name length is 0"}@ then
+  return -1
+endi
+
+system_content curl -u root:taosdata -d  '{"fields":{"Percent_DPC_Time":0,"Percent_Idle_Time":95.59830474853516,"Percent_Interrupt_Time":0,"Percent_Privileged_Time":0,"Percent_Processor_Time":0,"Percent_User_Time":0},"name":"a1234567890123456789012345678901234a1234567890123456789012345678901234a1234567890123456789012345678901234a1234567890123456789012345678901234a1234567890123456789012345678901234a1234567890123456789012345678901234a1234567890123456789012345678901234a1234567890123456789012345678901234a1234567890123456789012345678901234a1234567890123456789012345678901234a1234567890123456789012345678901234a1234567890123456789012345678901234","tags":{"host":"windows","instance":"1","objectname":"Processor"},"timestamp":1535784122}' 127.0.0.1:7111/telegraf/db/root/taosdata1
+print $system_content
+
+if $system_content != @{"status":"error","code":4456,"desc":"metric name length too long"}@ then
+  return -1
+endi
+
+system_content curl -u root:taosdata -d  '{"fields":{"Percent_DPC_Time":0,"Percent_Idle_Time":95.59830474853516,"Percent_Interrupt_Time":0,"Percent_Privileged_Time":0,"Percent_Processor_Time":0,"Percent_User_Time":0},"name":"win_cpu","tags":{"host":"windows","instance":"1","objectname":"Processor"}}' 127.0.0.1:7111/telegraf/db/root/taosdata1
+print $system_content
+
+if $system_content != @{"status":"error","code":4457,"desc":"timestamp not find"}@ then
+  return -1
+endi
+
+system_content curl -u root:taosdata -d  '{"fields":{"Percent_DPC_Time":0,"Percent_Idle_Time":95.59830474853516,"Percent_Interrupt_Time":0,"Percent_Privileged_Time":0,"Percent_Processor_Time":0,"Percent_User_Time":0},"name":"win_cpu","tags":{"host":"windows","instance":"1","objectname":"Processor"},"timestamp":""}' 127.0.0.1:7111/telegraf/db/root/taosdata1
+print $system_content
+
+if $system_content != @{"status":"error","code":4458,"desc":"timestamp type should be integer"}@ then
+  return -1
+endi
+
+system_content curl -u root:taosdata -d  '{"fields":{"Percent_DPC_Time":0,"Percent_Idle_Time":95.59830474853516,"Percent_Interrupt_Time":0,"Percent_Privileged_Time":0,"Percent_Processor_Time":0,"Percent_User_Time":0},"name":"win_cpu","tags":{"host":"windows","instance":"1","objectname":"Processor"},"timestamp":-1}' 127.0.0.1:7111/telegraf/db/root/taosdata1
+print $system_content
+
+if $system_content != @{"status":"error","code":4459,"desc":"timestamp value smaller than 0"}@ then
+  return -1
+endi
+
+system_content curl -u root:taosdata -d  '{"fields":{"Percent_DPC_Time":0,"Percent_Idle_Time":95.59830474853516,"Percent_Interrupt_Time":0,"Percent_Privileged_Time":0,"Percent_Processor_Time":0,"Percent_User_Time":0},"name":"win_cpu","timestamp":1535784122}' 127.0.0.1:7111/telegraf/db/root/taosdata1
+print $system_content
+
+if $system_content != @{"status":"error","code":4460,"desc":"tags not find"}@ then
+  return -1
+endi
+
+system_content curl -u root:taosdata -d  '{"fields":{"Percent_DPC_Time":0,"Percent_Idle_Time":95.59830474853516,"Percent_Interrupt_Time":0,"Percent_Privileged_Time":0,"Percent_Processor_Time":0,"Percent_User_Time":0},"name":"win_cpu","tags":{},"timestamp":1535784122}' 127.0.0.1:7111/telegraf/db/root/taosdata1
+print $system_content
+
+if $system_content != @{"status":"error","code":4461,"desc":"tags size is 0"}@ then
+  return -1
+endi
+
+system_content curl -u root:taosdata -d  '{"fields":{"Percent_DPC_Time":0,"Percent_Idle_Time":95.59830474853516,"Percent_Interrupt_Time":0,"Percent_Privileged_Time":0,"Percent_Processor_Time":0,"Percent_User_Time":0},"name":"win_cpu","tags":"","timestamp":1535784122}' 127.0.0.1:7111/telegraf/db/root/taosdata1
+print $system_content
+
+if $system_content != @{"status":"error","code":4461,"desc":"tags size is 0"}@ then
+  return -1
+endi
+
+#system_content curl -u root:taosdata -d  '{"fields":{"Percent_DPC_Time":0,"Percent_Idle_Time":95.59830474853516,"Percent_Interrupt_Time":0,"Percent_Privileged_Time":0,"Percent_Processor_Time":0,"Percent_User_Time":0},"name":"win_cpu","tags":{"host":"windows","instance":"1","objectname":"Processor","host":"windows","instance":"1","objectname":"Processor","objectname":"Processor"},"timestamp":1535784122}' 127.0.0.1:7111/telegraf/db/root/taosdata
+#print $system_content
+
+#if $system_content != @{"status":"error","code":4461,"desc":"tags size too long"}@ then
+#  return -1
+#endi
+
+system_content curl -u root:taosdata -d  '{"fields":{"Percent_DPC_Time":0,"Percent_Idle_Time":95.59830474853516,"Percent_Interrupt_Time":0,"Percent_Privileged_Time":0,"Percent_Processor_Time":0,"Percent_User_Time":0},"name":"win_cpu","tags":{},"timestamp":1535784122}' 127.0.0.1:7111/telegraf/db/root/taosdata1
+print $system_content
+
+if $system_content != @{"status":"error","code":4461,"desc":"tags size is 0"}@ then
+  return -1
+endi
+
+system_content curl -u root:taosdata -d  '{"fields":{"Percent_DPC_Time":0,"Percent_Idle_Time":95.59830474853516,"Percent_Interrupt_Time":0,"Percent_Privileged_Time":0,"Percent_Processor_Time":0,"Percent_User_Time":0},"name":"win_cpu","tags":{"":"windows"},"timestamp":1535784122}' 127.0.0.1:7111/telegraf/db/root/taosdata1
+print $system_content
+
+if $system_content != @{"status":"error","code":4464,"desc":"tag name is null"}@ then
+  return -1
+endi
+
+#system_content curl -u root:taosdata -d  '{"fields":{"Percent_DPC_Time":0,"Percent_Idle_Time":95.59830474853516,"Percent_Interrupt_Time":0,"Percent_Privileged_Time":0,"Percent_Processor_Time":0,"Percent_User_Time":0},"name":"win_cpu","tags":{"host111111111111222222222222222222222":""},"timestamp":1535784122}' 127.0.0.1:7111/telegraf/db/root/taosdata1
+#print $system_content
+
+#if $system_content != @{"status":"error","code":4465,"desc":"tag name length too long"}@ then
+#  return -1
+#endi
+
+system_content curl -u root:taosdata -d  '{"fields":{"Percent_DPC_Time":0,"Percent_Idle_Time":95.59830474853516,"Percent_Interrupt_Time":0,"Percent_Privileged_Time":0,"Percent_Processor_Time":0,"Percent_User_Time":0},"name":"win_cpu","tags":{"host":true},"timestamp":1535784122}' 127.0.0.1:7111/telegraf/db/root/taosdata1
+print $system_content
+
+if $system_content != @{"status":"error","code":4466,"desc":"tag value type should be number or string"}@ then
+  return -1
+endi
+
+system_content curl -u root:taosdata -d  '{"fields":{"Percent_DPC_Time":0,"Percent_Idle_Time":95.59830474853516,"Percent_Interrupt_Time":0,"Percent_Privileged_Time":0,"Percent_Processor_Time":0,"Percent_User_Time":0},"name":"win_cpu","tags":{"host":""},"timestamp":1535784122}' 127.0.0.1:7111/telegraf/db/root/taosdata1
+print $system_content
+
+if $system_content != @{"status":"error","code":4467,"desc":"tag value is null"}@ then
+  return -1
+endi
+
+system_content curl -u root:taosdata -d  '{"fields":{"Percent_DPC_Time":0,"Percent_Idle_Time":95.59830474853516,"Percent_Interrupt_Time":0,"Percent_Privileged_Time":0,"Percent_Processor_Time":0,"Percent_User_Time":0},"name":"win_cpu","tags":{"5022":"111"},"timestamp":1535784122}' 127.0.0.1:7111/telegraf/db/root/taosdata1
+print $system_content
+
+if $system_content != @{"status":"error","code":4468,"desc":"table is null"}@ then
+  return -1
+endi
+
+system_content curl -u root:taosdata -d  '{"fields":{"Percent_DPC_Time":0,"Percent_Idle_Time":95.59830474853516,"Percent_Interrupt_Time":0,"Percent_Privileged_Time":0,"Percent_Processor_Time":0,"Percent_User_Time":0},"name":"win_cpu","tags":{"host":"host111111111111222222222222222222222host111111111111222222222222222222222host111111111111222222222222222222222host111111111111222222222222222222222host111111111111222222222222222222222host111111111111222222222222222222222host111111111111222222222222222222222host111111111111222222222222222222222"},"timestamp":1535784122}' 127.0.0.1:7111/telegraf/db/root/taosdata1
+print $system_content
+
+if $system_content != @{"status":"error","code":4469,"desc":"table name length too long"}@ then
+  return -1
+endi
+
+system_content curl -u root:taosdata -d  '{"fields":{},"name":"win_cpu","tags":{"host":"windows","instance":"1","objectname":"Processor"},"timestamp":1535784122}' 127.0.0.1:7111/telegraf/db/root/taosdata1
+print $system_content
+
+if $system_content != @{"status":"error","code":4471,"desc":"fields size is 0"}@ then
+  return -1
+endi
+
+system_content curl -u root:taosdata -d  '{"fields":{"":0,"Percent_Idle_Time":95.59830474853516,"Percent_Interrupt_Time":0,"Percent_Privileged_Time":0,"Percent_Processor_Time":0,"Percent_User_Time":0},"name":"win_cpu","tags":{"host":"windows","instance":"1","objectname":"Processor"},"timestamp":1535784122}' 127.0.0.1:7111/telegraf/db/root/taosdata1
+print $system_content
+
+if $system_content != @{"status":"error","code":4474,"desc":"field name is null"}@ then
+  return -1
+endi
+
+system_content curl -u root:taosdata -d  '{"fields":{"Percent_DPC_Time":"","Percent_Idle_Time":95.59830474853516,"Percent_Interrupt_Time":0,"Percent_Privileged_Time":0,"Percent_Processor_Time":0,"Percent_User_Time":0},"name":"win_cpu","tags":{"host":"windows","instance":"1","objectname":"Processor"},"timestamp":1535784122}' 127.0.0.1:7111/telegraf/db/root/taosdata1
+print $system_content
+
+if $system_content != @{"status":"error","code":4477,"desc":"field value is null"}@ then
+  return -1
+endi
+
+system_content curl -u root:taosdata -d  '{"fields":{"Percent_DPC_Time":true,"Percent_Idle_Time":95.59830474853516,"Percent_Interrupt_Time":0,"Percent_Privileged_Time":0,"Percent_Processor_Time":0,"Percent_User_Time":0},"name":"win_cpu","tags":{"host":"windows","instance":"1","objectname":"Processor"},"timestamp":1535784122}' 127.0.0.1:7111/telegraf/db/root/taosdata1
+print $system_content
+
+if $system_content != @{"status":"error","code":4476,"desc":"field value type should be number or string"}@ then
+  return -1
+endi
+
+system_content curl -u root:taosdata -d  '{"fields":{"Percent_DPC_Time":0,"Percent_Idle_Time":95.59830474853516,"Percent_Interrupt_Time":0,"Percent_Privileged_Time":0,"Percent_Processor_Time":0,"Percent_User_Time":0},"name":"win_cpu","tags":{"host":"windows","instance":"1","objectname":"Processor"},"timestamp":1564641722000}' 127.0.0.1:7111/telegraf/db
+
+print $system_content
+
+if $system_content != @{"metrics":[{"metric":"win_cpu","stable":"win_cpu","table":"win_cpu_windows_1_Processor","timestamp":"1564641722000","affected_rows":1,"status":"succ"}]}@ then
+  return -1
+endi
+
+sleep 2000
+
+print ===============  step2 - insert single data
+system_content curl -u root:taosdata -d  '{"fields":{"Percent_DPC_Time":0,"Percent_Idle_Time":95.59830474853516,"Percent_Interrupt_Time":0,"Percent_Privileged_Time":0,"Percent_Processor_Time":0,"Percent_User_Time":0},"name":"win_cpu","tags":{"host":"windows","instance":"1","objectname":"Processor"},"timestamp":1564641722000}' 127.0.0.1:7111/telegraf/db/
+
+print $system_content
+
+#if $system_content != @{"metrics":[{"metric":"win_cpu","stable":"win_cpu","table":"win_cpu_windows_1_Processor","timestamp":"1564641722000","affected_rows":1,"status":"succ"}]}@ then
+#  return -1
+#endi
+
+system_content curl -u root:taosdata -d  'select * from db.win_cpu_windows_1_Processor' 127.0.0.1:7111/rest/sql/
+
+print $system_content
+
+#if $system_content != @{"status":"succ","head":["ts","f_percent_dpc_time","f_percent_idle_time","f_percent_interrupt_time","f_percent_privileged_time","f_percent_processor_time","f_percent_user_time"],"data":[["2019-08-01 06:42:02.000",0.000000000,95.598305000,0.000000000,0.000000000,0.000000000,0.000000000]],"rows":1}@ then
+#  return -1
+#endi
+
+print ===============  step3 - multi-query data
+system_content curl -u root:taosdata -d  '{"metrics": [{"fields":{"Percent_DPC_Time":0,"Percent_Idle_Time":95.59830474853516,"Percent_Interrupt_Time":0,"Percent_Privileged_Time":0,"Percent_Processor_Time":0,"Percent_User_Time":0},"name":"win_cpu","tags":{"host":"window1","instance":"1","objectname":"Processor"},"timestamp":1564641723000},{"fields":{"Percent_DPC_Time":0,"Percent_Idle_Time":95.59830474853516,"Percent_Interrupt_Time":0,"Percent_Privileged_Time":0,"Percent_Processor_Time":0,"Percent_User_Time":0},"name":"win_cpu","tags":{"host":"window2","instance":"1","objectname":"Processor"},"timestamp":1564641723000}]}' 127.0.0.1:7111/telegraf/db/
+
+print $system_content
+
+if $system_content != @{"metrics":[{"metric":"win_cpu","stable":"win_cpu","table":"win_cpu_window1_1_Processor","timestamp":"1564641723000","affected_rows":1,"status":"succ"},{"metric":"win_cpu","stable":"win_cpu","table":"win_cpu_window2_1_Processor","timestamp":"1564641723000","affected_rows":1,"status":"succ"}]}@ then
+  return -1
+endi
+
+system_content curl -u root:taosdata -d  'select * from db.win_cpu_window1_1_Processor' 127.0.0.1:7111/rest/sql/
+
+print $system_content
+
+#if $system_content != @{"status":"succ","head":["ts","f_percent_dpc_time","f_percent_idle_time","f_percent_interrupt_time","f_percent_privileged_time","f_percent_processor_time","f_percent_user_time"],"data":[["2019-08-01 14:42:03.000",0.000000000,95.598305000,0.000000000,0.000000000,0.000000000,0.000000000]],"rows":1}@ then
+#  return -1
+#endi
+
+system_content curl -u root:taosdata -d  'select count(*) from db.win_cpu' 127.0.0.1:7111/rest/sql/
+
+print $system_content
+
+if $system_content != @{"status":"succ","head":["count(*)"],"column_meta":[["count(*)",5,8]],"data":[[3]],"rows":1}@ then
+  return -1
+endi
+
+system sh/exec.sh -n dnode1 -s stop -x SIGINT
