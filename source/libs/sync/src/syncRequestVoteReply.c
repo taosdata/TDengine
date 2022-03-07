@@ -15,7 +15,7 @@
 
 #include "syncRequestVoteReply.h"
 
-void onRequestVoteReply(SRaft *pRaft, const SyncRequestVoteReply *pMsg) {
+int32_t syncNodeOnRequestVoteReplyCb(SSyncNode* ths, SyncRequestVoteReply* pMsg) {
   // TLA+ Spec
   // HandleRequestVoteResponse(i, j, m) ==
   //    \* This tallies votes even when the current state is not Candidate, but

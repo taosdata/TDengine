@@ -172,20 +172,18 @@ int32_t queryCreateTableMetaFromMsg(STableMetaRsp* msg, bool isSuperTable, STabl
 extern int32_t (*queryBuildMsg[TDMT_MAX])(void* input, char **msg, int32_t msgSize, int32_t *msgLen);
 extern int32_t (*queryProcessMsgRsp[TDMT_MAX])(void* output, char *msg, int32_t msgSize);
 
-
 #define SET_META_TYPE_NULL(t) (t) = META_TYPE_NULL_TABLE
 #define SET_META_TYPE_CTABLE(t) (t) = META_TYPE_CTABLE
 #define SET_META_TYPE_TABLE(t) (t) = META_TYPE_TABLE
 #define SET_META_TYPE_BOTH_TABLE(t) (t) = META_TYPE_BOTH_TABLE
 
-#define qFatal(...)  do { if (qDebugFlag & DEBUG_FATAL) { taosPrintLog("QRY FATAL ", qDebugFlag, __VA_ARGS__); }} while(0)
-#define qError(...)  do { if (qDebugFlag & DEBUG_ERROR) { taosPrintLog("QRY ERROR ", qDebugFlag, __VA_ARGS__); }} while(0)
-#define qWarn(...)   do { if (qDebugFlag & DEBUG_WARN)  { taosPrintLog("QRY WARN ", qDebugFlag, __VA_ARGS__); }}  while(0)
-#define qInfo(...)   do { if (qDebugFlag & DEBUG_INFO)  { taosPrintLog("QRY ", qDebugFlag, __VA_ARGS__); }} while(0)
-#define qDebug(...)  do { if (qDebugFlag & DEBUG_DEBUG) { taosPrintLog("QRY ", qDebugFlag, __VA_ARGS__); }} while(0)
-#define qTrace(...)  do { if (qDebugFlag & DEBUG_TRACE) { taosPrintLog("QRY ", qDebugFlag, __VA_ARGS__); }} while(0)
-#define qDebugL(...) do { if (qDebugFlag & DEBUG_DEBUG) { taosPrintLongString("QRY ", qDebugFlag, __VA_ARGS__); }} while(0)
-
+#define qFatal(...)  do { if (qDebugFlag & DEBUG_FATAL) { taosPrintLog("QRY FATAL ", DEBUG_FATAL, qDebugFlag, __VA_ARGS__); }} while(0)
+#define qError(...)  do { if (qDebugFlag & DEBUG_ERROR) { taosPrintLog("QRY ERROR ", DEBUG_ERROR, qDebugFlag, __VA_ARGS__); }} while(0)
+#define qWarn(...)   do { if (qDebugFlag & DEBUG_WARN)  { taosPrintLog("QRY WARN ", DEBUG_WARN, qDebugFlag, __VA_ARGS__); }}  while(0)
+#define qInfo(...)   do { if (qDebugFlag & DEBUG_INFO)  { taosPrintLog("QRY ", DEBUG_INFO, qDebugFlag, __VA_ARGS__); }} while(0)
+#define qDebug(...)  do { if (qDebugFlag & DEBUG_DEBUG) { taosPrintLog("QRY ", DEBUG_DEBUG, qDebugFlag, __VA_ARGS__); }} while(0)
+#define qTrace(...)  do { if (qDebugFlag & DEBUG_TRACE) { taosPrintLog("QRY ", DEBUG_TRACE, qDebugFlag, __VA_ARGS__); }} while(0)
+#define qDebugL(...) do { if (qDebugFlag & DEBUG_DEBUG) { taosPrintLongString("QRY ", DEBUG_DEBUG, qDebugFlag, __VA_ARGS__); }} while(0)
 
 #ifdef __cplusplus
 }

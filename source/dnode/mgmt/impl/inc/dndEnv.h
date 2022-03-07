@@ -105,9 +105,19 @@ typedef struct {
 } SBnodeMgmt;
 
 typedef struct {
+  int32_t openVnodes;
+  int32_t totalVnodes;
+  int32_t masterNum;
+  int64_t numOfSelectReqs;
+  int64_t numOfInsertReqs;
+  int64_t numOfInsertSuccessReqs;
+  int64_t numOfBatchInsertReqs;
+  int64_t numOfBatchInsertSuccessReqs;
+} SVnodesStat;
+
+typedef struct {
+  SVnodesStat  stat;
   SHashObj    *hash;
-  int32_t      openVnodes;
-  int32_t      totalVnodes;
   SRWLatch     latch;
   SQWorkerPool queryPool;
   SFWorkerPool fetchPool;

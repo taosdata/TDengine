@@ -70,7 +70,7 @@ typedef uint16_t tmsg_t;
 
 typedef enum {
   HEARTBEAT_TYPE_MQ = 0,
-  HEARTBEAT_TYPE_QUERY = 1,
+  HEARTBEAT_TYPE_QUERY,
   // types can be added here
   //
   HEARTBEAT_TYPE_MAX
@@ -679,6 +679,11 @@ typedef struct {
   int64_t totalStorage;
   int64_t compStorage;
   int64_t pointsWritten;
+  int64_t numOfSelectReqs;
+  int64_t numOfInsertReqs;
+  int64_t numOfInsertSuccessReqs;
+  int64_t numOfBatchInsertReqs;
+  int64_t numOfBatchInsertSuccessReqs;
 } SVnodeLoad;
 
 typedef struct {
@@ -1844,6 +1849,203 @@ static FORCE_INLINE void* tDecodeSSchemaWrapper(void* buf, SSchemaWrapper* pSW) 
 
   for (int32_t i = 0; i < pSW->nCols; i++) {
     buf = taosDecodeSSchema(buf, &pSW->pSchema[i]);
+  }
+  return buf;
+}
+typedef enum {
+  TD_TIME_UNIT_UNKNOWN = -1,
+  TD_TIME_UNIT_YEAR = 0,
+  TD_TIME_UNIT_SEASON = 1,
+  TD_TIME_UNIT_MONTH = 2,
+  TD_TIME_UNIT_WEEK = 3,
+  TD_TIME_UNIT_DAY = 4,
+  TD_TIME_UNIT_HOUR = 5,
+  TD_TIME_UNIT_MINUTE = 6,
+  TD_TIME_UNIT_SEC = 7,
+  TD_TIME_UNIT_MILLISEC = 8,
+  TD_TIME_UNIT_MICROSEC = 9,
+  TD_TIME_UNIT_NANOSEC = 10
+} ETDTimeUnit;
+typedef struct {
+  uint8_t   version;  // for compatibility
+  uint8_t   intervalUnit;
+  uint8_t   slidingUnit;
+  char      indexName[TSDB_INDEX_NAME_LEN + 1];
+  col_id_t  numOfColIds;
+  uint16_t  numOfFuncIds;
+  uint64_t  tableUid;  // super/common table uid
+  int64_t   interval;
+  int64_t   sliding;
+  col_id_t* colIds;   // sorted column ids
+  uint16_t* funcIds;  // sorted sma function ids
+} STSma;              // Time-range-wise SMA
+
+typedef struct {
+  int8_t      msgType;  // 0 create, 1 recreate
+  STSma       tSma;
+  STimeWindow window;
+} SCreateTSmaMsg;
+
+typedef struct {
+  STimeWindow window;
+  char        indexName[TSDB_INDEX_NAME_LEN + 1];
+} SDropTSmaMsg;
+
+typedef struct {
+  STimeWindow tsWindow;     // [skey, ekey]
+  uint64_t    tableUid;     // sub/common table uid
+  int32_t     numOfBlocks;  // number of sma blocks for each column, total number is numOfBlocks*numOfColId
+  int32_t     dataLen;      // total data length
+  col_id_t*   colIds;       // e.g. 2,4,9,10
+  col_id_t    numOfColIds;  // e.g. 4
+  char        data[];       // the sma blocks
+} STSmaData;
+
+// TODO: move to the final location afte schema of STSma/STSmaData defined
+static FORCE_INLINE void tdDestroySmaData(STSmaData* pSmaData) {
+  if (pSmaData) {
+    if (pSmaData->colIds) {
+      tfree(pSmaData->colIds);
+    }
+    tfree(pSmaData);
+  }
+}
+
+// RSma: Time-range-wise Rollup SMA
+// TODO: refactor when rSma grammar defined finally =>
+typedef struct {
+  int64_t  interval;
+  int32_t  retention;  // unit: day
+  uint16_t days;       // unit: day
+  int8_t   intervalUnit;
+} SSmaParams;
+// TODO: refactor when rSma grammar defined finally <=
+
+typedef struct {
+  // TODO: refactor to use the real schema =>
+  STSma   tsma;
+  float   xFilesFactor;
+  SArray* smaParams;  // SSmaParams
+  // TODO: refactor to use the real schema <=
+} SRSma;
+
+typedef struct {
+  uint32_t number;
+  STSma*   tSma;
+} STSmaWrapper;
+
+static FORCE_INLINE void tdDestroyTSma(STSma* pSma, bool releaseSelf) {
+  if (pSma) {
+    tfree(pSma->colIds);
+    tfree(pSma->funcIds);
+    if (releaseSelf) {
+      free(pSma);
+    }
+  }
+}
+
+static FORCE_INLINE void tdDestroyTSmaWrapper(STSmaWrapper* pSW, bool releaseSelf) {
+  if (pSW) {
+    if (pSW->tSma) {
+      for (uint32_t i = 0; i < pSW->number; ++i) {
+        tdDestroyTSma(pSW->tSma + i, false);
+      }
+      tfree(pSW->tSma);
+    }
+    if (releaseSelf) {
+      free(pSW);
+    }
+  }
+}
+
+static FORCE_INLINE int32_t tEncodeTSma(void** buf, const STSma* pSma) {
+  int32_t tlen = 0;
+
+  tlen += taosEncodeFixedU8(buf, pSma->version);
+  tlen += taosEncodeFixedU8(buf, pSma->intervalUnit);
+  tlen += taosEncodeFixedU8(buf, pSma->slidingUnit);
+  tlen += taosEncodeString(buf, pSma->indexName);
+  tlen += taosEncodeFixedU16(buf, pSma->numOfColIds);
+  tlen += taosEncodeFixedU16(buf, pSma->numOfFuncIds);
+  tlen += taosEncodeFixedU64(buf, pSma->tableUid);
+  tlen += taosEncodeFixedI64(buf, pSma->interval);
+  tlen += taosEncodeFixedI64(buf, pSma->sliding);
+
+  for (col_id_t i = 0; i < pSma->numOfColIds; ++i) {
+    tlen += taosEncodeFixedU16(buf, *(pSma->colIds + i));
+  }
+
+  for (uint16_t i = 0; i < pSma->numOfFuncIds; ++i) {
+    tlen += taosEncodeFixedU16(buf, *(pSma->funcIds + i));
+  }
+
+  return tlen;
+}
+
+static FORCE_INLINE int32_t tEncodeTSmaWrapper(void** buf, const STSmaWrapper* pSW) {
+  int32_t tlen = 0;
+
+  tlen += taosEncodeFixedU32(buf, pSW->number);
+  for (uint32_t i = 0; i < pSW->number; ++i) {
+    tlen += tEncodeTSma(buf, pSW->tSma + i);
+  }
+  return tlen;
+}
+
+static FORCE_INLINE void* tDecodeTSma(void* buf, STSma* pSma) {
+  buf = taosDecodeFixedU8(buf, &pSma->version);
+  buf = taosDecodeFixedU8(buf, &pSma->intervalUnit);
+  buf = taosDecodeFixedU8(buf, &pSma->slidingUnit);
+  buf = taosDecodeStringTo(buf, pSma->indexName);
+  buf = taosDecodeFixedU16(buf, &pSma->numOfColIds);
+  buf = taosDecodeFixedU16(buf, &pSma->numOfFuncIds);
+  buf = taosDecodeFixedU64(buf, &pSma->tableUid);
+  buf = taosDecodeFixedI64(buf, &pSma->interval);
+  buf = taosDecodeFixedI64(buf, &pSma->sliding);
+
+  if (pSma->numOfColIds > 0) {
+    pSma->colIds = (col_id_t*)calloc(pSma->numOfColIds, sizeof(STSma));
+    if (pSma->colIds == NULL) {
+      return NULL;
+    }
+    for (uint16_t i = 0; i < pSma->numOfColIds; ++i) {
+      buf = taosDecodeFixedU16(buf, pSma->colIds + i);
+    }
+  } else {
+    pSma->colIds = NULL;
+  }
+
+  if (pSma->numOfFuncIds > 0) {
+    pSma->funcIds = (uint16_t*)calloc(pSma->numOfFuncIds, sizeof(STSma));
+    if (pSma->funcIds == NULL) {
+      return NULL;
+    }
+    for (uint16_t i = 0; i < pSma->numOfFuncIds; ++i) {
+      buf = taosDecodeFixedU16(buf, pSma->funcIds + i);
+    }
+  } else {
+    pSma->funcIds = NULL;
+  }
+
+  return buf;
+}
+
+static FORCE_INLINE void* tDecodeTSmaWrapper(void* buf, STSmaWrapper* pSW) {
+  buf = taosDecodeFixedU32(buf, &pSW->number);
+
+  pSW->tSma = (STSma*)calloc(pSW->number, sizeof(STSma));
+  if (pSW->tSma == NULL) {
+    return NULL;
+  }
+
+  for (uint32_t i = 0; i < pSW->number; ++i) {
+    if ((buf = tDecodeTSma(buf, pSW->tSma + i)) == NULL) {
+      for (uint32_t j = i; j >= 0; --i) {
+        tdDestroyTSma(pSW->tSma + j, false);
+      }
+      free(pSW->tSma);
+      return NULL;
+    }
   }
   return buf;
 }

@@ -22,6 +22,8 @@ SSyncNode* doSync(int myIndex) {
   syncInfo.vgId = 1;
   syncInfo.rpcClient = gSyncIO->clientRpc;
   syncInfo.FpSendMsg = syncIOSendMsg;
+  syncInfo.queue = gSyncIO->pMsgQ;
+  syncInfo.FpEqMsg = syncIOEqMsg;
   syncInfo.pFsm = pFsm;
   snprintf(syncInfo.path, sizeof(syncInfo.path), "%s", "./test_sync_ping");
 
@@ -76,15 +78,25 @@ int main(int argc, char** argv) {
   SSyncNode* pSyncNode = doSync(myIndex);
   gSyncIO->FpOnSyncPing = pSyncNode->FpOnPing;
   gSyncIO->FpOnSyncPingReply = pSyncNode->FpOnPingReply;
+  gSyncIO->FpOnSyncTimeout = pSyncNode->FpOnTimeout;
 
   ret = syncNodeStartPingTimer(pSyncNode);
   assert(ret == 0);
 
-  /*
-    taosMsleep(10000);
-    ret = syncNodeStopPingTimer(pSyncNode);
-    assert(ret == 0);
-  */
+  taosMsleep(10000);
+
+  ret = syncNodeStopPingTimer(pSyncNode);
+  assert(ret == 0);
+
+  taosMsleep(10000);
+
+  ret = syncNodeStartPingTimer(pSyncNode);
+  assert(ret == 0);
+
+  taosMsleep(10000);
+
+  ret = syncNodeStopPingTimer(pSyncNode);
+  assert(ret == 0);
 
   while (1) {
     taosMsleep(1000);

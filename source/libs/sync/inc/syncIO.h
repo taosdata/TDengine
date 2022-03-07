@@ -49,6 +49,7 @@ typedef struct SSyncIO {
   int32_t (*FpOnSyncRequestVoteReply)(SSyncNode *pSyncNode, SyncRequestVoteReply *pMsg);
   int32_t (*FpOnSyncAppendEntries)(SSyncNode *pSyncNode, SyncAppendEntries *pMsg);
   int32_t (*FpOnSyncAppendEntriesReply)(SSyncNode *pSyncNode, SyncAppendEntriesReply *pMsg);
+  int32_t (*FpOnSyncTimeout)(SSyncNode *pSyncNode, SyncTimeout *pMsg);
 
   int8_t isStart;
 
@@ -58,9 +59,10 @@ extern SSyncIO *gSyncIO;
 
 int32_t syncIOStart(char *host, uint16_t port);
 int32_t syncIOStop();
-int32_t syncIOSendMsg(void *clientRpc, const SEpSet *pEpSet, SRpcMsg *pMsg);
 int32_t syncIOTickQ();
 int32_t syncIOTickPing();
+int32_t syncIOSendMsg(void *clientRpc, const SEpSet *pEpSet, SRpcMsg *pMsg);
+int32_t syncIOEqMsg(void *queue, SRpcMsg *pMsg);
 
 #ifdef __cplusplus
 }

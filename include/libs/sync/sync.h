@@ -21,7 +21,7 @@ extern "C" {
 #endif
 
 #include <stdint.h>
-#include <tep.h>
+#include <tdatablock.h>
 #include "taosdef.h"
 #include "trpc.h"
 
@@ -138,6 +138,8 @@ typedef struct SSyncInfo {
 
   void* rpcClient;
   int32_t (*FpSendMsg)(void* rpcClient, const SEpSet* pEpSet, SRpcMsg* pMsg);
+  void* queue;
+  int32_t (*FpEqMsg)(void* queue, SRpcMsg* pMsg);
 
 } SSyncInfo;
 
@@ -147,13 +149,10 @@ typedef struct SSyncNode SSyncNode;
 int32_t syncInit();
 void    syncCleanUp();
 
-int64_t syncStart(const SSyncInfo* pSyncInfo);
-void    syncStop(int64_t rid);
-int32_t syncReconfig(int64_t rid, const SSyncCfg* pSyncCfg);
-
-int32_t syncForwardToPeer(int64_t rid, const SRpcMsg* pBuf, bool isWeak);
-// int32_t syncForwardToPeer(int64_t rid, const SSyncBuffer* pBuf, bool isWeak);
-
+int64_t    syncStart(const SSyncInfo* pSyncInfo);
+void       syncStop(int64_t rid);
+int32_t    syncReconfig(int64_t rid, const SSyncCfg* pSyncCfg);
+int32_t    syncForwardToPeer(int64_t rid, const SRpcMsg* pBuf, bool isWeak);
 ESyncState syncGetMyRole(int64_t rid);
 void       syncGetNodesRole(int64_t rid, SNodesRole* pNodeRole);
 
