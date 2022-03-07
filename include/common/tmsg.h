@@ -746,7 +746,7 @@ typedef struct {
   int32_t  fsyncPeriod;
   uint32_t hashBegin;
   uint32_t hashEnd;
-  int8_t   hashMethod;  
+  int8_t   hashMethod;
   int8_t   walLevel;
   int8_t   precision;
   int8_t   compression;
@@ -757,7 +757,7 @@ typedef struct {
   int8_t   selfIndex;
   int8_t   streamMode;
   SReplica replicas[TSDB_MAX_REPLICA];
-  
+
 } SCreateVnodeReq, SAlterVnodeReq;
 
 int32_t tSerializeSCreateVnodeReq(void* buf, int32_t bufLen, SCreateVnodeReq* pReq);
@@ -1388,7 +1388,7 @@ typedef struct {
 typedef struct SMqCMGetSubEpReq {
   int64_t consumerId;
   int32_t epoch;
-  char    cgroup[TSDB_CONSUMER_GROUP_LEN];
+  char    cgroup[TSDB_CGROUP_LEN];
 } SMqCMGetSubEpReq;
 
 static FORCE_INLINE int32_t tEncodeSMsgHead(void** buf, const SMsgHead* pMsg) {
@@ -1688,7 +1688,7 @@ typedef struct {
   int32_t vgId;
   int64_t consumerId;
   char    topicName[TSDB_TOPIC_FNAME_LEN];
-  char    cgroup[TSDB_CONSUMER_GROUP_LEN];
+  char    cgroup[TSDB_CGROUP_LEN];
   char*   sql;
   char*   logicalPlan;
   char*   physicalPlan;
@@ -1751,7 +1751,7 @@ typedef struct {
   int32_t  vgId;
   int64_t  consumerId;
   char     topicName[TSDB_TOPIC_FNAME_LEN];
-  char     cgroup[TSDB_CONSUMER_GROUP_LEN];
+  char     cgroup[TSDB_CGROUP_LEN];
 } SMqSetCVgRsp;
 
 typedef struct {
@@ -1759,14 +1759,14 @@ typedef struct {
   int32_t  vgId;
   int64_t  consumerId;
   char     topicName[TSDB_TOPIC_FNAME_LEN];
-  char     cgroup[TSDB_CONSUMER_GROUP_LEN];
+  char     cgroup[TSDB_CGROUP_LEN];
 } SMqMVRebRsp;
 
 typedef struct {
   int32_t vgId;
   int64_t offset;
   char    topicName[TSDB_TOPIC_FNAME_LEN];
-  char    cgroup[TSDB_CONSUMER_GROUP_LEN];
+  char    cgroup[TSDB_CGROUP_LEN];
 } SMqOffset;
 
 typedef struct {
@@ -2080,7 +2080,7 @@ typedef struct {
   int64_t consumerId;
   int64_t blockingTime;
   int32_t epoch;
-  char    cgroup[TSDB_CONSUMER_GROUP_LEN];
+  char    cgroup[TSDB_CGROUP_LEN];
 
   int64_t currentOffset;
   char    topic[TSDB_TOPIC_FNAME_LEN];
@@ -2099,7 +2099,7 @@ typedef struct {
 
 typedef struct {
   int64_t consumerId;
-  char    cgroup[TSDB_CONSUMER_GROUP_LEN];
+  char    cgroup[TSDB_CGROUP_LEN];
   SArray* topics;  // SArray<SMqSubTopicEp>
 } SMqCMGetSubEpRsp;
 

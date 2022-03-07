@@ -43,7 +43,12 @@ int32_t mndSchedInitSubEp(SMnode* pMnode, const SMqTopicObj* pTopic, SMqSubscrib
     return -1;
   }
 
-  SArray*   inner = taosArrayGet(pDag->pSubplans, 0);
+  SArray* inner = taosArrayGet(pDag->pSubplans, 0);
+
+  int32_t opNum = taosArrayGetSize(inner);
+  if (opNum != 1) {
+    return -1;
+  }
   SSubplan* plan = taosArrayGetP(inner, 0);
 
   void* pIter = NULL;
