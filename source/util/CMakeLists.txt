@@ -17,6 +17,7 @@ if(${BUILD_WITH_UV})
         util
         PUBLIC uv_a
     )
+    add_definitions(-DUSE_UV) 
 endif(${BUILD_TEST})
 
 if(${BUILD_TEST})

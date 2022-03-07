@@ -63,8 +63,6 @@ int32_t taosCloseSocket(SocketFd fd);
 void    taosShutDownSocketRD(SOCKET fd);
 void    taosShutDownSocketWR(SOCKET fd);
 int32_t taosSetNonblocking(SOCKET sock, int32_t on);
-void    taosIgnSIGPIPE();
-void    taosSetMaskSIGPIPE();
 int32_t taosSetSockOpt(SOCKET socketfd, int32_t level, int32_t optname, void *optval, int32_t optlen);
 int32_t taosGetSockOpt(SOCKET socketfd, int32_t level, int32_t optname, void *optval, int32_t *optlen);
 
@@ -94,14 +92,15 @@ SOCKET  taosOpenTcpClientSocket(uint32_t ip, uint16_t port, uint32_t localIp);
 SOCKET  taosOpenTcpServerSocket(uint32_t ip, uint16_t port);
 int32_t taosKeepTcpAlive(SOCKET sockFd);
 
-int32_t  taosGetFqdn(char *);
-uint32_t taosGetIpv4FromFqdn(const char *);
-void     tinet_ntoa(char *ipstr, uint32_t ip);
-uint32_t ip2uint(const char *const ip_addr);
-
 #endif
 
 void    taosBlockSIGPIPE();
+uint32_t taosGetIpv4FromFqdn(const char *);
+int32_t  taosGetFqdn(char *);
+void     tinet_ntoa(char *ipstr, uint32_t ip);
+uint32_t ip2uint(const char *const ip_addr);
+void    taosIgnSIGPIPE();
+void    taosSetMaskSIGPIPE();
 
 #ifdef __cplusplus
 }

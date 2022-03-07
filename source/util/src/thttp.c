@@ -128,7 +128,7 @@ static void clientConnCb(uv_connect_t* req, int32_t status) {
   uv_close((uv_handle_t*)req->handle, NULL);
 }
 
-int32_t taosSendHttpReport(const char* server, uint16_t port, const char* pCont, int32_t contLen, EHttpCompFlag flag) {
+int32_t taosSendHttpReport(const char* server, uint16_t port, char* pCont, int32_t contLen, EHttpCompFlag flag) {
   uint32_t ipv4 = taosGetIpv4FromFqdn(server);
   if (ipv4 == 0xffffffff) {
     terrno = TAOS_SYSTEM_ERROR(errno);
