@@ -1,0 +1,19 @@
+# custom
+/out/
+/logs/
+*.jar
+
+# Created by .ignore support plugin (hsz.mobi)
+.gitignore
+
+# Build Artifacts
+.gradle/*
+build/*
+target/*
+bin/*
+dependency-reduced-pom.xml
+
+# Eclipse Project Files
+.classpath
+.project
+.settings/*

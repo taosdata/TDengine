@@ -1,0 +1,48 @@
+sql connect
+sleep 2000
+
+sql show databases
+sql drop database $data00 -x e1
+e1:
+sql show databases
+sql drop database $data00 -x e2
+e2:
+
+
+$i = 0
+$dbPrefix = lm_dt_db
+$tbPrefix = lm_dt_tb
+$db = $dbPrefix
+$tb = $tbPrefix
+
+print =============== step1
+sql create database $db
+$table = lm_dt_db.lm_dt_tb
+
+print =============== step2
+sql create table $table (ts timestamp, speed int) 
+
+print =============== step3
+sql insert into $table values (now, 1)
+
+print =============== step4
+sql select * from $table
+if $rows != 1 then
+  return -1
+endi
+if $data01 != 1 then
+  return -1
+endi
+
+print =============== step5
+sql describe $table
+
+print =============== step6
+sql drop table $table
+
+
+sql drop database $db
+sql show databases
+if $rows != 0 then 
+  return -1
+endi

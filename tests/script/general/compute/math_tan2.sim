@@ -1,0 +1,366 @@
+sleep 100
+sql connect
+sql use db
+
+print execute sql select tan(stb1.c4),tan(stba.c5) from stb1,stba where stb1.t1=stba.t1 and stb1.ts=stba.ts;
+sql select tan(stb1.c4),tan(stba.c5) from stb1,stba where stb1.t1=stba.t1 and stb1.ts=stba.ts;
+if $data00 != @1.557407725@ then
+  return -1 
+endi
+if $data01 != @1.557407725@ then
+  return -1 
+endi
+if $data10 != @NULL@ then
+  return -1 
+endi
+if $data11 != @-2.185039863@ then
+  return -1 
+endi
+if $data20 != @-2.185039863@ then
+  return -1 
+endi
+if $data21 != @-0.142546543@ then
+  return -1 
+endi
+if $data30 != @NULL@ then
+  return -1 
+endi
+if $data31 != @1.157821282@ then
+  return -1 
+endi
+if $data40 != @1.157821282@ then
+  return -1 
+endi
+if $data41 != @-3.380515006@ then
+  return -1 
+endi
+if $data50 != @1.052377964@ then
+  return -1 
+endi
+if $data51 != @-0.291006191@ then
+  return -1 
+endi
+if $data60 != @-1.052377964@ then
+  return -1 
+endi
+if $data61 != @0.871447983@ then
+  return -1 
+endi
+print execute sql select tan(c4) as a from stb1 union all select tan(c5) as a from stba;
+sql select tan(c4) as a from stb1 union all select tan(c5) as a from stba;
+if $data00 != @1.557407725@ then
+  return -1 
+endi
+if $data10 != @NULL@ then
+  return -1 
+endi
+if $data20 != @-2.185039863@ then
+  return -1 
+endi
+if $data30 != @NULL@ then
+  return -1 
+endi
+if $data40 != @1.157821282@ then
+  return -1 
+endi
+if $data50 != @1.052377964@ then
+  return -1 
+endi
+if $data60 != @-1.052377964@ then
+  return -1 
+endi
+if $data70 != @1.557407725@ then
+  return -1 
+endi
+if $data80 != @-2.185039863@ then
+  return -1 
+endi
+if $data90 != @-2.185039863@ then
+  return -1 
+endi
+print execute sql select tan(c2) from stba;
+sql select tan(c2) from stba;
+if $data00 != @1.557407725@ then
+  return -1 
+endi
+if $data10 != @-2.185039863@ then
+  return -1 
+endi
+if $data20 != @-0.142546543@ then
+  return -1 
+endi
+if $data30 != @1.157821282@ then
+  return -1 
+endi
+if $data40 != @-3.380515006@ then
+  return -1 
+endi
+if $data50 != @-0.291006191@ then
+  return -1 
+endi
+if $data60 != @0.871447983@ then
+  return -1 
+endi
+if $data70 != @-6.799711455@ then
+  return -1 
+endi
+if $data80 != @-0.452315659@ then
+  return -1 
+endi
+if $data90 != @0.000000000@ then
+  return -1 
+endi
+print execute sql select tan(min(c2)) from tba1;
+sql select tan(min(c2)) from tba1;
+if $data00 != @0.000000000@ then
+  return -1 
+endi
+print execute sql select tan(max(c2)) from tba1;
+sql select tan(max(c2)) from tba1;
+if $data00 != @-0.452315659@ then
+  return -1 
+endi
+print execute sql select tan(count(c2)) from tba1;
+sql select tan(count(c2)) from tba1;
+if $data00 != @-6.405331197@ then
+  return -1 
+endi
+print execute sql select tan(sum(c2)) from tba1;
+sql select tan(sum(c2)) from tba1;
+if $data00 != @-0.088715757@ then
+  return -1 
+endi
+print execute sql select tan(avg(c2)) from tba1;
+sql select tan(avg(c2)) from tba1;
+if $data00 != @4.637332055@ then
+  return -1 
+endi
+print execute sql select tan(percentile(c2, 10)) from tba1;
+sql select tan(percentile(c2, 10)) from tba1;
+if $data00 != @1.260158218@ then
+  return -1 
+endi
+print execute sql select tan(apercentile(c2, 10)) from tba1;
+sql select tan(apercentile(c2, 10)) from tba1;
+if $data00 != @0.000000000@ then
+  return -1 
+endi
+print execute sql select tan(stddev(c2)) from tba1;
+sql select tan(stddev(c2)) from tba1;
+if $data00 != @-0.276016859@ then
+  return -1 
+endi
+print execute sql select tan(spread(c2)) from tba1;
+sql select tan(spread(c2)) from tba1;
+if $data00 != @-0.452315659@ then
+  return -1 
+endi
+print execute sql select tan(twa(c2)) from tba1;
+sql select tan(twa(c2)) from tba1;
+if $data00 != @13.405571552@ then
+  return -1 
+endi
+print execute sql select tan(leastsquares(c2, 1, 1)) from tba1;
+sql_error select tan(leastsquares(c2, 1, 1)) from tba1;
+print execute sql select tan(interp(c2)) from tba1 every(1s)
+sql select tan(interp(c2)) from tba1 every(1s)
+if $data00 != @21-11-11 09:00:00.000@ then
+  return -1 
+endi
+if $data01 != @1.557407725@ then
+  return -1 
+endi
+if $data10 != @21-11-11 09:00:01.000@ then
+  return -1 
+endi
+if $data11 != @-2.185039863@ then
+  return -1 
+endi
+if $data20 != @21-11-11 09:00:02.000@ then
+  return -1 
+endi
+if $data21 != @-0.142546543@ then
+  return -1 
+endi
+if $data30 != @21-11-11 09:00:03.000@ then
+  return -1 
+endi
+if $data31 != @1.157821282@ then
+  return -1 
+endi
+if $data40 != @21-11-11 09:00:04.000@ then
+  return -1 
+endi
+if $data41 != @-3.380515006@ then
+  return -1 
+endi
+if $data50 != @21-11-11 09:00:05.000@ then
+  return -1 
+endi
+if $data51 != @-0.291006191@ then
+  return -1 
+endi
+if $data60 != @21-11-11 09:00:06.000@ then
+  return -1 
+endi
+if $data61 != @0.871447983@ then
+  return -1 
+endi
+if $data70 != @21-11-11 09:00:07.000@ then
+  return -1 
+endi
+if $data71 != @-6.799711455@ then
+  return -1 
+endi
+if $data80 != @21-11-11 09:00:08.000@ then
+  return -1 
+endi
+if $data81 != @-0.452315659@ then
+  return -1 
+endi
+if $data90 != @21-11-11 09:00:09.000@ then
+  return -1 
+endi
+if $data91 != @0.000000000@ then
+  return -1 
+endi
+print execute sql select tan(interp(c2)) from stba every(1s) group by tbname;
+sql select tan(interp(c2)) from stba every(1s) group by tbname;
+if $data00 != @21-11-11 09:00:00.000@ then
+  return -1 
+endi
+if $data01 != @1.557407725@ then
+  return -1 
+endi
+if $data02 != @tba1@ then
+  return -1 
+endi
+if $data10 != @21-11-11 09:00:01.000@ then
+  return -1 
+endi
+if $data11 != @-2.185039863@ then
+  return -1 
+endi
+if $data12 != @tba1@ then
+  return -1 
+endi
+if $data20 != @21-11-11 09:00:02.000@ then
+  return -1 
+endi
+if $data21 != @-0.142546543@ then
+  return -1 
+endi
+if $data22 != @tba1@ then
+  return -1 
+endi
+if $data30 != @21-11-11 09:00:03.000@ then
+  return -1 
+endi
+if $data31 != @1.157821282@ then
+  return -1 
+endi
+if $data32 != @tba1@ then
+  return -1 
+endi
+if $data40 != @21-11-11 09:00:04.000@ then
+  return -1 
+endi
+if $data41 != @-3.380515006@ then
+  return -1 
+endi
+if $data42 != @tba1@ then
+  return -1 
+endi
+if $data50 != @21-11-11 09:00:05.000@ then
+  return -1 
+endi
+if $data51 != @-0.291006191@ then
+  return -1 
+endi
+if $data52 != @tba1@ then
+  return -1 
+endi
+if $data60 != @21-11-11 09:00:06.000@ then
+  return -1 
+endi
+if $data61 != @0.871447983@ then
+  return -1 
+endi
+if $data62 != @tba1@ then
+  return -1 
+endi
+if $data70 != @21-11-11 09:00:07.000@ then
+  return -1 
+endi
+if $data71 != @-6.799711455@ then
+  return -1 
+endi
+if $data72 != @tba1@ then
+  return -1 
+endi
+if $data80 != @21-11-11 09:00:08.000@ then
+  return -1 
+endi
+if $data81 != @-0.452315659@ then
+  return -1 
+endi
+if $data82 != @tba1@ then
+  return -1 
+endi
+if $data90 != @21-11-11 09:00:09.000@ then
+  return -1 
+endi
+if $data91 != @0.000000000@ then
+  return -1 
+endi
+if $data92 != @tba1@ then
+  return -1 
+endi
+print execute sql select tan(elapsed(ts)) from tba1;
+sql select tan(elapsed(ts)) from tba1;
+if $data00 != @-0.041809624@ then
+  return -1 
+endi
+print execute sql select tan(rate(c2)) from tba1;
+sql select tan(rate(c2)) from tba1;
+if $data00 != @1.251272660@ then
+  return -1 
+endi
+print execute sql select tan(irate(c2)) from tba1;
+sql select tan(irate(c2)) from tba1;
+if $data00 != @0.000000000@ then
+  return -1 
+endi
+print execute sql select tan(first(c2)) from tba1;
+sql select tan(first(c2)) from tba1;
+if $data00 != @1.557407725@ then
+  return -1 
+endi
+print execute sql select tan(last(c2)) from tba1;
+sql select tan(last(c2)) from tba1;
+if $data00 != @0.000000000@ then
+  return -1 
+endi
+print execute sql select tan(last_row(c2)) from tba1;
+sql select tan(last_row(c2)) from tba1;
+if $data00 != @0.000000000@ then
+  return -1 
+endi
+print execute sql select tan(top(c2, 1)) from tba1;
+sql_error select tan(top(c2, 1)) from tba1;
+print execute sql select tan(bottom(c2, 1)) from tba1;
+sql_error select tan(bottom(c2, 1)) from tba1;
+print execute sql select tan(leastsquares(c2, 1, 1)) from tba1;
+sql_error select tan(leastsquares(c2, 1, 1)) from tba1;
+print execute sql select tan(derivative(c2, 1s, 0)) from tba1;
+sql_error select tan(derivative(c2, 1s, 0)) from tba1;
+print execute sql select tan(diff(c2)) from tba1;
+sql_error select tan(diff(c2)) from tba1;
+print execute sql select tan(csum(c2)) from tba1;
+sql_error select tan(csum(c2)) from tba1;
+print execute sql select tan(mavg(c2,2)) from tba1;
+sql_error select tan(mavg(c2,2)) from tba1;
+print execute sql select tan(sample(c2,2)) from tba1;
+sql_error select tan(sample(c2,2)) from tba1;
+print execute sql select tan(_block_dist()) from tba1;
+sql_error select tan(_block_dist()) from tba1;

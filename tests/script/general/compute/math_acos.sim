@@ -1,0 +1,1073 @@
+sleep 100
+sql connect
+sql use db
+
+print execute sql select acos(*) from tb1;
+sql_error select acos(*) from tb1;
+print execute sql select acos(*) from tb1;
+sql_error select acos(*) from tb1;
+print execute sql select acos(*) from tb1;
+sql_error select acos(*) from tb1;
+print execute sql select acos(*) from tb1;
+sql_error select acos(*) from tb1;
+print execute sql select acos(*) as a from tb1;
+sql_error select acos(*) as a from tb1;
+print execute sql select acos(*) + 1 as a from tb1;
+sql_error select acos(*) + 1 as a from tb1;
+print execute sql select acos(tb1.*) + 1 as a from tb1;
+sql_error select acos(tb1.*) + 1 as a from tb1;
+print execute sql select acos(*) from tb1;
+sql_error select acos(*) from tb1;
+print execute sql select acos(c1) from tb1;
+sql_error select acos(c1) from tb1;
+print execute sql select acos(c1) from tb1;
+sql_error select acos(c1) from tb1;
+print execute sql select acos(c1 + c2) from tb1;
+sql_error select acos(c1 + c2) from tb1;
+print execute sql select acos(13) from tb1;
+sql select acos(13) from tb1;
+if $data00 != @nan@ then
+  return -1 
+endi
+if $data10 != @nan@ then
+  return -1 
+endi
+if $data20 != @nan@ then
+  return -1 
+endi
+if $data30 != @nan@ then
+  return -1 
+endi
+if $data40 != @nan@ then
+  return -1 
+endi
+if $data50 != @nan@ then
+  return -1 
+endi
+if $data60 != @nan@ then
+  return -1 
+endi
+print execute sql select acos(c1) from tb1;
+sql_error select acos(c1) from tb1;
+print execute sql select acos(c2) from tb1;
+sql select acos(c2) from tb1;
+if $data00 != @0.000000000@ then
+  return -1 
+endi
+if $data10 != @NULL@ then
+  return -1 
+endi
+if $data20 != @nan@ then
+  return -1 
+endi
+if $data30 != @NULL@ then
+  return -1 
+endi
+if $data40 != @nan@ then
+  return -1 
+endi
+if $data50 != @nan@ then
+  return -1 
+endi
+if $data60 != @nan@ then
+  return -1 
+endi
+print execute sql select acos(c3) from tb1;
+sql select acos(c3) from tb1;
+if $data00 != @0.000000000@ then
+  return -1 
+endi
+if $data10 != @NULL@ then
+  return -1 
+endi
+if $data20 != @NULL@ then
+  return -1 
+endi
+if $data30 != @nan@ then
+  return -1 
+endi
+if $data40 != @nan@ then
+  return -1 
+endi
+if $data50 != @nan@ then
+  return -1 
+endi
+if $data60 != @nan@ then
+  return -1 
+endi
+print execute sql select acos(c4) from tb1;
+sql select acos(c4) from tb1;
+if $data00 != @0.000000000@ then
+  return -1 
+endi
+if $data10 != @NULL@ then
+  return -1 
+endi
+if $data20 != @nan@ then
+  return -1 
+endi
+if $data30 != @NULL@ then
+  return -1 
+endi
+if $data40 != @nan@ then
+  return -1 
+endi
+if $data50 != @nan@ then
+  return -1 
+endi
+if $data60 != @nan@ then
+  return -1 
+endi
+print execute sql select acos(c5) from tb1;
+sql select acos(c5) from tb1;
+if $data00 != @0.000000000@ then
+  return -1 
+endi
+if $data10 != @NULL@ then
+  return -1 
+endi
+if $data20 != @NULL@ then
+  return -1 
+endi
+if $data30 != @nan@ then
+  return -1 
+endi
+if $data40 != @nan@ then
+  return -1 
+endi
+if $data50 != @nan@ then
+  return -1 
+endi
+if $data60 != @nan@ then
+  return -1 
+endi
+print execute sql select acos(c6) from tb1;
+sql select acos(c6) from tb1;
+if $data00 != @0.000000000@ then
+  return -1 
+endi
+if $data10 != @NULL@ then
+  return -1 
+endi
+if $data20 != @nan@ then
+  return -1 
+endi
+if $data30 != @NULL@ then
+  return -1 
+endi
+if $data40 != @nan@ then
+  return -1 
+endi
+if $data50 != @nan@ then
+  return -1 
+endi
+if $data60 != @nan@ then
+  return -1 
+endi
+print execute sql select acos(c7) from tb1;
+sql select acos(c7) from tb1;
+if $data00 != @0.000000000@ then
+  return -1 
+endi
+if $data10 != @NULL@ then
+  return -1 
+endi
+if $data20 != @NULL@ then
+  return -1 
+endi
+if $data30 != @nan@ then
+  return -1 
+endi
+if $data40 != @nan@ then
+  return -1 
+endi
+if $data50 != @nan@ then
+  return -1 
+endi
+if $data60 != @nan@ then
+  return -1 
+endi
+print execute sql select acos(c8) from tb1;
+sql_error select acos(c8) from tb1;
+print execute sql select acos(c9) from tb1;
+sql_error select acos(c9) from tb1;
+print execute sql select acos(c10) from tb1;
+sql select acos(c10) from tb1;
+if $data00 != @0.000000000@ then
+  return -1 
+endi
+if $data10 != @NULL@ then
+  return -1 
+endi
+if $data20 != @nan@ then
+  return -1 
+endi
+if $data30 != @NULL@ then
+  return -1 
+endi
+if $data40 != @nan@ then
+  return -1 
+endi
+if $data50 != @nan@ then
+  return -1 
+endi
+if $data60 != @1.570796327@ then
+  return -1 
+endi
+print execute sql select acos(c11) from tb1;
+sql select acos(c11) from tb1;
+if $data00 != @0.000000000@ then
+  return -1 
+endi
+if $data10 != @NULL@ then
+  return -1 
+endi
+if $data20 != @NULL@ then
+  return -1 
+endi
+if $data30 != @nan@ then
+  return -1 
+endi
+if $data40 != @nan@ then
+  return -1 
+endi
+if $data50 != @nan@ then
+  return -1 
+endi
+if $data60 != @1.570796327@ then
+  return -1 
+endi
+print execute sql select acos(c12) from tb1;
+sql select acos(c12) from tb1;
+if $data00 != @0.000000000@ then
+  return -1 
+endi
+if $data10 != @NULL@ then
+  return -1 
+endi
+if $data20 != @nan@ then
+  return -1 
+endi
+if $data30 != @NULL@ then
+  return -1 
+endi
+if $data40 != @nan@ then
+  return -1 
+endi
+if $data50 != @nan@ then
+  return -1 
+endi
+if $data60 != @1.570796327@ then
+  return -1 
+endi
+print execute sql select acos(c13) from tb1;
+sql select acos(c13) from tb1;
+if $data00 != @0.000000000@ then
+  return -1 
+endi
+if $data10 != @NULL@ then
+  return -1 
+endi
+if $data20 != @NULL@ then
+  return -1 
+endi
+if $data30 != @nan@ then
+  return -1 
+endi
+if $data40 != @nan@ then
+  return -1 
+endi
+if $data50 != @nan@ then
+  return -1 
+endi
+if $data60 != @1.570796327@ then
+  return -1 
+endi
+print execute sql select acos(12345678900000000000000000) from tb1;
+sql_error select acos(12345678900000000000000000) from tb1;
+print execute sql select distinct acos(123) from tb1;
+sql_error select distinct acos(123) from tb1;
+print execute sql select acos(t1) from stb1;
+sql_error select acos(t1) from stb1;
+print execute sql select acos(c1),avg(c3) from tb1;
+sql_error select acos(c1),avg(c3) from tb1;
+print execute sql select acos(c1),top(c3,1) from tb1;
+sql_error select acos(c1),top(c3,1) from tb1;
+print execute sql select acos(c2+c3) from tb1 session(ts, 1s);
+sql_error select acos(c2+c3) from tb1 session(ts, 1s);
+print execute sql select acos(c2+c3) from tb1 STATE_WINDOW(c1);
+sql_error select acos(c2+c3) from tb1 STATE_WINDOW(c1);
+print execute sql select acos(c2+c3) from tb1 interval(1s) sliding(1s) fill(NULL);
+sql_error select acos(c2+c3) from tb1 interval(1s) sliding(1s) fill(NULL);
+print execute sql select acos(c2+c3) from stb1 group by t1;
+sql_error select acos(c2+c3) from stb1 group by t1;
+print execute sql select acos(c2+c3) from stb1 group by ts;
+sql_error select acos(c2+c3) from stb1 group by ts;
+print execute sql select acos(c2+c3) from stb1 group by c1;
+sql_error select acos(c2+c3) from stb1 group by c1;
+print execute sql select acos(c2+c3) from stb1 group by tbname;
+sql_error select acos(c2+c3) from stb1 group by tbname;
+print execute sql select acos(c2+c3) from tb1 order by c2;
+sql_error select acos(c2+c3) from tb1 order by c2;
+print execute sql select acos(c8),acos(c9) from tbn;
+sql_error select acos(c8),acos(c9) from tbn;
+print execute sql select acos(ts) from (select avg(c2) as a from stb1 interval(1s));
+sql_error select acos(ts) from (select avg(c2) as a from stb1 interval(1s));
+print execute sql select acos(a) from (select acos(c2) as a from tb1);
+sql select acos(a) from (select acos(c2) as a from tb1);
+if $data00 != @1.570796327@ then
+  return -1 
+endi
+if $data10 != @NULL@ then
+  return -1 
+endi
+if $data20 != @nan@ then
+  return -1 
+endi
+if $data30 != @NULL@ then
+  return -1 
+endi
+if $data40 != @nan@ then
+  return -1 
+endi
+if $data50 != @nan@ then
+  return -1 
+endi
+if $data60 != @nan@ then
+  return -1 
+endi
+print execute sql select acos("abc") from tb1;
+sql_error select acos("abc") from tb1;
+print execute sql select acos(c2 + c3) from tb1;
+sql select acos(c2 + c3) from tb1;
+if $data00 != @nan@ then
+  return -1 
+endi
+if $data10 != @NULL@ then
+  return -1 
+endi
+if $data20 != @NULL@ then
+  return -1 
+endi
+if $data30 != @NULL@ then
+  return -1 
+endi
+if $data40 != @nan@ then
+  return -1 
+endi
+if $data50 != @nan@ then
+  return -1 
+endi
+if $data60 != @nan@ then
+  return -1 
+endi
+print execute sql select acos((c2 + c3)) from tb1;
+sql select acos((c2 + c3)) from tb1;
+if $data00 != @nan@ then
+  return -1 
+endi
+if $data10 != @NULL@ then
+  return -1 
+endi
+if $data20 != @NULL@ then
+  return -1 
+endi
+if $data30 != @NULL@ then
+  return -1 
+endi
+if $data40 != @nan@ then
+  return -1 
+endi
+if $data50 != @nan@ then
+  return -1 
+endi
+if $data60 != @nan@ then
+  return -1 
+endi
+print execute sql select acos((c2 * c3)+c4-6) from tb1;
+sql select acos((c2 * c3)+c4-6) from tb1;
+if $data00 != @nan@ then
+  return -1 
+endi
+if $data10 != @NULL@ then
+  return -1 
+endi
+if $data20 != @NULL@ then
+  return -1 
+endi
+if $data30 != @NULL@ then
+  return -1 
+endi
+if $data40 != @nan@ then
+  return -1 
+endi
+if $data50 != @nan@ then
+  return -1 
+endi
+if $data60 != @nan@ then
+  return -1 
+endi
+print execute sql select acos(11)+c2 from tb1;
+sql select acos(11)+c2 from tb1;
+if $data00 != @nan@ then
+  return -1 
+endi
+if $data10 != @NULL@ then
+  return -1 
+endi
+if $data20 != @nan@ then
+  return -1 
+endi
+if $data30 != @NULL@ then
+  return -1 
+endi
+if $data40 != @nan@ then
+  return -1 
+endi
+if $data50 != @nan@ then
+  return -1 
+endi
+if $data60 != @nan@ then
+  return -1 
+endi
+print execute sql select acos(c1)+c2 from tb1;
+sql_error select acos(c1)+c2 from tb1;
+print execute sql select acos(c2)+11 from tb1;
+sql select acos(c2)+11 from tb1;
+if $data00 != @11.000000000@ then
+  return -1 
+endi
+if $data10 != @NULL@ then
+  return -1 
+endi
+if $data20 != @nan@ then
+  return -1 
+endi
+if $data30 != @NULL@ then
+  return -1 
+endi
+if $data40 != @nan@ then
+  return -1 
+endi
+if $data50 != @nan@ then
+  return -1 
+endi
+if $data60 != @nan@ then
+  return -1 
+endi
+print execute sql select acos(c1),c1,c2 from tb1;
+sql_error select acos(c1),c1,c2 from tb1;
+print execute sql select acos(c1),t1,ts,tbname,_C0,_c0 from tb1;
+sql_error select acos(c1),t1,ts,tbname,_C0,_c0 from tb1;
+print execute sql select acos(c1),floor(c3) from tb1;
+sql_error select acos(c1),floor(c3) from tb1;
+print execute sql select acos(c1),acos(c2+c3) from tb1;
+sql_error select acos(c1),acos(c2+c3) from tb1;
+print execute sql select acos(c2+c3) from tb1 where c2 is not null and c3 is not null;
+sql select acos(c2+c3) from tb1 where c2 is not null and c3 is not null;
+if $data00 != @nan@ then
+  return -1 
+endi
+if $data10 != @nan@ then
+  return -1 
+endi
+if $data20 != @nan@ then
+  return -1 
+endi
+if $data30 != @nan@ then
+  return -1 
+endi
+print execute sql select acos(c2) from tb1 order by ts desc;
+sql select acos(c2) from tb1 order by ts desc;
+if $data00 != @nan@ then
+  return -1 
+endi
+if $data10 != @nan@ then
+  return -1 
+endi
+if $data20 != @nan@ then
+  return -1 
+endi
+if $data30 != @NULL@ then
+  return -1 
+endi
+if $data40 != @nan@ then
+  return -1 
+endi
+if $data50 != @NULL@ then
+  return -1 
+endi
+if $data60 != @0.000000000@ then
+  return -1 
+endi
+print execute sql select acos(c2+c3) from tb1 order by ts desc;
+sql select acos(c2+c3) from tb1 order by ts desc;
+if $data00 != @nan@ then
+  return -1 
+endi
+if $data10 != @nan@ then
+  return -1 
+endi
+if $data20 != @nan@ then
+  return -1 
+endi
+if $data30 != @NULL@ then
+  return -1 
+endi
+if $data40 != @NULL@ then
+  return -1 
+endi
+if $data50 != @NULL@ then
+  return -1 
+endi
+if $data60 != @nan@ then
+  return -1 
+endi
+print execute sql select acos(c2+c3) from tb1 order by ts desc limit 3 offset 2;
+sql select acos(c2+c3) from tb1 order by ts desc limit 3 offset 2;
+if $data00 != @nan@ then
+  return -1 
+endi
+if $data10 != @NULL@ then
+  return -1 
+endi
+if $data20 != @NULL@ then
+  return -1 
+endi
+print execute sql select acos(c2) from stb1;
+sql select acos(c2) from stb1;
+if $data00 != @0.000000000@ then
+  return -1 
+endi
+if $data10 != @NULL@ then
+  return -1 
+endi
+if $data20 != @nan@ then
+  return -1 
+endi
+if $data30 != @NULL@ then
+  return -1 
+endi
+if $data40 != @nan@ then
+  return -1 
+endi
+if $data50 != @nan@ then
+  return -1 
+endi
+if $data60 != @nan@ then
+  return -1 
+endi
+if $data70 != @0.000000000@ then
+  return -1 
+endi
+if $data80 != @nan@ then
+  return -1 
+endi
+if $data90 != @nan@ then
+  return -1 
+endi
+print execute sql select acos(c2) from stb1 order by ts desc;
+sql select acos(c2) from stb1 order by ts desc;
+if $data00 != @nan@ then
+  if $data00 != @nan@ then
+    return -1 
+  endi
+endi
+if $data20 != @nan@ then
+  if $data20 != @nan@ then
+    return -1 
+  endi
+endi
+if $data40 != @nan@ then
+  if $data40 != @nan@ then
+    return -1 
+  endi
+endi
+if $data60 != @nan@ then
+  if $data60 != @NULL@ then
+    return -1 
+  endi
+endi
+if $data80 != @nan@ then
+  if $data80 != @nan@ then
+    return -1 
+  endi
+endi
+print execute sql select acos(c4),t1 from stb1 order by ts desc;
+sql select acos(c4),t1 from stb1 order by ts desc;
+if $data00 != @nan@ then
+  if $data00 != @nan@ then
+    return -1 
+  endi
+endi
+if $data01 != @2@ then
+  if $data01 != @1@ then
+    return -1 
+  endi
+endi
+if $data20 != @nan@ then
+  if $data20 != @nan@ then
+    return -1 
+  endi
+endi
+if $data21 != @2@ then
+  if $data21 != @1@ then
+    return -1 
+  endi
+endi
+if $data40 != @nan@ then
+  if $data40 != @nan@ then
+    return -1 
+  endi
+endi
+if $data41 != @2@ then
+  if $data41 != @1@ then
+    return -1 
+  endi
+endi
+if $data60 != @nan@ then
+  if $data60 != @NULL@ then
+    return -1 
+  endi
+endi
+if $data61 != @2@ then
+  if $data61 != @1@ then
+    return -1 
+  endi
+endi
+if $data80 != @nan@ then
+  if $data80 != @nan@ then
+    return -1 
+  endi
+endi
+if $data81 != @2@ then
+  if $data81 != @1@ then
+    return -1 
+  endi
+endi
+print execute sql select acos(c3),tbname from stb1;
+sql select acos(c3),tbname from stb1;
+if $data00 != @0.000000000@ then
+  return -1 
+endi
+if $data01 != @tb1@ then
+  return -1 
+endi
+if $data10 != @NULL@ then
+  return -1 
+endi
+if $data11 != @tb1@ then
+  return -1 
+endi
+if $data20 != @NULL@ then
+  return -1 
+endi
+if $data21 != @tb1@ then
+  return -1 
+endi
+if $data30 != @nan@ then
+  return -1 
+endi
+if $data31 != @tb1@ then
+  return -1 
+endi
+if $data40 != @nan@ then
+  return -1 
+endi
+if $data41 != @tb1@ then
+  return -1 
+endi
+if $data50 != @nan@ then
+  return -1 
+endi
+if $data51 != @tb1@ then
+  return -1 
+endi
+if $data60 != @nan@ then
+  return -1 
+endi
+if $data61 != @tb1@ then
+  return -1 
+endi
+if $data70 != @0.000000000@ then
+  return -1 
+endi
+if $data71 != @tb2@ then
+  return -1 
+endi
+if $data80 != @nan@ then
+  return -1 
+endi
+if $data81 != @tb2@ then
+  return -1 
+endi
+if $data90 != @nan@ then
+  return -1 
+endi
+if $data91 != @tb2@ then
+  return -1 
+endi
+print execute sql select acos(c3),tbname from stb1 where t1 > 1;
+sql select acos(c3),tbname from stb1 where t1 > 1;
+if $data00 != @0.000000000@ then
+  return -1 
+endi
+if $data01 != @tb2@ then
+  return -1 
+endi
+if $data10 != @nan@ then
+  return -1 
+endi
+if $data11 != @tb2@ then
+  return -1 
+endi
+if $data20 != @nan@ then
+  return -1 
+endi
+if $data21 != @tb2@ then
+  return -1 
+endi
+if $data30 != @nan@ then
+  return -1 
+endi
+if $data31 != @tb2@ then
+  return -1 
+endi
+if $data40 != @nan@ then
+  return -1 
+endi
+if $data41 != @tb2@ then
+  return -1 
+endi
+if $data50 != @nan@ then
+  return -1 
+endi
+if $data51 != @tb2@ then
+  return -1 
+endi
+if $data60 != @nan@ then
+  return -1 
+endi
+if $data61 != @tb2@ then
+  return -1 
+endi
+print execute sql select acos(c8),acos(c9) from tbn;
+sql_error select acos(c8),acos(c9) from tbn;
+print execute sql select acos(c8),acos(c9) from tbn order by ts desc;
+sql_error select acos(c8),acos(c9) from tbn order by ts desc;
+print execute sql select acos(acos(c8)) from tbn;
+sql_error select acos(acos(c8)) from tbn;
+print execute sql select acos(a) from (select avg(c2) as a from stb1 interval(1s));
+sql select acos(a) from (select avg(c2) as a from stb1 interval(1s));
+if $data00 != @0.000000000@ then
+  return -1 
+endi
+if $data10 != @nan@ then
+  return -1 
+endi
+if $data20 != @nan@ then
+  return -1 
+endi
+if $data30 != @nan@ then
+  return -1 
+endi
+if $data40 != @nan@ then
+  return -1 
+endi
+if $data50 != @nan@ then
+  return -1 
+endi
+if $data60 != @nan@ then
+  return -1 
+endi
+print execute sql select acos(c2) from (select * from stb1);
+sql select acos(c2) from (select * from stb1);
+if $data00 != @0.000000000@ then
+  return -1 
+endi
+if $data10 != @NULL@ then
+  return -1 
+endi
+if $data20 != @nan@ then
+  return -1 
+endi
+if $data30 != @NULL@ then
+  return -1 
+endi
+if $data40 != @nan@ then
+  return -1 
+endi
+if $data50 != @nan@ then
+  return -1 
+endi
+if $data60 != @nan@ then
+  return -1 
+endi
+if $data70 != @0.000000000@ then
+  return -1 
+endi
+if $data80 != @nan@ then
+  return -1 
+endi
+if $data90 != @nan@ then
+  return -1 
+endi
+print execute sql select acos(a) from (select avg(c2) as a from stb1 where ts >= '2021-11-11 09:00:00.000' and ts <= '2021-11-11 09:00:09.000' interval(1s) fill(null));
+sql select acos(a) from (select avg(c2) as a from stb1 where ts >= '2021-11-11 09:00:00.000' and ts <= '2021-11-11 09:00:09.000' interval(1s) fill(null));
+if $data00 != @0.000000000@ then
+  return -1 
+endi
+if $data10 != @nan@ then
+  return -1 
+endi
+if $data20 != @nan@ then
+  return -1 
+endi
+if $data30 != @nan@ then
+  return -1 
+endi
+if $data40 != @nan@ then
+  return -1 
+endi
+if $data50 != @nan@ then
+  return -1 
+endi
+if $data60 != @nan@ then
+  return -1 
+endi
+if $data70 != @NULL@ then
+  return -1 
+endi
+if $data80 != @NULL@ then
+  return -1 
+endi
+if $data90 != @NULL@ then
+  return -1 
+endi
+print execute sql select acos(a) from (select avg(c2) as a from stb1 where ts >= '2021-11-11 09:00:00.000' and ts <= '2021-11-11 09:00:09.000' interval(1s) fill(null)) order by ts;
+sql select acos(a) from (select avg(c2) as a from stb1 where ts >= '2021-11-11 09:00:00.000' and ts <= '2021-11-11 09:00:09.000' interval(1s) fill(null)) order by ts;
+if $data00 != @0.000000000@ then
+  return -1 
+endi
+if $data10 != @nan@ then
+  return -1 
+endi
+if $data20 != @nan@ then
+  return -1 
+endi
+if $data30 != @nan@ then
+  return -1 
+endi
+if $data40 != @nan@ then
+  return -1 
+endi
+if $data50 != @nan@ then
+  return -1 
+endi
+if $data60 != @nan@ then
+  return -1 
+endi
+if $data70 != @NULL@ then
+  return -1 
+endi
+if $data80 != @NULL@ then
+  return -1 
+endi
+if $data90 != @NULL@ then
+  return -1 
+endi
+print execute sql select acos(a) from (select avg(c2) as a from stb1 where ts >= '2021-11-11 09:00:00.000' and ts <= '2021-11-11 09:00:09.000' interval(1s) fill(null)) order by ts desc;
+sql select acos(a) from (select avg(c2) as a from stb1 where ts >= '2021-11-11 09:00:00.000' and ts <= '2021-11-11 09:00:09.000' interval(1s) fill(null)) order by ts desc;
+if $data00 != @NULL@ then
+  return -1 
+endi
+if $data10 != @NULL@ then
+  return -1 
+endi
+if $data20 != @NULL@ then
+  return -1 
+endi
+if $data30 != @nan@ then
+  return -1 
+endi
+if $data40 != @nan@ then
+  return -1 
+endi
+if $data50 != @nan@ then
+  return -1 
+endi
+if $data60 != @nan@ then
+  return -1 
+endi
+if $data70 != @nan@ then
+  return -1 
+endi
+if $data80 != @nan@ then
+  return -1 
+endi
+if $data90 != @0.000000000@ then
+  return -1 
+endi
+print execute sql select acos(a) from (select avg(c2) as a from stb1 where ts >= '2021-11-11 09:00:00.000' and ts <= '2021-11-11 09:00:09.000' interval(1s) fill(null)) order by a desc;
+sql select acos(a) from (select avg(c2) as a from stb1 where ts >= '2021-11-11 09:00:00.000' and ts <= '2021-11-11 09:00:09.000' interval(1s) fill(null)) order by a desc;
+if $data00 != @NULL@ then
+  return -1 
+endi
+if $data10 != @NULL@ then
+  return -1 
+endi
+if $data20 != @NULL@ then
+  return -1 
+endi
+if $data30 != @nan@ then
+  return -1 
+endi
+if $data40 != @nan@ then
+  return -1 
+endi
+if $data50 != @nan@ then
+  return -1 
+endi
+if $data60 != @nan@ then
+  return -1 
+endi
+if $data70 != @nan@ then
+  return -1 
+endi
+if $data80 != @0.000000000@ then
+  return -1 
+endi
+if $data90 != @nan@ then
+  return -1 
+endi
+print execute sql select acos(a) from (select avg(c2) as a from stb1 where ts >= '2021-11-11 09:00:00.000' and ts <= '2021-11-11 09:00:09.000' interval(1s) fill(null)) order by a;
+sql select acos(a) from (select avg(c2) as a from stb1 where ts >= '2021-11-11 09:00:00.000' and ts <= '2021-11-11 09:00:09.000' interval(1s) fill(null)) order by a;
+if $data00 != @nan@ then
+  return -1 
+endi
+if $data10 != @0.000000000@ then
+  return -1 
+endi
+if $data20 != @nan@ then
+  return -1 
+endi
+if $data30 != @nan@ then
+  return -1 
+endi
+if $data40 != @nan@ then
+  return -1 
+endi
+if $data50 != @nan@ then
+  return -1 
+endi
+if $data60 != @nan@ then
+  return -1 
+endi
+if $data70 != @NULL@ then
+  return -1 
+endi
+if $data80 != @NULL@ then
+  return -1 
+endi
+if $data90 != @NULL@ then
+  return -1 
+endi
+print execute sql select acos(a) from (select acos(c2) as a from tb1);
+sql select acos(a) from (select acos(c2) as a from tb1);
+if $data00 != @1.570796327@ then
+  return -1 
+endi
+if $data10 != @NULL@ then
+  return -1 
+endi
+if $data20 != @nan@ then
+  return -1 
+endi
+if $data30 != @NULL@ then
+  return -1 
+endi
+if $data40 != @nan@ then
+  return -1 
+endi
+if $data50 != @nan@ then
+  return -1 
+endi
+if $data60 != @nan@ then
+  return -1 
+endi
+print execute sql select acos(tb1.c3),acos(tb2.c3) from tb1,tb2 where tb1.ts=tb2.ts;
+sql select acos(tb1.c3),acos(tb2.c3) from tb1,tb2 where tb1.ts=tb2.ts;
+if $data00 != @0.000000000@ then
+  return -1 
+endi
+if $data01 != @0.000000000@ then
+  return -1 
+endi
+if $data10 != @NULL@ then
+  return -1 
+endi
+if $data11 != @nan@ then
+  return -1 
+endi
+if $data20 != @NULL@ then
+  return -1 
+endi
+if $data21 != @nan@ then
+  return -1 
+endi
+if $data30 != @nan@ then
+  return -1 
+endi
+if $data31 != @nan@ then
+  return -1 
+endi
+if $data40 != @nan@ then
+  return -1 
+endi
+if $data41 != @nan@ then
+  return -1 
+endi
+if $data50 != @nan@ then
+  return -1 
+endi
+if $data51 != @nan@ then
+  return -1 
+endi
+if $data60 != @nan@ then
+  return -1 
+endi
+if $data61 != @nan@ then
+  return -1 
+endi
+print execute sql select acos(c3) from tb1 union all select acos(c3) from tb2;
+sql select acos(c3) from tb1 union all select acos(c3) from tb2;
+if $data00 != @0.000000000@ then
+  return -1 
+endi
+if $data10 != @NULL@ then
+  return -1 
+endi
+if $data20 != @NULL@ then
+  return -1 
+endi
+if $data30 != @nan@ then
+  return -1 
+endi
+if $data40 != @nan@ then
+  return -1 
+endi
+if $data50 != @nan@ then
+  return -1 
+endi
+if $data60 != @nan@ then
+  return -1 
+endi
+if $data70 != @0.000000000@ then
+  return -1 
+endi
+if $data80 != @nan@ then
+  return -1 
+endi
+if $data90 != @nan@ then
+  return -1 
+endi

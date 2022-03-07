@@ -1,0 +1,126 @@
+sleep 100
+sql connect
+sql use db
+
+print execute sql select log(c2,stb1.c4),log(c2,stba.c5) from stb1,stba where stb1.t1=stba.t1 and stb1.ts=stba.ts;
+sql_error select log(c2,stb1.c4),log(c2,stba.c5) from stb1,stba where stb1.t1=stba.t1 and stb1.ts=stba.ts;
+print execute sql select log(c2,c4) as a from stb1 union all select log(c2,c5) as a from stba;
+sql select log(c2,c4) as a from stb1 union all select log(c2,c5) as a from stba;
+if $data00 != @-nan@ then
+  return -1 
+endi
+if $data10 != @NULL@ then
+  return -1 
+endi
+if $data20 != @1.000000000@ then
+  return -1 
+endi
+if $data30 != @NULL@ then
+  return -1 
+endi
+if $data40 != @1.000000000@ then
+  return -1 
+endi
+if $data50 != @0.225441442@ then
+  return -1 
+endi
+if $data60 != @-nan@ then
+  return -1 
+endi
+if $data70 != @-nan@ then
+  return -1 
+endi
+if $data80 != @1.000000000@ then
+  return -1 
+endi
+if $data90 != @1.584962501@ then
+  return -1 
+endi
+print execute sql select log(c2,c2) from stba;
+sql select log(c2,c2) from stba;
+if $data00 != @-nan@ then
+  return -1 
+endi
+if $data10 != @1.000000000@ then
+  return -1 
+endi
+if $data20 != @1.000000000@ then
+  return -1 
+endi
+if $data30 != @1.000000000@ then
+  return -1 
+endi
+if $data40 != @1.000000000@ then
+  return -1 
+endi
+if $data50 != @1.000000000@ then
+  return -1 
+endi
+if $data60 != @1.000000000@ then
+  return -1 
+endi
+if $data70 != @1.000000000@ then
+  return -1 
+endi
+if $data80 != @1.000000000@ then
+  return -1 
+endi
+if $data90 != @-nan@ then
+  return -1 
+endi
+print execute sql select log(c2,min(c2)) from tba1;
+sql_error select log(c2,min(c2)) from tba1;
+print execute sql select log(c2,max(c2)) from tba1;
+sql_error select log(c2,max(c2)) from tba1;
+print execute sql select log(c2,count(c2)) from tba1;
+sql_error select log(c2,count(c2)) from tba1;
+print execute sql select log(c2,sum(c2)) from tba1;
+sql_error select log(c2,sum(c2)) from tba1;
+print execute sql select log(c2,avg(c2)) from tba1;
+sql_error select log(c2,avg(c2)) from tba1;
+print execute sql select log(c2,percentile(c2, 10)) from tba1;
+sql_error select log(c2,percentile(c2, 10)) from tba1;
+print execute sql select log(c2,apercentile(c2, 10)) from tba1;
+sql_error select log(c2,apercentile(c2, 10)) from tba1;
+print execute sql select log(c2,stddev(c2)) from tba1;
+sql_error select log(c2,stddev(c2)) from tba1;
+print execute sql select log(c2,spread(c2)) from tba1;
+sql_error select log(c2,spread(c2)) from tba1;
+print execute sql select log(c2,twa(c2)) from tba1;
+sql_error select log(c2,twa(c2)) from tba1;
+print execute sql select log(c2,leastsquares(c2, 1, 1)) from tba1;
+sql_error select log(c2,leastsquares(c2, 1, 1)) from tba1;
+print execute sql select log(c2,interp(c2)) from tba1 every(1s)
+sql_error select log(c2,interp(c2)) from tba1 every(1s)
+print execute sql select log(c2,interp(c2)) from stba every(1s) group by tbname;
+sql_error select log(c2,interp(c2)) from stba every(1s) group by tbname;
+print execute sql select log(c2,elapsed(ts)) from tba1;
+sql_error select log(c2,elapsed(ts)) from tba1;
+print execute sql select log(c2,rate(c2)) from tba1;
+sql_error select log(c2,rate(c2)) from tba1;
+print execute sql select log(c2,irate(c2)) from tba1;
+sql_error select log(c2,irate(c2)) from tba1;
+print execute sql select log(c2,first(c2)) from tba1;
+sql_error select log(c2,first(c2)) from tba1;
+print execute sql select log(c2,last(c2)) from tba1;
+sql_error select log(c2,last(c2)) from tba1;
+print execute sql select log(c2,last_row(c2)) from tba1;
+sql_error select log(c2,last_row(c2)) from tba1;
+print execute sql select log(c2,top(c2, 1)) from tba1;
+sql_error select log(c2,top(c2, 1)) from tba1;
+print execute sql select log(c2,bottom(c2, 1)) from tba1;
+sql_error select log(c2,bottom(c2, 1)) from tba1;
+print execute sql select log(c2,leastsquares(c2, 1, 1)) from tba1;
+sql_error select log(c2,leastsquares(c2, 1, 1)) from tba1;
+print execute sql select log(c2,derivative(c2, 1s, 0)) from tba1;
+sql_error select log(c2,derivative(c2, 1s, 0)) from tba1;
+print execute sql select log(c2,diff(c2)) from tba1;
+sql_error select log(c2,diff(c2)) from tba1;
+print execute sql select log(c2,csum(c2)) from tba1;
+sql_error select log(c2,csum(c2)) from tba1;
+print execute sql select log(c2,mavg(c2,2)) from tba1;
+sql_error select log(c2,mavg(c2,2)) from tba1;
+print execute sql select log(c2,sample(c2,2)) from tba1;
+sql_error select log(c2,sample(c2,2)) from tba1;
+print execute sql select log(c2,_block_dist()) from tba1;
+sql_error select log(c2,_block_dist()) from tba1;

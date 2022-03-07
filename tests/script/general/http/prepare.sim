@@ -1,0 +1,54 @@
+system sh/stop_dnodes.sh
+sleep 2000
+system sh/deploy.sh -n dnode1 -i 1
+system sh/cfg.sh -n dnode1 -c walLevel -v 1
+system sh/cfg.sh -n dnode1 -c http -v 1
+system sh/exec.sh -n dnode1 -s start
+
+sleep 2000
+sql connect
+
+print ============================ dnode1 start
+
+print ===============  step1 - prepare data
+sql create database d1
+sql use d1
+
+sql create table t1 (ts timestamp, i int, b binary(100)) 
+
+sql insert into t1 values('2017-12-25 21:28:41.022', 1, 11)
+sql insert into t1 values('2017-12-25 21:28:42.022', 2, '22')
+sql insert into t1 values('2017-12-25 21:28:43.022', 3, "33")
+sql insert into t1 values('2017-12-25 21:28:44.022', 4, '44"')
+sql insert into t1 values('2017-12-25 21:28:45.022', 5, "55'")
+sql insert into t1 values('2017-12-25 21:28:46.022', 6, "66'6'")
+sql insert into t1 values('2017-12-25 21:28:47.022', 7, '77"7"')
+sql insert into t1 values('2017-12-25 21:28:48.022', 8, '88""88')
+sql insert into t1 values('2017-12-25 21:28:49.022', 9, '99\99')
+sql insert into t1 values('2017-12-25 21:28:51.022', 11, '11\\11')
+sql insert into t1 values('2017-12-25 21:28:52.022', 12, '22\\11')
+sql insert into t1 values('2017-12-25 21:28:53.022', 13, '33\\"33')
+sql insert into t1 values('2017-12-25 21:28:54.022', 14, '44\\""44')
+
+sleep 4000
+
+print ===============  step2 - login
+
+system_content curl 127.0.0.1:7111/rest/login/root/taosdata
+print curl 127.0.0.1:7111/rest/login/root/taosdata -----> $system_content
+
+if $system_content != @{"status":"succ","code":0,"desc":"/KfeAzX/f9na8qdtNZmtONryp201ma04bEl8LcvLUd7a8qdtNZmtONryp201ma04"}@ then
+  return -1
+endi
+
+return
+
+print ===============  step3 - query data
+
+system_content curl -H 'Authorization: Bearer eyJ0eXAiOiJKV1QiLCJhbGciOiJIUzI1NiJ9.eyJpc3MiOiJ3d3cudGFvc2RhdGEuY29tIiwia2V5IjoiYkVsOExjdkxVZDdhOHFkdE5abXRPTnJ5cDIwMW1hMDQiLCJzdWIiOiJyb290In0.k7CkgmpOJImIkLqZqzASlPmkdeEw7Wfk4XUrqGZX-LQ' -d 'select * from t1' 127.0.0.1:7111/rest/sql/d1
+print curl 127.0.0.1:7111/rest/sql/d1 -----> $system_content
+if $system_content != @{"status":"succ","head":["ts","i","b"],"data":[["2017-12-25 21:28:54.022",14,"44\\\\\"\"44"],["2017-12-25 21:28:53.022",13,"33\\\\\"33"],["2017-12-25 21:28:52.022",12,"22\\\\11"],["2017-12-25 21:28:51.022",11,"11\\\\11"],["2017-12-25 21:28:49.022",9,"99\\99"],["2017-12-25 21:28:48.022",8,"88\"\"88"],["2017-12-25 21:28:47.022",7,"77\"7\""],["2017-12-25 21:28:46.022",6,"66'6'"],["2017-12-25 21:28:45.022",5,"55'"],["2017-12-25 21:28:44.022",4,"44\""],["2017-12-25 21:28:43.022",3,"33"],["2017-12-25 21:28:42.022",2,"22"],["2017-12-25 21:28:41.022",1,"11"]],"rows":13}@ then
+  return -1
+endi
+
+system sh/exec.sh -n dnode1 -s stop -x SIGINT

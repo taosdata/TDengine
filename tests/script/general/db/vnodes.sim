@@ -1,0 +1,47 @@
+system sh/stop_dnodes.sh
+
+$totalVnodes = 10
+$maxTables = 4
+$totalRows = $totalVnodes * $maxTables
+
+system sh/deploy.sh -n dnode1 -i 1
+system sh/cfg.sh -n dnode1 -c walLevel            -v 1
+system sh/cfg.sh -n dnode1 -c maxTablesPerVnode   -v $maxTables
+system sh/cfg.sh -n dnode1 -c maxVgroupsPerDb     -v $totalVnodes
+system sh/cfg.sh -n dnode1 -c maxVnodeConnections -v 100000
+system sh/cfg.sh -n dnode1 -c maxMeterConnections -v 100000
+system sh/cfg.sh -n dnode1 -c maxShellConns       -v 100000
+system sh/cfg.sh -n dnode1 -c maxMgmtConnections  -v 100000
+
+print ==========  prepare data
+system sh/exec.sh -n dnode1 -s start
+sleep 2000
+sql connect 
+sql create database db blocks 3 cache 1
+sql use db
+
+print ==========  step1
+sql create table mt (ts timestamp, tbcol int) TAGS(tgcol int)
+
+$x = 0
+while $x < $totalRows
+  $tb = t . $x
+  sql create table $tb using mt tags( $x )
+  sql insert into $tb values (now, $x ) 
+  $x = $x + 1
+endw 
+
+print ========== step2
+sql select * from mt
+print $rows
+print $totalRows
+if $rows != $totalRows then
+  return -1
+endi  
+
+sql select count(*) from mt
+if $data00 != $totalRows then
+  return -1
+endi  
+
+system sh/exec.sh -n dnode1 -s stop  -x SIGINT

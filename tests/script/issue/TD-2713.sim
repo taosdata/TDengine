@@ -1,0 +1,145 @@
+system sh/stop_dnodes.sh
+
+system sh/deploy.sh -n dnode1 -i 1
+system sh/deploy.sh -n dnode2 -i 2
+system sh/deploy.sh -n dnode3 -i 3
+system sh/deploy.sh -n dnode4 -i 4
+
+system sh/cfg.sh -n dnode1 -c wallevel -v 2
+system sh/cfg.sh -n dnode2 -c wallevel -v 2
+system sh/cfg.sh -n dnode3 -c wallevel -v 2
+system sh/cfg.sh -n dnode4 -c wallevel -v 2
+
+system sh/cfg.sh -n dnode1 -c numOfMnodes -v 3
+system sh/cfg.sh -n dnode2 -c numOfMnodes -v 3
+system sh/cfg.sh -n dnode3 -c numOfMnodes -v 3
+system sh/cfg.sh -n dnode4 -c numOfMnodes -v 3
+
+system sh/cfg.sh -n dnode1 -c mnodeEqualVnodeNum -v 4
+system sh/cfg.sh -n dnode2 -c mnodeEqualVnodeNum -v 4
+system sh/cfg.sh -n dnode3 -c mnodeEqualVnodeNum -v 4
+system sh/cfg.sh -n dnode4 -c mnodeEqualVnodeNum -v 4
+
+system sh/cfg.sh -n dnode1 -c slaveQuery -v 1
+system sh/cfg.sh -n dnode2 -c slaveQuery -v 1
+system sh/cfg.sh -n dnode3 -c slaveQuery -v 1
+system sh/cfg.sh -n dnode4 -c slaveQuery -v 1
+
+print ========= step1 
+system sh/exec.sh -n dnode1 -s start
+sql connect
+sql create dnode $hostname2
+sql create dnode $hostname3
+system sh/exec.sh -n dnode2 -s start
+system sh/exec.sh -n dnode3 -s start
+
+$x = 0
+step1: 
+	$x = $x + 1
+	sleep 1000
+	if $x == 10 then
+		return -1
+	endi
+
+sql show dnodes
+print dnode1 $data4_1
+print dnode2 $data4_2
+print dnode3 $data4_3
+
+if $data4_1 != ready then
+  goto step1
+endi
+if $data4_2 != ready then
+  goto step1
+endi
+if $data4_3 != ready then
+  goto step1
+endi
+
+sql show mnodes
+print mnode1 $data2_1
+print mnode1 $data2_2
+print mnode1 $data2_3
+if $data2_1 != master then
+  goto step1
+endi
+if $data2_2 != slave then
+  goto step1
+endi
+if $data2_3 != slave then
+  goto step1
+endi
+
+print ========= step2
+sql create database d1 replica 3
+sql create table d1.t1 (ts timestamp, i int)
+sql insert into d1.t1 values(now, 1)
+
+$x = 0
+step2: 
+	$x = $x + 1
+	sleep 1000
+	if $x == 10 then
+		return -1
+	endi
+
+sql show d1.vgroups
+print online vgroups: $data03
+if $data03 != 3 then
+  goto step2
+endi
+sleep 1000
+
+print ========= step3
+$i = 0
+while $i < 100
+	$i = $i + 1
+	sql select * from d1.t1
+	print d1.t1 rows: $rows
+	if $rows != 1 then
+		return -1
+	endi	
+endw 
+
+print ========= step4
+system sh/exec.sh -n dnode1 -s stop  -x SIGINT
+system sh/exec.sh -n dnode2 -s stop  -x SIGINT
+system sh/exec.sh -n dnode3 -s stop  -x SIGINT
+
+system rm -rf ../../../sim/dnode3/data/vnode/vnode2/tsdb/data/*
+system rm -rf ../../../sim/dnode3/data/vnode/vnode2/version.json
+
+system sh/exec.sh -n dnode1 -s start  -x SIGINT
+system sh/exec.sh -n dnode2 -s start  -x SIGINT
+system sh/exec.sh -n dnode3 -s start  -x SIGINT
+
+$x = 0
+step4: 
+	$x = $x + 1
+	sleep 1000
+	if $x == 30 then
+		return -1
+	endi
+
+sql show d1.vgroups
+print online vgroups: $data03
+if $data03 != 3 then
+  goto step4
+endi
+sleep 1000
+
+print ========= step5
+$i = 0
+while $i < 100
+	$i = $i + 1
+	sql select * from d1.t1
+	if $rows != 1 then
+		return -1
+	endi
+	print d1.t1 rows: $rows
+endw 
+
+system sh/exec.sh -n dnode1 -s stop  -x SIGINT
+system sh/exec.sh -n dnode2 -s stop  -x SIGINT
+system sh/exec.sh -n dnode3 -s stop  -x SIGINT
+system sh/exec.sh -n dnode4 -s stop  -x SIGINT
