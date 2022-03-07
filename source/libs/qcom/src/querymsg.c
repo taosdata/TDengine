@@ -97,6 +97,25 @@ int32_t queryBuildUseDbMsg(void *input, char **msg, int32_t msgSize, int32_t *ms
   return TSDB_CODE_SUCCESS;
 }
 
+int32_t queryBuildQnodeListMsg(void *input, char **msg, int32_t msgSize, int32_t *msgLen) {
+  if (NULL == msg || NULL == msgLen) {
+    return TSDB_CODE_TSC_INVALID_INPUT;
+  }
+
+  SQnodeListReq qnodeListReq = {0};
+  qnodeListReq.rowNum = -1;
+
+  int32_t bufLen = tSerializeSQnodeListReq(NULL, 0, &qnodeListReq);
+  void   *pBuf = rpcMallocCont(bufLen);
+  tSerializeSQnodeListReq(pBuf, bufLen, &qnodeListReq);
+
+  *msg = pBuf;
+  *msgLen = bufLen;
+
+  return TSDB_CODE_SUCCESS;
+}
+
+
 int32_t queryProcessUseDBRsp(void *output, char *msg, int32_t msgSize) {
   SUseDbOutput *pOut = output;
   SUseDbRsp     usedbRsp = {0};
@@ -256,14 +275,45 @@ PROCESS_META_OVER:
   return code;
 }
 
+
+int32_t queryProcessQnodeListRsp(void *output, char *msg, int32_t msgSize) {
+  SQnodeListRsp out = {0};
+  int32_t       code = -1;
+
+  if (NULL == output || NULL == msg || msgSize <= 0) {
+    code = TSDB_CODE_TSC_INVALID_INPUT;
+    goto PROCESS_QLIST_OVER;
+  }
+
+  if (tDeserializeSQnodeListRsp(msg, msgSize, &out) != 0) {
+    qError("invalid qnode list rsp msg, msgSize:%d", msgSize);
+    code = TSDB_CODE_INVALID_MSG;
+    goto PROCESS_QLIST_OVER;
+  }
+
+PROCESS_QLIST_OVER:
+
+  if (code != 0) {
+    tFreeSQnodeListRsp(&out);
+    out.epSetList = NULL;
+  }
+
+  *(SArray **)output = out.epSetList;
+
+  return code;
+}
+
+
 void initQueryModuleMsgHandle() {
   queryBuildMsg[TMSG_INDEX(TDMT_VND_TABLE_META)] = queryBuildTableMetaReqMsg;
   queryBuildMsg[TMSG_INDEX(TDMT_MND_TABLE_META)] = queryBuildTableMetaReqMsg;
   queryBuildMsg[TMSG_INDEX(TDMT_MND_USE_DB)] = queryBuildUseDbMsg;
+  queryBuildMsg[TMSG_INDEX(TDMT_MND_QNODE_LIST)] = queryBuildQnodeListMsg;
 
   queryProcessMsgRsp[TMSG_INDEX(TDMT_VND_TABLE_META)] = queryProcessTableMetaRsp;
   queryProcessMsgRsp[TMSG_INDEX(TDMT_MND_TABLE_META)] = queryProcessTableMetaRsp;
   queryProcessMsgRsp[TMSG_INDEX(TDMT_MND_USE_DB)] = queryProcessUseDBRsp;
+  queryProcessMsgRsp[TMSG_INDEX(TDMT_MND_QNODE_LIST)] = queryProcessQnodeListRsp;
 }
 
 #pragma GCC diagnostic pop

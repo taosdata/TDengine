@@ -29,7 +29,9 @@ extern "C" {
 #endif
 
 typedef struct SQnode {
+  int32_t   qndId;
   SQnodeOpt opt;
+  SQHandle*  pQuery;  
 } SQnode;
 
 #ifdef __cplusplus

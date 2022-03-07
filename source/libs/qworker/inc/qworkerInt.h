@@ -26,6 +26,8 @@ extern "C" {
 #define QW_DEFAULT_TASK_NUMBER 10000
 #define QW_DEFAULT_SCH_TASK_NUMBER 10000
 #define QW_DEFAULT_SHORT_RUN_TIMES 2
+#define QW_DEFAULT_HEARTBEAT_MSEC 3000
+
 enum {
   QW_PHASE_PRE_QUERY = 1,
   QW_PHASE_POST_QUERY,
@@ -131,6 +133,8 @@ typedef struct SQWorkerMgmt {
   SQWorkerCfg      cfg;
   int8_t           nodeType;
   int32_t          nodeId;
+  void            *timer;
+  tmr_h            hbTimer;
   SRWLatch         schLock;
   //SRWLatch         ctxLock;
   SHashObj        *schHash;       //key: schedulerId,    value: SQWSchStatus

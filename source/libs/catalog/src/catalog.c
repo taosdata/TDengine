@@ -558,6 +558,42 @@ int32_t ctgAcquireVgInfoFromCache(SCatalog* pCtg, const char *dbFName, SCtgDBCac
   return TSDB_CODE_SUCCESS;
 }
 
+int32_t ctgGetQnodeListFromMnode(SCatalog* pCtg, void *pRpc, const SEpSet* pMgmtEps, SArray **out) {
+  char *msg = NULL;
+  int32_t msgLen = 0;
+
+  ctgDebug("try to get qnode list from mnode, mgmtEpInUse:%d", pMgmtEps->inUse);
+
+  int32_t code = queryBuildMsg[TMSG_INDEX(TDMT_MND_QNODE_LIST)](NULL, &msg, 0, &msgLen);
+  if (code) {
+    ctgError("Build qnode list msg failed, error:%s", tstrerror(code));
+    CTG_ERR_RET(code);
+  }
+  
+  SRpcMsg rpcMsg = {
+      .msgType = TDMT_MND_QNODE_LIST,
+      .pCont   = msg,
+      .contLen = msgLen,
+  };
+
+  SRpcMsg rpcRsp = {0};
+
+  rpcSendRecv(pRpc, (SEpSet*)pMgmtEps, &rpcMsg, &rpcRsp);
+  if (TSDB_CODE_SUCCESS != rpcRsp.code) {
+    ctgError("error rsp for qnode list, error:%s, db:%s", tstrerror(rpcRsp.code));
+    CTG_ERR_RET(rpcRsp.code);
+  }
+
+  code = queryProcessMsgRsp[TMSG_INDEX(TDMT_MND_QNODE_LIST)](out, rpcRsp.pCont, rpcRsp.contLen);
+  if (code) {
+    ctgError("Process qnode list rsp failed, error:%s", tstrerror(rpcRsp.code));
+    CTG_ERR_RET(code);
+  }
+
+  ctgDebug("Got qnode list from mnode, listNum:%d", taosArrayGetSize(*out));
+
+  return TSDB_CODE_SUCCESS;
+}
 
 
 int32_t ctgGetDBVgInfoFromMnode(SCatalog* pCtg, void *pRpc, const SEpSet* pMgmtEps, SBuildUseDBInput *input, SUseDbOutput *out) {
@@ -2600,6 +2636,10 @@ int32_t catalogGetAllMeta(SCatalog* pCtg, void *pTrans, const SEpSet* pMgmtEps, 
         CTG_ERR_JRET(TSDB_CODE_CTG_MEM_ERROR);
       }
     }
+  }
+
+  if (pReq->qNodeRequired) {
+    CTG_ERR_JRET(ctgGetQnodeListFromMnode(pCtg, pTrans, pMgmtEps, &pRsp->pEpSetList));
   }
 
   CTG_API_LEAVE(TSDB_CODE_SUCCESS);
