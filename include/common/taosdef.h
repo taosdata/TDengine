@@ -58,6 +58,8 @@ typedef enum {
 
 extern char *qtypeStr[];
 
+#define TSDB_PORT_HTTP      11
+
 #ifdef __cplusplus
 }
 #endif
