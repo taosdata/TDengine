@@ -2476,7 +2476,8 @@ int32_t addProjectionExprAndResultField(SSqlCmd* pCmd, SQueryInfo* pQueryInfo, t
       return invalidOperationMsg(tscGetErrorMsgPayload(pCmd), msg2);
     }
 
-    if (index.columnIndex < 0 && index.columnIndex >= TSDB_MIN_VALID_COLUMN_INDEX) {
+    //for tbname and other pseudo columns
+    if (index.columnIndex <= TSDB_TBNAME_COLUMN_INDEX && index.columnIndex >= TSDB_MIN_VALID_COLUMN_INDEX) {
       if (outerQuery) {
         STableMetaInfo* pTableMetaInfo = tscGetMetaInfo(pQueryInfo, index.tableIndex);
         int32_t         numOfCols = tscGetNumOfColumns(pTableMetaInfo->pTableMeta);
@@ -2504,17 +2505,22 @@ int32_t addProjectionExprAndResultField(SSqlCmd* pCmd, SQueryInfo* pQueryInfo, t
                                                          TSDB_COL_NORMAL, getNewResColId(pCmd));
       } else {
         SSchema colSchema;
+        int16_t functionId, colType;
         if (index.columnIndex == TSDB_TBNAME_COLUMN_INDEX) {
-           colSchema = *tGetTbnameColumnSchema();
+           colSchema  = *tGetTbnameColumnSchema();
+           functionId = TSDB_FUNC_TAGPRJ;
+           colType    = TSDB_COL_TAG;
         } else {
-           colSchema = *tGetTimeWindowColumnSchema(index.columnIndex);
+           colSchema  = *tGetTimeWindowColumnSchema(index.columnIndex);
+           functionId = TSDB_FUNC_TSWIN;
+           colType    = TSDB_COL_NORMAL;
         }
         char    name[TSDB_COL_NAME_LEN] = {0};
         getColumnName(pItem, name, colSchema.name, sizeof(colSchema.name) - 1);
 
         tstrncpy(colSchema.name, name, TSDB_COL_NAME_LEN);
-        /*SExprInfo* pExpr = */ tscAddFuncInSelectClause(pQueryInfo, startPos, TSDB_FUNC_TAGPRJ, &index, &colSchema,
-                                                         TSDB_COL_TAG, getNewResColId(pCmd));
+        /*SExprInfo* pExpr = */ tscAddFuncInSelectClause(pQueryInfo, startPos, functionId, &index, &colSchema,
+                                                         colType, getNewResColId(pCmd));
       }
       pQueryInfo->type |= TSDB_QUERY_TYPE_PROJECTION_QUERY;
     } else {
@@ -8188,6 +8194,7 @@ static int32_t checkUpdateTagPrjFunctions(SQueryInfo* pQueryInfo, char* msg) {
   int16_t numOfScalar = 0;
   int16_t numOfSelectivity = 0;
   int16_t numOfAggregation = 0;
+  int16_t numOfTimeWindow  = 0;
 
   size_t numOfExprs = taosArrayGetSize(pQueryInfo->exprList);
   for (int32_t i = 0; i < numOfExprs; ++i) {
@@ -8206,6 +8213,10 @@ static int32_t checkUpdateTagPrjFunctions(SQueryInfo* pQueryInfo, char* msg) {
     if (functionId == TSDB_FUNC_TAGPRJ || functionId == TSDB_FUNC_PRJ || functionId == TSDB_FUNC_TS ||
         functionId == TSDB_FUNC_SCALAR_EXPR || functionId == TSDB_FUNC_TS_DUMMY) {
       continue;
+    }
+
+    if (functionId == TSDB_FUNC_TSWIN) {
+      numOfTimeWindow++;
     }
 
     if (functionId < 0) {
@@ -8278,7 +8289,7 @@ static int32_t checkUpdateTagPrjFunctions(SQueryInfo* pQueryInfo, char* msg) {
     }
   } else {
     if ((pQueryInfo->type & TSDB_QUERY_TYPE_PROJECTION_QUERY) != 0) {
-      if (numOfAggregation > 0 && pQueryInfo->groupbyExpr.numOfGroupCols == 0) {
+      if (numOfAggregation > 0 && pQueryInfo->groupbyExpr.numOfGroupCols == 0 && numOfTimeWindow == 0) {
         return invalidOperationMsg(msg, msg2);
       }
 
