@@ -3753,6 +3753,25 @@ static bool isTablenameToken(SStrToken* token) {
   return (tmpToken.n == strlen(TSQL_TBNAME_L) && strncasecmp(TSQL_TBNAME_L, tmpToken.z, tmpToken.n) == 0);
 }
 
+static bool isTimeWindowToken(SStrToken* token, int16_t *columnIndex) {
+  SStrToken tmpToken = *token;
+  SStrToken tableToken = {0};
+
+  extractTableNameFromToken(&tmpToken, &tableToken);
+  if (tmpToken.n == strlen(TSQL_TSWIN_START) && strncasecmp(TSQL_TSWIN_START, tmpToken.z, tmpToken.n)) {
+    *columnIndex = TSDB_TSWIN_START_COLUMN_INDEX;
+    return true;
+  } else if (tmpToken.n == strlen(TSQL_TSWIN_STOP) && strncasecmp(TSQL_TSWIN_STOP, tmpToken.z, tmpToken.n)) {
+    *columnIndex = TSDB_TSWIN_STOP_COLUMN_INDEX;
+    return true;
+  } else if (tmpToken.n == strlen(TSQL_TSWIN_DURATION) && strncasecmp(TSQL_TSWIN_DURATION, tmpToken.z, tmpToken.n)) {
+    *columnIndex = TSDB_TSWIN_DURATION_COLUMN_INDEX;
+    return true;
+  } else {
+    return false;
+  }
+}
+
 static int16_t doGetColumnIndex(SQueryInfo* pQueryInfo, int32_t index, SStrToken* pToken) {
   STableMeta* pTableMeta = tscGetMetaInfo(pQueryInfo, index)->pTableMeta;
 
@@ -3794,6 +3813,24 @@ int32_t doGetColumnIndexByName(SStrToken* pToken, SQueryInfo* pQueryInfo, SColum
   } else if (strlen(DEFAULT_PRIMARY_TIMESTAMP_COL_NAME) == pToken->n &&
             strncasecmp(pToken->z, DEFAULT_PRIMARY_TIMESTAMP_COL_NAME, pToken->n) == 0) {
     pIndex->columnIndex = PRIMARYKEY_TIMESTAMP_COL_INDEX; // just make runtime happy, need fix java test case InsertSpecialCharacterJniTest
+  } else if (isTimeWindowToken(pToken, &pIndex->columnIndex)) {
+    switch (pIndex->columnIndex) {
+      case TSDB_TSWIN_START_COLUMN_INDEX: {
+        pQueryInfo->interval.winFlag |= TSDB_TSWIN_START_FLAG;
+        break;
+      }
+      case TSDB_TSWIN_STOP_COLUMN_INDEX: {
+        pQueryInfo->interval.winFlag |= TSDB_TSWIN_STOP_FLAG;
+        break;
+      }
+      case TSDB_TSWIN_DURATION_COLUMN_INDEX: {
+        pQueryInfo->interval.winFlag |= TSDB_TSWIN_DURATION_FLAG;
+        break;
+      }
+      default: {
+        break;
+      }
+    }
   } else {
     // not specify the table name, try to locate the table index by column name
     if (pIndex->tableIndex == COLUMN_INDEX_INITIAL_VAL) {
