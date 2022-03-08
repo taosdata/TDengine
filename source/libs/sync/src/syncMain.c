@@ -291,6 +291,13 @@ cJSON* syncNode2Json(const SSyncNode* pSyncNode) {
   return pJson;
 }
 
+char* syncNode2Str(const SSyncNode* pSyncNode) {
+  cJSON* pJson = syncNode2Json(pSyncNode);
+  char*  serialized = cJSON_Print(pJson);
+  cJSON_Delete(pJson);
+  return serialized;
+}
+
 int32_t syncNodeSendMsgById(const SRaftId* destRaftId, SSyncNode* pSyncNode, SRpcMsg* pMsg) {
   SEpSet epSet;
   syncUtilraftId2EpSet(destRaftId, &epSet);

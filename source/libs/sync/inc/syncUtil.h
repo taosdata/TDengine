@@ -47,6 +47,7 @@ int32_t     syncUtilElectRandomMS();
 int32_t     syncUtilQuorum(int32_t replicaNum);
 cJSON*      syncUtilNodeInfo2Json(const SNodeInfo* p);
 cJSON*      syncUtilRaftId2Json(const SRaftId* p);
+char*       syncUtilRaftId2Str(const SRaftId* p);
 const char* syncUtilState2String(ESyncState state);
 
 #ifdef __cplusplus

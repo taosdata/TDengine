@@ -131,6 +131,13 @@ cJSON* syncUtilRaftId2Json(const SRaftId* p) {
   return pJson;
 }
 
+char* syncUtilRaftId2Str(const SRaftId* p) {
+  cJSON* pJson = syncUtilRaftId2Json(p);
+  char*  serialized = cJSON_Print(pJson);
+  cJSON_Delete(pJson);
+  return serialized;
+}
+
 const char* syncUtilState2String(ESyncState state) {
   if (state == TAOS_SYNC_STATE_FOLLOWER) {
     return "TAOS_SYNC_STATE_FOLLOWER";

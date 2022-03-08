@@ -63,6 +63,7 @@ void voteGrantedVote(SVotesGranted *pVotesGranted, SyncRequestVoteReply *pMsg) {
     }
   }
   assert(j != -1);
+  assert(j >= 0 && j < pVotesGranted->replicaNum);
 
   if (pVotesGranted->isGranted[j] != true) {
     ++(pVotesGranted->votes);
@@ -87,6 +88,14 @@ cJSON *voteGranted2Json(SVotesGranted *pVotesGranted) {
   for (int i = 0; i < pVotesGranted->replicaNum; ++i) {
     cJSON_AddItemToArray(pReplicas, syncUtilRaftId2Json(&(*(pVotesGranted->replicas)[i])));
   }
+  int *arr = (int *)malloc(sizeof(int) * pVotesGranted->replicaNum);
+  for (int i = 0; i < pVotesGranted->replicaNum; ++i) {
+    arr[i] = pVotesGranted->isGranted[i];
+  }
+  cJSON *pIsGranted = cJSON_CreateIntArray(arr, pVotesGranted->replicaNum);
+  free(arr);
+  cJSON_AddItemToObject(pRoot, "isGranted", pIsGranted);
+
   cJSON_AddNumberToObject(pRoot, "votes", pVotesGranted->votes);
   snprintf(u64buf, sizeof(u64buf), "%lu", pVotesGranted->term);
   cJSON_AddStringToObject(pRoot, "term", u64buf);
@@ -95,6 +104,9 @@ cJSON *voteGranted2Json(SVotesGranted *pVotesGranted) {
   snprintf(u64buf, sizeof(u64buf), "%p", pVotesGranted->pSyncNode);
   cJSON_AddStringToObject(pRoot, "pSyncNode", u64buf);
 
+  bool majority = voteGrantedMajority(pVotesGranted);
+  cJSON_AddNumberToObject(pRoot, "majority", majority);
+
   cJSON *pJson = cJSON_CreateObject();
   cJSON_AddItemToObject(pJson, "SVotesGranted", pRoot);
   return pJson;
@@ -102,7 +114,7 @@ cJSON *voteGranted2Json(SVotesGranted *pVotesGranted) {
 
 char *voteGranted2Str(SVotesGranted *pVotesGranted) {
   cJSON *pJson = voteGranted2Json(pVotesGranted);
-  char * serialized = cJSON_Print(pJson);
+  char  *serialized = cJSON_Print(pJson);
   cJSON_Delete(pJson);
   return serialized;
 }
