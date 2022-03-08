@@ -11,6 +11,7 @@
 
 # -*- coding: utf-8 -*-
 
+from logging.config import dictConfig
 import sys
 import os
 from util.log import *
@@ -21,7 +22,8 @@ import string
 import random
 
 
-class TDTestCase:
+class TDTestCase:    
+
     def init(self, conn, logSql):
         tdLog.debug("start to execute %s" % __file__)
         tdSql.init(conn.cursor(), logSql)
@@ -79,14 +81,14 @@ class TDTestCase:
         os.system("rm /tmp/*.sql")
         os.system("rm /tmp/*.avro*")
         os.system(
-            "%staosdump --databases db -o /tmp -B 16384" %
+            "%staosdump --databases db -o /tmp -B 16384 -y" %
             binPath)
 
         tdSql.execute("drop database db")
         tdSql.query("show databases")
         tdSql.checkRows(0)
 
-        os.system("%staosdump -i /tmp" % binPath)
+        os.system("%staosdump -i /tmp -y" % binPath)
 
         tdSql.query("show databases")
         tdSql.checkRows(1)
@@ -100,20 +102,21 @@ class TDTestCase:
         tdSql.query("select count(*) from t1")
         tdSql.checkData(0, 0, self.numberOfRecords)
 
+        # test case for TS-1225
         tdSql.execute("create database test")
         tdSql.execute("use test")
-        tdSql.execute("create table stb(ts timestamp, c1 binary(16000), c2 binary(16000), c3 binary(10000)) tags(t1 nchar(256))")
-        tdSql.execute("insert into t1 using stb tags('t1') values(now, '%s', '%s', '%s')" % (self.generateString(16000), self.generateString(16000), self.generateString(10000)))
+        tdSql.execute("create table stb(ts timestamp, c1 binary(16374), c2 binary(16374), c3 binary(16374)) tags(t1 nchar(256))")
+        tdSql.execute("insert into t1 using stb tags('t1') values(now, '%s', '%s', '%s')" % (self.generateString(16374), self.generateString(16374), self.generateString(16374)))
         
         os.system("rm /tmp/*.sql")
         os.system("rm /tmp/*.avro*")
-        os.system("%staosdump -D test -o /tmp" % binPath)
+        os.system("%staosdump -D test -o /tmp -y" % binPath)
 
         tdSql.execute("drop database test")
         tdSql.query("show databases")
-        tdSql.checkRows(0)
+        tdSql.checkRows(1)
 
-        os.system("%staosdump -i /tmp" % binPath)
+        os.system("%staosdump -i /tmp -y" % binPath)
 
         tdSql.execute("use test")
         tdSql.error("show vnodes '' ")
