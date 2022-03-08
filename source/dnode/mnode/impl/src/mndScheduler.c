@@ -85,7 +85,7 @@ int32_t mndSchedInitSubEp(SMnode* pMnode, const SMqTopicObj* pTopic, SMqSubscrib
     taosArrayPush(pSub->unassignedVg, &consumerEp);
   }
 
-  qDestroyQueryDag(pDag);
+  /*qDestroyQueryDag(pDag);*/
 
   return 0;
 }
