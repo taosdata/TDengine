@@ -3674,7 +3674,7 @@ void setDefaultOutputBuf(SQueryRuntimeEnv *pRuntimeEnv, SOptrBasicInfo *pInfo, i
     int32_t fid = pCtx[i].functionId;
     if (fid == TSDB_FUNC_TOP || fid == TSDB_FUNC_BOTTOM || fid == TSDB_FUNC_DIFF || fid == TSDB_FUNC_DERIVATIVE ||
         fid == TSDB_FUNC_SAMPLE || fid == TSDB_FUNC_MAVG || fid == TSDB_FUNC_CSUM || fid == TSDB_FUNC_UNIQUE ||
-        fid == TSDB_FUNC_TAIL) {
+        fid == TSDB_FUNC_TAIL || fid == TSDB_FUNC_STATE_COUNT || fid == TSDB_FUNC_STATE_DURATION) {
       if (i > 0) pCtx[i].ptsOutputBuf = pCtx[i-1].pOutput;
     } else if (fid == TSDB_FUNC_INTERP) {
       assert(pCtx[0].functionId == TSDB_FUNC_TS_DUMMY || pCtx[0].functionId == TSDB_FUNC_TS);
@@ -3746,7 +3746,8 @@ void updateOutputBuf(SOptrBasicInfo* pBInfo, int32_t *bufCapacity, int32_t numOf
         functionId == TSDB_FUNC_DIFF || functionId == TSDB_FUNC_DERIVATIVE ||
         functionId == TSDB_FUNC_CSUM || functionId == TSDB_FUNC_MAVG ||
         functionId == TSDB_FUNC_SAMPLE || functionId == TSDB_FUNC_UNIQUE ||
-        functionId == TSDB_FUNC_TAIL) {
+        functionId == TSDB_FUNC_TAIL || functionId == TSDB_FUNC_STATE_COUNT ||
+        functionId == TSDB_FUNC_STATE_DURATION) {
       if (i > 0) pBInfo->pCtx[i].ptsOutputBuf = pBInfo->pCtx[i-1].pOutput;
     } else if (functionId == TSDB_FUNC_INTERP) {
       assert(pBInfo->pCtx[0].functionId == TSDB_FUNC_TS_DUMMY || pBInfo->pCtx[0].functionId == TSDB_FUNC_TS);
@@ -4012,7 +4013,8 @@ void setResultRowOutputBufInitCtx(SQueryRuntimeEnv *pRuntimeEnv, SResultRow *pRe
 
     if (functionId == TSDB_FUNC_TOP || functionId == TSDB_FUNC_BOTTOM || functionId == TSDB_FUNC_DIFF ||
         functionId == TSDB_FUNC_CSUM || functionId == TSDB_FUNC_MAVG || functionId == TSDB_FUNC_SAMPLE ||
-        functionId == TSDB_FUNC_UNIQUE || functionId == TSDB_FUNC_TAIL) {
+        functionId == TSDB_FUNC_UNIQUE || functionId == TSDB_FUNC_TAIL || functionId == TSDB_FUNC_STATE_COUNT ||
+        functionId == TSDB_FUNC_STATE_DURATION ) {
       if(i > 0) pCtx[i].ptsOutputBuf = pCtx[i-1].pOutput;
     }
 
@@ -4083,7 +4085,8 @@ void setResultOutputBuf(SQueryRuntimeEnv *pRuntimeEnv, SResultRow *pResult, SQLF
         functionId == TSDB_FUNC_DIFF || functionId == TSDB_FUNC_DERIVATIVE ||
         functionId == TSDB_FUNC_SAMPLE || functionId == TSDB_FUNC_MAVG ||
         functionId == TSDB_FUNC_CSUM || functionId == TSDB_FUNC_UNIQUE ||
-        functionId == TSDB_FUNC_TAIL) {
+        functionId == TSDB_FUNC_TAIL || functionId == TSDB_FUNC_STATE_COUNT ||
+        functionId == TSDB_FUNC_STATE_DURATION) {
       if(i > 0) pCtx[i].ptsOutputBuf = pCtx[i-1].pOutput;
     }
 

@@ -211,6 +211,14 @@ typedef struct {
   };
 } SDiffFuncInfo;
 
+
+typedef struct {
+  union {
+    int64_t countPrev;
+    int64_t durationStart;
+  };
+} SStateInfo;
+
 typedef struct {
   double lower; // >lower
   double upper; // <=upper
@@ -265,7 +273,8 @@ int32_t getResultDataInfo(int32_t dataType, int32_t dataBytes, int32_t functionI
 
   if (functionId == TSDB_FUNC_TS || functionId == TSDB_FUNC_TS_DUMMY || functionId == TSDB_FUNC_TAG_DUMMY ||
       functionId == TSDB_FUNC_DIFF || functionId == TSDB_FUNC_PRJ || functionId == TSDB_FUNC_TAGPRJ ||
-      functionId == TSDB_FUNC_TAG || functionId == TSDB_FUNC_INTERP)
+      functionId == TSDB_FUNC_TAG || functionId == TSDB_FUNC_INTERP || functionId == TSDB_FUNC_STATE_COUNT ||
+      functionId == TSDB_FUNC_STATE_DURATION)
   {
     *type = (int16_t)dataType;
     *bytes = dataBytes;
@@ -274,6 +283,8 @@ int32_t getResultDataInfo(int32_t dataType, int32_t dataBytes, int32_t functionI
       *interBytes = sizeof(SInterpInfoDetail);
     } else if (functionId == TSDB_FUNC_DIFF) {
       *interBytes = sizeof(SDiffFuncInfo);
+    } else if (functionId == TSDB_FUNC_STATE_COUNT || functionId == TSDB_FUNC_STATE_DURATION) {
+      *interBytes = sizeof(SStateInfo);
     } else {
       *interBytes = 0;
     }
@@ -5647,8 +5658,8 @@ int32_t functionCompatList[] = {
     1,          1,        1,         1,       -1,      1,          1,           1,          5,          1,      1,
     // tid_tag, deriv,    csum,       mavg,        sample,
     6,          8,        -1,         -1,          -1,
-    // block_info,elapsed,histogram,unique,mode,tail
-    7,          1,        -1,        -1,      1,   -1
+    // block_info,elapsed,histogram,unique,mode,tail,  stateCount, stateDuration
+    7,          1,        -1,        -1,      1,   -1, -1,         -1,
 };
 
 SAggFunctionInfo aAggs[TSDB_FUNC_MAX_NUM] = {{
@@ -6157,5 +6168,29 @@ SAggFunctionInfo aAggs[TSDB_FUNC_MAX_NUM] = {{
                              tail_func_finalizer,
                              tail_func_merge,
                              tailFuncRequired,
+                         },
+                         {
+                             // 42
+                             "stateCount",
+                             TSDB_FUNC_STATE_COUNT,
+                             TSDB_FUNC_INVALID_ID,
+                             TSDB_FUNCSTATE_MO | TSDB_FUNCSTATE_STABLE | TSDB_FUNCSTATE_NEED_TS,
+                             diff_function_setup,
+                             diff_function,
+                             doFinalizer,
+                             noop1,
+                             dataBlockRequired,
+                         },
+                         {
+                             // 43
+                             "stateDuration",
+                             TSDB_FUNC_STATE_DURATION,
+                             TSDB_FUNC_INVALID_ID,
+                             TSDB_FUNCSTATE_MO | TSDB_FUNCSTATE_STABLE | TSDB_FUNCSTATE_NEED_TS,
+                             diff_function_setup,
+                             diff_function,
+                             doFinalizer,
+                             noop1,
+                             dataBlockRequired,
                          }
 };
