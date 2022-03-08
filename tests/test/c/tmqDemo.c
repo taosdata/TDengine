@@ -352,7 +352,7 @@ void basic_consume_loop(tmq_t* tmq, tmq_list_t* topics) {
   int32_t cnt = 0;
   /*clock_t startTime = clock();*/
   while (running) {
-    tmq_message_t* tmqmessage = tmq_consumer_poll(tmq, 500);
+    tmq_message_t* tmqmessage = tmq_consumer_poll(tmq, 1);
     if (tmqmessage) {
       cnt++;
       msg_process(tmqmessage);
@@ -383,7 +383,7 @@ void sync_consume_loop(tmq_t* tmq, tmq_list_t* topics) {
   }
 
   while (running) {
-    tmq_message_t* tmqmessage = tmq_consumer_poll(tmq, 500);
+    tmq_message_t* tmqmessage = tmq_consumer_poll(tmq, 1);
     if (tmqmessage) {
       msg_process(tmqmessage);
       tmq_message_destroy(tmqmessage);
@@ -411,7 +411,7 @@ void perf_loop(tmq_t* tmq, tmq_list_t* topics, int32_t totalMsgs, int64_t walLog
   int32_t skipLogNum = 0;
   int64_t startTime = taosGetTimestampUs();
   while (running) {
-    tmq_message_t* tmqmessage = tmq_consumer_poll(tmq, 500);
+    tmq_message_t* tmqmessage = tmq_consumer_poll(tmq, 1);
     if (tmqmessage) {
       batchCnt++;
       skipLogNum += tmqGetSkipLogNum(tmqmessage);

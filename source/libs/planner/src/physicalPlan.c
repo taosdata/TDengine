@@ -254,7 +254,7 @@ static SSubplan* initSubplan(SPlanContext* pCxt, int32_t type) {
 
 static void vgroupInfoToNodeAddr(const SVgroupInfo* vg, SQueryNodeAddr* pNodeAddr) {
   pNodeAddr->nodeId = vg->vgId;
-  pNodeAddr->epset  = vg->epset;
+  pNodeAddr->epSet  = vg->epSet;
 }
 
 static uint64_t splitSubplanByTable(SPlanContext* pCxt, SQueryPlanNode* pPlanNode, SQueryTableInfo* pTableInfo) {
@@ -363,7 +363,7 @@ static void splitModificationOpSubPlan(SPlanContext* pCxt, SQueryPlanNode* pPlan
     SSubplan* subplan = initSubplan(pCxt, QUERY_TYPE_MODIFY);
     SVgDataBlocks* blocks = (SVgDataBlocks*)taosArrayGetP(pPayload->payload, i);
 
-    subplan->execNode.epset = blocks->vg.epset;
+    subplan->execNode.epSet = blocks->vg.epSet;
     subplan->pDataSink  = createDataInserter(pCxt, blocks, NULL);
     subplan->pNode      = NULL;
     subplan->type       = QUERY_TYPE_MODIFY;

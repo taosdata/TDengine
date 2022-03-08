@@ -845,7 +845,7 @@ int32_t ctgGetTableMetaFromVnode(SCatalog* pCtg, void *pTrans, const SEpSet* pMg
   };
 
   SRpcMsg rpcRsp = {0};
-  rpcSendRecv(pTrans, &vgroupInfo->epset, &rpcMsg, &rpcRsp);
+  rpcSendRecv(pTrans, &vgroupInfo->epSet, &rpcMsg, &rpcRsp);
   
   if (TSDB_CODE_SUCCESS != rpcRsp.code) {
     if (CTG_TABLE_NOT_EXIST(rpcRsp.code)) {

@@ -1481,7 +1481,7 @@ static int32_t tSerializeSUseDbRspImp(SCoder *pEncoder, SUseDbRsp *pRsp) {
     if (tEncodeI32(pEncoder, pVgInfo->vgId) < 0) return -1;
     if (tEncodeU32(pEncoder, pVgInfo->hashBegin) < 0) return -1;
     if (tEncodeU32(pEncoder, pVgInfo->hashEnd) < 0) return -1;
-    if (tEncodeSEpSet(pEncoder, &pVgInfo->epset) < 0) return -1;
+    if (tEncodeSEpSet(pEncoder, &pVgInfo->epSet) < 0) return -1;
   }
 
   return 0;
@@ -1541,7 +1541,7 @@ int32_t tDeserializeSUseDbRspImp(SCoder *pDecoder, SUseDbRsp *pRsp) {
     if (tDecodeI32(pDecoder, &vgInfo.vgId) < 0) return -1;
     if (tDecodeU32(pDecoder, &vgInfo.hashBegin) < 0) return -1;
     if (tDecodeU32(pDecoder, &vgInfo.hashEnd) < 0) return -1;
-    if (tDecodeSEpSet(pDecoder, &vgInfo.epset) < 0) return -1;
+    if (tDecodeSEpSet(pDecoder, &vgInfo.epSet) < 0) return -1;
     taosArrayPush(pRsp->pVgroupInfos, &vgInfo);
   }
 
