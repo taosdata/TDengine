@@ -10164,10 +10164,13 @@ int32_t validateSqlNode(SSqlObj* pSql, SSqlNode* pSqlNode, SQueryInfo* pQueryInf
     }
 
     int32_t timeWindowQuery =
-        (TPARSER_HAS_TOKEN(pSqlNode->interval.interval) || TPARSER_HAS_TOKEN(pSqlNode->sessionVal.gap));
-    TSDB_QUERY_SET_TYPE(pQueryInfo->type, TSDB_QUERY_TYPE_TABLE_QUERY);
+        (TPARSER_HAS_TOKEN(pSqlNode->interval.interval) ||
+         TPARSER_HAS_TOKEN(pSqlNode->sessionVal.gap) ||
+         TPARSER_HAS_TOKEN(pSqlNode->windowstateVal.col));
 
     int32_t joinQuery = (pSqlNode->from != NULL && taosArrayGetSize(pSqlNode->from->list) > 1);
+
+    TSDB_QUERY_SET_TYPE(pQueryInfo->type, TSDB_QUERY_TYPE_TABLE_QUERY);
 
     // parse the group by clause in the first place
     if (validateGroupbyNode(pQueryInfo, pSqlNode->pGroupby, pCmd) != TSDB_CODE_SUCCESS) {
@@ -10325,7 +10328,9 @@ int32_t validateSqlNode(SSqlObj* pSql, SSqlNode* pSqlNode, SQueryInfo* pQueryInf
     }
 
     int32_t timeWindowQuery =
-        (TPARSER_HAS_TOKEN(pSqlNode->interval.interval) || TPARSER_HAS_TOKEN(pSqlNode->sessionVal.gap));
+        (TPARSER_HAS_TOKEN(pSqlNode->interval.interval) ||
+         TPARSER_HAS_TOKEN(pSqlNode->sessionVal.gap) ||
+         TPARSER_HAS_TOKEN(pSqlNode->windowstateVal.col));
 
     if (validateSelectNodeList(pCmd, pQueryInfo, pSqlNode->pSelNodeList, joinQuery, timeWindowQuery, false) !=
         TSDB_CODE_SUCCESS) {
