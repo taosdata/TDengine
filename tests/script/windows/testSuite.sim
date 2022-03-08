@@ -1,0 +1,93 @@
+run windows/alter/table.sim   
+run windows/alter/metrics.sim  
+
+run windows/compute/avg.sim         
+run windows/compute/bottom.sim 
+run windows/compute/count.sim       
+run windows/compute/diff.sim       
+run windows/compute/first.sim        
+run windows/compute/interval.sim   
+run windows/compute/last.sim    
+run windows/compute/leastsquare.sim 
+run windows/compute/max.sim           
+run windows/compute/min.sim         
+run windows/compute/percentile.sim   
+run windows/compute/stddev.sim      
+run windows/compute/sum.sim  
+run windows/compute/top.sim 
+
+run windows/db/basic.sim
+run windows/db/len.sim
+
+run windows/field/2.sim
+run windows/field/3.sim
+run windows/field/4.sim
+run windows/field/5.sim
+run windows/field/6.sim
+run windows/field/bigint.sim
+run windows/field/binary.sim
+run windows/field/bool.sim
+run windows/field/double.sim
+run windows/field/float.sim
+run windows/field/int.sim
+run windows/field/single.sim
+run windows/field/smallint.sim
+run windows/field/tinyint.sim
+
+run windows/import/basic.sim   
+
+run windows/insert/basic.sim              
+run windows/insert/query_block1_file.sim   
+run windows/insert/query_block1_memory.sim 
+run windows/insert/query_block2_file.sim   
+run windows/insert/query_block2_memory.sim 
+run windows/insert/query_file_memory.sim   
+run windows/insert/query_multi_file.sim  
+
+run windows/table/binary.sim 
+run windows/table/bool.sim 
+run windows/table/column_num.sim 
+run windows/table/column_name.sim
+run windows/table/column_value.sim 
+run windows/table/db.table.sim 
+run windows/table/double.sim 
+run windows/table/float.sim 
+run windows/table/table_len.sim 
+run windows/table/table.sim 
+
+run windows/tag/3.sim
+run windows/tag/4.sim
+run windows/tag/5.sim
+run windows/tag/6.sim
+run windows/tag/add.sim
+run windows/tag/bigint.sim
+run windows/tag/binary_binary.sim
+run windows/tag/binary.sim
+run windows/tag/bool_binary.sim
+run windows/tag/bool_int.sim
+run windows/tag/bool.sim
+run windows/tag/change.sim 
+run windows/tag/column.sim
+run windows/tag/create.sim
+run windows/tag/delete.sim
+run windows/tag/double.sim
+run windows/tag/filter.sim
+run windows/tag/float.sim
+run windows/tag/int_binary.sim
+run windows/tag/int_float.sim
+run windows/tag/int.sim
+run windows/tag/set.sim
+run windows/tag/smallint.sim
+run windows/tag/tinyint.sim
+
+run windows/vector/metrics_field.sim
+run windows/vector/metrics_mix.sim
+run windows/vector/metrics_query.sim
+run windows/vector/metrics_tag.sim
+run windows/vector/metrics_time.sim
+run windows/vector/multi.sim 
+run windows/vector/single.sim
+run windows/vector/table_field.sim
+run windows/vector/table_mix.sim
+run windows/vector/table_query.sim 
+run windows/vector/table_time.sim
