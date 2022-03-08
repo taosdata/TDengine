@@ -2507,15 +2507,28 @@ int32_t addProjectionExprAndResultField(SSqlCmd* pCmd, SQueryInfo* pQueryInfo, t
         SSchema colSchema;
         int16_t functionId, colType;
         if (index.columnIndex == TSDB_TBNAME_COLUMN_INDEX) {
-           colSchema  = *tGetTbnameColumnSchema();
-           functionId = TSDB_FUNC_TAGPRJ;
-           colType    = TSDB_COL_TAG;
+          colSchema  = *tGetTbnameColumnSchema();
+          functionId = TSDB_FUNC_TAGPRJ;
+          colType    = TSDB_COL_TAG;
         } else {
-           colSchema  = *tGetTimeWindowColumnSchema(index.columnIndex);
-           functionId = TSDB_FUNC_TSWIN;
-           colType    = TSDB_COL_NORMAL;
+          colSchema  = *tGetTimeWindowColumnSchema(index.columnIndex);
+          switch (index.columnIndex) {
+            case TSDB_TSWIN_START_COLUMN_INDEX: {
+              functionId = TSDB_FUNC_WSTART;
+              break;
+            }
+            case TSDB_TSWIN_STOP_COLUMN_INDEX: {
+              functionId = TSDB_FUNC_WSTOP;
+              break;
+            }
+            case TSDB_TSWIN_DURATION_COLUMN_INDEX: {
+              functionId = TSDB_FUNC_WDURATION;
+              break;
+            }
+          }
+          colType = TSDB_COL_NORMAL;
         }
-        char    name[TSDB_COL_NAME_LEN] = {0};
+        char name[TSDB_COL_NAME_LEN] = {0};
         getColumnName(pItem, name, colSchema.name, sizeof(colSchema.name) - 1);
 
         tstrncpy(colSchema.name, name, TSDB_COL_NAME_LEN);
@@ -8215,7 +8228,7 @@ static int32_t checkUpdateTagPrjFunctions(SQueryInfo* pQueryInfo, char* msg) {
       continue;
     }
 
-    if (functionId == TSDB_FUNC_TSWIN) {
+    if (functionId == TSDB_FUNC_WSTART || functionId == TSDB_FUNC_WSTOP || functionId == TSDB_FUNC_WDURATION) {
       numOfTimeWindow++;
     }
 

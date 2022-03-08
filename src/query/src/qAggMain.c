@@ -6146,16 +6146,52 @@ SAggFunctionInfo aAggs[TSDB_FUNC_MAX_NUM] = {{
                              mode_function_merge,
                              dataBlockRequired,
                           },
-                         {
-                             // 41
-                             "tail",
-                             TSDB_FUNC_TAIL,
-                             TSDB_FUNC_TAIL,
-                             TSDB_BASE_FUNC_MO | TSDB_FUNCSTATE_SELECTIVITY,
-                             tail_function_setup,
-                             tail_function,
-                             tail_func_finalizer,
-                             tail_func_merge,
-                             tailFuncRequired,
-                         }
+                          {
+                              // 41
+                              "tail",
+                              TSDB_FUNC_TAIL,
+                              TSDB_FUNC_TAIL,
+                              TSDB_BASE_FUNC_MO | TSDB_FUNCSTATE_SELECTIVITY,
+                              tail_function_setup,
+                              tail_function,
+                              tail_func_finalizer,
+                              tail_func_merge,
+                              tailFuncRequired,
+                          },
+                          {
+                              // 42
+                              "_wstart",
+                              TSDB_FUNC_WSTART,
+                              TSDB_FUNC_WSTART,
+                              TSDB_BASE_FUNC_SO | TSDB_FUNCSTATE_SELECTIVITY,
+                              function_setup,
+                              noop1,
+                              noop1,
+                              noop1,
+                              dataBlockRequired,
+                          },
+                          {
+                              // 43
+                              "_wstop",
+                              TSDB_FUNC_WSTOP,
+                              TSDB_FUNC_WSTOP,
+                              TSDB_BASE_FUNC_SO | TSDB_FUNCSTATE_SELECTIVITY,
+                              function_setup,
+                              noop1,
+                              noop1,
+                              noop1,
+                              dataBlockRequired,
+                          },
+                          {
+                              // 44
+                              "_wduration",
+                              TSDB_FUNC_WDURATION,
+                              TSDB_FUNC_WDURATION,
+                              TSDB_BASE_FUNC_SO | TSDB_FUNCSTATE_SELECTIVITY,
+                              function_setup,
+                              noop1,
+                              noop1,
+                              noop1,
+                              dataBlockRequired,
+                          }
 };

@@ -81,9 +81,11 @@ extern "C" {
 #define TSDB_FUNC_UNIQUE       39
 #define TSDB_FUNC_MODE         40
 #define TSDB_FUNC_TAIL         41
-#define TSDB_FUNC_TSWIN        42
+#define TSDB_FUNC_WSTART       42
+#define TSDB_FUNC_WSTOP        43
+#define TSDB_FUNC_WDURATION    44
 
-#define TSDB_FUNC_MAX_NUM    43
+#define TSDB_FUNC_MAX_NUM    45
 
 #define TSDB_FUNCSTATE_SO           0x1u    // single output
 #define TSDB_FUNCSTATE_MO           0x2u    // dynamic number of output, not multinumber of output e.g., TOP/BOTTOM
