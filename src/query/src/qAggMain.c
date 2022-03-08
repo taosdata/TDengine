@@ -5627,6 +5627,25 @@ static void tail_func_finalizer(SQLFunctionCtx *pCtx) {
   doFinalizer(pCtx);
 }
 
+static void wstart_function(SQLFunctionCtx *pCtx) {
+  SET_VAL(pCtx, pCtx->size, 1);
+  *(int64_t *)(pCtx->pOutput) = pCtx->startTs;
+}
+
+static void wstop_function(SQLFunctionCtx *pCtx) {
+  SET_VAL(pCtx, pCtx->size, 1);
+  *(int64_t *)(pCtx->pOutput) = pCtx->endTs;
+}
+
+static void wduration_function(SQLFunctionCtx *pCtx) {
+  SET_VAL(pCtx, pCtx->size, 1);
+  int64_t duration = pCtx->endTs - pCtx->startTs;
+  if (duration < 0) {
+    duration = -duration;
+  }
+  *(int64_t *)(pCtx->pOutput) = duration;
+}
+
 /////////////////////////////////////////////////////////////////////////////////////////////
 /*
  * function compatible list.
@@ -5639,16 +5658,16 @@ static void tail_func_finalizer(SQLFunctionCtx *pCtx) {
  *
  */
 int32_t functionCompatList[] = {
-    // count,   sum,      avg,       min,      max,    stddev,    percentile,   apercentile, first,   last
+    // count,   sum,      avg,       min,      max,    stddev,    percentile,   apercentile, first,     last
     1,          1,        1,         1,        1,      1,          1,           1,           1,         1,
-    // last_row,top,      bottom,    spread,   twa,    leastsqr,   ts,          ts_dummy,   tag_dummy, ts_comp
-    4,         -1,       -1,         1,        1,      1,          1,           1,          1,          -1,
-    //  tag,    colprj,   tagprj,    arithm,  diff,    first_dist, last_dist,   stddev_dst, interp    rate,    irate
-    1,          1,        1,         1,       -1,      1,          1,           1,          5,          1,      1,
-    // tid_tag, deriv,    csum,       mavg,        sample,
-    6,          8,        -1,         -1,          -1,
-    // block_info,elapsed,histogram,unique,mode,       tail,       tswin
-    7,          1,        -1,        -1,      1,       -1,         1
+    // last_row,top,      bottom,    spread,   twa,    leastsqr,   ts,          ts_dummy,    tag_dummy, ts_comp
+    4,         -1,       -1,         1,        1,      1,          1,           1,           1,         -1,
+    //  tag,    colprj,   tagprj,    arithm,  diff,    first_dist, last_dist,   stddev_dst,  interp     rate,   irate
+    1,          1,        1,         1,       -1,      1,          1,           1,           5,         1,      1,
+    // tid_tag, deriv,    csum,      mavg,    sample,  block_info, elapsed,     histogram,   unique,    mode,   tail
+    6,          8,        -1,        -1,      -1,      7,          1,           -1,          -1,        1,      -1,
+    // wstart,  wstop,    wduration
+    1,          1,        1
 };
 
 SAggFunctionInfo aAggs[TSDB_FUNC_MAX_NUM] = {{
@@ -6165,7 +6184,7 @@ SAggFunctionInfo aAggs[TSDB_FUNC_MAX_NUM] = {{
                               TSDB_FUNC_WSTART,
                               TSDB_BASE_FUNC_SO | TSDB_FUNCSTATE_SELECTIVITY,
                               function_setup,
-                              noop1,
+                              wstart_function,
                               noop1,
                               noop1,
                               dataBlockRequired,
@@ -6177,7 +6196,7 @@ SAggFunctionInfo aAggs[TSDB_FUNC_MAX_NUM] = {{
                               TSDB_FUNC_WSTOP,
                               TSDB_BASE_FUNC_SO | TSDB_FUNCSTATE_SELECTIVITY,
                               function_setup,
-                              noop1,
+                              wstop_function,
                               noop1,
                               noop1,
                               dataBlockRequired,
@@ -6189,7 +6208,7 @@ SAggFunctionInfo aAggs[TSDB_FUNC_MAX_NUM] = {{
                               TSDB_FUNC_WDURATION,
                               TSDB_BASE_FUNC_SO | TSDB_FUNCSTATE_SELECTIVITY,
                               function_setup,
-                              noop1,
+                              wduration_function,
                               noop1,
                               noop1,
                               dataBlockRequired,
