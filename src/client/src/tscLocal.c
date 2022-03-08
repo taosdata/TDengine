@@ -385,7 +385,7 @@ static int32_t tscGetTableTagValue(SCreateBuilder *builder, char *result) {
 
     if (i == num_fields - 1) {
       if (fields[i].type == TSDB_DATA_TYPE_JSON) {
-        sprintf(result + strlen(result) - 1, "%s'", ")");
+        sprintf(result + strlen(result) - 1, "'%s", ")");
       } else {
         sprintf(result + strlen(result) - 1, "%s", ")");
       }
