@@ -47,7 +47,7 @@ int32_t mndSchedInitSubEp(SMnode* pMnode, const SMqTopicObj* pTopic, SMqSubscrib
     return -1;
   }
 
-  SArray* plans = taosArrayGet(pDag->pSubplans, 0);
+  SArray* plans = taosArrayGetP(pDag->pSubplans, 0);
 
   int32_t opNum = taosArrayGetSize(plans);
   if (opNum != 1) {
@@ -85,7 +85,7 @@ int32_t mndSchedInitSubEp(SMnode* pMnode, const SMqTopicObj* pTopic, SMqSubscrib
     taosArrayPush(pSub->unassignedVg, &consumerEp);
   }
 
-  /*qDestroyQueryDag(pDag);*/
+  qDestroyQueryDag(pDag);
 
   return 0;
 }
