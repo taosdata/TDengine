@@ -858,6 +858,55 @@ static int32_t translateCreateSuperTable(STranslateContext* pCxt, SCreateTableSt
   return TSDB_CODE_SUCCESS;
 }
 
+static int32_t doTranslateDropSuperTable(STranslateContext* pCxt, const SName* pTableName, bool ignoreNotExists) {
+  SMDropStbReq dropReq = {0};
+  tNameExtractFullName(pTableName, dropReq.name);
+  dropReq.igNotExists = ignoreNotExists;
+
+  pCxt->pCmdMsg = malloc(sizeof(SCmdMsgInfo));
+  if (NULL== pCxt->pCmdMsg) {
+    return TSDB_CODE_OUT_OF_MEMORY;
+  }
+  pCxt->pCmdMsg->epSet = pCxt->pParseCxt->mgmtEpSet;
+  pCxt->pCmdMsg->msgType = TDMT_MND_DROP_STB;
+  pCxt->pCmdMsg->msgLen = tSerializeSMDropStbReq(NULL, 0, &dropReq);
+  pCxt->pCmdMsg->pMsg = malloc(pCxt->pCmdMsg->msgLen);
+  if (NULL== pCxt->pCmdMsg->pMsg) {
+    return TSDB_CODE_OUT_OF_MEMORY;
+  }
+  tSerializeSMDropStbReq(pCxt->pCmdMsg->pMsg, pCxt->pCmdMsg->msgLen, &dropReq);
+
+  return TSDB_CODE_SUCCESS;
+}
+
+static int32_t translateDropTable(STranslateContext* pCxt, SDropTableStmt* pStmt) {
+  SDropTableClause* pClause = nodesListGetNode(pStmt->pTables, 0);
+
+  SName tableName = { .type = TSDB_TABLE_NAME_T, .acctId = pCxt->pParseCxt->acctId };
+  strcpy(tableName.dbname, pClause->dbName);
+  strcpy(tableName.tname, pClause->tableName);
+  STableMeta* pTableMeta = NULL;
+  int32_t code = catalogGetTableMeta(pCxt->pParseCxt->pCatalog, pCxt->pParseCxt->pTransporter, &(pCxt->pParseCxt->mgmtEpSet), &tableName, &pTableMeta);
+  if (TSDB_CODE_SUCCESS == code) {
+    if (TSDB_SUPER_TABLE == pTableMeta->tableType) {
+      code = doTranslateDropSuperTable(pCxt, &tableName, pClause->ignoreNotExists);
+    } else {
+      // todo;
+      code = TSDB_CODE_FAILED;
+    }
+  }
+  tfree(pTableMeta);
+
+  return code;
+}
+
+static int32_t translateDropSuperTable(STranslateContext* pCxt, SDropSuperTableStmt* pStmt) {
+  SName tableName = { .type = TSDB_TABLE_NAME_T, .acctId = pCxt->pParseCxt->acctId };
+  strcpy(tableName.dbname, pStmt->dbName);
+  strcpy(tableName.tname, pStmt->tableName);
+  return doTranslateDropSuperTable(pCxt, &tableName, pStmt->ignoreNotExists);
+}
+
 static int32_t translateUseDatabase(STranslateContext* pCxt, SUseDatabaseStmt* pStmt) {
   SName name = {0};
   tNameSetDbName(&name, pCxt->pParseCxt->acctId, pStmt->dbName, strlen(pStmt->dbName));
@@ -1005,17 +1054,19 @@ static int32_t nodeTypeToShowType(ENodeType nt) {
       return TSDB_MGMT_TABLE_USER;
     case QUERY_NODE_SHOW_DNODES_STMT:
       return TSDB_MGMT_TABLE_DNODE;
+    case QUERY_NODE_SHOW_VGROUPS_STMT:
+      return TSDB_MGMT_TABLE_VGROUP;
     default:
       break;
   }
   return 0;
 }
 
-static int32_t translateShow(STranslateContext* pCxt, ENodeType type) {
-  SShowReq showReq = { .type = nodeTypeToShowType(type) };
-  if (NULL != pCxt->pParseCxt->db) {
+static int32_t translateShow(STranslateContext* pCxt, SShowStmt* pStmt) {
+  SShowReq showReq = { .type = nodeTypeToShowType(nodeType(pStmt)) };
+  if ('\0' != pStmt->dbName[0]) {
     SName name = {0};
-    tNameSetDbName(&name, pCxt->pParseCxt->acctId, pCxt->pParseCxt->db, strlen(pCxt->pParseCxt->db));
+    tNameSetDbName(&name, pCxt->pParseCxt->acctId, pStmt->dbName, strlen(pStmt->dbName));
     char dbFname[TSDB_DB_FNAME_LEN] = {0};
     tNameGetFullDbName(&name, showReq.db);
   }
@@ -1079,6 +1130,12 @@ static int32_t translateQuery(STranslateContext* pCxt, SNode* pNode) {
     case QUERY_NODE_CREATE_TABLE_STMT:
       code = translateCreateSuperTable(pCxt, (SCreateTableStmt*)pNode);
       break;
+    case QUERY_NODE_DROP_TABLE_STMT:
+      code = translateDropTable(pCxt, (SDropTableStmt*)pNode);
+      break;
+    case QUERY_NODE_DROP_SUPER_TABLE_STMT:
+      code = translateDropSuperTable(pCxt, (SDropSuperTableStmt*)pNode);
+      break;
     case QUERY_NODE_CREATE_USER_STMT:
       code = translateCreateUser(pCxt, (SCreateUserStmt*)pNode);
       break;
@@ -1101,7 +1158,8 @@ static int32_t translateQuery(STranslateContext* pCxt, SNode* pNode) {
     case QUERY_NODE_SHOW_STABLES_STMT:
     case QUERY_NODE_SHOW_USERS_STMT:
     case QUERY_NODE_SHOW_DNODES_STMT:
-      code = translateShow(pCxt, nodeType(pNode));
+    case QUERY_NODE_SHOW_VGROUPS_STMT:
+      code = translateShow(pCxt, (SShowStmt*)pNode);
       break;
     case QUERY_NODE_SHOW_TABLES_STMT:
       code = translateShowTables(pCxt);

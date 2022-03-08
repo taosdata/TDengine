@@ -112,6 +112,13 @@ typedef struct SDropTableStmt {
   SNodeList* pTables;
 } SDropTableStmt;
 
+typedef struct SDropSuperTableStmt {
+  ENodeType type;
+  char dbName[TSDB_DB_NAME_LEN];
+  char tableName[TSDB_TABLE_NAME_LEN];
+  bool ignoreNotExists;
+} SDropSuperTableStmt;
+
 typedef struct SCreateUserStmt {
   ENodeType type;
   char useName[TSDB_USER_LEN];
@@ -142,6 +149,11 @@ typedef struct SDropDnodeStmt {
   char fqdn[TSDB_FQDN_LEN];
   int32_t port;
 } SDropDnodeStmt;
+
+typedef struct SShowStmt {
+  ENodeType type;
+  char dbName[TSDB_DB_NAME_LEN];
+} SShowStmt;
 
 #ifdef __cplusplus
 }
